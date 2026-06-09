@@ -262,9 +262,6 @@ void vPortSuppressTicksAndSleep( TickType_t xExpectedIdleTime )
     /* we can use taskENTER_CRITICAL() to enter a critical section, because
        in critical section also use primask to mask interrupts,this will not
        destory the existing logic.  */
-	__asm volatile ( "cpsid i" ::: "memory" );
-	__asm volatile ( "dsb" );
-	__asm volatile ( "isb" );
     prvTakeKernelLock();
 
 	/* If a context switch is pending or a task is waiting for the scheduler
@@ -285,7 +282,6 @@ void vPortSuppressTicksAndSleep( TickType_t xExpectedIdleTime )
 		* above. */
 		// __asm volatile ( "cpsie i" ::: "memory" );
         prvReleaseKernelLock();
-		__asm volatile ( "cpsie i" ::: "memory" );
         
 	} else {
 		/* Set the new reload value. */
@@ -308,18 +304,18 @@ void vPortSuppressTicksAndSleep( TickType_t xExpectedIdleTime )
 		configPRE_SLEEP_PROCESSING( xModifiableIdleTime );
 
 		if( xModifiableIdleTime > 0 ) {
-			prvReleaseKernelLock();
 #if CONFIG_PM
 			pm_suspend(xModifiableIdleTime);
 #else
 			bk_pm_suppress_ticks_and_sleep(xModifiableIdleTime);
 #endif
-			prvTakeKernelLock();
 		}
 
 		configPOST_SLEEP_PROCESSING( xExpectedIdleTime );
 		#if CONFIG_UPDATE_TICK_THEN_ENABLE_INT
+		prvTakeKernelLock();
 		systick_gated_update(xExpectedIdleTime, ulReloadValue);//it improve the systick update when adding here,otherwize the systick update fail and enter the vPortSuppressTicksAndSleep() fail
+		prvReleaseKernelLock();
 		#endif
 		/* Re-enable interrupts to allow the interrupt that brought the MCU
 		* out of sleep mode to execute immediately. See comments above
@@ -336,7 +332,9 @@ void vPortSuppressTicksAndSleep( TickType_t xExpectedIdleTime )
 		__asm volatile ( "dsb" );
 		__asm volatile ( "isb" );
 #if CONFIG_UPDATE_TICK_THEN_ENABLE_INT
+		prvTakeKernelLock();
 		systick_gated_update(xExpectedIdleTime, ulReloadValue);//it improve the systick update when adding here,otherwize the systick update fail and enter the vPortSuppressTicksAndSleep() fai
+		prvReleaseKernelLock();
 #else
 		systick_update(xExpectedIdleTime, ulReloadValue);
 #endif
@@ -346,7 +344,6 @@ void vPortSuppressTicksAndSleep( TickType_t xExpectedIdleTime )
 		/* Exit with interrupts enabled. we used the critical to block interruption,
         so should also be used accordingly here*/
         prvReleaseKernelLock();
-		__asm volatile ( "cpsie i" ::: "memory" );
 	}
 }
 #endif
