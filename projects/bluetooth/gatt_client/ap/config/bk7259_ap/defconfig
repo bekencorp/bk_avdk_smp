@@ -1,0 +1,11 @@
+#
+# Automatically generated project default config. You can update it with menuconfig [D] option.
+# This file contains only differences compared to board defconfig.
+#
+
+
+CONFIG_BLUETOOTH_AP=y
+CONFIG_BLUETOOTH_HOST_ONLY=y
+CONFIG_BLE=y
+# CONFIG_BT is not set
+CONFIG_CLI=y

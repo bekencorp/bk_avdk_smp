@@ -1,0 +1,4 @@
+case名称,测试命令（必填）,输入设备（1代表设备1，2代表设备2以此类推，不填默认为设备1）,期望结果（选填）,超时时间(s)
+ble_gatts_help,ap_cmd ble_gatts help,1,BLE GATTS RSP:OK,10
+ble_gatts_adv_stop,ap_cmd ble_gatts adv_en 0,1,BLE GATTS RSP:OK,10
+ble_gatts_adv_start,ap_cmd ble_gatts adv_en 1,1,BLE GATTS RSP:OK,10

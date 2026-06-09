@@ -1,0 +1,4 @@
+case名称,测试命令（必填）,输入设备（1代表设备1，2代表设备2以此类推，不填默认为设备1）,期望结果（选填）,超时时间(s)
+ble_gattc_help,ap_cmd ble_gattc help,1,BLE GATTC RSP:OK,10
+ble_gattc_scan_start,ap_cmd ble_gattc scan 1,1,BLE GATTC RSP:OK,10
+ble_gattc_scan_stop,ap_cmd ble_gattc scan 0,1,BLE GATTC RSP:OK,10
