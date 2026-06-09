@@ -220,6 +220,20 @@ typedef enum
     BK_BLE_AD_TYPE_TRANS_DISC_DATA    = 0x26,
     BK_BLE_AD_TYPE_LE_SUPPORT_FEATURE = 0x27,
     BK_BLE_AD_TYPE_CHAN_MAP_UPDATE    = 0x28,
+    BK_BLE_AD_TYPE_PB_ADV             = 0x29,
+    BK_BLE_AD_TYPE_MESH_MESSAGE       = 0x2a,
+    BK_BLE_AD_TYPE_MESH_BEACON        = 0x2b,
+    BK_BLE_AD_TYPE_BIG_INFO           = 0x2c,
+    BK_BLE_AD_TYPE_BROADCAST_CODE     = 0x2d,
+    BK_BLE_AD_TYPE_RESOLV_SET_ID      = 0x2e,
+    BK_BLE_AD_TYPE_ADV_INTERVAL_LONG  = 0x2f,
+    BK_BLE_AD_TYPE_BROADCAST_NAME     = 0x30,
+    BK_BLE_AD_TYPE_ENCRYPTED_ADV      = 0x31,
+    BK_BLE_AD_TYPE_PER_ADV_RTI        = 0x32,
+
+    BK_BLE_AD_TYPE_ELEC_SHELF_LABEL   = 0x34,
+
+    BK_BLE_AD_TYPE_3D_INFO_DATA       = 0x3d,
 
     BK_BLE_AD_TYPE_MANU               = 0xFF,
 } bk_ble_adv_data_type;
@@ -850,8 +864,8 @@ typedef uint8_t bk_ble_gap_adv_type_t;
 typedef struct
 {
     bk_ble_ext_adv_type_mask_t type;   /*!< ext adv type */
-    uint32_t interval_min;              /*!< ext adv minimum interval */
-    uint32_t interval_max;              /*!< ext adv maximum interval */
+    uint32_t interval_min;              /*!< ext adv minimum interval in 0.625ms. Range: 20 ms to 10485.759375s */
+    uint32_t interval_max;              /*!< ext adv maximum interval in 0.625ms. Range: 20 ms to 10485.759375s */
     bk_ble_adv_channel_t channel_map;  /*!< ext adv channel map */
     bk_ble_addr_type_t own_addr_type;  /*!< ext adv own address type */
     bk_ble_addr_type_t peer_addr_type; /*!< ext adv peer address type, only BLE_ADDR_TYPE_PUBLIC and BLE_ADDR_TYPE_RANDOM is valid */
@@ -871,8 +885,8 @@ typedef struct
 typedef struct
 {
     bk_ble_scan_type_t scan_type; /*!< ext scan type */
-    uint16_t scan_interval;        /*!< ext scan interval */
-    uint16_t scan_window;          /*!< ext scan window */
+    uint16_t scan_interval;        /*!< ext scan interval (in unit of 0.625ms, range: 2.5 ms to 40.959375s) */
+    uint16_t scan_window;          /*!< ext scan window (in unit of 0.625ms, range: 2.5 ms to 40.959375s) */
 } bk_ble_ext_scan_cfg_t;
 
 /**
@@ -1437,4 +1451,3 @@ typedef void (* bk_ble_gap_cb_t)(bk_ble_gap_cb_event_t event, bk_ble_gap_cb_para
 #ifdef __cplusplus
 }
 #endif
-

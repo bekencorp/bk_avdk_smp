@@ -6101,6 +6101,10 @@ int ble_enable_packet_loss_ratio_test_handle(int sync, int argc, char **argv)
             bk_ble_register_app_sdp_common_callback(ble_plr_sdp_comm_callback);
             bk_ble_register_app_sdp_charac_callback(ble_plr_sdp_charac_callback);
         }
+        else
+        {
+            LOGE("%s can't set because ethermind host\n", __func__);
+        }
     }
     else if (cmd == 2)
     {

@@ -1,19 +1,21 @@
 #include "bk_cli.h"
 #include <common/sys_config.h>
 #include "bk_phy.h"
+#include <string.h>
+#include <components/log.h>
 
 extern void ble_command(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv);//TODO
 
 #define BLE_CMD_CNT (sizeof(s_ble_commands) / sizeof(struct cli_command))
 
 static const struct cli_command s_ble_commands[] = {
-#if CONFIG_BLUETOOTH
+#if CONFIG_BLUETOOTH_AP && CONFIG_BT && CONFIG_BLE
 	{"ble", "ble arg1 arg2",  ble_command},
 #endif
 
-#if (!CONFIG_WIFI_ENABLE)
-	{"rfcali_show_data",     "",                      cmd_rfcali_show_data},
-#endif
+// #if (!CONFIG_WIFI_ENABLE)
+// 	{"rfcali_show_data",     "",                      cmd_rfcali_show_data},
+// #endif
 };
 
 int cli_ble_init(void)

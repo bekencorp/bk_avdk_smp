@@ -58,6 +58,13 @@ bk_bluetooth_status_t bk_bluetooth_get_status(void)
 
 static int bluetooth_deepsleep_enter_cb(uint64_t expected_time_ms, void *args)
 {
+    LOGW("%s start %p\n", __func__, bluetooth_mutex);
+
+    if(bluetooth_mutex)
+    {
+        rtos_lock_recursive_mutex(&bluetooth_mutex);
+    }
+
     if (bluetooth_already_init)
     {
 #if !CONFIG_BTDM_CONTROLLER_ONLY
@@ -68,12 +75,33 @@ static int bluetooth_deepsleep_enter_cb(uint64_t expected_time_ms, void *args)
 
         bluetooth_already_init = 0;
     }
+    else
+    {
+        LOGW("%s already deinit\n", __func__);
+    }
+
+    if(bluetooth_mutex)
+    {
+        rtos_unlock_recursive_mutex(&bluetooth_mutex);
+    }
+
+    LOGW("%s end %p\n", __func__, bluetooth_mutex);
+
     return 0;
 }
 
 bt_err_t bk_bluetooth_init(void)
 {
     bt_err_t ret = 0;
+
+    if (!bluetooth_mutex)
+    {
+        if(rtos_init_recursive_mutex(&bluetooth_mutex))
+        {
+            LOGE("%s init bluetooth_mutex err\n", __func__);
+            BK_ASSERT(0);
+        }
+    }
 
     if (bluetooth_already_init)
     {
@@ -101,9 +129,9 @@ bt_err_t bk_bluetooth_init(void)
         //only init ipc
         //bluetooth_already_init = 1;
         LOGD("%s init ipc ok\r\n", __func__);
-        #if CONFIG_BLUETOOTH_MULTI_CONTROLLER
+#if CONFIG_BLUETOOTH_MULTI_CONTROLLER
         return 0;
-        #endif
+#endif
     }
     else if(ret == 1)
     {
@@ -162,10 +190,6 @@ bt_err_t bk_bluetooth_init(void)
     extern void ble_at_cmd_init(void);
     ble_at_cmd_init();
 #endif
-    if (bluetooth_mutex == NULL)
-    {
-        rtos_init_mutex(&bluetooth_mutex);
-    }
 
     bluetooth_already_init = 1;
     LOGD("%s ok\r\n", __func__);
@@ -175,11 +199,16 @@ bt_err_t bk_bluetooth_init(void)
 bt_err_t bk_bluetooth_deinit(void)
 {
     bt_err_t ret;
-    rtos_lock_mutex(&bluetooth_mutex);
+    if (bluetooth_mutex == NULL)
+    {
+        LOGW("%s, please init bluetooth first\r\n", __func__);
+        return BK_ERR_BT_FAIL;
+    }
+    rtos_lock_recursive_mutex(&bluetooth_mutex);
     if (!bluetooth_already_init)
     {
         LOGW("%s bluetooth already de-initialised\r\n", __func__);
-        rtos_unlock_mutex(&bluetooth_mutex);
+        rtos_unlock_recursive_mutex(&bluetooth_mutex);
         return 0;
     }
     LOGD("%s start, %d \r\n", __func__, bluetooth_already_init);
@@ -188,7 +217,7 @@ bt_err_t bk_bluetooth_deinit(void)
     if (ret)
     {
         LOGW("%s deinit host failed\r\n", __func__);
-        rtos_unlock_mutex(&bluetooth_mutex);
+        rtos_unlock_recursive_mutex(&bluetooth_mutex);
         return ret;
     }
 #else
@@ -203,7 +232,7 @@ bt_err_t bk_bluetooth_deinit(void)
         if (ret)
         {
             LOGE("%s deinit bsc failed\r\n", __func__);
-            rtos_unlock_mutex(&bluetooth_mutex);
+            rtos_unlock_recursive_mutex(&bluetooth_mutex);
             return ret;
         }
 
@@ -215,7 +244,7 @@ bt_err_t bk_bluetooth_deinit(void)
     if (ret)
     {
         LOGW("%s deinit controller failed\r\n", __func__);
-        rtos_unlock_mutex(&bluetooth_mutex);
+        rtos_unlock_recursive_mutex(&bluetooth_mutex);
         return ret;
     }
 
@@ -230,7 +259,7 @@ bt_err_t bk_bluetooth_deinit(void)
     bluetooth_already_init = 0;
 
     LOGD("%s ok, %d \r\n", __func__, bluetooth_already_init);
-    rtos_unlock_mutex(&bluetooth_mutex);
+    rtos_unlock_recursive_mutex(&bluetooth_mutex);
     return ret;
 }
 

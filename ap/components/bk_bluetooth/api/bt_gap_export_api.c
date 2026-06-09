@@ -40,11 +40,11 @@ bk_err_t bk_bt_gap_start_discovery(bk_bt_inq_mode_t mode, uint8_t inq_len, uint8
     bt_inquiry_msg_t tmp = {0};
     if (mode == BK_BT_INQ_MODE_GENERAL_INQUIRY)
     {
-        tmp.lap = 0x9e8B33U;
+        tmp.lap = 0x9E8B33U;
     }
     else
     {
-        tmp.lap = 0x9e8B33U;
+        tmp.lap = 0x9E8B00U;
     }
     tmp.len = inq_len;
     if (inq_len > BK_BT_GAP_MAX_INQ_LEN || inq_len < BK_BT_GAP_MIN_INQ_LEN)
@@ -279,9 +279,23 @@ bt_err_t bk_bt_gap_set_page_scan_activity(uint16_t interval, uint16_t window)
     return bt_ethermind_post_msg(BT_ETHERMIND_MSG_API_REQ, BT_ETHERMIND_GAP_API_REQ_SUBMSG_SET_PAGE_SCAN_ACTIVITY, &msg, sizeof(msg), NULL);
 }
 
+bt_err_t bk_bt_gap_set_inquiry_scan_activity(uint16_t interval, uint16_t window)
+{
+    bt_page_scan_activity_msg_t msg = {0};
+    msg.interval = interval;
+    msg.window = window;
+
+    return bt_ethermind_post_msg(BT_ETHERMIND_MSG_API_REQ, BT_ETHERMIND_GAP_API_REQ_SUBMSG_SET_INQUIRY_SCAN_ACTIVITY, &msg, sizeof(msg), NULL);
+}
+
 bt_err_t bk_bt_gap_authentication_request(uint8_t *addr)
 {
     return bt_ethermind_post_msg(BT_ETHERMIND_MSG_GAP_API_REQ, BT_ETHERMIND_GAP_API_REQ_SUBMSG_AUTHENTICATION_REQUEST, addr, 6, NULL);
+}
+
+bt_err_t bk_bt_gap_encryption_request(uint8_t *addr)
+{
+    return bt_ethermind_post_msg(BT_ETHERMIND_MSG_GAP_API_REQ, BT_ETHERMIND_GAP_API_REQ_SUBMSG_ENCRYPTION_REQUEST, addr, 6, NULL);
 }
 
 bk_err_t bk_bt_gap_set_auto_sniff_policy(bk_bd_addr_t remote_bda, uint32_t sec, bk_bt_gap_sniff_config *config)

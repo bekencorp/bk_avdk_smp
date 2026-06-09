@@ -8,6 +8,7 @@
 #include "bk_avrcp_tg_service.h"
 
 #include "components/bluetooth/bk_dm_avrcp.h"
+#include "bt_manager.h"
 
 #define TAG "bk_avrcp_ct"
 

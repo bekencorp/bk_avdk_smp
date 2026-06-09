@@ -16,7 +16,7 @@
 #include "bluetooth_storage.h"
 #include "bt_manager.h"
 #include "a2dp_sink_demo.h"
-
+#include "components/bluetooth/bk_dm_avrcp.h"
 #define TAG "a2dp_sink_demo"
 
 #define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
@@ -653,6 +653,43 @@ int a2dp_sink_demo_init(uint8_t aac_supported, uint8_t auto_accept_conn)
         a2dp_sink_task_deinit();
         return BK_FAIL;
     }
+
+#if AVRCP_MODIFY_SDP_FEAT
+    {
+        uint16_t feat = 0;
+        uint16_t allow = 0;
+
+        bk_bt_avrcp_ct_sdp_feature_operation(BK_AVRCP_SDP_FEATURE_API_METHOD_GET_ALLOWED, &allow);
+        bk_bt_avrcp_ct_sdp_feature_operation(BK_AVRCP_SDP_FEATURE_API_METHOD_GET_CURRENT_ENABLE, &feat);
+        LOGI("%s current ct enable 0x%x\n", __func__, feat);
+        //headset doesn't need cat 2 as ct
+        feat &= ~(BK_AVRCP_SDP_FEATURE_CT_CAT_2 | BK_AVRCP_SDP_FEATURE_CT_CAT_3 | BK_AVRCP_SDP_FEATURE_CT_CAT_4
+                        | BK_AVRCP_SDP_FEATURE_CT_SUPPORT_BROWSING | BK_AVRCP_SDP_FEATURE_CT_SUPPORT_CA_GIP | BK_AVRCP_SDP_FEATURE_CT_SUPPORT_CA_GI | BK_AVRCP_SDP_FEATURE_CT_SUPPORT_CA_GLT);
+        feat &= allow;
+        bk_bt_avrcp_ct_sdp_feature_operation(BK_AVRCP_SDP_FEATURE_API_METHOD_SET, &feat);
+        feat = 0;
+        allow = 0;
+        bk_bt_avrcp_ct_sdp_feature_operation(BK_AVRCP_SDP_FEATURE_API_METHOD_GET_CURRENT_ENABLE, &feat);
+        LOGI("%s current ct enable 0x%x\n", __func__, feat);
+        feat = 0;
+
+        bk_bt_avrcp_tg_sdp_feature_operation(BK_AVRCP_SDP_FEATURE_API_METHOD_GET_ALLOWED, &allow);
+        bk_bt_avrcp_tg_sdp_feature_operation(BK_AVRCP_SDP_FEATURE_API_METHOD_GET_CURRENT_ENABLE, &feat);
+        LOGI("%s current tg enable 0x%x\n", __func__, feat);
+        feat &= ~(BK_AVRCP_SDP_FEATURE_TG_CAT_1 | BK_AVRCP_SDP_FEATURE_TG_CAT_3 | BK_AVRCP_SDP_FEATURE_TG_CAT_4
+                        //| BK_AVRCP_SDP_FEATURE_TG_CAT_2 //As headset, if you need disable abs vol as tg, disable tg category 2 here.
+                        | BK_AVRCP_SDP_FEATURE_TG_PLAYER_APP_SET | BK_AVRCP_SDP_FEATURE_TG_GROUP_NAV | BK_AVRCP_SDP_FEATURE_TG_SUPPORT_BROWSING | BK_AVRCP_SDP_FEATURE_TG_SUPPORT_MULT_MEDIA_PA
+                        | BK_AVRCP_SDP_FEATURE_TG_SUPPORT_CA);
+        feat &= allow;
+        bk_bt_avrcp_tg_sdp_feature_operation(BK_AVRCP_SDP_FEATURE_API_METHOD_SET, &feat);
+        feat = 0;
+        allow = 0;
+        bk_bt_avrcp_tg_sdp_feature_operation(BK_AVRCP_SDP_FEATURE_API_METHOD_GET_CURRENT_ENABLE, &feat);
+        LOGI("%s current tg enable 0x%x\n", __func__, feat);
+        feat = 0;
+    }
+#endif
+
     bk_avrcp_tg_emit_current_volume();
 
     LOGI("%s initial volume %d\n", __func__, a2dp_sink_get_local_volume());

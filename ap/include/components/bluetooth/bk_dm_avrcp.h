@@ -112,6 +112,7 @@ bt_err_t bk_bt_avrcp_ct_send_passthrough_cmd(uint8_t *remote_bda, uint8_t key_co
 /**
  * @brief           Send set absolute volume command to AVRCP target. This function should be called after
  *                  BK_AVRCP_CT_CONNECTION_STATE_EVT is received and AVRCP connection is established.
+ *                  if BK_AVRCP_SDP_FEATURE_CT_CAT_2 is not supported, this function shouldn't be used.
  *
  * @param[in]       remote_bda: remote bluetooth device address.
  *
@@ -332,10 +333,36 @@ bool bk_bt_avrcp_psth_bit_mask_operation(bk_avrcp_bit_mask_op_t op, bk_avrcp_pst
  */
 bt_err_t bk_bt_avrcp_connect(uint8_t *remote_bda);
 
+/**
+ *
+ * @brief           config ct sdp feature. This function must be done before any avrcp connection.
+ *
+ * @param[in]       method: operation
+ * @param[in|out]   feat: As output when method is BK_AVRCP_SDP_FEATURE_API_METHOD_GET_XXX. As input when method is BK_AVRCP_SDP_FEATURE_API_METHOD_SET.
+ *
+ * @return
+ *                  - BK_ERR_BT_SUCCESS: success
+ *                  -  others: fail
+ *
+ */
+bt_err_t bk_bt_avrcp_ct_sdp_feature_operation(bk_avrcp_sdp_feature_api_method_t method, uint16_t *feat);
+
+/**
+ *
+ * @brief           config tg sdp feature. This function must be done before any avrcp connection.
+ *
+ * @param[in]       method: operation
+ * @param[in|out]   feat: As output when method is BK_AVRCP_SDP_FEATURE_API_METHOD_GET_XXX. As input when method is BK_AVRCP_SDP_FEATURE_API_METHOD_SET.
+ *
+ * @return
+ *                  - BK_ERR_BT_SUCCESS: success
+ *                  -  others: fail
+ *
+ */
+bt_err_t bk_bt_avrcp_tg_sdp_feature_operation(bk_avrcp_sdp_feature_api_method_t method, uint16_t *feat);
+
 ///@}
 
 #ifdef __cplusplus
 }
 #endif
-
-

@@ -41,7 +41,7 @@ typedef enum {
     BK_AVRCP_RN_AVAILABLE_PLAYERS_CHANGE = 0x0a,  /*!< available players changed */
     BK_AVRCP_RN_ADDRESSED_PLAYER_CHANGE = 0x0b,   /*!< the addressed player changed */
     BK_AVRCP_RN_UIDS_CHANGE = 0x0c,               /*!< UIDs changed */
-    BK_AVRCP_RN_VOLUME_CHANGE = 0x0d,             /*!< volume changed locally on TG */
+    BK_AVRCP_RN_VOLUME_CHANGE = 0x0d,             /*!< volume changed locally on TG. Mandatory if BK_AVRCP_SDP_FEATURE_TG_CAT_2 is supported, Excluded otherwise */
     BK_AVRCP_RN_MAX_EVT
 } bk_avrcp_rn_event_ids_t;
 
@@ -176,6 +176,38 @@ typedef enum {
     BK_AVRCP_PS_SCAN_MODE = 0x04,                 /*!< scan mode on or off */
     BK_AVRCP_PS_MAX_ATTR
 } bk_avrcp_ps_attr_ids_t;
+
+/// AVRCP sdp feature method
+typedef enum
+{
+    BK_AVRCP_SDP_FEATURE_API_METHOD_GET_ALLOWED,              /*!< all of the feature that can possibly be supported, immutable */
+    BK_AVRCP_SDP_FEATURE_API_METHOD_GET_CURRENT_ENABLE,            /*!< feature selectively supported according to the current configuration */
+    BK_AVRCP_SDP_FEATURE_API_METHOD_SET,
+    BK_AVRCP_SDP_FEATURE_API_METHOD_MAX,
+} bk_avrcp_sdp_feature_api_method_t;
+
+/// AVRCP sdp feature
+typedef enum
+{
+    BK_AVRCP_SDP_FEATURE_CT_CAT_1 = (1 << 0),
+    BK_AVRCP_SDP_FEATURE_CT_CAT_2 = (1 << 1),
+    BK_AVRCP_SDP_FEATURE_CT_CAT_3 = (1 << 2),
+    BK_AVRCP_SDP_FEATURE_CT_CAT_4 = (1 << 3),
+    BK_AVRCP_SDP_FEATURE_CT_SUPPORT_BROWSING = (1 << 6),
+    BK_AVRCP_SDP_FEATURE_CT_SUPPORT_CA_GIP = (1 << 7),
+    BK_AVRCP_SDP_FEATURE_CT_SUPPORT_CA_GI = (1 << 8),
+    BK_AVRCP_SDP_FEATURE_CT_SUPPORT_CA_GLT = (1 << 9),
+
+    BK_AVRCP_SDP_FEATURE_TG_CAT_1 = (1 << 0),
+    BK_AVRCP_SDP_FEATURE_TG_CAT_2 = (1 << 1),
+    BK_AVRCP_SDP_FEATURE_TG_CAT_3 = (1 << 2),
+    BK_AVRCP_SDP_FEATURE_TG_CAT_4 = (1 << 3),
+    BK_AVRCP_SDP_FEATURE_TG_PLAYER_APP_SET = (1 << 4),
+    BK_AVRCP_SDP_FEATURE_TG_GROUP_NAV = (1 << 5),
+    BK_AVRCP_SDP_FEATURE_TG_SUPPORT_BROWSING = (1 << 6),
+    BK_AVRCP_SDP_FEATURE_TG_SUPPORT_MULT_MEDIA_PA = (1 << 7),
+    BK_AVRCP_SDP_FEATURE_TG_SUPPORT_CA = (1 << 8),
+}bk_avrcp_sdp_feature_t;
 
 /// AVRCP notification parameters
 typedef union
@@ -397,4 +429,3 @@ typedef void (* bk_avrcp_tg_cb_t)(bk_avrcp_tg_cb_event_t event, bk_avrcp_tg_cb_p
 #ifdef __cplusplus
 }
 #endif
-

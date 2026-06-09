@@ -377,6 +377,22 @@ bt_err_t bk_bt_gap_set_page_scan_activity(uint16_t interval, uint16_t window);
 
 /**
  *
+ * @brief           This api can be used to set the value for the Inquiry_Scan_Interval and Inquiry_Scan_Window configuration parameters
+ *
+ * @param[in]       interval: defines the amount of time between consecutive page scans, unit of 0.625ms,(Range: 0x0012 to 0x1000, only even values are valid)
+ *
+ * @param[in]       window: defines the amount of time for the duration of the page scan, unit of 0.625ms,(Range: 0x0011 to 0x1000, can only be less
+ *                          than or equal to the Inquiry_Scan_Interval)
+ *
+ * @return
+ *                  - BK_ERR_BT_SUCCESS: success
+ *                  -  others: fail
+ *
+ */
+bt_err_t bk_bt_gap_set_inquiry_scan_activity(uint16_t interval, uint16_t window);
+
+/**
+ *
  * @brief           This api can be used to start authentication request
  *
  * @param[in]       addr: The remote device's address
@@ -387,6 +403,19 @@ bt_err_t bk_bt_gap_set_page_scan_activity(uint16_t interval, uint16_t window);
  *
  */
 bt_err_t bk_bt_gap_authentication_request(uint8_t *addr);
+
+/**
+ *
+ * @brief           This api can be used to start encryption request
+ *
+ * @param[in]       addr: The remote device's address
+ *
+ * @return
+ *                  - BK_ERR_BT_SUCCESS: success
+ *                  -  others: fail
+ *
+ */
+bt_err_t bk_bt_gap_encryption_request(uint8_t *addr);
 
 /**
  * @brief           Set auto enter sniff policy.
@@ -437,4 +466,3 @@ bt_err_t bk_bt_gap_switch_role(uint8_t *addr, uint8_t new_role);
 #ifdef __cplusplus
 }
 #endif
-

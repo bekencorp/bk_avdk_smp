@@ -380,7 +380,83 @@ static int get_printf_port_wrapper(void)
 
 static void uart_enable_wrapper(uint8_t uart_id, uint8_t enable, uint32_t band)
 {
-    BK_LOGD(NULL,"%s, not supported\r\n", __func__);
+    bk_err_t ret = 0;
+
+    if (enable)
+    {
+        uart_config_t config =
+        {
+            //.baud_rate = UART_BAUDRATE_115200,
+            .baud_rate = UART_BAUDRATE_2000000,
+            .data_bits = UART_DATA_8_BITS,
+            .parity = UART_PARITY_NONE,
+            .stop_bits = UART_STOP_BITS_1,
+            .flow_ctrl = UART_FLOWCTRL_DISABLE,
+            .src_clk = UART_SCLK_XTAL_26M
+        };
+
+        switch (band)
+        {
+            case 115200:
+                config.baud_rate = UART_BAUDRATE_115200;
+                break;
+
+            case 921600:
+                config.baud_rate = UART_BAUDRATE_921600;
+                break;
+
+            case 1000000:
+                config.baud_rate = 1000000;
+                break;
+
+            case 3250000:
+                config.baud_rate = UART_BAUDRATE_3250000;
+                break;
+
+            case 2000000:
+            default:
+                config.baud_rate = UART_BAUDRATE_2000000;
+                break;
+        }
+
+        switch (uart_id)
+        {
+            case UART_ID_0:
+                gpio_dev_unmap(GPIO_10);
+                gpio_dev_unmap(GPIO_11);
+                break;
+
+            case UART_ID_1:
+                gpio_dev_unmap(GPIO_0);
+                gpio_dev_unmap(GPIO_1);
+                break;
+
+            case UART_ID_2:
+                gpio_dev_unmap(GPIO_40);
+                gpio_dev_unmap(GPIO_41);
+                break;
+
+            default:
+                BK_LOGE(NULL, "%s uart_id err %d\n", __func__, uart_id);
+                return;
+                break;
+        }
+
+        ret = bk_uart_init(uart_id, &config);
+
+        if (ret != 0)
+        {
+            BK_LOGE(NULL, "%s bk_uart_init err, ret %d\n", __func__, ret);
+            return;
+        }
+
+        BK_LOGD(NULL, "%s ble uart %d enable\n", __func__, uart_id);
+    }
+    else
+    {
+        bk_uart_deinit(uart_id);
+        BK_LOGD(NULL, "%s ble uart %d disable\n", __func__, uart_id);
+    }
 }
 
 void enable_debug_gpio_wrapper(void)

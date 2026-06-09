@@ -225,6 +225,7 @@ int bk_avrcp_tg_service_init(const bk_avrcp_tg_cfg_t *cfg)
         bk_bt_avrcp_tg_deinit();
         return ret;
     }
+
     bk_bt_avrcp_tg_register_callback(avrcp_tg_cb);
 
     s_avrcp_tg.inited = 1;
