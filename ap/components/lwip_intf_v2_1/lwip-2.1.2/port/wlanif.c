@@ -319,6 +319,13 @@ void ethernetif_input(int iface, struct pbuf *p, uint8_t dst_idx)
         return;
     }
 
+    if(!netif->input) {
+        LWIP_DEBUGF(NETIF_DEBUG, ("ethernetif_input no netif input\r\n"));
+        pbuf_free(p);
+        p = NULL;
+        return;
+    }
+
     /* points to packet payload, which starts with an Ethernet header */
     ethhdr = p->payload;
 #if !CONFIG_BRIDGE
