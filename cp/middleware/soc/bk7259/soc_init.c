@@ -267,8 +267,8 @@ void dlv_hook(void)
     if (dlv_is_startup())
     {
 #if CONFIG_DEEP_LV_DEBUG
-        GPIO_UP(27);//1
-        GPIO_DOWN(27);
+        GPIO_UP(37);//1
+        GPIO_DOWN(37);
 		early_jtag_gpio_map();
 #endif
 		bk_wdt_force_feed();

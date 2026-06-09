@@ -552,8 +552,8 @@ __IRAM_SEC __attribute__((noinline)) void dlv_restore_post_core_prepare(void)
 	dlv_nvic_restore(dlv);
 	portNVIC_SHPR3_REG = scb_info->shpr3_val;
 	#if CONFIG_DEEP_LV_DEBUG
-	GPIO_UP(27);//3
-	GPIO_DOWN(27);
+	GPIO_UP(37);//3
+	GPIO_DOWN(37);
 	#endif
 }
 
@@ -586,8 +586,8 @@ __IRAM_SEC void dlv_context_restore(void)
 {
 	dlv_context_t *dlv = &s_dlv_context;
 #if CONFIG_DEEP_LV_DEBUG
-	GPIO_UP(27);//2
-	GPIO_DOWN(27);
+	GPIO_UP(37);//2
+	GPIO_DOWN(37);
 #endif
 	/* Match demo restore order; skip ITCM/DTCM (not present on M52). */
 	dlv_scb_restore(dlv);
@@ -606,8 +606,8 @@ __IRAM_SEC __attribute__((noinline)) void dlv_deep_lv_exit_prepare(void)
 			aon_pmu_hal_set_dlv_startup(0);
 		}
 #if CONFIG_DEEP_LV_DEBUG
-		GPIO_UP(27);//4
-		GPIO_DOWN(27);
+		GPIO_UP(37);//4
+		GPIO_DOWN(37);
 #endif
 	}
 }

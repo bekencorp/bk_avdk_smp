@@ -1515,8 +1515,8 @@ __attribute__((section(".iram"))) void sys_hal_enter_low_voltage(void)
 	arch_deep_sleep();
 #endif
 	#if CONFIG_DEEP_LV_DEBUG
-	GPIO_UP(27);//4
-	GPIO_DOWN(27);
+	GPIO_UP(37);//4
+	GPIO_DOWN(37);
 	#endif
 
 #if CONFIG_OTA_POSITION_INDEPENDENT_AB || CONFIG_DIRECT_XIP
@@ -1541,8 +1541,8 @@ __attribute__((section(".iram"))) void sys_hal_enter_low_voltage(void)
 	#endif
 
 	#if CONFIG_DEEP_LV_DEBUG
-	GPIO_UP(27);//5
-	GPIO_DOWN(27);
+	GPIO_UP(37);//5
+	GPIO_DOWN(37);
 	#endif
 /*-----------restore voltage  start----------------*/
 	sys_hal_enable_spi_latch();
@@ -1571,28 +1571,28 @@ __attribute__((section(".iram"))) void sys_hal_enter_low_voltage(void)
 	sys_hal_disable_spi_latch();
 /*-------------restore voltage  end-----------------*/
 	#if CONFIG_DEEP_LV_DEBUG
-	GPIO_UP(27);//6
-	GPIO_DOWN(27);
+	GPIO_UP(37);//6
+	GPIO_DOWN(37);
 	#endif
 /*----------restore analog clock  start--------------*/
 	sys_ll_set_ana_reg5_en_cb(1);
 	bk_delay_us(10);
 	#if CONFIG_DEEP_LV
 	#if CONFIG_DEEP_LV_DEBUG
-	GPIO_UP(27);//7
-	GPIO_DOWN(27);
+	GPIO_UP(37);//7
+	GPIO_DOWN(37);
 	#endif
 	//sys_hal_regs_digital_restore();
 	aon_pmu_hal_restore();
 	#if CONFIG_DEEP_LV_DEBUG
-	GPIO_UP(27);//8
-	GPIO_DOWN(27);
+	GPIO_UP(37);//8
+	GPIO_DOWN(37);
 	#endif
 
 #endif
 	#if CONFIG_DEEP_LV_DEBUG
-	GPIO_UP(27);//9
-	GPIO_DOWN(27);
+	GPIO_UP(37);//9
+	GPIO_DOWN(37);
 	#endif
 	sys_hal_restore_hf_clock(hf_reg_v);
 
@@ -1605,8 +1605,8 @@ __attribute__((section(".iram"))) void sys_hal_enter_low_voltage(void)
 	}
 	/*---------------wifi debug end -----------------*/
 	#if CONFIG_DEEP_LV_DEBUG
-		GPIO_UP(27);//10
-		GPIO_DOWN(27);
+		GPIO_UP(37);//10
+		GPIO_DOWN(37);
 	#endif
 /*-----------restore analog clock  end --------------*/
 
@@ -1622,8 +1622,8 @@ __attribute__((section(".iram"))) void sys_hal_enter_low_voltage(void)
 	}
 #endif
 	#if CONFIG_DEEP_LV_DEBUG
-	GPIO_UP(27);//11
-	GPIO_DOWN(27);
+	GPIO_UP(37);//11
+	GPIO_DOWN(37);
 	#endif
 
 	/*Use a function instead of delay*/
@@ -1631,19 +1631,19 @@ __attribute__((section(".iram"))) void sys_hal_enter_low_voltage(void)
 	pm_low_voltage_bsp_restore();
 
 	#if CONFIG_DEEP_LV_DEBUG
-	GPIO_UP(27);//12
-	GPIO_DOWN(27);
+	GPIO_UP(37);//12
+	GPIO_DOWN(37);
 	#endif
 
 	sys_hal_set_exit_low_voltage_tick(previous_tick);
 	#if CONFIG_DEEP_LV_DEBUG
-	GPIO_UP(27);//13
-	GPIO_DOWN(27);
+	GPIO_UP(37);//13
+	GPIO_DOWN(37);
 	#endif
 /*---------------at least delay 190us-----------------*/
 	#if CONFIG_DEEP_LV_DEBUG
-	GPIO_UP(27);//14
-	GPIO_DOWN(27);
+	GPIO_UP(37);//14
+	GPIO_DOWN(37);
 	#endif
 	/*restore power domain*/
 	if(pwd_cpu1 != sys_ll_get_reserver_reg0x10_pwd_cpu1())
@@ -1651,8 +1651,8 @@ __attribute__((section(".iram"))) void sys_hal_enter_low_voltage(void)
 		sys_ll_set_reserver_reg0x10_pwd_cpu1(pwd_cpu1);
 	}
 	#if CONFIG_DEEP_LV_DEBUG
-	GPIO_UP(27);//15
-	GPIO_DOWN(27);
+	GPIO_UP(37);//15
+	GPIO_DOWN(37);
 	#endif
 
 	if(pwd_vehp != sys_ll_get_reserver_reg0x10_pwd_vehp())
@@ -1660,9 +1660,12 @@ __attribute__((section(".iram"))) void sys_hal_enter_low_voltage(void)
 		sys_ll_set_reserver_reg0x10_pwd_vehp(pwd_vehp);
 	}
 	#if CONFIG_DEEP_LV_DEBUG
-	GPIO_UP(27);//16
-	GPIO_DOWN(27);
+	GPIO_UP(37);//16（GPIO37 16 matches the 17th pull-up）
+	GPIO_DOWN(37);
+	// GPIO_UP(36);//16
+	// GPIO_DOWN(36);
 	#endif
+	bk_delay_us(2);
 	if(pwd_wrls != sys_ll_get_reserver_reg0x10_pwd_wrls())
 	{
 		sys_ll_set_reserver_reg0x10_pwd_wrls(pwd_wrls);
@@ -1674,8 +1677,8 @@ __attribute__((section(".iram"))) void sys_hal_enter_low_voltage(void)
 
 /*---------------at least delay 190us end -----------------*/
 	#if CONFIG_DEEP_LV_DEBUG
-	GPIO_UP(27);//17
-	GPIO_DOWN(27);
+	GPIO_UP(37);//17
+	GPIO_DOWN(37);
 	#endif
 	#if CONFIG_DEEP_LV
 	sys_hal_regs_digital_restore();
@@ -1685,8 +1688,8 @@ __attribute__((section(".iram"))) void sys_hal_enter_low_voltage(void)
 	sys_hal_restore_flash_freq(cksel_flash, clkdiv_flash);
 
 	#if CONFIG_DEEP_LV_DEBUG
-	GPIO_UP(27);//18
-	GPIO_DOWN(27);
+	GPIO_UP(37);//18
+	GPIO_DOWN(37);
 	#endif
 
 	sys_hal_restore_int(int_state1, int_state2, int_state3);
@@ -1695,8 +1698,8 @@ __attribute__((section(".iram"))) void sys_hal_enter_low_voltage(void)
 	portNVIC_SYSTICK_LOAD_REG = PM_EXIT_LOWVOL_SYSTICK_RELOAD_TIME;
 	portNVIC_SYSTICK_CTRL_REG = systick_ctrl_value;
 	#if CONFIG_DEEP_LV_DEBUG
-	GPIO_UP(27);//19
-	GPIO_DOWN(27);
+	GPIO_UP(37);//19
+	GPIO_DOWN(37);
 	#endif
 }
 
