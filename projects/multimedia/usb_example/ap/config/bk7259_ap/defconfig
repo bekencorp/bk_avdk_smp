@@ -167,6 +167,13 @@ CONFIG_FATFS_SDCARD=y
 CONFIG_USB=y
 CONFIG_USB_DEVICE=y
 CONFIG_USBD_MSC=y
+# MTP device class (ported from ref/glass, adapted to CherryUSB v1.6).
+# Engine lives in ap/components/bk_usb/bk_mtp/bk_usbd_mtp.c. Exposes the SD
+# card filesystem (bk_vfs POSIX) over MTP. Switch to it at runtime via the
+# `mtp` CLI; MSC stays the power-up default.
+CONFIG_USBD_MTP=y
+CONFIG_USBD_MTP_PRODUCT_NAME="BekenMTP"
+CONFIG_USBD_MTP_DEVICE_TYPE="1"
 # Add USB HOST + host MSC so the firmware can switch to host at runtime and
 # enumerate an inserted U-disk (FatFs drive "2:"). Device MSC stays the
 # power-up default; the `udisk` CLI flips to host on demand.

@@ -524,6 +524,107 @@ static void udisk_cli_register(void) {}
 static void udisk_cli_register(void) {}
 #endif /* CONFIG_USB_HOST && CONFIG_USBH_MSC && CONFIG_FATFS */
 
+/* =======================================================================
+ *  USB DEVICE mode: MTP (Media Transfer Protocol) gadget.
+ *
+ *  The board powers up as a USB MSC gadget (msc_storage_init). MTP is an
+ *  alternative *device* gadget that exposes the on-board SD-card filesystem
+ *  to a PC as a media device (browse / copy files in Explorer / mtp-tools).
+ *
+ *  The MTP engine (ap/components/bk_usb/bk_mtp/bk_usbd_mtp.c) is ported from
+ *  the glass project and adapted to the CherryUSB v1.6 device API. It talks
+ *  to storage through the bk_vfs POSIX layer (opendir/readdir/open/...), so
+ *  we mount the SD card at VFS_SD_0_PATITION_0 ("/sd0") before bring-up.
+ *
+ *  `mtp start` swaps the MSC gadget for the MTP gadget on the same USB
+ *  controller (busid 0). usbd_desc_register() memset()s the device core, so
+ *  re-registering MTP after deinit-ing MSC is clean.
+ * ===================================================================== */
+#if CONFIG_USBD_MTP
+#include "bk_usb_mtp.h"
+
+static volatile int s_mtp_active;
+
+static int mtp_start(void)
+{
+    if (s_mtp_active) {
+        LOGI("MTP already active\n");
+        return 0;
+    }
+
+#if (CONFIG_USB_HOST && CONFIG_USBH_MSC && CONFIG_FATFS)
+    /* MTP is a device gadget; if we are currently in host mode, go back. */
+    if (s_udisk_in_host_mode) {
+        (void)udisk_switch_to_device();
+    }
+#endif
+
+    /* Tear down the default MSC gadget so MTP can own busid 0. The MTP engine
+     * (usb_mtp_init) mounts the SD card at /sd0 itself before bring-up. */
+    LOGI("MTP: deinit MSC gadget\n");
+    (void)msc_storage_deinit();
+
+    int ret = usb_mtp_init();
+    LOGI("MTP: usb_mtp_init ret=%d\n", ret);
+    s_mtp_active = (ret == 0) ? 1 : 0;
+    if (s_mtp_active) {
+        LOGI("==== MTP device active (browse the SD card on the PC) ====\n");
+    }
+    return ret;
+}
+
+static int mtp_stop(void)
+{
+    if (!s_mtp_active) {
+        LOGI("MTP not active\n");
+        return 0;
+    }
+    int ret = usb_mtp_deinit();
+    LOGI("MTP: usb_mtp_deinit ret=%d\n", ret);
+    s_mtp_active = 0;
+    return ret;
+}
+
+#if CONFIG_CLI
+static void cli_mtp_help(void)
+{
+    LOGI("usage:\n");
+    LOGI("  mtp start   - swap MSC->MTP gadget, mount SD, enumerate as MTP\n");
+    LOGI("  mtp stop    - tear down the MTP gadget\n");
+    LOGI("  mtp status  - print current MTP state\n");
+}
+
+static void cli_mtp_cmd(char *pcWriteBuffer, int xWriteBufferLen,
+                        int argc, char **argv)
+{
+    (void)pcWriteBuffer;
+    (void)xWriteBufferLen;
+
+    if (argc < 2) {
+        cli_mtp_help();
+        LOGI("mtp active=%d\n", s_mtp_active);
+        return;
+    }
+
+    const char *sub = argv[1];
+    if (os_strcmp(sub, "start") == 0) {
+        (void)mtp_start();
+    } else if (os_strcmp(sub, "stop") == 0) {
+        (void)mtp_stop();
+    } else if (os_strcmp(sub, "status") == 0) {
+        LOGI("mtp active=%d\n", s_mtp_active);
+    } else {
+        cli_mtp_help();
+    }
+}
+
+COMPONENTS_CLI_CMD_EXPORT
+static const struct cli_command s_mtp_cmds[] = {
+    {"mtp", "mtp start|stop|status", cli_mtp_cmd},
+};
+#endif /* CONFIG_CLI */
+#endif /* CONFIG_USBD_MTP */
+
 static void msc_storage_init_task(void *arg)
 {
     (void)arg;
