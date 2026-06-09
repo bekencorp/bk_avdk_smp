@@ -25,27 +25,19 @@
 
 static void cli_sdio_host_help(void)
 {
-	CLI_LOGD("sdio_host_driver init\r\n");
-	CLI_LOGD("sdio_host driver deinit\r\n");
+	CLI_LOGD("sdio {init|deinit|send_cmd|config_data}\r\n");
 	CLI_LOGD("sdio send_cmd Index Arg(hex-decimal) RSP_Type Timeout_Value\r\n");
 }
 
-static void cli_sdio_host_driver_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
+static sdio_host_resp_type_t cli_sdio_host_resp_type(uint32_t response)
 {
-	if (argc < 2) {
-		cli_sdio_host_help();
-		return;
-	}
-
-	if (os_strcmp(argv[1], "init") == 0) {
-		BK_LOG_ON_ERR(bk_sdio_host_driver_init());
-		CLI_LOGD("sdio_host driver init\n");
-	} else if (os_strcmp(argv[1], "deinit") == 0) {
-		BK_LOG_ON_ERR(bk_sdio_host_driver_deinit());
-		CLI_LOGD("sdio_host driver deinit\n");
-	} else {
-		cli_sdio_host_help();
-		return;
+	switch (response) {
+	case SDIO_HOST_CMD_RSP_NONE:
+		return SDIO_HOST_RESP_NONE;
+	case SDIO_HOST_CMD_RSP_LONG:
+		return SDIO_HOST_RESP_R2;
+	default:
+		return SDIO_HOST_RESP_R1;
 	}
 }
 
@@ -57,45 +49,33 @@ static void cli_sdio_host_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc
 	}
 
 	if (os_strcmp(argv[1], "init") == 0) {
-		sdio_host_config_t sdio_cfg = {0};
+		sdio_host_cfg_t sdio_cfg = {
+			.is_emmc = false,
+			.init_clock_hz = 0,
+			.bus_width = SDIO_HOST_BUS_WIDTH_1,
+		};
 
-#if (CONFIG_SDIO_V2P0)
-		sdio_cfg.clock_freq = SDIO_HOST_CLK_80M;
-#else
-		sdio_cfg.clock_freq = CONFIG_SDIO_HOST_DEFAULT_CLOCK_FREQ;
-#endif
-		sdio_cfg.bus_width = SDIO_HOST_BUS_WIDTH_1LINE;
-
-		BK_LOG_ON_ERR(bk_sdio_host_init(&sdio_cfg));
+		BK_LOG_ON_ERR(bk_sdio_host_init(SDIO_HOST_ID_0, &sdio_cfg));
 		CLI_LOGD("sdio host init\r\n");
 	} else if (os_strcmp(argv[1], "deinit") == 0) {
-		BK_LOG_ON_ERR(bk_sdio_host_deinit());
+		BK_LOG_ON_ERR(bk_sdio_host_deinit(SDIO_HOST_ID_0));
 		CLI_LOGD("sdio host deinit\r\n");
 	} else if (os_strcmp(argv[1], "send_cmd") == 0) {
 		bk_err_t error_state = BK_OK;
-		sdio_host_cmd_cfg_t cmd_cfg = {0};
+		sdio_host_cmd_t cmd = {0};
+		sdio_host_resp_t resp = {0};
 
 		//modify to send cmd by parameter,then we can easy to debug any cmds.
-		cmd_cfg.cmd_index = os_strtoul(argv[2], NULL, 10);			//CMD0,CMD-XXX,SD_CMD_GO_IDLE_STATE
-		cmd_cfg.argument = os_strtoul(argv[3], NULL, 16);			//0x123456xx
-		cmd_cfg.response = os_strtoul(argv[4], NULL, 10);			//SDIO_HOST_CMD_RSP_NONE,SHORT,LONG
-		cmd_cfg.wait_rsp_timeout = os_strtoul(argv[5], NULL, 10);	//CMD_TIMEOUT_200K;
+		cmd.index = os_strtoul(argv[2], NULL, 10);			//CMD0,CMD-XXX,SD_CMD_GO_IDLE_STATE
+		cmd.arg = os_strtoul(argv[3], NULL, 16);			//0x123456xx
+		cmd.resp_type = cli_sdio_host_resp_type(os_strtoul(argv[4], NULL, 10));	//SDIO_HOST_CMD_RSP_NONE,SHORT,LONG
 
-		bk_sdio_host_send_command(&cmd_cfg);
-		error_state = bk_sdio_host_wait_cmd_response(cmd_cfg.cmd_index);
+		error_state = bk_sdio_host_send_cmd(SDIO_HOST_ID_0, &cmd, &resp);
 		if (error_state != BK_OK) {
-			CLI_LOGW("sdio:cmd %d err:-%x\r\n", cmd_cfg.cmd_index, -error_state);
+			CLI_LOGW("sdio:cmd %d err:-%x\r\n", cmd.index, -error_state);
 		}
 	} else if (os_strcmp(argv[1], "config_data") == 0) {
-		sdio_host_data_config_t data_config = {0};
-
-		data_config.data_timeout = DATA_TIMEOUT_13M;
-		data_config.data_len = SD_BLOCK_SIZE * 1;
-		data_config.data_block_size = SD_BLOCK_SIZE;
-		data_config.data_dir = SDIO_HOST_DATA_DIR_RD;
-
-		BK_LOG_ON_ERR(bk_sdio_host_config_data(&data_config));
-		CLI_LOGD("sdio host config data ok\r\n");
+		CLI_LOGW("sdio host config_data is not supported by current host API\r\n");
 	} else {
 		cli_sdio_host_help();
 		return;
@@ -199,14 +179,12 @@ static void cli_sd_card_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
 
 #define SDIO_HOST_CMD_CNT (sizeof(s_sdio_host_commands) / sizeof(struct cli_command))
 static const struct cli_command s_sdio_host_commands[] = {
-	{"sdio_host_driver", "sdio_host_driver {init|deinit}", cli_sdio_host_driver_cmd},
 	{"sdio", "sdio {init|deinit|send_cmd|config_data}", cli_sdio_host_cmd},
 	{"sd_card", "sd_card {init|deinit|read|write|erase|cmp|}", cli_sd_card_cmd},
 };
 
 int cli_sdio_host_init(void)
 {
-	BK_LOG_ON_ERR(bk_sdio_host_driver_init());
 	return cli_register_commands(s_sdio_host_commands, SDIO_HOST_CMD_CNT);
 }
 

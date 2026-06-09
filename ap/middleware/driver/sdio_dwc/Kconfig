@@ -13,14 +13,4 @@ menu "SDIO_DWC"
 		depends on SUPPORT_SDIO_DWC
 		default y
 
-	config SDIO_USE_GROUP1
-		bool "Use SDIO host controller 1 (GPIO14~19) instead of SDIO0"
-		depends on SDIO_V3P0
-		default n
-		help
-		  Some boards wire the SD card / SD-NAND to BK7259 SDIO controller 1
-		  (CLK/CMD/DAT pins on GPIO14~19) instead of SDIO controller 0
-		  (GPIO2/3/4/5/10/11). Enable this option on those boards
-		  (e.g. BK7259 Robot V1 AI kit, U14 MKDV4GCL-ABB).
-
 endmenu

@@ -3,9 +3,16 @@ menu "SDCARD"
 		bool "Enable SDCARD"
 		default y
 
-	config SDCARD_DEFAULT_CLOCK_FREQ
-		int "sd card default clock freq"
-		default 11
+	config SDCARD_HOST_ID
+		int "SDIO host controller the SD card is wired to (0=SDIO0, 1=SDIO1)"
+		depends on SDCARD
+		default 0
+		help
+		  Single source of truth for which of the two BK7259 SDIO host
+		  controllers the SD card is connected to. 0 = SDIO0
+		  (GPIO2/3/4/5/10/11), 1 = SDIO1 (GPIO14~23). Applied at runtime via
+		  the generic bk_sdio_host_*() API. Boards wiring the SD card to
+		  SDIO1 (e.g. BK7259 Robot V1 AI kit) should set this to 1.
 
 	config SDCARD_CHECK_INSERTION_EN
 		bool "Whether to use pin to determine whether the sdcard is connected"
@@ -18,10 +25,6 @@ menu "SDCARD"
 			int "Detect whether to connect the GPIO ID of the sdcard"
 			default 0
 	endmenu
-
-	config SDCARD_BUSWIDTH_4LINE
-		bool "Support SDCARD 4 Data Wires"
-		default n
 
 	config SDCARD_POWER_GPIO_CTRL
 		depends on SDCARD

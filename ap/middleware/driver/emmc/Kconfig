@@ -1,0 +1,26 @@
+menu "EMMC"
+	config EMMC
+		bool "Enable eMMC"
+		default n
+		depends on SDIO_V3P0
+		help
+		  eMMC device protocol driver built on top of the generic SDIO host
+		  controller interface (<driver/sdio_host.h>). Requires the SDIO host
+		  controller (CONFIG_SDIO_V3P0).
+
+	config EMMC_HOST_ID
+		int "SDIO host controller the eMMC is wired to (0=SDIO0, 1=SDIO1)"
+		depends on EMMC
+		default 0
+		help
+		  Selects which of the two BK7259 SDIO host controllers the eMMC
+		  device is connected to.
+
+	config EMMC_BUS_WIDTH
+		int "eMMC data bus width (1/4/8)"
+		depends on EMMC
+		default 8
+		help
+		  Target data bus width after initialization. 8-bit needs the SDIO
+		  controller DATA4~7 pins routed to the eMMC.
+endmenu

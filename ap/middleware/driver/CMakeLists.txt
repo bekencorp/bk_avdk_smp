@@ -163,42 +163,51 @@ if (CONFIG_CALENDAR)
 		)
 endif() #if (CONFIG_CALENDAR)
 
-if (CONFIG_SDIO_V1P0)
-	list(APPEND incs
-		"sdio/v1p0"
-	)
-
-	list(APPEND srcs
-		"sdio/v1p0/sdio.c"
-		"sdio/v1p0/sdma.c"
-		"sdio/v1p0/sutil.c"
-		)
-endif() #if (CONFIG_SDIO_V1P0)
-
-if (CONFIG_SDIO_V2P0 AND CONFIG_SDIO_SLAVE)
-	list(APPEND incs
-		"sdio/v2p0"
-	)
-
-	list(APPEND srcs
-		"sdio/v2p0/sdio_slave_driver.c"
-		"sdio/v2p0/sdio_utils.c"
-		"sdio/v2p0/sdio_test.c"
-		)
-endif() #if (CONFIG_SDIO_V2P0)
-
 if (CONFIG_SDIO_V3P0)
 	list(APPEND incs
 		"sdio_dwc/v3p0"
 		"sdio_dwc/v3p0/include"
 	)
+	# sdio_dwc: SDIO host controller (DesignWare MSHC) driver
 	list(APPEND srcs
 		"sdio_dwc/v3p0/sdio_host_driver.c"
-		"sdio_dwc/v3p0/sd_card_driver.c"
-		"sdio_dwc/v3p0/sdcard_test.c"
-		"sdio_dwc/v3p0/sdio_dwc_test.c"
 		)
-endif() #if (CONFIG_SDIO_HOST)
+
+	# sd_card: SD memory card protocol (depends only on the generic host API)
+	if (CONFIG_SDCARD)
+		list(APPEND srcs
+			"sd_card/sd_card_driver.c"
+			)
+	endif() #if (CONFIG_SDCARD)
+
+	# emmc: eMMC protocol (depends only on the generic host API)
+	if (CONFIG_EMMC)
+		list(APPEND incs "emmc")
+		list(APPEND srcs
+			"emmc/emmc_driver.c"
+			)
+	endif() #if (CONFIG_EMMC)
+
+	# sdio_func: SDIO peripheral (CMD52/53) core
+	if (CONFIG_SDIO_FUNC)
+		list(APPEND incs "sdio_func")
+		list(APPEND srcs
+			"sdio_func/sdio_func_core.c"
+			)
+	endif() #if (CONFIG_SDIO_FUNC)
+
+	# Test/CLI code is only built when explicitly enabled
+	if (CONFIG_SDIO_DWC_TEST)
+		list(APPEND srcs
+			"sdio_dwc/v3p0/sdio_dwc_test.c"
+			)
+		if (CONFIG_SDCARD)
+			list(APPEND srcs
+				"sd_card/sdcard_test.c"
+				)
+		endif() #if (CONFIG_SDCARD)
+	endif() #if (CONFIG_SDIO_DWC_TEST)
+endif() #if (CONFIG_SDIO_V3P0)
 
 if (CONFIG_AUDIO)
 

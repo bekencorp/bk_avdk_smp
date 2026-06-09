@@ -15,6 +15,7 @@
 #pragma once
 
 #include <stdint.h>
+#include <common/bk_include.h>
 #include  "mshc_regs.h"
 
 #include <components/log.h>
@@ -40,6 +41,9 @@
 #else
 #define SDIOD_LOGD(...) do {} while (0)
 #endif
+
+bk_err_t sdio_dwc_interrupt_init(void);
+bk_err_t sdio_dwc_interrupt_deinit(void);
 
 
 #ifdef CONFIG_CPU64_BIT
@@ -131,24 +135,19 @@ struct cmd_param_t {
 #define sdio_mshc_0_base     0x48040000
 #define sdio_mshc_1_base     0x48050000
 
-/* Selects which SDIO host controller (and matching GPIO pinmux group)
- * the v3p0 driver targets:
- *   0 = SDIO0 (host base 0x48040000, default pinmux group: GPIO 2/3/4/5
- *       for CLK/CMD/DAT0/DAT1, plus GPIO 10/11 for DAT2/DAT3 in 4-wire).
- *       This is the production wiring (P2/P3/P4/P5 silkscreen).
- *   1 = SDIO1 (host base 0x48050000, pinmux group: GPIO 14..23). Used
- *       on boards whose SD card / SD-NAND is wired to GPIO14~19
- *       (e.g. BK7259 Robot V1 AI kit, U14 MKDV4GCL-ABB).
+/* Compile-time *default* of the active controller for the v3p0 driver:
+ *   0 = SDIO0 (host base 0x48040000, GPIO 2/3/4/5 + 10/11), production wiring.
+ *   1 = SDIO1 (host base 0x48050000, GPIO 14..23).
  *
- * The default keeps SDIO0 for backward compatibility. Boards that need
- * SDIO1 should set CONFIG_SDIO_USE_GROUP1=y in the project defconfig,
- * or define SDIO_VERIFY_USE_SDIO1=1 at the compiler command line. */
+ * NOTE: controller selection is now a runtime decision driven by the generic
+ * bk_sdio_host_*(host_id) API (and, for the SD card, by CONFIG_SDCARD_HOST_ID);
+ * this macro only seeds the initial value of s_active_base/s_active_id before
+ * the first bk_sdio_host_init(), which immediately overrides it. It is kept
+ * solely so the low-level register code can still reference a default base, and
+ * defaults to SDIO0. A board bring-up can force the default via the compiler
+ * define SDIO_VERIFY_USE_SDIO1=1 if needed. */
 #ifndef SDIO_VERIFY_USE_SDIO1
-#if defined(CONFIG_SDIO_USE_GROUP1) && CONFIG_SDIO_USE_GROUP1
-#define SDIO_VERIFY_USE_SDIO1    1
-#else
 #define SDIO_VERIFY_USE_SDIO1    0
-#endif
 #endif
 
 #if SDIO_VERIFY_USE_SDIO1

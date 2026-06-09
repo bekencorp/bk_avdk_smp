@@ -15,7 +15,6 @@
 
 #include <os/os.h>
 #include "cli.h"
-#include <driver/sdio_storage.h>
 #include <driver/timer.h>
 #include "sdio_storage_driver.h"
 
@@ -134,28 +133,7 @@ static void sd_operate(char *pcWriteBuffer, int xWriteBufferLen, int argc, char 
 
 static void cli_sdio_host_help(void)
 {
-    CLI_LOGI("sdio_host_driver init\n");
-    CLI_LOGI("sdio_host_driver deinit\n");
     CLI_LOGI("sdio_host start [timeout]\n");
-}
-
-static void cli_sdio_host_driver_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
-{
-    if (argc < 2) {
-        cli_sdio_host_help();
-        return;
-    }
-
-    if (os_strcmp(argv[1], "init") == 0) {
-        BK_LOG_ON_ERR(bk_sdio_storage_driver_init());
-        CLI_LOGI("sdio_host driver init\n");
-    } else if (os_strcmp(argv[1], "deinit") == 0) {
-        BK_LOG_ON_ERR(bk_sdio_storage_driver_deinit());
-        CLI_LOGI("sdio_host driver deinit\n");
-    } else {
-        cli_sdio_host_help();
-        return;
-    }
 }
 
 void test_sdio(uint8_t *param);
@@ -186,7 +164,6 @@ static void cli_sdio_host_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc
 
 #define SDIO_CMD_CNT (sizeof(s_sdio_host_commands) / sizeof(struct cli_command))
 static const struct cli_command s_sdio_host_commands[] = {
-//    {"sdio_host_driver", "{init|deinit}", cli_sdio_host_driver_cmd},
 //    {"sdio_host", "sdio_host {start|stop|feed} [...]", cli_sdio_host_cmd},
 	{"sdtest", "sdtest <cmd>", sd_operate}
 };

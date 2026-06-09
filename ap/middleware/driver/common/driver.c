@@ -91,10 +91,6 @@ static bk_err_t wait_for_cp_flash_init_done(void)
 }
 #endif
 
-#if ((CONFIG_SDIO_HOST) || (CONFIG_SDCARD))
-#include "driver/sdio_host.h"
-#endif
-
 #if CONFIG_SDCARD
 #include "sdio_storage_driver.h"
 #endif
@@ -378,14 +374,9 @@ extern void aon_rtc_update_boot_time();
 	aon_rtc_update_boot_time();
 #endif
 
-#if ((CONFIG_SDIO_HOST) || (CONFIG_SDCARD))
-	bk_sdio_host_driver_init();
-#endif
-
 #if ((CONFIG_SDCARD))
 {
-	extern bk_err_t bk_sdio_storage_driver_init(void);
-	bk_sdio_storage_driver_init();
+	sdio_dwc_interrupt_init();
 }
 #endif
 

@@ -14,6 +14,7 @@
 
 #pragma once
 
+#include <common/bk_include.h>
 #include <components/log.h>
 
 #include "sdio_storage_driver.h"
@@ -25,21 +26,25 @@
 #define SDIO_HOST_LOGE(...) BK_LOGE(SDIO_HOST_TAG, ##__VA_ARGS__)
 #define SDIO_HOST_LOGD(...) BK_LOGD(SDIO_HOST_TAG, ##__VA_ARGS__)
 
-/* standard sd commands */
-#define GO_IDLE_STATE             0   /* bc                          */
-#define SEND_OP_COND              1   /* bc                          */
-#define ALL_SEND_CID              2
-#define SEND_RELATIVE_ADDR        3   /* ac   [31:16] RCA        R6  */
-#define IO_SEND_OP_COND           5   /* ac                      R4  */
-#define SWITCH_FUNC               6
-#define SELECT_CARD               7   /* ac   [31:16] RCA        R7  */
-#define SEND_IF_COND              8   /* adtc                    R1  */
-#define SEND_CSD                  9
-#define SEND_STATUS               13
-#define READ_SINGLE_BLOCK         17
-#define WRITE_BLOCK               24
-#define SD_APP_OP_COND            41
-#define IO_RW_DIRECT              52  /* ac   [31:0] See below   R5  */
-#define IO_RW_EXTENDED            53  /* adtc [31:0] See below   R5  */
-#define APP_CMD                   55
+#define SDIO_CMD_TIMEOUT_RESP        0xFFFFFFFFu
+
+typedef enum
+{
+	SDIO_WIRE_WIDTH_SEL_1,
+	SDIO_WIRE_WIDTH_SEL_4,	//4-wire
+	SDIO_WIRE_WIDTH_SEL_8,	//8-wire
+}sdio_wire_width_sel_t;
+
+bk_err_t sdio_host_init(void);
+void sdio_reset(void);
+void sdio_switch_wire_width(sdio_wire_width_sel_t width_sel);
+bool sdio_host_last_cmd_timeout(void);
+
+void sd_clk_change(uintptr_t addr,uint16 SD_FREQ_SEL);
+void sd_card_interface_set(uintptr_t addr,uint8 UHS_MODE_SEL);
+int send_cmd(uintptr_t addr, uint8 CMD_INDEX, uint8 RESP_TYPE, uint32 ARGUMENT);
+bk_err_t send_mult_data(uintptr_t addr, const uint8_t *data, uint16 BLOCK_SIZE,uint16 BLOCK_CNT,uint16 CMD,uint32 ARGUMENT);
+int receive_mult_data(uintptr_t addr, uint8_t *data, uint16 BLOCK_SIZE,uint16 BLOCK_CNT,uint16 CMD,uint32 ARGUMENT);
+bk_err_t adma2_send_data(uintptr_t addr,uint32 SYS_ADDR,uint16 BLOCK_SIZE,uint16 BLOCK_CNT,uint16 CMD,uint32 ARGUMENT);
+bk_err_t adma2_receive_data(uintptr_t addr,uint32 SYS_ADDR,uint16 BLOCK_SIZE,uint16 BLOCK_CNT,uint16 CMD,uint32 ARGUMENT);
 
