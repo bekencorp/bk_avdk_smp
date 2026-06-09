@@ -64,6 +64,7 @@ THIRD_PARTY_CC_HDRS += $(CMSIS_PATH)/CMSIS/Core/Include/cmsis_compiler.h
 
 # Add project include path and config path if provided (for system log functions)
 INCLUDES += -I$(ETHOSU_DRIVER_PATH)/include \
+            -I$(MAKEFILE_DIR)/../../../../../../../../middleware/driver \
             -I$(CMSIS_PATH)/CMSIS/Core/Include
 ifdef PROJECT_INCLUDE_PATH
     INCLUDES += -I$(PROJECT_INCLUDE_PATH)

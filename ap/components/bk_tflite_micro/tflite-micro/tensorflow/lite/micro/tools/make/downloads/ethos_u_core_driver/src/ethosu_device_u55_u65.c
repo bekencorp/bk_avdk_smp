@@ -24,6 +24,7 @@
 
 #include "ethosu_device.h"
 #include "ethosu_log.h"
+#include "aspl/aspl_lock.h"
 
 #ifdef ETHOSU55
 #include "ethosu_config_u55.h"
@@ -67,9 +68,19 @@ uint64_t __attribute__((weak)) ethosu_address_remap(uint64_t address, int index)
     return address;
 }
 
+static uint32_t ethosu_dev_read_reset_status(struct ethosu_device *dev)
+{
+    uint32_t flags = bk_aspl_npu_enter_critical();
+    uint32_t reset_status = dev->reg->STATUS.reset_status;
+    bk_aspl_npu_exit_critical(flags);
+
+    return reset_status;
+}
+
 struct ethosu_device *ethosu_dev_init(void *const base_address, uint32_t secure_enable, uint32_t privilege_enable)
 {
     struct ethosu_device *dev = malloc(sizeof(struct ethosu_device));
+    bool product_match;
     if (!dev)
     {
         LOG_ERR("Failed to allocate memory for Ethos-U device");
@@ -80,11 +91,15 @@ struct ethosu_device *ethosu_dev_init(void *const base_address, uint32_t secure_
     dev->secure     = secure_enable;
     dev->privileged = privilege_enable;
 
+    uint32_t flags = bk_aspl_npu_enter_critical();
 #ifdef ETHOSU55
-    if (dev->reg->CONFIG.product != ETHOSU_PRODUCT_U55)
+    product_match = dev->reg->CONFIG.product == ETHOSU_PRODUCT_U55;
 #else
-    if (dev->reg->CONFIG.product != ETHOSU_PRODUCT_U65)
+    product_match = dev->reg->CONFIG.product == ETHOSU_PRODUCT_U65;
 #endif
+    bk_aspl_npu_exit_critical(flags);
+
+    if (!product_match)
     {
         LOG_ERR("Failed to initialize device. Driver has not been compiled for this product");
         goto err;
@@ -116,7 +131,9 @@ enum ethosu_error_codes ethosu_dev_axi_init(struct ethosu_device *dev)
     struct axi_limit2_r l2  = {0};
     struct axi_limit3_r l3  = {0};
 
+    uint32_t flags = bk_aspl_npu_enter_critical();
     dev->reg->QCONFIG.word = NPU_QCONFIG;
+    bk_aspl_npu_exit_critical(flags);
 
     rcfg.region0             = NPU_REGIONCFG_0;
     rcfg.region1             = NPU_REGIONCFG_1;
@@ -126,7 +143,9 @@ enum ethosu_error_codes ethosu_dev_axi_init(struct ethosu_device *dev)
     rcfg.region5             = NPU_REGIONCFG_5;
     rcfg.region6             = NPU_REGIONCFG_6;
     rcfg.region7             = NPU_REGIONCFG_7;
+    flags = bk_aspl_npu_enter_critical();
     dev->reg->REGIONCFG.word = rcfg.word;
+    bk_aspl_npu_exit_critical(flags);
 
     l0.max_beats                = AXI_LIMIT0_MAX_BEATS_BYTES;
     l0.memtype                  = AXI_LIMIT0_MEM_TYPE;
@@ -148,10 +167,12 @@ enum ethosu_error_codes ethosu_dev_axi_init(struct ethosu_device *dev)
     l3.max_outstanding_read_m1  = AXI_LIMIT3_MAX_OUTSTANDING_READS - 1;
     l3.max_outstanding_write_m1 = AXI_LIMIT3_MAX_OUTSTANDING_WRITES - 1;
 
+    flags = bk_aspl_npu_enter_critical();
     dev->reg->AXI_LIMIT0.word = l0.word;
     dev->reg->AXI_LIMIT1.word = l1.word;
     dev->reg->AXI_LIMIT2.word = l2.word;
     dev->reg->AXI_LIMIT3.word = l3.word;
+    bk_aspl_npu_exit_critical(flags);
 
     return ETHOSU_SUCCESS;
 }
@@ -169,61 +190,78 @@ void ethosu_dev_run_command_stream(struct ethosu_device *dev,
     assert(qbase <= ADDRESS_MASK);
     LOG_DEBUG("QBASE=0x%016llx, QSIZE=%" PRIu32 ", cmd_stream_ptr=%p", qbase, cms_length, cmd_stream_ptr);
 
+    uint32_t flags = bk_aspl_npu_enter_critical();
     dev->reg->QBASE.word[0] = qbase & 0xffffffff;
 #ifdef ETHOSU65
     dev->reg->QBASE.word[1] = qbase >> 32;
 #endif
     dev->reg->QSIZE.word = cms_length;
+    bk_aspl_npu_exit_critical(flags);
 
     for (int i = 0; i < num_base_addr; i++)
     {
         uint64_t addr = ethosu_address_remap(base_addr[i], i);
         assert(addr <= ADDRESS_MASK);
         LOG_DEBUG("BASEP%d=0x%016llx", i, addr);
+        flags = bk_aspl_npu_enter_critical();
         dev->reg->BASEP[i].word[0] = addr & 0xffffffff;
 #ifdef ETHOSU65
         dev->reg->BASEP[i].word[1] = addr >> 32;
 #endif
+        bk_aspl_npu_exit_critical(flags);
     }
 
+    flags = bk_aspl_npu_enter_critical();
     cmd.word                        = dev->reg->CMD.word & NPU_CMD_PWR_CLK_MASK;
     cmd.transition_to_running_state = 1;
 
     dev->reg->CMD.word = cmd.word;
+    bk_aspl_npu_exit_critical(flags);
     LOG_DEBUG("CMD=0x%08" PRIx32, cmd.word);
 }
 
 void ethosu_dev_print_err_status(struct ethosu_device *dev)
 {
+    uint32_t flags = bk_aspl_npu_enter_critical();
+    uint32_t status = dev->reg->STATUS.word;
+    uint32_t qread = dev->reg->QREAD.word;
+    uint32_t cmd_end_reached = dev->reg->STATUS.cmd_end_reached;
+    bk_aspl_npu_exit_critical(flags);
+
     LOG_ERR("NPU status=0x%08" PRIx32 ", qread=%" PRIu32 ", cmd_end_reached=%u",
-            dev->reg->STATUS.word,
-            dev->reg->QREAD.word,
-            dev->reg->STATUS.cmd_end_reached);
+            status,
+            qread,
+            cmd_end_reached);
 }
 
 bool ethosu_dev_handle_interrupt(struct ethosu_device *dev)
 {
     struct cmd_r cmd;
+    bool status_ok;
 
+    uint32_t flags = bk_aspl_npu_enter_critical();
     // Clear interrupt
     cmd.word           = dev->reg->CMD.word & NPU_CMD_PWR_CLK_MASK;
     cmd.clear_irq      = 1;
     dev->reg->CMD.word = cmd.word;
 
     // If a fault has occured, the NPU needs to be reset
-    if (dev->reg->STATUS.bus_status || dev->reg->STATUS.cmd_parse_error || dev->reg->STATUS.wd_fault ||
-        dev->reg->STATUS.ecc_fault || !dev->reg->STATUS.cmd_end_reached)
-    {
-        return false;
-    }
+    status_ok = !(dev->reg->STATUS.bus_status || dev->reg->STATUS.cmd_parse_error || dev->reg->STATUS.wd_fault ||
+                  dev->reg->STATUS.ecc_fault || !dev->reg->STATUS.cmd_end_reached);
+    bk_aspl_npu_exit_critical(flags);
 
-    return true;
+    return status_ok;
 }
 
 bool ethosu_dev_verify_access_state(struct ethosu_device *dev)
 {
-    if (dev->reg->PROT.active_CSL != (dev->secure ? SECURITY_LEVEL_SECURE : SECURITY_LEVEL_NON_SECURE) ||
-        dev->reg->PROT.active_CPL != (dev->privileged ? PRIVILEGE_LEVEL_PRIVILEGED : PRIVILEGE_LEVEL_USER))
+    uint32_t flags = bk_aspl_npu_enter_critical();
+    bool access_ok =
+        dev->reg->PROT.active_CSL == (dev->secure ? SECURITY_LEVEL_SECURE : SECURITY_LEVEL_NON_SECURE) &&
+        dev->reg->PROT.active_CPL == (dev->privileged ? PRIVILEGE_LEVEL_PRIVILEGED : PRIVILEGE_LEVEL_USER);
+    bk_aspl_npu_exit_critical(flags);
+
+    if (!access_ok)
     {
         return false;
     }
@@ -243,13 +281,16 @@ enum ethosu_error_codes ethosu_dev_soft_reset(struct ethosu_device *dev)
 
     // Reset and set security level
     LOG_INFO("Soft reset NPU");
+    uint32_t flags = bk_aspl_npu_enter_critical();
     dev->reg->RESET.word = reset.word;
+    bk_aspl_npu_exit_critical(flags);
+
     // Wait until reset status indicates that reset has been completed
-    for (int i = 0; i < 100000 && dev->reg->STATUS.reset_status != 0; i++)
+    for (int i = 0; i < 100000 && ethosu_dev_read_reset_status(dev) != 0; i++)
     {
     }
 
-    if (dev->reg->STATUS.reset_status != 0)
+    if (ethosu_dev_read_reset_status(dev) != 0)
     {
         LOG_ERR("Soft reset timed out");
         return ETHOSU_GENERIC_FAILURE;
@@ -273,8 +314,10 @@ void ethosu_dev_get_hw_info(struct ethosu_device *dev, struct ethosu_hw_info *hw
     struct config_r cfg;
     struct id_r id;
 
+    uint32_t flags = bk_aspl_npu_enter_critical();
     cfg.word = dev->reg->CONFIG.word;
     id.word  = dev->reg->ID.word;
+    bk_aspl_npu_exit_critical(flags);
 
     hwinfo->cfg.cmd_stream_version = cfg.cmd_stream_version;
     hwinfo->cfg.custom_dma         = cfg.custom_dma;
@@ -294,6 +337,7 @@ enum ethosu_error_codes ethosu_dev_set_clock_and_power(struct ethosu_device *dev
                                                        enum ethosu_power_q_request power_q)
 {
     struct cmd_r cmd = {0};
+    uint32_t flags = bk_aspl_npu_enter_critical();
     cmd.word         = dev->reg->CMD.word & NPU_CMD_PWR_CLK_MASK;
 
     if (power_q != ETHOSU_POWER_Q_UNCHANGED)
@@ -306,6 +350,7 @@ enum ethosu_error_codes ethosu_dev_set_clock_and_power(struct ethosu_device *dev
     }
 
     dev->reg->CMD.word = cmd.word;
+    bk_aspl_npu_exit_critical(flags);
     LOG_DEBUG("CMD=0x%08" PRIx32, cmd.word);
 
     return ETHOSU_SUCCESS;
@@ -319,8 +364,10 @@ bool ethosu_dev_verify_optimizer_config(struct ethosu_device *dev, uint32_t cfg_
     struct id_r hw_id;
     bool ret = true;
 
+    uint32_t flags = bk_aspl_npu_enter_critical();
     hw_cfg.word = dev->reg->CONFIG.word;
     hw_id.word  = dev->reg->ID.word;
+    bk_aspl_npu_exit_critical(flags);
 
     LOG_INFO("Optimizer config. product=%u, cmd_stream_version=%u, macs_per_cc=%u, shram_size=%u, custom_dma=%u",
              opt_cfg->product,

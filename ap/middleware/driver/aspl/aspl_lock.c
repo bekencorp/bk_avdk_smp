@@ -135,3 +135,16 @@ void bk_aspl_isp_exit_critical(uint32_t flags)
 	aspl_res_unlock(BK_HSPL_RES_ISP);
 	rtos_enable_int(flags);
 }
+
+uint32_t bk_aspl_npu_enter_critical(void)
+{
+	uint32_t flags = rtos_disable_int();
+	aspl_res_lock(BK_HSPL_RES_NPU);
+	return flags;
+}
+
+void bk_aspl_npu_exit_critical(uint32_t flags)
+{
+	aspl_res_unlock(BK_HSPL_RES_NPU);
+	rtos_enable_int(flags);
+}

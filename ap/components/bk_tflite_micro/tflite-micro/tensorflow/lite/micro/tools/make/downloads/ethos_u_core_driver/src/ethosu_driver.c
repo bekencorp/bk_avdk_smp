@@ -55,6 +55,10 @@
 
 #define FAST_MEMORY_BASE_ADDR_INDEX 2
 
+#ifndef ETHOSU_INFERENCE_IRQ_DEBUG
+#define ETHOSU_INFERENCE_IRQ_DEBUG 0
+#endif
+
 /******************************************************************************
  * Types
  ******************************************************************************/
@@ -118,6 +122,22 @@ struct opt_cfg_s
 
 // Registered drivers linked list HEAD
 static struct ethosu_driver *registered_drivers = NULL;
+
+#if ETHOSU_INFERENCE_IRQ_DEBUG
+static volatile uint32_t g_ethosu_inference_count;
+static volatile uint32_t g_ethosu_irq_count;
+
+#define ETHOSU_DEBUG_COUNT_INFERENCE() (g_ethosu_inference_count++)
+#define ETHOSU_DEBUG_COUNT_IRQ() (g_ethosu_irq_count++)
+#define ETHOSU_DEBUG_LOG_COUNTS()                                                                                      \
+    LOG_ERR("Ethos-U debug counters: inference=%" PRIu32 ", irq=%" PRIu32,                                           \
+             g_ethosu_inference_count,                                                                                 \
+             g_ethosu_irq_count)
+#else
+#define ETHOSU_DEBUG_COUNT_INFERENCE() ((void)0)
+#define ETHOSU_DEBUG_COUNT_IRQ() ((void)0)
+#define ETHOSU_DEBUG_LOG_COUNTS() ((void)0)
+#endif
 
 /******************************************************************************
  * Weak functions - Cache
@@ -366,6 +386,7 @@ static int handle_command_stream(struct ethosu_driver *drv, const uint8_t *cmd_s
     ethosu_inference_begin(drv, drv->job.user_arg);
 
     // Execute the command stream
+    ETHOSU_DEBUG_COUNT_INFERENCE();
     ethosu_dev_run_command_stream(drv->dev, cmd_stream, cms_bytes, drv->job.base_addr, drv->job.num_base_addr);
 
     return 0;
@@ -377,6 +398,7 @@ static int handle_command_stream(struct ethosu_driver *drv, const uint8_t *cmd_s
 void __attribute__((weak)) ethosu_irq_handler(struct ethosu_driver *drv)
 {
     LOG_DEBUG("Got interrupt from Ethos-U");
+    ETHOSU_DEBUG_COUNT_IRQ();
 
     // Prevent race condition where interrupt triggered after a timeout waiting
     // for semaphore, but before NPU is reset.
@@ -463,6 +485,7 @@ void ethosu_deinit(struct ethosu_driver *drv)
     ethosu_semaphore_destroy(drv->semaphore);
     ethosu_dev_deinit(drv->dev);
     drv->dev = NULL;
+    ETHOSU_DEBUG_LOG_COUNTS();
 }
 
 int ethosu_soft_reset(struct ethosu_driver *drv)

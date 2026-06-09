@@ -75,6 +75,16 @@ uint32_t bk_aspl_isp_enter_critical(void);
  */
 void bk_aspl_isp_exit_critical(uint32_t flags);
 
+/**
+ * @brief Enter critical section for NPU (disable IRQ and acquire HSPL lock)
+ */
+uint32_t bk_aspl_npu_enter_critical(void);
+
+/**
+ * @brief Exit critical section for NPU (release HSPL lock and restore IRQ)
+ */
+void bk_aspl_npu_exit_critical(uint32_t flags);
+
 #ifdef __cplusplus
 }
 #endif
