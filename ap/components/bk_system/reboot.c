@@ -24,46 +24,56 @@
 #include "aon_pmu_driver.h"
 #include "driver/flash.h"
 #include <modules/pm.h>
+#include "mb_ipc_cmd.h"
 
 
 #define TAG "sys"
+#define REBOOT_CALLBACK_FUNC_MAX  8
 
 #ifndef SOC_AON_WDT_REG_BASE
 #define SOC_AON_WDT_REG_BASE     (0x44000600 + SOC_ADDR_OFFSET)
 #endif
 
-void bk_reboot_ex(uint32_t reset_reason)
+static void (*s_reboot_cb[REBOOT_CALLBACK_FUNC_MAX])(void) = {NULL};
+
+static void bk_reboot_callback_exe(void)
 {
-	static uint32_t entry_cnt = 0;
-	if(entry_cnt == 0)	//first time come here, or force reboot:avoid these codes cause system abnormal.
-	{
-		entry_cnt++;
-
-		if (reset_reason < RESET_SOURCE_UNKNOWN) {
-			bk_misc_set_cp_reset_reason(reset_reason);
-			bk_misc_set_ap_reset_reason(reset_reason);
-		}
-
-		BK_LOGD(TAG, "bk_reboot\r\n");
-		delay_ms(100); //add delay for bk_writer BEKEN_DO_REBOOT cmd
-		bk_pm_module_vote_cpu_freq(PM_DEV_ID_DEFAULT,PM_CPU_FRQ_60M);
-
-		BK_LOGD(TAG, "system reboot\r\n");
-		rtos_disable_int();
-		if (reset_reason < RESET_SOURCE_UNKNOWN) {
-			bk_misc_set_cp_reset_reason(reset_reason);
-			bk_misc_set_ap_reset_reason(reset_reason);
+	for (size_t i = 0; i < REBOOT_CALLBACK_FUNC_MAX; i++) {
+		if (s_reboot_cb[i] != NULL) {
+			s_reboot_cb[i]();
 		}
 	}
+}
+
+void bk_reboot_callback_register(void (*func)(void))
+{
+	for (size_t i = 0; i < REBOOT_CALLBACK_FUNC_MAX; i++) {
+		if (s_reboot_cb[i] == NULL) {
+			s_reboot_cb[i] = func;
+			return;
+		}
+	}
+	BK_LOGE(TAG, "number of reboot callback function is up to max.\r\n");
+}
+
+void bk_reboot_ex(uint32_t reset_reason)
+{
+	BK_LOGD(TAG, "ap reboot\r\n");
+
+	if (reset_reason < RESET_SOURCE_UNKNOWN) {
+		bk_misc_set_cp_reset_reason(reset_reason);
+		bk_misc_set_ap_reset_reason(reset_reason);
+	}
+
+	bk_reboot_callback_exe();
+	(void)ipc_send_cpu1_need_reboot();
+	rtos_disable_int();
+  
 	//fix reboot hang 16s issue
 	bk_flash_power_saving_enter();
 
-#if 1 //CONFIG_AON_WDT
-	// TTODO:20260209,IN SMP,this cfg may cause reboot failed
-	// REG_WRITE(SOC_AON_PMU_REG_BASE + 0x2 * 4, 0x102);
 	REG_WRITE(SOC_AON_WDT_REG_BASE, 0x5A000A);
 	REG_WRITE(SOC_AON_WDT_REG_BASE, 0xA5000A);
-#endif
 
 	while(1);
 }
