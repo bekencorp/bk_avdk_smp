@@ -10,7 +10,7 @@
 #include <com/amazonaws/kinesis/video/mkvgen/Include.h>
 #include <com/amazonaws/kinesis/video/webrtcclient/Include.h>
 #include <common/avdk_pixel_types.h>
-#include <modules/vcenc/vcenc_common.h>
+#include <modules/vcenc/vcenc_types.h>
 
 /* PTS step for writeFrame; align with sample encoder cadence (see doorbell_kvs Samples.h DEFAULT_FPS_VALUE). */
 #ifndef NTWK_KVS_VIDEO_FPS

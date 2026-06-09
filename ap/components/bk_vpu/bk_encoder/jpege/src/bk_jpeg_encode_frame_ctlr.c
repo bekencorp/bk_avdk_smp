@@ -49,7 +49,7 @@ static avdk_err_t jpeg_vcenc_ret_to_avdk(vcenc_ret_e r)
 	return AVDK_ERR_HWERROR;
 }
 
-/* Forward: completion is signalled from hw_encoder task after jpeg_vcencoder_encode returns. */
+/* Forward: completion is signalled from hw_encoder task after vcenc_jpeg_encode_frame returns. */
 static void signal_jpeg_encode_done(private_jpeg_encode_frame_ctlr_t *ctrl)
 {
 	if (ctrl != NULL)
@@ -82,14 +82,14 @@ static avdk_err_t jpeg_encode_msg_callback(void *param)
 	if (ctrl == NULL)
 		return AVDK_ERR_INVAL;
 
-	ctrl->last_ret = jpeg_vcencoder_encode(&ctrl->jpeg_param);
+	ctrl->last_ret = vcenc_jpeg_encode_frame(&ctrl->jpeg_param);
 	signal_jpeg_encode_done(ctrl);
 	return jpeg_vcenc_ret_to_avdk(ctrl->last_ret);
 }
 
 /**
  * Dedicated encoder thread (same role as h264_encoder_entry): wait for enc_start_sem,
- * push work to hw_encoder queue; caller waits on enc_done_sem after jpeg_vcencoder_encode finishes.
+ * push work to hw_encoder queue; caller waits on enc_done_sem after vcenc_jpeg_encode_frame finishes.
  */
 static void jpeg_encoder_entry(void *arg)
 {
@@ -231,9 +231,16 @@ static avdk_err_t jpeg_encode_ctlr_open(bk_jpeg_encode_ctlr_handle_t handle)
 	control->jpeg_param.frame_done_cb = jpeg_encode_done_cb;
 	control->jpeg_param.args = (uint32_t)(uintptr_t)control;
 
-	vcenc_ret_e jr = jpeg_vcencoder_init(&control->jpeg_param);
+	vcenc_ret_e jr = vcenc_jpeg_init(&control->jpeg_param);
 	if (jr != VCENC_OK) {
-		LOGE("jpeg_vcencoder_init failed: %d\r\n", jr);
+		LOGE("vcenc_jpeg_init failed: %d\r\n", jr);
+		return jpeg_vcenc_ret_to_avdk(jr);
+	}
+
+	jr = vcenc_jpeg_open(&control->jpeg_param);
+	if (jr != VCENC_OK) {
+		LOGE("vcenc_jpeg_open failed: %d\r\n", jr);
+		(void)vcenc_jpeg_deinit(&control->jpeg_param);
 		return jpeg_vcenc_ret_to_avdk(jr);
 	}
 
@@ -250,7 +257,8 @@ static avdk_err_t jpeg_encode_ctlr_open(bk_jpeg_encode_ctlr_handle_t handle)
 		LOGE("Create JPEG encoder thread failed: %d\r\n", tr);
 		control->enc_status = 0;
 		control->opened = 0;
-		(void)jpeg_vcencoder_deinit(&control->jpeg_param);
+		(void)vcenc_jpeg_close(&control->jpeg_param);
+		(void)vcenc_jpeg_deinit(&control->jpeg_param);
 		return AVDK_ERR_GENERIC;
 	}
 
@@ -273,7 +281,8 @@ static avdk_err_t jpeg_encode_ctlr_close(bk_jpeg_encode_ctlr_handle_t handle)
 	rtos_get_semaphore(&control->sem, BEKEN_WAIT_FOREVER);
 
 	if (control->opened) {
-		(void)jpeg_vcencoder_deinit(&control->jpeg_param);
+		(void)vcenc_jpeg_close(&control->jpeg_param);
+		(void)vcenc_jpeg_deinit(&control->jpeg_param);
 		control->opened = 0;
 	}
 

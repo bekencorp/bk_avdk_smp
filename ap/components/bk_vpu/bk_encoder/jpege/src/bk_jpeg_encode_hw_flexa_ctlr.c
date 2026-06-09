@@ -76,7 +76,7 @@ static avdk_err_t jpeg_hw_flexa_msg_callback(void *param)
 	if (ctrl == NULL)
 		return AVDK_ERR_INVAL;
 
-	ctrl->last_ret = jpeg_vcencoder_encode(&ctrl->jpeg_param);
+	ctrl->last_ret = vcenc_jpeg_encode_frame(&ctrl->jpeg_param);
 	if (ctrl->bond != NULL && ctrl->bond->frame_done != NULL) {
 		ctrl->bond->frame_done(jpeg_hw_flexa_vcenc_ret_to_avdk(ctrl->last_ret) == AVDK_ERR_OK ?
 				       BK_OK : BK_FAIL,
@@ -141,7 +141,7 @@ static void jpeg_hw_flexa_encoder_entry(void *arg)
 		ret = rtos_get_semaphore(&ctrl->enc_done_sem, 3000);
 		if (ret != BK_OK) {
 			LOGE("wait encode done failed: %d\r\n", ret);
-			(void)jpeg_vcencoder_stop_encode(&ctrl->jpeg_param);
+			(void)vcenc_jpeg_abort(&ctrl->jpeg_param);
 			jpeg_hw_flexa_complete(ctrl, (void *)(uintptr_t)ctrl->jpeg_param.out_buffer,
 					       0, 0, BK_FAIL);
 			if (ctrl->bond != NULL && ctrl->bond->frame_done != NULL)
@@ -198,9 +198,15 @@ static avdk_err_t jpeg_hw_flexa_ctlr_open(bk_jpeg_encode_ctlr_handle_t handle)
 	control->jpeg_param.frame_done_cb = jpeg_hw_flexa_done_cb;
 	control->jpeg_param.args = (uint32_t)(uintptr_t)control;
 
-	vcenc_ret_e jr = jpeg_vcencoder_init(&control->jpeg_param);
+	vcenc_ret_e jr = vcenc_jpeg_init(&control->jpeg_param);
 	if (jr != VCENC_OK)
 		return jpeg_hw_flexa_vcenc_ret_to_avdk(jr);
+
+	jr = vcenc_jpeg_open(&control->jpeg_param);
+	if (jr != VCENC_OK) {
+		(void)vcenc_jpeg_deinit(&control->jpeg_param);
+		return jpeg_hw_flexa_vcenc_ret_to_avdk(jr);
+	}
 
 	control->enc_status = 1;
 	control->opened = 1;
@@ -214,7 +220,8 @@ static avdk_err_t jpeg_hw_flexa_ctlr_open(bk_jpeg_encode_ctlr_handle_t handle)
 	if (tr != BK_OK) {
 		control->enc_status = 0;
 		control->opened = 0;
-		(void)jpeg_vcencoder_deinit(&control->jpeg_param);
+		(void)vcenc_jpeg_close(&control->jpeg_param);
+		(void)vcenc_jpeg_deinit(&control->jpeg_param);
 		return AVDK_ERR_GENERIC;
 	}
 
@@ -234,7 +241,8 @@ static avdk_err_t jpeg_hw_flexa_ctlr_close(bk_jpeg_encode_ctlr_handle_t handle)
 	rtos_get_semaphore(&control->sem, BEKEN_WAIT_FOREVER);
 
 	if (control->opened) {
-		(void)jpeg_vcencoder_deinit(&control->jpeg_param);
+		(void)vcenc_jpeg_close(&control->jpeg_param);
+		(void)vcenc_jpeg_deinit(&control->jpeg_param);
 		control->opened = 0;
 	}
 	return AVDK_ERR_OK;
@@ -278,7 +286,7 @@ static avdk_err_t jpeg_hw_flexa_ctlr_ioctl(bk_jpeg_encode_ctlr_handle_t handle, 
 		}
 		return AVDK_ERR_INVAL;
 	case BK_JPEG_ENCODE_IOCTL_STOP_ENCODE:
-		return jpeg_hw_flexa_vcenc_ret_to_avdk(jpeg_vcencoder_stop_encode(&control->jpeg_param));
+		return jpeg_hw_flexa_vcenc_ret_to_avdk(vcenc_jpeg_abort(&control->jpeg_param));
 	default:
 		return AVDK_ERR_UNSUPPORTED;
 	}

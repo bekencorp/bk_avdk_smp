@@ -25,6 +25,10 @@
 
 #include "hw_encoder_ctlr.h"
 
+#include "modules/vcenc/vcenc_common.h"
+#include "modules/vcenc/vcenc_h264_api.h"
+#include "modules/vcenc/vcenc_jpeg_api.h"
+
 #define TAG "hw_enc_ctlr"
 
 #define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
@@ -43,7 +47,14 @@ typedef struct encoder_node {
     struct encoder_node *next;
 } encoder_node_t;
 
-/* Hardware encoder controller singleton */
+/*
+ * Hardware encoder controller singleton.
+ *
+ * Note: codec dispatch is now performed by the unified vcenc_isr (see
+ * vcenc/common/src/vcenc_isr_common.c) which uses the active vcenc_common_t
+ * pointer plus a HWIF_ENC_MODE sanity check, so this controller no longer
+ * tracks an active_encoder_type.
+ */
 typedef struct {
 	beken_thread_t task;
 	beken_queue_t msg_queue;
@@ -52,16 +63,10 @@ typedef struct {
 	encoder_node_t *encoder_list;
 	uint32_t encoder_count;
 	bool hw_initialized;
-	volatile hw_encoder_type_t active_encoder_type;
 } hw_encoder_ctlr_t;
 
 // TODO FIX
 #define REG_SYS_BASE_ADDR  0x48000000
-
-extern void h264_vcenc_memalloc_register(void *(*pmalloc)(size_t), void (*pfree)(void *));
-extern void jpeg_vcenc_memalloc_register(void *(*pmalloc)(size_t), void (*pfree)(void *));
-extern void h264_vcenc_isr(void);
-extern void jpeg_vcenc_isr(void);
 
 static hw_encoder_ctlr_t *g_hw_encoder_ctlr = NULL;
 
@@ -83,31 +88,9 @@ void encode_free(void* pbuf){
 }
 #endif // CONFIG_H264_ENCODER_USE_OS_MALLOC
 
-/*
- * Same idea as hw_decoder_ctlr: dispatch IRQ by active encoder type so H.264 ISR
- * does not clear state needed by JPEG polling; JPEG path only acks via jpeg_vcenc_isr.
- */
-static void vcenc_shared_enc_isr(void)
-{
-	hw_encoder_type_t type = hw_encoder_get_active_encoder_type();
-
-	switch (type) {
-	case HW_ENCODER_TYPE_JPEG:
-		jpeg_vcenc_isr();
-		break;
-	case HW_ENCODER_TYPE_H264:
-		h264_vcenc_isr();
-		break;
-	default:
-		LOGW("spurious encoder irq, active_encoder_type=%d\r\n", type);
-		jpeg_vcenc_isr();
-		break;
-	}
-}
-
 static void encoder_int_register(void)
 {
-    bk_int_isr_register(INT_SRC_H26E, (int_group_isr_t)&vcenc_shared_enc_isr, NULL);
+    bk_int_isr_register(INT_SRC_H26E, (int_group_isr_t)&vcenc_isr, NULL);
 #if CONFIG_SOC_SMP
     sys_drv_set_int_en(CPU2_CORE_ID, INT_SRC_H26E, 1);
 #else
@@ -140,8 +123,8 @@ static avdk_err_t hw_encoder_hw_init(void)
     bk_pm_clock_ctrl(PM_CLK_ID_H26E, PM_CLK_CTRL_PWR_UP);
 
 	encoder_int_register();
-	h264_vcenc_memalloc_register(encoder_malloc, encode_free);
-	jpeg_vcenc_memalloc_register(encoder_malloc, encode_free);
+	vcenc_h264_memalloc_register(encoder_malloc, encode_free);
+	vcenc_jpeg_memalloc_register(encoder_malloc, encode_free);
 
 	return AVDK_ERR_OK;
 }
@@ -167,20 +150,18 @@ static void hw_encoder_task(void *arg)
 {
     hw_encoder_msg_t msg;
     avdk_err_t ret;
-    
+
     LOGI("Hardware encoder task started\r\n");
-    
+
     while (1) {
         if (rtos_pop_from_queue(&g_hw_encoder_ctlr->msg_queue, &msg, BEKEN_WAIT_FOREVER) == kNoErr) {
 			if (msg.callback) {
-				g_hw_encoder_ctlr->active_encoder_type = msg.encoder_type;
 				ret = msg.callback(msg.param);
-				g_hw_encoder_ctlr->active_encoder_type = HW_ENCODER_TYPE_MAX;
 				if (ret != AVDK_ERR_OK) {
 					LOGE("%s %d Callback execution failed: %d\r\n", __func__, __LINE__, ret);
 				}
 			}
-            
+
             /* Optional completion semaphore */
             if (msg.sem) {
                 rtos_set_semaphore(msg.sem);
@@ -193,20 +174,19 @@ static void hw_encoder_task(void *arg)
 static avdk_err_t hw_encoder_ctlr_create(void)
 {
     avdk_err_t ret;
-    
+
     if (g_hw_encoder_ctlr != NULL) {
         return AVDK_ERR_OK;  /* already created */
     }
-    
+
     g_hw_encoder_ctlr = (hw_encoder_ctlr_t *)os_malloc(sizeof(hw_encoder_ctlr_t));
     if (!g_hw_encoder_ctlr) {
         LOGE("Malloc hw encoder ctlr failed\r\n");
         return AVDK_ERR_NOMEM;
     }
-    
+
 	os_memset(g_hw_encoder_ctlr, 0, sizeof(hw_encoder_ctlr_t));
-	g_hw_encoder_ctlr->active_encoder_type = HW_ENCODER_TYPE_MAX;
-    
+
     ret = rtos_init_mutex(&g_hw_encoder_ctlr->mutex);
     if (ret != kNoErr) {
         LOGE("Create mutex failed\r\n");
@@ -214,9 +194,9 @@ static avdk_err_t hw_encoder_ctlr_create(void)
         g_hw_encoder_ctlr = NULL;
         return AVDK_ERR_NO_RESOURCE;
     }
-    
+
     /* Message queue */
-    ret = rtos_init_queue(&g_hw_encoder_ctlr->msg_queue, 
+    ret = rtos_init_queue(&g_hw_encoder_ctlr->msg_queue,
                           "hw_enc_queue",
                           sizeof(hw_encoder_msg_t),
                           HW_ENCODER_QUEUE_SIZE);
@@ -227,7 +207,7 @@ static avdk_err_t hw_encoder_ctlr_create(void)
         g_hw_encoder_ctlr = NULL;
         return AVDK_ERR_NO_RESOURCE;
     }
-    
+
     /* Worker thread */
     ret = rtos_create_hsram_thread(&g_hw_encoder_ctlr->task,
                             HW_ENCODER_TASK_PRIO,
@@ -243,7 +223,7 @@ static avdk_err_t hw_encoder_ctlr_create(void)
         g_hw_encoder_ctlr = NULL;
         return AVDK_ERR_NO_RESOURCE;
     }
-    
+
     LOGI("Hardware encoder controller created\r\n");
     return AVDK_ERR_OK;
 }
@@ -254,20 +234,20 @@ static avdk_err_t hw_encoder_ctlr_destroy(void)
     if (!g_hw_encoder_ctlr) {
         return AVDK_ERR_OK;
     }
-    
+
     /* Stop worker */
     if (g_hw_encoder_ctlr->task) {
         rtos_delete_thread(&g_hw_encoder_ctlr->task);
         g_hw_encoder_ctlr->task = NULL;
     }
-    
+
     rtos_deinit_queue(&g_hw_encoder_ctlr->msg_queue);
 
     rtos_deinit_mutex(&g_hw_encoder_ctlr->mutex);
 
     os_free(g_hw_encoder_ctlr);
     g_hw_encoder_ctlr = NULL;
-    
+
     LOGI("Hardware encoder controller destroyed\r\n");
     return AVDK_ERR_OK;
 }
@@ -276,12 +256,12 @@ avdk_err_t hw_encoder_register(hw_encoder_type_t type, void *encoder_id)
 {
     encoder_node_t *node = NULL;
     avdk_err_t ret = AVDK_ERR_OK;
-    
+
     if (!encoder_id) {
         LOGE("Invalid encoder_id\r\n");
         return AVDK_ERR_INVAL;
     }
-    
+
     /* Lazily create controller on first register */
     if (!g_hw_encoder_ctlr) {
         ret = hw_encoder_ctlr_create();
@@ -289,9 +269,9 @@ avdk_err_t hw_encoder_register(hw_encoder_type_t type, void *encoder_id)
             return ret;
         }
     }
-    
+
     rtos_lock_mutex(&g_hw_encoder_ctlr->mutex);
-    
+
     /* Reject duplicate registration */
     node = g_hw_encoder_ctlr->encoder_list;
     while (node) {
@@ -302,7 +282,7 @@ avdk_err_t hw_encoder_register(hw_encoder_type_t type, void *encoder_id)
         }
         node = node->next;
     }
-    
+
     /* Prepend new list node */
     node = (encoder_node_t *)os_malloc(sizeof(encoder_node_t));
     if (!node) {
@@ -310,13 +290,13 @@ avdk_err_t hw_encoder_register(hw_encoder_type_t type, void *encoder_id)
         rtos_unlock_mutex(&g_hw_encoder_ctlr->mutex);
         return AVDK_ERR_NOMEM;
     }
-    
+
     node->type = type;
     node->encoder_id = encoder_id;
     node->next = g_hw_encoder_ctlr->encoder_list;
     g_hw_encoder_ctlr->encoder_list = node;
     g_hw_encoder_ctlr->encoder_count++;
-    
+
     /* First client: power up VCENC and register allocators/ISR */
     if (g_hw_encoder_ctlr->encoder_count == 1 && !g_hw_encoder_ctlr->hw_initialized) {
         ret = hw_encoder_hw_init();
@@ -324,11 +304,11 @@ avdk_err_t hw_encoder_register(hw_encoder_type_t type, void *encoder_id)
             g_hw_encoder_ctlr->hw_initialized = true;
         }
     }
-    
+
     LOGI("Encoder registered, type=%d, count=%d\r\n", type, g_hw_encoder_ctlr->encoder_count);
-    
+
     rtos_unlock_mutex(&g_hw_encoder_ctlr->mutex);
-    
+
     return ret;
 }
 
@@ -337,13 +317,13 @@ avdk_err_t hw_encoder_unregister(void *encoder_id)
     encoder_node_t *node = NULL;
     encoder_node_t *prev = NULL;
     avdk_err_t ret = AVDK_ERR_OK;
-    
+
     if (!encoder_id || !g_hw_encoder_ctlr) {
         return AVDK_ERR_INVAL;
     }
-    
+
     rtos_lock_mutex(&g_hw_encoder_ctlr->mutex);
-    
+
     /* Unlink matching node */
     node = g_hw_encoder_ctlr->encoder_list;
     while (node) {
@@ -353,31 +333,30 @@ avdk_err_t hw_encoder_unregister(void *encoder_id)
             } else {
                 g_hw_encoder_ctlr->encoder_list = node->next;
             }
-            
+
             os_free(node);
             g_hw_encoder_ctlr->encoder_count--;
-            
+
             LOGI("Encoder unregistered, count=%d\r\n", g_hw_encoder_ctlr->encoder_count);
-            
+
             /* Last client: power down and destroy controller */
             if (g_hw_encoder_ctlr->encoder_count == 0 && g_hw_encoder_ctlr->hw_initialized) {
                 ret = hw_encoder_hw_deinit();
                 g_hw_encoder_ctlr->hw_initialized = false;
-                g_hw_encoder_ctlr->active_encoder_type = HW_ENCODER_TYPE_MAX;
 
                 rtos_unlock_mutex(&g_hw_encoder_ctlr->mutex);
                 hw_encoder_ctlr_destroy();
                 return ret;
             }
-            
+
             break;
         }
         prev = node;
         node = node->next;
     }
-    
+
     rtos_unlock_mutex(&g_hw_encoder_ctlr->mutex);
-    
+
     return ret;
 }
 
@@ -391,11 +370,4 @@ avdk_err_t hw_encoder_send_msg(hw_encoder_msg_t *msg, uintptr_t timeout)
 		return AVDK_ERR_GENERIC;
 	}
 	return AVDK_ERR_OK;
-}
-
-hw_encoder_type_t hw_encoder_get_active_encoder_type(void)
-{
-	if (g_hw_encoder_ctlr == NULL)
-		return HW_ENCODER_TYPE_MAX;
-	return g_hw_encoder_ctlr->active_encoder_type;
 }

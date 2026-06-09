@@ -9,6 +9,7 @@
 #include "sys_driver.h"
 #include <common/avdk_pixel_types.h>
 #include "modules/vcdec/vcdec_h264_api.h"
+#include "modules/vcdec/vcdec_common.h"
 #include "vcdec_h264_driver_test.h"
 #include "h264_decode_stream_1280x720.h"
 #include "h264_decode_stream_256x128.h"
@@ -48,9 +49,6 @@
 #ifndef VCDEC_H264_TEST_DUMP_FLEXA_SEGMENT
 #define VCDEC_H264_TEST_DUMP_FLEXA_SEGMENT   1
 #endif
-
-extern void vcdec_h264_isr(void);
-extern void vcdec_h264_pp_isr(void);
 
 typedef struct {
     uint32_t id;
@@ -257,14 +255,14 @@ static void vcdec_h264_test_power_off(void)
 
 static bk_err_t vcdec_h264_test_int_register(void)
 {
-    bk_int_isr_register(INT_SRC_H264D, (int_group_isr_t)&vcdec_h264_isr, NULL);
+    bk_int_isr_register(INT_SRC_H264D, (int_group_isr_t)&vcdec_isr, NULL);
 #if CONFIG_SOC_SMP
     sys_drv_set_int_en(CPU2_CORE_ID, INT_SRC_H264D, 1);
 #else
     sys_drv_set_int_en(rtos_get_core_id(), INT_SRC_H264D, 1);
 #endif
 
-    bk_int_isr_register(INT_SRC_H264D_PP, (int_group_isr_t)&vcdec_h264_pp_isr, NULL);
+    bk_int_isr_register(INT_SRC_H264D_PP, (int_group_isr_t)&vcdec_pp_isr, NULL);
 #if CONFIG_SOC_SMP
     sys_drv_set_int_en(CPU2_CORE_ID, INT_SRC_H264D_PP, 1);
 #else

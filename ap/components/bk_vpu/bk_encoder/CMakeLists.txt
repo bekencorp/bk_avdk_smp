@@ -18,7 +18,6 @@ if (CONFIG_BK_ENCODER)
         h264e/src/bk_h264_encode_frame_ctlr.c
         h264e/src/bk_h264_encode_hw_flexa_ctlr.c
         h264e/src/bk_h264_encode_sw_flexa_ctlr.c
-        h264e/src/h264e_driver.c
         jpege/src/bk_jpeg_encode.c
         jpege/src/bk_jpeg_encode_frame_ctlr.c
         jpege/src/bk_jpeg_encode_hw_flexa_ctlr.c

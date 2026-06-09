@@ -1,44 +1,55 @@
 #pragma once
 
-#include "modules/vcenc/vcenc_common.h"
+/**
+ * @file vcenc_jpeg_api.h
+ * @brief Public API for the JPEG encoder front-end.
+ *
+ * Lifecycle: vcenc_jpeg_init() -> vcenc_jpeg_open() -> vcenc_jpeg_encode_frame()*
+ *           -> vcenc_jpeg_close() -> vcenc_jpeg_deinit().
+ */
 
-typedef struct jpeg_enc_param_s {
-	vcenc_handle instance;
-	uint16_t width;
-	uint16_t height;
-	vcenc_mode_e enc_mode;
-	vcenc_input_e in_type;
-	uint32_t in_buffer;
-	uint32_t in_lines;
-	uint32_t out_buffer;
-	uint32_t out_len;
-	uint8_t quality; /* 0..10 → EncJpeg QuantLuminance index */
-	uint32_t input_linebuf_depth;
-	uint32_t input_linebuf_loopback_en;
-	uint32_t input_linebuf_hw_mode_en;
-	uint32_t amount_per_loopback;
-	uint32_t linebuf_wr_cnt;
-	vcenc_frame_done_cb frame_done_cb;
-	vcenc_slice_done_cb slice_done_cb;
-	uint32_t args;
-} jpeg_enc_param_t;
+#include "modules/vcenc/vcenc_types.h"
+#include "modules/vcenc/vcenc_jpeg_types.h"
 
-void jpeg_vcenc_memalloc_register(void *(*pmalloc)(size_t), void (*pfree)(void *));
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-vcenc_ret_e jpeg_vcencoder_init(jpeg_enc_param_t *enc_param);
+/** Register memory allocator hooks shared by all JPEG encoder instances. */
+void vcenc_jpeg_memalloc_register(void *(*pmalloc)(size_t), void (*pfree)(void *));
 
-vcenc_ret_e jpeg_vcencoder_encode(jpeg_enc_param_t *enc_param);
+/** Allocate an instance and bind it to the caller-owned @ref jpeg_enc_param_t. */
+vcenc_ret_e vcenc_jpeg_init(jpeg_enc_param_t *enc_param);
 
-vcenc_ret_e jpeg_vcencoder_stop_encode(jpeg_enc_param_t *enc_param);
+/** Open the encoder session: arms IRQ, prepares per-instance semaphore. */
+vcenc_ret_e vcenc_jpeg_open(jpeg_enc_param_t *enc_param);
 
-vcenc_ret_e jpeg_vcencoder_flexa_input_linebuf_wrcnt_set(jpeg_enc_param_t *enc_param,
-							  uint32_t wrcnt);
+/** Encode one frame; blocks the caller on the per-instance encode semaphore. */
+vcenc_ret_e vcenc_jpeg_encode_frame(jpeg_enc_param_t *enc_param);
 
-uint32_t jpeg_vcencoder_get_encoded_lines(void);
+/** Close the encoder session: stops HW, masks IRQ, releases per-instance sem. */
+vcenc_ret_e vcenc_jpeg_close(jpeg_enc_param_t *enc_param);
 
-int jpeg_vcencoder_memfree(jpeg_enc_param_t *param);
+/**
+ * Abort an in-flight encode_frame: forces the engine to stop and wakes the
+ * waiter with VCENC_SW_ABORT-equivalent error path. May also be used as a
+ * synchronous "stop encode" entry point.
+ */
+vcenc_ret_e vcenc_jpeg_abort(jpeg_enc_param_t *enc_param);
 
-vcenc_ret_e jpeg_vcencoder_deinit(jpeg_enc_param_t *enc_param);
+/** Tear down the instance and free its associated buffers. */
+vcenc_ret_e vcenc_jpeg_deinit(jpeg_enc_param_t *enc_param);
 
-/** Shared encoder IRQ entry (HW JPEG path); must stay compatible with hw_encoder_ctlr dispatch. */
-void jpeg_vcenc_isr(void);
+/** Update the FLEXA input line-buffer write counter at runtime. */
+vcenc_ret_e vcenc_jpeg_flexa_input_linebuf_wrcnt_set(jpeg_enc_param_t *enc_param,
+						      uint32_t wrcnt);
+
+/** Read the encoded slice count (rdcnt) from hardware (FLEXA). */
+uint32_t vcenc_jpeg_get_encoded_lines(void);
+
+/** Free codec-owned memory buffers allocated during init. Used by deinit. */
+int vcenc_jpeg_memfree(jpeg_enc_param_t *param);
+
+#ifdef __cplusplus
+}
+#endif

@@ -85,7 +85,7 @@ static uint32_t jpeg_sw_flexa_line_done_cb(uint8_t *y, uint8_t *u, uint8_t *v, u
 	if (ctrl == NULL)
 		return BK_FAIL;
 
-	uint32_t rd_blocks = jpeg_vcencoder_get_encoded_lines();
+	uint32_t rd_blocks = vcenc_jpeg_get_encoded_lines();
 	if (rd_blocks > ctrl->flexa_blocks_per_frame)
 		rd_blocks = ctrl->flexa_blocks_per_frame;
 	if (rd_blocks < ctrl->last_flexa_line)
@@ -110,7 +110,7 @@ static avdk_err_t jpeg_sw_flexa_msg_callback(void *param)
 
 	ctrl->last_flexa_line = 0;
 	ctrl->jpeg_param.linebuf_wr_cnt = JPEG_SW_FLEXA_INITIAL_WR_BLOCKS;
-	ctrl->last_ret = jpeg_vcencoder_encode(&ctrl->jpeg_param);
+	ctrl->last_ret = vcenc_jpeg_encode_frame(&ctrl->jpeg_param);
 	return jpeg_sw_flexa_vcenc_ret_to_avdk(ctrl->last_ret);
 }
 
@@ -170,7 +170,7 @@ static void jpeg_sw_flexa_encoder_entry(void *arg)
 		ret = rtos_get_semaphore(&ctrl->enc_done_sem, 3000);
 		if (ret != BK_OK) {
 			LOGE("wait encode done failed: %d\r\n", ret);
-			(void)jpeg_vcencoder_stop_encode(&ctrl->jpeg_param);
+			(void)vcenc_jpeg_abort(&ctrl->jpeg_param);
 			jpeg_sw_flexa_complete(ctrl, (void *)(uintptr_t)ctrl->jpeg_param.out_buffer,
 					       0, 0, BK_FAIL);
 			if (ctrl->bond != NULL && ctrl->bond->frame_done != NULL)
@@ -233,9 +233,15 @@ static avdk_err_t jpeg_sw_flexa_ctlr_open(bk_jpeg_encode_ctlr_handle_t handle)
 		(control->config.height + JPEG_SW_FLEXA_LINES_PER_BLOCK - 1U) /
 		JPEG_SW_FLEXA_LINES_PER_BLOCK;
 
-	vcenc_ret_e jr = jpeg_vcencoder_init(&control->jpeg_param);
+	vcenc_ret_e jr = vcenc_jpeg_init(&control->jpeg_param);
 	if (jr != VCENC_OK)
 		return jpeg_sw_flexa_vcenc_ret_to_avdk(jr);
+
+	jr = vcenc_jpeg_open(&control->jpeg_param);
+	if (jr != VCENC_OK) {
+		(void)vcenc_jpeg_deinit(&control->jpeg_param);
+		return jpeg_sw_flexa_vcenc_ret_to_avdk(jr);
+	}
 
 	control->enc_status = 1;
 	control->opened = 1;
@@ -249,7 +255,8 @@ static avdk_err_t jpeg_sw_flexa_ctlr_open(bk_jpeg_encode_ctlr_handle_t handle)
 	if (tr != BK_OK) {
 		control->enc_status = 0;
 		control->opened = 0;
-		(void)jpeg_vcencoder_deinit(&control->jpeg_param);
+		(void)vcenc_jpeg_close(&control->jpeg_param);
+		(void)vcenc_jpeg_deinit(&control->jpeg_param);
 		return AVDK_ERR_GENERIC;
 	}
 
@@ -269,7 +276,8 @@ static avdk_err_t jpeg_sw_flexa_ctlr_close(bk_jpeg_encode_ctlr_handle_t handle)
 	rtos_get_semaphore(&control->sem, BEKEN_WAIT_FOREVER);
 
 	if (control->opened) {
-		(void)jpeg_vcencoder_deinit(&control->jpeg_param);
+		(void)vcenc_jpeg_close(&control->jpeg_param);
+		(void)vcenc_jpeg_deinit(&control->jpeg_param);
 		control->opened = 0;
 	}
 	return AVDK_ERR_OK;
@@ -302,8 +310,8 @@ static avdk_err_t jpeg_sw_flexa_ctlr_ioctl(bk_jpeg_encode_ctlr_handle_t handle, 
 		return AVDK_ERR_OK;
 	case BK_JPEG_ENCODE_IOCTL_SET_FLEXA_LINES_READY:
 		return jpeg_sw_flexa_vcenc_ret_to_avdk(
-			jpeg_vcencoder_flexa_input_linebuf_wrcnt_set(&control->jpeg_param,
-								     (uint32_t)(uintptr_t)arg));
+			vcenc_jpeg_flexa_input_linebuf_wrcnt_set(&control->jpeg_param,
+								 (uint32_t)(uintptr_t)arg));
 	case BK_JPEG_ENCODE_IOCTL_SET_FRAME_READY:
 		rtos_set_semaphore(&control->enc_start_sem);
 		return AVDK_ERR_OK;
@@ -312,13 +320,13 @@ static avdk_err_t jpeg_sw_flexa_ctlr_ioctl(bk_jpeg_encode_ctlr_handle_t handle, 
 		return control->bond ? AVDK_ERR_OK : AVDK_ERR_INVAL;
 	case BK_JPEG_ENCODE_IOCTL_UNREGISTER_BOND:
 		if (control->bond == (bk_flexa_bond_t *)arg) {
-			(void)jpeg_vcencoder_stop_encode(&control->jpeg_param);
+			(void)vcenc_jpeg_abort(&control->jpeg_param);
 			control->bond = NULL;
 			return AVDK_ERR_OK;
 		}
 		return AVDK_ERR_INVAL;
 	case BK_JPEG_ENCODE_IOCTL_STOP_ENCODE:
-		return jpeg_sw_flexa_vcenc_ret_to_avdk(jpeg_vcencoder_stop_encode(&control->jpeg_param));
+		return jpeg_sw_flexa_vcenc_ret_to_avdk(vcenc_jpeg_abort(&control->jpeg_param));
 	default:
 		return AVDK_ERR_UNSUPPORTED;
 	}

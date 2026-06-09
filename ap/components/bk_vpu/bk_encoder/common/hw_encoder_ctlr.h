@@ -74,8 +74,6 @@ avdk_err_t hw_encoder_unregister(void *encoder_id);
  */
 avdk_err_t hw_encoder_send_msg(hw_encoder_msg_t *msg, uintptr_t timeout);
 
-hw_encoder_type_t hw_encoder_get_active_encoder_type(void);
-
 #ifdef __cplusplus
 }
 #endif

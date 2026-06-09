@@ -19,6 +19,7 @@
 
 #include "modules/vcdec/vcdec_jpeg_api.h"
 #include "modules/vcdec/vcdec_h264_api.h"
+#include "modules/vcdec/vcdec_common.h"
 #include "driver/int.h"
 #include "driver/int_types.h"
 #include "sys_driver.h"
@@ -54,63 +55,19 @@ typedef struct {
 	decoder_node_t *decoder_list;
 	uint32_t decoder_count;
 	bool hw_initialized;
-	volatile hw_decoder_type_t active_type;
 } hw_decoder_ctlr_t;
 
 static hw_decoder_ctlr_t *g_hw_decoder_ctlr = NULL;
 
-extern void vcdec_jpeg_isr(void);
-extern void vcdec_jpeg_pp_isr(void);
-extern void vcdec_h264_isr(void);
-extern void vcdec_h264_pp_isr(void);
-
-static void vcdec_shared_dec_isr(void)
-{
-	hw_decoder_type_t type = hw_decoder_get_active_decoder_type();
-
-	switch (type) {
-	case HW_DECODER_TYPE_JPEG:
-		vcdec_jpeg_isr();
-		break;
-	case HW_DECODER_TYPE_H264:
-		vcdec_h264_isr();
-		break;
-	default:
-		LOGW("spurious decoder irq, active_type=%d\r\n", type);
-		/* Use one existing ISR to clear the shared decoder irq state. */
-		vcdec_jpeg_isr();
-		break;
-	}
-}
-
-static void vcdec_shared_pp_isr(void)
-{
-	hw_decoder_type_t type = hw_decoder_get_active_decoder_type();
-
-	switch (type) {
-	case HW_DECODER_TYPE_JPEG:
-		vcdec_jpeg_pp_isr();
-		break;
-	case HW_DECODER_TYPE_H264:
-		vcdec_h264_pp_isr();
-		break;
-	default:
-		LOGW("spurious pp irq, active_type=%d\r\n", type);
-		/* Use one existing ISR to clear the shared pp irq state. */
-		vcdec_jpeg_pp_isr();
-		break;
-	}
-}
-
 static void decoder_int_register(void)
 {
-	bk_int_isr_register(INT_SRC_H264D, (int_group_isr_t)&vcdec_shared_dec_isr, NULL);
+	bk_int_isr_register(INT_SRC_H264D, (int_group_isr_t)&vcdec_isr, NULL);
 #if CONFIG_SOC_SMP
 	sys_drv_set_int_en(CPU2_CORE_ID, INT_SRC_H264D, 1);
 #else
 	sys_drv_set_int_en(rtos_get_core_id(), INT_SRC_H264D, 1);
 #endif
-	bk_int_isr_register(INT_SRC_H264D_PP, (int_group_isr_t)&vcdec_shared_pp_isr, NULL);
+	bk_int_isr_register(INT_SRC_H264D_PP, (int_group_isr_t)&vcdec_pp_isr, NULL);
 #if CONFIG_SOC_SMP
 	sys_drv_set_int_en(CPU2_CORE_ID, INT_SRC_H264D_PP, 1);
 #else
@@ -160,9 +117,7 @@ static void hw_decoder_task(void *arg)
 	while (1) {
 		if (rtos_pop_from_queue(&g_hw_decoder_ctlr->msg_queue, &msg, BEKEN_WAIT_FOREVER) == kNoErr) {
 			if (msg.callback) {
-				g_hw_decoder_ctlr->active_type = msg.decoder_type;
 				ret = msg.callback(msg.param);
-				g_hw_decoder_ctlr->active_type = HW_DECODER_TYPE_MAX;
 				if (ret != AVDK_ERR_OK) {
 					LOGE("%s %d Callback execution failed: %d\r\n", __func__, __LINE__, ret);
 				}
@@ -189,7 +144,6 @@ static avdk_err_t hw_decoder_ctlr_create(void)
 	}
 
 	os_memset(g_hw_decoder_ctlr, 0, sizeof(hw_decoder_ctlr_t));
-	g_hw_decoder_ctlr->active_type = HW_DECODER_TYPE_MAX;
 
 	ret = rtos_init_mutex(&g_hw_decoder_ctlr->mutex);
 	if (ret != kNoErr) {
@@ -332,7 +286,6 @@ avdk_err_t hw_decoder_unregister(void *decoder_id)
 			if (g_hw_decoder_ctlr->decoder_count == 0 && g_hw_decoder_ctlr->hw_initialized) {
 				ret = hw_decoder_hw_deinit();
 				g_hw_decoder_ctlr->hw_initialized = false;
-				g_hw_decoder_ctlr->active_type = HW_DECODER_TYPE_MAX;
 				rtos_unlock_mutex(&g_hw_decoder_ctlr->mutex);
 				hw_decoder_ctlr_destroy();
 				return ret;
@@ -358,13 +311,4 @@ avdk_err_t hw_decoder_send_msg(hw_decoder_msg_t *msg, uintptr_t timeout)
 		return AVDK_ERR_GENERIC;
 	}
 	return AVDK_ERR_OK;
-}
-
-hw_decoder_type_t hw_decoder_get_active_decoder_type(void)
-{
-	if (g_hw_decoder_ctlr == NULL) {
-		return HW_DECODER_TYPE_MAX;
-	}
-
-	return g_hw_decoder_ctlr->active_type;
 }

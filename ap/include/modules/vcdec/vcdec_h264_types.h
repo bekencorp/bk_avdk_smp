@@ -1,11 +1,25 @@
 #pragma once
 
+/**
+ * @file vcdec_h264_types.h
+ * @brief H264-decoder-specific public types.
+ *
+ * Holds types that only apply to the H264 decoder front-end (e.g. parsed
+ * frame info, per-frame decode configuration). Common decoder types
+ * (return codes, handle, callbacks, flexa mode, init config) live in
+ * vcdec_types.h.
+ */
+
+#include <stdint.h>
 #include "vcdec_types.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+/**
+ * @brief H264 frame / slice type reported by the parser.
+ */
 typedef enum {
 	VCDEC_H264_FRAME_UNKNOWN = 0,
 	VCDEC_H264_FRAME_IDR,
@@ -13,23 +27,36 @@ typedef enum {
 	VCDEC_H264_FRAME_P,
 } vcdec_h264_frame_type_t;
 
-typedef struct {
+/**
+ * @brief Parsed H264 frame info.
+ *
+ * Filled by vcdec_h264_get_info() and carries metadata extracted from the
+ * current access unit so that the caller can drive its frame management.
+ */
+typedef struct vcdec_h264_info_t {
 	uint32_t width;
 	uint32_t height;
 	uint8_t *input_stream;
 	uint32_t input_stream_len;
 	vcdec_h264_frame_type_t frame_type;
-	uint8_t is_reference;
-	uint8_t nal_ref_idc;
+	uint8_t  is_reference;
+	uint8_t  nal_ref_idc;
 } vcdec_h264_info_t;
 
-typedef struct {
-	uint8_t *input_stream;
-	uint32_t input_stream_len;
-	uint8_t *output_buffer;
-	uint32_t output_size;
-	uint16_t segment_height;
-	uint8_t segment_number;
+/**
+ * @brief Per-frame H264 decode configuration.
+ *
+ * Filled by the caller for every vcdec_h264_decode_frame() invocation.
+ * Describes the input bitstream buffer, the output frame buffer and the
+ * tiled/segmented output layout used by the post-processor.
+ */
+typedef struct vcdec_h264_decode_config_t {
+	uint8_t *input_stream;      /* H264 bitstream buffer */
+	uint32_t input_stream_len;  /* H264 bitstream length in bytes */
+	uint8_t *output_buffer;     /* Output frame buffer */
+	uint32_t output_size;       /* Output frame buffer size in bytes */
+	uint16_t segment_height;    /* Output ring-buffer segment height (in MB rows) */
+	uint8_t  segment_number;    /* Number of output ring-buffer segments */
 } vcdec_h264_decode_config_t;
 
 #ifdef __cplusplus

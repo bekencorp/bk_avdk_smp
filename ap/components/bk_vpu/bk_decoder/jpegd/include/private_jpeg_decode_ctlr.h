@@ -16,7 +16,7 @@
 
 #include "os/os.h"
 #include "components/bk_decode/bk_jpeg_decode_types.h"
-#include "modules/vcdec/vcdec_types.h"
+#include "modules/vcdec/vcdec_jpeg_types.h"
 #include "bk_flexa_bond_types.h"
 
 #ifdef __cplusplus
@@ -32,7 +32,7 @@ typedef struct {
 typedef struct {
     vcdec_handle vcdec_handle;      /* from vcdec_jpeg_open */
     bk_jpeg_decode_flexa_mode_t mode;        /* flexa mode */
-    vcdec_decode_config_t decode_config;  /* filled per decode */
+    vcdec_jpeg_decode_config_t decode_config;  /* filled per decode */
     uint32_t decode_result;
     beken_semaphore_t decode_done_sem;
 
@@ -43,7 +43,7 @@ typedef struct {
 typedef struct {
     vcdec_handle vcdec_handle;  /* from vcdec_jpeg_open */
     bk_jpeg_decode_flexa_mode_t mode;        /* flexa mode */
-    vcdec_decode_config_t decode_config;  /* filled per decode */
+    vcdec_jpeg_decode_config_t decode_config;  /* filled per decode */
     uint32_t decode_result;
     beken_semaphore_t decode_done_sem;
     /** Flexa completion flags for each output port: bit i corresponds to port_id == i (BK_JPEG_DECODE_RD_PORT_MAX ports). */
