@@ -33,6 +33,9 @@
 #include <driver/uart.h>
 #include <driver/hal/hal_uart_types.h>
 #include <components/system.h>
+#if CONFIG_SUPPORT_WWDT
+#include <driver/wwdt.h>
+#endif
 
 #define PM_LOWVOL_CB_SIZE                               (0x2)
 #define PM_SLEEP_CB_ENTER_LOWVOL_INDEX                  (0x0)
@@ -77,6 +80,9 @@ uint64_t pm_cpu_wfi_process()
 {
 	GLOBAL_INT_DECLARATION();
 	GLOBAL_INT_DISABLE();
+#if CONFIG_SUPPORT_WWDT
+	bk_wwdt_feed();
+#endif
 
 	uint64_t sleep_tick         = 0ULL;
 	#if CONFIG_AON_RTC || CONFIG_ANA_RTC
@@ -85,6 +91,10 @@ uint64_t pm_cpu_wfi_process()
 	#endif
 
 	pm_enter_cpu_wfi();
+#if CONFIG_SUPPORT_WWDT
+	bk_wwdt_feed();
+#endif
+
 
 	#if CONFIG_AON_RTC || CONFIG_ANA_RTC
 	uint64_t exit_tick          = 0ULL;
