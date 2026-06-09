@@ -12,7 +12,7 @@ extern void thread_mac802154_cmd(char *pcWriteBuffer, int xWriteBufferLen, int a
 static const struct cli_command s_mac802154_commands[] = {
     {"mac802154",   "mac802154 [tx|rx] [channel] [tx_cont|rx_mode]",cli_mac802154},
     {"thread",      "thread dut | thread exit", thread_mac802154_cmd},
-    {"txthread",    "txthread -h | -c ch [-n n -f type -t mode] | -p idx | -r | -stop", txdtm_mac80154_cmd},
+    {"txthread",    "txthread -h | -c ch [-l len -n num -f type -t mode -w en -p idx -y duty] | -p idx | -r | -stop", txdtm_mac80154_cmd},
     {"rxthread",    "rxthread -h | -c ch | -g 0 | -r | -stop", rxdtm_mac80154_cmd},
 };
 

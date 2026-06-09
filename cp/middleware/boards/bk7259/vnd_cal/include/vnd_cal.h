@@ -16,6 +16,7 @@ typedef struct tmp_pwr_st {
     signed p_index_delta : 7;
     signed p_index_delta_g : 7;
     signed p_index_delta_ble : 7;
+    signed p_index_delta_thread: 7;
     signed xtal_c_dlta : 10; //8bits xtalh_ctune on BK7236
 } TMP_PWR_ST, *TMP_PWR_PTR;
 
