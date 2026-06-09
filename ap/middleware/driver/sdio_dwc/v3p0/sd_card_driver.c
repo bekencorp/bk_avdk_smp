@@ -144,6 +144,57 @@ static volatile bool s_last_cmd_timeout = false;
 
 static sd_card_obj_t s_sd_card_obj = {0};
 
+static void sd_card_clear_transfer_error_flags(void)
+{
+	CMD_TOUT_ERR_STATE = 0;
+	CMD_CRC_ERR_STATE = 0;
+	CMD_END_BIT_ERR_STATE = 0;
+	CMD_IDX_ERR_STATE = 0;
+	DATA_TOUT_ERR_STATE = 0;
+	DATA_CRC_ERR_STATE = 0;
+	DATA_END_BIT_ERR_STATE = 0;
+	AUTO_CMD_ERR_STATE = 0;
+	ADMA_ERR_STATE = 0;
+	RESP_ERR_STATE = 0;
+	ERROR_INTERRUPT_STATE = 0;
+}
+
+static bool sd_card_has_transfer_error(void)
+{
+	return CMD_TOUT_ERR_STATE || CMD_CRC_ERR_STATE ||
+		CMD_END_BIT_ERR_STATE || CMD_IDX_ERR_STATE ||
+		DATA_TOUT_ERR_STATE || DATA_CRC_ERR_STATE ||
+		DATA_END_BIT_ERR_STATE || AUTO_CMD_ERR_STATE ||
+		ADMA_ERR_STATE || RESP_ERR_STATE;
+}
+
+static void sd_card_log_transfer_wait_error(const char *func, const char *sema_name, int ret)
+{
+	SDIOD_LOGE("func %s: wait %s failed, ret=%d, err_int=%u, cmd[tout/crc/end/idx]=%u/%u/%u/%u, data[tout/crc/end]=%u/%u/%u, auto=%u, adma=%u, resp=%u\r\n",
+		func, sema_name, ret, (unsigned int)ERROR_INTERRUPT_STATE,
+		(unsigned int)CMD_TOUT_ERR_STATE, (unsigned int)CMD_CRC_ERR_STATE,
+		(unsigned int)CMD_END_BIT_ERR_STATE, (unsigned int)CMD_IDX_ERR_STATE,
+		(unsigned int)DATA_TOUT_ERR_STATE, (unsigned int)DATA_CRC_ERR_STATE,
+		(unsigned int)DATA_END_BIT_ERR_STATE, (unsigned int)AUTO_CMD_ERR_STATE,
+		(unsigned int)ADMA_ERR_STATE, (unsigned int)RESP_ERR_STATE);
+}
+
+static uint32_t sd_card_load_unaligned_le32(const uint8_t *data)
+{
+	return ((uint32_t)data[0]) |
+		((uint32_t)data[1] << 8) |
+		((uint32_t)data[2] << 16) |
+		((uint32_t)data[3] << 24);
+}
+
+static void sd_card_store_unaligned_le32(uint8_t *data, uint32_t value)
+{
+	data[0] = (uint8_t)value;
+	data[1] = (uint8_t)(value >> 8);
+	data[2] = (uint8_t)(value >> 16);
+	data[3] = (uint8_t)(value >> 24);
+}
+
 
 static sdcard_rw_state_t sd_card_check_continious_rw(sdcard_rw_ops_t ops, uint32_t addr, uint32_t blk_cnt);
 
@@ -333,9 +384,14 @@ bk_err_t sd_card_init(uintptr_t addr)
 			rtos_delay_milliseconds(1);
 		}
 		if (!(pstate & CARD_INSERTED)) {
+#if CONFIG_SDCARD_CHECK_INSERTION_EN
 			SDIOD_LOGW("no card present (PSTATE=0x%08x), skip sd init\r\n",
 				   pstate);
 			return BK_FAIL;
+#else
+			SDIOD_LOGW("card-detect bit is low (PSTATE=0x%08x), continue init because insertion check is disabled\r\n",
+				   pstate);
+#endif
 		}
 	}
 
@@ -573,6 +629,8 @@ bk_err_t send_mult_data(uintptr_t addr, const uint8_t *data, uint16 BLOCK_SIZE,u
 	uint32 num=0;
 	uint16 block_num =0;
 
+	sd_card_clear_transfer_error_flags();
+
 	NORMAL_INT_STAT_EN_R(addr)= CMD_COMPLETE_STAT_EN | XFER_COMPLETE_STAT_EN | BUF_WR_READY_STAT_EN;
 	ERROR_INT_STAT_EN_R(addr) = 0x870;
 	NORMAL_INT_SIGNAL_EN_R(addr)= CMD_COMPLETE_SIGNAL_EN | XFER_COMPLETE_SIGNAL_EN | BUF_WR_READY_SIGNAL_EN;
@@ -588,19 +646,22 @@ bk_err_t send_mult_data(uintptr_t addr, const uint8_t *data, uint16 BLOCK_SIZE,u
 
 	int ret = 0;
 	ret = rtos_get_semaphore(&s_sdio_cmd_done_sema, 2000);
-	if(ret != 0) {
-		SDIOD_LOGE("func %s: get sem s_sdio_cmd_done_sema timeout\r\n", __func__);
+	if((ret != 0) || sd_card_has_transfer_error()) {
+		sd_card_log_transfer_wait_error(__func__, "s_sdio_cmd_done_sema", ret);
+		return BK_FAIL;
 	}
 
 	for (block_num = 0; block_num < BLOCK_CNT; block_num = block_num+1)
 	{
 		ret = rtos_get_semaphore(&s_sdio_wr_buf_ready_sema, 2000);
-		if(ret != 0) {
-			SDIOD_LOGE("func %s: get sem s_sdio_wr_buf_ready_sema timeout\r\n", __func__);
+		if((ret != 0) || sd_card_has_transfer_error()) {
+			sd_card_log_transfer_wait_error(__func__, "s_sdio_wr_buf_ready_sema", ret);
+			return BK_FAIL;
 		}
 		while(num<(128*(block_num+1)))
 		{
-			BUF_DATA_R(addr) = *((uint32_t *)data + num);
+			uint32_t write_data = sd_card_load_unaligned_le32(data + (num << 2));
+			BUF_DATA_R(addr) = write_data;
 			///SDIOD_LOGI("func %s, LINE=%d, num=%d, data = 0x%x.\r\n", __func__, __LINE__, num, *((uint32_t *)data + num));
 			num++;
 		}
@@ -608,8 +669,9 @@ bk_err_t send_mult_data(uintptr_t addr, const uint8_t *data, uint16 BLOCK_SIZE,u
 
 
 	ret = rtos_get_semaphore(&s_sdio_data_xfer_done_sema, 2000);
-	if(ret != 0) {
-		SDIOD_LOGE("func %s: get sem s_sdio_data_xfer_done_sema timeout\r\n", __func__);
+	if((ret != 0) || sd_card_has_transfer_error()) {
+		sd_card_log_transfer_wait_error(__func__, "s_sdio_data_xfer_done_sema", ret);
+		return BK_FAIL;
 	}
 
 #if 0   //As CMD23 is added, CMD12 is not necessary 
@@ -635,6 +697,8 @@ int receive_mult_data(uintptr_t addr, uint8_t *data, uint16 BLOCK_SIZE,uint16 BL
 	uint32 num=0;
 	uint16 block_num =0;
 
+	sd_card_clear_transfer_error_flags();
+
 	NORMAL_INT_STAT_EN_R(addr) = CMD_COMPLETE_STAT_EN | XFER_COMPLETE_STAT_EN | BUF_RD_READY_STAT_EN;
 	ERROR_INT_STAT_EN_R(addr) = 0x870;
 	NORMAL_INT_SIGNAL_EN_R(addr)= CMD_COMPLETE_SIGNAL_EN | XFER_COMPLETE_SIGNAL_EN | BUF_RD_READY_STAT_EN;
@@ -650,32 +714,35 @@ int receive_mult_data(uintptr_t addr, uint8_t *data, uint16 BLOCK_SIZE,uint16 BL
 
 	int ret = 0;
 	ret = rtos_get_semaphore(&s_sdio_cmd_done_sema, 2000);
-	if(ret != 0) {
-		SDIOD_LOGE("func %s: get sem s_sdio_cmd_done_sema timeout\r\n", __func__);
+	if((ret != 0) || sd_card_has_transfer_error()) {
+		sd_card_log_transfer_wait_error(__func__, "s_sdio_cmd_done_sema", ret);
+		return BK_FAIL;
 	}
 
 	for (block_num=0; block_num<BLOCK_CNT; block_num++)
 	{
 		ret = rtos_get_semaphore(&s_sdio_rd_buf_ready_sema, 2000);
-		if(ret != 0) {
-			SDIOD_LOGE("func %s: get sem s_sdio_rd_buf_ready_sema timeout\r\n", __func__);
+		if((ret != 0) || sd_card_has_transfer_error()) {
+			sd_card_log_transfer_wait_error(__func__, "s_sdio_rd_buf_ready_sema", ret);
+			return BK_FAIL;
 		}
 
 		while(num<128*(block_num+1))
 		{
 			read_data=BUF_DATA_R(addr);
-			*((uint32_t *)data + num) = read_data;
+			sd_card_store_unaligned_le32(data + (num << 2), read_data);
 			//SDIOD_LOGI("Receive: BUF_DATA = %x, num =%x \r\n",read_data,num);
 			num = num+1;
 		}
 	}
 
 	ret = rtos_get_semaphore(&s_sdio_data_xfer_done_sema, 2000);
-	if(ret != 0) {
-		SDIOD_LOGE("func %s: get sem s_sdio_data_xfer_done_sema timeout\r\n", __func__);
+	if((ret != 0) || sd_card_has_transfer_error()) {
+		sd_card_log_transfer_wait_error(__func__, "s_sdio_data_xfer_done_sema", ret);
+		return BK_FAIL;
 	}
 
-	return ret;
+	return BK_OK;
 }
 
 bk_err_t adma2_send_data(uintptr_t addr,uint32 SYS_ADDR,uint16 BLOCK_SIZE,uint16 BLOCK_CNT,uint16 CMD,uint32 ARGUMENT)
