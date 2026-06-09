@@ -1,0 +1,23 @@
+menu "Bk_audio_player"
+	config AUDIO_PLAYER
+		bool "Enable bk_audio_player"
+		default n
+
+	choice AUDIO_PLAYER_USE_MEMORY
+		depends on AUDIO_PLAYER
+		prompt "Select audio player use memory"
+		default AUDIO_PLAYER_USE_SRAM
+
+		config AUDIO_PLAYER_USE_SRAM
+			bool "Enable audio player use sram"
+			help
+				audio player use sram memory
+
+		config AUDIO_PLAYER_USE_PSRAM
+			depends on PSRAM
+			bool "Enable audio player use psram"
+			help
+				audio player use psram memory
+	endchoice
+
+endmenu
