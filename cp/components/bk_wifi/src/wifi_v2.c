@@ -2299,6 +2299,36 @@ bk_err_t bk_wifi_sta_start(void)
 	wifi_set_state_bit(WIFI_STA_STARTED_BIT);
 	WIFI_LOGV("sta started(%x)\n", s_wifi_state_bits);
 
+#if CONFIG_WLAN_FAST_CONNECT_WPA3
+	/*
+	 * WPA3-SAE fast connect: restore the PMK saved in flash back into the
+	 * supplicant PMKSA cache before association. SME then finds the entry
+	 * (by BSSID) and uses PMKSA caching (open auth) instead of running a
+	 * fresh, expensive SAE commit/confirm exchange.
+	 *
+	 * This must run after wlan_sta_set() (which flushes the cache on SSID
+	 * change) and after wpa_psk_request(); the later STA disconnect/BSSID
+	 * set and GEN_PSK do not flush cache entries, so the entry survives
+	 * until SME auth. Reuses the fci already read above (no extra flash
+	 * read). Gated by wpa_key_mgmt_sae(): WPA2-PSK fast connect (akmp = PSK)
+	 * never enters here, so its path stays exactly as before.
+	 */
+	if (fast_connect && wpa_key_mgmt_sae(fci.akmp) && fci.pmk_len > 0) {
+		wlan_sta_add_pmksa_cache_entry_t entry = {0};
+
+		if (fci.pmk_len > sizeof(entry.pmk))
+			fci.pmk_len = sizeof(entry.pmk);
+		os_memcpy(entry.bssid, fci.bssid, ETH_ALEN);
+		entry.akmp = fci.akmp;
+		entry.pmk_len = fci.pmk_len;
+		os_memcpy(entry.pmk, fci.pmk, fci.pmk_len);
+		os_memcpy(entry.pmkid, fci.pmkid, sizeof(entry.pmkid));
+		wpa_ctrl_request(WPA_CTRL_CMD_STA_ADD_PMKSA_CACHE_ENTRY, &entry);
+		WIFI_LOGI("fast_connect: restore SAE PMK to PMKSA cache, akmp=0x%x len=%d\n",
+			  fci.akmp, fci.pmk_len);
+	}
+#endif
+
 	/* always connect the AP automatically */
 	bk_wifi_sta_connect();
 
