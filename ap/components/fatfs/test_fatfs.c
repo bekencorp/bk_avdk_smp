@@ -458,6 +458,7 @@ void test_fatfs_auto_test(DISK_NUMBER number, char *filename, uint32_t len, uint
 	uint32_t packet_cnt = 0, bytes_cnt = 0;
 	FATFS *checkspace_pfs = NULL;
 	DWORD freenclst;
+	bool content_allocated = false;
 
 	FATFS_LOGV("\r\n----- %s %d start -----\r\n", __func__, number);
 	FATFS_LOGV("file_name=%s,len=%d,test_cnt=%d \r\n", filename, len, test_count);
@@ -472,10 +473,24 @@ void test_fatfs_auto_test(DISK_NUMBER number, char *filename, uint32_t len, uint
 	packet_cnt = len / TEST_FATFS_PACKET_LEN;
 	bytes_cnt = len % TEST_FATFS_PACKET_LEN;
 
+	if (content_p == NULL) {
+		content_p = os_malloc(len);
+		if (content_p == NULL) {
+			FATFS_LOGE("content malloc fail \r\n");
+			return;
+		}
+		content_allocated = true;
+		for (j = 0; j < len; j++) {
+			content_p[j] = (uint8_t)j;
+		}
+	}
+
 	buf_p = os_malloc(TEST_FATFS_PACKET_LEN);
 	if (buf_p == NULL)
 	{
 		FATFS_LOGE("malloc fail \r\n");
+		if (content_allocated)
+			os_free(content_p);
 		return;
 	}
 
@@ -620,6 +635,10 @@ void test_fatfs_auto_test(DISK_NUMBER number, char *filename, uint32_t len, uint
 exit:
 	os_free(buf_p);
 	buf_p = NULL;
+	if (content_allocated) {
+		os_free(content_p);
+		content_p = NULL;
+	}
 }
 
 void test_fatfs_format(DISK_NUMBER number)
