@@ -2258,18 +2258,25 @@ bk_err_t onboard_speaker_stream_set_digital_gain(audio_element_handle_t onboard_
         return err;
     }
 
-    // if (gain_db == 0)
-    // {
-    //     pa_ctrl_en(onboard_spk, false, false);
-    //     bk_aud_dac_mute();
-    //     BK_LOGV(TAG, "%s, line: %d, audio dac mute\n", __func__, __LINE__);
-    // }
-    // else
-    // {
-    //     pa_ctrl_en(onboard_spk, true, false);
-    //     bk_aud_dac_unmute();
-    //     BK_LOGV(TAG, "%s, line: %d, audio dac unmute\n", __func__, __LINE__);
-    // }
+    /*
+     * Compare against the silence threshold, not against 0 dB: 0 dB is a
+     * normal audible gain, while gains <= BK_AUD_DAC_DIG_GAIN_DB_SILENCE
+     * mean the caller wants true silence (e.g. the lowest volume level).
+     * Digital gain alone leaves a residual DAC noise floor, so hard-mute
+     * the DAC for the silence case and unmute otherwise.
+     */
+    if (gain_db <= BK_AUD_DAC_DIG_GAIN_DB_SILENCE)
+    {
+        //pa_ctrl_en(onboard_spk, false, false);
+        bk_aud_dac_mute();
+        BK_LOGV(TAG, "%s, line: %d, audio dac mute\n", __func__, __LINE__);
+    }
+    else
+    {
+        //pa_ctrl_en(onboard_spk, true, false);
+        bk_aud_dac_unmute();
+        BK_LOGV(TAG, "%s, line: %d, audio dac unmute\n", __func__, __LINE__);
+    }
 
     float res = 0.0f;
     err = bk_aud_dac_get_dig_gain_db(&res);
