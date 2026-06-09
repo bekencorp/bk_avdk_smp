@@ -357,7 +357,7 @@ bk_err_t ntwk_tcp_ctrl_chan_stop(void)
 
     if (ntwl_tcp_ctrl_info->thread != NULL)
     {
-        rtos_thread_join(ntwl_tcp_ctrl_info->thread);
+        rtos_thread_join(&ntwl_tcp_ctrl_info->thread);
         ntwl_tcp_ctrl_info->thread = NULL;
     }
 
@@ -1161,7 +1161,7 @@ bk_err_t ntwk_tcp_ctrl_client_chan_stop(void)
 
     if (ntwk_tcp_ctrl_client_info->thread != NULL)
     {
-        rtos_thread_join(ntwk_tcp_ctrl_client_info->thread);
+        rtos_thread_join(&ntwk_tcp_ctrl_client_info->thread);
         ntwk_tcp_ctrl_client_info->thread = NULL;
     }
 
@@ -1318,10 +1318,9 @@ static void ntwk_tcp_video_client_thread(beken_thread_arg_t data)
                                NTWK_TRANS_VIDEO_CHAN_KEEPALIVE_INTERVAL,
                                NTWK_TRANS_VIDEO_CHAN_KEEPALIVE_COUNT);
 
+        video_tcp_client_service->video_status = BK_TRUE;
         ntwk_msg_event_report(NTWK_TRANS_EVT_CONNECTED, video_tcp_client_service->server_address, NTWK_TRANS_CHAN_VIDEO);
         ntwk_socket_set_qos(video_tcp_client_service->video_fd, IP_QOS_PRIORITY_LOW);
-
-        video_tcp_client_service->video_status = BK_TRUE;
 
         // Receive data loop
         while (video_tcp_client_service->video_status == BK_TRUE)
@@ -1454,7 +1453,7 @@ bk_err_t ntwk_tcp_video_client_chan_stop(void)
 
     if (video_tcp_client_service->video_thd)
     {
-        rtos_thread_join(video_tcp_client_service->video_thd);
+        rtos_thread_join(&video_tcp_client_service->video_thd);
         video_tcp_client_service->video_thd = NULL;
     }
 
@@ -1465,6 +1464,7 @@ int ntwk_tcp_video_client_send_packet(uint8_t *data, uint32_t length, image_form
 {
     if (video_tcp_client_service == NULL || !video_tcp_client_service->video_status)
     {
+        LOGE("%s, server %p\n", __func__, video_tcp_client_service);
         return -1;
     }
 
@@ -1593,10 +1593,9 @@ static void ntwk_tcp_audio_client_thread(beken_thread_arg_t data)
                                NTWK_TRANS_AUDIO_CHAN_KEEPALIVE_INTERVAL,
                                NTWK_TRANS_AUDIO_CHAN_KEEPALIVE_COUNT);
 
+        aud_tcp_client_service->aud_status = BK_TRUE;
         ntwk_msg_event_report(NTWK_TRANS_EVT_CONNECTED, aud_tcp_client_service->server_address, NTWK_TRANS_CHAN_AUDIO);
         ntwk_socket_set_qos(aud_tcp_client_service->aud_fd, IP_QOS_PRIORITY_HIGH);
-
-        aud_tcp_client_service->aud_status = BK_TRUE;
 
         // Receive data loop
         while (aud_tcp_client_service->aud_status == BK_TRUE)
@@ -1725,7 +1724,7 @@ bk_err_t ntwk_tcp_audio_client_chan_stop(void)
 
     if (aud_tcp_client_service->aud_thd)
     {
-        rtos_thread_join(aud_tcp_client_service->aud_thd);
+        rtos_thread_join(&aud_tcp_client_service->aud_thd);
         aud_tcp_client_service->aud_thd = NULL;
     }
 
@@ -1836,6 +1835,12 @@ bk_err_t ntwk_tcp_client_deinit(chan_type_t chan_type)
         {
             if (ntwk_tcp_ctrl_client_info != NULL)
             {
+                if (ntwk_tcp_ctrl_client_info->thread != NULL ||
+                    ntwk_tcp_ctrl_client_info->client_fd != -1 ||
+                    ntwk_tcp_ctrl_client_info->client_state == BK_TRUE)
+                {
+                    (void)ntwk_tcp_ctrl_client_chan_stop();
+                }
                 os_free(ntwk_tcp_ctrl_client_info);
                 ntwk_tcp_ctrl_client_info = NULL;
             }
@@ -1844,6 +1849,12 @@ bk_err_t ntwk_tcp_client_deinit(chan_type_t chan_type)
         {
             if (video_tcp_client_service != NULL)
             {
+                if (video_tcp_client_service->video_thd != NULL ||
+                    video_tcp_client_service->video_fd != -1 ||
+                    video_tcp_client_service->video_status == BK_TRUE)
+                {
+                    (void)ntwk_tcp_video_client_chan_stop();
+                }
                 os_free(video_tcp_client_service);
                 video_tcp_client_service = NULL;
             }
@@ -1852,6 +1863,12 @@ bk_err_t ntwk_tcp_client_deinit(chan_type_t chan_type)
         {
             if (aud_tcp_client_service != NULL)
             {
+                if (aud_tcp_client_service->aud_thd != NULL ||
+                    aud_tcp_client_service->aud_fd != -1 ||
+                    aud_tcp_client_service->aud_status == BK_TRUE)
+                {
+                    (void)ntwk_tcp_audio_client_chan_stop();
+                }
                 os_free(aud_tcp_client_service);
                 aud_tcp_client_service = NULL;
             }
