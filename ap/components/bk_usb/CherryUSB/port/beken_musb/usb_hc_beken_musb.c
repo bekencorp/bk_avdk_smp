@@ -378,7 +378,7 @@ static bool usb_hc_riscv_enabled(void)
            (ctx->owner == RISCV_USB_PROBE_OWNER_RISCV);
 }
 
-static void usb_hc_riscv_probe_init(void)
+static void usb_hc_riscv_probe_init(uint32_t role)
 {
     volatile riscv_usb_probe_t *ctx = get_riscv_usb_probe();
 
@@ -391,6 +391,7 @@ static void usb_hc_riscv_probe_init(void)
     ctx->g_musb_hcd_addr = (uint32_t)(uintptr_t)&g_musb_hcd;
     ctx->usb_ep0_state_addr = (uint32_t)(uintptr_t)&usb_ep0_state;
     ctx->pending_ep0 = 0;
+    ctx->role = role;
     for (uint32_t i = 0U; i < (uint32_t)RISCV_USB_PROBE_PIPE_NUM; i++) {
         ctx->pending_pipe_tx[i] = 0;
         ctx->pending_pipe_rx[i] = 0;
@@ -841,7 +842,7 @@ __WEAK void usb_hc_low_level_init(void)
 	HWREGB(USB_PHY_BASE + NANENG_PHY_FC_REG0B) = 0x44;
 #endif
 #if CONFIG_USB_RISCV_BRIDGE
-    usb_hc_riscv_probe_init();
+    usb_hc_riscv_probe_init(RISCV_USB_ROLE_HOST);
     if (usb_hc_riscv_host_prepare() == 0) {
 #if CONFIG_IPI
         if (usb_hc_riscv_ipi_enable() != BK_OK) {
