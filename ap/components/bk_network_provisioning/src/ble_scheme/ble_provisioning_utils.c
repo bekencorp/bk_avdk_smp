@@ -123,7 +123,7 @@ static const bk_gatts_attr_db_t s_gatts_attr_db_service_boarding[] =
     {
         BK_GATT_CHAR_DECL(0xea02,
                           0, NULL,
-                          BK_GATT_CHAR_PROP_BIT_WRITE,
+                          BK_GATT_CHAR_PROP_BIT_WRITE | BK_GATT_CHAR_PROP_BIT_WRITE_NR,
                           BK_GATT_PERM_WRITE,
                           BK_GATT_RSP_BY_APP),
     },

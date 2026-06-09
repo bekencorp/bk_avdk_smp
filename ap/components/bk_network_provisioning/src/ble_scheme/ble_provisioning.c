@@ -257,7 +257,7 @@ void bk_ble_provisioning_core_init(void)
     ret = rtos_init_queue(&db_info->queue,
                           "db_info->queue",
                           sizeof(ble_prov_msg_t),
-                          10);
+                          100);
 
     if (ret != BK_OK)
     {
@@ -318,4 +318,26 @@ void bk_ble_np_init(void)
         BK_LOGW(TAG, "%s ATE is enable, ble will not enable!!!!!!\n", __func__);
     }
 #endif
+}
+
+int bk_ble_provisioning_deinit(void)
+{
+    LOGI("%s\n", __func__);
+
+    if (bk_ble_provisioning_info == NULL)
+    {
+        LOGI("%s already deinitialised\n", __func__);
+        return BK_OK;
+    }
+
+#if CONFIG_NET_PAN
+    pan_service_deinit();
+#endif
+
+    wifi_boarding_deinit();
+
+    os_free(bk_ble_provisioning_info);
+    bk_ble_provisioning_info = NULL;
+
+    return BK_OK;
 }
