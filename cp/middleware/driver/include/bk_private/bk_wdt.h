@@ -28,6 +28,7 @@ bk_err_t bk_task_wdt_driver_init(void);
 bk_err_t bk_task_wdt_driver_deinit(void);
 void bk_task_wdt_start(void);
 __attribute__((section(".itcm_sec_code")))void bk_task_wdt_stop(void);
+bk_err_t bk_task_wdt_set_feed_bits(uint32_t core_id, bool set_flag);
 void bk_task_wdt_feed(void);
 void bk_task_wdt_timeout_check(void);
 void bk_task_wdt_systick_check(void);

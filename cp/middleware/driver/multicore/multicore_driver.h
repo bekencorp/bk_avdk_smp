@@ -48,6 +48,8 @@ typedef enum {
 
 bk_err_t bk_cpu_offline(uint32_t cpu_id);
 bk_err_t bk_cpu_online(uint32_t cpu_id);
+uint32_t bk_cpu_hotplug_enter_primary(void);
+void bk_cpu_hotplug_exit_primary(uint32_t old_core_id);
 uint32_t bk_cpu_is_online(uint32_t cpu_id);
 uint32_t bk_cpu_is_active(uint32_t cpu_id);
 bk_cpu_hotplug_state_t bk_cpu_get_state(uint32_t cpu_id);
@@ -60,4 +62,5 @@ uint32_t bk_cpu_get_domain_offline_mask(uint32_t cpu_id);
 bk_err_t bk_cp_cpu_offline(uint32_t smp_core_id);
 bk_err_t bk_cp_cpu_online(uint32_t smp_core_id);
 uint32_t bk_cp_cpu_is_online(uint32_t smp_core_id);
+
 #endif

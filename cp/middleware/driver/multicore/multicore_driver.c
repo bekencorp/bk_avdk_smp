@@ -24,6 +24,7 @@
 #include "sys_driver.h"
 #include "sys_reg.h"
 #include <driver/int.h>
+#include "bk_private/bk_wdt.h"
 
 #if CONFIG_SOC_SMP
 #define CP_HOTPLUG_TIMEOUT_MS         (100)
@@ -408,6 +409,9 @@ bk_err_t bk_cpu_offline(uint32_t cpu_id)
 	}
 
 	if (ret == BK_OK) {
+#if CONFIG_TASK_WDT
+		bk_task_wdt_set_feed_bits(smp_core, false);
+#endif
 		bk_cpu_hotplug_set_online(domain, cpu_id, 0);
 		bk_cpu_hotplug_set_state(domain, cpu_id, BK_CPU_HP_STATE_RESET_HOLD);
 		cp_cpu1_irq_route_mask_all();
@@ -436,6 +440,7 @@ bk_err_t bk_cpu_online(uint32_t cpu_id)
 	bk_smp_domain_t *domain = bk_cpu_hotplug_domain(cpu_id);
 	uint32_t cpu_mask = BK_CPU_MASK(cpu_id);
 	bk_err_t ret;
+	BaseType_t smp_core;
 
 	if ((domain == NULL) || ((domain->hotplug_mask & cpu_mask) == 0)) {
 		return BK_ERR_NOT_SUPPORT;
@@ -454,6 +459,7 @@ bk_err_t bk_cpu_online(uint32_t cpu_id)
 		return ret;
 	}
 
+	smp_core = (BaseType_t)bk_cpu_hotplug_smp_core(domain, cpu_id);
 	rtos_lock_mutex(&s_cp_cpu_hotplug_lock);
 
 	if (domain->cpu_state[cpu_id] == BK_CPU_HP_STATE_ONLINE) {
@@ -482,6 +488,11 @@ bk_err_t bk_cpu_online(uint32_t cpu_id)
 	}
 
 	if (ret == BK_OK) {
+#if CONFIG_TASK_WDT
+		bk_task_wdt_set_feed_bits(smp_core, true);
+#else
+		(void)smp_core;
+#endif
 		bk_cpu_hotplug_set_online(domain, cpu_id, 1);
 
 		mbox0_init_on_current_core(CPU1_CORE_ID);
@@ -498,6 +509,24 @@ bk_err_t bk_cpu_online(uint32_t cpu_id)
 
 	rtos_unlock_mutex(&s_cp_cpu_hotplug_lock);
 	return ret;
+}
+
+uint32_t bk_cpu_hotplug_enter_primary(void)
+{
+	BaseType_t old_core_id = xTaskHotplugSetCurrentTaskCoreID(SMP_CORE0_ID);
+
+	for (uint32_t i = 0; (i < CP_HOTPLUG_TIMEOUT_MS) &&
+		(portGET_CORE_ID() != SMP_CORE0_ID); i++) {
+		taskYIELD();
+		rtos_delay_milliseconds(1);
+	}
+
+	return old_core_id;
+}
+
+void bk_cpu_hotplug_exit_primary(uint32_t old_core_id)
+{
+	(void)xTaskHotplugSetCurrentTaskCoreID(old_core_id);
 }
 
 uint32_t bk_cpu_is_online(uint32_t cpu_id)
@@ -629,4 +658,5 @@ void multicore_stop_core1(void)
 {
 	(void)bk_cp_cpu_offline(SMP_CORE1_ID);
 }
+
 #endif
