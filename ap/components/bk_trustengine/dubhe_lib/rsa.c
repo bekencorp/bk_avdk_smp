@@ -31,6 +31,7 @@
 #include "bignum_core.h"
 #include "mbedtls/bignum_wrap.h"
 #include "rsa_alt_helpers.h"
+#include "mbedtls/asn1write.h"
 #include "mbedtls/oid.h"
 #include "mbedtls/platform_util.h"
 #include "mbedtls/error.h"
@@ -596,6 +597,120 @@ int mbedtls_rsa_export_crt(const mbedtls_rsa_context *ctx,
 #endif
 
     return 0;
+}
+
+int mbedtls_rsa_write_key(const mbedtls_rsa_context *rsa, unsigned char *start,
+                          unsigned char **p)
+{
+    size_t len = 0;
+    int ret;
+    mbedtls_mpi T;
+
+    mbedtls_mpi_init(&T);
+
+    if ((ret = mbedtls_rsa_export_crt(rsa, NULL, NULL, &T)) != 0 ||
+        (ret = mbedtls_asn1_write_mpi(p, start, &T)) < 0) {
+        goto end_of_export;
+    }
+    len += ret;
+
+    if ((ret = mbedtls_rsa_export_crt(rsa, NULL, &T, NULL)) != 0 ||
+        (ret = mbedtls_asn1_write_mpi(p, start, &T)) < 0) {
+        goto end_of_export;
+    }
+    len += ret;
+
+    if ((ret = mbedtls_rsa_export_crt(rsa, &T, NULL, NULL)) != 0 ||
+        (ret = mbedtls_asn1_write_mpi(p, start, &T)) < 0) {
+        goto end_of_export;
+    }
+    len += ret;
+
+    if ((ret = mbedtls_rsa_export(rsa, NULL, NULL, &T, NULL, NULL)) != 0 ||
+        (ret = mbedtls_asn1_write_mpi(p, start, &T)) < 0) {
+        goto end_of_export;
+    }
+    len += ret;
+
+    if ((ret = mbedtls_rsa_export(rsa, NULL, &T, NULL, NULL, NULL)) != 0 ||
+        (ret = mbedtls_asn1_write_mpi(p, start, &T)) < 0) {
+        goto end_of_export;
+    }
+    len += ret;
+
+    if ((ret = mbedtls_rsa_export(rsa, NULL, NULL, NULL, &T, NULL)) != 0 ||
+        (ret = mbedtls_asn1_write_mpi(p, start, &T)) < 0) {
+        goto end_of_export;
+    }
+    len += ret;
+
+    if ((ret = mbedtls_rsa_export(rsa, NULL, NULL, NULL, NULL, &T)) != 0 ||
+        (ret = mbedtls_asn1_write_mpi(p, start, &T)) < 0) {
+        goto end_of_export;
+    }
+    len += ret;
+
+    if ((ret = mbedtls_rsa_export(rsa, &T, NULL, NULL, NULL, NULL)) != 0 ||
+        (ret = mbedtls_asn1_write_mpi(p, start, &T)) < 0) {
+        goto end_of_export;
+    }
+    len += ret;
+
+end_of_export:
+
+    mbedtls_mpi_free(&T);
+    if (ret < 0) {
+        return ret;
+    }
+
+    MBEDTLS_ASN1_CHK_ADD(len, mbedtls_asn1_write_int(p, start, 0));
+    MBEDTLS_ASN1_CHK_ADD(len, mbedtls_asn1_write_len(p, start, len));
+    MBEDTLS_ASN1_CHK_ADD(len, mbedtls_asn1_write_tag(p, start,
+                                                     MBEDTLS_ASN1_CONSTRUCTED |
+                                                     MBEDTLS_ASN1_SEQUENCE));
+
+    return (int) len;
+}
+
+/*
+ *  RSAPublicKey ::= SEQUENCE {
+ *      modulus           INTEGER,  -- n
+ *      publicExponent    INTEGER   -- e
+ *  }
+ */
+int mbedtls_rsa_write_pubkey(const mbedtls_rsa_context *rsa, unsigned char *start,
+                             unsigned char **p)
+{
+    int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+    size_t len = 0;
+    mbedtls_mpi T;
+
+    mbedtls_mpi_init(&T);
+
+    if ((ret = mbedtls_rsa_export(rsa, NULL, NULL, NULL, NULL, &T)) != 0 ||
+        (ret = mbedtls_asn1_write_mpi(p, start, &T)) < 0) {
+        goto end_of_export;
+    }
+    len += ret;
+
+    if ((ret = mbedtls_rsa_export(rsa, &T, NULL, NULL, NULL, NULL)) != 0 ||
+        (ret = mbedtls_asn1_write_mpi(p, start, &T)) < 0) {
+        goto end_of_export;
+    }
+    len += ret;
+
+end_of_export:
+
+    mbedtls_mpi_free(&T);
+    if (ret < 0) {
+        return ret;
+    }
+
+    MBEDTLS_ASN1_CHK_ADD(len, mbedtls_asn1_write_len(p, start, len));
+    MBEDTLS_ASN1_CHK_ADD(len, mbedtls_asn1_write_tag(p, start, MBEDTLS_ASN1_CONSTRUCTED |
+                                                     MBEDTLS_ASN1_SEQUENCE));
+
+    return (int) len;
 }
 
 /*
