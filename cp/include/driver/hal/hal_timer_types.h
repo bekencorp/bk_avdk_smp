@@ -30,6 +30,8 @@ typedef enum
 {
 	SYS_SEL_TIMER0 = 0,
 	SYS_SEL_TIMER1,
+	SYS_SEL_TIMER2,
+	SYS_SEL_TIMER3,
 } sys_sel_timer_t;
 
 /**
@@ -47,12 +49,12 @@ typedef enum {
 	TIMER_ID3,     /**< TIMER id 3 */
 	TIMER_ID4,     /**< TIMER id 4 */
 	TIMER_ID5,     /**< TIMER id 5 */
-	TIMER_ID6,     /**< TIMER id 6 - temporary NOT SUPPORTED on CP */
-	TIMER_ID7,     /**< TIMER id 7 - temporary NOT SUPPORTED on CP */
-	TIMER_ID8,     /**< TIMER id 8 - temporary NOT SUPPORTED on CP */
-	TIMER_ID9,     /**< TIMER id 9 - temporary NOT SUPPORTED on CP */
-	TIMER_ID10,    /**< TIMER id 10 - temporary NOT SUPPORTED on CP */
-	TIMER_ID11,    /**< TIMER id 11 - temporary NOT SUPPORTED on CP */
+	TIMER_ID6,     /**< TIMER id 6 - maps to hardware TIMER2 channel 0 */
+	TIMER_ID7,     /**< TIMER id 7 - maps to hardware TIMER2 channel 1 */
+	TIMER_ID8,     /**< TIMER id 8 - maps to hardware TIMER2 channel 2 */
+	TIMER_ID9,     /**< TIMER id 9 - maps to hardware TIMER3 channel 0 */
+	TIMER_ID10,    /**< TIMER id 10 - maps to hardware TIMER3 channel 1 */
+	TIMER_ID11,    /**< TIMER id 11 - maps to hardware TIMER3 channel 2 */
 	TIMER_ID12,    /**< TIMER id 12 - temporary NOT SUPPORTED on CP */
 	TIMER_ID13,    /**< TIMER id 13 - temporary NOT SUPPORTED on CP */
 	TIMER_ID14,    /**< TIMER id 14 - temporary NOT SUPPORTED on CP */
