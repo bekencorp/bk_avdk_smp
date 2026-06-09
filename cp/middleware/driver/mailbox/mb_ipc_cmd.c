@@ -32,6 +32,7 @@
 #include "bk_usb_cdc_demo.h"
 #endif
 #include <wdt_driver.h>
+#include "bk_wdt.h"
 
 #define MOD_TAG		"IPC"
 
@@ -685,6 +686,10 @@ static u32 ipc_cmd_handler(ipc_chnl_cb_t *chnl_cb, mb_chnl_ack_t *ack_buf)
 				result = ACK_STATE_COMPLETE;
 
                 g_ap_dump_flag = 1;
+
+                #if CONFIG_TASK_WDT
+                bk_task_wdt_stop();
+                #endif
 
                 /* if ap dump ,then cp shoule disable its most interruptions */
                 sys_drv_int_disable(0xFFFE7FE7);

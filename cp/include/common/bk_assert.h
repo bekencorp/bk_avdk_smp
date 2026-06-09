@@ -59,7 +59,7 @@ __attribute__((noinline)) void bk_traceback(void);
 
 #endif // #if CONFIG_SHELL_ASYNCLOG
 
-__attribute__((__used__)) static volatile  uint32_t g_ap_dump_flag = 0;
+extern volatile uint32_t g_ap_dump_flag;
 
 
 #if (CONFIG_SWD_DEBUG_MODE)

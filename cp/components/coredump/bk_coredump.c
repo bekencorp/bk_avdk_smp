@@ -17,6 +17,7 @@
 static volatile bk_assert_info_t s_bk_assert_info;
 static volatile uint32_t s_bk_exception_magic = 0;
 static volatile uint32_t s_core_id = 0;
+volatile uint32_t g_ap_dump_flag = 0;
 
 static hook_func s_wifi_dump_func = NULL;
 static hook_func s_ble_dump_func = NULL;
