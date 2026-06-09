@@ -34,6 +34,19 @@ typedef struct {
      * xfer state + SETUP packet in place, mirroring how host uses
      * g_musb_hcd_addr. 0 until the device path is started (gap B). */
     volatile uint32_t g_musb_udc_addr;
+    /* device role: batched ISR-drain pending state, mirroring the host
+     * pending_ep0 / pending_pipe_* mechanism. The firmware ACCUMULATES these
+     * flags during one ISR and raises a single RISCV_USBD_EVT_ISR_DRAIN; the AP
+     * poll snapshots+clears them and replays every set flag. Because the state
+     * lives in persistent per-item flags (not the single overwritable
+     * event/event_data slot), N coalesced IPIs still deliver all N events --
+     * this is what lets back-to-back EP0 control transactions survive
+     * enumeration. pending_usbd_evt is a bitmask (RISCV_USBD_PEND_*); index 0 of
+     * the EP arrays is EP0. */
+    volatile uint32_t pending_usbd_evt;
+    volatile uint32_t pending_setup;
+    volatile uint32_t pending_ep_in[RISCV_USB_PROBE_PIPE_NUM];
+    volatile uint32_t pending_ep_out[RISCV_USB_PROBE_PIPE_NUM];
 } riscv_usb_probe_t;
 
 

@@ -12,6 +12,7 @@
 #include <components/usb.h>
 
 #include "riscv_bridge/riscv_usb_bridge.h"
+#include "riscv_bridge/riscv_usb_probe_defs.h"
 
 #define HWREG(x) \
     (*((volatile uint32_t *)(x)))
@@ -201,6 +202,129 @@ static uint32_t musb_get_fifo_size(uint16_t mps, uint16_t *used)
     return USB_TXFIFOSZ_SIZE_8;
 }
 
+#if CONFIG_USB_RISCV_BRIDGE
+/* Device-role drain protocol relayed by the RISC-V firmware via the shared
+ * probe. MUST mirror
+ * ap/properties/modules/bk_riscv/riscv_src/fw/common/sys_sw_regs_shared.h. The
+ * firmware accumulates per-item flags (pending_usbd_evt / pending_setup /
+ * pending_ep_in[] / pending_ep_out[]) and raises a single ISR_DRAIN; we replay
+ * every set flag so coalesced IPIs never drop EP0 transactions. */
+#define RISCV_USBD_EVT_ISR_DRAIN  0x16U
+#define RISCV_USBD_PEND_RESET     0x1U
+#define RISCV_USBD_PEND_SUSPEND   0x2U
+#define RISCV_USBD_PEND_RESUME    0x4U
+
+/* Registered in usb_hc_beken_musb.c; shared IPI_DOMAIN_USB callback. */
+extern bk_err_t usb_hc_riscv_ipi_enable(void);
+
+static uint32_t s_dev_last_irq_seq;
+
+/* Fill the shared probe so the RISC-V firmware dispatches to its device ISR.
+ * Runs BEFORE usb_dc_riscv_device_prepare() starts the core: g_musb_udc /
+ * usb_ep0_state are device-driver symbols the firmware reads in place via
+ * these pointers (mirroring how the host path publishes g_musb_hcd). owner is
+ * left at AP until the IPI is armed, then flipped to RISCV (see below). */
+static void usb_dc_riscv_probe_init_device(void)
+{
+    volatile riscv_usb_probe_t *ctx = get_riscv_usb_probe();
+
+    s_dev_last_irq_seq = 0;
+    ctx->magic = RISCV_USB_PROBE_MAGIC;
+    ctx->owner = RISCV_USB_PROBE_OWNER_AP;
+    ctx->irq_seq = 0;
+    ctx->event = 0;
+    ctx->event_data = 0;
+    ctx->g_musb_hcd_addr = 0;
+    ctx->g_musb_udc_addr = (uint32_t)(uintptr_t)&g_musb_udc;
+    ctx->usb_ep0_state_addr = (uint32_t)(uintptr_t)&usb_ep0_state;
+    ctx->pending_ep0 = 0;
+    ctx->role = RISCV_USB_ROLE_DEVICE;
+    ctx->pending_usbd_evt = 0;
+    ctx->pending_setup = 0;
+    for (uint32_t i = 0U; i < (uint32_t)RISCV_USB_PROBE_PIPE_NUM; i++) {
+        ctx->pending_pipe_tx[i] = 0;
+        ctx->pending_pipe_rx[i] = 0;
+        ctx->pending_ep_in[i] = 0;
+        ctx->pending_ep_out[i] = 0;
+    }
+}
+
+/* AP-side consumer of the device drain protocol. Called from the IPI callback
+ * when probe->role is DEVICE. The RISC-V firmware owns all MUSB register/FIFO
+ * access and updates g_musb_udc in place; here we only replay the cherryusb
+ * upcalls, mirroring the M55-resident USBD_IRQHandler order
+ * (RESET -> resume/suspend -> SETUP -> OUT -> IN).
+ *
+ * Snapshot+clear the pending flags before processing so a flag set by a new
+ * RISC-V ISR mid-drain is preserved (its finalize bumps irq_seq -> next poll).
+ * This mirrors usb_hc_riscv_poll_events()'s host drain. */
+void usb_dc_riscv_poll_events(void)
+{
+    volatile riscv_usb_probe_t *ctx = get_riscv_usb_probe();
+    uint32_t seq;
+
+    seq = ctx->irq_seq;
+    if (seq == s_dev_last_irq_seq) {
+        return;
+    }
+    s_dev_last_irq_seq = seq;
+
+    if (ctx->event == RISCV_USBD_EVT_ISR_DRAIN) {
+        uint32_t usbd_evt = ctx->pending_usbd_evt;
+        uint32_t setup_pending = ctx->pending_setup;
+        uint32_t in_pending[RISCV_USB_PROBE_PIPE_NUM];
+        uint32_t out_pending[RISCV_USB_PROBE_PIPE_NUM];
+        uint32_t ep;
+
+        ctx->pending_usbd_evt = 0;
+        ctx->pending_setup = 0;
+        for (ep = 0U; ep < (uint32_t)RISCV_USB_PROBE_PIPE_NUM; ep++) {
+            in_pending[ep] = ctx->pending_ep_in[ep];
+            ctx->pending_ep_in[ep] = 0;
+            out_pending[ep] = ctx->pending_ep_out[ep];
+            ctx->pending_ep_out[ep] = 0;
+        }
+
+        if (usbd_evt & RISCV_USBD_PEND_RESET) {
+            memset(&g_musb_udc, 0, sizeof(struct musb_udc));
+            g_musb_udc.fifo_size_offset = USB_CTRL_EP_MPS;
+            usbd_event_reset_handler();
+            usb_ep0_state = USB_EP0_STATE_SETUP;
+        }
+        if (usbd_evt & RISCV_USBD_PEND_RESUME) {
+            usbd_event_resume_handler();
+        }
+        if (usbd_evt & RISCV_USBD_PEND_SUSPEND) {
+            usbd_event_suspend_handler();
+        }
+        if (setup_pending) {
+            usbd_event_ep0_setup_complete_handler((uint8_t *)&g_musb_udc.setup);
+        }
+        for (ep = 0U; ep < (uint32_t)RISCV_USB_PROBE_PIPE_NUM; ep++) {
+            if (out_pending[ep]) {
+                usbd_event_ep_out_complete_handler((uint8_t)ep,
+                                                   g_musb_udc.out_ep[ep].actual_xfer_len);
+            }
+        }
+        for (ep = 0U; ep < (uint32_t)RISCV_USB_PROBE_PIPE_NUM; ep++) {
+            if (in_pending[ep]) {
+                usbd_event_ep_in_complete_handler((uint8_t)(ep | 0x80U),
+                                                  g_musb_udc.in_ep[ep].actual_xfer_len);
+            }
+        }
+    }
+
+    /* route USB HS IRQ back to RISC-V (bit8=1); the firmware's finalize handed
+     * it to AP for the duration of this drain. */
+    {
+        uint32_t ints_config = sys_drv_get_ints_config_riscv_0_31();
+
+        ints_config |= (1U << 8);
+        sys_drv_set_ints_config_riscv_0_31(ints_config);
+    }
+}
+#endif /* CONFIG_USB_RISCV_BRIDGE */
+
 __WEAK void usb_dc_low_level_init(void)
 {
     USB_LOG_INFO("[usb_dc_ll] enter; vote CPU freq + enable analog phy + USB clock\r\n");
@@ -249,8 +373,19 @@ __WEAK void usb_dc_low_level_init(void)
      * default. */
     int riscv_bridge_rc = -1;
 #if CONFIG_USB_RISCV_BRIDGE
+    /* Publish the device-role handshake region BEFORE starting the core (the
+     * firmware reads g_musb_udc / usb_ep0_state in place via these pointers).
+     * owner stays AP so the firmware ISR is dormant until we arm the IPI and
+     * flip owner to RISCV below -- same handshake the host path uses. */
+    usb_dc_riscv_probe_init_device();
     riscv_bridge_rc = usb_dc_riscv_device_prepare();
     if (riscv_bridge_rc == 0) {
+#if CONFIG_IPI
+        if (usb_hc_riscv_ipi_enable() != BK_OK) {
+            USB_LOG_ERR("[usb_dc_ll] arm riscv device IPI failed\r\n");
+        }
+#endif
+        get_riscv_usb_probe()->owner = RISCV_USB_PROBE_OWNER_RISCV;
         USB_LOG_INFO("[usb_dc_ll] USBD IRQ now owned by RISC-V bridge; skip M55 ISR registration\r\n");
     } else {
         USB_LOG_INFO("[usb_dc_ll] RISC-V device bridge unavailable (rc=%d); using M55 USBD_IRQHandler path\r\n",

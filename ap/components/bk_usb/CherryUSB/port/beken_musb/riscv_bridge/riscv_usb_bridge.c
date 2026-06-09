@@ -93,28 +93,54 @@ void usb_hc_riscv_stop_firmware(void)
     s_host_started = 0U;
 }
 
-/* MILESTONE A: device-side bridge entry stub.
+/* Device-side bridge entry: start the dual-role RISC-V firmware so it owns the
+ * USBD interrupt. The probe handshake fields (magic/owner/role/g_musb_udc_addr/
+ * usb_ep0_state_addr) are filled by the caller in usb_dc_low_level_init()
+ * BEFORE this runs, because g_musb_udc / usb_ep0_state are device-driver
+ * symbols. usb_hc_riscv_start_firmware() reuses the host bring-up sequence
+ * (power-on, route USB HS IRQ to RISC-V, fw memcpy, boot_param hand-off, core
+ * release); it only sets riscv_swap, so it does not clobber those fields.
  *
- * Intentionally returns -1 so usb_dc_low_level_init() in
- * usb_dc_beken_musb_mhdrc.c keeps registering USBD_IRQHandler on the M55
- * and the device path runs unchanged. The full device path (load a
- * dual-role RISC-V firmware, route INT_SRC_USB_HS to RISC-V, publish the
- * shared-memory device region with riscv_usbd_probe_t fields, ack-back
- * via IPI) is staged in the follow-up milestone -- see
- * docs/USB重构/07-M55_RISCV_USB桥设计.md §5.
- *
- * Implementation note for the follow-up: most of the heavy lifting is
- * already provided by usb_hc_riscv_start_firmware() above (power-on,
- * IRQ route to RISC-V, fw memcpy, boot_param hand-off, core release).
- * The device variant only needs (a) a dual-role firmware blob from
- * bk_riscv_usb_dual_fw_addr/_len(), (b) to set
- * sys_sw_regs_ptr()->riscv_usb_probe.role = RISCV_USB_ROLE_DEVICE before
- * starting the core, and (c) a refcount-aware start/stop policy that
- * matches bk_usb_open/bk_usb_close.
- */
+ * Returns 0 if the firmware was started (caller skips M55 USBD ISR), <0 to fall
+ * back to the legacy M55-resident USBD_IRQHandler. The latter is the safe
+ * revert: make this return -1 again and device traffic stays 100% on M55. */
 int usb_dc_riscv_device_prepare(void)
 {
-    return -1;
+    const unsigned char *fw = bk_riscv_usb_fw_addr();
+    const unsigned int fw_len = bk_riscv_usb_fw_len();
+#if CONFIG_USB_RISCV_LOG_UART && (CONFIG_UART_PRINT_PORT != RISCV_USB_LOG_UART_ID)
+    /* Mirror usb_hc_riscv_host_prepare(): the RISC-V firmware logs via
+     * Userprintf() -> bk_sys_uart_putc(UART5). That physical UART must be
+     * brought up by the AP first, otherwise the device-path firmware's
+     * prints are dropped (the host path already did this; the device path
+     * was missing it, so CONFIG_USB_RISCV_LOG_UART had no effect in MSC). */
+    const uart_config_t config =
+    {
+        .baud_rate = RISCV_USB_LOG_BAUDRATE,
+        .data_bits = UART_DATA_8_BITS,
+        .parity = UART_PARITY_NONE,
+        .stop_bits = UART_STOP_BITS_1,
+        .flow_ctrl = UART_FLOWCTRL_DISABLE,
+        .src_clk = UART_SCLK_APLL
+    };
+
+    bk_uart_init(RISCV_USB_LOG_UART_ID, &config);
+#endif
+
+    if (s_host_started != 0U) {
+        return 0;
+    }
+
+    if ((fw == NULL) || (fw_len == 0U)) {
+        return -1;
+    }
+
+    if (usb_hc_riscv_start_firmware(fw, fw_len, RISCV_RESET_VEC_TCM) != 0) {
+        return -1;
+    }
+
+    s_host_started = 1U;
+    return 0;
 }
 
 int usb_hc_riscv_host_prepare(void)

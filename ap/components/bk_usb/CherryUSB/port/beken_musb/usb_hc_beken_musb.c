@@ -300,6 +300,18 @@ void usbh_musb_disconnect_set_status(void);
 void usbh_musb_connect_set_status(void);
 
 #if CONFIG_IPI
+/* The device-role dispatch below pulls in usb_dc_riscv_poll_events(), which
+ * only exists when the device port (usb_dc_beken_musb_mhdrc.c) is compiled,
+ * i.e. CONFIG_USB_DEVICE. Host-only builds (e.g. uvc_display_example) compile
+ * this host file but NOT the device port, so guard on CONFIG_USB_DEVICE too --
+ * a host-only probe can never carry role==DEVICE anyway. */
+#if CONFIG_USB_RISCV_BRIDGE && CONFIG_USB_DEVICE
+/* Implemented in the device port (usb_dc_beken_musb_mhdrc.c): consumes the
+ * RISCV_USBD_EVT_* device events. Shared IPI cb dispatches to it by role so
+ * host and device reuse the same IPI_DOMAIN_USB callback. */
+extern void usb_dc_riscv_poll_events(void);
+#endif
+
 static void usb_hc_riscv_ipi_cb(ipi_core_id_t core_id, uint32_t value,
                                 uint8_t src_cpu, uint8_t event, uint16_t payload,
                                 void *param)
@@ -310,6 +322,13 @@ static void usb_hc_riscv_ipi_cb(ipi_core_id_t core_id, uint32_t value,
     (void)event;
     (void)payload;
     (void)param;
+
+#if CONFIG_USB_RISCV_BRIDGE && CONFIG_USB_DEVICE
+    if (get_riscv_usb_probe()->role == RISCV_USB_ROLE_DEVICE) {
+        usb_dc_riscv_poll_events();
+        return;
+    }
+#endif
     usb_hc_riscv_poll_events();
 }
 #endif
@@ -399,7 +418,9 @@ static void usb_hc_riscv_probe_init(uint32_t role)
 }
 
 #if CONFIG_IPI
-static bk_err_t usb_hc_riscv_ipi_enable(void)
+/* Non-static: the device port calls this to register the shared IPI_DOMAIN_USB
+ * callback when it brings up the RISC-V device firmware. */
+bk_err_t usb_hc_riscv_ipi_enable(void)
 {
     bk_err_t ret;
 
