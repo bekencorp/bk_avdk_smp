@@ -452,7 +452,7 @@ PRIVILEGED_DATA static volatile uint32_t ulCriticalNesting = 0xaaaaaaaaUL;
     /* The primary core number (the own which has the SysTick handler) */
     static uint8_t ucPrimaryCoreNum = INVALID_PRIMARY_CORE_NUM;
 extern uint32_t rtos_get_time_diff(void);
-#if ((configUSE_TICKLESS_IDLE == 1) || ( configUSE_TICKLESS_IDLE == 2 ))
+#if ((configUSE_TICKLESS_IDLE == 1))
     __attribute__( ( weak ) ) void vPortSuppressTicksAndSleep( TickType_t xExpectedIdleTime )
     {
         TickType_t xModifiableIdleTime;

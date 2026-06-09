@@ -403,7 +403,7 @@ PRIVILEGED_DATA static volatile uint32_t ulCriticalNesting = 0xaaaaaaaaUL;
 #endif /* configUSE_TICKLESS_IDLE */
 /*-----------------------------------------------------------*/
 
-#if ((configUSE_TICKLESS_IDLE == 1 ) || ( configUSE_TICKLESS_IDLE == 2 ))
+#if ((configUSE_TICKLESS_IDLE == 1 ))
     __attribute__( ( weak ) ) void vPortSuppressTicksAndSleep( TickType_t xExpectedIdleTime )
     {
         TickType_t xModifiableIdleTime;
@@ -455,6 +455,7 @@ PRIVILEGED_DATA static volatile uint32_t ulCriticalNesting = 0xaaaaaaaaUL;
 #elif ( configUSE_TICKLESS_IDLE == 2 )
 #define CONFIG_UPDATE_TICK_THEN_ENABLE_INT 1
 
+uint32_t rtos_get_time_diff(void);
 static inline void systick_gated_update(TickType_t xExpectedIdleTime, uint32_t ulReloadValue)
 {
 #if CONFIG_AON_RTC || CONFIG_ANA_RTC
