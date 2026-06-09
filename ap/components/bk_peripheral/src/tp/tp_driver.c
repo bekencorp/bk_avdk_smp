@@ -60,6 +60,7 @@ static beken_thread_t tp_thread_handle = NULL;
 static const tp_sensor_config_t *current_sensor = NULL;
 static tp_device_t tp_device = {0};
 volatile static uint32_t tp_driver_init_flag = false;
+volatile static uint32_t tp_driver_suspend_flag = false;
 static const tp_sensor_config_t **tp_sensor_devices_list;
 static uint16_t tp_sensor_devices_size;
 
@@ -67,47 +68,47 @@ static sw_i2c_handle_t *tp_i2c_handle = NULL;
 
 static const tp_i2c_callback_t tp_i2c_cb =
 {
-	tp_i2c_read_uint8,
-	tp_i2c_write_uint8,
-	tp_i2c_read_uint16,
-	tp_i2c_write_uint16,
+    tp_i2c_read_uint8,
+    tp_i2c_write_uint8,
+    tp_i2c_read_uint16,
+    tp_i2c_write_uint16,
 };
 
 const tp_sensor_config_t *tp_get_sensor_auto_detect(const tp_i2c_callback_t *cb)
 {
-	if (NULL == cb)
-	{
-		LOGE("%s, pointer is null!\r\n", __func__);
-		return NULL;
-	}
+    if (NULL == cb)
+    {
+        LOGE("%s, pointer is null!\r\n", __func__);
+        return NULL;
+    }
 
-	if (&__tp_sensor_detect_array_end != &__tp_sensor_detect_array_start) {
-		const tp_sensor_config_t *sensor = NULL;
-		for (tp_sensor_detect_func_t *p = &__tp_sensor_detect_array_start; p < &__tp_sensor_detect_array_end; p++)
-		{
-			if (p->detect)
-			{
-				sensor = p->detect(cb);
-				if (sensor != NULL)
-				{
-					return sensor;
-				}
-			}
-		}
-	} else {
-		for (uint32_t i = 0; i < tp_sensor_devices_size; i++)
-		{
-			if (NULL != tp_sensor_devices_list[i]->detect)
-			{
-				if (true == tp_sensor_devices_list[i]->detect(cb))
-				{
-					return tp_sensor_devices_list[i];
-				}
-			}
-		}
-	}
+    if (&__tp_sensor_detect_array_end != &__tp_sensor_detect_array_start) {
+        const tp_sensor_config_t *sensor = NULL;
+        for (tp_sensor_detect_func_t *p = &__tp_sensor_detect_array_start; p < &__tp_sensor_detect_array_end; p++)
+        {
+            if (p->detect)
+            {
+                sensor = p->detect(cb);
+                if (sensor != NULL)
+                {
+                    return sensor;
+                }
+            }
+        }
+    } else {
+        for (uint32_t i = 0; i < tp_sensor_devices_size; i++)
+        {
+            if (NULL != tp_sensor_devices_list[i]->detect)
+            {
+                if (true == tp_sensor_devices_list[i]->detect(cb))
+                {
+                    return tp_sensor_devices_list[i];
+                }
+            }
+        }
+    }
 
-	return NULL;
+    return NULL;
 }
 
 void bk_tp_set_sensor_devices_list(const tp_sensor_config_t **list, uint16_t size)
@@ -119,188 +120,188 @@ void bk_tp_set_sensor_devices_list(const tp_sensor_config_t **list, uint16_t siz
 
 int tp_i2c_read_uint8(uint8_t addr, uint8_t reg, uint8_t *buff, uint16_t len)
 {
-	if(NULL == buff)
-	{
-		LOGE("%s, pointer is null!\r\n", __func__);
-		return BK_FAIL;
-	}
+    if(NULL == buff)
+    {
+        LOGE("%s, pointer is null!\r\n", __func__);
+        return BK_FAIL;
+    }
 
-	if(0 == len)
-	{
-		LOGE("%s, len is 0!\r\n", __func__);
-		return BK_FAIL;
-	}
+    if(0 == len)
+    {
+        LOGE("%s, len is 0!\r\n", __func__);
+        return BK_FAIL;
+    }
 
-	i2c_mem_param_t mem_param = {0};
+    i2c_mem_param_t mem_param = {0};
 
-	mem_param.dev_addr = addr;
-	mem_param.mem_addr = reg;
-	mem_param.mem_addr_size = I2C_MEM_ADDR_SIZE_8BIT;
-	mem_param.data = buff;
-	mem_param.data_size = len;
-	mem_param.timeout_ms = TP_I2C_TIMEOUT;
+    mem_param.dev_addr = addr;
+    mem_param.mem_addr = reg;
+    mem_param.mem_addr_size = I2C_MEM_ADDR_SIZE_8BIT;
+    mem_param.data = buff;
+    mem_param.data_size = len;
+    mem_param.timeout_ms = TP_I2C_TIMEOUT;
 
-	return sw_i2c_memory_read(tp_i2c_handle, &mem_param);
+    return sw_i2c_memory_read(tp_i2c_handle, &mem_param);
 }
 
 int tp_i2c_write_uint8(uint8_t addr, uint8_t reg, uint8_t *buff, uint16_t len)
 {
-	if(NULL == buff)
-	{
-		LOGE("%s, pointer is null!\r\n", __func__);
-		return BK_FAIL;
-	}
+    if(NULL == buff)
+    {
+        LOGE("%s, pointer is null!\r\n", __func__);
+        return BK_FAIL;
+    }
 
-	if(0 == len)
-	{
-		LOGE("%s, len is 0!\r\n", __func__);
-		return BK_FAIL;
-	}
-	
-	i2c_mem_param_t mem_param = {0};
+    if(0 == len)
+    {
+        LOGE("%s, len is 0!\r\n", __func__);
+        return BK_FAIL;
+    }
+    
+    i2c_mem_param_t mem_param = {0};
 
-	mem_param.dev_addr = addr;
-	mem_param.mem_addr = reg;
-	mem_param.mem_addr_size = I2C_MEM_ADDR_SIZE_8BIT;
-	mem_param.data = buff;
-	mem_param.data_size = len;
-	mem_param.timeout_ms = TP_I2C_TIMEOUT;
+    mem_param.dev_addr = addr;
+    mem_param.mem_addr = reg;
+    mem_param.mem_addr_size = I2C_MEM_ADDR_SIZE_8BIT;
+    mem_param.data = buff;
+    mem_param.data_size = len;
+    mem_param.timeout_ms = TP_I2C_TIMEOUT;
 
-	return sw_i2c_memory_write(tp_i2c_handle, &mem_param);
+    return sw_i2c_memory_write(tp_i2c_handle, &mem_param);
 }
 
 int tp_i2c_read_uint16(uint8_t addr, uint16_t reg, uint8_t *buff, uint16_t len)
 {
-	if(NULL == buff)
-	{
-		LOGE("%s, pointer is null!\r\n", __func__);
-		return BK_FAIL;
-	}
+    if(NULL == buff)
+    {
+        LOGE("%s, pointer is null!\r\n", __func__);
+        return BK_FAIL;
+    }
 
-	if(0 == len)
-	{
-		LOGE("%s, len is 0!\r\n", __func__);
-		return BK_FAIL;
-	}
+    if(0 == len)
+    {
+        LOGE("%s, len is 0!\r\n", __func__);
+        return BK_FAIL;
+    }
 
-	i2c_mem_param_t mem_param = {0};
+    i2c_mem_param_t mem_param = {0};
 
-	mem_param.dev_addr = addr;
-	mem_param.mem_addr = reg;
-	mem_param.mem_addr_size = I2C_MEM_ADDR_SIZE_16BIT;
-	mem_param.data = buff;
-	mem_param.data_size = len;
-	mem_param.timeout_ms = TP_I2C_TIMEOUT;
+    mem_param.dev_addr = addr;
+    mem_param.mem_addr = reg;
+    mem_param.mem_addr_size = I2C_MEM_ADDR_SIZE_16BIT;
+    mem_param.data = buff;
+    mem_param.data_size = len;
+    mem_param.timeout_ms = TP_I2C_TIMEOUT;
 
-	return sw_i2c_memory_read(tp_i2c_handle, &mem_param);
+    return sw_i2c_memory_read(tp_i2c_handle, &mem_param);
 }
 
 int tp_i2c_write_uint16(uint8_t addr, uint16_t reg, uint8_t *buff, uint16_t len)
 {
-	if(NULL == buff)
-	{
-		LOGE("%s, pointer is null!\r\n", __func__);
-		return BK_FAIL;
-	}
+    if(NULL == buff)
+    {
+        LOGE("%s, pointer is null!\r\n", __func__);
+        return BK_FAIL;
+    }
 
-	if(0 == len)
-	{
-		LOGE("%s, len is 0!\r\n", __func__);
-		return BK_FAIL;
-	}
-	
-	i2c_mem_param_t mem_param = {0};
+    if(0 == len)
+    {
+        LOGE("%s, len is 0!\r\n", __func__);
+        return BK_FAIL;
+    }
+    
+    i2c_mem_param_t mem_param = {0};
 
-	mem_param.dev_addr = addr;
-	mem_param.mem_addr = reg;
-	mem_param.mem_addr_size = I2C_MEM_ADDR_SIZE_16BIT;
-	mem_param.data = buff;
-	mem_param.data_size = len;
-	mem_param.timeout_ms = TP_I2C_TIMEOUT;
+    mem_param.dev_addr = addr;
+    mem_param.mem_addr = reg;
+    mem_param.mem_addr_size = I2C_MEM_ADDR_SIZE_16BIT;
+    mem_param.data = buff;
+    mem_param.data_size = len;
+    mem_param.timeout_ms = TP_I2C_TIMEOUT;
 
-	return sw_i2c_memory_write(tp_i2c_handle, &mem_param);
+    return sw_i2c_memory_write(tp_i2c_handle, &mem_param);
 }
 
 // tp gpio initialization and including sensor address select through controling gpio level.
 bk_err_t bk_tp_gpio_init(const tp_config_t *config)
 {
-	if(NULL == config)
-	{
-		LOGE("%s, pointer is null!\r\n", __func__);
-		return BK_FAIL;
-	}
+    if(NULL == config)
+    {
+        LOGE("%s, pointer is null!\r\n", __func__);
+        return BK_FAIL;
+    }
 
-	gpio_config_t mode = {0};
-	gpio_id_t rst_id = TP_RST_PIN;
-	gpio_id_t int_id = TP_INT_PIN;
+    gpio_config_t mode = {0};
+    gpio_id_t rst_id = TP_RST_PIN;
+    gpio_id_t int_id = TP_INT_PIN;
 
-	// INT GPIO - output high
-	BK_LOG_ON_ERR(gpio_dev_unmap(int_id));
-	mode.io_mode = GPIO_OUTPUT_ENABLE;
-	mode.pull_mode = GPIO_PULL_DISABLE;
-	BK_LOG_ON_ERR(bk_gpio_set_config(int_id, &mode));
-	BK_LOG_ON_ERR(bk_gpio_set_output_high(int_id));	
+    // INT GPIO - output high
+    BK_LOG_ON_ERR(gpio_dev_unmap(int_id));
+    mode.io_mode = GPIO_OUTPUT_ENABLE;
+    mode.pull_mode = GPIO_PULL_DISABLE;
+    BK_LOG_ON_ERR(bk_gpio_set_config(int_id, &mode));
+    BK_LOG_ON_ERR(bk_gpio_set_output_high(int_id));    
 
-	// RESET GPIO - output low
-	BK_LOG_ON_ERR(gpio_dev_unmap(rst_id));
-	mode.io_mode = GPIO_OUTPUT_ENABLE;
-	mode.pull_mode = GPIO_PULL_DISABLE;
-	BK_LOG_ON_ERR(bk_gpio_set_config(rst_id, &mode));
-	BK_LOG_ON_ERR(bk_gpio_set_output_low(rst_id));	
+    // RESET GPIO - output low
+    BK_LOG_ON_ERR(gpio_dev_unmap(rst_id));
+    mode.io_mode = GPIO_OUTPUT_ENABLE;
+    mode.pull_mode = GPIO_PULL_DISABLE;
+    BK_LOG_ON_ERR(bk_gpio_set_config(rst_id, &mode));
+    BK_LOG_ON_ERR(bk_gpio_set_output_low(rst_id));    
 
-	// this delay time maybe can optimization.
-	#if CONFIG_TP_HY4633
-		rtos_delay_milliseconds(220);
-	#elif CONFIG_TP_FT6336
-		rtos_delay_milliseconds(20);
-	#elif CONFIG_TP_CST9217
-		rtos_delay_milliseconds(20);
-	#else
-		rtos_delay_milliseconds(10);
-	#endif
-	
+    // this delay time maybe can optimization.
+    #if CONFIG_TP_HY4633
+        rtos_delay_milliseconds(220);
+    #elif CONFIG_TP_FT6336
+        rtos_delay_milliseconds(20);
+    #elif CONFIG_TP_CST9217
+        rtos_delay_milliseconds(20);
+    #else
+        rtos_delay_milliseconds(10);
+    #endif
+    
     BK_LOG_ON_ERR(bk_gpio_set_output_high(rst_id));
-	
-	return BK_OK;
+    
+    return BK_OK;
 }
 
 // tp i2c communication initialization.
 bk_err_t bk_tp_i2c_init(const tp_config_t *config)
 {
-	if(NULL == config)
-	{
-		LOGE("%s, pointer is null!\r\n", __func__);
-		return BK_FAIL;
-	}
+    if(NULL == config)
+    {
+        LOGE("%s, pointer is null!\r\n", __func__);
+        return BK_FAIL;
+    }
 
-	i2c_config_t i2c_config = {0};
+    i2c_config_t i2c_config = {0};
 
-	i2c_config.baud_rate = I2C_BAUD_RATE_100KHZ;
-	i2c_config.addr_mode = I2C_ADDR_MODE_7BIT;
+    i2c_config.baud_rate = I2C_BAUD_RATE_100KHZ;
+    i2c_config.addr_mode = I2C_ADDR_MODE_7BIT;
 
 #if CONFIG_SIM_I2C_HW_BOARD_V3
-	if (BK_OK != bk_i2c_init_v2(TP_I2C_ID, &i2c_config))
+    if (BK_OK != bk_i2c_init_v2(TP_I2C_ID, &i2c_config))
 #else
-	if (BK_OK != bk_i2c_init(TP_I2C_ID, &i2c_config))
+    if (BK_OK != bk_i2c_init(TP_I2C_ID, &i2c_config))
 #endif
-	{
-		LOGE("%s, I2C%d init fail!\r\n", TP_I2C_ID);
-		return BK_FAIL;
-	}
+    {
+        LOGE("%s, I2C%d init fail!\r\n", TP_I2C_ID);
+        return BK_FAIL;
+    }
 
-	return BK_OK;
+    return BK_OK;
 }
 
 // tp interrupt service routine.
 static void tp_int_gpio_isr(gpio_id_t id)
 {
-	// LOGD("tp int isr index:%d\n", id);
+    // LOGD("tp int isr index:%d\n", id);
 
-	if (false != tp_driver_init_flag)
-	{
-		bk_gpio_disable_interrupt(TP_INT_PIN);
-		rtos_set_semaphore(&tp_sema);
-	}
+    if ((false != tp_driver_init_flag) && (false == tp_driver_suspend_flag))
+    {
+        bk_gpio_disable_interrupt(TP_INT_PIN);
+        rtos_set_semaphore(&tp_sema);
+    }
 }
 
 __bk_weak void bk_tp_read_info_callback(tp_data_t *tp_data)
@@ -311,242 +312,276 @@ __bk_weak void bk_tp_read_info_callback(tp_data_t *tp_data)
 // tp interrupt initialization.
 bk_err_t bk_tp_int_init(const tp_config_t *config)
 {
-	if(NULL == config)
-	{
-		LOGE("%s, pointer is null!\r\n", __func__);
-		return BK_FAIL;
-	}
+    if(NULL == config)
+    {
+        LOGE("%s, pointer is null!\r\n", __func__);
+        return BK_FAIL;
+    }
 
-	gpio_config_t mode = {0};
-	gpio_id_t int_id = TP_INT_PIN;
-	gpio_int_type_t int_type = 0;
+    gpio_config_t mode = {0};
+    gpio_id_t int_id = TP_INT_PIN;
+    gpio_int_type_t int_type = 0;
 
-	BK_LOG_ON_ERR(gpio_dev_unmap(int_id));
-	mode.io_mode = GPIO_INPUT_ENABLE;
-	mode.pull_mode = GPIO_PULL_DISABLE;
-	BK_LOG_ON_ERR(bk_gpio_set_config(int_id, &mode));
+    BK_LOG_ON_ERR(gpio_dev_unmap(int_id));
+    mode.io_mode = GPIO_INPUT_ENABLE;
+    mode.pull_mode = GPIO_PULL_DISABLE;
+    BK_LOG_ON_ERR(bk_gpio_set_config(int_id, &mode));
 
-	if (TP_INT_TYPE_RISING_EDGE == config->int_type)
-	{
-		int_type = GPIO_INT_TYPE_RISING_EDGE;
-	}
-	else if (TP_INT_TYPE_FALLING_EDGE == config->int_type)
-	{
-		int_type = GPIO_INT_TYPE_FALLING_EDGE;
-	}
-	else if (TP_INT_TYPE_LOW_LEVEL == config->int_type)
-	{
-		int_type = GPIO_INT_TYPE_LOW_LEVEL;
-	}	
-	else if (TP_INT_TYPE_HIGH_LEVEL == config->int_type)
-	{
-		int_type = GPIO_INT_TYPE_HIGH_LEVEL;
-	}	
+    if (TP_INT_TYPE_RISING_EDGE == config->int_type)
+    {
+        int_type = GPIO_INT_TYPE_RISING_EDGE;
+    }
+    else if (TP_INT_TYPE_FALLING_EDGE == config->int_type)
+    {
+        int_type = GPIO_INT_TYPE_FALLING_EDGE;
+    }
+    else if (TP_INT_TYPE_LOW_LEVEL == config->int_type)
+    {
+        int_type = GPIO_INT_TYPE_LOW_LEVEL;
+    }    
+    else if (TP_INT_TYPE_HIGH_LEVEL == config->int_type)
+    {
+        int_type = GPIO_INT_TYPE_HIGH_LEVEL;
+    }    
     BK_LOG_ON_ERR(bk_gpio_register_isr(int_id, tp_int_gpio_isr));
     BK_LOG_ON_ERR(bk_gpio_set_interrupt_type(int_id, int_type));
     BK_LOG_ON_ERR(bk_gpio_enable_interrupt(int_id));
 
-	return BK_OK;
+    return BK_OK;
 }
 
 bk_err_t bk_tp_int_deinit(void)
 {
-	gpio_id_t int_id = TP_INT_PIN;
+    gpio_id_t int_id = TP_INT_PIN;
 
-	BK_LOG_ON_ERR(bk_gpio_disable_interrupt(int_id));
+    BK_LOG_ON_ERR(bk_gpio_disable_interrupt(int_id));
 
-	return BK_OK;
+    return BK_OK;
 }
 
 void tp_process_task(beken_thread_arg_t arg)
 {
-	int ret;
-	tp_data_t tp_data[TP_SUPPORT_MAX_NUM];
+    int ret;
+    tp_data_t tp_data[TP_SUPPORT_MAX_NUM];
 
-	while (1)
-	{
-		ret = rtos_get_semaphore(&tp_sema, BEKEN_NEVER_TIMEOUT);
-		if(kNoErr != ret)
-		{
-			LOGE("%s, get semaphore fail!\r\n", __func__);
-		}
+    while (1)
+    {
+        ret = rtos_get_semaphore(&tp_sema, BEKEN_NEVER_TIMEOUT);
+        if(kNoErr != ret)
+        {
+            LOGE("%s, get semaphore fail!\r\n", __func__);
+        }
 
-		os_memset(tp_data, 0x00, sizeof(tp_data));
-		if (NULL != current_sensor->read_tp_info)
-		{
-			if (BK_OK != current_sensor->read_tp_info(&tp_i2c_cb, TP_SUPPORT_MAX_NUM, (void *)tp_data))
-			{
-				LOGE("%s get tp info fail!\r\n", __func__);
-			}
-			else
-			{
-				for (uint8_t i=0; i<TP_SUPPORT_MAX_NUM; i++)
-				{
-					if ((TP_EVENT_TYPE_DOWN == tp_data[i].event) || (TP_EVENT_TYPE_UP == tp_data[i].event) || (TP_EVENT_TYPE_MOVE == tp_data[i].event))
-					{
-						LOGV("event=%d, track_id=%d, x=%d, y=%d, s=%d, timestamp=%u.\r\n", 
-									tp_data[i].event,
-									tp_data[i].track_id,
-									tp_data[i].x_coordinate,
-									tp_data[i].y_coordinate,
-									tp_data[i].width,
-									tp_data[i].timestamp);
-					}
+        if (false != tp_driver_suspend_flag)
+        {
+            continue;
+        }
 
-					bk_tp_read_info_callback(&tp_data[i]);
-				}
-			}
-		}
+        os_memset(tp_data, 0x00, sizeof(tp_data));
+        if (NULL != current_sensor->read_tp_info)
+        {
+            if (BK_OK != current_sensor->read_tp_info(&tp_i2c_cb, TP_SUPPORT_MAX_NUM, (void *)tp_data))
+            {
+                LOGE("%s get tp info fail!\r\n", __func__);
+            }
+            else
+            {
+                for (uint8_t i=0; i<TP_SUPPORT_MAX_NUM; i++)
+                {
+                    if ((TP_EVENT_TYPE_DOWN == tp_data[i].event) || (TP_EVENT_TYPE_UP == tp_data[i].event) || (TP_EVENT_TYPE_MOVE == tp_data[i].event))
+                    {
+                        LOGV("event=%d, track_id=%d, x=%d, y=%d, s=%d, timestamp=%u.\r\n", 
+                                    tp_data[i].event,
+                                    tp_data[i].track_id,
+                                    tp_data[i].x_coordinate,
+                                    tp_data[i].y_coordinate,
+                                    tp_data[i].width,
+                                    tp_data[i].timestamp);
+                    }
 
-		BK_LOG_ON_ERR(bk_gpio_enable_interrupt(TP_INT_PIN));
-	}
+                    bk_tp_read_info_callback(&tp_data[i]);
+                }
+            }
+        }
+
+        if (false == tp_driver_suspend_flag)
+        {
+            BK_LOG_ON_ERR(bk_gpio_enable_interrupt(TP_INT_PIN));
+        }
+    }
 }
 
 bk_err_t bk_tp_driver_init(tp_config_t *config)
 {
-	if(NULL == config)
-	{
-		LOGE("%s, pointer is null!\r\n", __func__);
-		return BK_FAIL;
-	}
+    if(NULL == config)
+    {
+        LOGE("%s, pointer is null!\r\n", __func__);
+        return BK_FAIL;
+    }
 
-	if ( false != tp_driver_init_flag)
-	{
-		LOGE("%s, reinit is denied!\r\n", __func__);
-		return BK_FAIL;
-	}
+    if ( false != tp_driver_init_flag)
+    {
+        LOGE("%s, reinit is denied!\r\n", __func__);
+        return BK_FAIL;
+    }
 
-	int ret = BK_OK;
-	tp_sensor_user_config_t sensor_user_config = {0};
+    int ret = BK_OK;
+    tp_sensor_user_config_t sensor_user_config = {0};
 
-	LOGD("%s, ppi=%d, int_type=%d, refresh_rate=%d, tp_num=%d.\r\n", __func__, config->ppi, config->int_type, config->refresh_rate, config->tp_num);
+    LOGD("%s, ppi=%d, int_type=%d, refresh_rate=%d, tp_num=%d.\r\n", __func__, config->ppi, config->int_type, config->refresh_rate, config->tp_num);
 
-	// gpio initialization.
-	if (BK_OK != bk_tp_gpio_init((const tp_config_t *)config))
-	{
-		LOGE("%s, gpio init fail!\r\n", __func__);
-		return BK_FAIL;
-	}
+    // gpio initialization.
+    if (BK_OK != bk_tp_gpio_init((const tp_config_t *)config))
+    {
+        LOGE("%s, gpio init fail!\r\n", __func__);
+        return BK_FAIL;
+    }
 
-	sw_i2c_config_t i2c_cfg = {0};
-	i2c_cfg.sda_pin = TP_I2C_SDA_PIN;
-	i2c_cfg.scl_pin = TP_I2C_SCL_PIN;
-	tp_i2c_handle = sw_i2c_init(&i2c_cfg);
+    sw_i2c_config_t i2c_cfg = {0};
+    i2c_cfg.sda_pin = TP_I2C_SDA_PIN;
+    i2c_cfg.scl_pin = TP_I2C_SCL_PIN;
+    tp_i2c_handle = sw_i2c_init(&i2c_cfg);
 
-	rtos_delay_milliseconds(10);
+    rtos_delay_milliseconds(10);
 
-	ret = rtos_init_semaphore_ex(&tp_sema, 1, 0);
-	if(kNoErr != ret)
-	{
-		LOGE("%s semaphore init fail!\r\n", __func__);
-		return ret;
-	}
+    ret = rtos_init_semaphore_ex(&tp_sema, 1, 0);
+    if(kNoErr != ret)
+    {
+        LOGE("%s semaphore init fail!\r\n", __func__);
+        return ret;
+    }
 
-	ret = rtos_create_thread(&tp_thread_handle, TP_THREAD_PRIORITY, "tp", (beken_thread_function_t)tp_process_task, TP_THREAD_STACK_SIZE, (beken_thread_arg_t)0); 	
-	if(kNoErr != ret)
-	{
-		LOGE("%s create thread fail!\r\n", __func__);
-		goto error;
-	}
+    ret = rtos_create_thread(&tp_thread_handle, TP_THREAD_PRIORITY, "tp", (beken_thread_function_t)tp_process_task, TP_THREAD_STACK_SIZE, (beken_thread_arg_t)0);     
+    if(kNoErr != ret)
+    {
+        LOGE("%s create thread fail!\r\n", __func__);
+        goto error;
+    }
 
-	if (BK_OK != bk_tp_int_init((const tp_config_t *)config))
-	{
-		LOGE("%s tp int init fail!\r\n", __func__);
-		return BK_FAIL;
-	}
+    if (BK_OK != bk_tp_int_init((const tp_config_t *)config))
+    {
+        LOGE("%s tp int init fail!\r\n", __func__);
+        return BK_FAIL;
+    }
 
-	#if CONFIG_TP_HY4633
-		rtos_delay_milliseconds(1000);
-	#elif CONFIG_TP_FT6336
-		rtos_delay_milliseconds(300);
-	#else
-		rtos_delay_milliseconds(100);
-	#endif
+    #if CONFIG_TP_HY4633
+        rtos_delay_milliseconds(1000);
+    #elif CONFIG_TP_FT6336
+        rtos_delay_milliseconds(300);
+    #else
+        rtos_delay_milliseconds(100);
+    #endif
 
-	current_sensor = tp_get_sensor_auto_detect(&tp_i2c_cb);
-	if (NULL == current_sensor)
-	{
-		LOGE("%s no tp sensor found!\r\n", __func__);
-		return BK_FAIL;
-	}
+    current_sensor = tp_get_sensor_auto_detect(&tp_i2c_cb);
+    if (NULL == current_sensor)
+    {
+        LOGE("%s no tp sensor found!\r\n", __func__);
+        return BK_FAIL;
+    }
 
-	if (NULL != current_sensor->init)
-	{
-		sensor_user_config.x_size = (config->ppi >> 16) & 0xFFFF;
-		sensor_user_config.y_size = config->ppi & 0xFFFF;
-		sensor_user_config.int_type = config->int_type;
-		sensor_user_config.refresh_rate = config->refresh_rate;
-		sensor_user_config.tp_num = config->tp_num;
+    if (NULL != current_sensor->init)
+    {
+        sensor_user_config.x_size = (config->ppi >> 16) & 0xFFFF;
+        sensor_user_config.y_size = config->ppi & 0xFFFF;
+        sensor_user_config.int_type = config->int_type;
+        sensor_user_config.refresh_rate = config->refresh_rate;
+        sensor_user_config.tp_num = config->tp_num;
 
-		if (BK_OK != current_sensor->init(&tp_i2c_cb, &sensor_user_config))
-		{
-			LOGE("%s sensor init fail!\r\n", __func__);
-			return BK_FAIL;
-		}
-	}
+        if (BK_OK != current_sensor->init(&tp_i2c_cb, &sensor_user_config))
+        {
+            LOGE("%s sensor init fail!\r\n", __func__);
+            return BK_FAIL;
+        }
+    }
 
-	// device parameters.
-	tp_device.name = current_sensor->name;
-	tp_device.id = current_sensor->id;
-	tp_device.ppi = config->ppi;
-	tp_device.int_type = config->int_type;
-	tp_device.refresh_rate = config->refresh_rate;
-	tp_device.tp_num = config->tp_num;
-	LOGD("%s, name=%s, id=%d, ppi=%d, x_size=%d, y_size=%d, int_type=%d, refresh_rate=%d, tp_num=%d.\r\n", __func__, tp_device.name, tp_device.id, tp_device.ppi, sensor_user_config.x_size, sensor_user_config.y_size, tp_device.int_type, tp_device.refresh_rate, tp_device.tp_num);
+    // device parameters.
+    tp_device.name = current_sensor->name;
+    tp_device.id = current_sensor->id;
+    tp_device.ppi = config->ppi;
+    tp_device.int_type = config->int_type;
+    tp_device.refresh_rate = config->refresh_rate;
+    tp_device.tp_num = config->tp_num;
+    LOGD("%s, name=%s, id=%d, ppi=%d, x_size=%d, y_size=%d, int_type=%d, refresh_rate=%d, tp_num=%d.\r\n", __func__, tp_device.name, tp_device.id, tp_device.ppi, sensor_user_config.x_size, sensor_user_config.y_size, tp_device.int_type, tp_device.refresh_rate, tp_device.tp_num);
 
-	// initilization finish.
-	tp_driver_init_flag = true;
+    // initilization finish.
+    tp_driver_init_flag = true;
+    tp_driver_suspend_flag = false;
 
-	return ret;
+    return ret;
 
 error:
-	if (NULL != tp_sema)
-	{
-		if (kNoErr != rtos_deinit_semaphore(&tp_sema))
-		{
-			LOGE("%s deinit semaaphore fail!\r\n", __func__);
-		}
-		tp_sema = NULL;
-	}
+    if (NULL != tp_sema)
+    {
+        if (kNoErr != rtos_deinit_semaphore(&tp_sema))
+        {
+            LOGE("%s deinit semaaphore fail!\r\n", __func__);
+        }
+        tp_sema = NULL;
+    }
 
-	return ret;
+    return ret;
+}
+
+bk_err_t bk_tp_driver_suspend(void)
+{
+    if (false == tp_driver_init_flag)
+    {
+        return BK_OK;
+    }
+
+    tp_driver_suspend_flag = true;
+    BK_LOG_ON_ERR(bk_gpio_disable_interrupt(TP_INT_PIN));
+    return BK_OK;
+}
+
+bk_err_t bk_tp_driver_resume(void)
+{
+    if (false == tp_driver_init_flag)
+    {
+        return BK_OK;
+    }
+
+    tp_driver_suspend_flag = false;
+    BK_LOG_ON_ERR(bk_gpio_enable_interrupt(TP_INT_PIN));
+    return BK_OK;
 }
 
 bk_err_t bk_tp_driver_deinit(void)
 {
-	int ret = BK_OK;
+    int ret = BK_OK;
 
-	if (NULL != tp_sema)
-	{
-		if (kNoErr != rtos_deinit_semaphore(&tp_sema))
-		{
-			LOGE("%s deinit semaphore fail!\r\n", __func__);
-			ret = BK_FAIL;
-		}
-		tp_sema = NULL;
-	}
+    if (NULL != tp_sema)
+    {
+        if (kNoErr != rtos_deinit_semaphore(&tp_sema))
+        {
+            LOGE("%s deinit semaphore fail!\r\n", __func__);
+            ret = BK_FAIL;
+        }
+        tp_sema = NULL;
+    }
 
-	if (NULL != tp_thread_handle)
-	{
-		if (kNoErr != rtos_delete_thread(&tp_thread_handle))
-		{
-			LOGE("%s delete thread fail!\r\n", __func__);
-			ret = BK_FAIL;
-		}
-		tp_thread_handle = NULL;
-	}
+    if (NULL != tp_thread_handle)
+    {
+        if (kNoErr != rtos_delete_thread(&tp_thread_handle))
+        {
+            LOGE("%s delete thread fail!\r\n", __func__);
+            ret = BK_FAIL;
+        }
+        tp_thread_handle = NULL;
+    }
 
-	bk_tp_int_deinit();
+    bk_tp_int_deinit();
 
-	current_sensor = NULL;
-	os_memset(&tp_device, 0x00, sizeof(tp_device_t));
+    current_sensor = NULL;
+    os_memset(&tp_device, 0x00, sizeof(tp_device_t));
 
-	tp_driver_init_flag = false;
+    tp_driver_init_flag = false;
+    tp_driver_suspend_flag = false;
 
-	return ret;
+    return ret;
 }
 
 tp_device_t *bk_tp_get_device(void)
 {
-	return (&tp_device);
+    return (&tp_device);
 }

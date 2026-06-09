@@ -55,6 +55,28 @@ void bk_tp_set_sensor_devices_list(const tp_sensor_config_t **list, uint16_t siz
 bk_err_t bk_tp_driver_init(tp_config_t *config);
 
 /**
+ * @brief     Temporarily suspend TP interrupt-driven reads
+ *
+ * This API keeps the TP driver initialized, but prevents new interrupt
+ * events from scheduling I2C reads. It is intended for short critical
+ * sections where another device shares the same software-I2C pins.
+ *
+ * @return
+ *    - 0: succeed
+ *    - others: other errors.
+ */
+bk_err_t bk_tp_driver_suspend(void);
+
+/**
+ * @brief     Resume TP interrupt-driven reads after suspend
+ *
+ * @return
+ *    - 0: succeed
+ *    - others: other errors.
+ */
+bk_err_t bk_tp_driver_resume(void);
+
+/**
  * @brief     Deinit the tp
  *
  * This API will deinit sensor, i2c module, gpio, ect.
