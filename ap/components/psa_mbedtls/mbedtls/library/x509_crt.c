@@ -66,7 +66,7 @@
 #include <platform/mbed_retarget.h>
 #elif !defined(MBEDTLS_NO_POSIX_DIRENT)
 #include <dirent.h>
-#endif /* __MBED__ */
+#endif /* __MBED__ / MBEDTLS_NO_POSIX_DIRENT */
 #include <errno.h>
 #endif /* !_WIN32 || EFIX64 || EFI32 */
 #endif
@@ -1591,10 +1591,11 @@ int mbedtls_x509_crt_parse_path(mbedtls_x509_crt *chain, const char *path)
 cleanup:
     FindClose(hFind);
 #elif defined(MBEDTLS_NO_POSIX_DIRENT)
-    ((void) chain);
-    ((void) path);
-    ret = MBEDTLS_ERR_PLATFORM_FEATURE_UNSUPPORTED;
-#else /* _WIN32 */
+    /* No opendir/readdir on this platform (e.g. arm-none-eabi); use parse_file for single file only. */
+    (void) path;
+    (void) chain;
+    return MBEDTLS_ERR_X509_FEATURE_UNAVAILABLE;
+#else /* _WIN32 and !MBEDTLS_NO_POSIX_DIRENT */
     int t_ret;
     int snp_ret;
     struct stat sb;
@@ -1661,7 +1662,7 @@ cleanup:
     }
 #endif /* MBEDTLS_THREADING_C */
 
-#endif /* _WIN32 */
+#endif /* _WIN32 / MBEDTLS_NO_POSIX_DIRENT */
 
     return ret;
 }
@@ -3242,7 +3243,10 @@ void mbedtls_x509_crt_free(mbedtls_x509_crt *crt)
         mbedtls_pk_free(&cert_cur->pk);
 
 #if defined(MBEDTLS_X509_RSASSA_PSS_SUPPORT)
-        mbedtls_free(cert_cur->sig_opts);
+        if (cert_cur->sig_opts != NULL) {
+            mbedtls_free(cert_cur->sig_opts);
+            cert_cur->sig_opts = NULL;
+        }
 #endif
 
         mbedtls_asn1_free_named_data_list_shallow(cert_cur->issuer.next);

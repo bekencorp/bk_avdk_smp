@@ -8,6 +8,10 @@
 #include <stdio.h>
 #include "common.h"
 
+#if CONFIG_TRNG_SUPPORT
+#include <driver/trng.h>
+#endif
+
 #include <stdint.h>
 #include <stdlib.h>
 
