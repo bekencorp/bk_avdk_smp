@@ -22,7 +22,8 @@ extern "C" {
 #define SOC_TIMER_CHAN_NUM_PER_UNIT      6
 #define SOC_TIMER_GROUP_NUM              2
 #define SOC_TIMER_CHAN_NUM_PER_GROUP     3
-#define SOC_TIMER_INTERRUPT_NUM          2
+/* Each timer group has a dedicated IRQ line on BK7259 AP. */
+#define SOC_TIMER_INTERRUPT_NUM          SOC_TIMER_GROUP_NUM
 
 #define TIMER_CLOCK_FREQ_XTAL   26000 // 26M
 #define TIMER_CLOCK_FREQ_32K    32    // 32K
