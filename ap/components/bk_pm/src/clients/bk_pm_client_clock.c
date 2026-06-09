@@ -36,6 +36,7 @@ pm_cpu_freq_e bk_pm_module_current_cpu_freq_get(pm_dev_id_e module)
 
 bk_err_t bk_pm_module_vote_cpu_freq(pm_dev_id_e module, pm_cpu_freq_e cpu_freq)
 {
+	return BK_ERR_NOT_SUPPORT;//AP not support vote cpu freq
 	if (pm_debug_mode() & 0x2)
 	{
 		BK_LOGD(NULL, "current freq = %d,dev_id = %d vote freq = %d \r\n",s_pm_current_cpu_freq, module, cpu_freq);

@@ -25,6 +25,9 @@
 #include <sys_sw_regs.h>
 #include "cache.h"
 #include "pm_debug.h"
+#if CONFIG_SUPPORT_WWDT
+#include <driver/wwdt.h>
+#endif
 
 extern void mb_ipc_reset_notify(u32 cpu_id, u32 power_on);
 extern int mb_ipc_cpu_is_power_off(u32 cpu_id);
@@ -41,7 +44,7 @@ typedef struct ap_ctrl_callback_node {
 #define PM_WAIT_AP_SLEEP_TIMEOUT_MS          (3000)
 #define PM_CP1_RECOVERY_DEFAULT_VALUE        (0xFFFFFFFFFFFFFFFFULL)
 
-#define PM_BOOT_AP_WAITING_TIEM             (30000) // 30s
+#define PM_BOOT_AP_WAITING_TIEM             (1800) // 1.8s
 #define PM_BOOT_AP_TRY_COUNT                (3)
 #define PM_AP_CTRL_MUTEX_WAIT_WARN_MS       (500)
 
@@ -345,7 +348,9 @@ boot_ap:
 		#endif
 		bk_pm_module_vote_power_ctrl(POWER_SUB_DOMAIN_NAME_AP_CPU, PM_POWER_MODULE_STATE_ON);
 		/* Keep mailbox heartbeat state machine aligned with AP power transitions. */
-
+		#if CONFIG_SUPPORT_WWDT
+		bk_wwdt_feed();
+		#endif
 		LOGI("Ap_power_on: vote_on + reset_notify(on)\r\n");
 		// #if defined(RECV_LOG_FROM_MBOX)
 		// void reset_forward_log_status(void);
@@ -357,8 +362,13 @@ boot_ap:
 		#if CONFIG_PSRAM
 		bk_pm_module_vote_psram_ctrl(PM_POWER_PSRAM_MODULE_NAME_MEDIA, PM_POWER_MODULE_STATE_ON);
 		#endif
+		#if CONFIG_SUPPORT_WWDT
+		bk_wwdt_feed();
+		#endif
 		bk_delay_us(1000);
-
+		#if CONFIG_SUPPORT_WWDT
+		bk_wwdt_feed();
+		#endif	
 		#if 0//CONFIG_PSRAM
 		{
 			volatile uint32_t *psram_test_addr = (volatile uint32_t *)psram_malloc(sizeof(uint32_t));
@@ -385,6 +395,10 @@ boot_ap:
 		bk_start_ap_system();
 		LOGI("bk_start_ap_system done\r\n");
 		bk_pm_ap_ctrl_callback_execute(PM_AP_CTRL_CB_TYPE_POWER_ON);
+		LOGI("bk_pm_ap_ctrl_callback_execute done\r\n");
+		#if CONFIG_SUPPORT_WWDT
+		bk_wwdt_feed();
+		#endif
 		uint64_t previous_tick = 0;
 		uint64_t current_tick  = 0;
 		previous_tick = bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
@@ -395,6 +409,9 @@ boot_ap:
 			{
 				break;
 			}
+			#if CONFIG_SUPPORT_WWDT
+			bk_wwdt_feed();
+			#endif
 			current_tick = bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
 		}
 
@@ -414,6 +431,9 @@ boot_ap:
 				#endif
 			}
 		}
+		#if CONFIG_SUPPORT_WWDT
+		bk_wwdt_feed();
+		#endif
 	}
 }
 

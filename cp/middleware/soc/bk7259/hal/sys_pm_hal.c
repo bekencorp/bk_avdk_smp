@@ -1872,7 +1872,7 @@ void sys_hal_exit_low_analog(void)
 {
 	sys_ll_set_ana_reg10_spi_latch1v(1);
 	sys_ll_set_ana_reg9_t_vanaldosel(4);
-	sys_ll_set_ana_reg9_r_vanaldosel(4);
+	sys_ll_set_ana_reg9_r_vanaldosel(7);
 	sys_ll_set_ana_reg9_alopowsel(0);
 	sys_ll_set_ana_reg10_spi_latch1v(0);
 

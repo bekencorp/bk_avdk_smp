@@ -323,6 +323,8 @@ int bk_init(void)
 #if CONFIG_MAILBOX
 	bk_pm_cp1_boot_ok_response_set();
 #endif
+	/*Set AP boot success*/
+	bk_pm_ap_boot_success_set(BK_TRUE);
 
 #if CONFIG_USB //&& CONFIG_MENTOR_USB
 	bk_usb_driver_init();
@@ -353,9 +355,6 @@ int bk_init(void)
 #endif
 	BK_LOGD(TAG, "First Boot: %d\r\n", bk_pm_ap_first_boot_get());
     set_ap_startup_index(AP_EXIT_BK_INIT);
-
-	/*Set AP boot success*/
-	bk_pm_ap_boot_success_set(BK_TRUE);
 
 	return 0;
 }
