@@ -26,7 +26,7 @@
 #include "sys_driver.h"
 #include "timer_driver.h"
 
-#if (SOC_TIMER_INTERRUPT_NUM > 1)
+#if (SOC_TIMER_GROUP_NUM > 1)
 static void timer1_isr(void) __BK_SECTION(".itcm");
 #endif
 static void timer_isr(void) __BK_SECTION(".itcm");
@@ -341,7 +341,7 @@ bk_err_t bk_timer_driver_init(void)
 #endif
 
     bk_int_isr_register(INT_SRC_TIMER4, timer_isr, NULL);
-#if (SOC_TIMER_INTERRUPT_NUM > 1)
+#if (SOC_TIMER_GROUP_NUM > 1)
     bk_int_isr_register(INT_SRC_TIMER5, timer1_isr, NULL);
 #endif
     timer_hal_init(&s_timer.hal);
@@ -565,7 +565,7 @@ static void timer_isr(void)
 
     int_status = timer_clear_isr_status();
 
-#if (SOC_TIMER_INTERRUPT_NUM > 1)
+#if (SOC_TIMER_GROUP_NUM > 1)
      for(int chan = 0; chan < SOC_TIMER_CHAN_NUM_PER_GROUP; chan++) {
 #else
     for(int chan = 0; chan < SOC_TIMER_CHAN_NUM_PER_UNIT; chan++) {
@@ -578,7 +578,7 @@ static void timer_isr(void)
     }
 }
 
-#if (SOC_TIMER_INTERRUPT_NUM > 1)
+#if (SOC_TIMER_GROUP_NUM > 1)
 static void timer1_isr(void)
 {
     uint32_t int_status;
