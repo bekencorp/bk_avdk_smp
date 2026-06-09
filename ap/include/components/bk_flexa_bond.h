@@ -23,6 +23,7 @@ extern "C" {
 #include <components/bk_decode/bk_h264_decode_ctlr.h>
 #include <components/bk_decode/bk_jpeg_decode_ctlr.h>
 #include <components/bk_encode/bk_h264_encode_ctlr.h>
+#include <components/bk_encode/bk_jpeg_encode_ctlr.h>
 #include <components/bk_gpu_ctlr.h>
 
 avdk_err_t bk_flexa_mjpegd_h264e_bond_start(void **bond,
@@ -43,6 +44,10 @@ void bk_flexa_h264d_gpu_bond_stop(void *bond);
 avdk_err_t bk_flexa_isp_h264e_bond_start(void **bond, void *isp,
 					bk_h264_encode_ctlr_handle_t h264);
 void bk_flexa_isp_h264e_bond_stop(void *bond);
+
+avdk_err_t bk_flexa_isp_jpege_bond_start(void **bond, void *isp,
+					bk_jpeg_encode_ctlr_handle_t jpege);
+void bk_flexa_isp_jpege_bond_stop(void *bond);
 
 avdk_err_t bk_flexa_isp_gpu_bond_start(void **bond, void *isp, bk_gpu_ctlr_handle_t gpu);
 void bk_flexa_isp_gpu_bond_stop(void *bond);
