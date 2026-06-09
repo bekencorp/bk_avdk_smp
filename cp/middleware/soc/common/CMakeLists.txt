@@ -16,12 +16,6 @@ set(srcs
 
 
 	
-if (CONFIG_AON_GPIO)
-	list(APPEND srcs
-		hal/gpio_hal.c
-	)
-endif()
-
 if (CONFIG_AON_WDT)
 	list(APPEND srcs
 		hal/aon_wdt_hal.c
@@ -155,12 +149,6 @@ endif()
 if(CONFIG_SLCD)
 	list(APPEND srcs
 		"hal/slcd_hal.c"
-	)
-endif()
-
-if(CONFIG_IO_MATRIX_VER2_0)
-	list(APPEND srcs
-		"hal/iomx_hal.c"
 	)
 endif()
 

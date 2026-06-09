@@ -23,6 +23,7 @@
 
 static void cli_gpio_help(void)
 {
+	CLI_LOGD("gpio_dump    [id]    dump all pins, or one pin's detail when id is given\r\n");
 	CLI_LOGD("gpio_driver [init/deinit] \r\n");
 
 	CLI_LOGD("gpio    [set_config/input_pulldown/input_pullup////]    only in set_sonfig:[io_mode]    [pull mode] \r\n");
@@ -32,6 +33,7 @@ static void cli_gpio_help(void)
 	CLI_LOGD("gpio_int    [index]    [inttype/start/stop]    [low/high_level/rising/falling edge]\r\n");
 	CLI_LOGD("gpio_mulcore_isr", "gpio_mulcore_isr [cpu0_output_gpio_id]   [iterations]\r\n");
 	CLI_LOGD("gpio_clk    [32k/26m]\r\n");
+	CLI_LOGD("gpio_default_map    diff before/after gpio_default_map_init()\r\n");
 #if CONFIG_GPIO_DYNAMIC_WAKEUP_SUPPORT
 	CLI_LOGD("gpio_wake    [index][low/high_level/rising/falling edge][enable/disable wakeup]\r\n");
 	CLI_LOGD("gpio_low_power    [simulate][param]\r\n");
@@ -551,7 +553,12 @@ static void cli_gpio_clk_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc,
 
 static void cli_gpio_dump_pin_status_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
-	bk_gpio_dump_pin_status();
+	if (argc >= 2) {
+		gpio_id_t id = os_strtoul(argv[1], NULL, 10);
+		bk_gpio_dump_pin_detail(id);
+	} else {
+		bk_gpio_dump_pin_status();
+	}
 }
 
 #if CONFIG_GPIO_DUMP_MAP_DEV_DEBUG
@@ -581,7 +588,7 @@ DRV_CLI_CMD_EXPORT static const struct cli_command s_gpio_commands[] = {
 	{"gpio_uart_write", "[index][div(baud_rate=1Mbps/(1+div))][string]", cli_gpio_simulate_uart_write_cmd},
 #endif
 	{"gpio_cpu1_set_id", "[gpio_cpu1_set_id] [cpu1_output_gpio_id]", cli_gpio_cpu1_set_id_cmd},
-	{"gpio_dump", "gpio_dump    print function/pull/level/int state of every GPIO pin", cli_gpio_dump_pin_status_cmd},
+	{"gpio_dump", "gpio_dump [id]   dump all pins, or one pin's detail when id is given", cli_gpio_dump_pin_status_cmd},
 #if CONFIG_GPIO_DUMP_MAP_DEV_DEBUG
 	{"gpio_default_map", "gpio_default_map    diff before/after gpio_default_map_init()", cli_gpio_dump_default_map_cmd},
 #endif

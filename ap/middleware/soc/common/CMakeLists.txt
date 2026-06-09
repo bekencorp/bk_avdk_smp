@@ -13,12 +13,6 @@ set(srcs
 	hal/uart_hal.c
 	)
 
-if (CONFIG_AON_GPIO)
-	list(APPEND srcs
-		hal/gpio_hal.c
-	)
-endif()
-
 if (CONFIG_PWM)
 if (CONFIG_PWM_V1PX)
 	list(APPEND srcs
@@ -160,12 +154,6 @@ endif()
 if(CONFIG_SLCD)
 	list(APPEND srcs
 		"hal/slcd_hal.c"
-	)
-endif()
-
-if(CONFIG_IO_MATRIX_VER2_0)
-	list(APPEND srcs
-		"hal/iomx_hal.c"
 	)
 endif()
 

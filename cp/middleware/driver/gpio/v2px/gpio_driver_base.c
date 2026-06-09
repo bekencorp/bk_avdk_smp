@@ -472,69 +472,67 @@ static const char *gpio_v2px_pull_str(uint32_t pull_ena, uint32_t pull_mode)
 	if (!pull_ena) {
 		return "FLOAT";
 	}
-	return pull_mode ? "PU" : "PD";
+	return pull_mode ? "PULL_UP" : "PULL_DOWN";
 }
 
-static const char *gpio_v2px_int_type_str(uint32_t int_type)
+/* Interrupt state: a disabled interrupt is reported as a distinct state rather
+ * than a (meaningless) trigger type. */
+static const char *gpio_v2px_int_str(uint32_t int_ena, uint32_t int_type)
 {
+	if (!int_ena) {
+		return "DISABLED";
+	}
 	switch (int_type) {
 	case GPIO_INT_TYPE_LOW_LEVEL:    return "LOW_LEVEL";
 	case GPIO_INT_TYPE_HIGH_LEVEL:   return "HIGH_LEVEL";
-	case GPIO_INT_TYPE_RISING_EDGE:  return "RISING";
-	case GPIO_INT_TYPE_FALLING_EDGE: return "FALLING";
+	case GPIO_INT_TYPE_RISING_EDGE:  return "RISING_EDGE";
+	case GPIO_INT_TYPE_FALLING_EDGE: return "FALLING_EDGE";
 	default:                         return "UNKNOWN";
 	}
 }
 
-/* Decode the function selection. fun_ena==0 means the pad is in GPIO mode
- * (controlled by input/output_ena), otherwise it is muxed to a peripheral
- * whose code is recorded in fun_sel (see IOMX_CODE_T). */
-static const char *gpio_v2px_funcode_str(uint32_t code)
+/* On v2px the whole pad direction/function lives in the fun_sel field:
+ *   0=HIGH-Z 1=INPUT 2=OUTPUT 3=IN+OUT  >=4=peripheral(FUNC). */
+static const char *gpio_v2px_dir_str(uint32_t fun_sel)
 {
-	switch (code) {
-	case FUNC_CODE_HIGH_Z:       return "HIGH_Z";
-	case FUNC_CODE_INPUT:        return "GPIO_IN";
-	case FUNC_CODE_OUTPUT:       return "GPIO_OUT";
-	case FUNC_CODE_INPUT_OUTPUT: return "GPIO_IO";
-	case FUNC_CODE_UART0_RXD:    return "UART0_RX";
-	case FUNC_CODE_UART0_TXD:    return "UART0_TX";
-	case FUNC_CODE_UART0_CTS:    return "UART0_CTS";
-	case FUNC_CODE_UART0_RTS:    return "UART0_RTS";
-	case FUNC_CODE_UART1_RXD:    return "UART1_RX";
-	case FUNC_CODE_UART1_TXD:    return "UART1_TX";
-	case FUNC_CODE_UART2_RXD:    return "UART2_RX";
-	case FUNC_CODE_UART2_TXD:    return "UART2_TX";
-	case FUNC_CODE_I2C0_SCL:     return "I2C0_SCL";
-	case FUNC_CODE_I2C0_SDA:     return "I2C0_SDA";
-	case FUNC_CODE_I2C1_SCL:     return "I2C1_SCL";
-	case FUNC_CODE_I2C1_SDA:     return "I2C1_SDA";
-	case FUNC_CODE_SPI0_SCK:     return "SPI0_SCK";
-	case FUNC_CODE_SPI0_NSS:     return "SPI0_CSN";
-	case FUNC_CODE_SPI0_MOSI:    return "SPI0_MOSI";
-	case FUNC_CODE_SPI0_MISO:    return "SPI0_MISO";
-	case FUNC_CODE_SPI1_SCK:     return "SPI1_SCK";
-	case FUNC_CODE_SPI1_NSS:     return "SPI1_CSN";
-	case FUNC_CODE_SPI1_MOSI:    return "SPI1_MOSI";
-	case FUNC_CODE_SPI1_MISO:    return "SPI1_MISO";
-	case FUNC_CODE_SWCLK:        return "SWCLK";
-	case FUNC_CODE_SWDIO:        return "SWDIO";
-	default:                     return "ALT";
+	switch (fun_sel) {
+	case FUNC_CODE_HIGH_Z:       return "HIGH-Z";
+	case FUNC_CODE_INPUT:        return "INPUT";
+	case FUNC_CODE_OUTPUT:       return "OUTPUT";
+	case FUNC_CODE_INPUT_OUTPUT: return "IN+OUT";
+	default:                     return "FUNC";
+	}
+}
+
+/* Render the meaningful pad level into a fixed width (5) centered field:
+ *   INPUT/IN+OUT -> pad input bit, OUTPUT -> output bit, otherwise "-". */
+static void gpio_v2px_level_str(char *buf, uint32_t len, uint32_t fun_sel,
+				uint32_t in_lvl, uint32_t out_lvl)
+{
+	switch (fun_sel) {
+	case FUNC_CODE_INPUT:
+	case FUNC_CODE_INPUT_OUTPUT:
+		snprintf(buf, len, "  %u  ", in_lvl);
+		break;
+	case FUNC_CODE_OUTPUT:
+		snprintf(buf, len, "  %u  ", out_lvl);
+		break;
+	default:
+		snprintf(buf, len, "  -  ");
+		break;
 	}
 }
 
 bk_err_t bk_gpio_dump_pin_status(void)
 {
-	GPIO_LOGI("===== GPIO PIN STATUS (v2px, SOC_GPIO_NUM=%d) =====\r\n", SOC_GPIO_NUM);
-	GPIO_LOGI("ID   CFG       FUN_EN FUN_SEL(NAME)         DIR    PULL  LVL DRV INT(TYPE)\r\n");
-	GPIO_LOGI("---- --------- ------ --------------------- ------ ----- --- --- ---------------\r\n");
+	GPIO_LOGI("================== GPIO STATUS DUMP ( SOC_GPIO_NUM=%d ) ==================\r\n", SOC_GPIO_NUM);
+	GPIO_LOGI(" GPIO | Function         | Direction | Pull        | Drive | Level | Interrupt\r\n");
+	GPIO_LOGI("------+------------------+-----------+-------------+-------+-------+-------------\r\n");
 
 	for (gpio_id_t id = GPIO_0; id < SOC_GPIO_NUM; id++) {
 		uint32_t cfg     = gpio_hal_get_value(id);
-		uint32_t in_ena  = (cfg >> 2) & 0x1;
-		uint32_t out_ena = (cfg >> 3) & 0x1;
 		uint32_t pul_mod = (cfg >> 4) & 0x1;
 		uint32_t pul_ena = (cfg >> 5) & 0x1;
-		uint32_t fun_ena = (cfg >> 6) & 0x1;
 		uint32_t cap     = (cfg >> 8) & 0x3;
 		uint32_t int_typ = (cfg >> 10) & 0x3;
 		uint32_t int_ena = (cfg >> 12) & 0x1;
@@ -542,36 +540,54 @@ bk_err_t bk_gpio_dump_pin_status(void)
 		uint32_t in_lvl  =  cfg        & 0x1;
 		uint32_t out_lvl = (cfg >> 1)  & 0x1;
 
-		const char *dir;
-		uint32_t    lvl;
-		if (fun_ena) {
-			dir = "ALT";
-			lvl = in_lvl;
-		} else if (out_ena && in_ena) {
-			dir = "IO";
-			lvl = in_lvl;
-		} else if (out_ena) {
-			dir = "OUT";
-			lvl = out_lvl;
-		} else if (in_ena) {
-			dir = "IN";
-			lvl = in_lvl;
-		} else {
-			dir = "HI-Z";
-			lvl = in_lvl;
-		}
+		char drive_str[8];
+		char level_str[8];
+		snprintf(drive_str, sizeof(drive_str), "  %u  ", cap);
+		gpio_v2px_level_str(level_str, sizeof(level_str), fun_sel, in_lvl, out_lvl);
 
-		GPIO_LOGI("%-4d 0x%08x %-6d %3u(%-10s) %-6s %-5s %-3u %-3u %s(%s)\r\n",
-			id, cfg, fun_ena,
-			fun_sel, gpio_v2px_funcode_str(fun_sel),
-			dir,
+		GPIO_LOGI(" %-4d | %-16s | %-9s | %-11s | %s | %s | %s\r\n",
+			id,
+			bk_gpio_func_name(id, fun_sel),
+			gpio_v2px_dir_str(fun_sel),
 			gpio_v2px_pull_str(pul_ena, pul_mod),
-			lvl, cap,
-			int_ena ? "EN" : "DIS",
-			gpio_v2px_int_type_str(int_typ));
+			drive_str,
+			level_str,
+			gpio_v2px_int_str(int_ena, int_typ));
 	}
 
-	GPIO_LOGI("===== GPIO PIN STATUS END =====\r\n");
+	GPIO_LOGI("=========================================================================\r\n");
+	return BK_OK;
+}
+
+bk_err_t bk_gpio_dump_pin_detail(gpio_id_t id)
+{
+	if (id >= SOC_GPIO_NUM) {
+		GPIO_LOGI("invalid gpio id %d (valid 0~%d)\r\n", id, SOC_GPIO_NUM - 1);
+		return BK_ERR_GPIO_INVALID_ID;
+	}
+
+	uint32_t cfg     = gpio_hal_get_value(id);
+	uint32_t pul_mod = (cfg >> 4) & 0x1;
+	uint32_t pul_ena = (cfg >> 5) & 0x1;
+	uint32_t cap     = (cfg >> 8) & 0x3;
+	uint32_t int_typ = (cfg >> 10) & 0x3;
+	uint32_t int_ena = (cfg >> 12) & 0x1;
+	uint32_t fun_sel = (cfg >> 24) & 0xFF;
+	uint32_t in_lvl  =  cfg        & 0x1;
+	uint32_t out_lvl = (cfg >> 1)  & 0x1;
+
+	char level_str[8];
+	gpio_v2px_level_str(level_str, sizeof(level_str), fun_sel, in_lvl, out_lvl);
+
+	GPIO_LOGI("================= GPIO[%d] CONFIG =================\r\n", id);
+	GPIO_LOGI("  Function : %-16s (fun_sel=0x%02x)\r\n", bk_gpio_func_name(id, fun_sel), fun_sel);
+	GPIO_LOGI("  Direction: %s\r\n", gpio_v2px_dir_str(fun_sel));
+	GPIO_LOGI("  Pull     : %s\r\n", gpio_v2px_pull_str(pul_ena, pul_mod));
+	GPIO_LOGI("  Drive    : %u  (level 0~3)\r\n", cap);
+	GPIO_LOGI("  Level    : %s\r\n", level_str);
+	GPIO_LOGI("  Interrupt: %s\r\n", gpio_v2px_int_str(int_ena, int_typ));
+	GPIO_LOGI("  Raw CFG  : 0x%08x\r\n", cfg);
+	GPIO_LOGI("==================================================\r\n");
 	return BK_OK;
 }
 

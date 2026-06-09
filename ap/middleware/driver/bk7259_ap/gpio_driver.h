@@ -73,7 +73,9 @@ bk_err_t gpio_dev_unprotect_unmap(gpio_id_t gpio_id);
 bk_err_t gpio_jtag_sel(gpio_jtag_map_group_t gpio_jtag_sel_mode);
 bk_err_t gpio_scr_sel(gpio_scr_map_group_t mode);
 IOMX_CODE_T convert_gpio_dev_to_iomx_code(gpio_dev_t dev);
+const char *bk_gpio_func_name(gpio_id_t id, uint32_t fun_sel);
 bk_err_t bk_gpio_dump_pin_status(void);
+bk_err_t bk_gpio_dump_pin_detail(gpio_id_t id);
 
 #if CONFIG_GPIO_DUMP_MAP_DEV_DEBUG
 bk_err_t bk_gpio_dump_default_map_init_effect(void);

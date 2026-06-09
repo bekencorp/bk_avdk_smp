@@ -69,10 +69,6 @@ typedef struct {
 	uint32_t ldo_state;
 } gpio_ctrl_ldo_t;
 
-#if CONFIG_USR_GPIO_CFG_EN
-bk_err_t gpio_hal_default_map_init(gpio_hal_t *hal);
-#endif
-
 bk_err_t gpio_hal_init(gpio_hal_t *hal);
 bk_err_t gpio_hal_set_value(gpio_hal_t *hal, gpio_id_t id, uint32_t v);
 uint32_t gpio_hal_get_value(gpio_hal_t *hal, gpio_id_t id);
