@@ -21,6 +21,11 @@
 
 const char *mbedtls_ssl_states_str(mbedtls_ssl_states in);
 
+#if defined(MBEDTLS_SSL_EARLY_DATA) && defined(MBEDTLS_SSL_CLI_C)
+const char *mbedtls_ssl_early_data_status_str(mbedtls_ssl_early_data_status in);
+const char *mbedtls_ssl_early_data_state_str(mbedtls_ssl_early_data_state in);
+#endif
+
 const char *mbedtls_ssl_protocol_version_str(mbedtls_ssl_protocol_version in);
 
 const char *mbedtls_tls_prf_types_str(mbedtls_tls_prf_types in);
@@ -32,6 +37,8 @@ const char *mbedtls_ssl_sig_alg_to_str(uint16_t in);
 const char *mbedtls_ssl_named_group_to_str(uint16_t in);
 
 const char *mbedtls_ssl_get_extension_name(unsigned int extension_type);
+
+const char *mbedtls_ssl_get_hs_msg_name(int hs_msg_type);
 
 void mbedtls_ssl_print_extensions(const mbedtls_ssl_context *ssl,
                                   int level, const char *file, int line,

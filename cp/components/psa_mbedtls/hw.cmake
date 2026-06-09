@@ -60,6 +60,7 @@ if (CONFIG_TRUSTENGINE)
 
 		${TE_DIR}/dubhe_lib/bignum.c
 		${TE_DIR}/dubhe_lib/bignum_delta.c
+		${TE_DIR}/dubhe_lib/bignum_366_compat.c
 		${TE_DIR}/dubhe_lib/cipher.c
 		${TE_DIR}/dubhe_lib/cipher_wrap.c
 		${TE_DIR}/dubhe_lib/ctr_drbg.c

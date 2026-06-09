@@ -1,5 +1,4 @@
 set(sw_srcs)
-set(sw_srcs)
 if (CONFIG_SW_CRYPTO)
 	list(APPEND sw_srcs
 		mbedtls_port/mbedtls/library/ecp_curves.c

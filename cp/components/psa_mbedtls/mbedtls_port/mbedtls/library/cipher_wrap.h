@@ -24,6 +24,50 @@
 extern "C" {
 #endif
 
+/* Support for GCM either through Mbed TLS SW implementation or PSA */
+#if defined(MBEDTLS_GCM_C) || \
+    (defined(MBEDTLS_USE_PSA_CRYPTO) && defined(PSA_WANT_ALG_GCM))
+#define MBEDTLS_CIPHER_HAVE_GCM_VIA_LEGACY_OR_USE_PSA
+#endif
+
+#if (defined(MBEDTLS_GCM_C) && defined(MBEDTLS_AES_C)) || \
+    (defined(MBEDTLS_USE_PSA_CRYPTO) && defined(PSA_WANT_ALG_GCM) && defined(PSA_WANT_KEY_TYPE_AES))
+#define MBEDTLS_CIPHER_HAVE_GCM_AES_VIA_LEGACY_OR_USE_PSA
+#endif
+
+#if defined(MBEDTLS_CCM_C) || \
+    (defined(MBEDTLS_USE_PSA_CRYPTO) && defined(PSA_WANT_ALG_CCM))
+#define MBEDTLS_CIPHER_HAVE_CCM_VIA_LEGACY_OR_USE_PSA
+#endif
+
+#if (defined(MBEDTLS_CCM_C) && defined(MBEDTLS_AES_C)) || \
+    (defined(MBEDTLS_USE_PSA_CRYPTO) && defined(PSA_WANT_ALG_CCM) && defined(PSA_WANT_KEY_TYPE_AES))
+#define MBEDTLS_CIPHER_HAVE_CCM_AES_VIA_LEGACY_OR_USE_PSA
+#endif
+
+#if defined(MBEDTLS_CCM_C) || \
+    (defined(MBEDTLS_USE_PSA_CRYPTO) && defined(PSA_WANT_ALG_CCM_STAR_NO_TAG))
+#define MBEDTLS_CIPHER_HAVE_CCM_STAR_NO_TAG_VIA_LEGACY_OR_USE_PSA
+#endif
+
+#if (defined(MBEDTLS_CCM_C) && defined(MBEDTLS_AES_C)) || \
+    (defined(MBEDTLS_USE_PSA_CRYPTO) && defined(PSA_WANT_ALG_CCM_STAR_NO_TAG) && \
+    defined(PSA_WANT_KEY_TYPE_AES))
+#define MBEDTLS_CIPHER_HAVE_CCM_STAR_NO_TAG_AES_VIA_LEGACY_OR_USE_PSA
+#endif
+
+#if defined(MBEDTLS_CHACHAPOLY_C) || \
+    (defined(MBEDTLS_USE_PSA_CRYPTO) && defined(PSA_WANT_ALG_CHACHA20_POLY1305))
+#define MBEDTLS_CIPHER_HAVE_CHACHAPOLY_VIA_LEGACY_OR_USE_PSA
+#endif
+
+#if defined(MBEDTLS_CIPHER_HAVE_GCM_VIA_LEGACY_OR_USE_PSA) || \
+    defined(MBEDTLS_CIPHER_HAVE_CCM_VIA_LEGACY_OR_USE_PSA) || \
+    defined(MBEDTLS_CIPHER_HAVE_CCM_STAR_NO_TAG_VIA_LEGACY_OR_USE_PSA) || \
+    defined(MBEDTLS_CIPHER_HAVE_CHACHAPOLY_VIA_LEGACY_OR_USE_PSA)
+#define MBEDTLS_CIPHER_HAVE_SOME_AEAD_VIA_LEGACY_OR_USE_PSA
+#endif
+
 /**
  * Base cipher information. The non-mode specific functions and values.
  */
@@ -81,14 +125,21 @@ struct mbedtls_cipher_base_t {
     int (*setkey_enc_func)(void *ctx, const unsigned char *key,
                            unsigned int key_bitlen);
 
+#if !defined(MBEDTLS_BLOCK_CIPHER_NO_DECRYPT)
     /** Set key for decryption purposes */
     int (*setkey_dec_func)(void *ctx, const unsigned char *key,
                            unsigned int key_bitlen);
+#endif
+
 #if defined(ARM_CE_DUBHE_SCA)
-    /** Set derived key for using key ladder */
-    int (*set_derived_key_func)( void *ctx, mbedtls_derived_key_type_t key_type, int mode,
-                                 const unsigned char *key1, const unsigned char *key2,
-                                 const unsigned char *key3, unsigned int key1_bitlen);
+    /** Set a hardware-derived key for encryption or decryption. */
+    int (*set_derived_key_func)(void *ctx,
+                                mbedtls_derived_key_type_t key_type,
+                                int mode,
+                                const unsigned char *key1,
+                                const unsigned char *key2,
+                                const unsigned char *key3,
+                                unsigned int key1_bitlen);
 #endif
 
     /** Allocate a new context */
@@ -129,7 +180,7 @@ extern const mbedtls_cipher_definition_t mbedtls_cipher_definitions[];
 
 extern int mbedtls_cipher_supported[];
 
-extern const mbedtls_cipher_base_t *mbedtls_cipher_base_lookup_table[];
+extern const mbedtls_cipher_base_t * const mbedtls_cipher_base_lookup_table[];
 
 #ifdef __cplusplus
 }

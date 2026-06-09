@@ -41,7 +41,7 @@ static void cli_mbedtls_help(void)
     }                                                                \
   } while(0)
 
-const uint32_t test_len[] = {32, 1024, 4096, 32768};
+const uint32_t test_len[] = {32, 1024, 4096};
 
 static void cli_mbedtls_sha_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {

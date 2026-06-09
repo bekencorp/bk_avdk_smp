@@ -1,9 +1,7 @@
 README for Mbed TLS
 ===================
 
-Mbed TLS is a C library that implements cryptographic primitives, X.509 certificate manipulation and the SSL/TLS and DTLS protocols. Its small code footprint makes it suitable for embedded systems.
-
-Mbed TLS includes a reference implementation of the [PSA Cryptography API](#psa-cryptography-api). This is currently a preview for evaluation purposes only.
+Mbed TLS is a C library that implements cryptographic primitives (including the [PSA Cryptography API](#psa-cryptography-api)), X.509 certificate manipulation and the SSL/TLS and DTLS protocols. Its small code footprint makes it suitable for embedded systems.
 
 Configuration
 -------------
@@ -47,12 +45,16 @@ The Make and CMake build systems create three libraries: libmbedcrypto, libmbedx
 You need the following tools to build the library with the provided makefiles:
 
 * GNU Make 3.82 or a build tool that CMake supports.
-* A C99 toolchain (compiler, linker, archiver). We actively test with GCC 5.4, Clang 3.8, IAR 8 and Visual Studio 2013. More recent versions should work. Slightly older versions may work.
+* A C99 toolchain (compiler, linker, archiver). We actively test with GCC 5.4, Clang 3.8, Arm Compiler 6, IAR 8 and Visual Studio 2017. More recent versions should work. Slightly older versions may work.
 * Python 3.8 to generate the test code. Python is also needed to integrate PSA drivers and to build the development branch (see next section).
 * Perl to run the tests, and to generate some source files in the development branch.
 * CMake 3.10.2 or later (if using CMake).
-* Microsoft Visual Studio 2013 or later (if using Visual Studio).
+* Microsoft Visual Studio 2017 or later (if using Visual Studio).
 * Doxygen 1.8.11 or later (if building the documentation; slightly older versions should work).
+
+### Git usage
+
+The `development` branch and the `mbedtls-3.6` long-term support branch of Mbed TLS use a [Git submodule](https://git-scm.com/book/en/v2/Git-Tools-Submodules#_cloning_submodules) ([framework](https://github.com/Mbed-TLS/mbedtls-framework)). This is not needed to merely compile the library at a release tag. This is not needed to consume a release archive (zip or tar).
 
 ### Generated source files in the development branch
 
@@ -68,7 +70,13 @@ The following tools are required:
     Depending on your Python installation, you may need to invoke `python` instead of `python3`. To install the packages system-wide, omit the `--user` option.
 * A C compiler for the host platform, for some test data.
 
-If you are cross-compiling, you must set the `CC` environment variable to a C compiler for the host platform when generating the configuration-independent files.
+The scripts that generate the configuration-independent files will look for a host C compiler in the following places (in order of preference):
+
+1. The `HOSTCC` environment variable. This can be used if `CC` is pointing to a cross-compiler.
+2. The `CC` environment variable.
+3. An executable called `cc` in the current path.
+
+Note: If you have multiple toolchains installed, it is recommended to set `CC` or `HOSTCC` to the intended host compiler before generating the files.
 
 Any of the following methods are available to generate the configuration-independent files:
 
@@ -221,7 +229,7 @@ subproject.
 
 ### Microsoft Visual Studio
 
-The build files for Microsoft Visual Studio are generated for Visual Studio 2013.
+The build files for Microsoft Visual Studio are generated for Visual Studio 2017.
 
 The solution file `mbedTLS.sln` contains all the basic projects needed to build the library and all the programs. The files in tests are not generated and compiled, as these need Python and perl environments as well. However, the selftest program in `programs/test/` is still available.
 
@@ -246,7 +254,7 @@ For machines with a Unix shell and OpenSSL (and optionally GnuTLS) installed, ad
 -   `tests/scripts/depends.py` test builds in configurations with a single curve, key exchange, hash, cipher, or pkalg on.
 -   `tests/scripts/all.sh` runs a combination of the above tests, plus some more, with various build options (such as ASan, full `mbedtls_config.h`, etc).
 
-Instead of manually installing the required versions of all tools required for testing, it is possible to use the Docker images from our CI systems, as explained in [our testing infrastructure repository](https://github.com/Mbed-TLS/mbedtls-test/blob/master/README.md#quick-start).
+Instead of manually installing the required versions of all tools required for testing, it is possible to use the Docker images from our CI systems, as explained in [our testing infrastructure repository](https://github.com/Mbed-TLS/mbedtls-test/blob/main/README.md#quick-start).
 
 Porting Mbed TLS
 ----------------
@@ -288,8 +296,7 @@ Arm welcomes feedback on the design of the API. If you think something could be 
 
 ### PSA implementation in Mbed TLS
 
-Mbed TLS includes a reference implementation of the PSA Cryptography API.
-However, it does not aim to implement the whole specification; in particular it does not implement all the algorithms.
+Mbed TLS includes an implementation of the PSA Cryptography API. It covers most, but not all algorithms.
 
 The X.509 and TLS code can use PSA cryptography for most operations. To enable this support, activate the compilation option `MBEDTLS_USE_PSA_CRYPTO` in `mbedtls_config.h`. Note that TLS 1.3 uses PSA cryptography for most operations regardless of this option. See `docs/use-psa-crypto.md` for details.
 

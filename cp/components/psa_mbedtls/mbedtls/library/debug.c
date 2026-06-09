@@ -11,7 +11,7 @@
 
 #include "mbedtls/platform.h"
 
-#include "mbedtls/debug.h"
+#include "debug_internal.h"
 #include "mbedtls/error.h"
 
 #include <stdarg.h>
@@ -20,6 +20,16 @@
 
 /* DEBUG_BUF_SIZE must be at least 2 */
 #define DEBUG_BUF_SIZE      512
+
+int mbedtls_debug_snprintf(char *dest, size_t maxlen,
+                           const char *format, ...)
+{
+    va_list argp;
+    va_start(argp, format);
+    int ret = mbedtls_vsnprintf(dest, maxlen, format, argp);
+    va_end(argp);
+    return ret;
+}
 
 static int debug_threshold = 0;
 
@@ -366,7 +376,7 @@ static void debug_print_line_by_line(const mbedtls_ssl_context *ssl, int level,
     start = text;
     for (cur = text; *cur != '\0'; cur++) {
         if (*cur == '\n') {
-            size_t len = cur - start + 1;
+            size_t len = (size_t) (cur - start) + 1;
             if (len > DEBUG_BUF_SIZE - 1) {
                 len = DEBUG_BUF_SIZE - 1;
             }

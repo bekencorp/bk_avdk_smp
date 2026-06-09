@@ -5,9 +5,11 @@
  *  SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-or-later
  */
 
-#if defined(__linux__) && !defined(_GNU_SOURCE)
+#if defined(__linux__) || defined(__midipix__)
 /* Ensure that syscall() is available even when compiling with -std=c99 */
+#if !defined(_GNU_SOURCE)
 #define _GNU_SOURCE
+#endif
 #endif
 
 #include "common.h"
@@ -29,7 +31,7 @@
 
 #if !defined(unix) && !defined(__unix__) && !defined(__unix) && \
     !defined(__APPLE__) && !defined(_WIN32) && !defined(__QNXNTO__) && \
-    !defined(__HAIKU__) && !defined(__midipix__)
+    !defined(__HAIKU__) && !defined(__midipix__) && !defined(__MVS__)
 #error \
     "Platform entropy sources only work on Unix and Windows, see MBEDTLS_NO_PLATFORM_ENTROPY in mbedtls_config.h"
 #endif
@@ -88,7 +90,7 @@ static int getrandom_wrapper(void *buf, size_t buflen, unsigned int flags)
     memset(buf, 0, buflen);
 #endif
 #endif
-    return syscall(SYS_getrandom, buf, buflen, flags);
+    return (int) syscall(SYS_getrandom, buf, buflen, flags);
 }
 #endif /* SYS_getrandom */
 #endif /* __linux__ || __midipix__ */
@@ -102,7 +104,7 @@ static int getrandom_wrapper(void *buf, size_t buflen, unsigned int flags)
 #define HAVE_GETRANDOM
 static int getrandom_wrapper(void *buf, size_t buflen, unsigned int flags)
 {
-    return getrandom(buf, buflen, flags);
+    return (int) getrandom(buf, buflen, flags);
 }
 #endif /* (__FreeBSD__ && __FreeBSD_version >= 1200000) ||
           (__DragonFly__ && __DragonFly_version >= 500700) */
@@ -145,6 +147,8 @@ static int sysctl_arnd_wrapper(unsigned char *buf, size_t buflen)
 
 #include <stdio.h>
 
+const char *mbedtls_platform_dev_random = MBEDTLS_PLATFORM_DEV_RANDOM;
+
 int mbedtls_platform_entropy_poll(void *data,
                                   unsigned char *output, size_t len, size_t *olen)
 {
@@ -156,7 +160,7 @@ int mbedtls_platform_entropy_poll(void *data,
 #if defined(HAVE_GETRANDOM)
     ret = getrandom_wrapper(output, len, 0);
     if (ret >= 0) {
-        *olen = ret;
+        *olen = (size_t) ret;
         return 0;
     } else if (errno != ENOSYS) {
         return MBEDTLS_ERR_ENTROPY_SOURCE_FAILED;
@@ -178,7 +182,7 @@ int mbedtls_platform_entropy_poll(void *data,
 
     *olen = 0;
 
-    file = fopen("/dev/urandom", "rb");
+    file = fopen(mbedtls_platform_dev_random, "rb");
     if (file == NULL) {
         return MBEDTLS_ERR_ENTROPY_SOURCE_FAILED;
     }

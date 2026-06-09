@@ -24,7 +24,6 @@ list(APPEND srcs
 	${hw_srcs}
 	${tfm_srcs}
 
-	mbedtls_port/src/tls_hardware.c
 	mbedtls_port/src/tls_mem.c
 	mbedtls_port/src/tls_connect.c
 	mbedtls_port/mbedtls/library/net_sockets.c
@@ -64,14 +63,21 @@ list(APPEND srcs
 	mbedtls/library/ssl_tls13_client.c
 	mbedtls/library/ssl_tls13_generic.c
 
+	mbedtls/library/version.c
+	mbedtls/library/version_features.c
+
 	# src_crypto
 	mbedtls/library/aes.c
 	mbedtls/library/aesni.c
+	mbedtls/library/aesce.c
 	mbedtls/library/aria.c
 	mbedtls/library/asn1parse.c
 	mbedtls/library/asn1write.c
 	mbedtls/library/base64.c
 	mbedtls/library/bignum_core.c
+	mbedtls/library/bignum_mod.c
+	mbedtls/library/bignum_mod_raw.c
+	mbedtls/library/block_cipher.c
 	mbedtls/library/camellia.c
 	mbedtls/library/ccm.c
 	mbedtls/library/chacha20.c
@@ -83,9 +89,11 @@ list(APPEND srcs
 	mbedtls/library/entropy.c
 	mbedtls/library/error.c
 	mbedtls/library/gcm.c
+	mbedtls/library/hkdf.c
 	mbedtls/library/hmac_drbg.c
 	mbedtls/library/md5.c
 	mbedtls/library/nist_kw.c
+	mbedtls/library/padlock.c
 	mbedtls/library/ripemd160.c
 	mbedtls/library/rsa_alt_helpers.c
 	mbedtls/library/sha1.c
@@ -94,6 +102,7 @@ list(APPEND srcs
 	mbedtls/library/sha3.c
 	mbedtls/library/pem.c
 	mbedtls/library/pk.c
+	mbedtls/library/pk_ecc.c
 	mbedtls/library/pk_wrap.c
 	mbedtls/library/pkcs12.c
 	mbedtls/library/pkcs5.c
@@ -112,8 +121,10 @@ list(APPEND srcs
 	mbedtls/library/psa_crypto_aead.c
 	mbedtls/library/psa_crypto_mac.c
 	mbedtls/library/psa_crypto_pake.c
+	mbedtls/library/psa_crypto_random.c
 	mbedtls/library/psa_crypto_se.c
 	mbedtls/library/psa_crypto_storage.c
+	mbedtls/library/psa_its_file.c
 )
 
 if (CONFIG_PSA_MBEDTLS_TEST)
@@ -151,6 +162,12 @@ if (CONFIG_TRUSTENGINE_TEST)
 		cli/mbedtls_tests/mbedtls_rsa_test.c
 		cli/mbedtls_tests/mbedtls_multi_thread_test.c
 		#cli/mbedtls_tests/psa_tls_client.c
+	)
+endif()
+
+if (NOT CONFIG_TRUSTENGINE)
+	list(APPEND srcs
+		mbedtls_port/src/tls_hardware.c
 	)
 endif()
 
