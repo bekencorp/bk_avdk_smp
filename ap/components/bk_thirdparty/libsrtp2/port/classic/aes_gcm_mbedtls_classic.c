@@ -221,8 +221,8 @@ static srtp_err_status_t srtp_aes_gcm_classic_context_init(void *cv,
     c->dir = srtp_direction_any;
     c->aad_size = 0;
 
-    debug_print(srtp_mod_aes_gcm, "key:  %s",
-                srtp_octet_string_hex_string(key, c->key_size));
+    //debug_print(srtp_mod_aes_gcm, "key:  %s",
+      //          srtp_octet_string_hex_string(key, c->key_size));
 
     switch (c->key_size) {
     case SRTP_AES_256_KEY_LEN:
