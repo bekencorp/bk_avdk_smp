@@ -17,7 +17,7 @@
 #include <os/str.h>
 #include "sys_hal.h"
 #include "icu_hal.h"
-#include "pwm_hal.h"
+#include "pwm_hal_v2p2.h"
 #include "timer_hal.h"
 #if CONFIG_SUPPORT_IO_MATRIX && CONFIG_IO_MATRIX_VER2_0
 #include "iomx_hal.h"

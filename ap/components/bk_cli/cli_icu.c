@@ -14,32 +14,12 @@
 
 #include "cli.h"
 #include <driver/int.h>
-#include "pwm_hal.h"
 #include "gpio_hal.h"
 #include "gpio_driver_base.h"
 #include "icu_driver.h"
 #include "clock_driver.h"
 #include "power_driver.h"
 
-
-typedef struct {
-	pwm_chan_t chan1;
-	pwm_chan_t chan2;
-	bool is_valid;
-} pwm_group_info_t;
-#define PWM_GROUP_NUM (SOC_PWM_CHAN_NUM_PER_UNIT >> 1)
-
-typedef struct {
-	pwm_hal_t hal;
-	//Important notes: currently no lock for bits
-	//Concurrently operation is NOT allowed!!!
-	uint32_t chan_init_bits;
-	pwm_group_info_t groups[PWM_GROUP_NUM];
-} pwm_driver_t;
-
-#if CONFIG_PWM
-extern pwm_driver_t s_pwm;
-#endif
 extern gpio_driver_t s_gpio;
 
 static void cli_icu_help(void)
@@ -49,27 +29,6 @@ static void cli_icu_help(void)
 		set_pwm_26m|set_pwm_dco|enable_pwm_lpo|disable_pwm_lpo|pwm_isr_register\
 		|gpio_isr_register   chan}\n");
 }
-
-#if CONFIG_PWM
-static void cli_int_service_pwm_isr(void)
-{
-#if CONFIG_PWM_V1PX
-	CLI_LOGD("TODO:PWM ASIC IP V1PX\r\n");
-#else
-	pwm_hal_t *hal = &s_pwm.hal;
-	uint32_t int_status;
-	int chan;
-
-	int_status = pwm_hal_get_interrupt_status(hal);
-	pwm_hal_clear_interrupt_status(hal, int_status);
-	for (chan = 0; chan < SOC_PWM_CHAN_NUM_PER_UNIT; chan++) {
-		if (pwm_hal_is_interrupt_triggered(hal, chan, int_status)) {
-			CLI_LOGD("pwm change register isr test :pwm[%d] isr\r\n", chan);
-		}
-	}
-#endif
-}
-#endif
 
 static void cli_int_service_gpio_isr(void)
 {
@@ -112,19 +71,12 @@ static void cli_icu_int_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
     }
 #endif
     else if(os_strcmp(argv[1], "pwm_isr_register") == 0) {
-#if CONFIG_PWM
-		bk_int_isr_register(INT_SRC_PWM, cli_int_service_pwm_isr, NULL);
-		CLI_LOGD("pwm registert isr change test\n");
-#else
-		CLI_LOGD("pwm does not supported\n");
-#endif
+		CLI_LOGD("pwm isr register is managed by pwm driver, not supported here\n");
 	} else if(os_strcmp(argv[1], "gpio_isr_register") == 0) {
 		bk_int_isr_register(INT_SRC_GPIO, cli_int_service_gpio_isr, NULL);
 		CLI_LOGD("gpio register isr changing test\n");
     } else if(os_strcmp(argv[1], "set_pwm_int_pri") == 0) {
-		uint32_t pri = os_strtoul(argv[2], NULL, 10);
-		bk_int_set_priority(INT_SRC_PWM, pri);
-		CLI_LOGD("pwm int priority changing test\n");
+		CLI_LOGD("pwm int priority is managed by pwm driver, not supported here\n");
     }else if(os_strcmp(argv[1], "set_gpio_int_pri") == 0) {
 		uint32_t pri = os_strtoul(argv[2], NULL, 10);
 		bk_int_set_priority(INT_SRC_GPIO, pri);
