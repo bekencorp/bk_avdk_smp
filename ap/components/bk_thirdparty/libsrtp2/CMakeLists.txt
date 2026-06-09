@@ -22,6 +22,8 @@ endif()
 list(APPEND incs
     "${SRTP_ROOT}/include"
     "${SRTP_ROOT}/crypto/include"
+    "${SRTP_ROOT}/crypto/cipher"
+    "${SRTP_ROOT}/crypto/hash"
     "${CMAKE_CURRENT_SOURCE_DIR}/port"
     "${CMAKE_CURRENT_SOURCE_DIR}/include"
 )
@@ -44,27 +46,34 @@ list(APPEND srcs
     "${SRTP_ROOT}/crypto/replay/rdbx.c"
 )
 
-# Backend: use MbedTLS/PSA only (no internal aes_icm/hmac/sha1/aes)
-if(CONFIG_MBEDTLS_USE_PSA_CRYPTO)
-    list(APPEND srcs
-        "${SRTP_ROOT}/crypto/cipher/aes_icm_mbedtls.c"
-        "${SRTP_ROOT}/crypto/hash/hmac_mbedtls.c"
-    )
+# Backend selection (three mutually exclusive options):
+#   CONFIG_PSA_MBEDTLS=y + CONFIG_MBEDTLS_USE_PSA_CRYPTO=y -> PSA mbedtls backend
+#   CONFIG_PSA_MBEDTLS=y + CONFIG_MBEDTLS_USE_PSA_CRYPTO=n -> classic mbedtls backend
+#   CONFIG_PSA_MBEDTLS=n                                   -> libsrtp2 built-in software
+if(CONFIG_PSA_MBEDTLS)
+    if(CONFIG_MBEDTLS_USE_PSA_CRYPTO)
+        # PSA mbedtls backend (psa_* API)
+        list(APPEND srcs
+            "${SRTP_ROOT}/crypto/cipher/aes_icm_mbedtls.c"
+            "${SRTP_ROOT}/crypto/hash/hmac_mbedtls.c"
+            "${SRTP_ROOT}/crypto/cipher/aes_gcm_mbedtls.c"
+        )
+    else()
+        # classic mbedtls backend (mbedtls_aes/gcm/md API)
+        list(APPEND srcs
+            "${CMAKE_CURRENT_SOURCE_DIR}/port/classic/aes_icm_mbedtls_classic.c"
+            "${CMAKE_CURRENT_SOURCE_DIR}/port/classic/hmac_mbedtls_classic.c"
+            "${CMAKE_CURRENT_SOURCE_DIR}/port/classic/aes_gcm_mbedtls_classic.c"
+        )
+    endif()
 else()
+    # libsrtp2 built-in software algorithms
     list(APPEND srcs
         "${SRTP_ROOT}/crypto/cipher/aes_icm.c"
         "${SRTP_ROOT}/crypto/cipher/aes.c"
         "${SRTP_ROOT}/crypto/hash/hmac.c"
         "${SRTP_ROOT}/crypto/hash/sha1.c"
     )
-endif()
-
-if (CONFIG_FULL_MBEDTLS)
-if (CONFIG_MBEDTLS_USE_PSA_CRYPTO)
-list(APPEND srcs
-    "${SRTP_ROOT}/crypto/cipher/aes_gcm_mbedtls.c"
-)
-endif()
 endif()
 
 endif() # CONFIG_LIBSRTP
