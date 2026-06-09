@@ -1,0 +1,14 @@
+#
+# Automatically generated project default config. You can update it with menuconfig [D] option.
+# This file contains only differences compared to board defconfig.
+#
+
+CONFIG_BLUETOOTH=n
+CONFIG_AT=y
+CONFIG_DEFAULT_AT_PORT=5
+CONFIG_WIFI_AT_ENABLE=y
+CONFIG_MISC_AT_ENABLE=y
+CONFIG_AT_MAX_PORT_CNT=1
+CONFIG_GPIO_DUMP_MAP_DEV_DEBUG=y
+CONFIG_IPERF_TEST=y
+CONFIG_DEMOS_IPERF=y

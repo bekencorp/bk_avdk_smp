@@ -1087,7 +1087,7 @@ void cli_log_statist(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **
 	{
 		BK_LOGD(NULL, "Buffer[%d] run out count: %d.\r\n", i - 2, log_statist[i]);
 	}
-	
+
 	print_dynamic_log_info();
 
 	return;
@@ -1499,6 +1499,10 @@ int bk_cli_init(void)
 	cli_ble_init();
 #endif
 
+#if CLI_CFG_BK_24G
+    cli_24g_init();
+#endif
+
 #if CONFIG_CS2_P2P_SERVER || CONFIG_CS2_P2P_CLIENT
 	cli_cs2_p2p_init();
 #endif
@@ -1736,4 +1740,3 @@ void cli_show_running_command(void)
 #endif
 
 // eof
-

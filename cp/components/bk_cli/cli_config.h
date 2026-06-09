@@ -32,6 +32,7 @@ extern "C" {
 #endif //#if (CONFIG_WIFI_ENABLE)
 
 #define CLI_CFG_BLE         1
+#define CLI_CFG_BK_24G      1
 
 #if (CONFIG_BK_NETIF)
 #define CLI_CFG_NETIF       1
@@ -134,13 +135,13 @@ extern "C" {
 #if (CONFIG_FATFS)
 #define CLI_FATFS          1
 #else
-    
+
 #if (CONFIG_FATFS && (CONFIG_JPEG_SW_ENCODER_TEST || CONFIG_H264_SW_DECODER_TEST))
 #define CLI_FATFS          1
 #else
 #define CLI_FATFS          0
 #endif
-    
+
 #endif
 
 #if (CONFIG_VFS_TEST)

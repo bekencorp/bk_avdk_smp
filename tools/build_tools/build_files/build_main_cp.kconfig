@@ -36,7 +36,7 @@ mainmenu "Armino SDK $(ARMINO_SOC)_cp Configuration"
 						bool "Use debug build version"
 						help
 							set debug build version
-					
+
 					config RELEASE_VERSION
 						bool "Use release build version"
 						help
@@ -60,7 +60,7 @@ mainmenu "Armino SDK $(ARMINO_SOC)_cp Configuration"
 				config JTAG
 					bool "Enable JTAG"
 					default n
-				
+
 				config SWD_DEBUG_MODE
 					bool "Enable SWD Debug Mode"
 					default n
@@ -112,6 +112,11 @@ mainmenu "Armino SDK $(ARMINO_SOC)_cp Configuration"
 			config BLUETOOTH
 				bool "Enable Bluetooth"
 				default y
+
+            config BK24G
+				bool "Enable 2.4G feature"
+				default n
+
 		endmenu
 
 		menu "Modules Configuration"
