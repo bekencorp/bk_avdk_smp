@@ -3,7 +3,14 @@ from __future__ import annotations
 import logging
 import os
 import shutil
+import sys
 from pathlib import Path
+
+_BK_PY_LIBS = Path(__file__).resolve().parents[2] / "env_tools" / "bk_py_libs"
+if _BK_PY_LIBS.is_dir():
+    _bk_py_libs = str(_BK_PY_LIBS)
+    if _bk_py_libs not in sys.path:
+        sys.path.insert(0, _bk_py_libs)
 
 from bk_build_summary import bk_build_summary
 from bk_sdk.bk_curr_project import curr_project

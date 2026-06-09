@@ -127,13 +127,39 @@ common:
 
 all: $(soc_targets) $(ARMINO_SOC)_cp
 
+ifeq ($(findstring Windows_NT,$(OS)), Windows_NT)
+	export WIN32 := 1
+	PRINT_SUMMARY := 0
+	export PYTHONPATH := $(ARMINO_TOOLS_PATH)/env_tools/bk_py_libs;$(PYTHONPATH)
+else
+	export WIN32 := 0
+	export PYTHONPATH := $(ARMINO_TOOLS_PATH)/env_tools/bk_py_libs:$(PYTHONPATH)
+endif
+
+BUILD_SMP_PARALLEL_SCRIPT := $(ARMINO_TOOLS_PATH)/build_tools/build_smp_parallel.sh
+BK_PY_LIBS_PATH := $(ARMINO_TOOLS_PATH)/env_tools/bk_py_libs
+RUN_PYTHON3 = PYTHONPATH=$(BK_PY_LIBS_PATH):$$PYTHONPATH python3
+
 $(ARMINO_SOC)_ap: common build_prepare
 	@make $(ARMINO_SOC)_ap ARMINO_TOOLS_PATH=$(ARMINO_TOOLS_PATH) PROJECT_DIR=$(PROJECT_DIR) BUILD_DIR=$(PROJECT_BUILD_DIR) APP_NAME=$(APP_NAME) APP_VERSION=$(APP_VERSION) -C $(ARMINO_AP_DIR)
 
 $(ARMINO_SOC)_cp: common build_prepare
 	@make $(ARMINO_SOC) ARMINO_TOOLS_PATH=$(ARMINO_TOOLS_PATH) PROJECT_DIR=$(PROJECT_DIR) BUILD_DIR=$(PROJECT_BUILD_DIR) APP_NAME=$(APP_NAME) APP_VERSION=$(APP_VERSION) -C $(ARMINO_CP_DIR)
 
+# Parallel AP+CP with fail-fast (see build_smp_parallel.sh). Windows keeps legacy make -j behavior.
+ifeq ($(WIN32),1)
 $(soc_targets_cp): $(ARMINO_SOC)_ap $(ARMINO_SOC)_cp package
+else
+build_smp_firmware: common build_prepare
+	@ARMINO_SOC=$(ARMINO_SOC) ARMINO_TOOLS_PATH=$(ARMINO_TOOLS_PATH) \
+		PROJECT_DIR=$(PROJECT_DIR) BUILD_DIR=$(PROJECT_BUILD_DIR) \
+		APP_NAME=$(APP_NAME) APP_VERSION=$(APP_VERSION) \
+		ARMINO_AP_DIR=$(ARMINO_AP_DIR) ARMINO_CP_DIR=$(ARMINO_CP_DIR) \
+		PYTHONPATH=$(BK_PY_LIBS_PATH):$$PYTHONPATH \
+		bash $(BUILD_SMP_PARALLEL_SCRIPT)
+
+$(soc_targets_cp): build_smp_firmware package
+endif
 
 DOCS_PARAMTERS:=
 ifneq ("$(DOCS_TARGET)", "")
@@ -146,15 +172,6 @@ ifneq ("$(DOCS_VERSION)", "")
 	DOCS_PARAMTERS += --version $(DOCS_VERSION)
 endif
 
-ifeq ($(findstring Windows_NT,$(OS)), Windows_NT)
-	export WIN32 := 1
-	PRINT_SUMMARY := 0
-	export PYTHONPATH := $(ARMINO_TOOLS_PATH)/env_tools/bk_py_libs;$(PYTHONPATH)
-else
-	export WIN32 := 0
-	export PYTHONPATH := $(ARMINO_TOOLS_PATH)/env_tools/bk_py_libs:$(PYTHONPATH)
-endif
-
 AUTO_PARTITION_TABLE := $(PROJECT_DIR)/partitions/$(ARMINO_SOC_NAME)/auto_partitions.csv
 export PARTITIONS_DIR := $(PROJECT_BUILD_DIR)/partitions
 auto_partition_script := $(ARMINO_AVDK_DIR)/tools/build_tools/build_process/bk_build_auto_partition.py
@@ -162,7 +179,7 @@ auto_partition_out := $(PARTITIONS_DIR)/partitions.txt
 
 $(auto_partition_out): $(auto_partition_script) $(AUTO_PARTITION_TABLE)
 	@mkdir -p $(PARTITIONS_DIR)
-	@python3 $(auto_partition_script)
+	@$(RUN_PYTHON3) $(auto_partition_script)
 
 print_partitions: $(auto_partition_out)
 	@echo ===================== Partitions Table =====================
@@ -174,7 +191,7 @@ RAM_REGIONS_TABLE := $(PROJECT_DIR)/partitions/$(ARMINO_SOC_NAME)/ram_regions.cs
 ram_regions_out := $(PARTITIONS_DIR)/ram_regions.h
 $(ram_regions_out): $(RAM_REGIONS_TABLE)
 	@mkdir -p $(PARTITIONS_DIR)
-	@python3 $(ram_partition_script)
+	@$(RUN_PYTHON3) $(ram_partition_script)
 
 build_prepare: $(auto_partition_out) print_partitions $(ram_regions_out)
 
@@ -182,14 +199,18 @@ package_script := $(ARMINO_AVDK_DIR)/tools/build_tools/build_process/bk_build_pa
 package_dir := $(PROJECT_BUILD_DIR)/package
 package_json := $(PARTITIONS_DIR)/bk_package.json
 build_summary := $(package_dir)/build_summary.txt
+ifeq ($(WIN32),1)
 package: $(package_script) $(ARMINO_SOC)_cp $(ARMINO_SOC)_ap
+else
+package: $(package_script) build_smp_firmware
+endif
 	@mkdir -p $(package_dir)
-	@python3 $(package_script) $(PROJECT_BUILD_DIR) $(package_json) $(build_summary)
+	@$(RUN_PYTHON3) $(package_script) $(PROJECT_BUILD_DIR) $(package_json) $(build_summary)
 ifneq ($(PRINT_SUMMARY), 0)
 	@cat $(build_summary)
 endif
 
-.PHONY: smp_doc ap_doc cp_doc doc
+.PHONY: smp_doc ap_doc cp_doc doc build_smp_firmware
 
 ap_doc:
 	@make doc ARMINO_TOOLS_PATH=$(ARMINO_TOOLS_PATH) -C $(ARMINO_AP_DIR)
@@ -198,7 +219,8 @@ cp_doc:
 	@make doc ARMINO_TOOLS_PATH=$(ARMINO_TOOLS_PATH) -C $(ARMINO_CP_DIR)
 
 smp_doc:
-	@ARMINO_SOC=$${ARMINO_SOC:-bk7259} ARMINO_AVDK_DIR=$(ARMINO_AVDK_DIR) python3 ./tools/armino_doc.py $(DOCS_PARAMTERS)
+	@ARMINO_SOC=$${ARMINO_SOC:-bk7259} ARMINO_AVDK_DIR=$(ARMINO_AVDK_DIR) \
+		$(RUN_PYTHON3) ./tools/armino_doc.py $(DOCS_PARAMTERS)
 
 # Run SMP / AP / CP doc in parallel (total wall time ~ max, not sum).
 doc:
@@ -216,7 +238,7 @@ $(ARMINO_SOC)_cp_menuconfig: common
 	@make menuconfig ARMINO_TOOLS_PATH=$(ARMINO_TOOLS_PATH) PROJECT_DIR=$(PROJECT_DIR) BUILD_DIR=$(PROJECT_BUILD_DIR) APP_NAME=$(APP_NAME) APP_VERSION=$(APP_VERSION) MENUCONFIG_DEST_TYPE=cp SOC_NAME=$(ARMINO_SOC) -C $(ARMINO_CP_DIR)
 clean:
 	@echo "rm -rf ./build"
-	@python3 ./tools/armino_doc.py --clean True
+	@$(RUN_PYTHON3) ./tools/armino_doc.py --clean True
 	@rm -rf ./build
 	@rm -rf $(ARMINO_AP_DIR)/build
 	@rm -rf $(ARMINO_CP_DIR)/build

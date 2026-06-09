@@ -22,11 +22,13 @@ $(error "please input soc target")
 endif
 
 PROJECT_BUILD_DIR := $(PROJECT_PATH)/build
+SDK_PY_LIBS := $(SDK_DIR)/tools/env_tools/bk_py_libs
 
 .PHONY: clean
 
 $(SOC_TARGET):
-	make $(SOC_TARGET) PROJECT=$(PROJECT_NAME) PROJECT_DIR=$(PROJECT_PATH) BUILD_DIR=$(PROJECT_BUILD_DIR) -C $(SDK_DIR)
+	@$(MAKE) $(SOC_TARGET) PROJECT=$(PROJECT_NAME) PROJECT_DIR=$(PROJECT_PATH) BUILD_DIR=$(PROJECT_BUILD_DIR) \
+		PYTHONPATH=$(SDK_PY_LIBS):$$PYTHONPATH -C $(SDK_DIR)
 
 clean:
 	@echo "rm -rf ./build"
