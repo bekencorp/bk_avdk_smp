@@ -9,6 +9,7 @@
 #include "sys_driver.h"
 #include "media_service.h"
 #include <common/avdk_pixel_types.h>
+#include "cli.h"
 #include "lcd_example.h"
 #include <modules/pm.h>
 #include <avdk_check.h>
@@ -22,6 +23,9 @@
 #define DEFAULT_RGB_PANEL_NAME   "st7701sn_rgb_480x854" //"st7282_rgb_480x272"
 #define DEFAULT_RGB_FORMAT      BK_PIXEL_FORMAT_RGB565
 
+/* Shared with CLI: power-on display ctx, also used by the switch-format IT case. */
+static display_ctx_t s_rgb_disp_ctx;
+
 static avdk_err_t bk_lodoen_enable(void)
 {
     pm_auxldo_ctrl_cfg_t auxldo_cfg = {0};
@@ -31,6 +35,24 @@ static avdk_err_t bk_lodoen_enable(void)
     auxldo_cfg.state = PM_AUXLDO_ENABLE;
     AVDK_RETURN_ON_ERROR(bk_pm_auxldo_ctrl_vote(&auxldo_cfg), TAG, "display 1p8v ldo vote failed");
     return AVDK_ERR_OK;
+}
+
+/* IT case: cycle RGB565/ARGB8888 to verify the runtime switch API, then auto-close. */
+static void cli_rgb_lcd_switch_format_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
+{
+    rgb_lcd_switch_format_test(&s_rgb_disp_ctx, DEFAULT_RGB_PANEL_NAME);
+}
+
+static const struct cli_command s_rgb_lcd_cli_commands[] =
+{
+    {"rgb_lcd_switch_format", "switch RGB565/ARGB8888 to verify switch API", cli_rgb_lcd_switch_format_cmd},
+};
+
+#define RGB_LCD_CLI_CMDS_COUNT  (sizeof(s_rgb_lcd_cli_commands) / sizeof(struct cli_command))
+
+static int cli_rgb_lcd_example_init(void)
+{
+    return cli_register_commands(s_rgb_lcd_cli_commands, RGB_LCD_CLI_CMDS_COUNT);
 }
 
 
@@ -54,11 +76,10 @@ int main(void)
     bk_frame_buffer_init();
     #endif
 
-    /* Power-on display: open RGB panel with panel name and format, then start flush thread. */
-    static display_ctx_t s_rgb_disp_ctx;
-    os_memset(&s_rgb_disp_ctx, 0, sizeof(s_rgb_disp_ctx));
-    if (lcd_example_rgb_open(&s_rgb_disp_ctx, DEFAULT_RGB_PANEL_NAME, DEFAULT_RGB_FORMAT) == AVDK_ERR_OK)
-        lcd_example_flush_thread_start(&s_rgb_disp_ctx);
+    cli_rgb_lcd_example_init();
+
+    /* Power-on IT case: open RGB565, hold ~20s, then auto-close, log [RESULT][PASS] at end. */
+    rgb_lcd_rgb565_test(&s_rgb_disp_ctx, DEFAULT_RGB_PANEL_NAME);
 
     return 0;
 }

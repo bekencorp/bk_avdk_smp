@@ -62,6 +62,19 @@ avdk_err_t lcd_example_flush_thread_start(display_ctx_t *context);
 avdk_err_t lcd_example_flush_thread_stop(display_ctx_t *context);
 void cli_mipi_lcd_switch_format(const bk_display_pixel_format_config_t *config, const char *name);
 
+/* Runtime pixel-format switch primitive (stop flush -> ioctl -> restart flush), returns status. */
+avdk_err_t mipi_lcd_do_switch(display_ctx_t *context, const bk_display_pixel_format_config_t *config);
+
+/* IT case "mipi_lcd_display_argb8888": open ARGB8888, hold ~30s, auto-close, log PASS at end. */
+void mipi_lcd_argb8888_test(display_ctx_t *context, const char *panel_name);
+
+/* IT case "mipi_lcd_switch_format": cycle RGB565/RGB888/ARGB8888 verifying the switch API. */
+void mipi_lcd_switch_format_test(display_ctx_t *context, const char *panel_name);
+
+/* LCD on/off stress test: loop open -> flush(on_ms) -> close(power down) -> 500ms gap, until stopped. */
+void lcd_stress_on_off_start(const char *panel_name, uint32_t on_ms);
+void lcd_stress_stop(void);
+
 
 #ifdef __cplusplus
 }

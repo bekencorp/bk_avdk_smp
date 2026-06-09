@@ -59,6 +59,18 @@ avdk_err_t lcd_example_rgb_open(display_ctx_t *context, const char *panel_name, 
 avdk_err_t lcd_example_rgb_close(display_ctx_t *context);
 avdk_err_t lcd_example_flush_thread_start(display_ctx_t *context);
 
+/* Stop only the flush thread (keep DPU/panel/bus) for runtime format switch. */
+avdk_err_t lcd_example_rgb_flush_thread_stop(display_ctx_t *context);
+
+/* Runtime pixel-format switch primitive (stop flush -> ioctl -> restart flush), returns status. */
+avdk_err_t rgb_lcd_do_switch(display_ctx_t *context, const bk_display_pixel_format_config_t *config);
+
+/* IT case "rgb_lcd_display_rgb565": open RGB565, hold ~20s, auto-close, log PASS at end. */
+void rgb_lcd_rgb565_test(display_ctx_t *context, const char *panel_name);
+
+/* IT case "rgb_lcd_switch_format": cycle RGB565/ARGB8888 verifying the switch API. */
+void rgb_lcd_switch_format_test(display_ctx_t *context, const char *panel_name);
+
 #ifdef __cplusplus
 }
 #endif

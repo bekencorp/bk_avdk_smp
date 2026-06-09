@@ -22,6 +22,11 @@
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
 
+/* Per-case timings (rough hold, not strictly timed). */
+#define RGB_LCD_BOOT_HOLD_MS     (20 * 1000)
+#define RGB_LCD_CASE_POLL_MS     (100)
+#define RGB_LCD_SWITCH_STEP_MS   (5 * 1000)
+
 /* Flush free callback: display driver calls this when done with the frame; we just free it. */
 static avdk_err_t display_frame_free(void *args)
 {
@@ -310,4 +315,223 @@ avdk_err_t lcd_example_flush_thread_start(display_ctx_t *context)
     }
     LOGI("RGB flush thread started\n");
     return AVDK_ERR_OK;
+}
+
+/* Stop only the flush thread (keep DPU/panel/bus alive) for runtime format switch. */
+avdk_err_t lcd_example_rgb_flush_thread_stop(display_ctx_t *context)
+{
+    if (context == NULL)
+        return AVDK_ERR_INVAL;
+
+    if (context->thread == NULL)
+        return AVDK_ERR_OK;
+
+    context->enable = 0;
+    rtos_get_semaphore(&context->sem, BEKEN_WAIT_FOREVER);
+    rtos_deinit_semaphore(&context->sem);
+    return AVDK_ERR_OK;
+}
+
+// ----- Runtime pixel-format switch primitive (returns status) -----
+
+avdk_err_t rgb_lcd_do_switch(display_ctx_t *context, const bk_display_pixel_format_config_t *config)
+{
+    bk_pixel_format_t old_format;
+    uint8_t old_pixel_width;
+
+    if (context == NULL || config == NULL || context->spi_bus_handle == NULL)
+    {
+        LOGE("rgb_lcd_do_switch: LCD is off or invalid args\r\n");
+        return AVDK_ERR_INVAL;
+    }
+
+    old_format = context->format;
+    old_pixel_width = context->pixel_width;
+
+    if (lcd_example_rgb_flush_thread_stop(context) != AVDK_ERR_OK)
+    {
+        LOGE("lcd_example_rgb_flush_thread_stop failed\r\n");
+        return AVDK_ERR_GENERIC;
+    }
+
+    if (bk_display_ioctl(context->dpu_ctlr_handle, BK_DISPLAY_IOCTL_DPU_PIXEL_FORMAT, (void *)config) != AVDK_ERR_OK)
+    {
+        LOGE("bk_display_ioctl runtime switch failed\r\n");
+        context->format = old_format;
+        context->pixel_width = old_pixel_width;
+        lcd_example_flush_thread_start(context);
+        return AVDK_ERR_GENERIC;
+    }
+
+    context->format = config->format;
+    context->pixel_width = (config->format == BK_PIXEL_FORMAT_ARGB8888) ? 4 : 2;
+
+    if (lcd_example_flush_thread_start(context) != AVDK_ERR_OK)
+    {
+        LOGE("lcd_example_flush_thread_start failed after switch\r\n");
+        context->format = old_format;
+        context->pixel_width = old_pixel_width;
+        return AVDK_ERR_GENERIC;
+    }
+
+    return AVDK_ERR_OK;
+}
+
+// ----- IT cases: run in a worker thread, display then auto-close, print result at exit -----
+
+static volatile uint8_t s_rgb_case_running = 0;
+static volatile uint8_t s_rgb_case_abort = 0;
+static beken_thread_t s_rgb_case_thread = NULL;
+static const char *s_rgb_case_panel = NULL;
+
+/* Result string spacing must match .it.csv exactly: caller controls leading space in name. */
+static void rgb_lcd_log_result(const char *name, bool pass, const char *stage)
+{
+    if (pass)
+        LOGI("[RESULT][PASS]%s success\r\n", name);
+    else
+        LOGI("[RESULT][FAIL]%s failed at %s\r\n", name, stage);
+}
+
+static void rgb_lcd_case_hold(uint32_t duration_ms)
+{
+    uint32_t waited = 0;
+
+    while (waited < duration_ms && s_rgb_case_abort == 0)
+    {
+        rtos_delay_milliseconds(RGB_LCD_CASE_POLL_MS);
+        waited += RGB_LCD_CASE_POLL_MS;
+    }
+}
+
+static void rgb_lcd_case_teardown(display_ctx_t *context)
+{
+    if (context == NULL)
+        return;
+    if (context->spi_bus_handle != NULL || context->thread != NULL)
+        lcd_example_rgb_close(context);
+}
+
+static bool rgb_lcd_case_open_rgb565(display_ctx_t *context, const char **stage)
+{
+    os_memset(context, 0, sizeof(*context));
+    if (lcd_example_rgb_open(context, s_rgb_case_panel, BK_PIXEL_FORMAT_RGB565) != AVDK_ERR_OK)
+    {
+        *stage = "rgb_open";
+        return false;
+    }
+    if (lcd_example_flush_thread_start(context) != AVDK_ERR_OK)
+    {
+        *stage = "flush_start";
+        return false;
+    }
+    return true;
+}
+
+static void rgb_lcd_rgb565_task(void *arg)
+{
+    display_ctx_t *context = (display_ctx_t *)arg;
+    const char *stage = "open";
+    bool pass;
+
+    pass = rgb_lcd_case_open_rgb565(context, &stage);
+
+    if (pass)
+        rgb_lcd_case_hold(RGB_LCD_BOOT_HOLD_MS);
+
+    rgb_lcd_case_teardown(context);
+
+    /* Print result at the very end, after the LCD has displayed and the case exits. */
+    rgb_lcd_log_result(" rgb_lcd_display_rgb565_test", pass, stage);
+
+    s_rgb_case_thread = NULL;
+    s_rgb_case_running = 0;
+    rtos_delete_thread(NULL);
+}
+
+static void rgb_lcd_switch_format_task(void *arg)
+{
+    /* RGB example supports RGB565 and ARGB8888; cycle each 5s then return to RGB565. */
+    static const bk_display_pixel_format_config_t s_switch_cfgs[] = {
+        { .format = BK_PIXEL_FORMAT_RGB565,   .decompress = false },
+        { .format = BK_PIXEL_FORMAT_ARGB8888, .decompress = true  },
+        { .format = BK_PIXEL_FORMAT_RGB565,   .decompress = false },
+    };
+    static const char *const s_switch_names[] = { "RGB565", "ARGB8888", "RGB565" };
+
+    display_ctx_t *context = (display_ctx_t *)arg;
+    const char *stage = "start";
+    bool pass = true;
+    uint32_t i;
+
+    /* Ensure LCD is on (previous case may have auto-closed -> proves independence). */
+    if (context->spi_bus_handle == NULL)
+        pass = rgb_lcd_case_open_rgb565(context, &stage);
+
+    if (pass)
+    {
+        for (i = 0; i < sizeof(s_switch_cfgs) / sizeof(s_switch_cfgs[0]); i++)
+        {
+            if (rgb_lcd_do_switch(context, &s_switch_cfgs[i]) != AVDK_ERR_OK)
+            {
+                stage = s_switch_names[i];
+                pass = false;
+                break;
+            }
+            LOGI("switched to %s\r\n", s_switch_names[i]);
+            rtos_delay_milliseconds(RGB_LCD_SWITCH_STEP_MS);
+        }
+    }
+
+    /* Switching sequence itself is the display window (3 x 5s); no extra hold. */
+    rgb_lcd_case_teardown(context);
+
+    /* Print result at the very end, after the LCD has displayed and the case exits. */
+    rgb_lcd_log_result("rgb_lcd_switch_format", pass, stage);
+
+    s_rgb_case_thread = NULL;
+    s_rgb_case_running = 0;
+    rtos_delete_thread(NULL);
+}
+
+static void rgb_lcd_case_start(display_ctx_t *context, const char *panel_name,
+                               beken_thread_function_t entry, const char *thread_name)
+{
+    /* Preempt any in-flight case so each case starts from a clean state. */
+    if (s_rgb_case_running)
+    {
+        s_rgb_case_abort = 1;
+        while (s_rgb_case_running)
+            rtos_delay_milliseconds(RGB_LCD_CASE_POLL_MS);
+    }
+
+    s_rgb_case_abort = 0;
+    s_rgb_case_running = 1;
+    s_rgb_case_panel = panel_name;
+
+    if (rtos_create_thread(&s_rgb_case_thread,
+                           BEKEN_DEFAULT_WORKER_PRIORITY,
+                           thread_name,
+                           entry,
+                           1024 * 4,
+                           context) != BK_OK)
+    {
+        LOGE("create %s thread failed\r\n", thread_name);
+        s_rgb_case_thread = NULL;
+        s_rgb_case_running = 0;
+    }
+}
+
+void rgb_lcd_rgb565_test(display_ctx_t *context, const char *panel_name)
+{
+    rgb_lcd_case_start(context, panel_name,
+                       (beken_thread_function_t)rgb_lcd_rgb565_task,
+                       "rgb565_case");
+}
+
+void rgb_lcd_switch_format_test(display_ctx_t *context, const char *panel_name)
+{
+    rgb_lcd_case_start(context, panel_name,
+                       (beken_thread_function_t)rgb_lcd_switch_format_task,
+                       "rgb_switch_case");
 }

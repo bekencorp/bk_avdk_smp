@@ -12,6 +12,12 @@
 #include <common/avdk_pixel_types.h>
 #include "lcd_example.h"
 #include "lcd_image.h"
+#include <modules/pm.h>
+
+/* Per-case display duration (rough hold, not strictly timed) before auto teardown. */
+#define MIPI_LCD_CASE_DURATION_MS  (20 * 1000)
+#define MIPI_LCD_CASE_POLL_MS      (100)
+#define MIPI_LCD_SWITCH_STEP_MS    (5 * 1000)
 
 #define MAX_PANEL_COUNT 32
 #define TAG "mipi_lcd"
@@ -20,6 +26,23 @@
 #define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
+
+
+
+static avdk_err_t bk_lodoen_enable(bool enable)
+{
+    int ldo_en = enable ? PM_AUXLDO_ENABLE : PM_AUXLDO_DISABLE;
+    LOGI("%s, vddio enable: %d\n", __func__, ldo_en);
+
+    pm_auxldo_ctrl_cfg_t auxldo_cfg = {0};
+    auxldo_cfg.ldo   = AUXLDOS_SEL_1P8V;
+    auxldo_cfg.out   = PM_AUXLDO_1P8V_OUT_1P8V;
+    auxldo_cfg.user  = PM_AUXLDO_USER_DISPLAY;
+    auxldo_cfg.state = ldo_en;
+    AVDK_RETURN_ON_ERROR(bk_pm_auxldo_ctrl_vote(&auxldo_cfg), TAG, "display 1p8v ldo vote failed");
+    rtos_delay_milliseconds(1);
+    return AVDK_ERR_OK;
+}
 
 /* Flush free callback: display driver calls this when done with the frame; we just free it. */
 static avdk_err_t display_frame_free(void *args)
@@ -211,6 +234,7 @@ avdk_err_t lcd_example_dsi_open(display_ctx_t *context, const char *panel_name, 
         .reset_pin = GPIO_60,
     };
 
+    bk_lodoen_enable(true);
     AVDK_GOTO_ON_ERROR(bk_display_dsi_bus_new(&context->dis_bus_handle, NULL), err, TAG, "display dsi bus new err\n");
 
     const bk_display_dsi_panel_t *panel_list[MAX_PANEL_COUNT];
@@ -281,6 +305,8 @@ avdk_err_t lcd_example_dsi_close(display_ctx_t *context)
         bk_display_bus_delete(context->dis_bus_handle);
         context->dis_bus_handle = NULL;
     }
+    bk_lodoen_enable(false);
+
     LOGI("%s complete\n", __func__);
     return AVDK_ERR_OK;
 }
@@ -448,4 +474,211 @@ avdk_err_t lcd_example_flush_thread_stop(display_ctx_t *context)
     rtos_get_semaphore(&context->sem, BEKEN_WAIT_FOREVER);
     rtos_deinit_semaphore(&context->sem);
     return AVDK_ERR_OK;
+}
+
+// ----- Runtime pixel-format switch primitive (returns status) -----
+
+avdk_err_t mipi_lcd_do_switch(display_ctx_t *context, const bk_display_pixel_format_config_t *config)
+{
+    bk_pixel_format_t old_format;
+    uint8_t old_decompress;
+
+    if (context == NULL || config == NULL || context->dis_bus_handle == NULL)
+    {
+        LOGE("mipi_lcd_do_switch: LCD is off or invalid args\r\n");
+        return AVDK_ERR_INVAL;
+    }
+
+    old_format = context->format;
+    old_decompress = context->decompress;
+
+    if (lcd_example_flush_thread_stop(context) != AVDK_ERR_OK)
+    {
+        LOGE("lcd_example_flush_thread_stop failed\r\n");
+        return AVDK_ERR_GENERIC;
+    }
+
+    if (bk_display_ioctl(context->dpu_ctlr_handle, BK_DISPLAY_IOCTL_DPU_PIXEL_FORMAT, (void *)config) != AVDK_ERR_OK)
+    {
+        LOGE("bk_display_ioctl runtime switch failed\r\n");
+        context->format = old_format;
+        context->decompress = old_decompress;
+        lcd_example_flush_thread_start(context);
+        return AVDK_ERR_GENERIC;
+    }
+
+    context->format = config->format;
+    context->decompress = config->decompress;
+
+    if (lcd_example_flush_thread_start(context) != AVDK_ERR_OK)
+    {
+        LOGE("lcd_example_flush_thread_start failed after switch\r\n");
+        context->format = old_format;
+        context->decompress = old_decompress;
+        return AVDK_ERR_GENERIC;
+    }
+
+    return AVDK_ERR_OK;
+}
+
+// ----- IT cases: run in a worker thread, print result early, hold then auto-close -----
+
+static volatile uint8_t s_mipi_case_running = 0;
+static volatile uint8_t s_mipi_case_abort = 0;
+static beken_thread_t s_mipi_case_thread = NULL;
+static const char *s_mipi_case_panel = NULL;
+
+/* Result string spacing must match .it.csv exactly: caller controls leading space in name. */
+static void mipi_lcd_log_result(const char *name, bool pass, const char *stage)
+{
+    if (pass)
+        LOGI("[RESULT][PASS]%s success\r\n", name);
+    else
+        LOGI("[RESULT][FAIL]%s failed at %s\r\n", name, stage);
+}
+
+static void mipi_lcd_case_hold(void)
+{
+    uint32_t waited = 0;
+
+    while (waited < MIPI_LCD_CASE_DURATION_MS && s_mipi_case_abort == 0)
+    {
+        rtos_delay_milliseconds(MIPI_LCD_CASE_POLL_MS);
+        waited += MIPI_LCD_CASE_POLL_MS;
+    }
+}
+
+static void mipi_lcd_case_teardown(display_ctx_t *context)
+{
+    if (context == NULL)
+        return;
+    if (context->thread != NULL)
+        lcd_example_flush_thread_stop(context);
+    if (context->dis_bus_handle != NULL)
+        lcd_example_dsi_close(context);
+}
+
+static bool mipi_lcd_case_open_argb8888(display_ctx_t *context, const char **stage)
+{
+    os_memset(context, 0, sizeof(*context));
+    if (lcd_example_dsi_open(context, s_mipi_case_panel, BK_PIXEL_FORMAT_ARGB8888) != AVDK_ERR_OK)
+    {
+        *stage = "dsi_open";
+        return false;
+    }
+    if (lcd_example_flush_thread_start(context) != AVDK_ERR_OK)
+    {
+        *stage = "flush_start";
+        return false;
+    }
+    return true;
+}
+
+static void mipi_lcd_argb8888_task(void *arg)
+{
+    display_ctx_t *context = (display_ctx_t *)arg;
+    const char *stage = "open";
+    bool pass;
+
+    pass = mipi_lcd_case_open_argb8888(context, &stage);
+
+    if (pass)
+        mipi_lcd_case_hold();
+
+    mipi_lcd_case_teardown(context);
+
+    /* Print result at the very end, after the LCD has displayed and the case exits. */
+    mipi_lcd_log_result(" mipi_lcd_display_argb8888_test", pass, stage);
+
+    s_mipi_case_thread = NULL;
+    s_mipi_case_running = 0;
+    rtos_delete_thread(NULL);
+}
+
+static void mipi_lcd_switch_format_task(void *arg)
+{
+    /* Cycle each format 5s, then return to the first (RGB565) for 5s. */
+    static const bk_display_pixel_format_config_t s_switch_cfgs[] = {
+        { .format = BK_PIXEL_FORMAT_RGB565,   .decompress = false },
+        { .format = BK_PIXEL_FORMAT_RGB888,   .decompress = false },
+        { .format = BK_PIXEL_FORMAT_ARGB8888, .decompress = true  },
+        { .format = BK_PIXEL_FORMAT_RGB565,   .decompress = false },
+    };
+    static const char *const s_switch_names[] = { "RGB565", "RGB888", "ARGB8888", "RGB565" };
+
+    display_ctx_t *context = (display_ctx_t *)arg;
+    const char *stage = "start";
+    bool pass = true;
+    uint32_t i;
+
+    /* Ensure LCD is on (previous case may have auto-closed -> proves independence). */
+    if (context->dis_bus_handle == NULL)
+        pass = mipi_lcd_case_open_argb8888(context, &stage);
+
+    if (pass)
+    {
+        for (i = 0; i < sizeof(s_switch_cfgs) / sizeof(s_switch_cfgs[0]); i++)
+        {
+            if (mipi_lcd_do_switch(context, &s_switch_cfgs[i]) != AVDK_ERR_OK)
+            {
+                stage = s_switch_names[i];
+                pass = false;
+                break;
+            }
+            LOGI("switched to %s\r\n", s_switch_names[i]);
+            rtos_delay_milliseconds(MIPI_LCD_SWITCH_STEP_MS);
+        }
+    }
+
+    /* Switching sequence itself is the display window (4 x 5s); no extra hold. */
+    mipi_lcd_case_teardown(context);
+
+    /* Print result at the very end, after the LCD has displayed and the case exits. */
+    mipi_lcd_log_result("mipi_lcd_switch_format", pass, stage);
+
+    s_mipi_case_thread = NULL;
+    s_mipi_case_running = 0;
+    rtos_delete_thread(NULL);
+}
+
+static void mipi_lcd_case_start(display_ctx_t *context, const char *panel_name,
+                                beken_thread_function_t entry, const char *thread_name)
+{
+    /* Preempt any in-flight case so each case starts from a clean state. */
+    if (s_mipi_case_running)
+    {
+        s_mipi_case_abort = 1;
+        while (s_mipi_case_running)
+            rtos_delay_milliseconds(MIPI_LCD_CASE_POLL_MS);
+    }
+
+    s_mipi_case_abort = 0;
+    s_mipi_case_running = 1;
+    s_mipi_case_panel = panel_name;
+
+    if (rtos_create_thread(&s_mipi_case_thread,
+                           BEKEN_DEFAULT_WORKER_PRIORITY,
+                           thread_name,
+                           entry,
+                           1024 * 4,
+                           context) != BK_OK)
+    {
+        LOGE("create %s thread failed\r\n", thread_name);
+        s_mipi_case_thread = NULL;
+        s_mipi_case_running = 0;
+    }
+}
+
+void mipi_lcd_argb8888_test(display_ctx_t *context, const char *panel_name)
+{
+    mipi_lcd_case_start(context, panel_name,
+                        (beken_thread_function_t)mipi_lcd_argb8888_task,
+                        "mipi_argb_case");
+}
+
+void mipi_lcd_switch_format_test(display_ctx_t *context, const char *panel_name)
+{
+    mipi_lcd_case_start(context, panel_name,
+                        (beken_thread_function_t)mipi_lcd_switch_format_task,
+                        "mipi_switch_case");
 }
