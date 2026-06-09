@@ -179,12 +179,21 @@ void wlan_store_fci(struct wpa_supplicant *wpa_s)
 	}
 
 #if CONFIG_WLAN_FAST_CONNECT_WPA3
-	if (wpa_s->wpa && wpa_s->wpa->cur_pmksa) {
-		struct rsn_pmksa_cache_entry *cur_pmksa = wpa_s->wpa->cur_pmksa;
-		fci.pmk_len = cur_pmksa->pmk_len;
-		os_memcpy(fci.pmk, cur_pmksa->pmk, cur_pmksa->pmk_len);
-		os_memcpy(fci.pmkid, cur_pmksa->pmkid, 16);
-		fci.akmp = wpa_s->wpa->key_mgmt;
+	if (wpa_s->wpa) {
+		struct rsn_pmksa_cache_entry *pmksa = wpa_s->wpa->cur_pmksa;
+		/* First SAE connection: cur_pmksa is NULL because AP doesn't
+		 * include PMKID in 4-way handshake msg1. Look up by BSSID. */
+		if (!pmksa)
+			pmksa = wpa_sm_pmksa_cache_get(wpa_s->wpa, bss->bssid,
+						       NULL, wpa_s->current_ssid, 0);
+		if (pmksa) {
+			fci.pmk_len = pmksa->pmk_len;
+			os_memcpy(fci.pmk, pmksa->pmk, pmksa->pmk_len);
+			os_memcpy(fci.pmkid, pmksa->pmkid, 16);
+			fci.akmp = wpa_s->wpa->key_mgmt;
+			WPA_LOGE("FCI: saving PMK len=%d akmp=0x%x",
+				   fci.pmk_len, fci.akmp);
+		}
 	}
 #endif
 

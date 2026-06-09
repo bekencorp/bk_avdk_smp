@@ -1268,7 +1268,7 @@ void sme_external_auth_trigger(struct wpa_supplicant *wpa_s,
 #if BK_SUPPLICANT
 		else
 			/* Timeout for receiving the first SAE Commit packet */
-			wpa_supplicant_req_external_auth_timeout(wpa_s, 3, 0);
+			wpa_supplicant_req_external_auth_timeout(wpa_s, 10, 0);
 #endif
 	} else if (data->external_auth.action == EXT_AUTH_ABORT) {
 		/* Report failure to driver for the wrong trigger */
@@ -1323,7 +1323,7 @@ void sme_external_auth_mgmt_rx(struct wpa_supplicant *wpa_s,
 
 #if BK_SUPPLICANT
 	/* Timeout for receiving the next SAE Commit packet */
-	wpa_supplicant_req_external_auth_timeout(wpa_s, 3, 0);
+	wpa_supplicant_req_external_auth_timeout(wpa_s, 10, 0);
 #endif
 
 	if (len < auth_length) {

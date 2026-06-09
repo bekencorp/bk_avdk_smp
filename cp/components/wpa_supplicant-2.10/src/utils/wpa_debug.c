@@ -13,7 +13,7 @@
 int wpa_debug_level = MSG_INFO;
 int wpa_debug_show_keys = 0;
 int wpa_debug_timestamp = 0;
-
+int wpa_debug_show_dump = 0;
 void wpa_set_debug_level(int level)
 {
 	if (level >= 0 && level <= MSG_ERROR) {
@@ -95,7 +95,7 @@ static void _wpa_hexdump(int level, const char *title, const u8 *buf,
 
 void wpa_hexdump(int level, const char *title, const void *buf, size_t len)
 {
-	_wpa_hexdump(level, title, buf, len, 1);
+	_wpa_hexdump(level, title, buf, len, wpa_debug_show_dump);
 }
 
 void wpa_hexdump_key(int level, const char *title, const void *buf, size_t len)

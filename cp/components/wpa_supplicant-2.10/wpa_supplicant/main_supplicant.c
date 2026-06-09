@@ -130,7 +130,7 @@ int supplicant_main_entry(char *oob_ssid)
 
 	os_memset(&params, 0, sizeof(params));
 	params.wpa_debug_level = MSG_DEBUG;
-	params.wpa_debug_show_keys = 1;
+	params.wpa_debug_show_keys = 0;
 
 	if (0 == wpas_ifaces) {
 		wpas_ifaces = os_zalloc(sizeof(struct wpa_interface));
