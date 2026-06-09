@@ -30,12 +30,13 @@ void hal_dsi_wait_for_dphy_pwrup(void);
 void hal_dsi_dphy_power_down(void);
 
 /**
- * @param[in] dpu_clk_mhz DPU pixel clock in MHz (matches ::lcd_clk_t enum
- *                        literal values such as ``LCD_320M``/``LCD_240M``).
- *                        Plain @c uint32_t to avoid pulling component-layer
- *                        headers into this SoC-private hal interface.
+ * Pick a Naneng D-PHY HS lane rate (Mbps) for the SYSCLK fallback path.
+ * Uses the same bandwidth formula as hal_dsi_dphy_init_for_panel(), then
+ * selects the smallest hal_dsi_dphy_init() bracket that satisfies it.
+ * Single-lane panels always get 800 Mbps (see how_to_add_mipi_panel.md §15).
  */
-uint32_t dsi_dphy_bitrate_calc(uint32_t dpu_clk_mhz, uint8_t n_lanes);
+uint32_t hal_dsi_sysclk_lane_mbps_select(uint64_t pclk_hz, uint8_t n_lanes, uint16_t bpp,
+                                         uint32_t overhead_permille);
 
 void hal_dsi_host_reset(void);
 

@@ -265,8 +265,8 @@ static void mipi_dsi_host_vid_hparams_asic(const bk_panel_clock_config_t *dsi, u
  *     ::DPU_CLK_SRC_DPHY_DPLL (the default).
  *   - If the panel's required lane:pclk ratio exceeds the PHY's 4-bit
  *     @c pixdiv field (max = 17), the precise path returns BK_FAIL.
- *     We then transparently fall back to the SYSCLK ladder, pick a safe
- *     lane rate from the legacy lookup table, log a warning, and write
+ *     We then transparently fall back to the SYSCLK ladder, pick a lane
+ *     rate via hal_dsi_sysclk_lane_mbps_select(), log a warning, and write
  *     ::DPU_CLK_SRC_SYSCLK back into @c dsi->clk_src so the caller's
  *     bus/panel/DPU state stay synchronised. A caller that explicitly
  *     passed ::DPU_CLK_SRC_SYSCLK takes the same SYSCLK path silently.
@@ -318,13 +318,8 @@ bk_err_t mipi_dsi_clock_set(bk_panel_clock_config_t *dsi)
     }
 
     if (!dphy_dpll_ok) {
-        uint32_t clk_mhz = (uint32_t)((pclk_hz + 500000ULL) / 1000000ULL);
-        uint32_t bitrate = dsi_dphy_bitrate_calc(clk_mhz, dsi->n_lanes);
-        if (bitrate == 0u) {
-            bitrate = DPHY_BR_800M;
-            LOGW("%s no table entry for clk=%u MHz lanes=%u, defaulting to 800 Mbps\n",
-                 __func__, (unsigned)clk_mhz, (unsigned)(dsi->n_lanes + 1U));
-        }
+        uint32_t bitrate = hal_dsi_sysclk_lane_mbps_select(pclk_hz, dsi->n_lanes, 24u,
+                                                           DSI_LINK_BANDWIDTH_OVERHEAD_PERMILLE);
         hal_dsi_dphy_init(bitrate);
         lane_bitrate_mbps = bitrate;
     }
