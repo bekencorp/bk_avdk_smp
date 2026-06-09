@@ -897,13 +897,15 @@ typedef enum {
 	BRIDGE_STATE_ENABLED
 }bk_bridge_state_t;
 
-typedef struct{
-    char *bridge_ssid;
-    char *ext_sta_ssid;
-    char *key;
-    char *hostname;
-    int channel;
-}bk_bridge_config_t;
+typedef struct {
+	wifi_sta_config_t sta_config;
+	wifi_ap_config_t br_info;
+	char *hostname;
+	/**
+	 * 1: keep STA connected after bridge close; 0: stop STA on close (default).
+	 */
+	uint8_t keep_sta_on_close;
+} bk_bridge_config_t;
 
 #ifdef __cplusplus
 }

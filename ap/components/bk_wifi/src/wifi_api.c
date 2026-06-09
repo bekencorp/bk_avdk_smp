@@ -554,9 +554,9 @@ bk_err_t bk_wifi_ap_start(void)
     bk_wifi_ap_init();
 
     ret = wifi_send_com_api_cmd(AP_START, 0);
-    if (ret != BK_OK)
-    {
+    if (ret != BK_OK) {
         WDRV_LOGW("ap start failed, ret=%d\n", ret);
+        return ret;
     }
 
     WDRV_LOGD("ap started\n");
@@ -2050,30 +2050,31 @@ bk_err_t bk_wifi_check_client_mac_connected(uint8_t *mac)
 #include "netif/bridgeif.h"
 #include "lwip/netifapi.h"
 #include "lwip/inet.h"
+#include "bk_private/bk_bridge_ctx.h"
+#include "bk_private/bk_bridge_fsm.h"
+#include <components/event.h>
 
-static bk_bridge_state_t bridge_state = BRIDGE_STATE_DISABLED;
-bk_bridge_config_t bridge_config = {0};
+/*
+ * bridge_state / bridge_config live in bk_bridge_ctrl.c.
+ * Every state mutation goes through bk_bridge_fsm_transition(), which
+ * serialises concurrent transitions, validates the source->target pair
+ * against a legal table, and pairs the local write with the CP IPC
+ * atomically so the cores never disagree across the IPC barrier.
+ * bk_wifi_sync_bridge_state() and bk_bridge_ctx_set_state_local() remain
+ * exported only for the FSM itself - application code MUST NOT call them
+ * directly.
+ */
 
 /*private apis for beken bridge start*/
 bk_bridge_state_t bk_wifi_get_bridge_state(void)
 {
-    return bridge_state;
+    return bk_bridge_ctx_get_state();
 }
 
 bk_err_t bk_wifi_sync_bridge_state(bk_bridge_state_t br_state)
 {
-    void *buffer_to_ipc = NULL;
-
-    buffer_to_ipc = os_malloc(sizeof(bk_bridge_state_t));
-    if (!buffer_to_ipc)
-    {
-        WIFI_LOGE("%s malloc failed\r\n", __func__);
-        return BK_ERR_NO_MEM;
-    }
-    *((bk_bridge_state_t *)buffer_to_ipc) = br_state;
-    wifi_send_com_api_cmd(SET_BRIDGE_SYNC_STATE, 1, (uint32_t)buffer_to_ipc);
-    os_free(buffer_to_ipc);
-    return BK_OK;
+    /* Synchronous IPC: returns only after CP ack. Inline enum, no heap. */
+    return wifi_send_com_api_cmd(SET_BRIDGE_SYNC_STATE, 1, (uint32_t)br_state);
 }
 
 bk_err_t bk_wifi_save_bridge_config(bk_bridge_config_t *br_config)
@@ -2082,27 +2083,109 @@ bk_err_t bk_wifi_save_bridge_config(bk_bridge_config_t *br_config)
         WIFI_LOGE("%s failed, invalid pointer\r\n", __func__);
         return BK_FAIL;
     }
-    if (bridge_config.bridge_ssid) {
-        os_free(bridge_config.bridge_ssid);
-    }
-    bridge_config.bridge_ssid = os_strdup(br_config->bridge_ssid);
-    if (bridge_config.ext_sta_ssid) {
-        os_free(bridge_config.ext_sta_ssid);
-    }
-    bridge_config.ext_sta_ssid = os_strdup(br_config->ext_sta_ssid);
-    if (bridge_config.key) {
-        os_free(bridge_config.key);
-    }
-    bridge_config.key = os_strdup(br_config->key);
-    if (bridge_config.hostname) {
-        os_free(bridge_config.hostname);
-    }
-    bridge_config.hostname = os_strdup(br_config->hostname);
-    bridge_config.channel = br_config->channel;
-    return BK_OK;
+    return bk_bridge_ctx_save_config(br_config);
 }
 
 static beken_thread_t br_start_thread_internal;
+
+/*
+ * Monotonic bring-up generation (BSS zero-init at boot; never reset to 0).
+ * br_start_thread snapshots the value at entry; bk_br_bringup_invalidate()
+ * bumps it on bridge_stop / switch_bridge_to_sta / abort so an in-flight
+ * thread sees token mismatch and rolls back instead of finishing ENABLED
+ * after teardown.
+ */
+static volatile uint32_t s_br_bringup_token;
+
+/* True while br_start_thread_internal is running (cleared in thread done:). */
+static volatile bool s_br_start_thread_running;
+
+static bool bk_br_bringup_active(uint32_t token)
+{
+    return (bk_bridge_ctx_get_state() == BRIDGE_STATE_ENABLING) &&
+           (s_br_bringup_token == token);
+}
+
+static void bk_br_bringup_invalidate(void)
+{
+    s_br_bringup_token++;
+}
+
+/*
+ * Wait without timeout until br_start_thread_internal exits.
+ * Must not be called from that thread (would deadlock).
+ */
+static void bk_br_wait_bringup_thread_idle(void)
+{
+    while (s_br_start_thread_running) {
+        rtos_delay_milliseconds(10);
+    }
+}
+
+static bk_err_t bk_wifi_start_softap_for_bridge(void);
+static void bk_wifi_switch_bridge_to_sta(void);
+
+static bk_err_t bk_bridge_event_cb(void *arg, event_module_t event_module,
+    int event_id, void *event_data)
+{
+    (void)arg;
+
+    if (event_module == EVENT_MOD_NETIF && event_id == EVENT_NETIF_GOT_IP4) {
+        netif_event_got_ip4_t *got_ip = (netif_event_got_ip4_t *)event_data;
+
+        if (got_ip != NULL && got_ip->netif_if == NETIF_IF_STA) {
+            bk_wifi_start_softap_for_bridge();
+        }
+    } else if (event_module == EVENT_MOD_WIFI &&
+               event_id == EVENT_WIFI_STA_DISCONNECTED) {
+        bk_wifi_switch_bridge_to_sta();
+    }
+    return BK_OK;
+}
+
+static void bk_bridge_register_event_cb(void)
+{
+    BK_LOG_ON_ERR(bk_event_register_cb(EVENT_MOD_NETIF, EVENT_NETIF_GOT_IP4,
+        bk_bridge_event_cb, NULL));
+    BK_LOG_ON_ERR(bk_event_register_cb(EVENT_MOD_WIFI, EVENT_WIFI_STA_DISCONNECTED,
+        bk_bridge_event_cb, NULL));
+}
+
+static void bk_bridge_unregister_event_cb(void)
+{
+    BK_LOG_ON_ERR(bk_event_unregister_cb(EVENT_MOD_NETIF, EVENT_NETIF_GOT_IP4,
+        bk_bridge_event_cb));
+    BK_LOG_ON_ERR(bk_event_unregister_cb(EVENT_MOD_WIFI, EVENT_WIFI_STA_DISCONNECTED,
+        bk_bridge_event_cb));
+}
+
+static void bk_bridge_abort_enabling(void)
+{
+    bk_bridge_unregister_event_cb();
+    bk_br_bringup_invalidate();
+    if (bk_bridge_ctx_get_state() == BRIDGE_STATE_ENABLING) {
+        bk_bridge_fsm_transition(BRIDGE_STATE_DISABLING);
+        bk_bridge_fsm_transition(BRIDGE_STATE_DISABLED);
+    }
+}
+
+static void bk_br_start_rollback(bool ap_started)
+{
+    /*
+     * Called from br_start_thread on failure - do not
+     * bk_br_wait_bringup_thread_idle() here (deadlock).
+     */
+    if (ap_started) {
+        bk_wifi_ap_stop();
+    }
+    bridge_netif_teardown();
+    if (bk_bridge_ctx_get_state() == BRIDGE_STATE_ENABLING ||
+        bk_bridge_ctx_get_state() == BRIDGE_STATE_ENABLED) {
+        bk_bridge_fsm_transition(BRIDGE_STATE_DISABLING);
+        bk_bridge_fsm_transition(BRIDGE_STATE_DISABLED);
+    }
+}
+
 void bk_br_start_internal(void* data)
 {
     int len, key_len = 0;
@@ -2113,152 +2196,252 @@ void bk_br_start_internal(void* data)
     wifi_link_status_t link_status = {0};
     wifi_ap_config_t ap_config = {0};//WIFI_DEFAULT_AP_CONFIG();
     wifi_link_status_t link_sta_status = {0};
+    bk_bridge_config_t *bridge_config = bk_bridge_ctx_get_config();
+    struct netif *br_netif = (struct netif *)net_get_br_handle();
+    bool ap_started = false;
+    uint32_t bringup_token;
+    err_t lwip_err;
+
+    (void)data;
+
+    /* Snapshot generation; stop/abort may ++ s_br_bringup_token before we finish. */
+    bringup_token = s_br_bringup_token;
 
     WIFI_LOGI("bk_wifi_start_softap_for_bridge, ssid: %s, key: %s, channel: %d, hostname: %s, state: %d\r\n",
-            bridge_config.bridge_ssid, bridge_config.key, bridge_config.channel, bridge_config.hostname, bridge_state);
-    if (bridge_state == BRIDGE_STATE_ENABLING) {
-        /*confige bridgeif and add sta to bridgeif*/
-        bk_wifi_sta_get_mac(mac);
-        os_memcpy(((struct netif *)net_get_br_handle())->hwaddr, mac, 6);
-        os_memcpy(&mybr_initdata.ethaddr, mac, 6);
-        mybr_initdata.max_fdb_dynamic_entries = 64;
-        mybr_initdata.max_fdb_static_entries = 4;
-        mybr_initdata.max_ports = 16;
-        bk_netif_get_ip4_config(NETIF_IF_STA, &ip4_config);
-        inet_aton((char *)&ip4_config.ip, &my_ip);
-        inet_aton((char *)&ip4_config.gateway, &my_gw);
-        inet_aton((char *)&ip4_config.mask, &my_mask);
-        // set STA interface IP to 0.0.0.0
-        //netifapi_netif_set_addr((struct netif *)net_get_sta_handle(), NULL, NULL, NULL);
-        netifapi_netif_add((struct netif *)net_get_br_handle(), &my_ip, &my_mask, &my_gw,
-                            &mybr_initdata, bridgeif_init, netif_input);
-        bridgeif_add_port((struct netif *)net_get_br_handle(), (struct netif *)net_get_sta_handle());
-        if (bridge_config.hostname) {
-            netif_set_hostname((struct netif *)net_get_sta_handle(), bridge_config.hostname);
-        } else {
-            netif_set_hostname((struct netif *)net_get_sta_handle(), "Beken_Bridge");
-        }
-        bk_wifi_sta_get_link_status(&link_status);
-        //start softap
-        len = os_strlen(bridge_config.bridge_ssid);
-        if (bridge_config.key)
-            key_len = os_strlen(bridge_config.key);
-        if (SSID_MAX_LEN < len) {
-            WIFI_LOGE("ssid name more than 32 Bytes\r\n");
-            return;
-        }
-        if (0 == len) {
-            WIFI_LOGE("ssid name must not be null\r\n");
-            return;
-        }
-        if (8 > key_len)
-            WIFI_LOGE("key less than 8 Bytes, the security will be set NONE\r\n");
-        if (64 < key_len) {
-            WIFI_LOGE("key more than 64 Bytes\r\n");
-            return;
-        }
-        os_strcpy(ip4_config.ip, WLAN_ANY_IP);
-        os_strcpy(ip4_config.mask, WLAN_ANY_IP);
-        os_strcpy(ip4_config.gateway, WLAN_ANY_IP);
-        os_strcpy(ip4_config.dns, WLAN_ANY_IP);
-        bk_netif_set_ip4_config(NETIF_IF_AP, &ip4_config);
-        os_strcpy(ap_config.ssid, bridge_config.bridge_ssid);
-        os_memset(&link_sta_status, 0x0, sizeof(link_sta_status));
-        bk_wifi_sta_get_link_status(&link_sta_status);
-        if (link_sta_status.security == WIFI_SECURITY_NONE) { 
-            // do not set the key for softap
-        } else if (bridge_config.key) {
-            os_strcpy(ap_config.password, bridge_config.key);
-        }
-        ap_config.security = link_sta_status.security;
-        //bridge vendor IEs is optional
-        //os_memcpy(ap_config.vsie, "\xdd\x07\xc8\x47\x8c\x01\x00\x00\x00", 9); //bridge vise set to 1
-        //ap_config.vsie_len = 9;
-        WIFI_LOGD("ssid:%s  key:%s\r\n", ap_config.ssid, ap_config.password);
-        bk_wifi_ap_set_config(&ap_config);
-        bk_wifi_ap_start();
-        bridgeif_add_port((struct netif *)net_get_br_handle(), (struct netif *)net_get_uap_handle());
-        netifapi_netif_set_default(net_get_br_handle());
-        netifapi_netif_set_up((struct netif *)net_get_br_handle());
-        bridge_set_ip_start_flag(true);
-        bridge_state = BRIDGE_STATE_ENABLED;
-        bk_wifi_sync_bridge_state(BRIDGE_STATE_ENABLED);
+            bridge_config->br_info.ssid, bridge_config->sta_config.password,
+            bridge_config->br_info.channel, bridge_config->hostname,
+            bk_bridge_ctx_get_state());
+    if (!bk_br_bringup_active(bringup_token)) {
+        goto done;
     }
+
+    len = os_strlen(bridge_config->br_info.ssid);
+    if (bridge_config->sta_config.password[0]) {
+        key_len = os_strlen(bridge_config->sta_config.password);
+    }
+    if (SSID_MAX_LEN < len) {
+        WIFI_LOGE("ssid name more than 32 Bytes\r\n");
+        goto fail;
+    }
+    if (0 == len) {
+        WIFI_LOGE("ssid name must not be null\r\n");
+        goto fail;
+    }
+    if (8 > key_len) {
+        WIFI_LOGE("key less than 8 Bytes, the security will be set NONE\r\n");
+    }
+    if (64 < key_len) {
+        WIFI_LOGE("key more than 64 Bytes\r\n");
+        goto fail;
+    }
+
+    if (!bk_br_bringup_active(bringup_token)) {
+        goto fail;
+    }
+
+    bk_wifi_sta_get_mac(mac);
+    os_memcpy(br_netif->hwaddr, mac, 6);
+    os_memcpy(&mybr_initdata.ethaddr, mac, 6);
+    mybr_initdata.max_fdb_dynamic_entries = 16;
+    mybr_initdata.max_fdb_static_entries = 4;
+    mybr_initdata.max_ports = 4;
+    bk_netif_get_ip4_config(NETIF_IF_STA, &ip4_config);
+    inet_aton((char *)&ip4_config.ip, &my_ip);
+    inet_aton((char *)&ip4_config.gateway, &my_gw);
+    inet_aton((char *)&ip4_config.mask, &my_mask);
+
+    lwip_err = netifapi_netif_add(br_netif, &my_ip, &my_mask, &my_gw,
+                                  &mybr_initdata, bridgeif_init, netif_input);
+    if (lwip_err != ERR_OK) {
+        WIFI_LOGE("bridge netif_add failed, err=%d\r\n", lwip_err);
+        goto fail;
+    }
+
+    lwip_err = bridgeif_add_port(br_netif, (struct netif *)net_get_sta_handle());
+    if (lwip_err != ERR_OK) {
+        WIFI_LOGE("bridge add sta port failed, err=%d\r\n", lwip_err);
+        goto fail;
+    }
+
+    if (bridge_config->hostname) {
+        netif_set_hostname((struct netif *)net_get_sta_handle(), bridge_config->hostname);
+    } else {
+        netif_set_hostname((struct netif *)net_get_sta_handle(), "Beken_Bridge");
+    }
+    bk_wifi_sta_get_link_status(&link_status);
+
+    if (!bk_br_bringup_active(bringup_token)) {
+        goto fail;
+    }
+
+    os_strcpy(ip4_config.ip, WLAN_ANY_IP);
+    os_strcpy(ip4_config.mask, WLAN_ANY_IP);
+    os_strcpy(ip4_config.gateway, WLAN_ANY_IP);
+    os_strcpy(ip4_config.dns, WLAN_ANY_IP);
+    bk_netif_set_ip4_config(NETIF_IF_AP, &ip4_config);
+    os_memcpy(&ap_config, &bridge_config->br_info, sizeof(ap_config));
+    os_memset(&link_sta_status, 0x0, sizeof(link_sta_status));
+    bk_wifi_sta_get_link_status(&link_sta_status);
+    if (link_sta_status.security == WIFI_SECURITY_NONE) {
+        ap_config.password[0] = '\0';
+    } else if (bridge_config->sta_config.password[0]) {
+        os_strcpy(ap_config.password, bridge_config->sta_config.password);
+    }
+    ap_config.security = link_sta_status.security;
+    ap_config.disable_dns_server = 1;
+    WIFI_LOGD("ssid:%s  key:%s\r\n", ap_config.ssid, ap_config.password);
+    bk_wifi_ap_set_config(&ap_config);
+    if (bk_wifi_ap_start() != BK_OK) {
+        WIFI_LOGE("bridge softap start failed\r\n");
+        goto fail;
+    }
+    ap_started = true;
+
+    if (!bk_br_bringup_active(bringup_token)) {
+        goto fail;
+    }
+
+    lwip_err = bridgeif_add_port(br_netif, (struct netif *)net_get_uap_handle());
+    if (lwip_err != ERR_OK) {
+        WIFI_LOGE("bridge add uap port failed, err=%d\r\n", lwip_err);
+        goto fail;
+    }
+
+    netifapi_netif_set_default(net_get_br_handle());
+    netifapi_netif_set_up(br_netif);
+    bridge_set_ip_start_flag(true);
+
+    if (!bk_br_bringup_active(bringup_token)) {
+        goto fail;
+    }
+    bk_bridge_fsm_transition(BRIDGE_STATE_ENABLED);
+    goto done;
+
+fail:
+    bk_br_start_rollback(ap_started);
+
+done:
+    s_br_start_thread_running = false;
     rtos_delete_thread(NULL);
 }
 
-bk_err_t bk_wifi_start_softap_for_bridge(void)
+static bk_err_t bk_wifi_start_softap_for_bridge(void)
 {
     bk_err_t ret = BK_OK;
+
+    if (bk_bridge_ctx_get_state() != BRIDGE_STATE_ENABLING) {
+        return BK_OK;
+    }
+
+    if (s_br_start_thread_running) {
+        WIFI_LOGW("bridge bring-up thread already running\r\n");
+        return BK_OK;
+    }
+
+    /* Retry on a later GOT_IP if a previous attempt exited without br0 up. */
+    if (bridge_ip_is_start()) {
+        return BK_OK;
+    }
+
+    s_br_start_thread_running = true;
     ret = rtos_create_thread(&br_start_thread_internal,
         BEKEN_APPLICATION_PRIORITY,
         "br_start_thread_internal",
         (beken_thread_function_t)bk_br_start_internal,
         4*1024,
         0);
-    if (br_start_thread_internal == NULL) {
-        WIFI_LOGE("create thread failed\r\n");
-        ret = BK_FAIL;
+    if (ret != BK_OK) {
+        WIFI_LOGE("create bridge start thread failed\r\n");
+        s_br_start_thread_running = false;
     }
     return ret;
 }
 
-void bk_wifi_switch_bridge_to_sta(void)
+static void bk_wifi_switch_bridge_to_sta(void)
 {
-    if (bridge_state == BRIDGE_STATE_ENABLED ||
-        bridge_state == BRIDGE_STATE_ENABLING) {
-        bridge_state = BRIDGE_STATE_DISABLING;
+    bk_bridge_state_t st = bk_bridge_ctx_get_state();
+    /*
+     * Only tear down softap/br0 after bridge is fully up.  Transient STA
+     * disconnect during ENABLING (assoc deauth, roam) must not abort
+     * bring-up; br_start_thread / bk_bridge_abort_enabling() own that path.
+     */
+    if (st == BRIDGE_STATE_ENABLED) {
+        /*
+         * Tell CP DISABLING before we tear down br0 / sap.  Otherwise
+         * CP fast-path keeps believing bridge is ENABLED and would
+         * forward IPC frames to AP while bridgeif_private is being freed.
+         */
+        bk_br_bringup_invalidate();
+        bk_bridge_fsm_transition(BRIDGE_STATE_DISABLING);
+        bk_br_wait_bringup_thread_idle();
         bridge_ip_stop();
         /*just stop softap, station still work*/
         netifapi_netif_set_default(net_get_sta_handle());
         bridge_set_ip_start_flag(false);
         bk_wifi_ap_stop();
-        bridge_state = BRIDGE_STATE_DISABLED;
-        bk_wifi_sync_bridge_state(BRIDGE_STATE_DISABLED);
+        bk_bridge_fsm_transition(BRIDGE_STATE_DISABLED);
     }
 }
 /*private apis for beken bridge end*/
 
 bk_err_t bk_bridge_stop(void)
 {
-    if (bridge_state > BRIDGE_STATE_DISABLING) {
-        bridge_state = BRIDGE_STATE_DISABLING;
-        bk_wifi_sync_bridge_state(BRIDGE_STATE_DISABLING);
-        if(bk_wifi_sta_stop())
-            BK_LOGD(NULL, "bridge stop sta fail\r\n");
+    bk_bridge_unregister_event_cb();
+
+    /*
+     * The `state > DISABLING` guard filters out DISABLED/DISABLING before
+     * doing any work.  We keep it so redundant stop does not pay for two
+     * FSM acquisitions or log a no-op DISABLED -> DISABLING attempt.
+     */
+    if (bk_bridge_ctx_get_state() > BRIDGE_STATE_DISABLING) {
+        bk_bridge_config_t *br_cfg = bk_bridge_ctx_get_config();
+
+        bk_br_bringup_invalidate();
+        bk_bridge_fsm_transition(BRIDGE_STATE_DISABLING);
+        if (!br_cfg->keep_sta_on_close) {
+            if (bk_wifi_sta_stop())
+                BK_LOGD(NULL, "bridge stop sta fail\r\n");
+        }
         if(bk_wifi_ap_stop())
             BK_LOGD(NULL, "bridge stop ap fail\r\n");
+        bk_br_wait_bringup_thread_idle();
         bridge_ip_stop();
-        bridge_state = BRIDGE_STATE_DISABLED;
-        bk_wifi_sync_bridge_state(BRIDGE_STATE_DISABLED);
+        bk_bridge_fsm_transition(BRIDGE_STATE_DISABLED);
     }
     return BK_OK;
 }
 
 bk_err_t bk_bridge_start(bk_bridge_config_t *br_config)
 {
-    wifi_sta_config_t sta_config = {0};
     int len = 0;
+    bk_bridge_state_t st;
 
-    bk_bridge_stop();
-    bridge_state = BRIDGE_STATE_ENABLING;
-    bk_wifi_sync_bridge_state(BRIDGE_STATE_ENABLING);
-    bk_wifi_save_bridge_config(br_config);
-    //start sta
-    len = os_strlen(br_config->ext_sta_ssid);
-    if (33 < len) {
-        LWIP_LOGD("ssid name more than 32 Bytes\r\n");
+    if (br_config == NULL) {
+        WIFI_LOGE("%s failed, invalid pointer\r\n", __func__);
+        return BK_ERR_PARAM;
+    }
+
+    st = bk_bridge_ctx_get_state();
+    if (st != BRIDGE_STATE_DISABLED) {
+        WIFI_LOGW("bridge already open, please close first\r\n");
         return BK_FAIL;
     }
 
-    os_strcpy(sta_config.ssid, br_config->ext_sta_ssid);
-    if (br_config->key)
-        os_strcpy(sta_config.password, br_config->key);
+    bk_bridge_fsm_transition(BRIDGE_STATE_ENABLING);
+    bk_wifi_save_bridge_config(br_config);
+    bk_bridge_register_event_cb();
 
-    LWIP_LOGD("ssid:%s key:%s\r\n", sta_config.ssid, sta_config.password);
-    BK_LOG_ON_ERR(bk_wifi_sta_set_config(&sta_config));
+    len = os_strlen(br_config->sta_config.ssid);
+    if (33 < len) {
+        LWIP_LOGD("ssid name more than 32 Bytes\r\n");
+        bk_bridge_abort_enabling();
+        return BK_FAIL;
+    }
+
+    LWIP_LOGD("ssid:%s key:%s\r\n", br_config->sta_config.ssid,
+              br_config->sta_config.password);
+    BK_LOG_ON_ERR(bk_wifi_sta_set_config(&br_config->sta_config));
     BK_LOG_ON_ERR(bk_wifi_sta_start());
-    //left process in wdrv_cntrl.c
 
     return BK_OK;
 }

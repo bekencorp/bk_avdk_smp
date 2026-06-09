@@ -35,6 +35,7 @@ extern void eth_ip_down(void);
 extern void bridge_set_ip_start_flag(bool enable);
 extern void bridge_ip_start(void);
 extern void bridge_ip_stop(void);
+extern void bridge_netif_teardown(void);
 extern uint32_t bridge_ip_is_start(void);
 extern void *net_get_br_handle(void);
 #endif

@@ -8,6 +8,12 @@ list(APPEND srcs
 )
 endif()
 
+if(CONFIG_BRIDGE)
+list(APPEND srcs
+	src/bk_bridge_ctrl.c
+)
+endif()
+
 if(CONFIG_PHY_CLIENT)
 list(APPEND srcs
 	src/phy_client.c

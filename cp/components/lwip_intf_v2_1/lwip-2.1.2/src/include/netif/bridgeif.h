@@ -125,10 +125,14 @@ err_t bridgeif_fdb_remove(struct netif *bridgeif, const struct eth_addr *addr);
 void                bridgeif_fdb_update_src(void *fdb_ptr, struct eth_addr *src_addr, u8_t port_idx);
 bridgeif_portmask_t bridgeif_fdb_get_dst_ports(void *fdb_ptr, struct eth_addr *dst_addr);
 void*               bridgeif_fdb_init(u16_t max_fdb_entries);
+
 #if BK_LWIP
 void bridgeif_fdb_deinit(bridgeif_private_t *br);
-void print_fdb();
-#endif
+
+typedef void (*bridgeif_fdb_iter_cb_t)(const struct eth_addr *addr,
+                                       u8_t port, u32_t ts, void *arg);
+void bridgeif_fdb_for_each(void *fdb_ptr, bridgeif_fdb_iter_cb_t cb, void *arg);
+#endif /* BK_LWIP */
 
 #if BRIDGEIF_PORT_NETIFS_OUTPUT_DIRECT
 #ifndef BRIDGEIF_DECL_PROTECT

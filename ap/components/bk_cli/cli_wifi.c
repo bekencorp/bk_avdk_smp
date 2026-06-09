@@ -101,10 +101,28 @@ void cli_wifi_monitor_help(void)
 void cli_wifi_state_help(void)
 {
 	CLI_RAW_LOGI("\r\nstate\n");
-	CLI_RAW_LOGI("  Show the state of station and softap.\n");
+	CLI_RAW_LOGI("  Show the state of station, softap and bridge.\n");
 	CLI_RAW_LOGI("  -no param\n");
 	CLI_RAW_LOGI("  example1: state\n");
 }
+
+#if CONFIG_BRIDGE
+static const char *cli_wifi_bridge_state_str(bk_bridge_state_t st)
+{
+	switch (st) {
+	case BRIDGE_STATE_DISABLED:
+		return "disabled";
+	case BRIDGE_STATE_DISABLING:
+		return "disabling";
+	case BRIDGE_STATE_ENABLING:
+		return "enabling";
+	case BRIDGE_STATE_ENABLED:
+		return "enabled";
+	default:
+		return "unknown";
+	}
+}
+#endif
 
 void cli_wifi_ps_help(void)
 {
@@ -118,12 +136,17 @@ void cli_wifi_ps_help(void)
 #if CONFIG_BRIDGE
 void cli_wifi_bridge_help(void)
 {
-	CLI_RAW_LOGI("\r\nbridge {open|close} [ssid] [key]\n");
+	CLI_RAW_LOGI("\r\nbridge {open|close} <sta_ssid> [key] [bridge_ssid] [keep_sta]\n");
 	CLI_RAW_LOGI("  Control WiFi bridge. \n");
-	CLI_RAW_LOGI("  -open <string><mandatory>: external STA SSID to connect. \n");
+	CLI_RAW_LOGI("  -sta_ssid <string><mandatory>: external STA SSID to connect. \n");
 	CLI_RAW_LOGI("  -key <string><optional>: password of external STA. Set 0 to skip. \n");
+	CLI_RAW_LOGI("  -bridge_ssid <string><optional>: bridge softap SSID. Default: <sta_ssid>_brr \n");
+	CLI_RAW_LOGI("  -keep_sta <0|1><optional>: 1=keep STA up after close, 0=stop STA on close (default) \n");
 	CLI_RAW_LOGI("  example1: bridge open ext_ap 12345678 \n");
-	CLI_RAW_LOGI("  example2: bridge close \n");
+	CLI_RAW_LOGI("  example2: bridge open ext_ap 12345678 my_bridge \n");
+	CLI_RAW_LOGI("  example3: bridge open ext_ap 0 my_bridge \n");
+	CLI_RAW_LOGI("  example4: bridge open ext_ap 12345678 my_bridge 1 \n");
+	CLI_RAW_LOGI("  example5: bridge close \n");
 }
 #endif
 
@@ -643,32 +666,71 @@ int cli_wifi_state_handle(void)
 #if CONFIG_LWIP
 	wifi_link_status_t link_status = {0};
 	wifi_ap_config_t ap_info = {0};
-	netif_ip4_config_t ap_ip4_info = {0};
+	netif_ip4_config_t ip4_info = {0};
 	char ssid[33] = {0};
-	wifi_linkstate_reason_t info = mhdr_get_station_status();
-
-	BK_LOGI(TAG, "[KW:]sta: %d, ap: %d, b/g/n\r\n", !!(info.state == WIFI_LINKSTATE_STA_GOT_IP), uap_ip_is_start());
+	int sta_up = sta_ip_is_start();
+	int ap_up = uap_ip_is_start();
+	bool sta_link_valid = false;
 
 	if (sta_ip_is_start()) {
 		os_memset(&link_status, 0x0, sizeof(link_status));
+		if (bk_wifi_sta_get_link_status(&link_status) == BK_OK) {
+			sta_link_valid = true;
+		}
+	}
+
+#if CONFIG_BRIDGE
+	{
+		bk_bridge_state_t br_st = bk_wifi_get_bridge_state();
+		int br_up = bridge_ip_is_start();
+
+		BK_LOGI(TAG, "[KW:]sta: %d, ap: %d, bridge: %d (%s) b/g/n\r\n",
+				sta_up, ap_up, br_up, cli_wifi_bridge_state_str(br_st));
+
+		if (br_st != BRIDGE_STATE_DISABLED) {
+			int br_channel = sta_link_valid ? link_status.channel : 0;
+
+			os_memset(&ap_info, 0x0, sizeof(ap_info));
+			if (bk_wifi_ap_get_config(&ap_info) == BK_OK) {
+				os_memcpy(ssid, ap_info.ssid, 32);
+				if (br_channel == 0) {
+					br_channel = ap_info.channel;
+				}
+				BK_LOGI(TAG, "[KW:]bridge: ssid=%s, channel=%d, cipher_type=%s\r\n",
+						ssid, br_channel,
+						cli_wifi_sec_type_string(ap_info.security));
+			}
+		}
+	}
+#else
+	BK_LOGI(TAG, "[KW:]sta: %d, ap: %d, b/g/n\r\n", sta_up, ap_up);
+#endif
+
+	if (sta_link_valid) {
+		os_memcpy(ssid, link_status.ssid, 32);
+		BK_LOGI(TAG, "[KW:]sta:rssi=%d,aid=%d,ssid=%s,bssid=%pm,channel=%d,cipher_type=%s\r\n",
+				   link_status.rssi, link_status.aid, ssid, link_status.bssid,
+				   link_status.channel, cli_wifi_sec_type_string(link_status.security));
+	} else if (sta_ip_is_start()) {
+		os_memset(&link_status, 0x0, sizeof(link_status));
 		BK_RETURN_ON_ERR(bk_wifi_sta_get_link_status(&link_status));
 		os_memcpy(ssid, link_status.ssid, 32);
-
 		BK_LOGI(TAG, "[KW:]sta:rssi=%d,aid=%d,ssid=%s,bssid=%pm,channel=%d,cipher_type=%s\r\n",
 				   link_status.rssi, link_status.aid, ssid, link_status.bssid,
 				   link_status.channel, cli_wifi_sec_type_string(link_status.security));
 	}
 
-	if (uap_ip_is_start()) {
+	if (ap_up) {
 		os_memset(&ap_info, 0x0, sizeof(ap_info));
 		BK_RETURN_ON_ERR(bk_wifi_ap_get_config(&ap_info));
 		os_memcpy(ssid, ap_info.ssid, 32);
 		BK_LOGI(TAG, "[KW:]softap: ssid=%s, channel=%d, cipher_type=%s\r\n",
 				   ssid, ap_info.channel, cli_wifi_sec_type_string(ap_info.security));
 
-		BK_RETURN_ON_ERR(bk_netif_get_ip4_config(NETIF_IF_AP, &ap_ip4_info));
+		os_memset(&ip4_info, 0x0, sizeof(ip4_info));
+		BK_RETURN_ON_ERR(bk_netif_get_ip4_config(NETIF_IF_AP, &ip4_info));
 		BK_LOGD(TAG, "[KW:]ip=%s,gate=%s,mask=%s,dns=%s\r\n",
-				   ap_ip4_info.ip, ap_ip4_info.gateway, ap_ip4_info.mask, ap_ip4_info.dns);
+				   ip4_info.ip, ip4_info.gateway, ip4_info.mask, ip4_info.dns);
 	}
 	return BK_OK;
 #else
@@ -827,7 +889,8 @@ void cli_wifi_bridge_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
 	if (!os_strcmp(argv[1], "open")) {
 		const char *ssid = NULL;
 		const char *key = NULL;
-		char br_ssid[64] = {0};
+		const char *bridge_name = NULL;
+		char br_ssid[WIFI_SSID_STR_LEN] = {0};
 		bk_bridge_config_t br_config = {0};
 
 		if (argc < 3) {
@@ -845,10 +908,30 @@ void cli_wifi_bridge_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
 		if (argc >= 4 && ((os_strlen(argv[3]) > 1) || os_strcmp(argv[3], "0")))
 			key = argv[3];
 
-		br_config.ext_sta_ssid = (char *)ssid;
-		br_config.key = (char *)key;
-		os_snprintf(br_ssid, sizeof(br_ssid), "%s_brr", ssid);
-		br_config.bridge_ssid = br_ssid;
+		if (argc >= 5 && argv[4][0] != '\0')
+			bridge_name = argv[4];
+
+		if (bridge_name) {
+			if (os_strlen(bridge_name) >= WIFI_SSID_STR_LEN) {
+				CLI_LOGW("bridge ssid too long (max %d)\n", WIFI_SSID_STR_LEN - 1);
+				goto error;
+			}
+			os_strncpy(br_ssid, bridge_name, sizeof(br_ssid) - 1);
+		} else {
+			if (os_snprintf(br_ssid, sizeof(br_ssid), "%s_brr", ssid) >= (int)sizeof(br_ssid)) {
+				CLI_LOGW("default bridge ssid too long\n");
+				goto error;
+			}
+		}
+
+		os_strncpy(br_config.sta_config.ssid, ssid, sizeof(br_config.sta_config.ssid) - 1);
+		if (key)
+			os_strncpy(br_config.sta_config.password, key,
+				   sizeof(br_config.sta_config.password) - 1);
+		os_strncpy(br_config.br_info.ssid, br_ssid, sizeof(br_config.br_info.ssid) - 1);
+		br_config.br_info.disable_dns_server = 1;
+		if (argc >= 6 && argv[5][0] != '\0')
+			br_config.keep_sta_on_close = (uint8_t)os_strtoul(argv[5], NULL, 10);
 
 		ret = bk_bridge_start(&br_config);
 		if (ret != BK_OK) {

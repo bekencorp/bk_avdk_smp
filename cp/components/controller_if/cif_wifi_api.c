@@ -569,7 +569,8 @@ bk_err_t cif_handle_wifi_api_cmd(struct bk_msg_hdr *msg)
         }
         case SET_BRIDGE_SYNC_STATE:
         {
-            ret = bk_wifi_sync_bridge_state(*(bk_bridge_state_t *)arg_info->args[0]);
+            /* Enum is passed inline in args[0], not via a heap buffer. */
+            ret = bk_wifi_sync_bridge_state((bk_bridge_state_t)arg_info->args[0]);
             break;
         }
 #endif
