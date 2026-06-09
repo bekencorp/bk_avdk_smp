@@ -270,6 +270,16 @@ SECTIONS
         __dtcm_end__ = .;
     } > DTCM AT > FLASH
 
+    /* NOLOAD DTCM region: scratch buffers that need no init value.
+     * Not in copy.table (no flash copy) and not in zero.table, so it adds
+     * nothing to boot-time b_data_copy_dtcm(). */
+    .dtcm_noinit (NOLOAD) :
+    {
+        . = ALIGN(4);
+        *(.dtcm_noinit*)
+        . = ALIGN(4);
+    } > DTCM
+
     .iram :
     {
         . = ALIGN(512);
