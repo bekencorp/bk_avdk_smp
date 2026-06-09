@@ -8,29 +8,10 @@ menu "SDIO_DWC"
 		depends on SUPPORT_SDIO_DWC
 		default n
 
-	config SDIO_DWC_V1P0
-		bool "SDIO Version V1P0"
-		depends on SUPPORT_SDIO_DWC
-		default y
-		
-	config SDIO_DWC_V2P0
-		bool "SDIO Version V2P0"
-		depends on SUPPORT_SDIO_DWC
-		default n
-		
-	config SDIO_DWC_V2P1
-		bool "SDIO Version V2P1"
-		depends on SUPPORT_SDIO_DWC
-		default n
-
 	config SDIO_V3P0
 		bool "SDIO Version V3P0"
-		default n
-
-	config SDIO_DWC_V3P1
-		bool "SDIO Version V3P1"
 		depends on SUPPORT_SDIO_DWC
-		default n
+		default y
 
 	config SDIO_USE_GROUP1
 		bool "Use SDIO host controller 1 (GPIO14~19) instead of SDIO0"

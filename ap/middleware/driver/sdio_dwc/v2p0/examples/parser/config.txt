@@ -1,9 +1,0 @@
-# configuration file
-dev_mem= dev_mem_1og.bin
-base_addr = 0x800400
-mshc_irq = 27
-mshc_speed = ddr50
-a = b
-c = d
-var1 = 123
-var2 = 567
