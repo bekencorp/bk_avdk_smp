@@ -34,7 +34,7 @@ extern "C" {
  *
  * @return
  *    - BK_OK: succeed
- *    - BK_ERR_SDIO_HOST_NOT_INIT: sdio host driver not init
+ *    - BK_ERR_SDIO_HOST_NOT_INIT: sdio host not init
  *    - others: other errors.
  */
 bk_err_t bk_sd_card_init(void);
@@ -48,7 +48,7 @@ bk_err_t bk_sd_card_init(void);
  *
  * @return
  *    - BK_OK: succeed
- *    - BK_ERR_SDIO_HOST_NOT_INIT: sdio host driver not init
+ *    - BK_ERR_SDIO_HOST_NOT_INIT: sdio host not init
  *    - others: other errors.
  */
 bk_err_t bk_sd_card_deinit(void);
