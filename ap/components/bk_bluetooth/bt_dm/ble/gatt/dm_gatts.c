@@ -38,7 +38,7 @@
 #define INVALID_ATTR_HANDLE 0
 #define ADV_HANDLE 0
 #define BEKEN_COMPANY_ID                    (0x05F0)
-#define AUTO_ENABLE_ADV 0
+#define AUTO_ENABLE_ADV 1
 
 #define MIN_VALUE(x, y) (((x) < (y)) ? (x): (y))
 
@@ -77,9 +77,9 @@ static dm_gatts_db_reg_t *find_db_ctx_by_attr_handle(uint16_t attr_handle);
 static beken_semaphore_t s_ble_sema = NULL;
 
 static bk_gatt_if_t s_gatts_if;
-static uint8_t s_dm_gatts_local_addr_is_public = 1;
+static uint8_t s_dm_gatts_local_addr_is_public = 0;
 static dm_gatts_db_ctx_t s_dm_gatts_db_ctx;
-static uint8_t s_bk_at_dm_gatts_is_init;
+static uint8_t s_dm_gatts_is_init;
 static dm_ble_gatts_app_cb s_gatts_cb_list[2];
 static uint8_t s_db_init;
 
@@ -269,7 +269,7 @@ static uint16_t s_attr_handle_list2[sizeof(s_gatts_attr_db_service_2) / sizeof(s
 
 static int32_t dm_ble_gatts_private_cb(bk_gatts_cb_event_t event, bk_gatt_if_t gatts_if, bk_ble_gatts_cb_param_t *param)
 {
-    int32_t ret;
+    int32_t ret = 0;
 
     for (int i = 0; i < sizeof(s_gatts_cb_list) / sizeof(s_gatts_cb_list[0]); ++i)
     {
@@ -278,8 +278,8 @@ static int32_t dm_ble_gatts_private_cb(bk_gatts_cb_event_t event, bk_gatt_if_t g
             ret = s_gatts_cb_list[i](event, gatts_if, param);
         }
     }
-    (void)ret;
-    return 0;
+
+    return ret;
 }
 
 static int32_t dm_ble_gap_cb(bk_ble_gap_cb_event_t event, bk_ble_gap_cb_param_t *param)
@@ -396,6 +396,20 @@ static int32_t dm_ble_gap_cb(bk_ble_gap_cb_event_t event, bk_ble_gap_cb_param_t 
 }
 
 #if GATTS_TEST_ATTR_ENABLE
+
+static uint32_t get_send_len(void)
+{
+    uint32_t send_len = 0;
+    os_memcpy(&send_len, s_char2_buff, sizeof(send_len));
+
+    if(1)//send_len > 2048 || !send_len)
+    {
+        send_len = sizeof(s_char_buff);
+    }
+
+    return send_len;
+}
+
 static int32_t nest_func_send_indicate(dm_gatt_app_env_t *env, void *arg)
 {
     uint8_t *tmp_buff = (typeof(tmp_buff))arg;
@@ -406,7 +420,7 @@ static int32_t nest_func_send_indicate(dm_gatt_app_env_t *env, void *arg)
 
         if (tmp->notify_status)
         {
-            if (bk_ble_gatts_send_indicate(0, env->conn_id, s_char_attr_handle, sizeof(s_char_buff), tmp_buff, tmp->notify_status == 2 ? 1 : 0))
+            if (bk_ble_gatts_send_indicate(0, env->conn_id, s_char_attr_handle, get_send_len(), tmp_buff, tmp->notify_status == 2 ? 1 : 0))
             {
                 gatt_loge("notify err");
             }
@@ -436,11 +450,11 @@ static int32_t nest_func_check_timer_ref_count(dm_gatt_app_env_t *env, void *arg
 static void ble_char_timer_callback(void *param)
 {
     static uint8_t value = 1;
-
+    uint32_t send_len = get_send_len();
     uint8_t *tmp_buff = NULL;
     uint32_t type = (typeof(type))param;
 
-    tmp_buff = os_malloc(sizeof(s_char_buff));
+    tmp_buff = os_malloc(send_len);
 
     if (!tmp_buff)
     {
@@ -448,11 +462,11 @@ static void ble_char_timer_callback(void *param)
         return;
     }
 
-    os_memset(tmp_buff, 0, sizeof(s_char_buff));
+    os_memset(tmp_buff, 0, send_len);
     tmp_buff[0] = value++;
 
     //nest func only for gcc
-    bk_at_dm_ble_app_env_foreach(nest_func_send_indicate, tmp_buff);
+    dm_ble_app_env_foreach(nest_func_send_indicate, tmp_buff);
 
     os_free(tmp_buff);
 }
@@ -734,7 +748,7 @@ static int32_t bk_gatts_cb (bk_gatts_cb_event_t event, bk_gatt_if_t gatts_if, bk
                   param->bda[2],
                   param->bda[1],
                   param->bda[0]);
-        (void)final_len;
+
         os_memset(&rsp, 0, sizeof(rsp));
 #if GATTS_TEST_ATTR_ENABLE
 
@@ -847,8 +861,8 @@ static int32_t bk_gatts_cb (bk_gatts_cb_event_t event, bk_gatt_if_t gatts_if, bk
         uint16_t final_len = 0;
 
         memset(&rsp, 0, sizeof(rsp));
-        (void)final_len;
-        gatt_logi("BK_GATTS_WRITE_EVT %d %d %d %d %d %d 0x%02X%02X need rsp %d %02X:%02X:%02X:%02X:%02X:%02X",
+
+        gatt_logd("BK_GATTS_WRITE_EVT %d %d %d %d %d %d 0x%02X%02X need rsp %d %02X:%02X:%02X:%02X:%02X:%02X",
                   param->conn_id, param->trans_id, param->handle,
                   param->offset, param->is_prep, param->len,
                   param->value[0], param->value[1],
@@ -887,7 +901,7 @@ static int32_t bk_gatts_cb (bk_gatts_cb_event_t event, bk_gatt_if_t gatts_if, bk
         {
             uint16_t config = (((uint16_t)(param->value[1])) << 8) | param->value[0];
 
-            common_env_tmp = bk_at_dm_ble_find_app_env_by_addr(param->bda);
+            common_env_tmp = dm_ble_find_app_env_by_addr(param->bda);
 
             if (!common_env_tmp || !common_env_tmp->data)
             {
@@ -930,7 +944,7 @@ static int32_t bk_gatts_cb (bk_gatts_cb_event_t event, bk_gatt_if_t gatts_if, bk
 
                 //nest func only for gcc
 
-                bk_at_dm_ble_app_env_foreach(nest_func_check_timer_ref_count, &timer_ref_count);
+                dm_ble_app_env_foreach(nest_func_check_timer_ref_count, &timer_ref_count);
 
                 if (!timer_ref_count && rtos_is_timer_init(&s_char_notify_timer))
                 {
@@ -1067,11 +1081,11 @@ static int32_t bk_gatts_cb (bk_gatts_cb_event_t event, bk_gatt_if_t gatts_if, bk
 
         gatt_logv("BK_GATTS_CONF_EVT %d %d %d", param->status, param->conn_id, param->handle);
 
-        common_env_tmp = bk_at_dm_ble_find_app_env_by_conn_id(param->conn_id);
+        common_env_tmp = dm_ble_find_app_env_by_conn_id(param->conn_id);
 
         if (!common_env_tmp || !common_env_tmp->data)
         {
-            gatt_loge("conn_id %d not found %d %p", param->conn_id, common_env_tmp->data);
+            gatt_loge("conn_id %d not found %d %p", param->conn_id, common_env_tmp);
             break;
         }
 
@@ -1096,7 +1110,7 @@ static int32_t bk_gatts_cb (bk_gatts_cb_event_t event, bk_gatt_if_t gatts_if, bk
     {
         struct gatts_rsp_evt_param *param = (typeof(param))comm_param;
 
-        gatt_logi("BK_GATTS_RESPONSE_EVT 0x%x %d conn_id %d", param->status, param->handle, param->conn_id);
+        gatt_logv("BK_GATTS_RESPONSE_EVT 0x%x %d conn_id %d", param->status, param->handle, param->conn_id);
 
         dm_gatts_db_reg_t *tmp_reg = find_db_ctx_by_attr_handle(param->handle);
 
@@ -1145,7 +1159,7 @@ static int32_t bk_gatts_cb (bk_gatts_cb_event_t event, bk_gatt_if_t gatts_if, bk
             gatt_logi("conn_id %d from hci handle", !ret ? conn_id : -1);
         }
 
-        common_env_tmp = bk_at_dm_ble_alloc_app_env_by_addr(param->remote_bda, sizeof(dm_gatts_app_env_t));
+        common_env_tmp = dm_ble_alloc_app_env_by_addr(param->remote_bda, sizeof(dm_gatts_app_env_t));
 
         if (!common_env_tmp)
         {
@@ -1181,8 +1195,8 @@ static int32_t bk_gatts_cb (bk_gatts_cb_event_t event, bk_gatt_if_t gatts_if, bk
                   param->remote_bda[0],
                   param->conn_id
                  );
-        (void)timer_ref_count;
-        common_env_tmp = bk_at_dm_ble_find_app_env_by_addr(param->remote_bda);
+
+        common_env_tmp = dm_ble_find_app_env_by_addr(param->remote_bda);
 
         if (!common_env_tmp)
         {
@@ -1199,11 +1213,11 @@ static int32_t bk_gatts_cb (bk_gatts_cb_event_t event, bk_gatt_if_t gatts_if, bk
                 }
             }
 
-            bk_at_dm_ble_del_app_env_by_addr(param->remote_bda);
+            //dm_ble_del_app_env_by_addr(param->remote_bda);
         }
 
 #if GATTS_TEST_ATTR_ENABLE
-        bk_at_dm_ble_app_env_foreach(nest_func_check_timer_ref_count, &timer_ref_count);
+        dm_ble_app_env_foreach(nest_func_check_timer_ref_count, &timer_ref_count);
 
         if (!timer_ref_count && rtos_is_timer_init(&s_char_notify_timer))
         {
@@ -1245,11 +1259,12 @@ static int32_t bk_gatts_cb (bk_gatts_cb_event_t event, bk_gatt_if_t gatts_if, bk
 
         gatt_logi("BK_GATTS_MTU_EVT %d %d", param->conn_id, param->mtu);
 
-        common_env_tmp = bk_at_dm_ble_find_app_env_by_conn_id(param->conn_id);
+        common_env_tmp = dm_ble_find_app_env_by_conn_id(param->conn_id);
 
         if (!common_env_tmp)
         {
             gatt_loge("not found conn_id %d !!!!", param->conn_id);
+            break;
         }
         else
         {
@@ -1264,6 +1279,9 @@ static int32_t bk_gatts_cb (bk_gatts_cb_event_t event, bk_gatt_if_t gatts_if, bk
                 app_env_tmp->server_mtu = param->mtu;
             }
         }
+
+        extern int32_t dm_gattc_notify_mtu_status_from_gatts(dm_gatt_app_env_t *env);
+        dm_gattc_notify_mtu_status_from_gatts(common_env_tmp);
     }
     break;
 
@@ -1274,7 +1292,7 @@ static int32_t bk_gatts_cb (bk_gatts_cb_event_t event, bk_gatt_if_t gatts_if, bk
     return ret;
 }
 
-int32_t bk_at_dm_gatts_disconnect(uint8_t *addr)
+int32_t dm_gatts_disconnect(uint8_t *addr)
 {
     dm_gatt_app_env_t *common_env_tmp = NULL;
     int32_t err = 0;
@@ -1294,7 +1312,7 @@ int32_t bk_at_dm_gatts_disconnect(uint8_t *addr)
         return -1;
     }
 
-    common_env_tmp = bk_at_dm_ble_find_app_env_by_addr(addr);
+    common_env_tmp = dm_ble_find_app_env_by_addr(addr);
 
     if (!common_env_tmp || !common_env_tmp->data)
     {
@@ -1350,7 +1368,7 @@ static int32_t dm_gatts_set_adv_param(uint8_t local_addr_is_public)
     // attention: some device could only connect rpa adv after pair, some device is opposite, some device behavior depend on which adv is used when pairing.
     // so we need to decide if rpa should be used in adv.
 
-    if (g_bk_at_dm_gap_use_rpa && 0 == bk_at_dm_gatt_get_authen_status(nominal_addr, &nominal_addr_type, identity_addr, &identity_addr_type))
+    if (g_dm_gap_use_rpa && 0 == dm_gatt_get_authen_status(nominal_addr, &nominal_addr_type, identity_addr, &identity_addr_type))
     {
         adv_param.own_addr_type = (local_addr_is_public ? BLE_ADDR_TYPE_RPA_PUBLIC : BLE_ADDR_TYPE_RPA_RANDOM);
 
@@ -1361,7 +1379,7 @@ static int32_t dm_gatts_set_adv_param(uint8_t local_addr_is_public)
     }
 
 #if SET_ADVTYPE_TO_IDENTITY_WHEN_NORPA
-    else if (!g_bk_at_dm_gap_use_rpa && !local_addr_is_public && 0 == bk_at_dm_gatt_get_authen_status(nominal_addr, &nominal_addr_type, identity_addr, &identity_addr_type))
+    else if (!g_dm_gap_use_rpa && !local_addr_is_public && 0 == dm_gatt_get_authen_status(nominal_addr, &nominal_addr_type, identity_addr, &identity_addr_type))
     {
         adv_param.own_addr_type = identity_addr_type;
         gatt_logw("set adv param no rpa because pair, addr type 0x%x", adv_param.own_addr_type);
@@ -1390,7 +1408,7 @@ error:;
     return -1;
 }
 
-int32_t bk_at_dm_gatts_enable_adv(uint8_t enable)
+int32_t dm_gatts_enable_adv(uint8_t enable)
 {
     int32_t ret = 0;
 
@@ -1426,7 +1444,7 @@ int32_t bk_at_dm_gatts_enable_adv(uint8_t enable)
 
     ret = rtos_get_semaphore(&s_ble_sema, SYNC_CMD_TIMEOUT_MS);
 
-    if (ret != kNoErr)
+    if (ret != BK_OK)
     {
         gatt_loge("wait set adv enable err %d", ret);
         goto error;
@@ -1438,7 +1456,7 @@ error:;
     return -1;
 }
 
-int32_t bk_at_dm_gatts_enable_service(uint32_t index, uint8_t enable)
+int32_t dm_gatts_enable_service(uint32_t index, uint8_t enable)
 {
     int32_t ret = 0;
     uint16_t handle = 0;
@@ -1464,7 +1482,7 @@ int32_t bk_at_dm_gatts_enable_service(uint32_t index, uint8_t enable)
 
     ret = rtos_get_semaphore(&s_ble_sema, SYNC_CMD_TIMEOUT_MS);
 
-    if (ret != kNoErr)
+    if (ret != BK_OK)
     {
         gatt_loge("wait start/stop service err %d", ret);
         return -1;
@@ -1475,12 +1493,12 @@ int32_t bk_at_dm_gatts_enable_service(uint32_t index, uint8_t enable)
     return 0;
 }
 
-int32_t bk_at_dm_gatts_send_service_change_indicate(uint16_t conn_id, uint8_t all_connected)
+int32_t dm_gatts_send_service_change_indicate(uint16_t conn_id, uint8_t all_connected)
 {
     return bk_ble_gatts_send_service_change_indicate(s_gatts_if, conn_id, all_connected);
 }
 
-int32_t bk_at_dm_gatts_send_notify(uint16_t gatt_conn_id, uint16_t attr_handle, uint8_t *data, uint32_t len, uint8_t is_notify)
+int32_t dm_gatts_send_notify(uint16_t gatt_conn_id, uint16_t attr_handle, uint8_t *data, uint32_t len, uint8_t is_notify)
 {
     int32_t ret = 0;
 
@@ -1493,11 +1511,11 @@ int32_t bk_at_dm_gatts_send_notify(uint16_t gatt_conn_id, uint16_t attr_handle, 
         return -1;
     }
 
-    common_env_tmp = bk_at_dm_ble_find_app_env_by_conn_id(gatt_conn_id);
+    common_env_tmp = dm_ble_find_app_env_by_conn_id(gatt_conn_id);
 
     if (!common_env_tmp || !common_env_tmp->data)
     {
-        gatt_loge("conn_id %d not found %d %p", gatt_conn_id, common_env_tmp->data);
+        gatt_loge("conn_id %d not found %d %p", gatt_conn_id, common_env_tmp);
         ret = -1;
         goto end;
     }
@@ -1570,7 +1588,7 @@ static dm_gatts_db_reg_t *find_db_ctx_by_attr_handle(uint16_t attr_handle)
     return NULL;
 }
 
-int32_t bk_at_dm_gatts_reg_db(bk_gatts_attr_db_t *list, uint32_t count, uint16_t *attr_handle_list, dm_ble_gatts_db_cb cb, uint8_t need_create_tab)
+int32_t dm_gatts_reg_db(bk_gatts_attr_db_t *list, uint32_t count, uint16_t *attr_handle_list, dm_ble_gatts_db_cb cb, uint8_t need_create_tab)
 {
     uint32_t i = 0;
     int32_t ret = 0;
@@ -1613,7 +1631,7 @@ int32_t bk_at_dm_gatts_reg_db(bk_gatts_attr_db_t *list, uint32_t count, uint16_t
 
         ret = rtos_get_semaphore(&s_ble_sema, SYNC_CMD_TIMEOUT_MS);
 
-        if (ret != kNoErr)
+        if (ret != BK_OK)
         {
             gatt_loge("rtos_get_semaphore err %d", ret);
             return -1;
@@ -1626,7 +1644,7 @@ int32_t bk_at_dm_gatts_reg_db(bk_gatts_attr_db_t *list, uint32_t count, uint16_t
 
     ret = rtos_get_semaphore(&s_ble_sema, SYNC_CMD_TIMEOUT_MS);
 
-    if (ret != kNoErr)
+    if (ret != BK_OK)
     {
         gatt_loge("wait start/stop service err %d", ret);
         return -1;
@@ -1635,7 +1653,7 @@ int32_t bk_at_dm_gatts_reg_db(bk_gatts_attr_db_t *list, uint32_t count, uint16_t
     return 0;
 }
 
-int32_t bk_at_dm_gatts_unreg_db(bk_gatts_attr_db_t *list)
+int32_t dm_gatts_unreg_db(bk_gatts_attr_db_t *list)
 {
     uint32_t i = 0;
     int32_t ret = 0;
@@ -1654,7 +1672,7 @@ int32_t bk_at_dm_gatts_unreg_db(bk_gatts_attr_db_t *list)
 
             ret = rtos_get_semaphore(&s_ble_sema, SYNC_CMD_TIMEOUT_MS);
 
-            if (ret != kNoErr)
+            if (ret != BK_OK)
             {
                 gatt_loge("wait start/stop service err %d", ret);
             }
@@ -1667,7 +1685,7 @@ int32_t bk_at_dm_gatts_unreg_db(bk_gatts_attr_db_t *list)
     return 0;
 }
 
-int32_t bk_at_dm_gatts_get_buff_from_attr_handle(bk_gatts_attr_db_t *attr_list, uint16_t *attr_handle_list, uint32_t size, uint16_t attr_handle, uint32_t *output_index, uint8_t **output_buff, uint32_t *output_size)
+int32_t dm_gatts_get_buff_from_attr_handle(bk_gatts_attr_db_t *attr_list, uint16_t *attr_handle_list, uint32_t size, uint16_t attr_handle, uint32_t *output_index, uint8_t **output_buff, uint32_t *output_size)
 {
     uint32_t i;
 
@@ -1691,18 +1709,18 @@ int32_t bk_at_dm_gatts_get_buff_from_attr_handle(bk_gatts_attr_db_t *attr_list, 
     return 0;
 }
 
-int32_t bk_at_dm_gatts_is_init(void)
+int32_t dm_gatts_is_init(void)
 {
-    return s_bk_at_dm_gatts_is_init;
+    return s_dm_gatts_is_init;
 }
 
 
-bk_gatt_if_t bk_at_dm_gatts_get_current_if(void)
+bk_gatt_if_t dm_gatts_get_current_if(void)
 {
     return s_gatts_if;
 }
 
-int bk_at_dm_gatts_add_gatts_callback(void *param)
+int dm_gatts_add_gatts_callback(void *param)
 {
     dm_ble_gatts_app_cb cb = (typeof(cb))param;
 
@@ -1724,13 +1742,13 @@ int bk_at_dm_gatts_add_gatts_callback(void *param)
     return -1;
 }
 
-int bk_at_dm_gatts_main(cli_gatt_param_t *param)
+int dm_gatts_main(cli_gatt_param_t *param)
 {
     ble_err_t ret = 0;
 
-    if (s_bk_at_dm_gatts_is_init)
+    if (s_dm_gatts_is_init)
     {
-        //gatt_loge("already init");
+        gatt_loge("already init");
         return -1;
     }
 
@@ -1752,7 +1770,7 @@ int bk_at_dm_gatts_main(cli_gatt_param_t *param)
     }
 
     bk_ble_gatts_register_callback(dm_ble_gatts_private_cb);
-    bk_at_dm_gatts_add_gatts_callback(bk_gatts_cb);
+    dm_gatts_add_gatts_callback(bk_gatts_cb);
 
     ret = bk_ble_gatts_app_register(0);
 
@@ -1764,7 +1782,7 @@ int bk_at_dm_gatts_main(cli_gatt_param_t *param)
 
     ret = rtos_get_semaphore(&s_ble_sema, SYNC_CMD_TIMEOUT_MS);
 
-    if (ret != kNoErr)
+    if (ret != BK_OK)
     {
         gatt_loge("rtos_get_semaphore reg err %d", ret);
         return -1;
@@ -1796,7 +1814,7 @@ int bk_at_dm_gatts_main(cli_gatt_param_t *param)
 
     ret = rtos_get_semaphore(&s_ble_sema, SYNC_CMD_TIMEOUT_MS);
 
-    if (ret != kNoErr)
+    if (ret != BK_OK)
     {
         gatt_loge("rtos_get_semaphore err %d", ret);
         return -1;
@@ -1823,7 +1841,7 @@ int bk_at_dm_gatts_main(cli_gatt_param_t *param)
 
     ret = rtos_get_semaphore(&s_ble_sema, SYNC_CMD_TIMEOUT_MS);
 
-    if (ret != kNoErr)
+    if (ret != BK_OK)
     {
         gatt_loge("rtos_get_semaphore err %d", ret);
         return -1;
@@ -1868,7 +1886,7 @@ int bk_at_dm_gatts_main(cli_gatt_param_t *param)
 
     ret = rtos_get_semaphore(&s_ble_sema, SYNC_CMD_TIMEOUT_MS);
 
-    if (ret != kNoErr)
+    if (ret != BK_OK)
     {
         gatt_loge("rtos_get_semaphore err %d", ret);
         return -1;
@@ -1913,7 +1931,7 @@ int bk_at_dm_gatts_main(cli_gatt_param_t *param)
 
     ret = rtos_get_semaphore(&s_ble_sema, SYNC_CMD_TIMEOUT_MS);
 
-    if (ret != kNoErr)
+    if (ret != BK_OK)
     {
         gatt_loge("rtos_get_semaphore err %d", ret);
         return -1;
@@ -1958,7 +1976,7 @@ int bk_at_dm_gatts_main(cli_gatt_param_t *param)
 
     ret = rtos_get_semaphore(&s_ble_sema, SYNC_CMD_TIMEOUT_MS);
 
-    if (ret != kNoErr)
+    if (ret != BK_OK)
     {
         gatt_loge("rtos_get_semaphore err %d", ret);
         return -1;
@@ -2005,7 +2023,7 @@ int bk_at_dm_gatts_main(cli_gatt_param_t *param)
 
     ret = rtos_get_semaphore(&s_ble_sema, SYNC_CMD_TIMEOUT_MS);
 
-    if (ret != kNoErr)
+    if (ret != BK_OK)
     {
         gatt_loge("rtos_get_semaphore err %d", ret);
         return -1;
@@ -2044,7 +2062,7 @@ int bk_at_dm_gatts_main(cli_gatt_param_t *param)
 
         ret = rtos_get_semaphore(&s_ble_sema, SYNC_CMD_TIMEOUT_MS);
 
-        if (ret != kNoErr)
+        if (ret != BK_OK)
         {
             gatt_loge("rtos_get_semaphore err %d", ret);
             return -1;
@@ -2060,7 +2078,7 @@ int bk_at_dm_gatts_main(cli_gatt_param_t *param)
 
         ret = rtos_get_semaphore(&s_ble_sema, SYNC_CMD_TIMEOUT_MS);
 
-        if (ret != kNoErr)
+        if (ret != BK_OK)
         {
             gatt_loge("rtos_get_semaphore err %d", ret);
             return -1;
@@ -2071,7 +2089,7 @@ int bk_at_dm_gatts_main(cli_gatt_param_t *param)
 
     ret = rtos_get_semaphore(&s_ble_sema, SYNC_CMD_TIMEOUT_MS);
 
-    if (ret != kNoErr)
+    if (ret != BK_OK)
     {
         gatt_loge("rtos_get_semaphore err %d", ret);
         return -1;
@@ -2081,7 +2099,7 @@ int bk_at_dm_gatts_main(cli_gatt_param_t *param)
 
     ret = rtos_get_semaphore(&s_ble_sema, SYNC_CMD_TIMEOUT_MS);
 
-    if (ret != kNoErr)
+    if (ret != BK_OK)
     {
         gatt_loge("rtos_get_semaphore err %d", ret);
         return -1;
@@ -2094,13 +2112,13 @@ int bk_at_dm_gatts_main(cli_gatt_param_t *param)
     bk_bd_addr_t current_addr = {0}, identity_addr = {0};
     char adv_name[64] = {0};
 
-    bk_at_dm_ble_gap_get_identity_addr(identity_addr);
+    dm_ble_gap_get_identity_addr(identity_addr);
 
     os_memcpy(current_addr, identity_addr, sizeof(identity_addr));
 
-    bk_at_dm_gatt_add_gap_callback(dm_ble_gap_cb);
+    dm_gatt_add_gap_callback(dm_ble_gap_cb);
 
-    snprintf((char *)(adv_name), sizeof(adv_name) - 1, "CENTRAL-%02X%02X%02X", identity_addr[2], identity_addr[1], identity_addr[0]);
+    snprintf((char *)(adv_name), sizeof(adv_name) - 1, "SCOOTER-%02X%02X%02X", identity_addr[2], identity_addr[1], identity_addr[0]);
 
     gatt_logi("adv name %s", adv_name);
 
@@ -2115,7 +2133,7 @@ int bk_at_dm_gatts_main(cli_gatt_param_t *param)
 #if AUTO_ENABLE_ADV
     ret = dm_gatts_set_adv_param(s_dm_gatts_local_addr_is_public);
 
-    if (ret != kNoErr)
+    if (ret != BK_OK)
     {
         gatt_loge("set adv param err %d", ret);
         goto error;
@@ -2123,7 +2141,7 @@ int bk_at_dm_gatts_main(cli_gatt_param_t *param)
 
     ret = rtos_get_semaphore(&s_ble_sema, SYNC_CMD_TIMEOUT_MS);
 
-    if (ret != kNoErr)
+    if (ret != BK_OK)
     {
         gatt_loge("wait set adv param err %d", ret);
         goto error;
@@ -2132,14 +2150,14 @@ int bk_at_dm_gatts_main(cli_gatt_param_t *param)
     uint8_t need_set_random_addr = 0;
     uint8_t identity_addr_type = 0;
 
-    if (g_bk_at_dm_gap_use_rpa && bk_at_bk_at_dm_ble_gap_get_rpa(current_addr) == 0)
+    if (g_dm_gap_use_rpa && dm_ble_gap_get_rpa(current_addr) == 0)
     {
         gatt_logw("set adv random addr with generate rpa");
         need_set_random_addr = 1;
     }
 
 #if SET_ADVTYPE_TO_IDENTITY_WHEN_NORPA
-    else if (!g_bk_at_dm_gap_use_rpa && !s_dm_gatts_local_addr_is_public && 0 == bk_at_dm_gatt_get_authen_status(NULL, NULL, NULL, &identity_addr_type))
+    else if (!g_dm_gap_use_rpa && !s_dm_gatts_local_addr_is_public && 0 == dm_gatt_get_authen_status(NULL, NULL, NULL, &identity_addr_type))
     {
         if (identity_addr_type == BLE_ADDR_TYPE_RANDOM)
         {
@@ -2183,7 +2201,7 @@ int bk_at_dm_gatts_main(cli_gatt_param_t *param)
 
         ret = rtos_get_semaphore(&s_ble_sema, SYNC_CMD_TIMEOUT_MS);
 
-        if (ret != kNoErr)
+        if (ret != BK_OK)
         {
             gatt_loge("wait set adv rand addr err %d", ret);
             goto error;
@@ -2192,7 +2210,7 @@ int bk_at_dm_gatts_main(cli_gatt_param_t *param)
 
     uint8_t company_id[2] = {BEKEN_COMPANY_ID & 0xFF, BEKEN_COMPANY_ID >> 8};
 
-#if 0
+#if 1
     //use hid service
     const uint8_t hogp_service_uuid[16] =
     {
@@ -2244,7 +2262,7 @@ int bk_at_dm_gatts_main(cli_gatt_param_t *param)
 
     ret = rtos_get_semaphore(&s_ble_sema, SYNC_CMD_TIMEOUT_MS);
 
-    if (ret != kNoErr)
+    if (ret != BK_OK)
     {
         gatt_loge("wait set adv data err %d", ret);
         goto error;
@@ -2262,7 +2280,7 @@ int bk_at_dm_gatts_main(cli_gatt_param_t *param)
 
     ret = rtos_get_semaphore(&s_ble_sema, SYNC_CMD_TIMEOUT_MS);
 
-    if (ret != kNoErr)
+    if (ret != BK_OK)
     {
         gatt_loge("wait set adv data scan rsp err %d", ret);
         goto error;
@@ -2285,23 +2303,23 @@ int bk_at_dm_gatts_main(cli_gatt_param_t *param)
 
     ret = rtos_get_semaphore(&s_ble_sema, SYNC_CMD_TIMEOUT_MS);
 
-    if (ret != kNoErr)
+    if (ret != BK_OK)
     {
         gatt_loge("wait set adv enable err %d", ret);
         goto error;
     }
 
 #endif
-    s_bk_at_dm_gatts_is_init = 1;
+    s_dm_gatts_is_init = 1;
 error:
     return 0;
 }
 
-int bk_at_dm_gatts_deinit()
+int dm_gatts_deinit(void)
 {
     int32_t ret = 0;
 
-    if (!s_bk_at_dm_gatts_is_init)
+    if (!s_dm_gatts_is_init)
     {
         gatt_loge("already deinit");
         return -1;
@@ -2316,7 +2334,7 @@ int bk_at_dm_gatts_deinit()
 
     ret = rtos_get_semaphore(&s_ble_sema, SYNC_CMD_TIMEOUT_MS);
 
-    if (ret != kNoErr)
+    if (ret != BK_OK)
     {
         gatt_loge("rtos_get_semaphore unreg err %d", ret);
     }
@@ -2356,11 +2374,11 @@ int bk_at_dm_gatts_deinit()
 
 #endif
 
-    s_bk_at_dm_gatts_is_init = 0;
+    s_dm_gatts_is_init = 0;
     return 0;
 }
 
-int32_t bk_at_dm_gatts_deinit_because_bluetooth_deinit_future()
+int32_t dm_gatts_deinit_because_bluetooth_deinit_future(void)
 {
     s_db_init = 0;
 #if GATTS_TEST_ATTR_ENABLE
@@ -2371,6 +2389,7 @@ int32_t bk_at_dm_gatts_deinit_because_bluetooth_deinit_future()
     s_char2_desc_attr_handle = INVALID_ATTR_HANDLE;
     s_char_auto_rsp_attr_handle = INVALID_ATTR_HANDLE;
     s_char4_attr_handle = INVALID_ATTR_HANDLE;
+    os_memset(s_attr_handle_list2, 0, sizeof(s_attr_handle_list2));
 #endif
     return 0;
 }

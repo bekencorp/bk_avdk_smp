@@ -86,4 +86,47 @@ menu "Bk_ble"
 	config BLUETOOTH_BTDM_COMPONENT_ENABLE
 		bool "bluetooth dual component enable"
 		default n
+
+	menu "bluetooth dm BLE Modules"
+		depends on BLE && BT
+
+		config BLUETOOTH_BTDM_COMPONENT_BLE_GATT
+			bool "Enable bt_dm/ble/gatt public framework"
+			default y
+			help
+				Public GATT framework (dm_gatt / dm_gatts / dm_gattc / dm_gatt_connection
+				/ dm_gap_utils) used by AT Server and by downstream demos such as
+				dashboard wifi_boarding and bt_dm/ble/hogpd. Its include directory
+				(bt_dm/ble/gatt) is exposed to other components that PRIV_REQUIRES
+				bk_bluetooth.
+
+		config BLUETOOTH_BTDM_COMPONENT_BLE_USE_STORAGE
+			int "GATT uses bluetooth_storage to persist bond information (0=no, 1=yes)"
+			depends on BLUETOOTH_BTDM_COMPONENT_BLE_GATT
+			range 0 1
+			default 0
+
+		config BLUETOOTH_BTDM_COMPONENT_BLE_GATTS_TEST_ATTR
+			int "Enable GATTS test attribute table (0=no, 1=yes)"
+			depends on BLUETOOTH_BTDM_COMPONENT_BLE_GATT
+			range 0 1
+			default 0
+
+		config BLUETOOTH_BTDM_COMPONENT_BLE_GATT_LOG_LEVEL
+			int "GATT module log level (0=ERR..4=VERBOSE)"
+			depends on BLUETOOTH_BTDM_COMPONENT_BLE_GATT
+			range 0 4
+			default 2
+
+		config BLUETOOTH_BTDM_COMPONENT_BLE_HOGPD
+			bool "Enable bt_dm/ble/hogpd demo (HID-over-GATT keyboard)"
+			depends on BLUETOOTH_BTDM_COMPONENT_BLE_GATT
+			default n
+
+		config BLUETOOTH_BTDM_COMPONENT_BLE_HOGPD_LOG_LEVEL
+			int "HOGPD demo log level (0=ERR..4=VERBOSE)"
+			depends on BLUETOOTH_BTDM_COMPONENT_BLE_HOGPD
+			range 0 4
+			default 2
+	endmenu
 endmenu

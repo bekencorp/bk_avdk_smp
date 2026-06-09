@@ -9,7 +9,9 @@
 #include "headset_user_config.h"
 #include "media_service.h"
 #include "a2dp_sink/a2dp_sink_demo.h"
-
+#include "dm_gatt.h"
+#include "dm_gatts.h"
+#include "dm_gattc.h"
 
 #define AUTO_ENABLE_BLUETOOTH_DEMO 1
 
@@ -63,6 +65,16 @@ int main(void)
 #if CONFIG_BT
 	extern int cli_headset_demo_init(void);
 	cli_headset_demo_init();
+#endif
+
+#if CONFIG_BLE
+    //cli_gatt_param_t param = {.rpa = 0, .p_rpa = &param.rpa, .pa = 0, .p_pa = &param.pa};
+
+    //dm_gatt_main(&param);
+    //dm_gatts_main(&param);
+
+    extern int cli_ble_gatt_demo_init(void);
+    cli_ble_gatt_demo_init();
 #endif
 
 #endif

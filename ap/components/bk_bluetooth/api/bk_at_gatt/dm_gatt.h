@@ -1,90 +1,68 @@
 #pragma once
 
-#include "dm_gatt_connection.h"
-#include "components/bluetooth/bk_dm_gap_ble_types.h"
-#include <stdint.h>
-
-#define BLE_USE_STORAGE 0
-#define GATTS_TEST_ATTR_ENABLE 0
-
-#define GAP_IS_OLD_API 0
-
-#define GATT_MAX_BOND_COUNT 7
-enum
-{
-    GATT_DEBUG_LEVEL_ERROR,
-    GATT_DEBUG_LEVEL_WARNING,
-    GATT_DEBUG_LEVEL_INFO,
-    GATT_DEBUG_LEVEL_DEBUG,
-    GATT_DEBUG_LEVEL_VERBOSE,
-};
-
-#define SYNC_CMD_TIMEOUT_MS 4000
-#define GATT_DEBUG_LEVEL GATT_DEBUG_LEVEL_INFO
-
-#define gatt_loge(format, ...) do{if(GATT_DEBUG_LEVEL >= GATT_DEBUG_LEVEL_ERROR)   BK_LOGE("at_gatt", "%s:" format "\n", __func__, ##__VA_ARGS__);} while(0)
-#define gatt_logw(format, ...) do{if(GATT_DEBUG_LEVEL >= GATT_DEBUG_LEVEL_WARNING) BK_LOGW("at_gatt", "%s:" format "\n", __func__, ##__VA_ARGS__);} while(0)
-#define gatt_logi(format, ...) do{if(GATT_DEBUG_LEVEL >= GATT_DEBUG_LEVEL_INFO)    BK_LOGI("at_gatt", "%s:" format "\n", __func__, ##__VA_ARGS__);} while(0)
-#define gatt_logd(format, ...) do{if(GATT_DEBUG_LEVEL >= GATT_DEBUG_LEVEL_DEBUG)   BK_LOGI("at_gatt", "%s:" format "\n", __func__, ##__VA_ARGS__);} while(0)
-#define gatt_logv(format, ...) do{if(GATT_DEBUG_LEVEL >= GATT_DEBUG_LEVEL_VERBOSE) BK_LOGI("at_gatt", "%s:" format "\n", __func__, ##__VA_ARGS__);} while(0)
+/*
+ * Compatibility shim. The real implementation moved to
+ *   ap/components/bk_bluetooth/bt_dm/ble/gatt/dm_gatt.{c,h}
+ * Existing AT-layer code that still calls bk_at_dm_gatt* / bk_at_dm_ble_gap_*
+ * keeps working through the macros below.
+ */
+#include "../../bt_dm/ble/gatt/dm_gatt.h"
 
 
-enum
-{
-    DM_BLE_GAP_APP_CB_RET_PROCESSED,
-    DM_BLE_GAP_APP_CB_RET_NO_INTERESTING,
-};
+#if CONFIG_BT && CONFIG_BLE
 
+#define bk_at_dm_gatt_main                          dm_gatt_main
+#define bk_at_dm_gatt_deinit                        dm_gatt_deinit
+#define bk_at_dm_gatt_disable_all                   dm_gatt_disable_all
+#define bk_at_dm_gatt_add_gap_callback              dm_gatt_add_gap_callback
+#define bk_at_dm_gatt_get_authen_status             dm_gatt_get_authen_status
+#define bk_at_dm_gatt_find_id_info_by_nominal_info  dm_gatt_find_id_info_by_nominal_info
+#define bk_at_dm_gatt_passkey_reply                 dm_gatt_passkey_reply
+#define bk_at_dm_gatt_set_security_method           dm_gatt_set_security_method
+#define bk_at_dm_gatt_is_linkkey_distr_from_ltk     dm_gatt_is_linkkey_distr_from_ltk
+#define bk_at_dm_ble_gap_create_bond                dm_ble_gap_create_bond
+#define bk_at_dm_ble_gap_remove_bond                dm_ble_gap_remove_bond
+#define bk_at_dm_ble_gap_get_bonded_count           dm_ble_gap_get_bonded_count
+#define bk_at_dm_ble_gap_clean_bond                 dm_ble_gap_clean_bond
+#define bk_at_dm_ble_gap_show_bond_list             dm_ble_gap_show_bond_list
+#define bk_at_dm_ble_gap_get_bond_info_by_addr      dm_ble_gap_get_bond_info_by_addr
+#define bk_at_dm_ble_gap_bond_info_foreach          dm_ble_gap_bond_info_foreach
+#define bk_at_dm_ble_gap_clean_local_key            dm_ble_gap_clean_local_key
+#define bk_at_dm_ble_gap_update_param               dm_ble_gap_update_param
+#define bk_at_dm_ble_gap_get_rpa                    dm_ble_gap_get_rpa
+#define bk_at_dm_ble_gap_get_identity_addr          dm_ble_gap_get_identity_addr
+#define bk_at_dm_ble_gap_get_current_conn_id        dm_ble_gap_get_current_conn_id
+#define bk_at_dm_ble_gap_set_auto_accept_pair_req   dm_ble_gap_set_auto_accept_pair_req
+#define bk_at_dm_gatt_disconnect                    dm_gatt_disconnect
+#define bk_at_dm_gatt_connect_cancel                dm_gatt_connect_cancel
 
-#define INTERESTING_SERIVCE_UUID 0x1234
-#define INTERESTING_CHAR_UUID 0x5678
+#define g_bk_at_dm_gap_use_rpa                      g_dm_gap_use_rpa
 
-#define GATT_PARAM_MEMBER(type) \
-                type rpa;           \
-                type *p_rpa;        \
-                type privacy;       \
-                type *p_privacy;    \
-                type iocap;         \
-                type *p_iocap;      \
-                type auth;          \
-                type *p_auth;       \
-                type ikd;           \
-                type *p_ikd;        \
-                type rkd;           \
-                type *p_rkd;        \
-                type pa;            \
-                type *p_pa;         \
-                type lrkd;          \
-                type *p_lrkd;
+#else
 
-typedef struct
-{
-    GATT_PARAM_MEMBER(uint8_t)
-}__attribute__((packed)) cli_gatt_param_t;
+#define bk_at_dm_gatt_main(...) 0
+#define bk_at_dm_gatt_deinit(...) 0
+#define bk_at_dm_gatt_disable_all(...) 0
+#define bk_at_dm_gatt_add_gap_callback(...) 0
+#define bk_at_dm_gatt_get_authen_status(...) 0
+#define bk_at_dm_gatt_find_id_info_by_nominal_info(...) 0
+#define bk_at_dm_gatt_passkey_reply(...) 0
+#define bk_at_dm_gatt_set_security_method(...) 0
+#define bk_at_dm_gatt_is_linkkey_distr_from_ltk(...) 0
+#define bk_at_dm_ble_gap_create_bond(...) 0
+#define bk_at_dm_ble_gap_remove_bond(...) 0
+#define bk_at_dm_ble_gap_get_bonded_count(...) 0
+#define bk_at_dm_ble_gap_clean_bond(...) 0
+#define bk_at_dm_ble_gap_show_bond_list(...) 0
+#define bk_at_dm_ble_gap_get_bond_info_by_addr(...) 0
+#define bk_at_dm_ble_gap_bond_info_foreach(...) 0
+#define bk_at_dm_ble_gap_clean_local_key(...) 0
+#define bk_at_dm_ble_gap_update_param(...) 0
+#define bk_at_dm_ble_gap_get_rpa(...) 0
+#define bk_at_dm_ble_gap_get_identity_addr(...) 0
+#define bk_at_dm_ble_gap_get_current_conn_id(...) 0
+#define bk_at_dm_ble_gap_set_auto_accept_pair_req(...) 0
+#define bk_at_dm_gatt_disconnect(...) 0
+#define bk_at_dm_gatt_connect_cancel(...) 0
 
-
-int bk_at_dm_gatt_main(cli_gatt_param_t *param);
-int bk_at_dm_gatt_deinit();
-int bk_at_dm_gatt_add_gap_callback(void * cb);
-int32_t bk_at_dm_gatt_get_authen_status(uint8_t *nominal_addr, uint8_t *nominal_addr_type, uint8_t *identity_addr, uint8_t *identity_addr_type);
-int32_t bk_at_dm_gatt_find_id_info_by_nominal_info(uint8_t *nominal_addr, uint8_t nominal_addr_type, uint8_t *identity_addr, uint8_t *identity_addr_type);
-int bk_at_dm_gatt_passkey_reply(uint8_t accept, uint32_t passkey);
-int bk_at_dm_gatt_set_security_method(uint8_t iocap, uint8_t auth_req, uint8_t key_distr);
-bool bk_at_dm_gatt_is_linkkey_distr_from_ltk(void);
-int bk_at_dm_ble_gap_create_bond(uint8_t *addr);
-int bk_at_dm_ble_gap_remove_bond(uint8_t *addr);
-uint32_t bk_at_dm_ble_gap_get_bonded_count(void);
-int32_t bk_at_dm_ble_gap_clean_bond(void);
-int32_t bk_at_dm_ble_gap_show_bond_list(void);
-bk_ble_bond_dev_t* bk_at_dm_ble_gap_get_bond_info_by_addr(uint8_t *addr);
-uint8_t bk_at_dm_ble_gap_bond_info_foreach(int32_t (*func) (bk_ble_bond_dev_t *info, void *arg), void *arg);
-int32_t bk_at_dm_ble_gap_clean_local_key(void);
-int bk_at_dm_ble_gap_update_param(uint8_t *addr, uint16_t interval, uint16_t tout);
-int32_t bk_at_dm_ble_gap_get_rpa(uint8_t *rpa);
-void bk_at_dm_ble_gap_get_identity_addr(uint8_t *addr);
-int16_t bk_at_dm_ble_gap_get_current_conn_id(void);
-int bk_at_dm_ble_gap_set_auto_accept_pair_req(uint8_t accpet);
-int32_t bk_at_dm_gatt_disconnect(uint8_t *addr);
-int32_t bk_at_dm_gatt_connect_cancel(void);
-
-extern uint8_t g_bk_at_dm_gap_use_rpa;
+#endif

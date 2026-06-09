@@ -854,7 +854,7 @@ int wifi_boarding_deinit(void)
     return BK_OK;
 }
 
-void dm_ble_gap_get_identity_addr(uint8_t *addr)
+static void dm_ble_gap_get_identity_addr(uint8_t *addr)
 {
     uint8_t *identity_addr = addr;
     bk_get_mac((uint8_t *)identity_addr, MAC_TYPE_BLUETOOTH);

@@ -1,6 +1,26 @@
 set(incs)
 set(srcs)
 
+function(set_local_library_compile_option input_target)
+    set(local_compile_option )
+
+    set(TMP_WARNING_LIST)
+    list(APPEND TMP_WARNING_LIST
+                unused-but-set-variable
+                unused-variable
+                unused-function
+                unused-but-set-variable
+                unused-label
+                #uninitialized
+    )
+
+    foreach(tmp_loopvar IN LISTS TMP_WARNING_LIST)
+        list(APPEND local_compile_option -Wno-error=${tmp_loopvar} -Wno-${tmp_loopvar})
+    endforeach()
+
+    target_compile_options(${input_target} PRIVATE ${local_compile_option})
+endfunction()
+
 if (CONFIG_BLUETOOTH_AP)
     list(APPEND srcs
         api/bt_main.c
@@ -39,13 +59,13 @@ if (CONFIG_BLUETOOTH_AP)
 			if (CONFIG_BLE_AT_ENABLE)
 				list(APPEND srcs
 					"api/bk_at_ble.c"
-	            "api/bk_at_gatt/dm_gatt.c"
-                "api/bk_at_gatt/dm_gattc.c"
-                "api/bk_at_gatt/dm_gatts.c"
-                "api/bk_at_gatt/dm_gatt_connection.c"
-                "api/bk_at_gatt/dm_gap_utils.c"
-                "api/bk_at_gatt/bk_at_dm_performance_test.c"
+					"api/bk_at_gatt/bk_at_dm_performance_test.c"
 				)
+				# api/bk_at_gatt/dm_*.{c,h} have been replaced with shim headers
+				# that forward bk_at_dm_* identifiers to the public bt_dm/ble/gatt
+				# implementation. AT-layer translation units include the shim
+				# headers directly via api/bk_at_gatt path.
+				list(APPEND incs api/bk_at_gatt)
 			endif()#CONFIG_BLE_AT_ENABLE
 
 			set(components ../../components)
@@ -132,6 +152,36 @@ if (CONFIG_BLUETOOTH_AP)
 				bt_dm/avrcp
 				)
 		endif ()
+
+		# BLE public GATT framework (formerly dashboard bluetooth_dual/gatt).
+		# Built whenever BLE is enabled so that the AT layer (CONFIG_BLE_AT_ENABLE)
+		# and external components (dashboard wifi_boarding) can link the public
+		# dm_* symbols regardless of CONFIG_BLUETOOTH_BTDM_COMPONENT_ENABLE.
+		if (CONFIG_BLE AND CONFIG_BLUETOOTH_BTDM_COMPONENT_BLE_GATT)
+			list(APPEND srcs
+				bt_dm/ble/gatt/dm_gatt.c
+				bt_dm/ble/gatt/dm_gatts.c
+				bt_dm/ble/gatt/dm_gattc.c
+				bt_dm/ble/gatt/dm_gatt_connection.c
+				bt_dm/ble/gatt/dm_gap_utils.c
+				)
+			if (CONFIG_CLI)
+				list(APPEND srcs bt_dm/ble/gatt/dm_gatt_cli.c)
+			endif()
+			# Public include: downstream components that PRIV_REQUIRES bk_bluetooth
+			# (e.g. dashboard bluetooth_dual/wifi_boarding) can directly
+			# #include "dm_gatts.h" / "dm_gatt.h" etc.
+			list(APPEND incs bt_dm/ble/gatt)
+		endif()
+
+		# HID-over-GATT keyboard demo, built on top of the public gatt framework.
+		if (CONFIG_BLE AND CONFIG_BLUETOOTH_BTDM_COMPONENT_BLE_HOGPD)
+			list(APPEND srcs bt_dm/ble/hogpd/hogpd_demo.c)
+			if (CONFIG_CLI)
+				list(APPEND srcs bt_dm/ble/hogpd/hogpd_demo_cli.c)
+			endif()
+			list(APPEND incs bt_dm/ble/hogpd)
+		endif()
 	endif()
 endif()
 
@@ -145,6 +195,10 @@ armino_component_register(SRCS "${srcs}"
 	INCLUDE_DIRS "${incs}"
 	PRIV_REQUIRES psa_mbedtls
 	)
+
+get_filename_component(config_component_name ${CMAKE_CURRENT_LIST_DIR} NAME)
+armino_component_get_target(target "${config_component_name}")
+set_local_library_compile_option(${target})
 
 if (CONFIG_BLUETOOTH_AP)
     #host: <libbluetooth_host_ble|libbluetooth_host_dm_(bt|ble|dual)>[_nspe].a

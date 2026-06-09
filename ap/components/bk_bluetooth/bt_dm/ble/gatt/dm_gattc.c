@@ -39,9 +39,9 @@
 #define INVALID_ATTR_HANDLE 0
 #define MIN_VALUE(x, y) (((x) < (y)) ? (x): (y))
 
-#define AUTO_GATTC_TEST 0
-#define AUTO_DISCOVER 0
-#define AUTO_MTU_REQ 0
+#define AUTO_GATTC_TEST 1
+#define AUTO_DISCOVER 1
+#define AUTO_MTU_REQ 1
 
 #if AUTO_GATTC_TEST
     #define AUTO_ENABLE_NOTIFY 1
@@ -79,7 +79,7 @@ static bk_gatt_if_t s_gattc_if;
 static beken_semaphore_t s_ble_sema = NULL;
 static beken_semaphore_t s_ble_connect_sem = NULL;
 static uint8_t s_dm_gattc_is_init;
-static uint8_t s_dm_gattc_local_addr_is_public = 1;
+static uint8_t s_dm_gattc_local_addr_is_public = 0;
 static uint8_t s_is_connect_pending;
 static dm_ble_gattc_app_cb s_gattc_cb_list[2];
 
@@ -95,7 +95,6 @@ static int32_t dm_ble_gattc_private_cb(bk_gattc_cb_event_t event, bk_gatt_if_t g
         }
     }
 
-    (void)ret;
     return 0;
 }
 
@@ -196,10 +195,6 @@ static int32_t bk_gattc_cb (bk_gattc_cb_event_t event, bk_gatt_if_t gattc_if, bk
     dm_gatt_app_env_t *common_env_tmp = NULL;
 
     const uint16_t client_config_noti_enable = 1, client_config_indic_enable = 2, client_config_all_disable = 0;
-    (void)auth_req;
-    (void)client_config_noti_enable;
-    (void)client_config_indic_enable;
-    (void)client_config_all_disable;
 
     switch (event)
     {
@@ -236,18 +231,17 @@ static int32_t bk_gattc_cb (bk_gattc_cb_event_t event, bk_gatt_if_t gattc_if, bk
 
         gatt_logi("BK_GATTC_DIS_SRVC_CMPL_EVT %d %d", param->status, param->conn_id);
 
-        common_env_tmp = bk_at_dm_ble_find_app_env_by_conn_id(param->conn_id);
+        common_env_tmp = dm_ble_find_app_env_by_conn_id(param->conn_id);
 
         if (!common_env_tmp || !common_env_tmp->data)
         {
-            gatt_loge("conn_id %d not found %d %p", param->conn_id, common_env_tmp->data);
+            gatt_loge("conn_id %d not found %d %p", param->conn_id, common_env_tmp);
             break;
         }
 
         app_env_tmp = (typeof(app_env_tmp))common_env_tmp->data;
-
+        app_env_tmp->discover_status = GATTC_DISCOVER_STATUS_COMPLETED;
         gatt_logi("job_status %d", app_env_tmp->job_status);
-        (void)uuid;
 #if AUTO_GATTC_TEST
 
         if (app_env_tmp->job_status == GATTC_STATUS_IDLE)
@@ -303,11 +297,11 @@ static int32_t bk_gattc_cb (bk_gattc_cb_event_t event, bk_gatt_if_t gattc_if, bk
 
             gatt_logi("0x%04x uuid len %d %d~%d", short_uuid, param->array[i].srvc_id.uuid.len, param->array[i].start_handle, param->array[i].end_handle);
 
-            common_env_tmp = bk_at_dm_ble_find_app_env_by_conn_id(param->conn_id);
+            common_env_tmp = dm_ble_find_app_env_by_conn_id(param->conn_id);
 
             if (!common_env_tmp || !common_env_tmp->data)
             {
-                gatt_loge("conn_id %d not found %d %p", param->conn_id, common_env_tmp->data);
+                gatt_loge("conn_id %d not found %d %p", param->conn_id, common_env_tmp);
                 break;
             }
 
@@ -363,11 +357,11 @@ static int32_t bk_gattc_cb (bk_gattc_cb_event_t event, bk_gatt_if_t gattc_if, bk
 
             gatt_logi("0x%04x uuid len %d %d~%d char_value_handle %d", short_uuid, param->array[i].uuid.uuid.len, param->array[i].start_handle, param->array[i].end_handle, param->array[i].char_value_handle);
 
-            common_env_tmp = bk_at_dm_ble_find_app_env_by_conn_id(param->conn_id);
+            common_env_tmp = dm_ble_find_app_env_by_conn_id(param->conn_id);
 
             if (!common_env_tmp || !common_env_tmp->data)
             {
-                gatt_loge("conn_id %d not found %d %p", param->conn_id, common_env_tmp->data);
+                gatt_loge("conn_id %d not found %d %p", param->conn_id, common_env_tmp);
                 break;
             }
 
@@ -439,11 +433,11 @@ static int32_t bk_gattc_cb (bk_gattc_cb_event_t event, bk_gatt_if_t gattc_if, bk
 
             gatt_logi("0x%04x uuid len %d char_handle %d desc_handle %d", short_uuid, param->array[i].uuid.uuid.len, param->array[i].char_handle, param->array[i].desc_handle);
 
-            common_env_tmp = bk_at_dm_ble_find_app_env_by_conn_id(param->conn_id);
+            common_env_tmp = dm_ble_find_app_env_by_conn_id(param->conn_id);
 
             if (!common_env_tmp || !common_env_tmp->data)
             {
-                gatt_loge("conn_id %d not found %d %p", param->conn_id, common_env_tmp->data);
+                gatt_loge("conn_id %d not found %d %p", param->conn_id, common_env_tmp);
                 break;
             }
 
@@ -468,11 +462,11 @@ static int32_t bk_gattc_cb (bk_gattc_cb_event_t event, bk_gatt_if_t gattc_if, bk
 
         gatt_logi("BK_GATTC_READ_CHAR_EVT 0x%x %d %d", param->status, param->handle, param->value_len);
 
-        common_env_tmp = bk_at_dm_ble_find_app_env_by_conn_id(param->conn_id);
+        common_env_tmp = dm_ble_find_app_env_by_conn_id(param->conn_id);
 
         if (!common_env_tmp || !common_env_tmp->data)
         {
-            gatt_loge("conn_id %d not found %d %p", param->conn_id, common_env_tmp->data);
+            gatt_loge("conn_id %d not found %d %p", param->conn_id, common_env_tmp);
             break;
         }
 
@@ -524,11 +518,11 @@ static int32_t bk_gattc_cb (bk_gattc_cb_event_t event, bk_gatt_if_t gattc_if, bk
 
         gatt_logi("BK_GATTC_READ_DESCR_EVT %x %d %d", param->status, param->handle, param->value_len);
 
-        common_env_tmp = bk_at_dm_ble_find_app_env_by_conn_id(param->conn_id);
+        common_env_tmp = dm_ble_find_app_env_by_conn_id(param->conn_id);
 
         if (!common_env_tmp || !common_env_tmp->data)
         {
-            gatt_loge("conn_id %d not found %d %p", param->conn_id, common_env_tmp->data);
+            gatt_loge("conn_id %d not found %d %p", param->conn_id, common_env_tmp);
             break;
         }
 
@@ -590,11 +584,11 @@ static int32_t bk_gattc_cb (bk_gattc_cb_event_t event, bk_gatt_if_t gattc_if, bk
 
         gatt_logi("BK_GATTC_READ_BY_TYPE_EVT %d %d %d", param->status, param->conn_id, param->elem_count);
 
-        common_env_tmp = bk_at_dm_ble_find_app_env_by_conn_id(param->conn_id);
+        common_env_tmp = dm_ble_find_app_env_by_conn_id(param->conn_id);
 
         if (!common_env_tmp || !common_env_tmp->data)
         {
-            gatt_loge("conn_id %d not found %d %p", param->conn_id, common_env_tmp->data);
+            gatt_loge("conn_id %d not found %d %p", param->conn_id, common_env_tmp);
             break;
         }
 
@@ -623,11 +617,11 @@ static int32_t bk_gattc_cb (bk_gattc_cb_event_t event, bk_gatt_if_t gattc_if, bk
 
         gatt_logi("BK_GATTC_READ_MULTIPLE_EVT %x %d %d", param->status, param->handle, param->value_len);
 
-        common_env_tmp = bk_at_dm_ble_find_app_env_by_conn_id(param->conn_id);
+        common_env_tmp = dm_ble_find_app_env_by_conn_id(param->conn_id);
 
         if (!common_env_tmp || !common_env_tmp->data)
         {
-            gatt_loge("conn_id %d not found %d %p", param->conn_id, common_env_tmp->data);
+            gatt_loge("conn_id %d not found %d %p", param->conn_id, common_env_tmp);
             break;
         }
 
@@ -662,11 +656,11 @@ static int32_t bk_gattc_cb (bk_gattc_cb_event_t event, bk_gatt_if_t gattc_if, bk
             gatt_logw("status insufficient authentication, need bond !!!");
         }
 
-        common_env_tmp = bk_at_dm_ble_find_app_env_by_conn_id(param->conn_id);
+        common_env_tmp = dm_ble_find_app_env_by_conn_id(param->conn_id);
 
         if (!common_env_tmp || !common_env_tmp->data)
         {
-            gatt_loge("conn_id %d not found %d %p", param->conn_id, common_env_tmp->data);
+            gatt_loge("conn_id %d not found %d %p", param->conn_id, common_env_tmp);
             break;
         }
 
@@ -692,11 +686,11 @@ static int32_t bk_gattc_cb (bk_gattc_cb_event_t event, bk_gatt_if_t gattc_if, bk
             gatt_logw("status insufficient authentication, need bond !!!");
         }
 
-        common_env_tmp = bk_at_dm_ble_find_app_env_by_conn_id(param->conn_id);
+        common_env_tmp = dm_ble_find_app_env_by_conn_id(param->conn_id);
 
         if (!common_env_tmp || !common_env_tmp->data)
         {
-            gatt_loge("conn_id %d not found %d %p", param->conn_id, common_env_tmp->data);
+            gatt_loge("conn_id %d not found %d %p", param->conn_id, common_env_tmp);
             break;
         }
 
@@ -744,11 +738,11 @@ static int32_t bk_gattc_cb (bk_gattc_cb_event_t event, bk_gatt_if_t gattc_if, bk
 
         gatt_logi("BK_GATTC_PREP_WRITE_EVT %d %d %d %d", param->status, param->conn_id, param->handle, param->offset);
 
-        common_env_tmp = bk_at_dm_ble_find_app_env_by_conn_id(param->conn_id);
+        common_env_tmp = dm_ble_find_app_env_by_conn_id(param->conn_id);
 
         if (!common_env_tmp || !common_env_tmp->data)
         {
-            gatt_loge("conn_id %d not found %d %p", param->conn_id, common_env_tmp->data);
+            gatt_loge("conn_id %d not found %d %p", param->conn_id, common_env_tmp);
             break;
         }
 
@@ -795,11 +789,11 @@ static int32_t bk_gattc_cb (bk_gattc_cb_event_t event, bk_gatt_if_t gattc_if, bk
 
         gatt_logi("BK_GATTC_EXEC_EVT %d %d", param->status, param->conn_id);
 
-        common_env_tmp = bk_at_dm_ble_find_app_env_by_conn_id(param->conn_id);
+        common_env_tmp = dm_ble_find_app_env_by_conn_id(param->conn_id);
 
         if (!common_env_tmp || !common_env_tmp->data)
         {
-            gatt_loge("conn_id %d not found %d %p", param->conn_id, common_env_tmp->data);
+            gatt_loge("conn_id %d not found %d %p", param->conn_id, common_env_tmp);
             break;
         }
 
@@ -843,7 +837,7 @@ static int32_t bk_gattc_cb (bk_gattc_cb_event_t event, bk_gatt_if_t gattc_if, bk
     {
         struct gattc_notify_evt_param *param = (typeof(param))comm_param;
 
-        gatt_logv("BK_GATTC_NOTIFY_EVT %d %d handle %d vallen %d %02X:%02X:%02X:%02X:%02X:%02X", param->conn_id,
+        gatt_logi("BK_GATTC_NOTIFY_EVT %d %d handle %d vallen %d %02X:%02X:%02X:%02X:%02X:%02X", param->conn_id,
                   param->is_notify,
                   param->handle,
                   param->value_len,
@@ -854,11 +848,11 @@ static int32_t bk_gattc_cb (bk_gattc_cb_event_t event, bk_gatt_if_t gattc_if, bk
                   param->remote_bda[1],
                   param->remote_bda[0]);
 
-        common_env_tmp = bk_at_dm_ble_find_app_env_by_conn_id(param->conn_id);
+        common_env_tmp = dm_ble_find_app_env_by_conn_id(param->conn_id);
 
         if (!common_env_tmp || !common_env_tmp->data)
         {
-            gatt_loge("conn_id %d not found %d %p", param->conn_id, common_env_tmp->data);
+            gatt_loge("conn_id %d not found %d %p", param->conn_id, common_env_tmp);
             break;
         }
 
@@ -896,11 +890,12 @@ static int32_t bk_gattc_cb (bk_gattc_cb_event_t event, bk_gatt_if_t gattc_if, bk
 
         gatt_logi("BK_GATTC_CFG_MTU_EVT status 0x%x %d %d", param->status, param->conn_id, param->mtu);
 
-        common_env_tmp = bk_at_dm_ble_find_app_env_by_conn_id(param->conn_id);
+        common_env_tmp = dm_ble_find_app_env_by_conn_id(param->conn_id);
 
         if (!common_env_tmp || !common_env_tmp->data)
         {
-            gatt_loge("conn_id %d not found %d %p", param->conn_id, common_env_tmp->data);
+            gatt_loge("conn_id %d not found %d %p", param->conn_id, common_env_tmp);
+            break;
         }
         else
         {
@@ -917,15 +912,26 @@ static int32_t bk_gattc_cb (bk_gattc_cb_event_t event, bk_gatt_if_t gattc_if, bk
 
             if (common_env_tmp->client_sem)
             {
+                app_env_tmp->write_read_status = param->status;
                 rtos_set_semaphore(&common_env_tmp->client_sem);
             }
         }
 
+        app_env_tmp->mtu_req_status = GATTC_MTU_REQ_STATUS_COMPLETED;
+
 #if AUTO_DISCOVER
 
-        if (0 != bk_ble_gattc_discover(s_gattc_if, param->conn_id, auth_req))
+        if (app_env_tmp->discover_status != GATTC_DISCOVER_STATUS_IDLE)
+        {
+            gatt_logw("already discover %d", app_env_tmp->discover_status);
+        }
+        else if (0 != bk_ble_gattc_discover(s_gattc_if, param->conn_id, auth_req))
         {
             gatt_loge("bk_ble_gattc_discover err");
+        }
+        else
+        {
+            app_env_tmp->discover_status = GATTC_DISCOVER_STATUS_ING;
         }
 
 #endif
@@ -950,12 +956,12 @@ static int32_t bk_gattc_cb (bk_gattc_cb_event_t event, bk_gatt_if_t gattc_if, bk
                   (!ret ? hci_handle : 0xffff)
                  );
 
-        common_env_tmp = bk_at_dm_ble_find_app_env_by_addr(param->remote_bda);
+        common_env_tmp = dm_ble_find_app_env_by_addr(param->remote_bda);
 
         if (!common_env_tmp)
         {
             gatt_logw("not found addr, alloc it !!!!");
-            common_env_tmp = bk_at_dm_ble_alloc_app_env_by_addr(param->remote_bda, sizeof(dm_gattc_app_env_t));
+            common_env_tmp = dm_ble_alloc_app_env_by_addr(param->remote_bda, sizeof(dm_gattc_app_env_t));
 
             if (!common_env_tmp || !common_env_tmp->data)
             {
@@ -982,25 +988,75 @@ static int32_t bk_gattc_cb (bk_gattc_cb_event_t event, bk_gatt_if_t gattc_if, bk
 
         gatt_logi("local is master %d", common_env_tmp->local_is_master);
 
-        if (common_env_tmp->local_is_master)
-        {
+        app_env_tmp = (typeof(app_env_tmp))common_env_tmp->data;
+
 #if AUTO_MTU_REQ
 
+        if (
+            app_env_tmp->mtu_req_status == GATTC_MTU_REQ_STATUS_IDLE
+            //&& common_env_tmp->local_is_master
+        )
+        {
             // only do mtu req when local is master
             if (0 != bk_ble_gattc_send_mtu_req(s_gattc_if, common_env_tmp->conn_id))
             {
                 gatt_loge("bk_ble_gattc_send_mtu_req err");
             }
+            else
+            {
+                app_env_tmp->mtu_req_status == GATTC_MTU_REQ_STATUS_ING;
+#if 0
+
+                //for some phone mtu req not rsp
+
+                if (rtos_is_timer_init(&app_env_tmp->mtu_req_timer))
+                {
+                    if (rtos_is_timer_running(&app_env_tmp->mtu_req_timer))
+                    {
+                        rtos_stop_timer(&app_env_tmp->mtu_req_timer);
+                    }
+
+                    rtos_deinit_timer(&app_env_tmp->mtu_req_timer);
+                }
+
+                if (!rtos_is_timer_init(&app_env_tmp->mtu_req_timer))
+                {
+                    ret = rtos_init_timer(&app_env_tmp->mtu_req_timer, 200, (timer_2handler_t)mtu_check_timer_hdl, common_env_tmp);
+
+                    if (ret)
+                    {
+                        gatt_loge("init mtu timer err %d", ret);
+                    }
+                    else
+                    {
+                        ret = rtos_start_timer(&app_env_tmp->mtu_req_timer);
+
+                        if (ret)
+                        {
+                            gatt_loge("start mtu timer err", ret);
+                        }
+                    }
+                }
 
 #endif
+            }
         }
         else
+#endif
         {
 #if AUTO_DISCOVER
 
-            if (0 != bk_ble_gattc_discover(s_gattc_if, param->conn_id, auth_req))
+            if (app_env_tmp->discover_status != GATTC_DISCOVER_STATUS_IDLE)
+            {
+                gatt_logw("already discover %d", app_env_tmp->discover_status);
+            }
+            else if (0 != bk_ble_gattc_discover(s_gattc_if, param->conn_id, auth_req))
             {
                 gatt_loge("bk_ble_gattc_discover err");
+            }
+            else
+            {
+                app_env_tmp->discover_status = GATTC_DISCOVER_STATUS_ING;
             }
 
 #endif
@@ -1027,7 +1083,7 @@ static int32_t bk_gattc_cb (bk_gattc_cb_event_t event, bk_gatt_if_t gattc_if, bk
                   param->conn_id
                  );
 
-        common_env_tmp = bk_at_dm_ble_find_app_env_by_addr(param->remote_bda);
+        common_env_tmp = dm_ble_find_app_env_by_addr(param->remote_bda);
 
         if (!common_env_tmp || !common_env_tmp->data)
         {
@@ -1043,7 +1099,7 @@ static int32_t bk_gattc_cb (bk_gattc_cb_event_t event, bk_gatt_if_t gattc_if, bk
             app_env_tmp->read_buff = NULL;
         }
 
-        bk_at_dm_ble_del_app_env_by_addr(param->remote_bda);
+        //dm_ble_del_app_env_by_addr(param->remote_bda);
 
         if (s_ble_connect_sem)
         {
@@ -1059,7 +1115,7 @@ static int32_t bk_gattc_cb (bk_gattc_cb_event_t event, bk_gatt_if_t gattc_if, bk
     return ret;
 }
 
-int32_t bk_at_dm_gattc_connect_ext(uint8_t *addr, uint32_t addr_type, bk_gap_create_conn_params_t *pm)
+int32_t dm_gattc_connect(uint8_t *addr, uint32_t addr_type, uint32_t s_timeout)
 {
     dm_gatt_app_env_t *common_env_tmp = NULL;
     int32_t err = 0;
@@ -1086,7 +1142,7 @@ int32_t bk_at_dm_gattc_connect_ext(uint8_t *addr, uint32_t addr_type, bk_gap_cre
         return -1;
     }
 
-    common_env_tmp = bk_at_dm_ble_alloc_app_env_by_addr(addr, sizeof(dm_gattc_app_env_t));
+    common_env_tmp = dm_ble_alloc_app_env_by_addr(addr, sizeof(dm_gattc_app_env_t));
 
     if (!common_env_tmp || !common_env_tmp->data)
     {
@@ -1104,49 +1160,42 @@ int32_t bk_at_dm_gattc_connect_ext(uint8_t *addr, uint32_t addr_type, bk_gap_cre
     bk_bd_addr_t peer_id_addr = {0};
     bk_ble_addr_type_t peer_id_addr_type = BLE_ADDR_TYPE_PUBLIC;
 
-    if (pm)
+    param.scan_interval = 800;
+    param.scan_window = param.scan_interval / 2;
+    param.initiator_filter_policy = 0;
+
+    /* attention: some device could only send rpa adv after pair, some device is opposite.
+     * so we need to decide if rpa should be used in connection.
+     */
+
+    if (g_dm_gap_use_rpa && 0 == dm_gatt_find_id_info_by_nominal_info(addr, addr_type, peer_id_addr, &peer_id_addr_type))
     {
-        os_memcpy(&param, pm, sizeof(param));
+        gatt_logi("local use rpa");
+        param.local_addr_type = (s_dm_gattc_local_addr_is_public ? BLE_ADDR_TYPE_RPA_PUBLIC : BLE_ADDR_TYPE_RPA_RANDOM);
+        os_memcpy(param.peer_addr, addr, sizeof(param.peer_addr));
+        param.peer_addr_type = addr_type;
+    }
+    else if (!dm_gatt_find_id_info_by_nominal_info(addr, addr_type, peer_id_addr, &peer_id_addr_type))
+    {
+        gatt_logi("peer use rpa, so we need use rpa to connect");
+        param.local_addr_type = (s_dm_gattc_local_addr_is_public ? BLE_ADDR_TYPE_RPA_PUBLIC : BLE_ADDR_TYPE_RPA_RANDOM);
+        os_memcpy(param.peer_addr, addr, sizeof(param.peer_addr));
+        param.peer_addr_type = addr_type;
     }
     else
     {
-        param.scan_interval = 800;
-        param.scan_window = param.scan_interval / 2;
-        param.initiator_filter_policy = 0;
-
-        /* attention: some device could only send rpa adv after pair, some device is opposite.
-         * so we need to decide if rpa should be used in connection.
-         */
-
-        if (g_bk_at_dm_gap_use_rpa && 0 == bk_at_dm_gatt_find_id_info_by_nominal_info(addr, addr_type, peer_id_addr, &peer_id_addr_type))
-        {
-            gatt_logi("local use rpa");
-            param.local_addr_type = (s_dm_gattc_local_addr_is_public ? BLE_ADDR_TYPE_RPA_PUBLIC : BLE_ADDR_TYPE_RPA_RANDOM);
-            os_memcpy(param.peer_addr, addr, sizeof(param.peer_addr));
-            param.peer_addr_type = addr_type;
-        }
-        else if (!bk_at_dm_gatt_find_id_info_by_nominal_info(addr, addr_type, peer_id_addr, &peer_id_addr_type))
-        {
-            gatt_logi("peer use rpa, so we need use rpa to connect");
-            param.local_addr_type = (s_dm_gattc_local_addr_is_public ? BLE_ADDR_TYPE_RPA_PUBLIC : BLE_ADDR_TYPE_RPA_RANDOM);
-            os_memcpy(param.peer_addr, addr, sizeof(param.peer_addr));
-            param.peer_addr_type = addr_type;
-        }
-        else
-        {
-            gatt_logi("don't use rpa");
-            param.local_addr_type = (s_dm_gattc_local_addr_is_public ? BLE_ADDR_TYPE_PUBLIC : BLE_ADDR_TYPE_RANDOM);
-            os_memcpy(param.peer_addr, addr, sizeof(param.peer_addr));
-            param.peer_addr_type = addr_type;
-        }
-
-        param.conn_interval_min = 0x20;
-        param.conn_interval_max = 0x20;
-        param.conn_latency = 0;
-        param.supervision_timeout = 500;
-        param.min_ce = 0;
-        param.max_ce = 0;
+        gatt_logi("don't use rpa");
+        param.local_addr_type = (s_dm_gattc_local_addr_is_public ? BLE_ADDR_TYPE_PUBLIC : BLE_ADDR_TYPE_RANDOM);
+        os_memcpy(param.peer_addr, addr, sizeof(param.peer_addr));
+        param.peer_addr_type = addr_type;
     }
+
+    param.conn_interval_min = 0x20;
+    param.conn_interval_max = 0x20;
+    param.conn_latency = 0;
+    param.supervision_timeout = s_timeout;
+    param.min_ce = 0;
+    param.max_ce = 0;
 
     err = bk_ble_gap_connect(&param);
 
@@ -1164,12 +1213,71 @@ int32_t bk_at_dm_gattc_connect_ext(uint8_t *addr, uint32_t addr_type, bk_gap_cre
     return err;
 }
 
-int32_t bk_at_dm_gattc_connect(uint8_t *addr, uint32_t addr_type)
+int32_t dm_gattc_connect_ext(uint8_t *addr, uint32_t addr_type, bk_gap_create_conn_params_t *pm)
 {
-    return bk_at_dm_gattc_connect_ext(addr, addr_type, NULL);
+    dm_gatt_app_env_t *common_env_tmp = NULL;
+    int32_t err = 0;
+
+    gatt_logi("0x%02x:%02x:%02x:%02x:%02x:%02x %d",
+              addr[5],
+              addr[4],
+              addr[3],
+              addr[2],
+              addr[1],
+              addr[0],
+              addr_type);
+
+    if (!pm)
+    {
+        return dm_gattc_connect(addr, addr_type, 500);
+    }
+
+    if (!s_gattc_if)
+    {
+        gatt_loge("gattc not init");
+        return -1;
+    }
+
+    if (s_is_connect_pending)
+    {
+        gatt_loge("connect pending !!!");
+        return -1;
+    }
+
+    common_env_tmp = dm_ble_alloc_app_env_by_addr(addr, sizeof(dm_gattc_app_env_t));
+
+    if (!common_env_tmp || !common_env_tmp->data)
+    {
+        gatt_loge("conn max %p %p !!!!", common_env_tmp, common_env_tmp ? common_env_tmp->data : NULL);
+        return -1;
+    }
+
+    if (common_env_tmp->status != GAP_CONNECT_STATUS_IDLE)
+    {
+        gatt_loge("connect status is not idle %d", common_env_tmp->status);
+        return -1;
+    }
+
+    bk_gap_create_conn_params_t param;
+    os_memcpy(&param, pm, sizeof(param));
+
+    err = bk_ble_gap_connect(&param);
+
+    if (err)
+    {
+        gatt_loge("connect fail %d", err);
+    }
+    else
+    {
+        os_memcpy(common_env_tmp->addr, addr, sizeof(common_env_tmp->addr));
+        common_env_tmp->status = GAP_CONNECT_STATUS_CONNECTING;
+        s_is_connect_pending = 1;
+    }
+
+    return err;
 }
 
-int32_t bk_at_dm_gattc_disconnect(uint8_t *addr)
+int32_t dm_gattc_disconnect(uint8_t *addr)
 {
     dm_gatt_app_env_t *common_env_tmp = NULL;
     int32_t err = 0;
@@ -1189,7 +1297,7 @@ int32_t bk_at_dm_gattc_disconnect(uint8_t *addr)
         return -1;
     }
 
-    common_env_tmp = bk_at_dm_ble_find_app_env_by_addr(addr);
+    common_env_tmp = dm_ble_find_app_env_by_addr(addr);
 
     if (!common_env_tmp || !common_env_tmp->data)
     {
@@ -1253,7 +1361,7 @@ end:;
     return err;
 }
 
-int32_t bk_at_dm_gattc_connect_cancel(void)
+int32_t dm_gattc_connect_cancel(void)
 {
     int32_t err = 0;
 
@@ -1312,7 +1420,7 @@ end:;
     return err;
 }
 
-int32_t bk_at_dm_gattc_discover(uint16_t conn_id)
+int32_t dm_gattc_discover(uint16_t conn_id)
 {
     if (!s_gattc_if)
     {
@@ -1330,7 +1438,7 @@ int32_t bk_at_dm_gattc_discover(uint16_t conn_id)
 }
 
 //ble_gatt_demo gattc write 5 18 111111111111111111111
-int32_t bk_at_dm_gattc_write(uint16_t conn_id, uint16_t attr_handle, uint8_t *data, uint32_t len)
+int32_t dm_gattc_write(uint16_t conn_id, uint16_t attr_handle, uint8_t *data, uint32_t len)
 {
     if (!s_gattc_if)
     {
@@ -1347,7 +1455,7 @@ int32_t bk_at_dm_gattc_write(uint16_t conn_id, uint16_t attr_handle, uint8_t *da
     return 0;
 }
 
-int32_t bk_at_dm_gattc_write_ext(uint16_t gatt_conn_id, uint16_t attr_handle, uint8_t *data, uint32_t len, uint8_t write_req)
+int32_t dm_gattc_write_ext(uint16_t gatt_conn_id, uint16_t attr_handle, uint8_t *data, uint32_t len, uint8_t write_req)
 {
     int32_t ret = 0;
     dm_gattc_app_env_t *app_env_tmp = NULL;
@@ -1360,7 +1468,7 @@ int32_t bk_at_dm_gattc_write_ext(uint16_t gatt_conn_id, uint16_t attr_handle, ui
         return -1;
     }
 
-    common_env_tmp = bk_at_dm_ble_find_app_env_by_conn_id(gatt_conn_id);
+    common_env_tmp = dm_ble_find_app_env_by_conn_id(gatt_conn_id);
 
     if (!common_env_tmp || !common_env_tmp->data)
     {
@@ -1419,7 +1527,7 @@ end:;
     return ret;
 }
 
-int32_t bk_at_dm_gattc_read(uint16_t gatt_conn_id, uint16_t attr_handle, uint8_t *data, uint32_t len)
+int32_t dm_gattc_read(uint16_t gatt_conn_id, uint16_t attr_handle, uint8_t *data, uint32_t len)
 {
     int32_t ret = 0;
     dm_gattc_app_env_t *app_env_tmp = NULL;
@@ -1432,7 +1540,7 @@ int32_t bk_at_dm_gattc_read(uint16_t gatt_conn_id, uint16_t attr_handle, uint8_t
         return -1;
     }
 
-    common_env_tmp = bk_at_dm_ble_find_app_env_by_conn_id(gatt_conn_id);
+    common_env_tmp = dm_ble_find_app_env_by_conn_id(gatt_conn_id);
 
     if (!common_env_tmp || !common_env_tmp->data)
     {
@@ -1512,7 +1620,7 @@ end:;
     return ret;
 }
 
-int32_t bk_at_dm_gattc_send_mtu_req(uint8_t *mac, uint8_t gatt_conn_id)
+int32_t dm_gattc_send_mtu_req(uint8_t *mac, uint8_t gatt_conn_id)
 {
     int32_t ret = 0;
     dm_gattc_app_env_t *app_env_tmp = NULL;
@@ -1527,11 +1635,11 @@ int32_t bk_at_dm_gattc_send_mtu_req(uint8_t *mac, uint8_t gatt_conn_id)
 
     if (mac)
     {
-        common_env_tmp = bk_at_dm_ble_find_app_env_by_addr(mac);
+        common_env_tmp = dm_ble_find_app_env_by_addr(mac);
     }
     else
     {
-        common_env_tmp = bk_at_dm_ble_find_app_env_by_conn_id(gatt_conn_id);
+        common_env_tmp = dm_ble_find_app_env_by_conn_id(gatt_conn_id);
     }
 
     if (!common_env_tmp || !common_env_tmp->data)
@@ -1590,7 +1698,7 @@ end:;
     return ret;
 }
 
-int bk_at_dm_gattc_add_gattc_callback(void *param)
+int dm_gattc_add_gattc_callback(void *param)
 {
     dm_ble_gattc_app_cb cb = (typeof(cb))param;
 
@@ -1612,15 +1720,59 @@ int bk_at_dm_gattc_add_gattc_callback(void *param)
     return -1;
 }
 
-int bk_at_dm_gattc_main(cli_gatt_param_t *param)
+int32_t dm_gattc_notify_mtu_status_from_gatts(dm_gatt_app_env_t *env)
 {
-    ble_err_t ret = 0;
+#if AUTO_DISCOVER
+    dm_gattc_app_env_t *app_env_tmp = NULL;
+    dm_gatt_app_env_t *common_env_tmp = (typeof(common_env_tmp))env;
 
-    if (s_dm_gattc_is_init)
+    gatt_logi("");
+
+    if (!common_env_tmp)
     {
-        //gatt_loge("already init");
+        gatt_loge("common_env_tmp NULL !!!");
         return -1;
     }
+
+    if (common_env_tmp->status != GAP_CONNECT_STATUS_CONNECTED)
+    {
+        gatt_loge("connect status not match %d !!!", common_env_tmp->status);
+        return -1;
+    }
+
+    app_env_tmp = (typeof(app_env_tmp))common_env_tmp->data;
+
+    if (!app_env_tmp)
+    {
+        gatt_loge("app_env_tmp NULL !!!");
+        return -1;
+    }
+
+    gatt_logi("discover_status %d", app_env_tmp->discover_status);
+
+    if (app_env_tmp->discover_status == GATTC_DISCOVER_STATUS_IDLE)
+    {
+        gatt_logi("trig discover because gatts mtu completed");
+
+        if (0 != bk_ble_gattc_discover(s_gattc_if, common_env_tmp->conn_id, BK_GATT_AUTH_REQ_NONE))
+        {
+            gatt_loge("bk_ble_gattc_discover err");
+        }
+        else
+        {
+            app_env_tmp->discover_status = GATTC_DISCOVER_STATUS_ING;
+        }
+    }
+
+    return 0;
+#else
+    return 0;
+#endif
+}
+
+int dm_gattc_main(cli_gatt_param_t *param)
+{
+    ble_err_t ret = 0;
 
     ret = rtos_init_semaphore(&s_ble_sema, 1);
 
@@ -1638,27 +1790,10 @@ int bk_at_dm_gattc_main(cli_gatt_param_t *param)
         }
     }
 
-    bk_at_dm_gatt_add_gap_callback(dm_ble_gap_cb);
+    dm_gatt_add_gap_callback(dm_ble_gap_cb);
 
     bk_ble_gattc_register_callback(dm_ble_gattc_private_cb);
-    bk_at_dm_gattc_add_gattc_callback(bk_gattc_cb);
-
-    bk_bd_addr_t current_addr = {0}, identity_addr = {0};
-    char dev_name[64] = {0};
-
-    bk_at_dm_ble_gap_get_identity_addr(identity_addr);
-
-    os_memcpy(current_addr, identity_addr, sizeof(identity_addr));
-
-    snprintf((char *)(dev_name), sizeof(dev_name) - 1, "CENTRAL-%02X%02X%02X", identity_addr[2], identity_addr[1], identity_addr[0]);
-
-    ret = bk_ble_gap_set_device_name(dev_name);
-
-    if (ret)
-    {
-        gatt_loge("bk_ble_gap_set_device_name err %d", ret);
-        return -1;
-    }
+    dm_gattc_add_gattc_callback(bk_gattc_cb);
 
     ret = bk_ble_gattc_app_register(0);
 
@@ -1670,16 +1805,33 @@ int bk_at_dm_gattc_main(cli_gatt_param_t *param)
 
     ret = rtos_get_semaphore(&s_ble_sema, SYNC_CMD_TIMEOUT_MS);
 
-    if (ret != kNoErr)
+    if (ret != BK_OK)
     {
         gatt_loge("rtos_get_semaphore reg err %d", ret);
+        return -1;
+    }
+
+    bk_bd_addr_t current_addr = {0}, identity_addr = {0};
+    char dev_name[64] = {0};
+
+    dm_ble_gap_get_identity_addr(identity_addr);
+
+    os_memcpy(current_addr, identity_addr, sizeof(identity_addr));
+
+    snprintf((char *)(dev_name), sizeof(dev_name) - 1, "SCOOTER-%02X%02X%02X", identity_addr[2], identity_addr[1], identity_addr[0]);
+
+    ret = bk_ble_gap_set_device_name(dev_name);
+
+    if (ret)
+    {
+        gatt_loge("bk_ble_gap_set_device_name err %d", ret);
         return -1;
     }
 
 #if AUTO_GATTC_TEST
     uint8_t need_set_random_addr = 0;
 
-    if (g_bk_at_dm_gap_use_rpa && bk_at_dm_ble_gap_get_rpa(current_addr) == 0)
+    if (g_dm_gap_use_rpa && dm_ble_gap_get_rpa(current_addr) == 0)
     {
         gatt_logw("set connect/scan random addr with generate rpa");
         need_set_random_addr = 1;
@@ -1709,7 +1861,7 @@ int bk_at_dm_gattc_main(cli_gatt_param_t *param)
 
         ret = rtos_get_semaphore(&s_ble_sema, SYNC_CMD_TIMEOUT_MS);
 
-        if (ret != kNoErr)
+        if (ret != BK_OK)
         {
             gatt_loge("wait set rand addr err %d", ret);
             goto error;
@@ -1719,12 +1871,12 @@ int bk_at_dm_gattc_main(cli_gatt_param_t *param)
 #endif
     s_dm_gattc_is_init = 1;
     return 0;
-    goto error;
+
 error:;
     return -1;
 }
 
-int bk_at_dm_gattc_deinit()
+int dm_gattc_deinit(void)
 {
     int32_t ret = 0;
 
@@ -1743,7 +1895,7 @@ int bk_at_dm_gattc_deinit()
 
     ret = rtos_get_semaphore(&s_ble_sema, SYNC_CMD_TIMEOUT_MS);
 
-    if (ret != kNoErr)
+    if (ret != BK_OK)
     {
         gatt_loge("rtos_get_semaphore unreg err %d", ret);
     }

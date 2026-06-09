@@ -16,24 +16,24 @@
 
 static dm_gatt_app_env_t s_dm_gatt_env_array[GATT_MAX_CONNECTION_COUNT];
 
-int32_t bk_at_dm_ble_app_env_init()
+int32_t dm_ble_app_env_init(void)
 {
     os_memset(s_dm_gatt_env_array, 0, sizeof(s_dm_gatt_env_array));
 
     return 0;
 }
 
-int32_t bk_at_dm_ble_app_env_deinit()
+int32_t dm_ble_app_env_deinit(void)
 {
-    bk_at_dm_ble_free_all_app_env();
+    dm_ble_free_all_app_env();
     os_memset(s_dm_gatt_env_array, 0, sizeof(s_dm_gatt_env_array));
 
     return 0;
 }
 
-dm_gatt_app_env_t *bk_at_dm_ble_find_app_env_by_addr(uint8_t *addr)
+dm_gatt_app_env_t *dm_ble_find_app_env_by_addr(uint8_t *addr)
 {
-    if (!bk_at_dm_gap_is_addr_valid(addr))
+    if (!dm_gap_is_addr_valid(addr))
     {
         return NULL;
     }
@@ -49,11 +49,11 @@ dm_gatt_app_env_t *bk_at_dm_ble_find_app_env_by_addr(uint8_t *addr)
     return NULL;
 }
 
-dm_gatt_app_env_t *bk_at_dm_ble_find_app_env_by_conn_id(uint16_t conn_id)
+dm_gatt_app_env_t *dm_ble_find_app_env_by_conn_id(uint16_t conn_id)
 {
     for (int i = 0; i < sizeof(s_dm_gatt_env_array) / sizeof(s_dm_gatt_env_array[0]); ++i)
     {
-        if (bk_at_dm_gap_is_addr_valid(s_dm_gatt_env_array[i].addr) && s_dm_gatt_env_array[i].conn_id == conn_id)
+        if (dm_gap_is_addr_valid(s_dm_gatt_env_array[i].addr) && s_dm_gatt_env_array[i].conn_id == conn_id)
         {
             return s_dm_gatt_env_array + i;
         }
@@ -62,9 +62,9 @@ dm_gatt_app_env_t *bk_at_dm_ble_find_app_env_by_conn_id(uint16_t conn_id)
     return NULL;
 }
 
-uint8_t bk_at_dm_ble_del_app_env_by_addr(uint8_t *addr)
+uint8_t dm_ble_del_app_env_by_addr(uint8_t *addr)
 {
-    if (!bk_at_dm_gap_is_addr_valid(addr))
+    if (!dm_gap_is_addr_valid(addr))
     {
         return 1;
     }
@@ -116,7 +116,7 @@ uint8_t bk_at_dm_ble_del_app_env_by_addr(uint8_t *addr)
     return 1;
 }
 
-uint8_t bk_at_dm_ble_free_all_app_env()
+uint8_t dm_ble_free_all_app_env(void)
 {
     for (int i = 0; i < sizeof(s_dm_gatt_env_array) / sizeof(s_dm_gatt_env_array[0]); ++i)
     {
@@ -153,11 +153,11 @@ uint8_t bk_at_dm_ble_free_all_app_env()
     return 0;
 }
 
-dm_gatt_app_env_t *bk_at_dm_ble_alloc_app_env_by_addr(uint8_t *addr, uint32_t data_len)
+dm_gatt_app_env_t *dm_ble_alloc_app_env_by_addr(uint8_t *addr, uint32_t data_len)
 {
     dm_gatt_app_env_t *tmp = NULL;
 
-    tmp = bk_at_dm_ble_find_app_env_by_addr(addr);
+    tmp = dm_ble_find_app_env_by_addr(addr);
 
     if (tmp)
     {
@@ -167,7 +167,7 @@ dm_gatt_app_env_t *bk_at_dm_ble_alloc_app_env_by_addr(uint8_t *addr, uint32_t da
 
     for (int i = 0; i < sizeof(s_dm_gatt_env_array) / sizeof(s_dm_gatt_env_array[0]); ++i)
     {
-        if (!bk_at_dm_gap_is_addr_valid(s_dm_gatt_env_array[i].addr))
+        if (!dm_gap_is_addr_valid(s_dm_gatt_env_array[i].addr))
         {
             os_memcpy(s_dm_gatt_env_array[i].addr, addr, BK_BD_ADDR_LEN);
 
@@ -193,9 +193,9 @@ dm_gatt_app_env_t *bk_at_dm_ble_alloc_app_env_by_addr(uint8_t *addr, uint32_t da
     return NULL;
 }
 
-dm_gatt_app_env_t *bk_at_dm_ble_alloc_profile_data_by_addr(uint8_t profile_id, uint8_t *addr, uint32_t data_len, uint8_t **output_param)
+dm_gatt_app_env_t *dm_ble_alloc_profile_data_by_addr(uint32_t profile_id, uint8_t *addr, uint32_t data_len, uint8_t **output_param)
 {
-    dm_gatt_app_env_t *tmp = bk_at_dm_ble_find_app_env_by_addr(addr);
+    dm_gatt_app_env_t *tmp = dm_ble_find_app_env_by_addr(addr);
     uint32_t i = 0;
 
     if (!profile_id)
@@ -216,7 +216,7 @@ dm_gatt_app_env_t *bk_at_dm_ble_alloc_profile_data_by_addr(uint8_t profile_id, u
         {
             gatt_loge("profile id %d exist %d !!!", profile_id, i);
 
-            while (1);
+            BK_ASSERT_EX(0, "%s profile id %d exist %d !!!\n", __func__, profile_id, i);
 
             if (output_param)
             {
@@ -262,7 +262,7 @@ dm_gatt_app_env_t *bk_at_dm_ble_alloc_profile_data_by_addr(uint8_t profile_id, u
     return NULL;
 }
 
-uint8_t *bk_at_dm_ble_find_profile_data_by_profile_id(dm_gatt_app_env_t *env, uint32_t profile_id)
+uint8_t *dm_ble_find_profile_data_by_profile_id(dm_gatt_app_env_t *env, uint32_t profile_id)
 {
     if (!env || !profile_id)
     {
@@ -281,11 +281,11 @@ uint8_t *bk_at_dm_ble_find_profile_data_by_profile_id(dm_gatt_app_env_t *env, ui
     return NULL;
 }
 
-uint8_t bk_at_dm_ble_app_env_foreach( int32_t (*func) (dm_gatt_app_env_t *env, void *arg), void *arg )
+uint8_t dm_ble_app_env_foreach( int32_t (*func) (dm_gatt_app_env_t *env, void *arg), void *arg )
 {
     for (int i = 0; i < sizeof(s_dm_gatt_env_array) / sizeof(s_dm_gatt_env_array[0]); ++i)
     {
-        if (bk_at_dm_gap_is_addr_valid(s_dm_gatt_env_array[i].addr))
+        if (dm_gap_is_addr_valid(s_dm_gatt_env_array[i].addr))
         {
             func(s_dm_gatt_env_array + i, arg);
         }

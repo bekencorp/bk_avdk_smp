@@ -1,77 +1,43 @@
 #pragma once
 
-#include "os/os.h"
+/*
+ * Compatibility shim. The real implementation moved to
+ *   ap/components/bk_bluetooth/bt_dm/ble/gatt/dm_gatt_connection.{c,h}
+ * Existing AT-layer code that still calls bk_at_dm_ble_* keeps working
+ * through the macros below.
+ *
+ * ABI note: bk_at_dm_ble_alloc_profile_data_by_addr's first parameter was
+ * declared as uint8_t profile_id, while the new dm_ble_alloc_profile_data_by_addr
+ * uses uint32_t profile_id. C implicit promotion handles the call sites safely.
+ */
+#include "../../bt_dm/ble/gatt/dm_gatt_connection.h"
 
-#define GATT_MAX_CONNECTION_COUNT 7
-#define GATT_MAX_PROFILE_COUNT 6
+#if CONFIG_BT && CONFIG_BLE
 
-enum
-{
-    GAP_CONNECT_STATUS_IDLE,
-    GAP_CONNECT_STATUS_CONNECTING,
-    GAP_CONNECT_STATUS_CONNECTED,
-    GAP_CONNECT_STATUS_DISCONNECTING,
-};
+#define bk_at_dm_ble_app_env_init                   dm_ble_app_env_init
+#define bk_at_dm_ble_app_env_deinit                 dm_ble_app_env_deinit
+#define bk_at_dm_ble_alloc_app_env_by_addr          dm_ble_alloc_app_env_by_addr
+#define bk_at_dm_ble_find_app_env_by_addr           dm_ble_find_app_env_by_addr
+#define bk_at_dm_ble_find_app_env_by_conn_id        dm_ble_find_app_env_by_conn_id
+#define bk_at_dm_ble_del_app_env_by_addr            dm_ble_del_app_env_by_addr
+#define bk_at_dm_ble_free_all_app_env               dm_ble_free_all_app_env
+#define bk_at_dm_ble_alloc_addition_data_by_addr    dm_ble_alloc_addition_data_by_addr
+#define bk_at_dm_ble_alloc_profile_data_by_addr     dm_ble_alloc_profile_data_by_addr
+#define bk_at_dm_ble_find_profile_data_by_profile_id dm_ble_find_profile_data_by_profile_id
+#define bk_at_dm_ble_app_env_foreach                dm_ble_app_env_foreach
 
-typedef struct
-{
-    bk_bd_addr_t addr;
-    bk_ble_addr_type_t addr_type;
-    uint16_t conn_id;
-    uint8_t status; //see GAP_CONNECT_STATUS_IDLE
-    uint8_t local_is_master;
-    uint8_t is_authen;
-    beken_semaphore_t server_sem;
-    beken_semaphore_t client_sem;
+#else
 
-    uint32_t data_len;
-    uint8_t *data;
+#define bk_at_dm_ble_app_env_init(...) 0
+#define bk_at_dm_ble_app_env_deinit(...) 0
+#define bk_at_dm_ble_alloc_app_env_by_addr(...) 0
+#define bk_at_dm_ble_find_app_env_by_addr(...) 0
+#define bk_at_dm_ble_find_app_env_by_conn_id(...) 0
+#define bk_at_dm_ble_del_app_env_by_addr(...) 0
+#define bk_at_dm_ble_free_all_app_env(...) 0
+#define bk_at_dm_ble_alloc_addition_data_by_addr(...) 0
+#define bk_at_dm_ble_alloc_profile_data_by_addr(...) 0
+#define bk_at_dm_ble_find_profile_data_by_profile_id(...) 0
+#define bk_at_dm_ble_app_env_foreach(...) 0
 
-    struct
-    {
-        uint32_t id;
-        uint32_t data_len;
-        uint8_t *data;
-    }profile_array[GATT_MAX_PROFILE_COUNT];
-
-} dm_gatt_app_env_t;
-
-typedef struct
-{
-    //for server
-    uint8_t notify_status; //0 disable; 1 notify; 2 indicate
-    uint16_t server_mtu;
-    uint16_t send_notify_status;
-    uint16_t send_read_rsp_status;
-
-    //for client
-    uint8_t job_status; //see GATTC_STATUS_IDLE
-    uint16_t client_mtu;
-    uint8_t noti_indica_switch;
-    uint8_t noti_indicate_recv_count;
-    uint16_t write_read_status;
-
-    uint8_t *read_buff;
-    uint32_t read_buff_len;
-    uint32_t read_offset;
-
-    uint16_t peer_interest_service_start_handle; //interest
-    uint16_t peer_interest_service_end_handle;
-    uint16_t peer_interest_char_handle;
-    uint16_t peer_interest_char_desc_handle;
-
-    uint16_t peer_gap_service_start_handle;
-    uint16_t peer_gap_service_end_handle;
-} dm_gatt_demo_app_env_t;
-
-int32_t bk_at_dm_ble_app_env_init();
-int32_t bk_at_dm_ble_app_env_deinit();
-dm_gatt_app_env_t *bk_at_dm_ble_alloc_app_env_by_addr(uint8_t *addr, uint32_t data_len);
-dm_gatt_app_env_t *bk_at_dm_ble_find_app_env_by_addr(uint8_t *addr);
-dm_gatt_app_env_t *bk_at_dm_ble_find_app_env_by_conn_id(uint16_t conn_id);
-uint8_t bk_at_dm_ble_del_app_env_by_addr(uint8_t *addr);
-uint8_t bk_at_dm_ble_free_all_app_env();
-dm_gatt_app_env_t *bk_at_dm_ble_alloc_addition_data_by_addr(uint8_t *addr, uint32_t data_len);
-dm_gatt_app_env_t *bk_at_dm_ble_alloc_profile_data_by_addr(uint8_t profile_id, uint8_t *addr, uint32_t data_len, uint8_t **output_param);
-uint8_t *bk_at_dm_ble_find_profile_data_by_profile_id(dm_gatt_app_env_t *env, uint32_t profile_id);
-uint8_t bk_at_dm_ble_app_env_foreach( int32_t (*func) (dm_gatt_app_env_t *env, void *arg), void *arg );
+#endif
