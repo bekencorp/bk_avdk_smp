@@ -39,6 +39,10 @@
 #define SDIO_CMD_TIMEOUT_RESP        0xFFFFFFFFu
 /* Max time waiting for the PSTATE_REG card-detect logic to stabilize on boot. */
 #define SDIO_CARD_STABLE_TIMEOUT_MS  50
+/* Number of times we re-issue CMD0+CMD8 during sd_card_init() before declaring
+ * the slot empty. Covers warm-reboot cases where the card is still finishing
+ * an internal op from the previous power session and swallows the first CMD0. */
+#define SD_INIT_HANDSHAKE_RETRY      4
 
 /* PSTATE_REG bit definitions not provided by mshc_regs.h. */
 #ifndef CARD_STATE_STABLE
@@ -246,6 +250,24 @@ int send_cmd(uintptr_t addr, uint8 CMD_INDEX, uint8 RESP_TYPE, uint32 ARGUMENT)
 	//SDIOD_LOGD("send cmd[%d], pstate:0x%x\r\n", CMD_INDEX, pstate);
 	uint32_t int_level = rtos_disable_int();
 
+	/* Clear stale software flags set by the previous command's ISR but
+	 * never cleared (the existing code only clears CMD_TOUT_ERR_STATE
+	 * on the error path of send_cmd). Without this, a CMD_TOUT_ERR
+	 * that fires _after_ a CMD_COMPLETE in the same command leaves
+	 * CMD_TOUT_ERR_STATE=1, and the *next* otherwise-successful
+	 * send_cmd() then falsely reports timeout at the check below.
+	 * Observed: CMD8 ok then CMD55 fails 2ms later with no bus traffic.
+	 *
+	 * We intentionally do NOT write ERROR_INT_STAT_R here - the ISR is
+	 * responsible for clearing its own status bits, and writing it
+	 * pre-emptively can race with the controller (it may discard a
+	 * legitimate timeout pending for the new command). */
+	CMD_TOUT_ERR_STATE = 0;
+	CMD_CRC_ERR_STATE = 0;
+	CMD_END_BIT_ERR_STATE = 0;
+	CMD_IDX_ERR_STATE = 0;
+	ERROR_INTERRUPT_STATE = 0;
+
 	NORMAL_INT_STAT_EN_R(addr)   = NORMAL_INT_STAT_EN_R(addr) | CMD_COMPLETE_STAT_EN;
 	NORMAL_INT_SIGNAL_EN_R(addr) = NORMAL_INT_SIGNAL_EN_R(addr) | CMD_COMPLETE_SIGNAL_EN;
 	ERROR_INT_STAT_EN_R(addr)	= ERROR_INT_STAT_EN_R(addr) | 0x80f;
@@ -317,38 +339,148 @@ bk_err_t sd_card_init(uintptr_t addr)
 		}
 	}
 
-	/* ----  2: fail-fast on CMD line timeout ----
+	/* ----  2: SD power-on / 74-clock wait ----
+	 *
+	 * Root cause of probabilistic mount failure on power-on:
+	 *   sdio_host_init() -> mshc_host_init() enables SD bus power
+	 *   (PWR_CTRL_R.SD_BUS_PWR_VDD1) and SD_CLK output (CLK_CTRL_R.
+	 *   SD_CLK_EN at ~200kHz) and immediately falls through to
+	 *   sd_card_init() which sends CMD0 with no further wait.
+	 *
+	 *   The SD card's internal power-on reset (POR) doesn't start
+	 *   until SD_CLK is driven; its completion time depends on the
+	 *   card's internal LDO / oscillator ramp (0~10ms, observed up
+	 *   to ~100ms on some SD-NAND parts after a hard power cycle).
+	 *   If CMD0 arrives before POR finishes the card silently drops
+	 *   the command and the host sees a CMD line timeout. The 30-50us
+	 *   DAT1 toggle observed on a logic analyzer right after the
+	 *   failed CMD0/CMD8 is the card's IO buffer settling during POR
+	 *   (DAT lines are not yet stably pulled high).
+	 *
+	 *   SD Physical Layer Spec 7.10 6.4.1 mandates >=74 SD_CLK
+	 *   cycles after VDD ramp-up before the first CMD; 50ms
+	 *   comfortably covers that (~370us at 200kHz) plus typical
+	 *   POR time observed on SD-NAND parts (up to ~100ms worst).
+	 *   Linux mmc-host mmc_power_up() uses a similar policy. 
+	 *
+	 * ----  3: fail-fast on CMD line timeout ----
 	 * send_cmd() sets s_last_cmd_timeout=true and performs SW_RST_CMD
 	 * when the controller reports CMD_TOUT_ERR. We bail out of init on
 	 * the very first timeout so we never spin in the ACMD41 retry loop
 	 * when no card is responding.
 	 */
+	/* 50ms POR window. On a hard power cycle the card's internal LDO
+	 * /oscillator can take up to ~100ms to stabilize on some SD-NAND
+	 * parts; on a warm reboot the card's VDD never drops (EVB nSD is
+	 * hard-wired to 3V3) but SD_CLK was interrupted while the SoC reset
+	 * its GPIOs, so the card may have entered a low-power state and
+	 * needs >=8 SD_CLK cycles + several ms to re-stabilize. 50ms covers
+	 * both cases plus comfortable margin over the 74-clock minimum
+	 * (~370us @ 200kHz). */
+	rtos_delay_milliseconds(50);
 
-	send_cmd(addr, CMD0, 0, 0); //send CMD0
-	rtos_delay_milliseconds(5);
-	if (s_last_cmd_timeout) goto no_card;
-
-	send_cmd(addr, CMD8, 2, 0x1aa); //send CMD8
-	rtos_delay_milliseconds(1);
-	if (s_last_cmd_timeout) goto no_card;
-
-	send_cmd(addr, CMD55, 2, 0); //send ACMD41
-	rtos_delay_milliseconds(1);
-	if (s_last_cmd_timeout) goto no_card;
-	resp[0] = send_cmd(addr, CMD41, 2, (0xff8000|0x40000000)); //send_cmd(addr, CMD41, 2, (0xff80001|0x40000000)); //send CMD41
-	if (s_last_cmd_timeout) goto no_card;
-	while(!((SDIO_CMD_TIMEOUT_RESP != resp[0]) && ((resp[0] >> 31) & 0x01)))
+	/* CMD0 -> CMD8 -> ACMD41 handshake with whole-sequence retry.
+	 *
+	 * On warm reboot the card's VDD is never removed (EVB nSD is hard-
+	 * wired to 3V3), so the card may still be in transfer/data state
+	 * from the previous power session, finishing an internal program/
+	 * erase op, or have its bus state machine half-initialized. CMD0
+	 * itself (GO_IDLE_STATE, no response) just clocks the bus; the
+	 * earliest signal "card is actually alive" is CMD8's R7 reply.
+	 *
+	 * Empirically we observe that even *after* CMD8 succeeds (~17ms
+	 * after a burst of CMD0s), the very next CMD55/CMD41 sometimes
+	 * times out: the card's CMD line state machine accepted CMD8 but
+	 * is not yet ready for ACMD41 because it is still doing internal
+	 * power/clock domain bring-up. Treating CMD55/41 timeout as a
+	 * hard failure aborts init and loses the recovery opportunity.
+	 *
+	 * Fix: wrap the entire CMD0+CMD8+ACMD41 sequence in an outer retry
+	 * loop. Any timeout (CMD8 or CMD55/41) restarts the whole sequence
+	 * from a fresh batch of CMD0s. Linux's mmc-core does effectively
+	 * the same via mmc_attach_sd() -> mmc_send_app_op_cond() retries.
+	 *
+	 * We burst three CMD0s before each attempt to guarantee >=300us of
+	 * bus activity (each CMD0 ~240us at 200kHz with its 80-clock dummy)
+	 * so cards that swallow the first CMD0 (still busy) catch a later
+	 * one. */
 	{
-		rtos_delay_milliseconds(5);
-		send_cmd(addr, CMD55, 2, 0); //send ACMD41
-		rtos_delay_milliseconds(1);
-		if (s_last_cmd_timeout) goto no_card;
-		resp[0] = send_cmd(addr, CMD41, 2, (0x200000|0x40000000)); //send_cmd(addr, CMD41, 2, (0xff80001|0x40000000)); //send CMD41
-		if (s_last_cmd_timeout) goto no_card;
-		if (retry_cnt++ > MAX_WAIT_STATE_TRANS_TIMES) {
-			SDIOD_LOGE("init card ACMD41 timeout, card may not be powered up.\r\n");
-			return BK_FAIL;
+		uint32_t i;
+		bool acmd41_done = false;
+		for (i = 0; i < SD_INIT_HANDSHAKE_RETRY; i++) {
+			uint32_t j;
+			for (j = 0; j < 3; j++) {
+				send_cmd(addr, CMD0, 0, 0); //send CMD0
+				rtos_delay_milliseconds(2);
+			}
+
+			send_cmd(addr, CMD8, 2, 0x1aa); //send CMD8
+			rtos_delay_milliseconds(1);
+			if (s_last_cmd_timeout) {
+				SDIOD_LOGW("CMD8 timeout, retry %u/%u\r\n",
+					   i + 1, SD_INIT_HANDSHAKE_RETRY);
+				rtos_delay_milliseconds(30);
+				continue;
+			}
+
+			/* CMD8 ok: try the ACMD41 sequence. First ACMD41 uses
+			 * voltage-window arg, subsequent retries use HCS-only
+			 * continuation arg matching the original code. */
+			send_cmd(addr, CMD55, 2, 0); //CMD55
+			rtos_delay_milliseconds(1);
+			if (s_last_cmd_timeout) {
+				SDIOD_LOGW("CMD55(first) timeout, retry %u/%u\r\n",
+					   i + 1, SD_INIT_HANDSHAKE_RETRY);
+				rtos_delay_milliseconds(30);
+				continue;
+			}
+			resp[0] = send_cmd(addr, CMD41, 2, (0xff8000|0x40000000)); //ACMD41
+			if (s_last_cmd_timeout) {
+				SDIOD_LOGW("ACMD41(first) timeout, retry %u/%u\r\n",
+					   i + 1, SD_INIT_HANDSHAKE_RETRY);
+				rtos_delay_milliseconds(30);
+				continue;
+			}
+
+			/* ACMD41 busy-wait. Keep using the FULL voltage window
+			 * (0xff8000 = 2.7-3.6V) for every retry - the original
+			 * code shrank it to a single bit (0x200000 ≈ 3.5-3.6V)
+			 * on retries, which some SD cards refuse and they then
+			 * never set the busy-done bit. Linux mmc_send_op_cond()
+			 * passes the same OCR mask on every retry. HCS=bit30
+			 * indicates host supports SDHC.
+			 *
+			 * Spec allows up to 1s for the card to finish power-up
+			 * after the first ACMD41 with a valid voltage window;
+			 * 1000 iterations * ~7ms = ~7s gives generous margin
+			 * for SD-NAND and industrial cards that boot slowly. */
+			retry_cnt = 0;
+			while (!((SDIO_CMD_TIMEOUT_RESP != resp[0]) && ((resp[0] >> 31) & 0x01))) {
+				rtos_delay_milliseconds(5);
+				send_cmd(addr, CMD55, 2, 0); //CMD55
+				rtos_delay_milliseconds(1);
+				if (s_last_cmd_timeout) break;
+				resp[0] = send_cmd(addr, CMD41, 2, (0xff8000|0x40000000)); //ACMD41 continuation
+				if (s_last_cmd_timeout) break;
+				if (retry_cnt++ > 1000) {
+					SDIOD_LOGE("ACMD41 busy wait timed out (resp=0x%x)\r\n", resp[0]);
+					return BK_FAIL;
+				}
+			}
+			if (s_last_cmd_timeout) {
+				SDIOD_LOGW("ACMD41(busy-wait) timeout, retry %u/%u\r\n",
+					   i + 1, SD_INIT_HANDSHAKE_RETRY);
+				rtos_delay_milliseconds(30);
+				continue;
+			}
+
+			if (i > 0) {
+				SDIOD_LOGI("ACMD41 done after %u sequence retries\r\n", i);
+			}
+			acmd41_done = true;
+			break;
 		}
+		if (!acmd41_done) goto no_card;
 	}
 	s_sd_card_obj.sd_card.card_type = ((resp[0] >> 30) & 1) ? SD_CARD_TYPE_SDHC_SDXC : SD_CARD_TYPE_SDSC;
 	rtos_delay_milliseconds(1);
