@@ -133,6 +133,7 @@ bk_err_t bk_aud_adc_init(aud_adc_config_t *adc_config)
     //enable audio adc power
     sys_drv_aud_adcbias_en(1);
     sys_drv_aud_micbias_en(1);
+    sys_drv_aud_audbias_en(1);
 
     /* config mic analog gain in dB */
     bk_aud_adc_set_ana_gain_db(AUD_ADC_CHL_0, adc_config->chl_cfg[0].ana_gain);
