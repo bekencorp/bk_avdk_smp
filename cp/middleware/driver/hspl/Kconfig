@@ -12,6 +12,14 @@ menu "HSPL"
 		help
 			Enable HSPL driver CLI test commands.
 
+	config HSPL_LEAK_DEBUG
+		depends on HSPL
+		bool "Enable HSPL leak debug before AP powerdown"
+		default n
+		help
+			Read the AP HSPL owner shadow from shared memory and assert before
+			AP powerdown if AP still owns a lock.
+
 	config HSPL_MUST_LOCK_TIMEOUT_MS_DEFAULT
 		depends on HSPL
 		int "must_lock timeout for non-FLASH resources (ms)"

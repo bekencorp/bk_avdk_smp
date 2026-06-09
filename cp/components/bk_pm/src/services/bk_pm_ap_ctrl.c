@@ -17,6 +17,9 @@
 #include <driver/pwr_clk.h>
 #include <driver/mailbox_channel.h>
 #include <driver/aon_rtc.h>
+#include <common/bk_assert.h>
+#include <hspl/hspl_driver.h>
+#include <hspl/hspl_res_lock.h>
 #include "sys_driver.h"
 #include <os/mem.h>
 #include <sys_sw_regs.h>
@@ -76,6 +79,41 @@ static void pm_ap_powerdown_proof_log(const char *stage)
 		s_pm_cp1_ctrl_state,
 		s_pm_cp1_closing);
 }
+
+#if CONFIG_HSPL_LEAK_DEBUG
+static void pm_check_ap_hspl_leak(void)
+{
+	uint8_t core = 0xFFU;
+	uint32_t pc = 0U;
+
+	for (uint8_t res = 0; res < BK_HSPL_RES_MAX; res++) {
+		hspl_state_t state = {0};
+
+		if (bk_sys_sw_regs_get_hspl_owner(res, &core, &pc) == 0U) {
+			continue;
+		}
+
+		/*
+		 * Both AP (core 2/3) and CP (core 0/1) record into the same shadow.
+		 * Only an AP-held lock is a leak at AP power-down; a CP-held lock is
+		 * legitimate (the CP is still running), so skip it to avoid a false
+		 * assert.
+		 */
+		if ((core != 2U) && (core != 3U)) {
+			continue;
+		}
+
+		if (res < 16U) {
+			(void)bk_hspl_get_state(BK_HSPL_ID_0, res, &state);
+		}
+
+		LOGE("AP HSPL leak before powerdown: res=%u core=%u pc=0x%08x hw_locked=%u hw_owner_valid=%u hw_owner=%u\r\n",
+			res, core, pc, state.locked, state.owner_valid, state.owner_id);
+		BK_ASSERT_EX(0, "AP HSPL leak res=%u core=%u pc=0x%08x\r\n", res, core, pc);
+		return;
+	}
+}
+#endif
 
 
 /*===================FUNCTION  DECLARATION  START=============*/
@@ -535,6 +573,9 @@ bk_err_t bk_pm_module_vote_boot_ap_ctrl(pm_boot_ap_module_name_e module,pm_power
 						#endif
 						LOGI("pm_dbg ap_close: ap_sleep_state ready, start shutdown\r\n");
 						pm_ap_powerdown_proof_log("ap_sleep_ready");
+#if CONFIG_HSPL_LEAK_DEBUG
+						pm_check_ap_hspl_leak();
+#endif
 						pm_module_shutdown_cpu1(POWER_SUB_DOMAIN_NAME_AP_CPU);
 						pm_ap_powerdown_proof_log("shutdown_func_return");
 						LOGI("AP_PD_PROOF callback_begin: AP power already off, run CP callbacks\r\n");

@@ -12,6 +12,14 @@ menu "HSPL"
 		help
 			Enable HSPL driver CLI test commands.
 
+	config HSPL_LEAK_DEBUG
+		depends on HSPL
+		bool "Enable HSPL leak debug before AP powerdown"
+		default n
+		help
+			Record AP HSPL owner core and caller PC in shared memory, and let
+			CP assert before AP powerdown if AP still owns a lock.
+
 	config HSPL_TIMEOUT_MONITOR_MS
 		depends on HSPL
 		int "HSPL timeout monitor threshold in ms"

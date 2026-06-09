@@ -14,6 +14,7 @@
 
 #include "hspl_res_lock.h"
 #include "hspl_driver.h"
+#include "sys_sw_regs.h"
 #include <common/bk_assert.h>
 
 #include <os/os.h>
@@ -292,6 +293,50 @@ bk_err_t bk_hspl_res_must_lock(bk_hspl_res_t res)
 	s_rec_count[res][core_id] = 1;
 	rtos_enable_int(flags);
 	return BK_OK;
+}
+
+void bk_hspl_res_dbg_set_owner(bk_hspl_res_t res, uint8_t core, uint32_t pc)
+{
+#if CONFIG_HSPL_LEAK_DEBUG
+	uint8_t core_id;
+	uint32_t flags;
+
+	if ((res >= BK_HSPL_RES_MAX) || (pc == 0U)) {
+		return;
+	}
+
+	core_id = hspl_core_index();
+	flags = rtos_disable_int();
+	if (s_rec_count[res][core_id] == 1U) {
+		bk_sys_sw_regs_set_hspl_owner((uint8_t)res, core, pc);
+	}
+	rtos_enable_int(flags);
+#else
+	(void)res;
+	(void)core;
+	(void)pc;
+#endif
+}
+
+void bk_hspl_res_dbg_clear_owner(bk_hspl_res_t res)
+{
+#if CONFIG_HSPL_LEAK_DEBUG
+	uint8_t core_id;
+	uint32_t flags;
+
+	if (res >= BK_HSPL_RES_MAX) {
+		return;
+	}
+
+	core_id = hspl_core_index();
+	flags = rtos_disable_int();
+	if (s_rec_count[res][core_id] == 1U) {
+		bk_sys_sw_regs_clear_hspl_owner((uint8_t)res);
+	}
+	rtos_enable_int(flags);
+#else
+	(void)res;
+#endif
 }
 
 bk_err_t bk_hspl_res_lock_irqsave(bk_hspl_res_t res, uint32_t *flags)

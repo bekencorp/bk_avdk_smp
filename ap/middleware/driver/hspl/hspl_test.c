@@ -28,6 +28,7 @@
 #define HSPL_TEST_LOGD(...) BK_LOGD(HSPL_TEST_TAG, ##__VA_ARGS__)
 #define HSPL_TEST_LOGE(...) BK_LOGE(HSPL_TEST_TAG, ##__VA_ARGS__)
 
+#if CONFIG_HSPL_TEST
 static void hspl_timeout_cb(uint8_t channel, void *param)
 {
 	HSPL_TEST_LOGI("timeout irq: ch=%u param=0x%p\r\n", channel, param);
@@ -708,11 +709,172 @@ static void cli_hspl_time_cmd(char *pcWriteBuffer, int xWriteBufferLen,
                    HSPL_TIME_TEST_COUNT, t_end - t_start);
 }
 
-#if CONFIG_HSPL_TEST
 DRV_CLI_CMD_EXPORT static const struct cli_command s_hspl_commands[] = {
 	{"hspl_driver", "{init|deinit}", cli_hspl_driver_cmd},
 	{"hspl", "hspl {lock|unlock|state|timeout_cfg|timeout_irq|raw_sta|raw_lock|res_lock|res_unlock|stress|stress_auto|stress_stop|stress_stat} [...]", cli_hspl_cmd},
 	{"hspl_time", "hspl_time", cli_hspl_time_cmd},
 };
-#endif
+#endif /* CONFIG_HSPL_TEST */
+
+#if CONFIG_HSPL_LEAK_DEBUG
+/*
+ * HSPL leak-detection positive-test helpers: acquire an ASPL lock and
+ * deliberately do NOT release it, so that the CP-side leak check can catch it
+ * when the AP powers down. Moved here from the doorbell_lp project.
+ */
+static uint8_t s_hspl_leak_flash_held;
+static uint8_t s_hspl_leak_sys_held;
+static uint8_t s_hspl_leak_uart_log_held;
+
+/*
+ * Acquire an HSPL resource lock and deliberately keep it held (no release),
+ * recording the owner into shared memory so the CP-side power-down check
+ * (pm_check_ap_hspl_leak) can detect the leak. Unlike bk_aspl_*_enter_critical(),
+ * this path does NOT leave interrupts disabled, so the AP RTOS keeps running and
+ * can reach the normal power-down flow where the CP performs the leak check.
+ */
+static bk_err_t hspl_leak_hold(bk_hspl_res_t res, uint32_t pc)
+{
+	bk_err_t ret = bk_hspl_res_must_lock(res);
+
+	if (ret != BK_OK) {
+		return ret;
+	}
+
+	bk_hspl_res_dbg_set_owner(res, (uint8_t)rtos_get_core_id(), pc);
+	return BK_OK;
+}
+
+static void hspl_leak_release(bk_hspl_res_t res)
+{
+	bk_hspl_res_dbg_clear_owner(res);
+	bk_hspl_res_unlock(res);
+}
+
+static void cli_hspl_leak_flash(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
+{
+	uint32_t pc = (uint32_t)(uintptr_t)__builtin_return_address(0);
+
+	(void)pcWriteBuffer;
+	(void)xWriteBufferLen;
+	(void)argc;
+	(void)argv;
+
+	if (s_hspl_leak_flash_held != 0U) {
+		CLI_LOGD("hspl_leak_flash already held\r\n");
+		return;
+	}
+
+	if (hspl_leak_hold(BK_HSPL_RES_FLASH, pc) != BK_OK) {
+		CLI_LOGD("hspl_leak_flash acquire failed\r\n");
+		return;
+	}
+	s_hspl_leak_flash_held = 1U;
+	CLI_LOGD("hspl_leak_flash held without release\r\n");
+}
+
+static void cli_hspl_leak_flash_release(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
+{
+	(void)pcWriteBuffer;
+	(void)xWriteBufferLen;
+	(void)argc;
+	(void)argv;
+
+	if (s_hspl_leak_flash_held == 0U) {
+		CLI_LOGD("hspl_leak_flash not held\r\n");
+		return;
+	}
+
+	hspl_leak_release(BK_HSPL_RES_FLASH);
+	s_hspl_leak_flash_held = 0U;
+	CLI_LOGD("hspl_leak_flash released\r\n");
+}
+
+static void cli_hspl_leak_sys(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
+{
+	uint32_t pc = (uint32_t)(uintptr_t)__builtin_return_address(0);
+
+	(void)pcWriteBuffer;
+	(void)xWriteBufferLen;
+	(void)argc;
+	(void)argv;
+
+	if (s_hspl_leak_sys_held != 0U) {
+		CLI_LOGD("hspl_leak_sys already held\r\n");
+		return;
+	}
+
+	if (hspl_leak_hold(BK_HSPL_RES_SYS, pc) != BK_OK) {
+		CLI_LOGD("hspl_leak_sys acquire failed\r\n");
+		return;
+	}
+	s_hspl_leak_sys_held = 1U;
+	CLI_LOGD("hspl_leak_sys held without release\r\n");
+}
+
+static void cli_hspl_leak_sys_release(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
+{
+	(void)pcWriteBuffer;
+	(void)xWriteBufferLen;
+	(void)argc;
+	(void)argv;
+
+	if (s_hspl_leak_sys_held == 0U) {
+		CLI_LOGD("hspl_leak_sys not held\r\n");
+		return;
+	}
+
+	hspl_leak_release(BK_HSPL_RES_SYS);
+	s_hspl_leak_sys_held = 0U;
+	CLI_LOGD("hspl_leak_sys released\r\n");
+}
+
+static void cli_hspl_leak_uart_log(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
+{
+	uint32_t pc = (uint32_t)(uintptr_t)__builtin_return_address(0);
+
+	(void)pcWriteBuffer;
+	(void)xWriteBufferLen;
+	(void)argc;
+	(void)argv;
+
+	if (s_hspl_leak_uart_log_held != 0U) {
+		CLI_LOGD("hspl_leak_uart_log already held\r\n");
+		return;
+	}
+
+	if (hspl_leak_hold(BK_HSPL_RES_UART_LOG, pc) != BK_OK) {
+		CLI_LOGD("hspl_leak_uart_log acquire failed\r\n");
+		return;
+	}
+	s_hspl_leak_uart_log_held = 1U;
+	CLI_LOGD("hspl_leak_uart_log held without release\r\n");
+}
+
+static void cli_hspl_leak_uart_log_release(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
+{
+	(void)pcWriteBuffer;
+	(void)xWriteBufferLen;
+	(void)argc;
+	(void)argv;
+
+	if (s_hspl_leak_uart_log_held == 0U) {
+		CLI_LOGD("hspl_leak_uart_log not held\r\n");
+		return;
+	}
+
+	hspl_leak_release(BK_HSPL_RES_UART_LOG);
+	s_hspl_leak_uart_log_held = 0U;
+	CLI_LOGD("hspl_leak_uart_log released\r\n");
+}
+
+DRV_CLI_CMD_EXPORT static const struct cli_command s_hspl_leak_commands[] = {
+	{"hspl_leak_flash", "hold FLASH ASPL lock without release", cli_hspl_leak_flash},
+	{"hspl_leak_flash_release", "release FLASH ASPL leak lock", cli_hspl_leak_flash_release},
+	{"hspl_leak_sys", "hold SYS ASPL lock without release", cli_hspl_leak_sys},
+	{"hspl_leak_sys_release", "release SYS ASPL leak lock", cli_hspl_leak_sys_release},
+	{"hspl_leak_uart_log", "hold UART_LOG ASPL lock without release", cli_hspl_leak_uart_log},
+	{"hspl_leak_uart_log_release", "release UART_LOG ASPL leak lock", cli_hspl_leak_uart_log_release},
+};
+#endif /* CONFIG_HSPL_LEAK_DEBUG */
 

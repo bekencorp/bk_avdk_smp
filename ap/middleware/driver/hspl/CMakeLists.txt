@@ -3,7 +3,7 @@ if (CONFIG_HSPL)
 	list(APPEND srcs hspl/hspl_driver.c)
 	list(APPEND srcs hspl/hspl_res_lock.c)
 
-	if (CONFIG_CLI AND CONFIG_HSPL_TEST)
+	if (CONFIG_CLI AND (CONFIG_HSPL_TEST OR CONFIG_HSPL_LEAK_DEBUG))
 		list(APPEND srcs hspl/hspl_test.c)
 	endif()
 endif()

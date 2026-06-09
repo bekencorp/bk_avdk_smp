@@ -115,6 +115,9 @@ bk_err_t bk_hspl_res_unlock(bk_hspl_res_t res);
  */
 bk_err_t bk_hspl_res_must_lock(bk_hspl_res_t res);
 
+void bk_hspl_res_dbg_set_owner(bk_hspl_res_t res, uint8_t core, uint32_t pc);
+void bk_hspl_res_dbg_clear_owner(bk_hspl_res_t res);
+
 /**
  * @brief Get mapping info for debug
  */

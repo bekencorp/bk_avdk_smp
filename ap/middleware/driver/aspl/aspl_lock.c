@@ -6,6 +6,15 @@
 #if !CONFIG_HSPL
 #define aspl_res_lock bk_sspl_res_lock
 #define aspl_res_unlock bk_sspl_res_unlock
+#elif CONFIG_HSPL_LEAK_DEBUG
+#define aspl_res_lock(res) do { \
+	bk_hspl_res_must_lock(res); \
+	bk_hspl_res_dbg_set_owner((res), (uint8_t)rtos_get_core_id(), (uint32_t)(uintptr_t)__builtin_return_address(0)); \
+} while (0)
+#define aspl_res_unlock(res) do { \
+	bk_hspl_res_dbg_clear_owner(res); \
+	bk_hspl_res_unlock(res); \
+} while (0)
 #else
 #define aspl_res_lock bk_hspl_res_must_lock
 #define aspl_res_unlock bk_hspl_res_unlock
