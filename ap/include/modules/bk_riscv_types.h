@@ -29,6 +29,11 @@ typedef struct {
      * existing field offsets stay stable; 0 (NONE) is treated as HOST by the
      * firmware, so AP builds that never write this field keep host behaviour. */
     volatile uint32_t role;
+    /* device role: AP pointer to its struct musb_udc. The RISC-V firmware casts
+     * it to musb_udc_t (mirror in riscv_usb_bridge.h) and reads/writes the EP
+     * xfer state + SETUP packet in place, mirroring how host uses
+     * g_musb_hcd_addr. 0 until the device path is started (gap B). */
+    volatile uint32_t g_musb_udc_addr;
 } riscv_usb_probe_t;
 
 
