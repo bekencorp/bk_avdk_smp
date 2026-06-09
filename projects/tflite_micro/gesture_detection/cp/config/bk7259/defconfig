@@ -2,7 +2,6 @@
 # Automatically generated project default config. You can update it with menuconfig [D] option.
 # This file contains only differences compared to board defconfig.
 #
-CONFIG_PWM_V2P2=y
 CONFIG_SOC_SMP=y
 CONFIG_CPU_ID_OFFSET=0
 CONFIG_SMP_CORE_CNT=2
