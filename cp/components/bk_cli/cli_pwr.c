@@ -91,6 +91,217 @@ void cli_pm_gpio_callback(gpio_id_t gpio_id)
 	BK_LOGD(NULL,"cli_pm_gpio_callback[%d], gpio_id: %d.\r\n",bk_pm_exit_low_vol_wakeup_source_get(), gpio_id);
 }
 
+#if (CONFIG_CPU_CNT > 1)
+extern int mb_ipc_cpu_is_power_off(u32 cpu_id);
+
+#define PM_BOOT_CP1_STRESS_MAX_TASKS        (8)
+#define PM_BOOT_CP1_STRESS_TASK_STACK       (2048)
+#define PM_BOOT_CP1_STRESS_TASK_PRIO        (5)
+#define PM_BOOT_CP1_STRESS_CHECK_TIMEOUT_MS (3000)
+#define PM_BOOT_CP1_STRESS_CHECK_STEP_MS    (10)
+
+typedef struct {
+	UINT32 module_name;
+	UINT32 power_state;
+	bk_err_t ret;
+	uint32_t worker_id;
+} pm_boot_cp1_stress_worker_t;
+
+static beken_semaphore_t s_pm_boot_cp1_stress_sema = NULL;
+
+static bool cli_pm_boot_cp1_wait_state(UINT32 power_state, UINT32 timeout_ms)
+{
+	UINT32 elapsed_ms = 0;
+	bool ap_boot = false;
+	int ap_off = 1;
+
+	while (elapsed_ms <= timeout_ms)
+	{
+		ap_boot = bk_pm_ap_boot_success_get();
+		ap_off = mb_ipc_cpu_is_power_off(1);
+
+		if ((power_state == PM_POWER_MODULE_STATE_ON) && ap_boot)
+		{
+			return true;
+		}
+
+		if ((power_state == PM_POWER_MODULE_STATE_OFF) && !ap_boot && ap_off)
+		{
+			return true;
+		}
+
+		rtos_delay_milliseconds(PM_BOOT_CP1_STRESS_CHECK_STEP_MS);
+		elapsed_ms += PM_BOOT_CP1_STRESS_CHECK_STEP_MS;
+	}
+
+	BK_LOGW(NULL, "pm_boot_cp1 stress wait timeout: state=%u timeout=%u ap_boot=%d ap_off=%d\r\n",
+		power_state, timeout_ms, ap_boot, ap_off);
+	return false;
+}
+
+static void cli_pm_boot_cp1_stress_worker(void *arg)
+{
+	pm_boot_cp1_stress_worker_t *worker = (pm_boot_cp1_stress_worker_t *)arg;
+
+	worker->ret = bk_pm_module_vote_boot_ap_ctrl(worker->module_name, worker->power_state);
+	rtos_set_semaphore(&s_pm_boot_cp1_stress_sema);
+	rtos_delete_thread(NULL);
+}
+
+static uint32_t cli_pm_boot_cp1_stress_run_phase(pm_boot_cp1_stress_worker_t *workers,
+	UINT32 start_module, UINT32 task_count, UINT32 power_state)
+{
+	uint32_t created_count = 0;
+	uint32_t index;
+
+	for (index = 0; index < task_count; index++)
+	{
+		beken_thread_t handle = NULL;
+
+		workers[index].module_name = start_module + index;
+		workers[index].power_state = power_state;
+		workers[index].ret = BK_FAIL;
+		workers[index].worker_id = index;
+
+		if (rtos_create_thread(&handle,
+			PM_BOOT_CP1_STRESS_TASK_PRIO,
+			"pm_cp1_stress",
+			(beken_thread_function_t)cli_pm_boot_cp1_stress_worker,
+			PM_BOOT_CP1_STRESS_TASK_STACK,
+			(beken_thread_arg_t)&workers[index]) != BK_OK)
+		{
+			BK_LOGE(NULL, "pm_boot_cp1 stress create task failed, idx=%u module=%u state=%u\r\n",
+				index, workers[index].module_name, power_state);
+			continue;
+		}
+
+		created_count++;
+	}
+
+	for (index = 0; index < created_count; index++)
+	{
+		rtos_get_semaphore(&s_pm_boot_cp1_stress_sema, BEKEN_WAIT_FOREVER);
+	}
+
+	return created_count;
+}
+
+static void cli_pm_boot_cp1_stress(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
+{
+	UINT32 start_module = 0;
+	UINT32 task_count = 0;
+	UINT32 loop_count = 0;
+	UINT32 on_hold_ms = 0;
+	UINT32 off_hold_ms = 0;
+	UINT32 loop;
+	uint32_t total_count = 0;
+	uint32_t success_count = 0;
+	uint32_t fail_count = 0;
+	pm_boot_cp1_stress_worker_t workers[PM_BOOT_CP1_STRESS_MAX_TASKS] = {0};
+
+	if ((argc != 6) && (argc != 7))
+	{
+		BK_LOGI(NULL, "usage: pm_boot_cp1 stress [start_module] [task_count] [loop_count] [on_hold_ms] [off_hold_ms]\r\n");
+		return;
+	}
+
+	start_module = os_strtoul(argv[2], NULL, 10);
+	task_count = os_strtoul(argv[3], NULL, 10);
+	loop_count = os_strtoul(argv[4], NULL, 10);
+	on_hold_ms = os_strtoul(argv[5], NULL, 10);
+	if (argc == 7)
+	{
+		off_hold_ms = os_strtoul(argv[6], NULL, 10);
+	}
+
+	if ((task_count == 0) || (task_count > PM_BOOT_CP1_STRESS_MAX_TASKS) ||
+		(loop_count == 0) || ((start_module + task_count) > PM_BOOT_AP_MODULE_NAME_MAX))
+	{
+		BK_LOGE(NULL, "pm_boot_cp1 stress invalid param: start=%u tasks=%u loops=%u max_tasks=%u module_max=%u\r\n",
+			start_module, task_count, loop_count, PM_BOOT_CP1_STRESS_MAX_TASKS, PM_BOOT_AP_MODULE_NAME_MAX);
+		return;
+	}
+
+	if (s_pm_boot_cp1_stress_sema != NULL)
+	{
+		BK_LOGE(NULL, "pm_boot_cp1 stress already running\r\n");
+		return;
+	}
+
+	if (rtos_init_semaphore_ex(&s_pm_boot_cp1_stress_sema, task_count, 0) != BK_OK)
+	{
+		BK_LOGE(NULL, "pm_boot_cp1 stress init semaphore failed\r\n");
+		return;
+	}
+
+	BK_LOGI(NULL, "pm_boot_cp1 stress start: start_module=%u tasks=%u loops=%u on_hold_ms=%u off_hold_ms=%u\r\n",
+		start_module, task_count, loop_count, on_hold_ms, off_hold_ms);
+
+	for (loop = 0; loop < loop_count; loop++)
+	{
+		uint32_t index;
+		uint32_t created_count;
+		bool phase_ok;
+
+		created_count = cli_pm_boot_cp1_stress_run_phase(workers, start_module, task_count, PM_POWER_MODULE_STATE_ON);
+		phase_ok = (created_count == task_count) &&
+			cli_pm_boot_cp1_wait_state(PM_POWER_MODULE_STATE_ON, PM_BOOT_CP1_STRESS_CHECK_TIMEOUT_MS);
+
+		for (index = 0; index < task_count; index++)
+		{
+			total_count++;
+			if ((index < created_count) && (workers[index].ret == BK_OK) && phase_ok)
+			{
+				success_count++;
+			}
+			else
+			{
+				fail_count++;
+			}
+		}
+
+		BK_LOGI(NULL, "pm_boot_cp1 stress loop=%u ON result=%d total=%u success=%u fail=%u\r\n",
+			loop, phase_ok, total_count, success_count, fail_count);
+
+		if (on_hold_ms)
+		{
+			rtos_delay_milliseconds(on_hold_ms);
+		}
+
+		created_count = cli_pm_boot_cp1_stress_run_phase(workers, start_module, task_count, PM_POWER_MODULE_STATE_OFF);
+		phase_ok = (created_count == task_count) &&
+			cli_pm_boot_cp1_wait_state(PM_POWER_MODULE_STATE_OFF, PM_BOOT_CP1_STRESS_CHECK_TIMEOUT_MS);
+
+		for (index = 0; index < task_count; index++)
+		{
+			total_count++;
+			if ((index < created_count) && (workers[index].ret == BK_OK) && phase_ok)
+			{
+				success_count++;
+			}
+			else
+			{
+				fail_count++;
+			}
+		}
+
+		BK_LOGI(NULL, "pm_boot_cp1 stress loop=%u OFF result=%d total=%u success=%u fail=%u\r\n",
+			loop, phase_ok, total_count, success_count, fail_count);
+
+		if (off_hold_ms && ((loop + 1) < loop_count))
+		{
+			rtos_delay_milliseconds(off_hold_ms);
+		}
+	}
+
+	BK_LOGI(NULL, "pm_boot_cp1 stress done: total=%u success=%u fail=%u\r\n",
+		total_count, success_count, fail_count);
+
+	rtos_deinit_semaphore(&s_pm_boot_cp1_stress_sema);
+	s_pm_boot_cp1_stress_sema = NULL;
+}
+#endif
+
 #define PM_MANUAL_LOW_VOL_VOTE_ENABLE    (0)
 #define PM_DEEPSLEEP_RTC_THRESHOLD       (500)
 #define PM_SHUTDOWN_RTC_THRESHOLD        (4)        //=500ms
@@ -1265,9 +1476,17 @@ static void cli_pm_boot_cp1(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
 #if 1 && (CONFIG_CPU_CNT > 1)
 	UINT32 boot_cp1_state = 0;
 	UINT32 module_name    = 0;
+
+	if ((argc >= 2) && (os_strcmp(argv[1], "stress") == 0))
+	{
+		cli_pm_boot_cp1_stress(pcWriteBuffer, xWriteBufferLen, argc, argv);
+		return;
+	}
+
 	if (argc != 3)
 	{
-		BK_LOGD(NULL,"cp1 ctrl parameter invalid %d\r\n",argc);
+		BK_LOGD(NULL,"usage: pm_boot_cp1 [module_name] [ctrl_state:0:on 1:off]\r\n");
+		BK_LOGD(NULL,"usage: pm_boot_cp1 stress [start_module] [task_count] [loop_count] [on_hold_ms] [off_hold_ms]\r\n");
 		return;
 	}
 	module_name   = os_strtoul(argv[1], NULL, 10);
@@ -1426,7 +1645,7 @@ static const struct cli_command s_pwr_commands[] = {
 	{"pm_wakeup_source", "pm_wakeup_source [pm_sleep_mode]", cli_pm_wakeup_source},
 	{"pm_rosc_ppm", "pm_rosc_ppm [interval] [count]", cli_pm_rosc_ppm},
 	{"pm_cp1_ctrl", "pm_cp1_ctrl [cp1_auto_pw_ctrl]", cli_pm_cp1_ctrl},
-	{"pm_boot_cp1", "pm_boot_cp1 [module_name] [ctrl_state:0x0:bootup; 0x1:shutdowm]", cli_pm_boot_cp1},
+	{"pm_boot_cp1", "pm_boot_cp1 [module_name] [ctrl_state:0:on 1:off] | pm_boot_cp1 stress [start_module] [task_count] [loop_count] [on_hold_ms] [off_hold_ms]", cli_pm_boot_cp1},
 #if (CONFIG_CPU_CNT > 2)
 	{"pm_boot_cp2", "pm_boot_cp2 [module_name] [ctrl_state:0x0:bootup; 0x1:shutdowm]", cli_pm_boot_cp2},
 #endif
