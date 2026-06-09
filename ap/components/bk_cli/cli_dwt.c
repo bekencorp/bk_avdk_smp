@@ -1,3 +1,4 @@
+#include <stdlib.h>
 #include "cli.h"
 #include "sdkconfig.h"
 
@@ -7,6 +8,30 @@ extern void bk_delay_us(UINT32 us);
 void smp_arch_dwt_trap_write(uint32_t addr, uint32_t data);
 void smp_dwt_set_data_write(uint32_t addr);
 void smp_arch_dwt_trap_disable(void);
+
+static int dwt_parse_hex_u32(const char *str, uint32_t *value)
+{
+    char *end;
+    unsigned long v;
+
+    if ((str == NULL) || (value == NULL)) {
+        return -1;
+    }
+
+    if ((str[0] != '0') || ((str[1] != 'x') && (str[1] != 'X')) || (str[2] == '\0')) {
+        BK_LOGD(NULL, "invalid hex: %s (require 0x prefix, e.g. 0x281a9070)\r\n", str);
+        return -1;
+    }
+
+    v = strtoul(str, &end, 16);
+    if ((end == str + 2) || (*end != '\0')) {
+        BK_LOGD(NULL, "invalid hex: %s (require 0x prefix, e.g. 0x281a9070)\r\n", str);
+        return -1;
+    }
+
+    *value = (uint32_t)v;
+    return 0;
+}
 
 static void dwt_command_usage(void)
 {
@@ -28,7 +53,10 @@ static void dwti_Command(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
         return;
     }
 
-    instruction_addr = strtoll(argv[1], NULL, 16);
+    if (dwt_parse_hex_u32(argv[1], &instruction_addr) != 0) {
+        dwt_command_usage();
+        return;
+    }
     dwt_set_instruction_address(instruction_addr);
 }
 
@@ -76,8 +104,14 @@ static void dwtdd_Command(char *pcWriteBuffer, int xWriteBufferLen, int argc, ch
         return;
     }
 
-    addr = strtoll(argv[1], NULL, 16);
-    value = strtoll(argv[2], NULL, 16);
+    if (dwt_parse_hex_u32(argv[1], &addr) != 0) {
+        dwt_command_usage();
+        return;
+    }
+    if (dwt_parse_hex_u32(argv[2], &value) != 0) {
+        dwt_command_usage();
+        return;
+    }
 #ifdef CONFIG_SOC_SMP
     smp_arch_dwt_trap_write(addr, value);
 #else
@@ -96,7 +130,10 @@ static void dwtdw_Command(char *pcWriteBuffer, int xWriteBufferLen, int argc, ch
         return;
     }
 
-    data_addr = strtoll(argv[1], NULL, 16);
+    if (dwt_parse_hex_u32(argv[1], &data_addr) != 0) {
+        dwt_command_usage();
+        return;
+    }
     smp_dwt_set_data_write(data_addr);
 }
 
@@ -112,7 +149,10 @@ static void dwtd_Command(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
     }
 
     watch_type = argv[1][0];
-    data_addr = strtoll(argv[2], NULL, 16);
+    if (dwt_parse_hex_u32(argv[2], &data_addr) != 0) {
+        dwt_command_usage();
+        return;
+    }
     switch (watch_type){
         case 'r':
             dwt_set_data_address_read(data_addr);
@@ -140,8 +180,14 @@ static void dwtdr_Command(char *pcWriteBuffer, int xWriteBufferLen, int argc, ch
         return;
     }
 
-    addr = strtoll(argv[1], NULL, 16);
-    limit = strtoll(argv[2], NULL, 16);
+    if (dwt_parse_hex_u32(argv[1], &addr) != 0) {
+        dwt_command_usage();
+        return;
+    }
+    if (dwt_parse_hex_u32(argv[2], &limit) != 0) {
+        dwt_command_usage();
+        return;
+    }
 
     dwt_set_data_address_range(addr, limit, ACCESS_TYPE_WRITE);
 }
@@ -150,14 +196,14 @@ static void dwtdr_Command(char *pcWriteBuffer, int xWriteBufferLen, int argc, ch
 
 #define DWT_CMD_CNT (sizeof(s_dwt_commands) / sizeof(struct cli_command))
 DRV_CLI_CMD_EXPORT static const struct cli_command s_dwt_commands[] = {
-    {"dwti", "dwt instruction_addr", dwti_Command},
-    {"dwtf", "dwtf ms (measure CPU freq)", dwtf_Command},
-    {"dwtdd", "dwtdd data_address data_value", dwtdd_Command},
+    {"dwti", "dwti 0x<instruction_addr>", dwti_Command},
+    {"dwtf", "dwtf <ms> (decimal, measure CPU freq)", dwtf_Command},
+    {"dwtdd", "dwtdd 0x<addr> 0x<value>", dwtdd_Command},
 #ifdef CONFIG_SOC_SMP
-    {"dwtdw", "dwtdw data_address", dwtdw_Command},
+    {"dwtdw", "dwtdw 0x<data_address>", dwtdw_Command},
 #else
-    {"dwtd", "dwtd r/w/b data_address", dwtd_Command},
-    {"dwtdr", "dwtdr data_address data_address_limit", dwtdr_Command},
+    {"dwtd", "dwtd r/w/b 0x<data_address>", dwtd_Command},
+    {"dwtdr", "dwtdr 0x<addr> 0x<addr_limit>", dwtdr_Command},
 #endif
 };
 
