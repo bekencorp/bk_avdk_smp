@@ -11,6 +11,7 @@ if (CONFIG_USB)
 
 	list(APPEND incs
 		cherryusb_adapter/include
+		bk_mtp
 		${BK_CHERRYUSB_DIR}/
 		${BK_CHERRYUSB_DIR}/common
 		${BK_CHERRYUSB_DIR}/core
@@ -107,6 +108,18 @@ if (CONFIG_USB)
 				${BK_CHERRYUSB_DIR}/class/hid/usbd_hid.c
 			)
 		endif() # CONFIG_USBD_HID
+
+		# MTP device class. CherryUSB v1.6 ships only the MTP protocol
+		# headers (class/mtp/*.h) -- the engine .c is a commercial/closed
+		# component upstream (see demo/mtp_template.c '#error commercial
+		# charge'). We supply our own engine ported from the glass project
+		# (ref/glass) and adapted to the v1.6 device API. It exposes a
+		# mounted filesystem (bk_vfs POSIX) over MTP.
+		if (CONFIG_USBD_MTP AND CONFIG_BK_USB_CHERRYUSB_V1_6)
+			list(APPEND srcs
+				bk_mtp/bk_usbd_mtp.c
+			)
+		endif() # CONFIG_USBD_MTP
 	endif() # CONFIG_USB_DEVICE
 
 	# RISC-V USB bridge plumbing is shared by the host AND device paths.
@@ -230,4 +243,6 @@ endif() # CONFIG_ATE
 # can see bk_posix.h / bk_partition.h when CONFIG_USBD_MSC && CONFIG_VFS.
 # Following the same pattern as bk_video_player / etc. that also need
 # the VFS public headers.
-armino_component_register(SRCS "${srcs}" INCLUDE_DIRS "${incs}" PRIV_REQUIRES bk_common driver bk_vfs)
+# utf8 provides conv_utf8 / Utf8ToGb2312 used by bk_mtp/bk_usbd_mtp.c for
+# GB2312<->UTF filename conversion when CONFIG_USBD_MTP && CONFIG_VFS.
+armino_component_register(SRCS "${srcs}" INCLUDE_DIRS "${incs}" PRIV_REQUIRES bk_common driver bk_vfs utf8)

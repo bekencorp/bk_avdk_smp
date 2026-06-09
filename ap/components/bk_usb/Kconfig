@@ -99,6 +99,34 @@ menu "Bk_usb"
 			bool "Enable Usb Device MSC"
 			default n
 
+		config USBD_MTP
+			bool "Enable Usb Device MTP"
+			depends on BK_USB_CHERRYUSB_V1_6
+			default n
+			help
+				Enable the MTP (Media Transfer Protocol) device class.
+				CherryUSB v1.6 only ships the MTP protocol headers; the
+				engine is provided by bk_mtp/bk_usbd_mtp.c (ported from the
+				glass project) and exposes a mounted filesystem over MTP.
+
+		menu "MTP Device Configuration"
+			depends on USBD_MTP
+
+			config USBD_MTP_PRODUCT_NAME
+				string "Usb Device MTP product name"
+				default "BekenMTP"
+				help
+					Product name reported by the MTP USB device string descriptor.
+
+			config USBD_MTP_DEVICE_TYPE
+				string "Usb Device MTP perceived device type"
+				default "1"
+				help
+					Perceived device type reported by MTP device property 0xD407.
+					Common values: 0 generic, 1 still image camera, 2 media player,
+					3 phone, 4 video camera, 5 PIM, 6 audio recorder.
+		endmenu
+
 		config USBD_MSC_CBW_DEBUG_LOG
 			bool "Enable per-CBW bulk-OUT debug log (BK7259 bring-up)"
 			depends on USBD_MSC
