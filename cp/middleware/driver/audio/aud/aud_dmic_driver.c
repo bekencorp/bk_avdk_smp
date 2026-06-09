@@ -62,10 +62,6 @@ bk_err_t bk_aud_dmic_init(aud_dmic_config_t *dmic_config)
 	}
 
 	/* config gpio */
-	gpio_dev_unmap(GPIO_8);
-	gpio_dev_map(GPIO_8, GPIO_DEV_DMIC1_CLK);
-	gpio_dev_unmap(GPIO_9);
-	gpio_dev_map(GPIO_9, GPIO_DEV_DMIC1_DAT);
 
 	//reserved channel config
 

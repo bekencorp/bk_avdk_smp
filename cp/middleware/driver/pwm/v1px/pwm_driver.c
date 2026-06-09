@@ -189,18 +189,6 @@ static void pwm_sw_ch_to_hw_id_ch(pwm_ch_t sw_ch, pwm_id_t *id, pwm_ch_t *hw_ch)
 		*hw_ch = sw_ch % SOC_PWM_CHAN_NUM_PER_UNIT;
 }
 
-static void pwm_chan_init_gpio(pwm_ch_t sw_ch)
-{
-	pwm_id_t id;
-	pwm_ch_t hw_ch;
-
-	pwm_sw_ch_to_hw_id_ch(sw_ch, &id, &hw_ch);
-
-	gpio_dev_unmap(s_pwm_pin_id_map[id][hw_ch].gpio_id);
-	gpio_dev_map(s_pwm_pin_id_map[id][hw_ch].gpio_id, s_pwm_pin_id_map[id][hw_ch].gpio_dev);
-	bk_gpio_pull_up(s_pwm_pin_id_map[id][hw_ch].gpio_id);
-}
-
 static void pwm_chan_enable_interrupt_common(pwm_chan_t sw_ch)
 {
 	pwm_id_t id;
@@ -261,7 +249,6 @@ static void pwm_chan_init_common(pwm_chan_t sw_ch)
 		sys_drv_int_group2_enable(PWM1_INTERRUPT_CTRL_BIT);
 	}
 
-	pwm_chan_init_gpio(sw_ch);
 	soft_reset = pwm_hal_get_cg_reset_soft_reset(&s_pwm[id].hal);
 	if (0 == soft_reset) {
 		pwm_hal_set_cg_reset_soft_reset(&s_pwm[id].hal, 1);
@@ -828,7 +815,6 @@ bk_err_t bk_pwm_set_period_duty(pwm_chan_t sw_ch, pwm_period_duty_config_t *conf
 	}
 
 	if (s_pwm[id].chan_gpio_mode_bits & BIT(hw_ch)){
-		gpio_dev_map(s_pwm_pin_id_map[id][hw_ch].gpio_id, s_pwm_pin_id_map[id][hw_ch].gpio_dev);
 	}
 
 	s_pwm[id].chan_gpio_mode_bits &= ~BIT(hw_ch);
@@ -916,8 +902,6 @@ bk_err_t bk_pwm_set_gpio(pwm_chan_t sw_ch, uint32 mode)
 	PWM_RETURN_ON_INVALID_CHAN(hw_ch);
 	PWM_RETURN_ON_CHAN_NOT_INIT(id, hw_ch);
 	PWM_RETURN_ON_INVALID_GPIO_MODE(id);
-
-	pwm_chan_init_gpio(sw_ch);
 
 	return BK_OK;
 }

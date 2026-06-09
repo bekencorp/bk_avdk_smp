@@ -146,10 +146,7 @@ static bk_err_t adc_init_gpio(adc_chan_t chan)
         return BK_OK;
     }
 
-    gpio_dev_map(adc_map->gpio_id, adc_map->gpio_dev);
-    bk_gpio_disable_pull(adc_map->gpio_id);
-    bk_gpio_disable_input(adc_map->gpio_id);
-    bk_gpio_disable_output(adc_map->gpio_id);
+    (void)adc_map;
 
     return BK_OK;
 }
@@ -162,7 +159,7 @@ static void adc_deinit_gpio(adc_chan_t chan)
     adc_gpio_map_t adc_map_table[] = ADC_DEV_MAP;
     adc_gpio_map_t *adc_map = &adc_map_table[chan];
 
-    gpio_dev_unmap(adc_map->gpio_id);
+    (void)adc_map;
 }
 
 static void adc_enable_block(void)

@@ -659,77 +659,7 @@ static void mac_printf_encode_wrapper(char *txt, size_t maxlen, const u8 *data, 
 
 static void dbg_enable_debug_gpio_wrapper(void)
 {
-    // 2 -> 9
-    gpio_dev_unmap(GPIO_2);              // BK7256 EVB    BK7236 EVB      BIT
-    gpio_dev_map(GPIO_2, GPIO_DEV_DEBUG0);   //CLK(H6)    CLK(H6)          0
-    gpio_dev_unmap(GPIO_3);
-    gpio_dev_map(GPIO_3, GPIO_DEV_DEBUG1);   //CMD(H6)    CMD(H6)          1
-    gpio_dev_unmap(GPIO_4);
-    gpio_dev_map(GPIO_4, GPIO_DEV_DEBUG2);   //D0(H6)     D0(H6)           2
-    gpio_dev_unmap(GPIO_5);
-    gpio_dev_map(GPIO_5, GPIO_DEV_DEBUG3);   //D1(H6)     D1(H6)           3
-    gpio_dev_unmap(GPIO_6);
-    gpio_dev_map(GPIO_6, GPIO_DEV_DEBUG4);   //CD(H6)     CD(H6)           4
-    gpio_dev_unmap(GPIO_7);
-    gpio_dev_map(GPIO_7, GPIO_DEV_DEBUG5);   //P7(H5)     P7(H5)           5
-    gpio_dev_unmap(GPIO_8);
-    gpio_dev_map(GPIO_8, GPIO_DEV_DEBUG6);   //P8(CON4)   P8(CON4)         6
-    gpio_dev_unmap(GPIO_9);
-    gpio_dev_map(GPIO_9, GPIO_DEV_DEBUG7);   //P9(CON4)   P9(CON4)         7
-
-    // 14 -> 19
-    gpio_dev_unmap(GPIO_14);
-    gpio_dev_map(GPIO_14, GPIO_DEV_DEBUG8);  //P14(CON3)  P14(H3)          8
-    gpio_dev_unmap(GPIO_15);
-    gpio_dev_map(GPIO_15, GPIO_DEV_DEBUG9);  //P15(CON3)  P15(H3)          9
-    gpio_dev_unmap(GPIO_16);
-    gpio_dev_map(GPIO_16, GPIO_DEV_DEBUG10); //S14(H3)    P16(H3)         10
-    gpio_dev_unmap(GPIO_17);
-    gpio_dev_map(GPIO_17, GPIO_DEV_DEBUG11); //           P17(H3)         11
-    gpio_dev_unmap(GPIO_18);
-    gpio_dev_map(GPIO_18, GPIO_DEV_DEBUG12); //           P18(H5)         12
-    gpio_dev_unmap(GPIO_19);
-    gpio_dev_map(GPIO_19, GPIO_DEV_DEBUG13); //           P19(H5)         13
-
-    // 24 -> 39
-    gpio_dev_unmap(GPIO_24);
-    gpio_dev_map(GPIO_24, GPIO_DEV_DEBUG14); //           P24(H8)         14
-    gpio_dev_unmap(GPIO_25);
-    gpio_dev_map(GPIO_25, GPIO_DEV_DEBUG15); //           P25(H8)         15
-    gpio_dev_unmap(GPIO_26);
-    gpio_dev_map(GPIO_26, GPIO_DEV_DEBUG16); //           P26(H8)         16
-    gpio_dev_unmap(GPIO_27);
-    gpio_dev_map(GPIO_27, GPIO_DEV_DEBUG17); //           MCLK(H14)       17
-    gpio_dev_unmap(GPIO_28);
-    gpio_dev_map(GPIO_28, GPIO_DEV_DEBUG18); //           P28/ADC4(H5)    18
-    gpio_dev_unmap(GPIO_29);
-    gpio_dev_map(GPIO_29, GPIO_DEV_DEBUG19); //           PCLK(H14)       19
-    gpio_dev_unmap(GPIO_30);
-    gpio_dev_map(GPIO_30, GPIO_DEV_DEBUG20); //           HSYNC(H14)      20
-    gpio_dev_unmap(GPIO_31);
-    gpio_dev_map(GPIO_31, GPIO_DEV_DEBUG21); //           VSYNC(H14)      21
-    gpio_dev_unmap(GPIO_32);
-    gpio_dev_map(GPIO_32, GPIO_DEV_DEBUG22); //           PXD0(H14)       22
-    gpio_dev_unmap(GPIO_33);
-    gpio_dev_map(GPIO_33, GPIO_DEV_DEBUG23); //           PXD1(H14)       23
-    gpio_dev_unmap(GPIO_34);
-    gpio_dev_map(GPIO_34, GPIO_DEV_DEBUG24); //           PXD2(H14)       24
-    gpio_dev_unmap(GPIO_35);
-    gpio_dev_map(GPIO_35, GPIO_DEV_DEBUG25); //           PXD3(H14)       25
-    gpio_dev_unmap(GPIO_36);
-    gpio_dev_map(GPIO_36, GPIO_DEV_DEBUG26); //           PXD4(H14)       26
-    gpio_dev_unmap(GPIO_37);
-    gpio_dev_map(GPIO_37, GPIO_DEV_DEBUG27); //           PXD5(H14)       27
-    gpio_dev_unmap(GPIO_38);
-    gpio_dev_map(GPIO_38, GPIO_DEV_DEBUG28); //           PXD6(H14)       28
-    gpio_dev_unmap(GPIO_39);
-    gpio_dev_map(GPIO_39, GPIO_DEV_DEBUG29); //           PXD7(H14)       29
-
-    // 42 -> 43
-    gpio_dev_unmap(GPIO_42);
-    gpio_dev_map(GPIO_42, GPIO_DEV_DEBUG30); //           P42(CONN4)      30
-    gpio_dev_unmap(GPIO_43);
-    gpio_dev_map(GPIO_43, GPIO_DEV_DEBUG31); //           P43(CONN4)      31
+    return;
 }
 
 static bk_err_t gpio_dev_unmap_wrapper(uint32_t gpio_id)

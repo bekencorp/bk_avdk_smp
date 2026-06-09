@@ -84,10 +84,7 @@ static bk_err_t adc_init_gpio(adc_chan_t chan)
     adc_gpio_map_t *adc_map = &adc_map_table[chan];
 
     if (adc_hal_is_analog_channel(chan)) {
-        gpio_dev_unmap(adc_map->gpio_id);
-        bk_gpio_disable_pull(adc_map->gpio_id);
-        bk_gpio_disable_input(adc_map->gpio_id);
-        bk_gpio_disable_output(adc_map->gpio_id);
+        (void)adc_map;
 
         return BK_OK;
     }
@@ -106,11 +103,6 @@ static bk_err_t adc_init_gpio(adc_chan_t chan)
         sys_drv_analog_reg4_bits_or(param);// to do,need remove old interface after all adaption is finished
     }
 
-    gpio_dev_map(adc_map->gpio_id, adc_map->gpio_dev);
-    bk_gpio_disable_pull(adc_map->gpio_id);
-    bk_gpio_disable_input(adc_map->gpio_id);
-    bk_gpio_disable_output(adc_map->gpio_id);
-
     return BK_OK;
 }
 
@@ -122,7 +114,7 @@ static void adc_deinit_gpio(adc_chan_t chan)
     adc_gpio_map_t adc_map_table[] = ADC_DEV_MAP;
     adc_gpio_map_t *adc_map = &adc_map_table[chan];
 
-    gpio_dev_unmap(adc_map->gpio_id);
+    (void)adc_map;
 }
 
 static void adc_enable_block(void)

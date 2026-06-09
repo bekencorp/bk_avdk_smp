@@ -68,112 +68,7 @@ static uint32_t bk_touch_channel_transfer(touch_channel_t touch_id)
 
 bk_err_t bk_touch_gpio_init(touch_channel_t touch_id)
 {
-	uint32_t touch_select = 0;
-	touch_select = bk_touch_channel_transfer(touch_id);
-	TOUCH_RETURN_ON_INVALID_ID(touch_select);
-	switch(touch_id)
-	{
-		case BK_TOUCH_0:
-			gpio_dev_unmap(GPIO_12);
-			gpio_dev_map(GPIO_12, GPIO_DEV_TOUCH0);
-			bk_gpio_disable_output(GPIO_12);
-			break;
-
-		case BK_TOUCH_1:
-			gpio_dev_unmap(GPIO_13);
-			gpio_dev_map(GPIO_13, GPIO_DEV_TOUCH1);
-			bk_gpio_disable_output(GPIO_13);
-			break;
-
-		case BK_TOUCH_2:
-			gpio_dev_unmap(GPIO_28);
-			gpio_dev_map(GPIO_28, GPIO_DEV_TOUCH2);
-			bk_gpio_disable_output(GPIO_28);
-			break;
-
-		case BK_TOUCH_3:
-			gpio_dev_unmap(GPIO_29);
-			gpio_dev_map(GPIO_29, GPIO_DEV_TOUCH3);
-			bk_gpio_disable_output(GPIO_29);
-			break;
-
-		case BK_TOUCH_4:
-			gpio_dev_unmap(GPIO_30);
-			gpio_dev_map(GPIO_30, GPIO_DEV_TOUCH4);
-			bk_gpio_disable_output(GPIO_30);
-			break;
-
-		case BK_TOUCH_5:
-			gpio_dev_unmap(GPIO_31);
-			gpio_dev_map(GPIO_31, GPIO_DEV_TOUCH5);
-			bk_gpio_disable_output(GPIO_31);
-			break;
-
-		case BK_TOUCH_6:
-			gpio_dev_unmap(GPIO_32);
-			gpio_dev_map(GPIO_32, GPIO_DEV_TOUCH6);
-			bk_gpio_disable_output(GPIO_32);
-			break;
-
-		case BK_TOUCH_7:
-			gpio_dev_unmap(GPIO_33);
-			gpio_dev_map(GPIO_33, GPIO_DEV_TOUCH7);
-			bk_gpio_disable_output(GPIO_33);
-			break;
-
-		case BK_TOUCH_8:
-			gpio_dev_unmap(GPIO_34);
-			gpio_dev_map(GPIO_34, GPIO_DEV_TOUCH8);
-			bk_gpio_disable_output(GPIO_34);
-			break;
-
-		case BK_TOUCH_9:
-			gpio_dev_unmap(GPIO_35);
-			gpio_dev_map(GPIO_35, GPIO_DEV_TOUCH9);
-			bk_gpio_disable_output(GPIO_35);
-			break;
-
-		case BK_TOUCH_10:
-			gpio_dev_unmap(GPIO_36);
-			gpio_dev_map(GPIO_36, GPIO_DEV_TOUCH10);
-			bk_gpio_disable_output(GPIO_36);
-			break;
-
-		case BK_TOUCH_11:
-			gpio_dev_unmap(GPIO_37);
-			gpio_dev_map(GPIO_37, GPIO_DEV_TOUCH11);
-			bk_gpio_disable_output(GPIO_37);
-			break;
-
-		case BK_TOUCH_12:
-			gpio_dev_unmap(GPIO_38);
-			gpio_dev_map(GPIO_38, GPIO_DEV_TOUCH12);
-			bk_gpio_disable_output(GPIO_38);
-			break;
-
-		case BK_TOUCH_13:
-			gpio_dev_unmap(GPIO_39);
-			gpio_dev_map(GPIO_39, GPIO_DEV_TOUCH13);
-			bk_gpio_disable_output(GPIO_39);
-			break;
-
-		case BK_TOUCH_14:
-			gpio_dev_unmap(GPIO_46);
-			gpio_dev_map(GPIO_46, GPIO_DEV_TOUCH14);
-			bk_gpio_disable_output(GPIO_46);
-			break;
-
-		case BK_TOUCH_15:
-			gpio_dev_unmap(GPIO_47);
-			gpio_dev_map(GPIO_47, GPIO_DEV_TOUCH15);
-			bk_gpio_disable_output(GPIO_47);
-			break;
-
-		default:
-			TOUCH_LOGD("unsupported touch id\r\n");
-			break;
-	}
-
+	(void)touch_id;
 	return BK_OK;
 }
 
@@ -332,13 +227,6 @@ uint32_t bk_touch_get_touch_status(void)
 
 bk_err_t bk_touch_digital_tube_init(void)
 {
-	uint8_t i = 0;
-	for (i = 0; i < 9; i++) {
-		gpio_dev_unmap(digital_led_gpio_map[i]);
-		bk_gpio_enable_output(digital_led_gpio_map[i]);
-		bk_gpio_set_output_high(digital_led_gpio_map[i]);
-	}
-
 	return BK_OK;
 }
 

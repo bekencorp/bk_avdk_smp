@@ -216,7 +216,6 @@ bk_err_t bk_xdac_driver_init(void)
 {
     uint32_t i;
     uint8_t int_map[XDAC_CH_CNT] = {INT_SRC_XDAC0,INT_SRC_XDAC1};
-    gpio_id_t gpio_map[XDAC_CH_CNT] = {GPIO_XDAC0,GPIO_XDAC1};
 
     if(true == xdac_init_flag)
     {
@@ -234,8 +233,6 @@ bk_err_t bk_xdac_driver_init(void)
         xdac_hal_init(i, &s_xdac[i].hal);
 
         /*gpio map,set to high-z state*/
-        gpio_dev_unmap(gpio_map[i]);
-        gpio_dev_map(gpio_map[i], GPIO_DEV_NONE);
         sys_hal_xdac_set_enspi(i,1);
         sys_hal_xdac_set_endigspi_sel(i,1);
 

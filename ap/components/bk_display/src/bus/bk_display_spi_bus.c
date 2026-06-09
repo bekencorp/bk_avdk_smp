@@ -60,21 +60,11 @@ static void spi_sw_gpio_init(uint8_t sda, uint8_t clk, uint8_t csx)
 {
     LOGI("%s, sda=%u clk=%u csx=%u\n", __func__, sda, clk, csx);
 
-    gpio_dev_unmap(clk);
-    bk_gpio_set_capacity(clk, GPIO_DRIVER_CAPACITY_3);
-    BK_LOG_ON_ERR(bk_gpio_disable_input(clk));
-    BK_LOG_ON_ERR(bk_gpio_enable_output(clk));
+    (void)sda;
+    (void)clk;
+    (void)csx;
 
-    gpio_dev_unmap(csx);
-    bk_gpio_set_capacity(csx, GPIO_DRIVER_CAPACITY_3);
-    BK_LOG_ON_ERR(bk_gpio_disable_input(csx));
-    BK_LOG_ON_ERR(bk_gpio_enable_output(csx));
-
-    gpio_dev_unmap(sda);
-    bk_gpio_set_capacity(sda, GPIO_DRIVER_CAPACITY_3);
-    BK_LOG_ON_ERR(bk_gpio_disable_input(sda));
-    BK_LOG_ON_ERR(bk_gpio_enable_output(sda));
-
+    /* Runtime control: drive CLK/CSX idle to high. */
     bk_gpio_set_output_high(clk);
     bk_gpio_set_output_high(csx);
 

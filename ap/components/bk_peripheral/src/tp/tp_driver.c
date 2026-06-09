@@ -225,41 +225,30 @@ int tp_i2c_write_uint16(uint8_t addr, uint16_t reg, uint8_t *buff, uint16_t len)
 // tp gpio initialization and including sensor address select through controling gpio level.
 bk_err_t bk_tp_gpio_init(const tp_config_t *config)
 {
-    if(NULL == config)
-    {
-        LOGE("%s, pointer is null!\r\n", __func__);
-        return BK_FAIL;
-    }
+	if(NULL == config)
+	{
+		LOGE("%s, pointer is null!\r\n", __func__);
+		return BK_FAIL;
+	}
 
-    gpio_config_t mode = {0};
-    gpio_id_t rst_id = TP_RST_PIN;
-    gpio_id_t int_id = TP_INT_PIN;
+	gpio_id_t rst_id = TP_RST_PIN;
+	gpio_id_t int_id = TP_INT_PIN;
 
-    // INT GPIO - output high
-    BK_LOG_ON_ERR(gpio_dev_unmap(int_id));
-    mode.io_mode = GPIO_OUTPUT_ENABLE;
-    mode.pull_mode = GPIO_PULL_DISABLE;
-    BK_LOG_ON_ERR(bk_gpio_set_config(int_id, &mode));
-    BK_LOG_ON_ERR(bk_gpio_set_output_high(int_id));    
+	/* The following set_output_high/low forms the TP reset pulse sequence. */
+	BK_LOG_ON_ERR(bk_gpio_set_output_high(int_id));
+	BK_LOG_ON_ERR(bk_gpio_set_output_low(rst_id));
 
-    // RESET GPIO - output low
-    BK_LOG_ON_ERR(gpio_dev_unmap(rst_id));
-    mode.io_mode = GPIO_OUTPUT_ENABLE;
-    mode.pull_mode = GPIO_PULL_DISABLE;
-    BK_LOG_ON_ERR(bk_gpio_set_config(rst_id, &mode));
-    BK_LOG_ON_ERR(bk_gpio_set_output_low(rst_id));    
-
-    // this delay time maybe can optimization.
-    #if CONFIG_TP_HY4633
-        rtos_delay_milliseconds(220);
-    #elif CONFIG_TP_FT6336
-        rtos_delay_milliseconds(20);
-    #elif CONFIG_TP_CST9217
-        rtos_delay_milliseconds(20);
-    #else
-        rtos_delay_milliseconds(10);
-    #endif
-    
+	// this delay time maybe can optimization.
+	#if CONFIG_TP_HY4633
+		rtos_delay_milliseconds(220);
+	#elif CONFIG_TP_FT6336
+		rtos_delay_milliseconds(20);
+	#elif CONFIG_TP_CST9217
+		rtos_delay_milliseconds(20);
+	#else
+		rtos_delay_milliseconds(10);
+	#endif
+	
     BK_LOG_ON_ERR(bk_gpio_set_output_high(rst_id));
     
     return BK_OK;
@@ -312,37 +301,31 @@ __bk_weak void bk_tp_read_info_callback(tp_data_t *tp_data)
 // tp interrupt initialization.
 bk_err_t bk_tp_int_init(const tp_config_t *config)
 {
-    if(NULL == config)
-    {
-        LOGE("%s, pointer is null!\r\n", __func__);
-        return BK_FAIL;
-    }
+	if(NULL == config)
+	{
+		LOGE("%s, pointer is null!\r\n", __func__);
+		return BK_FAIL;
+	}
 
-    gpio_config_t mode = {0};
-    gpio_id_t int_id = TP_INT_PIN;
-    gpio_int_type_t int_type = 0;
+	gpio_id_t int_id = TP_INT_PIN;
+	gpio_int_type_t int_type = 0;
 
-    BK_LOG_ON_ERR(gpio_dev_unmap(int_id));
-    mode.io_mode = GPIO_INPUT_ENABLE;
-    mode.pull_mode = GPIO_PULL_DISABLE;
-    BK_LOG_ON_ERR(bk_gpio_set_config(int_id, &mode));
-
-    if (TP_INT_TYPE_RISING_EDGE == config->int_type)
-    {
-        int_type = GPIO_INT_TYPE_RISING_EDGE;
-    }
-    else if (TP_INT_TYPE_FALLING_EDGE == config->int_type)
-    {
-        int_type = GPIO_INT_TYPE_FALLING_EDGE;
-    }
-    else if (TP_INT_TYPE_LOW_LEVEL == config->int_type)
-    {
-        int_type = GPIO_INT_TYPE_LOW_LEVEL;
-    }    
-    else if (TP_INT_TYPE_HIGH_LEVEL == config->int_type)
-    {
-        int_type = GPIO_INT_TYPE_HIGH_LEVEL;
-    }    
+	if (TP_INT_TYPE_RISING_EDGE == config->int_type)
+	{
+		int_type = GPIO_INT_TYPE_RISING_EDGE;
+	}
+	else if (TP_INT_TYPE_FALLING_EDGE == config->int_type)
+	{
+		int_type = GPIO_INT_TYPE_FALLING_EDGE;
+	}
+	else if (TP_INT_TYPE_LOW_LEVEL == config->int_type)
+	{
+		int_type = GPIO_INT_TYPE_LOW_LEVEL;
+	}	
+	else if (TP_INT_TYPE_HIGH_LEVEL == config->int_type)
+	{
+		int_type = GPIO_INT_TYPE_HIGH_LEVEL;
+	}	
     BK_LOG_ON_ERR(bk_gpio_register_isr(int_id, tp_int_gpio_isr));
     BK_LOG_ON_ERR(bk_gpio_set_interrupt_type(int_id, int_type));
     BK_LOG_ON_ERR(bk_gpio_enable_interrupt(int_id));

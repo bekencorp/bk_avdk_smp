@@ -29,51 +29,8 @@
 
 #define TAG "lcd_rgb_panel_common"
 
-#define RGB_PIN_MUX(pin, func)                              \
-    do {                                                    \
-        gpio_dev_unmap(pin);                                \
-        gpio_dev_map(pin, func);                            \
-        bk_gpio_set_capacity(pin, GPIO_DRIVER_CAPACITY_3);  \
-    } while (0)
-
 static void lcd_rgb_panel_pinmux_init(void)
 {
-    RGB_PIN_MUX(LCD_RGB_R0_PIN, LCD_RGB_R0_FUNC);
-    RGB_PIN_MUX(LCD_RGB_R1_PIN, LCD_RGB_R1_FUNC);
-    RGB_PIN_MUX(LCD_RGB_R2_PIN, LCD_RGB_R2_FUNC);
-    RGB_PIN_MUX(LCD_RGB_R3_PIN, LCD_RGB_R3_FUNC);
-    RGB_PIN_MUX(LCD_RGB_R4_PIN, LCD_RGB_R4_FUNC);
-    RGB_PIN_MUX(LCD_RGB_R5_PIN, LCD_RGB_R5_FUNC);
-    RGB_PIN_MUX(LCD_RGB_R6_PIN, LCD_RGB_R6_FUNC);
-    RGB_PIN_MUX(LCD_RGB_R7_PIN, LCD_RGB_R7_FUNC);
-
-    RGB_PIN_MUX(LCD_RGB_G0_PIN, LCD_RGB_G0_FUNC);
-    RGB_PIN_MUX(LCD_RGB_G1_PIN, LCD_RGB_G1_FUNC);
-    RGB_PIN_MUX(LCD_RGB_G2_PIN, LCD_RGB_G2_FUNC);
-    RGB_PIN_MUX(LCD_RGB_G3_PIN, LCD_RGB_G3_FUNC);
-    RGB_PIN_MUX(LCD_RGB_G4_PIN, LCD_RGB_G4_FUNC);
-    RGB_PIN_MUX(LCD_RGB_G5_PIN, LCD_RGB_G5_FUNC);
-    RGB_PIN_MUX(LCD_RGB_G6_PIN, LCD_RGB_G6_FUNC);
-    RGB_PIN_MUX(LCD_RGB_G7_PIN, LCD_RGB_G7_FUNC);
-
-    RGB_PIN_MUX(LCD_RGB_B0_PIN, LCD_RGB_B0_FUNC);
-    RGB_PIN_MUX(LCD_RGB_B1_PIN, LCD_RGB_B1_FUNC);
-    RGB_PIN_MUX(LCD_RGB_B2_PIN, LCD_RGB_B2_FUNC);
-    RGB_PIN_MUX(LCD_RGB_B3_PIN, LCD_RGB_B3_FUNC);
-    RGB_PIN_MUX(LCD_RGB_B4_PIN, LCD_RGB_B4_FUNC);
-    RGB_PIN_MUX(LCD_RGB_B5_PIN, LCD_RGB_B5_FUNC);
-    RGB_PIN_MUX(LCD_RGB_B6_PIN, LCD_RGB_B6_FUNC);
-    RGB_PIN_MUX(LCD_RGB_B7_PIN, LCD_RGB_B7_FUNC);
-
-    RGB_PIN_MUX(LCD_RGB_CLK_PIN, LCD_RGB_CLK_FUNC);
-
-    gpio_dev_unmap(LCD_RGB_DISP_PIN);
-    BK_LOG_ON_ERR(bk_gpio_enable_output(LCD_RGB_DISP_PIN));
-    bk_gpio_set_output_high(LCD_RGB_DISP_PIN);
-
-    RGB_PIN_MUX(LCD_RGB_HSYNC_PIN, LCD_RGB_HSYNC_FUNC);
-    RGB_PIN_MUX(LCD_RGB_VSYNC_PIN, LCD_RGB_VSYNC_FUNC);
-    RGB_PIN_MUX(LCD_RGB_DE_PIN, LCD_RGB_DE_FUNC);
 }
 
 typedef struct {
@@ -131,10 +88,6 @@ bk_err_t bk_lcd_rgb_default_reset(bk_avdk_lcd_panel_t *panel)
     if (priv->reset_gpio < 0) {
         return BK_OK;
     }
-
-    gpio_dev_unmap(priv->reset_gpio);
-    BK_LOG_ON_ERR(bk_gpio_enable_output(priv->reset_gpio));
-    bk_gpio_set_capacity(priv->reset_gpio, GPIO_DRIVER_CAPACITY_3);
 
     const uint16_t idle_ms    = priv->reset_timing.idle_ms;
     const uint16_t active_ms  = priv->reset_timing.active_ms;

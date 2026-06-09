@@ -978,14 +978,6 @@ avdk_err_t f58_detect(bk_camera_sensor_handle_t *handle, bk_camera_sensor_config
     AVDK_RETURN_ON_FALSE(config->bus, AVDK_ERR_GENERIC, TAG, "bus is NULL");
 
     /* disbale camera power */
-    gpio_dev_unmap(config->pin_pwdn);
-    BK_LOG_ON_ERR(bk_gpio_enable_output(config->pin_pwdn));
-    bk_gpio_set_capacity(config->pin_pwdn, GPIO_DRIVER_CAPACITY_3);
-
-    gpio_dev_unmap(config->pin_reset);
-    BK_LOG_ON_ERR(bk_gpio_enable_output(config->pin_reset));
-    bk_gpio_set_capacity(config->pin_reset, GPIO_DRIVER_CAPACITY_3);
-
     bk_gpio_set_output_high(config->pin_pwdn);
     bk_gpio_set_output_low(config->pin_reset);
     bk_gpio_set_output_high(config->pin_reset);

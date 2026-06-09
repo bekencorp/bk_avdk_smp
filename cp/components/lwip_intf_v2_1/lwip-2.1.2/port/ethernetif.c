@@ -1047,53 +1047,6 @@ void HAL_ETH_MspInit(ETH_HandleTypeDef* ethHandle)
 
   // GPIO PinMUX: group0(27, 29-39), or group2(46-55)
   // FIXME: BK7236, use dts instead of hard coding.
-#ifdef CONFIG_ETH_PIN_GROUP0
-  gpio_dev_unmap(GPIO_27);  // PHY INT
-  gpio_dev_unmap(GPIO_29);  // MDC
-  gpio_dev_unmap(GPIO_32);  // MDIO
-  gpio_dev_unmap(GPIO_33);  // RXD[0]
-  gpio_dev_unmap(GPIO_34);  // RXD[1]
-  gpio_dev_unmap(GPIO_35);  // RXDV
-  gpio_dev_unmap(GPIO_36);  // TXD[0]
-  gpio_dev_unmap(GPIO_37);  // TXD[1]
-  gpio_dev_unmap(GPIO_38);  // TXEN
-  gpio_dev_unmap(GPIO_39);  // REF_CLK
-
-  gpio_dev_map(GPIO_27, GPIO_DEV_ENET_PHY_INT);
-  gpio_dev_map(GPIO_29, GPIO_DEV_ENET_MDC);
-  gpio_dev_map(GPIO_32, GPIO_DEV_ENET_MDIO);
-  gpio_dev_map(GPIO_33, GPIO_DEV_ENET_RXD0);
-  gpio_dev_map(GPIO_34, GPIO_DEV_ENET_RXD1);
-  gpio_dev_map(GPIO_35, GPIO_DEV_ENET_RXDV);
-  gpio_dev_map(GPIO_36, GPIO_DEV_ENET_TXD0);
-  gpio_dev_map(GPIO_37, GPIO_DEV_ENET_TXD1);
-  gpio_dev_map(GPIO_38, GPIO_DEV_ENET_TXEN);
-  gpio_dev_map(GPIO_39, GPIO_DEV_ENET_REF_CLK);
-#elif defined(CONFIG_ETH_PIN_GROUP1)
-  // group2(46-55)
-  gpio_dev_unmap(GPIO_46);  // PHY INT
-  gpio_dev_unmap(GPIO_47);  // MDC
-  gpio_dev_unmap(GPIO_48);  // MDIO
-  gpio_dev_unmap(GPIO_49);  // RXD[0]
-  gpio_dev_unmap(GPIO_50);  // RXD[1]
-  gpio_dev_unmap(GPIO_51);  // RXDV
-  gpio_dev_unmap(GPIO_52);  // TXD[0]
-  gpio_dev_unmap(GPIO_53);  // TXD[1]
-  gpio_dev_unmap(GPIO_54);  // TXEN
-  gpio_dev_unmap(GPIO_55);  // REF_CLK
-
-  gpio_dev_map(GPIO_46, GPIO_DEV_ENET_PHY_INT);
-  gpio_dev_map(GPIO_47, GPIO_DEV_ENET_MDC);
-  gpio_dev_map(GPIO_48, GPIO_DEV_ENET_MDIO);
-  gpio_dev_map(GPIO_49, GPIO_DEV_ENET_RXD0);
-  gpio_dev_map(GPIO_50, GPIO_DEV_ENET_RXD1);
-  gpio_dev_map(GPIO_51, GPIO_DEV_ENET_RXDV);
-  gpio_dev_map(GPIO_52, GPIO_DEV_ENET_TXD0);
-  gpio_dev_map(GPIO_53, GPIO_DEV_ENET_TXD1);
-  gpio_dev_map(GPIO_54, GPIO_DEV_ENET_TXEN);
-  gpio_dev_map(GPIO_55, GPIO_DEV_ENET_REF_CLK);
-#endif
-
   // Power On AHBP (must be before any ETH register access)
   bk_pm_module_vote_power_ctrl(PM_POWER_SUB_MODULE_NAME_AHBP_ENET, PM_POWER_MODULE_STATE_ON);
 

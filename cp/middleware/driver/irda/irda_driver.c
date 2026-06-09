@@ -57,28 +57,6 @@ static uint32_t irda_push_tx_entries(uint32_t max_entries);
 static void irda_drain_rx_fifo(void);
 // static void irda_reset_sema(beken_semaphore_t *sema);
 
-static void irda_init_gpio(void)
-{
-	gpio_dev_unmap(IRDA_PIN);
-	gpio_dev_map(IRDA_PIN, GPIO_DEV_IRDA);
-}
-
-static void irda_deinit_gpio(void)
-{
-	gpio_dev_unmap(IRDA_PIN);
-}
-
-static void irda_gpio_config(bool active_level)
-{
-	BK_LOG_ON_ERR(bk_gpio_disable_output(IRDA_PIN));
-	BK_LOG_ON_ERR(bk_gpio_disable_input(IRDA_PIN));
-	BK_LOG_ON_ERR(bk_gpio_enable_pull(IRDA_PIN));
-	if(active_level)
-		BK_LOG_ON_ERR(bk_gpio_pull_up(IRDA_PIN));
-	else
-		BK_LOG_ON_ERR(bk_gpio_pull_down(IRDA_PIN));
-}
-
 /* 1) power up irda
  * 2) enable system irda interrupt
  * 3) init irda gpio
@@ -87,14 +65,12 @@ static void irda_init_common(void)
 {
 	// TODO: need to add clock enable
 	sys_drv_set_int_en(rtos_get_core_id(), INT_SRC_IRDA, 1);
-	irda_init_gpio();
 }
 
 static void irda_deinit_common(void)
 {
 	sys_drv_set_int_en(rtos_get_core_id(), INT_SRC_IRDA, 0);
 	// TODO: need to add clock disable
-	irda_deinit_gpio();
 }
 
 static void irda_sw_init(void)
@@ -231,7 +207,6 @@ bk_err_t bk_irda_init_rx(const irda_rx_init_config_t *rx_config)
 		return BK_ERR_PARAM;
 	}
 
-	irda_gpio_config(rx_config->rx_initial_level);
 	irda_hal_init_rx(rx_config);
 	irda_hal_set_rx_int(true);
 	irda_hal_set_rx_enable(true);

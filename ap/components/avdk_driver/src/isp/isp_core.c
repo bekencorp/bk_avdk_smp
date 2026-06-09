@@ -367,8 +367,7 @@ bk_err_t bk_cis_auxs_clock_enable(uint32_t clk, uint32_t gpio, uint8_t enable)
 
     if (enable)
     {
-        gpio_dev_unmap(pin);
-        gpio_dev_map(pin, GPIO_DEV_CLK_AUXS_CIS);
+        (void)pin;
 
         // sel 1, 240MHz, div 10
         sys_drv_cis_auxs_cksel_set(CKSEL_CIS_AUXS_240M);
@@ -381,7 +380,7 @@ bk_err_t bk_cis_auxs_clock_enable(uint32_t clk, uint32_t gpio, uint8_t enable)
     {
         // disable csi auxs clock
         bk_pm_clock_ctrl(PM_CLK_ID_CSI, PM_CLK_CTRL_PWR_DOWN);
-        gpio_dev_unmap(pin);
+        (void)pin;
     }
     return BK_OK;
 }
@@ -394,8 +393,7 @@ bk_err_t bk_cis_mclk_clock_enable(uint32_t clk, uint8_t gpio, uint8_t enable)
 
     if (enable)
     {
-        gpio_dev_unmap(pin);
-        gpio_dev_map(pin, GPIO_DEV_JPEG_MCLK);
+        (void)pin;
 
         // csi mclk clock configuration, default 24MHz
         // default sel 1, 240MHz div 10
@@ -408,7 +406,7 @@ bk_err_t bk_cis_mclk_clock_enable(uint32_t clk, uint8_t gpio, uint8_t enable)
     {
         // disable csi mclk clock
         bk_pm_clock_ctrl(PM_CLK_ID_CSI, PM_CLK_CTRL_PWR_DOWN);
-        gpio_dev_unmap(pin);
+        (void)pin;
     }
     return BK_OK;
 }

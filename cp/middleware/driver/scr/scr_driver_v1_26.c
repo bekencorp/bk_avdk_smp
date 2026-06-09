@@ -36,111 +36,14 @@ static uint32_t scr_intr_status = 0;
 
 bk_err_t bk_scr_gpio_init(gpio_scr_map_group_t group)
 {
-	switch (group) {
-		case GPIO_SCR_MAP_GROUP0:
-			gpio_dev_unmap(GPIO_0);
-			gpio_dev_map(GPIO_0, GPIO_DEV_SCR_IO);
-			gpio_dev_unmap(GPIO_1);
-			gpio_dev_map(GPIO_1, GPIO_DEV_SCR_CLK);
-			gpio_dev_unmap(GPIO_2);
-			gpio_dev_map(GPIO_2, GPIO_DEV_SCR_RSTN);
-			gpio_dev_unmap(GPIO_3);
-			gpio_dev_map(GPIO_3, GPIO_DEV_SCR_VCC);
-			break;
-
-		case GPIO_SCR_MAP_GROUP1:
-			gpio_dev_unmap(GPIO_30);
-			gpio_dev_map(GPIO_30, GPIO_DEV_SCR_CLK);
-			gpio_dev_unmap(GPIO_31);
-			gpio_dev_map(GPIO_31, GPIO_DEV_SCR_IO);
-			gpio_dev_unmap(GPIO_32);
-			gpio_dev_map(GPIO_32, GPIO_DEV_SCR_RSTN);
-			gpio_dev_unmap(GPIO_43);
-			gpio_dev_map(GPIO_43, GPIO_DEV_SCR_VCC);
-			break;
-
-		case GPIO_SCR_MAP_GROUP2:
-			gpio_dev_unmap(GPIO_40);
-			gpio_dev_map(GPIO_40, GPIO_DEV_SCR_CLK);
-			gpio_dev_unmap(GPIO_41);
-			gpio_dev_map(GPIO_41, GPIO_DEV_SCR_IO);
-			gpio_dev_unmap(GPIO_42);
-			gpio_dev_map(GPIO_42, GPIO_DEV_SCR_RSTN);
-			gpio_dev_unmap(GPIO_43);
-			gpio_dev_map(GPIO_43, GPIO_DEV_SCR_VCC);
-			break;
-
-		default:
-			break;
-	}
-
+	(void)group;
 	return BK_OK;
 }
 
 bk_err_t bk_scr_gpio_config(gpio_scr_map_group_t group, scr_gpio_type gpio_type)
 {
-	switch (group) {
-		case GPIO_SCR_MAP_GROUP0:
-			if (gpio_type == BK_SCR_GPIO_PAUSE) {
-				gpio_dev_unprotect_unmap(GPIO_0);
-				bk_gpio_pull_up(GPIO_0);
-				gpio_dev_unprotect_unmap(GPIO_1);
-				if (scr_hal_get_ctrl(BK_SCR_CTRL_CLK_STOP_VAL) == 0) {
-					bk_gpio_pull_down(GPIO_1);
-				} else {
-					bk_gpio_pull_up(GPIO_1);
-				}
-				gpio_dev_unprotect_unmap(GPIO_2);
-				bk_gpio_pull_up(GPIO_2);
-				gpio_dev_unprotect_unmap(GPIO_3);
-				bk_gpio_pull_up(GPIO_3);
-			} else {
-				gpio_scr_sel(GPIO_SCR_MAP_GROUP0);
-			}
-			break;
-
-		case GPIO_SCR_MAP_GROUP1:
-			if (gpio_type == BK_SCR_GPIO_PAUSE) {
-				gpio_dev_unprotect_unmap(GPIO_30);
-				if (scr_hal_get_ctrl(BK_SCR_CTRL_CLK_STOP_VAL) == 0) {
-					bk_gpio_pull_down(GPIO_30);
-				} else {
-					bk_gpio_pull_up(GPIO_30);
-				}
-				gpio_dev_unprotect_unmap(GPIO_31);
-				bk_gpio_pull_up(GPIO_31);
-				gpio_dev_unprotect_unmap(GPIO_32);
-				bk_gpio_pull_up(GPIO_32);
-				gpio_dev_unprotect_unmap(GPIO_43);
-				bk_gpio_pull_up(GPIO_43);
-			} else {
-				gpio_scr_sel(GPIO_SCR_MAP_GROUP1);
-			}
-			break;
-
-		case GPIO_SCR_MAP_GROUP2:
-			if (gpio_type == BK_SCR_GPIO_PAUSE) {
-				gpio_dev_unprotect_unmap(GPIO_40);
-				if (scr_hal_get_ctrl(BK_SCR_CTRL_CLK_STOP_VAL) == 0) {
-					bk_gpio_pull_down(GPIO_40);
-				} else {
-					bk_gpio_pull_up(GPIO_40);
-				}
-				gpio_dev_unprotect_unmap(GPIO_41);
-				bk_gpio_pull_up(GPIO_41);
-				gpio_dev_unprotect_unmap(GPIO_42);
-				bk_gpio_pull_up(GPIO_42);
-				gpio_dev_unprotect_unmap(GPIO_43);
-				bk_gpio_pull_up(GPIO_43);
-			} else {
-				gpio_scr_sel(GPIO_SCR_MAP_GROUP2);
-			}
-			break;
-
-		default:
-			break;
-	}
-
+	(void)group;
+	(void)gpio_type;
 	return BK_OK;
 }
 

@@ -135,22 +135,11 @@ void bk_mipi_csi_ext_set_enable(uint8_t mode)
 
 void bk_dvp_io_config(void)
 {
-    /* dvp pins function config */
-    for (int i = GPIO_29; i <= GPIO_39; i++) {
-        gpio_dev_unmap(i);
-        //gpio_dev_map(i, GPIO_DVP_FUNC_VALUE);
-        *(volatile uint32_t*)(SOC_AON_GPIO_REG_BASE + i * 4) |= (GPIO_DVP_FUNC_VALUE << 24); // gpio dvp function map
-    }
 }
 
 void bk_mipi_csi_enable_debug_pin(void)
 {
     LOGI("%s\r\n", __func__);
-    for (int i = GPIO_2; i <= GPIO_4; i++) {
-        gpio_dev_unmap(i);
-        //gpio_dev_map(i, GPIO_DEBUG_FUNC_VALUE);
-        *(volatile uint32_t*)(SOC_AON_GPIO_REG_BASE + i * 4) |= (GPIO_DEBUG_FUNC_VALUE << 24); // gpio debug function map
-    }
 
     uint32_t reg = REG_READ(BASEADDR_CSI_EXT + 0x00000000);
     reg |= 0x40;// debug for 0x40
