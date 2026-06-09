@@ -1254,6 +1254,17 @@ BaseType_t xPortStartSchedulerOnCore( void ) /* PRIVILEGED_FUNCTION */
      * here already. */
     vPortSetupTimerInterrupt();
 
+#if CONFIG_SMP_FIRST_TASK_PENDSV_RACE_TEST
+    /* TEST ONLY (BK7259SW-1723): force a PendSV to be pending right before this
+     * core starts its first task. This deterministically reproduces the race
+     * where a PendSV is serviced before the first task PSP is loaded. Without
+     * the fix this MemFaults (PSP=0xfffffffc); with the fix BASEPRI keeps it
+     * masked until the first task PSP is valid. */
+    portNVIC_INT_CTRL_REG = portNVIC_PENDSVSET_BIT;
+    __asm volatile ( "dsb" ::: "memory" );
+    __asm volatile ( "isb" );
+#endif
+
     /* Start the first task. */
     vStartFirstTask();
 

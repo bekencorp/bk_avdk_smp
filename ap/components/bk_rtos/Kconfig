@@ -170,6 +170,30 @@ menu "Bk_rtos"
 			bool "Enable FreeRTOS CPU usage percent record"
 			default n             
 
+		config SMP_FIRST_TASK_PENDSV_RACE_TEST
+			depends on FREERTOS_SMP
+			bool "TEST: reproduce early-PendSV-before-first-task race (BK7259SW-1723)"
+			default n
+			help
+				Debug/test only. Force a PendSV to be pending right before each
+				core starts its first task in xPortStartSchedulerOnCore(). This
+				deterministically reproduces BK7259SW-1723: a PendSV serviced
+				before the first task PSP is loaded, which (without the fix)
+				saves the FP context to an invalid PSP (0xfffffffc) and triggers
+				a MemFault. With the fix the pending PendSV stays masked until
+				the first task PSP is valid, so the system boots normally.
+				Keep this OFF in production builds.
+
+		config SMP_DISABLE_FIRST_TASK_PENDSV_FIX
+			depends on FREERTOS_SMP
+			bool "TEST: disable the first-task PendSV-mask fix (BK7259SW-1723)"
+			default n
+			help
+				Debug/test only. Revert vStartFirstTask() to the old behavior
+				(open all interrupts via cpsie before the first task PSP is
+				loaded). Use together with SMP_FIRST_TASK_PENDSV_RACE_TEST to
+				demonstrate the original MemFault. Keep this OFF in production.
+
 	endmenu
 
 

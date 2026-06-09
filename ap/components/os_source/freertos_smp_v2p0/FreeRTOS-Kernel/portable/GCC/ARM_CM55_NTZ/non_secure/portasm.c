@@ -167,6 +167,41 @@ void vResetPrivilege( void ) /* __attribute__ (( naked )) */
 
 void vStartFirstTask( void ) /* __attribute__ (( naked )) PRIVILEGED_FUNCTION */
 {
+#if CONFIG_SMP_DISABLE_FIRST_TASK_PENDSV_FIX
+    /* TEST ONLY (BK7259SW-1723): original behaviour. Interrupts are fully
+     * opened (cpsie i) before the first task PSP is loaded by the SVC handler,
+     * so an already-pending PendSV is serviced with an invalid PSP. */
+    __asm volatile
+    (
+        "	.syntax unified									\n"
+        "													\n"
+        "	ldr r0, xVTORConst2								\n"
+        "	ldr r0, [r0]									\n"
+        "	ldr r0, [r0]									\n"
+        "	msr msp, r0										\n"
+        "	cpsie i											\n"
+        "	cpsie f											\n"
+        "	dsb												\n"
+        "	isb												\n"
+        "	svc %0											\n"
+        "	nop												\n"
+        "													\n"
+        "   .align 4										\n"
+        "xVTORConst2: .word 0xe000ed08					\n"
+        ::"i" ( portSVC_START_SCHEDULER ) : "memory"
+    );
+#else
+    /* Fix for BK7259SW-1723: on SMP first-task start, a PendSV (pended by a
+     * cross-core yield IPI or SysTick) could be serviced after interrupts are
+     * enabled but before vRestoreContextOfFirstTask() loads this core's first
+     * task PSP. soc_pendsv_handler() would then save the FP context to the
+     * uninitialised PSP (0xfffffffc) -> MemManage DACCVIOL.
+     *
+     * Keep PendSV/SysTick (priority 255) masked via BASEPRI across the whole
+     * first-task restore window. PRIMASK is cleared so the SVC (priority 0)
+     * can still execute. vRestoreContextOfFirstTask() clears BASEPRI at its
+     * tail once PSP/CONTROL are valid, after which any pending PendSV
+     * tail-chains harmlessly against a valid task stack. */
     __asm volatile
     (
         "	.syntax unified									\n"
@@ -175,7 +210,9 @@ void vStartFirstTask( void ) /* __attribute__ (( naked )) PRIVILEGED_FUNCTION */
         "	ldr r0, [r0]									\n"/* Read the VTOR register which gives the address of vector table. */
         "	ldr r0, [r0]									\n"/* The first entry in vector table is stack pointer. */
         "	msr msp, r0										\n"/* Set the MSP back to the start of the stack. */
-        "	cpsie i											\n"/* Globally enable interrupts. */
+        "	mov r1, %1										\n"/* r1 = configMAX_SYSCALL_INTERRUPT_PRIORITY. */
+        "	msr basepri, r1									\n"/* Mask PendSV/SysTick before the first task PSP is loaded. */
+        "	cpsie i											\n"/* Clear PRIMASK so the SVC can run; PendSV stays masked by BASEPRI. */
         "	cpsie f											\n"
         "	dsb												\n"
         "	isb												\n"
@@ -184,8 +221,9 @@ void vStartFirstTask( void ) /* __attribute__ (( naked )) PRIVILEGED_FUNCTION */
         "													\n"
         "   .align 4										\n"
         "xVTORConst: .word 0xe000ed08						\n"
-        ::"i" ( portSVC_START_SCHEDULER ) : "memory"
+        ::"i" ( portSVC_START_SCHEDULER ), "i" ( configMAX_SYSCALL_INTERRUPT_PRIORITY ) : "memory"
     );
+#endif
 }
 /*-----------------------------------------------------------*/
 #if 0
