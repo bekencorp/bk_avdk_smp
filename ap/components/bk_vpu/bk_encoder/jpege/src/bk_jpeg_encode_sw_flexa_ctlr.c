@@ -132,11 +132,11 @@ static void jpeg_sw_flexa_encoder_entry(void *arg)
 			break;
 
 		if (ctrl->frame_cfg.out_buffer == 0 && ctrl->config.outbuf_malloc != NULL) {
-			void *out = ctrl->config.outbuf_malloc(CONFIG_BK_ENCODER_H264_MAX_OUTPUT_BUFFER,
+			void *out = ctrl->config.outbuf_malloc(CONFIG_BK_ENCODER_MJPEG_MAX_OUTPUT_BUFFER,
 							       ctrl->config.outbuf_malloc_args);
 			if (out != NULL) {
 				ctrl->frame_cfg.out_buffer = (uint32_t)(uintptr_t)out;
-				ctrl->frame_cfg.out_len = CONFIG_BK_ENCODER_H264_MAX_OUTPUT_BUFFER;
+				ctrl->frame_cfg.out_len = CONFIG_BK_ENCODER_MJPEG_MAX_OUTPUT_BUFFER;
 			}
 		}
 

@@ -107,7 +107,7 @@ static void jpeg_encoder_entry(void *arg)
 		if (!ctrl->enc_status)
 			break;
 
-		uint32_t out_cap = CONFIG_BK_ENCODER_H264_MAX_OUTPUT_BUFFER;
+		uint32_t out_cap = CONFIG_BK_ENCODER_MJPEG_MAX_OUTPUT_BUFFER;
 		void *out_ptr = NULL;
 		uint32_t in_base = ctrl->pending_input.pic_buf ?
 					   ctrl->pending_input.pic_buf :
