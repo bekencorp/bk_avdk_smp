@@ -1,4 +1,9 @@
 #include "bk_usbh_hub_multiple_classes_api.h"
+#include <errno.h>
+
+#ifndef ESHUTDOWN
+#define ESHUTDOWN 108
+#endif
 
 typedef struct
 {

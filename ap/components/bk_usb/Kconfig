@@ -4,6 +4,23 @@ menu "Bk_usb"
 		bool "Enable Usb"
 		default n
 
+	choice BK_USB_CHERRYUSB_VERSION
+		prompt "CherryUSB stack version"
+		depends on USB
+		default BK_USB_CHERRYUSB_LEGACY
+		help
+			Select which CherryUSB implementation is compiled by bk_usb.
+			The legacy stack is the existing Beken-adapted CherryUSB v0.7
+			tree. The v1.6 stack is an upstream CherryUSB 1.6.x based tree
+			with a separate Beken adapter/port.
+
+		config BK_USB_CHERRYUSB_LEGACY
+			bool "CherryUSB legacy (Beken v0.7 adapted)"
+
+		config BK_USB_CHERRYUSB_V1_6
+			bool "CherryUSB v1.6.x"
+	endchoice
+
 	config USB_VBAT_CONTROL_GPIO_ID
 		depends on USB
 		hex "Vbat control gpio id"

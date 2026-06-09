@@ -9,7 +9,9 @@
 #include <common/bk_include.h>
 #include <os/mem.h>
 
+#if !CONFIG_BK_USB_CHERRYUSB_V1_6
 #define CHERRYUSB_VERSION 0x000700
+#endif
 
 /* ================ USB common Configuration ================ */
 
@@ -143,13 +145,86 @@
 
 /* ================ USB Device Port Configuration ================*/
 
+#if !CONFIG_BK_USB_CHERRYUSB_V1_6
 #define USBD_IRQHandler USBD_IRQHandler
 #define USB_BASE (SOC_USB_HS_BASE)
+#endif
 #define USB_NUM_BIDIR_ENDPOINTS 16
 
 /* ================ USB Host Port Configuration ==================*/
 
 #define CONFIG_USBHOST_PIPE_NUM 10
+
+#if CONFIG_BK_USB_CHERRYUSB_V1_6
+#undef CONFIG_USBHOST_MAX_EXTHUBS
+#define CONFIG_USBHOST_MAX_EXTHUBS 0
+#undef CONFIG_USBHOST_MAX_EHPORTS
+#define CONFIG_USBHOST_MAX_EHPORTS 1
+#undef CONFIG_USBHOST_MAX_INTERFACES
+#define CONFIG_USBHOST_MAX_INTERFACES 4
+#undef CONFIG_USBHOST_MAX_INTF_ALTSETTINGS
+#define CONFIG_USBHOST_MAX_INTF_ALTSETTINGS 5
+#undef CONFIG_USBHOST_MAX_ENDPOINTS
+#define CONFIG_USBHOST_MAX_ENDPOINTS 4
+#undef CONFIG_USBHOST_PIPE_NUM
+#define CONFIG_USBHOST_PIPE_NUM 8
+#ifndef CONFIG_USBHOST_MAX_BUS
+#define CONFIG_USBHOST_MAX_BUS 1
+#endif
+#ifndef CONFIG_USBDEV_MAX_BUS
+#define CONFIG_USBDEV_MAX_BUS 1
+#endif
+#ifndef CONFIG_USBDEV_MSC_MAX_LUN
+#define CONFIG_USBDEV_MSC_MAX_LUN 1
+#endif
+#ifndef CONFIG_USBDEV_MSC_MAX_BUFSIZE
+#define CONFIG_USBDEV_MSC_MAX_BUFSIZE 512
+#endif
+#ifndef CONFIG_USB_MUSB_EP_NUM
+#if CONFIG_USB_RISCV_BRIDGE
+/* g_musb_udc is published in-place to the RISC-V CP firmware, which reads it as
+ * musb_udc_t with in_ep[16]/out_ep[16] (USB_NUM_BIDIR_ENDPOINTS). The AP struct
+ * MUST size its EP arrays the same so out_ep[] lands at the offset the CP
+ * expects. See ap/.../riscv_src/fw/common/riscv_usb_bridge.h. */
+#define CONFIG_USB_MUSB_EP_NUM 16
+#else
+#define CONFIG_USB_MUSB_EP_NUM 8
+#endif
+#endif
+#ifndef CONFIG_USB_MUSB_PIPE_NUM
+#define CONFIG_USB_MUSB_PIPE_NUM 8
+#endif
+#ifndef CONFIG_USB_MUSB_WITHOUT_MULTIPOINT
+#define CONFIG_USB_MUSB_WITHOUT_MULTIPOINT
+#endif
+#ifndef CONFIG_USBHOST_MAX_SERIAL_CLASS
+#define CONFIG_USBHOST_MAX_SERIAL_CLASS 1
+#endif
+#ifndef CONFIG_USBHOST_MAX_HID_CLASS
+#define CONFIG_USBHOST_MAX_HID_CLASS 1
+#endif
+#ifndef CONFIG_USBHOST_MAX_MSC_CLASS
+#define CONFIG_USBHOST_MAX_MSC_CLASS 1
+#endif
+#ifndef CONFIG_USBHOST_MAX_AUDIO_CLASS
+#define CONFIG_USBHOST_MAX_AUDIO_CLASS 1
+#endif
+#ifndef CONFIG_USBHOST_MAX_VIDEO_CLASS
+#define CONFIG_USBHOST_MAX_VIDEO_CLASS 1
+#endif
+#ifndef CONFIG_USBHOST_VIDEO_MAX_FORMATS
+#define CONFIG_USBHOST_VIDEO_MAX_FORMATS 4
+#endif
+#ifndef CONFIG_USBHOST_VIDEO_MAX_FRAMES
+#define CONFIG_USBHOST_VIDEO_MAX_FRAMES 8
+#endif
+#ifndef usb_phyaddr2ramaddr
+#define usb_phyaddr2ramaddr(addr) (addr)
+#endif
+#ifndef usb_ramaddr2phyaddr
+#define usb_ramaddr2phyaddr(addr) (addr)
+#endif
+#endif /* CONFIG_BK_USB_CHERRYUSB_V1_6 */
 
 /* ================ EHCI Configuration ================ */
 

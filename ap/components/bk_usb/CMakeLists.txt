@@ -3,24 +3,47 @@ set(srcs)
 
 if (CONFIG_USB)
 
+	if (CONFIG_BK_USB_CHERRYUSB_V1_6)
+		set(BK_CHERRYUSB_DIR CherryUSB_v1_6)
+	else()
+		set(BK_CHERRYUSB_DIR CherryUSB_legacy)
+	endif()
+
 	list(APPEND incs
-		CherryUSB/
-		CherryUSB/common
-		CherryUSB/core
-		CherryUSB/osal
-		CherryUSB/class/cdc
-		CherryUSB/class/hid
-		CherryUSB/class/msc
-		CherryUSB/class/audio
-		CherryUSB/class/video
-		CherryUSB/class/hub
-		CherryUSB/demo
-		CherryUSB/driver
+		cherryusb_adapter/include
+		${BK_CHERRYUSB_DIR}/
+		${BK_CHERRYUSB_DIR}/common
+		${BK_CHERRYUSB_DIR}/core
+		${BK_CHERRYUSB_DIR}/osal
+		${BK_CHERRYUSB_DIR}/class/cdc
+		${BK_CHERRYUSB_DIR}/class/hid
+		${BK_CHERRYUSB_DIR}/class/msc
+		${BK_CHERRYUSB_DIR}/class/audio
+		${BK_CHERRYUSB_DIR}/class/video
+		${BK_CHERRYUSB_DIR}/class/hub
+		${BK_CHERRYUSB_DIR}/demo
+		${BK_CHERRYUSB_DIR}/driver
+		../../include/components/cherryusb
 	)
+	if (CONFIG_BK_USB_CHERRYUSB_V1_6)
+		list(APPEND incs
+			${BK_CHERRYUSB_DIR}/port/musb
+		)
+	endif()
 	list(APPEND srcs
-		CherryUSB/driver/usb_driver.c
-		CherryUSB/osal/usb_osal_adaptor.c
+		${BK_CHERRYUSB_DIR}/driver/usb_driver.c
+		${BK_CHERRYUSB_DIR}/osal/usb_osal_adaptor.c
 	)
+	if (CONFIG_BK_USB_CHERRYUSB_V1_6)
+		list(APPEND srcs
+			cherryusb_adapter/v1_6/bk_cherryusb_adapter_v1_6.c
+			${BK_CHERRYUSB_DIR}/port/beken_musb_v1_6/usb_glue_beken_7259.c
+		)
+	else()
+		list(APPEND srcs
+			cherryusb_adapter/legacy/bk_cherryusb_adapter_legacy.c
+		)
+	endif()
 	if (CONFIG_USB_DEVICE)
 		# BK7259 USB device controller (MUSB-MHDRC) lives on a HIGH-SPEED
 		# phy (SOC_USB_HS_BASE = 0x480A0000). The CherryUSB device port
@@ -33,7 +56,7 @@ if (CONFIG_USB)
 		# recognised" or just hangs the AP cluster.
 		#
 		# The BK7258 SDK injected the macro via
-		#   ap/components/bk_usb/CherryUSB/CMakeLists.txt:15
+		#   ap/components/bk_usb/${BK_CHERRYUSB_DIR}/CMakeLists.txt:15
 		#     sdk_compile_definitions(-DCONFIG_USB_HS)
 		# but that file is gated by `if(CONFIG_CHERRYUSB_DEVICE)`, a
 		# kconfig symbol that doesn't exist on this project (we use the
@@ -45,16 +68,16 @@ if (CONFIG_USB)
 		# mps=512 / HS is the right mode.
 		add_compile_definitions(CONFIG_USB_HS)
 		list(APPEND srcs
-			CherryUSB/core/usbd_core.c
-			CherryUSB/port/beken_musb/usb_dc_beken_musb_mhdrc.c
+			${BK_CHERRYUSB_DIR}/core/usbd_core.c
+			${BK_CHERRYUSB_DIR}/port/beken_musb/usb_dc_beken_musb_mhdrc.c
 		)
 
 		list(APPEND incs
-			CherryUSB/demo/beken/usb_device
+			${BK_CHERRYUSB_DIR}/demo/beken/usb_device
 		)
 		if (CONFIG_USBD_MSC)
 			list(APPEND srcs
-				CherryUSB/class/msc/usbd_msc.c
+				${BK_CHERRYUSB_DIR}/class/msc/usbd_msc.c
 			)
 			# usbd_msc.c references lv_vfs_init / lv_vfs_deinit
 			# whenever CONFIG_VFS=y. The implementation file was
@@ -65,23 +88,23 @@ if (CONFIG_USB)
 			#   fatal error: usb_vfs.h: No such file or directory
 			if (CONFIG_VFS)
 				list(APPEND srcs
-					CherryUSB/class/msc/usb_vfs.c
+					${BK_CHERRYUSB_DIR}/class/msc/usb_vfs.c
 				)
 			endif() # CONFIG_VFS
 		endif() # CONFIG_USBD_MSC
 
 		if (CONFIG_USBD_UVC)
 			list(APPEND srcs
-				CherryUSB/class/video/usbd_video.c
-				CherryUSB/demo/beken/usb_device/video/video_stream_common.c
+				${BK_CHERRYUSB_DIR}/class/video/usbd_video.c
+				${BK_CHERRYUSB_DIR}/demo/beken/usb_device/video/video_stream_common.c
 			)
 		endif() # CONFIG_USBD_UVC
 
 		if (CONFIG_USBD_HID)
 			list(APPEND srcs
-				#CherryUSB/demo/beken/usb_device/hid/hid_common.c
-				CherryUSB/demo/beken/usb_device/hid/hid_mouse_lpm.c
-				CherryUSB/class/hid/usbd_hid.c
+				#${BK_CHERRYUSB_DIR}/demo/beken/usb_device/hid/hid_common.c
+				${BK_CHERRYUSB_DIR}/demo/beken/usb_device/hid/hid_mouse_lpm.c
+				${BK_CHERRYUSB_DIR}/class/hid/usbd_hid.c
 			)
 		endif() # CONFIG_USBD_HID
 	endif() # CONFIG_USB_DEVICE
@@ -94,25 +117,25 @@ if (CONFIG_USB)
 	# is itself still gated by CONFIG_USB_HOST below.
 	if (CONFIG_USB_RISCV_BRIDGE)
 		list(APPEND incs
-			CherryUSB/port/beken_musb/riscv_bridge
+			${BK_CHERRYUSB_DIR}/port/beken_musb/riscv_bridge
 		)
 		list(APPEND srcs
-			CherryUSB/port/beken_musb/riscv_bridge/riscv_usb_bridge.c
+			${BK_CHERRYUSB_DIR}/port/beken_musb/riscv_bridge/riscv_usb_bridge.c
 		)
 	endif() # CONFIG_USB_RISCV_BRIDGE
 
 	if (CONFIG_USB_HOST)
 		list(APPEND incs
-			CherryUSB/demo/beken/usb_host
+			${BK_CHERRYUSB_DIR}/demo/beken/usb_host
 		)
 		list(APPEND srcs
-			CherryUSB/core/usbh_core.c
-			CherryUSB/port/beken_musb/usb_hc_beken_musb.c
+			${BK_CHERRYUSB_DIR}/core/usbh_core.c
+			${BK_CHERRYUSB_DIR}/port/beken_musb/usb_hc_beken_musb.c
 		)
 
 		if (CONFIG_USB_HUB)
 			list(APPEND srcs
-				CherryUSB/class/hub/usbh_hub.c
+				${BK_CHERRYUSB_DIR}/class/hub/usbh_hub.c
 			)
 			if (CONFIG_USB_HUB_MULTIPLE_DEVICES)
 				list(APPEND incs
@@ -127,13 +150,13 @@ if (CONFIG_USB)
 
 		if (CONFIG_USBH_UVC)
 			list(APPEND srcs
-				CherryUSB/class/video/usbh_video.c
+				${BK_CHERRYUSB_DIR}/class/video/usbh_video.c
 			)
 		endif() # CONFIG_USBH_UVC
 
-		if (CONFIG_USBH_UAC)
+		if (CONFIG_USBH_UAC AND NOT CONFIG_BK_USB_CHERRYUSB_V1_6)
 			list(APPEND srcs
-				CherryUSB/class/audio/usbh_audio.c
+				${BK_CHERRYUSB_DIR}/class/audio/usbh_audio.c
 			)
 		endif() # CONFIG_USBH_UAC
 
@@ -145,13 +168,13 @@ if (CONFIG_USB)
 
 		if (CONFIG_USBH_MSC)
 			list(APPEND srcs
-				CherryUSB/class/msc/usbh_msc.c
+				${BK_CHERRYUSB_DIR}/class/msc/usbh_msc.c
 			)
 		endif() # CONFIG_USBH_MSC
 
 		if (CONFIG_USB_CDC)
 			list(APPEND srcs
-				CherryUSB/class/cdc/usbh_cdc_acm.c
+				${BK_CHERRYUSB_DIR}/class/cdc/usbh_cdc_acm.c
 			)
 		endif() # CONFIG_USB_CDC
 
@@ -203,7 +226,7 @@ if (CONFIG_ATE_TEST)
 		)
 endif() # CONFIG_ATE
 
-# bk_vfs is added to PRIV_REQUIRES so that CherryUSB/class/msc/usb_vfs.c
+# bk_vfs is added to PRIV_REQUIRES so that ${BK_CHERRYUSB_DIR}/class/msc/usb_vfs.c
 # can see bk_posix.h / bk_partition.h when CONFIG_USBD_MSC && CONFIG_VFS.
 # Following the same pattern as bk_video_player / etc. that also need
 # the VFS public headers.
