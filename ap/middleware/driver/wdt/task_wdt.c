@@ -188,6 +188,26 @@ void bk_task_wdt_timeout_check(void)
 	}
 }
 
+bk_err_t bk_task_wdt_set_feed_bits(uint32_t core_id, bool set_flag)
+{
+	if (core_id >= TASK_WDT_CORE_NUM) {
+		return BK_FAIL;
+	}
+
+	if (set_flag) {
+		uint64_t current_tick = GET_TASK_CURRENT_TICK();
+		s_task_wdt_feed_bits |= BIT(core_id);
+		s_last_task_wdt_feed_tick[core_id] = current_tick;
+		s_last_task_wdt_log_tick[core_id] = current_tick;
+	} else {
+		s_task_wdt_feed_bits &= ~BIT(core_id);
+		s_last_task_wdt_feed_tick[core_id] = 0;
+		s_last_task_wdt_log_tick[core_id] = 0;
+	}
+
+	return BK_OK;
+}
+
 #if CONFIG_TASK_WDT_TEST
 bk_err_t bk_task_wdt_set_skip_feed_core(uint32_t core_id, bool skip)
 {
