@@ -1,7 +1,6 @@
 #include "cli.h"
 #include <os/os.h>
 #include <driver/pwm.h>
-#include "pwm_hal.h"
 #include <driver/trng.h>
 #include <stdlib.h>
 #include <stdio.h>

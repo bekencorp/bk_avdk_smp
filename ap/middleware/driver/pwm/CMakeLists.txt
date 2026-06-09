@@ -1,15 +1,7 @@
 if (CONFIG_PWM)
 	list(APPEND incs pwm)
-
-	if (CONFIG_PWM_V2P2)
-		list(APPEND incs pwm/v2p2)
-		list(APPEND srcs pwm/v2p2/pwm_driver.c)
-	endif()
-
-	if (CONFIG_PWM_V1PX)
-		list(APPEND incs pwm/v1px)
-		list(APPEND srcs pwm/v1px/pwm_driver.c)
-	endif()
+	list(APPEND incs pwm/v2p2)
+	list(APPEND srcs pwm/v2p2/pwm_driver.c)
 
 	if (CONFIG_CLI AND CONFIG_PWM_TEST)
 		list(APPEND srcs pwm/pwm_test.c)

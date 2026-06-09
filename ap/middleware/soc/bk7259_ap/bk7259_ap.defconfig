@@ -1264,9 +1264,6 @@ CONFIG_AUDIO_RING_BUFF=y
 # PWM
 #
 # CONFIG_PWM is not set
-# CONFIG_PWM_V1PX is not set
-CONFIG_PWM_V2P2=y
-# CONFIG_PWM_HAS_TWO_INT is not set
 # CONFIG_PWM_PM_CB_SUPPORT is not set
 # CONFIG_PWM_PHASE_SHIFT is not set
 # CONFIG_PWM_FADE is not set

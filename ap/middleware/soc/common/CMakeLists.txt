@@ -13,17 +13,10 @@ set(srcs
 	hal/uart_hal.c
 	)
 
-if (CONFIG_PWM)
-if (CONFIG_PWM_V1PX)
+if (CONFIG_AON_GPIO)
 	list(APPEND srcs
-		hal/pwm_hal_v1px.c
-		)
-endif()
-if (CONFIG_PWM_V0P0)
-	list(APPEND srcs
-		hal/pwm_hal.c
-		)
-endif()
+		hal/gpio_hal.c
+	)
 endif()
 
 if (CONFIG_FLASH)

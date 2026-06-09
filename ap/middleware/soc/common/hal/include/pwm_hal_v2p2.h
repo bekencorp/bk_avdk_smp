@@ -66,6 +66,12 @@ void pwm_hal_pm_backup(uint32_t chan, uint32_t *pm_backup, uint32_t reg_count);
 void pwm_hal_pm_restore(uint32_t chan, uint32_t *pm_backup, uint32_t reg_count);
 #endif
 
+#if CFG_HAL_DEBUG_PWM
+void pwm_struct_dump(void);
+#else
+#define pwm_struct_dump()
+#endif
+
 #ifdef __cplusplus
 }
 #endif
