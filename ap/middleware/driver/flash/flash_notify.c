@@ -117,8 +117,6 @@ enum
 	IPC_FLASH_OP_END,
 };
 
-
-
 #if 1
 
 static void cpu1_pause_handle(mb_chnl_cmd_t *cmd_buf)
@@ -239,6 +237,54 @@ bk_err_t mb_flash_ipc_init(void)
 	mb_chnl_ctrl(MB_CHNL_FLASH, MB_CHNL_SET_RX_ISR, (void *)mb_flash_ipc_rx_isr);
 
 	return ret_code;
+}
+
+bk_err_t mb_flash_op_prepare(void)
+{
+	// disable the LCD dev interrupt.
+	if(s_flash_op_notify != NULL)
+		s_flash_op_notify(0);
+
+	if (s_flash_op_notify_camera != NULL)
+	{
+		s_flash_op_notify_camera(1);
+	}
+
+	if(s_flash_op_notify_onboard_mic_stream != NULL)
+	{
+		s_flash_op_notify_onboard_mic_stream(1, s_flash_op_notify_onboard_mic_stream_args);
+	}
+
+	if (s_flash_op_notify_uart != NULL)
+	{
+		s_flash_op_notify_uart(1);
+	}
+
+	return BK_OK;
+}
+
+bk_err_t mb_flash_op_finish(void)
+{
+	// enable the LCD dev interrupt.
+	if(s_flash_op_notify != NULL)
+		s_flash_op_notify(1);
+
+	if (s_flash_op_notify_camera != NULL)
+	{
+		s_flash_op_notify_camera(0);
+	}
+
+	if(s_flash_op_notify_onboard_mic_stream != NULL)
+	{
+		s_flash_op_notify_onboard_mic_stream(0, s_flash_op_notify_onboard_mic_stream_args);
+	}
+
+	if (s_flash_op_notify_uart != NULL)
+	{
+		s_flash_op_notify_uart(0);
+	}
+
+	return BK_OK;
 }
 
 #else

@@ -173,6 +173,11 @@ static inline uint32_t flash_ll_read_status_reg(flash_hw_t *hw, uint8_t sr_width
 	return state_reg_data;
 }
 
+static inline uint32_t flash_ll_get_crc_err_num(flash_hw_t *hw)
+{
+	return (uint32_t)hw->state.crc_err_num;
+}
+
 static inline void flash_ll_enable_cpu_data_wr(flash_hw_t *hw)
 {
 	hw->config.cpu_data_wr_en = 1;

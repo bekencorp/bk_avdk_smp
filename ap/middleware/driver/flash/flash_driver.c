@@ -24,11 +24,16 @@
 #include <modules/chip_support.h>
 #include "flash_bypass.h"
 
+#if CONFIG_FLASH_CP_AP_DIRECT_ACCESS
+#include "flash_shared_lock.h"
+#endif
 
+#if !CONFIG_FLASH_CP_AP_DIRECT_ACCESS
 #ifdef CONFIG_FREERTOS_SMP
 #include "spinlock.h"
 static SPINLOCK_SECTION volatile spinlock_t flash_spin_lock = SPIN_LOCK_INIT;
 #endif // CONFIG_FREERTOS_SMP
+#endif
 
 typedef struct {
 	flash_hal_t            hal;
@@ -88,6 +93,10 @@ static const flash_config_t flash_config[] = {
 	{0xEB6015,   FLASH_SIZE_2M,   2,             FLASH_LINE_MODE_FOUR,   14,       2,            0x1F,         0x1F,        0x00,         0x101,                9,            1,           0xA0,                         }, //zg_th25q16b
 	{0xC86517,	 FLASH_SIZE_8M,   2,             FLASH_LINE_MODE_FOUR,   14,	   2,            0x1F,         0x1F,        0x00,         0x00E,                9,            1,           0xA0,                         }, //gd_25Q32E
 	{0xCD6017,   FLASH_SIZE_8M,   3,             FLASH_LINE_MODE_FOUR,   14,       2,            0x1F,         0x1F,        0x00,         0x00E,                9,            1,           0xA0,                         }, //th_25q64ha
+	{0x852018,   FLASH_SIZE_16M,  2,             FLASH_LINE_MODE_FOUR,   14,       2,            0x1F,         0x1F,        0x00,         0x00E,                9,            1,           0xA0,                         }, //py_25q129ha
+	{0xC86019,	 FLASH_SIZE_16M,  2, 			 FLASH_LINE_MODE_FOUR,   14,	   2,			  0x1F, 		0x1F,		 0x00,		   0x0E,		        9,			  1, 		   0xA0,                         }, //for FPGA simulation and debugging type size 16M
+	{0xC84016,	 FLASH_SIZE_4M,   2,             FLASH_LINE_MODE_FOUR,   14,	   2,			  0x1F, 		0x1F,		 0x00,		   0x0E,		        9,			  1, 		   0xA0,                         }, //for FPGA simulation and debugging type size 4M
+	{0xCD6016,   FLASH_SIZE_4M,   2,             FLASH_LINE_MODE_FOUR,   14,       2,            0x1F,         0x1F,        0x00,         0x00E,                9,            1,           0xA0,                         }, //th_25q32ha
 	{0x000000,   FLASH_SIZE_4M,   2,             FLASH_LINE_MODE_TWO,    0,        2,            0x1F,         0x00,        0x00,         0x000,                0,            0,           0x00,                         }, //default
 };
 
@@ -111,6 +120,9 @@ extern void vTaskSuspendAll( void );
 
 static inline uint32_t flash_enter_critical()
 {
+#if CONFIG_FLASH_CP_AP_DIRECT_ACCESS
+	return bk_aspl_flash_enter_critical();
+#else
 	uint32_t flags = rtos_disable_int();
 
 #ifdef CONFIG_FREERTOS_SMP
@@ -118,22 +130,30 @@ static inline uint32_t flash_enter_critical()
 #endif // CONFIG_FREERTOS_SMP
 
 	return flags;
+#endif
 }
 
 static inline void flash_exit_critical(uint32_t flags)
 {
+#if CONFIG_FLASH_CP_AP_DIRECT_ACCESS
+	bk_aspl_flash_exit_critical(flags);
+#else
 #ifdef CONFIG_FREERTOS_SMP
 	spin_unlock(&flash_spin_lock);
 #endif // CONFIG_FREERTOS_SMP
 
 	rtos_enable_int(flags);
+#endif
 }
 
 #if 1
 #ifdef CONFIG_FREERTOS_SMP
 static beken_mutex_t s_flash_mutex = NULL;
 #endif
-
+#if CONFIG_FLASH_CP_AP_DIRECT_ACCESS
+static uint32_t s_flash_lock_cpu_id = FLASH_SHARED_CPU_MAX;
+static volatile uint8_t s_flash_irq_lock_depth[FLASH_SHARED_CPU_MAX];
+#endif
 static void flash_lock_init(void)
 {
 #ifdef CONFIG_FREERTOS_SMP
@@ -142,25 +162,36 @@ static void flash_lock_init(void)
 #endif
 }
 
-#if 0
-static void flash_lock_deinit(void)
-{
-	int ret = rtos_deinit_mutex(&s_flash_mutex);
-	BK_ASSERT(kNoErr == ret); /* ASSERT VERIFIED */
-}
-#endif
-
 static void flash_lock(void)
 {
 	if(rtos_is_in_interrupt_context() || rtos_local_irq_disabled())
 	{
+#if CONFIG_FLASH_CP_AP_DIRECT_ACCESS
+		uint32_t cpu_id = bk_flash_shared_get_cpu_id();
+		if (bk_flash_shared_acquire(cpu_id) != BK_OK)
+			BK_ASSERT(0);
+		s_flash_irq_lock_depth[cpu_id]++;
+#endif
 		return;
 	}
 
 #ifdef CONFIG_FREERTOS_SMP
 	rtos_lock_mutex(&s_flash_mutex);
 #endif
+
 	vTaskSuspendAll();
+
+#if CONFIG_FLASH_CP_AP_DIRECT_ACCESS
+	s_flash_lock_cpu_id = bk_flash_shared_get_cpu_id();
+	if (bk_flash_shared_acquire(s_flash_lock_cpu_id) != BK_OK) {
+		s_flash_lock_cpu_id = FLASH_SHARED_CPU_MAX;
+		xTaskResumeAll();
+#ifdef CONFIG_FREERTOS_SMP
+		rtos_unlock_mutex(&s_flash_mutex);
+#endif
+		BK_ASSERT(0);
+	}
+#endif
 
 	mb_flash_op_prepare();
 }
@@ -169,10 +200,24 @@ static void flash_unlock(void)
 {
 	if(rtos_is_in_interrupt_context() || rtos_local_irq_disabled())
 	{
+#if CONFIG_FLASH_CP_AP_DIRECT_ACCESS
+		uint32_t cpu_id = bk_flash_shared_get_cpu_id();
+		if (s_flash_irq_lock_depth[cpu_id] > 0) {
+			s_flash_irq_lock_depth[cpu_id]--;
+			bk_flash_shared_release(cpu_id);
+		}
+#endif
 		return;
 	}
 
 	mb_flash_op_finish();
+
+#if CONFIG_FLASH_CP_AP_DIRECT_ACCESS
+	if (s_flash_lock_cpu_id < FLASH_SHARED_CPU_MAX) {
+		bk_flash_shared_release(s_flash_lock_cpu_id);
+		s_flash_lock_cpu_id = FLASH_SHARED_CPU_MAX;
+	}
+#endif
 
 	xTaskResumeAll();
 
@@ -534,11 +579,19 @@ bk_err_t bk_flash_driver_init(void)
 		return BK_OK;
 	}
 
+#if CONFIG_FLASH_CP_AP_DIRECT_ACCESS
+	if (bk_flash_shared_lock_init(false) != BK_OK)
+		return BK_FAIL;
+
+	if (bk_flash_shared_wait_flash_init_done(5000) != BK_OK)
+		return BK_FAIL;
+#endif
+
 	bk_err_t ret_code = mb_flash_ipc_init();  /* used for projects with LCD. */
 	if(ret_code != BK_OK)
 		return ret_code;
 
-#if (CONFIG_CPU_CNT > 1)
+#if (CONFIG_CPU_CNT > 1) && !CONFIG_FLASH_CP_AP_DIRECT_ACCESS
 	extern bk_err_t bk_flash_svr_init(void);
 	ret_code = bk_flash_svr_init();
 	if(ret_code != BK_OK)
@@ -623,9 +676,7 @@ bk_err_t bk_flash_driver_init(void)
 	s_flash_is_init = true;
 
 #if CONFIG_FLASH_TEST
-//    int bk_flash_register_cli_test_feature(void);
 //    int bk_flash_wr_register_cli_test_feature(void);
-//    bk_flash_register_cli_test_feature();
 //    bk_flash_wr_register_cli_test_feature();
 #endif
 
@@ -773,23 +824,24 @@ static bk_err_t flash_write_no_lock(uint32_t address, const uint8_t *user_buf, u
 	bk_err_t    ret_val = BK_FAIL;
 
 	flash_line_mode_t old_line_mode = flash_set_line_mode(FLASH_LINE_MODE_TWO);
-
+#if CONFIG_FLASH_WRITE_STATUS_VOLATILE
 	uint32_t  status_reg = s_flash.flash_status_reg_val;
 	#if CONFIG_FLASH_SUPPORT_MULTI_PE
 	status_reg = flash_read_status_reg();
 	#endif
 
-    flash_protect_type_t partition_type = flash_get_protect_type(status_reg);
-
+	flash_protect_type_t partition_type = flash_get_protect_type(status_reg);
+#endif
 	if(bk_flash_partition_write_perm_check_by_addr(address, size, FLASH_API_MAGIC_CODE) == BK_OK)
 	{
-    	flash_set_protect_type(FLASH_PROTECT_NONE);
+		flash_set_protect_type(FLASH_PROTECT_NONE);
 
 		if(bk_flash_partition_write_perm_check_by_addr(address, size, FLASH_API_MAGIC_CODE) == BK_OK)
 			ret_val = flash_write_common(user_buf, address, size);
 	}
-
-    flash_set_protect_type(partition_type);
+#if CONFIG_FLASH_WRITE_STATUS_VOLATILE
+	flash_set_protect_type(partition_type);
+#endif
 	flash_set_line_mode(old_line_mode);
 
 	return ret_val;
@@ -907,9 +959,15 @@ bk_err_t bk_flash_write_disable(void)
 uint16_t bk_flash_read_status_reg(void)
 {
 	#if CONFIG_FLASH_SUPPORT_MULTI_PE
+#if CONFIG_FLASH_CP_AP_DIRECT_ACCESS
+	flash_lock();
+#endif
 	flash_line_mode_t old_line_mode = flash_set_line_mode(FLASH_LINE_MODE_TWO);
 	uint16_t sr_data = flash_read_status_reg();
 	flash_set_line_mode(old_line_mode);
+#if CONFIG_FLASH_CP_AP_DIRECT_ACCESS
+	flash_unlock();
+#endif
 	return sr_data;
 	#else
 	return s_flash.flash_status_reg_val;
@@ -1041,11 +1099,29 @@ void bk_flash_disable_cpu_data_wr(void)
 /* flash dump APIs are called in context of interrupt disabled. */
 bk_err_t bk_flash_dump_erase_sector(uint32_t address)
 {
+#if CONFIG_FLASH_CP_AP_DIRECT_ACCESS
+	uint32_t cpu_id = bk_flash_shared_get_cpu_id();
+	if (bk_flash_shared_acquire(cpu_id) != BK_OK)
+		return BK_FAIL;
+	bk_err_t ret = flash_erase_no_lock(address, FLASH_OP_CMD_SE);
+	bk_flash_shared_release(cpu_id);
+	return ret;
+#else
 	return flash_erase_no_lock(address, FLASH_OP_CMD_SE);
+#endif
 }
 
 bk_err_t bk_flash_dump_write(uint32_t address, const uint8_t *user_buf, uint32_t size)
 {
+#if CONFIG_FLASH_CP_AP_DIRECT_ACCESS
+	uint32_t cpu_id = bk_flash_shared_get_cpu_id();
+	if (bk_flash_shared_acquire(cpu_id) != BK_OK)
+		return BK_FAIL;
+	bk_err_t ret = flash_write_no_lock(address, user_buf, size);
+	bk_flash_shared_release(cpu_id);
+	return ret;
+#else
 	return flash_write_no_lock(address, user_buf, size);
+#endif
 }
 

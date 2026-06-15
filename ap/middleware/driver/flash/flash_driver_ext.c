@@ -30,6 +30,98 @@ extern bk_err_t bk_flash_erase_sector(uint32_t address);
 extern bk_err_t bk_flash_erase_32k(uint32_t address);
 extern bk_err_t bk_flash_erase_block(uint32_t address);
 
+/*
+ * BLE sleep windows are used by OTA to avoid flash erase/write while the BLE
+ * controller is awake. This logic used to live in flash_client.c.
+ */
+#define S_WAKE_UP    (0)
+#define S_SLEEP      (1)
+#define S_POWER_OFF  (2)
+#define S_NO_BT      (3)
+
+#define ERASE_TOUCH_TIMEOUT  (3000)
+#define ERASE_FLASH_TIMEOUT  (56)
+#define WRITE_FLASH_TIMEOUT  (4)
+
+static u32 bt_sleepend_time = (u32)-1;
+static u32 bt_cb_anchor_time = 0;
+static u8 bt_sleep_state = S_NO_BT;
+
+void ble_sleep_cb(uint8_t is_sleeping, uint32_t slp_period)
+{
+	GLOBAL_INT_DECLARATION();
+
+	GLOBAL_INT_DISABLE();
+	bt_sleep_state = is_sleeping;
+	bt_cb_anchor_time = rtos_get_time();
+	if (is_sleeping == S_SLEEP)
+		bt_sleepend_time = bt_cb_anchor_time + slp_period / 32;
+	GLOBAL_INT_RESTORE();
+}
+
+int ble_callback_deal_handler(uint32_t deal_flash_time)
+{
+	uint32_t cur_time = rtos_get_time();
+	uint32_t temp_time = 0;
+	int ret_val = 0;
+
+	GLOBAL_INT_DECLARATION();
+	GLOBAL_INT_DISABLE();
+
+	do {
+		if (bt_sleep_state == S_POWER_OFF) {
+			ret_val = 1;
+			break;
+		} else if (bt_sleep_state == S_WAKE_UP) {
+			temp_time = (cur_time >= bt_cb_anchor_time) ?
+				(cur_time - bt_cb_anchor_time) :
+				(0xFFFFFFFF - bt_cb_anchor_time + cur_time);
+
+			if (temp_time >= ERASE_TOUCH_TIMEOUT) {
+				bt_sleep_state = S_NO_BT;
+				ret_val = 1;
+			}
+			break;
+		} else if (bt_sleep_state == S_SLEEP) {
+			if (bt_sleepend_time > bt_cb_anchor_time) {
+				if ((bt_sleepend_time < cur_time) || (cur_time < bt_cb_anchor_time) ||
+					((bt_sleepend_time - cur_time) >= deal_flash_time)) {
+					ret_val = 1;
+				}
+			} else {
+				if ((cur_time > bt_sleepend_time) && (bt_cb_anchor_time > cur_time)) {
+					ret_val = 1;
+				} else if (bt_cb_anchor_time <= cur_time) {
+					temp_time = 0xFFFFFFFF - cur_time + bt_sleepend_time;
+				} else {
+					temp_time = bt_sleepend_time - cur_time;
+				}
+
+				if (temp_time >= deal_flash_time)
+					ret_val = 1;
+			}
+			break;
+		} else {
+			ret_val = 1;
+			break;
+		}
+	} while (0);
+
+	GLOBAL_INT_RESTORE();
+
+	return ret_val;
+}
+
+bool is_ble_erase_flash_ready(void)
+{
+	return ble_callback_deal_handler(ERASE_FLASH_TIMEOUT);
+}
+
+bool is_ble_write_flash_ready(void)
+{
+	return ble_callback_deal_handler(WRITE_FLASH_TIMEOUT);
+}
+
 #define FLASH_OPERATE_SIZE_AND_OFFSET    (4096)
 bk_err_t bk_spec_flash_write_bytes(bk_partition_t partition, const uint8_t *user_buf, uint32_t size,uint32_t offset)
 {

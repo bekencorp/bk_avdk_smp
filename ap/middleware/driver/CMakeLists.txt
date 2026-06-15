@@ -253,7 +253,16 @@ if (CONFIG_FLASH)
 		flash/flash_bypass.c
 		flash/flash_notify.c
 	)
-	list(APPEND srcs flash/flash_client.c flash/flash_notify.c)
+
+	if (CONFIG_FLASH_CP_AP_DIRECT_ACCESS)
+		list(APPEND srcs
+			flash/flash_shared_lock.c
+			flash/flash_driver.c
+			flash/flash_driver_ext.c
+		)
+	else()
+		list(APPEND srcs flash/flash_client.c)
+	endif()
 
 	if (CONFIG_FLASH_TEST)
 		list(APPEND srcs flash/flash_svr_test.c)
