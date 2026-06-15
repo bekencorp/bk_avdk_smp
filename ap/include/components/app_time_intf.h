@@ -15,5 +15,7 @@ typedef struct
 int app_time_rtc_ntp_sync_init(void);
 int app_time_timestr_get(char *buf,unsigned char len);
 int app_time_datetime_get(user_datetime_t *pdt);
+void app_time_timezone_set(int timezone);
+int app_time_timezone_get(void);
 
 #endif

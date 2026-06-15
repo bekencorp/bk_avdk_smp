@@ -64,6 +64,16 @@ static int soft_rtc_init(void)
 	return datetime_set(seconds);
 }
 
+void app_time_timezone_set(int timezone)
+{
+	ntp_set_timezone(timezone);
+}
+
+int app_time_timezone_get(void)
+{
+	return ntp_get_timezone();
+}
+
 int app_time_rtc_ntp_sync_init(void)
 {
     static bool init_ok = 0;

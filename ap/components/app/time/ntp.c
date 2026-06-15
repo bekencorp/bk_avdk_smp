@@ -9,7 +9,7 @@
 #include <driver/aon_rtc.h>
 
 
-#define NTP_TIMEZONE      				8             
+#define NTP_TIMEZONE_DEFAULT            8
 #define NTP_HOSTNAME                   "cn.pool.ntp.org"
 #define NTP_TIMESTAMP_DELTA            2208988800ull
 #define NTP_GET_TIMEOUT                1
@@ -49,6 +49,17 @@ typedef struct {
 } ntp_packet;              // Total: 384 bits or 48 bytes.
 
 static ntp_packet packet = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+static int s_ntp_timezone = NTP_TIMEZONE_DEFAULT;
+
+void ntp_set_timezone(int timezone)
+{
+	s_ntp_timezone = timezone;
+}
+
+int ntp_get_timezone(void)
+{
+	return s_ntp_timezone;
+}
 
 static void ntp_error(char* msg)
 {
@@ -181,7 +192,7 @@ __exit:
 /**
  * Get the local time from NTP server
  *
- * @return >0: success, current local time, offset timezone by NTP_TIMEZONE
+ * @return >0: success, current local time, offset by ntp timezone
  *         =0: get failed
  */
 time_t ntp_get_local_time(uint32_t *frac_val)
@@ -203,7 +214,7 @@ time_t ntp_get_local_time(uint32_t *frac_val)
     if (cur_time)
     {
         /* add the timezone offset for set_time/set_date */
-        cur_time += NTP_TIMEZONE * 3600;
+        cur_time += (time_t)s_ntp_timezone * 3600;
     }
 
     return cur_time;
@@ -212,7 +223,7 @@ time_t ntp_get_local_time(uint32_t *frac_val)
 /**
  * Sync current local time to RTC by NTP
  *
- * @return >0: success, current local time, offset timezone by NTP_TIMEZONE
+ * @return >0: success, current local time, offset by ntp timezone
  *         =0: sync failed
  */
 time_t ntp_sync_to_rtc(void)
