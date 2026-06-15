@@ -321,13 +321,16 @@ static void h264_encode_update_fps(frame_fps_t fps)
 			curr_fps = 25;
 			break;
 		case FPS20:
-			curr_fps = 50;
+			curr_fps = 20;
 			break;
 		case FPS15:
 			curr_fps = 15;
 			break;
 		case FPS10:
 			curr_fps = 10;
+			break;
+		case FPS5:
+			curr_fps = 5;
 			break;
 		default:
 			break;
