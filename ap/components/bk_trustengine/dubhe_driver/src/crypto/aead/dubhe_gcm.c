@@ -640,6 +640,19 @@ int arm_ce_gcm_finish( arm_ce_gcm_ctx_t *ctx,
         return DBH_GCM_ERR_BAD_STATE;
     }
 
+    /* GMAC / AAD-only path: if no payload was processed via arm_ce_gcm_update,
+     * the trailing partial AAD block was never flushed/zero-padded, leaving the
+     * GHASH engine with an incomplete block. arm_ce_ghash_finish then rejects it
+     * (DGH_GHASH_ERR_BAD_INPUT_LENGTH -> HW_ACCEL_FAILED). Flush it here, exactly
+     * as arm_ce_gcm_update does on the first payload call. */
+    if ( (CE_GCM_STATE_START == prv->state) ||
+         (CE_GCM_STATE_UPDATE_AAD == prv->state) ) {
+        ret = ce_gcm_finish_update_aad( ctx );
+        if ( 0 != ret ) {
+            return ret;
+        }
+    }
+
     /** check if need padding and handle padding */
     if ( 0 != prv->mlen % ARM_CE_SCA_BLK_SIZE ) {
         padding_sz = ARM_CE_SCA_BLK_SIZE - (prv->mlen % ARM_CE_SCA_BLK_SIZE);
