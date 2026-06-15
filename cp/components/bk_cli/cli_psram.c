@@ -129,10 +129,11 @@ static void psram_cpu_write_test(void)
 	timer0 = bk_get_current_timer();
 
 #if TEST_PSRAM_ACCURACY
+	uint32_t word_mask = (psram_debug->length / 4) - 1;
 	for (j = 0; j < test_len / psram_debug->length; j ++)
 	{
 		for (i = 0; i < psram_debug->length; i += 4)
-			write_data((base_addr + i + (j << 15)), psram_debug->data[(i >> 2) & 0x1FFF]);
+			write_data((base_addr + i + (j * psram_debug->length)), psram_debug->data[(i >> 2) & word_mask]);
 	}
 #else
 	for (i = 0; i < test_len; i +=4)
@@ -173,9 +174,9 @@ static void psram_cpu_write_test(void)
 	for (i = 0; i < test_len / 4; i++)
 	{
 		value = get_addr_data(base_addr + i * 0x4);
-		if (value != (psram_debug->data[i & 0x1FFF]))
+		if (value != (psram_debug->data[i & word_mask]))
 		{
-			CLI_LOGD("==========%08x %08x %08x=======\n", value, psram_debug->data[i & 0x1FFF], value^psram_debug->data[i & 0x1FFF]);
+			CLI_LOGD("==========%08x %08x %08x=======\n", value, psram_debug->data[i & word_mask], value^psram_debug->data[i & word_mask]);
 			error_num++;
 		}
 	}
@@ -565,8 +566,18 @@ static void cli_psram_cmd_handle(char *pcWriteBuffer, int xWriteBufferLen, int a
 
 		if (psram_debug->data == NULL)
 		{
-			psram_debug->length = 1024 * 32;
-			psram_debug->data = (uint32_t *)os_malloc(psram_debug->length);
+			/* Step down from 32K to 4K when the SRAM heap is tight; all are powers of two and do not affect test quality */
+			uint32_t try_len = 1024 * 32;
+			while (try_len >= 1024 * 4)
+			{
+				psram_debug->data = (uint32_t *)os_malloc(try_len);
+				if (psram_debug->data != NULL)
+				{
+					psram_debug->length = try_len;
+					break;
+				}
+				try_len >>= 1;
+			}
 			if (psram_debug->data == NULL)
 			{
 				CLI_LOGE("malloc error!\r\n");
@@ -574,6 +585,7 @@ static void cli_psram_cmd_handle(char *pcWriteBuffer, int xWriteBufferLen, int a
 				psram_debug = NULL;
 				return;
 			}
+			CLI_LOGD("psram test: data buffer = %u bytes\r\n", psram_debug->length);
 		}
 
 		for (int i = 0; i < psram_debug->length / 4; i++)
