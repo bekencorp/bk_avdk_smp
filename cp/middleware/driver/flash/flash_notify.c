@@ -151,7 +151,6 @@ static void mb_flash_ipc_tx_cmpl_isr(void *chn_param, mb_chnl_ack_t *ack_buf)
 
 static void mb_flash_ipc_rx_isr(void *chn_param, mb_chnl_cmd_t *cmd_buf)
 {
-
 	return;
 }
 

@@ -208,6 +208,10 @@ if (CONFIG_FLASH)
 		flash/flash_notify.c
 	)
 
+	if (CONFIG_FLASH_CP_AP_DIRECT_ACCESS)
+		list(APPEND srcs flash/flash_shared_lock.c)
+	endif()
+
 	list(APPEND srcs flash/flash_driver.c flash/flash_driver_ext.c)
 	if ((CONFIG_CPU_CNT GREATER 1))
 		list(APPEND srcs flash/flash_server.c)

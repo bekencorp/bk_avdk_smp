@@ -21,6 +21,20 @@ menu "FLASH"
 		depends on !SOC_SMP
 		default n
 
+	config FLASH_CP_AP_DIRECT_ACCESS
+		bool "Enable CP/AP direct flash access"
+		depends on FLASH && FLASH_QUAD_ENABLE
+		default n
+		help
+			Allow both CP and AP to operate the flash controller directly.
+			A shared-memory software lock is used to serialize flash
+			controller access across CP, AP and APX. Disable this to fall
+			back to the legacy AP client and CP server proxy path.
+
+			Requires FLASH_QUAD_ENABLE on CP and AP so both agree on
+			TWO/FOUR line mode across handover. Enable explicitly in
+			project config on both sides.
+
 	config FLASH_TEST
 		depends on FLASH
 		bool "Enable flash test"
@@ -30,11 +44,6 @@ menu "FLASH"
 		depends on FLASH
 		bool "Enable pattition test"
 		default y
-
-	config FLASH_API_TEST
-		depends on FLASH
-		bool "Enable flash_api test"
-		default n
 
 	config FLASH_WRITE_STATUS_VOLATILE
 		bool "Enable write volatile status register"
