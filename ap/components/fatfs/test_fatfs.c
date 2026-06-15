@@ -144,10 +144,19 @@ void test_getfree(DISK_NUMBER number)
     }
     else
     {
-        DWORD total_MB = (pfs->n_fatent - 2) * (pfs->csize) * (pfs->ssize) / 1024 /1024;  //1024 convert to MB
-        DWORD free_MB = getnclst*(pfs->csize)*(pfs->ssize)/1024 /1024;
-        os_printf("total size: %lu MB.\r\n", total_MB);
-        os_printf("test_getfree getnclst:DEC %d free space: %dMB\r\n", getnclst, free_MB);
+        uint64_t cluster_bytes = (uint64_t)(pfs->csize) * (pfs->ssize);
+        uint64_t total_bytes   = (uint64_t)(pfs->n_fatent - 2) * cluster_bytes;
+        uint64_t free_bytes    = (uint64_t)getnclst * cluster_bytes;
+        uint64_t used_bytes    = total_bytes - free_bytes;
+
+        os_printf("total size: %llu.%llu GB (%llu bytes)\r\n",
+                  total_bytes / (1024*1024*1024), (total_bytes % (1024*1024*1024)) * 100 / (1024*1024*1024), total_bytes);
+        os_printf("free space: %llu.%llu GB (%llu bytes)\r\n",
+                  free_bytes / (1024*1024*1024), (free_bytes % (1024*1024*1024)) * 100 / (1024*1024*1024), free_bytes);
+        os_printf("used space: %llu.%llu MB (%llu bytes)\r\n",
+                  used_bytes / (1024*1024), (used_bytes % (1024*1024)) * 100 / (1024*1024), used_bytes);
+        os_printf("clusters: total=%lu, free=%lu, csize=%u(sectors), ssize=%u(bytes/sector)\r\n",
+                  pfs->n_fatent - 2, getnclst, pfs->csize, pfs->ssize);
         BK_LOGD(NULL, "f_getfree OK!\r\n");
     }
     BK_LOGD(NULL, "----- test_getfree %d over  -----\r\n\r\n", number);
