@@ -16,6 +16,10 @@
 #include <driver/flash_partition.h>
 #include "cli.h"
 #include "flash_driver.h"
+#if CONFIG_FLASH_CP_AP_DIRECT_ACCESS
+#include "bk_wdt.h"
+#include "flash_shared_lock.h"
+#endif
 
 #if CONFIG_TFM_FLASH_NSC
 #include "tfm_flash_nsc.h"
@@ -27,7 +31,11 @@ static void cli_flash_help(void)
 	CLI_LOGD("flash_driver deinit\n");
 	CLI_LOGD("flash {erase|write|read} [start_addr] [len]\n");
 	CLI_LOGD("flash_partition show\n");
+#if CONFIG_FLASH_CP_AP_DIRECT_ACCESS
+	CLI_LOGD("flash_direct_stress {start|stop|status} [loops] [delay_ms]\n");
+#endif
 	CLI_LOGD("flash_erase_test ble\n");
+	CLI_LOGD("flash_perf {read|write|erase|all} [addr] [len] [loops]\n");
 }
 
 static void cli_flash_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
@@ -181,6 +189,198 @@ static void cli_flash_partition_cmd(char *pcWriteBuffer, int xWriteBufferLen, in
 	}
 }
 
+#if CONFIG_FLASH_CP_AP_DIRECT_ACCESS
+#define FLASH_DIRECT_STRESS_REGION_CNT       2
+#define FLASH_DIRECT_STRESS_DEFAULT_LOOPS    0U
+#define FLASH_DIRECT_STRESS_DEFAULT_DELAY_MS 200U
+#define FLASH_DIRECT_STRESS_REPORT_INTERVAL  100U
+#define FLASH_DIRECT_STRESS_STACK_SIZE       3072U
+#define FLASH_DIRECT_STRESS_TASK_PRIO        5
+#define FLASH_DIRECT_STRESS_YIELD_MS         1U
+
+typedef struct {
+	uint32_t start_addr;
+	uint32_t range;
+} flash_direct_stress_region_t;
+
+typedef struct {
+	volatile uint8_t running;
+	volatile uint8_t stop;
+	volatile uint32_t pass_count;
+	volatile uint32_t fail_count;
+	volatile uint32_t current_loop;
+	volatile uint32_t last_addr;
+	volatile uint32_t last_len;
+	volatile uint8_t last_pattern;
+	uint32_t target_loops;
+	uint32_t delay_ms;
+	beken_thread_t thread;
+	flash_direct_stress_region_t region[FLASH_DIRECT_STRESS_REGION_CNT];
+} flash_direct_stress_ctx_t;
+
+static flash_direct_stress_ctx_t s_flash_direct_stress = {
+	.region = {
+		{0x286000, 0x20000}, /* OTA scratch window, disjoint from AP default. */
+		{0x2c6000, 0x20000}, /* OTA scratch window, disjoint from AP default. */
+	},
+};
+
+static void cli_flash_direct_stress_yield(void)
+{
+#if CONFIG_TASK_WDT
+	bk_task_wdt_feed();
+#endif
+	rtos_delay_milliseconds(FLASH_DIRECT_STRESS_YIELD_MS);
+}
+
+static bk_err_t cli_flash_direct_once(uint32_t start_addr, uint32_t len, uint8_t pattern)
+{
+	uint8_t rd_buf[FLASH_PAGE_SIZE] = {0};
+
+	for (uint32_t addr = start_addr; addr < (start_addr + len); addr += FLASH_SECTOR_SIZE) {
+		bk_flash_set_protect_type(FLASH_PROTECT_NONE);
+		if (bk_flash_erase_sector(addr) != BK_OK) {
+			CLI_LOGE("flash_direct erase fail addr=0x%x\r\n", addr);
+			bk_flash_set_protect_type(FLASH_UNPROTECT_LAST_BLOCK);
+			return BK_FAIL;
+		}
+		bk_flash_set_protect_type(FLASH_UNPROTECT_LAST_BLOCK);
+
+		os_memset(rd_buf, 0, sizeof(rd_buf));
+		if (bk_flash_read_bytes(addr, rd_buf, FLASH_PAGE_SIZE) != BK_OK) {
+			CLI_LOGE("flash_direct post-erase read fail addr=0x%x\r\n", addr);
+			return BK_FAIL;
+		}
+		cli_flash_direct_stress_yield();
+	}
+	(void)pattern;
+
+	return BK_OK;
+}
+
+static uint32_t cli_flash_direct_stress_len(uint32_t loop, uint32_t range)
+{
+	static const uint32_t lens[] = {
+		FLASH_SECTOR_SIZE,
+		FLASH_SECTOR_SIZE * 2,
+		FLASH_SECTOR_SIZE * 4,
+	};
+	uint32_t len = lens[loop % (sizeof(lens) / sizeof(lens[0]))];
+
+	while ((len > range) && (len > FLASH_SECTOR_SIZE))
+		len >>= 1;
+
+	return len;
+}
+
+static void cli_flash_direct_stress_task(void *param)
+{
+	flash_direct_stress_ctx_t *ctx = (flash_direct_stress_ctx_t *)param;
+
+	ctx->pass_count = 0;
+	ctx->fail_count = 0;
+	ctx->current_loop = 0;
+	ctx->running = 1;
+	ctx->stop = 0;
+
+	while (!ctx->stop && ((ctx->target_loops == 0) || (ctx->current_loop < ctx->target_loops))) {
+		flash_direct_stress_region_t *region = &ctx->region[ctx->current_loop % FLASH_DIRECT_STRESS_REGION_CNT];
+		uint32_t len = cli_flash_direct_stress_len(ctx->current_loop, region->range);
+		uint32_t span = region->range - len + FLASH_SECTOR_SIZE;
+		uint32_t addr = region->start_addr + ((ctx->current_loop * FLASH_SECTOR_SIZE) % span);
+		uint8_t pattern = (uint8_t)(0x40 + ctx->current_loop);
+
+		ctx->last_addr = addr;
+		ctx->last_len = len;
+		ctx->last_pattern = pattern;
+
+		if (cli_flash_direct_once(addr, len, pattern) != BK_OK) {
+			ctx->fail_count++;
+			CLI_LOGE("flash_direct_stress FAIL loop=%u addr=0x%x len=0x%x pattern=0x%x pass=%u fail=%u\r\n",
+				ctx->current_loop, addr, len, pattern, ctx->pass_count, ctx->fail_count);
+			bk_flash_shared_dump();
+			break;
+		}
+
+		ctx->pass_count++;
+		ctx->current_loop++;
+
+		if ((ctx->pass_count % FLASH_DIRECT_STRESS_REPORT_INTERVAL) == 0) {
+			CLI_LOGI("flash_direct_stress progress pass=%u fail=%u loop=%u addr=0x%x len=0x%x\r\n",
+				ctx->pass_count, ctx->fail_count, ctx->current_loop, addr, len);
+			bk_flash_shared_dump();
+		}
+
+		if (ctx->delay_ms)
+			rtos_delay_milliseconds(ctx->delay_ms);
+	}
+
+	CLI_LOGI("flash_direct_stress stopped pass=%u fail=%u loop=%u last=0x%x/0x%x pattern=0x%x\r\n",
+		ctx->pass_count, ctx->fail_count, ctx->current_loop,
+		ctx->last_addr, ctx->last_len, ctx->last_pattern);
+	bk_flash_shared_dump();
+	ctx->running = 0;
+	ctx->thread = NULL;
+	rtos_delete_thread(NULL);
+}
+
+static void cli_flash_direct_stress_status(void)
+{
+	flash_direct_stress_ctx_t *ctx = &s_flash_direct_stress;
+
+	CLI_LOGI("flash_direct_stress running=%u stop=%u target=%u delay=%u pass=%u fail=%u loop=%u last=0x%x/0x%x pattern=0x%x\r\n",
+		ctx->running, ctx->stop, ctx->target_loops, ctx->delay_ms,
+		ctx->pass_count, ctx->fail_count, ctx->current_loop,
+		ctx->last_addr, ctx->last_len, ctx->last_pattern);
+	bk_flash_shared_dump();
+}
+
+static void cli_flash_direct_stress_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
+{
+	char *msg = CLI_CMD_RSP_ERROR;
+	flash_direct_stress_ctx_t *ctx = &s_flash_direct_stress;
+
+	if (argc < 2) {
+		CLI_LOGI("flash_direct_stress {start|stop|status} [loops] [delay_ms]\r\n");
+		os_memcpy(pcWriteBuffer, msg, os_strlen(msg));
+		return;
+	}
+
+	if (os_strcmp(argv[1], "start") == 0) {
+		if (ctx->running) {
+			CLI_LOGE("flash_direct_stress already running\r\n");
+			os_memcpy(pcWriteBuffer, msg, os_strlen(msg));
+			return;
+		}
+
+		ctx->target_loops = (argc >= 3) ? os_strtoul(argv[2], NULL, 10) : FLASH_DIRECT_STRESS_DEFAULT_LOOPS;
+		ctx->delay_ms = (argc >= 4) ? os_strtoul(argv[3], NULL, 10) : FLASH_DIRECT_STRESS_DEFAULT_DELAY_MS;
+		ctx->stop = 0;
+		ctx->running = 1;
+		if (rtos_create_thread(&ctx->thread, FLASH_DIRECT_STRESS_TASK_PRIO, "flash_stress",
+				(beken_thread_function_t)cli_flash_direct_stress_task,
+				FLASH_DIRECT_STRESS_STACK_SIZE, ctx) != BK_OK) {
+			ctx->thread = NULL;
+			ctx->running = 0;
+			CLI_LOGE("flash_direct_stress create task failed\r\n");
+			os_memcpy(pcWriteBuffer, msg, os_strlen(msg));
+			return;
+		}
+		msg = CLI_CMD_RSP_SUCCEED;
+	} else if (os_strcmp(argv[1], "stop") == 0) {
+		ctx->stop = 1;
+		msg = CLI_CMD_RSP_SUCCEED;
+	} else if (os_strcmp(argv[1], "status") == 0) {
+		cli_flash_direct_stress_status();
+		msg = CLI_CMD_RSP_SUCCEED;
+	} else {
+		CLI_LOGI("flash_direct_stress {start|stop|status} [loops] [delay_ms]\r\n");
+	}
+
+	os_memcpy(pcWriteBuffer, msg, os_strlen(msg));
+}
+#endif
+
 void flash_erase_with_ble_sleep(uint32_t erase_addr)
 {
     uint32_t  anchor_time = 0;
@@ -237,6 +437,8 @@ static void cli_flash_erase_test_with_ble(char *pcWriteBuffer, int xWriteBufferL
 	os_memcpy(pcWriteBuffer, msg, os_strlen(msg));
 }
 
+extern void cli_flash_perf_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv);
+
 #define FLASH_CMD_CNT (sizeof(s_flash_commands) / sizeof(struct cli_command))
 static const struct cli_command s_flash_commands[] = {
 	{"flash", "flash {erase|read|write} [start_addr] [len]", cli_flash_cmd},
@@ -244,7 +446,11 @@ static const struct cli_command s_flash_commands[] = {
 	{"flash_s", "flash {erase|read|write} [start_addr] [len]", cli_flash_cmd_s},
 #endif
 	{"flash_partition", "flash_partition {show}", cli_flash_partition_cmd},
+#if CONFIG_FLASH_CP_AP_DIRECT_ACCESS
+	{"flash_direct_stress", "flash_direct_stress {start|stop|status} [loops] [delay_ms]", cli_flash_direct_stress_cmd},
+#endif
 	{"flash_erase_test", "cli_flash_erase_test with ble connecting", cli_flash_erase_test_with_ble},
+	{"flash_perf", "flash_perf {read|write|erase|all} [addr] [len] [loops]", cli_flash_perf_cmd},
 };
 
 int cli_flash_init(void)

@@ -115,6 +115,7 @@ endif()
 if (CONFIG_FLASH)
 	list(APPEND srcs
 		cli_flash.c
+		cli_flash_perf.c
 	)
 endif()
 
