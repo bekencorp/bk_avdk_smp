@@ -421,6 +421,20 @@ int driver_init(void) {
 #if CONFIG_GET_UID_ENABLE
 	bk_uid_driver_init();
 #endif
+
+#if CONFIG_PSRAM
+	/* Bring up PSRAM by default at boot, instead of only when a test command runs.
+	 * bk_psram_init is idempotent, so repeated calls are safe. */
+	{
+		bk_err_t psram_ret = bk_psram_init();
+		if (psram_ret != BK_OK) {
+			BK_LOGE(NULL, "driver_init: bk_psram_init fail:%d\r\n", psram_ret);
+		} else {
+			BK_LOGI(NULL, "driver_init: psram init ok\r\n");
+		}
+	}
+#endif
+
 	BK_LOGD(NULL,"driver_init end\r\n");
 
 	return 0;
