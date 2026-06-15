@@ -69,8 +69,8 @@
 #include <os/mem.h>
 #ifdef CONFIG_BRIDGE
 #include "bridgeif.h"
-#include "rwnx_config.h"
 #endif
+#include "rwnx_config.h"
 #include <os/os.h>
 
 /* Define those to better describe your network interface. */
@@ -190,9 +190,55 @@ static err_t low_level_output(struct netif *netif, struct pbuf *p)
     return err;
 }
 
-static inline int is_broadcast_mac_addr(const u8 *a)
+static bool wlanif_forward_intra_bss(struct netif *netif, void *vif,
+	struct pbuf *p, struct eth_hdr *ethhdr, uint8_t dst_idx)
 {
-	return (a[0] & a[1] & a[2] & a[3] & a[4] & a[5]) == 0xff;
+	struct pbuf *q;
+	bool is_mcast = (ethhdr->dest.addr[0] & 1);
+	bool intra_bss_unicast = false;
+
+	if (wifi_netif_vif_to_netif_type(vif) != NETIF_IF_AP)
+		return false;
+
+	if (!is_mcast) {
+		if (dst_idx == 0xff)
+			return false;
+
+		if (dst_idx < NX_REMOTE_STA_MAX) {
+#if CONFIG_BRIDGE
+			void *sta = sta_mgmt_get_entry(dst_idx);
+			if (mac_sta_mgmt_get_inst_nbr(sta) != mac_vif_mgmt_get_index(vif))
+				return false;
+#endif
+			intra_bss_unicast = true;
+		}
+	}
+
+#if CONFIG_BRIDGE
+	if (ethhdr->type == PP_HTONS(ETHTYPE_ARP)) {
+		struct etharp_hdr *hdr = (struct etharp_hdr *)(ethhdr + 1);
+
+		if (hdr->opcode == PP_HTONS(ARP_REQUEST) &&
+			!memcmp(&hdr->dipaddr, &netif->ip_addr, 4)) {
+			return false;
+		}
+	}
+#endif
+
+	q = pbuf_clone(PBUF_RAW_TX, PBUF_RAM, p);
+	if (q != NULL) {
+		low_level_output(netif, q);
+		pbuf_free(q);
+	} else {
+		LWIP_LOGD("alloc pbuf failed, don't forward\r\n");
+	}
+
+	if (intra_bss_unicast) {
+		pbuf_free(p);
+		return true;
+	}
+
+	return false;
 }
 
 /**
@@ -233,78 +279,31 @@ ethernetif_input(int iface, struct pbuf *p, uint8_t dst_idx)
         return;
     }
 
-#if CONFIG_BRIDGE
-    /*
-     * CP-side intra-BSS forward fast-path.
-     *
-     * For SAP-rx frames, when dst_idx points to a STA under the same vif we
-     * forward via low_level_output here. Multicast/broadcast is forwarded
-     * intra-BSS and ALSO uploaded to AP (host stack consumes a copy).
-     * Pure intra-BSS unicast is fully handled by CP — uploading would only
-     * loop through AP bridgeif and be dropped by split-horizon, so we free
-     * the original pbuf and skip the IPC entirely.
-     */
-    if (wifi_netif_vif_to_netif_type(vif) == NETIF_IF_AP) {
-        if ((ethhdr->dest.addr[0] & 1) || dst_idx != 0xff) {
-            struct pbuf *q;
-            bool intra_bss_unicast = false;
+	/*
+	 * CP-side SoftAP intra-BSS forwarding.
+	 *
+	 * This MUST run before cif_rx_local_packet_check(). With the VNET
+	 * controller that helper uploads ARP requests and most unicast IP
+	 * data to the AP host stack and returns false, which makes
+	 * ethernetif_input() return early. If forwarding were placed after it
+	 * (as it used to be), frames destined to a peer STA - and the
+	 * broadcast ARP a peer STA needs to resolve its MAC - would never be
+	 * relayed, so STA-to-STA traffic (e.g. ping) between two clients of
+	 * the SoftAP fails.
+	 *
+	 *   - multicast/broadcast: flood to the BSS, then fall through so the
+	 *     AP host stack still gets its own copy (DHCP, ARP for the AP's
+	 *     own IP, ...).
+	 *   - unicast to another associated STA on this vif: relay it and
+	 *     consume the pbuf (it is not destined to the AP host stack).
+	 */
+	if (wlanif_forward_intra_bss(netif, vif, p, ethhdr, dst_idx))
+		return;
 
-            if (!(ethhdr->dest.addr[0] & 1) && dst_idx < NX_REMOTE_STA_MAX) {
-                void *sta = sta_mgmt_get_entry(dst_idx);
-                if (mac_sta_mgmt_get_inst_nbr(sta) != mac_vif_mgmt_get_index(vif)) {
-                    goto process;
-                }
-                intra_bss_unicast = true;
-            }
-
-            if (ethhdr->type == PP_HTONS(ETHTYPE_ARP)) {
-                struct etharp_hdr *hdr = (struct etharp_hdr *)(ethhdr + 1);
-                if (hdr->opcode != PP_HTONS(ARP_REQUEST))
-                    goto forward;
-
-                if (!memcmp(&hdr->dipaddr, &netif->ip_addr, 4)) {
-                    goto process;
-                }
-            }
-forward:
-            q = pbuf_clone(PBUF_RAW_TX, PBUF_RAM, p);
-            if (q != NULL) {
-                low_level_output(netif, q);
-                pbuf_free(q);
-            } else {
-                LWIP_LOGE("alloc pbuf failed, don't forward\r\n");
-            }
-
-            if (intra_bss_unicast) {
-                pbuf_free(p);
-                return;
-            }
-        }
-    }
-
-process:
-#endif
 #ifdef CONFIG_WIFI_VNET_CONTROLLER
 	if(false == cif_rx_local_packet_check(&p,ethhdr,vif,dst_idx))
 	{
 		return;
-	}
-#endif
-
-#if !CONFIG_BRIDGE
-	/* need to forward*/
-	if (wifi_netif_vif_to_netif_type(vif) == NETIF_IF_AP) {
-		if (((!is_broadcast_mac_addr(ethhdr->dest.addr) &&
-			(memcmp(netif->hwaddr,ethhdr->dest.addr,NETIF_MAX_HWADDR_LEN) != 0))) ||
-			(is_broadcast_mac_addr(ethhdr->dest.addr))) {
-				struct pbuf *q;
-				q = pbuf_clone(PBUF_RAW_TX, PBUF_RAM, p);
-				if (q != NULL) {
-					low_level_output(netif, q);
-					pbuf_free(q);
-				} else
-					LWIP_LOGD("alloc pbuf failed, dont forward\r\n");
-		}
 	}
 #endif
 
