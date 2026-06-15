@@ -44,29 +44,51 @@ extern "C" {
 
 #define PM_AON_RTC_DEFAULT_TICK_COUNT        (32)//only for cp1 using aon rtc
 
-#define FIXED_ADDR_PSRAM_USDE_COUNT          (*(volatile uint32_t *)CONFIG_PWR_MNG_ADDR)
-#define FIXED_ADDR_PSRAM_POWER_DOWN          (*(volatile uint32_t *)(CONFIG_PWR_MNG_ADDR+4))
-#define FIXED_ADDR_WAKEUP_CP_COUNT           (*(volatile uint32_t *)(CONFIG_PWR_MNG_ADDR+8))
-#define FIXED_ADDR_WAKEUP_AP0_COUNT          (*(volatile uint32_t *)(CONFIG_PWR_MNG_ADDR+12))
-#define FIXED_ADDR_WAKEUP_AP1_COUNT          (*(volatile uint32_t *)(CONFIG_PWR_MNG_ADDR+16))
-#define FIXED_ADDR_WAKEUP_AP1_DEBUG          (*(volatile uint32_t *)(CONFIG_PWR_MNG_ADDR+20))
+#define PWR_MNG_PM_RESERVED_SIZE              (0x80U)
+#define PWR_MNG_FLASH_SHARED_OFFSET           (0x80U)
+#define PWR_MNG_FLASH_SHARED_SIZE             (0x80U)
+#define PWR_MNG_FLASH_SHARED_ADDR             (CONFIG_PWR_MNG_ADDR + PWR_MNG_FLASH_SHARED_OFFSET)
 
-#define FIXED_ADDR_CP_RESET_REASON           (*(volatile uint32_t *)(CONFIG_PWR_MNG_ADDR+24))
-#define FIXED_ADDR_AP_RESET_REASON           (*(volatile uint32_t *)(CONFIG_PWR_MNG_ADDR+28))
+/*
+ * PWR_MNG is shared with flash direct-access synchronization:
+ *   [0x00, 0x80) is reserved for PM fields.
+ *   [0x80, 0x100) is reserved for flash shared lock state.
+ *
+ * Keep all PM fields defined through this macro. The 0U * sizeof(char[])
+ * term does not change the generated address, but it forces a compile-time
+ * error if a new PM field crosses into the flash shared lock half.
+ */
+#define PWR_MNG_PM_FIELD(type, offset) \
+	(*(volatile type *)(CONFIG_PWR_MNG_ADDR + (offset) + \
+		0U * sizeof(char[(((offset) + sizeof(type)) <= PWR_MNG_PM_RESERVED_SIZE) ? 1 : -1])))
 
-#define FIXED_ADDR_EXCEPTION_MAGIC_BEGIN     (*(volatile uint32_t *)(CONFIG_PWR_MNG_ADDR+32))
-#define FIXED_ADDR_CP_EXCEPTION_STATUS       (*(volatile uint32_t *)(CONFIG_PWR_MNG_ADDR+36))
-#define FIXED_ADDR_AP_EXCEPTION_STATUS       (*(volatile uint32_t *)(CONFIG_PWR_MNG_ADDR+40))
-#define FIXED_ADDR_EXCEPTION_TURN            (*(volatile uint32_t *)(CONFIG_PWR_MNG_ADDR+44))
-#define FIXED_ADDR_EXCEPTION_DUMPER          (*(volatile uint32_t *)(CONFIG_PWR_MNG_ADDR+48))
-#define FIXED_ADDR_EXCEPTION_MAGIC_END       (*(volatile uint32_t *)(CONFIG_PWR_MNG_ADDR+52))
+#if ((PWR_MNG_FLASH_SHARED_OFFSET + PWR_MNG_FLASH_SHARED_SIZE) > CONFIG_PWR_MNG_SIZE)
+#error "PWR_MNG flash shared area exceeds PWR_MNG region"
+#endif
 
-#define FIXED_ADDR_DEEP_WAKEUP_GPIO_ID       (*(volatile uint32_t *)(CONFIG_PWR_MNG_ADDR+56))
+#define FIXED_ADDR_PSRAM_USDE_COUNT          PWR_MNG_PM_FIELD(uint32_t, 0)
+#define FIXED_ADDR_PSRAM_POWER_DOWN          PWR_MNG_PM_FIELD(uint32_t, 4)
+#define FIXED_ADDR_WAKEUP_CP_COUNT           PWR_MNG_PM_FIELD(uint32_t, 8)
+#define FIXED_ADDR_WAKEUP_AP0_COUNT          PWR_MNG_PM_FIELD(uint32_t, 12)
+#define FIXED_ADDR_WAKEUP_AP1_COUNT          PWR_MNG_PM_FIELD(uint32_t, 16)
+#define FIXED_ADDR_WAKEUP_AP1_DEBUG          PWR_MNG_PM_FIELD(uint32_t, 20)
 
-#define FIXED_ADDR_PM_AP_SLEEP_VOTE          (*(volatile uint64_t *)(CONFIG_PWR_MNG_ADDR+60))
-#define FIXED_ADDR_PM_AP_CLK_VOTE_STATE      (*(volatile uint64_t *)(CONFIG_PWR_MNG_ADDR+68))
+#define FIXED_ADDR_CP_RESET_REASON           PWR_MNG_PM_FIELD(uint32_t, 24)
+#define FIXED_ADDR_AP_RESET_REASON           PWR_MNG_PM_FIELD(uint32_t, 28)
 
-#define FIXED_ADDR_PM_MODULE_LV_SLEEP_STATE  (*(volatile uint64_t *)(CONFIG_PWR_MNG_ADDR+76))
+#define FIXED_ADDR_EXCEPTION_MAGIC_BEGIN     PWR_MNG_PM_FIELD(uint32_t, 32)
+#define FIXED_ADDR_CP_EXCEPTION_STATUS       PWR_MNG_PM_FIELD(uint32_t, 36)
+#define FIXED_ADDR_AP_EXCEPTION_STATUS       PWR_MNG_PM_FIELD(uint32_t, 40)
+#define FIXED_ADDR_EXCEPTION_TURN            PWR_MNG_PM_FIELD(uint32_t, 44)
+#define FIXED_ADDR_EXCEPTION_DUMPER          PWR_MNG_PM_FIELD(uint32_t, 48)
+#define FIXED_ADDR_EXCEPTION_MAGIC_END       PWR_MNG_PM_FIELD(uint32_t, 52)
+
+#define FIXED_ADDR_DEEP_WAKEUP_GPIO_ID       PWR_MNG_PM_FIELD(uint32_t, 56)
+
+#define FIXED_ADDR_PM_AP_SLEEP_VOTE          PWR_MNG_PM_FIELD(uint64_t, 60)
+#define FIXED_ADDR_PM_AP_CLK_VOTE_STATE      PWR_MNG_PM_FIELD(uint64_t, 68)
+
+#define FIXED_ADDR_PM_MODULE_LV_SLEEP_STATE  PWR_MNG_PM_FIELD(uint64_t, 76)
 
 /*Attention: Max PMshare memory size is 256 bytes*/
 
