@@ -395,11 +395,34 @@ static void udisk_print_hubport(struct usbh_hubport *hport)
     }
 }
 
-/* Scan the root hub for enumerated devices (device addresses are assigned
- * starting at 1) and print each one. Returns the number of devices found. */
+/* Scan enumerated devices and print each one. Returns the number of devices found. */
 static int udisk_print_enumerated_devices(void)
 {
     int found = 0;
+#if CONFIG_BK_USB_CHERRYUSB_V1_6
+    /* CherryUSB v1.6 changed usbh_find_hubport() from dev_addr based lookup to
+     * (busid, hub_index, hub_port). The public SDK compatibility header still
+     * declares the legacy one-argument form, so call the v1.6 ABI through a
+     * local function pointer and scan the known hub/port matrix.
+     *
+     * hub_index 1 is the root hub. External hub indices start at 2; scan one
+     * more level so the "USB HUB + U-disk" case is covered. */
+    struct usbh_hubport *(*find_hubport)(uint8_t, uint8_t, uint8_t) =
+        (struct usbh_hubport *(*)(uint8_t, uint8_t, uint8_t))usbh_find_hubport;
+    const uint8_t max_hub_index = 1 + CONFIG_USBHOST_MAX_EXTHUBS;
+
+    for (uint8_t hub_index = 1; hub_index <= max_hub_index; hub_index++) {
+        uint8_t max_port = (hub_index == 1) ? CONFIG_USBHOST_MAX_RHPORTS : CONFIG_USBHOST_MAX_EHPORTS;
+
+        for (uint8_t port = 1; port <= max_port; port++) {
+            struct usbh_hubport *hport = find_hubport(0, hub_index, port);
+            if (hport && hport->connected) {
+                udisk_print_hubport(hport);
+                found++;
+            }
+        }
+    }
+#else
     for (uint8_t addr = 1; addr <= 8; addr++) {
         struct usbh_hubport *hport = usbh_find_hubport(addr);
         if (hport && hport->connected) {
@@ -407,6 +430,7 @@ static int udisk_print_enumerated_devices(void)
             found++;
         }
     }
+#endif
     return found;
 }
 
