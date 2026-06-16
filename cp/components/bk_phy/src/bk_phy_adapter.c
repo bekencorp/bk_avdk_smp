@@ -627,6 +627,28 @@ bool rtos_is_critical_section_wrapper(void)
 
 extern uint64 riscv_get_mtimer(void);
 
+static UINT32 phy_adapter_ddev_control(UINT32 handle, UINT32 cmd, VOID *param)
+{
+	(void)handle;
+
+	switch (cmd) {
+	case CMD_GET_DEVICE_ID:
+		return sys_drv_get_device_id();
+	case CMD_GET_CHIP_ID:
+		return sys_drv_get_chip_id();
+	case CMD_SCTRL_MODEM_CORE_RESET:
+		return sys_drv_modem_core_reset();
+	case CMD_SCTRL_BLK_ENABLE:
+		if (param)
+			return sys_drv_block_en_mux_set(*(UINT32 *)param);
+		break;
+	default:
+		break;
+	}
+
+	return 0;
+}
+
 const phy_os_funcs_t g_phy_os_funcs = {
 
     ._version                           = PHY_OSI_VERSION,
@@ -654,7 +676,7 @@ const phy_os_funcs_t g_phy_os_funcs = {
 #endif
     ._delay                             = delay,
     ._delay_us                          = bk_delay_us,
-    ._ddev_control                      = ddev_control,
+    ._ddev_control                      = phy_adapter_ddev_control,
     ._bk_wdt_stop                       = bk_wdt_stop_wrapper,
 
     ._temp_detect_is_init               = temp_detect_is_init,
