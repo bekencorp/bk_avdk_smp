@@ -80,7 +80,9 @@ bk_err_t bk_qspi_flash_erase(qspi_id_t id, uint32_t addr, uint32_t size);
  * @return
  *    - NA.
  */
+#if CONFIG_QSPI_QUAD_WIRE
 bk_err_t bk_qspi_flash_quad_enable(qspi_id_t id);
+#endif /* CONFIG_QSPI_QUAD_WIRE */
 
 /**
  * @brief      QSPI flash erase 32k
@@ -120,7 +122,9 @@ bk_err_t bk_qspi_flash_erase(qspi_id_t id, uint32_t addr, uint32_t type);
  *    - BK_OK: succeed
  *    - others: other errors.
  */
+#if CONFIG_QSPI_QUAD_WIRE
 bk_err_t bk_qspi_flash_quad_page_program(qspi_id_t id, uint32_t addr, const void *data, uint32_t size);
+#endif /* CONFIG_QSPI_QUAD_WIRE */
 
 /**
  * @brief      QSPI flash single write
@@ -145,7 +149,9 @@ bk_err_t bk_qspi_flash_single_page_program(qspi_id_t id, uint32_t addr, const vo
  *    - BK_OK: succeed
  *    - others: other errors.
  */
+#if CONFIG_QSPI_QUAD_WIRE
 bk_err_t bk_qspi_flash_quad_read(qspi_id_t id, uint32_t addr, void *data, uint32_t size);
+#endif /* CONFIG_QSPI_QUAD_WIRE */
 
 /**
  * @brief      QSPI flash single read
@@ -184,6 +190,23 @@ bk_err_t bk_qspi_flash_write(qspi_id_t id, uint32_t base_addr, const void *data,
  *    - others: other errors.
  */
 bk_err_t bk_qspi_flash_read(qspi_id_t id, uint32_t base_addr, void *data, uint32_t size);
+
+#if CONFIG_QSPI_NAND_FLASH
+bk_err_t bk_qspi_flash_nand_get_id(qspi_id_t id, uint8_t *buf, uint32_t len);
+bk_err_t bk_qspi_flash_nand_get_feature(qspi_id_t id, uint8_t addr, uint8_t *value);
+bk_err_t bk_qspi_flash_nand_set_feature(qspi_id_t id, uint8_t addr, uint8_t value);
+bk_err_t bk_qspi_flash_nand_get_block_lock(qspi_id_t id, uint8_t *value);
+bk_err_t bk_qspi_flash_nand_set_block_lock(qspi_id_t id, uint8_t value);
+bk_err_t bk_qspi_flash_nand_get_status(qspi_id_t id, uint8_t *value);
+bk_err_t bk_qspi_flash_nand_get_feature_register(qspi_id_t id, uint8_t *value);
+bk_err_t bk_qspi_flash_nand_set_feature_register(qspi_id_t id, uint8_t value);
+bk_err_t bk_qspi_flash_nand_set_protect_none(qspi_id_t id);
+bk_err_t bk_qspi_flash_nand_block_erase(qspi_id_t id, uint32_t block);
+bk_err_t bk_qspi_flash_nand_page_program(qspi_id_t id, uint32_t page, uint32_t column, const uint8_t *buf, uint32_t len);
+bk_err_t bk_qspi_flash_nand_page_read(qspi_id_t id, uint32_t page, uint32_t column, uint8_t *buf, uint32_t len);
+bk_err_t bk_qspi_flash_nand_page_program_quad(qspi_id_t id, uint32_t page, uint32_t column, const uint8_t *buf, uint32_t len);
+bk_err_t bk_qspi_flash_nand_page_read_quad(qspi_id_t id, uint32_t page, uint32_t column, uint8_t *buf, uint32_t len);
+#endif /* CONFIG_QSPI_NAND_FLASH */
 
 /**
  * @brief      QSPI flash read status register S0-S7

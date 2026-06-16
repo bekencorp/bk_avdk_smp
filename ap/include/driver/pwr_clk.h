@@ -100,6 +100,7 @@ typedef enum
 	PM_POWER_PSRAM_MODULE_NAME_MEDIA        ,// 12
 	PM_POWER_PSRAM_MODULE_NAME_LVGL_CODE_RUN,// 13
 	PM_POWER_PSRAM_MODULE_NAME_AS_SECTIONS  ,// 14 //for code and bss section
+	PM_POWER_PSRAM_MODULE_NAME_VDDRAM_1V8   ,// 15
 	PM_POWER_PSRAM_MODULE_NAME_MAX          ,// attention: MAX value can not exceed 31.
 }pm_power_psram_module_name_e;
 

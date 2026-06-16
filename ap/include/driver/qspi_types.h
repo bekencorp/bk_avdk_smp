@@ -21,9 +21,6 @@
 extern "C" {
 #endif
 
-#define BK_ERR_QSPI_NOT_INIT    (BK_ERR_QSPI_BASE - 1) /**< QSPI driver not init */
-#define BK_ERR_QSPI_ID_NOT_INIT (BK_ERR_QSPI_BASE - 2) /**< QSPI id not init */
-
 /**
  * @brief QSPI interrupt service routine
  */

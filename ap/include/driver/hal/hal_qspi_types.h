@@ -20,6 +20,11 @@
 extern "C" {
 #endif
 
+#define BK_ERR_QSPI_NOT_INIT    (BK_ERR_QSPI_BASE - 1) /**< QSPI driver not init */
+#define BK_ERR_QSPI_ID_NOT_INIT (BK_ERR_QSPI_BASE - 2) /**< QSPI id not init */
+
+#define QSPI_FIFO_LEN_MAX       256
+
 typedef uint8_t qspi_unit_t; /**< QSPI uint id */
 
 typedef enum {
