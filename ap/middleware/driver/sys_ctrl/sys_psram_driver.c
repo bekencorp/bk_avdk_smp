@@ -109,6 +109,16 @@ uint32_t sys_drv_psram_psram_disckg(uint32_t value)
 
 }
 
+uint32_t sys_drv_psram_get_enpsram(void)
+{
+	uint32_t ret = 0;
+#if CONFIG_GPIO_1V8_EN
+	uint32_t int_level = sys_drv_enter_critical();
+	ret = sys_hal_psram_ldo_status();
+	sys_drv_exit_critical(int_level);
+#endif
+	return ret;
+}
 
 /**  psram End **/
 

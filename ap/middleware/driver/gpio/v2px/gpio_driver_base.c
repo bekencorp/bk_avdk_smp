@@ -20,6 +20,9 @@
 #include "gpio_hal_v2px.h"
 #include "gpio_driver_base.h"
 #include "sys_driver.h"
+#if CONFIG_GPIO_1V8_EN
+#include "sys_ll.h"
+#endif
 #if CONFIG_ANA_GPIO
 #include "ana_gpio_driver.h"
 #endif
@@ -239,6 +242,12 @@ bk_err_t bk_gpio_driver_init(void)
 #else
 	sys_drv_set_int_en(rtos_get_core_id(), INT_SRC_GPIO, 1);
 #endif
+#endif
+
+#if CONFIG_GPIO_1V8_EN
+	sys_drv_psram_psldo_vset(1, 0);
+	bk_pm_module_vote_psram_ctrl(PM_POWER_PSRAM_MODULE_NAME_VDDRAM_1V8, PM_POWER_MODULE_STATE_ON);
+	sys_ll_set_ana_reg13_vddgpio_sel(1);
 #endif
 
 	s_gpio_is_init = true;

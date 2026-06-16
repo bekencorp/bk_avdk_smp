@@ -22,6 +22,23 @@ menu "QSPI"
 		bool "Enable GD Flash"
 		default n
 
+	config QSPI_NAND_FLASH
+		bool "Enable NAND Flash"
+		depends on QSPI
+		default n
+
+	config QSPI_QUAD_WIRE
+		bool "Enable NAND Flash 4-WIRE"
+		default y
+
+	config QSPI_NAND_FLASH_SIZE
+		hex "NAND Flash Size (Bytes)"
+		depends on QSPI_NAND_FLASH
+		default 0x8000000
+		help
+			Set the total size of the SPI NAND Flash in bytes.
+			Default is 128MB (0x8000000).
+
 	config QSPI_TEST
 		depends on QSPI && DRIVER_TEST
 		bool "Enable qspi test"

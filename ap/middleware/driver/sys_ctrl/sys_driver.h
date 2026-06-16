@@ -531,6 +531,7 @@ uint32_t sys_drv_psram_set_clkdiv(uint32_t value);
 uint32_t sys_drv_psram_psldo_vsel(uint32_t value);
 uint32_t sys_drv_psram_psldo_vset(uint32_t psldo_swb, uint32_t vpsramsel);
 uint32_t sys_drv_psram_psram_disckg(uint32_t value);
+uint32_t sys_drv_psram_get_enpsram(void);
 /**  psram End **/
 
 uint32_t sys_drv_cali_dpll(uint32_t param);
