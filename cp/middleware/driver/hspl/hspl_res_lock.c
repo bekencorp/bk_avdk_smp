@@ -136,15 +136,26 @@ bk_err_t bk_hspl_res_lock(bk_hspl_res_t res, uint32_t timeout_us)
 	}
 
 	while (1) {
+		/* Acquire and rec_count update must be atomic against local interrupts:
+		 * otherwise an ISR that re-enters the same resource in the gap sees
+		 * rec_count==0, re-issues a (self-owned) HW try_lock that the hardware
+		 * rejects, and either dead-spins or proceeds without protection. */
+		flags = rtos_disable_int();
 		if (bk_hspl_try_lock(hspl_id, channel, NULL) == BK_OK) {
 			hspl_sync_barrier();
-			flags = rtos_disable_int();
 			s_rec_count[res][core_id] = 1;
 			rtos_enable_int(flags);
 			return BK_OK;
 		}
+		rtos_enable_int(flags);
 
 		if (timeout_us == 0) {
+			return BK_ERR_TIMEOUT;
+		}
+
+		/* A stopped peer core may hold this lock forever during coredump; do not
+		 * block the dump/reboot flow. */
+		if (arch_is_enter_exception()) {
 			return BK_ERR_TIMEOUT;
 		}
 
@@ -237,50 +248,14 @@ static inline uint32_t hspl_must_lock_elapsed_ms(uint32_t start_ms, uint32_t now
 	return cap_ms;
 }
 
-static bk_err_t hspl_res_must_lock_acquire_hw(bk_hspl_res_t res, uint8_t hspl_id, uint8_t channel)
-{
-	uint32_t timeout_ms = hspl_res_must_lock_timeout_ms(res);
-
-	if (bk_hspl_try_lock(hspl_id, channel, NULL) == BK_OK) {
-		return BK_OK;
-	}
-
-	if (timeout_ms == 0U) {
-		while (bk_hspl_try_lock(hspl_id, channel, NULL) != BK_OK) {
-			/* Never spin forever inside an exception/coredump: bail out so the
-			 * dump/reboot is not blocked by a stopped lock-holder. */
-			if (arch_is_enter_exception()) {
-				return BK_ERR_TIMEOUT;
-			}
-		}
-		return BK_OK;
-	}
-
-	{
-		uint32_t start_ms = hspl_get_time_ms();
-
-		while (1) {
-			uint32_t now_ms;
-
-			if (bk_hspl_try_lock(hspl_id, channel, NULL) == BK_OK) {
-				return BK_OK;
-			}
-
-			now_ms = hspl_get_time_ms();
-			if (hspl_must_lock_elapsed_ms(start_ms, now_ms, timeout_ms) >= timeout_ms) {
-				hspl_res_must_lock_assert_timeout(res, timeout_ms);
-				return BK_ERR_TIMEOUT;
-			}
-		}
-	}
-}
-
 bk_err_t bk_hspl_res_must_lock(bk_hspl_res_t res)
 {
 	uint8_t hspl_id, channel;
 	uint8_t core_id;
 	uint32_t flags;
-	bk_err_t ret;
+	uint32_t timeout_ms;
+	uint32_t start_ms;
+	bool use_timeout;
 
 	if (res >= BK_HSPL_RES_MAX) {
 		BK_ASSERT(0);
@@ -303,18 +278,44 @@ bk_err_t bk_hspl_res_must_lock(bk_hspl_res_t res)
 		rtos_enable_int(flags);
 		return BK_OK;
 	}
-	rtos_enable_int(flags);
-
-	ret = hspl_res_must_lock_acquire_hw(res, hspl_id, channel);
-	if (ret != BK_OK) {
-		return ret;
+	/* First attempt while local IRQ is still disabled, so the HW acquire and the
+	 * rec_count update are atomic against same-core ISR re-entry of this resource. */
+	if (bk_hspl_try_lock(hspl_id, channel, NULL) == BK_OK) {
+		hspl_sync_barrier();
+		s_rec_count[res][core_id] = 1;
+		rtos_enable_int(flags);
+		return BK_OK;
 	}
-
-	hspl_sync_barrier();
-	flags = rtos_disable_int();
-	s_rec_count[res][core_id] = 1;
 	rtos_enable_int(flags);
-	return BK_OK;
+
+	timeout_ms = hspl_res_must_lock_timeout_ms(res);
+	use_timeout = (timeout_ms != 0U);
+	start_ms = hspl_get_time_ms();
+
+	while (1) {
+		/* Never block the dump/reboot flow on a stopped lock-holder. */
+		if (arch_is_enter_exception()) {
+			return BK_ERR_TIMEOUT;
+		}
+
+		flags = rtos_disable_int();
+		if (bk_hspl_try_lock(hspl_id, channel, NULL) == BK_OK) {
+			hspl_sync_barrier();
+			s_rec_count[res][core_id] = 1;
+			rtos_enable_int(flags);
+			return BK_OK;
+		}
+		rtos_enable_int(flags);
+
+		if (use_timeout) {
+			uint32_t now_ms = hspl_get_time_ms();
+
+			if (hspl_must_lock_elapsed_ms(start_ms, now_ms, timeout_ms) >= timeout_ms) {
+				hspl_res_must_lock_assert_timeout(res, timeout_ms);
+				return BK_ERR_TIMEOUT;
+			}
+		}
+	}
 }
 
 bk_err_t bk_hspl_res_lock_irqsave(bk_hspl_res_t res, uint32_t *flags)
