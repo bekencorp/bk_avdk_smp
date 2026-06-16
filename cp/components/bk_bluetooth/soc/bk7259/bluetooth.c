@@ -1139,7 +1139,7 @@ static void bt_delay_us(uint32_t us)
 
 static uint16_t bt_get_low_voltage_wakeup_margin_cycles(void)
 {
-    return PM_SLEEP_WAKEUP_COMSUME_ALL_TIME_TICKS;//about 7.4ms
+    return PM_SLEEP_WAKEUP_COMSUME_ALL_TIME_TICKS;
 }
 
 static void bt_sys_drv_rf_ctrl(bool en)
@@ -1152,6 +1152,39 @@ static void bt_sys_drv_rf_ctrl(bool en)
     {
         sys_hal_rf_ctrl(RF_CTRL_PTA);
     }
+}
+
+static void bt_vote_cpu_freq_wrapper(uint32_t cpu_freq)
+{
+    pm_cpu_freq_e freq = PM_CPU_FRQ_DEFAULT;
+    switch (cpu_freq)
+    {
+        case 0: //restore to default
+            freq = PM_CPU_FRQ_DEFAULT;
+            break;
+        case 26: //26M
+            freq = PM_CPU_FRQ_XTAL;
+            break;
+        case 60: //60M
+            freq = PM_CPU_FRQ_60M;
+            break;
+        case 80: //80M
+            freq = PM_CPU_FRQ_80M;
+            break;
+        case 120: //120M
+            freq = PM_CPU_FRQ_120M;
+            break;
+        case 160: //160M
+            freq = PM_CPU_FRQ_160M;
+            break;
+        case 240: //240M
+            freq = PM_CPU_FRQ_240M;
+            break;
+        default:
+            break;
+    }
+
+    bk_pm_module_vote_cpu_freq(PM_DEV_ID_BTDM, freq);
 }
 
 //warning: bt_osi_funcs must be data section, otherwise a2dp_source_pcm and a2dp_source_decode will trig watchdog !!!!!!!!
@@ -1273,6 +1306,7 @@ static struct bt_osi_funcs_t bt_osi_funcs =
     ._bt_delay_us           = bt_delay_us,
     ._bt_get_low_voltage_wakeup_margin_cycles = bt_get_low_voltage_wakeup_margin_cycles,
     ._bt_sys_drv_rf_ctrl = bt_sys_drv_rf_ctrl,
+    ._bt_vote_cpu_freq = bt_vote_cpu_freq_wrapper,
 };
 
 int bk_bt_os_adapter_init(void)
