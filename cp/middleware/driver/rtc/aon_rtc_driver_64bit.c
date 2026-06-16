@@ -1141,6 +1141,17 @@ bk_err_t bk_aon_rtc_open_rtc_wakeup(rtc_tick_t period)
 
 __IRAM_SEC uint64_t bk_aon_rtc_get_upper_val(aon_rtc_id_t id)
 {
+	return bk_aon_rtc_get_max_value(id);
+}
+
+__IRAM_SEC uint64_t bk_aon_rtc_get_max_value(aon_rtc_id_t id)
+{
+	if(id >= AON_RTC_ID_MAX)
+	{
+		AON_RTC_LOGW("%s:id=%d\r\n", __func__, id);
+		return 0;
+	}
+
 	return (aon_rtc_hal_get_upper_val(&s_aon_rtc[id].hal));
 }
 
