@@ -20,9 +20,6 @@
 #include "gpio_driver.h"
 #include "driver/flash.h"
 #include <os/os.h>
-#if CONFIG_SUPPORT_WWDT
-#include <driver/wwdt.h>
-#endif
 
 #include "pm_sleep.h"
 #include "pm_power.h"
@@ -42,10 +39,6 @@ uint64_t pm_cpu_wfi_process()
 	GLOBAL_INT_DECLARATION();
 	GLOBAL_INT_DISABLE();
 
-#if CONFIG_SUPPORT_WWDT
-	bk_wwdt_feed();
-#endif
-
 	uint64_t sleep_tick         = 0ULL;
 	#if CONFIG_AON_RTC || CONFIG_ANA_RTC
 	uint64_t entry_tick         = 0ULL;
@@ -53,10 +46,6 @@ uint64_t pm_cpu_wfi_process()
 	#endif
 
 	pm_enter_cpu_wfi();
-
-#if CONFIG_SUPPORT_WWDT
-	bk_wwdt_feed();
-#endif
 
 	#if CONFIG_AON_RTC || CONFIG_ANA_RTC
 	uint64_t exit_tick          = 0ULL;
