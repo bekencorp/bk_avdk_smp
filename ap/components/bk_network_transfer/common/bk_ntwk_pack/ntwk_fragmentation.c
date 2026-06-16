@@ -19,6 +19,7 @@
 
 static fragment_cfg_t *s_fragment_cfg_mgr[NTWK_TRANS_CHAN_MAX] = {NULL};
 static unfragment_cfg_t *s_unfragment_cfg_mgr[NTWK_TRANS_CHAN_MAX] = {NULL};
+static ntwk_fragment_abort_cb_t s_fragment_abort_cb[NTWK_TRANS_CHAN_MAX] = {NULL};
 
 int ntwk_fragm_get_header_size(void)
 {
@@ -146,6 +147,43 @@ bk_err_t ntwk_fragment_register_recv_cb(chan_type_t chan_type, fragment_recv_t c
 	return BK_OK;
 }
 
+bk_err_t ntwk_fragment_register_abort_cb(chan_type_t chan_type, ntwk_fragment_abort_cb_t cb)
+{
+	if (chan_type >= NTWK_TRANS_CHAN_MAX)
+	{
+		return BK_ERR_PARAM;
+	}
+
+	s_fragment_abort_cb[chan_type] = cb;
+	return BK_OK;
+}
+
+int ntwk_fragment_discard_frame(chan_type_t chan_type, uint8_t frame_id)
+{
+	int ret;
+	ntwk_fragm_head_t *frag_hdr;
+
+	if ((s_fragment_cfg_mgr[chan_type] == NULL) ||
+	    (s_fragment_cfg_mgr[chan_type]->initialized == false) ||
+	    (s_fragment_cfg_mgr[chan_type]->frag_recv == NULL))
+	{
+		return -1;
+	}
+
+	frag_hdr = s_fragment_cfg_mgr[chan_type]->fragment_data;
+	frag_hdr->id = frame_id;
+	frag_hdr->cnt = 1;
+	frag_hdr->eof = 1;
+	frag_hdr->size = 1;
+	frag_hdr->data[0] = 0;
+
+	ret = s_fragment_cfg_mgr[chan_type]->frag_recv(chan_type,
+	                                               (uint8_t *)frag_hdr,
+	                                               NTWK_FRAG_HEADER_SIZE + 1);
+	LOGW("%s, frame_id=%u ret=%d\n", __func__, frame_id, ret);
+	return ret;
+}
+
 int ntwk_fragment(chan_type_t chan_type, uint8_t *data, uint32_t length)
 {
     int ret = BK_OK;
@@ -174,6 +212,7 @@ int ntwk_fragment(chan_type_t chan_type, uint8_t *data, uint32_t length)
 	uint32_t fragment_size = s_fragment_cfg_mgr[chan_type]->fragment_size;
 	uint32_t count = length / fragment_size;
 	uint32_t tail = length % fragment_size;
+	uint32_t total_frags = count + (tail ? 1U : 0U);
 	ntwk_fragm_head_t *frag_hdr = s_fragment_cfg_mgr[chan_type]->fragment_data;
     uint8_t *src_address = buffer->frame;
 
@@ -184,11 +223,20 @@ int ntwk_fragment(chan_type_t chan_type, uint8_t *data, uint32_t length)
 	frag_hdr->id = (buffer->sequence & 0xFF);
     frag_hdr->cnt = 0;
     frag_hdr->eof = 0;
-	frag_hdr->size = count + (tail ? 1 : 0);
+	frag_hdr->size = (uint8_t)total_frags;
 
 	// Send full-size fragments
 	for (i = 0; i < count; i++)
 	{
+		if (s_fragment_abort_cb[chan_type] != NULL)
+		{
+			if (s_fragment_abort_cb[chan_type]() != 0)
+			{
+				LOGW("%s, aborted at fragment %u\n", __func__, i);
+				return -8;
+			}
+		}
+
 		frag_hdr->cnt = i + 1;
 
 		if ((tail == 0) && (i == count - 1))
@@ -212,6 +260,15 @@ int ntwk_fragment(chan_type_t chan_type, uint8_t *data, uint32_t length)
 	// Send tail fragment if exists
 	if (tail)
 	{
+		if (s_fragment_abort_cb[chan_type] != NULL)
+		{
+			if (s_fragment_abort_cb[chan_type]() != 0)
+			{
+				LOGW("%s, aborted before tail fragment\n", __func__);
+				return -8;
+			}
+		}
+
 		frag_hdr->cnt = count + 1;
 		frag_hdr->eof = 1;
 

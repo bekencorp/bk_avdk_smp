@@ -13,6 +13,11 @@ extern "C" {
 #define NTWK_TRANS_TCP_AUDIO_PORT           (7140)
 
 #define NTWK_TRANS_UDP_DATA_MAX_SIZE        (1472)
+/*
+ * TCP video fragment payload cap (before pack+frag headers).
+ * Must satisfy: ceil(frame_bytes / payload) <= 255 (ntwk_fragm_head_t.size/cnt are uint8).
+ * 20KB payload -> 1080p NV12 ~3.1MB needs ~152 frags; 1080p RAW10 ~4.1MB needs ~203 frags.
+ */
 #define NTWK_TRANS_TCP_DATA_MAX_SIZE        (1460)
 #define NTWK_TRANS_DATA_MAX_SIZE            (1024)
 

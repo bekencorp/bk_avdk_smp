@@ -356,6 +356,29 @@ sdp_int_err:
     return ret;
 }
 
+int ntwk_sdp_update(const char *serviceName, uint32_t cmd_port, uint32_t img_port, uint32_t aud_port)
+{
+    uint8_t ble_mac[6] = {0};
+    char ble_mac_str[18] = {0};
+
+    if (ntwk_sdp == NULL)
+    {
+        return ntwk_sdp_start(serviceName, cmd_port, img_port, aud_port);
+    }
+
+    bk_err_t mac_ret = bk_ap_get_mac(ble_mac, MAC_TYPE_BLUETOOTH);
+    if (mac_ret == BK_OK) {
+        sprintf(ble_mac_str, "%02x:%02x:%02x:%02x:%02x:%02x",
+                ble_mac[0], ble_mac[1], ble_mac[2], ble_mac[3], ble_mac[4], ble_mac[5]);
+    } else {
+        ble_mac_str[0] = '\0';
+    }
+    ntwk_sdp_generate(serviceName, cmd_port, img_port, aud_port, ble_mac_str);
+    ntwk_sdp_reload(1000);
+    LOGD("ntwk_sdp_update serviceName=%s cmd=%u img=%u aud=%u\n", serviceName, cmd_port, img_port, aud_port);
+    return 0;
+}
+
 int ntwk_sdp_stop(void)
 {
     LOGD("%s start\n", __func__);

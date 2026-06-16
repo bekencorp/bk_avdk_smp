@@ -17,6 +17,7 @@ typedef struct
 } sdp_data_t;
 
 int ntwk_sdp_start(const char *name, uint32_t cmd_port, uint32_t img_port, uint32_t aud_port);
+int ntwk_sdp_update(const char *name, uint32_t cmd_port, uint32_t img_port, uint32_t aud_port);
 int ntwk_sdp_stop(void);
 int ntwk_sdp_reload(uint32_t time_ms);
 

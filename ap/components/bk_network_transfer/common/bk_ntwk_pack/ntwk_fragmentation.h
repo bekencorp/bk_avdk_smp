@@ -63,6 +63,7 @@ typedef struct {
 
 
 typedef int (*fragment_recv_t) (chan_type_t chan, uint8_t *data, uint32_t length);
+typedef int (*ntwk_fragment_abort_cb_t)(void);
 
 typedef struct
 {
@@ -95,6 +96,8 @@ typedef struct
 bk_err_t ntwk_fragment_start(chan_type_t chan_type, uint32_t fragment_size, void *user_data);
 bk_err_t ntwk_fragment_stop(chan_type_t chan_type);
 bk_err_t ntwk_fragment_register_recv_cb(chan_type_t chan_type,fragment_recv_t cb);
+bk_err_t ntwk_fragment_register_abort_cb(chan_type_t chan_type, ntwk_fragment_abort_cb_t cb);
+int ntwk_fragment_discard_frame(chan_type_t chan_type, uint8_t frame_id);
 
 int ntwk_fragment_ctrl_fragment(uint8_t *data, uint32_t length);
 int ntwk_fragment_ctrl_unfragment(uint8_t *data, uint32_t length);

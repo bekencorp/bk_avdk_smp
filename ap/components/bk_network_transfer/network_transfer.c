@@ -561,6 +561,12 @@ int ntwk_trans_video_send(uint8_t *data, uint32_t length, image_format_t video_t
 #endif
             return length;
         }
+
+        /* Fragment failure/abort must not fall through to pack (data is frame_buffer_t*). */
+#if CONFIG_NTWK_VIDEO_FPS_CALC_ENABLE
+        ntwk_video_fps_frame_end(length, ret);
+#endif
+        return ret;
     }
 
     if (s_ntwk_trans_ctxt->video_chan->pack != NULL)
