@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <soc/soc.h>
 #include <driver/qspi.h>
 #include <driver/qspi_flash.h>
 #include "qspi_hal.h"
@@ -25,6 +26,11 @@
 
 static bk_err_t nand_wait_ready_internal(qspi_id_t id);
 
+static inline bk_err_t nand_check_id(qspi_id_t id)
+{
+	return (id < QSPI_ID_MAX) ? BK_OK : BK_ERR_PARAM;
+}
+
 static void bk_qspi_flash_wait_wip_done(qspi_id_t id)
 {
 	bk_err_t ret = nand_wait_ready_internal(id);
@@ -37,6 +43,8 @@ static bk_err_t nand_feature_get_internal(qspi_id_t id, uint8_t addr, uint8_t *v
 
 bk_err_t bk_qspi_flash_init(qspi_id_t id)
 {
+	BK_RETURN_ON_ERR(nand_check_id(id));
+
 	qspi_config_t config = {0};
 	config.src_clk = QSPI_SCLK_240M;
 	config.src_clk_div = 0xF;
@@ -67,7 +75,7 @@ bk_err_t bk_qspi_flash_init(qspi_id_t id)
 	{
 		uint8_t cfg = 0;
 		nand_feature_get_internal(id, 0xB0, &cfg);
-		QSPI_LOGI("init: Cfg(B0h)=0x%02x (expect 0x11 with QE+ECC)\r\n", cfg);
+		QSPI_LOGI("init: Cfg(B0h)=0x%02x (ECC-E bit set)\r\n", cfg);
 	}
 
 	return BK_OK;
@@ -75,6 +83,8 @@ bk_err_t bk_qspi_flash_init(qspi_id_t id)
 
 bk_err_t bk_qspi_flash_deinit(qspi_id_t id)
 {
+	BK_RETURN_ON_ERR(nand_check_id(id));
+
 	BK_LOG_ON_ERR(bk_qspi_deinit(id));
 	return BK_OK;
 }
@@ -85,9 +95,9 @@ static bk_err_t nand_feature_get_internal(qspi_id_t id, uint8_t addr, uint8_t *v
 	uint32_t temp_val = 0;
 
 	if (id >= QSPI_ID_MAX) {
-		QSPI_LOGE("nand_feature_get_internal: Invalid ID=%u\r\n", id);
 		return BK_ERR_PARAM;
 	}
+	BK_RETURN_ON_NULL(value);
 
 	cmd.device = QSPI_FLASH;
 	cmd.wire_mode = QSPI_1WIRE;
@@ -97,21 +107,17 @@ static bk_err_t nand_feature_get_internal(qspi_id_t id, uint8_t addr, uint8_t *v
 	cmd.data_len = 1;
 	cmd.addr = addr;
 
-	bk_err_t ret = bk_qspi_command(id, &cmd);
-	if (ret != BK_OK) {
-		return ret;
-	}
-
-	ret = bk_qspi_read(id, &temp_val, 1);
+	BK_RETURN_ON_ERR(bk_qspi_command(id, &cmd));
+	BK_RETURN_ON_ERR(bk_qspi_read(id, &temp_val, 1));
 	*value = (uint8_t)temp_val;
-	return ret;
+	return BK_OK;
 }
 
-static bk_err_t nand_wait_ready_with_status(qspi_id_t id, uint8_t *out_status)
+static bk_err_t nand_wait_ready_with_status_ms(qspi_id_t id, uint32_t timeout_ms, uint8_t *out_status)
 {
 	uint8_t status = 0;
 
-	for (uint32_t elapsed = 0; elapsed <= NAND_DEFAULT_TIMEOUT_MS; elapsed++) {
+	for (uint32_t elapsed = 0; elapsed <= timeout_ms; elapsed++) {
 		BK_RETURN_ON_ERR(nand_feature_get_internal(id, NAND_FEATURE_ADDR_STATUS, &status));
 		if (!(status & NAND_STATUS_OIP)) {
 			if (out_status) {
@@ -122,7 +128,15 @@ static bk_err_t nand_wait_ready_with_status(qspi_id_t id, uint8_t *out_status)
 		rtos_delay_milliseconds(1);
 	}
 
+	if (out_status) {
+		*out_status = status;
+	}
 	return BK_ERR_TIMEOUT;
+}
+
+static bk_err_t nand_wait_ready_with_status(qspi_id_t id, uint8_t *out_status)
+{
+	return nand_wait_ready_with_status_ms(id, NAND_DEFAULT_TIMEOUT_MS, out_status);
 }
 
 static bk_err_t nand_wait_ready_internal(qspi_id_t id)
@@ -186,7 +200,7 @@ static bk_err_t nand_block_erase_internal(qspi_id_t id, uint32_t block)
 		return BK_ERR_PARAM;
 	}
 
-	BK_RETURN_ON_ERR(nand_write_enable_bare(id));
+	BK_RETURN_ON_ERR(nand_write_enable_internal(id));
 
 	cmd.device = QSPI_FLASH;
 	cmd.wire_mode = QSPI_1WIRE;
@@ -198,10 +212,39 @@ static bk_err_t nand_block_erase_internal(qspi_id_t id, uint32_t block)
 	BK_RETURN_ON_ERR(bk_qspi_command(id, &cmd));
 
 	uint8_t status = 0;
-	BK_RETURN_ON_ERR(nand_wait_ready_with_status(id, &status));
+	BK_RETURN_ON_ERR(nand_wait_ready_with_status_ms(id, NAND_ERASE_TIMEOUT_MS, &status));
 	if (status & NAND_STATUS_E_FAIL) {
 		QSPI_LOGE("block %u erase E-FAIL (status=0x%02x)\r\n", block, status);
 		return BK_FAIL;
+	}
+	return BK_OK;
+}
+
+/* 13H: load flash page into on-die data buffer (D8H erase does not clear buffer). */
+static bk_err_t nand_page_data_read_to_buffer(qspi_id_t id, uint32_t page)
+{
+	qspi_cmd_t cmd = {0};
+
+	cmd.device = QSPI_FLASH;
+	cmd.wire_mode = QSPI_1WIRE;
+	cmd.work_mode = INDIRECT_MODE;
+	cmd.op = QSPI_WRITE;
+	cmd.cmd = NAND_CMD_PAGE_READ;
+	cmd.addr = page;
+
+	BK_RETURN_ON_ERR(bk_qspi_command(id, &cmd));
+	return nand_wait_ready_internal(id);
+}
+
+/*
+ * Spec 3.4: first 02H/32H load resets unused buffer bytes to FFh — full-page
+ * program from column 0 does not need 13H after erase.
+ * Partial-page update (column > 0) must 13H first to load existing flash data (RMW).
+ */
+static bk_err_t nand_page_program_prepare_buffer(qspi_id_t id, uint32_t page, uint32_t column)
+{
+	if (column > 0) {
+		return nand_page_data_read_to_buffer(id, page);
 	}
 	return BK_OK;
 }
@@ -214,6 +257,10 @@ static bk_err_t nand_program_load_internal(qspi_id_t id, uint32_t column, const 
 	while (len) {
 		uint32_t chunk = len > QSPI_FIFO_LEN_MAX ? QSPI_FIFO_LEN_MAX : len;
 		qspi_cmd_t cmd = {0};
+
+		if (!first) {
+			BK_RETURN_ON_ERR(nand_write_enable_internal(id));
+		}
 
 		os_memcpy(temp_buf, buf, chunk);
 
@@ -256,7 +303,8 @@ static bk_err_t nand_page_program_internal(qspi_id_t id, uint32_t page, uint32_t
 		return BK_ERR_PARAM;
 	}
 
-	BK_RETURN_ON_ERR(nand_write_enable_bare(id));
+	BK_RETURN_ON_ERR(nand_page_program_prepare_buffer(id, page, column));
+	BK_RETURN_ON_ERR(nand_write_enable_internal(id));
 	BK_RETURN_ON_ERR(nand_program_load_internal(id, column, buf, len));
 
 	qspi_cmd_t cmd = {0};
@@ -309,7 +357,7 @@ static bk_err_t nand_page_read_internal(qspi_id_t id, uint32_t page, uint32_t co
 		cmd.op = QSPI_READ;
 		cmd.cmd = NAND_CMD_READ_FROM_CACHE;
 		cmd.addr = current_column;
-		cmd.dummy_cycle = 0;
+		cmd.dummy_cycle = 8;
 		cmd.data_len = chunk;
 
 		BK_RETURN_ON_ERR(bk_qspi_command(id, &cmd));
@@ -333,19 +381,17 @@ static bk_err_t nand_program_load_quad_internal(qspi_id_t id, uint32_t column, c
 		uint32_t chunk = len > QSPI_FIFO_LEN_MAX ? QSPI_FIFO_LEN_MAX : len;
 		qspi_cmd_t cmd = {0};
 
+		if (!first) {
+			BK_RETURN_ON_ERR(nand_write_enable_internal(id));
+		}
+
 		os_memcpy(temp_buf, buf, chunk);
 
 		cmd.device = QSPI_FLASH;
 		cmd.work_mode = INDIRECT_MODE;
 		cmd.op = QSPI_WRITE;
-
-		if (first) {
-			cmd.wire_mode = QSPI_4WIRE;
-			cmd.cmd = NAND_CMD_PRORAM_LOAD_QUAD;
-		} else {
-			cmd.wire_mode = QSPI_4WIRE;
-			cmd.cmd = NAND_CMD_PRORAM_LOAD_RANDOM_QUAD;
-		}
+		cmd.wire_mode = QSPI_4WIRE;
+		cmd.cmd = first ? NAND_CMD_PRORAM_LOAD_QUAD : NAND_CMD_PRORAM_LOAD_RANDOM_QUAD;
 		cmd.addr = column;
 		cmd.data_len = chunk;
 
@@ -375,7 +421,8 @@ static bk_err_t nand_page_program_quad_internal(qspi_id_t id, uint32_t page, uin
 		return BK_ERR_PARAM;
 	}
 
-	BK_RETURN_ON_ERR(nand_write_enable_bare(id));
+	BK_RETURN_ON_ERR(nand_page_program_prepare_buffer(id, page, column));
+	BK_RETURN_ON_ERR(nand_write_enable_internal(id));
 	BK_RETURN_ON_ERR(nand_program_load_quad_internal(id, column, buf, len));
 
 	qspi_cmd_t cmd = {0};
@@ -405,7 +452,6 @@ static bk_err_t nand_page_read_quad_internal(qspi_id_t id, uint32_t page, uint32
 	}
 
 	qspi_cmd_t cmd = {0};
-	uint32_t temp_buf[QSPI_FIFO_LEN_MAX / 4];
 
 	cmd.device = QSPI_FLASH;
 	cmd.wire_mode = QSPI_1WIRE;
@@ -433,9 +479,7 @@ static bk_err_t nand_page_read_quad_internal(qspi_id_t id, uint32_t page, uint32
 		cmd.data_len = chunk;
 
 		BK_RETURN_ON_ERR(bk_qspi_command(id, &cmd));
-		BK_RETURN_ON_ERR(bk_qspi_read(id, temp_buf, chunk));
-
-		os_memcpy(buf, temp_buf, chunk);
+		BK_RETURN_ON_ERR(bk_qspi_read(id, buf, chunk));
 
 		buf += chunk;
 		current_column += chunk;
@@ -460,6 +504,7 @@ static bk_err_t nand_read_id_internal(qspi_id_t id, uint8_t *buf, uint32_t len)
 	cmd.op = QSPI_READ;
 	cmd.cmd = FLASH_READ_ID_CMD;
 	cmd.addr = 0;
+	cmd.dummy_cycle = 8;
 	cmd.data_len = len;
 
 	BK_RETURN_ON_ERR(bk_qspi_command(id, &cmd));
@@ -470,6 +515,7 @@ static bk_err_t nand_read_id_internal(qspi_id_t id, uint8_t *buf, uint32_t len)
 bk_err_t bk_qspi_flash_single_page_program(qspi_id_t id, uint32_t addr, const void *data, uint32_t size)
 {
 	const uint8_t *buf8 = (const uint8_t *)data;
+	BK_RETURN_ON_ERR(nand_check_id(id));
 	BK_RETURN_ON_NULL(buf8);
 
 	uint32_t remaining = size;
@@ -497,6 +543,7 @@ bk_err_t bk_qspi_flash_single_page_program(qspi_id_t id, uint32_t addr, const vo
 bk_err_t bk_qspi_flash_single_read(qspi_id_t id, uint32_t addr, void *data, uint32_t size)
 {
 	uint8_t *buf8 = (uint8_t *)data;
+	BK_RETURN_ON_ERR(nand_check_id(id));
 	BK_RETURN_ON_NULL(buf8);
 
 	uint32_t remaining = size;
@@ -524,6 +571,7 @@ bk_err_t bk_qspi_flash_single_read(qspi_id_t id, uint32_t addr, void *data, uint
 bk_err_t bk_qspi_flash_quad_page_program(qspi_id_t id, uint32_t addr, const void *data, uint32_t size)
 {
 	const uint8_t *buf8 = (const uint8_t *)data;
+	BK_RETURN_ON_ERR(nand_check_id(id));
 	BK_RETURN_ON_NULL(buf8);
 
 	uint32_t remaining = size;
@@ -550,6 +598,7 @@ bk_err_t bk_qspi_flash_quad_page_program(qspi_id_t id, uint32_t addr, const void
 bk_err_t bk_qspi_flash_quad_read(qspi_id_t id, uint32_t addr, void *data, uint32_t size)
 {
 	uint8_t *buf8 = (uint8_t *)data;
+	BK_RETURN_ON_ERR(nand_check_id(id));
 	BK_RETURN_ON_NULL(buf8);
 
 	uint32_t remaining = size;
@@ -577,6 +626,8 @@ bk_err_t bk_qspi_flash_quad_read(qspi_id_t id, uint32_t addr, void *data, uint32
 
 bk_err_t bk_qspi_flash_write(qspi_id_t id, uint32_t base_addr, const void *data, uint32_t size)
 {
+	BK_RETURN_ON_ERR(nand_check_id(id));
+
 	uint8_t buf[QSPI_FIFO_LEN_MAX] = {0};
 	uint32_t left_len = size;
 	uint32_t write_len= 0;
@@ -641,6 +692,8 @@ bk_err_t bk_qspi_flash_write(qspi_id_t id, uint32_t base_addr, const void *data,
 
 bk_err_t bk_qspi_flash_read(qspi_id_t id, uint32_t base_addr, void *data, uint32_t size)
 {
+	BK_RETURN_ON_ERR(nand_check_id(id));
+
 	uint8_t buf[QSPI_FIFO_LEN_MAX] = {0};
 	uint32_t left_len = size;
 	uint32_t read_len= 0;
@@ -664,50 +717,66 @@ bk_err_t bk_qspi_flash_read(qspi_id_t id, uint32_t base_addr, void *data, uint32
 
 bk_err_t bk_qspi_flash_nand_get_feature(qspi_id_t id, uint8_t addr, uint8_t *value)
 {
+	BK_RETURN_ON_ERR(nand_check_id(id));
 	BK_RETURN_ON_NULL(value);
+
 	return nand_feature_get_internal(id, addr, value);
 }
 
 bk_err_t bk_qspi_flash_nand_get_id(qspi_id_t id, uint8_t *buf, uint32_t len)
 {
+	BK_RETURN_ON_ERR(nand_check_id(id));
+
 	return nand_read_id_internal(id, buf, len);
 }
 
 bk_err_t bk_qspi_flash_nand_set_feature(qspi_id_t id, uint8_t addr, uint8_t value)
 {
+	BK_RETURN_ON_ERR(nand_check_id(id));
+
 	return nand_feature_set_internal(id, addr, value);
 }
 
 bk_err_t bk_qspi_flash_nand_get_block_lock(qspi_id_t id, uint8_t *value)
 {
+	BK_RETURN_ON_ERR(nand_check_id(id));
+
 	return bk_qspi_flash_nand_get_feature(id, NAND_FEATURE_ADDR_BLOCK_LOCK, value);
 }
 
 bk_err_t bk_qspi_flash_nand_set_block_lock(qspi_id_t id, uint8_t value)
 {
+	BK_RETURN_ON_ERR(nand_check_id(id));
+
 	return bk_qspi_flash_nand_set_feature(id, NAND_FEATURE_ADDR_BLOCK_LOCK, value);
 }
 
 bk_err_t bk_qspi_flash_nand_get_status(qspi_id_t id, uint8_t *value)
 {
+	BK_RETURN_ON_ERR(nand_check_id(id));
+	BK_RETURN_ON_NULL(value);
+
 	return bk_qspi_flash_nand_get_feature(id, NAND_FEATURE_ADDR_STATUS, value);
 }
 
 bk_err_t bk_qspi_flash_nand_get_feature_register(qspi_id_t id, uint8_t *value)
 {
-	if (id >= QSPI_ID_MAX) {
-		QSPI_LOGE("get_feature_reg: Invalid ID=%u\r\n", id);
-	}
+	BK_RETURN_ON_ERR(nand_check_id(id));
+
 	return bk_qspi_flash_nand_get_feature(id, NAND_FEATURE_ADDR_DRIVE, value);
 }
 
 bk_err_t bk_qspi_flash_nand_set_feature_register(qspi_id_t id, uint8_t value)
 {
+	BK_RETURN_ON_ERR(nand_check_id(id));
+
 	return bk_qspi_flash_nand_set_feature(id, NAND_FEATURE_ADDR_DRIVE, value);
 }
 
 bk_err_t bk_qspi_flash_nand_set_protect_none(qspi_id_t id)
 {
+	BK_RETURN_ON_ERR(nand_check_id(id));
+
 	uint8_t lock = 0;
 	BK_RETURN_ON_ERR(bk_qspi_flash_nand_set_block_lock(id, 0x00));
 	BK_RETURN_ON_ERR(bk_qspi_flash_nand_get_block_lock(id, &lock));
@@ -719,27 +788,28 @@ bk_err_t bk_qspi_flash_nand_set_protect_none(qspi_id_t id)
 
 bk_err_t bk_qspi_flash_nand_block_erase(qspi_id_t id, uint32_t block)
 {
+	BK_RETURN_ON_ERR(nand_check_id(id));
+
 	return nand_block_erase_internal(id, block);
 }
 
 bk_err_t bk_qspi_flash_erase(qspi_id_t id, uint32_t addr, uint32_t size)
 {
+	BK_RETURN_ON_ERR(nand_check_id(id));
+
 	uint32_t block_start = addr / NAND_BLOCK_SIZE_BYTES;
 	uint32_t block_end = (addr + size - 1) / NAND_BLOCK_SIZE_BYTES;
-	bk_err_t ret = BK_OK;
 
 	for (uint32_t i = block_start; i <= block_end; i++) {
-		ret = bk_qspi_flash_nand_block_erase(id, i);
-		if (ret != BK_OK) {
-			QSPI_LOGE("%s: erase block %d failed\n", __func__, i);
-			return ret;
-		}
+		BK_RETURN_ON_ERR(bk_qspi_flash_nand_block_erase(id, i));
 	}
 	return BK_OK;
 }
 
 bk_err_t bk_qspi_flash_nand_page_program(qspi_id_t id, uint32_t page, uint32_t column, const uint8_t *buf, uint32_t len)
 {
+	BK_RETURN_ON_ERR(nand_check_id(id));
+
 	if (buf == NULL) {
 		return BK_ERR_NULL_PARAM;
 	}
@@ -760,6 +830,8 @@ bk_err_t bk_qspi_flash_nand_page_program(qspi_id_t id, uint32_t page, uint32_t c
 
 bk_err_t bk_qspi_flash_nand_page_read(qspi_id_t id, uint32_t page, uint32_t column, uint8_t *buf, uint32_t len)
 {
+	BK_RETURN_ON_ERR(nand_check_id(id));
+
 	if (buf == NULL) {
 		return BK_ERR_NULL_PARAM;
 	}
@@ -781,6 +853,8 @@ bk_err_t bk_qspi_flash_nand_page_read(qspi_id_t id, uint32_t page, uint32_t colu
 #if CONFIG_QSPI_QUAD_WIRE
 bk_err_t bk_qspi_flash_nand_page_program_quad(qspi_id_t id, uint32_t page, uint32_t column, const uint8_t *buf, uint32_t len)
 {
+	BK_RETURN_ON_ERR(nand_check_id(id));
+
 	if (buf == NULL) {
 		return BK_ERR_NULL_PARAM;
 	}
@@ -801,6 +875,8 @@ bk_err_t bk_qspi_flash_nand_page_program_quad(qspi_id_t id, uint32_t page, uint3
 
 bk_err_t bk_qspi_flash_nand_page_read_quad(qspi_id_t id, uint32_t page, uint32_t column, uint8_t *buf, uint32_t len)
 {
+	BK_RETURN_ON_ERR(nand_check_id(id));
+
 	if (buf == NULL) {
 		return BK_ERR_NULL_PARAM;
 	}
@@ -818,40 +894,58 @@ bk_err_t bk_qspi_flash_nand_page_read_quad(qspi_id_t id, uint32_t page, uint32_t
 
 	return nand_page_read_quad_internal(id, page, column, buf, len);
 }
+#endif /* CONFIG_QSPI_QUAD_WIRE */
 
 bk_err_t bk_qspi_flash_quad_enable(qspi_id_t id)
 {
-	if (id >= QSPI_ID_MAX) {
-		QSPI_LOGE("quad_enable: Invalid ID=%u\r\n", id);
-		return BK_ERR_PARAM;
-	}
+	uint8_t prot = 0;
 	uint8_t cfg = 0;
-	bk_err_t ret = bk_qspi_flash_nand_get_feature_register(id, &cfg);
-	if (ret != BK_OK) {
-		QSPI_LOGW("%s: read cfg fail(%d)\n", __func__, ret);
-		return ret;
+
+	BK_RETURN_ON_ERR(nand_check_id(id));
+
+	BK_RETURN_ON_ERR(bk_qspi_flash_nand_get_block_lock(id, &prot));
+
+	if (prot & NAND_PROT_WP_E_BIT) {
+		BK_RETURN_ON_ERR(bk_qspi_flash_nand_set_block_lock(id, prot & ~NAND_PROT_WP_E_BIT));
 	}
+
+	BK_RETURN_ON_ERR(bk_qspi_flash_nand_get_block_lock(id, &prot));
+	if (prot & NAND_PROT_WP_E_BIT) {
+		QSPI_LOGE("quad_enable: WP-E still set (A0h=0x%02x)\r\n", prot);
+		return BK_ERR_STATE;
+	}
+
+	BK_RETURN_ON_ERR(nand_feature_get_internal(id, NAND_FEATURE_ADDR_DRIVE, &cfg));
 
 	if (!(cfg & NAND_CFG_QE_BIT)) {
-		ret = bk_qspi_flash_nand_set_feature_register(id, cfg | NAND_CFG_QE_BIT);
-		if (ret != BK_OK) {
-			QSPI_LOGW("%s: set cfg fail(%d)\n", __func__, ret);
-			return ret;
-		}
+		BK_RETURN_ON_ERR(nand_feature_set_internal(id, NAND_FEATURE_ADDR_DRIVE, cfg | NAND_CFG_QE_BIT));
 	}
 
+	BK_RETURN_ON_ERR(nand_feature_get_internal(id, NAND_FEATURE_ADDR_DRIVE, &cfg));
+	if (!(cfg & NAND_CFG_QE_BIT)) {
+		QSPI_LOGE("quad_enable: QE still clear (B0h=0x%02x)\r\n", cfg);
+		return BK_ERR_STATE;
+	}
+
+	QSPI_LOGI("quad_enable: WP-E=0, QE=1 (B0h=0x%02x), quad IO ready\r\n", cfg);
 	return BK_OK;
 }
-#endif /* CONFIG_QSPI_QUAD_WIRE */
 
 bk_err_t bk_qspi_flash_set_protect_none(qspi_id_t id)
 {
+	BK_RETURN_ON_ERR(nand_check_id(id));
+
 	return bk_qspi_flash_nand_set_protect_none(id);
 }
 
 uint32_t bk_qspi_flash_read_id(qspi_id_t id)
 {
 	uint8_t id_buf[FLASH_READ_ID_SIZE] = {0};
+
+	if (nand_check_id(id) != BK_OK) {
+		return 0;
+	}
+
 	if (nand_read_id_internal(id, id_buf, sizeof(id_buf)) != BK_OK)
 	{
 		return 0;
@@ -874,7 +968,9 @@ void qspi_flash_test_case(qspi_id_t id, uint32_t base_addr, void *data, uint32_t
 	}
 
 	if (bk_qspi_flash_nand_get_id(id, id_buf, sizeof(id_buf)) == BK_OK) {
-		QSPI_LOGI("%s xt26 id = 0x%02x%02x\n", __func__, id_buf[1], id_buf[0]);
+		QSPI_LOGI("%s zb35 id = %02x %02x (expect %02x %02x)\n", __func__,
+		          id_buf[0], id_buf[1],
+		          NAND_JEDEC_MFG_ID_ZBIT, NAND_JEDEC_DEV_ID_ZB35Q01);
 	}
 
 	BK_LOG_ON_ERR(bk_qspi_flash_nand_set_protect_none(id));
@@ -883,7 +979,7 @@ void qspi_flash_test_case(qspi_id_t id, uint32_t base_addr, void *data, uint32_t
 	BK_LOG_ON_ERR(bk_qspi_flash_single_read(id, page_addr, verify, NAND_PAGE_SIZE_BYTES));
 	for (uint32_t i = 0; i < NAND_PAGE_SIZE_BYTES; i++) {
 		if (verify[i] != 0xFF) {
-			QSPI_LOGI("[XT26 TEST] erase mismatch idx:%u val:%02x\r\n", i, verify[i]);
+			QSPI_LOGI("[ZB35 TEST] erase mismatch idx:%u val:%02x\r\n", i, verify[i]);
 			break;
 		}
 	}
@@ -893,7 +989,7 @@ void qspi_flash_test_case(qspi_id_t id, uint32_t base_addr, void *data, uint32_t
 	BK_LOG_ON_ERR(bk_qspi_flash_single_read(id, page_addr, verify, NAND_PAGE_SIZE_BYTES));
 	for (uint32_t i = 0; i < NAND_PAGE_SIZE_BYTES; i++) {
 		if (verify[i] != 0xAA) {
-			QSPI_LOGI("[XT26 TEST] 0xAA mismatch idx:%u val:%02x\r\n", i, verify[i]);
+			QSPI_LOGI("[ZB35 TEST] 0xAA mismatch idx:%u val:%02x\r\n", i, verify[i]);
 			break;
 		}
 	}
@@ -903,7 +999,7 @@ void qspi_flash_test_case(qspi_id_t id, uint32_t base_addr, void *data, uint32_t
 	BK_LOG_ON_ERR(bk_qspi_flash_single_read(id, page_addr, verify, NAND_PAGE_SIZE_BYTES));
 	for (uint32_t i = 0; i < NAND_PAGE_SIZE_BYTES; i++) {
 		if (verify[i] != 0x55) {
-			QSPI_LOGI("[XT26 TEST] 0x55 mismatch idx:%u val:%02x\r\n", i, verify[i]);
+			QSPI_LOGI("[ZB35 TEST] 0x55 mismatch idx:%u val:%02x\r\n", i, verify[i]);
 			break;
 		}
 	}

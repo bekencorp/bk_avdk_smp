@@ -83,14 +83,6 @@ menu "GPIO"
 		depends on USR_GPIO_CFG_EN
 		default n
 
-	config GPIO_1V8_EN
-		bool "GPIO 1.8v IO voltage select"
-		default n
-
-	config GPIO_1V8_SRC_AUTO_SWITCH_EN
-		bool "GPIO 1.8v IO voltage source auto select, active:1.8v/low voltage:3.3v"
-		default n
-
 	config LDO3V3_CTRL_GPIO
 		int "GPIO pin for LDO 3.3V control"
 		default 255

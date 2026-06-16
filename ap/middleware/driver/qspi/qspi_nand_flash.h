@@ -19,6 +19,7 @@ extern "C" {
 #endif
 
 #define QSPI_CMD1_LEN              8
+/* ZB35Q01CYIG 9Fh returns 2 valid ID bytes after dummy (Table 3-1) */
 #define FLASH_READ_ID_SIZE         2
 #define FLASH_PAGE_MASK            (NAND_PAGE_SIZE_BYTES - 1)
 #define FLASH_SECTOR_MASK          (NAND_BLOCK_SIZE_BYTES - 1)
@@ -59,6 +60,17 @@ extern "C" {
 #define NAND_STATUS_P_FAIL           BIT(3)
 
 #define NAND_DEFAULT_TIMEOUT_MS      100U
+#define NAND_ERASE_TIMEOUT_MS        3000U
+
+/* ZB35Q01CYIG JEDEC ID (Table 3-1) */
+#define NAND_JEDEC_MFG_ID_ZBIT       0x5E
+#define NAND_JEDEC_DEV_ID_ZB35Q01    0xC1
+
+/* A0h Protection Register bits */
+#define NAND_PROT_WP_E_BIT           BIT(1)
+
+/* B0h Configuration Register: ECC-E defaults to 1 at power-up */
+#define NAND_CFG_ECC_E_BIT           BIT(4)
 #define NAND_CFG_QE_BIT              BIT(0)
 
 #ifdef __cplusplus
