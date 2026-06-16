@@ -84,9 +84,17 @@ bk_err_t bk_aud_dmic_init(aud_dmic_config_t *dmic_config)
 
     switch (dmic_mode) {
         case AUD_DMIC_MODE_0:
+#if CONFIG_USR_GPIO_CFG_EN
+            gpio_dev_map_by_func(GPIO_DEV_DMIC0_CLK);
+            gpio_dev_map_by_func(GPIO_DEV_DMIC0_DAT);
+#endif
             bk_aud_dmic_en(0x1);  // '001
             break;
         case AUD_DMIC_MODE_1:
+#if CONFIG_USR_GPIO_CFG_EN
+            gpio_dev_map_by_func(GPIO_DEV_DMIC1_CLK);
+            gpio_dev_map_by_func(GPIO_DEV_DMIC1_DAT);
+#endif
             bk_aud_dmic_en(0x6);  // '110
             break;
         default:

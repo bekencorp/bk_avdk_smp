@@ -443,6 +443,100 @@ static void uart_interrupt_disable(uart_id_t id)
 	}
 }
 
+static void uart_init_gpio(uart_id_t id)
+{
+#if CONFIG_USR_GPIO_CFG_EN
+	switch (id)
+	{
+		case UART_ID_0:
+		{
+			gpio_dev_map_by_func(GPIO_DEV_UART0_TXD);
+			gpio_dev_map_by_func(GPIO_DEV_UART0_RXD);
+#if CONFIG_UART0_FLOW_CTRL
+			//NOTICE:BEKEN ASIC CTS PIN really function is RTS.
+			gpio_dev_map_by_func(GPIO_DEV_UART0_CTS);
+			bk_gpio_enable_output(uart_hal_get_cts_pin(id));
+			bk_gpio_pull_down(uart_hal_get_cts_pin(id));
+
+			gpio_dev_map_by_func(GPIO_DEV_UART0_RTS);
+			bk_gpio_enable_input(uart_hal_get_rts_pin(id));
+			bk_gpio_pull_down(uart_hal_get_rts_pin(id));
+			bk_uart_set_hw_flow_ctrl(id, UART0_FLOW_CTRL_CNT);
+#endif
+			break;
+		}
+		case UART_ID_1:
+		{
+			gpio_dev_map_by_func(GPIO_DEV_UART1_TXD);
+			gpio_dev_map_by_func(GPIO_DEV_UART1_RXD);
+			break;
+		}
+		case UART_ID_2:
+		{
+			gpio_dev_map_by_func(GPIO_DEV_UART2_TXD);
+			gpio_dev_map_by_func(GPIO_DEV_UART2_RXD);
+			break;
+		}
+#if (SOC_UART_ID_NUM_PER_UNIT  >= 4)
+		case UART_ID_3:
+		{
+			gpio_dev_map_by_func(GPIO_DEV_UART3_TXD);
+			gpio_dev_map_by_func(GPIO_DEV_UART3_RXD);
+			break;
+		}
+#endif
+#if (SOC_UART_ID_NUM_PER_UNIT  >= 5)
+		case UART_ID_4:
+		{
+			gpio_dev_map_by_func(GPIO_DEV_UART4_TXD);
+			gpio_dev_map_by_func(GPIO_DEV_UART4_RXD);
+			break;
+		}
+#endif
+#if (SOC_UART_ID_NUM_PER_UNIT  >= 6)
+		case UART_ID_5:
+		{
+			gpio_dev_map_by_func(GPIO_DEV_UART5_TXD);
+			gpio_dev_map_by_func(GPIO_DEV_UART5_RXD);
+			break;
+		}
+#endif
+
+		default:
+			break;
+	}
+
+	if (uart_hal_get_rx_pin(id) >= GPIO_64 && uart_hal_get_rx_pin(id) <= GPIO_71)
+	{
+		// Configure GPIO64~71 power supply to 3.3V via J16
+		// Set sys_ana reg69[28] = 1 to output 3.3V on J16
+		// Address: 0x44010000 + 0x69 * 4 = 0x440101A4
+		// Bit 28 controls J16 voltage selection (1 = 3.3V, 0 = 1.8V)
+		// Note: This must be configured before using GPIO64~71 or UART5
+		uint32_t reg69_addr = 0x44010000 + (0x69 << 2);
+		uint32_t reg69_value = REG_READ(reg69_addr);
+		reg69_value |= (1 << 28);
+		REG_WRITE(reg69_addr, reg69_value);
+	}
+#endif
+}
+
+static void uart_deinit_tx_gpio(uart_id_t id)
+{
+#if CONFIG_USR_GPIO_CFG_EN
+	gpio_dev_unmap(uart_hal_get_tx_pin(id));
+	bk_gpio_pull_up(uart_hal_get_tx_pin(id));
+#endif
+}
+
+static void uart_deinit_rx_gpio(uart_id_t id)
+{
+#if CONFIG_USR_GPIO_CFG_EN
+	gpio_dev_unmap(uart_hal_get_rx_pin(id));
+	bk_gpio_pull_up(uart_hal_get_rx_pin(id));
+#endif
+}
+
 static bk_err_t uart_id_init_kfifo(uart_id_t id)
 {
 	uint32_t fifo_size = CONFIG_KFIFO_SIZE;
@@ -483,6 +577,7 @@ static bk_err_t uart_id_init_common(uart_id_t id)
 	uart_clock_enable(id);
 	sys_drv_uart_select_clock(id, UART_SCLK_XTAL_26M);
 
+	uart_init_gpio(id);
 	ret = uart_id_init_kfifo(id);
 	uart_statis_id_init(id);
 
@@ -2006,6 +2101,7 @@ bk_err_t bk_uart_disable_rx(uart_id_t id)
 	UART_RETURN_ON_INVALID_ID(id);
 	UART_PM_CHECK_RESTORE(id);
 	uart_hal_disable_rx(&s_uart[id].hal, id);
+	uart_deinit_rx_gpio(id);
 
 	return BK_OK;
 }
@@ -2016,6 +2112,7 @@ bk_err_t bk_uart_disable_tx(uart_id_t id)
 	UART_RETURN_ON_INVALID_ID(id);
 	UART_PM_CHECK_RESTORE(id);
 	uart_hal_disable_tx(&s_uart[id].hal, id);
+	uart_deinit_tx_gpio(id);
 
 	return BK_OK;
 }

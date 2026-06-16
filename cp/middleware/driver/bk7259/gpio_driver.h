@@ -52,6 +52,13 @@ typedef struct {
 	uint32_t second_func_en:		1;	//gpio_func_mode_t
 	uint32_t second_func_dev:		12;	//gpio_dev_t
 
+	/* an extra time-sharing(dynamic-reuse) function for this pad. It is NEVER
+	 * applied at boot; it is only recorded so the by-func APIs can reverse
+	 * look up this gpio_id. Default GPIO_DEV_INVALID means "no time-sharing
+	 * function". A pad may own both a boot-static second_func_dev and a
+	 * different on-demand time_sharing_func_dev. */
+	uint32_t time_sharing_func_dev:	12;	//gpio_dev_t
+
 	uint32_t io_mode:				2;	//gpio_io_mode_t
 	uint32_t pull_mode:				2;	//gpio_pull_mode_t
 
@@ -70,6 +77,48 @@ bk_err_t gpio_dev_map(gpio_id_t gpio_id, gpio_dev_t dev);
 bk_err_t gpio_dev_unmap(gpio_id_t gpio_id);
 bk_err_t gpio_dev_unprotect_map(gpio_id_t gpio_id, gpio_dev_t dev);
 bk_err_t gpio_dev_unprotect_unmap(gpio_id_t gpio_id);
+
+#if CONFIG_USR_GPIO_CFG_EN
+/**
+ * @brief Reverse look up the GPIO id that owns a given function in the project
+ *        GPIO_DEFAULT_DEV_CONFIG table.
+ *
+ * The table is searched for time_sharing_func_dev == func first, then
+ * second_func_dev == func. GPIO_DEV_NONE/GPIO_DEV_INVALID are skipped.
+ * The function is expected to be unique (1:1) inside one project table.
+ *
+ * @param func the device function to look up
+ * @return the matching gpio_id, or SOC_GPIO_NUM when not found
+ */
+gpio_id_t gpio_get_id_by_func(gpio_dev_t func);
+
+/**
+ * @brief Map(enable) a function on the pad that owns it, without passing GPIO id.
+ *
+ * The GPIO id is resolved via gpio_get_id_by_func(); besides selecting the
+ * function code, the pad's pull_mode and driver_capacity from the config table
+ * row are (re)applied, so callers no longer need an explicit pull-up/down call.
+ *
+ * @param func the device function to enable
+ * @return BK_OK on success, error code otherwise
+ */
+bk_err_t gpio_dev_map_by_func(gpio_dev_t func);
+
+/**
+ * @brief Unmap(disable) a function by name, returning the pad to high-Z.
+ *
+ * The GPIO id is resolved via gpio_get_id_by_func(). The pad is driven to a
+ * true high-impedance, low-power state (FUNC_CODE_HIGH_Z + pull disabled).
+ *
+ * NOTE: this always goes to high-Z; it does NOT restore a boot-static
+ * second_func_dev even if the pad has one. To restore an original function,
+ * explicitly call gpio_dev_map_by_func(second_func_dev) again.
+ *
+ * @param func the device function to disable
+ * @return BK_OK on success, error code otherwise
+ */
+bk_err_t gpio_dev_unmap_by_func(gpio_dev_t func);
+#endif
 bk_err_t gpio_jtag_sel(gpio_jtag_map_group_t gpio_jtag_sel_mode);
 bk_err_t gpio_scr_sel(gpio_scr_map_group_t mode);
 IOMX_CODE_T convert_gpio_dev_to_iomx_code(gpio_dev_t dev);

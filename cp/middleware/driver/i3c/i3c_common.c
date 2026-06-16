@@ -205,6 +205,14 @@ void i3c_platform_init(const i3c_platform_config_t *cfg)
 
 	bk_pm_clock_ctrl(PM_CLK_ID_I3C, PM_CLK_CTRL_PWR_UP);
 
+#if CONFIG_USR_GPIO_CFG_EN
+	if (gpio_dev_map_by_func(GPIO_DEV_I3C_SCL) != BK_OK)
+		I3C_TEST_LOGE("i3c: gpio_dev_map SCL failed\r\n");
+	if (gpio_dev_map_by_func(GPIO_DEV_I3C_SDA) != BK_OK)
+		I3C_TEST_LOGE("i3c: gpio_dev_map SDA failed\r\n");
+	if (gpio_dev_map_by_func(GPIO_DEV_I3C_SDA_PURN) != BK_OK)
+		I3C_TEST_LOGE("i3c: gpio_dev_map PURN failed\r\n");
+#endif
 	(void)scl;
 	(void)sda;
 	(void)purn;

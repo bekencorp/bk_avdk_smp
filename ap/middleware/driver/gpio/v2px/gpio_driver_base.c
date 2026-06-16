@@ -1312,6 +1312,101 @@ bk_err_t bk_gpio_unregister_lowpower_keep_status(gpio_id_t gpio_id)
  * peripheral. So we drive the pad direction through gpio_hal_set_func_code()
  * rather than the v1px-era bk_iomx_* writes (whose implementation is not
  * linked when CONFIG_SUPPORT_IO_MATRIX is disabled, as on bk7259). */
+/* Apply the pull-up/down and drive-capacity of one config row to a pad. Shared
+ * by gpio_default_map_init() and gpio_dev_map_by_func() so the static-boot
+ * path and the on-demand by-func path stay consistent. */
+static void gpio_apply_pull_capacity(gpio_id_t id, uint32_t pull_mode, uint32_t capacity)
+{
+	switch (pull_mode) {
+	case GPIO_PULL_DISABLE:
+		gpio_hal_pull_enable(id, 0);
+		break;
+	case GPIO_PULL_DOWN_EN:
+		gpio_hal_pull_enable(id, 1);
+		gpio_hal_pull_up_enable(id, 0);
+		break;
+	case GPIO_PULL_UP_EN:
+		gpio_hal_pull_enable(id, 1);
+		gpio_hal_pull_up_enable(id, 1);
+		break;
+	default:
+		break;
+	}
+
+	gpio_hal_set_capacity(id, capacity);
+}
+
+/* Reverse look up the config row that owns a function. time_sharing_func_dev
+ * has priority over second_func_dev; GPIO_DEV_NONE/GPIO_DEV_INVALID are skipped.
+ * Returns NULL when the function is not present in GPIO_DEFAULT_DEV_CONFIG. */
+static const gpio_default_map_t *gpio_find_row_by_func(gpio_dev_t func)
+{
+	if (func == GPIO_DEV_NONE || func == GPIO_DEV_INVALID) {
+		return NULL;
+	}
+
+	static const gpio_default_map_t s_default_map[] = GPIO_DEFAULT_DEV_CONFIG;
+	const uint32_t cnt = sizeof(s_default_map) / sizeof(s_default_map[0]);
+
+	for (uint32_t i = 0; i < cnt; i++) {
+		if (s_default_map[i].time_sharing_func_dev == (uint32_t)func) {
+			return &s_default_map[i];
+		}
+	}
+	for (uint32_t i = 0; i < cnt; i++) {
+		if (s_default_map[i].second_func_dev == (uint32_t)func) {
+			return &s_default_map[i];
+		}
+	}
+	return NULL;
+}
+
+gpio_id_t gpio_get_id_by_func(gpio_dev_t func)
+{
+	const gpio_default_map_t *m = gpio_find_row_by_func(func);
+
+	return m ? (gpio_id_t)m->gpio_id : SOC_GPIO_NUM;
+}
+
+bk_err_t gpio_dev_map_by_func(gpio_dev_t func)
+{
+	const gpio_default_map_t *m = gpio_find_row_by_func(func);
+
+	if (!m) {
+		GPIO_LOGE("%s: func %d not in GPIO_DEFAULT_DEV_CONFIG\r\n", __func__, func);
+		return BK_ERR_GPIO_CHAN_ID;
+	}
+
+	gpio_id_t id = (gpio_id_t)m->gpio_id;
+	bk_err_t ret = gpio_dev_unprotect_map(id, func);
+
+	if (ret != BK_OK) {
+		return ret;
+	}
+
+	/* re-apply the pad's pull/capacity from the table, so callers no longer
+	 * need an explicit pull-up/down after enabling a function. */
+	gpio_apply_pull_capacity(id, m->pull_mode, m->driver_capacity);
+
+	return BK_OK;
+}
+
+bk_err_t gpio_dev_unmap_by_func(gpio_dev_t func)
+{
+	gpio_id_t id = gpio_get_id_by_func(func);
+
+	if (id >= SOC_GPIO_NUM) {
+		GPIO_LOGE("%s: func %d not in GPIO_DEFAULT_DEV_CONFIG\r\n", __func__, func);
+		return BK_ERR_GPIO_CHAN_ID;
+	}
+
+	/* true high-impedance, low-power state: high-Z function + pull disabled. */
+	gpio_hal_set_func_code(id, FUNC_CODE_HIGH_Z);
+	gpio_hal_pull_enable(id, 0);
+
+	return BK_OK;
+}
+
 static void gpio_default_map_init(void)
 {
 	const gpio_default_map_t default_map[] = GPIO_DEFAULT_DEV_CONFIG;
@@ -1369,25 +1464,8 @@ static void gpio_default_map_init(void)
 			}
 		}
 
-		/* 3. pull-up / pull-down */
-		switch (m->pull_mode) {
-		case GPIO_PULL_DISABLE:
-			gpio_hal_pull_enable(id, 0);
-			break;
-		case GPIO_PULL_DOWN_EN:
-			gpio_hal_pull_enable(id, 1);
-			gpio_hal_pull_up_enable(id, 0);
-			break;
-		case GPIO_PULL_UP_EN:
-			gpio_hal_pull_enable(id, 1);
-			gpio_hal_pull_up_enable(id, 1);
-			break;
-		default:
-			break;
-		}
-
-		/* 4. drive capacity */
-		gpio_hal_set_capacity(id, m->driver_capacity);
+		/* 3. pull-up / pull-down  4. drive capacity */
+		gpio_apply_pull_capacity(id, m->pull_mode, m->driver_capacity);
 
 		/* 5. (re)enable interrupt if the map requests it */
 		if (m->int_en) {

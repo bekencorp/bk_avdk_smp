@@ -68,7 +68,67 @@ static uint32_t bk_touch_channel_transfer(touch_channel_t touch_id)
 
 bk_err_t bk_touch_gpio_init(touch_channel_t touch_id)
 {
+#if CONFIG_USR_GPIO_CFG_EN
+	uint32_t touch_select = 0;
+	touch_select = bk_touch_channel_transfer(touch_id);
+	TOUCH_RETURN_ON_INVALID_ID(touch_select);
+	switch(touch_id)
+	{
+		case BK_TOUCH_0:
+			gpio_dev_map_by_func(GPIO_DEV_TOUCH0);
+			break;
+		case BK_TOUCH_1:
+			gpio_dev_map_by_func(GPIO_DEV_TOUCH1);
+			break;
+		case BK_TOUCH_2:
+			gpio_dev_map_by_func(GPIO_DEV_TOUCH2);
+			break;
+		case BK_TOUCH_3:
+			gpio_dev_map_by_func(GPIO_DEV_TOUCH3);
+			break;
+		case BK_TOUCH_4:
+			gpio_dev_map_by_func(GPIO_DEV_TOUCH4);
+			break;
+		case BK_TOUCH_5:
+			gpio_dev_map_by_func(GPIO_DEV_TOUCH5);
+			break;
+		case BK_TOUCH_6:
+			gpio_dev_map_by_func(GPIO_DEV_TOUCH6);
+			break;
+		case BK_TOUCH_7:
+			gpio_dev_map_by_func(GPIO_DEV_TOUCH7);
+			break;
+		case BK_TOUCH_8:
+			gpio_dev_map_by_func(GPIO_DEV_TOUCH8);
+			break;
+		case BK_TOUCH_9:
+			gpio_dev_map_by_func(GPIO_DEV_TOUCH9);
+			break;
+		case BK_TOUCH_10:
+			gpio_dev_map_by_func(GPIO_DEV_TOUCH10);
+			break;
+		case BK_TOUCH_11:
+			gpio_dev_map_by_func(GPIO_DEV_TOUCH11);
+			break;
+		case BK_TOUCH_12:
+			gpio_dev_map_by_func(GPIO_DEV_TOUCH12);
+			break;
+		case BK_TOUCH_13:
+			gpio_dev_map_by_func(GPIO_DEV_TOUCH13);
+			break;
+		case BK_TOUCH_14:
+			gpio_dev_map_by_func(GPIO_DEV_TOUCH14);
+			break;
+		case BK_TOUCH_15:
+			gpio_dev_map_by_func(GPIO_DEV_TOUCH15);
+			break;
+		default:
+			TOUCH_LOGD("unsupported touch id\r\n");
+			break;
+	}
+#else
 	(void)touch_id;
+#endif
 	return BK_OK;
 }
 
@@ -222,6 +282,13 @@ uint32_t bk_touch_get_touch_status(void)
 
 bk_err_t bk_touch_digital_tube_init(void)
 {
+	uint8_t i = 0;
+	for (i = 0; i < 9; i++) {
+		gpio_dev_unmap(digital_led_gpio_map[i]);
+		bk_gpio_enable_output(digital_led_gpio_map[i]);
+		bk_gpio_set_output_high(digital_led_gpio_map[i]);
+	}
+
 	return BK_OK;
 }
 

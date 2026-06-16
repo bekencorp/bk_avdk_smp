@@ -36,14 +36,48 @@ static uint32_t scr_intr_status = 0;
 
 bk_err_t bk_scr_gpio_init(gpio_scr_map_group_t group)
 {
+#if CONFIG_USR_GPIO_CFG_EN
 	(void)group;
+	/* The actual pins are selected by the project GPIO_DEFAULT_DEV_CONFIG; the
+	 * runtime group is no longer used to choose pins. */
+	gpio_dev_map_by_func(GPIO_DEV_SCR_IO);
+	gpio_dev_map_by_func(GPIO_DEV_SCR_CLK);
+	gpio_dev_map_by_func(GPIO_DEV_SCR_RSTN);
+	gpio_dev_map_by_func(GPIO_DEV_SCR_VCC);
+#else
+	(void)group;
+#endif
 	return BK_OK;
 }
 
 bk_err_t bk_scr_gpio_config(gpio_scr_map_group_t group, scr_gpio_type gpio_type)
 {
+#if CONFIG_USR_GPIO_CFG_EN
+	if (gpio_type == BK_SCR_GPIO_PAUSE) {
+		gpio_id_t clk_id = gpio_get_id_by_func(GPIO_DEV_SCR_CLK);
+
+		gpio_dev_unmap_by_func(GPIO_DEV_SCR_IO);
+		gpio_dev_unmap_by_func(GPIO_DEV_SCR_CLK);
+		gpio_dev_unmap_by_func(GPIO_DEV_SCR_RSTN);
+		gpio_dev_unmap_by_func(GPIO_DEV_SCR_VCC);
+
+		bk_gpio_pull_up(gpio_get_id_by_func(GPIO_DEV_SCR_IO));
+		if (clk_id < SOC_GPIO_NUM) {
+			if (scr_hal_get_ctrl(BK_SCR_CTRL_CLK_STOP_VAL) == 0) {
+				bk_gpio_pull_down(clk_id);
+			} else {
+				bk_gpio_pull_up(clk_id);
+			}
+		}
+		bk_gpio_pull_up(gpio_get_id_by_func(GPIO_DEV_SCR_RSTN));
+		bk_gpio_pull_up(gpio_get_id_by_func(GPIO_DEV_SCR_VCC));
+	} else {
+		gpio_scr_sel(group);
+	}
+#else
 	(void)group;
 	(void)gpio_type;
+#endif
 	return BK_OK;
 }
 

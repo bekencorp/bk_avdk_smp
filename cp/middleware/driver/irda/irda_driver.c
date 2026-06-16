@@ -57,6 +57,20 @@ static uint32_t irda_push_tx_entries(uint32_t max_entries);
 static void irda_drain_rx_fifo(void);
 // static void irda_reset_sema(beken_semaphore_t *sema);
 
+static void irda_init_gpio(void)
+{
+#if CONFIG_USR_GPIO_CFG_EN
+	gpio_dev_map_by_func(GPIO_DEV_IRDA);
+#endif
+}
+
+static void irda_deinit_gpio(void)
+{
+#if CONFIG_USR_GPIO_CFG_EN
+	gpio_dev_unmap_by_func(GPIO_DEV_IRDA);
+#endif
+}
+
 /* 1) power up irda
  * 2) enable system irda interrupt
  * 3) init irda gpio
@@ -65,12 +79,14 @@ static void irda_init_common(void)
 {
 	// TODO: need to add clock enable
 	sys_drv_set_int_en(rtos_get_core_id(), INT_SRC_IRDA, 1);
+	irda_init_gpio();
 }
 
 static void irda_deinit_common(void)
 {
 	sys_drv_set_int_en(rtos_get_core_id(), INT_SRC_IRDA, 0);
 	// TODO: need to add clock disable
+	irda_deinit_gpio();
 }
 
 static void irda_sw_init(void)

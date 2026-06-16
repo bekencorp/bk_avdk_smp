@@ -276,6 +276,43 @@ static void spi_interrupt_disable(spi_id_t id)
 }
 #endif
 
+#if CONFIG_USR_GPIO_CFG_EN
+#define SPI_SET_PIN(id) do {\
+	gpio_dev_map_by_func(GPIO_DEV_SPI##id##_CSN);\
+	gpio_dev_map_by_func(GPIO_DEV_SPI##id##_SCK);\
+	gpio_dev_map_by_func(GPIO_DEV_SPI##id##_MOSI);\
+	gpio_dev_map_by_func(GPIO_DEV_SPI##id##_MISO);\
+} while(0)
+#endif
+
+static void spi_init_gpio(spi_id_t id)
+{
+#if CONFIG_USR_GPIO_CFG_EN
+	switch (id) {
+	case SPI_ID_0:
+		SPI_SET_PIN(0);
+		break;
+#if (SOC_SPI_UNIT_NUM > 1)
+	case SPI_ID_1:
+		SPI_SET_PIN(1);
+		break;
+#endif
+#if (SOC_SPI_UNIT_NUM > 2)
+	case SPI_ID_2:
+		SPI_SET_PIN(2);
+		break;
+#endif
+#if (SOC_SPI_UNIT_NUM > 3)
+	case SPI_ID_3:
+		SPI_SET_PIN(3);
+		break;
+#endif
+	default:
+		break;
+	}
+#endif
+}
+
 /* 1. power up spi
  * 2. set clk
  * 3. set gpio as spi
@@ -293,6 +330,8 @@ static bk_err_t spi_id_init_common(spi_id_t id)
 	clk_set_spi_clk_26m(id);
 	icu_enable_spi_interrupt(id);
 #endif
+
+	spi_init_gpio(id);
 
 	if (s_spi[id].tx_sema == NULL) {
 		ret = rtos_init_semaphore(&(s_spi[id].tx_sema), 1);

@@ -56,6 +56,16 @@ bk_err_t bk_can_gpio_init(can_channel_t chn)
 		CAN_LOGV("unsupported can chnnal\r\n");
 		return BK_ERR_PARAM;
 	}
+#if CONFIG_USR_GPIO_CFG_EN
+	BK_LOG_ON_ERR(gpio_dev_map_by_func(s_can_gpio[chn].tx.dev));
+	bk_gpio_set_value(s_can_gpio[chn].tx.id, 0x348);
+
+	BK_LOG_ON_ERR(gpio_dev_map_by_func(s_can_gpio[chn].rx.dev));
+	bk_gpio_set_value(s_can_gpio[chn].rx.id, 0x37c);
+
+	BK_LOG_ON_ERR(gpio_dev_map_by_func(s_can_gpio[chn].standby.dev));
+	bk_gpio_set_value(s_can_gpio[chn].standby.id, 0x348);
+#endif
 	return BK_OK;
 }
 
@@ -65,7 +75,11 @@ bk_err_t bk_can_gpio_deinit(can_channel_t chn)
 		CAN_LOGV("unsupported can chnnal\r\n");
 		return BK_ERR_PARAM;
 	}
-
+#if CONFIG_USR_GPIO_CFG_EN
+	BK_LOG_ON_ERR(gpio_dev_unmap_by_func(s_can_gpio[chn].tx.dev));
+	BK_LOG_ON_ERR(gpio_dev_unmap_by_func(s_can_gpio[chn].rx.dev));
+	BK_LOG_ON_ERR(gpio_dev_unmap_by_func(s_can_gpio[chn].standby.dev));
+#endif
 	return BK_OK;
 }
 

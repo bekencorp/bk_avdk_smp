@@ -146,6 +146,13 @@ static pwm_phase_shift_config_t *s_shift_config = NULL;
 
 static void pwm0_isr(void);
 
+static void pwm_chan_init_gpio(pwm_chan_t sw_ch)
+{
+#if CONFIG_USR_GPIO_CFG_EN
+	gpio_dev_map_by_func(s_pwm_pin_id_map[sw_ch].gpio_dev);
+#endif
+}
+
 static void pwm_chan_init_common(pwm_chan_t sw_ch)
 {
 	bk_pm_clock_ctrl(CLK_PWR_ID_PWM0, CLK_PWR_CTRL_PWR_UP);
@@ -155,6 +162,7 @@ static void pwm_chan_init_common(pwm_chan_t sw_ch)
 #else
 	sys_drv_set_int_en(rtos_get_core_id(), INT_SRC_PWM, 1);
 #endif
+	pwm_chan_init_gpio(sw_ch);
 	s_pwm.chan_init_bits |= BIT(sw_ch);
 }
 

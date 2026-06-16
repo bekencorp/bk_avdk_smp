@@ -112,6 +112,40 @@ dma_id_t i2s_get_dma_index(void)
 	return i2s_dma_idx;
 }
 
+static void i2s_init_gpio(i2s_gpio_group_id_t id)
+{
+#if CONFIG_USR_GPIO_CFG_EN
+	switch (id) {
+		case I2S_GPIO_GROUP_0:
+			gpio_dev_map_by_func(GPIO_DEV_I2S0_CLK);
+			gpio_dev_map_by_func(GPIO_DEV_I2S0_SYNC);
+			gpio_dev_map_by_func(GPIO_DEV_I2S0_DIN);
+			gpio_dev_map_by_func(GPIO_DEV_I2S0_DOUT);
+			gpio_dev_map_by_func(GPIO_DEV_I2S0_MCLK);
+			break;
+
+		case I2S_GPIO_GROUP_1:
+			gpio_dev_map_by_func(GPIO_DEV_I2S1_CLK);
+			gpio_dev_map_by_func(GPIO_DEV_I2S1_SYNC);
+			gpio_dev_map_by_func(GPIO_DEV_I2S1_DIN);
+			gpio_dev_map_by_func(GPIO_DEV_I2S1_DOUT);
+			gpio_dev_map_by_func(GPIO_DEV_I2S0_MCLK);
+			break;
+
+		case I2S_GPIO_GROUP_2:
+			gpio_dev_map_by_func(GPIO_DEV_I2S2_CLK);
+			gpio_dev_map_by_func(GPIO_DEV_I2S2_SYNC);
+			gpio_dev_map_by_func(GPIO_DEV_I2S2_DIN);
+			gpio_dev_map_by_func(GPIO_DEV_I2S2_DOUT);
+			gpio_dev_map_by_func(GPIO_DEV_I2S0_MCLK);
+			break;
+
+		default:
+			break;
+	}
+#endif
+}
+
 bk_err_t bk_i2s_driver_init(void)
 {
 	bk_pm_module_vote_power_ctrl(PM_POWER_SUB_MODULE_NAME_AUDP_I2S, PM_POWER_MODULE_STATE_ON);
@@ -324,6 +358,8 @@ bk_err_t bk_i2s_init(i2s_gpio_group_id_t id, const i2s_config_t *config)
 			return BK_ERR_I2S_PARAM;
 	}
 	bk_int_isr_register(int_config_table.int_src, int_config_table.isr, NULL);
+
+	i2s_init_gpio(id);
 
 	drv_info->config.i2s_en = I2S_DISABLE;
 	drv_info->config.role = config->role;
