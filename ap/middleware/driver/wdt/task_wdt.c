@@ -18,6 +18,11 @@
 #include <os/os.h>
 #include "bk_wdt.h"
 
+#if CONFIG_CPU_HOTPLUG_BOOT_OFFLINE
+#include "FreeRTOS.h"
+#include "task.h"
+#endif
+
 #if CONFIG_AON_RTC || CONFIG_ANA_RTC
 #include <driver/aon_rtc.h>
 #endif
@@ -131,6 +136,11 @@ __IRAM_SEC void bk_task_wdt_start(void)
 	for (core_id = 0; core_id < TASK_WDT_CORE_NUM; core_id++) {
 		s_last_task_wdt_feed_tick[core_id] = current_tick;
 		s_last_task_wdt_log_tick[core_id] = current_tick;
+#if CONFIG_CPU_HOTPLUG_BOOT_OFFLINE
+		if (xTaskIsCoreActive(core_id) == pdFALSE) {
+			continue;
+		}
+#endif
 		s_task_wdt_feed_bits |= BIT(core_id);
 	}
 

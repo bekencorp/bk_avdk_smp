@@ -120,6 +120,9 @@
 #define configRUN_MULTIPLE_PRIORITIES              1
 #if CONFIG_CPU_HOTPLUG
 #define configUSE_CPUHOTPLUG                       1
+#if CONFIG_CPU_HOTPLUG_BOOT_OFFLINE
+#define configCPUHOTPLUG_BOOT_SECONDARY_OFFLINE    1
+#endif
 #endif
 #if CONFIG_FREERTOS_ALLOW_OS_API_IN_IRQ_DISABLED
 #define configUSE_OS_API_IN_IRQ_DISABLED           1

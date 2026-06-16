@@ -82,9 +82,13 @@ void multicore_launch_core1(void (*func)(void))
 {
 	multicore_core1_func = func;
 
+#if CONFIG_CPU_HOTPLUG_BOOT_OFFLINE
+	BK_LOGW(TAG, "AP CPU3 stays offline, use 'cpu online 3' to start it\n");
+#else
     //cp smp(core0,core1) + ap smp(core0,core1)
 	// bk_pm_module_vote_power_ctrl(PM_POWER_MODULE_NAME_CPU2, PM_POWER_MODULE_STATE_ON);
 	bk_multicore_start(CPU3_CORE_ID);
+#endif
 
 	BK_LOGW(TAG, "%s end\n", __func__);
 }

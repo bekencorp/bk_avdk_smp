@@ -88,6 +88,9 @@ typedef struct {
 	uint32_t		primary_cpu;
 	uint32_t		tick_owner_cpu;
 	bk_cpu_hp_state_t	cpu_state[4];
+#if CONFIG_CPU_HOTPLUG_BOOT_OFFLINE
+	uint32_t		cold_boot;
+#endif
 } cpu_hp_domain_t;
 
 typedef struct {
@@ -111,15 +114,30 @@ static cpu_hp_domain_t _ap_domain = {
 	.possible_mask = BK_CPU_MASK(CPU2_CORE_ID) | BK_CPU_MASK(CPU3_CORE_ID),
 	.primary_mask = BK_CPU_MASK(CPU2_CORE_ID),
 	.hotplug_mask = BK_CPU_MASK(CPU3_CORE_ID),
+#if CONFIG_CPU_HOTPLUG_BOOT_OFFLINE
+	/* Only CPU2 is online at power-on; CPU3 boots offline and is brought up
+	 * later via bk_cpu_hp_online(CPU3_CORE_ID) / "cpu online 3". */
+	.online_mask = BK_CPU_MASK(CPU2_CORE_ID),
+	.active_mask = BK_CPU_MASK(CPU2_CORE_ID),
+	.offline_mask = BK_CPU_MASK(CPU3_CORE_ID),
+#else
 	.online_mask = BK_CPU_MASK(CPU2_CORE_ID) | BK_CPU_MASK(CPU3_CORE_ID),
 	.active_mask = BK_CPU_MASK(CPU2_CORE_ID) | BK_CPU_MASK(CPU3_CORE_ID),
 	.offline_mask = 0,
+#endif
 	.primary_cpu = CPU2_CORE_ID,
 	.tick_owner_cpu = CPU2_CORE_ID,
 	.cpu_state = {
 		[CPU2_CORE_ID] = BK_CPU_HP_STATE_ONLINE,
+#if CONFIG_CPU_HOTPLUG_BOOT_OFFLINE
+		[CPU3_CORE_ID] = BK_CPU_HP_STATE_OFFLINE,
+#else
 		[CPU3_CORE_ID] = BK_CPU_HP_STATE_ONLINE,
+#endif
 	},
+#if CONFIG_CPU_HOTPLUG_BOOT_OFFLINE
+	.cold_boot = 1,
+#endif
 };
 
 extern bk_err_t crosscore_int_send_hotplug_stop(int xCoreID);
@@ -536,8 +554,17 @@ static bk_err_t _cpu_hp_online_internal(uint32_t cpu_id)
 
 	_cpu_hp_set_state(domain, cpu_id, BK_CPU_HP_STATE_POWER_ON);
 	_cpu3_online_ack = 0;
+#if CONFIG_CPU_HOTPLUG_BOOT_OFFLINE
+	if (domain->cold_boot == 0) {
+#endif
 	_cpu3_irq_route_mask_all();
 	vTaskHotplugResetIdleTaskContext(smp_core);
+#if CONFIG_CPU_HOTPLUG_BOOT_OFFLINE
+	} else {
+		_cpu3_irq_route_backup();
+		domain->cold_boot = 0;
+	}
+#endif
 	vPortHotplugResetCoreState(smp_core);
 	_cpu_hp_set_state(domain, cpu_id, BK_CPU_HP_STATE_BOOT_PREPARE);
 	_cpu_hp_set_state(domain, cpu_id, BK_CPU_HP_STATE_RESET_RELEASE);
