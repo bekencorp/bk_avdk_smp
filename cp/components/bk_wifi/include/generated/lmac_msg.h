@@ -2454,10 +2454,10 @@ struct tdls_peer_traffic_ind_cfm
     /// Status of the operation
     uint8_t status;
 };
-__IRAM2 void *mac_vif_mgmt_get_entry(uint8_t id);
+__IRAM3 void *mac_vif_mgmt_get_entry(uint8_t id);
 void *mac_vif_mgmt_get_mac_addr(void *_vif);
-__IRAM2 uint8_t mac_vif_mgmt_get_index(void *_vif);
-__IRAM2 uint8_t mac_vif_mgmt_get_type(void *_vif);
+__IRAM3 uint8_t mac_vif_mgmt_get_index(void *_vif);
+__IRAM3 uint8_t mac_vif_mgmt_get_type(void *_vif);
 uint8_t mac_vif_mgmt_mac_to_index(void *mac);
 void mac_vif_mgmt_set_priv(void *_vif, void *data);
 void *mac_vif_mgmt_get_priv(void *_vif);
@@ -2477,7 +2477,7 @@ uint8_t sta_mgmt_sta_mac2idx(void *mac);
 void *sta_mgmt_get_next_sta(void *_sta);
 uint8_t mac_vif_mgmt_get_active(void *_vif);
 void *mac_vif_mgmt_get_sta_list(void *_vif);
-__IRAM2 uint8_t mac_vif_mgmt_get_u_sta_ap_id(void *_vif);
+__IRAM3 uint8_t mac_vif_mgmt_get_u_sta_ap_id(void *_vif);
 uint16_t mac_vif_mgmt_get_u_ap_bcn_int(void *_vif);
 struct rwnx_sta_ps *sta_mgmt_get_sta_ps(void *_sta);
 bool sta_mgmt_get_valid(void *_sta);
