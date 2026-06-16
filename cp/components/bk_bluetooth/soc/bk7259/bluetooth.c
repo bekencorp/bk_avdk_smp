@@ -1128,10 +1128,7 @@ static void bt_lp_rtc_clear(void)
 
 static uint64_t bt_get_rtc_max_value(void)
 {
-    uint32_t rtc_up_val_l = *((volatile unsigned long *) (0x44000200+0x1*4));
-    uint32_t rtc_up_val_h = *((volatile unsigned long *) (0x44000200+0x6*4));
-    //printf("rtc_max_value----: 0x%08x, 0x%08x\n", rtc_up_val_l,rtc_up_val_h);
-    return (((uint64_t)(rtc_up_val_h) << 32) + rtc_up_val_l);
+    return bk_aon_rtc_get_max_value(AON_RTC_ID_1);
 }
 
 static void bt_delay_us(uint32_t us)
