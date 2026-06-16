@@ -85,7 +85,8 @@ avdk_err_t bk_flexa_isp_gpu_bond_start(void **bond, void *isp, bk_gpu_ctlr_handl
 	bk_flexa_bond_config_t *bond_new = NULL;
 	bk_flexa_bond_t *in_stream = NULL;
 	bk_flexa_bond_t *out_stream = NULL;
-	isp_handle_t isp_h;
+	isp_handle_t isp_h = NULL;
+	uint8_t gpu_flexa_mapped = 0;
 
 	if (bond == NULL || isp == NULL || gpu == NULL) {
 		LOGE("%s invalid args bond %p isp %p gpu %p\r\n", __func__, bond, isp, gpu);
@@ -128,14 +129,13 @@ avdk_err_t bk_flexa_isp_gpu_bond_start(void **bond, void *isp, bk_gpu_ctlr_handl
 	in_stream->bond_config = bond_new;
 
 	isp_h = (isp_handle_t)isp;
-	{
-		isp_control_t *isp_control = (isp_control_t *)isp_h;
+	isp_control_t *isp_control = (isp_control_t *)isp_h;
 
-		out_stream->max_lines_per_frame =
-			(isp_control->chn[ISP_MP_CHN_ID].chn_attr.chnFormat.height + 15) / 16;
-		bk_gpu_ioctl(gpu, BK_GPU_IOCTL_FLEXA_ADDR_UNMAPPING, (void *)0);
-		bk_gpu_ioctl(gpu, BK_GPU_IOCTL_FLEXA_ADDR_MAPPING, (void *)isp_control->chn[ISP_MP_CHN_ID].y_addr);
-	}
+	out_stream->max_lines_per_frame =
+		(isp_control->chn[ISP_MP_CHN_ID].chn_attr.chnFormat.height + 15) / 16;
+	bk_gpu_ioctl(gpu, BK_GPU_IOCTL_FLEXA_ADDR_UNMAPPING, (void *)0);
+	bk_gpu_ioctl(gpu, BK_GPU_IOCTL_FLEXA_ADDR_MAPPING, (void *)isp_control->chn[ISP_MP_CHN_ID].y_addr);
+	gpu_flexa_mapped = 1;
 
 	out_stream->handle = (void *)gpu;
 	out_stream->bond_config = bond_new;
@@ -160,14 +160,21 @@ avdk_err_t bk_flexa_isp_gpu_bond_start(void **bond, void *isp, bk_gpu_ctlr_handl
 error_isp:
 	(void)bk_isp_deregister_isr_callback(&isp_h, ISP_MB_LINE_DONE, in_stream);
 error:
-	if (bond_new != NULL) {
-		os_free(bond_new);
+	if (gpu_flexa_mapped) {
+		(void)bk_gpu_ioctl(gpu, BK_GPU_IOCTL_FLEXA_ADDR_UNMAPPING, (void *)0);
+		gpu_flexa_mapped = 0;
 	}
 	if (in_stream != NULL) {
 		os_free(in_stream);
+		in_stream = NULL;
 	}
 	if (out_stream != NULL) {
 		os_free(out_stream);
+		out_stream = NULL;
+	}
+	if (bond_new != NULL) {
+		os_free(bond_new);
+		bond_new = NULL;
 	}
 	LOGE("%s bond failed\r\n", __func__);
 	return ret;
@@ -191,12 +198,15 @@ void bk_flexa_isp_gpu_bond_stop(void *bond)
 		isp_handle_t isp_h = (isp_handle_t)in_stream->handle;
 		(void)bk_isp_deregister_isr_callback(&isp_h, ISP_MB_LINE_DONE, in_stream);
 	}
-	if (in_stream != NULL) {
+	if (bond_p->in_stream != NULL) {
 		os_free(bond_p->in_stream);
+		bond_p->in_stream = NULL;
 	}
-	if (out_stream != NULL) {
+	if (bond_p->out_stream != NULL) {
 		os_free(bond_p->out_stream);
+		bond_p->out_stream = NULL;
 	}
 	os_free(bond_p);
+	bond_p = NULL;
 	LOGI("%s bond stopped\r\n", __func__);
 }

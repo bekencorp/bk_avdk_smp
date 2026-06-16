@@ -105,12 +105,17 @@ static void h264e_bond_mjpegd_flexa_done(uint32_t wr_ptr, void *args)
 static void h264e_bond_mjpegd_decode_error(uint32_t reason, void *args)
 {
 	bk_flexa_bond_t *in_stream = (bk_flexa_bond_t *)args;
-	(void)in_stream;
-	bk_flexa_bond_t *out_stream = (bk_flexa_bond_t *)in_stream->bond_config->out_stream;
+	bk_flexa_bond_t *out_stream;
+	bk_h264_encode_ctlr_handle_t enc;
+
+	if (in_stream == NULL || in_stream->bond_config == NULL) {
+		return;
+	}
+	out_stream = (bk_flexa_bond_t *)in_stream->bond_config->out_stream;
 	if (out_stream == NULL || out_stream->handle == NULL) {
 		return;
 	}
-	bk_h264_encode_ctlr_handle_t enc = (bk_h264_encode_ctlr_handle_t)out_stream->handle;
+	enc = (bk_h264_encode_ctlr_handle_t)out_stream->handle;
 	if (enc == NULL) {
 		return;
 	}
@@ -222,15 +227,18 @@ error:
 		(void)bk_jpeg_decode_ioctl((bk_jpeg_decode_ctlr_handle_t)in_stream->handle,
 					   BK_JPEG_DECODE_IOCTL_UNREGISTER_BOND, in_stream);
 	}
+	if (bond_new->in_stream != NULL) {
+		os_free(bond_new->in_stream);
+		bond_new->in_stream = NULL;
+	}
+	if (bond_new->out_stream != NULL) {
+		os_free(bond_new->out_stream);
+		bond_new->out_stream = NULL;
+	}
 	if (bond_new != NULL) {
 		os_free(bond_new);
 	}
-	if (in_stream != NULL) {
-		os_free(in_stream);
-	}
-	if (out_stream != NULL) {
-		os_free(out_stream);
-	}
+	bond_new = NULL;
 	LOGE("%s bond failed\r\n", __func__);
 	return ret;
 }
@@ -247,7 +255,7 @@ void bk_flexa_mjpegd_h264e_bond_stop(void *bond)
 					   BK_H264_ENCODE_IOCTL_UNREGISTER_BOND, out_stream);
 	}
 	bk_flexa_bond_t *in_stream = bond_p->in_stream;
-	if (in_stream != NULL && in_stream->handle != NULL) {
+	if (in_stream != NULL && in_stream->handle != NULL && out_stream != NULL) {
 		bk_jpeg_decode_port_rd_t rd_cmd = {
 			.port_ptr = in_stream,
 			.rd_blocks = out_stream->max_lines_per_frame,
@@ -260,12 +268,15 @@ void bk_flexa_mjpegd_h264e_bond_stop(void *bond)
 		(void)bk_jpeg_decode_ioctl((bk_jpeg_decode_ctlr_handle_t)in_stream->handle,
 					   BK_JPEG_DECODE_IOCTL_UNREGISTER_BOND, in_stream);
 	}
-	if (in_stream != NULL) {
-		os_free(in_stream);
+	if (bond_p->in_stream != NULL) {
+		os_free(bond_p->in_stream);
+		bond_p->in_stream = NULL;
 	}
-	if (out_stream != NULL) {
-		os_free(out_stream);
+	if (bond_p->out_stream != NULL) {
+		os_free(bond_p->out_stream);
+		bond_p->out_stream = NULL;
 	}
 	os_free(bond_p);
+	bond_p = NULL;
 	LOGI("%s bond stopped\r\n", __func__);
 }

@@ -8,10 +8,10 @@
 
 #define TAG "bk_flexa_h264d_bond"
 
-#define LOGD(...) BK_LOGD(TAG, __VA_ARGS__)
-#define LOGI(...) BK_LOGI(TAG, __VA_ARGS__)
-#define LOGW(...) BK_LOGW(TAG, __VA_ARGS__)
-#define LOGE(...) BK_LOGE(TAG, __VA_ARGS__)
+#define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
+#define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
+#define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
+#define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 
 static void gpu_bond_h264d_flexa_done(uint32_t wr_ptr, void *args)
 {
@@ -217,12 +217,15 @@ void bk_flexa_h264d_gpu_bond_stop(void *bond)
 					   BK_H264_DECODE_IOCTL_UNREGISTER_BOND, in_stream);
 	}
 
-	if (in_stream != NULL) {
-		os_free(in_stream);
+	if (bond_p->in_stream != NULL) {
+		os_free(bond_p->in_stream);
+		bond_p->in_stream = NULL;
 	}
-	if (out_stream != NULL) {
-		os_free(out_stream);
+	if (bond_p->out_stream != NULL) {
+		os_free(bond_p->out_stream);
+		bond_p->out_stream = NULL;
 	}
 	os_free(bond_p);
+	bond_p = NULL;
 	LOGI("%s %d bond stopped\r\n", __func__, __LINE__);
 }

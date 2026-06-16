@@ -28,6 +28,32 @@
 #define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 
+#define BK_FLEXA_ISP_BOND_STOP_WAIT_MS 2000U
+
+static void isp_h264e_bond_wait_sbi_disabled(bk_flexa_bond_config_t *bond_p)
+{
+	bk_flexa_bond_t *in_stream;
+
+	if (bond_p == NULL) {
+		return;
+	}
+
+	bond_p->flexa_sbi = 0;
+	bond_p->set_sbi_flag = 1;
+	if (rtos_get_semaphore(&bond_p->sem, BK_FLEXA_ISP_BOND_STOP_WAIT_MS) == BK_OK) {
+		return;
+	}
+
+	in_stream = (bk_flexa_bond_t *)bond_p->in_stream;
+	if (in_stream != NULL && in_stream->handle != NULL) {
+		isp_handle_t isp_h = (isp_handle_t)in_stream->handle;
+
+		LOGW("%s SBI disable wait timeout, force disable\r\n", __func__);
+		bk_isp_flexa_sbi_config(&isp_h, ISP_MP_CHN_ID, 0);
+		bond_p->set_sbi_flag = 0;
+	}
+}
+
 static void isp_h264e_handle_frame_end_cb(uint32_t seq, uint32_t line, uint8_t chnl, uint8_t ok, void *arg)
 {
 	bk_flexa_bond_t *in_stream = (bk_flexa_bond_t *)arg;
@@ -54,6 +80,7 @@ static void isp_h264e_handle_frame_end_cb(uint32_t seq, uint32_t line, uint8_t c
 		} else {
 			bk_isp_flexa_sbi_config(&isp_h, ISP_MP_CHN_ID, 0);
 			rtos_set_semaphore(&in_stream->bond_config->sem);
+			return;
 		}
 	}
 	if (ok == 0) {
@@ -96,7 +123,8 @@ avdk_err_t bk_flexa_isp_h264e_bond_start(void **bond, void *isp, bk_h264_encode_
 	bk_flexa_bond_config_t *bond_new = NULL;
 	bk_flexa_bond_t *in_stream = NULL;
 	bk_flexa_bond_t *out_stream = NULL;
-	isp_handle_t isp_h;
+	isp_handle_t isp_h = NULL;
+	uint8_t h264_registered = 0;
 
 	if (bond == NULL || isp == NULL || h264 == NULL) {
 		LOGE("%s invalid args bond %p isp %p h264 %p\r\n", __func__, bond, isp, h264);
@@ -162,10 +190,13 @@ avdk_err_t bk_flexa_isp_h264e_bond_start(void **bond, void *isp, bk_h264_encode_
 		LOGE("%s H264 REGISTER_BOND failed %d\r\n", __func__, ret);
 		goto error;
 	}
+	h264_registered = 1;
 
 	br = bk_isp_register_isr_callback(&isp_h, ISP_FRAME_END_DONE, isp_h264e_handle_frame_end_cb, in_stream);
 	if (br != BK_OK) {
-		LOGW("%s ISP_FRAME_END_DONE register ret %d\r\n", __func__, br);
+		LOGE("%s ISP_FRAME_END_DONE register failed %d\r\n", __func__, br);
+		ret = AVDK_ERR_GENERIC;
+		goto error;
 	}
 
 	*bond = bond_new;
@@ -173,7 +204,12 @@ avdk_err_t bk_flexa_isp_h264e_bond_start(void **bond, void *isp, bk_h264_encode_
 	return ret;
 
 error:
-	(void)bk_isp_deregister_isr_callback(&isp_h, ISP_FRAME_END_DONE, in_stream);
+	if (isp_h != NULL && in_stream != NULL) {
+		(void)bk_isp_deregister_isr_callback(&isp_h, ISP_FRAME_END_DONE, in_stream);
+	}
+	if (h264_registered && out_stream != NULL) {
+		(void)bk_h264_encode_ioctl(h264, BK_H264_ENCODE_IOCTL_UNREGISTER_BOND, out_stream);
+	}
 	if (in_stream != NULL) {
 		os_free(in_stream);
 	}
@@ -196,9 +232,7 @@ void bk_flexa_isp_h264e_bond_stop(void *bond)
 	if (bond_p == NULL) {
 		return;
 	}
-	bond_p->flexa_sbi = 0;
-	bond_p->set_sbi_flag = 1;
-	rtos_get_semaphore(&bond_p->sem, BEKEN_WAIT_FOREVER);
+	isp_h264e_bond_wait_sbi_disabled(bond_p);
 
 	bk_flexa_bond_t *in_stream = bond_p->in_stream;
 	if (in_stream != NULL && in_stream->handle != NULL) {
@@ -210,15 +244,19 @@ void bk_flexa_isp_h264e_bond_stop(void *bond)
 		(void)bk_h264_encode_ioctl((bk_h264_encode_ctlr_handle_t)out_stream->handle,
 					   BK_H264_ENCODE_IOCTL_UNREGISTER_BOND, out_stream);
 	}
-	if (in_stream != NULL) {
-		os_free(in_stream);
+	if (bond_p->in_stream != NULL) {
+		os_free(bond_p->in_stream);
+		bond_p->in_stream = NULL;
 	}
-	if (out_stream != NULL) {
-		os_free(out_stream);
+	if (bond_p->out_stream != NULL) {
+		os_free(bond_p->out_stream);
+		bond_p->out_stream = NULL;
 	}
 	if (bond_p->sem != NULL) {
 		rtos_deinit_semaphore(&bond_p->sem);
+		bond_p->sem = NULL;
 	}
 	os_free(bond_p);
+	bond_p = NULL;
 	LOGI("%s bond stopped\r\n", __func__);
 }
