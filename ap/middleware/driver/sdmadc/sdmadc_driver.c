@@ -44,7 +44,7 @@ static sdmadc_buf_t s_sdmadc_buf = {0};
 static sdmadc_config_t s_sdmadc_config = {0};
 
 sdmadc_calibrate_val sdmadc_val = {
-#if (CONFIG_SOC_BK7236XX) || (CONFIG_SOC_BK7239XX)|| (CONFIG_SOC_BK7286XX)
+#if (CONFIG_SOC_BK7239XX)|| (CONFIG_SOC_BK7286XX)
     24695, 31618 /* 1Volt:-8072, 2Volt:-1149 +32768 offset*/
 #else
     /*TBD*/

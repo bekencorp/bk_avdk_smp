@@ -176,13 +176,6 @@ void sys_drv_set_ana_pwd_gadc_buf(uint32_t value)
 
 void sys_drv_set_ana_hres_sel0v9(void)
 {
-#if (CONFIG_SOC_BK7236XX)
-    uint32_t int_level = sys_drv_enter_critical();
-
-    sys_hal_set_ana_hres_sel0v9(0x0);
-    sys_hal_set_ana_hres_sel0v9(0x1);
-    sys_drv_exit_critical(int_level);
-#endif
 }
 
 void sys_drv_set_ana_vref_sel(uint32_t value)

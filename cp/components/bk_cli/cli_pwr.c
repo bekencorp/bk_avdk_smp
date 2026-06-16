@@ -1566,62 +1566,6 @@ static void cli_pm_buck(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
 	sys_hal_buck_switch(flag);
 }
 #endif //CONFIG_BUCK_ENABLE
-#if CONFIG_SOC_BK7236XX
-static void cli_pm_ana(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
-{
-	UINT32 flag = 0;
-	if (argc != 2)
-	{
-		BK_LOGD(NULL,"set analog register invalid %d\r\n",argc);
-		return;
-	}
-
-	flag = os_strtoul(argv[1], NULL, 10);
-
-	if(flag)
-	{
-		/*will cause lv sleep abnormal*/
-		sys_ll_set_ana_reg5_en_dco(0);
-		sys_ll_set_ana_reg13_enpsram(0);
-
-	}
-	else
-	{
-		sys_ll_set_ana_reg5_en_dco(1);
-		sys_ll_set_ana_reg13_enpsram(1);
-	}
-}
-
-extern bk_err_t gpio_hal_switch_to_low_power_status(uint64_t skip_io);
-static void cli_pm_gpio(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
-{
-	UINT32 flag = 0;
-	if (argc != 2)
-	{
-		BK_LOGD(NULL,"set analog register invalid %d\r\n",argc);
-		return;
-	}
-
-	flag = os_strtoul(argv[1], NULL, 10);
-
-	if(flag)
-		gpio_hal_switch_to_low_power_status(0xC00);
-}
-static void cli_pm_vcore(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
-{
-	UINT32 value = 0;
-	if (argc != 2)
-	{
-		BK_LOGD(NULL,"set analog register invalid %d\r\n",argc);
-		return;
-	}
-
-	value = os_strtoul(argv[1], NULL, 10);
-	extern void sys_hal_v_core_h_sel(uint32_t value);
-
-	sys_hal_v_core_h_sel(value);
-}
-#endif //CONFIG_SOC_BK7236XX
 
 #define PWR_CMD_CNT (sizeof(s_pwr_commands) / sizeof(struct cli_command))
 static const struct cli_command s_pwr_commands[] = {
@@ -1653,11 +1597,6 @@ static const struct cli_command s_pwr_commands[] = {
 	{"pm_psram", "pm_psram[module_name][ctrl_state:0x0:power&clk on; 0x1:power&clk off]", cli_pm_psram},
 #if CONFIG_BUCK_ENABLE  //temp mofify
 	{"pm_buck", "pm_buck [1/0]", cli_pm_buck},
-#endif
-#if CONFIG_SOC_BK7236XX
-	{"pm_ana", "pm_ana [1/0]", cli_pm_ana},
-	{"pm_gpio", "pm_gpio [1/0]", cli_pm_gpio},
-	{"pm_vcore", "pm_vcore [value]", cli_pm_vcore},
 #endif
 
 #else

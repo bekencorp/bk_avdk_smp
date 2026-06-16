@@ -55,11 +55,7 @@ void lcd_hal_8080_cmd_send(uint8_t param_count, uint32_t command, uint32_t *para
 void lcd_hal_8080_data_send(uint32_t command, uint16_t *data, uint32_t len)
 {
 	uint16_t *pixel = (uint16_t *)data;
-#if CONFIG_SOC_BK7236XX
-		lcd_disp_ll_set_cmd_count_i8080_cmd_para_count(len*2);
-#else
 		lcd_disp_ll_set_dat_fifo_thrd_i8080_cmd_para_count(len*2);
-#endif
 	lcd_disp_ll_set_i8080_cmd_fifo_value(command);
 
 	for(int i = 0; i < len; i++)
@@ -73,20 +69,12 @@ void lcd_hal_8080_data_send(uint32_t command, uint16_t *data, uint32_t len)
 
 void lcd_hal_8080_cmd_param_count(uint32_t count)
 {
-#if CONFIG_SOC_BK7236XX
-	lcd_disp_ll_set_cmd_count_i8080_cmd_para_count(count);
-#else
 	lcd_disp_ll_set_dat_fifo_thrd_i8080_cmd_para_count(count);
-#endif
 }
 
 bk_err_t lcd_hal_8080_ram_write(uint32_t command)
 {
-#if CONFIG_SOC_BK7236XX
-		lcd_disp_ll_set_cmd_count_i8080_cmd_para_count(1);
-#else
 		lcd_disp_ll_set_dat_fifo_thrd_i8080_cmd_para_count(1);
-#endif
 	lcd_disp_ll_set_i8080_cmd_fifo_value(command);
 	return BK_OK;
 }
@@ -101,10 +89,6 @@ void lcd_8080_reset_befor_lcd_init(void)
 void lcd_hal_8080_display_enable(bool en)
 {
 	lcd_disp_ll_set_i8080_config_i8080_disp_en(en);
-
-#if CONFIG_SOC_BK7236XX
-	lcd_disp_ll_set_i8080_config_gpio_i8080_on(en);
-#endif
 }
 
 void lcd_hal_set_data_fifo_thrd(uint16_t wr_threshold_val, uint16_t rd_threshold_val)
@@ -140,34 +124,17 @@ void lcd_hal_set_partical_display(uint8_t partial_en, uint16_t partial_clum_l, u
 
 void lcd_hal_rgb_sync_config(uint16_t rgb_hsync_back_porch, uint16_t rgb_hsync_front_porch, uint16_t rgb_vsync_back_porch, uint16_t rgb_vsync_front_porch)
 {
-#if CONFIG_SOC_BK7236XX
-	/// for bk7236 V5
-	lcd_disp_ll_set_h_porch_hsync_back_porch(rgb_hsync_back_porch);
-	lcd_disp_ll_set_h_porch_hsync_front_porch(rgb_hsync_front_porch);
-	lcd_disp_ll_set_v_porch_vsync_back_porch(rgb_vsync_back_porch);
-	lcd_disp_ll_set_v_porch_vsync_front_porch(rgb_vsync_front_porch);
-#else
 	lcd_disp_ll_set_sync_cfg_hsync_back_porch(rgb_hsync_back_porch);
 	lcd_disp_ll_set_sync_cfg_hsync_front_porch(rgb_hsync_front_porch);
 	lcd_disp_ll_set_sync_cfg_vsync_back_porch(rgb_vsync_back_porch);
 	lcd_disp_ll_set_sync_cfg_vsync_front_porch(rgb_vsync_front_porch);
-#endif
 }
 
 
 void lcd_hal_rgb_display_sel(bool en)
 {
-#if CONFIG_SOC_BK7236XX
-	//use soft control. the advantage is when softreset the rgb io will not reset, just for bk7236 V5
-//	lcd_disp_ll_set_rgb_sync_low_disp_on_sel(1);
-//	lcd_disp_ll_set_rgb_sync_low_disp_on_ena(1);
-	//if use hardware control  for bk7236 V4. use the same as bk7256. as the #else following
 	lcd_disp_ll_set_rgb_cfg_lcd_display_on(en);  //Rgb module IO
 	lcd_disp_ll_set_rgb_cfg_rgb_on(en);
-#else
-	lcd_disp_ll_set_rgb_cfg_lcd_display_on(en);  //Rgb module IO
-	lcd_disp_ll_set_rgb_cfg_rgb_on(en);
-#endif
 }
 
 /* is_sof_en :1 enable,0:disable ;  is_eof_en:1 enable,0:disable   */
@@ -196,20 +163,11 @@ void lcd_hal_8080_set_fifo_data_thrd(uint16_t wr_threshold_val, uint16_t rd_thre
 
 void lcd_hal_frame_interval_config(bool en, frame_delay_unit_t delay_uint, uint16_t unit_count)
 {
-#if CONFIG_SOC_BK7236XX
-	lcd_disp_ll_set_latency_latency_ena(en);
-	lcd_disp_ll_set_latency_latency_sel(delay_uint);
-	lcd_disp_ll_set_latency_latency_count(unit_count);
-#endif
 }
 
 
 void lcd_hal_de_wait_config(bool en, uint16_t hsync_thrd)
 {
-#if CONFIG_SOC_BK7236XX
-	lcd_disp_ll_set_de_wait_hsync_wait_ena(en);  //hsync wait fifo(full 1K) more then hsync_thrd ,then hsync start function, 
-	lcd_disp_ll_set_de_wait_hsync_wait_thrd(hsync_thrd);
-#endif
 }
 
 bk_err_t lcd_hal_int_enable(lcd_int_type_t int_type)
@@ -222,12 +180,6 @@ bk_err_t lcd_hal_int_enable(lcd_int_type_t int_type)
 		lcd_disp_ll_set_display_int_i8080_int_en(1);
 	if (int_type | I8080_OUTPUT_SOF)
 		lcd_disp_ll_set_display_int_i8080_int_en(1 << 1);
-#if CONFIG_SOC_BK7236XX
-	if (int_type | DE_INT)
-		lcd_disp_ll_set_display_int_de_int_en(1);
-	if (int_type | FRAME_INTERVAL_INT)
-		lcd_disp_ll_set_display_int_int_time_arv_ena(1);
-#endif
 	return BK_OK;
 }
 
@@ -248,14 +200,6 @@ __attribute__((section(".itcm_sec_code")))bk_err_t lcd_hal_int_status_clear(lcd_
 		case I8080_OUTPUT_EOF:
 			lcd_disp_ll_set_display_int_i8080_eof(1);
 			break;
-#if CONFIG_SOC_BK7236XX
-		case DE_INT:
-			lcd_disp_ll_set_display_int_int_de(1);
-			break;
-		case FRAME_INTERVAL_INT:
-			lcd_disp_ll_set_display_int_int_time_arv(1);
-			break;
-#endif
 		default:
 			break;
 	}
@@ -271,9 +215,6 @@ void lcd_hal_soft_reset(void)
 
 void lcd_hal_clk_gate_disable(bool dis)
 {
-#if CONFIG_SOC_BK7236XX
-	lcd_disp_ll_set_module_control_clk_gate(dis);
-#endif
 }
 
 
@@ -283,9 +224,6 @@ void lcd_hal_clk_gate_disable(bool dis)
  */
 bk_err_t lcd_hal_set_yuv_mode(pixel_format_t input_data_format)
 {
-#if CONFIG_SOC_BK7236XX
-	lcd_disp_ll_set_rgb_cfg_src_data_sel(0);
-#endif
 	switch (input_data_format)
 	{
 		case PIXEL_FMT_RGB565_LE:
@@ -317,11 +255,6 @@ bk_err_t lcd_hal_set_yuv_mode(pixel_format_t input_data_format)
 			lcd_disp_ll_set_rgb_sync_low_pfc_pixel_reve(0);
 			break;
 		case PIXEL_FMT_RGB888:
-#if CONFIG_SOC_BK7236XX
-			lcd_disp_ll_set_sync_cfg_yuv_sel(0);
-			lcd_disp_ll_set_rgb_cfg_src_data_sel(1);
-			lcd_disp_ll_set_rgb_sync_low_pfc_pixel_reve(0);
-#endif
 			break;
 		default:
 			break;
@@ -336,18 +269,6 @@ bk_err_t lcd_hal_set_yuv_mode(pixel_format_t input_data_format)
  */
 void lcd_hal_rgb_set_in_out_format(pixel_format_t in_fmt, pixel_format_t out_fmt)
 {
-#if CONFIG_SOC_BK7236XX
-	lcd_hal_set_yuv_mode(in_fmt);
-
-	if (out_fmt == PIXEL_FMT_RGB565)
-		lcd_disp_ll_set_rgb_cfg_out_fmt_sel(0);
-	else if (out_fmt == PIXEL_FMT_RGB666)
-		lcd_disp_ll_set_rgb_cfg_out_fmt_sel(1);
-	else if (out_fmt == PIXEL_FMT_RGB888)
-		lcd_disp_ll_set_rgb_cfg_out_fmt_sel(2);
-	else
-		lcd_disp_ll_set_rgb_cfg_out_fmt_sel(0);
-#endif
 }
 
  
@@ -357,53 +278,6 @@ void lcd_hal_rgb_set_in_out_format(pixel_format_t in_fmt, pixel_format_t out_fmt
   */
 void lcd_hal_mcu_set_in_out_format(pixel_format_t in_fmt, pixel_format_t out_fmt)
 {
-#if CONFIG_SOC_BK7236XX
-	if (in_fmt != PIXEL_FMT_RGB888)  // rgb565/yuv input
-	{
-		lcd_disp_ll_set_rgb_cfg_src_data_sel(0);
-		lcd_hal_set_yuv_mode(in_fmt);
-		switch (out_fmt)
-		{
-			case PIXEL_FMT_RGB565: 
-				lcd_disp_ll_set_rgb_cfg_out_fmt_sel(0);
-				break;
-			case PIXEL_FMT_RGB666:
-				lcd_disp_ll_set_rgb_cfg_out_fmt_sel(1);
-				break;
-			case PIXEL_FMT_RGB888:
-				lcd_disp_ll_set_rgb_cfg_out_fmt_sel(3);
-				break;
-			case PIXEL_FMT_BGR888:
-				lcd_disp_ll_set_rgb_cfg_out_fmt_sel(7);
-				break;
-			default:
-				lcd_disp_ll_set_rgb_cfg_out_fmt_sel(0);
-				break;
-		}
-	}
-	else   // rgb 888 input
-	{
-		lcd_disp_ll_set_rgb_cfg_src_data_sel(1);
-		switch (out_fmt)
-		{
-			case PIXEL_FMT_RGB565: 
-				lcd_disp_ll_set_rgb_cfg_out_fmt_sel(4);
-				break;
-			case PIXEL_FMT_RGB666:
-				lcd_disp_ll_set_rgb_cfg_out_fmt_sel(5);
-				break;
-			case PIXEL_FMT_RGB888:
-				lcd_disp_ll_set_rgb_cfg_out_fmt_sel(2);
-				break;
-			case PIXEL_FMT_BGR888:
-				lcd_disp_ll_set_rgb_cfg_out_fmt_sel(6);
-				break;
-			default:
-				lcd_disp_ll_set_rgb_cfg_out_fmt_sel(4);
-				break;
-		}
-	}
-#endif
 }
 
 

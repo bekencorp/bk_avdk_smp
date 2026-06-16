@@ -563,7 +563,7 @@ void cli_cache_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **ar
 
 __attribute__ ((__optimize__ ("-fno-tree-loop-distribute-patterns"))) \
 int32_t cpu_test(uint32_t count) {
-#if CONFIG_SOC_BK7236XX || (CONFIG_SOC_BK7239XX) || (CONFIG_SOC_BK7286XX)
+#if (CONFIG_SOC_BK7239XX) || (CONFIG_SOC_BK7286XX)
 	#define portNVIC_SYSTICK_CURRENT_VALUE_REG    ( *( ( volatile uint32_t * ) 0xe000e018 ) )
 
     uint32_t i;

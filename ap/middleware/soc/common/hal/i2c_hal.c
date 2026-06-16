@@ -57,11 +57,6 @@ bk_err_t i2c_hal_configure(i2c_hal_t *hal, const i2c_config_t *cfg)
 	//i2c_ll_enable_stop(&hal->hw, hal->id);
 	i2c_ll_disable_start(&hal->hw, hal->id);
 
-//i2c add address/data output mode config in ASIC, since bk7236v5, 2023.09
-#if (CONFIG_SOC_BK7236XX)
-	i2c_ll_enable_addr_output(&hal->hw, hal->id);
-	i2c_ll_enable_data_output(&hal->hw, hal->id);
-#endif
 
 	return BK_OK;
 }

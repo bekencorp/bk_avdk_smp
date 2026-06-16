@@ -148,20 +148,6 @@ void spinlock_release(volatile spinlock_t *slock, uint32_t flag2)
 }
 
 #if (CONFIG_SOC_SMP)
-#if (CONFIG_SMP_CORE_CNT > 2) && (CONFIG_SOC_BK7236XX)
-/* bk7236/58 three cores, just two exclusive access monitors
- * verification code:http://192.168.0.6/wangzhilei/bk7236_verification/-/tree/multicore_spinlock
- *
- * the exclusive operation is the pair of ldrex following by strex: ldrex performs a load of memory
- * but also tags the physical address to be monitored for exclusive access by the that core.
- * strex performs a conditional store to the memory, succeeding only if the target location is tagged
- * as being monitored for exclusive access by that core. this instruction returns non-zero in the
- * general-purpose register if the store does not succeed, and a value of 0 if the store is successful
- *
- * The issue: two cores occupy the exclusive signal, and the other core maybe cannot unlock/strex successfully
- */
- #error number of cpu cores greater than 2, does not support SMP for this configuration.
-#endif
 
 /*TODO: the driver layer shall be independent of the architecture or arm instruction*/
 static inline int __spin_lock(volatile spinlock_t *lock)

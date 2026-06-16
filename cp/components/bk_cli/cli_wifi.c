@@ -1007,7 +1007,7 @@ void cli_wifi_sta_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char *
 		os_free(oob_ssid_tp);
 #endif
 
-#if !CONFIG_SOC_BK7236XX && (!CONFIG_SOC_BK7239XX) && (!CONFIG_SOC_BK7286XX) && (!CONFIG_SOC_BK7259)
+#if (!CONFIG_SOC_BK7239XX) && (!CONFIG_SOC_BK7286XX) && (!CONFIG_SOC_BK7259)
 		if (wifi_cmd_sema != NULL)
 		{
 			err = rtos_get_semaphore(&wifi_cmd_sema, 10000);

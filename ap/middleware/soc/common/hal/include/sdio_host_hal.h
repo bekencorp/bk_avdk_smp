@@ -111,7 +111,7 @@ typedef struct {
 #define sdio_host_hal_set_clock_gate(hal, clk_gate) sdio_host_ll_set_clock_gate((hal)->hw, clk_gate)
 #define sdio_hal_host_set_tx_fifo_need_write_mask_cg(hal, clk_gate) sdio_host_ll_set_tx_fifo_clock_gate((hal)->hw, clk_gate);
 
-#if (CONFIG_SOC_BK7236XX || CONFIG_SOC_BK7239XX || CONFIG_SOC_BK7286XX)
+#if (CONFIG_SOC_BK7239XX || CONFIG_SOC_BK7286XX)
 #define sdio_host_hal_write_blk_en(hal, en) sdio_host_ll_write_blk_en((hal)->hw, en)
 #define sdio_host_hal_set_fifo_send_cnt(hal, cnt) sdio_host_ll_set_fifo_send_cnt((hal)->hw, cnt)
 #endif
