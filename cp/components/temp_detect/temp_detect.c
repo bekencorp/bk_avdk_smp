@@ -16,7 +16,6 @@
 #include "bk_arm_arch.h"
 #include "bk_misc.h"
 #include <os/mem.h>
-#include "bk_drv_model.h"
 #include "bk_sys_ctrl.h"
 #include "bk_saradc.h"
 #include "bk_uart.h"
@@ -35,7 +34,6 @@
 #include <driver/adc.h>
 #endif
 
-#include "drv_model.h"
 #include "sys_driver.h"
 #if CONFIG_FLASH_ORIGIN_API
 #include "flash.h"
