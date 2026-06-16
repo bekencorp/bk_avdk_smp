@@ -517,8 +517,22 @@ __IRAM_SEC void dlv_context_save(void)
 	dlv_core_save(dlv);
 }
 
+__IRAM_SEC DLV_STATIC void dlv_icache_flush_before_sleep(void)
+{
+#if CONFIG_ICACHE
+	cache_instr_invd_all();
+	__asm volatile
+	(
+		"dsb          \n"
+		"isb          \n"
+		:::"memory"
+	);
+#endif
+}
+
 __IRAM_SEC void deep_lv_enter(void)
 {
+	dlv_icache_flush_before_sleep();
 	dlv_context_save();
 }
 
