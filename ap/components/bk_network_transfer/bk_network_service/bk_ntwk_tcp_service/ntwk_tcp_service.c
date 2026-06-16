@@ -937,6 +937,37 @@ static video_tcp_client_service_t *video_tcp_client_service = NULL;
 static aud_tcp_client_service_t *aud_tcp_client_service = NULL;
 static ntwk_tcp_ctrl_client_info_t *ntwk_tcp_ctrl_client_info = NULL;
 
+#define NTWK_TCP_CLIENT_GRACEFUL_CLOSE_LOG_MS     500
+#define NTWK_TCP_CLIENT_GRACEFUL_CLOSE_POLL_MS    20
+#define NTWK_TCP_CLIENT_RECONNECT_DELAY_MS       (100)
+
+static void ntwk_tcp_client_wait_peer_close(int *fd, const char *name)
+{
+    uint32_t waited_ms = 0;
+    uint32_t next_log_ms = NTWK_TCP_CLIENT_GRACEFUL_CLOSE_LOG_MS;
+
+    if (fd == NULL || *fd == -1)
+    {
+        return;
+    }
+
+    if (shutdown(*fd, SHUT_WR) < 0)
+    {
+        LOGW("%s shutdown write failed, fd:%d, err:%d\n", name, *fd, errno);
+    }
+
+    while (*fd != -1)
+    {
+        rtos_delay_milliseconds(NTWK_TCP_CLIENT_GRACEFUL_CLOSE_POLL_MS);
+        waited_ms += NTWK_TCP_CLIENT_GRACEFUL_CLOSE_POLL_MS;
+        if (waited_ms >= next_log_ms)
+        {
+            LOGW("%s waiting peer close, fd:%d, waited:%u ms\n", name, *fd, waited_ms);
+            next_log_ms += NTWK_TCP_CLIENT_GRACEFUL_CLOSE_LOG_MS;
+        }
+    }
+}
+
 // TCP Client control channel receive data handler
 static void ntwk_tcp_ctrl_client_receive_data(uint8_t *data, uint16_t length)
 {
@@ -958,6 +989,7 @@ static void ntwk_tcp_ctrl_client_thread(beken_thread_arg_t data)
     u8 *rcv_buf = NULL;
     int connect_retry = 0;
     const int max_retry = 5;
+    int disconnect_param = 0;
 
     LOGV("%s entry\n", __func__);
     (void)(data);
@@ -1013,7 +1045,7 @@ static void ntwk_tcp_ctrl_client_thread(beken_thread_arg_t data)
             if (connect_retry < max_retry)
             {
                 LOGW("Retry connecting... (%d/%d)\n", connect_retry, max_retry);
-                rtos_delay_milliseconds(1000);
+                rtos_delay_milliseconds(NTWK_TCP_CLIENT_RECONNECT_DELAY_MS);
                 continue;
             }
             else
@@ -1024,6 +1056,7 @@ static void ntwk_tcp_ctrl_client_thread(beken_thread_arg_t data)
         }
 
         connect_retry = 0;
+        disconnect_param = 0;
         ntwk_tcp_ctrl_client_info->chan_state = NTWK_TRANS_CHAN_CONNECTED;
         ntwk_tcp_ctrl_client_info->client_state = BK_TRUE;
 
@@ -1049,24 +1082,39 @@ static void ntwk_tcp_ctrl_client_thread(beken_thread_arg_t data)
             }
             else
             {
+                int errno_temp = errno;
+                bool stop_requested = (ntwk_tcp_ctrl_client_info->chan_state == NTWK_TRANS_CHAN_STOP);
                 LOGD("recv close fd:%d, rcv_len:%d, error:%d\n",
                      ntwk_tcp_ctrl_client_info->client_fd, rcv_len, errno);
                 close(ntwk_tcp_ctrl_client_info->client_fd);
                 ntwk_tcp_ctrl_client_info->client_fd = -1;
                 ntwk_tcp_ctrl_client_info->client_state = BK_FALSE;
-                
+
+                if (rcv_len == 0)
+                {
+                    ntwk_tcp_ctrl_client_info->chan_state = NTWK_TRANS_CHAN_DISCONNECTED;
+                    if (stop_requested)
+                    {
+                        disconnect_param = 0;
+                        goto out;
+                    }
+                }
+
                 // Check if stop was called before setting disconnected state
-                if (ntwk_tcp_ctrl_client_info->chan_state == NTWK_TRANS_CHAN_STOP)
+                if (stop_requested)
                 {
                     // Stop was called, exit the thread
                     break;
                 }
-                
-                ntwk_tcp_ctrl_client_info->chan_state = NTWK_TRANS_CHAN_DISCONNECTED;
-                ntwk_msg_event_report(NTWK_TRANS_EVT_DISCONNECTED, 0, NTWK_TRANS_CHAN_CTRL);
+
+                if (rcv_len < 0)
+                {
+                    ntwk_tcp_ctrl_client_info->chan_state = NTWK_TRANS_CHAN_DISCONNECTED;
+                    disconnect_param = (errno_temp == ENOTCONN) ? errno_temp : 0;
+                }
 
                 // Try to reconnect
-                rtos_delay_milliseconds(1000);
+                rtos_delay_milliseconds(NTWK_TCP_CLIENT_RECONNECT_DELAY_MS);
                 break;
             }
         }
@@ -1074,6 +1122,12 @@ static void ntwk_tcp_ctrl_client_thread(beken_thread_arg_t data)
 
 out:
     LOGE("%s exit %d\n", __func__, ntwk_tcp_ctrl_client_info->client_state);
+
+    if (ntwk_tcp_ctrl_client_info->chan_state == NTWK_TRANS_CHAN_DISCONNECTED)
+    {
+        ntwk_msg_event_report(NTWK_TRANS_EVT_DISCONNECTED, disconnect_param, NTWK_TRANS_CHAN_CTRL);
+    }
+
     if (rcv_buf)
     {
         os_free(rcv_buf);
@@ -1142,21 +1196,30 @@ bk_err_t ntwk_tcp_ctrl_client_chan_start(void *param)
 
 bk_err_t ntwk_tcp_ctrl_client_chan_stop(void)
 {
+    ntwk_trans_chan_state prev_state;
+
     if (ntwk_tcp_ctrl_client_info == NULL)
     {
         LOGE("ntwk_tcp_ctrl_client_info is NULL, nothing to deinit\n");
         return BK_FAIL;
     }
 
+    prev_state = ntwk_tcp_ctrl_client_info->chan_state;
     ntwk_tcp_ctrl_client_info->chan_state = NTWK_TRANS_CHAN_STOP;
-    ntwk_msg_event_report(NTWK_TRANS_EVT_STOP, 0, NTWK_TRANS_CHAN_CTRL);
 
     ntwk_tcp_ctrl_client_info->client_state = BK_FALSE;
 
     if (ntwk_tcp_ctrl_client_info->client_fd != -1)
     {
-        close(ntwk_tcp_ctrl_client_info->client_fd);
-        ntwk_tcp_ctrl_client_info->client_fd = -1;
+        if (prev_state == NTWK_TRANS_CHAN_CONNECTED)
+        {
+            ntwk_tcp_client_wait_peer_close(&ntwk_tcp_ctrl_client_info->client_fd, "ctrl");
+        }
+        else
+        {
+            close(ntwk_tcp_ctrl_client_info->client_fd);
+            ntwk_tcp_ctrl_client_info->client_fd = -1;
+        }
     }
 
     if (ntwk_tcp_ctrl_client_info->thread != NULL)
@@ -1164,6 +1227,8 @@ bk_err_t ntwk_tcp_ctrl_client_chan_stop(void)
         rtos_thread_join(&ntwk_tcp_ctrl_client_info->thread);
         ntwk_tcp_ctrl_client_info->thread = NULL;
     }
+
+    ntwk_msg_event_report(NTWK_TRANS_EVT_STOP, 0, NTWK_TRANS_CHAN_CTRL);
 
     ntwk_tcp_ctrl_client_info->receive_cb = NULL;
 
@@ -1236,6 +1301,7 @@ static void ntwk_tcp_video_client_thread(beken_thread_arg_t data)
     u8 *rcv_buf = NULL;
     int connect_retry = 0;
     const int max_retry = 5;
+    int disconnect_param = 0;
 
     LOGV("%s entry\n", __func__);
     (void)(data);
@@ -1298,7 +1364,7 @@ static void ntwk_tcp_video_client_thread(beken_thread_arg_t data)
             if (connect_retry < max_retry)
             {
                 LOGW("Retry connecting... (%d/%d)\n", connect_retry, max_retry);
-                rtos_delay_milliseconds(1000);
+                rtos_delay_milliseconds(NTWK_TCP_CLIENT_RECONNECT_DELAY_MS);
                 continue;
             }
             else
@@ -1309,6 +1375,7 @@ static void ntwk_tcp_video_client_thread(beken_thread_arg_t data)
         }
 
         connect_retry = 0;
+        disconnect_param = 0;
         video_tcp_client_service->chan_state = NTWK_TRANS_CHAN_CONNECTED;
         LOGD("video, Connected to server fd:%d\n", video_tcp_client_service->video_fd);
 
@@ -1333,28 +1400,38 @@ static void ntwk_tcp_video_client_thread(beken_thread_arg_t data)
             else
             {
                 int errno_temp = errno;
+                bool stop_requested = (video_tcp_client_service->chan_state == NTWK_TRANS_CHAN_STOP);
                 LOGD("vid client recv close fd:%d, rcv_len:%d, error_code:%d\n",
                      video_tcp_client_service->video_fd, rcv_len, errno);
                 close(video_tcp_client_service->video_fd);
                 video_tcp_client_service->video_fd = -1;
                 video_tcp_client_service->video_status = BK_FALSE;
 
+                if (rcv_len == 0)
+                {
+                    video_tcp_client_service->chan_state = NTWK_TRANS_CHAN_DISCONNECTED;
+                    if (stop_requested)
+                    {
+                        disconnect_param = 0;
+                        goto out;
+                    }
+                }
+
                 // Check if stop was called before setting disconnected state
-                if (video_tcp_client_service->chan_state == NTWK_TRANS_CHAN_STOP)
+                if (stop_requested)
                 {
                     // Stop was called, exit the thread
                     break;
                 }
 
-                video_tcp_client_service->chan_state = NTWK_TRANS_CHAN_DISCONNECTED;
-                if (errno_temp == ENOTCONN) {
-                    ntwk_msg_event_report(NTWK_TRANS_EVT_DISCONNECTED, errno_temp, NTWK_TRANS_CHAN_VIDEO);
-                } else {
-                    ntwk_msg_event_report(NTWK_TRANS_EVT_DISCONNECTED, 0, NTWK_TRANS_CHAN_VIDEO);
+                if (rcv_len < 0)
+                {
+                    video_tcp_client_service->chan_state = NTWK_TRANS_CHAN_DISCONNECTED;
+                    disconnect_param = (errno_temp == ENOTCONN) ? errno_temp : 0;
                 }
 
                 // Try to reconnect
-                rtos_delay_milliseconds(1000);
+                rtos_delay_milliseconds(NTWK_TCP_CLIENT_RECONNECT_DELAY_MS);
                 break;
             }
         }
@@ -1362,6 +1439,11 @@ static void ntwk_tcp_video_client_thread(beken_thread_arg_t data)
 
 out:
     LOGE("%s exit %d\n", __func__, video_tcp_client_service->chan_state);
+
+    if (video_tcp_client_service->chan_state == NTWK_TRANS_CHAN_DISCONNECTED)
+    {
+        ntwk_msg_event_report(NTWK_TRANS_EVT_DISCONNECTED, disconnect_param, NTWK_TRANS_CHAN_VIDEO);
+    }
 
     if (rcv_buf)
     {
@@ -1433,6 +1515,7 @@ bk_err_t ntwk_tcp_video_client_chan_start(void *param)
 bk_err_t ntwk_tcp_video_client_chan_stop(void)
 {
     LOGD("%s, %d\n", __func__, __LINE__);
+    ntwk_trans_chan_state prev_state;
 
     if (video_tcp_client_service == NULL)
     {
@@ -1440,6 +1523,7 @@ bk_err_t ntwk_tcp_video_client_chan_stop(void)
         return BK_FAIL;
     }
 
+    prev_state = video_tcp_client_service->chan_state;
     video_tcp_client_service->chan_state = NTWK_TRANS_CHAN_STOP;
     ntwk_msg_event_report(NTWK_TRANS_EVT_STOP, 0, NTWK_TRANS_CHAN_VIDEO);
 
@@ -1447,8 +1531,15 @@ bk_err_t ntwk_tcp_video_client_chan_stop(void)
 
     if (video_tcp_client_service->video_fd != -1)
     {
-        close(video_tcp_client_service->video_fd);
-        video_tcp_client_service->video_fd = -1;
+        if (prev_state == NTWK_TRANS_CHAN_CONNECTED)
+        {
+            ntwk_tcp_client_wait_peer_close(&video_tcp_client_service->video_fd, "video");
+        }
+        else
+        {
+            close(video_tcp_client_service->video_fd);
+            video_tcp_client_service->video_fd = -1;
+        }
     }
 
     if (video_tcp_client_service->video_thd)
@@ -1511,6 +1602,7 @@ static void ntwk_tcp_audio_client_thread(beken_thread_arg_t data)
     u8 *rcv_buf = NULL;
     int connect_retry = 0;
     const int max_retry = 5;
+    int disconnect_param = 0;
 
     LOGV("%s entry\n", __func__);
     (void)(data);
@@ -1573,7 +1665,7 @@ static void ntwk_tcp_audio_client_thread(beken_thread_arg_t data)
             if (connect_retry < max_retry)
             {
                 LOGW("Retry connecting... (%d/%d)\n", connect_retry, max_retry);
-                rtos_delay_milliseconds(1000);
+                rtos_delay_milliseconds(NTWK_TCP_CLIENT_RECONNECT_DELAY_MS);
                 continue;
             }
             else
@@ -1584,6 +1676,7 @@ static void ntwk_tcp_audio_client_thread(beken_thread_arg_t data)
         }
 
         connect_retry = 0;
+        disconnect_param = 0;
         aud_tcp_client_service->chan_state = NTWK_TRANS_CHAN_CONNECTED;
         LOGD("audio, Connected to server fd:%d\n", aud_tcp_client_service->aud_fd);
 
@@ -1608,28 +1701,39 @@ static void ntwk_tcp_audio_client_thread(beken_thread_arg_t data)
             else
             {
                 int errno_temp = errno;
+                bool stop_requested = (aud_tcp_client_service->chan_state == NTWK_TRANS_CHAN_STOP);
                 LOGD("aud client recv close fd:%d, rcv_len:%d, error_code:%d\n",
                      aud_tcp_client_service->aud_fd, rcv_len, errno);
                 close(aud_tcp_client_service->aud_fd);
                 aud_tcp_client_service->aud_fd = -1;
                 aud_tcp_client_service->aud_status = BK_FALSE;
 
+                if (rcv_len == 0)
+                {
+                    aud_tcp_client_service->chan_state = NTWK_TRANS_CHAN_DISCONNECTED;
+                    ntwk_msg_event_report(NTWK_TRANS_EVT_DISCONNECTED, 0, NTWK_TRANS_CHAN_AUDIO);
+                    if (stop_requested)
+                    {
+                        disconnect_param = 0;
+                        goto out;
+                    }
+                }
+
                 // Check if stop was called before setting disconnected state
-                if (aud_tcp_client_service->chan_state == NTWK_TRANS_CHAN_STOP)
+                if (stop_requested)
                 {
                     // Stop was called, exit the thread
                     break;
                 }
 
-                aud_tcp_client_service->chan_state = NTWK_TRANS_CHAN_DISCONNECTED;
-                if (errno_temp == ENOTCONN) {
-                    ntwk_msg_event_report(NTWK_TRANS_EVT_DISCONNECTED, errno_temp, NTWK_TRANS_CHAN_AUDIO);
-                } else {
-                    ntwk_msg_event_report(NTWK_TRANS_EVT_DISCONNECTED, 0, NTWK_TRANS_CHAN_AUDIO);
+                if (rcv_len < 0)
+                {
+                    aud_tcp_client_service->chan_state = NTWK_TRANS_CHAN_DISCONNECTED;
+                    disconnect_param = (errno_temp == ENOTCONN) ? errno_temp : 0;
                 }
 
                 // Try to reconnect
-                rtos_delay_milliseconds(1000);
+                rtos_delay_milliseconds(NTWK_TCP_CLIENT_RECONNECT_DELAY_MS);
                 break;
             }
         }
@@ -1637,6 +1741,11 @@ static void ntwk_tcp_audio_client_thread(beken_thread_arg_t data)
 
 out:
     LOGE("%s exit %d\n", __func__, aud_tcp_client_service->aud_status);
+
+    if (aud_tcp_client_service->chan_state == NTWK_TRANS_CHAN_DISCONNECTED)
+    {
+        ntwk_msg_event_report(NTWK_TRANS_EVT_DISCONNECTED, disconnect_param, NTWK_TRANS_CHAN_AUDIO);
+    }
 
     if (rcv_buf)
     {
@@ -1705,12 +1814,15 @@ bk_err_t ntwk_tcp_audio_client_chan_start(void *param)
 
 bk_err_t ntwk_tcp_audio_client_chan_stop(void)
 {
+    ntwk_trans_chan_state prev_state;
+
     if (aud_tcp_client_service == NULL)
     {
         LOGE("aud_tcp_client_service is NULL\n");
         return BK_FAIL;
     }
 
+    prev_state = aud_tcp_client_service->chan_state;
     aud_tcp_client_service->chan_state = NTWK_TRANS_CHAN_STOP;
     ntwk_msg_event_report(NTWK_TRANS_EVT_STOP, 0, NTWK_TRANS_CHAN_AUDIO);
 
@@ -1718,8 +1830,15 @@ bk_err_t ntwk_tcp_audio_client_chan_stop(void)
 
     if (aud_tcp_client_service->aud_fd != -1)
     {
-        close(aud_tcp_client_service->aud_fd);
-        aud_tcp_client_service->aud_fd = -1;
+        if (prev_state == NTWK_TRANS_CHAN_CONNECTED)
+        {
+            ntwk_tcp_client_wait_peer_close(&aud_tcp_client_service->aud_fd, "audio");
+        }
+        else
+        {
+            close(aud_tcp_client_service->aud_fd);
+            aud_tcp_client_service->aud_fd = -1;
+        }
     }
 
     if (aud_tcp_client_service->aud_thd)
