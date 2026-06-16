@@ -1,6 +1,5 @@
 #include <os/os.h>
 #include <os/mem.h>
-#include <stdbool.h>
 
 #include <common/avdk_pixel_types.h>
 #include <components/bk_isp_camera.h>
@@ -363,12 +362,8 @@ static avdk_err_t isp_camera_ctlr_channel_open(bk_isp_camera_ctlr_handle_t handl
 
     if (controller->sensor_ctlr == 0 && isp_config.work_mode == 0)
     {
-        bool mp_active = (controller->channel_state[ISP_MP_CHN_ID] == ISP_CHANNEL_STATE_TURN_ON);
-
-        if (!mp_active)
-        {
-            AVDK_RETURN_ON_ERROR(isp_camera_csi_sensor_open(controller, controller->isp_handle), TAG, "exe fail");
-        }
+        AVDK_RETURN_ON_ERROR(isp_camera_csi_sensor_open(controller, controller->isp_handle), TAG, "exe fail");
+        controller->sensor_ctlr++;
     }
 
     controller->channel_state[channel] = ISP_CHANNEL_STATE_TURN_ON;
