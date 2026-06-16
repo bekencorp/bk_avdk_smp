@@ -53,8 +53,18 @@ static pthread_key_t sys_thread_sem_key;
 
 
 #define CFG_ENABLE_LWIP_MUTEX      1
+/* BK7259SW-1783: the dedicated spinlock protection is only meaningful (and
+ * only compiles) on the SMP kernel; the single-core classic kernel falls back
+ * to the mutex implementation, which is safe there. */
+#if (CONFIG_FREERTOS_SMP && CONFIG_SPINLOCK_SECTION)
+#define CFG_ENABLE_LWIP_PORTMUX_PROTECT 1
+#else
+#define CFG_ENABLE_LWIP_PORTMUX_PROTECT 0
+#endif
 
-#if CFG_ENABLE_LWIP_MUTEX
+#if CFG_ENABLE_LWIP_PORTMUX_PROTECT
+static SPINLOCK_SECTION portMUX_TYPE sys_arch_lock = portMUX_INITIALIZER_UNLOCKED;
+#elif CFG_ENABLE_LWIP_MUTEX
 static sys_mutex_t sys_arch_mutex;
 #endif
 
@@ -352,7 +362,7 @@ err_t sys_mutex_trylock(sys_mutex_t *pxMutex)
 // Initialize sys arch
 void sys_init(void)
 {
-#if CFG_ENABLE_LWIP_MUTEX
+#if !CFG_ENABLE_LWIP_PORTMUX_PROTECT && CFG_ENABLE_LWIP_MUTEX
 	sys_mutex_new(&sys_arch_mutex);
 #endif
 #if CONFIG_FREERTOS
@@ -462,7 +472,11 @@ int sys_thread_delete(sys_thread_t pid)
 */
 sys_prot_t sys_arch_protect(void)
 {
-#if CFG_ENABLE_LWIP_MUTEX
+#if CFG_ENABLE_LWIP_PORTMUX_PROTECT
+	portENTER_CRITICAL(&sys_arch_lock);
+
+	return 0;
+#elif CFG_ENABLE_LWIP_MUTEX
 	sys_mutex_lock(&sys_arch_mutex);
 
 	return 0;
@@ -479,7 +493,10 @@ sys_prot_t sys_arch_protect(void)
 */
 void sys_arch_unprotect(sys_prot_t pval)
 {
-#if CFG_ENABLE_LWIP_MUTEX
+#if CFG_ENABLE_LWIP_PORTMUX_PROTECT
+	(void)pval;
+	portEXIT_CRITICAL(&sys_arch_lock);
+#elif CFG_ENABLE_LWIP_MUTEX
 	(void)pval;
 	sys_mutex_unlock(&sys_arch_mutex);
 #else
