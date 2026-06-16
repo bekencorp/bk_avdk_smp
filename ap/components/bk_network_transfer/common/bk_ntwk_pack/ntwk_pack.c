@@ -484,12 +484,23 @@ uint32_t ntwk_pkt_get_milliseconds(void)
     return time;
 }
 
-void ntwk_pkt_pack(void *channel, uint8_t *data, uint32_t length)
+int ntwk_pkt_pack(void *channel, uint8_t *data, uint32_t length)
 {
     ntwk_pack_chan_t *chan = (ntwk_pack_chan_t *)channel;
     if (chan == NULL) {
         LOGE("%s: chan is NULL\n", __func__);
-        return;
+        return -1;
+    }
+
+    if (data == NULL || chan->tbuf == NULL) {
+        LOGE("%s: invalid data %p or tbuf %p\n", __func__, data, chan->tbuf);
+        return -1;
+    }
+
+    if (length > chan->tsize) {
+        LOGE("%s: payload too large, length=%u, tsize=%u\n",
+             __func__, length, chan->tsize);
+        return -1;
     }
 
     ntwk_pack_head_t *head = chan->tbuf;
@@ -515,6 +526,7 @@ void ntwk_pkt_pack(void *channel, uint8_t *data, uint32_t length)
 
     os_memcpy(head->payload, data, length);
 
+    return BK_OK;
 }
 
 bk_err_t ntwk_pack_init(chan_type_t chan_type)
@@ -633,7 +645,7 @@ int ntwk_pack_pack_by_type(chan_type_t chan_type, uint8_t *data, uint32_t length
         return -1;
     }
 
-    if (!g_pkt_chan_mgr[chan_type]->initialized) {
+    if (g_pkt_chan_mgr[chan_type] == NULL || !g_pkt_chan_mgr[chan_type]->initialized) {
         return -1;
     }
 
@@ -648,7 +660,9 @@ int ntwk_pack_pack_by_type(chan_type_t chan_type, uint8_t *data, uint32_t length
         return -1;
     }
 
-    ntwk_pkt_pack(chan, data, length);
+    if (ntwk_pkt_pack(chan, data, length) != BK_OK) {
+        return -1;
+    }
 
     *pack_ptr = (uint8_t *)chan->tbuf;
     *pack_ptr_length = HEAD_SIZE_TOTAL + length;

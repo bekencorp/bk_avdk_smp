@@ -497,9 +497,11 @@ int ntwk_trans_ctrl_send(uint8_t *data, uint32_t length)
         {
             return BK_OK;
         }
-#if CONFIG_NTWK_CTRL_CHAN_JSON
-        return BK_FAIL;
-#endif
+        else
+        {
+            LOGE("%s, fragment failed\n", __func__);
+            return BK_FAIL;
+        }
     }
 
     if (s_ntwk_trans_ctxt->cntrl_chan->pack != NULL)
@@ -508,6 +510,10 @@ int ntwk_trans_ctrl_send(uint8_t *data, uint32_t length)
         {
             (s_ntwk_trans_ctxt->cntrl_chan->send)(pack_ptr, pack_ptr_length);
             return BK_OK;
+        } else
+        {
+            LOGE("%s, pack failed\n", __func__);
+            return BK_FAIL;
         }
     }
 
@@ -560,9 +566,14 @@ int ntwk_trans_video_send(uint8_t *data, uint32_t length, image_format_t video_t
             ntwk_video_fps_frame_end(length, ret);
 #endif
             return length;
+        } else
+        {
+            LOGE("%s, fragment failed: %d\n", __func__, ret);
+            return BK_FAIL;
         }
 
         /* Fragment failure/abort must not fall through to pack (data is frame_buffer_t*). */
+        LOGE("%s, video fragment failed, ret=%d, length=%u\n", __func__, ret, length);
 #if CONFIG_NTWK_VIDEO_FPS_CALC_ENABLE
         ntwk_video_fps_frame_end(length, ret);
 #endif
@@ -578,6 +589,10 @@ int ntwk_trans_video_send(uint8_t *data, uint32_t length, image_format_t video_t
             ntwk_video_fps_frame_end(length, ret);
 #endif
             return ret;
+        } else
+        {
+            LOGE("%s, pack failed: %d\n", __func__, ret);
+            return BK_FAIL;
         }
     }
 
@@ -619,6 +634,10 @@ int ntwk_trans_audio_send(uint8_t *data, uint32_t length, audio_enc_type_t audio
         if(s_ntwk_trans_ctxt->audio_chan->fragment(data, length) >= 0)
         {
             return length;
+        } else
+        {
+            LOGE("%s, fragment failed: %d\n", __func__);
+            return BK_FAIL;
         }
     }
 
@@ -627,6 +646,11 @@ int ntwk_trans_audio_send(uint8_t *data, uint32_t length, audio_enc_type_t audio
         if(s_ntwk_trans_ctxt->audio_chan->pack(data, length, &pack_ptr, &pack_ptr_length) >= 0)
         {
             return (s_ntwk_trans_ctxt->audio_chan->send)(pack_ptr, pack_ptr_length, s_ntwk_trans_ctxt->audio_chan->aud_type);
+        }
+        else
+        {
+            LOGE("%s, pack failed: %d\n", __func__);
+            return BK_FAIL;
         }
     }
 

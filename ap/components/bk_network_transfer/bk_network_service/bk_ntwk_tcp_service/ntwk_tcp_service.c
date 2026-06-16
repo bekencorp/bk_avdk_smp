@@ -1612,7 +1612,6 @@ int ntwk_tcp_video_client_send_packet(uint8_t *data, uint32_t length, image_form
 {
     if (video_tcp_client_service == NULL || !video_tcp_client_service->video_status)
     {
-        LOGE("%s, server %p\n", __func__, video_tcp_client_service);
         return -1;
     }
 
