@@ -21,3 +21,9 @@ CONFIG_VFS=y
 # dbg_probe: pre-landed but disabled by default. Enable in menuconfig and tune
 # ports/pins in ap/config/bk7259_ap/usr_dbg_probe_cfg.h when needed.
 CONFIG_DBG_PROBE=n
+CONFIG_QSPI_TEST=y
+CONFIG_QSPI=y
+CONFIG_QSPI_MST_FLASH=n
+CONFIG_QSPI_NAND_FLASH=y
+CONFIG_QSPI_QUAD_WIRE=y
+CONFIG_QSPI_NAND_FLASH_SIZE=0x8000000
