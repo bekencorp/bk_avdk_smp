@@ -34,7 +34,9 @@ typedef struct {
 #define timer_hal_enable_interrupt(hal, chan) timer_ll_enable_interrupt((hal)->hw, chan)
 #define timer_hal_disable_interrupt(hal, chan) timer_ll_disable_interrupt((hal)->hw, chan)
 #define timer_hal_get_interrupt_status(hal) timer_ll_get_interrupt_status((hal)->hw)
+#define timer_hal_get_group_interrupt_status(hal, group) timer_ll_get_group_interrupt_status((hal)->hw, group)
 #define timer_hal_clear_interrupt_status(hal, status) timer_ll_clear_interrupt_status((hal)->hw, status)
+#define timer_hal_clear_group_interrupt_status(hal, group, status) timer_ll_clear_group_interrupt_status((hal)->hw, group, status)
 #define timer_hal_clear_chan_interrupt_status(hal, chan) timer_ll_clear_chan_interrupt_status((hal)->hw, chan)
 #define timer_hal_is_interrupt_triggered(hal, chan, status) timer_ll_is_interrupt_triggered((hal)->hw, (chan), (status))
 #define timer_hal_reset_config_to_default(hal, chan) timer_ll_reset_config_to_default((hal)->hw, (chan))
@@ -52,6 +54,7 @@ bk_err_t timer_hal_start_common(timer_hal_t *hal, timer_id_t chan);
 bk_err_t timer_hal_stop_common(timer_hal_t *hal, timer_id_t chan);
 uint32_t timer_hal_get_count(timer_hal_t *hal, timer_id_t chan);
 
+uint32_t timer_hal_get_counter_freq_khz(void);
 uint32_t timer_hal_cal_end_count(timer_id_t chan, uint64_t time, uint32_t div, timer_value_unit_t unit_type);
 void timer_hal_us_init(void);
 void timer_hal_delay_us(uint32_t us);

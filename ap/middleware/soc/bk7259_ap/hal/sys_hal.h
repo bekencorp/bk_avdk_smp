@@ -152,6 +152,7 @@ int32 sys_hal_rosc_calibration(uint32_t rosc_cali_mode, uint32_t cali_interval);
 int sys_hal_rosc_test_mode(bool enabled);
 int32 sys_hal_bandgap_cali_set(uint32_t value);//increase or decrease the dvdddig voltage
 uint32_t sys_hal_bandgap_cali_get();
+pm_cpu_freq_e sys_hal_get_cpu_bus_freq(void);
 bk_err_t sys_hal_switch_cpu_bus_freq(pm_cpu_freq_e cpu_bus_freq);
 bk_err_t sys_hal_core_bus_clock_ctrl(uint32_t cksel_core, uint32_t ckdiv_core,uint32_t ckdiv_bus, uint32_t ckdiv_cpu0,uint32_t ckdiv_cpu1);
 bk_err_t sys_hal_cpu_freq_dump();

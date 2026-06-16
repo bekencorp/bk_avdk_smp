@@ -171,6 +171,28 @@ static inline void timer_ll_clear_chan_interrupt_status(timer_hw_t *hw, uint32_t
                 timer_ll_get_chan_interrupt_status(hw, chan));
 }
 
+static inline uint32_t timer_ll_get_group_interrupt_status(timer_hw_t *hw, uint32_t group)
+{
+    uint32_t status = 0;
+
+    status |= hw->group[group].ctrl.timer0_int_en << 0;
+    status |= hw->group[group].ctrl.timer1_int_en << 1;
+    status |= hw->group[group].ctrl.timer2_int_en << 2;
+
+    return status;
+}
+
+static inline void timer_ll_clear_group_interrupt_status(timer_hw_t *hw, uint32_t group, uint32_t status)
+{
+    uint32_t chan_base = group * SOC_TIMER_CHAN_NUM_PER_GROUP;
+
+    for (int i = 0; i < SOC_TIMER_CHAN_NUM_PER_GROUP; i++) {
+        if (status & BIT(i)) {
+            timer_ll_clear_chan_interrupt_status(hw, chan_base + i);
+        }
+    }
+}
+
 static inline uint32_t timer_ll_get_interrupt_status(timer_hw_t *hw)
 {
     uint32_t bit_pos = 0;

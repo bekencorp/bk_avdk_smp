@@ -23,6 +23,7 @@
 #include "clock_driver.h"
 #include "power_driver.h"
 #include <driver/int.h>
+#include <modules/pm.h>
 #include "sys_driver.h"
 #include "timer_driver.h"
 
@@ -63,6 +64,11 @@ static inline uint32_t timer_id_to_hw_chan(timer_id_t timer_id)
 {
     // TIMER_ID12-17 map to hardware channel 0-5 (timer_id - 12)
     return timer_id - TIMER_ID12;
+}
+
+static inline timer_id_t timer_hw_chan_to_id(uint32_t hw_chan)
+{
+    return (timer_id_t)(TIMER_ID12 + hw_chan);
 }
 
 // On AP side, only TIMER_ID12-17 are supported
@@ -135,23 +141,15 @@ static void timer_clock_enable(timer_id_t id)
 {
 	uint32_t group_index = 0;
 	uint32_t hw_chan = timer_id_to_hw_chan(id);
-	uint32_t reg_val = 0;
-	uint32_t reg_addr = SOC_SYS_AHBP_REG_BASE + (0xA << 2);  // Register 0xA at offset 0x28
 
 	group_index = hw_chan / SOC_TIMER_CHAN_NUM_PER_GROUP;
 	switch(group_index)
 	{
 		case 0:
-			// Set bit[23] of register 0xA to 1 (TIMER4_CKEN) - force write
-			reg_val = REG_READ(reg_addr);
-			reg_val |= BIT(23);
-			REG_WRITE(reg_addr, reg_val);
+			bk_pm_clock_ctrl(PM_CLK_ID_TIMER4, PM_CLK_CTRL_PWR_UP);
 			break;
 		case 1:
-			// Set bit[24] of register 0xA to 1 (TIMER5_CKEN) - force write
-			reg_val = REG_READ(reg_addr);
-			reg_val |= BIT(24);
-			REG_WRITE(reg_addr, reg_val);
+			bk_pm_clock_ctrl(PM_CLK_ID_TIMER5, PM_CLK_CTRL_PWR_UP);
 			break;
 		default:
 			break;
@@ -162,23 +160,15 @@ static void timer_clock_disable(timer_id_t id)
 {
 	uint32_t group_index = 0;
 	uint32_t hw_chan = timer_id_to_hw_chan(id);
-	uint32_t reg_val = 0;
-	uint32_t reg_addr = SOC_SYS_AHBP_REG_BASE + (0xA << 2);  // Register 0xA at offset 0x28
 
 	group_index = hw_chan / SOC_TIMER_CHAN_NUM_PER_GROUP;
 	switch(group_index)
 	{
 		case 0:
-			// Clear bit[23] of register 0xA to 0 (TIMER4_CKEN) - force write
-			reg_val = REG_READ(reg_addr);
-			reg_val &= ~BIT(23);
-			REG_WRITE(reg_addr, reg_val);
+			bk_pm_clock_ctrl(PM_CLK_ID_TIMER4, PM_CLK_CTRL_PWR_DOWN);
 			break;
 		case 1:
-			// Clear bit[24] of register 0xA to 0 (TIMER5_CKEN) - force write
-			reg_val = REG_READ(reg_addr);
-			reg_val &= ~BIT(24);
-			REG_WRITE(reg_addr, reg_val);
+			bk_pm_clock_ctrl(PM_CLK_ID_TIMER5, PM_CLK_CTRL_PWR_DOWN);
 			break;
 		default:
 			break;
@@ -322,8 +312,6 @@ static void timer_unregister_lvsleep_cb(uint32_t group_id)
 }
 #endif
 
-static void timer_isr(void) __BK_SECTION(".itcm");
-
 bk_err_t bk_timer_driver_init(void)
 {
     if (s_timer_driver_is_init) {
@@ -364,8 +352,8 @@ bk_err_t bk_timer_driver_deinit(void)
     }
 #endif
 
-    for (int chan = 0; chan < SOC_TIMER_CHAN_NUM_PER_UNIT; chan++) {
-        timer_chan_deinit_common(chan);
+    for (timer_id_t id = TIMER_ID12; id <= TIMER_ID17; id++) {
+        timer_chan_deinit_common(id);
     }
 
     s_timer_driver_is_init = false;
@@ -558,43 +546,42 @@ uint32_t timer_clear_isr_status(void)
 	return int_status;
 }
 
-static void timer_isr(void)
+/* GCC 14+ requires general-regs-only for interrupt handlers when FPU is enabled. */
+#pragma GCC push_options
+#pragma GCC target("general-regs-only")
+
+static void timer_group_isr(uint32_t group)
 {
     uint32_t int_status;
     timer_hal_t *hal = &s_timer.hal;
+    uint32_t chan_base = group * SOC_TIMER_CHAN_NUM_PER_GROUP;
 
-    int_status = timer_clear_isr_status();
+    int_status = timer_hal_get_group_interrupt_status(hal, group);
+    timer_hal_clear_group_interrupt_status(hal, group, int_status);
 
-#if (SOC_TIMER_GROUP_NUM > 1)
-     for(int chan = 0; chan < SOC_TIMER_CHAN_NUM_PER_GROUP; chan++) {
-#else
-    for(int chan = 0; chan < SOC_TIMER_CHAN_NUM_PER_UNIT; chan++) {
-#endif
-        if(timer_hal_is_interrupt_triggered(hal, chan, int_status)) {
-            if(s_timer_isr[chan]) {
-                s_timer_isr[chan](chan);
+    for (int i = 0; i < SOC_TIMER_CHAN_NUM_PER_GROUP; i++) {
+        if (int_status & BIT(i)) {
+            uint32_t hw_chan = chan_base + i;
+            if (s_timer_isr[hw_chan]) {
+                s_timer_isr[hw_chan](timer_hw_chan_to_id(hw_chan));
             }
         }
     }
+}
+
+static void timer_isr(void)
+{
+    timer_group_isr(0);
 }
 
 #if (SOC_TIMER_GROUP_NUM > 1)
 static void timer1_isr(void)
 {
-    uint32_t int_status;
-    timer_hal_t *hal = &s_timer.hal;
-
-    int_status = timer_clear_isr_status();
-
-    for(int chan = SOC_TIMER_CHAN_NUM_PER_GROUP; chan < SOC_TIMER_CHAN_NUM_PER_UNIT; chan++) {
-        if(timer_hal_is_interrupt_triggered(hal, chan, int_status)) {
-            if(s_timer_isr[chan]) {
-                s_timer_isr[chan](chan);
-            }
-        }
-    }
+    timer_group_isr(1);
 }
 #endif
+
+#pragma GCC pop_options
 
 uint64_t bk_timer_get_time(timer_id_t timer_id, uint32_t div, uint32_t last_count, timer_value_unit_t unit_type)
 {
@@ -614,25 +601,9 @@ uint64_t bk_timer_get_time(timer_id_t timer_id, uint32_t div, uint32_t last_coun
         div = 1;
     }
 
-	// uint32_t group_index = 0;
-	// uint32_t timer_clock = TIMER_SCLK_XTAL;
-
-	// group_index = timer_id / SOC_TIMER_CHAN_NUM_PER_GROUP;
-	// switch(group_index)
-	// {
-	// 	case 0:
-	// 		timer_clock = sys_hal_timer_select_clock_get(SYS_SEL_TIMER0);
-	// 		break;
-	// 	case 1:
-	// 		timer_clock = sys_hal_timer_select_clock_get(SYS_SEL_TIMER1);
-	// 		break;
-	// 	default:
-	// 		break;
-	// }
-
     unit_factor = (unit_type == TIMER_UNIT_MS) ? 1 : 1000;
 
-    current_time = unit_factor * current_count * (uint64_t)div / TIMER_CLOCK_FREQ_XTAL;
+    current_time = unit_factor * current_count * (uint64_t)div / timer_hal_get_counter_freq_khz();
 
 
 

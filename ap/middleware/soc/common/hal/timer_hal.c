@@ -15,44 +15,76 @@
 #include "timer_hal.h"
 #include "timer_ll.h"
 #include "sys_hal.h"
+#include <modules/pm.h>
+#include <soc/bk7259/timer_cap.h>
+#include "sdkconfig.h"
 
 /*
  * timer_s = counter_value * (1 / (freq /div))
+ *
+ * AP TIMER4/5 are on AHBP and count at bus clock (not CP TIMER0~3 XTAL mux).
  */
+static uint32_t timer_hal_bus_clock_hz(pm_cpu_freq_e cpu_freq)
+{
+	switch (cpu_freq) {
+	case PM_CPU_FRQ_XTAL:
+		return CONFIG_XTAL_FREQ;
+	case PM_CPU_FRQ_60M:
+		return 60000000U;
+	case PM_CPU_FRQ_80M:
+		return 80000000U;
+	case PM_CPU_FRQ_120M:
+		return 120000000U;
+	case PM_CPU_FRQ_160M:
+		return 160000000U;
+	case PM_CPU_FRQ_240M:
+		return 120000000U;
+	case PM_CPU_FRQ_320M:
+		return 160000000U;
+	case PM_CPU_FRQ_480M:
+		return 240000000U;
+	case PM_CPU_FRQ_HIGHEST:
+	case PM_CPU_FRQ_DEFAULT:
+	default:
+		return 160000000U;
+	}
+}
+
+uint32_t timer_hal_get_counter_freq_khz(void)
+{
+	pm_cpu_freq_e cpu_freq = bk_pm_current_max_cpu_freq_get();
+
+	if (cpu_freq == PM_CPU_FRQ_XTAL || cpu_freq == PM_CPU_FRQ_DEFAULT) {
+		pm_cpu_freq_e hw_freq = sys_hal_get_cpu_bus_freq();
+		if (hw_freq != PM_CPU_FRQ_XTAL) {
+			cpu_freq = hw_freq;
+		} else {
+			cpu_freq = (pm_cpu_freq_e)CONFIG_PM_CPU_FRQ_HIGHEST;
+		}
+	}
+
+	return timer_hal_bus_clock_hz(cpu_freq) / 1000U;
+}
+
 uint32_t timer_hal_cal_end_count(timer_id_t chan, uint64_t time, uint32_t div, timer_value_unit_t unit_type)
 {
-	if (div == 0) {
-		div = 1;
-	}
+	uint32_t counter_freq_khz;
 	uint64_t value = 0;
 	uint16_t unit_factor = 1;
 
-	unit_factor = (unit_type == TIMER_UNIT_MS) ? 1 : 1000;
+	(void)chan;
 
-	// uint32_t group_index = 0;
-	uint32_t timer_clock = TIMER_SCLK_XTAL;
-
-	// group_index = chan / SOC_TIMER_CHAN_NUM_PER_GROUP;
-	// switch(group_index)
-	// {
-	// 	case 0:
-	// 		timer_clock = sys_hal_timer_select_clock_get(SYS_SEL_TIMER0);
-	// 		break;
-	// 	case 1:
-	// 		timer_clock = sys_hal_timer_select_clock_get(SYS_SEL_TIMER1);
-	// 		break;
-	// 	default:
-	// 		break;
-	// }
-
-	if(timer_clock == TIMER_SCLK_XTAL) {
-		value = time * TIMER_CLOCK_FREQ_XTAL / unit_factor / div;
-	} else {
-		value = time * TIMER_CLOCK_FREQ_32K / unit_factor / div;
+	if (div == 0) {
+		div = 1;
 	}
 
-	if (value > 0xffffffff)
+	unit_factor = (unit_type == TIMER_UNIT_MS) ? 1 : 1000;
+	counter_freq_khz = timer_hal_get_counter_freq_khz();
+	value = time * counter_freq_khz / unit_factor / div;
+
+	if (value > 0xffffffff) {
 		value = 0xffffffff;
+	}
 
 	return (uint32_t)value;
 }

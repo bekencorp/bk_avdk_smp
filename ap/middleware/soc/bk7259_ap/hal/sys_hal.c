@@ -559,6 +559,12 @@ bk_err_t sys_hal_switch_cpu_bus_freq_low_to_high(pm_cpu_freq_e cpu_bus_freq)
 }
 
 static pm_cpu_freq_e s_pre_cpu_freq = PM_CPU_FRQ_XTAL;
+
+pm_cpu_freq_e sys_hal_get_cpu_bus_freq(void)
+{
+	return s_pre_cpu_freq;
+}
+
 bk_err_t sys_hal_switch_cpu_bus_freq(pm_cpu_freq_e cpu_bus_freq)
 {
 	bk_err_t ret = BK_OK;
