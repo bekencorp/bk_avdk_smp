@@ -527,16 +527,19 @@ void sys_hal_enter_cpu_wfi()
 		bk_sys_sw_regs_get_pm_shared_info(&shared_info);
 		if(shared_info.pm_cp0_sleep_state == 0x1)
 		{
-			volatile uint32_t int_state;
+			volatile uint32_t int_state0_31;
+			volatile uint32_t int_state32_63;
 			uint32_t systick_ctrl_value = 0;
 
 			systick_ctrl_value = portNVIC_SYSTICK_CTRL_REG;
 			//portNVIC_SYSTICK_CTRL_REG = 0;
 
-			int_state = sys_ahbp_ll_get_reg10_value();
+			int_state0_31 = sys_ahbp_ll_get_reg10_value();
+			int_state32_63 = sys_ahbp_ll_get_reg11_value();
 
 			/*Disable Int exclude mailbox,mailbox int for wakeup*/
 			sys_ahbp_ll_set_reg10_value(0x0);
+			sys_ahbp_ll_set_reg11_value(0x0);
 
 			__asm volatile( "nop" );
 			__asm volatile( "nop" );
@@ -544,9 +547,10 @@ void sys_hal_enter_cpu_wfi()
 			__asm volatile( "nop" );
 			__asm volatile( "nop" );
 
-			if(check_IRQ_pending()||bk_dma_check_chn_status()||(sys_ll_get_cpu1_int_0_31_status_value()||(sys_ll_get_cpu1_int_32_63_status_value()))||(portNVIC_INT_CTRL_REG&portNVIC_SYSTICKSET_BIT))
+			if(check_IRQ_pending()||bk_dma_check_chn_status()||(sys_ahbp_ll_get_reg18_value()||(sys_ahbp_ll_get_reg19_value()))||(portNVIC_INT_CTRL_REG&portNVIC_SYSTICKSET_BIT))
 			{
-				sys_ahbp_ll_set_reg10_value(int_state);
+				sys_ahbp_ll_set_reg10_value(int_state0_31);
+				sys_ahbp_ll_set_reg11_value(int_state32_63);
 				portNVIC_SYSTICK_CTRL_REG = systick_ctrl_value;
 				return;
 			}
@@ -573,7 +577,8 @@ void sys_hal_enter_cpu_wfi()
 			bk_cpu_hp_online(CPU1_CORE_ID);
 #endif
 
-			sys_ahbp_ll_set_reg10_value(int_state);
+			sys_ahbp_ll_set_reg10_value(int_state0_31);
+			sys_ahbp_ll_set_reg11_value(int_state32_63);
 		}
 		else
 		{
