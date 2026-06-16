@@ -842,6 +842,7 @@ const phy_os_variable_t g_phy_os_variable = {
     ._pm_power_module_state_on      = PM_POWER_MODULE_STATE_ON,
     ._pm_power_module_state_off     = PM_POWER_MODULE_STATE_OFF,
     ._pm_power_module_state_none    = PM_POWER_MODULE_STATE_NONE,
+    ._pm_power_domain_wrls          = POWER_DOMAIN_NAME_WRLP_ENCP,
 
     ._ADC_TEMP_SENSER_CHANNEL       = ADC_TEMP_SENSOR_CHANNEL,
     ._ADC_VOLT_SENSER_CHANNEL       = ADC_VOLT_SENSER_CHANNEL,

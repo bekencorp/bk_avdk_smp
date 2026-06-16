@@ -237,6 +237,7 @@ typedef struct {
     uint32_t _pm_power_module_state_on;
     uint32_t _pm_power_module_state_off;
     uint32_t _pm_power_module_state_none;
+    uint32_t _pm_power_domain_wrls;
     uint32_t _ADC_TEMP_SENSER_CHANNEL;
     uint32_t _ADC_VOLT_SENSER_CHANNEL;
     uint32_t _adc_temp_lsb_per_10degree;
