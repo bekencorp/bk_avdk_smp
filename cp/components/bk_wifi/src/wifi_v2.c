@@ -3816,7 +3816,7 @@ bk_err_t bk_wifi_set_tx_raw_timeout(uint16_t timeout_ms)
 bk_err_t bk_wifi_set_wifi_media_mode(bool flag)
 {
 	g_wifi_mac_config.media_flag = flag;
-
+	BK_LOGI(NULL,"bk_wifi_set_wifi_media_mode %d\r\n",flag);
 	return BK_OK;
 }
 
