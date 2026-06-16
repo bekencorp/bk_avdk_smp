@@ -52,20 +52,20 @@ if (CONFIG_BLUETOOTH_AP)
 			if(CONFIG_BT)
 				if (CONFIG_BT_AT_ENABLE)
 					list(APPEND srcs
-						"api/bk_at_bt.c")
+						"at/bk_at_bt.c")
 				endif()#CONFIG_BT_AT_ENABLE
 			endif()#CONFIG_BT
 
 			if (CONFIG_BLE_AT_ENABLE)
 				list(APPEND srcs
-					"api/bk_at_ble.c"
-					"api/bk_at_gatt/bk_at_dm_performance_test.c"
+					"at/bk_at_ble.c"
+					"at/gatt/bk_at_dm_performance_test.c"
 				)
-				# api/bk_at_gatt/dm_*.{c,h} have been replaced with shim headers
+				# at/gatt/dm_*.{c,h} have been replaced with shim headers
 				# that forward bk_at_dm_* identifiers to the public bt_dm/ble/gatt
 				# implementation. AT-layer translation units include the shim
-				# headers directly via api/bk_at_gatt path.
-				list(APPEND incs api/bk_at_gatt)
+				# headers directly via at/gatt path.
+				list(APPEND incs at/gatt)
 			endif()#CONFIG_BLE_AT_ENABLE
 
 			set(components ../../components)
@@ -110,6 +110,7 @@ if (CONFIG_BLUETOOTH_AP)
 		list(APPEND incs
 			include
 			include/private
+			at
 			.
 			)
 

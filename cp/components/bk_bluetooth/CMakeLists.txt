@@ -43,7 +43,7 @@ if(CONFIG_AT AND NOT CONFIG_AT_CMD)
 		if (CONFIG_BT_AT_ENABLE)
 			if(NOT CONFIG_BTDM_CONTROLLER_ONLY)
 				list(APPEND srcs
-					"api/bk_at_bt.c")
+					"at/bk_at_bt.c")
 			endif()#NOT CONFIG_BTDM_CONTROLLER_ONLY
 		endif()#CONFIG_BT_AT_ENABLE
 	endif()#CONFIG_BT
@@ -51,8 +51,8 @@ if(CONFIG_AT AND NOT CONFIG_AT_CMD)
 	if (CONFIG_BLE_AT_ENABLE)
 		if(NOT CONFIG_BTDM_CONTROLLER_ONLY)
 			list(APPEND srcs
-				"api/bk_at_ble.c"
-				"api/ble_at_gatt.c")
+				"at/bk_at_ble.c"
+				"at/ble_at_gatt.c")
 		endif()#NOT CONFIG_BTDM_CONTROLLER_ONLY
 	endif()#CONFIG_BLE_AT_ENABLE
 
@@ -96,6 +96,7 @@ endif()#CONFIG_AT
     list(APPEND incs
         include
 		include/private
+		at
 		.
         )
 

@@ -24,7 +24,7 @@
 #include "bt_ipc_core.h"
 #endif
 #if (CONFIG_BLE_AT_ENABLE)
-#include "../include/private/bk_at_ble.h"
+#include "bk_at_ble.h"
 #endif
 #include <os/mem.h>
 

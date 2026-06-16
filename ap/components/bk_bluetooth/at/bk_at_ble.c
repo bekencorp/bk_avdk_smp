@@ -41,12 +41,12 @@
 #include "components/bluetooth/bk_dm_gap_ble.h"
 #include "../bt/ble_boarding/ble_boarding.h"
 
-#include "bk_at_gatt/dm_gap_utils.h"
-#include "bk_at_gatt/dm_gatt_connection.h"
-#include "bk_at_gatt/dm_gatts.h"
-#include "bk_at_gatt/dm_gattc.h"
-#include "bk_at_gatt/dm_gatt.h"
-#include "bk_at_gatt/bk_at_dm_performance_test.h"
+#include "gatt/dm_gap_utils.h"
+#include "gatt/dm_gatt_connection.h"
+#include "gatt/dm_gatts.h"
+#include "gatt/dm_gattc.h"
+#include "gatt/dm_gatt.h"
+#include "gatt/bk_at_dm_performance_test.h"
 
 #if CONFIG_MBEDTLS
 #include "mbedtls/aes.h"

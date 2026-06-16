@@ -19,7 +19,7 @@
 #include "bluetooth_internal.h"
 #include <modules/pm.h>
 #if (CONFIG_BLE_AT_ENABLE)
-#include "../include/private/bk_at_ble.h"
+#include "bk_at_ble.h"
 #endif
 #if CONFIG_BLUETOOTH_SUPPORT_IPC
 #include "bt_ipc_core.h"
