@@ -21,8 +21,6 @@ extern "C" {
 #include <common/bk_typedef.h>
 #include <common/sys_config.h>
 
-#define sddev_control(handle, cmd, param)      ddev_control(handle, cmd, param)
-
 #define DD_HANDLE_MAGIC_WORD         (0xA5A50000)
 #define DD_HANDLE_MAGIC_MASK         (0xFFFF0000)
 #define DD_HANDLE_ID_MASK            (0x0000FFFF)
@@ -92,7 +90,6 @@ typedef enum _dd_device_type_
     DD_DEV_TYPE_RF,
     DD_DEV_TYPE_END
 } dd_device_type;
-UINT32 ddev_control(DD_HANDLE handle, UINT32 cmd, VOID *param);
 
 #ifdef __cplusplus
 }

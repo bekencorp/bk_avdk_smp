@@ -27,9 +27,6 @@ extern "C" {
 #define DD_HANDLE_UNVALID            ((UINT32)-1)
 #define DD_ID_UNVALID                ((UINT32)-1)
 
-#define sddev_register_dev(handle, ops)  ddev_register_dev(handle, ops)
-#define sddev_unregister_dev(handle)     ddev_unregister_dev(handle)
-
 typedef struct _dd_operations_
 {
     UINT32 (*open) (UINT32 op_flag);
@@ -44,19 +41,6 @@ typedef enum _DD_OPEN_METHOD_
     DD_OPEN_METHOD_ONE_TIME = 0,	// open one time only
     DD_OPEN_METHOD_MUTI_TIME	    // open multi times
 } DD_OPEN_METHOD;
-
- 
-/*******************************************************************************
-* Function Declarations
-*******************************************************************************/
-UINT32 drv_model_init(void);
-UINT32 drv_model_uninit(void);
-DD_HANDLE ddev_open(dd_device_type dev, UINT32 *status, UINT32 op_flag);
-UINT32 ddev_close(DD_HANDLE handle);
-UINT32 ddev_read(DD_HANDLE handle, char *user_buf , UINT32 count, UINT32 op_flag);
-UINT32 ddev_write(DD_HANDLE handle, char *user_buf , UINT32 count, UINT32 op_flag);
-UINT32 ddev_register_dev(DD_HANDLE handle, DD_OPERATIONS *optr);
-UINT32 ddev_unregister_dev(DD_HANDLE handle);
 
 #ifdef __cplusplus
 }

@@ -13,7 +13,6 @@
 // limitations under the License.
 
 #include <common/bk_include.h>
-#include "bk_drv_model.h"
 #include "bk_sys_ctrl.h"
 #include "sys_driver.h"
 #include <driver/int.h>
@@ -291,8 +290,6 @@ int driver_init(void) {
 		return BK_FAIL;
 	}
 #endif
-
-	drv_model_init();
 
 #if CONFIG_TIMER
 	bk_timer_driver_init();

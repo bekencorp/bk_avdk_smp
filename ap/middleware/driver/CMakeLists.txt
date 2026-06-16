@@ -72,7 +72,6 @@ endif()
 
 	list(APPEND srcs
 		common/driver.c
-		common/drv_model.c
 		#timer/timer_driver.c
 		#sys_ctrl/sys_ctrl.c
 		sys_ctrl/sys_wifi_driver.c
