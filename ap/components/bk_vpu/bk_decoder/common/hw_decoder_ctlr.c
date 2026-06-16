@@ -107,6 +107,17 @@ static avdk_err_t hw_decoder_hw_deinit(void)
 	return AVDK_ERR_OK;
 }
 
+static void hw_decoder_ctlr_flush_queue(void)
+{
+	hw_decoder_msg_t msg;
+
+	while (rtos_pop_from_queue(&g_hw_decoder_ctlr->msg_queue, &msg, 0) == kNoErr) {
+		if (msg.sem) {
+			rtos_set_semaphore(msg.sem);
+		}
+	}
+}
+
 static void hw_decoder_task(void *arg)
 {
 	hw_decoder_msg_t msg;
@@ -116,6 +127,12 @@ static void hw_decoder_task(void *arg)
 
 	while (1) {
 		if (rtos_pop_from_queue(&g_hw_decoder_ctlr->msg_queue, &msg, BEKEN_WAIT_FOREVER) == kNoErr) {
+			if (msg.type == HW_DECODER_MSG_EXIT) {
+				hw_decoder_ctlr_flush_queue();
+				rtos_delete_thread(NULL);
+				return;
+			}
+
 			if (msg.callback) {
 				ret = msg.callback(msg.param);
 				if (ret != AVDK_ERR_OK) {
@@ -191,10 +208,20 @@ static avdk_err_t hw_decoder_ctlr_destroy(void)
 	}
 
 	if (g_hw_decoder_ctlr->task) {
-		rtos_delete_thread(&g_hw_decoder_ctlr->task);
+		hw_decoder_msg_t exit_msg = {
+			.type = HW_DECODER_MSG_EXIT,
+		};
+
+		hw_decoder_ctlr_flush_queue();
+
+		if (rtos_push_to_queue(&g_hw_decoder_ctlr->msg_queue, &exit_msg, BEKEN_WAIT_FOREVER) != kNoErr) {
+			LOGE("Push exit message failed\r\n");
+		}
+		rtos_thread_join(&g_hw_decoder_ctlr->task);
 		g_hw_decoder_ctlr->task = NULL;
 	}
 
+	hw_decoder_ctlr_flush_queue();
 	rtos_deinit_queue(&g_hw_decoder_ctlr->msg_queue);
 	rtos_deinit_mutex(&g_hw_decoder_ctlr->mutex);
 	os_free(g_hw_decoder_ctlr);

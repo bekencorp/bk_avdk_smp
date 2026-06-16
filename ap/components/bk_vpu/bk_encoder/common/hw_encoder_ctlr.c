@@ -153,6 +153,18 @@ static avdk_err_t hw_encoder_hw_deinit(void)
     return AVDK_ERR_OK;
 }
 
+/* Drop all pending queue messages; wake waiters blocked on msg.sem */
+static void hw_encoder_ctlr_flush_queue(void)
+{
+    hw_encoder_msg_t msg;
+
+    while (rtos_pop_from_queue(&g_hw_encoder_ctlr->msg_queue, &msg, 0) == kNoErr) {
+        if (msg.sem) {
+            rtos_set_semaphore(msg.sem);
+        }
+    }
+}
+
 /* Worker task: dequeue and run encode callbacks */
 static void hw_encoder_task(void *arg)
 {
@@ -163,6 +175,12 @@ static void hw_encoder_task(void *arg)
 
     while (1) {
         if (rtos_pop_from_queue(&g_hw_encoder_ctlr->msg_queue, &msg, BEKEN_WAIT_FOREVER) == kNoErr) {
+            if (msg.type == HW_ENCODER_MSG_EXIT) {
+                hw_encoder_ctlr_flush_queue();
+                rtos_delete_thread(NULL);
+                return;
+            }
+
 			if (msg.callback) {
 				ret = msg.callback(msg.param);
 				if (ret != AVDK_ERR_OK) {
@@ -243,12 +261,22 @@ static avdk_err_t hw_encoder_ctlr_destroy(void)
         return AVDK_ERR_OK;
     }
 
-    /* Stop worker */
+    /* Stop worker: flush pending msgs, notify exit, then wait for thread termination */
     if (g_hw_encoder_ctlr->task) {
-        rtos_delete_thread(&g_hw_encoder_ctlr->task);
+        hw_encoder_msg_t exit_msg = {
+            .type = HW_ENCODER_MSG_EXIT,
+        };
+
+        hw_encoder_ctlr_flush_queue();
+
+        if (rtos_push_to_queue(&g_hw_encoder_ctlr->msg_queue, &exit_msg, BEKEN_WAIT_FOREVER) != kNoErr) {
+            LOGE("Push exit message failed\r\n");
+        }
+        rtos_thread_join(&g_hw_encoder_ctlr->task);
         g_hw_encoder_ctlr->task = NULL;
     }
 
+    hw_encoder_ctlr_flush_queue();
     rtos_deinit_queue(&g_hw_encoder_ctlr->msg_queue);
 
     rtos_deinit_mutex(&g_hw_encoder_ctlr->mutex);

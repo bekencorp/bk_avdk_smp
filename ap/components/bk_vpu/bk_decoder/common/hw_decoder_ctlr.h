@@ -31,6 +31,7 @@ typedef enum {
 	HW_DECODER_MSG_DECODE,
 	HW_DECODER_MSG_CONFIG,
 	HW_DECODER_MSG_RESET,
+	HW_DECODER_MSG_EXIT,
 } hw_decoder_msg_type_t;
 
 typedef avdk_err_t (*hw_decoder_msg_cb_t)(void *param);

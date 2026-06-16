@@ -31,6 +31,7 @@ typedef enum {
     HW_ENCODER_MSG_ENCODE,
     HW_ENCODER_MSG_CONFIG,
     HW_ENCODER_MSG_RESET,
+    HW_ENCODER_MSG_EXIT,
 } hw_encoder_msg_type_t;
 
 // Hardware encoder message callback
