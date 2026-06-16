@@ -401,13 +401,19 @@ bk_err_t bk_gpio_set_config(gpio_id_t gpio_id, const gpio_config_t *config)
 	GPIO_RETURN_ON_INVALID_IO_MODE(config->io_mode);
 	GPIO_RETURN_ON_INVALID_PULL_MODE(config->pull_mode);
 
+	bk_err_t ret = BK_OK;
+
 	switch (config->io_mode) {
 	case GPIO_OUTPUT_ENABLE:
-		bk_gpio_set_gpio_func(gpio_id, FUNC_CODE_OUTPUT);
+		/* enable_output/enable_input validate the pad against the
+		 * usr_gpio_cfg.h table (second_func_dev/time_sharing_func_dev)
+		 * before applying the func code, so reuse them here instead of
+		 * calling bk_gpio_set_gpio_func directly. */
+		ret = bk_gpio_enable_output(gpio_id);
 		break;
 
 	case GPIO_INPUT_ENABLE:
-		bk_gpio_set_gpio_func(gpio_id, FUNC_CODE_INPUT);
+		ret = bk_gpio_enable_input(gpio_id);
 		break;
 
 	case GPIO_IO_DISABLE:
@@ -416,6 +422,10 @@ bk_err_t bk_gpio_set_config(gpio_id_t gpio_id, const gpio_config_t *config)
 
 	default:
 		break;
+	}
+
+	if (ret != BK_OK) {
+		return ret;
 	}
 
 	switch (config->pull_mode) {
