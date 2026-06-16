@@ -16,9 +16,7 @@
 
 #include "os/os.h"
 #include "components/bk_decode/bk_jpeg_decode_types.h"
-#include "components/bk_frame_buffer.h"
 #include "modules/vcdec/vcdec_jpeg_types.h"
-#include "modules/vcdec/vcdec_jpeg_api.h"
 #include "bk_flexa_bond_types.h"
 
 #ifdef __cplusplus
@@ -58,21 +56,6 @@ typedef struct {
     bk_jpeg_decode_flexa_config_t config;
     bk_jpeg_decode_ctlr_t ops;
 } private_jpeg_decode_flexa_ctlr_t;
-
-/*
- * Per-instance allocator wired into vcdec_jpeg via
- * vcdec_jpeg_memalloc_register(). Decoder output / line buffers live in the
- * uncoded frame-buffer slab, matching the H.264 decoder ctlr's contract.
- */
-static inline void *jpeg_decode_mem_malloc(uint32_t size)
-{
-    return bk_frame_buffer_malloc(MEM_SLAB_HEAP_UNCODED, size);
-}
-
-static inline void jpeg_decode_mem_free(void *ptr)
-{
-    bk_frame_buffer_free(ptr);
-}
 
 #ifdef __cplusplus
 }

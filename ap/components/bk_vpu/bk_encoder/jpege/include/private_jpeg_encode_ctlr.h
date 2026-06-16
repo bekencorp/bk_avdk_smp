@@ -24,8 +24,7 @@ extern "C" {
 
 typedef struct {
 	bk_jpeg_encode_frame_config_t config;
-	vcenc_handle               handle;
-	vcenc_jpeg_frame_config_t  frame_cfg;
+	jpeg_enc_param_t jpeg_param;
 	vcenc_ret_e last_ret;
 	uint8_t opened;
 
@@ -41,8 +40,7 @@ typedef struct {
 
 typedef struct {
 	bk_jpeg_encode_hw_flexa_config_t config;
-	vcenc_handle               handle;
-	vcenc_jpeg_frame_config_t  frame_cfg;
+	jpeg_enc_param_t jpeg_param;
 	vcenc_ret_e last_ret;
 	uint8_t opened;
 
@@ -59,8 +57,7 @@ typedef struct {
 
 typedef struct {
 	bk_jpeg_encode_sw_flexa_config_t config;
-	vcenc_handle               handle;
-	vcenc_jpeg_frame_config_t  frame_cfg;
+	jpeg_enc_param_t jpeg_param;
 	vcenc_ret_e last_ret;
 	uint8_t opened;
 

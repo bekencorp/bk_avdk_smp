@@ -51,8 +51,8 @@ static void jpeg_hw_flexa_complete(private_jpeg_encode_hw_flexa_ctlr_t *ctrl,
 		};
 		ctrl->config.outbuf_complete(&info);
 	}
-	if (buffer == (void *)(uintptr_t)ctrl->frame_cfg.out_buffer)
-		ctrl->frame_cfg.out_buffer = 0;
+	if (buffer == (void *)(uintptr_t)ctrl->jpeg_param.out_buffer)
+		ctrl->jpeg_param.out_buffer = 0;
 }
 
 static void jpeg_hw_flexa_done_cb(void *buffer, uint32_t length, uint32_t type,
@@ -76,7 +76,7 @@ static avdk_err_t jpeg_hw_flexa_msg_callback(void *param)
 	if (ctrl == NULL)
 		return AVDK_ERR_INVAL;
 
-	ctrl->last_ret = vcenc_jpeg_encode_frame(ctrl->handle, &ctrl->frame_cfg);
+	ctrl->last_ret = vcenc_jpeg_encode_frame(&ctrl->jpeg_param);
 	if (ctrl->bond != NULL && ctrl->bond->frame_done != NULL) {
 		ctrl->bond->frame_done(jpeg_hw_flexa_vcenc_ret_to_avdk(ctrl->last_ret) == AVDK_ERR_OK ?
 				       BK_OK : BK_FAIL,
@@ -102,18 +102,18 @@ static void jpeg_hw_flexa_encoder_entry(void *arg)
 		if (!ctrl->enc_status)
 			break;
 
-		if (ctrl->frame_cfg.out_buffer == 0 && ctrl->config.outbuf_malloc != NULL) {
+		if (ctrl->jpeg_param.out_buffer == 0 && ctrl->config.outbuf_malloc != NULL) {
 			void *out = ctrl->config.outbuf_malloc(CONFIG_BK_ENCODER_MJPEG_MAX_OUTPUT_BUFFER,
 							       ctrl->config.outbuf_malloc_args);
 			if (out != NULL) {
-				ctrl->frame_cfg.out_buffer = (uint32_t)(uintptr_t)out;
-				ctrl->frame_cfg.out_len = CONFIG_BK_ENCODER_MJPEG_MAX_OUTPUT_BUFFER;
+				ctrl->jpeg_param.out_buffer = (uint32_t)(uintptr_t)out;
+				ctrl->jpeg_param.out_len = CONFIG_BK_ENCODER_MJPEG_MAX_OUTPUT_BUFFER;
 			}
 		}
 
-		if (ctrl->frame_cfg.out_buffer == 0 || ctrl->frame_cfg.in_buffer == 0) {
+		if (ctrl->jpeg_param.out_buffer == 0 || ctrl->jpeg_param.in_buffer == 0) {
 			LOGE("invalid input/output buffer\r\n");
-			jpeg_hw_flexa_complete(ctrl, (void *)(uintptr_t)ctrl->frame_cfg.out_buffer,
+			jpeg_hw_flexa_complete(ctrl, (void *)(uintptr_t)ctrl->jpeg_param.out_buffer,
 					       0, 0, BK_FAIL);
 			if (ctrl->bond != NULL && ctrl->bond->frame_done != NULL)
 				ctrl->bond->frame_done(BK_FAIL, ctrl->bond);
@@ -131,7 +131,7 @@ static void jpeg_hw_flexa_encoder_entry(void *arg)
 		avdk_err_t ret = hw_encoder_send_msg(&msg, BEKEN_WAIT_FOREVER);
 		if (ret != AVDK_ERR_OK) {
 			LOGE("hw_encoder_send_msg failed: %d\r\n", ret);
-			jpeg_hw_flexa_complete(ctrl, (void *)(uintptr_t)ctrl->frame_cfg.out_buffer,
+			jpeg_hw_flexa_complete(ctrl, (void *)(uintptr_t)ctrl->jpeg_param.out_buffer,
 					       0, 0, BK_FAIL);
 			if (ctrl->bond != NULL && ctrl->bond->frame_done != NULL)
 				ctrl->bond->frame_done(BK_FAIL, ctrl->bond);
@@ -141,16 +141,16 @@ static void jpeg_hw_flexa_encoder_entry(void *arg)
 		ret = rtos_get_semaphore(&ctrl->enc_done_sem, 3000);
 		if (ret != BK_OK) {
 			LOGE("wait encode done failed: %d\r\n", ret);
-			(void)vcenc_jpeg_abort(ctrl->handle);
-			jpeg_hw_flexa_complete(ctrl, (void *)(uintptr_t)ctrl->frame_cfg.out_buffer,
+			(void)vcenc_jpeg_abort(&ctrl->jpeg_param);
+			jpeg_hw_flexa_complete(ctrl, (void *)(uintptr_t)ctrl->jpeg_param.out_buffer,
 					       0, 0, BK_FAIL);
 			if (ctrl->bond != NULL && ctrl->bond->frame_done != NULL)
 				ctrl->bond->frame_done(BK_FAIL, ctrl->bond);
 		}
 	}
 
-	if (ctrl->frame_cfg.out_buffer != 0)
-		jpeg_hw_flexa_complete(ctrl, (void *)(uintptr_t)ctrl->frame_cfg.out_buffer, 0, 0, BK_FAIL);
+	if (ctrl->jpeg_param.out_buffer != 0)
+		jpeg_hw_flexa_complete(ctrl, (void *)(uintptr_t)ctrl->jpeg_param.out_buffer, 0, 0, BK_FAIL);
 
 	rtos_set_semaphore(&ctrl->sem);
 	rtos_delete_thread(NULL);
@@ -182,47 +182,29 @@ static avdk_err_t jpeg_hw_flexa_ctlr_open(bk_jpeg_encode_ctlr_handle_t handle)
 		__containerof(handle, private_jpeg_encode_hw_flexa_ctlr_t, ops);
 	AVDK_RETURN_ON_FALSE(control, AVDK_ERR_INVAL, TAG, "control is NULL");
 
-	vcenc_config_t      common_cfg = {
-		.mode          = VCENC_HW_SLICE_MODE,
-		.timeout_ms    = 0,
-		.frame_done_cb = jpeg_hw_flexa_done_cb,
-		.slice_done_cb = NULL,
-		.args          = control,
-	};
-	vcenc_jpeg_config_t jpeg_cfg = {
-		.width                       = (uint16_t)control->config.width,
-		.height                      = (uint16_t)control->config.height,
-		.in_type                     = jpeg_hw_flexa_map_input_format(control->config.input_format),
-		.input_linebuf_depth         = 1,
-		.input_linebuf_loopback_en   = 1,
-		.input_linebuf_hw_mode_en    = 1,
-		.amount_per_loopback         = control->config.input_flexa_cnt ?
-						  control->config.input_flexa_cnt : 1U,
-	};
+	os_memset(&control->jpeg_param, 0, sizeof(control->jpeg_param));
+	control->jpeg_param.width = (uint16_t)control->config.width;
+	control->jpeg_param.height = (uint16_t)control->config.height;
+	control->jpeg_param.enc_mode = VCENC_HW_SLICE_MODE;
+	control->jpeg_param.in_type = jpeg_hw_flexa_map_input_format(control->config.input_format);
+	control->jpeg_param.in_buffer = control->config.input_buf;
+	control->jpeg_param.in_lines = control->config.input_size;
+	control->jpeg_param.quality = control->config.quality;
+	control->jpeg_param.input_linebuf_depth = 1;
+	control->jpeg_param.input_linebuf_loopback_en = 1;
+	control->jpeg_param.input_linebuf_hw_mode_en = 1;
+	control->jpeg_param.amount_per_loopback = control->config.input_flexa_cnt ?
+						  control->config.input_flexa_cnt : 1U;
+	control->jpeg_param.frame_done_cb = jpeg_hw_flexa_done_cb;
+	control->jpeg_param.args = (uint32_t)(uintptr_t)control;
 
-	os_memset(&control->frame_cfg, 0, sizeof(control->frame_cfg));
-	control->frame_cfg.width      = (uint16_t)control->config.width;
-	control->frame_cfg.height     = (uint16_t)control->config.height;
-	control->frame_cfg.in_buffer  = control->config.input_buf;
-	control->frame_cfg.in_lines   = control->config.input_size;
-	control->frame_cfg.quality    = control->config.quality;
-
-	control->handle = NULL;
-	vcenc_ret_e jr = vcenc_jpeg_init(&control->handle, &common_cfg, &jpeg_cfg);
+	vcenc_ret_e jr = vcenc_jpeg_init(&control->jpeg_param);
 	if (jr != VCENC_OK)
 		return jpeg_hw_flexa_vcenc_ret_to_avdk(jr);
 
-	jr = vcenc_jpeg_memalloc_register(control->handle, hw_encoder_malloc, hw_encoder_free);
+	jr = vcenc_jpeg_open(&control->jpeg_param);
 	if (jr != VCENC_OK) {
-		(void)vcenc_jpeg_deinit(control->handle);
-		control->handle = NULL;
-		return jpeg_hw_flexa_vcenc_ret_to_avdk(jr);
-	}
-
-	jr = vcenc_jpeg_open(control->handle);
-	if (jr != VCENC_OK) {
-		(void)vcenc_jpeg_deinit(control->handle);
-		control->handle = NULL;
+		(void)vcenc_jpeg_deinit(&control->jpeg_param);
 		return jpeg_hw_flexa_vcenc_ret_to_avdk(jr);
 	}
 
@@ -238,8 +220,8 @@ static avdk_err_t jpeg_hw_flexa_ctlr_open(bk_jpeg_encode_ctlr_handle_t handle)
 	if (tr != BK_OK) {
 		control->enc_status = 0;
 		control->opened = 0;
-		(void)vcenc_jpeg_close(control->handle);
-		(void)vcenc_jpeg_deinit(control->handle);
+		(void)vcenc_jpeg_close(&control->jpeg_param);
+		(void)vcenc_jpeg_deinit(&control->jpeg_param);
 		return AVDK_ERR_GENERIC;
 	}
 
@@ -259,8 +241,8 @@ static avdk_err_t jpeg_hw_flexa_ctlr_close(bk_jpeg_encode_ctlr_handle_t handle)
 	rtos_get_semaphore(&control->sem, BEKEN_WAIT_FOREVER);
 
 	if (control->opened) {
-		(void)vcenc_jpeg_close(control->handle);
-		(void)vcenc_jpeg_deinit(control->handle);
+		(void)vcenc_jpeg_close(&control->jpeg_param);
+		(void)vcenc_jpeg_deinit(&control->jpeg_param);
 		control->opened = 0;
 	}
 	return AVDK_ERR_OK;
@@ -289,7 +271,7 @@ static avdk_err_t jpeg_hw_flexa_ctlr_ioctl(bk_jpeg_encode_ctlr_handle_t handle, 
 		if (arg == NULL)
 			return AVDK_ERR_INVAL;
 		control->config.quality = *(uint8_t *)arg;
-		control->frame_cfg.quality = control->config.quality;
+		control->jpeg_param.quality = control->config.quality;
 		return AVDK_ERR_OK;
 	case BK_JPEG_ENCODE_IOCTL_SET_FRAME_READY:
 		rtos_set_semaphore(&control->enc_start_sem);
@@ -304,7 +286,7 @@ static avdk_err_t jpeg_hw_flexa_ctlr_ioctl(bk_jpeg_encode_ctlr_handle_t handle, 
 		}
 		return AVDK_ERR_INVAL;
 	case BK_JPEG_ENCODE_IOCTL_STOP_ENCODE:
-		return jpeg_hw_flexa_vcenc_ret_to_avdk(vcenc_jpeg_abort(control->handle));
+		return jpeg_hw_flexa_vcenc_ret_to_avdk(vcenc_jpeg_abort(&control->jpeg_param));
 	default:
 		return AVDK_ERR_UNSUPPORTED;
 	}
@@ -328,12 +310,12 @@ static avdk_err_t jpeg_hw_flexa_ctlr_encode_frame(bk_jpeg_encode_ctlr_handle_t h
 
 	if (input != NULL) {
 		if (input->pic_buf)
-			control->frame_cfg.in_buffer = input->pic_buf;
+			control->jpeg_param.in_buffer = input->pic_buf;
 		if (input->pic_lines)
-			control->frame_cfg.in_lines = input->pic_lines;
+			control->jpeg_param.in_lines = input->pic_lines;
 		if (input->out_buf) {
-			control->frame_cfg.out_buffer = input->out_buf;
-			control->frame_cfg.out_len = input->out_size;
+			control->jpeg_param.out_buffer = input->out_buf;
+			control->jpeg_param.out_len = input->out_size;
 		}
 	}
 

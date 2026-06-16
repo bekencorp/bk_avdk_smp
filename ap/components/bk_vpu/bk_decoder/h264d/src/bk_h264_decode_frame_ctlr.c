@@ -173,16 +173,6 @@ static avdk_err_t h264_decode_ctlr_decode_frame(bk_h264_decode_ctlr_handle_t han
 	ret = rtos_get_semaphore(&ctrl->decode_done_sem, 2000);
 	if (ret != AVDK_ERR_OK) {
 		LOGE("%s %d rtos_get_semaphore failed: %d\r\n", __func__, __LINE__, ret);
-		/*
-		 * Outer timeout: hw_decoder_task is still running the callback
-		 * which still references caller's input/output buffers. Don't
-		 * let the caller free them while vcdec is DMA'ing. Nudge vcdec
-		 * out of its sem_wait via the SMP-safe abort, then wait forever
-		 * for the callback to finish and post decode_done_sem.
-		 */
-		vcdec_h264_abort(ctrl->vcdec_handle);
-		(void)rtos_get_semaphore(&ctrl->decode_done_sem, BEKEN_WAIT_FOREVER);
-
 		if (ctrl->config.frame_done_cb != NULL) {
 			ctrl->config.frame_done_cb(BK_FAIL, ctrl->config.frame_done_args);
 		}
@@ -213,12 +203,6 @@ static avdk_err_t h264_decode_ctlr_close(bk_h264_decode_ctlr_handle_t handle)
 	AVDK_RETURN_ON_FALSE(ctrl, AVDK_ERR_INVAL, TAG, "control is NULL");
 
 	if (ctrl->vcdec_handle != NULL) {
-		/*
-		 * Abort first so any in-flight vcdec_h264_decode_frame returns
-		 * out of its sem_wait immediately; abort is a no-op when this
-		 * handle is not the active one. Mirrors jpeg ctlr close.
-		 */
-		vcdec_h264_abort(ctrl->vcdec_handle);
 		vcdec_h264_close(ctrl->vcdec_handle);
 	}
 	LOGI("H264 decoder closed\r\n");

@@ -59,8 +59,7 @@ typedef struct
 
 typedef struct
 {
-	vcenc_handle              handle;     /* opaque vcenc session handle */
-	vcenc_h264_frame_config_t frame_cfg;  /* per-frame encode configuration */
+	h264_enc_param_t enc_param;       /* vcenc per-instance params + opaque handle */
 	bool encoder_inited;              /* set after vcenc_h264_init + _open succeed */
 	bool force_idr;                   /* request next frame as IDR */
 
@@ -97,8 +96,7 @@ typedef struct
 
 typedef struct
 {
-	vcenc_handle              handle;
-	vcenc_h264_frame_config_t frame_cfg;
+	h264_enc_param_t enc_param;
 	bool encoder_inited;
 	bool force_idr;
 
@@ -136,8 +134,7 @@ typedef struct
 
 typedef struct
 {
-	vcenc_handle              handle;
-	vcenc_h264_frame_config_t frame_cfg;
+	h264_enc_param_t enc_param;
 	bool encoder_inited;
 	bool force_idr;
 

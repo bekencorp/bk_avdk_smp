@@ -16,26 +16,6 @@ vcdec_ret_e vcdec_jpeg_init(vcdec_handle *handle_p, vcdec_config_t *config);
  * Deinitialize JPEG decoder: frees instance.
  */
 void vcdec_jpeg_deinit(vcdec_handle handle);
-
-/**
- * Register the per-instance buffer allocator hooks used for large
- * frame / line-buffer allocations done by the JPEG decoder driver.
- *
- * Must be called after @ref vcdec_jpeg_init and before any @ref vcdec_jpeg_open
- * / @ref vcdec_jpeg_decode_frame. Mirrors @ref vcdec_h264_memalloc_register so
- * that both codec paths share a per-instance allocator contract (the encoder
- * side has the equivalent vcenc_jpeg_memalloc_register entry).
- *
- * @param handle  decoder handle returned by vcdec_jpeg_init
- * @param pmalloc memory allocation callback (non-NULL)
- * @param pfree   memory free callback (non-NULL)
- *
- * @return VCDEC_OK on success; VCDEC_INVALID_ARGUMENT if any argument is NULL.
- */
-vcdec_ret_e vcdec_jpeg_memalloc_register(vcdec_handle handle,
-					 void *(*pmalloc)(uint32_t),
-					 void  (*pfree)(void *));
-
 /**
  * Open JPEG decoder: allocates instance.
  * before decode; they must be valid for decode (filled by parser or existing library).

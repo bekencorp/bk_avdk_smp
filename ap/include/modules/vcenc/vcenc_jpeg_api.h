@@ -6,10 +6,6 @@
  *
  * Lifecycle: vcenc_jpeg_init() -> vcenc_jpeg_open() -> vcenc_jpeg_encode_frame()*
  *           -> vcenc_jpeg_close() -> vcenc_jpeg_deinit().
- *
- * vcenc_jpeg_init() returns an opaque @ref vcenc_handle through an out-param;
- * every other API consumes that handle and a per-call configuration where
- * applicable.
  */
 
 #include "modules/vcenc/vcenc_types.h"
@@ -19,66 +15,40 @@
 extern "C" {
 #endif
 
-/**
- * Allocate an instance and return its opaque handle through @p out_handle.
- *
- * @param out_handle on success, receives the new encoder handle.
- * @param config     common (codec-agnostic) init configuration.
- * @param jpeg_config JPEG-specific init configuration (geometry + flexa).
- */
-vcenc_ret_e vcenc_jpeg_init(vcenc_handle *out_handle,
-			    const vcenc_config_t *config,
-			    const vcenc_jpeg_config_t *jpeg_config);
+/** Register memory allocator hooks shared by all JPEG encoder instances. */
+void vcenc_jpeg_memalloc_register(void *(*pmalloc)(size_t), void (*pfree)(void *));
 
-/**
- * Register the per-instance buffer allocator hooks.
- *
- * Mirrors the vcdec design: caller must register a (malloc, free) pair after
- * vcenc_jpeg_init() but before vcenc_jpeg_open(); coeff / refer buffers are
- * allocated lazily inside vcenc_jpeg_open() from the registered allocator
- * (typically the caller's frame-buffer slab).
- *
- * @param handle  encoder handle returned by vcenc_jpeg_init.
- * @param pmalloc memory allocation callback (non-NULL).
- * @param pfree   memory free callback (non-NULL).
- *
- * @return VCENC_OK on success; VCENC_NULL_ARGUMENT / VCENC_INSTANCE_ERROR
- *         if @p handle or callbacks are NULL.
- */
-vcenc_ret_e vcenc_jpeg_memalloc_register(vcenc_handle handle,
-					 void *(*pmalloc)(size_t),
-					 void  (*pfree)(void *));
+/** Allocate an instance and bind it to the caller-owned @ref jpeg_enc_param_t. */
+vcenc_ret_e vcenc_jpeg_init(jpeg_enc_param_t *enc_param);
 
-/**
- * Open the encoder session: arms IRQ, prepares per-instance semaphore, and
- * allocates coeff / refer buffers via the allocator registered with
- * vcenc_jpeg_memalloc_register(). Must be called after the allocator is
- * registered.
- */
-vcenc_ret_e vcenc_jpeg_open(vcenc_handle handle);
+/** Open the encoder session: arms IRQ, prepares per-instance semaphore. */
+vcenc_ret_e vcenc_jpeg_open(jpeg_enc_param_t *enc_param);
 
 /** Encode one frame; blocks the caller on the per-instance encode semaphore. */
-vcenc_ret_e vcenc_jpeg_encode_frame(vcenc_handle handle,
-				    const vcenc_jpeg_frame_config_t *frame_config);
+vcenc_ret_e vcenc_jpeg_encode_frame(jpeg_enc_param_t *enc_param);
 
 /** Close the encoder session: stops HW, masks IRQ, releases per-instance sem. */
-vcenc_ret_e vcenc_jpeg_close(vcenc_handle handle);
+vcenc_ret_e vcenc_jpeg_close(jpeg_enc_param_t *enc_param);
 
 /**
  * Abort an in-flight encode_frame: forces the engine to stop and wakes the
  * waiter with VCENC_SW_ABORT-equivalent error path. May also be used as a
  * synchronous "stop encode" entry point.
  */
-vcenc_ret_e vcenc_jpeg_abort(vcenc_handle handle);
+vcenc_ret_e vcenc_jpeg_abort(jpeg_enc_param_t *enc_param);
 
 /** Tear down the instance and free its associated buffers. */
-vcenc_ret_e vcenc_jpeg_deinit(vcenc_handle handle);
+vcenc_ret_e vcenc_jpeg_deinit(jpeg_enc_param_t *enc_param);
 
 /** Update the FLEXA input line-buffer write counter at runtime. */
-vcenc_ret_e vcenc_jpeg_flexa_input_linebuf_wrcnt_set(vcenc_handle handle, uint32_t wrcnt);
+vcenc_ret_e vcenc_jpeg_flexa_input_linebuf_wrcnt_set(jpeg_enc_param_t *enc_param,
+						      uint32_t wrcnt);
 
 /** Read the encoded slice count (rdcnt) from hardware (FLEXA). */
 uint32_t vcenc_jpeg_get_encoded_lines(void);
+
+/** Free codec-owned memory buffers allocated during init. Used by deinit. */
+int vcenc_jpeg_memfree(jpeg_enc_param_t *param);
 
 #ifdef __cplusplus
 }
