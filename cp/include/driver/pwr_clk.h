@@ -97,6 +97,7 @@ typedef enum
 	PM_POWER_PSRAM_MODULE_NAME_LVGL_CODE_RUN,// 13
 	PM_POWER_PSRAM_MODULE_NAME_AS_SECTIONS  ,// 14 //for code and bss section
 	PM_POWER_PSRAM_MODULE_NAME_FORCE_ON     ,// 15 //for force on psram
+	PM_POWER_PSRAM_MODULE_NAME_VDDRAM_1V8   ,// 16
 	PM_POWER_PSRAM_MODULE_NAME_MAX          ,// attention: MAX value can not exceed 31.
 }pm_power_psram_module_name_e;
 
@@ -236,12 +237,12 @@ bk_err_t bk_pm_cp1_recovery_module_state_ctrl(pm_cp1_prepare_close_module_name_e
  */
 bk_err_t bk_pm_module_vote_vdddig_ctrl(pm_vdddig_module_e module,pm_vdddig_high_state_e state);
 /**
- * @brief boot cpu1 ok response 
+ * @brief boot cpu1 ok response
  *
- * boot cpu1 ok response 
+ * boot cpu1 ok response
  *
  * @attention
- * - This API is used to boot cpu1 ok response 
+ * - This API is used to boot cpu1 ok response
  *
  * @param
  * - void
@@ -329,7 +330,7 @@ bk_err_t bk_pm_cp1_work_state_set(pm_mailbox_communication_state_e state);
  * void
  * @return
  * - cp1 psram malloc count
- * 
+ *
  *
  */
 bk_err_t bk_pm_dump_cp1_psram_malloc_info();
