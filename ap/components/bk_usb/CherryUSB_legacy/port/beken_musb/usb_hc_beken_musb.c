@@ -536,6 +536,74 @@ void usb_hc_riscv_poll_events(void)
         sys_drv_set_ints_config_riscv_0_31(ints_config);
     }
 }
+
+/*
+ * Lost-IPI recovery watchdog.
+ *
+ * The RISC-V posts a USB completion event by setting the pending flags,
+ * advancing ctx->irq_seq, and raising an IPI to the AP. That IPI is an
+ * edge notification and can be dropped (observed ~1 per 16k events, far more
+ * likely while the AP is in low-power idle, e.g. doorbell_lp). poll_events()
+ * is the only path that both drains the completion and re-arms the HS-IRQ
+ * routing back to the RISC-V, so a single lost IPI permanently deadlocks all
+ * USB traffic (irq_seq stays one ahead of last_seq forever).
+ *
+ * This periodic watchdog backstops the IPI: when irq_seq is ahead of last_seq
+ * AND has not advanced since the previous tick (i.e. the RISC-V posted an event
+ * the AP never drained and is making no further progress), it drives
+ * poll_events() directly to drain the orphaned completion and re-arm the IRQ.
+ * During normal streaming irq_seq advances every tick, so a transient "behind"
+ * sample never triggers recovery; and a genuine stall means the IPI is dormant,
+ * so there is no concurrent poll_events() from the IPI ISR.
+ */
+#if CONFIG_IPI
+#define USB_RISCV_WD_PERIOD_MS 10
+static beken_timer_t s_riscv_wd_timer;
+static volatile uint32_t s_riscv_wd_last_seq = 0;
+static uint8_t s_riscv_wd_inited = 0;
+
+static void usb_hc_riscv_watchdog_cb(void *arg)
+{
+    volatile riscv_usb_probe_t *ctx = get_riscv_usb_probe();
+    uint32_t seq;
+
+    (void)arg;
+
+    if (!usb_hc_riscv_enabled()) {
+        s_riscv_wd_last_seq = 0;
+        return;
+    }
+
+    seq = ctx->irq_seq;
+    if (seq == s_riscv_probe_last_irq_seq) {
+        s_riscv_wd_last_seq = seq;
+        return;
+    }
+
+    if (seq == s_riscv_wd_last_seq) {
+        usb_hc_riscv_poll_events();
+    }
+    s_riscv_wd_last_seq = seq;
+}
+
+static void usb_hc_riscv_watchdog_start(void)
+{
+    int ret;
+
+    if (s_riscv_wd_inited) {
+        return;
+    }
+
+    ret = rtos_init_timer(&s_riscv_wd_timer, USB_RISCV_WD_PERIOD_MS,
+                          usb_hc_riscv_watchdog_cb, NULL);
+    if (ret != BK_OK) {
+        USB_LOG_ERR("%s init watchdog timer failed: %d\r\n", __func__, ret);
+        return;
+    }
+    rtos_start_timer(&s_riscv_wd_timer);
+    s_riscv_wd_inited = 1;
+}
+#endif /* CONFIG_IPI */
 #else
 void usb_hc_riscv_poll_events(void)
 {
@@ -878,6 +946,9 @@ __WEAK void usb_hc_low_level_init(void)
         if (usb_hc_riscv_ipi_enable() != BK_OK) {
             USB_LOG_ERR("%s enable riscv IPI failed\r\n", __func__);
         }
+        /* Backstop the edge-triggered IPI against dropped notifications that
+         * would otherwise permanently deadlock USB (see watchdog comment). */
+        usb_hc_riscv_watchdog_start();
 #endif
         get_riscv_usb_probe()->owner = RISCV_USB_PROBE_OWNER_RISCV;
         USB_LOG_INFO("%s use riscv probe path\r\n", __func__);
