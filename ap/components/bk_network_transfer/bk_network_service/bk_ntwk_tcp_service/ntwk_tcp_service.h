@@ -86,6 +86,8 @@ bk_err_t ntwk_tcp_deinit(chan_type_t chan_type);
 typedef struct
 {
     uint32_t client_state : 1;
+    volatile uint8_t stop_req;
+    beken_semaphore_t stop_sem;
     struct sockaddr_in server_addr;
     beken_thread_t thread;
     int client_fd;
@@ -98,6 +100,8 @@ typedef struct
 typedef struct
 {
     beken_thread_t video_thd;
+    volatile uint8_t stop_req;
+    beken_semaphore_t stop_sem;
     struct sockaddr_in server_addr;
     int video_fd;
     in_addr_t server_address;
@@ -110,6 +114,8 @@ typedef struct
 typedef struct
 {
     beken_thread_t aud_thd;
+    volatile uint8_t stop_req;
+    beken_semaphore_t stop_sem;
     struct sockaddr_in server_addr;
     int aud_fd;
     in_addr_t server_address;
