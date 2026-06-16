@@ -379,8 +379,50 @@ static void uart_interrupt_disable(uart_id_t id)
 	}
 }
 
+/* Resolve a UART RX pin.
+ *
+ * When CONFIG_USR_GPIO_CFG_EN is set the pin assignment lives in
+ * GPIO_DEFAULT_DEV_CONFIG (usr_gpio_cfg.h) and is the single source of truth,
+ * so the pin is looked up by its UART RXD function. Otherwise it falls back to
+ * the Kconfig-based CONFIG_UARTx_RX_PIN value. */
+static gpio_id_t uart_cfg_rx_pin(uart_id_t id)
+{
+#if CONFIG_USR_GPIO_CFG_EN
+	gpio_dev_t func = GPIO_DEV_NONE;
+
+	switch (id) {
+	case UART_ID_0: func = GPIO_DEV_UART0_RXD; break;
+	case UART_ID_1: func = GPIO_DEV_UART1_RXD; break;
+	case UART_ID_2: func = GPIO_DEV_UART2_RXD; break;
+#if (SOC_UART_ID_NUM_PER_UNIT >= 6)
+	case UART_ID_5: func = GPIO_DEV_UART5_RXD; break;
+#endif
+	default: break;
+	}
+
+	if (func != GPIO_DEV_NONE) {
+		gpio_id_t pin = gpio_get_id_by_func(func);
+		if (pin < SOC_GPIO_NUM) {
+			return pin;
+		}
+	}
+#endif
+	return uart_hal_get_rx_pin(id);
+}
+
 static void uart_init_gpio(uart_id_t id)
 {
+#if CONFIG_USR_GPIO_CFG_EN
+	/* UART pin muxing is fully owned by GPIO_DEFAULT_DEV_CONFIG in
+	 * usr_gpio_cfg.h and applied once at boot by gpio_default_map_init().
+	 * The UART driver no longer maps/pulls UART GPIOs in this mode; only the
+	 * UART-controller-side hardware-flow-control setting remains here. */
+#if CONFIG_UART0_FLOW_CTRL
+	if (id == UART_ID_0) {
+		bk_uart_set_hw_flow_ctrl(id, UART0_FLOW_CTRL_CNT);
+	}
+#endif
+#else /* !CONFIG_USR_GPIO_CFG_EN: legacy Kconfig-driven pin muxing */
 	switch (id)
 	{
 		case UART_ID_0:
@@ -450,18 +492,29 @@ static void uart_init_gpio(uart_id_t id)
 		default:
 			break;
 	}
+#endif /* CONFIG_USR_GPIO_CFG_EN */
+	(void)id;
 }
 
 static void uart_deinit_tx_gpio(uart_id_t id)
 {
+#if !CONFIG_USR_GPIO_CFG_EN
+	/* In USR_GPIO_CFG mode the pad is owned by the boot-time config table and
+	 * must stay mapped so a later re-init keeps working, so only unmap in the
+	 * legacy Kconfig-driven mode. */
 	gpio_dev_unmap(uart_hal_get_tx_pin(id));
 	bk_gpio_pull_up(uart_hal_get_tx_pin(id));
+#endif
+	(void)id;
 }
 
 static void uart_deinit_rx_gpio(uart_id_t id)
 {
+#if !CONFIG_USR_GPIO_CFG_EN
 	gpio_dev_unmap(uart_hal_get_rx_pin(id));
 	bk_gpio_pull_up(uart_hal_get_rx_pin(id));
+#endif
+	(void)id;
 }
 
 static bk_err_t uart_id_init_kfifo(uart_id_t id)
@@ -1834,7 +1887,7 @@ uint32_t bk_uart_get_ate_detect_gpio(void)
 
 gpio_id_t bk_uart_get_rx_gpio(uart_id_t id)
 {
-	return uart_hal_get_rx_pin(id);
+	return uart_cfg_rx_pin(id);
 }
 
 bool bk_uart_is_tx_over(uart_id_t id)
