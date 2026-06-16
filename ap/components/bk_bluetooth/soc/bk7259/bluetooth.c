@@ -422,18 +422,12 @@ static void uart_enable_wrapper(uint8_t uart_id, uint8_t enable, uint32_t band)
         switch (uart_id)
         {
             case UART_ID_0:
-                gpio_dev_unmap(GPIO_10);
-                gpio_dev_unmap(GPIO_11);
                 break;
 
             case UART_ID_1:
-                gpio_dev_unmap(GPIO_0);
-                gpio_dev_unmap(GPIO_1);
                 break;
 
             case UART_ID_2:
-                gpio_dev_unmap(GPIO_40);
-                gpio_dev_unmap(GPIO_41);
                 break;
 
             default:

@@ -385,8 +385,6 @@ static void uart_init_gpio(uart_id_t id)
 	{
 		case UART_ID_0:
 		{
-			gpio_dev_unmap(uart_hal_get_tx_pin(id));
-			gpio_dev_unmap(uart_hal_get_rx_pin(id));
 			gpio_dev_map(uart_hal_get_tx_pin(id), GPIO_DEV_UART0_TXD);
 			gpio_dev_map(uart_hal_get_rx_pin(id), GPIO_DEV_UART0_RXD);
 			bk_gpio_pull_up(uart_hal_get_tx_pin(id));
@@ -404,8 +402,6 @@ static void uart_init_gpio(uart_id_t id)
 		}
 		case UART_ID_1:
 		{
-			gpio_dev_unmap(uart_hal_get_tx_pin(id));
-			gpio_dev_unmap(uart_hal_get_rx_pin(id));
 			gpio_dev_map(uart_hal_get_tx_pin(id), GPIO_DEV_UART1_TXD);
 			gpio_dev_map(uart_hal_get_rx_pin(id), GPIO_DEV_UART1_RXD);
 			bk_gpio_pull_up(uart_hal_get_tx_pin(id));
@@ -414,8 +410,6 @@ static void uart_init_gpio(uart_id_t id)
 		}
 		case UART_ID_2:
 		{
-			gpio_dev_unmap(uart_hal_get_tx_pin(id));
-			gpio_dev_unmap(uart_hal_get_rx_pin(id));
 			gpio_dev_map(uart_hal_get_tx_pin(id), GPIO_DEV_UART2_TXD);
 			gpio_dev_map(uart_hal_get_rx_pin(id), GPIO_DEV_UART2_RXD);
 			bk_gpio_pull_up(uart_hal_get_tx_pin(id));
@@ -425,8 +419,6 @@ static void uart_init_gpio(uart_id_t id)
 #if (SOC_UART_ID_NUM_PER_UNIT  >= 4)
 		case UART_ID_3:
 		{
-			gpio_dev_unmap(uart_hal_get_tx_pin(id));
-			gpio_dev_unmap(uart_hal_get_rx_pin(id));
 			gpio_dev_map(uart_hal_get_tx_pin(id), GPIO_DEV_UART3_TXD);
 			gpio_dev_map(uart_hal_get_rx_pin(id), GPIO_DEV_UART3_RXD);
 			bk_gpio_pull_up(uart_hal_get_tx_pin(id));
@@ -437,8 +429,6 @@ static void uart_init_gpio(uart_id_t id)
 #if (SOC_UART_ID_NUM_PER_UNIT  >= 5)
 		case UART_ID_4:
 		{
-			gpio_dev_unmap(uart_hal_get_tx_pin(id));
-			gpio_dev_unmap(uart_hal_get_rx_pin(id));
 			gpio_dev_map(uart_hal_get_tx_pin(id), GPIO_DEV_UART4_TXD);
 			gpio_dev_map(uart_hal_get_rx_pin(id), GPIO_DEV_UART4_RXD);
 			bk_gpio_pull_up(uart_hal_get_tx_pin(id));
@@ -449,8 +439,6 @@ static void uart_init_gpio(uart_id_t id)
 #if (SOC_UART_ID_NUM_PER_UNIT  >= 6)
 		case UART_ID_5:
 		{
-			gpio_dev_unmap(uart_hal_get_tx_pin(id));
-			gpio_dev_unmap(uart_hal_get_rx_pin(id));
 			gpio_dev_map(uart_hal_get_tx_pin(id), GPIO_DEV_UART5_TXD);
 			gpio_dev_map(uart_hal_get_rx_pin(id), GPIO_DEV_UART5_RXD);
 			bk_gpio_pull_up(uart_hal_get_tx_pin(id));

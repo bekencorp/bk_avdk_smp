@@ -399,7 +399,6 @@ static void gsensor_gpio_config(gpio_id_t index, gpio_io_mode_t dir, gpio_pull_m
     if (index >= SOC_GPIO_NUM) {
         return;
     }
-    gpio_dev_unmap(index);
     gpio_config_t cfg;
     cfg.io_mode = dir;
     cfg.pull_mode = pull;

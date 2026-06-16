@@ -452,8 +452,6 @@ sw_i2c_handle_t* sw_i2c_init(const sw_i2c_config_t *cfg)
 	handle->scl_pin = cfg->scl_pin;
 
 	// Unmap GPIO here as the sw i2c pin is usually dynamical
-	gpio_dev_unmap(handle->sda_pin);
-	gpio_dev_unmap(handle->scl_pin);
 
 	// Initialize I2C
 	i2c_init(handle);

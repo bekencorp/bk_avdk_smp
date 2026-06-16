@@ -144,6 +144,7 @@ static gpio_dynamic_keep_status_t s_gpio_lowpower_keep_config[CONFIG_GPIO_DYNAMI
 
 #if CONFIG_USR_GPIO_CFG_EN
 static void gpio_default_map_init(void);
+static const gpio_default_map_t *gpio_find_row_by_id(gpio_id_t gpio_id);
 #endif
 
 #if CONFIG_GPIO_WAKEUP_SUPPORT
@@ -301,6 +302,14 @@ uint32_t bk_gpio_get_value(gpio_id_t id)
 
 bk_err_t bk_gpio_enable_output(gpio_id_t gpio_id)
 {
+#if CONFIG_USR_GPIO_CFG_EN
+	const gpio_default_map_t *m = gpio_find_row_by_id(gpio_id);
+	if (!m || (m->second_func_dev != GPIO_DEV_GPIO_OUTPUT &&
+	           m->time_sharing_func_dev != GPIO_DEV_GPIO_OUTPUT)) {
+		GPIO_LOGE("gpio %d not configured as OUTPUT in usr_gpio_cfg.h\r\n", gpio_id);
+		return BK_ERR_GPIO_CHAN_ID;
+	}
+#endif
 	return gpio_hal_set_func_code(gpio_id, FUNC_CODE_OUTPUT);
 }
 
@@ -312,6 +321,14 @@ bk_err_t bk_gpio_disable_output(gpio_id_t gpio_id)
 
 bk_err_t bk_gpio_enable_input(gpio_id_t gpio_id)
 {
+#if CONFIG_USR_GPIO_CFG_EN
+	const gpio_default_map_t *m = gpio_find_row_by_id(gpio_id);
+	if (!m || (m->second_func_dev != GPIO_DEV_GPIO_INPUT &&
+	           m->time_sharing_func_dev != GPIO_DEV_GPIO_INPUT)) {
+		GPIO_LOGE("gpio %d not configured as INPUT in usr_gpio_cfg.h\r\n", gpio_id);
+		return BK_ERR_GPIO_CHAN_ID;
+	}
+#endif
 	return gpio_hal_set_func_code(gpio_id, FUNC_CODE_INPUT);
 }
 
@@ -1361,6 +1378,21 @@ static const gpio_default_map_t *gpio_find_row_by_func(gpio_dev_t func)
 	return NULL;
 }
 
+/* Reverse look up the config row that owns a gpio_id. Returns NULL when the
+ * gpio is not present in GPIO_DEFAULT_DEV_CONFIG. */
+static const gpio_default_map_t *gpio_find_row_by_id(gpio_id_t gpio_id)
+{
+	static const gpio_default_map_t s_default_map[] = GPIO_DEFAULT_DEV_CONFIG;
+	const uint32_t cnt = sizeof(s_default_map) / sizeof(s_default_map[0]);
+
+	for (uint32_t i = 0; i < cnt; i++) {
+		if (s_default_map[i].gpio_id == (uint32_t)gpio_id) {
+			return &s_default_map[i];
+		}
+	}
+	return NULL;
+}
+
 gpio_id_t gpio_get_id_by_func(gpio_dev_t func)
 {
 	const gpio_default_map_t *m = gpio_find_row_by_func(func);
@@ -1434,29 +1466,22 @@ static void gpio_default_map_init(void)
 		 *    LCD-DPI/...). Using convert_gpio_dev_to_iomx_code() alone silently
 		 *    drops fixed-mux devs (e.g. SDIO1_HOST_CLK/CMD/DATA0 on P14-P16,
 		 *    which only exist in the fixed map as FUNC_CODE_129), leaving the
-		 *    function selector untouched. */
+		 *    function selector untouched.
+		 *    Pins without a second function stay high-Z at boot; their GPIO
+		 *    direction is set later at runtime via bk_gpio_enable_output()/
+		 *    bk_gpio_enable_input(), which validate the request against
+		 *    second_func_dev/time_sharing_func_dev. */
 		if (m->second_func_en) {
 			(void)gpio_dev_unprotect_map(id, (gpio_dev_t)m->second_func_dev);
 		} else {
-			switch (m->io_mode) {
-			case GPIO_IO_DISABLE:
-				gpio_hal_set_func_code(id, FUNC_CODE_HIGH_Z);
-				break;
-			case GPIO_INPUT_ENABLE:
-				gpio_hal_set_func_code(id, FUNC_CODE_INPUT);
-				break;
-			case GPIO_OUTPUT_ENABLE:
-				gpio_hal_set_func_code(id, FUNC_CODE_OUTPUT);
-				break;
-			default:
-				break;
-			}
+			gpio_hal_set_func_code(id, FUNC_CODE_HIGH_Z);
 		}
 
-		/* 2. initial output level (only meaningful in pure GPIO_OUTPUT mode).
+		/* 2. initial output level (only meaningful when the pad is driven as a
+		 *    pure GPIO output at boot, i.e. second_func_en + GPIO_DEV_GPIO_OUTPUT).
 		 *    Reuses the pull_mode field as the initial level hint, matching the
 		 *    legacy semantics: PULL_UP_EN=>drive HIGH, PULL_DOWN_EN=>drive LOW. */
-		if (!m->second_func_en && m->io_mode == GPIO_OUTPUT_ENABLE) {
+		if (m->second_func_en && m->second_func_dev == GPIO_DEV_GPIO_OUTPUT) {
 			if (m->pull_mode == GPIO_PULL_UP_EN) {
 				gpio_hal_set_output_value(id, 1);
 			} else if (m->pull_mode == GPIO_PULL_DOWN_EN) {

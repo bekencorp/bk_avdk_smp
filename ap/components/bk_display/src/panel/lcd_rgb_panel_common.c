@@ -73,7 +73,6 @@ static void lcd_rgb_panel_pinmux_init(void)
 
 	gpio_id_t disp_pin = gpio_get_id_by_func(GPIO_DEV_LCD_DISP);
 	if (disp_pin < SOC_GPIO_NUM) {
-		gpio_dev_unmap(disp_pin);
 		BK_LOG_ON_ERR(bk_gpio_enable_output(disp_pin));
 		bk_gpio_set_output_high(disp_pin);
 	}
@@ -136,7 +135,6 @@ bk_err_t bk_lcd_rgb_default_reset(bk_avdk_lcd_panel_t *panel)
         return BK_OK;
     }
 
-    gpio_dev_unmap(priv->reset_gpio);
     BK_LOG_ON_ERR(bk_gpio_enable_output(priv->reset_gpio));
     bk_gpio_set_capacity(priv->reset_gpio, GPIO_DRIVER_CAPACITY_3);
 

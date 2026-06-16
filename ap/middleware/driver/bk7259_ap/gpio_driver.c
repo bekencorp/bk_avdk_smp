@@ -131,11 +131,13 @@ bk_err_t gpio_scr_sel(gpio_scr_map_group_t mode)
 
 IOMX_CODE_T convert_gpio_dev_to_iomx_code(gpio_dev_t dev)
 {
-	// Handle special cases first
-	if (dev == GPIO_DEV_INVALID || dev == GPIO_DEV_NONE) {
-		if (dev == GPIO_DEV_NONE) {
-			return FUNC_CODE_HIGH_Z;  // GPIO_DEV_NONE maps to FUNC_CODE_HIGH_Z
-		}
+	// Handle special cases first. GPIO_DEV_NONE and the pure-GPIO high-Z
+	// pseudo device both map to FUNC_CODE_HIGH_Z. They must be handled here
+	// because FUNC_CODE_HIGH_Z(0) is also used below as the "unmapped" sentinel.
+	if (dev == GPIO_DEV_NONE || dev == GPIO_DEV_GPIO_HIGH_Z) {
+		return FUNC_CODE_HIGH_Z;
+	}
+	if (dev == GPIO_DEV_INVALID) {
 		return FUNC_CODE_INVALID;
 	}
 

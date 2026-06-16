@@ -469,7 +469,6 @@ void hid_mouse_remote_wakeup_init()
     cfg.func_mode = GPIO_SECOND_FUNC_DISABLE;
 
     int_type = GPIO_INT_TYPE_FALLING_EDGE;
-    gpio_dev_unmap(USB_HID_MOUSE_WAKEUP_GPIO_ID);
     bk_gpio_set_config(USB_HID_MOUSE_WAKEUP_GPIO_ID, &cfg);
     bk_gpio_register_isr(USB_HID_MOUSE_WAKEUP_GPIO_ID, gpio_int_isr);
     BK_LOG_ON_ERR(bk_gpio_set_interrupt_type(USB_HID_MOUSE_WAKEUP_GPIO_ID, int_type));
@@ -607,7 +606,6 @@ void hid_mouse_L_R_key_init()
     left_cfg.func_mode = GPIO_SECOND_FUNC_DISABLE;
 
     left_int_type = GPIO_INT_TYPE_HIGH_LEVEL;
-    gpio_dev_unmap(USB_HID_MOUSE_LEFT_GPIO_ID);
     bk_gpio_clear_interrupt(USB_HID_MOUSE_LEFT_GPIO_ID);
     bk_gpio_set_config(USB_HID_MOUSE_LEFT_GPIO_ID, &left_cfg);
     bk_gpio_register_isr(USB_HID_MOUSE_LEFT_GPIO_ID, hid_mouse_left_gpio_int_isr);
@@ -626,7 +624,6 @@ void hid_mouse_L_R_key_init()
     right_cfg.func_mode = GPIO_SECOND_FUNC_DISABLE;
 
     right_int_type = GPIO_INT_TYPE_HIGH_LEVEL;
-    gpio_dev_unmap(USB_HID_MOUSE_RIGHT_GPIO_ID);
     bk_gpio_clear_interrupt(USB_HID_MOUSE_RIGHT_GPIO_ID);
     bk_gpio_set_config(USB_HID_MOUSE_RIGHT_GPIO_ID, &right_cfg);
     bk_gpio_register_isr(USB_HID_MOUSE_RIGHT_GPIO_ID, hid_mouse_right_gpio_int_isr);

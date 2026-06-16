@@ -599,7 +599,6 @@ bk_err_t bk_modem_uart_init(uint32_t baud_rate)
         
         /* Configure MASTER_MRDY_GPIO pin (host ready signal) */
         gpio_config_t cfg;
-        gpio_dev_unmap(MASTER_MRDY_GPIO);
         cfg.func_mode = GPIO_SECOND_FUNC_DISABLE;
         cfg.io_mode = GPIO_OUTPUT_ENABLE;
         cfg.pull_mode = GPIO_PULL_DOWN_EN;

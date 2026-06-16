@@ -203,7 +203,6 @@ static int32_t prvConfigureInputPin(IotGpioHandle_t const pxGpio,
     xGpioBkCfg.func_mode=GPIO_SECOND_FUNC_DISABLE;
     if(lRtnCode==IOT_GPIO_SUCCESS)
     {
-        gpio_dev_unmap(pxGpio->lGpioNumber);
         BK_LOG_ON_ERR(bk_gpio_disable_output(pxGpio->lGpioNumber));//fisrt time do with dev_unmap
         ret=bk_gpio_set_config(pxGpio->lGpioNumber, &xGpioBkCfg);
         if(ret==BK_OK)
@@ -289,7 +288,6 @@ static int32_t prvConfigOutputPin(IotGpioHandle_t const pxGpio,
     
     if(bValidInputs)
     {
-        BK_LOG_ON_ERR(gpio_dev_unmap(pxGpio->lGpioNumber));
         BK_LOG_ON_ERR(bk_gpio_disable_input(pxGpio->lGpioNumber));
         BK_LOG_ON_ERR(bk_gpio_set_capacity(pxGpio->lGpioNumber, xDrive_Bk));//no matter
         xGpioCfgOut.io_mode=GPIO_OUTPUT_ENABLE;

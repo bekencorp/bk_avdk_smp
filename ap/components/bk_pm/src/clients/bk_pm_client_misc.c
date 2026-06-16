@@ -441,7 +441,6 @@ static bk_err_t gpio_ldo_configure_output(gpio_id_t gpio_id, bool output_level)
 		return BK_ERR_GPIO_CHAN_ID;
 	}
 
-	ret |= gpio_dev_unmap(gpio_id);
 	ret |= bk_gpio_set_capacity(gpio_id, 0);
 	ret |= bk_gpio_disable_input(gpio_id);
 	ret |= bk_gpio_enable_output(gpio_id);

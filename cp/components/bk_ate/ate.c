@@ -45,7 +45,6 @@ static bk_err_t ate_gpio_init(void)
 
 	gpio_cfg_v = bk_gpio_get_value(gpio_id);
 	//bootrom or bootloader may have inited this GPIO, so release it firstly.
-	gpio_dev_unmap(gpio_id);
 
 	//set to input and check the GPIO input level
 	ret = bk_gpio_set_config(gpio_id, &gpio_cfg);

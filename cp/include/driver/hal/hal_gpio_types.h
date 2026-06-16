@@ -592,6 +592,10 @@ typedef enum {
 
 	GPIO_DEV_CLK_AUXS_ENET,
 
+	GPIO_DEV_GPIO_OUTPUT,   /* pure GPIO output direction */
+	GPIO_DEV_GPIO_INPUT,    /* pure GPIO input direction */
+	GPIO_DEV_GPIO_HIGH_Z,   /* pure GPIO high-impedance */
+
 	GPIO_DEV_INVALID = 0xFFF,
 } gpio_dev_t;
 

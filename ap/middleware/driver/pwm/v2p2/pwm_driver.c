@@ -159,7 +159,6 @@ static void pwm_chan_init_gpio(pwm_chan_t sw_ch)
 						? s_pwm_gpio_override[sw_ch]
 						: s_pwm_pin_id_map[sw_ch].gpio_id;
 
-	gpio_dev_unmap(gpio_id);
 	gpio_dev_map(gpio_id, s_pwm_pin_id_map[sw_ch].gpio_dev);
 	bk_gpio_pull_up(gpio_id);
 }

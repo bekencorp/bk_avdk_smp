@@ -83,7 +83,6 @@ void key_unconfig(void)
 }
 static void key_gpio_config(uint32_t gpio_id, uint8_t active_level)
 {
-	gpio_dev_unmap(gpio_id);
 	BK_LOG_ON_ERR(bk_gpio_disable_output(gpio_id));
 	BK_LOG_ON_ERR(bk_gpio_enable_input(gpio_id));
 	BK_LOG_ON_ERR(bk_gpio_enable_pull(gpio_id));

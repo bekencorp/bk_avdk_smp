@@ -232,11 +232,8 @@ static int gpio_dev_map_elna(uint32_t gpio_id)
 
 static void bk_epa_gpio_config(UINT32 rx_gpio, UINT32 tx_gpio, UINT32 lna_gpio)
 {
-    gpio_dev_unmap(tx_gpio);
     gpio_dev_map_txen(tx_gpio);
-    gpio_dev_unmap(rx_gpio);
     gpio_dev_map_rxen(rx_gpio);
-    gpio_dev_unmap(lna_gpio);
     gpio_dev_map_elna(lna_gpio);
 }
 

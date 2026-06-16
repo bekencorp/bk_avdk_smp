@@ -59,7 +59,6 @@ typedef struct {
 	 * different on-demand time_sharing_func_dev. */
 	uint32_t time_sharing_func_dev:	12;	//gpio_dev_t
 
-	uint32_t io_mode:				2;	//gpio_io_mode_t
 	uint32_t pull_mode:				2;	//gpio_pull_mode_t
 
 	/* if int en and then int_type is valid */

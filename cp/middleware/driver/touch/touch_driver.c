@@ -289,7 +289,6 @@ bk_err_t bk_touch_digital_tube_init(void)
 {
 	uint8_t i = 0;
 	for (i = 0; i < 9; i++) {
-		gpio_dev_unmap(digital_led_gpio_map[i]);
 		bk_gpio_enable_output(digital_led_gpio_map[i]);
 		bk_gpio_set_output_high(digital_led_gpio_map[i]);
 	}

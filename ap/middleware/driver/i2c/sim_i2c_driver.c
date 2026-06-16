@@ -555,8 +555,6 @@ bk_err_t bk_i2c_init(i2c_id_t id, const i2c_config_t *cfg)
 	 * function in GPIO_DEFAULT_DEV_CONFIG, so release them by pad id here. */
 	bk_gpio_pull_down(HWD_GPIO_I2C_SDA);
 	bk_gpio_pull_down(HWD_GPIO_I2C_SCL);
-	gpio_dev_unmap(HWD_GPIO_I2C_SDA);
-	gpio_dev_unmap(HWD_GPIO_I2C_SCL);
 #endif
 	I2cInit();
 

@@ -53,8 +53,6 @@ bk_err_t bk_usb_ate_bist_test(uint32_t state)
 	uint32_t reg = 0;
 	extern void delay(INT32 num);
 	if(state == 1) {
-		gpio_dev_unmap(12);
-		gpio_dev_unmap(13);
 		gpio_dev_map(12, GPIO_DEV_USB0_DP);
 		gpio_dev_map(13, GPIO_DEV_USB0_DN);
 
@@ -130,8 +128,6 @@ bk_err_t bk_usb_ate_voh_vol_test(uint32_t state)
 	extern void delay(INT32 num);
 
 	if(state == 1) {
-		gpio_dev_unmap(12);
-		gpio_dev_unmap(13);
 		gpio_dev_map(12, GPIO_DEV_USB0_DP);
 		gpio_dev_map(13, GPIO_DEV_USB0_DN);
 
@@ -195,8 +191,6 @@ bk_err_t bk_usb_ate_rterm_test(uint32_t state)
 	extern void delay(INT32 num);
 
 	if(state == 1) {
-		gpio_dev_unmap(12);
-		gpio_dev_unmap(13);
 		gpio_dev_map(12, GPIO_DEV_USB0_DP);
 		gpio_dev_map(13, GPIO_DEV_USB0_DN);
 
@@ -258,8 +252,6 @@ bk_err_t bk_usb_ate_rx_dc_input_test(uint32_t state)
 	extern void delay(INT32 num);
 
 	if(state == 1) {
-		gpio_dev_unmap(12);
-		gpio_dev_unmap(13);
 		gpio_dev_map(12, GPIO_DEV_USB0_DP);
 		gpio_dev_map(13, GPIO_DEV_USB0_DN);
 

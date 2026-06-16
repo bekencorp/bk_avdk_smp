@@ -237,7 +237,6 @@ bk_err_t bk_xdac_driver_init(void)
 
         /*gpio map,set to high-z state*/
 #if CONFIG_USR_GPIO_CFG_EN
-        gpio_dev_unmap(gpio_map[i]);
         gpio_dev_map(gpio_map[i], GPIO_DEV_NONE);
 #endif
         sys_hal_xdac_set_enspi(i,1);

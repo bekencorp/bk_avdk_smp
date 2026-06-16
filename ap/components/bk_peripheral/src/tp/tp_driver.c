@@ -236,14 +236,12 @@ bk_err_t bk_tp_gpio_init(const tp_config_t *config)
 	gpio_id_t int_id = TP_INT_PIN;
 
 	/* INT GPIO - output high */
-	BK_LOG_ON_ERR(gpio_dev_unmap(int_id));
 	mode.io_mode = GPIO_OUTPUT_ENABLE;
 	mode.pull_mode = GPIO_PULL_DISABLE;
 	BK_LOG_ON_ERR(bk_gpio_set_config(int_id, &mode));
 	BK_LOG_ON_ERR(bk_gpio_set_output_high(int_id));
 
 	/* RESET GPIO - output low */
-	BK_LOG_ON_ERR(gpio_dev_unmap(rst_id));
 	mode.io_mode = GPIO_OUTPUT_ENABLE;
 	mode.pull_mode = GPIO_PULL_DISABLE;
 	BK_LOG_ON_ERR(bk_gpio_set_config(rst_id, &mode));
@@ -322,7 +320,6 @@ bk_err_t bk_tp_int_init(const tp_config_t *config)
 	gpio_id_t int_id = TP_INT_PIN;
 	gpio_int_type_t int_type = 0;
 
-	BK_LOG_ON_ERR(gpio_dev_unmap(int_id));
 	mode.io_mode = GPIO_INPUT_ENABLE;
 	mode.pull_mode = GPIO_PULL_DISABLE;
 	BK_LOG_ON_ERR(bk_gpio_set_config(int_id, &mode));
