@@ -16,7 +16,7 @@
 #include "pwm_ll.h"
 #include "pwm_hal_v2p2.h"
 //TODO finally we will automatically generate this code
-#if 1
+#if CFG_HAL_DEBUG_PWM
 void pwm_struct_dump(void)
 {
 #if 0
