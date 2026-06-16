@@ -76,11 +76,17 @@ ARM_MPU_Region_t mpu_regions[] = {
       ARM_MPU_RLAR(0x2805FFE0UL, 1) },
     { ARM_MPU_RBAR(0x2C000000UL, ARM_MPU_SH_INNER, 0, 1, 0),
       ARM_MPU_RLAR(0x2C05FFE0UL, 1) },
-    { ARM_MPU_RBAR(0x38000000UL, ARM_MPU_SH_INNER, 0, 1, 0),
-      ARM_MPU_RLAR(0x3805FFE0UL, 1) },
     { ARM_MPU_RBAR(0x28100000UL, ARM_MPU_SH_INNER, 0, 1, 0),
       ARM_MPU_RLAR(0x281DFFE0UL, 1) },
-    { ARM_MPU_RBAR(0x38100000UL, ARM_MPU_SH_INNER, 0, 1, 0),
+    /* AP-RAM non-cached mirror (0x2C alias of 0x2810_0000~0x281D_FFFF).
+       The secure CP CPU touches AP TX/RX buffers through this 0x2C view
+       (HW2CPU). Without it, writes to 0x2C1xxxxx hit an unmapped region and
+       the core takes a DACCVIOL MemFault. AP-side MPU already maps it. */
+    { ARM_MPU_RBAR(0x2C100000UL, ARM_MPU_SH_INNER, 0, 1, 0),
+      ARM_MPU_RLAR(0x2C1DFFE0UL, 1) },
+    /* NS cached aliases for CP-SRAM + AP-RAM, merged into a single region to
+       stay within the 16-region MPU budget (both share the same attribute). */
+    { ARM_MPU_RBAR(0x38000000UL, ARM_MPU_SH_INNER, 0, 1, 0),
       ARM_MPU_RLAR(0x381DFFE0UL, 1) },
     #endif
 

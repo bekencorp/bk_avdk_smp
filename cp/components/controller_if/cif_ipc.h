@@ -112,8 +112,8 @@ static inline void cif_ipc_isr_unlock(cif_ipc_t *ipc)
 #define CIF_IPC_ISR_LOCK(ipc)           do { cif_ipc_isr_lock(ipc); } while(0)
 #define CIF_IPC_ISR_UNLOCK(ipc)         do { cif_ipc_isr_unlock(ipc); } while(0)
 
-uint8_t cif_map_to_rx_wifi_type(uint8_t channel);
-uint8_t cif_map_to_ipc_chnl(uint8_t channel);
+__IRAM3 uint8_t cif_map_to_rx_wifi_type(uint8_t channel);
+__IRAM3 uint8_t cif_map_to_ipc_chnl(uint8_t channel);
 extern bk_err_t cif_ipc_init();
 extern cif_ipc_t cif_ipc_env[IPC_MAX];
 #ifdef __cplusplus

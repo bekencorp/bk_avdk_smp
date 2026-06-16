@@ -157,9 +157,9 @@ extern UINT8 *rwm_rx_buf_alloc(UINT32 len);
 
 MSDU_NODE_T *rwm_tx_node_alloc(UINT32 len, bk_pbuf_layer layer);
 MSDU_NODE_T *rwm_tx_mgmt_node_alloc(UINT32 len, bk_pbuf_layer layer);
-extern UINT32 rwm_upload_data(void *buff_addr, uint32_t frame_len);
+extern __IRAM2 UINT32 rwm_upload_data(void *buff_addr, uint32_t frame_len);
 extern UINT32 rwm_rx_monitor(void *buff_addr, uint32_t frame_len);
-UINT32 rwm_get_rx_free_node(uint32_t *host_id, int len);
+__IRAM2 UINT32 rwm_get_rx_free_node(uint32_t *host_id, int len);
 void rwm_transfer_mgmt_node(MSDU_NODE_T *node);
 void rwm_transfer_raw_ex_node(MSDU_NODE_T *node, raw_tx_cntrl_t *raw_tx_cntrl);
 UINT32 rwm_transfer_node(MSDU_NODE_T *node, u8 flag

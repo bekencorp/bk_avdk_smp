@@ -19,6 +19,7 @@
 extern "C" {
 #endif
 
+#include <common/bk_include.h>
 #include <common/bk_typedef.h>
 #include <driver/mailbox_types.h>
 
@@ -250,7 +251,7 @@ bk_err_t mb_chnl_read(u8 log_chnl, mb_chnl_cmd_t * read_buf);
   *     failed  : fail code.
   *
   */
-bk_err_t mb_chnl_write(u8 log_chnl, mb_chnl_cmd_t * cmd_buf);
+__IRAM_SEC bk_err_t mb_chnl_write(u8 log_chnl, mb_chnl_cmd_t * cmd_buf);
 
 /*
   * logical chnanel misc io (set/get param).

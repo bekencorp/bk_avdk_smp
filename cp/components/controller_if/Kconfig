@@ -14,4 +14,16 @@ menu "Controller IF"
 	config CONTROLLER_AP_BUFFER_COPY
 		bool "Controller AP buffer copy to CP buffer when AP use PSRAM instead of SRAM"
 		default n
+	config WIFI_IRAM_OPT_LEVEL
+		int "WiFi IRAM optimization level (1=all in IRAM, 2=trim Tier3 to FLASH, 3=trim Tier2+Tier3 to FLASH)"
+		range 1 3
+		default 2 if SOC_BK7259
+		default 1
+		help
+		  Controls how much WiFi-dedicated code (.iram2 Tier2 / .iram3 Tier3)
+		  stays resident in IRAM. Tier1 (.iram / __IRAM_WIFI / system __IRAM_SEC)
+		  is always resident regardless of this level.
+		  1: keep Tier2 and Tier3 in IRAM (best throughput, most SRAM use).
+		  2: drop Tier3 (lwip wlanif/pbuf + getters) back to FLASH.
+		  3: drop both Tier2 and Tier3 back to FLASH (least SRAM use).
 endmenu

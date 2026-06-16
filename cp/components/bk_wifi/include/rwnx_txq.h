@@ -269,8 +269,8 @@ static inline bool rwnx_txq_is_scheduled(struct rwnx_txq *txq)
          ac < NX_NB_TXQ_PER_VIF;                                        \
          ac++, txq++)
 
-struct rwnx_txq *rwnx_txq_sta_get(STA_INF_PTR sta, u8 tid);
-struct rwnx_txq *rwnx_txq_vif_get(VIF_INF_PTR vif, u8 type);
+__IRAM2 struct rwnx_txq *rwnx_txq_sta_get(STA_INF_PTR sta, u8 tid);
+__IRAM2 struct rwnx_txq *rwnx_txq_vif_get(VIF_INF_PTR vif, u8 type);
 
 /**
  * rwnx_txq_vif_get_status - return status bits related to the vif
@@ -296,22 +296,22 @@ void rwnx_txq_tdls_vif_deinit(VIF_INF_PTR vif);
 void rwnx_txq_tdls_sta_start(VIF_INF_PTR rwnx_vif, u16 reaso);
 void rwnx_txq_tdls_sta_stop(VIF_INF_PTR rwnx_vif, u16 reason);
 void rwnx_txq_prepare();
-void rwnx_txq_add_to_hw_list(struct rwnx_txq *txq);
-void rwnx_txq_del_from_hw_list(struct rwnx_txq *txq);
+__IRAM2 void rwnx_txq_add_to_hw_list(struct rwnx_txq *txq);
+__IRAM2 void rwnx_txq_del_from_hw_list(struct rwnx_txq *txq);
 void rwnx_txq_stop(struct rwnx_txq *txq, u16 reason);
-void rwnx_txq_start(struct rwnx_txq *txq, u16 reason);
-void rwnx_txq_vif_start(VIF_INF_PTR vif, u16 reason);
+__IRAM2 void rwnx_txq_start(struct rwnx_txq *txq, u16 reason);
+__IRAM2 void rwnx_txq_vif_start(VIF_INF_PTR vif, u16 reason);
 void rwnx_txq_vif_stop(VIF_INF_PTR vif, u16 reason);
-void rwnx_txq_sta_start(STA_INF_PTR sta, u16 reason);
+__IRAM2 void rwnx_txq_sta_start(STA_INF_PTR sta, u16 reason);
 void rwnx_txq_sta_stop(STA_INF_PTR sta, u16 reason);
 void rwnx_txq_offchan_start();
-int rwnx_txq_queue_skb(struct sk_buff *skb, struct rwnx_txq *txq, bool retry, struct sk_buff *skb_prev);
+__IRAM2 int rwnx_txq_queue_skb(struct sk_buff *skb, struct rwnx_txq *txq, bool retry, struct sk_buff *skb_prev);
 void rwnx_txq_drop_skb(struct rwnx_txq *txq,  struct sk_buff *skb, bool retry_packet);
 void rwnx_txq_cleanup_timer_cb(void *dummy);
 void rwnx_txq_credit_update(int sta_idx, u8 tid, s8 update);
 void rwnx_hwq_init();
-void rwnx_hwq_process(struct rwnx_hwq *hwq);
-void rwnx_hwq_process_all(int);
-bool rwnx_any_hwq_need_processing();
+__IRAM2 void rwnx_hwq_process(struct rwnx_hwq *hwq);
+__IRAM2 void rwnx_hwq_process_all(int);
+__IRAM2 bool rwnx_any_hwq_need_processing();
 
 #endif // _RWNX_TXQ_H_

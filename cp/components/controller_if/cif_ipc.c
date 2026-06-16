@@ -8,7 +8,7 @@ cif_ipc_t cif_ipc_env[IPC_MAX];
 static SPINLOCK_SECTION volatile spinlock_t cif_ipc_tx_locks[IPC_MAX] = {SPIN_LOCK_INIT, SPIN_LOCK_INIT};
 #endif
 
-uint8_t cif_map_to_rx_wifi_type(uint8_t channel)
+__IRAM3 uint8_t cif_map_to_rx_wifi_type(uint8_t channel)
 {
     switch(channel)
     {
@@ -23,7 +23,7 @@ uint8_t cif_map_to_rx_wifi_type(uint8_t channel)
     }
     return 0xff;
 }
-uint8_t cif_map_to_ipc_chnl(uint8_t channel)
+__IRAM3 uint8_t cif_map_to_ipc_chnl(uint8_t channel)
 {
     switch(channel)
     {

@@ -158,7 +158,7 @@ static u8				mb_chnnl_init_ok = 0;
 #include "spinlock.h"
 static SPINLOCK_SECTION volatile spinlock_t mb_chnl_spin_lock = SPIN_LOCK_INIT;
 #endif // CONFIG_SOC_SMP
-static inline uint32_t mb_chnl_enter_critical()
+__IRAM_SEC static inline uint32_t mb_chnl_enter_critical()
 {
 	uint32_t flags = rtos_disable_int();
 
@@ -169,7 +169,7 @@ static inline uint32_t mb_chnl_enter_critical()
 	return flags;
 }
 
-static inline void mb_chnl_exit_critical(uint32_t flags)
+__IRAM_SEC static inline void mb_chnl_exit_critical(uint32_t flags)
 {
 #if CONFIG_SOC_SMP
 	spin_unlock(&mb_chnl_spin_lock);
@@ -188,7 +188,7 @@ static volatile uint32_t s_mailbox_tx_ack_cnt = 0;
 static volatile uint32_t s_mailbox_tx_compl_cnt = 0;
 static volatile uint32_t s_mailbox_tx_ack_fault_mask = 0;
 
-static inline bk_err_t bk_mailbox_send_safe(mailbox_data_t *data, mailbox_endpoint_t src, mailbox_endpoint_t dst, void *arg)
+__IRAM_SEC static inline bk_err_t bk_mailbox_send_safe(mailbox_data_t *data, mailbox_endpoint_t src, mailbox_endpoint_t dst, void *arg)
 {
 	bk_err_t		ret_code;
 	
@@ -199,7 +199,7 @@ static inline bk_err_t bk_mailbox_send_safe(mailbox_data_t *data, mailbox_endpoi
 	return ret_code;
 }
 
-static u8 mb_phy_chnl_tx_cmd(u8 log_chnl)
+__IRAM_SEC static u8 mb_phy_chnl_tx_cmd(u8 log_chnl)
 {
 	mb_phy_chnl_cmd_t	* cmd_ptr;
 	bk_err_t		ret_code;
@@ -271,7 +271,7 @@ static u8 mb_phy_chnl_tx_cmd(u8 log_chnl)
 	return 0;
 }
 
-static void mb_phy_chnl_rx_ack_isr(mb_phy_chnl_ack_t *ack_ptr)
+__IRAM_SEC static void mb_phy_chnl_rx_ack_isr(mb_phy_chnl_ack_t *ack_ptr)
 {
 	u8		log_chnl;
 	u8		ret_code;
@@ -448,7 +448,7 @@ static void mb_phy_chnl_rx_ack_isr(mb_phy_chnl_ack_t *ack_ptr)
 
 }
 
-static void mb_phy_chnl_rx_cmd_isr(mb_phy_chnl_cmd_t *cmd_ptr)
+__IRAM_SEC static void mb_phy_chnl_rx_cmd_isr(mb_phy_chnl_cmd_t *cmd_ptr)
 {
 	phy_chnnl_hdr_t  chnl_hdr;
 	u8			log_chnl = cmd_ptr->hdr.logical_chnl;
@@ -535,7 +535,7 @@ static void mb_phy_chnl_rx_cmd_isr(mb_phy_chnl_cmd_t *cmd_ptr)
 	return;
 }
 
-static void mb_phy_chnl_rx_isr(mailbox_data_t * mb_data)
+__IRAM_SEC static void mb_phy_chnl_rx_isr(mailbox_data_t * mb_data)
 {
 	mb_phy_chnl_union_t	rx_data;
 
@@ -562,7 +562,7 @@ static void mb_phy_chnl_rx_isr(mailbox_data_t * mb_data)
 	}
 }
 
-static void mb_phy_chnl_start_tx(u8 log_chnl)
+__IRAM_SEC static void mb_phy_chnl_start_tx(u8 log_chnl)
 {
 	u8		ret_code;
 
@@ -883,7 +883,7 @@ bk_err_t mb_chnl_read(u8 log_chnl, mb_chnl_cmd_t * read_buf)
   *     failed  : fail code.
   *
   */
-bk_err_t mb_chnl_write(u8 log_chnl, mb_chnl_cmd_t * cmd_buf)
+__IRAM_SEC bk_err_t mb_chnl_write(u8 log_chnl, mb_chnl_cmd_t * cmd_buf)
 {
 	u16		write_len;
 

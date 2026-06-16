@@ -56,7 +56,7 @@ const int rwnx_tid2hwq[16] = {
 //#undef TRACE_TXQ
 //#define TRACE_TXQ(mod, ...) BK_LOGD(NULL,__VA_ARGS__)
 
-static inline int rwnx_txq_sta_idx(STA_INF_PTR sta, u8 tid)
+__IRAM2 static inline int rwnx_txq_sta_idx(STA_INF_PTR sta, u8 tid)
 {
 #if !CONFIG_WFA_CERT
 	/* For Non WFA Certification, SW only use one tid */
@@ -68,12 +68,12 @@ static inline int rwnx_txq_sta_idx(STA_INF_PTR sta, u8 tid)
 		return (mac_sta_mgmt_get_staid(sta) * NX_NB_TXQ_PER_STA) + tid;
 }
 
-static inline int rwnx_txq_vif_idx(VIF_INF_PTR vif, u8 type)
+__IRAM2 static inline int rwnx_txq_vif_idx(VIF_INF_PTR vif, u8 type)
 {
 	return NX_FIRST_VIF_TXQ_IDX + mac_vif_mgmt_get_index(vif) + (type * NX_VIRT_DEV_MAX);
 }
 
-struct rwnx_txq *rwnx_txq_sta_get(STA_INF_PTR sta, u8 tid)
+__IRAM2 struct rwnx_txq *rwnx_txq_sta_get(STA_INF_PTR sta, u8 tid)
 {
 	if (tid >= NX_NB_TXQ_PER_STA)
 		tid = 0;
@@ -89,7 +89,7 @@ struct rwnx_txq *rwnx_txq_sta_get(STA_INF_PTR sta, u8 tid)
 	return &g_rwnx_hw.txq[rwnx_txq_sta_idx(sta, tid)];
 }
 
-struct rwnx_txq *rwnx_txq_vif_get(VIF_INF_PTR vif, u8 type)
+__IRAM2 struct rwnx_txq *rwnx_txq_vif_get(VIF_INF_PTR vif, u8 type)
 {
 	if (type > NX_UNK_TXQ_TYPE)
 		type = NX_BCMC_TXQ_TYPE;
@@ -602,7 +602,7 @@ void rwnx_txq_prepare()
  * Add the TX queue if not already present in the HW queue list.
  * To be called with tx_lock hold
  */
-void rwnx_txq_add_to_hw_list(struct rwnx_txq *txq)
+__IRAM2 void rwnx_txq_add_to_hw_list(struct rwnx_txq *txq)
 {
 	if (!(txq->status & RWNX_TXQ_IN_HWQ_LIST)) {
 		// trace_txq_add_to_hw(txq);
@@ -620,7 +620,7 @@ void rwnx_txq_add_to_hw_list(struct rwnx_txq *txq)
  * Remove the TX queue from the HW queue list if present.
  * To be called with tx_lock hold
  */
-void rwnx_txq_del_from_hw_list(struct rwnx_txq *txq)
+__IRAM2 void rwnx_txq_del_from_hw_list(struct rwnx_txq *txq)
 {
 	if (txq->status & RWNX_TXQ_IN_HWQ_LIST) {
 		// trace_txq_del_from_hw(txq);
@@ -636,7 +636,7 @@ void rwnx_txq_del_from_hw_list(struct rwnx_txq *txq)
  * @return True if there are buffer ready to be pushed on this txq,
  * false otherwise
  */
-static inline bool rwnx_txq_skb_ready(struct rwnx_txq *txq)
+__IRAM2 static inline bool rwnx_txq_skb_ready(struct rwnx_txq *txq)
 {
 	return !skb_queue_empty(&txq->sk_list);
 }
@@ -652,7 +652,7 @@ static inline bool rwnx_txq_skb_ready(struct rwnx_txq *txq)
  * the TX queue is also added to HW queue list.
  * To be called with tx_lock hold
  */
-void rwnx_txq_start(struct rwnx_txq *txq, u16 reason)
+__IRAM2 void rwnx_txq_start(struct rwnx_txq *txq, u16 reason)
 {
 	BK_ASSERT(txq != NULL); /* ASSERT VERIFIED */
 
@@ -710,7 +710,7 @@ void rwnx_txq_stop(struct rwnx_txq *txq, u16 reason)
  * added to the HW queue list
  * To be called with tx_lock hold
  */
-void rwnx_txq_sta_start(STA_INF_PTR rwnx_sta, u16 reason)
+__IRAM2 void rwnx_txq_sta_start(STA_INF_PTR rwnx_sta, u16 reason)
 {
 	struct rwnx_txq *txq;
 	int tid;
@@ -798,7 +798,7 @@ void rwnx_txq_vif_for_each_sta(VIF_INF_PTR rwnx_vif,
  * reason @reason
  * Take tx_lock
  */
-void rwnx_txq_vif_start(VIF_INF_PTR rwnx_vif, u16 reason)
+__IRAM2 void rwnx_txq_vif_start(VIF_INF_PTR rwnx_vif, u16 reason)
 {
 	struct rwnx_txq *txq;
 
@@ -903,7 +903,7 @@ void rwnx_txq_offchan_start()
  *
  * To be called with tx_lock hold
  */
-int rwnx_txq_queue_skb(struct sk_buff *skb, struct rwnx_txq *txq,
+__IRAM2 int rwnx_txq_queue_skb(struct sk_buff *skb, struct rwnx_txq *txq,
 					   bool retry,
 					   struct sk_buff *skb_prev)
 {
@@ -1008,7 +1008,7 @@ static inline void skb_queue_extract(struct sk_buff_head *list,
  * @return true if txq no longer have buffer ready after the ones returned.
  *         false otherwise
  */
-static
+__IRAM2 static
 bool rwnx_txq_get_skb_to_push(struct rwnx_hwq *hwq,
 							  struct rwnx_txq *txq, int user,
 							  struct sk_buff_head *sk_list_push)
@@ -1055,7 +1055,7 @@ bool rwnx_txq_get_skb_to_push(struct rwnx_hwq *hwq,
  *
  * To be called with tx_lock hold
  */
-void rwnx_hwq_process(struct rwnx_hwq *hwq)
+__IRAM2 void rwnx_hwq_process(struct rwnx_hwq *hwq)
 {
 	struct rwnx_txq *txq, *next;
 	int user = 0;
@@ -1096,7 +1096,7 @@ void rwnx_hwq_process(struct rwnx_hwq *hwq)
  * Loop over all HWQ, and process them if needed
  * To be called with tx_lock hold
  */
-void rwnx_hwq_process_all(int dummy)
+__IRAM2 void rwnx_hwq_process_all(int dummy)
 {
 	int id;
 	ke_state_t state;
@@ -1122,7 +1122,7 @@ void rwnx_hwq_process_all(int dummy)
  * *
  * Loop over all HWQ, and returns true if any hwq needs processing
  */
-bool rwnx_any_hwq_need_processing()
+__IRAM2 bool rwnx_any_hwq_need_processing()
 {
 	int id;
 	for (id = ARRAY_SIZE(g_rwnx_hw.hwq) - 1; id >= 0 ; id--) {

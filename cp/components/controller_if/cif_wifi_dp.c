@@ -60,7 +60,7 @@ static uint8_t cif_vif_id_route()
     return INVALID_VIF_IDX;
 }
 
-bk_err_t cif_handle_txdata(void *head)
+__IRAM2 bk_err_t cif_handle_txdata(void *head)
 {
     uint8_t ret = BK_OK;
     struct pbuf* pbuf = NULL;
@@ -163,7 +163,7 @@ void cif_filter_add_customer_filter(uint32_t ip, uint16_t port)
     cif_env.filter.src_ip = ip;
     cif_env.filter.src_port = port;
 }
-static bool cif_filter_check_customer_filter(struct ip_hdr *iphdr, uint32_t src_port, uint32_t dst_port)
+__IRAM3 static bool cif_filter_check_customer_filter(struct ip_hdr *iphdr, uint32_t src_port, uint32_t dst_port)
 {
     if (cif_env.filter.src_ip == 0)
         return false;
@@ -178,7 +178,7 @@ static bool cif_filter_check_customer_filter(struct ip_hdr *iphdr, uint32_t src_
 
     return false;
 }
-static bool cif_filter_check_bk_filter(uint32_t src_port, uint32_t dst_port)
+__IRAM3 static bool cif_filter_check_bk_filter(uint32_t src_port, uint32_t dst_port)
 {
     if ((dst_port == DHCP_SERVER_PORT) || (dst_port == DHCP_CLIENT_PORT) || (dst_port == NAMESERVER_PORT))
     {
@@ -192,7 +192,7 @@ static bool cif_filter_check_bk_filter(uint32_t src_port, uint32_t dst_port)
 
     return false;
 }
-static bool cif_filter_check_ip_and_port(struct ip_hdr *iphdr, uint32_t src_port, uint32_t dst_port)
+__IRAM2 static bool cif_filter_check_ip_and_port(struct ip_hdr *iphdr, uint32_t src_port, uint32_t dst_port)
 {
     if(iperf_get_state() != 0)
     {
@@ -211,7 +211,7 @@ static bool cif_filter_check_ip_and_port(struct ip_hdr *iphdr, uint32_t src_port
 
     return false;
 }
-bool cif_filter_check_ip_data(struct pbuf *p)
+__IRAM2 bool cif_filter_check_ip_data(struct pbuf *p)
 {
     bool upload2ctrl = false;
     u16_t iphdr_hlen;
@@ -303,7 +303,7 @@ bool cif_filter_check_ip_data(struct pbuf *p)
 }
 
 #if CONFIG_IPV6
-static bool cif_filter_check_ip6_data(struct pbuf *p)
+__IRAM3 static bool cif_filter_check_ip6_data(struct pbuf *p)
 {
     bool upload2ctrl = false;
 
@@ -343,7 +343,7 @@ static bool cif_filter_check_ip6_data(struct pbuf *p)
  * @brief Send memory free request to AP side
  * @param mem_addr Memory address to be freed
  */
-static void cif_send_mem_free_req(void *mem_addr)
+__IRAM3 static void cif_send_mem_free_req(void *mem_addr)
 {
     //CIF_LOGD("CP Send memory free request: addr=%p\r\n", mem_addr);
 
@@ -355,7 +355,7 @@ static void cif_send_mem_free_req(void *mem_addr)
 }
 #endif
 
-bool cif_rx_local_packet_check(struct pbuf **p_ptr, struct eth_hdr * ethhdr,void* vif, uint8_t dst_idx)
+__IRAM2 bool cif_rx_local_packet_check(struct pbuf **p_ptr, struct eth_hdr * ethhdr,void* vif, uint8_t dst_idx)
 {
     bool upload2ctrl = true;
     struct pbuf *p = *p_ptr;

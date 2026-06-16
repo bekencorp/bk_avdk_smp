@@ -59,7 +59,44 @@
 #else
 ////other only 16K ITCM,pick the important one to ITCM
 #define __ITCM __attribute__((section(".itcm_sec_code ")))
-#define __ITCM_N
+#define __ITCM_N __attribute__((section(".itcm_sec_code ")))
+#endif
+
+#ifndef CONFIG_WIFI_IRAM_OPT_LEVEL
+#define CONFIG_WIFI_IRAM_OPT_LEVEL 2
+#endif
+
+/* Tier1 WiFi critical path: always resident, never trimmed by level. */
+#ifndef __IRAM_WIFI
+#define __IRAM_WIFI __attribute__((section(".iram")))
+#endif
+
+#if CONFIG_SOC_BK7259
+#if (CONFIG_WIFI_IRAM_OPT_LEVEL >= 2)
+#ifndef __IRAM2
+#define __IRAM2 __attribute__((section(".iram2")))
+#endif
+#else
+#ifndef __IRAM2
+#define __IRAM2
+#endif
+#endif
+#if (CONFIG_WIFI_IRAM_OPT_LEVEL >= 3)
+#ifndef __IRAM3
+#define __IRAM3 __attribute__((section(".iram3")))
+#endif
+#else
+#ifndef __IRAM3
+#define __IRAM3
+#endif
+#endif
+#else
+#ifndef __IRAM2
+#define __IRAM2
+#endif
+#ifndef __IRAM3
+#define __IRAM3
+#endif
 #endif
 
 #if CONFIG_SOC_BK7256XX && !CONFIG_RWNX_NO_USE_DTCM

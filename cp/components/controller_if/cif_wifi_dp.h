@@ -21,7 +21,7 @@ extern bk_err_t cif_handle_txdata(void *head);
 bool cif_rx_local_packet_check(struct pbuf **p_ptr,struct eth_hdr * ethhdr,void* vif, uint8_t dst_idx);
 
 #if CONFIG_BK_RAW_LINK
-static void cif_send_mem_free_req(void *mem_addr);
+__IRAM3 static void cif_send_mem_free_req(void *mem_addr);
 #endif
 static inline bool cif_is_arp_request(const struct pbuf *p)
 {

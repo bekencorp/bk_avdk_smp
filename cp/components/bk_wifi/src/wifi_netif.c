@@ -40,7 +40,7 @@ static void *wifi_netif_vifid_to_vif_impl(int vifid)
 	return rwm_mgmt_vif_idx2ptr(vifid);
 }
 
-void *wifi_netif_vifid_to_vif(int vifid)
+__IRAM3 void *wifi_netif_vifid_to_vif(int vifid)
 {
 	return wifi_netif_vifid_to_vif_impl(vifid);
 }
@@ -62,7 +62,7 @@ uint8_t *wifi_netif_vif_to_mac(void *vif)
 }
 
 //TODO is vif->index same as vifid???
-int wifi_netif_vif_to_vifid(void *vif)
+__IRAM3 int wifi_netif_vif_to_vifid(void *vif)
 {
 	if (vif)
 		return mac_vif_mgmt_get_index(vif);
@@ -70,7 +70,7 @@ int wifi_netif_vif_to_vifid(void *vif)
 	return WIFI_INVALID_VIFID;
 }
 
-netif_if_t wifi_netif_vif_to_netif_type(void *vif)
+__IRAM3 netif_if_t wifi_netif_vif_to_netif_type(void *vif)
 {
 	if (!vif) {
 		return NETIF_IF_INVALID;
@@ -97,7 +97,7 @@ void wifi_netif_set_vif_private_data(void *vif, void *data)
 		mac_vif_mgmt_set_priv(vif, data);
 }
 
-void *wifi_netif_get_vif_private_data(void *vif)
+__IRAM3 void *wifi_netif_get_vif_private_data(void *vif)
 {
 	if (vif)
 		return mac_vif_mgmt_get_priv(vif);

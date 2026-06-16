@@ -417,12 +417,12 @@ int bk_sta_cipher_type(void);
 // We should finally remove this wrapper and use the event instead.
 
 int wifi_netif_mac_to_vifid(uint8_t *mac);
-void* wifi_netif_vifid_to_vif(int vifid);
+__IRAM3 void* wifi_netif_vifid_to_vif(int vifid);
 void* wifi_netif_mac_to_vif(uint8_t *mac);
-netif_if_t wifi_netif_vif_to_netif_type(void *vif);
+__IRAM3 netif_if_t wifi_netif_vif_to_netif_type(void *vif);
 netif_if_t wifi_netif_mac_to_netif_type(uint8_t *mac);
 void wifi_netif_set_vif_private_data(void *vif, void *data);
-void* wifi_netif_get_vif_private_data(void *vif);
+__IRAM3 void* wifi_netif_get_vif_private_data(void *vif);
 void wifi_netif_notify_sta_got_ip(enum ip_ver ver);
 void wifi_netif_notify_sta_dhcp_timeout(void);
 void wifi_netif_call_status_cb_when_sta_got_ip(void);
@@ -432,7 +432,7 @@ bool wifi_netif_sta_is_got_ip(void);
 void wifi_netif_notify_sta_disconnect(void);
 
 uint8_t* wifi_netif_vif_to_mac(void *vif);
-int wifi_netif_vif_to_vifid(void *vif);
+__IRAM3 int wifi_netif_vif_to_vifid(void *vif);
 
 /* bk_wifi_rw */
 int bk_wifi_sta_set_power(int power);

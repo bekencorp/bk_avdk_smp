@@ -65,7 +65,7 @@ void cif_print_debug_info()
     CIF_LOGI("\n");
 }
 
-bk_err_t cif_msg_sender(void* head,enum cif_task_msg_evt type,uint8_t retry)
+__IRAM2 bk_err_t cif_msg_sender(void* head,enum cif_task_msg_evt type,uint8_t retry)
 {
     bk_err_t ret = BK_OK;
     struct cif_msg msg;
@@ -82,7 +82,7 @@ bk_err_t cif_msg_sender(void* head,enum cif_task_msg_evt type,uint8_t retry)
 
     return ret;
 }
-void cif_main(void *arg)
+__IRAM2 void cif_main(void *arg)
 {
     bk_err_t ret;
     struct cif_msg msg;
@@ -123,7 +123,7 @@ void cif_main(void *arg)
     }
 }
 
-uint8_t cif_dnld_buffer(void *param, void *payload)
+__IRAM2 uint8_t cif_dnld_buffer(void *param, void *payload)
 {
     uint8_t num_temp = 0;
     uint8_t ret = BK_OK;
@@ -169,7 +169,7 @@ uint8_t cif_dnld_buffer(void *param, void *payload)
 }
 
 
-bk_err_t cif_rxbuf_push(uint8_t channel,void* head,void* tail,uint8_t num)
+__IRAM2 bk_err_t cif_rxbuf_push(uint8_t channel,void* head,void* tail,uint8_t num)
 {
     //struct cpdu_t* buf = (struct cpdu_t*)head;
     cif_chnl_node_t ipc_node = {0};
@@ -245,7 +245,7 @@ bk_err_t cif_rxbuf_push(uint8_t channel,void* head,void* tail,uint8_t num)
     return ret;
 }
 
-bk_err_t cif_rxdata_pre_process(uint8_t channel,void* head,uint8_t need_retry)
+__IRAM2 bk_err_t cif_rxdata_pre_process(uint8_t channel,void* head,uint8_t need_retry)
 {
     bk_err_t ret = BK_OK;
     uint32_t int_level;
@@ -304,7 +304,7 @@ ERR_EXIT:
     return BK_OK;
 }
 
-void cif_rx_data_complete(void *param, void *ack_buf)
+__IRAM2 void cif_rx_data_complete(void *param, void *ack_buf)
 {
     CIF_IPC_ISR_LOCK(&cif_ipc_env[IPC_DATA]);
     cif_ipc_env[IPC_DATA].sending_flag = 0;
@@ -319,7 +319,7 @@ void cif_rx_data_complete(void *param, void *ack_buf)
         CIF_IPC_ISR_UNLOCK(&cif_ipc_env[IPC_DATA]);
     }
 }
-void cif_rx_evt_complete(void *param, void *ack_buf)
+__IRAM2 void cif_rx_evt_complete(void *param, void *ack_buf)
 {
     CIF_IPC_ISR_LOCK(&cif_ipc_env[IPC_CMD]);
     cif_ipc_env[IPC_CMD].sending_flag = 0;

@@ -5,7 +5,7 @@ uint8_t cif_tx_event_buffer[MAX_NUM_CMD_LONG_BUF][CIF_MAX_CFM_DATA_LEN] = {0};
 uint8_t cif_tx_event_short_buffer[MAX_NUM_CMD_SHORT_BUF][CIF_MAX_CFM_SHORT_LEN] = {0};
 
 struct cif_rx_bank_t * cif_rxbank_ptr = &(cif_env.rx_bank);
-void cif_free_ap_txbuf(struct pbuf * pbuf)
+__IRAM2 void cif_free_ap_txbuf(struct pbuf * pbuf)
 {
     CIF_LOGV("%s,%d,p:0x%x\n",__func__,__LINE__,pbuf);
     //send cpdu header addr
@@ -74,7 +74,7 @@ void cif_rxbank_check()
     }
 
 }
-uint8_t* cif_maclloc_rx_buf()
+__IRAM2 uint8_t* cif_maclloc_rx_buf()
 {
     uint8_t * buf = NULL;
     uint32_t int_level;
@@ -112,7 +112,7 @@ uint8_t* cif_maclloc_rx_buf()
     //BK_ASSERT((uint32_t)buf < 0x281c0000);
     return buf;
 }
-void cif_free_rx_buf(uint32_t buf)
+__IRAM2 void cif_free_rx_buf(uint32_t buf)
 {
     uint32_t int_level;
     struct pbuf* p_tmp = NULL;

@@ -30,13 +30,13 @@ extern const int rwnx_tid2hwq[];
 	})
 
 void rwnx_set_traffic_status(STA_INF_PTR sta, bool available, u8 ps_id);
-void rwnx_tx_push(struct sk_buff *skb);
+__IRAM2 void rwnx_tx_push(struct sk_buff *skb);
 uint32_t rwnx_tx_get_pbuf_chain_cnt(struct pbuf *p);
 int rwnx_start_xmit(uint8_t vif_idx, struct pbuf *p, BUS_MSG_T *msg);
 void rwnx_start_xmit_mgmt(struct sk_buff *skb);
 void rwnx_start_xmit_raw_ex(struct sk_buff *skb,raw_tx_cntrl_t *raw_tx_cntrl);
 
-void fhost_tx_cfm_push(uint8_t queue_idx, struct txdesc *txdesc);
+__IRAM2 void fhost_tx_cfm_push(uint8_t queue_idx, struct txdesc *txdesc);
 int fhost_txbuf_push(void *desc, uint8_t queue_idx);
 
 #endif

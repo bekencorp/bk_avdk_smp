@@ -355,13 +355,13 @@ static inline int32_t skb_get_pending_cnt(void)
 
 void skb_unlink(struct sk_buff *skb, struct sk_buff_head *list);
 void skb_append(struct sk_buff *old, struct sk_buff *newsk, struct sk_buff_head *list);
-void skb_queue_tail(struct sk_buff_head *list, struct sk_buff *newsk);
+__IRAM2 void skb_queue_tail(struct sk_buff_head *list, struct sk_buff *newsk);
 void skb_queue_head(struct sk_buff_head *list, struct sk_buff *newsk);
 void dev_kfree_skb_any(struct sk_buff *skb);
 struct sk_buff *alloc_skb(UINT32 len, int layer);
 struct sk_buff *alloc_skb_for_tx_mgmt(UINT32 len);
-struct sk_buff *alloc_skb_with_pbuf(struct pbuf *p);
-void kfree_skb(struct sk_buff *skb);
+__IRAM2 struct sk_buff *alloc_skb_with_pbuf(struct pbuf *p);
+__IRAM2 void kfree_skb(struct sk_buff *skb);
 
 
 #endif

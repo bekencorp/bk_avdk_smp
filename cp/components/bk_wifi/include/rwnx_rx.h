@@ -107,11 +107,11 @@ struct fhost_rx_header {
 };
 
 struct rxu_stat_val;
-int fhost_rxbuf_push(void);
-void fhost_rx_desc_handler(struct rxu_stat_val *rxstat);
+__IRAM2 int fhost_rxbuf_push(void);
+__IRAM2 void fhost_rx_desc_handler(struct rxu_stat_val *rxstat);
 int fhost_rxbuf_repush(uint32_t host_id);
 int fhost_rxbuf_push();
-void rwm_check_rx_header_pattern(void *host_id);
+__IRAM2 void rwm_check_rx_header_pattern(void *host_id);
 bool rwm_check_rx_header_pattern_enabled();
 
 #endif //__FHOST_MSDU_H__
