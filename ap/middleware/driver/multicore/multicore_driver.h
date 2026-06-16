@@ -29,7 +29,7 @@ bk_err_t bk_multicore_start(uint32_t cpu_id);
 bk_err_t bk_multicore_reset(uint32_t cpu_id);
 bk_err_t bk_multicore_stop(uint32_t cpu_id);
 
-#if CONFIG_SOC_SMP
+#if CONFIG_CPU_HOTPLUG
 typedef enum {
 	BK_CPU_HP_STATE_ONLINE = 0,
 	BK_CPU_HP_STATE_OFFLINE_REQUESTED,
@@ -44,23 +44,25 @@ typedef enum {
 	BK_CPU_HP_STATE_RESET_RELEASE,
 	BK_CPU_HP_STATE_SECONDARY_BOOT,
 	BK_CPU_HP_STATE_JOIN_SCHEDULER,
-} bk_cpu_hotplug_state_t;
+} bk_cpu_hp_state_t;
 
-bk_err_t bk_cpu_offline(uint32_t cpu_id);
-bk_err_t bk_cpu_online(uint32_t cpu_id);
-uint32_t bk_cpu_hotplug_enter_primary(void);
-void bk_cpu_hotplug_exit_primary(uint32_t old_core_id);
-uint32_t bk_cpu_is_online(uint32_t cpu_id);
-uint32_t bk_cpu_is_active(uint32_t cpu_id);
-bk_cpu_hotplug_state_t bk_cpu_get_state(uint32_t cpu_id);
-const char *bk_cpu_get_state_name(uint32_t cpu_id);
-uint32_t bk_cpu_get_domain_possible_mask(uint32_t cpu_id);
-uint32_t bk_cpu_get_domain_online_mask(uint32_t cpu_id);
-uint32_t bk_cpu_get_domain_active_mask(uint32_t cpu_id);
-uint32_t bk_cpu_get_domain_dying_mask(uint32_t cpu_id);
-uint32_t bk_cpu_get_domain_offline_mask(uint32_t cpu_id);
-bk_err_t bk_ap_cpu_offline(uint32_t smp_core_id);
-bk_err_t bk_ap_cpu_online(uint32_t smp_core_id);
-uint32_t bk_ap_cpu_is_online(uint32_t smp_core_id);
+uint32_t bk_cpu_hp_is_online(uint32_t cpu_id);
+uint32_t bk_cpu_hp_is_active(uint32_t cpu_id);
+bk_cpu_hp_state_t bk_cpu_hp_get_state(uint32_t cpu_id);
+const char *bk_cpu_hp_get_state_name(uint32_t cpu_id);
+uint32_t bk_cpu_hp_get_domain_possible_mask(uint32_t cpu_id);
+uint32_t bk_cpu_hp_get_domain_online_mask(uint32_t cpu_id);
+uint32_t bk_cpu_hp_get_domain_active_mask(uint32_t cpu_id);
+uint32_t bk_cpu_hp_get_domain_dying_mask(uint32_t cpu_id);
+uint32_t bk_cpu_hp_get_domain_offline_mask(uint32_t cpu_id);
 
-#endif
+bk_err_t bk_cpu_hp_offline(uint32_t cpu_id);
+bk_err_t bk_cpu_hp_online(uint32_t cpu_id);
+uint32_t bk_cpu_hp_enter_primary(void);
+void bk_cpu_hp_exit_primary(uint32_t old_core_id);
+
+void bk_cpu_hp_core_online(void);
+void bk_cpu_hp_core_stop_hmb_isr(void);
+void bk_cpu_hp_idle_handler(void);
+
+#endif /* CONFIG_CPU_HOTPLUG */

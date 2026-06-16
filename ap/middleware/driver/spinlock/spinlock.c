@@ -255,7 +255,7 @@ void spin_unlock(volatile spinlock_t *lock)
     }
 }
 
-uint32_t _spin_lock_irqsave(spinlock_t *lock)
+uint32_t _spin_lock_irqsave(volatile spinlock_t *lock)
 {
 	unsigned long flags = rtos_disable_int();
 	spin_lock(lock);
@@ -263,7 +263,7 @@ uint32_t _spin_lock_irqsave(spinlock_t *lock)
 	return flags;
 }
 
-void _spin_unlock_irqrestore(spinlock_t *lock, uint32_t flags)
+void _spin_unlock_irqrestore(volatile spinlock_t *lock, uint32_t flags)
 {
 	spin_unlock(lock);
 	rtos_enable_int(flags);

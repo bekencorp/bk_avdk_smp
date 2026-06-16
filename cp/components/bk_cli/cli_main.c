@@ -1540,7 +1540,7 @@ int bk_cli_init(void)
 	cli_os_init();
 #endif
 
-#if CONFIG_SOC_SMP
+#if (CONFIG_SOC_SMP && CONFIG_CPU_HOTPLUG)
 	cli_cp_hotplug_init();
 #endif
 

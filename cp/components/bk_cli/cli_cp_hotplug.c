@@ -11,7 +11,7 @@
 #include "multicore_driver.h"
 #include "sys_reg.h"
 
-#if CONFIG_SOC_SMP
+#if (CONFIG_SOC_SMP && CONFIG_CPU_HOTPLUG)
 
 #define CPU_HOTPLUG_CMD_CNT (sizeof(s_cpu_hotplug_commands) / sizeof(struct cli_command))
 #define CPU_HOTPLUG_CLI_MIGRATE_RETRY (20)
@@ -42,10 +42,10 @@ static void cli_cpu_print_state(void)
 {
 	for (uint32_t cpu = CPU0_CORE_ID; cpu <= CPU1_CORE_ID; cpu++) {
 		CLI_LOGI("cpu%u: state=%s online=%u active=%u domain possible=0x%x online=0x%x active=0x%x dying=0x%x offline=0x%x\r\n",
-			cpu, bk_cpu_get_state_name(cpu), bk_cpu_is_online(cpu), bk_cpu_is_active(cpu),
-			bk_cpu_get_domain_possible_mask(cpu), bk_cpu_get_domain_online_mask(cpu),
-			bk_cpu_get_domain_active_mask(cpu), bk_cpu_get_domain_dying_mask(cpu),
-			bk_cpu_get_domain_offline_mask(cpu));
+			cpu, bk_cpu_hp_get_state_name(cpu), bk_cpu_hp_is_online(cpu), bk_cpu_hp_is_active(cpu),
+			bk_cpu_hp_get_domain_possible_mask(cpu), bk_cpu_hp_get_domain_online_mask(cpu),
+			bk_cpu_hp_get_domain_active_mask(cpu), bk_cpu_hp_get_domain_dying_mask(cpu),
+			bk_cpu_hp_get_domain_offline_mask(cpu));
 	}
 }
 
@@ -70,24 +70,6 @@ static void cli_cpu_print_irq_affinity(void)
 		REG_READ(cli_cpu_irq_en_addr(CPU1_CORE_ID, 2)));
 }
 
-static BaseType_t cli_cpu_hotplug_enter_primary(void)
-{
-	BaseType_t old_core_id = xTaskHotplugSetCurrentTaskCoreID(SMP_CORE0_ID);
-
-	for (uint32_t i = 0; (i < CPU_HOTPLUG_CLI_MIGRATE_RETRY) &&
-		(portGET_CORE_ID() != SMP_CORE0_ID); i++) {
-		taskYIELD();
-		rtos_delay_milliseconds(1);
-	}
-
-	return old_core_id;
-}
-
-static void cli_cpu_hotplug_exit_primary(BaseType_t old_core_id)
-{
-	(void)xTaskHotplugSetCurrentTaskCoreID(old_core_id);
-}
-
 static void cli_cpu_hotplug_busy_task(void *arg)
 {
 	(void)arg;
@@ -106,6 +88,7 @@ static void cli_cpu_hotplug_cmd(char *pcWriteBuffer, int xWriteBufferLen, int ar
 
 	(void)pcWriteBuffer;
 	(void)xWriteBufferLen;
+	(void)old_core_id;
 
 	if (argc < 2) {
 		cli_cpu_hotplug_help();
@@ -125,15 +108,7 @@ static void cli_cpu_hotplug_cmd(char *pcWriteBuffer, int xWriteBufferLen, int ar
 		if (!cli_cpu_hotplug_target_valid(cpu)) {
 			return;
 		}
-		old_core_id = cli_cpu_hotplug_enter_primary();
-		if (portGET_CORE_ID() != SMP_CORE0_ID) {
-			cli_cpu_hotplug_exit_primary(old_core_id);
-			CLI_LOGE("cpu%u offline must run on CP primary core, current core=%d\r\n",
-				cpu, portGET_CORE_ID());
-			return;
-		}
-		ret = bk_cpu_offline(cpu);
-		cli_cpu_hotplug_exit_primary(old_core_id);
+		ret = bk_cpu_hp_offline(cpu);
 		CLI_LOGI("cpu%u offline ret=%d\r\n", cpu, ret);
 		return;
 	}
@@ -145,15 +120,7 @@ static void cli_cpu_hotplug_cmd(char *pcWriteBuffer, int xWriteBufferLen, int ar
 		if (!cli_cpu_hotplug_target_valid(cpu)) {
 			return;
 		}
-		old_core_id = cli_cpu_hotplug_enter_primary();
-		if (portGET_CORE_ID() != SMP_CORE0_ID) {
-			cli_cpu_hotplug_exit_primary(old_core_id);
-			CLI_LOGE("cpu%u online must run on CP primary core, current core=%d\r\n",
-				cpu, portGET_CORE_ID());
-			return;
-		}
-		ret = bk_cpu_online(cpu);
-		cli_cpu_hotplug_exit_primary(old_core_id);
+		ret = bk_cpu_hp_online(cpu);
 		CLI_LOGI("cpu%u online ret=%d\r\n", cpu, ret);
 		return;
 	}
@@ -175,19 +142,10 @@ static void cli_cpu_hotplug_cmd(char *pcWriteBuffer, int xWriteBufferLen, int ar
 		bk_err_t recover_ret;
 		const bk_err_t expected_ret = BK_ERR_BUSY;
 
-		old_core_id = cli_cpu_hotplug_enter_primary();
-		if (portGET_CORE_ID() != SMP_CORE0_ID) {
-			cli_cpu_hotplug_exit_primary(old_core_id);
-			CLI_LOGE("cpu busy-test must run on CP primary core, current core=%d\r\n",
-				portGET_CORE_ID());
-			return;
-		}
-
 		task_ret = xTaskCreatePinnedToCore(cli_cpu_hotplug_busy_task, "hp_busy",
 			CPU_HOTPLUG_BUSY_TEST_STACK_SIZE, NULL, BEKEN_DEFAULT_WORKER_PRIORITY,
 			&busy_task, SMP_CORE1_ID);
 		if (task_ret != pdPASS) {
-			cli_cpu_hotplug_exit_primary(old_core_id);
 			CLI_LOGE("cpu busy-test create pinned task failed, ret=%d\r\n", task_ret);
 			return;
 		}
@@ -195,17 +153,16 @@ static void cli_cpu_hotplug_cmd(char *pcWriteBuffer, int xWriteBufferLen, int ar
 		taskYIELD();
 		rtos_delay_milliseconds(2);
 
-		ret = bk_cpu_offline(CPU1_CORE_ID);
+		ret = bk_cpu_hp_offline(CPU1_CORE_ID);
 		if (ret != expected_ret) {
-			recover_ret = bk_cpu_online(CPU1_CORE_ID);
+			recover_ret = bk_cpu_hp_online(CPU1_CORE_ID);
 			CLI_LOGE("cpu busy-test recovery online ret=%d\r\n", recover_ret);
 		}
 
 		vTaskDelete(busy_task);
-		cli_cpu_hotplug_exit_primary(old_core_id);
 		CLI_LOGI("cpu busy-test %s expect=busy(%d) actual=%d state=%s\r\n",
 			(ret == expected_ret) ? "PASS" : "FAIL", expected_ret, ret,
-			bk_cpu_get_state_name(CPU1_CORE_ID));
+			bk_cpu_hp_get_state_name(CPU1_CORE_ID));
 		return;
 	}
 
@@ -220,31 +177,20 @@ static void cli_cpu_hotplug_cmd(char *pcWriteBuffer, int xWriteBufferLen, int ar
 			return;
 		}
 
-		old_core_id = cli_cpu_hotplug_enter_primary();
-		if (portGET_CORE_ID() != SMP_CORE0_ID) {
-			cli_cpu_hotplug_exit_primary(old_core_id);
-			CLI_LOGE("cpu%u stress must run on CP primary core, current core=%d\r\n",
-				cpu, portGET_CORE_ID());
-			return;
-		}
-
 		for (uint32_t i = 0; i < loops; i++) {
-			ret = bk_cpu_offline(cpu);
+			ret = bk_cpu_hp_offline(cpu);
 			if (ret != BK_OK) {
-				cli_cpu_hotplug_exit_primary(old_core_id);
 				CLI_LOGE("cpu%u offline failed at loop %u, ret=%d\r\n", cpu, i, ret);
 				return;
 			}
 
-			ret = bk_cpu_online(cpu);
+			ret = bk_cpu_hp_online(cpu);
 			if (ret != BK_OK) {
-				cli_cpu_hotplug_exit_primary(old_core_id);
 				CLI_LOGE("cpu%u online failed at loop %u, ret=%d\r\n", cpu, i, ret);
 				return;
 			}
 		}
 
-		cli_cpu_hotplug_exit_primary(old_core_id);
 		CLI_LOGI("cpu%u hotplug stress %u loops done\r\n", cpu, loops);
 		return;
 	}

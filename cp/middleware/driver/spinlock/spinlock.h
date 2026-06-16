@@ -63,6 +63,8 @@ void spin_unlock(volatile spinlock_t *lock);
 /* spin_trylock: 0: spin lock failed, 1: spin lock success  */
 int spin_trylock(volatile spinlock_t *lock);
 
+uint32_t _spin_lock_irqsave(volatile spinlock_t *lock);
+void _spin_unlock_irqrestore(volatile spinlock_t *lock, uint32_t flags);
 #define spin_lock_irqsave(lock, flags)      \
 	do {				                    \
 		flags = _spin_lock_irqsave(lock);	\

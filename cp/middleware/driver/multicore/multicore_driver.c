@@ -26,259 +26,6 @@
 #include <driver/int.h>
 #include "bk_private/bk_wdt.h"
 
-#if CONFIG_SOC_SMP
-#define CP_HOTPLUG_TIMEOUT_MS         (100)
-#define CP_HOTPLUG_IRQ_WORDS          (3)
-#define CP_HOTPLUG_NVIC_WORDS         (4)
-#define CP_HOTPLUG_SYSTICK_CTRL       (*(volatile uint32_t *)0xe000e010)
-#define CP_HOTPLUG_SYSTICK_VAL        (*(volatile uint32_t *)0xe000e018)
-#define CP_HOTPLUG_SCB_ICSR           (*(volatile uint32_t *)0xe000ed04)
-#define CP_HOTPLUG_FPCCR              (*(volatile uint32_t *)0xe000ef34)
-#define CP_HOTPLUG_NVIC_ICER_BASE     ((volatile uint32_t *)0xe000e180)
-#define CP_HOTPLUG_NVIC_ICPR_BASE     ((volatile uint32_t *)0xe000e280)
-#define CP_HOTPLUG_PENDSVCLR          (1UL << 27)
-#define CP_HOTPLUG_PENDSTCLR          (1UL << 25)
-#define CP_HOTPLUG_FPCCR_ASPEN        (1UL << 31)
-#define CP_HOTPLUG_FPCCR_LSPEN        (1UL << 30)
-#define BK_CPU_MASK(cpu)              BIT(cpu)
-
-typedef enum {
-	BK_SMP_DOMAIN_CP = 0,
-} bk_smp_domain_id_t;
-
-typedef struct {
-	bk_smp_domain_id_t id;
-	uint32_t possible_mask;			/* CPUs physically/logically possible in this domain. */
-	uint32_t primary_mask;			/* Primary CPU mask, normally the CPU controlling hotplug. */
-	uint32_t hotplug_mask;			/* CPUs allowed to be online/offline hotplugged. */
-	uint32_t online_mask;			/* CPUs currently online from the scheduler/domain view. */
-	uint32_t active_mask;			/* CPUs currently active and allowed to run tasks. */
-	uint32_t dying_mask;			/* CPUs in the middle of offline teardown. */
-	uint32_t offline_mask;			/* CPUs currently offline. */
-	uint32_t primary_cpu;					/* CPU that owns domain-level hotplug control. */
-	uint32_t tick_owner_cpu;				/* CPU responsible for system tick ownership. */
-	bk_cpu_hotplug_state_t cpu_state[4];	/* Per-CPU hotplug state. */
-} bk_smp_domain_t;
-
-typedef struct {
-	uint32_t valid;
-	uint32_t primary_en[CP_HOTPLUG_IRQ_WORDS];
-	uint32_t target_en[CP_HOTPLUG_IRQ_WORDS];
-} cp_cpu1_irq_route_snapshot_t;
-
-static beken_mutex_t s_cp_cpu_hotplug_lock;
-static volatile uint32_t s_cpu1_offline_ack;
-static volatile uint32_t s_cpu1_online_ack;
-static cp_cpu1_irq_route_snapshot_t s_cpu1_irq_route;
-static bk_smp_domain_t s_cp_domain = {
-	.id = BK_SMP_DOMAIN_CP,
-	.possible_mask = BK_CPU_MASK(CPU0_CORE_ID) | BK_CPU_MASK(CPU1_CORE_ID),
-	.primary_mask = BK_CPU_MASK(CPU0_CORE_ID),
-	.hotplug_mask = BK_CPU_MASK(CPU1_CORE_ID),
-	.online_mask = BK_CPU_MASK(CPU0_CORE_ID) | BK_CPU_MASK(CPU1_CORE_ID),
-	.active_mask = BK_CPU_MASK(CPU0_CORE_ID) | BK_CPU_MASK(CPU1_CORE_ID),
-	.offline_mask = 0,
-	.primary_cpu = CPU0_CORE_ID,
-	.tick_owner_cpu = CPU0_CORE_ID,
-	.cpu_state = {
-		[CPU0_CORE_ID] = BK_CPU_HP_STATE_ONLINE,
-		[CPU1_CORE_ID] = BK_CPU_HP_STATE_ONLINE,
-	},
-};
-
-extern void vPortHotplugResetCoreState(BaseType_t xCoreID);
-
-static void cp_cpu_hotplug_barrier(void)
-{
-	__asm volatile("dsb sy" ::: "memory");
-	__asm volatile("isb sy" ::: "memory");
-}
-
-static void cp_cpu_hotplug_disable_local_irq(void)
-{
-	__asm volatile("cpsid i" ::: "memory");
-}
-
-static void cp_cpu_hotplug_wfi(void)
-{
-	__asm volatile("wfi" ::: "memory");
-}
-
-static bk_err_t cp_cpu_hotplug_lock_init(void)
-{
-	if (s_cp_cpu_hotplug_lock == NULL) {
-		return rtos_init_mutex(&s_cp_cpu_hotplug_lock);
-	}
-
-	return BK_OK;
-}
-
-static bk_smp_domain_t *bk_cpu_hotplug_domain(uint32_t cpu_id)
-{
-	if ((cpu_id == CPU0_CORE_ID) || (cpu_id == CPU1_CORE_ID)) {
-		return &s_cp_domain;
-	}
-
-	return NULL;
-}
-
-static uint32_t bk_cpu_hotplug_smp_core(const bk_smp_domain_t *domain, uint32_t cpu_id)
-{
-	return cpu_id - domain->primary_cpu;
-}
-
-static void bk_cpu_hotplug_set_state(bk_smp_domain_t *domain, uint32_t cpu_id,
-	bk_cpu_hotplug_state_t state)
-{
-	domain->cpu_state[cpu_id] = state;
-}
-
-static void bk_cpu_hotplug_set_active(bk_smp_domain_t *domain, uint32_t cpu_id,
-	uint32_t active)
-{
-	uint32_t cpu_mask = BK_CPU_MASK(cpu_id);
-	BaseType_t smp_core = (BaseType_t)bk_cpu_hotplug_smp_core(domain, cpu_id);
-
-	if (active) {
-		domain->active_mask |= cpu_mask;
-		vSetCoreActive(smp_core, pdTRUE);
-	} else {
-		domain->active_mask &= ~cpu_mask;
-		vSetCoreActive(smp_core, pdFALSE);
-	}
-}
-
-static void bk_cpu_hotplug_set_online(bk_smp_domain_t *domain, uint32_t cpu_id,
-	uint32_t online)
-{
-	uint32_t cpu_mask = BK_CPU_MASK(cpu_id);
-	BaseType_t smp_core = (BaseType_t)bk_cpu_hotplug_smp_core(domain, cpu_id);
-
-	if (online) {
-		domain->online_mask |= cpu_mask;
-		domain->offline_mask &= ~cpu_mask;
-		vSetCoreOnline(smp_core, pdTRUE);
-	} else {
-		domain->online_mask &= ~cpu_mask;
-		domain->offline_mask |= cpu_mask;
-		vSetCoreOnline(smp_core, pdFALSE);
-	}
-}
-
-static void bk_cpu_hotplug_set_dying(bk_smp_domain_t *domain, uint32_t cpu_id,
-	uint32_t dying)
-{
-	if (dying) {
-		domain->dying_mask |= BK_CPU_MASK(cpu_id);
-	} else {
-		domain->dying_mask &= ~BK_CPU_MASK(cpu_id);
-	}
-}
-
-static uint32_t cp_cpu_irq_en_addr(uint32_t cpu_id, uint32_t word)
-{
-	uint32_t base = (cpu_id == CPU0_CORE_ID) ? SYS_CPU0_INT_0_31_EN_ADDR :
-		SYS_CPU1_INT_0_31_EN_ADDR;
-
-	return base + (word << 2);
-}
-
-static uint32_t cp_cpu_irq_get_en(uint32_t cpu_id, uint32_t word)
-{
-	return REG_READ(cp_cpu_irq_en_addr(cpu_id, word));
-}
-
-static void cp_cpu_irq_set_en_word(uint32_t cpu_id, uint32_t word, uint32_t value)
-{
-	REG_WRITE(cp_cpu_irq_en_addr(cpu_id, word), value);
-}
-
-static uint32_t cp_irq_source_enabled(const uint32_t en[CP_HOTPLUG_IRQ_WORDS],
-	uint32_t src)
-{
-	uint32_t word = src / 32;
-	uint32_t bit = src % 32;
-
-	if (word >= CP_HOTPLUG_IRQ_WORDS) {
-		return 0;
-	}
-
-	return ((en[word] & BIT(bit)) != 0) ? 1 : 0;
-}
-
-static bk_err_t cp_cpu1_irq_route_backup(void)
-{
-	if (s_cpu1_irq_route.valid == 0) {
-		for (uint32_t word = 0; word < CP_HOTPLUG_IRQ_WORDS; word++) {
-			s_cpu1_irq_route.primary_en[word] = cp_cpu_irq_get_en(CPU0_CORE_ID, word);
-			s_cpu1_irq_route.target_en[word] = cp_cpu_irq_get_en(CPU1_CORE_ID, word);
-		}
-		s_cpu1_irq_route.valid = 1;
-	}
-
-	return BK_OK;
-}
-
-static bk_err_t cp_cpu1_irq_route_migrate_for_stop_ipi(void)
-{
-	bk_err_t ret = cp_cpu1_irq_route_backup();
-
-	if (ret != BK_OK) {
-		return ret;
-	}
-
-	for (uint32_t src = 0; src < INT_SRC_NONE; src++) {
-		if (src == INT_SRC_MAILBOX || src == INT_SRC_IPI) {
-			continue;
-		}
-		if (cp_irq_source_enabled(s_cpu1_irq_route.target_en, src)) {
-			sys_drv_set_int_en(CPU0_CORE_ID, src, 1);
-			sys_drv_set_int_en(CPU1_CORE_ID, src, 0);
-		}
-	}
-
-	return BK_OK;
-}
-
-static void cp_cpu1_irq_route_mask_all(void)
-{
-	for (uint32_t word = 0; word < CP_HOTPLUG_IRQ_WORDS; word++) {
-		cp_cpu_irq_set_en_word(CPU1_CORE_ID, word, 0);
-	}
-}
-
-static void cp_cpu1_irq_route_restore(void)
-{
-	if (s_cpu1_irq_route.valid) {
-		for (uint32_t src = 0; src < INT_SRC_NONE; src++) {
-			if (cp_irq_source_enabled(s_cpu1_irq_route.target_en, src) &&
-				!cp_irq_source_enabled(s_cpu1_irq_route.primary_en, src)) {
-				sys_drv_set_int_en(CPU0_CORE_ID, src, 0);
-			}
-		}
-
-		for (uint32_t word = 0; word < CP_HOTPLUG_IRQ_WORDS; word++) {
-			cp_cpu_irq_set_en_word(CPU1_CORE_ID, word, s_cpu1_irq_route.target_en[word]);
-		}
-		s_cpu1_irq_route.valid = 0;
-	}
-}
-
-static bk_err_t cp_cpu_hotplug_wait_ack(volatile uint32_t *ack, uint32_t timeout_ms)
-{
-	uint32_t start = rtos_get_time();
-
-	while (*ack == 0) {
-		if ((rtos_get_time() - start) >= timeout_ms) {
-			return BK_ERR_TIMEOUT;
-		}
-		rtos_delay_milliseconds(1);
-	}
-
-	return BK_OK;
-}
-#endif
-
 void bk_multicore_set_cpu_id(uint32_t cpu_id)
 {
 	multicore_hal_set_cpu_id(cpu_id);
@@ -304,16 +51,671 @@ bk_err_t bk_multicore_stop(uint32_t cpu_id)
 	return multicore_hal_stop(cpu_id);
 }
 
-#if CONFIG_SOC_SMP
-void bk_cp_cpu_hotplug_core_stop_isr(void)
-{
-	bk_smp_domain_t *domain = &s_cp_domain;
+#if CONFIG_CPU_HOTPLUG
 
+#define CP_HOTPLUG_TIMEOUT_STEPS        (3)
+#define CP_HOTPLUG_TIMEOUT_ONE_STEP     (1)
+#define CP_HOTPLUG_TIMEOUT_ONE_STEP_US  (CP_HOTPLUG_TIMEOUT_ONE_STEP * 500) /* 1500us */
+#define CP_HOTPLUG_TIMEOUT_ONE_STEP_MS  (CP_HOTPLUG_TIMEOUT_ONE_STEP)       /* 3ms */
+#define CP_HOTPLUG_IRQ_WORDS            (3)
+#define CP_HOTPLUG_NVIC_WORDS           (4)
+#define CP_HOTPLUG_SYSTICK_CTRL         (*(volatile uint32_t *)0xe000e010)
+#define CP_HOTPLUG_SYSTICK_VAL          (*(volatile uint32_t *)0xe000e018)
+#define CP_HOTPLUG_SCB_ICSR             (*(volatile uint32_t *)0xe000ed04)
+#define CP_HOTPLUG_FPCCR                (*(volatile uint32_t *)0xe000ef34)
+#define CP_HOTPLUG_NVIC_ICER_BASE       ((volatile uint32_t *)0xe000e180)
+#define CP_HOTPLUG_NVIC_ICPR_BASE       ((volatile uint32_t *)0xe000e280)
+#define CP_HOTPLUG_PENDSVCLR            (1UL << 27)
+#define CP_HOTPLUG_PENDSTCLR            (1UL << 25)
+#define CP_HOTPLUG_FPCCR_ASPEN          (1UL << 31)
+#define CP_HOTPLUG_FPCCR_LSPEN          (1UL << 30)
+#define BK_CPU_MASK(cpu)                BIT(cpu)
+
+extern void bk_delay_us(UINT32 us);
+
+typedef enum {
+	BK_CPU_HP_DOMAIN_CP = 0,
+} cpu_hp_domain_id_t;
+
+typedef struct {
+	cpu_hp_domain_id_t	id;
+	uint32_t		possible_mask;
+	uint32_t		primary_mask;
+	uint32_t		hotplug_mask;
+	uint32_t		online_mask;
+	uint32_t		active_mask;
+	uint32_t		dying_mask;
+	uint32_t		offline_mask;
+	uint32_t		primary_cpu;
+	uint32_t		tick_owner_cpu;
+	bk_cpu_hp_state_t	cpu_state[4];
+} cpu_hp_domain_t;
+
+typedef struct {
+	uint32_t valid;
+	uint32_t primary_en[CP_HOTPLUG_IRQ_WORDS];
+	uint32_t target_en[CP_HOTPLUG_IRQ_WORDS];
+} cp_cpu1_irq_route_snapshot_t;
+
+static beken_mutex_t _cpu_hp_lock;
+static SPINLOCK_SECTION volatile spinlock_t _cpu_hp_spin_lock = SPIN_LOCK_INIT;
+
+static volatile uint32_t _cpu1_wants_offline = 0;
+static volatile uint32_t _cpu1_offline_ack1;
+static volatile uint32_t _cpu1_offline_ack2;
+static volatile uint32_t _cpu1_offline_ack3;
+static volatile uint32_t _cpu1_online_ack;
+static cp_cpu1_irq_route_snapshot_t _cpu1_irq_route;
+
+static cpu_hp_domain_t _cp_domain = {
+	.id = BK_CPU_HP_DOMAIN_CP,
+	.possible_mask = BK_CPU_MASK(CPU0_CORE_ID) | BK_CPU_MASK(CPU1_CORE_ID),
+	.primary_mask = BK_CPU_MASK(CPU0_CORE_ID),
+	.hotplug_mask = BK_CPU_MASK(CPU1_CORE_ID),
+	.online_mask = BK_CPU_MASK(CPU0_CORE_ID) | BK_CPU_MASK(CPU1_CORE_ID),
+	.active_mask = BK_CPU_MASK(CPU0_CORE_ID) | BK_CPU_MASK(CPU1_CORE_ID),
+	.offline_mask = 0,
+	.primary_cpu = CPU0_CORE_ID,
+	.tick_owner_cpu = CPU0_CORE_ID,
+	.cpu_state = {
+		[CPU0_CORE_ID] = BK_CPU_HP_STATE_ONLINE,
+		[CPU1_CORE_ID] = BK_CPU_HP_STATE_ONLINE,
+	},
+};
+
+extern bk_err_t crosscore_int_send_hotplug_stop(int xCoreID);
+extern void vPortHotplugResetCoreState(BaseType_t xCoreID);
+
+static inline void _cpu_hp_barrier(void)
+{
+	__asm volatile("dsb sy" ::: "memory");
+	__asm volatile("isb sy" ::: "memory");
+}
+
+static inline void _cpu_hp_disable_local_irq(void)
+{
+	__asm volatile("cpsid i" ::: "memory");
+}
+
+static inline void _cpu_hp_enable_local_irq(void)
+{
+	__asm volatile("cpsie i" ::: "memory");
+}
+
+static inline void _cpu_hp_wfi(void)
+{
+	__asm volatile("wfi" ::: "memory");
+}
+
+static bk_err_t _cpu_hp_lock_init(void)
+{
+	bk_err_t ret = BK_OK;
+	uint32_t level = 0;
+
+	level = rtos_enter_critical();
+
+	if (_cpu_hp_lock == NULL) {
+		ret = rtos_init_mutex(&_cpu_hp_lock);
+	}
+
+	rtos_exit_critical(level);
+
+	return ret;
+}
+
+static inline cpu_hp_domain_t *_cpu_hp_domain(uint32_t cpu_id)
+{
+	if ((cpu_id == CPU0_CORE_ID) || (cpu_id == CPU1_CORE_ID)) {
+		return &_cp_domain;
+	}
+
+	return NULL;
+}
+
+static inline uint32_t _cpu_hp_get_smp_core_id(
+	const cpu_hp_domain_t *domain, uint32_t cpu_id)
+{
+	return cpu_id - domain->primary_cpu;
+}
+
+static inline void _cpu_hp_set_state(cpu_hp_domain_t *domain, uint32_t cpu_id,
+	bk_cpu_hp_state_t state)
+{
+	domain->cpu_state[cpu_id] = state;
+}
+
+static void _cpu_hp_domain_set_active(cpu_hp_domain_t *domain, uint32_t cpu_id,
+	uint32_t active)
+{
+	uint32_t cpu_mask = BK_CPU_MASK(cpu_id);
+	BaseType_t smp_core = (BaseType_t)_cpu_hp_get_smp_core_id(domain, cpu_id);
+
+	if (active) {
+		domain->active_mask |= cpu_mask;
+		vSetCoreActive(smp_core, pdTRUE);
+	} else {
+		domain->active_mask &= ~cpu_mask;
+		vSetCoreActive(smp_core, pdFALSE);
+	}
+}
+
+static void _cpu_hp_domain_set_online(cpu_hp_domain_t *domain, uint32_t cpu_id,
+	uint32_t online)
+{
+	uint32_t cpu_mask = BK_CPU_MASK(cpu_id);
+	BaseType_t smp_core = (BaseType_t)_cpu_hp_get_smp_core_id(domain, cpu_id);
+
+	if (online) {
+		domain->online_mask |= cpu_mask;
+		domain->offline_mask &= ~cpu_mask;
+		vSetCoreOnline(smp_core, pdTRUE);
+	} else {
+		domain->online_mask &= ~cpu_mask;
+		domain->offline_mask |= cpu_mask;
+		vSetCoreOnline(smp_core, pdFALSE);
+	}
+}
+
+static void _cpu_hp_domain_set_dying(cpu_hp_domain_t *domain, uint32_t cpu_id,
+	uint32_t dying)
+{
+	if (dying) {
+		domain->dying_mask |= BK_CPU_MASK(cpu_id);
+	} else {
+		domain->dying_mask &= ~BK_CPU_MASK(cpu_id);
+	}
+}
+
+static uint32_t _cpu_irq_en_addr(uint32_t cpu_id, uint32_t word)
+{
+	uint32_t base = (cpu_id == CPU0_CORE_ID) ? SYS_CPU0_INT_0_31_EN_ADDR :
+		SYS_CPU1_INT_0_31_EN_ADDR;
+
+	return base + (word << 2);
+}
+
+static uint32_t _cpu_irq_get_en(uint32_t cpu_id, uint32_t word)
+{
+	return REG_READ(_cpu_irq_en_addr(cpu_id, word));
+}
+
+static void _cpu_irq_set_en_word(uint32_t cpu_id, uint32_t word, uint32_t value)
+{
+	REG_WRITE(_cpu_irq_en_addr(cpu_id, word), value);
+}
+
+static uint32_t _irq_source_enabled(const uint32_t en[CP_HOTPLUG_IRQ_WORDS],
+	uint32_t src)
+{
+	uint32_t word = src / 32;
+	uint32_t bit = src % 32;
+
+	if (word >= CP_HOTPLUG_IRQ_WORDS) {
+		return 0;
+	}
+
+	return ((en[word] & BIT(bit)) != 0) ? 1 : 0;
+}
+
+static bk_err_t _cpu1_irq_route_backup(void)
+{
+	if (_cpu1_irq_route.valid == 0) {
+		for (uint32_t word = 0; word < CP_HOTPLUG_IRQ_WORDS; word++) {
+			_cpu1_irq_route.primary_en[word] = _cpu_irq_get_en(CPU0_CORE_ID, word);
+			_cpu1_irq_route.target_en[word] = _cpu_irq_get_en(CPU1_CORE_ID, word);
+		}
+		_cpu1_irq_route.valid = 1;
+	}
+
+	return BK_OK;
+}
+
+static bk_err_t _cpu1_irq_route_migrate_but_ipi(void)
+{
+	bk_err_t ret = _cpu1_irq_route_backup();
+
+	if (ret != BK_OK) {
+		return ret;
+	}
+
+	for (uint32_t src = 0; src < INT_SRC_NONE; src++) {
+		if (src == INT_SRC_MAILBOX || src == INT_SRC_IPI) {
+			continue;
+		}
+		if (_irq_source_enabled(_cpu1_irq_route.target_en, src)) {
+			sys_drv_set_int_en(CPU0_CORE_ID, src, 1);
+			sys_drv_set_int_en(CPU1_CORE_ID, src, 0);
+		}
+	}
+
+	return BK_OK;
+}
+
+static void _cpu1_irq_route_mask_all(void)
+{
+	for (uint32_t word = 0; word < CP_HOTPLUG_IRQ_WORDS; word++) {
+		_cpu_irq_set_en_word(CPU1_CORE_ID, word, 0);
+	}
+}
+
+static void _cpu1_irq_route_restore(void)
+{
+	if (_cpu1_irq_route.valid) {
+		for (uint32_t src = 0; src < INT_SRC_NONE; src++) {
+			if (_irq_source_enabled(_cpu1_irq_route.target_en, src) &&
+				!_irq_source_enabled(_cpu1_irq_route.primary_en, src)) {
+				sys_drv_set_int_en(CPU0_CORE_ID, src, 0);
+			}
+		}
+
+		for (uint32_t word = 0; word < CP_HOTPLUG_IRQ_WORDS; word++) {
+			_cpu_irq_set_en_word(CPU1_CORE_ID, word, _cpu1_irq_route.target_en[word]);
+		}
+		_cpu1_irq_route.valid = 0;
+	}
+}
+
+static bk_err_t _cpu_hotplug_wait_ack(volatile uint32_t *ack, uint32_t timeout_steps)
+{
+	uint32_t current_step = 0;
+
+	while (*ack == 0) {
+		if (current_step >= timeout_steps) {
+			return BK_ERR_TIMEOUT;
+		}
+		bk_delay_us(CP_HOTPLUG_TIMEOUT_ONE_STEP_US);
+		current_step++;
+	}
+
+	return BK_OK;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
+uint32_t bk_cpu_hp_is_online(uint32_t cpu_id)
+{
+	cpu_hp_domain_t *domain = _cpu_hp_domain(cpu_id);
+
+	if (domain == NULL) {
+		return 0;
+	}
+
+	return ((domain->online_mask & BK_CPU_MASK(cpu_id)) != 0) ? 1 : 0;
+}
+
+uint32_t bk_cpu_hp_is_active(uint32_t cpu_id)
+{
+	cpu_hp_domain_t *domain = _cpu_hp_domain(cpu_id);
+
+	if (domain == NULL) {
+		return 0;
+	}
+
+	return ((domain->active_mask & BK_CPU_MASK(cpu_id)) != 0) ? 1 : 0;
+}
+
+bk_cpu_hp_state_t bk_cpu_hp_get_state(uint32_t cpu_id)
+{
+	cpu_hp_domain_t *domain = _cpu_hp_domain(cpu_id);
+
+	return (domain == NULL) ? BK_CPU_HP_STATE_OFFLINE : domain->cpu_state[cpu_id];
+}
+
+
+static const char * const _cpu_hp_state_names[] = {
+	[BK_CPU_HP_STATE_ONLINE] = "online",
+	[BK_CPU_HP_STATE_OFFLINE_REQUESTED] = "offline-requested",
+	[BK_CPU_HP_STATE_SCHEDULER_DRAINING] = "scheduler-draining",
+	[BK_CPU_HP_STATE_IRQ_MIGRATING] = "irq-migrating",
+	[BK_CPU_HP_STATE_QUIESCE] = "quiesce",
+	[BK_CPU_HP_STATE_RESET_HOLD] = "reset-hold",
+	[BK_CPU_HP_STATE_POWER_OFF] = "power-off",
+	[BK_CPU_HP_STATE_OFFLINE] = "offline",
+	[BK_CPU_HP_STATE_POWER_ON] = "power-on",
+	[BK_CPU_HP_STATE_BOOT_PREPARE] = "boot-prepare",
+	[BK_CPU_HP_STATE_RESET_RELEASE] = "reset-release",
+	[BK_CPU_HP_STATE_SECONDARY_BOOT] = "secondary-boot",
+	[BK_CPU_HP_STATE_JOIN_SCHEDULER] = "join-scheduler",
+};
+#define _CPU_HP_STATE_NAMES_COUNT \
+	(sizeof(_cpu_hp_state_names) / sizeof(_cpu_hp_state_names[0]))
+
+const char *bk_cpu_hp_get_state_name(uint32_t cpu_id)
+{
+	bk_cpu_hp_state_t state = bk_cpu_hp_get_state(cpu_id);
+
+	if ((state >= _CPU_HP_STATE_NAMES_COUNT) ||
+	    (_cpu_hp_state_names[state] == NULL)) {
+		return "unknown";
+	}
+
+	return _cpu_hp_state_names[state];
+}
+
+uint32_t bk_cpu_hp_get_domain_possible_mask(uint32_t cpu_id)
+{
+	cpu_hp_domain_t *domain = _cpu_hp_domain(cpu_id);
+
+	return (domain == NULL) ? 0 : domain->possible_mask;
+}
+
+uint32_t bk_cpu_hp_get_domain_online_mask(uint32_t cpu_id)
+{
+	cpu_hp_domain_t *domain = _cpu_hp_domain(cpu_id);
+
+	return (domain == NULL) ? 0 : domain->online_mask;
+}
+
+uint32_t bk_cpu_hp_get_domain_active_mask(uint32_t cpu_id)
+{
+	cpu_hp_domain_t *domain = _cpu_hp_domain(cpu_id);
+
+	return (domain == NULL) ? 0 : domain->active_mask;
+}
+
+uint32_t bk_cpu_hp_get_domain_dying_mask(uint32_t cpu_id)
+{
+	cpu_hp_domain_t *domain = _cpu_hp_domain(cpu_id);
+
+	return (domain == NULL) ? 0 : domain->dying_mask;
+}
+
+uint32_t bk_cpu_hp_get_domain_offline_mask(uint32_t cpu_id)
+{
+	cpu_hp_domain_t *domain = _cpu_hp_domain(cpu_id);
+
+	return (domain == NULL) ? 0 : domain->offline_mask;
+}
+
+static bk_err_t _cpu_hp_offline_internal(uint32_t cpu_id)
+{
+	cpu_hp_domain_t *domain = _cpu_hp_domain(cpu_id);
+	uint32_t cpu_mask = BK_CPU_MASK(cpu_id);
+	BaseType_t smp_core;
+	bk_err_t ret;
+	uint32_t cpu_hp_irq_level;
+
+	if ((domain == NULL) || ((domain->hotplug_mask & cpu_mask) == 0)) {
+		ret = BK_ERR_NOT_SUPPORT;
+		goto nolock_out;
+	}
+
+	if (cpu_id != CPU1_CORE_ID) {
+		ret = BK_ERR_NOT_SUPPORT;
+		goto nolock_out;
+	}
+
+	if (bk_multicore_get_cpu_id() != domain->primary_cpu) {
+		ret = BK_ERR_STATE;
+		goto nolock_out;
+	}
+
+	smp_core = (BaseType_t)_cpu_hp_get_smp_core_id(domain, cpu_id);
+	ret = _cpu_hp_lock_init();
+	if (ret != BK_OK) {
+		goto nolock_out;
+	}
+
+	rtos_lock_mutex(&_cpu_hp_lock);
+
+	if ((domain->online_mask & cpu_mask) == 0) {
+		ret = BK_OK;
+		goto out;
+	}
+
+	if (domain->cpu_state[cpu_id] != BK_CPU_HP_STATE_ONLINE) {
+		ret = BK_ERR_BUSY;
+		goto out;
+	}
+
+	if (xTaskHasTasksPinnedToCore(smp_core) == pdTRUE) {
+		ret = BK_ERR_BUSY;
+		goto out;
+	}
+
+	_cpu_hp_set_state(domain, cpu_id, BK_CPU_HP_STATE_OFFLINE_REQUESTED);
+	_cpu_hp_domain_set_dying(domain, cpu_id, 1);
+	_cpu1_offline_ack1 = 0;
+	_cpu1_offline_ack2 = 0;
+	_cpu1_offline_ack3 = 0;
+	ret = crosscore_int_send_hotplug_stop(CPU1_CORE_ID);
+	if (ret != BK_OK) {
+		_cpu_hp_domain_set_dying(domain, cpu_id, 0);
+		_cpu_hp_set_state(domain, cpu_id, BK_CPU_HP_STATE_ONLINE);
+		goto out;
+	}
+	ret = _cpu_hotplug_wait_ack(&_cpu1_offline_ack1, CP_HOTPLUG_TIMEOUT_STEPS);
+	if (ret != BK_OK) {
+		spin_lock_irqsave(&_cpu_hp_spin_lock, cpu_hp_irq_level);
+		if (_cpu1_wants_offline == 1) {
+			_cpu1_wants_offline = 0;
+		} else {
+			spin_unlock_irqrestore(&_cpu_hp_spin_lock, cpu_hp_irq_level);
+			goto continue_offline;
+		}
+		spin_unlock_irqrestore(&_cpu_hp_spin_lock, cpu_hp_irq_level);
+		_cpu_hp_domain_set_dying(domain, cpu_id, 0);
+		_cpu_hp_set_state(domain, cpu_id, BK_CPU_HP_STATE_ONLINE);
+		goto out;
+	}
+
+continue_offline:
+	_cpu_hp_set_state(domain, cpu_id, BK_CPU_HP_STATE_IRQ_MIGRATING);
+	_cpu1_irq_route_migrate_but_ipi();
+	_cpu_hp_set_state(domain, cpu_id, BK_CPU_HP_STATE_QUIESCE);
+	_cpu1_offline_ack2 = 1;
+	_cpu_hp_barrier();
+
+	while (_cpu1_offline_ack3 == 0);
+#if CONFIG_TASK_WDT
+	bk_task_wdt_set_feed_bits(smp_core, false);
+#else
+		(void)smp_core;
+#endif
+	_cpu_hp_set_state(domain, cpu_id, BK_CPU_HP_STATE_RESET_HOLD);
+	ret = bk_multicore_stop(CPU1_CORE_ID);
+	if (ret == BK_OK) {
+		_cpu_hp_set_state(domain, cpu_id, BK_CPU_HP_STATE_POWER_OFF);
+		_cpu_hp_domain_set_dying(domain, cpu_id, 0);
+		_cpu_hp_set_state(domain, cpu_id, BK_CPU_HP_STATE_OFFLINE);
+	}
+
+out:
+	rtos_unlock_mutex(&_cpu_hp_lock);
+nolock_out:
+	return ret;
+}
+
+static bk_err_t _cpu_hp_online_internal(uint32_t cpu_id)
+{
+	cpu_hp_domain_t *domain = _cpu_hp_domain(cpu_id);
+	uint32_t cpu_mask = BK_CPU_MASK(cpu_id);
+	bk_err_t ret;
+	BaseType_t smp_core;
+
+	if ((domain == NULL) || ((domain->hotplug_mask & cpu_mask) == 0)) {
+		ret = BK_ERR_NOT_SUPPORT;
+		goto nolock_out;
+	}
+
+	if (cpu_id != CPU1_CORE_ID) {
+		ret = BK_ERR_NOT_SUPPORT;
+		goto nolock_out;
+	}
+
+	if (bk_multicore_get_cpu_id() != domain->primary_cpu) {
+		ret = BK_ERR_STATE;
+		goto nolock_out;
+	}
+
+	ret = _cpu_hp_lock_init();
+	if (ret != BK_OK) {
+		goto nolock_out;
+	}
+
+	smp_core = (BaseType_t)_cpu_hp_get_smp_core_id(domain, cpu_id);
+	rtos_lock_mutex(&_cpu_hp_lock);
+
+	if (domain->cpu_state[cpu_id] == BK_CPU_HP_STATE_ONLINE) {
+		ret = BK_OK;
+		goto out;
+	}
+
+	if ((domain->cpu_state[cpu_id] != BK_CPU_HP_STATE_OFFLINE) &&
+	    (domain->cpu_state[cpu_id] != BK_CPU_HP_STATE_RESET_HOLD)) {
+		ret = BK_ERR_BUSY;
+		goto out;
+	}
+
+	_cpu_hp_set_state(domain, cpu_id, BK_CPU_HP_STATE_POWER_ON);
+	_cpu1_online_ack = 0;
+	_cpu1_irq_route_mask_all();
+	vTaskHotplugResetIdleTaskContext(smp_core);
+	vPortHotplugResetCoreState(smp_core);
+	_cpu_hp_set_state(domain, cpu_id, BK_CPU_HP_STATE_BOOT_PREPARE);
+	_cpu_hp_set_state(domain, cpu_id, BK_CPU_HP_STATE_RESET_RELEASE);
+	_cpu_hp_set_state(domain, cpu_id, BK_CPU_HP_STATE_SECONDARY_BOOT);
+
+	ret = bk_multicore_start(CPU1_CORE_ID);
+	if (ret == BK_OK) {
+		ret = _cpu_hotplug_wait_ack(&_cpu1_online_ack, CP_HOTPLUG_TIMEOUT_STEPS);
+	}
+
+	if (ret == BK_OK) {
+#if CONFIG_TASK_WDT
+		bk_task_wdt_set_feed_bits(smp_core, true);
+#else
+		(void)smp_core;
+#endif
+		_cpu_hp_domain_set_online(domain, cpu_id, 1);
+		_cpu1_irq_route_restore();
+		mbox0_init_on_current_core(CPU1_CORE_ID);
+		_cpu_hp_domain_set_active(domain, cpu_id, 1);
+		_cpu_hp_set_state(domain, cpu_id, BK_CPU_HP_STATE_ONLINE);
+	} else {
+		bk_multicore_stop(CPU1_CORE_ID);
+		_cpu_hp_domain_set_active(domain, cpu_id, 0);
+		_cpu_hp_domain_set_online(domain, cpu_id, 0);
+		_cpu_hp_set_state(domain, cpu_id, BK_CPU_HP_STATE_OFFLINE);
+	}
+
+out:
+	rtos_unlock_mutex(&_cpu_hp_lock);
+nolock_out:
+	return ret;
+}
+
+uint32_t bk_cpu_hp_enter_primary(void)
+{
+	BaseType_t old_core_id = xTaskHotplugSetCurrentTaskCoreID(SMP_CORE0_ID);
+
+	for (uint32_t i = 0; (i < CP_HOTPLUG_TIMEOUT_STEPS) &&
+		(portGET_CORE_ID() != SMP_CORE0_ID); i++) {
+		taskYIELD();
+		rtos_delay_milliseconds(CP_HOTPLUG_TIMEOUT_ONE_STEP_MS);
+	}
+
+	return old_core_id;
+}
+
+void bk_cpu_hp_exit_primary(uint32_t old_core_id)
+{
+	(void)xTaskHotplugSetCurrentTaskCoreID(old_core_id);
+}
+
+bk_err_t bk_cpu_hp_offline(uint32_t cpu_id)
+{
+	bk_err_t ret = BK_FAIL;
+	uint32_t old_core_id;
+	uint32_t is_in_interrupt_context = platform_is_in_interrupt_context();
+
+	if (is_in_interrupt_context == BK_FALSE)
+		old_core_id = bk_cpu_hp_enter_primary();
+
+	if (portGET_CORE_ID() == SMP_CORE0_ID)
+		ret = _cpu_hp_offline_internal(cpu_id);
+	else
+		MULTICORE_LOGW("cpu%u offline must run on primary core, current SMP core=%d\r\n",
+			cpu_id, portGET_CORE_ID());
+
+	if (is_in_interrupt_context == BK_FALSE)
+		bk_cpu_hp_exit_primary(old_core_id);
+
+	return ret;
+}
+
+bk_err_t bk_cpu_hp_online(uint32_t cpu_id)
+{
+	bk_err_t ret = BK_FAIL;
+	uint32_t old_core_id;
+	uint32_t is_in_interrupt_context = platform_is_in_interrupt_context();
+
+	if (is_in_interrupt_context == BK_FALSE)
+		old_core_id = bk_cpu_hp_enter_primary();
+
+	if (portGET_CORE_ID() == SMP_CORE0_ID)
+		ret = _cpu_hp_online_internal(cpu_id);
+
+	if (is_in_interrupt_context == BK_FALSE)
+		bk_cpu_hp_exit_primary(old_core_id);
+
+	return ret;
+}
+
+void multicore_stop_core1(void)
+{
+	(void)bk_cpu_hp_offline(CPU1_CORE_ID);
+}
+
+/*
+ * Cross-core STOP handler (runs in mailbox/IPI ISR context on the dying core).
+ * Kept lightweight: it only flags the offline request, drains the scheduler and
+ * marks the core inactive. The actual teardown/park happens later from the idle
+ * task context in bk_cpu_hp_idle_handler(), so the core is never parked from
+ * interrupt context.
+ */
+void bk_cpu_hp_core_stop_hmb_isr(void)
+{
 	if (portGET_CORE_ID() != SMP_CORE1_ID) {
 		return;
 	}
 
-	bk_cpu_hotplug_set_state(domain, CPU1_CORE_ID, BK_CPU_HP_STATE_QUIESCE);
+	cpu_hp_domain_t *domain = &_cp_domain;
+	uint32_t cpu_id = CPU1_CORE_ID;
+	_cpu1_wants_offline = 1;
+	_cpu_hp_set_state(domain, cpu_id, BK_CPU_HP_STATE_SCHEDULER_DRAINING);
+	_cpu_hp_domain_set_active(domain, cpu_id, 0);
+}
+
+/*
+ * Runs from the idle task of the dying core. Performs the 3-way handshake with
+ * the primary and tears the core down cooperatively before parking in WFI.
+ */
+void bk_cpu_hp_idle_handler(void)
+{
+	cpu_hp_domain_t *domain = &_cp_domain;
+	uint32_t cpu_id = CPU1_CORE_ID;
+
+	if (portGET_CORE_ID() != SMP_CORE1_ID) {
+		return;
+	}
+	
+	_cpu_hp_disable_local_irq();
+	spin_lock(&_cpu_hp_spin_lock);
+	if (_cpu1_wants_offline == 0) {
+		_cpu_hp_domain_set_active(domain, cpu_id, 1);
+		spin_unlock(&_cpu_hp_spin_lock);
+		_cpu_hp_enable_local_irq();
+		return;
+	}
+	_cpu1_wants_offline = 0;
+	spin_unlock(&_cpu_hp_spin_lock);
+
+	_cpu_hp_set_state(domain, cpu_id, BK_CPU_HP_STATE_QUIESCE);
+	_cpu1_offline_ack1 = 1;
+	_cpu_hp_barrier();
+	while (_cpu1_offline_ack2 == 0);
+
 	mbox0_drv_core_int_enable(CPU1_CORE_ID, 0);
 	CP_HOTPLUG_SYSTICK_CTRL = 0;
 	CP_HOTPLUG_SYSTICK_VAL = 0;
@@ -329,334 +731,25 @@ void bk_cp_cpu_hotplug_core_stop_isr(void)
 	flush_all_dcache();
 #endif
 	vTaskHotplugClearCurrentTCB(SMP_CORE1_ID);
-	s_cpu1_offline_ack = 1;
-	cp_cpu_hotplug_barrier();
-	cp_cpu_hotplug_disable_local_irq();
+	_cpu1_irq_route_mask_all();
+	_cpu_hp_domain_set_online(domain, cpu_id, 0);
+	_cpu1_offline_ack3 = 1;
+	_cpu_hp_barrier();
 
 	while (1) {
-		cp_cpu_hotplug_wfi();
+		_cpu_hp_wfi();
 	}
 }
 
-void bk_cp_cpu_hotplug_core_online(void)
+void bk_cpu_hp_core_online(void)
 {
 	if ((portGET_CORE_ID() == SMP_CORE1_ID) &&
-		(s_cp_domain.cpu_state[CPU1_CORE_ID] == BK_CPU_HP_STATE_SECONDARY_BOOT)) {
-		bk_cpu_hotplug_set_state(&s_cp_domain, CPU1_CORE_ID, BK_CPU_HP_STATE_JOIN_SCHEDULER);
-		s_cpu1_online_ack = 1;
-		cp_cpu_hotplug_barrier();
+	    (_cp_domain.cpu_state[CPU1_CORE_ID] == BK_CPU_HP_STATE_SECONDARY_BOOT)) {
+		_cpu_hp_set_state(&_cp_domain, CPU1_CORE_ID, BK_CPU_HP_STATE_JOIN_SCHEDULER);
+		_cpu1_online_ack = 1;
+		_cpu_hp_barrier();
 	}
+	_cpu1_wants_offline = 0;
 }
 
-bk_err_t bk_cpu_offline(uint32_t cpu_id)
-{
-	bk_smp_domain_t *domain = bk_cpu_hotplug_domain(cpu_id);
-	uint32_t cpu_mask = BK_CPU_MASK(cpu_id);
-	BaseType_t smp_core;
-	bk_err_t ret;
-
-	if ((domain == NULL) || ((domain->hotplug_mask & cpu_mask) == 0)) {
-		return BK_ERR_NOT_SUPPORT;
-	}
-
-	if (bk_multicore_get_cpu_id() != domain->primary_cpu) {
-		return BK_ERR_STATE;
-	}
-
-	smp_core = (BaseType_t)bk_cpu_hotplug_smp_core(domain, cpu_id);
-	ret = cp_cpu_hotplug_lock_init();
-	if (ret != BK_OK) {
-		return ret;
-	}
-
-	rtos_lock_mutex(&s_cp_cpu_hotplug_lock);
-
-	if ((domain->online_mask & cpu_mask) == 0) {
-		rtos_unlock_mutex(&s_cp_cpu_hotplug_lock);
-		return BK_OK;
-	}
-
-	if (domain->cpu_state[cpu_id] != BK_CPU_HP_STATE_ONLINE) {
-		rtos_unlock_mutex(&s_cp_cpu_hotplug_lock);
-		return BK_ERR_BUSY;
-	}
-
-	if (xTaskHasTasksPinnedToCore(smp_core) == pdTRUE) {
-		rtos_unlock_mutex(&s_cp_cpu_hotplug_lock);
-		return BK_ERR_BUSY;
-	}
-
-	bk_cpu_hotplug_set_state(domain, cpu_id, BK_CPU_HP_STATE_OFFLINE_REQUESTED);
-	bk_cpu_hotplug_set_dying(domain, cpu_id, 1);
-	bk_cpu_hotplug_set_state(domain, cpu_id, BK_CPU_HP_STATE_SCHEDULER_DRAINING);
-	bk_cpu_hotplug_set_active(domain, cpu_id, 0);
-	s_cpu1_offline_ack = 0;
-	bk_cpu_hotplug_set_state(domain, cpu_id, BK_CPU_HP_STATE_IRQ_MIGRATING);
-	ret = cp_cpu1_irq_route_migrate_for_stop_ipi();
-	if (ret != BK_OK) {
-		cp_cpu1_irq_route_restore();
-		bk_cpu_hotplug_set_active(domain, cpu_id, 1);
-		bk_cpu_hotplug_set_dying(domain, cpu_id, 0);
-		bk_cpu_hotplug_set_state(domain, cpu_id, BK_CPU_HP_STATE_ONLINE);
-		rtos_unlock_mutex(&s_cp_cpu_hotplug_lock);
-		return ret;
-	}
-
-	ret = crosscore_int_send_hotplug_stop(CPU1_CORE_ID);
-	if (ret == BK_OK) {
-		bk_cpu_hotplug_set_state(domain, cpu_id, BK_CPU_HP_STATE_QUIESCE);
-		ret = cp_cpu_hotplug_wait_ack(&s_cpu1_offline_ack, CP_HOTPLUG_TIMEOUT_MS);
-	}
-
-	if (ret == BK_OK) {
-#if CONFIG_TASK_WDT
-		bk_task_wdt_set_feed_bits(smp_core, false);
-#endif
-		bk_cpu_hotplug_set_online(domain, cpu_id, 0);
-		bk_cpu_hotplug_set_state(domain, cpu_id, BK_CPU_HP_STATE_RESET_HOLD);
-		cp_cpu1_irq_route_mask_all();
-		ret = bk_multicore_stop(CPU1_CORE_ID);
-		if (ret == BK_OK) {
-			bk_cpu_hotplug_set_state(domain, cpu_id, BK_CPU_HP_STATE_POWER_OFF);
-			bk_cpu_hotplug_set_dying(domain, cpu_id, 0);
-			bk_cpu_hotplug_set_state(domain, cpu_id, BK_CPU_HP_STATE_OFFLINE);
-		} else {
-			/* CPU1 has already acked quiesce and is parked in WFI with mailbox disabled */
-			BK_ASSERT(ret == BK_OK);
-		}
-	} else {
-		cp_cpu1_irq_route_restore();
-		bk_cpu_hotplug_set_active(domain, cpu_id, 1);
-		bk_cpu_hotplug_set_dying(domain, cpu_id, 0);
-		bk_cpu_hotplug_set_state(domain, cpu_id, BK_CPU_HP_STATE_ONLINE);
-	}
-
-	rtos_unlock_mutex(&s_cp_cpu_hotplug_lock);
-	return ret;
-}
-
-bk_err_t bk_cpu_online(uint32_t cpu_id)
-{
-	bk_smp_domain_t *domain = bk_cpu_hotplug_domain(cpu_id);
-	uint32_t cpu_mask = BK_CPU_MASK(cpu_id);
-	bk_err_t ret;
-	BaseType_t smp_core;
-
-	if ((domain == NULL) || ((domain->hotplug_mask & cpu_mask) == 0)) {
-		return BK_ERR_NOT_SUPPORT;
-	}
-
-	if (cpu_id != CPU1_CORE_ID) {
-		return BK_ERR_NOT_SUPPORT;
-	}
-
-	if (bk_multicore_get_cpu_id() != domain->primary_cpu) {
-		return BK_ERR_STATE;
-	}
-
-	ret = cp_cpu_hotplug_lock_init();
-	if (ret != BK_OK) {
-		return ret;
-	}
-
-	smp_core = (BaseType_t)bk_cpu_hotplug_smp_core(domain, cpu_id);
-	rtos_lock_mutex(&s_cp_cpu_hotplug_lock);
-
-	if (domain->cpu_state[cpu_id] == BK_CPU_HP_STATE_ONLINE) {
-		rtos_unlock_mutex(&s_cp_cpu_hotplug_lock);
-		return BK_OK;
-	}
-
-	if ((domain->cpu_state[cpu_id] != BK_CPU_HP_STATE_OFFLINE) &&
-		(domain->cpu_state[cpu_id] != BK_CPU_HP_STATE_RESET_HOLD)) {
-		rtos_unlock_mutex(&s_cp_cpu_hotplug_lock);
-		return BK_ERR_BUSY;
-	}
-
-	bk_cpu_hotplug_set_state(domain, cpu_id, BK_CPU_HP_STATE_POWER_ON);
-	s_cpu1_online_ack = 0;
-	cp_cpu1_irq_route_mask_all();
-	vTaskHotplugResetIdleTaskContext((BaseType_t)bk_cpu_hotplug_smp_core(domain, cpu_id));
-	vPortHotplugResetCoreState((BaseType_t)bk_cpu_hotplug_smp_core(domain, cpu_id));
-	bk_cpu_hotplug_set_state(domain, cpu_id, BK_CPU_HP_STATE_BOOT_PREPARE);
-	bk_cpu_hotplug_set_state(domain, cpu_id, BK_CPU_HP_STATE_RESET_RELEASE);
-	bk_cpu_hotplug_set_state(domain, cpu_id, BK_CPU_HP_STATE_SECONDARY_BOOT);
-
-	ret = bk_multicore_start(CPU1_CORE_ID);
-	if (ret == BK_OK) {
-		ret = cp_cpu_hotplug_wait_ack(&s_cpu1_online_ack, CP_HOTPLUG_TIMEOUT_MS);
-	}
-
-	if (ret == BK_OK) {
-#if CONFIG_TASK_WDT
-		bk_task_wdt_set_feed_bits(smp_core, true);
-#else
-		(void)smp_core;
-#endif
-		bk_cpu_hotplug_set_online(domain, cpu_id, 1);
-
-		mbox0_init_on_current_core(CPU1_CORE_ID);
-		cp_cpu1_irq_route_restore();
-
-		bk_cpu_hotplug_set_active(domain, cpu_id, 1);
-		bk_cpu_hotplug_set_state(domain, cpu_id, BK_CPU_HP_STATE_ONLINE);
-	} else {
-		bk_multicore_stop(CPU1_CORE_ID);
-		bk_cpu_hotplug_set_active(domain, cpu_id, 0);
-		bk_cpu_hotplug_set_online(domain, cpu_id, 0);
-		bk_cpu_hotplug_set_state(domain, cpu_id, BK_CPU_HP_STATE_OFFLINE);
-	}
-
-	rtos_unlock_mutex(&s_cp_cpu_hotplug_lock);
-	return ret;
-}
-
-uint32_t bk_cpu_hotplug_enter_primary(void)
-{
-	BaseType_t old_core_id = xTaskHotplugSetCurrentTaskCoreID(SMP_CORE0_ID);
-
-	for (uint32_t i = 0; (i < CP_HOTPLUG_TIMEOUT_MS) &&
-		(portGET_CORE_ID() != SMP_CORE0_ID); i++) {
-		taskYIELD();
-		rtos_delay_milliseconds(1);
-	}
-
-	return old_core_id;
-}
-
-void bk_cpu_hotplug_exit_primary(uint32_t old_core_id)
-{
-	(void)xTaskHotplugSetCurrentTaskCoreID(old_core_id);
-}
-
-uint32_t bk_cpu_is_online(uint32_t cpu_id)
-{
-	bk_smp_domain_t *domain = bk_cpu_hotplug_domain(cpu_id);
-
-	if (domain == NULL) {
-		return 0;
-	}
-
-	return ((domain->online_mask & BK_CPU_MASK(cpu_id)) != 0) ? 1 : 0;
-}
-
-uint32_t bk_cpu_is_active(uint32_t cpu_id)
-{
-	bk_smp_domain_t *domain = bk_cpu_hotplug_domain(cpu_id);
-
-	if (domain == NULL) {
-		return 0;
-	}
-
-	return ((domain->active_mask & BK_CPU_MASK(cpu_id)) != 0) ? 1 : 0;
-}
-
-bk_cpu_hotplug_state_t bk_cpu_get_state(uint32_t cpu_id)
-{
-	bk_smp_domain_t *domain = bk_cpu_hotplug_domain(cpu_id);
-
-	if (domain == NULL) {
-		return BK_CPU_HP_STATE_OFFLINE;
-	}
-
-	return domain->cpu_state[cpu_id];
-}
-
-const char *bk_cpu_get_state_name(uint32_t cpu_id)
-{
-	static const char * const state_names[] = {
-		[BK_CPU_HP_STATE_ONLINE] = "online",
-		[BK_CPU_HP_STATE_OFFLINE_REQUESTED] = "offline-requested",
-		[BK_CPU_HP_STATE_SCHEDULER_DRAINING] = "scheduler-draining",
-		[BK_CPU_HP_STATE_IRQ_MIGRATING] = "irq-migrating",
-		[BK_CPU_HP_STATE_QUIESCE] = "quiesce",
-		[BK_CPU_HP_STATE_RESET_HOLD] = "reset-hold",
-		[BK_CPU_HP_STATE_POWER_OFF] = "power-off",
-		[BK_CPU_HP_STATE_OFFLINE] = "offline",
-		[BK_CPU_HP_STATE_POWER_ON] = "power-on",
-		[BK_CPU_HP_STATE_BOOT_PREPARE] = "boot-prepare",
-		[BK_CPU_HP_STATE_RESET_RELEASE] = "reset-release",
-		[BK_CPU_HP_STATE_SECONDARY_BOOT] = "secondary-boot",
-		[BK_CPU_HP_STATE_JOIN_SCHEDULER] = "join-scheduler",
-	};
-	bk_cpu_hotplug_state_t state = bk_cpu_get_state(cpu_id);
-
-	if (state >= (sizeof(state_names) / sizeof(state_names[0])) || state_names[state] == NULL) {
-		return "unknown";
-	}
-
-	return state_names[state];
-}
-
-uint32_t bk_cpu_get_domain_possible_mask(uint32_t cpu_id)
-{
-	bk_smp_domain_t *domain = bk_cpu_hotplug_domain(cpu_id);
-
-	return (domain == NULL) ? 0 : domain->possible_mask;
-}
-
-uint32_t bk_cpu_get_domain_online_mask(uint32_t cpu_id)
-{
-	bk_smp_domain_t *domain = bk_cpu_hotplug_domain(cpu_id);
-
-	return (domain == NULL) ? 0 : domain->online_mask;
-}
-
-uint32_t bk_cpu_get_domain_active_mask(uint32_t cpu_id)
-{
-	bk_smp_domain_t *domain = bk_cpu_hotplug_domain(cpu_id);
-
-	return (domain == NULL) ? 0 : domain->active_mask;
-}
-
-uint32_t bk_cpu_get_domain_dying_mask(uint32_t cpu_id)
-{
-	bk_smp_domain_t *domain = bk_cpu_hotplug_domain(cpu_id);
-
-	return (domain == NULL) ? 0 : domain->dying_mask;
-}
-
-uint32_t bk_cpu_get_domain_offline_mask(uint32_t cpu_id)
-{
-	bk_smp_domain_t *domain = bk_cpu_hotplug_domain(cpu_id);
-
-	return (domain == NULL) ? 0 : domain->offline_mask;
-}
-
-bk_err_t bk_cp_cpu_offline(uint32_t smp_core_id)
-{
-	if (smp_core_id != SMP_CORE1_ID) {
-		return BK_ERR_NOT_SUPPORT;
-	}
-
-	return bk_cpu_offline(CPU1_CORE_ID);
-}
-
-bk_err_t bk_cp_cpu_online(uint32_t smp_core_id)
-{
-	if (smp_core_id != SMP_CORE1_ID) {
-		return BK_ERR_NOT_SUPPORT;
-	}
-
-	return bk_cpu_online(CPU1_CORE_ID);
-}
-
-uint32_t bk_cp_cpu_is_online(uint32_t smp_core_id)
-{
-	if (smp_core_id == SMP_CORE0_ID) {
-		return bk_cpu_is_online(CPU0_CORE_ID);
-	}
-
-	if (smp_core_id != SMP_CORE1_ID) {
-		return 0;
-	}
-
-	return bk_cpu_is_online(CPU1_CORE_ID);
-}
-
-void multicore_stop_core1(void)
-{
-	(void)bk_cp_cpu_offline(SMP_CORE1_ID);
-}
-
-#endif
+#endif /* CONFIG_CPU_HOTPLUG */

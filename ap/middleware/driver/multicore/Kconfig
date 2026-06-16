@@ -7,4 +7,10 @@ menu "multicore"
 		depends on SUPPORT_MULTICORE && DRIVER_TEST
 		bool "Enable multicore test"
 		default n
+
+	config CPU_HOTPLUG
+		depends on SUPPORT_MULTICORE && SOC_SMP
+		bool "Enable CPU Hotplug"
+		default y
+
 endmenu

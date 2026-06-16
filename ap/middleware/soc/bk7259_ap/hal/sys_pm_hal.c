@@ -551,8 +551,8 @@ void sys_hal_enter_cpu_wfi()
 				return;
 			}
 
-#if CONFIG_SOC_SMP
-			bk_cpu_offline(CPU1_CORE_ID);
+#if CONFIG_CPU_HOTPLUG
+			bk_cpu_hp_offline(CPU1_CORE_ID);
 #endif
 
 			shared_info.pm_ap0_sleep_state = 1;
@@ -569,8 +569,8 @@ void sys_hal_enter_cpu_wfi()
 
 			portNVIC_SYSTICK_CTRL_REG = systick_ctrl_value;
 
-#if CONFIG_SOC_SMP
-			bk_cpu_online(CPU1_CORE_ID);
+#if CONFIG_CPU_HOTPLUG
+			bk_cpu_hp_online(CPU1_CORE_ID);
 #endif
 
 			sys_ahbp_ll_set_reg10_value(int_state);

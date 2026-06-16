@@ -359,8 +359,8 @@ void vSetCoreOnline( BaseType_t xCoreID, BaseType_t value );
 void vSetCoreActive( BaseType_t xCoreID, BaseType_t value );
 BaseType_t xTaskIsCoreOnline( BaseType_t xCoreID );
 BaseType_t xTaskIsCoreActive( BaseType_t xCoreID );
-extern void bk_ap_cpu_hotplug_core_stop_isr(void);
-extern void bk_ap_cpu_hotplug_core_online(void);
+extern void bk_cpu_hp_core_stop_hmb_isr(void);
+extern void bk_cpu_hp_core_online(void);
 
 #if ( configENABLE_MPU == 1 )
 
@@ -1233,7 +1233,7 @@ void xPortDebug(const char *str)
 BaseType_t xPortStartSchedulerOnCore( void ) /* PRIVILEGED_FUNCTION */
 {
     #if ( configUSE_CPUHOTPLUG == 1 )
-        bk_ap_cpu_hotplug_core_online();
+        bk_cpu_hp_core_online();
     #endif
 
     //if( ucPrimaryCoreNum == portGET_CORE_ID())
@@ -1436,10 +1436,12 @@ void crosscore_mb_rx_isr(mailbox_data_t *data)
 		arch_dwt_trap_disable();
 	}
 
+#if (CONFIG_CPU_HOTPLUG)
 	if(cmd & (0x01 << CC_HOTPLUG_STOP))
 	{
-		bk_ap_cpu_hotplug_core_stop_isr();
+		bk_cpu_hp_core_stop_hmb_isr();
 	}
+#endif
 	
 	return;
 }
