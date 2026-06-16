@@ -11,7 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
+#if 0
 #include <driver/qspi.h>
 #if (CONFIG_QSPI_MST_FLASH) || (CONFIG_QSPI_NAND_FLASH)
 #include <driver/qspi_flash.h>
@@ -580,3 +580,4 @@ int cli_qspi_init(void)
 	return cli_register_commands(s_qspi_commands, QSPI_CMD_CNT);
 }
 
+#endif
