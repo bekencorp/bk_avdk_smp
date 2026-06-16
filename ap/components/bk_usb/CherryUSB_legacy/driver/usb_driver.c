@@ -26,6 +26,7 @@ static beken_mutex_t s_usb_drv_task_mutex = NULL;
 static bool s_usb_driver_init_flag = 0;
 static bool s_usb_power_on_flag = 0;
 static bool s_usb_open_close_flag = 0;
+static uint32_t s_usb_current_mode = 0xFFFFFFFFU;
 
 static bk_err_t usb_driver_sw_deinit();
 
@@ -319,6 +320,7 @@ bk_err_t bk_usb_open(uint32_t usb_mode)
 	}
 
 	s_usb_open_close_flag = 1;
+	s_usb_current_mode = usb_mode;
 
 	USB_DRIVER_LOGV("[-]%s\r\n", __func__);
 
@@ -336,15 +338,19 @@ bk_err_t bk_usb_close(void)
 #if CONFIG_USB_RISCV_BRIDGE
 	usb_hc_riscv_stop_firmware();
 #endif
+	if(s_usb_current_mode == USB_HOST_MODE) {
 #if CONFIG_USB_HOST
-	ret = bk_cherryusb_host_close();
-	bk_analog_layer_usb_sys_related_ops(USB_HOST_MODE, false);
+		ret = bk_cherryusb_host_close();
+		bk_analog_layer_usb_sys_related_ops(USB_HOST_MODE, false);
 #endif
+	} else if(s_usb_current_mode == USB_DEVICE_MODE) {
 #if CONFIG_USB_DEVICE
-	ret = bk_cherryusb_device_close();
-	bk_analog_layer_usb_sys_related_ops(USB_DEVICE_MODE, false);
+		ret = bk_cherryusb_device_close();
+		bk_analog_layer_usb_sys_related_ops(USB_DEVICE_MODE, false);
 #endif
+	}
 	s_usb_open_close_flag = 0;
+	s_usb_current_mode = 0xFFFFFFFFU;
 	bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_USB_1, 1, 0);
 	return ret;
 }

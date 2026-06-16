@@ -33,6 +33,11 @@ void usb_osal_thread_delete(usb_osal_thread_t thread)
 {
 	beken_thread_t beken_thread = (beken_thread_t)thread;
 
+	if (thread == NULL) {
+		(void)rtos_delete_thread(NULL);
+		return;
+	}
+
 	(void)rtos_delete_thread(&beken_thread);
 }
 
