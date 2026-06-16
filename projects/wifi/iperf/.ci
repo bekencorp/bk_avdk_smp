@@ -1,1 +1,2 @@
-#make bk7258 PROJECT=wifi/iperf
+./dbuild.sh make bk7259
+./dbuild.sh make bk7259 PROJECT=wifi/iperf
