@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <components/bk_platform.h>
 #include <components/bk_uid.h>
+#include <os/os.h>
 
 #include <hal/aosl_hal_time.h>
 
