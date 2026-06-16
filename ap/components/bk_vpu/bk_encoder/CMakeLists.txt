@@ -1,6 +1,7 @@
 set(incs ./
     h264e/include
     jpege/include
+    h264e_stream/include
     common
 )
 
@@ -25,8 +26,22 @@ if (CONFIG_BK_ENCODER)
     )
 endif()
 
-set(priv_req bk_common avdk_driver bk_libs media_service avdk_utils)
+if (CONFIG_H264E_STREAM_SESSION)
+    list(APPEND srcs
+        h264e_stream/src/h264e_stream_session.c
+        h264e_stream/src/h264e_stream_protocol.c
+        h264e_stream/src/h264e_stream_push.c
+    )
+endif()
 
-armino_component_register(INTERNAL_LIB SRCS "${srcs}" INCLUDE_DIRS "${incs}" PRIV_REQUIRES "${priv_req}")
+set(priv_req bk_common avdk_driver bk_libs media_service avdk_utils)
+set(req "")
+
+# if (CONFIG_H264E_STREAM_SESSION)
+#     list(APPEND priv_req bk_network_transfer)
+# endif()
+
+list(APPEND priv_req bk_network_transfer json)
+armino_component_register(INTERNAL_LIB SRCS "${srcs}" INCLUDE_DIRS "${incs}" REQUIRES "${req}" PRIV_REQUIRES "${priv_req}")
 
 

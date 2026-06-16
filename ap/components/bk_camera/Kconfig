@@ -4,4 +4,13 @@ menu "BK Camera"
 		bool "Enable bk camera"
 		default n
 
+	config ISP_FRAME_SESSION
+		bool "ISP frame capture session (ispFrame RPC)"
+		default n
+		depends on BK_CAMERA
+		depends on BK_NTWK_TRANSFER
+		help
+			Enable ISP frame module. JSON-RPC control matches H264E methods;
+			VIDEO channel sends NV12/YUV image frames.
+
 endmenu

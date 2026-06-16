@@ -34,6 +34,13 @@ menu "BEKEN CODEC ENCODER"
 		depends on BK_ENCODER
 		help
 			"Use OS malloc for encoder memory allocation instead of frame buffer"
-	
+
+	config H264E_STREAM_SESSION
+		bool "H264E stream session (h264EScream RPC)"
+		default n
+		depends on BK_ENCODER
+		depends on BK_NTWK_TRANSFER
+		help
+			"Enable H264E stream module. JSON-RPC control uses h264EScream.* methods; VIDEO channel sends H264 elementary stream."
 
 endmenu
