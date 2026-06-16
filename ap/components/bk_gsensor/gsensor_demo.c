@@ -120,6 +120,7 @@ bk_err_t gsensor_enter_sleep_config()
 	bk_gsensor_setMode(gsensor_handle,GSENSOR_MODE_WAKEUP);
 	bk_gsensor_open(gsensor_handle);
 #if CONFIG_GPIO_WAKEUP_SUPPORT
+	gpio_dev_unmap(GSENSOR_G_INT1_PIN);
 	GSENSOR_D_LOGI("gsensor set WAKEUP SUCCESS!\r\n");
 	bk_gpio_register_isr(GSENSOR_G_INT1_PIN, gsensor_lowpower_gpio_wakeup_callback);
 	bk_gpio_register_wakeup_source(GSENSOR_G_INT1_PIN,GPIO_INT_TYPE_FALLING_EDGE);

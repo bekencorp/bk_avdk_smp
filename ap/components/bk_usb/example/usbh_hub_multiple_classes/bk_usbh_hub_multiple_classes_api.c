@@ -88,6 +88,10 @@ bk_err_t bk_usbh_hub_port_register_disconnect_callback(E_USB_HUB_PORT_INDEX port
 static bk_err_t bk_usbh_hub_port_power_ops(uint32_t gpio_id, bool ops)
 {
 	if(ops) {
+		gpio_dev_unmap(gpio_id);
+		bk_gpio_set_capacity(gpio_id, 0);
+		BK_LOG_ON_ERR(bk_gpio_disable_input(gpio_id));
+		BK_LOG_ON_ERR(bk_gpio_enable_output(gpio_id));
 		bk_gpio_set_output_high(gpio_id);
 	} else {
 		bk_gpio_set_output_low(gpio_id);

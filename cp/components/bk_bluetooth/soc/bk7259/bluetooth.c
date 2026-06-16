@@ -559,7 +559,23 @@ static void uart_enable_wrapper(uint8_t uart_id, uint8_t enable, uint32_t band)
 
 void enable_debug_gpio_wrapper(void)
 {
-    return;
+#if CONFIG_USR_GPIO_CFG_EN
+	static const gpio_dev_t debug_funcs[] = {
+		GPIO_DEV_DEBUG0, GPIO_DEV_DEBUG1, GPIO_DEV_DEBUG2, GPIO_DEV_DEBUG3,
+		GPIO_DEV_DEBUG4, GPIO_DEV_DEBUG5, GPIO_DEV_DEBUG6, GPIO_DEV_DEBUG7,
+		GPIO_DEV_DEBUG8, GPIO_DEV_DEBUG9, GPIO_DEV_DEBUG10, GPIO_DEV_DEBUG11,
+		GPIO_DEV_DEBUG12, GPIO_DEV_DEBUG13, GPIO_DEV_DEBUG14, GPIO_DEV_DEBUG15,
+		GPIO_DEV_DEBUG16, GPIO_DEV_DEBUG17, GPIO_DEV_DEBUG18, GPIO_DEV_DEBUG19,
+		GPIO_DEV_DEBUG20, GPIO_DEV_DEBUG21, GPIO_DEV_DEBUG22, GPIO_DEV_DEBUG23,
+		GPIO_DEV_DEBUG24, GPIO_DEV_DEBUG25, GPIO_DEV_DEBUG26, GPIO_DEV_DEBUG27,
+		GPIO_DEV_DEBUG28, GPIO_DEV_DEBUG29, GPIO_DEV_DEBUG30, GPIO_DEV_DEBUG31,
+	};
+	uint32_t i;
+
+	for (i = 0; i < (sizeof(debug_funcs) / sizeof(debug_funcs[0])); i++) {
+		gpio_dev_map_by_func(debug_funcs[i]);
+	}
+#endif
 }
 
 

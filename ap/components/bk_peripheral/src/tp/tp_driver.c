@@ -231,11 +231,22 @@ bk_err_t bk_tp_gpio_init(const tp_config_t *config)
 		return BK_FAIL;
 	}
 
+	gpio_config_t mode = {0};
 	gpio_id_t rst_id = TP_RST_PIN;
 	gpio_id_t int_id = TP_INT_PIN;
 
-	/* The following set_output_high/low forms the TP reset pulse sequence. */
+	/* INT GPIO - output high */
+	BK_LOG_ON_ERR(gpio_dev_unmap(int_id));
+	mode.io_mode = GPIO_OUTPUT_ENABLE;
+	mode.pull_mode = GPIO_PULL_DISABLE;
+	BK_LOG_ON_ERR(bk_gpio_set_config(int_id, &mode));
 	BK_LOG_ON_ERR(bk_gpio_set_output_high(int_id));
+
+	/* RESET GPIO - output low */
+	BK_LOG_ON_ERR(gpio_dev_unmap(rst_id));
+	mode.io_mode = GPIO_OUTPUT_ENABLE;
+	mode.pull_mode = GPIO_PULL_DISABLE;
+	BK_LOG_ON_ERR(bk_gpio_set_config(rst_id, &mode));
 	BK_LOG_ON_ERR(bk_gpio_set_output_low(rst_id));
 
 	// this delay time maybe can optimization.
@@ -307,8 +318,14 @@ bk_err_t bk_tp_int_init(const tp_config_t *config)
 		return BK_FAIL;
 	}
 
+	gpio_config_t mode = {0};
 	gpio_id_t int_id = TP_INT_PIN;
 	gpio_int_type_t int_type = 0;
+
+	BK_LOG_ON_ERR(gpio_dev_unmap(int_id));
+	mode.io_mode = GPIO_INPUT_ENABLE;
+	mode.pull_mode = GPIO_PULL_DISABLE;
+	BK_LOG_ON_ERR(bk_gpio_set_config(int_id, &mode));
 
 	if (TP_INT_TYPE_RISING_EDGE == config->int_type)
 	{

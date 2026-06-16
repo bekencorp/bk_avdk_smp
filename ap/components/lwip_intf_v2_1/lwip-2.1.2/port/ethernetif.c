@@ -1046,6 +1046,30 @@ void HAL_ETH_MspInit(ETH_HandleTypeDef* ethHandle)
   //LWIP_LOGD("HW DeviceID: 0x%x\n", REG_READ((ETH_BASE + 0x800*4)));
   //LWIP_LOGD("HW VersionID: 0x%x\n", REG_READ((ETH_BASE + 0x801*4)));
 
+#if CONFIG_USR_GPIO_CFG_EN
+  gpio_dev_map_by_func(GPIO_DEV_ENET_PHY_INT);
+  gpio_dev_map_by_func(GPIO_DEV_ENET_MDC);
+  gpio_dev_map_by_func(GPIO_DEV_ENET_MDIO);
+  gpio_dev_map_by_func(GPIO_DEV_ENET_RXD0);
+  gpio_dev_map_by_func(GPIO_DEV_ENET_RXD1);
+#ifdef CONFIG_ETH_GPHY
+  gpio_dev_map_by_func(GPIO_DEV_ENET_RXD2);
+  gpio_dev_map_by_func(GPIO_DEV_ENET_RXD3);
+#endif
+  gpio_dev_map_by_func(GPIO_DEV_ENET_RXDV);
+  gpio_dev_map_by_func(GPIO_DEV_ENET_TXD0);
+  gpio_dev_map_by_func(GPIO_DEV_ENET_TXD1);
+#ifdef CONFIG_ETH_GPHY
+  gpio_dev_map_by_func(GPIO_DEV_ENET_TXD2);
+  gpio_dev_map_by_func(GPIO_DEV_ENET_TXD3);
+  gpio_dev_map_by_func(GPIO_DEV_ENET_GRCLK);
+  gpio_dev_map_by_func(GPIO_DEV_ENET_GTCLK);
+#else
+  gpio_dev_map_by_func(GPIO_DEV_ENET_REF_CLK);
+#endif
+  gpio_dev_map_by_func(GPIO_DEV_ENET_TXEN);
+#endif
+
   // Power On AHBP 
   bk_pm_module_vote_power_ctrl(PM_POWER_SUB_MODULE_NAME_AHBP_ENET, PM_POWER_MODULE_STATE_ON);
 

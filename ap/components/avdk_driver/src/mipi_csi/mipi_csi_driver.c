@@ -17,8 +17,6 @@
 
 #define BASEADDR_CSI            0x4c050000
 #define BASEADDR_CSI_EXT        0x4c058000
-#define GPIO_DEBUG_FUNC_VALUE   0x7F // 127
-#define GPIO_DVP_FUNC_VALUE     0x81 // 129
 
 static void bk_csi_isr(void)
 {
@@ -135,6 +133,25 @@ void bk_mipi_csi_ext_set_enable(uint8_t mode)
 
 void bk_dvp_io_config(void)
 {
+#if CONFIG_USR_GPIO_CFG_EN
+    static const gpio_dev_t dvp_funcs[] = {
+        CAMERA_DVP_PCLK_FUNC,
+        CAMERA_DVP_HSYNC_FUNC,
+        CAMERA_DVP_VSYNC_FUNC,
+        CAMERA_DVP_PXDATA0_FUNC,
+        CAMERA_DVP_PXDATA1_FUNC,
+        CAMERA_DVP_PXDATA2_FUNC,
+        CAMERA_DVP_PXDATA3_FUNC,
+        CAMERA_DVP_PXDATA4_FUNC,
+        CAMERA_DVP_PXDATA5_FUNC,
+        CAMERA_DVP_PXDATA6_FUNC,
+        CAMERA_DVP_PXDATA7_FUNC,
+    };
+
+    for (uint32_t i = 0; i < sizeof(dvp_funcs) / sizeof(dvp_funcs[0]); i++) {
+        gpio_dev_map_by_func(dvp_funcs[i]);
+    }
+#endif
 }
 
 void bk_mipi_csi_enable_debug_pin(void)

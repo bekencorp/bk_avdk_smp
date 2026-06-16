@@ -1047,6 +1047,18 @@ void HAL_ETH_MspInit(ETH_HandleTypeDef* ethHandle)
 
   // GPIO PinMUX: group0(27, 29-39), or group2(46-55)
   // FIXME: BK7236, use dts instead of hard coding.
+#if CONFIG_USR_GPIO_CFG_EN
+  gpio_dev_map_by_func(GPIO_DEV_ENET_PHY_INT);
+  gpio_dev_map_by_func(GPIO_DEV_ENET_MDC);
+  gpio_dev_map_by_func(GPIO_DEV_ENET_MDIO);
+  gpio_dev_map_by_func(GPIO_DEV_ENET_RXD0);
+  gpio_dev_map_by_func(GPIO_DEV_ENET_RXD1);
+  gpio_dev_map_by_func(GPIO_DEV_ENET_RXDV);
+  gpio_dev_map_by_func(GPIO_DEV_ENET_TXD0);
+  gpio_dev_map_by_func(GPIO_DEV_ENET_TXD1);
+  gpio_dev_map_by_func(GPIO_DEV_ENET_TXEN);
+  gpio_dev_map_by_func(GPIO_DEV_ENET_REF_CLK);
+#endif
   // Power On AHBP (must be before any ETH register access)
   bk_pm_module_vote_power_ctrl(PM_POWER_SUB_MODULE_NAME_AHBP_ENET, PM_POWER_MODULE_STATE_ON);
 

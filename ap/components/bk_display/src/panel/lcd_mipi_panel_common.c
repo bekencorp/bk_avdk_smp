@@ -92,6 +92,10 @@ bk_err_t bk_lcd_mipi_default_reset(bk_avdk_lcd_panel_t *panel)
         return BK_OK;
     }
 
+    gpio_dev_unmap(priv->reset_gpio);
+    BK_LOG_ON_ERR(bk_gpio_enable_output(priv->reset_gpio));
+    bk_gpio_set_capacity(priv->reset_gpio, GPIO_DRIVER_CAPACITY_3);
+
     const uint16_t idle_ms    = priv->reset_timing.idle_ms;
     const uint16_t active_ms  = priv->reset_timing.active_ms;
     const uint16_t release_ms = priv->reset_timing.release_ms;

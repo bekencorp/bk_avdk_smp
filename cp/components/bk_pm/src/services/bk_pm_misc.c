@@ -458,6 +458,32 @@ static bk_err_t gpio_ldo_configure_output(gpio_id_t gpio_id, bool output_level)
 		return BK_ERR_GPIO_CHAN_ID;
 	}
 
+	ret |= gpio_dev_unmap(gpio_id);
+	if(ret != BK_OK)
+	{
+		LOGE("Failed to unmap for GPIO %d ret:%d\r\n", gpio_id, ret);
+		return ret;
+	}
+	/* Configure GPIO as output mode */
+	ret |= bk_gpio_set_capacity(gpio_id, 0);
+	if(ret != BK_OK)
+	{
+		LOGE("Failed to set capacity for GPIO %d ret:%d\r\n", gpio_id, ret);
+		return ret;
+	}
+	ret |= bk_gpio_disable_input(gpio_id);
+	if(ret != BK_OK)
+	{
+		LOGE("Failed to disable input for GPIO %d ret:%d\r\n", gpio_id, ret);
+		return ret;
+	}
+	ret |= bk_gpio_enable_output(gpio_id);
+	if(ret != BK_OK)
+	{
+		LOGE("Failed to enable output for GPIO %d ret:%d\r\n", gpio_id, ret);
+		return ret;
+	}
+
 	/* Set output level */
 	if (output_level) {
 		ret |= bk_gpio_set_output_high(gpio_id);

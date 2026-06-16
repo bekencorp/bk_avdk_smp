@@ -29,8 +29,55 @@
 
 #define TAG "lcd_rgb_panel_common"
 
+#if CONFIG_USR_GPIO_CFG_EN
+#define RGB_PIN_MUX(func) do { \
+	gpio_dev_map_by_func(func); \
+	gpio_id_t pin = gpio_get_id_by_func(func); \
+	if (pin < SOC_GPIO_NUM) { \
+		bk_gpio_set_capacity(pin, GPIO_DRIVER_CAPACITY_3); \
+	} \
+} while (0)
+#endif
+
 static void lcd_rgb_panel_pinmux_init(void)
 {
+#if CONFIG_USR_GPIO_CFG_EN
+	RGB_PIN_MUX(GPIO_DEV_LCD_R0);
+	RGB_PIN_MUX(GPIO_DEV_LCD_R1);
+	RGB_PIN_MUX(GPIO_DEV_LCD_R2);
+	RGB_PIN_MUX(GPIO_DEV_LCD_R3);
+	RGB_PIN_MUX(GPIO_DEV_LCD_R4);
+	RGB_PIN_MUX(GPIO_DEV_LCD_R5);
+	RGB_PIN_MUX(GPIO_DEV_LCD_R6);
+	RGB_PIN_MUX(GPIO_DEV_LCD_R7);
+	RGB_PIN_MUX(GPIO_DEV_LCD_G0);
+	RGB_PIN_MUX(GPIO_DEV_LCD_G1);
+	RGB_PIN_MUX(GPIO_DEV_LCD_G2);
+	RGB_PIN_MUX(GPIO_DEV_LCD_G3);
+	RGB_PIN_MUX(GPIO_DEV_LCD_G4);
+	RGB_PIN_MUX(GPIO_DEV_LCD_G5);
+	RGB_PIN_MUX(GPIO_DEV_LCD_G6);
+	RGB_PIN_MUX(GPIO_DEV_LCD_G7);
+	RGB_PIN_MUX(GPIO_DEV_LCD_B0);
+	RGB_PIN_MUX(GPIO_DEV_LCD_B1);
+	RGB_PIN_MUX(GPIO_DEV_LCD_B2);
+	RGB_PIN_MUX(GPIO_DEV_LCD_B3);
+	RGB_PIN_MUX(GPIO_DEV_LCD_B4);
+	RGB_PIN_MUX(GPIO_DEV_LCD_B5);
+	RGB_PIN_MUX(GPIO_DEV_LCD_B6);
+	RGB_PIN_MUX(GPIO_DEV_LCD_B7);
+	RGB_PIN_MUX(GPIO_DEV_LCD_CLK);
+	RGB_PIN_MUX(GPIO_DEV_LCD_HSYNC);
+	RGB_PIN_MUX(GPIO_DEV_LCD_VSYNC);
+	RGB_PIN_MUX(GPIO_DEV_LCD_DE);
+
+	gpio_id_t disp_pin = gpio_get_id_by_func(GPIO_DEV_LCD_DISP);
+	if (disp_pin < SOC_GPIO_NUM) {
+		gpio_dev_unmap(disp_pin);
+		BK_LOG_ON_ERR(bk_gpio_enable_output(disp_pin));
+		bk_gpio_set_output_high(disp_pin);
+	}
+#endif
 }
 
 typedef struct {
@@ -88,6 +135,10 @@ bk_err_t bk_lcd_rgb_default_reset(bk_avdk_lcd_panel_t *panel)
     if (priv->reset_gpio < 0) {
         return BK_OK;
     }
+
+    gpio_dev_unmap(priv->reset_gpio);
+    BK_LOG_ON_ERR(bk_gpio_enable_output(priv->reset_gpio));
+    bk_gpio_set_capacity(priv->reset_gpio, GPIO_DRIVER_CAPACITY_3);
 
     const uint16_t idle_ms    = priv->reset_timing.idle_ms;
     const uint16_t active_ms  = priv->reset_timing.active_ms;
