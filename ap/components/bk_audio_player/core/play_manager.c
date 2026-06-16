@@ -22,7 +22,7 @@
 #include "music_list.h"
 #include "plugin_manager.h"
 #include <os/str.h>
-#include <driver/trng.h>
+#include <components/bk_platform.h>
 
 
 #define CHECK_HANDLE(h)  do { if (!(h)) return AUDIO_PLAYER_NOT_INIT; } while (0)

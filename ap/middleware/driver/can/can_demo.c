@@ -9,7 +9,7 @@
 #include <driver/int_types.h>
 #include <driver/int.h>
 #include "can_hal.h"
-#include <driver/trng.h>
+#include <components/bk_platform.h>
 
 #if (CONFIG_SYSTEM_CTRL)
 #include "sys_driver.h"

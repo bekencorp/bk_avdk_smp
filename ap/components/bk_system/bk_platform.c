@@ -12,29 +12,32 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#pragma once
-
+#include <stdlib.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <common/bk_include.h>
-#include <driver/hal/hal_trng_types.h>
+#include <components/bk_platform.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-/**
- * @brief TRNG defines
- * @defgroup bk_api_trng_defs macos
- * @ingroup bk_api_trng
- * @{
+/*
+ * Default software RNG. Overridden by strong symbols in psa_mbedtls
+ * platform.c when CONFIG_PSA_MBEDTLS is enabled (TE200 via bk_rng_get).
  */
-
-#define BK_ERR_TRNG_DRIVER_NOT_INIT    (BK_ERR_TRNG_BASE - 1) /**< TRNG driver not init */
-
-/**
- * @}
- */
-
-#ifdef __cplusplus
+__attribute__((weak)) int bk_rand(void)
+{
+	return (rand() & RAND_MAX);
 }
-#endif
 
+__attribute__((weak)) int bk_fill_rand(void *buff, size_t len)
+{
+	uint8_t *p = (uint8_t *)buff;
+
+	if (buff == NULL || len == 0) {
+		return -1;
+	}
+
+	for (size_t i = 0; i < len; i++) {
+		p[i] = (rand() & 0xff);
+	}
+
+	return 0;
+}

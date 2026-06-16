@@ -14,6 +14,7 @@ set(srcs
 	mac.c
 	reboot.c
 	delay.c
+	bk_platform.c
 )
 if(CONFIG_AT)
 set(components ../../components)

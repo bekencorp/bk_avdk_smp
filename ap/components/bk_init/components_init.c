@@ -44,7 +44,6 @@
 
 #include <components/log.h>
 #include <components/sensor.h>
-#include <driver/trng.h>
 
 #include "bk_arch.h"
 #include "bk_private/bk_driver.h"
@@ -105,10 +104,8 @@ int bandgap_init(void)
 
 int random_init(void)
 {
-#if (CONFIG_TRNG_SUPPORT)
 	BK_LOGV(TAG, "create srand seed\r\n");
-	srand(bk_rand());
-#endif
+	srand((unsigned)rand());
 	return BK_OK;
 }
 

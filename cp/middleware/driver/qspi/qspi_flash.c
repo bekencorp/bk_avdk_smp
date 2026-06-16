@@ -21,7 +21,7 @@
 #include "qspi_driver.h"
 #include "qspi_hal.h"
 #include "qspi_statis.h"
-#include <driver/trng.h>
+#include <components/bk_platform.h>
 
 #define FLASH_READ_ID_CMD          0x9F
 #define FLASH_WR_S0_S7_CMD         0x1

@@ -1045,12 +1045,6 @@ CONFIG_UART_TEST=y
 # end of UART
 
 #
-# TRNG
-#
-CONFIG_TRNG_SUPPORT=y
-# end of TRNG
-
-#
 # SDIO_HOST
 #
 # CONFIG_SDIO_HOST is not set

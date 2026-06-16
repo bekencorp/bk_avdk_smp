@@ -745,7 +745,7 @@ void cli_usbd_hid_ops(char *pcWriteBuffer, int xWriteBufferLen, int argc, char *
 #endif
 
 #if CONFIG_USBH_SERIAL_CH340_TEST
-#include <driver/trng.h>
+#include <components/bk_platform.h>
 #include <components/usbh_simulate_uart_api.h>
 
 void cli_usbh_to_uart_rx_cb(usb_simulate_uart_id_t id, void *argv)

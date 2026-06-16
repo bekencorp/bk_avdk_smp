@@ -18,7 +18,7 @@
 #include "cli_common.h"
 #include <driver/flash_partition.h>
 #include <driver/uart.h>
-#include <driver/trng.h>
+#include <components/bk_platform.h>
 #include "uart_statis.h"
 
 #define UART_ID_0 0

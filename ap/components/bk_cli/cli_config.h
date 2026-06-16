@@ -58,11 +58,7 @@ extern "C" {
 #else
 #define CLI_CFG_TIMER       0
 #endif
-#if (CONFIG_TRNG_SUPPORT)
-#define CLI_CFG_TRNG        1
-#else
 #define CLI_CFG_TRNG        0
-#endif
 
 #define CLI_CFG_GPIO        1
 

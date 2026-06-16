@@ -11,7 +11,18 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
 #pragma once
 
-// eof
+#include <stddef.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+int bk_rand(void);
+int bk_fill_rand(void *buff, size_t len);
+
+#ifdef __cplusplus
+}
+#endif

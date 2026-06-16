@@ -15,7 +15,7 @@
 #include <os/os.h>
 #include "cli.h"
 #include <driver/spi.h>
-#include <driver/trng.h>
+#include <components/bk_platform.h>
 #include <driver/uart.h>
 #include <driver/dma.h>
 
@@ -364,11 +364,7 @@ static uint32_t spi_data_test_send(spi_id_t id, uint32_t buf_len)
 		s_spi_test.data_len = PER_PACKET_MAX_BYTES_SIZE;
 
 		for (int i = 0; i < PER_PACKET_MAX_BYTES_SIZE; i++) {
-#if (CONFIG_TRNG_SUPPORT)
 			s_spi_test.data[i] = bk_rand();
-#else
-			s_spi_test.data[i] = i & 0xff;
-#endif
 	}
 
 		BK_LOG_ON_ERR(bk_spi_write_bytes(id, s_spi_test.data, PER_PACKET_MAX_BYTES_SIZE));
@@ -380,11 +376,7 @@ static uint32_t spi_data_test_send(spi_id_t id, uint32_t buf_len)
 	s_spi_test.data_len = buf_len;
 
 	for (int i = 0; i < buf_len; i++) {
-#if (CONFIG_TRNG_SUPPORT)
 		s_spi_test.data[i] = bk_rand();
-#else
-		s_spi_test.data[i] = i & 0xff;
-#endif
 	}
 
 	BK_LOG_ON_ERR(bk_spi_write_bytes(id, s_spi_test.data, buf_len));
@@ -648,11 +640,6 @@ static void cli_spi_data_txrx_test_cmd(char *pcWriteBuffer, int xWriteBufferLen,
 
 		spi_data_test_uart_config();
 		spi_data_test_spi_config(spi_id, role, baud_rate);
-
-#if (CONFIG_TRNG_SUPPORT)
-		BK_LOG_ON_ERR(bk_trng_driver_init());
-		BK_LOG_ON_ERR(bk_trng_start());
-#endif
 
 		if(rtos_create_thread(&s_spi_test.handle, 8, "spi_data_test",
 					(beken_thread_function_t) cli_spi_data_txrx_test, 2048, 0)) {

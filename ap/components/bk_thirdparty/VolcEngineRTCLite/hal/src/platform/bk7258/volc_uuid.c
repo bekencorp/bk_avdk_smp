@@ -1,5 +1,5 @@
 #include <common/bk_include.h>
-#include <driver/trng.h>
+#include <components/bk_platform.h>
 
 #include "volc_uuid.h"
 

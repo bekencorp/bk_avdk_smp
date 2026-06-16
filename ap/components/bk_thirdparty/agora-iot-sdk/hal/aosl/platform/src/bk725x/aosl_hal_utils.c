@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <stdlib.h>
-#include <driver/trng.h>
+#include <components/bk_platform.h>
 #include <components/bk_uid.h>
 
 #include <hal/aosl_hal_time.h>

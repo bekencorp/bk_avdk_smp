@@ -17,7 +17,7 @@
 #include "argtable3.h"
 #include "cli_common.h"
 #include <driver/spi.h>
-#include <driver/trng.h>
+#include <components/bk_platform.h>
 #include "spi_statis.h"
 #include <driver/spi_types.h>
 #include <common/bk_include.h>

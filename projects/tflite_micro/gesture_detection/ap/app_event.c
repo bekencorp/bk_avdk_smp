@@ -1,7 +1,7 @@
 #include <common/bk_include.h>
 #include <os/os.h>
 #include <stdlib.h>
-#include <driver/trng.h>
+#include <components/bk_platform.h>
 
 #include <components/bk_player_service.h>
 #include <components/bk_player_service_types.h>

@@ -11,41 +11,33 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
 #include <stdlib.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <common/bk_include.h>
-#include <os/os.h>
-#include <os/mem.h>
+#include <components/bk_platform.h>
 
-#if CONFIG_TRUSTENGINE && (!CONFIG_TRNG_SUPPORT)
-void arm_ce_trng_driver_init( void );
-int arm_ce_seed_read( unsigned char *buf, size_t buf_len );
-void arm_ce_init(void)
+/*
+ * Default software RNG. Overridden by strong symbols in psa_mbedtls
+ * platform.c when CONFIG_PSA_MBEDTLS is enabled (TE200 via bk_rng_get).
+ */
+__attribute__((weak)) int bk_rand(void)
 {
-	arm_ce_trng_driver_init();
+	return (rand() & RAND_MAX);
 }
 
-bool random_is_initial = false;
-
-int bk_rand(void)
+__attribute__((weak)) int bk_fill_rand(void *buff, size_t len)
 {
-	if (!random_is_initial)
-	{
-		arm_ce_init();
-		random_is_initial = true;
+	uint8_t *p = (uint8_t *)buff;
+
+	if (buff == NULL || len == 0) {
+		return -1;
 	}
 
-	int number, ret;
-
-	ret = arm_ce_seed_read((unsigned char *)&number, sizeof(number));
-	if(0 != ret){
-		number = 0;
+	for (size_t i = 0; i < len; i++) {
+		p[i] = (rand() & 0xff);
 	}
 
-	return (number & RAND_MAX);
+	return 0;
 }
-#elif !CONFIG_TRNG_SUPPORT
-int bk_rand(void)
-{
-	return rand();
-}
-#endif

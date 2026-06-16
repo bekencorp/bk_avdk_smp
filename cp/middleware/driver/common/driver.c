@@ -23,7 +23,6 @@
 #include <driver/wdt.h>
 #include <driver/aon_wdt.h>
 #include <driver/wwdt.h>
-#include <driver/trng.h>
 #include <driver/efuse.h>
 #include <driver/ckmn.h>
 #include <os/mem.h>
@@ -216,10 +215,6 @@ int driver_early_init(void)
 
 #if CONFIG_POWER_CLOCK_RF
 	power_clk_rf_init();
-#endif
-
-#if CONFIG_TRNG_SUPPORT
-	bk_trng_driver_init();
 #endif
 
 #if CONFIG_EFUSE

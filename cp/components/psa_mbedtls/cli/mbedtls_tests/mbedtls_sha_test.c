@@ -14,7 +14,7 @@
 
 #include "common.h"
 #include <driver/aon_rtc.h>
-#include <driver/trng.h>
+#include <components/bk_platform.h>
 
 #include "mbedtls/sha256.h"
 #include "mbedtls/platform_util.h"

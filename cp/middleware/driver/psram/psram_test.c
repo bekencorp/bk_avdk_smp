@@ -16,9 +16,7 @@
 #include <os/os.h>
 #include <driver/psram.h>
 #include <driver/aon_rtc.h>
-#if CONFIG_TRNG_SUPPORT
-#include <driver/trng.h>
-#endif
+#include <components/bk_platform.h>
 #include "bk_general_dma.h"
 #include <driver/dma.h>
 #include "soc/mapping.h"
@@ -1100,9 +1098,7 @@ static void cli_psram_cmd_handle(char *pcWriteBuffer, int xWriteBufferLen, int a
 		{
 			if(ctx->data_type == 1)
 			{
-#if CONFIG_TRNG_SUPPORT
 				ctx->data[i] = bk_rand() + i;
-#endif
 			}
 			else if (ctx->data_type == 2)
 			{

@@ -29,6 +29,7 @@ static void cli_mbedtls_help(void)
 	CLI_LOGD("mbedtls_aes ecb/cbc/ctr/gcm\r\n");
 	CLI_LOGD("mbedtls_ecdsa [cnt]\r\n");
 	CLI_LOGD("mbedtls_rsa\r\n");
+	CLI_LOGD("mbedtls_rand {basic|uniq|loop [cnt]}\r\n");
 	CLI_LOGD("mbedtls_selftest\r\n");
 	CLI_LOGD("mbedtls_thread create [cnt]\r\n");
 }
@@ -161,6 +162,42 @@ static void cli_mbedtls_rsa_cmd(char *pcWriteBuffer, int xWriteBufferLen, int ar
 	//bk_pm_module_vote_cpu_freq(PM_DEV_ID_SECURE_WORLD, PM_CPU_FRQ_DEFAULT);
 }
 
+static void cli_mbedtls_rand_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
+{
+	if (argc < 2) {
+		cli_mbedtls_help();
+		return;
+	}
+
+	uint32_t err_cnt = 0;
+	int ret = 0;
+
+	if (os_strcmp(argv[1], "basic") == 0) {
+		ret = te200_rand_basic_test();
+		err_if(ret != 0, ret);
+	} else if (os_strcmp(argv[1], "uniq") == 0) {
+		ret = te200_rand_uniqueness_test();
+		err_if(ret != 0, ret);
+	} else if (os_strcmp(argv[1], "loop") == 0) {
+		uint32_t loop_cnt = 1000;
+
+		if (argc >= 3) {
+			loop_cnt = os_strtoul(argv[2], NULL, 10);
+		}
+		ret = te200_rand_loop_test(loop_cnt);
+		err_if(ret != 0, ret);
+	} else {
+		cli_mbedtls_help();
+		return;
+	}
+
+	if (0 == err_cnt) {
+		CLI_LOGD("passed\r\n");
+	} else {
+		CLI_LOGE("failed\r\n");
+	}
+}
+
 static void cli_mbedtls_selftest(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
 	int ret = 0;
@@ -213,6 +250,7 @@ static const struct cli_command s_mbedtls_commands[] = {
 	{"mbedtls_aes",      "mbedtls_aes {ecb|cbc|ctr|gcm}", cli_mbedtls_aes_cmd},
 	{"mbedtls_ecdsa",    "mbedtls_ecdsa {10}",            cli_mbedtls_ecdsa_cmd},
 	{"mbedtls_rsa",      "mbedtls_rsa",                   cli_mbedtls_rsa_cmd},
+	{"mbedtls_rand",     "mbedtls_rand {basic|uniq|loop [cnt]}", cli_mbedtls_rand_cmd},
 	{"mbedtls_selftest", "mbedtls_selftest",              cli_mbedtls_selftest},
 	{"mbedtls_thread",   "mbedtls_thread {create}{count}",cli_mbedtls_thread},
 };

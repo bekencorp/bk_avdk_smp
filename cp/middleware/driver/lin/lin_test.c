@@ -15,7 +15,7 @@
 #include <os/os.h>
 #include <driver/lin.h>
 #include <driver/int.h>
-#include <driver/trng.h>
+#include <components/bk_platform.h>
 #include "cli.h"
 
 #include <driver/gpio.h>
@@ -119,8 +119,6 @@ void cli_lin_master_stress_test(void)
 	uint32_t i = 0;
 	uint32_t len = 0;
 	uint32_t rand_count = 0;
-	bk_trng_driver_init();
-	bk_trng_start();
 	BK_LOG_ON_ERR(bk_lin_driver_init());
 	CLI_LOGI("master stress begin*******************************\r\n");
 	while (1) {
@@ -150,8 +148,6 @@ void cli_lin_slave_stress_test(void)
 
 	uint32_t i = 0;
 	uint32_t rand_count = 0;
-	bk_trng_driver_init();
-	bk_trng_start();
 	BK_LOG_ON_ERR(bk_lin_driver_init());
 	CLI_LOGI("slave stress begin*******************************\r\n");
 	while (1) {

@@ -27,7 +27,7 @@
 #include "bk_wifi_types.h"
 #include "bk_wifi.h"
 #if (CONFIG_RANDOM_MAC_ADDR)
-#include <driver/trng.h>
+#include <components/bk_platform.h>
 #endif
 #include "driver/flash_partition.h"
 

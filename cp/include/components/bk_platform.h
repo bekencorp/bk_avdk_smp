@@ -14,12 +14,15 @@
 
 #pragma once
 
-#include <components/log.h>
+#include <stddef.h>
 
-#define TRNG_TAG "trng"
-#define TRNG_LOGI(...) BK_LOGI(TRNG_TAG, ##__VA_ARGS__)
-#define TRNG_LOGW(...) BK_LOGW(TRNG_TAG, ##__VA_ARGS__)
-#define TRNG_LOGE(...) BK_LOGE(TRNG_TAG, ##__VA_ARGS__)
-#define TRNG_LOGD(...) BK_LOGD(TRNG_TAG, ##__VA_ARGS__)
-#define TRNG_LOGV(...) BK_LOGV(TRNG_TAG, ##__VA_ARGS__)
+#ifdef __cplusplus
+extern "C" {
+#endif
 
+int bk_rand(void);
+int bk_fill_rand(void *buff, size_t len);
+
+#ifdef __cplusplus
+}
+#endif

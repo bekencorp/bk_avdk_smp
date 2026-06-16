@@ -16,7 +16,7 @@
 #include "cli.h"
 #include <driver/uart.h>
 #include <stdbool.h>
-#include <driver/trng.h>
+#include <components/bk_platform.h>
 #include "uart_statis.h"
 #include "bk_misc.h"
 #include "sys_driver.h"
@@ -469,8 +469,6 @@ static void cli_uart_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc
 			BK_LOG_ON_ERR(bk_uart_register_tx_isr(idle_uart_out_test_id, cli_idle_uart_out_test_isr, NULL));
 			BK_LOG_ON_ERR(bk_uart_enable_tx_interrupt(idle_uart_out_test_id));
 			BK_LOG_ON_ERR(bk_uart_init(idle_uart_out_test_id, &config));
-			BK_LOG_ON_ERR(bk_trng_driver_init());
-			BK_LOG_ON_ERR(bk_trng_start());
 			if(rtos_create_thread(&idle_uart_out_test_handle, 8, "idle_uart_out",
 					(beken_thread_function_t) cli_idle_uart_out_test, 2048, 0)) {
 				CLI_LOGD("cli_uart_test_cmd rtos_create_thread FAILED!\n");
@@ -521,7 +519,6 @@ static void cli_uart_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc
 			BK_LOG_ON_ERR(bk_uart_disable_tx_interrupt(idle_uart_out_test_id));
 			BK_LOG_ON_ERR(bk_uart_register_tx_isr(idle_uart_out_test_id, NULL, NULL));
 			BK_LOG_ON_ERR(bk_uart_deinit(idle_uart_out_test_id));
-			BK_LOG_ON_ERR(bk_trng_stop());
 			CLI_LOGD("idle_uart_out task stop\n");
 		} else {
 			CLI_LOGD("PLEASE start task FIRST!!!\n");
