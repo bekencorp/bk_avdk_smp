@@ -103,6 +103,16 @@ void lv_vendor_disp_lock(void);
 
 void lv_vendor_disp_unlock(void);
 
+/**
+ * Register the shared bk_gpu handle before LVGL uses GPU operations.
+ * Leave it unset when LVGL does not share bk_gpu with other modules.
+ */
+void lv_vendor_gpu_handle_set(void *gpu_handle);
+
+bool lv_vendor_gpu_lock(void);
+
+void lv_vendor_gpu_unlock(bool locked);
+
 void *lv_vendor_get_ready_frame_buffer(void);
 
 void lv_vendor_set_ready_frame_buffer(void *frame_buffer);

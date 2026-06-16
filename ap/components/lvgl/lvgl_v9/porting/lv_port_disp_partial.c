@@ -203,6 +203,8 @@ static void lv_partial_flush_compress(lv_vnd_data_t *vnd_data, lv_partial_flush_
         .height = ctx->height,
     };
 
+    bool gpu_locked = lv_vendor_gpu_lock();
+
     lv_src_buf.width = ctx->width;
     lv_src_buf.height = ctx->height;
     vg_lite_allocate_with_data(&lv_src_buf, ctx->color_ptr, NULL, NULL, NULL);
@@ -226,6 +228,8 @@ static void lv_partial_flush_compress(lv_vnd_data_t *vnd_data, lv_partial_flush_
              __func__, ret, ctx->area->x1, ctx->area->y1, ctx->area->x2, ctx->area->y2);
     }
     vg_lite_finish();
+
+    lv_vendor_gpu_unlock(gpu_locked);
 }
 
 static void lv_partial_prepare_compress(lv_display_t *disp_drv, uint8_t *px_map, lv_partial_flush_ctx_t *ctx)

@@ -516,7 +516,7 @@ endif()
 
 armino_component_register(SRCS "${srcs}"
 	INCLUDE_DIRS "${incs}"
-	PRIV_REQUIRES include bk_vfs avdk_driver
+	PRIV_REQUIRES include bk_vfs avdk_driver bk_gpu
 	)
 
 if (CONFIG_LVGL)

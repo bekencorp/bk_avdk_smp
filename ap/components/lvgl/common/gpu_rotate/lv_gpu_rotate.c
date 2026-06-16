@@ -98,6 +98,8 @@ void lv_gpu_rotate_process(lv_vnd_data_t *vnd_data, uint8_t *src_buf, lv_coord_t
         return;
     }
 
+    bool gpu_locked = lv_vendor_gpu_lock();
+
     s_lv_gpu_rotate_src_buf.width = src_width;
     s_lv_gpu_rotate_src_buf.height = src_height;
     vg_lite_allocate_with_data(&s_lv_gpu_rotate_src_buf, src_buf, NULL, NULL, NULL);
@@ -114,4 +116,6 @@ void lv_gpu_rotate_process(lv_vnd_data_t *vnd_data, uint8_t *src_buf, lv_coord_t
     lv_gpu_rotate_set_matrix(vnd_data->config.rotation, src_width, src_height);
     vg_lite_blit(&s_lv_gpu_rotate_dst_buf, &s_lv_gpu_rotate_src_buf, &s_lv_gpu_rotate_matrix, VG_LITE_BLEND_NONE, 0, VG_LITE_FILTER_POINT);
     vg_lite_finish();
+
+    lv_vendor_gpu_unlock(gpu_locked);
 }

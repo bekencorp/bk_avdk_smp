@@ -8,6 +8,9 @@
 #include "lv_port_indev.h"
 #include "lv_vendor.h"
 #include "gpu_core.h"
+#if (CONFIG_VG_LITE_GPU)
+#include <components/bk_gpu.h>
+#endif
 #include <modules/vg_lite_gpu/vg_lite.h>
 
 #define TAG "lvgl"
@@ -24,6 +27,7 @@ static beken_semaphore_t lvgl_sem = NULL;
 static beken_queue_t lvgl_frame_queue = NULL;
 static u8 lvgl_task_state = STATE_INIT;
 static bool lv_vendor_initialized = false;
+static void *s_gpu_handle = NULL;
 
 void *lv_vendor_malloc(size_t size)
 {
@@ -78,6 +82,53 @@ void lv_vendor_disp_lock(void)
 void lv_vendor_disp_unlock(void)
 {
     rtos_unlock_mutex(&g_disp_mutex);
+}
+
+void lv_vendor_gpu_handle_set(void *gpu_handle)
+{
+    s_gpu_handle = gpu_handle;
+}
+
+bool lv_vendor_gpu_lock(void)
+{
+#if (CONFIG_VG_LITE_GPU)
+    bk_gpu_ctlr_handle_t gpu_handle = (bk_gpu_ctlr_handle_t)s_gpu_handle;
+
+    if (gpu_handle == NULL) {
+        return false;
+    }
+
+    if (bk_gpu_ioctl(gpu_handle, BK_GPU_IOCTL_LOCK, NULL) != AVDK_ERR_OK) {
+        LOGW("%s gpu lock failed\n", __func__);
+        return false;
+    }
+
+    return true;
+#else
+    return false;
+#endif
+}
+
+void lv_vendor_gpu_unlock(bool locked)
+{
+#if (CONFIG_VG_LITE_GPU)
+    bk_gpu_ctlr_handle_t gpu_handle = (bk_gpu_ctlr_handle_t)s_gpu_handle;
+
+    if (!locked) {
+        return;
+    }
+
+    if (gpu_handle == NULL) {
+        LOGW("%s gpu handle is NULL\n", __func__);
+        return;
+    }
+
+    if (bk_gpu_ioctl(gpu_handle, BK_GPU_IOCTL_UNLOCK, NULL) != AVDK_ERR_OK) {
+        LOGW("%s gpu unlock failed\n", __func__);
+    }
+#else
+    (void)locked;
+#endif
 }
 
 void *lv_vendor_get_ready_frame_buffer(void)
