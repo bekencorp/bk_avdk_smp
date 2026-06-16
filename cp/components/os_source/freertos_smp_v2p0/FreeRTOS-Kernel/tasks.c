@@ -166,6 +166,7 @@
     #define taskIS_CORE_ACTIVE( xCore )    ( pdTRUE )
     #define taskIS_AFFINITY_COMPATIBLE( xCore, pxTCB )    ( ( ( ( pxTCB )->xCoreID == xCore ) || ( ( pxTCB )->xCoreID == tskNO_AFFINITY ) ) ? pdTRUE : pdFALSE )
 #endif
+    #define taskIS_AFFINITY_COREX( xCore, pxTCB )    ( ( ( pxTCB )->xCoreID == xCore) ? pdTRUE : pdFALSE )
 
 /*-----------------------------------------------------------*/
 
@@ -463,11 +464,20 @@ PRIVILEGED_DATA static TaskHandle_t xIdleTaskHandle[ configNUMBER_OF_CORES ] = {
 #if ( configUSE_CPUHOTPLUG == 1 )
 PRIVILEGED_DATA static volatile BaseType_t xCoreOnline[ configNUMBER_OF_CORES ] = {
     [ 0 ] = pdTRUE,
+#if configCPUHOTPLUG_BOOT_SECONDARY_OFFLINE
+    /* CP CPU1 starts offline; it joins SMP only after bk_cpu_hp_online(). */
+    [ 1 ] = pdFALSE
+#else
     [ 1 ] = pdTRUE
+#endif
 };
 PRIVILEGED_DATA static volatile BaseType_t xCoreActive[ configNUMBER_OF_CORES ] = {
     [ 0 ] = pdTRUE,
+#if configCPUHOTPLUG_BOOT_SECONDARY_OFFLINE
+    [ 1 ] = pdFALSE
+#else
     [ 1 ] = pdTRUE
+#endif
 };
 #endif
 
@@ -1438,6 +1448,14 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB )
              * are in the suspended state - make this the current task. */
             pxCurrentTCBs[ 0 ] = pxNewTCB;
         }
+#if configCPUHOTPLUG_BOOT_SECONDARY_OFFLINE
+        else if ((pxCurrentTCBs[ 1 ] == NULL) &&
+                 ( xSchedulerRunning == pdFALSE ) &&
+                 (taskIS_AFFINITY_COREX( 1, pxNewTCB ) == pdTRUE))
+        {
+            pxCurrentTCBs[ 1 ] = pxNewTCB;
+        }
+#endif
         else if( ( pxCurrentTCBs[ 1 ] == NULL ) && ( taskIS_AFFINITY_COMPATIBLE( 1, pxNewTCB ) == pdTRUE ) )
         {
             /* On core 1, there are no other tasks, or all the other tasks

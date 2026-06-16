@@ -13,4 +13,9 @@ menu "multicore"
 		bool "Enable CPU Hotplug"
 		default y
 
+	config CPU_HOTPLUG_BOOT_OFFLINE
+		depends on CPU_HOTPLUG
+		bool "Keep secondary hotplug CPU offline at power-on (online via cpu online <id>)"
+		default y
+
 endmenu
