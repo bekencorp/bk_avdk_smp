@@ -28,27 +28,39 @@
 #include "driver/flash.h"
 #include <modules/pm.h>
 
+#if CONFIG_DUMP_BY_LOG_UART
+extern void bk_coredump_writer_init(void);
+extern void bk_coredump_write(const char *format, ...);
+#define bk_reboot_writer_init() bk_coredump_writer_init()
+#define bk_reboot_write(format, ...) bk_coredump_write(format, ##__VA_ARGS__)
+#else
 #define TAG "sys"
+
+#define bk_reboot_writer_init()
+#define bk_reboot_write(format, ...) BK_LOGD(TAG, format, ##__VA_ARGS__)
+#endif
 
 void bk_reboot_ex(uint32_t reset_reason)
 {
-	static uint32_t entry_cnt = 0;
-	if(entry_cnt == 0)	//first time come here, or force reboot:avoid these codes cause system abnormal.
-	{
-		entry_cnt++;
+	rtos_disable_int();
+	bk_wdt_force_feed();
+#if ((CONFIG_INT_WDT) || (CONFIG_TASK_WDT))
+	/* close wdt timer to avoid wdt reset on CP0 during reboot */
+	bk_timer_stop(TIMER_ID2);
+#endif
 
-		if (reset_reason < RESET_SOURCE_UNKNOWN) {
-			bk_misc_set_cp_reset_reason(reset_reason);
-			bk_misc_set_ap_reset_reason(reset_reason);
-		}
-
-		BK_LOGD(TAG, "bk_reboot\r\n");
-		delay_ms(100); //add delay for bk_writer BEKEN_DO_REBOOT cmd
-		bk_pm_module_vote_cpu_freq(PM_DEV_ID_DEFAULT,PM_CPU_FRQ_60M);
-
-		BK_LOGD(TAG, "wdt reboot\r\n");
-		rtos_disable_int();
+	if (reset_reason < RESET_SOURCE_UNKNOWN) {
+		bk_misc_set_cp_reset_reason(reset_reason);
+		bk_misc_set_ap_reset_reason(reset_reason);
 	}
+
+	bk_reboot_writer_init();
+	bk_reboot_write("bk_reboot\r\n");
+	delay_ms(100); //add delay for bk_writer BEKEN_DO_REBOOT cmd
+	// bk_pm_module_vote_cpu_freq(PM_DEV_ID_DEFAULT,PM_CPU_FRQ_60M);
+
+	bk_reboot_write("wdt reboot\r\n");
+
 	//fix reboot hang 16s issue
 	bk_flash_power_saving_enter();
 #if CONFIG_AON_WDT
