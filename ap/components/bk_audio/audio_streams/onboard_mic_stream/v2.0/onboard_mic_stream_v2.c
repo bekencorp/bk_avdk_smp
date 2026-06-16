@@ -138,7 +138,26 @@ typedef struct onboard_mic_stream
     int                      out_block_num;    /**< Number of output block */
     beken_semaphore_t        can_process;      /**< can process */
     uint32_t                 ch_bitmap;        /**< Active adc channel bitmap,bit[x]:0:ch_x inactive;1:ch_x active */
+    uint32_t                 fade_samp;        /**< amplitude (pop) fade-in length in int16 samples after a (re)start */
+    uint32_t                 fade_remain;      /**< remaining int16 samples of the amplitude fade-in */
+    uint32_t                 lp_samp;          /**< spectral low-pass open length in int16 samples (decoupled, longer) */
+    uint32_t                 lp_remain;        /**< remaining int16 samples of the spectral low-pass window */
+    int32_t                  lpf_y[3];         /**< cascaded one-pole low-pass states (one per order) used during the low-pass window */
 } onboard_mic_stream_t;
+
+/* Mic (re)start transient shaper. Two decoupled windows; see the parameter
+ * tuning doc (onboard_mic_startup_shaping.md) for the why and how to retune.
+ *   FADEIN_MS : amplitude smoothstep fade, masks the start "pop".
+ *   LPF_MS    : cascaded-LP open window, masks the high-freq "energy spread".
+ *               Longer than the fade and opens late (r^5), as the spread peaks
+ *               ~300-500ms and decays to ~800-900ms. Effective wall-clock is
+ *               ~half the configured ms in this path.
+ *   LPF_A_MIN : per-stage one-pole coeff at window start, Q15 (7875 ~= 700Hz).
+ *   LPF_ORDER : cascaded one-pole stages (~6 dB/oct each); must match lpf_y[]. */
+#define ONBOARD_MIC_FADEIN_MS    (800u)
+#define ONBOARD_MIC_LPF_MS       (2100u)
+#define ONBOARD_MIC_LPF_A_MIN    (7875)
+#define ONBOARD_MIC_LPF_ORDER    (3u)
 
 static onboard_mic_stream_t *gl_onboard_mic = NULL;
 
@@ -407,6 +426,17 @@ static bk_err_t _onboard_mic_open(audio_element_handle_t self)
     }
 
     bk_aud_adc_enable_used_channel(onboard_mic->ch_bitmap);
+
+    /* Arm pop suppression to mask the mic enable/reset settling transient. The
+     * mic read path outputs a mono int16 stream, so size the ramp in mono int16
+     * samples. */
+    onboard_mic->fade_samp   = ONBOARD_MIC_FADEIN_MS * onboard_mic->adc_cfg.sample_rate / 1000u;
+    onboard_mic->fade_remain = onboard_mic->fade_samp;
+    onboard_mic->lp_samp     = ONBOARD_MIC_LPF_MS * onboard_mic->adc_cfg.sample_rate / 1000u;
+    onboard_mic->lp_remain   = onboard_mic->lp_samp;
+    for (uint32_t k = 0; k < ONBOARD_MIC_LPF_ORDER; k++)
+        onboard_mic->lpf_y[k] = 0;
+
     onboard_mic->is_open = true;
     return BK_OK;
 }
@@ -481,6 +511,58 @@ static int _onboard_mic_read(audio_port_handle_t self, char *buffer, int len, Ti
     return ret;
 }
 
+/* Apply the (re)start transient shaping (amplitude smoothstep + cascaded LP) to
+ * one mono int16 frame, in place. Both ramp positions advance incrementally so
+ * the inner loop stays division-free (only two divides per call to seed the Q15
+ * step). No-op once both windows have elapsed. Q15 fixed point throughout. */
+static void onboard_mic_apply_startup_shaping(onboard_mic_stream_t *m, int16_t *p, uint32_t n)
+{
+    if (!m->fade_remain && !m->lp_remain)
+        return;
+
+    int32_t dr  = m->fade_remain ? (int32_t)((1 << 15) / m->fade_samp) : 0;
+    int32_t drl = m->lp_remain   ? (int32_t)((1 << 15) / m->lp_samp)   : 0;
+    int32_t r   = m->fade_remain ? (int32_t)(((int64_t)(m->fade_samp - m->fade_remain) << 15) / m->fade_samp) : (1 << 15);
+    int32_t rl  = m->lp_remain   ? (int32_t)(((int64_t)(m->lp_samp   - m->lp_remain)   << 15) / m->lp_samp)   : (1 << 15);
+
+    for (uint32_t i = 0; i < n && (m->fade_remain || m->lp_remain); i++)
+    {
+        int64_t x = p[i];
+
+        /* spectral: cascaded one-pole LP, per-stage coeff a opens with rl^5 */
+        if (m->lp_remain)
+        {
+            int32_t rl2 = (int32_t)(((int64_t)rl * rl) >> 15);
+            int32_t rl3 = (int32_t)(((int64_t)rl2 * rl) >> 15);
+            int32_t rl5 = (int32_t)(((int64_t)rl3 * rl2) >> 15);
+            int32_t a   = ONBOARD_MIC_LPF_A_MIN
+                        + (int32_t)(((int64_t)(32768 - ONBOARD_MIC_LPF_A_MIN) * rl5) >> 15);
+            for (uint32_t k = 0; k < ONBOARD_MIC_LPF_ORDER; k++)
+            {
+                m->lpf_y[k] += (int32_t)(((int64_t)a * (x - m->lpf_y[k])) >> 15);
+                x = m->lpf_y[k];
+            }
+            rl += drl;
+            if (rl > (1 << 15)) rl = (1 << 15);
+            m->lp_remain--;
+        }
+
+        /* amplitude: smoothstep g = 3r^2 - 2r^3 */
+        if (m->fade_remain)
+        {
+            int32_t r2 = (int32_t)(((int64_t)r * r) >> 15);
+            int32_t r3 = (int32_t)(((int64_t)r2 * r) >> 15);
+            int32_t g  = 3 * r2 - 2 * r3;
+            x = (x * g) >> 15;
+            r += dr;
+            if (r > (1 << 15)) r = (1 << 15);
+            m->fade_remain--;
+        }
+
+        p[i] = (int16_t)x;
+    }
+}
+
 static int _onboard_mic_process(audio_element_handle_t self, char *in_buffer, int in_len)
 {
     onboard_mic_stream_t *onboard_mic = (onboard_mic_stream_t *)audio_element_getdata(self);
@@ -523,6 +605,11 @@ static int _onboard_mic_process(audio_element_handle_t self, char *in_buffer, in
     }
     else if (r_size > 0)
     {
+        /* Mask the mic (re)start transient: amplitude pop + high-freq spread.
+         * See onboard_mic_apply_startup_shaping() and the tuning doc. */
+        onboard_mic_apply_startup_shaping(onboard_mic,
+                                          (int16_t *)in_buffer,
+                                          (uint32_t)r_size / sizeof(int16_t));   //~700us
 
         ONBOARD_MIC_DATA_DUMP_BY_UART_DATA(in_buffer, r_size);
 
@@ -579,6 +666,8 @@ static bk_err_t _onboard_mic_close(audio_element_handle_t self)
     }
 
     onboard_mic->is_open = false;
+    onboard_mic->fade_remain = 0;
+    onboard_mic->lp_remain = 0;
 
     return BK_OK;
 }
