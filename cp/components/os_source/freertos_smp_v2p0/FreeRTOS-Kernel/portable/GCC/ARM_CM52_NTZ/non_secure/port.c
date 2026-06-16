@@ -523,6 +523,9 @@ static inline void systick_gated_update(TickType_t xExpectedIdleTime, uint32_t u
 
     if(slept_ticks > 1) {
         vTaskStepTick(slept_ticks);
+#if CONFIG_SUPPORT_WWDT
+        bk_wwdt_feed_current_core();
+#endif
 #if CONFIG_TASK_WDT
         bk_task_wdt_feed();
 #endif

@@ -469,6 +469,9 @@ static inline void systick_gated_update(TickType_t xExpectedIdleTime, uint32_t u
 	portNVIC_SYSTICK_CTRL_REG |= portNVIC_SYSTICK_ENABLE_BIT;
 	if(slept_ticks > 1) {
 		vTaskStepTick(slept_ticks - 1);
+#if CONFIG_SUPPORT_WWDT
+        bk_wwdt_feed_current_core();
+#endif
 #if CONFIG_TASK_WDT
 		bk_task_wdt_feed();
 #endif
@@ -594,11 +597,7 @@ void vPortSuppressTicksAndSleep( TickType_t xExpectedIdleTime )
 		ulReloadValue -= ulStoppedTimerCompensation;
 	}
 
-	/* Enter a critical section but don't use the taskENTER_CRITICAL()
-	 * method as that will mask interrupts that should exit sleep mode. */
-	__asm volatile ( "cpsid i" ::: "memory" );
-	__asm volatile ( "dsb" );
-	__asm volatile ( "isb" );
+	taskENTER_CRITICAL();
 
 	/* If a context switch is pending or a task is waiting for the scheduler
 	 * to be un-suspended then abandon the low power entry. */
@@ -614,9 +613,8 @@ void vPortSuppressTicksAndSleep( TickType_t xExpectedIdleTime )
 		/* Restart SysTick. */
 		portNVIC_SYSTICK_CTRL_REG |= portNVIC_SYSTICK_ENABLE_BIT;
 		//portNVIC_SYSTICK_CTRL_REG |= portNVIC_SYSTICK_INT_BIT;
-		/* Re-enable interrupts - see comments above the cpsid instruction()
-		* above. */
-		__asm volatile ( "cpsie i" ::: "memory" );
+
+        taskEXIT_CRITICAL();
 	} else {
 		/* Set the new reload value. */
 		portNVIC_SYSTICK_LOAD_REG = ulReloadValue;
@@ -647,7 +645,9 @@ void vPortSuppressTicksAndSleep( TickType_t xExpectedIdleTime )
 
 		configPOST_SLEEP_PROCESSING( xExpectedIdleTime );
 		#if CONFIG_UPDATE_TICK_THEN_ENABLE_INT
+		taskENTER_CRITICAL();
 		systick_gated_update(xExpectedIdleTime, ulReloadValue);//it improve the systick update when adding here,otherwize the systick update fail and enter the vPortSuppressTicksAndSleep() fail
+		taskEXIT_CRITICAL();
 		#endif
 		/* Re-enable interrupts to allow the interrupt that brought the MCU
 		* out of sleep mode to execute immediately. See comments above
@@ -664,14 +664,16 @@ void vPortSuppressTicksAndSleep( TickType_t xExpectedIdleTime )
 		__asm volatile ( "dsb" );
 		__asm volatile ( "isb" );
 #if CONFIG_UPDATE_TICK_THEN_ENABLE_INT
+		taskENTER_CRITICAL();
 		systick_gated_update(xExpectedIdleTime, ulReloadValue);//it improve the systick update when adding here,otherwize the systick update fail and enter the vPortSuppressTicksAndSleep() fai
+		taskEXIT_CRITICAL();
 #else
 		systick_update(xExpectedIdleTime, ulReloadValue);
 #endif
 /* Restart SysTick. */
 		portNVIC_SYSTICK_CTRL_REG |= portNVIC_SYSTICK_ENABLE_BIT;
-		/* Exit with interrupts enabled. */
-		__asm volatile ( "cpsie i" ::: "memory" );
+
+		taskEXIT_CRITICAL();
 	}
 }
 #endif /* configUSE_TICKLESS_IDLE */
