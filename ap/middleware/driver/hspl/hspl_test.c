@@ -751,6 +751,72 @@ static void hspl_leak_release(bk_hspl_res_t res)
 	bk_hspl_res_unlock(res);
 }
 
+static const char *hspl_res3_trace_action_name(uint32_t action)
+{
+	switch ((bk_hspl_res3_trace_action_t)action) {
+	case BK_HSPL_RES3_TRACE_ENTER_REQ:
+		return "enter_req";
+	case BK_HSPL_RES3_TRACE_ENTER_GOT:
+		return "enter_got";
+	case BK_HSPL_RES3_TRACE_OWNER_SET:
+		return "owner_set";
+	case BK_HSPL_RES3_TRACE_EXIT_REQ:
+		return "exit_req";
+	case BK_HSPL_RES3_TRACE_OWNER_CLEAR:
+		return "owner_clear";
+	case BK_HSPL_RES3_TRACE_EXIT_DONE:
+		return "exit_done";
+	case BK_HSPL_RES3_TRACE_RECUR_ENTER:
+		return "recur_enter";
+	case BK_HSPL_RES3_TRACE_RECUR_EXIT:
+		return "recur_exit";
+	case BK_HSPL_RES3_TRACE_TIMEOUT:
+		return "timeout";
+	default:
+		return "unknown";
+	}
+}
+
+static void cli_hspl_res3_trace(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
+{
+	const volatile bk_hspl_res3_trace_buffer_t *trace;
+	uint32_t write_index;
+	uint32_t count;
+	uint32_t start;
+
+	(void)pcWriteBuffer;
+	(void)xWriteBufferLen;
+
+	if ((argc > 1) && (os_strcmp(argv[1], "clear") == 0)) {
+		bk_hspl_res3_trace_clear();
+		CLI_LOGD("hspl_res3_trace cleared\r\n");
+		return;
+	}
+
+	trace = bk_hspl_res3_trace_get();
+	write_index = trace->write_index;
+	count = (write_index > trace->depth) ? trace->depth : write_index;
+	start = (write_index > trace->depth) ? (write_index - trace->depth) : 0U;
+
+	CLI_LOGD("hspl_res3_trace magic=0x%08x ver=%u depth=%u write=%u wrapped=%u registered=%u addr=%p size=%u\r\n",
+		trace->magic, trace->version, trace->depth, write_index, trace->wrapped,
+		trace->registered, trace, (unsigned int)sizeof(*trace));
+	CLI_LOGD("seq tick action core pc rec_before rec_after ret\r\n");
+	for (uint32_t i = 0; i < count; i++) {
+		uint32_t slot = (start + i) % trace->depth;
+		const volatile bk_hspl_res3_trace_entry_t *entry = &trace->entries[slot];
+
+		if (entry->seq == 0U) {
+			continue;
+		}
+
+		CLI_LOGD("%u %u %s(%u) %u 0x%08x %u %u 0x%08x\r\n",
+			entry->seq, entry->tick_ms, hspl_res3_trace_action_name(entry->action),
+			entry->action, entry->core, entry->pc, entry->rec_before,
+			entry->rec_after, entry->ret);
+	}
+}
+
 static void cli_hspl_leak_flash(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
 	uint32_t pc = (uint32_t)(uintptr_t)__builtin_return_address(0);
@@ -875,6 +941,7 @@ DRV_CLI_CMD_EXPORT static const struct cli_command s_hspl_leak_commands[] = {
 	{"hspl_leak_sys_release", "release SYS ASPL leak lock", cli_hspl_leak_sys_release},
 	{"hspl_leak_uart_log", "hold UART_LOG ASPL lock without release", cli_hspl_leak_uart_log},
 	{"hspl_leak_uart_log_release", "release UART_LOG ASPL leak lock", cli_hspl_leak_uart_log_release},
+	{"hspl_res3_trace", "dump/clear SYS HSPL acquire-release trace", cli_hspl_res3_trace},
 };
 #endif /* CONFIG_HSPL_LEAK_DEBUG */
 
