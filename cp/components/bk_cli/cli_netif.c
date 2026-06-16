@@ -186,8 +186,9 @@ void cli_ping_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **arg
 	int ret = 0;
 	char *msg = NULL;
 	uint32_t cnt = 4;
+	size_t len = 0;
 	if (argc == 1) {
-		BK_LOGD(NULL,"Please input: ping <host address>\n");
+		BK_LOGD(NULL,"Please input: ping <host address> [cnt] [len]\n");
 		goto error;
 	}
 	if (argc == 2 && (os_strcmp("--stop", argv[1]) == 0)) {
@@ -198,9 +199,11 @@ void cli_ping_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **arg
 	}
 	if (argc > 2)
 		cnt = os_strtoul(argv[2], NULL, 10);
+	if (argc > 3)
+		len = (size_t)os_strtoul(argv[3], NULL, 10);
 
-	BK_LOGD(NULL,"ping IP address:%s\n", argv[1]);
-	ping_start(argv[1], cnt, 0);
+	BK_LOGD(NULL,"ping IP address:%s cnt:%u len:%u\n", argv[1], cnt, (uint32_t)len);
+	ping_start(argv[1], cnt, len);
 
 	if (!ret) {
 		msg = WIFI_CMD_RSP_SUCCEED;
@@ -470,7 +473,7 @@ static const struct cli_command s_netif_commands[] = {
 	{"ip", "ip [sta|ap][{ip}{mask}{gate}{dns}]", cli_ip_cmd},
 	{"ipconfig", "ipconfig [sta|ap][{ip}{mask}{gate}{dns}]", cli_ip_cmd},
 	{"dhcpc", "dhcpc", cli_dhcpc_cmd},
-	{"ping", "ping <ip>", cli_ping_cmd},
+	{"ping", "ping <ip> [cnt] [len]", cli_ping_cmd},
 #ifdef CONFIG_IPV6
 	{"ping6", "ping6 xxx", cli_ping_cmd},
 	{"ip6", "ip6 [sta|ap][{ip}{state}]", cli_ip6_cmd},
