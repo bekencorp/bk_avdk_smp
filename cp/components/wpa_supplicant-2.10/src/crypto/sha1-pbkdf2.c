@@ -89,11 +89,7 @@ int pbkdf2_sha1(const char *passphrase, const u8 *ssid, size_t ssid_len,
 	size_t left = buflen, plen;
 	unsigned char digest[SHA1_MAC_LEN];
 
-#if (CONFIG_SOC_BK7236XX)
-	bk_pm_module_vote_cpu_freq(PM_DEV_ID_WPAS, PM_CPU_FRQ_240M);
-#else
 	bk_pm_module_vote_cpu_freq(PM_DEV_ID_WPAS, PM_CPU_FRQ_160M);
-#endif
 	while (left > 0) {
 		count++;
 		if (pbkdf2_sha1_f(passphrase, ssid, ssid_len, iterations,

@@ -185,7 +185,7 @@ void cli_touch_single_channel_calib_mode_test_cmd(char *pcWriteBuffer, int xWrit
 		touch_config.detect_threshold = TOUCH_DETECT_THRESHOLD_6;
 		touch_config.detect_range = TOUCH_DETECT_RANGE_8PF;
 		bk_touch_config(&touch_config);
-		#if (CONFIG_SOC_BK7236XX || CONFIG_SOC_BK7239XX || CONFIG_SOC_BK7286XX)
+		#if (CONFIG_SOC_BK7239XX || CONFIG_SOC_BK7286XX)
 		bk_touch_set_test_mode(0, 0);
 		bk_touch_set_calib_mode(0x3F, 9);
 		#endif

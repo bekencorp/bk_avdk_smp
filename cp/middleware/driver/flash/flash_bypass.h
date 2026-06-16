@@ -57,12 +57,8 @@ extern "C" {
 #define FLASH_ID_TH25Q64                (0xCD6017)
 #define QE_RETRY_TIMES                  (10)
 
-#if CONFIG_SOC_BK7236XX
-__attribute__((section(".itcm_sec_code"))) int flash_bypass_op_write(uint8_t *op_code, uint8_t *tx_buf, uint32_t tx_len);
-#else
 __attribute__((section(".itcm_sec_code"))) void flash_bypass_quad_enable(void);
 __attribute__((section(".itcm_sec_code"))) void flash_bypass_quad_test(uint32_t quad_enable, uint32_t delay_cycle1, uint32_t delay_cycle2);
-#endif
 
 #if CONFIG_FLASH_BYPASS_OTP_OPERATION
 #define FLASH_BYPASS_OTP_BLOCK_START_OFFSET    (0)

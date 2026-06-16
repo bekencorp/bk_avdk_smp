@@ -1114,7 +1114,7 @@ uint32_t sys_hal_clk_pwr_is_enabled(dev_clk_pwr_id_t dev)
 
 void sys_hal_set_cpu_power_sleep_wakeup_pwd_ofdm(uint32_t v)
 {
-#if (CONFIG_SOC_BK7236XX || CONFIG_SOC_BK7239XX)
+#if (CONFIG_SOC_BK7239XX)
 	sys_ll_set_cpu_power_sleep_wakeup_pwd_ofdm(v);
 #else
 	(void)v;
@@ -1123,7 +1123,7 @@ void sys_hal_set_cpu_power_sleep_wakeup_pwd_ofdm(uint32_t v)
 
 uint32_t sys_hal_get_cpu_power_sleep_wakeup_pwd_ofdm(void)
 {
-#if (CONFIG_SOC_BK7236XX || CONFIG_SOC_BK7239XX)
+#if (CONFIG_SOC_BK7239XX)
 	return sys_ll_get_cpu_power_sleep_wakeup_pwd_ofdm();
 #elif CONFIG_SOC_BK7259
 #if 1 //workaround

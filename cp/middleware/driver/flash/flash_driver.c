@@ -471,10 +471,6 @@ __attribute__((section(".iram"))) static flash_line_mode_t flash_set_line_mode(f
 
 	flash_hal_clear_qwfr(&s_flash.hal);   // cmd CRMR (coutinuous_read_mode reset), quit QPI mode.
 
-#if CONFIG_SOC_BK7236XX
-	sys_drv_set_sys2flsh_2wire(0);
-#endif
-
 	if (FLASH_LINE_MODE_FOUR == new_line_mode)
 	{
 		flash_hal_set_quad_m_value(&s_flash.hal, s_flash.flash_cfg->coutinuous_read_mode_bits_val);
@@ -487,10 +483,6 @@ __attribute__((section(".iram"))) static flash_line_mode_t flash_set_line_mode(f
 	}
 
 	s_flash.flash_line_mode = new_line_mode;
-
-#if CONFIG_SOC_BK7236XX
-	sys_drv_set_sys2flsh_2wire(1);
-#endif
 
 	flash_exit_critical(int_level);
 
@@ -1022,39 +1014,11 @@ __attribute__((section(".iram"))) bk_err_t bk_flash_power_saving_exit(void)
 
 __attribute__((section(".iram"))) bk_err_t bk_flash_enter_deep_sleep(void)
 {
-#if CONFIG_SOC_BK7236XX
-	int ret = 0;
-	uint8_t op_code = FLASH_CMD_ENTER_DEEP_PWR_DW;
-
-	// flash need to change 2 line when do flash operate except read
-	// need to recover 4 line, please do it manually
-	ret = flash_bypass_op_write(&op_code, NULL, 0);
-	if(ret == 0)// success
-	{
-		// delay T_dp: 3us
-		//for(volatile int j=0; j<500; j++);
-		return BK_OK;
-	}
-#endif
 	return BK_FAIL;
 }
 
 __attribute__((section(".iram"))) bk_err_t bk_flash_exit_deep_sleep(void)
 {
-#if CONFIG_SOC_BK7236XX
-	int ret = 0;
-	uint8_t op_code = FLASH_CMD_EXIT_DEEP_PWR_DW;
-
-	// flash need to change 2 line when do flash operate except read
-	// need to recover 4 line, please do it manually
-	ret = flash_bypass_op_write(&op_code, NULL, 0);
-	if(ret == 0)// success
-	{
-		// delay T_res1: 20us
-		//for(volatile int j=0; j<500; j++);
-		return BK_OK;
-	}
-#endif
 	return BK_FAIL;
 }
 

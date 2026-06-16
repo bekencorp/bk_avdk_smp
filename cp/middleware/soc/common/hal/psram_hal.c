@@ -378,8 +378,6 @@ static int psram_hal_W955D8MKY_5J_init_with_id(psram_id_t psram_id, uint32_t *id
 	uint32_t io_drv = 0; /*range [0, 3]*/
 	#if (CONFIG_SOC_BK7256XX)
 		psram_hal_set_mode_value_with_id(psram_id, PSRAM_MODE4);// mode 4
-	#elif (CONFIG_SOC_BK7236XX)
-		psram_hal_set_mode_value_with_id(psram_id, PSRAM_MODE8);// mode 8
 	#endif
 #if (!CONFIG_SOC_BK7256XX)
 	psram_hal_set_reg5_value_with_id(psram_id, 0x292);
@@ -406,8 +404,6 @@ static int psram_hal_W955D8MKY_5J_init_with_id(psram_id_t psram_id, uint32_t *id
 
 #if (CONFIG_SOC_BK7256XX)
 	psram_hal_cmd_write_with_id(psram_id, 0x01000000, val);
-#elif (CONFIG_SOC_BK7236XX)
-	psram_hal_cmd_write_with_id(psram_id, 0x01000000, 0x1c8f);
 #endif
 	psram_hal_cmd_read_with_id(psram_id, 0x01000000);
 

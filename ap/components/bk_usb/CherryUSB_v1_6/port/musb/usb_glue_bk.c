@@ -33,7 +33,7 @@
 #define REG_AHB2_USB_INT      (*((volatile unsigned char *)(USB_BASE_ADDR + 0x294)))
 #define REG_AHB2_USB_RESET    (*((volatile unsigned char *)(USB_BASE_ADDR + 0x298)))
 #define REG_AHB2_USB_DEV_CFG  (*((volatile unsigned char *)(USB_BASE_ADDR + 0x29C)))
-#elif (CONFIG_SOC_BK7236XX) || (CONFIG_SOC_BK7239XX) || (CONFIG_SOC_BK7286XX)
+#elif (CONFIG_SOC_BK7239XX) || (CONFIG_SOC_BK7286XX)
 #define REG_AHB2_USB_DEVICE_ID     (*((volatile unsigned char *)(USB_BASE_ADDR + 0x280)))
 #define REG_AHB2_USB_VERSION_ID    (*((volatile unsigned char *)(USB_BASE_ADDR + 0x284)))
 #define REG_AHB2_USB_GLOBAL_CTRL   (*((volatile unsigned char *)(USB_BASE_ADDR + 0x288)))

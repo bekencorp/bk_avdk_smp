@@ -258,8 +258,6 @@ static bk_err_t adc_set_default_cali_val(struct sadc_data *data)
         0, 0x1272, 0x23d8 /* 1Volt, 2Volt, 25Degree, 10Step*/
         #elif (CONFIG_SOC_BK7259)
         0, 0x1481, 0x279D /* 1Volt, 2Volt, 25Degree, 10Step*/
-        #elif (CONFIG_SOC_BK7236XX)
-        0, 0x9C7,0x1358 /* 1Volt, 2Volt, 25Degree, 10Step*/
         #else
         0, 0x55, 0x354
         #endif

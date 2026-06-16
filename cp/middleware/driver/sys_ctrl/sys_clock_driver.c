@@ -289,25 +289,11 @@ void sys_drv_flash_select_clock(flash_clk_src_t src, flash_clk_div_t div)
 //sys_ctrl CMD: CMD_SCTRL_SET_FLASH_DCO
 void sys_drv_flash_set_dco(void)
 {
-#if (CONFIG_SOC_BK7236XX)
-	uint32_t int_level = sys_drv_enter_critical();
-
-	sys_hal_flash_set_dco();
-
-	sys_drv_exit_critical(int_level);
-#endif
 }
 
 //sys_ctrl CMD: CMD_SCTRL_SET_FLASH_DPLL
 void sys_drv_flash_set_dpll(void)
 {
-#if (CONFIG_SOC_BK7236XX)
-	uint32_t int_level = sys_drv_enter_critical();
-
-	sys_hal_flash_set_dpll();
-
-	sys_drv_exit_critical(int_level);
-#endif
 }
 
 void sys_drv_flash_cksel(uint32_t value)
