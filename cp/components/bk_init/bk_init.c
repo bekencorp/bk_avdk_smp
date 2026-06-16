@@ -83,6 +83,7 @@ extern void bk_ota_confirm_update_partition(ota_confirm_flag ota_confirm_val);
 
 
 #include "sys_ll.h"
+#include "sys_driver.h"
 #if CONFIG_SARADC
 #include "bk_saradc.h"
 #endif
@@ -403,6 +404,11 @@ extern int mp_do_startup(int heap_len);
 #endif
 #if CONFIG_PM_LV_WDT_PROTECTION
 	pm_wifi_event_init();
+#endif
+
+#if CONFIG_SARADC
+    /* GPIO12 (ADC14): output pull-down + ana comparator pulse to discharge internal charge */
+    sys_drv_anacomp_charge_release_pulse();
 #endif
 
 	return 0;

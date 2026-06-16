@@ -654,6 +654,12 @@ void     sys_drv_set_gadc_enable(uint32_t v);
 uint32_t sys_drv_get_gadc_enable(void);
 /** GADC Config (ana_reg22) End **/
 
+/** Analog Comparator Config (ana_reg43) Start **/
+uint32_t sys_drv_get_ana_reg43_config(void);
+void     sys_drv_set_ana_reg43_config(uint32_t v);
+void     sys_drv_anacomp_charge_release_pulse(void);
+/** Analog Comparator Config (ana_reg43) End **/
+
 /** VAD Control (ana_reg23) Start **/
 void     sys_drv_set_vad_config(uint32_t v);
 uint32_t sys_drv_get_vad_config(void);

@@ -1671,6 +1671,36 @@ uint32_t sys_hal_get_gadc_inbuf_isel(void)
 
 /** GADC Config (ana_reg22) End **/
 
+/** Analog Comparator Config (ana_reg43) Start **/
+
+uint32_t sys_hal_get_ana_reg43_config(void)
+{
+	return sys_ll_get_ana_reg43_value();
+}
+
+void sys_hal_set_ana_reg43_config(uint32_t value)
+{
+	sys_ll_set_ana_reg43_value(value);
+}
+
+void sys_hal_anacomp_charge_release_pulse(void)
+{
+    uint32_t saved = sys_ll_get_ana_reg43_value();
+    sys_ana_reg43_t pulse;
+
+    pulse.v = saved;
+    pulse.acmp_chsel_a = 2;
+    pulse.en_anacomp_a = 1;
+    pulse.acmp_npmd_a = 1;
+    pulse.acmp_chsel_b = 2;
+    pulse.en_anacomp_b = 1;
+    pulse.acmp_npmd_b = 1;
+    sys_ll_set_ana_reg43_value(pulse.v);
+    //sys_ll_set_ana_reg43_value(saved);
+}
+
+/** Analog Comparator Config (ana_reg43) End **/
+
 /** Audio Bias & Mic Control (ana_reg20/ana_reg27) Start **/
 
 void sys_hal_set_micbias_enable(uint32_t value)

@@ -251,6 +251,12 @@ void     sys_hal_set_gadc_inbuf_isel(uint32_t value);
 uint32_t sys_hal_get_gadc_inbuf_isel(void);
 /** GADC Config (ana_reg22) End **/
 
+/** Analog Comparator Config (ana_reg43) Start **/
+uint32_t sys_hal_get_ana_reg43_config(void);
+void     sys_hal_set_ana_reg43_config(uint32_t value);
+void     sys_hal_anacomp_charge_release_pulse(void);
+/** Analog Comparator Config (ana_reg43) End **/
+
 /** Audio Bias & Mic Control (ana_reg20/ana_reg27) **/
 void     sys_hal_set_micbias_enable(uint32_t value);
 void     sys_hal_set_mic2_enable(uint32_t value);
