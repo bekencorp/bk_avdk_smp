@@ -54,10 +54,14 @@ typedef struct {
 #define dma_hal_set_prio_mode(hal, prio_mode) dma_ll_set_prio_mode((hal)->hw, prio_mode)
 #define dma_hal_get_enable_status(hal, id) dma_ll_get_enable_status((hal)->hw, id)
 
-#define dma_hal_set_src_start_addr(hal, id, addr) dma_ll_set_src_start_addr((hal)->hw, id, addr)
-#define dma_hal_set_dest_start_addr(hal, id, addr) dma_ll_set_dest_start_addr((hal)->hw, id, addr)
-#define dma_hal_set_src_loop_addr(hal, id, start_addr, end_addr) dma_ll_set_src_loop_addr((hal)->hw, id, start_addr, end_addr)
-#define dma_hal_set_dest_loop_addr(hal, id, start_addr, end_addr) dma_ll_set_dest_loop_addr((hal)->hw, id, start_addr, end_addr)
+/* When CONFIG_SRAM_DIRECT_ADDR is enabled the OS RAM lives in the 0x2Cxxxxxx
+ * alias, but the DMA engine can only access the 0x28xxxxxx peripheral alias.
+ * SOC_SRAM_PERI_ADDR() normalises 0x2Cxxxxxx -> 0x28xxxxxx and leaves every
+ * other address unchanged, so apply it before writing addresses to the DMA. */
+#define dma_hal_set_src_start_addr(hal, id, addr) dma_ll_set_src_start_addr((hal)->hw, id, SOC_SRAM_PERI_ADDR(addr))
+#define dma_hal_set_dest_start_addr(hal, id, addr) dma_ll_set_dest_start_addr((hal)->hw, id, SOC_SRAM_PERI_ADDR(addr))
+#define dma_hal_set_src_loop_addr(hal, id, start_addr, end_addr) dma_ll_set_src_loop_addr((hal)->hw, id, SOC_SRAM_PERI_ADDR(start_addr), SOC_SRAM_PERI_ADDR(end_addr))
+#define dma_hal_set_dest_loop_addr(hal, id, start_addr, end_addr) dma_ll_set_dest_loop_addr((hal)->hw, id, SOC_SRAM_PERI_ADDR(start_addr), SOC_SRAM_PERI_ADDR(end_addr))
 #define dma_hal_enable_src_addr_inc(hal, id) dma_ll_enable_src_addr_inc((hal)->hw, id)
 #define dma_hal_disable_src_addr_inc(hal, id) dma_ll_disable_src_addr_inc((hal)->hw, id)
 #define dma_hal_enable_dest_addr_inc(hal, id) dma_ll_enable_dest_addr_inc((hal)->hw, id)

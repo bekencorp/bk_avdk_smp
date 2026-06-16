@@ -1,12 +1,8 @@
 menu "bk7259"
 
-	config ITCM_SIZE
-		hex "Total ITCM size"
-		default 0x4000
-
-	config DTCM_SIZE
-		hex "Total DTCM size"
-		default 0x4000
+	config SRAM_DIRECT_ADDR
+		bool "Use SRAM direct address"
+		default n
 
 	config ANA_REG_WRITE_POLL_REG_B
 		bool "Write analog register polls sys reg0xb"

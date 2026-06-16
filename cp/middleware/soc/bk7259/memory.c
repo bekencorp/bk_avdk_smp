@@ -382,6 +382,10 @@ static inline bool addr_is_in_dtcm(uint32_t addr)
 
 static inline bool addr_is_in_sram(uint32_t addr)
 {
+    /* When CONFIG_SRAM_DIRECT_ADDR is enabled the OS RAM lives in the
+     * 0x2Cxxxxxx alias, while SOC_RAM_BASE is the 0x28xxxxxx alias. Normalise
+     * the 0x2C alias back to 0x28 so both forms are recognised. */
+    addr = SOC_SRAM_PERI_ADDR(addr);
     return ((addr >= SOC_RAM_BASE) && (addr < SOC_RAM_BASE + SOC_RAM_SIZE));
 }
 

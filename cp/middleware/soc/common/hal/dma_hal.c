@@ -54,10 +54,20 @@ bk_err_t dma_hal_init_dma(dma_hal_t *hal, dma_id_t id, const dma_config_t *confi
 
     dma_ll_set_pixel_trans_type(hal->hw, id, config->trans_type);
 
-    dma_ll_set_src_start_addr(hal->hw, id, config->src.start_addr);
-    dma_ll_set_src_loop_addr(hal->hw, id, config->src.start_addr, config->src.end_addr);
-    dma_ll_set_dest_start_addr(hal->hw, id, config->dst.start_addr);
-    dma_ll_set_dest_loop_addr(hal->hw, id, config->dst.start_addr, config->dst.end_addr);
+    /* When CONFIG_SRAM_DIRECT_ADDR is enabled the OS RAM lives in the
+     * 0x2Cxxxxxx alias, while SOC_RAM_BASE is the 0x28xxxxxx alias. The DMA
+     * engine can only access the 0x28xxxxxx peripheral alias, so normalise the
+     * 0x2C alias back to 0x28 before handing the addresses to the hardware.
+     * SOC_SRAM_PERI_ADDR() leaves every other address unchanged. */
+    uint32_t src_start_addr = SOC_SRAM_PERI_ADDR(config->src.start_addr);
+    uint32_t src_end_addr   = SOC_SRAM_PERI_ADDR(config->src.end_addr);
+    uint32_t dst_start_addr = SOC_SRAM_PERI_ADDR(config->dst.start_addr);
+    uint32_t dst_end_addr   = SOC_SRAM_PERI_ADDR(config->dst.end_addr);
+
+    dma_ll_set_src_start_addr(hal->hw, id, src_start_addr);
+    dma_ll_set_src_loop_addr(hal->hw, id, src_start_addr, src_end_addr);
+    dma_ll_set_dest_start_addr(hal->hw, id, dst_start_addr);
+    dma_ll_set_dest_loop_addr(hal->hw, id, dst_start_addr, dst_end_addr);
 
     if (config->src.addr_inc_en) {
         dma_ll_enable_src_addr_inc(hal->hw, id);
