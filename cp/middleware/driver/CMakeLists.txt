@@ -83,7 +83,6 @@ endif()
 
 	list(APPEND srcs
 		common/driver.c
-		common/drv_model.c
 		sys_ctrl/sys_bt_driver.c
 		sys_ctrl/sys_wifi_driver.c
 		sys_ctrl/sys_psram_driver.c

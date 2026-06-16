@@ -2,7 +2,6 @@ list(APPEND incs ./)
 
 list(APPEND srcs
 	common/driver.c
-	common/drv_model.c
 )
 
 if (CONFIG_SUPPORT_INIT_EXPORT)

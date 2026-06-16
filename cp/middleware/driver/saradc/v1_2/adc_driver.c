@@ -26,7 +26,6 @@
 #include "icu_driver.h"
 #include "power_driver.h"
 #include "clock_driver.h"
-#include "bk_drv_model.h"
 #include "bk_sys_ctrl.h"
 #include "sys_driver.h"
 #include "iot_adc.h"
@@ -164,8 +163,6 @@ static void adc_deinit_gpio(adc_chan_t chan)
 
 static void adc_enable_block(void)
 {
-    uint32_t param = BLK_BIT_SARADC;
-    sddev_control(DD_DEV_TYPE_SCTRL, CMD_SCTRL_BLK_ENABLE, &param);
 }
 
 static bk_err_t adc_chan_init_common(struct sadc_device *dev, adc_chan_t chan)

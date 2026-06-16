@@ -4,7 +4,6 @@
 #include "fft.h"
 #include "bk_fft.h"
 
-#include "bk_drv_model.h"
 #include <driver/int.h>
 
 #if CONFIG_FFT
@@ -93,13 +92,10 @@ static __inline INT16 f_sat(int din)
 void fft_init(void)
 {
 	bk_int_isr_register(INT_SRC_FFT, fft_isr, NULL);
-
-	sddev_register_dev(DD_DEV_TYPE_FFT, (DD_OPERATIONS *)&fft_op);
 }
 
 void fft_exit(void)
 {
-	sddev_unregister_dev(DD_DEV_TYPE_FFT);
 }
 
 UINT32 fft_ctrl(UINT32 cmd, void *param)
