@@ -187,6 +187,14 @@ bk_err_t bk_aon_rtc_open_rtc_wakeup(rtc_tick_t period);
 uint64_t bk_aon_rtc_get_upper_val(aon_rtc_id_t id);
 
 /**
+ * @brief  Get AON RTC configured max value with 64 bits
+ * @id: register to which aon_rtc id
+ * @return
+ *    - AON RTC configured max value with 64 bits
+ */
+uint64_t bk_aon_rtc_get_max_value(aon_rtc_id_t id);
+
+/**
  * @brief  Get AON RTC current tick with 64 bits
  *	       AON RTC uses 32 Bits counter with 32K clock, the max time is about 36.4 hours.
  *         The 32K clock really frequency is 32768 HZ(External 32K XTL) or 32000 HZ(Internel ROSC).
