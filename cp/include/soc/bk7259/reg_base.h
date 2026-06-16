@@ -53,6 +53,32 @@
 #define SOC_RAM_BASE             CONFIG_CP_RAM_ADDR
 #define SOC_RAM_SIZE             CONFIG_CP_RAM_SIZE
 
+#if CONFIG_SRAM_DIRECT_ADDR
+/*
+ * SRAM direct-address (0x2Cxxxxxx) -> peripheral-address (0x28xxxxxx)
+ *
+ * When CONFIG_SRAM_DIRECT_ADDR is enabled, the CP(M52) OS places its data in
+ * the 0x2Cxxxxxx SRAM alias (Bit26 set) because the M52 core accesses that
+ * alias faster. Peripherals (DMA / codec / display / ...) can ONLY access the
+ * 0x28xxxxxx SRAM alias, so an SRAM buffer pointer handed to a peripheral must
+ * be translated back first.
+ *
+ * SOC_SRAM_PERI_ADDR() clears Bit26 (0x04000000) to map 0x2Cxxxxxx ->
+ * 0x28xxxxxx. It is valid ONLY for 0x2Cxxxxxx addresses (0x2C000000 ~
+ * 0x2CFFFFFF); every other address (0x28xxxxxx SRAM, PSRAM, registers, ...)
+ * is returned unchanged so the macro is safe to apply unconditionally.
+ */
+#define SOC_SRAM_DIRECT_ADDR_BIT     (0x04000000U)   /* Bit26 */
+#define SOC_SRAM_DIRECT_ADDR_BASE    (0x2C000000U)
+#define SOC_SRAM_DIRECT_ADDR_MASK    (0xFF000000U)
+
+#define SOC_SRAM_PERI_ADDR(addr) \
+    ((((unsigned int)(addr) & SOC_SRAM_DIRECT_ADDR_MASK) == SOC_SRAM_DIRECT_ADDR_BASE) ? \
+     ((unsigned int)(addr) & ~SOC_SRAM_DIRECT_ADDR_BIT) : ((unsigned int)(addr)))
+#else
+#define SOC_SRAM_PERI_ADDR(addr) (addr)
+#endif /* CONFIG_SRAM_DIRECT_ADDR */
+
 #if CONFIG_PSRAM_INTERLEAVE
 #define SOC_PSRAM0_DATA_BASE     ((unsigned int)(0x60000000UL + SOC_ADDR_OFFSET + CONFIG_PSRAM_INTERLEAVE_OFFSET))
 #define SOC_PSRAM1_DATA_BASE     ((unsigned int)(0x64000000UL + SOC_ADDR_OFFSET + CONFIG_PSRAM_INTERLEAVE_OFFSET))
