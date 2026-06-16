@@ -1328,7 +1328,7 @@ __attribute__((section(".iram"))) void sys_hal_regs_analog_restore(void)
 }
 #endif
 
-__attribute__((section(".iram"))) void sys_hal_enter_low_voltage(void)
+/*__attribute__((section(".iram")))*/ void sys_hal_enter_low_voltage(void)
 {
 	volatile uint32_t int_state1, int_state2, int_state3;
 	volatile uint8_t cksel_core = 0, clkdiv_core = 0, clkdiv_bus = 0;
