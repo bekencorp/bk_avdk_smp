@@ -48,12 +48,6 @@ if(CONFIG_EFUSE)
 	)
 endif()
 
-if(CONFIG_TRNG_SUPPORT)
-	list(APPEND srcs
-		"hal/trng_hal.c"
-	)
-endif()
-
 if(CONFIG_MAILBOX)
 	if (NOT CONFIG_MAILBOX_V2_0)
 	list(APPEND srcs

@@ -261,9 +261,8 @@ void *__stack_chk_guard = NULL;
 void bk_stack_guard_setup(void)
 {
     BK_LOGD(TAG, "Intialize random stack guard.\r\n");
-#if CONFIG_TRNG_SUPPORT
-    __stack_chk_guard = (void *)bk_rand();
-#endif
+
+    __stack_chk_guard = (void *)rand();
 }
 
 #if CONFIG_UT_REG

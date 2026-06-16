@@ -31,12 +31,6 @@ if (CONFIG_FFT)
 		)
 endif()
 
-if(CONFIG_TRNG_SUPPORT)
-	list(APPEND srcs
-		"hal/trng_hal.c"
-	)
-endif()
-
 if(CONFIG_IPI)
 	list(APPEND srcs
 		"hal/ipi_hal.c"

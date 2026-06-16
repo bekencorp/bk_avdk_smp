@@ -48,8 +48,6 @@ list(APPEND srcs
 	"hal/wdt_hal_debug.c"
 	"hal/wdt_hal.c"
 	"hal/wdt_ll.c"
-	"hal/trng_hal_debug.c"
-	"hal/trng_ll.c"
 	"hal/efuse_hal_debug.c"
 	# "hal/adc_hal_debug.c"
 	# "hal/adc_ll.c"

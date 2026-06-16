@@ -368,5 +368,5 @@ armino_component_register(SRCS "${srcs}"
 	INCLUDE_DIRS "${incs}"
 
 	REQUIRES core cortex-m mpu
-	PRIV_REQUIRES bk_log easy_flash cmsis os_source unity console bk_phy temp_detect
+	PRIV_REQUIRES bk_log easy_flash cmsis os_source unity console bk_phy temp_detect psa_mbedtls
 )

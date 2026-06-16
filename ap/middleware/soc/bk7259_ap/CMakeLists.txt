@@ -46,8 +46,6 @@ list(APPEND srcs
 	"hal/dma_hal_debug.c"
 	"hal/uart_hal_debug.c"
 	"hal/uart_ll.c"
-	"hal/trng_hal_debug.c"
-	"hal/trng_ll.c"
 	"hal/efuse_hal_debug.c"
 	#"hal/adc_hal_debug.c"
 	#"hal/adc_ll.c"

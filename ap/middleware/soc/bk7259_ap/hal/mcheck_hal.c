@@ -12,11 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <common/bk_include.h>
+#include <components/log.h>
 #include "hal_config.h"
-#include "trng_hw.h"
-#include "trng_hal.h"
-#include "trng_ll.h"
-
+#include "reg_base.h"
 #if (!CONFIG_ATE_TEST)
 static int mcheck_section(uint32_t* reg_addr, uint32_t base_addr, int reg_points_num, int output_points_num, int addr_len, int singe_repair_points)
 {

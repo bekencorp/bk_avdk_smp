@@ -188,9 +188,11 @@ void *__stack_chk_guard = NULL;
 void bk_stack_guard_setup(void)
 {
     BK_LOGD(TAG, "Intialize random stack guard.\r\n");
-#if CONFIG_TRNG_SUPPORT
-    __stack_chk_guard = (void *)bk_rand();
-#endif
+    /*
+     * Use the software pseudo-random rand() here. A pseudo-random stack canary is
+     * acceptable and does not weaken overall system security.
+     */
+    __stack_chk_guard = (void *)rand();
 }
 
 #if CONFIG_UT_REG

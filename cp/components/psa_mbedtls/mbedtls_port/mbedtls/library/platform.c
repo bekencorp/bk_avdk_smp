@@ -405,15 +405,13 @@ void mbedtls_platform_teardown(mbedtls_platform_context *ctx)
 
 #endif /* MBEDTLS_PLATFORM_C */
 
-
-int myrand(void *rng_state, unsigned char *output, size_t len)
+int bk_rng_get(unsigned char *output, size_t len)
 {
     if (output == NULL || len == 0) {
         return -1;
     }
 
 #if CONFIG_TRUSTENGINE
-    (void) rng_state;
     extern int arm_ce_seed_read(unsigned char *buf, size_t buf_len);
     arm_ce_seed_read(output, len);
 
@@ -431,17 +429,22 @@ int myrand(void *rng_state, unsigned char *output, size_t len)
     uint32_t rand_num = 0;
     for (size_t i = 0; i < len; i++) {
         if ((i % 4) == 0) {
-            rand_num = ((rand()) & RAND_MAX); /* FIXME: use bk_rand(). */
+            rand_num = ((rand()) & RAND_MAX); /* FIXME: use legacy HW TRNG. */
         }
         output[i] = (rand_num >> (8 * (i % 4))) & 0xff;
     }
 
 #else
-    (void) rng_state;
     for (size_t i = 0; i < len; i++) {
         output[i] = ((rand()) & 0xff);
     }
 #endif
 
     return 0;
+}
+
+int myrand(void *rng_state, unsigned char *output, size_t len)
+{
+    (void) rng_state;
+    return bk_rng_get(output, len);
 }
