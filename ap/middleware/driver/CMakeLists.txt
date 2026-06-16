@@ -14,6 +14,7 @@ set(incs
 	pwm
 	flash
 	uart
+	dbg_probe
 	sys_ctrl
 	gpio
 	general_dma
@@ -39,7 +40,9 @@ set(incs
 	pwr_clk
 	)
 
-
+list(APPEND incs
+	$ENV{PROJECT_DIR}/ap/config/${target}/
+)
 
 set(srcs
 	sys_ctrl/sys_driver.c
@@ -87,6 +90,14 @@ endif()
 
 if (CONFIG_RESET_REASON)
 	list(APPEND srcs reset_reason/reset_reason.c)
+endif()
+
+if (CONFIG_DBG_PROBE)
+	list(APPEND srcs
+		dbg_probe/dbg_probe.c
+		dbg_probe/dbg_sink_uart.c
+		dbg_probe/dbg_sink_ram.c
+	)
 endif()
 
 if (NOT CMAKE_BUILD_EARLY_EXPANSION)

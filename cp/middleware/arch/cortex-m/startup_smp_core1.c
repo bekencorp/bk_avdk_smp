@@ -17,6 +17,7 @@
 #include "soc/reg_base.h"
 #include "soc/soc.h"
 #include "bk_arch.h"
+#include "dbg_probe.h"
 #include <stdint.h>
 
 
@@ -113,6 +114,10 @@ __NO_RETURN ENTRY_SECTION void Reset_Handler_Core1(void)
 
     b_system_base_init();
     b_prep_entry_main();
+    /* Ver4 SMP: core1 runs after core0 already initialized RAM, so the runtime
+     * path is safe here. Brings up core1's own debug port (UART2/GPIO22) and
+     * emits a per-core marker (0x52A6). */
+    dbg_probe_runtime_init_core1();
     b_program_start();
 }
 // eof

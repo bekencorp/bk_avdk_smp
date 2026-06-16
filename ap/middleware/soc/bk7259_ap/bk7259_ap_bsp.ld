@@ -350,6 +350,8 @@ SECTIONS
         __uninitialized_start = .;
         *(.uninitialized)
         *(".uninitialized.*")
+        *(.noinit)
+        *(.noinit*)
         KEEP(*(.keep.uninitialized))
         . = ALIGN(32);
         __uninitialized_end = .;

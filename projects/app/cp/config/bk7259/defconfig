@@ -15,3 +15,6 @@ CONFIG_AT_CMD=y
 CONFIG_BTDM_CONTROLLER_ONLY=y
 
 CONFIG_TIMER_SUPPORT_ID_BITS=4095
+
+# dbg_probe: pre-landed but disabled by default (sources compile to no-op).
+CONFIG_DBG_PROBE=n

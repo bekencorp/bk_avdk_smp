@@ -13,6 +13,7 @@ set(incs
 	reset_reason
 	flash
 	uart
+	dbg_probe
 	sys_ctrl
 	gpio
 	general_dma
@@ -103,6 +104,14 @@ endif()
 if (CONFIG_SOC_BK7259)
 	list(APPEND srcs
 		sys_ctrl/sys_audio_driver.c
+	)
+endif()
+
+if (CONFIG_DBG_PROBE)
+	list(APPEND srcs
+		dbg_probe/dbg_probe.c
+		dbg_probe/dbg_sink_uart.c
+		dbg_probe/dbg_sink_ram.c
 	)
 endif()
 

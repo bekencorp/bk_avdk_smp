@@ -19,6 +19,7 @@
 #include "bk_arch.h"
 #include <stdint.h>
 #include "soc_debug.h"
+#include "dbg_probe.h"
 /*----------------------------------------------------------------------------
   External References
  *----------------------------------------------------------------------------*/
@@ -174,10 +175,16 @@ __NO_RETURN ENTRY_SECTION void Reset_Handler_Core0(void)
 
   __disable_irq();
 
+  dbg_probe_init();
+  dbg_probe_early_stage(0u, 1);
+
   b_system_base_init();
-
+  dbg_probe_early_stage(0u, 3);
   b_prep_entry_main();
-
+  dbg_probe_early_stage(0u, 4);
+  /* RAM (.data/.bss) is ready after b_prep_entry_main(); safe for the runtime
+   * (re)init path. NULL => compile-time defaults. */
+  dbg_probe_runtime_init(NULL);
   b_program_start();
 }
 // eof

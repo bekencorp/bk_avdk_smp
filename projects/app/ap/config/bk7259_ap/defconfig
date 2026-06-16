@@ -17,3 +17,7 @@ CONFIG_SDCARD=y
 CONFIG_FATFS=y
 CONFIG_FATFS_SDCARD=y
 CONFIG_VFS=y
+
+# dbg_probe: pre-landed but disabled by default. Enable in menuconfig and tune
+# ports/pins in ap/config/bk7259_ap/usr_dbg_probe_cfg.h when needed.
+CONFIG_DBG_PROBE=n

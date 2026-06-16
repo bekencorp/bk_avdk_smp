@@ -1,0 +1,48 @@
+menu "DBG_PROBE"
+	config DBG_PROBE
+		bool "Enable dbg_probe (register-level debug probe)"
+		default n
+		help
+			Two-layer register-level debug probe. Frontend dbg_probe_* APIs
+			encode a compact self-describing frame and hand it to a backend
+			sink. Default backend: UART direct write (per-core; core0->UART1,
+			core1->UART2), force-on power/clock, bypassing the UART driver
+			framework. When disabled every API compiles to a static-inline
+			no-op.
+
+	config DBG_PROBE_TIMESTAMP
+		bool "Attach AON-RTC timestamps to _ts probe frames"
+		depends on DBG_PROBE
+		default y
+		help
+			When set, the dbg_probe_*_ts() variants read the AON RTC counter
+			and emit an 8-byte frame: a full 32-bit tick for value16 kinds, or
+			a 16-bit short tick (bytes 2..3) for the 32-bit payload kinds
+			(TASK/U32). If the AON RTC is not yet enabled the frame degrades to
+			the no-ts form (a probe never blocks on an idle RTC). When unset the
+			_ts variants behave like their plain counterparts.
+
+	config DBG_PROBE_RAMRING
+		bool "Tee probe frames into a per-core RAM ring buffer"
+		depends on DBG_PROBE
+		default y
+		help
+			Always-on RAM sink: every runtime frame is also copied into a
+			per-core circular buffer (overwrite policy). With no UART attached,
+			a memory dump (or the `dbgp dump` CLI) recovers the most recent probe
+			timeline; the self-describing frames let the parser resync after the
+			wrap point. Per-core rings keep the hot path spinlock-free. A small
+			separate "critical" ring isolates exception frames from the default
+			high-volume stream. When unset the RAM sink compiles to no-ops.
+
+	config DBG_PROBE_SYNC
+		bool "Inject a periodic sync frame (corruption recovery + drop detect)"
+		depends on DBG_PROBE
+		default y
+		help
+			Every DBG_PROBE_SYNC_EVERY user frames (per core), emit a sync frame
+			(U32 kind + SYNC module) carrying a 32-bit running frame counter and a
+			short timestamp. The host parser uses it to re-anchor after a corrupted
+			byte run and to detect how many frames were lost in a window. When
+			unset, no sync frames are emitted (the counter logic compiles out).
+endmenu
