@@ -230,15 +230,16 @@ void soc_isr_init(void)
 	arch_isr_entry_init();
 	
 	if (portGET_CORE_ID() == 0) {
-#if CONFIG_INTERRUPT_DEBUG_RECORDER
-		bk_interrupt_debug_init();
-#endif
     	primary_intc = int_controller_create(INT_CONTROLLER_ID_PRIMARY, __INT_NUMBER_MAX, (void *)vtor_addr); /* primary controller with capacity 16 */
 		BK_ASSERT(NULL != primary_intc);
 
 #if CONFIG_SOC_SMP
 		secondary_intc = int_controller_create(INT_CONTROLLER_ID_SECONDARY, __INT_NUMBER_MAX, (void *)core1_vtor_addr); /* secondary controller with capacity 16 */
 		BK_ASSERT(NULL != secondary_intc);
+#endif
+
+#if CONFIG_INTERRUPT_DEBUG_RECORDER
+		bk_interrupt_debug_init();
 #endif
 	}
 }
