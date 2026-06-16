@@ -15,6 +15,7 @@
 #pragma once
 
 #include <common/bk_err.h>
+#include <soc/bk7259/qspi_cap.h>
 
 #ifdef __cplusplus
 extern "C" {

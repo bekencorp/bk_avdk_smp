@@ -80,9 +80,9 @@ bk_err_t bk_qspi_flash_erase(qspi_id_t id, uint32_t addr, uint32_t size);
  * @return
  *    - NA.
  */
-#if CONFIG_QSPI_QUAD_WIRE
+#if CONFIG_QSPI_QUAD_WIRE || CONFIG_QSPI_NAND_FLASH
 bk_err_t bk_qspi_flash_quad_enable(qspi_id_t id);
-#endif /* CONFIG_QSPI_QUAD_WIRE */
+#endif /* CONFIG_QSPI_QUAD_WIRE || CONFIG_QSPI_NAND_FLASH */
 
 /**
  * @brief      QSPI flash erase 32k
