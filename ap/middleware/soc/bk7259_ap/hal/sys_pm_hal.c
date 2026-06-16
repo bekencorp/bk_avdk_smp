@@ -557,7 +557,7 @@ void sys_hal_enter_cpu_wfi()
 
 			shared_info.pm_ap0_sleep_state = 1;
 			__DMB();
-			bk_sys_sw_regs_update_pm_shared_info(&shared_info, BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_AP0_SLEEP_STATE, BK_SYS_SW_REGS_LOCK_ENABLE);
+			bk_sys_sw_regs_update_pm_shared_info(&shared_info, BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_AP0_SLEEP_STATE, BK_SYS_SW_REGS_LOCK_DISABLE);
 			__DMB();
 			flush_dcache((void *)&bk_sys_sw_regs_ptr()->pm_shared_info, sizeof(bk_sys_sw_regs_ptr()->pm_shared_info));
 			__DMB();
@@ -565,7 +565,7 @@ void sys_hal_enter_cpu_wfi()
 			arch_deep_sleep();
 
 			shared_info.pm_ap0_sleep_state = 0;
-			bk_sys_sw_regs_update_pm_shared_info(&shared_info, BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_AP0_SLEEP_STATE, BK_SYS_SW_REGS_LOCK_ENABLE);
+			bk_sys_sw_regs_update_pm_shared_info(&shared_info, BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_AP0_SLEEP_STATE, BK_SYS_SW_REGS_LOCK_DISABLE);
 
 			portNVIC_SYSTICK_CTRL_REG = systick_ctrl_value;
 

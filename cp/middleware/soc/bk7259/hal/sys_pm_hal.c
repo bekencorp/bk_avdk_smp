@@ -1857,11 +1857,12 @@ int sys_hal_set_lpo_src(sys_lpo_src_t src)
 
 void sys_hal_enter_low_analog(void)
 {
-	sys_ll_set_ana_reg10_spi_latch1v(1);
-	sys_ll_set_ana_reg9_t_vanaldosel(0);
-	sys_ll_set_ana_reg9_r_vanaldosel(0);
-	sys_ll_set_ana_reg9_alopowsel(1);
-	sys_ll_set_ana_reg10_spi_latch1v(0);
+	/*Temp modify to disable low analog */
+	// sys_ll_set_ana_reg10_spi_latch1v(1);
+	// sys_ll_set_ana_reg9_t_vanaldosel(0);
+	// sys_ll_set_ana_reg9_r_vanaldosel(0);
+	// sys_ll_set_ana_reg9_alopowsel(1);
+	// sys_ll_set_ana_reg10_spi_latch1v(0);
 
 	//sys_ll_set_ana_reg3_hpssren(0);
 	//sys_ll_set_ana_reg3_anabuf_sel_rx(1);
