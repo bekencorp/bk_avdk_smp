@@ -92,6 +92,15 @@ menu "GPIO"
 			otherwise some peripherals may not work properly.
 			Set to 255 to disable this feature.
 
+	config LDO3V3_CTRL_LEVEL
+		int "Level for LDO 3.3V control"
+		range 0 1
+		default 1
+		help
+			Specify the active level for LDO 3.3V control.
+			0: Low level
+			1: High level
+
 	config GPIO_API_TEST
 		depends on GPIO && DRIVER_TEST
 		bool "Enable gpio api test"

@@ -59,10 +59,12 @@ static bk_err_t sdcard_ldo_power_enable(uint8_t enable)
 {
 #if (CONFIG_SDCARD_POWER_GPIO_CTRL)
 	if (enable) {
-		bk_pm_module_vote_ctrl_external_ldo(GPIO_CTRL_LDO_MODULE_SDIO, SDCARD_LDO_CTRL_GPIO, GPIO_OUTPUT_STATE_HIGH);
+		bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_SDIO, 0, 0);
+		bk_pm_module_vote_ctrl_external_ldo(GPIO_CTRL_LDO_MODULE_SDIO, SDCARD_LDO_CTRL_GPIO, SDCARD_LDO_CTRL_ACTIVE_LEVEL);
 		s_disk_io_sdcard_ldo_power_flag = 1;
 	} else {
-		bk_pm_module_vote_ctrl_external_ldo(GPIO_CTRL_LDO_MODULE_SDIO, SDCARD_LDO_CTRL_GPIO, GPIO_OUTPUT_STATE_LOW);
+		bk_pm_module_vote_ctrl_external_ldo(GPIO_CTRL_LDO_MODULE_SDIO, SDCARD_LDO_CTRL_GPIO, !SDCARD_LDO_CTRL_ACTIVE_LEVEL);
+		bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_SDIO, 1, 0);
 		s_disk_io_sdcard_ldo_power_flag = 0;
 	}
 #endif
