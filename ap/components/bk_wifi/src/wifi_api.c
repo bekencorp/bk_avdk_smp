@@ -1220,6 +1220,9 @@ bk_err_t bk_wifi_sta_connect(void)
 bk_err_t bk_wifi_sta_start(void)
 {
     bk_err_t ret = BK_OK;
+#if CONFIG_LWIP
+    uint8_t mac[ETH_ALEN];
+#endif
 
     WDRV_LOGD("sta starting\n");
 
@@ -1236,6 +1239,15 @@ bk_err_t bk_wifi_sta_start(void)
     }
 
     //bk_wifi_init();
+
+#if CONFIG_LWIP
+    bk_wifi_sta_get_mac(mac);
+    ret = host_wlan_add_netif(mac);
+    if (ret != BK_OK) {
+        WDRV_LOGE("add sta netif failed, ret=%d\n", ret);
+        return ret;
+    }
+#endif
 
     wifi_set_state_bit(WIFI_STA_STARTED_BIT);
 
