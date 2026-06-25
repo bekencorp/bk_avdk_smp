@@ -16,6 +16,7 @@
 #include <stdlib.h>
 #include <common/bk_include.h>
 #include "bk_private/components_init.h"
+#include "bk_private/bk_driver.h"
 #include "rtos_init.h"
 #include <os/os.h>
 #include "sys_driver.h"
@@ -27,6 +28,7 @@
 #include "bk_rtos_debug.h"
 #include <driver/flash_partition.h>
 #include <driver/flash.h>
+#include <driver/wwdt.h>
 
 #if CONFIG_FREERTOS_TRACE
 #include "trcRecorder.h"
@@ -468,16 +470,15 @@ void entry_main(void)
 	save_mtime_point(CPU_START_SCHE_TIME);
 #endif
 
-#if CONFIG_SLAVE_HEART_BEAT
-	extern bk_err_t mb_ipc_heartbeat_init(void);
-	mb_ipc_heartbeat_init();
-#endif
-
 #if CONFIG_CP_HANG_DUMP_BY_AP
 	extern bk_err_t bk_cp_hang_dump_by_ap_init(void);
 	bk_cp_hang_dump_by_ap_init();
 #endif
     set_ap_startup_index(AP_ENTER_RTOS_START_SCHEDULER);
+#if CONFIG_SUPPORT_WWDT
+	BK_LOG_ON_ERR(bk_wwdt_start(CONFIG_INT_WWDT_PERIOD_MS, false, 0));
+	BK_LOGD(NULL, "boot core wwdt enabled, period=%u\r\n", CONFIG_INT_WWDT_PERIOD_MS);
+#endif
 	rtos_start_scheduler();
 }
 // eof
