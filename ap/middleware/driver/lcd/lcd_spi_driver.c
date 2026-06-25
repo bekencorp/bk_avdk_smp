@@ -150,7 +150,7 @@ static void lcd_spi_dma_init(qspi_id_t qspi_id)
 
 #if (CONFIG_SPE)
     bk_hpdma_set_src_sec_attr(s_spi_disp[qspi_id].dma_id, DMA_ATTR_SEC);
-    bk_hpdma_set_src_sec_attr(s_spi_disp[qspi_id].dma_id, DMA_ATTR_SEC);
+    bk_hpdma_set_dest_sec_attr(s_spi_disp[qspi_id].dma_id, DMA_ATTR_SEC);
     // bk_hpdma_set_dest_burst_len(s_spi_disp[qspi_id].dma_id, HPDMA_BURST_LEN_INC8);
     // bk_hpdma_set_dest_burst_len(s_spi_disp[qspi_id].dma_id, HPDMA_BURST_LEN_INC8);
 #endif

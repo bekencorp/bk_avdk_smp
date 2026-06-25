@@ -48,7 +48,7 @@ typedef struct
  */
 typedef enum
 {
-    BK_DISPLAY_SPI_BUS_MODE_HW = 0,   /**< hardware SPI controller + DMA frame channel (SPI panels) */
+    BK_DISPLAY_SPI_BUS_MODE_HW = 0,   /**< hardware SPI device, owned by the SPI display controller */
     BK_DISPLAY_SPI_BUS_MODE_SW = 1,   /**< GPIO bit-bang command channel (RGB panel SPI register init) */
 } bk_display_spi_bus_mode_t;
 
@@ -113,7 +113,7 @@ avdk_err_t bk_display_dsi_bus_new(bk_display_bus_handle_t *handle, bk_display_ds
  * @brief Create a SPI bus controller.
  *
  * The HW or SW path is selected by @c config->mode:
- *   - HW: full bring-up of avdk lcd_spi driver + DMA frame task.
+ *   - HW: avdk lcd_spi driver ownership for ::bk_display_spi_ctlr_new().
  *   - SW: muxes clk/csx/sda for bit-bang panel-init writes; the parallel
  *         24-bit RGB pixel lanes are driven directly by the DPU and are
  *         not mediated by this bus.
@@ -140,8 +140,9 @@ avdk_err_t bk_display_bus_delete(bk_display_bus_handle_t handle);
 /**
  * @brief Submit a frame through the bus' pixel path.
  *
- * Only meaningful for buses that mediate pixel data (currently the HW
- * SPI bus); other buses return ::AVDK_ERR_UNSUPPORTED.
+ * Only meaningful for buses that directly mediate pixel data. The HW
+ * SPI LCD path is exposed through ::bk_display_flush() on the SPI display
+ * controller, so direct SPI bus flush calls return ::AVDK_ERR_UNSUPPORTED.
  *
  * @param[in] handle Bus handle.
  * @param[in] frame  Frame buffer pointer.

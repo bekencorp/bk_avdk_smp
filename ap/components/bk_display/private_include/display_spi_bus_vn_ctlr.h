@@ -18,7 +18,7 @@
  * @file display_spi_bus_vn_ctlr.h
  * @brief SPI bus virtual node controller. Internal to bk_display.
  *        One controller object backs both ::BK_DISPLAY_SPI_BUS_MODE_HW
- *        (avdk lcd_spi driver + DMA frame task) and ::BK_DISPLAY_SPI_BUS_MODE_SW
+ *        (avdk lcd_spi driver ownership) and ::BK_DISPLAY_SPI_BUS_MODE_SW
  *        (GPIO bit-bang command channel for RGB panel SPI register init).
  */
 
@@ -31,21 +31,13 @@
 extern "C" {
 #endif
 
-/** HW-mode private context (lcd_spi DMA frame task + queue). */
+/** HW-mode private context (lcd_spi device ownership). */
 typedef struct
 {
-    bool disp_task_running;
-    beken_semaphore_t disp_task_sem;
-    beken_thread_t disp_task;
-    beken_queue_t queue;
-    beken_mutex_t lock;
     uint8_t spi_id;
     uint8_t reset_pin;
     uint8_t dc_pin;
     const bk_lcd_panel_t *device;
-    void *display_frame;
-    flush_free_cb_t display_frame_cb;
-    bool lcd_display_flag;
 } private_display_spi_context_t;
 
 /**
@@ -53,8 +45,8 @@ typedef struct
  *
  * SW mode reads the @c cmd_width / @c csx_pin / @c sda_pin / @c clk_pin
  * fields straight out of @c config, so no separate per-instance IO
- * struct is needed. HW mode owns @c spi_context (lcd_spi DMA frame
- * task + queue).
+ * struct is needed. HW mode owns @c spi_context (lcd_spi init/deinit
+ * state); frame scheduling lives in the SPI display controller.
  */
 typedef struct spi_bus_vn_ctlr_t
 {

@@ -1,7 +1,7 @@
 #include <os/os.h>
 #include <os/mem.h>
 #include <components/bk_frame_buffer.h>
-#include <components/bk_display_bus.h>
+#include <components/bk_display.h>
 #include <components/bk_lcd_panel.h>
 #include <components/bk_video_player/bk_video_player_engine.h>
 #include <components/bk_video_player/container_parser/bk_video_player_avi_parser.h>
@@ -26,7 +26,7 @@
 
 extern const bk_lcd_panel_t lcd_device_jd9853;
 
-static bk_display_bus_handle_t lcd_display_handle = NULL;
+static bk_display_ctlr_handle_t lcd_display_handle = NULL;
 static bk_video_player_engine_handle_t g_video_player_handle = NULL;
 static bool g_video_player_opened = false;
 static bool g_rgb565_byte_swap = true;
@@ -254,9 +254,9 @@ static void video_decode_complete_cb(void *user_data, const video_player_video_f
         return;
     }
 
-    avdk_err_t ret = bk_display_bus_flush(lcd_display_handle, buffer->data, display_frame_free_cb);
+    avdk_err_t ret = bk_display_flush(lcd_display_handle, buffer->data, display_frame_free_cb);
     if (ret != AVDK_ERR_OK) {
-        LOGW("%s: bk_display_bus_flush failed, ret=%d\n", __func__, ret);
+        LOGW("%s: bk_display_flush failed, ret=%d\n", __func__, ret);
         video_buffer_free_cb(NULL, buffer);
         return;
     }
@@ -304,13 +304,26 @@ bk_err_t bk_avi_player_start(const char *file_path)
     }
 
     if (lcd_display_handle == NULL) {
-        ret = bk_display_spi_bus_new(&lcd_display_handle, &spi_ctlr_config);
+        ret = bk_display_spi_ctlr_new(&lcd_display_handle, &spi_ctlr_config);
         if (ret != AVDK_ERR_OK) {
-            LOGE("bk_display_spi_new failed, ret=%d!\n", ret);
+            LOGE("bk_display_spi_ctlr_new failed, ret=%d!\n", ret);
             goto fail;
         }
 
-        LOGD("bk_display_spi_new success!\n");
+        LOGD("bk_display_spi_ctlr_new success!\n");
+
+        ret = bk_display_init(lcd_display_handle);
+        if (ret != AVDK_ERR_OK) {
+            LOGE("bk_display_init failed, ret=%d!\n", ret);
+            goto fail;
+        }
+
+        ret = bk_display_open(lcd_display_handle);
+        if (ret != AVDK_ERR_OK) {
+            LOGE("bk_display_open failed, ret=%d!\n", ret);
+            goto fail;
+        }
+
         lcd_backlight_open(GPIO_29);
     }
 
@@ -385,7 +398,7 @@ fail:
     }
 
     if (lcd_display_handle != NULL) {
-        bk_display_bus_delete(lcd_display_handle);
+        bk_display_delete(lcd_display_handle);
         lcd_display_handle = NULL;
     }
 

@@ -9,7 +9,6 @@
 #include "gpio_driver.h"
 #include <components/bk_frame_buffer.h>
 #include <components/bk_display.h>
-#include <components/bk_display_bus.h>
 #include <components/bk_lcd_panel.h>
 
 #define TAG "spi_lcd"
@@ -23,7 +22,7 @@
 
 extern const bk_lcd_panel_t lcd_device_jd9853;
 
-static bk_display_bus_handle_t lcd_display_handle = NULL;
+static bk_display_ctlr_handle_t lcd_display_handle = NULL;
 bk_display_spi_bus_config_t spi_ctlr_config = {
     .mode = BK_DISPLAY_SPI_BUS_MODE_HW,
     .lcd_panel = &lcd_device_jd9853,
@@ -68,17 +67,35 @@ void cli_spi_lcd_display_cmd(uint16_t color)
     LOGI("cli_spi_lcd_display_cmd color: %d\n", color);
 
     if (!is_display_init) {
-        ret = bk_display_spi_bus_new(&lcd_display_handle, &spi_ctlr_config);
+        ret = bk_display_spi_ctlr_new(&lcd_display_handle, &spi_ctlr_config);
         if (ret != AVDK_ERR_OK) {
-            LOGE("bk_display_spi_bus_new failed!\n");
+            LOGE("bk_display_spi_ctlr_new failed!\n");
             return;
         }
-        LOGD("bk_display_spi_bus_new success!\n");
+        LOGD("bk_display_spi_ctlr_new success!\n");
+
+        ret = bk_display_init(lcd_display_handle);
+        if (ret != AVDK_ERR_OK) {
+            LOGE("bk_display_init failed!\n");
+            bk_display_delete(lcd_display_handle);
+            lcd_display_handle = NULL;
+            return;
+        }
+
+        ret = bk_display_open(lcd_display_handle);
+        if (ret != AVDK_ERR_OK) {
+            LOGE("bk_display_open failed!\n");
+            bk_display_delete(lcd_display_handle);
+            lcd_display_handle = NULL;
+            return;
+        }
 
         frame_len = spi_ctlr_config.lcd_panel->width * spi_ctlr_config.lcd_panel->height * 2;
         disp_frame = bk_frame_buffer_malloc(MEM_SLAB_HEAP_CODED, frame_len);
         if (disp_frame == NULL) {
             LOGE("frame malloc failed!\n");
+            bk_display_delete(lcd_display_handle);
+            lcd_display_handle = NULL;
             return;
         }
         is_display_init = true;
@@ -86,7 +103,7 @@ void cli_spi_lcd_display_cmd(uint16_t color)
 
     lcd_spi_display_fill_pure_color(disp_frame, frame_len, color);
 
-    ret = bk_display_bus_flush(lcd_display_handle, disp_frame, display_frame_free_cb);
+    ret = bk_display_flush(lcd_display_handle, disp_frame, display_frame_free_cb);
     if (ret != AVDK_ERR_OK) {
         display_frame_free_cb(disp_frame);
         LOGE("bk_display_flush failed!\n");
