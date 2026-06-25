@@ -394,10 +394,9 @@ boot_ap:
 		extern bk_err_t bk_start_ap_system(void);
 		if (bk_start_ap_system() != BK_OK) {
 			LOGE("bk_start_ap_system failed\r\n");
-			#if CONFIG_SUPPORT_WWDT
+#if CONFIG_SUPPORT_WWDT
 			bk_wwdt_feed();
-			#endif
-			return;
+#endif
 		}
 		LOGI("bk_start_ap_system done\r\n");
 		bk_pm_ap_ctrl_callback_execute(PM_AP_CTRL_CB_TYPE_POWER_ON);
