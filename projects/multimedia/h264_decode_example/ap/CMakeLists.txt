@@ -4,6 +4,7 @@ set(srcs
     h264_decode/src/h264_decode_cli.c
     h264_decode/src/h264_decode_flexa_test.c
     h264_decode/src/vcdec_h264_driver_test.c
+    h264_decode/common/h264_decode_h264_parser.c
     h264_decode/common/h264_decode_stream_1280x720.c
     h264_decode/common/h264_decode_stream_256x128.c
     h264_decode_stress/src/h264_decode_stress.c

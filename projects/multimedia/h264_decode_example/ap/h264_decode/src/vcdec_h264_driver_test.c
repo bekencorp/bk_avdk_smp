@@ -11,6 +11,7 @@
 #include "modules/vcdec/vcdec_h264_api.h"
 #include "modules/vcdec/vcdec_common.h"
 #include "vcdec_h264_driver_test.h"
+#include "h264_decode_h264_parser.h"
 #include "h264_decode_stream_1280x720.h"
 #include "h264_decode_stream_256x128.h"
 
@@ -102,15 +103,6 @@ typedef struct {
     uint32_t flexa_frame_size;
     uint32_t flexa_copy_wr_ptr;
 } vcdec_h264_test_ctx_t;
-
-typedef struct {
-    const uint8_t *data;
-    uint32_t size;
-    uint32_t byte_pos;
-    uint8_t curr_byte;
-    uint8_t bit_pos;
-    uint8_t zero_count;
-} h264_test_bs_t;
 
 static beken_thread_t s_vcdec_h264_test_thread = NULL;
 static volatile uint8_t s_vcdec_h264_test_running = 0;
@@ -378,11 +370,8 @@ static void vcdec_h264_test_flexa_done_cb(uint32_t wr_ptr, void *args)
 
     ctx->flexa_done_count++;
     ctx->last_wr_ptr = wr_ptr;
-//    LOGI("flexa_done_cb count=%u wr_ptr=%u\r\n",
-//         (unsigned)ctx->flexa_done_count,
-//         (unsigned)wr_ptr);
-    vcdec_h264_test_copy_flexa_segment(ctx, wr_ptr);
-    vcdec_h264_set_rd_ptr(ctx->handle, wr_ptr);
+
+    vcdec_h264_set_rd_ptr(ctx->handle, ctx->height / 16U);
 }
 
 static bk_err_t vcdec_h264_test_alloc_fb(uint32_t payload_size, frame_buffer_t **fb, uint8_t **buf)
@@ -418,270 +407,6 @@ static void vcdec_h264_test_free_fb(frame_buffer_t **fb, uint8_t **buf)
     if (buf != NULL) {
         *buf = NULL;
     }
-}
-
-static int vcdec_h264_test_find_start_code(const uint8_t *buf, uint32_t len, uint32_t offset, uint32_t *sc_off, uint32_t *sc_len)
-{
-    uint32_t i;
-
-    for (i = offset; i + 3U < len; i++) {
-        if (buf[i] == 0U && buf[i + 1U] == 0U) {
-            if (buf[i + 2U] == 0x01U) {
-                *sc_off = i;
-                *sc_len = 3U;
-                return 0;
-            }
-            if (i + 4U < len && buf[i + 2U] == 0U && buf[i + 3U] == 0x01U) {
-                *sc_off = i;
-                *sc_len = 4U;
-                return 0;
-            }
-        }
-    }
-
-    return -1;
-}
-
-static int vcdec_h264_test_bs_next_byte(h264_test_bs_t *bs, uint8_t *value)
-{
-    while (bs->byte_pos < bs->size) {
-        uint8_t byte = bs->data[bs->byte_pos++];
-
-        if (bs->zero_count == 2U && byte == 0x03U) {
-            bs->zero_count = 0;
-            continue;
-        }
-
-        if (byte == 0U) {
-            bs->zero_count++;
-        } else {
-            bs->zero_count = 0;
-        }
-
-        *value = byte;
-        return 0;
-    }
-
-    return -1;
-}
-
-static int vcdec_h264_test_bs_read_bit(h264_test_bs_t *bs, uint32_t *value)
-{
-    if (bs->bit_pos == 0U) {
-        if (vcdec_h264_test_bs_next_byte(bs, &bs->curr_byte) != 0) {
-            return -1;
-        }
-        bs->bit_pos = 8U;
-    }
-
-    *value = (bs->curr_byte >> (bs->bit_pos - 1U)) & 0x1U;
-    bs->bit_pos--;
-    return 0;
-}
-
-static int vcdec_h264_test_bs_read_ue(h264_test_bs_t *bs, uint32_t *value)
-{
-    uint32_t zeros = 0;
-    uint32_t bit = 0;
-    uint32_t suffix = 0;
-    uint32_t i;
-
-    while (1) {
-        if (vcdec_h264_test_bs_read_bit(bs, &bit) != 0) {
-            return -1;
-        }
-        if (bit != 0U) {
-            break;
-        }
-        zeros++;
-        if (zeros > 31U) {
-            return -1;
-        }
-    }
-
-    for (i = 0; i < zeros; i++) {
-        if (vcdec_h264_test_bs_read_bit(bs, &bit) != 0) {
-            return -1;
-        }
-        suffix = (suffix << 1) | bit;
-    }
-
-    *value = ((1U << zeros) - 1U) + suffix;
-    return 0;
-}
-
-static int vcdec_h264_test_parse_first_mb(const uint8_t *nal_payload, uint32_t nal_payload_size, uint32_t *first_mb_in_slice)
-{
-    h264_test_bs_t bs;
-
-    if (nal_payload == NULL || nal_payload_size <= 1U || first_mb_in_slice == NULL) {
-        return -1;
-    }
-
-    bs.data = nal_payload + 1U;
-    bs.size = nal_payload_size - 1U;
-    bs.byte_pos = 0U;
-    bs.curr_byte = 0U;
-    bs.bit_pos = 0U;
-    bs.zero_count = 0U;
-
-    return vcdec_h264_test_bs_read_ue(&bs, first_mb_in_slice);
-}
-
-static int vcdec_h264_test_parse_slice_type(const uint8_t *nal_payload, uint32_t nal_payload_size, uint32_t *slice_type)
-{
-    h264_test_bs_t bs;
-    uint32_t first_mb;
-
-    if (nal_payload == NULL || nal_payload_size <= 1U || slice_type == NULL) {
-        return -1;
-    }
-
-    bs.data = nal_payload + 1U;
-    bs.size = nal_payload_size - 1U;
-    bs.byte_pos = 0U;
-    bs.curr_byte = 0U;
-    bs.bit_pos = 0U;
-    bs.zero_count = 0U;
-
-    if (vcdec_h264_test_bs_read_ue(&bs, &first_mb) != 0) {
-        return -1;
-    }
-
-    return vcdec_h264_test_bs_read_ue(&bs, slice_type);
-}
-
-static int vcdec_h264_test_is_vcl(uint8_t nal_type)
-{
-    return (nal_type == 1U || nal_type == 2U || nal_type == 5U);
-}
-
-static vcdec_h264_frame_type_t vcdec_h264_test_peek_au_frame_type(const uint8_t *au_ptr, uint32_t au_size)
-{
-    uint32_t pos = 0U;
-    uint32_t sc_off;
-    uint32_t sc_len;
-
-    if (au_ptr == NULL || au_size == 0U) {
-        return VCDEC_H264_FRAME_P;
-    }
-
-    while (vcdec_h264_test_find_start_code(au_ptr, au_size, pos, &sc_off, &sc_len) == 0) {
-        uint32_t payload_off = sc_off + sc_len;
-        uint32_t next_sc_off;
-        uint32_t next_sc_len;
-        uint8_t nal_type;
-
-        if (payload_off >= au_size) {
-            break;
-        }
-
-        nal_type = au_ptr[payload_off] & 0x1FU;
-        if (vcdec_h264_test_is_vcl(nal_type)) {
-            uint32_t slice_type;
-
-            if (nal_type == 5U) {
-                return VCDEC_H264_FRAME_IDR;
-            }
-
-            if (vcdec_h264_test_find_start_code(au_ptr, au_size, payload_off, &next_sc_off, &next_sc_len) != 0) {
-                next_sc_off = au_size;
-            }
-            (void)next_sc_len;
-
-            if (vcdec_h264_test_parse_slice_type(&au_ptr[payload_off], next_sc_off - payload_off, &slice_type) == 0) {
-                return ((slice_type % 5U) == 2U) ? VCDEC_H264_FRAME_I : VCDEC_H264_FRAME_P;
-            }
-            break;
-        }
-
-        pos = payload_off;
-    }
-
-    return VCDEC_H264_FRAME_P;
-}
-
-static int vcdec_h264_test_next_au(const uint8_t *stream,
-                                   uint32_t stream_size,
-                                   uint32_t *offset,
-                                   const uint8_t **au_ptr,
-                                   uint32_t *au_size)
-{
-    uint32_t au_start;
-    uint32_t tmp_sc_len;
-    uint32_t pos;
-    uint8_t seen_vcl = 0U;
-
-    if (stream == NULL || offset == NULL || au_ptr == NULL || au_size == NULL || *offset >= stream_size) {
-        return -1;
-    }
-
-    if (vcdec_h264_test_find_start_code(stream, stream_size, *offset, &au_start, &tmp_sc_len) != 0) {
-        return -1;
-    }
-    (void)tmp_sc_len;
-
-    pos = au_start;
-    while (pos < stream_size) {
-        uint32_t sc_off;
-        uint32_t sc_len;
-        uint32_t next_sc_off;
-        uint32_t next_sc_len;
-        uint32_t payload_off;
-        uint8_t nal_type;
-        uint8_t boundary = 0U;
-
-        if (vcdec_h264_test_find_start_code(stream, stream_size, pos, &sc_off, &sc_len) != 0) {
-            break;
-        }
-
-        payload_off = sc_off + sc_len;
-        if (payload_off >= stream_size) {
-            break;
-        }
-
-        nal_type = stream[payload_off] & 0x1FU;
-        if (vcdec_h264_test_find_start_code(stream, stream_size, payload_off, &next_sc_off, &next_sc_len) != 0) {
-            next_sc_off = stream_size;
-        }
-        (void)next_sc_len;
-
-        if (sc_off != au_start && seen_vcl) {
-            if (vcdec_h264_test_is_vcl(nal_type)) {
-                uint32_t first_mb_in_slice = 0U;
-
-                if (vcdec_h264_test_parse_first_mb(&stream[payload_off], next_sc_off - payload_off, &first_mb_in_slice) != 0) {
-                    boundary = 1U;
-                } else if (first_mb_in_slice == 0U) {
-                    boundary = 1U;
-                }
-            } else if (nal_type == 6U || nal_type == 7U || nal_type == 8U || nal_type == 9U ||
-                       nal_type == 10U || nal_type == 11U || nal_type == 12U) {
-                boundary = 1U;
-            }
-        }
-
-        if (boundary) {
-            *au_ptr = &stream[au_start];
-            *au_size = sc_off - au_start;
-            *offset = sc_off;
-            return 0;
-        }
-
-        if (vcdec_h264_test_is_vcl(nal_type)) {
-            seen_vcl = 1U;
-        }
-
-        if (next_sc_off >= stream_size) {
-            break;
-        }
-        pos = next_sc_off;
-    }
-
-    *au_ptr = &stream[au_start];
-    *au_size = stream_size - au_start;
-    *offset = stream_size;
-    return 0;
 }
 
 static uint32_t vcdec_h264_test_sample_signature(const uint8_t *buf, uint32_t size)
@@ -727,6 +452,7 @@ static bk_err_t vcdec_h264_test_run(vcdec_h264_test_mode_t mode, const vcdec_h26
     bk_err_t final_ret = BK_FAIL;
     uint8_t power_on = 0U;
     uint8_t int_registered = 0U;
+    uint8_t clear_out_done = 0U;
 
     if (stream_cfg == NULL || stream_cfg->stream == NULL || stream_cfg->bytes == NULL || *(stream_cfg->bytes) == 0U ||
         stream_cfg->width == 0U || stream_cfg->height == 0U) {
@@ -803,11 +529,11 @@ static bk_err_t vcdec_h264_test_run(vcdec_h264_test_mode_t mode, const vcdec_h26
          (unsigned)stream_cfg->height,
          (unsigned)(*(stream_cfg->bytes)));
 
-    while (vcdec_h264_test_next_au(stream_buf,
-                                   *(stream_cfg->bytes),
-                                   &offset,
-                                   &au_ptr,
-                                   &dec_cfg.input_stream_len) == 0) {
+    while (h264_decode_h264_next_au(stream_buf,
+                                    *(stream_cfg->bytes),
+                                    &offset,
+                                    &au_ptr,
+                                    &dec_cfg.input_stream_len) == AVDK_ERR_OK) {
         vcdec_h264_info_t info;
 #if VCDEC_H264_TEST_DUMP_ENABLE && (VCDEC_H264_TEST_DUMP_FRAME_FIRST_I || VCDEC_H264_TEST_DUMP_FRAME_FIRST_P)
         vcdec_h264_frame_type_t expected_frame_type;
@@ -815,14 +541,17 @@ static bk_err_t vcdec_h264_test_run(vcdec_h264_test_mode_t mode, const vcdec_h26
         vcdec_ret_e ret;
         uint32_t sig;
 
-        os_memset(out_buf, 0, out_size);
+        if (!clear_out_done) {
+            os_memset(out_buf, 0, out_size);
+            clear_out_done = 1U;
+        }
         dec_cfg.input_stream = (uint8_t *)au_ptr;
         dec_cfg.output_buffer = out_buf;
         dec_cfg.output_size = out_size;
         dec_cfg.segment_height = VCDEC_H264_TEST_FLEXA_SEG_HEIGHT_MB;
         dec_cfg.segment_number = VCDEC_H264_TEST_FLEXA_SEG_NUM;
 #if VCDEC_H264_TEST_DUMP_ENABLE && (VCDEC_H264_TEST_DUMP_FRAME_FIRST_I || VCDEC_H264_TEST_DUMP_FRAME_FIRST_P)
-        expected_frame_type = vcdec_h264_test_peek_au_frame_type(au_ptr, dec_cfg.input_stream_len);
+        expected_frame_type = h264_decode_h264_peek_au_frame_type(au_ptr, dec_cfg.input_stream_len);
 #endif
         ctx.flexa_dump_active = 0U;
         ctx.flexa_dump_kind = 0U;

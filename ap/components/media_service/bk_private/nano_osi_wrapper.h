@@ -28,6 +28,8 @@ typedef struct
     void (*free)(void *ptr);
     void *(*memset)(void *s, int c, uint32_t n);
     void *(*memcpy)(void *dest, const void *src, uint32_t n);
+    /* Hardware DMA copy. Returns 0 on success, non-zero on failure. */
+    int (*dma_memcpy)(void *dest, const void *src, uint32_t n);
     int (*memcmp)(const void *s1, const void *s2, size_t n);
     int (*strcmp)(const char *s1, const char *s2);
     int (*vsnprintf)(char *str, uint32_t size, const char *format, va_list args);
