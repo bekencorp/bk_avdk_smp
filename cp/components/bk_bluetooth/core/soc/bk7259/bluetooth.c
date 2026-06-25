@@ -963,32 +963,22 @@ static uint32_t get_chipid(uint32_t ver)
     return 0;
 }
 
-
 static uint32_t get_current_chipid(void)
 {
     return aon_pmu_hal_get_chipid();
-}
-
-static uint32_t get_test_rfconfig(void)
-{
-    extern uint32_t test_rfconfig;
-    return test_rfconfig;
 }
 
 static uint8_t get_rf_mode(void)
 {
     extern uint32_t rwnx_rfconfig;
 
-    if ((rwnx_rfconfig & BLUETOOTH_RF_PLL_MASK) == BLUETOOTH_RF_PLL_WIFI)
+    if ((rwnx_rfconfig & BLUETOOTH_RF_MODE_MASK) == BLUETOOTH_RF_MODE_POLAR)
+    {
+        return BT_RF_MODE_POLAR;
+    }else 
     {
         return BT_RF_MODE_WIFI;
     }
-    else if ((rwnx_rfconfig & BLUETOOTH_RF_MODE_MASK) == BLUETOOTH_RF_MODE_POLAR)
-    {
-        return BT_RF_MODE_POLAR;
-    }
-
-    return 0;
 }
 
 static int32_t init_mutex(void **mutex)
@@ -1292,7 +1282,6 @@ static struct bt_osi_funcs_t bt_osi_funcs =
     ._get_chipid_mask = get_chipid_mask,
     ._get_chipid = get_chipid,
     ._get_current_chipid = get_current_chipid,
-    ._get_test_rfconfig = get_test_rfconfig,
 
     ._init_mutex = init_mutex,
     ._lock_mutex = lock_mutex,

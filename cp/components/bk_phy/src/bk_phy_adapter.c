@@ -430,6 +430,13 @@ static void txpwr_max_set_bt_polar_wrapper()
 #endif
 }
 
+static void txpwr_max_set_bt_iq_wrapper()
+{
+#if CONFIG_BLUETOOTH
+    txpwr_max_set_bt_iq();
+#endif
+}
+
 void * mpb_reg_api_wrapper(void)
 {
 #if CONFIG_WIFI_ENABLE
@@ -774,6 +781,7 @@ const phy_os_funcs_t g_phy_os_funcs = {
     ._ble_in_dut_mode                       = ble_in_dut_mode_wrapper,
     ._get_tx_pwr_idx                        = get_tx_pwr_idx_wrapper,
     ._txpwr_max_set_bt_polar                = txpwr_max_set_bt_polar_wrapper,
+    ._txpwr_max_set_bt_iq                   = txpwr_max_set_bt_iq_wrapper,
     ._ble_tx_testmode_retrig                = ble_rf_test_mode_retirg,
 
     ._gpio_dev_map_rxen                     = gpio_dev_map_rxen,

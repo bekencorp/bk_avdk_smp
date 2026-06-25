@@ -19,6 +19,7 @@
 uint8_t get_tx_pwr_idx(void);
 UINT32 ble_in_dut_mode(void);
 void txpwr_max_set_bt_polar();
+void txpwr_max_set_bt_iq();
 
 int bluetooth_controller_init(void);
 int bluetooth_controller_deinit(void);

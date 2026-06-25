@@ -256,6 +256,12 @@ bt_err_t bk_bluetooth_deinit(void)
 #if CONFIG_BLUETOOTH_MULTI_CONTROLLER
     hal_hci_driver_secondary_controller_deinit();
 #endif
+
+#if CONFIG_BLUETOOTH_RF_MODE_POLAR
+    extern void bk_cal_set_kmod_calib_recover_flag(void);
+    bk_cal_set_kmod_calib_recover_flag();
+#endif
+
     bluetooth_already_init = 0;
 
     LOGD("%s ok, %d \r\n", __func__, bluetooth_already_init);
