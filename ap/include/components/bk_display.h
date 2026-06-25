@@ -52,6 +52,17 @@ typedef struct
 } bk_display_dpu_config_t;
 
 /**
+ * @brief QSPI LCD display controller configuration.
+ */
+typedef struct
+{
+    const bk_lcd_panel_t *lcd_panel;  /**< panel descriptor for lcd_qspi driver */
+    uint8_t qspi_id;                  /**< QSPI controller id */
+    uint8_t reset_pin;                /**< panel reset io */
+    uint8_t te_pin;                   /**< tearing-effect io, reserved for driver TE support */
+} bk_display_qspi_ctlr_config_t;
+
+/**
  * @brief Runtime pixel-format reconfiguration payload for ::BK_DISPLAY_IOCTL_DPU_PIXEL_FORMAT.
  */
 typedef struct
@@ -108,6 +119,24 @@ avdk_err_t bk_display_dpu_ctlr_new(bk_display_ctlr_handle_t *handle,
  * @return AVDK_ERR_INVAL if @p handle / @p config is NULL or mode is not HW.
  */
 avdk_err_t bk_display_spi_ctlr_new(bk_display_ctlr_handle_t *handle, bk_display_spi_bus_config_t *config);
+
+/**
+ * @brief Create a QSPI display controller instance (state = DEINIT).
+ *
+ * This controller owns the HW QSPI LCD frame path and exposes it through
+ * ::bk_display_flush(). The frame argument must point to raw pixel data.
+ * Callers must use the normal display lifecycle:
+ * ::bk_display_init() -> ::bk_display_open() -> ::bk_display_flush() ->
+ * ::bk_display_close() -> ::bk_display_deinit() -> ::bk_display_delete().
+ *
+ * @param[out] handle  Receives the new controller handle.
+ * @param[in]  config  QSPI controller configuration copied into the controller.
+ *
+ * @return AVDK_ERR_OK on success.
+ * @return AVDK_ERR_INVAL if @p handle / @p config is NULL or panel is not QSPI.
+ */
+avdk_err_t bk_display_qspi_ctlr_new(bk_display_ctlr_handle_t *handle,
+                                    bk_display_qspi_ctlr_config_t *config);
 
 /**
  * @brief Bring the controller from DEINIT to INITED.

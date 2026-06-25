@@ -16,7 +16,7 @@
 
 #include <os/os.h>
 #include <driver/hal/hal_qspi_types.h>
-#include <driver/dma_types.h>
+#include <driver/hpdma_types.h>
 #include <components/media_types.h>
 
 #ifdef __cplusplus
@@ -76,9 +76,9 @@ typedef struct {
 
 typedef struct {
     uint8_t dma_id;
+    void *dma_list_table;
     beken_semaphore_t dma_sema;
-    dma_isr_t dma_finish_isr;
-    bool dma_is_repeat_mode;
+    hpdma_isr_t dma_finish_isr;
     bool lcd_qspi_is_init;
     uint32_t qspi_data;
 } lcd_qspi_disp_t;

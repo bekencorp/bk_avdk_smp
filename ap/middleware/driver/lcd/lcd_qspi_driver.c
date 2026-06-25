@@ -23,8 +23,7 @@
 #include "gpio_driver.h"
 #include <driver/gpio.h>
 #include "bk_misc.h"
-#include <driver/dma.h>
-#include "bk_general_dma.h"
+#include <driver/hpdma.h>
  
 
 #define LCD_QSPI_TAG "lcd_qspi_drv"
@@ -37,8 +36,12 @@
 #define LCD_QSPI_DEVICE_CASET        0x2A
 #define LCD_QSPI_DEVICE_RASET        0x2B
 
-static void lcd_qspi0_dma_finish_isr(dma_id_t dma_id);
-static void lcd_qspi1_dma_finish_isr(dma_id_t dma_id);
+#define LCD_QSPI_FIFO_WRITE_MAX      QSPI_FIFO_LEN_MAX
+#define LCD_QSPI_CMD_C_LEN_MAX       8
+#define LCD_QSPI_CMD_C_DATA_LINE_4WIRE   (QSPI_4WIRE << 14)
+
+static void lcd_qspi0_dma_finish_isr(hpdma_id_t dma_id, void *user_data);
+static void lcd_qspi1_dma_finish_isr(hpdma_id_t dma_id, void *user_data);
 
 static qspi_driver_t s_lcd_qspi[SOC_QSPI_UNIT_NUM] = {
     {
@@ -54,35 +57,23 @@ static qspi_driver_t s_lcd_qspi[SOC_QSPI_UNIT_NUM] = {
 static lcd_qspi_disp_t s_qspi_disp[SOC_QSPI_UNIT_NUM] = {
     {
         .dma_finish_isr = lcd_qspi0_dma_finish_isr,
-        .dma_is_repeat_mode = false,
         .lcd_qspi_is_init = false,
         .qspi_data = LCD_QSPI0_DATA_ADDR,
     },
     {
         .dma_finish_isr = lcd_qspi1_dma_finish_isr,
-        .dma_is_repeat_mode = false,
         .lcd_qspi_is_init = false,
         .qspi_data = LCD_QSPI1_DATA_ADDR,
     },
 };
 
-static void lcd_qspi_dma_finish_handler(qspi_id_t qspi_id, dma_id_t dma_id, bool dma_is_repeat_mode)
+static void lcd_qspi_dma_finish_handler(qspi_id_t qspi_id, hpdma_id_t dma_id)
 {
     bk_err_t ret = BK_OK;
-    uint32_t value = 0;
 
-    if (dma_is_repeat_mode) {
-        value = bk_dma_get_repeat_wr_pause(dma_id);
-        if (value) {
-            bk_dma_stop(dma_id);
+    (void)dma_id;
 
-            ret = rtos_set_semaphore(&s_qspi_disp[qspi_id].dma_sema);
-            if (ret != BK_OK) {
-                LCD_QSPI_LOGE("lcd qspi dma semaphore set failed\r\n");
-                return;
-            }
-        }
-    } else {
+    if (s_qspi_disp[qspi_id].dma_sema != NULL) {
         ret = rtos_set_semaphore(&s_qspi_disp[qspi_id].dma_sema);
         if (ret != BK_OK) {
             LCD_QSPI_LOGE("lcd qspi dma semaphore set failed\r\n");
@@ -91,18 +82,21 @@ static void lcd_qspi_dma_finish_handler(qspi_id_t qspi_id, dma_id_t dma_id, bool
     }
 }
 
-static void lcd_qspi0_dma_finish_isr(dma_id_t dma_id)
+static void lcd_qspi0_dma_finish_isr(hpdma_id_t dma_id, void *user_data)
 {
-    lcd_qspi_dma_finish_handler(QSPI_ID_0, dma_id, s_qspi_disp[0].dma_is_repeat_mode);
+    (void)user_data;
+    lcd_qspi_dma_finish_handler(QSPI_ID_0, dma_id);
 }
 
-static void lcd_qspi1_dma_finish_isr(dma_id_t dma_id)
+static void lcd_qspi1_dma_finish_isr(hpdma_id_t dma_id, void *user_data)
 {
-    lcd_qspi_dma_finish_handler(QSPI_ID_1, dma_id, s_qspi_disp[1].dma_is_repeat_mode);
+    (void)user_data;
+    lcd_qspi_dma_finish_handler(QSPI_ID_1, dma_id);
 }
 
 static bk_err_t lcd_qspi_driver_init(qspi_id_t qspi_id, lcd_qspi_clk_t clk)
 {
+    bk_err_t ret = BK_OK;
     qspi_config_t lcd_qspi_config;
     os_memset(&lcd_qspi_config, 0, sizeof(lcd_qspi_config));
 
@@ -113,59 +107,63 @@ static bk_err_t lcd_qspi_driver_init(qspi_id_t qspi_id, lcd_qspi_clk_t clk)
         case LCD_QSPI_80M:
             lcd_qspi_config.src_clk = QSPI_SCLK_240M;
             lcd_qspi_config.src_clk_div = 2;
-            BK_LOG_ON_ERR(bk_qspi_init(qspi_id, &lcd_qspi_config));
             break;
 
         case LCD_QSPI_60M:
             lcd_qspi_config.src_clk = QSPI_SCLK_240M;
             lcd_qspi_config.src_clk_div = 3;
-            BK_LOG_ON_ERR(bk_qspi_init(qspi_id, &lcd_qspi_config));
             break;
 
         case LCD_QSPI_53M:
             lcd_qspi_config.src_clk = QSPI_SCLK_160M;
             lcd_qspi_config.src_clk_div = 2;
-            BK_LOG_ON_ERR(bk_qspi_init(qspi_id, &lcd_qspi_config));
             break;
 
         case LCD_QSPI_48M:
             lcd_qspi_config.src_clk = QSPI_SCLK_240M;
             lcd_qspi_config.src_clk_div = 4;
-            BK_LOG_ON_ERR(bk_qspi_init(qspi_id, &lcd_qspi_config));
             break;
 
         case LCD_QSPI_40M:
             lcd_qspi_config.src_clk = QSPI_SCLK_240M;
             lcd_qspi_config.src_clk_div = 5;
-            BK_LOG_ON_ERR(bk_qspi_init(qspi_id, &lcd_qspi_config));
             break;
 
         case LCD_QSPI_32M:
             lcd_qspi_config.src_clk = QSPI_SCLK_160M;
             lcd_qspi_config.src_clk_div = 4;
-            BK_LOG_ON_ERR(bk_qspi_init(qspi_id, &lcd_qspi_config));
             break;
 
         case LCD_QSPI_30M:
             lcd_qspi_config.src_clk = QSPI_SCLK_240M;
             lcd_qspi_config.src_clk_div = 7;
-            BK_LOG_ON_ERR(bk_qspi_init(qspi_id, &lcd_qspi_config));
             break;
 
         case LCD_QSPI_24M:
             lcd_qspi_config.src_clk = QSPI_SCLK_240M;
             lcd_qspi_config.src_clk_div = 9;
-            BK_LOG_ON_ERR(bk_qspi_init(qspi_id, &lcd_qspi_config));
             break;
 
         default:
             lcd_qspi_config.src_clk = QSPI_SCLK_240M;
             lcd_qspi_config.src_clk_div = 5;
-            BK_LOG_ON_ERR(bk_qspi_init(qspi_id, &lcd_qspi_config));
             break;
     }
 
+    ret = bk_qspi_init(qspi_id, &lcd_qspi_config);
+    if (ret != BK_OK) {
+        LCD_QSPI_LOGE("bk_qspi_init failed, qspi_id=%d, ret=%d\r\n", qspi_id, ret);
+        return ret;
+    }
+
+    qspi_hal_disable_soft_reset(&s_lcd_qspi[qspi_id].hal);
+    bk_delay_us(10);
+    qspi_hal_enable_soft_reset(&s_lcd_qspi[qspi_id].hal);
+    qspi_hal_init_common(&s_lcd_qspi[qspi_id].hal);
+
+#if CONFIG_LCD_QSPI_REFRESH_WITH_MAPPING
     qspi_hal_set_cmd_a_cfg2(&s_lcd_qspi[qspi_id].hal, 0x80008000);
+#endif
 
     return BK_OK;
 }
@@ -174,8 +172,6 @@ static bk_err_t lcd_qspi_hardware_reset(gpio_id_t reset_pin)
 {
     gpio_id_t gpio_id = reset_pin;
 
-    /* The following set_output_high/low forms the LCD reset pulse sequence.
-     * These are runtime control and MUST always be executed. */
     BK_LOG_ON_ERR(bk_gpio_set_output_high(gpio_id));
     rtos_delay_milliseconds(10);
     BK_LOG_ON_ERR(bk_gpio_set_output_low(gpio_id));
@@ -355,33 +351,24 @@ static void lcd_qspi_disp_area_config(qspi_id_t qspi_id, const bk_lcd_panel_t *d
     bk_lcd_qspi_send_cmd(qspi_id, device->qspi->reg_write_cmd, LCD_QSPI_DEVICE_RASET, row_value, 4);
 }
 
-static bk_err_t lcd_qspi_get_dma_repeat_once_len(uint32_t data_len)
+static void lcd_qspi_disp_full_area_config(qspi_id_t qspi_id, const bk_lcd_panel_t *device)
 {
-    uint32_t len = 0;
-    uint32_t value = 0;
-    uint8_t i = 0;
+    lcd_display_area_t disp_area = {0};
 
-    for (i = 2; i < 25; i++) {
-        len = data_len / i;
-        if (len <= 0x10000) {
-            value = data_len % i;
-            if (!value) {
-                return len;
-            }
-        }
-    }
-    LCD_QSPI_LOGE("%s Error dma length, please check the data_len parameter\r\n", __func__);
-
-    return len;
+    disp_area.x_start = 0;
+    disp_area.y_start = 0;
+    disp_area.x_end = device->width - 1;
+    disp_area.y_end = device->height - 1;
+    lcd_qspi_disp_area_config(qspi_id, device, &disp_area);
 }
 
 static void lcd_qspi_dma_init(qspi_id_t qspi_id)
 {
     bk_err_t ret = BK_OK;
 
-    ret = bk_dma_driver_init();
+    ret = bk_hpdma_driver_init();
     if (ret != BK_OK) {
-        LCD_QSPI_LOGE("dma driver init failed!\r\n");
+        LCD_QSPI_LOGE("hpdma driver init failed!\r\n");
         return;
     }
 
@@ -391,17 +378,21 @@ static void lcd_qspi_dma_init(qspi_id_t qspi_id)
         return;
     }
 
-    s_qspi_disp[qspi_id].dma_id = bk_dma_alloc(DMA_DEV_DTCM);
-    if ((s_qspi_disp[qspi_id].dma_id < DMA_ID_0) || (s_qspi_disp[qspi_id].dma_id >= DMA_ID_MAX)) {
+    s_qspi_disp[qspi_id].dma_list_table = bk_hpdma_link_init(1);
+    if (s_qspi_disp[qspi_id].dma_list_table == NULL) {
+        LCD_QSPI_LOGE("%s dma list table malloc failed!\r\n", __func__);
+        return;
+    }
+
+    s_qspi_disp[qspi_id].dma_id = bk_hpdma_alloc(DMA_DEV_DTCM);
+    if ((s_qspi_disp[qspi_id].dma_id < HPDMA_ID_0) || (s_qspi_disp[qspi_id].dma_id >= HPDMA_ID_MAX)) {
         LCD_QSPI_LOGE("%s dma id malloc failed!\r\n", __func__);
         return;
     }
 
 #if (CONFIG_SPE)
-    bk_dma_set_src_sec_attr(s_qspi_disp[qspi_id].dma_id, DMA_ATTR_SEC);
-    bk_dma_set_dest_sec_attr(s_qspi_disp[qspi_id].dma_id, DMA_ATTR_SEC);
-    bk_dma_set_dest_burst_len(s_qspi_disp[qspi_id].dma_id, BURST_LEN_INC16);
-    bk_dma_set_src_burst_len(s_qspi_disp[qspi_id].dma_id, BURST_LEN_INC16);
+    bk_hpdma_set_src_sec_attr(s_qspi_disp[qspi_id].dma_id, DMA_ATTR_SEC);
+    bk_hpdma_set_dest_sec_attr(s_qspi_disp[qspi_id].dma_id, DMA_ATTR_SEC);
 #endif
 }
 
@@ -409,11 +400,12 @@ static void lcd_qspi_dma_deinit(qspi_id_t qspi_id)
 {
     bk_err_t ret = BK_OK;
 
-    bk_dma_stop(s_qspi_disp[qspi_id].dma_id);
+    bk_hpdma_stop(s_qspi_disp[qspi_id].dma_id);
 
-    bk_dma_disable_finish_interrupt(s_qspi_disp[qspi_id].dma_id);
+    bk_hpdma_disable_finish_interrupt(s_qspi_disp[qspi_id].dma_id);
 
-    ret = bk_dma_free(DMA_DEV_DTCM, s_qspi_disp[qspi_id].dma_id);
+    bk_hpdma_link_deinit(s_qspi_disp[qspi_id].dma_list_table);
+    ret = bk_hpdma_free(DMA_DEV_DTCM, s_qspi_disp[qspi_id].dma_id);
     if (ret != BK_OK) {
         LCD_QSPI_LOGE("%s dma id free failed.\r\n", __func__);
         return;
@@ -426,49 +418,232 @@ static void lcd_qspi_dma_deinit(qspi_id_t qspi_id)
     }
 }
 
-static void lcd_qspi_dma_single_mode_config(qspi_id_t qspi_id, dma_id_t dma_id, uint32_t *data, uint32_t data_len)
+static bk_err_t lcd_qspi_dma_start(qspi_id_t qspi_id,
+                                   const bk_lcd_panel_t *device,
+                                   uint8_t *data,
+                                   uint32_t data_len)
 {
-    bk_err_t ret = BK_OK;
-    dma_config_t dma_config = {0};
+    hpdma_link_config_t config = {0};
+    uint32_t line_bytes = device->width * CONFIG_LCD_QSPI_COLOR_DEPTH_BYTE;
 
-    dma_config.mode = DMA_WORK_MODE_SINGLE;
-    dma_config.chan_prio = 0;
-
-    dma_config.src.dev = DMA_DEV_DTCM;
-    dma_config.src.width = DMA_DATA_WIDTH_32BITS;
-    dma_config.src.addr_inc_en = DMA_ADDR_INC_ENABLE;
-    dma_config.src.start_addr = (uint32_t)data;
-    dma_config.src.end_addr = (uint32_t)(data + data_len);
-
-    dma_config.dst.dev = DMA_DEV_DTCM;
-    dma_config.dst.width = DMA_DATA_WIDTH_32BITS;
-    dma_config.dst.addr_inc_en = DMA_ADDR_INC_ENABLE;
-
-    dma_config.dst.start_addr = s_qspi_disp[qspi_id].qspi_data;
-    dma_config.dst.end_addr = s_qspi_disp[qspi_id].qspi_data + data_len;
-
-    ret = bk_dma_init(dma_id, &dma_config);
-    if (ret != BK_OK) {
-        LCD_QSPI_LOGE("bk_dma_init failed!\r\n");
-        return;
+    if ((data == NULL) || (data_len == 0)) {
+        return BK_ERR_PARAM;
     }
 
-    bk_dma_set_transfer_len(dma_id, data_len);
-    bk_dma_register_isr(s_qspi_disp[qspi_id].dma_id, NULL, s_qspi_disp[qspi_id].dma_finish_isr);
-    bk_dma_enable_finish_interrupt(s_qspi_disp[qspi_id].dma_id);
+    config.src_addr = (uint32_t)data;
+    config.dst_addr = s_qspi_disp[qspi_id].qspi_data;
+
+    if ((line_bytes > 0) && ((data_len % line_bytes) == 0)) {
+        config.src_xsize = line_bytes;
+        config.dst_xsize = line_bytes;
+        config.src_ysize = data_len / line_bytes;
+        config.dst_ysize = data_len / line_bytes;
+    } else if (data_len <= 0xFFFF) {
+        config.src_xsize = data_len;
+        config.dst_xsize = data_len;
+        config.src_ysize = 1;
+        config.dst_ysize = 1;
+    } else {
+        LCD_QSPI_LOGE("%s invalid hpdma size, data_len=%lu, line_bytes=%lu\r\n",
+                      __func__, data_len, line_bytes);
+        return BK_ERR_PARAM;
+    }
+
+    config.src_step = 0;
+    config.dst_step = 0;
+    config.finish_int_en = 1;
+    config.half_finish_int_en = 0;
+
+    bk_err_t ret = bk_hpdma_link_set_desc(s_qspi_disp[qspi_id].dma_list_table, 0, &config);
+    if (ret != BK_OK) {
+        LCD_QSPI_LOGE("%s bk_hpdma_link_set_desc failed, ret=%d\r\n", __func__, ret);
+        return ret;
+    }
+
+    bk_hpdma_register_isr(s_qspi_disp[qspi_id].dma_id,
+                          NULL,
+                          NULL,
+                          s_qspi_disp[qspi_id].dma_finish_isr,
+                          NULL);
+    bk_hpdma_enable_finish_interrupt(s_qspi_disp[qspi_id].dma_id);
+
+    ret = bk_hpdma_link_transfer(s_qspi_disp[qspi_id].dma_id, s_qspi_disp[qspi_id].dma_list_table);
+    if (ret != BK_OK) {
+        LCD_QSPI_LOGE("%s bk_hpdma_link_transfer failed, ret=%d\r\n", __func__, ret);
+    }
+
+    return ret;
 }
 
-static void lcd_qspi_dma_repeat_mode_config(qspi_id_t qspi_id, dma_id_t dma_id, uint32_t *data, uint32_t data_len)
+bk_err_t bk_lcd_qspi_mapping_display(qspi_id_t qspi_id, const bk_lcd_panel_t *device, uint32_t *data, uint32_t data_len)
 {
-    uint32_t dma_repeat_once_len = 0;
+#if CONFIG_LCD_QSPI_REFRESH_WITH_MAPPING
+    bk_err_t ret = BK_OK;
 
-    bk_dma_stateless_judgment_configuration((void *)s_qspi_disp[qspi_id].qspi_data, (void *)data, data_len, dma_id, s_qspi_disp[qspi_id].dma_finish_isr);
+    bk_lcd_qspi_quad_write_start(qspi_id, device->qspi->pixel_write_config, 0);
+    ret = lcd_qspi_dma_start(qspi_id, device, (uint8_t *)data, data_len);
+    if (ret != BK_OK) {
+        bk_lcd_qspi_quad_write_stop(qspi_id);
+        return ret;
+    }
 
-    dma_set_src_pause_addr(dma_id, (uint32_t)data + data_len);
-    dma_set_dst_pause_addr(dma_id, s_qspi_disp[qspi_id].qspi_data + data_len);
+    return BK_OK;
+#else
+    (void)qspi_id;
+    (void)device;
+    (void)data;
+    (void)data_len;
+    LCD_QSPI_LOGE("%s mapping mode is disabled\r\n", __func__);
+    return BK_FAIL;
+#endif
+}
 
-    dma_repeat_once_len = lcd_qspi_get_dma_repeat_once_len(data_len);
-    bk_dma_set_transfer_len(dma_id, dma_repeat_once_len);
+static void lcd_qspi_set_cmd_c_byte(uint32_t *cmd_c_h, uint32_t *cmd_c_l, uint8_t index, uint8_t value)
+{
+    if (index < 4) {
+        *cmd_c_h |= ((uint32_t)value << (index * 8));
+    } else {
+        *cmd_c_l |= ((uint32_t)value << ((index - 4) * 8));
+    }
+}
+
+static uint32_t lcd_qspi_get_cmd_c_cfg1(uint8_t total_cmd_len, uint8_t data_start_index)
+{
+    uint32_t cfg1 = 0;
+
+    for (uint8_t i = data_start_index; i < total_cmd_len; i++) {
+        cfg1 |= (QSPI_4WIRE << (i * 2));
+    }
+
+    if (total_cmd_len < LCD_QSPI_CMD_C_LEN_MAX) {
+        cfg1 |= (0x3 << (total_cmd_len * 2));
+    }
+
+    return cfg1;
+}
+
+static bk_err_t lcd_qspi_indirect_write_cmd_fifo(qspi_id_t qspi_id,
+                                                 const uint8_t *cmd,
+                                                 uint8_t cmd_len,
+                                                 uint8_t data_start_index,
+                                                 const uint8_t *fifo_data,
+                                                 uint32_t fifo_len)
+{
+    bk_err_t ret = BK_OK;
+    uint32_t cmd_c_l = 0;
+    uint32_t cmd_c_h = 0;
+    uint32_t fifo_buf[(LCD_QSPI_FIFO_WRITE_MAX + 3) / 4];
+
+    qspi_hal_set_cmd_c_l(&s_lcd_qspi[qspi_id].hal, 0);
+    qspi_hal_set_cmd_c_h(&s_lcd_qspi[qspi_id].hal, 0);
+    qspi_hal_set_cmd_c_cfg1(&s_lcd_qspi[qspi_id].hal, 0);
+    qspi_hal_set_cmd_c_cfg2(&s_lcd_qspi[qspi_id].hal, 0);
+
+    for (uint8_t i = 0; i < cmd_len; i++) {
+        lcd_qspi_set_cmd_c_byte(&cmd_c_h, &cmd_c_l, i, cmd[i]);
+    }
+
+    qspi_hal_set_cmd_c_l(&s_lcd_qspi[qspi_id].hal, cmd_c_l);
+    qspi_hal_set_cmd_c_h(&s_lcd_qspi[qspi_id].hal, cmd_c_h);
+    qspi_hal_set_cmd_c_cfg1(&s_lcd_qspi[qspi_id].hal,
+                            lcd_qspi_get_cmd_c_cfg1(cmd_len, data_start_index));
+    qspi_hal_set_cmd_c_cfg2(&s_lcd_qspi[qspi_id].hal,
+                            (fifo_len << 2) | LCD_QSPI_CMD_C_DATA_LINE_4WIRE);
+
+    if (fifo_len > 0) {
+        os_memset(fifo_buf, 0, sizeof(fifo_buf));
+        os_memcpy(fifo_buf, fifo_data, fifo_len);
+
+        ret = bk_qspi_write(qspi_id, fifo_buf, fifo_len);
+        if (ret != BK_OK) {
+            LCD_QSPI_LOGE("%s qspi fifo write failed, ret=%d\r\n", __func__, ret);
+            return ret;
+        }
+    }
+
+    qspi_hal_cmd_c_start(&s_lcd_qspi[qspi_id].hal);
+    qspi_hal_wait_cmd_done(&s_lcd_qspi[qspi_id].hal);
+
+    return BK_OK;
+}
+
+bk_err_t bk_lcd_qspi_indirect_display(qspi_id_t qspi_id, const bk_lcd_panel_t *device, uint32_t *data, uint32_t data_len)
+{
+    bk_err_t ret = BK_OK;
+    uint32_t remain_len = data_len;
+    const uint8_t *data_tmp = (const uint8_t *)data;
+    uint8_t cmd_buf[LCD_QSPI_CMD_C_LEN_MAX] = {0};
+
+    if ((device == NULL) || (device->qspi == NULL) || (data == NULL)) {
+        LCD_QSPI_LOGE("%s invalid param\r\n", __func__);
+        return BK_ERR_PARAM;
+    }
+
+    lcd_qspi_write_config_t reg_config = device->qspi->pixel_write_config;
+    if ((reg_config.cmd == NULL) || (reg_config.cmd_len == 0)) {
+        LCD_QSPI_LOGE("%s invalid pixel write config\r\n", __func__);
+        return BK_ERR_PARAM;
+    }
+
+    if (reg_config.cmd_len > LCD_QSPI_CMD_C_LEN_MAX) {
+        LCD_QSPI_LOGE("%s invalid pixel write cmd len=%d\r\n", __func__, reg_config.cmd_len);
+        return BK_ERR_PARAM;
+    }
+
+    qspi_hal_force_spi_cs_low_enable(&s_lcd_qspi[qspi_id].hal);
+
+    uint8_t cmd_data_len = LCD_QSPI_CMD_C_LEN_MAX - reg_config.cmd_len;
+    if (cmd_data_len > remain_len) {
+        cmd_data_len = remain_len;
+    }
+
+    os_memset(cmd_buf, 0, sizeof(cmd_buf));
+    os_memcpy(cmd_buf, reg_config.cmd, reg_config.cmd_len);
+    os_memcpy(&cmd_buf[reg_config.cmd_len], data_tmp, cmd_data_len);
+    data_tmp += cmd_data_len;
+    remain_len -= cmd_data_len;
+
+    uint32_t fifo_len = (remain_len > LCD_QSPI_FIFO_WRITE_MAX) ? LCD_QSPI_FIFO_WRITE_MAX : remain_len;
+    ret = lcd_qspi_indirect_write_cmd_fifo(qspi_id,
+                                           cmd_buf,
+                                           reg_config.cmd_len + cmd_data_len,
+                                           reg_config.cmd_len,
+                                           data_tmp,
+                                           fifo_len);
+    if (ret != BK_OK) {
+        qspi_hal_force_spi_cs_low_disable(&s_lcd_qspi[qspi_id].hal);
+        return ret;
+    }
+    data_tmp += fifo_len;
+    remain_len -= fifo_len;
+
+    while (remain_len > 0) {
+        cmd_data_len = (remain_len > LCD_QSPI_CMD_C_LEN_MAX) ? LCD_QSPI_CMD_C_LEN_MAX : remain_len;
+        os_memset(cmd_buf, 0, sizeof(cmd_buf));
+        os_memcpy(cmd_buf, data_tmp, cmd_data_len);
+        data_tmp += cmd_data_len;
+        remain_len -= cmd_data_len;
+
+        fifo_len = (remain_len > LCD_QSPI_FIFO_WRITE_MAX) ? LCD_QSPI_FIFO_WRITE_MAX : remain_len;
+
+        ret = lcd_qspi_indirect_write_cmd_fifo(qspi_id,
+                                               cmd_buf,
+                                               cmd_data_len,
+                                               0,
+                                               data_tmp,
+                                               fifo_len);
+        if (ret != BK_OK) {
+            qspi_hal_force_spi_cs_low_disable(&s_lcd_qspi[qspi_id].hal);
+            return ret;
+        }
+
+        data_tmp += fifo_len;
+        remain_len -= fifo_len;
+    }
+
+    qspi_hal_force_spi_cs_low_disable(&s_lcd_qspi[qspi_id].hal);
+
+    return BK_OK;
 }
 
 bk_err_t bk_lcd_qspi_init(qspi_id_t qspi_id, const bk_lcd_panel_t *device, uint8_t reset_pin)
@@ -485,11 +660,9 @@ bk_err_t bk_lcd_qspi_init(qspi_id_t qspi_id, const bk_lcd_panel_t *device, uint8
         return BK_OK;
     }
 
+#if CONFIG_LCD_QSPI_REFRESH_WITH_MAPPING
     lcd_qspi_dma_init(qspi_id);
-
-    qspi_hal_disable_soft_reset(&s_lcd_qspi[qspi_id].hal);
-    bk_delay_us(10);
-    qspi_hal_enable_soft_reset(&s_lcd_qspi[qspi_id].hal);
+#endif
 
     lcd_qspi_hardware_reset(reset_pin);
 
@@ -501,13 +674,6 @@ bk_err_t bk_lcd_qspi_init(qspi_id_t qspi_id, const bk_lcd_panel_t *device, uint8
 
     if (device->qspi->refresh_method == LCD_QSPI_REFRESH_BY_LINE) {
         lcd_qspi_refresh_by_line_lcd_head_config(qspi_id, device);
-    } else {
-        lcd_display_area_t disp_area = {0};
-        disp_area.x_start = 0;
-        disp_area.y_start = 0;
-        disp_area.x_end = device->width - 1;
-        disp_area.y_end = device->height - 1;
-        lcd_qspi_disp_area_config(qspi_id, device, &disp_area);
     }
 
     if (device->qspi->init_cmd != NULL) {
@@ -537,7 +703,9 @@ bk_err_t bk_lcd_qspi_deinit(qspi_id_t qspi_id, uint8_t reset_pin)
         return BK_OK;
     }
 
+#if CONFIG_LCD_QSPI_REFRESH_WITH_MAPPING
     lcd_qspi_dma_deinit(qspi_id);
+#endif
 
     BK_LOG_ON_ERR(bk_qspi_deinit(qspi_id));
 
@@ -552,6 +720,7 @@ bk_err_t bk_lcd_qspi_wait_display_complete(qspi_id_t qspi_id, const bk_lcd_panel
 {
     bk_err_t ret = BK_OK;
 
+#if CONFIG_LCD_QSPI_REFRESH_WITH_MAPPING
     if (s_qspi_disp[qspi_id].dma_sema) {
         ret = rtos_get_semaphore(&s_qspi_disp[qspi_id].dma_sema, 5000);
         if (ret != kNoErr) {
@@ -560,12 +729,13 @@ bk_err_t bk_lcd_qspi_wait_display_complete(qspi_id_t qspi_id, const bk_lcd_panel
         }
         bk_delay_us(10);
         bk_lcd_qspi_quad_write_stop(qspi_id);
+    }
+#endif
 
-        if (device->qspi->refresh_method == LCD_QSPI_REFRESH_BY_LINE) {
-            for (uint16_t i = 0; i < device->qspi->refresh_config.hbp; i++) {
-                bk_lcd_qspi_send_cmd(qspi_id, device->qspi->reg_write_cmd, device->qspi->refresh_config.hsync_cmd, NULL, 0);
-                bk_delay_us(40);
-            }
+    if (device->qspi->refresh_method == LCD_QSPI_REFRESH_BY_LINE) {
+        for (uint16_t i = 0; i < device->qspi->refresh_config.hbp; i++) {
+            bk_lcd_qspi_send_cmd(qspi_id, device->qspi->reg_write_cmd, device->qspi->refresh_config.hsync_cmd, NULL, 0);
+            bk_delay_us(40);
         }
     }
 
@@ -574,14 +744,6 @@ bk_err_t bk_lcd_qspi_wait_display_complete(qspi_id_t qspi_id, const bk_lcd_panel
 
 bk_err_t bk_lcd_qspi_frame_display(qspi_id_t qspi_id, const bk_lcd_panel_t *device, uint32_t *data, uint32_t data_len)
 {
-    if (data_len <= 0x10000) {
-        s_qspi_disp[qspi_id].dma_is_repeat_mode = false;
-        lcd_qspi_dma_single_mode_config(qspi_id, s_qspi_disp[qspi_id].dma_id, data, data_len);
-    } else {
-        s_qspi_disp[qspi_id].dma_is_repeat_mode = true;
-        lcd_qspi_dma_repeat_mode_config(qspi_id, s_qspi_disp[qspi_id].dma_id, data, data_len);
-    }
-
     if (device->qspi->refresh_method == LCD_QSPI_REFRESH_BY_LINE) {
         for (uint16_t i = 0; i < device->qspi->refresh_config.vsw; i++) {
             bk_lcd_qspi_send_cmd(qspi_id, device->qspi->reg_write_cmd, device->qspi->refresh_config.vsync_cmd, NULL, 0);
@@ -595,11 +757,18 @@ bk_err_t bk_lcd_qspi_frame_display(qspi_id_t qspi_id, const bk_lcd_panel_t *devi
 
         qspi_hal_clear_lcd_head(&s_lcd_qspi[qspi_id].hal, 1);
         qspi_hal_clear_lcd_head(&s_lcd_qspi[qspi_id].hal, 0);
-        bk_lcd_qspi_quad_write_start(qspi_id, device->qspi->pixel_write_config, 0);
-        bk_dma_start(s_qspi_disp[qspi_id].dma_id);
+#if CONFIG_LCD_QSPI_REFRESH_WITH_MAPPING
+        return bk_lcd_qspi_mapping_display(qspi_id, device, data, data_len);
+#else
+        return bk_lcd_qspi_indirect_display(qspi_id, device, data, data_len);
+#endif
     } else if (device->qspi->refresh_method == LCD_QSPI_REFRESH_BY_FRAME) {
-        bk_lcd_qspi_quad_write_start(qspi_id, device->qspi->pixel_write_config, 0);
-        bk_dma_start(s_qspi_disp[qspi_id].dma_id);
+        lcd_qspi_disp_full_area_config(qspi_id, device);
+#if CONFIG_LCD_QSPI_REFRESH_WITH_MAPPING
+        return bk_lcd_qspi_mapping_display(qspi_id, device, data, data_len);
+#else
+        return bk_lcd_qspi_indirect_display(qspi_id, device, data, data_len);
+#endif
     } else {
         LCD_QSPI_LOGE("invalid lcd qspi refresh method\r\n");
         return BK_FAIL;
@@ -612,9 +781,21 @@ bk_err_t bk_lcd_qspi_partial_display(qspi_id_t qspi_id, const bk_lcd_panel_t *de
 {
     if (device->qspi->refresh_method == LCD_QSPI_REFRESH_BY_FRAME) {
         lcd_qspi_disp_area_config(qspi_id, device, area);
-        lcd_qspi_dma_single_mode_config(qspi_id, s_qspi_disp[qspi_id].dma_id, data, (area->x_end - area->x_start + 1) * (area->y_end - area->y_start + 1) * CONFIG_LCD_QSPI_COLOR_DEPTH_BYTE);
-        bk_lcd_qspi_quad_write_start(qspi_id, device->qspi->pixel_write_config, 0);
-        bk_dma_start(s_qspi_disp[qspi_id].dma_id);
+#if CONFIG_LCD_QSPI_REFRESH_WITH_MAPPING
+        return bk_lcd_qspi_mapping_display(qspi_id,
+                                           device,
+                                           data,
+                                           (area->x_end - area->x_start + 1) *
+                                           (area->y_end - area->y_start + 1) *
+                                           CONFIG_LCD_QSPI_COLOR_DEPTH_BYTE);
+#else
+        return bk_lcd_qspi_indirect_display(qspi_id,
+                                            device,
+                                            data,
+                                            (area->x_end - area->x_start + 1) *
+                                            (area->y_end - area->y_start + 1) *
+                                            CONFIG_LCD_QSPI_COLOR_DEPTH_BYTE);
+#endif
     } else {
         LCD_QSPI_LOGE("Partial display just support qspi lcd with ram\r\n");
         return BK_FAIL;

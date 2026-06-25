@@ -135,6 +135,38 @@ bk_err_t bk_lcd_qspi_deinit(qspi_id_t qspi_id, uint8_t reset_pin);
 bk_err_t bk_lcd_qspi_wait_display_complete(qspi_id_t qspi_id, const bk_lcd_panel_t *device);
 
 /**
+ * @brief     Display pixels with QSPI mapping mode and DMA
+ *
+ * This API starts the original mapping-mode DMA pixel transfer.
+ *
+ * @param qspi_id qspi the qspi device id number
+ * @param device the struct of lcd device
+ * @param data the data to display
+ * @param data_len the length of data to display
+ *
+ * @return
+ *    - BK_OK: succeed
+ *    - others: other errors.
+ */
+bk_err_t bk_lcd_qspi_mapping_display(qspi_id_t qspi_id, const bk_lcd_panel_t *device, uint32_t *data, uint32_t data_len);
+
+/**
+ * @brief     Display pixels with QSPI indirect FIFO mode
+ *
+ * This API sends pixel data through the QSPI FIFO in indirect mode.
+ *
+ * @param qspi_id qspi the qspi device id number
+ * @param device the struct of lcd device
+ * @param data the data to display
+ * @param data_len the length of data to display
+ *
+ * @return
+ *    - BK_OK: succeed
+ *    - others: other errors.
+ */
+bk_err_t bk_lcd_qspi_indirect_display(qspi_id_t qspi_id, const bk_lcd_panel_t *device, uint32_t *data, uint32_t data_len);
+
+/**
  * @brief     Display a frame image
  *
  * This API display a frame image

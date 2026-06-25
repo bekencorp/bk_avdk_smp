@@ -454,6 +454,7 @@ bk_err_t bk_lcd_spi_wait_display_complete(qspi_id_t qspi_id)
 {
     bk_err_t ret = BK_OK;
 
+#if (!CONFIG_LCD_SPI_REFRESH_WITH_SPI) && CONFIG_LCD_SPI_REFRESH_WITH_QSPI_MAPPING_MODE
     if (s_spi_disp[qspi_id].dma_sema) {
         ret = rtos_get_semaphore(&s_spi_disp[qspi_id].dma_sema, 5000);
         if (ret != kNoErr) {
@@ -463,6 +464,9 @@ bk_err_t bk_lcd_spi_wait_display_complete(qspi_id_t qspi_id)
         bk_delay_us(15);
         lcd_spi_quad_write_stop(qspi_id);
     }
+#else
+    (void)qspi_id;
+#endif
 
     return ret;
 }
@@ -504,8 +508,10 @@ void bk_lcd_spi_init(uint8_t id, const bk_lcd_panel_t *device, uint8_t reset_pin
 
 #if CONFIG_LCD_SPI_REFRESH_WITH_SPI
     lcd_spi_driver_init(id);
-#else
+#elif CONFIG_LCD_SPI_REFRESH_WITH_QSPI_MAPPING_MODE
     lcd_spi_dma_init(id);
+    lcd_spi_driver_init_with_qspi(id, device->spi->clk);
+#else
     lcd_spi_driver_init_with_qspi(id, device->spi->clk);
 #endif
 
@@ -551,8 +557,10 @@ void bk_lcd_spi_deinit(uint8_t id, uint8_t reset_pin, uint8_t dc_pin)
 
 #if CONFIG_LCD_SPI_REFRESH_WITH_SPI
     lcd_spi_driver_deinit(id);
-#else
+#elif CONFIG_LCD_SPI_REFRESH_WITH_QSPI_MAPPING_MODE
     lcd_spi_dma_deinit(id);
+    lcd_spi_driver_deinit_with_qspi(id);
+#else
     lcd_spi_driver_deinit_with_qspi(id);
 #endif
 
@@ -567,8 +575,10 @@ bk_err_t bk_lcd_spi_frame_display(uint8_t id, uint8_t *data, uint32_t data_len)
 
 #if CONFIG_LCD_SPI_REFRESH_WITH_SPI
     bk_lcd_spi_send_data(id, data, data_len);
-#else
+#elif CONFIG_LCD_SPI_REFRESH_WITH_QSPI_MAPPING_MODE
     bk_lcd_spi_send_data_with_qspi_mapping_mode(id, data, data_len);
+#else
+    bk_lcd_spi_send_data(id, data, data_len);
 #endif
 
     return BK_OK;
@@ -580,7 +590,11 @@ bk_err_t bk_lcd_spi_partial_display(uint8_t id, lcd_display_area_t *area, uint8_
 
     bk_lcd_spi_send_cmd(id, LCD_SPI_DEVICE_RAMWR);
 
+#if CONFIG_LCD_SPI_REFRESH_WITH_QSPI_MAPPING_MODE
     bk_lcd_spi_send_data_with_qspi_mapping_mode(id, data, (area->x_end - area->x_start + 1) * (area->y_end - area->y_start + 1) * CONFIG_LCD_SPI_COLOR_DEPTH_BYTE);
+#else
+    bk_lcd_spi_send_data(id, data, (area->x_end - area->x_start + 1) * (area->y_end - area->y_start + 1) * CONFIG_LCD_SPI_COLOR_DEPTH_BYTE);
+#endif
 
     return BK_OK;
 }

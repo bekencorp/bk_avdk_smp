@@ -16,6 +16,11 @@ menu "LCD"
 		bool "Enable LCD QSPI TE"
 		default n
 
+	config LCD_QSPI_REFRESH_WITH_MAPPING
+		depends on LCD_QSPI
+		bool "Enable LCD QSPI Refresh with Mapping"
+		default n
+
 	config LCD_SPI
 		bool "Enable LCD SPI"
 		default n
@@ -38,4 +43,13 @@ menu "LCD"
 		depends on LCD_SPI
 		bool "Enable LCD SPI Refresh with SPI"
 		default n
+
+	config LCD_SPI_REFRESH_WITH_QSPI_MAPPING_MODE
+		depends on LCD_SPI
+		depends on !LCD_SPI_REFRESH_WITH_SPI
+		bool "Enable LCD SPI Refresh with QSPI mapping mode"
+		default n
+		help
+			Use QSPI memory mapping and HPDMA for LCD SPI refresh.
+			If disabled, LCD SPI refresh uses QSPI indirect mode.
 endmenu
