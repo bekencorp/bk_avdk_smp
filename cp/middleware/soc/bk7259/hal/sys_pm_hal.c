@@ -1797,6 +1797,20 @@ __attribute__((section(".iram"))) void sys_hal_regs_analog_restore(void)
 	GPIO_DOWN(37);
 	#endif
 
+	/* Extra settling margin BEFORE raising the core clock to high frequency.
+	 *
+	 * This runs while the core is still at the low (26M) clock and executes
+	 * from Flash, so it is completely safe and does NOT perform any SRAM
+	 * instruction fetch at 240M (unlike a post-switch delay, which hangs).
+	 *
+	 * The ~190us LOW_POWER_DPLL_STABILITY_DELAY_TIME above is quantized by the
+	 * 32K AON-RTC (~30.5us/tick) and sits right at the 180us hardware minimum,
+	 * so it can occasionally be too tight -> DPLL not fully locked when the
+	 * mux switches -> residual intermittent (~1/20) hang at the freq switch.
+	 * This explicit margin closes that window. Tune/remove once confirmed. */
+	bk_delay_us(60);
+	SYS_PM_HAL_CPU_BARRIER();
+
 	sys_hal_restore_core_freq(cksel_core, clkdiv_core, clkdiv_bus);
 	SYS_PM_HAL_CPU_BARRIER();
 
