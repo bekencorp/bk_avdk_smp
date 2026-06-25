@@ -360,7 +360,7 @@ static SPINLOCK_SECTION volatile spinlock_t shell_spin_lock = SPIN_LOCK_INIT;
 #endif // CONFIG_SOC_SMP
 
 
-static dynamic_log_node *dynamic_list_pop_front(void);
+static dynamic_log_node *dynamic_list_pop_front(u8 *packet_buf);
 static void free_list_push_front(dynamic_log_node *dym_node);
 static void check_and_free_dynamic_node(void);
 static u8 *alloc_dynamic_log_blk(u16 log_len, u16 *blk_tag);
@@ -653,26 +653,37 @@ static int merge_log_data(u16 blk_tag, u16 data_len)
 	return 1;
 }
 
-/* call this in interrupt !* DISABLED *! context. */
-static void push_pending_queue(u16 blk_tag, u16 data_len)
+/* call this in interrupt !* DISABLED *! context.
+ * Returns bTRUE when the log was merged or enqueued; bFALSE when the pending
+ * queue is full (caller must release the buffer to avoid leak/desync). */
+static bool_t push_pending_queue(u16 blk_tag, u16 data_len)
 {
 	//get_shell_mutex();
 
 	if(merge_log_data(blk_tag, data_len))  /* has been merged? if so, doesn't enqueue the log. */
-		return;
+		return bTRUE;
+
+	u16 next_in_idx;
+
+	if((pending_queue.list_in_idx + 1) < SHELL_LOG_PEND_NUM)
+		next_in_idx = pending_queue.list_in_idx + 1;
+	else
+		next_in_idx = 0;
+
+	if(next_in_idx == pending_queue.list_out_idx)  /* queue full! */
+	{
+		shell_log_overflow++;
+		return bFALSE;
+	}
 
 	pending_queue.packet_list[pending_queue.list_in_idx].blk_tag = blk_tag;
 	pending_queue.packet_list[pending_queue.list_in_idx].packet_len = data_len;
 
-	//pending_queue.list_in_idx = (pending_queue.list_in_idx + 1) % SHELL_LOG_PEND_NUM;
-	if((pending_queue.list_in_idx + 1) < SHELL_LOG_PEND_NUM)
-		pending_queue.list_in_idx++;
-	else
-		pending_queue.list_in_idx = 0;
+	pending_queue.list_in_idx = next_in_idx;
 
 	//release_shell_mutex();
 
-	return;
+	return bTRUE;
 }
 
 /* call this in interrupt !* DISABLED *! context. */
@@ -840,10 +851,12 @@ static int log_tx_complete(u8 *pbuf, u16 buf_tag)
 	}
 
 	if (queue_id == SHELL_DYM_QUEUE_ID) {
-		dynamic_log_node *node = dynamic_list_pop_front();
-		free_list_push_front(node);
-		if (log_buf_semaphore != NULL)
-			set_shell_event(&shell_log_event, SHELL_EVENT_DYM_FREE);
+		dynamic_log_node *node = dynamic_list_pop_front(pbuf);
+		if (node != NULL) {
+			free_list_push_front(node);
+			if (log_buf_semaphore != NULL)
+				set_shell_event(&shell_log_event, SHELL_EVENT_DYM_FREE);
+		}
 		return 1;
 	}
 	return 0;
@@ -941,10 +954,16 @@ static void cmd_info_out(u8 * msg_buf, u16 msg_len, u16 blk_tag)
 	else
 	{
 		/* shared device for cmd & log, push the rsp msg to pending queue. */
-		push_pending_queue(blk_tag, msg_len);
-
-		//set_shell_event(SHELL_EVENT_TX_REQ);  // notify shell task to process the log tx. can't be called in int-disabled context.
-		tx_req_process();
+		if(!push_pending_queue(blk_tag, msg_len))
+		{
+			/* queue full: release the rsp/ind/hint resource so it is not leaked. */
+			cmd_tx_complete(msg_buf, blk_tag);
+		}
+		else
+		{
+			//set_shell_event(SHELL_EVENT_TX_REQ);  // notify shell task to process the log tx. can't be called in int-disabled context.
+			tx_req_process();
+		}
 	}
 
 	shell_task_exit_critical(int_mask);
@@ -1009,7 +1028,12 @@ static bool_t log_hint_out(void)
 
 	u32  int_mask = shell_task_enter_critical();
 
-	push_pending_queue(hint_blk_tag, shell_fault_str_len);
+	if(!push_pending_queue(hint_blk_tag, shell_fault_str_len))
+	{
+		/* queue full: ROM hint owns no buffer to free; retry the hint later. */
+		shell_task_exit_critical(int_mask);
+		return bFALSE;
+	}
 
 	//set_shell_event(SHELL_EVENT_TX_REQ);  // notify shell task to process the log tx.
 	tx_req_process();
@@ -1114,7 +1138,9 @@ static void tx_req_process(void)
 	else if (queue_id == SHELL_DYM_QUEUE_ID) 
 	{
 		dynamic_log_node *node = dynamic_list_switch();
-		packet_buf = node->ptr;
+		if (node != NULL) {
+			packet_buf = node->ptr;
+		}
 	}
 	#if defined(FWD_CMD_TO_MBOX)
 	else if(queue_id == SHELL_FWD_QUEUE_ID)
@@ -1163,8 +1189,37 @@ static void tx_req_process(void)
 			log_busy_queue.list_in_idx = 0;
 	}
 
-	log_dev->dev_drv->write_async(log_dev, packet_buf, log_len, block_tag); /* send to log dev driver. */
-	/* if driver return 0, should free log-block or not de-queue pending queue and try again. */
+	/* if driver returns 0 the packet was not accepted: release the buffer here,
+	 * otherwise the block/dynamic node leaks and the queues desync. */
+	if (log_dev->dev_drv->write_async(log_dev, packet_buf, log_len, block_tag) == 0) /* send to log dev driver. */
+	{
+		shell_log_overflow++;
+		if(queue_id < TBL_SIZE(free_queue))
+		{
+			/* roll back the busy-queue push done above, then free the block. */
+			if(log_busy_queue.list_in_idx == 0)
+				log_busy_queue.list_in_idx = SHELL_LOG_BUSY_NUM - 1;
+			else
+				log_busy_queue.list_in_idx--;
+			log_busy_queue.free_cnt++;
+			free_log_blk(block_tag);
+		}
+		else if (queue_id == SHELL_DYM_QUEUE_ID)
+		{
+			dynamic_log_node *node = dynamic_list_pop_front(packet_buf);
+			if (node != NULL) {
+				free_list_push_front(node);
+				if (log_buf_semaphore != NULL)
+					set_shell_event(&shell_log_event, SHELL_EVENT_DYM_FREE);
+			}
+		}
+		else if ((queue_id == SHELL_RSP_QUEUE_ID) || (queue_id == SHELL_IND_QUEUE_ID) ||
+			((queue_id == SHELL_ROM_QUEUE_ID) && (blk_id == 1)))
+		{
+			cmd_tx_complete(packet_buf, block_tag);
+		}
+		return;
+	}
 	/* if return 1, push log-block into busy queue is OK. */
 
 	return;
@@ -2071,12 +2126,24 @@ static int shell_log_raw_data_internel(bool hint, const u8 *data, u16 data_len)
 
 	u32 int_mask = shell_task_enter_critical();
 
+	/* Enqueue first; only link the dynamic node into the list after the pending
+	 * queue accepts it, so the full-queue failure path can free the buffer without
+	 * leaving a dangling node in the dynamic list. */
+	if (!push_pending_queue(blk_tag, data_len)) {
+		if (GET_QUEUE_ID(blk_tag) == SHELL_DYM_QUEUE_ID) {
+			dynamic_log_node *node = (dynamic_log_node *)&packet_buf[-DYM_NODE_SIZE];
+			s_dynamic_log_num_in_mem--;
+			LOG_FREE(node);
+		} else {
+			free_log_blk(blk_tag);
+		}
+		shell_task_exit_critical(int_mask);
+		return 0; // bFALSE;
+	}
+
 	if ( GET_QUEUE_ID(blk_tag) == SHELL_DYM_QUEUE_ID ) {
 		dynamic_list_push_back_by_buffer(packet_buf);
 	}
-
-	// push to pending queue.
-	push_pending_queue(blk_tag, data_len);
 
 	// notify shell task to process the log tx.
 	tx_req_process();
@@ -2190,7 +2257,12 @@ void shell_log_out_port(int block_mode, int level, char *prefix, const char *for
 		return ;
 	}
 
-	buf_len = vsnprintf( NULL, 0, format, ap ) + 1;  /* for '\0' */
+	/* measure length on a copy; reusing 'ap' after vsnprintf is undefined and
+	 * 'ap' is consumed again below by combine_log_with_prefix/output_insert_log. */
+	va_list ap_len;
+	va_copy(ap_len, ap);
+	buf_len = vsnprintf( NULL, 0, format, ap_len ) + 1;  /* for '\0' */
+	va_end(ap_len);
 
 	if(prefix != NULL)
 		buf_len += strlen(prefix);
@@ -2226,12 +2298,24 @@ void shell_log_out_port(int block_mode, int level, char *prefix, const char *for
 
 	u32  int_mask = shell_task_enter_critical();
 
+	/* Enqueue first; only link the dynamic node into the list after the pending
+	 * queue accepts it, so the full-queue failure path can free the buffer without
+	 * leaving a dangling node in the dynamic list. */
+	if (!push_pending_queue(blk_tag, log_len)) {
+		if (GET_QUEUE_ID(blk_tag) == SHELL_DYM_QUEUE_ID) {
+			dynamic_log_node *node = (dynamic_log_node *)&packet_buf[-DYM_NODE_SIZE];
+			s_dynamic_log_num_in_mem--;
+			LOG_FREE(node);
+		} else {
+			free_log_blk(blk_tag);
+		}
+		shell_task_exit_critical(int_mask);
+		return ;
+	}
+
 	if ( GET_QUEUE_ID(blk_tag) == SHELL_DYM_QUEUE_ID ) {
 		dynamic_list_push_back_by_buffer(packet_buf);
 	}
-
-	// push to pending queue.
-	push_pending_queue(blk_tag, log_len);
 
 	//set_shell_event(SHELL_EVENT_TX_REQ);  // notify shell task to process the log tx.
 	tx_req_process();
@@ -2701,22 +2785,49 @@ static void dynamic_list_push_back(dynamic_log_node *dym_node)
 	s_dynamic_log_num++;
 }
 
-static dynamic_log_node *dynamic_list_pop_front(void)
+static dynamic_log_node *dynamic_list_pop_front(u8 *packet_buf)
 {
 	dynamic_log_node *node = s_dynamic_header.next;
+	dynamic_log_node *prev = &s_dynamic_header;
 	if (node == NULL) {
-		BK_ASSERT(0);
 		return NULL;
 	}
-	BK_ASSERT(s_dynamic_header.next != s_curr_node);
-	s_dynamic_header.next = node->next;
-	s_dynamic_log_num--;
-	node->next = NULL;
-	if (node == s_dym_tail_node) {
-		s_dym_tail_node = &s_dynamic_header;
-		BK_ASSERT(s_curr_node == NULL);
+
+	if (node->ptr == packet_buf) {
+		s_dynamic_header.next = node->next;
+		s_dynamic_log_num--;
+		if (node == s_curr_node) {
+			s_curr_node = node->next;
+		}
+		node->next = NULL;
+		if (node == s_dym_tail_node) {
+			s_dym_tail_node = &s_dynamic_header;
+			s_curr_node = NULL;
+		}
+		return node;
 	}
-	return node;
+
+	/* Search only nodes already submitted to UART. s_curr_node and following
+	 * nodes have not been switched out for TX yet and must not be released.
+	 */
+	while ((node != NULL) && (node != s_curr_node)) {
+		if (node->ptr == packet_buf) {
+			prev->next = node->next;
+			s_dynamic_log_num--;
+			if (node == s_dym_tail_node) {
+				s_dym_tail_node = prev;
+			}
+			node->next = NULL;
+			if (s_dynamic_header.next == NULL) {
+				s_dym_tail_node = &s_dynamic_header;
+				s_curr_node = NULL;
+			}
+			return node;
+		}
+		prev = node;
+		node = node->next;
+	}
+	return NULL;
 }
 
 static void dynamic_node_gc(void)
@@ -2787,7 +2898,9 @@ static dynamic_log_node *dynamic_list_switch(void)
 {
 	dynamic_log_node *node;
 	node = s_curr_node;
-	s_curr_node = s_curr_node->next;
+	if (s_curr_node != NULL) {
+		s_curr_node = s_curr_node->next;
+	}
 	return node;
 }
 
