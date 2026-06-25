@@ -38,19 +38,22 @@ menu "multicore"
 			default 60
 
 		config CPU_HP_GOVERNOR_LOAD_EMA_DIV
-			int "Load EMA divisor (default: 1/2 = 50% weight)"
-			default 2
+			int "Load EMA divisor (default: 100% weight)"
+			default 1
+			help
+				if value is 2, the current load is 50%(1/2) weight
+				if value is 4, the current load is 25%(1/4) weight
 
 		config CPU_HP_GOVERNOR_PERIOD_MS
 			int "Load sampling period (ms)"
 			default 100
 
 		config CPU_HP_GOVERNOR_UP_DEBOUNCE
-			int "Consecutive overloaded samples required to online CP1"
+			int "Consecutive overloaded samples required to online AP1"
 			default 2
 
 		config CPU_HP_GOVERNOR_DOWN_DEBOUNCE
-			int "Consecutive underloaded samples required to offline CP1"
+			int "Consecutive underloaded samples required to offline AP1"
 			default 5
 
 		config CPU_HP_GOVERNOR_COOLDOWN_MS

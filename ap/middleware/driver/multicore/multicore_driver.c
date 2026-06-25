@@ -898,6 +898,19 @@ static void cpu_hp_gov_task(void *arg)
 
 	(void)arg;
 
+#if CONFIG_CPU_HOTPLUG_BOOT_OFFLINE
+	if (!bk_cpu_hp_is_online(CPU3_CORE_ID) &&
+	    (xTaskHasTasksPinnedToCore(SMP_CORE1_ID) == pdTRUE)) {
+		if (bk_cpu_hp_online(CPU3_CORE_ID) == BK_OK) {
+			g->online_cnt++;
+			g->cooldown_left_ms = CPU_HP_GOV_COOLDOWN_MS;
+			MULTICORE_LOGI("governor: online cpu3 (pinned tasks present at boot)\r\n");
+		} else {
+			MULTICORE_LOGW("governor: online cpu3 for pinned tasks failed\r\n");
+		}
+	}
+#endif
+
 	cpu_hp_gov_reset_window(g);
 
 	while (g->running) {
