@@ -1,10 +1,13 @@
 #include <stdio.h>
+#include <stdint.h>
+#include <stdbool.h>
 #include <string.h>
 #include <common/bk_include.h>
 #include "diskio.h"
 #include "test_fatfs.h"
 #include <os/mem.h>
 #include "ff.h"
+#include "ram_regions.h"
 
 #if CONFIG_TASK_WDT
 #include <bk_wdt.h>
@@ -18,6 +21,33 @@
 void bk_mem_dump_ex(const char *title, unsigned char *data, uint32_t data_len);
 
 FATFS *pfs = NULL;
+
+static bool fatfs_addr_in_range(uint32_t addr, uint32_t len, uint32_t base, uint32_t size)
+{
+	uint32_t end = 0;
+	uint32_t range_end = 0;
+
+	if ((len == 0) || (addr > UINT32_MAX - len) || (base > UINT32_MAX - size)) {
+		return false;
+	}
+
+	end = addr + len;
+	range_end = base + size;
+
+	return (addr >= base) && (end <= range_end);
+}
+
+static bool fatfs_is_valid_src_addr(uint32_t addr, uint32_t len)
+{
+	if (addr == 0) {
+		return false;
+	}
+
+	return fatfs_addr_in_range(addr, len, CONFIG_AP_HSRAM_HEAP_ADDR, CONFIG_AP_HSRAM_HEAP_SIZE) ||
+		fatfs_addr_in_range(addr, len, CONFIG_AP_RAM_ADDR, CONFIG_AP_RAM_SIZE) ||
+		fatfs_addr_in_range(addr, len, CONFIG_AP_PSRAM_HEAP_ADDR, CONFIG_AP_PSRAM_HEAP_SIZE) ||
+		fatfs_addr_in_range(addr, len, CONFIG_AP_PSRAM_DATA_SECTION_ADDR, CONFIG_AP_PSRAM_DATA_SECTION_SIZE);
+}
 
 FRESULT scan_files
 (
@@ -403,6 +433,11 @@ void test_fatfs_dump(DISK_NUMBER number, char *filename, uint32_t start_addr, ui
 	FATFS_LOGD("\r\n----- %s %d start -----\r\n", __func__, number);
 	FATFS_LOGD("file_name=%s,start_addr=0x%0x,len=%d \r\n", filename, start_addr, dump_len);
 
+	if (!fatfs_is_valid_src_addr(start_addr, dump_len)) {
+		FATFS_LOGE("invalid source address: start_addr=0x%08x, len=%u\r\n", start_addr, dump_len);
+		goto exit;
+	}
+
 	if(filename)
 		sprintf(cFileName, "%d:/%s", number, filename);
 	else
@@ -481,6 +516,11 @@ void test_fatfs_auto_test(DISK_NUMBER number, char *filename, uint32_t len, uint
 	len = len < TEST_FATFS_MAX_FILE_LEN? len : TEST_FATFS_MAX_FILE_LEN;
 	packet_cnt = len / TEST_FATFS_PACKET_LEN;
 	bytes_cnt = len % TEST_FATFS_PACKET_LEN;
+
+	if ((content_p != NULL) && !fatfs_is_valid_src_addr(start_addr, len)) {
+		FATFS_LOGE("invalid source address: start_addr=0x%08x, len=%u\r\n", start_addr, len);
+		return;
+	}
 
 	if (content_p == NULL) {
 		content_p = os_malloc(len);
