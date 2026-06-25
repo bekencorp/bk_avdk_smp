@@ -147,7 +147,6 @@ void _soc_start(void)
 	__DSB();
 	if (bk_start_ap_system() != BK_OK) {
 		BK_LOGE(TAG, "start ap system failed\r\n");
-		return;
 	}
 #endif
 
