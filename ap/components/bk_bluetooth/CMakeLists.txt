@@ -23,28 +23,28 @@ endfunction()
 
 if (CONFIG_BLUETOOTH_AP)
     list(APPEND srcs
-        api/bt_main.c
+        core/bt_main.c
     )
 
     if (CONFIG_BLUETOOTH_SUPPORT_IPC)
         list(APPEND srcs
-            ipc/src/bt_ipc_core.c
-            ipc/src/bt_ipc_vendor_event_handler.c
+            core/ipc/src/bt_ipc_core.c
+            core/ipc/src/bt_ipc_vendor_event_handler.c
         )
         list(APPEND incs
-            ipc/include
+            core/ipc/include
         )
     endif()
 
 	if (CONFIG_BLUETOOTH_HOST_ONLY OR CONFIG_BLUETOOTH_SUPPORT_AP_PWD_ALL)
 		if (CONFIG_BLUETOOTH_HOST_ONLY)
 			list(APPEND srcs
-				"hci/hal_hci_core.c"
-				"hci/hci_distinguish.c"
-				"hci/hci_parse.c"
+				"core/hci/hal_hci_core.c"
+				"core/hci/hci_distinguish.c"
+				"core/hci/hci_parse.c"
 				)
 			list(APPEND incs
-				hci
+				core/hci
 				)
 		endif()
 
@@ -62,9 +62,9 @@ if (CONFIG_BLUETOOTH_AP)
 					"at/gatt/bk_at_dm_performance_test.c"
 				)
 				# at/gatt/dm_*.{c,h} have been replaced with shim headers
-				# that forward bk_at_dm_* identifiers to the public bt_dm/ble/gatt
-				# implementation. AT-layer translation units include the shim
-				# headers directly via at/gatt path.
+				# that forward bk_at_dm_* identifiers to the public
+				# service/dm/ble/gatt implementation. AT-layer translation
+				# units include the shim headers directly via at/gatt path.
 				list(APPEND incs at/gatt)
 			endif()#CONFIG_BLE_AT_ENABLE
 
@@ -115,80 +115,91 @@ if (CONFIG_BLUETOOTH_AP)
 			)
 
 		if (CONFIG_BLUETOOTH_HOST_ONLY)
-			list(APPEND srcs feat_config/bt_feature_config.c)
+			list(APPEND srcs core/feat_config/bt_feature_config.c)
 
 			if (CONFIG_SOC_BK7259)
 				list(APPEND srcs
-					soc/bk7259/bluetooth.c
+					core/soc/bk7259/bluetooth.c
 					)
 			endif()
 		endif()
 
 		if (CONFIG_BLUETOOTH_SUPPORT_AP_PWD_ALL)
             list(APPEND srcs
-                adapter/ble_ipc_client.c
-                adapter/dm_ble_ipc_client.c
+                core/adapter/ble_ipc_client.c
+                core/adapter/dm_ble_ipc_client.c
             )
             list(APPEND incs
-                adapter
+                core/adapter
             )
 		endif()
 
 		if (CONFIG_BT AND CONFIG_BLUETOOTH_BTDM_COMPONENT_ENABLE)
 			list(APPEND srcs
-				bt_dm/utils/mpeg4_latm_dec.c
-				bt_dm/utils/ring_buffer_node.c
-				bt_dm/utils/ring_buffer_particle.c
-				bt_dm/bt_manager/bt_manager.c
-				bt_dm/storage/bluetooth_storage.c
-				bt_dm/a2dp/bk_a2dp_sink_service.c
-				bt_dm/avrcp/bk_avrcp_ct_service.c
-				bt_dm/avrcp/bk_avrcp_tg_service.c
+				service/dm/utils/mpeg4_latm_dec.c
+				service/dm/utils/ring_buffer_node.c
+				service/dm/utils/ring_buffer_particle.c
+				service/dm/bt_manager/bt_manager.c
+				service/dm/storage/bluetooth_storage.c
+				service/dm/a2dp/bk_a2dp_sink_service.c
+				service/dm/avrcp/bk_avrcp_ct_service.c
+				service/dm/avrcp/bk_avrcp_tg_service.c
 				)
 			list(APPEND incs
-				bt_dm/utils
-				bt_dm/bt_manager
-				bt_dm/storage
-				bt_dm/a2dp
-				bt_dm/avrcp
+				service/dm/utils
+				service/dm/bt_manager
+				service/dm/storage
+				service/dm/a2dp
+				service/dm/avrcp
 				)
 		endif ()
 
-		# BLE public GATT framework (formerly dashboard bluetooth_dual/gatt).
+		# BLE public GATT framework (service/dm/ble/gatt, formerly bt_dm/ble/gatt).
 		# Built whenever BLE is enabled so that the AT layer (CONFIG_BLE_AT_ENABLE)
 		# and external components (dashboard wifi_boarding) can link the public
 		# dm_* symbols regardless of CONFIG_BLUETOOTH_BTDM_COMPONENT_ENABLE.
 		if (CONFIG_BLE AND CONFIG_BLUETOOTH_BTDM_COMPONENT_BLE_GATT)
 			list(APPEND srcs
-				bt_dm/ble/gatt/dm_gatt.c
-				bt_dm/ble/gatt/dm_gatts.c
-				bt_dm/ble/gatt/dm_gattc.c
-				bt_dm/ble/gatt/dm_gatt_connection.c
-				bt_dm/ble/gatt/dm_gap_utils.c
+				service/dm/ble/gatt/dm_gatt.c
+				service/dm/ble/gatt/dm_gatts.c
+				service/dm/ble/gatt/dm_gattc.c
+				service/dm/ble/gatt/dm_gatt_connection.c
+				service/dm/ble/gatt/dm_gap_utils.c
 				)
 			if (CONFIG_CLI)
-				list(APPEND srcs bt_dm/ble/gatt/dm_gatt_cli.c)
+				list(APPEND srcs service/dm/ble/gatt/dm_gatt_cli.c)
 			endif()
 			# Public include: downstream components that PRIV_REQUIRES bk_bluetooth
 			# (e.g. dashboard bluetooth_dual/wifi_boarding) can directly
 			# #include "dm_gatts.h" / "dm_gatt.h" etc.
-			list(APPEND incs bt_dm/ble/gatt)
+			list(APPEND incs service/dm/ble/gatt)
 		endif()
 
 		# HID-over-GATT keyboard demo, built on top of the public gatt framework.
 		if (CONFIG_BLE AND CONFIG_BLUETOOTH_BTDM_COMPONENT_BLE_HOGPD)
-			list(APPEND srcs bt_dm/ble/hogpd/hogpd_demo.c)
+			list(APPEND srcs service/dm/ble/hogpd/hogpd_demo.c)
 			if (CONFIG_CLI)
-				list(APPEND srcs bt_dm/ble/hogpd/hogpd_demo_cli.c)
+				list(APPEND srcs service/dm/ble/hogpd/hogpd_demo_cli.c)
 			endif()
-			list(APPEND incs bt_dm/ble/hogpd)
+			list(APPEND incs service/dm/ble/hogpd)
 		endif()
+	endif()
+
+	# BLE boarding/provisioning (formerly the separate bt/ sub-component).
+	# ble_boarding.c: direct BLE implementation; dm_ble_boarding.c: DM-based.
+	# Both variants share ble_boarding.h, kept together under service/common.
+	if (CONFIG_BLE AND NOT CONFIG_BTDM_CONTROLLER_ONLY)
+		list(APPEND srcs
+			service/common/ble_boarding.c
+			service/common/dm_ble_boarding.c
+			)
+		list(APPEND incs service/common)
 	endif()
 endif()
 
 if (CONFIG_CLI)
 	list(APPEND srcs
-		api/bk_cli_ble.c
+		cli/bk_cli_ble.c
 	)
 endif()
 

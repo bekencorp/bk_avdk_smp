@@ -2,11 +2,11 @@
 
 /*
  * Compatibility shim. The real implementation moved to
- *   ap/components/bk_bluetooth/bt_dm/ble/gatt/dm_gatts.{c,h}
+ *   ap/components/bk_bluetooth/service/dm/ble/gatt/dm_gatts.{c,h}
  * Existing AT-layer code that still calls bk_at_dm_gatts_* keeps working
  * through the macros below.
  */
-#include "../../bt_dm/ble/gatt/dm_gatts.h"
+#include "../../service/dm/ble/gatt/dm_gatts.h"
 
 #if CONFIG_BT && CONFIG_BLE
 

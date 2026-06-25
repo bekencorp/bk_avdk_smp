@@ -39,7 +39,7 @@
 #include "components/bluetooth/bk_dm_bluetooth_types.h"
 #include "components/bluetooth/bk_dm_gap_ble_types.h"
 #include "components/bluetooth/bk_dm_gap_ble.h"
-#include "../bt/ble_boarding/ble_boarding.h"
+#include "../service/common/ble_boarding.h"
 
 #include "gatt/dm_gap_utils.h"
 #include "gatt/dm_gatt_connection.h"

@@ -25,17 +25,17 @@ set(srcs)
 if (CONFIG_BLUETOOTH)
 
     list(APPEND srcs
-        api/bt_main.c
+        core/bt_main.c
     )
 
 	if (CONFIG_BTDM_CONTROLLER_ONLY)
 		list(APPEND srcs
-			"hci/hal_hci_core.c"
-			"hci/hci_distinguish.c"
-			"hci/hci_parse.c"
+			"core/hci/hal_hci_core.c"
+			"core/hci/hci_distinguish.c"
+			"core/hci/hci_parse.c"
 			)
 		list(APPEND incs
-			hci
+			core/hci
 			)
 	endif()#CONFIG_BTDM_CONTROLLER_ONLY
 if(CONFIG_AT AND NOT CONFIG_AT_CMD)
@@ -100,37 +100,48 @@ endif()#CONFIG_AT
 		.
         )
 
-    list(APPEND srcs feat_config/bt_feature_config.c)
+    list(APPEND srcs core/feat_config/bt_feature_config.c)
 
     if (CONFIG_SOC_BK7259)
         list(APPEND srcs
-            soc/bk7259/bluetooth.c
+            core/soc/bk7259/bluetooth.c
             )
 	endif()
 
     if (CONFIG_BLUETOOTH_SUPPORT_IPC)
         list(APPEND srcs
-            ipc/src/bt_ipc_core.c
-            ipc/src/bt_ipc_vendor_cmd_handler.c
+            core/ipc/src/bt_ipc_core.c
+            core/ipc/src/bt_ipc_vendor_cmd_handler.c
         )
         list(APPEND incs
-            ipc/include
+            core/ipc/include
         )
     endif()
 
     if (CONFIG_BLUETOOTH_SUPPORT_AP_PWD_ALL)
         list(APPEND srcs
-            adapter/ble_ipc_server.c
+            core/adapter/ble_ipc_server.c
         )
         list(APPEND incs
-            adapter
+            core/adapter
         )
+    endif()
+
+    # BLE boarding/provisioning (formerly the separate bt/ sub-component).
+    # ble_boarding.c: direct BLE implementation; dm_ble_boarding.c: DM-based.
+    # Both variants share ble_boarding.h, kept together under service/common.
+    if (CONFIG_BLE AND NOT CONFIG_BTDM_CONTROLLER_ONLY)
+        list(APPEND srcs
+            service/common/ble_boarding.c
+            service/common/dm_ble_boarding.c
+        )
+        list(APPEND incs service/common)
     endif()
 endif()
 
 if (CONFIG_CLI)
     list(APPEND srcs
-        api/bk_cli_ble.c
+        cli/bk_cli_ble.c
     )
 endif()
 

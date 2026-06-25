@@ -2,14 +2,14 @@
 
 /*
  * Compatibility shim. The real implementation moved to
- *   ap/components/bk_bluetooth/bt_dm/ble/gatt/dm_gattc.{c,h}
+ *   ap/components/bk_bluetooth/service/dm/ble/gatt/dm_gattc.{c,h}
  *
  * Note: the new dm_gattc_connect takes an additional s_timeout argument.
  * bk_at_dm_gattc_connect is provided as a static inline wrapper that
  * delegates to dm_gattc_connect_ext(NULL) (which itself falls back to
  * dm_gattc_connect with the historical 500ms supervision timeout).
  */
-#include "../../bt_dm/ble/gatt/dm_gattc.h"
+#include "../../service/dm/ble/gatt/dm_gattc.h"
 
 
 #if CONFIG_BT && CONFIG_BLE

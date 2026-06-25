@@ -2,7 +2,7 @@
 
 /*
  * Compatibility shim. The real implementation moved to
- *   ap/components/bk_bluetooth/bt_dm/ble/gatt/dm_gatt_connection.{c,h}
+ *   ap/components/bk_bluetooth/service/dm/ble/gatt/dm_gatt_connection.{c,h}
  * Existing AT-layer code that still calls bk_at_dm_ble_* keeps working
  * through the macros below.
  *
@@ -10,7 +10,7 @@
  * declared as uint8_t profile_id, while the new dm_ble_alloc_profile_data_by_addr
  * uses uint32_t profile_id. C implicit promotion handles the call sites safely.
  */
-#include "../../bt_dm/ble/gatt/dm_gatt_connection.h"
+#include "../../service/dm/ble/gatt/dm_gatt_connection.h"
 
 #if CONFIG_BT && CONFIG_BLE
 
