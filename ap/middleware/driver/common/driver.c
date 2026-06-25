@@ -250,6 +250,11 @@ int driver_early_init(void)
 	bk_ipi_driver_init();
 #endif
 
+	/* Keep AP UART/GPIO/ATE in driver_init for AP_EMUBOOT wait barrier; only WWDT driver init is early. */
+#if CONFIG_SUPPORT_WWDT
+	bk_wwdt_driver_init();
+#endif
+
     set_ap_startup_index(AP_EXIT_DRIVER_EARLY_INIT);
 	return 0;
 }
@@ -302,10 +307,6 @@ int driver_init(void) {
 	bk_task_wdt_driver_init();
 #endif
 
-#if CONFIG_SUPPORT_WWDT
-	bk_wwdt_driver_init();
-#endif
-
 #if CONFIG_MAILBOX
 	extern bk_err_t ipc_init(void);
 	extern bk_err_t mb_ipc_init(void);
@@ -314,6 +315,11 @@ int driver_init(void) {
 	mb_ipc_init();
 #endif
 	bk_ipc_init();
+	bk_pm_mailbox_init();
+#if CONFIG_SLAVE_HEART_BEAT
+	extern bk_err_t mb_ipc_heartbeat_init(void);
+	mb_ipc_heartbeat_init();
+#endif
 #endif
 
 	os_show_memory_config_info();
