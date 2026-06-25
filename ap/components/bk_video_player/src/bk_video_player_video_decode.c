@@ -23,6 +23,61 @@
 
 #include "bk_video_player_thread_config.h"
 
+#define H264_NALU_TYPE_IDR       5U
+#define H264_NALU_HDR_TYPE(b)    ((uint8_t)((b) & 0x1FU))
+
+static bool video_player_h264_packet_contains_idr(const uint8_t *data, uint32_t len)
+{
+    if (data == NULL || len < 5U)
+    {
+        return false;
+    }
+
+    for (uint32_t i = 0; i + 3U < len; i++)
+    {
+        if (data[i] == 0x00U && data[i + 1U] == 0x00U)
+        {
+            uint32_t prefix = 0U;
+            if (data[i + 2U] == 0x01U)
+            {
+                prefix = 3U;
+            }
+            else if (i + 3U < len && data[i + 2U] == 0x00U && data[i + 3U] == 0x01U)
+            {
+                prefix = 4U;
+            }
+            if (prefix > 0U && i + prefix < len &&
+                H264_NALU_HDR_TYPE(data[i + prefix]) == H264_NALU_TYPE_IDR)
+            {
+                return true;
+            }
+        }
+    }
+
+    uint32_t pos = 0U;
+    uint32_t nalu_count = 0U;
+    while (pos + 4U < len && nalu_count < 32U)
+    {
+        uint32_t nalu_len = ((uint32_t)data[pos] << 24) |
+                            ((uint32_t)data[pos + 1U] << 16) |
+                            ((uint32_t)data[pos + 2U] << 8) |
+                            (uint32_t)data[pos + 3U];
+        pos += 4U;
+        if (nalu_len == 0U || nalu_len > (len - pos))
+        {
+            break;
+        }
+        if (H264_NALU_HDR_TYPE(data[pos]) == H264_NALU_TYPE_IDR)
+        {
+            return true;
+        }
+        pos += nalu_len;
+        nalu_count++;
+    }
+
+    return false;
+}
+
 #if CONFIG_BK_VIDEO_PLAYER_ENABLE_HW_H264_VIDEO_DECODER
 static bool video_player_is_hw_h264_gpu_decoder(const video_player_video_decoder_ops_t *ops)
 {
@@ -59,27 +114,6 @@ void video_player_fill_video_frame_meta(private_video_player_ctlr_t *controller,
         meta->pts_ms = out_buffer->pts;
         meta->payload_size = out_buffer->length;
     }
-
-    // #region agent log
-#if CONFIG_BK_VIDEO_PLAYER_ENABLE_HW_H264_VIDEO_DECODER
-    {
-        static uint32_t s_dbg_meta_cnt = 0;
-        if (s_dbg_meta_cnt < 5U)
-        {
-            video_player_video_decoder_ops_t *h264_tmpl = bk_video_player_get_hw_h264_decoder_ops();
-            const int ptr_eq = (active_decoder == h264_tmpl) ? 1 : 0;
-            const int decode_eq = (active_decoder != NULL && h264_tmpl != NULL &&
-                                   active_decoder->decode == h264_tmpl->decode) ? 1 : 0;
-            s_dbg_meta_cnt++;
-            LOGI("[DBG92bf62] hyp=A meta_fill n=%u active=%p tmpl=%p ptr_eq=%d decode_eq=%d "
-                      "out_fmt=%u w=%u h=%u pay=%u vid_fmt=%u\n",
-                      (unsigned)s_dbg_meta_cnt, active_decoder, h264_tmpl, ptr_eq, decode_eq,
-                      (unsigned)meta->output_format, (unsigned)meta->video.width, (unsigned)meta->video.height,
-                      (unsigned)meta->payload_size, (unsigned)controller->current_media_info.video.format);
-        }
-    }
-#endif
-    // #endregion
 }
 
 static uint64_t video_player_get_current_time_ms(private_video_player_ctlr_t *controller)
@@ -262,26 +296,24 @@ static void bk_video_player_video_decode_thread(void *arg)
                 {
                     if (drop_until_keyframe || too_late)
                     {
-                        
-                        if (!drop_until_keyframe)
-                        {
-                            LOGI("%s: GOP-aware catch-up ON (audio ahead), waiting for next keyframe, pts=%llu, cur_time_ms=%llu\n",
-                                    __func__, (unsigned long long)in_pts_ms, (unsigned long long)cur_time_ms);
-                        }
-                        drop_until_keyframe = true;
-                        if (controller->config.video.packet_buffer_free_cb != NULL && in_buffer_node->buffer.data != NULL)
-                        {
-                            controller->config.video.packet_buffer_free_cb(controller->config.user_data, &in_buffer_node->buffer);
-                        }
-                        buffer_pool_put_empty(&controller->video_pipeline.parser_to_decode_pool, in_buffer_node);
-                        continue;
-                        
+                        const bool is_h264_idr =
+                            (controller->current_media_info.video.format == VIDEO_PLAYER_VIDEO_FORMAT_H264) &&
+                            video_player_h264_packet_contains_idr(in_buffer_node->buffer.data,
+                                                                  in_buffer_node->buffer.length);
 
-                        if (drop_until_keyframe)
+                        if (is_h264_idr)
                         {
-                            LOGI("%s: GOP-aware catch-up OFF on keyframe, resuming decode at pts=%llu (cur_time_ms=%llu)\n",
-                                 __func__, (unsigned long long)in_pts_ms, (unsigned long long)cur_time_ms);
                             drop_until_keyframe = false;
+                        }
+                        else
+                        {
+                            drop_until_keyframe = true;
+                            if (controller->config.video.packet_buffer_free_cb != NULL && in_buffer_node->buffer.data != NULL)
+                            {
+                                controller->config.video.packet_buffer_free_cb(controller->config.user_data, &in_buffer_node->buffer);
+                            }
+                            buffer_pool_put_empty(&controller->video_pipeline.parser_to_decode_pool, in_buffer_node);
+                            continue;
                         }
                         /* fall through and decode this keyframe -- better to
                          * show a slightly-late IDR than to wait a whole GOP for
@@ -292,8 +324,6 @@ static void bk_video_player_video_decode_thread(void *arg)
                 {
                     if (too_late)
                     {
-                        LOGI("%s: Dropping packet before decode, pts=%llu, cur_time_ms=%llu\n",
-                             __func__, (unsigned long long)in_pts_ms, (unsigned long long)cur_time_ms);
                         if (controller->config.video.packet_buffer_free_cb != NULL && in_buffer_node->buffer.data != NULL)
                         {
                             controller->config.video.packet_buffer_free_cb(controller->config.user_data, &in_buffer_node->buffer);
@@ -465,7 +495,6 @@ static void bk_video_player_video_decode_thread(void *arg)
                     if (!(seek_drop_enable && out_buffer.pts < seek_drop_until_pts_ms) &&
                         cur_time_ms > 0 && out_buffer.pts + drop_threshold_ms < cur_time_ms)
                     {
-                        LOGI("%s %d: Dropping frame, pts=%llu, cur_time_ms=%llu\n", __func__, __LINE__, (unsigned long long)out_buffer.pts, (unsigned long long)cur_time_ms);
                         if (!handed_to_user && controller->config.video.buffer_free_cb != NULL)
                         {
                             controller->config.video.buffer_free_cb(controller->config.user_data, &out_buffer);
@@ -788,7 +817,8 @@ avdk_err_t bk_video_player_video_decoder_list_add(private_video_player_ctlr_t *c
     new_node->ops = decoder_ops;
 #if CONFIG_BK_VIDEO_PLAYER_ENABLE_HW_H264_VIDEO_DECODER
     new_node->enable_predecode_gop_drop =
-        (decoder_ops == bk_video_player_get_hw_h264_decoder_ops());
+        (decoder_ops == bk_video_player_get_hw_h264_decoder_ops() ||
+         decoder_ops == bk_video_player_get_hw_h264_decoder_frame_ops());
 #else
     new_node->enable_predecode_gop_drop = false;
 #endif

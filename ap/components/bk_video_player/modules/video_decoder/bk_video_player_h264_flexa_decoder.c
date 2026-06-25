@@ -105,6 +105,30 @@
  #define H264_NALU_TYPE_AUD         9
  
  #define H264_NALU_HDR_TYPE(b)      ((uint8_t)((b) & 0x1FU))
+
+static bool hw_h264_is_valid_nal_type(uint8_t type)
+{
+    /*
+     * H.264 NAL type 0 is unspecified and 24..31 are not valid AVC stream NALs
+     * (they are used by RTP packetization modes). The hardware decoder can
+     * corrupt the coded-stream slab after repeated malformed AU submissions.
+     */
+    return (type >= 1U && type <= 23U);
+}
+
+static void hw_h264_decoder_release_engine_prealloc(video_player_buffer_t *out_buffer)
+{
+    if (out_buffer == NULL || out_buffer->data == NULL)
+    {
+        return;
+    }
+
+    bk_frame_buffer_free(out_buffer->data);
+    out_buffer->data = NULL;
+    out_buffer->frame_buffer = NULL;
+    out_buffer->length = 0;
+    out_buffer->pts = 0;
+}
  
  // Reasonable upper bound for SPS/PPS payload (a single SPS rarely exceeds 256 bytes).
  #define H264_PARAM_SET_MAX_SIZE    1024U
@@ -115,6 +139,13 @@
   * bursts than the bitstream length suggests. Padding the alloc absorbs any
   * over-read so the mem_slab tail magic word is not clobbered. */
  #define HW_H264_FRAME_BUF_SAFETY_PAD_BYTES   (128U)
+#define HW_H264_FRAME_BUF_ALIGN_BYTES        (64U)
+
+static inline uint32_t hw_h264_frame_buf_alloc_size(uint32_t payload_plus_pad)
+{
+    return (payload_plus_pad + HW_H264_FRAME_BUF_ALIGN_BYTES - 1U) &
+           ~(HW_H264_FRAME_BUF_ALIGN_BYTES - 1U);
+}
  
  // ---------------------------------------------------------------------------
  // Flexa + GPU pipeline tunables
@@ -490,7 +521,8 @@ static video_player_video_decoder_ops_t s_ops_template;
         ctx->annexb_buf_size = 0;
     }
 
-    const uint32_t alloc_size = need + HW_H264_FRAME_BUF_SAFETY_PAD_BYTES;
+    const uint32_t alloc_size = hw_h264_frame_buf_alloc_size(
+        need + HW_H264_FRAME_BUF_SAFETY_PAD_BYTES);
     ctx->annexb_buf = (uint8_t *)bk_frame_buffer_malloc(MEM_SLAB_HEAP_CODED, alloc_size);
     if (ctx->annexb_buf == NULL)
     {
@@ -543,6 +575,7 @@ static avdk_err_t hw_h264_avcc_to_annexb(hw_h264_decoder_ctx_t *ctx,
     bool has_idr = false;
     bool has_inband_sps = false;
     bool has_inband_pps = false;
+    bool has_invalid_nal = false;
     {
         uint32_t scan_in = 0;
         while (scan_in + length_size <= src_len)
@@ -555,11 +588,21 @@ static avdk_err_t hw_h264_avcc_to_annexb(hw_h264_decoder_ctx_t *ctx,
             scan_in += length_size;
             if (nalu_len == 0U || nalu_len > (src_len - scan_in)) break;
             const uint8_t type = H264_NALU_HDR_TYPE(src[scan_in]);
+            if (!hw_h264_is_valid_nal_type(type))
+            {
+                has_invalid_nal = true;
+                break;
+            }
             if (type == H264_NALU_TYPE_IDR) has_idr = true;
             else if (type == H264_NALU_TYPE_SPS) has_inband_sps = true;
             else if (type == H264_NALU_TYPE_PPS) has_inband_pps = true;
             scan_in += nalu_len;
         }
+    }
+
+    if (has_invalid_nal)
+    {
+        return AVDK_ERR_INVAL;
     }
 
     const bool sample_self_contained = (has_inband_sps && has_inband_pps);
@@ -589,6 +632,10 @@ static avdk_err_t hw_h264_avcc_to_annexb(hw_h264_decoder_ctx_t *ctx,
         if (nalu_len == 0U || nalu_len > (src_len - in))
         {
             LOGE("%s: bad NALU length=%u remaining=%u\n", __func__, nalu_len, src_len - in);
+            return AVDK_ERR_INVAL;
+        }
+        if (!hw_h264_is_valid_nal_type(H264_NALU_HDR_TYPE(src[in])))
+        {
             return AVDK_ERR_INVAL;
         }
 
@@ -1182,26 +1229,23 @@ static avdk_err_t hw_h264_decoder_decode(struct video_player_video_decoder_ops_s
     (void)out_fmt; /* GPU pipeline always emits compressed ARGB8888; the
                     * engine's requested format is ignored intentionally. */
 
-    const uint32_t t_total_start = rtos_get_time();
-    uint32_t t_annexb_done = t_total_start;
-    uint32_t t_h264_done = t_total_start;
-    uint32_t t_gpu_ready = t_total_start;
-
     /* Step 1: Annex-B prep (same as the frame-mode path). */
     uint8_t  *bs_data = in_buffer->data;
     uint32_t  bs_len  = in_buffer->length;
     bool      is_annexb_input = hw_h264_buffer_is_annex_b(in_buffer->data, in_buffer->length);
+    const bool need_inject_before = ctx->need_inject_params;
+    avdk_err_t ret = AVDK_ERR_OK;
 
     if (!is_annexb_input)
     {
         uint32_t cvt_len = 0;
-        avdk_err_t cvt_ret = hw_h264_avcc_to_annexb(ctx, in_buffer->data, in_buffer->length,
-                                                    /*inject_param_sets=*/ctx->need_inject_params,
-                                                    &cvt_len);
-        if (cvt_ret != AVDK_ERR_OK)
+        ret = hw_h264_avcc_to_annexb(ctx, in_buffer->data, in_buffer->length,
+                                     /*inject_param_sets=*/ctx->need_inject_params,
+                                     &cvt_len);
+        if (ret != AVDK_ERR_OK)
         {
-            LOGE("%s: AVCC->Annex-B conversion failed, ret=%d\n", __func__, cvt_ret);
-            return cvt_ret;
+            LOGE("%s: AVCC->Annex-B conversion failed, ret=%d\n", __func__, ret);
+            goto fail_release_prealloc;
         }
         bs_data = ctx->annexb_buf;
         bs_len  = cvt_len;
@@ -1209,20 +1253,28 @@ static avdk_err_t hw_h264_decoder_decode(struct video_player_video_decoder_ops_s
     else if (ctx->need_inject_params && ctx->sps_size > 0U && ctx->pps_size > 0U)
     {
         const uint32_t need = in_buffer->length + ctx->sps_size + ctx->pps_size + 16U;
-        avdk_err_t ret = hw_h264_ensure_annexb_buf(ctx, need);
-        if (ret != AVDK_ERR_OK) return ret;
+        ret = hw_h264_ensure_annexb_buf(ctx, need);
+        if (ret != AVDK_ERR_OK)
+        {
+            goto fail_release_prealloc;
+        }
         uint32_t out = 0;
         ret = hw_h264_append_nalu(ctx, &out, ctx->sps_data, ctx->sps_size);
         if (ret == AVDK_ERR_OK) ret = hw_h264_append_nalu(ctx, &out, ctx->pps_data, ctx->pps_size);
-        if (ret != AVDK_ERR_OK) return ret;
-        if (out + in_buffer->length > ctx->annexb_buf_size) return AVDK_ERR_NOMEM;
+        if (ret != AVDK_ERR_OK)
+        {
+            goto fail_release_prealloc;
+        }
+        if (out + in_buffer->length > ctx->annexb_buf_size)
+        {
+            ret = AVDK_ERR_NOMEM;
+            goto fail_release_prealloc;
+        }
         os_memcpy(&ctx->annexb_buf[out], in_buffer->data, in_buffer->length);
         bs_data = ctx->annexb_buf;
         bs_len  = out + in_buffer->length;
         ctx->need_inject_params = false;
     }
-    t_annexb_done = rtos_get_time();
-
     /* Step 2: Submit the AU to the H.264 IP. In Flexa mode the call is
     * relatively quick -- the IP streams segments to the GPU asynchronously.
     * The "out_buffer" inside the H264 input is the HSRAM Flexa ring. */
@@ -1232,26 +1284,27 @@ static avdk_err_t hw_h264_decoder_decode(struct video_player_video_decoder_ops_s
     in.out_buffer      = ctx->flexa_pp_buf;
     in.out_buffer_size = ctx->flexa_pp_size;
 
-    avdk_err_t ret = bk_h264_decode_frame(ctx->h264_handle, &in);
-    t_h264_done = rtos_get_time();
+    ret = bk_h264_decode_frame(ctx->h264_handle, &in);
     if (ret != AVDK_ERR_OK)
     {
-        LOGE("%s: bk_h264_decode_frame failed, ret=%d (bs_len=%u)\n",
-            __func__, ret, bs_len);
+        LOGE("%s: bk_h264_decode_frame failed, ret=%d (bs_len=%u, pts=%llu, annexb_idr=%u, need_inj_before=%u)\n",
+            __func__, ret, bs_len, (unsigned long long)in_buffer->pts,
+            (unsigned)(hw_h264_au_contains_idr_annexb(bs_data, bs_len) ? 1U : 0U),
+            (unsigned)(need_inject_before ? 1U : 0U));
         ctx->need_inject_params = true; /* re-feed SPS/PPS if playback continues */
-        return ret;
+        goto fail_release_prealloc;
     }
 
     /* Step 3: Wait for the GPU's frame_display callback. */
     int sem_ret = rtos_get_semaphore(&ctx->frame_ready_sem,
                                     H264_DECODER_FRAME_TIMEOUT_MS);
-    t_gpu_ready = rtos_get_time();
     if (sem_ret != BK_OK)
     {
         LOGE("%s: gpu frame_ready timeout after %u ms (sem_ret=%d)\n",
             __func__, H264_DECODER_FRAME_TIMEOUT_MS, sem_ret);
         ctx->need_inject_params = true;
-        return AVDK_ERR_TIMEOUT;
+        ret = AVDK_ERR_TIMEOUT;
+        goto fail_release_prealloc;
     }
 
     void    *gpu_frame      = NULL;
@@ -1259,31 +1312,25 @@ static avdk_err_t hw_h264_decoder_decode(struct video_player_video_decoder_ops_s
     if (!h264_decoder_pop_pending(ctx, &gpu_frame, &gpu_frame_size) || gpu_frame == NULL)
     {
         LOGE("%s: sem signaled but no frame in queue\n", __func__);
-        return AVDK_ERR_GENERIC;
+        ret = AVDK_ERR_GENERIC;
+        goto fail_release_prealloc;
     }
 
     /* Drop unused engine pre-alloc; GPU path replaces data with its own frame buffer. */
-    if (out_buffer->data != NULL)
-    {
-        bk_frame_buffer_free(out_buffer->data);
-        out_buffer->data = NULL;
-    }
+    hw_h264_decoder_release_engine_prealloc(out_buffer);
 
     out_buffer->data   = (uint8_t *)gpu_frame;
     out_buffer->length = gpu_frame_size;
     out_buffer->pts    = in_buffer->pts;
 
-    LOGI("%s: timing pts=%llu bs=%u annexb=%u h264=%u gpu_wait=%u total=%u\n",
-        __func__, (unsigned long long)in_buffer->pts, (unsigned)bs_len,
-        (unsigned)(t_annexb_done - t_total_start),
-        (unsigned)(t_h264_done - t_annexb_done),
-        (unsigned)(t_gpu_ready - t_h264_done),
-        (unsigned)(rtos_get_time() - t_total_start));
-
     LOGV("%s: out gpu frame=%p size=%u dim=%ux%u pts=%llu\n",
         __func__, gpu_frame, (unsigned)gpu_frame_size,
         ctx->out_w, ctx->out_h, (unsigned long long)in_buffer->pts);
     return AVDK_ERR_OK;
+
+fail_release_prealloc:
+    hw_h264_decoder_release_engine_prealloc(out_buffer);
+    return ret;
 }
 
 // ---------------------------------------------------------------------------

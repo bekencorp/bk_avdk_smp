@@ -20,6 +20,11 @@
 
 #define VIDEO_RECORDER_AUDIO_BURST_MAX    (8)
 
+#define VIDEO_RECORDER_H264_NAL_TYPE_IDR  5U
+#define VIDEO_RECORDER_H264_NAL_TYPE_MIN  1U
+#define VIDEO_RECORDER_H264_NAL_TYPE_MAX  23U
+#define VIDEO_RECORDER_H264_NAL_TYPE(b)   ((uint8_t)((b) & 0x1FU))
+
 void *video_recorder_psram_malloc(uint32_t size)
 {
     return psram_malloc(size);
@@ -28,6 +33,70 @@ void *video_recorder_psram_malloc(uint32_t size)
 void video_recorder_psram_free(void *ptr)
 {
     psram_free(ptr);
+}
+
+static bool video_recorder_h264_nal_type_valid(uint8_t type)
+{
+    return (type >= VIDEO_RECORDER_H264_NAL_TYPE_MIN &&
+            type <= VIDEO_RECORDER_H264_NAL_TYPE_MAX);
+}
+
+static bool video_recorder_h264_annexb_au_is_valid(const uint8_t *data,
+                                                   uint32_t length,
+                                                   bool *out_has_idr)
+{
+    if (out_has_idr != NULL)
+    {
+        *out_has_idr = false;
+    }
+    if (data == NULL || length < 5U)
+    {
+        return false;
+    }
+
+    bool found_nal = false;
+    uint32_t pos = 0;
+    while (pos + 3U < length)
+    {
+        uint32_t prefix = 0;
+        if (pos + 4U < length &&
+            data[pos] == 0x00U && data[pos + 1U] == 0x00U &&
+            data[pos + 2U] == 0x00U && data[pos + 3U] == 0x01U)
+        {
+            prefix = 4U;
+        }
+        else if (data[pos] == 0x00U && data[pos + 1U] == 0x00U &&
+                 data[pos + 2U] == 0x01U)
+        {
+            prefix = 3U;
+        }
+
+        if (prefix == 0U)
+        {
+            pos++;
+            continue;
+        }
+
+        const uint32_t nal_pos = pos + prefix;
+        if (nal_pos >= length)
+        {
+            break;
+        }
+
+        const uint8_t nal_type = VIDEO_RECORDER_H264_NAL_TYPE(data[nal_pos]);
+        if (!video_recorder_h264_nal_type_valid(nal_type))
+        {
+            return false;
+        }
+        if (nal_type == VIDEO_RECORDER_H264_NAL_TYPE_IDR && out_has_idr != NULL)
+        {
+            *out_has_idr = true;
+        }
+        found_nal = true;
+        pos = nal_pos + 1U;
+    }
+
+    return found_nal;
 }
 
 // Recording thread function
@@ -182,7 +251,26 @@ static void video_recorder_thread(void *arg)
                 ret = controller->config.get_frame_cb(controller->config.user_data, &frame_data);
                 if (ret == 0 && frame_data.data != NULL && frame_data.length > 0)
                 {
+                    bool h264_has_idr = false;
+                    if (controller->config.record_format == VIDEO_RECORDER_FORMAT_H264 &&
+                        !video_recorder_h264_annexb_au_is_valid(frame_data.data,
+                                                                frame_data.length,
+                                                                &h264_has_idr))
+                    {
+                        if (controller->config.release_frame_cb != NULL)
+                        {
+                            controller->config.release_frame_cb(controller->config.user_data, &frame_data);
+                        }
+                        os_memset(&frame_data, 0, sizeof(frame_data));
+                        processed = true;
+                        continue;
+                    }
+
                     controller->last_is_key_frame = (frame_data.is_key_frame != 0);
+                    if (h264_has_idr)
+                    {
+                        controller->last_is_key_frame = true;
+                    }
                     if (controller->config.record_format == VIDEO_RECORDER_FORMAT_H264 &&
                         !controller->video_idr_started)
                     {

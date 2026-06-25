@@ -1,67 +1,177 @@
-# Video Recorder and Player Sample Project (video_player_example)
+# Video Recorder and Player Sample Project
 
 * [中文](./README_CN.md)
 
-## Hardware requirements
+This project demonstrates the end-to-end multimedia file pipeline on BK7259:
 
-- **SoC/board**: BK7258 series (this project uses `bk7258` as the build/run example)
-- **Storage**: SD card (FATFS/FAT32 recommended), mount point `/sd0`
-- **Display**: RGB LCD (the sample uses `st7282`, 480x272 by default)
-- **Camera**: DVP camera (sample logs use `gc2145` as an example; must match project configuration)
-- **Audio**: onboard microphone + onboard speaker
+- Record camera video and microphone audio to SD card files.
+- Play AVI/MP4 files from SD card.
+- Display video on the LCD panel.
+- Output audio through the onboard speaker.
 
+## Hardware Requirements
 
-## Related documentation
+- **SoC/board**: BK7259 series.
+- **Storage**: SD card with FATFS/FAT32, mounted at `/sd0`.
+- **Display**: MIPI LCD panel configured by the board profile.
+- **Camera**: MIPI camera configured by the board profile.
+- **Audio**: onboard microphone and onboard speaker.
 
-* For detailed information about video file recording/playback, please refer to:
+The exact sensor, panel, resolution, and frame rate come from the project board configuration.
 
-  - [Video File Recording](../../../developer-guide/multimedia/video_file_recording.html)
-  - [Video File Playback](../../../developer-guide/multimedia/video_file_playback.html)
+## Build
 
-* For API reference about video file recording/playback, please refer to:
+Build the example:
 
-  - [Video Recorder API](../../../api-reference/multimedia/bk_video_record.html)
-  - [Video Player API](../../../api-reference/multimedia/bk_video_player.html)
+```bash
+make bk7259 PROJECT=multimedia/video_player_example
+```
 
-## Video recorder and player
+After flashing, send CLI commands through UART:
 
-This project provides CLI test commands for both player and recorder:
+```bash
+ap_cmd <command>
+```
 
-- **Player**: `video_play_engine` (engine layer) and `video_play_playlist` (playlist layer with play mode)
-- **Recorder**: `video_record`
+Successful commands return `CMDRSP:OK`; failed commands return `CMDRSP:ERROR`.
 
-### Player (video_play_engine / video_play_playlist)
+## CLI Overview
 
-This project provides two playback control layers:
+This project provides three CLI command groups:
 
-- **Engine layer**: `video_play_engine`, directly controls `bk_video_player_engine` for pipeline validation.
-- **Playlist layer**: `video_play_playlist`, controls `bk_video_player_playlist` (playlist + play mode) for application-level control.
+- `video_record`: record camera and audio to a file.
+- `video_play_engine`: play one file through the player engine layer.
+- `video_play_playlist`: play files through the playlist layer.
 
-It supports AVI/MP4 containers, JPEG (MJPEG) video, and PCM/AAC audio (selected by file and decoder availability).
+## Recording
 
-#### Engine CLI (video_play_engine)
+Entry:
 
-Entry: `ap_cmd video_play_engine ...`
+```bash
+ap_cmd video_record ...
+```
 
-- `start [file_path]`
-- `stop`
-- `pause` / `resume`
-- `seek <time_ms>`
-- `ff <time_ms>` / `rewind <time_ms>`
-- `avsync <offset_ms>`: set A/V sync offset in ms (range [-5000, 5000])
-- `volume <0-100>` / `vol_up <step>` / `vol_down <step>`
-- `mute <on|off>`
-- `status`
-- `info [file_path]`: query media information (can be used before playback)
+Usage:
+
+```bash
+ap_cmd video_record start [file_path] [width] [height] [mjpeg|h264] [avi|mp4] [pcm|aac|g711a|g711u|g722]
+ap_cmd video_record stop
+```
+
+Parameters:
+
+- `file_path`: output file path. Default is `/sd0/record.avi`.
+- `width height`: recording resolution. Default is `480 320`.
+- `mjpeg`: record MJPEG video. This is the default video format.
+- `h264`: record H.264 video.
+- `avi`: force AVI container.
+- `mp4`: force MP4 container.
+- `pcm`: record PCM audio. This is the default audio format.
+- `aac`: record AAC audio.
+- `g711a`, `g711u`, `g722`: record the selected compressed audio format.
+
+Container selection rules:
+
+- MJPEG defaults to AVI unless `mp4` is specified.
+- H.264 defaults to MP4. If the output path ends in `.avi`, the suffix is changed to `.mp4`.
+- H.264 can be forced into AVI by passing `avi`, but MP4 is the recommended container.
 
 Examples:
 
 ```bash
-ap_cmd video_play_engine start /sd0/record.mp4
-ap_cmd video_play_engine info /sd0/record.mp4
+# MJPEG + AVI + PCM
+ap_cmd video_record start /sd0/recordmjpeg.avi 640 480 mjpeg
+
+# MJPEG + AVI + G.711 A-law
+ap_cmd video_record start /sd0/recordmjpeg.avi 640 480 mjpeg g711a
+
+# MJPEG + MP4 + AAC
+ap_cmd video_record start /sd0/recordmjpeg.mp4 640 480 mjpeg mp4 aac
+
+# H.264 + MP4 + PCM, 1080p
+ap_cmd video_record start /sd0/record1080.mp4 1920 1080 h264
+
+# Stop recording
+ap_cmd video_record stop
+```
+
+Recording notes:
+
+- The CLI does not currently expose a separate FPS argument.
+- `record_framerate` is taken from the configured camera sensor FPS.
+- The recorder has internal frame-rate limiting based on `record_framerate`.
+- Recording automatically stops after the configured maximum duration, currently 5 minutes.
+- For H.264, the recorder waits for the first IDR frame before starting the recording timeline.
+- For H.264, invalid AnnexB access units are dropped before writing, so incomplete or malformed frames are not written into the container.
+- The recorder tries to mount the SD card before starting. Make sure the card is inserted and writable.
+- Recording uses camera, encoder, SD card, audio, and display resources. Stop conflicting services before recording.
+
+## Playback
+
+The player supports AVI/MP4 containers, MJPEG video, H.264 video, and supported audio formats based on the enabled decoders.
+
+### Engine CLI
+
+Entry:
+
+```bash
+ap_cmd video_play_engine ...
+```
+
+Usage:
+
+```bash
+ap_cmd video_play_engine start [file_path] [frame|gpu|flexa] [norotate|rotate90|rotate270]
+ap_cmd video_play_engine stop
+ap_cmd video_play_engine pause
+ap_cmd video_play_engine resume
+ap_cmd video_play_engine seek <time_ms>
+ap_cmd video_play_engine ff <time_ms>
+ap_cmd video_play_engine rewind <time_ms>
+ap_cmd video_play_engine avsync <offset_ms>
+ap_cmd video_play_engine volume <0-100>
+ap_cmd video_play_engine vol_up <step>
+ap_cmd video_play_engine vol_down <step>
+ap_cmd video_play_engine mute <on|off>
+ap_cmd video_play_engine status
+ap_cmd video_play_engine info [file_path]
+```
+
+H.264 decoder mode:
+
+- `flexa` or `gpu`: H.264 Flexa/GPU bonded path. This is the default.
+- `frame`: H.264 frame decoder path.
+
+Rotation:
+
+- `norotate` or `rotate0`: no rotation.
+- `rotate90`, `rot90`, or `r90`: rotate 90 degrees.
+- `rotate270`, `rot270`, or `r270`: rotate 270 degrees.
+
+Examples:
+
+```bash
+# Play MP4/H.264 with default Flexa GPU decoder
+ap_cmd video_play_engine start /sd0/record1080.mp4
+
+# Play MP4/H.264 with Flexa GPU decoder and rotate 90 degrees
+ap_cmd video_play_engine start /sd0/record1080.mp4 flexa rotate90
+
+# Play MP4/H.264 with frame decoder and rotate 90 degrees
+ap_cmd video_play_engine start /sd0/record1080.mp4 frame rotate90
+
+# Play MJPEG AVI and rotate 90 degrees
+ap_cmd video_play_engine start /sd0/recordmjpeg1080.avi rotate90
+
+# Query file information
+ap_cmd video_play_engine info /sd0/record1080.mp4
+
+# Playback controls
+ap_cmd video_play_engine pause
+ap_cmd video_play_engine resume
+ap_cmd video_play_engine seek 5000
 ap_cmd video_play_engine ff 3000
 ap_cmd video_play_engine rewind 3000
-ap_cmd video_play_engine seek 500
 ap_cmd video_play_engine avsync -200
 ap_cmd video_play_engine volume 80
 ap_cmd video_play_engine mute on
@@ -69,127 +179,95 @@ ap_cmd video_play_engine mute off
 ap_cmd video_play_engine stop
 ```
 
-#### Playlist CLI (video_play_playlist)
+Playback notes:
 
-Entry: `ap_cmd video_play_playlist ...`
+- The Flexa/GPU path outputs compressed ARGB8888 for display.
+- The H.264 frame path outputs NV12 from the decoder. When rotate90 or rotate270 is requested, the example applies full-frame GPU post-processing before display.
+- MJPEG rotate90/rotate270 also uses the common full-frame GPU post-processing path.
+- If video decoding is slower than the audio clock, the player may drop video frames to keep A/V sync.
+- H.264 catch-up waits for the next IDR frame before resuming decode, which avoids resuming from a broken P-frame reference chain.
 
-Notes:
+### Playlist CLI
 
-- **Call `start` before `add`**. Otherwise you will see `Video player playlist not started`.
-- `next/prev/play` switches tracks. To avoid stale buffered audio, the **playlist layer** performs an audio output reset inside the switching APIs via the external `audio_output_reset_cb` (stop + flush + start).
-
-Common commands:
-
-- `start [file_path]`
-- `stop`
-- `pause` / `resume`
-- `add <file_path>` / `remove <file_path>` / `clear`
-- `next` / `prev`
-- `play <file_path|index>`
-- `list`
-- `status`
-- `seek <time_ms>`
-- `ff <time_ms>` / `rewind <time_ms>`
-- `avsync <offset_ms>`: set A/V sync offset in ms (range [-5000, 5000])
-- `info [file_path]`
-- `play_mode <stop|repeat|loop>`
-- `volume <0-100>` / `vol_up <step>` / `vol_down <step>`
-- `mute <on|off>`
-
-Example (playlist + loop):
+Entry:
 
 ```bash
-ap_cmd video_play_playlist start /sd0/record.mp4
-ap_cmd video_play_playlist add /sd0/record.avi
-ap_cmd video_play_playlist play_mode loop
-ap_cmd video_play_playlist avsync -200
+ap_cmd video_play_playlist ...
+```
+
+Usage:
+
+```bash
+ap_cmd video_play_playlist start [file_path]
+ap_cmd video_play_playlist stop
+ap_cmd video_play_playlist pause
+ap_cmd video_play_playlist resume
+ap_cmd video_play_playlist add <file_path>
+ap_cmd video_play_playlist remove <file_path>
+ap_cmd video_play_playlist clear
 ap_cmd video_play_playlist next
+ap_cmd video_play_playlist prev
+ap_cmd video_play_playlist play <file_path|index>
+ap_cmd video_play_playlist list
+ap_cmd video_play_playlist status
+ap_cmd video_play_playlist seek <time_ms>
+ap_cmd video_play_playlist ff <time_ms>
+ap_cmd video_play_playlist rewind <time_ms>
+ap_cmd video_play_playlist avsync <offset_ms>
+ap_cmd video_play_playlist info [file_path]
+ap_cmd video_play_playlist play_mode <stop|repeat|loop>
+ap_cmd video_play_playlist volume <0-100>
+ap_cmd video_play_playlist vol_up <step>
+ap_cmd video_play_playlist vol_down <step>
+ap_cmd video_play_playlist mute <on|off>
 ```
-
-Troubleshooting:
-
-- `Video player playlist not started`
-  - Cause: `video_play_playlist add/remove/next/...` is called before `start`.
-  - Fix: run `ap_cmd video_play_playlist start [file_path]` first.
-- Audio tail / lag after repeatedly sending `next`
-  - Symptom: `voice_write_task_main: voice write start N` grows and perceived audio lags behind video.
-  - Fix: clear voice_write internal buffer during switching (stop + flush + start). This is integrated in the example project.
-
-### Recorder (video_record)
-
-The `video_record` CLI records **DVP camera video + microphone audio** into a file on the SD card.
-
-- **Container**: AVI (default) / MP4 (by keyword)
-- **Video encoding**: MJPEG (default) / H264 (by keyword)
-- **Audio**: PCM (default) / AAC (enable by `aac`)
-- **Preview**: YUV frames can be flushed to LCD during recording
-
-Entry: `ap_cmd video_record ...`
-
-Start recording:
-
-```bash
-ap_cmd video_record start [file_path] [width] [height] [format] [type]
-```
-
-Stop recording:
-
-```bash
-ap_cmd video_record stop
-```
-
-Start parameters:
-
-- **file_path**: output path, default `/sd0/record.avi`
-- **width/height**: resolution, default `480 320`
-- **format**: video format keyword
-  - `mjpeg` / `jpeg`: MJPEG
-  - `h264`: H264
-- **type**: container keyword
-  - `mp4`: MP4 container (auto replaces `.avi` suffix with `.mp4`)
-  - omitted: AVI container
-- **aac**: enable AAC audio encoding
 
 Examples:
 
-1) AVI + MJPEG + PCM (default):
-
 ```bash
-ap_cmd video_record start /sd0/record.avi 480 320 mjpeg
+ap_cmd video_play_playlist start /sd0/record1080.mp4
+ap_cmd video_play_playlist add /sd0/recordmjpeg.avi
+ap_cmd video_play_playlist play_mode loop
+ap_cmd video_play_playlist next
+ap_cmd video_play_playlist prev
+ap_cmd video_play_playlist stop
 ```
 
-2) AVI + MJPEG + AAC:
+Playlist notes:
+
+- Call `start` before `add`, `remove`, `next`, `prev`, or `play`.
+- If `add` is called before `start`, the command reports `Video player playlist not started`.
+- Track switching resets audio output in the example to avoid stale buffered audio.
+
+## Common Workflows
+
+Record H.264 1080p and play it back:
 
 ```bash
-ap_cmd video_record start /sd0/record.avi 480 320 mjpeg aac
+ap_cmd video_record start /sd0/record1080.mp4 1920 1080 h264
+ap_cmd video_record stop
+ap_cmd video_play_engine start /sd0/record1080.mp4 flexa rotate90
 ```
 
-3) MP4 + MJPEG + AAC:
+Record MJPEG 1080p AVI and play it back:
 
 ```bash
-ap_cmd video_record start /sd0/record.mp4 480 320 mjpeg mp4 aac
+ap_cmd video_record start /sd0/recordmjpeg1080.avi 1920 1080 mjpeg avi
+ap_cmd video_record stop
+ap_cmd video_play_engine start /sd0/recordmjpeg1080.avi rotate90
 ```
 
-Notes:
+## Troubleshooting
 
-- The recorder tries to mount the SD card before starting. Ensure the SD card and filesystem are ready.
-- To avoid blocking in the DVP callback, encoded frames are pushed into a queue and consumed by the recording thread. If the queue is full, frames are dropped and statistics are printed periodically.
-- Recording consumes DVP/LCD/voice resources. If other voice services are running, they may conflict; stop them before recording.
+- `CMDRSP:ERROR`: check the detailed UART log before the response.
+- SD mount failure: confirm the SD card is inserted, formatted, and mounted as `/sd0`.
+- Recording stops early: check the auto-stop timer and SD card write errors.
+- Playback is choppy: 1080p H.264/MJPEG with rotation is expensive; the player may drop frames to keep audio synchronized.
+- Playlist command reports `Video player playlist not started`: run `video_play_playlist start` first.
 
-## Project Notes
+## Related Documentation
 
-This is the `video_player_example` project, which demonstrates the end-to-end pipeline of **recording (`video_record`) and playback (`video_play_engine` / `video_play_playlist`)** (SD card file + demux/decoder + LCD display + audio output).
-
-## Build and Run
-
-Build:
-
-```bash
-make bk7258 PROJECT=video_player_example
-```
-
-Run:
-
-- After flashing, use UART CLI to run `ap_cmd video_record ...`, `ap_cmd video_play_engine ...`, `ap_cmd video_play_playlist ...`
-- Success: `CMDRSP:OK`
-- Failure: `CMDRSP:ERROR`
+- [Video File Recording](../../../developer-guide/multimedia/video_file_recording.html)
+- [Video File Playback](../../../developer-guide/multimedia/video_file_playback.html)
+- [Video Recorder API](../../../api-reference/multimedia/bk_video_record.html)
+- [Video Player API](../../../api-reference/multimedia/bk_video_player.html)

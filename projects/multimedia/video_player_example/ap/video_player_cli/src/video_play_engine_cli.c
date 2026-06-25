@@ -84,6 +84,19 @@ static video_play_lcd_video_fmt_t video_play_engine_lcd_format_for_h264_decoder(
         : VIDEO_PLAY_LCD_VIDEO_FMT_ARGB8888_COMPRESSED;
 }
 
+static bool video_play_engine_is_rotate_option(const char *arg)
+{
+    return (arg != NULL &&
+            (os_strcmp(arg, "rotate90") == 0 ||
+             os_strcmp(arg, "rot90") == 0 ||
+             os_strcmp(arg, "r90") == 0 ||
+             os_strcmp(arg, "rotate270") == 0 ||
+             os_strcmp(arg, "rot270") == 0 ||
+             os_strcmp(arg, "r270") == 0 ||
+             os_strcmp(arg, "rotate0") == 0 ||
+             os_strcmp(arg, "norotate") == 0));
+}
+
 static bool video_play_engine_parse_h264_decoder_mode(int argc,
                                                       char **argv,
                                                       video_play_engine_h264_decoder_mode_t *mode)
@@ -94,7 +107,7 @@ static bool video_play_engine_parse_h264_decoder_mode(int argc,
     }
 
     *mode = VIDEO_PLAY_ENGINE_H264_DECODER_FLEXA_GPU;
-    if (argc < 4)
+    if (argc < 4 || video_play_engine_is_rotate_option(argv[3]))
     {
         return true;
     }
@@ -131,38 +144,49 @@ static bool video_play_engine_parse_rotate_mode(int argc,
     }
 
     *rotate_mode = VIDEO_PLAY_ROTATE_NONE;
-    if (argc < 5)
+    if (argc < 4)
     {
         return true;
     }
 
-    if (argc > 5)
+    const int rotate_arg_idx = video_play_engine_is_rotate_option(argv[3]) ? 3 : 4;
+    if (argc <= rotate_arg_idx)
+    {
+        return true;
+    }
+
+    if (argc > rotate_arg_idx + 1)
     {
         LOGE("%s: too many start options, usage: start <file_path> [frame|gpu|flexa] [norotate|rotate90|rotate270]\n",
              __func__);
         return false;
     }
 
-    if (os_strcmp(argv[4], "rotate90") == 0 || os_strcmp(argv[4], "rot90") == 0 || os_strcmp(argv[4], "r90") == 0)
+    if (os_strcmp(argv[rotate_arg_idx], "rotate90") == 0 ||
+        os_strcmp(argv[rotate_arg_idx], "rot90") == 0 ||
+        os_strcmp(argv[rotate_arg_idx], "r90") == 0)
     {
         *rotate_mode = VIDEO_PLAY_ROTATE_90;
         return true;
     }
 
-    if (os_strcmp(argv[4], "rotate270") == 0 || os_strcmp(argv[4], "rot270") == 0 || os_strcmp(argv[4], "r270") == 0)
+    if (os_strcmp(argv[rotate_arg_idx], "rotate270") == 0 ||
+        os_strcmp(argv[rotate_arg_idx], "rot270") == 0 ||
+        os_strcmp(argv[rotate_arg_idx], "r270") == 0)
     {
         *rotate_mode = VIDEO_PLAY_ROTATE_270;
         return true;
     }
 
-    if (os_strcmp(argv[4], "rotate0") == 0 || os_strcmp(argv[4], "norotate") == 0)
+    if (os_strcmp(argv[rotate_arg_idx], "rotate0") == 0 ||
+        os_strcmp(argv[rotate_arg_idx], "norotate") == 0)
     {
         *rotate_mode = VIDEO_PLAY_ROTATE_NONE;
         return true;
     }
 
     LOGE("%s: unsupported rotate option '%s', usage: start <file_path> [frame|gpu|flexa] [norotate|rotate90|rotate270]\n",
-         __func__, argv[4]);
+         __func__, argv[rotate_arg_idx]);
     return false;
 }
 

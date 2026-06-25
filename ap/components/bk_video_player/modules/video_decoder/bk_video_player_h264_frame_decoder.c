@@ -28,6 +28,16 @@
 #define H264_FRAME_PAD_BYTES     128U
 #define H264_ALIGN_UP(v, a)      (((v) + ((a) - 1U)) & ~((a) - 1U))
 
+static bool hw_h264_frame_is_valid_nal_type(uint8_t type)
+{
+    /*
+     * H.264 NAL type 0 is unspecified and 24..31 are not valid AVC stream NALs
+     * (they are used by RTP packetization modes). Feeding these malformed AUs
+     * to the hardware decoder corrupts the coded-stream slab on this platform.
+     */
+    return (type >= 1U && type <= 23U);
+}
+
 typedef struct
 {
     bk_h264_decode_ctlr_handle_t hw_decoder_handle;
@@ -240,6 +250,7 @@ static avdk_err_t hw_h264_frame_avcc_to_annexb(hw_h264_decoder_frame_ctx_t *ctx,
     bool has_idr = false;
     bool has_inband_sps = false;
     bool has_inband_pps = false;
+    bool has_invalid_nal = false;
     uint32_t scan = 0;
     while (scan + length_size <= src_len)
     {
@@ -255,6 +266,11 @@ static avdk_err_t hw_h264_frame_avcc_to_annexb(hw_h264_decoder_frame_ctx_t *ctx,
         }
 
         const uint8_t type = H264_NALU_HDR_TYPE(src[scan]);
+        if (!hw_h264_frame_is_valid_nal_type(type))
+        {
+            has_invalid_nal = true;
+            break;
+        }
         if (type == H264_NALU_TYPE_IDR)
         {
             has_idr = true;
@@ -275,6 +291,11 @@ static avdk_err_t hw_h264_frame_avcc_to_annexb(hw_h264_decoder_frame_ctx_t *ctx,
                            ctx->sps_size > 0U &&
                            ctx->pps_size > 0U &&
                            !sample_self_contained;
+
+    if (has_invalid_nal)
+    {
+        return AVDK_ERR_INVAL;
+    }
 
     const uint32_t reserve = src_len + (src_len / 4U) + ctx->sps_size + ctx->pps_size + 32U;
     avdk_err_t ret = hw_h264_frame_ensure_annexb_buf(ctx, reserve);
@@ -308,6 +329,10 @@ static avdk_err_t hw_h264_frame_avcc_to_annexb(hw_h264_decoder_frame_ctx_t *ctx,
         in += length_size;
 
         if (nalu_len == 0U || nalu_len > (src_len - in))
+        {
+            return AVDK_ERR_INVAL;
+        }
+        if (!hw_h264_frame_is_valid_nal_type(H264_NALU_HDR_TYPE(src[in])))
         {
             return AVDK_ERR_INVAL;
         }
@@ -487,7 +512,10 @@ static avdk_err_t hw_h264_decoder_frame_init(struct video_player_video_decoder_o
 
     ctx->is_initialized = true;
     LOGI("%s: frame decoder initialized %ux%u length_size=%u\n",
-         __func__, params->width, params->height, ctx->nalu_length_size);
+         __func__,
+         params->width,
+         params->height,
+         ctx->nalu_length_size);
     return AVDK_ERR_OK;
 }
 
@@ -561,6 +589,7 @@ static avdk_err_t hw_h264_decoder_frame_decode(struct video_player_video_decoder
     uint8_t *bs_data = in_buffer->data;
     uint32_t bs_len = in_buffer->length;
     const bool is_annexb_input = hw_h264_frame_buffer_is_annex_b(in_buffer->data, in_buffer->length);
+    const bool need_inject_before = ctx->need_inject_params;
     avdk_err_t ret = AVDK_ERR_OK;
 
     if (!is_annexb_input)
@@ -615,7 +644,9 @@ static avdk_err_t hw_h264_decoder_frame_decode(struct video_player_video_decoder
     ret = bk_h264_decode_frame(ctx->hw_decoder_handle, &in);
     if (ret != AVDK_ERR_OK)
     {
-        LOGE("%s: bk_h264_decode_frame failed, ret=%d, bs_len=%u\n", __func__, ret, bs_len);
+        LOGE("%s: bk_h264_decode_frame failed, ret=%d, bs_len=%u, pts=%llu, need_inj_before=%u\n",
+             __func__, ret, bs_len, (unsigned long long)in_buffer->pts,
+             (unsigned)(need_inject_before ? 1U : 0U));
         out_buffer->length = 0;
         out_buffer->pts = in_buffer->pts;
         ctx->need_inject_params = true;
