@@ -360,6 +360,7 @@ void cli_wifi_hidden_ap_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
 
 		CLI_LOGD("ssid:%s  key:%s\r\n", ap_config.ssid, ap_config.password);
 		ap_config.hidden = true;
+		bk_wifi_ap_stop();
 		ret = bk_wifi_ap_set_config(&ap_config);
 		ret = bk_wifi_ap_start();
 	}
@@ -1151,6 +1152,7 @@ void cli_wifi_ap_vsie_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, ch
 	strncpy(ap_config.password, ap_key, WIFI_PASSWORD_LEN);
 
 	BK_LOGD(TAG, "ssid:%s  key:%s\r\n", ap_config.ssid, ap_config.password);
+	bk_wifi_ap_stop();
 	BK_LOG_ON_ERR(bk_wifi_ap_set_config(&ap_config));
 	BK_LOG_ON_ERR(bk_wifi_ap_start());
 
