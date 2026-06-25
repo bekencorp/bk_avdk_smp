@@ -2,6 +2,7 @@
 #include <components/system.h>
 #include <os/os.h>
 #include <components/shell_task.h>
+#include <stdint.h>
 #if CONFIG_BK_NETWORK_PROVISIONING_BLE_EXAMPLE
 #include "bk_network_provisioning.h"
 #endif
@@ -14,22 +15,22 @@
 #if CONFIG_FREERTOS_SMP
 static beken_semaphore_t app_semaphore;
 
-static void cpu1_test_task(void *arg)
+static void smp_test_task1(void *arg)
 {
-    BK_LOGD(NULL, "===cpu1_test_task===:\r\n");
+    BK_LOGD(NULL, "===smp_test_task1===:\r\n");
     for(;;) {
         rtos_get_semaphore(&app_semaphore, BEKEN_WAIT_FOREVER);
-        BK_LOGD(NULL, "cpu1_test_task run core: %d\r\n", rtos_get_core_id());
+        BK_LOGD(NULL, "smp_test_task1 run core: %d\r\n", rtos_get_core_id());
     }
 }
 
-static void cpu2_test_task(void *arg)
+static void smp_test_task2(void *arg)
 {
-    BK_LOGD(NULL, "cpu2_test_task run core: %d\r\n", rtos_get_core_id());
+    BK_LOGD(NULL, "smp_test_task2 run core: %d\r\n", rtos_get_core_id());
   
     for(;;) {
         rtos_set_semaphore(&app_semaphore);
-        BK_LOGD(NULL, "cpu2_test_task run core: %d\r\n", rtos_get_core_id());
+        BK_LOGD(NULL, "smp_test_task2 run core: %d\r\n", rtos_get_core_id());
         rtos_delay_milliseconds(1000);
     }
 }
@@ -48,12 +49,12 @@ void app_test_smp_core0(void)
     /* create a thread on core 0 */
     ret = rtos_core0_create_thread(&cpu1_thread,
                              BEKEN_DEFAULT_WORKER_PRIORITY,
-                             "cpu1_test_task",
-                             (beken_thread_function_t)cpu1_test_task,
+                             "smp_test_task1",
+                             (beken_thread_function_t)smp_test_task1,
                              2048,
                              0);
     if (ret != kNoErr) {
-        BK_LOGE(NULL, "Error: Failed to create cpu1_test_task: %d\r\n",ret);
+        BK_LOGE(NULL, "Error: Failed to create smp_test_task1: %d\r\n",ret);
     }
 }
 
@@ -65,15 +66,17 @@ void app_test_smp_core1(void)
     /* create a thread on core 1 */
     ret = rtos_core1_create_thread(&cpu2_thread,
                              BEKEN_DEFAULT_WORKER_PRIORITY,
-                             "cpu2_test_task",
-                             (beken_thread_function_t)cpu2_test_task ,
+                             "smp_test_task2",
+                             (beken_thread_function_t)smp_test_task2 ,
                              2048,
                              0);
     if (ret != kNoErr) {
-        BK_LOGE(NULL, "Error: Failed to create cpu2_test_task: %d\r\n",ret);
+        BK_LOGE(NULL, "Error: Failed to create smp_test_task2: %d\r\n",ret);
     }
 }
 #endif
+
+int32_t bk_sys_uart_write_string(uint32_t uart_id, const char *string);
 
 int main(void)
 {
@@ -99,6 +102,9 @@ extern int cli_network_provisioning_init(void);
 #if (BK_IPC_UT_TEST)
     bk_ipc_test_init();
 #endif
+
+    bk_printf("M55 main running...\r\n");
+
 
     return 0;
 }

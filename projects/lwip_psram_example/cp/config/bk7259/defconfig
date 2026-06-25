@@ -1,0 +1,7 @@
+#
+# Automatically generated project default config. You can update it with menuconfig [D] option.
+# This file contains only differences compared to board defconfig.
+#
+
+# PSRAM copy demo: enable AP buffer copy so CP exposes mem addresses for flow control.
+CONFIG_CONTROLLER_AP_BUFFER_COPY=y
