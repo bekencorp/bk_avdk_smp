@@ -787,4 +787,241 @@ void bk_cpu_hp_core_online(void)
 	_cpu1_wants_offline = 0;
 }
 
+#if CONFIG_CPU_HP_GOVERNOR
+
+/* Idle run-time counter (per core) lives in the FreeRTOS task additions and is
+ * only declared inside tasks.c, so we re-declare the prototype here. It is built
+ * because configGENERATE_RUN_TIME_STATS && INCLUDE_xTaskGetIdleTaskHandle. */
+extern configRUN_TIME_COUNTER_TYPE ulTaskGetIdleRunTimeCounterForCore(BaseType_t xCoreID);
+
+/* -------- Tunables (Kconfig with compile-time fallbacks) ------------------ */
+
+#define CPU_HP_GOV_PERIOD_MS       (CONFIG_CPU_HP_GOVERNOR_PERIOD_MS)
+#define CPU_HP_GOV_UP_TH           (CONFIG_CPU_HP_GOVERNOR_UP_THRESHOLD)
+#define CPU_HP_GOV_DOWN_TH         (CONFIG_CPU_HP_GOVERNOR_DOWN_THRESHOLD)
+#define CPU_HP_GOV_UP_DEBOUNCE     (CONFIG_CPU_HP_GOVERNOR_UP_DEBOUNCE)
+#define CPU_HP_GOV_DOWN_DEBOUNCE   (CONFIG_CPU_HP_GOVERNOR_DOWN_DEBOUNCE)
+#define CPU_HP_GOV_COOLDOWN_MS     (CONFIG_CPU_HP_GOVERNOR_COOLDOWN_MS)
+
+#define CPU_HP_GOV_LOAD_EMA_DIV    (CONFIG_CPU_HP_GOVERNOR_LOAD_EMA_DIV)
+#define CPU_HP_GOV_LOAD_EMA_WEIGHT (CPU_HP_GOV_LOAD_EMA_DIV - 1U)
+
+#define CPU_HP_GOV_TASK_PRIO       (BEKEN_DEFAULT_WORKER_PRIORITY)
+#define CPU_HP_GOV_TASK_STACK      (2048)
+
+typedef struct {
+	beken_thread_t  thread;
+	volatile uint32_t enabled;
+	volatile uint32_t running;
+
+	uint32_t idle_prev[CONFIG_SMP_CORE_CNT]; /* last idle counter per smp core */
+	uint32_t tick_prev;			 /* last sample time (run-time counter base) */
+	uint32_t load[CONFIG_SMP_CORE_CNT];	 /* smoothed busy% per smp core */
+
+	uint32_t up_cnt;
+	uint32_t down_cnt;
+	uint32_t cooldown_left_ms; /* remaining cooldown after a transition */
+
+	uint32_t online_cnt;
+	uint32_t offline_cnt;
+} cpu_hp_gov_t;
+
+static cpu_hp_gov_t s_gov;
+
+/* The run-time stats time base is bk_get_tick() truncated to 32 bits (see
+ * portGET_RUN_TIME_COUNTER_VALUE in FreeRTOSConfig.h), so use the same width so
+ * idle-counter deltas and elapsed-time deltas are in identical units. */
+static inline uint32_t cpu_hp_gov_now(void)
+{
+	return (uint32_t)bk_get_tick();
+}
+
+static void cpu_hp_gov_reset_window(cpu_hp_gov_t *g)
+{
+	uint32_t c_core_id = SMP_CORE0_ID;
+	g->idle_prev[c_core_id] = ulTaskGetIdleRunTimeCounterForCore(c_core_id);
+	for (c_core_id++; c_core_id < CONFIG_SMP_CORE_CNT; c_core_id++) {
+		g->idle_prev[c_core_id] = bk_cpu_hp_is_online(c_core_id) ?
+			ulTaskGetIdleRunTimeCounterForCore(c_core_id) : 0;
+	}
+	g->tick_prev = cpu_hp_gov_now();
+	g->up_cnt = 0;
+	g->down_cnt = 0;
+}
+
+static void cpu_hp_gov_sample(cpu_hp_gov_t *g)
+{
+	uint32_t now = cpu_hp_gov_now();
+	uint32_t span = now - g->tick_prev;   /* unsigned: wrap-safe */
+
+	if (span == 0) {
+		return;
+	}
+
+	for (uint32_t c = SMP_CORE0_ID; c < CONFIG_SMP_CORE_CNT; c++) {
+		uint32_t busy;
+
+		if (!bk_cpu_hp_is_online(c)) {
+			/* Offline core consumes no capacity. */
+			busy = 0;
+			g->idle_prev[c] = 0;
+		} else {
+			uint32_t idle = ulTaskGetIdleRunTimeCounterForCore((BaseType_t)c);
+			uint32_t didle = idle - g->idle_prev[c];   /* wrap-safe */
+			uint32_t ipct;
+
+			g->idle_prev[c] = idle;
+			ipct = (didle >= span) ? 100 : ((didle * 100) / span);
+			busy = 100 - ipct;
+		}
+
+		/* First-order EMA to damp transient spikes. */
+		g->load[c] = ((g->load[c] * CPU_HP_GOV_LOAD_EMA_WEIGHT) + busy) / CPU_HP_GOV_LOAD_EMA_DIV;
+	}
+
+	g->tick_prev = now;
+}
+
+static void cpu_hp_gov_try_online(cpu_hp_gov_t *g)
+{
+	if (g->load[SMP_CORE0_ID] > CPU_HP_GOV_UP_TH) {
+		g->up_cnt++;
+	} else {
+		g->up_cnt = 0;
+	}
+
+	if (g->up_cnt < CPU_HP_GOV_UP_DEBOUNCE) {
+		return;
+	}
+
+	if (bk_cpu_hp_online(CPU1_CORE_ID) == BK_OK) {
+		g->online_cnt++;
+		g->cooldown_left_ms = CPU_HP_GOV_COOLDOWN_MS;
+		cpu_hp_gov_reset_window(g);
+		MULTICORE_LOGI("governor: online cpu1 (load0=%u%%)\r\n", g->load[SMP_CORE0_ID]);
+	} else {
+		/* Could not bring it up now; back off and retry next window. */
+		g->up_cnt = 0;
+	}
+}
+
+static void cpu_hp_gov_try_offline(cpu_hp_gov_t *g)
+{
+	uint32_t combined = g->load[SMP_CORE0_ID] + g->load[SMP_CORE1_ID];
+
+	if (combined < CPU_HP_GOV_DOWN_TH) {
+		g->down_cnt++;
+	} else {
+		g->down_cnt = 0;
+	}
+
+	if (g->down_cnt < CPU_HP_GOV_DOWN_DEBOUNCE) {
+		return;
+	}
+
+	bk_err_t ret = bk_cpu_hp_offline(CPU1_CORE_ID);
+	if (ret == BK_OK) {
+		g->offline_cnt++;
+		g->cooldown_left_ms = CPU_HP_GOV_COOLDOWN_MS;
+		cpu_hp_gov_reset_window(g);
+		MULTICORE_LOGI("governor: offline cpu1 (load0+1=%u%%)\r\n", combined);
+	} else {
+		/* BK_ERR_BUSY: core1 still has pinned tasks / is mid-transition.
+		 * Drop the counter and re-evaluate later. */
+		g->down_cnt = 0;
+	}
+}
+
+static void cpu_hp_gov_task(void *arg)
+{
+	cpu_hp_gov_t *g = &s_gov;
+
+	(void)arg;
+
+	cpu_hp_gov_reset_window(g);
+
+	while (g->running) {
+		rtos_delay_milliseconds(CPU_HP_GOV_PERIOD_MS);
+
+		cpu_hp_gov_sample(g);
+
+		if (g->cooldown_left_ms > 0) {
+			g->cooldown_left_ms = (g->cooldown_left_ms > CPU_HP_GOV_PERIOD_MS) ?
+				(g->cooldown_left_ms - CPU_HP_GOV_PERIOD_MS) : 0;
+			continue;
+		}
+
+		if (!g->enabled) {
+			continue;
+		}
+
+		if (!bk_cpu_hp_is_online(CPU1_CORE_ID))
+			cpu_hp_gov_try_online(g);
+		else
+			cpu_hp_gov_try_offline(g);
+	}
+
+	g->thread = NULL;
+	rtos_delete_thread(NULL);
+}
+
+bk_err_t bk_cpu_hp_governor_init(void)
+{
+	bk_err_t ret;
+
+	if (s_gov.thread != NULL) {
+		return BK_OK;
+	}
+
+	os_memset(&s_gov, 0, sizeof(s_gov));
+#if CONFIG_CPU_HP_GOVERNOR_AUTOSTART
+	s_gov.enabled = 1;
+#endif
+	s_gov.running = 1;
+
+	ret = rtos_create_thread(&s_gov.thread, CPU_HP_GOV_TASK_PRIO, "cpu_gov",
+		cpu_hp_gov_task, CPU_HP_GOV_TASK_STACK, NULL);
+	if (ret != BK_OK) {
+		s_gov.running = 0;
+		s_gov.thread = NULL;
+		MULTICORE_LOGE("governor: create task failed %d\r\n", ret);
+	}
+
+	return ret;
+}
+
+bk_err_t bk_cpu_hp_governor_start(void)
+{
+	if (s_gov.thread == NULL) {
+		return BK_ERR_STATE;
+	}
+
+	s_gov.enabled = 1;
+	return BK_OK;
+}
+
+bk_err_t bk_cpu_hp_governor_stop(void)
+{
+	s_gov.enabled = 0;
+	return BK_OK;
+}
+
+void bk_cpu_hp_governor_get_status(bk_cpu_hp_governor_status_t *status)
+{
+	if (status == NULL) {
+		return;
+	}
+
+	status->enabled     = s_gov.enabled;
+	status->load0       = s_gov.load[SMP_CORE0_ID];
+	status->load1       = s_gov.load[SMP_CORE1_ID];
+	status->cpu1_online = bk_cpu_hp_is_online(CPU1_CORE_ID);
+	status->up_cnt      = s_gov.up_cnt;
+	status->down_cnt    = s_gov.down_cnt;
+	status->online_cnt  = s_gov.online_cnt;
+	status->offline_cnt = s_gov.offline_cnt;
+}
+
+#endif /* CONFIG_CPU_HP_GOVERNOR */
+
 #endif /* CONFIG_CPU_HOTPLUG */

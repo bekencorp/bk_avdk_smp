@@ -18,4 +18,45 @@ menu "multicore"
 		bool "Keep secondary hotplug CPU offline at power-on (online via cpu online <id>)"
 		default y
 
+	config CPU_HP_GOVERNOR
+		depends on CPU_HOTPLUG
+		bool "Enable dynamic CPU load governor (auto online/offline CP1)"
+		default y
+
+	if CPU_HP_GOVERNOR
+
+		config CPU_HP_GOVERNOR_AUTOSTART
+			bool "Start auto-adjust immediately at boot"
+			default y
+
+		config CPU_HP_GOVERNOR_UP_THRESHOLD
+			int "CP0 load%% above which CP1 is brought online"
+			default 80
+
+		config CPU_HP_GOVERNOR_DOWN_THRESHOLD
+			int "Combined CP0+CP1 load%% below which CP1 is taken offline"
+			default 60
+
+		config CPU_HP_GOVERNOR_LOAD_EMA_DIV
+			int "Load EMA divisor (default: 1/2 = 50% weight)"
+			default 2
+
+		config CPU_HP_GOVERNOR_PERIOD_MS
+			int "Load sampling period (ms)"
+			default 100
+
+		config CPU_HP_GOVERNOR_UP_DEBOUNCE
+			int "Consecutive overloaded samples required to online CP1"
+			default 2
+
+		config CPU_HP_GOVERNOR_DOWN_DEBOUNCE
+			int "Consecutive underloaded samples required to offline CP1"
+			default 5
+
+		config CPU_HP_GOVERNOR_COOLDOWN_MS
+			int "Minimum dwell time after a transition (ms)"
+			default 1000
+	
+	endif
+
 endmenu

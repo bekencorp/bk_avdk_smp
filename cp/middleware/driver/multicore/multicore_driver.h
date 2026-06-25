@@ -69,6 +69,43 @@ void bk_cpu_hp_core_online(void);
 void bk_cpu_hp_core_stop_hmb_isr(void);
 void bk_cpu_hp_idle_handler(void);
 
+#if CONFIG_CPU_HP_GOVERNOR
+
+/*
+ * Dynamic CPU load governor for the CP domain (CPU0 primary + CPU1 hotplug).
+ *
+ * Policy (see cpu_hp_governor.c for the full state machine):
+ *   - online  CPU1 when CPU0 alone is saturated (load0 > UP_THRESHOLD) for a
+ *     sustained window;
+ *   - offline CPU1 when the combined work of both cores fits comfortably into a
+ *     single core (load0 + load1 < DOWN_THRESHOLD) for a sustained window.
+ *
+ * Anti-flapping: asymmetric thresholds + per-direction debounce + a post-switch
+ * cooldown. All hotplug actions run from a normal task context; the underlying
+ * bk_cpu_hp_*() helpers migrate the work to the primary core internally.
+ */
+
+typedef struct {
+	uint32_t enabled;       /* auto-adjust running                  */
+	uint32_t load0;         /* smoothed load of CPU0 in percent     */
+	uint32_t load1;         /* smoothed load of CPU1 in percent     */
+	uint32_t cpu1_online;   /* 1 if CPU1 currently online           */
+	uint32_t up_cnt;        /* consecutive "overloaded" samples     */
+	uint32_t down_cnt;      /* consecutive "underloaded" samples    */
+	uint32_t online_cnt;    /* number of auto online transitions    */
+	uint32_t offline_cnt;   /* number of auto offline transitions   */
+} bk_cpu_hp_governor_status_t;
+
+bk_err_t bk_cpu_hp_governor_init(void);
+
+bk_err_t bk_cpu_hp_governor_start(void);
+bk_err_t bk_cpu_hp_governor_stop(void);
+
+/* Snapshot the current governor status (loads, counters, state). */
+void bk_cpu_hp_governor_get_status(bk_cpu_hp_governor_status_t *status);
+
+#endif /* CONFIG_CPU_HP_GOVERNOR */
+
 #endif /* CONFIG_CPU_HOTPLUG */
 
 #ifdef __cplusplus
