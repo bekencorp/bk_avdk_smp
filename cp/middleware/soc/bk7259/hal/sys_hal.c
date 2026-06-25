@@ -56,6 +56,11 @@
 
 #define SYS_HAL_SWD_CORESIGHT_VALID         (1)
 
+#define SYS_PM_HAL_CPU_BARRIER()              do {      \
+	asm volatile ("dsb");                               \
+	asm volatile ("isb");                               \
+} while (0)
+
 static sys_hal_t s_sys_hal;
 static uint32_t s_pm_wireless_clock_state = 0;
 
@@ -628,6 +633,8 @@ bk_err_t sys_hal_switch_cpu_bus_freq_high_to_low(pm_cpu_freq_e cpu_bus_freq)
 		return BK_FAIL;
 
 	ret = sys_hal_set_cpu_bus_freq_clock(cfg);
+	SYS_PM_HAL_CPU_BARRIER();
+
 	if(ret != BK_OK)
 		return ret;
 
@@ -639,9 +646,11 @@ bk_err_t sys_hal_switch_cpu_bus_freq_high_to_low(pm_cpu_freq_e cpu_bus_freq)
 	{
 		sys_hal_set_ram_high_speed();
 	}
+	SYS_PM_HAL_CPU_BARRIER();
 
 	sys_hal_ctrl_vddd_h_vol(PM_VDDD_H_VOL_1V);
 	sys_hal_ctrl_vdddig_h_vol(cfg->vdddig_vol);
+	SYS_PM_HAL_CPU_BARRIER();
 
 	return ret;
 }
@@ -656,6 +665,8 @@ bk_err_t sys_hal_switch_cpu_bus_freq_low_to_high(pm_cpu_freq_e cpu_bus_freq)
 	sys_hal_ctrl_vddd_h_vol(PM_VDDD_H_VOL_1V);
 	sys_hal_ctrl_vdddig_h_vol(cfg->vdddig_vol);
 
+	SYS_PM_HAL_CPU_BARRIER();
+
 	if(cpu_bus_freq < PM_CPU_FRQ_160M)
 	{
 		sys_hal_set_ram_low_speed();
@@ -664,8 +675,11 @@ bk_err_t sys_hal_switch_cpu_bus_freq_low_to_high(pm_cpu_freq_e cpu_bus_freq)
 	{
 		sys_hal_set_ram_high_speed();
 	}
+	SYS_PM_HAL_CPU_BARRIER();
 
 	ret = sys_hal_set_cpu_bus_freq_clock(cfg);
+	SYS_PM_HAL_CPU_BARRIER();
+
 	return ret;
 }
 
@@ -748,12 +762,12 @@ void sys_hal_set_ram_high_speed(void)
      sys_hal_set_ram_tph_cfg(0xA5 << 24 | ram_tph_cfg); ///Default: Low-speed configuration
 
 	 uint32_t ram_spl_cfg = 0x0;//Default: 0x444 << 10 | 0x244;
-     ram_spl_cfg = 0x441 << 10 | 0x241;
+     ram_spl_cfg = 0x443 << 10 | 0x241;
      sys_hal_set_ram_spl_cfg(0x5A << 24 | ram_spl_cfg); ///Default: Low-speed configuration
      sys_hal_set_ram_spl_cfg(0xA5 << 24 | ram_spl_cfg); ///Default: Low-speed configuration
 
      uint32_t ram_tpl_cfg = 0x0;//Default: 0x904;
-     ram_tpl_cfg = 0x901;
+     ram_tpl_cfg = 0x903;
      sys_hal_set_ram_tpl_cfg(0x5A << 24 | ram_tpl_cfg); ///Default: Low-speed configuration
      sys_hal_set_ram_tpl_cfg(0xA5 << 24 | ram_tpl_cfg); ///Default: Low-speed configuration
 }

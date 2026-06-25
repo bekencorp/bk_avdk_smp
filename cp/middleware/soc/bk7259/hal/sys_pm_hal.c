@@ -69,10 +69,20 @@
 #define portNVIC_SYSTICKSET_BIT               ( 1UL << 26UL )
 #define portNVIC_SYSTICKCLR_BIT               ( 1UL << 25UL )
 
+#define PM_CPU_CLKSEL_CORE_POS                (0)
+#define PM_CPU_CLKSEL_CORE_MASK               (0x3 << PM_CPU_CLKSEL_CORE_POS)
+#define PM_CPU_CLKDIV_CORE_POS                (2)
+#define PM_CPU_CLKDIV_CORE_MASK               (0xF << PM_CPU_CLKDIV_CORE_POS)
+
 #define PM_EXIT_LOWVOL_SYSTICK_TIME           (32)      //1ms
 #define PM_EXIT_LOWVOL_SYSTICK_RELOAD_TIME    (0xFFFFFF)//set max
 #define PM_LOW_VOL_AON_LDO_SEL                (2)       // 0.7V, no rosc32k output when 0.65V under -45��
 #define PM_LOW_VOL_VIO_LDO_SEL                (0)       // 2.9V
+#define PM_VDDDIG_H_VOL_0V825                 (0x9)
+#define SYS_PM_HAL_CPU_BARRIER()              do {      \
+	asm volatile ("dsb");                               \
+	asm volatile ("isb");                               \
+} while (0)
 
 #if CONFIG_OTA_POSITION_INDEPENDENT_AB || CONFIG_DIRECT_XIP
 #define FLASH_BASE_ADDRESS                    SOC_FLASH_REG_BASE
@@ -378,9 +388,55 @@ static inline void sys_hal_backup_set_core_26m(volatile uint8_t *cksel_core, vol
 static inline void sys_hal_restore_core_freq(volatile uint8_t cksel_core, volatile uint8_t clkdiv_core, volatile uint8_t clkdiv_bus)
 {
 	IF_LV_CTRL_CORE() {
-		;//TODO: sys_ll_set_cpu_clk_div_mode1_clkdiv_bus(clkdiv_bus);
-		sys_ll_set_cpu_clk_div_mode1_ckdiv_core(clkdiv_core);
-		sys_ll_set_cpu_clk_div_mode1_cksel_core(cksel_core);
+		uint32_t clk_param;
+		uint32_t next_clk_param;
+		uint32_t cur_cksel_core;
+		uint32_t target_cksel_core = cksel_core;
+		uint32_t target_clkdiv_core = clkdiv_core;
+		uint32_t target_cksel_core_bits;
+		uint32_t target_clkdiv_core_bits;
+
+		(void)clkdiv_bus;//TODO: sys_ll_set_cpu_clk_div_mode1_clkdiv_bus(clkdiv_bus);
+
+		if ((target_cksel_core > PM_CLKSEL_CORE_MAX) || (target_clkdiv_core > PM_FREQUNCY_DIV_MAX)) {
+			return;
+		}
+
+		if (((target_cksel_core == PM_CLKSEL_CORE_320M) || (target_cksel_core == PM_CLKSEL_CORE_480M))
+			&& (target_clkdiv_core == 0)) {
+			target_clkdiv_core = 1;
+		}
+
+		target_cksel_core_bits = target_cksel_core << PM_CPU_CLKSEL_CORE_POS;
+		target_clkdiv_core_bits = target_clkdiv_core << PM_CPU_CLKDIV_CORE_POS;
+		clk_param = sys_ll_get_cpu_clk_div_mode1_value();
+		cur_cksel_core = (clk_param & PM_CPU_CLKSEL_CORE_MASK) >> PM_CPU_CLKSEL_CORE_POS;
+
+		if (cur_cksel_core > target_cksel_core) {
+			next_clk_param = (clk_param & ~PM_CPU_CLKSEL_CORE_MASK) | target_cksel_core_bits;
+			if (next_clk_param != clk_param) {
+				sys_ll_set_cpu_clk_div_mode1_value(next_clk_param);
+				clk_param = next_clk_param;
+				SYS_PM_HAL_CPU_BARRIER();
+			}
+
+			next_clk_param = (clk_param & ~PM_CPU_CLKDIV_CORE_MASK) | target_clkdiv_core_bits;
+			if (next_clk_param != clk_param) {
+				sys_ll_set_cpu_clk_div_mode1_value(next_clk_param);
+			}
+		} else {
+			next_clk_param = (clk_param & ~PM_CPU_CLKDIV_CORE_MASK) | target_clkdiv_core_bits;
+			if (next_clk_param != clk_param) {
+				sys_ll_set_cpu_clk_div_mode1_value(next_clk_param);
+				clk_param = next_clk_param;
+				SYS_PM_HAL_CPU_BARRIER();
+			}
+
+			next_clk_param = (clk_param & ~PM_CPU_CLKSEL_CORE_MASK) | target_cksel_core_bits;
+			if (next_clk_param != clk_param) {
+				sys_ll_set_cpu_clk_div_mode1_value(next_clk_param);
+			}
+		}
 	}
 }
 
@@ -517,6 +573,8 @@ static inline uint32_t sys_hal_disable_hf_clock(void)
 static inline void sys_hal_restore_hf_clock(volatile uint32_t val)
 {
 	sys_ll_set_ana_reg5_value(val);
+
+	SYS_PM_HAL_CPU_BARRIER();
 }
 
 /**
@@ -1274,11 +1332,6 @@ __attribute__((section(".iram"))) void sys_hal_regs_digital_restore(void)
 {
 	sys_ll_set_reserver_reg0xd_value(s_sys_saved_regs[5]); //reg 0xd
 
-	s_sys_saved_regs[0] |= (0x3 << 0);
-	s_sys_saved_regs[0] |= (0x3 << 2);
-	//keep flash 120M
-	s_sys_saved_regs[0] |= (0x3 << 6);
-	s_sys_saved_regs[0] |= (0x3 << 8);
 	sys_ll_set_cpu_clk_div_mode1_value(s_sys_saved_regs[0]); // reg_0x8
 	#if CONFIG_DEEP_LV_DEBUG
 	GPIO_UP(37);//18
@@ -1334,12 +1387,13 @@ __attribute__((section(".iram"))) void sys_hal_regs_analog_restore(void)
 	volatile uint8_t cksel_core = 0, clkdiv_core = 0, clkdiv_bus = 0;
 	volatile uint8_t cksel_flash = 0, clkdiv_flash = 0;
 	volatile uint32_t v_ana_r9, core_low_voltage;
-	volatile uint32_t v_sys_r10    = 0;
-	uint32_t systick_ctrl_value    = 0;
+	volatile uint32_t v_sys_r10             = 0;
+	volatile uint32_t systick_ctrl_value    = 0;
+	volatile uint32_t cur_vol               = 0;
 	//uint32_t valoldosel            = 0;
-	// uint32_t violdosel          = 0;
+	//uint32_t violdosel             = 0;
 	//uint8_t  ustep                 = 0;
-///	uint32_t chip_id               = 0;
+
 	pm_lpo_src_e lpo_src           = PM_LPO_SRC_ROSC;
 
 #if CONFIG_OTA_POSITION_INDEPENDENT_AB || CONFIG_DIRECT_XIP
@@ -1379,8 +1433,18 @@ __attribute__((section(".iram"))) void sys_hal_regs_analog_restore(void)
 
 	//sys_hal_backup_disable_int(&int_state1, &int_state2);
 	sys_hal_backup_set_core_26m(&cksel_core, &clkdiv_core, &clkdiv_bus);
+	SYS_PM_HAL_CPU_BARRIER();
+
 	sys_hal_backup_set_flash_26m(&cksel_flash, &clkdiv_flash);
+	SYS_PM_HAL_CPU_BARRIER();
+
 	sys_hal_set_ram_low_speed();
+	SYS_PM_HAL_CPU_BARRIER();
+
+	extern void sys_hal_ctrl_vdddig_h_vol(uint8_t vol);
+	cur_vol = sys_ll_get_ana_reg10_vcorehsel();
+	sys_hal_ctrl_vdddig_h_vol(PM_VDDDIG_H_VOL_0V825);
+	SYS_PM_HAL_CPU_BARRIER();
 
 #if CONFIG_INT_WDT
 	extern void close_wdt(void);
@@ -1704,6 +1768,9 @@ __attribute__((section(".iram"))) void sys_hal_regs_analog_restore(void)
 	GPIO_UP(37);//22
 	GPIO_DOWN(37);
 	#endif
+	sys_hal_ctrl_vdddig_h_vol(cur_vol);
+	SYS_PM_HAL_CPU_BARRIER();
+
 	switch (cksel_core) {
 		case PM_CLKSEL_CORE_26M:
 			break;
@@ -1724,11 +1791,24 @@ __attribute__((section(".iram"))) void sys_hal_regs_analog_restore(void)
 		default:
 			break;
 	}
-	sys_hal_restore_core_freq(cksel_core, clkdiv_core, clkdiv_bus);
-	sys_hal_restore_flash_freq(cksel_flash, clkdiv_flash);
-
+	SYS_PM_HAL_CPU_BARRIER();
 	#if CONFIG_DEEP_LV_DEBUG
 	GPIO_UP(37);//23
+	GPIO_DOWN(37);
+	#endif
+
+	sys_hal_restore_core_freq(cksel_core, clkdiv_core, clkdiv_bus);
+	SYS_PM_HAL_CPU_BARRIER();
+
+	#if CONFIG_DEEP_LV_DEBUG
+	GPIO_UP(37);//24
+	GPIO_DOWN(37);
+	#endif
+	sys_hal_restore_flash_freq(cksel_flash, clkdiv_flash);
+	SYS_PM_HAL_CPU_BARRIER();
+
+	#if CONFIG_DEEP_LV_DEBUG
+	GPIO_UP(37);//25
 	GPIO_DOWN(37);
 	#endif
 
@@ -1738,7 +1818,7 @@ __attribute__((section(".iram"))) void sys_hal_regs_analog_restore(void)
 	portNVIC_SYSTICK_LOAD_REG = PM_EXIT_LOWVOL_SYSTICK_RELOAD_TIME;
 	portNVIC_SYSTICK_CTRL_REG = systick_ctrl_value;
 	#if CONFIG_DEEP_LV_DEBUG
-	GPIO_UP(37);//24
+	GPIO_UP(37);//26
 	GPIO_DOWN(37);
 	#endif
 }
