@@ -391,8 +391,14 @@ boot_ap:
 			}
 		}
 		#endif
-		extern void bk_start_ap_system(void);
-		bk_start_ap_system();
+		extern bk_err_t bk_start_ap_system(void);
+		if (bk_start_ap_system() != BK_OK) {
+			LOGE("bk_start_ap_system failed\r\n");
+			#if CONFIG_SUPPORT_WWDT
+			bk_wwdt_feed();
+			#endif
+			return;
+		}
 		LOGI("bk_start_ap_system done\r\n");
 		bk_pm_ap_ctrl_callback_execute(PM_AP_CTRL_CB_TYPE_POWER_ON);
 		LOGI("bk_pm_ap_ctrl_callback_execute done\r\n");
