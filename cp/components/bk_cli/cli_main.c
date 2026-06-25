@@ -45,6 +45,7 @@
 
 
 #define TAG "cli"
+#define CLI_AP_CMD_HINT "Hint: use 'ap_cmd <cmd>' to run AP CLI commands.\r\n"
 
 static struct cli_st *pCli = NULL;
 
@@ -451,7 +452,7 @@ int handle_shell_input2(char *inbuf, int in_buf_size, char * outbuf, int out_buf
 	if (command == NULL)
 	{
 		if(outbuf != NULL)
-			os_snprintf(&outbuf[0], out_buf_size, "cmd NOT found: %s.\r\n", inbuf);
+			os_snprintf(&outbuf[0], out_buf_size, "cmd NOT found: %s.\r\n%s", inbuf, CLI_AP_CMD_HINT);
 		return 1;
 	}
 
@@ -880,6 +881,7 @@ static void print_bad_command(char *cmd_string)
 			++c;
 		}
 		BK_LOGD(NULL,"' not found\r\n");
+		BK_LOGD(NULL, CLI_AP_CMD_HINT);
 	}
 }
 
