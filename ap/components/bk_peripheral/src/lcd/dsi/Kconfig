@@ -19,6 +19,11 @@ menu "DSI LCD"
 		bool "Enable LCD_FL7703NP_MIPI_720x1280 API"
 		default n
 
+	config LCD_ER68576B_MIPI_720x1280
+		depends on LCD_DSI
+		bool "Enable LCD_ER68576B_MIPI_720x1280 API"
+		default n
+
 	config LCD_GC9702_MIPI_720x1280
 		depends on LCD_DSI
 		bool "Enable LCD_GC9702_MIPI_720x1280 API"
