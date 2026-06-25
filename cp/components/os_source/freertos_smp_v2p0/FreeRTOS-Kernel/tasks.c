@@ -756,7 +756,8 @@ BaseType_t xTaskHasTasksPinnedToCore( BaseType_t xCoreID )
 
         if( ( xHasPinnedTask == pdFALSE ) &&
             ( pxCurrentTCBs[ xCoreID ] != NULL ) &&
-            ( pxCurrentTCBs[ xCoreID ] != xIdleTaskHandle[ xCoreID ] ) )
+            ( pxCurrentTCBs[ xCoreID ] != xIdleTaskHandle[ xCoreID ] ) &&
+            ( pxCurrentTCBs[ xCoreID ]->xCoreID == xCoreID ) )
         {
             xHasPinnedTask = pdTRUE;
         }
