@@ -366,6 +366,8 @@ avdk_err_t draw_tiger(void)
                        1024 * 5,
                        NULL), TAG, "create render_tiger_task thread failed");
 
+    return BK_OK;
+
 err:
 	//TODO FIXME: free resource
 
