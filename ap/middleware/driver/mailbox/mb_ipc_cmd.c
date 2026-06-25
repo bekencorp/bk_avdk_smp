@@ -559,7 +559,7 @@ static u32 ipc_cmd_handler(ipc_chnl_cb_t *chnl_cb, mb_chnl_ack_t *ack_buf)
 			break;
 
 #if (USB_CDC_CP1_IPC)
-		case IPC_CPU0_START_USB_CDC:
+		case IPC_CP_START_USB_CDC:
 			{
 				ipc_rsp->rsp_data_len = 0;
 				bk_usb_cdc_start();
@@ -567,14 +567,14 @@ static u32 ipc_cmd_handler(ipc_chnl_cb_t *chnl_cb, mb_chnl_ack_t *ack_buf)
 			}
 			break;
 
-		case IPC_CPU0_CLOSE_USB_CDC:
+		case IPC_CP_CLOSE_USB_CDC:
 			{
 				ipc_rsp->rsp_data_len = 0;
 				bk_usb_cdc_close();
 				result = ACK_STATE_COMPLETE;
 			}
 			break;
-		case IPC_CPU0_STOP_USB_CDC:
+		case IPC_CP_STOP_USB_CDC:
 			{
 				ipc_rsp->rsp_data_len = 0;
 				bk_usb_cdc_stop();
@@ -582,7 +582,7 @@ static u32 ipc_cmd_handler(ipc_chnl_cb_t *chnl_cb, mb_chnl_ack_t *ack_buf)
 			}
 			break;
 
-		case IPC_CPU0_INIT_USB_CDC_PARAM:
+		case IPC_CP_INIT_USB_CDC_PARAM:
 			{
 				ipc_rsp->rsp_data_len = 0;
 				IPC_CDC_DATA_t *p_cdc_data = (IPC_CDC_DATA_t *)chnl_cb->cmd_buf;
@@ -591,7 +591,7 @@ static u32 ipc_cmd_handler(ipc_chnl_cb_t *chnl_cb, mb_chnl_ack_t *ack_buf)
 			}
 			break;
 
-		case IPC_CPU0_SET_USB_CDC_CMD:
+		case IPC_CP_SET_USB_CDC_CMD:
 			{
 				ipc_rsp->rsp_data_len = 0;
 				IPC_CDC_DATA_t *p_cdc_data = (IPC_CDC_DATA_t *)chnl_cb->cmd_buf;
@@ -602,7 +602,7 @@ static u32 ipc_cmd_handler(ipc_chnl_cb_t *chnl_cb, mb_chnl_ack_t *ack_buf)
 #endif
 
 #if (USB_CDC_CP0_IPC)
-		case IPC_CPU1_UPLOAD_USB_CDC_DATA:
+		case IPC_AP_UPLOAD_USB_CDC_DATA:
 			{
 				ipc_rsp->rsp_data_len = 0;
 				IPC_CDC_DATA_t *p_cdc_data = (IPC_CDC_DATA_t *)chnl_cb->cmd_buf;
@@ -612,7 +612,7 @@ static u32 ipc_cmd_handler(ipc_chnl_cb_t *chnl_cb, mb_chnl_ack_t *ack_buf)
 				result = ACK_STATE_COMPLETE;
 			}
 			break;
-		case IPC_CPU1_UPDATE_USB_CDC_STATE:
+		case IPC_AP_UPDATE_USB_CDC_STATE:
 			{
 				ipc_rsp->rsp_data_len = 0;
 				extern void (*usb_cdc_state_cb)(bk_cdc_hub_status * cdc_status);
@@ -810,27 +810,32 @@ u32 ipc_send_get_ps_flag(void)
 
 bk_err_t ipc_send_power_up(void)
 {
-	return ipc_send_cmd(&ipc_chnl_cb, IPC_CPU1_POWER_UP_INDICATION, NULL, 0, NULL, 0);
+	return ipc_send_cmd(&ipc_chnl_cb, IPC_AP_POWER_UP_INDICATION, NULL, 0, NULL, 0);
 }
 
 bk_err_t ipc_send_heart_beat(u32 param)
 {
-	return ipc_send_cmd(&ipc_chnl_cb, IPC_CPU1_HEART_BEAT_INDICATION, (u8 *)&param, sizeof(param), NULL, 0);
+	return ipc_send_cmd(&ipc_chnl_cb, IPC_AP_HEART_BEAT_INDICATION, (u8 *)&param, sizeof(param), NULL, 0);
 }
 
 bk_err_t ipc_send_trap_handle_begin(void)
 {
-	return ipc_send_special_cmd(&ipc_chnl_cb, IPC_CPU1_TRAP_HANDLE_BEGIN);
+	return ipc_send_special_cmd(&ipc_chnl_cb, IPC_AP_TRAP_HANDLE_BEGIN);
 }
 
 bk_err_t ipc_send_trap_handle_end(void)
 {
-	return ipc_send_special_cmd(&ipc_chnl_cb, IPC_CPU1_TRAP_HANDLE_END);
+	return ipc_send_special_cmd(&ipc_chnl_cb, IPC_AP_TRAP_HANDLE_END);
 }
 
 bk_err_t ipc_send_cpu1_need_reboot(void)
 {
-	return ipc_send_special_cmd(&ipc_chnl_cb, IPC_CPU1_NEED_REBOOT);
+	return ipc_send_special_cmd(&ipc_chnl_cb, IPC_AP_NEED_REBOOT);
+}
+
+bk_err_t ipc_send_set_swd_mode(void)
+{
+	return ipc_send_special_cmd(&ipc_chnl_cb, IPC_AP_SET_SWD_MODE);
 }
 
 #ifdef AMP_RES_CLIENT

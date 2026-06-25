@@ -7,7 +7,7 @@
 
 
 extern void rtos_set_user_app_entry(beken_thread_function_t entry);
-extern void bk_set_jtag_mode(uint32_t cpu_id, uint32_t group_id);
+extern void bk_set_swd_mode(void);
 extern int bk_ipc_init(void);
 
 void user_app_main(void) {
@@ -21,6 +21,6 @@ int main(void)
 {
 	rtos_set_user_app_entry((beken_thread_function_t)user_app_main);
 	bk_init();
-	// bk_set_jtag_mode(2, 0);
+	// bk_set_swd_mode();
 	return 0;
 }

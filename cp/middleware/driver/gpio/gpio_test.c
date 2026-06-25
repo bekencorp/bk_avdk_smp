@@ -170,24 +170,18 @@ static void cli_gpio_map_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc,
 
 		gpio_dev_unmap(id);
 		gpio_dev_map(id, mode);
-	} else if (os_strcmp(argv[1], "jtag_map") == 0) {
+	} else if (os_strcmp(argv[1], "swd_map") == 0) {
 		gpio_id_t id = 0;
 
 		id = os_strtoul(argv[2], NULL, 10);
 		gpio_dev_unmap(id);
 
-		if (os_strcmp(argv[3], "tck") == 0) {
-			CLI_LOGD("gpio set JTAG_TCK\r\n");
-			gpio_dev_map(id, GPIO_DEV_JTAG_TCK);
-		} else if(os_strcmp(argv[3], "tms") == 0) {
-			CLI_LOGD("gpio set JTAG_TMS\r\n");
-			gpio_dev_map(id, GPIO_DEV_JTAG_TMS);
-		} else if(os_strcmp(argv[3], "tdi") == 0) {
-			CLI_LOGD("gpio set JTAG_TDI\r\n");
-			gpio_dev_map(id, GPIO_DEV_JTAG_TDI);
-		} else if(os_strcmp(argv[3], "tdo") == 0) {
-			CLI_LOGD("gpio set JTAG_TDO\r\n");
-			gpio_dev_map(id, GPIO_DEV_JTAG_TDO);
+		if (os_strcmp(argv[3], "swclk") == 0) {
+			CLI_LOGD("gpio set SWCLK\r\n");
+			gpio_dev_map(id, GPIO_DEV_SWCLK);
+		} else if(os_strcmp(argv[3], "swdio") == 0) {
+			CLI_LOGD("gpio set SWDIO\r\n");
+			gpio_dev_map(id, GPIO_DEV_SWDIO);
 		} else {
 			cli_gpio_help();
 			return;

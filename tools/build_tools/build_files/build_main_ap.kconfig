@@ -66,6 +66,22 @@ mainmenu "Armino SDK $(ARMINO_SOC) Configuration"
 					default n
 					help
 						Enable SWD Debug Modules	
+
+				config SWD_DEBUG_MODE_PIN_CLK
+					int "SWD SWCLK GPIO id"
+					depends on SWD_DEBUG_MODE
+					default 20
+					help
+						GPIO id routed to SWCLK when SWD debug mode is entered.
+						Customer overridable; defaults to the hardware default GPIO20.
+
+				config SWD_DEBUG_MODE_PIN_DIO
+					int "SWD SWDIO GPIO id"
+					depends on SWD_DEBUG_MODE
+					default 21
+					help
+						GPIO id routed to SWDIO when SWD debug mode is entered.
+						Customer overridable; defaults to the hardware default GPIO21.
 			endmenu
 		endmenu
 

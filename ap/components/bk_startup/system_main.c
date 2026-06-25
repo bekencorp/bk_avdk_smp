@@ -21,8 +21,14 @@
 #include <os/os.h>
 #include "sys_driver.h"
 #include "gpio_driver.h"
-#if CONFIG_TASK_WDT
+#if CONFIG_TASK_WDT || CONFIG_SUPPORT_WWDT
 #include <bk_wdt.h>
+#endif
+#if CONFIG_SUPPORT_WWDT
+#include "wwdt_driver.h"
+#endif
+#if (CONFIG_CPU_CNT > 1)
+#include "mb_ipc_cmd.h"
 #endif
 #include "driver/pm_ap_core.h"
 #include "bk_rtos_debug.h"
@@ -293,36 +299,38 @@ int32_t vote_stop_cpu2_core(cpu2_user_id_t user_id)
 #endif // (CONFIG_CPU_CNT > 1)
 
 
-void bk_set_jtag_mode(uint32_t cpu_id, uint32_t group_id) {
+/* Enter SWD debug mode from the AP side.
+ *
+ * The SWD pads and the debug-port routing are owned by the CP, so the AP only
+ * stops its own watchdogs (so a halted AP core cannot trip them) and then asks
+ * the CP, over the mailbox IPC, to switch the shared port/pins to SWD. The
+ * watchdog stops are idempotent register/flag writes, safe before driver init. */
+void bk_set_swd_mode(void) {
 #if CONFIG_DEBUG_VERSION || CONFIG_SWD_DEBUG_MODE
 
-	if (cpu_id == 0) {
-		(void)sys_drv_set_jtag_mode(0);
-	} else if (cpu_id == 1) {
-		(void)sys_drv_set_jtag_mode(1);
-	} else if (cpu_id == 2) {
-		(void)sys_drv_set_jtag_mode(2);
-	} else {
-		BK_LOGD(NULL, "Unsupported cpu id(%d).\r\n", cpu_id);
-		return;
-	}
-
-	bk_pm_module_vote_cpu_freq(PM_DEV_ID_DEFAULT,PM_CPU_FRQ_120M);
-
-	/*close watchdog*/
+	/* Stop the AP-local watchdogs. */
+#if CONFIG_SUPPORT_WWDT
+	bk_wwdt_close();
+#endif
 #if CONFIG_TASK_WDT
 	bk_task_wdt_stop();
 #endif
 
-	if (group_id == 0) {
-		gpio_jtag_sel(0);
-	} else if (group_id == 1) {
-		gpio_jtag_sel(1);
-	} else {
-		BK_LOGD(NULL, "Unsupported group id(%d).\r\n", group_id);
-		return;
-	}
+	/* Ask the CP to enter SWD mode (route the debug port + map GPIO20/21 to
+	 * SWCLK/SWDIO + stop the CP watchdogs). */
+#if (CONFIG_CPU_CNT > 1)
+	(void)ipc_send_set_swd_mode();
 #endif
+#endif
+}
+
+/* Legacy API, kept for source compatibility with the old
+ * bk_set_jtag_mode(cpu_id, group_id); both arguments are now ignored because the
+ * SWD switch is delegated to the CP via bk_set_swd_mode(). */
+void bk_set_jtag_mode(uint32_t cpu_id, uint32_t group_id) {
+	(void)cpu_id;
+	(void)group_id;
+	bk_set_swd_mode();
 }
 
 static void user_app_thread( void *arg )

@@ -22,7 +22,7 @@
 
 
 extern void rtos_set_user_app_entry(beken_thread_function_t entry);
-extern void bk_set_jtag_mode(uint32_t cpu_id, uint32_t group_id);
+extern void bk_set_swd_mode(void);
 
 
 #define LP_KA_CMD_CNT (sizeof(s_lp_ka_commands) / sizeof(struct cli_command))

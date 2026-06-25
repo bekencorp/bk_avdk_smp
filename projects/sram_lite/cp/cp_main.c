@@ -7,7 +7,7 @@
 #include "bk_api_ipc_test.h"
 
 extern void rtos_set_user_app_entry(beken_thread_function_t entry);
-extern void bk_set_jtag_mode(uint32_t cpu_id, uint32_t group_id);
+extern void bk_set_swd_mode(void);
 
 void user_app_main(void) {
     // start smp(cpu1, cpu2)

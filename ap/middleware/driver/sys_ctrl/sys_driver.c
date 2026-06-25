@@ -59,27 +59,6 @@ uint32 sys_drv_get_device_id(void)
 	return reg;
 }
 
-int32 sys_drv_set_jtag_mode(uint32 param)
-{
-	int32 ret = 0;
-	uint32_t int_level = sys_drv_enter_critical();
-
-	ret = sys_hal_set_jtag_mode(param);
-	sys_drv_exit_critical(int_level);
-
-	return ret;
-}
-
-uint32 sys_drv_get_jtag_mode(void)
-{
-	int32 ret = 0;
-	uint32_t int_level = sys_drv_enter_critical();
-
-	ret = sys_hal_get_jtag_mode();
-	sys_drv_exit_critical(int_level);
-
-	return ret;
-}
 
 void sys_drv_en_tempdet(uint32_t value)
 {

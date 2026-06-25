@@ -102,7 +102,7 @@ __maybe_unused static void cli_misc_help(void)
 #if (CONFIG_CPU_CNT > 1)
 	CLI_LOGD("bootcore1 boot slave core,1:start,0:stop,others:start and stop many times\r\n");
 #endif
-	CLI_LOGD("setjtagmode set jtag mode [cpu0|cpu1] [group1|group2]\r\n");
+	CLI_LOGD("setswdmode enter SWD debug mode (stop watchdogs, map GPIO20/21 to SWCLK/SWDIO)\r\n");
 	CLI_LOGD("setcpufreq [cksel] [ckdiv_core] [ckdiv_bus] [ckdiv_cpu]\r\n");
 #if CONFIG_COMMON_IO
 	CLI_LOGD("testcommonio test common io\r\n");
@@ -346,42 +346,12 @@ static void boot_cpu_core(char *pcWriteBuffer, int xWriteBufferLen, int argc, ch
 }
 #endif
 
-void bk_set_jtag_mode(uint32_t cpu_id, uint32_t group_id);
-static void set_jtag_mode(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
+void bk_set_swd_mode(void);
+static void set_swd_mode(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
-	if (argc < 3) {
-		cli_misc_help();
-		return;
-	}
+	bk_set_swd_mode();
 
-	uint32_t cpu_id = 0;
-	uint32_t group_id = 0;
-
-	if (os_strcmp(argv[1], "cpu0") == 0) {
-		cpu_id = 0;
-		CLI_LOGD("gpio Jtag CPU0\r\n");
-	} else if (os_strcmp(argv[1], "cpu1") == 0) {
-		cpu_id = 1;
-		CLI_LOGD("gpio Jtag CPU1\r\n");
-	} else if (os_strcmp(argv[1], "cpu2") == 0) {
-		cpu_id = 2;
-		CLI_LOGD("gpio Jtag CPU2\r\n");
-	} else {
-		cli_misc_help();
-	}
-
-	if (os_strcmp(argv[2], "group1") == 0) {
-		group_id = 0;
-		CLI_LOGD("gpio Jtag group1\r\n");
-	} else if (os_strcmp(argv[2], "group2") == 0) {
-		group_id = 1;
-		CLI_LOGD("gpio Jtag group2\r\n");
-	} else
-		cli_misc_help();
-
-	bk_set_jtag_mode(cpu_id, group_id);
-
-	CLI_LOGD("set_jtag_mode end.\r\n");
+	CLI_LOGD("set_swd_mode end.\r\n");
 }
 
 
@@ -705,7 +675,7 @@ static const struct cli_command s_misc_commands[] = {
 	{"bootcore", "bootcore [core id] [mode: 1:start,0:stop]", boot_cpu_core},
 #endif
 
-	{"setjtagmode", "set jtag mode {cpu0|cpu1|cpu2} {group1|group2}", set_jtag_mode},
+	{"setswdmode", "enter SWD debug mode", set_swd_mode},
 #if CONFIG_COMMON_IO
 	{"testcommonio", "test common io", test_common_io},
 #endif

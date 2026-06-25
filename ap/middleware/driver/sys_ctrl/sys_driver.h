@@ -201,8 +201,6 @@ uint32 sys_drv_get_fiq_reg_status(void);
 uint32 sys_drv_set_fiq_reg_status(uint32 param);
 uint32 sys_drv_get_intr_raw_status(void);
 uint32 sys_drv_set_intr_raw_status(uint32 param);
-int32 sys_drv_set_jtag_mode(uint32 param);
-uint32 sys_drv_get_jtag_mode(void);
 
 /*clock power control start*/
 void sys_drv_dev_clk_pwr_up(dev_clk_pwr_id_t dev, dev_clk_pwr_ctrl_t power_up);

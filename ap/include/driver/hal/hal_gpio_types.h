@@ -305,10 +305,8 @@ typedef enum {
 	GPIO_DEV_I2S0_MCLK,
 
 	/* ===== JTAG ===== */
-	GPIO_DEV_JTAG_TCK = 0x60,
-	GPIO_DEV_JTAG_TMS,
-	GPIO_DEV_JTAG_TDI,
-	GPIO_DEV_JTAG_TDO,
+	GPIO_DEV_SWCLK = 0x60,
+	GPIO_DEV_SWDIO,
 
 	/* ===== DMIC ===== */
 	GPIO_DEV_DMIC0_CLK = 0x64,

@@ -23,6 +23,12 @@
 #include "gpio_driver.h"
 #include <driver/wdt.h>
 #include <bk_wdt.h>
+#if CONFIG_SUPPORT_WWDT
+#include "wwdt_driver.h"
+#endif
+#if CONFIG_AON_WDT
+#include <driver/aon_wdt.h>
+#endif
 #include <partitions.h>
 
 #include <modules/pm.h>
@@ -333,39 +339,100 @@ bk_err_t bk_start_ap_system(void)
 	return BK_OK;
 }
 
-void bk_set_jtag_mode(uint32_t cpu_id, uint32_t group_id) {
+#if CONFIG_SWD_DEBUG_MODE
+
+/* Stop the AON-WDT and CPU-WWDT with raw register writes so it works in early
+ * boot / fault context before the WDT driver is up. The 0x5A/0xA5 halfword pair
+ * is the hardware unlock; loading count 0 stops the watchdog. */
+#define AON_PMU_BASE_ADDR        (0x44000000)
+#define AON_WDT_CTRL_REG         (0x44000600 + 0x0 * 4)
+#define CPU_WWDT_CTRL_REG        (0xE0050000 + 0x4 * 4)
+#define WDT_RESET_CFG_REG        (AON_PMU_BASE_ADDR + 0x2 * 4)
+#define WDT_RESET_ALL            (0x7)
+
+static void wdt_time_set(uint32_t val)
+{
+	REG_WRITE(WDT_RESET_CFG_REG, REG_READ(WDT_RESET_CFG_REG) | WDT_RESET_ALL);
+
+	REG_WRITE(AON_WDT_CTRL_REG,  0x5A0000 | val);
+	REG_WRITE(AON_WDT_CTRL_REG,  0xA50000 | val);
+	REG_WRITE(CPU_WWDT_CTRL_REG, 0x5A0000 | val);
+	REG_WRITE(CPU_WWDT_CTRL_REG, 0xA50000 | val);
+}
+
+#endif // CONFIG_SWD_DEBUG_MODE
+
+void bk_enter_swd_debug_mode(void)
+{
+	#if CONFIG_SWD_DEBUG_MODE
+	wdt_time_set(0);
+	#endif // CONFIG_SWD_DEBUG_MODE
+}
+
+/* Default SWD pin group: GPIO20 -> SWCLK, GPIO21 -> SWDIO. */
+#define SWD_DEFAULT_SWCLK_GPIO   GPIO_20
+#define SWD_DEFAULT_SWDIO_GPIO   GPIO_21
+
+/* Customer-overridable SWD pins (Kconfig). These only exist when SWD debug mode
+ * is enabled, so fall back to the hardware defaults for CONFIG_DEBUG_VERSION-only
+ * builds. */
+#ifndef CONFIG_SWD_DEBUG_MODE_PIN_CLK
+#define CONFIG_SWD_DEBUG_MODE_PIN_CLK   SWD_DEFAULT_SWCLK_GPIO
+#endif
+#ifndef CONFIG_SWD_DEBUG_MODE_PIN_DIO
+#define CONFIG_SWD_DEBUG_MODE_PIN_DIO   SWD_DEFAULT_SWDIO_GPIO
+#endif
+
+
+
+/* Enter SWD debug mode so a Trace32/JLink probe can attach during boot or while
+ * a fault handler spins.
+ *
+ * Every step below is a HAL register / state write and therefore tolerates being
+ * called before the regular drivers are initialized (early boot / exception
+ * context), which is the contract this entry point must honor. Notably it does
+ * NOT vote a CPU frequency: that path goes through the PM mailbox to the peer
+ * core and would block/fault before PM is up - SWD attach does not need it. */
+void bk_set_swd_mode(void) {
 #if CONFIG_SWD_DEBUG_MODE || CONFIG_DEBUG_VERSION
 
-	if (cpu_id == 0) {
-		(void)sys_drv_set_jtag_mode(0);
-	} else if (cpu_id == 1) {
-		(void)sys_drv_set_jtag_mode(1);
-	} else if (cpu_id == 2) {
-		(void)sys_drv_set_jtag_mode(2);
-	} else {
-		BK_LOGD(NULL,"Unsupported cpu id(%d).\r\n", cpu_id);
-		return;
-	}
-
-	bk_pm_module_vote_cpu_freq(PM_DEV_ID_DEFAULT,PM_CPU_FRQ_120M);
-
-	/*close watchdog*/
+	/* SWD halts the core at breakpoints, so all watchdogs must be stopped or the
+	 * chip resets while the probe owns the CPU. These stop calls are idempotent
+	 * register/flag writes (bk_wdt_stop also has its own not-init guard). */
 #if CONFIG_INT_WDT
 	bk_wdt_stop();
+#endif
+#if CONFIG_SUPPORT_WWDT
+	bk_wwdt_close();
 #endif
 #if CONFIG_TASK_WDT
 	bk_task_wdt_stop();
 #endif
 
-	if (group_id == 0) {
-		gpio_jtag_sel(0);
-	} else if (group_id == 1) {
-		gpio_jtag_sel(1);
-	} else {
-		BK_LOGD(NULL,"Unsupported group id(%d).\r\n", group_id);
-		return;
+	bk_enter_swd_debug_mode();
+	/* (Re)map the SWD pads. The pins are customer-overridable via
+	 * CONFIG_SWD_DEBUG_MODE_PIN_CLK/DIO and default to GPIO20/GPIO21. */
+	uint32_t swd_clk = CONFIG_SWD_DEBUG_MODE_PIN_CLK;
+	uint32_t swd_dio = CONFIG_SWD_DEBUG_MODE_PIN_DIO;
+
+	/* If the customer moved SWD off the hardware-default pads, release the
+	 * defaults first so they stop driving SWCLK/SWDIO. */
+	if (swd_clk != SWD_DEFAULT_SWCLK_GPIO || swd_dio != SWD_DEFAULT_SWDIO_GPIO) {
+		gpio_dev_unprotect_unmap(SWD_DEFAULT_SWCLK_GPIO);
+		gpio_dev_unprotect_unmap(SWD_DEFAULT_SWDIO_GPIO);
 	}
+
+	(void)gpio_swd_sel(swd_clk, swd_dio);
 #endif
+}
+
+/* Legacy API, kept for source compatibility with the old
+ * bk_set_jtag_mode(cpu_id, group_id); both arguments are now ignored because the
+ * SWD port/pins are fixed and configured via bk_set_swd_mode(). */
+void bk_set_jtag_mode(uint32_t cpu_id, uint32_t group_id) {
+	(void)cpu_id;
+	(void)group_id;
+	bk_set_swd_mode();
 }
 
 static void user_app_thread( void *arg )

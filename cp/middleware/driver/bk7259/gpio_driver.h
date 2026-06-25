@@ -26,11 +26,6 @@
 #define GPIO_LOGD(...) BK_LOGD(GPIO_TAG, ##__VA_ARGS__)
 #define GPIO_LOGV(...) BK_LOGV(GPIO_TAG, ##__VA_ARGS__)
 
-typedef enum {
-	GPIO_JTAG_MAP_GROUP0 = 0,          /**<GPIO20~GPIO21 is used for jtag */
-	GPIO_JTAG_MAP_GROUP1,              /**<GPIO0~GPIO1 is used for jtag */
-	GPIO_JTAG_MAP_GROUP_MAX,           /**< Invalid mode*/
-} gpio_jtag_map_group_t;
 
 typedef enum {
 	GPIO_SCR_MAP_GROUP0 = 0,          /**<GPIO0~GPIO3 is used for scr */
@@ -118,7 +113,18 @@ bk_err_t gpio_dev_map_by_func(gpio_dev_t func);
  */
 bk_err_t gpio_dev_unmap_by_func(gpio_dev_t func);
 #endif
-bk_err_t gpio_jtag_sel(gpio_jtag_map_group_t gpio_jtag_sel_mode);
+/**
+ * @brief Map a pair of pads to the 2-wire SWD debug port.
+ *
+ * Programs @p swclk to SWCLK and @p swdio to SWDIO. Only the pad
+ * function-select registers are touched, so this is safe to call before the
+ * GPIO driver has been initialized (early boot / fault handler).
+ *
+ * @param swclk gpio id to drive SWCLK
+ * @param swdio gpio id to drive SWDIO
+ * @return BK_OK on success, error code otherwise
+ */
+bk_err_t gpio_swd_sel(gpio_id_t swclk, gpio_id_t swdio);
 bk_err_t gpio_scr_sel(gpio_scr_map_group_t mode);
 IOMX_CODE_T convert_gpio_dev_to_iomx_code(gpio_dev_t dev);
 const char *bk_gpio_func_name(gpio_id_t id, uint32_t fun_sel);

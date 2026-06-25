@@ -32,6 +32,7 @@ void dlv_hook(void);
 void b_system_base_init (void);
 void b_prep_entry_main(void);
 void b_program_start(void);
+void bk_enter_swd_debug_mode(void);  /* defined in bk_startup/system_main.c */
 typedef void(*VECTOR_ENTRY_TYPE)(void);
 
 /*----------------------------------------------------------------------------
@@ -108,7 +109,8 @@ __attribute__((naked)) void Default_Handler(void)
 
 void bk_enable_swd(void)
 {
-	sys_hal_enable_swd();
+  sys_hal_enable_swd();        /* route SWCLK/SWDIO pads to the debug port */
+  bk_enter_swd_debug_mode();   /* stop AON-WDT/WWDT so the probe can halt the core */
 }
 
 

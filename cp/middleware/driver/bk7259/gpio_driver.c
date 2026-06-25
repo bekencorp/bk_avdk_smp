@@ -99,29 +99,14 @@ bk_err_t gpio_dev_unprotect_unmap(gpio_id_t gpio_id)
 	return BK_OK;
 }
 
-bk_err_t gpio_jtag_sel(gpio_jtag_map_group_t group_id)
+bk_err_t gpio_swd_sel(gpio_id_t swclk, gpio_id_t swdio)
 {
-	bk_err_t ret = BK_OK;
-	gpio_dev_unprotect_unmap(GPIO_20);
-	gpio_dev_unprotect_unmap(GPIO_21);
-
-	#if CONFIG_SPE
-	gpio_dev_unprotect_unmap(GPIO_0);
-	gpio_dev_unprotect_unmap(GPIO_1);
-	#endif
-
-	if (group_id == GPIO_JTAG_MAP_GROUP0) {
-		ret = gpio_dev_unprotect_map(GPIO_20, GPIO_DEV_JTAG_TCK);
-		ret = gpio_dev_unprotect_map(GPIO_21, GPIO_DEV_JTAG_TMS);
-	} else if (group_id == GPIO_JTAG_MAP_GROUP1) {
-		ret = gpio_dev_unprotect_map(GPIO_0, GPIO_DEV_JTAG_TCK);
-		ret = gpio_dev_unprotect_map(GPIO_1, GPIO_DEV_JTAG_TMS);
-	} else {
-		// IOMX_LOGD("Unsupported group id(%d).\r\n", group_id);
-		return BK_FAIL;
+	bk_err_t ret = gpio_dev_unprotect_map(swclk, GPIO_DEV_SWCLK);
+	if (ret != BK_OK) {
+		return ret;
 	}
 
-	return ret;
+	return gpio_dev_unprotect_map(swdio, GPIO_DEV_SWDIO);
 }
 
 bk_err_t gpio_scr_sel(gpio_scr_map_group_t mode)

@@ -46,9 +46,12 @@ typedef enum {
 } bk_nmi_flow_state_t;
 volatile uint32_t g_nmi_flow_state = BK_NMI_FLOW_NONE;
 
+extern void bk_set_swd_mode(void);
+
 __STATIC_FORCEINLINE void dump_system_info(uint32_t rr, uint32_t lr, uint32_t sp) {
 #if (CONFIG_SWD_DEBUG_MODE)
 	volatile uint32_t g_test18 = 1;
+	bk_set_swd_mode();
 	while (g_test18);
 #endif
 	g_nmi_flow_state = BK_NMI_FLOW_DUMP_ENTER;

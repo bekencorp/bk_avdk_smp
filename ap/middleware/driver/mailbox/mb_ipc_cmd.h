@@ -26,10 +26,10 @@ enum
 {
 	IPC_TEST_CMD = 0,               /* Server <-> Client */
 
-	IPC_CPU1_POWER_UP_INDICATION,           /* CPU1 -> CPU0  */
-	IPC_CPU1_HEART_BEAT_INDICATION,         /* CPU1 -> CPU0  */
-	IPC_GET_CPU1_HEART_RATE,                /* CPU0 -> CPU1  */
-	IPC_SET_CPU1_HEART_RATE,                /* CPU0 -> CPU1  */
+	IPC_AP_POWER_UP_INDICATION,             /* AP -> CP  */
+	IPC_AP_HEART_BEAT_INDICATION,           /* AP -> CP  */
+	IPC_GET_AP_HEART_RATE,                  /* CP -> AP  */
+	IPC_SET_AP_HEART_RATE,                  /* CP -> AP  */
 
 	IPC_GET_POWER_SAVE_FLAG,                /* Server -> Client  */
 
@@ -41,22 +41,24 @@ enum
 	IPC_FREE_DMA_CHNL,                      /* Client -> Server  */
 	IPC_DMA_CHNL_USER,                      /* Client -> Server  */
 
-	IPC_CPU1_TRAP_HANDLE_BEGIN,             /* CPU1 -> CPU0  */
-	IPC_CPU1_TRAP_HANDLE_END,               /* CPU1 -> CPU0  */
+	IPC_AP_TRAP_HANDLE_BEGIN,               /* AP -> CP  */
+	IPC_AP_TRAP_HANDLE_END,                 /* AP -> CP  */
 
-	IPC_CPU1_NEED_REBOOT,                   /* CPU1 -> CPU0  */
+	IPC_AP_NEED_REBOOT,                     /* AP -> CP  */
 
-	IPC_CPU0_START_USB_CDC,
-	IPC_CPU0_OPEN_USB_CDC,
-	IPC_CPU0_CLOSE_USB_CDC,
-	IPC_CPU0_STOP_USB_CDC,
+	IPC_CP_START_USB_CDC,
+	IPC_CP_OPEN_USB_CDC,
+	IPC_CP_CLOSE_USB_CDC,
+	IPC_CP_STOP_USB_CDC,
 
-	IPC_CPU0_SET_USB_CDC_CMD,
-	IPC_CPU0_GET_USB_CDC_DATA,
-	IPC_CPU0_INIT_USB_CDC_PARAM,
+	IPC_CP_SET_USB_CDC_CMD,
+	IPC_CP_GET_USB_CDC_DATA,
+	IPC_CP_INIT_USB_CDC_PARAM,
 
-	IPC_CPU1_UPDATE_USB_CDC_STATE,
-	IPC_CPU1_UPLOAD_USB_CDC_DATA,
+	IPC_AP_UPDATE_USB_CDC_STATE,
+	IPC_AP_UPLOAD_USB_CDC_DATA,
+
+	IPC_AP_SET_SWD_MODE,                   /* AP -> CP  : AP asks CP to enter SWD debug mode */
 
 	IPC_CMD_MAX  = 0x7F,  /* cmd id can NOT great than 0x7F. */
 };
@@ -89,6 +91,8 @@ bk_err_t ipc_send_free_dma_chnl(u32 user_id, u8 chnl_id);
 u32      ipc_send_dma_chnl_user(u8 chnl_id);
 bk_err_t ipc_send_cpu1_need_reboot(void);
 #endif
+
+bk_err_t ipc_send_set_swd_mode(void);                // AP -> CP: enter SWD debug mode.
 
 #else  /* (CONFIG_CPU_CNT > 1) */
 
