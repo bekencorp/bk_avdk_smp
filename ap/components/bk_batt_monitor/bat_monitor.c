@@ -597,7 +597,12 @@ static bk_err_t prvStartBatteryAdcOneTime( uint16_t * vol )
         return BK_FAIL;
     }
 
-    BK_LOG_ON_ERR( bk_adc_acquire() );
+    bk_err_t ret = bk_adc_acquire();
+    if (ret != BK_OK) {
+        BAT_MONITOR_WPRT("Failed to acquire ADC, err: %d\r\n", ret);
+        return ret;
+    }
+
     /* GPIO-to-analog remap is done once in battery_monitor_init(); calling it
      * every cycle floods the log with harmless but noisy "gpio_dev_unprotect_map"
      * errors. */
@@ -624,9 +629,9 @@ static bk_err_t prvStartBatteryAdcOneTime( uint16_t * vol )
     BK_LOG_ON_ERR( bk_adc_enable_bypass_clalibration() );
     BK_LOG_ON_ERR( bk_adc_start() );
 
-    bk_err_t ret = bk_adc_read_raw( s_raw_voltage_data,
-                                    ADC_VOL_BUFFER_SIZE,
-                                    ADC_READ_SEMAPHORE_WAIT_TIME );
+    ret = bk_adc_read_raw( s_raw_voltage_data,
+                           ADC_VOL_BUFFER_SIZE,
+                           ADC_READ_SEMAPHORE_WAIT_TIME );
     if( ret != BK_OK )
     {
         BAT_MONITOR_WPRT("Failed to read ADC data, err: %d\r\n", ret );

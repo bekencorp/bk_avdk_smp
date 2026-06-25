@@ -38,7 +38,7 @@ uint32_t adc_hal_get_temp_lsb_per_10degree(void)
 
 uint32_t adc_hal_get_1Volt_value(void)
 {
-    return 0x11AA;
+    return 0x1547;
 }
 
 uint32_t adc_hal_get_1Volt_threshold(void)
@@ -48,7 +48,7 @@ uint32_t adc_hal_get_1Volt_threshold(void)
 
 uint32_t adc_hal_get_2Volt_value(void)
 {
-    return 0x2382;
+    return 0x2A73;
 }
 
 uint32_t adc_hal_get_2Volt_threshold(void)

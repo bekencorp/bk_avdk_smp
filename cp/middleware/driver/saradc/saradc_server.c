@@ -45,6 +45,7 @@
 #define SARADC_SVR_WAIT_TIME      50
 #define ADC_KEY_SAMPLER_PERIOD_MS_DEFAULT 80
 #define ADC_KEY_SAMPLER_PERIOD_MS_MIN     20
+#define ADC_KEY_READ_TIMEOUT_MS             100
 
 static u8 s_saradc_svr_init = 0;
 static rtos_event_ext_t  saradc_svr_event;
@@ -79,40 +80,20 @@ static uint16_t saradc_raw_to_mv(uint16_t raw)
     return (uint16_t)(cali_value * 1000.0f);
 }
 
-static void saradc_adc_key_sample_timer_cb(void *param)
+static bk_err_t saradc_adc_key_sample_once(uint16_t *raw)
 {
-    (void)param;
-
-    if (!s_adc_key_sampler_running) {
-        return;
-    }
-
-    uint16_t raw = 0;
-    bk_err_t ret = bk_adc_set_channel(s_adc_key_sample_chan);
-    if (ret != BK_OK) {
-        bk_sys_sw_regs_set_adc_key_sample(0, 9999, (uint8_t)ret, (uint8_t)s_adc_key_sample_chan, s_adc_key_sample_period_ms, rtos_get_time());
-        return;
-    }
-
-    ret = bk_adc_read(&raw, 10);
-    if (ret != BK_OK) {
-        bk_sys_sw_regs_set_adc_key_sample(0, 9999, (uint8_t)ret, (uint8_t)s_adc_key_sample_chan, s_adc_key_sample_period_ms, rtos_get_time());
-        return;
-    }
-
-    bk_sys_sw_regs_set_adc_key_sample(raw, saradc_raw_to_mv(raw), 0, (uint8_t)s_adc_key_sample_chan, s_adc_key_sample_period_ms, rtos_get_time());
-}
-
-static bk_err_t saradc_adc_key_sampler_start(adc_chan_t chan, uint32_t sample_period_ms)
-{
+    bk_err_t ret;
     adc_config_t config = {0};
+    adc_chan_t chan = s_adc_key_sample_chan;
 
-    if (sample_period_ms < ADC_KEY_SAMPLER_PERIOD_MS_MIN) {
-        sample_period_ms = ADC_KEY_SAMPLER_PERIOD_MS_MIN;
+    ret = bk_adc_acquire();
+    if (ret != BK_OK) {
+        return ret;
     }
 
-    if (s_adc_key_sampler_running) {
-        return BK_OK;
+    ret = bk_adc_init(chan);
+    if (ret != BK_OK) {
+        goto adc_exit;
     }
 
     config.chan = chan;
@@ -122,23 +103,73 @@ static bk_err_t saradc_adc_key_sampler_start(adc_chan_t chan, uint32_t sample_pe
     config.saturate_mode = ADC_SATURATE_MODE_3;
     config.steady_ctrl = 7;
     config.adc_filter = 0;
+    config.sample_rate = 0;
 
-    if (bk_adc_acquire() != BK_OK ||
-        bk_adc_init(chan) != BK_OK ||
-        bk_adc_set_config(&config) != BK_OK ||
-        bk_adc_enable_bypass_clalibration() != BK_OK ||
-        bk_adc_start() != BK_OK) {
-        return BK_FAIL;
+    ret = bk_adc_set_config(&config);
+    if (ret != BK_OK) {
+        goto adc_exit;
+    }
+
+    ret = bk_adc_enable_bypass_clalibration();
+    if (ret != BK_OK) {
+        goto adc_exit;
+    }
+
+    ret = bk_adc_start();
+    if (ret != BK_OK) {
+        goto adc_exit;
+    }
+
+    ret = bk_adc_read(raw, ADC_KEY_READ_TIMEOUT_MS);
+    if (ret != BK_OK) {
+        goto adc_exit;
+    }
+
+adc_exit:
+    bk_adc_stop();
+    bk_adc_deinit(chan);
+    bk_adc_release();
+    return ret;
+}
+
+static void saradc_adc_key_sample_timer_cb(void *param)
+{
+    uint16_t raw = 0;
+    bk_err_t ret;
+
+    (void)param;
+
+    if (!s_adc_key_sampler_running) {
+        return;
+    }
+
+    ret = saradc_adc_key_sample_once(&raw);
+    if (ret != BK_OK) {
+        bk_sys_sw_regs_set_adc_key_sample(0, 9999, (uint8_t)ret, (uint8_t)s_adc_key_sample_chan,
+                                          s_adc_key_sample_period_ms, rtos_get_time());
+        return;
+    }
+
+    bk_sys_sw_regs_set_adc_key_sample(raw, saradc_raw_to_mv(raw), 0, (uint8_t)s_adc_key_sample_chan,
+                                      s_adc_key_sample_period_ms, rtos_get_time());
+}
+
+static bk_err_t saradc_adc_key_sampler_start(adc_chan_t chan, uint32_t sample_period_ms)
+{
+    if (sample_period_ms < ADC_KEY_SAMPLER_PERIOD_MS_MIN) {
+        sample_period_ms = ADC_KEY_SAMPLER_PERIOD_MS_MIN;
+    }
+
+    if (s_adc_key_sampler_running) {
+        return BK_OK;
     }
 
     s_adc_key_sample_chan = chan;
     s_adc_key_sample_period_ms = sample_period_ms;
 
     if (!s_adc_key_timer_inited) {
-        if (rtos_init_timer(&s_adc_key_sample_timer, s_adc_key_sample_period_ms, saradc_adc_key_sample_timer_cb, NULL) != kNoErr) {
-            bk_adc_stop();
-            bk_adc_release();
-            bk_adc_deinit(chan);
+        if (rtos_init_timer(&s_adc_key_sample_timer, s_adc_key_sample_period_ms,
+                            saradc_adc_key_sample_timer_cb, NULL) != kNoErr) {
             return BK_FAIL;
         }
         s_adc_key_timer_inited = true;
@@ -147,14 +178,12 @@ static bk_err_t saradc_adc_key_sampler_start(adc_chan_t chan, uint32_t sample_pe
     }
 
     if (rtos_start_timer(&s_adc_key_sample_timer) != kNoErr) {
-        bk_adc_stop();
-        bk_adc_release();
-        bk_adc_deinit(chan);
         return BK_FAIL;
     }
 
     s_adc_key_sampler_running = true;
-    bk_sys_sw_regs_set_adc_key_sample(0, 9999, 0, (uint8_t)s_adc_key_sample_chan, s_adc_key_sample_period_ms, rtos_get_time());
+    bk_sys_sw_regs_set_adc_key_sample(0, 9999, 0, (uint8_t)s_adc_key_sample_chan,
+                                      s_adc_key_sample_period_ms, rtos_get_time());
     return BK_OK;
 }
 
@@ -169,11 +198,8 @@ static bk_err_t saradc_adc_key_sampler_stop(void)
         rtos_stop_timer(&s_adc_key_sample_timer);
     }
 
-    bk_adc_stop();
-    bk_adc_release();
-    bk_adc_deinit(s_adc_key_sample_chan);
-
-    bk_sys_sw_regs_set_adc_key_sample(0, 9999, 1, (uint8_t)s_adc_key_sample_chan, s_adc_key_sample_period_ms, rtos_get_time());
+    bk_sys_sw_regs_set_adc_key_sample(0, 9999, 1, (uint8_t)s_adc_key_sample_chan,
+                                      s_adc_key_sample_period_ms, rtos_get_time());
     return BK_OK;
 }
 

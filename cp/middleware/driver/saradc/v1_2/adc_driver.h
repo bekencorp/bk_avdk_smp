@@ -105,13 +105,27 @@ struct sadc_device {
     #endif
 };
 
+#if CONFIG_SARADC_V1P2_COMPATIBLE_MODE
+bk_err_t adc_session_mutex_init(void);
+bk_err_t adc_session_mutex_deinit(void);
+bk_err_t adc_session_lock(void);
+bk_err_t adc_session_unlock(void);
+#endif
+
 static inline bk_err_t adc_context_init(struct sadc_context *ctx)
 {
     bk_err_t ret;
+#if CONFIG_SARADC_V1P2_COMPATIBLE_MODE
+    ret = adc_session_mutex_init();
+    if (BK_OK != ret) {
+        return BK_ERR_ADC_INIT_MUTEX;
+    }
+#else
     ret = rtos_init_mutex(&ctx->lock);
     if (kNoErr != ret) {
         return BK_ERR_ADC_INIT_MUTEX;
     }
+#endif
 
     ret = rtos_init_semaphore(&ctx->sync, 1);
     if (BK_OK != ret) {
@@ -130,6 +144,11 @@ static inline bk_err_t adc_context_lock(struct sadc_context *ctx)
 {
     bk_err_t ret;
 
+#if CONFIG_SARADC_V1P2_COMPATIBLE_MODE
+    (void)ctx;
+    ret = adc_session_lock();
+    return (ret == BK_OK) ? kNoErr : ret;
+#else
     /* Take mutex first (may block). Never take spinlock before a blocking call,
      * otherwise we deadlock if another core needs the spinlock to release the mutex. */
     ret = rtos_lock_mutex(&ctx->lock);
@@ -141,12 +160,18 @@ static inline bk_err_t adc_context_lock(struct sadc_context *ctx)
     // spin_lock(&ctx->multicore_lock);
     // #endif // CONFIG_ENABLE_USING_SADC_IN_MULTI_CORE
     return kNoErr;
+#endif
 }
 
 static inline bk_err_t adc_context_release(struct sadc_context *ctx)
 {
     bk_err_t ret = kNoErr;
 
+#if CONFIG_SARADC_V1P2_COMPATIBLE_MODE
+    (void)ctx;
+    ret = adc_session_unlock();
+    return (ret == BK_OK) ? kNoErr : ret;
+#else
     // #if CONFIG_ENABLE_USING_SADC_IN_MULTI_CORE
     // spin_unlock(&ctx->multicore_lock);
     // rtos_enable_int(ctx->int_flags);
@@ -154,17 +179,25 @@ static inline bk_err_t adc_context_release(struct sadc_context *ctx)
 
     ret = rtos_unlock_mutex(&ctx->lock);
     return ret;
+#endif
 }
 
 static inline bk_err_t adc_context_deinit(struct sadc_context *ctx)
 {
     bk_err_t ret;
 
+#if CONFIG_SARADC_V1P2_COMPATIBLE_MODE
+    ret = adc_session_mutex_deinit();
+    if (BK_OK != ret) {
+        return BK_ERR_ADC_DEINIT_MUTEX;
+    }
+#else
     ret = rtos_deinit_mutex(&ctx->lock);
     if (kNoErr != ret) {
         return BK_ERR_ADC_DEINIT_MUTEX;
     }
     ctx->lock = NULL;
+#endif
 
     ret = rtos_deinit_semaphore(&ctx->sync);
     if (BK_OK != ret) {
