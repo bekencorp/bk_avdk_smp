@@ -20,6 +20,8 @@
 #include <driver/mailbox_channel.h>
 #include <driver/mb_chnl_buff.h>
 #include <arch_interrupt.h>
+#include <os/os.h>
+#include "spinlock.h"
 
 #include "cache.h"
 
@@ -27,6 +29,27 @@
 
 #define TX_QUEUE_LEN     8
 #define RX_BUFF_SIZE     160
+
+#if CONFIG_SOC_SMP
+static SPINLOCK_SECTION volatile spinlock_t mb_pump_lock = SPIN_LOCK_INIT;
+#endif
+
+static inline uint32_t mb_pump_enter(void)
+{
+	uint32_t flags = rtos_disable_int();
+#if CONFIG_SOC_SMP
+	spin_lock(&mb_pump_lock);
+#endif
+	return flags;
+}
+
+static inline void mb_pump_exit(uint32_t flags)
+{
+#if CONFIG_SOC_SMP
+	spin_unlock(&mb_pump_lock);
+#endif
+	rtos_enable_int(flags);
+}
 
 typedef struct
 {
@@ -138,20 +161,25 @@ static void shell_mb_rx_isr(shell_mb_ext_t *mb_ext, mb_chnl_cmd_t *cmd_buf)
 	}
 	else if (cmd_buf->hdr.cmd == MB_CMD_LOG_UNBLOCK)
 	{
+		log_cmd_t * log_cmd = (log_cmd_t *)cmd_buf;
+
+		/* clear log_blocked + resume the pump atomically vs the producer. */
+		uint32_t flags = mb_pump_enter();
 		if (mb_ext->log_blocked == 0) {
+			mb_pump_exit(flags);
 			return;
 		}
-		log_cmd_t * log_cmd = (log_cmd_t *)cmd_buf;
-		/* do nothing except notifying app to free buffer. */
+		mb_ext->log_blocked = 0;
+		shell_mb_tx_isr2(mb_ext);
+		mb_pump_exit(flags);
+
+		/* notify app to free the unblock msg buffer (outside the pump lock). */
 		if(mb_ext->tx_complete_callback != NULL)
 		{
 			mb_ext->tx_complete_callback(log_cmd->buf, log_cmd->tag);
 		}
 
 		result = ACK_STATE_COMPLETE;
-		mb_ext->log_blocked = 0;
-		shell_mb_tx_isr2(mb_ext);
-
 	}
 	else if(cmd_buf->hdr.cmd == MB_CMD_USER_INPUT)   /* cmd line inputs. */
 	{
@@ -239,8 +267,12 @@ static void shell_mb_tx_isr2(shell_mb_ext_t *mb_ext)
 	}
 }
 
-static void shell_mb_tx_cmpl_isr2(shell_mb_ext_t *mb_ext, mb_chnl_ack_t *ack_buf)
+/* Returns whether CP signalled flow-control BLOCK for this packet. Frees the
+ * completed buffer via tx_complete_callback (must run OUTSIDE the pump lock). */
+static u8 shell_mb_tx_cmpl_isr2(shell_mb_ext_t *mb_ext, mb_chnl_ack_t *ack_buf)
 {
+	u8 set_block = 0;
+
 	if(ack_buf->hdr.cmd != MB_CMD_LOG_OUT)
 	{
 		/*
@@ -252,7 +284,7 @@ static void shell_mb_tx_cmpl_isr2(shell_mb_ext_t *mb_ext, mb_chnl_ack_t *ack_buf
 	
 	if ( ((ack_buf->hdr.state & CHNL_STATE_COM_FAIL) == 0) && 
      		(ack_buf->ack_state & ACK_STATE_BLOCK) ) {
-		mb_ext->log_blocked = 1;
+		set_block = 1;
 	}
 
 	/* MB_CMD_LOG_OUT tx complete. */
@@ -268,12 +300,22 @@ static void shell_mb_tx_cmpl_isr2(shell_mb_ext_t *mb_ext, mb_chnl_ack_t *ack_buf
 		}
 	}
 
+	return set_block;
 }
 
 static void shell_mb_tx_cmpl_isr(shell_mb_ext_t *mb_ext, mb_chnl_ack_t *ack_buf)
 {
-	shell_mb_tx_cmpl_isr2(mb_ext, ack_buf);
+	/* callback (frees buffer / releases semaphore) runs outside the pump lock. */
+	u8 set_block = shell_mb_tx_cmpl_isr2(mb_ext, ack_buf);
+
+	/* log_blocked update + tx pump must be atomic vs the producer (write_async). */
+	uint32_t flags = mb_pump_enter();
+	if(set_block)
+	{
+		mb_ext->log_blocked = 1;
+	}
 	shell_mb_tx_isr2(mb_ext);
+	mb_pump_exit(flags);
 	return;
 }
 
@@ -482,6 +524,12 @@ static u16 shell_mb_write_async(shell_dev_t * shell_dev, u8 * pBuf, u16 BufLen, 
 
 	/* enqueue pBuf even if BufLen is 0, upper layer need tx-complete-callback to free this pBuf. */
 
+	/* enqueue + tx-pump trigger must be atomic vs the completion ISRs, otherwise
+	 * the ISR can set tx_stopped=1 while we enqueue here and observe tx_stopped
+	 * still 0, leaving this packet stranded with the pump parked. */
+	u16 ret = 0;
+	uint32_t flags = mb_pump_enter();
+
 	if(mb_ext->list_out_idx > mb_ext->list_in_idx)
 		free_items = mb_ext->list_out_idx - mb_ext->list_in_idx;
 	else
@@ -498,12 +546,12 @@ static u16 shell_mb_write_async(shell_dev_t * shell_dev, u8 * pBuf, u16 BufLen, 
 
 		shell_mb_tx_trigger(mb_ext);
 
-		return 1;
+		ret = 1;
 	}
-	else
-	{
-		return 0;
-	}
+
+	mb_pump_exit(flags);
+
+	return ret;
 }
 
 static u16 shell_mb_read(shell_dev_t * shell_dev, u8 * pBuf, u16 BufLen)

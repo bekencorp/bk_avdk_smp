@@ -1465,7 +1465,8 @@ static void rx_ind_process(void)
 				}
 			}
 
-			rtos_get_semaphore(&cmd_line_buf.rsp_buf_semaphore, SHELL_WAIT_OUT_TIME);
+			bk_err_t ret = rtos_get_semaphore(&cmd_line_buf.rsp_buf_semaphore, SHELL_WAIT_OUT_TIME);
+			BK_ASSERT(ret == kNoErr);
 
 			cmd_line_buf.rsp_buff[0] = 0;
 			/* handle command. */
