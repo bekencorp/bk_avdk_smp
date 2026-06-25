@@ -23,6 +23,10 @@
 #define MULTICORE_LOGE(...) BK_LOGE(MULTICORE_TAG, ##__VA_ARGS__)
 #define MULTICORE_LOGD(...) BK_LOGD(MULTICORE_TAG, ##__VA_ARGS__)
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 void bk_multicore_set_cpu_id(uint32_t cpu_id);
 uint32_t bk_multicore_get_cpu_id(void);
 bk_err_t bk_multicore_start(uint32_t cpu_id);
@@ -66,3 +70,7 @@ void bk_cpu_hp_core_stop_hmb_isr(void);
 void bk_cpu_hp_idle_handler(void);
 
 #endif /* CONFIG_CPU_HOTPLUG */
+
+#ifdef __cplusplus
+}
+#endif
