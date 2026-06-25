@@ -66,6 +66,16 @@ typedef volatile union
     uint32_t v;
 } isp_stream_status_stream11_t;
 
+typedef volatile union
+{
+    struct
+    {
+        uint32_t mp_wr_frame_num         : 16; /**<bit[0 : 15] */
+        uint32_t sp_wr_frame_num         : 16; /**<bit[16 : 31] */
+    };
+    uint32_t v;
+} isp_frame_num_t;
+
 typedef volatile struct
 {
     volatile isp_vi_ccl_t vi_ccl;

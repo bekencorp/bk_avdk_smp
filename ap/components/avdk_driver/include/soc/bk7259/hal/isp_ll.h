@@ -178,6 +178,19 @@ static inline uint32_t isp_ll_get_stream_status_stream11_valid_entry_count(void)
     isp_stream_status_stream11_t *r = (isp_stream_status_stream11_t *)(SOC_ISP_REG_BASE + (0x1076 << 2));
     return r->valid_entry_count;
 }
+
+static inline uint32_t isp_ll_get_mp_wr_frame_num_value(void)
+{
+    isp_frame_num_t *r = (isp_frame_num_t *)(SOC_ISP_REG_BASE + 0x1634);
+    return r->mp_wr_frame_num;
+}
+
+static inline uint32_t isp_ll_get_sp_wr_frame_num_value(void)
+{
+    isp_frame_num_t *r = (isp_frame_num_t *)(SOC_ISP_REG_BASE + 0x1634);
+    return r->sp_wr_frame_num;
+}
+
 #ifdef __cplusplus
 }
 #endif
