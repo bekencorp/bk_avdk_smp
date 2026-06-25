@@ -483,6 +483,7 @@ if(CONFIG_LVGL)
 
 	list(APPEND incs
 		common/.
+		common/camera_blend
 		common/gpu_rotate
 		common/hpdma
 		common/img_utility
@@ -490,6 +491,7 @@ if(CONFIG_LVGL)
 
 	list(APPEND srcs
 		common/lv_vendor.c
+		common/camera_blend/lv_camera_blend.c
 		common/hpdma/lv_hpdma.c
 	)
 
