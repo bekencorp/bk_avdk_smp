@@ -169,7 +169,7 @@ int bk_get_printf_port(void);
 uint32_t bk_misc_get_reset_reason(void);
 void bk_misc_set_reset_reason(uint32_t type);
 void bk_misc_set_ap_reset_reason(uint32_t type);
-void bk_start_ap_system(void);
+bk_err_t bk_start_ap_system(void);
 
 /**
  * @brief  GPIO LOG API
