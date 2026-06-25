@@ -102,6 +102,7 @@ task.h is included from an application file. */
 #endif
 #include <driver/pwr_clk.h>
 #include "stack_base.h"
+#include <sys_sw_regs.h>
 
 #if CONFIG_MEM_DEBUG_OVERFLOW
 // #include "dwt.h"
@@ -1522,6 +1523,10 @@ static void prvHeapInit( void )
 	/* Only one block exists - and it covers the entire usable heap space. */
 	xMinimumEverFreeBytesRemaining = pxFirstFreeBlock->xBlockSize;
 	xFreeBytesRemaining = pxFirstFreeBlock->xBlockSize;
+
+	/* Publish the address of the system-heap free counter into the shared
+	 * registers so AP can read CP heap pressure directly across cores. */
+	bk_sys_sw_regs_set_cp_heap_free_ptr((uint32_t)&xFreeBytesRemaining);
 
 #if (CONFIG_PSRAM_AS_SYS_MEMORY)
 	// It's too early init psram maybe failed
