@@ -20,5 +20,5 @@ endif()
 
 armino_component_register(SRCS "${srcs}"
 		INCLUDE_DIRS "${incs}"
-		PRIV_REQUIRES bk_common bk_wifi lwip_intf_v2_1 bk_netif psa_mbedtls
+		PRIV_REQUIRES bk_common bk_wifi lwip_intf_v2_1 bk_netif psa_mbedtls driver
 		)

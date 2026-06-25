@@ -68,6 +68,30 @@ typedef struct {
 
 #define BK_CFM_GET_CMD_ID(cfm_id)           (cfm_id - WDRV_CMD_CFM_OFFSET)
 
+#if CONFIG_CONTROLLER_AP_BUFFER_COPY
+#define CP_MEM_SNAPSHOT_MAGIC          0x43504D53U /* CPMS */
+#define CP_MEM_SNAPSHOT_VERSION        1U
+
+typedef struct cp_mem_addr_info {
+    uint32_t magic;
+    uint32_t version;
+    uint32_t size;
+    uint32_t lwip_mem_value_size;
+    uint32_t lwip_used_addr;
+    uint32_t lwip_avail_addr;
+    uint32_t lwip_tx_used_addr;
+    uint32_t lwip_tx_avail_addr;
+    uint32_t heap_value_size;
+    uint32_t heap_free_addr;
+    uint32_t heap_total;
+    uint32_t heap_min_rsv_addr;
+    uint32_t heap_min_rsv_value_size;
+} cp_mem_addr_info_t;
+
+extern cp_mem_addr_info_t g_cp_mem_addr_info;
+bool wdrv_cp_mem_tx_allowed(void);
+#endif
+
 
 typedef struct _wdrv_cmd_cfm
 {

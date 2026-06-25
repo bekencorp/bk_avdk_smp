@@ -32,12 +32,14 @@
 #include <components/netif.h>
 #include "components/event.h"
 #include "wifi_api_ipc.h"
-#include "lwip/stats.h"
 #if CONFIG_BRIDGE
 #include "bk_bridge.h"
 #endif
 #if CONFIG_PSA_MBEDTLS
 #include "mbedtls/bignum.h"
+#endif
+#if CONFIG_CONTROLLER_AP_BUFFER_COPY
+#include <sys_sw_regs.h>
 #endif
 #define TAG "wdrv_cntrl"
 
@@ -458,33 +460,55 @@ bk_err_t wdrv_cntrl_get_cif_stats()
 bk_err_t wdrv_cntrl_get_cp_lwip_mem_addr()
 {
     bk_err_t ret = BK_OK;
-    struct get_cif_stats
+    uint32_t info_ptr;
+
+    /* No IPC handshake at boot: CP publishes the lwIP/heap address snapshot to
+     * sys_sw_regs (cp_lwip_mem_info_ptr) before IPC comes up, so it is ready
+     * here. The snapshot lives in CP SRAM, mapped non-cacheable on AP -> coherent. */
+    info_ptr = (uint32_t)bk_sys_sw_regs_ptr()->cp_lwip_mem_info_ptr;
+    if (info_ptr == 0)
     {
-        wdrv_cmd_hdr cmd_hdr;
-        wdrv_cmd_cfm cmd_cfm;
-    };
-    struct get_cif_stats req = {0};
-
-    req.cmd_hdr.cmd_id =  BK_CP_LWIP_MEM_ADDR_CMD;
-    req.cmd_cfm.waitcfm = WDRV_CMD_WAITCFM;
-    req.cmd_cfm.cfm_id = 0;
-
-
-    wdrv_tx_msg((uint8_t *)&req, sizeof(req), &req.cmd_cfm, NULL);
-    
-    if(g_cp_lwip_mem == NULL)
-    {
-        WDRV_LOGE("CP side need open macro 'CONFIG_CONTROLLER_AP_BUFFER_COPY' \n");
-        ret = BK_FAIL;
-        BK_ASSERT(0);
+        WDRV_LOGE("[cp_mem_addr] cp_lwip_mem_info_ptr not published, flow ctrl disabled\r\n");
+        g_cp_mem_addr_info.magic = 0;
+        return BK_FAIL;
     }
-    if(g_cp_stats_mem_size != sizeof(struct stats_mem))
+
+    os_memcpy(&g_cp_mem_addr_info, (void *)info_ptr, sizeof(cp_mem_addr_info_t));
+    /* heap free counter address comes from the heap itself (cp_heap_size_ptr),
+     * not from the controller snapshot (kept 0 there). */
+    g_cp_mem_addr_info.heap_free_addr = (uint32_t)bk_sys_sw_regs_ptr()->cp_heap_size_ptr;
+
+    WDRV_LOGI("[cp_mem_addr] read @0x%x magic:0x%x(exp 0x%x) ver:%u(exp %u) size:%u(exp %u)\n",
+              info_ptr, g_cp_mem_addr_info.magic, CP_MEM_SNAPSHOT_MAGIC,
+              g_cp_mem_addr_info.version, CP_MEM_SNAPSHOT_VERSION,
+              g_cp_mem_addr_info.size, (uint32_t)sizeof(cp_mem_addr_info_t));
+    WDRV_LOGI("[cp_mem_addr] lwip val_sz:%u used:0x%x avail:0x%x tx_used:0x%x tx_avail:0x%x\n",
+              g_cp_mem_addr_info.lwip_mem_value_size,
+              g_cp_mem_addr_info.lwip_used_addr, g_cp_mem_addr_info.lwip_avail_addr,
+              g_cp_mem_addr_info.lwip_tx_used_addr, g_cp_mem_addr_info.lwip_tx_avail_addr);
+    WDRV_LOGI("[cp_mem_addr] heap val_sz:%u free:0x%x total:%u min_rsv:0x%x rsv_sz:%u\n",
+              g_cp_mem_addr_info.heap_value_size, g_cp_mem_addr_info.heap_free_addr,
+              g_cp_mem_addr_info.heap_total, g_cp_mem_addr_info.heap_min_rsv_addr,
+              g_cp_mem_addr_info.heap_min_rsv_value_size);
+
+    if((g_cp_mem_addr_info.magic != CP_MEM_SNAPSHOT_MAGIC) ||
+        (g_cp_mem_addr_info.version != CP_MEM_SNAPSHOT_VERSION) ||
+        (g_cp_mem_addr_info.size != sizeof(cp_mem_addr_info_t)))
     {
-        WDRV_LOGE("AP and CP side 'struct stats_mem' must have same structure \n");
-        ret = BK_FAIL;
-        BK_ASSERT(0);
+        WDRV_LOGE("AP and CP side 'cp_mem_addr_info_t' mismatch! magic=0x%x ver=%u size=%u\n",
+                  g_cp_mem_addr_info.magic, g_cp_mem_addr_info.version, g_cp_mem_addr_info.size);
+        g_cp_mem_addr_info.magic = 0;
+        return BK_FAIL;
     }
-    WDRV_LOGV("%s,%d,addr:0x%x\n","cp_lwip_mem_addr",__LINE__,g_cp_lwip_mem);
+
+    /* heap addresses are mandatory for flow control; if any is null disable it. */
+    if ((g_cp_mem_addr_info.heap_free_addr == 0) ||
+        (g_cp_mem_addr_info.heap_min_rsv_addr == 0))
+    {
+        WDRV_LOGE("[cp_mem_addr] null heap addr (free:0x%x rsv:0x%x), flow ctrl disabled\r\n",
+                  g_cp_mem_addr_info.heap_free_addr, g_cp_mem_addr_info.heap_min_rsv_addr);
+        g_cp_mem_addr_info.magic = 0;
+    }
 
     return ret;
 }
@@ -518,15 +542,6 @@ void wdrv_rx_handle_cmd_confirm(wdrv_rx_msg *msg)
         case BK_CMD_START_AP:
             WDRV_LOGV("MCU-AP-STATE: start AP\r\n");
             break;
-#if CONFIG_CONTROLLER_AP_BUFFER_COPY
-        case BK_CP_LWIP_MEM_ADDR_CMD:
-        {
-            g_cp_lwip_mem = (void*)msg->param[0];
-            g_cp_stats_mem_size =  msg->param[1];
-            WDRV_LOGD("CP_LWIP_MEM_ADDR_CMD addr:0x%x \r\n",g_cp_lwip_mem);
-            break;
-        }
-#endif
         default:
             WDRV_LOGD("%s,%d,ID:0x%x\n",__func__,__LINE__,BK_CFM_GET_CMD_ID(msg->id));
             break;

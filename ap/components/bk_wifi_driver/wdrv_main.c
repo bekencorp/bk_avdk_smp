@@ -341,11 +341,12 @@ void wdrv_main(void *arg)
                 break;
         }
         #if CONFIG_CONTROLLER_AP_BUFFER_COPY
-        if(wdrv_env.is_controlled && ((100 * g_cp_lwip_mem->tx_used /g_cp_lwip_mem->tx_avail ) < 60) && ((100 * g_cp_lwip_mem->used /g_cp_lwip_mem->avail ) < 70))
+        if(wdrv_env.is_controlled)
         {
-            //WDRV_LOGD("%s %d\r\n",__func__,__LINE__);
-            wdrv_env.is_controlled = 0;
-            wdrv_msg_sender(0,WDRV_TASK_MSG_TXDATA,1);
+            if(wdrv_cp_mem_tx_allowed())
+            {
+                wdrv_msg_sender(0,WDRV_TASK_MSG_TXDATA,1);
+            }
         }
         #endif
         if(wdrv_env.is_init)

@@ -7,11 +7,6 @@ extern "C" {
 #include "wdrv_main.h"
 #include "pbuf.h"
 #include "wdrv_cntrl.h"
-#if CONFIG_CONTROLLER_AP_BUFFER_COPY
-#include "lwip/stats.h"
-extern struct stats_mem *g_cp_lwip_mem;
-extern uint32_t g_cp_stats_mem_size;
-#endif
 #if CONFIG_BK_RAW_LINK
 int wdrv_special_txdata_sender(void *head, uint32_t vif_idx);
 #endif

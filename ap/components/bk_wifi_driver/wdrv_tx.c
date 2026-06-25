@@ -2,12 +2,92 @@
 #include "wdrv_ipc.h"
 #include "wdrv_main.h"
 #include "wdrv_cntrl.h"
-#include "lwip/stats.h"
 #if CONFIG_CONTROLLER_AP_BUFFER_COPY
-struct stats_mem *g_cp_lwip_mem = NULL;
-uint32_t g_cp_stats_mem_size = 0;
+cp_mem_addr_info_t g_cp_mem_addr_info = {0};
 #endif
 void __asm_flush_dcache_range(void* begin, void* end);
+
+#if CONFIG_CONTROLLER_AP_BUFFER_COPY
+static uint32_t wdrv_cp_read_u32_addr(uint32_t addr, uint32_t size)
+{
+    if (addr == 0) {
+        return 0;
+    }
+
+    if (size == sizeof(uint16_t)) {
+        return *(volatile uint16_t *)addr;
+    }
+    return *(volatile uint32_t *)addr;
+}
+
+static bool wdrv_cp_mem_addr_ready(void)
+{
+    return ((g_cp_mem_addr_info.magic == CP_MEM_SNAPSHOT_MAGIC) &&
+            (g_cp_mem_addr_info.version == CP_MEM_SNAPSHOT_VERSION) &&
+            (g_cp_mem_addr_info.size == sizeof(cp_mem_addr_info_t)));
+}
+
+bool wdrv_cp_mem_tx_allowed(void)
+{
+    uint32_t tx_used, tx_avail, mem_used, mem_avail;
+    uint32_t heap_free, heap_min_rsv;
+    uint32_t tx_pct = 0, mem_pct = 0;
+    bool lwip_avail, heap_low, heap_ok;
+    bool mem_tight, mem_eased;
+
+    if (!wdrv_cp_mem_addr_ready()) {
+        return !wdrv_env.is_controlled;
+    }
+
+    tx_avail     = wdrv_cp_read_u32_addr(g_cp_mem_addr_info.lwip_tx_avail_addr,
+                                         g_cp_mem_addr_info.lwip_mem_value_size);
+    tx_used      = wdrv_cp_read_u32_addr(g_cp_mem_addr_info.lwip_tx_used_addr,
+                                         g_cp_mem_addr_info.lwip_mem_value_size);
+    mem_avail    = wdrv_cp_read_u32_addr(g_cp_mem_addr_info.lwip_avail_addr,
+                                         g_cp_mem_addr_info.lwip_mem_value_size);
+    mem_used     = wdrv_cp_read_u32_addr(g_cp_mem_addr_info.lwip_used_addr,
+                                         g_cp_mem_addr_info.lwip_mem_value_size);
+    heap_free    = wdrv_cp_read_u32_addr(g_cp_mem_addr_info.heap_free_addr,
+                                         g_cp_mem_addr_info.heap_value_size);
+    heap_min_rsv = wdrv_cp_read_u32_addr(g_cp_mem_addr_info.heap_min_rsv_addr,
+                                         g_cp_mem_addr_info.heap_min_rsv_value_size);
+
+    /* lwIP availability is decided by the pool CAPACITY (tx_avail / mem_avail):
+     * a zero capacity means CP did not publish the metric / stats are off. */
+    lwip_avail = ((tx_avail != 0) && (mem_avail != 0));
+    if (lwip_avail) {
+        tx_pct  = 100 * tx_used / tx_avail;
+        mem_pct = 100 * mem_used / mem_avail;
+    }
+
+    /* CP OS heap addresses are validated once at init (wdrv_rx_handle_cmd_confirm),
+     * so when wdrv_cp_mem_addr_ready() passes they are guaranteed valid here.
+     * heap_free == 0 is a valid CRITICAL state (heap exhausted) -> must stop TX. */
+    /* low water: at/below the reserve (heap_free == 0 lands here) -> throttle */
+    heap_low = (heap_free <= heap_min_rsv);
+    /* high water: 25% above the reserve -> allow recovery (avoids flapping) */
+    heap_ok  = (heap_free > (heap_min_rsv + heap_min_rsv / 4));
+
+    /* memory is tight when the lwIP TX pool OR the lwIP total heap crosses the
+     * high water mark, OR the CP OS heap drops to/below its reserve */
+    mem_tight = (lwip_avail && ((tx_pct >= 75) || (mem_pct > 80))) || heap_low;
+    /* memory has eased only when BOTH lwIP metrics are below the low water mark
+     * AND the CP OS heap is comfortably above its reserve */
+    mem_eased = (((tx_pct < 60) && (mem_pct < 70)) && heap_ok);
+
+    if (wdrv_env.is_controlled) {
+        if (mem_eased) {
+            wdrv_env.is_controlled = 0;
+        }
+    } else {
+        if (mem_tight) {
+            wdrv_env.is_controlled = 1;
+        }
+    }
+
+    return !wdrv_env.is_controlled;
+}
+#endif
 
 #if CONFIG_BK_RAW_LINK
 int wdrv_special_txdata_sender(void *head, uint32_t vif_idx)
@@ -60,19 +140,8 @@ int wdrv_txdata_sender(struct pbuf *p, uint32_t vif_idx)
     // Only perform flow-control checks for buffers that do NOT require free
     if(!cpdu->co_hdr.need_free)
     {
-        if(wdrv_env.is_controlled && ((100 * g_cp_lwip_mem->tx_used /g_cp_lwip_mem->tx_avail ) < 60) && ((100 * g_cp_lwip_mem->used /g_cp_lwip_mem->avail ) < 70))
-        {
-            //WDRV_LOGE("%s %d,tx_used:%d,avail:%d\r\n",__func__,__LINE__,g_cp_lwip_mem->tx_used,g_cp_lwip_mem->tx_avail);
-            wdrv_env.is_controlled = 0;
-        }
-        /* Enable flow control early when CP memory usage crosses threshold */
-        if((!wdrv_env.is_controlled) && ((100 * g_cp_lwip_mem->tx_used / g_cp_lwip_mem->tx_avail) >= 75) && ((100 * g_cp_lwip_mem->used /g_cp_lwip_mem->avail ) > 80))
-        {
-            wdrv_env.is_controlled = 1;
-            return BK_ERR_NO_MEM;
-        }
-        /* If flow control is active, reject new TX to notify upper layer */
-        if (wdrv_env.is_controlled)
+        /* Single decision over lwIP + CP OS heap (updates is_controlled). */
+        if(!wdrv_cp_mem_tx_allowed())
         {
             return BK_ERR_NO_MEM;
         }
