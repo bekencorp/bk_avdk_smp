@@ -155,6 +155,7 @@ typedef struct
     video_player_jpeg_subsampling_t jpeg_subsampling; // JPEG subsampling format, VIDEO_PLAYER_JPEG_SUBSAMPLING_NONE if not applicable
     const uint8_t *codec_config;
     uint32_t       codec_config_size;
+    uint32_t       rotate_degree;       // Display rotation in degrees, decoder may ignore unsupported values
 } video_player_video_params_t;
 
 // Media information for current file (container-level info + stream params)
@@ -429,6 +430,9 @@ typedef struct bk_video_player_video_config
     // Expected decoded video output format (e.g., PIXEL_FMT_YUYV, PIXEL_FMT_RGB565)
     // Video decode thread will decode video to this format and then pass it to upper layer.
     pixel_format_t output_format;
+
+    // Display rotation in degrees. Decoder decides whether it can apply this in hardware.
+    uint32_t rotate_degree;
 } bk_video_player_video_config_t;
 
 // Player configuration

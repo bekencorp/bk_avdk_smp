@@ -15,6 +15,7 @@
 #pragma once
 
 #include <stdbool.h>
+#include <stdint.h>
 
 #include "components/bk_video_player/bk_video_player_types.h"
 
@@ -73,7 +74,7 @@ video_player_video_decoder_ops_t *bk_video_player_get_hw_h264_decoder_frame_ops(
  * @return AVDK_ERR_OK.
  */
 avdk_err_t bk_video_player_hw_h264_decoder_free_output_frame(void *frame);
-
+ 
 #ifdef __cplusplus
 }
 #endif

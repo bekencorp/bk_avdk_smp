@@ -19,6 +19,7 @@ typedef int avdk_err_t;
 #define AVDK_ERR_UNKNOWN        -10  /* unknown */
 #define AVDK_ERR_UNSUPPORTED    -11  /* unsupported */
 #define AVDK_ERR_NO_RESOURCE    -12  /* no resource */
+#define AVDK_ERR_IO             -13  /* I/O error */
 
 // End of file / end of stream
 // Used by container parsers and data sources to indicate clean EOF (not an error).
@@ -36,6 +37,7 @@ typedef int avdk_err_t;
 #define AVDK_ERR_UNSUPPORTED_TEXT   "unsupported"
 #define AVDK_ERR_UNSUPPORTED_FUNCTION_TEXT   "unsupported function"
 #define AVDK_ERR_NO_RESOURCE_TEXT    "no resource"
+#define AVDK_ERR_IO_TEXT             "I/O error"
 
 #ifdef  __cplusplus
 }
