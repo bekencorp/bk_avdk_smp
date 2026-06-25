@@ -91,33 +91,6 @@ static void at_atversion_command(char *pcWriteBuffer, int xWriteBufferLen, int a
 
 
 
-//#if (CONFIG_BLE_5_X || CONFIG_BTDM_5_2)
-#if CONFIG_BLE &&  !CONFIG_BTDM_CONTROLLER_ONLY
-static void bleat_command_handler(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
-{
-    char *msg = NULL;
-    const at_command_t *command = NULL;
-    uint8_t type = bk_ble_get_controller_stack_type();
-
-    if(type != BK_BLE_CONTROLLER_STACK_TYPE_BLE_5_X &&
-        type != BK_BLE_CONTROLLER_STACK_TYPE_BTDM_5_2)
-    {
-        BK_LOGD(NULL, "%s stack type %d not support\n", __func__, type);
-        return;
-    }
-
-    command = lookup_ble_at_command(argv[1]);
-    if (command == NULL) {
-        BK_LOGD(NULL, "cannot find this cmd, please check again!!!\n");
-        msg = AT_CMD_RSP_ERROR;
-        os_memcpy(pcWriteBuffer, msg, os_strlen(msg));
-        return;
-    }
-
-    command->function(pcWriteBuffer, xWriteBufferLen, argc - 2, argv + 2);
-}
-#endif /// CONFIG_BLE_5_X || CONFIG_BTDM_5_2
-
 #if CONFIG_BT &&  !CONFIG_BTDM_CONTROLLER_ONLY
 static void bt_at_command_handler(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
@@ -207,9 +180,6 @@ static const struct cli_command s_at_commands[] = {
     {"AT+RST", "AT+RST", at_reset_command},
     {"AT+VERSION", "AT+VERSION", at_version_command},
     {"AT+ATVERSION", "AT+ATVERSION", at_atversion_command},
-#if CONFIG_BLE && !CONFIG_BTDM_CONTROLLER_ONLY
-    {"AT+BLE", "AT+TYPE_CMD=CMD_name,param1,...,paramn", bleat_command_handler},
-#endif
 #if CONFIG_BT && !CONFIG_BTDM_CONTROLLER_ONLY
     {"AT+BT", "AT+TYPE_CMD=CMD_name,param1,...,paramn", bt_at_command_handler},
 #endif

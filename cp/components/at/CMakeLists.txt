@@ -24,8 +24,6 @@ if (CONFIG_AT_CMD)
 	if (CONFIG_BLE)
 	if (NOT CONFIG_BTDM_CONTROLLER_ONLY)
                 list(APPEND srcs
-                        "src/ble_at_command.c"
-						"src/ble_at_gatt.c"
 									)
 	endif()
 	endif()
@@ -35,4 +33,3 @@ endif()
 armino_component_register(SRCS "${srcs}" INCLUDE_DIRS "${incs}"
                         REQUIRES bk_common bk_log
                         PRIV_REQUIRES bk_bluetooth lwip_intf_v2_1)
-

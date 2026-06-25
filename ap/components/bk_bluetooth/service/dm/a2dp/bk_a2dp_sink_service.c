@@ -5,7 +5,6 @@
 
 #include "bk_a2dp_sink_service.h"
 #include "bk_avrcp_ct_service.h"
-#include "components/bluetooth/bk_dm_bt_types.h"
 #include "components/bluetooth/bk_dm_a2dp.h"
 #include "components/bluetooth/bk_dm_gap_bt.h"
 #include "bt_manager.h"

@@ -5,7 +5,6 @@
 #include <stdlib.h>
 #include "cli.h"
 #include "components/bluetooth/bk_dm_hidd.h"
-#include "components/bluetooth/bk_dm_bt.h"
 #include "components/bluetooth/bk_dm_gap_bt_types.h"
 #include "components/bluetooth/bk_dm_gap_bt.h"
 #include "components/bluetooth/bk_dm_gap_bt_types.h"
@@ -47,7 +46,7 @@ static uint8_t hid_demo_feature_report_1[] = { KEY_BOARD_REPORT_ID,0U,1U,0U };
 
 static hdidd_demo_param_t hd_param = {0};
 
-static char hidd_demo_report_desc[] = 
+static char hidd_demo_report_desc[] =
 {
     /*     ^^^^^         ^^^^^
      * Adjust lengths if Report Descriptor is changed.
@@ -277,7 +276,7 @@ static void bt_hidd_callback(bk_hidd_cb_event_t event, bk_hidd_cb_param_t *param
             if(hd_param.protocol_mode == BK_HIDD_REPORT_MODE || hd_param.protocol_mode == BK_HIDD_BOOT_MODE)
             {
                 uint8_t data[1] = {0};
-                data[0] |= (1<<hd_param.protocol_mode); 
+                data[0] |= (1<<hd_param.protocol_mode);
                 bk_bt_hid_device_send_response(BK_HIDD_MESSAGE_TYPE_GET_PROTOCOL, BK_HID_PAR_HANDSHAKE_RSP_SUCCESS, 1, data);
             }else
             {
@@ -421,9 +420,9 @@ static void bt_hidd_callback(bk_hidd_cb_event_t event, bk_hidd_cb_param_t *param
         break;
         default :
         break;
-       
+
     }
-    
+
 }
 
 void bt_hidd_init(void)
@@ -445,4 +444,3 @@ void bt_hidd_deinit(void)
 {
     bk_bt_hid_device_deinit();
 }
-

@@ -34,6 +34,9 @@ enum
     BT_ETHERMIND_GAP_API_REQ_SUBMSG_SNIFF_CONTROL,
     BT_ETHERMIND_GAP_API_REQ_SUBMSG_SWTICH_ROLE,
     BT_ETHERMIND_GAP_API_REQ_SUBMSG_SET_INQUIRY_SCAN_ACTIVITY,
+    BT_ETHERMIND_GAP_API_REQ_SUBMSG_LINKKEY_REPLY,
+    BT_ETHERMIND_GAP_API_REQ_SUBMSG_SET_EIR,
+    BT_ETHERMIND_GAP_API_REQ_SUBMSG_SET_LOCAL_NAME,
 };
 
 
@@ -139,6 +142,25 @@ typedef struct
     uint8_t role;
 } bk_bt_switch_role_msg_t;
 
+typedef struct
+{
+    uint8_t *data;
+    uint32_t len;
+    uint8_t is_exist;
+} bk_bt_gap_linkkey_reply_msg_t;
+
+typedef struct
+{
+    bk_bt_eir_raw_data_elem_t *array;
+    uint8_t count;
+
+} bk_bt_gap_set_eir_raw_data_msg_t;
+
+typedef struct
+{
+    uint8_t name[0xff];
+    uint8_t len;
+} bk_bt_gap_set_local_name_msg_t;
 
 void bk_bt_call_callback(bk_gap_bt_cb_event_t event, bk_bt_gap_cb_param_t *param);
 bk_bt_gap_cb_t bk_bt_gap_get_callback(void);
@@ -148,4 +170,3 @@ void bk_bt_gap_set_class_of_device(uint32_t cod);
 bt_err_t bk_bt_gap_get_remote_service_record_private(bk_bd_addr_t remote_bda, bk_bt_uuid_t *uuid);
 
 #endif //__DM_BT_GAP_TASK_H__
-

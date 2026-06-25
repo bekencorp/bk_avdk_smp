@@ -121,8 +121,8 @@ static uint8_t s_performance_tx_enable = 0;
 
 
 
-static ATT_ATTR_HANDLE s_ethermind_nordic_write_attr_handle[8];
-static ATT_ATTR_HANDLE s_ethermind_nordic_write_notify_handle[8];
+static uint16_t s_ethermind_nordic_write_attr_handle[8];
+static uint16_t s_ethermind_nordic_write_notify_handle[8];
 //static ATT_HANDLE s_ethermind_nordic_att_info[8];
 static uint8_t s_ethermind_nordic_att_info[8];
 static uint8_t s_ethermind_nordic_used[8] = {0};
@@ -136,7 +136,7 @@ static uint16_t plc_rx_handle[10] = {0};
 
 static uint8_t send_value[32] = {0};
 //static ATT_HANDLE att_handle;
-static ATT_ATTR_HANDLE s_read_tmp_attr_handle = 0;
+static uint16_t s_read_tmp_attr_handle = 0;
 
 static ble_read_phy_t s_ble_phy = {0, 0};
 
@@ -226,7 +226,6 @@ int ble_set_max_mtu_handle(int sync, int argc, char **argv);
 //#endif
 int ble_delete_adv_activity_handle(int sync, int argc, char **argv);
 int ble_delete_scan_activity_handle(int sync, int argc, char **argv);
-extern int ble_boarding_handle(int sync, int argc, char **argv);
 void ble_test_noti_hdl(void *param);
 static void ble_performance_tx_timer_hdl(void *param);
 static void ble_performance_rx_timer_hdl(void *param);
@@ -535,7 +534,7 @@ static int8_t ethermind_find_index_by_info(uint8_t *index, uint8_t att_con_id)
     return -1;
 }
 
-int8_t ethermind_find_index_by_att_con_id(uint8_t *index, ATT_CON_ID att_id)
+int8_t ethermind_find_index_by_att_con_id(uint8_t *index, uint8_t att_id)
 {
 
     for (uint8_t i = 0; i < sizeof(s_ethermind_nordic_used) / sizeof(s_ethermind_nordic_used[0]); ++i)
@@ -936,7 +935,7 @@ static void ble_at_notice_cb(ble_notice_t notice, void *param)
 
             break;
         }
-
+#if 0
         case BLE_5_PERIODIC_SYNC_CMPL_EVENT:
             LOGD("BLE_5_PERIODIC_SYNC_CMPL_EVENT \n");
             break;
@@ -1092,6 +1091,7 @@ static void ble_at_notice_cb(ble_notice_t notice, void *param)
 
         }
         break;
+#endif
         case BLE_5_CONN_UPD_PAR_ASK:
         {
 
@@ -1101,6 +1101,7 @@ static void ble_at_notice_cb(ble_notice_t notice, void *param)
 
         }
         break;
+#if 0
         case BLE_5_ATT_READ_RESPONSE:
         {
             ble_att_rw_t *tmp = (typeof(tmp))param;
@@ -1132,7 +1133,7 @@ static void ble_at_notice_cb(ble_notice_t notice, void *param)
             }
         }
         break;
-
+#endif
         case BLE_5_PAIRING_REQ:
         {
             LOGD("BLE_5_PAIRING_REQ\r\n");
@@ -4664,8 +4665,6 @@ int ble_read_phy_handle(int sync, int argc, char **argv)
     }
     else
     {
-        //        bk_ble_set_event_callback(dm_ble_at_event_cb);
-        //        err = bk_ble_hci_read_phy(&connect_addr, addr_type, ble_at_cmd_cb);
         bk_bd_addr_t addr_new;
 
         os_memcpy(addr_new, g_peer_dev.bdaddr.addr, sizeof(g_peer_dev.bdaddr.addr));
@@ -4807,8 +4806,6 @@ int ble_set_phy_handle(int sync, int argc, char **argv)
     }
     else
     {
-        //        bk_ble_set_event_callback(dm_ble_at_event_cb);
-        //        err = bk_ble_hci_set_phy(&connect_addr, addr_type, &le_set_phy, ble_at_cmd_cb);
         bk_bd_addr_t addr_new;
         bk_ble_gap_all_phys_t all_phys_mask = 0;
         bk_ble_gap_phy_mask_t tx_phy_mask = le_set_phy.tx_phy;
@@ -5809,7 +5806,7 @@ int ble_att_write_handle(int sync, int argc, char **argv)
     int8_t i = 0;
 
     uint8_t conn_handle = 0;
-    ATT_ATTR_HANDLE attr_handle = 0;
+    uint16_t attr_handle = 0;
 
 
     if (argc < 3)
@@ -6080,6 +6077,7 @@ int ble_enable_packet_loss_ratio_test_handle(int sync, int argc, char **argv)
         }
         else
         {
+#if 0
             const uint16_t noti_enable = 0;
             for (uint8_t i = 0; i < sizeof(s_ethermind_nordic_att_info) / sizeof(s_ethermind_nordic_att_info[0]); i++)
             {
@@ -6090,7 +6088,9 @@ int ble_enable_packet_loss_ratio_test_handle(int sync, int argc, char **argv)
                 }
 
             }
+#endif
         }
+
     }
     else if (cmd == 1)
     {
@@ -6138,6 +6138,7 @@ int ble_enable_packet_loss_ratio_test_handle(int sync, int argc, char **argv)
         }
         else
         {
+#if 0
             for (uint8_t i = 0; i < sizeof(s_ethermind_nordic_att_info) / sizeof(s_ethermind_nordic_att_info[0]); i++)
             {
                 if (s_ethermind_nordic_used[i])
@@ -6146,6 +6147,7 @@ int ble_enable_packet_loss_ratio_test_handle(int sync, int argc, char **argv)
                     bk_ble_att_write(s_ethermind_nordic_att_info[i], s_ethermind_nordic_write_attr_handle[i], (uint8_t *)&cmd, sizeof(cmd));
                 }
             }
+#endif
         }
     }
     else if (cmd == 3)
@@ -6166,6 +6168,7 @@ int ble_enable_packet_loss_ratio_test_handle(int sync, int argc, char **argv)
         }
         else
         {
+#if 0
             const uint16_t noti_enable = 0x0001;
             for (uint8_t i = 0; i < sizeof(s_ethermind_nordic_att_info) / sizeof(s_ethermind_nordic_att_info[0]); i++)
             {
@@ -6176,6 +6179,7 @@ int ble_enable_packet_loss_ratio_test_handle(int sync, int argc, char **argv)
                 }
 
             }
+#endif
         }
     }
 
@@ -6550,6 +6554,7 @@ static void ble_mqtt_loop_recv_handle(void *pcontext, void *pclient, iotx_mqtt_e
                 }
                 else
                 {
+#if 0
                     uint8_t index = 0;
                     if (0 == ethermind_find_index_by_att_con_id(&index, con_idx))
                     {
@@ -6564,8 +6569,8 @@ static void ble_mqtt_loop_recv_handle(void *pcontext, void *pclient, iotx_mqtt_e
                     {
                         LOGW("%s cant find att_id %d\n", __func__, con_idx);
                     }
+#endif
                 }
-
             }
         }
 
@@ -7665,7 +7670,7 @@ int ble_set_adv_param_handle_gap(int sync, int argc, char **argv)
     }
     //    param.type = adv_param.adv_type;
     param.channel_map = adv_param.chnl_map;
-    param.filter_policy = ADV_FILTER_POLICY_ALLOW_SCAN_ANY_CONNECT_ANY;
+    param.filter_policy = ADV_FILTER_ALLOW_SCAN_ANY_CON_ANY;
     param.own_addr_type = adv_param.own_addr_type;
     param.peer_addr_type = BLE_ADDR_TYPE_PUBLIC;
     param.primary_phy = adv_param.prim_phy;
@@ -7699,7 +7704,7 @@ int ble_set_adv_param_handle_gap(int sync, int argc, char **argv)
     param.interval_min = adv_param.adv_intv_min;
     param.type = BK_BLE_GAP_SET_EXT_ADV_PROP_CONNECTABLE;
     param.channel_map = adv_param.chnl_map;
-    param.filter_policy = ADV_FILTER_POLICY_ALLOW_SCAN_ANY_CONNECT_ANY;
+    param.filter_policy = ADV_FILTER_ALLOW_SCAN_ANY_CON_ANY;
     param.own_addr_type = adv_param.own_addr_type;
     param.peer_addr_type = 0;
     param.primary_phy = adv_param.prim_phy;
@@ -8142,7 +8147,6 @@ int ble_set_scan_param_handle_gap(int sync, int argc, char **argv)
         goto error;
     }
 
-    //bk_ble_set_event_callback(dm_ble_at_event_cb);
     bk_ble_ext_scan_params_t param = {0};
     param.own_addr_type = scan_param.own_addr_type;
     param.cfg_mask = scan_param.scan_phy;
@@ -8250,7 +8254,6 @@ int ble_set_scan_enable_handle_gap(int sync, int argc, char **argv)
         }
     }
 
-    //bk_ble_set_event_callback(dm_ble_at_event_cb);
     if (enable == 1)
     {
         err = bk_ble_gap_start_scan(duration, period);
@@ -8368,7 +8371,7 @@ int ble_set_per_adv_param_handle_gap(int sync, int argc, char **argv)
     ext_adv_param.type = BK_BLE_GAP_SET_EXT_ADV_PROP_NONCONN_NONSCANNABLE_UNDIRECTED;
 
     ext_adv_param.channel_map = adv_param.chnl_map;
-    ext_adv_param.filter_policy = ADV_FILTER_POLICY_ALLOW_SCAN_ANY_CONNECT_ANY;
+    ext_adv_param.filter_policy = ADV_FILTER_ALLOW_SCAN_ANY_CON_ANY;
     ext_adv_param.own_addr_type = adv_param.own_addr_type;
     ext_adv_param.peer_addr_type = BLE_ADDR_TYPE_PUBLIC;
     ext_adv_param.primary_phy = adv_param.prim_phy;
@@ -8849,6 +8852,126 @@ error:
     atsvr_cmd_rsp_error();
     return err;
 }
+
+static int ble_boarding_handle(int sync, int argc, char **argv)
+{
+    int err = kNoErr;
+    /* argv[0]: adv data hex string, argv[1]: adv data length, same as ble_boarding_legacy_handle */
+    uint8_t adv_data[31] = {0};
+    uint8_t adv_len = 0;
+
+    if (bk_ble_get_host_stack_type() != BK_BLE_HOST_STACK_TYPE_ETHERMIND)
+    {
+        extern int ble_boarding_legacy_handle(int sync, int argc, char **argv);
+        return ble_boarding_legacy_handle(sync, argc, argv);
+    }
+#if CONFIG_BLUETOOTH_BTDM_COMPONENT_BLE_BOARDING
+    if (argc != 2)
+    {
+        LOGD("The number of param is wrong!\n");
+        err = kParamErr;
+        goto error;
+    }
+
+    adv_len = os_strtoul(argv[1], NULL, 16) & 0xFF;
+    if (adv_len > 31 || adv_len != os_strlen(argv[0]) / 2)
+    {
+        LOGD("input adv len over limited\n");
+        err = kParamErr;
+        goto error;
+    }
+
+    bk_at_dm_gatt_main(NULL);
+    bk_at_dm_gattc_main(NULL);
+    bk_at_dm_gatts_main(NULL);
+    extern int32_t dm_ble_boarding_init(void);
+    dm_ble_boarding_init();
+    bk_at_dm_gatt_add_gap_callback(dm_ble_gap_at_cb);
+
+    err = rtos_init_semaphore(&ble_at_cmd_sema, 1);
+    if (err != kNoErr)
+    {
+        goto error;
+    }
+
+    /* adv params: legacy connectable */
+    bk_ble_gap_ext_adv_params_t adv_param = {0};
+    adv_param.type = BK_BLE_GAP_SET_EXT_ADV_PROP_LEGACY_IND;
+    adv_param.interval_min = 120;
+    adv_param.interval_max = 160;
+    adv_param.channel_map = BK_ADV_CHNL_ALL;
+    adv_param.filter_policy = ADV_FILTER_ALLOW_SCAN_ANY_CON_ANY;
+    adv_param.own_addr_type = BLE_ADDR_TYPE_PUBLIC;
+    adv_param.peer_addr_type = BLE_ADDR_TYPE_PUBLIC;
+    adv_param.primary_phy = BK_BLE_GAP_PRI_PHY_1M;
+    adv_param.secondary_phy = BK_BLE_GAP_PHY_1M;
+    adv_param.tx_power = 0x7F;
+
+    err = bk_ble_gap_set_adv_params(0, &adv_param);
+    if (err != BK_ERR_BLE_SUCCESS)
+    {
+        goto error;
+    }
+    err = rtos_get_semaphore(&ble_at_cmd_sema, AT_SYNC_CMD_TIMEOUT_MS);
+    if (err != kNoErr)
+    {
+        goto error;
+    }
+
+    /* adv data: raw data (carrying the adv name) passed in from argv */
+    at_set_data_handle(adv_data, argv[0], os_strlen(argv[0]));
+
+    err = bk_ble_gap_set_adv_data_raw(0, adv_len, adv_data);
+    if (err != BK_ERR_BLE_SUCCESS)
+    {
+        goto error;
+    }
+    err = rtos_get_semaphore(&ble_at_cmd_sema, AT_SYNC_CMD_TIMEOUT_MS);
+    if (err != kNoErr)
+    {
+        goto error;
+    }
+
+    /* adv enable */
+    bk_ble_gap_ext_adv_t ext_adv = {0};
+    ext_adv.instance = 0;
+    ext_adv.duration = 0;
+    ext_adv.max_events = 0;
+
+    err = bk_ble_gap_adv_start(1, &ext_adv);
+    if (err != BK_ERR_BLE_SUCCESS)
+    {
+        goto error;
+    }
+    err = rtos_get_semaphore(&ble_at_cmd_sema, AT_SYNC_CMD_TIMEOUT_MS);
+    if (err != kNoErr)
+    {
+        goto error;
+    }
+
+    if (ble_at_cmd_sema != NULL)
+    {
+        rtos_deinit_semaphore(&ble_at_cmd_sema);
+        ble_at_cmd_sema = NULL;
+    }
+
+    atsvr_cmd_rsp_ok();
+    return err;
+#else
+    LOGE("boarding demo is not supported!!\n");
+    goto error;
+#endif
+
+error:
+    if (ble_at_cmd_sema != NULL)
+    {
+        rtos_deinit_semaphore(&ble_at_cmd_sema);
+        ble_at_cmd_sema = NULL;
+    }
+    atsvr_cmd_rsp_error();
+    return err;
+}
+
 const struct _atsvr_command ble_cmds_table[] =
 {
     //ATSVR_CMD_HADLER("AT+BLE_GETBLENAME", 1, "AT+BLE_GETBLENAME = return ble name", NULL,get_ble_name_handle,true,AT_SYNC_CMD_TIMEOUT_MS,0,NULL,false),
@@ -9038,4 +9161,3 @@ void ble_at_cmd_init(void)
     }
 }
 #endif
-

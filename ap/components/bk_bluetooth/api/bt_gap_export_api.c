@@ -1,5 +1,5 @@
 #include "os/mem.h"
-#include "components/bluetooth/bk_dm_bt_types.h"
+#include "os/os.h"
 #include "components/bluetooth/bk_dm_bluetooth_types.h"
 #include "components/bluetooth/bk_dm_gap_bt.h"
 
@@ -86,6 +86,58 @@ bk_err_t bk_bt_gap_config_eir_data(bk_bt_eir_data_t *eir_data)
 {
     ble_err_t ret = BK_OK;
     //  ret = bt_ethermind_post_msg(BT_ETHERMIND_MSG_GAP_API_REQ, BT_ETHERMIND_GAP_API_REQ_SUBMSG_GET_REMOTE_SERVICES, eir_data, sizeof(bk_bt_eir_data_t), NULL);
+    return ret;
+}
+
+bk_err_t bk_bt_gap_set_eir_raw_data_elem(bk_bt_eir_raw_data_elem_t *elem, uint8_t count)
+{
+    int32_t ret = 0;
+    bk_bt_gap_set_eir_raw_data_msg_t msg = {0};
+    msg.count = count;
+    msg.array = (typeof(msg.array))os_malloc(sizeof(msg.array[0]) * count);
+
+    if(!msg.array)
+    {
+        BK_LOGE(NULL, "%s malloc err\n", __func__);
+        return BK_ERR_BT_NO_MEM;
+    }
+
+    for(uint8_t i = 0; i < count; i++)
+    {
+        msg.array[i].type = elem[i].type;
+        msg.array[i].data = os_malloc(elem[i].len);
+        if(!msg.array[i].data)
+        {
+            BK_LOGE(NULL, "%s malloc err\n", __func__);
+            ret = BK_ERR_BT_NO_MEM;
+            goto error;
+        }
+        os_memcpy(msg.array[i].data, elem[i].data, elem[i].len);
+        msg.array[i].len = elem[i].len;
+    }
+
+    ret = bt_ethermind_post_msg(BT_ETHERMIND_MSG_GAP_API_REQ, BT_ETHERMIND_GAP_API_REQ_SUBMSG_SET_EIR, &msg, sizeof(msg), NULL);
+
+    if(!ret)
+    {
+        return ret;
+    }
+
+error:;
+
+    if(msg.array)
+    {
+        for (uint8_t i = 0; i < count; i++)
+        {
+            if(msg.array[i].data)
+            {
+                os_free(msg.array[i].data);
+            }
+        }
+
+        os_free(msg.array);
+    }
+
     return ret;
 }
 
@@ -267,7 +319,7 @@ bt_err_t bk_bt_gap_create_conn_cancel(uint8_t *addr)
 
 bt_err_t bk_bt_gap_set_page_timeout(uint16_t timeout)
 {
-    return bt_ethermind_post_msg(BT_ETHERMIND_MSG_API_REQ, BT_ETHERMIND_GAP_API_REQ_SUBMSG_SET_PAGE_TIMEOUT, &timeout, sizeof(timeout), NULL);
+    return bt_ethermind_post_msg(BT_ETHERMIND_MSG_GAP_API_REQ, BT_ETHERMIND_GAP_API_REQ_SUBMSG_SET_PAGE_TIMEOUT, &timeout, sizeof(timeout), NULL);
 }
 
 bt_err_t bk_bt_gap_set_page_scan_activity(uint16_t interval, uint16_t window)
@@ -276,7 +328,7 @@ bt_err_t bk_bt_gap_set_page_scan_activity(uint16_t interval, uint16_t window)
     msg.interval = interval;
     msg.window = window;
 
-    return bt_ethermind_post_msg(BT_ETHERMIND_MSG_API_REQ, BT_ETHERMIND_GAP_API_REQ_SUBMSG_SET_PAGE_SCAN_ACTIVITY, &msg, sizeof(msg), NULL);
+    return bt_ethermind_post_msg(BT_ETHERMIND_MSG_GAP_API_REQ, BT_ETHERMIND_GAP_API_REQ_SUBMSG_SET_PAGE_SCAN_ACTIVITY, &msg, sizeof(msg), NULL);
 }
 
 bt_err_t bk_bt_gap_set_inquiry_scan_activity(uint16_t interval, uint16_t window)
@@ -285,7 +337,7 @@ bt_err_t bk_bt_gap_set_inquiry_scan_activity(uint16_t interval, uint16_t window)
     msg.interval = interval;
     msg.window = window;
 
-    return bt_ethermind_post_msg(BT_ETHERMIND_MSG_API_REQ, BT_ETHERMIND_GAP_API_REQ_SUBMSG_SET_INQUIRY_SCAN_ACTIVITY, &msg, sizeof(msg), NULL);
+    return bt_ethermind_post_msg(BT_ETHERMIND_MSG_GAP_API_REQ, BT_ETHERMIND_GAP_API_REQ_SUBMSG_SET_INQUIRY_SCAN_ACTIVITY, &msg, sizeof(msg), NULL);
 }
 
 bt_err_t bk_bt_gap_authentication_request(uint8_t *addr)
@@ -348,3 +400,43 @@ bk_err_t bk_bt_gap_switch_role(uint8_t *addr, uint8_t new_role)
     return bt_ethermind_post_msg(BT_ETHERMIND_MSG_GAP_API_REQ, BT_ETHERMIND_GAP_API_REQ_SUBMSG_SWTICH_ROLE, &msg, sizeof(msg), NULL);
 }
 
+bt_err_t bk_bt_gap_set_local_name(uint8_t *name, uint8_t len)
+{
+    bk_bt_gap_set_local_name_msg_t msg = {0};
+    os_memcpy(msg.name, name, len);
+    msg.len = len;
+    return bt_ethermind_post_msg(BT_ETHERMIND_MSG_GAP_API_REQ, BT_ETHERMIND_GAP_API_REQ_SUBMSG_SET_LOCAL_NAME, &msg, sizeof(msg), NULL);
+}
+
+bt_err_t bk_bt_gap_linkkey_reply(uint8_t is_exist, bk_bt_linkkey_storage_t *key)
+{
+    int32_t ret = 0;
+    bk_bt_gap_linkkey_reply_msg_t msg = {0};
+
+    if(key)
+    {
+        msg.data = os_malloc(sizeof(*key));
+
+        if(!msg.data)
+        {
+            BK_LOGE(NULL, "%s malloc err\n", __func__);
+
+            return BK_ERR_BT_NO_MEM;
+        }
+
+        os_memcpy(msg.data, key, sizeof(*key));
+        msg.len = sizeof(*key);
+    }
+
+    msg.is_exist = is_exist;
+
+    ret = bt_ethermind_post_msg(BT_ETHERMIND_MSG_GAP_API_REQ, BT_ETHERMIND_GAP_API_REQ_SUBMSG_LINKKEY_REPLY, &msg, sizeof(msg), NULL);
+
+    if(ret)
+    {
+        BK_LOGE(NULL, "%s post msg err %d\n", __func__, ret);
+        os_free(msg.data);
+    }
+
+    return ret;
+}

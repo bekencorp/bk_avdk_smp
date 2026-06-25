@@ -85,9 +85,7 @@ enum boarding_mode
 static ble_boarding_info_t *ble_boarding_info = NULL;
 
 extern void at_set_data_handle(uint8_t *out, char *buff, uint16_t len);
-#if CONFIG_AT
-static int ble_boarding_legacy_handle(int sync, int argc, char **argv);
-#endif
+
 #define BOARDING_SERVICE_UUID                   (0xFA00)
 
 #define BOARDING_CHARA_PROPERTIES_UUID          (0xEA01)
@@ -627,19 +625,7 @@ static void ble_at_legacy_notice_cb(ble_notice_t notice, void *param)
             break;
     }
 }
-#if CONFIG_AT
-int ble_boarding_handle(int sync, int argc, char **argv)
-{
-    if (bk_ble_get_host_stack_type() != BK_BLE_HOST_STACK_TYPE_ETHERMIND)
-    {
-        return ble_boarding_legacy_handle(sync, argc, argv);
-    }
-    else
-    {
-        return dm_ble_boarding_handle(sync, argc, argv);
-    }
-}
-#endif
+
 int ble_boarding_notify(uint8_t *data, uint16_t length)
 {
     if (s_conn_ind == 0xFF)
@@ -1125,4 +1111,3 @@ error:
 }
 #endif
 #endif
-

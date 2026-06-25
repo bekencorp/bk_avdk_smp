@@ -12,7 +12,6 @@
 #if CONFIG_BT
 #include "bt_include.h"
 #include "modules/sbc_encoder.h"
-#include "components/bluetooth/bk_dm_bt.h"
 #include "components/bluetooth/bk_dm_a2dp.h"
 #endif
 
@@ -1223,7 +1222,7 @@ static int bt_spp_init_handle(int sync, int argc, char **argv)
     if (bk_bt_get_host_stack_type() == BK_BT_HOST_STACK_TYPE_ETHERMIND)
     {
         //bk_bt_write_scan_enable(3, bt_at_cmd_cb);
-        bk_bt_gap_set_visibility(BK_BT_CONNECTABLE, BK_BT_DISCOVERABLE);
+        bk_bt_gap_set_scan_mode(BK_BT_CONNECTABLE, BK_BT_DISCOVERABLE);
         if (!spp_env.spp_init)
         {
             bk_bt_gap_set_event_callback(bt_at_event_cb);
@@ -1270,7 +1269,7 @@ static int bt_write_scan_enable_handle(int sync, int argc, char **argv)
         //if(err) goto error;
 
         //err = rtos_get_semaphore(&bt_at_cmd_sema, AT_AT_SYNC_CMD_TIMEOUT_MS);
-        err = bk_bt_gap_set_visibility(BK_BT_CONNECTABLE, BK_BT_DISCOVERABLE);
+        err = bk_bt_gap_set_scan_mode(BK_BT_CONNECTABLE, BK_BT_DISCOVERABLE);
         if (!err)
         {
             atsvr_cmd_rsp_ok();
@@ -1743,7 +1742,7 @@ static int bt_enable_opp_test_handle(int sync, int argc, char **argv)
 
     if (bk_bt_get_host_stack_type() == BK_BT_HOST_STACK_TYPE_ETHERMIND)
     {
-        err = bk_bt_gap_set_visibility(BK_BT_CONNECTABLE, BK_BT_DISCOVERABLE);
+        err = bk_bt_gap_set_scan_mode(BK_BT_CONNECTABLE, BK_BT_DISCOVERABLE);
 
         if (!err)
         {
@@ -3577,7 +3576,7 @@ static int bt_l2cap_init_handle(int sync, int argc, char **argv)
             break;
         }
         bk_bt_gap_set_event_callback(bt_at_event_cb);
-        bk_bt_gap_set_visibility(BK_BT_CONNECTABLE, BK_BT_DISCOVERABLE);
+        bk_bt_gap_set_scan_mode(BK_BT_CONNECTABLE, BK_BT_DISCOVERABLE);
         bk_bt_l2cap_init();
         bk_bt_l2cap_start_srv(BK_BT_L2CAP_SEC_NONE, AT_DM_L2CAP_LOCAL_PSM);
         bk_bt_l2cap_start_srv(BK_BT_L2CAP_SEC_NONE, AT_DM_L2CAP_LOCAL_PSM + 2);
@@ -4232,4 +4231,3 @@ void bt_at_cmd_init(void)
         BK_LOGD(TAG, "BT AT cmds init OK\r\n");
     }
 }
-

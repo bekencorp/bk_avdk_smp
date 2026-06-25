@@ -39,9 +39,11 @@
 #define INVALID_ATTR_HANDLE 0
 #define MIN_VALUE(x, y) (((x) < (y)) ? (x): (y))
 
+#if CONFIG_BLUETOOTH_BTDM_COMPONENT_BLE_GATTS_TEST_ATTR
 #define AUTO_GATTC_TEST 1
 #define AUTO_DISCOVER 1
 #define AUTO_MTU_REQ 1
+#endif
 
 #if AUTO_GATTC_TEST
     #define AUTO_ENABLE_NOTIFY 1
@@ -81,7 +83,7 @@ static beken_semaphore_t s_ble_connect_sem = NULL;
 static uint8_t s_dm_gattc_is_init;
 static uint8_t s_dm_gattc_local_addr_is_public = 0;
 static uint8_t s_is_connect_pending;
-static dm_ble_gattc_app_cb s_gattc_cb_list[2];
+static dm_ble_gattc_app_cb s_gattc_cb_list[5];
 
 static int32_t dm_ble_gattc_private_cb(bk_gattc_cb_event_t event, bk_gatt_if_t gattc_if, bk_ble_gattc_cb_param_t *param)
 {

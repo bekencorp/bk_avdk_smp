@@ -14,7 +14,6 @@
 #include "bluetooth_legacy_include.h"
 
 #include "components/bluetooth/bk_ble.h"
-#include "components/bluetooth/bk_dm_ble.h"
 #include "components/bluetooth/bk_dm_bluetooth.h"
 
 #define BLE_GATT_CLIENT_TAG "BLE-GATTC"
@@ -646,7 +645,7 @@ void gatt_client_command(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
                 addr_type = os_strtoul(argv[3], NULL, 10);
             }
             //0 public, 1 random
-            BLEGATTC_LOGI("add whl: 0x%x 0x%x 0x%x 0x%x 0x%x 0x%x, addr_type:%d\n", 
+            BLEGATTC_LOGI("add whl: 0x%x 0x%x 0x%x 0x%x 0x%x 0x%x, addr_type:%d\n",
                             addr.addr[0], addr.addr[1], addr.addr[2], addr.addr[3], addr.addr[4], addr.addr[5],
                             addr_type);
             ret = bk_ble_add_devices_to_while_list(&addr, addr_type);

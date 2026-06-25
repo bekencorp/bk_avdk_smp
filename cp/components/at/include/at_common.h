@@ -16,7 +16,6 @@
 #include <common/bk_kernel_err.h>
 
 #define MAX_BT_AT_CMD_LEN               32
-#define MAX_BLE_AT_CMD_LEN              64
 #define MAX_WIFI_AT_CMD_LEN             30
 #define MAX_VIDEO_AT_CMD_LEN            10
 #define AT_SYNC_CMD_TIMEOUT_MS          4000
@@ -61,14 +60,10 @@ typedef struct
 
 #if !CONFIG_BTDM_CONTROLLER_ONLY
 const at_command_t *lookup_bt_at_command(char *str1);
-const at_command_t *lookup_ble_at_command(char *str1);
-const at_command_t *lookup_bt_at_command(char *str1);
 void at_set_data_handle(uint8_t *out, char *buff, uint16_t len);
 int get_addr_from_param(bd_addr_t *bdaddr, char *input_param);
-int ble_at_cmd_cnt(void);
 int bt_at_cmd_cnt(void);
 
-extern const at_command_t ble_at_cmd_table[MAX_BLE_AT_CMD_LEN];
 extern const at_command_t bt_at_cmd_table[MAX_BT_AT_CMD_LEN];
 
 #endif

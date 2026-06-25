@@ -110,6 +110,19 @@ bk_err_t bk_bt_gap_get_remote_service_record(bk_bd_addr_t remote_bda, bk_bt_uuid
  */
 bk_err_t bk_bt_gap_config_eir_data(bk_bt_eir_data_t *eir_data);
 
+/*
+* @brief           This function is called to set EIR raw data element.
+*
+* @param[in]       elem - pointer of EIR raw data element
+* @param[in]       count - count of EIR raw data element
+* @return
+*                  - BK_OK : Succeed
+*                  - BK_ERR_INVALID_STATE: if bluetooth stack is not yet enabled
+*                  - BK_ERR_INVALID_ARG: if param is invalid
+*                  - BK_FAIL: others
+*/
+bk_err_t bk_bt_gap_set_eir_raw_data_elem(bk_bt_eir_raw_data_elem_t *elem, uint8_t count);
+
 /**
  * @brief           This function is called to set class of device.
  *                  The structure bk_bt_gap_cb_t will be called with BK_BT_GAP_SET_COD_EVT after set COD ends.
@@ -462,6 +475,33 @@ bt_err_t bk_bt_gap_sniff_control(uint8_t *addr, uint8_t exit, bk_bt_gap_sniff_co
  *
  */
 bt_err_t bk_bt_gap_switch_role(uint8_t *addr, uint8_t new_role);
+
+/**
+ * @brief set the local name
+ *
+ * @param[in]       name: pointer of name
+ * @param[in]       len: the length of name
+ *
+ * @return
+ *                 - BK_ERR_BT_SUCCESS: succeed
+ *                 - others: fail
+ */
+bt_err_t bk_bt_gap_set_local_name(uint8_t *name, uint8_t len);
+
+/**
+ * @brief           send linkkey when peer need authentication
+ *
+ * @param[in]       is_exist : if linkkey exist. If no exist, peer may trigger pair procedure
+ * @param[in]       key : linkkey,
+ *
+ * @attention       key->addr must be valued
+ *
+ * @return
+ *                  - BK_ERR_BT_SUCCESS : Succeed
+ *                  - BK_ERR_BT_FAIL: others
+ */
+bt_err_t bk_bt_gap_linkkey_reply(uint8_t is_exist, bk_bt_linkkey_storage_t *key);
+
 
 #ifdef __cplusplus
 }

@@ -10,8 +10,6 @@
 #include "bt_comm_list.h"
 #include "components/bluetooth/bk_dm_bluetooth.h"
 #include "components/bluetooth/bk_dm_bluetooth_types.h"
-#include "components/bluetooth/bk_dm_bt_types.h"
-#include "components/bluetooth/bk_dm_bt.h"
 #include "components/bluetooth/bk_dm_pan.h"
 #include "bluetooth_storage.h"
 #include "pan_user_config.h"
@@ -662,4 +660,3 @@ int pan_service_deinit(void)
     s_pan_service_already_init = 0;
     return 0;
 }
-

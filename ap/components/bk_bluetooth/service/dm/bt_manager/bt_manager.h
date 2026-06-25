@@ -1,6 +1,4 @@
 #include "components/bluetooth/bk_dm_bluetooth_types.h"
-#include "components/bluetooth/bk_dm_bt_types.h"
-#include "components/bluetooth/bk_dm_bt.h"
 #include "components/bluetooth/bk_dm_gap_bt.h"
 
 /**

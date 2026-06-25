@@ -16,7 +16,6 @@
 #include "bluetooth_legacy_include.h"
 
 #include "components/bluetooth/bk_ble.h"
-#include "components/bluetooth/bk_dm_ble.h"
 #include "components/bluetooth/bk_dm_bluetooth.h"
 
 #define BLE_GATT_SERVER_TAG "BLE-GATTS"

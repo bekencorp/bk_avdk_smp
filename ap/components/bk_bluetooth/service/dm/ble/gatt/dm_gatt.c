@@ -14,7 +14,9 @@
 #include "components/bluetooth/bk_dm_gap_ble.h"
 #include "components/bluetooth/bk_dm_gatt_common.h"
 #include "dm_gatt.h"
+#if CONFIG_BLUETOOTH_BTDM_COMPONENT_BLE_USE_STORAGE
 #include "bluetooth_storage.h"
+#endif
 #include "dm_gap_utils.h"
 //#include "wifi_boarding/wifi_boarding_demo_service.h"
 #include "components/bluetooth/bk_dm_bluetooth.h"

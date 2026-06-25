@@ -1180,7 +1180,7 @@ static int bt_spp_init_handle(char *pcWriteBuffer, int xWriteBufferLen, int argc
     if(bk_bt_get_host_stack_type() == BK_BT_HOST_STACK_TYPE_ETHERMIND)
     {
         //bk_bt_write_scan_enable(3, bt_at_cmd_cb);
-        bk_bt_gap_set_visibility(BK_BT_CONNECTABLE, BK_BT_DISCOVERABLE);
+        bk_bt_gap_set_scan_mode(BK_BT_CONNECTABLE, BK_BT_DISCOVERABLE);
         if(!spp_env.spp_init)
         {
             bk_bt_gap_register_callback(bt_at_event_cb);
@@ -1235,7 +1235,7 @@ static int bt_write_scan_enable_handle(char *pcWriteBuffer, int xWriteBufferLen,
         //if(err) goto error;
 
         //err = rtos_get_semaphore(&bt_at_cmd_sema, AT_AT_SYNC_CMD_TIMEOUT_MS);
-        err = bk_bt_gap_set_visibility(BK_BT_CONNECTABLE, BK_BT_DISCOVERABLE);
+        err = bk_bt_gap_set_scan_mode(BK_BT_CONNECTABLE, BK_BT_DISCOVERABLE);
         if(!err)
         {
             msg = AT_CMD_RSP_SUCCEED;
@@ -1467,7 +1467,7 @@ static int bt_enable_opp_test_handle(char *pcWriteBuffer, int xWriteBufferLen, i
 
     if (bk_bt_get_host_stack_type() == BK_BT_HOST_STACK_TYPE_ETHERMIND)
     {
-       err = bk_bt_gap_set_visibility(BK_BT_CONNECTABLE, BK_BT_DISCOVERABLE);
+       err = bk_bt_gap_set_scan_mode(BK_BT_CONNECTABLE, BK_BT_DISCOVERABLE);
 
         if (!err)
         {
@@ -3285,7 +3285,7 @@ static int bt_l2cap_init_handle(char *pcWriteBuffer, int xWriteBufferLen, int ar
             break;
         }
         bk_bt_gap_register_callback(bt_at_event_cb);
-        bk_bt_gap_set_visibility(BK_BT_CONNECTABLE, BK_BT_DISCOVERABLE);
+        bk_bt_gap_set_scan_mode(BK_BT_CONNECTABLE, BK_BT_DISCOVERABLE);
         bk_bt_l2cap_init();
         bk_bt_l2cap_start_srv(BK_BT_L2CAP_SEC_NONE, AT_DM_L2CAP_LOCAL_PSM);
         bk_bt_l2cap_start_srv(BK_BT_L2CAP_SEC_NONE, AT_DM_L2CAP_LOCAL_PSM+2);

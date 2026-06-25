@@ -5,34 +5,6 @@
 
 uint8_t atcmd_updated = 0;
 
-#if CONFIG_BLE && (!CONFIG_BTDM_CONTROLLER_ONLY)
-const at_command_t *lookup_ble_at_command(char *str1)
-{
-    uint8_t type = bk_ble_get_controller_stack_type();
-
-    if(type != BK_BLE_CONTROLLER_STACK_TYPE_BLE_5_X &&
-        type != BK_BLE_CONTROLLER_STACK_TYPE_BTDM_5_2)
-    {
-        BK_LOGD(NULL,"%s stack type %d not support\n", __func__, type);
-        return NULL;
-    }
-
-    for (int i = 0; i < ble_at_cmd_cnt(); i++)
-    {
-        if (ble_at_cmd_table[i].name == NULL) {
-            i++;
-            continue;
-        }
-
-        if(!os_strcmp(ble_at_cmd_table[i].name, str1))
-        {
-            return &ble_at_cmd_table[i];
-        }
-    }
-    return NULL;
-}
-#endif
-
 #if CONFIG_BT && (!CONFIG_BTDM_CONTROLLER_ONLY)
 const at_command_t *lookup_bt_at_command(char *str1)
 {

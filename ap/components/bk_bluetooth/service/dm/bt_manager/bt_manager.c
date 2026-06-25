@@ -6,8 +6,6 @@
 #include <stdint.h>
 #include <stdio.h>
 #include "components/bluetooth/bk_dm_bluetooth_types.h"
-#include "components/bluetooth/bk_dm_bt_types.h"
-#include "components/bluetooth/bk_dm_bt.h"
 #include "components/bluetooth/bk_dm_gap_bt.h"
 #include "components/bluetooth/bk_dm_bluetooth.h"
 #include "bluetooth_storage.h"
@@ -369,25 +367,25 @@ void bt_manager_set_mode(uint8_t mode)
     switch(mode)
     {
     case BT_MNG_MODE_PAIRING:
-        bk_bt_gap_set_visibility(BK_BT_CONNECTABLE, BK_BT_DISCOVERABLE);
+        bk_bt_gap_set_scan_mode(BK_BT_CONNECTABLE, BK_BT_DISCOVERABLE);
         break;
     case BT_MNG_MODE_RECONNECTING:
-        bk_bt_gap_set_visibility(BK_BT_NON_CONNECTABLE, BK_BT_NON_DISCOVERABLE);
+        bk_bt_gap_set_scan_mode(BK_BT_NON_CONNECTABLE, BK_BT_NON_DISCOVERABLE);
         break;
     case BT_MNG_MODE_CONNECTEED:
-        bk_bt_gap_set_visibility(BK_BT_NON_CONNECTABLE, BK_BT_NON_DISCOVERABLE);
+        bk_bt_gap_set_scan_mode(BK_BT_NON_CONNECTABLE, BK_BT_NON_DISCOVERABLE);
         break;
     case BT_MNG_MODE_CONNECTABLE:
-        bk_bt_gap_set_visibility(BK_BT_CONNECTABLE, BK_BT_NON_DISCOVERABLE);
+        bk_bt_gap_set_scan_mode(BK_BT_CONNECTABLE, BK_BT_NON_DISCOVERABLE);
         break;
     case BT_MNG_MODE_IDLE:
-        bk_bt_gap_set_visibility(BK_BT_NON_CONNECTABLE, BK_BT_NON_DISCOVERABLE);
+        bk_bt_gap_set_scan_mode(BK_BT_NON_CONNECTABLE, BK_BT_NON_DISCOVERABLE);
         break;
     case BT_MNG_MODE_DISCOVERABLE_ONLY:
-        bk_bt_gap_set_visibility(BK_BT_NON_CONNECTABLE, BK_BT_DISCOVERABLE);
+        bk_bt_gap_set_scan_mode(BK_BT_NON_CONNECTABLE, BK_BT_DISCOVERABLE);
         break;
     case BT_MNG_MODE_ALL_OFF:
-        bk_bt_gap_set_visibility(BK_BT_NON_CONNECTABLE, BK_BT_NON_DISCOVERABLE);
+        bk_bt_gap_set_scan_mode(BK_BT_NON_CONNECTABLE, BK_BT_NON_DISCOVERABLE);
         break;
     default:
         break;
@@ -524,7 +522,7 @@ void gap_event_cb(bk_gap_bt_cb_event_t event, bk_bt_gap_cb_param_t *param)
                             param->acl_disconn_cmpl_stat.reason,
                             btm_env.connect_state);
 
-            //bk_bt_gap_set_visibility(BK_BT_CONNECTABLE, BK_BT_DISCOVERABLE);
+            //bk_bt_gap_set_scan_mode(BK_BT_CONNECTABLE, BK_BT_DISCOVERABLE);
 
             if (btm_env.manual_enter_pairing)
             {
@@ -845,10 +843,17 @@ int bt_manager_init(const bt_manager_cfg_t *cfg)
 #endif
 
     bk_bt_gap_register_callback(gap_event_cb);
-    bk_bt_gap_set_device_class(btm_env.device_class);
+    bk_bt_cod_t cod = {0};
+    cod.cod = btm_env.device_class;
+    bk_bt_gap_set_cod(cod, BK_BT_INIT_COD);
     LOGI("%s local_name %s\n", __func__, btm_env.local_name);
     bk_bt_gap_set_local_name((uint8_t *)btm_env.local_name, os_strlen(btm_env.local_name));
 
+    bk_bt_eir_raw_data_elem_t eir_data[] =
+    {
+        {BK_BT_EIR_TYPE_CMPL_LOCAL_NAME, (uint8_t *)btm_env.local_name, os_strlen(btm_env.local_name)},
+    };
+    bk_bt_gap_set_eir_raw_data_elem(eir_data, sizeof(eir_data) / sizeof(eir_data[0]));
     bt_manager_set_mode(BT_MNG_MODE_PAIRING);
 
     bk_bt_gap_set_page_timeout(btm_env.page_timeout);
@@ -969,4 +974,3 @@ void bt_manager_set_tmp_linkkey(uint8_t *addr, uint8_t *linkkey)
     LOGI("%s set tmp linkkey\n", __func__);
     os_memcpy(btm_env.tmp_link_key, linkkey, sizeof(btm_env.tmp_link_key));
 }
-

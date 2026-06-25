@@ -101,16 +101,14 @@ menu "Bk_ble"
 				bk_bluetooth.
 
 		config BLUETOOTH_BTDM_COMPONENT_BLE_USE_STORAGE
-			int "GATT uses bluetooth_storage to persist bond information (0=no, 1=yes)"
+			bool "GATT uses bluetooth_storage to persist bond information"
 			depends on BLUETOOTH_BTDM_COMPONENT_BLE_GATT
-			range 0 1
-			default 0
+			default n
 
 		config BLUETOOTH_BTDM_COMPONENT_BLE_GATTS_TEST_ATTR
-			int "Enable GATTS test attribute table (0=no, 1=yes)"
+			bool "Enable GATTS test attribute table"
 			depends on BLUETOOTH_BTDM_COMPONENT_BLE_GATT
-			range 0 1
-			default 0
+            default n
 
 		config BLUETOOTH_BTDM_COMPONENT_BLE_GATT_LOG_LEVEL
 			int "GATT module log level (0=ERR..4=VERBOSE)"

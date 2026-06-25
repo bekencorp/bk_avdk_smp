@@ -195,14 +195,17 @@ if (CONFIG_BLUETOOTH_AP)
 	endif()
 
 	# BLE boarding/provisioning (formerly the separate bt/ sub-component).
-	# ble_boarding.c: direct BLE implementation; dm_ble_boarding.c: DM-based.
-	# Both variants share ble_boarding.h, kept together under service/common.
+	# ble_boarding.c: direct BLE implementation kept under service/common.
 	if (CONFIG_BLE AND NOT CONFIG_BTDM_CONTROLLER_ONLY)
 		list(APPEND srcs
 			service/common/ble_boarding.c
-			service/common/dm_ble_boarding.c
 			)
 		list(APPEND incs service/common)
+
+        if (CONFIG_BT AND CONFIG_BLUETOOTH_BTDM_COMPONENT_BLE_GATT)
+            list(APPEND srcs service/common/dm_ble_boarding.c)
+        endif()
+
 	endif()
 endif()
 

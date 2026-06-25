@@ -13,7 +13,6 @@
 // limitations under the License.
 
 #include "components/bluetooth/bk_ble.h"
-#include "components/bluetooth/bk_dm_ble.h"
 #include "components/bluetooth/bk_dm_bluetooth.h"
 #include "components/log.h"
 #include "os/mem.h"

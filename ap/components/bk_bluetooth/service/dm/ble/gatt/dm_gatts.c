@@ -38,7 +38,10 @@
 #define INVALID_ATTR_HANDLE 0
 #define ADV_HANDLE 0
 #define BEKEN_COMPANY_ID                    (0x05F0)
+
+#if CONFIG_BLUETOOTH_BTDM_COMPONENT_BLE_GATTS_TEST_ATTR
 #define AUTO_ENABLE_ADV 1
+#endif
 
 #define MIN_VALUE(x, y) (((x) < (y)) ? (x): (y))
 
@@ -2118,7 +2121,7 @@ int dm_gatts_main(cli_gatt_param_t *param)
 
     dm_gatt_add_gap_callback(dm_ble_gap_cb);
 
-    snprintf((char *)(adv_name), sizeof(adv_name) - 1, "SCOOTER-%02X%02X%02X", identity_addr[2], identity_addr[1], identity_addr[0]);
+    snprintf((char *)(adv_name), sizeof(adv_name) - 1, "BKDMBLE-%02X%02X%02X", identity_addr[2], identity_addr[1], identity_addr[0]);
 
     gatt_logi("adv name %s", adv_name);
 
