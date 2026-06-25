@@ -20,6 +20,7 @@
 #include "gpio_driver.h"
 #include "wdt_driver.h"
 #include "driver/wdt.h"
+#include "driver/wwdt.h"
 #include "driver/flash.h"
 #include <os/os.h>
 #include "sys_sw_regs.h"
@@ -426,6 +427,10 @@ __attribute__((section(".iram"))) void pm_low_voltage_bsp_restore(void)
 	#if CONFIG_AON_WDT
 		bk_aon_wdt_stop();
 	#endif
+#endif
+
+#if CONFIG_SUPPORT_WWDT
+	BK_LOG_ON_ERR(bk_wwdt_start(CONFIG_INT_WWDT_PERIOD_MS, false, 0));
 #endif
 
 
