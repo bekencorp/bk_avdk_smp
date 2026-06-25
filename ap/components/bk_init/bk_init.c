@@ -52,6 +52,10 @@
 extern void bk_ota_confirm_update_partition(ota_confirm_flag ota_confirm_val);
 #endif
 
+#if CONFIG_SUPPORT_MULTICORE
+#include "multicore_driver.h"
+#endif
+
 #if (CONFIG_CLI)
 #include "bk_api_cli.h"
 #else
@@ -272,6 +276,10 @@ int bk_init(void)
 #endif
 
 	app_cli_init();
+
+#if CONFIG_CPU_HP_GOVERNOR
+	bk_cpu_hp_governor_init();
+#endif
 
 #if CONFIG_AT
     set_ap_startup_index(AP_ENTER_AT_SERVER_INIT);

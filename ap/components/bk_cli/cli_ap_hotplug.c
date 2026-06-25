@@ -341,7 +341,162 @@ static void cli_cpu_hotplug_help(void)
 	CLI_LOGI("cpu task-affinity\r\n");
 	CLI_LOGI("cpu stress 3 <loops>\r\n");
 	CLI_LOGI("cpu busy-test\r\n");
+#if CONFIG_CPU_HP_GOVERNOR
+	CLI_LOGI("cpu gov on|off|status\r\n");
+	CLI_LOGI("cpu gov stress <cycles>\r\n");
+#endif
 }
+
+#if CONFIG_CPU_HP_GOVERNOR
+
+#define CPU_HP_GOV_STRESS_LOAD_TASKS           (CONFIG_SMP_CORE_CNT)
+#define CPU_HP_GOV_STRESS_DEFAULT_CYCLES       (3)
+#define CPU_HP_GOV_STRESS_LOAD_STACK           (512)
+#define CPU_HP_GOV_STRESS_POLL_MS              (50)
+#define CPU_HP_GOV_STRESS_ONLINE_TIMEOUT_MS    (CONFIG_CPU_HP_GOVERNOR_COOLDOWN_MS * (CONFIG_SMP_CORE_CNT + 2))
+#define CPU_HP_GOV_STRESS_OFFLINE_TIMEOUT_MS   (CONFIG_CPU_HP_GOVERNOR_COOLDOWN_MS * (CONFIG_SMP_CORE_CNT + 5))
+
+static volatile uint32_t s_gov_load_run;
+static volatile uint32_t s_gov_load_active;
+
+void delay_ms(UINT32 ms);
+
+static void cli_cpu_hp_gov_load_task(void *arg)
+{
+	(void)arg;
+
+	s_gov_load_active++;
+	while (s_gov_load_run) {
+		for (uint32_t i = 0; i < CONFIG_CPU_HP_GOVERNOR_COOLDOWN_MS; i++) {
+			delay_ms(1);
+		}
+	}
+	s_gov_load_active--;
+
+	rtos_delete_thread(NULL);
+}
+
+static bk_err_t cli_cpu_hp_gov_load_start(void)
+{
+	s_gov_load_run = 1;
+	s_gov_load_active = 0;
+
+	for (uint32_t i = 0; i < CPU_HP_GOV_STRESS_LOAD_TASKS; i++) {
+		bk_err_t ret = rtos_create_thread(NULL, BEKEN_DEFAULT_WORKER_PRIORITY,
+			"gov_load", cli_cpu_hp_gov_load_task, CPU_HP_GOV_STRESS_LOAD_STACK, NULL);
+		if (ret != BK_OK) {
+			CLI_LOGE("cpu gov stress: create load task %u failed ret=%d\r\n", i, ret);
+			s_gov_load_run = 0;
+			return ret;
+		}
+	}
+
+	return BK_OK;
+}
+
+static void cli_cpu_hp_gov_load_stop(void)
+{
+	s_gov_load_run = 0;
+
+	for (uint32_t waited = 0; s_gov_load_active != 0 && waited < 2000;
+		waited += CPU_HP_GOV_STRESS_POLL_MS) {
+		rtos_delay_milliseconds(CPU_HP_GOV_STRESS_POLL_MS);
+	}
+}
+
+
+static uint32_t cli_cpu_hp_gov_wait_online(uint32_t want_online, uint32_t timeout_ms)
+{
+	for (uint32_t waited = 0; waited <= timeout_ms; waited += CPU_HP_GOV_STRESS_POLL_MS) {
+		if (bk_cpu_hp_is_online(CPU3_CORE_ID) == want_online) {
+			return 1;
+		}
+		rtos_delay_milliseconds(CPU_HP_GOV_STRESS_POLL_MS);
+	}
+
+	return (bk_cpu_hp_is_online(CPU3_CORE_ID) == want_online);
+}
+
+
+static void cli_cpu_hp_governor_stress(uint32_t cycles)
+{
+	bk_cpu_hp_governor_status_t st;
+	uint32_t saved_enabled;
+	uint32_t pass = 0;
+
+	if (cycles == 0) {
+		cycles = CPU_HP_GOV_STRESS_DEFAULT_CYCLES;
+	}
+
+	bk_cpu_hp_governor_get_status(&st);
+	saved_enabled = st.enabled;
+
+	/* The governor must be active for the auto online/offline decisions. */
+	bk_cpu_hp_governor_start();
+
+	CLI_LOGI("cpu gov stress: start, cycles=%u load_tasks=%u\r\n",
+		cycles, CPU_HP_GOV_STRESS_LOAD_TASKS);
+
+	for (uint32_t c = 0; c < cycles; c++) {
+		uint32_t online_ok;
+		uint32_t offline_ok;
+
+		if (cli_cpu_hp_gov_load_start() != BK_OK) {
+			break;
+		}
+		online_ok = cli_cpu_hp_gov_wait_online(1, CPU_HP_GOV_STRESS_ONLINE_TIMEOUT_MS);
+
+		cli_cpu_hp_gov_load_stop();
+		offline_ok = cli_cpu_hp_gov_wait_online(0, CPU_HP_GOV_STRESS_OFFLINE_TIMEOUT_MS);
+
+		bk_cpu_hp_governor_get_status(&st);
+		CLI_LOGI("cpu gov stress: cycle %u/%u %s (online=%s offline=%s) online_cnt=%u offline_cnt=%u\r\n",
+			c + 1, cycles, (online_ok && offline_ok) ? "PASS" : "FAIL",
+			online_ok ? "yes" : "no", offline_ok ? "yes" : "no",
+			st.online_cnt, st.offline_cnt);
+
+		if (online_ok && offline_ok) {
+			pass++;
+		}
+	}
+
+	/* Restore the governor to whatever the user had before the test. */
+	if (!saved_enabled) {
+		bk_cpu_hp_governor_stop();
+	}
+
+	CLI_LOGI("cpu gov stress: done, %u/%u cycles PASS\r\n", pass, cycles);
+}
+
+static void cli_cpu_hp_governor_cmd(int argc, char **argv)
+{
+	if (argc < 3) {
+		CLI_LOGI("cpu gov on|off|status|stress [cycles]\r\n");
+		return;
+	}
+
+	if (os_strcmp(argv[2], "on") == 0) {
+		CLI_LOGI("cpu gov start ret=%d\r\n", bk_cpu_hp_governor_start());
+	} else if (os_strcmp(argv[2], "off") == 0) {
+		CLI_LOGI("cpu gov stop ret=%d\r\n", bk_cpu_hp_governor_stop());
+	} else if (os_strcmp(argv[2], "status") == 0) {
+		bk_cpu_hp_governor_status_t st;
+		bk_cpu_hp_governor_get_status(&st);
+		CLI_LOGI("cpu gov: enabled=%u cpu3_online=%u load0=%u%% load1=%u%% up_cnt=%u down_cnt=%u online=%u offline=%u\r\n",
+			st.enabled, st.cpu1_online, st.load0, st.load1,
+			st.up_cnt, st.down_cnt, st.online_cnt, st.offline_cnt);
+	} else if (os_strcmp(argv[2], "stress") == 0) {
+		uint32_t cycles = CPU_HP_GOV_STRESS_DEFAULT_CYCLES;
+
+		if (argc >= 4) {
+			cycles = os_strtoul(argv[3], NULL, 10);
+		}
+		cli_cpu_hp_governor_stress(cycles);
+	} else {
+		CLI_LOGI("cpu gov on|off|status|stress [cycles]\r\n");
+	}
+}
+#endif
 
 static void cli_cpu_print_state(void)
 {
@@ -432,6 +587,13 @@ static void cli_cpu_hotplug_cmd(char *pcWriteBuffer, int xWriteBufferLen, int ar
 		return;
 	}
 
+#if CONFIG_CPU_HP_GOVERNOR
+	if (os_strcmp(argv[1], "gov") == 0) {
+		cli_cpu_hp_governor_cmd(argc, argv);
+		return;
+	}
+#endif
+
 	if (os_strcmp(argv[1], "task-affinity") == 0) {
 		CLI_LOGI("hard-pinned task on AP cpu3/core1: %s\r\n",
 			xTaskHasTasksPinnedToCore(SMP_CORE1_ID) ? "yes" : "no");
@@ -486,12 +648,14 @@ static void cli_cpu_hotplug_cmd(char *pcWriteBuffer, int xWriteBufferLen, int ar
 				CLI_LOGE("cpu%u offline failed at loop %u, ret=%d\r\n", cpu, i, ret);
 				return;
 			}
+			rtos_delay_milliseconds(1);
 
 			ret = bk_cpu_hp_online(cpu);
 			if (ret != BK_OK) {
 				CLI_LOGE("cpu%u online failed at loop %u, ret=%d\r\n", cpu, i, ret);
 				return;
 			}
+			rtos_delay_milliseconds(1);
 		}
 
 		CLI_LOGI("cpu%u hotplug stress %u loops done\r\n", cpu, loops);
@@ -601,7 +765,7 @@ static void cli_dbg_probe_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc
 #endif /* CONFIG_DBG_PROBE */
 
 static const struct cli_command s_cpu_hotplug_commands[] = {
-	{"cpu", "cpu {list|state|offline 3|online 3|irq-affinity|task-affinity|stress 3 <loops>|busy-test}", cli_cpu_hotplug_cmd},
+	{"cpu", "cpu {list|state|offline 3|online 3|irq-affinity|task-affinity|stress 3 <loops>|busy-test|gov on|off|status|gov stress <cycles>}", cli_cpu_hotplug_cmd},
 #if CONFIG_DBG_PROBE
 	{"dbgp", "dbgp {mod|sink|etest|stest|shared|excl|v5|dump|cycles}", cli_dbg_probe_cmd},
 #endif
@@ -609,6 +773,9 @@ static const struct cli_command s_cpu_hotplug_commands[] = {
 
 int cli_ap_hotplug_init(void)
 {
+#if CONFIG_CPU_HP_GOVERNOR
+	bk_cpu_hp_governor_init();
+#endif
 	return cli_register_commands(s_cpu_hotplug_commands, CPU_HOTPLUG_CMD_CNT);
 }
 
