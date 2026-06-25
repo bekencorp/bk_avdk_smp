@@ -2143,7 +2143,7 @@ void sys_hal_low_power_hardware_init()
 
 	/*set wakeup source*/
 	aon_pmu_ll_set_r41_wakeup_ena(0x23);//enable wakeup source: int_touched,int_rtc,int_gpio,wifi wake(bt or wifi wakeup source enable when bt or wifi sleep)
-
+	bk_delay_us(100);
 	/*enable the buck*/
 	#if CONFIG_BUCK_ENABLE
 	sys_hal_enable_buck();
