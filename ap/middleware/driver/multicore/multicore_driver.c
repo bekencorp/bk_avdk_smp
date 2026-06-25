@@ -102,7 +102,7 @@ typedef struct {
 static beken_mutex_t _cpu_hp_lock;
 static SPINLOCK_SECTION volatile spinlock_t _cpu_hp_spin_lock = SPIN_LOCK_INIT;
 
-static volatile uint32_t _cpu3_wants_offline = 0;
+static volatile int32_t _cpu3_wants_offline = -1;
 static volatile uint32_t _cpu3_offline_ack1;
 static volatile uint32_t _cpu3_offline_ack2;
 static volatile uint32_t _cpu3_offline_ack3;
@@ -142,6 +142,7 @@ static cpu_hp_domain_t _ap_domain = {
 
 extern bk_err_t crosscore_int_send_hotplug_stop(int xCoreID);
 extern void vPortHotplugResetCoreState(BaseType_t xCoreID);
+extern void crosscore_int_reset_send(void);
 
 static inline void _cpu_hp_barrier(void)
 {
@@ -309,7 +310,7 @@ static bk_err_t _cpu_hotplug_wait_ack(volatile uint32_t *ack, uint32_t timeout_s
 			return BK_ERR_TIMEOUT;
 		}
 		bk_delay_us(AP_HOTPLUG_TIMEOUT_ONE_STEP_US);
-		current_step++;
+		current_step += AP_HOTPLUG_TIMEOUT_ONE_STEP;
 	}
 
 	return BK_OK;
@@ -463,8 +464,9 @@ static bk_err_t _cpu_hp_offline_internal(uint32_t cpu_id)
 	_cpu3_offline_ack1 = 0;
 	_cpu3_offline_ack2 = 0;
 	_cpu3_offline_ack3 = 0;
+	_cpu3_wants_offline = -1;
 	ret = crosscore_int_send_hotplug_stop(CPU3_CORE_ID);
-	if (ret != BK_OK) {
+	if ((ret != BK_OK) && (ret != BK_ERR_IN_PROGRESS)) {
 		_cpu_hp_domain_set_dying(domain, cpu_id, 0);
 		_cpu_hp_set_state(domain, cpu_id, BK_CPU_HP_STATE_ONLINE);
 		goto out;
@@ -472,8 +474,8 @@ static bk_err_t _cpu_hp_offline_internal(uint32_t cpu_id)
 	ret = _cpu_hotplug_wait_ack(&_cpu3_offline_ack1, AP_HOTPLUG_TIMEOUT_STAPS);
 	if (ret != BK_OK) {
 		spin_lock_irqsave(&_cpu_hp_spin_lock, cpu_hp_irq_level);
-		if (_cpu3_wants_offline == 1) {
-			_cpu3_wants_offline = 0;
+		if (_cpu3_wants_offline != 0) {
+			_cpu3_wants_offline = -1;
 		} else {
 			spin_unlock_irqrestore(&_cpu_hp_spin_lock, cpu_hp_irq_level);
 			goto continue_offline;
@@ -586,6 +588,10 @@ static bk_err_t _cpu_hp_online_internal(uint32_t cpu_id)
 		mbox0_init_on_current_core(CPU3_CORE_ID);
 		_cpu_hp_domain_set_active(domain, cpu_id, 1);
 		_cpu_hp_set_state(domain, cpu_id, BK_CPU_HP_STATE_ONLINE);
+		/* CPU3 is now fully online with its mailbox RX ready. Clear any
+		 * outgoing doorbell that was lost while CPU3 was still joining, so a
+		 * stuck "busy" flag can't swallow the next hotplug STOP. */
+		crosscore_int_reset_send();
 	} else {
 		bk_multicore_stop(CPU3_CORE_ID);
 		_cpu_hp_domain_set_active(domain, cpu_id, 0);
@@ -603,8 +609,9 @@ uint32_t bk_cpu_hp_enter_primary(void)
 {
 	BaseType_t old_core_id = xTaskHotplugSetCurrentTaskCoreID(SMP_CORE0_ID);
 
-	for (uint32_t i = 0; (i < AP_HOTPLUG_TIMEOUT_STAPS) &&
-		(portGET_CORE_ID() != SMP_CORE0_ID); i++) {
+	for (uint32_t i = 0;
+		(i < AP_HOTPLUG_TIMEOUT_STAPS) && (portGET_CORE_ID() != SMP_CORE0_ID);
+		i += AP_HOTPLUG_TIMEOUT_ONE_STEP) {
 		taskYIELD();
 		rtos_delay_milliseconds(AP_HOTPLUG_TIMEOUT_ONE_STEP_MS);
 	}
@@ -685,7 +692,7 @@ void bk_cpu_hp_idle_handler(void)
 
 	_cpu_hp_disable_local_irq();
 	spin_lock(&_cpu_hp_spin_lock);
-	if (_cpu3_wants_offline == 0) {
+	if (_cpu3_wants_offline != 1) {
 		_cpu_hp_domain_set_active(domain, cpu_id, 1);
 		spin_unlock(&_cpu_hp_spin_lock);
 		_cpu_hp_enable_local_irq();
