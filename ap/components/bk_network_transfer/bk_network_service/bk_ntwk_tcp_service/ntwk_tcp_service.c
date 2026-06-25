@@ -321,7 +321,7 @@ bk_err_t ntwk_tcp_ctrl_chan_start(void *param)
                                  4,
                                  "ntwl_tcp_ctrl_srv",
                                  (beken_thread_function_t)ntwk_tcp_ctrl_server_thread,
-                                 1024 * 4,
+                                 1024 * 6,
                                  (beken_thread_arg_t)NULL);
         if (ret != kNoErr)
         {
@@ -1179,7 +1179,7 @@ bk_err_t ntwk_tcp_ctrl_client_chan_start(void *param)
                                  4,
                                  "ntwk_tcp_ctrl_cli",
                                  (beken_thread_function_t)ntwk_tcp_ctrl_client_thread,
-                                 1024 * 4,
+                                 1024 * 6,
                                  (beken_thread_arg_t)NULL);
         if (ret != kNoErr)
         {
