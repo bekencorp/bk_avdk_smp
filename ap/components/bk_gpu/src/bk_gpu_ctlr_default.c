@@ -550,6 +550,23 @@ static inline void gpu_flex_restart(gpu_vn_ctlr_t *gpu_vn_ctlr)
     flex->read_lines = 0;
 }
 
+static inline bool gpu_flex_current_block_has_padding(const gpu_flex_data_t *data, const bk_gpu_ctlr_config_t *config)
+{
+    if (data->output_height <= config->dst_height || (config->dst_height % config->flexa_lines) == 0)
+    {
+        return false;
+    }
+
+    uint16_t last_block_index = data->output_height / config->flexa_lines;
+
+    /*
+    * The aligned tail is contained in one edge block. Clear both edge
+    * blocks so reused ping-pong memory cannot leak into the visible edge
+    * after rotation/cropping policy changes.
+    */
+    return data->flexa_index == 1 || data->flexa_index == last_block_index;
+}
+
 static inline void gpu_flex_data_dma_transfer(gpu_flex_data_t *data, uint32_t offset,
                                               uint32_t xsize, uint32_t ysize, uint32_t dst_step)
 {
@@ -864,6 +881,11 @@ static bool gpu_flex_process_line_block(gpu_flex_data_t *data,
         GPU_LINE_END();
         rtos_unlock_mutex(&gpu_vn_ctlr->gpu_mutex);
         return false;
+    }
+
+    if (gpu_flex_current_block_has_padding(data, config))
+    {
+        vg_lite_clear(&data->dst_buf, NULL, 0x00000000);
     }
 
     /* Perform GPU blit operation */
