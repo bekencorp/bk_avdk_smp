@@ -1,0 +1,17 @@
+#
+# Automatically generated project default config. You can update it with menuconfig [D] option.
+# This file contains only differences compared to board defconfig.
+#
+CONFIG_DPU_DRIVER=y
+CONFIG_BK_DISPLAY=y
+CONFIG_FRAME_BUFFER=y
+CONFIG_BK_PERIPHERAL=y
+CONFIG_LCD_QSPI_SPD2010=y
+CONFIG_DUMP_BY_LOG_UART=y
+CONFIG_MEDIA_SERVICE=y
+CONFIG_QSPI=y
+CONFIG_QSPI_LINE_MODE=4
+CONFIG_LCD_QSPI=y
+CONFIG_LCD_QSPI_TE=y
+CONFIG_LCD_QSPI_REFRESH_WITH_MAPPING=y
+CONFIG_LCD_QSPI_COLOR_DEPTH_BYTE=2

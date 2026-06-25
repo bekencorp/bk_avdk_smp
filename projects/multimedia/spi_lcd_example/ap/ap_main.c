@@ -1,4 +1,5 @@
 #include "bk_private/bk_init.h"
+#include <common/bk_err.h>
 #include <components/system.h>
 #include <os/os.h>
 #include <components/shell_task.h>
@@ -36,6 +37,18 @@ static bool is_display_init = false;
 #define RED_COLOR       0xF800
 #define GREEN_COLOR     0x07E0
 #define BLUE_COLOR      0x001F
+#define SPI_LCD_AUTO_REFRESH_INTERVAL_MS    3000
+#define SPI_LCD_AUTO_REFRESH_TASK_PRIORITY  BEKEN_DEFAULT_WORKER_PRIORITY
+#define SPI_LCD_AUTO_REFRESH_TASK_STACK     (1024 * 4)
+#define SPI_LCD_AUTO_REFRESH_COLOR_COUNT    (sizeof(s_spi_lcd_auto_colors) / sizeof(s_spi_lcd_auto_colors[0]))
+
+static const uint16_t s_spi_lcd_auto_colors[] = {
+    RED_COLOR,
+    GREEN_COLOR,
+    BLUE_COLOR,
+};
+
+static beken_thread_t s_spi_lcd_auto_refresh_thread = NULL;
 
 static avdk_err_t display_frame_free_cb(void *frame)
 {
@@ -113,6 +126,42 @@ void cli_spi_lcd_display_cmd(uint16_t color)
     LOGD("bk_display_flush frame success!\n");
 }
 
+static void spi_lcd_auto_refresh_task(void *arg)
+{
+    (void)arg;
+
+    while (1) {
+        for (uint32_t i = 0; i < SPI_LCD_AUTO_REFRESH_COLOR_COUNT; i++) {
+            cli_spi_lcd_display_cmd(s_spi_lcd_auto_colors[i]);
+            rtos_delay_milliseconds(SPI_LCD_AUTO_REFRESH_INTERVAL_MS);
+        }
+    }
+}
+
+static void spi_lcd_auto_refresh_start(void)
+{
+    bk_err_t ret;
+
+    if (s_spi_lcd_auto_refresh_thread != NULL) {
+        LOGW("spi lcd auto refresh task already running\n");
+        return;
+    }
+
+    ret = rtos_create_thread(&s_spi_lcd_auto_refresh_thread,
+                             SPI_LCD_AUTO_REFRESH_TASK_PRIORITY,
+                             "spi_lcd_auto",
+                             (beken_thread_function_t)spi_lcd_auto_refresh_task,
+                             SPI_LCD_AUTO_REFRESH_TASK_STACK,
+                             NULL);
+    if (ret != BK_OK) {
+        LOGE("create spi lcd auto refresh task failed, ret=%d\n", ret);
+        s_spi_lcd_auto_refresh_thread = NULL;
+        return;
+    }
+
+    LOGI("spi lcd auto refresh task started\n");
+}
+
 #define CMDS_COUNT  (sizeof(s_spi_lcd_commands) / sizeof(struct cli_command))
 
 void cli_spi_lcd_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
@@ -145,6 +194,7 @@ int main(void)
     bk_frame_buffer_init();
 
     cli_spi_lcd_init();
+    spi_lcd_auto_refresh_start();
 
     return 0;
 }
