@@ -12,11 +12,11 @@ extern "C"
 
 typedef enum
 {
-    HEADSET_AUDIO_OPEN_VOTE_START = 0,
-    HEADSET_AUDIO_OPEN_VOTE_A2DP = HEADSET_AUDIO_OPEN_VOTE_START,
-    HEADSET_AUDIO_OPEN_VOTE_USER,
-    HEADSET_AUDIO_OPEN_VOTE_END,
-} headset_a2dp_audio_open_vote_t;
+    BK_A2DP_AUDIO_OPEN_VOTE_START = 0,
+    BK_A2DP_AUDIO_OPEN_VOTE_A2DP = BK_A2DP_AUDIO_OPEN_VOTE_START,
+    BK_A2DP_AUDIO_OPEN_VOTE_USER,
+    BK_A2DP_AUDIO_OPEN_VOTE_END,
+} bk_a2dp_audio_open_vote_t;
 
 void a2dp_sink_audio_set_config(const bk_a2dp_mcc_t *codec);
 bk_err_t a2dp_sink_audio_start(const bk_a2dp_mcc_t *codec,

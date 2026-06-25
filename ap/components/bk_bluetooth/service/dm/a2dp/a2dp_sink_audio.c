@@ -8,9 +8,8 @@
 #include "mpeg4_latm_dec.h"
 #include "audio_play.h"
 #include "components/log.h"
-#include "headset_user_config.h"
 
-#define TAG "headset_a2dp"
+#define TAG "bk_a2dp_audio"
 
 #define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
 #define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
@@ -41,11 +40,11 @@
 
 typedef enum
 {
-    HEADSET_A2DP_AUDIO_PLAYER_OPEN_READY_TO_START = 0,
-    HEADSET_A2DP_AUDIO_PLAYER_OPEN_NOT_READY,
-    HEADSET_A2DP_AUDIO_PLAYER_OPEN_ALREADY_OPEN,
-    HEADSET_A2DP_AUDIO_PLAYER_OPEN_FAILED,
-} headset_a2dp_audio_player_open_result_t;
+    BK_A2DP_AUDIO_PLAYER_OPEN_READY_TO_START = 0,
+    BK_A2DP_AUDIO_PLAYER_OPEN_NOT_READY,
+    BK_A2DP_AUDIO_PLAYER_OPEN_ALREADY_OPEN,
+    BK_A2DP_AUDIO_PLAYER_OPEN_FAILED,
+} bk_a2dp_audio_player_open_result_t;
 
 typedef struct
 {
@@ -58,13 +57,22 @@ typedef struct
     uint8_t start_frame_count;
     uint8_t playback_unmuted;
 #endif
-} headset_a2dp_audio_ctx_t;
+} bk_a2dp_audio_ctx_t;
 
 static audio_play_t *s_audio_play_obj = NULL;
-static headset_a2dp_audio_ctx_t s_a2dp_audio =
+static bk_a2dp_audio_ctx_t s_a2dp_audio =
 {
     .decoder_type = AUDIO_PLAY_DECODER_SBC,
 };
+
+/* Hook invoked before opening the A2DP audio player. A project that runs an
+ * HFP speaker/mic task (e.g. the HFP demo) overrides this strong symbol to wait
+ * for that task to tear down first. The weak default is a no-op for projects
+ * without HFP. */
+__attribute__((weak)) int32_t wait_hfp_speaker_mic_task_end(void)
+{
+    return 0;
+}
 
 static float a2dp_vol_to_dac_dig_gain_db(uint8_t vol)
 {
@@ -149,9 +157,9 @@ static void a2dp_sink_audio_player_close(void)
     }
 }
 
-static headset_a2dp_audio_player_open_result_t a2dp_sink_audio_player_open(uint8_t open_vote,
-                                                                           uint8_t mix_multi_channel,
-                                                                           uint8_t avrcp_vol)
+static bk_a2dp_audio_player_open_result_t a2dp_sink_audio_player_open(uint8_t open_vote,
+                                                                      uint8_t mix_multi_channel,
+                                                                      uint8_t avrcp_vol)
 {
     (void)mix_multi_channel;
     uint8_t vote = 0;
@@ -163,10 +171,10 @@ static headset_a2dp_audio_player_open_result_t a2dp_sink_audio_player_open(uint8
     if (s_audio_play_obj)
     {
         LOGE("%s audio play already open\n", __func__);
-        return HEADSET_A2DP_AUDIO_PLAYER_OPEN_ALREADY_OPEN;
+        return BK_A2DP_AUDIO_PLAYER_OPEN_ALREADY_OPEN;
     }
 
-    for (uint32_t i = HEADSET_AUDIO_OPEN_VOTE_START; i < HEADSET_AUDIO_OPEN_VOTE_END; ++i)
+    for (uint32_t i = BK_A2DP_AUDIO_OPEN_VOTE_START; i < BK_A2DP_AUDIO_OPEN_VOTE_END; ++i)
     {
         vote |= (1 << i);
     }
@@ -174,20 +182,20 @@ static headset_a2dp_audio_player_open_result_t a2dp_sink_audio_player_open(uint8
     if (vote != open_vote)
     {
         LOGE("%s vote not full, can't start audio play 0x%x\n", __func__, open_vote);
-        return HEADSET_A2DP_AUDIO_PLAYER_OPEN_NOT_READY;
+        return BK_A2DP_AUDIO_PLAYER_OPEN_NOT_READY;
     }
 
     if (decoder_type != AUDIO_PLAY_DECODER_SBC && decoder_type != AUDIO_PLAY_DECODER_AAC)
     {
         LOGE("%s unsupported decoder type %d\n", __func__, decoder_type);
-        return HEADSET_A2DP_AUDIO_PLAYER_OPEN_FAILED;
+        return BK_A2DP_AUDIO_PLAYER_OPEN_FAILED;
     }
 
 #if !CONFIG_ADK_AAC_DECODER
     if (decoder_type == AUDIO_PLAY_DECODER_AAC)
     {
         LOGE("%s AAC decoder not supported\n", __func__);
-        return HEADSET_A2DP_AUDIO_PLAYER_OPEN_FAILED;
+        return BK_A2DP_AUDIO_PLAYER_OPEN_FAILED;
     }
 #endif
 
@@ -210,16 +218,13 @@ static headset_a2dp_audio_player_open_result_t a2dp_sink_audio_player_open(uint8
     cfg.decoder_type = decoder_type;
     cfg.dac_source_bitmap = ONBOARD_SPEAKER_STREAM_DAC_SOURCE_A2DP_BIT;
 
-#if CONFIG_HFP_HF_DEMO
-    extern int32_t wait_hfp_speaker_mic_task_end(void);
     wait_hfp_speaker_mic_task_end();
-#endif
 
     s_audio_play_obj = audio_play_create(AUDIO_PLAY_ONBOARD_SPEAKER, &cfg);
     if (!s_audio_play_obj)
     {
         LOGE("%s create audio play err\n", __func__);
-        return HEADSET_A2DP_AUDIO_PLAYER_OPEN_FAILED;
+        return BK_A2DP_AUDIO_PLAYER_OPEN_FAILED;
     }
 
     ret = audio_play_open(s_audio_play_obj);
@@ -228,7 +233,7 @@ static headset_a2dp_audio_player_open_result_t a2dp_sink_audio_player_open(uint8
         LOGE("%s open audio play err %d\n", __func__, ret);
         audio_play_destroy(s_audio_play_obj);
         s_audio_play_obj = NULL;
-        return HEADSET_A2DP_AUDIO_PLAYER_OPEN_FAILED;
+        return BK_A2DP_AUDIO_PLAYER_OPEN_FAILED;
     }
 
 #if A2DP_POP_NOISE_SUPPRESS_ENABLE
@@ -236,7 +241,7 @@ static headset_a2dp_audio_player_open_result_t a2dp_sink_audio_player_open(uint8
 #else
     a2dp_sink_audio_apply_gain(avrcp_vol, true);
 #endif
-    return HEADSET_A2DP_AUDIO_PLAYER_OPEN_READY_TO_START;
+    return BK_A2DP_AUDIO_PLAYER_OPEN_READY_TO_START;
 }
 
 static bool a2dp_sink_audio_player_is_open(void)
@@ -443,16 +448,16 @@ bk_err_t a2dp_sink_audio_open(uint32_t open_vote,
                               uint8_t mix_multi_channel,
                               uint8_t volume)
 {
-    headset_a2dp_audio_player_open_result_t open_result;
+    bk_a2dp_audio_player_open_result_t open_result;
 
     open_result = a2dp_sink_audio_player_open(open_vote,
                                               mix_multi_channel,
                                               volume);
-    if (open_result == HEADSET_A2DP_AUDIO_PLAYER_OPEN_FAILED)
+    if (open_result == BK_A2DP_AUDIO_PLAYER_OPEN_FAILED)
     {
         return BK_FAIL;
     }
-    if (open_result != HEADSET_A2DP_AUDIO_PLAYER_OPEN_READY_TO_START)
+    if (open_result != BK_A2DP_AUDIO_PLAYER_OPEN_READY_TO_START)
     {
         return BK_OK;
     }

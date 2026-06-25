@@ -31,7 +31,6 @@ if (CONFIG_BT)
 
 	list(APPEND srcs
 		a2dp_sink/a2dp_sink_demo.c
-		a2dp_sink/a2dp_sink_audio.c
 		a2dp_sink_demo_cli.c
 		hfp_hf/hfp_hf_demo.c
 		)

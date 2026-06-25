@@ -144,6 +144,7 @@ if (CONFIG_BLUETOOTH_AP)
 				service/dm/a2dp/bk_a2dp_sink_service.c
 				service/dm/avrcp/bk_avrcp_ct_service.c
 				service/dm/avrcp/bk_avrcp_tg_service.c
+				service/dm/hfp/bk_hfp_hf_service.c
 				)
 			list(APPEND incs
 				service/dm/utils
@@ -151,7 +152,15 @@ if (CONFIG_BLUETOOTH_AP)
 				service/dm/storage
 				service/dm/a2dp
 				service/dm/avrcp
+				service/dm/hfp
 				)
+
+			if (CONFIG_AUDIO_PLAY)
+				list(APPEND srcs
+					service/dm/a2dp/a2dp_sink_audio.c
+					service/dm/hfp/hfp_hf_audio.c
+					)
+			endif()
 		endif ()
 
 		# BLE public GATT framework (service/dm/ble/gatt, formerly bt_dm/ble/gatt).
@@ -205,7 +214,7 @@ endif()
 
 armino_component_register(SRCS "${srcs}"
 	INCLUDE_DIRS "${incs}"
-	PRIV_REQUIRES psa_mbedtls
+	PRIV_REQUIRES psa_mbedtls audio_play audio_record
 	)
 
 get_filename_component(config_component_name ${CMAKE_CURRENT_LIST_DIR} NAME)
