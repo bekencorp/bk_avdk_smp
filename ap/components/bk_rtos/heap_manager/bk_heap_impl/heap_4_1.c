@@ -250,22 +250,39 @@ static void heap_4_1_free(HeapMgmt_t *self, void *ptr)
     puc -= xHeapStructSize;
     pxLink = (void *)puc;
 
-    /* Check the block is actually allocated */
-    if ((pxLink->xBlockSize & data->xBlockAllocatedBit) != 0) {
-        if (pxLink->pxNextFreeBlock == NULL) {
+    /* Ownership / alignment validation (fail-fast at the first scene).
+     * Reject foreign / cross-heap / wild / misaligned pointers BEFORE touching
+     * the free list: the block header must be aligned and must fall inside this
+     * region's managed range [pxEnd - heap_len, pxEnd). Without this check a
+     * pointer belonging to another heap (e.g. a PSRAM pointer handed to the SRAM
+     * heap) is silently walked down the free list until it dereferences NULL
+     * past pxEnd - crashing far from the real fault. */
+    if ((((size_t)ptr) & (size_t)BK_HEAP_BYTE_ALIGNMENT_MASK) != 0
+        || (uint8_t *)pxLink < ((uint8_t *)data->pxEnd - self->heap_len)
+        || (uint8_t *)pxLink >= (uint8_t *)data->pxEnd) {
+        PORT_HEAP_ASSERT(0);
+        return;
+    }
+
+    /* The whole "is-allocated" gate (check + clear of the allocated bit) MUST be
+     * inside the critical section. On SMP two cores can otherwise both read the
+     * allocated bit as set before either clears it, defeating the double-free
+     * guard and double-inserting the block into the free list. */
+    port_heap_enter_critical();
+    {
+        /* Check the block is actually allocated and not already on the free list */
+        if (((pxLink->xBlockSize & data->xBlockAllocatedBit) != 0)
+            && (pxLink->pxNextFreeBlock == NULL)) {
             /* The block is being returned to the heap - it is no longer allocated */
             pxLink->xBlockSize &= ~data->xBlockAllocatedBit;
 
-            port_heap_enter_critical();
-            {
-                /* Add this block to the list of free blocks */
-                self->xFreeBytesRemaining += pxLink->xBlockSize;
-                prvInsertBlockIntoFreeList(data, pxLink);
-                self->xNumberOfSuccessfulFrees++;
-            }
-            port_heap_exit_critical();
+            /* Add this block to the list of free blocks */
+            self->xFreeBytesRemaining += pxLink->xBlockSize;
+            prvInsertBlockIntoFreeList(data, pxLink);
+            self->xNumberOfSuccessfulFrees++;
         }
     }
+    port_heap_exit_critical();
 }
 
 /**
