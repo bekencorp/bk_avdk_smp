@@ -25,10 +25,10 @@
 
 static isp_frame_capture_config_t s_capture_config = {
     .rx_timeout = 1000000,
-    .sensor_w = 1920,
-    .sensor_h = 1080,
-    .isp_w = 1920,
-    .isp_h = 1080,
+    .sensor_w = 2304,
+    .sensor_h = 1296,
+    .isp_w = 2304,
+    .isp_h = 1296,
     .format = ISP_FRAME_FORMAT_NV12,
     .pattern = "RGGB",
 };
@@ -773,10 +773,10 @@ const char *isp_frame_session_get_form_json(void)
         "{\"id\":\"capture\",\"title\":\"Capture\",\"fields\":["
         "{\"type\":\"number\",\"id\":\"rxTimeout\",\"label\":\"RX timeout (ms)\",\"default\":1000000,"
         "\"min\":1,\"max\":1000000,\"description\":\"ISP frame read timeout in milliseconds\"},"
-        "{\"type\":\"number\",\"id\":\"sensorWidth\",\"label\":\"sensorWidth\",\"default\":1920,\"min\":1,\"max\":8192,\"unit\":\"pixel\"},"
-        "{\"type\":\"number\",\"id\":\"sensorHeight\",\"label\":\"sensorHeight\",\"default\":1080,\"min\":1,\"max\":8192,\"unit\":\"pixel\"},"
-        "{\"type\":\"number\",\"id\":\"ispW\",\"label\":\"ISP W\",\"default\":1920,\"min\":1,\"max\":8192,\"unit\":\"pixel\"},"
-        "{\"type\":\"number\",\"id\":\"ispH\",\"label\":\"ISP H\",\"default\":1080,\"min\":1,\"max\":8192,\"unit\":\"pixel\"},"
+        "{\"type\":\"number\",\"id\":\"sensorWidth\",\"label\":\"sensorWidth\",\"default\":2304,\"min\":1,\"max\":8192,\"unit\":\"pixel\"},"
+        "{\"type\":\"number\",\"id\":\"sensorHeight\",\"label\":\"sensorHeight\",\"default\":1296,\"min\":1,\"max\":8192,\"unit\":\"pixel\"},"
+        "{\"type\":\"number\",\"id\":\"ispW\",\"label\":\"ISP W\",\"default\":2304,\"min\":1,\"max\":8192,\"unit\":\"pixel\"},"
+        "{\"type\":\"number\",\"id\":\"ispH\",\"label\":\"ISP H\",\"default\":1296,\"min\":1,\"max\":8192,\"unit\":\"pixel\"},"
         "{\"type\":\"select\",\"id\":\"format\",\"label\":\"Format\",\"default\":23,"
         "\"options\":[{\"label\":\"NV12\",\"value\":23},{\"label\":\"RAW10\",\"value\":21}]},"
         "{\"type\":\"select\",\"id\":\"pattern\",\"label\":\"Pattern\",\"default\":\"RGGB\","

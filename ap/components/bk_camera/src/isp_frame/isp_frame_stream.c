@@ -27,8 +27,8 @@ extern void *app_isp_handle_get(void);
 #define ISP_FRAME_PREVIEW_READ_RETRY_MAX   25
 #define ISP_FRAME_CAPTURE_ABORT_WAIT_MS    500
 
-static uint16_t s_isp_frame_width = 1920;
-static uint16_t s_isp_frame_height = 1080;
+static uint16_t s_isp_frame_width = 2304;
+static uint16_t s_isp_frame_height = 1296;
 static isp_frame_read_cb_t s_isp_frame_read = NULL;
 static frame_buffer_t s_isp_frame_desc;
 static uint32_t s_isp_frame_sequence;
