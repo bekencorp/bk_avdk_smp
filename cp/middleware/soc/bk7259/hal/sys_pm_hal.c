@@ -1937,23 +1937,66 @@ int sys_hal_set_lpo_src(sys_lpo_src_t src)
 
 void sys_hal_enter_low_analog(void)
 {
-	/*Temp modify to disable low analog */
-	// sys_ll_set_ana_reg10_spi_latch1v(1);
-	// sys_ll_set_ana_reg9_t_vanaldosel(0);
-	// sys_ll_set_ana_reg9_r_vanaldosel(0);
-	// sys_ll_set_ana_reg9_alopowsel(1);
-	// sys_ll_set_ana_reg10_spi_latch1v(0);
+	sys_ll_set_ana_reg10_spi_latch1v(1);
+	sys_ll_set_ana_reg9_t_vanaldosel(0);
+	sys_ll_set_ana_reg9_r_vanaldosel(0);
+	sys_ll_set_ana_reg9_alopowsel(1);
+	sys_ll_set_ana_reg10_spi_latch1v(0);
 
 	//sys_ll_set_ana_reg3_hpssren(0);
 	//sys_ll_set_ana_reg3_anabuf_sel_rx(1);
 	//sys_ll_set_ana_reg3_anabuf_sel_tx(1);
 }
 
+/*
+ * Chip analog requirement: when raising ana_reg9 t/r_vanaldosel, do not jump
+ * directly across too many voltage codes. Ramp up in small steps and wait 10us
+ * after each write so the analog LDO and RX/TX bias circuits can settle.
+ *
+ * step is the maximum code increment per write. The recommended conservative
+ * value is 1. A larger step reduces wakeup latency, but increases analog
+ * settling risk; the last write is clamped to the target to avoid overshoot.
+ */
+static void sys_hal_ramp_up_ana_reg9_vanaldosel(uint32_t target_t_vanaldosel,
+	uint32_t target_r_vanaldosel, uint32_t step)
+{
+	uint32_t cur_t_vanaldosel = sys_ll_get_ana_reg9_t_vanaldosel();
+	uint32_t cur_r_vanaldosel = sys_ll_get_ana_reg9_r_vanaldosel();
+
+	if (step == 0) {
+		step = 1;
+	}
+
+	while ((cur_t_vanaldosel < target_t_vanaldosel) || (cur_r_vanaldosel < target_r_vanaldosel)) {
+		if (cur_t_vanaldosel < target_t_vanaldosel) {
+			if ((target_t_vanaldosel - cur_t_vanaldosel) > step) {
+				cur_t_vanaldosel += step;
+			} else {
+				cur_t_vanaldosel = target_t_vanaldosel;
+			}
+			sys_ll_set_ana_reg9_t_vanaldosel(cur_t_vanaldosel);
+		}
+
+		if (cur_r_vanaldosel < target_r_vanaldosel) {
+			if ((target_r_vanaldosel - cur_r_vanaldosel) > step) {
+				cur_r_vanaldosel += step;
+			} else {
+				cur_r_vanaldosel = target_r_vanaldosel;
+			}
+			sys_ll_set_ana_reg9_r_vanaldosel(cur_r_vanaldosel);
+		}
+
+		if ((cur_t_vanaldosel < target_t_vanaldosel) || (cur_r_vanaldosel < target_r_vanaldosel)) {
+			bk_delay_us(10);
+		}
+	}
+}
+
 void sys_hal_exit_low_analog(void)
 {
 	sys_ll_set_ana_reg10_spi_latch1v(1);
-	sys_ll_set_ana_reg9_t_vanaldosel(4);
-	sys_ll_set_ana_reg9_r_vanaldosel(7);
+	/* Use step 2 experimentally to reduce delay; step 1 is the safer recommendation. */
+	sys_hal_ramp_up_ana_reg9_vanaldosel(4, 4, 2);
 	sys_ll_set_ana_reg9_alopowsel(0);
 	sys_ll_set_ana_reg10_spi_latch1v(0);
 
