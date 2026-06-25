@@ -57,6 +57,19 @@ size_t os_heap_get_allocated_size(void *ptr);
 void bk_heap_overflow_check(void *ptr);
 void bk_heap_fill_overflow_tag(void *ptr);
 int bk_heap_debug_dump_mem_stats(uint32_t start_tick, uint32_t ticks_since_malloc, const char *task, struct list_head *list);
+
+#if CONFIG_HEAP_UAF_AUDIT_POISON
+typedef void (*bk_heap_debug_free_func_t)(void *ptr);
+
+void bk_heap_debug_record_free(void *ptr, const char *free_func, uint16_t free_line);
+void bk_heap_debug_dump_free_history(uint32_t count);
+void bk_heap_debug_trace_free_addr(uint32_t addr);
+void bk_heap_debug_poison_after_free(void *ptr);
+
+#if CONFIG_HEAP_UAF_QUARANTINE
+void bk_heap_debug_quarantine_free(void *ptr, uint32_t size, bk_heap_debug_free_func_t free_func);
+#endif
+#endif
 #else
 
 static inline uint32_t bk_heap_debug_get_real_size(uint32_t size)

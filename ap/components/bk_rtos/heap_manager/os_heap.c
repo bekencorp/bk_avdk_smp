@@ -131,8 +131,16 @@ static void bk_heap_free_impl(const bk_heap_t *self, const char *func_name, int 
     ptr = bk_heap_debug_get_real_ptr(ptr);
     bk_heap_debug_remove_debug_info(ptr);
     bk_heap_overflow_check(ptr);
+#if CONFIG_HEAP_UAF_AUDIT_POISON
+    bk_heap_debug_record_free(ptr, func_name, (uint16_t)line);
+    bk_heap_debug_poison_after_free(ptr);
 #endif
+#endif
+#if CONFIG_MEM_DEBUG && CONFIG_HEAP_UAF_QUARANTINE
+    bk_heap_debug_quarantine_free(ptr, (uint32_t)os_heap_get_allocated_size(ptr), self->free);
+#else
     self->free(ptr);
+#endif
 }
 /* =========================== OS API =========================== */
 
@@ -423,6 +431,18 @@ void os_dump_memory_stats(uint32_t start_tick, uint32_t ticks_since_malloc, cons
     }
     #endif
 }
+
+#if CONFIG_HEAP_UAF_AUDIT_POISON
+void os_dump_heap_free_history(uint32_t count)
+{
+    bk_heap_debug_dump_free_history(count);
+}
+
+void os_trace_heap_free_addr(uint32_t addr)
+{
+    bk_heap_debug_trace_free_addr(addr);
+}
+#endif
 #endif
 
 #ifdef CONFIG_AP_PSRAM_HEAP_ADDR

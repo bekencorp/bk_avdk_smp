@@ -251,6 +251,78 @@ menu "Bk_rtos"
 		config MEM_DEBUG_OVERFLOW
 			bool "Enable memory overflow debug"
 			default n
+
+		config HEAP_UAF_AUDIT_POISON
+			depends on MEM_DEBUG
+			bool "Enable heap UAF audit and poison"
+			default n
+			help
+				Enable the P0 heap use-after-free triage aid.
+
+				When a block is freed, this option records the block address,
+				size, allocation caller/task/tick, and free caller/task/tick
+				in a fixed ring buffer. It also fills the user payload with a
+				fixed poison pattern before returning the block to the heap, so
+				stale reads or stale function/list pointers are more likely to
+				show an obvious abnormal value or crash earlier.
+
+				This option does not quarantine freed blocks and does not trap
+				the exact stale access instruction. Quarantine is controlled
+				separately by HEAP_UAF_QUARANTINE and reuses the same poison
+				behavior.
+
+				This is a debug-only aid and should stay disabled in production.
+
+		config HEAP_UAF_FREE_RECORD_MAX
+			depends on HEAP_UAF_AUDIT_POISON
+			int "Set heap UAF free record count"
+			range 1 512
+			default 128
+			help
+				Number of recent free records kept in a fixed ring buffer.
+
+		config HEAP_UAF_QUARANTINE
+			depends on HEAP_UAF_AUDIT_POISON
+			bool "Enable heap UAF quarantine"
+			default n
+			help
+				Delay returning freed blocks to the underlying heap after
+				the audit and poison step. This keeps poisoned payloads alive
+				longer, so stale reads or stale pointer dereferences are more
+				likely to expose use-after-free defects.
+
+				The quarantine path is shared by SRAM, HSRAM, and PSRAM heap
+				free operations. Blocks are released in FIFO order when the
+				total quarantined capacity exceeds HEAP_UAF_QUARANTINE_BYTES.
+				The fixed quarantine slot count is configured by
+				HEAP_UAF_QUARANTINE_RECORD_MAX to avoid dynamic allocation
+				in the debug path.
+
+				This is a debug-only aid and should stay disabled in production.
+
+		config HEAP_UAF_QUARANTINE_RECORD_MAX
+			depends on HEAP_UAF_QUARANTINE
+			int "Set heap UAF quarantine record count"
+			range 1 1024
+			default 512
+			help
+				Number of freed blocks that can be retained in the quarantine
+				FIFO. This controls the metadata slot count, while
+				HEAP_UAF_QUARANTINE_BYTES controls the total retained block
+				capacity.
+
+		config HEAP_UAF_QUARANTINE_BYTES
+			depends on HEAP_UAF_QUARANTINE
+			int "Set heap UAF quarantine capacity in bytes"
+			range 4096 1048576
+			default 65536
+			help
+				Maximum total allocated block bytes retained in the quarantine
+				FIFO. When this capacity is exceeded, the oldest blocks are
+				returned to their original heap until the new block can fit.
+				A single block larger than half this capacity bypasses
+				quarantine to prevent one large buffer from flushing the whole
+				FIFO.
         
 		config MEM_OVERFLOW_FREE_RECORD_MAX
 			depends on MEM_DEBUG_OVERFLOW

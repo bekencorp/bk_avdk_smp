@@ -354,6 +354,39 @@ static void cli_memory_leak_cmd(char *pcWriteBuffer, int xWriteBufferLen, int ar
 }
 #endif
 
+#if CONFIG_HEAP_UAF_AUDIT_POISON
+static void cli_memhistory_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
+{
+	uint32_t count = 0;
+
+	(void)pcWriteBuffer;
+	(void)xWriteBufferLen;
+
+	if (argc > 1) {
+		count = os_strtoul(argv[1], NULL, 10);
+	}
+
+	os_dump_heap_free_history(count);
+}
+
+static void cli_memtrace_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
+{
+	uint32_t addr;
+
+	(void)pcWriteBuffer;
+	(void)xWriteBufferLen;
+
+	if (argc < 2) {
+		CLI_LOGD("usage: memtrace <addr>\r\n");
+		return;
+	}
+
+	addr = os_strtoul(argv[1], NULL, 16);
+	os_trace_heap_free_addr(addr);
+}
+
+#endif
+
 #if CONFIG_PSRAM_AS_SYS_MEMORY && CONFIG_FREERTOS
 void cli_psram_malloc_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
@@ -1001,6 +1034,10 @@ static const struct cli_command s_mem_commands[] = {
     {"f2s_test", "flash to sram [dst_base] [dst_size]", cli_flash_read_test_cmd},
 #if CONFIG_MEM_DEBUG && CONFIG_FREERTOS
     {"memleak", "[show memleak", cli_memory_leak_cmd},
+#endif
+#if CONFIG_HEAP_UAF_AUDIT_POISON
+    {"memhistory", "memhistory [count]", cli_memhistory_cmd},
+    {"memtrace", "memtrace <addr>", cli_memtrace_cmd},
 #endif
 #if CONFIG_DEBUG_VERSION
     {"memdump", "<addr> <length>", cli_memory_dump_cmd},

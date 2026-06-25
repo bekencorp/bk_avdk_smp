@@ -176,6 +176,10 @@ void *hsram_zalloc_release(size_t size);
 #define hsram_realloc(ptr, size) hsram_realloc_debug((const char*)__FUNCTION__,__LINE__,ptr,size, 0)
 
 void os_dump_memory_stats(uint32_t start_tick, uint32_t ticks_since_malloc, const char* task);
+#if CONFIG_HEAP_UAF_AUDIT_POISON
+void os_dump_heap_free_history(uint32_t count);
+void os_trace_heap_free_addr(uint32_t addr);
+#endif
 
 #else
 
