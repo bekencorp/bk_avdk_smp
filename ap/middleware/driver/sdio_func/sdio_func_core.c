@@ -36,17 +36,26 @@
 #define SDIO_MAX_FUNCS               8
 
 /* Commands */
-#define SDIO_CMD_IO_SEND_OP_COND     5   /* R4 */
+#define SDIO_CMD_GO_IDLE_STATE       0   /* CMD0, no response */
 #define SDIO_CMD_SEND_RELATIVE_ADDR  3   /* R6 */
+#define SDIO_CMD_IO_SEND_OP_COND     5   /* R4 */
 #define SDIO_CMD_SELECT_CARD         7   /* R1b */
+#define SDIO_CMD_SEND_IF_COND        8   /* R7 (CMD8, SD 2.0 voltage/check) */
 #define SDIO_CMD_IO_RW_DIRECT        52  /* R5 (CMD52) */
 #define SDIO_CMD_IO_RW_EXTENDED      53  /* R5 (CMD53) */
+
+/* CMD8 argument: VHS=1 (2.7~3.6V) + check pattern 0xAA -> 0x1AA */
+#define SDIO_CMD8_VHS_27_36V         0x100u
+#define SDIO_CMD8_CHECK_PATTERN      0xAAu
+#define SDIO_CMD8_ARG                (SDIO_CMD8_VHS_27_36V | SDIO_CMD8_CHECK_PATTERN)
 
 /* CCCR (function 0) register addresses */
 #define SDIO_CCCR_IOEx               0x02 /* I/O enable */
 #define SDIO_CCCR_IORx               0x03 /* I/O ready */
 #define SDIO_CCCR_IENx               0x04 /* int enable */
 #define SDIO_CCCR_INTx               0x05 /* int pending */
+#define SDIO_CCCR_IO_ABORT           0x06 /* I/O abort */
+#define SDIO_CCCR_IO_ABORT_RES       0x08 /* I/O abort bit3: RES = card soft reset */
 #define SDIO_CCCR_CIS_PTR            0x09 /* 0x09..0x0B common CIS pointer */
 
 /* Function Basic Register block */
@@ -281,6 +290,42 @@ bk_err_t bk_sdio_func_init(sdio_host_id_t host_id)
 	ret = bk_sdio_host_init(host_id, &cfg);
 	if (ret != BK_OK)
 		return ret;
+
+	/* Reset the card before identification (mirrors the bring-up sequence of
+	 * common SDIO hosts; observed on the bus as CMD52 -> CMD52 -> CMD0 -> CMD5):
+	 *   1) Read-modify-write the CCCR I/O Abort register to set the RES bit
+	 *      (CMD52 read 0x06 then CMD52 write 0x06): soft-reset the SDIO card so
+	 *      it drops any state left over from a warm host reset, while preserving
+	 *      the other (ASx) bits as reference hosts do.
+	 *   2) CMD0 GO_IDLE_STATE: return the card to the idle state.
+	 * All are best-effort during bring-up: a card that is absent or not yet
+	 * enumerated may NAK/timeout here, which is harmless, so the return codes
+	 * are intentionally ignored and we still proceed to CMD5. */
+	{
+		uint8_t abort = 0;
+		(void)sdio_io_rw_direct(false, 0, SDIO_CCCR_IO_ABORT, 0, &abort);
+		abort |= SDIO_CCCR_IO_ABORT_RES;
+		(void)sdio_io_rw_direct(true, 0, SDIO_CCCR_IO_ABORT, abort, NULL);
+	}
+
+	cmd.index = SDIO_CMD_GO_IDLE_STATE;
+	cmd.arg = 0;
+	cmd.resp_type = SDIO_HOST_RESP_NONE;
+	(void)bk_sdio_host_send_cmd(host_id, &cmd, &resp);
+	rtos_delay_milliseconds(2);
+
+	/* CMD8 SEND_IF_COND: announce that the host is SD 2.0+ and exchange the
+	 * voltage window / check pattern (the step Linux/Raspberry Pi run between
+	 * CMD0 and CMD5). Best-effort: legacy SDIO-only cards do not respond, which
+	 * the spec lets us ignore, so we proceed to CMD5 regardless. When the card
+	 * does answer, the low byte must echo the 0xAA check pattern. */
+	cmd.index = SDIO_CMD_SEND_IF_COND;
+	cmd.arg = SDIO_CMD8_ARG;
+	cmd.resp_type = SDIO_HOST_RESP_R7;
+	if (bk_sdio_host_send_cmd(host_id, &cmd, &resp) == BK_OK &&
+	    (resp.resp[0] & 0xFFu) != SDIO_CMD8_CHECK_PATTERN) {
+		SF_LOGW("CMD8 echo mismatch: 0x%x\r\n", (unsigned int)resp.resp[0]);
+	}
 
 	/* CMD5 with arg 0: query OCR and number of I/O functions */
 	cmd.index = SDIO_CMD_IO_SEND_OP_COND;

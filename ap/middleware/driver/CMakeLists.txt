@@ -202,6 +202,11 @@ if (CONFIG_SDIO_V3P0)
 		list(APPEND srcs
 			"sdio_func/sdio_func_core.c"
 			)
+		if (CONFIG_SDIO_FUNC_CLI)
+			list(APPEND srcs
+				"sdio_func/sdio_func_cli.c"
+				)
+		endif() #if (CONFIG_SDIO_FUNC_CLI)
 	endif() #if (CONFIG_SDIO_FUNC)
 
 	# Test/CLI code is only built when explicitly enabled

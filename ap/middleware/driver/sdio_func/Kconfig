@@ -17,4 +17,15 @@ menu "SDIO_FUNC"
 		help
 		  Default controller used by bk_sdio_func_init() when called with an
 		  out-of-range id.
+
+	config SDIO_FUNC_CLI
+		bool "Enable the \"sdio_func\" CLI command"
+		depends on SDIO_FUNC && CLI
+		default y
+		help
+		  Build the "sdio_func" shell command (scan/info/enable/rb/wb ...) used
+		  to bring up and validate an external SDIO peripheral. The command is
+		  auto-registered at boot via DRV_CLI_CMD_EXPORT, so no explicit
+		  registration call is needed. Set to n to drop the CLI front-end
+		  entirely when it is no longer required.
 endmenu
