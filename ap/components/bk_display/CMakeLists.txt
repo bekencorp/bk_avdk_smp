@@ -9,6 +9,7 @@ if (CONFIG_BK_DISPLAY)
 		src/bk_display_bus.c
 		src/bus/bk_display_spi_bus.c
 		src/spi/bk_display_spi_vn_default.c
+		src/qspi/bk_display_qspi_vn_default.c
 		src/bk_lcd_panel.c
 		src/panel/lcd_rgb_panel_common.c
 		src/dpu/bk_display_dpu_vn_default.c
