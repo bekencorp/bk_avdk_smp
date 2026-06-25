@@ -108,6 +108,8 @@ typedef union {
         volatile uint32_t flash_init_done;  /**< CP flash init completion flag */
         volatile uint32_t hspl_owner_pc[32]; /**< HSPL owner caller PC shadow, 0 means free */
         volatile uint8_t hspl_owner_core[32]; /**< HSPL owner core shadow */
+        volatile uint32_t cp_heap_size_ptr; /**< Addr of CP system heap xFreeBytesRemaining (size_t); 0 = not published */
+        volatile uint32_t cp_lwip_mem_info_ptr;  /**< Addr of CP cp_mem_addr_info_t snapshot (lwIP/heap addrs); 0 = not published */
     };
     volatile uint32_t reserved[256];        /**< Reserved for future use */
 } sys_sw_regs_t;
