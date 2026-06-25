@@ -96,9 +96,10 @@ __attribute__((section(".iram"))) void mpu_enable(void)
 
     ARM_MPU_Disable();
 
-    if (region_num > MPU_MAX_NUM_REGIONS){
-        region_num = MPU_MAX_NUM_REGIONS;
-    }
+    /* Fail fast instead of silently dropping regions: a count over the HW limit
+     * means a build-time region-table overflow (e.g. CONFIG_PSRAM_INTERLEAVE),
+     * and under SPE (no PRIVDEFENA) any uncovered region would MemFault. */
+    BK_ASSERT(region_num <= MPU_MAX_NUM_REGIONS);
 
     for (int i = 0; i < region_num; i++) {
         ARM_MPU_SetRegion(i, s_mpu_regions[i].RBAR, s_mpu_regions[i].RLAR);

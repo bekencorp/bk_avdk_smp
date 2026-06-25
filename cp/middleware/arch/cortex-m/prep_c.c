@@ -117,9 +117,16 @@ void b_data_copy(void)
   extern const __copy_table_t __copy_table_end__;
 
   __copy_table_t const* pTable = &__copy_table_start__;
-  /* First entry: copy IRAM (so data_copy_block_ram is in IRAM). Use memcpy. */
+  /* The FIRST copy-table entry MUST be the IRAM block: the linker script
+   * (.copy.table) emits __iram_* first, and data_copy_block_ram lives in .iram.
+   * We memcpy that block first so the routine is resident before we call it.
+   * Do NOT reorder .copy.table without updating this assumption. */
   if (pTable < &__copy_table_end__) {
     memcpy(pTable->dest, pTable->src, pTable->wlen * sizeof(uint32_t));
+    /* Instruction barrier: ensure the just-copied IRAM code is visible to the
+     * instruction fetch before data_copy_block_ram is executed from IRAM. */
+    __DSB();
+    __ISB();
     ++pTable;
   }
   /* Remaining entries (e.g. .data): run copy from IRAM to reduce Flash contention. */
