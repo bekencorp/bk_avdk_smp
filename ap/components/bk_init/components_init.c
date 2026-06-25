@@ -34,6 +34,7 @@
 #include "bk_wdt.h"
 #endif
 
+#include <components/bk_platform.h>
 #include "reset_reason.h"
 #include <driver/pwr_clk.h>
 
@@ -116,14 +117,6 @@ __IRAM_SEC int wdt_init(void)
 	BK_LOGV(TAG, "task watchdog enabled, period=%u\r\n", CONFIG_TASK_WDT_PERIOD_MS);
 #endif
 
-#if CONFIG_SUPPORT_WWDT
-	/*
-	 * Start the boot core WWDT before the scheduler starts. The other cores
-	 * start/feed their own WWDT from their per-core SysTick after scheduling.
-	 */
-	BK_LOG_ON_ERR(bk_wwdt_start(CONFIG_INT_WWDT_PERIOD_MS, false, 0));
-	BK_LOGV(TAG, "boot core wwdt enabled, period=%u\r\n", CONFIG_INT_WWDT_PERIOD_MS);
-#endif
 	return BK_OK;
 }
 
@@ -181,15 +174,11 @@ static void show_init_info(void)
 
 void *__stack_chk_guard = NULL;
 
-// Intialize random stack guard, must after trng start.
+// Intialize random stack guard
 void bk_stack_guard_setup(void)
 {
-    BK_LOGD(TAG, "Intialize random stack guard.\r\n");
-    /*
-     * Use the software pseudo-random rand() here. A pseudo-random stack canary is
-     * acceptable and does not weaken overall system security.
-     */
-    __stack_chk_guard = (void *)rand();
+	BK_LOGD(TAG, "Intialize random stack guard.\r\n");
+	__stack_chk_guard = (void *)(uintptr_t)(unsigned)rand();
 }
 
 #if CONFIG_UT_REG
@@ -231,8 +220,6 @@ int components_early_init(void)
 	bandgap_init();
 	random_init();
 
-	bk_pm_mailbox_init();
-
 	bk_stack_guard_setup();
     set_ap_startup_index(AP_EXIT_COMPONTENT_EARLY_INIT);
 	return BK_OK;
@@ -251,14 +238,6 @@ int components_init(void)
 	if(wdt_init())
 		return BK_FAIL;
 
-#if CONFIG_SUPPORT_WWDT
-	/*
-	 * Start the AP boot core WWDT before the scheduler starts. The other AP
-	 * core starts/feeds its own WWDT from per-core SysTick after scheduling.
-	 */
-	BK_LOG_ON_ERR(bk_wwdt_start(CONFIG_INT_WWDT_PERIOD_MS, false, 0));
-	BK_LOGI(TAG, "boot core wwdt enabled, period=%u\r\n", CONFIG_INT_WWDT_PERIOD_MS);
-#endif
 #if CONFIG_UT_REG
 	ut_reg_init();
 #endif
