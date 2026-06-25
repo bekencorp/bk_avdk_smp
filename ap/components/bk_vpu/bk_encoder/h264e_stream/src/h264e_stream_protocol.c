@@ -29,11 +29,9 @@
     "{\"title\":\"Service\",\"fields\":[{\"type\":\"radio\",\"id\":\"mode\",\"label\":\"Service Mode\"," \
     "\"default\":\"tcp\",\"required\":true,\"options\":[{\"label\":\"TCP\",\"value\":\"tcp\"},{\"label\":\"UDP\",\"value\":\"udp\"}]}]}," \
     "{\"id\":\"video\",\"title\":\"Video\",\"fields\":[" \
-    "{\"type\":\"select\",\"id\":\"resolution\",\"label\":\"Resolution\",\"default\":\"1920_1080\"," \
-    "\"options\":[{\"label\":\"1920x1080\",\"value\":\"1920_1080\"},{\"label\":\"1280x720\",\"value\":\"1280_720\"},{\"label\":\"640x480\",\"value\":\"640_480\"}]}," \
-    "{\"type\":\"number\",\"id\":\"width\",\"label\":\"Width\",\"default\":1920,\"readonly\":false,\"min\":320,\"max\":1920,\"unit\":\"pixel\"}," \
-    "{\"type\":\"number\",\"id\":\"height\",\"label\":\"Height\",\"default\":1080,\"readonly\":false,\"min\":240,\"max\":1080,\"unit\":\"pixel\"}," \
-    "{\"type\":\"number\",\"id\":\"fps\",\"label\":\"FPS\",\"default\":25,\"min\":1,\"max\":30,\"step\":1,\"unit\":\"fps\"}," \
+    "{\"type\":\"number\",\"id\":\"width\",\"label\":\"Width\",\"default\":2304,\"readonly\":false,\"min\":320,\"max\":2304,\"unit\":\"pixel\"}," \
+    "{\"type\":\"number\",\"id\":\"height\",\"label\":\"Height\",\"default\":1296,\"readonly\":false,\"min\":240,\"max\":1296,\"unit\":\"pixel\"}," \
+    "{\"type\":\"number\",\"id\":\"fps\",\"label\":\"FPS\",\"default\":20,\"min\":1,\"max\":30,\"step\":1,\"unit\":\"fps\"}," \
     "{\"type\":\"number\",\"id\":\"bitrateKbps\",\"label\":\"Target Bitrate\",\"default\":1200,\"min\":64,\"max\":8000,\"step\":64,\"unit\":\"kbps\"}]}," \
     "{\"id\":\"rateCtrl\",\"title\":\"Writable Rate Control\",\"fields\":[" \
     "{\"type\":\"number\",\"id\":\"bitrate\",\"label\":\"Bitrate\",\"description\":\"Unit bps. 0 means fixed QP mode.\"," \
@@ -127,7 +125,6 @@
 typedef struct
 {
     char mode[8];
-    char resolution[16];
     uint16_t width;
     uint16_t height;
     uint16_t fps;
@@ -138,10 +135,9 @@ typedef struct
 
 static h264e_stream_encoder_config_t s_encoder_config = {
     .mode = "tcp",
-    .resolution = "1280_720",
-    .width = 1280,
-    .height = 720,
-    .fps = 25,
+    .width = 2304,
+    .height = 1296,
+    .fps = 20,
     .bitrate_kbps = 1200,
     .force_idr = 1,
     .rate_ctrl = {
@@ -628,17 +624,17 @@ static int h264e_stream_config_to_result(char *buffer, size_t buffer_len)
 {
     bk_h264_encode_rate_ctrl_t *rc = &s_encoder_config.rate_ctrl;
     return snprintf(buffer, buffer_len,
-        "{\"values\":{\"mode\":\"%s\",\"resolution\":\"%s\",\"width\":%u,\"height\":%u,"
+        "{\"values\":{\"mode\":\"%s\",\"width\":%u,\"height\":%u,"
         "\"fps\":%u,\"bitrateKbps\":%u,\"bitrate\":%u,\"qpMinI\":%u,\"qpMaxI\":%u,"
         "\"qpMinP\":%u,\"qpMaxP\":%u,\"forceIdr\":%s},"
-        "\"config\":{\"mode\":\"%s\",\"video\":{\"resolution\":\"%s\",\"width\":%u,\"height\":%u,"
+        "\"config\":{\"mode\":\"%s\",\"video\":{\"width\":%u,\"height\":%u,"
         "\"fps\":%u,\"bitrateKbps\":%u},\"rateCtrl\":{\"bitrate\":%u,\"qpMinI\":%u,"
         "\"qpMaxI\":%u,\"qpMinP\":%u,\"qpMaxP\":%u},\"ctrl\":{\"forceIdr\":%s}}}",
-        s_encoder_config.mode, s_encoder_config.resolution, s_encoder_config.width,
+        s_encoder_config.mode, s_encoder_config.width,
         s_encoder_config.height, s_encoder_config.fps, s_encoder_config.bitrate_kbps,
         rc->bitrate, rc->qp_min_i, rc->qp_max_i, rc->qp_min_p, rc->qp_max_p,
         s_encoder_config.force_idr ? "true" : "false",
-        s_encoder_config.mode, s_encoder_config.resolution, s_encoder_config.width,
+        s_encoder_config.mode, s_encoder_config.width,
         s_encoder_config.height, s_encoder_config.fps, s_encoder_config.bitrate_kbps,
         rc->bitrate, rc->qp_min_i, rc->qp_max_i, rc->qp_min_p, rc->qp_max_p,
         s_encoder_config.force_idr ? "true" : "false");
@@ -654,33 +650,10 @@ static int h264e_stream_handle_get_config(const char *id_json)
     return h264e_stream_jsonrpc_send_result(id_json, s_h264e_stream_result_buffer);
 }
 
-static void h264e_stream_apply_resolution(const char *resolution, h264e_stream_encoder_config_t *config)
-{
-    if (strcmp(resolution, "1920_1080") == 0)
-    {
-        config->width = 1920;
-        config->height = 1080;
-        snprintf(config->resolution, sizeof(config->resolution), "1920_1080");
-    }
-    else if (strcmp(resolution, "1280_720") == 0)
-    {
-        config->width = 1280;
-        config->height = 720;
-        snprintf(config->resolution, sizeof(config->resolution), "1280_720");
-    }
-    else if (strcmp(resolution, "640_480") == 0)
-    {
-        config->width = 640;
-        config->height = 480;
-        snprintf(config->resolution, sizeof(config->resolution), "640_480");
-    }
-}
-
 static int h264e_stream_parse_video_config(cJSON *object,
     h264e_stream_encoder_config_t *config,
     const char **field)
 {
-    cJSON *resolution;
     uint32_t value;
     int ret;
 
@@ -689,26 +662,8 @@ static int h264e_stream_parse_video_config(cJSON *object,
         return 0;
     }
 
-    resolution = cJSON_GetObjectItem(object, "resolution");
-    if (resolution != NULL)
-    {
-        if (!cJSON_IsString(resolution) || resolution->valuestring == NULL)
-        {
-            *field = "video.resolution";
-            return -1;
-        }
-        if (strcmp(resolution->valuestring, "1920_1080") != 0 &&
-            strcmp(resolution->valuestring, "1280_720") != 0 &&
-            strcmp(resolution->valuestring, "640_480") != 0)
-        {
-            *field = "video.resolution";
-            return -1;
-        }
-        h264e_stream_apply_resolution(resolution->valuestring, config);
-    }
-
     ret = h264e_stream_json_get_u32_alias(object, "width", NULL, &value);
-    if (ret < 0 || (ret > 0 && (value < 320 || value > 1920)))
+    if (ret < 0 || (ret > 0 && (value < 320 || value > 2304)))
     {
         *field = "video.width";
         return -1;
@@ -719,7 +674,7 @@ static int h264e_stream_parse_video_config(cJSON *object,
     }
 
     ret = h264e_stream_json_get_u32_alias(object, "height", NULL, &value);
-    if (ret < 0 || (ret > 0 && (value < 240 || value > 1080)))
+    if (ret < 0 || (ret > 0 && (value < 240 || value > 1296)))
     {
         *field = "video.height";
         return -1;
