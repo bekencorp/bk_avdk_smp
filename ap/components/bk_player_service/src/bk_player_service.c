@@ -1145,3 +1145,28 @@ bk_err_t bk_player_set_output_port(bk_player_handle_t player_handle, audio_port_
 
     return BK_OK;
 }
+
+bk_err_t bk_player_get_spkstr(bk_player_handle_t player_handle, audio_element_handle_t *spk_str)
+{
+	PLAYER_CHECK_NULL(player_handle, return BK_FAIL);
+	PLAYER_CHECK_NULL(spk_str, return BK_FAIL);
+	if (player_handle->spk_str) {
+		*spk_str = player_handle->spk_str;
+		return BK_OK;
+	} else {
+		return BK_FAIL;
+	}
+}
+
+bk_err_t bk_player_get_spkstr_type(bk_player_handle_t player_handle, spk_type_t *spk_type)
+{
+	PLAYER_CHECK_NULL(player_handle, return BK_FAIL);
+	PLAYER_CHECK_NULL(spk_type, return BK_FAIL);
+	if (player_handle->spk_str) {
+		*spk_type = player_handle->spk_type;
+		return BK_OK;
+	} else {
+		return BK_FAIL;
+	}
+}
+

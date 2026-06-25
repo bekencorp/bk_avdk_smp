@@ -102,6 +102,30 @@ bk_err_t bk_player_set_decode_type(bk_player_handle_t player_handle, audio_dec_t
  */
 bk_err_t bk_player_set_output_port(bk_player_handle_t player_handle, audio_port_handle_t port);
 
+/**
+ * @brief      Get the speaker stream element of a player.
+ *
+ * @param[in]      player_handle  The player handle.
+ * @param[out]     spk_str        The pointer to store the speaker stream element handle.
+ *
+ * @return         Error code.
+ *                 - 0: Success.
+ *                 - Non-zero: Failed.
+ */
+bk_err_t bk_player_get_spkstr(bk_player_handle_t player_handle, audio_element_handle_t *spk_str);
+
+/**
+ * @brief      Get the speaker stream type of a player.
+ *
+ * @param[in]      player_handle  The player handle.
+ * @param[out]     spk_type       The pointer to store the speaker stream type.
+ *
+ * @return         Error code.
+ *                 - 0: Success.
+ *                 - Non-zero: Failed.
+ */
+bk_err_t bk_player_get_spkstr_type(bk_player_handle_t player_handle, spk_type_t *spk_type);
+
 #ifdef  __cplusplus
 }
 #endif//__cplusplus
