@@ -439,7 +439,7 @@ static uint8_t spd2010_cmd[4] = {0x32, 0x00, 0x2c, 0x00};
 
 static const lcd_qspi_t lcd_qspi_spd2010_config =
 {
-	.clk = LCD_QSPI_80M,
+	.clk = LCD_QSPI_48M,
 	.refresh_method = LCD_QSPI_REFRESH_BY_FRAME,
 	.reg_write_cmd = LCD_QSPI_SPD2010_REGISTER_WRITE_COMMAND,
 	.reg_read_cmd = LCD_QSPI_SPD2010_REGISTER_READ_COMMAND,

@@ -30,6 +30,11 @@ menu "QSPI LCD"
 		bool "Enable LCD_QSPI_SPD2010 API"
 		default n
 
+	config LCD_QSPI_CO5300
+		depends on LCD_QSPI
+		bool "Enable LCD_QSPI_CO5300 API"
+		default n
+
 	config LCD_QSPI_GC9C01
 		depends on LCD_QSPI
 		bool "Enable LCD_QSPI_GC9C01 API"
