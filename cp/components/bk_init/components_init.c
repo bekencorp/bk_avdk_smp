@@ -33,6 +33,7 @@
 #include "bk_wdt.h"
 #endif
 
+#include <components/bk_platform.h>
 #include "reset_reason.h"
 #include "interrupt_base.h"
 
@@ -158,7 +159,6 @@ __IRAM_SEC int wdt_init(void)
 {
 #if CONFIG_WDT_EN
 
-#if (CONFIG_FREERTOS)
 #if CONFIG_INT_WDT
 	BK_LOGV(TAG, "int watchdog enabled, period=%u\r\n", CONFIG_INT_WDT_PERIOD_MS);
 	bk_wdt_resume();
@@ -168,20 +168,10 @@ __IRAM_SEC int wdt_init(void)
 	bk_wdt_feed();
 	bk_wdt_stop();
 #endif //CONFIG_INT_WDT
-#endif //CONFIG_FREERTOS
 
 #if CONFIG_TASK_WDT
 	bk_task_wdt_start();
 	BK_LOGV(TAG, "task watchdog enabled, period=%u\r\n", CONFIG_TASK_WDT_PERIOD_MS);
-#endif
-
-#if CONFIG_SUPPORT_WWDT
-	/*
-	 * Start the boot core WWDT before the scheduler starts. The other cores
-	 * start/feed their own WWDT from their per-core SysTick after scheduling.
-	 */
-	BK_LOG_ON_ERR(bk_wwdt_start(CONFIG_INT_WWDT_PERIOD_MS, false, 0));
-	BK_LOGV(TAG, "boot core wwdt enabled, period=%u\r\n", CONFIG_INT_WWDT_PERIOD_MS);
 #endif
 
 #endif //CONFIG_WDT_EN
@@ -254,12 +244,12 @@ static void show_init_info(void)
 
 void *__stack_chk_guard = NULL;
 
-// Intialize random stack guard, must after trng start.
+// Intialize random stack guard (must after random_init())
 void bk_stack_guard_setup(void)
 {
-    BK_LOGD(TAG, "Intialize random stack guard.\r\n");
+	BK_LOGD(TAG, "Intialize random stack guard.\r\n");
 
-    __stack_chk_guard = (void *)rand();
+	__stack_chk_guard = (void *)(uintptr_t)(unsigned)rand();
 }
 
 #if CONFIG_UT_REG
