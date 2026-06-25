@@ -328,7 +328,6 @@ bk_err_t bk_start_ap_system(void)
 	ret = bk_multicore_start(CONFIG_AP_SYS_MASTER_CPU_ID); // start ap system master cpu
 	if (ret != BK_OK) {
 		BK_LOGE(NULL, "bk_multicore_start failed: %d, reboot for deterministic recovery\r\n", ret);
-		bk_reboot();
 		return ret;
 	}
 	bk_printf("ap system started\r\n");
