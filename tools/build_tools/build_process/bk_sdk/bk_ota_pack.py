@@ -1,10 +1,12 @@
 from __future__ import annotations
 
-import binascii
+import csv
 import json
 import logging
 import os
 import shutil
+import struct
+import zlib
 from pathlib import Path
 
 import bk_packager
@@ -21,6 +23,33 @@ ota_tool = curr_project.tools_path / "env_tools/rtt_ota/ota-rbl/ota_packager_pyt
 header_path = curr_project.tools_path / "env_tools/rtt_ota/ota-rbl"
 
 OTA_PACK_BIN_ALIGN_LEN = 64
+BL_METADATA_VERSION = 1
+BL_METADATA_PARTITION_OFFSET = 0xF000
+BL_METADATA_PARTITION_SIZE = 0x400
+BL_METADATA_FLASH_CONFIG_OFFSET = 0xF400
+BL_METADATA_FLASH_CONFIG_SIZE = 0xC00
+BL_METADATA_BOOTLOADER_SIZE = 0x10000
+BL_METADATA_PARTITION_MAGIC = 0x31545042  # "BPT1"
+BL_METADATA_FLASH_CONFIG_MAGIC = 0x31434642  # "BFC1"
+BL_OTA_SCHEME_FULL = 1
+BL_OTA_SCHEME_DIFF = 2
+BL_OTA_SCHEME_AB = 3
+# header: magic, version, header_size, entry_size, entry_count, total_size, ota_scheme, payload_crc32
+BL_METADATA_HEADER_FORMAT = "<IHHHHIII"
+BL_METADATA_HEADER_SIZE = struct.calcsize(BL_METADATA_HEADER_FORMAT)
+BL_PARTITION_NAME_MAX = 24
+# partition entry (App semantic): partition_id, owner, name[24], start_addr, length, options, reserved
+BL_PARTITION_ENTRY_FORMAT = "<II24sIIII"
+BL_PARTITION_ENTRY_SIZE = struct.calcsize(BL_PARTITION_ENTRY_FORMAT)
+BL_FLASH_CONFIG_ENTRY_FORMAT = "<IBBHHH"
+BL_FLASH_CONFIG_ENTRY_SIZE = struct.calcsize(BL_FLASH_CONFIG_ENTRY_FORMAT)
+
+# bk_flash_t owner
+BL_FLASH_OWNER_EMBEDDED = 0
+# PAR_OPT_* bit positions (see flash_partition.h)
+PAR_OPT_READ_EN = 1 << 0
+PAR_OPT_WRITE_EN = 1 << 1
+PAR_OPT_EXECUTE_EN = 1 << 2
 
 
 # region gen json
@@ -45,31 +74,159 @@ def format_string_to_bytes(string: str, length: int) -> bytes:
     return string_bytes
 
 
-def serialize_partitions_table(partitions_json: Path) -> bytes:
-    def int_to_bytes(value: int):
-        return value.to_bytes(4, "little")
+def get_ota_scheme() -> int:
+    if curr_project.is_ab_project:
+        return BL_OTA_SCHEME_AB
+    return BL_OTA_SCHEME_DIFF
 
-    serialize_bytes = bytes()
+
+def build_metadata(magic: int, entry_size: int, entries: bytes, ota_scheme: int) -> bytes:
+    """Prepend the common header (with payload CRC32) to the entry payload."""
+    if len(entries) % entry_size != 0:
+        raise RuntimeError(
+            f"metadata payload {len(entries)} not aligned to entry size {entry_size}"
+        )
+    entry_count = len(entries) // entry_size
+    total_size = BL_METADATA_HEADER_SIZE + len(entries)
+    payload_crc32 = zlib.crc32(entries) & 0xFFFFFFFF
+    header = struct.pack(
+        BL_METADATA_HEADER_FORMAT,
+        magic,
+        BL_METADATA_VERSION,
+        BL_METADATA_HEADER_SIZE,
+        entry_size,
+        entry_count,
+        total_size,
+        ota_scheme,
+        payload_crc32,
+    )
+    return header + entries
+
+
+def _adapt_partition_name(name: str, execute: bool, app_count: int) -> tuple[str, int]:
+    """Replicate bk_flash_partition._part_adapter naming so on-flash names match App."""
+    if "bootloader" in name and execute:
+        return "bootloader", app_count
+    if execute:
+        adapted = "application" + (str(app_count) if app_count else "")
+        return adapted, app_count + 1
+    return name, app_count
+
+
+def serialize_partitions_table(partitions_json: Path) -> bytes:
+    """Serialize the FULL App partition table (App naming/semantics) from partitions.json."""
     if not partitions_json.exists():
         raise RuntimeError(f"{partitions_json} not exists.")
     with partitions_json.open("r") as f:
         part_info = json.load(f)
-    for part in part_info["part_table"]:
-        part_bytes = bytes()
-        magic_number = int(part["magic"], 16)
-        part_bytes += int_to_bytes(magic_number)
-        name = part["name"]
-        part_bytes += format_string_to_bytes(name, 24)
-        flash_name = part["flash_name"]
-        part_bytes += format_string_to_bytes(flash_name, 24)
-        offset = int(part["offset"], 16)
-        part_bytes += int_to_bytes(offset)
-        length = parse_format_size(part["len"])
-        part_bytes += int_to_bytes(length)
-        crc32_result = binascii.crc32(part_bytes) & 0xFFFFFFFF
-        part_bytes += int_to_bytes(crc32_result)
-        serialize_bytes += part_bytes
-    return serialize_bytes
+
+    sections = sorted(part_info["section"], key=lambda x: x["Id"])
+    entries = bytes()
+    app_count = 0
+    for part in sections:
+        execute = bool(part["Execute"])
+        name, app_count = _adapt_partition_name(part["Name"], execute, app_count)
+        options = 0
+        if part["Read"]:
+            options |= PAR_OPT_READ_EN
+        if part["Write"]:
+            options |= PAR_OPT_WRITE_EN
+        if execute:
+            options |= PAR_OPT_EXECUTE_EN
+        entries += struct.pack(
+            BL_PARTITION_ENTRY_FORMAT,
+            int(part["Id"]),
+            BL_FLASH_OWNER_EMBEDDED,
+            format_string_to_bytes(name, BL_PARTITION_NAME_MAX),
+            int(part["Offset"]),
+            int(part["Size"]),
+            options,
+            0,
+        )
+    return build_metadata(
+        BL_METADATA_PARTITION_MAGIC,
+        BL_PARTITION_ENTRY_SIZE,
+        entries,
+        get_ota_scheme(),
+    )
+
+
+def parse_int(value: str) -> int:
+    return int(value.strip(), 0)
+
+
+def get_flash_config_csv() -> Path:
+    """Locate flash config csv: project override first, then project-independent common default."""
+    # 1. project override (optional)
+    project_csv = curr_project.partitions_dir / "flash_config.csv"
+    if project_csv.exists():
+        return project_csv
+    # 2. common default (project independent), named by soc
+    common_csv = (
+        curr_project.tools_path
+        / "build_tools/build_process/config/flash_config"
+        / f"{curr_project.soc_name}.csv"
+    )
+    if common_csv.exists():
+        return common_csv
+    raise RuntimeError(
+        f"flash config csv not found: {project_csv} or {common_csv}"
+    )
+
+
+def serialize_flash_config_table(csv_path: Path) -> bytes:
+    if not csv_path.exists():
+        raise RuntimeError(f"{csv_path} not exists.")
+
+    entries = bytes()
+    count = 0
+    with csv_path.open("r", newline="") as f:
+        reader = csv.DictReader(
+            line for line in f if line.strip() and not line.lstrip().startswith("#")
+        )
+        for row in reader:
+            entries += struct.pack(
+                BL_FLASH_CONFIG_ENTRY_FORMAT,
+                parse_int(row["flash_id"]),
+                parse_int(row["sr_size"]),
+                0,
+                parse_int(row["protect_all"]),
+                parse_int(row["protect_none"]),
+                0,
+            )
+            count += 1
+
+    if count == 0:
+        raise RuntimeError(f"{csv_path} contains no flash config entries.")
+
+    return build_metadata(
+        BL_METADATA_FLASH_CONFIG_MAGIC,
+        BL_FLASH_CONFIG_ENTRY_SIZE,
+        entries,
+        get_ota_scheme(),
+    )
+
+
+def select_bootloader_source() -> Path:
+    archive_path = curr_project.bootloader_archive_path
+    if archive_path.exists():
+        return archive_path
+    build_path = curr_project.bootloader_build_path
+    if build_path.exists():
+        logger.warning(f"{archive_path} not found, use build output {build_path}")
+        return build_path
+    raise FileNotFoundError(f"{archive_path} not found.")
+
+
+def write_fixed_metadata(binary_path: Path, offset: int, region_size: int, blob: bytes):
+    if len(blob) > region_size:
+        raise RuntimeError(
+            f"metadata blob too large: {len(blob)} > {region_size} at 0x{offset:x}"
+        )
+    with binary_path.open("r+b") as f:
+        f.seek(offset)
+        f.write(blob)
+        f.write(bytes([0xFF]) * (region_size - len(blob)))
 
 
 def handle_bootloader_bin(pack_dir: Path):
@@ -77,18 +234,34 @@ def handle_bootloader_bin(pack_dir: Path):
         pack_dir.mkdir()
     # copy bootloader cp ap binary
     bootloader_name = "bootloader.bin"
-    origin_bootloader_path = curr_project.bootloader_archive_path
+    origin_bootloader_path = select_bootloader_source()
     pack_bootloader_path = pack_dir / bootloader_name
-    ota_json = curr_project.project_build_parititons_dir / "bk_ota_partitions.json"
-    part_bytes = serialize_partitions_table(ota_json)
+    partitions_json = curr_project.project_build_parititons_dir / "partitions.json"
+    part_bytes = serialize_partitions_table(partitions_json)
+    flash_config_bytes = serialize_flash_config_table(get_flash_config_csv())
     shutil.copy(origin_bootloader_path, pack_bootloader_path)
+    bootloader_size = pack_bootloader_path.stat().st_size
+    if bootloader_size > BL_METADATA_PARTITION_OFFSET:
+        raise RuntimeError(
+            f"bootloader binary size 0x{bootloader_size:x} exceeds metadata offset 0x{BL_METADATA_PARTITION_OFFSET:x}"
+        )
     with pack_bootloader_path.open("ab") as f:
-        pos = f.tell()
-        if pos % 32 != 0:
-            f.write(bytes(32 - pos % 32))
-        f.write(part_bytes)
+        f.write(bytes([0xFF]) * (BL_METADATA_BOOTLOADER_SIZE - bootloader_size))
 
-    logger.info("attach ota partitions to bootloader")
+    write_fixed_metadata(
+        pack_bootloader_path,
+        BL_METADATA_PARTITION_OFFSET,
+        BL_METADATA_PARTITION_SIZE,
+        part_bytes,
+    )
+    write_fixed_metadata(
+        pack_bootloader_path,
+        BL_METADATA_FLASH_CONFIG_OFFSET,
+        BL_METADATA_FLASH_CONFIG_SIZE,
+        flash_config_bytes,
+    )
+
+    logger.info("attach bootloader metadata")
 
 
 # end region
