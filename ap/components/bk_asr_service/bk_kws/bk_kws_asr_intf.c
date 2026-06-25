@@ -31,9 +31,28 @@ extern void     bk_kws_set_tflm_buf(void *buf);
 extern uint32_t bk_kws_get_npu_scratch_size(void);
 extern void     bk_kws_set_npu_scratch(void *buf);
 extern void     bk_kws_init(void);
+extern int      bk_kws_is_ready(void);
+extern int      bk_kws_switch_model(int model_id);
 extern int      bk_tflite_ASR_Recog(short *buf, int buf_len,
                                     const char **text, float *score,
                                     int16_t *result);
+
+typedef enum {
+    KWS_MODEL_WAKEUP = 0,
+    KWS_MODEL_CMDS,
+    KWS_MODEL_RSV,
+} KWS_MODED_TYPE;
+
+typedef struct {
+    int (*open)(const char *path, void **handle);
+    int (*read)(void *handle, uint8_t *buf, uint32_t size, uint32_t *read_size);
+    int (*size)(void *handle, uint32_t *file_size);
+    int (*close)(void *handle);
+} bk_kws_model_file_ops_t;
+
+extern int bk_kws_register_model_file_ops(const bk_kws_model_file_ops_t *ops);
+extern int bk_kws_set_model_from_file(KWS_MODED_TYPE model_id, const char *path);
+extern int bk_kws_set_model_from_array(KWS_MODED_TYPE model_id);
 
 /* Alignment requirements specified by bk_kws.h. */
 #define KWS_ARENA_ALIGN     32u
@@ -84,6 +103,31 @@ static bool  s_kws_initialized       = false;
 /* Forward decl for use inside init's error-path. */
 void bk_tflite_asr_deinit(void);
 
+static KWS_MODED_TYPE bk_tflite_asr_to_kws_model_id(int model_id)
+{
+    return (model_id == BK_TFLITE_ASR_MODEL_WAKEUP) ? KWS_MODEL_WAKEUP : KWS_MODEL_CMDS;
+}
+
+int bk_tflite_asr_register_model_file_ops(const bk_tflite_asr_model_file_ops_t *ops)
+{
+    return bk_kws_register_model_file_ops((const bk_kws_model_file_ops_t *)ops);
+}
+
+int bk_tflite_asr_set_model_from_file(int model_id, const char *path)
+{
+    return bk_kws_set_model_from_file(bk_tflite_asr_to_kws_model_id(model_id), path);
+}
+
+int bk_tflite_asr_set_model_from_array(int model_id)
+{
+    return bk_kws_set_model_from_array(bk_tflite_asr_to_kws_model_id(model_id));
+}
+
+int bk_tflite_asr_switch_model(int model_id)
+{
+    return bk_kws_switch_model(bk_tflite_asr_to_kws_model_id(model_id));
+}
+
 int bk_tflite_asr_init(void)
 {
     if (s_kws_initialized) {
@@ -115,6 +159,11 @@ int bk_tflite_asr_init(void)
     bk_kws_set_npu_scratch(scratch_aligned);
 
     bk_kws_init();
+    if (!bk_kws_is_ready()) {
+        BK_LOGE(NULL, "bk_tflite_asr_init: kws init failed\n");
+        bk_tflite_asr_deinit();
+        return 0;
+    }
 
     s_kws_initialized = true;
     return 1;

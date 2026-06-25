@@ -19,27 +19,48 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-// kws words
-// {
-    // 7 if 'Volume Down_' in f else  #
-    // 6 if 'Volume Up_' in f else  #
-    // 5 if 'Next song_' in f else  #
-    // 4 if 'Stop Play_' in f else  #
-    // 3 if 'Play Music_' in f else  #
-    // 2 if 'Byebye_' in f else  #
-    // 1 if 'Armino_' in f else  #
-    // 0 #
-// };
+
+#define BK_TFLITE_ASR_MODEL_WAKEUP 0
+#define BK_TFLITE_ASR_MODEL_CMDS   1
+
+typedef struct {
+    int (*open)(const char *path, void **handle);
+    int (*read)(void *handle, uint8_t *buf, uint32_t size, uint32_t *read_size);
+    int (*size)(void *handle, uint32_t *file_size);
+    int (*close)(void *handle);
+} bk_tflite_asr_model_file_ops_t;
+
+int bk_tflite_asr_register_model_file_ops(const bk_tflite_asr_model_file_ops_t *ops);
+int bk_tflite_asr_set_model_from_file(int model_id, const char *path);
+int bk_tflite_asr_set_model_from_array(int model_id);
+int bk_tflite_asr_switch_model(int model_id);
 
 typedef enum {
-    BK_KWS_NONE        = 0,
-    BK_KWS_ARMINO      = 1,
-    BK_KWS_BYEBYE      = 2,
-    BK_KWS_PLAY_MUSIC  = 3,
-    BK_KWS_STOP_PLAY   = 4,
-    BK_KWS_NEXT_SONG   = 5,
-    BK_KWS_VOLUME_UP   = 6,
-    BK_KWS_VOLUME_DOWN = 7,
+    BK_KWS_NONE = 0,
+    BK_KWS_ARMINO,
+    BK_KWS_BYEBYE,
+    BK_KWS_JINRUBIAODING,
+    BK_KWS_WANCHENGBIAODING,
+    BK_KWS_DAKASHEXIANG,
+    BK_KWS_GUANBISHEXIANG,
+    BK_KWS_SHANGXIADUNQI,
+    BK_KWS_ZUOYOUYAOBAI,
+    BK_KWS_QIANHOUBAIDONG,
+    BK_KWS_YAOTOUHUANGNAO,
+    BK_KWS_SHENLANYAO,
+    BK_KWS_DAZHAOHU,
+    BK_KWS_NAOYANGYANG,
+    BK_KWS_ZUOZHUANWAN,
+    BK_KWS_YOUZHUANWAN,
+    BK_KWS_QIANJIN,
+    BK_KWS_HOUTUI,
+    BK_KWS_ZUOXIA,
+    BK_KWS_AONAO,
+    BK_KWS_BAOBAO,
+    BK_KWS_SAJIAO,
+    BK_KWS_YOUYONG,
+    BK_KWS_SHENGQI,
+    BK_KWS_QIQIU,
     BK_KWS_MAX_WORDS,
 } bk_kws_word_t;
 
