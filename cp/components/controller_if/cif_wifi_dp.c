@@ -215,6 +215,7 @@ __IRAM2 bool cif_filter_check_ip_data(struct pbuf *p)
 {
     bool upload2ctrl = false;
     u16_t iphdr_hlen;
+    u16_t offset_flags;
 //	u16_t iphdr_len;
     uint32_t dest_port=0;
     uint32_t src_port=0;
@@ -235,6 +236,12 @@ __IRAM2 bool cif_filter_check_ip_data(struct pbuf *p)
     iphdr_hlen = IPH_HL(iphdr);
     /* calculate IP header length in bytes */
     iphdr_hlen *= 4;
+
+    offset_flags = lwip_ntohs(IPH_OFFSET(iphdr));
+    if (offset_flags & (IP_OFFMASK | IP_MF))
+    {
+        return false;
+    }
   
     /* obtain ip length in bytes */
 //	iphdr_len = lwip_ntohs(IPH_LEN(iphdr));
