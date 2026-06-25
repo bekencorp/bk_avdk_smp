@@ -1398,7 +1398,6 @@ static void hostap_driver_deinit(void *priv)
 	drv = NULL;
 }
 
-void sm_build_broadcast_deauthenticate(void);
 static int hostap_sta_deauth(void *priv, const u8 *own_addr, const u8 *addr,
                              u16 reason)
 {
@@ -1413,9 +1412,11 @@ static int hostap_sta_deauth(void *priv, const u8 *own_addr, const u8 *addr,
          * odd state where nothing works correctly, so let's skip
          * sending this for the hostap driver.
          */
-        /*acl patch by linwei.yuan, deauth all sta*/
-        sm_build_broadcast_deauthenticate();
-        return 0;
+        struct prism2_hostapd_param param;
+        os_memset(&param, 0, sizeof(param));
+        param.cmd = PRISM2_HOSTAPD_BROADCAST_DEAUTH;
+        param.vif_idx = drv->vif_index;
+        return hostapd_ioctl(drv, &param, sizeof(param));
     }
 
     memset(&mgmt, 0, sizeof(mgmt));

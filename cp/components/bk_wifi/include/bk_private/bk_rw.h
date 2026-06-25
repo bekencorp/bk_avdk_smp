@@ -358,6 +358,7 @@ extern int rw_msg_send_sm_connect_req(CONNECT_PARAM_T *sme, void *cfm);
 extern int rw_msg_send_sm_assoc_req(ASSOC_PARAM_T *sme, void *cfm);
 extern int rw_msg_send_tim_update(u8 vif_idx, u16 aid, u8 tx_status);
 extern int rw_msg_send_apm_stop_req(u8 vif_index);
+extern int rw_msg_send_apm_broadcast_deauth_req(void);
 extern int rw_msg_set_power(u8 vif_idx, u8 power);
 extern int rw_msg_send_sm_auth_req(AUTH_PARAM_T *auth_param);
 extern int rw_msg_send_sm_external_auth_status(EXTERNAL_AUTH_PARAM_T *auth_param);

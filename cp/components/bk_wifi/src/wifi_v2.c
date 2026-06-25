@@ -91,7 +91,6 @@ static int wifi_sta_get_global_config(wifi_sta_config_t *config);
 static int wifi_sta_set_bssid_wpa_config(const wifi_sta_config_t *config);
 static int wifi_sta_set_wpa_config(const wifi_sta_config_t *config);
 int wifi_monitor_register_cb(const wifi_monitor_cb_t monitor_cb);
-void mm_hw_ap_disable(void);
 int wifi_monitor_set_config(const wifi_monitor_config_t *monitor_config);
 int wifi_monitor_get_config(wifi_monitor_config_t *monitor_config);
 int wifi_monitor_register_cb(const wifi_monitor_cb_t monitor_cb);
@@ -1633,8 +1632,8 @@ bool g_wifi_enable_flag = false;
 /* Recursive mutex serialising AP lifecycle operations (set_config / stop / start).
  * Plain interrupt-disable (wifi_lock) is not SMP-safe: it only masks interrupts
  * on the calling core and cannot stop the peer core from concurrently entering
- * the same function.  Two concurrent AT+SAPSTART commands – processed by cp0 and
- * cp1 respectively – both reach sm_build_broadcast_deauthenticate() at the same
+ * the same function. Two concurrent AT+SAPSTART commands - processed by cp0 and
+ * cp1 respectively - both reach sm_build_broadcast_deauthenticate() at the same
  * time and race on the AC_VO TX DMA queue, causing the assertion
  * "nxmac_tx_ac_3_state_getf() != 2" in txl_cntrl_newhead(). */
 static beken_mutex_t s_ap_op_mutex = NULL;
@@ -3468,7 +3467,6 @@ bk_err_t bk_wifi_ap_get_config(wifi_ap_config_t *ap_config)
 	return BK_OK;
 }
 
-void sm_build_broadcast_deauthenticate(void);
 bk_err_t bk_wifi_ap_stop(void)
 {
 	rtos_lock_recursive_mutex(&s_ap_op_mutex);
@@ -3485,10 +3483,6 @@ bk_err_t bk_wifi_ap_stop(void)
 		stop_global_ap_bcn_timer();
 #endif
 
-	sm_build_broadcast_deauthenticate();
-	rtos_delay_milliseconds(10);
-	mm_hw_ap_disable();
-	rtos_delay_milliseconds(10);
 	if(wlan_ap_disable()) {
 		WIFI_LOGE("ap disable fail!\n");
 		rtos_unlock_recursive_mutex(&s_ap_op_mutex);
@@ -3503,8 +3497,6 @@ bk_err_t bk_wifi_ap_stop(void)
 	//TODO optimize it
 	if (bk_wlan_has_role(VIF_STA))
 		g_wlan_general_param->role = CONFIG_ROLE_STA;
-
-	rtos_delay_milliseconds(200);
 
 	WIFI_LOGD("ap stopped\n");
 	wifi_clear_state_bit(WIFI_AP_STARTED_BIT);

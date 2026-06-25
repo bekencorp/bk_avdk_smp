@@ -1311,6 +1311,10 @@ int hapd_intf_ioctl(unsigned long arg)
 		ret = wpa_send_signal_poll(param, len);
 		break;
 
+	case PRISM2_HOSTAPD_BROADCAST_DEAUTH:
+		ret = rw_msg_send_apm_broadcast_deauth_req();
+		break;
+
 #ifdef CONFIG_IEEE80211R
 	case PRISM2_HOSTAPD_UPDATE_FT_IES:
 		ret = wpa_update_ft_ies(param, len);

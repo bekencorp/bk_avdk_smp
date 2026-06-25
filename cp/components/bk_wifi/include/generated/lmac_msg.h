@@ -2527,6 +2527,8 @@ enum apm_msg_tag
     APM_PROBE_CLIENT_CFM,
     /// Indication of Probe Client status
     APM_PROBE_CLIENT_IND,
+    /// Request to send broadcast deauthentication frames to all associated STAs.
+    APM_BROADCAST_DEAUTH_REQ,
 };
 
 /// Structure containing the parameters of the @ref APM_START_REQ message.

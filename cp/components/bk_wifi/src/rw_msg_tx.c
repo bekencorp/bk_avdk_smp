@@ -845,6 +845,19 @@ int rw_msg_send_apm_stop_req(u8 vif_index)
 	return rw_msg_send(req, 1, APM_STOP_CFM, NULL);
 }
 
+int rw_msg_send_apm_broadcast_deauth_req(void)
+{
+	void *req;
+
+	/* APM_BROADCAST_DEAUTH_REQ carries no parameters; allocate a minimal body. */
+	req = ke_msg_alloc(APM_BROADCAST_DEAUTH_REQ, TASK_APM, TASK_API, 0);
+	if (!req)
+		return -1;
+
+	/* Fire-and-forget: no confirmation needed, core_thread handles the call. */
+	return rw_msg_send(req, 0, 0, NULL);
+}
+
 int rw_msg_send_bcn_change(void *bcn_param)
 {
 	struct mm_bcn_change_req *req;
