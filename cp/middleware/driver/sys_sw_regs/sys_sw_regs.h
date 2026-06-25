@@ -109,6 +109,8 @@ typedef union {
         volatile uint32_t flash_init_done;  /**< CP flash init completion flag */
         volatile uint32_t hspl_owner_pc[32]; /**< HSPL owner caller PC shadow, 0 means free */
         volatile uint8_t hspl_owner_core[32]; /**< HSPL owner core shadow */
+        volatile uint32_t cp_heap_size_ptr; /**< Addr of CP system heap xFreeBytesRemaining (size_t); 0 = not published */
+        volatile uint32_t cp_lwip_mem_info_ptr;  /**< Addr of CP cp_mem_addr_info_t snapshot (lwIP/heap addrs); 0 = not published */
     };
     volatile uint32_t reserved[256];        /**< Reserved for future use */
 } sys_sw_regs_t;
@@ -204,6 +206,19 @@ void bk_sys_sw_regs_update_ap_extra_dump(uint32_t index, uint32_t start_addr, ui
 void bk_sys_sw_regs_set_adc_key_sample(uint16_t raw, uint16_t mv, uint8_t status, uint8_t channel, uint32_t sample_period_ms, uint32_t sample_tick);
 void bk_sys_sw_regs_set_hspl_owner(uint8_t res, uint8_t core, uint32_t pc);
 void bk_sys_sw_regs_clear_hspl_owner(uint8_t res);
+/**
+ * @brief Publish the address of the CP system heap free counter
+ *        (FreeRTOS xFreeBytesRemaining) so AP can read it cross-core.
+ * @param addr Address of the size_t free-bytes counter (constant after link).
+ */
+void bk_sys_sw_regs_set_cp_heap_free_ptr(uint32_t addr);
+/**
+ * @brief Publish the address of the CP cp_mem_addr_info_t snapshot
+ *        (lwIP stats + heap total/reserve addresses) so AP can read it
+ *        cross-core without an IPC handshake.
+ * @param addr Address of the CP-side static cp_mem_addr_info_t instance.
+ */
+void bk_sys_sw_regs_set_cp_lwip_mem_info_ptr(uint32_t addr);
 /**
  * @brief Update PM info fields selected by mask.
  * @param info Input PM info values.
