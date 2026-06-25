@@ -23,6 +23,9 @@
 #include <components/bk_voice_write_service.h>
 #include <components/bk_voice_write_service_types.h>
 
+#if CONFIG_AUD_PARAM_CTRL
+#include "audio_param_adapter.h"
+#endif
 
 #define TAG "voc_cli"
 
@@ -405,6 +408,21 @@ void cli_voice_service_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int ar
         }
 #endif
 
+#if CONFIG_VOICE_SERVICE_EQ
+        /* audio_para.c only ships one demo EQ preset (16k sample rate), so EQ is
+         * gated to 16k here. Customers should provide their own presets for other
+         * sample rates as needed. */
+        if (spk_sample_rate == 16000) {
+                voice_cfg.eq_en = true;
+                if (voice_cfg.eq_en)
+                {
+                        eq_algorithm_cfg_t eq_cfg = DEFAULT_EQ_ALGORITHM_CONFIG();
+                        eq_cfg.eq_mode = EQ_MODE_SOFTWARE;
+                        voice_cfg.eq_cfg.eq_alg_cfg = eq_cfg;
+                }
+        }
+#endif
+
         /* start voice */
         gl_voice_service_handle = bk_voice_init(&voice_cfg);
         if (!gl_voice_service_handle)
@@ -483,6 +501,9 @@ void cli_voice_service_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int ar
             voice_start_sem = NULL;
             goto exit;
         }
+    #if CONFIG_AUD_PARAM_CTRL
+        media_audio_param_bind_voc_handle(gl_voice_service_handle);
+    #endif
     }
     else
     {
@@ -498,6 +519,13 @@ void cli_voice_service_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int ar
     return;
 
 exit:
+    if (gl_voice_service_handle)
+    {
+    #if CONFIG_AUD_PARAM_CTRL
+        media_audio_param_unbind_voc_handle();
+    #endif
+    }
+
     if (gl_voice_read_service_handle)
     {
         bk_voice_read_stop(gl_voice_read_service_handle);

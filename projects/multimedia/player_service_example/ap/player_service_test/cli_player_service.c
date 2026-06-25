@@ -24,7 +24,11 @@
 #include <components/bk_voice_service.h>
 #include <components/bk_audio/audio_pipeline/audio_element.h>
 #include <components/bk_audio/audio_pipeline/rb_port.h>
-#include <components/bk_audio/audio_streams/onboard_speaker_stream.h>
+#include <components/bk_audio/audio_streams/onboard_speaker_stream_v2.h>
+#endif
+
+#if CONFIG_AUD_PARAM_CTRL
+#include "audio_param_adapter.h"
 #endif
 
 #define TAG "player_cli"
@@ -367,6 +371,10 @@ void cli_player_service_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int a
             }
 
             play_back_start_flag = 1;
+
+        #if CONFIG_AUD_PARAM_CTRL
+            media_audio_param_bind_spk_handle(gl_player_handle);
+        #endif
         }
         else if (os_strcmp(argv[2], "stop") == 0)
         {
@@ -679,6 +687,9 @@ exit:
 
     if (gl_player_handle)
     {
+#if CONFIG_AUD_PARAM_CTRL
+        media_audio_param_unbind_spk_handle();
+#endif
         bk_player_stop(gl_player_handle);
 #if CONFIG_VOICE_SERVICE_TEST && CONFIG_ADK_ONBOARD_SPEAKER_STREAM_SUPPORT_MULTIPLE_SOURCE
         if (gl_output_port_handle)

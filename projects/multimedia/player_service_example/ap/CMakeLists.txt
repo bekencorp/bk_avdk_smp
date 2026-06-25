@@ -11,6 +11,14 @@ if (CONFIG_VOICE_SERVICE_TEST AND CONFIG_ADK_ONBOARD_SPEAKER_STREAM_SUPPORT_MULT
         )
 endif()
 
+if (CONFIG_AUD_PARAM_CTRL)
+    list(APPEND incs ./audio_param)
+    list(APPEND srcs
+        audio_param/audio_param_adapter.c
+        audio_param/audio_para.c
+        )
+endif()
+
 set(priv_req media_service avdk_utils)
 
 armino_component_register(SRCS "${srcs}" INCLUDE_DIRS "${incs}" PRIV_REQUIRES "${priv_req}")

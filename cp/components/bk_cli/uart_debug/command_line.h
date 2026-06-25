@@ -282,6 +282,7 @@ enum {
 	BEKEN_SD_CLOSE                              = 0XDC,
 	BEKEN_DO_REBOOT                             = 0XFE,
 ///app audio cmd
+	BEKEN_GET_AUD_DBG_INFO                      =0xB1,
 	BEKEN_SET_EQ_CONFIG_VOICE_PARA              =0xB2,
 	BEKEN_SET_SYS_CONFIG_VOICE_PARA             =0xB3,
 	BEKEN_SET_AEC_CONFIG_VOICE_PARA             =0xB4,

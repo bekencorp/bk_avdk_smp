@@ -745,6 +745,7 @@ static int bkreg_run_command_implement(const char *content, int cnt)
 	}
 	break;
 
+	case BEKEN_GET_AUD_DBG_INFO:
 	case BEKEN_SET_EQ_CONFIG_VOICE_PARA:
 	case BEKEN_SET_AEC_CONFIG_VOICE_PARA:
 	case BEKEN_SET_SYS_CONFIG_VOICE_PARA: {

@@ -1574,7 +1574,7 @@ static void rx_ind_process(void)
 
 		if (cmd_line_buf.cur_cmd_type == CMD_TYPE_HEX)
 		{
-#if CONFIG_AUDIO_DEBUG
+#if CONFIG_AUD_PARAM_CTRL
 			extern void app_dbg_audparam(uint8_t * params, int len);
 			app_dbg_audparam((uint8_t *)&cmd_line_buf.cmd_buff[0], (int)cmd_line_buf.cmd_data_len);
 #endif

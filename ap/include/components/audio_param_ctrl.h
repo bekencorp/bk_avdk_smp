@@ -2,6 +2,7 @@
 #define __AUDIO_PARAM_CONTROL_H__
 
 #include <stdint.h>
+#include <common/bk_err.h>
 
 #define EQ_ID_DL_VOICE     0
 #define EQ_ID_UL_VOICE     1
@@ -44,51 +45,53 @@ typedef struct _app_aud_eq_config_t
 typedef struct _app_aud_sys_config_t
 {
 	uint8_t app_sys_en;
-	uint8_t mic0_digital_gain;
-	uint8_t mic0_analog_gain;
-	uint8_t mic1_digital_gain;
-	uint8_t mic1_analog_gain;
 
-	uint8_t speaker_chan0_digital_gain;
-	uint8_t speaker_chan0_analog_gain;
-	uint8_t speaker_chan1_digital_gain;
-	uint8_t speaker_chan1_analog_gain;
+	/* mic gain digital gain range : [-inf, 18.0dB]*/
+	/* mic gain analog gain range : [0, 30dB], 2dB/step*/
+	int8_t mic0_digital_gain;
+	int8_t mic0_analog_gain;
+	int8_t mic1_digital_gain;
+	int8_t mic1_analog_gain;
+	int8_t mic2_digital_gain;
+	int8_t mic2_analog_gain;
 
-	uint8_t dmic_enable; // digital mic
-	uint8_t main_mic_select;
-	uint8_t adc_sample_rate;
-	uint8_t dac_sample_rate;
+	/* spk gain digital gain range : [-inf, 12.0dB]*/
+	/* spk gain analog gain range : [0, 7dB], 1dB/step*/
+	int8_t spk0_digital_gain;
+	int8_t spk0_analog_gain;
+	int8_t spk1_digital_gain;
+	int8_t spk1_analog_gain;
 
-	uint8_t mic_mode;  //signed_end/diffen
-	uint8_t spk_mode;  //signed_end/diffen
-	uint8_t mic_vbias; //0b00=2.4v, 0b11=1.8v
+	int8_t dmic_enable; // digital mic
+	int8_t main_mic_select;
 
-	uint8_t extend[5];
+	int8_t extend[8];
 }app_aud_sys_config_t;
 
 typedef struct _app_aud_sys_mic_config_t
 {
 	uint8_t app_sys_mic_en;
-	uint8_t mic0_digital_gain;
-	uint8_t mic0_analog_gain;
-	uint8_t mic1_digital_gain;
-	uint8_t mic1_analog_gain;
+	int8_t mic0_digital_gain;
+	int8_t mic0_analog_gain;
+	int8_t mic1_digital_gain;
+	int8_t mic1_analog_gain;
+	int8_t mic2_digital_gain;
+	int8_t mic2_analog_gain;
 
-	uint8_t dmic_enable; // digital mic
-	uint8_t main_mic_select;
+	int8_t dmic_enable; // digital mic
+	int8_t main_mic_select;
 
-	uint8_t mic_mode;  //signed_end/diffen
-	uint8_t mic_vbias; //0b00=2.4v, 0b11=1.8v
+	int8_t extend[4];
 }app_aud_sys_mic_config_t;
 
 typedef struct _app_aud_sys_spk_config_t
 {
 	uint8_t app_sys_spk_en;
-	uint8_t speaker_chan0_digital_gain;
-	uint8_t speaker_chan0_analog_gain;
-//	uint8_t speaker_chan1_digital_gain;
-//	uint8_t speaker_chan1_analog_gain;
-	uint8_t spk_mode;  //signed_end/diffen
+	int8_t spk0_digital_gain;
+	int8_t spk0_analog_gain;
+	int8_t spk1_digital_gain;
+	int8_t spk1_analog_gain;
+	int8_t extend[4];
 }app_aud_sys_spk_config_t;
 
 //typedef enum
@@ -139,6 +142,15 @@ typedef enum
 	AUD_SERVICE_MAX,
 }app_aud_service_type_t;
 
+typedef struct _app_aud_service_adapter_t
+{
+	/* SDK calls these hooks to get customer-side elements, then SDK performs update/load operations */
+	void (*get_mic_info)(void *service_handle, void *user_ctx, void **mic_str, int *mic_type);
+	void (*get_spk_info)(void *service_handle, void *user_ctx, void **spk_str, int *spk_type);
+	void (*get_eq_alg)(void *service_handle, void *user_ctx, void **eq_alg);
+	void (*get_aec_alg)(void *service_handle, void *user_ctx, void **aec_alg);
+}app_aud_service_adapter_t;
+
 typedef struct _app_aud_para_t
 {
 	app_aud_service_type_t service_type;
@@ -160,7 +172,44 @@ void bk_aud_debug_set_service_type(app_aud_service_type_t service_type);
 
 void bk_app_aud_get_service_handle(void * service, app_aud_service_type_t service_type);
 
+void bk_app_aud_register_service_adapter(app_aud_service_type_t service_type,
+										  const app_aud_service_adapter_t *adapter,
+										  void *user_ctx);
+
+void bk_app_aud_unregister_service_adapter(app_aud_service_type_t service_type);
+
 void bk_app_aud_set_service_off(app_aud_service_type_t service_type);
+
+/**
+ * @brief  Bind an audio service to the param-control/debug-tool framework in one call.
+ *
+ * It registers the service handle and (optional) adapter, hands the parameter
+ * table to the debug tool, selects it as the active debug service, and applies
+ * the enabled default parameters (sys/aec/eq). Use this on service start.
+ *
+ * @param[in]  service_type    target service type
+ * @param[in]  service_handle  service handle (passed to adapter get_* callbacks); must not be NULL
+ * @param[in]  adapter         service adapter; NULL to use the SDK built-in path (e.g. voice service)
+ * @param[in]  user_ctx        opaque context forwarded to adapter callbacks; may be NULL
+ * @param[in]  para            parameter table used by the debug tool and for applying defaults; must not be NULL
+ *
+ * @return  BK_OK on success, otherwise failed
+ */
+bk_err_t bk_app_aud_service_bind(app_aud_service_type_t service_type,
+                                 void *service_handle,
+                                 const app_aud_service_adapter_t *adapter,
+                                 void *user_ctx,
+                                 app_aud_para_t *para);
+
+/**
+ * @brief  Unbind a service previously bound with bk_app_aud_service_bind().
+ *
+ * It unregisters the adapter, clears the debug-tool parameter table for the
+ * service, and turns the service off. Use this on service stop/release.
+ *
+ * @param[in]  service_type    target service type
+ */
+void bk_app_aud_service_unbind(app_aud_service_type_t service_type);
 
 void bk_app_update_aud_sys_config(app_aud_sys_config_t *sys_config, app_aud_service_type_t service_type);
 

@@ -10,12 +10,17 @@
 
 extern void bk_set_printf_sync(uint8_t enable);
 extern int bk_get_printf_sync(void);
+extern uint32_t sys_drv_get_chip_id(void);
 
 #define APP_AUD_PARAS_TX_TMP_LEN   (0x20)
 
-#define APP_SYS_PARA_TX_TOTALLEN  (0xF)
+#define APP_GET_AUD_DBG_INFO        (0xF8)
+#define APP_AUD_DBG_INFO_TX_TOTALLEN  (0x1A)
+#define APP_AUD_DBG_INFO_TX_HEADERLEN (0x4)
+
+#define APP_SYS_PARA_TX_TOTALLEN  (0xE)
 #define APP_SYS_PARA_TX_HEADERLEN (0x4)
-#define APP_SYS_PARA_RX_DATALEN   (0x9)
+#define APP_SYS_PARA_RX_DATALEN   (0x8)
 
 #define APP_AEC_PARA_TX_TOTALLEN  (0x1E)
 #define APP_AEC_PARA_TX_HEADERLEN (0x4)
@@ -34,11 +39,18 @@ static app_aud_service_type_t g_service_type = AUD_SERVICE_MAX;
 
 void bk_aud_debug_set_service_type(app_aud_service_type_t service_type)
 {
+	if (service_type >= AUD_SERVICE_MAX)
+		return;
+
 	g_service_type = service_type;
 }
 
 void bk_aud_debug_get_audpara(app_aud_para_t * aud_para_ptr, app_aud_service_type_t service_type)
 {
+	if (service_type >= AUD_SERVICE_MAX)
+		return;
+
+	g_service_type = service_type;
 	p_aud_para[service_type] = aud_para_ptr;
 }
 
@@ -142,13 +154,12 @@ static void app_load_sys_params(void)
 	tmp[4] = 0xb3; tmp[5] = 0xf9;
 	tmp[6]  = sys_config.mic0_digital_gain;
 	tmp[7]  = sys_config.mic0_analog_gain;
-	tmp[8]  = sys_config.mic1_analog_gain;
-	tmp[9]  = sys_config.speaker_chan0_digital_gain;
-	tmp[10] = sys_config.speaker_chan0_analog_gain;
-	tmp[11] = sys_config.main_mic_select;
-	tmp[12] = sys_config.mic_mode;
-	tmp[13] = sys_config.spk_mode;
-	tmp[14] = sys_config.mic_vbias;
+	tmp[8]  = sys_config.mic1_digital_gain;
+	tmp[9]  = sys_config.mic1_analog_gain;
+	tmp[10] = sys_config.mic2_digital_gain;
+	tmp[11] = sys_config.mic2_analog_gain;
+	tmp[12] = sys_config.spk0_digital_gain;
+	tmp[13] = sys_config.spk0_analog_gain;
 
 	for(uint32_t i = 0; i <(tx_len); i++) {
 		BK_LOG_RAW("%02x", tmp[i]);
@@ -208,11 +219,42 @@ static void app_load_aec_v3_params(void)
 //	bk_set_printf_sync(log_level);
 }
 
+/*
+ * Device-info handshake response (cmd 0xB1 / subcmd 0xF8).
+ *
+ * Fixed 26-byte layout; current firmware only fills chip_id, all other fields
+ * are 0 (reserved). The PC tool distinguishes a capable firmware by whether it
+ * receives this response at all (legacy firmware that doesn't know HCI 0xB1
+ * stays silent -> the tool times out and falls back to its v0 profile).
+ * See audio_dbgtool_protocol.md for the byte layout.
+ */
+static void app_report_aud_dbg_info(void)
+{
+	uint32_t chip_id = sys_drv_get_chip_id();
+	uint32_t tx_len = APP_AUD_DBG_INFO_TX_TOTALLEN;
+	uint8_t tmp[APP_AUD_PARAS_TX_TMP_LEN] = {0};
+
+	tmp[0] = 0x01; tmp[1] = 0xe0; tmp[2] = 0xfc;
+	tmp[3] = APP_AUD_DBG_INFO_TX_TOTALLEN - APP_AUD_DBG_INFO_TX_HEADERLEN;
+	tmp[4] = 0xb1; tmp[5] = 0xf8;
+	/* [6..7] protocol_version = 0 (reserved) */
+	tmp[8]  = (chip_id)       & 0xFF;
+	tmp[9]  = (chip_id >> 8)  & 0xFF;
+	tmp[10] = (chip_id >> 16) & 0xFF;
+	tmp[11] = (chip_id >> 24) & 0xFF;
+	/* [12..25] product_id / fw_version / counts / cap_flags / reserved = 0 */
+
+	for (uint32_t i = 0; i < tx_len; i++) {
+		BK_LOG_RAW("%02x", tmp[i]);
+	}
+	BK_LOG_RAW("\n");
+}
+
 void app_dbg_audparam(uint8_t * params, int len)
 {
 //	g_service_type = AUD_SERVICE_DOORBELL_VOC;//AUD_SERVICE_ASR;
 //	BK_LOGD(NULL, "%s, g_service_type:%d\n", __func__, g_service_type);
-	if (p_aud_para[g_service_type] == NULL || params == NULL)
+	if (params == NULL)
 	{
 		BK_LOGE(NULL, "%s input params is NULL\r\n", __func__);
 		return;
@@ -220,6 +262,20 @@ void app_dbg_audparam(uint8_t * params, int len)
 	if (len < 1)
 	{
 		BK_LOGE(NULL, "%s input params len is %d, less than 1\r\n", __func__, len);
+		return;
+	}
+
+	/* chip_id is global, so the handshake must work even before any audio
+	 * service binds its parameter table; handle it before the p_aud_para check. */
+	if (params[0] == APP_GET_AUD_DBG_INFO)
+	{
+		app_report_aud_dbg_info();
+		return;
+	}
+
+	if (g_service_type >= AUD_SERVICE_MAX || p_aud_para[g_service_type] == NULL)
+	{
+		BK_LOGE(NULL, "%s aud para is NULL\r\n", __func__);
 		return;
 	}
 //	bk_aud_debug_set_service_type(params[1]); //TBD
@@ -241,25 +297,23 @@ void app_dbg_audparam(uint8_t * params, int len)
 
 			if(sys_dbg_sys_para)
 			{
-				sys_dbg_sys_para->mic0_digital_gain 		 = params[1];
-				sys_dbg_sys_para->mic0_analog_gain			 = params[2];
-				sys_dbg_sys_para->mic1_analog_gain			 = params[3];
-				sys_dbg_sys_para->speaker_chan0_digital_gain = params[4];
-				sys_dbg_sys_para->speaker_chan0_analog_gain  = params[5];
-				sys_dbg_sys_para->main_mic_select			 = params[6];
-				sys_dbg_sys_para->mic_mode					 = params[7];
-				sys_dbg_sys_para->spk_mode					 = params[8];
-				sys_dbg_sys_para->mic_vbias 				 = params[9];
+				sys_dbg_sys_para->mic0_digital_gain = params[1];
+				sys_dbg_sys_para->mic0_analog_gain  = params[2];
+				sys_dbg_sys_para->mic1_digital_gain = params[3];
+				sys_dbg_sys_para->mic1_analog_gain  = params[4];
+				sys_dbg_sys_para->mic2_digital_gain = params[5];
+				sys_dbg_sys_para->mic2_analog_gain  = params[6];
+				sys_dbg_sys_para->spk0_digital_gain = params[7];
+				sys_dbg_sys_para->spk0_analog_gain  = params[8];
 
-				p_aud_para[g_service_type]->sys_config.mic0_digital_gain		   = sys_dbg_sys_para->mic0_digital_gain;
-				p_aud_para[g_service_type]->sys_config.mic0_analog_gain			   = sys_dbg_sys_para->mic0_analog_gain;
-				p_aud_para[g_service_type]->sys_config.mic1_analog_gain			   = sys_dbg_sys_para->mic1_analog_gain;
-				p_aud_para[g_service_type]->sys_config.speaker_chan0_digital_gain  = sys_dbg_sys_para->speaker_chan0_digital_gain;
-				p_aud_para[g_service_type]->sys_config.speaker_chan1_analog_gain   = sys_dbg_sys_para->speaker_chan0_analog_gain;
-				p_aud_para[g_service_type]->sys_config.main_mic_select			   = sys_dbg_sys_para->main_mic_select;
-				p_aud_para[g_service_type]->sys_config.mic_mode					   = sys_dbg_sys_para->mic_mode;
-				p_aud_para[g_service_type]->sys_config.spk_mode					   = sys_dbg_sys_para->spk_mode;
-				p_aud_para[g_service_type]->sys_config.mic_vbias				   = sys_dbg_sys_para->mic_vbias;
+				p_aud_para[g_service_type]->sys_config.mic0_digital_gain = sys_dbg_sys_para->mic0_digital_gain;
+				p_aud_para[g_service_type]->sys_config.mic0_analog_gain  = sys_dbg_sys_para->mic0_analog_gain;
+				p_aud_para[g_service_type]->sys_config.mic1_digital_gain = sys_dbg_sys_para->mic1_digital_gain;
+				p_aud_para[g_service_type]->sys_config.mic1_analog_gain  = sys_dbg_sys_para->mic1_analog_gain;
+				p_aud_para[g_service_type]->sys_config.mic2_digital_gain = sys_dbg_sys_para->mic2_digital_gain;
+				p_aud_para[g_service_type]->sys_config.mic2_analog_gain  = sys_dbg_sys_para->mic2_analog_gain;
+				p_aud_para[g_service_type]->sys_config.spk0_digital_gain = sys_dbg_sys_para->spk0_digital_gain;
+				p_aud_para[g_service_type]->sys_config.spk0_analog_gain  = sys_dbg_sys_para->spk0_analog_gain;
 
 				BK_LOG_RAW("rcv sys_params: ");
 				for(uint32_t i = 1; i <(APP_SYS_PARA_RX_DATALEN+1); i++)
@@ -421,7 +475,7 @@ void app_dbg_audparam(uint8_t * params, int len)
 			uint8_t __maybe_unused eqType = params[5]; /// unused params now
 			if(eq_dbg_eq_para)
 			{
-				eq_dbg_eq_para->globle_gain         = (uint32_t)(1.12f * total_gain);
+				eq_dbg_eq_para->globle_gain         = total_gain;
 				eq_dbg_eq_para->eq_load.f_gain      = (params[9]<<24)|(params[8]<<16)|(params[7]<<8)|(params[6]);
 				eq_dbg_eq_para->eq_load.samplerate  = (params[11]<<8)|(params[10]);
 
