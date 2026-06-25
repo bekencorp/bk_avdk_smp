@@ -16,6 +16,7 @@
 #include <stdlib.h>
 #include <common/bk_include.h>
 #include "bk_private/components_init.h"
+#include "bk_private/bk_driver.h"
 #include "rtos_init.h"
 #include <os/os.h>
 #include "sys_driver.h"
@@ -29,6 +30,7 @@
 
 #include <driver/flash_partition.h>
 #include <driver/flash.h>
+#include <driver/wwdt.h>
 
 
 #if CONFIG_FREERTOS_TRACE
@@ -303,26 +305,32 @@ int32_t vote_stop_cpu2_core(cpu2_user_id_t user_id)
 #endif // (CONFIG_CPU_CNT > 1)
 
 
-void bk_start_ap_system(void)
+bk_err_t bk_start_ap_system(void)
 {
 #if !CONFIG_PM_AP_POWERDOWN_WHEN_LV
 	static bool s_ap_system_started = false;
 
 	if (s_ap_system_started) {
-	BK_LOGD(NULL, "ap system already started\r\n");
-	return;
+		BK_LOGD(NULL, "ap system already started\r\n");
+		return BK_OK;
 	}
 #endif
 
-
 #if (CONFIG_SUPPORT_MULTICORE)
+	bk_err_t ret = BK_OK;
 	bk_printf("cp start ap system\r\n");
-	BK_LOG_ON_ERR(bk_multicore_start(CONFIG_AP_SYS_MASTER_CPU_ID)); // start ap system master cpu
+	ret = bk_multicore_start(CONFIG_AP_SYS_MASTER_CPU_ID); // start ap system master cpu
+	if (ret != BK_OK) {
+		BK_LOGE(NULL, "bk_multicore_start failed: %d, reboot for deterministic recovery\r\n", ret);
+		bk_reboot();
+		return ret;
+	}
 	bk_printf("ap system started\r\n");
 #endif
 #if !CONFIG_PM_AP_POWERDOWN_WHEN_LV
 	s_ap_system_started = true;
 #endif
+	return BK_OK;
 }
 
 void bk_set_jtag_mode(uint32_t cpu_id, uint32_t group_id) {
@@ -505,16 +513,14 @@ void entry_main(void)
 	save_mtime_point(CPU_START_SCHE_TIME);
 #endif
 
-#if CONFIG_SLAVE_HEART_BEAT
-	extern bk_err_t mb_ipc_heartbeat_init(void);
-	mb_ipc_heartbeat_init();
-#endif
-
 #if CONFIG_CP_HANG_DUMP_BY_AP
 	extern bk_err_t bk_cp_hang_debug_heartbeat_init(void);
 	bk_cp_hang_debug_heartbeat_init();
 #endif
-
+#if CONFIG_SUPPORT_WWDT
+	BK_LOG_ON_ERR(bk_wwdt_start(CONFIG_INT_WWDT_PERIOD_MS, false, 0));
+	BK_LOGD(NULL, "boot core wwdt enabled, period=%u\r\n", CONFIG_INT_WWDT_PERIOD_MS);
+#endif
 	rtos_start_scheduler();
 }
 // eof
