@@ -359,6 +359,13 @@ bk_err_t cif_init()
 {
     bk_err_t ret = BK_OK;
 
+#if CONFIG_CONTROLLER_AP_BUFFER_COPY
+    /* Publish lwIP/heap address snapshot to shared memory BEFORE IPC is up.
+     * AP only reads it after a successful MAC-addr IPC (which requires IPC and
+     * the cif task, both created later), so the snapshot is guaranteed ready. */
+    cif_publish_mem_addr();
+#endif
+
     //IPC interface init
     cif_ipc_init();
     //Init event buffer(for CP->AP use)

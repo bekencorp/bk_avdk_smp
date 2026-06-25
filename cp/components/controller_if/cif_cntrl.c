@@ -11,7 +11,11 @@
 #include "components/bluetooth/bk_dm_bluetooth_types.h"
 #include "cif_ipc.h"
 #include "cif_wifi_api.h"
+#include "wifi_config.h"
 #include "lwip/stats.h"
+#if CONFIG_CONTROLLER_AP_BUFFER_COPY
+#include <sys_sw_regs.h>
+#endif
 #ifdef CONFIG_IPV6
 #include "lwip/netif.h"
 #include "lwip/ip6_addr.h"
@@ -650,20 +654,49 @@ bk_err_t cif_handle_bk_cmd_interface_debug(struct bk_msg_hdr *msg)
     return ret;
 }
 #if CONFIG_CONTROLLER_AP_BUFFER_COPY
-bk_err_t cif_handle_bk_cmd_lwipmem_addr_req(struct bk_msg_hdr *msg)
+/* CP-side static snapshot of lwIP/heap addresses. It lives in CP SRAM (mapped
+ * non-cacheable on the AP side), so AP reads it coherently via the pointer
+ * published in sys_sw_regs. heap_free_addr is intentionally left 0 here: it is
+ * published separately by the heap itself (cp_heap_size_ptr) to keep the OS
+ * heap internals decoupled from the controller. */
+static cp_mem_addr_info_t s_cp_mem_addr_info = {0};
+
+void cif_publish_mem_addr(void)
 {
-    struct cif_lwip_stats
-    {
-        uint32_t stats_mem_addr;
-        uint32_t stats_mem_size;
-    };
-    struct cif_lwip_stats param = {0};
+    s_cp_mem_addr_info.magic = CP_MEM_SNAPSHOT_MAGIC;
+    s_cp_mem_addr_info.version = CP_MEM_SNAPSHOT_VERSION;
+    s_cp_mem_addr_info.size = sizeof(cp_mem_addr_info_t);
+    s_cp_mem_addr_info.heap_value_size = sizeof(size_t);
+    s_cp_mem_addr_info.heap_free_addr = 0; /* filled by AP from cp_heap_size_ptr */
+    s_cp_mem_addr_info.heap_total = rtos_get_total_heap_size();
+    s_cp_mem_addr_info.heap_min_rsv_addr = (uint32_t)&g_wifi_mac_config.min_rsv_mem;
+    s_cp_mem_addr_info.heap_min_rsv_value_size = sizeof(g_wifi_mac_config.min_rsv_mem);
 #if MEM_STATS
-    param.stats_mem_addr = (uint32_t)&lwip_stats.mem;
-    param.stats_mem_size = sizeof(struct stats_mem);
+    s_cp_mem_addr_info.lwip_mem_value_size = sizeof(lwip_stats.mem.used);
+    s_cp_mem_addr_info.lwip_used_addr = (uint32_t)&lwip_stats.mem.used;
+    s_cp_mem_addr_info.lwip_avail_addr = (uint32_t)&lwip_stats.mem.avail;
+#if MEM_TRX_DYNAMIC_EN
+    s_cp_mem_addr_info.lwip_tx_used_addr = (uint32_t)&lwip_stats.mem.tx_used;
+    s_cp_mem_addr_info.lwip_tx_avail_addr = (uint32_t)&lwip_stats.mem.tx_avail;
+#else
+    s_cp_mem_addr_info.lwip_tx_used_addr = (uint32_t)&lwip_stats.mem.used;
+    s_cp_mem_addr_info.lwip_tx_avail_addr = (uint32_t)&lwip_stats.mem.avail;
 #endif
-    CIF_LOGI("%s,%d,addr:0x%x\n",__func__, __LINE__,param.stats_mem_addr);
-    return cif_bk_cmd_confirm(msg, (uint8_t *)&param.stats_mem_addr, sizeof(struct cif_lwip_stats));
+#endif
+    /* Publish the snapshot address; AP reads it from shared memory at init,
+     * so no IPC command exchange is needed at boot. */
+    bk_sys_sw_regs_set_cp_lwip_mem_info_ptr((uint32_t)&s_cp_mem_addr_info);
+
+    CIF_LOGI("[cp_mem_addr] publish @0x%x magic:0x%x ver:%u size:%u (MEM_STATS=%d TRX_DYN=%d)\n",
+             (uint32_t)&s_cp_mem_addr_info, s_cp_mem_addr_info.magic,
+             s_cp_mem_addr_info.version, s_cp_mem_addr_info.size, MEM_STATS, MEM_TRX_DYNAMIC_EN);
+    CIF_LOGI("[cp_mem_addr] lwip val_sz:%u used:0x%x avail:0x%x tx_used:0x%x tx_avail:0x%x\n",
+             s_cp_mem_addr_info.lwip_mem_value_size, s_cp_mem_addr_info.lwip_used_addr,
+             s_cp_mem_addr_info.lwip_avail_addr, s_cp_mem_addr_info.lwip_tx_used_addr,
+             s_cp_mem_addr_info.lwip_tx_avail_addr);
+    CIF_LOGI("[cp_mem_addr] heap val_sz:%u total:%u min_rsv:0x%x rsv_sz:%u\n",
+             s_cp_mem_addr_info.heap_value_size, s_cp_mem_addr_info.heap_total,
+             s_cp_mem_addr_info.heap_min_rsv_addr, s_cp_mem_addr_info.heap_min_rsv_value_size);
 }
 #endif
 bk_err_t cif_handle_wifi_ctrnl_cmd(struct bk_msg_hdr *msg)
@@ -790,13 +823,6 @@ bk_err_t cif_handle_wifi_ctrnl_cmd(struct bk_msg_hdr *msg)
             ret = cif_handle_bk_cmd_interface_debug(msg);
             break;
         }
-#if CONFIG_CONTROLLER_AP_BUFFER_COPY
-        case BK_CP_LWIP_MEM_ADDR_CMD:
-        {
-            ret = cif_handle_bk_cmd_lwipmem_addr_req(msg);
-            break;
-        }
-#endif
 #if CONFIG_P2P
 		case BK_CMD_MODEXP_RESULT:
 		{
