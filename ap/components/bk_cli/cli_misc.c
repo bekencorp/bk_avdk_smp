@@ -99,11 +99,25 @@ void cli_misc_cache_help(void)
 
 void cli_misc_disable_int_interval_check_set_help(void)
 {
-	CLI_RAW_LOGI("\r\ndisable_int_interval_check_set [interval_time] [trace_time]\n");
-	CLI_RAW_LOGI("  Set disable int check interval time(us):interval_time, trace_time\n");
-	CLI_RAW_LOGI("  -interval_time<int><mandatory>: disable int check interval time(us)\n");
-	CLI_RAW_LOGI("  -trace_time<int><mandatory>: trace time(us)\n");
-	CLI_RAW_LOGI("  example1: disable_int_interval_check_set 1000 1000000\n");
+	CLI_RAW_LOGI("\r\ndisable_int_interval_check_set [assert_us] [trace_us]\n");
+	CLI_RAW_LOGI("  Set critical-section interrupt-off thresholds in us.\n");
+	CLI_RAW_LOGI("  -assert_us<int><mandatory>: assert when duration is greater than this value\n");
+	CLI_RAW_LOGI("  -trace_us<int><mandatory>: record trace when duration is greater than this value\n");
+	CLI_RAW_LOGI("  assert_us must be greater than trace_us, and both must be non-zero.\n");
+	CLI_RAW_LOGI("  example1: disable_int_interval_check_set 10000 5000\n");
+}
+
+void cli_misc_critstat_help(void)
+{
+	CLI_RAW_LOGI("\r\ncritstat {status|set|dump}\n");
+	CLI_RAW_LOGI("  Manage critical-section interrupt-off time statistics.\n");
+	CLI_RAW_LOGI("  status: show current thresholds and per-core state\n");
+	CLI_RAW_LOGI("  set <assert_us> <trace_us>: set assert and trace thresholds in us\n");
+	CLI_RAW_LOGI("  assert_us must be greater than trace_us, and both must be non-zero.\n");
+	CLI_RAW_LOGI("  dump: dump slow critical-section records\n");
+	CLI_RAW_LOGI("  example1: critstat status\n");
+	CLI_RAW_LOGI("  example2: critstat set 10000 5000\n");
+	CLI_RAW_LOGI("  example3: critstat dump\n");
 }
 
 void cli_misc_dump_int_context_help(void)
@@ -528,6 +542,17 @@ int32_t cpu_test(uint32_t count) {
 }
 
 #if (defined CONFIG_ISR_DISABLE_TIME_STATISTIC)
+static int cli_critstat_validate_threshold(uint32_t assert_time, uint32_t trace_time)
+{
+	if ((assert_time == 0) || (trace_time == 0) || (assert_time <= trace_time)) {
+		BK_LOGD(NULL, "invalid threshold, assert_us:%u must be greater than trace_us:%u, both must be non-zero\r\n",
+			assert_time, trace_time);
+		return -1;
+	}
+
+	return 0;
+}
+
 void cli_disable_int_check_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
 	if ((argc == 2) && (!os_strncmp(argv[1], "help", 4))) {
@@ -536,13 +561,68 @@ void cli_disable_int_check_cmd(char *pcWriteBuffer, int xWriteBufferLen, int arg
 	}
 
     extern void bk_set_disable_isr_check_time_value(uint32_t assert_interval, uint32_t trace_interval);
-	if (argc > 2) {
-		uint32_t assert_time = os_strtoul(argv[1], NULL, 10);
-		uint32_t trace_time = os_strtoul(argv[2], NULL, 10);
-		bk_set_disable_isr_check_time_value(assert_time, trace_time);
-        BK_LOGD(NULL, "set disable isr check time ok,assert time: %dms,trace_time:%dms",assert_time/1000,trace_time/1000);
+	extern void bk_critical_stat_suspend(void);
+	extern void bk_critical_stat_resume(void);
+	if (argc != 3) {
+		cli_misc_disable_int_interval_check_set_help();
+		return;
 	}
 
+	bk_critical_stat_suspend();
+
+	uint32_t assert_time = os_strtoul(argv[1], NULL, 10);
+	uint32_t trace_time = os_strtoul(argv[2], NULL, 10);
+	if (cli_critstat_validate_threshold(assert_time, trace_time) != 0) {
+		bk_critical_stat_resume();
+		return;
+	}
+
+	bk_set_disable_isr_check_time_value(assert_time, trace_time);
+	BK_LOGD(NULL, "set disable isr check time ok, assert_us:%u, trace_us:%u\r\n", assert_time, trace_time);
+	bk_critical_stat_resume();
+
+	return;
+}
+
+void cli_critstat_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
+{
+	extern void bk_critical_stat_set_threshold(uint32_t assert_interval, uint32_t trace_interval);
+	extern void bk_critical_stat_status(void);
+	extern void bk_critical_stat_dump(void);
+	extern void bk_critical_stat_suspend(void);
+	extern void bk_critical_stat_resume(void);
+
+	if ((argc < 2) || ((argc == 2) && (!os_strncmp(argv[1], "help", 4)))) {
+		cli_misc_critstat_help();
+		return;
+	}
+
+	bk_critical_stat_suspend();
+
+	if (os_strcmp(argv[1], "status") == 0) {
+		bk_critical_stat_status();
+	} else if (os_strcmp(argv[1], "dump") == 0) {
+		bk_critical_stat_dump();
+	} else if (os_strcmp(argv[1], "set") == 0) {
+		if (argc != 4) {
+			cli_misc_critstat_help();
+			goto exit;
+		}
+
+		uint32_t assert_time = os_strtoul(argv[2], NULL, 10);
+		uint32_t trace_time = os_strtoul(argv[3], NULL, 10);
+		if (cli_critstat_validate_threshold(assert_time, trace_time) != 0) {
+			goto exit;
+		}
+
+		bk_critical_stat_set_threshold(assert_time, trace_time);
+		BK_LOGD(NULL, "critstat set ok, assert_us:%u, trace_us:%u\r\n", assert_time, trace_time);
+	} else {
+		cli_misc_critstat_help();
+	}
+
+exit:
+	bk_critical_stat_resume();
 	return;
 }
 #endif
@@ -680,6 +760,7 @@ static const struct cli_command s_misc_commands[] = {
 
 #if CONFIG_ISR_DISABLE_TIME_STATISTIC
 	{"disable_int_interval_check_set", "set disable int check interval time(us):interval_time, trace_time", cli_disable_int_check_cmd},
+	{"critstat", "critstat {status|set|dump}", cli_critstat_cmd},
 #endif
 
     {"dump_int_context", "assert or crash in interruption context", cli_dump_in_context},

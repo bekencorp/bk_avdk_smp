@@ -277,4 +277,19 @@ menu "Bk_rtos"
 
 	endmenu
 
+    menu "Modify OS Debug Config "
+
+        config ISR_DISABLE_TIME_STATISTIC
+		bool "Measure interrupt-disabled time in critical sections"
+		default n
+		help
+			Track how long interrupts stay disabled after entering RTOS
+			critical sections, including global critical sections.
+
+			When enabled, long interrupt-disabled intervals can be traced
+			or asserted according to the runtime thresholds configured by
+			the critstat CLI command.
+
+    endmenu
+
 endmenu

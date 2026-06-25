@@ -32,6 +32,7 @@
 #include <driver/gpio.h>
 #include "rtos_impl.h"
 #include "cmsis_gcc.h"
+#include <driver/aon_rtc.h>
 #include "spinlock.h"
 
 #define TAG "Rtos"
@@ -539,6 +540,461 @@ bk_err_t rtos_deinit_semaphore( beken_semaphore_t* semaphore )
     return kNoErr;
 }
 
+/*
+ * Critical-section interrupt-disabled time statistic.
+ *
+ * This debug feature measures how long interrupts stay disabled between
+ * rtos_enter_critical()/rtos_exit_critical() and the global critical-section
+ * variants. Runtime thresholds are configured from the AP CLI:
+ *
+ *   ap_cmd critstat status
+ *   ap_cmd critstat set <assert_us> <trace_us>
+ *   ap_cmd critstat dump
+ *
+ * assert_us must be greater than trace_us. Durations greater than trace_us are
+ * saved into the trace ring buffer; durations greater than assert_us print a
+ * short summary and then assert.
+ */
+#if  CONFIG_ISR_DISABLE_TIME_STATISTIC
+#define DISABLE_ISR_ASSERT_THRESHOLD_US      (10000000)
+#define DISABLE_ISR_TRACE_THRESHOLD_US       (5000000)
+#define DISABLE_ISR_TRACE_MAX                (16)
+
+#ifndef configNUMBER_OF_CORES
+#define configNUMBER_OF_CORES                (1)
+#endif
+
+typedef enum
+{
+	DISABLE_ISR_EVENT_SLOW = 0,
+	DISABLE_ISR_EVENT_ASSERT,
+	DISABLE_ISR_EVENT_UNBALANCED_EXIT,
+	DISABLE_ISR_EVENT_BAD_CORE,
+} disable_isr_event_type_t;
+
+typedef struct
+{
+	uint32_t nest;
+	uint32_t ignored_nest;
+	uint32_t max_nest;
+	uint32_t enter_lr;
+	uint64_t start_us;
+	TaskHandle_t task;
+	char task_name[configMAX_TASK_NAME_LEN];
+} disable_isr_core_stat_t;
+
+typedef struct
+{
+	uint32_t type;
+	uint32_t core_id;
+	uint32_t diff_us;
+	uint32_t enter_lr;
+	uint32_t exit_lr;
+	uint32_t max_nest;
+	uint64_t start_us;
+	uint64_t end_us;
+	TaskHandle_t task;
+	char task_name[configMAX_TASK_NAME_LEN];
+} disable_isr_trace_t;
+
+typedef struct
+{
+	uint32_t should_assert;
+	uint32_t core_id;
+	uint32_t diff_us;
+	uint32_t enter_lr;
+	uint32_t exit_lr;
+	uint32_t max_nest;
+	uint64_t start_us;
+	uint64_t end_us;
+	TaskHandle_t task;
+	char task_name[configMAX_TASK_NAME_LEN];
+} disable_isr_exit_result_t;
+
+static uint32_t s_disable_isr_assert_threshold_us = DISABLE_ISR_ASSERT_THRESHOLD_US;
+static uint32_t s_disable_isr_trace_threshold_us = DISABLE_ISR_TRACE_THRESHOLD_US;
+static disable_isr_core_stat_t s_disable_isr_core_stat[configNUMBER_OF_CORES];
+static disable_isr_trace_t s_disable_isr_trace[DISABLE_ISR_TRACE_MAX];
+static uint32_t s_disable_isr_trace_wr;
+static uint32_t s_disable_isr_trace_cnt;
+static uint32_t s_disable_isr_max_diff_us;
+static SPINLOCK_SECTION volatile spinlock_t s_disable_isr_stat_lock = SPIN_LOCK_INIT;
+static SPINLOCK_SECTION volatile spinlock_t rtos_spin_lock = SPIN_LOCK_INIT;
+static uint32_t s_disable_isr_assert_latched;
+static uint32_t s_disable_isr_stat_suspended;
+
+static void bk_disable_isr_copy_task_name(char *dst, const char *src)
+{
+	uint32_t i;
+
+	if (dst == NULL) {
+		return;
+	}
+
+	if (src == NULL) {
+		dst[0] = '\0';
+		return;
+	}
+
+	for (i = 0; i < (configMAX_TASK_NAME_LEN - 1); i++) {
+		dst[i] = src[i];
+		if (src[i] == '\0') {
+			return;
+		}
+	}
+	dst[i] = '\0';
+}
+
+static void bk_disable_isr_record_trace(uint32_t type, uint32_t core_id, uint32_t diff_us,
+	uint32_t enter_lr, uint32_t exit_lr, uint32_t max_nest, uint64_t start_us,
+	uint64_t end_us, TaskHandle_t task, const char *task_name)
+{
+	disable_isr_trace_t *trace = &s_disable_isr_trace[s_disable_isr_trace_wr % DISABLE_ISR_TRACE_MAX];
+
+	trace->type = type;
+	trace->core_id = core_id;
+	trace->diff_us = diff_us;
+	trace->enter_lr = enter_lr;
+	trace->exit_lr = exit_lr;
+	trace->max_nest = max_nest;
+	trace->start_us = start_us;
+	trace->end_us = end_us;
+	trace->task = task;
+	bk_disable_isr_copy_task_name(trace->task_name, task_name);
+
+	s_disable_isr_trace_wr++;
+	if (s_disable_isr_trace_cnt < DISABLE_ISR_TRACE_MAX) {
+		s_disable_isr_trace_cnt++;
+	}
+}
+
+static bool bk_disable_isr_stat_is_ready(void)
+{
+	return (xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED) &&
+		(platform_is_in_interrupt_context() == 0);
+}
+
+static uint32_t bk_disable_isr_core_index(uint32_t core_id)
+{
+#if CONFIG_SOC_SMP
+	return core_id & 0x1;
+#else
+	return 0;
+#endif
+}
+
+static void bk_disable_isr_stat_enter(uint32_t lr)
+{
+	if (!bk_disable_isr_stat_is_ready()) {
+		return;
+	}
+
+	spin_lock(&s_disable_isr_stat_lock);
+
+	if (s_disable_isr_assert_latched != 0) {
+		spin_unlock(&s_disable_isr_stat_lock);
+		return;
+	}
+
+	uint32_t core_id = rtos_get_core_id();
+	uint32_t core_index = bk_disable_isr_core_index(core_id);
+	if (core_index >= configNUMBER_OF_CORES) {
+		bk_disable_isr_record_trace(DISABLE_ISR_EVENT_BAD_CORE, core_id, 0, lr, 0, 0, 0, 0, NULL, NULL);
+		core_index = 0;
+	}
+
+	disable_isr_core_stat_t *stat = &s_disable_isr_core_stat[core_index];
+	if ((s_disable_isr_stat_suspended != 0) || (stat->ignored_nest != 0)) {
+		stat->ignored_nest++;
+		spin_unlock(&s_disable_isr_stat_lock);
+		return;
+	}
+
+	if (stat->nest == 0) {
+		stat->start_us = bk_aon_rtc_get_us();
+		stat->enter_lr = lr;
+		stat->task = xTaskGetCurrentTaskHandle();
+		bk_disable_isr_copy_task_name(stat->task_name, pcTaskGetName(stat->task));
+		stat->max_nest = 1;
+	} else if ((stat->nest + 1) > stat->max_nest) {
+		stat->max_nest = stat->nest + 1;
+	}
+	stat->nest++;
+
+	spin_unlock(&s_disable_isr_stat_lock);
+}
+
+static void bk_disable_isr_stat_exit(uint32_t lr, disable_isr_exit_result_t *result)
+{
+	memset(result, 0, sizeof(*result));
+	result->exit_lr = lr;
+
+	if (!bk_disable_isr_stat_is_ready()) {
+		return;
+	}
+
+	spin_lock(&s_disable_isr_stat_lock);
+
+	if (s_disable_isr_assert_latched != 0) {
+		spin_unlock(&s_disable_isr_stat_lock);
+		return;
+	}
+
+	uint32_t core_id = rtos_get_core_id();
+	result->core_id = core_id;
+	uint32_t core_index = bk_disable_isr_core_index(core_id);
+
+	if (core_index >= configNUMBER_OF_CORES) {
+		bk_disable_isr_record_trace(DISABLE_ISR_EVENT_BAD_CORE, core_id, 0, 0, lr, 0, 0, 0, NULL, NULL);
+	} else {
+		disable_isr_core_stat_t *stat = &s_disable_isr_core_stat[core_index];
+
+		if (stat->ignored_nest > 0) {
+			stat->ignored_nest--;
+			spin_unlock(&s_disable_isr_stat_lock);
+			return;
+		}
+
+		if (stat->nest == 0) {
+			bk_disable_isr_record_trace(DISABLE_ISR_EVENT_UNBALANCED_EXIT, core_id, 0, 0, lr, 0, 0, 0, NULL, NULL);
+		} else {
+			stat->nest--;
+			if (stat->nest == 0) {
+				uint64_t end_us = bk_aon_rtc_get_us();
+				uint64_t diff = end_us - stat->start_us;
+				uint32_t diff_us = (diff > 0xffffffffULL) ? 0xffffffffU : (uint32_t)diff;
+
+				if (diff_us > s_disable_isr_max_diff_us) {
+					s_disable_isr_max_diff_us = diff_us;
+				}
+
+				if (diff_us > s_disable_isr_assert_threshold_us) {
+					bk_disable_isr_record_trace(DISABLE_ISR_EVENT_ASSERT, core_id, diff_us,
+						stat->enter_lr, lr, stat->max_nest, stat->start_us, end_us,
+						stat->task, stat->task_name);
+					if (s_disable_isr_assert_latched == 0) {
+						s_disable_isr_assert_latched = 1;
+						result->should_assert = 1;
+						result->diff_us = diff_us;
+						result->enter_lr = stat->enter_lr;
+						result->max_nest = stat->max_nest;
+						result->start_us = stat->start_us;
+						result->end_us = end_us;
+						result->task = stat->task;
+						bk_disable_isr_copy_task_name(result->task_name, stat->task_name);
+					}
+				} else if (diff_us > s_disable_isr_trace_threshold_us) {
+					bk_disable_isr_record_trace(DISABLE_ISR_EVENT_SLOW, core_id, diff_us,
+						stat->enter_lr, lr, stat->max_nest, stat->start_us, end_us,
+						stat->task, stat->task_name);
+				}
+
+				stat->start_us = 0;
+				stat->enter_lr = 0;
+				stat->task = NULL;
+				stat->task_name[0] = '\0';
+				stat->max_nest = 0;
+			}
+		}
+	}
+
+	spin_unlock(&s_disable_isr_stat_lock);
+}
+
+void bk_set_disable_isr_check_time_value(uint32_t assert_interval, uint32_t trace_interval)
+{
+	if ((assert_interval == 0) || (trace_interval == 0) || (assert_interval <= trace_interval)) {
+		BK_DUMP_OUT("critstat: invalid threshold, assert_us=%u trace_us=%u\r\n",
+			assert_interval, trace_interval);
+		return;
+	}
+
+	s_disable_isr_assert_threshold_us = assert_interval;
+	s_disable_isr_trace_threshold_us = trace_interval;
+}
+
+void bk_critical_stat_set_threshold(uint32_t assert_interval, uint32_t trace_interval)
+{
+	bk_set_disable_isr_check_time_value(assert_interval, trace_interval);
+}
+
+void bk_critical_stat_suspend(void)
+{
+	uint32_t flags = port_disable_interrupts_flag();
+	spin_lock(&s_disable_isr_stat_lock);
+	s_disable_isr_stat_suspended++;
+	spin_unlock(&s_disable_isr_stat_lock);
+	port_enable_interrupts_flag(flags);
+}
+
+void bk_critical_stat_resume(void)
+{
+	uint32_t flags = port_disable_interrupts_flag();
+	spin_lock(&s_disable_isr_stat_lock);
+	if (s_disable_isr_stat_suspended > 0) {
+		s_disable_isr_stat_suspended--;
+	}
+	spin_unlock(&s_disable_isr_stat_lock);
+	port_enable_interrupts_flag(flags);
+}
+
+void bk_critical_stat_status(void)
+{
+	uint32_t assert_threshold_us;
+	uint32_t trace_threshold_us;
+	uint32_t max_diff_us;
+	uint32_t trace_cnt;
+	disable_isr_core_stat_t core_stat[configNUMBER_OF_CORES];
+	uint32_t flags = port_disable_interrupts_flag();
+	spin_lock(&s_disable_isr_stat_lock);
+
+	assert_threshold_us = s_disable_isr_assert_threshold_us;
+	trace_threshold_us = s_disable_isr_trace_threshold_us;
+	max_diff_us = s_disable_isr_max_diff_us;
+	trace_cnt = s_disable_isr_trace_cnt;
+	memcpy(core_stat, s_disable_isr_core_stat, sizeof(core_stat));
+
+	spin_unlock(&s_disable_isr_stat_lock);
+	port_enable_interrupts_flag(flags);
+
+	BK_DUMP_OUT("critstat: assert_threshold_us=%u trace_threshold_us=%u max_diff_us=%u trace_cnt=%u\r\n",
+		assert_threshold_us, trace_threshold_us, max_diff_us, trace_cnt);
+
+	for (uint32_t i = 0; i < configNUMBER_OF_CORES; i++) {
+		BK_DUMP_OUT("critstat: core=%u nest=%u ignored_nest=%u max_nest=%u enter_lr=0x%x task=0x%x name=%s start_us=0x%x\r\n",
+			i, core_stat[i].nest, core_stat[i].ignored_nest,
+			core_stat[i].max_nest, core_stat[i].enter_lr, (uint32_t)core_stat[i].task, core_stat[i].task_name,
+			(uint32_t)core_stat[i].start_us);
+	}
+}
+
+static void bk_critical_stat_dump_trace(void)
+{
+	uint32_t flags = port_disable_interrupts_flag();
+	spin_lock(&s_disable_isr_stat_lock);
+	uint32_t cnt = s_disable_isr_trace_cnt;
+	uint32_t wr = s_disable_isr_trace_wr;
+	spin_unlock(&s_disable_isr_stat_lock);
+	port_enable_interrupts_flag(flags);
+
+	uint32_t start = wr - cnt;
+
+	BK_DUMP_OUT("\r\ncritstat dump: cnt=%u wr=%u\r\n", cnt, wr);
+	for (uint32_t i = 0; i < cnt; i++) {
+		uint32_t index = (start + i) % DISABLE_ISR_TRACE_MAX;
+		disable_isr_trace_t trace;
+
+		flags = port_disable_interrupts_flag();
+		spin_lock(&s_disable_isr_stat_lock);
+		trace = s_disable_isr_trace[index];
+		spin_unlock(&s_disable_isr_stat_lock);
+		port_enable_interrupts_flag(flags);
+
+		BK_DUMP_OUT("\r\n[%02u] type=%u core=%u diff=%uus nest=%u task=0x%x name=%s\r\n",
+			i, trace.type, trace.core_id, trace.diff_us, trace.max_nest,
+			(uint32_t)trace.task, trace.task_name);
+		BK_DUMP_OUT("     enter_lr=0x%x exit_lr=0x%x start=0x%08x%08x end=0x%08x%08x\r\n",
+			trace.enter_lr, trace.exit_lr, (uint32_t)(trace.start_us >> 32),
+			(uint32_t)trace.start_us, (uint32_t)(trace.end_us >> 32),
+			(uint32_t)trace.end_us);
+	}
+}
+
+void bk_critical_stat_dump(void)
+{
+	bk_critical_stat_dump_trace();
+}
+
+static void bk_critical_stat_dump_assert(const disable_isr_exit_result_t *result)
+{
+	BK_DUMP_OUT("\r\ncritstat assert: core=%u diff=%uus threshold=%uus nest=%u task=0x%x name=%s\r\n",
+		result->core_id, result->diff_us, s_disable_isr_assert_threshold_us,
+		result->max_nest, (uint32_t)result->task, result->task_name);
+	BK_DUMP_OUT("     enter_lr=0x%x exit_lr=0x%x start=0x%08x%08x end=0x%08x%08x\r\n",
+		result->enter_lr, result->exit_lr, (uint32_t)(result->start_us >> 32),
+		(uint32_t)result->start_us, (uint32_t)(result->end_us >> 32),
+		(uint32_t)result->end_us);
+}
+
+static uint32_t rtos_disable_int_with_lr(uint32_t lr)
+{
+	uint32_t flags = port_disable_interrupts_flag();
+
+	bk_disable_isr_stat_enter(lr);
+
+	return flags;
+}
+
+static void rtos_enable_int_with_lr(uint32_t int_level, uint32_t lr)
+{
+	disable_isr_exit_result_t result;
+
+	bk_disable_isr_stat_exit(lr, &result);
+	port_enable_interrupts_flag(int_level);
+
+	if (result.should_assert) {
+		bk_critical_stat_dump_assert(&result);
+		BK_ASSERT(0);
+	}
+}
+
+uint32_t rtos_disable_int(void)
+{   
+    return rtos_disable_int_with_lr(__get_LR());
+}
+
+void rtos_enable_int(uint32_t int_level)
+{
+    rtos_enable_int_with_lr(int_level, __get_LR());
+}
+
+uint32_t rtos_enter_critical( void )
+{
+	uint32_t lr = __get_LR();
+	uint32_t flags = rtos_disable_int_with_lr(lr);
+	spin_lock(&rtos_spin_lock);
+	return flags;
+}
+
+void rtos_exit_critical( uint32_t state )
+{
+	uint32_t lr = __get_LR();
+
+	spin_unlock(&rtos_spin_lock);
+	rtos_enable_int_with_lr(state, lr);
+}
+
+static SPINLOCK_SECTION volatile spinlock_t rtos_global_spin_lock = SPIN_LOCK_INIT;
+uint32_t rtos_enter_global_critical( void )
+{
+	uint32_t lr = __get_LR();
+	uint32_t flags = rtos_disable_int_with_lr(lr);
+	spin_lock(&rtos_global_spin_lock);
+	return flags;
+}
+
+void rtos_exit_global_critical( uint32_t state )
+{
+	uint32_t lr = __get_LR();
+
+	spin_unlock(&rtos_global_spin_lock);
+	rtos_enable_int_with_lr(state, lr);
+}
+
+
+#else
+
+uint32_t rtos_disable_int(void)
+{
+    return port_disable_interrupts_flag();
+}
+
+void rtos_enable_int(uint32_t int_level)
+{
+    port_enable_interrupts_flag(int_level);
+}
+
+
 static SPINLOCK_SECTION volatile spinlock_t rtos_spin_lock = SPIN_LOCK_INIT;
 uint32_t rtos_enter_critical( void )
 {
@@ -567,6 +1023,8 @@ void rtos_exit_global_critical( uint32_t state )
     rtos_enable_int(state);
 }
 
+
+#endif
 
 #if (CONFIG_FREERTOS_SMP)
 
@@ -1554,24 +2012,14 @@ size_t rtos_get_hsram_minimum_free_heap_size(void)
 	return xPortGetHsramMinimumFreeHeapSize();
 }
 
-uint32_t rtos_disable_int(void)
+uint32_t rtos_before_sleep(void)
 {
     return port_disable_interrupts_flag();
 }
 
-void rtos_enable_int(uint32_t int_level)
-{
-    port_enable_interrupts_flag(int_level);
-}
-
-uint32_t rtos_before_sleep(void)
-{
-    return rtos_disable_int();
-}
-
 void rtos_after_sleep(uint32_t int_level)
 {
-    rtos_enable_int(int_level);
+    port_enable_interrupts_flag(int_level);
 }
 
 void rtos_stop_int(void)
