@@ -62,6 +62,10 @@ extern void bk_ota_confirm_update_partition(ota_confirm_flag ota_confirm_val);
 #endif
 #endif
 
+#if CONFIG_SUPPORT_MULTICORE
+#include "multicore_driver.h"
+#endif
+
 #if defined(CONFIG_WIFI_AT_ENABLE) && defined(CONFIG_WIFI_ENABLE)
 #include "wifi_at.h"
 #endif
@@ -355,6 +359,11 @@ int bk_init(void)
 
 
 	app_cli_init();
+
+#if CONFIG_CPU_HP_GOVERNOR
+	bk_cpu_hp_governor_init();
+#endif
+
 #if CONFIG_AT
 	extern int atsvr_app_init(void);
 	if(0 != atsvr_app_init())
