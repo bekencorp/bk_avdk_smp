@@ -1654,6 +1654,21 @@ void eth_ip_down(void)
 #endif
 
 #if CONFIG_WIFI_VNET_CONTROLLER
+static int net_wlan_netif_in_list(struct netif *target)
+{
+#if !LWIP_SINGLE_NETIF
+	struct netif *cur;
+
+	NETIF_FOREACH(cur) {
+		if (cur == target)
+			return 1;
+	}
+	return 0;
+#else
+	return netif_default == target;
+#endif
+}
+
 int host_wlan_add_netif(uint8_t *mac)
 {
 	struct iface *wlan_if = NULL;
@@ -1669,6 +1684,9 @@ int host_wlan_add_netif(uint8_t *mac)
 	} else {
 		LWIP_LOGE("unknown netif\r\n");
 		return ERR_ARG;
+	}
+	if (net_wlan_netif_in_list(&wlan_if->netif)) {
+		return ERR_OK;
 	}
 
 	ip_addr_set_ip4_u32(&wlan_if->ipaddr, INADDR_ANY);
