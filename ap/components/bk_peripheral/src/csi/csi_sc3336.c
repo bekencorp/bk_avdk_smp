@@ -48,8 +48,49 @@
 #define sc3336_REG_VTS_H 0x320e
 #define sc3336_REG_VTS_L 0x320f
 
-#define SC3336_VMAX_300W20FPS_LINEAR (1980)
+/* SC3336_PCLK = VTS * HTS * FPS */
+#define SC3336_FPS_BASE         20
+
+#define SC3336_VTS_96M          1920
+#define SC3336_HTS_96M          2500
+#define SC3336_PCLK_96M         (SC3336_VTS_96M * SC3336_FPS_BASE * SC3336_HTS_96M)
+
+#define SC3336_VTS_66M          1320
+#define SC3336_HTS_66M          2500
+#define SC3336_PCLK_66M         (SC3336_VTS_66M * SC3336_FPS_BASE * SC3336_HTS_66M)
+
+#define SC3336_VTS_86M          1440
+#define SC3336_HTS_86M          3000
+#define SC3336_PCLK_86M         (SC3336_VTS_86M * SC3336_FPS_BASE * SC3336_HTS_86M)
+
+#define SC3336_PCLK             (SC3336_PCLK_86M)
+
+#if (SC3336_PCLK == SC3336_PCLK_96M)
+    #define SC3336_VTS          SC3336_VTS_96M
+    #define SC3336_HTS          SC3336_HTS_96M
+#elif (SC3336_PCLK == SC3336_PCLK_66M)
+    #define SC3336_VTS          SC3336_VTS_66M
+    #define SC3336_HTS          SC3336_HTS_66M
+#elif (SC3336_PCLK == SC3336_PCLK_86M)
+    #define SC3336_VTS          SC3336_VTS_86M
+    #define SC3336_HTS          SC3336_HTS_86M
+#endif
+
 #define SC3336_VMAX_1080P25FPS_LINEAR (1632)
+
+#if (SC3336_PCLK == SC3336_PCLK_96M)
+    #define SC3336_VMAX_300W20FPS_LINEAR (1980)
+    #define SC3336_VMAX_300W10FPS_LINEAR (3960)
+    #define SC3336_VMAX_300W15FPS_LINEAR (2640)
+#elif (SC3336_PCLK == SC3336_PCLK_66M)
+    #define SC3336_VMAX_300W20FPS_LINEAR (1620)
+    #define SC3336_VMAX_300W10FPS_LINEAR (3240)
+    #define SC3336_VMAX_300W15FPS_LINEAR (2160)
+#elif (SC3336_PCLK == SC3336_PCLK_86M)
+    #define SC3336_VMAX_300W20FPS_LINEAR (1440)
+    #define SC3336_VMAX_300W10FPS_LINEAR (2880)
+    #define SC3336_VMAX_300W15FPS_LINEAR (1920)
+#endif
 
 enum sc3336_REG_INDEX {
     REG_VTS_H       = 0,
@@ -65,6 +106,8 @@ enum sc3336_REG_INDEX {
 
 #define SC3336_300W20FPS_LINEAR_MODE (0)
 #define SC3336_1080P25FPS_LINEAR_MODE (1)
+#define SC3336_300W10FPS_LINEAR_MODE (2)
+#define SC3336_300W15FPS_LINEAR_MODE (3)
 
 typedef struct vsisc3336_DEVICE_S {
     vsi_u8_t i2cBus;
@@ -91,6 +134,7 @@ static sc3336_DEVICE_S *pSc3336Dev = NULL;
 
 static ISP_CALIB_DATA_S * SC3336_2304x1296_CalibParam_dynamic = NULL;
 
+#if (SC3336_PCLK == SC3336_PCLK_96M)
 //2304x1296@20fps
 static const uint16_t sensor_sc3336_init_table[][2] = {
     //Preview Type:0:DVP Raw 10 bit// 1:Raw 8 bit// 2:YUV422// 3:RAW16
@@ -261,8 +305,9 @@ static const uint16_t sensor_sc3336_init_table[][2] = {
     {0x393b,0x00},
     {0x393c,0x1c},
     {0x39dc,0x02},
-    {0x3e01,0x52},
-    {0x3e02,0x00},
+    {0x3e00,0x00},
+    {0x3e01,0x00},
+    {0x3e02,0x80},
     {0x3e09,0x00},
     {0x440d,0x10},
     {0x440e,0x01},
@@ -321,6 +366,333 @@ static const uint16_t sensor_sc3336_init_table[][2] = {
     {0x37f9,0x27},
     {0x0100,0x01},
 };
+#elif (SC3336_PCLK == SC3336_PCLK_66M)
+// 2304x1296@20fps
+// VTS=1320.000000,
+// HTS=2500.000000,
+// SCLK=33.000000,
+// PCLK=66.000000,
+// MipiCLK=330.000000,
+// Tline=37.878788us,
+// TExp_step=1.0*Tline=37.878788us,
+// TExp_offset=9.090909us
+static const uint16_t sensor_sc3336_init_table[][2] = {
+    {0x0103,0x01},
+    {0x36e9,0x80},
+    {0x37f9,0x80},
+    {0x3018,0x3a},
+    {0x3019,0x0c},
+    {0x301f,0x86},
+    {0x30b8,0x33},
+    {0x320e,0x05},
+    {0x320f,0x28},
+    {0x3253,0x10},
+    {0x325f,0x20},
+    {0x3301,0x04},
+    {0x3306,0x50},
+    {0x3309,0xa8},
+    {0x330a,0x00},
+    {0x330b,0xd8},
+    {0x3314,0x13},
+    {0x331f,0x99},
+    {0x3333,0x10},
+    {0x3334,0x40},
+    {0x335e,0x06},
+    {0x335f,0x0a},
+    {0x3364,0x5e},
+    {0x337c,0x02},
+    {0x337d,0x0e},
+    {0x3390,0x01},
+    {0x3391,0x03},
+    {0x3392,0x07},
+    {0x3393,0x04},
+    {0x3394,0x04},
+    {0x3395,0x04},
+    {0x3396,0x08},
+    {0x3397,0x0b},
+    {0x3398,0x1f},
+    {0x3399,0x04},
+    {0x339a,0x0a},
+    {0x339b,0x3a},
+    {0x339c,0xa0},
+    {0x33a2,0x04},
+    {0x33ac,0x08},
+    {0x33ad,0x1c},
+    {0x33ae,0x10},
+    {0x33af,0x30},
+    {0x33b1,0x80},
+    {0x33b3,0x48},
+    {0x33f9,0x50},
+    {0x33fb,0x60},
+    {0x33fc,0x4b},
+    {0x33fd,0x5f},
+    {0x349f,0x03},
+    {0x34a6,0x4b},
+    {0x34a7,0x5f},
+    {0x34a8,0x20},
+    {0x34a9,0x18},
+    {0x34ab,0xe8},
+    {0x34ac,0x01},
+    {0x34ad,0x00},
+    {0x34f8,0x5f},
+    {0x34f9,0x18},
+    {0x3630,0xc0},
+    {0x3631,0x84},
+    {0x3632,0x64},
+    {0x3633,0x32},
+    {0x363b,0x03},
+    {0x363c,0x08},
+    {0x3641,0x38},
+    {0x3670,0x4e},
+    {0x3674,0xc0},
+    {0x3675,0xc0},
+    {0x3676,0xc0},
+    {0x3677,0x86},
+    {0x3678,0x86},
+    {0x3679,0x86},
+    {0x367c,0x48},
+    {0x367d,0x49},
+    {0x367e,0x4b},
+    {0x367f,0x5f},
+    {0x3690,0x32},
+    {0x3691,0x32},
+    {0x3692,0x42},
+    {0x369c,0x4b},
+    {0x369d,0x5f},
+    {0x36b0,0x87},
+    {0x36b1,0x90},
+    {0x36b2,0xa1},
+    {0x36b3,0xd8},
+    {0x36b4,0x49},
+    {0x36b5,0x4b},
+    {0x36b6,0x4f},
+    {0x36ea,0x0b},
+    {0x36eb,0x0d},
+    {0x36ec,0x1c},
+    {0x36ed,0x26},
+    {0x370f,0x01},
+    {0x3722,0x09},
+    {0x3724,0x41},
+    {0x3725,0xc1},
+    {0x3771,0x09},
+    {0x3772,0x09},
+    {0x3773,0x05},
+    {0x377a,0x48},
+    {0x377b,0x5f},
+    {0x37fa,0x0b},
+    {0x37fb,0x33},
+    {0x37fc,0x11},
+    {0x37fd,0x18},
+    {0x3904,0x04},
+    {0x3905,0x8c},
+    {0x391d,0x04},
+    {0x3921,0x20},
+    {0x3926,0x21},
+    {0x3933,0x80},
+    {0x3934,0x0a},
+    {0x3935,0x00},
+    {0x3936,0x2a},
+    {0x3937,0x6a},
+    {0x3938,0x6a},
+    {0x39dc,0x02},
+    {0x3e00,0x00},
+    {0x3e01,0x00},
+    {0x3e02,0x80},
+    {0x3e09,0x00},
+    {0x440d,0x10},
+    {0x440e,0x01},
+    {0x4509,0x20},
+    {0x4819,0x05},
+    {0x481b,0x03},
+    {0x481d,0x09},
+    {0x481f,0x02},
+    {0x4821,0x08},
+    {0x4823,0x02},
+    {0x4825,0x02},
+    {0x4827,0x03},
+    {0x4829,0x04},
+    {0x5ae0,0xfe},
+    {0x5ae1,0x40},
+    {0x5ae2,0x38},
+    {0x5ae3,0x30},
+    {0x5ae4,0x28},
+    {0x5ae5,0x38},
+    {0x5ae6,0x30},
+    {0x5ae7,0x28},
+    {0x5ae8,0x3f},
+    {0x5ae9,0x34},
+    {0x5aea,0x2c},
+    {0x5aeb,0x3f},
+    {0x5aec,0x34},
+    {0x5aed,0x2c},
+    {0x36e9,0x20},
+    {0x37f9,0x20},
+    {0x0100,0x01},
+};
+#elif (SC3336_PCLK == SC3336_PCLK_86M)
+// 2304x1296@20fps
+// VTS=1440.000000,
+// HTS=3000.000000,
+// SCLK=43.200000,
+// PCLK=86.400000,
+// MipiCLK=432.000000,
+// Tline=34.722222us,
+// TExp_step=1.0*Tline=34.722222us,
+// TExp_offset=6.944444us
+static const uint16_t sensor_sc3336_init_table[][2] = {
+    {0x0103,0x01},
+    {0x36e9,0x80},
+    {0x37f9,0x80},
+    {0x301f,0x88},
+    {0x30b8,0x33},
+    {0x320c,0x05},
+    {0x320d,0xdc},
+    {0x320e,0x05},
+    {0x320f,0xa0},
+    {0x3253,0x10},
+    {0x325f,0x20},
+    {0x3301,0x04},
+    {0x3306,0x50},
+    {0x3309,0xa8},
+    {0x330a,0x00},
+    {0x330b,0xd8},
+    {0x3314,0x13},
+    {0x331f,0x99},
+    {0x3333,0x10},
+    {0x3334,0x40},
+    {0x335e,0x06},
+    {0x335f,0x0a},
+    {0x3364,0x5e},
+    {0x337c,0x02},
+    {0x337d,0x0e},
+    {0x3390,0x01},
+    {0x3391,0x03},
+    {0x3392,0x07},
+    {0x3393,0x04},
+    {0x3394,0x04},
+    {0x3395,0x04},
+    {0x3396,0x08},
+    {0x3397,0x0b},
+    {0x3398,0x1f},
+    {0x3399,0x04},
+    {0x339a,0x0a},
+    {0x339b,0x3a},
+    {0x339c,0xa0},
+    {0x33a2,0x04},
+    {0x33ac,0x08},
+    {0x33ad,0x1c},
+    {0x33ae,0x10},
+    {0x33af,0x30},
+    {0x33b1,0x80},
+    {0x33b3,0x48},
+    {0x33f9,0x60},
+    {0x33fb,0x74},
+    {0x33fc,0x4b},
+    {0x33fd,0x5f},
+    {0x349f,0x03},
+    {0x34a6,0x4b},
+    {0x34a7,0x5f},
+    {0x34a8,0x20},
+    {0x34a9,0x18},
+    {0x34ab,0xe8},
+    {0x34ac,0x01},
+    {0x34ad,0x00},
+    {0x34f8,0x5f},
+    {0x34f9,0x18},
+    {0x3630,0xc0},
+    {0x3631,0x84},
+    {0x3632,0x64},
+    {0x3633,0x32},
+    {0x363b,0x03},
+    {0x363c,0x08},
+    {0x3641,0x38},
+    {0x3670,0x4e},
+    {0x3674,0xc0},
+    {0x3675,0xc0},
+    {0x3676,0xc0},
+    {0x3677,0x86},
+    {0x3678,0x86},
+    {0x3679,0x86},
+    {0x367c,0x48},
+    {0x367d,0x49},
+    {0x367e,0x4b},
+    {0x367f,0x5f},
+    {0x3690,0x32},
+    {0x3691,0x32},
+    {0x3692,0x42},
+    {0x369c,0x4b},
+    {0x369d,0x5f},
+    {0x36b0,0x87},
+    {0x36b1,0x90},
+    {0x36b2,0xa1},
+    {0x36b3,0xd8},
+    {0x36b4,0x49},
+    {0x36b5,0x4b},
+    {0x36b6,0x4f},
+    {0x36ea,0x09},
+    {0x36eb,0x0d},
+    {0x36ec,0x1c},
+    {0x36ed,0x36},
+    {0x370f,0x01},
+    {0x3722,0x09},
+    {0x3724,0x41},
+    {0x3725,0xc1},
+    {0x3771,0x09},
+    {0x3772,0x09},
+    {0x3773,0x05},
+    {0x377a,0x48},
+    {0x377b,0x5f},
+    {0x37fa,0x06},
+    {0x37fb,0x33},
+    {0x37fc,0x11},
+    {0x37fd,0x38},
+    {0x3904,0x04},
+    {0x3905,0x8c},
+    {0x391d,0x04},
+    {0x3921,0x20},
+    {0x3926,0x21},
+    {0x3933,0x80},
+    {0x3934,0x0a},
+    {0x3935,0x00},
+    {0x3936,0x2a},
+    {0x3937,0x6a},
+    {0x3938,0x6a},
+    {0x39dc,0x02},
+    {0x3e00,0x00},
+    {0x3e01,0x00},
+    {0x3e02,0x80},
+    {0x3e09,0x00},
+    {0x440d,0x10},
+    {0x440e,0x01},
+    {0x4509,0x20},
+    {0x4819,0x06},
+    {0x481b,0x03},
+    {0x481d,0x0c},
+    {0x481f,0x03},
+    {0x4821,0x08},
+    {0x4823,0x03},
+    {0x4825,0x03},
+    {0x4827,0x03},
+    {0x4829,0x05},
+    {0x5ae0,0xfe},
+    {0x5ae1,0x40},
+    {0x5ae2,0x38},
+    {0x5ae3,0x30},
+    {0x5ae4,0x28},
+    {0x5ae5,0x38},
+    {0x5ae6,0x30},
+    {0x5ae7,0x28},
+    {0x5ae8,0x3f},
+    {0x5ae9,0x34},
+    {0x5aea,0x2c},
+    {0x5aeb,0x3f},
+    {0x5aec,0x34},
+    {0x5aed,0x2c},
+    {0x36e9,0x44},
+    {0x37f9,0x34},
+    {0x0100,0x01},
+};
+#endif
 
 //1920x1080@25fps
 static const uint16_t sensor_sc3336_1080P25_init_table[][2] = {
@@ -453,7 +825,8 @@ static const uint16_t sensor_sc3336_1080P25_init_table[][2] = {
     {0x3937,0x80},//0x6a
     {0x3938,0x80},//0x6a
     {0x39dc,0x02},
-    {0x3e01,0x54},
+    {0x3e00,0x00},
+    {0x3e01,0x00},
     {0x3e02,0x80},
     {0x3e09,0x00},
     {0x4509,0x20},
@@ -523,10 +896,13 @@ static int sc3336_InitRegInfo(ISP_PORT IspPort)
 
     pSnsRegsInfo->snsData[REG_EXPOSURE_H].delayFrameNum = 2;
     pSnsRegsInfo->snsData[REG_EXPOSURE_H].regAddr = sc3336_REG_EXPOSURE_H;
+    pSnsRegsInfo->snsData[REG_EXPOSURE_H].data = 0x00;
     pSnsRegsInfo->snsData[REG_EXPOSURE_M].delayFrameNum = 2;
     pSnsRegsInfo->snsData[REG_EXPOSURE_M].regAddr = sc3336_REG_EXPOSURE_M;
+    pSnsRegsInfo->snsData[REG_EXPOSURE_M].data = 0x00;
     pSnsRegsInfo->snsData[REG_EXPOSURE_L].delayFrameNum = 2;
     pSnsRegsInfo->snsData[REG_EXPOSURE_L].regAddr = sc3336_REG_EXPOSURE_L;
+    pSnsRegsInfo->snsData[REG_EXPOSURE_L].data = 0x80;
 
     pSnsRegsInfo->snsData[REG_GAIN_3E06].delayFrameNum = 2;
     pSnsRegsInfo->snsData[REG_GAIN_3E06].regAddr = 0x3e06;
@@ -693,6 +1069,60 @@ static int sc3336_InitAeDefault(ISP_PORT IspPort)
             pAeSnsDft->tolerance = 2;
             pAeSnsDft->initExposure = 0x100 * pAeSnsDft->minAgain;
             break;
+            case SC3336_300W10FPS_LINEAR_MODE:
+            pAeSnsDft->fullLinesStd = SC3336_VMAX_300W10FPS_LINEAR;
+            pAeSnsDft->fullLines = pAeSnsDft->fullLinesStd;
+            pAeSnsDft->fps = 10 * ISP_SNS_FPS_ACCU;
+            pAeSnsDft->fullLinesMax =
+                pAeSnsDft->fps * SC3336_VMAX_300W10FPS_LINEAR / ISP_SNS_FPS_ACCU;
+            pAeSnsDft->linesPer500ms =
+                pAeSnsDft->fullLines * pAeSnsDft->fps / (2 * ISP_SNS_FPS_ACCU);
+
+            pAeSnsDft->maxIntLine  = pAeSnsDft->fullLines - 8;
+            pAeSnsDft->minIntLine  = 8;
+            pAeSnsDft->intLineStep = 1;
+
+            pAeSnsDft->maxAgain  = 3200;
+            pAeSnsDft->minAgain  = 64;
+            pAeSnsDft->againStep = 1;
+
+            pAeSnsDft->maxDgain  = 1024;
+            pAeSnsDft->minDgain  = 1024;
+            pAeSnsDft->dgainStep = 1;
+
+            pAeSnsDft->aeTarget = 62;
+            pAeSnsDft->dampOver = 0x40;
+            pAeSnsDft->dampUnder = 0x40;
+            pAeSnsDft->tolerance = 2;
+            pAeSnsDft->initExposure = 0x100 * pAeSnsDft->minAgain;
+            break;
+        case SC3336_300W15FPS_LINEAR_MODE:
+            pAeSnsDft->fullLinesStd = SC3336_VMAX_300W15FPS_LINEAR;
+            pAeSnsDft->fullLines = pAeSnsDft->fullLinesStd;
+            pAeSnsDft->fps = 15 * ISP_SNS_FPS_ACCU;
+            pAeSnsDft->fullLinesMax =
+                pAeSnsDft->fps * SC3336_VMAX_300W15FPS_LINEAR / ISP_SNS_FPS_ACCU;
+            pAeSnsDft->linesPer500ms =
+                pAeSnsDft->fullLines * pAeSnsDft->fps / (2 * ISP_SNS_FPS_ACCU);
+
+            pAeSnsDft->maxIntLine  = pAeSnsDft->fullLines - 8;
+            pAeSnsDft->minIntLine  = 8;
+            pAeSnsDft->intLineStep = 1;
+
+            pAeSnsDft->maxAgain  = 3200;
+            pAeSnsDft->minAgain  = 64;
+            pAeSnsDft->againStep = 1;
+
+            pAeSnsDft->maxDgain  = 1024;
+            pAeSnsDft->minDgain  = 1024;
+            pAeSnsDft->dgainStep = 1;
+
+            pAeSnsDft->aeTarget = 62;
+            pAeSnsDft->dampOver = 0x40;
+            pAeSnsDft->dampUnder = 0x40;
+            pAeSnsDft->tolerance = 2;
+            pAeSnsDft->initExposure = 0x100 * pAeSnsDft->minAgain;
+            break;
         default:
             return BK_FAIL;
     }
@@ -729,6 +1159,20 @@ static int sc3336_SetMode(ISP_PORT IspPort, ISP_SNS_MODE_S *pSnsMode)
         (pSnsMode->fps == 25 * ISP_SNS_FPS_ACCU)) {
         os_memcpy(&psc3336Dev->snsMode, pSnsMode, sizeof(*pSnsMode));
         psc3336Dev->snsModeId = SC3336_1080P25FPS_LINEAR_MODE;
+        sc3336_InitAeDefault(IspPort);
+    } else if ((pSnsMode->width  == 2304) &&
+        (pSnsMode->height == 1296) &&
+        (pSnsMode->hdrMode == HDR_MODE_LINEAR) &&
+        (pSnsMode->fps == 10 * ISP_SNS_FPS_ACCU)) {
+        os_memcpy(&psc3336Dev->snsMode, pSnsMode, sizeof(*pSnsMode));
+        psc3336Dev->snsModeId = SC3336_300W10FPS_LINEAR_MODE;
+        sc3336_InitAeDefault(IspPort);
+    } else if ((pSnsMode->width  == 2304) &&
+        (pSnsMode->height == 1296) &&
+        (pSnsMode->hdrMode == HDR_MODE_LINEAR) &&
+        (pSnsMode->fps == 15 * ISP_SNS_FPS_ACCU)) {
+        os_memcpy(&psc3336Dev->snsMode, pSnsMode, sizeof(*pSnsMode));
+        psc3336Dev->snsModeId = SC3336_300W15FPS_LINEAR_MODE;
         sc3336_InitAeDefault(IspPort);
     } else {
         LOGE("sc3336_SetMode: not supported width: %d, height: %d, fps: %d\n", pSnsMode->width, pSnsMode->height, pSnsMode->fps);
@@ -855,6 +1299,9 @@ static int sc3336_SlowFrameRate(ISP_PORT IspPort, vsi_u32_t fullLines)
 
     switch(psc3336Dev->snsModeId) {
         case SC3336_300W20FPS_LINEAR_MODE:
+        case SC3336_300W10FPS_LINEAR_MODE:
+        case SC3336_300W15FPS_LINEAR_MODE:
+        case SC3336_1080P25FPS_LINEAR_MODE:
             pAeSnsDft->maxIntLine = fullLines - 8;
             pAeSnsDft->fps = tempfps;
             break;
@@ -892,7 +1339,10 @@ static int sc3336_IntTimeUpdate(ISP_PORT IspPort, vsi_u32_t *pIntLine)
     ISP_SNS_REGS_INFO_S *pSnsRegsInfo = &psc3336Dev->snsRegsInfo;
 
     switch(psc3336Dev->snsModeId) {
+        case SC3336_300W10FPS_LINEAR_MODE:
+        case SC3336_300W15FPS_LINEAR_MODE:
         case SC3336_300W20FPS_LINEAR_MODE:
+        case SC3336_1080P25FPS_LINEAR_MODE:
             pSnsRegsInfo->snsData[REG_EXPOSURE_H].data = ((*pIntLine >> 12) & 0x0F);
             pSnsRegsInfo->snsData[REG_EXPOSURE_M].data = ((*pIntLine >> 4) & 0xFF);
             pSnsRegsInfo->snsData[REG_EXPOSURE_L].data = (*pIntLine & 0xF) << 4;
@@ -973,7 +1423,10 @@ static int sc3336_GainUpdate(ISP_PORT IspPort, vsi_u32_t *pAgain, vsi_u32_t *pDg
     }
 
     switch(psc3336Dev->snsModeId) {
+        case SC3336_300W10FPS_LINEAR_MODE:
+        case SC3336_300W15FPS_LINEAR_MODE:
         case SC3336_300W20FPS_LINEAR_MODE:
+        case SC3336_1080P25FPS_LINEAR_MODE:
             *pDgain = 1024;
             vsi_u32_t gain_3e06 = 0, gain_3e07 = 0, gain_3e09 = 0;
             sc3336_CalcGain(pAgain, &gain_3e06, &gain_3e07, &gain_3e09);
@@ -1038,6 +1491,20 @@ static const bk_camera_sensor_format_t sc3336_format_array[] = {
     },
 
     {
+        .width = 2304,
+        .height = 1296,
+        .fps = 10,
+        .output_pixel_fmt = BK_PIXEL_FORMAT_BGGR10,
+    },
+
+    {
+        .width = 2304,
+        .height = 1296,
+        .fps = 15,
+        .output_pixel_fmt = BK_PIXEL_FORMAT_BGGR10,
+    },
+
+    {
         .width = 1920,
         .height = 1080,
         .fps = 25,
@@ -1097,8 +1564,8 @@ static avdk_err_t sc3336_set_fps(bk_camera_sensor_ctlr_t *controller, uint16_t f
     bk_camera_bus_t *bus = csi_sensor->config.bus;
 
     if (pSc3336Dev->width == 2304 && pSc3336Dev->height == 1296) {
-        uint32_t pclk = 2500 * 1980 * 20;
-        uint16_t vts = pclk / 2500 / fps;
+        uint32_t pclk = SC3336_PCLK;
+        uint16_t vts = pclk / SC3336_HTS / fps;
         bus->write16(bus, sc3336_REG_VTS_L, (vts & 0xff));
         bus->write16(bus, sc3336_REG_VTS_H, (vts >> 8));
     } else if (pSc3336Dev->width == 1920 && pSc3336Dev->height == 1080) {
