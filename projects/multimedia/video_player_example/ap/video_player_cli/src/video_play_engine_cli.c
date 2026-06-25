@@ -99,16 +99,15 @@ static bool video_play_engine_parse_h264_decoder_mode(int argc,
         return true;
     }
 
-    if (argc > 4)
-    {
-        LOGE("%s: too many start arguments, usage: start <file_path> [frame|gpu|flexa]\n", __func__);
-        return false;
-    }
-
     if (os_strcmp(argv[3], "frame") == 0)
     {
+#if CONFIG_BK_VIDEO_PLAYER_ENABLE_HW_H264_VIDEO_DECODER
         *mode = VIDEO_PLAY_ENGINE_H264_DECODER_FRAME;
         return true;
+#else
+        LOGE("%s: 'frame' requires CONFIG_BK_VIDEO_PLAYER_ENABLE_HW_H264_VIDEO_DECODER\n", __func__);
+        return false;
+#endif
     }
 
     if (os_strcmp(argv[3], "gpu") == 0 || os_strcmp(argv[3], "flexa") == 0)
@@ -117,8 +116,53 @@ static bool video_play_engine_parse_h264_decoder_mode(int argc,
         return true;
     }
 
-    LOGE("%s: unsupported decoder mode '%s', usage: start <file_path> [frame|gpu|flexa]\n",
+    LOGE("%s: unsupported decoder mode '%s', usage: start <file_path> [frame|gpu|flexa] [norotate|rotate90|rotate270]\n",
          __func__, argv[3]);
+    return false;
+}
+
+static bool video_play_engine_parse_rotate_mode(int argc,
+                                                char **argv,
+                                                video_play_rotate_mode_t *rotate_mode)
+{
+    if (rotate_mode == NULL)
+    {
+        return false;
+    }
+
+    *rotate_mode = VIDEO_PLAY_ROTATE_NONE;
+    if (argc < 5)
+    {
+        return true;
+    }
+
+    if (argc > 5)
+    {
+        LOGE("%s: too many start options, usage: start <file_path> [frame|gpu|flexa] [norotate|rotate90|rotate270]\n",
+             __func__);
+        return false;
+    }
+
+    if (os_strcmp(argv[4], "rotate90") == 0 || os_strcmp(argv[4], "rot90") == 0 || os_strcmp(argv[4], "r90") == 0)
+    {
+        *rotate_mode = VIDEO_PLAY_ROTATE_90;
+        return true;
+    }
+
+    if (os_strcmp(argv[4], "rotate270") == 0 || os_strcmp(argv[4], "rot270") == 0 || os_strcmp(argv[4], "r270") == 0)
+    {
+        *rotate_mode = VIDEO_PLAY_ROTATE_270;
+        return true;
+    }
+
+    if (os_strcmp(argv[4], "rotate0") == 0 || os_strcmp(argv[4], "norotate") == 0)
+    {
+        *rotate_mode = VIDEO_PLAY_ROTATE_NONE;
+        return true;
+    }
+
+    LOGE("%s: unsupported rotate option '%s', usage: start <file_path> [frame|gpu|flexa] [norotate|rotate90|rotate270]\n",
+         __func__, argv[4]);
     return false;
 }
 
@@ -551,7 +595,7 @@ void video_play_engine_runtime_shutdown(void)
 }
 
 // CLI command:
-// video_play_engine start <file_path> [frame|gpu|flexa] / stop / pause / resume / seek [time_ms] / ff [time_ms] / rewind [time_ms] /
+// video_play_engine start <file_path> [frame|gpu|flexa] [norotate|rotate90|rotate270] / stop / pause / resume / seek [time_ms] / ff [time_ms] / rewind [time_ms] /
 // volume [0-100] / vol_up [step] / vol_down [step] / mute [on|off] / avsync [offset_ms] / status / info
 void cli_video_play_engine_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
@@ -569,6 +613,7 @@ void cli_video_play_engine_cmd(char *pcWriteBuffer, int xWriteBufferLen, int arg
     {
         const char *file_path = (argc >= 3) ? argv[2] : NULL;
         video_play_engine_h264_decoder_mode_t requested_h264_decoder_mode = VIDEO_PLAY_ENGINE_H264_DECODER_FLEXA_GPU;
+        video_play_rotate_mode_t requested_rotate_mode = VIDEO_PLAY_ROTATE_NONE;
 
         if (file_path == NULL)
         {
@@ -576,28 +621,29 @@ void cli_video_play_engine_cmd(char *pcWriteBuffer, int xWriteBufferLen, int arg
             goto exit;
         }
 
-#if CONFIG_BK_VIDEO_PLAYER_ENABLE_HW_H264_VIDEO_DECODER
         if (!video_play_engine_parse_h264_decoder_mode(argc, argv, &requested_h264_decoder_mode))
         {
             goto exit;
         }
-#else
-        if (argc >= 4)
+
+        if (!video_play_engine_parse_rotate_mode(argc, argv, &requested_rotate_mode))
         {
-            LOGE("%s: H264 decoder mode argument requires CONFIG_BK_VIDEO_PLAYER_ENABLE_HW_H264_VIDEO_DECODER\n",
-                 __func__);
             goto exit;
         }
-#endif
+        video_play_rotate_mode_t previous_rotate_mode = video_play_video_get_rotate_mode();
+        video_play_video_set_rotate_mode(requested_rotate_mode);
 
         if (s_video_player_core_handle != NULL &&
             s_video_player_core_opened &&
-            requested_h264_decoder_mode != s_h264_decoder_mode)
+            (requested_h264_decoder_mode != s_h264_decoder_mode ||
+             requested_rotate_mode != previous_rotate_mode))
         {
-            LOGI("%s: switching H264 decoder mode %s -> %s, recreating engine\n",
+            LOGI("%s: switching H264 decoder mode/rotation, decoder=%s -> %s, rotate=%u -> %u, recreating engine\n",
                  __func__,
                  video_play_engine_h264_decoder_mode_name(s_h264_decoder_mode),
-                 video_play_engine_h264_decoder_mode_name(requested_h264_decoder_mode));
+                 video_play_engine_h264_decoder_mode_name(requested_h264_decoder_mode),
+                 (unsigned)previous_rotate_mode,
+                 (unsigned)requested_rotate_mode);
             video_play_engine_destroy_runtime(true);
         }
 
@@ -670,6 +716,7 @@ void cli_video_play_engine_cmd(char *pcWriteBuffer, int xWriteBufferLen, int arg
          * Flexa GPU mode ignores this requested format and emits compressed
          * ARGB8888 for the board-default DPU DEC400 path. */
         cfg.video.output_format = PIXEL_FMT_NV12;
+        cfg.video.rotate_degree = video_play_video_get_rotate_degree();
         s_play_user_ctx.lcd_handle = s_lcd_display_handle;
         // Audio output may be opened later after probing media info.
         s_play_user_ctx.audio_player_handle = NULL;
@@ -739,7 +786,6 @@ void cli_video_play_engine_cmd(char *pcWriteBuffer, int xWriteBufferLen, int arg
             s_video_player_core_opened = false;
             goto exit;
         }
-
         // Some containers/codecs (e.g. AAC in AVI) may not provide bits_per_sample in header.
         // For audio output, we only require channel count and sample rate. Bits will fallback to 16-bit PCM.
         bool has_audio = (start_media_info.audio.channels > 0 &&

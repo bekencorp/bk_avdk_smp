@@ -21,7 +21,7 @@
 #define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
 
-#define VIDEO_PACKET_BUFFER_SAFETY_PAD_BYTES   (128U)
+#define VIDEO_PACKET_BUFFER_SAFETY_PAD_BYTES   (2048U)
 #define VIDEO_FRAME_BUFFER_SAFETY_PAD_BYTES    (128U)
 
 /* mem_slab debug guards require user_size 64 B-aligned (see bk_mem_slab.c). */
@@ -29,9 +29,11 @@
 
 static video_play_lcd_video_fmt_t s_runtime_lcd_fmt = VIDEO_PLAY_LCD_VIDEO_FMT_NV12_RAW;
 static bool s_runtime_lcd_fmt_valid = false;
+static video_play_rotate_mode_t s_video_rotate_mode = VIDEO_PLAY_ROTATE_NONE;
 
 static void video_play_lcd_sync_format_for_output_frame(bk_display_ctlr_handle_t handle,
-                                                        uint32_t decoder_pixel_fmt)
+                                                        uint32_t decoder_pixel_fmt,
+                                                        bool rotated_rgb565)
 {
     if (handle == NULL)
     {
@@ -39,10 +41,18 @@ static void video_play_lcd_sync_format_for_output_frame(bk_display_ctlr_handle_t
     }
 
     video_play_lcd_video_fmt_t need = VIDEO_PLAY_LCD_VIDEO_FMT_NV12_RAW;
+    if (rotated_rgb565)
+    {
+        need = VIDEO_PLAY_LCD_VIDEO_FMT_RGB565_RAW;
+    }
 #if CONFIG_BK_VIDEO_PLAYER_ENABLE_HW_H264_VIDEO_DECODER
-    if (decoder_pixel_fmt == PIXEL_FMT_ARGB8888)
+    else if (decoder_pixel_fmt == PIXEL_FMT_ARGB8888)
     {
         need = VIDEO_PLAY_LCD_VIDEO_FMT_ARGB8888_COMPRESSED;
+    }
+    else if (decoder_pixel_fmt == PIXEL_FMT_RGB565)
+    {
+        need = VIDEO_PLAY_LCD_VIDEO_FMT_RGB565_RAW;
     }
 #else
     (void)decoder_pixel_fmt;
@@ -69,6 +79,41 @@ void video_play_lcd_runtime_format_mark(video_play_lcd_video_fmt_t fmt)
 {
     s_runtime_lcd_fmt = fmt;
     s_runtime_lcd_fmt_valid = true;
+}
+
+void video_play_video_set_rotate_mode(video_play_rotate_mode_t mode)
+{
+    s_video_rotate_mode = mode;
+    video_play_lcd_runtime_format_reset();
+}
+
+video_play_rotate_mode_t video_play_video_get_rotate_mode(void)
+{
+    return s_video_rotate_mode;
+}
+
+static uint32_t video_play_rotate_mode_to_degree(video_play_rotate_mode_t mode)
+{
+    if (mode == VIDEO_PLAY_ROTATE_90)
+    {
+        return 90U;
+    }
+    if (mode == VIDEO_PLAY_ROTATE_270)
+    {
+        return 270U;
+    }
+    return 0U;
+}
+
+uint32_t video_play_video_get_rotate_degree(void)
+{
+    return video_play_rotate_mode_to_degree(s_video_rotate_mode);
+}
+
+static video_play_rotate_mode_t video_play_video_effective_rotate_mode(const video_player_video_frame_meta_t *meta)
+{
+    (void)meta;
+    return s_video_rotate_mode;
 }
 
 static inline uint32_t video_play_slab_alloc_size(uint32_t payload_plus_pad)
@@ -147,6 +192,112 @@ static void video_play_free_output_pixel(uint32_t decoder_pixel_fmt, void *pixel
     bk_frame_buffer_free(pixel);
 }
 
+static inline uint8_t video_play_clip_u8(int value)
+{
+    if (value < 0)
+    {
+        return 0U;
+    }
+    if (value > 255)
+    {
+        return 255U;
+    }
+
+    return (uint8_t)value;
+}
+
+static inline uint16_t video_play_yuv_to_rgb565(uint8_t y, uint8_t u, uint8_t v)
+{
+    int c = (int)y - 16;
+    int d = (int)u - 128;
+    int e = (int)v - 128;
+
+    if (c < 0)
+    {
+        c = 0;
+    }
+
+    uint8_t r = video_play_clip_u8((298 * c + 409 * e + 128) >> 8);
+    uint8_t g = video_play_clip_u8((298 * c - 100 * d - 208 * e + 128) >> 8);
+    uint8_t b = video_play_clip_u8((298 * c + 516 * d + 128) >> 8);
+
+    return (uint16_t)((((uint16_t)r & 0xF8U) << 8) |
+                      (((uint16_t)g & 0xFCU) << 3) |
+                      (((uint16_t)b) >> 3));
+}
+
+static avdk_err_t video_play_nv12_rotate_to_rgb565(const video_player_video_frame_meta_t *meta,
+                                                   const uint8_t *src,
+                                                   video_play_rotate_mode_t rotate,
+                                                   void **out_pixel)
+{
+    if (meta == NULL || src == NULL || out_pixel == NULL)
+    {
+        return AVDK_ERR_INVAL;
+    }
+
+    if (rotate != VIDEO_PLAY_ROTATE_90 && rotate != VIDEO_PLAY_ROTATE_270)
+    {
+        return AVDK_ERR_UNSUPPORTED;
+    }
+
+    const uint32_t src_w = meta->video.width;
+    const uint32_t src_h = meta->video.height;
+    if (src_w == 0U || src_h == 0U || ((src_w | src_h) & 1U) != 0U)
+    {
+        LOGW("%s: invalid NV12 size %ux%u\n", __func__, (unsigned)src_w, (unsigned)src_h);
+        return AVDK_ERR_INVAL;
+    }
+
+    const uint32_t src_stride = (src_w + 15U) & ~15U;
+    const uint32_t src_aligned_h = (src_h + 15U) & ~15U;
+    const uint8_t *src_y = src;
+    const uint8_t *src_uv = src + (src_stride * src_aligned_h);
+    const uint32_t dst_w = src_h;
+    const uint32_t dst_h = src_w;
+    const uint32_t dst_size = dst_w * dst_h * 2U;
+
+    uint16_t *dst = (uint16_t *)bk_frame_buffer_malloc(MEM_SLAB_HEAP_UNCODED,
+                                                       video_play_slab_alloc_size(dst_size + VIDEO_FRAME_BUFFER_SAFETY_PAD_BYTES));
+    if (dst == NULL)
+    {
+        LOGE("%s: allocate rotated RGB565 frame failed, size=%u\n", __func__, (unsigned)dst_size);
+        return AVDK_ERR_NOMEM;
+    }
+
+    for (uint32_t y = 0; y < src_h; y++)
+    {
+        const uint8_t *y_row = src_y + (y * src_stride);
+        const uint8_t *uv_row = src_uv + ((y >> 1) * src_stride);
+
+        for (uint32_t x = 0; x < src_w; x++)
+        {
+            const uint8_t yy = y_row[x];
+            const uint32_t uv_x = x & ~1U;
+            const uint8_t u = uv_row[uv_x];
+            const uint8_t v = uv_row[uv_x + 1U];
+            uint32_t dst_x;
+            uint32_t dst_y;
+
+            if (rotate == VIDEO_PLAY_ROTATE_90)
+            {
+                dst_x = src_h - 1U - y;
+                dst_y = x;
+            }
+            else
+            {
+                dst_x = y;
+                dst_y = src_w - 1U - x;
+            }
+
+            dst[(dst_y * dst_w) + dst_x] = video_play_yuv_to_rgb565(yy, u, v);
+        }
+    }
+
+    *out_pixel = dst;
+    return AVDK_ERR_OK;
+}
+
 #if CONFIG_BK_VIDEO_PLAYER_ENABLE_HW_H264_VIDEO_DECODER
  /* LCD-flush completion callback for HW H.264 GPU output frames. The frame
   * may live in HSRAM (zero-copy fast path) or in PSRAM (fallback), so we
@@ -219,6 +370,20 @@ static void video_play_free_output_pixel(uint32_t decoder_pixel_fmt, void *pixel
      rtos_exit_critical(irq_flags);
  }
  #endif /* VIDEO_PLAY_DUMP_FRAME_ENABLE */
+
+static uint32_t video_play_agent_sample32(const void *frame, uint32_t size, uint32_t offset)
+{
+    if (frame == NULL || size < sizeof(uint32_t))
+    {
+        return 0U;
+    }
+    if (offset > (size - sizeof(uint32_t)))
+    {
+        offset = size - sizeof(uint32_t);
+    }
+    offset &= ~3U;
+    return *((volatile const uint32_t *)((const uint8_t *)frame + offset));
+}
  
 avdk_err_t video_play_video_buffer_alloc_cb(void *user_data, video_player_buffer_t *buffer)
 {
@@ -311,7 +476,11 @@ void video_play_video_buffer_free_yuv_cb(void *user_data, video_player_buffer_t 
 
     if (buffer->data != NULL)
     {
+#if CONFIG_BK_VIDEO_PLAYER_ENABLE_HW_H264_VIDEO_DECODER
+        (void)bk_video_player_hw_h264_decoder_free_output_frame(buffer->data);
+#else
         bk_frame_buffer_free(buffer->data);
+#endif
     }
 
     buffer->data         = NULL;
@@ -332,6 +501,12 @@ void video_play_video_decode_complete_cb(void *user_data, const video_player_vid
     void *pixel        = buffer->data;
     uint32_t pixel_len = buffer->length;
     const uint32_t decoder_pixel_fmt = (meta != NULL) ? (uint32_t)meta->output_format : 0U;
+    const video_play_rotate_mode_t rotate_mode = video_play_video_effective_rotate_mode(meta);
+    const bool h264_output_frame = (meta != NULL &&
+                                    meta->video.format == VIDEO_PLAYER_VIDEO_FORMAT_H264 &&
+                                    (decoder_pixel_fmt == PIXEL_FMT_ARGB8888 ||
+                                     decoder_pixel_fmt == PIXEL_FMT_RGB565));
+    bool rotated_rgb565 = false;
 
 #if VIDEO_PLAY_DUMP_FRAME_ENABLE
     
@@ -361,20 +536,54 @@ void video_play_video_decode_complete_cb(void *user_data, const video_player_vid
         return;
     }
 
-    video_play_lcd_sync_format_for_output_frame(ctx->lcd_handle, decoder_pixel_fmt);
+    if (rotate_mode != VIDEO_PLAY_ROTATE_NONE &&
+        decoder_pixel_fmt == PIXEL_FMT_NV12 &&
+        meta != NULL &&
+        meta->video.format == VIDEO_PLAYER_VIDEO_FORMAT_MJPEG)
+    {
+        void *rotated_pixel = NULL;
+        avdk_err_t rotate_ret = video_play_nv12_rotate_to_rgb565(meta,
+                                                                 (const uint8_t *)pixel,
+                                                                 rotate_mode,
+                                                                 &rotated_pixel);
+        if (rotate_ret == AVDK_ERR_OK && rotated_pixel != NULL)
+        {
+            video_play_free_output_pixel(decoder_pixel_fmt, pixel);
+            pixel = rotated_pixel;
+            rotated_rgb565 = true;
+        }
+        else
+        {
+            LOGW("%s: rotate to RGB565 failed, ret=%d; display original frame\n", __func__, rotate_ret);
+        }
+    }
+
+    video_play_lcd_sync_format_for_output_frame(ctx->lcd_handle, decoder_pixel_fmt, rotated_rgb565);
 
     avdk_err_t (*free_cb)(void *) = display_frame_free_cb;
 #if CONFIG_BK_VIDEO_PLAYER_ENABLE_HW_H264_VIDEO_DECODER
-    if (decoder_pixel_fmt == PIXEL_FMT_ARGB8888)
+    if (h264_output_frame)
     {
         free_cb = display_h264_output_frame_free_cb;
     }
 #endif
+
+    
+
     avdk_err_t ret = bk_display_flush(ctx->lcd_handle, pixel, free_cb);
     if (ret != AVDK_ERR_OK)
     {
         LOGW("%s: bk_display_flush failed, ret=%d\n", __func__, ret);
-        (void)free_cb(pixel);
+#if CONFIG_BK_VIDEO_PLAYER_ENABLE_HW_H264_VIDEO_DECODER
+        if (h264_output_frame)
+        {
+            (void)bk_video_player_hw_h264_decoder_free_output_frame(pixel);
+        }
+        else
+#endif
+        {
+            (void)free_cb(pixel);
+        }
     }
 }
 

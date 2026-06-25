@@ -15,7 +15,6 @@ void cli_voice_service_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, c
 void cli_voice_loopback_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv);
 void cli_dvp_display_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv);
 void cli_sd_card_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv);
-void cli_video_record_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv);
 
 // CLI initialization function
 int cli_video_player_init(void);

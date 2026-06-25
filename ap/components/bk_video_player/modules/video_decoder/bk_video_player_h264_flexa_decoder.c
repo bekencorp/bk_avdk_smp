@@ -151,8 +151,7 @@
  /* Counting semaphore depth. With H264_DECODER_GPU_FLEXA_BUFF_CNT==3 the GPU
   * can have up to 3 frames ready before the decode thread consumes them, so
   * size the semaphore accordingly. */
- #define H264_DECODER_FRAME_SEM_DEPTH        H264_DECODER_GPU_FLEXA_BUFF_CNT
- 
+#define H264_DECODER_FRAME_SEM_DEPTH        H264_DECODER_GPU_FLEXA_BUFF_CNT
  
  static bool h264_decoder_ptr_is_hsram(const void *ptr)
  {
@@ -186,8 +185,7 @@
  
      return AVDK_ERR_OK;
  }
- 
- 
+
  // ---------------------------------------------------------------------------
  // Per-instance context
  // ---------------------------------------------------------------------------
@@ -200,8 +198,9 @@
      uint16_t mb_w;       /* MB-aligned src width  (16 px aligned) */
      uint16_t mb_h;       /* MB-aligned src height (16 px aligned) */
      uint16_t out_w;      /* Post-rotation visible width  (reported to engine) */
-     uint16_t out_h;      /* Post-rotation visible height (reported to engine) */
-     bool     scale_enable;
+    uint16_t out_h;      /* Post-rotation visible height (reported to engine) */
+    uint16_t rotate_degree;
+    bool     scale_enable;
  
      /* HW handles */
      bk_h264_decode_ctlr_handle_t h264_handle;
@@ -243,7 +242,7 @@
      hw_h264_decoder_ctx_t            ctx;
  } hw_h264_decoder_instance_t;
  
- static video_player_video_decoder_ops_t s_ops_template;
+static video_player_video_decoder_ops_t s_ops_template;
  
  static avdk_err_t hw_h264_decoder_deinit(struct video_player_video_decoder_ops_s *ops);
  
@@ -777,6 +776,11 @@ static void hw_h264_decoder_resolve_dims(hw_h264_decoder_ctx_t *ctx,
 
     ctx->out_w = width;
     ctx->out_h = height;
+    if (ctx->rotate_degree == 90U || ctx->rotate_degree == 270U)
+    {
+        ctx->out_w = height;
+        ctx->out_h = width;
+    }
     ctx->scale_enable = false;
 }
 
@@ -813,7 +817,7 @@ static avdk_err_t hw_h264_decoder_setup_pipeline(hw_h264_decoder_ctx_t *ctx)
 
     bk_gpu_ctlr_config_t gpu_cfg;
     os_memset(&gpu_cfg, 0, sizeof(gpu_cfg));
-    gpu_cfg.rotate_degree     = 0U;
+    gpu_cfg.rotate_degree     = ctx->rotate_degree;
     gpu_cfg.src_width         = ctx->mb_w;
     gpu_cfg.src_height        = ctx->mb_h;
     gpu_cfg.dst_width         = dst_w;
@@ -1052,6 +1056,14 @@ static avdk_err_t hw_h264_decoder_init(struct video_player_video_decoder_ops_s *
     ctx->pending_head      = 0;
     ctx->pending_tail      = 0;
     ctx->pending_dropped_count = 0;
+    if (params->rotate_degree == 90U || params->rotate_degree == 270U)
+    {
+        ctx->rotate_degree = (uint16_t)params->rotate_degree;
+    }
+    else
+    {
+        ctx->rotate_degree = 0U;
+    }
     os_memset(ctx->pending_frames, 0, sizeof(ctx->pending_frames));
     os_memset(ctx->pending_sizes,  0, sizeof(ctx->pending_sizes));
 

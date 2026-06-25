@@ -3,15 +3,9 @@
 // Ensure struct cli_command is visible for command table definition, even when include paths vary.
 #include <bk_private/bk_cli.h>
 #include "video_player_cli.h"
-#include "video_recorder_cli.h"
-#include "module_test_cli.h"
-#include "video_player_common.h"
 
-// This file now only contains CLI command registration
-// All command handlers have been moved to:
-// - video_record_cli.c: video recording functionality
-// - module_test_cli.c: module testing functionality (LCD, DVP, voice, SD card)
-// - video_player_common.c: shared helper functions
+// This file only registers video playback CLI commands.
+// Recording commands are registered by video_recorder_cli.c from the app entry.
 
 // CLI commands registration
 #define CMDS_COUNT  (sizeof(s_video_player_commands) / sizeof(struct cli_command))

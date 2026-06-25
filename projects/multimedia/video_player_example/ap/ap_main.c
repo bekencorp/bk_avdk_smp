@@ -16,6 +16,7 @@
 #include <lcd/lcd_mipi_hx8399c_1080x1920.h>
 
 #include "video_player_cli.h"
+#include "video_recorder_cli.h"
 
 #include "video_player_common.h"
 
@@ -177,6 +178,7 @@ int main(void)
     devices_mgmt_init();
 
     cli_video_player_init();
+    cli_video_recorder_init();
 
     return 0;
 }

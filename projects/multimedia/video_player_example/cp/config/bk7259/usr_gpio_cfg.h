@@ -21,10 +21,14 @@ extern "C" {
 
 
 /* CP-side GPIO configuration is used ONLY for declaring GPIO pins that
- * require interrupts, and for configuring the UART0 pins. All other GPIO
- * pinmux/pull/level/etc. settings should be configured on the AP side. */
+ * require interrupts, for configuring the UART0 pins, and for GPIO pins
+ * driven by CP PM external-LDO vote (bk_pm_module_vote_ctrl_external_ldo).
+ * All other GPIO pinmux/pull/level/etc. settings should be configured on
+ * the AP side. */
 #define GPIO_DEFAULT_DEV_CONFIG  \
 {\
 	{GPIO_10, GPIO_SECOND_FUNC_ENABLE,  GPIO_DEV_UART0_RXD, GPIO_DEV_INVALID,   GPIO_PULL_UP_EN,   GPIO_INT_DISABLE, GPIO_INT_TYPE_LOW_LEVEL,    GPIO_LOW_POWER_DISCARD_IO_STATUS, GPIO_DRIVER_CAPACITY_0, GPIO_INIT_ENABLE},\
 	{GPIO_11, GPIO_SECOND_FUNC_ENABLE,  GPIO_DEV_UART0_TXD, GPIO_DEV_INVALID,   GPIO_PULL_UP_EN,   GPIO_INT_DISABLE, GPIO_INT_TYPE_LOW_LEVEL,    GPIO_LOW_POWER_DISCARD_IO_STATUS, GPIO_DRIVER_CAPACITY_0, GPIO_INIT_ENABLE},\
+	/* GPIO_13: SD-card / ext LDO enable (PM vote on CP); must be OUTPUT */\
+	{GPIO_13, GPIO_SECOND_FUNC_ENABLE,  GPIO_DEV_GPIO_OUTPUT, GPIO_DEV_INVALID, GPIO_PULL_DISABLE, GPIO_INT_DISABLE, GPIO_INT_TYPE_LOW_LEVEL, GPIO_LOW_POWER_DISCARD_IO_STATUS, GPIO_DRIVER_CAPACITY_0, GPIO_INIT_ENABLE},\
 }

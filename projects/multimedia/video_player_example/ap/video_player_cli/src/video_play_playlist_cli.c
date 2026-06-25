@@ -614,6 +614,7 @@ void cli_video_play_playlist_cmd(char *pcWriteBuffer, int xWriteBufferLen, int a
          * ARGB8888 and needs the matching DPU runtime (see
          * video_play_playlist_prepare_lcd_for_file()). */
         cfg.video.output_format = PIXEL_FMT_NV12;
+        cfg.video.rotate_degree = video_play_video_get_rotate_degree();
         s_play_user_ctx.lcd_handle = NULL;
         // Audio output may be opened later after probing media info.
         s_play_user_ctx.audio_player_handle = NULL;

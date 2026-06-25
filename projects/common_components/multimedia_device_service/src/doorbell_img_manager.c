@@ -28,7 +28,14 @@
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
 
 #define MAX_QUE_LEN (20)//5 is too small, 10 is enough
-#define FRAME_SIZE  (1024 * 200)//500K is too large, 200K is enough
+
+#define FRAME_SIZE_DEFAULT  (1024 * 200)
+#if defined(CONFIG_BK_ENCODER_MJPEG_MAX_OUTPUT_BUFFER) && \
+    (CONFIG_BK_ENCODER_MJPEG_MAX_OUTPUT_BUFFER > FRAME_SIZE_DEFAULT)
+#define FRAME_SIZE  CONFIG_BK_ENCODER_MJPEG_MAX_OUTPUT_BUFFER
+#else
+#define FRAME_SIZE  FRAME_SIZE_DEFAULT
+#endif
 typedef struct
 {
     uint32_t param;

@@ -8,6 +8,8 @@ extern "C" {
 // Video record command handler function
 void cli_video_record_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv);
 
+int cli_video_recorder_init(void);
+
 #ifdef __cplusplus
 }
 #endif

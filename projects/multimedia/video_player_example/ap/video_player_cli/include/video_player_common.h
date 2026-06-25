@@ -25,6 +25,7 @@ extern "C" {
 typedef enum
 {
     VIDEO_PLAY_LCD_VIDEO_FMT_NV12_RAW = 0,
+    VIDEO_PLAY_LCD_VIDEO_FMT_RGB565_RAW,
     VIDEO_PLAY_LCD_VIDEO_FMT_ARGB8888_COMPRESSED,
 } video_play_lcd_video_fmt_t;
 

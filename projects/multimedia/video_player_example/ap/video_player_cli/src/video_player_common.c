@@ -1,6 +1,7 @@
 #include <common/bk_include.h>
 #include <components/avdk_utils/avdk_error.h>
 #include <components/avdk_utils/avdk_check.h>
+#include <avdk_utils.h>
 #include <components/bk_display.h>
 #include <os/str.h>
 #include <os/os.h>
@@ -12,6 +13,9 @@
 #include "bk_partition.h"
 #include "bk_posix.h"
 #include "app_display.h"
+#if CONFIG_BK_VIDEO_PLAYER_ENABLE_HW_H264_VIDEO_DECODER
+#include <components/bk_video_player/video_decoder/bk_video_player_hw_h264_decoder.h>
+#endif
 #if CONFIG_SDCARD
 #include <driver/sd_card.h>
 #endif
@@ -143,6 +147,24 @@ static avdk_err_t video_play_lcd_apply_video_format(bk_display_ctlr_handle_t han
         return AVDK_ERR_OK;
     }
 
+    if (fmt == VIDEO_PLAY_LCD_VIDEO_FMT_RGB565_RAW)
+    {
+        const bk_display_pixel_format_config_t cfg = {
+            .format = BK_PIXEL_FORMAT_RGB565,
+            .decompress = false,
+        };
+
+        avdk_err_t ret = bk_display_pixel_format_set(handle, &cfg);
+        if (ret != AVDK_ERR_OK)
+        {
+            LOGE("%s: DPU runtime switch to RGB565+decompress=false failed, ret=%d\n", __func__, ret);
+            return ret;
+        }
+
+        LOGI("%s: DPU runtime switched to RGB565 (decompress=false)\n", __func__);
+        return AVDK_ERR_OK;
+    }
+
     const bk_display_pixel_format_config_t cfg = {
         .format = BK_PIXEL_FORMAT_NV12,
         .decompress = false,
@@ -229,7 +251,7 @@ avdk_err_t video_play_lcd_open_with_format(bk_display_ctlr_handle_t *out_handle,
     /* Bring the DPU video layer in line with what the active video decoder
      * will produce. Failure is logged but not fatal so the upper layer can
      * still bring the LCD up; expect garbled frames in that case. */
-    (void)video_play_lcd_apply_video_format(handle, fmt);
+        (void)video_play_lcd_apply_video_format(handle, fmt);
 
     if (out_handle != NULL)
     {

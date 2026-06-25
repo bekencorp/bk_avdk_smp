@@ -14,26 +14,19 @@
 
 #pragma once
 
-#include <components/bk_encode/bk_h264_encode_types.h>
+#include "components/avdk_utils/avdk_error.h"
+#include "bk_video_recorder_ctlr.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-int app_h264e_turn_off(void);
-int app_h264e_turn_on(void);
-
-int app_jpege_turn_off(void);
-int app_jpege_turn_on(void);
-
-void *app_jpeg_encode_handle_get(void);
-
-bk_err_t doorbell_h264_encode_open(uint16_t width, uint16_t height);
-bk_err_t doorbell_h264_encode_close(void);
-
-bk_err_t doorbell_h264_encode_get_handle(bk_h264_encode_ctlr_handle_t *handle);
-
-void *app_h264_encode_handle_get(void);
+// AVI recording functions
+avdk_err_t avi_record_start(private_video_recorder_ctlr_t *controller, char *file_path);
+avdk_err_t avi_record_stop(private_video_recorder_ctlr_t *controller);
+avdk_err_t avi_record_close(private_video_recorder_ctlr_t *controller);
+avdk_err_t avi_write_video_frame(private_video_recorder_ctlr_t *controller, uint8_t *data, uint32_t length);
+avdk_err_t avi_write_audio_data(private_video_recorder_ctlr_t *controller, uint8_t *data, uint32_t length);
 
 #ifdef __cplusplus
 }

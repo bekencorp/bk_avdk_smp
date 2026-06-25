@@ -24,6 +24,13 @@ typedef struct video_play_user_ctx_s
     bool audio_muted;
 } video_play_user_ctx_t;
 
+typedef enum
+{
+    VIDEO_PLAY_ROTATE_NONE = 0,
+    VIDEO_PLAY_ROTATE_90,
+    VIDEO_PLAY_ROTATE_270,
+} video_play_rotate_mode_t;
+
 // ====== Buffer callbacks ======
 avdk_err_t video_play_audio_buffer_alloc_cb(void *user_data, video_player_buffer_t *buffer);
 void video_play_audio_buffer_free_cb(void *user_data, video_player_buffer_t *buffer);
@@ -40,6 +47,9 @@ void video_play_audio_decode_complete_cb(void *user_data, const video_player_aud
 
 void video_play_lcd_runtime_format_reset(void);
 void video_play_lcd_runtime_format_mark(video_play_lcd_video_fmt_t fmt);
+void video_play_video_set_rotate_mode(video_play_rotate_mode_t mode);
+video_play_rotate_mode_t video_play_video_get_rotate_mode(void);
+uint32_t video_play_video_get_rotate_degree(void);
 
 #ifdef __cplusplus
 }
