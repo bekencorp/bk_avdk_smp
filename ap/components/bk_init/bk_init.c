@@ -320,6 +320,12 @@ int bk_init(void)
 	REG_READ(SOC_PSRAM_DATA_BASE);//check psram whether valid
 #endif
 
+#if CONFIG_MAILBOX
+	bk_pm_cp1_boot_ok_response_set();
+#endif
+	/* Set AP boot success only after all AP-side late init done */
+	bk_pm_ap_boot_success_set(BK_TRUE);
+
 #if CONFIG_USB //&& CONFIG_MENTOR_USB
 	bk_usb_driver_init();
 #endif
@@ -347,12 +353,6 @@ int bk_init(void)
 #if CONFIG_ETH
 	app_eth_init();
 #endif
-
-#if CONFIG_MAILBOX
-	bk_pm_cp1_boot_ok_response_set();
-#endif
-	/* Set AP boot success only after all AP-side late init done */
-	bk_pm_ap_boot_success_set(BK_TRUE);
 
 	BK_LOGD(TAG, "First Boot: %d\r\n", bk_pm_ap_first_boot_get());
     set_ap_startup_index(AP_EXIT_BK_INIT);
