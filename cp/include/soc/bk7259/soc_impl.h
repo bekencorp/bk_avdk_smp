@@ -91,6 +91,10 @@ extern "C" {
 
 #define __IRAM_SEC __attribute__((section(".iram")))
 
+#ifndef __IRAM_PM
+#define __IRAM_PM __attribute__((section(".iram")))
+#endif
+
 /* Tier1 WiFi critical path: always resident in IRAM, never trimmed by level. */
 #ifndef __IRAM_WIFI
 #define __IRAM_WIFI __attribute__((section(".iram")))

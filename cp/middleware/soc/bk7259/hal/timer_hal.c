@@ -14,6 +14,17 @@
 
 #include <soc/soc.h>
 
+/* [EXPERIMENT] Force low-power-related delay timer code out of .iram (0x2C
+ * non-cacheable SRAM) into Flash. timer_hal_us_init/bk_delay_us is used on the
+ * wakeup path (after Flash is restored). Set to 0 to restore original. */
+#ifndef PM_EXP_ALL_TO_FLASH
+#define PM_EXP_ALL_TO_FLASH 0
+#endif
+#if PM_EXP_ALL_TO_FLASH
+#undef  __IRAM_SEC
+#define __IRAM_SEC
+#endif
+
 #define TIMER0_REG_SET(reg_id, l, h, v) REG_SET((SOC_TIMER0_REG_BASE + ((reg_id) << 2)), (l), (h), (v))
 #define TIMER0_PERIOD 0xFFFFFFFF
 
@@ -41,7 +52,7 @@ __IRAM_SEC static inline uint32_t timer_hal_diff(uint32_t begin, uint32_t end)
 	}
 }
 
-__attribute__((section(".iram")))  void timer_hal_us_init(uint32_t us)
+__IRAM_SEC void timer_hal_us_init(uint32_t us)
 {
 	TIMER0_REG_SET(2, 0, 0, 1);
 	REG_WRITE((SOC_TIMER0_REG_BASE + (4 << 2)), TIMER0_PERIOD);
@@ -81,5 +92,45 @@ __IRAM_SEC void timer_hal_delay_us(uint32_t us)
 	do {
 		end = timer_hal_get_timer0_cnt();
 		diff = timer_hal_diff(begin, end);
+	} while (diff < delay_cycle);
+}
+
+static inline uint32_t timer_hal_get_timer0_cnt_noint(void)
+{
+	TIMER0_REG_SET(8, 2, 3, 0);
+	TIMER0_REG_SET(8, 0, 0, 1);
+	while (REG_READ((SOC_TIMER0_REG_BASE + (8 << 2))) & BIT(0));
+
+	return REG_READ(SOC_TIMER0_REG_BASE + (9 << 2));
+}
+
+static inline uint32_t timer_hal_diff_noint(uint32_t begin, uint32_t end)
+{
+	if (end > begin) {
+		return end - begin;
+	} else {
+		return (TIMER0_PERIOD - begin + end);
+	}
+}
+
+void timer_hal_early_delay_us(uint32_t us)
+{
+	uint32_t delay_cycle = TIMER_CLOCK_FREQ_XTAL / 1000 * us;
+
+	if ((REG_READ(SOC_TIMER0_REG_BASE + (7 << 2)) & BIT(0)) == 0) {
+		TIMER0_REG_SET(2, 0, 0, 1);
+		REG_WRITE((SOC_TIMER0_REG_BASE + (4 << 2)), TIMER0_PERIOD);
+		TIMER0_REG_SET(7, 0, 0, 1);
+		SYS_REG_SET(0xc, 0, 0, 1);
+		SYS_REG_SET(0x9, 28, 28, 1);
+	}
+
+	uint32_t begin = timer_hal_get_timer0_cnt_noint();
+	uint32_t end;
+	uint32_t diff;
+
+	do {
+		end = timer_hal_get_timer0_cnt_noint();
+		diff = timer_hal_diff_noint(begin, end);
 	} while (diff < delay_cycle);
 }

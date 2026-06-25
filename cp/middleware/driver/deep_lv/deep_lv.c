@@ -79,6 +79,17 @@
 #define portSVC_DEEP_LV_ENTER  (0x0F)
 #endif
 
+/* [EXPERIMENT] Force all low-power code out of .iram (0x2C non-cacheable SRAM)
+ * into Flash, to verify whether the wakeup/clock-switch crash is related to
+ * fetching from the 0x2C000000 SRAM alias. Set to 0 to restore original. */
+#ifndef PM_EXP_ALL_TO_FLASH
+#define PM_EXP_ALL_TO_FLASH 0
+#endif
+#if PM_EXP_ALL_TO_FLASH
+#undef  __IRAM_PM
+#define __IRAM_PM
+#endif
+
 #define portNVIC_SHPR3_REG                    ( *( ( volatile uint32_t * ) 0xe000ed20 ) )
 
 static __used DLV_SEC dlv_context_t s_dlv_context = {0};
@@ -91,12 +102,12 @@ uint32_t dlv_is_startup(void)
 	return aon_pmu_hal_get_dlv_startup();
 }
 
-__IRAM_SEC uint32_t dlv_is_startup_iram(void)
+__IRAM_PM uint32_t dlv_is_startup_iram(void)
 {
 	return aon_pmu_hal_get_dlv_startup_iram();
 }
 
-__IRAM_SEC void dlv_startup(void)
+__IRAM_PM void dlv_startup(void)
 {
 	uint32_t dlv_startup = aon_pmu_hal_get_dlv_startup_iram();
 	if (dlv_startup) {
@@ -105,7 +116,7 @@ __IRAM_SEC void dlv_startup(void)
 	dlv_context_restore();
 }
 
-__IRAM_SEC void dlv_trigger_backup_context(void)
+__IRAM_PM void dlv_trigger_backup_context(void)
 {
 	__asm volatile
 	(
@@ -129,7 +140,7 @@ __IRAM_SEC void dlv_trigger_backup_context(void)
 }
 
 /*************************************************************/
-__IRAM_SEC DLV_STATIC void dlv_scb_save(dlv_context_t *dlv)
+__IRAM_PM DLV_STATIC void dlv_scb_save(dlv_context_t *dlv)
 {
 	dlv_scb_t *scb_info = &(dlv->sys_ctrl);
 
@@ -146,7 +157,7 @@ __IRAM_SEC DLV_STATIC void dlv_scb_save(dlv_context_t *dlv)
 	scb_info->shpr3_val = portNVIC_SHPR3_REG;
 }
 
-__IRAM_SEC DLV_STATIC void dlv_nvic_save(dlv_context_t *dlv)
+__IRAM_PM DLV_STATIC void dlv_nvic_save(dlv_context_t *dlv)
 {
 	dlv_nvic_t *nvic_info = &(dlv->nvic);
 	nvic_info->iser_val[0] = NVIC->ISER[0];
@@ -159,7 +170,7 @@ __IRAM_SEC DLV_STATIC void dlv_nvic_save(dlv_context_t *dlv)
 	}
 }
 
-__IRAM_SEC DLV_STATIC void dlv_systick_save(dlv_context_t *dlv)
+__IRAM_PM DLV_STATIC void dlv_systick_save(dlv_context_t *dlv)
 {
 	dlv_systick_t *systick_info = &(dlv->systick);
 
@@ -169,7 +180,7 @@ __IRAM_SEC DLV_STATIC void dlv_systick_save(dlv_context_t *dlv)
 	systick_info->calib = SysTick->CALIB;
 }
 
-__IRAM_SEC DLV_STATIC void dlv_sau_save(dlv_context_t *dlv)
+__IRAM_PM DLV_STATIC void dlv_sau_save(dlv_context_t *dlv)
 {
 	uint32_t i;
 	dlv_sau_t *sau_info = &(dlv->sau);
@@ -187,7 +198,7 @@ __IRAM_SEC DLV_STATIC void dlv_sau_save(dlv_context_t *dlv)
 	}
 }
 
-__IRAM_SEC DLV_STATIC void dlv_mpu_save(dlv_context_t *dlv)
+__IRAM_PM DLV_STATIC void dlv_mpu_save(dlv_context_t *dlv)
 {
 	uint32_t i;
 	dlv_mpu_t *mpu_info = &(dlv->mpu);
@@ -205,7 +216,7 @@ __IRAM_SEC DLV_STATIC void dlv_mpu_save(dlv_context_t *dlv)
 	}
 }
 
-__IRAM_SEC DLV_STATIC void dlv_fpu_save(dlv_context_t *dlv)
+__IRAM_PM DLV_STATIC void dlv_fpu_save(dlv_context_t *dlv)
 {
 #if CONFIG_SUPPORT_FPU
 	dlv_fpu_t *fpu_info = &(dlv->fpu);
@@ -218,7 +229,7 @@ __IRAM_SEC DLV_STATIC void dlv_fpu_save(dlv_context_t *dlv)
 #endif
 }
 
-__IRAM_SEC DLV_STATIC void dlv_itcm_save(dlv_context_t *dlv)
+__IRAM_PM DLV_STATIC void dlv_itcm_save(dlv_context_t *dlv)
 {
 #if CONFIG_SUPPORT_ITCM
 	dlv_itcm_t *itcm_info = &(dlv->itcm);
@@ -231,7 +242,7 @@ __IRAM_SEC DLV_STATIC void dlv_itcm_save(dlv_context_t *dlv)
 #endif
 }
 
-__IRAM_SEC DLV_STATIC void dlv_dtcm_save(dlv_context_t *dlv)
+__IRAM_PM DLV_STATIC void dlv_dtcm_save(dlv_context_t *dlv)
 {
 #if CONFIG_SUPPORT_DTCM
 	dlv_dtcm_t *dtcm_info = &(dlv->dtcm);
@@ -244,7 +255,7 @@ __IRAM_SEC DLV_STATIC void dlv_dtcm_save(dlv_context_t *dlv)
 #endif
 }
 
-__IRAM_SEC DLV_STATIC void dlv_core_save(dlv_context_t *dlv)
+__IRAM_PM DLV_STATIC void dlv_core_save(dlv_context_t *dlv)
 {
 	dlv_core_t *core_info = &(dlv->core);
 
@@ -266,7 +277,7 @@ __IRAM_SEC DLV_STATIC void dlv_core_save(dlv_context_t *dlv)
 	core_info->fault_mask_ns_val = __TZ_get_FAULTMASK_NS();
 }
 
-__IRAM_SEC void mini_dlv_stack_frame_save_and_dlv(void)
+__IRAM_PM void mini_dlv_stack_frame_save_and_dlv(void)
 {
 	uint32_t *psp_addr = (uint32_t *)__get_PSP();
 	s_current_stack_frame->r0 = psp_addr[0];
@@ -287,7 +298,7 @@ __IRAM_SEC void mini_dlv_stack_frame_save_and_dlv(void)
 #endif
 }
 
-__attribute__((naked)) __IRAM_SEC void dlv_stack_frame_save_and_dlv(uint32_t exc_return)
+__attribute__((naked)) __IRAM_PM void dlv_stack_frame_save_and_dlv(uint32_t exc_return)
 {
 	__asm volatile
 	(
@@ -314,7 +325,7 @@ __attribute__((naked)) __IRAM_SEC void dlv_stack_frame_save_and_dlv(uint32_t exc
 }
 
 /*************************************************************/
-__IRAM_SEC DLV_STATIC void dlv_scb_restore(dlv_context_t *dlv)
+__IRAM_PM DLV_STATIC void dlv_scb_restore(dlv_context_t *dlv)
 {
 	dlv_scb_t *scb_info = &(dlv->sys_ctrl);
 	uint32_t ccr_val = scb_info->ccr_val;
@@ -339,7 +350,7 @@ __IRAM_SEC DLV_STATIC void dlv_scb_restore(dlv_context_t *dlv)
 	}
 }
 
-__IRAM_SEC DLV_STATIC void dlv_nvic_restore(dlv_context_t *dlv)
+__IRAM_PM DLV_STATIC void dlv_nvic_restore(dlv_context_t *dlv)
 {
 	dlv_nvic_t *nvic_info = &(dlv->nvic);
 
@@ -353,7 +364,7 @@ __IRAM_SEC DLV_STATIC void dlv_nvic_restore(dlv_context_t *dlv)
 	}
 }
 
-__IRAM_SEC DLV_STATIC void dlv_systick_restore(dlv_context_t *dlv)
+__IRAM_PM DLV_STATIC void dlv_systick_restore(dlv_context_t *dlv)
 {
 	dlv_systick_t *systick_info = &(dlv->systick);
 
@@ -361,7 +372,7 @@ __IRAM_SEC DLV_STATIC void dlv_systick_restore(dlv_context_t *dlv)
 	SysTick->CTRL = systick_info->ctrl;
 }
 
-__IRAM_SEC DLV_STATIC void dlv_sau_restore(dlv_context_t *dlv)
+__IRAM_PM DLV_STATIC void dlv_sau_restore(dlv_context_t *dlv)
 {
 	#if (0 == CONFIG_SAU_RECONFIG)
 	uint32_t i;
@@ -383,7 +394,7 @@ __IRAM_SEC DLV_STATIC void dlv_sau_restore(dlv_context_t *dlv)
 	}
 }
 
-__IRAM_SEC DLV_STATIC void dlv_mpu_restore(dlv_context_t *dlv)
+__IRAM_PM DLV_STATIC void dlv_mpu_restore(dlv_context_t *dlv)
 {
 	uint32_t i;
 	dlv_mpu_t *mpu_info = &(dlv->mpu);
@@ -400,7 +411,7 @@ __IRAM_SEC DLV_STATIC void dlv_mpu_restore(dlv_context_t *dlv)
 	}
 }
 
-__IRAM_SEC DLV_STATIC void dlv_fpu_restore(dlv_context_t *dlv)
+__IRAM_PM DLV_STATIC void dlv_fpu_restore(dlv_context_t *dlv)
 {
 #if CONFIG_SUPPORT_FPU
 	dlv_fpu_t *fpu_info = &(dlv->fpu);
@@ -413,7 +424,7 @@ __IRAM_SEC DLV_STATIC void dlv_fpu_restore(dlv_context_t *dlv)
 #endif
 }
 
-__IRAM_SEC DLV_STATIC void dlv_itcm_restore(dlv_context_t *dlv)
+__IRAM_PM DLV_STATIC void dlv_itcm_restore(dlv_context_t *dlv)
 {
 #if CONFIG_SUPPORT_ITCM
 	dlv_itcm_t *itcm_info = &(dlv->itcm);
@@ -426,7 +437,7 @@ __IRAM_SEC DLV_STATIC void dlv_itcm_restore(dlv_context_t *dlv)
 #endif
 }
 
-__IRAM_SEC DLV_STATIC void dlv_dtcm_restore(dlv_context_t *dlv)
+__IRAM_PM DLV_STATIC void dlv_dtcm_restore(dlv_context_t *dlv)
 {
 #if CONFIG_SUPPORT_DTCM
 	dlv_dtcm_t *dtcm_info = &(dlv->dtcm);
@@ -439,7 +450,7 @@ __IRAM_SEC DLV_STATIC void dlv_dtcm_restore(dlv_context_t *dlv)
 #endif
 }
 
-__IRAM_SEC DLV_STATIC void dlv_core_restore(dlv_context_t *dlv)
+__IRAM_PM DLV_STATIC void dlv_core_restore(dlv_context_t *dlv)
 {
 	dlv_core_t *core_info = &(dlv->core);
 
@@ -466,7 +477,7 @@ __IRAM_SEC DLV_STATIC void dlv_core_restore(dlv_context_t *dlv)
 #endif
 }
 
-__IRAM_SEC DLV_STATIC void dlv_stack_frame_restore(void)
+__IRAM_PM DLV_STATIC void dlv_stack_frame_restore(void)
 {
 	volatile uint32_t *psp_addr = (volatile uint32_t *)s_current_stack_frame->psp;
 
@@ -502,7 +513,7 @@ __IRAM_SEC DLV_STATIC void dlv_stack_frame_restore(void)
 }
 /*************************************************************/
 
-__IRAM_SEC void dlv_context_save(void)
+__IRAM_PM void dlv_context_save(void)
 {
 	dlv_context_t *dlv = &s_dlv_context;
 
@@ -517,7 +528,7 @@ __IRAM_SEC void dlv_context_save(void)
 	dlv_core_save(dlv);
 }
 
-__IRAM_SEC DLV_STATIC void dlv_icache_flush_before_sleep(void)
+__IRAM_PM DLV_STATIC void dlv_icache_flush_before_sleep(void)
 {
 #if CONFIG_ICACHE
 	cache_instr_invd_all();
@@ -530,13 +541,13 @@ __IRAM_SEC DLV_STATIC void dlv_icache_flush_before_sleep(void)
 #endif
 }
 
-__IRAM_SEC void deep_lv_enter(void)
+__IRAM_PM void deep_lv_enter(void)
 {
 	dlv_icache_flush_before_sleep();
 	dlv_context_save();
 }
 
-__IRAM_SEC void dlv_trigger_restore_context(void)
+__IRAM_PM void dlv_trigger_restore_context(void)
 {
 	__asm volatile
 	(
@@ -557,7 +568,7 @@ __IRAM_SEC void dlv_trigger_restore_context(void)
 	);
 }
 
-__IRAM_SEC __attribute__((noinline)) void dlv_restore_post_core_prepare(void)
+__IRAM_PM __attribute__((noinline)) void dlv_restore_post_core_prepare(void)
 {
 	dlv_context_t *dlv = &s_dlv_context;
 	dlv_scb_t *scb_info = &(dlv->sys_ctrl);
@@ -571,7 +582,7 @@ __IRAM_SEC __attribute__((noinline)) void dlv_restore_post_core_prepare(void)
 	#endif
 }
 
-__IRAM_SEC __attribute__((naked, noreturn)) static void dlv_restore_post_core_finish(void)
+__IRAM_PM __attribute__((naked, noreturn)) static void dlv_restore_post_core_finish(void)
 {
 	__asm volatile
 	(
@@ -596,7 +607,7 @@ __IRAM_SEC __attribute__((naked, noreturn)) static void dlv_restore_post_core_fi
 	);
 }
 
-__IRAM_SEC void dlv_context_restore(void)
+__IRAM_PM void dlv_context_restore(void)
 {
 	dlv_context_t *dlv = &s_dlv_context;
 #if CONFIG_DEEP_LV_DEBUG
@@ -612,7 +623,7 @@ __IRAM_SEC void dlv_context_restore(void)
 	dlv_restore_post_core_finish();
 }
 
-__IRAM_SEC __attribute__((noinline)) void dlv_deep_lv_exit_prepare(void)
+__IRAM_PM __attribute__((noinline)) void dlv_deep_lv_exit_prepare(void)
 {
 	if (aon_pmu_ll_get_r7b_dlv_startup()) {
 		uint32_t dlv_startup = aon_pmu_hal_get_dlv_startup_iram();
@@ -626,7 +637,7 @@ __IRAM_SEC __attribute__((noinline)) void dlv_deep_lv_exit_prepare(void)
 	}
 }
 
-__IRAM_SEC __attribute__((naked)) void deep_lv_exit(void)
+__IRAM_PM __attribute__((naked)) void deep_lv_exit(void)
 {
 	__asm volatile
 	(
