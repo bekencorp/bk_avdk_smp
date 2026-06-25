@@ -1325,6 +1325,19 @@ static bk_err_t crosscore_ipi_init(void)
 }
 #endif
 
+void crosscore_int_reset_send(void)
+{
+	int core = rtos_get_core_id();
+	uint32_t flag = rtos_disable_int();
+
+	spin_lock(&crosscore_spin_lock);
+	crosscore_mb_cmd[core - CONFIG_CPU_ID_OFFSET] = 0;
+	crosscore_mb_busy[core - CONFIG_CPU_ID_OFFSET] = 0;
+	spin_unlock(&crosscore_spin_lock);
+
+	rtos_enable_int(flag);
+}
+
 // message send between cores
 // xCoreID: to where the message will send
 static bk_err_t crosscore_int_send(int xCoreID, uint32_t cmd)
@@ -1369,7 +1382,7 @@ static bk_err_t crosscore_int_send(int xCoreID, uint32_t cmd)
     }
     else
     {
-        ret = BK_FAIL;
+        ret = BK_ERR_IN_PROGRESS;
     }
 
 	rtos_enable_int(flag);
