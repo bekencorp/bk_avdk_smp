@@ -145,7 +145,10 @@ void _soc_start(void)
 	__DSB();
 	flush_dcache((void *)&bk_sys_sw_regs_ptr()->flash_init_done, sizeof(bk_sys_sw_regs_ptr()->flash_init_done));
 	__DSB();
-	bk_start_ap_system();
+	if (bk_start_ap_system() != BK_OK) {
+		BK_LOGE(TAG, "start ap system failed\r\n");
+		return;
+	}
 #endif
 
     entry_main();

@@ -123,7 +123,7 @@ static uint32_t addr_is_ap_dtcm(uint32_t addr)
 extern void data_copy_block_ram(uint32_t *dest, const uint32_t *src, uint32_t word_cnt);
 
 BK_OPTIMIZE_O3 __IRAM_SEC
-static void multicore_hal_m55_core_copy_code_and_data(uint32_t boot_addr, bool is_init_dtcm)
+static bk_err_t multicore_hal_m55_core_copy_code_and_data(uint32_t boot_addr, bool is_init_dtcm)
 {
 	enum {
 		COPY_TABLE_START_OFFSET = (17U * sizeof(uint32_t)),
@@ -144,7 +144,7 @@ static void multicore_hal_m55_core_copy_code_and_data(uint32_t boot_addr, bool i
 		(((copy_table_end - copy_table_start) % COPY_TABLE_ENTRY_SIZE) != 0U)) {
 		SOC_LOGE("invalid m55 copy table: start=0x%08x end=0x%08x\r\n",
 				 copy_table_start, copy_table_end);
-		return;
+		return BK_FAIL;
 	}
 
 	for (uint32_t table = copy_table_start; table < copy_table_end; table += COPY_TABLE_ENTRY_SIZE) {
@@ -186,7 +186,7 @@ static void multicore_hal_m55_core_copy_code_and_data(uint32_t boot_addr, bool i
 			(((zero_table_end - zero_table_start) % ZERO_TABLE_ENTRY_SIZE) != 0U)) {
 			SOC_LOGE("invalid m55 zero table: start=0x%08x end=0x%08x\r\n",
 					zero_table_start, zero_table_end);
-			return;
+			return BK_FAIL;
 		}
 
 		for (uint32_t table = zero_table_start; table < zero_table_end; table += ZERO_TABLE_ENTRY_SIZE) {
@@ -213,6 +213,7 @@ static void multicore_hal_m55_core_copy_code_and_data(uint32_t boot_addr, bool i
 	 */
 	__DSB();
 	__ISB();
+	return BK_OK;
 }
 
 void multicore_hal_set_cpu_id(uint32_t cpu_id)
@@ -251,7 +252,10 @@ __IRAM_SEC bk_err_t multicore_hal_start(uint32_t id)
 		sys_ahbp_ll_set_reg4_cpu0_sw_rstn(0);
 		sys_ahbp_ll_set_reg4_cpu0_offset((boot_addr) >> 8);
 		sys_ahbp_ll_set_reg4_cpu0_init_dtcm_en(1);
-		multicore_hal_m55_core_copy_code_and_data(boot_addr, false);
+		if (multicore_hal_m55_core_copy_code_and_data(boot_addr, false) != BK_OK) {
+			SOC_LOGE("m55 core image copy failed, keep cpu0 in reset\r\n");
+			return BK_FAIL;
+		}
 		sys_ahbp_ll_set_reg4_cpu0_sw_rstn(1);
 
 		// sys_ahbp_ll_set_reg4_cpu0_wait(1); // wait for AP to finish init
@@ -266,7 +270,10 @@ __IRAM_SEC bk_err_t multicore_hal_start(uint32_t id)
 		sys_ahbp_ll_set_reg5_cpu1_sw_rstn(0);
 		sys_ahbp_ll_set_reg5_cpu1_offset((boot_addr) >> 8);
 		sys_ahbp_ll_set_reg5_cpu1_init_dtcm_en(1);
-		multicore_hal_m55_core_copy_code_and_data(boot_addr, false);
+		if (multicore_hal_m55_core_copy_code_and_data(boot_addr, false) != BK_OK) {
+			SOC_LOGE("m55 core image copy failed, keep cpu1 in reset\r\n");
+			return BK_FAIL;
+		}
 		sys_ahbp_ll_set_reg5_cpu1_sw_rstn(1);
 
 		// sys_ahbp_ll_set_reg5_cpu1_wait(1); // wait for AP to finish init

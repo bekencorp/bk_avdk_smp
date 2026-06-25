@@ -233,26 +233,29 @@ int driver_early_init(void)
 	bk_ipi_driver_init();
 #endif
 
+	/* Console (+ WWDT driver only): after clock/HSPL; bk_wwdt_start() in system_main before scheduler. */
+	sys_drv_init();
+	bk_gpio_driver_init();
+	// Important notice!!!!!
+	// ATE uses UART TX PIN as the detect ATE mode pin,
+	// so it should be called after GPIO init and before UART init.
+	// or caused ATE can't work or UART can't work
+#if CONFIG_ATE
+	bk_ate_init();
+#endif
+	// Important notice!
+	// Before UART is initialized, any call of BK_LOG_RAW/os_print/BK_LOGx may
+	// cause problems, such as crash etc!
+	bk_uart_driver_init();
+#if CONFIG_SUPPORT_WWDT
+	bk_wwdt_driver_init();
+#endif
+
 	return 0;
 }
 
 int driver_init(void) {
-	sys_drv_init();
-
-	bk_gpio_driver_init();
-
-	//Important notice!!!!!
-	//ATE uses UART TX PIN as the detect ATE mode pin,
-	//so it should be called after GPIO init and before UART init.
-	//or caused ATE can't work or UART can't work
-#if CONFIG_ATE
-	bk_ate_init();
-#endif
-
-	//Important notice!
-	//Before UART is initialized, any call of BK_LOG_RAW/os_print/BK_LOGx may
-	//cause problems, such as crash etc!
-	bk_uart_driver_init();
+	/* sys/gpio/ate/uart/wwdt driver init were migrated to driver_early_init(). */
 
 #if CONFIG_CHIP_SUPPORT
 	if(!bk_is_chip_supported()) {
@@ -272,10 +275,6 @@ int driver_init(void) {
 	bk_wdt_driver_init();
 #endif
 
-#if CONFIG_SUPPORT_WWDT
-	bk_wwdt_driver_init();
-#endif
-
 // #if CONFIG_AON_WDT && !CONFIG_INT_AON_WDT
 // 	bk_aon_wdt_stop();
 // #endif
@@ -288,6 +287,10 @@ int driver_init(void) {
 	mb_ipc_init();
 #endif
 	bk_ipc_init();
+#if CONFIG_SLAVE_HEART_BEAT
+	extern bk_err_t mb_ipc_heartbeat_init(void);
+	mb_ipc_heartbeat_init();
+#endif
 #endif
 
 	os_show_memory_config_info();
