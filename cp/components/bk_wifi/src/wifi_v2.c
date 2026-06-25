@@ -26,6 +26,7 @@
 #include "bk_wifi_types.h"
 #include "sa_ap.h"
 #include "wifi_v2.h"
+#include <os/os.h>
 #include <common/sys_config.h>
 //#include <components/system.h>
 #include "wifi_config.h"
@@ -1629,6 +1630,15 @@ int wlan_p2p_disable(void)
 static uint16_t s_wifi_state_bits = 0;
 bool g_wifi_enable_flag = false;
 
+/* Recursive mutex serialising AP lifecycle operations (set_config / stop / start).
+ * Plain interrupt-disable (wifi_lock) is not SMP-safe: it only masks interrupts
+ * on the calling core and cannot stop the peer core from concurrently entering
+ * the same function.  Two concurrent AT+SAPSTART commands – processed by cp0 and
+ * cp1 respectively – both reach sm_build_broadcast_deauthenticate() at the same
+ * time and race on the AC_VO TX DMA queue, causing the assertion
+ * "nxmac_tx_ac_3_state_getf() != 2" in txl_cntrl_newhead(). */
+static beken_mutex_t s_ap_op_mutex = NULL;
+
 static inline void wifi_set_state_bit(uint16_t state_bit)
 {
 	wifi_lock();
@@ -1742,6 +1752,9 @@ bk_err_t bk_wifi_init(const wifi_init_config_t *config)
 
 	bk_wifi_interrupt_init();
 
+	if (s_ap_op_mutex == NULL)
+		rtos_init_recursive_mutex(&s_ap_op_mutex);
+
 	WIFI_LOGD("wifi initing\n");
 	BK_RETURN_ON_ERR(wifi_init_validate_config(config));
 
@@ -1772,6 +1785,11 @@ bk_err_t bk_wifi_deinit(void)
 	int ret = BK_OK;
 	WIFI_LOGD("wifi deiniting\n");
 	ret = wifi_deinit();
+
+	if (s_ap_op_mutex) {
+		rtos_deinit_recursive_mutex(&s_ap_op_mutex);
+		s_ap_op_mutex = NULL;
+	}
 
 	//TODO set the init flag according to the return value!
 	wifi_clear_state_bit(WIFI_INIT_BIT);
@@ -3227,15 +3245,19 @@ static volatile bk_bridge_state_t bridge_state = BRIDGE_STATE_DISABLED;
 #endif
 bk_err_t bk_wifi_ap_start(void)
 {
+	rtos_lock_recursive_mutex(&s_ap_op_mutex);
+
 	WIFI_LOGV("ap starting\n");
 
 	if (!wifi_ap_is_configured()) {
 		WIFI_LOGV("start ap failed, ap not configured\n");
+		rtos_unlock_recursive_mutex(&s_ap_op_mutex);
 		return BK_ERR_WIFI_AP_NOT_CONFIG;
 	}
 
 	if (wifi_ap_is_started()) {
 		WIFI_LOGD("start ap, already started, ignored\n");
+		rtos_unlock_recursive_mutex(&s_ap_op_mutex);
 		return BK_OK;
 	}
 
@@ -3248,15 +3270,18 @@ bk_err_t bk_wifi_ap_start(void)
 	WIFI_LOGV("ap start, ap start rf\n");
 	if(wifi_ap_init_rw_driver()) {
 		WIFI_LOGE("ap start fail,ap init rw driver fail!\n");
+		rtos_unlock_recursive_mutex(&s_ap_op_mutex);
 		return BK_ERR_WIFI_AP_NOT_STARTED;
 	}
 	//TODO return value
 	if(wlan_ap_enable()) {
 		WIFI_LOGE("ap start fail,ap enable fail!\n");
+		rtos_unlock_recursive_mutex(&s_ap_op_mutex);
 		return BK_ERR_WIFI_AP_NOT_STARTED;
 	}
 	if(wlan_ap_reload()) {
 		WIFI_LOGE("ap start fail,ap reload fail!\n");
+		rtos_unlock_recursive_mutex(&s_ap_op_mutex);
 		return BK_ERR_WIFI_AP_NOT_STARTED;
 	}
 #if CONFIG_LWIP
@@ -3274,6 +3299,7 @@ bk_err_t bk_wifi_ap_start(void)
 
 	WIFI_LOGD("ap started\n");
 	wifi_set_state_bit(WIFI_AP_STARTED_BIT);
+	rtos_unlock_recursive_mutex(&s_ap_op_mutex);
 	return BK_OK;
 }
 
@@ -3377,6 +3403,8 @@ bk_err_t bk_wifi_ap_set_config(const wifi_ap_config_t *ap_config)
 {
 	int ret = BK_OK;
 
+	rtos_lock_recursive_mutex(&s_ap_op_mutex);
+
 	WIFI_LOGV("ap configuring\n");
 
 #if CONFIG_BRIDGE
@@ -3386,30 +3414,44 @@ bk_err_t bk_wifi_ap_set_config(const wifi_ap_config_t *ap_config)
 		os_strcpy(ip4_config.mask, WLAN_ANY_IP);
 		os_strcpy(ip4_config.gateway, WLAN_ANY_IP);
 		os_strcpy(ip4_config.dns, WLAN_ANY_IP);
+		rtos_unlock_recursive_mutex(&s_ap_op_mutex);
 		BK_RETURN_ON_ERR(bk_netif_set_ip4_config(NETIF_IF_AP, &ip4_config));
+		rtos_lock_recursive_mutex(&s_ap_op_mutex);
 	}
 #endif
 
 	if (!wifi_is_inited()) {
 		WIFI_LOGV("set ap config fail, wifi not init\n");
+		rtos_unlock_recursive_mutex(&s_ap_op_mutex);
 		return BK_ERR_WIFI_NOT_INIT;
 	}
 
 	ret = wifi_ap_validate_config(ap_config);
-	if (ret != BK_OK)
+	if (ret != BK_OK) {
+		rtos_unlock_recursive_mutex(&s_ap_op_mutex);
 		return ret;
+	}
 
 	ret = wifi_ap_set_config(ap_config);
-	if (ret != BK_OK)
+	if (ret != BK_OK) {
+		rtos_unlock_recursive_mutex(&s_ap_op_mutex);
 		return ret;
+	}
 
 	wifi_set_state_bit(WIFI_AP_CONFIGURED_BIT);
 	WIFI_LOGV("ap configured\n");
 
-	if (wifi_ap_is_started()) {
-		BK_LOG_ON_ERR(bk_wifi_ap_stop());
-		BK_LOG_ON_ERR(bk_wifi_ap_start());
-	}
+	/* Do NOT call bk_wifi_ap_stop/start here.
+	 *
+	 * In the BK7259 AP+CP split architecture, bk_wifi_ap_set_config() on
+	 * the AP side ALREADY calls bk_wifi_ap_stop() + bk_wifi_ap_start()
+	 * via explicit IPC (AP_STOP / AP_START messages) when the AP is running.
+	 *
+	 * Adding a second stop+start here makes the AP_SET_CONFIG IPC command
+	 * take ~2400 ms (600 ms stop + 1800 ms start-with-LWIP) on the CP side,
+	 * which exceeds the 2000 ms wdrv confirmation timeout and causes the
+	 * second AT+SAPSTART to return ERROR. */
+	rtos_unlock_recursive_mutex(&s_ap_op_mutex);
 	return BK_OK;
 }
 
@@ -3429,8 +3471,11 @@ bk_err_t bk_wifi_ap_get_config(wifi_ap_config_t *ap_config)
 void sm_build_broadcast_deauthenticate(void);
 bk_err_t bk_wifi_ap_stop(void)
 {
+	rtos_lock_recursive_mutex(&s_ap_op_mutex);
+
 	if (!wifi_ap_is_started()) {
 		WIFI_LOGV("ap stop: already stopped\n");
+		rtos_unlock_recursive_mutex(&s_ap_op_mutex);
 		return BK_OK;
 	}
 
@@ -3446,6 +3491,7 @@ bk_err_t bk_wifi_ap_stop(void)
 	rtos_delay_milliseconds(10);
 	if(wlan_ap_disable()) {
 		WIFI_LOGE("ap disable fail!\n");
+		rtos_unlock_recursive_mutex(&s_ap_op_mutex);
 		return BK_FAIL;
 	}
 
@@ -3462,6 +3508,7 @@ bk_err_t bk_wifi_ap_stop(void)
 
 	WIFI_LOGD("ap stopped\n");
 	wifi_clear_state_bit(WIFI_AP_STARTED_BIT);
+	rtos_unlock_recursive_mutex(&s_ap_op_mutex);
 	return BK_OK;
 }
 

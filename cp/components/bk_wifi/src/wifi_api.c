@@ -108,6 +108,7 @@ int demo_softap_app_init(char *ap_ssid, char *ap_key, char *ap_channel)
 	}
 
 	BK_LOGD(TAG, "ssid:%s  key:%s\r\n", ap_config.ssid, ap_config.password);
+	bk_wifi_ap_stop();
 	BK_RETURN_ON_ERR(bk_wifi_ap_set_config(&ap_config));
 	BK_RETURN_ON_ERR(bk_wifi_ap_start());
 	return BK_OK;
@@ -161,6 +162,7 @@ int demo_softap_hidden_init(char *ap_ssid, char *ap_key, char *ap_channel)
 
 	BK_LOGD(TAG, "ssid:%s  key:%s\r\n", ap_config.ssid, ap_config.password);
 	ap_config.hidden = true;
+	bk_wifi_ap_stop();
 	BK_RETURN_ON_ERR(bk_wifi_ap_set_config(&ap_config));
 	BK_RETURN_ON_ERR(bk_wifi_ap_start());
 	return BK_OK;

@@ -37,14 +37,15 @@ void dhcp_server_stop(void)
 	dhcp_d("DHCP server stop request\r\n");
 	if (dhcpd_running) 
 	{
-		if (dhcp_send_halt() != 0) 
-		{
-			dhcp_w("failed to send halt to DHCP thread\r\n");
+		/* Thread self-deletes after processing HALT, or after the
+		 * select timeout observes the stop request.
+		 * Never call rtos_delete_thread() here: on SMP it races with
+		 * the self-delete and causes a use-after-free in uxListRemove(). */
+		if (dhcp_send_halt() != 0) {
+			dhcp_w("failed to stop DHCP thread cleanly\r\n");
 			return;
 		}
-		
-		if (rtos_delete_thread(&dhcpd_thread) != 0)
-			dhcp_w("failed to delete thread\r\n");
+
 		dhcpd_running = 0;
 	} 
 	else 

@@ -16,9 +16,11 @@
 
 #define DEFAULT_DHCP_ADDRESS_TIMEOUT	(60U*60U*1U) /* 1 hour */
 #define CLIENT_IP_NOT_FOUND              0x00000000
+#define DHCP_SELECT_TIMEOUT_SEC          10
 
 uint32_t dhcp_address_timeout = DEFAULT_DHCP_ADDRESS_TIMEOUT;
 static beken_mutex_t dhcpd_mutex;
+static volatile bool dhcpd_stop_requested;
 static int (*dhcp_nack_dns_server_handler)(char *msg, int len,
 					   struct sockaddr_in *fromaddr);
 
@@ -584,31 +586,44 @@ void dhcp_server(void* data)
 	int max_sock;
 	socklen_t flen = sizeof(caddr);
 	fd_set rfds;
+	struct timeval timeout;
 
 	rtos_lock_mutex(&dhcpd_mutex);
 
 	while (1) {
+		if (dhcpd_stop_requested)
+			goto done;
+
 		FD_ZERO(&rfds);
 		FD_SET(dhcps.sock, &rfds);
 		max_sock = dhcps.sock;
 
 		if (dhcp_nack_dns_server_handler) {
 			FD_SET(dhcps.dnssock, &rfds);
-			max_sock = (dhcps.sock > dhcps.dnssock ?
-				    dhcps.sock : dhcps.dnssock);
+			if (dhcps.dnssock > max_sock)
+				max_sock = dhcps.dnssock;
 		}
 
 		FD_SET(dhcps.ctrlsock, &rfds);
-		max_sock = (dhcps.sock > dhcps.ctrlsock ?
-					dhcps.sock : dhcps.ctrlsock);
+		if (dhcps.ctrlsock > max_sock)
+			max_sock = dhcps.ctrlsock;
 
-		ret = lwip_select(max_sock + 1, &rfds, NULL, NULL, NULL);
+		timeout.tv_sec = DHCP_SELECT_TIMEOUT_SEC;
+		timeout.tv_usec = 0;
+
+		ret = lwip_select(max_sock + 1, &rfds, NULL, NULL, &timeout);
+
+		if (dhcpd_stop_requested)
+			goto done;
 
 		/* Error in select? */
 		if (ret < 0) {
 			dhcp_e("select failed\r\n", -1);
 			goto done;
 		}
+
+		if (ret == 0)
+			continue;
 
 		if (FD_ISSET(dhcps.sock, &rfds)) {
 			len = lwip_recvfrom(dhcps.sock, dhcps.msg,
@@ -650,7 +665,6 @@ void dhcp_server(void* data)
 	}
 
 done:
-	dhcp_clean_sockets();
 	rtos_unlock_mutex(&dhcpd_mutex);
 	rtos_delete_thread(NULL);
 }
@@ -700,6 +714,7 @@ int dhcp_server_init(void *intrfc_handle)
 	struct ifreq ifreq_name = {0};
 	struct netif *netif = net_get_uap_handle();
 
+	dhcpd_stop_requested = false;
 	memset(&dhcps, 0, sizeof(dhcps));
 	dhcps.msg = (char*)os_mem_alloc(SERVER_BUFFER_SIZE);
 	if (dhcps.msg == NULL)
@@ -809,25 +824,33 @@ int dhcp_send_halt(void)
 {
 	int ret;
 
+	dhcpd_stop_requested = true;
 	ret = send_ctrl_msg("HALT");
-	if ( ret < 0 )
-	{
-	    dhcp_w("Failed to send HALT: %d.\r\n", ret);
-		return -1;
-	}
-	
-	ret = dhcp_free_allocations();
 
-	return ret;
+	if (ret < 0) {
+		/*
+		 * HALT could not be delivered; the dhcp_server thread will not
+		 * be woken immediately. It still observes dhcpd_stop_requested
+		 * after the select timeout (up to DHCP_SELECT_TIMEOUT_SEC), so
+		 * stop is delayed but still completes.
+		 */
+		dhcp_w("Failed to send HALT (%d), waiting for select timeout\r\n", ret);
+	}
+
+	return dhcp_free_allocations();
 }
 
 int dhcp_free_allocations(void)
 {
-	/* Wait for 10 seconds */
+	/*
+	 * Block until the dhcp_server thread reaches done: and releases the
+	 * mutex. The thread is guaranteed to wake within DHCP_SELECT_TIMEOUT_SEC
+	 * (it re-checks dhcpd_stop_requested after every select), or immediately
+	 * once it receives the HALT control message.
+	 */
 	rtos_lock_mutex(&dhcpd_mutex);
 
 	dhcp_clean_sockets();
-
 	rtos_unlock_mutex(&dhcpd_mutex);
 
 	if (dhcps.msg) {
