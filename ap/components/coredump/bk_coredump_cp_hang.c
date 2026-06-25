@@ -3,6 +3,7 @@
 #include <components/log.h>
 #include <components/system.h>
 #include <driver/ipi_driver.h>
+#include <driver/aon_rtc.h>
 #include <os/mem.h>
 #include <os/os.h>
 #include <soc/soc.h>
@@ -287,6 +288,8 @@ static void cp_hang_dump_current_context(void)
 
 static void cp_hang_dump_from_ap(uint32_t now)
 {
+	uint64_t dump_time_us = bk_aon_rtc_get_us();
+
 	if (now == 0U) {
 		now = cp_hang_now();
 	}
@@ -298,6 +301,7 @@ static void cp_hang_dump_from_ap(uint32_t now)
 
 	cp_hang_set_ap_dumping(1U);
 	bk_coredump_writer_init();
+	bk_coredump_dump_time(dump_time_us);
 	bk_coredump_write_meta_info(COREDUMP_EXCEPTION_INFO, (void *)"Assert");
 	bk_coredump_write_meta_info(COREDUMP_BUILD_INFO, (void *)build_version);
 #if CONFIG_SOC_SMP

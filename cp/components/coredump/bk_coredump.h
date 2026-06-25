@@ -21,6 +21,10 @@ typedef struct
     uint32_t basepri;
     uint32_t faultmask;
     uint32_t control;
+    /* AON-RTC microsecond timestamp captured at exception entry, on the same
+     * bk_aon_rtc_get_us() time base as the interrupt recorder, so the dump can
+     * be aligned with the interrupt/task records and the exception timeline. */
+    uint64_t exception_time_us;
 } bk_exception_t;
 
 /* coredump writer api */
@@ -48,6 +52,10 @@ void bk_coredump_registers(bk_exception_t *self);
 
 void bk_coredump_write_prompt(const char *format, ...);
 void bk_coredump_write_prompt_data(uint8_t *data, uint32_t size);
+
+/* Print the AON-RTC microsecond timestamp of the dump moment, so the dump can
+ * be aligned with the interrupt recorder / task timeline (same time base). */
+void bk_coredump_dump_time(uint64_t time_us);
 
 const char *bk_coredump_get_fault_type(void);
 

@@ -9,6 +9,7 @@
 #include "os/os.h"
 #include "reg_base.h"
 #include "bk_rtos_debug.h"
+#include <driver/aon_rtc.h>
 #if CONFIG_SOC_SMP
 #include "multicore_driver.h"
 #endif
@@ -36,6 +37,11 @@ static inline void coredump_feed_watchdogs(void)
 #if CONFIG_SUPPORT_WWDT
     bk_wwdt_force_feed();
 #endif
+}
+
+void bk_coredump_dump_time(uint64_t time_us)
+{
+    BK_DUMP_OUT("@Dump-time(AON-RTC): %llu us\r\n", (unsigned long long)time_us);
 }
 
 bool bk_check_assert(void)
@@ -177,6 +183,7 @@ static void bk_exception_dump_main(bk_exception_t *self)
     bk_coredump_writer_init();
 
     bk_coredump_meta_info();
+    bk_coredump_dump_time(self->exception_time_us);
 
     bk_coredump_registers(self);
 
@@ -206,8 +213,11 @@ static void bk_exception_dump_main(bk_exception_t *self)
 
 void bk_coredump_dump_ap_memory_for_trap(void)
 {
+    uint64_t dump_time_us = bk_aon_rtc_get_us();
+
     coredump_feed_watchdogs();
     bk_coredump_writer_init();
+    bk_coredump_dump_time(dump_time_us);
     bk_coredump_write_prompt("***********************************************************************************************\r\n");
     bk_coredump_write_prompt("*************************************AP memory dump begin**************************************\r\n");
     bk_coredump_write_prompt("***********************************************************************************************\r\n");
@@ -239,6 +249,10 @@ static void bk_exception_postprocess(bk_exception_t *self)
 
 void bk_exception_handler(uint32_t reset_reason, uint32_t lr, uint32_t sp)
 {
+    /* Capture the AON-RTC time first, so it reflects the exception moment as
+     * closely as possible (before peer-core stop / wdt feed in preprocess). */
+    uint64_t exception_time_us = bk_aon_rtc_get_us();
+
     if (bk_check_assert()) {
         reset_reason = RESET_SOURCE_CRASH_ASSERT;
     }
@@ -253,6 +267,7 @@ void bk_exception_handler(uint32_t reset_reason, uint32_t lr, uint32_t sp)
         .basepri = __get_BASEPRI(),
         .faultmask = __get_FAULTMASK(),
         .control = __get_CONTROL(),
+        .exception_time_us = exception_time_us,
     };
     bk_exception_preprocess(&exception);
 #if CONFIG_DEBUG_VERSION || CONFIG_DUMP_ENABLE
