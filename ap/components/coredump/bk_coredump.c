@@ -12,6 +12,7 @@
 #include "sys_sw_regs.h"
 #include "memory.h"
 #include "cache.h"
+#include <components/log.h>
 
 #if CONFIG_SUPPORT_WWDT
 #include <driver/wwdt.h>
@@ -91,8 +92,11 @@ static void bk_exception_preprocess(bk_exception_t *self)
 
     coredump_feed_watchdogs();
     bk_misc_set_reset_reason(self->reset_reason);
-    
-    bk_set_printf_sync(true);  // set printf sync
+
+    bk_set_printf_sync(true);
+#if CONFIG_SHELL_ASYNCLOG
+    BK_LOG_FLUSH();
+#endif
 }
 
 // print fault type
