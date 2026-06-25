@@ -8,8 +8,10 @@
 #include <soc/soc.h>
 #include "bk_arch.h"
 #include "bk_coredump.h"
+#include "cache.h"
 #include "multicore_driver.h"
 #include "reg_base.h"
+#include "sys_sw_regs.h"
 
 #if CONFIG_SUPPORT_WWDT
 #include "wwdt_driver.h"
@@ -44,6 +46,18 @@ typedef struct {
 
 static cp_hang_watch_state_t s_cp_hang_state;
 extern volatile const uint8_t build_version[];
+
+static void cp_hang_set_ap_dumping(uint32_t value)
+{
+	volatile sys_sw_regs_t *sys_sw_regs = (volatile sys_sw_regs_t *)CONFIG_SWAP_ADDR;
+
+	sys_sw_regs->ap_cp_hang_dumping = (value != 0U) ? 1U : 0U;
+	__asm volatile ("dsb" ::: "memory");
+#if CONFIG_SUPPORT_CACHEABLE_SRAM
+	flush_dcache((void *)&sys_sw_regs->ap_cp_hang_dumping, sizeof(sys_sw_regs->ap_cp_hang_dumping));
+	__asm volatile ("dsb" ::: "memory");
+#endif
+}
 
 __attribute__((weak)) void bk_cp_hang_dump_by_ap_feed_aon_wdt(void)
 {
@@ -282,6 +296,7 @@ static void cp_hang_dump_from_ap(uint32_t now)
 	cp_hang_stop_other_ap_cores();
 	bk_set_printf_sync(true);
 
+	cp_hang_set_ap_dumping(1U);
 	bk_coredump_writer_init();
 	bk_coredump_write_meta_info(COREDUMP_EXCEPTION_INFO, (void *)"Assert");
 	bk_coredump_write_meta_info(COREDUMP_BUILD_INFO, (void *)build_version);
@@ -302,6 +317,7 @@ static void cp_hang_dump_from_ap(uint32_t now)
 	bk_coredump_write_prompt("***********************************************************************************************\r\n");
 	cp_hang_feed_watchdog();
 	bk_coredump_writer_deinit();
+	cp_hang_set_ap_dumping(0U);
 	cp_hang_reboot();
 }
 
@@ -339,6 +355,7 @@ bk_err_t bk_cp_hang_dump_by_ap_init(void)
 
 	os_memset((void *)&s_cp_hang_state, 0, sizeof(s_cp_hang_state));
 	s_cp_hang_state.timeout_ms = CP_HANG_TIMEOUT_FALLBACK_MS;
+	cp_hang_set_ap_dumping(0U);
 
 	ret = bk_ipi_register_domain_callback(IPI_DOMAIN_CP_HANG_DEBUG,
 		cp_hang_ipi_callback, NULL);

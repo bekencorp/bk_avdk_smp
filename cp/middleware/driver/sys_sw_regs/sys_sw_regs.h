@@ -106,7 +106,9 @@ typedef union {
         volatile ap_extra_dump_info_t ap_extra_dump[BK_SYS_SW_REGS_AP_EXTRA_DUMP_MAX]; /**< AP extra dump windows */
         volatile pm_shared_info_t pm_shared_info;
         volatile adc_key_sample_info_t adc_key_sample; /**< CP ADC key latest sample */
-        volatile uint32_t flash_init_done;  /**< CP flash init completion flag */
+        volatile uint8_t flash_init_done;  /**< CP flash init completion flag */
+        volatile uint8_t ap_cp_hang_dumping; /**< AP is dumping CP-hang context and owns UART output */
+        volatile uint8_t reserved0[2];
         volatile uint32_t hspl_owner_pc[32]; /**< HSPL owner caller PC shadow, 0 means free */
         volatile uint8_t hspl_owner_core[32]; /**< HSPL owner core shadow */
         volatile uint32_t cp_heap_size_ptr; /**< Addr of CP system heap xFreeBytesRemaining (size_t); 0 = not published */
@@ -151,6 +153,7 @@ uint32_t bk_sys_sw_regs_get_ap_reset_reason(void);
 uint32_t bk_sys_sw_regs_get_ap_heap_dump(bk_sys_sw_regs_ap_heap_id_t id, ap_heap_dump_info_t *info);
 uint32_t bk_sys_sw_regs_get_ap_extra_dump(uint32_t index, ap_extra_dump_info_t *info);
 uint32_t bk_sys_sw_regs_get_hspl_owner(uint8_t res, uint8_t *core, uint32_t *pc);
+uint32_t bk_sys_sw_regs_get_ap_cp_hang_dumping(void);
 /**
  * @brief Read PM info snapshot from shared registers.
  * @param info Output buffer for PM info.
@@ -206,6 +209,7 @@ void bk_sys_sw_regs_update_ap_extra_dump(uint32_t index, uint32_t start_addr, ui
 void bk_sys_sw_regs_set_adc_key_sample(uint16_t raw, uint16_t mv, uint8_t status, uint8_t channel, uint32_t sample_period_ms, uint32_t sample_tick);
 void bk_sys_sw_regs_set_hspl_owner(uint8_t res, uint8_t core, uint32_t pc);
 void bk_sys_sw_regs_clear_hspl_owner(uint8_t res);
+void bk_sys_sw_regs_set_ap_cp_hang_dumping(uint32_t value);
 /**
  * @brief Publish the address of the CP system heap free counter
  *        (FreeRTOS xFreeBytesRemaining) so AP can read it cross-core.

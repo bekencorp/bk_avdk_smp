@@ -158,6 +158,17 @@ uint32_t bk_sys_sw_regs_get_hspl_owner(uint8_t res, uint8_t *core, uint32_t *pc)
     return 1U;
 }
 
+uint32_t bk_sys_sw_regs_get_ap_cp_hang_dumping(void)
+{
+#if CONFIG_SUPPORT_CACHEABLE_SRAM
+    __asm volatile ("dsb" ::: "memory");
+    arch_dcache_invd_range((void *)&s_sys_sw_regs.ap_cp_hang_dumping, sizeof(s_sys_sw_regs.ap_cp_hang_dumping));
+    __asm volatile ("dsb" ::: "memory");
+#endif
+
+    return s_sys_sw_regs.ap_cp_hang_dumping;
+}
+
 uint32_t bk_sys_sw_regs_get_adc_key_sample(adc_key_sample_info_t *info)
 {
     uint32_t flags;
@@ -360,6 +371,18 @@ void bk_sys_sw_regs_clear_hspl_owner(uint8_t res)
     __asm volatile ("dsb" ::: "memory");
 #endif
 }
+
+void bk_sys_sw_regs_set_ap_cp_hang_dumping(uint32_t value)
+{
+    /* Emergency path marker: AP writes it, CP reads it from exception context. */
+    s_sys_sw_regs.ap_cp_hang_dumping = (value != 0U) ? 1U : 0U;
+    __asm volatile ("dsb" ::: "memory");
+#if CONFIG_SUPPORT_CACHEABLE_SRAM
+    flush_dcache((void *)&s_sys_sw_regs.ap_cp_hang_dumping, sizeof(s_sys_sw_regs.ap_cp_hang_dumping));
+    __asm volatile ("dsb" ::: "memory");
+#endif
+}
+
 void bk_sys_sw_regs_set_cp_heap_free_ptr(uint32_t addr)
 {
     /*
