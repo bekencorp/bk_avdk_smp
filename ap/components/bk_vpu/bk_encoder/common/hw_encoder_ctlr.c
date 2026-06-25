@@ -117,7 +117,11 @@ static avdk_err_t hw_encoder_hw_init(void)
     bk_pm_module_vote_power_ctrl(PM_POWER_SUB_DOMAIN_H26E, PM_POWER_MODULE_STATE_ON);
 
     // h264e clock sel
+#ifdef CONFIG_ENCODER_H264_CLK_240M
+    sys_drv_h265_cksel_clkdiv_set(CKSEL_H265_240M, 0);
+#else
     sys_drv_h265_cksel_clkdiv_set(CKSEL_H265_160M, 1);
+#endif
 
     // h264e clock enable
     bk_pm_clock_ctrl(PM_CLK_ID_H26E, PM_CLK_CTRL_PWR_UP);

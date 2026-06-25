@@ -43,4 +43,12 @@ menu "BEKEN CODEC ENCODER"
 		help
 			"Enable H264E stream module. JSON-RPC control uses h264EScream.* methods; VIDEO channel sends H264 elementary stream."
 
+	config ENCODER_H264_CLK_240M
+		bool "H264 encoder clock 240MHz"
+		default n
+		depends on BK_ENCODER
+		help
+			"Select CKSEL_H264_240M (highest supported encoder frequency).
+			When disabled, CKSEL_H264_80M is used."
+
 endmenu
