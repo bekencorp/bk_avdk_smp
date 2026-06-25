@@ -66,6 +66,15 @@ menu "ASR Service"
 		depends on TFLITE_MICRO && ASR_SERVICE
 		default n
 
+	config BEKEN_KWS_MODEL_BUFFER_USE_PSRAM
+		depends on BEKEN_KWS && PSRAM
+		bool "Place KWS model file buffer in PSRAM"
+		default y if BEKEN_KWS_MODEL_FROM_UDISK
+		default n
+		help
+			Allocate the KWS model file buffer from PSRAM when models are loaded
+			from the file system.
+
 	config BEKEN_KWS_ARENA_USE_PSRAM
 		depends on BEKEN_KWS && PSRAM
 		bool "Place KWS TFLM tensor arena in PSRAM"
