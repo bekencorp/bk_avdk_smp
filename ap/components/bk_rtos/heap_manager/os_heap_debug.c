@@ -112,13 +112,15 @@ void bk_heap_overflow_check(void *ptr)
     bk_heap_debug_info_t *info = (bk_heap_debug_info_t *)ptr;
     uint8_t *mem_end = (uint8_t *)bk_heap_debug_get_ptr(ptr) + info->wantedSize;
     uint32_t mem_end_len = os_heap_get_allocated_size(ptr) - sizeof(bk_heap_debug_info_t) - info->wantedSize;
-    uint8_t *block_end = mem_end + mem_end_len;
 
     for ( int i = 0; i < mem_end_len; i++) {
         if (MEM_OVERFLOW_TAG != mem_end[i]) {
             BK_DUMP_OUT("Mem Overflow ......mem_end[%p + %d]=[0x%02x].....\r\n", mem_end, i, mem_end[i]);
             show_mem_info(info);
+#if !(CONFIG_DEBUG_VERSION || CONFIG_DUMP_ENABLE)
+            uint8_t *block_end = mem_end + mem_end_len;
             stack_mem_dump((uint32_t)info - 64, (uint32_t)(block_end + 64));
+#endif
             if (0 == arch_is_enter_exception()) {
                 BK_ASSERT(0);
             }

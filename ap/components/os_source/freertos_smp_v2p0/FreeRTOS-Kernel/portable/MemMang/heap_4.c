@@ -823,11 +823,15 @@ static inline void mem_overflow_check(BlockLink_t *pxLink)
 		{
 			BK_DUMP_OUT("Mem Overflow ......mem_end[%p + %d]=[0x%02x].....\r\n", mem_end, i, mem_end[i]);
 			show_mem_info(pxLink);
+#if !(CONFIG_DEBUG_VERSION || CONFIG_DUMP_ENABLE)
+			/* stack_mem_dump() goes through async shell; the imminent assert
+			 * enters direct-UART coredump and the two streams interleave. */
 			stack_mem_dump((uint32_t)pxLink - 64, (uint32_t)pxLink + xHeapStructSize + pxLink->wantedSize + 64);
+#endif
 			if (0 == arch_is_enter_exception()) {
 				configASSERT( false );
 			}
-            break;
+			break;
 		}
 	}
 }
