@@ -1,0 +1,23 @@
+digraph flow {
+    rankdir=TB;
+    bgcolor="white";
+    fontname="Noto Sans CJK SC";
+    node [fontname="Noto Sans CJK SC", shape=box, style="rounded,filled", fillcolor="#eef3fb", color="#9bb8e0", penwidth=1.2];
+    edge [fontname="Noto Sans CJK SC", color="#555555", fontsize=11];
+
+    A [label="编译并烧录固件"];
+    B [label="打开串口，上电看初始化日志"];
+    C [label="ap_cmd headset pair_mode\n设备进入可被发现状态"];
+    D [label="手机搜索并连接\nsoundbar_XXYYZZ", shape=diamond, fillcolor="#fff6cc", color="#d9c14e"];
+    E [label="手机播放音乐，喇叭出声"];
+    F [label="play / pause / next / vol_up\n遥控播放"];
+    G [label="answer 1 接听 / answer 0 挂断"];
+    H [label="disconnect 断开"];
+
+    A -> B -> C -> D;
+    D -> E [label="连接成功"];
+    E -> F;
+    D -> G [label="手机来电"];
+    F -> H;
+    G -> H;
+}

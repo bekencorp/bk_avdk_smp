@@ -1,0 +1,28 @@
+digraph arch {
+    rankdir=LR;
+    bgcolor="white";
+    fontname="Noto Sans CJK SC";
+    node [fontname="Noto Sans CJK SC", shape=box, style="rounded,filled", fillcolor="#eef3fb", color="#9bb8e0", penwidth=1.2];
+    edge [fontname="Noto Sans CJK SC", color="#555555", fontsize=11];
+
+    Phone [label="Phone\nmusic / call / player", fillcolor="#fde9d9", color="#e0a96b"];
+
+    subgraph cluster_board {
+        label="BK7259 board";
+        fontname="Noto Sans CJK SC";
+        style="rounded";
+        color="#9bb8e0";
+        BT    [label="Bluetooth Classic\nA2DP / AVRCP / HFP"];
+        Media [label="Media service\ndecode / mix / playback"];
+    }
+
+    SPK [label="Speaker", fillcolor="#e7f5e7", color="#8ec98e"];
+    MIC [label="Microphone", fillcolor="#e7f5e7", color="#8ec98e"];
+
+    Phone -> BT    [label="music(A2DP)\ncall downlink(HFP)"];
+    BT    -> Phone [label="playback control(AVRCP)"];
+    BT    -> Media;
+    Media -> SPK;
+    MIC   -> Media;
+    Media -> BT    [label="call uplink voice(HFP)"];
+}

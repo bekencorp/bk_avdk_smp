@@ -1,0 +1,23 @@
+digraph flow {
+    rankdir=TB;
+    bgcolor="white";
+    fontname="Noto Sans CJK SC";
+    node [fontname="Noto Sans CJK SC", shape=box, style="rounded,filled", fillcolor="#eef3fb", color="#9bb8e0", penwidth=1.2];
+    edge [fontname="Noto Sans CJK SC", color="#555555", fontsize=11];
+
+    A [label="Build and flash firmware"];
+    B [label="Open serial, power on, watch init logs"];
+    C [label="ap_cmd headset pair_mode\ndevice becomes discoverable"];
+    D [label="Phone searches and connects\nsoundbar_XXYYZZ", shape=diamond, fillcolor="#fff6cc", color="#d9c14e"];
+    E [label="Phone plays music, speaker outputs sound"];
+    F [label="play / pause / next / vol_up\nremote control"];
+    G [label="answer 1 / answer 0 hang up"];
+    H [label="disconnect"];
+
+    A -> B -> C -> D;
+    D -> E [label="connected"];
+    E -> F;
+    D -> G [label="incoming call"];
+    F -> H;
+    G -> H;
+}

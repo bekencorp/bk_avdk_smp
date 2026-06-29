@@ -1,0 +1,22 @@
+digraph hfp_seq {
+    rankdir=TB;
+    bgcolor="white";
+    fontname="Noto Sans CJK SC";
+    node [fontname="Noto Sans CJK SC", shape=box, style="rounded,filled", fillcolor="#eef3fb", color="#9bb8e0", penwidth=1.2];
+    edge [fontname="Noto Sans CJK SC", color="#555555", fontsize=11];
+
+    h1 [label="(1) HFP connected\nBK_HFP_HF_EVT_CONNECTED\n-> query current call state", fillcolor="#fde9d9", color="#e0a96b"];
+    h2 [label="(2) Incoming call ring\nBK_HFP_HF_EVT_RING\n(answer 1 = answer / answer 0 = hang up)"];
+    h3 [label="(3) SCO voice channel up\nBK_HFP_HF_EVT_AUDIO_CONNECTED\n-> open speaker + mic (VOICE_START_MSG)\ncodec CVSD / mSBC"];
+    h4 [label="(4) Downlink voice (peer -> local)\nBK_HFP_HF_EVT_VOICE_DATA\n-> decode -> speaker", fillcolor="#e7f5e7", color="#8ec98e"];
+    h5 [label="(5) Uplink voice (local -> peer)\nmic capture -> encode -> send over SCO", fillcolor="#e7f5e7", color="#8ec98e"];
+    h6 [label="(6) Volume changed\nBK_HFP_HF_EVT_VOLUME_CHANGED\n-> set speaker gain"];
+    h7 [label="(7) Call ends\nBK_HFP_HF_EVT_AUDIO_DISCONNECTED\n-> stop voice tasks (VOICE_STOP_MSG)", fillcolor="#f6e0e0", color="#cf8a8a"];
+
+    h1 -> h2 -> h3;
+    h3 -> h4;
+    h3 -> h5;
+    h3 -> h6 [style=dashed];
+    h4 -> h7;
+    h5 -> h7;
+}

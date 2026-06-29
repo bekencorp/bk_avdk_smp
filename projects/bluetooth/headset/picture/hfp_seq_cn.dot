@@ -1,0 +1,22 @@
+digraph hfp_seq {
+    rankdir=TB;
+    bgcolor="white";
+    fontname="Noto Sans CJK SC";
+    node [fontname="Noto Sans CJK SC", shape=box, style="rounded,filled", fillcolor="#eef3fb", color="#9bb8e0", penwidth=1.2];
+    edge [fontname="Noto Sans CJK SC", color="#555555", fontsize=11];
+
+    h1 [label="① HFP 连接建立\nBK_HFP_HF_EVT_CONNECTED\n→ 查询当前通话状态", fillcolor="#fde9d9", color="#e0a96b"];
+    h2 [label="② 来电响铃\nBK_HFP_HF_EVT_RING\n（answer 1 接听 / answer 0 挂断）"];
+    h3 [label="③ SCO 语音通道建立\nBK_HFP_HF_EVT_AUDIO_CONNECTED\n→ 打开喇叭+麦克风（VOICE_START_MSG）\n编码 CVSD / mSBC"];
+    h4 [label="④ 下行语音（对端 → 本地）\nBK_HFP_HF_EVT_VOICE_DATA\n→ 解码 → 喇叭", fillcolor="#e7f5e7", color="#8ec98e"];
+    h5 [label="⑤ 上行语音（本地 → 对端）\n麦克风采集 → 编码 → SCO 发送", fillcolor="#e7f5e7", color="#8ec98e"];
+    h6 [label="⑥ 音量变化\nBK_HFP_HF_EVT_VOLUME_CHANGED\n→ 设置喇叭增益"];
+    h7 [label="⑦ 通话结束\nBK_HFP_HF_EVT_AUDIO_DISCONNECTED\n→ 关闭语音任务（VOICE_STOP_MSG）", fillcolor="#f6e0e0", color="#cf8a8a"];
+
+    h1 -> h2 -> h3;
+    h3 -> h4;
+    h3 -> h5;
+    h3 -> h6 [style=dashed];
+    h4 -> h7;
+    h5 -> h7;
+}

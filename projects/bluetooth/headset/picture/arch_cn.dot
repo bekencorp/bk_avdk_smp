@@ -1,0 +1,28 @@
+digraph arch {
+    rankdir=LR;
+    bgcolor="white";
+    fontname="Noto Sans CJK SC";
+    node [fontname="Noto Sans CJK SC", shape=box, style="rounded,filled", fillcolor="#eef3fb", color="#9bb8e0", penwidth=1.2];
+    edge [fontname="Noto Sans CJK SC", color="#555555", fontsize=11];
+
+    Phone [label="手机\n音乐 / 通话 / 播放器", fillcolor="#fde9d9", color="#e0a96b"];
+
+    subgraph cluster_board {
+        label="BK7259 开发板";
+        fontname="Noto Sans CJK SC";
+        style="rounded";
+        color="#9bb8e0";
+        BT    [label="经典蓝牙\nA2DP / AVRCP / HFP"];
+        Media [label="媒体服务\n解码 / 混音 / 播放"];
+    }
+
+    SPK [label="喇叭", fillcolor="#e7f5e7", color="#8ec98e"];
+    MIC [label="麦克风", fillcolor="#e7f5e7", color="#8ec98e"];
+
+    Phone -> BT    [label="音乐(A2DP)\n通话下行(HFP)"];
+    BT    -> Phone [label="播放控制(AVRCP)"];
+    BT    -> Media;
+    Media -> SPK;
+    MIC   -> Media;
+    Media -> BT    [label="通话上行语音(HFP)"];
+}

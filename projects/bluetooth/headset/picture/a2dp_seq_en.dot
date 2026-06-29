@@ -1,0 +1,18 @@
+digraph a2dp_seq {
+    rankdir=TB;
+    bgcolor="white";
+    fontname="Noto Sans CJK SC";
+    node [fontname="Noto Sans CJK SC", shape=box, style="rounded,filled", fillcolor="#eef3fb", color="#9bb8e0", penwidth=1.2];
+    edge [fontname="Noto Sans CJK SC", color="#555555", fontsize=11];
+
+    c1 [label="(1) Phone (source) connected\nBK_A2DP_SINK_EVT_CONNECTED", fillcolor="#fde9d9", color="#e0a96b"];
+    c2 [label="(2) Negotiate audio codec\nBK_A2DP_SINK_EVT_AUDIO_CFG\n-> a2dp_sink_audio_set_config()\n(SBC / AAC, sample rate)"];
+    c3 [label="(3) Stream start\nBK_A2DP_SINK_EVT_STREAM_START\n-> open audio player (START_MSG)"];
+    c4 [label="(4) Receive audio frames (loop)\nBK_A2DP_SINK_EVT_MEDIA_DATA\n-> enqueue -> SBC/AAC decode -> media service"];
+    c5 [label="(5) Speaker outputs sound", fillcolor="#e7f5e7", color="#8ec98e"];
+    c6 [label="(6) Suspend / disconnect\nSTREAM_SUSPEND / DISCONNECTED\n-> stop player (STOP_MSG)", fillcolor="#f6e0e0", color="#cf8a8a"];
+
+    c1 -> c2 -> c3 -> c4 -> c5;
+    c4 -> c4 [label="frames keep coming"];
+    c5 -> c6 [style=dashed, label="when playback ends"];
+}

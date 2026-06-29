@@ -1,0 +1,18 @@
+digraph a2dp_seq {
+    rankdir=TB;
+    bgcolor="white";
+    fontname="Noto Sans CJK SC";
+    node [fontname="Noto Sans CJK SC", shape=box, style="rounded,filled", fillcolor="#eef3fb", color="#9bb8e0", penwidth=1.2];
+    edge [fontname="Noto Sans CJK SC", color="#555555", fontsize=11];
+
+    c1 [label="① 手机(音源)连接成功\nBK_A2DP_SINK_EVT_CONNECTED", fillcolor="#fde9d9", color="#e0a96b"];
+    c2 [label="② 协商音频编码参数\nBK_A2DP_SINK_EVT_AUDIO_CFG\n→ a2dp_sink_audio_set_config()\n（SBC / AAC、采样率）"];
+    c3 [label="③ 开始音频流\nBK_A2DP_SINK_EVT_STREAM_START\n→ 打开音频播放器（START_MSG）"];
+    c4 [label="④ 持续收到音频帧（循环）\nBK_A2DP_SINK_EVT_MEDIA_DATA\n→ 入队 → SBC/AAC 解码 → 媒体服务"];
+    c5 [label="⑤ 喇叭出声", fillcolor="#e7f5e7", color="#8ec98e"];
+    c6 [label="⑥ 暂停 / 断开\nSTREAM_SUSPEND / DISCONNECTED\n→ 停止播放器（STOP_MSG）", fillcolor="#f6e0e0", color="#cf8a8a"];
+
+    c1 -> c2 -> c3 -> c4 -> c5;
+    c4 -> c4 [label="音频帧持续到来"];
+    c5 -> c6 [style=dashed, label="播放结束时"];
+}
