@@ -45,8 +45,10 @@ static bool fatfs_is_valid_src_addr(uint32_t addr, uint32_t len)
 
 	return fatfs_addr_in_range(addr, len, CONFIG_AP_HSRAM_HEAP_ADDR, CONFIG_AP_HSRAM_HEAP_SIZE) ||
 		fatfs_addr_in_range(addr, len, CONFIG_AP_RAM_ADDR, CONFIG_AP_RAM_SIZE) ||
+		fatfs_addr_in_range(addr, len, CONFIG_PSRAM_MEM_SLAB_CODED_ADDR, CONFIG_PSRAM_MEM_SLAB_CODED_SIZE) ||
 		fatfs_addr_in_range(addr, len, CONFIG_AP_PSRAM_HEAP_ADDR, CONFIG_AP_PSRAM_HEAP_SIZE) ||
-		fatfs_addr_in_range(addr, len, CONFIG_AP_PSRAM_DATA_SECTION_ADDR, CONFIG_AP_PSRAM_DATA_SECTION_SIZE);
+		fatfs_addr_in_range(addr, len, CONFIG_AP_PSRAM_DATA_SECTION_ADDR, CONFIG_AP_PSRAM_DATA_SECTION_SIZE) ||
+		fatfs_addr_in_range(addr, len, CONFIG_AP_PSRAM_CODE_SECTION_ADDR, CONFIG_AP_PSRAM_CODE_SECTION_SIZE);
 }
 
 FRESULT scan_files
