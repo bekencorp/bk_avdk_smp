@@ -276,6 +276,8 @@ static void bt_ipc_mailbox_send_msg(hci_hdr_t *msg)
     if (ret != BK_OK)
     {
         LOGW("get bt ipc send_sema failed\n");
+        bt_ipc_free_local_msg_payload(msg);
+        return;
     }
 
     ret = mb_chnl_write(BT_IPC_CMD_CHNL, (mb_chnl_cmd_t*)&bt_ipc_cmd);
