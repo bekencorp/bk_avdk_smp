@@ -764,18 +764,18 @@ __IRAM_SEC void sys_hal_set_ram_high_speed(void)
 	 * yield. RAM library recommends using high-speed configuration for
 	 * high-speed operation and low-speed configuration for low-speed operation.
 	 */
-     uint32_t ram_sph_cfg = 0x0;//Default: 0x442 << 10 | 0x242;
-     ram_sph_cfg = 0x441 << 10 | 0x241;
-     sys_hal_set_ram_sph_cfg(0x5A << 24 | ram_sph_cfg); ///Default: Low-speed configuration
-     sys_hal_set_ram_sph_cfg(0xA5 << 24 | ram_sph_cfg); ///Default: Low-speed configuration
+    //  uint32_t ram_sph_cfg = 0x0;//Default: 0x442 << 10 | 0x242;
+    //  ram_sph_cfg = 0x441 << 10 | 0x241;
+    //  sys_hal_set_ram_sph_cfg(0x5A << 24 | ram_sph_cfg); ///Default: Low-speed configuration
+    //  sys_hal_set_ram_sph_cfg(0xA5 << 24 | ram_sph_cfg); ///Default: Low-speed configuration
 
-     uint32_t ram_tph_cfg = 0x0;//Default: 0x902;
-     ram_tph_cfg = 0x901;
-     sys_hal_set_ram_tph_cfg(0x5A << 24 | ram_tph_cfg); ///Default: Low-speed configuration
-     sys_hal_set_ram_tph_cfg(0xA5 << 24 | ram_tph_cfg); ///Default: Low-speed configuration
+    //  uint32_t ram_tph_cfg = 0x0;//Default: 0x902;
+    //  ram_tph_cfg = 0x901;
+    //  sys_hal_set_ram_tph_cfg(0x5A << 24 | ram_tph_cfg); ///Default: Low-speed configuration
+    //  sys_hal_set_ram_tph_cfg(0xA5 << 24 | ram_tph_cfg); ///Default: Low-speed configuration
 
 	 uint32_t ram_spl_cfg = 0x0;//Default: 0x444 << 10 | 0x244;
-     ram_spl_cfg = 0x443 << 10 | 0x241;
+     ram_spl_cfg = 0x443 << 10 | 0x243;
      sys_hal_set_ram_spl_cfg(0x5A << 24 | ram_spl_cfg); ///Default: Low-speed configuration
      sys_hal_set_ram_spl_cfg(0xA5 << 24 | ram_spl_cfg); ///Default: Low-speed configuration
 
@@ -794,23 +794,23 @@ void sys_hal_set_ram_low_speed(void)
 	 * yield. RAM library recommends using high-speed configuration for
 	 * high-speed operation and low-speed configuration for low-speed operation.
 	 */
-     uint32_t ram_sph_cfg = 0x0;//Default: 0x442 << 10 | 0x242;
-     ram_sph_cfg = 0x442 << 10 | 0x242;
-     sys_hal_set_ram_sph_cfg(0x5A << 24 | ram_sph_cfg);
-     sys_hal_set_ram_sph_cfg(0xA5 << 24 | ram_sph_cfg);
+    //  uint32_t ram_sph_cfg = 0x0;//Default: 0x442 << 10 | 0x242;
+    //  ram_sph_cfg = 0x442 << 10 | 0x242;
+    //  sys_hal_set_ram_sph_cfg(0x5A << 24 | ram_sph_cfg);
+    //  sys_hal_set_ram_sph_cfg(0xA5 << 24 | ram_sph_cfg);
 
-     uint32_t ram_tph_cfg = 0x0;//Default: 0x902;
-     ram_tph_cfg = 0x902;
-     sys_hal_set_ram_tph_cfg(0x5A << 24 | ram_tph_cfg);
-     sys_hal_set_ram_tph_cfg(0xA5 << 24 | ram_tph_cfg);
+    //  uint32_t ram_tph_cfg = 0x0;//Default: 0x902;
+    //  ram_tph_cfg = 0x902;
+    //  sys_hal_set_ram_tph_cfg(0x5A << 24 | ram_tph_cfg);
+    //  sys_hal_set_ram_tph_cfg(0xA5 << 24 | ram_tph_cfg);
 
 	 uint32_t ram_spl_cfg = 0x0;//Default: 0x444 << 10 | 0x244;
-     ram_spl_cfg = 0x444 << 10 | 0x244;
+     ram_spl_cfg = 0x443 << 10 | 0x243;
      sys_hal_set_ram_spl_cfg(0x5A << 24 | ram_spl_cfg); ///Default: Low-speed configuration
      sys_hal_set_ram_spl_cfg(0xA5 << 24 | ram_spl_cfg); ///Default: Low-speed configuration
 
      uint32_t ram_tpl_cfg = 0x0;//Default: 0x904;
-     ram_tpl_cfg = 0x904;
+     ram_tpl_cfg = 0x903;
      sys_hal_set_ram_tpl_cfg(0x5A << 24 | ram_tpl_cfg); ///Default: Low-speed configuration
      sys_hal_set_ram_tpl_cfg(0xA5 << 24 | ram_tpl_cfg); ///Default: Low-speed configuration
 }
