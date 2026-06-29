@@ -106,7 +106,10 @@ __FLASH_BOOT_CODE __attribute__((optimize("-O3"))) void b_data_copy_dtcm(void)
 	if (size == 0) {
 		return;
 	}
-	sys_memcpy_word((void *)&__dtcm_content, (void *)&__dtcm_start__, size / 4);
+	/* dest = DTCM runtime address (__dtcm_start__), src = flash load address
+	 * (__dtcm_content). sys_memcpy_word(out, in, ...) writes out[i] = in[i],
+	 * so the destination must come first (matching b_data_copy() above). */
+	sys_memcpy_word((void *)&__dtcm_start__, (void *)&__dtcm_content, size / 4);
 }
 
 

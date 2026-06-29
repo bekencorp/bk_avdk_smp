@@ -212,10 +212,7 @@ void invalidate_icache(void)
 
 void unified_cache_enable_icache(void)
 {
-    /*cache access through CCR and MSCR registers. it reused
-     * relevant bit of data cache,including CCR.DC and MSCR.DCACTIVE
-     */
-    SCB_EnableDCache();
+    SCB_EnableICache();
 }
 
 void unified_cache_enable_icache_without_invalidate(void)

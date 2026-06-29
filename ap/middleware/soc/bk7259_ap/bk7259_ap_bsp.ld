@@ -259,6 +259,24 @@ SECTIONS
         PROVIDE(__dtcm_content = LOADADDR(.dtcm));
         __dtcm_start__ = .;
 
+        . = ALIGN(512);
+        KEEP(*(.vectors_iram))
+
+#if CONFIG_SOC_SMP
+        . = ALIGN(512);
+        __vector_core1_table = .;
+        KEEP(*(.vectors_core1))
+#endif
+
+        . = ALIGN(4);
+        __itcm_start__ = .;
+        *(.itcm)
+        *(.itcm_section*)
+        *(.itcm_sec_code*)
+        *(.interrupt)
+        __itcm_end__ = .;
+
+
         . = ALIGN(4);
 
         *(.dtcm)
@@ -287,14 +305,7 @@ SECTIONS
         __iram_start__ = .;
         *(.iram)
         . = ALIGN(4);
-        __itcm_start__ = .;
-        *(.itcm)
-        *(.itcm_section*)
-        *(.itcm_sec_code*)
-        *(.interrupt)
-        __itcm_end__ = .;
 
-        . = ALIGN(4);
         __iram_end__ = .;
     } > IRAM AT > FLASH
 
@@ -311,15 +322,6 @@ SECTIONS
 
         . = ALIGN(4);
         __data_start__ = .;
-
-        . = ALIGN(512);
-        KEEP(*(.vectors_iram))
-
-#if CONFIG_SOC_SMP
-        . = ALIGN(512);
-        __vector_core1_table = .;
-        KEEP(*(.vectors_core1))
-#endif
 
 #ifdef CONFIG_GCOV
         /* added in template for gcov: */

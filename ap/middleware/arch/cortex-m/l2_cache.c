@@ -237,7 +237,14 @@ int32_t l2_cache_maintain_range(l2c_op_type_t operation,
     
     /* Synchronize cache operations */
     L2C_PL310_REG(L2C_CACHE_SYNC_REG_OFFSET) = 0U;
-    
+
+    /* Ensure the maintenance is complete and ordered before subsequent
+     * accesses / cross-master notifications, so range-based callers
+     * (cache_*_range, flush_dcache) are self-contained and the upper layer
+     * does not need to add its own barrier. Matches l2_cache_maintain_all. */
+    __DSB();
+    __ISB();
+
     return 0;
 }
 

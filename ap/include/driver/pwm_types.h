@@ -127,6 +127,12 @@ typedef struct {
 	pwm_chan_duty_config_t duty_config[PWM_PHASE_SHIFT_CHAN_NUM]; /**< PWM phase shift duty configuration */
 } pwm_phase_shift_config_t;
 
+typedef enum {
+	PWM_DUTY_DIR_DECREASE = 0,  /**< PWM duty decrease direction */
+	PWM_DUTY_DIR_INCREASE = 1,  /**< PWM duty increase direction */
+	PWM_DUTY_DIR_MAX,
+} pwm_fade_mode_t;
+
 /**
  * @brief PWM group type.
  */

@@ -542,6 +542,50 @@ bk_err_t bk_pwm_phase_shift_update_duty(void);
 
 #endif
 
+#if CONFIG_PWM_FADE
+
+/**
+ * @brief     Init the fade function
+ *
+ * @param chan pwm channel number
+ * @param fade_scale controls the increase or decrease step scale
+ * @param fade_intv_cycle increase or decrease the duty every fade_intv_cycle cycles
+ * @param fade_num the number of the fading
+ *
+ * @return
+ *    - BK_OK: succeed
+ *    - BK_ERR_PWM_CHAN_ID: invalid PWM channel
+ *    - others: other errors.
+ */
+bk_err_t bk_pwm_fade_init(pwm_chan_t chan, uint32_t fade_scale, uint32_t fade_intv_cycle, uint32_t fade_num);
+
+/**
+ * @brief     Start the PWM fading
+ *
+ * @param chan pwm channel number
+ * @param fade_mode pwm fade mode
+ *
+ * @return
+ *    - BK_OK: succeed
+ *    - BK_ERR_PWM_CHAN_ID: invalid PWM channel
+ *    - others: other errors.
+ */
+bk_err_t bk_pwm_fade_start(pwm_chan_t chan, pwm_fade_mode_t fade_mode);
+
+/**
+ * @brief     Stop the PWM fading
+ *
+ * @param chan pwm channel number
+ *
+ * @return
+ *    - BK_OK: succeed
+ *    - BK_ERR_PWM_CHAN_ID: invalid PWM channel
+ *    - others: other errors.
+ */
+bk_err_t bk_pwm_fade_stop(pwm_chan_t chan);
+
+#endif
+
 /**
  * @}
  */
