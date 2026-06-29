@@ -5,8 +5,18 @@ import shutil
 import subprocess
 import sys
 import re
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Match
+
+def _cjk_display_width(text: str) -> int:
+    """Return reST title underline width (wide/fullwidth chars count as 2)."""
+    import unicodedata
+    width = 0
+    for ch in text:
+        if unicodedata.east_asian_width(ch) in ('W', 'F'):
+            width += 2
+        else:
+            width += 1
+    return width + 4
 
 class MarkdownToRST:
     """Markdown → RST 转换器"""
@@ -41,38 +51,197 @@ class MarkdownToRST:
         """将 Markdown 文本转换为 reStructuredText (RST)"""
         # 首先清理文本，移除可能导致问题的内容
         text = self._clean_text_before_conversion(text)
-
-        # 然后在完整文本上处理代码块（因为代码块可能跨多行）
+        text = self._fix_rst_warning_blocks(text)
+        text = self._convert_backtick_links(text)
+        # 代码块须在表格转换之前，避免 ``` 内的 | 行被误判为 Markdown 表格
         text = self._convert_codeblocks(text)
+        text = self._convert_markdown_tables(text)
 
         # 然后按行处理其他格式
         lines = text.splitlines()
         processed_lines = []
+        in_codeblock = False
 
         for line in lines:
+            stripped = line.strip()
+            if stripped.startswith('.. code-block::'):
+                in_codeblock = True
+                processed_lines.append(line)
+                continue
+            if in_codeblock:
+                processed_lines.append(line)
+                if stripped == '':
+                    in_codeblock = False
+                continue
             # 检查是否已经包含reST语法
             if self._contains_rst_syntax(line):
-                # 如果已经包含reST语法，则不进行转换，直接添加到结果中
                 processed_lines.append(line)
             else:
-                # 否则进行正常的Markdown到reST转换
-                processed_line = line
-                # 处理行内代码
-                processed_line = self._convert_inline_code(processed_line)
-                # 然后处理其他格式
-                processed_line = self._convert_headings(processed_line)
-                processed_line = self._convert_images(processed_line)
-                processed_line = self._convert_link_to_translation(processed_line)
-                processed_line = self._convert_links(processed_line)
-                processed_line = self._convert_bold(processed_line)
-                processed_line = self._convert_italic(processed_line)
-                processed_line = self._convert_unordered_list(processed_line)
-                processed_line = self._convert_ordered_list(processed_line)
-                # 最后处理语言链接转换，避免被行内代码转换影响
-                processed_lines.append(processed_line)
+                processed_lines.append(self._convert_markdown_line(line))
 
         # 将处理后的行重新组合为文本
-        return '\n'.join(processed_lines)
+        text = '\n'.join(processed_lines)
+        text = self._fix_nested_list_indent(text)
+        text = self._ensure_blank_before_directives(text)
+        return self._ensure_document_title(text)
+
+    def _convert_markdown_line(self, line: str) -> str:
+        """Markdown 行内格式转换（反引号区间内不做 emphasis 转换）。"""
+        if ':link_to_translation:' in line:
+            line = self._convert_link_to_translation(line)
+            line = self._convert_unordered_list(line)
+            return line
+        line = self._normalize_md_emphasis_in_backticks(line)
+        parts = line.split('`')
+        for i in range(0, len(parts), 2):
+            segment = parts[i]
+            segment = self._convert_bold(segment)
+            segment = self._convert_italic(segment)
+            segment = self._convert_headings(segment)
+            segment = self._convert_images(segment)
+            segment = self._convert_link_to_translation(segment)
+            segment = self._convert_links(segment)
+            segment = self._convert_unordered_list(segment)
+            segment = self._convert_ordered_list(segment)
+            parts[i] = segment
+        for i in range(1, len(parts), 2):
+            parts[i] = re.sub(r'\*\*', '', parts[i])
+        line = '`'.join(parts)
+        line = self._convert_inline_code(line)
+        line = self._sanitize_rst_line(line)
+        return line
+
+    def _normalize_md_emphasis_in_backticks(self, line: str) -> str:
+        """README 中 `` `**bold**` `` / `` `**text` `` 等混用统一为普通反引号内容。"""
+        line = re.sub(r'`\[([^\]]+)\]\(([^)]+)\)`', r'[\1](\2)', line)
+        line = re.sub(r'`\*\*(.+?)\*\*`', r'`\1`', line)
+        line = re.sub(r'`\*\*([^*`]+)`', r'`\1`', line)
+        line = re.sub(r'`([^*`]+)\*\*`', r'`\1`', line)
+        return line
+
+    def _sanitize_rst_line(self, line: str) -> str:
+        """修正 README 转 RST 后易触发 docutils 警告的 inline markup。"""
+        line = re.sub(r'\*\*(`[^`]+`)\*\*', r'\1', line)
+        line = re.sub(r'\*\*(``[^`]+``)\*\*', r'\1', line)
+        line = re.sub(r'(``[^`]+``)\*\*', r'\1', line)
+        line = re.sub(r'>`_（', r'>`_ （', line)
+        line = re.sub(r'(``[^`]+``)（', r'\1 （', line)
+        line = re.sub(r'\*\*(\.\w+)\*\*', r'``\1``', line)
+        line = re.sub(r'\*\*([^*`]+_[^*`]+)\*\*', r'``\1``', line)
+        # 项目 README 的 **bold** 在 RST 中易与 （、` 等混用出错，去掉强调标记保留正文
+        line = re.sub(r'\*\*([^*]+)\*\*', r'\1', line)
+        line = re.sub(r'\*\*', '', line)
+        return line
+
+    def _fix_nested_list_indent(self, text: str) -> str:
+        """修正 Markdown 嵌套列表转 RST 后的缩进与空行。
+
+        RST 要求：父级 ``-`` 与缩进子列表之间不能有空行（否则会被当成 block quote）；
+        从缩进子列表回到顶层 ``-`` 时则需要空行分隔。
+        """
+        lines = text.splitlines()
+        out = []
+        for i, line in enumerate(lines):
+            is_top_level_item = bool(
+                re.match(r'^[-*]\s', line) or re.match(r'^\d+\.', line)
+            )
+
+            # 去掉父级列表项与缩进子项之间误插的空行
+            if (
+                line == ''
+                and out
+                and out[-1] != ''
+                and not re.match(r'^  ', out[-1])
+                and i + 1 < len(lines)
+                and re.match(r'^  +- ', lines[i + 1])
+            ):
+                continue
+
+            # 缩进子列表结束后回到顶层列表项前补空行
+            if is_top_level_item and out and out[-1] != '':
+                if re.match(r'^  ', out[-1]):
+                    out.append('')
+
+            out.append(line)
+        return '\n'.join(out)
+
+    def _ensure_blank_before_directives(self, text: str) -> str:
+        """段落与 .. directive 之间补空行，避免 code-block 等紧贴正文。"""
+        return re.sub(
+            r'(\S)\n(\.\. (?:code-block|warning|note|important|caution|tip)::)',
+            r'\1\n\n\2',
+            text,
+        )
+
+    def _ensure_document_title(self, text: str) -> str:
+        """首行非 Markdown 标题时，提升为 RST 文档标题（避免 toctree no title）。"""
+        lines = text.splitlines()
+        idx = 0
+        while idx < len(lines) and not lines[idx].strip():
+            idx += 1
+        if idx >= len(lines):
+            return text
+        first = lines[idx].strip()
+        if first.startswith('#') or first.startswith('..') or first.startswith(':link_to_translation:'):
+            return text
+        if idx + 1 < len(lines) and re.match(r'^[=\-~^`\'",.:*+#_]+$', lines[idx + 1].strip()):
+            return text
+        width = _cjk_display_width(first)
+        lines.insert(idx + 1, '=' * width)
+        lines.insert(idx + 2, '')
+        return '\n'.join(lines)
+
+    def _convert_markdown_tables(self, text: str) -> str:
+        """将 Markdown 表格包进 code-block，避免 |------| 被当成 RST 替换引用。"""
+        lines = text.splitlines()
+        result = []
+        i = 0
+        while i < len(lines):
+            line = lines[i]
+            # 已缩进行（含 code-block 内容）不参与 Markdown 表格识别
+            if re.match(r'^\s', line):
+                result.append(line)
+                i += 1
+                continue
+            if '|' in line and i + 1 < len(lines) and re.match(r'^\s*\|?[\s:\-|]+\|', lines[i + 1]):
+                table_lines = [line]
+                i += 1
+                while i < len(lines) and '|' in lines[i]:
+                    table_lines.append(lines[i])
+                    i += 1
+                result.append('.. code-block:: text')
+                result.append('')
+                for tl in table_lines:
+                    result.append('   ' + tl.rstrip())
+                result.append('')
+                continue
+            result.append(line)
+            i += 1
+        return '\n'.join(result)
+
+    def _fix_rst_warning_blocks(self, text: str) -> str:
+        """把 .. warning:: 后面误接 markdown 围栏代码块的内容改成 RST 缩进段落。"""
+        def repl(m: Match) -> str:
+            body = m.group(1).strip('\n')
+            out = ['.. warning::', '']
+            for bl in body.splitlines():
+                out.append('   ' + bl)
+            return '\n'.join(out)
+
+        return re.sub(
+            r'\.\. warning::\s*\n+```\w*\n(.*?)```',
+            repl,
+            text,
+            flags=re.DOTALL,
+        )
+
+    def _convert_backtick_links(self, text: str) -> str:
+        """`[text](url)` -> `text <url>`_（README 里常见反引号包裹的链接）。"""
+        return re.sub(
+            r'`\[([^\]]+)\]\(([^)]+)\)`',
+            r'`\1 <\2>`_',
+            text,
+        )
 
     def _convert_link_to_translation(self, text: str) -> str:
         # 确保使用正确的反引号格式，避免出现双反引号
@@ -93,6 +262,7 @@ class MarkdownToRST:
             r'^\s*\.\.',
             # 检查以:开头的指令（如:link_to_translation:）
             r'^\s*:',
+            r':link_to_translation:',
             # 检查rst链接格式 `link text <url>`_
             r'`[^`]+ <[^>]+>`_',
             # 检查行内代码 ``code``
@@ -114,18 +284,19 @@ class MarkdownToRST:
         def repl(m: Match) -> str:
             level = len(m.group(1))
             title = m.group(2).strip()
+            width = _cjk_display_width(title)
             if level == 1:
-                underline = "=" * len(title) * 3
+                underline = "=" * width
             elif level == 2:
-                underline = "-" * len(title) * 3
+                underline = "-" * width
             elif level == 3:
-                underline = "," * len(title) * 3
+                underline = "," * width
             elif level == 4:
-                underline = "." * len(title) * 3
+                underline = "." * width
             elif level == 5:
-                underline = "*" * len(title) * 3
+                underline = "*" * width
             else:
-                underline = "~" * len(title) * 3
+                underline = "~" * width
             return f"{title}\n{underline}\n"
         # 先处理标准的# 标题格式
         text = re.sub(r"^(#{1,6})\s+(.*)$", repl, text, flags=re.MULTILINE)
@@ -154,7 +325,10 @@ class MarkdownToRST:
         return re.sub(r'!\[(.*?)\]\((.*?)\)', repl, text)
 
     def _convert_links(self, text: str) -> str:
-        return re.sub(r'\[(.*?)\]\((.*?)\)', r'`\1 <\2>`_', text)
+        text = re.sub(r'\[(.*?)\]\((.*?)\)', r'`\1 <\2>`_', text)
+        # 参考：`link`_ 中冒号紧贴反引号会触发 literal 解析错误
+        text = re.sub(r'([：:])(`[^`]+ <)', r'\1 \2', text)
+        return text
 
     def _convert_bold(self, text: str) -> str:
         return re.sub(r'(\*\*|__)(.*?)\1', r'**\2**', text)
@@ -193,10 +367,39 @@ class MarkdownToRST:
         return text
 
     def _convert_inline_code(self, text: str) -> str:
-        return re.sub(r'`([^`]+)`', r'``\1``', text)
+        links = []
+
+        def stash_link(m: Match) -> str:
+            links.append(m.group(0))
+            return f'\x00RSTLINK{len(links) - 1}\x00'
+
+        text = re.sub(r'`[^`]+ <[^>]+>`_', stash_link, text)
+
+        def repl(m: Match) -> str:
+            inner = m.group(1)
+            if re.match(r'^(en|zh_CN):\[', inner):
+                return m.group(0)
+            stripped = re.sub(r'^\*\*+|\*\*+$', '', inner)
+            if stripped != inner:
+                return f'``{stripped}``'
+            return f'``{inner}``'
+
+        text = re.sub(r'`([^`]+)`', repl, text)
+        for idx, link in enumerate(links):
+            text = text.replace(f'\x00RSTLINK{idx}\x00', link)
+        return text
+
+    def _fix_unbalanced_strong(self, text: str) -> str:
+        """Remove orphan ** markers left from malformed README emphasis."""
+        while True:
+            stars = [m.start() for m in re.finditer(r'\*\*', text)]
+            if len(stars) % 2 == 0:
+                break
+            text = text[:stars[-1]] + text[stars[-1] + 2:]
+        return text
 
     def _convert_unordered_list(self, text: str) -> str:
-        return re.sub(r'^[\-\*]\s+', r'* ', text, flags=re.MULTILINE)
+        return re.sub(r'^[\-\*]\s+', r'- ', text, flags=re.MULTILINE)
 
     def _convert_ordered_list(self, text: str) -> str:
         # 保持原始数字格式，不转换为#.格式
@@ -235,7 +438,7 @@ def write_projects_index(dst_path, title, entries):
 
     lines = [
         title,
-        "=" * len(title),
+        "=" * _cjk_display_width(title),
         "",
         ".. toctree::",
         "   :maxdepth: 1",
@@ -268,6 +471,8 @@ def copy_projects_doc(src_path, dst_path, lan):
 
     child_doc_dirs = []
     for item in sorted(os.listdir(src_path)):
+        if item == '.git':
+            continue
         item_path = os.path.join(src_path, item)
         item_dst_path = os.path.join(dst_path, item)
         if os.path.isdir(item_path):
@@ -304,7 +509,7 @@ def build_lan_doc(doc_path, target, lan):
         print(f"armino_path: {armino_path}")
         print(f"lan_dir: {lan_dir}")
         run_cmd(f'rm -rf {lan_dir}/examples/projects')
-        if (target == 'bk7236' or target == 'bk7258'):
+        if target in ('bk7236', 'bk7258', 'bk7259'):
             copy_projects_doc(f'{lan_dir}/../../../../projects', f'{lan_dir}/examples/projects', lan)
 
     # clean build space (use absolute paths; no chdir so zh/en can build in parallel)
@@ -355,13 +560,8 @@ def build_with_target(clean, target, doc_build_path):
     if not os.path.exists(build_dir):
         run_cmd(f'mkdir -p {build_dir}')
 
-    with ThreadPoolExecutor(max_workers=2) as pool:
-        futures = {
-            pool.submit(build_lan_doc, DOCS_PATH, target, 'zh_CN'): 'zh_CN',
-            pool.submit(build_lan_doc, DOCS_PATH, target, 'en'): 'en',
-        }
-        for fut in as_completed(futures):
-            fut.result()
+    build_lan_doc(DOCS_PATH, target, 'zh_CN')
+    build_lan_doc(DOCS_PATH, target, 'en')
 
     if cur_dir_is_docs_dir == False:
         run_cmd(f'rm -rf {build_dir}/{target}')
