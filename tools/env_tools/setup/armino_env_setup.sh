@@ -359,25 +359,22 @@ function check_srcipt_options(){
 
 set -e
 
-bk7236_soc_name="bk7236"
-bk7236_soc_func="install_cross_compiler_cm"
+bk7259_soc_name="bk7259"
+bk7259_soc_func="install_cross_compiler_cm"
 
-bk7258_soc_name="bk7259"
-bk7258_soc_func="install_cross_compiler_cm"
-
-armono_soc=([0]=bk7236_soc [1]=bk7258_soc)
+armono_soc=([0]=bk7259_soc)
 
 function install_cross_compiler_cm(){
     # download and install cross-build-chain
 
-    if [ -f $ARMINO_TOOLS_INSTALL_PATH/gcc-arm-none-eabi-10.3-2021.10/bin/arm-none-eabi-gcc ];then
-        echo "cross compiler gcc-arm-none-eabi-10.3-2021.10 already installed."
+    if [ -f $ARMINO_TOOLS_INSTALL_PATH/arm-gnu-toolchain-14.3.rel1-x86_64-arm-none-eabi/bin/arm-none-eabi-gcc ];then
+        echo "cross compiler arm-gnu-toolchain-14.3.rel1-x86_64-arm-none-eabi already installed."
         return 0
     fi
 
-    wget -O ./gcc-arm-none-eabi-10.3-2021.10-x86_64-linux.tar.bz2 https://dl.bekencorp.com/d/tools/toolchain/arm/gcc-arm-none-eabi-10.3-2021.10-x86_64-linux.tar.bz2?sign=RXdqFf5PRB5upxFDS7UXTUtTsStCbrQgoAfcUDJe9M8=:0
-    tar -xvjf ./gcc-arm-none-eabi-10.3-2021.10-x86_64-linux.tar.bz2 -C $ARMINO_TOOLS_INSTALL_PATH
-    rm -f ./gcc-arm-none-eabi-10.3-2021.10-x86_64-linux.tar.bz2
+    wget -O ./arm-gnu-toolchain-14.3.rel1-x86_64-arm-none-eabi.tar.xz https://dl.bekencorp.com/d/tools/toolchain/arm/arm-gnu-toolchain-14.3.rel1-x86_64-arm-none-eabi.tar.xz?sign=xrwekTI1C3LitcSsI6poNp3vtYkt17RXD0lmJD5hSpo=:0
+    tar -xvJf ./arm-gnu-toolchain-14.3.rel1-x86_64-arm-none-eabi.tar.xz -C $ARMINO_TOOLS_INSTALL_PATH
+    rm -f ./arm-gnu-toolchain-14.3.rel1-x86_64-arm-none-eabi.tar.xz
 }
 
 function print_valid_soc(){
