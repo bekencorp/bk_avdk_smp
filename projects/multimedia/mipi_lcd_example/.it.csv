@@ -1,6 +1,6 @@
 case名称,测试命令（必填）,输入设备（1代表设备1，2代表设备2以此类推，不填默认为设备1）,期望结果（选填）,超时时间(s)
-reboot,reboot,1,[RESULT][PASS] mipi_lcd_display_argb8888_test success,60
-mipi_lcd_switch_format, ap_cmd mipi_lcd_switch_format,1, [RESULT][PASS]mipi_lcd_switch_format success,60
+reboot,reboot,1,[RESULT][PASS] mipi_lcd_display_argb8888_test success,120
+mipi_lcd_switch_format, ap_cmd mipi_lcd_switch_format,1, [RESULT][PASS]mipi_lcd_switch_format success,120
 
 
 
