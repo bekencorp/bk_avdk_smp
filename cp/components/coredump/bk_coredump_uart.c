@@ -33,12 +33,6 @@ void bk_coredump_write_prompt_data(uint8_t *data, uint32_t size) __attribute__((
 
 #define MEM_DUMP_MAX_LEN 4096
 #define COREDUMP_WDT_FEED_BYTES 256
-#define CP_SRAM_DIRECT_ADDR_BIT 0x04000000U
-#if CONFIG_SRAM_DIRECT_ADDR
-#define CP_SYS_SW_REGS_BASE (CONFIG_SWAP_ADDR + CP_SRAM_DIRECT_ADDR_BIT)
-#else
-#define CP_SYS_SW_REGS_BASE CONFIG_SWAP_ADDR
-#endif
 
 static uint32_t s_coredump_uart_locked = 0;
 static uint32_t s_coredump_uart_force_write = 0;
@@ -57,9 +51,7 @@ static bool bk_coredump_uart_lock(void)
 {
     if (s_coredump_uart_locked == 0U) {
         if (bk_hspl_res_must_lock(BK_HSPL_RES_UART_LOG) != BK_OK) {
-            volatile sys_sw_regs_t *sys_sw_regs = (volatile sys_sw_regs_t *)CP_SYS_SW_REGS_BASE;
-
-            if (sys_sw_regs->ap_cp_hang_dumping != 0U) {
+            if (bk_sys_sw_regs_get_ap_cp_hang_dumping() != 0U) {
                 return false;
             }
             s_coredump_uart_force_write = 1U;

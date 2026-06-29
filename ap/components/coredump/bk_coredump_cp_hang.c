@@ -9,7 +9,6 @@
 #include <soc/soc.h>
 #include "bk_arch.h"
 #include "bk_coredump.h"
-#include "cache.h"
 #include "multicore_driver.h"
 #include "reg_base.h"
 #include "sys_sw_regs.h"
@@ -50,14 +49,7 @@ extern volatile const uint8_t build_version[];
 
 static void cp_hang_set_ap_dumping(uint32_t value)
 {
-	volatile sys_sw_regs_t *sys_sw_regs = (volatile sys_sw_regs_t *)CONFIG_SWAP_ADDR;
-
-	sys_sw_regs->ap_cp_hang_dumping = (value != 0U) ? 1U : 0U;
-	__asm volatile ("dsb" ::: "memory");
-#if CONFIG_SUPPORT_CACHEABLE_SRAM
-	flush_dcache((void *)&sys_sw_regs->ap_cp_hang_dumping, sizeof(sys_sw_regs->ap_cp_hang_dumping));
-	__asm volatile ("dsb" ::: "memory");
-#endif
+	bk_sys_sw_regs_set_ap_cp_hang_dumping(value);
 }
 
 __attribute__((weak)) void bk_cp_hang_dump_by_ap_feed_aon_wdt(void)
