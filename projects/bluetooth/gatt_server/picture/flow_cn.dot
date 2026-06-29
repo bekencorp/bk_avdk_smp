@@ -1,0 +1,26 @@
+digraph flow {
+    rankdir=TB;
+    bgcolor="white";
+    fontname="Noto Sans CJK SC";
+    node [fontname="Noto Sans CJK SC", shape=box, style="rounded,filled", fillcolor="#eef3fb", color="#9bb8e0", penwidth=1.2];
+    edge [fontname="Noto Sans CJK SC", color="#555555", fontsize=11];
+
+    A [label="编译并烧录固件"];
+    B [label="打开串口，上电\n看到 create gatt db / start adv success"];
+    C [label="设备自动广播\n广播名 BK_XXYYZZ"];
+    D [label="对端扫描并发起连接", shape=diamond, fillcolor="#fff6cc", color="#d9c14e"];
+    E [label="连接建立，广播自动停止"];
+    F [label="对端发现服务 0xFA00\n获取特征 / 描述符 handle"];
+    G [label="对端写 / 读 N2~N4\n（0xEA05 / 0xEA06 / 0xEA07）"];
+    H [label="对端写 CCC（0x2902）使能通知"];
+    I [label="ap_cmd ble_gatts notify\n下发 0xEA01 通知"];
+    J [label="断开连接"];
+    K [label="ap_cmd ble_gatts adv_en 1\n重新开始广播"];
+
+    A -> B -> C -> D;
+    D -> E [label="已连接"];
+    E -> F -> G -> H -> I;
+    I -> J;
+    J -> K;
+    K -> D [label="等待下一次连接"];
+}

@@ -1,0 +1,26 @@
+digraph flow {
+    rankdir=TB;
+    bgcolor="white";
+    fontname="Noto Sans CJK SC";
+    node [fontname="Noto Sans CJK SC", shape=box, style="rounded,filled", fillcolor="#eef3fb", color="#9bb8e0", penwidth=1.2];
+    edge [fontname="Noto Sans CJK SC", color="#555555", fontsize=11];
+
+    A [label="Build and flash firmware"];
+    B [label="Open serial, power on\nsee create gatt db / start adv success"];
+    C [label="Device advertises automatically\nadv name BK_XXYYZZ"];
+    D [label="Peer scans and connects", shape=diamond, fillcolor="#fff6cc", color="#d9c14e"];
+    E [label="Connection up, advertising stops automatically"];
+    F [label="Peer discovers service 0xFA00\ngets characteristic / descriptor handles"];
+    G [label="Peer writes / reads N2-N4\n(0xEA05 / 0xEA06 / 0xEA07)"];
+    H [label="Peer writes CCC (0x2902) to enable notify"];
+    I [label="ap_cmd ble_gatts notify\nsend notify on 0xEA01"];
+    J [label="Disconnect"];
+    K [label="ap_cmd ble_gatts adv_en 1\nrestart advertising"];
+
+    A -> B -> C -> D;
+    D -> E [label="connected"];
+    E -> F -> G -> H -> I;
+    I -> J;
+    J -> K;
+    K -> D [label="wait next connection"];
+}

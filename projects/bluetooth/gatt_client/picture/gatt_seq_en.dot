@@ -1,0 +1,19 @@
+digraph gatt_seq {
+    rankdir=TB;
+    bgcolor="white";
+    fontname="Noto Sans CJK SC";
+    node [fontname="Noto Sans CJK SC", shape=box, style="rounded,filled", fillcolor="#eef3fb", color="#9bb8e0", penwidth=1.2];
+    edge [fontname="Noto Sans CJK SC", color="#555555", fontsize=11];
+
+    c1 [label="(1) Start scanning\nbk_ble_start_scaning_ex"];
+    c2 [label="(2) Adv report, server found\nBLE_5_REPORT_ADV\nrecord adv_addr / addr_type", fillcolor="#fde9d9", color="#e0a96b"];
+    c3 [label="(3) Stop scan and connect\nbk_ble_create_init / bk_ble_init_start_conn"];
+    c4 [label="(4) Connected, auto service discovery\nAPPC_SERVICE_CONNECTED\nget characteristic / descriptor handles"];
+    c5 [label="(5) Write characteristic value\nbk_ble_gatt_write_value(0x17 ...)"];
+    c6 [label="(6) Read characteristic value\nbk_ble_att_read(0x17)"];
+    c7 [label="(7) Write CCC to enable notify\nbk_ble_gatt_write_ccc(0x13, 1)", fillcolor="#e7f5e7", color="#8ec98e"];
+    c8 [label="(8) Receive notify sent by server"];
+    c9 [label="(9) Disconnect\nbk_ble_disconnect", fillcolor="#f6e0e0", color="#cf8a8a"];
+
+    c1 -> c2 -> c3 -> c4 -> c5 -> c6 -> c7 -> c8 -> c9;
+}

@@ -1,0 +1,21 @@
+digraph flow {
+    rankdir=TB;
+    bgcolor="white";
+    fontname="Noto Sans CJK SC";
+    node [fontname="Noto Sans CJK SC", shape=box, style="rounded,filled", fillcolor="#eef3fb", color="#9bb8e0", penwidth=1.2];
+    edge [fontname="Noto Sans CJK SC", color="#555555", fontsize=11];
+
+    A [label="Build and flash firmware"];
+    B [label="Open serial, power on\nsee gatt_client_demo_init success"];
+    C [label="ap_cmd ble_gattc scan 1\nstart scanning"];
+    D [label="Get server adv_addr / addr_type\nfrom scan logs", shape=diamond, fillcolor="#fff6cc", color="#d9c14e"];
+    E [label="ap_cmd ble_gattc scan 0\nstop scanning"];
+    F [label="ap_cmd ble_gattc conn <addr> [type]\nestablish connection"];
+    G [label="Connected, auto-discover service 0xFA00\nget characteristic / descriptor handles"];
+    H [label="ap_cmd ble_gattc write / read\nread-write characteristic value"];
+    I [label="ap_cmd ble_gattc notifyindcate_en 1 <ccc>\nenable notify"];
+    J [label="Receive notify sent by server"];
+    K [label="ap_cmd ble_gattc disconn\ndisconnect"];
+
+    A -> B -> C -> D -> E -> F -> G -> H -> I -> J -> K;
+}

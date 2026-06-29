@@ -1,0 +1,21 @@
+digraph flow {
+    rankdir=TB;
+    bgcolor="white";
+    fontname="Noto Sans CJK SC";
+    node [fontname="Noto Sans CJK SC", shape=box, style="rounded,filled", fillcolor="#eef3fb", color="#9bb8e0", penwidth=1.2];
+    edge [fontname="Noto Sans CJK SC", color="#555555", fontsize=11];
+
+    A [label="编译并烧录固件"];
+    B [label="打开串口，上电\n看到 gatt_client_demo_init success"];
+    C [label="ap_cmd ble_gattc scan 1\n开始扫描"];
+    D [label="从扫描日志获取\nserver 的 adv_addr / addr_type", shape=diamond, fillcolor="#fff6cc", color="#d9c14e"];
+    E [label="ap_cmd ble_gattc scan 0\n停止扫描"];
+    F [label="ap_cmd ble_gattc conn <addr> [type]\n建立连接"];
+    G [label="连接成功，自动发现服务 0xFA00\n获取特征 / 描述符 handle"];
+    H [label="ap_cmd ble_gattc write / read\n读写特征值"];
+    I [label="ap_cmd ble_gattc notifyindcate_en 1 <ccc>\n使能通知"];
+    J [label="收到 server 下发的 Notify"];
+    K [label="ap_cmd ble_gattc disconn\n断开连接"];
+
+    A -> B -> C -> D -> E -> F -> G -> H -> I -> J -> K;
+}

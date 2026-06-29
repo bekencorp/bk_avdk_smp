@@ -1,0 +1,33 @@
+digraph arch {
+    rankdir=LR;
+    bgcolor="white";
+    fontname="Noto Sans CJK SC";
+    node [fontname="Noto Sans CJK SC", shape=box, style="rounded,filled", fillcolor="#eef3fb", color="#9bb8e0", penwidth=1.2];
+    edge [fontname="Noto Sans CJK SC", color="#555555", fontsize=11];
+
+    Peer [label="对端设备\nGATT Client / 手机 nRF Connect", fillcolor="#fde9d9", color="#e0a96b"];
+
+    subgraph cluster_board {
+        label="BK7259 开发板";
+        fontname="Noto Sans CJK SC";
+        style="rounded";
+        color="#9bb8e0";
+
+        subgraph cluster_ap {
+            label="AP（应用核）";
+            fontname="Noto Sans CJK SC";
+            style="rounded";
+            color="#8ec98e";
+            Host [label="BLE Host\nGATT Server"];
+            DB   [label="GATT 数据库\nService 0xFA00\n0xEA01 通知 / N2~N4 读写"];
+        }
+
+        CP [label="CP（通信核）\nBLE Controller\n广播 / 连接 / 收发", fillcolor="#e7f5e7", color="#8ec98e"];
+    }
+
+    Peer -> CP   [label="BLE 空口\n广播 / 连接 / ATT"];
+    CP   -> Host [label="IPC"];
+    Host -> DB;
+    Host -> CP   [label="IPC"];
+    CP   -> Peer [label="Notify / 读写响应"];
+}

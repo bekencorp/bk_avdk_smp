@@ -1,0 +1,18 @@
+digraph gatt_seq {
+    rankdir=TB;
+    bgcolor="white";
+    fontname="Noto Sans CJK SC";
+    node [fontname="Noto Sans CJK SC", shape=box, style="rounded,filled", fillcolor="#eef3fb", color="#9bb8e0", penwidth=1.2];
+    edge [fontname="Noto Sans CJK SC", color="#555555", fontsize=11];
+
+    s1 [label="(1) 上电创建 GATT DB 并开始广播\nbk_ble_create_db / bk_ble_start_advertising"];
+    s2 [label="(2) 对端连接\nBLE_5_CONNECT_EVENT\n记录 conn_idx，广播停止", fillcolor="#fde9d9", color="#e0a96b"];
+    s3 [label="(3) 对端发现服务与特征\nService 0xFA00 / 0xEA01 / N2~N4"];
+    s4 [label="(4) 对端写特征\nBLE_5_WRITE_EVENT\n保存 N2/N3/N4 字符串"];
+    s5 [label="(5) 对端读特征\nBLE_5_READ_EVENT\nbk_ble_read_response_value 回读"];
+    s6 [label="(6) 对端写 CCC=1 使能通知\nGATTS_IDX_CHAR_DESC"];
+    s7 [label="(7) ap_cmd ble_gatts notify\nbk_ble_send_noti_value(0xEA01)", fillcolor="#e7f5e7", color="#8ec98e"];
+    s8 [label="(8) 断开连接\nBLE_5_DISCONNECT_EVENT\nconn_idx 复位", fillcolor="#f6e0e0", color="#cf8a8a"];
+
+    s1 -> s2 -> s3 -> s4 -> s5 -> s6 -> s7 -> s8;
+}

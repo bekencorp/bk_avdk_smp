@@ -1,0 +1,19 @@
+digraph gatt_seq {
+    rankdir=TB;
+    bgcolor="white";
+    fontname="Noto Sans CJK SC";
+    node [fontname="Noto Sans CJK SC", shape=box, style="rounded,filled", fillcolor="#eef3fb", color="#9bb8e0", penwidth=1.2];
+    edge [fontname="Noto Sans CJK SC", color="#555555", fontsize=11];
+
+    c1 [label="(1) 开始扫描\nbk_ble_start_scaning_ex"];
+    c2 [label="(2) 上报广播，发现 server\nBLE_5_REPORT_ADV\n记录 adv_addr / addr_type", fillcolor="#fde9d9", color="#e0a96b"];
+    c3 [label="(3) 停止扫描并发起连接\nbk_ble_create_init / bk_ble_init_start_conn"];
+    c4 [label="(4) 连接成功，自动服务发现\nAPPC_SERVICE_CONNECTED\n得到特征 / 描述符 handle"];
+    c5 [label="(5) 写特征值\nbk_ble_gatt_write_value(0x17 ...)"];
+    c6 [label="(6) 读特征值\nbk_ble_att_read(0x17)"];
+    c7 [label="(7) 写 CCC 使能通知\nbk_ble_gatt_write_ccc(0x13, 1)", fillcolor="#e7f5e7", color="#8ec98e"];
+    c8 [label="(8) 收到 server 下发的 Notify"];
+    c9 [label="(9) 断开连接\nbk_ble_disconnect", fillcolor="#f6e0e0", color="#cf8a8a"];
+
+    c1 -> c2 -> c3 -> c4 -> c5 -> c6 -> c7 -> c8 -> c9;
+}

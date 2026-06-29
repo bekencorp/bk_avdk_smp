@@ -1,74 +1,122 @@
-# GATT Server Demo (BK7259)
+# Bluetooth LE GATT Server Example
 
 * [中文](./README_CN.md)
 
-## 1. Project Overview
+In one sentence: this project turns a **BK7259 development board into a Bluetooth LE peripheral (GATT Server)** — it advertises, accepts a connection from a central, exposes a custom GATT database, answers read/write requests, and pushes notifications, all driven from the UART CLI.
 
-This project demonstrates a Bluetooth GATT server on the BK7259 SMP platform. The BLE host runs on AP and the controller runs on CP.
+It is the natural companion of the [gatt_client](../gatt_client) example: flash one board with this server and another with the client, and you have a complete two-board BLE read / write / notify demo.
 
-The demo provides:
+## Supported Targets
 
-- BLE advertising setup and start/stop control
-- A GATT database with service `0xFA00`
-- ATT read/write handling for demo characteristics
-- ATT notify through CLI after a client enables CCCD
-- Integration-test entries in `.it.csv`
+| Target | Status | BLE role | Host / Controller split |
+| --- | --- | --- | --- |
+| BK7259 | Supported | Peripheral (GATT Server) | Host on AP, Controller on CP |
+
+## 1. Overview
+
+After boot the demo builds a GATT database, configures legacy connectable advertising, and starts advertising automatically. A central (the `gatt_client` board or a phone tool such as nRF Connect) can then:
+
+- Discover the device by its advertising name `BK_XXYYZZ` and Service Data UUID `0xFE01`.
+- Connect and discover the primary service `0xFA00` and its characteristics.
+- Write and read the data characteristics N2 / N3 / N4 (`0xEA05` / `0xEA06` / `0xEA07`).
+- Enable the CCC descriptor `0x2902` and receive notifications on `0xEA01`, pushed by the CLI command `ap_cmd ble_gatts notify`.
+- Optionally bond (pairing without MITM).
+
+On BK7259 the BLE host runs on the AP core and the BLE controller runs on the CP core; the two communicate over IPC. This is why all Bluetooth CLI commands are sent through the `ap_cmd` prefix.
+
+![GATT server architecture](./picture/arch_en.png)
 
 Source code: `projects/bluetooth/gatt_server/ap/gatt_server_demo.c`
 
-### 1.1 Test Environment
+## 2. Quick Start
 
-- Hardware: BK7259 development board
-- Peer device: another board running `projects/bluetooth/gatt_client`, or a phone BLE tool such as nRF Connect
-- UART: UART0 for flashing, logging, and CLI
-- Firmware output: `build/bk7259/gatt_server/package/all-app.bin`
+> Assumes you already have a working BK7259 build and flash environment and a second board (or phone) acting as the central.
 
-### 1.2 UUIDs
+1. **Build the firmware**
 
-Advertising data and the connected GATT database use different UUIDs:
+   ```bash
+   make bk7259 PROJECT=bluetooth/gatt_server
+   ```
 
-- Advertising Service Data UUID: `0xFE01`
-- GATT primary service UUID: `0xFA00`
-- Notify characteristic UUID: `0xEA01`, CCCD enabled
-- Read/write characteristic UUIDs: `0xEA05`, `0xEA06`, `0xEA07`
-- Write-only characteristic UUID: `0xEA02`
+2. **Flash** `build/bk7259/gatt_server/package/all-app.bin` to the board.
 
-The advertising name is `BK_XXYYZZ`, derived from the BLE MAC address.
+3. **Open a serial terminal** and power on. The device starts advertising automatically; wait for:
 
-## 2. Directory Structure
+   ```text
+   start adv success
+   gatt_server_demo_init success
+   ```
+
+4. **Connect from the central.** From the `gatt_client` board, scan and connect; or from nRF Connect on a phone, find `BK_XXYYZZ` and tap CONNECT. Advertising stops automatically once connected.
+
+5. **Push a notification** (after the client enables the CCC descriptor):
+
+   ```bash
+   ap_cmd ble_gatts notify
+   ```
+
+That is the full peripheral round trip. Details, the attribute table, and troubleshooting follow.
+
+## 3. Requirements
+
+| Item | Requirement |
+| --- | --- |
+| Target board | BK7259 development board |
+| Central device | A second board running [gatt_client](../gatt_client), or a phone BLE tool such as nRF Connect / LightBlue |
+| UART | UART0 for flashing, logs, and the CLI |
+| Firmware output | `build/bk7259/gatt_server/package/all-app.bin` |
+
+## 4. GATT Database
+
+The advertising payload and the connected GATT database use different UUIDs. Do not confuse the advertising Service Data UUID with the GATT service UUID.
+
+**Advertising payload**
+
+| Field | Value | Description |
+| --- | --- | --- |
+| Flags | `0x06` | LE General Discoverable, BR/EDR not supported |
+| Local Name | `BK_XXYYZZ` | `XXYYZZ` = first 3 bytes of the BLE MAC |
+| Service Data UUID | `0xFE01` | Visible in scan results |
+| Manufacturer Company ID | `0x05F0` | Beken manufacturer data |
+
+**GATT attribute table (primary service `0xFA00`)**
+
+| Index | UUID | Type | Properties | Description |
+| --- | --- | --- | --- | --- |
+| 0 | `0xFA00` | Primary Service | Read | Service declaration |
+| 2 | `0xEA01` | Characteristic | Notify | Notification source characteristic |
+| 3 | `0x2902` | Descriptor (CCC) | Read / Write | Client Characteristic Configuration for `0xEA01` |
+| 5 | `0xEA02` | Characteristic | Write | Write-only placeholder (N1) |
+| 7 | `0xEA05` | Characteristic | Read / Write | N2 string buffer |
+| 9 | `0xEA06` | Characteristic | Read / Write | N3 string buffer |
+| 11 | `0xEA07` | Characteristic | Read / Write | N4 string buffer |
+
+Notes on behavior:
+
+- N2 / N3 / N4 store the latest string written by the client; reading before any write returns zero-length data.
+- Maximum attribute length is `128` bytes (`BLE_5_ATT_INFO_REQ` reports `128`).
+- The `Index` column is the attribute index inside the database; the runtime ATT handles (for example `0x12`, `0x13`, `0x17`) are assigned by the stack and printed in the client discovery log. Always use the handles from the current log.
+
+## 5. Directory Structure
 
 ```text
 gatt_server/
-├── README.md
-├── README_CN.md
-├── .ci                         # CI build command
-├── .it.csv                     # Integration test cases
-├── ap/
+├── README.md / README_CN.md         # This document (EN / CN)
+├── picture/                         # Diagrams embedded in this document
+├── .ci                              # CI build command
+├── .it.csv                          # Integration test entries
+├── ap/                              # AP core: BLE host + GATT server + CLI
 │   ├── ap_main.c
-│   ├── gatt_server_demo.c
+│   ├── gatt_server_demo.c           # GATT DB, advertising, callbacks, CLI
 │   ├── gatt_server_demo.h
-│   └── CMakeLists.txt          # Copies .it.csv to build directory
-├── cp/
-├── partitions/
-└── config files
+│   └── config/bk7259_ap/defconfig
+├── cp/                              # CP core: BLE controller bring-up
+└── partitions/                      # Flash / RAM partition tables
 ```
 
-## 3. Features
+## 6. Build and Flash
 
-- Auto-start advertising after boot
-- CLI command group: `ap_cmd ble_gatts`
-- Manual advertising control: `adv_en 1` / `adv_en 0`
-- Notify test command: `notify`
-- Bonding command: `bond`
-- GATT authorization from the BK7258 demo is not supported on BK7259 and is not included
-
-After a central device connects, advertising stops automatically. This demo does not restart advertising automatically after disconnect. Run `ap_cmd ble_gatts adv_en 1` or reboot the board before the next connection.
-
-## 4. Build And Run
-
-### 4.1 Build
-
-From the SDK root:
+Build from the SDK root:
 
 ```bash
 make bk7259 PROJECT=bluetooth/gatt_server
@@ -80,97 +128,138 @@ Docker build:
 ./dbuild.sh make bk7259 PROJECT=bluetooth/gatt_server
 ```
 
-The project `.ci` file contains the docker build command used by CI:
-
-```text
-./dbuild.sh make bk7259 PROJECT=bluetooth/gatt_server
-```
-
-### 4.2 Flash
-
-Flash the generated image with BKFIL:
+Flash the combined image with BKFIL:
 
 ```text
 build/bk7259/gatt_server/package/all-app.bin
 ```
 
-### 4.3 CLI Commands
-
-On BK7259 SMP, AP-side commands must use the `ap_cmd` prefix:
-
-```text
-ap_cmd ble_gatts help
-ap_cmd ble_gatts adv_en 1
-ap_cmd ble_gatts adv_en 0
-ap_cmd ble_gatts notify
-ap_cmd ble_gatts bond
-```
-
-Successful command submission returns:
-
-```text
-BLE GATTS RSP:OK
-```
-
-Failed command submission returns:
-
-```text
-BLE GATTS RSP:ERROR
-```
-
-### 4.4 How To Judge Pass Or Fail
-
-After reboot, the server is ready when the log contains:
-
-```text
-gatt_server_demo_init success
-```
-
-Typical advertising success logs include:
+A healthy boot prints:
 
 ```text
 create gatt db success
 set adv paramters success
 set adv data success
 start adv success
+gatt_server_demo_init success
 ```
 
-For manual CLI tests, `BLE GATTS RSP:OK` means the command was accepted. For notify and bond, a valid active connection is required; otherwise the command returns `BLE GATTS RSP:ERROR`.
+## 7. Testing
 
-### 4.5 Integration Test Commands
+The end-to-end flow with a second board is shown below.
 
-`.it.csv` is the runtime integration-test entry file. The test platform reads each row, sends the test command to the selected device UART, waits for the expected result string, and marks the case as passed if the string is found before timeout.
+![GATT server test flow](./picture/flow_en.png)
 
-Current cases:
+Using the [gatt_client](../gatt_client) board as the central:
+
+1. Flash this project on board A (server) and `gatt_client` on board B (client).
+2. Board A: wait for `start adv success` and `gatt_server_demo_init success`.
+3. Board B: `ap_cmd ble_gattc scan 1`, read board A's `adv_addr` / `addr_type` from the scan log, then `ap_cmd ble_gattc scan 0`.
+4. Board B: `ap_cmd ble_gattc conn <adv_addr> [addr_type]`. Board A advertising stops automatically.
+5. Board B: after auto service discovery, note the handles of service `0xFA00`.
+6. Board B: write and read N2, e.g. `ap_cmd ble_gattc write 17 ssid_ab` then `ap_cmd ble_gattc read 17`.
+7. Board B: enable notify, e.g. `ap_cmd ble_gattc notifyindcate_en 1 13`.
+8. Board A: `ap_cmd ble_gatts notify` — board B prints the received notification.
+9. Board B: `ap_cmd ble_gattc disconn`.
+10. Board A: `ap_cmd ble_gatts adv_en 1` before the next connection.
+
+Typical handles with the matching client: CCC `0x13`, notify value `0x12`, N2 / N3 / N4 = `0x17` / `0x19` / `0x1B`.
+
+## 8. CLI Reference
+
+On BK7259 SMP, AP-side Bluetooth commands must use the `ap_cmd` prefix. A successful submission returns `BLE GATTS RSP:OK`; an error returns `BLE GATTS RSP:ERROR`.
+
+| Command | Description |
+| --- | --- |
+| `ap_cmd ble_gatts help` | Print all supported commands. |
+| `ap_cmd ble_gatts adv_en 1` | Start advertising (use after a disconnect, before reconnecting). |
+| `ap_cmd ble_gatts adv_en 0` | Stop advertising. |
+| `ap_cmd ble_gatts notify` | Send a notification on `0xEA01`; requires an active connection and CCC enabled by the client. |
+| `ap_cmd ble_gatts bond` | Start bonding on the current connection. |
+
+`adv_en 1` expects an advertising activity in the created/stopped state; `adv_en 0` expects advertising already started. After a central connects, advertising stops automatically and this demo does **not** restart it on disconnect — run `adv_en 1` or reboot before the next connection.
+
+## 9. How It Works
+
+The full server-side interaction sequence:
+
+![GATT server interaction sequence](./picture/gatt_seq_en.png)
+
+Key code map (`ap/gatt_server_demo.c`):
+
+| Stage | Function / event | Notes |
+| --- | --- | --- |
+| Init | `gatt_server_demo_init` | Registers CLI, creates the GATT DB, configures and starts advertising |
+| Create DB | `bk_ble_create_db` | Service `0xFA00`, profile task id `10` |
+| Advertising | `bk_ble_create_advertising` / `bk_ble_set_adv_data` / `bk_ble_start_advertising` | Legacy connectable + scannable, interval `120`–`160`, LE 1M PHY, public address |
+| Write | `BLE_5_WRITE_EVENT` → `ble_gatts_notice_cb` | Stores the string written to N2 / N3 / N4 |
+| Read | `BLE_5_READ_EVENT` → `bk_ble_read_response_value` | Returns the latest stored value |
+| Notify | `ap_cmd ble_gatts notify` → `bk_ble_send_noti_value` | Sends a 5-byte payload on `0xEA01` |
+| Pairing | `BLE_5_PAIRING_REQ` → `bk_ble_sec_send_auth_mode` | No-MITM bonding; on encryption failure the peer is disconnected |
+
+## 10. Example Output
+
+Real server-side serial log for one full session (`BLE-GATT` is the demo log tag; the peer address depends on your boards):
 
 ```text
+# --- boot: GATT DB created, advertising started ---
+ap1:BLE-GATT:I(590):cd_ind:prf_id:10, status:0
+ap1:BLE-GATT:I(590):create gatt db success
+ap1:BLE-GATT:I(590):gatt_server_demo_init, dev_name:BK_183E12, ret:9
+ap1:BLE-GATT:I(590):adv data length :22
+ap1:BLE-GATT:I(596):set adv paramters success
+ap1:BLE-GATT:I(602):set adv data success
+ap1:BLE-GATT:I(609):start adv success
+ap1:BLE-GATT:I(609):gatt_server_demo_init success
+
+# --- central connects, advertising stops automatically, MTU negotiated ---
+ap1:BLE-GATT:I(23149):c_ind:conn_idx:0, addr_type:0, peer_addr:15:3e:12:8c:47:c8
+ap1:BLE-GATT:I(24120):ble_gatts_notice_cb m_ind:conn_idx:0, mtu_size:255
+
+# --- client writes N2 (att_idx 7 = 0xEA05) ---
+ap1:BLE-GATT:I(26303):write_cb:conn_idx:0, prf_id:10, att_idx:7, len:7, data[0]:0x73
+ap1:BLE-GATT:I(26303):write N2: ssid_ab, length: 7
+
+# --- client reads N2 back ---
+ap1:BLE-GATT:I(28834):read_cb:conn_idx:0, prf_id:10, att_idx:7
+ap1:BLE-GATT:I(28834):read N2: ssid_ab, length: 7
+
+# --- client enables notify by writing the CCC descriptor (att_idx 3, value 01 00) ---
+ap1:BLE-GATT:I(34527):write_cb:conn_idx:0, prf_id:10, att_idx:3, len:2, data[0]:0x01
+ap1:BLE-GATT:I(34527):write notify: 01 00, length: 2
+
+# --- ap_cmd ble_gatts notify ---
+BLE GATTS RSP:OK
+
+# --- disconnect (reason 0x13 = remote user terminated connection) ---
+ap1:BLE-GATT:I(42920):d_ind:conn_idx:0,reason:19
+```
+
+## 11. Integration Test
+
+`.it.csv` covers stable single-board smoke tests only:
+
+```text
+reboot
 ap_cmd ble_gatts help
 ap_cmd ble_gatts adv_en 0
 ap_cmd ble_gatts adv_en 1
 ```
 
-Expected strings:
+The full read / write / notify flow needs a second board and a runtime peer address, so it is documented as the manual flow in [Testing](#7-testing).
 
-```text
-BLE GATTS RSP:OK
-```
+## 12. Troubleshooting
 
-The current static CSV covers stable single-board smoke tests. Full GATT read/write/notify verification requires a second board and a dynamic peer address from scan logs, so it is documented as a manual two-board flow instead of being hard-coded in `.it.csv`.
+| Symptom | Likely cause and fix |
+| --- | --- |
+| `cmd NOT found: ble_gatts` | Missing `ap_cmd` prefix. Bluetooth CLI runs on AP; always use `ap_cmd ble_gatts ...`. |
+| Central cannot find the device | Advertising stopped (already connected once). Run `ap_cmd ble_gatts adv_en 1` or reboot. |
+| `notify` returns `ERROR` | No active connection, or the client has not enabled the CCC descriptor `0x2902`. |
+| `adv_en` returns `ERROR` | No advertising activity in the expected state: use `adv_en 1` when stopped, `adv_en 0` when advertising. |
+| Read returns empty data | N2 / N3 / N4 have not been written yet; write first, then read. |
 
-## 5. Test With GATT Client
+## 13. References
 
-1. Flash `projects/bluetooth/gatt_server` on board A.
-2. Flash `projects/bluetooth/gatt_client` on board B.
-3. Board A: confirm `gatt_server_demo_init success` and `start adv success`.
-4. Board B: run `ap_cmd ble_gattc scan 1`.
-5. Board B: use the discovered `adv_addr` to run `ap_cmd ble_gattc conn <adv_addr>`.
-6. Board B: wait for service discovery logs for service `0xFA00`.
-7. Board B: enable notify with `ap_cmd ble_gattc notifyindcate_en 1 <ccc_handle>`.
-8. Board A: run `ap_cmd ble_gatts notify`.
-
-## 6. Notes
-
-1. AP logs may be prefixed with `ap0:` or `ap1:`.
-2. CP logs may appear without an AP prefix.
-3. Use `ap_cmd` for all AP-side Bluetooth CLI commands on BK7259 SMP.
-4. If the client disconnects, restart server advertising with `ap_cmd ble_gatts adv_en 1` before reconnecting.
+- Companion example: [gatt_client](../gatt_client)
+- Bluetooth LE GATT / ATT concepts: Bluetooth Core Specification, Generic Attribute Profile
+- Demo source: `ap/gatt_server_demo.c`
