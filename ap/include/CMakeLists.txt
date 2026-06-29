@@ -8,8 +8,6 @@ list(APPEND incs
 	modules/vg_lite_gpu
 	modules/private/veri_isp
 	modules/private/vg_lite_gpu
-	modules/h264e
-	modules/h264d
 	modules/fdk_aac_enc
 	modules/securityip
 	modules/freetype
