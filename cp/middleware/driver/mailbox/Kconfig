@@ -10,6 +10,14 @@ menu "MAILBOX"
 	config MAILBOX_IPC
 		bool "Enable mailbox socket ipc driver"
 		default y
+
+	config IPC_STRESS_TEST
+		depends on MAILBOX_IPC
+		bool "Enable cross-core IPC stress test echo server (CP side)"
+		default n
+		help
+			Start a CPU0 echo server on a free server port that echoes payloads
+			back to AP-side stress clients. Pairs with the AP "ipc_stress" CLI.
     
     config SLAVE_HEART_BEAT
 		depends on MAILBOX
