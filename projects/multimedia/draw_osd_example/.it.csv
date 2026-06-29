@@ -1,0 +1,19 @@
+case名称,测试命令（必填）,输入设备（1代表设备1，2代表设备2以此类推，不填默认为设备1）,期望结果（选填）,超时时间(s)
+reboot,reboot,1,draw_osd_example m55 running,120
+osd_init,ap_cmd osd init,1,cli_draw_osd_test_cmd ---complete,60
+osd_array,ap_cmd osd array,1,cli_draw_osd_test_cmd ---complete,60
+osd_img,ap_cmd osd img,1,cli_draw_osd_test_cmd ---complete,60
+osd_font,ap_cmd osd font,1,cli_draw_osd_test_cmd ---complete,60
+osd_get_assets,ap_cmd osd get_assets,1,cli_draw_osd_test_cmd ---complete,60
+osd_get_info,ap_cmd osd get_info,1,cli_draw_osd_test_cmd ---complete,60
+osd_test_invalid_param,ap_cmd osd test invalid_param,1,[invalid_param] PASS,60
+osd_test_cfg_unchanged,ap_cmd osd test cfg_unchanged,1,[cfg_unchanged] PASS,60
+osd_test_unaligned,ap_cmd osd test unaligned,1,[unaligned] PASS,60
+osd_test_psram_switch,ap_cmd osd test psram_switch,1,[psram_switch] PASS,60
+osd_test_shrink,ap_cmd osd test shrink,1,[shrink] PASS,60
+osd_test_concurrent,ap_cmd osd test concurrent,1,[concurrent] PASS,60
+osd_test_stability,ap_cmd osd test stability,1,[stability] PASS,120
+osd_test_multi_inst,ap_cmd osd test multi_inst,1,[multi_inst] PASS,60
+osd_test_null_assets,ap_cmd osd test null_assets,1,[null_assets] PASS,60
+osd_test_all,ap_cmd osd test all,1,[all] ALL TESTS PASS,180
+osd_deinit,ap_cmd osd deinit,1,cli_draw_osd_test_cmd ---complete,60
