@@ -281,7 +281,7 @@ ble_err_t bk_ble_delete_advertising(uint8_t actv_idx, ble_cmd_cb_t callback);
  *
  * User example:
  * @code
- *     const uint8_t adv_data[] = {0x02, 0x01, 0x06, 0x0A, 0x09, 0x37 0x32, 0x33, 0x31, 0x4e, 0x5f, 0x42, 0x4c, 0x45};
+ *     const uint8_t adv_data[] = {0x02, 0x01, 0x06, 0x0A, 0x09, 0x37, 0x32, 0x33, 0x31, 0x4e, 0x5f, 0x42, 0x4c, 0x45};
  *     bk_ble_set_adv_data(actv_idx, adv_data, sizeof(adv_data), ble_at_cmd_cb);
  * @endcode
  * @return
@@ -305,7 +305,7 @@ ble_err_t bk_ble_set_adv_data(uint8_t actv_idx, uint8_t* adv_buff, uint8_t adv_l
  *
  * User example:
  * @code
- *     const uint8_t scan_data[] = {0x02, 0x01, 0x06, 0x0A, 0x09, 0x37 0x32, 0x33, 0x31, 0x4e, 0x5f, 0x42, 0x4c, 0x45};
+ *     const uint8_t scan_data[] = {0x02, 0x01, 0x06, 0x0A, 0x09, 0x37, 0x32, 0x33, 0x31, 0x4e, 0x5f, 0x42, 0x4c, 0x45};
  *     bk_ble_set_scan_rsp_data(actv_idx, scan_data, sizeof(scan_data), ble_at_cmd_cb);
  * @endcode
  * @return
@@ -321,13 +321,13 @@ ble_err_t bk_ble_set_scan_rsp_data(uint8_t actv_idx, uint8_t* scan_buff, uint8_t
  *    - actv_idx: the index of activity
  *    - per_adv_buff: periodic advertising data
  *    - per_adv_len: the length of periodic advertising data
- *    - callback: register a callback for this action, ble_cmd_t: BLE_SET_ADV_DATA????
+ *    - callback: register a callback for this action, ble_cmd_t: BLE_SET_ADV_DATA
  * @attention 1.you must wait callback status, 0 mean success.
  * @attention 2.must used after bk_ble_create_advertising
  *
  * User example:
  * @code
- *     const uint8_t adv_data[] = {0x02, 0x01, 0x06, 0x0A, 0x09, 0x37 0x32, 0x33, 0x31, 0x4e, 0x5f, 0x42, 0x4c, 0x45};
+ *     const uint8_t adv_data[] = {0x02, 0x01, 0x06, 0x0A, 0x09, 0x37, 0x32, 0x33, 0x31, 0x4e, 0x5f, 0x42, 0x4c, 0x45};
  *     bk_ble_set_per_adv_data(actv_idx, adv_data, sizeof(adv_data), ble_at_cmd_cb);
  * @endcode
  *
@@ -457,15 +457,15 @@ ble_err_t bk_ble_set_max_mtu(uint16_t max_mtu);
  *
  * @attention 1.you must wait callback status, 0 mean success.
  *
- * User exzample:
+ * User example:
  * @code
-    ble_scan_param_t scan_param;
+ *     ble_scan_param_t scan_param;
 
-    scan_param.own_addr_type = 0;//BLE_STATIC_ADDR
-    scan_param.scan_phy = 5;
-    scan_param.scan_intv = 0x64; //interval
-    scan_param.scan_wd = 0x1e; //windows
-    bk_ble_create_scaning(actv_idx, &, ble_at_cmd);
+ *     scan_param.own_addr_type = 0;//BLE_STATIC_ADDR
+ *     scan_param.scan_phy = 5;
+ *     scan_param.scan_intv = 0x64; //interval
+ *     scan_param.scan_wd = 0x1e; //windows
+ *     bk_ble_create_scaning(actv_idx, &scan_param, ble_at_cmd);
  *
  * @endcode
  *

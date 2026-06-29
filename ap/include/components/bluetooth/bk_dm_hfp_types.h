@@ -248,6 +248,7 @@ typedef enum {
 /// HFP client callback parameters
 typedef struct{
     uint8_t remote_bda[6];                          /*!< remote bluetooth device address */
+    /** @cond */
     union
     {
         /**
@@ -437,6 +438,7 @@ typedef struct{
         } unknown_data;                                    /*!< HF callback param of BK_HF_CLIENT_UNKNOWN_DATA_IND_EVT */
 
     };
+    /** @endcond */
 }bk_hf_client_cb_param_t;                      /*!< HFP client callback parameters */
 
 /**

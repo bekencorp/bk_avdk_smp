@@ -23,8 +23,6 @@
 extern"C" {
 #endif
 
-
-
 #ifndef _H_GATT_DEFINES_
 #define _H_GATT_DEFINES_
 

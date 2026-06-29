@@ -1,6 +1,7 @@
 /**
  * @file hidd_service.h
  *
+ * @brief Bluetooth HID Device demo service APIs.
  */
 
 #ifndef HIDD_SERVICE_H
@@ -12,7 +13,14 @@ extern "C" {
 
 #include <stdint.h>
 
+/**
+ * @brief Initialize the Bluetooth HID Device demo service.
+ */
 void bt_hidd_init(void);
+
+/**
+ * @brief Deinitialize the Bluetooth HID Device demo service.
+ */
 void bt_hidd_deinit(void);
 
 

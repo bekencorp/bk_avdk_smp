@@ -14,11 +14,11 @@ extern "C" {
 /// Class of device
 typedef union {
     struct class_of_device {
-        uint32_t      reserved_2: 2;                    /*!< undefined */
+        uint32_t      reserved_2: 2;                    /*!< reserved */
         uint32_t      minor: 6;                         /*!< minor class */
         uint32_t      major: 5;                         /*!< major class */
         uint32_t      service: 11;                      /*!< service class */
-        uint32_t      reserved_8: 8;                    /*!< undefined */
+        uint32_t      reserved_8: 8;                    /*!< reserved */
     } cod_t;
     uint32_t cod;
 } bk_bt_cod_t;

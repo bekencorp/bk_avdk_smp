@@ -15,7 +15,6 @@
 #ifndef INCLUDE_MODULES_BK_DM_BT_TYPES_H_
 #define INCLUDE_MODULES_BK_DM_BT_TYPES_H_
 
-
 /// Discoverability and Connectability mode
 typedef enum {
     BK_BT_NON_CONNECTABLE,             /*!< Non-connectable */

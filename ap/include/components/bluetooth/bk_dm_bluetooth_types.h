@@ -48,8 +48,10 @@ typedef enum
     BK_BT_HOST_STACK_TYPE_NOT_SUPPORT,
 }BK_BT_HOST_STACK_TYPE;
 
+/** @cond */
 //typedef bk_err_t ble_err_t;
 typedef int ble_err_t;
+/** @endcond */
 
 #ifndef bt_err_t
 typedef int bt_err_t;
