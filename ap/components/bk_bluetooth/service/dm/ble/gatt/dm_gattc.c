@@ -1117,7 +1117,7 @@ static int32_t bk_gattc_cb (bk_gattc_cb_event_t event, bk_gatt_if_t gattc_if, bk
     return ret;
 }
 
-int32_t dm_gattc_connect(uint8_t *addr, uint32_t addr_type, uint32_t s_timeout)
+int32_t bk_dm_prf_gattc_connect(uint8_t *addr, uint32_t addr_type, uint32_t s_timeout)
 {
     dm_gatt_app_env_t *common_env_tmp = NULL;
     int32_t err = 0;
@@ -1215,7 +1215,7 @@ int32_t dm_gattc_connect(uint8_t *addr, uint32_t addr_type, uint32_t s_timeout)
     return err;
 }
 
-int32_t dm_gattc_connect_ext(uint8_t *addr, uint32_t addr_type, bk_gap_create_conn_params_t *pm)
+int32_t bk_dm_prf_gattc_connect_ext(uint8_t *addr, uint32_t addr_type, bk_gap_create_conn_params_t *pm)
 {
     dm_gatt_app_env_t *common_env_tmp = NULL;
     int32_t err = 0;
@@ -1231,7 +1231,7 @@ int32_t dm_gattc_connect_ext(uint8_t *addr, uint32_t addr_type, bk_gap_create_co
 
     if (!pm)
     {
-        return dm_gattc_connect(addr, addr_type, 500);
+        return bk_dm_prf_gattc_connect(addr, addr_type, 500);
     }
 
     if (!s_gattc_if)
@@ -1279,7 +1279,7 @@ int32_t dm_gattc_connect_ext(uint8_t *addr, uint32_t addr_type, bk_gap_create_co
     return err;
 }
 
-int32_t dm_gattc_disconnect(uint8_t *addr)
+int32_t bk_dm_prf_gattc_disconnect(uint8_t *addr)
 {
     dm_gatt_app_env_t *common_env_tmp = NULL;
     int32_t err = 0;
@@ -1363,7 +1363,7 @@ end:;
     return err;
 }
 
-int32_t dm_gattc_connect_cancel(void)
+int32_t bk_dm_prf_gattc_connect_cancel(void)
 {
     int32_t err = 0;
 
@@ -1422,7 +1422,7 @@ end:;
     return err;
 }
 
-int32_t dm_gattc_discover(uint16_t conn_id)
+int32_t bk_dm_prf_gattc_discover(uint16_t conn_id)
 {
     if (!s_gattc_if)
     {
@@ -1440,7 +1440,7 @@ int32_t dm_gattc_discover(uint16_t conn_id)
 }
 
 //ble_gatt_demo gattc write 5 18 111111111111111111111
-int32_t dm_gattc_write(uint16_t conn_id, uint16_t attr_handle, uint8_t *data, uint32_t len)
+int32_t bk_dm_prf_gattc_write(uint16_t conn_id, uint16_t attr_handle, uint8_t *data, uint32_t len)
 {
     if (!s_gattc_if)
     {
@@ -1457,7 +1457,7 @@ int32_t dm_gattc_write(uint16_t conn_id, uint16_t attr_handle, uint8_t *data, ui
     return 0;
 }
 
-int32_t dm_gattc_write_ext(uint16_t gatt_conn_id, uint16_t attr_handle, uint8_t *data, uint32_t len, uint8_t write_req)
+int32_t bk_dm_prf_gattc_write_ext(uint16_t gatt_conn_id, uint16_t attr_handle, uint8_t *data, uint32_t len, uint8_t write_req)
 {
     int32_t ret = 0;
     dm_gattc_app_env_t *app_env_tmp = NULL;
@@ -1529,7 +1529,7 @@ end:;
     return ret;
 }
 
-int32_t dm_gattc_read(uint16_t gatt_conn_id, uint16_t attr_handle, uint8_t *data, uint32_t len)
+int32_t bk_dm_prf_gattc_read(uint16_t gatt_conn_id, uint16_t attr_handle, uint8_t *data, uint32_t len)
 {
     int32_t ret = 0;
     dm_gattc_app_env_t *app_env_tmp = NULL;
@@ -1622,7 +1622,7 @@ end:;
     return ret;
 }
 
-int32_t dm_gattc_send_mtu_req(uint8_t *mac, uint8_t gatt_conn_id)
+int32_t bk_dm_prf_gattc_send_mtu_req(uint8_t *mac, uint8_t gatt_conn_id)
 {
     int32_t ret = 0;
     dm_gattc_app_env_t *app_env_tmp = NULL;
@@ -1700,7 +1700,7 @@ end:;
     return ret;
 }
 
-int dm_gattc_add_gattc_callback(void *param)
+int bk_dm_prf_gattc_add_gattc_callback(void *param)
 {
     dm_ble_gattc_app_cb cb = (typeof(cb))param;
 
@@ -1772,7 +1772,7 @@ int32_t dm_gattc_notify_mtu_status_from_gatts(dm_gatt_app_env_t *env)
 #endif
 }
 
-int dm_gattc_main(cli_gatt_param_t *param)
+int bk_dm_prf_gattc_main(cli_gatt_param_t *param)
 {
     ble_err_t ret = 0;
 
@@ -1792,10 +1792,10 @@ int dm_gattc_main(cli_gatt_param_t *param)
         }
     }
 
-    dm_gatt_add_gap_callback(dm_ble_gap_cb);
+    bk_dm_prf_gap_add_gap_callback(dm_ble_gap_cb);
 
     bk_ble_gattc_register_callback(dm_ble_gattc_private_cb);
-    dm_gattc_add_gattc_callback(bk_gattc_cb);
+    bk_dm_prf_gattc_add_gattc_callback(bk_gattc_cb);
 
     ret = bk_ble_gattc_app_register(0);
 
@@ -1816,11 +1816,11 @@ int dm_gattc_main(cli_gatt_param_t *param)
     bk_bd_addr_t current_addr = {0}, identity_addr = {0};
     char dev_name[64] = {0};
 
-    dm_ble_gap_get_identity_addr(identity_addr);
+    bk_dm_prf_gap_get_identity_addr(identity_addr);
 
     os_memcpy(current_addr, identity_addr, sizeof(identity_addr));
 
-    snprintf((char *)(dev_name), sizeof(dev_name) - 1, "SCOOTER-%02X%02X%02X", identity_addr[2], identity_addr[1], identity_addr[0]);
+    snprintf((char *)(dev_name), sizeof(dev_name) - 1, "BKDM-%02X%02X%02X", identity_addr[2], identity_addr[1], identity_addr[0]);
 
     ret = bk_ble_gap_set_device_name(dev_name);
 
@@ -1878,7 +1878,7 @@ error:;
     return -1;
 }
 
-int dm_gattc_deinit(void)
+int bk_dm_prf_gattc_deinit(void)
 {
     int32_t ret = 0;
 

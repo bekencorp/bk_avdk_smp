@@ -1295,7 +1295,7 @@ static int32_t bk_gatts_cb (bk_gatts_cb_event_t event, bk_gatt_if_t gatts_if, bk
     return ret;
 }
 
-int32_t dm_gatts_disconnect(uint8_t *addr)
+int32_t bk_dm_prf_gatts_disconnect(uint8_t *addr)
 {
     dm_gatt_app_env_t *common_env_tmp = NULL;
     int32_t err = 0;
@@ -1411,7 +1411,7 @@ error:;
     return -1;
 }
 
-int32_t dm_gatts_enable_adv(uint8_t enable)
+int32_t bk_dm_prf_gatts_enable_adv(uint8_t enable)
 {
     int32_t ret = 0;
 
@@ -1459,7 +1459,7 @@ error:;
     return -1;
 }
 
-int32_t dm_gatts_enable_service(uint32_t index, uint8_t enable)
+int32_t bk_dm_prf_gatts_enable_service(uint32_t index, uint8_t enable)
 {
     int32_t ret = 0;
     uint16_t handle = 0;
@@ -1496,12 +1496,12 @@ int32_t dm_gatts_enable_service(uint32_t index, uint8_t enable)
     return 0;
 }
 
-int32_t dm_gatts_send_service_change_indicate(uint16_t conn_id, uint8_t all_connected)
+int32_t bk_dm_prf_gatts_send_service_change_indicate(uint16_t conn_id, uint8_t all_connected)
 {
     return bk_ble_gatts_send_service_change_indicate(s_gatts_if, conn_id, all_connected);
 }
 
-int32_t dm_gatts_send_notify(uint16_t gatt_conn_id, uint16_t attr_handle, uint8_t *data, uint32_t len, uint8_t is_notify)
+int32_t bk_dm_prf_gatts_send_notify(uint16_t gatt_conn_id, uint16_t attr_handle, uint8_t *data, uint32_t len, uint8_t is_notify)
 {
     int32_t ret = 0;
 
@@ -1591,7 +1591,7 @@ static dm_gatts_db_reg_t *find_db_ctx_by_attr_handle(uint16_t attr_handle)
     return NULL;
 }
 
-int32_t dm_gatts_reg_db(bk_gatts_attr_db_t *list, uint32_t count, uint16_t *attr_handle_list, dm_ble_gatts_db_cb cb, uint8_t need_create_tab)
+int32_t bk_dm_prf_gatts_reg_db(bk_gatts_attr_db_t *list, uint32_t count, uint16_t *attr_handle_list, dm_ble_gatts_db_cb cb, uint8_t need_create_tab)
 {
     uint32_t i = 0;
     int32_t ret = 0;
@@ -1656,7 +1656,7 @@ int32_t dm_gatts_reg_db(bk_gatts_attr_db_t *list, uint32_t count, uint16_t *attr
     return 0;
 }
 
-int32_t dm_gatts_unreg_db(bk_gatts_attr_db_t *list)
+int32_t bk_dm_prf_gatts_unreg_db(bk_gatts_attr_db_t *list)
 {
     uint32_t i = 0;
     int32_t ret = 0;
@@ -1688,7 +1688,7 @@ int32_t dm_gatts_unreg_db(bk_gatts_attr_db_t *list)
     return 0;
 }
 
-int32_t dm_gatts_get_buff_from_attr_handle(bk_gatts_attr_db_t *attr_list, uint16_t *attr_handle_list, uint32_t size, uint16_t attr_handle, uint32_t *output_index, uint8_t **output_buff, uint32_t *output_size)
+int32_t bk_dm_prf_gatts_get_buff_from_attr_handle(bk_gatts_attr_db_t *attr_list, uint16_t *attr_handle_list, uint32_t size, uint16_t attr_handle, uint32_t *output_index, uint8_t **output_buff, uint32_t *output_size)
 {
     uint32_t i;
 
@@ -1712,18 +1712,18 @@ int32_t dm_gatts_get_buff_from_attr_handle(bk_gatts_attr_db_t *attr_list, uint16
     return 0;
 }
 
-int32_t dm_gatts_is_init(void)
+int32_t bk_dm_prf_gatts_is_init(void)
 {
     return s_dm_gatts_is_init;
 }
 
 
-bk_gatt_if_t dm_gatts_get_current_if(void)
+bk_gatt_if_t bk_dm_prf_gatts_get_current_if(void)
 {
     return s_gatts_if;
 }
 
-int dm_gatts_add_gatts_callback(void *param)
+int bk_dm_prf_gatts_add_gatts_callback(void *param)
 {
     dm_ble_gatts_app_cb cb = (typeof(cb))param;
 
@@ -1745,7 +1745,7 @@ int dm_gatts_add_gatts_callback(void *param)
     return -1;
 }
 
-int dm_gatts_main(cli_gatt_param_t *param)
+int bk_dm_prf_gatts_main(cli_gatt_param_t *param)
 {
     ble_err_t ret = 0;
 
@@ -1773,7 +1773,7 @@ int dm_gatts_main(cli_gatt_param_t *param)
     }
 
     bk_ble_gatts_register_callback(dm_ble_gatts_private_cb);
-    dm_gatts_add_gatts_callback(bk_gatts_cb);
+    bk_dm_prf_gatts_add_gatts_callback(bk_gatts_cb);
 
     ret = bk_ble_gatts_app_register(0);
 
@@ -2115,11 +2115,11 @@ int dm_gatts_main(cli_gatt_param_t *param)
     bk_bd_addr_t current_addr = {0}, identity_addr = {0};
     char adv_name[64] = {0};
 
-    dm_ble_gap_get_identity_addr(identity_addr);
+    bk_dm_prf_gap_get_identity_addr(identity_addr);
 
     os_memcpy(current_addr, identity_addr, sizeof(identity_addr));
 
-    dm_gatt_add_gap_callback(dm_ble_gap_cb);
+    bk_dm_prf_gap_add_gap_callback(dm_ble_gap_cb);
 
     snprintf((char *)(adv_name), sizeof(adv_name) - 1, "BKDMBLE-%02X%02X%02X", identity_addr[2], identity_addr[1], identity_addr[0]);
 
@@ -2318,7 +2318,7 @@ error:
     return 0;
 }
 
-int dm_gatts_deinit(void)
+int bk_dm_prf_gatts_deinit(void)
 {
     int32_t ret = 0;
 
@@ -2381,7 +2381,7 @@ int dm_gatts_deinit(void)
     return 0;
 }
 
-int32_t dm_gatts_deinit_because_bluetooth_deinit_future(void)
+int32_t bk_dm_prf_gatts_deinit_because_bluetooth_deinit_future(void)
 {
     s_db_init = 0;
 #if GATTS_TEST_ATTR_ENABLE

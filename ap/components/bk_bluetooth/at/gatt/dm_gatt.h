@@ -11,30 +11,30 @@
 
 #if CONFIG_BT && CONFIG_BLE
 
-#define bk_at_dm_gatt_main                          dm_gatt_main
-#define bk_at_dm_gatt_deinit                        dm_gatt_deinit
-#define bk_at_dm_gatt_disable_all                   dm_gatt_disable_all
-#define bk_at_dm_gatt_add_gap_callback              dm_gatt_add_gap_callback
+#define bk_at_dm_gatt_main                          bk_dm_prf_gap_main
+#define bk_at_dm_gatt_deinit                        bk_dm_prf_gap_deinit
+#define bk_at_dm_gatt_disable_all                   bk_dm_prf_gap_disable_all
+#define bk_at_dm_gatt_add_gap_callback              bk_dm_prf_gap_add_gap_callback
 #define bk_at_dm_gatt_get_authen_status             dm_gatt_get_authen_status
 #define bk_at_dm_gatt_find_id_info_by_nominal_info  dm_gatt_find_id_info_by_nominal_info
-#define bk_at_dm_gatt_passkey_reply                 dm_gatt_passkey_reply
-#define bk_at_dm_gatt_set_security_method           dm_gatt_set_security_method
-#define bk_at_dm_gatt_is_linkkey_distr_from_ltk     dm_gatt_is_linkkey_distr_from_ltk
-#define bk_at_dm_ble_gap_create_bond                dm_ble_gap_create_bond
-#define bk_at_dm_ble_gap_remove_bond                dm_ble_gap_remove_bond
-#define bk_at_dm_ble_gap_get_bonded_count           dm_ble_gap_get_bonded_count
-#define bk_at_dm_ble_gap_clean_bond                 dm_ble_gap_clean_bond
-#define bk_at_dm_ble_gap_show_bond_list             dm_ble_gap_show_bond_list
-#define bk_at_dm_ble_gap_get_bond_info_by_addr      dm_ble_gap_get_bond_info_by_addr
-#define bk_at_dm_ble_gap_bond_info_foreach          dm_ble_gap_bond_info_foreach
-#define bk_at_dm_ble_gap_clean_local_key            dm_ble_gap_clean_local_key
-#define bk_at_dm_ble_gap_update_param               dm_ble_gap_update_param
+#define bk_at_dm_gatt_passkey_reply                 bk_dm_prf_gap_passkey_reply
+#define bk_at_dm_gatt_set_security_method           bk_dm_prf_gap_set_security_method
+#define bk_at_dm_gatt_is_linkkey_distr_from_ltk     bk_dm_prf_gap_is_linkkey_distr_from_ltk
+#define bk_at_dm_ble_gap_create_bond                bk_dm_prf_gap_create_bond
+#define bk_at_dm_ble_gap_remove_bond                bk_dm_prf_gap_remove_bond
+#define bk_at_dm_ble_gap_get_bonded_count           bk_dm_prf_gap_get_bonded_count
+#define bk_at_dm_ble_gap_clean_bond                 bk_dm_prf_gap_clean_bond
+#define bk_at_dm_ble_gap_show_bond_list             bk_dm_prf_gap_show_bond_list
+#define bk_at_dm_ble_gap_get_bond_info_by_addr      bk_dm_prf_gap_get_bond_info_by_addr
+#define bk_at_dm_ble_gap_bond_info_foreach          bk_dm_prf_gap_bond_info_foreach
+#define bk_at_dm_ble_gap_clean_local_key            bk_dm_prf_gap_clean_local_key
+#define bk_at_dm_ble_gap_update_param               bk_dm_prf_gap_update_param
 #define bk_at_dm_ble_gap_get_rpa                    dm_ble_gap_get_rpa
-#define bk_at_dm_ble_gap_get_identity_addr          dm_ble_gap_get_identity_addr
-#define bk_at_dm_ble_gap_get_current_conn_id        dm_ble_gap_get_current_conn_id
+#define bk_at_dm_ble_gap_get_identity_addr          bk_dm_prf_gap_get_identity_addr
+#define bk_at_dm_ble_gap_get_current_conn_id        bk_dm_prf_gap_get_current_conn_id
 #define bk_at_dm_ble_gap_set_auto_accept_pair_req   dm_ble_gap_set_auto_accept_pair_req
-#define bk_at_dm_gatt_disconnect                    dm_gatt_disconnect
-#define bk_at_dm_gatt_connect_cancel                dm_gatt_connect_cancel
+#define bk_at_dm_gatt_disconnect                    bk_dm_prf_gap_disconnect
+#define bk_at_dm_gatt_connect_cancel                bk_dm_prf_gap_connect_cancel
 
 #define g_bk_at_dm_gap_use_rpa                      g_dm_gap_use_rpa
 

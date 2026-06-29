@@ -119,7 +119,7 @@ static beken_queue_t s_ctx_msg_queue = NULL;
 
 static bk_ble_bond_dev_t *dm_ble_find_bond_info_by_nominal_addr(uint8_t *addr, bk_ble_addr_type_t addr_type)
 {
-    if (!dm_gap_is_addr_valid(addr))
+    if (!bk_dm_prf_gap_is_addr_valid(addr))
     {
         return NULL;
     }
@@ -139,7 +139,7 @@ static bk_ble_bond_dev_t *dm_ble_find_bond_info_by_nominal_addr(uint8_t *addr, b
 
 static bk_ble_bond_dev_t *dm_ble_find_bond_info_by_identity_addr(uint8_t *addr, bk_ble_addr_type_t addr_type)
 {
-    if (!dm_gap_is_addr_valid(addr))
+    if (!bk_dm_prf_gap_is_addr_valid(addr))
     {
         return NULL;
     }
@@ -164,7 +164,7 @@ static uint32_t dm_ble_get_bonded_count(void)
 
     for (int i = 0; i < sizeof(s_dm_gatt_bond_dev_list) / sizeof(s_dm_gatt_bond_dev_list[0]); ++i)
     {
-        if (dm_gap_is_addr_valid((uint8_t *)s_dm_gatt_bond_dev_list[i].bd_addr))
+        if (bk_dm_prf_gap_is_addr_valid((uint8_t *)s_dm_gatt_bond_dev_list[i].bd_addr))
         {
             count++;
         }
@@ -177,7 +177,7 @@ static uint8_t dm_ble_bond_info_foreach(int32_t (*func) (bk_ble_bond_dev_t *info
 {
     for (int i = 0; i < sizeof(s_dm_gatt_bond_dev_list) / sizeof(s_dm_gatt_bond_dev_list[0]); ++i)
     {
-        if (dm_gap_is_addr_valid(s_dm_gatt_bond_dev_list[i].bd_addr))
+        if (bk_dm_prf_gap_is_addr_valid(s_dm_gatt_bond_dev_list[i].bd_addr))
         {
             func(s_dm_gatt_bond_dev_list + i, arg);
         }
@@ -188,7 +188,7 @@ static uint8_t dm_ble_bond_info_foreach(int32_t (*func) (bk_ble_bond_dev_t *info
 
 static uint8_t dm_ble_del_bond_info_by_nominal_addr(uint8_t *addr)
 {
-    if (!dm_gap_is_addr_valid(addr))
+    if (!bk_dm_prf_gap_is_addr_valid(addr))
     {
         return 1;
     }
@@ -225,7 +225,7 @@ static bk_ble_bond_dev_t *dm_ble_alloc_bond_info_by_nominal_addr(uint8_t *addr)
 
     for (int i = 0; i < sizeof(s_dm_gatt_bond_dev_list) / sizeof(s_dm_gatt_bond_dev_list[0]); ++i)
     {
-        if (!dm_gap_is_addr_valid(s_dm_gatt_bond_dev_list[i].bd_addr))
+        if (!bk_dm_prf_gap_is_addr_valid(s_dm_gatt_bond_dev_list[i].bd_addr))
         {
             return &s_dm_gatt_bond_dev_list[i];
         }
@@ -247,7 +247,7 @@ static bk_ble_bond_dev_t *dm_ble_alloc_bond_info_by_identity_addr(uint8_t *addr)
 
     for (int i = 0; i < sizeof(s_dm_gatt_bond_dev_list) / sizeof(s_dm_gatt_bond_dev_list[0]); ++i)
     {
-        if (!dm_gap_is_addr_valid(s_dm_gatt_bond_dev_list[i].bond_key.pid_key.static_addr))
+        if (!bk_dm_prf_gap_is_addr_valid(s_dm_gatt_bond_dev_list[i].bond_key.pid_key.static_addr))
         {
             return &s_dm_gatt_bond_dev_list[i];
         }
@@ -1201,7 +1201,7 @@ static int32_t dm_ble_gap_common_cb(bk_ble_gap_cb_event_t event, bk_ble_gap_cb_p
 }
 
 
-int dm_gatt_add_gap_callback(void *param)
+int bk_dm_prf_gap_add_gap_callback(void *param)
 {
     dm_ble_gap_app_cb cb = (typeof(cb))param;
 
@@ -1227,7 +1227,7 @@ int dm_gatt_add_gap_callback(void *param)
     return -1;
 }
 
-int dm_gatt_passkey_reply(uint8_t accept, uint32_t passkey)
+int bk_dm_prf_gap_passkey_reply(uint8_t accept, uint32_t passkey)
 {
     gatt_logi("accept %d %06d", accept, passkey);
     return bk_ble_passkey_reply(s_peer_bdaddr, accept, passkey);
@@ -1353,7 +1353,7 @@ error:;
     return ret;
 }
 
-int dm_gatt_set_security_method(uint8_t iocap, uint8_t auth_req, uint8_t key_distr)
+int bk_dm_prf_gap_set_security_method(uint8_t iocap, uint8_t auth_req, uint8_t key_distr)
 {
     s_dm_gatt_iocap = iocap;
     s_dm_gatt_auth_req = auth_req;
@@ -1361,7 +1361,7 @@ int dm_gatt_set_security_method(uint8_t iocap, uint8_t auth_req, uint8_t key_dis
     return dm_gatt_set_security_method_private();
 }
 
-bool dm_gatt_is_linkkey_distr_from_ltk(void)
+bool bk_dm_prf_gap_is_linkkey_distr_from_ltk(void)
 {
 #if CONFIG_BT
 
@@ -1381,7 +1381,7 @@ int32_t dm_gatt_get_authen_status(uint8_t *nominal_addr, uint8_t *nominal_addr_t
 
     for (i = 0; i < sizeof(s_dm_gatt_bond_dev_list) / sizeof(s_dm_gatt_bond_dev_list[0]); ++i)
     {
-        if (dm_gap_is_addr_valid(s_dm_gatt_bond_dev_list[i].bd_addr))
+        if (bk_dm_prf_gap_is_addr_valid(s_dm_gatt_bond_dev_list[i].bd_addr))
         {
             break;
         }
@@ -1446,7 +1446,7 @@ int32_t dm_gatt_find_id_info_by_nominal_info(uint8_t *nominal_addr, uint8_t nomi
 
     for (i = 0; i < sizeof(s_dm_gatt_bond_dev_list) / sizeof(s_dm_gatt_bond_dev_list[0]); ++i)
     {
-        if (!dm_gap_is_addr_valid(s_dm_gatt_bond_dev_list[i].bd_addr))
+        if (!bk_dm_prf_gap_is_addr_valid(s_dm_gatt_bond_dev_list[i].bd_addr))
         {
             continue;
         }
@@ -1488,7 +1488,7 @@ int32_t dm_gatt_find_id_info_by_nominal_info(uint8_t *nominal_addr, uint8_t nomi
     return -1;
 }
 
-int dm_ble_gap_create_bond(uint8_t *addr)
+int bk_dm_prf_gap_create_bond(uint8_t *addr)
 {
     if (!s_dm_gatt_is_inited)
     {
@@ -1499,7 +1499,7 @@ int dm_ble_gap_create_bond(uint8_t *addr)
     return bk_ble_gap_create_bond(addr);
 }
 
-int dm_ble_gap_remove_bond(uint8_t *addr)
+int bk_dm_prf_gap_remove_bond(uint8_t *addr)
 {
     int32_t ret = 0;
     bk_ble_bond_dev_t *tmp_dev = NULL;
@@ -1511,7 +1511,7 @@ int dm_ble_gap_remove_bond(uint8_t *addr)
         return 0;
     }
 
-    if (!dm_gap_is_addr_valid(addr))
+    if (!bk_dm_prf_gap_is_addr_valid(addr))
     {
         gatt_loge("addr invalid");
 
@@ -1691,7 +1691,7 @@ int dm_ble_gap_remove_bond(uint8_t *addr)
     return ret;
 }
 
-uint32_t dm_ble_gap_get_bonded_count(void)
+uint32_t bk_dm_prf_gap_get_bonded_count(void)
 {
     return dm_ble_get_bonded_count();
 }
@@ -1730,7 +1730,7 @@ static int32_t nest_func_disconnect_all1(dm_gatt_app_env_t *env, void *arg)
     return 0;
 }
 
-int32_t dm_ble_gap_clean_bond(void)
+int32_t bk_dm_prf_gap_clean_bond(void)
 {
     int32_t ret = 0;
 
@@ -1846,7 +1846,7 @@ int32_t dm_ble_gap_clean_bond(void)
     return ret;
 }
 
-int32_t dm_ble_gap_show_bond_list(void)
+int32_t bk_dm_prf_gap_show_bond_list(void)
 {
     if (!s_dm_gatt_is_inited)
     {
@@ -1856,7 +1856,7 @@ int32_t dm_ble_gap_show_bond_list(void)
 
     for (int i = 0; i < sizeof(s_dm_gatt_bond_dev_list) / sizeof(s_dm_gatt_bond_dev_list[0]); ++i)
     {
-        if (!dm_gap_is_addr_valid(s_dm_gatt_bond_dev_list[i].bd_addr))
+        if (!bk_dm_prf_gap_is_addr_valid(s_dm_gatt_bond_dev_list[i].bd_addr))
         {
             continue;
         }
@@ -1919,17 +1919,17 @@ int32_t dm_ble_gap_show_bond_list(void)
     return 0;
 }
 
-bk_ble_bond_dev_t *dm_ble_gap_get_bond_info_by_addr(uint8_t *addr)
+bk_ble_bond_dev_t *bk_dm_prf_gap_get_bond_info_by_addr(uint8_t *addr)
 {
     return dm_ble_find_bond_info_by_nominal_addr(addr, 0);
 }
 
-uint8_t dm_ble_gap_bond_info_foreach(int32_t (*func) (bk_ble_bond_dev_t *info, void *arg), void *arg)
+uint8_t bk_dm_prf_gap_bond_info_foreach(int32_t (*func) (bk_ble_bond_dev_t *info, void *arg), void *arg)
 {
     return dm_ble_bond_info_foreach(func, arg);
 }
 
-int32_t dm_ble_gap_clean_local_key(void)
+int32_t bk_dm_prf_gap_clean_local_key(void)
 {
     if (!s_dm_gatt_is_inited)
     {
@@ -1949,7 +1949,7 @@ int32_t dm_ble_gap_clean_local_key(void)
 
 int32_t dm_ble_gap_get_rpa(uint8_t *rpa)
 {
-    if (dm_gap_is_data_valid(s_dm_gap_rpa, sizeof(s_dm_gap_rpa)))
+    if (bk_dm_prf_gap_is_data_valid(s_dm_gap_rpa, sizeof(s_dm_gap_rpa)))
     {
         if (rpa)
         {
@@ -1965,7 +1965,7 @@ int32_t dm_ble_gap_get_rpa(uint8_t *rpa)
 }
 
 //__attribute__((weak))
-void dm_ble_gap_get_identity_addr(uint8_t *addr)
+void bk_dm_prf_gap_get_identity_addr(uint8_t *addr)
 {
     // uint8_t *identity_addr = addr;
     // bk_get_mac((uint8_t *)identity_addr, MAC_TYPE_BLUETOOTH);
@@ -1996,7 +1996,7 @@ static int32_t nest_func_get_connected_all1(dm_gatt_app_env_t *env, void *arg)
     return 0;
 }
 
-int16_t dm_ble_gap_get_current_conn_id(void)
+int16_t bk_dm_prf_gap_get_current_conn_id(void)
 {
     nest_ret_t nest_ret = {0};
 
@@ -2013,7 +2013,7 @@ int16_t dm_ble_gap_get_current_conn_id(void)
     }
 }
 
-int dm_ble_gap_update_param(uint8_t *addr, uint16_t interval, uint16_t tout)
+int bk_dm_prf_gap_update_param(uint8_t *addr, uint16_t interval, uint16_t tout)
 {
     int32_t ret = 0;
     bk_ble_conn_update_params_t param;
@@ -2070,7 +2070,7 @@ int dm_ble_gap_set_auto_accept_pair_req(uint8_t accpet)
     return 0;
 }
 
-int32_t dm_gatt_disconnect(uint8_t *addr)
+int32_t bk_dm_prf_gap_disconnect(uint8_t *addr)
 {
     dm_gatt_app_env_t *common_env_tmp = NULL;
     int32_t err = 0;
@@ -2154,7 +2154,7 @@ end:;
     return err;
 }
 
-int32_t dm_gatt_connect_cancel(void)
+int32_t bk_dm_prf_gap_connect_cancel(void)
 {
     int32_t err = 0;
 
@@ -2238,7 +2238,7 @@ static void dm_gatt_ctx_task(void *arg)
 
             case GATT_CTX_TYPE_REMOVE_BOND:
             {
-                dm_ble_gap_remove_bond(msg.remove_bond.nominal_addr);
+                bk_dm_prf_gap_remove_bond(msg.remove_bond.nominal_addr);
             }
             break;
 
@@ -2384,7 +2384,7 @@ end:;
     return ret;
 }
 
-int dm_gatt_main(cli_gatt_param_t *param)
+int bk_dm_prf_gap_main(cli_gatt_param_t *param)
 {
     ble_err_t ret = 0;
 
@@ -2465,7 +2465,7 @@ int dm_gatt_main(cli_gatt_param_t *param)
     }
 
     bk_ble_gap_register_callback(dm_ble_gap_private_cb);
-    dm_gatt_add_gap_callback(dm_ble_gap_common_cb);
+    bk_dm_prf_gap_add_gap_callback(dm_ble_gap_common_cb);
 
     // set ir er
 #if BLE_USE_STORAGE
@@ -2479,7 +2479,7 @@ int dm_gatt_main(cli_gatt_param_t *param)
 
 #endif
 
-    if (!dm_gap_is_data_valid(s_dm_gap_local_key.er, sizeof(s_dm_gap_local_key.er)))
+    if (!bk_dm_prf_gap_is_data_valid(s_dm_gap_local_key.er, sizeof(s_dm_gap_local_key.er)))
     {
         for (int i = 0; i < sizeof(s_dm_gap_local_key.er); ++i)
         {
@@ -2513,7 +2513,7 @@ int dm_gatt_main(cli_gatt_param_t *param)
         return -1;
     }
 
-    if (!dm_gap_is_data_valid(s_dm_gap_local_key.ir, sizeof(s_dm_gap_local_key.ir)))
+    if (!bk_dm_prf_gap_is_data_valid(s_dm_gap_local_key.ir, sizeof(s_dm_gap_local_key.ir)))
     {
         for (int i = 0; i < sizeof(s_dm_gap_local_key.ir); ++i)
         {
@@ -2590,7 +2590,7 @@ int dm_gatt_main(cli_gatt_param_t *param)
     //add bond list
     for (int i = 0; i < sizeof(s_dm_gatt_bond_dev_list) / sizeof(s_dm_gatt_bond_dev_list[0]); ++i)
     {
-        if (dm_gap_is_addr_valid(s_dm_gatt_bond_dev_list[i].bd_addr))
+        if (bk_dm_prf_gap_is_addr_valid(s_dm_gatt_bond_dev_list[i].bd_addr))
         {
             bk_ble_bond_dev_t bond_dev;
 
@@ -2678,7 +2678,7 @@ int dm_gatt_main(cli_gatt_param_t *param)
     return 0;
 }
 
-int dm_gatt_deinit(void)
+int bk_dm_prf_gap_deinit(void)
 {
     if (!s_dm_gatt_is_inited)
     {
@@ -2726,7 +2726,7 @@ int dm_gatt_deinit(void)
     return 0;
 }
 
-int32_t dm_gatt_disable_all(void)
+int32_t bk_dm_prf_gap_disable_all(void)
 {
     int32_t ret = 0;
 

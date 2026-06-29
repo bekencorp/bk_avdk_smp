@@ -114,7 +114,7 @@ typedef int32_t (* dm_ble_gatts_app_cb)(bk_gatts_cb_event_t event, bk_gatt_if_t 
  *
  * @return Non-zero if initialized, otherwise zero.
  */
-int32_t dm_gatts_is_init(void);
+int32_t bk_dm_prf_gatts_is_init(void);
 
 /**
  * @brief Initialize the GATTS wrapper.
@@ -123,21 +123,21 @@ int32_t dm_gatts_is_init(void);
  *
  * @return 0 on success, otherwise error code.
  */
-int dm_gatts_main(cli_gatt_param_t *param);
+int bk_dm_prf_gatts_main(cli_gatt_param_t *param);
 
 /**
  * @brief Deinitialize the GATTS wrapper.
  *
  * @return 0 on success, otherwise error code.
  */
-int dm_gatts_deinit(void);
+int bk_dm_prf_gatts_deinit(void);
 
 /**
  * @brief Deinitialize GATTS during Bluetooth deinitialization.
  *
  * @return 0 on success, otherwise error code.
  */
-int32_t dm_gatts_deinit_because_bluetooth_deinit_future(void);
+int32_t bk_dm_prf_gatts_deinit_because_bluetooth_deinit_future(void);
 
 /**
  * @brief Disconnect a GATTS link by peer address.
@@ -146,7 +146,7 @@ int32_t dm_gatts_deinit_because_bluetooth_deinit_future(void);
  *
  * @return 0 on success, otherwise error code.
  */
-int32_t dm_gatts_disconnect(uint8_t *addr);
+int32_t bk_dm_prf_gatts_disconnect(uint8_t *addr);
 
 /**
  * @brief Enable or disable advertising.
@@ -155,7 +155,7 @@ int32_t dm_gatts_disconnect(uint8_t *addr);
  *
  * @return 0 on success, otherwise error code.
  */
-int32_t dm_gatts_enable_adv(uint8_t enable);
+int32_t bk_dm_prf_gatts_enable_adv(uint8_t enable);
 
 /**
  * @brief Enable or disable a registered GATTS service.
@@ -165,7 +165,7 @@ int32_t dm_gatts_enable_adv(uint8_t enable);
  *
  * @return 0 on success, otherwise error code.
  */
-int32_t dm_gatts_enable_service(uint32_t index, uint8_t enable);
+int32_t bk_dm_prf_gatts_enable_service(uint32_t index, uint8_t enable);
 
 /**
  * @brief Register a GATTS attribute database.
@@ -178,7 +178,7 @@ int32_t dm_gatts_enable_service(uint32_t index, uint8_t enable);
  *
  * @return 0 on success, otherwise error code.
  */
-int32_t dm_gatts_reg_db(bk_gatts_attr_db_t *list, uint32_t count, uint16_t *attr_handle_list, dm_ble_gatts_db_cb cb, uint8_t need_create_tab);
+int32_t bk_dm_prf_gatts_reg_db(bk_gatts_attr_db_t *list, uint32_t count, uint16_t *attr_handle_list, dm_ble_gatts_db_cb cb, uint8_t need_create_tab);
 
 /**
  * @brief Unregister a GATTS attribute database.
@@ -187,7 +187,7 @@ int32_t dm_gatts_reg_db(bk_gatts_attr_db_t *list, uint32_t count, uint16_t *attr
  *
  * @return 0 on success, otherwise error code.
  */
-int32_t dm_gatts_unreg_db(bk_gatts_attr_db_t *list);
+int32_t bk_dm_prf_gatts_unreg_db(bk_gatts_attr_db_t *list);
 
 /**
  * @brief Find an attribute value buffer by attribute handle.
@@ -202,14 +202,14 @@ int32_t dm_gatts_unreg_db(bk_gatts_attr_db_t *list);
  *
  * @return 0 on success, otherwise error code.
  */
-int32_t dm_gatts_get_buff_from_attr_handle(bk_gatts_attr_db_t *attr_list, uint16_t *attr_handle_list, uint32_t size, uint16_t attr_handle, uint32_t *output_index, uint8_t **output_buff, uint32_t *output_size);
+int32_t bk_dm_prf_gatts_get_buff_from_attr_handle(bk_gatts_attr_db_t *attr_list, uint16_t *attr_handle_list, uint32_t size, uint16_t attr_handle, uint32_t *output_index, uint8_t **output_buff, uint32_t *output_size);
 
 /**
  * @brief Get the current GATTS interface.
  *
  * @return Current GATT interface.
  */
-bk_gatt_if_t dm_gatts_get_current_if(void);
+bk_gatt_if_t bk_dm_prf_gatts_get_current_if(void);
 
 /**
  * @brief Register a GATTS application callback.
@@ -218,7 +218,7 @@ bk_gatt_if_t dm_gatts_get_current_if(void);
  *
  * @return 0 on success, otherwise error code.
  */
-int dm_gatts_add_gatts_callback(void *param);
+int bk_dm_prf_gatts_add_gatts_callback(void *param);
 
 /**
  * @brief Send a Service Changed indication.
@@ -228,7 +228,7 @@ int dm_gatts_add_gatts_callback(void *param);
  *
  * @return 0 on success, otherwise error code.
  */
-int32_t dm_gatts_send_service_change_indicate(uint16_t conn_id, uint8_t all_connected);
+int32_t bk_dm_prf_gatts_send_service_change_indicate(uint16_t conn_id, uint8_t all_connected);
 
 /**
  * @brief Send notification or indication.
@@ -241,4 +241,4 @@ int32_t dm_gatts_send_service_change_indicate(uint16_t conn_id, uint8_t all_conn
  *
  * @return 0 on success, otherwise error code.
  */
-int32_t dm_gatts_send_notify(uint16_t gatt_conn_id, uint16_t attr_handle, uint8_t *data, uint32_t len, uint8_t is_notify);
+int32_t bk_dm_prf_gatts_send_notify(uint16_t gatt_conn_id, uint16_t attr_handle, uint8_t *data, uint32_t len, uint8_t is_notify);

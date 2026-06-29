@@ -186,9 +186,9 @@ if (CONFIG_BLUETOOTH_AP)
 
 		# HID-over-GATT keyboard demo, built on top of the public gatt framework.
 		if (CONFIG_BLE AND CONFIG_BLUETOOTH_BTDM_COMPONENT_BLE_HOGPD)
-			list(APPEND srcs service/dm/ble/hogpd/hogpd_demo.c)
+			list(APPEND srcs service/dm/ble/hogpd/hogpd.c)
 			if (CONFIG_CLI)
-				list(APPEND srcs service/dm/ble/hogpd/hogpd_demo_cli.c)
+				list(APPEND srcs service/dm/ble/hogpd/hogpd_cli.c)
 			endif()
 			list(APPEND incs service/dm/ble/hogpd)
 		endif()

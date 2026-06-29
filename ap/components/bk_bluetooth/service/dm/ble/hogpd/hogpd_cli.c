@@ -5,13 +5,13 @@
 
 #include <unistd.h>
 
-#include "hogpd_demo.h"
+#include "hogpd.h"
 
-#if HOGPD_DEMO_ENABLE
+#if HOGPD_ENABLE
 
-#define BASE_CMD_NAME "hogpd_demo"
+#define BASE_CMD_NAME "hogpd"
 
-static void hogpd_demo_usage(void)
+static void hogpd_usage(void)
 {
     CLI_LOGI("Usage:\n");
     CLI_LOGI("%s init\n", BASE_CMD_NAME);
@@ -20,7 +20,7 @@ static void hogpd_demo_usage(void)
     return;
 }
 
-static void cmd_hogpd_demo(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
+static void cmd_hogpd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
     char *msg = NULL;
     int ret = 0;
@@ -37,7 +37,7 @@ static void cmd_hogpd_demo(char *pcWriteBuffer, int xWriteBufferLen, int argc, c
 
     if (os_strcmp(argv[1], "init") == 0)
     {
-        hogpd_demo_init();
+        bk_dm_prf_hogpd_init();
     }
     else
     {
@@ -54,7 +54,7 @@ static void cmd_hogpd_demo(char *pcWriteBuffer, int xWriteBufferLen, int argc, c
     return;
 
 __usage:
-    hogpd_demo_usage();
+    hogpd_usage();
 
 __error:
 
@@ -64,14 +64,14 @@ __error:
 
 static const struct cli_command s_ble_hogpd_commands[] =
 {
-    {BASE_CMD_NAME, "see -h", cmd_hogpd_demo},
+    {BASE_CMD_NAME, "see -h", cmd_hogpd},
 };
 
 #endif
 
-int cli_ble_hogpd_demo_init(void)
+int cli_ble_hogpd_init(void)
 {
-#if HOGPD_DEMO_ENABLE
+#if HOGPD_ENABLE
     return cli_register_commands(s_ble_hogpd_commands, sizeof(s_ble_hogpd_commands) / sizeof(s_ble_hogpd_commands[0]));
 #else
     return 0;

@@ -1,0 +1,17 @@
+#
+# Automatically generated project default config. You can update it with menuconfig [D] option.
+# This file contains only differences compared to board defconfig.
+#
+
+CONFIG_BLUETOOTH_AP=y
+CONFIG_BLUETOOTH_HOST_ONLY=y
+CONFIG_BLE=y
+# CONFIG_BT is required only so the "bluetooth dm BLE Modules" Kconfig menu
+# (which gates BLE_GATT / BLE_HOGPD) becomes selectable. No classic-BT
+# profiles are built because CONFIG_BLUETOOTH_BTDM_COMPONENT_ENABLE stays off.
+CONFIG_BT=y
+CONFIG_CLI=y
+
+# Public dm BLE GATT framework + HID-over-GATT (keyboard) device demo.
+CONFIG_BLUETOOTH_BTDM_COMPONENT_BLE_GATT=y
+CONFIG_BLUETOOTH_BTDM_COMPONENT_BLE_HOGPD=y

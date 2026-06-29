@@ -17,7 +17,7 @@
 #include "components/bluetooth/bk_dm_gatts.h"
 
 #include "dm_gatts.h"
-#include "hogpd_demo.h"
+#include "hogpd.h"
 #include <stdint.h>
 
 enum
@@ -37,13 +37,13 @@ enum
 #endif
 #endif
 
-#define hogpd_loge(format, ...) do{if(HOGPD_DEBUG_LEVEL >= HOGPD_DEBUG_LEVEL_ERROR)   BK_LOGE("dm_hogpd", "%s:" format "\n", __func__, ##__VA_ARGS__);} while(0)
-#define hogpd_logw(format, ...) do{if(HOGPD_DEBUG_LEVEL >= HOGPD_DEBUG_LEVEL_WARNING) BK_LOGW("dm_hogpd", "%s:" format "\n", __func__, ##__VA_ARGS__);} while(0)
-#define hogpd_logi(format, ...) do{if(HOGPD_DEBUG_LEVEL >= HOGPD_DEBUG_LEVEL_INFO)    BK_LOGI("dm_hogpd", "%s:" format "\n", __func__, ##__VA_ARGS__);} while(0)
-#define hogpd_logd(format, ...) do{if(HOGPD_DEBUG_LEVEL >= HOGPD_DEBUG_LEVEL_DEBUG)   BK_LOGD("dm_hogpd", "%s:" format "\n", __func__, ##__VA_ARGS__);} while(0)
-#define hogpd_logv(format, ...) do{if(HOGPD_DEBUG_LEVEL >= HOGPD_DEBUG_LEVEL_VERBOSE) BK_LOGV("dm_hogpd", "%s:" format "\n", __func__, ##__VA_ARGS__);} while(0)
+#define LOGE(format, ...) do{if(HOGPD_DEBUG_LEVEL >= HOGPD_DEBUG_LEVEL_ERROR)   BK_LOGE("dm_hogpd", "%s:" format "\n", __func__, ##__VA_ARGS__);} while(0)
+#define LOGW(format, ...) do{if(HOGPD_DEBUG_LEVEL >= HOGPD_DEBUG_LEVEL_WARNING) BK_LOGW("dm_hogpd", "%s:" format "\n", __func__, ##__VA_ARGS__);} while(0)
+#define LOGI(format, ...) do{if(HOGPD_DEBUG_LEVEL >= HOGPD_DEBUG_LEVEL_INFO)    BK_LOGI("dm_hogpd", "%s:" format "\n", __func__, ##__VA_ARGS__);} while(0)
+#define LOGD(format, ...) do{if(HOGPD_DEBUG_LEVEL >= HOGPD_DEBUG_LEVEL_DEBUG)   BK_LOGD("dm_hogpd", "%s:" format "\n", __func__, ##__VA_ARGS__);} while(0)
+#define LOGV(format, ...) do{if(HOGPD_DEBUG_LEVEL >= HOGPD_DEBUG_LEVEL_VERBOSE) BK_LOGV("dm_hogpd", "%s:" format "\n", __func__, ##__VA_ARGS__);} while(0)
 
-#if HOGPD_DEMO_ENABLE
+#if HOGPD_ENABLE
 
 #define PROFILE_ID 2
 
@@ -53,7 +53,7 @@ typedef struct
 {
     uint8_t status; //0 idle 1 connected
     beken_semaphore_t server_sem;
-    uint16_t send_notify_status;
+    uint16_t send_notify_read_rsp_status;
 } hogpd_app_env_t;
 
 static uint8_t s_hogpd_is_init;
@@ -92,6 +92,34 @@ static uint8_t s_boot_kbd_output_rprt[] = {0x00U, 0x00U, 0x00U};
 
 //static uint8_t s_boot_mouse_input_rprt[] = {0x00U, 0x00U, 0x00U};
 
+
+enum
+{
+    HOGPD_DB_IDX_SVC,
+    HOGPD_DB_IDX_PROTO_MODE,
+
+    HOGPD_DB_IDX_REPORT_MAP,
+    HOGPD_DB_IDX_REPORT_MAP_REF_DESCR,
+
+    HOGPD_DB_IDX_INPUT_REPORT,
+    HOGPD_DB_IDX_INPUT_REPORT_CLIENT_CONF,
+    HOGPD_DB_IDX_INPUT_REPORT_REF_DESCR,
+
+    HOGPD_DB_IDX_OUTPUT_REPORT,
+    HOGPD_DB_IDX_OUTPUT_REPORT_REF_DESCR,
+
+    HOGPD_DB_IDX_FEATURE_REPORT,
+    HOGPD_DB_IDX_FEATURE_REPORT_REF_DESC,
+
+    HOGPD_DB_IDX_CONTROL_POINT,
+
+    HOGPD_DB_IDX_INFO,
+
+    HOGPD_DB_IDX_BOOT_KBD_INPUT_REPORT,
+    HOGPD_DB_IDX_BOOT_KBD_INPUT_REPORT_CLIENT_CONF,
+
+    HOGPD_DB_IDX_BOOT_KBD_OUTPUT_REPORT,
+};
 
 static const bk_gatts_attr_db_t s_gatts_attr_db_service_hidd[] =
 {
@@ -222,7 +250,7 @@ static const bk_gatts_attr_db_t s_gatts_attr_db_service_hidd[] =
 static uint16_t s_hogpd_attr_handle_list[sizeof(s_gatts_attr_db_service_hidd) / sizeof(s_gatts_attr_db_service_hidd[0])];
 
 
-static int32_t hogpd_demo_gatts_cb(bk_gatts_cb_event_t event, bk_gatt_if_t gatts_if, bk_ble_gatts_cb_param_t *comm_param)
+static int32_t hogpd_gatts_cb(bk_gatts_cb_event_t event, bk_gatt_if_t gatts_if, bk_ble_gatts_cb_param_t *comm_param)
 {
     ble_err_t ret = 0;
     dm_gatt_app_env_t *common_env_tmp = NULL;
@@ -234,7 +262,7 @@ static int32_t hogpd_demo_gatts_cb(bk_gatts_cb_event_t event, bk_gatt_if_t gatts
     {
         struct gatts_connect_evt_param *param = (typeof(param))comm_param;
 
-        hogpd_logi("BK_GATTS_CONNECT_EVT %d role %d %02X:%02X:%02X:%02X:%02X:%02X", param->conn_id, param->link_role,
+        LOGI("BK_GATTS_CONNECT_EVT %d role %d %02X:%02X:%02X:%02X:%02X:%02X", param->conn_id, param->link_role,
                    param->remote_bda[5],
                    param->remote_bda[4],
                    param->remote_bda[3],
@@ -246,7 +274,7 @@ static int32_t hogpd_demo_gatts_cb(bk_gatts_cb_event_t event, bk_gatt_if_t gatts
 
         if (!common_env_tmp)
         {
-            hogpd_loge("alloc profile data err !!!!");
+            LOGE("alloc profile data err !!!!");
             break;
         }
 
@@ -259,7 +287,7 @@ static int32_t hogpd_demo_gatts_cb(bk_gatts_cb_event_t event, bk_gatt_if_t gatts
         struct gatts_disconnect_evt_param *param = (typeof(param))comm_param;
 
 
-        hogpd_logi("BK_GATTS_DISCONNECT_EVT %02X:%02X:%02X:%02X:%02X:%02X",
+        LOGI("BK_GATTS_DISCONNECT_EVT %02X:%02X:%02X:%02X:%02X:%02X",
                    param->remote_bda[5],
                    param->remote_bda[4],
                    param->remote_bda[3],
@@ -271,7 +299,7 @@ static int32_t hogpd_demo_gatts_cb(bk_gatts_cb_event_t event, bk_gatt_if_t gatts
 
         if (!common_env_tmp)
         {
-            hogpd_loge("cant find app env");
+            LOGE("cant find app env");
             break;
         }
 
@@ -290,13 +318,57 @@ static int32_t hogpd_demo_gatts_cb(bk_gatts_cb_event_t event, bk_gatt_if_t gatts
 
     case BK_GATTS_CONF_EVT:
     {
-        hogpd_logi("BK_GATTS_CONF_EVT");
+        struct gatts_conf_evt_param *param = (typeof(param))comm_param;
+
+        LOGI("BK_GATTS_CONF_EVT");
+
+        common_env_tmp = dm_ble_find_app_env_by_conn_id(param->conn_id);
+
+        if (!common_env_tmp)
+        {
+            LOGE("cant find app env");
+            break;
+        }
+
+        app_env_tmp = (typeof(app_env_tmp))dm_ble_find_profile_data_by_profile_id(common_env_tmp, PROFILE_ID);
+
+        if (app_env_tmp)
+        {
+            app_env_tmp->send_notify_read_rsp_status = param->status;
+
+            if (app_env_tmp->server_sem)
+            {
+                rtos_set_semaphore(&app_env_tmp->server_sem);
+            }
+        }
     }
     break;
 
     case BK_GATTS_RESPONSE_EVT:
     {
-        hogpd_logi("BK_GATTS_RESPONSE_EVT");
+        struct gatts_rsp_evt_param *param = (typeof(param))comm_param;
+
+        LOGI("BK_GATTS_RESPONSE_EVT");
+
+        common_env_tmp = dm_ble_find_app_env_by_conn_id(param->conn_id);
+
+        if (!common_env_tmp)
+        {
+            LOGE("cant find app env");
+            break;
+        }
+
+        app_env_tmp = (typeof(app_env_tmp))dm_ble_find_profile_data_by_profile_id(common_env_tmp, PROFILE_ID);
+
+        if (app_env_tmp)
+        {
+            app_env_tmp->send_notify_read_rsp_status = param->status;
+
+            if (app_env_tmp->server_sem)
+            {
+                rtos_set_semaphore(&app_env_tmp->server_sem);
+            }
+        }
     }
     break;
 
@@ -306,21 +378,83 @@ static int32_t hogpd_demo_gatts_cb(bk_gatts_cb_event_t event, bk_gatt_if_t gatts
         bk_gatt_rsp_t rsp;
         uint16_t final_len = 0;
 
-        memset(&rsp, 0, sizeof(rsp));
-        hogpd_logi("read attr handle %d need rsp %d", param->handle, param->need_rsp);
+        os_memset(&rsp, 0, sizeof(rsp));
+        LOGI("read attr handle %d need rsp %d", param->handle, param->need_rsp);
 
         uint8_t *tmp_buff = NULL;
         uint32_t buff_size = 0;
+        uint8_t valid = 1;
         uint32_t index = 0;
 
-        if (dm_gatts_get_buff_from_attr_handle((bk_gatts_attr_db_t *)s_gatts_attr_db_service_hidd, s_hogpd_attr_handle_list,
+        if (bk_dm_prf_gatts_get_buff_from_attr_handle((bk_gatts_attr_db_t *)s_gatts_attr_db_service_hidd, s_hogpd_attr_handle_list,
                                                sizeof(s_hogpd_attr_handle_list) / sizeof(s_hogpd_attr_handle_list[0]), param->handle, &index, &tmp_buff, &buff_size))
         {
-            hogpd_logi("handle invalid");
-            break;
+            LOGE("attr hande %d app invalid !!!", param->handle);
+            valid = 0;
         }
 
-        hogpd_logi("index %d size %d buff %p", index, buff_size, tmp_buff);
+        LOGI("index %d size %d buff %p", index, buff_size, tmp_buff);
+
+        if (index == HOGPD_DB_IDX_PROTO_MODE)
+        {
+            LOGI("read proto mode");
+        }
+        else if (index == HOGPD_DB_IDX_REPORT_MAP)
+        {
+            LOGI("read report map");
+        }
+        else if (index == HOGPD_DB_IDX_INPUT_REPORT)
+        {
+            LOGI("read input report");
+        }
+        else if (index == HOGPD_DB_IDX_INPUT_REPORT_CLIENT_CONF)
+        {
+            LOGI("read input report client conf");
+        }
+        else if (index == HOGPD_DB_IDX_INPUT_REPORT_REF_DESCR)
+        {
+            LOGI("read input report desc");
+        }
+        else if (index == HOGPD_DB_IDX_OUTPUT_REPORT)
+        {
+            LOGI("read output report");
+        }
+        else if (index == HOGPD_DB_IDX_OUTPUT_REPORT_REF_DESCR)
+        {
+            LOGI("read output report desc");
+        }
+        else if (index == HOGPD_DB_IDX_FEATURE_REPORT)
+        {
+            LOGI("read feature report");
+        }
+        else if (index == HOGPD_DB_IDX_FEATURE_REPORT_REF_DESC)
+        {
+            LOGI("read feature report desc");
+        }
+        else if (index == HOGPD_DB_IDX_CONTROL_POINT)
+        {
+            LOGI("read control point");
+        }
+        else if (index == HOGPD_DB_IDX_INFO)
+        {
+            LOGI("read info");
+        }
+        else if (index == HOGPD_DB_IDX_BOOT_KBD_INPUT_REPORT)
+        {
+            LOGI("read bootkeyboardinput report");
+        }
+        else if (index == HOGPD_DB_IDX_BOOT_KBD_INPUT_REPORT_CLIENT_CONF)
+        {
+            LOGI("read bootkeyboardinput report client conf");
+        }
+        else if (index == HOGPD_DB_IDX_BOOT_KBD_OUTPUT_REPORT)
+        {
+            LOGI("read bootkeyboardoutput report");
+        }
+        else
+        {
+            valid = 0;
+        }
 
         if (param->need_rsp)
         {
@@ -329,10 +463,20 @@ static int32_t hogpd_demo_gatts_cb(bk_gatts_cb_event_t event, bk_gatt_if_t gatts
             rsp.attr_value.auth_req = BK_GATT_AUTH_REQ_NONE;
             rsp.attr_value.handle = param->handle;
             rsp.attr_value.offset = param->offset;
-            rsp.attr_value.len = final_len;
-            rsp.attr_value.value = tmp_buff + param->offset;
 
-            ret = bk_ble_gatts_send_response(gatts_if, param->conn_id, param->trans_id, BK_GATT_OK, &rsp);
+            if (tmp_buff && valid)
+            {
+                rsp.attr_value.len = final_len;
+                rsp.attr_value.value = tmp_buff + param->offset;
+            }
+            else
+            {
+                rsp.attr_value.len = 0;
+                rsp.attr_value.value = NULL;
+            }
+
+            ret = bk_ble_gatts_send_response(gatts_if, param->conn_id, param->trans_id,
+                                             (tmp_buff && valid ? BK_GATT_OK : BK_GATT_INSUF_RESOURCE), &rsp);
         }
     }
     break;
@@ -340,85 +484,88 @@ static int32_t hogpd_demo_gatts_cb(bk_gatts_cb_event_t event, bk_gatt_if_t gatts
     case BK_GATTS_WRITE_EVT:
     {
         struct gatts_write_evt_param *param = (typeof(param))comm_param;
-        bk_gatt_rsp_t rsp;
+        bk_gatt_rsp_t rsp = {0};
         uint16_t final_len = 0;
 
-        memset(&rsp, 0, sizeof(rsp));
-
-        hogpd_logi("write attr handle %d need rsp %d", param->handle, param->need_rsp);
+        LOGI("write attr handle %d need rsp %d", param->handle, param->need_rsp);
 
         uint8_t *tmp_buff = NULL;
         uint32_t buff_size = 0;
         uint32_t index = 0;
+        uint8_t valid = 1;
 
-        if (dm_gatts_get_buff_from_attr_handle((bk_gatts_attr_db_t *)s_gatts_attr_db_service_hidd, s_hogpd_attr_handle_list,
+        if (bk_dm_prf_gatts_get_buff_from_attr_handle((bk_gatts_attr_db_t *)s_gatts_attr_db_service_hidd, s_hogpd_attr_handle_list,
                                                sizeof(s_hogpd_attr_handle_list) / sizeof(s_hogpd_attr_handle_list[0]), param->handle, &index, &tmp_buff, &buff_size))
         {
-            hogpd_logi("handle invalid");
-            break;
+            LOGI("handle invalid");
+            valid = 0;
         }
 
-        hogpd_logi("index %d size %d buff %p", index, buff_size, tmp_buff);
+        LOGI("index %d size %d buff %p", index, buff_size, tmp_buff);
 
-        if (param->handle == s_hogpd_attr_handle_list[1])
+        if (index == HOGPD_DB_IDX_PROTO_MODE)
         {
-            hogpd_logi("write proto mode");
+            LOGI("write proto mode");
         }
-        else if (param->handle == s_hogpd_attr_handle_list[4])
+        else if (index == HOGPD_DB_IDX_INPUT_REPORT)
         {
-            hogpd_logi("write input report");
+            LOGI("write input report");
         }
-        else if (param->handle == s_hogpd_attr_handle_list[5])
+        else if (index == HOGPD_DB_IDX_INPUT_REPORT_CLIENT_CONF)
         {
             uint16_t config = (((uint16_t)(param->value[1])) << 8) | param->value[0];
 
-            hogpd_logi("write input report ccc");
+            LOGI("write input report ccc");
 
             if (config & 1)
             {
-                hogpd_logi("client notify open");
+                LOGI("client notify open");
             }
             else
             {
-                hogpd_logi("client write invalid data 0x%x", config);
+                LOGI("client write invalid data 0x%x", config);
             }
         }
-        else if (param->handle == s_hogpd_attr_handle_list[7])
+        else if (index == HOGPD_DB_IDX_OUTPUT_REPORT)
         {
-            hogpd_logi("write output report");
+            LOGI("write output report");
         }
-        else if (param->handle == s_hogpd_attr_handle_list[9])
+        else if (index == HOGPD_DB_IDX_FEATURE_REPORT)
         {
-            hogpd_logi("write feature report");
+            LOGI("write feature report");
         }
-        else if (param->handle == s_hogpd_attr_handle_list[11])
+        else if (index == HOGPD_DB_IDX_CONTROL_POINT)
         {
-            hogpd_logi("write control point");
+            LOGI("write control point");
         }
-        else if (param->handle == s_hogpd_attr_handle_list[13])
+        else if (index == HOGPD_DB_IDX_INFO)
         {
-            hogpd_logi("write bootkeyboardinput report");
+            LOGI("write bootkeyboardinput report");
         }
 
-        else if (param->handle == s_hogpd_attr_handle_list[14])
+        else if (index == HOGPD_DB_IDX_BOOT_KBD_INPUT_REPORT_CLIENT_CONF)
         {
             uint16_t config = (((uint16_t)(param->value[1])) << 8) | param->value[0];
 
-            hogpd_logi("write bootkeyboardinput report ccc");
+            LOGI("write bootkeyboardinput report ccc");
 
             if (config & 1)
             {
-                hogpd_logi("client notify open");
+                LOGI("client notify open");
             }
             else
             {
-                hogpd_logi("client write invalid data 0x%x", config);
+                LOGI("client write invalid data 0x%x", config);
             }
         }
-        else if (param->handle == s_hogpd_attr_handle_list[15])
+        else if (index == HOGPD_DB_IDX_BOOT_KBD_OUTPUT_REPORT)
         {
-            hogpd_logi("write bootkeyboardoutput report");
+            LOGI("write bootkeyboardoutput report");
         }
+		else
+		{
+			valid = 0;
+		}
 
         if (param->need_rsp)
         {
@@ -431,7 +578,7 @@ static int32_t hogpd_demo_gatts_cb(bk_gatts_cb_event_t event, bk_gatt_if_t gatts
             rsp.attr_value.len = final_len;
             rsp.attr_value.value = tmp_buff + param->offset;
 
-            ret = bk_ble_gatts_send_response(gatts_if, param->conn_id, param->trans_id, BK_GATT_OK, &rsp);
+            ret = bk_ble_gatts_send_response(gatts_if, param->conn_id, param->trans_id, valid ? BK_GATT_OK : BK_GATT_INSUF_RESOURCE, &rsp);
         }
     }
     break;
@@ -439,7 +586,7 @@ static int32_t hogpd_demo_gatts_cb(bk_gatts_cb_event_t event, bk_gatt_if_t gatts
     case BK_GATTS_EXEC_WRITE_EVT:
     {
         struct gatts_exec_write_evt_param *param = (typeof(param))comm_param;
-        hogpd_logi("exec write");
+        LOGI("exec write");
     }
     break;
 
@@ -450,16 +597,16 @@ static int32_t hogpd_demo_gatts_cb(bk_gatts_cb_event_t event, bk_gatt_if_t gatts
     return 0;
 }
 
-static int32_t hogpd_demo_reg_db(void)
+static int32_t hogpd_reg_db(void)
 {
-    int32_t ret = dm_gatts_reg_db((bk_gatts_attr_db_t *)s_gatts_attr_db_service_hidd,
+    int32_t ret = bk_dm_prf_gatts_reg_db((bk_gatts_attr_db_t *)s_gatts_attr_db_service_hidd,
                                   sizeof(s_gatts_attr_db_service_hidd) / sizeof(s_gatts_attr_db_service_hidd[0]),
                                   s_hogpd_attr_handle_list,
-                                  hogpd_demo_gatts_cb, s_db_init ? 0 : 1);
+                                  hogpd_gatts_cb, s_db_init ? 0 : 1);
 
     if (ret)
     {
-        hogpd_loge("reg db err");
+        LOGE("reg db err");
         return ret;
     }
 
@@ -470,46 +617,46 @@ static int32_t hogpd_demo_reg_db(void)
 
 #endif
 
-int32_t hogpd_demo_init(void)
+int32_t bk_dm_prf_hogpd_init(void)
 {
-#if HOGPD_DEMO_ENABLE
+#if HOGPD_ENABLE
 
-    if (!dm_gatts_is_init())
+    if (!bk_dm_prf_gatts_is_init())
     {
-        hogpd_loge("gatts is not init");
+        LOGE("gatts is not init");
         return -1;
     }
 
     if (s_hogpd_is_init)
     {
-        hogpd_loge("already init");
+        LOGE("already init");
         return -1;
     }
 
     s_hogpd_is_init = 1;
 
-    hogpd_demo_reg_db();
+    hogpd_reg_db();
 
-    hogpd_logi("done");
+    LOGI("done");
 #else
-    hogpd_loge("hogpd not enable");
+    LOGE("hogpd not enable");
 #endif
     return 0;
 }
 
-int32_t hogpd_demo_deinit(uint8_t deinit_bluetooth_future)
+int32_t bk_dm_prf_hogpd_deinit(uint8_t deinit_bluetooth_future)
 {
-#if HOGPD_DEMO_ENABLE
+#if HOGPD_ENABLE
 
     if (!s_hogpd_is_init)
     {
-        hogpd_loge("already deinit");
+        LOGE("already deinit");
         return -1;
     }
 
-    hogpd_logw("sdk can't del db service now !!!");
+    LOGW("sdk can't del db service now !!!");
 
-    dm_gatts_unreg_db((bk_gatts_attr_db_t *)s_gatts_attr_db_service_hidd);
+    bk_dm_prf_gatts_unreg_db((bk_gatts_attr_db_t *)s_gatts_attr_db_service_hidd);
 
     if (deinit_bluetooth_future)
     {
@@ -521,10 +668,91 @@ int32_t hogpd_demo_deinit(uint8_t deinit_bluetooth_future)
     return 0;
 }
 
-int32_t hogpd_demo_deinit_because_bluetooth_deinit_future(void)
+int32_t bk_dm_prf_hogpd_deinit_because_bluetooth_deinit_future(void)
 {
-#if HOGPD_DEMO_ENABLE
+#if HOGPD_ENABLE
     s_db_init = 0;
 #endif
     return 0;
+}
+
+int32_t bk_dm_prf_hogpd_notify(uint16_t gatt_conn_handle, uint8_t *data, uint32_t len, uint8_t is_notify, uint8_t report_id)
+{
+    int32_t ret = 0;
+
+    hogpd_app_env_t *app_env_tmp = NULL;
+    dm_gatt_app_env_t *common_env_tmp = NULL;
+
+    if (!s_hogpd_is_init)
+    {
+        LOGE("not init");
+        return -1;
+    }
+
+    //rtos_init_event()
+
+    common_env_tmp = dm_ble_find_app_env_by_conn_id(gatt_conn_handle);
+
+    if (!common_env_tmp || !common_env_tmp->data)
+    {
+        LOGE("conn_id %d not found %d %p", gatt_conn_handle, common_env_tmp->data);
+        ret = -1;
+        goto end;
+    }
+
+    app_env_tmp = (typeof(app_env_tmp))dm_ble_find_profile_data_by_profile_id(common_env_tmp, PROFILE_ID);
+
+    if (!app_env_tmp)
+    {
+        LOGE("conn_id %d not found app_env", gatt_conn_handle);
+        ret = -1;
+        goto end;
+    }
+
+    if (!app_env_tmp->server_sem)
+    {
+        ret = rtos_init_semaphore(&app_env_tmp->server_sem, 1);
+
+        if (ret)
+        {
+            LOGE("init sem err %d", ret);
+            ret = -1;
+            goto end;
+        }
+    }
+
+    ret = bk_ble_gatts_send_indicate(bk_dm_prf_gatts_get_current_if(), gatt_conn_handle, s_hogpd_attr_handle_list[HOGPD_DB_IDX_INPUT_REPORT], len, data, is_notify ? 0 : 1);
+
+    if (ret)
+    {
+        LOGE("send err %d", ret);
+        ret = -1;
+        goto end;
+    }
+
+    ret = rtos_get_semaphore(&app_env_tmp->server_sem, SYNC_CMD_TIMEOUT_MS);
+
+    if (ret)
+    {
+        LOGE("wait send completed err %d", ret);
+        ret = -1;
+        goto end;
+    }
+
+end:;
+
+    if(app_env_tmp)
+    {
+        ret = (app_env_tmp->send_notify_read_rsp_status ? -1 : 0);
+
+        app_env_tmp->send_notify_read_rsp_status = 0;
+
+        if (app_env_tmp->server_sem)
+        {
+            rtos_deinit_semaphore(&app_env_tmp->server_sem);
+            app_env_tmp->server_sem = NULL;
+        }
+    }
+
+    return ret;
 }

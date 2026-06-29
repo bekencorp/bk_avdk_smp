@@ -13,7 +13,7 @@
  *
  * @return Non-zero if the address is valid, otherwise zero.
  */
-uint8_t dm_gap_is_addr_valid(uint8_t *addr);
+uint8_t bk_dm_prf_gap_is_addr_valid(uint8_t *addr);
 
 /**
  * @brief Check whether a data buffer is valid.
@@ -23,4 +23,4 @@ uint8_t dm_gap_is_addr_valid(uint8_t *addr);
  *
  * @return Non-zero if the buffer is valid, otherwise zero.
  */
-uint8_t dm_gap_is_data_valid(uint8_t *data, uint32_t len);
+uint8_t bk_dm_prf_gap_is_data_valid(uint8_t *data, uint32_t len);

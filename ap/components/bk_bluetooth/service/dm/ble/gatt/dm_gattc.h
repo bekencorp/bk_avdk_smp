@@ -28,14 +28,14 @@ typedef int32_t (* dm_ble_gattc_app_cb)(bk_gattc_cb_event_t event, bk_gatt_if_t 
  *
  * @return 0 on success, otherwise error code.
  */
-int dm_gattc_main(cli_gatt_param_t *param);
+int bk_dm_prf_gattc_main(cli_gatt_param_t *param);
 
 /**
  * @brief Deinitialize the GATTC wrapper.
  *
  * @return 0 on success, otherwise error code.
  */
-int dm_gattc_deinit(void);
+int bk_dm_prf_gattc_deinit(void);
 
 /**
  * @brief Connect to a GATT server.
@@ -46,13 +46,13 @@ int dm_gattc_deinit(void);
  *
  * @return 0 on success, otherwise error code.
  */
-int32_t dm_gattc_connect(uint8_t *addr, uint32_t addr_type, uint32_t s_timeout);
+int32_t bk_dm_prf_gattc_connect(uint8_t *addr, uint32_t addr_type, uint32_t s_timeout);
 
 /**
  * @brief Connect to a GATT server with custom connection parameters.
  *
- * When pm is NULL, this function uses the default parameters used by
- * dm_gattc_connect(addr, addr_type, 500).
+ * When pm is NULL, falls back to default params identical to dm_gattc_connect(addr, addr_type, 500).
+ * bk_dm_prf_gattc_connect(addr, addr_type, 500).
  *
  * @param addr Peer BLE address.
  * @param addr_type Peer BLE address type.
@@ -60,7 +60,7 @@ int32_t dm_gattc_connect(uint8_t *addr, uint32_t addr_type, uint32_t s_timeout);
  *
  * @return 0 on success, otherwise error code.
  */
-int32_t dm_gattc_connect_ext(uint8_t *addr, uint32_t addr_type, bk_gap_create_conn_params_t *pm);
+int32_t bk_dm_prf_gattc_connect_ext(uint8_t *addr, uint32_t addr_type, bk_gap_create_conn_params_t *pm);
 
 /**
  * @brief Disconnect from a GATT server.
@@ -69,14 +69,14 @@ int32_t dm_gattc_connect_ext(uint8_t *addr, uint32_t addr_type, bk_gap_create_co
  *
  * @return 0 on success, otherwise error code.
  */
-int32_t dm_gattc_disconnect(uint8_t *addr);
+int32_t bk_dm_prf_gattc_disconnect(uint8_t *addr);
 
 /**
  * @brief Cancel an ongoing GATTC connection attempt.
  *
  * @return 0 on success, otherwise error code.
  */
-int32_t dm_gattc_connect_cancel(void);
+int32_t bk_dm_prf_gattc_connect_cancel(void);
 
 /**
  * @brief Discover services on a GATT server.
@@ -85,7 +85,7 @@ int32_t dm_gattc_connect_cancel(void);
  *
  * @return 0 on success, otherwise error code.
  */
-int32_t dm_gattc_discover(uint16_t conn_id);
+int32_t bk_dm_prf_gattc_discover(uint16_t conn_id);
 
 /**
  * @brief Write an attribute on a GATT server.
@@ -97,7 +97,7 @@ int32_t dm_gattc_discover(uint16_t conn_id);
  *
  * @return 0 on success, otherwise error code.
  */
-int32_t dm_gattc_write(uint16_t conn_id, uint16_t attr_handle, uint8_t *data, uint32_t len);
+int32_t bk_dm_prf_gattc_write(uint16_t conn_id, uint16_t attr_handle, uint8_t *data, uint32_t len);
 
 /**
  * @brief Write an attribute with selectable write mode.
@@ -110,7 +110,7 @@ int32_t dm_gattc_write(uint16_t conn_id, uint16_t attr_handle, uint8_t *data, ui
  *
  * @return 0 on success, otherwise error code.
  */
-int32_t dm_gattc_write_ext(uint16_t gatt_conn_id, uint16_t attr_handle, uint8_t *data, uint32_t len, uint8_t write_req);
+int32_t bk_dm_prf_gattc_write_ext(uint16_t gatt_conn_id, uint16_t attr_handle, uint8_t *data, uint32_t len, uint8_t write_req);
 
 /**
  * @brief Read an attribute from a GATT server.
@@ -122,7 +122,7 @@ int32_t dm_gattc_write_ext(uint16_t gatt_conn_id, uint16_t attr_handle, uint8_t 
  *
  * @return 0 on success, otherwise error code.
  */
-int32_t dm_gattc_read(uint16_t gatt_conn_id, uint16_t attr_handle, uint8_t *data, uint32_t len);
+int32_t bk_dm_prf_gattc_read(uint16_t gatt_conn_id, uint16_t attr_handle, uint8_t *data, uint32_t len);
 
 /**
  * @brief Send an MTU exchange request.
@@ -132,7 +132,7 @@ int32_t dm_gattc_read(uint16_t gatt_conn_id, uint16_t attr_handle, uint8_t *data
  *
  * @return 0 on success, otherwise error code.
  */
-int32_t dm_gattc_send_mtu_req(uint8_t *mac, uint8_t gatt_conn_id);
+int32_t bk_dm_prf_gattc_send_mtu_req(uint8_t *mac, uint8_t gatt_conn_id);
 
 /**
  * @brief Register a GATTC application callback.
@@ -141,4 +141,4 @@ int32_t dm_gattc_send_mtu_req(uint8_t *mac, uint8_t gatt_conn_id);
  *
  * @return 0 on success, otherwise error code.
  */
-int dm_gattc_add_gattc_callback(void *param);
+int bk_dm_prf_gattc_add_gattc_callback(void *param);

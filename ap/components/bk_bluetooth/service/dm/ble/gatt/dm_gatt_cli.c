@@ -348,8 +348,8 @@ static void cmd_ble_gatt_demo(char *pcWriteBuffer, int xWriteBufferLen, int argc
 
             tmp_param = &s_cli_gatt_param;
 #endif
-            dm_gatt_main(tmp_param);
-            dm_gatts_main(tmp_param);
+            bk_dm_prf_gap_main(tmp_param);
+            bk_dm_prf_gatts_main(tmp_param);
         }
         else if (os_strcmp(argv[2], "disconnect") == 0 && argc >= 4)
         {
@@ -376,7 +376,7 @@ static void cmd_ble_gatt_demo(char *pcWriteBuffer, int xWriteBufferLen, int argc
                 mac_final[i] = (uint8_t)mac[i];
             }
 
-            ret = dm_gatts_disconnect(mac_final);
+            ret = bk_dm_prf_gatts_disconnect(mac_final);
         }
         else if (!os_strcmp(argv[2], "enable_service") && argc >= 5)
         {
@@ -399,7 +399,7 @@ static void cmd_ble_gatt_demo(char *pcWriteBuffer, int xWriteBufferLen, int argc
                 goto __usage;
             }
 
-            ret = dm_gatts_enable_service(service, enable);
+            ret = bk_dm_prf_gatts_enable_service(service, enable);
         }
         else if (!os_strcmp(argv[2], "enable_adv") && argc >= 4)
         {
@@ -413,7 +413,7 @@ static void cmd_ble_gatt_demo(char *pcWriteBuffer, int xWriteBufferLen, int argc
                 goto __usage;
             }
 
-            ret = dm_gatts_enable_adv(enable);
+            ret = bk_dm_prf_gatts_enable_adv(enable);
         }
         else
         {
@@ -433,8 +433,8 @@ static void cmd_ble_gatt_demo(char *pcWriteBuffer, int xWriteBufferLen, int argc
 
             tmp_param = &s_cli_gatt_param;
 #endif
-            dm_gatt_main(tmp_param);
-            dm_gattc_main(tmp_param);
+            bk_dm_prf_gap_main(tmp_param);
+            bk_dm_prf_gattc_main(tmp_param);
         }
         else if (os_strcmp(argv[2], "connect") == 0 && argc >= 4)
         {
@@ -472,7 +472,7 @@ static void cmd_ble_gatt_demo(char *pcWriteBuffer, int xWriteBufferLen, int argc
                 }
             }
 
-            ret = dm_gattc_connect(mac_final, addr_type, 500);
+            ret = bk_dm_prf_gattc_connect(mac_final, addr_type, 500);
         }
         else if (os_strcmp(argv[2], "disconnect") == 0 && argc >= 4)
         {
@@ -499,11 +499,11 @@ static void cmd_ble_gatt_demo(char *pcWriteBuffer, int xWriteBufferLen, int argc
                 mac_final[i] = (uint8_t)mac[i];
             }
 
-            ret = dm_gattc_disconnect(mac_final);
+            ret = bk_dm_prf_gattc_disconnect(mac_final);
         }
         else if (os_strcmp(argv[2], "connect_cancel") == 0)
         {
-            ret = dm_gattc_connect_cancel();
+            ret = bk_dm_prf_gattc_connect_cancel();
         }
         else if (os_strcmp(argv[2], "discover") == 0 && argc >= 4)
         {
@@ -517,7 +517,7 @@ static void cmd_ble_gatt_demo(char *pcWriteBuffer, int xWriteBufferLen, int argc
                 goto __usage;
             }
 
-            ret = dm_gattc_discover(conn_id);
+            ret = bk_dm_prf_gattc_discover(conn_id);
         }
         else if (os_strcmp(argv[2], "write") == 0 && argc >= 6)
         {
@@ -542,7 +542,7 @@ static void cmd_ble_gatt_demo(char *pcWriteBuffer, int xWriteBufferLen, int argc
 
             len = strnlen(argv[5], len);
 
-            ret = dm_gattc_write(conn_id, attr_handle, (uint8_t *)argv[5], len);
+            ret = bk_dm_prf_gattc_write(conn_id, attr_handle, (uint8_t *)argv[5], len);
         }
         else
         {
@@ -566,7 +566,7 @@ static void cmd_ble_gatt_demo(char *pcWriteBuffer, int xWriteBufferLen, int argc
             accept = 1;
         }
 
-        ret = dm_gatt_passkey_reply(accept, passkey);
+        ret = bk_dm_prf_gap_passkey_reply(accept, passkey);
     }
     else if (os_strcmp(argv[1], "security_method") == 0)
     {
@@ -605,7 +605,7 @@ static void cmd_ble_gatt_demo(char *pcWriteBuffer, int xWriteBufferLen, int argc
             goto __usage;
         }
 
-        ret = dm_gatt_set_security_method(iocap, authen_req, key_distr);
+        ret = bk_dm_prf_gap_set_security_method(iocap, authen_req, key_distr);
     }
     else if (os_strcmp(argv[1], "create_bond") == 0 && argc >= 3)
     {
@@ -631,7 +631,7 @@ static void cmd_ble_gatt_demo(char *pcWriteBuffer, int xWriteBufferLen, int argc
             mac_final[i] = (uint8_t)mac[i];
         }
 
-        ret = dm_ble_gap_create_bond(mac_final);
+        ret = bk_dm_prf_gap_create_bond(mac_final);
     }
     else if (os_strcmp(argv[1], "remove_bond") == 0 && argc >= 3)
     {
@@ -657,19 +657,19 @@ static void cmd_ble_gatt_demo(char *pcWriteBuffer, int xWriteBufferLen, int argc
             mac_final[i] = (uint8_t)mac[i];
         }
 
-        ret = dm_ble_gap_remove_bond(mac_final);
+        ret = bk_dm_prf_gap_remove_bond(mac_final);
     }
     else if (os_strcmp(argv[1], "clean_bond") == 0)
     {
-        ret = dm_ble_gap_clean_bond();
+        ret = bk_dm_prf_gap_clean_bond();
     }
     else if (os_strcmp(argv[1], "show_bond") == 0)
     {
-        ret = dm_ble_gap_show_bond_list();
+        ret = bk_dm_prf_gap_show_bond_list();
     }
     else if (os_strcmp(argv[1], "clean_local_key") == 0)
     {
-        ret = dm_ble_gap_clean_local_key();
+        ret = bk_dm_prf_gap_clean_local_key();
     }
     else if (os_strcmp(argv[1], "update_param") == 0 && argc >= 3)
     {
@@ -718,7 +718,7 @@ static void cmd_ble_gatt_demo(char *pcWriteBuffer, int xWriteBufferLen, int argc
             }
         }
 
-        ret = dm_ble_gap_update_param(mac_final, interval, tout);
+        ret = bk_dm_prf_gap_update_param(mac_final, interval, tout);
     }
     else if (os_strcmp(argv[1], "test") == 0)
     {

@@ -33,7 +33,7 @@ int32_t dm_ble_app_env_deinit(void)
 
 dm_gatt_app_env_t *dm_ble_find_app_env_by_addr(uint8_t *addr)
 {
-    if (!dm_gap_is_addr_valid(addr))
+    if (!bk_dm_prf_gap_is_addr_valid(addr))
     {
         return NULL;
     }
@@ -53,7 +53,7 @@ dm_gatt_app_env_t *dm_ble_find_app_env_by_conn_id(uint16_t conn_id)
 {
     for (int i = 0; i < sizeof(s_dm_gatt_env_array) / sizeof(s_dm_gatt_env_array[0]); ++i)
     {
-        if (dm_gap_is_addr_valid(s_dm_gatt_env_array[i].addr) && s_dm_gatt_env_array[i].conn_id == conn_id)
+        if (bk_dm_prf_gap_is_addr_valid(s_dm_gatt_env_array[i].addr) && s_dm_gatt_env_array[i].conn_id == conn_id)
         {
             return s_dm_gatt_env_array + i;
         }
@@ -64,7 +64,7 @@ dm_gatt_app_env_t *dm_ble_find_app_env_by_conn_id(uint16_t conn_id)
 
 uint8_t dm_ble_del_app_env_by_addr(uint8_t *addr)
 {
-    if (!dm_gap_is_addr_valid(addr))
+    if (!bk_dm_prf_gap_is_addr_valid(addr))
     {
         return 1;
     }
@@ -167,7 +167,7 @@ dm_gatt_app_env_t *dm_ble_alloc_app_env_by_addr(uint8_t *addr, uint32_t data_len
 
     for (int i = 0; i < sizeof(s_dm_gatt_env_array) / sizeof(s_dm_gatt_env_array[0]); ++i)
     {
-        if (!dm_gap_is_addr_valid(s_dm_gatt_env_array[i].addr))
+        if (!bk_dm_prf_gap_is_addr_valid(s_dm_gatt_env_array[i].addr))
         {
             os_memcpy(s_dm_gatt_env_array[i].addr, addr, BK_BD_ADDR_LEN);
 
@@ -285,7 +285,7 @@ uint8_t dm_ble_app_env_foreach( int32_t (*func) (dm_gatt_app_env_t *env, void *a
 {
     for (int i = 0; i < sizeof(s_dm_gatt_env_array) / sizeof(s_dm_gatt_env_array[0]); ++i)
     {
-        if (dm_gap_is_addr_valid(s_dm_gatt_env_array[i].addr))
+        if (bk_dm_prf_gap_is_addr_valid(s_dm_gatt_env_array[i].addr))
         {
             func(s_dm_gatt_env_array + i, arg);
         }

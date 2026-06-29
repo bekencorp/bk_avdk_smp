@@ -96,29 +96,30 @@ typedef struct
     GATT_PARAM_MEMBER(uint8_t)
 }__attribute__((packed)) cli_gatt_param_t;
 
+//internal api
 
 /**
- * @brief Initialize the BLE GATT framework.
+ * @brief Initialize the BLE GAP framework.
  *
  * @param param Optional initialization parameters. Pass NULL to use defaults.
  *
  * @return 0 on success, otherwise error code.
  */
-int dm_gatt_main(cli_gatt_param_t *param);
+int bk_dm_prf_gap_main(cli_gatt_param_t *param);
 
 /**
- * @brief Deinitialize the BLE GATT framework.
+ * @brief Deinitialize the BLE GAP framework.
  *
  * @return 0 on success, otherwise error code.
  */
-int dm_gatt_deinit(void);
+int bk_dm_prf_gap_deinit(void);
 
 /**
- * @brief Disable all GATT framework roles and activities.
+ * @brief Disable all GAP framework roles and activities.
  *
  * @return 0 on success, otherwise error code.
  */
-int32_t dm_gatt_disable_all(void);
+int32_t bk_dm_prf_gap_disable_all(void);
 
 /**
  * @brief Register a BLE GAP callback.
@@ -127,7 +128,7 @@ int32_t dm_gatt_disable_all(void);
  *
  * @return 0 on success, otherwise error code.
  */
-int dm_gatt_add_gap_callback(void * cb);
+int bk_dm_prf_gap_add_gap_callback(void * cb);
 
 /**
  * @brief Get authentication address mapping information.
@@ -153,15 +154,16 @@ int32_t dm_gatt_get_authen_status(uint8_t *nominal_addr, uint8_t *nominal_addr_t
  */
 int32_t dm_gatt_find_id_info_by_nominal_info(uint8_t *nominal_addr, uint8_t nominal_addr_type, uint8_t *identity_addr, uint8_t *identity_addr_type);
 
+
+
 /**
  * @brief Reply to a BLE passkey request.
- *
  * @param accept Non-zero to accept the passkey, zero to reject.
  * @param passkey Passkey value.
  *
  * @return 0 on success, otherwise error code.
  */
-int dm_gatt_passkey_reply(uint8_t accept, uint32_t passkey);
+int bk_dm_prf_gap_passkey_reply(uint8_t accept, uint32_t passkey);
 
 /**
  * @brief Configure BLE security method.
@@ -172,14 +174,14 @@ int dm_gatt_passkey_reply(uint8_t accept, uint32_t passkey);
  *
  * @return 0 on success, otherwise error code.
  */
-int dm_gatt_set_security_method(uint8_t iocap, uint8_t auth_req, uint8_t key_distr);
+int bk_dm_prf_gap_set_security_method(uint8_t iocap, uint8_t auth_req, uint8_t key_distr);
 
 /**
  * @brief Check whether link keys are distributed from LTK information.
  *
  * @return true if link keys are distributed from LTK, otherwise false.
  */
-bool dm_gatt_is_linkkey_distr_from_ltk(void);
+bool bk_dm_prf_gap_is_linkkey_distr_from_ltk(void);
 
 /**
  * @brief Create a BLE bond with a peer device.
@@ -188,7 +190,7 @@ bool dm_gatt_is_linkkey_distr_from_ltk(void);
  *
  * @return 0 on success, otherwise error code.
  */
-int dm_ble_gap_create_bond(uint8_t *addr);
+int bk_dm_prf_gap_create_bond(uint8_t *addr);
 
 /**
  * @brief Remove BLE bond information for a peer device.
@@ -197,28 +199,28 @@ int dm_ble_gap_create_bond(uint8_t *addr);
  *
  * @return 0 on success, otherwise error code.
  */
-int dm_ble_gap_remove_bond(uint8_t *addr);
+int bk_dm_prf_gap_remove_bond(uint8_t *addr);
 
 /**
  * @brief Get the number of bonded BLE devices.
  *
  * @return Number of bonded devices.
  */
-uint32_t dm_ble_gap_get_bonded_count(void);
+uint32_t bk_dm_prf_gap_get_bonded_count(void);
 
 /**
  * @brief Clear all BLE bond information.
  *
  * @return 0 on success, otherwise error code.
  */
-int32_t dm_ble_gap_clean_bond(void);
+int32_t bk_dm_prf_gap_clean_bond(void);
 
 /**
  * @brief Print the BLE bond list for debugging.
  *
  * @return 0 on success, otherwise error code.
  */
-int32_t dm_ble_gap_show_bond_list(void);
+int32_t bk_dm_prf_gap_show_bond_list(void);
 
 /**
  * @brief Get BLE bond information by address.
@@ -227,7 +229,7 @@ int32_t dm_ble_gap_show_bond_list(void);
  *
  * @return Pointer to bond information on success, otherwise NULL.
  */
-bk_ble_bond_dev_t* dm_ble_gap_get_bond_info_by_addr(uint8_t *addr);
+bk_ble_bond_dev_t* bk_dm_prf_gap_get_bond_info_by_addr(uint8_t *addr);
 
 /**
  * @brief Iterate over BLE bond information.
@@ -237,14 +239,14 @@ bk_ble_bond_dev_t* dm_ble_gap_get_bond_info_by_addr(uint8_t *addr);
  *
  * @return Number of visited bond records.
  */
-uint8_t dm_ble_gap_bond_info_foreach(int32_t (*func) (bk_ble_bond_dev_t *info, void *arg), void *arg);
+uint8_t bk_dm_prf_gap_bond_info_foreach(int32_t (*func) (bk_ble_bond_dev_t *info, void *arg), void *arg);
 
 /**
  * @brief Clear local BLE security keys.
  *
  * @return 0 on success, otherwise error code.
  */
-int32_t dm_ble_gap_clean_local_key(void);
+int32_t bk_dm_prf_gap_clean_local_key(void);
 
 /**
  * @brief Update BLE connection parameters.
@@ -255,7 +257,7 @@ int32_t dm_ble_gap_clean_local_key(void);
  *
  * @return 0 on success, otherwise error code.
  */
-int dm_ble_gap_update_param(uint8_t *addr, uint16_t interval, uint16_t tout);
+int bk_dm_prf_gap_update_param(uint8_t *addr, uint16_t interval, uint16_t tout);
 
 /**
  * @brief Get the current resolvable private address.
@@ -271,14 +273,14 @@ int32_t dm_ble_gap_get_rpa(uint8_t *rpa);
  *
  * @param addr Output buffer for the address. The buffer length must be 6 bytes.
  */
-void dm_ble_gap_get_identity_addr(uint8_t *addr);
+void bk_dm_prf_gap_get_identity_addr(uint8_t *addr);
 
 /**
  * @brief Get the current BLE GATT connection ID.
  *
  * @return Current connection ID, or negative value when no connection is active.
  */
-int16_t dm_ble_gap_get_current_conn_id(void);
+int16_t bk_dm_prf_gap_get_current_conn_id(void);
 
 /**
  * @brief Configure whether pairing requests are accepted automatically.
@@ -296,14 +298,15 @@ int dm_ble_gap_set_auto_accept_pair_req(uint8_t accpet);
  *
  * @return 0 on success, otherwise error code.
  */
-int32_t dm_gatt_disconnect(uint8_t *addr);
+int32_t bk_dm_prf_gap_disconnect(uint8_t *addr);
 
 /**
  * @brief Cancel an ongoing BLE connection attempt.
  *
  * @return 0 on success, otherwise error code.
  */
-int32_t dm_gatt_connect_cancel(void);
+int32_t bk_dm_prf_gap_connect_cancel(void);
 
-/** Non-zero when the GATT framework uses RPA. */
+
+
 extern uint8_t g_dm_gap_use_rpa;

@@ -9,7 +9,7 @@
 #include "components/bluetooth/bk_dm_bluetooth_types.h"
 #include "dm_gatt_connection.h"
 
-uint8_t dm_gap_is_data_valid(uint8_t *data, uint32_t len)
+uint8_t bk_dm_prf_gap_is_data_valid(uint8_t *data, uint32_t len)
 {
     uint8_t sum_ff = 0xff, sum_zero = 0;
 
@@ -23,12 +23,12 @@ uint8_t dm_gap_is_data_valid(uint8_t *data, uint32_t len)
 }
 
 
-uint8_t dm_gap_is_addr_valid(uint8_t *addr)
+uint8_t bk_dm_prf_gap_is_addr_valid(uint8_t *addr)
 {
     if(!addr)
     {
         return 0;
     }
 
-    return dm_gap_is_data_valid(addr, BK_BD_ADDR_LEN);
+    return bk_dm_prf_gap_is_data_valid(addr, BK_BD_ADDR_LEN);
 }

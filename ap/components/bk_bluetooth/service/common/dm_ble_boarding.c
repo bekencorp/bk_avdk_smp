@@ -220,7 +220,7 @@ static int32_t dm_ble_boarding_gatts_cb(bk_gatts_cb_event_t event, bk_gatt_if_t 
         uint32_t buff_size = 0;
         uint32_t index = 0;
 
-        if (dm_gatts_get_buff_from_attr_handle((bk_gatts_attr_db_t *)s_gatts_attr_db_service_boarding, s_boarding_attr_handle_list,
+        if (bk_dm_prf_gatts_get_buff_from_attr_handle((bk_gatts_attr_db_t *)s_gatts_attr_db_service_boarding, s_boarding_attr_handle_list,
                                                sizeof(s_boarding_attr_handle_list) / sizeof(s_boarding_attr_handle_list[0]), param->handle, &index, &tmp_buff, &buff_size))
         {
             LOGI("handle invalid");
@@ -267,7 +267,7 @@ static int32_t dm_ble_boarding_gatts_cb(bk_gatts_cb_event_t event, bk_gatt_if_t 
         uint32_t buff_size = 0;
         uint32_t index = 0;
 
-        if (dm_gatts_get_buff_from_attr_handle((bk_gatts_attr_db_t *)s_gatts_attr_db_service_boarding, s_boarding_attr_handle_list,
+        if (bk_dm_prf_gatts_get_buff_from_attr_handle((bk_gatts_attr_db_t *)s_gatts_attr_db_service_boarding, s_boarding_attr_handle_list,
                                                sizeof(s_boarding_attr_handle_list) / sizeof(s_boarding_attr_handle_list[0]), param->handle, &index, &tmp_buff, &buff_size))
         {
             LOGI("handle invalid");
@@ -345,7 +345,7 @@ static int32_t dm_ble_boarding_gatts_cb(bk_gatts_cb_event_t event, bk_gatt_if_t 
 
 static int32_t dm_ble_boarding_reg_db(void)
 {
-    int32_t ret = dm_gatts_reg_db((bk_gatts_attr_db_t *)s_gatts_attr_db_service_boarding,
+    int32_t ret = bk_dm_prf_gatts_reg_db((bk_gatts_attr_db_t *)s_gatts_attr_db_service_boarding,
                                   sizeof(s_gatts_attr_db_service_boarding) / sizeof(s_gatts_attr_db_service_boarding[0]),
                                   s_boarding_attr_handle_list,
                                   dm_ble_boarding_gatts_cb, s_db_init ? 0 : 1);
@@ -367,7 +367,7 @@ int32_t dm_ble_boarding_init(void)
 {
 #if DM_BLE_BOARDING_ENABLE
 
-    if (!dm_gatts_is_init())
+    if (!bk_dm_prf_gatts_is_init())
     {
         LOGE("gatts is not init");
         return -1;
@@ -402,7 +402,7 @@ int32_t dm_ble_boarding_deinit(uint8_t deinit_bluetooth_future)
 
     LOGW("sdk can't del db service now !!!");
 
-    dm_gatts_unreg_db((bk_gatts_attr_db_t *)s_gatts_attr_db_service_boarding);
+    bk_dm_prf_gatts_unreg_db((bk_gatts_attr_db_t *)s_gatts_attr_db_service_boarding);
 
     if (deinit_bluetooth_future)
     {
@@ -432,7 +432,7 @@ int32_t dm_ble_boarding_notify(uint8_t *data, uint16_t len)
         return -1;
     }
 
-    return dm_gatts_send_notify(s_conn_id, s_boarding_attr_handle_list[BOARDING_IDX_NOTIFY_CHAR], data, len, 1);
+    return bk_dm_prf_gatts_send_notify(s_conn_id, s_boarding_attr_handle_list[BOARDING_IDX_NOTIFY_CHAR], data, len, 1);
 #else
     return -1;
 #endif
