@@ -36,7 +36,6 @@ static avdk_err_t bk_err_to_avdk(bk_err_t e)
 static void isp_bond_mb_line_isr(uint32_t seq, uint32_t line, uint8_t chnl, uint8_t ok, void *param)
 {
 	bk_flexa_bond_t *in_stream = (bk_flexa_bond_t *)param;
-	(void)seq;
 
 	if (in_stream == NULL || in_stream->flexa_done == NULL) {
 		return;
@@ -51,6 +50,7 @@ static void isp_bond_mb_line_isr(uint32_t seq, uint32_t line, uint8_t chnl, uint
 		return;
 	}
 
+	in_stream->last_seq = seq;
 	in_stream->flexa_done(line, in_stream);
 }
 
@@ -67,7 +67,11 @@ static void isp_gpu_bond_isp_flexa_done(uint32_t wr_ptr, void *args)
 	in_stream->last_lines = wr_ptr;
 	bk_gpu_ctlr_handle_t gpuh = (bk_gpu_ctlr_handle_t)out_stream->handle;
 	if (gpuh != NULL) {
-		bk_gpu_ioctl(gpuh, BK_GPU_IOCTL_SET_FLEXA_LINES_READY, (void *)wr_ptr);
+		bk_gpu_flexa_event_t event = {
+			.frame_seq = in_stream->last_seq,
+			.line_cnt = wr_ptr,
+		};
+		bk_gpu_ioctl(gpuh, BK_GPU_IOCTL_SET_FLEXA_EVENT_READY, &event);
 	}
 }
 
