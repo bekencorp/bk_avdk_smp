@@ -406,6 +406,22 @@ static inline void qspi_ll_direct_read(qspi_id_t id, uint32_t base_addr, void *d
 	}
 }
 
+#define QSPI_LL_FIFO_DELAY_NOP_COUNT    128
+
+static inline void qspi_ll_fifo_delay_over_4_clk(void)
+{
+	volatile uint32_t i;
+
+	/*
+	 * 128 NOPs are selected for the worst timing ratio: CPU 480 MHz and QSPI
+	 * 26 MHz, where 4 QSPI clocks are about 154 ns. The common QSPI clock is
+	 * 80 MHz, so this keeps margin while avoiding the previous 1 ms delay.
+	 */
+	for (i = 0; i < QSPI_LL_FIFO_DELAY_NOP_COUNT; i++) {
+		__asm__ volatile ("nop");
+	}
+}
+
 static inline void qspi_ll_io_write(qspi_hw_t *hw, const void *data, uint32_t data_len)
 {
 	uint32_t fifo_num = 0;
@@ -419,9 +435,7 @@ static inline void qspi_ll_io_write(qspi_hw_t *hw, const void *data, uint32_t da
 	hw->rst_cfg.fifo_io_wr = 1;
 	hw->rst_cfg.clk_man_en = 1;
 	hw->rst_cfg.clk_man_sel = 0;
-        //TODO:Consider replacing delay_ms with a better approach to improve performance.
-	extern void delay_ms(UINT32 ms);
-	delay_ms(1);
+	qspi_ll_fifo_delay_over_4_clk();
 
 	for(uint32_t i = 0; i < fifo_num; i++) {
 		*((uint32_t *)(hw->fifo_data) + i) = *((uint32_t *)data + i);
@@ -430,9 +444,7 @@ static inline void qspi_ll_io_write(qspi_hw_t *hw, const void *data, uint32_t da
 	hw->rst_cfg.fifo_io_wr = 0;
 	hw->rst_cfg.clk_man_en = 1;
 	hw->rst_cfg.clk_man_sel = 1;
-        //TODO:Consider replacing delay_ms with a better approach to improve performance.
-	extern void delay_ms(UINT32 ms);
-	delay_ms(1);
+	qspi_ll_fifo_delay_over_4_clk();
 }
 
 static inline void qspi_ll_io_read(qspi_hw_t *hw, void *data, uint32_t data_len)
