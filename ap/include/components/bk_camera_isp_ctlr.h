@@ -83,6 +83,11 @@ typedef struct
     bk_camera_ctlr_t ops;
 } bk_camera_isp_ctlr_t;
 
+/**
+ * @brief Create a new ISP camera controller instance
+ * @param handle Output pointer that receives the controller handle
+ * @return AVDK error code
+ */
 avdk_err_t bk_camera_isp_ctlr_new(bk_isp_camera_ctlr_handle_t *handle);
 
 

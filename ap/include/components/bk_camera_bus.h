@@ -71,10 +71,38 @@ struct bk_camera_bus_t
 };
 
 
+/**
+ * @brief Create a camera I2C bus instance
+ * @param config Bus configuration (pins, I2C ID, sensor address, etc.)
+ * @return Pointer to the bus instance, or NULL on failure
+ */
 bk_camera_bus_t *bk_camera_bus_new(bk_camera_bus_config_t *config);
+
+/**
+ * @brief Enable the camera I2C bus
+ * @param bus Bus instance from bk_camera_bus_new
+ * @return AVDK error code
+ */
 avdk_err_t bk_camera_bus_enable(bk_camera_bus_t *bus);
+
+/**
+ * @brief Disable the camera I2C bus
+ * @param bus Bus instance
+ * @return AVDK error code
+ */
 avdk_err_t bk_camera_bus_disable(bk_camera_bus_t *bus);
+
+/**
+ * @brief Delete the camera I2C bus instance
+ * @param bus Bus instance
+ * @return AVDK error code
+ */
 avdk_err_t bk_camera_bus_delete(bk_camera_bus_t *bus);
+
+/**
+ * @brief Get the global camera bus instance
+ * @return Pointer to the bus instance, or NULL if not created
+ */
 bk_camera_bus_t *bk_camera_bus_get(void);
 
 #ifdef __cplusplus

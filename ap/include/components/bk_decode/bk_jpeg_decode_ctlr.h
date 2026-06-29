@@ -20,77 +20,78 @@ extern "C" {
 
 #include "bk_jpeg_decode_types.h"
 
-/*
- * Create a new flexa decoder
- * config: decoder configuration
- * return: AVDK_ERR_OK if successful, otherwise an error code
+/**
+ * @brief Create a Flexa-mode JPEG decoder controller
+ * @param handle Output pointer that receives the decoder handle
+ * @param config Flexa decoder configuration
+ * @return AVDK error code
  */
 avdk_err_t bk_jpeg_decode_flexa_ctlr_new(bk_jpeg_decode_ctlr_handle_t *handle, bk_jpeg_decode_flexa_config_t *config);
 
-/*
- * Create a new frame decoder
- * config: decoder configuration
- * return: AVDK_ERR_OK if successful, otherwise an error code
+/**
+ * @brief Create a frame-mode JPEG decoder controller
+ * @param handle Output pointer that receives the decoder handle
+ * @param config Frame decoder configuration
+ * @return AVDK error code
  */
 avdk_err_t bk_jpeg_decode_frame_ctlr_new(bk_jpeg_decode_ctlr_handle_t *handle, bk_jpeg_decode_frame_config_t *config);
 
-/*
- * Initialize the decoder
- * handle: decoder handle
- * return: AVDK_ERR_OK if successful, otherwise an error code
+/**
+ * @brief Initialize the JPEG decoder
+ * @param handle Decoder handle
+ * @return AVDK error code
  */
 avdk_err_t bk_jpeg_decode_init(bk_jpeg_decode_ctlr_handle_t handle);
 
-/* 
- * Deinitialize the decoder
- * handle: decoder handle
- * return: AVDK_ERR_OK if successful, otherwise an error code
+/**
+ * @brief Deinitialize the JPEG decoder
+ * @param handle Decoder handle
+ * @return AVDK error code
  */
 avdk_err_t bk_jpeg_decode_deinit(bk_jpeg_decode_ctlr_handle_t handle);
 
-/*
- * Open the decoder
- * handle: decoder handle
- * return: AVDK_ERR_OK if successful, otherwise an error code
+/**
+ * @brief Open the JPEG decoder for decoding
+ * @param handle Decoder handle
+ * @return AVDK error code
  */
 avdk_err_t bk_jpeg_decode_open(bk_jpeg_decode_ctlr_handle_t handle);
 
-/*
- * Close the decoder
- * handle: decoder handle
- * return: AVDK_ERR_OK if successful, otherwise an error code
+/**
+ * @brief Close the JPEG decoder
+ * @param handle Decoder handle
+ * @return AVDK error code
  */
 avdk_err_t bk_jpeg_decode_close(bk_jpeg_decode_ctlr_handle_t handle);
 
-/*
- * Decode a frame
- * handle: decoder handle
- * input: input data
- * return: AVDK_ERR_OK if successful, otherwise an error code
+/**
+ * @brief Decode one JPEG image
+ * @param handle Decoder handle
+ * @param input Input bitstream and output buffer descriptors
+ * @return AVDK error code
  */
 avdk_err_t bk_jpeg_decode_frame(bk_jpeg_decode_ctlr_handle_t handle, bk_jpeg_decode_input_t *input);
 
-/*
- * Control the decoder
- * handle: decoder handle
- * cmd: command
- * arg: argument
- * return: AVDK_ERR_OK if successful, otherwise an error code
+/**
+ * @brief Issue an IOCTL command on the JPEG decoder
+ * @param handle Decoder handle
+ * @param cmd IOCTL command
+ * @param arg Command-specific argument
+ * @return AVDK error code
  */
 avdk_err_t bk_jpeg_decode_ioctl(bk_jpeg_decode_ctlr_handle_t handle, bk_jpeg_decode_ioctl_cmd_t cmd, void *arg);
 
-/*
- * Delete the decoder
- * handle: decoder handle
- * return: AVDK_ERR_OK if successful, otherwise an error code
+/**
+ * @brief Delete the JPEG decoder controller
+ * @param handle Decoder handle
+ * @return AVDK error code
  */
 avdk_err_t bk_jpeg_decode_delete(bk_jpeg_decode_ctlr_handle_t handle);
 
-/*
- * Get the image information
- * handle: decoder handle
- * img_info: image information
- * return: AVDK_ERR_OK if successful, otherwise an error code
+/**
+ * @brief Parse JPEG header and get image information without full decode
+ * @param img_info Input/output image info structure (contains JPEG bitstream pointer)
+ * @return AVDK error code
  */
 avdk_err_t bk_jpeg_decode_get_img_info(bk_jpeg_decode_img_info_t *img_info);
 

@@ -22,33 +22,80 @@ extern "C" {
 
 /**
  * @brief Create frame-mode JPEG encoder (VCENC JPEG path).
+ * @param handle Output pointer that receives the encoder handle
+ * @param config Frame encoder configuration
+ * @return AVDK error code
  */
 avdk_err_t bk_jpeg_encode_frame_new(bk_jpeg_encode_ctlr_handle_t *handle, bk_jpeg_encode_frame_config_t *config);
 
 /**
  * @brief Create hardware-Flexa JPEG encoder (VCENC JPEG low-latency HW sync path).
+ * @param handle Output pointer that receives the encoder handle
+ * @param config Hardware Flexa encoder configuration
+ * @return AVDK error code
  */
 avdk_err_t bk_jpeg_encode_hw_flexa_new(bk_jpeg_encode_ctlr_handle_t *handle,
 				       bk_jpeg_encode_hw_flexa_config_t *config);
 
 /**
  * @brief Create software-Flexa JPEG encoder (VCENC JPEG low-latency SW sync path).
+ * @param handle Output pointer that receives the encoder handle
+ * @param config Software Flexa encoder configuration
+ * @return AVDK error code
  */
 avdk_err_t bk_jpeg_encode_sw_flexa_new(bk_jpeg_encode_ctlr_handle_t *handle,
 				       bk_jpeg_encode_sw_flexa_config_t *config);
 
+/**
+ * @brief Initialize the JPEG encoder
+ * @param handle Encoder handle
+ * @return AVDK error code
+ */
 avdk_err_t bk_jpeg_encode_init(bk_jpeg_encode_ctlr_handle_t handle);
 
+/**
+ * @brief Deinitialize the JPEG encoder
+ * @param handle Encoder handle
+ * @return AVDK error code
+ */
 avdk_err_t bk_jpeg_encode_deinit(bk_jpeg_encode_ctlr_handle_t handle);
 
+/**
+ * @brief Open the JPEG encoder
+ * @param handle Encoder handle
+ * @return AVDK error code
+ */
 avdk_err_t bk_jpeg_encode_open(bk_jpeg_encode_ctlr_handle_t handle);
 
+/**
+ * @brief Close the JPEG encoder
+ * @param handle Encoder handle
+ * @return AVDK error code
+ */
 avdk_err_t bk_jpeg_encode_close(bk_jpeg_encode_ctlr_handle_t handle);
 
+/**
+ * @brief Encode one JPEG frame
+ * @param handle Encoder handle
+ * @param input Input pixel buffer and output descriptors
+ * @return AVDK error code
+ */
 avdk_err_t bk_jpeg_encode_frame(bk_jpeg_encode_ctlr_handle_t handle, bk_jpeg_encode_input_t *input);
 
+/**
+ * @brief Issue an IOCTL command on the JPEG encoder
+ * @param handle Encoder handle
+ * @param cmd IOCTL command (e.g. quality setting)
+ * @param arg Command-specific argument
+ * @return AVDK error code
+ */
 avdk_err_t bk_jpeg_encode_ioctl(bk_jpeg_encode_ctlr_handle_t handle, bk_jpeg_encode_ioctl_cmd_t cmd, void *arg);
 
+/**
+ * @brief Delete the JPEG encoder controller
+ * @param handle Encoder handle
+ * @return AVDK error code
+ */
 avdk_err_t bk_jpeg_encode_delete(bk_jpeg_encode_ctlr_handle_t handle);
 
 #ifdef __cplusplus

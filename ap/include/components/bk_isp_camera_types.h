@@ -19,6 +19,7 @@ extern "C" {
 #endif
 
 #include <avdk_error.h>
+#include <driver/hal/hal_yuv_buf_types.h>
 
 
 typedef enum
@@ -36,32 +37,6 @@ typedef enum {
 } bk_camera_isr_type_t;
 
 typedef void (*bk_camera_isr_t)(uint32_t seqence, uint32_t line, uint8_t chnl, uint8_t error, void *param);
-
-/**
- * @brief Enumeration of MCLK clock frequencies
- */
-typedef enum
-{
-    MCLK_15M,     /**< 15 MHz clock frequency */
-    MCLK_16M,     /**< 16 MHz clock frequency */
-    MCLK_20M,     /**< 20 MHz clock frequency */
-    MCLK_24M,     /**< 24 MHz clock frequency */
-    MCLK_30M,     /**< 30 MHz clock frequency */
-    MCLK_32M,     /**< 32 MHz clock frequency */
-    MCLK_40M,     /**< 40 MHz clock frequency */
-    MCLK_48M,     /**< 48 MHz clock frequency */
-    MCLK_UNKNOW,  /**< Unknown clock frequency */
-} mclk_freq_t;
-
-/**
- * @brief Enumeration of sync signal levels
- */
-typedef enum
-{
-   SYNC_LOW_LEVEL,   /**< Synchronize on low level */
-   SYNC_HIGH_LEVEL,  /**< Synchronize on high level */
-} sync_level_t;
-
 
 /**
  * @brief Enumeration of sensor identifiers
