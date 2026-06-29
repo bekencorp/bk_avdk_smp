@@ -92,7 +92,6 @@ avdk_err_t lcd_example_rgb_open(display_ctx_t *context, const char *panel_name, 
      * resolved, so the SW SPI bus' panel-IO is created with the
      * correct wire format (8 = 9-bit SPI, 16 = 4-byte packed). */
     bk_display_spi_bus_config_t rgb_cfg_bus = {
-        .mode    = BK_DISPLAY_SPI_BUS_MODE_SW,
         .clk_pin = GPIO_8,
         .csx_pin = GPIO_28,
         .sda_pin = GPIO_9,

@@ -148,7 +148,7 @@ static void lcd_qspi_display_drain_queue(qspi_vn_ctlr_t *control)
 static void lcd_qspi_display_task_entry(beken_thread_arg_t arg)
 {
     qspi_vn_ctlr_t *control = (qspi_vn_ctlr_t *)arg;
-    const bk_lcd_panel_t *device = control->config.lcd_panel;
+    const bk_display_qspi_panel_t *device = control->config.lcd_panel;
 
     control->disp_task_running = true;
     rtos_set_semaphore(&control->disp_task_sem);

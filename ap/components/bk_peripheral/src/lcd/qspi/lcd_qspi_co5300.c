@@ -57,11 +57,9 @@ static const lcd_qspi_t lcd_qspi_co5300_config =
     .frame_len = CO5300_PANEL_WIDTH * CO5300_PANEL_HEIGHT * CONFIG_LCD_QSPI_COLOR_DEPTH_BYTE,
 };
 
-const lcd_device_t lcd_device_co5300 =
+const bk_display_qspi_panel_t lcd_device_co5300 =
 {
-    .id = LCD_DEVICE_CO5300,
     .name = "co5300",
-    .type = LCD_TYPE_QSPI,
     .width = CO5300_PANEL_WIDTH,
     .height = CO5300_PANEL_HEIGHT,
     .qspi = &lcd_qspi_co5300_config,

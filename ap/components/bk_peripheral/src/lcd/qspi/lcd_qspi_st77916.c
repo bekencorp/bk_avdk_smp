@@ -264,11 +264,9 @@ static const lcd_qspi_t lcd_qspi_st77916_config =
     .frame_len = 360 * 360 * CONFIG_LCD_QSPI_COLOR_DEPTH_BYTE,
 };
 
-const lcd_device_t lcd_device_st77916 =
+const bk_display_qspi_panel_t lcd_device_st77916 =
 {
-    .id = LCD_DEVICE_ST77916,
     .name = "st77916",
-    .type = LCD_TYPE_QSPI,
     .width = 360,
     .height = 360,
     .qspi = &lcd_qspi_st77916_config,

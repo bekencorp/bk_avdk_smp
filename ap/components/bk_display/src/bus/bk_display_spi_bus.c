@@ -12,35 +12,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// SPI bus backend (HW + SW modes).
+// SPI bus backend (SW command channel).
 //
-// Implements ::bk_display_bus_ctlr_t for both:
-//   * BK_DISPLAY_SPI_BUS_MODE_HW :: avdk_driver/lcd_spi device ownership,
-//                                   used by the SPI display controller.
-//                                   The command channel is the same DMA
-//                                   stream, so tx_param / rx_param ops
-//                                   are not implemented.
-//   * BK_DISPLAY_SPI_BUS_MODE_SW :: GPIO bit-bang command channel for
-//                                   RGB panel SPI register init. Pixel
-//                                   data does NOT go through this bus
-//                                   in SW mode - the DPU drives the
-//                                   parallel RGB lanes directly.
+// Implements ::bk_display_bus_ctlr_t as a GPIO bit-bang command channel for
+// RGB panel SPI register init. Pixel data does NOT go through this bus - the
+// DPU drives the parallel RGB lanes directly.
 //
-// SW mode wires bus->ops.tx_param to a bit-bang implementation that
-// honours the panel-descriptor wire format (8-bit 9-bit / 16-bit
-// packed) selected by ::bk_display_spi_bus_config_t::cmd_width.
+// The bus wires bus->ops.tx_param to a bit-bang implementation that honours
+// the panel-descriptor wire format (8-bit 9-bit / 16-bit packed) selected by
+// ::bk_display_spi_bus_config_t::cmd_width.
 
 #include <os/os.h>
 #include <os/mem.h>
 #include <avdk_check.h>
 #include <components/log.h>
 #include <components/bk_display_bus.h>
-#include <components/bk_lcd_panel.h>
 #include <driver/gpio.h>
 #include "gpio_driver.h"
-#if CONFIG_LCD_SPI
-#include <driver/lcd_spi.h>
-#endif
 
 #include "display_spi_bus_vn_ctlr.h"
 
@@ -152,25 +140,6 @@ static void spi_sw_write_hf_data(uint8_t csx, uint8_t sda, uint8_t clk, uint16_t
     delay(LCD_SPI_BITBANG_DELAY);
 }
 
-#if CONFIG_LCD_SPI
-
-static bk_err_t bk_lcd_spi_bus_open(private_display_spi_context_t *context, bk_display_spi_bus_config_t *config)
-{
-    context->spi_id = config->spi_id;
-    context->device = config->lcd_panel;
-    context->reset_pin = config->reset_pin;
-    context->dc_pin = config->dc_pin;
-    bk_lcd_spi_init(context->spi_id, context->device, context->reset_pin, context->dc_pin);
-    return BK_OK;
-}
-
-static void bk_lcd_spi_bus_close(private_display_spi_context_t *context)
-{
-    bk_lcd_spi_deinit(context->spi_id, context->reset_pin, context->dc_pin);
-}
-
-#endif /* CONFIG_LCD_SPI */
-
 static bk_err_t spi_sw_tx_param(bk_display_bus_ctlr_t *controller, int lcd_cmd,
                                 const void *param, uint16_t param_size)
 {
@@ -204,19 +173,6 @@ static avdk_err_t spi_sw_delete(bk_display_bus_ctlr_t *controller)
     return AVDK_ERR_OK;
 }
 
-#if CONFIG_LCD_SPI
-
-static avdk_err_t spi_hw_delete(bk_display_bus_ctlr_t *controller)
-{
-    AVDK_RETURN_ON_FALSE(controller, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
-    spi_bus_vn_ctlr_t *bus = __containerof(controller, spi_bus_vn_ctlr_t, ops);
-    bk_lcd_spi_bus_close(&bus->spi_context);
-    os_free(bus);
-    return AVDK_ERR_OK;
-}
-
-#endif /* CONFIG_LCD_SPI */
-
 avdk_err_t bk_display_spi_bus_new(bk_display_bus_handle_t *handle, bk_display_spi_bus_config_t *config)
 {
     AVDK_RETURN_ON_FALSE(handle, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
@@ -228,51 +184,21 @@ avdk_err_t bk_display_spi_bus_new(bk_display_bus_handle_t *handle, bk_display_sp
     os_memset(bus, 0, sizeof(spi_bus_vn_ctlr_t));
     os_memcpy(&bus->config, config, sizeof(bk_display_spi_bus_config_t));
 
-    switch (config->mode) {
-
-    case BK_DISPLAY_SPI_BUS_MODE_SW:
-        if (config->clk_pin == 0 || config->csx_pin == 0 || config->sda_pin == 0) {
-            LOGE("SW mode requires clk/csx/sda pins (got %u/%u/%u)\n",
-                 config->clk_pin, config->csx_pin, config->sda_pin);
-            os_free(bus);
-            return AVDK_ERR_INVAL;
-        }
-        if (config->cmd_width != 8 && config->cmd_width != 16) {
-            LOGE("SW mode requires cmd_width == 8 or 16 (got %u)\n", config->cmd_width);
-            os_free(bus);
-            return AVDK_ERR_INVAL;
-        }
-        spi_sw_gpio_init(config->sda_pin, config->clk_pin, config->csx_pin);
-        bus->ops.tx_param = spi_sw_tx_param;
-        bus->ops.rx_param = NULL;            /* SW SPI is write-only */
-        bus->ops.delete   = spi_sw_delete;
-        break;
-
-    case BK_DISPLAY_SPI_BUS_MODE_HW:
-#if CONFIG_LCD_SPI
-        if ((config->lcd_panel == NULL) || (config->lcd_panel->spi == NULL)) {
-            LOGE("HW mode requires SPI lcd_panel config\n");
-            os_free(bus);
-            return AVDK_ERR_INVAL;
-        }
-        if (bk_lcd_spi_bus_open(&bus->spi_context, &bus->config) != BK_OK) {
-            LOGE("HW mode bring-up failed\n");
-            os_free(bus);
-            return AVDK_ERR_GENERIC;
-        }
-        bus->ops.delete = spi_hw_delete;
-        break;
-#else
-        LOGE("HW mode requested but CONFIG_LCD_SPI is not enabled\n");
-        os_free(bus);
-        return AVDK_ERR_UNSUPPORTED;
-#endif
-
-    default:
-        LOGE("invalid SPI bus mode %d\n", (int)config->mode);
+    if (config->clk_pin == 0 || config->csx_pin == 0 || config->sda_pin == 0) {
+        LOGE("SPI bus requires clk/csx/sda pins (got %u/%u/%u)\n",
+             config->clk_pin, config->csx_pin, config->sda_pin);
         os_free(bus);
         return AVDK_ERR_INVAL;
     }
+    if (config->cmd_width != 8 && config->cmd_width != 16) {
+        LOGE("SPI bus requires cmd_width == 8 or 16 (got %u)\n", config->cmd_width);
+        os_free(bus);
+        return AVDK_ERR_INVAL;
+    }
+    spi_sw_gpio_init(config->sda_pin, config->clk_pin, config->csx_pin);
+    bus->ops.tx_param = spi_sw_tx_param;
+    bus->ops.rx_param = NULL;            /* SW SPI is write-only */
+    bus->ops.delete   = spi_sw_delete;
 
     *handle = &(bus->ops);
     return AVDK_ERR_OK;

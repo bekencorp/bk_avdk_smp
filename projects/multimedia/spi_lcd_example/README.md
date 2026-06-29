@@ -124,8 +124,7 @@ spi_lcd 0000   # Black
 ### 6.2 Display Parameters (`ap/ap_main.c`)
 
 ```c
-bk_display_spi_bus_config_t spi_ctlr_config = {
-    .mode      = BK_DISPLAY_SPI_BUS_MODE_HW, // hardware SPI
+bk_display_spi_ctlr_config_t spi_ctlr_config = {
     .lcd_panel = &lcd_device_jd9853,         // panel driver
     .spi_id    = 0,                          // use SPI/QSPI0
     .dc_pin    = GPIO_25,                    // data/command pin

@@ -96,11 +96,9 @@ static const lcd_qspi_t lcd_qspi_st77903_sat61478m_config =
 };
 
 //st77903 screen without display ram, and need to send data continuously.
-const lcd_device_t lcd_device_st77903_sat61478m =
+const bk_display_qspi_panel_t lcd_device_st77903_sat61478m =
 {
-    .id = LCD_DEVICE_ST77903_SAT61478M,
     .name = "st77903_sat61478m",
-    .type = LCD_TYPE_QSPI,
     .width = 360,
     .height = 480,
     .qspi = &lcd_qspi_st77903_sat61478m_config,

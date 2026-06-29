@@ -48,11 +48,9 @@ static const lcd_spi_t lcd_spi_st7789v2_config =
     .frame_len = 240 * 320 * CONFIG_LCD_SPI_COLOR_DEPTH_BYTE,
 };
 
-const lcd_device_t lcd_device_st7789v2 =
+const bk_display_spi_panel_t lcd_device_st7789v2 =
 {
-    .id = LCD_DEVICE_ST7789V2,
     .name = "st7789v2",
-    .type = LCD_TYPE_SPI,
     .width = 240,
     .height = 320,
     .spi = &lcd_spi_st7789v2_config,

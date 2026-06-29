@@ -95,11 +95,9 @@ static const lcd_qspi_t lcd_qspi_jd9855_config =
     .frame_len = 360 * 360 * CONFIG_LCD_QSPI_COLOR_DEPTH_BYTE,
 };
 
-const lcd_device_t lcd_device_jd9855 =
+const bk_display_qspi_panel_t lcd_device_jd9855 =
 {
-    .id = LCD_DEVICE_JD9855,
     .name = "jd9855",
-    .type = LCD_TYPE_QSPI,
     .width = 360,
     .height = 360,
     .qspi = &lcd_qspi_jd9855_config,

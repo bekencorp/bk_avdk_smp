@@ -101,11 +101,9 @@ static const lcd_qspi_t lcd_qspi_gc9c01_config =
     .frame_len = 360 * 360 * CONFIG_LCD_QSPI_COLOR_DEPTH_BYTE,
 };
 
-const lcd_device_t lcd_device_gc9c01 =
+const bk_display_qspi_panel_t lcd_device_gc9c01 =
 {
-    .id = LCD_DEVICE_GC9C01,
     .name = "gc9c01",
-    .type = LCD_TYPE_QSPI,
     .width = 360,
     .height = 360,
     .qspi = &lcd_qspi_gc9c01_config,

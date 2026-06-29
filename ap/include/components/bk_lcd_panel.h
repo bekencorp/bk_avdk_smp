@@ -191,7 +191,7 @@ uint32_t bk_lcd_get_rgb_panel_list(const bk_display_rgb_panel_t **panels, uint32
  * @param[in]  max_count Capacity of @p panels.
  * @return Number of entries written.
  */
-uint32_t bk_lcd_get_spi_panel_list(const lcd_device_t **panels, uint32_t max_count);
+uint32_t bk_lcd_get_spi_panel_list(const bk_display_spi_panel_t **panels, uint32_t max_count);
 
 /**
  * @brief Enumerate all registered QSPI panels.
@@ -199,7 +199,7 @@ uint32_t bk_lcd_get_spi_panel_list(const lcd_device_t **panels, uint32_t max_cou
  * @param[in]  max_count Capacity of @p panels.
  * @return Number of entries written.
  */
-uint32_t bk_lcd_get_qspi_panel_list(const lcd_device_t **panels, uint32_t max_count);
+uint32_t bk_lcd_get_qspi_panel_list(const bk_display_qspi_panel_t **panels, uint32_t max_count);
 
 /**
  * @brief Find a registered MIPI-DSI panel by name (matches descriptor's @c .name).
@@ -220,14 +220,14 @@ const bk_display_rgb_panel_t *bk_lcd_find_rgb_panel_by_name(const char *name);
  * @param[in] name Panel name.
  * @return Panel descriptor, or NULL when no match.
  */
-const lcd_device_t *bk_lcd_find_spi_panel_by_name(const char *name);
+const bk_display_spi_panel_t *bk_lcd_find_spi_panel_by_name(const char *name);
 
 /**
  * @brief Find a registered QSPI panel by name.
  * @param[in] name Panel name.
  * @return Panel descriptor, or NULL when no match.
  */
-const lcd_device_t *bk_lcd_find_qspi_panel_by_name(const char *name);
+const bk_display_qspi_panel_t *bk_lcd_find_qspi_panel_by_name(const char *name);
 /** @} */
 
 #ifdef __cplusplus

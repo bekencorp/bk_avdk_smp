@@ -453,11 +453,9 @@ static const lcd_qspi_t lcd_qspi_spd2010_config =
 	.frame_len = 412 * 412 * CONFIG_LCD_QSPI_COLOR_DEPTH_BYTE,
 };
 
-const lcd_device_t lcd_device_spd2010 =
+const bk_display_qspi_panel_t lcd_device_spd2010 =
 {
-    .id = LCD_DEVICE_SPD2010,
     .name = "spd2010",
-    .type = LCD_TYPE_QSPI,
     .width = 412,
     .height = 412,
     .qspi = &lcd_qspi_spd2010_config,

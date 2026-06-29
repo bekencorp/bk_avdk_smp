@@ -201,7 +201,6 @@ static void spi_ctlr_open_cleanup(spi_vn_ctlr_t *control)
 static avdk_err_t spi_ctlr_init(bk_display_ctlr_handle_t handle)
 {
     spi_vn_ctlr_t *control = spi_ctlr_from_handle(handle);
-    bk_display_bus_handle_t bus_handle = NULL;
     AVDK_RETURN_ON_FALSE(control, AVDK_ERR_INVAL, TAG, "control is NULL");
 
     if (spi_ctlr_lock(control) != AVDK_ERR_OK) {
@@ -221,28 +220,26 @@ static avdk_err_t spi_ctlr_init(bk_display_ctlr_handle_t handle)
     control->state = SPI_DISP_STATE_INITING;
     spi_ctlr_unlock(control);
 
-    avdk_err_t ret = bk_display_spi_bus_new(&bus_handle, &control->config);
-    if (ret != AVDK_ERR_OK) {
-        LOGE("%s bus new failed: %d\n", __func__, ret);
-        if (spi_ctlr_lock(control) == AVDK_ERR_OK) {
-            control->state = SPI_DISP_STATE_DEINITED;
-            spi_ctlr_unlock(control);
-        }
-        return ret;
-    }
+    bk_lcd_spi_init(control->config.spi_id,
+                    control->config.lcd_panel,
+                    control->config.reset_pin,
+                    control->config.dc_pin);
 
     if (spi_ctlr_lock(control) != AVDK_ERR_OK) {
-        (void)bk_display_bus_delete(bus_handle);
+        bk_lcd_spi_deinit(control->config.spi_id,
+                          control->config.reset_pin,
+                          control->config.dc_pin);
         return AVDK_ERR_GENERIC;
     }
     if (control->state != SPI_DISP_STATE_INITING) {
         spi_display_state_t state = control->state;
         spi_ctlr_unlock(control);
-        (void)bk_display_bus_delete(bus_handle);
-        LOGE("%s invalid display state after bus new: %d\n", __func__, state);
+        bk_lcd_spi_deinit(control->config.spi_id,
+                          control->config.reset_pin,
+                          control->config.dc_pin);
+        LOGE("%s invalid display state after lcd spi init: %d\n", __func__, state);
         return AVDK_ERR_GENERIC;
     }
-    control->bus_handle = bus_handle;
     control->state = SPI_DISP_STATE_INITED;
     spi_ctlr_unlock(control);
     LOGI("%s complete (INITED)\n", __func__);
@@ -415,13 +412,11 @@ static avdk_err_t spi_ctlr_deinit(bk_display_ctlr_handle_t handle)
         return AVDK_ERR_GENERIC;
     }
     control->state = SPI_DISP_STATE_DEINITING;
-    bk_display_bus_handle_t bus_handle = control->bus_handle;
-    control->bus_handle = NULL;
     spi_ctlr_unlock(control);
 
-    if (bus_handle != NULL) {
-        (void)bk_display_bus_delete(bus_handle);
-    }
+    bk_lcd_spi_deinit(control->config.spi_id,
+                      control->config.reset_pin,
+                      control->config.dc_pin);
 
     if (spi_ctlr_lock(control) != AVDK_ERR_OK) {
         return AVDK_ERR_GENERIC;
@@ -475,14 +470,10 @@ static avdk_err_t spi_ctlr_flush(bk_display_ctlr_handle_t handle, uint8_t *frame
 
 #endif /* CONFIG_LCD_SPI */
 
-avdk_err_t bk_display_spi_ctlr_new(bk_display_ctlr_handle_t *handle, bk_display_spi_bus_config_t *config)
+avdk_err_t bk_display_spi_ctlr_new(bk_display_ctlr_handle_t *handle, bk_display_spi_ctlr_config_t *config)
 {
     AVDK_RETURN_ON_FALSE(handle, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
     AVDK_RETURN_ON_FALSE(config, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
-    AVDK_RETURN_ON_FALSE(config->mode == BK_DISPLAY_SPI_BUS_MODE_HW,
-                         AVDK_ERR_INVAL,
-                         TAG,
-                         "SPI display controller requires HW mode");
     AVDK_RETURN_ON_FALSE(config->lcd_panel, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
     AVDK_RETURN_ON_FALSE(config->lcd_panel->spi, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
 
@@ -490,7 +481,7 @@ avdk_err_t bk_display_spi_ctlr_new(bk_display_ctlr_handle_t *handle, bk_display_
     spi_vn_ctlr_t *controller = os_malloc(sizeof(spi_vn_ctlr_t));
     AVDK_RETURN_ON_FALSE(controller, AVDK_ERR_NOMEM, TAG, AVDK_ERR_NOMEM_TEXT);
     os_memset(controller, 0, sizeof(spi_vn_ctlr_t));
-    os_memcpy(&controller->config, config, sizeof(bk_display_spi_bus_config_t));
+    os_memcpy(&controller->config, config, sizeof(bk_display_spi_ctlr_config_t));
     controller->state = SPI_DISP_STATE_DEINITED;
 
     bk_err_t ret = rtos_init_mutex(&controller->lock);

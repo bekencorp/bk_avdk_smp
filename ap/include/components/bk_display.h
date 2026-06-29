@@ -52,11 +52,23 @@ typedef struct
 } bk_display_dpu_config_t;
 
 /**
+ * @brief SPI LCD display controller configuration.
+ */
+typedef struct
+{
+    const bk_display_spi_panel_t *lcd_panel;  /**< panel descriptor for lcd_spi driver */
+    uint8_t spi_id;                   /**< SPI controller id */
+    uint8_t dc_pin;                   /**< data / command select io */
+    uint8_t reset_pin;                /**< panel reset io */
+    uint8_t te_pin;                   /**< tearing-effect io, reserved for driver TE support */
+} bk_display_spi_ctlr_config_t;
+
+/**
  * @brief QSPI LCD display controller configuration.
  */
 typedef struct
 {
-    const bk_lcd_panel_t *lcd_panel;  /**< panel descriptor for lcd_qspi driver */
+    const bk_display_qspi_panel_t *lcd_panel;  /**< panel descriptor for lcd_qspi driver */
     uint8_t qspi_id;                  /**< QSPI controller id */
     uint8_t reset_pin;                /**< panel reset io */
     uint8_t te_pin;                   /**< tearing-effect io, reserved for driver TE support */
@@ -107,18 +119,18 @@ avdk_err_t bk_display_dpu_ctlr_new(bk_display_ctlr_handle_t *handle,
  * @brief Create a SPI display controller instance (state = DEINIT).
  *
  * This controller owns the HW SPI LCD frame path and exposes it through
- * ::bk_display_flush(). Only ::BK_DISPLAY_SPI_BUS_MODE_HW is supported.
+ * ::bk_display_flush().
  * Callers must use the normal display lifecycle:
  * ::bk_display_init() -> ::bk_display_open() -> ::bk_display_flush() ->
  * ::bk_display_close() -> ::bk_display_deinit() -> ::bk_display_delete().
  *
  * @param[out] handle  Receives the new controller handle.
- * @param[in]  config  SPI bus configuration copied into the controller.
+ * @param[in]  config  SPI controller configuration copied into the controller.
  *
  * @return AVDK_ERR_OK on success.
- * @return AVDK_ERR_INVAL if @p handle / @p config is NULL or mode is not HW.
+ * @return AVDK_ERR_INVAL if @p handle / @p config is NULL or panel is not SPI.
  */
-avdk_err_t bk_display_spi_ctlr_new(bk_display_ctlr_handle_t *handle, bk_display_spi_bus_config_t *config);
+avdk_err_t bk_display_spi_ctlr_new(bk_display_ctlr_handle_t *handle, bk_display_spi_ctlr_config_t *config);
 
 /**
  * @brief Create a QSPI display controller instance (state = DEINIT).

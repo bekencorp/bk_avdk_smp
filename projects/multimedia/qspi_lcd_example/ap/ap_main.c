@@ -30,7 +30,7 @@
 #define QSPI_LCD_AUTO_REFRESH_TASK_STACK     (1024 * 4)
 #define QSPI_LCD_AUTO_REFRESH_COLOR_COUNT    (sizeof(s_qspi_lcd_auto_colors) / sizeof(s_qspi_lcd_auto_colors[0]))
 
-extern const bk_lcd_panel_t lcd_device_spd2010;
+extern const bk_display_qspi_panel_t lcd_device_spd2010;
 
 static const uint16_t s_qspi_lcd_auto_colors[] = {
     RED_COLOR,

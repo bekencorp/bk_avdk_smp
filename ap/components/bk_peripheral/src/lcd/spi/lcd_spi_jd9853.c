@@ -59,11 +59,9 @@ static const lcd_spi_t lcd_spi_jd9853_config =
     .frame_len = 240 * 296 * CONFIG_LCD_SPI_COLOR_DEPTH_BYTE,
 };
 
-const lcd_device_t lcd_device_jd9853 =
+const bk_display_spi_panel_t lcd_device_jd9853 =
 {
-    .id = LCD_DEVICE_JD9853,
     .name = "jd9853",
-    .type = LCD_TYPE_SPI,
     .width = 240,
     .height = 296,
     .spi = &lcd_spi_jd9853_config,

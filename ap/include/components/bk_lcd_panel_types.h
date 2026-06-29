@@ -73,15 +73,6 @@ typedef struct {
     uint16_t release_ms;  /**< post-release boot wait, default ::BK_DISPLAY_RESET_RELEASE_MS_DEFAULT */
 } bk_display_reset_timing_t;
 
-/** LCD hardware interface family. */
-typedef enum
-{
-    LCD_TYPE_RGB,     /**< parallel RGB */
-    LCD_TYPE_QSPI,    /**< QSPI */
-    LCD_TYPE_SPI,     /**< SPI */
-    LCD_TYPE_DSI      /**< MIPI DSI */
-} lcd_type_t;
-
 /** Legacy LCD pixel-clock enum. Kept verbatim for SPI/QSPI panel descriptors. */
 typedef enum {
     LCD_320M = 320, LCD_240M = 240, LCD_160M = 160, LCD_120M = 120,
@@ -103,7 +94,7 @@ typedef enum
 } lcd_qspi_clk_t;
 
 
-/** QSPI bus configuration (legacy ::lcd_device_t arm). */
+/** QSPI bus configuration. */
 typedef struct
 {
     lcd_qspi_clk_t clk;
@@ -118,7 +109,7 @@ typedef struct
     uint32_t frame_len;
 } lcd_qspi_t;
 
-/** SPI bus configuration (legacy ::lcd_device_t arm). */
+/** SPI bus configuration. */
 typedef struct
 {
     lcd_qspi_clk_t clk;
@@ -169,26 +160,6 @@ struct bk_lcd_panel_config_t {
 
 /** Convert integer megahertz (e.g. @p mhz == 32 for 32 MHz) to pixel-clock Hz for RGB panels. */
 #define BK_RGB_PIXEL_CLK_HZ(mhz)  ((uint32_t)(mhz) * 1000000U)
-
-/** Panel id for legacy SPI/QSPI descriptors (::lcd_device_t). */
-typedef enum {
-    LCD_DEVICE_UNKNOW = 0,
-    LCD_DEVICE_SH8601A,
-    LCD_DEVICE_ST77903_WX20114,
-    LCD_DEVICE_ST77903_SAT61478M,
-    LCD_DEVICE_ST77903_H0165Y008T,
-    LCD_DEVICE_SPD2010,
-    LCD_DEVICE_CO5300,
-    LCD_DEVICE_GC9C01,
-    LCD_DEVICE_JD9855,
-    LCD_DEVICE_JD9855_K18XJ15,
-    LCD_DEVICE_ST77916,
-    LCD_DEVICE_JD9853,
-    LCD_DEVICE_JD9853A,
-    LCD_DEVICE_ST7796U,
-    LCD_DEVICE_GC9D01,
-    LCD_DEVICE_ST7789V2,
-} lcd_device_id_t;
 
 /** RGB panel descriptor. */
 typedef struct
@@ -244,26 +215,24 @@ typedef struct
 } bk_display_dsi_panel_t;
 
 /**
- * @brief Legacy SPI/QSPI panel descriptor.
- *
- * RGB and MIPI-DSI panels use ::bk_display_rgb_panel_t and
- * ::bk_display_dsi_panel_t. Panel lookup uses
- * ::BK_LCD_PANEL_DEVICE_SECTION entry names, not fields here.
+ * @brief SPI LCD panel descriptor.
  */
 typedef struct {
-    int id;                                      /**< ::lcd_device_id_t */
     char *name;                                  /**< short name, e.g. "st77916" */
-    uint8_t type;                                /**< ::lcd_type_t */
     uint16_t width;                              /**< active pixels  */
     uint16_t height;                             /**< active lines   */
-    union {
-        const lcd_qspi_t *qspi;                  /**< QSPI bus configuration */
-        const lcd_spi_t *spi;                    /**< SPI bus configuration  */
-    };
-} lcd_device_t;
+    const lcd_spi_t *spi;                        /**< SPI bus configuration  */
+} bk_display_spi_panel_t;
 
-/** @deprecated Historical alias; new code should use ::lcd_device_t directly. */
-typedef lcd_device_t bk_lcd_panel_t;
+/**
+ * @brief QSPI LCD panel descriptor.
+ */
+typedef struct {
+    char *name;                                  /**< short name, e.g. "spd2010" */
+    uint16_t width;                              /**< active pixels  */
+    uint16_t height;                             /**< active lines   */
+    const lcd_qspi_t *qspi;                      /**< QSPI bus configuration */
+} bk_display_qspi_panel_t;
 
 /** Bus family of a registered LCD panel descriptor. */
 typedef enum {

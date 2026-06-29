@@ -50,7 +50,7 @@
 | **配置通道**（3-wire SPI） | 上电时下发屏厂初始化命令 | CSX / SDA / CLK + RESET 4 根 GPIO，软件 bit-bang |
 
 像素通道由 DPU 在 `bk_display_init()` 中自动 pinmux（24 条数据线 + 同步信号是固定 IO_FUNCTION，不需要配置）；
-配置通道是一条 **SW 模式的 SPI bus**（`bk_display_spi_bus_new` + `BK_DISPLAY_SPI_BUS_MODE_SW`），4 根 GPIO 由你在 `bk_display_spi_bus_config_t` 中指定。屏 RESET 引脚走 `bk_lcd_panel_dev_config_t.reset_pin`。
+配置通道是一条 **GPIO bit-bang SPI bus**（`bk_display_spi_bus_new`），3 根 SPI GPIO 由你在 `bk_display_spi_bus_config_t` 中指定。屏 RESET 引脚走 `bk_lcd_panel_dev_config_t.reset_pin`。
 
 **你不需要做的**：
 - ❌ 不需要写任何寄存器配置代码
@@ -463,10 +463,9 @@ static struct {
 
 int my_rgb_lcd_open(void)
 {
-    /* 1. 配置 SPI bus（SW 模式：bit-bang 下发 init 命令）。
+    /* 1. 配置 SPI bus（bit-bang 下发 init 命令）。
      *    24-bit 并行 RGB 像素引脚由 DPU 直接驱动，不归本 bus 管。 */
     bk_display_spi_bus_config_t rgb_cfg_bus = {
-        .mode       = BK_DISPLAY_SPI_BUS_MODE_SW,
         .clk_pin    = GPIO_8,    /* 配置 SPI 的 CLK */
         .csx_pin    = GPIO_28,   /* 配置 SPI 的 CSX */
         .sda_pin    = GPIO_9,    /* 配置 SPI 的 SDA */

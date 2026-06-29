@@ -494,7 +494,7 @@ static void lcd_spi_disp_area_config(uint8_t id, lcd_display_area_t *area)
     bk_lcd_spi_send_data(id, row_value, 4);
 }
 
-void bk_lcd_spi_init(uint8_t id, const bk_lcd_panel_t *device, uint8_t reset_pin, uint8_t dc_pin)
+void bk_lcd_spi_init(uint8_t id, const bk_display_spi_panel_t *device, uint8_t reset_pin, uint8_t dc_pin)
 {
     if (device == NULL) {
         LCD_SPI_LOGE("lcd spi device not found\r\n");

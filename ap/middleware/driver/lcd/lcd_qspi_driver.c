@@ -201,7 +201,7 @@ static bk_err_t lcd_qspi_reg_data_convert(qspi_id_t qspi_id, uint8_t *data, uint
     return BK_OK;
 }
 
-static bk_err_t lcd_qspi_refresh_by_line_lcd_head_config(qspi_id_t qspi_id, const bk_lcd_panel_t *device)
+static bk_err_t lcd_qspi_refresh_by_line_lcd_head_config(qspi_id_t qspi_id, const bk_display_qspi_panel_t *device)
 {
     uint8_t *cmd = NULL;
     uint32_t head_cmd[4];
@@ -238,7 +238,7 @@ static bk_err_t lcd_qspi_refresh_by_line_lcd_head_config(qspi_id_t qspi_id, cons
     return BK_OK;
 }
 
-bk_err_t bk_lcd_qspi_read_data(qspi_id_t qspi_id, uint8_t *data, const bk_lcd_panel_t *device, uint8_t regist_addr, uint8_t data_len)
+bk_err_t bk_lcd_qspi_read_data(qspi_id_t qspi_id, uint8_t *data, const bk_display_qspi_panel_t *device, uint8_t regist_addr, uint8_t data_len)
 {
     qspi_hal_set_cmd_d_h(&s_lcd_qspi[qspi_id].hal, 0);
     qspi_hal_set_cmd_d_cfg1(&s_lcd_qspi[qspi_id].hal, 0);
@@ -333,7 +333,7 @@ bk_err_t bk_lcd_qspi_quad_write_stop(qspi_id_t qspi_id)
     return BK_OK;
 }
 
-static void lcd_qspi_disp_area_config(qspi_id_t qspi_id, const bk_lcd_panel_t *device, lcd_display_area_t *area)
+static void lcd_qspi_disp_area_config(qspi_id_t qspi_id, const bk_display_qspi_panel_t *device, lcd_display_area_t *area)
 {
     uint8_t column_value[4] = {0};
     uint8_t row_value[4] = {0};
@@ -351,7 +351,7 @@ static void lcd_qspi_disp_area_config(qspi_id_t qspi_id, const bk_lcd_panel_t *d
     bk_lcd_qspi_send_cmd(qspi_id, device->qspi->reg_write_cmd, LCD_QSPI_DEVICE_RASET, row_value, 4);
 }
 
-static void lcd_qspi_disp_full_area_config(qspi_id_t qspi_id, const bk_lcd_panel_t *device)
+static void lcd_qspi_disp_full_area_config(qspi_id_t qspi_id, const bk_display_qspi_panel_t *device)
 {
     lcd_display_area_t disp_area = {0};
 
@@ -419,7 +419,7 @@ static void lcd_qspi_dma_deinit(qspi_id_t qspi_id)
 }
 
 static bk_err_t lcd_qspi_dma_start(qspi_id_t qspi_id,
-                                   const bk_lcd_panel_t *device,
+                                   const bk_display_qspi_panel_t *device,
                                    uint8_t *data,
                                    uint32_t data_len)
 {
@@ -475,7 +475,7 @@ static bk_err_t lcd_qspi_dma_start(qspi_id_t qspi_id,
     return ret;
 }
 
-bk_err_t bk_lcd_qspi_mapping_display(qspi_id_t qspi_id, const bk_lcd_panel_t *device, uint32_t *data, uint32_t data_len)
+bk_err_t bk_lcd_qspi_mapping_display(qspi_id_t qspi_id, const bk_display_qspi_panel_t *device, uint32_t *data, uint32_t data_len)
 {
 #if CONFIG_LCD_QSPI_REFRESH_WITH_MAPPING
     bk_err_t ret = BK_OK;
@@ -567,7 +567,7 @@ static bk_err_t lcd_qspi_indirect_write_cmd_fifo(qspi_id_t qspi_id,
     return BK_OK;
 }
 
-bk_err_t bk_lcd_qspi_indirect_display(qspi_id_t qspi_id, const bk_lcd_panel_t *device, uint32_t *data, uint32_t data_len)
+bk_err_t bk_lcd_qspi_indirect_display(qspi_id_t qspi_id, const bk_display_qspi_panel_t *device, uint32_t *data, uint32_t data_len)
 {
     bk_err_t ret = BK_OK;
     uint32_t remain_len = data_len;
@@ -646,7 +646,7 @@ bk_err_t bk_lcd_qspi_indirect_display(qspi_id_t qspi_id, const bk_lcd_panel_t *d
     return BK_OK;
 }
 
-bk_err_t bk_lcd_qspi_init(qspi_id_t qspi_id, const bk_lcd_panel_t *device, uint8_t reset_pin)
+bk_err_t bk_lcd_qspi_init(qspi_id_t qspi_id, const bk_display_qspi_panel_t *device, uint8_t reset_pin)
 {
     bk_err_t ret = BK_OK;
 
@@ -716,7 +716,7 @@ bk_err_t bk_lcd_qspi_deinit(qspi_id_t qspi_id, uint8_t reset_pin)
     return BK_OK;
 }
 
-bk_err_t bk_lcd_qspi_wait_display_complete(qspi_id_t qspi_id, const bk_lcd_panel_t *device)
+bk_err_t bk_lcd_qspi_wait_display_complete(qspi_id_t qspi_id, const bk_display_qspi_panel_t *device)
 {
     bk_err_t ret = BK_OK;
 
@@ -742,7 +742,7 @@ bk_err_t bk_lcd_qspi_wait_display_complete(qspi_id_t qspi_id, const bk_lcd_panel
     return ret;
 }
 
-bk_err_t bk_lcd_qspi_frame_display(qspi_id_t qspi_id, const bk_lcd_panel_t *device, uint32_t *data, uint32_t data_len)
+bk_err_t bk_lcd_qspi_frame_display(qspi_id_t qspi_id, const bk_display_qspi_panel_t *device, uint32_t *data, uint32_t data_len)
 {
     if (device->qspi->refresh_method == LCD_QSPI_REFRESH_BY_LINE) {
         for (uint16_t i = 0; i < device->qspi->refresh_config.vsw; i++) {
@@ -777,7 +777,7 @@ bk_err_t bk_lcd_qspi_frame_display(qspi_id_t qspi_id, const bk_lcd_panel_t *devi
     return BK_OK;
 }
 
-bk_err_t bk_lcd_qspi_partial_display(qspi_id_t qspi_id, const bk_lcd_panel_t *device, lcd_display_area_t *area, uint32_t *data)
+bk_err_t bk_lcd_qspi_partial_display(qspi_id_t qspi_id, const bk_display_qspi_panel_t *device, lcd_display_area_t *area, uint32_t *data)
 {
     if (device->qspi->refresh_method == LCD_QSPI_REFRESH_BY_FRAME) {
         lcd_qspi_disp_area_config(qspi_id, device, area);

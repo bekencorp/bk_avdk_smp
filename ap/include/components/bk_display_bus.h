@@ -23,12 +23,14 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <avdk_error.h>
-#include <components/bk_lcd_panel.h>
 #include <driver/dpu_types.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+/** Opaque display bus handle. Body lives in private_include/. */
+typedef struct bk_display_bus_ctlr_t *bk_display_bus_handle_t;
 
 /**
  * @brief MIPI DSI bus creation parameters.
@@ -42,36 +44,13 @@ typedef struct
 } bk_display_dsi_bus_config_t;
 
 /**
- * @brief SPI bus operating mode.
+ * @brief SPI bus configuration for GPIO bit-bang command channel.
  *
- * Caller MUST set @c mode explicitly when creating an SPI bus.
- */
-typedef enum
-{
-    BK_DISPLAY_SPI_BUS_MODE_HW = 0,   /**< hardware SPI device, owned by the SPI display controller */
-    BK_DISPLAY_SPI_BUS_MODE_SW = 1,   /**< GPIO bit-bang command channel (RGB panel SPI register init) */
-} bk_display_spi_bus_mode_t;
-
-/**
- * @brief SPI bus configuration; field groups are mutually exclusive by mode.
- *
- * HW mode requires: lcd_panel + spi_id + dc_pin + te_pin + reset_pin.
- * SW mode requires: clk_pin + csx_pin + sda_pin + cmd_width.
+ * Used by RGB panels for register initialization. SPI LCD display controllers
+ * use ::bk_display_spi_ctlr_config_t instead and do not depend on this bus.
  */
 typedef struct
 {
-    bk_display_spi_bus_mode_t mode;       /**< @see bk_display_spi_bus_mode_t */
-
-    /* HW mode */
-    const bk_lcd_panel_t *lcd_panel;      /**< panel descriptor for lcd_spi driver */
-    uint8_t spi_id;                       /**< SPI controller id */
-    uint8_t dc_pin;                       /**< data / command select io */
-    uint8_t te_pin;                       /**< tearing-effect io */
-
-    /* Common */
-    uint8_t reset_pin;                    /**< panel reset io */
-
-    /* SW mode */
     uint8_t clk_pin;                      /**< SCK */
     uint8_t csx_pin;                      /**< CS  */
     uint8_t sda_pin;                      /**< MOSI */
@@ -112,15 +91,13 @@ avdk_err_t bk_display_dsi_bus_new(bk_display_bus_handle_t *handle, bk_display_ds
 /**
  * @brief Create a SPI bus controller.
  *
- * The HW or SW path is selected by @c config->mode:
- *   - HW: avdk lcd_spi driver ownership for ::bk_display_spi_ctlr_new().
- *   - SW: muxes clk/csx/sda for bit-bang panel-init writes; the parallel
- *         24-bit RGB pixel lanes are driven directly by the DPU and are
- *         not mediated by this bus.
+ * Muxes clk/csx/sda for bit-bang panel-init writes. The parallel 24-bit RGB
+ * pixel lanes are driven directly by the DPU and are not mediated by this bus.
+ * Hardware SPI LCD frame output is owned by ::bk_display_spi_ctlr_new(), not
+ * by this bus API.
  *
  * @param[out] handle Bus handle.
- * @param[in]  config Bus configuration; must not be NULL and @c mode must
- *                    be set explicitly.
+ * @param[in]  config Bus configuration; must not be NULL.
  *
  * @return AVDK_ERR_OK on success.
  * @return AVDK_ERR_INVAL on bad arguments.
@@ -140,9 +117,9 @@ avdk_err_t bk_display_bus_delete(bk_display_bus_handle_t handle);
 /**
  * @brief Submit a frame through the bus' pixel path.
  *
- * Only meaningful for buses that directly mediate pixel data. The HW
- * SPI LCD path is exposed through ::bk_display_flush() on the SPI display
- * controller, so direct SPI bus flush calls return ::AVDK_ERR_UNSUPPORTED.
+ * Only meaningful for buses that directly mediate pixel data. The SPI command
+ * bus does not carry pixel data, so direct SPI bus flush calls return
+ * ::AVDK_ERR_UNSUPPORTED.
  *
  * @param[in] handle Bus handle.
  * @param[in] frame  Frame buffer pointer.
@@ -164,10 +141,8 @@ avdk_err_t bk_display_bus_flush(bk_display_bus_handle_t handle, uint8_t *frame, 
  *
  * Wire format depends on the backend:
  *  - DSI : DCS generic write
- *  - SW SPI 8-bit (cmd_width = 8)  : 9-bit SPI (D/C bit prepended)
- *  - SW SPI 16-bit (cmd_width = 16): 4-byte packed protocol
- *  - HW SPI: the cmd channel is the same DMA frame stream, so this op
- *    is unsupported on HW SPI (returns ::BK_ERR_NOT_SUPPORT).
+ *  - SPI 8-bit (cmd_width = 8)  : 9-bit SPI (D/C bit prepended)
+ *  - SPI 16-bit (cmd_width = 16): 4-byte packed protocol
  *
  * @param[in] handle      Bus handle.
  * @param[in] lcd_cmd     Command byte; pass -1 to send raw data only.

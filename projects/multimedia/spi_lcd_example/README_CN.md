@@ -124,8 +124,7 @@ spi_lcd 0000   # 黑
 ### 6.2 显示参数（`ap/ap_main.c`）
 
 ```c
-bk_display_spi_bus_config_t spi_ctlr_config = {
-    .mode      = BK_DISPLAY_SPI_BUS_MODE_HW, // 硬件 SPI
+bk_display_spi_ctlr_config_t spi_ctlr_config = {
     .lcd_panel = &lcd_device_jd9853,         // 屏驱动
     .spi_id    = 0,                          // 使用 SPI/QSPI0
     .dc_pin    = GPIO_25,                    // 数据/命令脚

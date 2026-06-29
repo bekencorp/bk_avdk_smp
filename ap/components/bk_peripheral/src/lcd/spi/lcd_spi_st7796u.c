@@ -49,11 +49,9 @@ static const lcd_spi_t lcd_spi_st7796u_config =
     .frame_len = 320 * 480 * CONFIG_LCD_SPI_COLOR_DEPTH_BYTE,
 };
 
-const lcd_device_t lcd_device_st7796u =
+const bk_display_spi_panel_t lcd_device_st7796u =
 {
-    .id = LCD_DEVICE_ST7796U,
     .name = "st7796u",
-    .type = LCD_TYPE_SPI,
     .width = 320,
     .height = 480,
     .spi = &lcd_spi_st7796u_config,

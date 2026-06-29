@@ -21,11 +21,10 @@
 #define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
 
-extern const bk_lcd_panel_t lcd_device_jd9853;
+extern const bk_display_spi_panel_t lcd_device_jd9853;
 
 static bk_display_ctlr_handle_t lcd_display_handle = NULL;
-bk_display_spi_bus_config_t spi_ctlr_config = {
-    .mode = BK_DISPLAY_SPI_BUS_MODE_HW,
+bk_display_spi_ctlr_config_t spi_ctlr_config = {
     .lcd_panel = &lcd_device_jd9853,
     .spi_id = 0,
     .dc_pin = GPIO_25,

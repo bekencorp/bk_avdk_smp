@@ -30,7 +30,7 @@ void bk_lcd_spi_send_data_with_qspi_mapping_mode(uint8_t id, uint8_t *data, uint
 
 bk_err_t bk_lcd_spi_wait_display_complete(qspi_id_t qspi_id);
 
-void bk_lcd_spi_init(uint8_t id, const bk_lcd_panel_t *device, uint8_t reset_pin, uint8_t dc_pin);
+void bk_lcd_spi_init(uint8_t id, const bk_display_spi_panel_t *device, uint8_t reset_pin, uint8_t dc_pin);
 
 void bk_lcd_spi_deinit(uint8_t id, uint8_t reset_pin, uint8_t dc_pin);
 

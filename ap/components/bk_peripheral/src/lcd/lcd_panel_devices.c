@@ -77,14 +77,14 @@ uint32_t bk_lcd_get_rgb_panel_list(const bk_display_rgb_panel_t **panels, uint32
     return n;
 }
 
-uint32_t bk_lcd_get_spi_panel_list(const lcd_device_t **panels, uint32_t max_count)
+uint32_t bk_lcd_get_spi_panel_list(const bk_display_spi_panel_t **panels, uint32_t max_count)
 {
     uint32_t n = bk_lcd_collect_panels(BK_LCD_PANEL_BUS_SPI, (const void **)panels, max_count);
     LOGI("Total SPI panels found: %u\n", (unsigned)n);
     return n;
 }
 
-uint32_t bk_lcd_get_qspi_panel_list(const lcd_device_t **panels, uint32_t max_count)
+uint32_t bk_lcd_get_qspi_panel_list(const bk_display_qspi_panel_t **panels, uint32_t max_count)
 {
     uint32_t n = bk_lcd_collect_panels(BK_LCD_PANEL_BUS_QSPI, (const void **)panels, max_count);
     LOGI("Total QSPI panels found: %u\n", (unsigned)n);
@@ -101,12 +101,12 @@ const bk_display_rgb_panel_t *bk_lcd_find_rgb_panel_by_name(const char *name)
     return (const bk_display_rgb_panel_t *)bk_lcd_find_panel_by_name(BK_LCD_PANEL_BUS_RGB, name);
 }
 
-const lcd_device_t *bk_lcd_find_spi_panel_by_name(const char *name)
+const bk_display_spi_panel_t *bk_lcd_find_spi_panel_by_name(const char *name)
 {
-    return (const lcd_device_t *)bk_lcd_find_panel_by_name(BK_LCD_PANEL_BUS_SPI, name);
+    return (const bk_display_spi_panel_t *)bk_lcd_find_panel_by_name(BK_LCD_PANEL_BUS_SPI, name);
 }
 
-const lcd_device_t *bk_lcd_find_qspi_panel_by_name(const char *name)
+const bk_display_qspi_panel_t *bk_lcd_find_qspi_panel_by_name(const char *name)
 {
-    return (const lcd_device_t *)bk_lcd_find_panel_by_name(BK_LCD_PANEL_BUS_QSPI, name);
+    return (const bk_display_qspi_panel_t *)bk_lcd_find_panel_by_name(BK_LCD_PANEL_BUS_QSPI, name);
 }

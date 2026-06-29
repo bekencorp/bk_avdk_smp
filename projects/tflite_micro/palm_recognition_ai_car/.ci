@@ -1,1 +1,0 @@
-./dbuild.sh make bk7259 PROJECT=tflite_micro/palm_recognition_ai_car

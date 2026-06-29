@@ -79,11 +79,9 @@ static const lcd_spi_t lcd_spi_gc9d01_config =
     .frame_len = 160 * 160 * CONFIG_LCD_SPI_COLOR_DEPTH_BYTE,
 };
 
-const lcd_device_t lcd_device_gc9d01 =
+const bk_display_spi_panel_t lcd_device_gc9d01 =
 {
-    .id = LCD_DEVICE_GC9D01,
     .name = "gc9d01",
-    .type = LCD_TYPE_SPI,
     .width = 160,
     .height = 160,
     .spi = &lcd_spi_gc9d01_config,

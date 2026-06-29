@@ -72,11 +72,9 @@ static const lcd_qspi_t lcd_qspi_jd9853a_config =
     .frame_len = 240 * 320 * CONFIG_LCD_QSPI_COLOR_DEPTH_BYTE,
 };
 
-const lcd_device_t lcd_device_jd9853a =
+const bk_display_qspi_panel_t lcd_device_jd9853a =
 {
-    .id = LCD_DEVICE_JD9853A,
     .name = "jd9853a",
-    .type = LCD_TYPE_QSPI,
     .width = 240,
     .height = 320,
     .qspi = &lcd_qspi_jd9853a_config,

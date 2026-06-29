@@ -82,7 +82,7 @@ bk_err_t bk_lcd_qspi_quad_write_stop(qspi_id_t qspi_id);
  *    - BK_OK: succeed
  *    - others: other errors.
  */
-bk_err_t bk_lcd_qspi_read_data(qspi_id_t qspi_id, uint8_t *data, const bk_lcd_panel_t *device, uint8_t regist_addr, uint8_t data_len);
+bk_err_t bk_lcd_qspi_read_data(qspi_id_t qspi_id, uint8_t *data, const bk_display_qspi_panel_t *device, uint8_t regist_addr, uint8_t data_len);
 
 /**
  * @brief     Init the lcd qspi
@@ -102,7 +102,7 @@ bk_err_t bk_lcd_qspi_read_data(qspi_id_t qspi_id, uint8_t *data, const bk_lcd_pa
  *    - BK_OK: succeed
  *    - others: other errors.
  */
-bk_err_t bk_lcd_qspi_init(qspi_id_t qspi_id, const bk_lcd_panel_t *device, uint8_t reset_pin);
+bk_err_t bk_lcd_qspi_init(qspi_id_t qspi_id, const bk_display_qspi_panel_t *device, uint8_t reset_pin);
 
 /**
  * @brief     Deinit the lcd qspi
@@ -132,7 +132,7 @@ bk_err_t bk_lcd_qspi_deinit(qspi_id_t qspi_id, uint8_t reset_pin);
  *    - BK_OK: succeed
  *    - others: other errors.
  */
-bk_err_t bk_lcd_qspi_wait_display_complete(qspi_id_t qspi_id, const bk_lcd_panel_t *device);
+bk_err_t bk_lcd_qspi_wait_display_complete(qspi_id_t qspi_id, const bk_display_qspi_panel_t *device);
 
 /**
  * @brief     Display pixels with QSPI mapping mode and DMA
@@ -148,7 +148,7 @@ bk_err_t bk_lcd_qspi_wait_display_complete(qspi_id_t qspi_id, const bk_lcd_panel
  *    - BK_OK: succeed
  *    - others: other errors.
  */
-bk_err_t bk_lcd_qspi_mapping_display(qspi_id_t qspi_id, const bk_lcd_panel_t *device, uint32_t *data, uint32_t data_len);
+bk_err_t bk_lcd_qspi_mapping_display(qspi_id_t qspi_id, const bk_display_qspi_panel_t *device, uint32_t *data, uint32_t data_len);
 
 /**
  * @brief     Display pixels with QSPI indirect FIFO mode
@@ -164,7 +164,7 @@ bk_err_t bk_lcd_qspi_mapping_display(qspi_id_t qspi_id, const bk_lcd_panel_t *de
  *    - BK_OK: succeed
  *    - others: other errors.
  */
-bk_err_t bk_lcd_qspi_indirect_display(qspi_id_t qspi_id, const bk_lcd_panel_t *device, uint32_t *data, uint32_t data_len);
+bk_err_t bk_lcd_qspi_indirect_display(qspi_id_t qspi_id, const bk_display_qspi_panel_t *device, uint32_t *data, uint32_t data_len);
 
 /**
  * @brief     Display a frame image
@@ -180,7 +180,7 @@ bk_err_t bk_lcd_qspi_indirect_display(qspi_id_t qspi_id, const bk_lcd_panel_t *d
  *    - BK_OK: succeed
  *    - others: other errors.
  */
-bk_err_t bk_lcd_qspi_frame_display(qspi_id_t qspi_id, const bk_lcd_panel_t *device, uint32_t *data, uint32_t data_len);
+bk_err_t bk_lcd_qspi_frame_display(qspi_id_t qspi_id, const bk_display_qspi_panel_t *device, uint32_t *data, uint32_t data_len);
 
 /**
  * @brief     Partial display a image
@@ -196,7 +196,7 @@ bk_err_t bk_lcd_qspi_frame_display(qspi_id_t qspi_id, const bk_lcd_panel_t *devi
  *    - BK_OK: succeed
  *    - others: other errors.
  */
-bk_err_t bk_lcd_qspi_partial_display(qspi_id_t qspi_id, const bk_lcd_panel_t *device, lcd_display_area_t *area, uint32_t *data);
+bk_err_t bk_lcd_qspi_partial_display(qspi_id_t qspi_id, const bk_display_qspi_panel_t *device, lcd_display_area_t *area, uint32_t *data);
 
 
 #ifdef __cplusplus

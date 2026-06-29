@@ -56,11 +56,9 @@ static const lcd_qspi_t lcd_qspi_sh8601a_config =
 	.frame_len = 454 * 454 * CONFIG_LCD_QSPI_COLOR_DEPTH_BYTE,
 };
 
-const lcd_device_t lcd_device_sh8601a =
+const bk_display_qspi_panel_t lcd_device_sh8601a =
 {
-    .id = LCD_DEVICE_SH8601A,
     .name = "sh8601a",
-    .type = LCD_TYPE_QSPI,
     .width = 454,
     .height = 454,
     .qspi = &lcd_qspi_sh8601a_config,

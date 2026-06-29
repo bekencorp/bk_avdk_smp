@@ -36,8 +36,7 @@ typedef struct
     bool lcd_display_flag;
     void *display_frame;
     flush_free_cb_t display_frame_cb;
-    bk_display_spi_bus_config_t config;
-    bk_display_bus_handle_t bus_handle;
+    bk_display_spi_ctlr_config_t config;
     bk_display_ctlr_t ops;
 } spi_vn_ctlr_t;
 
