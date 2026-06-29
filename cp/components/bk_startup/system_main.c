@@ -37,7 +37,9 @@
 #include <driver/flash_partition.h>
 #include <driver/flash.h>
 #include <driver/wwdt.h>
-
+#if CONFIG_ROSC_CALIB_SW
+#include <driver/rosc_32k.h>
+#endif
 
 #if CONFIG_FREERTOS_TRACE
 #include "trcRecorder.h"
@@ -503,6 +505,11 @@ static void app_main_thread(void *arg)
 #if CONFIG_TFM_FWU
 	bk_ota_accept_image();
 #endif
+
+	#if CONFIG_ROSC_CALIB_SW
+	bk_rosc_32k_calib();
+	#endif // CONFIG_ROSC_CALIB_SW
+
 	pm_thread_main();
 	main();
 
