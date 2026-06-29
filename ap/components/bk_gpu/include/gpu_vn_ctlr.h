@@ -63,10 +63,13 @@ typedef struct
     //TODO
     beken_thread_t flexa_thd;
     uint32_t line_cnt;
+    uint32_t line_frame_seq;
+    uint32_t active_frame_seq;
     uint32_t line_err_flag;
     beken_semaphore_t gpu_process_sem;
     beken_semaphore_t gpu_flex_task_sem;
     bool flexa_stop;
+    bool flexa_frame_active;
     uint8_t *gpu_contiguous_buffer;
 
     bool blit_enable;

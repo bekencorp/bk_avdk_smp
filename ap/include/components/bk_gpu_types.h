@@ -33,7 +33,14 @@ typedef enum
     BK_GPU_IOCTL_FLEXA_ADDR_UNMAPPING,
     BK_GPU_IOCTL_LOCK,
     BK_GPU_IOCTL_UNLOCK,
+    BK_GPU_IOCTL_SET_FLEXA_EVENT_READY,
 } bk_gpu_ioctl_cmd_t;
+
+typedef struct
+{
+    uint32_t frame_seq;
+    uint32_t line_cnt;
+} bk_gpu_flexa_event_t;
 
 typedef struct
 {
