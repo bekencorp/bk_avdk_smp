@@ -11,6 +11,11 @@
 
 工程提供串口 CLI 入口，便于手动触发普通解码、FLEXA 解码和压力测试；当使能 `CONFIG_BK_DECODER` 时，系统上电后还会自动创建 `vcdec` JPEG 自检任务，依次执行 FLEXA 和整帧模式，便于快速确认链路是否正常。
 
+* 开发者指南：
+
+  - [JPEG 解码（VPU）](../../../developer-guide/vpu/jpeg_decode.html)
+  - [Frame 与 Flexa 模式](../../../developer-guide/vpu/flexa_frame.html)
+
 ### 1.1 测试环境
 
 - 硬件配置

@@ -55,20 +55,14 @@ tflite_micro_example/
 In `tflm_person_detection_demo.cpp`, `CONFIG_PERSON_DETECTION_INFER_TIME_AUTO` controls whether inference time statistics are enabled:
 - When enabled, DWT cycles are used to record the cycle count before and after `Invoke()`
 - The elapsed time is converted based on a fixed CPU frequency of `480MHz`
-- Print format:
-  - If the inference time is less than `1ms`, it is printed in `us`
-  - If the inference time is greater than or equal to `1ms`, it is printed in `ms`
+- Print format: it is printed in `us` when the inference time is less than `1ms`, and in `ms` when it is greater than or equal to `1ms`
 
 Note: This feature is implemented through the compile-time switch `#ifdef CONFIG_PERSON_DETECTION_INFER_TIME_AUTO`, so this macro must be defined when building the project.
 
 ### 3.3 Memory / Performance Strategy (HSRAM / PSRAM / SRAM)
 In `tflm_person_detection_demo.cpp`, the memory strategy is controlled by `PERSON_DETECTION_PERF_TEST`:
-- When `PERSON_DETECTION_PERF_TEST=1` (performance mode)
-  - `EthosU0 Scratch` / `Tensor Arena` / `Model Data`: allocate from HSRAM first
-  - If HSRAM is insufficient: automatically fall back to regular SRAM allocation
-- When `PERSON_DETECTION_PERF_TEST=0`
-  - `EthosU0 Scratch` still uses HSRAM
-  - `Tensor Arena` / `Model Data` use PSRAM
+- When `PERSON_DETECTION_PERF_TEST=1` (performance mode): `EthosU0 Scratch` / `Tensor Arena` / `Model Data` are allocated from HSRAM first; if HSRAM is insufficient, they automatically fall back to regular SRAM allocation
+- When `PERSON_DETECTION_PERF_TEST=0`: `EthosU0 Scratch` still uses HSRAM, while `Tensor Arena` / `Model Data` use PSRAM
 
 In addition, this example requires 16-byte alignment for model data to satisfy Ethos-U command stream constraints. Performance mode is used to evaluate the peak NPU inference performance.
 

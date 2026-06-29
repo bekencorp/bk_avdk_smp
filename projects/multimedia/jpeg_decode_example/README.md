@@ -11,6 +11,11 @@ This project demonstrates JPEG decoding on the Beken platform. It contains two k
 
 The project exposes serial CLI commands for normal decode, FLEXA decode, and stress testing. When `CONFIG_BK_DECODER` is enabled, the system also launches a boot-time `vcdec` self-test task that runs both FLEXA mode and full-frame mode automatically.
 
+* Developer guide:
+
+  - [JPEG Decode (VPU)](../../../developer-guide/vpu/jpeg_decode.html)
+  - [Frame vs Flexa Mode](../../../developer-guide/vpu/flexa_frame.html)
+
 ### 1.1 Test Environment
 
 - Hardware

@@ -13,13 +13,14 @@
 - `CONFIG_BK_ENCODER` 使能时的上电自动编码自检
 - `.it.csv` 集成测试入口
 
-* 有关H264编码的详细信息，请参阅：
+* 有关 H264 编码的详细信息，请参阅：
 
-  - [H264编码概述](../../../developer-guide/video_codec/h264_encoding.html)
+  - [H.264 编码（VPU）](../../../developer-guide/vpu/h264_encode.html)
+  - [Frame 与 Flexa 模式](../../../developer-guide/vpu/flexa_frame.html)
 
 * 有关API参考，请参阅：
 
-  - [H264编码器API](../../../api-reference/multimedia/bk_h264_encode.html)
+  - [VPU API](../../../api-reference/multimedia/bk_vpu.html)
 
 ### 1.1 测试环境
 

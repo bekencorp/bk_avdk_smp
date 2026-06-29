@@ -72,18 +72,23 @@ The player service supports two types of commands:
 2. **Parameter Description**:
 
    - ``[cmd]`` ：Command type
+
       - ``start`` ：Start playback
       - ``stop`` ：Stop playback
 
    - ``[source_type]`` ：Audio source type
+
       - ``array`` ：Array audio source, using built-in prompt tone data
       - ``vfs`` ：File system audio source, reading audio files from the file system
 
    - ``[info]`` ：Audio information
+
       - When ``source_type`` is ``array`` ， ``info`` is the array ID：
+
          - ``0`` ：ASR wake-up prompt tone (PCM format)
          - ``1`` ：Network configuration prompt tone (MP3 format)
          - ``2`` ：Low voltage prompt tone (WAV format)
+
       - When ``source_type`` is ``vfs`` ， ``info`` is the file path, for example ``/data/test.wav``
 
 #### 3.3.2 Prompt Tone Command Parameters
@@ -96,23 +101,29 @@ The player service supports two types of commands:
 2. **Parameter Description**:
 
    - ``[cmd]`` ：Command type
+
       - ``start`` ：Start playback
       - ``stop`` ：Stop playback
 
    - ``[tone_id]`` ：Prompt tone ID
+
       - ``0`` ：First prompt tone (ASR wake-up prompt tone)
       - ``1`` ：Second prompt tone (network configuration prompt tone)
       - ``2`` ：Third prompt tone (low voltage prompt tone)
 
    - ``[source_type]`` ：Audio source type
+
       - ``array`` ：Array audio source, using built-in prompt tone data
       - ``vfs`` ：File system audio source, reading audio files from the file system
 
    - ``[info]`` ：Audio information
+
       - When ``source_type`` is ``array`` ， ``info`` is the array ID：
+
          - ``0`` ：ASR wake-up prompt tone (PCM format)
          - ``1`` ：Network configuration prompt tone (MP3 format)
          - ``2`` ：Low voltage prompt tone (WAV format)
+
       - When ``source_type`` is ``vfs`` ， ``info`` is the file path, for example ``/data/test.wav``
 
 ## 4. Compilation and Execution

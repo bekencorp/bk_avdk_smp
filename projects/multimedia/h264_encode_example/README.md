@@ -15,11 +15,12 @@ The project provides:
 
 * For detailed information about H264 encoding, please refer to:
 
-  - [H264 Encoding Overview](../../../developer-guide/video_codec/h264_encoding.html)
+  - [H.264 Encode (VPU)](../../../developer-guide/vpu/h264_encode.html)
+  - [Frame vs Flexa Mode](../../../developer-guide/vpu/flexa_frame.html)
 
 * For API reference, please refer to:
 
-  - [H264 Encoder API](../../../api-reference/multimedia/bk_h264_encode.html)
+  - [VPU API](../../../api-reference/multimedia/bk_vpu.html)
 
 ### 1.1 Test Environment
 

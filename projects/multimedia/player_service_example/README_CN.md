@@ -72,18 +72,23 @@ player_service_example/
 2. **参数说明**：
 
    - ``[cmd]`` ：命令类型
+
       - ``start`` ：开始播放
       - ``stop`` ：停止播放
 
    - ``[source_type]`` ：音频源类型
+
       - ``array`` ：数组音频源，使用内置提示音数据
       - ``vfs`` ：文件系统音频源，从文件系统读取音频文件
 
    - ``[info]`` ：音频信息
+
       - 当 ``source_type`` 为 ``array`` 时， ``info`` 为数组ID：
+
          - ``0`` ：ASR唤醒提示音（pcm格式）
          - ``1`` ：网络配置提示音（mp3格式）
          - ``2`` ：低电压提示音（wav格式）
+
       - 当 ``source_type`` 为 ``vfs`` 时， ``info`` 为文件路径，例如 ``/data/test.wav``
 
 #### 3.3.2 Prompt Tone命令参数
@@ -96,23 +101,29 @@ player_service_example/
 2. **参数说明**：
 
    - ``[cmd]`` ：命令类型
+
       - ``start`` ：开始播放
       - ``stop`` ：停止播放
 
    - ``[tone_id]`` ：提示音ID
+
       - ``0`` ：第一个提示音
       - ``1`` ：第二个提示音
       - ``2`` ：第三个提示音
 
    - ``[source_type]`` ：音频源类型
+
       - ``array`` ：数组音频源，使用内置提示音数据
       - ``vfs`` ：文件系统音频源，从文件系统读取音频文件
 
    - ``[info]`` ：音频信息
+
       - 当 ``source_type`` 为 ``array`` 时， ``info`` 为数组ID：
+
          - ``0`` ：ASR唤醒提示音（pcm格式）
          - ``1`` ：网络配置提示音（mp3格式）
          - ``2`` ：低电压提示音（wav格式）
+
       - 当 ``source_type`` 为 ``vfs`` 时， ``info`` 为文件路径，例如 ``/data/test.wav`` 
 
 ## 4. 编译与运行
