@@ -1881,6 +1881,7 @@ __IRAM_PM void sys_hal_enter_low_voltage(void)
 	GPIO_DOWN(37);
 	#endif
 
+	aon_pmu_ll_set_r0_fast_boot(0);
 	sys_hal_restore_int(int_state1, int_state2, int_state3);
 	bk_pm_sleep_wakeup_reason_set(check_IRQ_pending());
 
