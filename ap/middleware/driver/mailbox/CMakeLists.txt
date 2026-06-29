@@ -30,6 +30,12 @@ if (CONFIG_MAILBOX)
 			mailbox/mb_uart_driver.c
 		)
 
+		if (CONFIG_IPC_STRESS_TEST)
+			list(APPEND srcs
+				mailbox/mb_ipc_stress.c
+			)
+		endif()
+
 	endif()
 endif()
 

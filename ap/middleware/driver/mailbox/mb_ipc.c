@@ -1075,12 +1075,18 @@ static int ipc_socket_rx_cmd_handler(mb_ipc_socket_t * ipc_socket, mb_ipc_cmd_t 
 		ipc_socket_tx_rsp(ipc_socket, ipc_cmd);
 		      /* can't call ipc_socket_tx_rsp, because ipc_cmd point to stack memory. */
 		#else
+		/* M3: report RX-busy back to the sender as a fast-fail instead of
+		 * silently dropping the cmd (which would make the sender wait the
+		 * full tx timeout). route_status is a header field that round-trips
+		 * to the sender in the mailbox tx-completion ACK: the peer's
+		 * ipc_socket_tx_cmpl_handler() maps a non-OK route_status to
+		 * tx_status = MB_IPC_ROUTE_BASE_FAILED + IPC_ROUTE_RX_BUSY and wakes
+		 * the tx semaphore immediately, so mb_ipc_send() returns at once and
+		 * the caller can retry. This is the safe path: it does NOT touch the
+		 * stack-resident ipc_cmd (the disabled ipc_socket_tx_rsp() branch
+		 * above is unsafe for exactly that reason). api_impl_status is also
+		 * set above so the API-layer reason is preserved for diagnostics. */
 		route_status = IPC_ROUTE_RX_BUSY;
-		     /*             !!! NOTE !!!                     */
-			 /*       no way to report this fail.            */
-		     /* it is a temporary solution to indicate fail. */
-			 /* actually, it is a API layer fail,            */
-			 /* should return fail state in api_impl_status. */
 		#endif
 	}
 	else  /* it is OK to receive the cmd. */
@@ -1706,9 +1712,19 @@ int mb_ipc_send_async(u32 handle, u8 user_cmd, u8 * data_buff, u32 data_len)
 		return -MB_IPC_INVALID_STATE;
 	}
 
-	if(ipc_socket->run_state & STATE_TX_IN_PROCESS)
+	/* M1: atomically test-and-set STATE_TX_IN_PROCESS so two concurrent
+	 * senders on the same socket cannot both pass the busy check (TOCTOU).
+	 * ipc_socket_tx_cmd() re-sets the flag (idempotent) for the connect/
+	 * disconnect callers that do not pre-set it here. */
 	{
-		return -MB_IPC_TX_BUSY;
+		u32 temp = mb_ipc_enter_critical();
+		if(ipc_socket->run_state & STATE_TX_IN_PROCESS)
+		{
+			mb_ipc_exit_critical(temp);
+			return -MB_IPC_TX_BUSY;
+		}
+		ipc_socket->run_state |= STATE_TX_IN_PROCESS;
+		mb_ipc_exit_critical(temp);
 	}
 
 	memset(&ipc_socket->tx_cmd, 0, sizeof(ipc_socket->tx_cmd));
@@ -1719,6 +1735,17 @@ int mb_ipc_send_async(u32 handle, u8 user_cmd, u8 * data_buff, u32 data_len)
 	ipc_socket->tx_cmd.cmd_data_len  = data_len;
 	ipc_socket->tx_cmd.cmd_data_buff = data_buff;
 	ipc_socket->tx_cmd.cmd_data_crc8 = cal_crc8_0x31(data_buff, data_len);
+
+	#if CONFIG_SUPPORT_CACHEABLE_SRAM
+	/* Zero-copy cross-core payload: only a pointer is handed to the peer CPU.
+	 * Clean (write-back) this CPU's D-cache so the peer reads the freshly
+	 * produced data from SRAM rather than a stale line. Pairs with the
+	 * invalidate done on the receiver side in mb_ipc_recv_async(). */
+	if((data_buff != NULL) && (data_len != 0))
+	{
+		flush_dcache(data_buff, data_len);
+	}
+	#endif
 
 	int route_status = ipc_socket_tx_cmd(ipc_socket, &ipc_socket->tx_cmd, 0);
 	
@@ -1752,9 +1779,19 @@ int mb_ipc_send(u32 handle, u8 user_cmd, u8 * data_buff, u32 data_len, u32 time_
 		return -MB_IPC_INVALID_STATE;
 	}
 
-	if(ipc_socket->run_state & STATE_TX_IN_PROCESS)
+	/* M1: atomically test-and-set STATE_TX_IN_PROCESS so two concurrent
+	 * senders on the same socket cannot both pass the busy check (TOCTOU).
+	 * ipc_socket_tx_cmd() re-sets the flag (idempotent) for the connect/
+	 * disconnect callers that do not pre-set it here. */
 	{
-		return -MB_IPC_TX_BUSY;
+		u32 temp = mb_ipc_enter_critical();
+		if(ipc_socket->run_state & STATE_TX_IN_PROCESS)
+		{
+			mb_ipc_exit_critical(temp);
+			return -MB_IPC_TX_BUSY;
+		}
+		ipc_socket->run_state |= STATE_TX_IN_PROCESS;
+		mb_ipc_exit_critical(temp);
 	}
 
 re_send_onetime:
@@ -1767,6 +1804,17 @@ re_send_onetime:
 	ipc_socket->tx_cmd.cmd_data_len  = data_len;
 	ipc_socket->tx_cmd.cmd_data_buff = data_buff;
 	ipc_socket->tx_cmd.cmd_data_crc8 = cal_crc8_0x31(data_buff, data_len);
+
+	#if CONFIG_SUPPORT_CACHEABLE_SRAM
+	/* Zero-copy cross-core payload: only a pointer is handed to the peer CPU.
+	 * Clean (write-back) this CPU's D-cache so the peer reads the freshly
+	 * produced data from SRAM rather than a stale line. Pairs with the
+	 * invalidate done on the receiver side in mb_ipc_recv_async(). */
+	if((data_buff != NULL) && (data_len != 0))
+	{
+		flush_dcache(data_buff, data_len);
+	}
+	#endif
 
 	u32   retry = 0;
 	int   ret_val = 0;

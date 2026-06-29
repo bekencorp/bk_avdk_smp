@@ -11,6 +11,15 @@ menu "MAILBOX"
 		bool "Enable mailbox socket ipc driver"
 		default y
 
+	config IPC_STRESS_TEST
+		depends on MAILBOX_IPC
+		bool "Enable cross-core IPC stress test CLI (AP side)"
+		default n
+		help
+			Build the AP-side IPC stress clients and auto-register the
+			"ipc_stress" CLI command (via DRV_CLI_CMD_EXPORT). Pairs with the
+			CP-side echo server to verify cross-core mailbox IPC under load.
+
 	config MAILBOX_IPC_API_TASK_STACK_SIZE
 		int "Set MAILBOX IPC API Task Stack Size"
 		default 2048
