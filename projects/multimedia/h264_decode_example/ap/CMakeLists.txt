@@ -1,17 +1,14 @@
-set(incs . include ./h264_decode/include ./h264_decode/common ./h264_decode_stress/include)
+set(incs . include ./h264_decode/include ./h264_decode/common)
 set(srcs
     ap_main.c
     h264_decode/src/h264_decode_cli.c
-    h264_decode/src/h264_decode_flexa_test.c
     h264_decode/src/vcdec_h264_driver_test.c
     h264_decode/common/h264_decode_h264_parser.c
     h264_decode/common/h264_decode_stream_1280x720.c
     h264_decode/common/h264_decode_stream_256x128.c
-    h264_decode_stress/src/h264_decode_stress.c
-    h264_decode_stress/src/h264_decode_stress_stream.c
 )
 
-set(priv_req media_service bk_cli avdk_utils bk_h264d psram_stress_service)
+set(priv_req media_service bk_cli avdk_utils psram_stress_service)
 
 if (CONFIG_BK_DECODER)
 list(APPEND srcs

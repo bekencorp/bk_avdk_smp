@@ -1,14 +1,11 @@
-set(incs . include ./h264_encode/include ./h264_encode/common ./h264_stress/include ./mjpeg_encode)
+set(incs . include ./h264_encode/include ./h264_encode/common)
 set(srcs ap_main.c
     h264_encode/src/h264_encode_cli.c
     h264_encode/src/vcenc_h264_test.c
     h264_encode/common/h264_encode_stream_256x128.c
-    h264_stress/src/h264_encode_stress.c
-    h264_stress/src/h264_encode_time_statisticsi.c
-    mjpeg_encode/mjpeg_encode_stress.c
     )
 
-set(priv_req media_service bk_cli avdk_utils bk_h264e psram_stress_service)
+set(priv_req media_service bk_cli avdk_utils psram_stress_service)
 armino_component_register(SRCS "${srcs}" INCLUDE_DIRS "${incs}" PRIV_REQUIRES "${priv_req}")
 
 # Copy .it.csv file to build directory

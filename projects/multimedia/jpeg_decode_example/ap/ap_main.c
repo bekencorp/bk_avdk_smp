@@ -4,7 +4,6 @@
 #include "cli.h"
 #include <components/bk_frame_buffer.h>
 #include "jpeg_decode_test.h"
-#include "jpeg_decode_stress.h"
 #include "media_service.h"
 
 #define SYS_ANA_REG_BASE    (0x44010000)
@@ -23,7 +22,6 @@ static const struct cli_command s_jpeg_decode_commands[] =
 {
     // Decode command
     {"jpeg_decode", "jpeg_decode", cli_jpeg_decode_cmd},
-    {"jpeg_decode_stress", "jpeg decode pressure test", cli_jpeg_decode_stress_cmd},
 };
 
 int cli_jpeg_decode_init(void)

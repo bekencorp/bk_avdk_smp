@@ -599,6 +599,12 @@ void cli_uvc_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char *
         {
             config.format = BK_IMAGE_FORMAT_YUV;
         }
+        else if (argc >= 5)
+        {
+            /* port/width/height given, format omitted: default MJPEG */
+            config.format = BK_IMAGE_FORMAT_MJPEG;
+            LOGW("format omitted, default mjpeg. full usage: uvc open <port> <w> <h> <mjpeg|yuv|h264|h265>\n");
+        }
         else
         {
             LOGE("Usage: uvc open <port> <width> <height> <h264|h265|mjpeg|yuv>\n");

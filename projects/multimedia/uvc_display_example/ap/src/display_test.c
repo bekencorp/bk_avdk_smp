@@ -14,7 +14,9 @@
 #include <common/avdk_pixel_types.h>
 #include <lcd/lcd_mipi_hx8399c_1080x1920.h>
 
-#include "gpu_vn_ctlr_v2.h"
+#include <components/bk_gpu.h>
+#include <components/bk_gpu_ctlr.h>
+#include "decode_test.h"
 
 #define TAG "display_test"
 #define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
@@ -22,6 +24,9 @@
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
 #define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
+
+#define DISPLAY_GPU_FLEXA_LINES     16
+#define DISPLAY_GPU_FLEXA_BUFF_CNT  2
 
 avdk_err_t display_test_open_with_gpu(void);
 avdk_err_t display_test_close(void);
@@ -183,7 +188,8 @@ static void display_test_frame_display(void *frame, uint32_t frame_size, void *a
     }
 }
 
-static bk_err_t display_test_enable_gpu(void)
+static bk_err_t display_test_enable_gpu(bool use_flexa, uint8_t *src_buffer, uint8_t flexa_buff_cnt,
+                                        uint16_t src_width, uint16_t src_height)
 {
     avdk_err_t ret = AVDK_ERR_OK;
     bk_gpu_ctlr_config_t gpu_config;
@@ -194,23 +200,33 @@ static bk_err_t display_test_enable_gpu(void)
         return AVDK_ERR_GENERIC;
     }
 
+    if (display_config->gpu_handle != NULL) {
+        LOGE("%s, %d, gpu already enabled\n", __func__, __LINE__);
+        return AVDK_ERR_BUSY;
+    }
+
     os_memset(&gpu_config, 0, sizeof(bk_gpu_ctlr_config_t));
-    /* Rotate to match 1080x1920 portrait panel. */
     gpu_config.rotate_degree = 90;
-    gpu_config.src_width = 1920;
-    gpu_config.src_height = 1088;
+    gpu_config.src_width = src_width;
+    gpu_config.src_height = (src_height + 15) & ~15U;
     gpu_config.dst_width = 1920;
     gpu_config.dst_height = 1080;
     gpu_config.src_format = BK_PIXEL_FORMAT_NV12;
     gpu_config.dst_format = BK_PIXEL_FORMAT_ARGB8888;
     gpu_config.compress = true;
     gpu_config.scale = true;
+    gpu_config.flexa = use_flexa;
+    gpu_config.flexa_lines = DISPLAY_GPU_FLEXA_LINES;
+    gpu_config.flexa_buff_cnt = flexa_buff_cnt;
+    gpu_config.src_buffer = src_buffer;
+    gpu_config.flexa_line_done = NULL;
+    gpu_config.flexa_line_done_args = NULL;
     gpu_config.frame_malloc = display_test_frame_malloc;
     gpu_config.frame_free = display_test_frame_free;
     gpu_config.frame_done = display_test_frame_display;
     gpu_config.frame_done_args = NULL;
 
-    ret = bk_gpu_test_ctlr_new(&display_config->gpu_handle, &gpu_config);
+    ret = bk_gpu_ctlr_new(&display_config->gpu_handle, &gpu_config);
 
     if (ret != AVDK_ERR_OK)
     {
@@ -218,7 +234,7 @@ static bk_err_t display_test_enable_gpu(void)
         return ret;
     }
 
-    ret = bk_gpu_test_init(display_config->gpu_handle);
+    ret = bk_gpu_init(display_config->gpu_handle);
 
     if (ret != AVDK_ERR_OK)
     {
@@ -226,7 +242,7 @@ static bk_err_t display_test_enable_gpu(void)
         return ret;
     }
 
-    ret = bk_gpu_test_open(display_config->gpu_handle);
+    ret = bk_gpu_open(display_config->gpu_handle);
 
     if (ret != AVDK_ERR_OK) {
         LOGW("%s, %d\n", __func__, __LINE__);
@@ -274,13 +290,53 @@ avdk_err_t display_test_open_with_gpu(void)
         return ret;
     }
 
-    ret = display_test_enable_gpu();
+    if (!decode_test_is_open()) {
+        LOGW("%s: decode not open, LCD only. Use 'pipeline open' for UVC display.\n", __func__);
+        return AVDK_ERR_OK;
+    }
+
+    uint8_t *flexa_buf = NULL;
+    uint8_t flexa_cnt = 0;
+    ret = decode_test_get_flexa_context(&flexa_buf, &flexa_cnt);
+    if (ret != AVDK_ERR_OK || flexa_buf == NULL || flexa_cnt == 0) {
+        LOGW("%s: no flexa buffer, LCD only\n", __func__);
+        return AVDK_ERR_OK;
+    }
+
+    ret = display_test_enable_gpu(true, flexa_buf, flexa_cnt, 1920, 1080);
     if (ret != AVDK_ERR_OK) {
         LOGE("%s, %d, enable gpu failed, ret=%d\n", __func__, __LINE__, ret);
         return ret;
     }
 
     return AVDK_ERR_OK;
+}
+
+avdk_err_t display_test_open_with_gpu_flexa(uint16_t width, uint16_t height,
+                                            uint8_t *src_buffer, uint8_t flexa_buff_cnt)
+{
+    avdk_err_t ret = display_test_turn_on();
+    if (ret != AVDK_ERR_OK) {
+        LOGE("%s turn on display failed, ret=%d\n", __func__, ret);
+        return ret;
+    }
+
+    ret = display_test_enable_gpu(true, src_buffer, flexa_buff_cnt, width, height);
+    if (ret != AVDK_ERR_OK) {
+        LOGE("%s enable gpu failed, ret=%d\n", __func__, ret);
+        return ret;
+    }
+
+    return AVDK_ERR_OK;
+}
+
+bk_gpu_ctlr_handle_t display_test_get_gpu_handle(void)
+{
+    app_display_config_t *display_config = s_display_config;
+    if (display_config == NULL) {
+        return NULL;
+    }
+    return display_config->gpu_handle;
 }
 
 avdk_err_t display_test_close(void)

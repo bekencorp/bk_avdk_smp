@@ -5,8 +5,6 @@
 #include "cli.h"
 #include <components/bk_frame_buffer.h>
 #include "h264_encode_test.h"
-#include "h264_encode_stress.h"
-#include "h264_encode_time_statisticsi.h"
 #include "media_service.h"
 
 #define SYS_ANA_REG_BASE    (0x44010000)
@@ -19,21 +17,12 @@
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
 #define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
-extern void cli_mjpeg_encode_stress_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv);
-extern void cli_mjpeg_flexa_dump_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv);
-
 #define CMDS_COUNT  (sizeof(s_h264_encode_commands) / sizeof(struct cli_command))
 
 static const struct cli_command s_h264_encode_commands[] =
 {
     // Encode command
     {"h264_encode", "h264_encode", cli_h264_encode_cmd},
-    // Legacy H264 encoder pressure test
-    {"h264_encode_stress", "h264 encode pressure test", cli_h264_encode_stress_cmd},
-    {"h264_encode_time_statisticsi", "frame|sw_flexa [n] GPIO32/33 timing", cli_h264_encode_time_statisticsi_cmd},
-
-    {"mjpeg_encode_stress", "mjpeg encode stress", cli_mjpeg_encode_stress_cmd},
-    {"mjpeg_flexa_dump", "mjpeg flexa encode+dump one frame", cli_mjpeg_flexa_dump_cmd},
 };
 
 int cli_h264_encode_init(void)

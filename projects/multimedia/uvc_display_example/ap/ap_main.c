@@ -22,10 +22,10 @@ static void bk_auxldo_enable(void)
 }
 static const struct cli_command s_uvc_display_commands[] =
 {
-    {"uvc", " uvc open | close", cli_uvc_test_cmd},
+    {"uvc", "uvc open <port> <w> <h> <mjpeg|...> | close <port>", cli_uvc_test_cmd},
     {"decode", "decode open | close", cli_decode_test_cmd},
     {"display", "display open | close", cli_display_test_cmd},
-    {"pipeline", "pipeline open | close", cli_pipeline_test_cmd},
+    {"pipeline", "pipeline open [port w h fps] | close", cli_pipeline_test_cmd},
 };
 
 #define CMDS_COUNT  (sizeof(s_uvc_display_commands) / sizeof(struct cli_command))
