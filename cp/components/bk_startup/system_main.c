@@ -573,6 +573,11 @@ void entry_main(void)
 
 	start_user_app_thread();
 
+#if CONFIG_IPC_STRESS_TEST
+	extern void mb_ipc_stress_srv_init(void);
+	mb_ipc_stress_srv_init();
+#endif
+
 	rtos_init_base_time();
 
 #if CONFIG_SAVE_BOOT_TIME_POINT
