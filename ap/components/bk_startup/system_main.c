@@ -395,6 +395,10 @@ static void app_main_thread(void *arg)
 	save_mtime_point(CPU_MAIN_ENTRY_TIME);
 #endif
 
+#if CONFIG_CP_HANG_DUMP_BY_AP
+	extern bk_err_t bk_cp_hang_dump_by_ap_init(void);
+	bk_cp_hang_dump_by_ap_init();
+#endif
 
 #ifdef RTOS_FUNC_TEST
 	/*rtos thread func test, for bk7256 bringup.*/
@@ -478,10 +482,6 @@ void entry_main(void)
 	save_mtime_point(CPU_START_SCHE_TIME);
 #endif
 
-#if CONFIG_CP_HANG_DUMP_BY_AP
-	extern bk_err_t bk_cp_hang_dump_by_ap_init(void);
-	bk_cp_hang_dump_by_ap_init();
-#endif
     set_ap_startup_index(AP_ENTER_RTOS_START_SCHEDULER);
 #if CONFIG_SUPPORT_WWDT
 	BK_LOG_ON_ERR(bk_wwdt_start(CONFIG_INT_WWDT_PERIOD_MS, false, 0));
