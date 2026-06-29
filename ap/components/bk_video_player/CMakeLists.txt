@@ -38,7 +38,7 @@ if (CONFIG_AVI_PLAYER)
     endif()
 endif()
 
-set(_priv_requires bk_common include avdk_utils lvgl bk_h264d bk_vfs)
+set(_priv_requires bk_common include avdk_utils lvgl bk_vfs)
 if (CONFIG_BK_VIDEO_PLAYER_ENABLE_AAC_AUDIO_DECODER)
     list(APPEND _priv_requires aacdec)
 endif()
