@@ -185,6 +185,7 @@ int vuyy_to_rgb565(uint8_t *src_buff, uint8_t *dst_buff, int width, int height);
 void argb8888_to_vuyy_blend(uint8_t *src, uint8_t *dst, uint32_t width, uint32_t height);
 void argb8888_to_yuyv_blend(uint8_t *src, uint8_t *dst, uint32_t width, uint32_t height);
 void argb8888_to_rgb565_blend(uint8_t *src, uint8_t *dst, uint32_t width, uint32_t height);
+void argb8888_to_rgb565le_blend(uint8_t *src, uint8_t *dst, uint32_t width, uint32_t height);
 void argb8888_to_rgb888_blend(uint8_t *src, uint8_t *dst, uint32_t width, uint32_t height);
 
 int vuyy_image_resize(uint8_t *src_img, uint8_t *dst_img, uint32_t src_width, uint32_t src_height, uint32_t dst_width, uint32_t dst_height);
