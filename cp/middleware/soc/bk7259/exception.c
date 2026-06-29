@@ -96,10 +96,6 @@ void user_nmi_handler(uint32_t lr, uint32_t sp)
 
 	dump_system_info(RESET_SOURCE_NMI_WDT, lr, sp);
 #else // nmi wdt without system info dump
-	if(!(reboot_tag_is_reboot())) {
-		bk_misc_set_reset_reason(RESET_SOURCE_NMI_WDT);
-	}
-
 	aon_pmu_drv_wdt_change_not_rosc_clk();
 	aon_pmu_drv_wdt_rst_dev_enable();
 	while(1){
