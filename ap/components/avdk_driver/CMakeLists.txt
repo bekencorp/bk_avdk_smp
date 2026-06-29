@@ -15,25 +15,6 @@ if (CONFIG_GPU)
 	)
 endif()
 
-if (CONFIG_H264D)
-	list(APPEND srcs
-		src/h264d/h264d_core.c
-	)
-endif()
-
-if (CONFIG_JPEGE)
-	list(APPEND srcs
-		src/jpege/jpege_driver.c
-		src/jpege/jpege_core.c
-	)
-endif()
-
-if (CONFIG_JPEGD)
-	list(APPEND srcs
-		src/jpegd/jpegd_core.c
-	)
-endif()
-
 if (CONFIG_MIPI_CSI)
 	list(APPEND srcs
 		src/mipi_csi/mipi_csi_driver.c
