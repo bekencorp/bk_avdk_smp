@@ -128,17 +128,21 @@ common:
 all: $(soc_targets) $(ARMINO_SOC)_cp
 
 ifeq ($(findstring Windows_NT,$(OS)), Windows_NT)
-	export WIN32 := 1
-	PRINT_SUMMARY := 0
-	export PYTHONPATH := $(ARMINO_TOOLS_PATH)/env_tools/bk_py_libs;$(PYTHONPATH)
+export WIN32 := 1
+PRINT_SUMMARY := 0
 else
-	export WIN32 := 0
-	export PYTHONPATH := $(ARMINO_TOOLS_PATH)/env_tools/bk_py_libs:$(PYTHONPATH)
+export WIN32 := 0
 endif
 
 BUILD_SMP_PARALLEL_SCRIPT := $(ARMINO_TOOLS_PATH)/build_tools/build_smp_parallel.sh
 BK_PY_LIBS_PATH := $(ARMINO_TOOLS_PATH)/env_tools/bk_py_libs
-RUN_PYTHON3 = PYTHONPATH=$(BK_PY_LIBS_PATH):$$PYTHONPATH python3
+ifeq ($(WIN32),1)
+export PYTHONPATH := $(BK_PY_LIBS_PATH);$(PYTHONPATH)
+RUN_PYTHON3 = python3
+else
+export PYTHONPATH := $(BK_PY_LIBS_PATH):$(PYTHONPATH)
+RUN_PYTHON3 = python3
+endif
 
 $(ARMINO_SOC)_ap: common build_prepare
 	@make $(ARMINO_SOC)_ap ARMINO_TOOLS_PATH=$(ARMINO_TOOLS_PATH) PROJECT_DIR=$(PROJECT_DIR) BUILD_DIR=$(PROJECT_BUILD_DIR) APP_NAME=$(APP_NAME) APP_VERSION=$(APP_VERSION) -C $(ARMINO_AP_DIR)
