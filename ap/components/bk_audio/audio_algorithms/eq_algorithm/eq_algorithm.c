@@ -101,6 +101,7 @@ typedef struct eq_algorithm
     eq_handle_t   eq_handle;
     app_eq_load_t eq_load;
     int           eq_mode;
+    beken_mutex_t cfg_lock;
 } eq_algorithm_t;
 
 #define EQ_HW_DAC_EQ_FILTER_NUM          (10)
@@ -306,6 +307,7 @@ static int _eq_algorithm_process(audio_element_handle_t self, char *in_buffer, i
         }
         EQ_ALGORITHM_START();
 
+        rtos_lock_mutex(&eq->cfg_lock);
         if (eq->eq_mode == EQ_MODE_HARDWARE)
         {
             /* EQ in DAC hardware; pipeline only passes data */
@@ -314,6 +316,7 @@ static int _eq_algorithm_process(audio_element_handle_t self, char *in_buffer, i
         {
             eq_process(eq->eq_handle, (int16_t *)in_buffer, r_size / 2);
         }
+        rtos_unlock_mutex(&eq->cfg_lock);
 
         EQ_ALGORITHM_END();
 
@@ -372,6 +375,10 @@ static bk_err_t _eq_algorithm_destroy(audio_element_handle_t self)
         {
             eq_destroy(eq->eq_handle);
         }
+        if (eq->cfg_lock)
+        {
+            rtos_deinit_mutex(&eq->cfg_lock);
+        }
         audio_free(eq);
     }
 
@@ -393,6 +400,13 @@ audio_element_handle_t eq_algorithm_init(eq_algorithm_cfg_t *config)
 
     eq_algorithm_t *eq_alg = audio_calloc(1, sizeof(eq_algorithm_t));
     AUDIO_MEM_CHECK(TAG, eq_alg, return NULL);
+
+    if (rtos_init_mutex(&eq_alg->cfg_lock) != BK_OK)
+    {
+        BK_LOGE(TAG, "%s, %d, eq cfg_lock create fail\n", __func__, __LINE__);
+        audio_free(eq_alg);
+        return NULL;
+    }
 
     audio_element_cfg_t cfg = DEFAULT_AUDIO_ELEMENT_CONFIG();
     cfg.open  = _eq_algorithm_open;
@@ -435,19 +449,46 @@ audio_element_handle_t eq_algorithm_init(eq_algorithm_cfg_t *config)
 
     return el;
 _eq_algorithm_init_exit:
+    if (eq_alg->cfg_lock)
+    {
+        rtos_deinit_mutex(&eq_alg->cfg_lock);
+    }
     audio_free(eq_alg);
     return NULL;
 }
 
 bk_err_t eq_algorithm_set_config(audio_element_handle_t eq_algorithm, void * eq_config)
 {
+    if (eq_algorithm == NULL || eq_config == NULL)
+    {
+        BK_LOGE(TAG, "%s, %d, NULL param (handle:%p, config:%p)\n", __func__, __LINE__, (void *)eq_algorithm, eq_config);
+        return BK_FAIL;
+    }
+
     eq_algorithm_t *eq = (eq_algorithm_t *)audio_element_getdata(eq_algorithm);
     app_aud_eq_config_t *eq_cfg = (app_aud_eq_config_t *)eq_config;
 
-    eq->eq_cfg.eq_gain      = eq_cfg->globle_gain;
-    eq->eq_cfg.eq_valid_num = eq_cfg->filters;
+    if (eq == NULL)
+    {
+        BK_LOGE(TAG, "%s, %d, eq is NULL\n", __func__, __LINE__);
+        return BK_FAIL;
+    }
 
-    os_memcpy(&eq->eq_cfg.eq_para, &eq_cfg->eq_para, sizeof(eq_para_t)*eq_cfg->filters);
+    /* clamp the requested band count to eq_para[] capacity; src and dst arrays are
+     * both CON_AUD_EQ_BANDS deep, so a larger filters would overrun both buffers */
+    uint32_t filters = eq_cfg->filters;
+    if (filters > CON_AUD_EQ_BANDS)
+    {
+        BK_LOGW(TAG, "%s, %d, filters(%u) > max(%d), clamp\n", __func__, __LINE__, (unsigned int)filters, CON_AUD_EQ_BANDS);
+        filters = CON_AUD_EQ_BANDS;
+    }
+
+    /* serialize live cfg/handle update against the element task's eq_process()/use */
+    rtos_lock_mutex(&eq->cfg_lock);
+    eq->eq_cfg.eq_gain      = eq_cfg->globle_gain;
+    eq->eq_cfg.eq_valid_num = filters;
+
+    os_memcpy(&eq->eq_cfg.eq_para, &eq_cfg->eq_para, sizeof(eq_para_t)*filters);
     os_memcpy(&eq->eq_load, &eq_cfg->eq_load, sizeof(app_eq_load_t));
     if (eq->eq_mode == EQ_MODE_SOFTWARE)
     {
@@ -456,6 +497,7 @@ bk_err_t eq_algorithm_set_config(audio_element_handle_t eq_algorithm, void * eq_
         if (!eq->eq_handle)
         {
             BK_LOGE(TAG, "%s, %d, eq element create fail\n", __func__, __LINE__);
+            rtos_unlock_mutex(&eq->cfg_lock);
             return BK_FAIL;
         }
     } else
@@ -464,12 +506,27 @@ bk_err_t eq_algorithm_set_config(audio_element_handle_t eq_algorithm, void * eq_
     }
 
     audio_element_setdata(eq_algorithm, eq);
+    rtos_unlock_mutex(&eq->cfg_lock);
     return BK_OK;
 }
 
 bk_err_t eq_algorithm_get_config(audio_element_handle_t eq_algorithm, void * eq_load)
 {
+    if (eq_algorithm == NULL || eq_load == NULL)
+    {
+        BK_LOGE(TAG, "%s, %d, NULL param (handle:%p, load:%p)\n", __func__, __LINE__, (void *)eq_algorithm, eq_load);
+        return BK_FAIL;
+    }
+
     eq_algorithm_t *eq = (eq_algorithm_t *)audio_element_getdata(eq_algorithm);
+    if (eq == NULL)
+    {
+        BK_LOGE(TAG, "%s, %d, eq is NULL\n", __func__, __LINE__);
+        return BK_FAIL;
+    }
+
+    rtos_lock_mutex(&eq->cfg_lock);
     os_memcpy(eq_load, &eq->eq_load, sizeof(app_eq_load_t));
+    rtos_unlock_mutex(&eq->cfg_lock);
     return BK_OK;
 }

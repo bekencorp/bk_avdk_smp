@@ -149,6 +149,12 @@ typedef struct aec_algorithm
 #if CONFIG_AEC_RUN_ON_M52
     aec_m52_proxy_t *m52_proxy;
 #endif
+    beken_mutex_t cfg_lock;
+    int     vad_cb_pending;
+    int     vad_cb_state;
+    int     phase_cb_pending;
+    int32_t phase_cb_phs;
+    int     phase_cb_vad_flag;
 } aec_v3_algorithm_t;
 
 #if CONFIG_AEC_RUN_ON_M52
@@ -460,7 +466,9 @@ static void aec_vad_flag_update(aec_v3_algorithm_t *aec, int vad_state)
         BK_LOGD(TAG, "vad_state:%s -> %s\n", vad_str[aec->vad_state],vad_str[vad_state]);
         aec->vad_state = vad_state;
         if (aec->vad_state_cb) {
-            aec->vad_state_cb(aec->vad_state);
+            /* defer the user callback to after cfg_lock release (see struct cfg_lock note) */
+            aec->vad_cb_pending = 1;
+            aec->vad_cb_state   = aec->vad_state;
         }
     }
 }
@@ -497,7 +505,10 @@ static void aec_phase_update(aec_v3_algorithm_t *aec, int tmp_vad_flag)
 {
     aec_ssl_proc(aec->aec_ctx, aec->out_addr, tmp_vad_flag);
     if (aec->aec_phase_cb) {
-        aec->aec_phase_cb(phs_sm2, tmp_vad_flag);
+        /* defer the user callback to after cfg_lock release (see struct cfg_lock note) */
+        aec->phase_cb_pending  = 1;
+        aec->phase_cb_phs      = phs_sm2;
+        aec->phase_cb_vad_flag = tmp_vad_flag;
     }
 }
 
@@ -506,7 +517,7 @@ static int aec_vad_proc(aec_v3_algorithm_t *aec)
     static int aec_vad_flag = 0;
     static int aec_vad_mem = 0;
 
-    if(aec->vad_cfg.vad_enable == 0)
+    if(aec->vad_cfg.vad_enable == 0 || aec->vad_rb == NULL)
     {
         aec_vad_flag = 0;
         aec_vad_mem = 0;
@@ -1090,6 +1101,9 @@ static int _aec_v3_algorithm_process(audio_element_handle_t self, char *in_buffe
         #endif
 
         AEC_ALGORITHM_START();
+        /* guard aec_ctx (shared with set_config's aec_ctrl) during the AEC compute window;
+         * user callbacks below are intentionally left outside the lock */
+        rtos_lock_recursive_mutex(&aec->cfg_lock);
 #if CONFIG_AEC_RUN_ON_M52
         if (aec->m52_proxy) 
         {
@@ -1127,6 +1141,27 @@ static int _aec_v3_algorithm_process(audio_element_handle_t self, char *in_buffe
         aec_vad_proc(aec);
 
         aec_phase_update(aec, aec->vad_state);
+        rtos_unlock_recursive_mutex(&aec->cfg_lock);
+
+        /* Fire deferred user callbacks OUTSIDE cfg_lock (order vad -> phase matches the
+         * original in-lock call order). Keeping them off the lock prevents an AB-BA deadlock
+         * if a callback re-enters bk_app_update_aud_*()/set_config/get_config. */
+        if (aec->vad_cb_pending)
+        {
+            aec->vad_cb_pending = 0;
+            if (aec->vad_state_cb)
+            {
+                aec->vad_state_cb(aec->vad_cb_state);
+            }
+        }
+        if (aec->phase_cb_pending)
+        {
+            aec->phase_cb_pending = 0;
+            if (aec->aec_phase_cb)
+            {
+                aec->aec_phase_cb(aec->phase_cb_phs, aec->phase_cb_vad_flag);
+            }
+        }
 
         if (aec->aec_level_cb)
         {
@@ -1195,7 +1230,7 @@ static int _aec_v3_algorithm_process(audio_element_handle_t self, char *in_buffe
 
         #endif
 
-        if((aec->vad_cfg.vad_enable) && (VAD_NONE != aec->vad_state))
+        if((aec->vad_cfg.vad_enable) && (aec->vad_rb) && (aec->out_read_addr) && (VAD_NONE != aec->vad_state))
         {
             static int vad_buff_data_size = 0;
             if((VAD_SPEECH_START != aec->vad_state) && (VAD_SILENCE != aec->vad_state))
@@ -1337,6 +1372,11 @@ static bk_err_t _aec_v3_algorithm_destroy(audio_element_handle_t self)
         audio_hsram_free(gtbuff);
         gtbuff = NULL;
     }
+    if (aec->cfg_lock)
+    {
+        rtos_deinit_recursive_mutex(&aec->cfg_lock);
+        aec->cfg_lock = NULL;
+    }
     audio_free(aec);
 
     AEC_DATA_DUMP_CLOSE();
@@ -1432,6 +1472,18 @@ audio_element_handle_t aec_v3_algorithm_init(aec_v3_algorithm_cfg_t *config)
             return NULL;
         }
     }
+    if (rtos_init_recursive_mutex(&aec_alg->cfg_lock) != BK_OK)
+    {
+        BK_LOGE(TAG, "%s, %d, cfg_lock create fail\n", __func__, __LINE__);
+        if (aec_alg->out_phase_interleave_buf)
+        {
+            audio_free(aec_alg->out_phase_interleave_buf);
+        }
+        audio_element_deinit(el);
+        audio_free(aec_alg);
+        return NULL;
+    }
+
     audio_element_setdata(el, aec_alg);
 
     AEC_DATA_DUMP_OPEN();
@@ -1456,6 +1508,8 @@ bk_err_t aec_v3_algorithm_set_config(audio_element_handle_t aec_algorithm, void 
     }
     app_aud_aec_v3_config_t *aec_cfg = (app_aud_aec_v3_config_t *)aec_config;
 
+    /* serialize aec_ctx reprogram + cfg/vad update against the element task's AEC compute */
+    rtos_lock_recursive_mutex(&aec->cfg_lock);
     aec_ctrl(aec->aec_ctx, AEC_CTRL_CMD_SET_FLAGS, 0x1F);//(uint32_t)aec_cfg->init_flags);
 
     aec->aec_cfg.init_flags   = 0x1F;//aec_cfg->init_flags;    // 0x1f
@@ -1507,6 +1561,7 @@ bk_err_t aec_v3_algorithm_set_config(audio_element_handle_t aec_algorithm, void 
 #endif
     os_printf("[+]%s, ec_depth:%d\n", __func__, aec->aec_cfg.ec_depth);
     audio_element_setdata(aec_algorithm, aec);
+    rtos_unlock_recursive_mutex(&aec->cfg_lock);
     return BK_OK;
 }
 
@@ -1523,6 +1578,7 @@ bk_err_t aec_v3_algorithm_get_config(audio_element_handle_t aec_algorithm, void 
     }
     app_aud_aec_v3_config_t *aec_cfg = (app_aud_aec_v3_config_t *)aec_config;
 
+    rtos_lock_recursive_mutex(&aec->cfg_lock);
     aec_cfg->aec_enable = 1;//aec->aec_cfg.enable;
 
     aec_cfg->mic_delay = aec->aec_cfg.delay_points;    //0x0
@@ -1543,6 +1599,7 @@ bk_err_t aec_v3_algorithm_get_config(audio_element_handle_t aec_algorithm, void 
     aec_cfg->vad_eng_threshold     = aec->vad_cfg.vad_eng_threshold;
     os_printf("[+]%s, ec_depth:%d\n", __func__, aec->aec_cfg.ec_depth);
 
+    rtos_unlock_recursive_mutex(&aec->cfg_lock);
     return BK_OK;
 }
 
@@ -1561,6 +1618,10 @@ int aec_v3_algorithm_get_aec_phase(audio_element_handle_t aec_algorithm)
     aec_v3_algorithm_t *aec = (aec_v3_algorithm_t *)audio_element_getdata(aec_algorithm);
     if (aec == NULL) {
         BK_LOGE(TAG, "aec is NULL \n");
+        return 0;
+    }
+    if (aec->aec_ctx == NULL) {
+        BK_LOGE(TAG, "aec_ctx is NULL \n");
         return 0;
     }
     return aec->aec_ctx->phs_old;

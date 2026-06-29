@@ -1,4 +1,5 @@
 
+#include <os/os.h>
 #include <components/audio_param_ctrl.h>
 #include <components/bk_audio/audio_pipeline/audio_pipeline.h>
 #if CONFIG_ADK_ONBOARD_MIC_STREAM_V2
@@ -59,11 +60,53 @@ typedef struct
 
 aud_service_param_ctrl_t aud_service_param_ctrl[AUD_SERVICE_MAX];
 
+static beken_mutex_t s_aud_param_lock = NULL;
+
+static void aud_param_lock(void)
+{
+    if (s_aud_param_lock == NULL)
+    {
+        beken_mutex_t new_lock = NULL;
+        if (rtos_init_recursive_mutex(&new_lock) == BK_OK && new_lock != NULL)
+        {
+            uint32_t flags = rtos_enter_critical();
+            if (s_aud_param_lock == NULL)
+            {
+                s_aud_param_lock = new_lock;
+                new_lock = NULL;
+            }
+            rtos_exit_critical(flags);
+
+            /* lost the race: another caller published first, drop our spare lock */
+            if (new_lock != NULL)
+            {
+                rtos_deinit_recursive_mutex(&new_lock);
+            }
+        }
+        else
+        {
+            /* creation failed (should not happen): degrade to no-lock instead of crashing */
+            return;
+        }
+    }
+
+    rtos_lock_recursive_mutex(&s_aud_param_lock);
+}
+
+static void aud_param_unlock(void)
+{
+    if (s_aud_param_lock != NULL)
+    {
+        rtos_unlock_recursive_mutex(&s_aud_param_lock);
+    }
+}
+
 void bk_app_aud_get_service_handle(void * service, app_aud_service_type_t service_type)
 {
     AUDIO_PARAM_CHECK_NULL(service, return);
     AUDIO_PARAM_CHECK_TYPE(service_type, return);
 
+    aud_param_lock();
     aud_service_param_ctrl[service_type].service = service;
     aud_service_param_ctrl[service_type].service_type = service_type;
 
@@ -80,6 +123,7 @@ void bk_app_aud_get_service_handle(void * service, app_aud_service_type_t servic
         default:
             break;
     }
+    aud_param_unlock();
  }
 
 void bk_app_aud_register_service_adapter(app_aud_service_type_t service_type,
@@ -87,15 +131,19 @@ void bk_app_aud_register_service_adapter(app_aud_service_type_t service_type,
                                          void *user_ctx)
 {
     AUDIO_PARAM_CHECK_TYPE(service_type, return);
+    aud_param_lock();
     aud_service_param_ctrl[service_type].adapter = adapter;
     aud_service_param_ctrl[service_type].user_ctx = user_ctx;
+    aud_param_unlock();
 }
 
 void bk_app_aud_unregister_service_adapter(app_aud_service_type_t service_type)
 {
     AUDIO_PARAM_CHECK_TYPE(service_type, return);
+    aud_param_lock();
     aud_service_param_ctrl[service_type].adapter = NULL;
     aud_service_param_ctrl[service_type].user_ctx = NULL;
+    aud_param_unlock();
 }
 
 static void bk_app_aud_get_mic_info(app_aud_service_type_t service_type, audio_element_handle_t *mic_str, int *mic_type)
@@ -246,6 +294,7 @@ void bk_app_aud_set_service_off(app_aud_service_type_t service_type)
 {
     AUDIO_PARAM_CHECK_TYPE(service_type, return);
     //LOGD("%s, service_type:%d", __func__, service_type);
+    aud_param_lock();
     aud_service_param_ctrl[service_type].service = NULL;
     aud_service_param_ctrl[service_type].service_type = AUD_SERVICE_MAX;
     switch (service_type) {
@@ -261,6 +310,7 @@ void bk_app_aud_set_service_off(app_aud_service_type_t service_type)
         default:
             break;
     }
+    aud_param_unlock();
 }
 
 bk_err_t bk_app_aud_service_bind(app_aud_service_type_t service_type,
@@ -275,6 +325,7 @@ bk_err_t bk_app_aud_service_bind(app_aud_service_type_t service_type,
         return BK_FAIL;
     }
 
+    aud_param_lock();
     para->service_handle = service_handle;
 
     bk_app_aud_get_service_handle(service_handle, service_type);
@@ -304,15 +355,18 @@ bk_err_t bk_app_aud_service_bind(app_aud_service_type_t service_type,
         }
     }
 
+    aud_param_unlock();
     return BK_OK;
 }
 
 void bk_app_aud_service_unbind(app_aud_service_type_t service_type)
 {
     AUDIO_PARAM_CHECK_TYPE(service_type, return);
+    aud_param_lock();
     bk_app_aud_unregister_service_adapter(service_type);
     bk_aud_debug_get_audpara(NULL, service_type);
     bk_app_aud_set_service_off(service_type);
+    aud_param_unlock();
 }
 
  void bk_app_update_aud_sys_config(app_aud_sys_config_t *sys_config, app_aud_service_type_t service_type)
@@ -324,6 +378,7 @@ void bk_app_aud_service_unbind(app_aud_service_type_t service_type)
     int mic_type = MIC_TYPE_INVALID;
     int spk_type = SPK_TYPE_INVALID;
 
+    aud_param_lock();
     bk_app_aud_get_mic_info(service_type, &mic_str, &mic_type);
     //os_printf("[+]%s, mic_str:0x%x, mic_type:%d\r\n", __func__, mic_str, mic_type);
     #if CONFIG_ADK_ONBOARD_MIC_STREAM_V2
@@ -346,6 +401,7 @@ void bk_app_aud_service_unbind(app_aud_service_type_t service_type)
         onboard_speaker_stream_set_analog_gain(spk_str, (int32_t)sys_config->spk0_analog_gain);
     }
     #endif
+    aud_param_unlock();
 }
 
 void bk_app_load_aud_sys_config(app_aud_sys_config_t *sys_config, app_aud_service_type_t service_type)
@@ -357,6 +413,7 @@ void bk_app_load_aud_sys_config(app_aud_sys_config_t *sys_config, app_aud_servic
     int mic_type = MIC_TYPE_INVALID;
     int spk_type = SPK_TYPE_INVALID;
 
+    aud_param_lock();
     bk_app_aud_get_mic_info(service_type, &mic_str, &mic_type);
     #if CONFIG_ADK_ONBOARD_MIC_STREAM_V2
     if (mic_str && mic_type == MIC_TYPE_ONBOARD)
@@ -381,6 +438,7 @@ void bk_app_load_aud_sys_config(app_aud_sys_config_t *sys_config, app_aud_servic
         sys_config->spk0_analog_gain = (int8_t)spk_ana_gain;
     }
     #endif
+    aud_param_unlock();
 }
 
 void bk_app_update_aud_aec_v3_config(app_aud_aec_v3_config_t *aec_config, app_aud_service_type_t service_type)
@@ -390,11 +448,13 @@ void bk_app_update_aud_aec_v3_config(app_aud_aec_v3_config_t *aec_config, app_au
 #if CONFIG_ADK_AEC_V3_ALGORITHM_COMPONENT_V2
     //LOGD("[+]%s, ec_depth:%d\n", __func__, aec_config->ec_depth);
     audio_element_handle_t aec_alg = NULL;
+    aud_param_lock();
     bk_app_aud_get_aec_alg(service_type, &aec_alg);
     if (aec_alg)
     {
         aec_v3_algorithm_set_config(aec_alg, (void *)aec_config);
     }
+    aud_param_unlock();
 #endif
 }
 
@@ -405,11 +465,13 @@ void bk_app_load_aud_aec_v3_config(app_aud_aec_v3_config_t *aec_config, app_aud_
 #if CONFIG_ADK_AEC_V3_ALGORITHM_COMPONENT_V2
     //LOGD("[+]%s, ec_depth:%d\n", __func__, aec_config->ec_depth);
     audio_element_handle_t aec_alg = NULL;
+    aud_param_lock();
     bk_app_aud_get_aec_alg(service_type, &aec_alg);
     if (aec_alg)
     {
         aec_v3_algorithm_get_config(aec_alg, (void *)aec_config);
     }
+    aud_param_unlock();
 #endif
 }
 
@@ -419,11 +481,13 @@ void bk_app_update_aud_eq_config(app_aud_eq_config_t *eq_config, app_aud_service
     AUDIO_PARAM_CHECK_TYPE(service_type, return);
 #if CONFIG_ADK_EQ_ALGORITHM
     audio_element_handle_t eq_alg = NULL;
+    aud_param_lock();
     bk_app_aud_get_eq_alg(service_type, &eq_alg);
     if (eq_alg)
     {
         eq_algorithm_set_config(eq_alg, (void *)eq_config);
     }
+    aud_param_unlock();
 #endif
 }
 
@@ -433,11 +497,13 @@ void bk_app_load_aud_eq_config(app_eq_load_t *eq_load, app_aud_service_type_t se
     AUDIO_PARAM_CHECK_TYPE(service_type, return);
 #if CONFIG_ADK_EQ_ALGORITHM
     audio_element_handle_t eq_alg = NULL;
+    aud_param_lock();
     bk_app_aud_get_eq_alg(service_type, &eq_alg);
     if (eq_alg)
     {
         eq_algorithm_get_config(eq_alg, (void *)eq_load);
     }
+    aud_param_unlock();
 #endif
 }
 

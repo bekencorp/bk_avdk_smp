@@ -143,6 +143,7 @@ typedef struct onboard_mic_stream
     uint32_t                 lp_samp;          /**< spectral low-pass open length in int16 samples (decoupled, longer) */
     uint32_t                 lp_remain;        /**< remaining int16 samples of the spectral low-pass window */
     int32_t                  lpf_y[3];         /**< cascaded one-pole low-pass states (one per order) used during the low-pass window */
+    beken_mutex_t            cfg_lock;
 } onboard_mic_stream_t;
 
 /* Mic (re)start transient shaper. Two decoupled windows; see the parameter
@@ -687,6 +688,11 @@ static bk_err_t _onboard_mic_destroy(audio_element_handle_t self)
         rtos_deinit_semaphore(&onboard_mic->can_process);
         onboard_mic->can_process = NULL;
     }
+    if (onboard_mic && onboard_mic->cfg_lock)
+    {
+        rtos_deinit_mutex(&onboard_mic->cfg_lock);
+        onboard_mic->cfg_lock = NULL;
+    }
 
     audio_free(onboard_mic);
     onboard_mic = NULL;
@@ -801,6 +807,13 @@ audio_element_handle_t onboard_mic_stream_init(onboard_mic_stream_cfg_t *config)
         goto _onboard_mic_init_exit;
     }
 
+    ret = rtos_init_mutex(&gl_onboard_mic->cfg_lock);
+    if (ret != BK_OK)
+    {
+        BK_LOGE(TAG, "%s, %d, cfg_lock create fail\n", __func__, __LINE__);
+        goto _onboard_mic_init_exit;
+    }
+
     el = audio_element_init(&cfg);
     AUDIO_MEM_CHECK(TAG, el, goto _onboard_mic_init_exit);
     audio_element_setdata(el, gl_onboard_mic);
@@ -829,6 +842,11 @@ _onboard_mic_init_exit:
         rtos_deinit_semaphore(&gl_onboard_mic->can_process);
         gl_onboard_mic->can_process = NULL;
     }
+    if (gl_onboard_mic->cfg_lock)
+    {
+        rtos_deinit_mutex(&gl_onboard_mic->cfg_lock);
+        gl_onboard_mic->cfg_lock = NULL;
+    }
 
     audio_free(gl_onboard_mic);
     gl_onboard_mic = NULL;
@@ -846,9 +864,11 @@ bk_err_t onboard_mic_stream_set_digital_gain(audio_element_handle_t onboard_mic_
         return BK_FAIL;
     }
 
+    rtos_lock_mutex(&onboard_mic->cfg_lock);
     if (onboard_mic->adc_cfg.chl_cfg[ch].dig_gain == gain_db)
     {
         BK_LOGD(TAG, "not need update onboard mic digital gain \n");
+        rtos_unlock_mutex(&onboard_mic->cfg_lock);
         return BK_OK;
     }
 
@@ -860,9 +880,11 @@ bk_err_t onboard_mic_stream_set_digital_gain(audio_element_handle_t onboard_mic_
     else
     {
         BK_LOGE(TAG, "%s, line: %d, update mic digital gain fail \n", __func__, __LINE__);
+        rtos_unlock_mutex(&onboard_mic->cfg_lock);
         return BK_FAIL;
     }
 
+    rtos_unlock_mutex(&onboard_mic->cfg_lock);
     return BK_OK;
 }
 
@@ -884,7 +906,9 @@ bk_err_t onboard_mic_stream_get_digital_gain(audio_element_handle_t onboard_mic_
         return BK_FAIL;
     }
 
+    rtos_lock_mutex(&onboard_mic->cfg_lock);
     *gain_db = onboard_mic->adc_cfg.chl_cfg[ch].dig_gain;
+    rtos_unlock_mutex(&onboard_mic->cfg_lock);
 
     return BK_OK;
 }
@@ -900,9 +924,11 @@ bk_err_t onboard_mic_stream_set_analog_gain(audio_element_handle_t onboard_mic_s
         return BK_FAIL;
     }
 
+    rtos_lock_mutex(&onboard_mic->cfg_lock);
     if (onboard_mic->adc_cfg.chl_cfg[ch].ana_gain == gain_db)
     {
         BK_LOGD(TAG, "not need update onboard mic analog gain \n");
+        rtos_unlock_mutex(&onboard_mic->cfg_lock);
         return BK_OK;
     }
 
@@ -913,9 +939,11 @@ bk_err_t onboard_mic_stream_set_analog_gain(audio_element_handle_t onboard_mic_s
     } else
     {
         BK_LOGE(TAG, "%s, line: %d, update mic analog gain fail \n", __func__, __LINE__);
+        rtos_unlock_mutex(&onboard_mic->cfg_lock);
         return BK_FAIL;
     }
 
+    rtos_unlock_mutex(&onboard_mic->cfg_lock);
     return BK_OK;
 }
 
@@ -936,7 +964,9 @@ bk_err_t onboard_mic_stream_get_analog_gain(audio_element_handle_t onboard_mic_s
         return BK_FAIL;
     }
 
+    rtos_lock_mutex(&onboard_mic->cfg_lock);
     *gain_db = onboard_mic->adc_cfg.chl_cfg[ch].ana_gain;
+    rtos_unlock_mutex(&onboard_mic->cfg_lock);
 
     return BK_OK;
 }

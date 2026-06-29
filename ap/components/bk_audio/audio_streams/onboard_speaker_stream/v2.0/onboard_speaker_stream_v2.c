@@ -201,6 +201,7 @@ typedef struct onboard_speaker_stream
     uint8_t                         play_energy_hysteresis; /**< play-state hysteresis in range 0~100 */
     onboard_speaker_status_cb_t     status_cb;              /**< status report callback */
     void                            *status_cb_user_data;   /**< callback private data */
+    beken_mutex_t                   cfg_lock;
 } onboard_speaker_stream_t;
 
 /* 16bit interleaved L,R -> 32bit word: LSB=left, MSB=right (DAC stereo_en HW split) */
@@ -1721,6 +1722,11 @@ static bk_err_t _onboard_speaker_destroy(audio_element_handle_t self)
         rtos_deinit_semaphore(&onboard_spk->can_process);
         onboard_spk->can_process = NULL;
     }
+    if (onboard_spk && onboard_spk->cfg_lock)
+    {
+        rtos_deinit_mutex(&onboard_spk->cfg_lock);
+        onboard_spk->cfg_lock = NULL;
+    }
 
     if (onboard_spk->pa_turn_on_timer)
     {
@@ -2059,6 +2065,13 @@ audio_element_handle_t onboard_speaker_stream_init(onboard_speaker_stream_cfg_t 
         goto _onboard_speaker_init_exit;
     }
 
+    ret = rtos_init_mutex(&gl_onboard_speaker->cfg_lock);
+    if (ret != BK_OK)
+    {
+        BK_LOGE(TAG, "%s, %d, cfg_lock create fail\n", __func__, __LINE__);
+        goto _onboard_speaker_init_exit;
+    }
+
 #if CONFIG_ADK_ONBOARD_SPEAKER_STREAM_SUPPORT_MULTIPLE_SOURCE
     if (cfg.multi_in_port_num > 0)
     {
@@ -2144,6 +2157,11 @@ _onboard_speaker_init_exit:
     {
         rtos_deinit_semaphore(&gl_onboard_speaker->can_process);
         gl_onboard_speaker->can_process = NULL;
+    }
+    if (gl_onboard_speaker->cfg_lock)
+    {
+        rtos_deinit_mutex(&gl_onboard_speaker->cfg_lock);
+        gl_onboard_speaker->cfg_lock = NULL;
     }
     
 #if CONFIG_ADK_ONBOARD_SPEAKER_STREAM_SUPPORT_MULTIPLE_SOURCE
@@ -2250,10 +2268,12 @@ bk_err_t onboard_speaker_stream_set_digital_gain(audio_element_handle_t onboard_
         return BK_FAIL;
     }
 
+    rtos_lock_mutex(&onboard_spk->cfg_lock);
     bk_err_t err = bk_aud_dac_set_dig_gain_db(gain_db);
     if (err != BK_OK)
     {
         BK_LOGE(TAG, "%s, line: %d, updata speaker digital gain fail \n", __func__, __LINE__);
+        rtos_unlock_mutex(&onboard_spk->cfg_lock);
         return err;
     }
 
@@ -2282,12 +2302,14 @@ bk_err_t onboard_speaker_stream_set_digital_gain(audio_element_handle_t onboard_
     if (err != BK_OK)
     {
         BK_LOGE(TAG, "%s, line: %d, get dig gain fail \n", __func__, __LINE__);
+        rtos_unlock_mutex(&onboard_spk->cfg_lock);
         return err;
     }
     BK_LOGD(TAG, "%s, line: %d, get dig gain_db: %.2f \n", __func__, __LINE__, res);
     onboard_spk->dig_gain = res;
     audio_element_setdata(onboard_speaker_stream, onboard_spk);
 
+    rtos_unlock_mutex(&onboard_spk->cfg_lock);
     return BK_OK;
 }
 
@@ -2307,13 +2329,16 @@ bk_err_t onboard_speaker_stream_get_digital_gain(audio_element_handle_t onboard_
         return BK_FAIL;
     }
 
+    rtos_lock_mutex(&onboard_spk->cfg_lock);
     bk_err_t err = bk_aud_dac_get_dig_gain_db(gain_db);
     if (err != BK_OK)
     {
         BK_LOGE(TAG, "%s, line: %d, get dig gain fail \n", __func__, __LINE__);
+        rtos_unlock_mutex(&onboard_spk->cfg_lock);
         return err;
     }
 
+    rtos_unlock_mutex(&onboard_spk->cfg_lock);
     return BK_OK;
 }
 
@@ -2354,9 +2379,11 @@ bk_err_t onboard_speaker_stream_set_analog_gain(audio_element_handle_t onboard_s
         return BK_FAIL;
     }
 
+    rtos_lock_mutex(&onboard_spk->cfg_lock);
     if (onboard_spk->ana_gain == gain_db)
     {
         BK_LOGD(TAG, "not need update onboard spk analog gain \n");
+        rtos_unlock_mutex(&onboard_spk->cfg_lock);
         return BK_OK;
     }
 
@@ -2367,8 +2394,10 @@ bk_err_t onboard_speaker_stream_set_analog_gain(audio_element_handle_t onboard_s
     } else
     {
         BK_LOGE(TAG, "%s, line: %d, update spk analog gain fail \n", __func__, __LINE__);
+        rtos_unlock_mutex(&onboard_spk->cfg_lock);
         return BK_FAIL;
     }
+    rtos_unlock_mutex(&onboard_spk->cfg_lock);
     return BK_OK;
 }
 
@@ -2388,7 +2417,9 @@ bk_err_t onboard_speaker_stream_get_analog_gain(audio_element_handle_t onboard_s
         return BK_FAIL;
     }
 
+    rtos_lock_mutex(&onboard_spk->cfg_lock);
     *gain_db = onboard_spk->ana_gain;
+    rtos_unlock_mutex(&onboard_spk->cfg_lock);
     return BK_OK;
 }
 
