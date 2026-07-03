@@ -11,6 +11,10 @@ typedef struct {
     uint32_t (*_sys_drv_modem_clk_ctrl)(bool clk_en);
     void (*_phy_exit_dsss_only)(void);
     void (*_phy_enter_dsss_only)(void);
+    /** Thread -> WiFi/BLE: stop 802.15.4 TX/RX/ED (bk_rf_adapter.c, MAC802154). */
+    void (*_thread_rf_coex_leave_for_wifi_ble)(void);
+    /** WiFi/BLE -> Thread: RX stop then RX start (bk_rf_adapter.c, MAC802154). */
+    void (*_thread_rf_coex_rx_start_on_enter_thread)(void);
     uint32_t (*_rtos_disable_int)(void);
     void (*_rtos_enable_int)(uint32_t int_level);
     void (*_rwnx_cal_mac_sleep_rc_recover)(void);
@@ -19,6 +23,7 @@ typedef struct {
     void (*_sys_drv_set_ana_reg12_dpfms)(uint32_t value);
     bk_err_t (*_bk_pm_module_vote_power_ctrl)(unsigned int module, uint32_t power_state);
     bk_err_t (*_bk_pm_clock_ctrl)(uint32_t module, uint32_t clock_state);
+    uint8_t (*_sys_hal_rf_ctrl_type_get)(void);
 } rf_control_funcs_t;
 extern const rf_control_funcs_t g_rf_control_funcs;
 

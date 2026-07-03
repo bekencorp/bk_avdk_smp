@@ -9,11 +9,21 @@
 #include "sys_ll.h"
 #include <modules/pm.h>
 #include "bk_wifi.h"
+#include "bk_rf_internal.h"
 
+#if CONFIG_MAC802154_ENABLE
+#include "lw_mac802154_interface.h"
+#endif
 #ifdef CONFIG_FREERTOS_SMP
 #include "spinlock.h"
 #endif // CONFIG_FREERTOS_SMP
 
+#if CONFIG_MAC802154_ENABLE
+#if CONFIG_OPENTHREAD
+extern void bk_ieee802154_check_ed_scan_stop(void);
+extern bool bk_ieee802154_check_ed_scan_start(void);
+#endif
+#endif
 uint32_t sys_drv_modem_bus_clk_ctrl_ptr(bool clk_en)
 {
 	return sys_drv_modem_bus_clk_ctrl(clk_en);
@@ -38,6 +48,39 @@ void phy_enter_dsss_only_ptr(void)
 #if (CONFIG_SOC_BK7239XX || CONFIG_SOC_BK7286XX || CONFIG_SOC_BK7259)
 	phy_enter_dsss_only();
 #else
+#endif
+}
+
+void bk_thread_rf_coex_leave_for_wifi_ble(void)
+{
+#if CONFIG_MAC802154_ENABLE
+	if (get_current_rf_path() == RF_PATH_THREAD_IQ)
+	{
+		if (lw_mac802154_lw_macl_is_tx_ongoing_pl() || lw_mac802154_lw_macl_is_rx_ongoing_pl())
+		{
+			BK_LOGI("rf", "thread is trxing %u %u\r\n",
+				(unsigned int)lw_mac802154_lw_macl_is_tx_ongoing_pl(),
+				(unsigned int)lw_mac802154_lw_macl_is_rx_ongoing_pl());
+		}
+	}
+	lw_mac802154_thread_tx_stop();
+	lw_mac802154_lw_macl_rx_config_pl_ext(LW_FALSE);
+	#if CONFIG_OPENTHREAD
+	bk_ieee802154_check_ed_scan_stop();
+	#endif
+#endif
+}
+
+void bk_thread_rf_coex_rx_start_on_enter_thread(void)
+{
+#if CONFIG_MAC802154_ENABLE
+	#if CONFIG_OPENTHREAD
+	if(bk_ieee802154_check_ed_scan_start())
+	#endif
+	{
+		lw_mac802154_lw_macl_rx_config_pl_ext(LW_FALSE);
+		lw_mac802154_lw_macl_rx_config_pl_ext(LW_TRUE);
+	}
 #endif
 }
 
@@ -86,11 +129,18 @@ bk_err_t bk_pm_clock_ctrl_ptr(uint32_t module, uint32_t clock_state)
 	return bk_pm_clock_ctrl((pm_dev_clk_e)module, (pm_dev_clk_pwr_e)clock_state);
 }
 
+uint8_t sys_hal_rf_ctrl_type_get_ptr(void)
+{
+	return sys_hal_rf_ctrl_type_get();
+}
+
 const rf_control_funcs_t g_rf_control_funcs = {
     ._sys_drv_modem_bus_clk_ctrl  = sys_drv_modem_bus_clk_ctrl_ptr,
     ._sys_drv_modem_clk_ctrl  = sys_drv_modem_clk_ctrl_ptr,
     ._phy_exit_dsss_only = phy_exit_dsss_only_ptr,
     ._phy_enter_dsss_only = phy_enter_dsss_only_ptr,
+    ._thread_rf_coex_leave_for_wifi_ble = bk_thread_rf_coex_leave_for_wifi_ble,
+    ._thread_rf_coex_rx_start_on_enter_thread = bk_thread_rf_coex_rx_start_on_enter_thread,
     ._rtos_disable_int = rtos_disable_int_ptr,
     ._rtos_enable_int = rtos_enable_int_ptr,
     ._rwnx_cal_mac_sleep_rc_recover = rwnx_cal_mac_sleep_rc_recover,
@@ -99,6 +149,7 @@ const rf_control_funcs_t g_rf_control_funcs = {
     ._sys_drv_set_ana_reg12_dpfms = sys_drv_set_ana_reg12_dpfms_ptr,
     ._bk_pm_module_vote_power_ctrl = bk_pm_module_vote_power_ctrl_ptr,
     ._bk_pm_clock_ctrl = bk_pm_clock_ctrl_ptr,
+	._sys_hal_rf_ctrl_type_get = sys_hal_rf_ctrl_type_get_ptr,
 };
 
 const rf_variable_t g_rf_variable = {
