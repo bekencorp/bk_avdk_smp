@@ -401,7 +401,7 @@ static bk_err_t record_pipeline_init(voice_handle_t voice_handle, voice_cfg_t *c
         if (BK_OK != audio_pipeline_set_listener(voice_handle->record_pipeline, voice_handle->record_evt))
         {
             BK_LOGE(TAG, "%s, %d, init record pipeline listener fail\n", __func__, __LINE__);
-            return BK_FAIL;
+            goto fail;
         }
     }
 
