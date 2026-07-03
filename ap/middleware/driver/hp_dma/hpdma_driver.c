@@ -1893,8 +1893,15 @@ bk_err_t bk_hpdma_link_set_desc(void *desc_table, uint32_t index,
     // User input: ysize = 1 means 1 row, ysize = 2 means 2 rows, etc.
     // Hardware expects: ysize = 0 means 1 row, ysize = 1 means 2 rows, etc.
     // So we need to decrement by 1 for hardware
-    desc->src_addr = config->src_addr;
-    desc->dst_addr = config->dst_addr;
+    /* The HPDMA engine can only access the 0x28xxxxxx SRAM alias. Plain mode
+     * (hpdma_hal_init_dma) already remaps via SOC_SRAM_PERI_ADDR, but link mode
+     * writes descriptors directly and previously kept the raw 0x2Cxxxxxx CPU
+     * alias, which the engine cannot reach. Mirror the plain-mode conversion
+     * here so link-mode transfers from cacheable SRAM read/write real data.
+     * The macro is range-guarded: PSRAM / 0x28 / register addresses pass through
+     * unchanged. */
+    desc->src_addr = (uint32_t)SOC_SRAM_PERI_ADDR((uintptr_t)config->src_addr);
+    desc->dst_addr = (uint32_t)SOC_SRAM_PERI_ADDR((uintptr_t)config->dst_addr);
     desc->xdim.bits.source_xsize = config->src_xsize;
     desc->xdim.bits.dest_xsize = config->dst_xsize;
     desc->ydim.bits.source_ysize = config->src_ysize - 1;
