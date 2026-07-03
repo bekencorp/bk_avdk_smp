@@ -1669,14 +1669,21 @@ uint8_t *puc;
 #if CONFIG_MEM_DEBUG_OVERFLOW
    
 	uint32_t i = 0;
-	uint32_t int_level = rtos_enter_critical();
+	/* SMP lock-order invariant (Redmine #8153): this code runs with s_spinlock_heap
+	 * held and interrupts masked (HeapEnterCritical), so the free list is already
+	 * serialized across cores. It must NOT take rtos_spin_lock here: acquiring a
+	 * second global spinlock while holding s_spinlock_heap inverts the lock order
+	 * versus the business malloc path (rtos_enter_critical -> pvPortMalloc_cm) and
+	 * AB-BA deadlocks the AP cores. Use local interrupt masking only, matching CP
+	 * heap_4.c and CheckFreeList(). */
+	uint32_t int_level = rtos_disable_int();
 
 	for( pxIterator = &xStart; (pxIterator->pxNextFreeBlock != pxEnd) && i < FREE_LIST_RECORD_MAX; pxIterator = pxIterator->pxNextFreeBlock )
 	{
 		/* bak all free nodes to list */
 		s_freelist_records[i++] = (uint32_t)pxIterator->pxNextFreeBlock;
 	}
-	rtos_exit_critical(int_level);
+	rtos_enable_int(int_level);
 #endif
 }
 
