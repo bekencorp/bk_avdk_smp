@@ -104,6 +104,12 @@ static bk_err_t pm_core_gpio_wakeup_config(const pm_ap_core_msg_t *msg)
 bk_err_t bk_pm_wakeup_source_set(pm_wakeup_source_e wakeup_source, void *source_param)
 {
 	GLOBAL_INT_DECLARATION();
+
+	if (wakeup_source >= PM_WAKEUP_SOURCE_INT_NONE)
+	{
+		return BK_ERR_PARAM;
+	}
+
 	GLOBAL_INT_DISABLE();
 	s_pm_wakeup_source |= 0x1 << wakeup_source;
 	if (source_param == NULL)

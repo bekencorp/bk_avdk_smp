@@ -26,7 +26,9 @@
 #include <driver/psram.h>
 #include "sys_hal.h"
 #include "driver/aon_rtc.h"
-
+#if CONFIG_DEEP_LV_DEBUG
+#include "pm_debug.h"
+#endif
 #if CONFIG_AP_EMUBOOT
 #include "cmsis_gcc.h"
 #include "sys_sw_regs.h"
@@ -279,8 +281,8 @@ void dlv_hook(void)
     if (dlv_is_startup())
     {
 #if CONFIG_DEEP_LV_DEBUG
-        GPIO_UP(37);//1
-        GPIO_DOWN(37);
+        PM_GPIO_UP(37);//1
+        PM_GPIO_DOWN(37);
 		early_jtag_gpio_map();
 #endif
 		bk_wdt_force_feed();

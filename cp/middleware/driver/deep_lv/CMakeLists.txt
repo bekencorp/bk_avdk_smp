@@ -1,5 +1,8 @@
 if (CONFIG_DEEP_LV)
-	list(APPEND incs deep_lv)
+	list(APPEND incs
+		deep_lv
+		../../../components/bk_pm/include
+	)
 
 	list(APPEND srcs
 		deep_lv/deep_lv.c

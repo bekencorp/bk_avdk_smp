@@ -98,6 +98,12 @@ bk_err_t __attribute__((weak)) bk_pm_module_vote_power_ctrl(pm_power_module_name
 	return BK_OK;
 }
 
+bk_err_t __attribute__((weak)) bk_pm_module_vote_psram_ctrl(pm_power_psram_module_name_e module, pm_power_module_state_e power_state)
+{
+	LOGD("bk_pm_module_vote_psram_ctrl: module=%d, power_state=%d (weak default)\n", module, power_state);
+	return BK_OK;
+}
+
 /* 6. 时钟和频率管理 */
 bk_err_t __attribute__((weak)) bk_pm_module_vote_cpu_freq(pm_dev_id_e module, pm_cpu_freq_e cpu_freq)
 {

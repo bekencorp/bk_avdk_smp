@@ -13,13 +13,22 @@
 // limitations under the License.
 
 #include <common/bk_include.h>
+#include <modules/pm.h>
 
-#define TAG "pm"
-#define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
-#define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
-#define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
-#define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
-#define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
+#define PM_TAG "pm"
+#define LOGI(...) BK_LOGI(PM_TAG, ##__VA_ARGS__)
+#define LOGW(...) BK_LOGW(PM_TAG, ##__VA_ARGS__)
+#define LOGE(...) BK_LOGE(PM_TAG, ##__VA_ARGS__)
+#define LOGD(...) BK_LOGD(PM_TAG, ##__VA_ARGS__)
+#define LOGV(...) BK_LOGV(PM_TAG, ##__VA_ARGS__)
+
+#if CONFIG_DEEP_LV_DEBUG
+#define PM_GPIO_UP(id)   *(volatile uint32_t*) (SOC_AON_GPIO_REG_BASE + ((id) << 2)) = 0x2000002
+#define PM_GPIO_DOWN(id) *(volatile uint32_t*) (SOC_AON_GPIO_REG_BASE + ((id) << 2)) = 0x2000000
+#else
+#define PM_GPIO_UP(id)   ((void)0)
+#define PM_GPIO_DOWN(id) ((void)0)
+#endif
 
 /****************************************************************************
  * Name: pm_debug_dump

@@ -251,6 +251,10 @@ int driver_early_init(void)
 	bk_wwdt_driver_init();
 #endif
 
+#if CONFIG_CKMN
+	bk_ckmn_driver_init();
+#endif
+
 	return 0;
 }
 
@@ -356,9 +360,6 @@ int driver_init(void) {
 //	bk_rott_driver_init();
 #endif
 
-#if CONFIG_CKMN
-	bk_ckmn_driver_init();
-#endif
 #if CONFIG_LIN
 	bk_lin_driver_init();
 #endif

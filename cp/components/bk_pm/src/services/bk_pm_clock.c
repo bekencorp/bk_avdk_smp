@@ -128,11 +128,21 @@ pm_cpu_freq_e bk_pm_current_max_cpu_freq_get()
 
 pm_cpu_freq_e bk_pm_module_current_cpu_freq_get(pm_dev_id_e module)
 {
+	if (module >= PM_DEV_ID_MAX)
+	{
+		return PM_CPU_FRQ_DEFAULT;
+	}
+
 	return s_pm_cpu_freq[module];
 }
 
 bk_err_t bk_pm_module_vote_cpu_freq(pm_dev_id_e module, pm_cpu_freq_e cpu_freq)
 {
+
+	if (module >= PM_DEV_ID_MAX)
+	{
+		return BK_ERR_PARAM;
+	}
 
 	if (pm_debug_mode() & 0x2)
 	{
@@ -301,6 +311,9 @@ bk_err_t pm_extern32k_register_cb(pm_cb_extern32k_cfg_t *cfg)
 	if (cfg == NULL)
 		return BK_FAIL;
 
+	if (cfg->cb_module >= PM_32K_MODULE_MAX)
+		return BK_ERR_PARAM;
+
 	s_pm_cb_module_cfg.cfg[cfg->cb_module].cb_func = cfg->cb_func;
 
 	return BK_OK;
@@ -310,6 +323,9 @@ bk_err_t pm_extern32k_unregister_cb(pm_cb_extern32k_cfg_t *cfg)
 {
 	if (cfg == NULL)
 		return BK_FAIL;
+
+	if (cfg->cb_module >= PM_32K_MODULE_MAX)
+		return BK_ERR_PARAM;
 
 	s_pm_cb_module_cfg.cfg[cfg->cb_module].cb_func = NULL;
 

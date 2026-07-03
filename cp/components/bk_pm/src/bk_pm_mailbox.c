@@ -397,11 +397,6 @@ static bk_err_t pm_cp0_mailbox_send_data(uint32_t cmd, uint32_t param1,uint32_t 
 	return BK_OK;
 }
 
-static void pm_cp0_mailbox_response(uint32_t cmd, int ret)
-{
-	pm_cp0_mailbox_send_data(cmd,ret,0,0);
-}
-
 static void pm_cp0_mailbox_tx_cmpl_isr(int *pm_mb, mb_chnl_ack_t *cmd_buf)
 {
 }
@@ -536,6 +531,11 @@ bk_err_t bk_pm_module_vote_boot_cp2_ctrl(pm_boot_cp2_module_name_e module,pm_pow
 {
 	GLOBAL_INT_DECLARATION();
 
+	if (module >= PM_BOOT_CP2_MODULE_NAME_MAX)
+	{
+		return BK_ERR_PARAM;
+	}
+
     if(power_state == PM_POWER_MODULE_STATE_ON)//power on
     {
         GLOBAL_INT_DISABLE();
@@ -566,6 +566,12 @@ static bk_err_t pm_psram_power_ctrl(pm_power_psram_module_name_e module,pm_power
 #if CONFIG_PSRAM
 	bk_err_t ret = BK_OK;
 	GLOBAL_INT_DECLARATION();
+
+	if (module >= PM_POWER_PSRAM_MODULE_NAME_MAX)
+	{
+		return BK_ERR_PARAM;
+	}
+
 	//BK_LOGD(NULL,"%s %d %d 0x%x\r\n",__func__, module, power_state,s_pm_psram_ctrl_state);
     if(power_state == PM_POWER_MODULE_STATE_ON)//power on
     {

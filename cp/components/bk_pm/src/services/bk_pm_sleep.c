@@ -117,6 +117,7 @@ uint64_t pm_normal_sleep_process()
 		/*When check bt wakeup time comming ,return, not sleep*/
 		if (!pm_check_protect_time(entry_tick, entry_tick))
 		{
+			GLOBAL_INT_RESTORE();
 			return sleep_tick;
 		}
 	}

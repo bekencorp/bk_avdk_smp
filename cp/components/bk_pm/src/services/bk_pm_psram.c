@@ -316,6 +316,12 @@ bk_err_t bk_pm_module_vote_psram_ctrl(pm_power_psram_module_name_e module,pm_pow
 	bk_err_t ret = BK_OK;
 
 	GLOBAL_INT_DECLARATION();
+
+	if (module >= PM_POWER_PSRAM_MODULE_NAME_MAX)
+	{
+		return BK_ERR_PARAM;
+	}
+
     if(power_state == PM_POWER_MODULE_STATE_ON)//power on
     {
         GLOBAL_INT_DISABLE();

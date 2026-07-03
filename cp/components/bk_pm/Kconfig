@@ -79,6 +79,20 @@ menu "PM"
 		bool "Enable deep low voltage debug"
 		default n
 
+	config AON_LDO_SEL
+		int "Config AON LDO voltage select"
+		range 0 7
+		default 2
+		help
+			Config AON LDO voltage select.
+			0:0.6V; 1:0.65V; 2:0.7V; 3:0.75V; 4:0.8V; 5:0.85V; 6:0.9V; 7:0.95V.
+
+	config OPTIMIZE_AON_CURRENT
+		bool "Optimize AON current"
+		default y
+		help
+			Optimize AON current by lowering AON LDO voltage during low voltage sleep.
+
 	config PM_AP_POWERDOWN_WHEN_LV
 		bool "Power down ap when sleep"
 		default n

@@ -399,12 +399,11 @@ extern int mp_do_startup(int heap_len);
 
 
 #if CONFIG_CPU_DEFAULT_FREQ_60M
-#if CONFIG_PM_ONLY_CP_ENABLE
-	bk_pm_module_vote_cpu_freq(PM_DEV_ID_DEFAULT,PM_CPU_FRQ_120M);
+	bk_pm_module_vote_cpu_freq(PM_DEV_ID_DEFAULT,PM_CPU_FRQ_60M);
 #else
-	bk_pm_module_vote_cpu_freq(PM_DEV_ID_DEFAULT,PM_CPU_FRQ_240M);
+	bk_pm_module_vote_cpu_freq(PM_DEV_ID_DEFAULT,CONFIG_PM_CPU_FRQ_DEFAULT);
 #endif
-#endif
+
 #if CONFIG_PM_LV_WDT_PROTECTION
 	pm_wifi_event_init();
 #endif

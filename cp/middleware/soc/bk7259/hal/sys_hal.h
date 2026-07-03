@@ -193,6 +193,8 @@ dev_clk_select_t sys_hal_get_clk_select(dev_clk_select_id_t dev);
 void sys_hal_set_dco_div(dev_clk_dco_div_t div);
 //DCO divider is valid for all of the peri-devices.
 dev_clk_dco_div_t sys_hal_get_dco_div(void);
+__IRAM_SEC void sys_hal_adjust_dpll(void);
+__IRAM_SEC void sys_hal_adjust_dco(void);
 /*clock power control end*/
 
 /* UART select clock    DIRTY **/

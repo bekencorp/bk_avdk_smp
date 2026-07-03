@@ -48,7 +48,6 @@ static uint32_t s_pm_wrlp_encp_state                    = 0;
 static uint32_t s_pm_hssub_power_state                  = 0;
 static uint32_t s_pm_ap_cpu_state                       = 0;
 
-static void pm_module_check_power_on(uint32_t *pm_off_modules, uint32_t *pm_on_modules, pm_power_module_name_e module);
 static void pm_module_check_power_off(uint32_t *pm_off_modules, uint32_t *pm_on_modules, pm_power_module_name_e module);
 
 
@@ -282,15 +281,6 @@ void pm_check_power_on_module(uint32_t *pm_off_modules, uint32_t *pm_on_modules,
 void pm_check_power_off_module(uint32_t *pm_off_modules, uint32_t *pm_on_modules, uint64_t *pm_sleeped_modules)
 {
 
-}
-
-static void pm_module_check_power_on(uint32_t *pm_off_modules, uint32_t *pm_on_modules, pm_power_module_name_e module)
-{
-	if (PM_POWER_MODULE_STATE_OFF == sys_drv_module_power_state_get(module))
-	{
-		*pm_off_modules &= ~(0x1 << module);
-		*pm_on_modules |= 0x1 << module;
-	}
 }
 
 static void pm_module_check_power_off(uint32_t *pm_off_modules, uint32_t *pm_on_modules, pm_power_module_name_e module)

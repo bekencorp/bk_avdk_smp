@@ -96,6 +96,29 @@ bk_err_t bk_ckmn_unregister_isr(ckmn_int_type_t int_type);
 bk_err_t bk_ckmn_soft_reset(void);
 
 /**
+ * @brief     Backup CKMN registers before sleep
+ *
+ * This API saves CKMN R/W configuration registers before low voltage sleep.
+ *
+ * @return
+ *    - BK_OK: succeed
+ *    - others: other errors.
+ */
+bk_err_t bk_ckmn_sleep_regs_backup(void);
+
+/**
+ * @brief     Restore CKMN registers after wakeup
+ *
+ * This API reinitializes CKMN interrupt/HAL state and restores CKMN R/W
+ * configuration registers saved before sleep.
+ *
+ * @return
+ *    - BK_OK: succeed
+ *    - others: other errors.
+ */
+bk_err_t bk_ckmn_sleep_regs_restore(void);
+
+/**
  * @brief    Set the number of counts for RC32K accuracy statistics
  *
  * This API 26m digital clock measurement 32k analog clock.

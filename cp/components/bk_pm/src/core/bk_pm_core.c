@@ -318,6 +318,11 @@ bk_err_t bk_pm_module_vote_power_ctrl(pm_power_module_name_e module, pm_power_mo
 
 bk_err_t bk_pm_module_vote_sleep_ctrl(pm_sleep_module_name_e module, uint32_t sleep_state, uint32_t sleep_time)
 {
+	if (module >= PM_SLEEP_MODULE_NAME_MAX)
+	{
+		return BK_ERR_PARAM;
+	}
+
 	if((module == PM_SLEEP_MODULE_NAME_AT) && (sleep_state == PM_POWER_MODULE_STATE_ON))
 	{
 		return BK_OK;
@@ -398,11 +403,21 @@ uint32_t bk_pm_low_vol_vote_state_get(void)
 
 int32_t bk_pm_module_sleep_state_get(pm_sleep_module_name_e module)
 {
+	if (module >= PM_SLEEP_MODULE_NAME_MAX)
+	{
+		return 0;
+	}
+
 	return !!(s_pm_sleeped_modules & (0x1ULL << module));
 }
 
 bk_err_t bk_pm_clear_deep_sleep_modules_config(pm_power_module_name_e module_name)
 {
+	if (module_name >= 32)
+	{
+		return BK_ERR_PARAM;
+	}
+
 	s_pm_enter_deep_sleep_modules &= ~(0x1 << module_name);
 	return BK_OK;
 }
@@ -410,7 +425,7 @@ bk_err_t bk_pm_clear_deep_sleep_modules_config(pm_power_module_name_e module_nam
 
 /*=========================PM FEATURE START========================*/
 #if CONFIG_PM_LIGHT_SLEEP
-bk_err_t pm_light_sleep(uint32_t sleep_ticks)
+uint64_t pm_light_sleep(uint32_t sleep_ticks)
 {
 	uint64_t previous_tick = 0;
 	uint64_t current_tick = 0;
@@ -418,18 +433,18 @@ bk_err_t pm_light_sleep(uint32_t sleep_ticks)
 	int ret = 0;
 	if (bk_pm_mcu_pm_state_get())
 	{
-		return BK_OK;
+		return 0ULL;
 	}
 
 	if ((s_pm_light_sleep_enter_cb_conf.cb == NULL) || (s_pm_light_sleep_exit_cb_conf.cb == NULL))
 	{
 
-		return BK_FAIL;
+		return 0ULL;
 	}
 	ret = s_pm_light_sleep_enter_cb_conf.cb(sleep_ticks * rtos_get_ms_per_tick(), s_pm_light_sleep_enter_cb_conf.args);
 	if (ret)
 	{
-		return BK_FAIL;
+		return 0ULL;
 	}
 	previous_tick = bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
 	current_tick = previous_tick;
@@ -444,6 +459,7 @@ bk_err_t pm_light_sleep(uint32_t sleep_ticks)
 	// bk_update_tick(missed_ticks);
 
 	s_pm_light_sleep_exit_cb_conf.cb(sleep_ticks * rtos_get_ms_per_tick(), s_pm_light_sleep_exit_cb_conf.args);
+	return missed_ticks;
 }
 #endif
 

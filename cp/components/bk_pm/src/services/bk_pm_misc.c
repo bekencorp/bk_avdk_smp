@@ -351,6 +351,8 @@ bk_err_t bk_low_pwr_misc_startup_rtc_tick_set(uint64_t time_tick)
 #if CONFIG_DEEPSLEEP_USING_WDT_PROTECT
 bk_err_t bk_low_pwr_deepsleep_using_wdt_protect()
 {
+	uint32_t sleep_count = 0;
+
 	if(aon_pmu_hal_get_reset_reason() == RESET_SOURCE_FORCE_DEEPSLEEP)
     {
         /*Get the deepsleep protect count*/
@@ -360,8 +362,8 @@ bk_err_t bk_low_pwr_deepsleep_using_wdt_protect()
         {
             /*Clear RTC INT */
             uint32_t value = REG_READ(SOC_AON_RTC_REG_BASE);
-            value  |= (0x1 >> 4);
-            value  |= (0x1 >> 5);
+            value  |= (0x1 << 4);
+            value  |= (0x1 << 5);
             REG_WRITE(SOC_AON_RTC_REG_BASE,value);
 
             value = REG_READ(SOC_AON_RTC_REG_BASE+0x3*4);
@@ -579,7 +581,7 @@ bk_err_t bk_gpio_ctrl_external_ldo(uint32_t module, gpio_id_t gpio_id, gpio_outp
 	/* Handle vote release (output low level) */
 	else {
 		/* Find the vote node for this GPIO (don't create) */
-		node = gpio_ldo_find_or_create_node(gpio_id, true);
+		node = gpio_ldo_find_or_create_node(gpio_id, false);
 		if (node == NULL) {
 			/* Node doesn't exist, meaning never voted, return success directly */
 			LOGV("GPIO %d vote node not exist, already released\r\n", gpio_id);

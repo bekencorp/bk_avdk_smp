@@ -35,7 +35,6 @@ static  beken_queue_t  s_queue;
 static volatile uint32_t s_msg_send_success = 0;
 static volatile uint32_t s_msg_send_fail    = 0;
 
-extern UINT32 s_pm_rtc_sleep_count;
 /*=====================VARIABLE  SECTION  END==================*/
 
 /*================FUNCTION DECLARATION  SECTION  START==========*/
@@ -53,16 +52,6 @@ static void pm_deep_lv_rtc_callback(aon_rtc_id_t id, uint8_t *name_p, void *para
 	bk_pm_send_msg(&msg);
 }
 #endif
-static bk_err_t pm_rtc_sleep_wakeup_callback(pm_sleep_mode_e sleep_mode,pm_wakeup_source_e wake_source,void* param_p)
-{
-    pm_ap_core_msg_t msg = {0};
-    msg.event= PM_CALLBACK_HANDLE_MSG;
-    msg.param1 = PM_MODE_LOW_VOLTAGE;
-    msg.param2 = PM_WAKEUP_SOURCE_INT_RTC;
-    msg.param3 = 2;
-    bk_pm_send_msg(&msg);
-    return BK_OK;
-}
 void pm_gpio_callback(gpio_id_t gpio_id)
 {
     pm_ap_core_msg_t msg = {0};
@@ -71,11 +60,6 @@ void pm_gpio_callback(gpio_id_t gpio_id)
     msg.param2 = PM_WAKEUP_SOURCE_INT_GPIO;
     msg.param3 = gpio_id;
     bk_pm_send_msg(&msg);
-}
-static bk_err_t pm_sleep_wakeup_callback(void* param1,uint32_t param2)
-{
-    LOGD("%s\r\n",__func__);
-    return BK_OK;
 }
 
 static bk_err_t pm_thread_init(void)
@@ -112,7 +96,7 @@ bk_err_t bk_pm_send_msg(pm_ap_core_msg_t *msg)
         s_msg_send_success++;
         return ret;
     }
-    return ret;
+    return BK_FAIL;
 }
 
 static bk_err_t pm_message_handle(void)
@@ -276,7 +260,11 @@ static bk_err_t pm_message_handle(void)
 				break;
 				case PM_CP_CORE_PSRAM_POWER:
 				{
+#if CONFIG_PSRAM
 					ret = bk_pm_module_vote_psram_ctrl(msg.param1,msg.param2);
+#else
+					ret = BK_ERR_NOT_SUPPORT;
+#endif
 					bk_pm_cp0_response_cp1(PM_CTRL_PSRAM_POWER_CMD, msg.param2,0,0);
 				}
 				break;
@@ -356,6 +344,7 @@ bk_err_t pm_thread_main(void)
     if (ret != BK_OK)
     {
         LOGE("create pm que fail\n");
+		return ret;
     }
 
 	/* Optimization: Use higher priority (lower number = higher priority)
@@ -371,6 +360,8 @@ bk_err_t pm_thread_main(void)
     if (ret != BK_OK)
     {
         LOGE("create pm thrd fail\n");
+		rtos_deinit_queue(&s_queue);
+		return ret;
     }
-	return 0;
+	return BK_OK;
 }

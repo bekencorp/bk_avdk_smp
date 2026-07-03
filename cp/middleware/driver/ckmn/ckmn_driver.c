@@ -26,6 +26,14 @@ typedef struct {
 	ckmn_hal_t hal;
 } ckmn_driver_t;
 
+typedef struct {
+	uint32_t global_ctrl;
+	uint32_t rc32k_count;
+	uint32_t rc32k_ctrl;
+	uint32_t corr_cfg;
+	bool valid;
+} ckmn_sleep_regs_t;
+
 #define CKMN_RETURN_ON_NOT_INIT() do {\
 		if (!s_ckmn_driver_is_init) {\
 			return BK_ERR_CKMN_DRIVER_NOT_INIT;\
@@ -48,6 +56,7 @@ typedef struct {
 static ckmn_driver_t s_ckmn = {0};
 static ckmn_isr_t s_ckmn_isr[CKMN_INT_MAX] = {NULL};
 static bool s_ckmn_driver_is_init = false;
+static ckmn_sleep_regs_t s_ckmn_sleep_regs = {0};
 
 bk_err_t bk_ckmn_register_isr(ckmn_int_type_t int_type, ckmn_isr_t int_isr)
 {
@@ -338,6 +347,41 @@ bk_err_t bk_ckmn_soft_reset(void)
 	return BK_OK;
 }
 
+__IRAM_SEC bk_err_t bk_ckmn_sleep_regs_backup(void)
+{
+	CKMN_RETURN_ON_NOT_INIT();
+
+	s_ckmn_sleep_regs.global_ctrl = REG_READ(CKMN_CTRL_ADDR);
+	s_ckmn_sleep_regs.rc32k_count = REG_READ(CKMN_RC32K_ADDR);
+	s_ckmn_sleep_regs.rc32k_ctrl = REG_READ(CKMN_RC32K_CTRL_ADDR);
+	s_ckmn_sleep_regs.corr_cfg = REG_READ(CKMN_CORR_CFG_ADDR);
+	s_ckmn_sleep_regs.valid = true;
+
+	return BK_OK;
+}
+
+__IRAM_SEC bk_err_t bk_ckmn_sleep_regs_restore(void)
+{
+	if (!s_ckmn_sleep_regs.valid) {
+		return BK_FAIL;
+	}
+
+	bk_int_isr_register(INT_SRC_CKMN, ckmn_isr, NULL);
+	ckmn_hal_init(&s_ckmn.hal);
+
+	REG_WRITE(CKMN_RC32K_ADDR, s_ckmn_sleep_regs.rc32k_count);
+	REG_WRITE(CKMN_CORR_CFG_ADDR, s_ckmn_sleep_regs.corr_cfg);
+	REG_WRITE(CKMN_RC32K_CTRL_ADDR, s_ckmn_sleep_regs.rc32k_ctrl);
+	REG_WRITE(CKMN_CTRL_ADDR, s_ckmn_sleep_regs.global_ctrl | CKMN_CTRL_SOFT_RESET_MASK);
+	REG_WRITE(CKMN_INTR_ADDR, CKMN_CKEST_INTR_STATUS_MASK |
+							 CKMN_COR26M_INTR_STATUS_MASK |
+							 CKMN_COR32K_INTR_STATUS_MASK);
+	sys_drv_int_enable(CKMN_INTERRUPT_CTRL_BIT);
+	s_ckmn_driver_is_init = true;
+
+	return BK_OK;
+}
+
 bk_err_t bk_ckmn_driver_init(void)
 {
 	if (s_ckmn_driver_is_init) {
@@ -346,6 +390,7 @@ bk_err_t bk_ckmn_driver_init(void)
 
 	os_memset(&s_ckmn, 0, sizeof(s_ckmn));
 	os_memset(&s_ckmn_isr, 0, sizeof(s_ckmn_isr));
+	os_memset(&s_ckmn_sleep_regs, 0, sizeof(s_ckmn_sleep_regs));
 
 	bk_int_isr_register(INT_SRC_CKMN, ckmn_isr, NULL);
 
@@ -369,6 +414,7 @@ bk_err_t bk_ckmn_driver_deinit(void)
 	}
 
 	s_ckmn_driver_is_init = false;
+	s_ckmn_sleep_regs.valid = false;
 	sys_drv_int_disable(CKMN_INTERRUPT_CTRL_BIT);
 	bk_int_isr_unregister(INT_SRC_CKMN);
 

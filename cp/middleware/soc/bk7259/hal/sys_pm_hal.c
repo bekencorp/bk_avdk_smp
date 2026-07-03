@@ -28,6 +28,7 @@
 #include <os/os.h>
 #include "sys_pm_hal.h"
 #include "sys_pm_hal_ctrl.h"
+#include "pm_debug.h"
 #include "modules/pm.h"
 
 #include "sys_sw_regs.h"
@@ -47,6 +48,7 @@
 #include "FreeRTOS.h"
 //#include "armstar.h"
 #include "deep_lv/deep_lv.h"
+#include <driver/ckmn.h>
 #endif
 #if CONFIG_MPU
 #include "mpu.h"
@@ -76,7 +78,7 @@
 
 #define PM_EXIT_LOWVOL_SYSTICK_TIME           (32)      //1ms
 #define PM_EXIT_LOWVOL_SYSTICK_RELOAD_TIME    (0xFFFFFF)//set max
-#define PM_LOW_VOL_AON_LDO_SEL                (2)       // 0.7V, no rosc32k output when 0.65V under -45��
+#define PM_LOW_VOL_AON_LDO_SEL                (CONFIG_AON_LDO_SEL) // 0:0.6V；1:0.65V；2:0.7V；3:0.75V  4:0.8V；5:0.85V；6:0.9V；7:0.95V
 #define PM_LOW_VOL_VIO_LDO_SEL                (0)       // 2.9V
 #define PM_VDDDIG_H_VOL_0V825                 (0x9)
 #define SYS_PM_HAL_CPU_BARRIER()              do {      \
@@ -1347,16 +1349,16 @@ __IRAM_PM void sys_hal_regs_digital_restore(void)
 
 	sys_ll_set_cpu_clk_div_mode1_value(s_sys_saved_regs[0]); // reg_0x8
 	#if CONFIG_DEEP_LV_DEBUG
-	GPIO_UP(37);//18
-	GPIO_DOWN(37);
+	PM_GPIO_UP(37);//18
+	PM_GPIO_DOWN(37);
 	#endif
 	sys_ll_set_cpu_clk_div_mode2_value(s_sys_saved_regs[1]); // reg_0x9
 	sys_ll_set_cpu_clk_div_mode3_value(s_sys_saved_regs[2]); // reg_0xa
 	sys_ll_set_cpu_anaspi_freq_value(s_sys_saved_regs[3]); // reg_0xb
 	sys_ll_set_cpu_device_clk_enable_value(s_sys_saved_regs[4]); // reg_0xc
 	#if CONFIG_DEEP_LV_DEBUG
-	GPIO_UP(37);//19
-	GPIO_DOWN(37);
+	PM_GPIO_UP(37);//19
+	PM_GPIO_DOWN(37);
 	#endif
 	sys_ll_set_reserver_reg0xf_value(s_sys_saved_regs[6]); // reg_0xf
 	//sys_ll_set_reserver_reg0x10_value(s_sys_saved_regs[7]); // reg_0x10
@@ -1371,13 +1373,13 @@ __IRAM_PM void sys_hal_regs_digital_restore(void)
 	// sys_ll_set_m55sub_int_32_63_en_value(s_sys_saved_regs[16]); // reg_0x1b
 	// sys_ll_set_m55sub_int_64_95_en_value(s_sys_saved_regs[17]); // reg_0x1c
 	#if CONFIG_DEEP_LV_DEBUG
-	GPIO_UP(37);//20
-	GPIO_DOWN(37);
+	PM_GPIO_UP(37);//20
+	PM_GPIO_DOWN(37);
 	#endif
 	sys_hal_mailbox_regs_restore();
 	#if CONFIG_DEEP_LV_DEBUG
-	GPIO_UP(37);//21
-	GPIO_DOWN(37);
+	PM_GPIO_UP(37);//21
+	PM_GPIO_DOWN(37);
 	#endif
 }
 __IRAM_PM void sys_hal_regs_analog_restore(void)
@@ -1403,9 +1405,11 @@ __IRAM_PM void sys_hal_enter_low_voltage(void)
 	volatile uint32_t systick_ctrl_value    = 0;
 	volatile uint32_t cur_vol               = 0;
 	volatile uint32_t v_ana_r9              = 0;
-	//uint32_t valoldosel            = 0;
+#if CONFIG_OPTIMIZE_AON_CURRENT
+	volatile uint32_t valoldosel            = 0;
+	volatile uint8_t  ustep                 = 0;
+#endif
 	//uint32_t violdosel             = 0;
-	//uint8_t  ustep                 = 0;
 
 	pm_lpo_src_e lpo_src           = PM_LPO_SRC_ROSC;
 
@@ -1593,14 +1597,19 @@ __IRAM_PM void sys_hal_enter_low_voltage(void)
 	// violdosel = sys_ana_ll_get_reg8_violdosel();
 	// sys_ana_ll_set_reg8_violdosel(PM_LOW_VOL_VIO_LDO_SEL); //0x0:2.9V vio voltage
 	/*aon voltage*/
-	// valoldosel = sys_ll_get_ana_reg9_valoldosel();
-	// sys_ll_set_ana_reg9_valoldosel(PM_LOW_VOL_AON_LDO_SEL); //0x4:0.8V aon voltage
+#if CONFIG_OPTIMIZE_AON_CURRENT
+	valoldosel = sys_ll_get_ana_reg9_valoldosel();
+	sys_ll_set_ana_reg9_valoldosel(PM_LOW_VOL_AON_LDO_SEL); //0x4:0.8V aon voltage
+#endif
 	sys_hal_disable_spi_latch();
 
 	uint64_t before = bk_aon_rtc_get_us();
 /*----enter low voltage sleep-------*/
 #if CONFIG_DEEP_LV
 	sys_hal_regs_save();
+#if CONFIG_CKMN
+	bk_ckmn_sleep_regs_backup();
+#endif
 	aon_pmu_hal_backup();
 	sys_hal_deep_lv_enter();
 	__NOP();
@@ -1616,8 +1625,8 @@ __IRAM_PM void sys_hal_enter_low_voltage(void)
 	arch_deep_sleep();
 #endif
 	#if CONFIG_DEEP_LV_DEBUG
-	GPIO_UP(37);//4
-	GPIO_DOWN(37);
+	PM_GPIO_UP(37);//4
+	PM_GPIO_DOWN(37);
 	#endif
 
 #if CONFIG_OTA_POSITION_INDEPENDENT_AB || CONFIG_DIRECT_XIP
@@ -1642,16 +1651,18 @@ __IRAM_PM void sys_hal_enter_low_voltage(void)
 	#endif
 
 	#if CONFIG_DEEP_LV_DEBUG
-	GPIO_UP(37);//5
-	GPIO_DOWN(37);
+	PM_GPIO_UP(37);//5
+	PM_GPIO_DOWN(37);
 	#endif
 /*-----------restore voltage  start----------------*/
 	sys_hal_enable_spi_latch();
 	/*aon voltage*/
-	// for(ustep = PM_LOW_VOL_AON_LDO_SEL+1; ustep <= valoldosel; ustep++)
-	// {
-	// 	sys_ll_set_ana_reg9_valoldosel(ustep); //restore to 0.9V aon voltage
-	// }
+#if CONFIG_OPTIMIZE_AON_CURRENT
+	for(ustep = PM_LOW_VOL_AON_LDO_SEL+1; ustep <= valoldosel; ustep++)
+	{
+		sys_ll_set_ana_reg9_valoldosel(ustep); //restore to 0.9V aon voltage
+	}
+#endif
 
 	#if CONFIG_SPE
 	aon_pmu_ll_set_r2(otp_vdd);// restore OTPLDO
@@ -1712,28 +1723,31 @@ __IRAM_PM void sys_hal_enter_low_voltage(void)
 	sys_hal_disable_spi_latch();
 /*-------------restore voltage  end-----------------*/
 	#if CONFIG_DEEP_LV_DEBUG
-	GPIO_UP(37);//6
-	GPIO_DOWN(37);
+	PM_GPIO_UP(37);//6
+	PM_GPIO_DOWN(37);
 	#endif
 /*----------restore analog clock  start--------------*/
 	sys_ll_set_ana_reg5_en_cb(1);
 	bk_delay_us(10);
 	#if CONFIG_DEEP_LV
 	#if CONFIG_DEEP_LV_DEBUG
-	GPIO_UP(37);//7
-	GPIO_DOWN(37);
+	PM_GPIO_UP(37);//7
+	PM_GPIO_DOWN(37);
 	#endif
 	//sys_hal_regs_digital_restore();
 	aon_pmu_hal_restore();
+#if CONFIG_CKMN
+	bk_ckmn_sleep_regs_restore();
+#endif
 	#if CONFIG_DEEP_LV_DEBUG
-	GPIO_UP(37);//8
-	GPIO_DOWN(37);
+	PM_GPIO_UP(37);//8
+	PM_GPIO_DOWN(37);
 	#endif
 
 #endif
 	#if CONFIG_DEEP_LV_DEBUG
-	GPIO_UP(37);//9
-	GPIO_DOWN(37);
+	PM_GPIO_UP(37);//9
+	PM_GPIO_DOWN(37);
 	#endif
 	sys_hal_restore_hf_clock(hf_reg_v);
 
@@ -1746,14 +1760,14 @@ __IRAM_PM void sys_hal_enter_low_voltage(void)
 	}
 	/*---------------wifi debug end -----------------*/
 	#if CONFIG_DEEP_LV_DEBUG
-		GPIO_UP(37);//10
-		GPIO_DOWN(37);
+		PM_GPIO_UP(37);//10
+		PM_GPIO_DOWN(37);
 	#endif
 	#if CONFIG_DEEP_LV_DEBUG
-	if((aon_pmu_ll_get_r7d_dpll_unlock_l() == 1) || (aon_pmu_ll_get_r7d_dpll_unlock_h() == 1)||aon_pmu_ll_get_r7d_sig_26mpll_unlock() == 1)
+	if((aon_pmu_ll_get_r7d_dpll_unlock_l() == 1) || (aon_pmu_ll_get_r7d_dpll_unlock_h() == 1))
 	{
-		GPIO_UP(34);
-		GPIO_DOWN(34);
+		PM_GPIO_UP(34);
+		PM_GPIO_DOWN(34);
 	}
 	#endif
 	//void sys_hal_early_init_sleep(void);
@@ -1773,8 +1787,8 @@ __IRAM_PM void sys_hal_enter_low_voltage(void)
 	}
 #endif
 	#if CONFIG_DEEP_LV_DEBUG
-	GPIO_UP(37);//11
-	GPIO_DOWN(37);
+	PM_GPIO_UP(37);//11
+	PM_GPIO_DOWN(37);
 	#endif
 
 	/*Use a function instead of delay*/
@@ -1782,19 +1796,19 @@ __IRAM_PM void sys_hal_enter_low_voltage(void)
 	pm_low_voltage_bsp_restore();
 
 	#if CONFIG_DEEP_LV_DEBUG
-	GPIO_UP(37);//12
-	GPIO_DOWN(37);
+	PM_GPIO_UP(37);//12
+	PM_GPIO_DOWN(37);
 	#endif
 
 	sys_hal_set_exit_low_voltage_tick(previous_tick);
 	#if CONFIG_DEEP_LV_DEBUG
-	GPIO_UP(37);//13
-	GPIO_DOWN(37);
+	PM_GPIO_UP(37);//13
+	PM_GPIO_DOWN(37);
 	#endif
 /*---------------at least delay 190us-----------------*/
 	#if CONFIG_DEEP_LV_DEBUG
-	GPIO_UP(37);//14
-	GPIO_DOWN(37);
+	PM_GPIO_UP(37);//14
+	PM_GPIO_DOWN(37);
 	#endif
 	/*restore power domain*/
 	if(pwd_cpu1 != sys_ll_get_reserver_reg0x10_pwd_cpu1())
@@ -1802,8 +1816,8 @@ __IRAM_PM void sys_hal_enter_low_voltage(void)
 		sys_ll_set_reserver_reg0x10_pwd_cpu1(pwd_cpu1);
 	}
 	#if CONFIG_DEEP_LV_DEBUG
-	GPIO_UP(37);//15
-	GPIO_DOWN(37);
+	PM_GPIO_UP(37);//15
+	PM_GPIO_DOWN(37);
 	#endif
 
 	if(pwd_vehp != sys_ll_get_reserver_reg0x10_pwd_vehp())
@@ -1811,10 +1825,10 @@ __IRAM_PM void sys_hal_enter_low_voltage(void)
 		sys_ll_set_reserver_reg0x10_pwd_vehp(pwd_vehp);
 	}
 	#if CONFIG_DEEP_LV_DEBUG
-	GPIO_UP(37);//16（GPIO37 16 matches the 17th pull-up）
-	GPIO_DOWN(37);
-	// GPIO_UP(36);//16
-	// GPIO_DOWN(36);
+	PM_GPIO_UP(37);//16（GPIO37 16 matches the 17th pull-up）
+	PM_GPIO_DOWN(37);
+	// PM_GPIO_UP(36);//16
+	// PM_GPIO_DOWN(36);
 	#endif
 	bk_delay_us(2);
 	if(pwd_wrls != sys_ll_get_reserver_reg0x10_pwd_wrls())
@@ -1828,15 +1842,15 @@ __IRAM_PM void sys_hal_enter_low_voltage(void)
 
 /*---------------at least delay 190us end -----------------*/
 	#if CONFIG_DEEP_LV_DEBUG
-	GPIO_UP(37);//17
-	GPIO_DOWN(37);
+	PM_GPIO_UP(37);//17
+	PM_GPIO_DOWN(37);
 	#endif
 	#if CONFIG_DEEP_LV
 	sys_hal_regs_digital_restore();
 	#endif
 	#if CONFIG_DEEP_LV_DEBUG
-	GPIO_UP(37);//22
-	GPIO_DOWN(37);
+	PM_GPIO_UP(37);//22
+	PM_GPIO_DOWN(37);
 	#endif
 	sys_hal_ctrl_vdddig_h_vol(cur_vol);
 	SYS_PM_HAL_CPU_BARRIER();
@@ -1863,22 +1877,22 @@ __IRAM_PM void sys_hal_enter_low_voltage(void)
 	}
 	SYS_PM_HAL_CPU_BARRIER();
 	#if CONFIG_DEEP_LV_DEBUG
-	GPIO_UP(37);//23
-	GPIO_DOWN(37);
+	PM_GPIO_UP(37);//23
+	PM_GPIO_DOWN(37);
 	#endif
 	sys_hal_restore_flash_freq(cksel_flash, clkdiv_flash);
 	SYS_PM_HAL_CPU_BARRIER();
 
 	#if CONFIG_DEEP_LV_DEBUG
-	GPIO_UP(37);//24
-	GPIO_DOWN(37);
+	PM_GPIO_UP(37);//24
+	PM_GPIO_DOWN(37);
 	#endif
 	sys_hal_restore_core_freq(cksel_core, clkdiv_core, clkdiv_bus);
 	SYS_PM_HAL_CPU_BARRIER();
 
 	#if CONFIG_DEEP_LV_DEBUG
-	GPIO_UP(37);//25
-	GPIO_DOWN(37);
+	PM_GPIO_UP(37);//25
+	PM_GPIO_DOWN(37);
 	#endif
 
 	aon_pmu_ll_set_r0_fast_boot(0);
@@ -1889,8 +1903,8 @@ __IRAM_PM void sys_hal_enter_low_voltage(void)
 	portNVIC_SYSTICK_CTRL_REG = systick_ctrl_value;
 
 	#if CONFIG_DEEP_LV_DEBUG
-	GPIO_UP(37);//26
-	GPIO_DOWN(37);
+	PM_GPIO_UP(37);//26
+	PM_GPIO_DOWN(37);
 	#endif
 }
 
@@ -2013,10 +2027,11 @@ void sys_hal_enter_low_analog(void)
 	sys_ll_set_ana_reg9_r_vanaldosel(0);
 	sys_ll_set_ana_reg9_alopowsel(1);
 	sys_ll_set_ana_reg10_spi_latch1v(0);
-
-	//sys_ll_set_ana_reg3_hpssren(0);
-	//sys_ll_set_ana_reg3_anabuf_sel_rx(1);
-	//sys_ll_set_ana_reg3_anabuf_sel_tx(1);
+	#if CONFIG_PM_CURRENT_OPTIMIZE_XTAL_RX_TX_ANABUF
+	sys_ll_set_ana_reg3_core_hpen(0);
+	sys_ll_set_ana_reg3_anabuf_sel_tx(1);
+	sys_ll_set_ana_reg2_anabufsel_rx(1);
+	#endif
 }
 
 /*
@@ -2070,10 +2085,71 @@ void sys_hal_exit_low_analog(void)
 	sys_hal_ramp_up_ana_reg9_vanaldosel(4, 4, 2);
 	sys_ll_set_ana_reg9_alopowsel(0);
 	sys_ll_set_ana_reg10_spi_latch1v(0);
+	#if CONFIG_PM_CURRENT_OPTIMIZE_XTAL_RX_TX_ANABUF
+	sys_ll_set_ana_reg3_core_hpen(1);
+	sys_ll_set_ana_reg3_anabuf_sel_tx(0);
+	sys_ll_set_ana_reg2_anabufsel_rx(0);
+	#endif
+}
 
-	//sys_ll_set_ana_reg3_hpssren(1);
-	//sys_ll_set_ana_reg3_anabuf_sel_rx(0);
-	//sys_ll_set_ana_reg3_anabuf_sel_tx(0);
+static int sys_hal_dco_cali(dco_cali_speed_e speed)
+{
+	uint32_t cnti = 0x171;
+	uint32_t ndiv = 0x12762762;
+	uint32_t bandcal;
+
+	switch (speed) {
+		case DCO_CALIB_SPEED_320M:
+			cnti = 0x0F6;
+			ndiv = 0x0C4EC4EC;
+			break;
+
+		case DCO_CALIB_SPEED_480M:
+		case DCO_CALIB_SPEED_240M:
+		case DCO_CALIB_SPEED_120M:
+		case DCO_CALIB_SPEED_80M:
+		case DCO_CALIB_SPEED_60M:
+			/* V2 DCO supports 320/480/640M VCO; use 480M for legacy lower-speed callers. */
+			cnti = 0x171;
+			ndiv = 0x12762762;
+			break;
+
+		default:
+			cnti = 0x171;
+			ndiv = 0x12762762;
+			break;
+	}
+
+	sys_ll_set_ana_reg1_value(0x00655044);
+	sys_ll_set_ana_reg7_value(0x622E7080);
+	sys_ll_set_ana_reg8_value(ndiv);
+	sys_ll_set_ana_reg2_rst_unlock_dco(0);
+	sys_ll_set_ana_reg2_unlock_sel_dco(0);
+	sys_ll_set_ana_reg2_dco_modecal_1(0);
+	sys_ll_set_ana_reg2_dco_modecal(0);
+
+	sys_ll_set_ana_reg7_cnti(cnti);
+	sys_ll_set_ana_reg5_en_dco(1);
+
+	sys_ll_set_ana_reg7_osccal_trig(0);
+	bk_delay_us(1);
+	sys_ll_set_ana_reg7_osccal_trig(1);
+	bk_delay_us(1);
+	sys_ll_set_ana_reg7_osccal_trig(0);
+	bk_delay_us(1);
+	sys_ll_set_ana_reg7_osccal_trig(1);
+	bk_delay_us(1);
+	sys_ll_set_ana_reg7_osccal_trig(0);
+
+	bk_delay_us(100);
+	bandcal = aon_pmu_hal_band_cal_get() & 0x3F;
+	sys_ll_set_ana_reg7_bandmanual(bandcal);
+	sys_ll_set_ana_reg7_manual(1);
+
+	sys_ll_set_ana_reg2_rst_unlock_dco(1);
+	sys_ll_set_ana_reg2_rst_unlock_dco(0);
+
+	return 0;
 }
 
 /**
@@ -2126,6 +2202,7 @@ static int sys_hal_enable_buck()
 
 	sys_hal_enable_spi_latch();
 	sys_ll_set_ana_reg12_aldosel(0);
+	bk_delay_us(1000);
 	sys_ll_set_ana_reg13_dldosel(0);
 	bk_delay_us(1);
 
@@ -2216,486 +2293,13 @@ void sys_hal_low_power_hardware_init()
 
 	/*set rosc calib trig once*/
 	sys_hal_rosc_calibration(3, 0);
+	/*dco cali*/
+	//sys_hal_dco_cali(DCO_CALIB_SPEED_240M);
 
 	/* Early boot path: initialize shared PM info without lock dependency. */
 	bk_sys_sw_regs_update_pm_shared_info(&shared_info, BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_ALL, BK_SYS_SW_REGS_LOCK_DISABLE);
 }
 
-#if CONFIG_PM_V3
-static bool s_pm_is_phy_reinit_flag = false;
-static uint32_t s_pm_phy_calibration_state    = 0;
-static int sys_hal_pd_cb(const device_t *device, pm_device_action_t action)
-{
-	uint32_t v;
-
-	switch (action) {
-	case PM_DEVICE_ACTION_POWER_ON:
-		//os_printf("%s power on\r\n", device_get_name(device));
-		v = sys_ll_get_cpu_power_sleep_wakeup_value();
-		v &= ~((uint32_t)(device->pm->data));
-		sys_ll_set_cpu_power_sleep_wakeup_value(v);
-		break;
-	case PM_DEVICE_ACTION_POWER_OFF:
-		//os_printf("%s power off\r\n", device_get_name(device));
-		v = sys_ll_get_cpu_power_sleep_wakeup_value();
-		v |= (uint32_t)(device->pm->data);
-		sys_ll_set_cpu_power_sleep_wakeup_value(v);
-		if((uint32_t)(device->pm->data) == PD_WRLS)
-			s_pm_phy_calibration_state = 0x0;
-		break;
-	default:
-		// os_printf("unknown action %d\r\n", action);
-		break;
-	}
-
-	return BK_OK;
-}
-
-static int sys_hal_peri1_cb(const device_t *device, pm_device_action_t action)
-{
-	uint32_t v;
-
-	switch (action) {
-	case PM_DEVICE_ACTION_POWER_ON:
-		// os_printf("%s power on\r\n", device_get_name(device));
-		v = sys_ll_get_cpu_device_clk_enable_value();
-		v |= (uint32_t)(device->pm->data);
-		sys_ll_set_cpu_device_clk_enable_value(v);
-		break;
-	case PM_DEVICE_ACTION_POWER_OFF:
-		// os_printf("%s power off\r\n", device_get_name(device));
-		v = sys_ll_get_cpu_device_clk_enable_value();
-		v &= ~((uint32_t)(device->pm->data));
-		sys_ll_set_cpu_device_clk_enable_value(v);
-		break;
-	default:
-		// os_printf("unknown action %d\r\n", action);
-		break;
-	}
-
-	return BK_OK;
-}
-
-static int sys_hal_peri2_cb(const device_t *device, pm_device_action_t action)
-{
-	uint32_t v;
-
-	switch (action) {
-	case PM_DEVICE_ACTION_POWER_ON:
-		// os_printf("%s power on\r\n", device_get_name(device));
-		v = sys_ll_get_cpu_device2_clk_enable_value();
-		v |= (uint32_t)(device->pm->data);
-		sys_ll_set_cpu_device2_clk_enable_value(v);
-		break;
-	case PM_DEVICE_ACTION_POWER_OFF:
-		// os_printf("%s power off\r\n", device_get_name(device));
-		v = sys_ll_get_cpu_device2_clk_enable_value();
-		v &= ~((uint32_t)(device->pm->data));
-		sys_ll_set_cpu_device2_clk_enable_value(v);
-		break;
-	default:
-		// os_printf("unknown action %d\r\n", action);
-		break;
-	}
-
-	return BK_OK;
-}
-
-static int sys_hal_wlss_cb(const device_t *device, pm_device_action_t action)
-{
-	uint32_t v;
-
-	switch (action) {
-	case PM_DEVICE_ACTION_SUSPEND:
-		// os_printf("%s suspend\r\n", device_get_name(device));
-		// aon_pmu_hal_set_wakeup_source(WAKEUP_SOURCE_INT_WIFI);
-		break;
-	case PM_DEVICE_ACTION_RESUME:
-		// os_printf("%s resume\r\n", device_get_name(device));
-		// aon_pmu_hal_clear_wakeup_source(WAKEUP_SOURCE_INT_WIFI);
-		break;
-	case PM_DEVICE_ACTION_POWER_ON:
-		// os_printf("%s power on\r\n", device_get_name(device));
-		v = sys_ll_get_cpu_device2_clk_enable_value();
-		v |= PERI_WLSS;
-		sys_ll_set_cpu_device2_clk_enable_value(v);
-		break;
-	case PM_DEVICE_ACTION_POWER_OFF:
-		#if CONFIG_DEEP_LV  //TEMPORARILY WORKAROUND for tsf register write-back failure,must be removed after next hardware version
-		// os_printf("%s power off\r\n", device_get_name(device));
-		v = sys_ll_get_cpu_device2_clk_enable_value();
-		v &= ~PERI_WLSS;
-		sys_ll_set_cpu_device2_clk_enable_value(v);
-		#endif
-		break;
-	default:
-		// os_printf("unknown action %d\r\n", action);
-		break;
-	}
-
-	return BK_OK;
-}
-static int sys_hal_mac_cb(const device_t *device, pm_device_action_t action)
-{
-	uint32_t v;
-
-	switch (action) {
-	case PM_DEVICE_ACTION_WAKEUP_ENABLE:
-		// os_printf("%s wakesource enabled\r\n", device_get_name(device));
-		aon_pmu_hal_set_wakeup_source(WAKEUP_SOURCE_INT_WIFI);
-		break;
-	case PM_DEVICE_ACTION_WAKEUP_DISABLE:
-		// os_printf("%s wakesource disabled\r\n", device_get_name(device));
-		aon_pmu_hal_clear_wakeup_source(WAKEUP_SOURCE_INT_WIFI);
-		break;
-	case PM_DEVICE_ACTION_POWER_ON:
-		// os_printf("%s power on\r\n", device_get_name(device));
-		v = sys_ll_get_cpu_device2_clk_enable_value();
-		v |= PERI_MAC;
-		sys_ll_set_cpu_device2_clk_enable_value(v);
-		break;
-	case PM_DEVICE_ACTION_POWER_OFF:
-		#if CONFIG_DEEP_LV  //TEMPORARILY WORKAROUND for tsf register write-back failure,must be removed after next hardware version
-		// os_printf("%s power off\r\n", device_get_name(device));
-		v = sys_ll_get_cpu_device2_clk_enable_value();
-		v &= ~PERI_MAC;
-		sys_ll_set_cpu_device2_clk_enable_value(v);
-		#endif
-		break;
-	default:
-		// os_printf("unknown action %d\r\n", action);
-		break;
-	}
-
-	return BK_OK;
-}
-
-static int sys_hal_btdm_cb(const device_t *device, pm_device_action_t action)
-{
-	uint32_t v;
-
-	switch (action) {
-	case PM_DEVICE_ACTION_WAKEUP_ENABLE:
-		// os_printf("%s wakesource enabled\r\n", device_get_name(device));
-		aon_pmu_hal_set_wakeup_source(WAKEUP_SOURCE_INT_BT);
-		break;
-	case PM_DEVICE_ACTION_WAKEUP_DISABLE:
-		// os_printf("%s wakesource disabled\r\n", device_get_name(device));
-		aon_pmu_hal_clear_wakeup_source(WAKEUP_SOURCE_INT_BT);
-		break;
-	case PM_DEVICE_ACTION_POWER_ON:
-		// os_printf("%s power on\r\n", device_get_name(device));
-		v = sys_ll_get_cpu_device2_clk_enable_value();
-		v |= PERI_BTDM;
-		sys_ll_set_cpu_device2_clk_enable_value(v);
-		break;
-	case PM_DEVICE_ACTION_POWER_OFF:
-		// os_printf("%s power off\r\n", device_get_name(device));
-		v = sys_ll_get_cpu_device2_clk_enable_value();
-		v &= ~PERI_BTDM;
-		sys_ll_set_cpu_device2_clk_enable_value(v);
-		break;
-	default:
-		// os_printf("unknown action %d\r\n", action);
-		break;
-	}
-
-	return BK_OK;
-}
-
-static int sys_hal_phy_bt_cb(const device_t *device, pm_device_action_t action)
-{
-	//uint32_t v;
-#if CONFIG_WIFI_ENABLE
-	extern void phy_wakeup_reinit(uint8 is_wifi);
-#else
-	extern void phy_wakeup_for_bluetooth();
-#endif
-	switch (action) {
-	case PM_DEVICE_ACTION_POWER_ON:
-		if(!s_pm_phy_calibration_state)
-		{
-#if CONFIG_WIFI_ENABLE
-			phy_wakeup_reinit(0);
-#else
-			phy_wakeup_for_bluetooth();
-#endif
-			s_pm_is_phy_reinit_flag = true;
-			s_pm_phy_calibration_state = 0x1;
-		}
-		break;
-	case PM_DEVICE_ACTION_POWER_OFF:
-		break;
-	default:
-		// os_printf("unknown action %d\r\n", action);
-		break;
-	}
-
-	return BK_OK;
-}
-
-static int sys_hal_phy_wifi_cb(const device_t *device, pm_device_action_t action)
-{
-	//uint32_t v;
-#if CONFIG_WIFI_ENABLE
-	extern void phy_wakeup_reinit(uint8 is_wifi);
-#else
-	extern void phy_wakeup_for_bluetooth();
-#endif
-	switch (action) {
-	case PM_DEVICE_ACTION_POWER_ON:
-		if(!s_pm_phy_calibration_state)
-		{
-#if CONFIG_WIFI_ENABLE
-			phy_wakeup_reinit(1);
-#else
-			phy_wakeup_for_bluetooth();
-#endif
-			s_pm_is_phy_reinit_flag = true;
-			s_pm_phy_calibration_state = 0x1;
-		}
-		break;
-	case PM_DEVICE_ACTION_POWER_OFF:
-		break;
-	default:
-		// os_printf("unknown action %d\r\n", action);
-		break;
-	}
-
-	return BK_OK;
-}
-
-static int sys_hal_test_cb(const device_t *device, pm_device_action_t action)
-{
-#if 0
-	switch (action) {
-	case PM_DEVICE_ACTION_SUSPEND:
-		os_printf("%s suspend\r\n", device_get_name(device));
-		break;
-	case PM_DEVICE_ACTION_RESUME:
-		os_printf("%s resume\r\n", device_get_name(device));
-		break;
-	case PM_DEVICE_ACTION_POWER_ON:
-		os_printf("%s power on\r\n", device_get_name(device));
-		break;
-	case PM_DEVICE_ACTION_POWER_OFF:
-		os_printf("%s power off\r\n", device_get_name(device));
-		break;
-	case PM_DEVICE_ACTION_UPDATE_FREQ:
-		os_printf("%s power off\r\n", device_get_name(device));
-		break;
-	default:
-		os_printf("unknown action %d\r\n", action);
-		break;
-	}
-#endif
-
-	return BK_OK;
-}
-
-// power domain definition for bk7259
-PM_DEVICE_DEFINE(aonp, null, PM_DEVICE_FLAG_ALWAYS_ON, 0, NULL);
-PM_DEVICE_DEFINE(cpu1, null, PM_DEVICE_FLAG_PASSIVE_DEEP_SLEEP, PD_CPU1, sys_hal_pd_cb);
-PM_DEVICE_DEFINE(vehp, null, 0, PD_VEHP, sys_hal_pd_cb);
-PM_DEVICE_DEFINE(wrls, null, 0, PD_WRLS, sys_hal_pd_cb);
-PM_DEVICE_DEFINE(rom,  null, PM_DEVICE_FLAG_DEFAULT_ON | PM_DEVICE_FLAG_PASSIVE_ALL, PD_ROM, sys_hal_pd_cb);
-// aonp
-PM_DEVICE_DEFINE(sys,    aonp, PM_DEVICE_FLAG_ALWAYS_ON, 0, sys_hal_test_cb);
-PM_DEVICE_DEFINE(flash,  aonp, PM_DEVICE_FLAG_ALWAYS_ON, 0, sys_hal_test_cb);
-PM_DEVICE_DEFINE(prro,   aonp, PM_DEVICE_FLAG_ALWAYS_ON, 0, sys_hal_test_cb);
-PM_DEVICE_DEFINE(aon,    aonp, PM_DEVICE_FLAG_ALWAYS_ON, 0, sys_hal_test_cb);
-PM_DEVICE_DEFINE(ckmn,   aonp, PM_DEVICE_FLAG_ALWAYS_ON, 0, sys_hal_test_cb);
-PM_DEVICE_DEFINE(efuse,  aonp, PM_DEVICE_FLAG_ALWAYS_ON, 0, sys_hal_test_cb);
-PM_DEVICE_DEFINE(iomx,   aonp, PM_DEVICE_FLAG_ALWAYS_ON, 0, sys_hal_test_cb);
-PM_DEVICE_DEFINE(mem_check, aonp, PM_DEVICE_FLAG_ALWAYS_ON, 0, sys_hal_test_cb);
-PM_DEVICE_DEFINE(timer,  aonp, PM_DEVICE_FLAG_ALWAYS_ON, PERI_TIM0, sys_hal_peri1_cb);
-PM_DEVICE_DEFINE(uart,   aonp, PM_DEVICE_FLAG_ALWAYS_ON, PERI_UART0, sys_hal_peri1_cb);
-PM_DEVICE_DEFINE(i2c3,   aonp, PM_DEVICE_FLAG_ALWAYS_ON, PERI_I2C3, sys_hal_peri1_cb);
-PM_DEVICE_DEFINE(spi0,   aonp, PM_DEVICE_FLAG_ALWAYS_ON, PERI_SPI0, sys_hal_peri1_cb);
-// cpu1: bakp audp
-PM_DEVICE_DEFINE(bakp,   cpu1, PM_DEVICE_FLAG_PASSIVE_ALL, 0, sys_hal_test_cb);
-PM_DEVICE_DEFINE(mbox,   bakp, PM_DEVICE_FLAG_PASSIVE_DEEP_SLEEP, 0, sys_hal_test_cb);
-PM_DEVICE_DEFINE(hspl,   bakp, PM_DEVICE_FLAG_PASSIVE_DEEP_SLEEP, 0, sys_hal_test_cb);
-PM_DEVICE_DEFINE(dma0,   bakp, PM_DEVICE_FLAG_PASSIVE_DEEP_SLEEP, 0, sys_hal_test_cb);
-PM_DEVICE_DEFINE(timer1, bakp, PM_DEVICE_FLAG_PASSIVE_DEEP_SLEEP, PERI_TIM1, sys_hal_peri1_cb);
-PM_DEVICE_DEFINE(uart1,  bakp, PM_DEVICE_FLAG_PASSIVE_DEEP_SLEEP, PERI_UART1, sys_hal_peri1_cb);
-PM_DEVICE_DEFINE(uart2,  bakp, PM_DEVICE_FLAG_PASSIVE_DEEP_SLEEP, PERI_UART2, sys_hal_peri1_cb);
-PM_DEVICE_DEFINE(uart3,  bakp, PM_DEVICE_FLAG_PASSIVE_DEEP_SLEEP, PERI_UART3, sys_hal_peri1_cb);
-PM_DEVICE_DEFINE(i2c,    bakp, PM_DEVICE_FLAG_PASSIVE_DEEP_SLEEP, PERI_I2C0, sys_hal_peri1_cb);
-PM_DEVICE_DEFINE(i2c1,   bakp, PM_DEVICE_FLAG_PASSIVE_DEEP_SLEEP, PERI_I2C1, sys_hal_peri1_cb);
-PM_DEVICE_DEFINE(spi1,   bakp, PM_DEVICE_FLAG_PASSIVE_DEEP_SLEEP, PERI_SPI1, sys_hal_peri1_cb);
-PM_DEVICE_DEFINE(spi2,   bakp, PM_DEVICE_FLAG_PASSIVE_DEEP_SLEEP, PERI_SPI2, sys_hal_peri1_cb);
-PM_DEVICE_DEFINE(sadc,   bakp, PM_DEVICE_FLAG_PASSIVE_DEEP_SLEEP, PERI_SADC, sys_hal_peri1_cb);
-PM_DEVICE_DEFINE(pwm,    bakp, PM_DEVICE_FLAG_PASSIVE_DEEP_SLEEP, PERI_PWM0, sys_hal_peri1_cb);
-PM_DEVICE_DEFINE(i3c,    bakp, PM_DEVICE_FLAG_PASSIVE_DEEP_SLEEP, PERI_I3C, sys_hal_peri1_cb);
-PM_DEVICE_DEFINE(timer2, bakp, PM_DEVICE_FLAG_PASSIVE_DEEP_SLEEP, PERI_TIM2, sys_hal_peri1_cb);
-PM_DEVICE_DEFINE(timer3, bakp, PM_DEVICE_FLAG_PASSIVE_DEEP_SLEEP, PERI_TIM3, sys_hal_peri1_cb);
-PM_DEVICE_DEFINE(i2c2,   bakp, PM_DEVICE_FLAG_PASSIVE_DEEP_SLEEP, PERI_I2C2, sys_hal_peri1_cb);
-PM_DEVICE_DEFINE(ipi,    bakp, PM_DEVICE_FLAG_PASSIVE_DEEP_SLEEP, 0, sys_hal_test_cb);
-PM_DEVICE_DEFINE(audp,   cpu1, 0, 0, sys_hal_test_cb);
-PM_DEVICE_DEFINE(aud,    audp, 0, PERI_AUDIO, sys_hal_peri2_cb);
-PM_DEVICE_DEFINE(spdif,  audp, 0, PERI_AUDIF0, sys_hal_peri2_cb);
-PM_DEVICE_DEFINE(spdif1, audp, 0, PERI_AUDIF1, sys_hal_peri2_cb);
-PM_DEVICE_DEFINE(i2s,    null, PM_DEVICE_FLAG_PASSIVE_ALL, PERI_I2S0, sys_hal_peri1_cb); // TODO fix it
-PM_DEVICE_DEFINE(i2s1,   audp, 0, PERI_I2S1, sys_hal_peri1_cb);
-PM_DEVICE_DEFINE(i2s2,   audp, 0, PERI_I2S2, sys_hal_peri1_cb);
-PM_DEVICE_DEFINE(i2s3,   audp, 0, PERI_I2S3, sys_hal_peri1_cb);
-PM_DEVICE_DEFINE(cec,    audp, 0, PERI_CEC, sys_hal_peri2_cb);
-// vehp
-PM_DEVICE_DEFINE(la,     vehp, PM_DEVICE_FLAG_PASSIVE_DEEP_SLEEP, 0, sys_hal_test_cb);
-PM_DEVICE_DEFINE(can0,   vehp, PM_DEVICE_FLAG_PASSIVE_DEEP_SLEEP, PERI_CAN0, sys_hal_peri1_cb);
-PM_DEVICE_DEFINE(can1,   vehp, PM_DEVICE_FLAG_PASSIVE_DEEP_SLEEP, PERI_CAN1, sys_hal_peri1_cb);
-PM_DEVICE_DEFINE(scr0,   vehp, PM_DEVICE_FLAG_PASSIVE_DEEP_SLEEP, PERI_SCR0, sys_hal_peri1_cb);
-PM_DEVICE_DEFINE(scr1,   vehp, PM_DEVICE_FLAG_PASSIVE_DEEP_SLEEP, PERI_SCR1, sys_hal_peri1_cb);
-PM_DEVICE_DEFINE(lin0,   vehp, PM_DEVICE_FLAG_PASSIVE_DEEP_SLEEP, PERI_LIN0, sys_hal_peri1_cb);
-PM_DEVICE_DEFINE(lin1,   vehp, PM_DEVICE_FLAG_PASSIVE_DEEP_SLEEP, PERI_LIN1, sys_hal_peri1_cb);
-PM_DEVICE_DEFINE(irda,   vehp, PM_DEVICE_FLAG_PASSIVE_DEEP_SLEEP, PERI_IRDA0, sys_hal_peri1_cb);
-PM_DEVICE_DEFINE(irda1,  vehp, PM_DEVICE_FLAG_PASSIVE_DEEP_SLEEP, PERI_IRDA1, sys_hal_peri1_cb);
-// wrls: wrlp encp
-PM_DEVICE_DEFINE(encp,   wrls, PM_DEVICE_FLAG_PASSIVE_DEEP_SLEEP, 0, sys_hal_test_cb);
-PM_DEVICE_DEFINE(otp,    encp, PM_DEVICE_FLAG_PASSIVE_DEEP_SLEEP, PERI_OTP, sys_hal_peri2_cb);
-PM_DEVICE_DEFINE(shanhai, encp, PM_DEVICE_FLAG_PASSIVE_DEEP_SLEEP, 0, sys_hal_test_cb);
-PM_DEVICE_DEFINE(wlss,   wrls, PM_DEVICE_FLAG_PASSIVE_DEEP_SLEEP, PERI_WLSS, sys_hal_wlss_cb);
-PM_DEVICE_DEFINE(wifi,   wlss, PM_DEVICE_FLAG_PASSIVE_DEEP_SLEEP, 0, sys_hal_test_cb);
-PM_DEVICE_DEFINE(mac,    wifi, PM_DEVICE_FLAG_WAKEUP_CAPABLE, ENTER_LOWVOL_WAKEUP_PROTECT_TIME, sys_hal_mac_cb);
-PM_DEVICE_DEFINE(phy,    wifi, PM_DEVICE_FLAG_PASSIVE_DEEP_SLEEP, PERI_PHY, sys_hal_peri2_cb);
-PM_DEVICE_DEFINE(btsp,   wlss, PM_DEVICE_FLAG_PASSIVE_DEEP_SLEEP, 0, sys_hal_test_cb);
-PM_DEVICE_DEFINE(btdm,   btsp, PM_DEVICE_FLAG_WAKEUP_CAPABLE, ENTER_LOWVOL_WAKEUP_PROTECT_TIME, sys_hal_btdm_cb);
-PM_DEVICE_DEFINE(xver,   btsp, PM_DEVICE_FLAG_PASSIVE_DEEP_SLEEP, PERI_XVER, sys_hal_peri2_cb);
-PM_DEVICE_DEFINE(thread, wlss, PM_DEVICE_FLAG_PASSIVE_DEEP_SLEEP, PERI_THREAD, sys_hal_peri2_cb);
-PM_DEVICE_DEFINE(phy_bt,   phy,  PM_DEVICE_FLAG_PASSIVE_DEEP_SLEEP, 0, sys_hal_phy_bt_cb);
-PM_DEVICE_DEFINE(phy_wifi, phy,  PM_DEVICE_FLAG_PASSIVE_DEEP_SLEEP, 0, sys_hal_phy_wifi_cb);
-PM_DEVICE_DEFINE(phy_rf,   phy,  PM_DEVICE_FLAG_PASSIVE_DEEP_SLEEP, 0, sys_hal_test_cb);
-
-PM_DEVICE_DEFINE(app, null, PM_DEVICE_FLAG_DEFAULT_ON | PM_DEVICE_FLAG_PASSIVE_DEEP_SLEEP, 0, sys_hal_test_cb);
-PM_DEVICE_DEFINE(log, null, PM_DEVICE_FLAG_PASSIVE_DEEP_SLEEP, 0, sys_hal_test_cb);
-PM_DEVICE_DEFINE(at, null, PM_DEVICE_FLAG_PASSIVE_DEEP_SLEEP, 0, sys_hal_test_cb);
-PM_DEVICE_DEFINE(pm, bakp, PM_DEVICE_FLAG_PASSIVE_ALL, 0, sys_hal_test_cb);
-
-PM_DEVICE_DEFINE(rosc, null, PM_DEVICE_FLAG_PASSIVE_DEEP_SLEEP, 0, sys_hal_test_cb);
-PM_DEVICE_DEFINE(rosc_prog, null, PM_DEVICE_FLAG_PASSIVE_DEEP_SLEEP, 0, sys_hal_test_cb);
-
-// dummy TODO should remove it
-PM_DEVICE_DEFINE(none, null, 0, 0, sys_hal_test_cb);
-
-/**
- * Convert pm_power_module_name_e to device_t pointer for power domain control.
- * Attention: Power domain tree was different from SOCs.
-*/
-device_t *pm_convert_power_module_enum_to_device_ptr(pm_power_module_name_e module)
-{
-	switch(module)
-	{
-		case PM_POWER_MODULE_NAME_ENCP:
-			return (device_t *)DEVICE_ID2PTR(encp);
-		case PM_POWER_MODULE_NAME_BAKP:
-			return (device_t *)DEVICE_ID2PTR(bakp);
-		case PM_POWER_MODULE_NAME_AUDP:
-			return (device_t *)DEVICE_ID2PTR(audp);
-		case PM_POWER_MODULE_NAME_ROM_PGEN:
-			return (device_t *)DEVICE_ID2PTR(rom);
-		case PM_POWER_MODULE_NAME_CPU1:
-			return (device_t *)DEVICE_ID2PTR(cpu1);
-		case PM_POWER_MODULE_NAME_APP:
-			return (device_t *)DEVICE_ID2PTR(app);
-		case PM_POWER_SUB_MODULE_NAME_AUDP_I2S:
-			return (device_t *)DEVICE_ID2PTR(i2s);
-		case PM_POWER_SUB_MODULE_NAME_BAKP_TIMER1:
-			return (device_t *)DEVICE_ID2PTR(timer1);
-		case PM_POWER_SUB_MODULE_NAME_BAKP_UART1:
-			return (device_t *)DEVICE_ID2PTR(uart1);
-		case PM_POWER_SUB_MODULE_NAME_BAKP_UART2:
-			return (device_t *)DEVICE_ID2PTR(uart2);
-		case PM_POWER_SUB_MODULE_NAME_BAKP_SPI1:
-			return (device_t *)DEVICE_ID2PTR(spi1);
-		case PM_POWER_SUB_MODULE_NAME_BAKP_I2C1:
-			return (device_t *)DEVICE_ID2PTR(i2c1);
-		case PM_POWER_SUB_MODULE_NAME_BAKP_SADC:
-			return (device_t *)DEVICE_ID2PTR(sadc);
-		case PM_POWER_SUB_MODULE_NAME_BAKP_IRDA:
-			return (device_t *)DEVICE_ID2PTR(irda);
-		case PM_POWER_SUB_MODULE_NAME_BAKP_DMA0:
-			return (device_t *)DEVICE_ID2PTR(dma0);
-		case PM_POWER_SUB_MODULE_NAME_BAKP_LA:
-			return (device_t *)DEVICE_ID2PTR(la);
-		case PM_POWER_SUB_MODULE_NAME_BAKP_UART3:
-			return (device_t *)DEVICE_ID2PTR(uart3);
-		case PM_POWER_SUB_MODULE_NAME_BAKP_I2S:
-			return (device_t *)DEVICE_ID2PTR(i2s);
-		case PM_POWER_MODULE_NAME_BTSP: // 8
-			return (device_t *)DEVICE_ID2PTR(btdm);
-		case PM_POWER_MODULE_NAME_WIFIP_MAC: // 9
-			return (device_t *)DEVICE_ID2PTR(mac);
-		case PM_POWER_SUB_MODULE_NAME_BAKP_PM:
-			return (device_t *)DEVICE_ID2PTR(pm);
-		case PM_POWER_MODULE_NAME_PHY: // 10
-			return (device_t *)DEVICE_ID2PTR(phy);
-		case PM_POWER_MODULE_NAME_THREAD: // 14
-			return (device_t *)DEVICE_ID2PTR(thread);
-		case PM_POWER_SUB_MODULE_NAME_PHY_BT:   // 300
-			return (device_t *)DEVICE_ID2PTR(phy_bt);
-		case PM_POWER_SUB_MODULE_NAME_PHY_WIFI: // 301
-			return (device_t *)DEVICE_ID2PTR(phy_wifi);
-		case PM_POWER_SUB_MODULE_NAME_PHY_RF:   // 302
-			return (device_t *)DEVICE_ID2PTR(phy_rf);
-		default:
-			os_printf("power module %d not registed\r\n", module);
-			return (device_t *)DEVICE_ID2PTR(none);
-	}
-	return NULL;
-}
-
-device_t *pm_convert_sleep_module_enum_to_device_ptr(pm_sleep_module_name_e module)
-{
-	switch(module)
-	{
-		case PM_SLEEP_MODULE_NAME_I2C1:
-			return (device_t *)DEVICE_ID2PTR(i2c1);
-		case PM_SLEEP_MODULE_NAME_SPI_1:
-			return (device_t *)DEVICE_ID2PTR(spi1);
-		case PM_SLEEP_MODULE_NAME_UART1:
-			return (device_t *)DEVICE_ID2PTR(uart1);
-		case PM_SLEEP_MODULE_NAME_TIMER_1:
-			return (device_t *)DEVICE_ID2PTR(timer1);
-		case PM_SLEEP_MODULE_NAME_SARADC:
-			return (device_t *)DEVICE_ID2PTR(sadc);
-		case PM_SLEEP_MODULE_NAME_AUDP:
-			return (device_t *)DEVICE_ID2PTR(audp);
-		case PM_SLEEP_MODULE_NAME_BTSP: // 8
-			return (device_t *)DEVICE_ID2PTR(btdm);
-		case PM_SLEEP_MODULE_NAME_WIFIP_MAC: // 9
-			return (device_t *)DEVICE_ID2PTR(mac);
-		case PM_SLEEP_MODULE_NAME_TIMER_2:
-			return (device_t *)DEVICE_ID2PTR(timer2);
-		case PM_SLEEP_MODULE_NAME_APP:
-			return (device_t *)DEVICE_ID2PTR(app);
-		case PM_SLEEP_MODULE_NAME_I2S_1:
-			return (device_t *)DEVICE_ID2PTR(i2s1);
-		case PM_SLEEP_MODULE_NAME_LOG: // 22
-			return (device_t *)DEVICE_ID2PTR(log);
-		case PM_SLEEP_MODULE_NAME_AT: // 23
-			return (device_t *)DEVICE_ID2PTR(at);
-		case PM_SLEEP_MODULE_NAME_I2C2: // 24
-			return (device_t *)DEVICE_ID2PTR(i2c2);
-		case PM_SLEEP_MODULE_NAME_UART2: // 25
-			return (device_t *)DEVICE_ID2PTR(uart2);
-		case PM_SLEEP_MODULE_NAME_UART3: // 26
-			return (device_t *)DEVICE_ID2PTR(uart3);
-		case PM_SLEEP_MODULE_NAME_AUDIO_ASR: // 28
-			return (device_t *)DEVICE_ID2PTR(timer3);
-		case PM_SLEEP_MODULE_NAME_CPU1: // 30
-			return (device_t *)DEVICE_ID2PTR(cpu1);
-		case PM_SLEEP_MODULE_NAME_ROSC_PROG: // 31
-			return (device_t *)DEVICE_ID2PTR(rosc_prog);
-		case PM_SLEEP_MODULE_NAME_ROSC: // 32
-			return (device_t *)DEVICE_ID2PTR(rosc);
-		default:
-			os_printf("sleep module %d not registed\r\n", module);
-			return (device_t *)DEVICE_ID2PTR(none);
-	}
-	return NULL;
-}
-#endif
 
 void sys_hal_set_ota_finish(uint32_t value)
 {

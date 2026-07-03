@@ -10,6 +10,7 @@ set(incs
 	hal
 	./
 	./misc
+	../../../components/bk_pm/include
 	)
 set(srcs "misc/stub.c")
 
