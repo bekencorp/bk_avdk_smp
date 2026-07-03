@@ -169,7 +169,7 @@ void cli_wifi_p2p_help(void)
 	CLI_RAW_LOGI("  -find: start peer discovery. \n");
 	CLI_RAW_LOGI("  -listen: enter listen state. \n");
 	CLI_RAW_LOGI("  -stop_find: stop peer discovery. \n");
-	CLI_RAW_LOGI("  -connect <dev> <method> <intent>: connect to peer. \n");
+	CLI_RAW_LOGI("  -connect <mac> <method> <intent>: connect to peer; mac is 12 hex digits (':' optional, same as sta bssid). \n");
 	CLI_RAW_LOGI("  -cancel: cancel ongoing P2P connection. \n");
 	CLI_RAW_LOGI("  -disable: disable P2P. \n");
 }
@@ -214,6 +214,27 @@ static int cli_hexstr2bin(const char *hex, u8 *buf, size_t len)
 		ipos += 2;
 	}
 	return 0;
+}
+
+/* Strip ':' so cli_hexstr2bin can parse MAC from log (%pm) or compact form. */
+static int cli_mac_str_to_bin(const char *mac_str, u8 *mac)
+{
+	char compact[13];
+	size_t di = 0, si = 0;
+
+	if (!mac_str || !mac)
+		return -1;
+
+	while (mac_str[si] && di < sizeof(compact) - 1) {
+		if (mac_str[si] != ':')
+			compact[di++] = mac_str[si];
+		si++;
+	}
+	if (di != 12)
+		return -1;
+
+	compact[12] = '\0';
+	return cli_hexstr2bin(compact, mac, 6);
 }
 
 const char *cli_wifi_sec_type_string(wifi_security_t security)
@@ -1111,7 +1132,7 @@ void cli_wifi_p2p_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char *
 			goto error;
 		}
 	} else if (!os_strcmp(argv[1], "connect")) {
-		uint8_t *peer = NULL;
+		uint8_t peer_mac[6] = {0};
 		int method = 0;
 		int intent = 0;
 
@@ -1121,10 +1142,14 @@ void cli_wifi_p2p_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char *
 			goto error;
 		}
 
-		peer = (uint8_t *)argv[2];
+		if (cli_mac_str_to_bin(argv[2], peer_mac) != 0) {
+			CLI_LOGE("invalid peer mac (12 hex digits, ':' optional): %s\n",
+				 argv[2]);
+			goto error;
+		}
 		method = os_strtoul(argv[3], NULL, 10);
 		intent = os_strtoul(argv[4], NULL, 10);
-		ret = bk_wifi_p2p_connect(peer, method, intent);
+		ret = bk_wifi_p2p_connect(peer_mac, method, intent);
 		if (ret != BK_OK) {
 			CLI_LOGE("p2p connect failed, err=%d\n", ret);
 			goto error;
