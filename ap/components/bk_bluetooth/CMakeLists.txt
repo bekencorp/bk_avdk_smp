@@ -210,7 +210,7 @@ if (CONFIG_BLUETOOTH_AP)
 
 	if (CONFIG_BLE_LE_AUDIO)
 		list(APPEND srcs
-			profile/bap/bk_dm_bap.c
+			service/dm/ble/bap/bk_dm_bap.c
 		)
 		list(APPEND incs
 			include
