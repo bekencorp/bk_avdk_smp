@@ -3,6 +3,7 @@
 #include <components/avdk_utils/avdk_check.h>
 
 #include "components/bk_encode/bk_h264_encode_ctlr.h"
+#include "h264_encode_vcenc_rate_ctrl_priv.h"
 
 #define TAG "bk_h264e"
 
@@ -90,6 +91,24 @@ avdk_err_t bk_h264_encode_get_rate_ctrl(bk_h264_encode_ctlr_handle_t handle,
     AVDK_RETURN_ON_FALSE(handle, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
     AVDK_RETURN_ON_FALSE(rate_ctrl, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
     return bk_h264_encode_ioctl(handle, BK_H264_ENCODE_IOCTL_GET_RATE_CTRL, rate_ctrl);
+}
+
+avdk_err_t h264e_stream_encode_set_vcenc_rate_ctrl(bk_h264_encode_ctlr_handle_t handle,
+                                                   bk_h264_encode_vcenc_rate_ctrl_t *rate_ctrl)
+{
+    AVDK_RETURN_ON_FALSE(handle, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
+    AVDK_RETURN_ON_FALSE(handle->ioctl, AVDK_ERR_UNSUPPORTED, TAG, AVDK_ERR_UNSUPPORTED_FUNCTION_TEXT);
+    AVDK_RETURN_ON_FALSE(rate_ctrl, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
+    return handle->ioctl(handle, H264_ENCODE_IOCTL_SET_VCENC_RATE_CTRL_PRIV, rate_ctrl);
+}
+
+avdk_err_t h264e_stream_encode_get_vcenc_rate_ctrl(bk_h264_encode_ctlr_handle_t handle,
+                                                   bk_h264_encode_vcenc_rate_ctrl_t *rate_ctrl)
+{
+    AVDK_RETURN_ON_FALSE(handle, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
+    AVDK_RETURN_ON_FALSE(handle->ioctl, AVDK_ERR_UNSUPPORTED, TAG, AVDK_ERR_UNSUPPORTED_FUNCTION_TEXT);
+    AVDK_RETURN_ON_FALSE(rate_ctrl, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
+    return handle->ioctl(handle, H264_ENCODE_IOCTL_GET_VCENC_RATE_CTRL_PRIV, rate_ctrl);
 }
 
 avdk_err_t bk_h264_encode_delete(bk_h264_encode_ctlr_handle_t handle)

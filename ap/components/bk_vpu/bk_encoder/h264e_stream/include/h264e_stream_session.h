@@ -39,6 +39,10 @@ int h264e_stream_session_send_h264(uint8_t *data, uint32_t length);
 
 const char *h264e_stream_session_get_form_json(void);
 const char *h264e_stream_session_get_rate_ctrl_schema_json(void);
+bk_err_t h264e_stream_session_get_video_config(uint16_t *width,
+                                               uint16_t *height,
+                                               uint16_t *fps,
+                                               uint32_t *gop_frame_count);
 #ifdef __cplusplus
 }
 #endif

@@ -10,6 +10,7 @@ set(srcs "")
 # Hardware encoder controller (always built)
 list(APPEND srcs
     common/hw_encoder_ctlr.c
+    common/h264_encode_vcenc_rate_ctrl.c
 )
 
 # H.264 and JPEG encoder sources when CONFIG_BK_ENCODER
@@ -29,6 +30,7 @@ endif()
 if (CONFIG_H264E_STREAM_SESSION)
     list(APPEND srcs
         h264e_stream/src/h264e_stream_session.c
+        h264e_stream/src/h264e_stream_schema.c
         h264e_stream/src/h264e_stream_protocol.c
         h264e_stream/src/h264e_stream_push.c
     )

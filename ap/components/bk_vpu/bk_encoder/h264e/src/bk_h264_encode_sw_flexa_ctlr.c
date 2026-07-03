@@ -8,6 +8,7 @@
 #include "modules/vcenc/vcenc_types.h"
 #include "modules/vcenc/vcenc_h264_api.h"
 #include "private_h264_encode_ctlr.h"
+#include "h264_encode_vcenc_rate_ctrl_priv.h"
 #include "hw_encoder_ctlr.h"
 #include <components/bk_frame_buffer.h>
 #include "avdk_monitor.h"
@@ -607,6 +608,7 @@ static avdk_err_t h264_encode_ctlr_get_rate_ctrl(private_h264_encode_sw_flexa_ct
     return AVDK_ERR_OK;
 }
 
+
 // Debug timer callback
 static void h264e_debug_callback(void *arg)
 {
@@ -695,6 +697,10 @@ static avdk_err_t h264_encode_ctlr_ioctl(bk_h264_encode_ctlr_handle_t handle, ui
             return h264_encode_ctlr_set_rate_ctrl(control, (bk_h264_encode_rate_ctrl_t *)arg);
         case BK_H264_ENCODE_IOCTL_GET_RATE_CTRL:
             return h264_encode_ctlr_get_rate_ctrl(control, (bk_h264_encode_rate_ctrl_t *)arg);
+        case H264_ENCODE_IOCTL_SET_VCENC_RATE_CTRL_PRIV:
+            return h264_encode_set_vcenc_rate_ctrl_common(&control->enc_param, control->encoder_inited, (bk_h264_encode_vcenc_rate_ctrl_t *)arg);
+        case H264_ENCODE_IOCTL_GET_VCENC_RATE_CTRL_PRIV:
+            return h264_encode_get_vcenc_rate_ctrl_common(&control->enc_param, control->encoder_inited, (bk_h264_encode_vcenc_rate_ctrl_t *)arg);
         case BK_H264_ENCODE_IOCTL_SET_FLEXA_LINES_READY: {
             if (control->encoder_inited) {
                 (void)vcenc_h264_update_slice_wr_cnt(&control->enc_param, (uint32_t)arg);

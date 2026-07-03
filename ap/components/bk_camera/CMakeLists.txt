@@ -17,6 +17,7 @@ if (CONFIG_ISP_FRAME_SESSION)
 	list(APPEND incs include/isp_frame)
 	list(APPEND srcs
 		src/isp_frame/isp_frame_session.c
+		src/isp_frame/isp_frame_schema.c
 		src/isp_frame/isp_frame_protocol.c
 		src/isp_frame/isp_frame_stream.c
 	)

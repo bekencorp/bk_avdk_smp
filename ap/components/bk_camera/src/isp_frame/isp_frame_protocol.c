@@ -765,39 +765,6 @@ static int isp_frame_handle_stop_encode(const char *id_json)
     return isp_frame_handle_isp_stop(id_json);
 }
 
-const char *isp_frame_session_get_form_json(void)
-{
-    return "{\"id\":\"isp-wifi-config\",\"title\":\"ISP Capture Config\","
-        "\"desc\":\"ISP startup parameters aligned with isp_dump_tool. Format (NV12/RAW10) is runtime tunable.\","
-        "\"groups\":["
-        "{\"id\":\"capture\",\"title\":\"Capture\",\"fields\":["
-        "{\"type\":\"number\",\"id\":\"rxTimeout\",\"label\":\"RX timeout (ms)\",\"default\":1000000,"
-        "\"min\":1,\"max\":1000000,\"description\":\"ISP frame read timeout in milliseconds\"},"
-        "{\"type\":\"number\",\"id\":\"sensorWidth\",\"label\":\"sensorWidth\",\"default\":2304,\"min\":1,\"max\":8192,\"unit\":\"pixel\"},"
-        "{\"type\":\"number\",\"id\":\"sensorHeight\",\"label\":\"sensorHeight\",\"default\":1296,\"min\":1,\"max\":8192,\"unit\":\"pixel\"},"
-        "{\"type\":\"number\",\"id\":\"ispW\",\"label\":\"ISP W\",\"default\":2304,\"min\":1,\"max\":8192,\"unit\":\"pixel\"},"
-        "{\"type\":\"number\",\"id\":\"ispH\",\"label\":\"ISP H\",\"default\":1296,\"min\":1,\"max\":8192,\"unit\":\"pixel\"},"
-        "{\"type\":\"select\",\"id\":\"format\",\"label\":\"Format\",\"default\":23,"
-        "\"options\":[{\"label\":\"NV12\",\"value\":23},{\"label\":\"RAW10\",\"value\":21}]},"
-        "{\"type\":\"select\",\"id\":\"pattern\",\"label\":\"Pattern\",\"default\":\"RGGB\","
-        "\"options\":[{\"label\":\"RGGB\",\"value\":\"RGGB\"},{\"label\":\"GRBG\",\"value\":\"GRBG\"},"
-        "{\"label\":\"GBRG\",\"value\":\"GBRG\"},{\"label\":\"BGGR\",\"value\":\"BGGR\"}]}]}"
-        "],\"submit\":{\"label\":\"Apply\",\"method\":\"doorbell.isp.setParameterValues\",\"build\":\"tree\"}}";
-}
-
-const char *isp_frame_session_get_rate_ctrl_schema_json(void)
-{
-    return "{\"supported\":["
-        "{\"id\":\"rxTimeout\",\"type\":\"u32\",\"min\":1,\"max\":1000000,\"description\":\"Frame read timeout (ms)\"},"
-        "{\"id\":\"sensorWidth\",\"type\":\"u16\",\"min\":1,\"max\":8192,\"description\":\"Sensor input width\"},"
-        "{\"id\":\"sensorHeight\",\"type\":\"u16\",\"min\":1,\"max\":8192,\"description\":\"Sensor input height\"},"
-        "{\"id\":\"ispW\",\"type\":\"u16\",\"min\":1,\"max\":8192,\"description\":\"ISP output width\"},"
-        "{\"id\":\"ispH\",\"type\":\"u16\",\"min\":1,\"max\":8192,\"description\":\"ISP output height\"},"
-        "{\"id\":\"format\",\"type\":\"u16\",\"enum\":[21,23],\"description\":\"Pixel format code (21=RAW10, 23=NV12)\"},"
-        "{\"id\":\"pattern\",\"type\":\"string\",\"enum\":[\"RGGB\",\"GRBG\",\"GBRG\",\"BGGR\"],\"description\":\"Bayer pattern for RAW10\"}"
-        "],\"note\":\"Apply via set_config before turnOn/start_encode. Only format supports runtime change after ISP is up.\"}";
-}
-
 static int isp_frame_handle_get_config_schema(const char *id_json)
 {
     int len = snprintf(s_isp_frame_result_buffer, sizeof(s_isp_frame_result_buffer),
@@ -810,13 +777,6 @@ static int isp_frame_handle_get_config_schema(const char *id_json)
     }
 
     return isp_frame_jsonrpc_send_result(id_json, s_isp_frame_result_buffer);
-}
-
-static int isp_frame_handle_get_minimal_config_schema(const char *id_json)
-{
-    return isp_frame_jsonrpc_send_result(id_json,
-        "{\"id\":\"isp-wifi-config\",\"title\":\"ISP Capture Config\","
-        "\"groups\":[],\"submit\":{\"label\":\"Apply\",\"method\":\"doorbell.isp.setParameterValues\"}}");
 }
 
 static int isp_frame_config_to_result(char *buffer, size_t buffer_len)
@@ -904,7 +864,6 @@ int isp_frame_protocol_handle(uint8_t *data, uint32_t length)
 
     if (strcmp(method->valuestring, "get_config_schema") == 0 ||
         strcmp(method->valuestring, "ispFrame.getParameterSchema") == 0 ||
-        strcmp(method->valuestring, "doorbell.isp.getParameterSchema") == 0 ||
         strcmp(method->valuestring, "isp.getParameterSchema") == 0 ||
         strcmp(method->valuestring, "isp_capture.getParameterSchema") == 0)
     {
@@ -912,7 +871,6 @@ int isp_frame_protocol_handle(uint8_t *data, uint32_t length)
     }
     else if (strcmp(method->valuestring, "get_config") == 0 ||
              strcmp(method->valuestring, "ispFrame.getConfig") == 0 ||
-             strcmp(method->valuestring, "doorbell.isp.getConfig") == 0 ||
              strcmp(method->valuestring, "isp.getConfig") == 0 ||
              strcmp(method->valuestring, "isp_capture.getConfig") == 0)
     {
@@ -920,19 +878,16 @@ int isp_frame_protocol_handle(uint8_t *data, uint32_t length)
     }
     else if (strcmp(method->valuestring, "set_config") == 0 ||
              strcmp(method->valuestring, "ispFrame.setConfig") == 0 ||
-             strcmp(method->valuestring, "doorbell.isp.setParameterValues") == 0 ||
              strcmp(method->valuestring, "isp.setParameterValues") == 0 ||
              strcmp(method->valuestring, "isp_capture.setParameterValues") == 0)
     {
         ret = isp_frame_handle_set_config(params, id_json);
     }
-    else if (strcmp(method->valuestring, "get_rate_ctrl") == 0 ||
-             strcmp(method->valuestring, "doorbell.encoder.getVcencRateControl") == 0)
+    else if (strcmp(method->valuestring, "get_rate_ctrl") == 0)
     {
         ret = isp_frame_handle_get_rate_ctrl(id_json);
     }
     else if (strcmp(method->valuestring, "set_rate_ctrl") == 0 ||
-             strcmp(method->valuestring, "doorbell.isp.setVcencRateControl") == 0 ||
              strcmp(method->valuestring, "isp.setVcencRateControl") == 0)
     {
         ret = isp_frame_handle_set_rate_ctrl(params, id_json);
@@ -941,23 +896,20 @@ int isp_frame_protocol_handle(uint8_t *data, uint32_t length)
     {
         ret = isp_frame_handle_force_idr(id_json);
     }
-    else if (strcmp(method->valuestring, "doorbell.isp.start") == 0 ||
-             strcmp(method->valuestring, "ispFrame.start") == 0 ||
+    else if (strcmp(method->valuestring, "ispFrame.start") == 0 ||
              strcmp(method->valuestring, "isp.start") == 0 ||
              strcmp(method->valuestring, "isp_capture.start") == 0)
     {
         ret = isp_frame_handle_isp_start(params, id_json);
     }
-    else if (strcmp(method->valuestring, "doorbell.isp.stop") == 0 ||
-             strcmp(method->valuestring, "ispFrame.stop") == 0 ||
+    else if (strcmp(method->valuestring, "ispFrame.stop") == 0 ||
              strcmp(method->valuestring, "isp.framestop") == 0 ||
              strcmp(method->valuestring, "isp.stop") == 0 ||
              strcmp(method->valuestring, "isp_capture.stop") == 0)
     {
         ret = isp_frame_handle_isp_stop(id_json);
     }
-    else if (strcmp(method->valuestring, "doorbell.isp.preview") == 0 ||
-             strcmp(method->valuestring, "ispFrame.preview") == 0 ||
+    else if (strcmp(method->valuestring, "ispFrame.preview") == 0 ||
              strcmp(method->valuestring, "ispFrame.capturePreview") == 0 ||
              strcmp(method->valuestring, "ispFrame.captureFrame") == 0 ||
              strcmp(method->valuestring, "isp.preview") == 0 ||
@@ -965,21 +917,18 @@ int isp_frame_protocol_handle(uint8_t *data, uint32_t length)
     {
         ret = isp_frame_handle_isp_preview(params, id_json);
     }
-    else if (strcmp(method->valuestring, "doorbell.isp.captureFrames") == 0 ||
-             strcmp(method->valuestring, "ispFrame.captureFrames") == 0 ||
+    else if (strcmp(method->valuestring, "ispFrame.captureFrames") == 0 ||
              strcmp(method->valuestring, "ispFrame.save") == 0 ||
              strcmp(method->valuestring, "isp.captureFrames") == 0 ||
              strcmp(method->valuestring, "isp_capture.captureFrames") == 0)
     {
         ret = isp_frame_handle_capture_frames(params, id_json);
     }
-    else if (strcmp(method->valuestring, "start_encode") == 0 ||
-             strcmp(method->valuestring, "doorbell.camera.turnOn") == 0)
+    else if (strcmp(method->valuestring, "start_encode") == 0 )
     {
         ret = isp_frame_handle_isp_start(params, id_json);
     }
-    else if (strcmp(method->valuestring, "doorbell.camera.turnOff") == 0 ||
-             strcmp(method->valuestring, "stop_encode") == 0 ||
+    else if (strcmp(method->valuestring, "stop_encode") == 0 ||
              strcmp(method->valuestring, "device:stop-preview") == 0)
     {
         ret = isp_frame_handle_isp_stop(id_json);
