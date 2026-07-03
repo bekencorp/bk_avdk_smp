@@ -111,6 +111,12 @@ int ntwk_sdp_generate(const char *name, uint32_t cmd_port, uint32_t img_port, ui
     {
         LOGV("%s, ap mode\n", __func__);
     }
+#if CONFIG_P2P
+    else if (p2p_go_ip_is_start())
+    {
+        LOGV("%s, p2p_go mode\n", __func__);
+    }
+#endif
     else if (sta_ip_is_start())
     {
         LOGV("%s, sta mode\n", __func__);
@@ -149,6 +155,12 @@ static void ntwk_sdp_timer_handler(void *data)
     {
         ap_set_default_netif();
     }
+#if CONFIG_P2P
+    else if (p2p_go_ip_is_start())
+    {
+        p2p_go_set_default_netif();
+    }
+#endif
 
     LOGV("sdp: %s\n", ntwk_sdp->sdp_data);
     sendto(ntwk_sdp->sock,

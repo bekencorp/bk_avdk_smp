@@ -54,7 +54,10 @@ typedef struct bk_fast_connect_d
     uint8_t ap_channel;
     uint16_t flag;		//to check if netif_if_t is configed, default 0
     uint8_t p2p_dev_name[33];
+    uint8_t p2p_go_intent;	/* P2P GO intent (1-15), 0 = use default 15 on reconnect */
 }BK_FAST_CONNECT_D;
+
+#define BK_NW_PRO_P2P_GO_INTENT_DEFAULT 15
 
 typedef void (*network_provisioning_status_cb_t)(bk_network_provisioning_status_t status, void *user_data);
 

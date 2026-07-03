@@ -31,6 +31,7 @@ extern uint32_t p2p_go_ip_is_start(void);
 extern uint32_t p2p_gc_ip_is_start(void);
 extern void *net_get_p2p_go_handle(void);
 extern void *net_get_p2p_gc_handle(void);
+extern void p2p_go_set_default_netif(void);
 extern void net_get_p2p_go_cfg_addr(struct wlan_ip_config *addr);
 extern void net_get_p2p_go_if_addr(struct wlan_ip_config *addr);
 extern void net_get_p2p_gc_if_addr(struct wlan_ip_config *addr);

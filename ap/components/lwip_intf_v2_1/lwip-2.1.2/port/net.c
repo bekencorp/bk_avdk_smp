@@ -926,6 +926,13 @@ void ap_set_default_netif(void)
 #endif
 }
 
+#if CONFIG_P2P
+void p2p_go_set_default_netif(void)
+{
+	netifapi_netif_set_default(net_get_p2p_go_handle());
+}
+#endif
+
 void reset_default_netif(void)
 {
 	if (sta_ip_is_start()) {

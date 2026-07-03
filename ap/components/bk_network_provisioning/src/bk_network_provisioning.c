@@ -179,6 +179,8 @@ static int save_network_auto_restart_info(netif_if_t type)
 		} else {
 			BK_LOGW(TAG, "P2P device name is NULL, using empty string\n");
 		}
+		info_tmp.p2p_go_intent = BK_NW_PRO_P2P_GO_INTENT_DEFAULT;
+		BK_LOGI(TAG, "Save P2P GO intent: %u\n", info_tmp.p2p_go_intent);
 #endif
 	} else
 		return -1;
@@ -246,6 +248,22 @@ static int bk_nw_pro_netif_event_cb(void *arg, event_module_t event_module, int 
 
     return BK_OK;
 }
+
+#if CONFIG_P2P
+static void bk_nw_pro_report_go_client_connected(void)
+{
+    netif_if_t netif_type = NETIF_IF_P2P;
+
+    BK_LOGI(TAG, "GO connected, as P2P GO\n");
+    bk_wifi_p2p_stop_find();
+    if (network_provisioning_status == BK_NETWORK_PROVISIONING_STATUS_RUNNING) {
+        save_network_auto_restart_info(netif_type);
+        bk_network_provisioning_update_status(BK_NETWORK_PROVISIONING_STATUS_SUCCEED, (void *)netif_type);
+    } else {
+        bk_network_provisioning_update_status(BK_NETWORK_PROVISIONING_STATUS_RECONNECT_SUCCEED, (void *)netif_type);
+    }
+}
+#endif
 
 static int bk_nw_pro_wifi_event_cb(void *arg, event_module_t event_module, int event_id, void *event_data)
 {
@@ -327,8 +345,7 @@ static int bk_nw_pro_wifi_event_cb(void *arg, event_module_t event_module, int e
 
 #if CONFIG_P2P
         case EVENT_WIFI_GO_CONNECTED:
-            BK_LOGI(TAG, "P2P GO: client connected\n");
-            bk_wifi_p2p_stop_find();
+            bk_nw_pro_report_go_client_connected();
             break;
 
         case EVENT_WIFI_GO_DISCONNECTED:
@@ -496,7 +513,14 @@ static netif_if_t bk_network_auto_reconnect(bool val)	//val true means from disc
 #endif
 #if CONFIG_P2P
 	else if (info.flag & BIT(NETIF_IF_P2P)) {
-		bk_wifi_p2p_enable((char *)info.p2p_dev_name);
+		int p2p_intent = info.p2p_go_intent;
+
+		if (p2p_intent <= 0 || p2p_intent > 15) {
+			p2p_intent = BK_NW_PRO_P2P_GO_INTENT_DEFAULT;
+		}
+		BK_LOGI(TAG, "P2P auto-reconnect: dev=%s intent=%d\n",
+			info.p2p_dev_name, p2p_intent);
+		bk_wifi_p2p_enable_with_intent((char *)info.p2p_dev_name, p2p_intent);
 		bk_wifi_p2p_find();
 		netif_if = NETIF_IF_P2P;
 	}

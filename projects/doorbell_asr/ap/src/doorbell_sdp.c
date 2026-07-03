@@ -151,6 +151,12 @@ static void doorbell_sdp_timer_handler(void *data)
 	{
 		ap_set_default_netif();
 	}
+#if CONFIG_P2P
+	else if (p2p_go_ip_is_start())
+	{
+		p2p_go_set_default_netif();
+	}
+#endif
 
 	LOGV("sdp: %s\n", doorbell_sdp->sdp_data);
 	sendto(doorbell_sdp->sock,
