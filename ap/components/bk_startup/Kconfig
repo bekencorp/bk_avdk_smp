@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: System Services::Startup & Initialization
 menu "Bk_startup"
 
 	config APP_MAIN_TASK_PRIO
@@ -18,5 +19,13 @@ menu "Bk_startup"
 		default n
 		help
 			enable matter auto start
+
+	menu "Startup Debug"
+
+		config DEBUG_AP_STARTUP
+			bool "Enable debug AP startup"
+			default n
+
+	endmenu
 
 endmenu

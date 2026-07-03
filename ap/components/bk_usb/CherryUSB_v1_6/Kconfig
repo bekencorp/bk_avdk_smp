@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: Device Drivers::USB::CherryUSB
 # Kconfig file for CherryUSB
 menuconfig CHERRYUSB
     bool "CherryUSB Configuration"

@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: Third Party::agora-iot-sdk
 menu "Bk_thirdparty::agora-iot-sdk"
 
 	config AGORA_IOT_SDK

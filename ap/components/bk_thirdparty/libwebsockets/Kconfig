@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: Third Party::libwebsockets
 
 config LIBWEBSOCKETS
 	bool "Enable libwebsockets (selects PSA_MBEDTLS for TLS)"

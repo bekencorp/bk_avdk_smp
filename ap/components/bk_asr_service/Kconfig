@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: Multimedia::Audio::ASR
 menu "ASR Service"
 
 	config ASR_SERVICE

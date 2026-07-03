@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: Multimedia::Audio::Player
 menu "Bk_audio_player"
 	config AUDIO_PLAYER
 		bool "Enable bk_audio_player"

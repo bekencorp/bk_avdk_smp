@@ -110,6 +110,27 @@ def _prepare_source_files(env_dict, list_separator):
         
         return groups, ungrouped
 
+    def _menu_sort_key(menu_name):
+        preferred = {
+            # Device Drivers: keep board/input/sensor/USB ahead of monitor-only
+            # helpers, instead of pure alphabetical order.
+            'Board Devices': 10,
+            'Keys & Buttons': 20,
+            'Touch': 30,
+            'Sensors': 40,
+            'USB': 50,
+            'Battery Monitor': 90,
+            # System Services: show boot/system-facing services before
+            # application helpers and utility libraries.
+            'Startup & Initialization': 110,
+            'Console & Event Services': 120,
+            'Identity': 130,
+            'Application Services': 140,
+            'Compatibility Layer': 150,
+            'Utilities & Libraries': 160,
+        }
+        return (0, preferred[menu_name], menu_name) if menu_name in preferred else (1, menu_name)
+
     def _generate_nested_menu_structure(content_lines, menu_tree, armino_ap_dir, indent_level=0):
         """
         Generate nested menu structure from menu tree.
@@ -135,7 +156,7 @@ def _prepare_source_files(env_dict, list_separator):
         
         # Then, add child menus
         if menu_tree.get('children'):
-            for menu_name in sorted(menu_tree['children'].keys()):
+            for menu_name in sorted(menu_tree['children'].keys(), key=_menu_sort_key):
                 child_tree = menu_tree['children'][menu_name]
                 content_lines.append('{}menu "{}"'.format(indent, menu_name))
                 content_lines.append('')
@@ -143,7 +164,7 @@ def _prepare_source_files(env_dict, list_separator):
                 content_lines.append('')
                 content_lines.append('{}endmenu'.format(indent))
 
-    def _generate_group_kconfig_files(groups, armino_ap_dir, group_kconfigs_dir):
+    def _generate_group_kconfig_files(groups, armino_ap_dir, group_kconfigs_dir, special_group_outputs=None):
         """
         Generate group Kconfig files automatically.
         Supports multi-level grouping using '::' separator (e.g., "Demos::Peripheral::Touch").
@@ -152,6 +173,7 @@ def _prepare_source_files(env_dict, list_separator):
         os.makedirs(group_kconfigs_dir, exist_ok=True)
         
         generated_files = []
+        special_group_outputs = special_group_outputs or {}
         
         # Separate flat groups and nested groups
         flat_groups = {}
@@ -201,8 +223,29 @@ def _prepare_source_files(env_dict, list_separator):
                 current['components'] = []
             current['components'].extend(group_info['components'])
         
-        # Generate one file per top-level group (merged)
+        # Generate one file per top-level group (merged). Some top-level groups
+        # are embedded manually by build_main_ap.kconfig so they are emitted as
+        # menu bodies instead of standalone top-level menus.
+        for group_name, output_file in special_group_outputs.items():
+            os.makedirs(os.path.dirname(output_file), exist_ok=True)
+            if group_name not in merged_top_level_groups:
+                with open(output_file, 'w', encoding='utf-8') as f:
+                    f.write('# No {} grouped components\n'.format(group_name))
+
         for top_level in sorted(merged_top_level_groups.keys()):
+            if top_level in special_group_outputs:
+                output_file = special_group_outputs[top_level]
+                content_lines = []
+                _generate_nested_menu_structure(
+                    content_lines,
+                    merged_top_level_groups[top_level],
+                    armino_ap_dir,
+                    0
+                )
+                with open(output_file, 'w', encoding='utf-8') as f:
+                    f.write('\n'.join(content_lines))
+                continue
+
             group_file = os.path.join(group_kconfigs_dir, '{}_group.kconfig'.format(top_level.lower().replace(' ', '_').replace('::', '_')))
             content_lines = []
             
@@ -239,11 +282,24 @@ def _prepare_source_files(env_dict, list_separator):
             return index_file
         
         content_lines = []
+        def _group_order(path):
+            name = os.path.basename(path)
+            preferred = [
+                'multimedia_group.kconfig',
+                'storage_group.kconfig',
+                'power_management_group.kconfig',
+                'security_&_cloud_group.kconfig',
+            ]
+            try:
+                return (0, preferred.index(name), name)
+            except ValueError:
+                return (1, len(preferred), name)
+
         # Ensure group_kconfigs_dir is absolute
         group_kconfigs_dir_abs = os.path.abspath(os.path.normpath(group_kconfigs_dir))
         # Use set to deduplicate file paths
         seen_files = set()
-        for group_file in sorted(group_files):
+        for group_file in sorted(group_files, key=_group_order):
             # Use absolute path for source statement
             # Ensure path is absolute and normalized
             if os.path.isabs(group_file):
@@ -318,16 +374,39 @@ def _prepare_source_files(env_dict, list_separator):
         component_kconfigs = env_dict.get('COMPONENT_KCONFIGS', '')
         grouped_paths = set()
         group_files = []
+        special_group_outputs = {
+            'Debug': env_dict.get('DEBUG_KCONFIGS_SOURCE_FILE', ''),
+            'Board & SoC': env_dict.get('BOARD_SOC_KCONFIGS_SOURCE_FILE', ''),
+            'Device Drivers': env_dict.get('DEVICE_DRIVERS_KCONFIGS_SOURCE_FILE', ''),
+            'Wireless Connectivity': env_dict.get('WIRELESS_CONNECTIVITY_KCONFIGS_SOURCE_FILE', ''),
+            'Network Services': env_dict.get('NETWORK_SERVICES_KCONFIGS_SOURCE_FILE', ''),
+            'RTOS & Kernel': env_dict.get('OPERATING_SYSTEM_KCONFIGS_SOURCE_FILE', ''),
+            'System Services': env_dict.get('SYSTEM_SERVICES_KCONFIGS_SOURCE_FILE', ''),
+            'Demos': env_dict.get('DEMOS_KCONFIGS_SOURCE_FILE', ''),
+            'Third Party': env_dict.get('THIRD_PARTY_KCONFIGS_SOURCE_FILE', ''),
+        }
+        special_group_outputs = dict(
+            (name, path) for name, path in special_group_outputs.items() if path
+        )
         
         if component_kconfigs:
             groups, ungrouped = _group_components_by_marker(component_kconfigs, list_separator)
-            
+
             # Generate group Kconfig files if there are any groups
             if groups:
-                group_files = _generate_group_kconfig_files(groups, armino_ap_dir, group_kconfigs_dir)
+                group_files = _generate_group_kconfig_files(
+                    groups,
+                    armino_ap_dir,
+                    group_kconfigs_dir,
+                    special_group_outputs
+                )
                 # Collect all grouped paths for exclusion
                 for group_paths in groups.values():
                     grouped_paths.update(group_paths)
+            else:
+                _generate_group_kconfig_files({}, armino_ap_dir, group_kconfigs_dir, special_group_outputs)
+        else:
+            _generate_group_kconfig_files({}, armino_ap_dir, group_kconfigs_dir, special_group_outputs)
         
         # Always generate index file (even if empty)
         index_file = _generate_group_index_file(group_kconfigs_dir, group_files)
@@ -342,8 +421,24 @@ def _prepare_source_files(env_dict, list_separator):
             exclude_paths=grouped_paths if grouped_paths else None
         )
         
-        # Write other source files (middleware, projects, properties, extra)
-        _write_specific_source_file(env_dict['COMPONENT_KCONFIGS_SOURCE_FILE'], env_dict['MIDDLEWARE_KCONFIGS_SOURCE_FILE'], r'.*/middleware/.*')
+        # Write other source files (middleware, projects, properties, extra).
+        # Core SoC/arch/driver menus are placed explicitly in the AP app
+        # top-level Kconfig, so exclude them from that raw middleware fallback
+        # to avoid duplicate symbol definitions. CP and properties-lib builds
+        # still rely on this fallback to source their arch/driver/soc Kconfig
+        # files.
+        middleware_pattern = r'.*/middleware/.*'
+        is_ap_app_config = (
+            env_dict.get('ARMINO_SOC', '').endswith('_ap')
+            and 'properties_libs' not in os.path.normpath(group_kconfigs_dir).split(os.sep)
+        )
+        if is_ap_app_config:
+            middleware_pattern = r'.*/middleware/(?!arch/|driver/|soc/|compal/).*'
+        _write_specific_source_file(
+            env_dict['COMPONENT_KCONFIGS_SOURCE_FILE'],
+            env_dict['MIDDLEWARE_KCONFIGS_SOURCE_FILE'],
+            middleware_pattern
+        )
         _write_specific_source_file(env_dict['COMPONENT_KCONFIGS_SOURCE_FILE'], env_dict['PROJECTS_KCONFIGS_SOURCE_FILE'], r'.*/projects/.*')
         _write_specific_source_file(env_dict['COMPONENT_KCONFIGS_SOURCE_FILE'], env_dict['PROPERTIES_KCONFIGS_SOURCE_FILE'], r'.*/properties/.*')
         _write_specific_source_file(env_dict['COMPONENT_KCONFIGS_SOURCE_FILE'], env_dict['EXTRA_KCONFIGS_SOURCE_FILE'], r'^(?!.*\/(?:components|middleware|projects|properties)\/).*')

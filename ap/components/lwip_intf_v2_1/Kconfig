@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: Network Services::TCP IP Stack
 #TODO add depens for CONFIG_HOST (bk7231u)
 menu "Lwip_intf_v2_1"
 

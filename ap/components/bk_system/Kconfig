@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: System Services::System & Event Services
 #TODO may need to remove this component!
 menu "BK_system"
 

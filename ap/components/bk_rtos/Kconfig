@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: RTOS & Kernel
 menu "Bk_rtos"
 
 	menu "Modify BK Heap Config"
@@ -338,14 +339,6 @@ menu "Bk_rtos"
 			depends on MEM_DEBUG_OVERFLOW
 			int "Set memory overflow freelist record len"
 			default 128
-
-	endmenu
-
-	menu "Modify System Config"
-
-		config DEBUG_AP_STARTUP
-			bool "Enable debug ap startup"
-			default n
 
 	endmenu
 

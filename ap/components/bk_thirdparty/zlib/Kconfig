@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: Third Party::zlib
 menu "Bk_thirdparty::zlib"
 
 	config ZLIB_ENABLE

@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: Device Drivers::USB
 menu "Bk_usb"
 
 	config USB

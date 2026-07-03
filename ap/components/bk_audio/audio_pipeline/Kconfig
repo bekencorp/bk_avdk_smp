@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: Multimedia::Audio::Pipeline
 menu "Adk"
 	config ADK
 		depends on FREERTOS_USE_QUEUE_SETS

@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: Third Party::usrsctp
 # usrsctp (SCTP userland stack) for beken
 # Adapted from ESP/AWS usrsctp; requires lwIP and mbedTLS (psa_mbedtls)
 

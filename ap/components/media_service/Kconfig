@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: Multimedia::Media Service
 config MEDIA_SERVICE
 	bool "Enable Media Service"
 	default n

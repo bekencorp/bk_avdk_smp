@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: Third Party::cs2p2p
 #TODO remove all kconfigs which are defined in armino libs
 
 menu "cs2p2p"

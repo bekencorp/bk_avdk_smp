@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: Multimedia::Media Service
 menu "Media Utils"
 
 endmenu

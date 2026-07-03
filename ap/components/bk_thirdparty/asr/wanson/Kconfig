@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: Third Party::asr::wanson
 menu "Bk_thirdparty::Wanson"
 
 	config WANSON_ASR

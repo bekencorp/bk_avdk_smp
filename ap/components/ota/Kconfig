@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: System Services::Firmware Update
 menu "Ota"
 	config OTA_FUNCTION
 		bool "Enable do ota function"

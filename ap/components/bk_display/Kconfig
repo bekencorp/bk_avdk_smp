@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: Multimedia::Display & UI
 menu "BK Display"
 
 	config BK_DISPLAY

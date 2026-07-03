@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: Third Party::asr::wanson_armino
 menu "Bk_thirdparty::Wanson_armino"
 
 	config WANSON_ARMINO_ASR

@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: Multimedia::Video Player
 menu "Bk_video_player"
 
     config AVI_PLAYER

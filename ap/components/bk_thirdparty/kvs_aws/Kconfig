@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: Third Party::kvs_aws
 # Kconfig for AWS Kinesis Video Streams WebRTC (kvs_aws)
 
 menu "AWS KVS WebRTC"

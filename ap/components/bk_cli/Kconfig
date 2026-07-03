@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: Debug::CLI
 menu "Bk_cli"
 
 	menu "Modify Cli Config"

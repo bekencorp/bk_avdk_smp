@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: Multimedia::Display & UI::LVGL
 menu "LVGL"
     config LVGL
         bool "Enable Lvgl"

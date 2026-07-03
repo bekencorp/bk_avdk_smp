@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: Demos::USB::CherryUSB
 mainmenu "SDK Configuration"
 
 source "$BL_SDK_BASE/Kconfig"

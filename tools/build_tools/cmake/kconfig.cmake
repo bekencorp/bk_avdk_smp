@@ -160,6 +160,15 @@ function(__kconfig_generate_config sdkconfig sdkconfig_defaults sdkconfig_defaul
     set(properties_kconfigs_path "${CMAKE_CURRENT_BINARY_DIR}/properties_kconfigs.in")
     set(extra_kconfigs_path "${CMAKE_CURRENT_BINARY_DIR}/extra_kconfigs.in")
     set(group_kconfigs_index_path "${CMAKE_CURRENT_BINARY_DIR}/group_kconfigs/group_index.kconfig")
+    set(debug_kconfigs_path "${CMAKE_CURRENT_BINARY_DIR}/group_kconfigs/debug_body.kconfig")
+    set(board_soc_kconfigs_path "${CMAKE_CURRENT_BINARY_DIR}/group_kconfigs/board_soc_body.kconfig")
+    set(device_drivers_kconfigs_path "${CMAKE_CURRENT_BINARY_DIR}/group_kconfigs/device_drivers_body.kconfig")
+    set(wireless_connectivity_kconfigs_path "${CMAKE_CURRENT_BINARY_DIR}/group_kconfigs/wireless_connectivity_body.kconfig")
+    set(network_services_kconfigs_path "${CMAKE_CURRENT_BINARY_DIR}/group_kconfigs/network_services_body.kconfig")
+    set(operating_system_kconfigs_path "${CMAKE_CURRENT_BINARY_DIR}/group_kconfigs/operating_system_body.kconfig")
+    set(system_services_kconfigs_path "${CMAKE_CURRENT_BINARY_DIR}/group_kconfigs/system_services_body.kconfig")
+    set(demos_kconfigs_path "${CMAKE_CURRENT_BINARY_DIR}/group_kconfigs/demos_body.kconfig")
+    set(third_party_kconfigs_path "${CMAKE_CURRENT_BINARY_DIR}/group_kconfigs/third_party_body.kconfig")
 
     # Place config-related environment arguments into config.env file
     # to work around command line length limits for execute_process
@@ -310,6 +319,15 @@ function(__kconfig_generate_config sdkconfig sdkconfig_defaults sdkconfig_defaul
         "PROPERTIES_KCONFIGS_SOURCE_FILE=${properties_kconfigs_path}"
         "EXTRA_KCONFIGS_SOURCE_FILE=${extra_kconfigs_path}"
         "GROUP_KCONFIGS_INDEX_FILE=${group_kconfigs_index_path}"
+        "DEBUG_KCONFIGS_SOURCE_FILE=${debug_kconfigs_path}"
+        "BOARD_SOC_KCONFIGS_SOURCE_FILE=${board_soc_kconfigs_path}"
+        "DEVICE_DRIVERS_KCONFIGS_SOURCE_FILE=${device_drivers_kconfigs_path}"
+        "WIRELESS_CONNECTIVITY_KCONFIGS_SOURCE_FILE=${wireless_connectivity_kconfigs_path}"
+        "NETWORK_SERVICES_KCONFIGS_SOURCE_FILE=${network_services_kconfigs_path}"
+        "OPERATING_SYSTEM_KCONFIGS_SOURCE_FILE=${operating_system_kconfigs_path}"
+        "SYSTEM_SERVICES_KCONFIGS_SOURCE_FILE=${system_services_kconfigs_path}"
+        "DEMOS_KCONFIGS_SOURCE_FILE=${demos_kconfigs_path}"
+        "THIRD_PARTY_KCONFIGS_SOURCE_FILE=${third_party_kconfigs_path}"
         "ARMINO_CMAKE=y"
         "KCONFIG_CONFIG=${sdkconfig}"
         "ARMINO_SOC=${armino_target}"

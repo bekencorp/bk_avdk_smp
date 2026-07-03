@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: Multimedia::Audio
 menu "Audio Parameters"
 
 	config AUD_PARAM_CTRL

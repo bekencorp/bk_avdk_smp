@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: Device Drivers::Battery Monitor
 menu "bk_bat_monitor"
 
 config BAT_MONITOR

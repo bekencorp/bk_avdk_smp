@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: Multimedia::UVC
 menu "USB Camera"
 
 	config USB_CAMERA

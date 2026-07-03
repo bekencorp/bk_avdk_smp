@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: Multimedia::AI::TFLite Micro
 menu "TFLite Micro"
 	config TFLITE_MICRO
 		bool "Enable TFLite Micro"

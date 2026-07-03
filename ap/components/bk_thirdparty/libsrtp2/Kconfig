@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: Third Party::libsrtp2
 menu "libsrtp2"
 	config LIBSRTP
 		bool "Enable libsrtp2"
