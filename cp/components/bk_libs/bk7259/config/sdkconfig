@@ -4,7 +4,23 @@
 #
 
 #
-# SOC_CONFIG
+# Build & Target
+#
+CONFIG_OBJDUMP=y
+CONFIG_BUILD_DEFAULT_VERSION=y
+# CONFIG_DEBUG_VERSION is not set
+# CONFIG_RELEASE_VERSION is not set
+CONFIG_COMPILER_STACK_CHECK_MODE_NORM=y
+# CONFIG_COMPILER_STACK_CHECK_MODE_STRONG is not set
+# CONFIG_COMPILER_STACK_CHECK_MODE_ALL is not set
+# end of Build & Target
+
+#
+# Board & SoC
+#
+
+#
+# SoC Configuration
 #
 CONFIG_SOC_BK7259=y
 # CONFIG_SOC_BK7258 is not set
@@ -18,27 +34,39 @@ CONFIG_SOC_ARCH="cm52"
 # CONFIG_SOC_SMP is not set
 CONFIG_PRODUCT_ID=y
 # CONFIG_BK_PID_BOOT_CHECK is not set
-CONFIG_COMPILER_STACK_CHECK_MODE_NORM=y
-# CONFIG_COMPILER_STACK_CHECK_MODE_STRONG is not set
-# CONFIG_COMPILER_STACK_CHECK_MODE_ALL is not set
-# end of SOC_CONFIG
+CONFIG_RX_OPTIMIZE=y
+# end of SoC Configuration
+# end of Board & SoC
 
 #
-# ARMINO Configuration
-#
-
-#
-# Common Configuration
+# RTOS & Kernel
 #
 
 #
-# Compile/Build
+# System Services
 #
-CONFIG_OBJDUMP=y
-CONFIG_BUILD_DEFAULT_VERSION=y
-# CONFIG_DEBUG_VERSION is not set
-# CONFIG_RELEASE_VERSION is not set
-# end of Compile/Build
+# end of System Services
+
+# CONFIG_ATE_TEST is not set
+
+#
+# Wireless Connectivity
+#
+# CONFIG_WIFI_SENSOR is not set
+# CONFIG_BLUETOOTH is not set
+# CONFIG_BK24G is not set
+# end of Wireless Connectivity
+
+#
+# Network Services
+#
+CONFIG_LWIP=y
+# CONFIG_LWIP_V2_0 is not set
+CONFIG_LWIP_V2_1=y
+CONFIG_NO_HOSTED=y
+# CONFIG_SEMI_HOSTED is not set
+# CONFIG_FULLY_HOSTED is not set
+# end of Network Services
 
 #
 # Debug
@@ -49,48 +77,14 @@ CONFIG_ASSERT_REBOOT=y
 # CONFIG_JTAG is not set
 # CONFIG_SWD_DEBUG_MODE is not set
 # end of Debug
-# end of Common Configuration
 
 #
-# Features Configuration
-#
-CONFIG_LWIP=y
-# CONFIG_LWIP_V2_0 is not set
-CONFIG_LWIP_V2_1=y
-CONFIG_NO_HOSTED=y
-# CONFIG_SEMI_HOSTED is not set
-# CONFIG_FULLY_HOSTED is not set
-# CONFIG_WIFI_SENSOR is not set
-# CONFIG_BLUETOOTH is not set
-# CONFIG_BK24G is not set
-# end of Features Configuration
-
-#
-# Modules Configuration
+# Demos
 #
 
 #
-# Components Configuration
+# Third Party
 #
-
-#
-# Middleware Configuration
-#
-
-#
-# Projects Configuration
-#
-
-#
-# Properties Configuration
-#
-
-#
-# Modules::Bk_coex
-#
-CONFIG_BK_COEX=y
-# CONFIG_BK_COEX_SIMU_BT is not set
-# end of Modules::Bk_coex
 
 #
 # Shared Configs with Public components
@@ -128,7 +122,6 @@ CONFIG_RF_TEST=y
 CONFIG_TX_EVM_TEST=y
 CONFIG_RX_SENSE_TEST=y
 CONFIG_ATE=y
-# CONFIG_ATE_TEST is not set
 # end of Modify Rf Test Config
 # end of modules::rf_test
 
@@ -143,18 +136,12 @@ CONFIG_MAC_PHY_BYPASS=y
 #
 CONFIG_PM_V2=y
 CONFIG_PM_DSSS_ONLY=y
-CONFIG_RX_OPTIMIZE=y
 # end of modules::rf_control
 # end of Shared Configs with Public components
 
 #
 # Shared Configs with Public components
 #
-
-#
-# SOC_CONFIG
-#
-# end of SOC_CONFIG
 
 #
 # sensor_detect
@@ -198,6 +185,7 @@ CONFIG_UID_GET_OFFSET_FROM_OTP=0x3C0
 CONFIG_WIFI_ENABLE=y
 CONFIG_BK_RC_ENABLE=y
 CONFIG_RAW_LINK_ENABLE=y
+CONFIG_WIFI_COEX_ENABLE=y
 
 #
 # modules::ip_ax
@@ -274,10 +262,3 @@ CONFIG_ADAPTIVE_WAKEUP_DELAY=y
 # CONFIG_MINIMUM_SCAN_RESULTS is not set
 # end of modules::raw_link
 # end of Shared Configs with Public components
-# end of Properties Configuration
-
-#
-# Extra Modules Configuration
-#
-# end of Modules Configuration
-# end of ARMINO Configuration

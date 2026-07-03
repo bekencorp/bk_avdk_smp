@@ -1,0 +1,6 @@
+Dirctory Name: openthread
+Repository URL: https://github.com/openthread/openthread.git
+
+Latest Commit Information:
+Branch: main
+Hash: ed7db65f23e1531ac0f3d822c09fb85ddc1c8b26

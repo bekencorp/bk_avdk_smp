@@ -1,0 +1,25 @@
+menu "OpenThread"
+    config OPENTHREAD
+        bool "Enable OpenThread"
+        default n
+    config OPENTHREAD_FTD
+        bool "Enable FTD config"
+        default n
+        depends on OPENTHREAD
+    config OPENTHREAD_MTD
+        bool "Enable MTD config"
+        default n
+        depends on OPENTHREAD
+    config OPENTHREAD_UNIT_TEST
+	bool "Enable openthread unit test"
+	default n
+	depends on OPENTHREAD
+
+    config OPENTHREAD_AON_US_TICK
+        depends on OPENTHREAD
+        bool "openthread us aon rtc as us clock source"
+        default n
+    config OT_TRIP_COEX_EN
+        bool "ot wifi ble thread coexist enable"
+        default n
+endmenu
