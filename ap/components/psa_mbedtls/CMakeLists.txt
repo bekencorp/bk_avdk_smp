@@ -162,6 +162,7 @@ if (CONFIG_TRUSTENGINE_TEST)
 		cli/mbedtls_tests/mbedtls_rsa_test.c
 		cli/mbedtls_tests/mbedtls_multi_thread_test.c
 		cli/mbedtls_tests/mbedtls_rand_test.c
+		cli/mbedtls_tests/mbedtls_tls_test.c
 		#cli/mbedtls_tests/psa_tls_client.c
 	)
 endif()

@@ -25,3 +25,6 @@ void te200_muti_task_test( void *para );
 int te200_rand_basic_test(void);
 int te200_rand_uniqueness_test(void);
 int te200_rand_loop_test(uint32_t test_cnt);
+int mbedtls_tls_server_certificate_test(uint32_t loops);
+int mbedtls_tls_server_key_exchange_test(uint32_t loops);
+int mbedtls_tls_client_key_exchange_test(uint32_t loops);

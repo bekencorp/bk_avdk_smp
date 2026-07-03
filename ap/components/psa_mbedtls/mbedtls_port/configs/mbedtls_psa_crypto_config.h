@@ -3896,8 +3896,15 @@
 #define os_calloc(nmemb,size)   ((size) && (nmemb) > (~( unsigned int) 0)/(size))?0:os_zalloc((nmemb)*(size))
 /* To use the following function macros, MBEDTLS_PLATFORM_C must be enabled. */
 /* MBEDTLS_PLATFORM_XXX_MACRO and MBEDTLS_PLATFORM_XXX_ALT cannot both be defined */
+extern void *tls_mbedtls_mem_calloc(size_t n, size_t size);
+extern void tls_mbedtls_mem_free(void *ptr);
+#if CONFIG_MBEDTLS_USE_PSRAM
+#define MBEDTLS_PLATFORM_CALLOC_MACRO        tls_mbedtls_mem_calloc /**< Default allocator macro to use, can be undefined. See MBEDTLS_PLATFORM_STD_CALLOC for requirements. */
+#define MBEDTLS_PLATFORM_FREE_MACRO            tls_mbedtls_mem_free /**< Default free macro to use, can be undefined. See MBEDTLS_PLATFORM_STD_FREE for requirements. */
+#else
 #define MBEDTLS_PLATFORM_CALLOC_MACRO        os_calloc /**< Default allocator macro to use, can be undefined. See MBEDTLS_PLATFORM_STD_CALLOC for requirements. */
 #define MBEDTLS_PLATFORM_FREE_MACRO            os_free /**< Default free macro to use, can be undefined. See MBEDTLS_PLATFORM_STD_FREE for requirements. */
+#endif
 //#define MBEDTLS_PLATFORM_EXIT_MACRO            exit /**< Default exit macro to use, can be undefined */
 //#define MBEDTLS_PLATFORM_SETBUF_MACRO      setbuf /**< Default setbuf macro to use, can be undefined */
 //#define MBEDTLS_PLATFORM_TIME_MACRO            time /**< Default time macro to use, can be undefined. MBEDTLS_HAVE_TIME must be enabled */
@@ -4210,8 +4217,15 @@
 #define MBEDTLS_PLATFORM_MEMORY
 #define MBEDTLS_PLATFORM_STD_SNPRINTF        snprintf
 #define os_calloc(nmemb,size)   ((size) && (nmemb) > (~( unsigned int) 0)/(size))?0:os_zalloc((nmemb)*(size))
+extern void *tls_mbedtls_mem_calloc(size_t n, size_t size);
+extern void tls_mbedtls_mem_free(void *ptr);
+#if CONFIG_MBEDTLS_USE_PSRAM
+#define MBEDTLS_PLATFORM_CALLOC_MACRO        tls_mbedtls_mem_calloc /**< Default allocator macro to use, can be undefined. See MBEDTLS_PLATFORM_STD_CALLOC for requirements. */
+#define MBEDTLS_PLATFORM_FREE_MACRO            tls_mbedtls_mem_free /**< Default free macro to use, can be undefined. See MBEDTLS_PLATFORM_STD_FREE for requirements. */
+#else
 #define MBEDTLS_PLATFORM_CALLOC_MACRO        os_calloc /**< Default allocator macro to use, can be undefined. See MBEDTLS_PLATFORM_STD_CALLOC for requirements. */
 #define MBEDTLS_PLATFORM_FREE_MACRO            os_free /**< Default free macro to use, can be undefined. See MBEDTLS_PLATFORM_STD_FREE for requirements. */
+#endif
 #define MBEDTLS_PLATFORM_PRINTF_MACRO        os_printf /**< Default printf macro to use, can be undefined */
 
 #endif //CONFIG_FULL_MBEDTLS

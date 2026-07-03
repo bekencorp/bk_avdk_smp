@@ -20,8 +20,11 @@
 #include "modules/pm.h"
 #include <os/os.h>
 
+#include "mbedtls/platform.h"
+
 #define MBEDTLS_SHA_TEST_CNT    1
 #define MBEDTLS_TEST_FREQUENCY  (PM_CPU_FRQ_240M)
+#define MBEDTLS_TEST_PRIORITY   4
 
 static void cli_mbedtls_help(void)
 {
@@ -30,6 +33,7 @@ static void cli_mbedtls_help(void)
 	CLI_LOGD("mbedtls_ecdsa [cnt]\r\n");
 	CLI_LOGD("mbedtls_rsa\r\n");
 	CLI_LOGD("mbedtls_rand {basic|uniq|loop [cnt]}\r\n");
+	CLI_LOGD("mbedtls_tls [cnt]\r\n");
 	CLI_LOGD("mbedtls_selftest\r\n");
 	CLI_LOGD("mbedtls_thread create [cnt]\r\n");
 }
@@ -43,6 +47,47 @@ static void cli_mbedtls_help(void)
   } while(0)
 
 const uint32_t test_len[] = {32, 1024, 4096};
+
+static void mbedtls_tls_log_mem_probe(const char *stage)
+{
+#if defined(MBEDTLS_PLATFORM_MEMORY)
+	enum { probe_len = 256 };
+	size_t free_before = rtos_get_psram_free_heap_size();
+	uint32_t used_before = bk_psram_heap_get_used_count();
+	void *ptr = mbedtls_calloc(1, probe_len);
+	size_t free_after_alloc = rtos_get_psram_free_heap_size();
+	uint32_t used_after_alloc = bk_psram_heap_get_used_count();
+
+	CLI_LOGD("MEM %s mbedtls_calloc ptr=%p len=%u use_psram=%u psram_free:%u->%u psram_used:%u->%u\r\n",
+			 stage,
+			 ptr,
+			 probe_len,
+			 (unsigned int)CONFIG_MBEDTLS_USE_PSRAM,
+			 (unsigned int)free_before,
+			 (unsigned int)free_after_alloc,
+			 (unsigned int)used_before,
+			 (unsigned int)used_after_alloc);
+
+	mbedtls_free(ptr);
+	CLI_LOGD("MEM %s after_free psram_free=%u psram_used=%u\r\n",
+			 stage,
+			 (unsigned int)rtos_get_psram_free_heap_size(),
+			 (unsigned int)bk_psram_heap_get_used_count());
+#else
+	CLI_LOGD("MEM %s MBEDTLS_PLATFORM_MEMORY=0\r\n", stage);
+#endif
+}
+
+static void mbedtls_tls_log_result(uint32_t *pass_cnt, uint32_t *fail_cnt, const char *test_name, int ret)
+{
+	if (ret == 0) {
+		(*pass_cnt)++;
+		CLI_LOGD("PASS test_name=%s ret=%d\r\n", test_name, ret);
+	} else {
+		(*fail_cnt)++;
+		CLI_LOGE("FAIL test_name=%s ret=%d\r\n", test_name, ret);
+	}
+}
 
 static void cli_mbedtls_sha_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
@@ -162,6 +207,72 @@ static void cli_mbedtls_rsa_cmd(char *pcWriteBuffer, int xWriteBufferLen, int ar
 	//bk_pm_module_vote_cpu_freq(PM_DEV_ID_SECURE_WORLD, PM_CPU_FRQ_DEFAULT);
 }
 
+static void mbedtls_tls_run(uint32_t loop_cnt)
+{
+	uint32_t pass_cnt = 0;
+	uint32_t fail_cnt = 0;
+	int ret = 0;
+
+	CLI_LOGD("mbedtls tls begin loops=%u\r\n", (unsigned int)loop_cnt);
+	mbedtls_tls_log_mem_probe("tls_probe");
+
+	ret = mbedtls_tls_server_certificate_test(loop_cnt);
+	mbedtls_tls_log_result(&pass_cnt, &fail_cnt, "tls_server_certificate", ret);
+
+	ret = mbedtls_tls_server_key_exchange_test(loop_cnt);
+	mbedtls_tls_log_result(&pass_cnt, &fail_cnt, "tls_server_key_exchange", ret);
+
+	ret = mbedtls_tls_client_key_exchange_test(loop_cnt);
+	mbedtls_tls_log_result(&pass_cnt, &fail_cnt, "tls_client_key_exchange", ret);
+
+	CLI_LOGD("tls summary: pass=%u fail=%u skip=0 final=%s\r\n",
+			 (unsigned int)pass_cnt,
+			 (unsigned int)fail_cnt,
+			 (fail_cnt == 0U) ? "PASS" : "FAIL");
+}
+
+static void cli_mbedtls_tls_task(void *param)
+{
+	uint32_t loop_cnt = 1U;
+
+	if (param != NULL) {
+		loop_cnt = *(uint32_t *)param;
+		os_free(param);
+	}
+
+	mbedtls_tls_run(loop_cnt);
+	rtos_delete_thread(NULL);
+}
+
+static void cli_mbedtls_tls_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
+{
+	uint32_t *loop_cnt = NULL;
+
+	(void)pcWriteBuffer;
+	(void)xWriteBufferLen;
+
+	loop_cnt = os_zalloc(sizeof(uint32_t));
+	if (loop_cnt == NULL) {
+		CLI_LOGE("mbedtls_tls: no memory\r\n");
+		return;
+	}
+
+	*loop_cnt = 1U;
+	if ((argc >= 2) && (argv[1] != NULL)) {
+		*loop_cnt = os_strtoul(argv[1], NULL, 10);
+	}
+
+	if (rtos_create_thread(NULL,
+						   MBEDTLS_TEST_PRIORITY,
+						   "mbedtls_tls",
+						   cli_mbedtls_tls_task,
+						   1024 * 5,
+						   (beken_thread_arg_t)loop_cnt) != kNoErr) {
+		CLI_LOGE("mbedtls_tls: create task failed\r\n");
+		os_free(loop_cnt);
+	}
+}
+
 static void cli_mbedtls_rand_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
 	if (argc < 2) {
@@ -215,7 +326,6 @@ static void cli_mbedtls_selftest(char *pcWriteBuffer, int xWriteBufferLen, int a
 	//bk_pm_module_vote_cpu_freq(PM_DEV_ID_SECURE_WORLD, PM_CPU_FRQ_DEFAULT);
 }
 
-#define    MBEDTLS_TEST_PRIORITY    4
 static uint32_t g_max_count;
 static void cli_mbedtls_thread(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
@@ -251,6 +361,7 @@ static const struct cli_command s_mbedtls_commands[] = {
 	{"mbedtls_ecdsa",    "mbedtls_ecdsa {10}",            cli_mbedtls_ecdsa_cmd},
 	{"mbedtls_rsa",      "mbedtls_rsa",                   cli_mbedtls_rsa_cmd},
 	{"mbedtls_rand",     "mbedtls_rand {basic|uniq|loop [cnt]}", cli_mbedtls_rand_cmd},
+	{"mbedtls_tls",      "mbedtls_tls [cnt]",             cli_mbedtls_tls_cmd},
 	{"mbedtls_selftest", "mbedtls_selftest",              cli_mbedtls_selftest},
 	{"mbedtls_thread",   "mbedtls_thread {create}{count}",cli_mbedtls_thread},
 };
