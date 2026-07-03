@@ -804,8 +804,7 @@ __attribute__((weak)) uint32_t rf_pll_ctrl(uint32_t cmd, uint32_t param)
     return 0;
 }
 #endif
-
-static uint32_t bt_rf_pll_ctrl_wrapper(uint32_t set)
+static uint32_t bt_rf_pll_ctrl_wrapper(uint8_t operation, uint8_t rf_path, uint8_t rf_pll, uint8_t priority, uint32_t task_type, bool is_save_when_failed, uint32_t time_length_us, bool position_can_adjust)
 {
     RF_PLL_CTRL_RESULT_T ret =  rf_pll_ctrl(MODULE_TYPE_BLE_BT, operation, rf_path, rf_pll, priority, task_type, is_save_when_failed, time_length_us, position_can_adjust);
     if(ret.result != RF_ARBIT_RESULT_SUCCESS  && task_type != RF_TASK_TYPE_BLE_FREE_ALL)

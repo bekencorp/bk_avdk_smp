@@ -152,7 +152,7 @@ struct bt_osi_funcs_t
     void (*_manual_cal_save_ble_txpwr)(uint32_t channel, uint32_t pwr_gain);
 
 
-    uint32_t (*_bt_rf_pll_ctrl)(uint32_t set);
+    uint32_t (*_bt_rf_pll_ctrl)(uint8_t operation, uint8_t rf_path, uint8_t rf_pll, uint8_t priority, uint32_t task_type, bool is_save_when_failed, uint32_t time_length_us, bool position_can_adjust);
     void (*_reboot)(void);
     int (*_uart_read_byte_ex)(uint8_t id, uint8_t *ch);
     int (*_bt_vote_sleep_ctrl)(uint32_t sleep_state, uint32_t sleep_time);
