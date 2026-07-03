@@ -856,15 +856,7 @@ int wifi_boarding_deinit(void)
 
 static void dm_ble_gap_get_identity_addr(uint8_t *addr)
 {
-    uint8_t *identity_addr = addr;
-    bk_get_mac((uint8_t *)identity_addr, MAC_TYPE_BLUETOOTH);
-
-    for (int i = 0; i < BK_BD_ADDR_LEN / 2; i++)
-    {
-        uint8_t tmp = identity_addr[i];
-        identity_addr[i] = identity_addr[BK_BD_ADDR_LEN - 1 - i];
-        identity_addr[BK_BD_ADDR_LEN - 1 - i] = tmp;
-    }
+    bk_bluetooth_get_address(addr);
 }
 
 int wifi_boarding_adv_start(void)
