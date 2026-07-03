@@ -8,6 +8,7 @@ typedef enum
     DATA_TYPE_ACL     = 2,
     DATA_TYPE_SCO     = 3,
     DATA_TYPE_EVENT   = 4,
+    DATA_TYPE_ISO     = 5,
 } serial_data_type_t;
 
 enum

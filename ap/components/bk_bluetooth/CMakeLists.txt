@@ -207,6 +207,17 @@ if (CONFIG_BLUETOOTH_AP)
         endif()
 
 	endif()
+
+	if (CONFIG_BLE_LE_AUDIO)
+		list(APPEND srcs
+			profile/bap/bk_dm_bap.c
+		)
+		list(APPEND incs
+			include
+			include/private
+			.
+		)
+	endif()
 endif()
 
 if (CONFIG_CLI)
@@ -239,7 +250,9 @@ if (CONFIG_BLUETOOTH_AP)
     endif()
 
     if(CONFIG_BLUETOOTH_HOST_ONLY)
-		if(CONFIG_BLE AND CONFIG_BT)
+		if(CONFIG_BLE_LE_AUDIO)
+			set(bt_host_basename ${bt_host_dm}_dual_ap_le_audio)
+		elseif(CONFIG_BLE AND CONFIG_BT)
 			set(bt_host_basename ${bt_host_dm}_dual_ap)
 		elseif(CONFIG_BLE)
 			if(CONFIG_BLUETOOTH_BLE_SLAVE_ONLY)

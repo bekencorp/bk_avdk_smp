@@ -64,6 +64,13 @@ typedef struct __attribute__((packed))
 
 typedef struct __attribute__((packed))
 {
+    uint16_t hdl_flags;
+    uint16_t datalen;
+    uint8_t param[];
+}iso_hdr_t;
+
+typedef struct __attribute__((packed))
+{
     uint16_t conhdl_psf;
     uint8_t datalen;
     uint8_t param[];
@@ -96,6 +103,7 @@ enum
     HCI_ACL_DATA_PKT = 0x2,
     HCI_SCO_DATA_PKT = 0x3,
     HCI_EVENT_PKT = 0x4, //M core
+    HCI_ISO_DATA_PKT = 0x5,
     HCI_FREE_PKT = 0xa,
 };
 
@@ -115,4 +123,5 @@ void bt_ipc_hci_send_acl_data(uint16_t hdl_flags, uint8_t *data, uint16_t len);
 void bt_ipc_hci_send_event(uint8_t event_code, uint8_t *data, uint16_t len);
 void bt_ipc_register_hci_send_callback(bt_hci_send_cb_t cb);
 void bt_ipc_hci_send_sco_data(uint16_t hdl_flags, uint8_t *data, uint16_t len);
+void bt_ipc_hci_send_iso_data(uint16_t hdl_flags, uint8_t *data, uint16_t len);
 #endif

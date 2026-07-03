@@ -109,6 +109,7 @@ static ble_err_t hal_hci_driver_send_to_host_ext(uint8_t from, uint8_t *input_bu
     {
     case DATA_TYPE_ACL:
     case DATA_TYPE_SCO:
+    case DATA_TYPE_ISO:
         need_rep = 1;
         goto end;
         break;
@@ -269,7 +270,7 @@ static ble_err_t hci_to_secondary_controller_with_type(uint8_t type, uint8_t *in
     return ret;
 }
 
-#if CONFIG_BT
+#if (CONFIG_BT || CONFIG_BLE_LE_AUDIO)
 static bt_err_t dual_hci_data_to_cp_cb(uint8_t type, uint8_t *buf, uint16_t len)
 {
     // switch (type)
@@ -435,6 +436,30 @@ static bt_err_t dual_hci_data_to_cp_cb(uint8_t type, uint8_t *buf, uint16_t len)
     }
     break;
 
+    case DATA_TYPE_ISO:
+    {
+        // ISO data (host -> controller) for BIS/CIS TX, e.g. Auracast source.
+        // ISO belongs to the BLE controller, so forward it to the primary
+        // controller over IPC (AP -> CP), mirroring the ACL path.
+        iso_hdr_t *iso_hdr = (iso_hdr_t *)buf;
+        // ISO_Data_Load_Length is the lower 14 bits; upper 2 bits are RFU.
+        uint16_t iso_load_len = iso_hdr->datalen & 0x3FFF;
+
+        LOGV("type %d len %d %d", type, len, iso_load_len);
+
+        switch (s_controller_mode)
+        {
+        case MULTI_CONTROLLER_MODE_PRI_NONE_SEC_ALL:
+            ret = hci_to_secondary_controller_with_type(type, buf, len);
+            break;
+
+        default:
+            bt_ipc_hci_send_iso_data(iso_hdr->hdl_flags, iso_hdr->param, iso_load_len);
+            break;
+        }
+    }
+    break;
+
     default:
         LOGE("unknown type (0x%x)", type);
         break;
@@ -482,7 +507,7 @@ static ble_err_t ble_hci_data_to_cp_cb(uint8_t *buf, uint16_t len)
 static void hal_hci_driver_send_to_host(uint8_t *buf, uint16_t len)
 {
     //LOGD("%s, type %d,len %d",__func__, buf[0],len);
-#if CONFIG_BT
+#if (CONFIG_BT || CONFIG_BLE_LE_AUDIO)
     hal_hci_driver_send_to_host_ext(MULTI_CONTROLLER_VOTE_PRI, buf, len);
 #else
     bk_ble_hci_send_to_host(buf, len);
@@ -531,6 +556,7 @@ static void notify_parse_packet_ready_ext_cb(void *input_data, uint16_t input_le
     {
     case DATA_TYPE_ACL:
     case DATA_TYPE_SCO:
+    case DATA_TYPE_ISO:
         hal_hci_driver_send_to_host_ext(MULTI_CONTROLLER_VOTE_SEC, input_data, input_len);
         break;
 
@@ -736,7 +762,7 @@ int hal_hci_driver_secondary_controller_deinit(void)
 int hal_hci_driver_open(void)
 {
     int ret;
-#if CONFIG_BT
+#if (CONFIG_BT || CONFIG_BLE_LE_AUDIO)
     ret = bk_dual_host_register_hci_callback(dual_hci_data_to_cp_cb);
 #else
     ret = bk_ble_host_register_hci_callback(ble_hci_data_to_cp_cb);
@@ -750,7 +776,7 @@ int hal_hci_driver_close(void)
     int ret;
 
     bt_ipc_register_hci_send_callback(NULL);
-#if CONFIG_BT
+#if (CONFIG_BT || CONFIG_BLE_LE_AUDIO)
     ret = bk_dual_host_register_hci_callback(NULL);
 #else
     ret = bk_ble_host_register_hci_callback(NULL);

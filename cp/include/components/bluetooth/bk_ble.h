@@ -742,6 +742,18 @@ ble_err_t bk_ble_reg_hci_recv_callback(ble_hci_to_host_cb evt_cb, ble_hci_to_hos
 ble_err_t bk_ble_reg_sco_hci_recv_callback(ble_hci_to_host_cb sco_cb);
 
 /**
+ * @brief register iso hci recv callback
+ *
+ * @param
+ *    - iso_cb: iso callback function
+ *
+ * @return
+ *    - BK_ERR_BLE_SUCCESS: succeed
+ *    - others: other errors.
+ */
+ble_err_t bk_ble_reg_iso_hci_recv_callback(ble_hci_to_host_cb iso_cb);
+
+/**
  * @brief send hci to controller.
  *
  *
@@ -788,6 +800,21 @@ ble_err_t bk_ble_hci_cmd_to_controller(uint8_t *buf, uint16_t len);
  * - BK_ERR_BLE_SUCCESS: succeed
 **/
 ble_err_t bk_ble_hci_acl_to_controller(uint8_t *buf, uint16_t len);
+
+/**
+ * @brief send hci iso data to controller (host -> controller, BIS/CIS TX, e.g. Auracast source).
+ *
+ *
+ * @param
+ * - buf: payload (HCI ISO packet without the type byte)
+ * - len: buf's len
+ *
+ * @attention 1. you must call this after bk_ble_reg_hci_recv_callback !
+ *
+ * @return
+ * - BK_ERR_BLE_SUCCESS: succeed
+**/
+ble_err_t bk_ble_hci_iso_to_controller(uint8_t *buf, uint16_t len);
 
 
 

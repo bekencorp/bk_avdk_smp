@@ -18,6 +18,16 @@ menu "Bk_ble"
 		depends on (BLUETOOTH_HOST_ONLY || BLUETOOTH_SUPPORT_AP_PWD_ALL)
 		default y
 
+	config BLE_LE_AUDIO
+		bool "Enable LE Audio"
+		depends on BLE && BLUETOOTH_BTDM_COMPONENT_ENABLE
+		default n
+		help
+			Enable LE Audio BAP/Broadcast APIs on top of the dual-mode
+			Ethermind host. This is required by projects/bluetooth/le_audio.
+			When enabled, the AP side links the Ethermind host_dm library even
+			if classic BT application APIs are disabled with CONFIG_BT=n.
+
 	config BLUETOOTH_AUTO_ENABLE
 		bool "bluetooth auto enable"
 		depends on BLUETOOTH_AP

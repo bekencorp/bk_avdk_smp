@@ -205,6 +205,13 @@ static ble_err_t ble_hci_to_host_sco_cb(uint8_t *buf, uint16_t len)
     return 0;
 }
 
+static ble_err_t ble_hci_to_host_iso_cb(uint8_t *buf, uint16_t len)
+{
+    iso_hdr_t *iso_hdr = (iso_hdr_t *)buf;
+    bt_ipc_hci_send_iso_data(iso_hdr->hdl_flags, iso_hdr->param, iso_hdr->datalen);
+    return 0;
+}
+
 static ble_err_t ble_hci_to_secondary_controller(uint8_t *buf, uint16_t len)
 {
     int32_t ret = 0;
@@ -366,6 +373,23 @@ static void hal_hci_driver_send(uint8_t *buf, uint16_t len)
     }
     break;
 
+    case DATA_TYPE_ISO:
+    {
+        // ISO data (host -> controller) belongs to the BLE controller (BIS/CIS TX,
+        // e.g. Auracast source). Route it to the primary BLE controller.
+        switch (s_controller_mode)
+        {
+        case MULTI_CONTROLLER_MODE_PRI_NONE_SEC_ALL:
+            ble_hci_to_secondary_controller(buf, len);
+            break;
+
+        default:
+            bk_ble_hci_iso_to_controller(&buf[1], len - 1);
+            break;
+        }
+    }
+    break;
+
     default:
         LOGE("unknown type (0x%x)", type);
         break;
@@ -518,6 +542,7 @@ int hal_hci_driver_open(void)
 
     ret = bk_ble_reg_hci_recv_callback(ble_hci_to_host_evt_cb, ble_hci_to_host_acl_cb);
     bk_ble_reg_sco_hci_recv_callback(ble_hci_to_host_sco_cb);
+    bk_ble_reg_iso_hci_recv_callback(ble_hci_to_host_iso_cb);
     bt_ipc_register_hci_send_callback(hal_hci_driver_send);
     return ret;
 }
@@ -529,6 +554,7 @@ int hal_hci_driver_close(void)
     bt_ipc_register_hci_send_callback(NULL);
     ret = bk_ble_reg_hci_recv_callback(NULL, NULL);
     bk_ble_reg_sco_hci_recv_callback(NULL);
+    bk_ble_reg_iso_hci_recv_callback(NULL);
 
     return ret;
 }

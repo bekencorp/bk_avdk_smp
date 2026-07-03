@@ -26,6 +26,28 @@ extern "C" {
 
 #define BK_BT_ADDR_LEN       (6)
 
+#define BK_BT_STREAM_TO_UINT8(u8, p) do { \
+    (u8) = (uint8_t)(*(uint8_t *)(p)); \
+    (p) += 1; \
+} while (0)
+
+#define BK_BT_STREAM_TO_UINT16(u16, p) do { \
+    (u16) = (uint16_t)*(uint8_t *)(p) + (((uint16_t)*((uint8_t *)(p) + 1)) << 8); \
+    (p) += 2; \
+} while (0)
+
+#define BK_BT_STREAM_TO_UINT24(u24, p) do { \
+    (u24) = (uint32_t)*(uint8_t *)(p) + (((uint32_t)*((uint8_t *)(p) + 1)) << 8) + \
+           (((uint32_t)*((uint8_t *)(p) + 2)) << 16); \
+    (p) += 3; \
+} while (0)
+
+#define BK_BT_STREAM_TO_UINT32(u32, p) do { \
+    (u32) = (uint32_t)*(uint8_t *)(p) + (((uint32_t)*((uint8_t *)(p) + 1)) << 8) + \
+           (((uint32_t)*((uint8_t *)(p) + 2)) << 16) + (((uint32_t)*((uint8_t *)(p) + 3)) << 24); \
+    (p) += 4; \
+} while (0)
+
 
 /**
  * @brief Bluetooth status type, to indicate whether the bluetooth is ready.

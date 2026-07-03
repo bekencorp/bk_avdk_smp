@@ -51,6 +51,7 @@ typedef enum
     BK_BLE_HCI_TYPE_ACL = 2,
     BK_BLE_HCI_TYPE_SCO = 3,
     BK_BLE_HCI_TYPE_EVT = 4,
+    BK_BLE_HCI_TYPE_ISO = 5,
 } BK_BLE_HCI_TYPE;
 
 

@@ -39,6 +39,8 @@ enum
 #define SCO_PREAMBLE_SIZE 3
 // 1 byte for event code, 1 byte for parameter length (Volume 2, Part E, 5.4.4)
 #define EVENT_PREAMBLE_SIZE 2
+// 2 bytes for handle, 2 bytes for ISO data load length (Volume 2, Part E, 5.4.5)
+#define ISO_PREAMBLE_SIZE 4
 
 #define EVENT_DATA_LENGTH_INDEX 2
 #define COMMON_DATA_LENGTH_INDEX 3
@@ -49,7 +51,8 @@ static const uint8_t hci_preamble_sizes[] =
     COMMAND_PREAMBLE_SIZE,
     ACL_PREAMBLE_SIZE,
     SCO_PREAMBLE_SIZE,
-    EVENT_PREAMBLE_SIZE
+    EVENT_PREAMBLE_SIZE,
+    ISO_PREAMBLE_SIZE
 };
 
 typedef struct
@@ -142,7 +145,7 @@ static void hci_packet_parser_handler(void)
                     return;
                 }
 
-                if (type < DATA_TYPE_COMMAND || type > DATA_TYPE_EVENT)
+                if (type < DATA_TYPE_COMMAND || type > DATA_TYPE_ISO)
                 {
                     LOGE("1 invalid data type: 0x%x", type);
                     BK_ASSERT_EX(0, "%s 1 invalid data type: 0x%x\n", __func__, type);
@@ -203,6 +206,16 @@ static void hci_packet_parser_handler(void)
                     BK_ASSERT_EX(0, "%s packet_bytes_need %d > 1024\n", __func__, packet_bytes_need);
                 }
             }
+            else if (current_type == DATA_TYPE_ISO)
+            {
+                os_memcpy(&packet_bytes_need, &h4_read_buffer[COMMON_DATA_LENGTH_INDEX], 2);
+                packet_bytes_need &= 0x3FFF;
+
+                if (packet_bytes_need > 1024)
+                {
+                    BK_ASSERT_EX(0, "%s packet_bytes_need %d > 1024\n", __func__, packet_bytes_need);
+                }
+            }
             else if (current_type == DATA_TYPE_EVENT)
             {
                 packet_bytes_need = h4_read_buffer[EVENT_DATA_LENGTH_INDEX];
@@ -251,6 +264,7 @@ static void hci_packet_parser_handler(void)
             case DATA_TYPE_ACL:
             case DATA_TYPE_SCO:
             case DATA_TYPE_EVENT:
+            case DATA_TYPE_ISO:
                 if (hci_packet_parser_cb)
                 {
                     if (hci_packet_parser_cb->notify_parse_packet_ready_ext_cb)

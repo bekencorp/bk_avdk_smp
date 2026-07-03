@@ -9,6 +9,14 @@ menu "Bk_ble"
         bool "Enable Ble"
         default y
 
+    config BLE_LE_AUDIO
+        bool "Enable LE Audio controller support"
+        depends on BLE && BTDM_CONTROLLER_ONLY && BTDM_5_2
+        default n
+        help
+            Enable controller-side LE Audio, Periodic Advertising, and PAST
+            support for projects that use LE Audio broadcast synchronization.
+
     choice BLE_STACK
         prompt "Select Ble Version"
         depends on (BLE || BT)

@@ -52,6 +52,7 @@ enum
     BT_IPC_EXIT_MSG = 4,
     BT_IPC_ACL_IND_MSG = 5,
     BT_IPC_SCO_IND_MSG = 6,
+    BT_IPC_ISO_IND_MSG = 7,
 };
 
 static void bt_ipc_free_local_msg_payload(hci_hdr_t *msg)
@@ -119,6 +120,22 @@ static void bt_ipc_mailbox_rx_isr(void *param, void *cmd_buf)
             bt_ipc_msg_t bt_ipc_msg;
 
             bt_ipc_msg.type = BT_IPC_SCO_IND_MSG;
+            bt_ipc_msg.param = hci_hdr->hdr_ptr;
+
+            int rc = rtos_push_to_queue(&bt_ipc_env.queue, &bt_ipc_msg, BEKEN_NO_WAIT);
+
+            if (kNoErr != rc)
+            {
+                LOGW("%s, send queue failed\r\n", __func__);
+            }
+        }
+        break;
+
+        case HCI_ISO_DATA_PKT:
+        {
+            bt_ipc_msg_t bt_ipc_msg;
+
+            bt_ipc_msg.type = BT_IPC_ISO_IND_MSG;
             bt_ipc_msg.param = hci_hdr->hdr_ptr;
 
             int rc = rtos_push_to_queue(&bt_ipc_env.queue, &bt_ipc_msg, BEKEN_NO_WAIT);
@@ -307,6 +324,28 @@ void bt_ipc_hci_send_sco_data(uint16_t hdl_flags, uint8_t *data, uint16_t len)
     bt_ipc_mailbox_send_msg(&msg);
 }
 
+void bt_ipc_hci_send_iso_data(uint16_t hdl_flags, uint8_t *data, uint16_t len)
+{
+    hci_hdr_t msg;
+
+    uint16_t data_len = sizeof(iso_hdr_t) + len;
+    iso_hdr_t *iso_hdr = (iso_hdr_t *)os_malloc(data_len);
+
+    if (iso_hdr == NULL)
+    {
+        LOGW("%s, malloc failed\r\n", __func__);
+        return;
+    }
+    iso_hdr->hdl_flags = hdl_flags;
+    iso_hdr->datalen = len;
+    os_memcpy(iso_hdr->param, data, len);
+
+    msg.pkt_type = HCI_ISO_DATA_PKT;
+    msg.hdr_ptr = (uint32_t)(uintptr_t)iso_hdr;
+
+    bt_ipc_mailbox_send_msg(&msg);
+}
+
 void bt_ipc_hci_free_pkt(uint32_t ptr)
 {
     hci_hdr_t msg = {0};
@@ -438,6 +477,30 @@ static void bt_ipc_message_handle(void)
                             os_memcpy(p_sco_data + 1, (uint8_t *)(uintptr_t)msg.param, sco_data_len - 1);
                             s_bt_ipc_hci_send_cb(p_sco_data, sco_data_len);
                             os_free(p_sco_data);
+                        }
+                    }
+                    bt_ipc_hci_free_pkt(msg.param);
+                }
+                break;
+
+                case BT_IPC_ISO_IND_MSG:
+                {
+                    iso_hdr_t *iso_hdr = (iso_hdr_t *)(uintptr_t)msg.param;
+
+                    if (s_bt_ipc_hci_send_cb)
+                    {
+                        uint16_t iso_data_len = sizeof(iso_hdr_t) + iso_hdr->datalen + 1;
+                        uint8_t *p_iso_data = (uint8_t *)os_malloc(iso_data_len);
+                        if (!p_iso_data)
+                        {
+                            LOGW("%s, malloc p_iso_data failed\r\n", __func__);
+                        }
+                        else
+                        {
+                            p_iso_data[0] = HCI_ISO_DATA_PKT;
+                            os_memcpy(p_iso_data + 1, (uint8_t *)(uintptr_t)msg.param, iso_data_len - 1);
+                            s_bt_ipc_hci_send_cb(p_iso_data, iso_data_len);
+                            os_free(p_iso_data);
                         }
                     }
                     bt_ipc_hci_free_pkt(msg.param);
