@@ -317,6 +317,7 @@ static inline bool addr_is_in_dtcm(uint32_t addr)
 
 static inline bool addr_is_in_sram(uint32_t addr)
 {
+    addr = SOC_SRAM_PERI_ADDR(addr);
     return ((addr >= SOC_RAM_BASE) && (addr < SOC_RAM_BASE + SOC_RAM_SIZE));
 }
 

@@ -63,12 +63,13 @@ typedef struct {
 #define hpdma_hal_set_cfg_cache(hal, id, cfg_cache) hpdma_ll_set_cfg_cache((hal)->hw, id, cfg_cache)
 #define hpdma_hal_get_cfg_cache(hal, id) hpdma_ll_get_cfg_cache((hal)->hw, id)
 
-#define hpdma_hal_set_src_start_addr(hal, id, addr) hpdma_ll_set_src_start_addr((hal)->hw, id, addr)
+/* The HPDMA engine can only access the 0x28xxxxxx SRAM alias. */
+#define hpdma_hal_set_src_start_addr(hal, id, addr) hpdma_ll_set_src_start_addr((hal)->hw, id, SOC_SRAM_PERI_ADDR(addr))
 #define hpdma_hal_get_src_start_addr(hal, id) hpdma_ll_get_src_start_addr((hal)->hw, id)
-#define hpdma_hal_set_dest_start_addr(hal, id, addr) hpdma_ll_set_dest_start_addr((hal)->hw, id, addr)
+#define hpdma_hal_set_dest_start_addr(hal, id, addr) hpdma_ll_set_dest_start_addr((hal)->hw, id, SOC_SRAM_PERI_ADDR(addr))
 #define hpdma_hal_get_dest_start_addr(hal, id) hpdma_ll_get_dest_start_addr((hal)->hw, id)
-#define hpdma_hal_set_src_loop_end_addr(hal, id, end_addr) hpdma_ll_set_src_loop_end_addr((hal)->hw, id, end_addr)
-#define hpdma_hal_set_dest_loop_end_addr(hal, id, end_addr) hpdma_ll_set_dest_loop_end_addr((hal)->hw, id, end_addr)
+#define hpdma_hal_set_src_loop_end_addr(hal, id, end_addr) hpdma_ll_set_src_loop_end_addr((hal)->hw, id, SOC_SRAM_PERI_ADDR(end_addr))
+#define hpdma_hal_set_dest_loop_end_addr(hal, id, end_addr) hpdma_ll_set_dest_loop_end_addr((hal)->hw, id, SOC_SRAM_PERI_ADDR(end_addr))
 
 #define hpdma_hal_enable_src_addr_inc(hal, id) hpdma_ll_enable_src_addr_inc((hal)->hw, id)
 #define hpdma_hal_disable_src_addr_inc(hal, id) hpdma_ll_disable_src_addr_inc((hal)->hw, id)
@@ -79,8 +80,8 @@ typedef struct {
 #define hpdma_hal_enable_dest_addr_loop(hal, id) hpdma_ll_enable_dest_addr_loop((hal)->hw, id)
 #define hpdma_hal_disable_dest_addr_loop(hal, id) hpdma_ll_disable_dest_addr_loop((hal)->hw, id)
 
-#define hpdma_hal_set_src_pause_addr(hal, id, addr) hpdma_ll_set_src_pause_addr((hal)->hw, id, addr)
-#define hpdma_hal_set_dest_pause_addr(hal, id, addr) hpdma_ll_set_dest_pause_addr((hal)->hw, id, addr)
+#define hpdma_hal_set_src_pause_addr(hal, id, addr) hpdma_ll_set_src_pause_addr((hal)->hw, id, SOC_SRAM_PERI_ADDR(addr))
+#define hpdma_hal_set_dest_pause_addr(hal, id, addr) hpdma_ll_set_dest_pause_addr((hal)->hw, id, SOC_SRAM_PERI_ADDR(addr))
 #define hpdma_hal_get_src_read_addr(hal, id) hpdma_ll_get_src_read_addr((hal)->hw, id)
 #define hpdma_hal_get_dest_write_addr(hal, id) hpdma_ll_get_dest_write_addr((hal)->hw, id)
 
@@ -104,7 +105,7 @@ typedef struct {
 #define hpdma_hal_set_int_allocate(hal, id, int_id) hpdma_ll_set_int_allocate((hal)->hw, id, int_id)
 #define hpdma_hal_get_int_allocate(hal, id) hpdma_ll_get_int_allocate((hal)->hw, id)
 
-#define hpdma_hal_set_next_ll_addr(hal, id, ll_addr) hpdma_ll_set_next_ll_addr((hal)->hw, id, ll_addr)
+#define hpdma_hal_set_next_ll_addr(hal, id, ll_addr) hpdma_ll_set_next_ll_addr((hal)->hw, id, SOC_SRAM_PERI_ADDR(ll_addr))
 #define hpdma_hal_get_next_ll_addr(hal, id) hpdma_ll_get_next_ll_addr((hal)->hw, id)
 #define hpdma_hal_set_xsize(hal, id, src_xsize, dest_xsize) hpdma_ll_set_xsize((hal)->hw, id, src_xsize, dest_xsize)
 #define hpdma_hal_set_ysize(hal, id, src_ysize, dest_ysize) hpdma_ll_set_ysize((hal)->hw, id, src_ysize, dest_ysize)

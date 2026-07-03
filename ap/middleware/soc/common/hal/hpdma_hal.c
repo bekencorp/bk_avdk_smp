@@ -43,8 +43,12 @@ bk_err_t hpdma_hal_init_dma(hpdma_hal_t *hal, hpdma_id_t id, const hpdma_config_
     hpdma_ll_set_src_req_mux(hal->hw, id, config->src.dev);
 	hpdma_ll_set_pixel_trans_type(hal->hw, id, config->trans_type);
 
-    hpdma_ll_set_src_start_addr(hal->hw, id, config->src.start_addr);
-    hpdma_ll_set_dest_start_addr(hal->hw, id, config->dst.start_addr);
+    /* The HPDMA engine can only access the 0x28xxxxxx SRAM alias. */
+    uint32_t src_start_addr = SOC_SRAM_PERI_ADDR(config->src.start_addr);
+    uint32_t dst_start_addr = SOC_SRAM_PERI_ADDR(config->dst.start_addr);
+
+    hpdma_ll_set_src_start_addr(hal->hw, id, src_start_addr);
+    hpdma_ll_set_dest_start_addr(hal->hw, id, dst_start_addr);
 
     /*
      * P0 (HPDMA review):
@@ -64,7 +68,7 @@ bk_err_t hpdma_hal_init_dma(hpdma_hal_t *hal, hpdma_id_t id, const hpdma_config_
 
     if (config->src.addr_loop_en) {
         // Loop mode requires the loop window start/end to be 128-bit aligned.
-        if ((config->src.start_addr & 0xF) != 0) {
+        if ((src_start_addr & 0xF) != 0) {
             return BK_ERR_HPDMA_HAL_INVALID_ALIGN;
         }
         // When src addr loop is enabled, ysize must be 0
@@ -72,7 +76,7 @@ bk_err_t hpdma_hal_init_dma(hpdma_hal_t *hal, hpdma_id_t id, const hpdma_config_
             return BK_ERR_HPDMA_HAL_INVALID_YSIZE;
         }
         // Calculate loop end address = start address + xsize
-        uint32_t src_loop_end_addr = config->src.start_addr + config->src.xsize;
+        uint32_t src_loop_end_addr = src_start_addr + config->src.xsize;
         // Check if the loop end address is 128-bit aligned
         if ((src_loop_end_addr & 0xF) != 0) {
             return BK_ERR_HPDMA_HAL_INVALID_ALIGN;
@@ -91,7 +95,7 @@ bk_err_t hpdma_hal_init_dma(hpdma_hal_t *hal, hpdma_id_t id, const hpdma_config_
 
     if (config->dst.addr_loop_en) {
         // Loop mode requires the loop window start/end to be 128-bit aligned.
-        if ((config->dst.start_addr & 0xF) != 0) {
+        if ((dst_start_addr & 0xF) != 0) {
             return BK_ERR_HPDMA_HAL_INVALID_ALIGN;
         }
         // When dst addr loop is enabled, ysize must be 0
@@ -99,7 +103,7 @@ bk_err_t hpdma_hal_init_dma(hpdma_hal_t *hal, hpdma_id_t id, const hpdma_config_
             return BK_ERR_HPDMA_HAL_INVALID_YSIZE;
         }
         // Calculate loop end address = start address + xsize
-        uint32_t dst_loop_end_addr = config->dst.start_addr + config->dst.xsize;
+        uint32_t dst_loop_end_addr = dst_start_addr + config->dst.xsize;
         // Check if the loop end address is 128-bit aligned
         if ((dst_loop_end_addr & 0xF) != 0) {
             return BK_ERR_HPDMA_HAL_INVALID_ALIGN;

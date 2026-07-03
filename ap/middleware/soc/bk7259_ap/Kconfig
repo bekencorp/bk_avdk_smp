@@ -1,3 +1,7 @@
+	config SRAM_DIRECT_ADDR
+		bool "Use SRAM direct address"
+		default n
+
 	config ITCM_SIZE
 		hex "Total ITCM size"
 		default 0x4000
