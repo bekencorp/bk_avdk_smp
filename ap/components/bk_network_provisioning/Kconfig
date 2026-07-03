@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: Network Services::Provisioning
 menu "Beken Components Network Provisioning"
 	config BK_NETWORK_PROVISIONING
 		bool "Enable Beken Network Provisioning"

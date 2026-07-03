@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: Device Drivers::Keys & Buttons
 menu "Adc_key"
 
 	config ADC_KEY

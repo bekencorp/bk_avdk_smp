@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: Network Services::Modem
 #TODO add depens 
 menu "Mcu_4g_modem"
 	config BK_MODEM

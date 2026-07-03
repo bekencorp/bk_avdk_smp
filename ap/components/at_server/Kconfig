@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: Debug::AT Server
 menu "At_server"
 
 config AT

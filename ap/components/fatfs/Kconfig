@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: Storage::File System
 menu "FATFS"
 	config FATFS
 		bool "Support FATFS"

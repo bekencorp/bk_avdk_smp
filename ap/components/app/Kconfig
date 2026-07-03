@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: System Services::Application Services
 menu "App"
 
 	config DEMO_TEST
