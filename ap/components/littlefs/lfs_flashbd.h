@@ -69,7 +69,7 @@ int lfs_spi_flashbd_erase(const struct lfs_config *cfg, lfs_block_t block);
 int lfs_spi_flashbd_sync(const struct lfs_config *cfg);
 #endif
 
-#if (defined CONFIG_QSPI_MST_FLASH)
+#if (defined CONFIG_QSPI_NOR_FLASH) || (defined CONFIG_QSPI_NAND_FLASH)
 	int lfs_qspi_flashbd_init(uint32_t id);
 	int lfs_qspi_flashbd_read(const struct lfs_config *cfg, lfs_block_t block,
 			lfs_off_t off, void *buffer, lfs_size_t size);

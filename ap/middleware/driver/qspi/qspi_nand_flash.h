@@ -19,11 +19,15 @@ extern "C" {
 #endif
 
 #define QSPI_CMD1_LEN              8
+/* QSPI max configurable SCK is 80MHz */
+#define QSPI_FLASH_MAX_SCK_HZ      80000000
 /* ZB35Q01CYIG 9Fh returns 2 valid ID bytes after dummy (Table 3-1) */
 #define FLASH_READ_ID_SIZE         2
 #define FLASH_PAGE_MASK            (NAND_PAGE_SIZE_BYTES - 1)
 #define FLASH_SECTOR_MASK          (NAND_BLOCK_SIZE_BYTES - 1)
 
+/* ZB35Q01CYIG Reset command (Table 3-2) */
+#define NAND_CMD_RESET               0xFF
 #define NAND_CMD_WRITE_ENABLE        0x06
 #define NAND_CMD_GET_FEATURE         0x0F
 #define NAND_CMD_SET_FEATURE         0x1F
@@ -42,6 +46,14 @@ extern "C" {
 #define NAND_FEATURE_ADDR_BLOCK_LOCK 0xA0
 #define NAND_FEATURE_ADDR_DRIVE      0xB0
 #define NAND_FEATURE_ADDR_STATUS     0xC0
+
+/* Command phase field widths */
+#define NAND_ADDR_LEN_FEATURE        1    // 1-byte feature/ID address
+#define NAND_ADDR_LEN_COLUMN         2    // 2-byte in-page column address
+#define NAND_ADDR_LEN_ROW            3    // 3-byte page/block row address
+#define NAND_FEATURE_DATA_LEN        1    // feature register is 1 byte
+#define NAND_READ_DUMMY_CYCLE        8    // read-from-cache dummy cycles
+#define NAND_READ_DUMMY_MODE         3    // read-from-cache dummy mode
 
 #define NAND_PAGE_SIZE_BYTES         2048U
 #define NAND_SPARE_SIZE_BYTES        64U
@@ -68,6 +80,7 @@ extern "C" {
 
 /* A0h Protection Register bits */
 #define NAND_PROT_WP_E_BIT           BIT(1)
+#define NAND_BLOCK_LOCK_NONE         0x00
 
 /* B0h Configuration Register: ECC-E defaults to 1 at power-up */
 #define NAND_CFG_ECC_E_BIT           BIT(4)

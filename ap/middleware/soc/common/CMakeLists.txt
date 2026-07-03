@@ -45,14 +45,6 @@ if(CONFIG_MAILBOX)
 	endif()
 endif()
 
-if(CONFIG_QSPI)
-	if (NOT CONFIG_SOC_BK7259)
-		list(APPEND srcs
-			"hal/qspi_hal.c"
-		)
-	endif()
-endif()
-
 if(CONFIG_PSRAM)
 	list(APPEND srcs
 		"hal/psram_hal.c"

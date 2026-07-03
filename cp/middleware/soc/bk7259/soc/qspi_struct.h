@@ -282,9 +282,11 @@ typedef volatile struct {
 	/* REG_0x19 */
 	union {
 		struct {
-			uint32_t reserved:          1;   /**< bit[0]    */
-			uint32_t sw_rst_fifo:       1;   /**< bit[1]    */
-			uint32_t reserved1:         30;   /**< bit[2:31] */
+			uint32_t reserved:          4;   /**< bit[0:3] */
+			uint32_t clk_man_sel:       1;   /**< bit[4] */
+			uint32_t clk_man_en:        1;   /**< bit[5] */
+			uint32_t fifo_io_wr:        1;   /**< bit[6]    */
+			uint32_t reserved1:         25;  /**< bit[7:31] */
 		};
 		uint32_t v;
 	} rst_cfg;
@@ -388,10 +390,10 @@ typedef volatile struct {
 	} reg36;
 
 	/* REG_0x25 ~ REG_0x3F */
-	uint32_t reserved2[27];
+	uint32_t reserved2[0x1B];
 
-	/* REG_0x40 ~ REG_0x7C */
-	uint32_t fifo_data[61];
+	/* REG_0x40 ~ REG_0x7F */
+	uint32_t fifo_data[0x40];
 } qspi_hw_t;
 
 #ifdef __cplusplus

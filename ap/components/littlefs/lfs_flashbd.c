@@ -7,7 +7,7 @@
 #include <driver/spi_flash.h>
 #include <driver/dma.h>
 
-#if (defined CONFIG_QSPI_MST_FLASH)
+#if (defined CONFIG_QSPI_NOR_FLASH) || (defined CONFIG_QSPI_NAND_FLASH)
 #include <driver/qspi.h>
 #include <driver/qspi_flash.h>
 #endif
@@ -266,7 +266,7 @@ int lfs_spi_flashbd_sync(const struct lfs_config *cfg)
 
 #endif
 
-#if (defined CONFIG_QSPI_MST_FLASH)
+#if (defined CONFIG_QSPI_NOR_FLASH) || (defined CONFIG_QSPI_NAND_FLASH)
 
 static int qspi_inited = 0;
 

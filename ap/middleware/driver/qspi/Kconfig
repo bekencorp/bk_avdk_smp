@@ -7,29 +7,33 @@ menu "QSPI"
 		bool "Enable QSPI Statis"
 		default n
 
-	config QSPI_MST_FLASH
-		bool "Enable QSPI Flash"
+	config QSPI_MST_PSRAM
+		bool "Enable QSPI PSRAM"
 		depends on QSPI
 		default n
+
+	choice
+		prompt "QSPI Flash type"
+		optional
+		depends on QSPI
 		help
-			BEKEN Chip sets QSPI interface as a master device, the slave device is a flash,
-			then BEKEN Chip can access the flash with QSPI interface.
-			The application can read/writes data to flash directly by QSPI Flash API,
-			or reads/writes by file system API if enable relates macro, I.E. CONFIG_FATFS, CONFIG_LITTLEFS, CONFIG_VFS...
+			Select NOR or NAND for the QSPI master flash. They are mutually
+			exclusive; leave unselected if QSPI flash is not used.
+			NOR and NAND share the same bk_qspi_flash_* API and only one driver
+			is linked at a time. If both are force-enabled outside this choice,
+			NAND takes precedence.
 
-	config QSPI_FLASH_GD
-		depends on QSPI_MST_FLASH
-		bool "Enable GD Flash"
-		default n
+		config QSPI_NOR_FLASH
+			bool "Enable QSPI NOR Flash"
+			help
+				BEKEN Chip sets QSPI interface as a master device, the slave device is a NOR flash,
+				then BEKEN Chip can access the flash with QSPI interface.
+				The application can read/writes data to flash directly by QSPI Flash API,
+				or reads/writes by file system API if enable relates macro, I.E. CONFIG_FATFS, CONFIG_LITTLEFS, CONFIG_VFS...
 
-	config QSPI_NAND_FLASH
-		bool "Enable NAND Flash"
-		depends on QSPI
-		default n
-
-	config QSPI_QUAD_WIRE
-		bool "Enable NAND Flash 4-WIRE"
-		default y
+		config QSPI_NAND_FLASH
+			bool "Enable QSPI NAND Flash"
+	endchoice
 
 	config QSPI_NAND_FLASH_SIZE
 		hex "NAND Flash Size (Bytes)"

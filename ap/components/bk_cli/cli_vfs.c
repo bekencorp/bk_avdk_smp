@@ -99,6 +99,23 @@ static int test_mount_spi_lfs(char *mount_point) {
 	return ret;
 }
 
+/*
+ * QSPI littlefs test partitions.
+ * NAND erase unit is a 128KB block, so partitions must be block-aligned and big
+ * enough for littlefs (use 1MB = 8 blocks each). NOR keeps the original 256KB.
+ */
+#if CONFIG_QSPI_NAND_FLASH
+#define qspi_lfs_p0_start	0
+#define qspi_lfs_p0_size	0x100000	// 1 MB (8 NAND blocks)
+#define qspi_lfs_p1_start	0x100000
+#define qspi_lfs_p1_size	0x100000
+#else
+#define qspi_lfs_p0_start	0
+#define qspi_lfs_p0_size	0x40000
+#define qspi_lfs_p1_start	0x80000
+#define qspi_lfs_p1_size	0x40000
+#endif
+
 static int test_format_qspi_lfs(void) {
 	struct bk_little_fs_partition partition;
 	char *fs_name = NULL;
@@ -107,8 +124,8 @@ static int test_format_qspi_lfs(void) {
 
 	fs_name = "littlefs";
 	partition.part_type = LFS_QSPI_FLASH;
-	partition.part_flash.start_addr = 0;
-	partition.part_flash.size = 0x40000;
+	partition.part_flash.start_addr = qspi_lfs_p0_start;
+	partition.part_flash.size = qspi_lfs_p0_size;
 
 	ret = mkfs("PART_NONE", fs_name, &partition);
 
@@ -123,8 +140,8 @@ static int test_mount_qspi_lfs(char *mount_point) {
 
 	fs_name = "littlefs";
 	partition.part_type = LFS_QSPI_FLASH;
-	partition.part_flash.start_addr = 0;
-	partition.part_flash.size = 0x40000;
+	partition.part_flash.start_addr = qspi_lfs_p0_start;
+	partition.part_flash.size = qspi_lfs_p0_size;
 	partition.mount_path = mount_point;
 
 	ret = mount("SOURCE_NONE", partition.mount_path, fs_name, 0, &partition);
@@ -140,8 +157,8 @@ static int test_format_qspi0_part1_lfs(void) {
 
 	fs_name = "littlefs";
 	partition.part_type = LFS_QSPI_FLASH;
-	partition.part_flash.start_addr = 0x80000;
-	partition.part_flash.size = 0x40000;
+	partition.part_flash.start_addr = qspi_lfs_p1_start;
+	partition.part_flash.size = qspi_lfs_p1_size;
 
 	ret = mkfs("PART_NONE", fs_name, &partition);
 
@@ -156,8 +173,8 @@ static int test_mount_qspi0_part1_lfs(char *mount_point) {
 
 	fs_name = "littlefs";
 	partition.part_type = LFS_QSPI_FLASH;
-	partition.part_flash.start_addr = 0x80000;
-	partition.part_flash.size = 0x40000;
+	partition.part_flash.start_addr = qspi_lfs_p1_start;
+	partition.part_flash.size = qspi_lfs_p1_size;
 	partition.mount_path = mount_point;
 
 	ret = mount("SOURCE_NONE", partition.mount_path, fs_name, 0, &partition);

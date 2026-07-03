@@ -80,9 +80,7 @@ bk_err_t bk_qspi_flash_erase(qspi_id_t id, uint32_t addr, uint32_t size);
  * @return
  *    - NA.
  */
-#if CONFIG_QSPI_QUAD_WIRE || CONFIG_QSPI_NAND_FLASH
 bk_err_t bk_qspi_flash_quad_enable(qspi_id_t id);
-#endif /* CONFIG_QSPI_QUAD_WIRE || CONFIG_QSPI_NAND_FLASH */
 
 /**
  * @brief      QSPI flash erase 32k
@@ -122,9 +120,7 @@ bk_err_t bk_qspi_flash_erase(qspi_id_t id, uint32_t addr, uint32_t type);
  *    - BK_OK: succeed
  *    - others: other errors.
  */
-#if CONFIG_QSPI_QUAD_WIRE
 bk_err_t bk_qspi_flash_quad_page_program(qspi_id_t id, uint32_t addr, const void *data, uint32_t size);
-#endif /* CONFIG_QSPI_QUAD_WIRE */
 
 /**
  * @brief      QSPI flash single write
@@ -149,9 +145,7 @@ bk_err_t bk_qspi_flash_single_page_program(qspi_id_t id, uint32_t addr, const vo
  *    - BK_OK: succeed
  *    - others: other errors.
  */
-#if CONFIG_QSPI_QUAD_WIRE
 bk_err_t bk_qspi_flash_quad_read(qspi_id_t id, uint32_t addr, void *data, uint32_t size);
-#endif /* CONFIG_QSPI_QUAD_WIRE */
 
 /**
  * @brief      QSPI flash single read

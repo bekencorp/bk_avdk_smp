@@ -15,7 +15,9 @@
 #include <soc/soc.h>
 #include <driver/qspi.h>
 #include <driver/qspi_flash.h>
+#if CONFIG_QSPI_MST_PSRAM
 #include <driver/qspi_psram.h>
+#endif
 #include "cli.h"
 #include "qspi_hw.h"
 #if CONFIG_QSPI_NAND_FLASH
@@ -40,18 +42,24 @@ static void cli_qspi_help(void)
 	CLI_LOGD("qspi <id> init <src_clk> <src_clk_div> <clk_div> - Initialize QSPI with clock configuration\r\n");
 	CLI_LOGD("  src_clk: 0=160MHz, 1=240MHz\r\n");
 	CLI_LOGD("  src_clk_div: 0~15 (actual divider = 1 + src_clk_div)\r\n");
-	CLI_LOGD("  clk_div: 0~4 (divider factors: 1, 2, 4, 6, 8)\r\n");
-	CLI_LOGD("  Example: qspi 0 init 0 3 1  (160M/(1+3)/2 = 20MHz)\r\n");
+	CLI_LOGD("  clk_div: ignored (internal divider no longer effective)\r\n");
+	CLI_LOGD("  Example: qspi 0 init 0 3 0  (160M/(1+3) = 40MHz)\r\n");
+	CLI_LOGD("qspi <id> set_clk <freq_hz> - Set QSPI clock by target frequency in Hz (max 80MHz)\r\n");
+	CLI_LOGD("  Example: qspi 0 set_clk 80000000\r\n");
+#if CONFIG_QSPI_MST_PSRAM
 	CLI_LOGD("qspi enter_quad_mode\r\n");
 	CLI_LOGD("qspi exit_quad_mode\r\n");
 	CLI_LOGD("qspi quad_write\r\n");
 	CLI_LOGD("qspi quad_read\r\n");
 	CLI_LOGD("qspi compare\r\n");
-#if (CONFIG_QSPI_MST_FLASH)
+#endif
+#if (CONFIG_QSPI_NOR_FLASH)
 	CLI_LOGD("qspi_flash get_id\r\n");
 	CLI_LOGD("qspi_flash erase 0 256\r\n");
 	CLI_LOGD("qspi_flash single_write 0 256\r\n");
 	CLI_LOGD("qspi_flash single_read 0 256\r\n");
+	CLI_LOGD("qspi_flash <id> read_sr [reg]   - read status reg (reg 0=S0-S7,1=S8-S15,2=S16-S23; omit=all)\r\n");
+	CLI_LOGD("qspi_flash <id> write_sr <reg> <value_hex> - write status reg, e.g. write_sr 1 02\r\n");
 #endif
 }
 
@@ -74,6 +82,7 @@ static void cli_qspi_driver_cmd(char *pcWriteBuffer, int xWriteBufferLen, int ar
 	}
 }
 
+#if CONFIG_QSPI_MST_PSRAM
 static bk_err_t cli_qspi_psram_8bit_increase_init_memory(uint8_t *buf, uint32_t count)
 {
 	BK_RETURN_ON_NULL(buf);
@@ -119,10 +128,11 @@ static bk_err_t cli_qspi_psram_8bit_cmp_fixed_value(uint8_t *buf, uint32_t count
 	}
 	return BK_OK;
 }
+#endif
 
 static void cli_qspi_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
-	if (argc < 2) {
+	if (argc < 3) {
 		cli_qspi_help();
 		return;
 	}
@@ -135,8 +145,8 @@ static void cli_qspi_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
 			CLI_LOGE("Usage: qspi <id> init <src_clk> <src_clk_div> <clk_div>\r\n");
 			CLI_LOGE("  src_clk: 0=160MHz, 1=240MHz\r\n");
 			CLI_LOGE("  src_clk_div: 0~15 (actual divider = 1 + src_clk_div)\r\n");
-			CLI_LOGE("  clk_div: 0~4 (divider factors: 1, 2, 4, 6, 8)\r\n");
-			CLI_LOGE("  Example: qspi 0 init 0 3 1  (160M/(1+3)/2 = 20MHz)\r\n");
+			CLI_LOGE("  clk_div: ignored (internal divider no longer effective)\r\n");
+			CLI_LOGE("  Example: qspi 0 init 0 3 0  (160M/(1+3) = 40MHz)\r\n");
 			return;
 		}
 
@@ -156,31 +166,43 @@ static void cli_qspi_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
 			CLI_LOGE("Invalid src_clk_div: %d (must be 0~15)\r\n", src_clk_div);
 			return;
 		}
-		if (clk_div > 4) {
-			CLI_LOGE("Invalid clk_div: %d (must be 0~4)\r\n", clk_div);
-			return;
-		}
-
 		qspi_config_t config = {0};
 		config.src_clk = (qspi_src_clk_t)src_clk;
 		config.src_clk_div = src_clk_div;
 		config.clk_div = clk_div;
 
-		// Calculate and display actual frequency
+		// Calculate and display actual frequency (clk_div is no longer effective)
 		uint32_t base_clocks[] = {160, 240}; // MHz
-		uint32_t clk_div_factors[] = {1, 2, 4, 6, 8};
 		uint32_t base_clk = base_clocks[src_clk];
-		uint32_t first_div_clk = base_clk / (1 + src_clk_div);
-		uint32_t actual_freq = first_div_clk / clk_div_factors[clk_div];
+		uint32_t actual_freq = base_clk / (1 + src_clk_div);
 
 		CLI_LOGD("Config: src_clk=%s, src_clk_div=%d, clk_div=%d\r\n",
 		         (src_clk == 0) ? "160M" : "240M", src_clk_div, clk_div);
-		CLI_LOGD("Calculation: %dM / (1+%d) / %d = %dMHz\r\n",
-		         base_clk, src_clk_div, clk_div_factors[clk_div], actual_freq);
+		CLI_LOGD("Calculation: %dM / (1+%d) = %dMHz\r\n",
+		         base_clk, src_clk_div, actual_freq);
+		if (clk_div != 0) {
+			CLI_LOGW("clk_div=%d is ignored (internal divider no longer effective)\r\n", clk_div);
+		}
 
 		BK_LOG_ON_ERR(bk_qspi_init(qspi_id, &config));
 		CLI_LOGD("qspi init success\r\n");
-#if (CONFIG_QSPI_MST_FLASH && !CONFIG_QSPI_NAND_FLASH)
+	} else if (os_strcmp(argv[2], "set_clk") == 0) {
+		if (argc < 4) {
+			CLI_LOGE("Usage: qspi <id> set_clk <freq_hz>\r\n");
+			CLI_LOGE("  Example: qspi 0 set_clk 80000000\r\n");
+			return;
+		}
+
+		uint32_t freq_hz = os_strtoul(argv[3], NULL, 0);
+		if (freq_hz == 0 || freq_hz > 80000000) {
+			CLI_LOGE("Invalid freq_hz: %u (must be 1~80000000)\r\n", freq_hz);
+			return;
+		}
+
+		BK_LOG_ON_ERR(bk_qspi_driver_init());
+		BK_LOG_ON_ERR(bk_qspi_init_by_freq(qspi_id, freq_hz));
+		CLI_LOGD("qspi set clock target to %u Hz success\r\n", freq_hz);
+#if (CONFIG_QSPI_NOR_FLASH)
 	} else if (os_strcmp(argv[2], "flash_test") == 0) {
 		extern void test_qspi_flash(uint32_t id, uint32_t base_addr, uint32_t buf_len);
 		uint32_t base_addr = os_strtoul(argv[3], NULL, 16);
@@ -276,7 +298,6 @@ static void cli_qspi_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
 			CLI_LOGD("DRV1 and DRV0 successfully cleared\r\n");
 		}
 
-#if CONFIG_QSPI_QUAD_WIRE
 		// Step 1.5: Enable Quad mode
 		CLI_LOGD("Step 1.5: Enabling Quad mode...\r\n");
 		ret = bk_qspi_flash_quad_enable(qspi_id);
@@ -285,7 +306,6 @@ static void cli_qspi_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
 			goto cleanup;
 		}
 		CLI_LOGD("Quad mode enabled\r\n");
-#endif
 
 		// Step 2: Erase sector
 		// Flash sector size is 4KB (0x1000), erase command will erase the entire sector
@@ -369,7 +389,6 @@ static void cli_qspi_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
 		// Verify write immediately after write
 		CLI_LOGD("Step 3.5: Verifying write immediately after write...\r\n");
 		// Wait a bit more to ensure write is fully completed
-		rtos_delay_milliseconds(10);
 		uint8_t verify_write_buf[16] = {0};
 		ret = bk_qspi_flash_read(qspi_id, test_addr, verify_write_buf, 16);
 		if (ret == BK_OK) {
@@ -439,6 +458,7 @@ cleanup:
 		if (read_buf) os_free(read_buf);
 		CLI_LOGD("Flash Write/Read Test completed\r\n");
 #endif
+#if CONFIG_QSPI_MST_PSRAM
 	} else if (os_strcmp(argv[2], "enter_quad_mode") == 0) {
 		BK_LOG_ON_ERR(bk_qspi_psram_enter_quad_mode(qspi_id));
 		CLI_LOGD("qspi enter quad mode\r\n");
@@ -500,14 +520,20 @@ cleanup:
 			rd_buf = NULL;
 		}
 		CLI_LOGD("qspi psram read\r\n");
+#endif
 	} else {
 		cli_qspi_help();
 	}
 }
 
-#if (CONFIG_QSPI_MST_FLASH)
+#if (CONFIG_QSPI_NOR_FLASH)
 #define FLASH_PAGE_SIZE 256
 #define FLASH_SECTOR_SIZE 0x1000
+
+/* Status-register write helpers are non-static in qspi_flash.c but only
+ * write_s16_s23 is exported in qspi_flash.h; declare the rest locally. */
+extern bk_err_t bk_qspi_flash_write_s0_s7(qspi_id_t id, uint8_t status_reg_data);
+extern bk_err_t bk_qspi_flash_write_s8_s15(qspi_id_t id, uint8_t status_reg_data);
 
 static void cli_qspi_flash_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
@@ -517,6 +543,72 @@ static void cli_qspi_flash_cmd(char *pcWriteBuffer, int xWriteBufferLen, int arg
 	}
 
 	uint32_t qspi_id = os_strtoul(argv[1], NULL, 10);
+
+	if (os_strcmp(argv[2], "get_id") == 0) {
+		uint32_t flash_id = bk_qspi_flash_read_id(qspi_id);
+		bk_qspi_flash_set_protect_none(qspi_id);
+		bk_qspi_flash_quad_enable(qspi_id);
+		CLI_LOGD("flash_id:%x\r\n", flash_id);
+		return;
+	}
+
+	if (os_strcmp(argv[2], "read_sr") == 0) {
+		/* Optional reg index (0=S0-S7, 1=S8-S15, 2=S16-S23); no arg = read all. */
+		uint32_t s0_s7 = bk_qspi_flash_read_s0_s7(qspi_id);
+		uint32_t s8_s15 = bk_qspi_flash_read_s8_s15(qspi_id);
+		uint32_t s16_s23 = bk_qspi_flash_read_s16_s23(qspi_id);
+		if (argc >= 4) {
+			uint32_t reg = os_strtoul(argv[3], NULL, 10);
+			switch (reg) {
+			case 0: CLI_LOGD("flash SR0 (S0-S7)  =0x%02X\r\n", (uint8_t)s0_s7); break;
+			case 1: CLI_LOGD("flash SR1 (S8-S15) =0x%02X\r\n", (uint8_t)s8_s15); break;
+			case 2: CLI_LOGD("flash SR2 (S16-S23)=0x%02X\r\n", (uint8_t)s16_s23); break;
+			default: CLI_LOGE("Invalid reg %d (0=S0-S7,1=S8-S15,2=S16-S23)\r\n", reg); break;
+			}
+		} else {
+			CLI_LOGD("flash status: S0-S7=0x%02X S8-S15=0x%02X S16-S23=0x%02X\r\n",
+			         (uint8_t)s0_s7, (uint8_t)s8_s15, (uint8_t)s16_s23);
+		}
+		return;
+	}
+
+	if (os_strcmp(argv[2], "write_sr") == 0) {
+		if (argc < 5) {
+			CLI_LOGE("Usage: qspi_flash <id> write_sr <reg:0|1|2> <value_hex>\r\n");
+			CLI_LOGE("  reg 0=S0-S7, 1=S8-S15, 2=S16-S23\r\n");
+			CLI_LOGE("  Example: qspi_flash 0 write_sr 1 02  (set QE bit)\r\n");
+			return;
+		}
+		uint32_t reg = os_strtoul(argv[3], NULL, 10);
+		uint8_t value = (uint8_t)os_strtoul(argv[4], NULL, 16);
+		bk_err_t ret;
+		switch (reg) {
+		case 0: ret = bk_qspi_flash_write_s0_s7(qspi_id, value); break;
+		case 1: ret = bk_qspi_flash_write_s8_s15(qspi_id, value); break;
+		case 2: ret = bk_qspi_flash_write_s16_s23(qspi_id, value); break;
+		default:
+			CLI_LOGE("Invalid reg %d (0=S0-S7,1=S8-S15,2=S16-S23)\r\n", reg);
+			return;
+		}
+		if (ret != BK_OK) {
+			CLI_LOGE("write_sr reg %d = 0x%02X failed: %d\r\n", reg, value, ret);
+			return;
+		}
+		uint8_t readback = 0;
+		switch (reg) {
+		case 0: readback = (uint8_t)bk_qspi_flash_read_s0_s7(qspi_id); break;
+		case 1: readback = (uint8_t)bk_qspi_flash_read_s8_s15(qspi_id); break;
+		case 2: readback = (uint8_t)bk_qspi_flash_read_s16_s23(qspi_id); break;
+		}
+		CLI_LOGD("write_sr reg %d = 0x%02X done, readback=0x%02X\r\n", reg, value, readback);
+		return;
+	}
+
+	if (argc < 5) {
+		cli_qspi_help();
+		return;
+	}
+
 	uint32_t start_addr = os_strtoul(argv[3], NULL, 16);
 	uint32_t len = os_strtoul(argv[4], NULL, 10);
 
@@ -535,9 +627,9 @@ static void cli_qspi_flash_cmd(char *pcWriteBuffer, int xWriteBufferLen, int arg
 			CLI_LOGD("dump read flash data:\r\n");
 			for (uint32_t i = 0; i < 16; i++) {
 				for (uint32_t j = 0; j < 16; j++) {
-					BK_DUMP_OUT(NULL, "%02x ", buf[i * 16 + j]);
+					BK_DUMP_OUT("%02x ", buf[i * 16 + j]);
 				}
-				BK_DUMP_OUT(NULL, "\r\n");
+				BK_DUMP_OUT("\r\n");
 			}
 		}
 	} else if (os_strcmp(argv[2], "write") == 0) {
@@ -559,9 +651,9 @@ static void cli_qspi_flash_cmd(char *pcWriteBuffer, int xWriteBufferLen, int arg
 			CLI_LOGD("dump read flash data:\r\n");
 			for (uint32_t i = 0; i < 16; i++) {
 				for (uint32_t j = 0; j < 16; j++) {
-					BK_DUMP_OUT(NULL, "%02x ", buf[i * 16 + j]);
+					BK_DUMP_OUT("%02x ", buf[i * 16 + j]);
 				}
-				BK_DUMP_OUT(NULL, "\r\n");
+				BK_DUMP_OUT("\r\n");
 			}
 		}
 	} else if (os_strcmp(argv[2], "single_write") == 0) {
@@ -574,13 +666,8 @@ static void cli_qspi_flash_cmd(char *pcWriteBuffer, int xWriteBufferLen, int arg
 			bk_qspi_flash_single_page_program(qspi_id, addr, buf, FLASH_PAGE_SIZE);
 		}
 
-	} else if (os_strcmp(argv[2], "get_id") == 0) {
-		uint32_t flash_id = bk_qspi_flash_read_id(qspi_id);
-		bk_qspi_flash_set_protect_none(qspi_id);
-#if CONFIG_QSPI_QUAD_WIRE
-		bk_qspi_flash_quad_enable(qspi_id);
-#endif
-		CLI_LOGD("flash_id:%x\r\n", flash_id);
+	} else {
+		cli_qspi_help();
 	}
 }
 #endif
@@ -707,7 +794,6 @@ static void cli_qspi_nand_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc
 			CLI_LOGE("page read failed: %d\r\n", ret);
 		}
 		os_free(buffer);
-#if CONFIG_QSPI_QUAD_WIRE
 	} else if (os_strcmp(subcmd, "page_program_quad") == 0) {
 		if (!s_nand_initialized) { CLI_LOGE("not initialized\r\n"); return; }
 		if (argc < 6) { cli_nand_usage(); return; }
@@ -748,7 +834,6 @@ static void cli_qspi_nand_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc
 			CLI_LOGE("page read quad failed: %d\r\n", ret);
 		}
 		os_free(buffer);
-#endif /* CONFIG_QSPI_QUAD_WIRE */
 	} else if (os_strcmp(subcmd, "page_test") == 0) {
 		if (!s_nand_initialized) { CLI_LOGE("not initialized\r\n"); return; }
 		if (argc < 3) { CLI_LOGI("Usage: qspi_nand page_test <page>\r\n"); return; }
@@ -767,18 +852,10 @@ static void cli_qspi_nand_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc
 		ret = bk_qspi_flash_nand_block_erase(qspi_id, block);
 		if (ret != BK_OK) { CLI_LOGE("erase fail\r\n"); goto pt_end; }
 		os_memset(wr_buf, 0xAA, NAND_PAGE_SIZE_BYTES);
-#if CONFIG_QSPI_QUAD_WIRE
 		ret = bk_qspi_flash_nand_page_program_quad(qspi_id, page, 0, wr_buf, NAND_PAGE_SIZE_BYTES);
-#else
-		ret = bk_qspi_flash_nand_page_program(qspi_id, page, 0, wr_buf, NAND_PAGE_SIZE_BYTES);
-#endif
 		if (ret != BK_OK) { CLI_LOGE("program fail\r\n"); goto pt_end; }
 		os_memset(rd_buf, 0, NAND_PAGE_SIZE_BYTES);
-#if CONFIG_QSPI_QUAD_WIRE
 		ret = bk_qspi_flash_nand_page_read_quad(qspi_id, page, 0, rd_buf, NAND_PAGE_SIZE_BYTES);
-#else
-		ret = bk_qspi_flash_nand_page_read(qspi_id, page, 0, rd_buf, NAND_PAGE_SIZE_BYTES);
-#endif
 		if (ret != BK_OK) { CLI_LOGE("read fail\r\n"); goto pt_end; }
 		{
 			bool pass = true;
@@ -791,18 +868,10 @@ static void cli_qspi_nand_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc
 		ret = bk_qspi_flash_nand_block_erase(qspi_id, block);
 		if (ret != BK_OK) { CLI_LOGE("erase fail\r\n"); goto pt_end; }
 		os_memset(wr_buf, 0x55, NAND_PAGE_SIZE_BYTES);
-#if CONFIG_QSPI_QUAD_WIRE
 		ret = bk_qspi_flash_nand_page_program_quad(qspi_id, page, 0, wr_buf, NAND_PAGE_SIZE_BYTES);
-#else
-		ret = bk_qspi_flash_nand_page_program(qspi_id, page, 0, wr_buf, NAND_PAGE_SIZE_BYTES);
-#endif
 		if (ret != BK_OK) { CLI_LOGE("program fail\r\n"); goto pt_end; }
 		os_memset(rd_buf, 0, NAND_PAGE_SIZE_BYTES);
-#if CONFIG_QSPI_QUAD_WIRE
 		ret = bk_qspi_flash_nand_page_read_quad(qspi_id, page, 0, rd_buf, NAND_PAGE_SIZE_BYTES);
-#else
-		ret = bk_qspi_flash_nand_page_read(qspi_id, page, 0, rd_buf, NAND_PAGE_SIZE_BYTES);
-#endif
 		if (ret != BK_OK) { CLI_LOGE("read fail\r\n"); goto pt_end; }
 		{
 			bool pass = true;
@@ -830,22 +899,14 @@ pt_end:
 		if (ret != BK_OK) { CLI_LOGE("erase fail\r\n"); goto bt_end; }
 		for (uint32_t p = 0; p < NAND_BLOCK_PAGE_COUNT; p++) {
 			for (uint32_t i = 0; i < NAND_PAGE_SIZE_BYTES; i++) buf[i] = (uint8_t)((p + i) & 0xFF);
-#if CONFIG_QSPI_QUAD_WIRE
 			ret = bk_qspi_flash_nand_page_program_quad(qspi_id, first_page + p, 0, buf, NAND_PAGE_SIZE_BYTES);
-#else
-			ret = bk_qspi_flash_nand_page_program(qspi_id, first_page + p, 0, buf, NAND_PAGE_SIZE_BYTES);
-#endif
 			if (ret != BK_OK) { CLI_LOGE("program page %u fail\r\n", first_page + p); goto bt_end; }
 		}
 		{
 			bool all_pass = true;
 			for (uint32_t p = 0; p < NAND_BLOCK_PAGE_COUNT; p++) {
 				os_memset(buf, 0, NAND_PAGE_SIZE_BYTES);
-#if CONFIG_QSPI_QUAD_WIRE
 				ret = bk_qspi_flash_nand_page_read_quad(qspi_id, first_page + p, 0, buf, NAND_PAGE_SIZE_BYTES);
-#else
-				ret = bk_qspi_flash_nand_page_read(qspi_id, first_page + p, 0, buf, NAND_PAGE_SIZE_BYTES);
-#endif
 				if (ret != BK_OK) { CLI_LOGE("read page %u fail\r\n", first_page + p); all_pass = false; break; }
 				for (uint32_t i = 0; i < NAND_PAGE_SIZE_BYTES; i++) {
 					if (buf[i] != (uint8_t)((p + i) & 0xFF)) {
@@ -876,7 +937,7 @@ DRV_CLI_CMD_EXPORT static const struct cli_command s_qspi_commands[] = {
 	{"qspi", "qspi {init|write|read}", cli_qspi_cmd},
 #if CONFIG_QSPI_NAND_FLASH
 	{"qspi_nand", "qspi_nand {init|get_id|...}", cli_qspi_nand_cmd},
-#elif (CONFIG_QSPI_MST_FLASH)
+#elif (CONFIG_QSPI_NOR_FLASH)
 	{"qspi_flash", "qspi_flash {write|read}", cli_qspi_flash_cmd},
 #endif
 };

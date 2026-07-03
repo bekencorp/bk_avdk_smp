@@ -252,6 +252,58 @@ bk_err_t bk_qspi_init(qspi_id_t id, const qspi_config_t *config)
 	return BK_OK;
 }
 
+/* The QSPI internal clk_div is no longer effective in hardware, so SCK is
+ * determined solely by the source clock divider:
+ *   SCK = src_clock / (1 + src_clk_div)
+ * Pick the achievable src_clk/src_clk_div combination whose frequency is
+ * closest to clk_hz. src_clk_div is 4-bit but restricted to 2~15 here, so the
+ * achievable SCK range is 10MHz~80MHz. clk_div is kept at 0. */
+static void qspi_calc_clock_config(qspi_config_t *config, uint32_t clk_hz)
+{
+	static const struct {
+		uint32_t hz;
+		qspi_src_clk_t sel;
+	} src_tbl[] = {
+		{ 240000000u, QSPI_SCLK_240M },
+		{ 160000000u, QSPI_SCLK_160M },
+	};
+	uint32_t best_diff = 0xFFFFFFFFu;
+
+	/* fallback default = 240M / (1 + 3) = 60MHz */
+	config->src_clk = QSPI_SCLK_240M;
+	config->src_clk_div = 3;
+	config->clk_div = 0;
+
+	for (uint32_t s = 0; s < sizeof(src_tbl) / sizeof(src_tbl[0]); s++) {
+		for (uint32_t sd = 2; sd <= 15; sd++) {
+			uint32_t f = src_tbl[s].hz / (1u + sd);
+			if (f > 80000000u) {
+				continue;
+			}
+			uint32_t diff = (f > clk_hz) ? (f - clk_hz) : (clk_hz - f);
+			if (diff < best_diff) {
+				best_diff = diff;
+				config->src_clk = src_tbl[s].sel;
+				config->src_clk_div = sd;
+				config->clk_div = 0;
+			}
+		}
+	}
+}
+
+bk_err_t bk_qspi_init_by_freq(qspi_id_t id, uint32_t clk_hz)
+{
+	qspi_config_t config = {0};
+
+	qspi_calc_clock_config(&config, clk_hz);
+	uint32_t src_hz = (config.src_clk == QSPI_SCLK_240M) ? 240000000u : 160000000u;
+	uint32_t actual_hz = src_hz / (1u + config.src_clk_div);
+	QSPI_LOGI("init clk: target=%u Hz, src_clk=%uMHz, src_clk_div=%u, actual=%u Hz\r\n",
+	          clk_hz, src_hz / 1000000u, config.src_clk_div, actual_hz);
+
+	return bk_qspi_init(id, &config);
+}
+
 bk_err_t bk_qspi_deinit(qspi_id_t id)
 {
 	qspi_id_deinit_common(id);
@@ -272,8 +324,7 @@ bk_err_t bk_qspi_command(qspi_id_t id, const qspi_cmd_t *cmd)
 {
 	BK_RETURN_ON_NULL(cmd);
 	QSPI_RETURN_ON_ID_NOT_INIT(id);
-	qspi_hal_command(&s_qspi[id].hal, cmd);
-	return BK_OK;
+	return qspi_hal_command(&s_qspi[id].hal, cmd);
 }
 
 bk_err_t bk_qspi_write(qspi_id_t id, const void *data, uint32_t size)
@@ -282,18 +333,14 @@ bk_err_t bk_qspi_write(qspi_id_t id, const void *data, uint32_t size)
 	QSPI_RETURN_ON_NOT_INIT();
 	QSPI_RETURN_ON_ID_NOT_INIT(id);
 
-	qspi_hal_io_write(&s_qspi[id].hal, data, size);
-
-	return BK_OK;
+	return qspi_hal_io_write(&s_qspi[id].hal, data, size);
 }
 
 bk_err_t bk_qspi_read(qspi_id_t id, void *data, uint32_t size)
 {
 	BK_RETURN_ON_NULL(data);
 
-	qspi_hal_io_read(&s_qspi[id].hal, data, size);
-
-	return BK_OK;
+	return qspi_hal_io_read(&s_qspi[id].hal, data, size);
 }
 
 bk_err_t bk_qspi_register_tx_isr(qspi_isr_t isr, void *param)

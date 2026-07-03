@@ -65,6 +65,25 @@ bk_err_t bk_qspi_driver_deinit(void);
 bk_err_t bk_qspi_init(qspi_id_t id, const qspi_config_t *config);
 
 /**
+ * @brief     Init the QSPI by target SCK frequency (convenience wrapper)
+ *
+ * This API picks the source clock and dividers whose resulting SCK is closest
+ * to clk_hz (SCK = src_clock / (1 + src_clk_div)), fills a
+ * qspi_config_t and then calls bk_qspi_init(). The application only needs to
+ * provide the QSPI id and the desired clock in Hz, without caring about the
+ * source clock selection or divider details.
+ *
+ * @param id      QSPI id
+ * @param clk_hz  target SCK frequency in Hz (max 80000000)
+ *
+ * @return
+ *    - BK_OK: succeed
+ *    - BK_ERR_QSPI_NOT_INIT: QSPI driver not init
+ *    - others: forwarded from bk_qspi_init
+ */
+bk_err_t bk_qspi_init_by_freq(qspi_id_t id, uint32_t clk_hz);
+
+/**
  * @brief     Deinit the QSPI
  *
  * This API deinit the QSPI:
