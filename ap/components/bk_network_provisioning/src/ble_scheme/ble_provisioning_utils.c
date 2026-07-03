@@ -27,6 +27,26 @@ static bk_gatt_if_t s_gatts_if = 0;
 #define SYNC_CMD_TIMEOUT_MS 4000
 #define ADV_HANDLE 0
 #define ADV_NAME_HEAD "bk"
+#define ADV_NAME_MAX_LEN 32
+
+/* Application-configurable advertised device name. When the application sets a
+ * name via bk_ble_provisioning_set_adv_name(), wifi_boarding_adv_start()
+ * advertises this exact string instead of deriving one from the MAC. This lets
+ * the application own the naming rule (single source of truth) and show the same
+ * name in its UI, so the two can never drift apart. Empty => use MAC default. */
+static char s_adv_name_override[ADV_NAME_MAX_LEN] = {0};
+
+void bk_ble_provisioning_set_adv_name(const char *name)
+{
+    if (name == NULL || name[0] == '\0')
+    {
+        s_adv_name_override[0] = '\0';
+        return;
+    }
+
+    strncpy(s_adv_name_override, name, sizeof(s_adv_name_override) - 1);
+    s_adv_name_override[sizeof(s_adv_name_override) - 1] = '\0';
+}
 
 #define BK_GATT_ATTR_TYPE(iuuid) {.len = BK_UUID_LEN_16, .uuid = {.uuid16 = iuuid}}
 #define BK_GATT_ATTR_CONTENT(iuuid) {.len = BK_UUID_LEN_16, .uuid = {.uuid16 = iuuid}}
@@ -873,7 +893,15 @@ int wifi_boarding_adv_start(void)
     current_addr[5] |= 0xc0;
     current_addr[0]++;
 
-    snprintf((char *)(adv_name), sizeof(adv_name) - 1, "%s_%02X%02X%02X", ADV_NAME_HEAD, current_addr[2], current_addr[1], current_addr[0]);
+    if (s_adv_name_override[0] != '\0')
+    {
+        strncpy(adv_name, s_adv_name_override, sizeof(adv_name) - 1);
+        adv_name[sizeof(adv_name) - 1] = '\0';
+    }
+    else
+    {
+        snprintf((char *)(adv_name), sizeof(adv_name) - 1, "%s_%02X%02X%02X", ADV_NAME_HEAD, current_addr[2], current_addr[1], current_addr[0]);
+    }
 
     wboard_logi("adv name %s", adv_name);
 
@@ -1177,8 +1205,15 @@ int wifi_boarding_adv_start(void)
     adv_data[adv_index++] = 0x00;
     adv_data[adv_index++] = ADV_TYPE_LOCAL_NAME;
 
-    ret = sprintf((char *)&adv_data[adv_index], "%s_%02X%02X%02X",
-                  ADV_NAME_HEAD, mac[0], mac[1], mac[2]);
+    if (s_adv_name_override[0] != '\0')
+    {
+        ret = sprintf((char *)&adv_data[adv_index], "%s", s_adv_name_override);
+    }
+    else
+    {
+        ret = sprintf((char *)&adv_data[adv_index], "%s_%02X%02X%02X",
+                      ADV_NAME_HEAD, mac[0], mac[1], mac[2]);
+    }
 
     adv_index += ret;
     adv_data[len_index] = ret + 1;

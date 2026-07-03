@@ -30,6 +30,20 @@ typedef void (*ble_msg_handle_cb_t)(ble_prov_msg_t *msg);
 bk_ble_provisioning_info_t * bk_ble_provisioning_get_boarding_info(void);
 int bk_ble_provisioning_init(void);
 int bk_ble_provisioning_deinit(void);
+
+/**
+ * @brief Configure the BLE provisioning advertised device name.
+ *
+ * When a non-empty name is set, wifi_boarding_adv_start() advertises this exact
+ * string (the name the phone app scans for) instead of deriving one from the
+ * MAC address. This lets the application own the device-name rule (single source
+ * of truth) and display the very same name in its UI, so the advertised name and
+ * the UI can never drift apart.
+ *
+ * @param name  NUL-terminated device name; pass NULL or "" to restore the
+ *              default MAC-derived name.
+ */
+void bk_ble_provisioning_set_adv_name(const char *name);
 void bk_ble_provisioning_event_notify(uint16_t opcode, int status);
 int wifi_boarding_notify(uint8_t *data, uint16_t length);
 void bk_ble_provisioning_event_notify_with_data(uint16_t opcode, int status, char *payload, uint16_t length);
