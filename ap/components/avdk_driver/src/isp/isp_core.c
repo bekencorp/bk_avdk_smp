@@ -27,6 +27,7 @@
 
 #include <driver/gpio.h>
 #include "gpio_driver.h"
+#include "spinlock.h"
 #define TAG "isp_core"
 
 #include "avdk_monitor.h"
@@ -55,6 +56,29 @@ enum {
 #define ISP_FLEXA_STREAM_ID_CR 0x16
 
 static isp_isr_handler_t isp_isr_handler[ISP_ISR_MAX][ISP_ISR_MODULE_MAX] = {0};
+#if CONFIG_SOC_SMP
+static SPINLOCK_SECTION volatile spinlock_t s_isp_isr_spin_lock = SPIN_LOCK_INIT;
+#endif
+
+static inline uint32_t isp_isr_lock_irqsave(void)
+{
+    uint32_t irq_flags = rtos_disable_int();
+
+#if CONFIG_SOC_SMP
+    spin_lock(&s_isp_isr_spin_lock);
+#endif
+
+    return irq_flags;
+}
+
+static inline void isp_isr_unlock_irqrestore(uint32_t irq_flags)
+{
+#if CONFIG_SOC_SMP
+    spin_unlock(&s_isp_isr_spin_lock);
+#endif
+
+    rtos_enable_int(irq_flags);
+}
 
 #ifdef ISP_AE_V10
 #include "mpi_isp_ae.h"
@@ -194,8 +218,8 @@ static void isp_mi_isr_callback_handle(isp_control_t *control, uint8_t isr_type,
                     isp_isr_handler[isr_type][i].enable = true;
                 }
 
-                /* deregister race: bk_isp_deregister_isr_callback memsets the
-                 * slot under isp_mutex while ISR runs lock-free. NULL-check
+                /* deregister race: bk_isp_deregister_isr_callback memsets this
+                 * slot under spinlock while ISR runs lock-free. NULL-check
                  * isr_handler so we degrade to a no-op instead of jumping to 0. */
                 if (isp_isr_handler[isr_type][i].enable
                     && isp_isr_handler[isr_type][i].isr_handler != NULL)
@@ -708,13 +732,6 @@ bk_err_t bk_isp_dev_init(isp_handle_t *handle)
         goto error;
     }
 
-    ret = rtos_init_mutex(&isp_control->isp_mutex);
-    if (ret != BK_OK)
-    {
-        LOGE("%s, %d init isp_mutex\n", __func__, __LINE__);
-        goto error;
-    }
-
     // step 1: init isp clk
     isp_clock_enable(60000000);
     // step 2: init isp driver and input data config
@@ -779,11 +796,6 @@ bk_err_t bk_isp_deinit(isp_handle_t *handle)
     if (control->isp_sem)
     {
         rtos_deinit_semaphore(&control->isp_sem);
-    }
-
-    if (control->isp_mutex)
-    {
-        rtos_deinit_mutex(&control->isp_mutex);
     }
 
     for (uint8_t i = 0; i < ISP_CHN_MAX; i++)
@@ -1104,6 +1116,9 @@ bk_err_t bk_isp_register_isr_callback(isp_handle_t *handle, isp_isr_type_t type,
 {
     bk_err_t ret = BK_FAIL;
     uint8_t i = 0;
+    int8_t registered_index = -1;
+    bool already_registered = false;
+    bool no_free_slot = false;
 
     if (*handle == NULL)
     {
@@ -1123,22 +1138,20 @@ bk_err_t bk_isp_register_isr_callback(isp_handle_t *handle, isp_isr_type_t type,
         return ret;
     }
 
-    isp_control_t *control = (isp_control_t *)*handle;
-
-    rtos_lock_mutex(&control->isp_mutex);
+    uint32_t irq_flags = isp_isr_lock_irqsave();
 
     for (i = 0; i < ISP_ISR_MODULE_MAX; i++)
     {
         if (isp_isr_handler[type][i].param == arg)
         {
-            LOGW("%s, %d already register\n", __func__, __LINE__);
+            already_registered = true;
             break;
         }
     }
 
     if (i < ISP_ISR_MODULE_MAX)
     {
-        LOGW("%s, %d already register\n", __func__, __LINE__);
+        isp_isr_unlock_irqrestore(irq_flags);
         goto error;
     }
 
@@ -1151,23 +1164,31 @@ bk_err_t bk_isp_register_isr_callback(isp_handle_t *handle, isp_isr_type_t type,
             isp_isr_handler[type][i].enable = false;
             isp_isr_handler[type][i].reg_en = true;
             ret = BK_OK;
+            registered_index = i;
             break;
         }
     }
 
     if (i == ISP_ISR_MODULE_MAX)
     {
-        LOGW("%s, %d over invalid range\n", __func__, __LINE__);
-        goto error;
+        no_free_slot = true;
     }
-    else
-    {
-        LOGI("%s, %d, register isr callback %d success\n", __func__, __LINE__, i);
-    }
+
+    isp_isr_unlock_irqrestore(irq_flags);
 
 error:
-    rtos_unlock_mutex(&control->isp_mutex);
-
+    if (already_registered)
+    {
+        LOGW("%s, %d already register\n", __func__, __LINE__);
+    }
+    else if (no_free_slot)
+    {
+        LOGW("%s, %d over invalid range\n", __func__, __LINE__);
+    }
+    else if (registered_index >= 0)
+    {
+        LOGI("%s, %d, register isr callback %d success\n", __func__, __LINE__, registered_index);
+    }
     LOGI("%s, %d, %d\n", __func__, __LINE__, type);
 
     return ret;
@@ -1184,9 +1205,7 @@ bk_err_t bk_isp_deregister_isr_callback(isp_handle_t *handle, isp_isr_type_t typ
         return ret;
     }
 
-    isp_control_t *control = (isp_control_t *)*handle;
-
-    rtos_lock_mutex(&control->isp_mutex);
+    uint32_t irq_flags = isp_isr_lock_irqsave();
 
     for (i = 0; i < ISP_ISR_MODULE_MAX; i++)
     {
@@ -1199,7 +1218,7 @@ bk_err_t bk_isp_deregister_isr_callback(isp_handle_t *handle, isp_isr_type_t typ
         }
     }
 
-    rtos_unlock_mutex(&control->isp_mutex);
+    isp_isr_unlock_irqrestore(irq_flags);
 
     return ret;
 }
