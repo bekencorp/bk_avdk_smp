@@ -93,8 +93,11 @@ typedef enum{
 }evt_ota;
 
 typedef uint8_t (*ota_event_callback_t)(evt_ota event_param);
+typedef uint8_t (*ota_progress_callback_t)(uint32_t received, uint32_t total);
+int ota_progress_callback_register(ota_progress_callback_t callback);
 int ota_event_callback_register(ota_event_callback_t callback);
 int ota_input_event_handler(evt_ota event_param);
+int ota_progress_event_handler(uint32_t received, uint32_t total);
 
 typedef int (*ota_process_data_callback_t) (char*buff_data, uint32_t len, uint32_t received, uint32_t total);
 void register_ota_callback(ota_process_data_callback_t ota_callback);

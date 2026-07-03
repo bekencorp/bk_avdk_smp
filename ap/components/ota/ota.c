@@ -46,6 +46,11 @@ int bk_ota_process_data_handler (char*buff_data, uint32_t len,uint32_t received,
 		break;
 	}
 
+	if ((ret == BK_OK) && (ota_info->fota_dl_info.image_size > 0)) {
+		ota_progress_event_handler(ota_info->fota_dl_info.received_total_size,
+			ota_info->fota_dl_info.image_size);
+	}
+
 	return ret;
 }
 

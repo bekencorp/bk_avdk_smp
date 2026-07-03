@@ -422,6 +422,25 @@ int ota_event_callback_register(ota_event_callback_t callback)
 	return 0;
 }
 
+static ota_progress_callback_t s_ota_progress_callback = NULL;
+
+int ota_progress_callback_register(ota_progress_callback_t callback)
+{
+	s_ota_progress_callback = callback;
+
+	return 0;
+}
+
+int ota_progress_event_handler(uint32_t received, uint32_t total)
+{
+	if(NULL != s_ota_progress_callback)
+	{
+		s_ota_progress_callback(received, total);
+	}
+
+	return 0;
+}
+
 int ota_input_event_handler(evt_ota event_param)
 {
 	if(NULL != s_ota_event_callback)
