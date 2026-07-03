@@ -3176,6 +3176,9 @@ void p2p_deinit(struct p2p_data *p2p)
 	p2p_remove_wps_vendor_extensions(p2p);
 	os_free(p2p->no_go_freq.range);
 	p2p_service_flush_asp(p2p);
+#ifdef BK_SUPPLICANT
+	wpabuf_free(p2p->inv_resp_pending);
+#endif /* BK_SUPPLICANT */
 
 	os_free(p2p);
 }

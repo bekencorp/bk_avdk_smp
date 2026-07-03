@@ -440,6 +440,11 @@ struct p2p_data {
 	u8 inv_status;
 	int inv_op_freq;
 	int inv_persistent;
+#ifdef BK_SUPPLICANT
+	unsigned int inv_rx_freq;
+	u8 inv_resp_retry;
+	struct wpabuf *inv_resp_pending;
+#endif /* BK_SUPPLICANT */
 
 	enum p2p_discovery_type find_type;
 	int find_specified_freq;
