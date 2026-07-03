@@ -53,6 +53,13 @@ bk_err_t cif_bk_cmd_confirm(struct bk_msg_hdr *rx_msg, uint8_t *cfm_data, uint16
     bk_err_t ret = BK_OK;
     //CTRL_IF_CMD("%s\n",__func__);
 
+    if (!cif_env.host_powerup)
+    {
+        CIF_LOGD("%s skip cfm 0x%x, host not power up\n", __func__,
+                 rx_msg ? (rx_msg->cmd_id + BK_CMD_CFM_OFFSET) : 0);
+        return BK_FAIL;
+    }
+
     if (cfm_len > CIF_MAX_CFM_DATA_LEN)
     {
         CTRL_IF_CMD("cif_bk_cmd_confirm data len[%d] is greater than %d, return\n", cfm_len, CIF_MAX_CFM_DATA_LEN);
@@ -95,6 +102,12 @@ bk_err_t cif_bk_send_event(uint16_t event_id, uint8_t *event_data, uint16_t even
     struct ctrl_cmd_hdr * buf = NULL;
     bk_err_t ret = BK_OK;
     CTRL_IF_CMD("%s\n",__func__);
+
+    if (!cif_env.host_powerup)
+    {
+        CIF_LOGD("%s skip event 0x%x, host not power up\n", __func__, event_id);
+        return BK_FAIL;
+    }
 
     // if (!cif_env.host_wifi_init)
     // {
@@ -867,6 +880,7 @@ bk_err_t cif_handle_bk_cmd(void *head)
 
     CIF_LOGV("cif_handle_bk_cmd cmd_id:%x\n", msg->cmd_id);
     cif_env.no_host = false;
+    cif_env.host_powerup = true;
     cif_env.host_wifi_init = true;
 
     if ((msg->cmd_id >= BK_CMD_WIFI_API_START) && (msg->cmd_id < BK_CMD_WIFI_API_END))

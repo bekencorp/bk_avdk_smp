@@ -376,6 +376,12 @@ __IRAM2 bool cif_rx_local_packet_check(struct pbuf **p_ptr, struct eth_hdr * eth
          return true;
     }
 
+    if (!cif_env.host_powerup)
+    {
+        CIF_LOGV("%s AP host does not power up, upload to controller\r\n",__func__);
+        return true;
+    }
+
     if (!cif_env.host_wifi_init)
     {
         CIF_LOGV("%s AP Wi-Fi does not start, upload to controller\r\n",__func__);
