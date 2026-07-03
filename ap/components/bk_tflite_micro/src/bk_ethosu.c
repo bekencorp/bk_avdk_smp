@@ -209,6 +209,26 @@ void bk_ethosu_deinit(void)
     bk_pm_module_vote_power_ctrl(PM_POWER_SUB_DOMAIN_NPU, PM_POWER_MODULE_STATE_OFF);
 }
 
+/**
+ * @brief Remap a CPU-visible buffer address to the alias the NPU bus master uses.
+ *
+ * Overrides the weak identity stub in the Ethos-U core driver. It is invoked by
+ * ethosu_dev_run_command_stream() for both the command stream (index -1) and
+ * every BASEP region (index 0..n), i.e. every address the NPU dereferences.
+ *
+ * When CONFIG_SRAM_DIRECT_ADDR is enabled the AP(M55) hands out SRAM buffers in
+ * the 0x2Cxxxxxx CPU-direct alias (e.g. the ethos fast scratch from
+ * hsram_malloc), but bus masters can only reach SRAM through the 0x28xxxxxx
+ * peripheral alias. SOC_SRAM_PERI_ADDR() clears Bit26 for 0x2Cxxxxxx addresses
+ * only; PSRAM (0x6xxxxxxx), already-0x28 SRAM and registers pass through
+ * unchanged, so it is safe to apply to every address unconditionally.
+ */
+uint64_t ethosu_address_remap(uint64_t address, int index)
+{
+    (void)index;
+    return (uint64_t)SOC_SRAM_PERI_ADDR((uint32_t)address);
+}
+
 #if CONFIG_NPU_CACHE
 /**
  * @brief Flush/clean the data cache by address and size
