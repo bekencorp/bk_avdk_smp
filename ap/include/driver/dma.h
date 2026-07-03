@@ -501,6 +501,17 @@ uint32_t bk_dma_get_remain_len(dma_id_t id);
 uint32_t bk_dma_get_enable_status(dma_id_t id);
 
 /**
+ * @brief Get the working status of all DMA channels
+ *
+ * @param NULL
+ *
+ * @return
+ *    - 0: All channels are in an idle state
+ *    - others: Channel busy state, one bit per channel.
+ */
+uint32_t bk_dma_check_chn_status(void);
+
+/**
  * @brief    flush reserved data in dma internal buffer
  *           I.E:If source data width is not 4bytes, and data size isn't 4bytes align,
  *           but dest data width is 4bytes, then maybe 1~3 bytes data reserved in
