@@ -102,11 +102,12 @@ ARM_MPU_Region_t mpu_regions[] = {
 #if CONFIG_PSRAM_INTERLEAVE
     /* MPU region 6 psram0 */
     { ARM_MPU_RBAR(0x80000000UL, ARM_MPU_SH_NON, 0, 1, 0),
-      ARM_MPU_RLAR(0x80FFFFE0UL, 1) },
+      ARM_MPU_RLAR(CONFIG_AP_PSRAM_HEAP_ADDR - 0x20, 1) },
 #if (CONFIG_AP_PSRAM_CODE_SECTION_ADDR && CONFIG_AP_PSRAM_CODE_SECTION_SIZE && CONFIG_AP_PSRAM_CODE_SECTION_ADDR > 0x64000000UL)
-/* MPU region 7 psram1 */
-{ ARM_MPU_RBAR(0x81000000UL, ARM_MPU_SH_NON, 0, 1, 0),
-  ARM_MPU_RLAR(CONFIG_AP_PSRAM_CODE_SECTION_ADDR - 0x20, 1) },
+/* heap + data (heap~code): L2 cacheable, L1 non-cacheable (attr 5) */
+{ ARM_MPU_RBAR(CONFIG_AP_PSRAM_HEAP_ADDR, ARM_MPU_SH_NON, 0, 1, 0),
+  ARM_MPU_RLAR(CONFIG_AP_PSRAM_CODE_SECTION_ADDR - 0x20, 5) },
+/* code section: L1+L2 write-back cacheable (attr 3) */
 { ARM_MPU_RBAR(CONFIG_AP_PSRAM_CODE_SECTION_ADDR, ARM_MPU_SH_NON, 0, 1, 0),
   ARM_MPU_RLAR(0x81FFFFE0UL, 3) },
 #else
@@ -121,13 +122,14 @@ ARM_MPU_RLAR(0x81FFFFE0UL, 1) },
 #else
     /* MPU region 6 psram0 */
     { ARM_MPU_RBAR(0x60000000UL, ARM_MPU_SH_NON, 0, 1, 0),
-      ARM_MPU_RLAR(0x63FFFFE0UL, 1) },
+      ARM_MPU_RLAR(CONFIG_AP_PSRAM_HEAP_ADDR - 0x20, 1) },
 
 
     #if (CONFIG_AP_PSRAM_CODE_SECTION_ADDR && CONFIG_AP_PSRAM_CODE_SECTION_SIZE && CONFIG_AP_PSRAM_CODE_SECTION_ADDR > 0x64000000UL)
-        /* MPU region 7 psram1 */
-        { ARM_MPU_RBAR(0x64000000UL, ARM_MPU_SH_NON, 0, 1, 0),
-          ARM_MPU_RLAR(CONFIG_AP_PSRAM_CODE_SECTION_ADDR - 0x20, 1) },
+        /* heap + data (heap~code，data 段紧贴 heap 之后落在此区): L2 cacheable, L1 non-cacheable (attr 5) */
+        { ARM_MPU_RBAR(CONFIG_AP_PSRAM_HEAP_ADDR, ARM_MPU_SH_NON, 0, 1, 0),
+          ARM_MPU_RLAR(CONFIG_AP_PSRAM_CODE_SECTION_ADDR - 0x20, 5) },
+        /* code section: L1+L2 write-back cacheable (attr 3) */
         { ARM_MPU_RBAR(CONFIG_AP_PSRAM_CODE_SECTION_ADDR, ARM_MPU_SH_NON, 0, 1, 0),
           ARM_MPU_RLAR(0x67FFFFE0UL, 3) },
     #else
@@ -140,6 +142,11 @@ ARM_MPU_RLAR(0x81FFFFE0UL, 1) },
       ARM_MPU_RLAR(0xEFFFFFE0UL, 2) }
 #endif
 };
+
+/* 硬件仅 16 个 MPU region，mpu_enable() 对超出部分是静默截断（不报错）。
+   超限会导致末尾 region 被悄悄丢弃，难以排查，故在编译期卡死。 */
+_Static_assert(sizeof(mpu_regions) / sizeof(mpu_regions[0]) <= 16,
+               "mpu_regions exceeds the 16 hardware MPU regions (extra ones are silently dropped)");
 
 /*
  For the star processor, only two combinations of these attributes are valid:Device-nGnRnE/Device-nGnRE
