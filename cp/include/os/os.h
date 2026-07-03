@@ -727,8 +727,8 @@ bool rtos_is_queue_empty(beken_queue_t *queue);
   *
   * @param    queue : a pointer to the queue handle
   *
-  * @return   true  : queue is empty.
-  * @return   false : queue is not empty.
+  * @return   true  : queue is full.
+  * @return   false : queue is not full.
   */
 bool rtos_is_queue_full(beken_queue_t *queue);
 
