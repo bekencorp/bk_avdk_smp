@@ -2,12 +2,11 @@
 menu "BK Display"
 
 	config BK_DISPLAY
-		depends on DPU_DRIVER
 		bool "BK Display"
 		default n
 
 		config MIPI_DSI
-		depends on DSI_DRIVER
+                depends on DSI_DRIVER
 		bool "MIPI DSI Driver"
 		default n
 
