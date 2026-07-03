@@ -12,6 +12,7 @@ extern void rxdtm_mac80154_cmd(char *pcWriteBuffer, int xWriteBufferLen, int arg
 extern void thread_mac802154_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv);
 extern void mac802154_diag_debug_send_to_internal(uint16_t diag_no);
 extern void cli_802154(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv);
+extern void mac802154_ce_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv);
 
 static void cli_mac802154_diag_help(void)
 {
@@ -87,6 +88,7 @@ static const struct cli_command s_mac802154_commands[] = {
     {"txthread",    "txthread -h | -c ch [-l len -n num -f type -t mode -w en -p idx -y duty] | -p idx | -r | -stop", txdtm_mac80154_cmd},
     {"rxthread",    "rxthread -h | -c ch | -g 0 | -r | -stop", rxdtm_mac80154_cmd},
     {"mac802154",   "mac802154 [tx|rx|dut] [enable] [dut_mode] [channel] [dut_tx_channel] [tx_cnt] [pass_cnt_thre]", cli_802154},
+    {"mac802154_ce", "mac802154_ce -r tx|rx -c ch [-l len -p pat -i interval -d dur -a 0|1 -default] |-thd threshold |-agc value 0x00~0xFF| -cmd value | -stop | -stat | -h", mac802154_ce_cmd},
 };
 
 int cli_mac802154_init(void)
