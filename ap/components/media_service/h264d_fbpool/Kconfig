@@ -1,0 +1,7 @@
+config H264D_FBPOOL
+	bool "Enable vcdec H.264 zero-copy frame pool (h264d_fbpool)"
+	default n
+	help
+	  Standalone frame-buffer pool injected into the vcdec H.264 decoder
+	  (frame mode) to provide zero-copy decode/reference/display buffers and
+	  per-reference colocated MV regions required by B-frame direct mode.

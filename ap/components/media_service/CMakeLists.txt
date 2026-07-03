@@ -26,3 +26,8 @@ endif() #CONFIG_MEDIA_SERVICE
 set(priv_req bk_common bk_vfs bk_display bk_rtos lwip_intf_v2_1 bk_encoder bk_decoder bk_gpu avdk_driver bk_peripheral)
 
 armino_component_register(SRCS "${srcs}" INCLUDE_DIRS "${incs}" PRIV_REQUIRES "${priv_req}" REQUIRES)
+
+# Discover nested independent components living under this directory
+# (e.g. h264d_fbpool/). The build only recurses into a component's subdirs when
+# this marker string is present in its CMakeLists.txt.
+armino_component_register_call_subdirs()

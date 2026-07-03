@@ -65,6 +65,27 @@ video_player_video_decoder_ops_t *bk_video_player_get_hw_h264_decoder_ops(void);
 video_player_video_decoder_ops_t *bk_video_player_get_hw_h264_decoder_frame_ops(void);
 
 /**
+ * @brief Get hardware H264 zero-copy / B-frame whole-frame decoder operations.
+ *
+ * This decoder is built around bk_h264_decode_frame_zerocopy_ctlr, which owns
+ * an internal h264d_fbpool and decodes directly into pool buffers (no
+ * reference-frame backup copies), supporting B-frame decoding with POC-based
+ * display reordering. Like bk_video_player_get_hw_h264_decoder_frame_ops() it
+ * produces full NV12 frames, so it is a drop-in alternative for the raw-NV12
+ * display pipeline whenever the content uses B-frames. The original non-B
+ * frame decoder (bk_video_player_get_hw_h264_decoder_frame_ops) is kept
+ * unchanged.
+ *
+ * Input bitstream may be Annex-B or AVCC length-prefixed (converted internally
+ * with SPS/PPS injection). The controller is flushed at each IDR and at deinit
+ * so trailing reordered pictures are emitted in display order.
+ *
+ * @return video_player_video_decoder_ops_t* Pointer to the decoder ops template,
+ *         NULL on failure.
+ */
+video_player_video_decoder_ops_t *bk_video_player_get_hw_h264_decoder_frame_zerocopy_ops(void);
+
+/**
  * @brief Free a GPU-produced H.264 output frame using the matching allocator.
  *
  * HSRAM frames are released with hsram_free()/os_free, while PSRAM fallback

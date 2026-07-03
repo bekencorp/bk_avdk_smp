@@ -1,6 +1,7 @@
 #pragma once
 
 #include "vcdec_h264_types.h"
+#include "vcdec_fb_if.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -101,6 +102,35 @@ vcdec_ret_e vcdec_h264_open(vcdec_handle handle);
  * @return VCDEC_OK or ready status for success, others for failure
  */
 vcdec_ret_e vcdec_h264_decode_frame(vcdec_handle handle, vcdec_h264_decode_config_t *config);
+
+/**
+ * @brief     Register a zero-copy frame pool (frame mode only)
+ *
+ * Injects the external frame-pool vtable into the decoder. After registration
+ * the decoder (in non-FLEXA frame mode) acquires its decode/reference/display
+ * buffers from the pool, eliminating the reference backup copy and enabling
+ * B-frame decoding with POC-based display reordering. Must be called after
+ * vcdec_h264_open() and before vcdec_h264_decode_frame(). FLEXA mode is
+ * unaffected.
+ *
+ * @param handle decoder handle returned by vcdec_h264_init
+ * @param ifc    decode-side frame-pool interface (from h264d_fbpool_get_if)
+ *
+ * @return VCDEC_OK for success, others for failure
+ */
+vcdec_ret_e vcdec_h264_register_fb_if(vcdec_handle handle, const vcdec_fb_if_t *ifc);
+
+/**
+ * @brief     Flush trailing pictures at end of stream (pool mode)
+ *
+ * Emits every picture still held in the DPB in display (POC) order so the
+ * application can dequeue the final reordered frames. No-op without a pool.
+ *
+ * @param handle decoder handle returned by vcdec_h264_init
+ *
+ * @return VCDEC_OK for success, others for failure
+ */
+vcdec_ret_e vcdec_h264_flush(vcdec_handle handle);
 
 /**
  * @brief     Close H.264 decoder

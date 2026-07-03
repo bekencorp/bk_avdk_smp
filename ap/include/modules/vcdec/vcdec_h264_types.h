@@ -25,6 +25,7 @@ typedef enum {
 	VCDEC_H264_FRAME_IDR,
 	VCDEC_H264_FRAME_I,
 	VCDEC_H264_FRAME_P,
+	VCDEC_H264_FRAME_B,
 } vcdec_h264_frame_type_t;
 
 /**

@@ -310,6 +310,58 @@ void video_play_video_buffer_free_yuv_cb(void *user_data, video_player_buffer_t 
     buffer->user_data    = NULL;
 }
 
+avdk_err_t video_play_video_buffer_alloc_yuv_coded_cb(void *user_data, video_player_buffer_t *buffer)
+{
+    (void)user_data;
+
+    if (buffer == NULL || buffer->length == 0)
+    {
+        return AVDK_ERR_INVAL;
+    }
+
+    const uint32_t requested = buffer->length;
+    const uint32_t alloc_size = video_play_slab_alloc_size(
+        requested + VIDEO_FRAME_BUFFER_SAFETY_PAD_BYTES);
+
+    /* PSRAM1 (CODED slab): keeps the frame-zerocopy decode pool's PSRAM0 budget
+     * free. Both PSRAM windows are non-cacheable, so the DPU reads coherent. */
+    void *frame = bk_frame_buffer_malloc(MEM_SLAB_HEAP_CODED, alloc_size);
+    if (frame == NULL)
+    {
+        buffer->data = NULL;
+        buffer->frame_buffer = NULL;
+        buffer->length = 0;
+        return AVDK_ERR_NOMEM;
+    }
+
+    buffer->data         = frame;
+    buffer->frame_buffer = NULL;
+    buffer->length       = requested;
+    buffer->user_data    = NULL;
+    return AVDK_ERR_OK;
+}
+
+void video_play_video_buffer_free_yuv_coded_cb(void *user_data, video_player_buffer_t *buffer)
+{
+    (void)user_data;
+
+    if (buffer == NULL)
+    {
+        return;
+    }
+
+    if (buffer->data != NULL)
+    {
+        bk_frame_buffer_free(buffer->data);
+    }
+
+    buffer->data         = NULL;
+    buffer->frame_buffer = NULL;
+    buffer->length       = 0;
+    buffer->pts          = 0;
+    buffer->user_data    = NULL;
+}
+
 void video_play_video_decode_complete_cb(void *user_data, const video_player_video_frame_meta_t *meta, video_player_buffer_t *buffer)
 {
     if (buffer == NULL || buffer->data == NULL)

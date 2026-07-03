@@ -41,6 +41,13 @@ void video_play_video_buffer_free_cb(void *user_data, video_player_buffer_t *buf
 avdk_err_t video_play_video_buffer_alloc_yuv_cb(void *user_data, video_player_buffer_t *buffer);
 void video_play_video_buffer_free_yuv_cb(void *user_data, video_player_buffer_t *buffer);
 
+/* NV12 output buffers placed in the CODED slab (PSRAM1) instead of UNCODED
+ * (PSRAM0). Used by the frame-zerocopy H.264 decoder so the large zero-copy
+ * decode pool can keep PSRAM0 to itself while the displayable NV12 frames live
+ * on PSRAM1. Both slabs are non-cacheable, so DPU display stays coherent. */
+avdk_err_t video_play_video_buffer_alloc_yuv_coded_cb(void *user_data, video_player_buffer_t *buffer);
+void video_play_video_buffer_free_yuv_coded_cb(void *user_data, video_player_buffer_t *buffer);
+
 // ====== Decode complete callbacks ======
 void video_play_video_decode_complete_cb(void *user_data, const video_player_video_frame_meta_t *meta, video_player_buffer_t *buffer);
 void video_play_audio_decode_complete_cb(void *user_data, const video_player_audio_packet_meta_t *meta, video_player_buffer_t *buffer);

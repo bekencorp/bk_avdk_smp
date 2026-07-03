@@ -816,9 +816,18 @@ avdk_err_t bk_video_player_video_decoder_list_add(private_video_player_ctlr_t *c
 
     new_node->ops = decoder_ops;
 #if CONFIG_BK_VIDEO_PLAYER_ENABLE_HW_H264_VIDEO_DECODER
+    /* Enable pre-decode GOP-aware catch-up for every hardware H.264 decoder,
+     * including the zero-copy frame decoder. None of them sustains real-time
+     * 1080p decode under high-motion sections; when they fall behind, AUs are
+     * dropped. Without GOP-aware dropping the decoder keeps feeding P-frames
+     * whose reference picture was dropped, so motion compensation reads a stale
+     * (or the in-progress output) buffer and the picture degrades into an
+     * accumulating motion mosaic until the next IDR. Dropping down to the next
+     * keyframe instead keeps every decoded P-frame's reference chain intact. */
     new_node->enable_predecode_gop_drop =
         (decoder_ops == bk_video_player_get_hw_h264_decoder_ops() ||
-         decoder_ops == bk_video_player_get_hw_h264_decoder_frame_ops());
+         decoder_ops == bk_video_player_get_hw_h264_decoder_frame_ops() ||
+         decoder_ops == bk_video_player_get_hw_h264_decoder_frame_zerocopy_ops());
 #else
     new_node->enable_predecode_gop_drop = false;
 #endif

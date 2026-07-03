@@ -24,6 +24,9 @@
 extern "C" {
 #endif
 
+
+struct h264d_fbpool;
+
 typedef struct {
 	bk_flexa_bond_t *bond;
 	uint8_t first_bond;
@@ -40,6 +43,20 @@ typedef struct {
 	bk_h264_decode_frame_config_t config;
 	bk_h264_decode_ctlr_t ops;
 } private_h264_decode_frame_ctlr_t;
+
+typedef struct {
+	vcdec_handle vcdec_handle;
+	vcdec_flexa_mode_e mode;
+	vcdec_h264_decode_config_t decode_config;
+	uint32_t decode_result;
+	beken_semaphore_t decode_done_sem;
+
+	struct h264d_fbpool *pool;   /* internally owned zero-copy frame pool */
+	vcdec_fb_if_t fbif;          /* decode-side vtable exported by the pool */
+
+	bk_h264_decode_frame_zerocopy_config_t config;
+	bk_h264_decode_ctlr_t ops;
+} private_h264_decode_frame_zerocopy_ctlr_t;
 
 typedef struct {
 	vcdec_handle vcdec_handle;
@@ -64,6 +81,15 @@ static inline void *h264_decode_mem_malloc(uint32_t size)
 static inline void h264_decode_mem_free(void *ptr)
 {
 	bk_frame_buffer_free(ptr);
+}
+
+/* Frame-pool slot allocator (h264d_fbpool_alloc_cb signature). The underlying
+ * uncoded frame-buffer heap already returns DMA-aligned blocks, so the explicit
+ * alignment hint is advisory and ignored here. */
+static inline void *h264_decode_mem_malloc_align(uint32_t size, uint32_t align)
+{
+	(void)align;
+	return bk_frame_buffer_malloc(MEM_SLAB_HEAP_UNCODED, size);
 }
 
 #ifdef __cplusplus

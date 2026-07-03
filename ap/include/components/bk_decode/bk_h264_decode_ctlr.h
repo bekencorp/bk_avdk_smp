@@ -37,6 +37,24 @@ avdk_err_t bk_h264_decode_flexa_ctlr_new(bk_h264_decode_ctlr_handle_t *handle, b
 avdk_err_t bk_h264_decode_frame_ctlr_new(bk_h264_decode_ctlr_handle_t *handle, bk_h264_decode_frame_config_t *config);
 
 /**
+ * @brief Create a zero-copy / B-frame capable whole-frame H.264 decoder controller
+ *
+ * Like bk_h264_decode_frame_ctlr_new() it decodes one access unit per
+ * bk_h264_decode_frame() call, but it owns an internal zero-copy frame pool:
+ * one physical buffer serves as decode target / DPB reference / display output,
+ * eliminating the reference-backup and output copies and enabling B-frame
+ * decoding with POC-based display reordering. The per-frame output buffer in
+ * bk_h264_decode_input_t is ignored; decoded frames are pulled in display order
+ * via BK_H264_DECODE_IOCTL_DEQUEUE and returned via BK_H264_DECODE_IOCTL_RELEASE,
+ * with BK_H264_DECODE_IOCTL_FLUSH emitting trailing reordered pictures at EOS.
+ *
+ * @param handle Output pointer that receives the decoder handle
+ * @param config Zero-copy frame decoder configuration (disp_depth applies here)
+ * @return AVDK error code
+ */
+avdk_err_t bk_h264_decode_frame_zerocopy_ctlr_new(bk_h264_decode_ctlr_handle_t *handle, bk_h264_decode_frame_zerocopy_config_t *config);
+
+/**
  * @brief Initialize the H.264 decoder
  * @param handle Decoder handle
  * @return AVDK error code

@@ -10,8 +10,12 @@
  * frame_num; no pic_order_cnt_lsb in slice headers).
  * num_ref_frames = 1 with VUI max_dec_frame_buffering = 1 (self-consistent);
  * all P-frames are non-reference (nal_ref_idc=0) and reference only the GOP IDR.
+ *
+ * Embedded under its own symbol (h264_decode_stream_1280x720_1i30p) so it can
+ * be linked alongside the IBBP stream simultaneously (see
+ * h264_decode_stream_1280x720.h).
  */
-const uint8_t h264_decode_stream_1280x720[] =
+const uint8_t h264_decode_stream_1280x720_1i30p[] =
 {
 	0x00, 0x00, 0x00, 0x01, 0x67, 0x42, 0xC0, 0x1F, 0xDA, 0x01, 0x40, 0x16, 0xE9, 0xA8, 0x08, 0x08,
 	0x0A, 0x00, 0x00, 0x03, 0x00, 0x02, 0x00, 0x00, 0x03, 0x00, 0x50, 0x1E, 0x30, 0x65, 0x40, 0x00,
@@ -59511,4 +59515,4 @@ const uint8_t h264_decode_stream_1280x720[] =
 	0x50, 0xE4,
 };
 
-const uint32_t h264_decode_stream_1280x720_bytes = (uint32_t)sizeof(h264_decode_stream_1280x720);
+const uint32_t h264_decode_stream_1280x720_1i30p_bytes = (uint32_t)sizeof(h264_decode_stream_1280x720_1i30p);
