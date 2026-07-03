@@ -75,6 +75,7 @@
 
 #define FLASH_DUAL_RD_CMD          0x3B                // Dual Output Fast Read
 #define FLASH_DUAL_RD_DUMMY_CYCLE  8                   // 0x3B needs 8 dummy clocks
+#define FLASH_DUAL_RD_DUMMY_MODE   4                   // insert dummy after opcode(1) + addr(3), no mode byte
 
 /* GD Flash status register bit layout:
  * S7-S0:  SRP0, BP4, BP3, BP2, BP1, BP0, WEL, WIP
@@ -90,16 +91,14 @@
 
 /* CONFIG_QSPI_LINE_MODE is the single source of truth for the flash wire mode.
  * bk_qspi_flash_write/read dispatch through these aliases; the single/dual/quad
- * APIs themselves stay unconditionally available. */
+ * APIs themselves stay unconditionally available.
+ * For QSPI NOR flash, CONFIG_QSPI_LINE_MODE must be at least 2 (dual or quad). */
 #if   (CONFIG_QSPI_LINE_MODE == 4)
 #define bk_qspi_flash_line_read     bk_qspi_flash_quad_read
 #define bk_qspi_flash_line_program  bk_qspi_flash_quad_page_program
-#elif (CONFIG_QSPI_LINE_MODE == 2)
+#else
 #define bk_qspi_flash_line_read     bk_qspi_flash_dual_read
 #define bk_qspi_flash_line_program  bk_qspi_flash_dual_page_program
-#else
-#define bk_qspi_flash_line_read     bk_qspi_flash_single_read
-#define bk_qspi_flash_line_program  bk_qspi_flash_single_page_program
 #endif
 
 static void bk_qspi_flash_wait_wip_done(qspi_id_t id);
@@ -639,6 +638,7 @@ bk_err_t bk_qspi_flash_dual_read(qspi_id_t id, uint32_t addr, void *data, uint32
 	dual_read_cmd.op = QSPI_READ;
 	dual_read_cmd.cmd = FLASH_DUAL_RD_CMD;
 	dual_read_cmd.dummy_cycle = FLASH_DUAL_RD_DUMMY_CYCLE;
+	dual_read_cmd.dummy_mode = FLASH_DUAL_RD_DUMMY_MODE;
 	dual_read_cmd.addr_len = FLASH_ADDR_LEN_3BYTE;
 	dual_read_cmd.addr_wire_mode = QSPI_1WIRE;
 

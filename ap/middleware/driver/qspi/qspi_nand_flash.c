@@ -31,7 +31,8 @@
 
 /* CONFIG_QSPI_LINE_MODE is the single source of truth for the flash wire mode.
  * bk_qspi_flash_write/read dispatch through these aliases; NAND has no dual
- * mode, so anything other than 4-wire falls back to single-wire. */
+ * mode, so anything other than 4-wire falls back to single-wire.
+ * For QSPI NAND flash, CONFIG_QSPI_LINE_MODE must be at least 2 (not 1-wire). */
 #if (CONFIG_QSPI_LINE_MODE == 4)
 #define bk_qspi_flash_line_read     bk_qspi_flash_quad_read
 #define bk_qspi_flash_line_program  bk_qspi_flash_quad_page_program
