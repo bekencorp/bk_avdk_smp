@@ -84,6 +84,7 @@
  #include "components/bk_gpu_types.h"
  #include "components/bk_video_player/bk_video_player_types.h"
  #include "components/bk_video_player/video_decoder/bk_video_player_hw_h264_decoder.h"
+ #include <soc/soc.h>
  
  #define TAG "vp_h264_dec"
  
@@ -188,7 +189,7 @@ static inline uint32_t hw_h264_frame_buf_alloc_size(uint32_t payload_plus_pad)
  {
  #if defined(CONFIG_AP_HSRAM_HEAP_ADDR) && defined(CONFIG_AP_HSRAM_HEAP_SIZE) && (CONFIG_AP_HSRAM_HEAP_SIZE > 0)
      const uintptr_t addr  = (uintptr_t)ptr;
-     const uintptr_t start = (uintptr_t)CONFIG_AP_HSRAM_HEAP_ADDR;
+     const uintptr_t start = (uintptr_t)SOC_SRAM_CPU_ADDR(CONFIG_AP_HSRAM_HEAP_ADDR);
      const uintptr_t end   = start + (uintptr_t)CONFIG_AP_HSRAM_HEAP_SIZE;
  
      return (addr >= start && addr < end);
