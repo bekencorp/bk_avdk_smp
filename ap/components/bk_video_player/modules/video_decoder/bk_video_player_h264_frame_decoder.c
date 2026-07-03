@@ -189,6 +189,37 @@ static bool hw_h264_frame_buffer_is_annex_b(const uint8_t *buf, uint32_t len)
     return false;
 }
 
+/* Validate AVCC by walking the length-prefixed NALU chain. This must be
+ * preferred over Annex-B start-code scanning because a 4-byte AVCC length in
+ * 0x00000100..0x000001FF has the same bytes as a 3-byte Annex-B start code. */
+static bool hw_h264_frame_buffer_is_avcc(const uint8_t *buf, uint32_t len, uint8_t length_size)
+{
+    if (buf == NULL || (length_size != 1U && length_size != 2U && length_size != 4U))
+    {
+        return false;
+    }
+
+    uint32_t i = 0U;
+    uint32_t nalu_count = 0U;
+    while (i + length_size <= len)
+    {
+        uint32_t nalu_len = 0U;
+        for (uint8_t k = 0U; k < length_size; k++)
+        {
+            nalu_len = (nalu_len << 8) | (uint32_t)buf[i + k];
+        }
+        i += length_size;
+        if (nalu_len == 0U || nalu_len > (len - i))
+        {
+            return false;
+        }
+        i += nalu_len;
+        nalu_count++;
+    }
+
+    return (i == len) && (nalu_count > 0U);
+}
+
 static avdk_err_t hw_h264_frame_ensure_annexb_buf(hw_h264_decoder_frame_ctx_t *ctx, uint32_t need)
 {
     if (ctx->annexb_buf != NULL && ctx->annexb_buf_size >= need)
@@ -588,7 +619,12 @@ static avdk_err_t hw_h264_decoder_frame_decode(struct video_player_video_decoder
 
     uint8_t *bs_data = in_buffer->data;
     uint32_t bs_len = in_buffer->length;
-    const bool is_annexb_input = hw_h264_frame_buffer_is_annex_b(in_buffer->data, in_buffer->length);
+    const bool is_avcc_input = hw_h264_frame_buffer_is_avcc(in_buffer->data,
+                                                            in_buffer->length,
+                                                            ctx->nalu_length_size);
+    const bool is_annexb_input = !is_avcc_input &&
+                                 hw_h264_frame_buffer_is_annex_b(in_buffer->data,
+                                                                 in_buffer->length);
     const bool need_inject_before = ctx->need_inject_params;
     avdk_err_t ret = AVDK_ERR_OK;
 

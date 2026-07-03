@@ -429,19 +429,47 @@ static video_player_video_decoder_ops_t s_ops_template;
  // Annex-B / AVCC handling. Unchanged from the previous frame-mode path.
  // ---------------------------------------------------------------------------
  
- static bool hw_h264_buffer_is_annex_b(const uint8_t *buf, uint32_t len)
- {
-     const uint32_t scan = (len > 64U) ? 64U : len;
-     for (uint32_t i = 0; i + 3U < scan; i++)
-     {
-         if (buf[i] == 0x00 && buf[i + 1U] == 0x00)
-         {
-             if (buf[i + 2U] == 0x01) return true;
-             if (buf[i + 2U] == 0x00 && buf[i + 3U] == 0x01) return true;
-         }
-     }
-     return false;
- }
+static bool hw_h264_buffer_is_annex_b(const uint8_t *buf, uint32_t len)
+{
+    const uint32_t scan = (len > 64U) ? 64U : len;
+    for (uint32_t i = 0; i + 3U < scan; i++)
+    {
+        if (buf[i] == 0x00 && buf[i + 1U] == 0x00)
+        {
+            if (buf[i + 2U] == 0x01) return true;
+            if (buf[i + 2U] == 0x00 && buf[i + 3U] == 0x01) return true;
+        }
+    }
+    return false;
+}
+
+static bool hw_h264_buffer_is_avcc(const uint8_t *buf, uint32_t len, uint8_t length_size)
+{
+    if (buf == NULL || (length_size != 1U && length_size != 2U && length_size != 4U))
+    {
+        return false;
+    }
+
+    uint32_t i = 0U;
+    uint32_t nalu_count = 0U;
+    while (i + length_size <= len)
+    {
+        uint32_t nalu_len = 0U;
+        for (uint8_t k = 0U; k < length_size; k++)
+        {
+            nalu_len = (nalu_len << 8) | (uint32_t)buf[i + k];
+        }
+        i += length_size;
+        if (nalu_len == 0U || nalu_len > (len - i))
+        {
+            return false;
+        }
+        i += nalu_len;
+        nalu_count++;
+    }
+
+    return (i == len) && (nalu_count > 0U);
+}
  
  static bool hw_h264_au_contains_idr_annexb(const uint8_t *data, uint32_t len)
  {
@@ -1232,7 +1260,11 @@ static avdk_err_t hw_h264_decoder_decode(struct video_player_video_decoder_ops_s
     /* Step 1: Annex-B prep (same as the frame-mode path). */
     uint8_t  *bs_data = in_buffer->data;
     uint32_t  bs_len  = in_buffer->length;
-    bool      is_annexb_input = hw_h264_buffer_is_annex_b(in_buffer->data, in_buffer->length);
+
+    bool      is_avcc_input   = hw_h264_buffer_is_avcc(in_buffer->data, in_buffer->length,
+                                                       ctx->nalu_length_size);
+    bool      is_annexb_input = !is_avcc_input &&
+                                hw_h264_buffer_is_annex_b(in_buffer->data, in_buffer->length);
     const bool need_inject_before = ctx->need_inject_params;
     avdk_err_t ret = AVDK_ERR_OK;
 
