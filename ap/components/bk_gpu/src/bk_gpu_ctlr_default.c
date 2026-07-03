@@ -31,6 +31,11 @@
 
 #define GPU_HPDMA_TRANSFER_TIMEOUT_MS 3000
 
+/* Worker doorbell wait poll period. Acts as a safety net: even if a wakeup post
+ * is ever missed/consumed, the worker re-checks flexa_stop at least this often,
+ * so shutdown can never hang. */
+#define GPU_WORKER_POLL_MS 100
+
 static void gpu_flexa_addr_mapping(uint16_t width, uint16_t height, uint32_t base_addr, uint16_t flexa_lines, uint8_t buf_cnt)
 {
     sys_hal_set_gpu_buffa_enable_value(1);
@@ -240,6 +245,10 @@ static bool gpu_blit_rotate_degree_is_valid(uint16_t rotate_degree)
 static void gpu_flexa_event_ready_handle(uint32_t frame_seq, uint32_t line, gpu_vn_ctlr_t *gpu_vn_ctlr)
 {
     if (gpu_vn_ctlr == NULL) {
+        return;
+    }
+
+    if (gpu_vn_ctlr->flexa_stop) {
         return;
     }
 
@@ -860,7 +869,13 @@ static inline bool gpu_flex_data_frame_done(gpu_flex_data_t *data, gpu_vn_ctlr_t
     if (gpu_vn_ctlr->bond != NULL && gpu_vn_ctlr->bond->frame_done != NULL) {
         gpu_vn_ctlr->bond->frame_done(BK_OK, gpu_vn_ctlr->bond);
     }
-    /* Reset state for next frame */
+    /* Reset state for next frame.
+     * Drain a possibly-leftover doorbell post that belongs to the just-finished
+     * frame's final line, so the worker does not spuriously wake for a frame
+     * that already completed (which would emit a stray "waits frame start" and a
+     * stale bond->flexa_done()). The condition only fires when the latest seen
+     * event is this frame's last line, so a new frame's line==1 post
+     * (line_cnt != last) is never consumed. */
     uint32_t frame_last_line_count = (data->input_height + config->flexa_lines - 1) / config->flexa_lines;
     if ((gpu_vn_ctlr->line_frame_seq == gpu_vn_ctlr->active_frame_seq) &&
         (gpu_vn_ctlr->line_cnt == frame_last_line_count))
@@ -1000,21 +1015,25 @@ static void gpu_flex_main_entry(void *arg)
     const bk_gpu_ctlr_config_t *config = &gpu_vn_ctlr->config;
     gpu_flex_data_t *flex = &gpu_vn_ctlr->flex;
 
-    bk_err_t ret = rtos_set_semaphore(&gpu_vn_ctlr->gpu_flex_task_sem);
+    bk_err_t ret = rtos_set_semaphore(&gpu_vn_ctlr->gpu_start_sem);
     if (ret != BK_OK) {
-        LOGE("%s, %d rtos_set_semaphore failed\n", __func__, __LINE__);
+        LOGE("%s, %d rtos_set_semaphore gpu_start_sem failed\n", __func__, __LINE__);
         goto thread_exit;
     }
 
     /* Main processing loop */
     while (1)
     {
-        /* Wait for semaphore from ISP callback */
-        rtos_get_semaphore(&gpu_vn_ctlr->gpu_process_sem, BEKEN_WAIT_FOREVER);
+        bk_err_t proc_ret = rtos_get_semaphore(&gpu_vn_ctlr->gpu_process_sem, GPU_WORKER_POLL_MS);
 
         if (gpu_vn_ctlr->flexa_stop)
         {
             break;
+        }
+
+        if (proc_ret != BK_OK)
+        {
+            continue;
         }
 
         uint32_t src_line_count = gpu_vn_ctlr->line_cnt;
@@ -1126,9 +1145,9 @@ static void gpu_flex_main_entry(void *arg)
 thread_exit:
     LOGW("%s,%d exit\n", __func__, __LINE__);
 
-    rtos_set_semaphore(&gpu_vn_ctlr->gpu_flex_task_sem);
-
-    gpu_vn_ctlr->flexa_thd = NULL;
+    /* Self-delete only. gpu_ctlr_close() joins this thread via rtos_thread_join()
+     * and is the sole owner of control->flexa_thd, so the worker must NOT clear
+     * it here (doing so previously created a re-open race). */
     rtos_delete_thread(NULL);
 }
 
@@ -1137,7 +1156,6 @@ static avdk_err_t gpu_ctlr_init(bk_gpu_ctlr_handle_t handle)
     gpu_vn_ctlr_t *control =  __containerof(handle, gpu_vn_ctlr_t, ops);
     AVDK_RETURN_ON_FALSE(control, AVDK_ERR_INVAL, TAG, "control is NULL");
 
-    //TODO
     if (control->config.flexa) {
         control->blit_enable = false;
         control->display_blit_buffer = NULL;
@@ -1214,6 +1232,55 @@ static avdk_err_t gpu_ctlr_deinit(bk_gpu_ctlr_handle_t handle)
     return AVDK_ERR_OK;
 }
 
+/**
+ * @brief Release all flexa runtime resources allocated by gpu_ctlr_open().
+ *
+ * Shared by the gpu_ctlr_open() failure path and gpu_ctlr_close() so the
+ * teardown sequence cannot drift between the two. Every step is individually
+ * guarded so it is safe to call after a partial open. The caller is responsible
+ * for stopping/joining the worker thread first (close) or for never having
+ * started it (open failure) before invoking this.
+ */
+static void gpu_flex_resource_teardown(gpu_vn_ctlr_t *control)
+{
+    const bk_gpu_ctlr_config_t *config = &control->config;
+    gpu_flex_data_t *flex = &control->flex;
+
+#if HDMA_OPEN_ISR_ENABLE
+    if (flex->gdma < HPDMA_ID_MAX) {
+        bk_hpdma_disable_finish_interrupt(flex->gdma);
+        bk_hpdma_register_isr(flex->gdma, NULL, NULL, NULL, NULL);
+    }
+#endif
+
+    if (flex->gdma < HPDMA_ID_MAX) {
+        bk_err_t free_ret = bk_hpdma_free(HPDMA_DEV_DTCM, flex->gdma);
+        if (free_ret != BK_OK) {
+            LOGE("%s,%d bk_hpdma_free(ch=%d) failed ret=%d, DMA may still be active\n",
+                 __func__, __LINE__, flex->gdma, free_ret);
+        }
+        flex->gdma = HPDMA_ID_MAX;
+    }
+
+    if (flex->dpu_frame_buffers != NULL && config->frame_free != NULL) {
+        config->frame_free(flex->dpu_frame_buffers);
+        flex->dpu_frame_buffers = NULL;
+    }
+
+    if (control->gpu_process_sem) {
+        rtos_deinit_semaphore(&control->gpu_process_sem);
+        control->gpu_process_sem = NULL;
+    }
+
+    if (flex->link_dma_list_table != NULL) {
+        bk_hpdma_link_deinit(flex->link_dma_list_table);
+        flex->link_dma_list_table = NULL;
+    }
+
+    gpu_flex_deinit_pingpong_buffer(flex);
+    gpu_flex_data_deinit(flex, control);
+}
+
 static avdk_err_t gpu_ctlr_open(bk_gpu_ctlr_handle_t handle)
 {
     gpu_vn_ctlr_t *control =  __containerof(handle, gpu_vn_ctlr_t, ops);
@@ -1259,9 +1326,9 @@ static avdk_err_t gpu_ctlr_open(bk_gpu_ctlr_handle_t handle)
         control->line_err_flag = 1;
         control->flexa_stop = false;
 
-        ret = rtos_init_semaphore_ex(&control->gpu_flex_task_sem, 1, 0);
+        ret = rtos_init_semaphore_ex(&control->gpu_start_sem, 1, 0);
         if (ret != AVDK_ERR_OK) {
-            LOGE("%s, %d rtos_init_semaphore_ex failed\n", __func__, __LINE__);
+            LOGE("%s, %d rtos_init_semaphore_ex gpu_start_sem failed\n", __func__, __LINE__);
             goto open_fail;
         }
 
@@ -1274,50 +1341,22 @@ static avdk_err_t gpu_ctlr_open(bk_gpu_ctlr_handle_t handle)
 
         if (ret != AVDK_ERR_OK) {
             LOGE("%s, %d rtos_create_hsram_thread failed\n", __func__, __LINE__);
-            rtos_deinit_semaphore(&control->gpu_flex_task_sem);
-            control->gpu_flex_task_sem = NULL;
+            rtos_deinit_semaphore(&control->gpu_start_sem);
+            control->gpu_start_sem = NULL;
             goto open_fail;
         }
 
-        rtos_get_semaphore(&control->gpu_flex_task_sem, BEKEN_WAIT_FOREVER);
+        /* Wait until the worker has signalled it is up, then dispose of the
+         * one-shot startup semaphore. */
+        rtos_get_semaphore(&control->gpu_start_sem, BEKEN_WAIT_FOREVER);
+        rtos_deinit_semaphore(&control->gpu_start_sem);
+        control->gpu_start_sem = NULL;
 
-        LOGI("%s, %d sem get successful\n", __func__, __LINE__);
+        LOGI("%s, %d worker started\n", __func__, __LINE__);
         return AVDK_ERR_OK;
 
 open_fail:
-#if HDMA_OPEN_ISR_ENABLE
-        if (flex->gdma < HPDMA_ID_MAX) {
-            bk_hpdma_disable_finish_interrupt(flex->gdma);
-            bk_hpdma_register_isr(flex->gdma, NULL, NULL, NULL, NULL);
-        }
-#endif
-
-        if (flex->gdma < HPDMA_ID_MAX) {
-            bk_err_t free_ret = bk_hpdma_free(HPDMA_DEV_DTCM, flex->gdma);
-            if (free_ret != BK_OK) {
-                LOGE("%s,%d bk_hpdma_free(ch=%d) failed ret=%d, DMA may still be active\n",
-                     __func__, __LINE__, flex->gdma, free_ret);
-            }
-            flex->gdma = HPDMA_ID_MAX;
-        }
-
-        if (flex->dpu_frame_buffers != NULL && config->frame_free != NULL)
-        {
-            config->frame_free(flex->dpu_frame_buffers);
-            flex->dpu_frame_buffers = NULL;
-        }
-
-        if (control->gpu_process_sem) {
-            rtos_deinit_semaphore(&control->gpu_process_sem);
-            control->gpu_process_sem = NULL;
-        }
-
-        if (flex->link_dma_list_table != NULL) {
-            bk_hpdma_link_deinit(flex->link_dma_list_table);
-            flex->link_dma_list_table = NULL;
-        }
-        gpu_flex_deinit_pingpong_buffer(flex);
-        gpu_flex_data_deinit(flex, control);
+        gpu_flex_resource_teardown(control);
         return ret;
     } else {
         LOGE("%s %d flexa is not enabled\r\n", __func__, __LINE__);
@@ -1334,9 +1373,6 @@ static avdk_err_t gpu_ctlr_close(bk_gpu_ctlr_handle_t handle)
     AVDK_RETURN_ON_FALSE(control, AVDK_ERR_INVAL, TAG, "control is NULL");
 
     if (control->config.flexa) {
-        const bk_gpu_ctlr_config_t *config = &control->config;
-        gpu_flex_data_t *flex = &control->flex;
-
         if (control->flexa_thd == NULL) {
             LOGW("%s, %d gpu flexa thread is already closed\n", __func__, __LINE__);
             return AVDK_ERR_OK;
@@ -1357,46 +1393,17 @@ static avdk_err_t gpu_ctlr_close(bk_gpu_ctlr_handle_t handle)
                 LOGW("%s, %d rtos_set_semaphore failed\n", __func__, __LINE__);
             }
         }
-        rtos_get_semaphore(&control->gpu_flex_task_sem, BEKEN_WAIT_FOREVER);
 
-        rtos_deinit_semaphore(&control->gpu_flex_task_sem);
-        control->gpu_flex_task_sem = NULL;
+        /* Block until the worker has fully terminated, then take ownership of
+         * the handle here. This removes the previous race where the worker
+         * cleared flexa_thd after close() had already returned, which could make
+         * a fast re-open mis-detect the controller as still open. */
+        rtos_thread_join(&control->flexa_thd);
+        control->flexa_thd = NULL;
 
-#if HDMA_OPEN_ISR_ENABLE
-        if (flex->gdma < HPDMA_ID_MAX) {
-            bk_hpdma_disable_finish_interrupt(flex->gdma);
-            bk_hpdma_register_isr(flex->gdma, NULL, NULL, NULL, NULL);
-        }
-#endif
+        gpu_flex_resource_teardown(control);
 
-        if (flex->gdma < HPDMA_ID_MAX) {
-            bk_err_t free_ret = bk_hpdma_free(HPDMA_DEV_DTCM, flex->gdma);
-            if (free_ret != BK_OK) {
-                LOGE("%s,%d bk_hpdma_free(ch=%d) failed ret=%d, DMA may still be active\n",
-                     __func__, __LINE__, flex->gdma, free_ret);
-            }
-            flex->gdma = HPDMA_ID_MAX;
-        }
-
-        if (flex->dpu_frame_buffers != NULL && config->frame_free != NULL)
-        {
-            config->frame_free(flex->dpu_frame_buffers);
-            flex->dpu_frame_buffers = NULL;
-        }
-
-        if (control->gpu_process_sem) {
-            rtos_deinit_semaphore(&control->gpu_process_sem);
-            control->gpu_process_sem = NULL;
-        }
-
-        if (flex->link_dma_list_table != NULL) {
-            bk_hpdma_link_deinit(flex->link_dma_list_table);
-            flex->link_dma_list_table = NULL;
-        }
-        gpu_flex_deinit_pingpong_buffer(flex);
-        gpu_flex_data_deinit(flex, control);
-
-        LOGI("%s, %d sem get successful, flexa thread has exited\n", __func__, __LINE__);
+        LOGI("%s, %d flexa thread joined and resources released\n", __func__, __LINE__);
     } else {
         LOGE("%s %d flexa is not enabled\r\n", __func__, __LINE__);
         return AVDK_ERR_INVAL;
