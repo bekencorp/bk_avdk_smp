@@ -125,6 +125,8 @@ list(APPEND srcs
 	mbedtls/library/psa_crypto_se.c
 	mbedtls/library/psa_crypto_storage.c
 	mbedtls/library/psa_its_file.c
+	mbedtls/library/psa_crypto_client.c
+	mbedtls/library/psa_crypto_slot_management.c
 )
 
 if (CONFIG_PSA_MBEDTLS_TEST)

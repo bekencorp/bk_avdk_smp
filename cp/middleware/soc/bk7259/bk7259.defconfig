@@ -218,7 +218,7 @@ CONFIG_DRV_CLI_SUPPORT=y
 CONFIG_MCU_PS=y
 # CONFIG_DEEP_PS is not set
 CONFIG_TICK_CALI=y
-# CONFIG_STA_PS is not set
+CONFIG_STA_PS=y
 # end of Bk_libs
 
 #

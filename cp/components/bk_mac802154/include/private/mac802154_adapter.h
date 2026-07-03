@@ -17,6 +17,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <common/bk_err.h>
 
 struct mac802154_osi_funcs_t {
     uint32_t _version;
@@ -58,8 +59,12 @@ struct mac802154_osi_funcs_t {
     void (*_interrupt_ctrl)(bool en);
     bool (*_ate_is_enabled)(void);
     void (*_mac_clock_ctrl)(bool clock_state);
+#if 1//CONFIG_OT_TRIP_COEX_EN
+    void (*_thread_rf_and_module_vote_ctrl)(bool en);
+#else
     void (*_drv_thread_rf_ctrl)(bool en);
     void (*_vote_rf_ctrl)(uint8_t cmd);
+#endif
     void (*_thread_power_ctrl)(uint8_t en);
 
     int32_t (*_os_memcmp)(const void *s, const void *s1, uint32_t n);
@@ -74,5 +79,9 @@ struct mac802154_osi_funcs_t {
 int mac802154_osi_init(void *osi_funcs);
 uint8_t mac802154_mac_init(void);
 void mac802154_mac_deinit(void);
+
+bk_err_t mac802154_mac_tx(bool enable, uint8_t channel, uint8_t tx_cnt, uint8_t pass_cnt_thre);
+bk_err_t mac802154_mac_rx(bool enable, uint8_t channel);
+bk_err_t mac802154_mac_dut(bool enable, uint8_t dut_mode, uint8_t rx_channel, uint8_t tx_channel, void *dut_cb);
 
 #endif

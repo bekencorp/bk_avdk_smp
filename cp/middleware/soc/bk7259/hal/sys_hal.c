@@ -2308,6 +2308,11 @@ void sys_hal_diag_debug_mac()
 {
 	return;
 }
+void sys_hal_diag_debug_mac802154(void)
+{
+	//sys_ll_set_dbug_config0_dbug_mux(DIAG_DEBUG_THREAD);
+	return;
+}
 void sys_hal_diag_debug_phy()
 {
 	return;

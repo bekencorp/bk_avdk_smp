@@ -211,6 +211,27 @@ static void mac_clock_ctrl_wrapper(bool clock_state)
     bk_pm_clock_ctrl(CLK_PWR_ID_THREAD,(clock_state) ? 1 : 0);
 }
 
+#if 1//CONFIG_OT_TRIP_COEX_EN
+static void thread_rf_and_module_vote_ctrl(bool en)
+{
+    if(en == true)
+    {
+        RF_PLL_CTRL_RESULT_T rlt = rf_pll_ctrl(MODULE_TYPE_THREAD, RF_OPERATION_APPLY, RF_PATH_THREAD_IQ, RF_PLL_LOW, RF_PRIORITY_THREAD_HIGH, RF_TASK_TYPE_THREAD_INIT, true, 0, false);
+        if(rlt.result != RF_ARBIT_RESULT_SUCCESS)
+        {
+            os_printf("[Error]%s:%d failed to get rf\n", __func__, __LINE__);
+        }
+    }
+    else
+    {
+        RF_PLL_CTRL_RESULT_T rlt = rf_pll_ctrl(MODULE_TYPE_THREAD, RF_OPERATION_FREE, RF_PATH_THREAD_IQ, RF_PLL_LOW, RF_PRIORITY_THREAD_HIGH, RF_TASK_TYPE_THREAD_INIT, true, 0, false);
+        if(rlt.result != RF_ARBIT_RESULT_SUCCESS)
+        {
+            os_printf("[Error]%s:%d failed to get rf\n", __func__, __LINE__);
+        }
+    }
+}
+#else
 static void drv_thread_rf_ctrl_wrapper(bool en)
 {
     sys_drv_thread_rf_ctrl(en);
@@ -220,6 +241,7 @@ static void vote_rf_ctrl(uint8_t cmd)
 {
     rf_module_vote_ctrl(cmd, RF_BY_THREAD_BIT);
 }
+#endif
 
 static void thread_power_ctrl(uint8_t en)
 {
@@ -227,12 +249,9 @@ static void thread_power_ctrl(uint8_t en)
         //Power UP thread and PHY
         bk_pm_module_vote_power_ctrl(PM_POWER_SUB_MODULE_NAME_THREAD,PM_POWER_MODULE_STATE_ON);
         bk_pm_module_vote_power_ctrl(PM_POWER_SUB_MODULE_NAME_PHY_THREAD,PM_POWER_MODULE_STATE_ON);
-        //Switch High Power PLL
-        rf_pll_ctrl(0, RF_WIFIPLL_HOLD_BY_THREAD_BIT);
     } else {
         bk_pm_module_vote_power_ctrl(PM_POWER_SUB_MODULE_NAME_THREAD,PM_POWER_MODULE_STATE_OFF);
         bk_pm_module_vote_power_ctrl(PM_POWER_SUB_MODULE_NAME_PHY_THREAD,PM_POWER_MODULE_STATE_OFF);
-        rf_pll_ctrl(1, RF_WIFIPLL_HOLD_BY_THREAD_BIT);
     }
 }
 
@@ -303,8 +322,12 @@ struct mac802154_osi_funcs_t g_mac802154_os_funcs = {
     ._interrupt_ctrl = interrupt_ctrl_wrapper,
     ._ate_is_enabled = ate_is_enabled_wrapper,
     ._mac_clock_ctrl = mac_clock_ctrl_wrapper,
+#if 1//CONFIG_OT_TRIP_COEX_EN
+    ._thread_rf_and_module_vote_ctrl = thread_rf_and_module_vote_ctrl,
+#else
     ._drv_thread_rf_ctrl= drv_thread_rf_ctrl_wrapper,
     ._vote_rf_ctrl   = vote_rf_ctrl,
+#endif
     ._thread_power_ctrl  = thread_power_ctrl,
 
     ._os_memcmp      = os_memcmp_wrapper,

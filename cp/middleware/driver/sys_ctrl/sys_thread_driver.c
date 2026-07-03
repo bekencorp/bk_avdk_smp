@@ -24,6 +24,7 @@ void sys_drv_thread_interrupt_ctrl(bool en)
     sys_drv_exit_critical(int_level);
 }
 
+#if 0
 void sys_drv_thread_rf_ctrl(bool en)
 {
     static uint8_t rf_save;
@@ -39,6 +40,7 @@ void sys_drv_thread_rf_ctrl(bool en)
         sys_hal_rf_ctrl(rf_save);
     }
 }
+#endif
 
 void sys_set_thread_tx_mode_trxconfig(void)
 {
