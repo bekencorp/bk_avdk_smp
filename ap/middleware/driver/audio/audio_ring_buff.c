@@ -3,12 +3,48 @@
 #include <driver/audio_ring_buff.h>
 #include <stdlib.h>
 #include <string.h>
+#include "cache.h"
 
 
 //#define RWP_SAFE_INTERVAL   (4)
 #define RWP_SAFE_INTERVAL   (0)
 
 //#define DMA_WRITE_DEBUG       //DMA carry data from FIFO to memory
+
+/*
+ * PSRAM L2 cache coherency for DMA audio ring buffers.
+ *
+ * On BK7259 the AP-side audio DMA ring buffers may live in PSRAM heap/data
+ * (MPU attr 5: L2 cacheable / L1 non-cacheable). The audio ADC/DAC DMA accesses
+ * PSRAM physical memory directly and bypasses the AP L2 cache, so software must
+ * maintain coherency on every frame copy:
+ *   - RB_DMA_TYPE_WRITE (DMA produces, AP consumes): invalidate the region in
+ *     PSRAM before AP reads it, otherwise AP may read stale L2 data.
+ *   - RB_DMA_TYPE_READ  (AP produces, DMA consumes): clean (write back) the
+ *     region after AP writes it, otherwise DMA may fetch stale PSRAM data.
+ *
+ * flush_dcache() does an L1+L2 clean & invalidate over the range (with a
+ * trailing DSB/ISB) so it covers both directions, and it is a no-op on memory
+ * that is not actually cached (e.g. SRAM-backed buffers), so it is safe to call
+ * unconditionally on the DMA ring buffer region. Only DMA-backed ring buffers
+ * (dma_id valid + matching dma_type) trigger maintenance; pure software ring
+ * buffers are left untouched.
+ */
+static inline void rb_dcache_sync_before_read(const RingBufferContext *rb, uint32_t offset, uint32_t bytes)
+{
+    if (bytes && (rb->dma_id != DMA_ID_MAX) && (rb->dma_type == RB_DMA_TYPE_WRITE))
+    {
+        flush_dcache((void *)&rb->address[offset], (long)bytes);
+    }
+}
+
+static inline void rb_dcache_sync_after_write(const RingBufferContext *rb, uint32_t offset, uint32_t bytes)
+{
+    if (bytes && (rb->dma_id != DMA_ID_MAX) && (rb->dma_type == RB_DMA_TYPE_READ))
+    {
+        flush_dcache((void *)&rb->address[offset], (long)bytes);
+    }
+}
 
 void ring_buffer_init(RingBufferContext* rb, uint8_t* addr, uint32_t capacity, dma_id_t dma_id, uint32_t dma_type)
 {
@@ -100,6 +136,7 @@ uint32_t ring_buffer_read(RingBufferContext* rb, uint8_t* buffer, uint32_t size)
             BK_LOGD(NULL, "-----------[rb error 0]--------------\n");
             BK_LOGD(NULL, "wp_old: %d, rp_old: %d, wp_new: %d, rp_new: %d, address: 0x%x, capacity: %d\n", wp_old, rp_old, wp_new, rp_new, rb->address, rb->capacity);
 #endif
+            rb_dcache_sync_before_read(rb, rb->rp, read_bytes);
             memcpy(buffer, &rb->address[rb->rp], read_bytes);
             //rb->rp += read_bytes;
             rb->rp = (rb->rp + read_bytes) % rb->capacity;
@@ -107,6 +144,7 @@ uint32_t ring_buffer_read(RingBufferContext* rb, uint8_t* buffer, uint32_t size)
         else
         {
             read_bytes = required_bytes;
+            rb_dcache_sync_before_read(rb, rb->rp, read_bytes);
             memcpy(buffer, &rb->address[rb->rp], read_bytes);
             //rb->rp += read_bytes;
             rb->rp = (rb->rp + read_bytes) % rb->capacity;
@@ -124,6 +162,7 @@ uint32_t ring_buffer_read(RingBufferContext* rb, uint8_t* buffer, uint32_t size)
         if(required_bytes > remain_bytes)
         {
             read_bytes = remain_bytes;
+            rb_dcache_sync_before_read(rb, rb->rp, read_bytes);
             memcpy(buffer, &rb->address[rb->rp], read_bytes);
 
             if(required_bytes - read_bytes > wp)
@@ -132,12 +171,14 @@ uint32_t ring_buffer_read(RingBufferContext* rb, uint8_t* buffer, uint32_t size)
                 BK_LOGD(NULL, "-----------[rb error 1]--------------\n");
                 BK_LOGD(NULL, "wp_old: %d, rp_old: %d, wp_new: %d, rp_new: %d, address: 0x%x, capacity: %d\n", wp_old, rp_old, wp_new, rp_new, rb->address, rb->capacity);
 #endif
+                rb_dcache_sync_before_read(rb, 0, wp);
                 memcpy(buffer + read_bytes, &rb->address[0], wp);
                 rb->rp = wp;
                 read_bytes += wp;
             }
             else
             {
+                rb_dcache_sync_before_read(rb, 0, required_bytes - read_bytes);
                 memcpy(buffer + read_bytes, &rb->address[0], required_bytes - read_bytes);
                 rb->rp = required_bytes - read_bytes;
                 read_bytes = required_bytes;
@@ -146,6 +187,7 @@ uint32_t ring_buffer_read(RingBufferContext* rb, uint8_t* buffer, uint32_t size)
         else
         {
             read_bytes = required_bytes;
+            rb_dcache_sync_before_read(rb, rb->rp, read_bytes);
             memcpy(buffer, &rb->address[rb->rp], read_bytes);
             //rb->rp += read_bytes;
             rb->rp = (rb->rp + read_bytes) % rb->capacity;
@@ -211,14 +253,17 @@ uint32_t ring_buffer_write(RingBufferContext* rb, uint8_t* buffer, uint32_t size
             if(remain_bytes >= write_bytes)
             {
                 memcpy(&rb->address[rb->wp], buffer, write_bytes);
+                rb_dcache_sync_after_write(rb, rb->wp, write_bytes);
                 //rb->wp += write_bytes;
                 rb->wp = (rb->wp + write_bytes) % rb->capacity;
             }
             else
             {
                 memcpy(&rb->address[rb->wp], buffer, remain_bytes);
+                rb_dcache_sync_after_write(rb, rb->wp, remain_bytes);
                 rb->wp = write_bytes - remain_bytes;
                 memcpy(&rb->address[0], &buffer[remain_bytes], rb->wp);
+                rb_dcache_sync_after_write(rb, 0, rb->wp);
             }
         }
         else
@@ -233,6 +278,7 @@ uint32_t ring_buffer_write(RingBufferContext* rb, uint8_t* buffer, uint32_t size
         if(remain_bytes >= write_bytes + RWP_SAFE_INTERVAL)
         {
             memcpy(&rb->address[rb->wp], buffer, write_bytes);
+            rb_dcache_sync_after_write(rb, rb->wp, write_bytes);
             //rb->wp += write_bytes;
             rb->wp = (rb->wp + write_bytes) % rb->capacity;
         }
