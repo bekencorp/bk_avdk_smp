@@ -18,6 +18,17 @@ def _cjk_display_width(text: str) -> int:
             width += 1
     return width + 4
 
+def _text_display_width(text: str) -> int:
+    """Grid table 单元格对齐宽度（CJK 等宽字符计 2）。"""
+    import unicodedata
+    width = 0
+    for ch in text:
+        if unicodedata.east_asian_width(ch) in ('W', 'F'):
+            width += 2
+        else:
+            width += 1
+    return width
+
 class MarkdownToRST:
     """Markdown → RST 转换器"""
 
@@ -69,9 +80,14 @@ class MarkdownToRST:
                 processed_lines.append(line)
                 continue
             if in_codeblock:
-                processed_lines.append(line)
-                if stripped == '':
+                if stripped and not line.startswith('   '):
                     in_codeblock = False
+                    processed_lines.append(self._convert_markdown_line(line))
+                else:
+                    processed_lines.append(line)
+                continue
+            if self._is_grid_table_line(line):
+                processed_lines.append(line)
                 continue
             # 检查是否已经包含reST语法
             if self._contains_rst_syntax(line):
@@ -91,6 +107,8 @@ class MarkdownToRST:
             line = self._convert_link_to_translation(line)
             line = self._convert_unordered_list(line)
             return line
+        if re.match(r'^\s*#{1,6}\s+', line):
+            return self._convert_markdown_heading_line(line)
         line = self._normalize_md_emphasis_in_backticks(line)
         parts = line.split('`')
         for i in range(0, len(parts), 2):
@@ -111,6 +129,36 @@ class MarkdownToRST:
         line = self._sanitize_rst_line(line)
         return line
 
+    def _format_rst_heading(self, level: int, title: str) -> str:
+        width = _cjk_display_width(title)
+        if level == 1:
+            underline = "=" * width
+        elif level == 2:
+            underline = "-" * width
+        elif level == 3:
+            underline = "," * width
+        elif level == 4:
+            underline = "." * width
+        elif level == 5:
+            underline = "*" * width
+        else:
+            underline = "~" * width
+        return f"{title}\n{underline}\n"
+
+    def _convert_markdown_heading_line(self, line: str) -> str:
+        """标题行含行内代码时，须整行转换，不能按反引号 split。"""
+        line = self._normalize_md_emphasis_in_backticks(line)
+        m = re.match(r'^\s*(#{1,6})\s+(.*)$', line)
+        if not m:
+            return line
+        level = len(m.group(1))
+        title = m.group(2).strip()
+        title = self._convert_bold(title)
+        title = self._convert_italic(title)
+        title = self._convert_inline_code(title)
+        title = self._sanitize_rst_line(title)
+        return self._format_rst_heading(level, title)
+
     def _normalize_md_emphasis_in_backticks(self, line: str) -> str:
         """README 中 `` `**bold**` `` / `` `**text` `` 等混用统一为普通反引号内容。"""
         line = re.sub(r'`\[([^\]]+)\]\(([^)]+)\)`', r'[\1](\2)', line)
@@ -121,16 +169,21 @@ class MarkdownToRST:
 
     def _sanitize_rst_line(self, line: str) -> str:
         """修正 README 转 RST 后易触发 docutils 警告的 inline markup。"""
-        line = re.sub(r'\*\*(`[^`]+`)\*\*', r'\1', line)
-        line = re.sub(r'\*\*(``[^`]+``)\*\*', r'\1', line)
+        line = re.sub(r'\*\*(`[^`]+`)\*\*', r':strong:\1', line)
+        line = re.sub(r'\*\*(``[^`]+``)\*\*', r':strong:\1', line)
         line = re.sub(r'(``[^`]+``)\*\*', r'\1', line)
-        line = re.sub(r'>`_（', r'>`_ （', line)
-        line = re.sub(r'(``[^`]+``)（', r'\1 （', line)
         line = re.sub(r'\*\*(\.\w+)\*\*', r'``\1``', line)
         line = re.sub(r'\*\*([^*`]+_[^*`]+)\*\*', r'``\1``', line)
-        # 项目 README 的 **bold** 在 RST 中易与 （、` 等混用出错，去掉强调标记保留正文
-        line = re.sub(r'\*\*([^*]+)\*\*', r'\1', line)
+        # 兜底：未在反引号区间转换的 **bold**
+        line = re.sub(r'\*\*([^*]+)\*\*', r':strong:`\1`', line)
         line = re.sub(r'\*\*', '', line)
+        # 修正 inline code 误伤 :strong:`text` 的情况
+        line = re.sub(r':strong:``([^`]+)``', r':strong:`\1`', line)
+        # :strong:/literal/`` 与全角括号之间加空格，避免 docutils 解析错误
+        line = re.sub(r'(:strong:`[^`]+`)（', r'\1 （', line)
+        line = re.sub(r'(:literal:`[^`]+`)（', r'\1 （', line)
+        line = re.sub(r'>`_（', r'>`_ （', line)
+        line = re.sub(r'(``[^`]+``)（', r'\1 （', line)
         return line
 
     def _fix_nested_list_indent(self, text: str) -> str:
@@ -192,7 +245,7 @@ class MarkdownToRST:
         return '\n'.join(lines)
 
     def _convert_markdown_tables(self, text: str) -> str:
-        """将 Markdown 表格包进 code-block，避免 |------| 被当成 RST 替换引用。"""
+        """将 Markdown 表格转为 RST grid table，避免 |---| 被当成替换引用。"""
         lines = text.splitlines()
         result = []
         i = 0
@@ -209,15 +262,75 @@ class MarkdownToRST:
                 while i < len(lines) and '|' in lines[i]:
                     table_lines.append(lines[i])
                     i += 1
-                result.append('.. code-block:: text')
-                result.append('')
-                for tl in table_lines:
-                    result.append('   ' + tl.rstrip())
+                result.append(self._markdown_table_to_grid(table_lines))
                 result.append('')
                 continue
             result.append(line)
             i += 1
         return '\n'.join(result)
+
+    @staticmethod
+    def _parse_md_table_row(line: str) -> list:
+        line = line.strip()
+        if line.startswith('|'):
+            line = line[1:]
+        if line.endswith('|'):
+            line = line[:-1]
+        return [cell.strip() for cell in line.split('|')]
+
+    def _convert_table_cell(self, text: str) -> str:
+        text = self._normalize_md_emphasis_in_backticks(text)
+        text = self._convert_bold(text)
+        text = self._convert_italic(text)
+        text = self._convert_links(text)
+        text = self._convert_inline_code(text)
+        return self._sanitize_rst_line(text)
+
+    @staticmethod
+    def _format_grid_cell(text: str, col_width: int) -> str:
+        pad = col_width + 1 - _text_display_width(text)
+        return ' ' + text + ' ' * max(pad, 1)
+
+    @staticmethod
+    def _grid_table_border(col_widths, char='-') -> str:
+        return '+' + '+'.join(char * (w + 2) for w in col_widths) + '+'
+
+    def _grid_table_row(self, cells, col_widths) -> str:
+        parts = [self._format_grid_cell(c, col_widths[i]) for i, c in enumerate(cells)]
+        return '|' + '|'.join(parts) + '|'
+
+    def _markdown_table_to_grid(self, table_lines: list) -> str:
+        parsed = [self._parse_md_table_row(l) for l in table_lines]
+        if len(parsed) < 2:
+            return '\n'.join(table_lines)
+        header = parsed[0]
+        body = parsed[2:] if len(parsed) > 2 else []
+        all_rows = [header] + body
+        num_cols = max(len(r) for r in all_rows)
+        for row in all_rows:
+            while len(row) < num_cols:
+                row.append('')
+        converted = [[self._convert_table_cell(c) for c in row] for row in all_rows]
+        col_widths = [0] * num_cols
+        for row in converted:
+            for i, cell in enumerate(row):
+                col_widths[i] = max(col_widths[i], _text_display_width(cell))
+        out = [self._grid_table_border(col_widths, '-')]
+        out.append(self._grid_table_row(converted[0], col_widths))
+        out.append(self._grid_table_border(col_widths, '='))
+        for row in converted[1:]:
+            out.append(self._grid_table_row(row, col_widths))
+            out.append(self._grid_table_border(col_widths, '-'))
+        return '\n'.join(out)
+
+    @staticmethod
+    def _is_grid_table_line(line: str) -> bool:
+        s = line.strip()
+        if not s:
+            return False
+        if s.startswith('+') and re.match(r'^\+[-=+]+\+$', s):
+            return True
+        return s.startswith('|') and s.endswith('|')
 
     def _fix_rst_warning_blocks(self, text: str) -> str:
         """把 .. warning:: 后面误接 markdown 围栏代码块的内容改成 RST 缩进段落。"""
@@ -282,22 +395,7 @@ class MarkdownToRST:
 
     def _convert_headings(self, text: str) -> str:
         def repl(m: Match) -> str:
-            level = len(m.group(1))
-            title = m.group(2).strip()
-            width = _cjk_display_width(title)
-            if level == 1:
-                underline = "=" * width
-            elif level == 2:
-                underline = "-" * width
-            elif level == 3:
-                underline = "," * width
-            elif level == 4:
-                underline = "." * width
-            elif level == 5:
-                underline = "*" * width
-            else:
-                underline = "~" * width
-            return f"{title}\n{underline}\n"
+            return self._format_rst_heading(len(m.group(1)), m.group(2).strip())
         # 先处理标准的# 标题格式
         text = re.sub(r"^(#{1,6})\s+(.*)$", repl, text, flags=re.MULTILINE)
         # 再处理特殊的#. 标题格式
@@ -331,9 +429,12 @@ class MarkdownToRST:
         return text
 
     def _convert_bold(self, text: str) -> str:
-        return re.sub(r'(\*\*|__)(.*?)\1', r'**\2**', text)
+        # Markdown **bold** -> RST :strong:`text`（避免与列表项 * 及中文括号冲突）
+        return re.sub(r'(\*\*|__)(.+?)\1', r':strong:`\2`', text)
 
     def _convert_italic(self, text: str) -> str:
+        if ':strong:' in text:
+            return text
         """
         *italic* 或 _italic_ -> *italic*
         避免误伤普通下划线，如 link_to
@@ -376,6 +477,9 @@ class MarkdownToRST:
         text = re.sub(r'`[^`]+ <[^>]+>`_', stash_link, text)
 
         def repl(m: Match) -> str:
+            start = m.start()
+            if re.search(r':(?:strong|literal|emphasis|link_to_translation):$', text[:start]):
+                return m.group(0)
             inner = m.group(1)
             if re.match(r'^(en|zh_CN):\[', inner):
                 return m.group(0)
