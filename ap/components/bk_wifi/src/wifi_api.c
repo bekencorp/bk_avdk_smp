@@ -809,8 +809,9 @@ static bk_err_t wifi_ap_set_config(const wifi_ap_config_t *ap_config)
 #endif
         ) {
         g_ap_param_ptr->chann = ap_config->channel;
-    } else if (ap_config->channel == 0){
-        g_ap_param_ptr->chann = 0;
+    } else if (ap_config->channel == 0) {
+        uint8_t cur_chan = (uint8_t)bk_wifi_get_channel();
+        g_ap_param_ptr->chann = (cur_chan != 0) ? cur_chan : DEFAULT_CHANNEL_AP;
     } else {
         WDRV_LOGE("error:invalid channel\r\n");
         return BK_FAIL;
@@ -838,11 +839,37 @@ static bk_err_t wifi_ap_set_config(const wifi_ap_config_t *ap_config)
     if (g_ap_param_ptr->key_len < 8) {
         g_ap_param_ptr->cipher_suite = WIFI_SECURITY_NONE;
     } else {
+        switch (ap_config->security) {
+        case WIFI_SECURITY_WPA_TKIP:
+            g_ap_param_ptr->cipher_suite = WIFI_SECURITY_WPA_TKIP;
+            break;
+        case WIFI_SECURITY_WPA_AES:
+            g_ap_param_ptr->cipher_suite = WIFI_SECURITY_WPA_AES;
+            break;
+        case WIFI_SECURITY_WPA_MIXED:
+            g_ap_param_ptr->cipher_suite = WIFI_SECURITY_WPA_MIXED;
+            break;
+        case WIFI_SECURITY_WPA2_TKIP:
+            g_ap_param_ptr->cipher_suite = WIFI_SECURITY_WPA2_TKIP;
+            break;
+        case WIFI_SECURITY_WPA2_AES:
+            g_ap_param_ptr->cipher_suite = WIFI_SECURITY_WPA2_AES;
+            break;
+        case WIFI_SECURITY_WPA2_MIXED:
+            g_ap_param_ptr->cipher_suite = WIFI_SECURITY_WPA2_MIXED;
+            break;
 #if CONFIG_SOFTAP_WPA3
-        g_ap_param_ptr->cipher_suite = WIFI_SECURITY_WPA3_WPA2_MIXED;
-#else
-        g_ap_param_ptr->cipher_suite = WIFI_SECURITY_WPA2_AES;
+        case WIFI_SECURITY_WPA3_SAE:
+            g_ap_param_ptr->cipher_suite = WIFI_SECURITY_WPA3_SAE;
+            break;
+        case WIFI_SECURITY_WPA3_WPA2_MIXED:
+            g_ap_param_ptr->cipher_suite = WIFI_SECURITY_WPA3_WPA2_MIXED;
+            break;
 #endif
+        default:
+            g_ap_param_ptr->cipher_suite = WIFI_SECURITY_WPA2_AES;
+            break;
+        }
         os_memset(g_ap_param_ptr->key, 0, sizeof(g_ap_param_ptr->key));
         os_memcpy(g_ap_param_ptr->key, ap_config->password, g_ap_param_ptr->key_len);
     }
@@ -888,10 +915,15 @@ bk_err_t bk_wifi_ap_set_config(const wifi_ap_config_t *ap_config)
         return BK_ERR_NO_MEM;
     }
 
-    wifi_ap_config_t ipc_config = *ap_config;
+    {
+        wifi_ap_config_t ipc_config;
 
-    ipc_config.channel = g_ap_param_ptr->chann;
-    os_memcpy(buffer_to_ipc, &ipc_config, len);
+        os_memcpy(&ipc_config, ap_config, len);
+        ipc_config.security = (wifi_security_t)g_ap_param_ptr->cipher_suite;
+        ipc_config.channel = g_ap_param_ptr->chann;
+        os_memcpy(buffer_to_ipc, &ipc_config, len);
+    }
+
     ret = wifi_send_com_api_cmd(AP_SET_CONFIG, 1, (uint32_t)buffer_to_ipc);
     if (ret != BK_OK)
     {

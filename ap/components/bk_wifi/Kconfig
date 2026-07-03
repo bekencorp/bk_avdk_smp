@@ -375,4 +375,8 @@ menu "Bk_Wifi"
 		bool "Enable PHY mailbox"
 		default y
 
+	config SOFTAP_WPA3
+		bool "Enable Softap WPA3"
+		default n
+
 endmenu

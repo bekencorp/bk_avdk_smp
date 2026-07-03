@@ -276,11 +276,15 @@ struct hostapd_config *hostapd_config_read(const char *fname)
 	//	bss->wpa_key_mgmt = WPA_KEY_MGMT_SAE;;
 	//	bss->ieee80211w = MGMT_FRAME_PROTECTION_OPTIONAL;
 	//}
-	if (g_ap_param_ptr->cipher_suite == BK_SECURITY_TYPE_WPA3_SAE) {
+#ifdef CONFIG_IEEE80211W_AP
+	if (g_ap_param_ptr->cipher_suite == WIFI_SECURITY_WPA3_SAE) {
 		bss->wpa_key_mgmt = WPA_KEY_MGMT_SAE;
-	} else if (g_ap_param_ptr->cipher_suite == BK_SECURITY_TYPE_WPA3_WPA2_MIXED) {
+		bss->ieee80211w = MGMT_FRAME_PROTECTION_REQUIRED;
+	} else if (g_ap_param_ptr->cipher_suite == WIFI_SECURITY_WPA3_WPA2_MIXED) {
 		bss->wpa_key_mgmt |= WPA_KEY_MGMT_SAE;
+		bss->ieee80211w = MGMT_FRAME_PROTECTION_REQUIRED;
 	}
+#endif
 	//WPA_LOGD("%s: wpa_key_mgmt 0x%x, cipher_suite %d\n", __func__,
 	//			bss->wpa_key_mgmt, g_ap_param_ptr->cipher_suite);
 
@@ -705,8 +709,9 @@ static int hostapd_config_fill(struct hostapd_config *conf,
 	} else if (os_strcmp(buf, "disassoc_low_ack") == 0) {
 		bss->disassoc_low_ack = atoi(pos);
 #ifdef CONFIG_SAE_AP
-	} else if (os_strcmp(buf, "sae_anti_clogging_threshold") == 0) {
-		bss->sae_anti_clogging_threshold = atoi(pos);
+	} else if (os_strcmp(buf, "sae_anti_clogging_threshold") == 0 ||
+			os_strcmp(buf, "anti_clogging_threshold") == 0) {
+		bss->anti_clogging_threshold = atoi(pos);
 	} else if (os_strcmp(buf, "sae_groups") == 0) {
 		if (hostapd_parse_intlist(&bss->sae_groups, pos)) {
 			wpa_printf(MSG_ERROR,
