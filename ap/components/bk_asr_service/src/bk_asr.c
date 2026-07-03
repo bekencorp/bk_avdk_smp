@@ -909,6 +909,7 @@ fail:
     //bk_pm_module_vote_cpu_freq(PM_DEV_ID_AUDIO, PM_CPU_FRQ_DEFAULT);
 
     asr_listener_deinit(asr_handle);
+    asr_pipeline_deinit_with_mic(asr_handle);
 
 #if (CONFIG_ASR_SERVICE_USE_PSRAM)
 	psram_free(asr_handle);
@@ -1014,6 +1015,17 @@ fail:
     //bk_pm_module_vote_cpu_freq(PM_DEV_ID_AUDIO, PM_CPU_FRQ_DEFAULT);
 
     asr_listener_deinit(asr_handle);
+    asr_pipeline_deinit(asr_handle);
+    if (asr_handle->asr_raw_read)
+    {
+        audio_element_deinit(asr_handle->asr_raw_read);
+        asr_handle->asr_raw_read = NULL;
+    }
+    if (asr_handle->asr_in_rb)
+    {
+        audio_port_deinit(asr_handle->asr_in_rb);
+        asr_handle->asr_in_rb = NULL;
+    }
 
 #if (CONFIG_ASR_SERVICE_USE_PSRAM)
     psram_free(asr_handle);
