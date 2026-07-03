@@ -123,14 +123,23 @@ ap_cmd rps_prompt <name>
 
 ### 模型、UI 与提示音资源对应修改
 
-| 内容 | 说明 |
-|------|------|
-| `gesture_detection_model_data.cc` / `.h` | 存放 Vela 模型数组 `gesture_detection_tflite[]` 与 `gesture_detection_tflite_size`；替换模型时需保持符号一致。 |
-| `GestureDetectionModel::resourceLoad()` | 维护模型输入尺寸、像素格式、模型位置、fast memory、arena 位置与大小；当前输入为 **192×192**。 |
-| `GestureDetectionModel::post_process()` | 解析输出中的 score、paper、rock、scissors，并把结果回调给 `app_event`；更换输出布局或类别顺序时必须同步。 |
-| `ap/resource/prompt_tone/` | CN/EN 提示音通过 `CONFIG_GESTURE_DET_PROMPT_TONE_LANG_*` 选择；新增提示音时需同步 CMake 源文件列表和 `resource.h`。 |
-| `ap/ui/beken_generated/` | LVGL 生成页面与图片资源；替换分辨率、图片或页面逻辑后需重新验证显示与触摸。 |
-| `app_event.c` | 管理游戏状态机、提示音序列、截图缓存和结果判定；调试时优先用 `ap_cmd rps_*` 命令定位状态流。 |
+.. list-table::
+   :header-rows: 1
+
+   * - 内容
+     - 说明
+   * - `gesture_detection_model_data.cc` / `.h`
+     - 存放 Vela 模型数组 `gesture_detection_tflite[]` 与 `gesture_detection_tflite_size`；替换模型时需保持符号一致。
+   * - `GestureDetectionModel::resourceLoad()`
+     - 维护模型输入尺寸、像素格式、模型位置、fast memory、arena 位置与大小；当前输入为 **192×192**。
+   * - `GestureDetectionModel::post_process()`
+     - 解析输出中的 score、paper、rock、scissors，并把结果回调给 `app_event`；更换输出布局或类别顺序时必须同步。
+   * - `ap/resource/prompt_tone/`
+     - CN/EN 提示音通过 `CONFIG_GESTURE_DET_PROMPT_TONE_LANG_*` 选择；新增提示音时需同步 CMake 源文件列表和 `resource.h`。
+   * - `ap/ui/beken_generated/`
+     - LVGL 生成页面与图片资源；替换分辨率、图片或页面逻辑后需重新验证显示与触摸。
+   * - `app_event.c`
+     - 管理游戏状态机、提示音序列、截图缓存和结果判定；调试时优先用 `ap_cmd rps_*` 命令定位状态流。
 
 回归时建议按顺序验证：提示音播放、UI 切页、摄像头输入、模型识别、`app_event` 状态切换、截图显示和长时间运行内存稳定性。
 
@@ -144,11 +153,25 @@ ap_cmd rps_prompt <name>
 
 当前默认内存位置与大小（见 `GestureDetectionModel::resourceLoad()`）：
 
-| 类型 | 位置 | 大小 | 来源 |
-|------|------|------|------|
-| fast memory / Ethos-U scratch | HSRAM | **128 KB** | `fast_ram_type` / `fast_ram_data_size` |
-| tensor arena | PSRAM_SLAB（`MEM_SLAB_HEAP_CODED`） | **600 KB** | `arena_ram_type` / `arena_data_size` |
-| Vela model copy | PSRAM_SLAB（`MEM_SLAB_HEAP_CODED`） | **823,456 bytes** | `model_ram_type` / `gesture_detection_tflite_size` |
+.. list-table::
+   :header-rows: 1
+
+   * - 类型
+     - 位置
+     - 大小
+     - 来源
+   * - fast memory / Ethos-U scratch
+     - HSRAM
+     - **128 KB**
+     - `fast_ram_type` / `fast_ram_data_size`
+   * - tensor arena
+     - PSRAM_SLAB（`MEM_SLAB_HEAP_CODED`）
+     - **600 KB**
+     - `arena_ram_type` / `arena_data_size`
+   * - Vela model copy
+     - PSRAM_SLAB（`MEM_SLAB_HEAP_CODED`）
+     - **823,456 bytes**
+     - `model_ram_type` / `gesture_detection_tflite_size`
 
 ## 7. 注意事项
 

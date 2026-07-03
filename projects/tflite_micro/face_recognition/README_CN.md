@@ -97,13 +97,21 @@ detection_box_cb: score=..., x=..., y=..., w=..., h=...
 
 ### 模型资源与检测链路对应修改
 
-| 内容 | 说明 |
-|------|------|
-| `yoloface_detect_model_data.cc` / `.h` | 存放 Vela 模型数组 `g_yoloface_int8_vela_tflite[]` 与 `YOLOFACE_MODEL_DATA_SIZE`；替换模型时需保持符号与长度一致。 |
-| `YolofaceDetectionModel::resourceLoad()` | 维护模型输入尺寸、像素格式、模型位置、fast memory、arena 位置与大小；当前模型输入为 **56×56**。 |
-| `YolofaceDetectionModel::resolverLoad()` | 新模型若使用额外算子，需补充 resolver，否则 `AllocateTensors()` 可能失败。 |
-| `YolofaceDetectionModel::run()` | 包含输入格式检查、预处理和后处理；更换输出布局、anchor 或阈值时需同步修改。 |
-| `detection_box_cb()` | OSD 映射当前按模型输入 **56×56** 到显示画布 **1088×1088**；更换模型或画布尺寸时需同步修改。 |
+.. list-table::
+   :header-rows: 1
+
+   * - 内容
+     - 说明
+   * - `yoloface_detect_model_data.cc` / `.h`
+     - 存放 Vela 模型数组 `g_yoloface_int8_vela_tflite[]` 与 `YOLOFACE_MODEL_DATA_SIZE`；替换模型时需保持符号与长度一致。
+   * - `YolofaceDetectionModel::resourceLoad()`
+     - 维护模型输入尺寸、像素格式、模型位置、fast memory、arena 位置与大小；当前模型输入为 **56×56**。
+   * - `YolofaceDetectionModel::resolverLoad()`
+     - 新模型若使用额外算子，需补充 resolver，否则 `AllocateTensors()` 可能失败。
+   * - `YolofaceDetectionModel::run()`
+     - 包含输入格式检查、预处理和后处理；更换输出布局、anchor 或阈值时需同步修改。
+   * - `detection_box_cb()`
+     - OSD 映射当前按模型输入 **56×56** 到显示画布 **1088×1088**；更换模型或画布尺寸时需同步修改。
 
 回归时建议确认：摄像头预览、人脸框位置、多人脸场景、长时间运行稳定性，以及无 `AllocateTensors failed` / `Invoke failed`。
 
@@ -117,11 +125,25 @@ detection_box_cb: score=..., x=..., y=..., w=..., h=...
 
 当前默认内存位置与大小（见 `YolofaceDetectionModel::resourceLoad()`）：
 
-| 类型 | 位置 | 大小 | 来源 |
-|------|------|------|------|
-| fast memory / Ethos-U scratch | HSRAM | **40 KB** | `fast_ram_type` / `fast_ram_data_size` |
-| tensor arena | HSRAM | **80 KB** | `arena_ram_type` / `arena_data_size` |
-| Vela model | Flash（不拷贝到 RAM） | **34,416 bytes** | `YOLOFACE_MODEL_DATA_SIZE` / `g_yoloface_int8_vela_tflite_size` |
+.. list-table::
+   :header-rows: 1
+
+   * - 类型
+     - 位置
+     - 大小
+     - 来源
+   * - fast memory / Ethos-U scratch
+     - HSRAM
+     - **40 KB**
+     - `fast_ram_type` / `fast_ram_data_size`
+   * - tensor arena
+     - HSRAM
+     - **80 KB**
+     - `arena_ram_type` / `arena_data_size`
+   * - Vela model
+     - Flash（不拷贝到 RAM）
+     - **34,416 bytes**
+     - `YOLOFACE_MODEL_DATA_SIZE` / `g_yoloface_int8_vela_tflite_size`
 
 ## 7. 注意事项
 

@@ -84,16 +84,26 @@ ap_cmd fisheye cal <dump> <width> <height>
 ```
 
 
-| 参数                 | 含义                      | 缺省          |
-| ------------------ | ----------------------- | ----------- |
-| `cal`              | 子命令，执行一次标定/建表           | 必填          |
-| `dump`             | `0` 不 dump，`1` 十六进制输出全表 | `0`         |
-| `width` / `height` | 输出分辨率（表尺寸）              | **320×180** |
+.. list-table::
+   :header-rows: 1
+
+   * - 参数
+     - 含义
+     - 缺省
+   * - `cal`
+     - 子命令，执行一次标定/建表
+     - 必填
+   * - `dump`
+     - `0` 不 dump，`1` 十六进制输出全表
+     - `0`
+   * - `width` / `height`
+     - 输出分辨率（表尺寸）
+     - **320×180**
 
 
 说明：若未指定宽高、为 0，或超出输入 1920×1080 范围，则回退 **320×180**。若同时指定宽高，须带上 `dump` 参数顺序，例如：`ap_cmd fisheye cal 0 640 480`。
 
-### 4.4 期望打印（`ap_cmd fisheye cal 0`）
+### 4.4 期望打印（ap_cmd fisheye cal 0）
 
 执行 `**ap_cmd fisheye cal 0`**（默认输出 **320×180**、**不** dump 十六进制）时，在 **CP 日志串口**上可出现类似输出。时间戳与耗时随运行环境变化，**245 ms** 为与下表一致的参考值，以实机为准。
 
@@ -104,7 +114,7 @@ fisheye calibration execute time: 245 ms
 
 说明：`fisheye calibration, dump:` 后的数字与命令中第二个参数一致（`cal 0` → `dump: 0`）；`bk_printf_raw` 打印的 `fisheye calibration execute time` 行无 `$ap0:` 前缀属正常现象。
 
-### 4.5 从串口 dump 提取 map（`hexlog_to_bin.py`）
+### 4.5 从串口 dump 提取 map（hexlog_to_bin.py）
 
 将 `**dump=1`** 时保存的日志（仅含纯十六进制行，脚本会跳过其它 log 行）转为原始二进制，便于离线保存或与分辨率对应的 `**2×W×H×2` 字节**（`int16` map）对齐使用：
 
@@ -127,14 +137,24 @@ python3 hexlog_to_bin.py fisheye-320-180.log fisheye-320-180.bin
 以下为固定板级与串口条件下测得的 `**fisheye_calibration()` 耗时**（`correct_time`）与 **整表 hex dump 总耗时**（`dump_time`，含串口打印与代码中的节流延时）。不同板卡、主频、串口波特率下数值会变化，仅作对比参考。
 
 
-| 分辨率       | correct_time | dump_time |
-| --------- | ------------ | --------- |
-| 320×180   | 245 ms       | 18245 ms  |
-| 640×480   | 1199 ms      | 97200 ms  |
-| 1920×1080 | 7850 ms      | 655850 ms |
+.. list-table::
+   :header-rows: 1
+
+   * - 分辨率
+     - correct_time
+     - dump_time
+   * - 320×180
+     - 245 ms
+     - 18245 ms
+   * - 640×480
+     - 1199 ms
+     - 97200 ms
+   * - 1920×1080
+     - 7850 ms
+     - 655850 ms
 
 
-## 6. 配置说明（`fisheye_calibration()`）
+## 6. 配置说明（fisheye_calibration()）
 
 - `gp` / `gpoints`：稀疏网格  
 - `std_map_points` / `user_map_points`：各 7 个 TV 轮廓点（本示例两处均用 `k_tv_points_001`）  

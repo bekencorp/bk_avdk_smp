@@ -102,16 +102,23 @@ hand_gesture_detection round done
 - 结果：检查 `detections`、`class_id`、`score` 与 `bbox_orig` 是否符合预期。
 - 性能：查看 `{tag} Invoke time`，或用逻辑分析仪测量 GPIO_55 高电平宽度。
 
-### 与 `ap/resource/hand_gesture_image_input.h` 的对应修改
+### 与 ap/resource/hand_gesture_image_input.h 的对应修改
 
 该头文件把**后处理门限**、**每张嵌入样例的原图尺寸**、**类别名**与 `hand_gesture_image_input_*.cc` 中的 C 数组绑定；换图、增删样例或改类别时需同步修改。
 
-| 内容 | 说明 |
-|------|------|
-| `k_conf_threshold` / `k_iou_threshold` | 与 PC 侧生成输入/参考输出时使用的置信度、NMS 门限保持一致。 |
-| `k_test_hands_1_orig_w` / `k_test_hands_1_orig_h` 等 | 对应每张嵌入输入的原图宽高，用于把模型坐标逆映射回原图坐标。 |
-| `k_class_names[]` | 类别显示名，数量与 `tflm_hand_gesture_detection_model.h` 中 `k_num_classes` 一致。 |
-| `extern` 的 `*_model_input` / `*_model_input_len` | 必须与 `hand_gesture_image_input_*.cc` 中数组名、长度符号一致；新增样例时还需在 `tflm_hand_gesture_detection_run_demo()` 中调用。 |
+.. list-table::
+   :header-rows: 1
+
+   * - 内容
+     - 说明
+   * - `k_conf_threshold` / `k_iou_threshold`
+     - 与 PC 侧生成输入/参考输出时使用的置信度、NMS 门限保持一致。
+   * - `k_test_hands_1_orig_w` / `k_test_hands_1_orig_h` 等
+     - 对应每张嵌入输入的原图宽高，用于把模型坐标逆映射回原图坐标。
+   * - `k_class_names[]`
+     - 类别显示名，数量与 `tflm_hand_gesture_detection_model.h` 中 `k_num_classes` 一致。
+   * - `extern` 的 `*_model_input` / `*_model_input_len`
+     - 必须与 `hand_gesture_image_input_*.cc` 中数组名、长度符号一致；新增样例时还需在 `tflm_hand_gesture_detection_run_demo()` 中调用。
 
 ### 更新模型与回归建议
 
@@ -130,11 +137,25 @@ hand_gesture_detection round done
 
 当前默认内存位置与大小：
 
-| 类型 | 位置 | 大小 | 来源 |
-|------|------|------|------|
-| fast memory / Ethos-U scratch | HSRAM | **256 KB**（`ETHOSU_SCRATCH_SIZE`） | `tflm_hand_gesture_detection_model.h`、`g_ethosu0_scratch_src` |
-| tensor arena | MEM_SLAB_UNCODED | **3 MB**（`TFLM_ARENA_SIZE`） | `tflm_hand_gesture_detection_model.h`、`g_tensor_arena_src` |
-| Vela model copy | MEM_SLAB_UNCODED | **2,685,984 bytes**（`hand_gesture_detection_vela_tflite_len`） | `hand_gesture_detect_model_data.cc`、`g_model_data_src` |
+.. list-table::
+   :header-rows: 1
+
+   * - 类型
+     - 位置
+     - 大小
+     - 来源
+   * - fast memory / Ethos-U scratch
+     - HSRAM
+     - **256 KB**（`ETHOSU_SCRATCH_SIZE`）
+     - `tflm_hand_gesture_detection_model.h`、`g_ethosu0_scratch_src`
+   * - tensor arena
+     - MEM_SLAB_UNCODED
+     - **3 MB**（`TFLM_ARENA_SIZE`）
+     - `tflm_hand_gesture_detection_model.h`、`g_tensor_arena_src`
+   * - Vela model copy
+     - MEM_SLAB_UNCODED
+     - **2,685,984 bytes**（`hand_gesture_detection_vela_tflite_len`）
+     - `hand_gesture_detect_model_data.cc`、`g_model_data_src`
 
 ## 7. 注意事项
 

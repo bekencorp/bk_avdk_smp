@@ -100,16 +100,23 @@ hand_gesture_detection round done
 - Result: check `detections`, `class_id`, `score`, and `bbox_orig`.
 - Performance: use `{tag} Invoke time`, or measure the GPIO_55 high pulse with a logic analyzer.
 
-### Matching `ap/resource/hand_gesture_image_input.h`
+### Matching ap/resource/hand_gesture_image_input.h
 
 This header binds **post-processing thresholds**, **original image sizes**, **class names**, and C array symbols from `hand_gesture_image_input_*.cc`. Update it whenever test images, sample count, or class metadata changes.
 
-| Item | Notes |
-|------|-------|
-| `k_conf_threshold` / `k_iou_threshold` | Keep consistent with the PC-side input/reference generation thresholds. |
-| `k_test_hands_1_orig_w` / `k_test_hands_1_orig_h`, etc. | Original image sizes used to map model boxes back to image coordinates. |
-| `k_class_names[]` | Display names; count must match `k_num_classes` in `tflm_hand_gesture_detection_model.h`. |
-| `extern` `*_model_input` / `*_model_input_len` | Must match symbols in `hand_gesture_image_input_*.cc`; add matching calls in `tflm_hand_gesture_detection_run_demo()` for new samples. |
+.. list-table::
+   :header-rows: 1
+
+   * - Item
+     - Notes
+   * - `k_conf_threshold` / `k_iou_threshold`
+     - Keep consistent with the PC-side input/reference generation thresholds.
+   * - `k_test_hands_1_orig_w` / `k_test_hands_1_orig_h`, etc.
+     - Original image sizes used to map model boxes back to image coordinates.
+   * - `k_class_names[]`
+     - Display names; count must match `k_num_classes` in `tflm_hand_gesture_detection_model.h`.
+   * - `extern` `*_model_input` / `*_model_input_len`
+     - Must match symbols in `hand_gesture_image_input_*.cc`; add matching calls in `tflm_hand_gesture_detection_run_demo()` for new samples.
 
 ### Model Update and Regression
 
@@ -128,11 +135,25 @@ This header binds **post-processing thresholds**, **original image sizes**, **cl
 
 Current default memory placement and sizes:
 
-| Type | Location | Size | Source |
-|------|----------|------|--------|
-| fast memory / Ethos-U scratch | HSRAM | **256 KB** (`ETHOSU_SCRATCH_SIZE`) | `tflm_hand_gesture_detection_model.h`, `g_ethosu0_scratch_src` |
-| tensor arena | MEM_SLAB_UNCODED | **3 MB** (`TFLM_ARENA_SIZE`) | `tflm_hand_gesture_detection_model.h`, `g_tensor_arena_src` |
-| Vela model copy | MEM_SLAB_UNCODED | **2,685,984 bytes** (`hand_gesture_detection_vela_tflite_len`) | `hand_gesture_detect_model_data.cc`, `g_model_data_src` |
+.. list-table::
+   :header-rows: 1
+
+   * - Type
+     - Location
+     - Size
+     - Source
+   * - fast memory / Ethos-U scratch
+     - HSRAM
+     - **256 KB** (`ETHOSU_SCRATCH_SIZE`)
+     - `tflm_hand_gesture_detection_model.h`, `g_ethosu0_scratch_src`
+   * - tensor arena
+     - MEM_SLAB_UNCODED
+     - **3 MB** (`TFLM_ARENA_SIZE`)
+     - `tflm_hand_gesture_detection_model.h`, `g_tensor_arena_src`
+   * - Vela model copy
+     - MEM_SLAB_UNCODED
+     - **2,685,984 bytes** (`hand_gesture_detection_vela_tflite_len`)
+     - `hand_gesture_detect_model_data.cc`, `g_model_data_src`
 
 ## 7. Notes
 

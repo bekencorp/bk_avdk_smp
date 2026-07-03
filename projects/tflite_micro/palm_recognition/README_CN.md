@@ -103,13 +103,21 @@ detection_box_cb: count=... target=... score=... xywh=(...)
 
 ### 模型资源与外设联调建议
 
-| 内容 | 说明 |
-|------|------|
-| `palm_detect_model_data.cc` / `.h` | 存放 Vela 模型数组 `palm_detection_builtin_256_integer_quant_vela_tflite[]` 与长度；替换模型时需保持符号与头文件声明一致。 |
-| `PalmDetectionModel::resourceLoad()` | 维护模型输入宽高、像素格式、模型位置、fast memory、arena 位置与大小；更换模型后需同步 `width` / `height` 与 `arena_data_size`。 |
-| `PalmDetectionModel::resolverLoad()` | 模型新增算子时需补充 resolver，否则 `AllocateTensors()` 可能失败。 |
-| `detection_box_cb()` | OSD 映射当前按模型输入 **256×256** 到显示画布 **1088×1088**；更换模型输入或显示画布时需同步修改。 |
-| `servo.h` / `servo.c` | 舵机方向、增益、死区与单步最大角度需按机械结构调试。 |
+.. list-table::
+   :header-rows: 1
+
+   * - 内容
+     - 说明
+   * - `palm_detect_model_data.cc` / `.h`
+     - 存放 Vela 模型数组 `palm_detection_builtin_256_integer_quant_vela_tflite[]` 与长度；替换模型时需保持符号与头文件声明一致。
+   * - `PalmDetectionModel::resourceLoad()`
+     - 维护模型输入宽高、像素格式、模型位置、fast memory、arena 位置与大小；更换模型后需同步 `width` / `height` 与 `arena_data_size`。
+   * - `PalmDetectionModel::resolverLoad()`
+     - 模型新增算子时需补充 resolver，否则 `AllocateTensors()` 可能失败。
+   * - `detection_box_cb()`
+     - OSD 映射当前按模型输入 **256×256** 到显示画布 **1088×1088**；更换模型输入或显示画布时需同步修改。
+   * - `servo.h` / `servo.c`
+     - 舵机方向、增益、死区与单步最大角度需按机械结构调试。
 
 回归时建议同时确认：摄像头预览、检测框位置、最大面积目标选择、舵机方向、长时间运行内存稳定性。
 
@@ -123,11 +131,25 @@ detection_box_cb: count=... target=... score=... xywh=(...)
 
 当前默认内存位置与大小（见 `PalmDetectionModel::resourceLoad()`）：
 
-| 类型 | 位置 | 大小 | 来源 |
-|------|------|------|------|
-| fast memory / Ethos-U scratch | HSRAM | **128 KB** | `fast_ram_type` / `fast_ram_data_size` |
-| tensor arena | PSRAM_SLAB（`MEM_SLAB_HEAP_CODED`） | **2 MB** | `arena_ram_type` / `arena_data_size` |
-| Vela model copy | PSRAM_SLAB（`MEM_SLAB_HEAP_CODED`） | **2,207,168 bytes** | `model_ram_type` / `palm_detection_builtin_256_integer_quant_vela_tflite_size` |
+.. list-table::
+   :header-rows: 1
+
+   * - 类型
+     - 位置
+     - 大小
+     - 来源
+   * - fast memory / Ethos-U scratch
+     - HSRAM
+     - **128 KB**
+     - `fast_ram_type` / `fast_ram_data_size`
+   * - tensor arena
+     - PSRAM_SLAB（`MEM_SLAB_HEAP_CODED`）
+     - **2 MB**
+     - `arena_ram_type` / `arena_data_size`
+   * - Vela model copy
+     - PSRAM_SLAB（`MEM_SLAB_HEAP_CODED`）
+     - **2,207,168 bytes**
+     - `model_ram_type` / `palm_detection_builtin_256_integer_quant_vela_tflite_size`
 
 ## 7. 注意事项
 

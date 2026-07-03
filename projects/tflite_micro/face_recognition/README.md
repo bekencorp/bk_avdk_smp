@@ -95,13 +95,21 @@ The LCD should show camera preview. Face boxes appear when faces enter the frame
 
 ### Model Resource and Detection Pipeline Updates
 
-| Item | Notes |
-|------|-------|
-| `yoloface_detect_model_data.cc` / `.h` | Holds `g_yoloface_int8_vela_tflite[]` and `YOLOFACE_MODEL_DATA_SIZE`; keep symbols and size aligned when replacing the model. |
-| `YolofaceDetectionModel::resourceLoad()` | Owns input size, pixel format, model location, fast memory, and arena placement/size; current input is **56×56**. |
-| `YolofaceDetectionModel::resolverLoad()` | Add resolver ops if the new model uses additional operators, otherwise `AllocateTensors()` may fail. |
-| `YolofaceDetectionModel::run()` | Contains input format checks, preprocessing, and post-processing; update it when output layout, anchors, or thresholds change. |
-| `detection_box_cb()` | OSD mapping currently assumes **56×56** model coordinates to a **1088×1088** display canvas; update it when model input or canvas size changes. |
+.. list-table::
+   :header-rows: 1
+
+   * - Item
+     - Notes
+   * - `yoloface_detect_model_data.cc` / `.h`
+     - Holds `g_yoloface_int8_vela_tflite[]` and `YOLOFACE_MODEL_DATA_SIZE`; keep symbols and size aligned when replacing the model.
+   * - `YolofaceDetectionModel::resourceLoad()`
+     - Owns input size, pixel format, model location, fast memory, and arena placement/size; current input is **56×56**.
+   * - `YolofaceDetectionModel::resolverLoad()`
+     - Add resolver ops if the new model uses additional operators, otherwise `AllocateTensors()` may fail.
+   * - `YolofaceDetectionModel::run()`
+     - Contains input format checks, preprocessing, and post-processing; update it when output layout, anchors, or thresholds change.
+   * - `detection_box_cb()`
+     - OSD mapping currently assumes **56×56** model coordinates to a **1088×1088** display canvas; update it when model input or canvas size changes.
 
 Regression should cover camera preview, face box placement, multi-face scenes, long-run stability, and no `AllocateTensors failed` / `Invoke failed` errors.
 
@@ -115,11 +123,25 @@ Regression should cover camera preview, face box placement, multi-face scenes, l
 
 Current default memory placement and sizes (see `YolofaceDetectionModel::resourceLoad()`):
 
-| Type | Location | Size | Source |
-|------|----------|------|--------|
-| fast memory / Ethos-U scratch | HSRAM | **40 KB** | `fast_ram_type` / `fast_ram_data_size` |
-| tensor arena | HSRAM | **80 KB** | `arena_ram_type` / `arena_data_size` |
-| Vela model | Flash (not copied to RAM) | **34,416 bytes** | `YOLOFACE_MODEL_DATA_SIZE` / `g_yoloface_int8_vela_tflite_size` |
+.. list-table::
+   :header-rows: 1
+
+   * - Type
+     - Location
+     - Size
+     - Source
+   * - fast memory / Ethos-U scratch
+     - HSRAM
+     - **40 KB**
+     - `fast_ram_type` / `fast_ram_data_size`
+   * - tensor arena
+     - HSRAM
+     - **80 KB**
+     - `arena_ram_type` / `arena_data_size`
+   * - Vela model
+     - Flash (not copied to RAM)
+     - **34,416 bytes**
+     - `YOLOFACE_MODEL_DATA_SIZE` / `g_yoloface_int8_vela_tflite_size`
 
 ## 7. Notes
 

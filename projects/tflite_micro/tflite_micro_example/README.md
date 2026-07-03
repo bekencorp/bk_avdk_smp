@@ -41,15 +41,9 @@ tflite_micro_example/
 
 ## 3. Functional Description
 ### 3.1 Main Features
-1. On-device inference pipeline verification
-   - Build and run the `person_detection` model with TFLM
-   - Perform NPU-related initialization and interrupt handling through the Ethos-U driver
-2. Input and output processing
-   - Acquire input tensor data from the image provider
-   - Read output tensors and calculate the probability percentages of `person_score` / `no_person_score`
-3. Output information
-   - Memory usage information is printed during initialization (scratch / tensor arena / model data)
-   - The person / no person scores are printed after each inference
+1. On-device inference pipeline verification: build and run the `person_detection` model with TFLM, and perform NPU-related initialization and interrupt handling through the Ethos-U driver.
+2. Input and output processing: acquire input tensor data from the image provider, then read output tensors and calculate the probability percentages of `person_score` / `no_person_score`.
+3. Output information: memory usage information is printed during initialization (scratch / tensor arena / model data), and the person / no person scores are printed after each inference.
 
 ### 3.2 Automatic Inference Time Measurement (DWT)
 In `tflm_person_detection_demo.cpp`, `CONFIG_PERSON_DETECTION_INFER_TIME_AUTO` controls whether inference time statistics are enabled:
@@ -105,14 +99,9 @@ Invoke time: xxx ms
 ```
 
 ## 5. Test Plan
-1. Functional verification
-   - Run the example directly and check whether person / no person scores are continuously printed
-   - Confirm that there are no logs such as `Invoke failed`, `AllocateTensors failed`, or other initialization failures
-2. Performance verification (optional)
-   - Enable `CONFIG_PERSON_DETECTION_INFER_TIME_AUTO`
-   - Observe the `Invoke time` log and collect the typical inference time range (`us` or `ms`)
-3. Memory strategy verification (optional)
-   - Modify `PERSON_DETECTION_PERF_TEST` and observe the printed memory source of scratch / tensor arena / model data during initialization, as well as whether fallback is triggered
+1. Functional verification: run the example directly and check whether person / no person scores are continuously printed, and confirm that there are no logs such as `Invoke failed`, `AllocateTensors failed`, or other initialization failures.
+2. Performance verification (optional): enable `CONFIG_PERSON_DETECTION_INFER_TIME_AUTO`, observe the `Invoke time` log, and collect the typical inference time range (`us` or `ms`).
+3. Memory strategy verification (optional): modify `PERSON_DETECTION_PERF_TEST` and observe the printed memory source of scratch / tensor arena / model data during initialization, as well as whether fallback is triggered.
 
 ## 6. Notes
 1. The inference task in this example runs continuously and does not exit automatically after entering the loop

@@ -82,15 +82,25 @@ Prefix every CLI line with **`ap_cmd`** so the shell forwards the command to the
 ap_cmd fisheye cal <dump> <width> <height>
 ```
 
-| Argument | Meaning | Default |
-|----------|---------|---------|
-| `cal` | Subcommand: run one calibration / table build | Required |
-| `dump` | `0` no hex dump, `1` dump full table | `0` |
-| `width` / `height` | Output resolution (table size) | **320×180** |
+.. list-table::
+   :header-rows: 1
+
+   * - Argument
+     - Meaning
+     - Default
+   * - `cal`
+     - Subcommand: run one calibration / table build
+     - Required
+   * - `dump`
+     - `0` no hex dump, `1` dump full table
+     - `0`
+   * - `width` / `height`
+     - Output resolution (table size)
+     - **320×180**
 
 If width/height are missing, zero, or out of range for 1920×1080 input, they fall back to **320×180**. To pass both dimensions, include `dump` in order, e.g. `ap_cmd fisheye cal 0 640 480`.
 
-### 4.4 Expected log (`ap_cmd fisheye cal 0`)
+### 4.4 Expected log (ap_cmd fisheye cal 0)
 
 For **`ap_cmd fisheye cal 0`** (default **320×180** output, **no** hex dump), the **CP log UART** may show something like below. The timestamp and duration vary; **245 ms** matches the reference table below.
 
@@ -101,7 +111,7 @@ fisheye calibration execute time: 245 ms
 
 The `dump:` field matches the second CLI argument (`cal 0` → `dump: 0`). The line `fisheye calibration execute time` is printed via `bk_printf_raw` and may appear without the `$ap0:` prefix.
 
-### 4.5 Extract map from UART dump (`hexlog_to_bin.py`)
+### 4.5 Extract map from UART dump (hexlog_to_bin.py)
 
 Save the serial log from a **`dump=1`** run (lines that are pure hex are decoded; other log lines are skipped). Convert to a raw binary file whose size matches **2×W×H×2** bytes for `int16` `map_x` then `map_y`:
 
@@ -123,13 +133,23 @@ python3 hexlog_to_bin.py fisheye-320-180.log fisheye-320-180.bin
 
 Measured on a fixed board and UART settings: **`fisheye_calibration()`** time (**correct_time**) vs. full hex **dump** time (**dump_time**, includes UART print and throttling delays). Values will vary with board, CPU frequency, and baud rate; use this table for relative comparison only.
 
-| Resolution | correct_time | dump_time |
-|------------|--------------|-----------|
-| 320×180 | 245 ms | 18245 ms |
-| 640×480 | 1199 ms | 97200 ms |
-| 1920×1080 | 7850 ms | 655850 ms |
+.. list-table::
+   :header-rows: 1
 
-## 6. API Summary (`fisheye_calibration`)
+   * - Resolution
+     - correct_time
+     - dump_time
+   * - 320×180
+     - 245 ms
+     - 18245 ms
+   * - 640×480
+     - 1199 ms
+     - 97200 ms
+   * - 1920×1080
+     - 7850 ms
+     - 655850 ms
+
+## 6. Configuration (fisheye_calibration)
 
 - `gp` / `gpoints`: sparse grid  
 - `std_map_points` / `user_map_points`: seven TV contour points each (this demo uses `k_tv_points_001` for both)  
@@ -143,8 +163,6 @@ The AP component **`fisheye`** is added via `EXTRA_COMPONENTS_DIRS` → `ap/prop
 
 1. Calibration data is tied to **1920×1080** input; change sensor or resolution → update grids and points.  
 2. **Dump** is for debug or offline extraction only; large resolutions can take minutes to dump.  
-3. `bk_auxldo_enable()` is board-specific; review when porting.  
-4. This CLI does not rely on `CMDRSP:OK` / `CMDRSP:ERROR`; judge by logs.  
-5. **Logs are printed on the CP core**; use the CP UART to view output.  
-6. UART baud rate is **460800**; match it in your terminal.  
-7. Prefix commands with **`ap_cmd`**, e.g. `ap_cmd fisheye cal 0`.
+3. **Logs are printed on the CP core**; use the CP UART to view output.  
+4. UART baud rate is **460800**; match it in your terminal.  
+5. Prefix commands with **`ap_cmd`**, e.g. `ap_cmd fisheye cal 0`.

@@ -121,14 +121,23 @@ ap_cmd rps_prompt <name>
 
 ### Model, UI, and Prompt Resource Updates
 
-| Item | Notes |
-|------|-------|
-| `gesture_detection_model_data.cc` / `.h` | Holds `gesture_detection_tflite[]` and `gesture_detection_tflite_size`; keep symbols unchanged when replacing the model. |
-| `GestureDetectionModel::resourceLoad()` | Owns input size, pixel format, model location, fast memory, and arena placement/size; current input is **192×192**. |
-| `GestureDetectionModel::post_process()` | Parses score, paper, rock, and scissors outputs before calling `app_event`; update it when output layout or class order changes. |
-| `ap/resource/prompt_tone/` | CN/EN prompts are selected by `CONFIG_GESTURE_DET_PROMPT_TONE_LANG_*`; add new prompt sources to CMake and `resource.h`. |
-| `ap/ui/beken_generated/` | LVGL generated pages and image resources; re-validate display and touch after changing resolution, images, or page logic. |
-| `app_event.c` | Manages game state, prompt sequence, image cache, and result judgment; use `ap_cmd rps_*` commands first when debugging state flow. |
+.. list-table::
+   :header-rows: 1
+
+   * - Item
+     - Notes
+   * - `gesture_detection_model_data.cc` / `.h`
+     - Holds `gesture_detection_tflite[]` and `gesture_detection_tflite_size`; keep symbols unchanged when replacing the model.
+   * - `GestureDetectionModel::resourceLoad()`
+     - Owns input size, pixel format, model location, fast memory, and arena placement/size; current input is **192×192**.
+   * - `GestureDetectionModel::post_process()`
+     - Parses score, paper, rock, and scissors outputs before calling `app_event`; update it when output layout or class order changes.
+   * - `ap/resource/prompt_tone/`
+     - CN/EN prompts are selected by `CONFIG_GESTURE_DET_PROMPT_TONE_LANG_*`; add new prompt sources to CMake and `resource.h`.
+   * - `ap/ui/beken_generated/`
+     - LVGL generated pages and image resources; re-validate display and touch after changing resolution, images, or page logic.
+   * - `app_event.c`
+     - Manages game state, prompt sequence, image cache, and result judgment; use `ap_cmd rps_*` commands first when debugging state flow.
 
 Regression should cover prompt playback, UI page switching, camera input, model recognition, `app_event` transitions, captured-image display, and long-run memory stability.
 
@@ -142,11 +151,25 @@ Regression should cover prompt playback, UI page switching, camera input, model 
 
 Current default memory placement and sizes (see `GestureDetectionModel::resourceLoad()`):
 
-| Type | Location | Size | Source |
-|------|----------|------|--------|
-| fast memory / Ethos-U scratch | HSRAM | **128 KB** | `fast_ram_type` / `fast_ram_data_size` |
-| tensor arena | PSRAM_SLAB (`MEM_SLAB_HEAP_CODED`) | **600 KB** | `arena_ram_type` / `arena_data_size` |
-| Vela model copy | PSRAM_SLAB (`MEM_SLAB_HEAP_CODED`) | **823,456 bytes** | `model_ram_type` / `gesture_detection_tflite_size` |
+.. list-table::
+   :header-rows: 1
+
+   * - Type
+     - Location
+     - Size
+     - Source
+   * - fast memory / Ethos-U scratch
+     - HSRAM
+     - **128 KB**
+     - `fast_ram_type` / `fast_ram_data_size`
+   * - tensor arena
+     - PSRAM_SLAB (`MEM_SLAB_HEAP_CODED`)
+     - **600 KB**
+     - `arena_ram_type` / `arena_data_size`
+   * - Vela model copy
+     - PSRAM_SLAB (`MEM_SLAB_HEAP_CODED`)
+     - **823,456 bytes**
+     - `model_ram_type` / `gesture_detection_tflite_size`
 
 ## 7. Notes
 

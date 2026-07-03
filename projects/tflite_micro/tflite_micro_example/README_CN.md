@@ -41,34 +41,22 @@ tflite_micro_example/
 
 ## 3. 功能说明
 ### 3.1 主要功能
-1. 端侧推理链路验证
-   - 使用 TFLM 构建并运行 `person_detection` 模型
-   - 通过 Ethos-U driver 完成 NPU 相关初始化与中断处理
-2. 输入输出处理
-   - 从图像提供器获取输入张量数据
-   - 读取输出张量并计算 `person_score/no_person_score` 的概率百分比
-3. 输出信息
-   - 初始化阶段会打印内存使用信息（scratch/tensor arena/model data）
-   - 每次推理完成后会打印 person/no person 的分数
+1. 端侧推理链路验证：使用 TFLM 构建并运行 `person_detection` 模型，并通过 Ethos-U driver 完成 NPU 相关初始化与中断处理。
+2. 输入输出处理：从图像提供器获取输入张量数据，读取输出张量并计算 `person_score/no_person_score` 的概率百分比。
+3. 输出信息：初始化阶段会打印内存使用信息（scratch/tensor arena/model data），每次推理完成后会打印 person/no person 的分数。
 
 ### 3.2 推理耗时自动计算（DWT）
 在 `tflm_person_detection_demo.cpp` 中通过 `CONFIG_PERSON_DETECTION_INFER_TIME_AUTO` 控制是否打开推理耗时统计：
 - 打开后，使用 DWT cycles 记录 `Invoke()` 前后的 cycle 值
 - 通过固定 CPU 主频 `480MHz` 换算耗时
-- 打印格式：
-  - 推理耗时小于 `1ms`：使用 `us` 单位打印
-  - 推理耗时大于等于 `1ms`：使用 `ms` 单位打印
+- 打印格式：推理耗时小于 `1ms` 时使用 `us` 单位打印；推理耗时大于等于 `1ms` 时使用 `ms` 单位打印
 
 提示：由于该功能是通过 `#ifdef CONFIG_PERSON_DETECTION_INFER_TIME_AUTO` 编译期开关实现，需在工程编译时让该宏处于已定义状态。
 
 ### 3.3 内存/性能策略（HSRAM/PSRAM/SRAM）
 在 `tflm_person_detection_demo.cpp` 中通过 `PERSON_DETECTION_PERF_TEST` 控制内存策略：
-- 当 `PERSON_DETECTION_PERF_TEST=1`（性能模式）
-  - `EthosU0 Scratch` / `Tensor Arena` / `Model Data`：优先申请 HSRAM
-  - HSRAM 不足时：自动回退到（低速）SRAM 分配
-- 当 `PERSON_DETECTION_PERF_TEST=0`
-  - `EthosU0 Scratch` 仍使用 HSRAM
-  - `Tensor Arena` / `Model Data` 使用 PSRAM
+- 当 `PERSON_DETECTION_PERF_TEST=1`（性能模式）时，`EthosU0 Scratch` / `Tensor Arena` / `Model Data` 优先申请 HSRAM；HSRAM 不足时自动回退到（低速）SRAM 分配。
+- 当 `PERSON_DETECTION_PERF_TEST=0` 时，`EthosU0 Scratch` 仍使用 HSRAM，`Tensor Arena` / `Model Data` 使用 PSRAM。
 
 此外，该示例对模型数据做了 16 字节对齐要求，以满足 Ethos-U 命令流相关约束。性能模式用于测试NPU推理的极限性能。
 
@@ -111,14 +99,9 @@ Invoke time: xxx ms
 ```
 
 ## 5. 测试方案
-1. 功能验证
-   - 直接运行示例，观察是否持续输出 person/no person 的分数
-   - 确认没有出现 `Invoke failed` / `AllocateTensors failed` / 相关初始化失败日志
-2. 性能验证（可选）
-   - 打开 `CONFIG_PERSON_DETECTION_INFER_TIME_AUTO`
-   - 观察 `Invoke time` 日志，统计典型推理耗时范围（us 或 ms）
-3. 内存策略验证（可选）
-   - 修改 `PERSON_DETECTION_PERF_TEST`，观察初始化阶段打印的 scratch/tensor arena/model data 内存来源与是否触发回退
+1. 功能验证：直接运行示例，观察是否持续输出 person/no person 的分数，并确认没有出现 `Invoke failed` / `AllocateTensors failed` / 相关初始化失败日志。
+2. 性能验证（可选）：打开 `CONFIG_PERSON_DETECTION_INFER_TIME_AUTO`，观察 `Invoke time` 日志，统计典型推理耗时范围（us 或 ms）。
+3. 内存策略验证（可选）：修改 `PERSON_DETECTION_PERF_TEST`，观察初始化阶段打印的 scratch/tensor arena/model data 内存来源与是否触发回退。
 
 ## 6. 注意事项
 1. 本示例推理任务为持续运行，进入循环后不会自动退出

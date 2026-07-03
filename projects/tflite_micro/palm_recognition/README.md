@@ -101,13 +101,21 @@ The LCD should show the camera preview and palm boxes. If a servo is connected, 
 
 ### Model Resource and Peripheral Bring-up
 
-| Item | Notes |
-|------|-------|
-| `palm_detect_model_data.cc` / `.h` | Holds `palm_detection_builtin_256_integer_quant_vela_tflite[]` and its size; keep symbols aligned with the header when replacing the model. |
-| `PalmDetectionModel::resourceLoad()` | Owns model input size, pixel format, model location, fast memory, and arena placement/size; update `width` / `height` and `arena_data_size` when the model changes. |
-| `PalmDetectionModel::resolverLoad()` | Add resolver ops if the new model uses additional operators, otherwise `AllocateTensors()` may fail. |
-| `detection_box_cb()` | OSD mapping currently assumes **256×256** model coordinates to a **1088×1088** display canvas; update it when model input or canvas size changes. |
-| `servo.h` / `servo.c` | Tune servo direction, gain, dead band, and max step for the mechanical setup. |
+.. list-table::
+   :header-rows: 1
+
+   * - Item
+     - Notes
+   * - `palm_detect_model_data.cc` / `.h`
+     - Holds `palm_detection_builtin_256_integer_quant_vela_tflite[]` and its size; keep symbols aligned with the header when replacing the model.
+   * - `PalmDetectionModel::resourceLoad()`
+     - Owns model input size, pixel format, model location, fast memory, and arena placement/size; update `width` / `height` and `arena_data_size` when the model changes.
+   * - `PalmDetectionModel::resolverLoad()`
+     - Add resolver ops if the new model uses additional operators, otherwise `AllocateTensors()` may fail.
+   * - `detection_box_cb()`
+     - OSD mapping currently assumes **256×256** model coordinates to a **1088×1088** display canvas; update it when model input or canvas size changes.
+   * - `servo.h` / `servo.c`
+     - Tune servo direction, gain, dead band, and max step for the mechanical setup.
 
 Regression should cover camera preview, box placement, largest-area target selection, servo direction, and long-run memory stability.
 
@@ -121,11 +129,25 @@ Regression should cover camera preview, box placement, largest-area target selec
 
 Current default memory placement and sizes (see `PalmDetectionModel::resourceLoad()`):
 
-| Type | Location | Size | Source |
-|------|----------|------|--------|
-| fast memory / Ethos-U scratch | HSRAM | **128 KB** | `fast_ram_type` / `fast_ram_data_size` |
-| tensor arena | PSRAM_SLAB (`MEM_SLAB_HEAP_CODED`) | **2 MB** | `arena_ram_type` / `arena_data_size` |
-| Vela model copy | PSRAM_SLAB (`MEM_SLAB_HEAP_CODED`) | **2,207,168 bytes** | `model_ram_type` / `palm_detection_builtin_256_integer_quant_vela_tflite_size` |
+.. list-table::
+   :header-rows: 1
+
+   * - Type
+     - Location
+     - Size
+     - Source
+   * - fast memory / Ethos-U scratch
+     - HSRAM
+     - **128 KB**
+     - `fast_ram_type` / `fast_ram_data_size`
+   * - tensor arena
+     - PSRAM_SLAB (`MEM_SLAB_HEAP_CODED`)
+     - **2 MB**
+     - `arena_ram_type` / `arena_data_size`
+   * - Vela model copy
+     - PSRAM_SLAB (`MEM_SLAB_HEAP_CODED`)
+     - **2,207,168 bytes**
+     - `model_ram_type` / `palm_detection_builtin_256_integer_quant_vela_tflite_size`
 
 ## 7. Notes
 
