@@ -80,7 +80,7 @@ bk_err_t netif_wifi_event_cb(void *arg, event_module_t event_module,
 
         sta_ip_mode_set(0);
         sta_ip_down();
-        BK_LOG_ON_ERR(bk_netif_set_ip4_config(NETIF_IF_STA, &wdrv_static_ip));
+        BK_LOG_ON_ERR(bk_netif_set_ip4_config_local(NETIF_IF_STA, &wdrv_static_ip));
         sta_ip_start();
     }
 #endif
@@ -139,32 +139,15 @@ bk_err_t netif_validate_ip4_config(const netif_ip4_config_t *ip4_config)
 	return BK_OK;
 }
 
-bk_err_t bk_netif_set_ip4_config(netif_if_t ifx, const netif_ip4_config_t *ip4_config)
+bk_err_t bk_netif_set_ip4_config_local(netif_if_t ifx, const netif_ip4_config_t *ip4_config)
 {
 	netif_ip4_config_t *config = (netif_ip4_config_t*)ip4_config;
 	int ret;
-	uint32_t len_ip4_config = sizeof(netif_ip4_config_t);
-	void *buffer_to_ipc = NULL;
 
 	ret = netif_validate_ip4_config(ip4_config);
 	if (ret != BK_OK) {
 		return ret;
 	}
-
-	buffer_to_ipc = os_malloc(len_ip4_config);
-	if (!buffer_to_ipc)
-	{
-		BK_LOGE(NULL, "%s malloc failed\r\n", __func__);
-		return BK_ERR_NO_MEM;
-	}
-	os_memcpy(buffer_to_ipc, ip4_config, len_ip4_config);
-	ret = wifi_send_com_api_cmd(AP_NETIF_IP4_CONFIG, 1, (uint32_t)buffer_to_ipc);
-	if (ret != BK_OK)
-	{
-		BK_LOGE(NULL, "%s set ap netif ip4 config failed, ret=%d\n", __func__, ret);
-		return ret;
-	}
-	os_free(buffer_to_ipc);
 
 	if (ifx == NETIF_IF_STA) {
 		ip_address_set(1 /*STA*/, 0/*static IP*/, config->ip, config->mask, config->gateway, config->dns);
@@ -175,6 +158,49 @@ bk_err_t bk_netif_set_ip4_config(netif_if_t ifx, const netif_ip4_config_t *ip4_c
 	}
 
 	return BK_OK;
+}
+
+bk_err_t bk_netif_set_ip4_config(netif_if_t ifx, const netif_ip4_config_t *ip4_config)
+{
+	int ret;
+#ifdef CONFIG_WIFI_VNET_CONTROLLER
+	uint32_t cmd_id;
+	uint32_t len_ip4_config = sizeof(netif_ip4_config_t);
+	void *buffer_to_ipc = NULL;
+#endif
+
+	ret = netif_validate_ip4_config(ip4_config);
+	if (ret != BK_OK) {
+		return ret;
+	}
+
+#ifdef CONFIG_WIFI_VNET_CONTROLLER
+	if (ifx == NETIF_IF_STA) {
+		cmd_id = STA_NETIF_IP4_CONFIG;
+	} else if (ifx == NETIF_IF_AP) {
+		cmd_id = AP_NETIF_IP4_CONFIG;
+	} else {
+		return BK_ERR_NETIF_IF;
+	}
+
+	buffer_to_ipc = os_malloc(len_ip4_config);
+	if (!buffer_to_ipc)
+	{
+		BK_LOGE(NULL, "%s malloc failed\r\n", __func__);
+		return BK_ERR_NO_MEM;
+	}
+	os_memcpy(buffer_to_ipc, ip4_config, len_ip4_config);
+	ret = wifi_send_com_api_cmd(cmd_id, 1, (uint32_t)buffer_to_ipc);
+	if (ret != BK_OK)
+	{
+		BK_LOGE(NULL, "%s set netif(%d) ip4 config failed, ret=%d\n", __func__, ifx, ret);
+		os_free(buffer_to_ipc);
+		return ret;
+	}
+	os_free(buffer_to_ipc);
+#endif
+
+	return bk_netif_set_ip4_config_local(ifx, ip4_config);
 }
 
 bk_err_t bk_netif_get_ip4_config(netif_if_t ifx, netif_ip4_config_t *ip4_config)

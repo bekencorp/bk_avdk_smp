@@ -7,6 +7,19 @@ extern "C" {
 #include "cif_main.h"
 
 #define WIFI_API_IPC_COM_REQ_MAX_ARGC           6
+#define WIFI_ARP_SYNC_MAX_ENTRY                 10
+
+typedef struct {
+    uint32_t ip;
+    uint8_t mac[6];
+    uint8_t reserved[2];
+} wifi_arp_sync_entry_t;
+
+typedef struct {
+    uint8_t count;
+    uint8_t reserved[3];
+    wifi_arp_sync_entry_t entry[WIFI_ARP_SYNC_MAX_ENTRY];
+} wifi_arp_sync_table_t;
 
 enum CIF_WIFI_API_CMD_TYPE
 {
@@ -32,6 +45,8 @@ enum CIF_WIFI_API_CMD_TYPE
     STA_GET_LINK_STATE_WITH_REASON      = 0x31B,
     STA_SET_IP4_STATIC_IP               = 0x31C,
     STA_GET_NETIF_IP4_CONFIG            = 0x31D,
+    STA_NETIF_IP4_CONFIG                = 0x31E,
+    STA_GET_ARP_TABLE                   = 0x31F,
 
     // AP management command section
     AP_SET_CONFIG                       = 0x320,

@@ -560,6 +560,12 @@ etharp_update_arp_entry(struct netif *netif, const ip4_addr_t *ipaddr, struct et
   return ERR_OK;
 }
 
+err_t
+etharp_update_dynamic_entry(struct netif *netif, const ip4_addr_t *ipaddr, struct eth_addr *ethaddr)
+{
+  return etharp_update_arp_entry(netif, ipaddr, ethaddr, ETHARP_FLAG_TRY_HARD);
+}
+
 #if ETHARP_SUPPORT_STATIC_ENTRIES
 /** Add a new static entry to the ARP table. If an entry exists for the
  * specified IP address, this entry is overwritten.
@@ -1279,6 +1285,8 @@ err_t
 etharp_request(struct netif *netif, const ip4_addr_t *ipaddr)
 {
   LWIP_DEBUGF(ETHARP_DEBUG | LWIP_DBG_TRACE, ("etharp_request: sending ARP request.\n"));
+  LWIP_LOGV("[ARP-DBG] AP etharp_request: target=%"U16_F".%"U16_F".%"U16_F".%"U16_F"\r\n",
+    ip4_addr1_16(ipaddr), ip4_addr2_16(ipaddr), ip4_addr3_16(ipaddr), ip4_addr4_16(ipaddr));
   return etharp_request_dst(netif, ipaddr, &ethbroadcast);
 }
 

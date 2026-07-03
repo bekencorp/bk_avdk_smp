@@ -38,6 +38,8 @@
 #endif
 #if CONFIG_NETIF_LWIP
 #include "lwip/inet.h"
+#include "lwip/etharp.h"
+#include "lwip/tcpip.h"
 #include "net.h"
 #include "lwip/netif.h"
 #endif
@@ -53,6 +55,10 @@ struct scan_cfg_scan_param_tag scan_param_env = {0};
 #ifdef CONFIG_WIFI_VNET_CONTROLLER
 static bk_err_t bk_wifi_sta_get_ip4_config_from_cp(netif_ip4_config_t *ip_config);
 static bk_err_t bk_wifi_ap_get_ip4_config_from_cp(netif_ip4_config_t *ip_config);
+#if CONFIG_NETIF_LWIP
+static void bk_wifi_sta_import_arp_table(void *ctx);
+#endif
+static bk_err_t bk_wifi_sta_sync_arp_table_from_cp(void);
 bk_err_t bk_wifi_sync_ip4_config_from_cp(void);
 #endif
 
@@ -384,6 +390,89 @@ static bk_err_t bk_wifi_ap_get_ip4_config_from_cp(netif_ip4_config_t *ip_config)
     return ret;
 }
 
+static bk_err_t bk_wifi_sta_sync_arp_table_from_cp(void)
+{
+#if CONFIG_NETIF_LWIP
+    bk_err_t ret = BK_OK;
+    err_t lwip_ret;
+    uint8_t arp_count;
+    wifi_arp_sync_table_t *arp_table = NULL;
+
+    arp_table = (wifi_arp_sync_table_t *)os_malloc(sizeof(wifi_arp_sync_table_t));
+    if (!arp_table)
+    {
+        WIFI_LOGE("%s malloc failed\r\n", __func__);
+        return BK_ERR_NO_MEM;
+    }
+
+    os_memset(arp_table, 0, sizeof(wifi_arp_sync_table_t));
+    ret = wifi_send_com_api_cmd(STA_GET_ARP_TABLE, 1, (uint32_t)arp_table);
+    if (ret != BK_OK)
+    {
+        WDRV_LOGE("Failed to get STA ARP table from CP, ret=%d\r\n", ret);
+        os_free(arp_table);
+        return ret;
+    }
+
+    arp_count = arp_table->count;
+    lwip_ret = tcpip_callback(bk_wifi_sta_import_arp_table, arp_table);
+    if (lwip_ret != ERR_OK)
+    {
+        WDRV_LOGE("Failed to post STA ARP table import to tcpip thread, ret=%d\r\n", lwip_ret);
+        os_free(arp_table);
+        return BK_FAIL;
+    }
+
+    WDRV_LOGD("STA ARP table import queued to tcpip thread, count=%d\r\n", arp_count);
+    return BK_OK;
+#else
+    return BK_OK;
+#endif
+}
+
+#if CONFIG_NETIF_LWIP
+static void bk_wifi_sta_import_arp_table(void *ctx)
+{
+    err_t ret;
+    wifi_arp_sync_table_t *arp_table = (wifi_arp_sync_table_t *)ctx;
+    struct netif *sta_netif = (struct netif *)net_get_sta_handle();
+
+    if (!arp_table)
+    {
+        return;
+    }
+
+    if (!sta_netif)
+    {
+        WDRV_LOGW("Skip STA ARP table import, STA netif is NULL\r\n");
+        os_free(arp_table);
+        return;
+    }
+
+    for (uint8_t i = 0; i < arp_table->count && i < WIFI_ARP_SYNC_MAX_ENTRY; i++)
+    {
+        ip4_addr_t ipaddr;
+        struct eth_addr ethaddr;
+
+        ipaddr.addr = arp_table->entry[i].ip;
+        os_memcpy(ethaddr.addr, arp_table->entry[i].mac, sizeof(ethaddr.addr));
+        ret = etharp_update_dynamic_entry(sta_netif, &ipaddr, &ethaddr);
+        WDRV_LOGD("AP import STA ARP[%d]: ip=%u.%u.%u.%u mac=%02x:%02x:%02x:%02x:%02x:%02x ret=%d\r\n",
+            i,
+            ip4_addr1_16(&ipaddr), ip4_addr2_16(&ipaddr), ip4_addr3_16(&ipaddr), ip4_addr4_16(&ipaddr),
+            ethaddr.addr[0], ethaddr.addr[1], ethaddr.addr[2],
+            ethaddr.addr[3], ethaddr.addr[4], ethaddr.addr[5], ret);
+        if (ret != ERR_OK)
+        {
+            WDRV_LOGW("Failed to sync STA ARP entry %d, ret=%d\r\n", i, ret);
+        }
+    }
+
+    WDRV_LOGD("STA ARP table synced from CP, count=%d\r\n", arp_table->count);
+    os_free(arp_table);
+}
+#endif
+
 bk_err_t bk_wifi_sync_ip4_config_from_cp(void)
 {
     netif_ip4_config_t sta_ip_config = {0};
@@ -405,11 +494,12 @@ bk_err_t bk_wifi_sync_ip4_config_from_cp(void)
             sta_ip_down();
 #endif
 
-            ret = bk_netif_set_ip4_config(NETIF_IF_STA, &sta_ip_config);
+            ret = bk_netif_set_ip4_config_local(NETIF_IF_STA, &sta_ip_config);
             if (ret == BK_OK) {
 #if CONFIG_NETIF_LWIP
                 sta_ip_start();
 #endif
+                BK_LOG_ON_ERR(bk_wifi_sta_sync_arp_table_from_cp());
                 WDRV_LOGV("STA IP config synced from CP: %s/%s gw:%s dns:%s\r\n",
                         sta_ip_config.ip, sta_ip_config.mask,
                         sta_ip_config.gateway, sta_ip_config.dns);
@@ -434,7 +524,7 @@ bk_err_t bk_wifi_sync_ip4_config_from_cp(void)
             }
 #endif
 
-            ret = bk_netif_set_ip4_config(NETIF_IF_AP, &ap_ip_config);
+            ret = bk_netif_set_ip4_config_local(NETIF_IF_AP, &ap_ip_config);
             if (ret == BK_OK) {
 #if CONFIG_NETIF_LWIP
                 uap_ip_start();
@@ -613,8 +703,9 @@ static bk_err_t wifi_ap_set_config(const wifi_ap_config_t *ap_config)
 #endif
         ) {
         g_ap_param_ptr->chann = ap_config->channel;
-    } else if (ap_config->channel == 0){
-        g_ap_param_ptr->chann = 0;
+    } else if (ap_config->channel == 0) {
+        uint8_t cur_chan = (uint8_t)bk_wifi_get_channel();
+        g_ap_param_ptr->chann = (cur_chan != 0) ? cur_chan : DEFAULT_CHANNEL_AP;
     } else {
         WDRV_LOGE("error:invalid channel\r\n");
         return BK_FAIL;
@@ -642,11 +733,37 @@ static bk_err_t wifi_ap_set_config(const wifi_ap_config_t *ap_config)
     if (g_ap_param_ptr->key_len < 8) {
         g_ap_param_ptr->cipher_suite = WIFI_SECURITY_NONE;
     } else {
+        switch (ap_config->security) {
+        case WIFI_SECURITY_WPA_TKIP:
+            g_ap_param_ptr->cipher_suite = WIFI_SECURITY_WPA_TKIP;
+            break;
+        case WIFI_SECURITY_WPA_AES:
+            g_ap_param_ptr->cipher_suite = WIFI_SECURITY_WPA_AES;
+            break;
+        case WIFI_SECURITY_WPA_MIXED:
+            g_ap_param_ptr->cipher_suite = WIFI_SECURITY_WPA_MIXED;
+            break;
+        case WIFI_SECURITY_WPA2_TKIP:
+            g_ap_param_ptr->cipher_suite = WIFI_SECURITY_WPA2_TKIP;
+            break;
+        case WIFI_SECURITY_WPA2_AES:
+            g_ap_param_ptr->cipher_suite = WIFI_SECURITY_WPA2_AES;
+            break;
+        case WIFI_SECURITY_WPA2_MIXED:
+            g_ap_param_ptr->cipher_suite = WIFI_SECURITY_WPA2_MIXED;
+            break;
 #if CONFIG_SOFTAP_WPA3
-        g_ap_param_ptr->cipher_suite = WIFI_SECURITY_WPA3_WPA2_MIXED;
-#else
-        g_ap_param_ptr->cipher_suite = WIFI_SECURITY_WPA2_AES;
+        case WIFI_SECURITY_WPA3_SAE:
+            g_ap_param_ptr->cipher_suite = WIFI_SECURITY_WPA3_SAE;
+            break;
+        case WIFI_SECURITY_WPA3_WPA2_MIXED:
+            g_ap_param_ptr->cipher_suite = WIFI_SECURITY_WPA3_WPA2_MIXED;
+            break;
 #endif
+        default:
+            g_ap_param_ptr->cipher_suite = WIFI_SECURITY_WPA2_AES;
+            break;
+        }
         os_memset(g_ap_param_ptr->key, 0, sizeof(g_ap_param_ptr->key));
         os_memcpy(g_ap_param_ptr->key, ap_config->password, g_ap_param_ptr->key_len);
     }
@@ -665,34 +782,10 @@ static bk_err_t wifi_ap_set_config(const wifi_ap_config_t *ap_config)
 bk_err_t bk_wifi_ap_set_config(const wifi_ap_config_t *ap_config)
 {
     int ret = BK_OK;
-    netif_ip4_config_t ip4_config = {0};
     void *buffer_to_ipc = NULL;
     uint32_t len = sizeof(wifi_ap_config_t);
-    uint32_t len_ip4_config = sizeof(netif_ip4_config_t);
 
     WDRV_LOGD("ap configuring\n");
-
-    os_strcpy(ip4_config.ip, WLAN_DEFAULT_IP);
-    os_strcpy(ip4_config.mask, WLAN_DEFAULT_MASK);
-    os_strcpy(ip4_config.gateway, WLAN_DEFAULT_GW);
-    os_strcpy(ip4_config.dns, WLAN_DEFAULT_GW);
-
-    BK_RETURN_ON_ERR(bk_netif_set_ip4_config(NETIF_IF_AP, &ip4_config));
-
-    buffer_to_ipc = os_malloc(len_ip4_config);
-    if (!buffer_to_ipc)
-    {
-        WIFI_LOGE("%s malloc failed\r\n", __func__);
-        return BK_ERR_NO_MEM;
-    }
-    os_memcpy(buffer_to_ipc, &ip4_config, len_ip4_config);
-    ret = wifi_send_com_api_cmd(AP_NETIF_IP4_CONFIG, 1, (uint32_t)buffer_to_ipc);
-    if (ret != BK_OK)
-    {
-        WDRV_LOGE("%s set ap netif ip4 config failed, ret=%d\n", __func__, ret);
-        return ret;
-    }
-    os_free(buffer_to_ipc);
 
 #if 0
     if (!wifi_is_inited()) {
@@ -716,7 +809,15 @@ bk_err_t bk_wifi_ap_set_config(const wifi_ap_config_t *ap_config)
         return BK_ERR_NO_MEM;
     }
 
-    os_memcpy(buffer_to_ipc, ap_config, len);
+    {
+        wifi_ap_config_t ipc_config;
+
+        os_memcpy(&ipc_config, ap_config, len);
+        ipc_config.security = (wifi_security_t)g_ap_param_ptr->cipher_suite;
+        ipc_config.channel = g_ap_param_ptr->chann;
+        os_memcpy(buffer_to_ipc, &ipc_config, len);
+    }
+
     ret = wifi_send_com_api_cmd(AP_SET_CONFIG, 1, (uint32_t)buffer_to_ipc);
     if (ret != BK_OK)
     {

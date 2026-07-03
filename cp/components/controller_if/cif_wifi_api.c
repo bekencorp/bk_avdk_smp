@@ -8,10 +8,47 @@
 #include "cif_main.h"
 #include "cif_ipc.h"
 #include "wifi_v2.h"
+#include "lwip/etharp.h"
 #if CONFIG_BK_RAW_LINK
 #include <modules/raw_link.h>
 #include "cif_raw_link_api.h"
 #endif
+
+static bk_err_t bk_wifi_sta_get_arp_table(wifi_arp_sync_table_t *table)
+{
+    struct netif *sta_netif = (struct netif *)net_get_sta_handle();
+    ip4_addr_t *ipaddr = NULL;
+    struct netif *netif = NULL;
+    struct eth_addr *ethaddr = NULL;
+
+    if (!table) {
+        return BK_ERR_NULL_PARAM;
+    }
+
+    memset(table, 0, sizeof(*table));
+
+    for (size_t i = 0; i < ARP_TABLE_SIZE && table->count < WIFI_ARP_SYNC_MAX_ENTRY; i++) {
+        if (!etharp_get_entry(i, &ipaddr, &netif, &ethaddr)) {
+            continue;
+        }
+
+        if (netif != sta_netif) {
+            continue;
+        }
+
+        table->entry[table->count].ip = ipaddr->addr;
+        memcpy(table->entry[table->count].mac, ethaddr->addr, sizeof(table->entry[table->count].mac));
+        BK_LOGV("arp_sync", "CP export STA ARP[%d]: ip=%u.%u.%u.%u mac=%02x:%02x:%02x:%02x:%02x:%02x\r\n",
+                table->count,
+                ip4_addr1_16(ipaddr), ip4_addr2_16(ipaddr), ip4_addr3_16(ipaddr), ip4_addr4_16(ipaddr),
+                ethaddr->addr[0], ethaddr->addr[1], ethaddr->addr[2],
+                ethaddr->addr[3], ethaddr->addr[4], ethaddr->addr[5]);
+        table->count++;
+    }
+
+    BK_LOGD("arp_sync", "CP export STA ARP table count=%d\r\n", table->count);
+    return BK_OK;
+}
 
 bk_err_t wifi_monitor_cp_cb(const uint8_t *frame, uint32_t len, const wifi_frame_info_t *frame_info)
 {
@@ -179,14 +216,7 @@ bk_err_t cif_handle_wifi_api_cmd(struct bk_msg_hdr *msg)
         case STA_GET_LINK_STATUS:
         {
             wifi_link_status_t *link_status = (wifi_link_status_t *)arg_info->args[0];
-            if ((wifi_netif_sta_is_connected() || wifi_netif_sta_is_got_ip()))
-            {
-                    bk_wifi_sta_get_link_status(link_status);
-                    link_status->state = WIFI_LINKSTATE_STA_CONNECTED;
-            }
-            else
-                link_status->state = WIFI_LINKSTATE_STA_DISCONNECTED;
-
+            ret = bk_wifi_sta_get_link_status(link_status);
             break;
         }
 
@@ -267,6 +297,18 @@ bk_err_t cif_handle_wifi_api_cmd(struct bk_msg_hdr *msg)
         case STA_SET_IP4_STATIC_IP:
         {
             ret = bk_netif_static_ip(*(netif_ip4_config_t *)arg_info->args[0]);
+            break;
+        }
+
+        case STA_NETIF_IP4_CONFIG:
+        {
+            ret = bk_netif_set_ip4_config(NETIF_IF_STA, (netif_ip4_config_t *)arg_info->args[0]);
+            break;
+        }
+
+        case STA_GET_ARP_TABLE:
+        {
+            ret = bk_wifi_sta_get_arp_table((wifi_arp_sync_table_t *)arg_info->args[0]);
             break;
         }
 

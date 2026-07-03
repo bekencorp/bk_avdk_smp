@@ -63,6 +63,22 @@ bk_err_t bk_netif_init(void);
 bk_err_t bk_netif_set_ip4_config(netif_if_t ifx, const netif_ip4_config_t *config);
 
 /**
+ * @brief  Set local netif interface's IP4 address information
+ *
+ * This function only updates the local IP configuration and does not synchronize
+ * the configuration to a remote CPU.
+ *
+ * @param ifx The interface index
+ * @param config the IP4 information of the interface
+ *
+ * @return
+ *   - BK_OK: succeed
+ *   - BK_ERR_NETIF_IF: invalid netif interface ID
+ *   - BK_ERR_NULL_PARAM: config is NULL
+ */
+bk_err_t bk_netif_set_ip4_config_local(netif_if_t ifx, const netif_ip4_config_t *config);
+
+/**
  * @brief  Get netif interface's IP address information
  *
  * If the interface is up, IP information is read directly from the TCP/IP stack.
