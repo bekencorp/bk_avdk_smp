@@ -12,6 +12,7 @@
 #include "cli.h"
 #include <components/event.h>
 #include <components/netif.h>
+#include <os/mem.h>
 #include "bk_wifi.h"
 #include "bk_wifi_types.h"
 #include "wifi_api.h"
@@ -1042,6 +1043,9 @@ void cli_wifi_p2p_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char *
 {
 	int ret = BK_OK;
 	char *msg = NULL;
+#if CONFIG_USE_CONV_UTF8
+	char *p2p_ssid_conv = NULL;
+#endif
 
 	if (argc < 2) {
 		CLI_LOGW("invalid argc number\n");
@@ -1058,16 +1062,19 @@ void cli_wifi_p2p_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char *
 		const char *p2p_ssid = NULL;
 		int intent = -1;  // Default: keep previous/default
 
-		if (argc == 3) {
+		if (argc >= 3) {
 			p2p_ssid = argv[2];
-			ret = bk_wifi_p2p_enable(p2p_ssid);
-			if (ret != BK_OK) {
-				CLI_LOGE("p2p enable failed, err=%d\n", ret);
+#if CONFIG_USE_CONV_UTF8
+			p2p_ssid_conv = (char *)conv_utf8((uint8_t *)p2p_ssid);
+			if (!p2p_ssid_conv) {
+				CLI_LOGE("p2p ssid utf8 convert failed\n");
 				goto error;
 			}
+			p2p_ssid = p2p_ssid_conv;
+#endif
 		}
+
 		if (argc >= 4) {
-			p2p_ssid = argv[2];
 			intent = atoi(argv[3]);
 			if (intent < -1 || intent > 15) {
 				CLI_LOGE("invalid intent value (must be -1 or 0-15)\n");
@@ -1076,6 +1083,12 @@ void cli_wifi_p2p_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char *
 			ret = bk_wifi_p2p_enable_with_intent(p2p_ssid, intent);
 			if (ret != BK_OK) {
 				CLI_LOGE("p2p enable with intent failed, err=%d\n", ret);
+				goto error;
+			}
+		} else {
+			ret = bk_wifi_p2p_enable(p2p_ssid);
+			if (ret != BK_OK) {
+				CLI_LOGE("p2p enable failed, err=%d\n", ret);
 				goto error;
 			}
 		}
@@ -1138,12 +1151,20 @@ succeed:
 	if (ret == BK_OK) {
 		msg = WIFI_CMD_RSP_SUCCEED;
 		os_memcpy(pcWriteBuffer, msg, os_strlen(msg));
+#if CONFIG_USE_CONV_UTF8
+		if (p2p_ssid_conv)
+			os_free(p2p_ssid_conv);
+#endif
 		return;
 	}
 
 error:
 	msg = WIFI_CMD_RSP_ERROR;
 	os_memcpy(pcWriteBuffer, msg, os_strlen(msg));
+#if CONFIG_USE_CONV_UTF8
+	if (p2p_ssid_conv)
+		os_free(p2p_ssid_conv);
+#endif
 	return;
 }
 #endif
