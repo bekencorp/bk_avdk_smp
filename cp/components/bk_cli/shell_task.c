@@ -101,9 +101,17 @@
 #if CONFIG_AT_DATA_MODE
 #define SHELL_CMD_BUF_LEN		4096
 #else
+#if CONFIG_OPENTHREAD
+#define SHELL_CMD_BUF_LEN		256
+#else
 #define SHELL_CMD_BUF_LEN		200
 #endif
+#endif
+#if CONFIG_OPENTHREAD
+#define SHELL_RSP_BUF_LEN		256
+#else
 #define SHELL_RSP_BUF_LEN		140
+#endif
 #define SHELL_IND_BUF_LEN		132
 
 #define SHELL_RSP_QUEUE_ID	    (7)

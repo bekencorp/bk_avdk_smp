@@ -209,6 +209,18 @@ extern "C" {
 #define CLI_CFG_JPEG_SW_ENC      0
 #endif
 
+#if CONFIG_MAC802154_TEST
+#define CLI_CFG_IEEE802154_TEST 1
+#else
+#define CLI_CFG_IEEE802154_TEST 0
+#endif
+
+#if CONFIG_OPENTHREAD
+#define CLI_CFG_OPENTHREAD 1
+#else
+#define CLI_CFG_OPENTHREAD 0
+#endif
+
 #endif
 #ifdef __cplusplus
 }

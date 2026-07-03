@@ -138,6 +138,9 @@ extern int hexstr2bin(const char *hex, u8 *buf, size_t len);
 #if (CONFIG_MAC802154_ENABLE)
 int cli_mac802154_init(void);
 #endif
+#if CONFIG_OPENTHREAD
+int cli_openthread_init(void);
+#endif
 
 #ifdef __cplusplus
 }

@@ -1520,6 +1520,13 @@ int bk_cli_init(void)
 	cli_uid_init();
 #endif
 
+#if (CLI_CFG_IEEE802154_TEST == 1)
+    cli_mac802154_init();
+#endif
+
+#if ((CONFIG_OPENTHREAD == 1) && (CLI_CFG_OPENTHREAD == 1))
+    cli_openthread_init();
+#endif
 /*--------------BT&MultMedia cli command init end------------------*/
 
 
