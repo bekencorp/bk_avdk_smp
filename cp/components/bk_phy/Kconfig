@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: Wireless Connectivity::PHY
 #TODO optimize it
 menu "Bk_Phy"
 

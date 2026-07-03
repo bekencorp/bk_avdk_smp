@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: Wireless Connectivity::Wi-Fi::Supplicant
 menu "modules::wpa_supplicant-2.10"
 
 	config WPA_SUPPLICANT

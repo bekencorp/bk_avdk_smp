@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: Device Drivers::Analog
 menu "Saradc_intf"
 	config SARADC_CALI
 		bool "Enable Saradc Cali"

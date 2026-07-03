@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: Network Services::Network Interface
 menu "Bk_netif"
 
 	config BK_NETIF

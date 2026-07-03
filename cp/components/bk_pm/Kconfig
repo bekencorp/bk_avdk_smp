@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: Power Management
 menu "PM"
 	config PM_ENABLE
 		bool "pm enable"

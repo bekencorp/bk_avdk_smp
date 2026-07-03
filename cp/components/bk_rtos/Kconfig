@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: RTOS & Kernel
 menu "Bk_rtos"
 
 	config CUSTOMIZE_HEAP_SIZE

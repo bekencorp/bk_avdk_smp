@@ -169,6 +169,10 @@ function(__kconfig_generate_config sdkconfig sdkconfig_defaults sdkconfig_defaul
     set(system_services_kconfigs_path "${CMAKE_CURRENT_BINARY_DIR}/group_kconfigs/system_services_body.kconfig")
     set(demos_kconfigs_path "${CMAKE_CURRENT_BINARY_DIR}/group_kconfigs/demos_body.kconfig")
     set(third_party_kconfigs_path "${CMAKE_CURRENT_BINARY_DIR}/group_kconfigs/third_party_body.kconfig")
+    set(armino_is_properties_libs n)
+    if(CMAKE_SOURCE_DIR MATCHES "/properties/projects/properties_libs$")
+        set(armino_is_properties_libs y)
+    endif()
 
     # Place config-related environment arguments into config.env file
     # to work around command line length limits for execute_process
@@ -332,6 +336,7 @@ function(__kconfig_generate_config sdkconfig sdkconfig_defaults sdkconfig_defaul
         "KCONFIG_CONFIG=${sdkconfig}"
         "ARMINO_SOC=${armino_target}"
         "ARMINO_ENV_FPGA=${armino_env_fpga}"
+        "ARMINO_PROPERTIES_LIBS=${armino_is_properties_libs}"
         "ARMINO_PROJECT_DEFCONFIG=${project_diff_config}"
         ${MENUCONFIG_CMD} ${root_kconfig}
         # VERBATIM cannot be used here because it cannot handle ${mconf}="winpty mconf-armino" and the escaping must be

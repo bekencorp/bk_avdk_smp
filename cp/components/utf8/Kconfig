@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: System Services::Utilities & Libraries::UTF-8
 menu "utf8"
 	config USE_CONV_UTF8
 		bool "Enable UTF8"

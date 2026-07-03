@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: System Services::Startup & Initialization
 menu "Bk_startup"
 
 	config APP_MAIN_TASK_PRIO
