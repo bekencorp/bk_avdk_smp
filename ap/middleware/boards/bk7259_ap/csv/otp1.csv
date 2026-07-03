@@ -1,6 +1,6 @@
 id,     name,                           size,       offset,     end,        privilege,              security, crc
-0,      OTP_STARSUB_MEMCHECK,           44,         0x0,        0x2C,       OTP_READ_WRITE,         TRUE,    FALSE
-1,      OTP_A35SUB_MEMCHECK,            240,        0x2C,       0x11C,      OTP_READ_WRITE,         TRUE,    FALSE
+0,      OTP_M52SUB_MEMCHECK,            64,         0x0,        0x40,       OTP_READ_WRITE,         TRUE,    FALSE
+1,      OTP_M55SUB_MEMCHECK,            220,        0x40,       0x11C,      OTP_READ_WRITE,         TRUE,    FALSE
 2,      OTP_PRI_CONFIG,                 4,          0x11C,      0x120,      OTP_READ_WRITE,         TRUE,    FALSE
 3,      OTP_PRIVATE_KEY_1,              32,         0x120,      0x140,      OTP_READ_WRITE,         TRUE,    FALSE
 4,      OTP_PRIVATE_KEY_2,              32,         0x140,      0x160,      OTP_READ_WRITE,         TRUE,    FALSE
