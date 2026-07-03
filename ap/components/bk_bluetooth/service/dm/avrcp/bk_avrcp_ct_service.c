@@ -18,6 +18,9 @@
 
 #define AVRCP_PASSTHROUGH_TIMEOUT_MS 2000
 
+/* Playback position notification reporting interval, in seconds. */
+#define AVRCP_PLAY_POS_REPORT_INTERVAL_S 1
+
 typedef struct
 {
     uint8_t inited;
@@ -159,6 +162,16 @@ static void avrcp_notify_event_handler(uint8_t event_id, bk_avrcp_rn_param_t *ev
         bk_bt_avrcp_ct_send_register_notification_cmd(s_avrcp_ct.remote_bda, BK_AVRCP_RN_TRACK_CHANGE, 0);
         break;
     }
+    case BK_AVRCP_RN_PLAY_POS_CHANGED:
+    {
+        uint32_t play_pos = event_parameter->play_pos;
+        LOGI("play position changed: %u ms\n", play_pos);
+        bk_avrcp_ct_emit(BK_AVRCP_CT_EVT_PLAY_POS_CHANGED, &play_pos);
+        bk_bt_avrcp_ct_send_register_notification_cmd(s_avrcp_ct.remote_bda,
+                                                      BK_AVRCP_RN_PLAY_POS_CHANGED,
+                                                      AVRCP_PLAY_POS_REPORT_INTERVAL_S);
+        break;
+    }
     case BK_AVRCP_RN_AVAILABLE_PLAYERS_CHANGE:
         LOGI("avaliable player changed\n");
         bk_bt_avrcp_ct_send_register_notification_cmd(s_avrcp_ct.remote_bda, BK_AVRCP_RN_AVAILABLE_PLAYERS_CHANGE, 0);
@@ -230,6 +243,12 @@ static void avrcp_ct_cb(bk_avrcp_ct_cb_event_t event, bk_avrcp_ct_cb_param_t *pa
         if (avrcp->get_rn_caps_rsp.evt_set.bits & (0x01 << BK_AVRCP_RN_TRACK_CHANGE))
         {
             bk_bt_avrcp_ct_send_register_notification_cmd(s_avrcp_ct.remote_bda, BK_AVRCP_RN_TRACK_CHANGE, 0);
+        }
+        if (avrcp->get_rn_caps_rsp.evt_set.bits & (0x01 << BK_AVRCP_RN_PLAY_POS_CHANGED))
+        {
+            bk_bt_avrcp_ct_send_register_notification_cmd(s_avrcp_ct.remote_bda,
+                                                          BK_AVRCP_RN_PLAY_POS_CHANGED,
+                                                          AVRCP_PLAY_POS_REPORT_INTERVAL_S);
         }
         break;
 

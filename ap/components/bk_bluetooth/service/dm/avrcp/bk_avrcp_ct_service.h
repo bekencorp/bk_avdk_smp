@@ -22,6 +22,8 @@ typedef enum
     BK_AVRCP_CT_EVT_TRACK_CHANGED,
     /** arg: bk_avrcp_ct_cb_param_t * */
     BK_AVRCP_CT_EVT_ELEM_ATTR_RSP,
+    /** arg: uint32_t * playing position in milliseconds */
+    BK_AVRCP_CT_EVT_PLAY_POS_CHANGED,
 } bk_avrcp_ct_evt_t;
 
 /** AVRCP controller event callback. */
