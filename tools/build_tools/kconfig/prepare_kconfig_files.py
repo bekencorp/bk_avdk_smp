@@ -404,6 +404,7 @@ def _prepare_source_files(env_dict, list_separator):
             'System Services': env_dict.get('SYSTEM_SERVICES_KCONFIGS_SOURCE_FILE', ''),
             'Demos': env_dict.get('DEMOS_KCONFIGS_SOURCE_FILE', ''),
             'Third Party': env_dict.get('THIRD_PARTY_KCONFIGS_SOURCE_FILE', ''),
+            'Solution & Product': env_dict.get('SOLUTION_PRODUCT_KCONFIGS_SOURCE_FILE', ''),
         }
         special_group_outputs = dict(
             (name, path) for name, path in special_group_outputs.items() if path

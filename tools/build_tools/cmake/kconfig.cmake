@@ -169,6 +169,7 @@ function(__kconfig_generate_config sdkconfig sdkconfig_defaults sdkconfig_defaul
     set(system_services_kconfigs_path "${CMAKE_CURRENT_BINARY_DIR}/group_kconfigs/system_services_body.kconfig")
     set(demos_kconfigs_path "${CMAKE_CURRENT_BINARY_DIR}/group_kconfigs/demos_body.kconfig")
     set(third_party_kconfigs_path "${CMAKE_CURRENT_BINARY_DIR}/group_kconfigs/third_party_body.kconfig")
+    set(solution_product_kconfigs_path "${CMAKE_CURRENT_BINARY_DIR}/group_kconfigs/solution_product_body.kconfig")
     set(armino_is_properties_libs n)
     if(CMAKE_SOURCE_DIR MATCHES "/properties/projects/properties_libs$")
         set(armino_is_properties_libs y)
@@ -332,6 +333,7 @@ function(__kconfig_generate_config sdkconfig sdkconfig_defaults sdkconfig_defaul
         "SYSTEM_SERVICES_KCONFIGS_SOURCE_FILE=${system_services_kconfigs_path}"
         "DEMOS_KCONFIGS_SOURCE_FILE=${demos_kconfigs_path}"
         "THIRD_PARTY_KCONFIGS_SOURCE_FILE=${third_party_kconfigs_path}"
+        "SOLUTION_PRODUCT_KCONFIGS_SOURCE_FILE=${solution_product_kconfigs_path}"
         "ARMINO_CMAKE=y"
         "KCONFIG_CONFIG=${sdkconfig}"
         "ARMINO_SOC=${armino_target}"

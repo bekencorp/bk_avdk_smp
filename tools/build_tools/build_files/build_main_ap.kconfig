@@ -190,6 +190,10 @@ mainmenu "Armino SDK $(ARMINO_SOC) Configuration"
 		source "$THIRD_PARTY_KCONFIGS_SOURCE_FILE"
 	endmenu
 
+	menu "Solution & Product"
+		source "$SOLUTION_PRODUCT_KCONFIGS_SOURCE_FILE"
+	endmenu
+
 	# Keep raw fallback sources parsed for defconfig compatibility, without
 	# exposing a separate "Advanced Raw Configuration" top-level menu.
 	source "$COMPONENTS_KCONFIGS_SOURCE_FILE"
