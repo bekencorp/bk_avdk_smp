@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: System Services::System & Event Services::Event
 
 config EVENT_TASK_STACK_SIZE
     int "Set Event Task Stack Size"

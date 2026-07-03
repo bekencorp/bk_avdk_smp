@@ -1,4 +1,4 @@
-menu "device"
+menu "Device Model"
 	config DEVICE_MAX_NAME_LEN
 		int "Set maximum device name length"
 		default 32

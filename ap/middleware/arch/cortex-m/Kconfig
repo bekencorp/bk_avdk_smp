@@ -2,38 +2,63 @@ menu "Arch::Cm"
 	config ARCH_CORTEX_M
 		bool "Enable Cortex-M"
 		default n
+		help
+			Enable common Cortex-M architecture support. This is selected by
+			the matching ARMv8-M profile options and normally follows the
+			target defconfig.
 
 	config ARMV8_M_BASELINE
 		# ARMv8-M baseline is ARMv6-M with additional features from ARMv8-M.
 		bool "armv8 m-profile baseline, for instance: cortex m23"
 		default n
+		help
+			Select the ARMv8-M Baseline profile, used by cores such as
+			Cortex-M23. Do not enable this for BK7259 AP unless the target core
+			actually uses the baseline profile.
 
 	config ARMV8_M_MAINLINE
 		select ARCH_CORTEX_M
 		# ARMv8-M mainline is ARMv7-M with additional features from ARMv8-M.
 		bool "armv8 m-profile mainline, for instance: cortex m33"
 		default y
+		help
+			Select the ARMv8-M Mainline profile, used by cores such as
+			Cortex-M33/M55. This is a base architecture profile for BK7259 AP.
 
 	config ARMV7_M_ARMV8_M_MAINLINE
 		# ARMV7_M_ARMV8_M_MAINLINE means that ARMv7-M or backward compatible ARMv8-M
 		# processor is used.
 		bool "armv7-m armv8-m"
 		default n
+		help
+			Enable compatibility handling for ARMv7-M or ARMv8-M Mainline
+			cores. This is an architecture selection option, not an application
+			feature switch.
 
 	config ARMV6_M_ARMV8_M_BASELINE
 		# ARMV6_M_ARMV8_M_BASELINE means that ARMv6-M or ARMv8-M supporting the
 		# Baseline implementation processor is used.
 		bool "armv6-m armv8-m baseline"
 		default n
+		help
+			Enable compatibility handling for ARMv6-M or ARMv8-M Baseline
+			cores. This should match the selected CPU core profile.
 
 	config ARMV8_1_M_MAINLINE
 		select ARMV8_M_MAINLINE
 		bool "armv8.1 m-profile mainline, for instance: cortex m52"
 		default n
+		help
+			Select the ARMv8.1-M Mainline profile, used by cores such as
+			Cortex-M52/M55. Enable only when the target core supports this
+			profile.
 
 	config SOC_PREP_HOOK
 		bool "soc prepare hook interface"
 		default n
+		help
+			Enable SoC-specific preparation hooks during early boot. This is a
+			platform integration option and should follow the target defconfig.
 
 	menu "Modify Arch Cortex-M Config"
 		depends on ARCH_CORTEX_M
@@ -41,84 +66,114 @@ menu "Arch::Cm"
 		config SUPPORT_FPU
 			bool "Enable Float Process Unit Feature"
 			default n
+			help
+				Enable floating-point unit support for the selected Cortex-M
+				core. This must match the CPU core and compiler ABI settings.
 
 		config SUPPORT_ITCM
 			bool "Support ITCM"
 			default n
+			help
+				Enable instruction TCM support in architecture/SoC code. This
+				should match the memory layout and hardware capability.
 			
 		config SUPPORT_DTCM
 			bool "Support DTCM"
 			default n
+			help
+				Enable data TCM support in architecture/SoC code. This is
+				separate from reserving a DTCM address range in the linker
+				script, and should match the target boot/memory setup.
 
 		config SUPPORT_ARM_FEATURE_CMSE
-			bool "Enable Float Process Unit Feature"
+			bool "Enable Arm CMSE feature"
 			default n
+			help
+				Enable Arm Cortex-M Security Extensions support for secure and
+				non-secure builds. This should match TrustZone and compiler
+				configuration.
 
 		config SUPPORT_ARCH_UNALIGNED
 			bool "Enable Arch Unalign Feature"
 			default n
+			help
+				Allow architecture-level unaligned memory access support when
+				the selected CPU and bus configuration permit it.
 	
 		config CPU_FREQ_HZ
 			int "Set Cpu Freq Hz"
 			default 120000000
 			help
-				CPU frequency
+				CPU clock frequency in Hz used by architecture timing code.
+				This should match the clock configuration selected for the
+				target board.
 
 		config ARCH_INT_STATIS
 			bool "Enable Arch Int Statis"
 			default n
 			help
-				Enable interrupt statis
+				Enable architecture-level interrupt statistics collection for
+				debugging and performance analysis.
 
 		config SYSTICK_32K
 			bool "Systick use external 32K clock"
 			default n
+			help
+				Use an external 32 KHz clock as the SysTick source when the
+				board and low-power design require it.
 
 		config DCACHE
 			bool "Enable Dcache"
 			default y
 			help
-				Enable data cache
+				Enable data cache support for the selected Cortex-M core. Keep
+				this aligned with MPU/cacheable-memory settings.
 
 		config ICACHE
 			bool "Enable Icache"
 			default y
 			help
-				Enable code cache
+				Enable instruction cache support for the selected Cortex-M core.
 			
 		config SUPPORT_CACHEABLE_SRAM
             depends on MPU && DCACHE
 			bool "Enable Cacheable Sram"
 			default n
 			help
-				Enable Sram Cache
+				Allow selected SRAM regions to be configured as cacheable. This
+				requires MPU and DCache support and must match the memory map.
 			
 		config SUPPORT_L1_CACHE
 			bool "Enable l1 Cache"
 			default n
+			help
+				Enable L1 cache support when available on the selected core.
 
 		config L2_CACHE_ENABLE
 			bool "Enable l2 Cache"
 			default n
+			help
+				Enable L2 cache support when the SoC memory system provides it.
 
 		config HEAP_IN_CACHE
 			depends on SUPPORT_CACHEABLE_SRAM
 			bool "Enable Heap in Cache"
 			default y
 			help
-				Custom enable heap in Cache
+				Place heap memory in a cacheable SRAM region. Enable only when
+				cache maintenance and MPU attributes are correctly configured.
 
         config INTERRUPT_DEBUG_RECORDER
 			bool "Enable interrupt debug"
 			default n
 			help
-				interrupt debug
+				Record interrupt activity for postmortem or timing debug.
         
         config INTERRUPT_RECORDER_CNT
             int "Set recorder interrupt count"
 			default 40
 			help
-				interrupt recorder count
+				Number of interrupt records kept by the debug recorder.
 
 		config INTERRUPT_GAP_DETECT_US
 			depends on INTERRUPT_DEBUG_RECORDER

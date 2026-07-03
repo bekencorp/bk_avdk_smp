@@ -1,7 +1,7 @@
-menu "Compal"
+menu "Compatibility Layer"
+	depends on FREERTOS_V10
 
 	config COMMON_IO
-		depends on FREERTOS_V10
 		bool "Enable Common Io"
 		default n
 		help

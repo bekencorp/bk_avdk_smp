@@ -2,4 +2,8 @@ menu "Arch::MPU"
 	config MPU
 		bool "Enable Memory Protect Unit Feature"
 		default n
+		help
+			Enable Memory Protection Unit support for region attributes and
+			access protection. This is required by some cacheable-memory and
+			memory-isolation configurations.
 endmenu

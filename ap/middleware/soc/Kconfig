@@ -1,16 +1,15 @@
-menu "SOC_CONFIG"
-
 	choice SOC
 		prompt "ARMINO SoC"
 		default SOC_BK7259 if "$ARMINO_SOC" = "bk7259"
-		default SOC_BK7259_AP if "$ARMINO_SOC" = "bk7259_ap"
+		default SOC_BK7259 if "$ARMINO_SOC" = "bk7259_ap"
 		default SOC_BK7258 if "$ARMINO_SOC" = "bk7258"
 		default SOC_BK7257 if "$ARMINO_SOC" = "bk7257"
+		help
+			Select the target chip family used by this build. The default is
+			derived from ARMINO_SOC and normally should not be changed by users.
 
 		config SOC_BK7259
 			bool "BK7259"
-		config SOC_BK7259_AP
-			bool "BK7259_AP"
 		config SOC_BK7258
 			select SOC_BK7236XX
 			bool "BK7258"
@@ -24,57 +23,58 @@ menu "SOC_CONFIG"
 	config CPU_CNT
 			int "System CPU count: 1: single core, 2: dual core, etc."
 			default 1
+			help
+				Total CPU count described by the target SoC/platform. This is a
+				hardware/platform capability value and can include CPUs that are
+				not managed by the current SMP OS instance.
 
 
 	config SOC_STR
 		string "SoC string"
+		default "$ARMINO_SOC" if "$ARMINO_SOC" = "bk7259_ap"
 		default "bk7259"  if SOC_BK7259
-		default "bk7259_ap"  if SOC_BK7259_AP
 		default "bk7258"  if SOC_BK7258
 		default "bk7257"  if SOC_BK7257
 		default "$ARMINO_SOC"
+		help
+			String form of the selected SoC target. Build scripts and generated
+			configuration files may use this value to locate target-specific
+			resources.
 
 	config SOC_ARCH
 		string "Soc arch"
 		default "unknown"
+		help
+			CPU architecture name for the selected SoC, such as cm55. This is
+			normally provided by the target defconfig.
 
 	config SOC_BK7236XX
 		bool "For bk7236 series chipset"
 		default n
+		help
+			Internal compatibility flag for BK7236-family chips. It is selected
+			automatically by the matching SoC option.
 
 	config SOC_SMP
 		bool "For soc smp feature"
 		default n
+		help
+			Enable Symmetric Multi-Processing support for SoCs and projects that
+			run multiple CPU cores under one OS instance.
 
 	config CPU_ID_OFFSET
 		int "CPU ID offset"
 		default 2
 		depends on SOC_SMP
+		help
+			Base CPU ID used by the SMP runtime when mapping logical CPU indexes
+			to hardware CPU IDs.
 
 	config SMP_CORE_CNT
 		int "SMP core count"
 		default 2
 		depends on SOC_SMP
-
-	config ALL_CODE_IN_PSRAM
-		bool "For all code in psram"
-		default n
-		depends on PSRAM
 		help
-			For all code in psram
-
-	choice STACK_CHECK_MODE
-	prompt "Compile stack check mode"
-	default COMPILER_STACK_CHECK_MODE_NORM
-
-	config COMPILER_STACK_CHECK_MODE_NORM
-		bool "Add compile option: -fstack-protector"
-
-	config COMPILER_STACK_CHECK_MODE_STRONG
-		bool "Add compile option: -fstack-protector-strong"
-
-	config COMPILER_STACK_CHECK_MODE_ALL
-		bool "Add compile option: -fstack-protector-all"
-
-	endchoice
-endmenu
+			Number of CPU cores that participate in the SMP OS scheduler. This
+			is the runtime SMP core count and may be smaller than CPU_CNT when
+			some CPUs are reserved for another core domain or firmware.

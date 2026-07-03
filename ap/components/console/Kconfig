@@ -1,3 +1,9 @@
+# KCONFIG_GROUP: System Services::Utilities & Libraries::Command Argument Parser
 config CONSOLE
-	bool "Enable console"
+	bool "Enable command argument parser"
 	default y
+	help
+		Enable the argtable3-based command argument parser used by
+		CLI-style commands. This option does not provide the UART console
+		or command shell by itself; those are configured by CLI/debug
+		components.

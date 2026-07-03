@@ -18,7 +18,7 @@ menu "SDCARD"
 		bool "Whether to use pin to determine whether the sdcard is connected"
 		default n
 
-	menu "SDCARD_CHECK_INSERTION_EN"
+	menu "Card Detect GPIO"
 		depends on SDCARD_CHECK_INSERTION_EN
 
 		config SDCARD_CHECK_INSERTION_GPIO_ID

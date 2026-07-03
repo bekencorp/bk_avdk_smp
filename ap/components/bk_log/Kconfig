@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: Debug::Logging
 menu "GPIO_LOG"
 
 	config GPIO_LOG_ENABLE

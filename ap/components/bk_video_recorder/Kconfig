@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: Multimedia::Video Recorder
 menu "Bk_video_record"
 
     config VIDEO_RECORDER

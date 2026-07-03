@@ -1,4 +1,4 @@
-menu "multicore"
+menu "Multicore"
 	config SUPPORT_MULTICORE
 		bool "Enable multicore"
 		default n

@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: Wireless Connectivity::WiFi
 menu "WiFi Driver"
 	config WIFI_VNET_CONTROLLER
 		bool "Enable Wifi WIFI_VNET_CONTROLLER"

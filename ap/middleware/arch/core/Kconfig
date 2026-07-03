@@ -2,6 +2,9 @@ menu "Arch::Core"
 	choice CORE_TYPE
 		prompt "Select Processor/Core"
 		default ARM_CORE_STAR
+		help
+			Select the CPU core architecture used by this SoC target. The value
+			is normally fixed by the target defconfig and should match SOC_ARCH.
 
 		config ARM_CORE_STAR
 			bool "armstar"
@@ -14,6 +17,10 @@ menu "Arch::Core"
 	endchoice
 
 	config ARM_INTERRUPT_CONTROLLER_CNT
-		int "the count of interrupt contorller"
+		int "Interrupt controller count"
 		default 1
+		help
+			Number of interrupt controller instances used by the architecture
+			layer. This is a platform value and normally should not be changed
+			by application projects.
 endmenu

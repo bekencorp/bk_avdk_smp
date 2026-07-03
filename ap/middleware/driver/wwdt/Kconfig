@@ -1,4 +1,4 @@
-menu "Watchdog"
+menu "Window Watchdog"
 	config SUPPORT_WWDT
 		bool "Enable Window Watchdog"
 		default n

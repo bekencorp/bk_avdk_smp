@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: Network Services::HTTP
 menu "Https"
 	config HTTPS
 		bool "Enable HTTPS"

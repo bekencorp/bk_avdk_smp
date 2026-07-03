@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: Demos::Network::Iperf
 menu "Demos::Net::Iperf"
 	config DEMOS_IPERF
 		bool "Enable Demos Iperf"

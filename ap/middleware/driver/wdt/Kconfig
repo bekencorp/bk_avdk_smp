@@ -1,4 +1,4 @@
-menu "Watchdog"
+menu "Task Watchdog"
 	config TASK_WDT
 		bool "Enable Task Watchdog"
 		default n

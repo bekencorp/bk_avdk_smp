@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: Multimedia::Video Codec::Encode
 menu "BEKEN CODEC ENCODER"
 
 	config BK_ENCODER

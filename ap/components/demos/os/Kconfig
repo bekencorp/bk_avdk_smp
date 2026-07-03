@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: Demos::OS
 menu "Demos::Os"
 	config OS_THREAD_DEMO
 		bool "Enable Os Thread Demo"

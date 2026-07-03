@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: Device Drivers::Sensors
 menu "bk_gsensor"
 
 	config GSENSOR_ENABLE

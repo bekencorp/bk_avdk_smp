@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: Multimedia::Display & UI
 menu "BK_GPU"
 
 	config VG_LITE_GPU

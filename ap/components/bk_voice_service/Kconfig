@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: Multimedia::Audio::Voice Service
 menu "Voice Service"
 
 	config VOICE_SERVICE

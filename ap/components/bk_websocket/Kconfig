@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: Network Services::WebSocket
 menu "Bk_websocket"
 
 	config WEBSOCKET

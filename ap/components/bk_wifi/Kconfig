@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: Wireless Connectivity::WiFi
 #TODO optimize it
 menu "Bk_Wifi"
 

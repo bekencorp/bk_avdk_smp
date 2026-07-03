@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: Board & SoC::CMSIS
 menu "Cmsis"
 
 	config CMSIS

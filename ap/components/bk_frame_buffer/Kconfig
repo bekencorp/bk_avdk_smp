@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: Multimedia::Display & UI
 menu "frame Buffer"
 	config FRAME_BUFFER
 		bool "enable psram as frame buffer for saving image"
