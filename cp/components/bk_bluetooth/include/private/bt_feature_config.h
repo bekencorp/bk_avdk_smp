@@ -4,6 +4,9 @@
 #include <stdbool.h>
 #include <stddef.h>
 
+#define RF_MODE_POLAR 0
+#define RF_MODE_IQ_HIGH_PLL 1
+#define RF_MODE_IQ_LOW_PLL 2
 
 typedef struct
 {
@@ -17,4 +20,5 @@ typedef struct
 
     uint8_t _support_lpo_rosc;
     uint8_t _support_lowpower_sleep;
+    uint8_t _rf_mode;
 } bt_feature_struct_t;

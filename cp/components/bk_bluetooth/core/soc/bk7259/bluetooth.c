@@ -807,13 +807,12 @@ __attribute__((weak)) uint32_t rf_pll_ctrl(uint32_t cmd, uint32_t param)
 
 static uint32_t bt_rf_pll_ctrl_wrapper(uint32_t set)
 {
-#if CONFIG_WIFI_ENABLE
-    uint32_t cmd = (set ? CMD_RF_WIFIPLL_HOLD_BIT_SET : CMD_RF_WIFIPLL_HOLD_BIT_CLR);
-
-    return rf_pll_ctrl(cmd, RF_WIFIPLL_HOLD_BY_BLE_BIT);
-#else
-    return 0;
-#endif
+    RF_PLL_CTRL_RESULT_T ret =  rf_pll_ctrl(MODULE_TYPE_BLE_BT, operation, rf_path, rf_pll, priority, task_type, is_save_when_failed, time_length_us, position_can_adjust);
+    if(ret.result != RF_ARBIT_RESULT_SUCCESS  && task_type != RF_TASK_TYPE_BLE_FREE_ALL)
+    {
+        BK_LOGE(NULL, "ble pll failed, result: %d %d %d %d\n", ret.result, ret.recommend_time_us, operation, task_type);
+    }
+    return (uint32_t)ret.result;
 }
 
 static void reboot_wrapper(void)
