@@ -3369,13 +3369,40 @@ static bk_err_t wifi_ap_set_config(const wifi_ap_config_t *ap_config)
 	g_ap_param_ptr->key_len = os_strlen(ap_config->password);
 	g_ap_param_ptr->hidden_ssid = ap_config->hidden;
 	if (g_ap_param_ptr->key_len < 8) {
-		g_ap_param_ptr->cipher_suite = BK_SECURITY_TYPE_NONE;
+		g_ap_param_ptr->cipher_suite = WIFI_SECURITY_NONE;
 	} else {
+		switch(ap_config->security) {
+			case WIFI_SECURITY_WPA_TKIP:
+				g_ap_param_ptr->cipher_suite = WIFI_SECURITY_WPA_TKIP;
+				break;
+			case WIFI_SECURITY_WPA_AES:
+				g_ap_param_ptr->cipher_suite = WIFI_SECURITY_WPA_AES;
+				break;
+			case WIFI_SECURITY_WPA_MIXED:
+				g_ap_param_ptr->cipher_suite = WIFI_SECURITY_WPA_MIXED;
+				break;
+			case WIFI_SECURITY_WPA2_TKIP:
+				g_ap_param_ptr->cipher_suite = WIFI_SECURITY_WPA2_TKIP;
+				break;
+			case WIFI_SECURITY_WPA2_AES:
+				g_ap_param_ptr->cipher_suite = WIFI_SECURITY_WPA2_AES;
+				break;
+			case WIFI_SECURITY_WPA2_MIXED:
+				g_ap_param_ptr->cipher_suite = WIFI_SECURITY_WPA2_MIXED;
+				break;
 #if CONFIG_SOFTAP_WPA3
-		g_ap_param_ptr->cipher_suite = BK_SECURITY_TYPE_WPA3_WPA2_MIXED;
-#else
-		g_ap_param_ptr->cipher_suite = BK_SECURITY_TYPE_WPA2_AES;
+			case WIFI_SECURITY_WPA3_SAE:
+				g_ap_param_ptr->cipher_suite = WIFI_SECURITY_WPA3_SAE;
+				break;
+			case WIFI_SECURITY_WPA3_WPA2_MIXED:
+				g_ap_param_ptr->cipher_suite = WIFI_SECURITY_WPA3_WPA2_MIXED;
+				break;
 #endif
+			default:
+				g_ap_param_ptr->cipher_suite = WIFI_SECURITY_WPA2_AES;
+				break;
+
+		}
 		os_memset(g_ap_param_ptr->key, 0, sizeof(g_ap_param_ptr->key));
 		os_memcpy(g_ap_param_ptr->key, ap_config->password, g_ap_param_ptr->key_len);
 	}

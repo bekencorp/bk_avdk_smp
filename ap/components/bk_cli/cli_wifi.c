@@ -411,6 +411,120 @@ error:
 
 #endif
 
+#if CONFIG_SOFTAP_WPA3
+void cli_wifi_wpa3_ap_help(void)
+{
+	CLI_RAW_LOGI("\r\nap_wpa3 {ssid} [password] [channel] \n");
+	CLI_RAW_LOGI("  Start a WPA3-SAE softap. \n");
+	CLI_RAW_LOGI("  -ssid <string><mandatory>: SSID of AP. \n");
+	CLI_RAW_LOGI("  -password <string><mandatory>: password of AP, 8~63 bytes (WPA3 passphrase). \n");
+	CLI_RAW_LOGI("  -channel <int><optional>: channel 1~14. Omit to use default channel. \n");
+	CLI_RAW_LOGI("  Note: with 3 args, a token of 1~2 chars is treated as channel, otherwise as password. \n");
+	CLI_RAW_LOGI("  example1: ap_wpa3 myap 12345678 \n");
+	CLI_RAW_LOGI("  example2: ap_wpa3 myap 12345678 6 \n");
+}
+
+void cli_wifi_wpa3_ap_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
+{
+	wifi_ap_config_t ap_config = WIFI_DEFAULT_AP_CONFIG();
+	netif_ip4_config_t ip4_config = {0};
+	char *ap_ssid = NULL;
+	char *ap_key = "";
+	char *ap_channel = NULL;
+	int len, key_len;
+	int ret = BK_OK;
+	char *msg = NULL;
+
+	if ((argc < 2) || (argc > 4)) {
+		CLI_LOGE("Invalid parameters\n");
+		cli_wifi_wpa3_ap_help();
+		goto error;
+	}
+
+	if ((argc == 2) && (os_strcmp(argv[1], "help") == 0)) {
+		cli_wifi_wpa3_ap_help();
+		goto succeed;
+	}
+
+	if (argc == 2)
+		ap_ssid = argv[1];
+	else if (argc == 3) {
+		ap_ssid = argv[1];
+		/* A purely numeric token of 1~2 chars is treated as channel */
+		if (os_strlen(argv[2]) <= 2 && argv[2][0] >= '0' && argv[2][0] <= '9')
+			ap_channel = argv[2];
+		else
+			ap_key = argv[2];
+	} else {
+		ap_ssid = argv[1];
+		ap_key = argv[2];
+		ap_channel = argv[3];
+	}
+
+	len = os_strlen(ap_ssid);
+	if (len == 0 || len > 32) {
+		CLI_LOGE("ssid name must be 1~32 Bytes\r\n");
+		goto error;
+	}
+
+	key_len = os_strlen(ap_key);
+	if (key_len < 8) {
+		CLI_LOGE("WPA3 requires password >= 8 bytes\r\n");
+		goto error;
+	}
+	if (key_len > 63) {
+		CLI_LOGE("WPA3 passphrase must be <= 63 bytes\r\n");
+		goto error;
+	}
+
+	os_strlcpy(ap_config.ssid, ap_ssid, sizeof(ap_config.ssid));
+	os_strlcpy(ap_config.password, ap_key, sizeof(ap_config.password));
+
+	if (ap_channel) {
+		int channel;
+		char *end;
+
+		channel = strtol(ap_channel, &end, 0);
+		if (*end || channel < 1 || channel > 14) {
+			CLI_LOGE("Invalid channel '%s', valid range 1~14\r\n", ap_channel);
+			goto error;
+		}
+		ap_config.channel = channel;
+	}
+
+	ap_config.security = WIFI_SECURITY_WPA3_SAE;
+
+	CLI_LOGI("Start WPA3 softap. ssid:%s chan:%d\r\n",
+		 ap_config.ssid, ap_config.channel);
+
+	os_strcpy(ip4_config.ip, WLAN_DEFAULT_IP);
+	os_strcpy(ip4_config.mask, WLAN_DEFAULT_MASK);
+	os_strcpy(ip4_config.gateway, WLAN_DEFAULT_GW);
+	os_strcpy(ip4_config.dns, WLAN_DEFAULT_GW);
+	ret = bk_netif_set_ip4_config(NETIF_IF_AP, &ip4_config);
+	if (ret != BK_OK)
+		goto error;
+
+	ret = bk_wifi_ap_set_config(&ap_config);
+	if (ret != BK_OK)
+		goto error;
+
+	ret = bk_wifi_ap_start();
+	if (ret != BK_OK)
+		goto error;
+
+succeed:
+	msg = WIFI_CMD_RSP_SUCCEED;
+	os_memcpy(pcWriteBuffer, msg, os_strlen(msg));
+	return;
+
+error:
+	msg = WIFI_CMD_RSP_ERROR;
+	os_memcpy(pcWriteBuffer, msg, os_strlen(msg));
+	return;
+}
+#endif
+
 void cli_wifi_stop_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
 	int ret = 0;
@@ -1096,6 +1210,9 @@ static const struct cli_command s_wifi_commands[] = {
 #endif
 #if CONFIG_P2P
 	{"p2p", "p2p {enable|find|listen|stop_find|connect|cancel|disable}", cli_wifi_p2p_cmd},
+#endif
+#if CONFIG_SOFTAP_WPA3
+	{"ap_wpa3", "ap_wpa3 {ssid} [password] [channel]", cli_wifi_wpa3_ap_cmd},
 #endif
 };
 
