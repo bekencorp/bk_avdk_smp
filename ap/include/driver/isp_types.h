@@ -102,6 +102,7 @@ typedef struct {
     uint8_t state;
     uint8_t isr_enable;
     uint8_t sensor_sns_registered; /**< paired with VSI_MPI_ISP_SnsRegCallBack in bk_isp_port_init */
+    uint8_t port_pipeline_inited;  /**< bitmap (per ISP_PORT_CNT): module pipeline+mutex lazily inited in bk_isp_port_init */
     ISP_DEV dev;
     ISP_PORT port;
     beken_mutex_t isp_mutex;
