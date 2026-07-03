@@ -245,7 +245,10 @@ def _prepare_source_files(env_dict, list_separator):
         
         # Generate one file per top-level group (merged). Some top-level groups
         # are embedded manually by build_main_ap.kconfig so they are emitted as
-        # menu bodies instead of standalone top-level menus.
+        # menu bodies instead of standalone top-level menus. Solution & Product
+        # is optional for SDK-only projects, so emit it as a standalone menu only
+        # when grouped solution components actually exist.
+        standalone_special_groups = {'Solution & Product'}
         for group_name, output_file in special_group_outputs.items():
             os.makedirs(os.path.dirname(output_file), exist_ok=True)
             if group_name not in merged_top_level_groups:
@@ -256,12 +259,18 @@ def _prepare_source_files(env_dict, list_separator):
             if top_level in special_group_outputs:
                 output_file = special_group_outputs[top_level]
                 content_lines = []
+                if top_level in standalone_special_groups:
+                    content_lines.append('menu "{}"'.format(top_level))
+                    content_lines.append('')
                 _generate_nested_menu_structure(
                     content_lines,
                     merged_top_level_groups[top_level],
                     armino_subsys_dir,
-                    0
+                    1 if top_level in standalone_special_groups else 0
                 )
+                if top_level in standalone_special_groups:
+                    content_lines.append('')
+                    content_lines.append('endmenu')
                 with open(output_file, 'w', encoding='utf-8') as f:
                     f.write('\n'.join(content_lines))
                 continue

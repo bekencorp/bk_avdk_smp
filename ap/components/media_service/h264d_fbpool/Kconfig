@@ -1,3 +1,5 @@
+# KCONFIG_GROUP: Multimedia::Video Codec
+
 config H264D_FBPOOL
 	bool "Enable vcdec H.264 zero-copy frame pool (h264d_fbpool)"
 	default n
