@@ -34,6 +34,7 @@
 #include "interrupt.h"
 
 #define PWM_CAPTURE_CACHE_NUM           50
+#define PWM_GROUP_DEAD_CYCLE_MAX        0x3ff
 
 typedef struct {
 	pwm_chan_t chan1;
@@ -273,8 +274,32 @@ static bk_err_t pwm_group_validate_param(pwm_chan_t sw_ch1,
 	if (period_cycle == 0)
 		return BK_ERR_PWM_GROUP_DUTY;
 
-	if (period_cycle < (chan1_duty_cycle + chan2_duty_cycle))
+	if ((chan1_duty_cycle > period_cycle) ||
+		(chan2_duty_cycle > (period_cycle - chan1_duty_cycle)))
 		return BK_ERR_PWM_GROUP_DUTY;
+
+	return BK_OK;
+}
+
+static bk_err_t pwm_group_calc_dead_cycle(uint32_t period_cycle,
+										  uint32_t chan1_duty_cycle,
+										  uint32_t chan2_duty_cycle,
+										  uint32_t *dead_cycle)
+{
+	if ((chan1_duty_cycle > period_cycle) ||
+		(chan2_duty_cycle > (period_cycle - chan1_duty_cycle))) {
+		PWM_LOGE("group duty invalid, period=%d chan1_duty=%d chan2_duty=%d\r\n",
+				  period_cycle, chan1_duty_cycle, chan2_duty_cycle);
+		return BK_ERR_PWM_GROUP_DUTY;
+	}
+
+	*dead_cycle = (period_cycle - chan1_duty_cycle - chan2_duty_cycle) >> 1;
+	if (*dead_cycle > PWM_GROUP_DEAD_CYCLE_MAX) {
+		PWM_LOGE("group dead_cycle=%d exceeds max=%d, period=%d chan1_duty=%d chan2_duty=%d\r\n",
+				  *dead_cycle, PWM_GROUP_DEAD_CYCLE_MAX, period_cycle,
+				  chan1_duty_cycle, chan2_duty_cycle);
+		return BK_ERR_PWM_GROUP_DUTY;
+	}
 
 	return BK_OK;
 }
@@ -571,10 +596,16 @@ bk_err_t bk_pwm_group_init(const pwm_group_init_config_t *config, pwm_group_t *g
 		return ret;
 	}
 
+	uint32_t dead_cycle = 0;
+	ret = pwm_group_calc_dead_cycle(config->period_cycle, config->chan1_duty_cycle,
+									config->chan2_duty_cycle, &dead_cycle);
+	if (ret != BK_OK) {
+		return ret;
+	}
+
 	/* alloc free TIM */
 	pwm_group_t group_id = pwm_group_add(config->chan1, config->chan2);
 	pwm_group_tim_map_t group_tim_map[] = PWM_GROUP_DEFAULT_TIM_MAP;
-	uint32_t dead_cycle = (config->period_cycle - config->chan1_duty_cycle - config->chan2_duty_cycle) >> 1;
 	pwm_period_duty_config_t pwm_config = {0};
 
 	pwm_chan_init_common(config->chan1);
@@ -637,7 +668,12 @@ bk_err_t bk_pwm_group_set_config(pwm_group_t group, const pwm_group_config_t *co
 	PWM_PM_CHECK_RESTORE(s_pwm.groups[group].chan1);
 	PWM_PM_CHECK_RESTORE(s_pwm.groups[group].chan2);
 
-	uint32_t dead_cycle = (config->period_cycle - config->chan1_duty_cycle - config->chan2_duty_cycle) >> 1;
+	uint32_t dead_cycle = 0;
+	bk_err_t ret = pwm_group_calc_dead_cycle(config->period_cycle, config->chan1_duty_cycle,
+											 config->chan2_duty_cycle, &dead_cycle);
+	if (ret != BK_OK) {
+		return ret;
+	}
 	pwm_period_duty_config_t pwm_config = {0};
 
 	if ((config->chan1_duty_cycle == 0) && (config->chan2_duty_cycle == config->period_cycle)) {
