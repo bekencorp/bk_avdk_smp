@@ -58,7 +58,7 @@ void bk_thread_rf_coex_leave_for_wifi_ble(void)
 	{
 		if (lw_mac802154_lw_macl_is_tx_ongoing_pl() || lw_mac802154_lw_macl_is_rx_ongoing_pl())
 		{
-			BK_LOGI("rf", "thread is trxing %u %u\r\n",
+			BK_LOGV("rf", "thread is trxing %u %u\r\n",
 				(unsigned int)lw_mac802154_lw_macl_is_tx_ongoing_pl(),
 				(unsigned int)lw_mac802154_lw_macl_is_rx_ongoing_pl());
 		}
