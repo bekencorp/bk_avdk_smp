@@ -39,17 +39,29 @@ The follow four shared memory address area mapping to the same physical memory
 ******************************************************************************/
 
 __AP_APP_IRAM_OFFSET = 0x0; /* 0x20000000;*/
+__AP_SPINLOCK_SECTION_SIZE = 0x8000;
 
-__AP_APP_IRAM_BASE = CONFIG_AP_RAM_ADDR - __AP_APP_IRAM_OFFSET;  /*0x08100000 = 0x28100000 - __CP_APP_IRAM_OFFSET*/
-__AP_APP_IRAM_SIZE = CONFIG_AP_RAM_SIZE;
+#if CONFIG_SRAM_DIRECT_ADDR
+__AP_APP_RAM_OFFSET = 0x04000000;
+#else
+__AP_APP_RAM_OFFSET = 0x0;
+#endif
+
+__AP_APP_RAM_BASE = CONFIG_AP_RAM_ADDR + __AP_APP_RAM_OFFSET; /* 0x28xxxxxx + 0x04000000 = 0x2Cxxxxxx */
+__AP_SPINLOCK_RAM_BASE = CONFIG_AP_RAM_ADDR + __AP_APP_RAM_OFFSET + CONFIG_AP_RAM_SIZE - __AP_SPINLOCK_SECTION_SIZE;
+__AP_SWAP_BASE = CONFIG_SWAP_ADDR + __AP_APP_RAM_OFFSET;
+
+__AP_APP_IRAM_BASE = CONFIG_AP_RAM_ADDR + __AP_APP_RAM_OFFSET - __AP_APP_IRAM_OFFSET;  /*0x2Cxxxxxx = 0x2Cxxxxxx - __AP_APP_IRAM_OFFSET*/
+__AP_APP_IRAM_SIZE = CONFIG_AP_RAM_SIZE - __AP_SPINLOCK_SECTION_SIZE;
 
 MEMORY
 {
   FLASH (rx)            : ORIGIN = (SOC_FLASH_DATA_BASE + CONFIG_AP_VIRTUAL_PARTITION_OFFSET), LENGTH = CONFIG_AP_VIRTUAL_PARTITION_SIZE
   IRAM (rx)             : ORIGIN = __AP_APP_IRAM_BASE, LENGTH = __AP_APP_IRAM_SIZE
 
-  RAM (rwx)             : ORIGIN = CONFIG_AP_RAM_ADDR, LENGTH = CONFIG_AP_RAM_SIZE
-  SWAP (rwx)            : ORIGIN = CONFIG_SWAP_ADDR, LENGTH = CONFIG_SWAP_SIZE
+  RAM (rwx)             : ORIGIN = __AP_APP_RAM_BASE, LENGTH = CONFIG_AP_RAM_SIZE - __AP_SPINLOCK_SECTION_SIZE
+  SPINLOCK_RAM (rwx)    : ORIGIN = __AP_SPINLOCK_RAM_BASE, LENGTH = __AP_SPINLOCK_SECTION_SIZE
+  SWAP (rwx)            : ORIGIN = __AP_SWAP_BASE, LENGTH = CONFIG_SWAP_SIZE
 
   DTCM (rwx)            : ORIGIN = SOC_DTCM_DATA_BASE + 0, LENGTH = CONFIG_DTCM_SIZE
 #if CONFIG_PSRAM
@@ -273,6 +285,10 @@ SECTIONS
         LONG (__data_start__)
         LONG ((__data_end__ - __data_start__) / 4)
 
+        LONG (__sram_spinlock_flash_begin)
+        LONG (__sram_spinlock_start__)
+        LONG ((__sram_spinlock_end__ - __sram_spinlock_start__) / 4)
+
         LONG (__dtcm_content)
         LONG (__dtcm_start__)
         LONG ((__dtcm_end__ - __dtcm_start__) / 4)
@@ -446,7 +462,6 @@ SECTIONS
         PROVIDE_HIDDEN (__init_array_end = .);
         . = ALIGN(4);
 #endif
-        *(.sram_spinlock_section)
         *(.dtcm)
         *(.dtcm_section*)
         *(.dtcm_sec_data*)
@@ -463,6 +478,19 @@ SECTIONS
     _data_flash_begin = __data_flash_begin;
     _data_ram_begin = __data_start__;
     _data_ram_end = .;
+
+    .sram_spinlock_section :
+    {
+        PROVIDE(__sram_spinlock_flash_begin = LOADADDR(.sram_spinlock_section));
+        . = ALIGN(4);
+        __sram_spinlock_start__ = .;
+        *(.sram_spinlock_section)
+        . = ALIGN(4);
+        __sram_spinlock_end__ = .;
+    } > SPINLOCK_RAM AT > FLASH
+
+    ASSERT((__sram_spinlock_end__ - __sram_spinlock_start__) <= __AP_SPINLOCK_SECTION_SIZE,
+           ".sram_spinlock_section exceeds reserved SPINLOCK_RAM size")
 
     .uninitialized (NOLOAD):
     {
