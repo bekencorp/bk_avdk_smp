@@ -58,6 +58,11 @@
 #if BK_SUPPLICANT
 #include "errno-base.h"
 #include <common/bk_include.h>
+#include "main_none.h"
+#include "bk_wifi.h"
+#if CONFIG_P2P
+#include "wifi_v2.h"
+#endif
 #endif
 #include "rw_ieee80211.h"
 
@@ -3934,9 +3939,15 @@ void hostapd_ocv_check_csa_sa_query(void *eloop_ctx, void *timeout_ctx)
 int ap_channel_switch(struct hostapd_iface *ap_iface, int new_freq)
 {
 	struct csa_settings settings = {6};
+	ap_param_t *ap_param = g_ap_param_ptr;
 
-	if(0 != g_ap_param_ptr->csa_start_cnt)
-		settings.cs_count = g_ap_param_ptr->csa_start_cnt;
+#if CONFIG_P2P
+	if (ap_iface && ap_iface->bss[0] && ap_iface->bss[0]->p2p_group)
+		ap_param = bk_wifi_p2p_go_ap_param_ensure();
+#endif
+
+	if (ap_param && ap_param->csa_start_cnt)
+		settings.cs_count = ap_param->csa_start_cnt;
 	else
 		settings.cs_count = 8;
     settings.freq_params.freq = new_freq;
@@ -3972,5 +3983,143 @@ int ap_channel_switch_stop(struct hostapd_iface *ap_iface)
 
 	return 0;
 }
+
+#if CONFIG_P2P
+int ap_infra_channel_switch(int new_freq)
+{
+	struct hapd_interfaces *interfaces = hostapd_ctrl_get_interfaces();
+	int i, ret = -1;
+
+	if (!interfaces)
+		return -1;
+
+	for (i = 0; i < interfaces->count; i++) {
+		struct hostapd_iface *iface = interfaces->iface[i];
+
+		if (!iface || !iface->bss[0] || iface->bss[0]->p2p_group)
+			continue;
+		ret = ap_channel_switch(iface, new_freq);
+		if (ret == 0)
+			return 0;
+	}
+
+	return ret;
+}
+
+int ap_infra_channel_switch_stop(void)
+{
+	struct hapd_interfaces *interfaces = hostapd_ctrl_get_interfaces();
+	int i, ret = -1;
+
+	if (!interfaces)
+		return -1;
+
+	for (i = 0; i < interfaces->count; i++) {
+		struct hostapd_iface *iface = interfaces->iface[i];
+
+		if (!iface || !iface->bss[0] || iface->bss[0]->p2p_group)
+			continue;
+		ret = ap_channel_switch_stop(iface);
+		if (ret == 0)
+			return 0;
+	}
+
+	return ret;
+}
+
+#if CONFIG_P2P_SOFTAP_CHAN_ALIGN
+bool hostapd_has_p2p_group_bss(void)
+{
+	struct hapd_interfaces *interfaces = hostapd_ctrl_get_interfaces();
+	int i;
+
+	if (!interfaces)
+		return false;
+
+	for (i = 0; i < interfaces->count; i++) {
+		struct hostapd_iface *iface = interfaces->iface[i];
+
+		if (iface && iface->bss[0] && iface->bss[0]->p2p_group)
+			return true;
+	}
+
+	return false;
+}
+
+bool hostapd_has_infra_bss(void)
+{
+	struct hapd_interfaces *interfaces = hostapd_ctrl_get_interfaces();
+	int i;
+
+	if (!interfaces)
+		return false;
+
+	for (i = 0; i < interfaces->count; i++) {
+		struct hostapd_iface *iface = interfaces->iface[i];
+
+		if (iface && iface->bss[0] && !iface->bss[0]->p2p_group)
+			return true;
+	}
+
+	return false;
+}
+
+int hostapd_disable_infra_bss(void)
+{
+	struct hapd_interfaces *interfaces = hostapd_ctrl_get_interfaces();
+	int i, ret = -1;
+	const char *iface_name;
+
+	if (!interfaces)
+		return -1;
+
+	for (i = 0; i < interfaces->count; i++) {
+		struct hostapd_iface *iface = interfaces->iface[i];
+
+		if (!iface || !iface->bss[0])
+			continue;
+		if (iface->bss[0]->p2p_group)
+			continue;
+
+		iface_name = iface->conf->bss[0]->iface;
+		if (hostapd_disable_iface(iface) < 0)
+			continue;
+		if (hostapd_remove_iface(interfaces, (char *) iface_name) < 0)
+			continue;
+		ret = 0;
+	}
+
+	return ret;
+}
+
+int hostapd_disable_p2p_bss(void)
+{
+	struct hapd_interfaces *interfaces = hostapd_ctrl_get_interfaces();
+	int i, ret = -1;
+	const char *iface_name;
+
+	if (!interfaces)
+		return -1;
+
+	for (i = 0; i < interfaces->count; i++) {
+		struct hostapd_iface *iface = interfaces->iface[i];
+
+		if (!iface || !iface->bss[0])
+			continue;
+		if (!iface->bss[0]->p2p_group)
+			continue;
+
+		iface_name = iface->conf->bss[0]->iface;
+		if (hostapd_disable_iface(iface) < 0)
+			continue;
+		if (hostapd_remove_iface(interfaces, (char *) iface_name) < 0)
+			continue;
+		ret = 0;
+	}
+
+	return ret;
+}
+#endif /* CONFIG_P2P_SOFTAP_CHAN_ALIGN */
+#endif /* CONFIG_P2P */
 
 #endif

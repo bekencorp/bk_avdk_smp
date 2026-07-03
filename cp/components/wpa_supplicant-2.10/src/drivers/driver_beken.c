@@ -27,6 +27,7 @@
 #include "eloop.h"
 #include "bk_rw.h"
 #include "modules/wifi.h"
+#include <components/system.h>   /* bk_get_mac / MAC_TYPE_P2P */
 #include "../../wpa_supplicant/wpa_supplicant_i.h"
 #include "../../wpa_supplicant/wpa_scan.h"
 #ifdef CONFIG_SME
@@ -35,10 +36,15 @@
 #include "main_none.h"
 #include "wpa_err.h"
 #include "bk_wifi_private.h"
+#include "bk_wifi.h"
 #ifdef CONFIG_P2P
 #include "reg_access.h"
 #include "fhost_msg.h"
 #include "../p2p/p2p_i.h"
+#include "wifi_v2.h"
+#endif
+#if CONFIG_P2P
+#include "../../wpa_supplicant/ap.h"
 #endif
 #if CONFIG_LWIP
 #include "net.h"
@@ -159,7 +165,14 @@ static void handle_data(struct hostap_driver_data *drv, u8 *buf, size_t len,
     switch (ethertype)
     {
     case ETH_P_PAE:
-        drv_event_eapol_rx(drv->hapd, sa, pos, left);
+#if CONFIG_P2P
+        if (drv->wpa_s && drv->wpa_s->ap_iface)
+            wpa_supplicant_ap_rx_eapol(drv->wpa_s, sa, pos, left);
+        else if (drv->wpa_s)
+            wpa_supplicant_rx_eapol(drv->wpa_s, sa, pos, left);
+        else
+#endif
+            drv_event_eapol_rx(drv->hapd, sa, pos, left);
         break;
 
     default:
@@ -312,7 +325,15 @@ read_exit:
 static void handle_eapol(void *ctx, const u8 *src_addr, const u8 *buf, size_t len)
 {
     struct hostap_driver_data *drv = ctx;
-    drv_event_eapol_rx(drv->hapd, src_addr, buf, len);
+
+#if CONFIG_P2P
+    if (drv->wpa_s && drv->wpa_s->ap_iface)
+        wpa_supplicant_ap_rx_eapol(drv->wpa_s, src_addr, buf, len);
+    else if (drv->wpa_s)
+        wpa_supplicant_rx_eapol(drv->wpa_s, src_addr, buf, len);
+    else
+#endif
+        drv_event_eapol_rx(drv->hapd, src_addr, buf, len);
 }
 
 int hostap_get_ifhwaddr(int sock, const char *ifname, u8 *addr)
@@ -646,6 +667,35 @@ static int hostap_read_sta_data(void *priv,
 	return 0;
 }
 
+/**
+ * wpa_driver_teardown_sockets - Unregister eloop handlers and close fake sockets
+ * @drv: Private driver interface data
+ *
+ * Must run before mm_remove_if / vif delete so stale RX callbacks cannot fire
+ * with a freed or re-purposed l2_packet context.
+ */
+static void wpa_driver_teardown_sockets(struct hostap_driver_data *drv)
+{
+	if (!drv)
+		return;
+
+	if (drv->ioctl_sock >= 0) {
+		fsocket_close(drv->ioctl_sock);
+		drv->ioctl_sock = -1;
+	}
+
+	if (drv->sock >= 0) {
+		eloop_unregister_read_sock(drv->sock);
+		fsocket_close(drv->sock);
+		drv->sock = -1;
+	}
+
+	if (drv->sock_xmit) {
+		l2_packet_deinit(drv->sock_xmit);
+		drv->sock_xmit = NULL;
+	}
+}
+
 #ifdef CONFIG_P2P
 /**
  * clean_socket_msg_queues - Clean up message queues for a socket
@@ -695,56 +745,56 @@ static void clean_socket_msg_queues(SOCKET sk, const char *socket_name)
 }
 
 /**
+ * wpa_driver_release_sta_l2 - Drop supplicant EAPOL socket before driver socket
+ * reinit.  wpa_s->l2 and drv->sock_xmit share the same ETH_P_EAPOL+vif fake
+ * socket; both must not be live at once (P2P GO switch hits this after STA).
+ */
+static void wpa_driver_release_sta_l2(struct hostap_driver_data *drv)
+{
+	if (drv && drv->wpa_s && drv->wpa_s->l2) {
+		l2_packet_deinit(drv->wpa_s->l2);
+		drv->wpa_s->l2 = NULL;
+	}
+}
+
+/**
  * wpa_sta_reinit_sockets - Reinitialize sockets for STA mode
  * @drv: Private driver interface data
+ * @eapol_sock_xmit: true to (re)create drv->sock_xmit (P2P GO); false for STA
  * 
- * Reinitialize ioctl_sock, mgmt socket, and sock_xmit for STA mode P2P operations
+ * Reinitialize ioctl_sock, mgmt socket, and optionally sock_xmit for P2P GO.
  */
-static int wpa_reinit_sockets(struct hostap_driver_data *drv)
+static int wpa_reinit_sockets(struct hostap_driver_data *drv, int eapol_sock_xmit)
 {
     if (!drv) {
         wpa_printf(MSG_ERROR, "wpa_reinit_sockets: invalid driver data");
         return -1;
     }
-    
-    /* Reinitialize ioctl socket */
-    if (drv->ioctl_sock >= 0) {
-        fsocket_close(drv->ioctl_sock);
-    }
+
+    wpa_driver_teardown_sockets(drv);
+
     drv->ioctl_sock = fsocket_init(PF_INET, SOCK_DGRAM, drv->vif_index);
     if (drv->ioctl_sock < 0) {
         wpa_printf(MSG_ERROR, "wpa_reinit_sockets: failed to init ioctl_sock");
-        return -1;
+        goto fail;
     }
-    
-    /* Reinitialize mgmt socket */
-    if (drv->sock >= 0) {
-        eloop_unregister_read_sock(drv->sock);
-        fsocket_close(drv->sock);
-    }
+
     drv->sock = fsocket_init(PF_PACKET, SOCK_RAW, ETH_P_ALL + drv->vif_index);
     if (drv->sock < 0) {
         wpa_printf(MSG_ERROR, "wpa_reinit_sockets: failed to init mgmt sock");
-        return -1;
+        goto fail;
     }
     if (eloop_register_read_sock(drv->sock, handle_read, drv, NULL)) {
         wpa_printf(MSG_ERROR, "wpa_reinit_sockets: failed to register read socket");
-        fsocket_close(drv->sock);
-        drv->sock = -1;
-        return -1;
+        goto fail;
     }
     
-    /* Reinitialize sock_xmit for EAPOL packet handling */
-    if (drv->sock_xmit) {
-        l2_packet_deinit(drv->sock_xmit);
-        drv->sock_xmit = NULL;
-    }
-    if (drv->wpa_s) {
+    if (eapol_sock_xmit && drv->wpa_s) {
         drv->sock_xmit = l2_packet_init(drv->iface, drv->own_addr, ETH_P_EAPOL,
-                                        wpa_supplicant_rx_eapol, drv->wpa_s, 0);
+                                        handle_eapol, drv, 0);
         if (!drv->sock_xmit) {
             wpa_printf(MSG_ERROR, "wpa_reinit_sockets: failed to init xmit sock");
-            return -1;
+            goto fail;
         }
     }
     
@@ -756,14 +806,55 @@ static int wpa_reinit_sockets(struct hostap_driver_data *drv)
     }
     
     return 0;
+
+fail:
+    wpa_driver_teardown_sockets(drv);
+    return -1;
 }
 
-#define WLAN_DEFAULT_GO_IP         "192.168.49.1"
-#define WLAN_DEFAULT_GO_GW         "192.168.49.1"
-#define WLAN_DEFAULT_GO_MASK       "255.255.255.0"
+int wpa_driver_remain_cancel_on_channel(void *priv);
+
+static uint8_t wpa_driver_p2p_go_channel(struct hostap_driver_data *drv)
+{
+#if CONFIG_P2P_SOFTAP_CHAN_ALIGN
+	uint8_t ch = bk_wifi_p2p_pick_go_startup_channel(drv->wpa_s);
+
+	if (ch)
+		return ch;
+#else
+	struct wpa_supplicant *wpa_s = drv->wpa_s;
+	u8 ch = 0;
+	int freq = 0;
+
+	if (wpa_s) {
+		if (wpa_s->go_params && wpa_s->go_params->freq > 0)
+			freq = wpa_s->go_params->freq;
+		else if (wpa_s->current_ssid &&
+			 wpa_s->current_ssid->frequency > 0)
+			freq = wpa_s->current_ssid->frequency;
+	}
+
+	if (freq > 0) {
+		ieee80211_freq_to_chan(freq, &ch);
+		if (ch)
+			return ch;
+	}
+
+	if (wpa_s && wpa_s->global && wpa_s->global->p2p &&
+	    wpa_s->global->p2p->op_channel > 0)
+		return wpa_s->global->p2p->op_channel;
+#endif
+
+	return bk_wlan_ap_get_default_channel();
+}
+
 /**
  * set vif mode to @nlmode
  */
+static int wpa_driver_recreate_supplicant_sta_vif(struct hostap_driver_data *drv,
+						  const uint8_t *mac,
+						  enum nl80211_iftype iftype);
+
 static int wpa_driver_set_mode(void *priv, enum nl80211_iftype nlmode)
 {
 	int ret;
@@ -775,20 +866,18 @@ static int wpa_driver_set_mode(void *priv, enum nl80211_iftype nlmode)
 	if (!vif)
 		return -1;
 	os_memcpy(mac, (void *)mac_vif_mgmt_get_mac_address(vif), ETH_ALEN);
-#ifdef CONFIG_P2P
 	drv->nlmode = nlmode;
-#endif
 
 	if (nlmode == NL80211_IFTYPE_P2P_CLIENT
-#ifdef CONFIG_P2P
-		|| nlmode == NL80211_IFTYPE_P2P_GO
-#endif
-		) {
+		|| nlmode == NL80211_IFTYPE_P2P_GO) {
 		if (((nlmode == NL80211_IFTYPE_P2P_CLIENT) && (mac_vif_mgmt_get_type(vif) != VIF_STA))
-#ifdef CONFIG_P2P
 			|| ((nlmode == NL80211_IFTYPE_P2P_GO) && (mac_vif_mgmt_get_type(vif) != VIF_AP))
-#endif
 			|| !mac_vif_mgmt_interface_is_configured_for_p2p(vif)) {
+			/* Tear down any pending listen ROC before vif delete/recreate. */
+			if (nlmode == NL80211_IFTYPE_P2P_GO)
+				wpa_driver_remain_cancel_on_channel(drv);
+			wpa_driver_teardown_sockets(drv);
+			wpa_driver_release_sta_l2(drv);
 #if CONFIG_LWIP
 			net_wlan_remove_netif(mac);
 #endif
@@ -797,6 +886,11 @@ static int wpa_driver_set_mode(void *priv, enum nl80211_iftype nlmode)
 				return ret;
 			sa_station_init();
 
+			bk_get_mac(mac, MAC_TYPE_P2P);
+			os_memcpy(drv->own_addr, mac, ETH_ALEN);
+			if (drv->wpa_s)
+				os_memcpy(drv->wpa_s->own_addr, mac, ETH_ALEN);
+
 			ret = rw_msg_send_add_if(mac, nlmode, false /* dummy */, &cfm);
 			if (ret || cfm.status)
 				return -1;
@@ -804,64 +898,152 @@ static int wpa_driver_set_mode(void *priv, enum nl80211_iftype nlmode)
 #if CONFIG_LWIP
 			net_wlan_add_netif(mac);
 #endif
-#ifdef CONFIG_P2P
-			if (nlmode == NL80211_IFTYPE_P2P_GO) {
-				/* Use P2P GO operation channel if available, otherwise use default channel */
-				if (drv->wpa_s && drv->wpa_s->global && drv->wpa_s->global->p2p &&
-				    drv->wpa_s->global->p2p->op_channel > 0) {
-					g_ap_param_ptr->chann = drv->wpa_s->global->p2p->op_channel;
-				} else {
-					g_ap_param_ptr->chann = bk_wlan_ap_get_default_channel();
+			if (nlmode == NL80211_IFTYPE_P2P_CLIENT) {
+				if (wpa_reinit_sockets(drv, 0) < 0) {
+					wpa_printf(MSG_ERROR,
+						   "Failed to reinitialize sockets for P2P client");
+					return -1;
 				}
-				WPA_LOGD("%s, %d, channel: %u\r\n", __func__, __LINE__, g_ap_param_ptr->chann);
+				if (drv->wpa_s &&
+				    wpa_supplicant_update_mac_addr(drv->wpa_s) < 0)
+					return -1;
+#if CONFIG_P2P_SOFTAP_CHAN_ALIGN
+				bk_wifi_p2p_softap_csa_to_group_deferred();
+#endif
+			}
+			if (nlmode == NL80211_IFTYPE_P2P_GO) {
+				bk_wifi_p2p_go_set_channel_config(
+					wpa_driver_p2p_go_channel(drv));
+				WPA_LOGD("%s, %d, channel: %u\r\n", __func__, __LINE__,
+					 bk_wifi_p2p_go_get_channel_config());
 
-                if (wpa_reinit_sockets(drv) < 0) {
+				wpa_driver_release_sta_l2(drv);
+                if (wpa_reinit_sockets(drv, 1) < 0) {
                     wpa_printf(MSG_ERROR, "Failed to reinitialize sockets for P2P mode");
                     return -1;
                 }
 
-                ip_address_set(BK_SOFT_AP,
-                        DHCP_SERVER,
-                        WLAN_DEFAULT_GO_IP,
-                        WLAN_DEFAULT_GO_MASK,
-                        WLAN_DEFAULT_GO_GW,
-                        WLAN_DEFAULT_GO_GW);
-
-                /* restart lwip network */
-                uap_ip_start();
-			}
+                if (p2p_go_ip_is_start())
+                    p2p_go_ip_down();
+                p2p_go_ip_start();
+#if CONFIG_P2P_SOFTAP_CHAN_ALIGN
+				bk_wifi_p2p_softap_csa_to_group_deferred();
 #endif
+			}
 		}
 		return 0;
 	} else if (nlmode == NL80211_IFTYPE_STATION) {
-		if (mac_vif_mgmt_get_type(vif) != VIF_STA || mac_vif_mgmt_interface_is_configured_for_p2p(vif)) {
-#if CONFIG_LWIP
-			net_wlan_remove_netif(mac);
-#endif
-			ret = rw_msg_send_remove_if(drv->vif_index);
-			if (ret)
-				return ret;
+		uint8_t want_mac[ETH_ALEN];
 
-			sa_station_init();
-
-			ret = rw_msg_send_add_if(mac, nlmode, false /* dummy */, &cfm);
-			if (ret || cfm.status)
+		bk_wifi_sta_get_mac(want_mac);
+		if (mac_vif_mgmt_get_type(vif) != VIF_STA ||
+		    mac_vif_mgmt_interface_is_configured_for_p2p(vif) ||
+		    os_memcmp(mac, want_mac, ETH_ALEN) != 0) {
+			if (wpa_driver_recreate_supplicant_sta_vif(drv, want_mac,
+								   NL80211_IFTYPE_STATION) < 0)
 				return -1;
-			drv->vif_index = cfm.inst_nbr;
-            
-            /* Reinitialize sockets for STA mode */
-            if (wpa_reinit_sockets(drv) < 0) {
-                wpa_printf(MSG_ERROR, "Failed to reinitialize sockets for STA mode");
-                return -1;
-            }
-#if CONFIG_LWIP
-			net_wlan_add_netif(mac);
-#endif
 		}
 		return 0;
 	}
 
 	return -1;
+}
+
+/*
+ * Recreate supplicant STA vif with @mac (infra STA or P2P device listen).
+ * Shared by wpa_driver_set_mode(STATION) and role ensure after STA/P2P enable.
+ */
+static int wpa_driver_recreate_supplicant_sta_vif(struct hostap_driver_data *drv,
+						  const uint8_t *mac,
+						  enum nl80211_iftype iftype)
+{
+	int ret;
+	uint8_t old_mac[ETH_ALEN];
+	VIF_INF_PTR vif = rwm_mgmt_vif_idx2ptr(drv->vif_index);
+	struct mm_add_if_cfm cfm;
+
+	if (!vif || !mac)
+		return -1;
+
+	os_memcpy(old_mac, (void *)mac_vif_mgmt_get_mac_address(vif), ETH_ALEN);
+	wpa_driver_teardown_sockets(drv);
+	wpa_driver_release_sta_l2(drv);
+#if CONFIG_LWIP
+	net_wlan_remove_netif(old_mac);
+#endif
+	ret = rw_msg_send_remove_if(drv->vif_index);
+	if (ret)
+		return ret;
+
+	sa_station_init();
+
+	os_memcpy(drv->own_addr, mac, ETH_ALEN);
+	if (drv->wpa_s)
+		os_memcpy(drv->wpa_s->own_addr, mac, ETH_ALEN);
+
+	ret = rw_msg_send_add_if(mac, iftype, false, &cfm);
+	if (ret || cfm.status)
+		return -1;
+	drv->vif_index = cfm.inst_nbr;
+
+	wpa_driver_release_sta_l2(drv);
+	if (wpa_reinit_sockets(drv, 0) < 0) {
+		wpa_printf(MSG_ERROR, "Failed to reinitialize sockets for STA mode");
+		return -1;
+	}
+	if (drv->wpa_s && wpa_supplicant_update_mac_addr(drv->wpa_s) < 0) {
+		wpa_printf(MSG_ERROR, "Failed to update STA l2 after vif recreate");
+		return -1;
+	}
+#if CONFIG_LWIP
+	net_wlan_add_netif((uint8_t *)mac);
+#endif
+	return 0;
+}
+
+static int wpa_driver_supplicant_vif_matches(VIF_INF_PTR vif, const uint8_t *mac,
+					     int p2p_mac)
+{
+	if (!vif || !mac)
+		return 0;
+
+	if (mac_vif_mgmt_get_type(vif) != VIF_STA)
+		return 0;
+
+	if (p2p_mac) {
+		if (!mac_vif_mgmt_interface_is_configured_for_p2p(vif))
+			return 0;
+	} else if (mac_vif_mgmt_interface_is_configured_for_p2p(vif)) {
+		return 0;
+	}
+
+	return !os_memcmp(mac_vif_mgmt_get_mac_address(vif), mac, ETH_ALEN);
+}
+
+int wpa_driver_p2p_ensure_supplicant_vif(struct wpa_supplicant *wpa_s, int p2p_mac)
+{
+	struct hostap_driver_data *drv;
+	VIF_INF_PTR vif;
+	uint8_t want_mac[ETH_ALEN];
+	enum nl80211_iftype iftype;
+
+	if (!wpa_s || !wpa_s->drv_priv)
+		return -1;
+
+	drv = wpa_s->drv_priv;
+	vif = rwm_mgmt_vif_idx2ptr(drv->vif_index);
+	if (p2p_mac) {
+		bk_get_mac(want_mac, MAC_TYPE_P2P);
+		iftype = NL80211_IFTYPE_P2P_CLIENT;
+	} else {
+		bk_wifi_sta_get_mac(want_mac);
+		iftype = NL80211_IFTYPE_STATION;
+	}
+
+	if (wpa_driver_supplicant_vif_matches(vif, want_mac, p2p_mac))
+		return 0;
+
+	return wpa_driver_recreate_supplicant_sta_vif(drv, want_mac, iftype);
 }
 #endif /* CONFIG_P2P */
 
@@ -1374,19 +1556,7 @@ static void hostap_driver_deinit(void *priv)
     if(wpa_driver_hostap_deinit_vif(drv))
         WPA_LOGE("Could not remove vif: %d\n", drv->vif_index);
 
-    if (drv->ioctl_sock >= 0)
-    {
-        fsocket_close(drv->ioctl_sock);
-    }
-
-    if (drv->sock >= 0)
-	{
-	    eloop_unregister_read_sock(drv->sock);
-        fsocket_close(drv->sock);
-    }
-
-	l2_packet_deinit(drv->sock_xmit);
-	drv->sock_xmit = NULL;
+    wpa_driver_teardown_sockets(drv);
 
     os_free(drv->generic_ie);
 	drv->generic_ie = NULL;
@@ -1398,7 +1568,7 @@ static void hostap_driver_deinit(void *priv)
 	drv = NULL;
 }
 
-void sm_build_broadcast_deauthenticate(void);
+void sm_build_broadcast_deauthenticate(uint8_t vif_idx);
 static int hostap_sta_deauth(void *priv, const u8 *own_addr, const u8 *addr,
                              u16 reason)
 {
@@ -1414,7 +1584,7 @@ static int hostap_sta_deauth(void *priv, const u8 *own_addr, const u8 *addr,
          * sending this for the hostap driver.
          */
         /*acl patch by linwei.yuan, deauth all sta*/
-        sm_build_broadcast_deauthenticate();
+        sm_build_broadcast_deauthenticate(drv->vif_index);
         return 0;
     }
 
@@ -1909,7 +2079,16 @@ static void *wpa_driver_init(void *ctx, const char *ifname)
 
     drv->wpa_s = ctx;
     os_memcpy(drv->iface, ifname, sizeof(drv->iface));
-	bk_wifi_sta_get_mac((uint8_t *)drv->own_addr);
+#ifdef CONFIG_P2P
+    if (bk_wifi_p2p_get_init_role())
+        bk_get_mac(drv->own_addr, MAC_TYPE_P2P);
+    else
+        bk_wifi_sta_get_mac((uint8_t *)drv->own_addr);
+#else
+    bk_wifi_sta_get_mac((uint8_t *)drv->own_addr);
+#endif
+    if (drv->wpa_s)
+        os_memcpy(drv->wpa_s->own_addr, drv->own_addr, ETH_ALEN);
 
     ret = wpa_driver_hostap_init_vif(drv, NL80211_IFTYPE_STATION);
     if(ret || (drv->vif_index == 0xff)) {
@@ -1921,16 +2100,31 @@ static void *wpa_driver_init(void *ctx, const char *ifname)
     protocol += drv->vif_index;
 
     drv->ioctl_sock = fsocket_init(PF_INET, SOCK_DGRAM, drv->vif_index);
-	drv->sock = fsocket_init(PF_PACKET, SOCK_RAW, protocol);
+    if (drv->ioctl_sock < 0) {
+        wpa_printf(MSG_ERROR, "wpa_driver_init: failed to init ioctl_sock");
+        os_free(drv);
+        return NULL;
+    }
+
+    drv->sock = fsocket_init(PF_PACKET, SOCK_RAW, protocol);
+    if (drv->sock < 0) {
+        wpa_printf(MSG_ERROR, "wpa_driver_init: failed to init mgmt sock");
+        wpa_driver_teardown_sockets(drv);
+        os_free(drv);
+        return NULL;
+    }
 
 	// receive rx mgmt frames, or handle tx status
     if (eloop_register_read_sock(drv->sock, handle_read, drv, NULL))
     {
-        //FIXME need to rollback and release all resources
-        wpa_printf(MSG_ERROR, "Could not register read socket, memory leak!");
+        wpa_printf(MSG_ERROR, "Could not register read socket");
+        wpa_driver_teardown_sockets(drv);
         os_free(drv);
         return NULL;
     }
+
+    /* STA EAPOL uses wpa_s->l2 from wpa_supplicant_update_mac_addr(); do not
+     * create drv->sock_xmit here — same ETH_P_EAPOL+vif socket would collide. */
 
     return drv;
 }
@@ -1957,16 +2151,7 @@ static void wpa_driver_deinit(void *priv)
     if(wpa_driver_hostap_deinit_vif(drv))
         WPA_LOGE("Could not remove vif: %d\n", drv->vif_index);
 
-    if (drv->ioctl_sock > 0)
-    {
-        fsocket_close(drv->ioctl_sock);
-    }
-
-    if (drv->sock > 0)
-    {
-        eloop_unregister_read_sock(drv->sock);
-        fsocket_close(drv->sock);
-    }
+    wpa_driver_teardown_sockets(drv);
 
     os_free(drv->generic_ie);
 	drv->generic_ie = NULL;
@@ -2151,8 +2336,7 @@ int wpa_driver_associate(void *priv, struct wpa_driver_associate_params *params)
 	if (params->p2p) {
 		if (params->mode == IEEE80211_MODE_AP) {
 			nlmode = NL80211_IFTYPE_P2P_GO;
-			/*just for go*/
-			g_ap_param_ptr->cipher_suite = BK_SECURITY_TYPE_AUTO;
+			bk_wifi_p2p_go_ap_param_ensure()->cipher_suite = BK_SECURITY_TYPE_AUTO;
 		} else {
 			nlmode = NL80211_IFTYPE_P2P_CLIENT;
 		}

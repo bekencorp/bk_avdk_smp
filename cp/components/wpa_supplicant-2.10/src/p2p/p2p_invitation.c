@@ -293,8 +293,11 @@ void p2p_process_invitation_req(struct p2p_data *p2p, const u8 *sa,
 			goto fail;
 		}
 
-		if (status == P2P_SC_SUCCESS)
+		if (status == P2P_SC_SUCCESS) {
+			p2p->op_reg_class = reg_class;
+			p2p->op_channel = channel;
 			channels = &intersection;
+		}
 	} else {
 		p2p_dbg(p2p, "No forced channel from invitation processing - figure out best one to use");
 

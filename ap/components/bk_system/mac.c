@@ -22,6 +22,7 @@
 #include <driver/otp.h>
 #include <driver/otp_types.h>
 #include <os/mem.h>
+#include <stdlib.h>
 #include "bk_phy.h"
 #include <components/system.h>
 #include <components/log.h>
@@ -133,9 +134,19 @@ static void random_mac_address(u8 *mac)
 {
 	int i = 0;
 
+#if CONFIG_TRNG_SUPPORT
 	mac[3] = bk_rand() & 0xff;
 	mac[4] = bk_rand() & 0xff;
 	mac[5] = bk_rand() & 0xff;
+#else
+	/* Fallback when TRNG is not linked in this build. */
+	uint32_t seed = (uint32_t)rtos_get_time();
+	seed ^= ((uint32_t)mac[0] << 16) | ((uint32_t)mac[1] << 8) | mac[2];
+	srand(seed);
+	mac[3] = (uint8_t)(rand() & 0xff);
+	mac[4] = (uint8_t)(rand() & 0xff);
+	mac[5] = (uint8_t)(rand() & 0xff);
+#endif
 
 	BK_LOGD(NULL, "mac:");
 	for (i = 0; i < 6; i++)
@@ -501,6 +512,18 @@ bk_err_t bk_get_mac(uint8_t *mac, mac_type_t type)
 		mac[5] += 2 /* NX_VIRT_DEV_MAX */  + 1 /* BLUETOOTH */;
 		break;
 #endif
+
+	/*
+	 * P2P MAC: a single dedicated P2P address, derived the same way a phone
+	 * derives its P2P device address from the station MAC -- by toggling the
+	 * locally-administered bit (bit1) of byte0. Shared by the P2P GO and P2P
+	 * client roles.
+	 *     P2P = base ^ {0x02, 0, 0, 0, 0, 0}
+	 */
+	case MAC_TYPE_P2P:
+		os_memcpy(mac, s_base_mac, BK_MAC_ADDR_LEN);
+		mac[0] ^= 0x02;
+		break;
 
 	default:
 		return BK_ERR_INVALID_MAC_TYPE;

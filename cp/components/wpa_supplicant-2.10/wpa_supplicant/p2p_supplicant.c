@@ -1582,6 +1582,9 @@ static void wpas_group_formation_completed(struct wpa_supplicant *wpa_s,
 	}
 
 	if (!client) {
+#if BK_SUPPLICANT
+		wpas_p2p_stop_find(wpa_s->p2pdev ? wpa_s->p2pdev : wpa_s);
+#endif
 		wpas_notify_p2p_group_started(wpa_s, ssid, persistent, 0, NULL);
 		os_get_reltime(&wpa_s->global->p2p_go_wait_client);
 	}
@@ -2052,7 +2055,12 @@ static void p2p_go_configured(void *ctx, void *data)
 	wpa_printf(MSG_DEBUG, "P2P: XXXXXXXXXXX NO GO");
 #endif
 
+#if BK_SUPPLICANT
+	WPA_LOGI("P2P: Setting up WPS for GO provisioning, peer " MACSTR "\n",
+		 MAC2STR(params->peer_interface_addr));
+#else
 	wpa_printf(MSG_DEBUG, "P2P: Setting up WPS for GO provisioning");
+#endif
 	if (wpa_supplicant_ap_mac_addr_filter(wpa_s,
 					      params->peer_interface_addr)) {
 		wpa_printf(MSG_DEBUG, "P2P: Failed to setup MAC address "
@@ -2558,6 +2566,13 @@ static void wpas_go_neg_completed(void *ctx, struct p2p_go_neg_results *res)
 		wpa_s->off_channel_freq = 0;
 		wpa_s->roc_waiting_drv_freq = 0;
 	}
+
+#if BK_SUPPLICANT
+	if (res->role_go && !res->status) {
+		wpas_p2p_stop_find(wpa_s);
+		wpa_s->pending_listen_freq = 0;
+	}
+#endif
 
 	if (res->status) {
 		wpa_msg_global(wpa_s, MSG_INFO,

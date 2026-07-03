@@ -63,6 +63,7 @@ enum BK_WIFI_API_CMD_TYPE
     AP_SET_CHANNEL_STOP                 = 0x326,
     AP_GET_STA_LIST                     = 0x327,
     FREE_GET_STA_LIST_MEMORY            = 0x328,
+    P2P_GET_MAC                         = 0x32C,
 
     // PM management Wi-Fi command section
     STA_PM_ENABLE                       = 0x330,
@@ -101,6 +102,7 @@ enum BK_WIFI_API_CMD_TYPE
     WIFI_SET_BLOCK_BCMC_EN              = 0x36E,
     WIFI_GET_BLOCK_BCMC_EN              = 0x36F,
     WIFI_SET_RC_CONFIG                  = 0x370,
+    WIFI_GET_AP_OPER_CHANNEL            = 0x371,
 
     //Common PHY command section
     PHY_CAL_RFCALI                      = 0x380,
@@ -132,6 +134,10 @@ enum BK_WIFI_API_CMD_TYPE
     P2P_CANCEL                          = 0x3D5,
     P2P_DISABLE                         = 0x3D6,
     P2P_ENABLE_WITH_INTENT              = 0x3D7,
+    P2P_GET_ROLE                        = 0x3D8,
+    P2P_GET_GC_NETIF_IP4_CONFIG         = 0x3D9,
+    P2P_GET_GO_NETIF_IP4_CONFIG         = 0x3DA,
+    P2P_GET_GROUP_CHANNEL               = 0x3DB,
 
     // RLK command section
     RLK_REGISTER_SEND_CB                = 0x400,

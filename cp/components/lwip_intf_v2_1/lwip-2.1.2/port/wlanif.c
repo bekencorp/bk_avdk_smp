@@ -55,6 +55,10 @@
 #ifdef CONFIG_IPV6
 #include <lwip/ethip6.h>
 #endif
+#include "lwip/prot/ethernet.h"
+#include "lwip/prot/ip.h"
+#include "lwip/prot/ip4.h"
+#include "lwip/prot/udp.h"
 
 #include "wlanif.h"
 
@@ -90,6 +94,7 @@ extern int bmsg_tx_sender(struct pbuf *p, uint32_t vif_idx);
 #if CONFIG_WIFI6_CODE_STACK
 extern int bmsg_special_tx_sender(struct pbuf *p, uint32_t vif_idx);
 #endif
+extern bool mac_vif_mgmt_interface_is_configured_for_p2p(void *vif);
 /* Forward declarations. */
 void ethernetif_input(int iface, struct pbuf *p, uint8_t dst_idx);
 
@@ -121,8 +126,6 @@ static void low_level_init(struct netif *netif)
 
     /* set MAC hardware address length */
     LWIP_LOGV("enter low level!\r\n");
-    LWIP_LOGI("mac %2x:%2x:%2x:%2x:%2x:%2x\r\n", macptr[0], macptr[1], macptr[2],
-                 macptr[3], macptr[4], macptr[5]);
 
     netif->hwaddr_len = ETHARP_HWADDR_LEN;
     os_memcpy(netif->hwaddr, macptr, ETHARP_HWADDR_LEN);
@@ -159,6 +162,71 @@ static void low_level_init(struct netif *netif)
  *       to become availale since the stack doesn't retry to send a packet
  *       dropped because of memory failure (except for the TCP timers).
  */
+#define WLANIF_DHCP_SERVER_PORT  67
+#define WLANIF_BOOTP_OP_RESPONSE 2
+
+#if CONFIG_P2P
+struct wlanif_bootp_hdr {
+	uint8_t op;
+	uint8_t htype;
+	uint8_t hlen;
+	uint8_t hops;
+	uint32_t xid;
+	uint16_t secs;
+	uint16_t flags;
+	uint32_t ciaddr;
+	uint32_t yiaddr;
+	uint32_t siaddr;
+	uint32_t riaddr;
+	uint8_t chaddr[6];
+} __attribute__((packed));
+
+static void wlanif_dhcp_l2_unicast(struct netif *netif, struct pbuf *p)
+{
+	struct eth_hdr *ethhdr;
+	struct ip_hdr *iphdr;
+	struct udp_hdr *udphdr;
+	struct wlanif_bootp_hdr *bootp;
+	u16_t ip_hlen;
+	u32_t bootp_off;
+	void *vif;
+
+	if (!netif || !p || p->len < SIZEOF_ETH_HDR + IP_HLEN + sizeof(struct udp_hdr))
+		return;
+
+	vif = netif->state;
+	if (!vif || wifi_netif_vif_to_netif_type(vif) != NETIF_IF_AP)
+		return;
+
+	ethhdr = (struct eth_hdr *)p->payload;
+	if (!(ethhdr->dest.addr[0] & 1))
+		return;
+
+	iphdr = (struct ip_hdr *)((u8_t *)p->payload + SIZEOF_ETH_HDR);
+	if (IPH_PROTO(iphdr) != IP_PROTO_UDP)
+		return;
+
+	ip_hlen = (u16_t)(IPH_HL(iphdr) * 4);
+	if (ip_hlen < sizeof(struct ip_hdr) ||
+	    p->len < SIZEOF_ETH_HDR + ip_hlen + sizeof(struct udp_hdr))
+		return;
+
+	udphdr = (struct udp_hdr *)((u8_t *)iphdr + ip_hlen);
+	if (lwip_ntohs(udphdr->src) != WLANIF_DHCP_SERVER_PORT)
+		return;
+
+	bootp_off = SIZEOF_ETH_HDR + ip_hlen + sizeof(struct udp_hdr);
+	if (p->len < bootp_off + sizeof(struct wlanif_bootp_hdr))
+		return;
+
+	bootp = (struct wlanif_bootp_hdr *)((u8_t *)p->payload + bootp_off);
+	if (bootp->op != WLANIF_BOOTP_OP_RESPONSE || bootp->hlen != 6)
+		return;
+
+	memcpy(ethhdr->dest.addr, bootp->chaddr, 6);
+}
+#endif /* CONFIG_P2P */
+
 static err_t low_level_output(struct netif *netif, struct pbuf *p)
 {
 	int ret;
@@ -168,6 +236,10 @@ static err_t low_level_output(struct netif *netif, struct pbuf *p)
 	// Sanity check
 	if (vif_idx == 0xff)
 		return ERR_ARG;
+
+#if CONFIG_P2P
+	wlanif_dhcp_l2_unicast(netif, p);
+#endif
 
 #if CONFIG_WIFI6_CODE_STACK
 	//LWIP_LOGD("output:%x\r\n", p);
@@ -199,6 +271,11 @@ static bool wlanif_forward_intra_bss(struct netif *netif, void *vif,
 
 	if (wifi_netif_vif_to_netif_type(vif) != NETIF_IF_AP)
 		return false;
+
+#if CONFIG_P2P
+	if (mac_vif_mgmt_interface_is_configured_for_p2p(vif))
+		return false;
+#endif
 
 	if (!is_mcast) {
 		if (dst_idx == 0xff)
@@ -261,17 +338,40 @@ ethernetif_input(int iface, struct pbuf *p, uint8_t dst_idx)
 		pbuf_free(p);
 		return;
 	}
-	vif = wifi_netif_vifid_to_vif(iface);
-	netif = (struct netif *)wifi_netif_get_vif_private_data(vif);
-	if(!netif) {
-        //LWIP_LOGD("ethernetif_input no netif found %d\r\n", iface);
-        pbuf_free(p);
-        p = NULL;
-        return;
-    }
 
-    /* points to packet payload, which starts with an Ethernet header */
-    ethhdr = p->payload;
+	ethhdr = (struct eth_hdr *)p->payload;
+	vif = wifi_netif_vifid_to_vif(iface);
+
+	/*
+	 * EAPOL must reach wpa_supplicant even when lwip netif is not registered
+	 * yet (e.g. net_wlan_add_netif failed at STA enable).
+	 */
+	if (htons(ethhdr->type) == ETHTYPE_EAPOL) {
+		u8 *vif_mac = vif ? wifi_netif_vif_to_mac(vif) : NULL;
+
+		if (vif_mac &&
+		    memcmp(vif_mac, ethhdr->src.addr, NETIF_MAX_HWADDR_LEN) == 0) {
+			pbuf_free(p);
+			return;
+		}
+		{
+			struct ke_sk_params params = {
+				.buf = p->payload,
+				.len = p->len,
+				.flag = iface,
+				.freq = 0
+			};
+			ke_l2_packet_tx(&params);
+		}
+		pbuf_free(p);
+		return;
+	}
+
+	netif = vif ? (struct netif *)wifi_netif_get_vif_private_data(vif) : NULL;
+	if (!netif) {
+		pbuf_free(p);
+		return;
+	}
     if( (memcmp(netif->hwaddr,ethhdr->src.addr,NETIF_MAX_HWADDR_LEN)==0) && (htons(ethhdr->type) !=ETHTYPE_ARP) )
     {
         LWIP_DEBUGF(ETHARP_DEBUG ,("ethernet_input frame is my send,drop it\r\n"));
@@ -279,24 +379,6 @@ ethernetif_input(int iface, struct pbuf *p, uint8_t dst_idx)
         return;
     }
 
-	/*
-	 * CP-side SoftAP intra-BSS forwarding.
-	 *
-	 * This MUST run before cif_rx_local_packet_check(). With the VNET
-	 * controller that helper uploads ARP requests and most unicast IP
-	 * data to the AP host stack and returns false, which makes
-	 * ethernetif_input() return early. If forwarding were placed after it
-	 * (as it used to be), frames destined to a peer STA - and the
-	 * broadcast ARP a peer STA needs to resolve its MAC - would never be
-	 * relayed, so STA-to-STA traffic (e.g. ping) between two clients of
-	 * the SoftAP fails.
-	 *
-	 *   - multicast/broadcast: flood to the BSS, then fall through so the
-	 *     AP host stack still gets its own copy (DHCP, ARP for the AP's
-	 *     own IP, ...).
-	 *   - unicast to another associated STA on this vif: relay it and
-	 *     consume the pbuf (it is not destined to the AP host stack).
-	 */
 	if (wlanif_forward_intra_bss(netif, vif, p, ethhdr, dst_idx))
 		return;
 

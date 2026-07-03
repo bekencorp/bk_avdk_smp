@@ -18,6 +18,9 @@
 #ifdef BK_SUPPLICANT
 #include "../../wpa_supplicant/wpa_supplicant_i.h"
 #include "../../wpa_supplicant/config.h"
+#if CONFIG_P2P_SOFTAP_CHAN_ALIGN
+#include "wifi_v2.h"
+#endif
 #endif
 
 
@@ -628,6 +631,21 @@ int p2p_go_select_channel(struct p2p_data *p2p, struct p2p_device *dev,
 		p2p_dbg(p2p, "No common channels found");
 		return -1;
 	}
+
+#if CONFIG_P2P_SOFTAP_CHAN_ALIGN
+	{
+		int coexist_forced =
+			bk_wifi_p2p_coexist_force_op_channel(p2p, &intersection);
+
+		if (coexist_forced) {
+			if (!p2p->ssid_set) {
+				p2p_build_ssid(p2p, p2p->ssid, &p2p->ssid_len);
+				p2p->ssid_set = 1;
+			}
+			return 0;
+		}
+	}
+#endif
 
 	if (!p2p_channels_includes(&intersection, p2p->op_reg_class,
 				   p2p->op_channel)) {

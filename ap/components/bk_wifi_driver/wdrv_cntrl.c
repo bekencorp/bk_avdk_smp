@@ -164,13 +164,47 @@ void wdrv_notify_scan_done(void *data, uint16_t len)
 void wdrv_notify_sta_connected(void)
 {
     wifi_event_sta_connected_t sta_connected = {0};
-    /* post event sta_connected*/
+
     os_memset(&sta_connected, 0, sizeof(sta_connected));
-    os_memcpy(&sta_connected.ssid, wdrv_host_env.connect_ind.ussid, sizeof(wdrv_host_env.connect_ind.ussid));
+    os_memcpy(&sta_connected.ssid, wdrv_host_env.connect_ind.ussid,
+              sizeof(wdrv_host_env.connect_ind.ussid));
 
     BK_LOG_ON_ERR(bk_event_post(EVENT_MOD_WIFI, EVENT_WIFI_STA_CONNECTED,
-                                &sta_connected, sizeof(sta_connected), BEKEN_NEVER_TIMEOUT));
+                                &sta_connected, sizeof(sta_connected),
+                                BEKEN_NEVER_TIMEOUT));
 }
+
+#if CONFIG_P2P
+void wdrv_p2p_role_clear(void)
+{
+    wdrv_host_env.p2p_role = 0;
+}
+
+void wdrv_notify_gc_got_ipv4(void)
+{
+    if (wdrv_host_env.connect_ind.ip == 0)
+        return;
+
+    p2p_gc_ip_down();
+    p2p_gc_ip_apply_connect(wdrv_host_env.connect_ind.ip,
+                            wdrv_host_env.connect_ind.gw,
+                            wdrv_host_env.connect_ind.mk,
+                            wdrv_host_env.connect_ind.dns);
+}
+
+void wdrv_notify_gc_got_ip(void)
+{
+    netif_event_got_ip4_t event_data = {0};
+    netif_ip4_config_t ip4 = {0};
+
+    event_data.netif_if = NETIF_IF_P2P;
+    if (bk_netif_get_ip4_config(NETIF_IF_P2P, &ip4) == BK_OK)
+        os_memcpy(event_data.ip, ip4.ip, NETIF_IP4_STR_LEN);
+    BK_LOG_ON_ERR(bk_event_post(EVENT_MOD_NETIF, EVENT_NETIF_GOT_IP4,
+                                &event_data, sizeof(event_data),
+                                BEKEN_NEVER_TIMEOUT));
+}
+#endif
 
 void wdrv_notify_sta_disconnected(void *data, uint16_t len)
 {
@@ -182,17 +216,17 @@ void wdrv_notify_sta_disconnected(void *data, uint16_t len)
     info.reason_code = sta_disconnected.disconnect_reason;
     mhdr_set_station_status(info);
 
-    /* post event */
     WDRV_LOGV("sta disconnect reason %d,local %d\n",
-    sta_disconnected.disconnect_reason, sta_disconnected.local_generated);
+              sta_disconnected.disconnect_reason, sta_disconnected.local_generated);
     BK_LOG_ON_ERR(bk_event_post(EVENT_MOD_WIFI, EVENT_WIFI_STA_DISCONNECTED,
-                             &sta_disconnected, sizeof(sta_disconnected), BEKEN_NEVER_TIMEOUT));
+                                &sta_disconnected, sizeof(sta_disconnected),
+                                BEKEN_NEVER_TIMEOUT));
 }
 
 void wdrv_notify_sap_sta_connected(void)
 {
     wifi_event_ap_connected_t ap_connected = {0};
-    /* post evevnt EVENT_WIFI_AP_CONNECTED */
+
     os_memset(&ap_connected, 0, sizeof(ap_connected));
     os_memcpy(ap_connected.mac, wdrv_host_env.ap_assoc_sta_addr_ind.sub_sta_addr, ETH_ALEN);
     BK_LOG_ON_ERR(bk_event_post(EVENT_MOD_WIFI, EVENT_WIFI_AP_CONNECTED,
@@ -202,7 +236,7 @@ void wdrv_notify_sap_sta_connected(void)
 void wdrv_notify_sta_got_ipv6(void)
 {
     wifi_event_got_ipv6_t got_ipv6 = {0};
-    /* post event got_ipv6*/
+
     os_memcpy(&got_ipv6, &wdrv_host_env.ipv6_ind, sizeof(got_ipv6));
 
     BK_LOG_ON_ERR(bk_event_post(EVENT_MOD_WIFI, EVENT_WIFI_STA_GOT_IPV6,
@@ -212,7 +246,7 @@ void wdrv_notify_sta_got_ipv6(void)
 void wdrv_notify_sap_sta_disconnected(void)
 {
     wifi_event_ap_connected_t ap_disconnected = {0};
-    /* post evevnt EVENT_WIFI_AP_DISCONNECTED */
+
     os_memset(&ap_disconnected, 0, sizeof(ap_disconnected));
     os_memcpy(ap_disconnected.mac, wdrv_host_env.ap_assoc_sta_addr_ind.sub_sta_addr, ETH_ALEN);
 #if CONFIG_BRIDGE
@@ -221,48 +255,6 @@ void wdrv_notify_sap_sta_disconnected(void)
     BK_LOG_ON_ERR(bk_event_post(EVENT_MOD_WIFI, EVENT_WIFI_AP_DISCONNECTED,
                                 &ap_disconnected, sizeof(ap_disconnected), BEKEN_NEVER_TIMEOUT));
 }
-
-#if CONFIG_P2P
-#define WLAN_DEFAULT_GO_IP         "192.168.49.1"
-#define WLAN_DEFAULT_GO_GW         "192.168.49.1"
-#define WLAN_DEFAULT_GO_MASK       "255.255.255.0"
-void wdrv_notify_local_as_go(void)
-{
-    wifi_event_ap_connected_t ap_connected = {0};
-
-    ip_address_set(BK_SOFT_AP,
-        DHCP_SERVER,
-        WLAN_DEFAULT_GO_IP,
-        WLAN_DEFAULT_GO_MASK,
-        WLAN_DEFAULT_GO_GW,
-        WLAN_DEFAULT_GO_GW);
-
-    /* If uap_ip_start has already been called, restart it to apply new IP config */
-    if (uap_ip_is_start()) {
-        uap_ip_down();
-    }
-    uap_ip_start();
-
-    /* Post event EVENT_WIFI_AP_CONNECTED */
-    os_memcpy(ap_connected.mac, wdrv_host_env.ap_assoc_sta_addr_ind.sub_sta_addr, ETH_ALEN);
-    BK_LOG_ON_ERR(bk_event_post(EVENT_MOD_WIFI, EVENT_WIFI_AP_CONNECTED,
-                                &ap_connected, sizeof(ap_connected), BEKEN_NEVER_TIMEOUT));
-
-}
-
-void wdrv_notify_go_client_disconnected(void)
-{
-    wifi_event_ap_connected_t go_disconnected = {0};
-    /* post evevnt EVENT_WIFI_AP_DISCONNECTED */
-    os_memset(&go_disconnected, 0, sizeof(go_disconnected));
-    os_memcpy(go_disconnected.mac, wdrv_host_env.ap_assoc_sta_addr_ind.sub_sta_addr, ETH_ALEN);
-    /* stop uap service */
-    uap_ip_down();
-
-    BK_LOG_ON_ERR(bk_event_post(EVENT_MOD_WIFI, EVENT_WIFI_GO_DISCONNECTED,
-                                &go_disconnected, sizeof(go_disconnected), BEKEN_NEVER_TIMEOUT));
-}
-#endif
 
 void mhdr_set_station_status(wifi_linkstate_reason_t info)
 {
@@ -471,13 +463,11 @@ bk_err_t wdrv_cntrl_get_cp_lwip_mem_addr()
     
     if(g_cp_lwip_mem == NULL)
     {
-        WDRV_LOGE("CP side need open macro 'CONFIG_CONTROLLER_AP_BUFFER_COPY' \n");
         ret = BK_FAIL;
         BK_ASSERT(0);
     }
     if(g_cp_stats_mem_size != sizeof(struct stats_mem))
     {
-        WDRV_LOGE("AP and CP side 'struct stats_mem' must have same structure \n");
         ret = BK_FAIL;
         BK_ASSERT(0);
     }
@@ -535,15 +525,112 @@ void wdrv_rx_handle_wifi_api_event(wdrv_rx_msg *msg)
 {
     wifi_handle_api_evt(msg->id, (uint8_t *)msg->param, msg->param_len);
 }
+
+#if CONFIG_WIFI_VNET_CONTROLLER
+static void wdrv_handle_wifi_event_ind(cif_wifi_event_ind_t *ind)
+{
+    wifi_event_t evt;
+    wifi_event_sta_disconnected_t *disc;
+    wifi_event_sta_connected_t *conn;
+#if CONFIG_P2P
+    wifi_event_ap_connected_t *go_ev;
+#endif
+
+    if (!ind || ind->data_len > CIF_WIFI_EVENT_IND_MAX_DATA)
+        return;
+
+    evt = (wifi_event_t)ind->event_id;
+
+    switch (evt) {
+    case EVENT_WIFI_STA_CONNECTED:
+        wdrv_host_env.wlan_link_sta_status = WIFI_LINKSTATE_STA_CONNECTED;
+        wdrv_host_env.wlan_mode = WIFI_MODE_STA;
+        if (ind->data_len >= sizeof(wifi_event_sta_connected_t)) {
+            conn = (wifi_event_sta_connected_t *)ind->data;
+            os_memcpy(wdrv_host_env.connect_ind.ussid, conn->ssid,
+                      sizeof(wdrv_host_env.connect_ind.ussid));
+        }
+        break;
+#if CONFIG_P2P
+    case EVENT_WIFI_GC_CONNECTED:
+        wdrv_host_env.wlan_link_sta_status = WIFI_LINKSTATE_STA_CONNECTED;
+        wdrv_host_env.wlan_mode = WIFI_MODE_STA;
+        wdrv_host_env.connect_ind.vif_idx = 3;
+        wdrv_host_env.p2p_role = 2;
+        if (ind->data_len >= sizeof(wifi_event_sta_connected_t)) {
+            conn = (wifi_event_sta_connected_t *)ind->data;
+            os_memcpy(wdrv_host_env.connect_ind.ussid, conn->ssid,
+                      sizeof(wdrv_host_env.connect_ind.ussid));
+        }
+        break;
+#endif
+    case EVENT_WIFI_STA_DISCONNECTED:
+#if CONFIG_P2P
+    case EVENT_WIFI_GC_DISCONNECTED:
+#endif
+        if (ind->data_len >= sizeof(wifi_event_sta_disconnected_t)) {
+            disc = (wifi_event_sta_disconnected_t *)ind->data;
+            wifi_linkstate_reason_t info = {
+                .state = WIFI_LINKSTATE_STA_DISCONNECTED,
+                .reason_code = disc->disconnect_reason,
+            };
+            mhdr_set_station_status(info);
+        }
+        wdrv_host_env.wlan_link_sta_status = WIFI_LINKSTATE_STA_DISCONNECTED;
+        wdrv_host_env.wlan_mode = WIFI_MODE_IDLE;
+#if CONFIG_P2P
+        if (evt == EVENT_WIFI_GC_DISCONNECTED) {
+            wdrv_host_env.connect_ind.vif_idx = 0;
+            wdrv_host_env.p2p_role = 0;
+        }
+#endif
+        break;
+#if CONFIG_P2P
+    case EVENT_WIFI_GO_CONNECTED:
+    case EVENT_WIFI_GO_DISCONNECTED:
+        if (ind->data_len >= sizeof(wifi_event_ap_connected_t)) {
+            go_ev = (wifi_event_ap_connected_t *)ind->data;
+            os_memcpy(wdrv_host_env.ap_assoc_sta_addr_ind.sub_sta_addr,
+                      go_ev->mac, ETH_ALEN);
+        }
+        break;
+#endif
+    default:
+        break;
+    }
+
+    BK_LOG_ON_ERR(bk_event_post(EVENT_MOD_WIFI, evt, ind->data,
+                                ind->data_len, BEKEN_NEVER_TIMEOUT));
+}
+#endif
+
 void wdrv_rx_handle_wifi_cntrl_event(wdrv_rx_msg *msg)
 {
     WDRV_LOGD("%s,%d,%d\n",__func__,__LINE__,msg->id);
     //int loop_idx = 0;
     switch(msg->id) {
         case BK_EVT_IPV4_IND:
+        {
+            struct {
+                uint8_t ussid[33];
+                uint8_t rssi;
+                uint32_t ip;
+                uint32_t mk;
+                uint32_t gw;
+                uint32_t dns;
+                uint8_t vif_idx;
+            } *cp_ind = (void *)msg->param;
+
             wdrv_host_env.wlan_link_sta_status = WIFI_LINKSTATE_STA_CONNECTED;
             wdrv_host_env.wlan_mode = WIFI_MODE_STA;
-            os_memcpy(&wdrv_host_env.connect_ind, msg->param, sizeof(struct wdrv_connect_ind));
+            os_memcpy(wdrv_host_env.connect_ind.ussid, cp_ind->ussid,
+                      sizeof(wdrv_host_env.connect_ind.ussid));
+            wdrv_host_env.connect_ind.rssi = (int8_t)cp_ind->rssi;
+            wdrv_host_env.connect_ind.ip = cp_ind->ip;
+            wdrv_host_env.connect_ind.mk = cp_ind->mk;
+            wdrv_host_env.connect_ind.gw = cp_ind->gw;
+            wdrv_host_env.connect_ind.dns = cp_ind->dns;
+            wdrv_host_env.connect_ind.vif_idx = cp_ind->vif_idx;
             WDRV_LOGD(TAG, "WLAN-INDICATE: connected\n");
 #if 0
             BK_LOGD(NULL, "WLAN-INDICATE: connect to \'%s\' (%3d dBm)\r\n",
@@ -558,9 +645,16 @@ void wdrv_rx_handle_wifi_cntrl_event(wdrv_rx_msg *msg)
                 (wdrv_host_env.connect_ind.dns >> 0 ) & 0xff, (wdrv_host_env.connect_ind.dns >> 8 ) & 0xff,
                 (wdrv_host_env.connect_ind.dns >> 16) & 0xff, (wdrv_host_env.connect_ind.dns >> 24) & 0xff);
 #endif
+#if CONFIG_P2P
+            if (cp_ind->vif_idx == 3) {
+                wdrv_host_env.p2p_role = 2;
+                wdrv_notify_gc_got_ipv4();
+                break;
+            }
+#endif
             wdrv_notify_sta_connected();
-
             break;
+        }
         case BK_EVT_IPV6_IND:
 #if CONFIG_IPV6
             os_memcpy(&wdrv_host_env.ipv6_ind, msg->param, sizeof(struct wdrv_ipv6_ind));
@@ -569,8 +663,6 @@ void wdrv_rx_handle_wifi_cntrl_event(wdrv_rx_msg *msg)
 #endif
             break;
         case BK_EVT_DISCONNECT_IND:
-            wdrv_host_env.wlan_link_sta_status = WIFI_LINKSTATE_STA_DISCONNECTED;
-            wdrv_host_env.wlan_mode = WIFI_MODE_IDLE;
             WDRV_LOGD("WLAN-INDICATE: disconected and stop send data\n");
             wdrv_notify_sta_disconnected(msg->param, msg->param_len);
             break;
@@ -629,24 +721,22 @@ void wdrv_rx_handle_wifi_cntrl_event(wdrv_rx_msg *msg)
         case BK_EVT_CSI_INFO_IND:
             bk_wifi_csi_info_cb(msg->param);
             break;
-#if CONFIG_P2P
-        case BK_EVT_ASSOC_GO_IND:
-            os_memcpy(&wdrv_host_env.ap_assoc_sta_addr_ind, msg->param, sizeof(struct wdrv_ap_assoc_sta_ind));
-            WDRV_LOGD("GO-INDICATE: go %x:%x:%x:%x:%x:%x connected\n",
-                      wdrv_host_env.ap_assoc_sta_addr_ind.sub_sta_addr[0], wdrv_host_env.ap_assoc_sta_addr_ind.sub_sta_addr[1],
-                      wdrv_host_env.ap_assoc_sta_addr_ind.sub_sta_addr[2], wdrv_host_env.ap_assoc_sta_addr_ind.sub_sta_addr[3],
-                      wdrv_host_env.ap_assoc_sta_addr_ind.sub_sta_addr[4], wdrv_host_env.ap_assoc_sta_addr_ind.sub_sta_addr[5]);
-            wdrv_notify_local_as_go();
+#if CONFIG_WIFI_VNET_CONTROLLER
+        case BK_EVT_WIFI_EVENT_IND:
+            wdrv_handle_wifi_event_ind((cif_wifi_event_ind_t *)msg->param);
             break;
-        case BK_EVT_DISASSOC_GO_IND:
-            WDRV_LOGV("GO-INDICATE: disassoc\n");
-            os_memcpy(&wdrv_host_env.ap_assoc_sta_addr_ind, msg->param, sizeof(struct wdrv_ap_assoc_sta_ind));
-            WDRV_LOGV("%x:%x:%x:%x:%x:%x\n",
-                      wdrv_host_env.ap_assoc_sta_addr_ind.sub_sta_addr[0], wdrv_host_env.ap_assoc_sta_addr_ind.sub_sta_addr[1],
-                      wdrv_host_env.ap_assoc_sta_addr_ind.sub_sta_addr[2], wdrv_host_env.ap_assoc_sta_addr_ind.sub_sta_addr[3],
-                      wdrv_host_env.ap_assoc_sta_addr_ind.sub_sta_addr[4], wdrv_host_env.ap_assoc_sta_addr_ind.sub_sta_addr[5]);
-
-            wdrv_notify_go_client_disconnected();
+#endif
+#if CONFIG_P2P
+        case BK_EVT_P2P_GO_START_IND:
+            wdrv_host_env.p2p_role = 1;
+            if (msg->param_len >= 6)
+                p2p_go_ip_start_with_mac((const uint8_t *)msg->param);
+            else
+                p2p_go_ip_start();
+            break;
+        case BK_EVT_P2P_GO_STOP_IND:
+            wdrv_host_env.p2p_role = 0;
+            p2p_go_ip_down();
             break;
 #endif
         default:

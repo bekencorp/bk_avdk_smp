@@ -8,6 +8,17 @@ extern "C" {
 
 extern void uap_ip_down(void);
 extern void uap_ip_start(void);
+#if CONFIG_P2P
+extern void p2p_go_ip_down(void);
+extern void p2p_go_ip_start(void);
+extern void p2p_gc_ip_down(void);
+extern void p2p_gc_ip_start(void);
+extern uint32_t p2p_go_ip_is_start(void);
+extern uint32_t p2p_gc_ip_is_start(void);
+extern void net_get_p2p_go_cfg_addr(struct wlan_ip_config *addr);
+extern void *net_get_p2p_go_handle(void);
+extern void *net_get_p2p_gc_handle(void);
+#endif
 extern void sta_ip_down(void);
 extern void sta_ip_start(void);
 extern uint32_t uap_ip_is_start(void);

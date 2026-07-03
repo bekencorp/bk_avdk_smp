@@ -63,9 +63,18 @@ list(APPEND incs
 	lwip-2.1.2/src/core/udp.c
 	lwip-2.1.2/src/core/debug.c
 	lwip-2.1.2/src/netif/ethernet.c
+	)
+if (CONFIG_P2P)
+	list(APPEND srcs
+	dhcpd/dhcp-server-multi.c
+	dhcpd/dhcp-server-multi-main.c
+	)
+else()
+	list(APPEND srcs
 	dhcpd/dhcp-server.c
 	dhcpd/dhcp-server-main.c
 	)
+endif()
 # Ethernet
 if (CONFIG_ETH)
 	list(APPEND srcs

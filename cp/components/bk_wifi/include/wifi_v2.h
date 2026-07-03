@@ -72,6 +72,45 @@ bool wifi_sta_is_started(void);
 bool wifi_ap_is_started(void);
 void bk_wifi_ota_dtim(bool is_open);
 bk_err_t bk_wifi_free_get_sta_list_memory(wlan_ap_stas_t *stas);
+bk_err_t bk_wifi_p2p_get_mac(uint8_t *mac);
+#if CONFIG_P2P
+/* Supplicant vif: 0=infra STA MAC, 1=P2P device MAC at wpa init */
+void bk_wifi_p2p_set_init_role(int p2p_device);
+int bk_wifi_p2p_get_init_role(void);
+struct wpa_supplicant;
+int bk_wifi_p2p_ensure_supplicant_vif(struct wpa_supplicant *wpa_s, int p2p_mac);
+
+/* Role and runtime channel (active LMAC vif; GC has no separate ap_param) */
+bk_err_t bk_wifi_p2p_get_role(int *role);
+uint8_t bk_wifi_p2p_go_get_channel(void);
+uint8_t bk_wifi_p2p_gc_get_channel(void);
+uint8_t bk_wifi_p2p_get_group_channel(void);
+
+/* Fixed P2P device MAC (MAC_TYPE_P2P); unlike bk_wifi_p2p_get_mac() */
+void bk_wifi_p2p_get_device_mac(uint8_t *mac);
+
+/* P2P GO hostapd config (ap_param); GC reuses infra STA path */
+ap_param_t *bk_wifi_p2p_go_ap_param_ensure(void);
+uint8_t bk_wifi_p2p_go_get_channel_config(void);
+void bk_wifi_p2p_go_set_channel_config(uint8_t channel);
+
+void bk_wifi_p2p_shutdown_before_sleep(void);
+
+#if CONFIG_P2P_SOFTAP_CHAN_ALIGN
+struct p2p_data;
+struct p2p_channels;
+uint8_t bk_wifi_p2p_go_get_planned_channel(void);
+uint8_t bk_wifi_p2p_pick_go_startup_channel(struct wpa_supplicant *wpa_s);
+uint8_t bk_wifi_p2p_get_coexist_anchor_channel(void);
+int bk_wifi_p2p_get_coexist_anchor_freq(void);
+int bk_wifi_p2p_coexist_force_op_channel(struct p2p_data *p2p,
+					 struct p2p_channels *intersection);
+void bk_wifi_p2p_softap_csa_to_group(void);
+void bk_wifi_p2p_softap_csa_to_group_deferred(void);
+bool bk_wifi_infra_sta_vif_active(void);
+bool bk_wifi_infra_ap_vif_active(void);
+#endif
+#endif
 #ifdef __cplusplus
 }
 #endif

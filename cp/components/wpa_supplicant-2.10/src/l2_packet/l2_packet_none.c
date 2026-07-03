@@ -220,6 +220,11 @@ static void l2_packet_receive(int sock, void *eloop_ctx, void *sock_ctx)
 	}
 
 	hdr = (struct l2_ethhdr *) buf;
+	if (!l2->rx_callback) {
+		wpa_printf(MSG_DEBUG,
+			   "l2_packet_receive: stale socket event, callback gone");
+		goto recv_exit;
+	}
 	l2->rx_callback(l2->rx_callback_ctx,
 						hdr->h_source,
 						buf + sizeof(struct l2_ethhdr),

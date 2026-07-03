@@ -21,6 +21,9 @@
 #include "p2p.h"
 #ifdef BK_SUPPLICANT
 #endif
+#if CONFIG_P2P_SOFTAP_CHAN_ALIGN
+#include "wifi_v2.h"
+#endif
 
 
 #if BK_SUPPLICANT
@@ -1595,6 +1598,15 @@ static void p2p_prepare_channel_best(struct p2p_data *p2p)
 int p2p_prepare_channel(struct p2p_data *p2p, struct p2p_device *dev,
 			unsigned int force_freq, unsigned int pref_freq, int go)
 {
+#if CONFIG_P2P_SOFTAP_CHAN_ALIGN
+	if (!force_freq) {
+		int coexist_freq = bk_wifi_p2p_get_coexist_anchor_freq();
+
+		if (coexist_freq > 0)
+			force_freq = coexist_freq;
+	}
+#endif
+
 	p2p_dbg(p2p, "Prepare channel - force_freq=%u pref_freq=%u go=%d",
 		force_freq, pref_freq, go);
 	if (force_freq || pref_freq) {

@@ -20,6 +20,21 @@ extern int net_get_if_addr(struct wlan_ip_config *addr, void *intrfc_handle);
 extern void ip_address_set(int iface, int dhcp, char *ip, char *mask, char*gw, char*dns);
 extern void sta_ip_mode_set(int dhcp);
 void wlan_set_multicast_flag(void);
+#if CONFIG_P2P
+extern void p2p_go_ip_down(void);
+extern void p2p_go_ip_start(void);
+extern void p2p_go_ip_start_with_mac(const uint8_t mac[6]);
+extern void p2p_gc_ip_down(void);
+extern void p2p_gc_ip_start(void);
+extern void p2p_gc_ip_apply_connect(uint32_t ip, uint32_t gw, uint32_t mk, uint32_t dns);
+extern uint32_t p2p_go_ip_is_start(void);
+extern uint32_t p2p_gc_ip_is_start(void);
+extern void *net_get_p2p_go_handle(void);
+extern void *net_get_p2p_gc_handle(void);
+extern void net_get_p2p_go_cfg_addr(struct wlan_ip_config *addr);
+extern void net_get_p2p_go_if_addr(struct wlan_ip_config *addr);
+extern void net_get_p2p_gc_if_addr(struct wlan_ip_config *addr);
+#endif
 #ifdef CONFIG_IPV6
 int net_configure_ipv6_address(struct ipv6_config *ipv6_addrs, int addr_count, void *intrfc_handle);
 #endif
@@ -67,6 +82,9 @@ extern void modem_netif_notify_got_ip(void);
 #endif
 #ifdef CONFIG_WIFI_VNET_CONTROLLER
 int host_wlan_add_netif(uint8_t *mac);
+#if CONFIG_P2P
+int host_wlan_add_p2p_netifs(void);
+#endif
 int host_wlan_remove_netif(void);
 int host_wlan_remove_sap_netif(void);
 #endif

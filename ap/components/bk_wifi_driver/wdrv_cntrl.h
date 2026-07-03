@@ -100,6 +100,7 @@ struct wdrv_connect_ind
     u32  mk;
     u32  gw;
     u32  dns;
+    uint8_t vif_idx;
 };
 
 #define MAX_IPV6_ADDRESSES_IN_MSG 3
@@ -299,6 +300,11 @@ enum BK_EVENT_TYPE
     BK_EVT_CSI_INFO_IND         = 0xB,
     BK_EVT_ASSOC_GO_IND         = 0xC,
     BK_EVT_DISASSOC_GO_IND      = 0xD,
+    BK_EVT_P2P_GO_START_IND     = 0xE,
+    BK_EVT_P2P_GO_STOP_IND      = 0xF,
+    BK_EVT_P2P_GC_START_IND     = 0x10,
+    BK_EVT_P2P_GC_STOP_IND      = 0x11,
+    BK_EVT_WIFI_EVENT_IND       = 0x12,
     // BLE event
     // BK_EVT_BLE_XX            = 0x101
 
@@ -316,6 +322,16 @@ enum BK_EVENT_TYPE
 
     BK_EVT_BUTT                 = WDRV_MAX_MSG_CNT - 1
 };
+
+/* CP -> AP Wi-Fi event passthrough (see cp/components/controller_if/cif_wifi_event.h) */
+#define CIF_WIFI_EVENT_IND_MAX_DATA      64
+
+typedef struct {
+    uint16_t event_id;
+    uint16_t data_len;
+    uint8_t data[CIF_WIFI_EVENT_IND_MAX_DATA];
+} cif_wifi_event_ind_t;
+
 /* cmd-table from app to netdrv */
 
 typedef struct _wdrv_wlan {
@@ -333,6 +349,9 @@ typedef struct _wdrv_wlan {
     struct wdrv_ipv6_ind ipv6_ind;
     struct wdrv_ap_status_cfm ap_status_cfm;
     struct wdrv_ap_assoc_sta_ind ap_assoc_sta_addr_ind;
+#if CONFIG_P2P
+    int8_t p2p_role; /* 0=none, 1=GO, 2=GC; mirrored from CP events, no IPC read */
+#endif
 }wdrv_wlan;
 
 
@@ -399,6 +418,11 @@ int bk_platform_get_wlan_status(void);
 extern void wdrv_rx_handle_event(wdrv_rx_msg *msg);
 extern void wdrv_rx_handle_cmd_confirm(wdrv_rx_msg *msg);
 void wdrv_notify_sta_connected(void);
+#if CONFIG_P2P
+void wdrv_notify_gc_got_ipv4(void);
+void wdrv_notify_gc_got_ip(void);
+void wdrv_p2p_role_clear(void);
+#endif
 void wdrv_notify_sta_got_ip(void);
 void bk_rx_handle_customer_event(void *data, uint16_t len);
 int bk_wdrv_send_customer_data(uint8_t *data, uint16_t len);
@@ -406,10 +430,6 @@ void wdrv_notify_sta_disconnected(void *data, uint16_t len);
 void wdrv_notify_sap_sta_connected(void);
 void wdrv_notify_sta_got_ipv6(void);
 void wdrv_notify_sap_sta_disconnected(void);
-#if CONFIG_P2P
-void wdrv_notify_local_as_go(void);
-void wdrv_notify_go_client_disconnected(void);
-#endif
 bk_err_t bk_wifi_bcn_cc_rxed_cb(void *data, uint16_t len);
 void bk_wifi_csi_info_cb(void *data);
 

@@ -325,6 +325,26 @@ static int bk_nw_pro_wifi_event_cb(void *arg, event_module_t event_module, int e
             }
             break;
 
+#if CONFIG_P2P
+        case EVENT_WIFI_GO_CONNECTED:
+            BK_LOGI(TAG, "P2P GO: client connected\n");
+            bk_wifi_p2p_stop_find();
+            break;
+
+        case EVENT_WIFI_GO_DISCONNECTED:
+            BK_LOGI(TAG, "P2P GO: client disconnected, GO kept up\n");
+            break;
+
+        case EVENT_WIFI_GC_CONNECTED:
+            BK_LOGI(TAG, "P2P GC: connected to remote GO\n");
+            break;
+
+        case EVENT_WIFI_GC_DISCONNECTED:
+            BK_LOGI(TAG, "P2P GC: disconnected, restart find\n");
+            bk_wifi_p2p_find();
+            break;
+#endif
+
         default:
             BK_LOGI(TAG, "rx event <%d %d>\n", event_module, event_id);
             break;
@@ -333,16 +353,10 @@ static int bk_nw_pro_wifi_event_cb(void *arg, event_module_t event_module, int e
     return BK_OK;
 }
 
-#if CONFIG_P2P
-extern bk_err_t demo_p2p_event_cb(void *arg, event_module_t event_module, int event_id, void *event_data);
-#endif
 static void bk_nw_pro_event_handler_init(void)
 {
     BK_LOG_ON_ERR(bk_event_register_cb(EVENT_MOD_WIFI, EVENT_ID_ALL, bk_nw_pro_wifi_event_cb, NULL));
     BK_LOG_ON_ERR(bk_event_register_cb(EVENT_MOD_NETIF, EVENT_ID_ALL, bk_nw_pro_netif_event_cb, NULL));
-#if CONFIG_P2P
-    BK_LOG_ON_ERR(bk_event_register_cb(EVENT_MOD_WIFI, EVENT_ID_ALL, demo_p2p_event_cb, NULL));
-#endif
 }
 
 static void bk_nw_pro_common_init(void)
