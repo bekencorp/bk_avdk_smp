@@ -1073,19 +1073,6 @@ void crosscore_mb_rx_isr(mailbox_data_t *data)
 	spin_unlock(&crosscore_spin_lock);
 	rtos_enable_int(flag);
 	
-    #if configDEBUG_SMP
-        /* check mailbox msg and send msg to task */
-        if (portGET_CORE_ID() == 0)
-        {
-            // BK_LOGD(NULL, "XXX: %s\n", __func__);
-            REG_WRITE(GPIO_14_DEBUG, 0);
-        }
-        else
-        {
-            REG_WRITE(GPIO_15_DEBUG, 0);
-        }
-    #endif
-	
 	if(cmd & (0x01 << CC_DUMP_CORE))
 	{       
 		__BKPT(0xEE);  // trigger a debug exception to dump core & backtrace.
@@ -1181,17 +1168,6 @@ static void prvDisableInterruptsAndPortStartSchedulerOnCore( void )
 bk_err_t vPortYieldCore(int xCoreID)
 {
     bk_err_t ret = BK_OK;
-    #if configDEBUG_SMP
-        if (xCoreID == 0)
-        {
-            // BK_LOGD(NULL, "XXX: %s, core id %d\n", __func__, xCoreID);
-            REG_WRITE(GPIO_14_DEBUG, 2);
-        }
-        else
-        {
-            REG_WRITE(GPIO_15_DEBUG, 2);
-        }
-    #endif
     ret = crosscore_int_send_yield( xCoreID + CONFIG_CPU_ID_OFFSET);
     return ret;
 }

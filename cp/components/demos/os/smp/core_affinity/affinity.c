@@ -68,6 +68,7 @@
 #include <stdio.h>
 #include "gpio_driver.h"
 #include "bk_gpio.h"
+#include "soc_debug.h"
 
 /* Priorities at which the tasks are created. */
 #define	logPrintf_TASK_PRIORITY		        ( tskIDLE_PRIORITY + 3)
@@ -95,9 +96,7 @@ the queue empty. */
  * Called by main when mainCREATE_SIMPLE_BLINKY_DEMO_ONLY is set to 1 in
  * main.c.
  */
-#define GPIO_UP(id) *(volatile uint32_t*) (SOC_AON_GPIO_REG_BASE + ((id) << 2)) = 2
-#define GPIO_DOWN(id) *(volatile uint32_t*) (SOC_AON_GPIO_REG_BASE + ((id) << 2)) = 0
-
+/* GPIO_UP/GPIO_DOWN come from soc_debug.h */
 #define DEBUG_GPIO_UP         GPIO_UP
 #define DEBUG_GPIO_DOWN       GPIO_DOWN
 

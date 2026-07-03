@@ -21,6 +21,12 @@
  * debug code only.
  * */
 
+/* GPIO debug master switch.
+ * 0 (default): GPIO_UP/GPIO_DOWN/GPIO_UP_DOWN compile to no-ops.
+ * Set to 1 manually to physically drive the debug GPIOs. */
+#define CONFIG_GPIO_DEBUG_ENABLE 0
+
+#if CONFIG_GPIO_DEBUG_ENABLE
 #define GPIO_UP(id) *(volatile uint32_t*) (SOC_AON_GPIO_REG_BASE + ((id) << 2)) = 0x2000002
 #define GPIO_DOWN(id) *(volatile uint32_t*) (SOC_AON_GPIO_REG_BASE + ((id) << 2)) = 0x2000000
 
@@ -33,6 +39,11 @@
 		while(--cnt > 0);\
 	}\
 } while(0)
+#else
+#define GPIO_UP(id)      ((void)0)
+#define GPIO_DOWN(id)    ((void)0)
+#define GPIO_UP_DOWN(id) do {} while(0)
+#endif
 
 #ifdef  CONFIG_STARTUP_PERFORMANCE
 #define STARTUP_PERF(gpio_id) GPIO_UP(gpio_id)

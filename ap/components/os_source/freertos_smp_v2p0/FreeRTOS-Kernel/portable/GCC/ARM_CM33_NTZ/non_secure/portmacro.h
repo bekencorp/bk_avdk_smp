@@ -34,13 +34,6 @@
 
 #include "spinlock.h"
 
-#if configDEBUG_SMP_DEBUG
-#define GPIO_14_DEBUG                 (0x44000400 +(14*4))
-#define GPIO_15_DEBUG                 (0x44000400 +(15*4))
-#define GPIO_16_DEBUG                 (0x44000400 +(16*4))
-#define GPIO_17_DEBUG                 (0x44000400 +(17*4))
-#endif
-
 /*------------------------------------------------------------------------------
  * Port specific definitions.
  *
