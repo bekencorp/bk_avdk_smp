@@ -247,6 +247,20 @@ static inline void mb_ipc_exit_critical(uint32_t flags)
 	rtos_enable_int(flags);
 }
 
+static void mb_atomic_set(u8 * data, u8 bit_flag)
+{
+	u32 temp = mb_ipc_enter_critical();
+	*data |= bit_flag;
+	mb_ipc_exit_critical(temp);
+}
+
+static void mb_atomic_clear(u8 * data, u8 bit_flag)
+{
+	u32 temp = mb_ipc_enter_critical();
+	*data &= ~bit_flag;
+	mb_ipc_exit_critical(temp);
+}
+
 /**********************************************************************************************/
 /****                                                                                      ****/
 /****                                router layer                                          ****/
@@ -313,13 +327,16 @@ static int ipc_router_send(mb_ipc_route_t *ipc_route, mb_ipc_cmd_t *ipc_cmd)
 	tx_idx = (tx_idx + 1) % ARRAY_SIZE(ipc_route->chnl_tx_queue);
 	ipc_route->chnl_tx_queue_in_idx = tx_idx;
 
-	mb_ipc_exit_critical(temp);  /* used to protect ipc_route->chnl_tx_queue_in_idx. */
-
 	// it is the first item pushed to the queue, then try to send.
 	if(queue_cnt == 0)
 	{
 		mb_chnl_write(ipc_route->log_chnl, &ipc_cmd->mb_cmd);
 	}
+
+	// Put mb_chnl_write inside the critical section to avoid sending the same message twice
+	// in multi-core operation scenarios. If another core interrupts here after the queue is updated
+	// but before mb_chnl_write is called, two cores might attempt to send the same message simultaneously.
+	mb_ipc_exit_critical(temp);  /* used to protect ipc_route->chnl_tx_queue_in_idx. */
 
 	return IPC_ROUTE_STATUS_OK;
 }
@@ -394,10 +411,12 @@ static void ipc_router_tx_cmpl_isr(void *param, mb_chnl_ack_t *ack_buf)  /* tx_c
 		return;   /* something wrong. */
 	}
 
-	// data sanity check.
+	// data sanity check - protect queue access with critical section
+	u32 temp = mb_ipc_enter_critical();
 	if(ipc_route_tbl[route_id].chnl_tx_queue_in_idx == ipc_route_tbl[route_id].chnl_tx_queue_out_idx)
 	{
 		// queue empty.
+		mb_ipc_exit_critical(temp);
 		BK_LOGE(MOD_TAG, "%s error @%d, indx=%d!\r\n", __FUNCTION__, __LINE__, 
 			ipc_route_tbl[route_id].chnl_tx_queue_in_idx);
 		
@@ -407,6 +426,7 @@ static void ipc_router_tx_cmpl_isr(void *param, mb_chnl_ack_t *ack_buf)  /* tx_c
 	u16  tx_idx = ipc_route_tbl[route_id].chnl_tx_queue_out_idx;
 	
 	mb_ipc_cmd_t * queue_cmd = &ipc_route_tbl[route_id].chnl_tx_queue[tx_idx];
+	mb_ipc_exit_critical(temp);
 
 	// data sanity check.
 	if( (((queue_cmd->mb_cmd.param1 ^ ipc_cmd->mb_cmd.param1) & IPC_PARAM1_MASK) != 0)
@@ -431,8 +451,10 @@ static void ipc_router_tx_cmpl_isr(void *param, mb_chnl_ack_t *ack_buf)  /* tx_c
 	}
 
 	/* remove the first cmd from the queue. */
+	temp = mb_ipc_enter_critical();
 	tx_idx = (tx_idx + 1) % ARRAY_SIZE(ipc_route_tbl[route_id].chnl_tx_queue);
 	ipc_route_tbl[route_id].chnl_tx_queue_out_idx = tx_idx;
+	mb_ipc_exit_critical(temp);
 
 	#if !CONFIG_SOC_SMP
 	// it is a forwarded cmd/rsp.
@@ -468,10 +490,18 @@ tx_cmpl_isr_next_cmd:
 
 	/* refer to <design document> P45 tx_cmpl_isr 3). */
 
+	// protect queue access with critical section to avoid race condition
+	temp = mb_ipc_enter_critical();
 	if(ipc_route_tbl[route_id].chnl_tx_queue_in_idx == ipc_route_tbl[route_id].chnl_tx_queue_out_idx)
+	{
+		mb_ipc_exit_critical(temp);
 		return;  // no pending cmd in the queue.
+	}
 
-	queue_cmd = &ipc_route_tbl[route_id].chnl_tx_queue[tx_idx];
+	// use updated tx_idx (which is the current out_idx after increment)
+	u16 next_tx_idx = ipc_route_tbl[route_id].chnl_tx_queue_out_idx;
+	queue_cmd = &ipc_route_tbl[route_id].chnl_tx_queue[next_tx_idx];
+	mb_ipc_exit_critical(temp);
 
 	// send next pending cmd. // refer to <design document> P45 tx_cmpl_isr 3).
 	mb_chnl_write(ipc_route_tbl[route_id].log_chnl, &queue_cmd->mb_cmd);
@@ -703,9 +733,8 @@ static int ipc_socket_tx_rsp(mb_ipc_socket_t * ipc_socket, mb_ipc_cmd_t *ipc_cmd
 
 	if(route_status != IPC_ROUTE_STATUS_OK)
 	{
-		uint32_t flags = rtos_disable_int();
-		ipc_socket->run_state &= ~STATE_RX_IN_PROCESS;  // clear rx_in_process atomically.
-		rtos_enable_int(flags);
+		// ipc_socket->run_state &= ~STATE_RX_IN_PROCESS;  // clear rx_in_process.
+		mb_atomic_clear(&ipc_socket->run_state, STATE_RX_IN_PROCESS);
 	}
 
 	return route_status;
@@ -741,17 +770,14 @@ static int ipc_socket_tx_cmd(mb_ipc_socket_t * ipc_socket, mb_ipc_cmd_t *ipc_cmd
 
 	ipc_socket_set_addr(ipc_socket, ipc_cmd);
 
-	uint32_t flags = rtos_disable_int();
-	ipc_socket->run_state |= STATE_TX_IN_PROCESS;
-	rtos_enable_int(flags);
-		
+	mb_atomic_set(&ipc_socket->run_state, STATE_TX_IN_PROCESS);
+	
 	int route_status = ipc_router_send(ipc_route, ipc_cmd);
 
 	if(route_status != IPC_ROUTE_STATUS_OK)
 	{
-		uint32_t flags = rtos_disable_int();
-		ipc_socket->run_state &= ~STATE_TX_IN_PROCESS;
-		rtos_enable_int(flags);
+		// ipc_socket->run_state &= ~STATE_TX_IN_PROCESS;
+		mb_atomic_clear(&ipc_socket->run_state, STATE_TX_IN_PROCESS);
 	}
 
 	return route_status;
@@ -772,7 +798,8 @@ static void ipc_socket_rx_notify(mb_ipc_socket_t * ipc_socket)
 
 static void ipc_socket_tx_cmpl_notify(mb_ipc_socket_t * ipc_socket)
 {
-	ipc_socket->run_state &= ~STATE_TX_IN_PROCESS;  // clear tx_in_process.
+	// ipc_socket->run_state &= ~STATE_TX_IN_PROCESS;  // clear tx_in_process.
+	mb_atomic_clear(&ipc_socket->run_state, STATE_TX_IN_PROCESS);
 
 	/* tx_complete notification. */
 	rtos_set_semaphore(&ipc_socket->tx_notify_sema);
@@ -792,7 +819,8 @@ static void ipc_socket_tx_cmpl_handler(mb_ipc_socket_t * ipc_socket, mb_ipc_cmd_
 		}
 
 		// completed the rx-process, so clear the flag.
-		ipc_socket->run_state &= ~STATE_RX_IN_PROCESS;  // clear rx_in_process.
+		// ipc_socket->run_state &= ~STATE_RX_IN_PROCESS;  // clear rx_in_process.
+		mb_atomic_clear(&ipc_socket->run_state, STATE_RX_IN_PROCESS);
 
 		if(ipc_cmd->hdr.cmd == (MB_IPC_RSP_FLAG | MB_IPC_DISCONNECT_CMD)) // disconnect rsp send ok.
 		{
@@ -928,7 +956,8 @@ static void ipc_socket_rx_cmd_error_handler(mb_ipc_socket_t * ipc_socket, int er
 static int ipc_socket_rx_cmd_connect(mb_ipc_socket_t * ipc_socket)
 {
 	ipc_socket->use_flag  |= USE_FLAG_CONNECTED;
-	ipc_socket->run_state &= ~STATE_TX_IN_PROCESS;  // must have no cmd in sending, clear tx_in_process to be sure. 
+	// ipc_socket->run_state &= ~STATE_TX_IN_PROCESS;  // must have no cmd in sending, clear tx_in_process to be sure. 
+	mb_atomic_clear(&ipc_socket->run_state, STATE_TX_IN_PROCESS);
 	ipc_socket->tx_status = 0;  // must have no cmd in sending, so clear the tx status too.
 
 	ipc_socket_tx_rsp(ipc_socket, &ipc_socket->rx_cmd);
@@ -948,7 +977,8 @@ static int ipc_socket_rx_cmd_disconnect(mb_ipc_socket_t * ipc_socket)
 	}
 
 	ipc_socket->use_flag  &= ~USE_FLAG_CONNECTED;
-	ipc_socket->run_state &= ~STATE_TX_IN_PROCESS;    // cleared TX_IN_PROCESS.
+	// ipc_socket->run_state &= ~STATE_TX_IN_PROCESS;    // cleared TX_IN_PROCESS.
+	mb_atomic_clear(&ipc_socket->run_state, STATE_TX_IN_PROCESS);
 
 	ipc_socket_tx_rsp(ipc_socket, &ipc_socket->rx_cmd);
 
@@ -1040,7 +1070,8 @@ static int ipc_socket_rx_cmd_handler(mb_ipc_socket_t * ipc_socket, mb_ipc_cmd_t 
 		ipc_socket->rx_cmd.mb_cmd.param3 = ipc_cmd->mb_cmd.param3;
 		
 		ipc_socket->rx_read_offset = 0;
-		ipc_socket->run_state |= STATE_RX_IN_PROCESS;
+		// ipc_socket->run_state |= STATE_RX_IN_PROCESS;
+		mb_atomic_set(&ipc_socket->run_state, STATE_RX_IN_PROCESS);
 
 		if( (ipc_socket->use_flag & USE_FLAG_ALLOCATED) == 0 )  // socket must have been initialized.
 		{
@@ -1478,7 +1509,8 @@ int mb_ipc_connect(u32 handle, u8 dst_cpu, u8 dst_port, u32 time_out)
 		
 		if(route_status != 0)
 		{
-			ipc_socket->run_state &= ~STATE_TX_IN_PROCESS;  // clear tx_in_process. prevent cmd from being handled in ISR.
+			// ipc_socket->run_state &= ~STATE_TX_IN_PROCESS;  // clear tx_in_process. prevent cmd from being handled in ISR.
+			mb_atomic_clear(&ipc_socket->run_state, STATE_TX_IN_PROCESS);
 			ret_val = -MB_IPC_TX_TIMEOUT;
 			// rtos_delay_milliseconds(MB_IPC_RETRY_DELAY);
 			continue;
@@ -1530,7 +1562,8 @@ int mb_ipc_disconnect(u32 handle, u8 dst_cpu, u8 dst_port, u32 time_out)
 	ipc_socket->dst_cpu  = dst_cpu;
 	ipc_socket->dst_port = dst_port;
 	
-	ipc_socket->run_state &= ~STATE_TX_IN_PROCESS;  // clear tx_in_process. prevent previous cmd from being handled in ISR.
+	// ipc_socket->run_state &= ~STATE_TX_IN_PROCESS;  // clear tx_in_process. prevent previous cmd from being handled in ISR.
+	mb_atomic_clear(&ipc_socket->run_state, STATE_TX_IN_PROCESS);
 
 	memset(&ipc_socket->tx_cmd, 0, sizeof(ipc_socket->tx_cmd));
 
@@ -1555,7 +1588,8 @@ int mb_ipc_disconnect(u32 handle, u8 dst_cpu, u8 dst_port, u32 time_out)
 		
 		if(route_status != 0)
 		{
-			ipc_socket->run_state &= ~STATE_TX_IN_PROCESS;  // clear tx_in_process. prevent cmd from being handled in ISR.
+			// ipc_socket->run_state &= ~STATE_TX_IN_PROCESS;  // clear tx_in_process. prevent cmd from being handled in ISR.
+			mb_atomic_clear(&ipc_socket->run_state, STATE_TX_IN_PROCESS);
 			ret_val = -MB_IPC_TX_TIMEOUT;
 			// rtos_delay_milliseconds(MB_IPC_RETRY_DELAY);
 			continue;
@@ -1730,7 +1764,8 @@ re_send_onetime:
 		
 		if(route_status != 0)
 		{
-			ipc_socket->run_state &= ~STATE_TX_IN_PROCESS;  // clear tx_in_process. prevent cmd from being handled in ISR.
+			// ipc_socket->run_state &= ~STATE_TX_IN_PROCESS;  // clear tx_in_process. prevent cmd from being handled in ISR.
+			mb_atomic_clear(&ipc_socket->run_state, STATE_TX_IN_PROCESS);
 			ret_val = -MB_IPC_TX_TIMEOUT;
 			// rtos_delay_milliseconds(MB_IPC_RETRY_DELAY);
 			continue;

@@ -20,11 +20,19 @@
 #include <modules/pm.h>
 
 #define MOD_TAG		"hrt"
+#define BEKEN_HEARTBEAT_PRIORITY 0
 
 #if (CONFIG_CPU_CNT > 1)
 
 /* define the code section will be compiled. */
 #define MASTER_HB_TASK
+
+#define MB_IPC_HEARTBEAT_TIME       2000   /* slave sends heartbeat every 2s */
+#if CONFIG_WDT_EN
+#define HB_TIMEOUT_MS               CONFIG_INT_WDT_PERIOD_MS
+#else
+#define HB_TIMEOUT_MS               (MB_IPC_HEARTBEAT_TIME * 3)  /* 6s: allow 3 missed heartbeats */
+#endif
 
 
 #if !defined(MASTER_HB_TASK)
@@ -79,6 +87,9 @@ static volatile u8                  cpu_x_dump = 0;
 static volatile u8                  cpu_x_heartbeat_timeout = 0;
 static volatile mb_ipc_work_state_e s_mb_ipc_work_state = MB_IPC_WORKING;
 
+void mb_ipc_heartbeat_notify(u32 cpu_id);
+void mb_ipc_power_on_notify(u32 cpu_id);
+
 extern void start_cpu1_core(void);
 extern void stop_cpu1_core(void);
 extern void start_cpu2_core(void);
@@ -88,6 +99,14 @@ extern void stop_cpu2_core(void);
 int bk_ipc_heartbeat_is_timeout(void)
 {
 	return cpu_x_heartbeat_timeout;
+}
+
+void bk_ipc_heartbeat_get_status(u8 *state, u32 *last_ts, u32 *cur_ts, u8 *cpu_id)
+{
+	if(state)  *state  = cpu_x_state;
+	if(last_ts) *last_ts = cpu_x_heartbeat_timestamp;
+	if(cur_ts)  *cur_ts  = (u32)rtos_get_time();
+	if(cpu_id)  *cpu_id  = cpu_x_id;
 }
 
 static int ipc_heartbeat_timeout(void)
@@ -112,14 +131,15 @@ static int ipc_heartbeat_timeout(void)
 	}
 	else
 	{
-		cur_time += (~(cpu_x_heartbeat_timestamp)) + 1;  // wrap around. 
+		cur_time += (~(cpu_x_heartbeat_timestamp)) + 1;  // wrap around.
 	}
-	
-	if(cur_time < CONFIG_INT_WDT_PERIOD_MS)
+
+	if(cur_time < HB_TIMEOUT_MS)
 	{
 		cpu_x_heartbeat_timestamp = (u32)rtos_get_time();
 		return 0;
 	}
+
 	if (bk_pm_module_lv_sleep_state_get(PM_DEV_ID_DEFAULT))
 	{
 		cpu_x_heartbeat_timestamp = (u32)rtos_get_time();
@@ -282,7 +302,7 @@ static void mb_ipc_task( void *para )
 		}
 		else
 		{
-			check_time = CONFIG_INT_WDT_PERIOD_MS;
+			check_time = HB_TIMEOUT_MS;
 		}
 	}
 }
@@ -315,7 +335,6 @@ void mb_ipc_heartbeat_notify(u32 cpu_id)
 	{
 		return;
 	}
-	rtos_set_event_ex(&mb_ipc_heart_event, MB_IPC_POWER_UP_FLAG);
 	rtos_set_event_ex(&mb_ipc_heart_event, MB_IPC_HEARTBEAT_FLAG);
 }
 
@@ -324,6 +343,12 @@ void mb_ipc_power_on_notify(u32 cpu_id)
 	if(check_cpu_id_ok(cpu_id) == 0)
 	{
 		return;
+	}
+
+	if(cpu_x_state == CORE_POWER_OFF)
+	{
+		cpu_x_state = CORE_STARTING;
+		rtos_set_event_ex(&mb_ipc_heart_event, MB_IPC_START_CORE_FLAG);
 	}
 
 	rtos_set_event_ex(&mb_ipc_heart_event, MB_IPC_POWER_UP_FLAG);
@@ -373,8 +398,6 @@ int mb_ipc_cpu_is_power_off(u32 cpu_id)
 
 #if defined(SLAVE_HB_TASK)
 
-#define MB_IPC_HEARTBEAT_TIME		2000
-
 static void mb_ipc_task( void *para )
 {
 	ipc_send_power_up();
@@ -388,13 +411,12 @@ static void mb_ipc_task( void *para )
 
 #endif
 
-#define BEKEN_HIGHEST_PRIORITY             (0)  /**< Highest Priority */
 bk_err_t mb_ipc_heartbeat_init(void)
 {
 	bk_err_t	ret_val = BK_FAIL;
 
 #if defined(MASTER_HB_TASK) || defined(SLAVE_HB_TASK)
-	ret_val = rtos_create_thread(NULL, BEKEN_HIGHEST_PRIORITY, "heartbeat", mb_ipc_task, 1024, 0);
+	ret_val = rtos_create_thread(NULL, BEKEN_HEARTBEAT_PRIORITY, "heartbeat", mb_ipc_task, 1024, 0);
 #endif
 
 	if(ret_val != BK_OK)

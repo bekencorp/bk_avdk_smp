@@ -12,10 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <common/bk_include.h>
 #include <stdio.h>
 #include <string.h>
 
 #include <os/os.h>
+#include "cmsis_gcc.h"
 #include <driver/mailbox_channel.h>
 #include <driver/mb_chnl_buff.h>
 #include "mb_ipc_cmd.h"
@@ -95,6 +97,30 @@ typedef struct
 	u16				cmd_len;
 } ipc_chnl_cb_t;
 
+#ifdef CONFIG_SOC_SMP
+#include "spinlock.h"
+static SPINLOCK_SECTION volatile spinlock_t mb_ipc_spin_lock = SPIN_LOCK_INIT;
+#endif // CONFIG_SOC_SMP
+static inline uint32_t ipc_enter_critical()
+{
+	uint32_t flags = rtos_disable_int();
+
+#ifdef CONFIG_SOC_SMP
+	spin_lock(&mb_ipc_spin_lock);
+#endif // CONFIG_SOC_SMP
+
+	return flags;
+}
+
+static inline void ipc_exit_critical(uint32_t flags)
+{
+#ifdef CONFIG_SOC_SMP
+	spin_unlock(&mb_ipc_spin_lock);
+#endif // CONFIG_SOC_SMP
+
+	rtos_enable_int(flags);
+}
+
 static void ipc_cmd_rx_isr(ipc_chnl_cb_t *chnl_cb, mb_chnl_cmd_t *cmd_buf)
 {
 	u32		result = ACK_STATE_FAIL;
@@ -137,6 +163,7 @@ static void ipc_cmd_rx_isr(ipc_chnl_cb_t *chnl_cb, mb_chnl_cmd_t *cmd_buf)
 				#if CONFIG_CACHE_ENABLE
 				flush_dcache(ipc_cmd->cmd_buff, ipc_cmd->cmd_data_len);
 				#endif
+				__DMB();
 				
 				memcpy(chnl_cb->rsp_buf, ipc_cmd->cmd_buff, ipc_cmd->cmd_data_len);
 
@@ -180,6 +207,7 @@ static void ipc_cmd_rx_isr(ipc_chnl_cb_t *chnl_cb, mb_chnl_cmd_t *cmd_buf)
 				#if CONFIG_CACHE_ENABLE
 				flush_dcache(ipc_cmd->cmd_buff, ipc_cmd->cmd_data_len);
 				#endif
+				__DMB();
 				
 				memcpy(chnl_cb->cmd_buf, ipc_cmd->cmd_buff, ipc_cmd->cmd_data_len);
 
@@ -248,8 +276,9 @@ static void ipc_cmd_tx_cmpl_isr(ipc_chnl_cb_t *chnl_cb, mb_chnl_ack_t *ack_buf) 
 				if((ipc_rsp->rsp_buff != NULL) && (ipc_rsp->rsp_data_len > 0))
 				{
 					#if CONFIG_CACHE_ENABLE
-					flush_dcache(ipc_rsp->rsp_buff, ipc_rsp->rsp_data_len);;
+					flush_dcache(ipc_rsp->rsp_buff, ipc_rsp->rsp_data_len);
 					#endif
+					__DMB();
 
 					memcpy(chnl_cb->rsp_buf, ipc_rsp->rsp_buff, ipc_rsp->rsp_data_len);
 					chnl_cb->rsp_len = ipc_rsp->rsp_data_len;
@@ -702,7 +731,10 @@ static u32 ipc_cmd_handler(ipc_chnl_cb_t *chnl_cb, mb_chnl_ack_t *ack_buf)
 				ipc_res_req_t * res_req = (ipc_res_req_t *)chnl_cb->cmd_buf;
 				amp_res_req_cnt_t * res_cnt_list = (amp_res_req_cnt_t *)ipc_rsp->rsp_buff;
 
+				/* call amp_res_acquire_cnt in interrupt disabled state. */
+				u32  int_mask = ipc_enter_critical();
 				bk_err_t ret_code = amp_res_acquire_cnt(res_req->res_id, res_req->cpu_id, res_cnt_list);
+				ipc_exit_critical(int_mask);
 
 				if(ret_code == BK_OK)
 				{
@@ -729,7 +761,10 @@ static u32 ipc_cmd_handler(ipc_chnl_cb_t *chnl_cb, mb_chnl_ack_t *ack_buf)
 				ipc_res_req_t * res_req = (ipc_res_req_t *)chnl_cb->cmd_buf;
 				amp_res_req_cnt_t * res_cnt_list = (amp_res_req_cnt_t *)ipc_rsp->rsp_buff;
 
+				/* call amp_res_release_cnt in interrupt disabled state. */
+				u32  int_mask = ipc_enter_critical();
 				bk_err_t ret_code = amp_res_release_cnt(res_req->res_id, res_req->cpu_id, res_cnt_list);
+				ipc_exit_critical(int_mask);
 
 				if(ret_code == BK_OK)
 				{
