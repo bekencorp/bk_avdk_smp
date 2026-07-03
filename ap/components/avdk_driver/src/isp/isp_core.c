@@ -596,7 +596,11 @@ static bk_err_t bk_isp_device_config(isp_control_t *control)
     control->port.portId = 0;
     VSI_MPI_ISP_Init(control->dev);
 
-    VSI_MPI_ISP_PipeLineSet(control->port);
+    /* Do NOT configure any port's ISP module pipeline here. The per-port
+     * pipeline (which creates each module's mutex, e.g. WbV10 mLock) is set up
+     * on demand when the upper layer brings a port up via bk_isp_port_init().
+     * This keeps device config port-agnostic and only pays the cost for ports
+     * that are actually used (e.g. ISP_DVP_PORT_ID only when DVP is opened). */
 
     ISP_DEV_ATTR_S devAttr;
     devAttr.ispWorkMode = WORK_MODE_NORMAL;
@@ -623,6 +627,18 @@ bk_err_t bk_isp_port_init(isp_handle_t *handle, void *sensor_attr)
 
     control->port.portId = pubAttr->port_id;
     control->pub_attr[control->port.portId] = pubAttr;
+
+    /* Lazily initialise this port's ISP module pipeline the first time it is
+     * brought up. VSI_MPI_ISP_PipeLineSet() creates the per-port module mutexes
+     * (e.g. WbV10 mLock) that isp_set_port_attribute()->...->WbV10InitAlgo()
+     * locks; without it the DVP port (ISP_DVP_PORT_ID) would lock a NULL mutex
+     * and assert. The per-port guard makes it run exactly once per port so
+     * repeated open/close (or MIPI<->DVP switching) won't re-create / leak it. */
+    if (!(control->port_pipeline_inited & (1u << control->port.portId)))
+    {
+        VSI_MPI_ISP_PipeLineSet(control->port);
+        control->port_pipeline_inited |= (1u << control->port.portId);
+    }
 
     ret = isp_set_port_attribute(control->port, pubAttr);
     if (ret)
