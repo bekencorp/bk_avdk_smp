@@ -93,21 +93,26 @@ static void h264e_end_cb(void *buffer, uint32_t size, uint32_t type, uint32_t re
 
     private_h264_encode_sw_flexa_ctlr_t *ctrl = (private_h264_encode_sw_flexa_ctlr_t *)param;
 
-    if (result == BK_OK) {
-        if (type == VCENC_OUT_IFRAME) {
-            if (ctrl->debug_info.max_i_frame_size < size) {
-                ctrl->debug_info.max_i_frame_size = size;
+    if (ctrl->debug_time_ms != 0) {
+        if (result == BK_OK) {
+            ctrl->debug_info.enc_frame_ok_cnt++;
+            if (type == VCENC_OUT_IFRAME) {
+                if (ctrl->debug_info.max_i_frame_size < size) {
+                    ctrl->debug_info.max_i_frame_size = size;
+                }
+                ctrl->debug_info.last_i_frame_size = size;
+            } else if (type == VCENC_OUT_PFRAME) {
+                if (ctrl->debug_info.max_p_frame_size < size) {
+                    ctrl->debug_info.max_p_frame_size = size;
+                }
+                ctrl->debug_info.last_p_frame_size = size;
             }
-            ctrl->debug_info.last_i_frame_size = size;
-        } else if (type == VCENC_OUT_PFRAME) {
-            if (ctrl->debug_info.max_p_frame_size < size) {
-                ctrl->debug_info.max_p_frame_size = size;
-            }
-            ctrl->debug_info.last_p_frame_size = size;
+            ctrl->debug_info.all_frame_size += size;
+            h264_encode_debug_update_qp(&ctrl->debug_info, type,
+                                        vcenc_h264_get_current_qp(&ctrl->enc_param));
+        } else {
+            ctrl->debug_info.enc_frame_err_cnt++;
         }
-        ctrl->debug_info.all_frame_size += size;
-    } else {
-        ctrl->debug_info.enc_frame_err_cnt++;
     }
 
     if (ctrl->bond != NULL && ctrl->bond->frame_done != NULL) {
@@ -617,10 +622,17 @@ static void h264e_debug_callback(void *arg)
     uint32_t frame_count = (debug->all_frame_count - ctrl->last_debug_info.all_frame_count) * 1000 / ctrl->debug_time_ms;
     uint32_t bytes_per_second = (debug->all_frame_size - ctrl->last_debug_info.all_frame_size) * 1000 / ctrl->debug_time_ms;
     uint32_t bit_rate_kbps = bytes_per_second * 8 / 1024;
-    LOGI("%s %d(fps:%d\t%dBytes/s\tbit_rate:%dkbps\tmax_i:%d\tmax_p:%d)\n", __func__, __LINE__,
+    uint32_t enc_err_cnt = debug->enc_frame_err_cnt - ctrl->last_debug_info.enc_frame_err_cnt;
+    uint32_t enc_ok_cnt = debug->enc_frame_ok_cnt - ctrl->last_debug_info.enc_frame_ok_cnt;
+    LOGI("%s %d(fps:%d\t%dBytes/s\tbit_rate:%dkbps\tmax_i:%d\tmax_p:%d\t"
+         "i_qp[%u-%u]\tp_qp[%u-%u]\tlast_qp:%u\tenc_ok:%u\tenc_err:%u)\n", __func__, __LINE__,
          frame_count, bytes_per_second, bit_rate_kbps,
-         debug->max_i_frame_size, debug->max_p_frame_size);
+         debug->max_i_frame_size, debug->max_p_frame_size,
+         debug->min_i_qp <= 51U ? debug->min_i_qp : 0U, debug->max_i_qp,
+         debug->min_p_qp <= 51U ? debug->min_p_qp : 0U, debug->max_p_qp,
+         debug->last_frame_qp, enc_ok_cnt, enc_err_cnt);
     os_memcpy(&ctrl->last_debug_info, debug, sizeof(*debug));
+    h264_encode_debug_info_reset_qp(debug);
 }
 
 static avdk_err_t h264_encode_ctlr_ioctl(bk_h264_encode_ctlr_handle_t handle, uint32_t cmd, void *arg)
@@ -748,6 +760,7 @@ avdk_err_t bk_h264_encode_sw_flexa_ctlr_new(bk_h264_encode_ctlr_handle_t *handle
     private_h264_encode_sw_flexa_ctlr_t *controller = (private_h264_encode_sw_flexa_ctlr_t *)os_malloc(sizeof(private_h264_encode_sw_flexa_ctlr_t));
     AVDK_RETURN_ON_FALSE(controller, AVDK_ERR_NOMEM, TAG, AVDK_ERR_NOMEM_TEXT);
     os_memset(controller, 0, sizeof(private_h264_encode_sw_flexa_ctlr_t));
+    h264_encode_debug_info_reset_qp(&controller->debug_info);
     os_memcpy(&controller->config, config, sizeof(bk_h264_encode_sw_flexa_config_t));
     controller->ops.init = h264_encode_ctlr_init;
     controller->ops.open = h264_encode_ctlr_open;

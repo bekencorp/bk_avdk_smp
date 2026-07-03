@@ -46,8 +46,63 @@ typedef struct
 	uint32_t last_p_frame_size;
 	uint32_t all_frame_size;
 	uint32_t all_frame_count;
+	uint32_t enc_frame_ok_cnt;
 	uint32_t enc_frame_err_cnt;
+	uint32_t max_i_qp;
+	uint32_t min_i_qp;
+	uint32_t max_p_qp;
+	uint32_t min_p_qp;
+	uint32_t last_frame_qp;
 } h264_encode_debug_info_t;
+
+/** Sentinel for min_qp before any frame of that type is encoded. */
+#define H264_ENCODE_QP_MIN_UNSET  52U
+
+static inline void h264_encode_debug_info_reset_qp(h264_encode_debug_info_t *info)
+{
+	if (info != NULL) {
+		info->max_i_qp = 0;
+		info->min_i_qp = H264_ENCODE_QP_MIN_UNSET;
+		info->max_p_qp = 0;
+		info->min_p_qp = H264_ENCODE_QP_MIN_UNSET;
+		info->last_frame_qp = 0;
+	}
+}
+
+static inline void h264_encode_debug_update_qp(h264_encode_debug_info_t *info, uint32_t frame_type, uint32_t qp)
+{
+	uint32_t *min_qp;
+	uint32_t *max_qp;
+
+	if (info == NULL || qp > 51U) {
+		return;
+	}
+
+	info->last_frame_qp = qp;
+
+	if (frame_type == VCENC_OUT_IFRAME) {
+		min_qp = &info->min_i_qp;
+		max_qp = &info->max_i_qp;
+	} else if (frame_type == VCENC_OUT_PFRAME) {
+		min_qp = &info->min_p_qp;
+		max_qp = &info->max_p_qp;
+	} else {
+		return;
+	}
+
+	if (*min_qp > 51U) {
+		*min_qp = qp;
+		*max_qp = qp;
+		return;
+	}
+
+	if (qp < *min_qp) {
+		*min_qp = qp;
+	}
+	if (qp > *max_qp) {
+		*max_qp = qp;
+	}
+}
 
 /**
  * @brief Default fixed-QP values applied on controller open, matching what
