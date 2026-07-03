@@ -117,6 +117,12 @@ static void bk_usb_init_all_device_driver_sw(void)
 
 bk_err_t bk_usb_power_ops(uint32_t gpio_id, bool ops)
 {
+	if (gpio_id == 0xFF)
+	{
+		s_usb_power_on_flag = ops;
+		return BK_OK;
+	}
+
 	if (ops)
 	{
 		USB_RETURN_NOT_POWERED_DOWN();

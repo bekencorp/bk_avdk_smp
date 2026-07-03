@@ -235,8 +235,8 @@ static void usb_dc_riscv_probe_init_device(void)
     ctx->event = 0;
     ctx->event_data = 0;
     ctx->g_musb_hcd_addr = 0;
-    ctx->g_musb_udc_addr = (uint32_t)(uintptr_t)&g_musb_udc;
-    ctx->usb_ep0_state_addr = (uint32_t)(uintptr_t)&usb_ep0_state;
+    ctx->g_musb_udc_addr = SOC_SRAM_PERI_ADDR((uint32_t)(uintptr_t)&g_musb_udc);
+    ctx->usb_ep0_state_addr = SOC_SRAM_PERI_ADDR((uint32_t)(uintptr_t)&usb_ep0_state);
     ctx->pending_ep0 = 0;
     ctx->role = RISCV_USB_ROLE_DEVICE;
     ctx->pending_usbd_evt = 0;

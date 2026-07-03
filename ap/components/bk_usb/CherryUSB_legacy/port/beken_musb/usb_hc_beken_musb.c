@@ -407,8 +407,8 @@ static void usb_hc_riscv_probe_init(uint32_t role)
     ctx->irq_seq = 0;
     ctx->event = RISCV_USB_PROBE_EVT_NONE;
     ctx->event_data = 0;
-    ctx->g_musb_hcd_addr = (uint32_t)(uintptr_t)&g_musb_hcd;
-    ctx->usb_ep0_state_addr = (uint32_t)(uintptr_t)&usb_ep0_state;
+    ctx->g_musb_hcd_addr = SOC_SRAM_PERI_ADDR((uint32_t)(uintptr_t)&g_musb_hcd);
+    ctx->usb_ep0_state_addr = SOC_SRAM_PERI_ADDR((uint32_t)(uintptr_t)&usb_ep0_state);
     ctx->pending_ep0 = 0;
     ctx->role = role;
     for (uint32_t i = 0U; i < (uint32_t)RISCV_USB_PROBE_PIPE_NUM; i++) {

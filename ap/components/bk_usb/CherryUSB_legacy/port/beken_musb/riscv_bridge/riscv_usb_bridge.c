@@ -40,7 +40,7 @@ volatile riscv_usb_probe_t *get_riscv_usb_probe(void)
 
 void riscv_usb_probe_init(void)
 {
-    bk_sys_sw_regs_ptr()->riscv_swap = (void *)&s_riscv_probe;
+    bk_sys_sw_regs_ptr()->riscv_swap = (void *)(uintptr_t)SOC_SRAM_PERI_ADDR((uint32_t)(uintptr_t)&s_riscv_probe);
 }
 
 static void usb_hc_riscv_power_on(void)
