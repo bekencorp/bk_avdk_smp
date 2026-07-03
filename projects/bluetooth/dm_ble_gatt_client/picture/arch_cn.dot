@@ -1,0 +1,37 @@
+digraph arch {
+    rankdir=LR;
+    bgcolor="white";
+    fontname="Noto Sans CJK SC";
+    node [fontname="Noto Sans CJK SC", shape=box, style="rounded,filled", fillcolor="#eef3fb", color="#9bb8e0", penwidth=1.2];
+    edge [fontname="Noto Sans CJK SC", color="#555555", fontsize=11];
+
+    Peer [label="对端设备\nGATT Server / 手机 BLE 外设", fillcolor="#fde9d9", color="#e0a96b"];
+
+    subgraph cluster_board {
+        label="BK7259 双模蓝牙工程";
+        fontname="Noto Sans CJK SC";
+        style="rounded";
+        color="#9bb8e0";
+
+        subgraph cluster_ap {
+            label="AP（应用核）";
+            fontname="Noto Sans CJK SC";
+            style="rounded";
+            color="#8ec98e";
+            Host [label="双模蓝牙 HOST\n只启动 BLE GATTC 应用"];
+            Component [label="dm_gatt / dm_gattc 组件\n连接 / 发现 / 读写同步\n公共 ble_gatt_demo CLI"];
+            App [label="dm_ble_gatt_client_demo\n扫描 / 自动发现 / 本地缓存 DB"];
+            Cache [label="发现结果缓存\nService / Characteristic / Descriptor\nvalue_handle / desc_handle"];
+        }
+
+        CP [label="CP（通信核）\n双模蓝牙 Controller\n扫描 / 连接 / ATT 承载", fillcolor="#e7f5e7", color="#8ec98e"];
+    }
+
+    App -> Component;
+    Component -> Host;
+    Host -> CP [label="IPC"];
+    CP -> Peer [label="BLE 空口\n扫描 / 连接 / ATT"];
+    Peer -> CP [label="广播 / 读写响应 / 通知"];
+    Component -> Cache [label="发现回调"];
+    App -> Cache [label="打印并使用 handle"];
+}

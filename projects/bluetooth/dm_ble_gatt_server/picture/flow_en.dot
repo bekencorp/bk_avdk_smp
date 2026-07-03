@@ -1,0 +1,29 @@
+digraph flow {
+    rankdir=TB;
+    bgcolor="white";
+    fontname="Arial";
+    node [fontname="Arial", shape=box, style="rounded,filled", fillcolor="#eef3fb", color="#9bb8e0", penwidth=1.2];
+    edge [fontname="Arial", color="#555555", fontsize=11];
+
+    A [label="Build and flash dm_ble_gatt_server"];
+    B [label="Open UART and boot\nAP starts dual-mode HOST\nCP starts dual-mode Controller"];
+    C [label="bk_dm_prf_gap_main / bk_dm_prf_gatts_main\ninitialize component and shared callbacks"];
+    D [label="Register demo GATT DB\nService 0xFA00\nEA01/EA02/EA05/EA06/EA07"];
+    E [label="Serialize advertising setup\nname BKDMBLE-xxxxxx\nadvertise UUID 0xFA00"];
+    SEC [label="Run security_method 3 1 3 on both boards\n(before connect)", fillcolor="#e8f5e9", color="#81c784"];
+    F [label="Peer scans and connects", shape=diamond, fillcolor="#fff6cc", color="#d9c14e"];
+    G [label="Peer discovers services and handles\nuse runtime log handles"];
+    H [label="Peer writes EA02 or EA05~EA07\nserver logs text and hex"];
+    I [label="Peer reads EA05~EA07\nreturns latest written value"];
+    J [label="Peer writes CCCD to enable EA01 notification"];
+    K [label="ap_cmd dm_ble_gatt_server gatts notify hello\nsend notification"];
+    BOND [label="Accept peer create_bond\npairing success / show_bond", fillcolor="#e8f5e9", color="#81c784"];
+    PARAM [label="Peer runs update_param\nconnection params updated", fillcolor="#e8f5e9", color="#81c784"];
+    L [label="Disconnect"];
+    M [label="ap_cmd ble_gatt_demo gatts enable_adv 1\nrestart advertising"];
+
+    A -> B -> C -> D -> E -> SEC -> F;
+    F -> G [label="connected"];
+    G -> H -> I -> J -> K -> BOND -> PARAM -> L -> M;
+    M -> F [label="wait for next connection"];
+}

@@ -1,0 +1,27 @@
+digraph flow {
+    rankdir=TB;
+    bgcolor="white";
+    fontname="Noto Sans CJK SC";
+    node [fontname="Noto Sans CJK SC", shape=box, style="rounded,filled", fillcolor="#eef3fb", color="#9bb8e0", penwidth=1.2];
+    edge [fontname="Noto Sans CJK SC", color="#555555", fontsize=11];
+
+    A [label="编译并烧录 dm_ble_gatt_client"];
+    B [label="打开串口，上电\nAP 启动双模 HOST\nCP 启动双模 Controller"];
+    C [label="bk_dm_prf_gap_main / bk_dm_prf_gattc_main\n初始化组件与公共 callback"];
+    D [label="注册 demo GATTC/GAP callback\n注册项目 CLI"];
+    E [label="ap_cmd dm_ble_gatt_client gattc scan_start 0 0\n扫描对端广播"];
+    F [label="找到 BKDMBLE-xxxxxx\n记录地址与 addr_type", shape=diamond, fillcolor="#fff6cc", color="#d9c14e"];
+    SEC [label="两端执行 security_method 3 1 3\n（连接前配置）", fillcolor="#e8f5e9", color="#81c784"];
+    G [label="ap_cmd ble_gatt_demo gattc connect <addr> <type>\n发起连接"];
+    H [label="连接成功后自动 discover\n缓存 service / char / desc"];
+    I [label="使用发现日志中的 value_handle\n读 EA01 / EA05~EA07"];
+    J [label="写 EA02 或 EA05~EA07\n再读回确认"];
+    K [label="写 CCCD 使能 EA01 通知\n接收 server notification"];
+    BOND [label="ap_cmd ble_gatt_demo create_bond <addr>\nap_cmd ble_gatt_demo show_bond", fillcolor="#e8f5e9", color="#81c784"];
+    PARAM [label="ap_cmd ble_gatt_demo update_param <addr> 40 400\n更新连接参数（十进制）", fillcolor="#e8f5e9", color="#81c784"];
+    L [label="ap_cmd ble_gatt_demo gattc disconnect <addr>\n断开连接"];
+
+    A -> B -> C -> D -> E -> F;
+    F -> SEC [label="找到 server"];
+    SEC -> G -> H -> I -> J -> K -> BOND -> PARAM -> L;
+}

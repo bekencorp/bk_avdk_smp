@@ -1,0 +1,27 @@
+digraph flow {
+    rankdir=TB;
+    bgcolor="white";
+    fontname="Arial";
+    node [fontname="Arial", shape=box, style="rounded,filled", fillcolor="#eef3fb", color="#9bb8e0", penwidth=1.2];
+    edge [fontname="Arial", color="#555555", fontsize=11];
+
+    A [label="Build and flash dm_ble_gatt_client"];
+    B [label="Open UART and boot\nAP starts dual-mode HOST\nCP starts dual-mode Controller"];
+    C [label="bk_dm_prf_gap_main / bk_dm_prf_gattc_main\ninitialize component and shared callbacks"];
+    D [label="Register demo GATTC/GAP callbacks\nregister project CLI"];
+    E [label="ap_cmd dm_ble_gatt_client gattc scan_start 0 0\nscan peer advertising"];
+    F [label="Find BKDMBLE-xxxxxx\nrecord address and addr_type", shape=diamond, fillcolor="#fff6cc", color="#d9c14e"];
+    SEC [label="Run security_method 3 1 3 on both boards\n(before connect)", fillcolor="#e8f5e9", color="#81c784"];
+    G [label="ap_cmd ble_gatt_demo gattc connect <addr> <type>\nconnect"];
+    H [label="Auto discover after connection\ncache service / char / desc"];
+    I [label="Use discovered value_handle\nread EA01 / EA05~EA07"];
+    J [label="Write EA02 or EA05~EA07\nread back to verify"];
+    K [label="Write CCCD to enable EA01 notification\nreceive server notification"];
+    BOND [label="ap_cmd ble_gatt_demo create_bond <addr>\nap_cmd ble_gatt_demo show_bond", fillcolor="#e8f5e9", color="#81c784"];
+    PARAM [label="ap_cmd ble_gatt_demo update_param <addr> 40 400\nupdate connection params (decimal)", fillcolor="#e8f5e9", color="#81c784"];
+    L [label="ap_cmd ble_gatt_demo gattc disconnect <addr>\ndisconnect"];
+
+    A -> B -> C -> D -> E -> F;
+    F -> SEC [label="server found"];
+    SEC -> G -> H -> I -> J -> K -> BOND -> PARAM -> L;
+}

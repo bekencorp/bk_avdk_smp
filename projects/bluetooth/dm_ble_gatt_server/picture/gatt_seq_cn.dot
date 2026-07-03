@@ -1,0 +1,19 @@
+digraph gatt_seq {
+    rankdir=TB;
+    bgcolor="white";
+    fontname="Noto Sans CJK SC";
+    node [fontname="Noto Sans CJK SC", shape=box, style="rounded,filled", fillcolor="#eef3fb", color="#9bb8e0", penwidth=1.2];
+    edge [fontname="Noto Sans CJK SC", color="#555555", fontsize=11];
+
+    s1 [label="(1) 上电初始化\n载入双模 HOST / Controller\n注册 dm_gatts DB"];
+    s2 [label="(2) 配置并启动广播\nbk_ble_gap_set_adv_params/data/adv_start\n完成事件串行等待"];
+    s3 [label="(3) 对端连接\nBK_GATTS_CONNECT_EVT\n记录 conn_id", fillcolor="#fde9d9", color="#e0a96b"];
+    s4 [label="(4) 对端发现数据库\nService 0xFA00\nEA01 / EA02 / EA05 / EA06 / EA07"];
+    s5 [label="(5) 对端写特征\nBK_GATTS_WRITE_EVT\n保存 EA05/EA06/EA07 字符串"];
+    s6 [label="(6) 对端读特征\nBK_GATTS_READ_EVT\n自动响应当前 attr_len / attr_value"];
+    s7 [label="(7) 对端写 CCCD=1\n使能 EA01 notification"];
+    s8 [label="(8) 项目 CLI 触发通知\nbk_dm_prf_gatts_send_notify(EA01)", fillcolor="#e7f5e7", color="#8ec98e"];
+    s9 [label="(9) 断开连接\nBK_GATTS_DISCONNECT_EVT\nconn_id 复位", fillcolor="#f6e0e0", color="#cf8a8a"];
+
+    s1 -> s2 -> s3 -> s4 -> s5 -> s6 -> s7 -> s8 -> s9;
+}

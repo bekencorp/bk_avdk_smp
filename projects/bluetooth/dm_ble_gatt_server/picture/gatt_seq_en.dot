@@ -1,0 +1,19 @@
+digraph gatt_seq {
+    rankdir=TB;
+    bgcolor="white";
+    fontname="Arial";
+    node [fontname="Arial", shape=box, style="rounded,filled", fillcolor="#eef3fb", color="#9bb8e0", penwidth=1.2];
+    edge [fontname="Arial", color="#555555", fontsize=11];
+
+    s1 [label="(1) Boot initialization\nload dual-mode HOST / Controller\nregister dm_gatts DB"];
+    s2 [label="(2) Configure and start advertising\nbk_ble_gap_set_adv_params/data/adv_start\nwait for completion events"];
+    s3 [label="(3) Peer connects\nBK_GATTS_CONNECT_EVT\nrecord conn_id", fillcolor="#fde9d9", color="#e0a96b"];
+    s4 [label="(4) Peer discovers database\nService 0xFA00\nEA01 / EA02 / EA05 / EA06 / EA07"];
+    s5 [label="(5) Peer writes characteristic\nBK_GATTS_WRITE_EVT\nstore EA05/EA06/EA07 strings"];
+    s6 [label="(6) Peer reads characteristic\nBK_GATTS_READ_EVT\nauto response with attr_len / attr_value"];
+    s7 [label="(7) Peer writes CCCD=1\nenable EA01 notification"];
+    s8 [label="(8) Project CLI sends notification\nbk_dm_prf_gatts_send_notify(EA01)", fillcolor="#e7f5e7", color="#8ec98e"];
+    s9 [label="(9) Disconnect\nBK_GATTS_DISCONNECT_EVT\nreset conn_id", fillcolor="#f6e0e0", color="#cf8a8a"];
+
+    s1 -> s2 -> s3 -> s4 -> s5 -> s6 -> s7 -> s8 -> s9;
+}

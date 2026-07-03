@@ -1,0 +1,19 @@
+digraph gatt_seq {
+    rankdir=TB;
+    bgcolor="white";
+    fontname="Arial";
+    node [fontname="Arial", shape=box, style="rounded,filled", fillcolor="#eef3fb", color="#9bb8e0", penwidth=1.2];
+    edge [fontname="Arial", color="#555555", fontsize=11];
+
+    s1 [label="(1) Initialize dual-mode GATTC\nregister component and demo callbacks"];
+    s2 [label="(2) Start scan\nBK_BLE_GAP_EXT_ADV_REPORT_EVT\nprint address / addr_type / name"];
+    s3 [label="(3) Shared CLI connects\ndm_gattc_connect"];
+    s4 [label="(4) Connect event\nBK_GATTC_CONNECT_EVT\nrecord conn_id and auto discover", fillcolor="#fde9d9", color="#e0a96b"];
+    s5 [label="(5) Discovery results\ncache Service / Characteristic / Descriptor\nprint value_handle / desc_handle"];
+    s6 [label="(6) Read/write characteristics\nread EA01 / EA05~EA07\nwrite EA02 / EA05~EA07"];
+    s7 [label="(7) Write CCCD=1/2\nenable notification / indication"];
+    s8 [label="(8) Receive notification\nBK_GATTC_NOTIFY_EVT\nprint text and hex", fillcolor="#e7f5e7", color="#8ec98e"];
+    s9 [label="(9) Disconnect\nBK_GATTC_DISCONNECT_EVT\nclear local DB cache", fillcolor="#f6e0e0", color="#cf8a8a"];
+
+    s1 -> s2 -> s3 -> s4 -> s5 -> s6 -> s7 -> s8 -> s9;
+}

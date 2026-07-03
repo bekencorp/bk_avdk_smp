@@ -1,0 +1,19 @@
+digraph gatt_seq {
+    rankdir=TB;
+    bgcolor="white";
+    fontname="Noto Sans CJK SC";
+    node [fontname="Noto Sans CJK SC", shape=box, style="rounded,filled", fillcolor="#eef3fb", color="#9bb8e0", penwidth=1.2];
+    edge [fontname="Noto Sans CJK SC", color="#555555", fontsize=11];
+
+    s1 [label="(1) 初始化双模 GATTC\n注册组件 callback 与 demo callback"];
+    s2 [label="(2) 开始扫描\nBK_BLE_GAP_EXT_ADV_REPORT_EVT\n打印地址 / addr_type / 名称"];
+    s3 [label="(3) 公共 CLI 发起连接\ndm_gattc_connect"];
+    s4 [label="(4) 连接事件\nBK_GATTC_CONNECT_EVT\n记录 conn_id 并自动 discover", fillcolor="#fde9d9", color="#e0a96b"];
+    s5 [label="(5) 服务发现结果\n缓存 Service / Characteristic / Descriptor\n打印 value_handle / desc_handle"];
+    s6 [label="(6) 读写特征\nread EA01 / EA05~EA07\nwrite EA02 / EA05~EA07"];
+    s7 [label="(7) 写 CCCD=1/2\n使能 notification / indication"];
+    s8 [label="(8) 接收通知\nBK_GATTC_NOTIFY_EVT\n打印 text 与 hex", fillcolor="#e7f5e7", color="#8ec98e"];
+    s9 [label="(9) 断开连接\nBK_GATTC_DISCONNECT_EVT\n清空本地 DB 缓存", fillcolor="#f6e0e0", color="#cf8a8a"];
+
+    s1 -> s2 -> s3 -> s4 -> s5 -> s6 -> s7 -> s8 -> s9;
+}

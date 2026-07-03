@@ -1,0 +1,14 @@
+#
+# Project default config for dual-mode HOST BLE GATT server demo.
+#
+
+CONFIG_BLUETOOTH_AP=y
+CONFIG_BLUETOOTH_HOST_ONLY=y
+CONFIG_BLE=y
+# CONFIG_BT is required so the "bluetooth dm BLE Modules" Kconfig menu
+# (which gates BLE_GATT) becomes selectable. No classic-BT profiles are
+# built because CONFIG_BLUETOOTH_BTDM_COMPONENT_ENABLE stays off.
+CONFIG_BT=y
+CONFIG_CLI=y
+
+CONFIG_BLUETOOTH_BTDM_COMPONENT_BLE_GATT=y

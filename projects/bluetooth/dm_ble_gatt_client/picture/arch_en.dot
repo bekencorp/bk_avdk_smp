@@ -1,0 +1,37 @@
+digraph arch {
+    rankdir=LR;
+    bgcolor="white";
+    fontname="Arial";
+    node [fontname="Arial", shape=box, style="rounded,filled", fillcolor="#eef3fb", color="#9bb8e0", penwidth=1.2];
+    edge [fontname="Arial", color="#555555", fontsize=11];
+
+    Peer [label="Peer Device\nGATT Server / Phone BLE Peripheral", fillcolor="#fde9d9", color="#e0a96b"];
+
+    subgraph cluster_board {
+        label="BK7259 Dual-mode Bluetooth Project";
+        fontname="Arial";
+        style="rounded";
+        color="#9bb8e0";
+
+        subgraph cluster_ap {
+            label="AP Core";
+            fontname="Arial";
+            style="rounded";
+            color="#8ec98e";
+            Host [label="Dual-mode Bluetooth HOST\nBLE GATTC app only"];
+            Component [label="dm_gatt / dm_gattc component\nconnect / discover / read-write sync\nshared ble_gatt_demo CLI"];
+            App [label="dm_ble_gatt_client_demo\nscan / auto discovery / local DB cache"];
+            Cache [label="Discovery cache\nService / Characteristic / Descriptor\nvalue_handle / desc_handle"];
+        }
+
+        CP [label="CP Core\nDual-mode Bluetooth Controller\nscan / link / ATT bearer", fillcolor="#e7f5e7", color="#8ec98e"];
+    }
+
+    App -> Component;
+    Component -> Host;
+    Host -> CP [label="IPC"];
+    CP -> Peer [label="BLE air interface\nscan / connection / ATT"];
+    Peer -> CP [label="advertising / read-write response / notification"];
+    Component -> Cache [label="discovery callbacks"];
+    App -> Cache [label="print and use handles"];
+}
