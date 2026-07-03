@@ -1947,6 +1947,34 @@ int32_t bk_dm_prf_gap_clean_local_key(void)
     return 0;
 }
 
+int32_t bk_dm_prf_gap_update_whitelist(uint8_t add_remove, uint8_t *addr, uint8_t addr_type)
+{
+    if (!s_dm_gatt_is_inited)
+    {
+        gatt_loge("not init");
+        return -1;
+    }
+
+    if (!bk_dm_prf_gap_is_addr_valid(addr))
+    {
+        gatt_loge("addr invalid");
+        return -1;
+    }
+
+    return bk_ble_gap_update_whitelist(add_remove, addr, (bk_ble_wl_addr_type_t)addr_type);
+}
+
+int32_t bk_dm_prf_gap_clear_whitelist(void)
+{
+    if (!s_dm_gatt_is_inited)
+    {
+        gatt_loge("not init");
+        return -1;
+    }
+
+    return bk_ble_gap_clear_whitelist();
+}
+
 int32_t dm_ble_gap_get_rpa(uint8_t *rpa)
 {
     if (bk_dm_prf_gap_is_data_valid(s_dm_gap_rpa, sizeof(s_dm_gap_rpa)))

@@ -249,6 +249,24 @@ uint8_t bk_dm_prf_gap_bond_info_foreach(int32_t (*func) (bk_ble_bond_dev_t *info
 int32_t bk_dm_prf_gap_clean_local_key(void);
 
 /**
+ * @brief Add or remove a BLE peer from the controller white list.
+ *
+ * @param add_remove Non-zero to add the peer, zero to remove it.
+ * @param addr Peer BLE address.
+ * @param addr_type White-list address type, 0 for public and 1 for random.
+ *
+ * @return 0 on success, otherwise error code.
+ */
+int32_t bk_dm_prf_gap_update_whitelist(uint8_t add_remove, uint8_t *addr, uint8_t addr_type);
+
+/**
+ * @brief Clear the controller BLE white list.
+ *
+ * @return 0 on success, otherwise error code.
+ */
+int32_t bk_dm_prf_gap_clear_whitelist(void);
+
+/**
  * @brief Update BLE connection parameters.
  *
  * @param addr Peer BLE address.

@@ -261,10 +261,16 @@ static void ble_gatt_demo_usage(void)
     CLI_LOGI("%s gattc connect <xx:xx:xx:xx:xx:xx>\n", BASE_CMD_NAME);
     CLI_LOGI("%s gattc disconnect <xx:xx:xx:xx:xx:xx>\n", BASE_CMD_NAME);
     CLI_LOGI("%s gattc connect_cancel\n", BASE_CMD_NAME);
+    CLI_LOGI("%s gattc read <conn_id> <attr_handle> [len]\n", BASE_CMD_NAME);
+    CLI_LOGI("%s gattc write <conn_id> <attr_handle> <data>\n", BASE_CMD_NAME);
+    CLI_LOGI("%s gattc write_ccc <conn_id> <ccc_handle> <0|1|2>\n", BASE_CMD_NAME);
     CLI_LOGI("\n");
     CLI_LOGI("%s create_bond <xx:xx:xx:xx:xx:xx>\n", BASE_CMD_NAME);
     CLI_LOGI("%s passkey <key>\n", BASE_CMD_NAME);
     CLI_LOGI("%s show_bond\n", BASE_CMD_NAME);
+    CLI_LOGI("%s add_whitelist <xx:xx:xx:xx:xx:xx> [addr_type]\n", BASE_CMD_NAME);
+    CLI_LOGI("%s remove_whitelist <xx:xx:xx:xx:xx:xx> [addr_type]\n", BASE_CMD_NAME);
+    CLI_LOGI("%s clear_whitelist\n", BASE_CMD_NAME);
     CLI_LOGI("%s update_param <xx:xx:xx:xx:xx:xx> <interval> <timeout>\n", BASE_CMD_NAME);
     CLI_LOGI("\n");
 
@@ -544,6 +550,73 @@ static void cmd_ble_gatt_demo(char *pcWriteBuffer, int xWriteBufferLen, int argc
 
             ret = bk_dm_prf_gattc_write(conn_id, attr_handle, (uint8_t *)argv[5], len);
         }
+        else if (os_strcmp(argv[2], "read") == 0 && argc >= 5)
+        {
+            uint16_t conn_id = 0, attr_handle = 0;
+            uint32_t len = 128;
+            uint8_t data[128] = {0};
+
+            ret = sscanf(argv[3], "%hu", &conn_id);
+
+            if (ret != 1)
+            {
+                CLI_LOGE("%s conn_id err %d\n", __func__, ret);
+                goto __usage;
+            }
+
+            ret = sscanf(argv[4], "%hu", &attr_handle);
+
+            if (ret != 1)
+            {
+                CLI_LOGE("%s attr_handle err %d\n", __func__, ret);
+                goto __usage;
+            }
+
+            if (argc >= 6)
+            {
+                ret = sscanf(argv[5], "%u", &len);
+
+                if (ret != 1 || len > sizeof(data))
+                {
+                    CLI_LOGE("%s len err %d\n", __func__, ret);
+                    goto __usage;
+                }
+            }
+
+            ret = bk_dm_prf_gattc_read(conn_id, attr_handle, data, len);
+        }
+        else if (os_strcmp(argv[2], "write_ccc") == 0 && argc >= 6)
+        {
+            uint16_t conn_id = 0, ccc_handle = 0, ccc_value16 = 0;
+            uint32_t ccc_value = 0;
+
+            ret = sscanf(argv[3], "%hu", &conn_id);
+
+            if (ret != 1)
+            {
+                CLI_LOGE("%s conn_id err %d\n", __func__, ret);
+                goto __usage;
+            }
+
+            ret = sscanf(argv[4], "%hu", &ccc_handle);
+
+            if (ret != 1)
+            {
+                CLI_LOGE("%s ccc_handle err %d\n", __func__, ret);
+                goto __usage;
+            }
+
+            ret = sscanf(argv[5], "%u", &ccc_value);
+
+            if (ret != 1 || ccc_value > 2)
+            {
+                CLI_LOGE("%s ccc value err %d\n", __func__, ret);
+                goto __usage;
+            }
+
+            ccc_value16 = (uint16_t)ccc_value;
+            ret = bk_dm_prf_gattc_write(conn_id, ccc_handle, (uint8_t *)&ccc_value16, sizeof(ccc_value16));
+        }
         else
         {
             goto __usage;
@@ -671,6 +744,49 @@ static void cmd_ble_gatt_demo(char *pcWriteBuffer, int xWriteBufferLen, int argc
     {
         ret = bk_dm_prf_gap_clean_local_key();
     }
+    else if ((os_strcmp(argv[1], "add_whitelist") == 0 || os_strcmp(argv[1], "remove_whitelist") == 0) && argc >= 3)
+    {
+        uint32_t mac[6] = {0};
+        uint8_t mac_final[6] = {0};
+        uint32_t addr_type = 0;
+        bool add = (os_strcmp(argv[1], "add_whitelist") == 0);
+
+        //sscanf bug: cant detect %hhx
+        ret = sscanf(argv[2], "%02x:%02x:%02x:%02x:%02x:%02x",
+                     mac + 5,
+                     mac + 4,
+                     mac + 3,
+                     mac + 2,
+                     mac + 1,
+                     mac);
+
+        if (ret != 6)
+        {
+            CLI_LOGE("%s addr err %d\n", __func__, ret);
+            goto __usage;
+        }
+
+        for (int i = 0; i < sizeof(mac_final); ++i)
+        {
+            mac_final[i] = (uint8_t)mac[i];
+        }
+
+        if (argc >= 4)
+        {
+            ret = sscanf(argv[3], "%u", &addr_type);
+
+            if (ret != 1)
+            {
+                goto __usage;
+            }
+        }
+
+        ret = bk_dm_prf_gap_update_whitelist(add, mac_final, (uint8_t)addr_type);
+    }
+    else if (os_strcmp(argv[1], "clear_whitelist") == 0)
+    {
+        ret = bk_dm_prf_gap_clear_whitelist();
+    }
     else if (os_strcmp(argv[1], "update_param") == 0 && argc >= 3)
     {
         uint32_t mac[6] = {0};
@@ -709,7 +825,7 @@ static void cmd_ble_gatt_demo(char *pcWriteBuffer, int xWriteBufferLen, int argc
 
             if (argc >= 5)
             {
-                ret = sscanf(argv[3], "%hu", &tout);
+                ret = sscanf(argv[4], "%hu", &tout);
 
                 if (ret != 1)
                 {
