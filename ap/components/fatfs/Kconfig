@@ -42,7 +42,7 @@ menu "FATFS"
 
 	config FATFS_QSPI_0_FLASH
 		bool "Support FATFS with QSPI-0 FLASH"
-		depends on QSPI_MST_FLASH
+		depends on QSPI_NOR_FLASH
 		default n
 		help
 			BEKEN Chip sets QSPI-0 as master device, the slave device is a flash.
@@ -51,7 +51,7 @@ menu "FATFS"
 
 	config FATFS_QSPI_1_FLASH
 		bool "Support FATFS with QSPI-1 FLASH"
-		depends on QSPI_MST_FLASH
+		depends on QSPI_NOR_FLASH
 		default n
 		help
 			BEKEN Chip sets QSPI-1 as master device, the slave device is a flash.

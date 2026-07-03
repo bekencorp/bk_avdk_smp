@@ -13,7 +13,7 @@
 
 #include "lfs.h"
 
-#if CONFIG_QSPI_MST_FLASH
+#if CONFIG_QSPI_NOR_FLASH || CONFIG_QSPI_NAND_FLASH
 #include <driver/qspi.h>
 #include <driver/qspi_flash.h>
 #endif
@@ -187,7 +187,7 @@ static int setup_lfs_config(struct lfs_config *config, const struct bk_little_fs
 		config->sync = lfs_spi_flashbd_sync;
 	}
 #endif
-#if CONFIG_QSPI_MST_FLASH
+#if CONFIG_QSPI_NOR_FLASH || CONFIG_QSPI_NAND_FLASH
 	else if ((part->part_type == LFS_QSPI_FLASH) || (part->part_type == LFS_QSPI_1_FLASH)) {
 		bd->device_id = QSPI_ID_0 + (part->part_type - LFS_QSPI_FLASH);
 
@@ -208,13 +208,26 @@ static int setup_lfs_config(struct lfs_config *config, const struct bk_little_fs
 		return -1;
 	}
 
-	config->read_size = 256;
-	config->prog_size = 256;
-	config->block_size = 4096;
+#if CONFIG_QSPI_NAND_FLASH
+	if ((part->part_type == LFS_QSPI_FLASH) || (part->part_type == LFS_QSPI_1_FLASH)) {
+		/* NAND erase unit is a 128KB block, program/read unit is a 2048B page. */
+		config->read_size = QSPI_NAND_PAGE_SIZE;
+		config->prog_size = QSPI_NAND_PAGE_SIZE;
+		config->block_size = QSPI_NAND_BLOCK_SIZE;
+		config->cache_size = QSPI_NAND_PAGE_SIZE;
+		config->lookahead_size = 512;
+		config->block_cycles = 500;
+	} else
+#endif
+	{
+		config->read_size = 256;
+		config->prog_size = 256;
+		config->block_size = 4096;
+		config->cache_size = 2048;
+		config->lookahead_size = 512;
+		config->block_cycles = 500;
+	}
 	config->block_count = part->part_flash.size / config->block_size;
-	config->cache_size = 2048;
-	config->lookahead_size = 512;
-	config->block_cycles = 500;
 
 	ret = lfs_flashbd_createcfg(config, &defaults);
 	if (ret) {
