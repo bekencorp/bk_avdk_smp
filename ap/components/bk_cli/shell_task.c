@@ -789,8 +789,10 @@ static void shell_cmd_tx_complete(u8 *pbuf, u16 buf_tag)
 	shell_task_exit_critical(int_mask);
 }
 
-/* call from log TX ISR. */
-static int log_tx_complete(u8 *pbuf, u16 buf_tag)
+/* call from log TX ISR. Must be called with shell_spin_lock held. */
+static int log_tx_complete(u8 *pbuf, u16 buf_tag,
+			   bool_t *need_log_buf_sem,
+			   bool_t *need_dym_free_event)
 {
 	u16     block_tag;
 	u8      queue_id = GET_QUEUE_ID(buf_tag);
@@ -844,19 +846,21 @@ static int log_tx_complete(u8 *pbuf, u16 buf_tag)
 		free_log_blk(block_tag);
 
 		if (log_buf_semaphore != NULL) {
-			rtos_set_semaphore(&log_buf_semaphore);
+			*need_log_buf_sem = bTRUE;
 		}
 
 		return 1;
 	}
 
 	if (queue_id == SHELL_DYM_QUEUE_ID) {
+
 		dynamic_log_node *node = dynamic_list_pop_front(pbuf);
 		if (node != NULL) {
 			free_list_push_front(node);
 			if (log_buf_semaphore != NULL)
-				set_shell_event(&shell_log_event, SHELL_EVENT_DYM_FREE);
+				*need_dym_free_event = bTRUE;
 		}
+
 		return 1;
 	}
 	return 0;
@@ -865,9 +869,13 @@ static int log_tx_complete(u8 *pbuf, u16 buf_tag)
 /* call from TX ISR. */
 static void shell_log_tx_complete(u8 *pbuf, u16 buf_tag)
 {
+	bool_t need_log_buf_sem = bFALSE;
+	bool_t need_dym_free_event = bFALSE;
 	u32  int_mask = shell_task_enter_critical();
 
-	int log_tx_req = log_tx_complete(pbuf, buf_tag);
+	int log_tx_req = log_tx_complete(pbuf, buf_tag,
+					 &need_log_buf_sem,
+					 &need_dym_free_event);
 
 	if(log_tx_req == 1)
 	{
@@ -881,11 +889,20 @@ static void shell_log_tx_complete(u8 *pbuf, u16 buf_tag)
 	}
 
 	shell_task_exit_critical(int_mask);
+
+	if (need_log_buf_sem) {
+		rtos_set_semaphore(&log_buf_semaphore);
+	}
+	if (need_dym_free_event) {
+		set_shell_event(&shell_log_event, SHELL_EVENT_DYM_FREE);
+	}
 }
 
 /* call from TX ISR. */
 static void shell_tx_complete(u8 *pbuf, u16 buf_tag)
 {
+	bool_t need_log_buf_sem = bFALSE;
+	bool_t need_dym_free_event = bFALSE;
 	u32  int_mask = shell_task_enter_critical();
 
 	int tx_req = 0;
@@ -894,7 +911,9 @@ static void shell_tx_complete(u8 *pbuf, u16 buf_tag)
 
 	if(tx_req == 0) /* not a cmd tx event, maybe it is a log tx event. */
 	{
-		tx_req = log_tx_complete(pbuf, buf_tag);
+		tx_req = log_tx_complete(pbuf, buf_tag,
+					 &need_log_buf_sem,
+					 &need_dym_free_event);
 	}
 
 	if(tx_req == 1)
@@ -909,6 +928,13 @@ static void shell_tx_complete(u8 *pbuf, u16 buf_tag)
 	}
 
 	shell_task_exit_critical(int_mask);
+
+	if (need_log_buf_sem) {
+		rtos_set_semaphore(&log_buf_semaphore);
+	}
+	if (need_dym_free_event) {
+		set_shell_event(&shell_log_event, SHELL_EVENT_DYM_FREE);
+	}
 }
 
 /* call from RX ISR. */
