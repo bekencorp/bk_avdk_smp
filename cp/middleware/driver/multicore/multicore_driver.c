@@ -350,8 +350,6 @@ static bk_err_t _cpu_hotplug_wait_ack(volatile uint32_t *ack, uint32_t timeout_s
 	return BK_OK;
 }
 
-///////////////////////////////////////////////////////////////////////////////
-
 uint32_t bk_cpu_hp_is_online(uint32_t cpu_id)
 {
 	cpu_hp_domain_t *domain = _cpu_hp_domain(cpu_id);
@@ -447,7 +445,7 @@ uint32_t bk_cpu_hp_get_domain_offline_mask(uint32_t cpu_id)
 	return (domain == NULL) ? 0 : domain->offline_mask;
 }
 
-static bk_err_t _cpu_hp_offline_internal(uint32_t cpu_id)
+static bk_err_t _cpu_hp_offline_internal(uint32_t cpu_id, uint32_t from_atomic)
 {
 	cpu_hp_domain_t *domain = _cpu_hp_domain(cpu_id);
 	uint32_t cpu_mask = BK_CPU_MASK(cpu_id);
@@ -471,12 +469,14 @@ static bk_err_t _cpu_hp_offline_internal(uint32_t cpu_id)
 	}
 
 	smp_core = (BaseType_t)_cpu_hp_get_smp_core_id(domain, cpu_id);
-	ret = _cpu_hp_lock_init();
-	if (ret != BK_OK) {
-		goto nolock_out;
-	}
 
-	rtos_lock_mutex(&_cpu_hp_lock);
+	if (!from_atomic) {
+		ret = _cpu_hp_lock_init();
+		if (ret != BK_OK) {
+			goto nolock_out;
+		}
+		rtos_lock_mutex(&_cpu_hp_lock);
+	}
 
 	if ((domain->online_mask & cpu_mask) == 0) {
 		ret = BK_OK;
@@ -542,12 +542,13 @@ continue_offline:
 	}
 
 out:
-	rtos_unlock_mutex(&_cpu_hp_lock);
+	if (!from_atomic)
+		rtos_unlock_mutex(&_cpu_hp_lock);
 nolock_out:
 	return ret;
 }
 
-static bk_err_t _cpu_hp_online_internal(uint32_t cpu_id)
+static bk_err_t _cpu_hp_online_internal(uint32_t cpu_id, uint32_t from_atomic)
 {
 	cpu_hp_domain_t *domain = _cpu_hp_domain(cpu_id);
 	uint32_t cpu_mask = BK_CPU_MASK(cpu_id);
@@ -569,13 +570,15 @@ static bk_err_t _cpu_hp_online_internal(uint32_t cpu_id)
 		goto nolock_out;
 	}
 
-	ret = _cpu_hp_lock_init();
-	if (ret != BK_OK) {
-		goto nolock_out;
-	}
-
 	smp_core = (BaseType_t)_cpu_hp_get_smp_core_id(domain, cpu_id);
-	rtos_lock_mutex(&_cpu_hp_lock);
+
+	if (!from_atomic) {
+		ret = _cpu_hp_lock_init();
+		if (ret != BK_OK) {
+			goto nolock_out;
+		}
+		rtos_lock_mutex(&_cpu_hp_lock);
+	}
 
 	if (domain->cpu_state[cpu_id] == BK_CPU_HP_STATE_ONLINE) {
 		ret = BK_OK;
@@ -634,7 +637,8 @@ static bk_err_t _cpu_hp_online_internal(uint32_t cpu_id)
 	}
 
 out:
-	rtos_unlock_mutex(&_cpu_hp_lock);
+	if (!from_atomic)
+		rtos_unlock_mutex(&_cpu_hp_lock);
 nolock_out:
 	return ret;
 }
@@ -662,19 +666,21 @@ bk_err_t bk_cpu_hp_offline(uint32_t cpu_id)
 {
 	bk_err_t ret = BK_FAIL;
 	uint32_t old_core_id;
-	uint32_t is_in_interrupt_context = platform_is_in_interrupt_context();
+	uint32_t from_atomic;
 
-	if (is_in_interrupt_context == BK_FALSE)
-		old_core_id = bk_cpu_hp_enter_primary();
+	BK_ASSERT(platform_is_in_interrupt_context() == BK_FALSE);
 
-	if (portGET_CORE_ID() == SMP_CORE0_ID)
-		ret = _cpu_hp_offline_internal(cpu_id);
-	else
+	old_core_id = bk_cpu_hp_enter_primary();
+
+	if (portGET_CORE_ID() == SMP_CORE0_ID) {
+		from_atomic = platform_local_irq_disabled();
+		ret = _cpu_hp_offline_internal(cpu_id, from_atomic);
+	} else {
 		MULTICORE_LOGW("cpu%u offline must run on primary core, current SMP core=%d\r\n",
 			cpu_id, portGET_CORE_ID());
+	}
 
-	if (is_in_interrupt_context == BK_FALSE)
-		bk_cpu_hp_exit_primary(old_core_id);
+	bk_cpu_hp_exit_primary(old_core_id);
 
 	return ret;
 }
@@ -683,16 +689,21 @@ bk_err_t bk_cpu_hp_online(uint32_t cpu_id)
 {
 	bk_err_t ret = BK_FAIL;
 	uint32_t old_core_id;
-	uint32_t is_in_interrupt_context = platform_is_in_interrupt_context();
+	uint32_t from_atomic;
 
-	if (is_in_interrupt_context == BK_FALSE)
-		old_core_id = bk_cpu_hp_enter_primary();
+	BK_ASSERT(platform_is_in_interrupt_context() == BK_FALSE);
 
-	if (portGET_CORE_ID() == SMP_CORE0_ID)
-		ret = _cpu_hp_online_internal(cpu_id);
+	old_core_id = bk_cpu_hp_enter_primary();
 
-	if (is_in_interrupt_context == BK_FALSE)
-		bk_cpu_hp_exit_primary(old_core_id);
+	if (portGET_CORE_ID() == SMP_CORE0_ID) {
+		from_atomic = platform_local_irq_disabled();
+		ret = _cpu_hp_online_internal(cpu_id, from_atomic);
+	} else {
+		MULTICORE_LOGW("cpu%u online must run on primary core, current SMP core=%d\r\n",
+			cpu_id, portGET_CORE_ID());
+	}
+
+	bk_cpu_hp_exit_primary(old_core_id);
 
 	return ret;
 }
