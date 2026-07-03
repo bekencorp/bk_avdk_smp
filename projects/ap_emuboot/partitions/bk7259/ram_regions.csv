@@ -4,7 +4,7 @@
 # SINGLE_PSRAM_CAPCAITY_SIZE: size of one PSRAM chip (e.g. 8M, 16M)
 SINGLE_PSRAM_CAPCAITY_SIZE=16M
 #Name,                   Type,     Offset,     Size
-CP_RAM,                  SRAM, 0x28000000, 0x012000
+CP_RAM,                  SRAM, 0x28000000, 0x014000
 SWAP,                    SRAM,           , 0x001000
 AP_HSRAM_HEAP,           SRAM, 0x28100000, 0x001000
 AP_RAM,                  SRAM,           , 0x020000
