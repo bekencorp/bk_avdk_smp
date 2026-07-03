@@ -187,11 +187,3 @@ int bk_feature_wifi_dsss_only(void)
 	return 0;
 #endif
 }
-
-int bk_feature_coex_enable(void) {
-#if (CONFIG_COEX)
-	return 1;
-#else
-	return 0;
-#endif
-}
