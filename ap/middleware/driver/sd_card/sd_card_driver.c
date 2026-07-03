@@ -1109,6 +1109,12 @@ bk_err_t bk_sd_card_init(void)
 
 	rtos_delay_milliseconds(2);
 
+#if CONFIG_SDIO_V2P0
+	//sdcard inited, enable auto clock gate: module clock auto-gate on, tx fifo clock auto-gate on
+	bk_sdio_tx_fifo_clk_gate_config(0);
+	bk_sdio_clk_gate_config(0);
+#endif
+
 	s_sd_card_is_init = true;
 #if CONFIG_SDIO_V2P0
 	rtos_unlock_recursive_mutex(&s_mutex_sdcard);
