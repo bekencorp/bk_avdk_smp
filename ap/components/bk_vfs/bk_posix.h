@@ -51,6 +51,14 @@
 #define mkfs		bk_vfs_mkfs
 #define statfs(path,buf)	bk_vfs_statfs(path,buf)
 
+/*
+ * ftell/feof are stdio names but bk_vfs_* take int fd (from open()).
+ * Include stdio.h first so its declarations are complete before we remap
+ * these names; otherwise a later #include <stdio.h> expands ftell/feof in
+ * the prototype and conflicts with bk_vfs_ftell/bk_vfs_feof.
+ */
+#include <stdio.h>
+#undef ftell
 #define ftell		bk_vfs_ftell
 #undef feof
 #define feof		bk_vfs_feof
