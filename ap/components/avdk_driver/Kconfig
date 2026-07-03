@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: Multimedia::AVDK Driver
 menu "AVDK Driver"
 
 	config ISP

@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: Multimedia::Audio::Player Service
 menu "Bk_player_service"
 
 	depends on ADK
