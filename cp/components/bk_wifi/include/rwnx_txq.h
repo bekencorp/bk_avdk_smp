@@ -168,11 +168,13 @@ enum rwnx_txq_flags {
     RWNX_TXQ_STOP_RESET   = BIT(7),
     RWNX_TXQ_STOP_TWT_PS  = BIT(8),
     RWNX_TXQ_STOP_P2P_ABSENCE = BIT(9),
+    RWNX_TXQ_STOP_COEX_PS  = CO_BIT(10),
     RWNX_TXQ_STOP         = (RWNX_TXQ_STOP_FULL | RWNX_TXQ_STOP_CSA |
                              RWNX_TXQ_STOP_STA_PS | RWNX_TXQ_STOP_VIF_PS |
                              RWNX_TXQ_STOP_CHAN | RWNX_TXQ_STOP_RESET |
-                             RWNX_TXQ_STOP_TWT_PS | RWNX_TXQ_STOP_P2P_ABSENCE),
-   RWNX_TXQ_NDEV_FLOW_CTRL = BIT(10),
+                             RWNX_TXQ_STOP_TWT_PS | RWNX_TXQ_STOP_P2P_ABSENCE |
+                             RWNX_TXQ_STOP_COEX_PS),
+   RWNX_TXQ_NDEV_FLOW_CTRL = BIT(11),
 };
 
 
@@ -280,7 +282,7 @@ __IRAM2 struct rwnx_txq *rwnx_txq_vif_get(VIF_INF_PTR vif, u8 type);
 static inline u8 rwnx_txq_vif_get_status(VIF_INF_PTR rwnx_vif)
 {
     struct rwnx_txq *txq = rwnx_txq_vif_get(rwnx_vif, 0);
-    return (txq->status & (RWNX_TXQ_STOP_CHAN | RWNX_TXQ_STOP_VIF_PS));
+    return (txq->status & (RWNX_TXQ_STOP_CHAN | RWNX_TXQ_STOP_VIF_PS | RWNX_TXQ_STOP_COEX_PS));
 }
 
 void rwnx_txq_vif_init(VIF_INF_PTR vif, u16 status);

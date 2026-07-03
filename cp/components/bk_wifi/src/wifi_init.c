@@ -74,7 +74,18 @@ int wifi_init(const wifi_init_config_t *config)
 	bk_pm_clock_ctrl(PM_CLK_ID_PHY, PM_CLK_CTRL_PWR_UP);
 
 	/* Wi-Fi VOTE RF */
-    rf_module_vote_ctrl(RF_OPEN, RF_BY_WIFI_BIT);
+	RF_PLL_CTRL_RESULT_T rf_result = rf_pll_ctrl(MODULE_TYPE_WIFI,
+		RF_OPERATION_APPLY,
+		RF_PATH_WIFI_IQ,
+		RF_PLL_HIGH,
+		RF_PRIORITY_WIFI_NORMAL,
+		RF_TASK_TYPE_WIFI_INIT,
+		true,
+		0,
+		false);
+	if (rf_result.result == RF_ARBIT_RESULT_ERROR) {
+		WIFI_LOGE("wifi init rf apply failed, result:%d\n", rf_result.result);
+	}
 
 	/*
 	 * UMAC/LMAC init.
@@ -120,9 +131,6 @@ int wifi_init(const wifi_init_config_t *config)
 
 	/* start wpa_supplicant/hostapd eloop thread */
 	wpas_thread_start(); //TODO Choose a better name
-
-	extern void coex_ictw_report_wifi_open_status(bool is_wifi_open);
-	coex_ictw_report_wifi_open_status(true);
 
 	#if CONFIG_WIFI_VNET_CONTROLLER
 	cif_init();

@@ -71,4 +71,11 @@ UINT32 tx_evm_mode_get(void);
 void bk_task_wdt_feed(void);
 void rwnx_rc_phyclkrst_cntl_pack(uint8_t rfadcclkinv, uint8_t rfdacclkinv, uint8_t fedacclkfreqsel, uint8_t feclkfreqsel, uint8_t dacclkfreqsel, uint8_t adcclkfreqsel);
 void rwnx_rc_phyclkrst_cntl_unpack(uint8_t *rfadcclkinv, uint8_t *rfdacclkinv, uint8_t *fedacclkfreqsel, uint8_t *feclkfreqsel, uint8_t *dacclkfreqsel, uint8_t *adcclkfreqsel);
+int32_t rwnx_cal_set_rfconfig_thread_mode(void);
+void rfconfig_set_thread_tx_mode_trxconfig(void);
+void rfconfig_enter_thread_mode(void);
+void rfconfig_exit_thread_mode(void);
+#if CONFIG_SOC_BK7259
+void bk_reg_reset_rf_reg(void);
+#endif
 #endif

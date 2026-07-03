@@ -672,7 +672,7 @@ void mdm_set_scramblerctrl(uint32_t value);
 //Optimize it
 __attribute__((weak)) uint32_t cfg_ap_is_open_system(void);
 uint8_t bk_wifi_get_ps_status();
-
+uint8_t bk_wifi_get_coex_mode(void);
 #ifdef __cplusplus
 }
 #endif

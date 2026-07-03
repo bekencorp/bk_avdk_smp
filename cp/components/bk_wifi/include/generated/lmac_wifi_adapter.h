@@ -284,7 +284,11 @@ typedef struct {
 	char *(*_os_strrchr)(const char *s, int c);
 	char *(*_os_strstr)(const char *haystack, const char *needle);
 	///
-	UINT32 (*_rf_pll_ctrl)(UINT32 cmd, UINT32 param);
+	uint32_t (*_rf_pll_ctrl)(uint32_t operation, uint32_t rf_pll, uint32_t priority, uint32_t task_type, bool is_save, uint32_t time_us, bool position_can_adjust);
+	bool (*_rf_has_thread_rf_request)(void);
+	uint32_t (*_get_current_rf_pll)(void);
+	uint8_t (*_bk_wifi_get_coex_mode)(void);
+	void (*_bk_reg_reset_rf_reg)(void);
 	void (*_send_udp_bc_pkt)(uint8_t data);
 	void (*_tx_verify_test_call_back)(void);
 	void (*_sys_hal_enter_low_analog)(void);
@@ -315,10 +319,6 @@ typedef struct {
 	void (*_rwnx_rc_phyclkrst_cntl_pack)(uint8_t rfadcclkinv, uint8_t rfdacclkinv, uint8_t fedacclkfreqsel, uint8_t feclkfreqsel, uint8_t dacclkfreqsel, uint8_t adcclkfreqsel);
 	void (*_rwnx_rc_phyclkrst_cntl_unpack)(uint8_t *rfadcclkinv, uint8_t *rfdacclkinv, uint8_t *fedacclkfreqsel, uint8_t *feclkfreqsel, uint8_t *dacclkfreqsel, uint8_t *adcclkfreqsel);
 	int (*_bk_feature_wifi_dsss_only_enable)(void);
-	int (*_bk_feature_coex_enable)(void);
-	void (*_coex_wifi_request)(uint32_t event,uint8_t mode,uint32_t duration);
-	void (*_coex_wifi_release)(uint32_t event);
-	uint32_t (*_coex_wifi_event_get)(void);
 	bk_err_t (*_bk_pm_clock_ctrl)(uint32_t module, uint32_t clock_state);
 } wifi_os_funcs_t;
 extern wifi_os_funcs_t g_wifi_os_funcs;
@@ -401,6 +401,31 @@ typedef struct {
 	uint32_t _pm_clk_module_ofdm;
 	uint32_t _pm_clk_on;
 	uint32_t _pm_clk_off;
+	uint8_t _RF_OPERATION_APPLY;
+	uint8_t _RF_OPERATION_FREE;
+	uint8_t _RF_PRIORITY_WIFI_HIGH;
+	uint8_t _RF_PRIORITY_WIFI_NORMAL;
+	uint8_t _RF_TASK_TYPE_WIFI_BEGIN;
+	uint8_t _RF_TASK_TYPE_WIFI_INIT;
+	uint8_t _RF_TASK_TYPE_WIFI_PLL_CHANGE;
+	uint8_t _RF_TASK_TYPE_WIFI_FREE_ALL;
+	uint8_t _RF_TASK_TYPE_WIFI_SCAN;
+	uint8_t _RF_TASK_TYPE_WIFI_AUTH;
+	uint8_t _RF_TASK_TYPE_WIFI_ASSOC;
+	uint8_t _RF_TASK_TYPE_WIFI_EAPOL;
+	uint8_t _RF_TASK_TYPE_WIFI_DHCP;
+	uint8_t _RF_TASK_TYPE_WIFI_BEACON;
+	uint8_t _RF_TASK_TYPE_WIFI_DATA;
+	uint8_t _RF_TASK_TYPE_WIFI_CONNECT;
+	uint8_t _RF_TASK_TYPE_WIFI_DISCONNECT;
+	uint8_t _RF_TASK_TYPE_WIFI_AP;
+	uint8_t _RF_TASK_TYPE_WIFI_END;
+	uint8_t _RF_PLL_LOW;
+	uint8_t _RF_PLL_HIGH;
+	uint8_t _RF_ARBIT_RESULT_SUCCESS;
+	uint8_t _RF_ARBIT_RESULT_CONFLICT;
+	uint8_t _RF_ARBIT_RESULT_ERROR;
+	uint8_t _RF_ARBIT_RESULT_MAX;
 } wifi_os_variable_t;
 extern wifi_os_variable_t g_wifi_os_variable;
 
