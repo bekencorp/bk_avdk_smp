@@ -18,7 +18,7 @@ extern const unsigned int pet_detection_vela_tflite_len;
 
 /** TFLM tensor arena and Ethos-U scratch; must match vela + runtime. */
 #define TFLM_ARENA_SIZE (3 * 1024 * 1024)
-#define ETHOSU_SCRATCH_SIZE (250 * 1024)
+#define ETHOSU_SCRATCH_SIZE (130 * 1024)
 
 #ifdef __cplusplus
 static constexpr int k_input_h = 320;
