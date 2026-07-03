@@ -7,6 +7,7 @@
 #include "gpu_core.h"
 #include "sys_driver.h"
 #include <bk_flexa_bond_types.h>
+#include "soc/reg_base.h"   /* SOC_SRAM_PERI_ADDR: GPU flexa 总线只能访问 0x28 SRAM 别名 */
 
 #define TAG "bk_gpu_ctlr"
 
@@ -38,6 +39,12 @@
 
 static void gpu_flexa_addr_mapping(uint16_t width, uint16_t height, uint32_t base_addr, uint16_t flexa_lines, uint8_t buf_cnt)
 {
+    /*
+     * base_addr 来自 ISP MP 通道的 y_addr(0x2Cxxxxxx CPU 直访别名)，
+     * GPU flexa 作为总线 master 只能访问 0x28xxxxxx 外设别名，需转换；
+     * pica/picb 用的 GPU_Y_VADDR_BASE 不在 SRAM 别名段，宏会原样透传。
+     */
+    base_addr = SOC_SRAM_PERI_ADDR(base_addr);
     sys_hal_set_gpu_buffa_enable_value(1);
     sys_hal_set_gpu_buffa_begin_value(base_addr);
     sys_hal_set_gpu_buffa_size_value(width * buf_cnt * flexa_lines);
@@ -693,8 +700,9 @@ static inline bool gpu_flex_data_line_pull_out(gpu_flex_data_t *data, gpu_vn_ctl
 
     /* Switch to next ping-pong buffer */
     data->dst_buf_idx = 1 - data->dst_buf_idx;
+    /* .memory 留 0x2C 给 CPU/HPDMA(hpdma_hal 内部再转)；.address 是 GPU 渲染写入目标，需转 0x28 */
     data->dst_buf.memory = (vg_lite_pointer)(uintptr_t)data->buffers[data->dst_buf_idx];
-    data->dst_buf.address = data->buffers[data->dst_buf_idx];
+    data->dst_buf.address = SOC_SRAM_PERI_ADDR(data->buffers[data->dst_buf_idx]);
     data->flexa_index++;
 
     return true;
