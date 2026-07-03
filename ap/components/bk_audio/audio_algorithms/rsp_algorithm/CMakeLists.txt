@@ -8,6 +8,11 @@ list(APPEND srcs
 		rsp_algorithm.c
 	)
 
+if (CONFIG_ADK_RSP_ALGORITHM_TEST)
+	list(APPEND srcs
+		rsp_algorithm_test.c
+	)
+endif()
 
 endif()
 

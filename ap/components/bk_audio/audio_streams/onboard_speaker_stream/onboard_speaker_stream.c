@@ -581,15 +581,13 @@ static bk_err_t _onboard_speaker_open(audio_element_handle_t self)
         return BK_FAIL;
     }
 
+    bk_aud_dac_mute();
+    BK_LOGV(TAG, "%s, line: %d, audio dac mute\n", __func__, __LINE__);
+
     if (gl_onboard_speaker->pa_ctrl_en)
     {
         /* turn off pa */
         pa_ctrl_en(onboard_spk, false, false);
-    }
-    else
-    {
-        bk_aud_dac_mute();
-        BK_LOGV(TAG, "%s, line: %d, audio dac mute\n", __func__, __LINE__);
     }
 
 	ret = bk_aud_dac_start();
@@ -608,14 +606,12 @@ static bk_err_t _onboard_speaker_open(audio_element_handle_t self)
     {
         pa_ctrl_en(onboard_spk, true, true);
     }
-    else
+
+    if (onboard_spk->dig_gain > 0)
     {
-        if (onboard_spk->dig_gain > 0)
-        {
-            rtos_delay_milliseconds(4);
-            bk_aud_dac_unmute();
-            BK_LOGV(TAG, "%s, line: %d, audio dac unmute\n", __func__, __LINE__);
-        }
+        rtos_delay_milliseconds(4);
+        bk_aud_dac_unmute();
+        BK_LOGV(TAG, "%s, line: %d, audio dac unmute\n", __func__, __LINE__);
     }
 
     return BK_OK;
@@ -1181,6 +1177,9 @@ static bk_err_t _onboard_speaker_close(audio_element_handle_t self)
 
     onboard_speaker_stream_t *onboard_spk = (onboard_speaker_stream_t *)audio_element_getdata(self);
 
+    /* mute dac before stop/reconfig to avoid pop noise (symmetric with the mute/unmute in open) */
+    bk_aud_dac_mute();
+
     bk_err_t ret = bk_dma_stop(onboard_spk->spk_dma_id);
     if (ret != BK_OK)
     {
@@ -1196,6 +1195,10 @@ static bk_err_t _onboard_speaker_close(audio_element_handle_t self)
         BK_LOGE(TAG, "%s, %d, dac stop fail\n", __func__, __LINE__);
         return BK_FAIL;
     }
+
+    /* clear residual (old sample rate) data so the reopened dac only plays the silence
+       refilled in _onboard_speaker_open(), avoiding pop noise on sample rate switch */
+    ring_buffer_clear(&onboard_spk->spk_rb);
 
     onboard_spk->is_open = false;
     onboard_spk->pool_can_read = false;

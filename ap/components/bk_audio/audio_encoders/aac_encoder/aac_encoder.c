@@ -348,7 +348,8 @@ static bk_err_t _aac_encoder_close(audio_element_handle_t self)
 {
     BK_LOGD(TAG, "[%s] %s\n", audio_element_get_tag(self), __func__);
 
-    //noting todo
+    /* release the cpu freq vote requested in _aac_encoder_open() to keep open/close symmetric */
+    bk_pm_module_vote_cpu_freq(PM_DEV_ID_AUDIO, PM_CPU_FRQ_DEFAULT);
 
     return BK_OK;
 }

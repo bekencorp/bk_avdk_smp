@@ -72,6 +72,14 @@ static bk_err_t _agc_algorithm_open(audio_element_handle_t self)
 static bk_err_t _agc_algorithm_close(audio_element_handle_t self)
 {
     BK_LOGV(TAG, "[%s] _agc_algorithm_close \n", audio_element_get_tag(self));
+    agc_algorithm_t *agc = (agc_algorithm_t *)audio_element_getdata(self);
+
+    if (agc && agc->agcInst)
+    {
+        bk_aud_agc_free(agc->agcInst);
+        agc->agcInst = NULL;
+    }
+
     return BK_OK;
 }
 

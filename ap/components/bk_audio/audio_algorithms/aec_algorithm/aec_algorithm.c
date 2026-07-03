@@ -240,6 +240,14 @@ static bk_err_t _aec_algorithm_open(audio_element_handle_t self)
 static bk_err_t _aec_algorithm_close(audio_element_handle_t self)
 {
     BK_LOGD(TAG, "[%s] %s \n", audio_element_get_tag(self), __func__);
+
+    aec_algorithm_t *aec = (aec_algorithm_t *)audio_element_getdata(self);
+    if (aec && aec->aec_ctx)
+    {
+        audio_free(aec->aec_ctx);
+        aec->aec_ctx = NULL;
+    }
+
     return BK_OK;
 }
 

@@ -462,18 +462,17 @@ static bk_err_t _aec_v3_algorithm_open(audio_element_handle_t self)
     BK_LOGD(TAG, "[%s] %s \n", audio_element_get_tag(self), __func__);
     aec_v3_algorithm_t *aec = (aec_v3_algorithm_t *)audio_element_getdata(self);
 
-    uint32_t offset=0;
+    uint32_t offset = 0;
     uint32_t aec_frame_sample_cnt;
 
     aec_context_size = aec_size(AEC_DELAY_BUFFER_SIZE/2);
-    offset += aec_context_size;    
+    offset += aec_context_size;
     #if CONFIG_AUD_AI_NS_SUPPORT && !CONFIG_AUD_AI_NS_USE_STATIC_SRAM
     if(aec->aec_cfg.ns_type == NS_AI)
     {
         aec_context_size = aec_size((AEC_EX_SIZE + AEC_DELAY_BUFFER_SIZE)/2); 
     }
     #endif
- 
 
     /* init */
     aec->aec_ctx = (AECContext *)audio_malloc(aec_context_size);
@@ -686,7 +685,7 @@ static bk_err_t _aec_v3_algorithm_open(audio_element_handle_t self)
     BK_LOGD(TAG, "[%s] _aec_algorithm_open\n", audio_element_get_tag(self));
 
     return BK_OK;
-    
+
 fail:
     if (aec->aec_ctx)
     {
@@ -732,6 +731,53 @@ fail:
 static bk_err_t _aec_v3_algorithm_close(audio_element_handle_t self)
 {
     BK_LOGD(TAG, "[%s] %s \n", audio_element_get_tag(self), __func__);
+
+    aec_v3_algorithm_t *aec = (aec_v3_algorithm_t *)audio_element_getdata(self);
+    if (aec == NULL)
+    {
+        return BK_OK;
+    }
+
+    /* release everything allocated in _aec_v3_algorithm_open() to keep open/close symmetric,
+       otherwise each pause(close)/resume(open) cycle leaks these buffers */
+    if (aec->aec_ctx)
+    {
+        audio_free(aec->aec_ctx);
+        aec->aec_ctx = NULL;
+    }
+
+    if(buff_ecout)
+    {
+        audio_free(buff_ecout);
+        buff_ecout = NULL;
+    }
+
+    #if CONFIG_ADK_DEBUG_DUMP_UTIL
+    if(mic_data_save)
+    {
+        audio_free(mic_data_save);
+        mic_data_save = NULL;
+    }
+
+    if(ref_data_save)
+    {
+        audio_free(ref_data_save);
+        ref_data_save = NULL;
+    }
+    #endif
+
+    if(aec->out_read_addr)
+    {
+        audio_free(aec->out_read_addr);
+        aec->out_read_addr = NULL;
+    }
+
+    if(aec->vad_rb)
+    {
+        rb_destroy(aec->vad_rb);
+        aec->vad_rb = NULL;
+    }
+
     return BK_OK;
 }
 

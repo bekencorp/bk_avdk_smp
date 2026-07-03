@@ -48,6 +48,12 @@ static bk_err_t _opus_dec_open(audio_element_handle_t self)
 static bk_err_t _opus_dec_close(audio_element_handle_t self)
 {
     BK_LOGV(TAG, "[%s] _opus_dec_close \n", audio_element_get_tag(self));
+    opus_dec_t *opus_dec = (opus_dec_t *)audio_element_getdata(self);
+
+    if (opus_dec && opus_dec->out_buf) {
+        audio_free(opus_dec->out_buf);
+        opus_dec->out_buf = NULL;
+    }
 
     return BK_OK;
 }
@@ -127,17 +133,15 @@ static bk_err_t _opus_dec_destroy(audio_element_handle_t self)
 {
     opus_dec_t *opus_dec = (opus_dec_t *)audio_element_getdata(self);
 
-    
     if (opus_dec->out_buf) {
         audio_free(opus_dec->out_buf);
     }
-    
+
     if (opus_dec->decoder) {
         opus_decoder_destroy(opus_dec->decoder);
     }
-    
-    audio_free(opus_dec);
 
+    audio_free(opus_dec);
     return BK_OK;
 }
 

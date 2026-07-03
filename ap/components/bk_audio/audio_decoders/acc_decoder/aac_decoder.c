@@ -93,6 +93,10 @@ static bk_err_t _aac_decoder_open(audio_element_handle_t self)
 static bk_err_t _aac_decoder_close(audio_element_handle_t self)
 {
     BK_LOGD(TAG, "[%s] %s\n", audio_element_get_tag(self), __func__);
+
+    /* release the cpu freq vote requested in _aac_decoder_open() to keep open/close symmetric */
+    bk_pm_module_vote_cpu_freq(PM_DEV_ID_AUDIO, PM_CPU_FRQ_DEFAULT);
+
     audio_element_state_t state = audio_element_get_state(self);
 
     // Reset info to default values to ensure music info will be reported on next open

@@ -171,7 +171,6 @@ static bk_err_t _eq_algorithm_open(audio_element_handle_t self)
     eq_algorithm_t *eq = (eq_algorithm_t *)audio_element_getdata(self);
 
     eq->eq_handle = eq_create(&eq->eq_cfg);
-
     if (!eq->eq_handle)
     {
         BK_LOGE(TAG, "%s, %d, eq element create fail\n", __func__, __LINE__);
@@ -185,6 +184,14 @@ static bk_err_t _eq_algorithm_open(audio_element_handle_t self)
 static bk_err_t _eq_algorithm_close(audio_element_handle_t self)
 {
     BK_LOGD(TAG, "[%s] %s \n", audio_element_get_tag(self), __func__);
+    eq_algorithm_t *eq = (eq_algorithm_t *)audio_element_getdata(self);
+
+    if (eq && eq->eq_handle)
+    {
+        eq_destroy(eq->eq_handle);
+        eq->eq_handle = NULL;
+    }
+
     return BK_OK;
 }
 

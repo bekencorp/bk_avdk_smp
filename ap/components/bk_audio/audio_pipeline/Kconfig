@@ -123,10 +123,10 @@ menu "Adk"
 				bool "Enable Audio RSP algorithm"
 				default n
 
-			#config ADK_RSP_ALGORITHM_TEST
-			#	depends on ADK_RSP_ALGORITHM && ADK_VFS_STREAM
-			#	bool "Enable Audio RSP algorithm test"
-			#	default n
+			config ADK_RSP_ALGORITHM_TEST
+				depends on ADK_RSP_ALGORITHM
+				bool "Enable Audio RSP algorithm test"
+				default n
 		endmenu
 	endmenu
 
