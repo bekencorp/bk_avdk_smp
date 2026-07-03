@@ -24,6 +24,11 @@ typedef struct
     const uint32_t gpu_base_addr;
     const uint32_t gpu_vg_lite_contiguous_mem_sz;
     const uint32_t gpu_vg_lite_command_buffer_size;
+    /* Convert a CPU SRAM alias (0x2Cxxxxxx) to the peripheral alias (0x28xxxxxx)
+     * that the media DMA/codec/GPU/ISP hardware must use. Implemented on the app
+     * side so the prebuilt library (.a) carries no CONFIG_SRAM_DIRECT_ADDR /
+     * reg_base.h dependency and follows whatever the main project configures. */
+    uint32_t (*sram_peri_addr)(uint32_t addr);
     void *(*malloc)(uint32_t size);
     void (*free)(void *ptr);
     void *(*memset)(void *s, int c, uint32_t n);

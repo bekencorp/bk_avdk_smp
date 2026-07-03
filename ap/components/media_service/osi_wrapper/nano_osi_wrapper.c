@@ -7,6 +7,7 @@
 #if CONFIG_HIGH_PERFORMANCE_DMA
 #include <driver/hpdma.h>
 #endif
+#include "soc/reg_base.h"   /* SOC_SRAM_PERI_ADDR: resolved here (app side) where CONFIG_SRAM_DIRECT_ADDR is valid */
 
 static void *nano_malloc_wrapper(uint32_t size)
 {
@@ -360,11 +361,18 @@ static void nano_module_exit_critical_wrapper(bk_nano_module_t module, uint32_t 
 #endif
 
 
+static uint32_t nano_sram_peri_addr_wrapper(uint32_t addr)
+{
+    return (uint32_t)SOC_SRAM_PERI_ADDR(addr);
+}
+
 static bk_nano_osi_funcs_t s_nano_osi_funcs =
 {
     .gpu_base_addr = GPU_BASE_ADDR,
     .gpu_vg_lite_contiguous_mem_sz = GPU_VG_LITE_CONTIGUOUS_MEM_SZ,
     .gpu_vg_lite_command_buffer_size = GPU_VG_LITE_COMMAND_BUFFER_SIZE,
+
+    .sram_peri_addr = nano_sram_peri_addr_wrapper,
 
     .malloc      = nano_malloc_wrapper,
     .free        = nano_free_wrapper,
