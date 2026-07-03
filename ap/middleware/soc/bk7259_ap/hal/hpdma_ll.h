@@ -49,7 +49,11 @@ static inline void hpdma_ll_init(hpdma_hw_t *hw)
 		hw->config_group[hpdma_id].req_mux.v = 0;
 		hw->config_group[hpdma_id].src_pause_addr = 0;
 		hw->config_group[hpdma_id].dest_pause_addr = 0;
-		hw->config_group[hpdma_id].status.v = 0;
+		/* W1C: writing 0 never clears latched interrupt bits */
+		hw->config_group[hpdma_id].status.v = BIT(HPDMA_HALF_FINISH_INT_POS)
+		                                    | BIT(HPDMA_FINISH_INT_POS)
+		                                    | BIT(HPDMA_BUS_ERR_INT_POS)
+		                                    | BIT(HPDMA_FIFO_ERR_INT_POS);
 		hw->config_group[hpdma_id].step_reg.v = 0;
 		hw->config_group[hpdma_id].remain_length.v = 0;
 		hw->config_group[hpdma_id].next_ll_addr = 0;

@@ -353,11 +353,6 @@ bk_err_t bk_hpdma_driver_init(void)
     }
 #endif
 
-#if CONFIG_HIGH_PERFORMANCE_DMA_TEST
-    extern int bk_hpdma_register_cli_test_feature(void);
-    BK_LOG_ON_ERR(bk_hpdma_register_cli_test_feature());
-#endif
-
     return BK_OK;
 }
 

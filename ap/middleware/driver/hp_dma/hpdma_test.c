@@ -1551,14 +1551,7 @@ static void cli_hpdma_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, ch
     }
 }
 
-#define HPDMA_CMD_CNT (sizeof(s_hpdma_commands) / sizeof(struct cli_command))
 DRV_CLI_CMD_EXPORT static const struct cli_command s_hpdma_commands[] = {
     {"hpdma", "hpdma help | hpdma {driver|chan|int|chnl|chnl_free|copy|link_test_1d|link_test_2d|concurrent_test|throughput|stress|neg_test|auto} ...", cli_hpdma_cmd},
 };
-
-int bk_hpdma_register_cli_test_feature(void)
-{
-    BK_LOG_ON_ERR(bk_hpdma_driver_init());
-    return cli_register_commands(s_hpdma_commands, HPDMA_CMD_CNT);
-}
 
