@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: Multimedia::Display & UI::LCD
 menu "DSI LCD"
 	config LCD_DSI
 		depends on BK_PERIPHERAL

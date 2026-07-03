@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: Multimedia::Audio::Codec::aac_decode
 config AUDIO_AACDEC_TEST
 	#depends on FATFS
 	bool "Enable Audio AacDec Test"

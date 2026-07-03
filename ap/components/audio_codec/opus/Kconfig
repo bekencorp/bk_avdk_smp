@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: Multimedia::Audio::Codec::opus
 menu "Demos::Media::Audio::Opus"
 	config AUDIO_OPUS_TEST
 		depends on FATFS

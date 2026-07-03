@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: Multimedia::Audio::Record
 menu "Audio Record"
 
 	config AUDIO_RECORD

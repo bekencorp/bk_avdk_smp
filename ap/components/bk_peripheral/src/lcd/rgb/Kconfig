@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: Multimedia::Display & UI::LCD
 menu "RGB LCD"
 	config LCD_RGB
 		depends on BK_PERIPHERAL

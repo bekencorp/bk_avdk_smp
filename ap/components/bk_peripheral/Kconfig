@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: Device Drivers::Board Devices
 menu "bk peripheral"
 
 	config BK_PERIPHERAL

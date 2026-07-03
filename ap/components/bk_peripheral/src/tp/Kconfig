@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: Device Drivers::Touch
 menu "TP"
 	config TP
 		bool "Enable TP"

@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: Multimedia::Audio::Codec::aac_encode_demo
 menu "Audio_codec::AAC_encode_demo"
 	config AAC_ENCODE_TEST
 		depends on FATFS

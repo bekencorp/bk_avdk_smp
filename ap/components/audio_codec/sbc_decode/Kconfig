@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: Multimedia::Audio::Codec::sbc_decode
 menu "Demos::Media::Audio::Sbc_decode"
 	config SBC_TEST
 		bool "Enable Sbc Test"

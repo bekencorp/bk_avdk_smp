@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: Multimedia::Audio::Play
 menu "Audio Play"
 
 	config AUDIO_PLAY

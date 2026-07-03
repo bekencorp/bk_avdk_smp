@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: Device Drivers::NFC
 menu "bk_nfc"
 
 	config NFC_ENABLE

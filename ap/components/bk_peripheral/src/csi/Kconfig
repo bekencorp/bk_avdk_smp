@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: Multimedia::Camera
 menu "CSI Camera"
     config CSI_CAMERA
         depends on BK_CAMERA

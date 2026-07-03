@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: Multimedia::Audio::Codec::flac
 menu "Demos::Media::Audio::Flac"
 	config AUDIO_FLAC_TEST
 		depends on FATFS

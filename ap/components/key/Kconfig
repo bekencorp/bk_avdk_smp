@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: Device Drivers::Keys & Buttons
 config BUTTON
 	bool "Enable Button"
 	default n

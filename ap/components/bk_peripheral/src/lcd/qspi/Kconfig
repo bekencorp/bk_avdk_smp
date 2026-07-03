@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: Multimedia::Display & UI::LCD
 menu "QSPI LCD"
 
 	config LCD_QSPI_SH8601A
