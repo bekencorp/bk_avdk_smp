@@ -58,6 +58,7 @@ typedef enum {
 	QSPI_1WIRE = 0, /**< QSPI 1_wire mode, standard SPI */
 	QSPI_2WIRE,     /**< QSPI 2_wire mode, DUAL SPI */
 	QSPI_4WIRE,     /**< QSPI 4_wire mode, QUAD SPI */
+	QSPI_CMD_DISABLE, /**< QSPI command disable flag */
 } qspi_wire_mode_t;
 
 typedef enum {
@@ -67,14 +68,17 @@ typedef enum {
 } qspi_device_t;
 
 typedef struct {
-	qspi_wire_mode_t wire_mode; /**< wire mode */
-	qspi_work_mode work_mode;   /**< work mode */
-	qspi_op_t op;               /**< QSPI operation */
-	uint32_t cmd;               /**< QSPI command */
-	uint32_t addr;              /**< QSPI address */
-	uint32_t dummy_cycle;       /**< QSPI dummy cycle */
-	uint32_t data_len;          /**< QSPI data length*/
-	qspi_device_t device;       /**< QSPI slave device*/
+	qspi_work_mode work_mode;          /**< QSPI work mode */
+	qspi_op_t op;                      /**< QSPI operation */
+	uint32_t cmd;                      /**< QSPI command */
+	uint32_t addr;                     /**< QSPI address */
+	uint32_t addr_len;                 /**< QSPI address length */
+	qspi_wire_mode_t addr_wire_mode;   /**< QSPI address wire mode */
+	uint32_t dummy_cycle;              /**< QSPI dummy cycle */
+	uint32_t dummy_mode;               /**< QSPI dummy mode, means the offset to insert dummy clock */
+	uint32_t data_len;                 /**< QSPI data length */
+	qspi_wire_mode_t data_wire_mode;   /**< QSPI data wire mode */
+	qspi_device_t device;              /**< QSPI slave device */
 } qspi_cmd_t;
 
 #ifdef __cplusplus
