@@ -370,39 +370,42 @@ bk_err_t bk_aud_apll_spi_trigger(void)
 
 bk_err_t bk_aud_apll_config(aud_apll_freq_t freq)
 {
-    uint32_t apll_coefs = 0;
+	for (uint8_t i = 0; i < 2; i++) {
+		uint32_t apll_coefs = 0;
 
-#if 0
-    if (1 == sys_drv_get_apll_en_status())
-    {
-        /* check frequency */
-        //TODO
-        return BK_OK;
-    }
-#endif
+	#if 0
+		if (1 == sys_drv_get_apll_en_status())
+		{
+			/* check frequency */
+			//TODO
+			return BK_OK;
+		}
+	#endif
 
-    switch (freq)
-    {
-        case AUD_APLL_FREQ_98P3040_MHZ:
-            apll_coefs = 0x973CA70;
-            break;
+		switch (freq)
+		{
+			case AUD_APLL_FREQ_98P3040_MHZ:
+				apll_coefs = 0x973CA70;
+				break;
 
-        case AUD_APLL_FREQ_90P3168_MHZ:
-            apll_coefs = 0x8AF2ECA;
-            break;
+			case AUD_APLL_FREQ_90P3168_MHZ:
+				apll_coefs = 0x8AF2ECA;
+				break;
 
-        default:
-            return BK_FAIL;
-    }
+			default:
+				return BK_FAIL;
+		}
 
-    //set apll clock config
-    sys_drv_apll_en(1);
-    sys_drv_apll_cal_val_set(apll_coefs);
-    //sys_drv_apll_config_set(0xC2A0AE86);//need check, TODO
-    sys_drv_apll_spi_trigger_set(1);
-    delay(10);
-    sys_drv_apll_spi_trigger_set(0);
 
+		//set apll clock config
+		sys_drv_apll_en(1);
+		sys_drv_apll_cal_val_set(apll_coefs);
+		//sys_drv_apll_config_set(0xC2A0AE86);//need check, TODO
+
+		sys_drv_apll_spi_trigger_set(1);
+		delay(10);
+		sys_drv_apll_spi_trigger_set(0);
+	}
     return BK_OK;
 }
 
