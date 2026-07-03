@@ -422,6 +422,8 @@ struct {\
 
 
 #define SDCARD_LDO_CTRL_GPIO               CONFIG_LDO3V3_CTRL_GPIO
+#define SDCARD_LDO_CTRL_LEVEL              CONFIG_LDO3V3_CTRL_LEVEL
+
 #define MOTOR_LDO_CTRL_GPIO                CONFIG_LDO3V3_CTRL_GPIO
 
 
