@@ -20,6 +20,14 @@ typedef struct {
     bk_isp_camera_ctlr_handle_t camera_ctlr_handle;
     uint32_t mp_frame_size;
     uint32_t sp_frame_size;
+    /* Per-channel output geometry/format, recorded at channel open time so the
+     * DVP capture callback can report the frame attributes to the application. */
+    uint16_t mp_width;
+    uint16_t mp_height;
+    uint16_t sp_width;
+    uint16_t sp_height;
+    bk_pixel_format_t mp_fmt;
+    bk_pixel_format_t sp_fmt;
     uint8_t is_initialized;  // Flag to indicate if camera is initialized
     uint8_t is_mipi;        // Flag to indicate MIPI or DVP
     uint8_t is_sensor_started;  // Flag to indicate if sensor streaming is started
@@ -27,9 +35,30 @@ typedef struct {
 
 static isp_camera_handle_t s_isp_camera_handle = {0};
 
+/* DVP/ISP frame capture context: a background task reads frames from the ISP
+ * channel and pushes them to the application-registered callback. This is the
+ * "callback style" data interface requested for the DVP example. */
+typedef struct {
+    isp_dvp_frame_cb_t cb;       // Application frame callback
+    void *user_arg;              // Argument forwarded to the callback
+    beken_thread_t thread;       // Capture task handle
+    volatile uint8_t running;    // Capture task run flag
+    uint8_t chnl_id;             // ISP_MP_CHN_ID or ISP_SP_CHN_ID
+} isp_dvp_capture_ctx_t;
+
+static isp_dvp_capture_ctx_t s_isp_dvp_capture = {0};
+
+/* Default per-frame read timeout (ms) for the capture task; bounded so the
+ * loop can observe the stop request in a timely manner. */
+#define ISP_DVP_CAPTURE_READ_TIMEOUT_MS   (1000)
+#define ISP_DVP_CAPTURE_TASK_PRIORITY     (5)
+#define ISP_DVP_CAPTURE_TASK_STACK_SIZE   (4 * 1024)
+
 /* Forward declarations for functions used before their definitions. */
 static avdk_err_t isp_cleanup_all_resources(void);
 static avdk_err_t isp_close_channel(uint8_t is_mp);
+avdk_err_t isp_dvp_capture_stop(void);
+avdk_err_t isp_dvp_unregister_frame_cb(void);
 
 /**
  * @brief Detect sensor on a specific camera port and print its information
@@ -397,9 +426,11 @@ static avdk_err_t isp_create_instance(uint8_t chnl_id, uint16_t width, uint16_t 
                                       uint8_t flexa_mode, bk_pixel_format_t output_fmt)
 {
     avdk_err_t ret = AVDK_ERR_OK;
+    /* MIPI uses ISP port 0, DVP uses ISP port 1. The previous hard-coded
+     * port_id = 0 forced DVP onto the MIPI port and broke DVP frame buffer
+     * mode; the doorbell reference also opens the DVP channel with port_id = 1
+     * (ISP_DVP_PORT_ID). */
     uint8_t port_id = s_isp_camera_handle.is_mipi ? ISP_MIPI_PORT_ID : ISP_DVP_PORT_ID;
-    // there is a bug for use dvp frame buffer mode, need to fix it in the future
-    port_id = 0;
     const char *chnl_name = (chnl_id == 0) ? "MP" : "SP";
 
     if (!s_isp_camera_handle.is_initialized || !s_isp_camera_handle.camera_ctlr_handle)
@@ -422,9 +453,15 @@ static avdk_err_t isp_create_instance(uint8_t chnl_id, uint16_t width, uint16_t 
 
     if (chnl_id == 0) {
         s_isp_camera_handle.mp_frame_size = bk_image_size_get(width, height, output_fmt);
+        s_isp_camera_handle.mp_width = width;
+        s_isp_camera_handle.mp_height = height;
+        s_isp_camera_handle.mp_fmt = output_fmt;
     }
     else {
         s_isp_camera_handle.sp_frame_size = bk_image_size_get(width, height, output_fmt);
+        s_isp_camera_handle.sp_width = width;
+        s_isp_camera_handle.sp_height = height;
+        s_isp_camera_handle.sp_fmt = output_fmt;
     }
 
     LOGI("Creating %s instance: %dx%d, flexa=%d, fmt=%d, mp_frame_size=%d, sp_frame_size=%d\n",
@@ -542,6 +579,18 @@ static avdk_err_t isp_init_dvp_camera(uint16_t width, uint16_t height, uint16_t 
         .pin_xclk = GPIO_27,
     };
     bk_isp_camera_ctlr_config_t isp_ctlr_config = CAM_DVP_DEFAULT_RAW8_CONFIG(width, height, fps);
+    /* CAM_DVP_DEFAULT_RAW8_CONFIG hard-codes port_id = ISP_MIPI_PORT_ID (a known
+     * SDK bug). The DVP channel is opened on ISP_DVP_PORT_ID, so the port whose
+     * ispCoreSize gets configured here must match, otherwise VSI scale attr
+     * check fails (outWidth > inWidth==0 => VSI_ERR_ILLEGAL_PARAM). */
+    isp_ctlr_config.port_id = ISP_DVP_PORT_ID;
+    /* Keep input_type = CSI_SENSOR as the macro sets it. The SDK deliberately
+     * routes DVP frame-buffer (online) mode through the CSI_SENSOR ISP pipeline
+     * (see bk_camera_configs.h note). Switching to DVP_SENSOR skips the sensor
+     * data-path setup and the ISP never receives frames (read times out).
+     * The CSI_SENSOR calib path (AE/WB InitAlgo) no longer asserts now that
+     * bk_isp_device_config() runs VSI pipeline init for every ISP port, which
+     * creates each module's mutex on the DVP port (ISP_DVP_PORT_ID) too. */
 
     LOGI("Initializing DVP camera: %dx%d @ %dfps\n", width, height, fps);
 
@@ -758,6 +807,10 @@ static avdk_err_t isp_cleanup_all_resources(void)
 {
     avdk_err_t ret = AVDK_ERR_OK;
 
+    /* Stop the callback capture task before tearing down ISP resources. */
+    isp_dvp_capture_stop();
+    isp_dvp_unregister_frame_cb();
+
     // Deinit camera device if initialized
     if (s_isp_camera_handle.is_initialized && s_isp_camera_handle.camera_ctlr_handle)
     {
@@ -805,6 +858,12 @@ static avdk_err_t isp_cleanup_all_resources(void)
     // Reset handle state
     s_isp_camera_handle.is_initialized = 0;
     s_isp_camera_handle.is_sensor_started = 0;
+    s_isp_camera_handle.mp_frame_size = 0;
+    s_isp_camera_handle.sp_frame_size = 0;
+    s_isp_camera_handle.mp_width = 0;
+    s_isp_camera_handle.mp_height = 0;
+    s_isp_camera_handle.sp_width = 0;
+    s_isp_camera_handle.sp_height = 0;
 
     LOGI("All ISP resources cleaned up\n");
     return AVDK_ERR_OK;
@@ -821,6 +880,12 @@ static avdk_err_t isp_close_channel(uint8_t is_mp)
     const char *chnl_name = is_mp ? "MP" : "SP";
     uint8_t chnl_id = is_mp ? ISP_MP_CHN_ID : ISP_SP_CHN_ID;
 
+    if (s_isp_dvp_capture.running && s_isp_dvp_capture.chnl_id == chnl_id)
+    {
+        isp_dvp_capture_stop();
+        isp_dvp_unregister_frame_cb();
+    }
+
     // Stop instance using standard API
     ret = bk_isp_camera_channel_close(s_isp_camera_handle.camera_ctlr_handle, chnl_id);
 
@@ -828,6 +893,19 @@ static avdk_err_t isp_close_channel(uint8_t is_mp)
     {
         LOGE("Failed to stop %s instance: %d\n", chnl_name, ret);
         return ret;  // Return error, keep instance_handle for retry
+    }
+
+    if (is_mp)
+    {
+        s_isp_camera_handle.mp_frame_size = 0;
+        s_isp_camera_handle.mp_width = 0;
+        s_isp_camera_handle.mp_height = 0;
+    }
+    else
+    {
+        s_isp_camera_handle.sp_frame_size = 0;
+        s_isp_camera_handle.sp_width = 0;
+        s_isp_camera_handle.sp_height = 0;
     }
 
     // Check if both channels are closed, if so, cleanup all resources
@@ -891,6 +969,170 @@ exit:
     }
 
     return ret;
+}
+
+/**
+ * @brief Default demo frame callback used by the "isp dvp_cb on" CLI command.
+ *
+ * Prints frame attributes plus the first bytes of the payload so the path can
+ * be validated without extra tooling. Real applications register their own
+ * callback via isp_dvp_register_frame_cb().
+ */
+static void isp_dvp_demo_frame_cb(uint8_t *frame, uint32_t size,
+                                  uint16_t width, uint16_t height,
+                                  bk_pixel_format_t fmt, void *user_arg)
+{
+    static uint32_t s_frame_index = 0;
+
+    LOGI("dvp_cb frame[%u]: %dx%d fmt=%d size=%u head=%02x %02x %02x %02x\n",
+        s_frame_index++, width, height, fmt, size,
+        (size > 0) ? frame[0] : 0,
+        (size > 1) ? frame[1] : 0,
+        (size > 2) ? frame[2] : 0,
+        (size > 3) ? frame[3] : 0);
+}
+
+/**
+ * @brief DVP/ISP capture task: read frames in a loop and deliver via callback.
+ */
+static void isp_dvp_capture_task(beken_thread_arg_t arg)
+{
+    isp_dvp_capture_ctx_t *ctx = (isp_dvp_capture_ctx_t *)arg;
+    uint8_t is_mp = (ctx->chnl_id == ISP_MP_CHN_ID);
+
+    LOGI("dvp capture task start, channel: %s\n", is_mp ? "MP" : "SP");
+
+    while (ctx->running)
+    {
+        uint32_t frame_size = is_mp ? s_isp_camera_handle.mp_frame_size
+                                    : s_isp_camera_handle.sp_frame_size;
+        if (frame_size == 0)
+        {
+            LOGE("dvp capture: frame size is 0, channel not opened?\n");
+            break;
+        }
+
+        uint8_t *frame_buffer = bk_frame_buffer_malloc(MEM_SLAB_HEAP_UNCODED, frame_size);
+        if (!frame_buffer)
+        {
+            LOGE("dvp capture: failed to malloc frame buffer\n");
+            rtos_delay_milliseconds(10);
+            continue;
+        }
+
+        avdk_err_t ret = bk_isp_camera_read(s_isp_camera_handle.camera_ctlr_handle,
+                                            ctx->chnl_id, frame_buffer, frame_size,
+                                            ISP_DVP_CAPTURE_READ_TIMEOUT_MS);
+        if (ret == AVDK_ERR_OK)
+        {
+            isp_dvp_frame_cb_t cb = ctx->cb;
+            if (cb)
+            {
+                uint16_t w = is_mp ? s_isp_camera_handle.mp_width : s_isp_camera_handle.sp_width;
+                uint16_t h = is_mp ? s_isp_camera_handle.mp_height : s_isp_camera_handle.sp_height;
+                bk_pixel_format_t fmt = is_mp ? s_isp_camera_handle.mp_fmt : s_isp_camera_handle.sp_fmt;
+                cb(frame_buffer, frame_size, w, h, fmt, ctx->user_arg);
+            }
+        }
+        else
+        {
+            /* Timeout/transient error: keep looping so the stop flag is honored. */
+            LOGD("dvp capture: read frame ret=%d\n", ret);
+        }
+
+        bk_frame_buffer_free(frame_buffer);
+    }
+
+    LOGI("dvp capture task exit, channel: %s\n", is_mp ? "MP" : "SP");
+
+    ctx->thread = NULL;
+    rtos_delete_thread(NULL);
+}
+
+avdk_err_t isp_dvp_register_frame_cb(isp_dvp_frame_cb_t cb, void *user_arg)
+{
+    s_isp_dvp_capture.cb = cb;
+    s_isp_dvp_capture.user_arg = user_arg;
+    return AVDK_ERR_OK;
+}
+
+avdk_err_t isp_dvp_unregister_frame_cb(void)
+{
+    s_isp_dvp_capture.cb = NULL;
+    s_isp_dvp_capture.user_arg = NULL;
+    return AVDK_ERR_OK;
+}
+
+avdk_err_t isp_dvp_capture_start(uint8_t is_mp)
+{
+    if (s_isp_dvp_capture.running || s_isp_dvp_capture.thread)
+    {
+        LOGW("dvp capture already running\n");
+        return AVDK_ERR_OK;
+    }
+
+    if (!s_isp_camera_handle.is_initialized || !s_isp_camera_handle.camera_ctlr_handle)
+    {
+        LOGE("camera not initialized, open the channel before starting capture\n");
+        return AVDK_ERR_INVAL;
+    }
+
+    uint8_t chnl_id = is_mp ? ISP_MP_CHN_ID : ISP_SP_CHN_ID;
+    uint32_t frame_size = is_mp ? s_isp_camera_handle.mp_frame_size
+                                : s_isp_camera_handle.sp_frame_size;
+    if (frame_size == 0)
+    {
+        LOGE("channel %s not opened (frame size is 0)\n", is_mp ? "MP" : "SP");
+        return AVDK_ERR_INVAL;
+    }
+
+    s_isp_dvp_capture.chnl_id = chnl_id;
+    s_isp_dvp_capture.running = 1;
+
+    bk_err_t os_ret = rtos_create_thread(&s_isp_dvp_capture.thread,
+                                         ISP_DVP_CAPTURE_TASK_PRIORITY,
+                                         "isp_dvp_cap",
+                                         isp_dvp_capture_task,
+                                         ISP_DVP_CAPTURE_TASK_STACK_SIZE,
+                                         (beken_thread_arg_t)&s_isp_dvp_capture);
+    if (os_ret != BK_OK)
+    {
+        LOGE("failed to create dvp capture task: %d\n", os_ret);
+        s_isp_dvp_capture.running = 0;
+        s_isp_dvp_capture.thread = NULL;
+        return AVDK_ERR_GENERIC;
+    }
+
+    LOGI("dvp capture started on channel %s\n", is_mp ? "MP" : "SP");
+    return AVDK_ERR_OK;
+}
+
+avdk_err_t isp_dvp_capture_stop(void)
+{
+    if (!s_isp_dvp_capture.running && !s_isp_dvp_capture.thread)
+    {
+        LOGW("dvp capture not running\n");
+        return AVDK_ERR_OK;
+    }
+
+    /* Ask the task to finish; it self-deletes after the current read returns
+     * (bounded by ISP_DVP_CAPTURE_READ_TIMEOUT_MS). */
+    s_isp_dvp_capture.running = 0;
+
+    uint32_t wait_ms = 0;
+    while (s_isp_dvp_capture.thread && wait_ms < (ISP_DVP_CAPTURE_READ_TIMEOUT_MS + 500))
+    {
+        rtos_delay_milliseconds(10);
+        wait_ms += 10;
+    }
+
+    if (s_isp_dvp_capture.thread)
+    {
+        LOGW("dvp capture task did not exit in time\n");
+    }
+
+    LOGI("dvp capture stopped\n");
+    return AVDK_ERR_OK;
 }
 
 void cli_isp_func_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
@@ -1052,6 +1294,60 @@ void cli_isp_func_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, c
 
         ret = isp_read_channel(is_mp);
         LOGI("read frame from channel: %d\n", is_mp ? 0 : 1, ret);
+    }
+    else if (os_strcmp(argv[1], "dvp_cb") == 0)
+    {
+        // Parse command: isp dvp_cb on [mp|sp] | isp dvp_cb off
+        if (argc < 3)
+        {
+            LOGE("Usage: isp dvp_cb <on|off> [mp|sp]\n");
+            LOGE("  on : register demo frame callback and start capture task\n");
+            LOGE("  off: stop capture task and clear callback\n");
+            LOGE("  default channel is mp\n");
+            goto exit;
+        }
+
+        if (os_strcmp(argv[2], "on") == 0)
+        {
+            uint8_t is_mp = 1; // default MP channel
+            if (argc >= 4)
+            {
+                if (os_strcmp(argv[3], "mp") == 0)
+                {
+                    is_mp = 1;
+                }
+                else if (os_strcmp(argv[3], "sp") == 0)
+                {
+                    is_mp = 0;
+                }
+                else
+                {
+                    LOGE("Invalid channel type: %s (expected mp or sp)\n", argv[3]);
+                    goto exit;
+                }
+            }
+
+            ret = isp_dvp_register_frame_cb(isp_dvp_demo_frame_cb, NULL);
+            if (ret != AVDK_ERR_OK)
+            {
+                goto exit;
+            }
+
+            ret = isp_dvp_capture_start(is_mp);
+            if (ret != AVDK_ERR_OK)
+            {
+                isp_dvp_unregister_frame_cb();
+            }
+        }
+        else if (os_strcmp(argv[2], "off") == 0)
+        {
+            ret = isp_dvp_capture_stop();
+            isp_dvp_unregister_frame_cb();
+        }
+        else
+        {
+            LOGE("Invalid dvp_cb option: %s (expected on or off)\n", argv[2]);
+        }
     }
     else if (os_strcmp(argv[1], "detect") == 0)
     {

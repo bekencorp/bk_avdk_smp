@@ -20,6 +20,28 @@ isp open <mipi|dvp> <mp|sp> <sensor_width> <sensor_height> <fps> <isp_output_wid
 isp close <mp|sp>
 ```
 
+### 4. isp read
+```
+isp read <mp|sp>
+```
+单次（阻塞轮询）读取一帧并以 hexdump 打印，便于快速验证数据通路。
+
+### 5. isp dvp_cb（DVP 帧 callback 接口）
+```
+isp dvp_cb on [mp|sp]
+isp dvp_cb off
+```
+以 **callback 回调**的形式把 DVP（或 ISP）帧数据持续推给应用层：
+- `on`：注册示例回调并启动后台采集任务，每读到一帧就回调一次（默认 mp 通道）。
+- `off`：停止采集任务并清除回调。
+
+应用集成方式：调用 `isp_dvp_register_frame_cb()` 注册自己的回调，再调用
+`isp_dvp_capture_start()` 启动采集；回调原型见 `ap/include/isp_cli.h` 的
+`isp_dvp_frame_cb_t`。帧 buffer 在回调返回后即被释放，回调内需尽快消费或拷贝出去。
+
+> 注意：采集任务基于 **frame 模式**（`bk_isp_camera_read`），因此需先用
+> `isp open dvp <mp|sp> ... frame` 打开对应通道；flexa 模式不支持读帧回调。
+
 ---
 
 ## 测试用例列表
@@ -105,6 +127,35 @@ isp close <mp|sp>
 - **用例 3.4.1**: `isp open dvp sp 1280 720 30 1280 720 flexa`
   - **描述**: DVP SP通道，flexa模式，传感器输出1280x720@30fps，ISP输出1280x720@30fps
   - **预期**: 成功打开
+
+#### 3.5 DVP 帧 callback 接口（frame 模式）
+- **用例 3.5.1**:
+  ```
+  isp open dvp mp 1280 720 30 1280 720 frame
+  isp dvp_cb on mp
+  # 观察持续打印 dvp_cb frame[...] 日志
+  isp dvp_cb off
+  isp close mp
+  ```
+  - **描述**: 打开 DVP MP 通道（frame 模式），启动 callback 采集任务，
+    每帧回调一次，打印帧序号/分辨率/格式/大小/首字节
+  - **预期**:
+    - `isp dvp_cb on` 后持续看到 `dvp_cb frame[...]` 日志，帧序号递增
+    - `isp dvp_cb off` 后日志停止，采集任务退出，无内存泄漏
+
+- **用例 3.5.2**: `isp dvp_cb on`（未先 open 通道）
+  - **描述**: 通道未打开就启动采集
+  - **预期**: **应该失败**，提示通道未初始化/frame size 为 0
+
+- **用例 3.5.3**: SP 通道 callback
+  ```
+  isp open dvp sp 1280 720 30 640 360 frame
+  isp dvp_cb on sp
+  isp dvp_cb off
+  isp close sp
+  ```
+  - **描述**: DVP SP 通道的 callback 采集
+  - **预期**: SP 帧持续回调，关闭后停止
 
 ---
 

@@ -4,7 +4,7 @@
 
 static const struct cli_command s_isp_test_commands[] =
 {
-    {"isp", " isp open | close | detect", cli_isp_func_test_cmd},
+    {"isp", " isp open | close | read | dvp_cb | detect", cli_isp_func_test_cmd},
     {"isp_api", "isp_api power_on | power_off | new | delete | init | deinit | open | close | suspend | resume ...", cli_isp_api_func_test_cmd},
     {"isp_tuning", "isp_tuning start | stop", cli_isp_tuning_cmd},
     {"isp_dump", "isp_dump start | stop", cli_isp_dump_cmd},
