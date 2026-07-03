@@ -23,9 +23,7 @@
 #include "aon_pmu_driver.h"
 #include <driver/pwr_clk.h>
 #include "bk_pm_internal_api.h"
-#if CONFIG_ROSC_CALIB_SW
-#include <driver/rosc_32k.h>
-#endif
+
 #if CONFIG_BLUETOOTH
 #include "components/bluetooth/bk_dm_bluetooth.h"
 #include "components/bluetooth/bk_ble.h"
@@ -322,10 +320,6 @@ int bk_init(void)
 
 #if CONFIG_SAVE_BOOT_TIME_POINT
 	save_mtime_point(CPU_FINISH_WIFI_INIT_TIME);
-#endif
-
-#if CONFIG_ROSC_CALIB_SW
-	bk_rosc_32k_calib();
 #endif
 
 	rtos_user_app_launch_over();

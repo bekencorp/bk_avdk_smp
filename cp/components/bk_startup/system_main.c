@@ -27,7 +27,9 @@
 
 #include <modules/pm.h>
 #include <modules/ota.h>
-
+#if CONFIG_ROSC_CALIB_SW
+#include <driver/rosc_32k.h>
+#endif
 #include <driver/flash_partition.h>
 
 #include "boot.h"
@@ -368,6 +370,9 @@ static void app_main_thread(void *arg)
 #if CONFIG_TFM_FWU
 	bk_ota_accept_image();
 #endif
+	#if CONFIG_ROSC_CALIB_SW
+	bk_rosc_32k_calib();
+	#endif
 	bk_low_pwr_core_init();
 	main();
 
