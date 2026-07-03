@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: System Services::Identity
 menu "bk_uid"
 
 	config GET_UID_ENABLE

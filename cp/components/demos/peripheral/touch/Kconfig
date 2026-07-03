@@ -1,7 +1,6 @@
-menu "Demos::Peripheral::Touch"
+# KCONFIG_GROUP: Demos::Peripheral::Touch
 	config TOUCH_TEST
 		bool "Enable Touch Test"
 		default n
 		help
 			Enable touch demos
-endmenu

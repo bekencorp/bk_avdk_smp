@@ -1,4 +1,4 @@
-menu "Demos::Os"
+# KCONFIG_GROUP: Demos::OS
 	config OS_THREAD_DEMO
 		bool "Enable Os Thread Demo"
 		default n
@@ -36,4 +36,3 @@ menu "Demos::Os"
 	config OS_SMP_DEEP_LV_DEMO
 		bool "Enable Deep Low-voltage Sleep Demo"
 		default n
-endmenu

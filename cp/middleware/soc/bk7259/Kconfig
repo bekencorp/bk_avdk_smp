@@ -1,89 +1,139 @@
-menu "bk7259"
-
 	config SRAM_DIRECT_ADDR
 		bool "Use SRAM direct address"
 		default n
+		help
+			Use the direct SRAM address mapping for memory access. This is a
+			low-level memory layout option and should match the linker script
+			and boot configuration.
 
 	config ANA_REG_WRITE_POLL_REG_B
 		bool "Write analog register polls sys reg0xb"
 		default y
+		help
+			Use system register 0xb as the polling register when writing analog
+			registers. This is a SoC-level hardware workaround and normally
+			should keep the default value.
 
 	config PM_HAL_DEBUG
 		bool "Enable PM hal debug"
 		default n
+		help
+			Enable extra debug output in the power-management HAL. This is
+			intended for low-power debugging and should normally be disabled in
+			product builds.
 
 	config PM_HAL_CTRL
-		bool "Enable PM hal debug"
+		bool "Enable PM HAL control"
 		default n
+		help
+			Enable additional power-management HAL control paths for BK7259 CP.
+			Use this only when the project explicitly needs PM HAL control
+			debug or validation.
 
 	config TZ
 		bool "Supported TrustZone"
 		default y
+		help
+			Enable TrustZone support for the BK7259 CP target. This should
+			match the secure/non-secure memory layout and boot configuration.
 
 	config SPE
 		int "Enable SPE"
 		default 0
+		help
+			Secure Processing Environment mode selector. This is a low-level
+			boot/security setting and should match the target security layout.
 
 	config RX_OPTIMIZE
 		bool "Optimize rx current"
 		default n
+		help
+			Enable receive-path current optimization for BK7259 CP. Use this
+			only after validating RF/current behavior on the target board.
 
 	menu "UART_PIN"
 
 		config UART0_TX_PIN
 			int "UART0 TX pin"
 			default 11
+			help
+				GPIO index used as UART0 TX on this board.
 
 		config UART0_RX_PIN
 			int "UART0 RX pin"
 			default 10
+			help
+				GPIO index used as UART0 RX on this board.
 
 		config UART0_CTS_PIN
 			int "UART0 CTS pin"
 			default 12
+			help
+				GPIO index used as UART0 CTS hardware-flow-control pin.
 
 		config UART0_RTS_PIN
 			int "UART0 RTS pin"
 			default 13
+			help
+				GPIO index used as UART0 RTS hardware-flow-control pin.
 
 		config UART1_TX_PIN
 			int "UART1 TX pin"
 			default 0
+			help
+				GPIO index used as UART1 TX on this board.
 
 		config UART1_RX_PIN
 			int "UART1 RX pin"
 			default 1
+			help
+				GPIO index used as UART1 RX on this board.
 
 		config UART2_TX_PIN
 			int "UART2 TX pin"
 			default 41
+			help
+				GPIO index used as UART2 TX on this board.
 
 		config UART2_RX_PIN
 			int "UART2 RX pin"
 			default 40
+			help
+				GPIO index used as UART2 RX on this board.
 
 		config UART3_TX_PIN
 			int "UART3 TX pin"
 			default 0
+			help
+				GPIO index used as UART3 TX on this board.
 
 		config UART3_RX_PIN
 			int "UART3 RX pin"
 			default 1
+			help
+				GPIO index used as UART3 RX on this board.
 
 		config UART4_TX_PIN
 			int "UART4 TX pin"
 			default 41
+			help
+				GPIO index used as UART4 TX on this board.
 
 		config UART4_RX_PIN
 			int "UART4 RX pin"
 			default 40
+			help
+				GPIO index used as UART4 RX on this board.
 
 		config UART5_TX_PIN
 			int "UART5 TX pin"
 			default 65
+			help
+				GPIO index used as UART5 TX on this board.
 
 		config UART5_RX_PIN
 			int "UART5 RX pin"
 			default 64
+			help
+				GPIO index used as UART5 RX on this board.
 	endmenu
-endmenu

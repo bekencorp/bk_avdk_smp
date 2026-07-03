@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: System Services::Utilities & Libraries::cJSON
 menu "json"
 	config CJSON_USE
 		bool "Enable CJSON"

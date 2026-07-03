@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: Wireless Connectivity::Controller Interface
 menu "Controller IF"
 	config CTRL_IF_TP
 		bool "Controller Interface Throughput debug"

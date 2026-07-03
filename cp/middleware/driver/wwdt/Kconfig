@@ -1,4 +1,4 @@
-menu "Watchdog"
+menu "Window Watchdog"
 	config SUPPORT_WWDT
 		depends on WDT_EN
 		bool "Enable Window Watchdog"

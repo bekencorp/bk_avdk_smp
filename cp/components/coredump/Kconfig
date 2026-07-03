@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: Debug::Crash Dump
 menu "Coredump"
 	config CM_BACKTRACE
 		bool "Enable Cm Backtrace"

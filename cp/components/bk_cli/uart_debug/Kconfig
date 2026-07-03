@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: Debug::UART Debug
 menu "modules::uart_debug"
 	config UART_DEBUG
 		depends on UART_ATE_PORT

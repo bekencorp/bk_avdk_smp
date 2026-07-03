@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: Wireless Connectivity::Bluetooth
 menu "Bk_ble"
     depends on BLUETOOTH
 

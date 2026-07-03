@@ -1,4 +1,4 @@
-menu "Watchdog"
+menu "Task & INT Watchdog"
 	config WDT_EN
 		bool "Enable Watchdog"
 		default n

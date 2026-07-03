@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: Wireless Connectivity::Bluetooth::Mesh
 menu "BK_MESH"
 	depends on BLUETOOTH
 

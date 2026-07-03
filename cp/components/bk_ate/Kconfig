@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: Debug::ATE
 menu "Bk_ate"
 
 	config ATE

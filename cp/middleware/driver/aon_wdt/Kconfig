@@ -1,4 +1,4 @@
-menu "AON_Watchdog"
+menu "AON Watchdog"
 	config AON_WDT
 		bool "Enable AON Watchdog"
 		default n

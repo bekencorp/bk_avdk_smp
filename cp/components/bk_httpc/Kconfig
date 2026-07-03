@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: Network Services::HTTP Client
 menu "Httpc"
 	config HTTPC
 		bool "Enable HTTPC"
