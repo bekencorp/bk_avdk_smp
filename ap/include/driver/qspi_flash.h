@@ -54,7 +54,7 @@ uint32_t bk_qspi_flash_read_id(qspi_id_t id);
  *    - BK_OK: succeed
  *    - others: other errors.
  */
-void bk_qspi_flash_set_protect_none(qspi_id_t id);
+bk_err_t bk_qspi_flash_set_protect_none(qspi_id_t id);
 
 /**
  * @brief      QSPI flash erase sector
@@ -78,9 +78,10 @@ bk_err_t bk_qspi_flash_erase(qspi_id_t id, uint32_t addr, uint32_t size);
  * @brief      QSPI flash enable quad mode
  *
  * @return
- *    - NA.
+ *    - BK_OK: succeed
+ *    - others: other errors.
  */
-void bk_qspi_flash_quad_enable(qspi_id_t id);
+bk_err_t bk_qspi_flash_quad_enable(qspi_id_t id);
 
 /**
  * @brief      QSPI flash erase 32k

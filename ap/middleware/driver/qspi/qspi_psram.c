@@ -45,7 +45,7 @@ bk_err_t bk_qspi_psram_enter_quad_mode(qspi_id_t id)
 {
 	qspi_cmd_t enter_quad_cmd = {0};
 
-	enter_quad_cmd.wire_mode = QSPI_1WIRE;
+	enter_quad_cmd.data_wire_mode = QSPI_1WIRE;
 	enter_quad_cmd.work_mode = INDIRECT_MODE;
 	enter_quad_cmd.op = QSPI_WRITE;
 	enter_quad_cmd.cmd = ENTER_QUAD_MODE_CMD;
@@ -58,7 +58,7 @@ bk_err_t bk_qspi_psram_exit_quad_mode(qspi_id_t id)
 {
 	qspi_cmd_t exit_quad_cmd = {0};
 
-	exit_quad_cmd.wire_mode = QSPI_4WIRE;
+	exit_quad_cmd.data_wire_mode = QSPI_4WIRE;
 	exit_quad_cmd.work_mode = INDIRECT_MODE;
 	exit_quad_cmd.op = QSPI_WRITE;
 	exit_quad_cmd.cmd = EXIT_QUAD_MODE_CMD;
@@ -71,7 +71,7 @@ bk_err_t bk_qspi_psram_quad_write(qspi_id_t id)
 {
 	qspi_cmd_t quad_wr_cmd = {0};
 
-	quad_wr_cmd.wire_mode = QSPI_4WIRE;
+	quad_wr_cmd.data_wire_mode = QSPI_4WIRE;
 	quad_wr_cmd.work_mode = MEMORY_MAPPED_MODE;
 	quad_wr_cmd.op = QSPI_WRITE;
 	quad_wr_cmd.cmd = QUAD_WRITE_CMD;
@@ -86,7 +86,7 @@ bk_err_t bk_qspi_psram_single_write(qspi_id_t id)
 {
 	qspi_cmd_t quad_wr_cmd = {0};
 
-	quad_wr_cmd.wire_mode = QSPI_1WIRE;
+	quad_wr_cmd.data_wire_mode = QSPI_1WIRE;
 	quad_wr_cmd.work_mode = MEMORY_MAPPED_MODE;
 	quad_wr_cmd.op = QSPI_WRITE;
 	quad_wr_cmd.cmd = WRITE_CMD;
@@ -101,7 +101,7 @@ bk_err_t bk_qspi_psram_quad_read(qspi_id_t id)
 {
 	qspi_cmd_t qspi_rd_cmd = {0};
 
-	qspi_rd_cmd.wire_mode = QSPI_4WIRE;
+	qspi_rd_cmd.data_wire_mode = QSPI_4WIRE;
 	qspi_rd_cmd.work_mode = MEMORY_MAPPED_MODE;
 	qspi_rd_cmd.op = QSPI_READ;
 	qspi_rd_cmd.cmd = FAST_READ_QUAD;
@@ -116,7 +116,7 @@ bk_err_t bk_qspi_psram_single_read(qspi_id_t id)
 {
 	qspi_cmd_t qspi_rd_cmd = {0};
 
-	qspi_rd_cmd.wire_mode = QSPI_1WIRE;
+	qspi_rd_cmd.data_wire_mode = QSPI_1WIRE;
 	qspi_rd_cmd.work_mode = MEMORY_MAPPED_MODE;
 	qspi_rd_cmd.op = QSPI_READ;
 	qspi_rd_cmd.cmd = READ_CMD;

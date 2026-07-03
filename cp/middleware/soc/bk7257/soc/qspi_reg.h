@@ -68,12 +68,17 @@ extern "C" {
 #define QSPI_F_DUMMY_CLK_V                (0x7F)
 #define QSPI_F_DUMMY_CLK_S                (16)
 
+#define QSPI_F_DUMMY_MODE_M               (0x7)
+
 #define QSPI_R_CONFIG(_id)                (QSPI_R_BASE(_id) + 4 * 0x18)
 
 #define QSPI_F_CLK_DIV                    (BIT(8))
 #define QSPI_F_CLK_DIV_M                  (0xFF)
 #define QSPI_F_CLK_DIV_V                  (0xFF)
 #define QSPI_F_CLK_DIV_S                  (8)
+
+#define QSPI_F_CMD_LINE_M                 (0x3)
+#define QSPI_F_CMD_VALUE_M                (0xFF)
 
 #define QSPI_R_RST_FIFO_CFG(_id)          (QSPI_R_BASE(_id) + 4 * 0x19)
 

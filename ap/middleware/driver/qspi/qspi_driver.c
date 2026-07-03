@@ -302,6 +302,75 @@ bk_err_t bk_qspi_init(qspi_id_t id, const qspi_config_t *config)
 	return BK_OK;
 }
 
+#define QSPI_CLK_DIV_INTERNAL_DEFAULT   (2)
+#define QSPI_SCK_MAX_HZ                 (80000000u)
+/* clk_div is an 8-bit field; bound the search to a sane range. */
+#define QSPI_CLK_DIV_SEARCH_MAX         (15u)
+/* Hardware requires the source divider (src_clk_div) to be at least 4. */
+#define QSPI_SRC_CLK_DIV_MIN            (4u)
+
+/* Second-stage divider factor for clk_div: clk_div == 0 bypasses the stage
+ * (divide by 1), otherwise the stage divides by (2 * clk_div). */
+static inline uint32_t qspi_clk_div_factor(uint32_t clk_div)
+{
+	return (clk_div == 0u) ? 1u : (2u * clk_div);
+}
+
+/* SCK on 7258 is derived from the source clock through two divider stages:
+ *   stage 1: (1 + src_clk_div)
+ *   stage 2: clk_div == 0 -> bypass (÷1), else (2 * clk_div)
+ * so SCK = src_clk / ((1 + src_clk_div) * (clk_div ? 2 * clk_div : 1)).
+ * Pick the src_clk/src_clk_div/clk_div combination whose frequency is closest
+ * to clk_hz without exceeding QSPI_SCK_MAX_HZ. Hardware requires
+ * src_clk_div >= QSPI_SRC_CLK_DIV_MIN. */
+static void qspi_calc_clock_config(qspi_config_t *config, uint32_t clk_hz)
+{
+	static const struct {
+		uint32_t hz;
+		qspi_src_clk_t sel;
+	} src_tbl[] = {
+		{ 480000000u, QSPI_SCLK_480M },
+		{ 320000000u, QSPI_SCLK_320M },
+	};
+	uint32_t best_diff = 0xFFFFFFFFu;
+
+	/* fallback default = 480M / ((1 + 4) * (2 * 2)) = 24MHz */
+	config->src_clk = QSPI_SCLK_480M;
+	config->src_clk_div = 4;
+	config->clk_div = QSPI_CLK_DIV_INTERNAL_DEFAULT;
+
+	for (uint32_t s = 0; s < (sizeof(src_tbl) / sizeof(src_tbl[0])); s++) {
+		for (uint32_t sd = QSPI_SRC_CLK_DIV_MIN; sd <= 15; sd++) {
+			for (uint32_t cd = 0; cd <= QSPI_CLK_DIV_SEARCH_MAX; cd++) {
+				uint32_t f = src_tbl[s].hz / ((1u + sd) * qspi_clk_div_factor(cd));
+				if (f > QSPI_SCK_MAX_HZ) {
+					continue;
+				}
+				uint32_t diff = (f > clk_hz) ? (f - clk_hz) : (clk_hz - f);
+				if (diff < best_diff) {
+					best_diff = diff;
+					config->src_clk = src_tbl[s].sel;
+					config->src_clk_div = sd;
+					config->clk_div = cd;
+				}
+			}
+		}
+	}
+}
+
+bk_err_t bk_qspi_init_by_freq(qspi_id_t id, uint32_t clk_hz)
+{
+	qspi_config_t config = {0};
+
+	qspi_calc_clock_config(&config, clk_hz);
+	uint32_t src_hz = (config.src_clk == QSPI_SCLK_480M) ? 480000000u : 320000000u;
+	uint32_t actual_hz = src_hz / ((1u + config.src_clk_div) * qspi_clk_div_factor(config.clk_div));
+	QSPI_LOGI("init clk: target=%u Hz, src_clk=%uMHz, src_clk_div=%u, clk_div=%u, actual=%u Hz\r\n",
+	          clk_hz, src_hz / 1000000u, config.src_clk_div, config.clk_div, actual_hz);
+
+	return bk_qspi_init(id, &config);
+}
+
 bk_err_t bk_qspi_deinit(qspi_id_t id)
 {
 	qspi_id_deinit_common(id);

@@ -65,6 +65,22 @@ bk_err_t bk_qspi_driver_deinit(void);
 bk_err_t bk_qspi_init(qspi_id_t id, const qspi_config_t *config);
 
 /**
+ * @brief     Init the QSPI by a target SCK frequency
+ *
+ * This API selects the closest achievable clock configuration (source clock,
+ * source divider and internal divider) for the requested SCK frequency and
+ * then calls bk_qspi_init().
+ *
+ * @param id     the QSPI id
+ * @param clk_hz the target SCK frequency in Hz
+ *
+ * @return
+ *    - BK_OK: succeed
+ *    - others: other errors.
+ */
+bk_err_t bk_qspi_init_by_freq(qspi_id_t id, uint32_t clk_hz);
+
+/**
  * @brief     Deinit the QSPI
  *
  * This API deinit the QSPI:
