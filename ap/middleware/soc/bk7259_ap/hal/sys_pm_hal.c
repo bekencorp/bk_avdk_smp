@@ -34,13 +34,9 @@
 #include "cache.h"
 #include "sys_ahbp_ll.h"
 #include "multicore_driver.h"
+#include <driver/dma.h>
 
 extern uint64_t check_IRQ_pending(void);
-
-static inline uint32_t bk_dma_check_chn_status(void)
-{
-	return 0U;
-}
 
 #define portNVIC_SYSTICK_CTRL_REG             ( *( ( volatile uint32_t * ) 0xe000e010 ) )
 #define portNVIC_SYSTICK_LOAD_REG             ( *( ( volatile uint32_t * ) 0xe000e014 ) )

@@ -367,6 +367,19 @@ uint32_t bk_dma_get_enable_status(dma_id_t id)
     return ret;
 }
 
+uint32_t bk_dma_check_chn_status(void)
+{
+    uint32_t chn_sta = 0;
+
+    for (dma_id_t id = 0; id < SOC_DMA_CHAN_NUM_PER_UNIT; id++) {
+        if (dma_hal_get_enable_status(&s_dma.hal, id)) {
+            chn_sta |= (0x1 << id);
+        }
+    }
+
+    return chn_sta;
+}
+
 #define DMA_MAX_BUSY_TIME (10000)  //us
 uint32_t dma_wait_to_idle(dma_id_t id)
 {
