@@ -126,23 +126,7 @@ ap_cmd le_audio broadcast sink sync <broadcast_id>
 
 广播同步过程示意：
 
-```mermaid
-sequenceDiagram
-    participant Source as Broadcast Source
-    participant Sink as Broadcast Sink
-    participant App as Sink Software
-    Source->>Sink: Extended Advertising
-    Source->>Sink: Periodic Advertising + BASE
-    App->>Sink: scan
-    Sink-->>App: announcement result
-    App->>Sink: sync broadcast_id
-    Sink->>Source: PA sync
-    Source-->>Sink: BIGInfo
-    App->>Sink: BIG create sync
-    Source-->>Sink: BIS ISO packets
-    Sink-->>App: LC3 payload callback
-    App->>App: LC3 decode + speaker playback
-```
+![LE Audio 广播同步时序](./picture/broadcast_seq_cn.png)
 
 成功判定：
 
@@ -168,22 +152,7 @@ ap_cmd le_audio broadcast source stop
 
 单播建立过程示意：
 
-```mermaid
-sequenceDiagram
-    participant Source as Unicast Source
-    participant Sink as Unicast Sink
-    participant App as Source Software
-    Sink->>Source: Connectable Advertising
-    Source->>Sink: ACL connection
-    App->>Sink: PACS capabilities discovery
-    App->>Sink: ASCS ASE discovery
-    App->>Sink: ASCS Codec Config
-    App->>Sink: ASCS QoS Config
-    App->>Source: Create CIG and CIS
-    Sink->>Source: ASCS Receiver Start Ready
-    Source->>Sink: CIS ISO packets
-    Sink-->>Sink: LC3 decode + speaker playback
-```
+![LE Audio 单播建立时序](./picture/unicast_seq_cn.png)
 
 Sink 板：
 

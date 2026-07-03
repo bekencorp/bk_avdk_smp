@@ -230,7 +230,7 @@ On BK7259 SMP, AP-side Bluetooth commands must use the `ap_cmd` prefix. This pro
 | `ap_cmd dm_ble_gatt_client gattc scan_start [duration] [period]` | Start active scan |
 | `ap_cmd dm_ble_gatt_client gattc scan_stop` | Stop scan |
 | `ap_cmd dm_ble_gatt_client gattc read <conn_id> <handle> [len]` | Read by value handle |
-| `ap_cmd dm_ble_gatt_client gattc write_ccc <conn_id> <ccc_handle> <0|1|2>` | Write CCCD: `0` disable, `1` notify, `2` indicate |
+| `ap_cmd dm_ble_gatt_client gattc write_ccc [conn_id] [ccc_handle] [0, 1, or 2]` | Write CCCD: `0` disable, `1` notify, `2` indicate |
 
 Common shared commands:
 

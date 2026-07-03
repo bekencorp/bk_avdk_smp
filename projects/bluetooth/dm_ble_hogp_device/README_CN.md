@@ -74,36 +74,11 @@ dm_ble_hogp_device/
 
 ### 3.1 启动流程
 
-```mermaid
-flowchart TD
-    A["上电 / 复位"] --> B["bk_init()"]
-    B --> C["延时 500ms 等待蓝牙协议栈就绪"]
-    C --> D["bk_dm_prf_gap_main() 初始化 dm BLE GAP"]
-    D --> E["bk_dm_prf_gatts_main() 初始化 GATT Server"]
-    E --> F["bk_dm_prf_hogpd_init() 注册 HOGP 服务数据库"]
-    F --> G["ble_demo_init() 注册广播 GAP 回调"]
-    G --> H["ble_demo_adv_enable(1) 启动广播"]
-    H --> I["广播中: BK_HOGPD-XXYYZZ"]
-```
+![HOGP 启动流程](./picture/boot_flow_cn.png)
 
 ### 3.2 连接与上报流程
 
-```mermaid
-flowchart TD
-    A["广播中"] --> B{"HID Host 发起连接?"}
-    B -- 否 --> A
-    B -- 是 --> C["协议栈自动停止广播"]
-    C --> D["配对 / 绑定"]
-    D --> E["Host 发现 HID 服务 0x1812"]
-    E --> F["Host 读取 report map"]
-    F --> G{"Host 使能 input report CCCD?"}
-    G -- 否 --> F
-    G -- 是 --> H["日志: client notify open"]
-    H --> I["设备上报 HID input report"]
-    I --> J{"断开连接?"}
-    J -- 否 --> I
-    J -- 是 --> K["不自动恢复广播, 需重启开发板"]
-```
+![HOGP 连接流程](./picture/conn_flow_cn.png)
 
 ### 3.3 关键流程讲解
 
@@ -178,61 +153,11 @@ rtos_get_semaphore(server_sem, 4000ms)   // 等 CONF/RESPONSE 事件
 
 #### 3.4.1 广播建立时序
 
-```mermaid
-sequenceDiagram
-    participant APP as ap_main / ble_demo
-    participant GAP as dm GAP 框架
-    participant CB as ble_demo_gap_cb
-    participant CTRL as Controller(CP)
-
-    APP->>GAP: bk_dm_prf_gap_get_identity_addr()
-    GAP-->>APP: identity addr
-    APP->>CTRL: bk_ble_gap_set_device_name(BK_HOGPD-XXYYZZ)
-    APP->>CTRL: bk_ble_gap_set_adv_params()
-    CTRL-->>CB: ADV_PARAMS_SET_COMPLETE
-    CB-->>APP: set s_ble_demo_sema
-    APP->>CTRL: bk_ble_gap_set_adv_data(adv)
-    CTRL-->>CB: ADV_DATA_SET_COMPLETE
-    CB-->>APP: set s_ble_demo_sema
-    APP->>CTRL: bk_ble_gap_set_adv_data(scan_rsp)
-    CTRL-->>CB: SCAN_RSP_DATA_SET_COMPLETE
-    CB-->>APP: set s_ble_demo_sema
-    APP->>CTRL: bk_ble_gap_adv_start()
-    CTRL-->>CB: ADV_START_COMPLETE
-    CB-->>APP: set s_ble_demo_sema
-    Note over APP: 打印 "adv started"
-```
+![HOGP 广播建立时序](./picture/adv_seq_cn.png)
 
 #### 3.4.2 连接、配对与 HID 上报时序
 
-```mermaid
-sequenceDiagram
-    participant Host as HID Host
-    participant CTRL as Controller(CP)
-    participant CB as hogpd_gatts_cb
-    participant NTF as bk_dm_prf_hogpd_notify
-
-    Host->>CTRL: 连接请求
-    CTRL-->>CB: BK_GATTS_CONNECT_EVT
-    CB->>CB: 分配 hogpd_app_env_t (PROFILE_ID=2)
-    Note over Host,CTRL: 配对 / 绑定 (dm GAP 框架)
-
-    Host->>CB: 读 Report Map (BK_GATTS_READ_EVT)
-    CB-->>Host: 句柄反查后回包
-
-    Host->>CB: 写 Input Report CCCD (BK_GATTS_WRITE_EVT)
-    CB->>CB: config & 1 -> "client notify open"
-
-    NTF->>CTRL: bk_ble_gatts_send_indicate(INPUT_REPORT)
-    NTF->>NTF: 阻塞等待 server_sem (4000ms)
-    CTRL-->>CB: BK_GATTS_CONF_EVT / RESPONSE_EVT
-    CB->>NTF: 记录状态并释放 server_sem
-    NTF-->>NTF: 按 status 返回成功/失败
-
-    Host->>CTRL: 断开连接
-    CTRL-->>CB: BK_GATTS_DISCONNECT_EVT
-    CB->>CB: 释放 server_sem
-```
+![HOGP HID 上报时序](./picture/hid_seq_cn.png)
 
 ## 4. 编译与运行
 

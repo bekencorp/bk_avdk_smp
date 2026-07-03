@@ -149,7 +149,7 @@ ap_cmd ble_gatt_demo gatts enable_adv 1
 
 ### 绑定测试
 
-绑定前，**Server 和 Client 两端**需先配置相同的安全参数（连接前执行）：
+绑定前，**Server 和 Client 两端** 需先配置相同的安全参数（连接前执行）：
 
 ```bash
 ap_cmd ble_gatt_demo security_method 3 1 3

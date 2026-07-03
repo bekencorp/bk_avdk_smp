@@ -38,9 +38,9 @@
    make bk7259 PROJECT=bluetooth/gatt_server
    ```
 
-2. **烧录** `build/bk7259/gatt_server/package/all-app.bin` 到开发板。
+2. **烧录：** `build/bk7259/gatt_server/package/all-app.bin` 到开发板。
 
-3. **打开串口终端**并上电。设备会自动开始广播，等待出现：
+3. **打开串口终端** 并上电。设备会自动开始广播，等待出现：
 
    ```text
    start adv success
@@ -68,7 +68,7 @@
 
 ## 4. GATT 数据库
 
-广播报文和连接后的 GATT 数据库使用**不同**的 UUID，注意不要把广播的 Service Data UUID 当成 GATT 服务 UUID。
+广播报文和连接后的 GATT 数据库使用 **不同** 的 UUID，注意不要把广播的 Service Data UUID 当成 GATT 服务 UUID。
 
 **广播报文**
 

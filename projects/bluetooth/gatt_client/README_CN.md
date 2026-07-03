@@ -38,15 +38,15 @@
    make bk7259 PROJECT=bluetooth/gatt_client
    ```
 
-2. **烧录** `build/bk7259/gatt_client/package/all-app.bin` 到开发板。
+2. **烧录：** `build/bk7259/gatt_client/package/all-app.bin` 到开发板。
 
-3. **打开串口终端**并上电。等待出现：
+3. **打开串口终端** 并上电。等待出现：
 
    ```text
    gatt_client_demo_init success
    ```
 
-4. **扫描并连接**从设备：
+4. **扫描并连接** 从设备：
 
    ```bash
    ap_cmd ble_gattc scan 1
@@ -161,7 +161,7 @@ BK7259 SMP 上，AP 侧蓝牙命令必须加 `ap_cmd` 前缀；不加会报 `cmd
 | `ap_cmd ble_gattc read_ext <handle> [offset]` | 带十进制偏移的 GATT 读。 |
 | `ap_cmd ble_gattc read_by_uuid [sh] [eh] [uuid16]` | 在 handle 范围内按 16 位 UUID 读。 |
 | `ap_cmd ble_gattc write_ext [handle] [len] [is_cmd]` | 写入字节 `0..len-1`；`is_cmd=1` 发送写命令。 |
-| `ap_cmd ble_gattc notifyindcate_en <0|1> <desc_handle>` | 写 CCC 描述符：`1` 使能、`0` 关闭通知。 |
+| `ap_cmd ble_gattc notifyindcate_en [0 or 1] [desc_handle]` | 写 CCC 描述符：`1` 使能、`0` 关闭通知。 |
 
 **服务发现**（`uuid_len` 支持 `2` 或 `16`）
 

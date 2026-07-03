@@ -74,36 +74,11 @@ As a result, the device starts advertising right after boot and is directly disc
 
 ### 3.1 Boot / Init Flow
 
-```mermaid
-flowchart TD
-    A["Power on / reset"] --> B["bk_init()"]
-    B --> C["Delay 500ms for BT stack ready"]
-    C --> D["bk_dm_prf_gap_main() init dm BLE GAP"]
-    D --> E["bk_dm_prf_gatts_main() init GATT Server"]
-    E --> F["bk_dm_prf_hogpd_init() register HOGP service db"]
-    F --> G["ble_demo_init() register adv GAP callback"]
-    G --> H["ble_demo_adv_enable(1) start advertising"]
-    H --> I["Advertising: BK_HOGPD-XXYYZZ"]
-```
+![HOGP boot flow](./picture/boot_flow_en.png)
 
 ### 3.2 Connection And Report Flow
 
-```mermaid
-flowchart TD
-    A["Advertising"] --> B{"HID host connects?"}
-    B -- No --> A
-    B -- Yes --> C["Stack stops advertising automatically"]
-    C --> D["Pairing / bonding"]
-    D --> E["Host discovers HID service 0x1812"]
-    E --> F["Host reads report map"]
-    F --> G{"Host enables input report CCCD?"}
-    G -- No --> F
-    G -- Yes --> H["Log: client notify open"]
-    H --> I["Device sends HID input report"]
-    I --> J{"Disconnect?"}
-    J -- No --> I
-    J -- Yes --> K["No auto re-advertise, reboot the board"]
-```
+![HOGP connection flow](./picture/conn_flow_en.png)
 
 ### 3.3 Key Flow Walkthrough
 
@@ -178,61 +153,11 @@ Notes:
 
 #### 3.4.1 Advertising Setup Sequence
 
-```mermaid
-sequenceDiagram
-    participant APP as ap_main / ble_demo
-    participant GAP as dm GAP framework
-    participant CB as ble_demo_gap_cb
-    participant CTRL as Controller(CP)
-
-    APP->>GAP: bk_dm_prf_gap_get_identity_addr()
-    GAP-->>APP: identity addr
-    APP->>CTRL: bk_ble_gap_set_device_name(BK_HOGPD-XXYYZZ)
-    APP->>CTRL: bk_ble_gap_set_adv_params()
-    CTRL-->>CB: ADV_PARAMS_SET_COMPLETE
-    CB-->>APP: set s_ble_demo_sema
-    APP->>CTRL: bk_ble_gap_set_adv_data(adv)
-    CTRL-->>CB: ADV_DATA_SET_COMPLETE
-    CB-->>APP: set s_ble_demo_sema
-    APP->>CTRL: bk_ble_gap_set_adv_data(scan_rsp)
-    CTRL-->>CB: SCAN_RSP_DATA_SET_COMPLETE
-    CB-->>APP: set s_ble_demo_sema
-    APP->>CTRL: bk_ble_gap_adv_start()
-    CTRL-->>CB: ADV_START_COMPLETE
-    CB-->>APP: set s_ble_demo_sema
-    Note over APP: logs "adv started"
-```
+![HOGP advertising setup sequence](./picture/adv_seq_en.png)
 
 #### 3.4.2 Connection, Pairing And HID Reporting Sequence
 
-```mermaid
-sequenceDiagram
-    participant Host as HID Host
-    participant CTRL as Controller(CP)
-    participant CB as hogpd_gatts_cb
-    participant NTF as bk_dm_prf_hogpd_notify
-
-    Host->>CTRL: connection request
-    CTRL-->>CB: BK_GATTS_CONNECT_EVT
-    CB->>CB: alloc hogpd_app_env_t (PROFILE_ID=2)
-    Note over Host,CTRL: pairing / bonding (dm GAP framework)
-
-    Host->>CB: read Report Map (BK_GATTS_READ_EVT)
-    CB-->>Host: resolve handle then respond
-
-    Host->>CB: write Input Report CCCD (BK_GATTS_WRITE_EVT)
-    CB->>CB: config & 1 -> "client notify open"
-
-    NTF->>CTRL: bk_ble_gatts_send_indicate(INPUT_REPORT)
-    NTF->>NTF: block on server_sem (4000ms)
-    CTRL-->>CB: BK_GATTS_CONF_EVT / RESPONSE_EVT
-    CB->>NTF: record status and release server_sem
-    NTF-->>NTF: return success/failure by status
-
-    Host->>CTRL: disconnect
-    CTRL-->>CB: BK_GATTS_DISCONNECT_EVT
-    CB->>CB: release server_sem
-```
+![HOGP HID reporting sequence](./picture/hid_seq_en.png)
 
 ## 4. Build And Run
 

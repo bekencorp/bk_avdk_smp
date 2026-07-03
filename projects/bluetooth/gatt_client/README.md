@@ -161,7 +161,7 @@ On BK7259 SMP, AP-side Bluetooth commands must use the `ap_cmd` prefix; without 
 | `ap_cmd ble_gattc read_ext <handle> [offset]` | GATT read with a decimal offset. |
 | `ap_cmd ble_gattc read_by_uuid [sh] [eh] [uuid16]` | Read by 16-bit UUID within a handle range. |
 | `ap_cmd ble_gattc write_ext [handle] [len] [is_cmd]` | Write bytes `0..len-1`; `is_cmd=1` sends a write command. |
-| `ap_cmd ble_gattc notifyindcate_en <0|1> <desc_handle>` | Write the CCC descriptor: `1` enable, `0` disable notify. |
+| `ap_cmd ble_gattc notifyindcate_en [0 or 1] [desc_handle]` | Write the CCC descriptor: `1` enable, `0` disable notify. |
 
 **Discovery** (`uuid_len` supports `2` or `16`)
 

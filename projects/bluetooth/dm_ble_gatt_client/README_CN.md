@@ -178,7 +178,7 @@ build/bk7259/dm_ble_gatt_client/package/all-app.bin
 
 ### 绑定测试
 
-绑定前，**Client 和 Server 两端**需先配置相同的安全参数（连接前执行）：
+绑定前，**Client 和 Server 两端** 需先配置相同的安全参数（连接前执行）：
 
 ```bash
 ap_cmd ble_gatt_demo security_method 3 1 3
@@ -230,7 +230,7 @@ BK7259 SMP 上，AP 侧蓝牙命令需要加 `ap_cmd` 前缀。本工程只保�
 | `ap_cmd dm_ble_gatt_client gattc scan_start [duration] [period]` | 开始主动扫描 |
 | `ap_cmd dm_ble_gatt_client gattc scan_stop` | 停止扫描 |
 | `ap_cmd dm_ble_gatt_client gattc read <conn_id> <handle> [len]` | 按 value handle 读取 |
-| `ap_cmd dm_ble_gatt_client gattc write_ccc <conn_id> <ccc_handle> <0|1|2>` | 写 CCCD：`0` 关闭，`1` notify，`2` indicate |
+| `ap_cmd dm_ble_gatt_client gattc write_ccc [conn_id] [ccc_handle] [0, 1, or 2]` | 写 CCCD：`0` 关闭，`1` notify，`2` indicate |
 
 常用共享命令：
 
