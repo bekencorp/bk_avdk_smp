@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: Network Services::Transfer
 menu "Bk Network Transfer"
 
 	config BK_NTWK_TRANSFER

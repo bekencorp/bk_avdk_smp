@@ -1,3 +1,4 @@
+# KCONFIG_GROUP: Network Services::HTTP
 menu "Http"
 	depends on LWIP_V2_1
 	config HTTP
