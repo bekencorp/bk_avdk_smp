@@ -1589,6 +1589,13 @@ int wpa_supplicant_ctrl_iface_receive(wpah_msg_t *msg)
 #if CONFIG_P2P_SOFTAP_CHAN_ALIGN
 		if (!interfaces->count ||
 		    (hostapd_has_p2p_group_bss() && !hostapd_has_infra_bss())) {
+			uint8_t align_ch;
+
+			align_ch = bk_wifi_p2p_go_get_channel();
+			if (!align_ch)
+				align_ch = bk_wifi_p2p_go_get_planned_channel();
+			if (align_ch && g_ap_param_ptr)
+				bk_wlan_ap_set_channel_config(align_ch);
 #else
 		if (!interfaces->count) {
 #endif

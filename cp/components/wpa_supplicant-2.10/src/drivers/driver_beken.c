@@ -1677,7 +1677,7 @@ static struct hostapd_hw_modes *hostap_get_hw_feature_data(void *priv,
 {
 	struct hostapd_hw_modes *modes;
 	struct hostapd_hw_modes *mode;
-	int i, clen, rlen;
+	int i, clen, rlen, modes_built;
 	const short chan2freq[14] = {
 		2412, 2417, 2422, 2427, 2432, 2437, 2442,
 		2447, 2452, 2457, 2462, 2467, 2472, 2484
@@ -1691,9 +1691,11 @@ static struct hostapd_hw_modes *hostap_get_hw_feature_data(void *priv,
 	*num_modes = 2;
 	*flags = 0;
 	*dfs = 0;
+	modes_built = 0;
 
 	// 11B
 	mode = modes;
+	modes_built = 1;
 	mode->num_channels = 14;
 	mode->mode = HOSTAPD_MODE_IEEE80211B;
 	mode->num_rates = 4;
@@ -1721,6 +1723,7 @@ static struct hostapd_hw_modes *hostap_get_hw_feature_data(void *priv,
 
 	/* 11G/N/AX */
 	mode++;
+	modes_built = 2;
 	mode->num_channels = 14;
 	mode->mode = HOSTAPD_MODE_IEEE80211G;
 	mode->num_rates = 12;
@@ -1768,13 +1771,14 @@ static struct hostapd_hw_modes *hostap_get_hw_feature_data(void *priv,
 
 fail:
 	/* free allocated data */
-	for (mode = modes, i = 0; i < 2; i++, mode++) {
+	for (mode = modes, i = 0; i < modes_built; i++, mode++) {
 		if (mode->channels)
 			os_free(mode->channels);
 		if (mode->rates)
 			os_free(mode->rates);
 	}
 	os_free(modes);
+	*num_modes = 0;
 
 	return NULL;
 }
@@ -1785,7 +1789,7 @@ static struct hostapd_hw_modes *hostap_get_hw_feature_data(void *priv,
 {
 	struct hostapd_hw_modes *modes; // all hw modes
 	struct hostapd_hw_modes *mode;  // current hw mode
-	int i, clen, rlen;
+	int i, clen, rlen, modes_built;
 	const short chan2freq[] = {
 		2412, 2417, 2422, 2427, 2432, 2437, 2442,
 		2447, 2452, 2457, 2462, 2467, 2472, 2484
@@ -1819,9 +1823,11 @@ static struct hostapd_hw_modes *hostap_get_hw_feature_data(void *priv,
 
 	*flags = 0;
 	*dfs = 0;
+	modes_built = 0;
 
 	// 11B or 11G
 	mode = modes;
+	modes_built = 1;
 	mode->num_channels = ARRAY_SIZE(chan2freq);
 
 #if CFG_SUPPORT_80211G
@@ -1889,6 +1895,7 @@ static struct hostapd_hw_modes *hostap_get_hw_feature_data(void *priv,
 	// -------------------------------------------------- //
 	// Forward to next hw mode(11A)
 	mode++;
+	modes_built = 2;
 	mode->num_channels = g_wiphy.bands[IEEE80211_BAND_5GHZ]->n_channels;
 	mode->mode = HOSTAPD_MODE_IEEE80211A;
 	mode->num_rates = 8;
@@ -1949,13 +1956,14 @@ static struct hostapd_hw_modes *hostap_get_hw_feature_data(void *priv,
 
 fail:
 	/* free allocated data */
-	for (mode = modes, i = 0; i < 2; i++, mode++) {
+	for (mode = modes, i = 0; i < modes_built; i++, mode++) {
 		if (mode->channels)
 			os_free(mode->channels);
 		if (mode->rates)
 			os_free(mode->rates);
 	}
 	os_free(modes);
+	*num_modes = 0;
 
 	return NULL;
 }

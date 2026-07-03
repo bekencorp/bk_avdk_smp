@@ -1260,6 +1260,11 @@ static int hostapd_setup_bss(struct hostapd_data *hapd, int first)
 		flush_old_stations = 0;
 #endif /* CONFIG_MESH */
 
+#if defined(CONFIG_P2P) && defined(CONFIG_P2P_SOFTAP_CHAN_ALIGN)
+	if (!hapd->p2p_group && bk_wifi_p2p_go_get_channel())
+		flush_old_stations = 0;
+#endif
+
 	if (flush_old_stations)
 		hostapd_flush(hapd);
 	hostapd_set_privacy(hapd, 0);
@@ -3208,6 +3213,34 @@ int hostapd_add_iface(struct hapd_interfaces *interfaces, char *buf)
 fail:
 	if (conf)
 		hostapd_config_free(conf);
+#if CONFIG_P2P
+	if (hapd_iface && new_iface && interfaces) {
+		for (i = 0; i < interfaces->count; i++) {
+			if (interfaces->iface[i] != hapd_iface)
+				continue;
+			if (hapd_iface->num_bss > 0 && hapd_iface->bss[0] &&
+			    hapd_iface->bss[0]->p2p_group) {
+				wpa_printf(MSG_ERROR,
+					   "%s: refuse fail cleanup for P2P iface %s",
+					   __func__,
+					   hapd_iface->bss[0]->conf->iface);
+				return -1;
+			}
+			wpa_printf(MSG_DEBUG,
+				   "%s: rollback new infra iface %s (count=%u)",
+				   __func__,
+				   hapd_iface->bss[0] ?
+				   hapd_iface->bss[0]->conf->iface : "?",
+				   (unsigned int) interfaces->count);
+			interfaces->count--;
+			for (; i < interfaces->count; i++)
+				interfaces->iface[i] = interfaces->iface[i + 1];
+			interfaces->iface[interfaces->count] = NULL;
+			hostapd_interface_deinit_free(hapd_iface);
+			return -1;
+		}
+	}
+#endif /* CONFIG_P2P */
 	if (hapd_iface) {
 		if (hapd_iface->bss) {
 			for (i = 0; i < hapd_iface->num_bss; i++) {
@@ -4042,6 +4075,9 @@ bool hostapd_has_p2p_group_bss(void)
 		if (iface && iface->bss[0] && iface->bss[0]->p2p_group)
 			return true;
 	}
+
+	if (bk_wifi_p2p_go_get_channel())
+		return true;
 
 	return false;
 }

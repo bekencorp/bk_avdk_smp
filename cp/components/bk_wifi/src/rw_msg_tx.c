@@ -1771,10 +1771,26 @@ int rw_msg_send_roc(u8 vif_index, unsigned int freq, uint32_t duration)
 	req->chan.center1_freq = freq;
 	req->duration_ms  = duration;
 
+#if CONFIG_RWNX_SW_TXQ && CONFIG_P2P
+	{
+		void *vif = mac_vif_mgmt_get_entry(vif_index);
+
+		if (vif)
+			rwnx_txq_offchan_init(vif);
+	}
+#endif
+
 	/* Send the MM_REMAIN_ON_CHANNEL_REQ message to LMAC FW */
 	ret = rw_msg_send(req, 1, MM_REMAIN_ON_CHANNEL_CFM, &cfm);
 	if (ret || cfm.status) {
-		RWNX_LOGW("%s: failed ret %d, cfm.status %d\n", __func__, ret, cfm.status);
+#if CONFIG_RWNX_SW_TXQ && CONFIG_P2P
+		{
+			void *vif = mac_vif_mgmt_get_entry(vif_index);
+
+			if (vif)
+				rwnx_txq_offchan_deinit(vif);
+		}
+#endif
 		os_free(roc_elem);
 		return -1;
 	} else {

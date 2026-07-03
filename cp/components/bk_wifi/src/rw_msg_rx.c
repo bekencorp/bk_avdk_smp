@@ -1652,6 +1652,7 @@ void rwnx_handle_recv_msg(struct ke_msg *rx_msg)
 
 			if (vif)
 				rwnx_txq_vif_start(vif, RWNX_TXQ_STOP_CHAN);
+			rwnx_txq_offchan_start();
 		}
 #endif
 		if (ind->roc)
@@ -1676,6 +1677,7 @@ void rwnx_handle_recv_msg(struct ke_msg *rx_msg)
 
 			if (vif)
 				rwnx_txq_vif_stop(vif, RWNX_TXQ_STOP_CHAN);
+			rwnx_txq_offchan_deinit(vif);
 		}
 #endif
 		if (roc_elem) {

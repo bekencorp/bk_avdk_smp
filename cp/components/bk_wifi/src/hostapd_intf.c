@@ -511,6 +511,16 @@ static uint8_t hapd_intf_apm_start_channel(uint8_t vif_idx)
 		if (ch)
 			return ch;
 	}
+#if CONFIG_P2P_SOFTAP_CHAN_ALIGN
+	if (vif && mac_vif_mgmt_get_type(vif) == VIF_AP &&
+	    !mac_vif_mgmt_interface_is_configured_for_p2p(vif)) {
+		ch = bk_wifi_p2p_go_get_channel();
+		if (!ch)
+			ch = bk_wifi_p2p_go_get_planned_channel();
+		if (ch)
+			return ch;
+	}
+#endif
 #endif
 	if (g_ap_param_ptr)
 		ch = g_ap_param_ptr->chann;
@@ -1471,6 +1481,10 @@ int hapd_intf_ke_rx_handle(int dummy)
 
 		skb->sta_idx = 0xFF;  // FIXME BK7236
 		skb->vif_idx = type_ptr->vif_index;
+#if CONFIG_P2P
+		if (type_ptr->type == HOSTAPD_MGMT_ROBUST)
+			skb->offchannel = 1;
+#endif
 		skb->cb = hapd_intf_mgmt_tx_cb;
 		skb->args = skb; // cb args
 
