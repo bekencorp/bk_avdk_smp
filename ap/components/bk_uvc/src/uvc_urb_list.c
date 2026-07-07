@@ -313,7 +313,12 @@ void uvc_camera_urb_free(struct usbh_urb *urb)
         return;
     }
 
+#if CONFIG_BK_USB_CHERRYUSB_V1_6
+    urb->hport = NULL;
+    urb->ep = NULL;
+#else
     urb->pipe = NULL;
+#endif
     list_add_tail(&node->list, &mem_list->free);
     uvc_urb_list_exit_critical(flags);
 }

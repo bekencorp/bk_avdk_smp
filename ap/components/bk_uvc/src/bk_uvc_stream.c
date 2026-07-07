@@ -351,13 +351,14 @@ static void uvc_camera_stream_timer_handle(void *arg1)
     {
         for (uint8_t i = 0; i < UVC_PORT_MAX; i++)
         {
-            LOGI("port:%d:%u[%u %uKB]\n", i + 1,
-                ((pro_config->frame_id[i] - pro_config->later_id[i]) / UVC_TIME_INTERVAL),
-                pro_config->frame_id[i], (pro_config->curr_length[i] / 1024));
+            uint32_t frame_delta = pro_config->frame_id[i] - pro_config->later_id[i];
+
+            if (frame_delta == 0 && pro_config->frame_id[i] != 0)
+            {
+                /* Keep later_id updated below; no periodic diagnostic output. */
+            }
             pro_config->later_id[i] = pro_config->frame_id[i];
         }
-
-        LOGI("packets[all:%u, err:%u]\n", pro_config->all_packet_num, pro_config->packet_err_num);
     }
 }
 #endif
@@ -765,12 +766,23 @@ static avdk_err_t uvc_camera_stream_packet_urb(uvc_param_t *uvc_param)
     }
 
     uvc_device = (struct usbh_video *)(uvc_param->port_info->usb_device);
+#if CONFIG_BK_USB_CHERRYUSB_V1_6
+    /* v1.6 URBs are addressed by (hport, ep-descriptor), not a pipe handle.
+     * usbh_video_open() points uvc_device->isoin at the ISO IN ep descriptor. */
+    urb->hport = uvc_device->hport;
+    urb->ep = uvc_device->isoin;
+    if (urb->ep == NULL || urb->hport == NULL)
+    {
+        LOGE("%s, %d\n", __func__, __LINE__);
+    }
+#else
     //hport = uvc_param->port_info->hport;
     urb->pipe = (usbh_pipe_t)(uvc_device->isoin);
     if (urb->pipe == NULL)
     {
         LOGE("%s, %d\n", __func__, __LINE__);
     }
+#endif
     urb->complete = (usbh_complete_callback_t)uvc_camera_stream_receive_complete_callback;
     urb->arg = (void *)uvc_param;
     urb->timeout = 0;//150us
@@ -1450,7 +1462,6 @@ static void uvc_camera_stream_data_request_handle(uvc_stream_handle_t *stream_ha
                 ret = uvc_camera_stream_data_request_retry_handle(uvc_param, ret);
                 if (ret != AVDK_ERR_OK)
                 {
-                    LOGW("%s, %d, port:%d, retry error:%d.....\r\n", __func__, __LINE__, uvc_param->info->port, ret);
                     break;
                 }
             }
