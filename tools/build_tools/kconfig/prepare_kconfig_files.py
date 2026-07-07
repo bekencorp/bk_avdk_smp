@@ -338,7 +338,7 @@ def _prepare_source_files(env_dict, list_separator):
             # Deduplicate: only add if not seen before
             if abs_path not in seen_files:
                 seen_files.add(abs_path)
-                content_lines.append('source "{}"'.format(abs_path))
+                content_lines.append('source "{}"'.format(abs_path.replace('\\', '/')))
         
         with open(index_file, 'w', encoding='utf-8') as f:
             f.write('\n'.join(content_lines))
