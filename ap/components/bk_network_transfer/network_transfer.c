@@ -267,7 +267,7 @@ int ntwk_trans_json_tx_handler(chan_type_t chan, uint8_t *data, uint32_t length)
         {
             if (s_ntwk_trans_ctxt->cntrl_chan && s_ntwk_trans_ctxt->cntrl_chan->send)
             {
-                return s_ntwk_trans_ctxt->cntrl_chan->send(data, length);
+                return (s_ntwk_trans_ctxt->cntrl_chan->send)(data, length);
             }
         } break;
         default:
