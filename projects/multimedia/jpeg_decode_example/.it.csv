@@ -2,3 +2,4 @@ case名称,测试命令（必填）,输入设备（1代表设备1，2代表设�
 reboot,reboot,1,[RESULT][PASS] vcdec_jpeg_test success,60
 vcdec_jpeg_frame_01,ap_cmd jpeg_decode vcdec_jpegd,1,[RESULT][PASS] vcdec_jpeg_test success,60
 vcdec_jpeg_flexa_01,ap_cmd jpeg_decode vcdec_jpegd_flexa,1,[RESULT][PASS] vcdec_jpeg_flexa_test success,60
+vcdec_jpeg_frame_rgb_01,ap_cmd jpeg_decode vcdec_jpegd_frame_rgb,1,[RESULT][PASS] vcdec_jpeg_frame_rgb_test success,120

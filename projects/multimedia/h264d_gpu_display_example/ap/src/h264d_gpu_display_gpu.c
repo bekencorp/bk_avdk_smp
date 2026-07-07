@@ -3,6 +3,7 @@
 #include <os/mem.h>
 #include <components/log.h>
 #include <components/bk_frame_buffer.h>
+#include <components/bk_hardware_ram.h>
 #include <components/bk_gpu_ctlr.h>
 #include <components/bk_gpu.h>
 #include <modules/vg_lite_gpu/vg_lite.h>
@@ -46,6 +47,11 @@ static uint32_t s_frame_pool_buf_size;
 static uint32_t s_frame_pool_init_count;
 
 static h264d_gpu_display_gpu_ctx_t s_gpu_ctx = {0};
+static uint8_t s_gpu_blit_initialized;
+static void *s_gpu_blit_contiguous_buffer;
+
+void bk_gpu_driver_init(void);
+void bk_gpu_driver_deinit(void);
 
 void vg_lite_bus_error_handler(void)
 {
@@ -104,6 +110,223 @@ static avdk_err_t h264d_gpu_display_frame_free(void *ptr)
 	if (from_pool == 0U) {
 		bk_frame_buffer_free(ptr);
 	}
+	return AVDK_ERR_OK;
+}
+
+static uint32_t h264d_gpu_display_compressed_argb_size(uint32_t width, uint32_t height)
+{
+	return (uint32_t)bk_pixel_size_get(BK_PIXEL_FORMAT_ARGB8888) * (width / 4U) * height;
+}
+
+static vg_lite_buffer_format_t h264d_gpu_display_rgb_src_format(bk_pixel_format_t src_format)
+{
+	switch (src_format) {
+	case BK_PIXEL_FORMAT_RGB565:
+		return VG_LITE_RGB565;
+	case BK_PIXEL_FORMAT_RGB888:
+		/* VCDec PP RGB888 writes one pixel into a 32-bit word: X,R,G,B in memory. */
+		return VG_LITE_XRGB8888;
+	default:
+		return (vg_lite_buffer_format_t)-1;
+	}
+}
+
+static void h264d_gpu_display_rgb_matrix(vg_lite_matrix_t *matrix,
+					 uint16_t src_width,
+					 uint16_t src_height)
+{
+	float scale_x;
+	float scale_y;
+
+	vg_lite_identity(matrix);
+
+	if (H264D_GPU_DISPLAY_GPU_ROTATE_DEGREE == 90U ||
+	    H264D_GPU_DISPLAY_GPU_ROTATE_DEGREE == 270U) {
+		scale_x = (float)H264D_GPU_DISPLAY_GPU_DISPLAY_WIDTH / (float)src_height;
+		scale_y = (float)H264D_GPU_DISPLAY_GPU_DISPLAY_HEIGHT / (float)src_width;
+	} else {
+		scale_x = (float)H264D_GPU_DISPLAY_GPU_DISPLAY_WIDTH / (float)src_width;
+		scale_y = (float)H264D_GPU_DISPLAY_GPU_DISPLAY_HEIGHT / (float)src_height;
+	}
+
+	switch (H264D_GPU_DISPLAY_GPU_ROTATE_DEGREE) {
+	case 90U:
+		matrix->m[0][0] = 0.0f;
+		matrix->m[0][1] = -scale_x;
+		matrix->m[0][2] = scale_x * (float)src_height;
+		matrix->m[1][0] = scale_y;
+		matrix->m[1][1] = 0.0f;
+		matrix->m[1][2] = 0.0f;
+		break;
+	case 270U:
+		matrix->m[0][0] = 0.0f;
+		matrix->m[0][1] = scale_x;
+		matrix->m[0][2] = 0.0f;
+		matrix->m[1][0] = -scale_y;
+		matrix->m[1][1] = 0.0f;
+		matrix->m[1][2] = scale_y * (float)src_width;
+		break;
+	default:
+		matrix->m[0][0] = scale_x;
+		matrix->m[1][1] = scale_y;
+		break;
+	}
+}
+
+static avdk_err_t h264d_gpu_display_gpu_blit_init(void)
+{
+	vg_lite_error_t vg_ret;
+
+	if (s_gpu_blit_initialized != 0U) {
+		return AVDK_ERR_OK;
+	}
+
+	bk_gpu_driver_init();
+	s_gpu_blit_contiguous_buffer = bk_get_gpu_flexa_buffer(CONFIG_VG_LITE_GPU_CONTIGUOUS_MEM_SZ);
+	if (s_gpu_blit_contiguous_buffer == NULL) {
+		LOGE("alloc VG-Lite contiguous buffer failed, size=%u\r\n",
+		     (unsigned)CONFIG_VG_LITE_GPU_CONTIGUOUS_MEM_SZ);
+		bk_gpu_driver_deinit();
+		return AVDK_ERR_NOMEM;
+	}
+
+	vg_ret = vg_lite_set_buffer((uint8_t *)s_gpu_blit_contiguous_buffer);
+	if (vg_ret == VG_LITE_SUCCESS) {
+		vg_ret = vg_lite_init(0, 0);
+	}
+	if (vg_ret != VG_LITE_SUCCESS) {
+		LOGE("VG-Lite init failed, ret=%d\r\n", (int)vg_ret);
+		hsram_free(s_gpu_blit_contiguous_buffer);
+		s_gpu_blit_contiguous_buffer = NULL;
+		bk_gpu_driver_deinit();
+		return AVDK_ERR_GENERIC;
+	}
+
+	s_gpu_blit_initialized = 1U;
+	return AVDK_ERR_OK;
+}
+
+void h264d_gpu_display_gpu_blit_deinit(void)
+{
+	if (s_gpu_blit_initialized == 0U) {
+		return;
+	}
+
+	(void)vg_lite_close();
+	bk_gpu_driver_deinit();
+	if (s_gpu_blit_contiguous_buffer != NULL) {
+		hsram_free(s_gpu_blit_contiguous_buffer);
+		s_gpu_blit_contiguous_buffer = NULL;
+	}
+	s_gpu_blit_initialized = 0U;
+}
+
+avdk_err_t h264d_gpu_display_gpu_blit_rgb_frame(const uint8_t *src_buffer,
+						uint16_t src_width,
+						uint16_t src_height,
+						bk_pixel_format_t src_format,
+						void **out_frame,
+						uint32_t *out_frame_size)
+{
+	avdk_err_t ret;
+	vg_lite_error_t vg_ret;
+	vg_lite_buffer_t src_buf;
+	vg_lite_buffer_t dst_buf;
+	vg_lite_matrix_t matrix;
+	void *frame;
+	uint32_t frame_size;
+	uint32_t src_stride;
+	vg_lite_buffer_format_t vg_src_format;
+	uint32_t start_ms;
+	uint32_t cost_ms;
+
+	if (src_buffer == NULL || out_frame == NULL || out_frame_size == NULL ||
+	    src_width == 0U || src_height == 0U) {
+		return AVDK_ERR_INVAL;
+	}
+
+	vg_src_format = h264d_gpu_display_rgb_src_format(src_format);
+	if (vg_src_format == (vg_lite_buffer_format_t)-1) {
+		LOGE("unsupported rgb source format=%u\r\n", (unsigned)src_format);
+		return AVDK_ERR_UNSUPPORTED;
+	}
+
+	ret = h264d_gpu_display_gpu_blit_init();
+	if (ret != AVDK_ERR_OK) {
+		return ret;
+	}
+
+	frame_size = h264d_gpu_display_compressed_argb_size(H264D_GPU_DISPLAY_GPU_DISPLAY_WIDTH,
+							   H264D_GPU_DISPLAY_GPU_DISPLAY_HEIGHT);
+	frame = bk_frame_buffer_malloc(MEM_SLAB_HEAP_UNCODED, frame_size);
+	if (frame == NULL) {
+		LOGE("alloc rgb display frame failed, size=%u\r\n", (unsigned)frame_size);
+		return AVDK_ERR_NOMEM;
+	}
+
+	src_stride = (src_format == BK_PIXEL_FORMAT_RGB565) ?
+		((uint32_t)src_width * 2U) : ((uint32_t)src_width * 4U);
+
+	os_memset(&src_buf, 0, sizeof(src_buf));
+	os_memset(&dst_buf, 0, sizeof(dst_buf));
+	os_memset(&matrix, 0, sizeof(matrix));
+
+	src_buf.width = src_width;
+	src_buf.height = src_height;
+	src_buf.stride = (vg_lite_int32_t)src_stride;
+	src_buf.format = vg_src_format;
+	src_buf.compress_mode = VG_LITE_DEC_DISABLE;
+	src_buf.tiled = VG_LITE_LINEAR;
+	vg_ret = vg_lite_allocate_with_data(&src_buf, (void *)src_buffer, NULL, NULL, NULL);
+	if (vg_ret != VG_LITE_SUCCESS) {
+		LOGE("wrap rgb source failed, ret=%d\r\n", (int)vg_ret);
+		bk_frame_buffer_free(frame);
+		return AVDK_ERR_GENERIC;
+	}
+
+	dst_buf.width = H264D_GPU_DISPLAY_GPU_DISPLAY_WIDTH;
+	dst_buf.height = H264D_GPU_DISPLAY_GPU_DISPLAY_HEIGHT;
+	dst_buf.format = VG_LITE_BGRA8888;
+	dst_buf.compress_mode = VG_LITE_DEC_HV_SAMPLE;
+	dst_buf.tiled = VG_LITE_TILED;
+	vg_ret = vg_lite_allocate_with_data(&dst_buf, frame, NULL, NULL, NULL);
+	if (vg_ret != VG_LITE_SUCCESS) {
+		LOGE("wrap rgb display dst failed, ret=%d\r\n", (int)vg_ret);
+		(void)vg_lite_free_without_free_data(&src_buf);
+		bk_frame_buffer_free(frame);
+		return AVDK_ERR_GENERIC;
+	}
+
+	h264d_gpu_display_rgb_matrix(&matrix, src_width, src_height);
+	start_ms = rtos_get_time();
+	vg_ret = vg_lite_blit(&dst_buf, &src_buf, &matrix, VG_LITE_BLEND_NONE, 0, VG_LITE_FILTER_POINT);
+	if (vg_ret == VG_LITE_SUCCESS) {
+		vg_ret = vg_lite_finish();
+	}
+	cost_ms = rtos_get_time() - start_ms;
+
+	(void)vg_lite_free_without_free_data(&dst_buf);
+	(void)vg_lite_free_without_free_data(&src_buf);
+
+	if (vg_ret != VG_LITE_SUCCESS) {
+		LOGE("rgb VG-Lite blit failed, ret=%d cost=%u ms\r\n",
+		     (int)vg_ret, (unsigned)cost_ms);
+		bk_frame_buffer_free(frame);
+		return AVDK_ERR_GENERIC;
+	}
+
+	*out_frame = frame;
+	*out_frame_size = frame_size;
+	LOGI("rgb blit done: src=%ux%u fmt=%u dst=%ux%u rotate=%u cost=%u ms frame=%p size=%u\r\n",
+	     (unsigned)src_width,
+	     (unsigned)src_height,
+	     (unsigned)src_format,
+	     (unsigned)H264D_GPU_DISPLAY_GPU_DISPLAY_WIDTH,
+	     (unsigned)H264D_GPU_DISPLAY_GPU_DISPLAY_HEIGHT,
+	     (unsigned)H264D_GPU_DISPLAY_GPU_ROTATE_DEGREE,
+	     (unsigned)cost_ms,
+	     frame,
+	     (unsigned)frame_size);
 	return AVDK_ERR_OK;
 }
 

@@ -9,7 +9,7 @@ This project demonstrates JPEG decoding on the Beken platform with two API layer
 | Layer | Functions / CLI | Description |
 |-------|-----------------|-------------|
 | Platform JPEG | `jpeg_decode jpegd` / `jpegd_flexa` | Platform JPEG decode demos |
-| VCDEC (`bk_decoder`) | `jpeg_decode vcdec_jpegd` / `vcdec_jpegd_flexa` | JPEG decode via `bk_decoder` |
+| VCDEC (`bk_decoder`) | `jpeg_decode vcdec_jpegd` / `vcdec_jpegd_frame_rgb` / `vcdec_jpegd_flexa` | JPEG decode via `bk_decoder` |
 
 When `CONFIG_BK_DECODER` is enabled, `main()` runs a boot self-test: `vcdec_jpeg_flexa_test()` then `vcdec_jpeg_test()`.
 
@@ -49,6 +49,7 @@ jpeg_decode_example/
 
 - `jpeg_decode jpegd` / `jpegd_flexa` — platform JPEG decode
 - `jpeg_decode vcdec_jpegd` / `vcdec_jpegd_flexa` — when `CONFIG_BK_DECODER` is enabled
+- `jpeg_decode vcdec_jpegd_frame_rgb` — frame-mode PP RGB565/RGB888 output when `CONFIG_BK_DECODER` is enabled
 - Boot-time `vcdec` self-test when `CONFIG_BK_DECODER=y`
 - Single-task guard: only one decode task at a time
 
@@ -67,6 +68,7 @@ jpeg_decode help
 jpeg_decode jpegd
 jpeg_decode jpegd_flexa
 jpeg_decode vcdec_jpegd          # requires CONFIG_BK_DECODER
+jpeg_decode vcdec_jpegd_frame_rgb # requires CONFIG_BK_DECODER
 jpeg_decode vcdec_jpegd_flexa    # requires CONFIG_BK_DECODER
 ```
 
@@ -76,6 +78,7 @@ VCDEC paths — search for `RESULT`:
 
 ```text
 [RESULT][PASS] vcdec_jpeg_test success, rounds=5/5
+[RESULT][PASS] vcdec_jpeg_frame_rgb_test success
 [RESULT][PASS] vcdec_jpeg_flexa_test success, rounds=5/5
 ```
 
@@ -85,6 +88,7 @@ Platform `jpegd` paths have no unified `[RESULT]` line; absence of init/malloc e
 
 ```text
 ap_cmd jpeg_decode vcdec_jpegd
+ap_cmd jpeg_decode vcdec_jpegd_frame_rgb
 ap_cmd jpeg_decode vcdec_jpegd_flexa
 ```
 
@@ -92,4 +96,6 @@ ap_cmd jpeg_decode vcdec_jpegd_flexa
 
 1. `vcdec` commands and boot self-test require `CONFIG_BK_DECODER`.
 2. Wait for boot self-test to finish before starting another `vcdec` command.
-3. Legacy `jpeg_decode_stress` is archived under `verisilicon_nano/legacy/`.
+3. RGB565/RGB888 output conversion is covered by `vcdec_jpegd_frame_rgb` only; flexa mode
+   does not support RGB output.
+4. Legacy `jpeg_decode_stress` is archived under `verisilicon_nano/legacy/`.

@@ -1,6 +1,7 @@
 case名称,测试命令（必填）,输入设备（1代表设备1，2代表设备2以此类推，不填默认为设备1）,期望结果（选填）,超时时间(s)
-reboot,reboot,1,[RESULT][PASS] vcdec_h264_test success,60
+reboot,reboot,1,[RESULT][PASS] vcdec_h264_frame_zerocopy_test success,60
 vcdec_h264_frame_1i30p_01,ap_cmd h264_decode vcdec_h264d 1280x720_1i30p,1,[RESULT][PASS] vcdec_h264_test success,60
 vcdec_h264_flexa_1i30p_01,ap_cmd h264_decode vcdec_h264d_flexa 1280x720_1i30p,1,[RESULT][PASS] vcdec_h264_flexa_test success,60
 vcdec_h264_fzc_1i30p_01,ap_cmd h264_decode vcdec_h264d_frame_zerocopy 1280x720_1i30p,1,[RESULT][PASS] vcdec_h264_frame_zerocopy_test success,60
 vcdec_h264_fzc_ibbp_01,ap_cmd h264_decode vcdec_h264d_frame_zerocopy 1280x720_ibbp,1,[RESULT][PASS] vcdec_h264_frame_zerocopy_test success,60
+vcdec_h264_frame_rgb_1i30p_01,ap_cmd h264_decode vcdec_h264d_frame_rgb,1,[RESULT][PASS] vcdec_h264_frame_rgb_test success,120

@@ -60,8 +60,6 @@ int main(void)
 
     cli_jpeg_decode_init();
 
-#ifdef CONFIG_BK_DECODER
     vcdec_jpeg_run_boot_demo();
-#endif
     return 0;
 }

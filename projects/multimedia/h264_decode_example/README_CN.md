@@ -12,6 +12,7 @@
 | 控制器 | CLI | 是否支持 B 帧 | 兼容码流 |
 |--------|-----|--------------|----------|
 | frame（整帧） | `h264_decode vcdec_h264d [1280x720_1i30p\|1280x720_ibbp]` | 否 | `1280x720_1i30p` |
+| frame RGB（整帧格式转换） | `h264_decode vcdec_h264d_frame_rgb` | 否 | 内置 RGB 测试帧 |
 | flexa（分段） | `h264_decode vcdec_h264d_flexa [1280x720_1i30p\|1280x720_ibbp]` | 否 | `1280x720_1i30p` |
 | frame-zerocopy（零拷贝） | `h264_decode vcdec_h264d_frame_zerocopy [1280x720_1i30p\|1280x720_ibbp]` | 是 | `1280x720_1i30p` 与 `1280x720_ibbp` |
 
@@ -53,6 +54,7 @@ h264_decode_example/
 │           ├── h264_decode_cli.c                  # h264_decode CLI 分发
 │           ├── vcdec_h264_test_common.c           # 共享辅助函数 + 码流表 + 结果行
 │           ├── vcdec_h264_frame_test.c            # frame 控制器测试（非 B）
+│           ├── vcdec_h264_rgb_test.c              # frame RGB565/RGB888 输出格式测试
 │           ├── vcdec_h264_flexa_test.c            # flexa 控制器测试（非 B）
 │           ├── vcdec_h264_frame_zerocopy_test.c   # 零拷贝 / B 帧控制器测试
 │           └── vcdec_h264_boot_demo.c             # 上电自动运行 demo
@@ -65,6 +67,7 @@ h264_decode_example/
 
 - 三个 `bk_decoder`（`bk_h264_decode_ctlr`）控制器，每个测试用例位于独立源文件：
   - `h264_decode vcdec_h264d [stream]` —— frame 控制器（整帧，**非 B**），`vcdec_h264_frame_test.c`
+  - `h264_decode vcdec_h264d_frame_rgb` —— frame 控制器 PP RGB565/RGB888 输出格式测试，`vcdec_h264_rgb_test.c`
   - `h264_decode vcdec_h264d_flexa [stream]` —— flexa/分段控制器（**非 B**），`vcdec_h264_flexa_test.c`
   - `h264_decode vcdec_h264d_frame_zerocopy [stream]` —— 零拷贝 / **B 帧** 控制器，`vcdec_h264_frame_zerocopy_test.c`
 - 两条 1280x720 码流同时编入固件（各自独立符号）：
@@ -90,6 +93,7 @@ make bk7259 PROJECT=multimedia/h264_decode_example -j32
 ```text
 h264_decode help
 h264_decode vcdec_h264d 1280x720_1i30p
+h264_decode vcdec_h264d_frame_rgb
 h264_decode vcdec_h264d_flexa 1280x720_1i30p
 h264_decode vcdec_h264d_frame_zerocopy 1280x720_1i30p
 h264_decode vcdec_h264d_frame_zerocopy 1280x720_ibbp
@@ -106,6 +110,7 @@ h264_decode vcdec_h264d_frame_zerocopy 1280x720_ibbp
 
 ```text
 [RESULT][PASS] vcdec_h264_test success, decoded_aus=..., rounds=...                 # vcdec_h264d (frame)
+[RESULT][PASS] vcdec_h264_frame_rgb_test success                                    # vcdec_h264d_frame_rgb
 [RESULT][PASS] vcdec_h264_flexa_test success, decoded_aus=..., rounds=...           # vcdec_h264d_flexa
 [RESULT][PASS] vcdec_h264_frame_zerocopy_test success, decoded_aus=..., rounds=...  # vcdec_h264d_frame_zerocopy
 ```
@@ -118,12 +123,13 @@ h264_decode vcdec_h264d_frame_zerocopy 1280x720_ibbp
    均可携带码流参数（`1280x720_1i30p` 或 `1280x720_ibbp`）。
 2. 控制器 / 码流兼容性：frame、flexa 为非 B，仅可解码 `1280x720_1i30p`；frame-zerocopy 支持
    两条码流，且是唯一能解码 B 帧 `1280x720_ibbp` 的控制器。
-3. 所有测试用例与上电 boot demo 都在独立线程运行，避免阻塞 CLI 线程；boot demo 与手动 CLI
+3. RGB565/RGB888 输出格式转换仅由 frame RGB 测试命令覆盖；flexa 模式不支持 RGB 输出。
+4. 所有测试用例与上电 boot demo 都在独立线程运行，避免阻塞 CLI 线程；boot demo 与手动 CLI
    共用解码硬件，建议等 boot demo 结束后再手动触发。
-4. 不带码流参数时默认使用 `1280x720_ibbp`；`1280x720` 为其别名。
-5. `bk7259_ap` 默认配置已开启 `CONFIG_BK_DECODER=y`、`CONFIG_FRAME_BUFFER=y`。
-6. 两条 1280x720 码流同时编入 flash，各自独立符号（`h264_decode_stream_1280x720_1i30p[]` 与
+5. 不带码流参数时默认使用 `1280x720_ibbp`；`1280x720` 为其别名。
+6. `bk7259_ap` 默认配置已开启 `CONFIG_BK_DECODER=y`、`CONFIG_FRAME_BUFFER=y`。
+7. 两条 1280x720 码流同时编入 flash，各自独立符号（`h264_decode_stream_1280x720_1i30p[]` 与
    `h264_decode_stream_1280x720_ibbp[]`），运行时按码流 id / CLI 参数选择，空间充足。
-7. 旧版本的 `vcdec_h264_driver`（寄存器级）、`h264_decode_flexa`、`h264_decode_stress` 及
+8. 旧版本的 `vcdec_h264_driver`（寄存器级）、`h264_decode_flexa`、`h264_decode_stress` 及
    `256x128` 码流已不在本工程中；legacy 源码归档于
    `ap/properties/modules/verisilicon_nano/legacy/projects/h264_decode_example/`。

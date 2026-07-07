@@ -23,6 +23,7 @@ typedef enum {
     H264D_TEST_ID_VCDEC_H264 = 0,
     H264D_TEST_ID_VCDEC_H264_FLEXA = 1,
     H264D_TEST_ID_VCDEC_H264_FRAME_ZC = 2,
+    H264D_TEST_ID_VCDEC_H264_FRAME_RGB = 3,
 } h264d_test_id_t;
 
 #define H264D_TEST_THREAD_ARG(test_id, stream_id) \
@@ -36,6 +37,7 @@ typedef enum {
 extern void vcdec_h264_frame_test(h264_decode_test_stream_t stream);
 extern void vcdec_h264_flexa_test(h264_decode_test_stream_t stream);
 extern void vcdec_h264_frame_zerocopy_test(h264_decode_test_stream_t stream);
+extern void vcdec_h264_frame_rgb_test(void);
 #endif
 
 static void cli_write_rsp(char *pcWriteBuffer, int xWriteBufferLen, const char *msg)
@@ -107,6 +109,8 @@ static void h264d_test_task_entry(void *arg)
         vcdec_h264_flexa_test(stream_id);
     } else if (test_id == H264D_TEST_ID_VCDEC_H264_FRAME_ZC) {
         vcdec_h264_frame_zerocopy_test(stream_id);
+    } else if (test_id == H264D_TEST_ID_VCDEC_H264_FRAME_RGB) {
+        vcdec_h264_frame_rgb_test();
     }
     else
 #endif
@@ -130,6 +134,7 @@ static void h264_decode_print_usage(void)
     bk_printf("  h264_decode vcdec_h264d_flexa [1280x720_1i30p|1280x720_ibbp]  - vcdec H.264 decode test (FLEXA, non-B)\r\n");
     bk_printf("  h264_decode vcdec_h264d_frame_zerocopy [1280x720_1i30p|1280x720_ibbp] - vcdec H.264 zero-copy/B-frame frame decode test\r\n");
     bk_printf("    (stream defaults to 1280x720_ibbp; `1280x720` is an alias for it)\r\n");
+    bk_printf("  h264_decode vcdec_h264d_frame_rgb                 - vcdec H.264 frame RGB565/RGB888 format test\r\n");
 #endif
 }
 
@@ -173,6 +178,9 @@ void cli_h264_decode_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
         test_id = H264D_TEST_ID_VCDEC_H264_FRAME_ZC;
         task_name = "vcdec_h264d_fzc_test";
         need_stream_arg = 1U;
+    } else if (os_strcmp(argv[1], "vcdec_h264d_frame_rgb") == 0) {
+        test_id = H264D_TEST_ID_VCDEC_H264_FRAME_RGB;
+        task_name = "vcdec_h264d_frgb_test";
     }
     else
 #endif
@@ -183,14 +191,16 @@ void cli_h264_decode_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
         goto exit;
     }
 
-    if (need_stream_arg && argc >= 3) {
-        if (h264_decode_parse_stream_arg(argv[2], &stream_id) != 0) {
-            LOGE("%s: unknown stream: %s\r\n", __func__, argv[2]);
-            h264_decode_print_usage();
-            ret = BK_FAIL;
-            goto exit;
+    if (need_stream_arg) {
+        if (argc >= 3) {
+            if (h264_decode_parse_stream_arg(argv[2], &stream_id) != 0) {
+                LOGE("%s: unknown stream: %s\r\n", __func__, argv[2]);
+                h264_decode_print_usage();
+                ret = BK_FAIL;
+                goto exit;
+            }
         }
-    } else if (!need_stream_arg && argc >= 3) {
+    } else if (argc >= 3) {
         LOGE("%s: subcommand %s does not accept stream argument\r\n", __func__, argv[1]);
         h264_decode_print_usage();
         ret = BK_FAIL;
@@ -210,12 +220,14 @@ exit:
     }
 
     s_h264d_test_running = 1;
-    ret = rtos_create_thread(&s_h264d_test_thread,
-                             H264D_TEST_TASK_PRIORITY,
-                             task_name,
-                             (beken_thread_function_t)h264d_test_task_entry,
-                             H264D_TEST_TASK_STACK_SIZE,
-                             (beken_thread_arg_t)H264D_TEST_THREAD_ARG(test_id, stream_id));
+    {
+        ret = rtos_create_thread(&s_h264d_test_thread,
+                                 H264D_TEST_TASK_PRIORITY,
+                                 task_name,
+                                 (beken_thread_function_t)h264d_test_task_entry,
+                                 H264D_TEST_TASK_STACK_SIZE,
+                                 (beken_thread_arg_t)H264D_TEST_THREAD_ARG(test_id, (uint32_t)stream_id));
+    }
     if (ret != BK_OK) {
         LOGE("create h264_decode task failed, ret=%d\r\n", ret);
         s_h264d_test_running = 0;

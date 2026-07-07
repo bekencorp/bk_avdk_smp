@@ -28,6 +28,7 @@ extern void jpeg_decoder_flexa_test(void);
 #ifdef CONFIG_BK_DECODER
 extern void vcdec_jpeg_frame_test(void);
 extern void vcdec_jpeg_flexa_test(void);
+extern void vcdec_jpeg_frame_rgb_test(void);
 #endif
 
 /* Run the test case in a dedicated task to avoid CLI task stack/latency issues. */
@@ -59,6 +60,7 @@ typedef enum {
     JPEGD_TEST_ID_JPEG_FLEXA = 1,
     JPEGD_TEST_ID_VCDEC_JPEG = 2,
     JPEGD_TEST_ID_VCDEC_JPEG_FLEXA = 3,
+    JPEGD_TEST_ID_VCDEC_JPEG_FRAME_RGB = 4,
 } jpegd_test_id_t;
 
 static void jpegd_test_task_entry(void *arg)
@@ -70,6 +72,8 @@ static void jpegd_test_task_entry(void *arg)
         vcdec_jpeg_frame_test();
     } else if (test_id == JPEGD_TEST_ID_VCDEC_JPEG_FLEXA) {
         vcdec_jpeg_flexa_test();
+    } else if (test_id == JPEGD_TEST_ID_VCDEC_JPEG_FRAME_RGB) {
+        vcdec_jpeg_frame_rgb_test();
     }
     else
 #endif
@@ -100,6 +104,7 @@ static void jpeg_decode_print_usage(void)
     bk_printf("  jpeg_decode jpegd_flexa  - JPEG decode test (FLEXA)\r\n");
     bk_printf("  jpeg_decode vcdec_jpegd  - vcdec JPEG decode test (register HAL)\r\n");
     bk_printf("  jpeg_decode vcdec_jpegd_flexa  - vcdec JPEG decode test (FLEXA)\r\n");
+    bk_printf("  jpeg_decode vcdec_jpegd_frame_rgb  - vcdec JPEG frame RGB565+RGB888 test\r\n");
 }
 
 void cli_jpeg_decode_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
@@ -134,6 +139,9 @@ void cli_jpeg_decode_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
     } else if (os_strcmp(argv[1], "vcdec_jpegd_flexa") == 0) {
         test_id = JPEGD_TEST_ID_VCDEC_JPEG_FLEXA;
         task_name = "vcdec_jpegd_flexa_test";
+    } else if (os_strcmp(argv[1], "vcdec_jpegd_frame_rgb") == 0) {
+        test_id = JPEGD_TEST_ID_VCDEC_JPEG_FRAME_RGB;
+        task_name = "vcdec_jpegd_frgb_test";
     }
     else
 #endif
