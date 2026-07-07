@@ -75,7 +75,7 @@ class DeprecatedOptions(object):
         inversions: List[str] = []
 
         for rename_path in rename_paths:
-            with open(rename_path) as rename_file:
+            with open(rename_path, encoding="utf-8") as rename_file:
                 for line_number, line in enumerate(rename_file, start=1):
                     parsed_line = self.parse_line(line)
                     if not parsed_line:
@@ -128,8 +128,8 @@ class DeprecatedOptions(object):
 
     def replace(self, sdkconfig_in: str, sdkconfig_out: str) -> None:
         replace_enabled = True
-        with open(sdkconfig_in, "r") as input_file, open(
-            sdkconfig_out, "w"
+        with open(sdkconfig_in, "r", encoding="utf-8") as input_file, open(
+            sdkconfig_out, "w", encoding="utf-8"
         ) as output_file:
             for line_number, line in enumerate(input_file, start=1):
                 if self._RE_DEP_OP_BEGIN.search(line):  # Begin of deprecated options
@@ -198,7 +198,7 @@ class DeprecatedOptions(object):
                     return False
 
         if len(self.r_dic) > 0:
-            with open(path_output, "a") as f_o:
+            with open(path_output, "a", encoding="utf-8") as f_o:
                 header = "Deprecated options and their replacements"
                 f_o.write(
                     ".. _configuration-deprecated-options:\n\n{}\n{}\n\n".format(
@@ -259,7 +259,7 @@ class DeprecatedOptions(object):
             append_config_node_process(n)
 
         if len(tmp_list) > 0:
-            with open(path_output, "a") as f_o:
+            with open(path_output, "a", encoding="utf-8") as f_o:
                 f_o.write("\n{}\n".format(self._DEP_OP_BEGIN))
                 f_o.writelines(tmp_list)
                 f_o.write("{}\n".format(self._DEP_OP_END))
@@ -281,7 +281,7 @@ class DeprecatedOptions(object):
             return opt_defined
 
         if len(self.r_dic) > 0:
-            with open(path_output, "a") as output_file:
+            with open(path_output, "a", encoding="utf-8") as output_file:
                 output_file.write("\n/* List of deprecated options */\n")
                 for dep_opt in sorted(self.r_dic):
                     new_opt = self.r_dic[dep_opt]
@@ -421,7 +421,7 @@ def write_header(
 def write_cmake(
     deprecated_options: DeprecatedOptions, config: kconfiglib.Kconfig, filename: str
 ) -> None:
-    with open(filename, "w") as f:
+    with open(filename, "w", encoding="utf-8") as f:
         tmp_dep_list = []
         prefix = config.config_prefix
 
@@ -509,7 +509,7 @@ def get_json_values(config: kconfiglib.Kconfig) -> dict:
 
 def write_json(_, config: kconfiglib.Kconfig, filename: str) -> None:
     config_dict = get_json_values(config)
-    with open(filename, "w") as f:
+    with open(filename, "w", encoding="utf-8") as f:
         json.dump(config_dict, f, indent=4, sort_keys=True)
 
 
@@ -638,7 +638,7 @@ def write_json_menus(_, config: kconfiglib.Kconfig, filename: str) -> None:
 
     for n in config.node_iter():
         write_node(n)
-    with open(filename, "w") as f:
+    with open(filename, "w", encoding="utf-8") as f:
         f.write(json.dumps(result, sort_keys=True, indent=4))
 
 
@@ -657,16 +657,16 @@ def write_docs(
 
 
 def update_if_changed(source: str, destination: str) -> None:
-    with open(source, "r") as f:
+    with open(source, "r", encoding="utf-8") as f:
         source_contents = f.read()
 
     if os.path.exists(destination):
-        with open(destination, "r") as f:
+        with open(destination, "r", encoding="utf-8") as f:
             dest_contents = f.read()
         if source_contents == dest_contents:
             return  # nothing to update
 
-    with open(destination, "w") as f:
+    with open(destination, "w", encoding="utf-8") as f:
         f.write(source_contents)
 
 
@@ -791,7 +791,9 @@ def main():
         def _replace_empty_assignments(
             path_in, path_out
         ):  # empty assignment: CONFIG_FOO=
-            with open(path_in, "r") as f_in, open(path_out, "w") as f_out:
+            with open(path_in, "r", encoding="utf-8") as f_in, open(
+                path_out, "w", encoding="utf-8"
+            ) as f_out:
                 for line_num, line in enumerate(f_in, start=1):
                     line = line.strip()
                     if line.endswith("="):
