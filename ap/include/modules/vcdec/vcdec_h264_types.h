@@ -51,11 +51,17 @@ typedef struct vcdec_h264_info_t {
  * Describes the input bitstream buffer, the output frame buffer and the
  * tiled/segmented output layout used by the post-processor.
  */
+/** @deprecated alias; use vcdec_pp_out_format_e. */
+typedef vcdec_pp_out_format_e vcdec_h264_out_format_e;
+
 typedef struct vcdec_h264_decode_config_t {
 	uint8_t *input_stream;      /* H264 bitstream buffer */
 	uint32_t input_stream_len;  /* H264 bitstream length in bytes */
 	uint8_t *output_buffer;     /* Output frame buffer */
 	uint32_t output_size;       /* Output frame buffer size in bytes */
+	uint16_t out_width;         /* PP output width; 0 = match coded width */
+	uint16_t out_height;        /* PP output height; 0 = match coded height */
+	vcdec_h264_out_format_e out_format; /* NV12 zero-copy or PP RGB output */
 	uint16_t segment_height;    /* Output ring-buffer segment height (in MB rows) */
 	uint8_t  segment_number;    /* Number of output ring-buffer segments */
 } vcdec_h264_decode_config_t;
