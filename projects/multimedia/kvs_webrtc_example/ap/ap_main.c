@@ -31,24 +31,13 @@ static void kvs_set_aws_credentials_env(void)
 	//setenv("AWS_DEFAULT_REGION", "us-west-2", 1);
 }
 
-#define SYS_ANA_REG_BASE    (0x44010000)
-#define LDO_ANA_REG         (0x69)
-
-static void bk_auxldo_enable(void)
-{
-	uint32_t reg = REG_READ(SYS_ANA_REG_BASE + LDO_ANA_REG * 4);
-	reg |= (0xF << 28) | (0x2 << 23) | (0x7 << 19) | (0x7 << 15);
-	reg &= ~(0xF << 11);
-	reg |= (0x8 << 11);
-	REG_WRITE(SYS_ANA_REG_BASE + LDO_ANA_REG * 4, reg);
-}
 
 int main(void)
 {
 	bk_init();
 	media_service_init();
 
-	bk_printf("doorbell_kvs M55 main\r\n");
+	bk_printf("M55 main running...\r\n");
 
 	camera_board_config_t camera_board = {0};
 	display_board_config_t display_board = {0};
@@ -92,7 +81,7 @@ int main(void)
 	gpu_board.flexa.tess_width = 0;
 	gpu_board.flexa.tess_height = 0;
 
-	bk_auxldo_enable();
+
 	bk_frame_buffer_init();
 
 	app_camera_board_config_set(&camera_board);
