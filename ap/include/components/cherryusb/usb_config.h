@@ -157,9 +157,15 @@
 
 #if CONFIG_BK_USB_CHERRYUSB_V1_6
 #undef CONFIG_USBHOST_MAX_INTERFACES
-#define CONFIG_USBHOST_MAX_INTERFACES 4
+/* UAC speaker+mic composite devices can expose 4+ interfaces. Keep enough
+ * room for audio control, speaker streaming, mic streaming and companions. */
+#define CONFIG_USBHOST_MAX_INTERFACES 8
 #undef CONFIG_USBHOST_MAX_INTF_ALTSETTINGS
-#define CONFIG_USBHOST_MAX_INTF_ALTSETTINGS 5
+/* UVC streaming interfaces (esp. UVC+UAC composite cameras) can expose more
+ * than 5 altsettings (one per ISO bandwidth/Mps step). 5 made such a camera
+ * fail config-descriptor parse ("altsetting num 5 overflow") and disconnect.
+ * 12 covers typical UVC bandwidth ladders; AP RAM has ample headroom. */
+#define CONFIG_USBHOST_MAX_INTF_ALTSETTINGS 12
 #undef CONFIG_USBHOST_MAX_ENDPOINTS
 #define CONFIG_USBHOST_MAX_ENDPOINTS 4
 #undef CONFIG_USBHOST_PIPE_NUM

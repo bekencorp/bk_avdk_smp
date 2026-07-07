@@ -42,6 +42,7 @@ extern "C" {
 #define CLASS_INFO_DEFINE  __USED __ALIGNED(1)
 #endif
 
+#if !CONFIG_BK_USB_CHERRYUSB_V1_6
 static inline void usbh_control_urb_fill(struct usbh_urb *urb,
                                          usbh_pipe_t pipe,
                                          struct usb_setup_packet *setup,
@@ -93,6 +94,7 @@ static inline void usbh_int_urb_fill(struct usbh_urb *urb,
     urb->complete = complete;
     urb->arg = arg;
 }
+#endif
 
 struct usbh_class_info {
     uint8_t match_flags; /* Used for product specific matches; range is inclusive */
@@ -120,6 +122,19 @@ struct usbh_interface_altsetting {
     struct usbh_endpoint ep[CONFIG_USBHOST_MAX_ENDPOINTS];
 };
 
+#if CONFIG_BK_USB_CHERRYUSB_V1_6
+/* CherryUSB v1.6 puts the identity fields (devname/class_driver/priv) FIRST,
+ * before the large altsetting[] array. The host stack objects are created with
+ * this layout, so external consumers MUST match it byte-for-byte or they read
+ * garbage devname/priv (e.g. usbh_find_class_instance() then fails). */
+struct usbh_interface {
+    char devname[CONFIG_USBHOST_DEV_NAMELEN];
+    struct usbh_class_driver *class_driver;
+    void *priv;
+    struct usbh_interface_altsetting altsetting[CONFIG_USBHOST_MAX_INTF_ALTSETTINGS];
+    uint8_t altsetting_num;
+};
+#else
 struct usbh_interface {
     struct usbh_interface_altsetting altsetting[CONFIG_USBHOST_MAX_INTF_ALTSETTINGS];
     uint8_t altsetting_num;
@@ -127,12 +142,135 @@ struct usbh_interface {
     struct usbh_class_driver *class_driver;
     void *priv;
 };
+#endif
 
 struct usbh_configuration {
     struct usb_configuration_descriptor config_desc;
     struct usbh_interface intf[CONFIG_USBHOST_MAX_INTERFACES];
 };
 
+#if CONFIG_BK_USB_CHERRYUSB_V1_6
+/* CherryUSB v1.6 hubport/hub layout. The host stack creates these objects with
+ * this exact layout (ep0 is an embedded endpoint descriptor, setup is a pointer,
+ * extra topology fields), so external consumers MUST match byte-for-byte. */
+struct usbh_hub;
+struct usbh_bus;
+
+#ifndef USB_SIZEOF_HUB_SS_DESC
+struct usb_hub_ss_descriptor {
+    uint8_t bLength;
+    uint8_t bDescriptorType;
+    uint8_t bNbrPorts;
+    uint16_t wHubCharacteristics;
+    uint8_t bPwrOn2PwrGood;
+    uint8_t bHubContrCurrent;
+    uint8_t bHubHdrDecLat;
+    uint16_t wHubDelay;
+    uint8_t DeviceRemovable;
+} __PACKED;
+#endif
+
+struct usbh_hubport {
+    bool connected;   /* True: device connected; false: disconnected */
+    uint8_t port;     /* Hub port index */
+    uint8_t dev_addr; /* device address */
+    uint8_t speed;    /* device speed */
+    uint8_t depth;    /* distance from root hub */
+    uint8_t route;    /* route string */
+    uint8_t slot_id;  /* slot id */
+    struct usb_device_descriptor device_desc;
+    struct usbh_configuration config;
+    const char *iManufacturer;
+    const char *iProduct;
+    const char *iSerialNumber;
+    uint8_t *raw_config_desc;
+    struct usb_setup_packet *setup;
+    struct usbh_hub *parent;
+    struct usbh_hub *self; /* if this hubport is a hub */
+    struct usbh_bus *bus;
+    struct usb_endpoint_descriptor ep0;
+    struct usbh_urb ep0_urb;
+    usb_osal_mutex_t mutex;
+};
+
+struct usbh_hub {
+    bool connected;
+    bool is_roothub;
+    uint8_t index;
+    uint8_t hub_addr;
+    uint8_t speed;
+    uint8_t nports;
+    uint8_t powerdelay;
+    uint8_t tt_think;
+    bool ismtt;
+    struct usb_hub_descriptor hub_desc;       /* USB 2.0 only */
+    struct usb_hub_ss_descriptor hub_ss_desc; /* USB 3.0 only */
+    struct usbh_hubport child[CONFIG_USBHOST_MAX_EHPORTS];
+    struct usbh_hubport *parent;
+    struct usbh_bus *bus;
+    struct usb_endpoint_descriptor *intin;
+    struct usbh_urb intin_urb;
+    uint8_t *int_buffer;
+    struct usb_osal_timer *int_timer;
+};
+
+static inline void usbh_control_urb_fill(struct usbh_urb *urb,
+                                         struct usbh_hubport *hport,
+                                         struct usb_setup_packet *setup,
+                                         uint8_t *transfer_buffer,
+                                         uint32_t transfer_buffer_length,
+                                         uint32_t timeout,
+                                         usbh_complete_callback_t complete,
+                                         void *arg)
+{
+    urb->hport = hport;
+    urb->ep = &hport->ep0;
+    urb->setup = setup;
+    urb->transfer_buffer = transfer_buffer;
+    urb->transfer_buffer_length = transfer_buffer_length;
+    urb->timeout = timeout;
+    urb->complete = complete;
+    urb->arg = arg;
+}
+
+static inline void usbh_bulk_urb_fill(struct usbh_urb *urb,
+                                      struct usbh_hubport *hport,
+                                      struct usb_endpoint_descriptor *ep,
+                                      uint8_t *transfer_buffer,
+                                      uint32_t transfer_buffer_length,
+                                      uint32_t timeout,
+                                      usbh_complete_callback_t complete,
+                                      void *arg)
+{
+    urb->hport = hport;
+    urb->ep = ep;
+    urb->setup = NULL;
+    urb->transfer_buffer = transfer_buffer;
+    urb->transfer_buffer_length = transfer_buffer_length;
+    urb->timeout = timeout;
+    urb->complete = complete;
+    urb->arg = arg;
+}
+
+static inline void usbh_int_urb_fill(struct usbh_urb *urb,
+                                     struct usbh_hubport *hport,
+                                     struct usb_endpoint_descriptor *ep,
+                                     uint8_t *transfer_buffer,
+                                     uint32_t transfer_buffer_length,
+                                     uint32_t timeout,
+                                     usbh_complete_callback_t complete,
+                                     void *arg)
+{
+    urb->hport = hport;
+    urb->ep = ep;
+    urb->setup = NULL;
+    urb->transfer_buffer = transfer_buffer;
+    urb->transfer_buffer_length = transfer_buffer_length;
+    urb->timeout = timeout;
+    urb->complete = complete;
+    urb->arg = arg;
+}
+#else
 struct usbh_hubport {
     bool connected;   /* True: device connected; false: disconnected */
     uint8_t port;     /* Hub port index */
@@ -163,6 +301,7 @@ struct usbh_hub {
     struct usbh_hubport *parent;
     usb_slist_t hub_event_list;
 };
+#endif
 
 int usbh_hport_activate_epx(usbh_pipe_t *pipe, struct usbh_hubport *hport, struct usb_endpoint_descriptor *ep_desc);
 
