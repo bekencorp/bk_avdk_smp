@@ -1,0 +1,10 @@
+menu "SPP Example Configuration"
+
+    config SPP_DEMO
+        bool "spp demo"
+        depends on BT
+        default y
+        help
+            SPP (Serial Port Profile) CLI demo.
+            Enables spp CLI commands for bk_dm_spp.h API functional testing.
+endmenu
