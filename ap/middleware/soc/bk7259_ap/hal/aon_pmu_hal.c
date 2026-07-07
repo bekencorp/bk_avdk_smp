@@ -29,6 +29,20 @@ uint32_t aon_pmu_hal_get_chipid(void)
 	return aon_pmu_ll_get_r7c_id();
 }
 
+bk7259_chip_model_e aon_pmu_hal_get_chip_model(void)
+{
+	switch (aon_pmu_hal_get_chipid()) {
+	case BK7259_CHIP_ID_V2_MPW:
+		return BK7259_CHIP_MODEL_V2_MPW;
+	case BK7259_CHIP_ID_V3A:
+		return BK7259_CHIP_MODEL_V3A;
+	case BK7259_CHIP_ID_V3B:
+		return BK7259_CHIP_MODEL_V3B;
+	default:
+		return BK7259_CHIP_MODEL_UNKNOWN;
+	}
+}
+
 /**
  * WAKEUP SOURCE
  * BIT0(0x1): GPIO

@@ -26,9 +26,22 @@ typedef struct {
 	aon_pmu_hw_t *hw;
 } aon_pmu_hal_t;
 
+/* AON_PMU r7c chip ID (BK7259) */
+#define BK7259_CHIP_ID_V2_MPW        (0x25910020U) /* BK7259V2 / MPW */
+#define BK7259_CHIP_ID_V3A           (0x26400820U) /* BK7259V3A */
+#define BK7259_CHIP_ID_V3B           (0x26400920U) /* BK7259V3B */
+#define BK7259_CHIP_ID_SERIES_MASK   (0xFFFF0000U)
+
+typedef enum {
+	BK7259_CHIP_MODEL_V2_MPW = 0,
+	BK7259_CHIP_MODEL_V3A,
+	BK7259_CHIP_MODEL_V3B,
+	BK7259_CHIP_MODEL_UNKNOWN,
+} bk7259_chip_model_e;
+
 bk_err_t aon_pmu_hal_init(void);
 uint32_t aon_pmu_hal_get_chipid(void);
-bool aon_pmu_hal_is_chipid_later_than_version_C(void);
+bk7259_chip_model_e aon_pmu_hal_get_chip_model(void);
 void aon_pmu_hal_clear_wakeup_source(wakeup_source_t value);
 void aon_pmu_hal_set_wakeup_source(wakeup_source_t value);
 void aon_pmu_hal_usbplug_int_en(uint32_t value);
