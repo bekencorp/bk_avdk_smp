@@ -18,7 +18,7 @@
 #define RISCV_BOOT_PARAM_OFFSET 0x0000FFC0U
 #define RISCV_SYS_SW_REGS_BASE_ADDR CONFIG_SWAP_ADDR
 #define RISCV_USB_LOG_UART_ID  UART_ID_5
-#define RISCV_USB_LOG_BAUDRATE 115200
+#define RISCV_USB_LOG_BAUDRATE 2000000
 
 typedef struct {
     uint32_t magic;
@@ -40,7 +40,7 @@ volatile riscv_usb_probe_t *get_riscv_usb_probe(void)
 
 void riscv_usb_probe_init(void)
 {
-    bk_sys_sw_regs_ptr()->riscv_swap = (void *)&s_riscv_probe;
+    bk_sys_sw_regs_ptr()->riscv_swap = (void *)(uintptr_t)SOC_SRAM_PERI_ADDR((uint32_t)(uintptr_t)&s_riscv_probe);
 }
 
 static void usb_hc_riscv_power_on(void)

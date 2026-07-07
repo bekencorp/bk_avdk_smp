@@ -51,6 +51,16 @@ static void usbh_video_class_free(struct usbh_video *video_class)
 {
     uint8_t devno = video_class->minor;
 
+    /* release the per-frame fps[] arrays allocated in bk_usbh_video_fill_frame */
+    for (uint8_t i = 0; i < video_class->num_of_formats && i < CONFIG_USBHOST_VIDEO_MAX_FORMATS; i++) {
+        for (uint8_t j = 0; j < video_class->format[i].num_of_frames && j < CONFIG_USBHOST_VIDEO_MAX_FRAMES; j++) {
+            if (video_class->format[i].frame[j].fps) {
+                usb_free(video_class->format[i].frame[j].fps);
+                video_class->format[i].frame[j].fps = NULL;
+            }
+        }
+    }
+
     if (devno < 32) {
         g_devinuse &= ~(1U << devno);
     }
@@ -171,8 +181,11 @@ int usbh_video_open(struct usbh_video *video_class,
             for (uint8_t j = 0; j < video_class->format[i].num_of_frames; j++) {
                 if ((wWidth == video_class->format[i].frame[j].wWidth) &&
                     (wHeight == video_class->format[i].frame[j].wHeight)) {
+                    struct usbh_video_resolution *res = &video_class->format[i].frame[j];
                     frameidx = j + 1;
-                    dwDefaultFrameInterval = video_class->format[i].frame[j].dwDefaultFrameInterval;
+                    /* recover the wire frame interval from the parsed fps list */
+                    dwDefaultFrameInterval = (res->fps_num > 0 && res->fps && res->fps[0])
+                                                 ? (10000000u / res->fps[0]) : 0;
                     found = true;
                     goto dev_found;
                 }
@@ -363,15 +376,48 @@ void usbh_video_list_info(struct usbh_video *video_class)
         USB_LOG_RAW("  bNumFrames:%u\r\n", video_class->format[i].num_of_frames);
         USB_LOG_RAW("  Resolution:\r\n");
         for (uint8_t j = 0; j < video_class->format[i].num_of_frames; j++) {
+            struct usbh_video_resolution *res = &video_class->format[i].frame[j];
             USB_LOG_RAW("      FrameIndex:%u\r\n", j + 1);
             USB_LOG_RAW("      wWidth: %d, wHeight: %d, fps: %d\r\n",
-                        video_class->format[i].frame[j].wWidth,
-                        video_class->format[i].frame[j].wHeight,
-                        (1000 / (video_class->format[i].frame[j].dwDefaultFrameInterval / 10000)));
+                        res->wWidth, res->wHeight,
+                        (res->fps_num > 0 && res->fps) ? res->fps[0] : 0);
         }
     }
 
     USB_LOG_INFO("============= Video device information ===================\r\n");
+}
+
+/* BK extension: fill the rich resolution descriptor (frame_index + fps list)
+ * from a parsed UVC frame descriptor. The fps[] array is malloc'd here and
+ * released in usbh_video_ctrl_disconnect(). */
+static void bk_usbh_video_fill_frame(struct usbh_video_resolution *res,
+                                     uint8_t frame_index, uint16_t wWidth, uint16_t wHeight,
+                                     uint8_t interval_type, const uint32_t *dwFrameInterval,
+                                     uint32_t dwDefaultFrameInterval)
+{
+    res->wWidth = wWidth;
+    res->wHeight = wHeight;
+    res->frame_index = frame_index;
+    res->fps = NULL;
+    res->fps_num = 0;
+
+    if (interval_type > 0 && dwFrameInterval) {
+        res->fps = usb_malloc(sizeof(uint32_t) * interval_type);
+        if (res->fps) {
+            res->fps_num = interval_type;
+            for (uint8_t fi = 0; fi < interval_type; fi++) {
+                uint32_t iv = dwFrameInterval[fi];
+                res->fps[fi] = iv ? (10000000u / iv) : 0;
+            }
+        }
+    } else {
+        /* continuous frame interval: expose just the default as a single fps */
+        res->fps = usb_malloc(sizeof(uint32_t));
+        if (res->fps) {
+            res->fps_num = 1;
+            res->fps[0] = dwDefaultFrameInterval ? (10000000u / dwDefaultFrameInterval) : 0;
+        }
+    }
 }
 
 static int usbh_video_ctrl_connect(struct usbh_hubport *hport, uint8_t intf)
@@ -462,9 +508,15 @@ static int usbh_video_ctrl_connect(struct usbh_hubport *hport, uint8_t intf)
                             USB_ASSERT(format_index <= CONFIG_USBHOST_VIDEO_MAX_FORMATS);
                             USB_ASSERT(frame_index <= CONFIG_USBHOST_VIDEO_MAX_FRAMES);
 
-                            video_class->format[format_index - 1].frame[frame_index - 1].wWidth = ((struct video_cs_if_vs_frame_uncompressed_descriptor *)p)->wWidth;
-                            video_class->format[format_index - 1].frame[frame_index - 1].wHeight = ((struct video_cs_if_vs_frame_uncompressed_descriptor *)p)->wHeight;
-                            video_class->format[format_index - 1].frame[frame_index - 1].dwDefaultFrameInterval = ((struct video_cs_if_vs_frame_uncompressed_descriptor *)p)->dwDefaultFrameInterval;
+                            {
+                                struct video_cs_if_vs_frame_uncompressed_descriptor *fd =
+                                    (struct video_cs_if_vs_frame_uncompressed_descriptor *)p;
+                                bk_usbh_video_fill_frame(
+                                    &video_class->format[format_index - 1].frame[frame_index - 1],
+                                    frame_index, fd->wWidth, fd->wHeight,
+                                    fd->bFrameIntervalType, fd->dwFrameInterval,
+                                    fd->dwDefaultFrameInterval);
+                            }
                             break;
                         case VIDEO_VS_FRAME_MJPEG_DESCRIPTOR_SUBTYPE:
                             frame_index = p[DESC_bFrameIndex];
@@ -474,9 +526,15 @@ static int usbh_video_ctrl_connect(struct usbh_hubport *hport, uint8_t intf)
                             USB_ASSERT(format_index <= CONFIG_USBHOST_VIDEO_MAX_FORMATS);
                             USB_ASSERT(frame_index <= CONFIG_USBHOST_VIDEO_MAX_FRAMES);
 
-                            video_class->format[format_index - 1].frame[frame_index - 1].wWidth = ((struct video_cs_if_vs_frame_mjpeg_descriptor *)p)->wWidth;
-                            video_class->format[format_index - 1].frame[frame_index - 1].wHeight = ((struct video_cs_if_vs_frame_mjpeg_descriptor *)p)->wHeight;
-                            video_class->format[format_index - 1].frame[frame_index - 1].dwDefaultFrameInterval = ((struct video_cs_if_vs_frame_mjpeg_descriptor *)p)->dwDefaultFrameInterval;
+                            {
+                                struct video_cs_if_vs_frame_mjpeg_descriptor *fd =
+                                    (struct video_cs_if_vs_frame_mjpeg_descriptor *)p;
+                                bk_usbh_video_fill_frame(
+                                    &video_class->format[format_index - 1].frame[frame_index - 1],
+                                    frame_index, fd->wWidth, fd->wHeight,
+                                    fd->bFrameIntervalType, fd->dwFrameInterval,
+                                    fd->dwDefaultFrameInterval);
+                            }
                             break;
                         default:
                             break;
@@ -499,6 +557,17 @@ static int usbh_video_ctrl_connect(struct usbh_hubport *hport, uint8_t intf)
     USB_LOG_INFO("Register Video Class:%s\r\n", hport->config.intf[intf].devname);
 
     usbh_video_run(video_class);
+
+#if CONFIG_USB_HUB_MULTIPLE_DEVICES
+    /* Bridge into the BK hub-multiple-classes layer just like the legacy stack
+     * (CherryUSB_legacy/class/video/usbh_video.c) does. v1.6 only exposes the
+     * weak usbh_video_run() hook which BK leaves empty, so without this call the
+     * connect_class_device_flag is never set, bk_usbh_hub_port_check_device()
+     * never succeeds and the bk_uvc connect callback never fires. */
+    extern void bk_usbh_hub_class_connect_notification(struct usbh_hubport *hport, uint8_t intf, uint32_t class);
+    bk_usbh_hub_class_connect_notification(hport, intf, USB_DEVICE_CLASS_VIDEO);
+#endif
+
     return ret;
 }
 
@@ -514,6 +583,14 @@ static int usbh_video_ctrl_disconnect(struct usbh_hubport *hport, uint8_t intf)
             USB_LOG_INFO("Unregister Video Class:%s\r\n", hport->config.intf[intf].devname);
             usbh_video_stop(video_class);
         }
+
+#if CONFIG_USB_HUB_MULTIPLE_DEVICES
+        /* Mirror the legacy stack: notify the BK hub layer before the class is
+         * freed so it can run the user disconnect callback and release the
+         * cached device parameters. */
+        extern void bk_usbh_hub_class_disconnect_notification(struct usbh_hubport *hport, uint8_t intf, uint32_t class);
+        bk_usbh_hub_class_disconnect_notification(hport, intf, USB_DEVICE_CLASS_VIDEO);
+#endif
 
         usbh_video_class_free(video_class);
     }

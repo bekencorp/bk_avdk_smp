@@ -66,10 +66,6 @@ int usbh_audio_open(struct usbh_audio *audio_class, const char *name, uint32_t s
     }
     setup = audio_class->hport->setup;
 
-    if (audio_class->is_opened) {
-        return 0;
-    }
-
     for (uint8_t i = 0; i < audio_class->stream_intf_num; i++) {
         if (strcmp(name, audio_class->as_msg_table[i].stream_name) == 0) {
             intf = audio_class->as_msg_table[i].stream_intf;
@@ -106,6 +102,15 @@ freq_found:
     }
 
     ep_desc = &audio_class->hport->config.intf[intf].altsetting[altsetting].ep[0].ep_desc;
+    if (ep_desc->bEndpointAddress & 0x80) {
+        if (audio_class->isoin) {
+            return 0;
+        }
+    } else {
+        if (audio_class->isoout) {
+            return 0;
+        }
+    }
 
     if (audio_class->as_msg_table[intf - audio_class->ctrl_intf - 1].ep_attr & AUDIO_EP_CONTROL_SAMPLING_FEQ) {
         setup->bmRequestType = USB_REQUEST_DIR_OUT | USB_REQUEST_CLASS | USB_REQUEST_RECIPIENT_ENDPOINT;
@@ -172,7 +177,6 @@ intf_found:
         return ret;
     }
     USB_LOG_INFO("Close audio stream :%s\r\n", name);
-    audio_class->is_opened = false;
 
     ep_desc = &audio_class->hport->config.intf[intf].altsetting[altsetting].ep[0].ep_desc;
     if (ep_desc->bEndpointAddress & 0x80) {
@@ -184,6 +188,7 @@ intf_found:
             audio_class->isoout = NULL;
         }
     }
+    audio_class->is_opened = (audio_class->isoin || audio_class->isoout);
 
     return ret;
 }
@@ -385,6 +390,20 @@ void usbh_audio_list_module(struct usbh_audio *audio_class)
     USB_LOG_INFO("============= Audio module information ===================\r\n");
 }
 
+static uint8_t usbh_audio_resolve_selector_source(uint8_t source_id,
+                                                  const uint8_t *selector_id,
+                                                  const uint8_t *selector_source,
+                                                  uint8_t selector_num)
+{
+    for (uint8_t i = 0; i < selector_num; i++) {
+        if (source_id == selector_id[i]) {
+            return selector_source[i];
+        }
+    }
+
+    return source_id;
+}
+
 static int usbh_audio_ctrl_connect(struct usbh_hubport *hport, uint8_t intf)
 {
     int ret;
@@ -394,6 +413,9 @@ static int usbh_audio_ctrl_connect(struct usbh_hubport *hport, uint8_t intf)
     uint8_t input_offset = 0;
     uint8_t output_offset = 0;
     uint8_t feature_unit_offset = 0;
+    uint8_t selector_unit_offset = 0;
+    uint8_t selector_id[CONFIG_USBHOST_AUDIO_MAX_STREAMS] = {0};
+    uint8_t selector_source[CONFIG_USBHOST_AUDIO_MAX_STREAMS] = {0};
     uint8_t *p;
     struct usbh_audio_ac_msg ac_msg_table[CONFIG_USBHOST_AUDIO_MAX_STREAMS];
 
@@ -453,6 +475,15 @@ static int usbh_audio_ctrl_connect(struct usbh_hubport *hport, uint8_t intf)
 
                             memcpy(&ac_msg_table[feature_unit_offset].ac_feature_unit, desc, desc->bLength);
                             feature_unit_offset++;
+                        } break;
+                        case AUDIO_CONTROL_SELECTOR_UNIT: {
+                            struct audio_cs_if_ac_selector_unit_descriptor *desc = (struct audio_cs_if_ac_selector_unit_descriptor *)p;
+
+                            USB_ASSERT(selector_unit_offset < CONFIG_USBHOST_AUDIO_MAX_STREAMS);
+
+                            selector_id[selector_unit_offset] = desc->bUnitID;
+                            selector_source[selector_unit_offset] = desc->baSourceID[0];
+                            selector_unit_offset++;
                         } break;
                         default:
                             USB_LOG_ERR("Do not support %02x subtype\r\n", p[DESC_bDescriptorSubType]);
@@ -517,12 +548,20 @@ static int usbh_audio_ctrl_connect(struct usbh_hubport *hport, uint8_t intf)
 
                 /* Search input terminal id in feature desc */
                 for (uint8_t featureidx = 0; featureidx < audio_class->stream_intf_num; featureidx++) {
-                    if (ac_msg_table[streamidx].ac_input.bTerminalID == ac_msg_table[featureidx].ac_feature_unit.bSourceID) {
+                    uint8_t feature_source = usbh_audio_resolve_selector_source(ac_msg_table[featureidx].ac_feature_unit.bSourceID,
+                                                                                selector_id,
+                                                                                selector_source,
+                                                                                selector_unit_offset);
+                    if (ac_msg_table[streamidx].ac_input.bTerminalID == feature_source) {
                         audio_class->as_msg_table[i].feature_terminal_id = ac_msg_table[featureidx].ac_feature_unit.bUnitID;
 
                         /* Search feature unit id in output desc */
                         for (uint8_t outputid = 0; outputid < audio_class->stream_intf_num; outputid++) {
-                            if (ac_msg_table[featureidx].ac_feature_unit.bUnitID == ac_msg_table[outputid].ac_output.bSourceID) {
+                            uint8_t output_source = usbh_audio_resolve_selector_source(ac_msg_table[outputid].ac_output.bSourceID,
+                                                                                       selector_id,
+                                                                                       selector_source,
+                                                                                       selector_unit_offset);
+                            if (ac_msg_table[featureidx].ac_feature_unit.bUnitID == output_source) {
                                 audio_class->as_msg_table[i].output_terminal_id = ac_msg_table[outputid].ac_output.bTerminalID;
 
                                 switch (ac_msg_table[outputid].ac_output.wTerminalType) {
@@ -551,12 +590,20 @@ static int usbh_audio_ctrl_connect(struct usbh_hubport *hport, uint8_t intf)
 
                 /* Search output terminal id in feature desc */
                 for (uint8_t featureidx = 0; featureidx < audio_class->stream_intf_num; featureidx++) {
-                    if (ac_msg_table[streamidx].ac_output.bSourceID == ac_msg_table[featureidx].ac_feature_unit.bUnitID) {
+                    uint8_t output_source = usbh_audio_resolve_selector_source(ac_msg_table[streamidx].ac_output.bSourceID,
+                                                                               selector_id,
+                                                                               selector_source,
+                                                                               selector_unit_offset);
+                    if (output_source == ac_msg_table[featureidx].ac_feature_unit.bUnitID) {
                         audio_class->as_msg_table[i].feature_terminal_id = ac_msg_table[featureidx].ac_feature_unit.bUnitID;
 
                         /* Search feature unit id in input desc */
                         for (uint8_t inputid = 0; inputid < audio_class->stream_intf_num; inputid++) {
-                            if (ac_msg_table[featureidx].ac_feature_unit.bSourceID == ac_msg_table[inputid].ac_input.bTerminalID) {
+                            uint8_t feature_source = usbh_audio_resolve_selector_source(ac_msg_table[featureidx].ac_feature_unit.bSourceID,
+                                                                                        selector_id,
+                                                                                        selector_source,
+                                                                                        selector_unit_offset);
+                            if (feature_source == ac_msg_table[inputid].ac_input.bTerminalID) {
                                 audio_class->as_msg_table[i].input_terminal_id = ac_msg_table[inputid].ac_input.bTerminalID;
 
                                 switch (ac_msg_table[inputid].ac_input.wTerminalType) {
@@ -598,12 +645,20 @@ static int usbh_audio_ctrl_connect(struct usbh_hubport *hport, uint8_t intf)
     USB_LOG_INFO("Register Audio Class:%s\r\n", hport->config.intf[intf].devname);
 
     usbh_audio_run(audio_class);
+#if CONFIG_USB_HUB_MULTIPLE_DEVICES
+    extern void bk_usbh_hub_class_connect_notification(struct usbh_hubport *hport, uint8_t intf, uint32_t class);
+    bk_usbh_hub_class_connect_notification(hport, intf, USB_DEVICE_CLASS_AUDIO);
+#endif
     return 0;
 }
 
 static int usbh_audio_ctrl_disconnect(struct usbh_hubport *hport, uint8_t intf)
 {
     int ret = 0;
+#if CONFIG_USB_HUB_MULTIPLE_DEVICES
+    extern void bk_usbh_hub_class_disconnect_notification(struct usbh_hubport *hport, uint8_t intf, uint32_t class);
+    bk_usbh_hub_class_disconnect_notification(hport, intf, USB_DEVICE_CLASS_AUDIO);
+#endif
 
     struct usbh_audio *audio_class = (struct usbh_audio *)hport->config.intf[intf].priv;
 

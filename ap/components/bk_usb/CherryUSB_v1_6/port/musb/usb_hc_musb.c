@@ -8,21 +8,112 @@
 #include "usb_musb_reg.h"
 
 #if CONFIG_USB_RISCV_BRIDGE
+#include <os/os.h>
 #include "sys_driver.h"
 #include <driver/int_types.h>
 #include "riscv_usb_bridge.h"
 #include "riscv_usb_probe_defs.h"
 #include "modules/bk_riscv_types.h"
+#include "hspl_driver.h"
+#include "hspl_res_lock.h"
 #if CONFIG_IPI
 #include "ipi_driver.h"
 #endif
+
+/* The EPIDX cross-core spin lock uses BK_HSPL_RES_USB, which the hspl resource
+ * map routes to HSPL_ID_1 channel RISCV_USB_HSPL_CHANNEL. Keep both views in
+ * sync at build time. */
+_Static_assert((int)RISCV_USB_HSPL_CHANNEL == (int)(BK_HSPL_RES_USB - 16),
+               "RISCV_USB_HSPL_CHANNEL must match BK_HSPL_RES_USB mapping");
 
 /* forward declarations: the bridge engine is defined further down but is
  * referenced from usbh_submit_urb() above it. */
 struct usbh_urb;
 extern volatile uint8_t usb_ep0_state;
 static bool bk_v16_bridge_active(void);
-static void bk_v16_bridge_arm_xfer(uint8_t chidx, uint8_t dir, struct usbh_urb *urb);
+static int bk_v16_bridge_arm_xfer(uint8_t chidx, uint8_t dir, struct usbh_urb *urb);
+static void bk_v16_bridge_kill_xfer(struct usbh_urb *urb);
+/* AP-side EPIDX serialisation against the CP (RISC-V) USB ISR using the BK7259
+ * hardware spin lock. It also serialises the two AP (M55 SMP) cores against each
+ * other, since the audio submit path and the USB IPI/poll completion path can run
+ * on different cores concurrently.
+ *
+ * CRITICAL: local interrupts MUST be masked across the whole HSPL window. An
+ * earlier comment here claimed callers already sit inside
+ * usb_osal_enter_critical_section() with IRQs off -- that is FALSE on this port,
+ * where usb_osal_enter/leave_critical_section() are no-ops. With IRQs left
+ * enabled, an AP core can take this HSPL inside isoc_init/arm_xfer (task context)
+ * and then be preempted ON THE SAME CORE by the USB IPI ISR, whose
+ * bk_v16_bridge_complete_one() path takes this very HSPL. The ISR then spins
+ * forever on a lock held by the task it just preempted (self-deadlock); the CP
+ * USB ISR also blocks on the HSPL and stops servicing USB, so the ISO stream
+ * wedges (dseq/dipi -> 0) after a few seconds. Masking IRQs makes the (short,
+ * register-only) EPIDX holder un-preemptible and removes the deadlock. Flags are
+ * saved per-core because both AP cores can be in the acquire path at once (one
+ * owns the channel, the other spins).
+ *
+ * The spin is BOUNDED with a last-resort steal. The USB IPI completion path takes
+ * this lock from hard-IRQ at ~2kHz, and its urb completion callback re-arms
+ * (arm_xfer) which takes it again. If the current holder -- the peer AP core, or
+ * more often the RISC-V CP USB ISR that holds it for its whole ISR -- is wedged or
+ * dies still holding the lock, an UNBOUNDED spin keeps the AP core spinning with
+ * IRQs masked forever -> the core hangs -> the CP raises an IPC heartbeat-timeout
+ * assert (the doorbell death seen repeatedly). So if the holder has not released
+ * within BK_V16_EPIDX_HSPL_STEAL_US -- ~100x a healthy tens-of-us hold, so it never
+ * trips under normal contention -- force-release the channel and re-acquire. A
+ * forced steal can momentarily race the (already-wedged) holder's EPIDX/CSR window,
+ * i.e. at worst one corrupted transfer, which is vastly better than hanging the
+ * whole AP. Steals are counted so the poll timer can surface that the peer/CP
+ * wedged. */
+#ifndef BK_V16_EPIDX_MAX_CPU
+#define BK_V16_EPIDX_MAX_CPU 4
+#endif
+#define BK_V16_EPIDX_HSPL_STEAL_US 4000U
+static volatile uint32_t s_v16_epidx_hspl_flags[BK_V16_EPIDX_MAX_CPU];
+static volatile uint32_t s_v16_epidx_hspl_steal_cnt;
+extern uint64_t bk_aon_rtc_get_us(void);
+
+static inline void bk_v16_epidx_hspl_lock(void)
+{
+    uint32_t flags = rtos_disable_int();
+
+    /* Acquire through the canonical resource lock (BK_HSPL_RES_USB -> HSPL_ID_1 /
+     * RISCV_USB_HSPL_CHANNEL), so the AP side shares the recursion + owner
+     * accounting and central mapping used by every other subsystem and hits the
+     * exact channel the RISC-V CP drives. bk_hspl_res_try_lock() tries once (and
+     * is hard-IRQ safe: no must_lock wait-forever/assert), so the bounded spin +
+     * last-resort steal below stays owned here. */
+    if (bk_hspl_res_try_lock(BK_HSPL_RES_USB) != BK_OK) {
+        uint64_t t0 = bk_aon_rtc_get_us();
+        uint32_t n = 0;
+
+        /* contended: spin, but never forever (see the steal rationale above). The
+         * time check is sampled every 16384 try_locks so it adds ~no overhead. */
+        do {
+            if ((((++n) & 0x3FFFU) == 0U) &&
+                ((uint32_t)(bk_aon_rtc_get_us() - t0) >= BK_V16_EPIDX_HSPL_STEAL_US)) {
+                /* last-resort steal: raw-release the wedged holder's HW channel
+                 * (any master may write the unlock MAGIC). The steal only fires
+                 * after ~100x a healthy hold, i.e. the holder is already wedged;
+                 * its stale res rec_count is left as-is (same accepted trade-off
+                 * as before). */
+                bk_hspl_unlock(BK_HSPL_ID_1, RISCV_USB_HSPL_CHANNEL);
+                s_v16_epidx_hspl_steal_cnt++;
+                t0 = bk_aon_rtc_get_us();
+                n = 0;
+            }
+        } while (bk_hspl_res_try_lock(BK_HSPL_RES_USB) != BK_OK);
+    }
+    s_v16_epidx_hspl_flags[rtos_get_core_id() & (BK_V16_EPIDX_MAX_CPU - 1)] = flags;
+}
+
+static inline void bk_v16_epidx_hspl_unlock(void)
+{
+    uint32_t flags = s_v16_epidx_hspl_flags[rtos_get_core_id() & (BK_V16_EPIDX_MAX_CPU - 1)];
+
+    bk_hspl_res_unlock(BK_HSPL_RES_USB);
+    rtos_enable_int(flags);
+}
 #endif
 
 #define HWREG(x) \
@@ -355,6 +446,13 @@ void musb_control_urb_init(struct usbh_bus *bus, uint8_t chidx, struct usbh_urb 
 {
     uint8_t old_ep_index;
     uint8_t speed = USB_TXTYPE1_SPEED_FULL;
+#if CONFIG_USB_RISCV_BRIDGE
+    volatile riscv_usb_probe_t *epidx_ctx = bk_v16_bridge_active() ? get_riscv_usb_probe() : NULL;
+
+    if (epidx_ctx != NULL) {
+        bk_v16_epidx_hspl_lock();
+    }
+#endif
 
     old_ep_index = musb_get_active_ep(bus);
     musb_set_active_ep(bus, chidx);
@@ -382,12 +480,27 @@ void musb_control_urb_init(struct usbh_bus *bus, uint8_t chidx, struct usbh_urb 
     musb_write_packet(bus, chidx, (uint8_t *)setup, 8);
     HWREGB(USB_TXCSRL_BASE(chidx)) = USB_CSRL0_TXRDY | USB_CSRL0_SETUP;
     musb_set_active_ep(bus, old_ep_index);
+#if CONFIG_USB_RISCV_BRIDGE
+    if (epidx_ctx != NULL) {
+        bk_v16_epidx_hspl_unlock();
+    }
+#endif
 }
 
 int musb_bulk_urb_init(struct usbh_bus *bus, uint8_t chidx, struct usbh_urb *urb, uint8_t *buffer, uint32_t buflen)
 {
     uint8_t old_ep_index;
     uint8_t speed = USB_TXTYPE1_SPEED_FULL;
+#if CONFIG_USB_RISCV_BRIDGE
+    volatile riscv_usb_probe_t *epidx_ctx = bk_v16_bridge_active() ? get_riscv_usb_probe() : NULL;
+
+    if (epidx_ctx != NULL) {
+        bk_v16_epidx_hspl_lock();
+    }
+#define BK_EPIDX_BULK_UNLOCK() do { if (epidx_ctx != NULL) { bk_v16_epidx_hspl_unlock(); } } while (0)
+#else
+#define BK_EPIDX_BULK_UNLOCK() do { } while (0)
+#endif
 
     old_ep_index = musb_get_active_ep(bus);
     musb_set_active_ep(bus, chidx);
@@ -403,6 +516,7 @@ int musb_bulk_urb_init(struct usbh_bus *bus, uint8_t chidx, struct usbh_urb *urb
     if (urb->ep->bEndpointAddress & 0x80) {
         if ((8 << HWREGB(USB_BASE + MUSB_RXFIFOSZ_OFFSET)) < USB_GET_MAXPACKETSIZE(urb->ep->wMaxPacketSize)) {
             USB_LOG_ERR("Ep %02x fifo is overflow\r\n", urb->ep->bEndpointAddress);
+            BK_EPIDX_BULK_UNLOCK();
             return -USB_ERR_RANGE;
         }
 
@@ -427,6 +541,7 @@ int musb_bulk_urb_init(struct usbh_bus *bus, uint8_t chidx, struct usbh_urb *urb
     } else {
         if ((8 << HWREGB(USB_BASE + MUSB_TXFIFOSZ_OFFSET)) < USB_GET_MAXPACKETSIZE(urb->ep->wMaxPacketSize)) {
             USB_LOG_ERR("Ep %02x fifo is overflow\r\n", urb->ep->bEndpointAddress);
+            BK_EPIDX_BULK_UNLOCK();
             return -USB_ERR_RANGE;
         }
 
@@ -456,6 +571,8 @@ int musb_bulk_urb_init(struct usbh_bus *bus, uint8_t chidx, struct usbh_urb *urb
         HWREGH(USB_BASE + MUSB_TXIE_OFFSET) |= (1 << chidx);
     }
     musb_set_active_ep(bus, old_ep_index);
+    BK_EPIDX_BULK_UNLOCK();
+#undef BK_EPIDX_BULK_UNLOCK
     return 0;
 }
 
@@ -463,6 +580,16 @@ int musb_intr_urb_init(struct usbh_bus *bus, uint8_t chidx, struct usbh_urb *urb
 {
     uint8_t old_ep_index;
     uint8_t speed = USB_TXTYPE1_SPEED_FULL;
+#if CONFIG_USB_RISCV_BRIDGE
+    volatile riscv_usb_probe_t *epidx_ctx = bk_v16_bridge_active() ? get_riscv_usb_probe() : NULL;
+
+    if (epidx_ctx != NULL) {
+        bk_v16_epidx_hspl_lock();
+    }
+#define BK_EPIDX_INTR_UNLOCK() do { if (epidx_ctx != NULL) { bk_v16_epidx_hspl_unlock(); } } while (0)
+#else
+#define BK_EPIDX_INTR_UNLOCK() do { } while (0)
+#endif
 
     old_ep_index = musb_get_active_ep(bus);
     musb_set_active_ep(bus, chidx);
@@ -478,6 +605,7 @@ int musb_intr_urb_init(struct usbh_bus *bus, uint8_t chidx, struct usbh_urb *urb
     if (urb->ep->bEndpointAddress & 0x80) {
         if ((8 << HWREGB(USB_BASE + MUSB_RXFIFOSZ_OFFSET)) < USB_GET_MAXPACKETSIZE(urb->ep->wMaxPacketSize)) {
             USB_LOG_ERR("Ep %02x fifo is overflow\r\n", urb->ep->bEndpointAddress);
+            BK_EPIDX_INTR_UNLOCK();
             return -USB_ERR_RANGE;
         }
 
@@ -502,6 +630,7 @@ int musb_intr_urb_init(struct usbh_bus *bus, uint8_t chidx, struct usbh_urb *urb
     } else {
         if ((8 << HWREGB(USB_BASE + MUSB_TXFIFOSZ_OFFSET)) < USB_GET_MAXPACKETSIZE(urb->ep->wMaxPacketSize)) {
             USB_LOG_ERR("Ep %02x fifo is overflow\r\n", urb->ep->bEndpointAddress);
+            BK_EPIDX_INTR_UNLOCK();
             return -USB_ERR_RANGE;
         }
 
@@ -531,6 +660,90 @@ int musb_intr_urb_init(struct usbh_bus *bus, uint8_t chidx, struct usbh_urb *urb
         HWREGH(USB_BASE + MUSB_TXIE_OFFSET) |= (1 << chidx);
     }
     musb_set_active_ep(bus, old_ep_index);
+    BK_EPIDX_INTR_UNLOCK();
+#undef BK_EPIDX_INTR_UNLOCK
+    return 0;
+}
+
+int musb_isoc_urb_init(struct usbh_bus *bus, uint8_t chidx, struct usbh_urb *urb, uint8_t *buffer, uint32_t buflen)
+{
+    uint8_t old_ep_index;
+    uint8_t speed = USB_TXTYPE1_SPEED_FULL;
+#if CONFIG_USB_RISCV_BRIDGE
+    volatile riscv_usb_probe_t *epidx_ctx = bk_v16_bridge_active() ? get_riscv_usb_probe() : NULL;
+
+    /* Serialise the EPIDX indexed-register window against the CP USB ISR. The
+     * ISO (re)arm below runs ~1kHz per active endpoint and, when a second ISO
+     * IN endpoint streams concurrently, races the CP's per-channel EPIDX use. */
+    if (epidx_ctx != NULL) {
+        bk_v16_epidx_hspl_lock();
+    }
+#endif
+
+    old_ep_index = musb_get_active_ep(bus);
+    musb_set_active_ep(bus, chidx);
+
+    if (urb->hport->speed == USB_SPEED_HIGH) {
+        speed = USB_TXTYPE1_SPEED_HIGH;
+    } else if (urb->hport->speed == USB_SPEED_FULL) {
+        speed = USB_TXTYPE1_SPEED_FULL;
+    } else if (urb->hport->speed == USB_SPEED_LOW) {
+        speed = USB_TXTYPE1_SPEED_LOW;
+    }
+
+    if (urb->ep->bEndpointAddress & 0x80) {
+#ifdef CONFIG_USB_MUSB_WITHOUT_MULTIPOINT
+        HWREGB(USB_BASE + MUSB_FADDR_OFFSET) = (urb->hport->dev_addr & 0x7F);
+        HWREGB(USB_RXADDR_BASE(chidx)) = (urb->hport->dev_addr & 0x7F);
+        HWREGB(USB_RXTYPE_BASE(chidx)) = (urb->ep->bEndpointAddress & 0x0f) | speed | USB_RXTYPE1_PROTO_ISOC;
+        HWREGH(USB_RXMAP_BASE(chidx)) = USB_GET_MAXPACKETSIZE(urb->ep->wMaxPacketSize);
+        HWREGB(USB_RXINTERVAL_BASE(chidx)) = urb->ep->bInterval;
+#else
+        HWREGB(USB_RXADDR_BASE(chidx)) = urb->hport->dev_addr;
+        HWREGB(USB_RXTYPE_BASE(chidx)) = (urb->ep->bEndpointAddress & 0x0f) | speed | USB_RXTYPE1_PROTO_ISOC;
+        HWREGH(USB_RXMAP_BASE(chidx)) = USB_GET_MAXPACKETSIZE(urb->ep->wMaxPacketSize);
+        HWREGB(USB_RXINTERVAL_BASE(chidx)) = urb->ep->bInterval;
+        HWREGB(USB_RXHUBADDR_BASE(chidx)) = 0;
+        HWREGB(USB_RXHUBPORT_BASE(chidx)) = 0;
+#endif
+        /* ISO RX: set ISO mode in RXCSRH, then arm the first packet request.
+         * In bridge mode the CP firmware drives the remaining microframes. */
+        HWREGB(USB_TXCSRH_BASE(chidx)) &= ~USB_TXCSRH1_MODE;
+        HWREGB(USB_RXCSRH_BASE(chidx)) |= USB_RXCSRH1_ISO;
+        HWREGB(USB_RXCSRL_BASE(chidx)) = USB_RXCSRL1_REQPKT;
+
+        HWREGH(USB_BASE + MUSB_RXIE_OFFSET) |= (1 << chidx);
+    } else {
+#ifdef CONFIG_USB_MUSB_WITHOUT_MULTIPOINT
+        HWREGB(USB_BASE + MUSB_FADDR_OFFSET) = (urb->hport->dev_addr & 0x7F);
+        HWREGB(USB_TXADDR_BASE(chidx)) = (urb->hport->dev_addr & 0x7F);
+        HWREGB(USB_TXTYPE_BASE(chidx)) = (urb->ep->bEndpointAddress & 0x0f) | speed | USB_TXTYPE1_PROTO_ISOC;
+        HWREGH(USB_TXMAP_BASE(chidx)) = USB_GET_MAXPACKETSIZE(urb->ep->wMaxPacketSize);
+        HWREGB(USB_TXINTERVAL_BASE(chidx)) = urb->ep->bInterval;
+#else
+        HWREGB(USB_TXADDR_BASE(chidx)) = urb->hport->dev_addr;
+        HWREGB(USB_TXTYPE_BASE(chidx)) = (urb->ep->bEndpointAddress & 0x0f) | speed | USB_TXTYPE1_PROTO_ISOC;
+        HWREGH(USB_TXMAP_BASE(chidx)) = USB_GET_MAXPACKETSIZE(urb->ep->wMaxPacketSize);
+        HWREGB(USB_TXINTERVAL_BASE(chidx)) = urb->ep->bInterval;
+        HWREGB(USB_TXHUBADDR_BASE(chidx)) = 0;
+        HWREGB(USB_TXHUBPORT_BASE(chidx)) = 0;
+#endif
+        if (buflen > USB_GET_MAXPACKETSIZE(urb->ep->wMaxPacketSize)) {
+            buflen = USB_GET_MAXPACKETSIZE(urb->ep->wMaxPacketSize);
+        }
+
+        HWREGB(USB_TXCSRH_BASE(chidx)) |= (USB_TXCSRH1_MODE | USB_TXCSRH1_ISO);
+        musb_write_packet(bus, chidx, buffer, buflen);
+        HWREGB(USB_TXCSRL_BASE(chidx)) = USB_TXCSRL1_TXRDY;
+
+        HWREGH(USB_BASE + MUSB_TXIE_OFFSET) |= (1 << chidx);
+    }
+    musb_set_active_ep(bus, old_ep_index);
+#if CONFIG_USB_RISCV_BRIDGE
+    if (epidx_ctx != NULL) {
+        bk_v16_epidx_hspl_unlock();
+    }
+#endif
     return 0;
 }
 
@@ -902,7 +1115,10 @@ int usbh_submit_urb(struct usbh_urb *urb)
 #if CONFIG_USB_RISCV_BRIDGE
             if (bridge) {
                 usb_ep0_state = USB_EP0_STATE_SETUP;
-                bk_v16_bridge_arm_xfer(0, 0, urb);
+                ret = bk_v16_bridge_arm_xfer(0, 0, urb);
+                if (ret < 0) {
+                    goto errout_submit_init;
+                }
             }
 #endif
             musb_control_urb_init(bus, 0, urb, urb->setup, urb->transfer_buffer, urb->transfer_buffer_length);
@@ -910,29 +1126,45 @@ int usbh_submit_urb(struct usbh_urb *urb)
         case USB_ENDPOINT_TYPE_BULK:
 #if CONFIG_USB_RISCV_BRIDGE
             if (bridge) {
-                bk_v16_bridge_arm_xfer(chidx, bdir, urb);
+                ret = bk_v16_bridge_arm_xfer(chidx, bdir, urb);
+                if (ret < 0) {
+                    goto errout_submit_init;
+                }
             }
 #endif
             ret = musb_bulk_urb_init(bus, chidx, urb, urb->transfer_buffer, urb->transfer_buffer_length);
             if (ret < 0) {
-                usb_osal_leave_critical_section(flags);
-                return ret;
+                goto errout_submit_init;
             }
             break;
         case USB_ENDPOINT_TYPE_INTERRUPT:
 #if CONFIG_USB_RISCV_BRIDGE
             if (bridge) {
-                bk_v16_bridge_arm_xfer(chidx, bdir, urb);
+                ret = bk_v16_bridge_arm_xfer(chidx, bdir, urb);
+                if (ret < 0) {
+                    goto errout_submit_init;
+                }
             }
 #endif
             ret = musb_intr_urb_init(bus, chidx, urb, urb->transfer_buffer, urb->transfer_buffer_length);
             if (ret < 0) {
-                usb_osal_leave_critical_section(flags);
-                return ret;
+                goto errout_submit_init;
             }
             break;
         case USB_ENDPOINT_TYPE_ISOCHRONOUS:
-            return -USB_ERR_NOTSUPP;
+#if CONFIG_USB_RISCV_BRIDGE
+            if (bridge) {
+                ret = bk_v16_bridge_arm_xfer(chidx, bdir, urb);
+                if (ret < 0) {
+                    goto errout_submit_init;
+                }
+            }
+#endif
+            ret = musb_isoc_urb_init(bus, chidx, urb, urb->transfer_buffer, urb->transfer_buffer_length);
+            if (ret < 0) {
+                goto errout_submit_init;
+            }
+            break;
         default:
             break;
     }
@@ -954,12 +1186,24 @@ errout_timeout:
     urb->timeout = 0;
     usbh_kill_urb(urb);
     return ret;
+errout_submit_init:
+    if (pipe->urb == urb) {
+        pipe->urb = NULL;
+    }
+    pipe->inuse = false;
+    urb->hcpriv = NULL;
+    urb->errorcode = 0;
+    usb_osal_leave_critical_section(flags);
+    return ret;
 }
 
 int usbh_kill_urb(struct usbh_urb *urb)
 {
     struct musb_pipe *pipe;
     struct usbh_bus *bus;
+    usbh_complete_callback_t complete;
+    void *complete_arg;
+    int complete_status;
     size_t flags;
 
     if (!urb || !urb->hcpriv || !urb->hport->bus) {
@@ -975,6 +1219,12 @@ int usbh_kill_urb(struct usbh_urb *urb)
     pipe = (struct musb_pipe *)urb->hcpriv;
     urb->errorcode = -USB_ERR_SHUTDOWN;
 
+#if CONFIG_USB_RISCV_BRIDGE
+    if (bk_v16_bridge_active()) {
+        bk_v16_bridge_kill_xfer(urb);
+    }
+#endif
+
     if (urb->ep->bEndpointAddress & 0x80) {
         HWREGH(USB_BASE + MUSB_RXIE_OFFSET) &= ~(1 << (urb->ep->bEndpointAddress & 0x0f));
         HWREGH(USB_BASE + MUSB_RXIS_OFFSET) = (1 << (urb->ep->bEndpointAddress & 0x0f));
@@ -988,14 +1238,21 @@ int usbh_kill_urb(struct usbh_urb *urb)
     if (urb->timeout) {
         usb_osal_sem_give(pipe->waitsem);
     } else {
-        musb_pipe_free(pipe);
+        if (pipe->urb) {
+            pipe->urb->hcpriv = NULL;
+            pipe->urb = NULL;
+        }
+        pipe->inuse = false;
     }
 
-    if (urb->complete) {
-        urb->complete(urb->arg, urb->errorcode);
-    }
+    complete = urb->complete;
+    complete_arg = urb->arg;
+    complete_status = urb->errorcode;
 
     usb_osal_leave_critical_section(flags);
+    if (complete) {
+        complete(complete_arg, complete_status);
+    }
     return 0;
 }
 
@@ -1004,6 +1261,13 @@ static void musb_urb_waitup(struct usbh_urb *urb)
     struct musb_pipe *pipe;
 
     pipe = (struct musb_pipe *)urb->hcpriv;
+
+    /* The URB may have been torn down (hcpriv cleared, complete already invoked)
+     * between the CP queuing this completion and the AP draining it. Drop it
+     * safely rather than dereferencing a NULL pipe. */
+    if (pipe == NULL) {
+        return;
+    }
 
     if (urb->timeout) {
         usb_osal_sem_give(pipe->waitsem);
@@ -1108,11 +1372,40 @@ typedef struct {
 static bk_v16_b_hcd_t s_bridge_hcd;
 volatile uint8_t usb_ep0_state = USB_EP0_STATE_SETUP;
 
+/* Max ISO microframe packets per URB the bridge can forward to the RISC-V CP.
+ * Matches the UVC URB pool layout (UVC_NUM_PACKET_PER_URB, default 8). The CP
+ * firmware walks shadow_urb.urb.iso_packet[0..num_of_iso_packets-1]; the trailing
+ * iso[] array below is what backs that flexible-array member. */
+#ifndef BK_V16_BRIDGE_MAX_ISO_PACKETS
+#define BK_V16_BRIDGE_MAX_ISO_PACKETS 8
+#endif
+
+/* The CP firmware reads bk_v16_b_urb_t.iso_packet[i] (a flexible array). A bare
+ * bk_v16_b_urb_t has no storage for it, so back it with a contiguous iso[] that
+ * immediately follows the header -- iso_packet[i] then aliases iso[i]. */
+typedef struct {
+    bk_v16_b_urb_t urb;
+    bk_v16_b_iso_t iso[BK_V16_BRIDGE_MAX_ISO_PACKETS];
+} bk_v16_shadow_urb_t;
+
 /* AP-private side tables (never read by the CP). */
-static bk_v16_b_urb_t s_bridge_urb[CONFIG_USB_MUSB_PIPE_NUM][2];
+static bk_v16_shadow_urb_t s_bridge_urb[CONFIG_USB_MUSB_PIPE_NUM][2];
 static struct usbh_urb *s_v16_urb_map[CONFIG_USB_MUSB_PIPE_NUM][2];
 static struct usbh_bus *s_bridge_bus;
-static volatile uint32_t s_riscv_probe_last_irq_seq;
+
+/* RISC-V->M55 completions are delivered through the SPSC event ring in the
+ * shared probe (evt_ring/evt_wr/evt_rd). An edge-triggered IPI has no handshake,
+ * so two completions raised close together can coalesce into a single AP ISR;
+ * because every completion is its own ring entry the AP simply drains
+ * evt_rd..evt_wr and never loses one. s_bridge_poll_timer is a low-rate,
+ * IPI-independent reconciliation that re-runs poll_events to drain any backlog
+ * left by a coalesced/dropped IPI within one poll interval. s_bridge_poll_busy
+ * serialises the IPI path and the timer so the ring has a single consumer. */
+static volatile uint32_t s_bridge_poll_busy;
+static volatile uint32_t s_bridge_poll_resched;
+#define BK_V16_BRIDGE_POLL_MS 10
+static beken_timer_t s_bridge_poll_timer;
+static volatile uint8_t s_bridge_poll_timer_on;
 
 static bool bk_v16_bridge_active(void)
 {
@@ -1124,10 +1417,12 @@ static bool bk_v16_bridge_active(void)
 
 /* Populate the shadow pipe + urb the CP firmware drives. Called by the AP just
  * before it kicks the first packet, while bridge mode is active. */
-static void bk_v16_bridge_arm_xfer(uint8_t chidx, uint8_t dir, struct usbh_urb *urb)
+static int bk_v16_bridge_arm_xfer(uint8_t chidx, uint8_t dir, struct usbh_urb *urb)
 {
     bk_v16_b_pipe_t *bp = &s_bridge_hcd.pipe_pool[chidx][dir];
-    bk_v16_b_urb_t *bu = &s_bridge_urb[chidx][dir];
+    bk_v16_b_urb_t *bu = &s_bridge_urb[chidx][dir].urb;
+
+    bk_v16_epidx_hspl_lock();
 
     bu->setup = (bk_v16_b_setup_t *)urb->setup;
     bu->transfer_buffer = urb->transfer_buffer;
@@ -1136,6 +1431,25 @@ static void bk_v16_bridge_arm_xfer(uint8_t chidx, uint8_t dir, struct usbh_urb *
     bu->errorcode = -USB_ERR_BUSY;
     bu->num_of_iso_packets = 0;
     bu->timeout = urb->timeout;
+
+    /* ISO: mirror each microframe packet descriptor into the shadow urb so the
+     * CP firmware can scatter received data straight into the app buffers. The
+     * transfer_buffer pointers are shared (no copy) -- the CP writes into them
+     * directly; only actual_length/errorcode are copied back on completion. */
+    if (urb->num_of_iso_packets > 0) {
+        uint32_t npk = urb->num_of_iso_packets;
+
+        if (npk > BK_V16_BRIDGE_MAX_ISO_PACKETS) {
+            npk = BK_V16_BRIDGE_MAX_ISO_PACKETS;
+        }
+        bu->num_of_iso_packets = npk;
+        for (uint32_t i = 0; i < npk; i++) {
+            bu->iso_packet[i].transfer_buffer = urb->iso_packet[i].transfer_buffer;
+            bu->iso_packet[i].transfer_buffer_length = urb->iso_packet[i].transfer_buffer_length;
+            bu->iso_packet[i].actual_length = 0;
+            bu->iso_packet[i].errorcode = 0;
+        }
+    }
 
     bp->dev_addr = urb->hport->dev_addr;
     bp->ep_addr = urb->ep->bEndpointAddress;
@@ -1151,6 +1465,76 @@ static void bk_v16_bridge_arm_xfer(uint8_t chidx, uint8_t dir, struct usbh_urb *
     bp->urb = bu;
 
     s_v16_urb_map[chidx][dir] = urb;
+    /* The shadow stores above must be globally visible before the caller kicks
+     * the first packet (musb_*_urb_init), or the CP ISR could read a stale
+     * shadow. That ordering is provided by bk_v16_epidx_hspl_unlock() ->
+     * bk_hspl_res_unlock(), which issues a dsb before releasing the channel; keep
+     * a barrier here if that lock path ever changes. */
+    bk_v16_epidx_hspl_unlock();
+
+    return 0;
+}
+
+static void bk_v16_bridge_kill_xfer(struct usbh_urb *urb)
+{
+    struct musb_pipe *pipe;
+    bk_v16_b_pipe_t *bp;
+    uint8_t chidx;
+    uint8_t dir;
+
+    if (urb == NULL || urb->hcpriv == NULL || urb->ep == NULL) {
+        return;
+    }
+
+    pipe = (struct musb_pipe *)urb->hcpriv;
+    chidx = pipe->chidx;
+    dir = (urb->ep->bEndpointAddress & 0x80) ? 1 : 0;
+    if (chidx >= CONFIG_USB_MUSB_PIPE_NUM) {
+        return;
+    }
+
+    bk_v16_epidx_hspl_lock();
+    bp = &s_bridge_hcd.pipe_pool[chidx][dir];
+    if (s_v16_urb_map[chidx][dir] == urb) {
+        s_v16_urb_map[chidx][dir] = NULL;
+    }
+    if (bp->urb == &s_bridge_urb[chidx][dir].urb) {
+        bp->urb->errorcode = -USB_ERR_SHUTDOWN;
+        bp->urb = NULL;
+    }
+    bp->inuse = 0;
+    bp->xfrd = 0;
+    bp->iso_frame_idx = 0;
+    bk_v16_epidx_hspl_unlock();
+}
+
+int bk_usbh_soft_abort_urb(struct usbh_urb *urb)
+{
+    struct musb_pipe *pipe;
+    size_t flags;
+
+    if (!urb || !urb->hcpriv) {
+        return -USB_ERR_INVAL;
+    }
+
+    flags = usb_osal_enter_critical_section();
+    pipe = (struct musb_pipe *)urb->hcpriv;
+    urb->errorcode = -USB_ERR_SHUTDOWN;
+
+#if CONFIG_USB_RISCV_BRIDGE
+    if (bk_v16_bridge_active()) {
+        bk_v16_bridge_kill_xfer(urb);
+    }
+#endif
+
+    if (pipe->urb == urb) {
+        pipe->urb = NULL;
+    }
+    pipe->inuse = false;
+    urb->hcpriv = NULL;
+    usb_osal_leave_critical_section(flags);
+
+    return 0;
 }
 
 static void bk_v16_bridge_complete_one(uint32_t event, uint32_t ep)
@@ -1173,8 +1557,18 @@ static void bk_v16_bridge_complete_one(uint32_t event, uint32_t ep)
         return;
     }
 
+    /* Serialise the shadow-map read+clear against arm_xfer/kill_xfer and any
+     * concurrent drain. The completion drain runs from BOTH the IPI handler and
+     * the poll timer, which can execute on different AP cores; the USB OSAL
+     * critical section on this port is a no-op, so without this lock two drains
+     * can each observe the same urb and double re-submit it -- leaking a pipe
+     * and corrupting urb/shadow state until the ISO stream wedges. The
+     * completion callback (which re-arms and itself takes the HSPL) is invoked
+     * AFTER releasing the lock, so the HSPL is never re-acquired re-entrantly. */
+    bk_v16_epidx_hspl_lock();
     v16 = s_v16_urb_map[ep][dir];
     if (v16 == NULL) {
+        bk_v16_epidx_hspl_unlock();
         return;
     }
 
@@ -1183,98 +1577,191 @@ static void bk_v16_bridge_complete_one(uint32_t event, uint32_t ep)
     if (bu != NULL) {
         v16->actual_length = bu->actual_length;
         v16->errorcode = bu->errorcode;
+
+        /* ISO: copy per-packet results back so the app sees each microframe's
+         * actual_length (data already landed in the shared buffers). */
+        if (bu->num_of_iso_packets > 0 && v16->num_of_iso_packets > 0) {
+            uint32_t npk = bu->num_of_iso_packets;
+
+            if (npk > v16->num_of_iso_packets) {
+                npk = v16->num_of_iso_packets;
+            }
+            for (uint32_t i = 0; i < npk; i++) {
+                v16->iso_packet[i].actual_length = bu->iso_packet[i].actual_length;
+                v16->iso_packet[i].errorcode = bu->iso_packet[i].errorcode;
+            }
+        }
     }
 
     s_v16_urb_map[ep][dir] = NULL;
     bp->urb = NULL;
     bp->inuse = 0;
+    bk_v16_epidx_hspl_unlock();
 
     musb_urb_waitup(v16);
+}
+
+/* Re-assert the USB-HS interrupt route to the CP (bit8 = 1). Plain RMW: this
+ * runs in the IPI/poll recovery path and must NOT block on the EPIDX HSPL, or a
+ * held lock would stall the very mechanism that heals a stranded completion. */
+static void bk_v16_bridge_route_enable_to_cp(void)
+{
+    /* Publish all prior AP writes to the shared probe (owner, evt_rd, shadow
+     * clears) before the CP is (re)routed the USB IRQ: the probe is Normal
+     * non-cacheable and the route enable is a Device write, so without this the
+     * Device write could be observed first and the CP, once routed, could act on
+     * a stale owner/evt_rd. */
+    //__sync_synchronize();
+    __asm volatile ( "dsb" ::: "memory" );
+
+    uint32_t cfg = sys_drv_get_ints_config_riscv_0_31();
+    cfg |= (1U << 8);
+    sys_drv_set_ints_config_riscv_0_31(cfg);
 }
 
 static void bk_v16_bridge_poll_events(void)
 {
     volatile riscv_usb_probe_t *ctx = get_riscv_usb_probe();
     struct usbh_bus *bus = s_bridge_bus;
-    uint32_t event;
+    uint32_t rd;
+    uint32_t wr;
 
     if (!bk_v16_bridge_active() || bus == NULL) {
         return;
     }
 
-    if (ctx->irq_seq == s_riscv_probe_last_irq_seq) {
-        return;
+    /* Single-consumer guard for the SPSC ring: the IPI callback and the low-rate
+     * poll timer can both call this (and from different AP cores), but only one
+     * context may advance evt_rd at a time. A contending caller sets resched and
+     * the active drainer loops again before returning. */
+    {
+        uint32_t f = rtos_disable_int();
+        if (s_bridge_poll_busy) {
+            s_bridge_poll_resched = 1;
+            rtos_enable_int(f);
+            return;
+        }
+        s_bridge_poll_busy = 1;
+        rtos_enable_int(f);
     }
 
-    s_riscv_probe_last_irq_seq = ctx->irq_seq;
-    event = ctx->event;
-    ctx->event = BK_V16_EVT_NONE;
-    ctx->event_data = 0;
+    /* Hand the IRQ route back to the CP up front so it keeps enqueuing while we
+     * drain; the ring fully decouples CP production from AP consumption. */
+    bk_v16_bridge_route_enable_to_cp();
 
-    switch (event) {
-        case BK_V16_EVT_CONNECT:
-            HWREGB(BK_USB_PHY_BASE(bus) + BK_NANENG_PHY_FC_REG0C) = 0xE0;
-            HWREGB(USB_BASE + MUSB_POWER_OFFSET) |= USB_POWER_HSENAB;
-            g_musb_hcd[bus->hcd.hcd_id].port_csc = 1;
-            g_musb_hcd[bus->hcd.hcd_id].port_pec = 1;
-            g_musb_hcd[bus->hcd.hcd_id].port_pe = 1;
-            bus->hcd.roothub.int_buffer[0] = (1 << 1);
-            usbh_hub_thread_wakeup(&bus->hcd.roothub);
-            break;
+    /* Drain queued completions evt_rd..evt_wr. Each completion is its own ring
+     * entry, so a coalesced or dropped RISC-V->M55 IPI cannot lose one: the next
+     * poll (IPI or the low-rate timer) still sees evt_rd != evt_wr and finishes
+     * the backlog.
+     *
+     * Snapshot evt_wr ONCE and only drain up to it. This runs in IPI IRQ context;
+     * chasing a live evt_wr lets a high ISO completion rate (UVC multi-packet +
+     * UAC mic/spk) enqueue faster than complete_one (which contends the EPIDX
+     * HSPL with the RISC-V) can drain, so the loop would never exit -> the IPI
+     * ISR never returns -> the AP core hangs -> CP heartbeat timeout (the
+     * observed doorbell regression). Entries produced during this pass are taken
+     * by the next IPI (the producer raises one per ISR) or the poll timer; the
+     * ring still loses nothing. */
+    wr = ctx->evt_wr;
+    rd = ctx->evt_rd;
+    while (rd != wr) {
+        uint32_t e;
+        uint32_t type;
+        uint32_t ep;
 
-        case BK_V16_EVT_DISCONNECT:
-            g_musb_hcd[bus->hcd.hcd_id].port_csc = 1;
-            g_musb_hcd[bus->hcd.hcd_id].port_pec = 1;
-            g_musb_hcd[bus->hcd.hcd_id].port_pe = 0;
-            bus->hcd.roothub.int_buffer[0] = (1 << 1);
-            usbh_hub_thread_wakeup(&bus->hcd.roothub);
-            break;
+        e = ctx->evt_ring[rd & RISCV_USB_EVT_RING_MASK];
+        rd = rd + 1U;
+        ctx->evt_rd = rd;       /* release the consumed slot back to the producer */
 
-        case BK_V16_EVT_ISR_DRAIN: {
-            uint32_t ep0_pending = ctx->pending_ep0;
-            uint32_t pipe_lim = (uint32_t)CONFIG_USB_MUSB_PIPE_NUM;
-            uint32_t tx_pending[CONFIG_USB_MUSB_PIPE_NUM];
-            uint32_t rx_pending[CONFIG_USB_MUSB_PIPE_NUM];
-            uint32_t ep_idx;
+        type = RISCV_USB_EVT_TYPE(e);
+        ep = RISCV_USB_EVT_EP(e);
 
-            if (pipe_lim > (uint32_t)RISCV_USB_PROBE_PIPE_NUM) {
-                pipe_lim = (uint32_t)RISCV_USB_PROBE_PIPE_NUM;
-            }
-
-            ctx->pending_ep0 = 0;
-            for (ep_idx = 1U; ep_idx < pipe_lim; ep_idx++) {
-                tx_pending[ep_idx] = ctx->pending_pipe_tx[ep_idx];
-                ctx->pending_pipe_tx[ep_idx] = 0;
-                rx_pending[ep_idx] = ctx->pending_pipe_rx[ep_idx];
-                ctx->pending_pipe_rx[ep_idx] = 0;
-            }
-
-            if (ep0_pending) {
+        switch (type) {
+            case RISCV_USB_EVT_TYPE_CONN:
+                HWREGB(BK_USB_PHY_BASE(bus) + BK_NANENG_PHY_FC_REG0C) = 0xE0;
+                HWREGB(USB_BASE + MUSB_POWER_OFFSET) |= USB_POWER_HSENAB;
+                g_musb_hcd[bus->hcd.hcd_id].port_csc = 1;
+                g_musb_hcd[bus->hcd.hcd_id].port_pec = 1;
+                g_musb_hcd[bus->hcd.hcd_id].port_pe = 1;
+                bus->hcd.roothub.int_buffer[0] = (1 << 1);
+                usbh_hub_thread_wakeup(&bus->hcd.roothub);
+                break;
+            case RISCV_USB_EVT_TYPE_DISC:
+                g_musb_hcd[bus->hcd.hcd_id].port_csc = 1;
+                g_musb_hcd[bus->hcd.hcd_id].port_pec = 1;
+                g_musb_hcd[bus->hcd.hcd_id].port_pe = 0;
+                bus->hcd.roothub.int_buffer[0] = (1 << 1);
+                usbh_hub_thread_wakeup(&bus->hcd.roothub);
+                break;
+            case RISCV_USB_EVT_TYPE_EP0:
                 bk_v16_bridge_complete_one(BK_V16_EVT_EP0_DONE, 0);
-            }
-            for (ep_idx = 1U; ep_idx < pipe_lim; ep_idx++) {
-                if (tx_pending[ep_idx]) {
-                    bk_v16_bridge_complete_one(BK_V16_EVT_PIPE_TX, ep_idx);
-                }
-            }
-            for (ep_idx = 1U; ep_idx < pipe_lim; ep_idx++) {
-                if (rx_pending[ep_idx]) {
-                    bk_v16_bridge_complete_one(BK_V16_EVT_PIPE_RX, ep_idx);
-                }
-            }
-            break;
+                break;
+            case RISCV_USB_EVT_TYPE_TX:
+                bk_v16_bridge_complete_one(BK_V16_EVT_PIPE_TX, ep);
+                break;
+            case RISCV_USB_EVT_TYPE_RX:
+                bk_v16_bridge_complete_one(BK_V16_EVT_PIPE_RX, ep);
+                break;
+            default:
+                break;
         }
-
-        default:
-            break;
     }
 
     /* hand the USB HS IRQ back to the RISC-V CP (bit8 = 1). */
-    {
-        uint32_t cfg = sys_drv_get_ints_config_riscv_0_31();
-        cfg |= (1U << 8);
-        sys_drv_set_ints_config_riscv_0_31(cfg);
+    bk_v16_bridge_route_enable_to_cp();
+
+    s_bridge_poll_busy = 0;
+    if (s_bridge_poll_resched) {
+        s_bridge_poll_resched = 0;
+        bk_v16_bridge_poll_events();
     }
+}
+
+/* Low-rate, IPI-independent reconciliation. poll_events is a cheap seq compare
+ * when IPIs flow normally; if the CP dropped a completion-IPI edge this drains
+ * the stranded event and re-enables the CP route within BK_V16_BRIDGE_POLL_MS. */
+static void bk_v16_bridge_poll_timer_cb(void *arg)
+{
+    (void)arg;
+    bk_v16_bridge_poll_events();
+
+    /* Surface EPIDX-HSPL steals (peer AP core / RISC-V CP wedged while holding the
+     * lock). Zero in healthy operation; a rising count means the bounded-spin steal
+     * in bk_v16_epidx_hspl_lock() saved the AP from a hard hang, so the real wedge
+     * is upstream. Printed at the low poll rate, only on change. */
+    {
+        static uint32_t s_last_steal;
+        uint32_t now = s_v16_epidx_hspl_steal_cnt;
+
+        if (now != s_last_steal) {
+            s_last_steal = now;
+            USB_LOG_WRN("[bk_v1_6] EPIDX hspl steal cnt=%u (peer/CP wedged)\r\n", now);
+        }
+    }
+}
+
+static void bk_v16_bridge_poll_timer_start(void)
+{
+    if (s_bridge_poll_timer_on) {
+        return;
+    }
+    if (rtos_init_timer(&s_bridge_poll_timer, BK_V16_BRIDGE_POLL_MS,
+                        bk_v16_bridge_poll_timer_cb, NULL) != BK_OK) {
+        USB_LOG_ERR("[bk_v1_6] bridge poll timer init failed\r\n");
+        return;
+    }
+    rtos_start_timer(&s_bridge_poll_timer);
+    s_bridge_poll_timer_on = 1;
+}
+
+static void bk_v16_bridge_poll_timer_stop(void)
+{
+    if (!s_bridge_poll_timer_on) {
+        return;
+    }
+    rtos_stop_timer(&s_bridge_poll_timer);
+    rtos_deinit_timer(&s_bridge_poll_timer);
+    s_bridge_poll_timer_on = 0;
 }
 
 #if CONFIG_IPI
@@ -1335,10 +1822,10 @@ static void bk_v16_bridge_probe_init(uint32_t role)
 {
     volatile riscv_usb_probe_t *ctx = get_riscv_usb_probe();
 
-    s_riscv_probe_last_irq_seq = 0;
     memset(&s_bridge_hcd, 0, sizeof(s_bridge_hcd));
     memset(s_bridge_urb, 0, sizeof(s_bridge_urb));
     memset(s_v16_urb_map, 0, sizeof(s_v16_urb_map));
+    s_bridge_poll_resched = 0;
     usb_ep0_state = USB_EP0_STATE_SETUP;
 
     ctx->magic = RISCV_USB_PROBE_MAGIC;
@@ -1346,14 +1833,26 @@ static void bk_v16_bridge_probe_init(uint32_t role)
     ctx->irq_seq = 0;
     ctx->event = BK_V16_EVT_NONE;
     ctx->event_data = 0;
-    ctx->g_musb_hcd_addr = (uint32_t)(uintptr_t)&s_bridge_hcd;
-    ctx->usb_ep0_state_addr = (uint32_t)(uintptr_t)&usb_ep0_state;
+    /* SPSC event ring starts empty (producer cursor == consumer cursor). */
+    ctx->evt_wr = 0;
+    ctx->evt_rd = 0;
+    ctx->evt_drop = 0;
+    ctx->g_musb_hcd_addr = SOC_SRAM_PERI_ADDR((uint32_t)(uintptr_t)&s_bridge_hcd);
+    ctx->usb_ep0_state_addr = SOC_SRAM_PERI_ADDR((uint32_t)(uintptr_t)&usb_ep0_state);
     ctx->pending_ep0 = 0;
     ctx->role = role;
     for (uint32_t i = 0U; i < (uint32_t)RISCV_USB_PROBE_PIPE_NUM; i++) {
         ctx->pending_pipe_tx[i] = 0;
         ctx->pending_pipe_rx[i] = 0;
     }
+
+    /* The EPIDX window is now guarded by the HSPL hardware spin lock
+     * (BK_HSPL_RES_USB -> HSPL_ID_1 channel RISCV_USB_HSPL_CHANNEL). Make sure
+     * the HSPL block is clocked/initialised and the USB channel is released
+     * before the CP (RISC-V) starts servicing IRQs, otherwise the CP could spin
+     * forever on an un-clocked channel. bk_hspl_driver_init() is idempotent. */
+    (void)bk_hspl_driver_init();
+    (void)bk_hspl_unlock(BK_HSPL_ID_1, RISCV_USB_HSPL_CHANNEL);
 }
 
 /* Returns true when the RISC-V CP firmware took ownership of the USB IRQ and
@@ -1378,18 +1877,17 @@ bool bk_v16_bridge_bringup(struct usbh_bus *bus)
     get_riscv_usb_probe()->owner = RISCV_USB_PROBE_OWNER_RISCV;
 
     /* route USB HS IRQ to the CP (bit8 = 1). */
-    {
-        uint32_t cfg = sys_drv_get_ints_config_riscv_0_31();
-        cfg |= (1U << 8);
-        sys_drv_set_ints_config_riscv_0_31(cfg);
-    }
+    bk_v16_bridge_route_enable_to_cp();
 
-    USB_LOG_INFO("[bk_v1_6] usb host use riscv CP bridge path\r\n");
+    bk_v16_bridge_poll_timer_start();
+
+    USB_LOG_INFO("[bk_v1_6] usb host use riscv CP bridge path (evt-ring bounded-drain)\r\n");
     return true;
 }
 
 void bk_v16_bridge_teardown(void)
 {
+    bk_v16_bridge_poll_timer_stop();
     if (bk_v16_bridge_active()) {
         get_riscv_usb_probe()->owner = RISCV_USB_PROBE_OWNER_NONE;
     }

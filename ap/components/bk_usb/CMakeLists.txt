@@ -38,7 +38,6 @@ if (CONFIG_USB)
 	if (CONFIG_BK_USB_CHERRYUSB_V1_6)
 		list(APPEND srcs
 			cherryusb_adapter/v1_6/bk_cherryusb_adapter_v1_6.c
-			${BK_CHERRYUSB_DIR}/port/beken_musb_v1_6/usb_glue_beken_7259.c
 		)
 	else()
 		list(APPEND srcs
@@ -167,7 +166,7 @@ if (CONFIG_USB)
 			)
 		endif() # CONFIG_USBH_UVC
 
-		if (CONFIG_USBH_UAC AND NOT CONFIG_BK_USB_CHERRYUSB_V1_6)
+		if (CONFIG_USBH_UAC)
 			list(APPEND srcs
 				${BK_CHERRYUSB_DIR}/class/audio/usbh_audio.c
 			)

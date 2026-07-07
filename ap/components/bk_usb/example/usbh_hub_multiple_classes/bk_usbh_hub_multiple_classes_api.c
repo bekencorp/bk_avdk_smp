@@ -5,6 +5,28 @@
 #define ESHUTDOWN 108
 #endif
 
+#if CONFIG_BK_USB_CHERRYUSB_V1_6
+/*
+ * CherryUSB v1.6 compatibility shims.
+ *
+ * The legacy (v0.7) host stack required the caller to explicitly
+ * reconfigure the control pipe (usbh_ep0_pipe_reconfigure) and to take a
+ * global hub-event mutex (usbh_hub_event_lock/unlock_mutex) around
+ * per-port class open/close. Neither primitive exists in v1.6: ep0 max
+ * packet size is established during enumeration and stored in
+ * hport->ep0, and the hub event handler serializes enumeration
+ * internally. Map the legacy helpers to no-ops so this example builds and
+ * behaves correctly on v1.6 without touching every call site.
+ *
+ * v1.6 usbh_audio_open() also takes an extra bitresolution argument; UAC
+ * is fixed at 16-bit PCM here (the only resolution these UAC streams use).
+ */
+#define usbh_ep0_pipe_reconfigure(pipe, addr, mps, speed)  ((void)0)
+#define usbh_hub_event_lock_mutex()                        ((void)0)
+#define usbh_hub_event_unlock_mutex()                      ((void)0)
+#define UAC_DEFAULT_BIT_RESOLUTION                         16
+#endif
+
 typedef struct
 {
 	uint8_t usbh_hub_power_flag;
@@ -268,13 +290,27 @@ bk_err_t bk_usbh_hub_multiple_devices_power_down(E_USB_MODE mode, E_USB_HUB_PORT
 	return ret;
 }
 
+/* The BK hub-class device table (usbh_hub_port_info / connect flags / callbacks)
+ * is keyed by the ROOT-hub port the whole topology hangs off, which is what
+ * power_on() / check_device() / register_*_callback() use. bk_usbh_hub_port_index(hport) alone is
+ * only the immediate downstream port, so for a device behind one or more
+ * external hubs it would index the wrong slot. Walk up to the root hub. */
+static uint8_t bk_usbh_hub_port_index(struct usbh_hubport *hp)
+{
+	struct usbh_hubport *p = hp;
+	while (p && p->parent && !p->parent->is_roothub) {
+		p = p->parent->parent;
+	}
+	return p ? p->port : (hp ? hp->port : 0);
+}
+
 static void bk_usbh_hub_uac_parse_param(struct usbh_hubport *hport, uint8_t interface_num, void *audio_class)
 {
 	bk_usbh_hub_class_dev_info *usb_hub_class_dev = &s_usb_hub_class_dev;
 	struct usbh_audio *uac_device = (struct usbh_audio *)audio_class;
 
-	bk_usb_hub_port_info *usbh_hub_port_mic_info = &usb_hub_class_dev->usbh_hub_port_info[hport->port][USB_UAC_MIC_DEVICE];
-	bk_usb_hub_port_info *usbh_hub_port_spk_info = &usb_hub_class_dev->usbh_hub_port_info[hport->port][USB_UAC_SPEAKER_DEVICE];
+	bk_usb_hub_port_info *usbh_hub_port_mic_info = &usb_hub_class_dev->usbh_hub_port_info[bk_usbh_hub_port_index(hport)][USB_UAC_MIC_DEVICE];
+	bk_usb_hub_port_info *usbh_hub_port_spk_info = &usb_hub_class_dev->usbh_hub_port_info[bk_usbh_hub_port_index(hport)][USB_UAC_SPEAKER_DEVICE];
 
 	uint32_t malloc_fail_flag = 0;
 	bk_uac_device_brief_info_t *uac_mic_device_info = NULL;
@@ -283,7 +319,38 @@ static void bk_usbh_hub_uac_parse_param(struct usbh_hubport *hport, uint8_t inte
 	bk_uac_device_brief_info_t *uac_spk_device_info = NULL;
 	bk_uac_spk_config_t *spk_config = NULL;
 
+#if CONFIG_BK_USB_CHERRYUSB_V1_6
+	/* v1.6 keeps each sample rate in a separate altsetting (3-byte tSamFreq),
+	 * but the BK brief-info exposes a uint32_t[] pointer. Pre-scan the streams
+	 * so we can size one allocation that carries the decoded rate table right
+	 * after the brief-info struct (freed together, no extra bookkeeping). */
+	uint8_t v16_mic_idx = 0xff, v16_spk_idx = 0xff;
+	uint8_t v16_mic_freq_num = 0, v16_spk_freq_num = 0;
+	for (uint8_t i = 0; i < uac_device->stream_intf_num; i++) {
+		const char *nm = uac_device->as_msg_table[i].stream_name;
+		uint8_t nalt = uac_device->as_msg_table[i].num_of_altsetting;
+		if (nm && strcmp(nm, "mic") == 0) {
+			v16_mic_idx = i;
+			v16_mic_freq_num = (nalt > 1) ? (nalt - 1) : 0;
+		} else if (nm && strcmp(nm, "speaker") == 0) {
+			v16_spk_idx = i;
+			v16_spk_freq_num = (nalt > 1) ? (nalt - 1) : 0;
+		}
+	}
+	size_t v16_mic_info_sz = sizeof(bk_uac_device_brief_info_t)
+	                         + (size_t)(v16_mic_freq_num + v16_spk_freq_num) * sizeof(uint32_t);
+#endif
+
 	do{
+#if CONFIG_BK_USB_CHERRYUSB_V1_6
+		uac_mic_device_info = os_malloc(v16_mic_info_sz);
+		if(!uac_mic_device_info) {
+			malloc_fail_flag |= (0x1 << 0);
+			break;
+		} else {
+			os_memset((void *)uac_mic_device_info, 0x0, v16_mic_info_sz);
+		}
+#else
 		uac_mic_device_info = os_malloc(sizeof(bk_uac_device_brief_info_t));
 		if(!uac_mic_device_info) {
 			malloc_fail_flag |= (0x1 << 0);
@@ -291,6 +358,7 @@ static void bk_usbh_hub_uac_parse_param(struct usbh_hubport *hport, uint8_t inte
 		} else {
 			os_memset((void *)uac_mic_device_info, 0x0, sizeof(bk_uac_device_brief_info_t));
 		}
+#endif
 
 		mic_config = os_malloc(sizeof(bk_uac_mic_config_t));
 		if(!mic_config) {
@@ -341,13 +409,13 @@ static void bk_usbh_hub_uac_parse_param(struct usbh_hubport *hport, uint8_t inte
 		}
 
 		USB_HUB_MD_LOGE("[=]%s malloc Fail FLAG:0x%x\r\n", __func__, malloc_fail_flag);
-		usb_hub_class_dev->usbh_hub_connect_class_device_flag[hport->port] &= ~(0x1 << USB_UAC_MIC_DEVICE);
-		usb_hub_class_dev->usbh_hub_connect_class_device_flag[hport->port] &= ~(0x1 << USB_UAC_SPEAKER_DEVICE);
+		usb_hub_class_dev->usbh_hub_connect_class_device_flag[bk_usbh_hub_port_index(hport)] &= ~(0x1 << USB_UAC_MIC_DEVICE);
+		usb_hub_class_dev->usbh_hub_connect_class_device_flag[bk_usbh_hub_port_index(hport)] &= ~(0x1 << USB_UAC_SPEAKER_DEVICE);
 		return;
 	}
 
-	usbh_hub_port_mic_info->port_index = hport->port;
-	usbh_hub_port_spk_info->port_index = hport->port;
+	usbh_hub_port_mic_info->port_index = bk_usbh_hub_port_index(hport);
+	usbh_hub_port_spk_info->port_index = bk_usbh_hub_port_index(hport);
 
 	usbh_hub_port_mic_info->device_index = USB_UAC_MIC_DEVICE;
 	usbh_hub_port_spk_info->device_index = USB_UAC_SPEAKER_DEVICE;
@@ -364,7 +432,41 @@ static void bk_usbh_hub_uac_parse_param(struct usbh_hubport *hport, uint8_t inte
 	uac_mic_device_info->vendor_id = hport->device_desc.idVendor;
 	uac_mic_device_info->product_id = hport->device_desc.idProduct;
 
-
+#if CONFIG_BK_USB_CHERRYUSB_V1_6
+	/* v1.6: derive mic/spk parameters from as_msg_table[]. The decoded sample
+	 * rate table lives in the trailing space of uac_mic_device_info. */
+	{
+		uint32_t *freq_store = (uint32_t *)((uint8_t *)uac_mic_device_info
+		                                    + sizeof(bk_uac_device_brief_info_t));
+		if (v16_mic_idx != 0xff) {
+			struct usbh_audio_as_msg *as = &uac_device->as_msg_table[v16_mic_idx];
+			uac_mic_device_info->mic_format_tag = as->as_general.wFormatTag;
+			uac_mic_device_info->mic_samples_frequence_num = v16_mic_freq_num;
+			uac_mic_device_info->mic_samples_frequence = freq_store;
+			for (uint8_t k = 0; k < v16_mic_freq_num; k++) {
+				uint8_t *f = as->as_format[k + 1].tSamFreq; /* skip alt 0 (zero-bw) */
+				freq_store[k] = (uint32_t)f[0] | ((uint32_t)f[1] << 8) | ((uint32_t)f[2] << 16);
+			}
+			uac_mic_device_info->mic_ep_desc = (struct audio_ep_descriptor *)
+				&uac_device->hport->config.intf[as->stream_intf].altsetting[1].ep[0].ep_desc;
+			usb_hub_class_dev->usbh_hub_connect_class_device_flag[bk_usbh_hub_port_index(hport)] |= (0x1 << USB_UAC_MIC_DEVICE);
+		}
+		if (v16_spk_idx != 0xff) {
+			struct usbh_audio_as_msg *as = &uac_device->as_msg_table[v16_spk_idx];
+			uint32_t *spk_store = freq_store + v16_mic_freq_num;
+			uac_mic_device_info->spk_format_tag = as->as_general.wFormatTag;
+			uac_mic_device_info->spk_samples_frequence_num = v16_spk_freq_num;
+			uac_mic_device_info->spk_samples_frequence = spk_store;
+			for (uint8_t k = 0; k < v16_spk_freq_num; k++) {
+				uint8_t *f = as->as_format[k + 1].tSamFreq;
+				spk_store[k] = (uint32_t)f[0] | ((uint32_t)f[1] << 8) | ((uint32_t)f[2] << 16);
+			}
+			uac_mic_device_info->spk_ep_desc = (struct audio_ep_descriptor *)
+				&uac_device->hport->config.intf[as->stream_intf].altsetting[1].ep[0].ep_desc;
+			usb_hub_class_dev->usbh_hub_connect_class_device_flag[bk_usbh_hub_port_index(hport)] |= (0x1 << USB_UAC_SPEAKER_DEVICE);
+		}
+	}
+#else
 	const char *mic_name = "mic";
 	const char *spk_name = "speaker";
 	uint8_t intf = 0xff;
@@ -385,7 +487,7 @@ static void bk_usbh_hub_uac_parse_param(struct usbh_hubport *hport, uint8_t inte
 				uac_mic_device_info->spk_ep_desc = (struct audio_ep_descriptor *)audio_ep_desc;
 				spk_intf = intf;
 			}
-			usb_hub_class_dev->usbh_hub_connect_class_device_flag[hport->port] |= (0x1 << USB_UAC_MIC_DEVICE);
+			usb_hub_class_dev->usbh_hub_connect_class_device_flag[bk_usbh_hub_port_index(hport)] |= (0x1 << USB_UAC_MIC_DEVICE);
 		}
 		if (strcmp(spk_name, uac_device->module[i].name) == 0) {
 			intf = uac_device->module[i].data_intf;
@@ -400,7 +502,7 @@ static void bk_usbh_hub_uac_parse_param(struct usbh_hubport *hport, uint8_t inte
 				uac_mic_device_info->spk_ep_desc = (struct audio_ep_descriptor *)audio_ep_desc;
 				spk_intf = intf;
 			}
-			usb_hub_class_dev->usbh_hub_connect_class_device_flag[hport->port] |= (0x1 << USB_UAC_SPEAKER_DEVICE);
+			usb_hub_class_dev->usbh_hub_connect_class_device_flag[bk_usbh_hub_port_index(hport)] |= (0x1 << USB_UAC_SPEAKER_DEVICE);
 		}
 	}
 	for (size_t i = 0; i < uac_device->module_num; i++) {
@@ -411,14 +513,23 @@ static void bk_usbh_hub_uac_parse_param(struct usbh_hubport *hport, uint8_t inte
 			uac_device->module[i].data_intf = spk_intf;
 		}
 	}
+#endif
 
-	mic_config->mic_format_tag = uac_mic_device_info->mic_format_tag;
-	mic_config->mic_samples_frequence = uac_mic_device_info->mic_samples_frequence[0];
-	mic_config->mic_ep_desc = uac_mic_device_info->mic_ep_desc;
+	/* A composite device may expose only a mic OR only a speaker. Each
+	 * *_samples_frequence pointer is set only when the matching module was
+	 * found, so guard the [0] deref to avoid a NULL crash on mic-only (or
+	 * speaker-only) devices. */
+	if (uac_mic_device_info->mic_samples_frequence) {
+		mic_config->mic_format_tag = uac_mic_device_info->mic_format_tag;
+		mic_config->mic_samples_frequence = uac_mic_device_info->mic_samples_frequence[0];
+		mic_config->mic_ep_desc = uac_mic_device_info->mic_ep_desc;
+	}
 
-	spk_config->spk_format_tag = uac_mic_device_info->spk_format_tag;
-	spk_config->spk_samples_frequence = uac_mic_device_info->spk_samples_frequence[0];
-	spk_config->spk_ep_desc = uac_mic_device_info->spk_ep_desc;
+	if (uac_mic_device_info->spk_samples_frequence) {
+		spk_config->spk_format_tag = uac_mic_device_info->spk_format_tag;
+		spk_config->spk_samples_frequence = uac_mic_device_info->spk_samples_frequence[0];
+		spk_config->spk_ep_desc = uac_mic_device_info->spk_ep_desc;
+	}
 
 	usbh_hub_port_mic_info->usb_device_param = (void *)uac_mic_device_info;
 	usbh_hub_port_mic_info->usb_device_param_config = (void *)mic_config;
@@ -493,13 +604,13 @@ static uint32_t bk_usbh_hub_uvc_parse_param(struct usbh_hubport *hport, uint8_t 
 		}
 
 		USB_HUB_MD_LOGE("[=]%s malloc Fail FLAG:0x%x\r\n", __func__, malloc_fail_flag);
-		usb_hub_class_dev->usbh_hub_connect_class_device_flag[hport->port] &= ~(0x1 << device_index);
+		usb_hub_class_dev->usbh_hub_connect_class_device_flag[bk_usbh_hub_port_index(hport)] &= ~(0x1 << device_index);
 		return device_index;
 	}
 
-	usbh_hub_port_info = &usb_hub_class_dev->usbh_hub_port_info[hport->port][device_index];
+	usbh_hub_port_info = &usb_hub_class_dev->usbh_hub_port_info[bk_usbh_hub_port_index(hport)][device_index];
 
-	usbh_hub_port_info->port_index    = hport->port;
+	usbh_hub_port_info->port_index    = bk_usbh_hub_port_index(hport);
 	usbh_hub_port_info->device_index  = device_index;
 	usbh_hub_port_info->hport         = hport;
 	usbh_hub_port_info->usb_device    = video_class;
@@ -552,7 +663,7 @@ static uint32_t bk_usbh_hub_uvc_parse_param(struct usbh_hubport *hport, uint8_t 
 	usbh_hub_port_info->usb_device_param        = (void *)uvc_device_info;
 	usbh_hub_port_info->usb_device_param_config = (void *)uvc_device_config;
 
-	usb_hub_class_dev->usbh_hub_connect_class_device_flag[hport->port] |= (0x1 << device_index);
+	usb_hub_class_dev->usbh_hub_connect_class_device_flag[bk_usbh_hub_port_index(hport)] |= (0x1 << device_index);
 	USB_HUB_MD_LOGV("[-]%s\r\n", __func__);
 	return device_index;
 }
@@ -560,23 +671,23 @@ static uint32_t bk_usbh_hub_uvc_parse_param(struct usbh_hubport *hport, uint8_t 
 #if (CONFIG_USB_CDC)
 static void bk_usbh_hub_cdc_parse_param(struct usbh_hubport *hport, uint8_t interface_num, void *cdc_class)
 {
-	USB_HUB_MD_LOGD("[+]%s, %d\r\n", __func__, hport->port);
+	USB_HUB_MD_LOGD("[+]%s, %d\r\n", __func__, bk_usbh_hub_port_index(hport));
 	bk_usbh_hub_class_dev_info *usb_hub_class_dev = &s_usb_hub_class_dev;
 	bk_usb_hub_port_info *usbh_hub_port_info = NULL; __maybe_unused_var(usbh_hub_port_info);
 	struct usbh_cdc_acm *cdc_device = (struct usbh_cdc_acm *)cdc_class; __maybe_unused_var(cdc_device);
 
-	usbh_hub_port_info = &usb_hub_class_dev->usbh_hub_port_info[hport->port][USB_CDC_DEVICE];
+	usbh_hub_port_info = &usb_hub_class_dev->usbh_hub_port_info[bk_usbh_hub_port_index(hport)][USB_CDC_DEVICE];
 
 	usbh_hub_port_info->hport         = hport;
-	usbh_hub_port_info->port_index    = hport->port;
+	usbh_hub_port_info->port_index    = bk_usbh_hub_port_index(hport);
 	usbh_hub_port_info->usb_device    = cdc_class;
 	usbh_hub_port_info->interface_num = interface_num;
 	usbh_hub_port_info->device_index  = USB_CDC_DEVICE;
 
 	usbh_hub_port_info->usb_device_param		= NULL;
 	usbh_hub_port_info->usb_device_param_config = NULL;
-	usb_hub_class_dev->usbh_hub_connect_class_device_flag[hport->port] |= (0x1 << USB_CDC_DEVICE);
-	USB_HUB_MD_LOGV("[-]%s, %d %x\r\n", __func__, hport->port, usb_hub_class_dev->usbh_hub_connect_class_device_flag[hport->port]);
+	usb_hub_class_dev->usbh_hub_connect_class_device_flag[bk_usbh_hub_port_index(hport)] |= (0x1 << USB_CDC_DEVICE);
+	USB_HUB_MD_LOGV("[-]%s, %d %x\r\n", __func__, bk_usbh_hub_port_index(hport), usb_hub_class_dev->usbh_hub_connect_class_device_flag[bk_usbh_hub_port_index(hport)]);
 }
 #endif
 
@@ -595,21 +706,21 @@ void bk_usbh_hub_class_connect_notification(struct usbh_hubport *hport, uint8_t 
 				bk_usbh_hub_uac_parse_param(hport, intf, usb_device);
 			}
 
-			usbh_hub_port_info = &usb_hub_class_dev->usbh_hub_port_info[hport->port][USB_UAC_MIC_DEVICE];
-			USB_HUB_MD_LOGD("%s connect_device_flag:0x%x\r\n", __func__, usb_hub_class_dev->usbh_hub_connect_class_device_flag[hport->port]);
-			if((usb_hub_class_dev->usbh_hub_connect_class_device_flag[hport->port] & (0x1 << USB_UAC_MIC_DEVICE))
-				&& usb_hub_class_dev->usbh_hub_connect_cb[hport->port][USB_UAC_MIC_DEVICE])
+			usbh_hub_port_info = &usb_hub_class_dev->usbh_hub_port_info[bk_usbh_hub_port_index(hport)][USB_UAC_MIC_DEVICE];
+			USB_HUB_MD_LOGD("%s connect_device_flag:0x%x\r\n", __func__, usb_hub_class_dev->usbh_hub_connect_class_device_flag[bk_usbh_hub_port_index(hport)]);
+			if((usb_hub_class_dev->usbh_hub_connect_class_device_flag[bk_usbh_hub_port_index(hport)] & (0x1 << USB_UAC_MIC_DEVICE))
+				&& usb_hub_class_dev->usbh_hub_connect_cb[bk_usbh_hub_port_index(hport)][USB_UAC_MIC_DEVICE])
 			{
-				connect_cb_arg = usb_hub_class_dev->usbh_hub_connect_cb_arg[hport->port][USB_UAC_MIC_DEVICE];
-				usb_hub_class_dev->usbh_hub_connect_cb[hport->port][USB_UAC_MIC_DEVICE](usbh_hub_port_info, connect_cb_arg);
+				connect_cb_arg = usb_hub_class_dev->usbh_hub_connect_cb_arg[bk_usbh_hub_port_index(hport)][USB_UAC_MIC_DEVICE];
+				usb_hub_class_dev->usbh_hub_connect_cb[bk_usbh_hub_port_index(hport)][USB_UAC_MIC_DEVICE](usbh_hub_port_info, connect_cb_arg);
 			}
 
-			usbh_hub_port_info = &usb_hub_class_dev->usbh_hub_port_info[hport->port][USB_UAC_SPEAKER_DEVICE];
-			if((usb_hub_class_dev->usbh_hub_connect_class_device_flag[hport->port] & (0x1 << USB_UAC_SPEAKER_DEVICE))
-				&& usb_hub_class_dev->usbh_hub_connect_cb[hport->port][USB_UAC_SPEAKER_DEVICE])
+			usbh_hub_port_info = &usb_hub_class_dev->usbh_hub_port_info[bk_usbh_hub_port_index(hport)][USB_UAC_SPEAKER_DEVICE];
+			if((usb_hub_class_dev->usbh_hub_connect_class_device_flag[bk_usbh_hub_port_index(hport)] & (0x1 << USB_UAC_SPEAKER_DEVICE))
+				&& usb_hub_class_dev->usbh_hub_connect_cb[bk_usbh_hub_port_index(hport)][USB_UAC_SPEAKER_DEVICE])
 			{
-				connect_cb_arg = usb_hub_class_dev->usbh_hub_connect_cb_arg[hport->port][USB_UAC_SPEAKER_DEVICE];
-				usb_hub_class_dev->usbh_hub_connect_cb[hport->port][USB_UAC_SPEAKER_DEVICE](usbh_hub_port_info, connect_cb_arg);
+				connect_cb_arg = usb_hub_class_dev->usbh_hub_connect_cb_arg[bk_usbh_hub_port_index(hport)][USB_UAC_SPEAKER_DEVICE];
+				usb_hub_class_dev->usbh_hub_connect_cb[bk_usbh_hub_port_index(hport)][USB_UAC_SPEAKER_DEVICE](usbh_hub_port_info, connect_cb_arg);
 			}
 			break;
 #endif
@@ -621,16 +732,16 @@ void bk_usbh_hub_class_connect_notification(struct usbh_hubport *hport, uint8_t 
 				if(usb_device) {
 					device_index = bk_usbh_hub_uvc_parse_param(hport, intf, usb_device);
 				}
-				USB_HUB_MD_LOGD("%s connect_device_flag:0x%x\r\n", __func__, usb_hub_class_dev->usbh_hub_connect_class_device_flag[hport->port]);
+				USB_HUB_MD_LOGD("%s connect_device_flag:0x%x\r\n", __func__, usb_hub_class_dev->usbh_hub_connect_class_device_flag[bk_usbh_hub_port_index(hport)]);
 
-				usbh_hub_port_info = &usb_hub_class_dev->usbh_hub_port_info[hport->port][device_index];
+				usbh_hub_port_info = &usb_hub_class_dev->usbh_hub_port_info[bk_usbh_hub_port_index(hport)][device_index];
 
-				if((usb_hub_class_dev->usbh_hub_connect_class_device_flag[hport->port] & (0x1 << device_index))
-					&& usb_hub_class_dev->usbh_hub_connect_cb[hport->port][device_index])
+				if((usb_hub_class_dev->usbh_hub_connect_class_device_flag[bk_usbh_hub_port_index(hport)] & (0x1 << device_index))
+					&& usb_hub_class_dev->usbh_hub_connect_cb[bk_usbh_hub_port_index(hport)][device_index])
 				{
-					connect_cb_arg = usb_hub_class_dev->usbh_hub_connect_cb_arg[hport->port][device_index];
-					USB_HUB_MD_LOGV("%s port_dev_info:0x%x port_index:%d dev_index:%d\r\n", __func__, usbh_hub_port_info, hport->port, device_index);
-					usb_hub_class_dev->usbh_hub_connect_cb[hport->port][device_index](usbh_hub_port_info, connect_cb_arg);
+					connect_cb_arg = usb_hub_class_dev->usbh_hub_connect_cb_arg[bk_usbh_hub_port_index(hport)][device_index];
+					USB_HUB_MD_LOGV("%s port_dev_info:0x%x port_index:%d dev_index:%d\r\n", __func__, usbh_hub_port_info, bk_usbh_hub_port_index(hport), device_index);
+					usb_hub_class_dev->usbh_hub_connect_cb[bk_usbh_hub_port_index(hport)][device_index](usbh_hub_port_info, connect_cb_arg);
 				}
 			}
 			break;
@@ -643,13 +754,13 @@ void bk_usbh_hub_class_connect_notification(struct usbh_hubport *hport, uint8_t 
 				if (usb_device) {
 					bk_usbh_hub_cdc_parse_param(hport, intf, usb_device);
 				}
-				usbh_hub_port_info = &usb_hub_class_dev->usbh_hub_port_info[hport->port][USB_CDC_DEVICE];
-				USB_HUB_MD_LOGD("%s, %s, connect_device_flag : 0x%x\r\n", __func__, hport->config.intf[intf].devname, usb_hub_class_dev->usbh_hub_connect_class_device_flag[hport->port]);
-				if ((usb_hub_class_dev->usbh_hub_connect_class_device_flag[hport->port] & (0x1 << USB_CDC_DEVICE))
-					&& usb_hub_class_dev->usbh_hub_connect_cb[hport->port][USB_CDC_DEVICE])
+				usbh_hub_port_info = &usb_hub_class_dev->usbh_hub_port_info[bk_usbh_hub_port_index(hport)][USB_CDC_DEVICE];
+				USB_HUB_MD_LOGD("%s, %s, connect_device_flag : 0x%x\r\n", __func__, hport->config.intf[intf].devname, usb_hub_class_dev->usbh_hub_connect_class_device_flag[bk_usbh_hub_port_index(hport)]);
+				if ((usb_hub_class_dev->usbh_hub_connect_class_device_flag[bk_usbh_hub_port_index(hport)] & (0x1 << USB_CDC_DEVICE))
+					&& usb_hub_class_dev->usbh_hub_connect_cb[bk_usbh_hub_port_index(hport)][USB_CDC_DEVICE])
 				{
-					connect_cb_arg = (usb_hub_class_dev->usbh_hub_connect_class_device_flag + hport->port);
-					usb_hub_class_dev->usbh_hub_connect_cb[hport->port][USB_CDC_DEVICE](usbh_hub_port_info, connect_cb_arg);
+					connect_cb_arg = (usb_hub_class_dev->usbh_hub_connect_class_device_flag + bk_usbh_hub_port_index(hport));
+					usb_hub_class_dev->usbh_hub_connect_cb[bk_usbh_hub_port_index(hport)][USB_CDC_DEVICE](usbh_hub_port_info, connect_cb_arg);
 				}
 			}
 			break;
@@ -679,15 +790,15 @@ void bk_usbh_hub_class_disconnect_notification(struct usbh_hubport *hport, uint8
 	{
 #if CONFIG_USBH_UAC
 		case USB_DEVICE_CLASS_AUDIO:
-			usbh_hub_port_info = &usb_hub_class_dev->usbh_hub_port_info[hport->port][USB_UAC_MIC_DEVICE];
+			usbh_hub_port_info = &usb_hub_class_dev->usbh_hub_port_info[bk_usbh_hub_port_index(hport)][USB_UAC_MIC_DEVICE];
 			
-			if((usb_hub_class_dev->usbh_hub_connect_class_device_flag[hport->port] & (0x1 << USB_UAC_MIC_DEVICE))
-				&& usb_hub_class_dev->usbh_hub_disconnect_cb[hport->port][USB_UAC_MIC_DEVICE])
+			if((usb_hub_class_dev->usbh_hub_connect_class_device_flag[bk_usbh_hub_port_index(hport)] & (0x1 << USB_UAC_MIC_DEVICE))
+				&& usb_hub_class_dev->usbh_hub_disconnect_cb[bk_usbh_hub_port_index(hport)][USB_UAC_MIC_DEVICE])
 			{
-				disconnect_cb_arg = usb_hub_class_dev->usbh_hub_connect_cb_arg[hport->port][USB_UAC_MIC_DEVICE];
-				usb_hub_class_dev->usbh_hub_disconnect_cb[hport->port][USB_UAC_MIC_DEVICE](usbh_hub_port_info, disconnect_cb_arg);
+				disconnect_cb_arg = usb_hub_class_dev->usbh_hub_connect_cb_arg[bk_usbh_hub_port_index(hport)][USB_UAC_MIC_DEVICE];
+				usb_hub_class_dev->usbh_hub_disconnect_cb[bk_usbh_hub_port_index(hport)][USB_UAC_MIC_DEVICE](usbh_hub_port_info, disconnect_cb_arg);
 			}
-			usb_hub_class_dev->usbh_hub_connect_class_device_flag[hport->port] &= ~(0x1 << USB_UAC_MIC_DEVICE);
+			usb_hub_class_dev->usbh_hub_connect_class_device_flag[bk_usbh_hub_port_index(hport)] &= ~(0x1 << USB_UAC_MIC_DEVICE);
 			//free param & param_config
 			usb_device_param = usbh_hub_port_info->usb_device_param;
 			usb_device_param_config = usbh_hub_port_info->usb_device_param_config;
@@ -700,14 +811,14 @@ void bk_usbh_hub_class_disconnect_notification(struct usbh_hubport *hport, uint8
 				os_free(usb_device_param_config);
 			}
 
-			usbh_hub_port_info = &usb_hub_class_dev->usbh_hub_port_info[hport->port][USB_UAC_SPEAKER_DEVICE];
-			if((usb_hub_class_dev->usbh_hub_connect_class_device_flag[hport->port] & (0x1 << USB_UAC_SPEAKER_DEVICE))
-				&& usb_hub_class_dev->usbh_hub_disconnect_cb[hport->port][USB_UAC_SPEAKER_DEVICE])
+			usbh_hub_port_info = &usb_hub_class_dev->usbh_hub_port_info[bk_usbh_hub_port_index(hport)][USB_UAC_SPEAKER_DEVICE];
+			if((usb_hub_class_dev->usbh_hub_connect_class_device_flag[bk_usbh_hub_port_index(hport)] & (0x1 << USB_UAC_SPEAKER_DEVICE))
+				&& usb_hub_class_dev->usbh_hub_disconnect_cb[bk_usbh_hub_port_index(hport)][USB_UAC_SPEAKER_DEVICE])
 			{
-				disconnect_cb_arg = usb_hub_class_dev->usbh_hub_connect_cb_arg[hport->port][USB_UAC_SPEAKER_DEVICE];
-				usb_hub_class_dev->usbh_hub_disconnect_cb[hport->port][USB_UAC_SPEAKER_DEVICE](usbh_hub_port_info, disconnect_cb_arg);
+				disconnect_cb_arg = usb_hub_class_dev->usbh_hub_connect_cb_arg[bk_usbh_hub_port_index(hport)][USB_UAC_SPEAKER_DEVICE];
+				usb_hub_class_dev->usbh_hub_disconnect_cb[bk_usbh_hub_port_index(hport)][USB_UAC_SPEAKER_DEVICE](usbh_hub_port_info, disconnect_cb_arg);
 			}
-			usb_hub_class_dev->usbh_hub_connect_class_device_flag[hport->port] &= ~(0x1 << USB_UAC_SPEAKER_DEVICE);
+			usb_hub_class_dev->usbh_hub_connect_class_device_flag[bk_usbh_hub_port_index(hport)] &= ~(0x1 << USB_UAC_SPEAKER_DEVICE);
 			//free param & param_config
 			usb_device_param = usbh_hub_port_info->usb_device_param;
 			usb_device_param_config = usbh_hub_port_info->usb_device_param_config;
@@ -724,14 +835,14 @@ void bk_usbh_hub_class_disconnect_notification(struct usbh_hubport *hport, uint8
 #endif
 #if CONFIG_USBH_UVC
 		case USB_DEVICE_CLASS_VIDEO:
-			usbh_hub_port_info = &usb_hub_class_dev->usbh_hub_port_info[hport->port][USB_UVC_DEVICE];
-			if((usb_hub_class_dev->usbh_hub_connect_class_device_flag[hport->port] & (0x1 << USB_UVC_DEVICE))
-				&& usb_hub_class_dev->usbh_hub_disconnect_cb[hport->port][USB_UVC_DEVICE])
+			usbh_hub_port_info = &usb_hub_class_dev->usbh_hub_port_info[bk_usbh_hub_port_index(hport)][USB_UVC_DEVICE];
+			if((usb_hub_class_dev->usbh_hub_connect_class_device_flag[bk_usbh_hub_port_index(hport)] & (0x1 << USB_UVC_DEVICE))
+				&& usb_hub_class_dev->usbh_hub_disconnect_cb[bk_usbh_hub_port_index(hport)][USB_UVC_DEVICE])
 			{
-				disconnect_cb_arg = usb_hub_class_dev->usbh_hub_connect_cb_arg[hport->port][USB_UVC_DEVICE];
-				usb_hub_class_dev->usbh_hub_disconnect_cb[hport->port][USB_UVC_DEVICE](usbh_hub_port_info, disconnect_cb_arg);
+				disconnect_cb_arg = usb_hub_class_dev->usbh_hub_connect_cb_arg[bk_usbh_hub_port_index(hport)][USB_UVC_DEVICE];
+				usb_hub_class_dev->usbh_hub_disconnect_cb[bk_usbh_hub_port_index(hport)][USB_UVC_DEVICE](usbh_hub_port_info, disconnect_cb_arg);
 			}
-			usb_hub_class_dev->usbh_hub_connect_class_device_flag[hport->port] &= ~(0x1 << USB_UVC_DEVICE);
+			usb_hub_class_dev->usbh_hub_connect_class_device_flag[bk_usbh_hub_port_index(hport)] &= ~(0x1 << USB_UVC_DEVICE);
 			//free param & param_config
 			usb_device_param        = usbh_hub_port_info->usb_device_param;
 			usb_device_param_config = usbh_hub_port_info->usb_device_param_config;
@@ -749,14 +860,14 @@ void bk_usbh_hub_class_disconnect_notification(struct usbh_hubport *hport, uint8
 #if CONFIG_USB_CDC
 		case USB_DEVICE_CLASS_CDC:
 			{
-				usbh_hub_port_info = &usb_hub_class_dev->usbh_hub_port_info[hport->port][USB_CDC_DEVICE];
-				if ((usb_hub_class_dev->usbh_hub_connect_class_device_flag[hport->port] & (0x1 << USB_CDC_DEVICE))
-					&& usb_hub_class_dev->usbh_hub_disconnect_cb[hport->port][USB_CDC_DEVICE])
+				usbh_hub_port_info = &usb_hub_class_dev->usbh_hub_port_info[bk_usbh_hub_port_index(hport)][USB_CDC_DEVICE];
+				if ((usb_hub_class_dev->usbh_hub_connect_class_device_flag[bk_usbh_hub_port_index(hport)] & (0x1 << USB_CDC_DEVICE))
+					&& usb_hub_class_dev->usbh_hub_disconnect_cb[bk_usbh_hub_port_index(hport)][USB_CDC_DEVICE])
 				{
-					disconnect_cb_arg = (usb_hub_class_dev->usbh_hub_connect_class_device_flag + hport->port);
-					usb_hub_class_dev->usbh_hub_disconnect_cb[hport->port][USB_CDC_DEVICE](usbh_hub_port_info, disconnect_cb_arg);
+					disconnect_cb_arg = (usb_hub_class_dev->usbh_hub_connect_class_device_flag + bk_usbh_hub_port_index(hport));
+					usb_hub_class_dev->usbh_hub_disconnect_cb[bk_usbh_hub_port_index(hport)][USB_CDC_DEVICE](usbh_hub_port_info, disconnect_cb_arg);
 				}
-				usb_hub_class_dev->usbh_hub_connect_class_device_flag[hport->port] &= ~(0x1 << USB_CDC_DEVICE);
+				usb_hub_class_dev->usbh_hub_connect_class_device_flag[bk_usbh_hub_port_index(hport)] &= ~(0x1 << USB_CDC_DEVICE);
 				//free param & param config
 				usb_device_param        = usbh_hub_port_info->usb_device_param;
 				usb_device_param_config = usbh_hub_port_info->usb_device_param_config;
@@ -825,10 +936,18 @@ bk_err_t bk_usbh_hub_port_video_open_handle(bk_usb_hub_port_info *port_dev_info)
 
 	uint8_t formatindex = config->format_index;
 	uint8_t frameindex  = config->frame_index;
-	uint32_t dwMaxVideoFrameSize      = (config->width) * (config->height) * 2;
-	uint32_t dwMaxPayloadTransferSize = config->ep_desc->wMaxPacketSize;
 	uint8_t altsettings = 0;
 	int ret = BK_OK;
+#if CONFIG_BK_USB_CHERRYUSB_V1_6
+	(void)frameindex;
+	/* v1.6 usbh_video_open() performs the full probe/commit negotiation and the
+	 * data-interface SET_INTERFACE itself, keyed on (format_type,width,height).
+	 * It also re-inits ep0 internally, so the legacy manual dance below (and the
+	 * legacy usbh_ep0_pipe_reconfigure, whose hport->ep0 is not a pipe in v1.6)
+	 * must be skipped. */
+#else
+	uint32_t dwMaxVideoFrameSize      = (config->width) * (config->height) * 2;
+	uint32_t dwMaxPayloadTransferSize = config->ep_desc->wMaxPacketSize;
 	usbh_ep0_pipe_reconfigure(port_dev_info->hport->ep0, port_dev_info->hport->dev_addr, 0x40, port_dev_info->hport->speed);
 
 	usbh_videostreaming_get_cur_probe(uvc_device);
@@ -842,6 +961,7 @@ bk_err_t bk_usbh_hub_port_video_open_handle(bk_usb_hub_port_info *port_dev_info)
 	dwMaxPayloadTransferSize = uvc_device->probe.dwMaxPayloadTransferSize;
 	usbh_videostreaming_set_cur_commit(uvc_device, formatindex, frameindex, dwMaxVideoFrameSize, dwMaxPayloadTransferSize); /* select resolution from list */
 	usbh_videostreaming_get_cur_probe(uvc_device);
+#endif
 
 	/* Only select mult=0 (single-transaction) altsettings, pick the one with largest mps */
 	uint8_t best_altsetting = 0;
@@ -902,6 +1022,29 @@ bk_err_t bk_usbh_hub_port_video_open_handle(bk_usb_hub_port_info *port_dev_info)
 
 	config->ep_desc = (struct s_bk_usb_endpoint_descriptor *)&uvc_device->hport->config.intf[uvc_device->data_intf].altsetting[altsettings].ep[0].ep_desc;
 
+#if CONFIG_BK_USB_CHERRYUSB_V1_6
+	/* v1.6 open is keyed on (format_type, width, height) + altsetting. */
+	uint8_t v16_format_type = (formatindex > 0)
+		? uvc_device->format[formatindex - 1].format_type
+		: USBH_VIDEO_FORMAT_MJPEG;
+	ret = usbh_video_open(uvc_device, v16_format_type, config->width, config->height, altsettings);
+	if(ret < 0) {
+		if (ret == -EMFILE)
+			USB_HUB_MD_LOGW("usbh video has been opened.\n");
+		else {
+			USB_HUB_MD_LOGE("usbh_video_open:%d\r\n", ret);
+			ret = usbh_video_open(uvc_device, v16_format_type, config->width, config->height, altsettings);
+			if(ret < 0) {
+				USB_HUB_MD_LOGE("CHECK VIDEO OPEN FAIL\n");
+			} else{
+				ret = BK_OK;
+			}
+		}
+	} else {
+		ret = BK_OK;
+	}
+	return ret;
+#else
 	ret = usbh_video_open(uvc_device, altsettings); /* select ep mps from altsettings ,just for reference now */
 	if(ret < 0) {
 		if (ret == -EMFILE)
@@ -919,6 +1062,7 @@ bk_err_t bk_usbh_hub_port_video_open_handle(bk_usb_hub_port_info *port_dev_info)
 		ret = BK_OK;
 	}
 	return ret;
+#endif
 }
 
 bk_err_t bk_usbh_hub_port_dev_open(E_USB_HUB_PORT_INDEX port_index, E_USB_DEVICE_T device_index, bk_usb_hub_port_info *port_dev_info)
@@ -970,7 +1114,11 @@ bk_err_t bk_usbh_hub_port_dev_open(E_USB_HUB_PORT_INDEX port_index, E_USB_DEVICE
 #if CONFIG_USBH_UAC
 		case USB_UAC_MIC_DEVICE:
 			if(usb_hub_class_dev->usbh_hub_connect_class_device_flag[port_index] & (0x1 << USB_UAC_MIC_DEVICE)) {
+#if CONFIG_BK_USB_CHERRYUSB_V1_6
+				ret = usbh_audio_open((struct usbh_audio *)port_dev_info->usb_device, "mic", ((bk_uac_mic_config_t *)port_dev_info->usb_device_param_config)->mic_samples_frequence, UAC_DEFAULT_BIT_RESOLUTION);
+#else
 				ret = usbh_audio_open((struct usbh_audio *)port_dev_info->usb_device, "mic", ((bk_uac_mic_config_t *)port_dev_info->usb_device_param_config)->mic_samples_frequence);
+#endif
 				if(ret < 0) {
 					USB_HUB_MD_LOGE("usbh_mic_open:%d\r\n", ret);
 				} else {
@@ -982,7 +1130,11 @@ bk_err_t bk_usbh_hub_port_dev_open(E_USB_HUB_PORT_INDEX port_index, E_USB_DEVICE
 			break;
 		case USB_UAC_SPEAKER_DEVICE:
 			if(usb_hub_class_dev->usbh_hub_connect_class_device_flag[port_index] & (0x1 << USB_UAC_SPEAKER_DEVICE)) {
+#if CONFIG_BK_USB_CHERRYUSB_V1_6
+				ret = usbh_audio_open((struct usbh_audio *)port_dev_info->usb_device, "speaker", ((bk_uac_spk_config_t *)port_dev_info->usb_device_param_config)->spk_samples_frequence, UAC_DEFAULT_BIT_RESOLUTION);
+#else
 				ret = usbh_audio_open((struct usbh_audio *)port_dev_info->usb_device, "speaker", ((bk_uac_spk_config_t *)port_dev_info->usb_device_param_config)->spk_samples_frequence);
+#endif
 				if(ret < 0) {
 					USB_HUB_MD_LOGE("usbh_speaker_open:%d\r\n", ret);
 				} else {

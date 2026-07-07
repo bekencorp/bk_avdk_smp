@@ -3,16 +3,10 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  */
-#include <components/cherryusb/usbd_core.h>
+#include "usbd_core.h"
 #include "usb_beken_musb_reg.h"
 #include "sys_driver.h"
 #include <driver/int.h>
-#include "bk_misc.h"
-
-#include <components/usb.h>
-
-#include "riscv_bridge/riscv_usb_bridge.h"
-#include "riscv_bridge/riscv_usb_probe_defs.h"
 
 #define HWREG(x) \
     (*((volatile uint32_t *)(x)))
@@ -21,60 +15,62 @@
 #define HWREGB(x) \
     (*((volatile uint8_t *)(x)))
 
+#ifndef USBD_IRQHandler
+#define USBD_IRQHandler USB_Handler //use actual usb irq name instead
+#endif
+
 #ifndef USB_BASE
 #define USB_BASE (SOC_USB_HS_BASE)
 #endif
 
 #define REG_USB_BASE_ADDR              USB_BASE
+#define REG_AHB2_USB_DEVICE_ID         (*((volatile unsigned char *)   (REG_USB_BASE_ADDR + 0x280)))
+#define REG_AHB2_USB_VERSION_ID        (*((volatile unsigned char *)   (REG_USB_BASE_ADDR + 0x284)))
+#define REG_AHB2_USB_GLOBAL_CTRL       (*((volatile unsigned char *)   (REG_USB_BASE_ADDR + 0x288)))
+#define REG_AHB2_USB_DEVICE_STATUS     (*((volatile unsigned char *)   (REG_USB_BASE_ADDR + 0x28c)))
+#define REG_AHB2_USB_OTG_CFG           (*((volatile unsigned char *)   (REG_USB_BASE_ADDR + 0x290)))
+#define REG_AHB2_USB_DMA_ENDP          (*((volatile unsigned char *)   (REG_USB_BASE_ADDR + 0x294)))
+#define REG_AHB2_USB_VTH               (*((volatile unsigned char *)   (REG_USB_BASE_ADDR + 0x298)))
+#define REG_AHB2_USB_GEN               (*((volatile unsigned char *)   (REG_USB_BASE_ADDR + 0x29C)))
+#define REG_AHB2_USB_STAT              (*((volatile unsigned char *)   (REG_USB_BASE_ADDR + 0x2A0)))
+#define REG_AHB2_USB_INT               (*((volatile unsigned char *)   (REG_USB_BASE_ADDR + 0x2A4)))
+#define REG_AHB2_USB_RESET             (*((volatile unsigned char *)   (REG_USB_BASE_ADDR + 0x2A8)))
+#define REG_AHB2_USB_DEV_CFG           (*((volatile unsigned char *)   (REG_USB_BASE_ADDR + 0x2AC)))
 
-#define REG_USB_USR_700                (*((volatile unsigned long *)   (REG_USB_BASE_ADDR + 0x700)))
-#define REG_USB_USR_704                (*((volatile unsigned long *)   (REG_USB_BASE_ADDR + 0x704)))
-#define REG_USB_USR_708                (*((volatile unsigned long *)   (REG_USB_BASE_ADDR + 0x708)))
-#define REG_USB_USR_70C                (*((volatile unsigned long *)   (REG_USB_BASE_ADDR + 0x70C)))
-#define REG_USB_USR_710                (*((volatile unsigned long *)   (REG_USB_BASE_ADDR + 0x710)))
+#define MUSB_FADDR_OFFSET 0x00
+#define MUSB_POWER_OFFSET 0x01
+#define MUSB_TXIS_OFFSET  0x02
+#define MUSB_RXIS_OFFSET  0x04
+#define MUSB_TXIEL_OFFSET 0x07
+#define MUSB_TXIEH_OFFSET 0x08
+#define MUSB_RXIEL_OFFSET 0x09
+#define MUSB_RXIEH_OFFSET 0x0A
+#define MUSB_IS_OFFSET    0x06
+#define MUSB_IE_OFFSET    0x0B
 
-/* 00h-0Fh Common USB registers */
-#define MUSB_FADDR_OFFSET    0x00
-#define MUSB_POWER_OFFSET    0x01
-#define MUSB_INTRTX_OFFSET   0x02
-#define MUSB_INTRRX_OFFSET   0x04
-#define MUSB_INTRTXE_OFFSET  0x06
-#define MUSB_INTRRXE_OFFSET  0x08
-#define MUSB_INTRUSB_OFFSET  0x0A
-#define MUSB_INTRUSBE_OFFSET 0x0B
-#define MUSB_FRAME_OFFSET    0x0C
-#define MUSB_INDEX_OFFSET    0x0E
-#define MUSB_TESTMODE_OFFSET 0x0F
+#define MUSB_EPIDX_OFFSET 0x0E
 
-/* 10h-1Fh Host/Peripheral mode */
-#define MUSB_IND_TXMAXP_OFFSET   0x10
-#define MUSB_IND_TXCSRL_OFFSET   0x12
-#define MUSB_IND_TXCSRH_OFFSET   0x13
-#define MUSB_IND_RXMAXP_OFFSET   0x14
-#define MUSB_IND_RXCSRL_OFFSET   0x16
-#define MUSB_IND_RXCSRH_OFFSET   0x17
-#define MUSB_IND_RXCOUNT_OFFSET  0x18
+#define MUSB_IND_TXMAP_OFFSET   0x10
+#define MUSB_IND_TXCSRL_OFFSET  0x11
+#define MUSB_IND_TXCSRH_OFFSET  0x12
+#define MUSB_IND_RXMAP_OFFSET   0x13
+#define MUSB_IND_RXCSRL_OFFSET  0x14
+#define MUSB_IND_RXCSRH_OFFSET  0x15
+#define MUSB_IND_RXCOUNT_OFFSET 0x16
 
-/* 20h-5Fh EP0-15 FIFOs */
 #define MUSB_FIFO_OFFSET 0x20
+
+#define MUSB_DEVCTL_OFFSET 0x0F
+
+#define MUSB_TXRXFIFOSZ_OFFSET  0x1F
+
+#define MUSB_TX_DYNA_CONG_OFFSET 0x1C
+#define MUSB_RX_DYNA_CONG_OFFSET 0x1E
+
 #define USB_FIFO_BASE(ep_idx) (USB_BASE + MUSB_FIFO_OFFSET + 0x4 * ep_idx)
 
-/* 60h-7Fh Additional Control & Configuration Registers */
-#define MUSB_DEVCTL_OFFSET     0x60
-#define MUSB_MISC_OFFSET       0x61
-#define MUSB_TXFIFOSZ_OFFSET   0x62
-#define MUSB_RXFIFOSZ_OFFSET   0x63
-#define MUSB_TXFIFOADD_OFFSET  0x64
-#define MUSB_RXFIFOADD_OFFSET  0x66
-
-#define MUSB_LPM_ATTR_OFFSET   0x360
-#define MUSB_LPM_CNTRL_OFFSET  0x362
-#define MUSB_LPM_INTREN_OFFSET 0x363
-#define MUSB_LPM_INTR_OFFSET   0x364
-#define MUSB_LPM_FADDR_OFFSET  0x365
-
 #ifndef USB_NUM_BIDIR_ENDPOINTS
-#define USB_NUM_BIDIR_ENDPOINTS 16
+#define USB_NUM_BIDIR_ENDPOINTS 8
 #endif
 
 typedef enum {
@@ -115,13 +111,13 @@ volatile bool zlp_flag = 0;
 /* get current active ep */
 static uint8_t musb_get_active_ep(void)
 {
-    return HWREGB(USB_BASE + MUSB_INDEX_OFFSET);
+    return HWREGB(USB_BASE + MUSB_EPIDX_OFFSET);
 }
 
 /* set the active ep */
 static void musb_set_active_ep(uint8_t ep_index)
 {
-    HWREGB(USB_BASE + MUSB_INDEX_OFFSET) = ep_index;
+    HWREGB(USB_BASE + MUSB_EPIDX_OFFSET) = ep_index;
 }
 
 static void musb_write_packet(uint8_t ep_idx, uint8_t *buffer, uint16_t len)
@@ -202,261 +198,42 @@ static uint32_t musb_get_fifo_size(uint16_t mps, uint16_t *used)
     return USB_TXFIFOSZ_SIZE_8;
 }
 
-#if CONFIG_USB_RISCV_BRIDGE
-/* Device-role drain protocol relayed by the RISC-V firmware via the shared
- * probe. MUST mirror
- * ap/properties/modules/bk_riscv/riscv_src/fw/common/sys_sw_regs_shared.h. The
- * firmware accumulates per-item flags (pending_usbd_evt / pending_setup /
- * pending_ep_in[] / pending_ep_out[]) and raises a single ISR_DRAIN; we replay
- * every set flag so coalesced IPIs never drop EP0 transactions. */
-#define RISCV_USBD_EVT_ISR_DRAIN  0x16U
-#define RISCV_USBD_PEND_RESET     0x1U
-#define RISCV_USBD_PEND_SUSPEND   0x2U
-#define RISCV_USBD_PEND_RESUME    0x4U
-
-/* Registered in usb_hc_beken_musb.c; shared IPI_DOMAIN_USB callback. */
-extern bk_err_t usb_hc_riscv_ipi_enable(void);
-
-static uint32_t s_dev_last_irq_seq;
-
-/* Fill the shared probe so the RISC-V firmware dispatches to its device ISR.
- * Runs BEFORE usb_dc_riscv_device_prepare() starts the core: g_musb_udc /
- * usb_ep0_state are device-driver symbols the firmware reads in place via
- * these pointers (mirroring how the host path publishes g_musb_hcd). owner is
- * left at AP until the IPI is armed, then flipped to RISCV (see below). */
-static void usb_dc_riscv_probe_init_device(void)
-{
-    volatile riscv_usb_probe_t *ctx = get_riscv_usb_probe();
-
-    s_dev_last_irq_seq = 0;
-    ctx->magic = RISCV_USB_PROBE_MAGIC;
-    ctx->owner = RISCV_USB_PROBE_OWNER_AP;
-    ctx->irq_seq = 0;
-    ctx->event = 0;
-    ctx->event_data = 0;
-    ctx->g_musb_hcd_addr = 0;
-    ctx->g_musb_udc_addr = SOC_SRAM_PERI_ADDR((uint32_t)(uintptr_t)&g_musb_udc);
-    ctx->usb_ep0_state_addr = SOC_SRAM_PERI_ADDR((uint32_t)(uintptr_t)&usb_ep0_state);
-    ctx->pending_ep0 = 0;
-    ctx->role = RISCV_USB_ROLE_DEVICE;
-    ctx->pending_usbd_evt = 0;
-    ctx->pending_setup = 0;
-    for (uint32_t i = 0U; i < (uint32_t)RISCV_USB_PROBE_PIPE_NUM; i++) {
-        ctx->pending_pipe_tx[i] = 0;
-        ctx->pending_pipe_rx[i] = 0;
-        ctx->pending_ep_in[i] = 0;
-        ctx->pending_ep_out[i] = 0;
-    }
-}
-
-/* AP-side consumer of the device drain protocol. Called from the IPI callback
- * when probe->role is DEVICE. The RISC-V firmware owns all MUSB register/FIFO
- * access and updates g_musb_udc in place; here we only replay the cherryusb
- * upcalls, mirroring the M55-resident USBD_IRQHandler order
- * (RESET -> resume/suspend -> SETUP -> OUT -> IN).
- *
- * Snapshot+clear the pending flags before processing so a flag set by a new
- * RISC-V ISR mid-drain is preserved (its finalize bumps irq_seq -> next poll).
- * This mirrors usb_hc_riscv_poll_events()'s host drain. */
-void usb_dc_riscv_poll_events(void)
-{
-    volatile riscv_usb_probe_t *ctx = get_riscv_usb_probe();
-    uint32_t seq;
-
-    seq = ctx->irq_seq;
-    if (seq == s_dev_last_irq_seq) {
-        return;
-    }
-    s_dev_last_irq_seq = seq;
-
-    if (ctx->event == RISCV_USBD_EVT_ISR_DRAIN) {
-        uint32_t usbd_evt = ctx->pending_usbd_evt;
-        uint32_t setup_pending = ctx->pending_setup;
-        uint32_t in_pending[RISCV_USB_PROBE_PIPE_NUM];
-        uint32_t out_pending[RISCV_USB_PROBE_PIPE_NUM];
-        uint32_t ep;
-
-        ctx->pending_usbd_evt = 0;
-        ctx->pending_setup = 0;
-        for (ep = 0U; ep < (uint32_t)RISCV_USB_PROBE_PIPE_NUM; ep++) {
-            in_pending[ep] = ctx->pending_ep_in[ep];
-            ctx->pending_ep_in[ep] = 0;
-            out_pending[ep] = ctx->pending_ep_out[ep];
-            ctx->pending_ep_out[ep] = 0;
-        }
-
-        if (usbd_evt & RISCV_USBD_PEND_RESET) {
-            memset(&g_musb_udc, 0, sizeof(struct musb_udc));
-            g_musb_udc.fifo_size_offset = USB_CTRL_EP_MPS;
-            usbd_event_reset_handler();
-            usb_ep0_state = USB_EP0_STATE_SETUP;
-        }
-        if (usbd_evt & RISCV_USBD_PEND_RESUME) {
-            usbd_event_resume_handler();
-        }
-        if (usbd_evt & RISCV_USBD_PEND_SUSPEND) {
-            usbd_event_suspend_handler();
-        }
-        if (setup_pending) {
-            usbd_event_ep0_setup_complete_handler((uint8_t *)&g_musb_udc.setup);
-        }
-        for (ep = 0U; ep < (uint32_t)RISCV_USB_PROBE_PIPE_NUM; ep++) {
-            if (out_pending[ep]) {
-                usbd_event_ep_out_complete_handler((uint8_t)ep,
-                                                   g_musb_udc.out_ep[ep].actual_xfer_len);
-            }
-        }
-        for (ep = 0U; ep < (uint32_t)RISCV_USB_PROBE_PIPE_NUM; ep++) {
-            if (in_pending[ep]) {
-                usbd_event_ep_in_complete_handler((uint8_t)(ep | 0x80U),
-                                                  g_musb_udc.in_ep[ep].actual_xfer_len);
-            }
-        }
-    }
-
-    /* route USB HS IRQ back to RISC-V (bit8=1); the firmware's finalize handed
-     * it to AP for the duration of this drain. */
-    {
-        uint32_t ints_config = sys_drv_get_ints_config_riscv_0_31();
-
-        ints_config |= (1U << 8);
-        sys_drv_set_ints_config_riscv_0_31(ints_config);
-    }
-}
-#endif /* CONFIG_USB_RISCV_BRIDGE */
-
 __WEAK void usb_dc_low_level_init(void)
 {
-    USB_LOG_INFO("[usb_dc_ll] enter; vote CPU freq + enable analog phy + USB clock\r\n");
+    uint8_t reg = 0;
 
-    extern void bk_analog_layer_usb_sys_related_ops(uint32_t usb_mode, bool ops);
-    bk_analog_layer_usb_sys_related_ops(USB_DEVICE_MODE, true);
-
-#if CONFIG_SOC_BK7259
-    /* BK7259 has a different system-control / interrupt model than
-     * BK7258. The legacy macro USB_INTERRUPT_CTRL_BIT (defined in
-     * middleware/soc/bk7259_ap/hal/sys_types.h:44) tries to expand
-     * SYS_CPU0_INT_0_31_EN_CPU0_USB_INT_EN_POS, which is a BK7258
-     * register-bit symbol that does NOT exist on the BK7259 system
-     * controller -- instead it ships a pair of explicit USB_FS / USB_HS
-     * interrupt sources (INT_SRC_USB_FS=7, INT_SRC_USB_HS=8 in
-     * include/soc/bk7259/int_types_impl.h). Likewise INT_SRC_USB itself
-     * is not defined on BK7259.
-     *
-     * The USB device controller this file drives (MUSB-MHDRC) sits on
-     * the high-speed USB phy on BK7259, so we route its interrupt the
-     * same way the host driver (CherryUSB/port/beken_musb/
-     * usb_hc_beken_musb.c L856-861) does: register the ISR against
-     * INT_SRC_USB_HS and enable that interrupt line on the core that
-     * actually services it (CPU2 on the SMP build, current core
-     * otherwise).
-     *
-     * cmds/input.txt section 11 has the full incident write-up; this
-     * patch is the first half ("BK7258 -> BK7259 interrupt model
-     * adaptation"). The second half lives in usbd_msc.c
-     * (MSC_SD_BACKEND_AVAILABLE) and sd_card_driver.c (clock-gate
-     * ordering). All three must coexist for U-disk over MSC to work
-     * on BK7259. */
-    /* Sanity-check the ISR address before we register it. If the
-     * link picked up a __WEAK NULL stub for USBD_IRQHandler (which
-     * could happen if the device port file got compiled without a
-     * concrete usbd_irq path) the very first USB interrupt would
-     * jump to PC=0 -- exactly the MemFault pattern we are debugging
-     * (see cmds/input.txt). Defensive: we still register so the
-     * crash, if any, is reproducible, but we LOUDLY warn first. */
-    /* MILESTONE A: try the RISC-V USB bridge first. The stub currently
-     * returns -1 (see riscv_usb_bridge.c::usb_dc_riscv_device_prepare()),
-     * so we always fall through to the legacy M55 path below. The probe
-     * is wired here, so the follow-up milestone only needs to flip the
-     * stub return value -- the call site is already in place and the
-     * regression behaviour (M55 fallback on bridge failure) is the safe
-     * default. */
-    int riscv_bridge_rc = -1;
-#if CONFIG_USB_RISCV_BRIDGE
-    /* Publish the device-role handshake region BEFORE starting the core (the
-     * firmware reads g_musb_udc / usb_ep0_state in place via these pointers).
-     * owner stays AP so the firmware ISR is dormant until we arm the IPI and
-     * flip owner to RISCV below -- same handshake the host path uses. */
-    usb_dc_riscv_probe_init_device();
-    riscv_bridge_rc = usb_dc_riscv_device_prepare();
-    if (riscv_bridge_rc == 0) {
-#if CONFIG_IPI
-        if (usb_hc_riscv_ipi_enable() != BK_OK) {
-            USB_LOG_ERR("[usb_dc_ll] arm riscv device IPI failed\r\n");
-        }
-#endif
-        get_riscv_usb_probe()->owner = RISCV_USB_PROBE_OWNER_RISCV;
-        USB_LOG_INFO("[usb_dc_ll] USBD IRQ now owned by RISC-V bridge; skip M55 ISR registration\r\n");
-    } else {
-        USB_LOG_INFO("[usb_dc_ll] RISC-V device bridge unavailable (rc=%d); using M55 USBD_IRQHandler path\r\n",
-                     riscv_bridge_rc);
-    }
-#endif
-
-    if (riscv_bridge_rc != 0) {
-        USB_LOG_INFO("[usb_dc_ll] register INT_SRC_USB_HS isr=%p\r\n", (void*)USBD_IRQHandler);
-        if (USBD_IRQHandler == NULL) {
-            USB_LOG_ERR("[usb_dc_ll] USBD_IRQHandler is NULL -- next USB IRQ will MemFault\r\n");
-        }
-        bk_int_isr_register(INT_SRC_USB_HS, USBD_IRQHandler, NULL);
-        bk_int_set_priority(INT_SRC_USB_HS, 2);
-#if CONFIG_SOC_SMP
-        USB_LOG_INFO("[usb_dc_ll] enable INT_SRC_USB_HS on CPU2 (SMP)\r\n");
-        sys_drv_set_int_en(CPU2_CORE_ID, INT_SRC_USB_HS, 1);
-#else
-        USB_LOG_INFO("[usb_dc_ll] enable INT_SRC_USB_HS on current core\r\n");
-        sys_drv_set_int_en(rtos_get_core_id(), INT_SRC_USB_HS, 1);
-#endif
-    }
-#else  /* CONFIG_SOC_BK7259 */
+    sys_drv_usb_clock_ctrl(true, NULL);
+    sys_drv_usb_analog_phy_en(true, NULL);
+    sys_drv_usb_analog_speed_en(true, NULL);
+    sys_drv_usb_analog_ckmcu_en(true, NULL);
+    sys_drv_usb_analog_deepsleep_en(false);
     sys_drv_int_enable(USB_INTERRUPT_CTRL_BIT);
 
     bk_int_isr_register(INT_SRC_USB, USBD_IRQHandler, NULL);
     bk_int_set_priority(INT_SRC_USB, 2);
-#endif /* CONFIG_SOC_BK7259 */
 
-    REG_USB_USR_710 |= (0x1<<15);
-    REG_USB_USR_710 |= (0x1<<14);
-    REG_USB_USR_710 |= (0x1<<16);
-    REG_USB_USR_710 |= (0x1<<17);
-    REG_USB_USR_710 |= (0x1<<18);
-    REG_USB_USR_710 |= (0x1<<19);
-    REG_USB_USR_710 &=~(0x1<<20);
-    REG_USB_USR_710 |= (0x1<<21);
-    REG_USB_USR_710 |= (0x0<< 0);
-    REG_USB_USR_710 |= (0x1<< 5);
-    REG_USB_USR_710 |= (0x1<< 6);
-    REG_USB_USR_710 |= (0x1<< 9);
-    REG_USB_USR_710 |= (0x1<<10);
-    REG_USB_USR_710 |= (0x1<< 7);
-
-    REG_USB_USR_708 = 0x1;
-    USB_LOG_INFO("[usb_dc_ll] leave; USB device controller phy/IRQ live\r\n");
+    REG_AHB2_USB_OTG_CFG = 0x9;
+    REG_AHB2_USB_STAT = 0x07;
+    reg = REG_AHB2_USB_INT;
+    REG_AHB2_USB_INT = reg;
+    /*dp and dn driver current selection */
+    REG_AHB2_USB_GEN = (0x7 << 4) | (0x7 << 0);
+    REG_AHB2_USB_RESET = 0x01;
 }
 
 __WEAK void usb_dc_low_level_deinit(void)
 {
-    bk_pm_module_vote_cpu_freq(PM_DEV_ID_USB_1, PM_CPU_FRQ_DEFAULT);
-
-#if CONFIG_SOC_BK7259
-    /* Mirror image of low_level_init above: tear the per-core IRQ
-     * enable down BEFORE unregistering the ISR, otherwise a tail
-     * interrupt could fire into the now-unregistered slot. */
-#if CONFIG_SOC_SMP
-    sys_drv_set_int_en(CPU2_CORE_ID, INT_SRC_USB_HS, 0);
-#else
-    sys_drv_set_int_en(rtos_get_core_id(), INT_SRC_USB_HS, 0);
-#endif
-    bk_int_isr_unregister(INT_SRC_USB_HS);
-
-    sys_hal_usb_analog_phy_en(false);
-#else  /* CONFIG_SOC_BK7259 */
     bk_int_isr_unregister(INT_SRC_USB);
-    sys_hal_usb_analog_phy_en(false);
     sys_drv_int_disable(USB_INTERRUPT_CTRL_BIT);
-#endif /* CONFIG_SOC_BK7259 */
+
+    REG_AHB2_USB_OTG_CFG = 0x0;
+    REG_AHB2_USB_STAT = 0x00;
+    REG_AHB2_USB_RESET = 0x01;
 
     sys_drv_usb_clock_ctrl(false, NULL);
+    sys_drv_usb_analog_phy_en(false, NULL);
+    sys_drv_usb_analog_speed_en(false, NULL);
+    sys_drv_usb_analog_ckmcu_en(false, NULL);
 }
 
 int usb_dc_init(void)
@@ -475,16 +252,11 @@ int usb_dc_init(void)
     HWREGB(USB_BASE + MUSB_DEVCTL_OFFSET) |= USB_DEVCTL_SESSION;
 
     /* Enable USB interrupts */
-    HWREGB(USB_BASE + MUSB_INTRUSBE_OFFSET) = (USB_IE_RESET | USB_IE_SUSPND | USB_IE_RESUME);
-    HWREGH(USB_BASE + MUSB_INTRTXE_OFFSET) = USB_TXIE_EP0;
-    HWREGH(USB_BASE + MUSB_INTRRXE_OFFSET) = 0;
-
-    /* Enable and support extended LPM transactions */
-    HWREGB(USB_BASE + MUSB_LPM_CNTRL_OFFSET) = (USB_LPMCNTRL_EN_M | USB_LPMCNTRL_TXLPM | USB_LPMCNTRL_NAK);
-    HWREGB(USB_BASE + MUSB_LPM_INTREN_OFFSET) = (USB_LPMIM_ACK | USB_LPMIM_RES);
+    HWREGB(USB_BASE + MUSB_IE_OFFSET) = USB_IE_RESET;
+    HWREGB(USB_BASE + MUSB_TXIEL_OFFSET) = USB_TXIE_EP0;
+    HWREGB(USB_BASE + MUSB_RXIEL_OFFSET) = 0;
 
     HWREGB(USB_BASE + MUSB_POWER_OFFSET) |= USB_POWER_SOFTCONN;
-
     return 0;
 }
 
@@ -536,7 +308,9 @@ int usbd_ep_open(const struct usbd_endpoint_cfg *ep_cfg)
         g_musb_udc.out_ep[ep_idx].ep_type = ep_cfg->ep_type;
         g_musb_udc.out_ep[ep_idx].ep_enable = true;
 
-        HWREGH(USB_BASE + MUSB_IND_RXMAXP_OFFSET) = ep_cfg->ep_mps;
+        HWREGB(USB_BASE + MUSB_RXIEL_OFFSET) |= (1 << ep_idx);
+
+        HWREGB(USB_BASE + MUSB_IND_RXMAP_OFFSET) = ep_cfg->ep_mps;
 
         //
         // Allow auto clearing of RxPktRdy when packet of size max packet
@@ -577,9 +351,8 @@ int usbd_ep_open(const struct usbd_endpoint_cfg *ep_cfg)
             HWREGB(USB_BASE + MUSB_IND_RXCSRL_OFFSET) = USB_RXCSRL1_CLRDT;
 
         fifo_size = musb_get_fifo_size(ep_cfg->ep_mps, &used);
-
-        HWREGB(USB_BASE + MUSB_RXFIFOSZ_OFFSET) = fifo_size & 0x0f;
-        HWREGH(USB_BASE + MUSB_RXFIFOADD_OFFSET) = (g_musb_udc.fifo_size_offset >> 3);
+        HWREGH(USB_BASE + MUSB_RX_DYNA_CONG_OFFSET) = (fifo_size << 13)
+                                                      + (g_musb_udc.fifo_size_offset >> 3);
 
         g_musb_udc.fifo_size_offset += used;
     } else {
@@ -587,7 +360,9 @@ int usbd_ep_open(const struct usbd_endpoint_cfg *ep_cfg)
         g_musb_udc.in_ep[ep_idx].ep_type = ep_cfg->ep_type;
         g_musb_udc.in_ep[ep_idx].ep_enable = true;
 
-        HWREGH(USB_BASE + MUSB_IND_TXMAXP_OFFSET) = ep_cfg->ep_mps;
+        HWREGB(USB_BASE + MUSB_TXIEL_OFFSET) |= (1 << ep_idx);
+
+        HWREGB(USB_BASE + MUSB_IND_TXMAP_OFFSET) = ep_cfg->ep_mps;
 
         //
         // Allow auto setting of TxPktRdy when max packet size has been loaded
@@ -623,8 +398,8 @@ int usbd_ep_open(const struct usbd_endpoint_cfg *ep_cfg)
 
         fifo_size = musb_get_fifo_size(ep_cfg->ep_mps, &used);
 
-        HWREGB(USB_BASE + MUSB_TXFIFOSZ_OFFSET) = fifo_size & 0x0f;
-        HWREGH(USB_BASE + MUSB_TXFIFOADD_OFFSET) = (g_musb_udc.fifo_size_offset >> 3);
+        HWREGH(USB_BASE + MUSB_TX_DYNA_CONG_OFFSET) = (fifo_size << 13)
+                                                      + (g_musb_udc.fifo_size_offset >> 3);
 
         g_musb_udc.fifo_size_offset += used;
     }
@@ -745,7 +520,6 @@ int usbd_ep_start_write(const uint8_t ep, const uint8_t *data, uint32_t data_len
     data_len = MIN(data_len, g_musb_udc.in_ep[ep_idx].ep_mps);
 
     musb_write_packet(ep_idx, (uint8_t *)data, data_len);
-    HWREGH(USB_BASE + MUSB_INTRTXE_OFFSET) |= (1 << ep_idx);
 
     if (ep_idx == 0x00) {
         usb_ep0_state = USB_EP0_STATE_IN_DATA;
@@ -791,22 +565,15 @@ int usbd_ep_start_read(const uint8_t ep, uint8_t *data, uint32_t data_len)
     if (ep_idx == 0) {
         usb_ep0_state = USB_EP0_STATE_OUT_DATA;
     } else {
-        HWREGH(USB_BASE + MUSB_INTRRXE_OFFSET) |= (1 << ep_idx);
+        HWREGB(USB_BASE + MUSB_RXIEL_OFFSET) |= (1 << ep_idx);
     }
+
+    data_len = MIN(data_len, g_musb_udc.out_ep[ep_idx].ep_mps);
+    musb_read_packet(ep_idx, (uint8_t *)data, data_len);
+    HWREGB(USB_BASE + MUSB_IND_RXCSRL_OFFSET) &= ~(USB_RXCSRL1_RXRDY);
+
     musb_set_active_ep(old_ep_idx);
     return 0;
-}
-
-void usbd_remote_wakeup_from_L2_state(void)
-{
-    HWREGB(USB_BASE + MUSB_POWER_OFFSET) |= USB_POWER_RESUME;
-    delay_ms(10);
-    HWREGB(USB_BASE + MUSB_POWER_OFFSET) &= ~USB_POWER_RESUME;
-}
-
-void usbd_remote_wakeup_from_L1_state(void)
-{
-    HWREGB(USB_BASE + MUSB_LPM_CNTRL_OFFSET) |= USB_LPMCNTRL_RES;
 }
 
 static void handle_ep0(void)
@@ -888,93 +655,33 @@ static void handle_ep0(void)
     }
 }
 
-/* ------------------------------------------------------------------
- * BK7259 USB bring-up diagnostics (2026-05-19 U-disk debugging).
- *
- * usb_storage.c on the app side externs these as weak symbols. They
- * give an easy way to tell from the UART log whether the USB IRQ is
- * actually being delivered to AP CPU2 after the manual PHY power-up.
- * The two variables here are intentionally non-static so the linker
- * makes them visible to the app's extern declaration.
- * ------------------------------------------------------------------ */
-volatile uint32_t g_usbd_irq_count = 0;
-volatile uint8_t  g_usbd_last_intrusb = 0;
-
-#ifndef USBD_IRQ_DEBUG_PRINT_COUNT
-/* How many of the first IRQs to print verbose state for. After this
- * many, only the periodic watchdog dump in usb_storage.c keeps the
- * log alive. 8 is enough to see RESET + SETADDR + GET_DESCRIPTOR +
- * SET_CONFIG transitions but not enough to drown out other logs once
- * the SCSI traffic starts. */
-#define USBD_IRQ_DEBUG_PRINT_COUNT 8
-#endif
-
 void USBD_IRQHandler(void)
 {
     uint32_t is;
     uint32_t txis;
     uint32_t rxis;
-    uint32_t lpmris;
     uint8_t old_ep_idx;
     uint8_t ep_idx;
     uint16_t write_count, read_count;
 
-    is = HWREGB(USB_BASE + MUSB_INTRUSB_OFFSET);
-    txis = HWREGH(USB_BASE + MUSB_INTRTX_OFFSET);
-    rxis = HWREGH(USB_BASE + MUSB_INTRRX_OFFSET);
-    lpmris = HWREGB(USB_BASE + MUSB_LPM_INTR_OFFSET);
-    HWREGB(USB_BASE + MUSB_INTRUSB_OFFSET) = is;
-    HWREGB(USB_BASE + MUSB_LPM_INTR_OFFSET) = lpmris;
+    is = HWREGB(USB_BASE + MUSB_IS_OFFSET);
+    txis = HWREGH(USB_BASE + MUSB_TXIS_OFFSET);
+    rxis = HWREGH(USB_BASE + MUSB_RXIS_OFFSET);
+    HWREGB(USB_BASE + MUSB_IS_OFFSET) = is;
     old_ep_idx = musb_get_active_ep();
-
-    /* BK7259 bring-up: counter + first-N-times verbose dump. The
-     * sub-cost is one increment + one byte store, no allocation. The
-     * counters themselves are ALWAYS compiled in -- they're snapshotted
-     * by the user-space usb-dbg watchdog thread (see g_usbd_irq_count /
-     * g_usbd_last_intrusb externs in usb_storage.c) and we want that
-     * path available in production builds too. */
-    g_usbd_irq_count++;
-    g_usbd_last_intrusb = (uint8_t)is;
-#if CONFIG_USBD_IRQ_DEBUG_LOG
-    /* The verbose per-IRQ print itself is gated by Kconfig (default n).
-     *
-     * IRQ-context printf was empirically observed to wedge the bring-up:
-     * once SCSI traffic starts, the per-IRQ INFO line backs up on the
-     * UART TX FIFO inside the ISR, the ISR returns later and later, and
-     * eventually the AP cluster stops servicing the CP heartbeat ->
-     * mb_ipc_task asserts ~8 s later. We further bound the damage by
-     * only printing the first USBD_IRQ_DEBUG_PRINT_COUNT interrupts so
-     * the trace still survives enumeration (RESET / SETADDR / GET_DESC
-     * / SET_CONFIG) without bleeding into the SCSI data phase. */
-    if (g_usbd_irq_count <= USBD_IRQ_DEBUG_PRINT_COUNT) {
-        USB_LOG_DBG("[usbd_irq #%u] IS=0x%02x TX=0x%04x RX=0x%04x "
-                     "LPM=0x%02x POWER=0x%02x DEVCTL=0x%02x FADDR=%u%s%s%s%s\r\n",
-                     (unsigned)g_usbd_irq_count, (unsigned)is,
-                     (unsigned)txis, (unsigned)rxis, (unsigned)lpmris,
-                     HWREGB(USB_BASE + MUSB_POWER_OFFSET),
-                     HWREGB(USB_BASE + MUSB_DEVCTL_OFFSET),
-                     HWREGB(USB_BASE + MUSB_FADDR_OFFSET),
-                     (is & USB_IS_RESET)   ? " RESET"   : "",
-                     (is & USB_IS_SOF)     ? " SOF"     : "",
-                     (is & USB_IS_RESUME)  ? " RESUME"  : "",
-                     (is & USB_IS_SUSPEND) ? " SUSPEND" : "");
-    }
-#endif
 
     /* Receive a reset signal from the USB bus */
     if (is & USB_IS_RESET) {
         memset(&g_musb_udc, 0, sizeof(struct musb_udc));
         g_musb_udc.fifo_size_offset = USB_CTRL_EP_MPS;
         usbd_event_reset_handler();
-        HWREGH(USB_BASE + MUSB_INTRTXE_OFFSET) = USB_TXIE_EP0;
-        HWREGH(USB_BASE + MUSB_INTRRXE_OFFSET) = 0;
+        HWREGB(USB_BASE + MUSB_TXIEL_OFFSET) = USB_TXIE_EP0;
+        HWREGB(USB_BASE + MUSB_RXIEL_OFFSET) = 0;
 
         for (uint8_t i = 1; i < USB_NUM_BIDIR_ENDPOINTS; i++) {
             musb_set_active_ep(i);
-            HWREGB(USB_BASE + MUSB_TXFIFOSZ_OFFSET) = 0;
-            HWREGH(USB_BASE + MUSB_TXFIFOADD_OFFSET) = 0;
-            HWREGB(USB_BASE + MUSB_RXFIFOSZ_OFFSET) = 0;
-            HWREGH(USB_BASE + MUSB_RXFIFOADD_OFFSET) = 0;
+            HWREGH(USB_BASE + MUSB_RX_DYNA_CONG_OFFSET) = 0;
+            HWREGH(USB_BASE + MUSB_TX_DYNA_CONG_OFFSET) = 0;
         }
         usb_ep0_state = USB_EP0_STATE_SETUP;
     }
@@ -983,29 +690,15 @@ void USBD_IRQHandler(void)
     }
 
     if (is & USB_IS_RESUME) {
-        USB_LOG_DBG("usbd resume int triggered\r\n");
-        usbd_event_resume_handler();
     }
 
     if (is & USB_IS_SUSPEND) {
-        USB_LOG_DBG("usbd suspend int triggered\r\n");
-        usbd_event_suspend_handler();
     }
 
-    if (lpmris & USB_LPMRIS_ACK) {
-        USB_LOG_DBG("usbd enter L1 state\r\n");
-        HWREGB(USB_BASE + MUSB_LPM_CNTRL_OFFSET) |= USB_LPMCNTRL_NAK;
-    }
-
-    if (lpmris & USB_LPMRIS_RES) {
-        USB_LOG_DBG("usbd LPM resume int\r\n");
-        HWREGB(USB_BASE + MUSB_LPM_CNTRL_OFFSET) &= ~USB_LPMCNTRL_NAK;
-    }
-
-    txis &= HWREGH(USB_BASE + MUSB_INTRTXE_OFFSET);
+    txis &= HWREGB(USB_BASE + MUSB_TXIEL_OFFSET);
     /* Handle EP0 interrupt */
     if (txis & USB_TXIE_EP0) {
-        HWREGH(USB_BASE + MUSB_INTRTX_OFFSET) = USB_TXIE_EP0;
+        HWREGH(USB_BASE + MUSB_TXIS_OFFSET) = USB_TXIE_EP0;
         musb_set_active_ep(0);
         handle_ep0();
         txis &= ~USB_TXIE_EP0;
@@ -1015,7 +708,7 @@ void USBD_IRQHandler(void)
     while (txis) {
         if (txis & (1 << ep_idx)) {
             musb_set_active_ep(ep_idx);
-            HWREGH(USB_BASE + MUSB_INTRTX_OFFSET) = (1 << ep_idx);
+            HWREGH(USB_BASE + MUSB_TXIS_OFFSET) = (1 << ep_idx);
             if (HWREGB(USB_BASE + MUSB_IND_TXCSRL_OFFSET) & USB_TXCSRL1_UNDRN) {
                 HWREGB(USB_BASE + MUSB_IND_TXCSRL_OFFSET) &= ~USB_TXCSRL1_UNDRN;
             }
@@ -1031,7 +724,6 @@ void USBD_IRQHandler(void)
             }
 
             if (g_musb_udc.in_ep[ep_idx].xfer_len == 0) {
-                HWREGH(USB_BASE + MUSB_INTRTXE_OFFSET) &= ~(1 << ep_idx);
                 usbd_event_ep_in_complete_handler(ep_idx | 0x80, g_musb_udc.in_ep[ep_idx].actual_xfer_len);
             } else {
                 write_count = MIN(g_musb_udc.in_ep[ep_idx].xfer_len, g_musb_udc.in_ep[ep_idx].ep_mps);
@@ -1045,24 +737,21 @@ void USBD_IRQHandler(void)
         ep_idx++;
     }
 
-    rxis &= HWREGH(USB_BASE + MUSB_INTRRXE_OFFSET);
+    rxis &= HWREGB(USB_BASE + MUSB_RXIEL_OFFSET);
     ep_idx = 1;
     while (rxis) {
         if (rxis & (1 << ep_idx)) {
             musb_set_active_ep(ep_idx);
-            HWREGH(USB_BASE + MUSB_INTRRX_OFFSET) = (1 << ep_idx);
+            HWREGH(USB_BASE + MUSB_RXIS_OFFSET) = (1 << ep_idx);
             if (HWREGB(USB_BASE + MUSB_IND_RXCSRL_OFFSET) & USB_RXCSRL1_RXRDY) {
                 read_count = HWREGH(USB_BASE + MUSB_IND_RXCOUNT_OFFSET);
-
-                musb_read_packet(ep_idx, g_musb_udc.out_ep[ep_idx].xfer_buf, read_count);
-                HWREGB(USB_BASE + MUSB_IND_RXCSRL_OFFSET) &= ~(USB_RXCSRL1_RXRDY);
 
                 g_musb_udc.out_ep[ep_idx].xfer_buf += read_count;
                 g_musb_udc.out_ep[ep_idx].actual_xfer_len += read_count;
                 g_musb_udc.out_ep[ep_idx].xfer_len -= read_count;
 
-                if ((read_count < g_musb_udc.out_ep[ep_idx].ep_mps) || (g_musb_udc.out_ep[ep_idx].xfer_len == 0)) {
-                    HWREGH(USB_BASE + MUSB_INTRRXE_OFFSET) &= ~(1 << ep_idx);
+                if ((read_count <= g_musb_udc.out_ep[ep_idx].ep_mps) || (g_musb_udc.out_ep[ep_idx].xfer_len == 0)) {
+                    HWREGB(USB_BASE + MUSB_RXIEL_OFFSET) &= ~(1 << ep_idx);
                     usbd_event_ep_out_complete_handler(ep_idx, g_musb_udc.out_ep[ep_idx].actual_xfer_len);
                 } else {
                 }

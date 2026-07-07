@@ -19,10 +19,17 @@
 #define CONFIG_USBHOST_VIDEO_MAX_FORMATS 3
 #endif
 
+/* BK-extended resolution: layout MUST stay byte-identical to bk_uvc_frame
+ * (usb_types.h) and the public usbh_video_resolution, because the hub layer
+ * casts format[].frame straight to bk_uvc_frame*. The frame interval list is
+ * stored as fps[] (= 10^7 / dwFrameInterval[i]); the default interval is
+ * recovered on open() from fps[0]. */
 struct usbh_video_resolution {
     uint16_t wWidth;
     uint16_t wHeight;
-    uint32_t dwDefaultFrameInterval;
+    uint16_t frame_index;
+    uint16_t fps_num;
+    uint32_t *fps;
 };
 
 struct usbh_video_format {
