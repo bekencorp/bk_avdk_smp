@@ -21,9 +21,11 @@
 #include "bk_flexa_bond_types.h"
 #include "components/bk_decode/bk_jpeg_decode_ctlr.h"
 #include "private_jpeg_decode_ctlr.h"
+#include "bk_decode_pp_helper.h"
 #include "hw_decoder_ctlr.h"
 #include "modules/vcdec/vcdec_jpeg_api.h"
 #include "avdk_monitor.h"
+#include "common/avdk_pixel_types.h"
 
 #define TAG "bk_jpeg_dec"
 
@@ -300,8 +302,17 @@ static avdk_err_t jpeg_decode_ctlr_decode_frame(bk_jpeg_decode_ctlr_handle_t han
 
     const uint16_t seg_ht_mb = ctrl->config.segment_height;
     const uint8_t seg_num = ctrl->config.segment_number;
-    const uint32_t rb_h = 16U * (uint32_t)seg_ht_mb * (uint32_t)seg_num;
     const uint32_t out_w = (uint32_t)ctrl->config.out_width;
+    uint32_t rb_size;
+    vcdec_pp_out_format_e out_fmt;
+
+    if (ctrl->config.out_format == BK_PIXEL_FORMAT_RGB565 ||
+        ctrl->config.out_format == BK_PIXEL_FORMAT_RGB888) {
+        LOGE("JPEG flexa RGB output is not supported; use frame RGB mode instead\r\n");
+        return AVDK_ERR_INVAL;
+    }
+    out_fmt = bk_decode_pp_map_out_format(ctrl->config.out_format);
+    rb_size = bk_decode_pp_flexa_rb_size(ctrl->config.out_width, seg_ht_mb, seg_num);
 
     if (out_w == 0U) {
         LOGE("Flexa mode requires out_width set via ioctl\r\n");
@@ -313,8 +324,8 @@ static avdk_err_t jpeg_decode_ctlr_decode_frame(bk_jpeg_decode_ctlr_handle_t han
         return AVDK_ERR_INVAL;
     }
 
-    if (out_buffer_size < out_w * rb_h * 3 / 2) {
-        LOGE("output buffer too small: have=%u need=%u\r\n", out_buffer_size, out_w * rb_h * 3 / 2);
+    if (out_buffer_size < rb_size) {
+        LOGE("output buffer too small: have=%u need=%u\r\n", out_buffer_size, rb_size);
         return AVDK_ERR_NOMEM;
     }
 
@@ -322,8 +333,9 @@ static avdk_err_t jpeg_decode_ctlr_decode_frame(bk_jpeg_decode_ctlr_handle_t han
     ctrl->decode_config.input_stream_len = input->stream_len;
     ctrl->decode_config.output_buffer = out_buffer;
     ctrl->decode_config.output_size = out_buffer_size;
-    ctrl->decode_config.width = ctrl->config.out_width;
-    ctrl->decode_config.height = ctrl->config.out_height;
+    ctrl->decode_config.out_width = ctrl->config.out_width;
+    ctrl->decode_config.out_height = ctrl->config.out_height;
+    ctrl->decode_config.out_format = out_fmt;
     ctrl->decode_config.segment_height = seg_ht_mb;
     ctrl->decode_config.segment_number = seg_num;
 

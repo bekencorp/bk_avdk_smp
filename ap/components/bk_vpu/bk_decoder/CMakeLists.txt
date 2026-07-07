@@ -8,6 +8,7 @@ set(srcs "")
 
 # Hardware decoder controller - always built when component is enabled
 list(APPEND srcs
+    common/bk_decode_pp_helper.c
     common/hw_decoder_ctlr.c
 )
 

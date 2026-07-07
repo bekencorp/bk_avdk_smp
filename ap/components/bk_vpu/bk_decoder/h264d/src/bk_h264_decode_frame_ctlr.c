@@ -20,9 +20,11 @@
 
 #include "components/bk_decode/bk_h264_decode_ctlr.h"
 #include "private_h264_decode_ctlr.h"
+#include "bk_decode_pp_helper.h"
 #include "hw_decoder_ctlr.h"
 #include "modules/vcdec/vcdec_h264_api.h"
 #include "avdk_monitor.h"
+#include "common/avdk_pixel_types.h"
 
 #define TAG "bk_h264_dec"
 
@@ -143,7 +145,9 @@ static avdk_err_t h264_decode_ctlr_decode_frame(bk_h264_decode_ctlr_handle_t han
 	AVDK_RETURN_ON_FALSE(input->out_buffer && input->out_buffer_size > 0U, AVDK_ERR_INVAL, TAG, "invalid output buffer");
 
 	if (ctrl->config.out_width != 0U && ctrl->config.out_height != 0U) {
-		need_size = (uint32_t)ctrl->config.out_width * (uint32_t)ctrl->config.out_height * 3U / 2U;
+		need_size = bk_decode_pp_output_size(ctrl->config.out_format,
+						      ctrl->config.out_width,
+						      ctrl->config.out_height);
 		if (input->out_buffer_size < need_size) {
 			LOGE("output buffer too small: have=%u need=%u\r\n", input->out_buffer_size, need_size);
 			return AVDK_ERR_NOMEM;
@@ -154,6 +158,9 @@ static avdk_err_t h264_decode_ctlr_decode_frame(bk_h264_decode_ctlr_handle_t han
 	ctrl->decode_config.input_stream_len = input->stream_len;
 	ctrl->decode_config.output_buffer = input->out_buffer;
 	ctrl->decode_config.output_size = input->out_buffer_size;
+	ctrl->decode_config.out_width = ctrl->config.out_width;
+	ctrl->decode_config.out_height = ctrl->config.out_height;
+	ctrl->decode_config.out_format = bk_decode_pp_map_out_format(ctrl->config.out_format);
 	ctrl->decode_config.segment_height = 1U;
 	ctrl->decode_config.segment_number = 1U;
 
