@@ -112,8 +112,8 @@ static struct uart_util gl_ob_mic_uart_util = {0};
 #endif  //UAC_MIC_DATA_DUMP_BY_UART
 
 
-
 #define UAC_MIC_URB_RE_TRIGGER_ERR_THRESHOLD   (1)
+#define UAC_MIC_URB_ISO_PACKETS                (1)
 
 typedef enum
 {
@@ -311,7 +311,10 @@ static void usb_hub_uac_mic_port_dev_complete_callback(void *pCompleteParam, int
     bk_err_t ret = BK_OK;
 
     UAC_MIC_URB_COMPLETE_CALLBACK();
-    UAC_MIC_DATA_COUNT_ADD_SIZE(nbytes);
+    if (nbytes >= 0)
+    {
+        UAC_MIC_DATA_COUNT_ADD_SIZE(nbytes);
+    }
 
     if (uac_mic->status == UAC_MIC_STA_WORKING)
     {
@@ -322,7 +325,7 @@ static void usb_hub_uac_mic_port_dev_complete_callback(void *pCompleteParam, int
     else
     {
         BK_LOGE(TAG, "%s, %d, uac mic status: %d, not need read uac mic data \n", __func__, __LINE__, uac_mic->status);
-        return;
+        goto out;
     }
 
     if (nbytes > 0)
@@ -358,12 +361,19 @@ static void usb_hub_uac_mic_port_dev_complete_callback(void *pCompleteParam, int
         BK_LOGV(TAG, "%s, %d, rtos_set_semaphore fail \n", __func__, __LINE__);
     }
 
+out:
+
     return;
 }
 
 bk_err_t usb_hub_uac_mic_port_device_urb_fill(uac_mic_stream_t *uac_mic)
 {
     struct usbh_audio *mic_device;
+    uint32_t packet_count;
+    uint32_t xfer_size;
+#if CONFIG_BK_USB_CHERRYUSB_V1_6
+    uint32_t packet_size;
+#endif
 
     if (!uac_mic)
     {
@@ -374,14 +384,38 @@ bk_err_t usb_hub_uac_mic_port_device_urb_fill(uac_mic_stream_t *uac_mic)
     if (uac_mic->uac_mic_urb && uac_mic->mic_port_info)
     {
         mic_device = (struct usbh_audio *)(uac_mic->mic_port_info->usb_device);
+#if CONFIG_BK_USB_CHERRYUSB_V1_6
+        uac_mic->uac_mic_urb->hport = mic_device->hport;
+        uac_mic->uac_mic_urb->ep = (struct usb_endpoint_descriptor *)(mic_device->isoin);
+#else
         uac_mic->uac_mic_urb->pipe = (usbh_pipe_t)(mic_device->isoin);
+#endif
         uac_mic->uac_mic_urb->complete = (usbh_complete_callback_t)usb_hub_uac_mic_port_dev_complete_callback;
         uac_mic->uac_mic_urb->arg = (void *)uac_mic;
         uac_mic->uac_mic_urb->timeout = 0;
+        /* Clear the stale completion status before (re)arming. usbh_submit_urb
+         * rejects a URB whose errorcode is still -USB_ERR_BUSY (its in-flight
+         * sentinel). The CP maps a NAK/abnormal ISO completion to -EBUSY and
+         * arm_xfer pre-sets -USB_ERR_BUSY, so without this reset the next
+         * resubmit returns -6 and the single in-flight ISO URB is never
+         * re-armed -> the stream dies permanently. */
+        uac_mic->uac_mic_urb->errorcode = 0;
+
+        packet_count = 1;
+        xfer_size = uac_mic->urb_buff_size;
 
         uac_mic->uac_mic_urb->transfer_buffer = uac_mic->urb_buff_addr;
-        uac_mic->uac_mic_urb->transfer_buffer_length = uac_mic->urb_buff_size;
-        uac_mic->uac_mic_urb->num_of_iso_packets = 1;
+        uac_mic->uac_mic_urb->transfer_buffer_length = xfer_size;
+        uac_mic->uac_mic_urb->num_of_iso_packets = packet_count;
+#if CONFIG_BK_USB_CHERRYUSB_V1_6
+        packet_size = uac_mic->urb_buff_size;
+        for (uint32_t i = 0; i < packet_count; i++) {
+            uac_mic->uac_mic_urb->iso_packet[i].transfer_buffer = uac_mic->urb_buff_addr + (i * packet_size);
+            uac_mic->uac_mic_urb->iso_packet[i].transfer_buffer_length = packet_size;
+            uac_mic->uac_mic_urb->iso_packet[i].actual_length = 0;
+            uac_mic->uac_mic_urb->iso_packet[i].errorcode = 0;
+        }
+#endif
     }
     else
     {
@@ -912,13 +946,16 @@ static int _uac_mic_process(audio_element_handle_t self, char *in_buffer, int in
 
     if (ring_buffer_get_fill_size(&uac_mic->mic_rb) < in_len)
     {
-        if (kNoErr != rtos_get_semaphore(&uac_mic->can_process, 2000))  //portMAX_DELAY, 25 / portTICK_RATE_MS/2000
+        if (kNoErr != rtos_get_semaphore(&uac_mic->can_process, 1000))  //portMAX_DELAY, 25 / portTICK_RATE_MS/2000
         {
-            /* wait one frame uac mic data, and avoid frequent processing.
-             * If get semaphore fail, uac mic don't have data, wait reconnect.
-             * If get semaphore ok, uac mic have new data.
-             */
+            /* No new mic data this window. Do NOT tear down / resubmit the URB
+             * from this task: the CP bridge owns the ISO URB lifecycle and its
+             * low-rate poll timer heals a dropped completion. A teardown here
+             * (soft_abort + resubmit) races the in-flight CP completion and
+             * corrupts USB state (observed: choppy audio then MemFault). */
             BK_LOGW(TAG, "[%s] %s, get semaphore fail \n", audio_element_get_tag(self), __func__);
+            UAC_MIC_PROCESS_END();
+            return AEL_IO_TIMEOUT;
         }
     }
 
@@ -1149,7 +1186,8 @@ audio_element_handle_t uac_mic_stream_init(uac_mic_stream_cfg_t *config)
     uac_mic->cont_sta = UAC_MIC_IDLE;
 
     uac_mic->uac_mic_urb = NULL;
-    uac_mic->uac_mic_urb = audio_calloc(1, sizeof(struct usbh_urb) + sizeof(struct usbh_iso_frame_packet));
+    uac_mic->uac_mic_urb = audio_calloc(1, sizeof(struct usbh_urb) +
+                                           sizeof(struct usbh_iso_frame_packet) * UAC_MIC_URB_ISO_PACKETS);
     AUDIO_MEM_CHECK(TAG, uac_mic->uac_mic_urb, goto _uac_mic_init_exit);
 
     uac_mic->urb_buff_size = uac_mic->frame_size;

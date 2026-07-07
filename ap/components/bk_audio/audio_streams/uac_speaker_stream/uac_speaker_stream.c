@@ -352,7 +352,16 @@ static bk_err_t usb_hub_uac_spk_port_device_urb_fill(uac_speaker_stream_t *uac_s
     if (uac_spk->uac_spk_urb && uac_spk->spk_port_info)
     {
         spk_device = (struct usbh_audio *)(uac_spk->spk_port_info->usb_device);
+#if CONFIG_BK_USB_CHERRYUSB_V1_6
+        /* v1.6 ABI interface adaptation only: bind by hport/ep (struct usbh_urb
+         * has no legacy `pipe`), and clear the in-flight sentinel so a resubmit
+         * is not rejected. Logic is otherwise the original pre-1894 model. */
+        uac_spk->uac_spk_urb->hport = spk_device->hport;
+        uac_spk->uac_spk_urb->ep = (struct usb_endpoint_descriptor *)(spk_device->isoout);
+        uac_spk->uac_spk_urb->errorcode = 0;
+#else
         uac_spk->uac_spk_urb->pipe = (usbh_pipe_t)(spk_device->isoout);
+#endif
         uac_spk->uac_spk_urb->complete = (usbh_complete_callback_t)usb_hub_uac_spk_port_dev_complete_callback;
         uac_spk->uac_spk_urb->arg = (void *)uac_spk;
         uac_spk->uac_spk_urb->timeout = 0;
@@ -360,6 +369,15 @@ static bk_err_t usb_hub_uac_spk_port_device_urb_fill(uac_speaker_stream_t *uac_s
         uac_spk->uac_spk_urb->transfer_buffer = uac_spk->urb_buff_addr;
         uac_spk->uac_spk_urb->transfer_buffer_length = uac_spk->urb_buff_size;
         uac_spk->uac_spk_urb->num_of_iso_packets = 1;
+#if CONFIG_BK_USB_CHERRYUSB_V1_6
+        /* v1.6 ISO uses the iso_packet[] descriptor; ONE packet = the whole frame
+         * (same granularity as the legacy single transfer -- NO 8-packet split,
+         * NO jitter-buffer restructure). */
+        uac_spk->uac_spk_urb->iso_packet[0].transfer_buffer = uac_spk->urb_buff_addr;
+        uac_spk->uac_spk_urb->iso_packet[0].transfer_buffer_length = uac_spk->urb_buff_size;
+        uac_spk->uac_spk_urb->iso_packet[0].actual_length = 0;
+        uac_spk->uac_spk_urb->iso_packet[0].errorcode = 0;
+#endif
     }
     else
     {
@@ -412,7 +430,7 @@ static bk_err_t uac_spk_connect_handle(uac_speaker_stream_t *uac_spk)
     {
         uac_spk_param_config->spk_format_tag = uac_spk->format;
         uac_spk_param_config->spk_samples_frequence = uac_spk->samp_rate;
-        uac_spk_param_config->spk_ep_desc = uac_device_param->mic_ep_desc;
+        uac_spk_param_config->spk_ep_desc = uac_device_param->spk_ep_desc;
         ret = bk_usbh_hub_port_dev_open(uac_spk->port_index, USB_UAC_SPEAKER_DEVICE, uac_spk->spk_port_info);
         if (ret != BK_OK)
         {
