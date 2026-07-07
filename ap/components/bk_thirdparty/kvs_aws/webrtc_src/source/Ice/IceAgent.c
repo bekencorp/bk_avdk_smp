@@ -1376,6 +1376,18 @@ STATUS iceAgentSendStunPacket(PStunPacket pStunPacket, PBYTE password, UINT32 pa
 
         retStatus = STATUS_SUCCESS;
 
+        /*
+         * STATUS_SEND_DATA_FAILED may be caused by transient lwIP/Wi-Fi TX
+         * resource pressure (e.g. sendto() returns ENOMEM). Do not mark the
+         * candidate pair as failed for a single STUN send failure; the ICE
+         * timers will retry and normal timeout logic can decide if the pair is
+         * really dead. A closed socket is handled above as unrecoverable.
+         */
+        if (!socketConnectionIsClosed(pLocalCandidate->pSocketConnection)) {
+            DLOGW("skip candidate pair failure for transient STUN send failure");
+            goto CleanUp;
+        }
+
         /* Update iceCandidatePair state to failed.
          * pIceCandidatePair could no longer exist. */
         CHK_STATUS(findIceCandidatePairWithLocalSocketConnectionAndRemoteAddr(pIceAgent, pLocalCandidate->pSocketConnection, pDestAddr, TRUE,

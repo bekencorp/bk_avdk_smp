@@ -9,3 +9,14 @@ config USRSCTP
 		Enable usrsctp component for SCTP over lwIP.
 		Used by WebRTC and other SCTP-based protocols.
 		Depends on: bk_common, lwip_intf_v2_1, os_source, bk_rtos, psa_mbedtls.
+
+config USRSCTP_IPV6
+	bool "Enable native usrsctp IPv6 socket path"
+	default n
+	depends on USRSCTP && IPV6
+	help
+		Enable the native AF_INET6 SCTP socket path inside usrsctp.
+		KVS WebRTC data channel uses SCTP over DTLS over ICE/UDP and
+		does not require this path for IPv6 media/signaling transport.
+		Keep this disabled unless the platform has completed the
+		usrsctp BSD-style IPv6 userspace port.

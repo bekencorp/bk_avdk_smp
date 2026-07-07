@@ -38,7 +38,10 @@ if(DEFINED COMPONENT_DIR)
 			INCLUDE_DIRS ${incs}
 			PRIV_REQUIRES bk_common lwip_intf_v2_1 os_source bk_rtos bk_vfs psa_mbedtls driver
 		)
-		# usrsctp build defines (SCTP_USE_LWIP, INET only, mbedTLS SHA1, no ESP_PLATFORM)
+		# usrsctp build defines (SCTP_USE_LWIP, INET, mbedTLS SHA1, no ESP_PLATFORM)
+		# KVS WebRTC IPv6 transport is handled by ICE/UDP sockets. The native
+		# usrsctp AF_INET6 socket path requires extra BSD IPv6 userspace porting,
+		# so keep INET6 behind CONFIG_USRSCTP_IPV6 instead of global CONFIG_IPV6.
 		# USRSCTP_PTHREAD_RWLOCK_COMPAT: use port/pthread_rwlock_compat (bk_rtos has no pthread_rwlock)
 		component_compile_definitions(
 			__Userspace__
@@ -54,8 +57,8 @@ if(DEFINED COMPONENT_DIR)
 			USRSCTP_PTHREAD_RWLOCK_COMPAT
 			USRSCTP_ATOMIC_SPINLOCK_COMPAT
 		)
-		if(CONFIG_IPV6)
-		component_compile_definitions(INET6)
+		if(CONFIG_USRSCTP_IPV6)
+			component_compile_definitions(INET6)
 		endif()
 		# Suppress warnings to match esp_usrsctp / embedded build
 		component_compile_options(
