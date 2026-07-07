@@ -733,10 +733,6 @@ void vPortSuppressTicksAndSleep( TickType_t xExpectedIdleTime )
 
 __attribute__( ( weak ) ) void vPortSetupTimerInterrupt( void ) /* PRIVILEGED_FUNCTION */
 {
-#if CONFIG_SYSTICK_32K
-    sys_hal_set_cpu_power_sleep_wakeup_ticktimer_32k_enable(1);
-#endif
-
     /* Calculate the constants required to configure the tick interrupt. */
     #if ( configUSE_TICKLESS_IDLE >= 1 )
         {
