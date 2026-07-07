@@ -11,7 +11,6 @@
 extern void *app_isp_handle_get(void);
 #include "network_transfer.h"
 #include "network_type.h"
-#include "common/bk_ntwk_pack/ntwk_fragmentation.h"
 #include "isp_frame_capture_config.h"
 #include "isp_frame_priv.h"
 
@@ -44,32 +43,22 @@ typedef struct
 
 static isp_frame_capture_task_arg_t *s_isp_frame_capture_task_arg;
 
-static int isp_frame_fragment_abort_cb(void)
+static void isp_frame_capture_set_cancel(uint8_t cancel)
 {
-    return s_isp_frame_capture_cancel ? 1 : 0;
-}
-
-static void isp_frame_capture_abort_register(void)
-{
-    (void)ntwk_fragment_register_abort_cb(NTWK_TRANS_CHAN_VIDEO, isp_frame_fragment_abort_cb);
-}
-
-static void isp_frame_capture_abort_unregister(void)
-{
-    (void)ntwk_fragment_register_abort_cb(NTWK_TRANS_CHAN_VIDEO, NULL);
+    s_isp_frame_capture_cancel = cancel;
+    ntwk_trans_chan_abort(NTWK_TRANS_CHAN_VIDEO, cancel ? true : false);
 }
 
 void isp_frame_stream_cancel(void)
 {
-    s_isp_frame_capture_cancel = 1;
+    isp_frame_capture_set_cancel(1);
 }
 
 static void isp_frame_capture_abort_inflight(void)
 {
     uint32_t waited_ms = 0;
 
-    s_isp_frame_capture_cancel = 1;
-    isp_frame_capture_abort_register();
+    isp_frame_capture_set_cancel(1);
 
     while (s_isp_frame_capture_busy && waited_ms < ISP_FRAME_CAPTURE_ABORT_WAIT_MS)
     {
@@ -83,7 +72,7 @@ static void isp_frame_capture_abort_inflight(void)
     }
     else
     {
-        s_isp_frame_capture_cancel = 0;
+        isp_frame_capture_set_cancel(0);
     }
 }
 
@@ -275,7 +264,7 @@ bk_err_t isp_frame_send_one_frame(void)
             {
                 uint8_t frame_id = (uint8_t)((s_isp_frame_sequence - 1U) & 0xFFU);
 
-                (void)ntwk_fragment_discard_frame(NTWK_TRANS_CHAN_VIDEO, frame_id);
+                ntwk_trans_chan_discard_frame(NTWK_TRANS_CHAN_VIDEO, frame_id);
                 LOGI("preview send aborted, discard frame_id=%u\n", frame_id);
             }
             else
@@ -338,7 +327,6 @@ static void isp_frame_capture_task_entry(beken_thread_arg_t arg)
 {
     isp_frame_capture_task_arg_t *task_arg = (isp_frame_capture_task_arg_t *)arg;
 
-    isp_frame_capture_abort_register();
     if (task_arg != NULL)
     {
         (void)isp_frame_send_frames(task_arg->frame_count);
@@ -346,7 +334,7 @@ static void isp_frame_capture_task_entry(beken_thread_arg_t arg)
         s_isp_frame_capture_task_arg = NULL;
     }
 
-    isp_frame_capture_abort_unregister();
+    isp_frame_capture_set_cancel(0);
     s_isp_frame_capture_busy = 0;
     s_isp_frame_capture_thread = NULL;
     rtos_delete_thread(NULL);
@@ -375,7 +363,7 @@ bk_err_t isp_frame_send_frames_async(uint32_t frame_count)
 
     task_arg->frame_count = frame_count;
     s_isp_frame_capture_task_arg = task_arg;
-    s_isp_frame_capture_cancel = 0;
+    isp_frame_capture_set_cancel(0);
     s_isp_frame_capture_busy = 1;
     ret = rtos_create_thread(&s_isp_frame_capture_thread,
                              7,
@@ -403,7 +391,7 @@ bk_err_t isp_frame_stream_start(uint16_t width, uint16_t height, uint16_t fps)
     isp_frame_session_ctx_t *ctx = isp_frame_session_get_ctx();
 
     (void)fps;
-    s_isp_frame_capture_cancel = 0;
+    isp_frame_capture_set_cancel(0);
     isp_frame_stream_set_profile(width, height);
     s_isp_frame_stream_active = 1;
     ctx->stream_started = 1;
@@ -424,7 +412,10 @@ bk_err_t isp_frame_stream_stop(void)
 
     s_isp_frame_stream_active = 0;
     ctx->stream_started = 0;
-    s_isp_frame_capture_cancel = 0;
+    if (!s_isp_frame_capture_busy)
+    {
+        isp_frame_capture_set_cancel(0);
+    }
     os_memset(&s_isp_frame_desc, 0, sizeof(s_isp_frame_desc));
     s_isp_frame_sequence = 0;
     LOGI("stream inactive\n");
