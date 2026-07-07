@@ -442,9 +442,28 @@ static void bt_manager_notify_reconnect_fail(void)
     }
 }
 
+static uint8_t bt_manager_has_reconnect_callback(void)
+{
+    for (int i = 0; i < MAX_PROFILE_NUM; i++)
+    {
+        if (btm_cbs[i].start_connect_cb)
+        {
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
 void bt_manager_start_reconnect(uint8_t *addr, uint8_t immediate)
 {
     uint32_t time_ms = 200;
+
+    if (!bt_manager_has_reconnect_callback())
+    {
+        LOGW("%s no reconnect callback\n", __func__);
+        return;
+    }
 
     if (btm_env.recon_count >= btm_env.max_reconnect_count)
     {
