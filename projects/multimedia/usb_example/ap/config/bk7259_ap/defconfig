@@ -105,6 +105,7 @@ CONFIG_DRIVER_TEST=y
 
 # CONFIG_PSRAM_CALIBRATE is not set
 CONFIG_XTAL_FREQ=12000000
+CONFIG_TRNG_SUPPORT=y
 CONFIG_AUDIO=y
 CONFIG_AUD_DRIVER_V2=y
 CONFIG_AUDIO_ADC=y
@@ -170,7 +171,7 @@ CONFIG_USBD_MSC=y
 # Engine lives in ap/components/bk_usb/bk_mtp/bk_usbd_mtp.c. Exposes the SD
 # card filesystem (bk_vfs POSIX) over MTP. Switch to it at runtime via the
 # `mtp` CLI; MSC stays the power-up default.
-CONFIG_USBD_MTP=y
+# CONFIG_USBD_MTP is not set (MTP depends on CherryUSB v1.6; off for the legacy test)
 CONFIG_USBD_MTP_PRODUCT_NAME="BekenMTP"
 CONFIG_USBD_MTP_DEVICE_TYPE="1"
 # Add USB HOST + host MSC so the firmware can switch to host at runtime and
@@ -180,3 +181,4 @@ CONFIG_USB_HOST=y
 CONFIG_USB_HUB=y
 CONFIG_USBH_MSC=y
 CONFIG_SUPPORT_WWDT=n
+CONFIG_BK_USB_CHERRYUSB_V1_6=y

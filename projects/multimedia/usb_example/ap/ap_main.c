@@ -91,6 +91,11 @@ static volatile int s_udisk_driver_inited;   /* bk_usb_driver_init() done once *
 static volatile int s_udisk_in_host_mode;    /* 1 = host, 0 = device(default) */
 static volatile int s_udisk_device_active = 1; /* device gadget is enabled at boot */
 
+static bool udisk_is_media_ready(void)
+{
+    return s_udisk_in_host_mode && usbh_ms_media_get_status();
+}
+
 static void udisk_ensure_driver_init(void)
 {
     if (!s_udisk_driver_inited) {
@@ -107,7 +112,7 @@ static int udisk_wait_media(uint32_t timeout_ms)
 {
     uint32_t waited = 0;
     while (waited < timeout_ms) {
-        if (usbh_ms_media_get_status()) {
+        if (udisk_is_media_ready()) {
             LOGI("U-disk media READY after %u ms\n", (unsigned)waited);
             return 0;
         }
@@ -487,7 +492,7 @@ static void cli_udisk_status(void)
     LOGI("mode=%s, driver_init=%d, host_media=%s\n",
          s_udisk_in_host_mode ? "host" : "device",
          s_udisk_driver_inited,
-         (s_udisk_in_host_mode && usbh_ms_media_get_status()) ? "ready" : "not_ready");
+         udisk_is_media_ready() ? "ready" : "not_ready");
 }
 
 static void cli_udisk_cmd(char *pcWriteBuffer, int xWriteBufferLen,
@@ -701,6 +706,18 @@ int main(void)
      * task avoids a registration race that left `udisk` missing from the
      * shell command table. */
     udisk_cli_register();
+
+#if CONFIG_VOICE_SERVICE_TEST
+    /* Register the `voice` CLI so the UAC mic/speaker host path can be exercised
+     * on usb_example (the UAC ISO OUT submit -EBUSY case lives here), e.g.:
+     *   ap_cmd voice start uac 16000 1 pcm pcm uac 16000
+     * cli_voice_init() is part of bk_voice_service (compiled when
+     * CONFIG_VOICE_SERVICE_TEST=y); usb_example simply never registered it. */
+    {
+        extern int cli_voice_init(void);
+        cli_voice_init();
+    }
+#endif
 
     bk_err_t cret = rtos_create_thread(&s_msc_init_thread,
         USB_MSC_INIT_TASK_PRIORITY,
