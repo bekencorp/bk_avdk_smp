@@ -58,6 +58,7 @@ typedef struct {
     int (*_bk_pm_module_vote_cpu_freq)(uint32_t module, uint32_t cpu_freq);
 
     uint32_t (*_aon_pmu_hal_get_chipid)(void);
+    uint32_t (*_aon_pmu_hal_get_chip_model)(void);
     uint32_t (*_aon_pmu_drv_bias_cal_get)(void);
     uint32_t (*_aon_pmu_drv_band_cal_get)(void);
     uint32_t (*_aon_pmu_drv_get_adc_cal)(void);
@@ -225,6 +226,10 @@ typedef struct {
     uint32_t _pm_chip_id_mpw_v2_3;
     uint32_t _pm_chip_id_mpw_v4;
     uint32_t _pm_chip_id_mp_A;
+    uint32_t _bk7259_chip_model_v2_mpw;
+    uint32_t _bk7259_chip_model_v3a;
+    uint32_t _bk7259_chip_model_v3b;
+    uint32_t _bk7259_chip_model_unknown;
     uint32_t _cmd_get_device_id;
     uint32_t _cmd_sctrl_ble_powerdown;
     uint32_t _cmd_sctrl_ble_powerup;

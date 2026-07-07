@@ -70,6 +70,11 @@ static uint32_t bk_get_hardware_chip_id_version_wrapper(void)
     return bk_get_hardware_chip_id_version();
 }
 
+static uint32_t aon_pmu_hal_get_chip_model_wrapper(void)
+{
+    return (uint32_t)aon_pmu_hal_get_chip_model();
+}
+
 static void shell_set_log_level_wrapper(int level)
 {
 #if (CONFIG_SHELL_ASYNCLOG)
@@ -704,6 +709,7 @@ const phy_os_funcs_t g_phy_os_funcs = {
     ._aon_pmu_drv_band_cal_get          = aon_pmu_drv_band_cal_get,
     ._aon_pmu_drv_get_adc_cal           = aon_pmu_drv_get_adc_cal,
     ._aon_pmu_hal_get_chipid            = aon_pmu_hal_get_chipid,
+    ._aon_pmu_hal_get_chip_model        = aon_pmu_hal_get_chip_model_wrapper,
     ._sys_drv_set_pwd_anabuf_lownoise   = sys_drv_set_pwd_anabuf_lownoise,
     ._sys_drv_rfband                    = sys_drv_rfband,
     ._sys_drv_rf_ctrl                   = sys_drv_rf_ctrl,
@@ -837,6 +843,10 @@ const phy_os_variable_t g_phy_os_variable = {
     ._pm_chip_id_mpw_v2_3    = PM_CHIP_ID_MPW_V2_3,
     ._pm_chip_id_mpw_v4      = PM_CHIP_ID_MPW_V4,
     ._pm_chip_id_mp_A        = PM_CHIP_ID_MP_A,
+    ._bk7259_chip_model_v2_mpw  = BK7259_CHIP_MODEL_V2_MPW,
+    ._bk7259_chip_model_v3a     = BK7259_CHIP_MODEL_V3A,
+    ._bk7259_chip_model_v3b     = BK7259_CHIP_MODEL_V3B,
+    ._bk7259_chip_model_unknown = BK7259_CHIP_MODEL_UNKNOWN,
     ._cmd_get_device_id             = CMD_GET_DEVICE_ID,
     ._cmd_sctrl_ble_powerdown       = CMD_SCTRL_BLE_POWERDOWN,
     ._cmd_sctrl_ble_powerup         = CMD_SCTRL_BLE_POWERUP,
