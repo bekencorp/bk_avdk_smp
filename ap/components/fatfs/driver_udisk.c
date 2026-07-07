@@ -14,7 +14,14 @@
 
 uint8 udisk_is_attached(void)
 {
-    return bk_usb_get_device_connect_status();
+#if CONFIG_USB_HOST
+    return usbh_ms_media_get_status();
+#elif CONFIG_USB_DEVICE
+    extern int usbd_ms_media_get_status(void);
+    return usbd_ms_media_get_status();
+#else
+    return 0;
+#endif
 }
 
 uint8 udisk_init(void)
