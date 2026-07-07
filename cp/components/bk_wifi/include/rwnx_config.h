@@ -59,11 +59,11 @@
 #else
 ////other only 16K ITCM,pick the important one to ITCM
 #define __ITCM __attribute__((section(".itcm_sec_code ")))
+#if CONFIG_SOC_BK7259
+#define __ITCM_N __attribute__((section(".iram3")))
+#else
 #define __ITCM_N __attribute__((section(".itcm_sec_code ")))
 #endif
-
-#ifndef CONFIG_WIFI_IRAM_OPT_LEVEL
-#define CONFIG_WIFI_IRAM_OPT_LEVEL 2
 #endif
 
 /* Tier1 WiFi critical path: always resident, never trimmed by level. */

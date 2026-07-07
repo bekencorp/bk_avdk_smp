@@ -27,6 +27,14 @@
 #include "bk_private/bk_wifi_types.h"
 #include "modules/wifi_types.h"
 
+#ifndef __IRAM3
+#if CONFIG_SOC_BK7259
+#define __IRAM3 __attribute__((section(".iram3")))
+#else
+#define __IRAM3
+#endif
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif

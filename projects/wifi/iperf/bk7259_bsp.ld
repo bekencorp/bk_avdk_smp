@@ -134,27 +134,43 @@ SECTIONS
 
 #if (CONFIG_WIFI_IRAM_OPT_LEVEL >= 2)
         EXCLUDE_FILE (
-            /* OS (FreeRTOS) (WiFi Tier2: resident in SRAM when level >= 2) */
-            *libos_source.a:tasks.c.obj
-            *libos_source.a:queue.c.obj
-            *libos_source.a:list.c.obj
-            *libos_source.a:timers.c.obj
-            *libos_source.a:port.c.obj
+            /* BK7258 CP data-path order, resident in SRAM from level 2. */
+            *cif_main.c.obj
+            *cif_wifi_dp.c.obj
+            *co_list.c.obj
+            *cif_mem_mgmt.c.pbj
+            *cif_mem_mgmt.c.obj
+            *macif_fhost.c.obj
+            *pbuf.c.obj
+            *wlanif.c.obj
+            *rwnx_rx.c.obj
+            *rwnx_tx.c.obj
+            *rwnx_txq.c.obj
+            *rwnx_td.c.obj
+            *skbuff.c.obj
+            *wifi_netif.c.obj
+            *rwnx_utils.c.obj
+            *mailbox_channel.c.obj
+            *mbox0_adapter.c.obj
+            *mbox0_drv.c.obj
+            *tasks.c.obj
+            *queue.c.obj
+            *list.c.obj
+            *timers.c.obj
+            *port.c.obj
             *rtos_pub.c.obj
             *heap_4.c.obj
             *mem_arch.c.obj
-            /* Interrupt handling */
             *arch_interrupt.c.obj
+            *hal_machw.c.obj
             *interrupts.c.obj
-            /* WiFi RX / list / RF */
+            *rw_task.c.obj
+            *bk_rc.c.obj
+#if (CONFIG_WIFI_IRAM_OPT_LEVEL >= 3)
+            /* BK7259 extra Tier3 objects after the BK7258 ordered block. */
             *rxl_hwdesc.c.obj
             *rxl_cntrl.c.obj
-            *co_list.c.obj
             *rf_cntrl.c.obj
-#if (CONFIG_WIFI_IRAM_OPT_LEVEL >= 3)
-            /* lwIP (WiFi Tier3: resident in SRAM when level >= 3) */
-            *liblwip_intf_v2_1.a:wlanif.c.obj
-            *liblwip_intf_v2_1.a:pbuf.c.obj
 #endif
         ) *(.text .text.* .rodata .rodata.*)
 #else
@@ -266,6 +282,51 @@ SECTIONS
         __iram_start__ = .;
 
         *(.itcm)
+
+        /* BK7258 CP data-path order, resident in SRAM from level 2. */
+        . = ALIGN(4);
+#if (CONFIG_WIFI_IRAM_OPT_LEVEL >= 2)
+        *cif_main.c.obj*(.text .text.* .rodata .rodata.* .iram .iram.* .iram2 .iram2.* .iram3 .iram3.* .itcm_sec_code .itcm_sec_code*)
+        *cif_wifi_dp.c.obj*(.text .text.* .rodata .rodata.* .iram .iram.* .iram2 .iram2.* .iram3 .iram3.* .itcm_sec_code .itcm_sec_code*)
+        *co_list.c.obj*(.text .text.* .rodata .rodata.* .iram .iram.* .iram2 .iram2.* .iram3 .iram3.* .itcm_sec_code .itcm_sec_code*)
+        *cif_mem_mgmt.c.pbj*(.text .text.* .rodata .rodata.* .iram .iram.* .iram2 .iram2.* .iram3 .iram3.* .itcm_sec_code .itcm_sec_code*)
+        *cif_mem_mgmt.c.obj*(.text .text.* .rodata .rodata.* .iram .iram.* .iram2 .iram2.* .iram3 .iram3.* .itcm_sec_code .itcm_sec_code*)
+        *macif_fhost.c.obj*(.text .text.* .rodata .rodata.* .iram .iram.* .iram2 .iram2.* .iram3 .iram3.* .itcm_sec_code .itcm_sec_code*)
+        *pbuf.c.obj*(.text .text.* .rodata .rodata.* .iram .iram.* .iram2 .iram2.* .iram3 .iram3.* .itcm_sec_code .itcm_sec_code*)
+        *wlanif.c.obj*(.text .text.* .rodata .rodata.* .iram .iram.* .iram2 .iram2.* .iram3 .iram3.* .itcm_sec_code .itcm_sec_code*)
+        *rwnx_rx.c.obj*(.text .text.* .rodata .rodata.* .iram .iram.* .iram2 .iram2.* .iram3 .iram3.* .itcm_sec_code .itcm_sec_code*)
+        *rwnx_tx.c.obj*(.text .text.* .rodata .rodata.* .iram .iram.* .iram2 .iram2.* .iram3 .iram3.* .itcm_sec_code .itcm_sec_code*)
+        *rwnx_txq.c.obj*(.text .text.* .rodata .rodata.* .iram .iram.* .iram2 .iram2.* .iram3 .iram3.* .itcm_sec_code .itcm_sec_code*)
+        *rwnx_td.c.obj*(.text .text.* .rodata .rodata.* .iram .iram.* .iram2 .iram2.* .iram3 .iram3.* .itcm_sec_code .itcm_sec_code*)
+        *skbuff.c.obj*(.text .text.* .rodata .rodata.* .iram .iram.* .iram2 .iram2.* .iram3 .iram3.* .itcm_sec_code .itcm_sec_code*)
+        *wifi_netif.c.obj*(.text .text.* .rodata .rodata.* .iram .iram.* .iram2 .iram2.* .iram3 .iram3.* .itcm_sec_code .itcm_sec_code*)
+        *rwnx_utils.c.obj*(.text .text.* .rodata .rodata.* .iram .iram.* .iram2 .iram2.* .iram3 .iram3.* .itcm_sec_code .itcm_sec_code*)
+        *mailbox_channel.c.obj*(.text .text.* .rodata .rodata.* .iram .iram.* .iram2 .iram2.* .iram3 .iram3.* .itcm_sec_code .itcm_sec_code*)
+        *mbox0_adapter.c.obj*(.text .text.* .rodata .rodata.* .iram .iram.* .iram2 .iram2.* .iram3 .iram3.* .itcm_sec_code .itcm_sec_code*)
+        *mbox0_drv.c.obj*(.text .text.* .rodata .rodata.* .iram .iram.* .iram2 .iram2.* .iram3 .iram3.* .itcm_sec_code .itcm_sec_code*)
+        *libos_source.a:tasks.c.obj*(.text .text.* .rodata .rodata.*)
+        *libos_source.a:queue.c.obj*(.text .text.* .rodata .rodata.*)
+        *libos_source.a:list.c.obj*(.text .text.* .rodata .rodata.*)
+        *libos_source.a:timers.c.obj*(.text .text.* .rodata .rodata.*)
+        *libos_source.a:port.c.obj*(.text .text.* .rodata .rodata.*)
+        *rtos_pub.c.obj*(.text .text.* .rodata .rodata.*)
+        *heap_4.c.obj*(.text .text.* .rodata .rodata.*)
+        *mem_arch.c.obj*(.text .text.* .rodata .rodata.*)
+        *arch_interrupt.c.obj*(.text .text.* .rodata .rodata.*)
+        *hal_machw.c.obj*(.text .text.* .rodata .rodata.* .iram .iram.* .iram2 .iram2.* .iram3 .iram3.* .itcm_sec_code .itcm_sec_code*)
+        *interrupts.c.obj*(.text .text.* .rodata .rodata.*)
+        *rw_task.c.obj*(.text .text.* .rodata .rodata.* .iram .iram.* .iram2 .iram2.* .iram3 .iram3.* .itcm_sec_code .itcm_sec_code*)
+        *bk_rc.c.obj*(.text .text.* .rodata .rodata.* .iram .iram.* .iram2 .iram2.* .iram3 .iram3.* .itcm_sec_code .itcm_sec_code*)
+#endif
+
+#if (CONFIG_WIFI_IRAM_OPT_LEVEL >= 3)
+        /* BK7259 extra Tier3 objects after the BK7258 ordered block. */
+        *rxl_hwdesc.c.obj*(.text .text.* .rodata .rodata.*)
+        *rxl_cntrl.c.obj*(.text .text.* .rodata .rodata.*)
+        *rf_cntrl.c.obj*(.text .text.* .rodata .rodata.*)
+#endif
+
+        /* Leftovers keep the original 7259 tier semantics. */
         *(.itcm_sec_code)
         *(.iram)
 #if (CONFIG_WIFI_IRAM_OPT_LEVEL >= 2)
@@ -276,31 +337,6 @@ SECTIONS
 #endif
         *(.interrupt)
         KEEP(*(.interrupt.text*))
-
-#if (CONFIG_WIFI_IRAM_OPT_LEVEL >= 2)
-       /* OS (FreeRTOS) (WiFi Tier2: resident in SRAM when level >= 2) */
-        *libos_source.a:tasks.c.obj*(.text .text.* .rodata .rodata.*)
-        *libos_source.a:queue.c.obj*(.text .text.* .rodata .rodata.*)
-        *libos_source.a:list.c.obj*(.text .text.* .rodata .rodata.*)
-        *libos_source.a:timers.c.obj*(.text .text.* .rodata .rodata.*)
-        *libos_source.a:port.c.obj*(.text .text.* .rodata .rodata.*)
-        *rtos_pub.c.obj*(.text .text.* .rodata .rodata.*)
-        *heap_4.c.obj*(.text .text.* .rodata .rodata.*)
-        *mem_arch.c.obj*(.text .text.* .rodata .rodata.*)
-        /* Interrupt handling */
-        *arch_interrupt.c.obj*(.text .text.* .rodata .rodata.*)
-        *interrupts.c.obj*(.text .text.* .rodata .rodata.*)
-        /* WiFi RX / list / RF */
-        *rxl_hwdesc.c.obj*(.text .text.* .rodata .rodata.*)
-        *rxl_cntrl.c.obj*(.text .text.* .rodata .rodata.*)
-        *co_list.c.obj*(.text .text.* .rodata .rodata.*)
-        *rf_cntrl.c.obj*(.text .text.* .rodata .rodata.*)
-#endif
-#if (CONFIG_WIFI_IRAM_OPT_LEVEL >= 3)
-        /* lwIP WLAN netif + pbuf (WiFi Tier3: resident in SRAM when level >= 3) */
-        *liblwip_intf_v2_1.a:wlanif.c.obj*(.text .text.* .rodata .rodata.*)
-        *liblwip_intf_v2_1.a:pbuf.c.obj*(.text .text.* .rodata .rodata.*)
-#endif
 
         . = ALIGN(4);
         __iram_end__ = .;

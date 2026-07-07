@@ -19,11 +19,7 @@
 OUTPUT_FORMAT("elf32-littlearm", "elf32-bigarm", "elf32-littlearm")
 
 __MSP_STACK_SIZE = (4 << 10);
-#if (CONFIG_SOC_SMP)
-__MIN_HEAP_SIZE  = (64 << 10);  /* SMP: two cores use more RAM for stacks */
-#else
-__MIN_HEAP_SIZE  = (86 << 10);
-#endif
+__MIN_HEAP_SIZE  = (90 << 10);
 PERSIST_MEM_AREA_SIZE = 4;
 REBOOT_TAG_AREA_SIZE = 4;
 
@@ -33,6 +29,7 @@ __MPU_PROTECT_SIZE = 0x20;
 __MPU_PROTECT_SIZE = 0x0;
 #endif
 
+
 /*****************************************************************************
 The follow four shared memory address area mapping to the same physical memory
     0x08000000 ~ 0x080a0000  ---- instruction area, recommend put sram code
@@ -41,41 +38,47 @@ The follow four shared memory address area mapping to the same physical memory
     0x38000000 ~ 0x380a0000  ---- data area, recommend put sram data
 ******************************************************************************/
 
-__CP_APP_IRAM_OFFSET = 0x00000000;
+__AP_APP_IRAM_OFFSET = 0x0; /* 0x20000000;*/
+__AP_SPINLOCK_SECTION_SIZE = 0x8000;
 
 #if CONFIG_SRAM_DIRECT_ADDR
-__CP_APP_RAM_OFFSET = 0x04000000;
+__AP_APP_RAM_OFFSET = 0x04000000;
 #else
-__CP_APP_RAM_OFFSET = 0x0;
+__AP_APP_RAM_OFFSET = 0x0;
 #endif
 
-__CP_APP_RAM_BASE = CONFIG_CP_RAM_ADDR + __CP_APP_RAM_OFFSET; /* 0x28000000 + 0x04000000 = 0x2C000000 */
-__CP_SWAP_BASE = CONFIG_SWAP_ADDR + __CP_APP_RAM_OFFSET; /* 0x2805F000 + 0x04000000 = 0x2C05F000 */
+__AP_APP_RAM_BASE = CONFIG_AP_RAM_ADDR + __AP_APP_RAM_OFFSET; /* 0x28xxxxxx + 0x04000000 = 0x2Cxxxxxx */
+__AP_SPINLOCK_RAM_BASE = CONFIG_AP_RAM_ADDR + CONFIG_AP_RAM_SIZE - __AP_SPINLOCK_SECTION_SIZE;
+__AP_SWAP_BASE = CONFIG_SWAP_ADDR + __AP_APP_RAM_OFFSET;
 
-__CP_APP_IRAM_BASE = CONFIG_CP_RAM_ADDR + __CP_APP_RAM_OFFSET - __CP_APP_IRAM_OFFSET;  /*0x2C000000 = 0x2C000000 - __CP_APP_IRAM_OFFSET*/
-__CP_APP_IRAM_SIZE = CONFIG_CP_RAM_SIZE;
+__AP_APP_IRAM_BASE = CONFIG_AP_RAM_ADDR + __AP_APP_RAM_OFFSET - __AP_APP_IRAM_OFFSET;  /*0x2Cxxxxxx = 0x2Cxxxxxx - __AP_APP_IRAM_OFFSET*/
+__AP_APP_IRAM_SIZE = CONFIG_AP_RAM_SIZE - __AP_SPINLOCK_SECTION_SIZE;
 
 MEMORY
 {
-  FLASH (rx)            : ORIGIN = (SOC_FLASH_DATA_BASE + CONFIG_CP_VIRTUAL_PARTITION_OFFSET), LENGTH = CONFIG_CP_VIRTUAL_PARTITION_SIZE
-  IRAM (rx)             : ORIGIN = __CP_APP_IRAM_BASE, LENGTH = __CP_APP_IRAM_SIZE
-  RAM (rwx)             : ORIGIN = __CP_APP_RAM_BASE, LENGTH = CONFIG_CP_RAM_SIZE
-  SWAP (rwx)            : ORIGIN = __CP_SWAP_BASE, LENGTH = CONFIG_SWAP_SIZE
+  FLASH (rx)            : ORIGIN = (SOC_FLASH_DATA_BASE + CONFIG_AP_VIRTUAL_PARTITION_OFFSET), LENGTH = CONFIG_AP_VIRTUAL_PARTITION_SIZE
+  IRAM (rx)             : ORIGIN = __AP_APP_IRAM_BASE, LENGTH = __AP_APP_IRAM_SIZE
 
+  RAM (rwx)             : ORIGIN = __AP_APP_RAM_BASE, LENGTH = CONFIG_AP_RAM_SIZE - __AP_SPINLOCK_SECTION_SIZE
+  SPINLOCK_RAM (rwx)    : ORIGIN = __AP_SPINLOCK_RAM_BASE, LENGTH = __AP_SPINLOCK_SECTION_SIZE
+  SWAP (rwx)            : ORIGIN = __AP_SWAP_BASE, LENGTH = CONFIG_SWAP_SIZE
+
+  DTCM (rwx)            : ORIGIN = SOC_DTCM_DATA_BASE + 0, LENGTH = CONFIG_DTCM_SIZE
 #if CONFIG_PSRAM
 #if (CONFIG_PSRAM_AS_SYS_MEMORY)
-  /* CP image uses CP_PSRAM_HEAP from partitions/ram_regions.h */
-  PSRAM_HEAP (rwx)      : ORIGIN = CONFIG_CP_PSRAM_HEAP_ADDR, LENGTH = CONFIG_CP_PSRAM_HEAP_SIZE
+  PSRAM_HEAP (rwx)      : ORIGIN = CONFIG_AP_PSRAM_HEAP_ADDR, LENGTH = CONFIG_AP_PSRAM_HEAP_SIZE
 #endif
-#if (CONFIG_CPU0_PSRAM_SECTION_ADDR)
-  PSRAM_SECTION (rwx)   : ORIGIN = CONFIG_CPU0_PSRAM_SECTION_ADDR, LENGTH = CONFIG_CPU0_PSRAM_SECTION_SIZE
+#if (CONFIG_AP_PSRAM_CODE_SECTION_ADDR)
+  PSRAM_CODE_SECTION (rwx)   : ORIGIN = CONFIG_AP_PSRAM_CODE_SECTION_ADDR, LENGTH = CONFIG_AP_PSRAM_CODE_SECTION_SIZE
+#endif
+#if (CONFIG_AP_PSRAM_DATA_SECTION_ADDR)
+  PSRAM_DATA_SECTION (rwx)   : ORIGIN = CONFIG_AP_PSRAM_DATA_SECTION_ADDR, LENGTH = CONFIG_AP_PSRAM_DATA_SECTION_SIZE
 #endif
 #endif
 }
 
 #if (CONFIG_SOC_SMP)
 ENTRY(Reset_Handler_Core0)
-PROVIDE(Reset_Handler = Reset_Handler_Core0);
 #else
 ENTRY(Reset_Handler)
 #endif
@@ -132,41 +135,19 @@ SECTIONS
         __app_init_end = .;
         . = ALIGN(8);
 
-#if (CONFIG_WIFI_IRAM_OPT_LEVEL >= 2)
         EXCLUDE_FILE (
-            /* OS (FreeRTOS) (WiFi Tier2: resident in SRAM when level >= 2) */
-            *libos_source.a:tasks.c.obj
-            *libos_source.a:queue.c.obj
-            *libos_source.a:list.c.obj
-            *libos_source.a:timers.c.obj
-            *libos_source.a:port.c.obj
-            *rtos_pub.c.obj
-            *heap_4.c.obj
-            *mem_arch.c.obj
-            /* Interrupt handling */
-            *arch_interrupt.c.obj
-            *interrupts.c.obj
-            /* WiFi RX / list / RF */
-            *rxl_hwdesc.c.obj
-            *rxl_cntrl.c.obj
-            *co_list.c.obj
-            *rf_cntrl.c.obj
-#if (CONFIG_WIFI_IRAM_OPT_LEVEL >= 3)
-            /* lwIP (WiFi Tier3: resident in SRAM when level >= 3) */
-            *liblwip_intf_v2_1.a:wlanif.c.obj
-            *liblwip_intf_v2_1.a:pbuf.c.obj
-#endif
+            *wdrv_main.c.obj
+            *wdrv_tx.c.obj
+            *wdrv_rx.c.obj
+            *wdrv_co_list.c.obj
+            *mailbox_channel.c.obj
+            *mbox0_adapter.c.obj
+            *mbox0_drv.c.obj
+            /* Exclude from the generic text wildcard so the block below can
+             * place these libraries in the requested FLASH order. */
+            *libiperf.a:*
+            *libbk_wifi.a:*
         ) *(.text .text.* .rodata .rodata.*)
-#else
-        *(.text .text.* .rodata .rodata.*)
-#endif
-#if (CONFIG_WIFI_IRAM_OPT_LEVEL < 2)
-        *(.iram2 .iram2.*)    /* Tier2 stays in FLASH below level 2 */
-#endif
-#if (CONFIG_WIFI_IRAM_OPT_LEVEL < 3)
-        *(.iram3 .iram3.*)    /* Tier3 stays in FLASH below level 3 */
-#endif
-
         . = ALIGN(4);
         __devconfig_start = .;
         *(".devconfig.*")
@@ -177,6 +158,12 @@ SECTIONS
         __apps_start = .;
         KEEP (*(.apps_data))
         __apps_end = .;
+
+        . = ALIGN(4);
+        __wifi_dp_code_start = .;
+        *libiperf.a:*(.text .text.* .rodata .rodata.*)
+        *libbk_wifi.a:*(.text .text.* .rodata .rodata.*)
+        __wifi_dp_code_end = .;
 
         _etext = .;
         . = ALIGN(4);
@@ -201,6 +188,28 @@ SECTIONS
       __a_init_end = .;
     } > FLASH
 
+
+    .sensor_detect :
+    {
+      __camera_sensor_detect_array_start = .;
+      KEEP(*(.camera_sensor_detect_function_list.*))
+      __camera_sensor_detect_array_end = .;
+    } > FLASH
+
+    .lcd_panel_device_list :
+    {
+      __lcd_panel_device_array_start = .;
+      KEEP(*(.lcd_panel_device_list.*))
+      __lcd_panel_device_array_end = .;
+    } > FLASH
+
+    .tp_detect :
+    {
+      __tp_sensor_detect_array_start = .;
+      KEEP(*(.tp_sensor_detect_function_list.*))
+      __tp_sensor_detect_array_end = .;
+    } > FLASH
+
     .avdk_ipc :
     {
       __start_ipc_chan_reg = .;
@@ -208,6 +217,7 @@ SECTIONS
       __stop_ipc_chan_reg = .;
     } > FLASH
 
+#if !CONFIG_ALL_CODE_IN_PSRAM
     .ARM.extab :
     {
         *(.ARM.extab* .gnu.linkonce.armextab.*)
@@ -220,6 +230,7 @@ SECTIONS
         *(.ARM.exidx* .gnu.linkonce.armexidx.*)
     } > FLASH
     __exidx_end = .;
+#endif
 
     .copy.table :
     {
@@ -233,8 +244,20 @@ SECTIONS
         LONG (__data_start__)
         LONG ((__data_end__ - __data_start__) / 4)
 
-#if (CONFIG_CPU0_PSRAM_SECTION_ADDR)
-        LONG (__psram_text)
+        LONG (__sram_spinlock_flash_begin)
+        LONG (__sram_spinlock_start__)
+        LONG ((__sram_spinlock_end__ - __sram_spinlock_start__) / 4)
+
+        LONG (__dtcm_content)
+        LONG (__dtcm_start__)
+        LONG ((__dtcm_end__ - __dtcm_start__) / 4)
+
+
+#if CONFIG_PSRAM
+        LONG (__psram_code_lma)
+        LONG (__psram_code_start__)
+        LONG ((__psram_code_end__ - __psram_code_start__) / 4)
+        LONG (__psram_data_lma)
         LONG (__psram_data_start__)
         LONG ((__psram_data_end__ - __psram_data_start__) / 4)
 #endif
@@ -249,58 +272,78 @@ SECTIONS
         LONG ((_bss_end - _bss_start) / 4)
         LONG (_heap_start)
         LONG ((_heap_end - _heap_start) / 4)
-        LONG (_swap_start)
-        LONG ((_swap_end - _swap_start) / 4)
         /* Add each additional bss section here */
-#if (CONFIG_CPU0_PSRAM_SECTION_ADDR)
+    #if CONFIG_PSRAM
         LONG (__psram_bss_start__)
         LONG ((__psram_bss_end__ - __psram_bss_start__) / 4)
-#endif
+    #endif
         __zero_table_end__ = .;
     } > FLASH
+
+    .dtcm :
+    {
+        . = ALIGN(4);
+
+        PROVIDE(__dtcm_content = LOADADDR(.dtcm));
+        __dtcm_start__ = .;
+
+        . = ALIGN(512);
+        KEEP(*(.vectors_iram))
+
+#if CONFIG_SOC_SMP
+        . = ALIGN(512);
+        __vector_core1_table = .;
+        KEEP(*(.vectors_core1))
+#endif
+
+        . = ALIGN(4);
+        __itcm_start__ = .;
+        *(.itcm)
+        *(.itcm_section*)
+        *(.itcm_sec_code*)
+        *(.interrupt)
+        __itcm_end__ = .;
+
+
+        . = ALIGN(4);
+
+        *(.dtcm)
+        *(.dtcm_section*)
+        *(.dtcm_sec_data*)
+        . = ALIGN(4);
+
+
+        __dtcm_end__ = .;
+    } > DTCM AT > FLASH
+
+    /* NOLOAD DTCM region: scratch buffers that need no init value.
+     * Not in copy.table (no flash copy) and not in zero.table, so it adds
+     * nothing to boot-time b_data_copy_dtcm(). */
+    .dtcm_noinit (NOLOAD) :
+    {
+        . = ALIGN(4);
+        *(.dtcm_noinit*)
+        . = ALIGN(4);
+    } > DTCM
 
     .iram :
     {
         . = ALIGN(512);
         PROVIDE(__iram_flash_begin = LOADADDR(.iram));
         __iram_start__ = .;
-
         *(.itcm)
-        *(.itcm_sec_code)
         *(.iram)
-#if (CONFIG_WIFI_IRAM_OPT_LEVEL >= 2)
-        *(.iram2 .iram2.*)    /* WiFi Tier2: resident in SRAM when level >= 2 */
-#endif
-#if (CONFIG_WIFI_IRAM_OPT_LEVEL >= 3)
-        *(.iram3 .iram3.*)    /* WiFi Tier3: resident in SRAM when level >= 3 */
-#endif
         *(.interrupt)
-        KEEP(*(.interrupt.text*))
+        *(.itcm_sec_code)
 
-#if (CONFIG_WIFI_IRAM_OPT_LEVEL >= 2)
-       /* OS (FreeRTOS) (WiFi Tier2: resident in SRAM when level >= 2) */
-        *libos_source.a:tasks.c.obj*(.text .text.* .rodata .rodata.*)
-        *libos_source.a:queue.c.obj*(.text .text.* .rodata .rodata.*)
-        *libos_source.a:list.c.obj*(.text .text.* .rodata .rodata.*)
-        *libos_source.a:timers.c.obj*(.text .text.* .rodata .rodata.*)
-        *libos_source.a:port.c.obj*(.text .text.* .rodata .rodata.*)
-        *rtos_pub.c.obj*(.text .text.* .rodata .rodata.*)
-        *heap_4.c.obj*(.text .text.* .rodata .rodata.*)
-        *mem_arch.c.obj*(.text .text.* .rodata .rodata.*)
-        /* Interrupt handling */
-        *arch_interrupt.c.obj*(.text .text.* .rodata .rodata.*)
-        *interrupts.c.obj*(.text .text.* .rodata .rodata.*)
-        /* WiFi RX / list / RF */
-        *rxl_hwdesc.c.obj*(.text .text.* .rodata .rodata.*)
-        *rxl_cntrl.c.obj*(.text .text.* .rodata .rodata.*)
-        *co_list.c.obj*(.text .text.* .rodata .rodata.*)
-        *rf_cntrl.c.obj*(.text .text.* .rodata .rodata.*)
-#endif
-#if (CONFIG_WIFI_IRAM_OPT_LEVEL >= 3)
-        /* lwIP WLAN netif + pbuf (WiFi Tier3: resident in SRAM when level >= 3) */
-        *liblwip_intf_v2_1.a:wlanif.c.obj*(.text .text.* .rodata .rodata.*)
-        *liblwip_intf_v2_1.a:pbuf.c.obj*(.text .text.* .rodata .rodata.*)
-#endif
+        . = ALIGN(4);
+        *wdrv_main.c.obj*(.text .text.* .rodata .rodata.*)
+        *wdrv_tx.c.obj*(.text .text.* .rodata .rodata.*)
+        *wdrv_rx.c.obj*(.text .text.* .rodata .rodata.*)
+        *wdrv_co_list.c.obj*(.text .text.* .rodata .rodata.*)
+        *mailbox_channel.c.obj*(.text .text.* .rodata .rodata.*)
+        *mbox0_adapter.c.obj*(.text .text.* .rodata .rodata.*)
+        *mbox0_drv.c.obj*(.text .text.* .rodata .rodata.*)
 
         . = ALIGN(4);
         __iram_end__ = .;
@@ -320,15 +363,6 @@ SECTIONS
         . = ALIGN(4);
         __data_start__ = .;
 
-        . = ALIGN(512);
-        KEEP(*(.vectors_iram))
-
-#if CONFIG_SOC_SMP
-        . = ALIGN(512);
-        __vector_core1_table = .;
-        KEEP(*(.vectors_core1))
-#endif
-
 #ifdef CONFIG_GCOV
         /* added in template for gcov: */
         PROVIDE_HIDDEN (__init_array_start = .);
@@ -337,10 +371,6 @@ SECTIONS
         PROVIDE_HIDDEN (__init_array_end = .);
         . = ALIGN(4);
 #endif
-
-        *(.dtcm)
-        *(.dtcm_section*)
-        *(.dtcm_sec_data*)
         *(.data)
         *(".data.*")
         *(.sdata)
@@ -355,7 +385,18 @@ SECTIONS
     _data_ram_begin = __data_start__;
     _data_ram_end = .;
 
-    s_rom_end = LOADADDR(.data) + SIZEOF(.data);
+    .sram_spinlock_section :
+    {
+        PROVIDE(__sram_spinlock_flash_begin = LOADADDR(.sram_spinlock_section));
+        . = ALIGN(4);
+        __sram_spinlock_start__ = .;
+        *(.sram_spinlock_section)
+        . = ALIGN(4);
+        __sram_spinlock_end__ = .;
+    } > SPINLOCK_RAM AT > FLASH
+
+    ASSERT((__sram_spinlock_end__ - __sram_spinlock_start__) <= __AP_SPINLOCK_SECTION_SIZE,
+           ".sram_spinlock_section exceeds reserved SPINLOCK_RAM size")
 
     .uninitialized (NOLOAD):
     {
@@ -397,9 +438,9 @@ SECTIONS
     bss_size = _bss_end - _bss_start;
 
 #if (CONFIG_SOC_SMP)
-    _msp_total_size = __MSP_STACK_SIZE * 2;
+	_msp_total_size = __MSP_STACK_SIZE * 2;
 #else
-    _msp_total_size = __MSP_STACK_SIZE;
+	_msp_total_size = __MSP_STACK_SIZE;
 #endif
 
     .heap (COPY) :
@@ -411,8 +452,9 @@ SECTIONS
         _heap_end = .;
     } > RAM
 
+/*multiple cores require independent stack spaces*/
 #if (CONFIG_SOC_SMP)
-    .stack_core1 (ORIGIN(RAM) + LENGTH(RAM) - __MSP_STACK_SIZE * 2) (COPY) :
+    .stack_core1 (ORIGIN(RAM) + LENGTH(RAM) - __MSP_STACK_SIZE*2) (COPY) :
     {
         . = ALIGN(8);
         _sstack_core1 = .;
@@ -421,7 +463,6 @@ SECTIONS
         . = ALIGN(8);
         __StackTopCore1 = .;
         _estack_core1 = .;
-        _estack_cpu1 = _estack_core1;
     } > RAM
 
     .stack_core0 (ORIGIN(RAM) + LENGTH(RAM) - __MSP_STACK_SIZE) (COPY) :
@@ -433,8 +474,6 @@ SECTIONS
         . = ALIGN(8);
         __StackTopCore0 = .;
         _estack_core0 = .;
-        _estack_cpu0 = _estack_core0;
-        __StackTop = __StackTopCore0;
     } > RAM
 #else
     .stack (ORIGIN(RAM) + LENGTH(RAM) - __MSP_STACK_SIZE) (COPY) :
@@ -465,19 +504,65 @@ SECTIONS
         _swap_end = .;
     } > SWAP
 
-#if (CONFIG_CPU0_PSRAM_SECTION_ADDR)
+#if CONFIG_PSRAM
+    .psram.code :
+    {
+        . = ALIGN(4);
+        PROVIDE(__psram_code_lma = LOADADDR(.psram.code));
+        __psram_code_start__ = .;
+
+        /* Explicitly marked PSRAM code */
+        *(.psram.code)
+        *(.psram.code*)
+
+        __psram_sys_code_start__ = .;
+        *(.psram_sys_code)
+        *(.psram_sys_code*)
+        __psram_sys_code_end__ = .;
+
+        __psram_wifi_code_start__ = .;
+        *(.psram_wifi_code)
+        *(.psram_wifi_code*)
+        __psram_wifi_code_end__ = .;
+
+        __psram_ble_code_start__ = .;
+        *(.psram_ble_code)
+        *(.psram_ble_code*)
+        __psram_ble_code_end__ = .;
+
+        __psram_multimedia_code_start__ = .;
+        *(.psram_multimedia_code)
+        *(.psram_multimedia_code*)
+        __psram_multimedia_code_end__ = .;
+
+#if CONFIG_ALL_CODE_IN_PSRAM
+         *(.text .text.* .rodata .rodata.*)
+         /* ARM exception tables should be in PSRAM when all code is in PSRAM */
+         *(.ARM.extab* .gnu.linkonce.armextab.*)
+         . = ALIGN(4);
+         __exidx_start = .;
+         *(.ARM.exidx* .gnu.linkonce.armexidx.*)
+         __exidx_end = .;
+#endif /*CONFIG_ALL_CODE_IN_PSRAM*/
+        . = ALIGN(4);
+        __psram_code_end__ = .;
+    } > PSRAM_CODE_SECTION AT > FLASH
+
+
     .psram.data :
     {
         . = ALIGN(4);
-        PROVIDE(__psram_text = LOADADDR(.psram.data));
+        PROVIDE(__psram_data_lma = LOADADDR(.psram.data));
         __psram_data_start__ = .;
 
         *(.psram.data)
         *(.psram.data*)
-
+        #if CONFIG_BEKEN_KWS
+        *(.bk_kws_buffer*)
+        #endif
         . = ALIGN(4);
         __psram_data_end__ = .;
-    } > PSRAM_SECTION AT > FLASH
+    } > PSRAM_DATA_SECTION AT > FLASH
 
     .psram.bss (NOLOAD):
     {
@@ -487,9 +572,15 @@ SECTIONS
         *(.psram.bss*)
         . = ALIGN(4);
         __psram_bss_end__ = .;
-    } > PSRAM_SECTION
+    } > PSRAM_DATA_SECTION
+
 #endif
 
+#if CONFIG_PSRAM
+    s_rom_end = LOADADDR(.psram.data) + SIZEOF(.psram.data);
+#else
+    s_rom_end = LOADADDR(.data) + SIZEOF(.data);
+#endif
     /* Set stack top to end of RAM, and stack limit move down by
      * size of stack_dummy section */
     __MSPTop = ORIGIN(RAM) + LENGTH(RAM);
@@ -499,11 +590,6 @@ SECTIONS
     ASSERT(((ORIGIN(RAM) + LENGTH(RAM)) > (_heap_start + __MSP_STACK_SIZE + 8)), "Stack overflowed with bss")
     ASSERT(((_heap_end - _heap_start) >= __MIN_HEAP_SIZE), "Heap smaller than minimize size 90K!!!")
     ASSERT((_shared_memory_end - _shared_memory_start) == 1024, ".shared_memory sections must be 1024 bytes!!!")
-#if (CONFIG_SOC_SMP)
-    PROVIDE(_estack_cpu0 = _estack_core0);
-    PROVIDE(_estack_cpu1 = _estack_core1);
-    PROVIDE(__StackTop = __StackTopCore0);
-#endif
 }
 //eof
 

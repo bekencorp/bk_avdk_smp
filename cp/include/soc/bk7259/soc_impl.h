@@ -100,28 +100,6 @@ extern "C" {
 #define __IRAM_WIFI __attribute__((section(".iram")))
 #endif
 
-/*
- * WiFi-dedicated tiered IRAM (controlled by CONFIG_WIFI_IRAM_OPT_LEVEL):
- *   level 1 = least SRAM (Tier1 only); level 2 = Tier1 + .iram2 (Tier2);
- *   level 3 = Tier1 + .iram2 + .iram3 (Tier2 + Tier3). Higher level keeps
- *   more WiFi code resident in SRAM.
- * Non-WiFi/system code must use __IRAM_SEC/__IRAM_WIFI instead of these.
- */
-#ifndef CONFIG_WIFI_IRAM_OPT_LEVEL
-#define CONFIG_WIFI_IRAM_OPT_LEVEL 2
-#endif
-
-#if (CONFIG_WIFI_IRAM_OPT_LEVEL >= 2)
-#define __IRAM2 __attribute__((section(".iram2")))
-#else
-#define __IRAM2
-#endif
-
-#if (CONFIG_WIFI_IRAM_OPT_LEVEL >= 3)
-#define __IRAM3 __attribute__((section(".iram3")))
-#else
-#define __IRAM3
-#endif
 #define __FLASH_BOOT_CODE __attribute__((section(".flash_boot_code")))
 
 #ifdef __cplusplus
