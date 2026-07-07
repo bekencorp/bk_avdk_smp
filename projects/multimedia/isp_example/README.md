@@ -4,13 +4,12 @@
 
 ## 1. Project Overview
 
-This project demonstrates **MIPI CSI / DVP** camera capture and **ISP** processing on BK7259, including sensor auto-detect, MP/SP dual channels, Frame / Flexa output modes, and ISP tuning/dump utilities.
+This project demonstrates **MIPI CSI** camera capture and **ISP** processing on BK7259, including sensor auto-detect, MP/SP dual channels, Frame / Flexa output modes, and ISP tuning/dump utilities.
 
 * Developer guide:
 
   - [Camera overview](../../../developer-guide/camera/index.html)
   - [MIPI CSI](../../../developer-guide/camera/mipi_csi.html)
-  - [DVP](../../../developer-guide/camera/dvp.html)
 
 * API reference:
 
@@ -23,7 +22,6 @@ This project demonstrates **MIPI CSI / DVP** camera capture and **ISP** processi
   - Core board: **BK7259_QF128_12.3X12.3_V4.0**
   - PSRAM: 32M
   - Default MIPI CSI sensor: GC2053 (1920×1080@20fps)
-  - Default DVP sensor: GC2145 (1280×720@30fps)
 - Software: `CONFIG_ISP`, `CONFIG_BK_CAMERA`, `CONFIG_FRAME_BUFFER`, `CONFIG_MEDIA_SERVICE`
 
 .. warning::
@@ -54,7 +52,7 @@ isp_example/
 
 | Command | Subcommands | Description |
 |---------|-------------|-------------|
-| **isp** | `detect` | Scan DVP / CSI sensors |
+| **isp** | `detect` | Scan CSI sensors |
 | | `open` | Open a channel (see syntax below) |
 | | `close` | `isp close <mp\|sp>` |
 | | `read` | `isp read <mp\|sp>` — read one frame, hex dump |
@@ -68,7 +66,7 @@ isp_example/
 `isp open` syntax:
 
 ```text
-isp open <mipi|dvp> <mp|sp> <sensor_w> <sensor_h> <fps> <out_w> <out_h> <frame|software|hardware> [output_fmt]
+isp open <mp|sp> <sensor_w> <sensor_h> <fps> <out_w> <out_h> <frame|flexa> [output_fmt]
 ```
 
 - `frame`: full-frame output; `software` / `hardware`: Flexa segmented output
@@ -78,8 +76,7 @@ Examples:
 
 ```text
 isp detect
-isp open mipi mp 1920 1080 20 1920 1080 frame
-isp open dvp mp 1280 720 30 1280 720 frame
+isp open mp 1920 1080 20 1920 1080 frame
 isp close mp
 ```
 
@@ -100,10 +97,11 @@ make bk7259 PROJECT=multimedia/isp_example -j$(nproc)
 
 ### 4.2 Test Cases
 
-See `ISP_TEST_CASES.md` for the full matrix (MIPI/DVP, MP/SP, Frame/Flexa, stress, boundaries).
+See `ISP_TEST_CASES.md` for the full matrix (MIPI, MP/SP, Frame/Flexa, stress, boundaries).
 
 ## 5. Notes
 
-1. `isp_api` is an API stepping skeleton — not wired to real handlers yet.
-2. Dual-channel use needs enough PSRAM / frame buffers.
-3. For Flexa vs Frame, see [Frame vs Flexa Mode](../../../developer-guide/vpu/flexa_frame.html).
+1. DVP tests have moved to `multimedia/dvp_example`; this project keeps only MIPI/ISP test entry points.
+2. `isp_api` is an API stepping skeleton — not wired to real handlers yet.
+3. Dual-channel use needs enough PSRAM / frame buffers.
+4. For Flexa vs Frame, see [Frame vs Flexa Mode](../../../developer-guide/vpu/flexa_frame.html).

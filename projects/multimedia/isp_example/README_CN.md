@@ -4,13 +4,12 @@
 
 ## 1. 项目概述
 
-本工程用于演示 BK7259 **MIPI CSI / DVP** 摄像头采集与 **ISP** 图像处理通路，覆盖传感器自动检测、MP/SP 双通道、Frame / Flexa 输出模式，以及 ISP tuning、dump 等调试能力。
+本工程用于演示 BK7259 **MIPI CSI** 摄像头采集与 **ISP** 图像处理通路，覆盖传感器自动检测、MP/SP 双通道、Frame / Flexa 输出模式，以及 ISP tuning、dump 等调试能力。
 
 * 开发者指南：
 
   - [Camera 总览](../../../developer-guide/camera/index.html)
   - [MIPI CSI](../../../developer-guide/camera/mipi_csi.html)
-  - [DVP](../../../developer-guide/camera/dvp.html)
 
 * API 参考：
 
@@ -23,7 +22,6 @@
   - 核心板：**BK7259_QF128_12.3X12.3_V4.0**
   - PSRAM：32M
   - MIPI CSI 默认传感器：GC2053（1920×1080@20fps）
-  - DVP 默认传感器：GC2145（1280×720@30fps）
 - 软件依赖：`CONFIG_ISP`、`CONFIG_BK_CAMERA`、`CONFIG_FRAME_BUFFER`、`CONFIG_MEDIA_SERVICE`
 
 .. warning::
@@ -54,7 +52,7 @@ isp_example/
 
 | 命令 | 子命令 | 说明 |
 |------|--------|------|
-| **isp** | `detect` | 扫描 DVP / CSI 传感器 |
+| **isp** | `detect` | 扫描 CSI 传感器 |
 | | `open` | 打开通道，见下方语法 |
 | | `close` | `isp close <mp\|sp>` |
 | | `read` | `isp read <mp\|sp>` — 读一帧并 hex dump |
@@ -68,7 +66,7 @@ isp_example/
 `isp open` 语法：
 
 ```text
-isp open <mipi|dvp> <mp|sp> <sensor_w> <sensor_h> <fps> <out_w> <out_h> <frame|software|hardware> [output_fmt]
+isp open <mp|sp> <sensor_w> <sensor_h> <fps> <out_w> <out_h> <frame|flexa> [output_fmt]
 ```
 
 - `frame`：整帧输出；`software` / `hardware`：Flexa 分段输出模式
@@ -78,8 +76,7 @@ isp open <mipi|dvp> <mp|sp> <sensor_w> <sensor_h> <fps> <out_w> <out_h> <frame|s
 
 ```text
 isp detect
-isp open mipi mp 1920 1080 20 1920 1080 frame
-isp open dvp mp 1280 720 30 1280 720 frame
+isp open mp 1920 1080 20 1920 1080 frame
 isp close mp
 ```
 
@@ -102,13 +99,14 @@ make bk7259 PROJECT=multimedia/isp_example -j$(nproc)
 
 更完整的测试矩阵见工程内 `ISP_TEST_CASES.md`，包含：
 
-- MIPI / DVP 单通道 Frame 与 Flexa
+- MIPI 单通道 Frame 与 Flexa
 - MP + SP 双通道组合
 - 缩小 / 放大（放大应失败）边界
 - 压力与快速切换场景
 
 ## 5. 注意事项
 
-1. `isp_api` 命令用于 API 分步调试骨架，当前未接入真实实现，请勿与 `isp` 高层命令混淆。
-2. 双通道同时工作时注意帧缓冲与 PSRAM 占用。
-3. Flexa 模式需与下游模块规划 Bond 或读指针同步，参见 [Frame 与 Flexa 模式](../../../developer-guide/vpu/flexa_frame.html)。
+1. DVP 测试已拆分到 `multimedia/dvp_example`，本工程只保留 MIPI/ISP 测试入口。
+2. `isp_api` 命令用于 API 分步调试骨架，当前未接入真实实现，请勿与 `isp` 高层命令混淆。
+3. 双通道同时工作时注意帧缓冲与 PSRAM 占用。
+4. Flexa 模式需与下游模块规划 Bond 或读指针同步，参见 [Frame 与 Flexa 模式](../../../developer-guide/vpu/flexa_frame.html)。

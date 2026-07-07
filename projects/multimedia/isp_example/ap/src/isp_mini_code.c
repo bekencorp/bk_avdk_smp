@@ -2286,7 +2286,7 @@ static void isp_init_regs(uint32_t width, uint32_t height)
     *(volatile uint32_t*)0x440101A4 = 0xfd3bb800;
     *(volatile uint32_t*)0x48000024 = 0x42c1425c;
 
-    *(volatile uint32_t*)(0x48000000 + 0x9 * 4) |= (15 << 1) | (15 << 6);//AUXS for CSI and MCLK for DVP
+    *(volatile uint32_t*)(0x48000000 + 0x9 * 4) |= (15 << 1) | (15 << 6);//AUXS for CSI
 
     mipi_controller_init(width, height, 0x2B);
 
