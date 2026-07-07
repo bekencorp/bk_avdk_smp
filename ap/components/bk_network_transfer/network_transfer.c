@@ -10,6 +10,7 @@
 #if CONFIG_NTWK_VIDEO_FPS_CALC_ENABLE
 #include "video_fps.h"
 #endif
+#include "bk_network_service/bk_ntwk_socket/ntwk_socket.h"
 #include "ntwk_pack.h"
 #include "ntwk_fragmentation.h"
 #if CONFIG_NTWK_CTRL_CHAN_JSON
@@ -26,9 +27,26 @@
 
 
 static ntwk_trans_ctxt_t *s_ntwk_trans_ctxt = NULL;
+static volatile uint8_t s_ntwk_trans_chan_abort[NTWK_TRANS_CHAN_MAX] = {0};
+static volatile uint8_t s_ntwk_trans_chan_send_bypass[NTWK_TRANS_CHAN_MAX] = {0};
 #if CONFIG_NTWK_CLIENT_SERVICE_ENABLE
 static ntwk_server_net_info_t s_ntwk_server_net_info = {0};
 #endif
+
+static int ntwk_trans_chan_abort_check(uint32_t chan_type)
+{
+    if (chan_type >= NTWK_TRANS_CHAN_MAX)
+    {
+        return 1;
+    }
+
+    if (s_ntwk_trans_chan_send_bypass[chan_type])
+    {
+        return 0;
+    }
+
+    return s_ntwk_trans_chan_abort[chan_type] != 0;
+}
 
 ntwk_trans_ctxt_t *ntwk_trans_get_ctxt(void)
 {
@@ -354,6 +372,13 @@ bk_err_t ntwk_trans_ctxt_init(ntwk_trans_ctxt_t *ctxt)
     ntwk_fragmentation_init(NTWK_TRANS_CHAN_CTRL);
     ntwk_fragmentation_init(NTWK_TRANS_CHAN_VIDEO);
     ntwk_fragmentation_init(NTWK_TRANS_CHAN_AUDIO);
+    ntwk_trans_chan_abort(NTWK_TRANS_CHAN_CTRL, false);
+    ntwk_trans_chan_abort(NTWK_TRANS_CHAN_VIDEO, false);
+    ntwk_trans_chan_abort(NTWK_TRANS_CHAN_AUDIO, false);
+    ntwk_fragment_register_abort_cb(NTWK_TRANS_CHAN_CTRL, ntwk_trans_chan_abort_check);
+    ntwk_fragment_register_abort_cb(NTWK_TRANS_CHAN_VIDEO, ntwk_trans_chan_abort_check);
+    ntwk_fragment_register_abort_cb(NTWK_TRANS_CHAN_AUDIO, ntwk_trans_chan_abort_check);
+    ntwk_socket_register_abort_check_cb(ntwk_trans_chan_abort_check);
 
 #if CONFIG_NTWK_CTRL_CHAN_JSON
     ntwk_json_init(NTWK_TRANS_CHAN_CTRL);
@@ -389,6 +414,10 @@ bk_err_t ntwk_trans_ctxt_deinit(void)
     ntwk_fragmentation_deinit(NTWK_TRANS_CHAN_CTRL);
     ntwk_fragmentation_deinit(NTWK_TRANS_CHAN_VIDEO);
     ntwk_fragmentation_deinit(NTWK_TRANS_CHAN_AUDIO);
+    ntwk_trans_chan_abort(NTWK_TRANS_CHAN_CTRL, false);
+    ntwk_trans_chan_abort(NTWK_TRANS_CHAN_VIDEO, false);
+    ntwk_trans_chan_abort(NTWK_TRANS_CHAN_AUDIO, false);
+    ntwk_socket_register_abort_check_cb(NULL);
 
 #if CONFIG_NTWK_CTRL_CHAN_JSON
     ntwk_json_deinit(NTWK_TRANS_CHAN_CTRL);
@@ -432,6 +461,7 @@ bk_err_t ntwk_trans_chan_start(chan_type_t chan_type, void *param)
 
     bk_err_t ret = BK_FAIL;
 
+    ntwk_trans_chan_abort(chan_type, false);
     ret = ntwk_in_start(chan_type, param);
 
     if (ret == BK_OK)
@@ -468,10 +498,44 @@ bk_err_t ntwk_trans_chan_stop(chan_type_t chan_type)
     return ret;
 }
 
+bk_err_t ntwk_trans_chan_abort(chan_type_t chan_type, bool abort)
+{
+    if (chan_type >= NTWK_TRANS_CHAN_MAX)
+    {
+        LOGE("%s, invalid channel type: %d\n", __func__, chan_type);
+        return BK_ERR_PARAM;
+    }
+
+    s_ntwk_trans_chan_abort[chan_type] = abort ? 1 : 0;
+    return BK_OK;
+}
+
+bk_err_t ntwk_trans_chan_discard_frame(chan_type_t chan_type, uint8_t frame_id)
+{
+    int ret;
+
+    if (chan_type >= NTWK_TRANS_CHAN_MAX)
+    {
+        LOGE("%s, invalid channel type: %d\n", __func__, chan_type);
+        return BK_ERR_PARAM;
+    }
+
+    s_ntwk_trans_chan_send_bypass[chan_type] = 1;
+    ret = ntwk_fragment_discard_frame(chan_type, frame_id);
+    s_ntwk_trans_chan_send_bypass[chan_type] = 0;
+
+    return (ret >= 0) ? BK_OK : BK_FAIL;
+}
+
 int ntwk_trans_ctrl_send(uint8_t *data, uint32_t length)
 {
     uint8_t *pack_ptr = NULL;
     uint32_t pack_ptr_length = 0;
+
+    if (ntwk_trans_chan_abort_check(NTWK_TRANS_CHAN_CTRL))
+    {
+        return BK_FAIL;
+    }
 
     if (data == NULL || length == 0)
     {
@@ -525,6 +589,11 @@ int ntwk_trans_video_send(uint8_t *data, uint32_t length, image_format_t video_t
     uint8_t *pack_ptr = NULL;
     uint32_t pack_ptr_length = 0;
     int ret = BK_FAIL;
+
+    if (ntwk_trans_chan_abort_check(NTWK_TRANS_CHAN_VIDEO))
+    {
+        return BK_FAIL;
+    }
 
     if (s_ntwk_trans_ctxt == NULL || !s_ntwk_trans_ctxt->initialized)
     {
@@ -608,6 +677,11 @@ int ntwk_trans_audio_send(uint8_t *data, uint32_t length, audio_enc_type_t audio
 {
     uint8_t *pack_ptr = NULL;
     uint32_t pack_ptr_length = 0;
+
+    if (ntwk_trans_chan_abort_check(NTWK_TRANS_CHAN_AUDIO))
+    {
+        return BK_FAIL;
+    }
 
     if (s_ntwk_trans_ctxt == NULL || !s_ntwk_trans_ctxt->initialized)
     {

@@ -27,6 +27,13 @@
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
 #define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
+static ntwk_socket_abort_check_cb_t s_ntwk_socket_abort_check = NULL;
+
+void ntwk_socket_register_abort_check_cb(ntwk_socket_abort_check_cb_t abort_check)
+{
+    s_ntwk_socket_abort_check = abort_check;
+}
+
 int ntwk_socket_set_qos(int fd, int qos)
 {
     int ret = setsockopt(fd, IPPROTO_IP, IP_TOS, &qos, sizeof(qos));
@@ -41,7 +48,8 @@ int ntwk_socket_set_qos(int fd, int qos)
     return ret;
 }
 
-int ntwk_socket_sendto(int *fd, const struct sockaddr *dst, uint8_t *data, uint32_t length)
+int ntwk_socket_sendto_abortable(int *fd, const struct sockaddr *dst, uint8_t *data, uint32_t length,
+                                 uint32_t user_data)
 {
     int ret = 0;
 
@@ -52,6 +60,11 @@ int ntwk_socket_sendto(int *fd, const struct sockaddr *dst, uint8_t *data, uint3
 
     do
     {
+        if (s_ntwk_socket_abort_check != NULL && s_ntwk_socket_abort_check(user_data) != 0)
+        {
+            ret = -1;
+            break;
+        }
 
         if (*fd < 0)
         {
@@ -95,6 +108,12 @@ int ntwk_socket_sendto(int *fd, const struct sockaddr *dst, uint8_t *data, uint3
             break;
         }
 
+        if (s_ntwk_socket_abort_check != NULL && s_ntwk_socket_abort_check(user_data) != 0)
+        {
+            ret = -1;
+            break;
+        }
+
         rtos_delay_milliseconds(NTWK_SEND_MAX_DELAY);
 
     }
@@ -103,7 +122,12 @@ int ntwk_socket_sendto(int *fd, const struct sockaddr *dst, uint8_t *data, uint3
     return ret;
 }
 
-int ntwk_socket_write(int *fd, uint8_t *data, uint32_t length)
+int ntwk_socket_sendto(int *fd, const struct sockaddr *dst, uint8_t *data, uint32_t length)
+{
+    return ntwk_socket_sendto_abortable(fd, dst, data, length, 0);
+}
+
+int ntwk_socket_write_abortable(int *fd, uint8_t *data, uint32_t length, uint32_t user_data)
 {
     int ret = 0;
 
@@ -114,6 +138,11 @@ int ntwk_socket_write(int *fd, uint8_t *data, uint32_t length)
 
     do
     {
+        if (s_ntwk_socket_abort_check != NULL && s_ntwk_socket_abort_check(user_data) != 0)
+        {
+            ret = -1;
+            break;
+        }
 
         if (*fd < 0)
         {
@@ -147,11 +176,22 @@ int ntwk_socket_write(int *fd, uint8_t *data, uint32_t length)
             break;
         }
 
+        if (s_ntwk_socket_abort_check != NULL && s_ntwk_socket_abort_check(user_data) != 0)
+        {
+            ret = -1;
+            break;
+        }
+
         rtos_delay_milliseconds(NTWK_SEND_MAX_DELAY);
 
     }
     while (index < size);
 
     return ret;
+}
+
+int ntwk_socket_write(int *fd, uint8_t *data, uint32_t length)
+{
+    return ntwk_socket_write_abortable(fd, data, length, 0);
 }
 

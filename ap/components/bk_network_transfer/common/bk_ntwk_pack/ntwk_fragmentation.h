@@ -63,7 +63,7 @@ typedef struct {
 
 
 typedef int (*fragment_recv_t) (chan_type_t chan, uint8_t *data, uint32_t length);
-typedef int (*ntwk_fragment_abort_cb_t)(void);
+typedef int (*ntwk_fragment_abort_cb_t)(uint32_t chan_type);
 
 typedef struct
 {

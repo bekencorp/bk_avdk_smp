@@ -102,7 +102,10 @@ int ntwk_tcp_video_send_packet(uint8_t *data, uint32_t length, image_format_t vi
         return -1;
     }
 
-    return ntwk_socket_sendto(&video_tcp_service->video_fd, (struct sockaddr *)&video_tcp_service->video_remote, data, length);
+    return ntwk_socket_sendto_abortable(&video_tcp_service->video_fd,
+                                        (struct sockaddr *)&video_tcp_service->video_remote,
+                                        data, length,
+                                        NTWK_TRANS_CHAN_VIDEO);
 }
 
 int ntwk_tcp_audio_send_packet(uint8_t *data, uint32_t length, audio_enc_type_t audio_type)
@@ -112,7 +115,10 @@ int ntwk_tcp_audio_send_packet(uint8_t *data, uint32_t length, audio_enc_type_t 
         return -1;
     }
 
-    return ntwk_socket_sendto(&aud_tcp_service->aud_fd, (struct sockaddr *)&aud_tcp_service->aud_remote, data, length);
+    return ntwk_socket_sendto_abortable(&aud_tcp_service->aud_fd,
+                                        (struct sockaddr *)&aud_tcp_service->aud_remote,
+                                        data, length,
+                                        NTWK_TRANS_CHAN_AUDIO);
 }
 
 int ntwk_tcp_ctrl_chan_send(uint8_t *data, uint32_t length)
@@ -131,7 +137,8 @@ int ntwk_tcp_ctrl_chan_send(uint8_t *data, uint32_t length)
         return -1;
     }
 
-    ret = ntwk_socket_write(&ntwl_tcp_ctrl_info->client_fd, data, length);
+    ret = ntwk_socket_write_abortable(&ntwl_tcp_ctrl_info->client_fd, data, length,
+                                      NTWK_TRANS_CHAN_CTRL);
 
     return ret;
 }
@@ -1275,7 +1282,8 @@ int ntwk_tcp_ctrl_client_chan_send(uint8_t *data, uint32_t length)
         return -1;
     }
 
-    ret = ntwk_socket_write(&ntwk_tcp_ctrl_client_info->client_fd, data, length);
+    ret = ntwk_socket_write_abortable(&ntwk_tcp_ctrl_client_info->client_fd, data, length,
+                                      NTWK_TRANS_CHAN_CTRL);
 
     return ret;
 }
@@ -1615,9 +1623,10 @@ int ntwk_tcp_video_client_send_packet(uint8_t *data, uint32_t length, image_form
         return -1;
     }
 
-    return ntwk_socket_sendto(&video_tcp_client_service->video_fd,
-                             (struct sockaddr *)&video_tcp_client_service->server_addr,
-                             data, length);
+    return ntwk_socket_sendto_abortable(&video_tcp_client_service->video_fd,
+                                        (struct sockaddr *)&video_tcp_client_service->server_addr,
+                                        data, length,
+                                        NTWK_TRANS_CHAN_VIDEO);
 }
 
 bk_err_t ntwk_tcp_video_client_register_receive_cb(ntwk_video_receive_cb_t cb)
@@ -1951,9 +1960,10 @@ int ntwk_tcp_audio_client_send_packet(uint8_t *data, uint32_t length, audio_enc_
         return -1;
     }
 
-    return ntwk_socket_sendto(&aud_tcp_client_service->aud_fd,
-                             (struct sockaddr *)&aud_tcp_client_service->server_addr,
-                             data, length);
+    return ntwk_socket_sendto_abortable(&aud_tcp_client_service->aud_fd,
+                                        (struct sockaddr *)&aud_tcp_client_service->server_addr,
+                                        data, length,
+                                        NTWK_TRANS_CHAN_AUDIO);
 }
 
 bk_err_t ntwk_tcp_audio_client_register_receive_cb(ntwk_audio_receive_cb_t cb)

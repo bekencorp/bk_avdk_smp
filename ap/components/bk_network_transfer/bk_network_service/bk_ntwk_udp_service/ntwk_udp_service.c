@@ -118,7 +118,10 @@ int ntwk_udp_video_send_packet(uint8_t *data, uint32_t length, image_format_t vi
         return -1;
     }
 
-    return ntwk_socket_sendto(&video_udp_service->video_fd, (struct sockaddr *)&video_udp_service->video_remote, data, length);
+    return ntwk_socket_sendto_abortable(&video_udp_service->video_fd,
+                                        (struct sockaddr *)&video_udp_service->video_remote,
+                                        data, length,
+                                        NTWK_TRANS_CHAN_VIDEO);
 }
 
 int ntwk_udp_audio_send_packet(uint8_t *data, uint32_t length, audio_enc_type_t audio_type)
@@ -128,7 +131,10 @@ int ntwk_udp_audio_send_packet(uint8_t *data, uint32_t length, audio_enc_type_t 
         return -1;
     }
 
-    return ntwk_socket_sendto(&aud_udp_service->aud_fd, (struct sockaddr *)&aud_udp_service->aud_remote, data, length);
+    return ntwk_socket_sendto_abortable(&aud_udp_service->aud_fd,
+                                        (struct sockaddr *)&aud_udp_service->aud_remote,
+                                        data, length,
+                                        NTWK_TRANS_CHAN_AUDIO);
 }
 
 int ntwk_udp_ctrl_chan_send(uint8_t *data, uint32_t length)
@@ -147,7 +153,8 @@ int ntwk_udp_ctrl_chan_send(uint8_t *data, uint32_t length)
         return -1;
     }
 
-    ret = ntwk_socket_write(&ntwl_udp_ctrl_info->client_fd, data, length);
+    ret = ntwk_socket_write_abortable(&ntwl_udp_ctrl_info->client_fd, data, length,
+                                      NTWK_TRANS_CHAN_CTRL);
 
     return ret;
 }
@@ -1189,7 +1196,8 @@ int ntwk_udp_ctrl_client_chan_send(uint8_t *data, uint32_t length)
         return -1;
     }
 
-    ret = ntwk_socket_write(&ntwk_udp_ctrl_client_info->client_fd, data, length);
+    ret = ntwk_socket_write_abortable(&ntwk_udp_ctrl_client_info->client_fd, data, length,
+                                      NTWK_TRANS_CHAN_CTRL);
 
     return ret;
 }

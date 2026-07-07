@@ -431,6 +431,32 @@ bk_err_t ntwk_trans_chan_start(chan_type_t chan_type, void *param);
 bk_err_t ntwk_trans_chan_stop(chan_type_t chan_type);
 
 /**
+ * @brief Set or clear channel send abort without closing the channel.
+ *
+ * When enabled, current retry/fragment send loops return quickly and new sends
+ * are rejected. This does not close sockets or change the link state.
+ *
+ * @param chan_type Channel type
+ * @param abort true to abort sends, false to resume sends
+ * @return bk_err_t Result of updating abort state
+ */
+bk_err_t ntwk_trans_chan_abort(chan_type_t chan_type, bool abort);
+
+/**
+ * @brief Send a "frame discarded" notification for a channel, bypassing abort.
+ *
+ * Sends a single tiny discard fragment so the peer learns the current frame was
+ * dropped. Unlike normal sends, this is allowed to go out even when the channel
+ * is in the aborted state (set via ntwk_trans_chan_abort). Intended to be called
+ * once, right after the producer decides to stop the current frame.
+ *
+ * @param chan_type Channel type
+ * @param frame_id  Frame id to mark as discarded
+ * @return bk_err_t BK_OK on success, error code on failure
+ */
+bk_err_t ntwk_trans_chan_discard_frame(chan_type_t chan_type, uint8_t frame_id);
+
+/**
  * @brief Send control data
  *
  * Send control data through the currently registered context, automatically adapts the service type

@@ -230,7 +230,7 @@ int ntwk_fragment(chan_type_t chan_type, uint8_t *data, uint32_t length)
 	{
 		if (s_fragment_abort_cb[chan_type] != NULL)
 		{
-			if (s_fragment_abort_cb[chan_type]() != 0)
+			if (s_fragment_abort_cb[chan_type](chan_type) != 0)
 			{
 				LOGW("%s, aborted at fragment %u\n", __func__, i);
 				return -8;
@@ -262,7 +262,7 @@ int ntwk_fragment(chan_type_t chan_type, uint8_t *data, uint32_t length)
 	{
 		if (s_fragment_abort_cb[chan_type] != NULL)
 		{
-			if (s_fragment_abort_cb[chan_type]() != 0)
+			if (s_fragment_abort_cb[chan_type](chan_type) != 0)
 			{
 				LOGW("%s, aborted before tail fragment\n", __func__);
 				return -8;
