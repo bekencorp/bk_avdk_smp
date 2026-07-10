@@ -253,6 +253,8 @@ static bool dpu_runtime_format_supported(const bk_display_pixel_format_config_t 
 
     return config->format == BK_PIXEL_FORMAT_RGB565 ||
            config->format == BK_PIXEL_FORMAT_RGB888 ||
+           config->format == BK_PIXEL_FORMAT_BGR888 ||
+           config->format == BK_PIXEL_FORMAT_ARGB8888 ||
            config->format == BK_PIXEL_FORMAT_NV12;
 }
 
@@ -490,7 +492,7 @@ bk_err_t dpu_core_runtime_switch(dpu_handle_t *handle, const bk_display_pixel_fo
     context = (dpu_context_t *)*handle;
     AVDK_RETURN_ON_FALSE(context, BK_ERR_NULL_PARAM, TAG, "invalid handle");
     AVDK_RETURN_ON_FALSE(dpu_runtime_format_supported(config),
-                         BK_ERR_PARAM, TAG, "runtime switch only supports RGB565, RGB888, NV12 and compressed ARGB8888");
+                         BK_ERR_PARAM, TAG, "runtime switch only supports RGB565, RGB888, BGR888, NV12, raw ARGB8888 and compressed ARGB8888");
 
     rtos_lock_mutex(&context->flush_mutex);
 
