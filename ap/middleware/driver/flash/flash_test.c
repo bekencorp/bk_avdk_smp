@@ -45,6 +45,14 @@ static beken_thread_t s_flash_test_task2_handle = NULL;
 static bool s_flash_test_task1_running = false;
 static bool s_flash_test_task2_running = false;
 
+static inline void flash_test_task_wdt_feed(void)
+{
+#if CONFIG_TASK_WDT
+extern void bk_task_wdt_feed(void);
+	bk_task_wdt_feed();
+#endif
+}
+
 static void cli_flash_help(void)
 {
 	CLI_LOGD("flash driver init\n");
@@ -69,6 +77,7 @@ static void cli_flash_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, ch
 	if (os_strcmp(argv[1], "erase") == 0) {
 		bk_flash_set_protect_type(FLASH_PROTECT_NONE);
 		for (uint32_t addr = start_addr; addr < (start_addr + len); addr += FLASH_SECTOR_SIZE) {
+			flash_test_task_wdt_feed();
 			bk_flash_erase_sector(addr);
 		}
 		bk_flash_set_protect_type(FLASH_UNPROTECT_LAST_BLOCK);
@@ -76,6 +85,7 @@ static void cli_flash_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, ch
 	} else if (os_strcmp(argv[1], "read") == 0) {
 		uint8_t buf[FLASH_PAGE_SIZE] = {0};
 		for (uint32_t addr = start_addr; addr < (start_addr + len); addr += FLASH_PAGE_SIZE) {
+			flash_test_task_wdt_feed();
 			os_memset(buf, 0, FLASH_PAGE_SIZE);
 			bk_flash_read_bytes(addr, buf, FLASH_PAGE_SIZE);
 			BK_DUMP_OUT("flash read addr:%x\r\n", addr);
@@ -86,6 +96,7 @@ static void cli_flash_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, ch
 					BK_DUMP_OUT("%02x ", buf[i * 16 + j]);
 				}
 				BK_DUMP_OUT("\r\n");
+				flash_test_task_wdt_feed();
 			}
 		}
 		msg = CLI_CMD_RSP_SUCCEED;
@@ -96,6 +107,7 @@ static void cli_flash_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, ch
 		}
 		bk_flash_set_protect_type(FLASH_PROTECT_NONE);
 		for (uint32_t addr = start_addr; addr < (start_addr + len); addr += FLASH_PAGE_SIZE) {
+			flash_test_task_wdt_feed();
 			bk_flash_write_bytes(addr, buf, FLASH_PAGE_SIZE);
 		}
 		bk_flash_set_protect_type(FLASH_UNPROTECT_LAST_BLOCK);
@@ -132,6 +144,7 @@ static void cli_flash_cmd_s(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
 	if (os_strcmp(argv[1], "erase") == 0) {
 		psa_flash_set_protect_type(FLASH_PROTECT_NONE);
 		for (uint32_t addr = start_addr; addr < (start_addr + len); addr += FLASH_SECTOR_SIZE) {
+			flash_test_task_wdt_feed();
 			psa_flash_erase_sector(addr);
 		}
 		psa_flash_set_protect_type(FLASH_UNPROTECT_LAST_BLOCK);
@@ -139,6 +152,7 @@ static void cli_flash_cmd_s(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
 	} else if (os_strcmp(argv[1], "read") == 0) {
 		uint8_t buf[FLASH_PAGE_SIZE] = {0};
 		for (uint32_t addr = start_addr; addr < (start_addr + len); addr += FLASH_PAGE_SIZE) {
+			flash_test_task_wdt_feed();
 			os_memset(buf, 0, FLASH_PAGE_SIZE);
 			psa_flash_read_bytes(addr, buf, FLASH_PAGE_SIZE);
 			CLI_LOGD("flash read addr:%x\r\n", addr);
@@ -149,6 +163,7 @@ static void cli_flash_cmd_s(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
 					BK_LOGD(NULL, "%02x ", buf[i * 16 + j]);
 				}
 				BK_LOGD(NULL, "\r\n");
+				flash_test_task_wdt_feed();
 			}
 		}
 		msg = CLI_CMD_RSP_SUCCEED;
@@ -160,6 +175,7 @@ static void cli_flash_cmd_s(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
 		int level = rtos_enter_critical();
 		psa_flash_set_protect_type(FLASH_PROTECT_NONE);
 		for (uint32_t addr = start_addr; addr < (start_addr + len); addr += FLASH_PAGE_SIZE) {
+			flash_test_task_wdt_feed();
 			psa_flash_write_bytes(addr, buf, FLASH_PAGE_SIZE);
 		}
 		psa_flash_set_protect_type(FLASH_UNPROTECT_LAST_BLOCK);
