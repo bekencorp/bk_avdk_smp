@@ -91,17 +91,23 @@ vg_lite_buffer_format_t gpu_format_convert(bk_pixel_format_t bk_format)
             vg_format = VG_LITE_RGB565;
             break;
         case BK_PIXEL_FORMAT_RGB888:
-            vg_format = VG_LITE_RGB888;
+            vg_format = VG_LITE_BGR888;
             break;
         case BK_PIXEL_FORMAT_BGR888:
-            vg_format = VG_LITE_BGR888;
+            vg_format = VG_LITE_RGB888;
             break;
 
         case BK_PIXEL_FORMAT_ARGB8888:
-        case BK_PIXEL_FORMAT_ABGR8888:
-        case BK_PIXEL_FORMAT_RGBA8888:
-        case BK_PIXEL_FORMAT_BGRA8888:
             vg_format = VG_LITE_BGRA8888;
+            break;
+        case BK_PIXEL_FORMAT_ABGR8888:
+            vg_format = VG_LITE_RGBA8888;
+            break;
+        case BK_PIXEL_FORMAT_RGBA8888:
+            vg_format = VG_LITE_ABGR8888;
+            break;
+        case BK_PIXEL_FORMAT_BGRA8888:
+            vg_format = VG_LITE_ARGB8888;
             break;
 
         case BK_PIXEL_FORMAT_NV12:
@@ -1163,6 +1169,8 @@ static avdk_err_t gpu_ctlr_init(bk_gpu_ctlr_handle_t handle)
 {
     gpu_vn_ctlr_t *control =  __containerof(handle, gpu_vn_ctlr_t, ops);
     AVDK_RETURN_ON_FALSE(control, AVDK_ERR_INVAL, TAG, "control is NULL");
+    avdk_err_t ret = AVDK_ERR_OK;
+    vg_lite_error_t vg_ret = VG_LITE_SUCCESS;
 
     if (control->config.flexa) {
         control->blit_enable = false;
@@ -1170,7 +1178,7 @@ static avdk_err_t gpu_ctlr_init(bk_gpu_ctlr_handle_t handle)
         os_memset(&control->display_blit_config, 0, sizeof(bk_gpu_blit_config_t));
         control->update_blit_buffer = NULL;
         os_memset(&control->update_blit_config, 0, sizeof(bk_gpu_blit_config_t));
-        avdk_err_t ret = rtos_init_mutex(&control->blit_mutex);
+        ret = rtos_init_mutex(&control->blit_mutex);
         if (ret != AVDK_ERR_OK) {
             LOGE("%s, %d rtos_init_mutex failed\n", __func__, __LINE__);
             return ret;
@@ -1193,18 +1201,41 @@ static avdk_err_t gpu_ctlr_init(bk_gpu_ctlr_handle_t handle)
     if (control->gpu_contiguous_buffer == NULL)
     {
         LOGE("%s, %d bk_get_gpu_flexa_buffer failed\n", __func__, __LINE__);
-        return AVDK_ERR_NOMEM;
+        ret = AVDK_ERR_NOMEM;
+        goto error;
     }
     vg_lite_set_buffer(control->gpu_contiguous_buffer);
-    vg_lite_init(control->config.tess_width, control->config.tess_height);
+    vg_ret = vg_lite_init(control->config.tess_width, control->config.tess_height);
+    if (vg_ret != VG_LITE_SUCCESS) {
+        LOGE("%s, %d vg_lite_init failed %d\n", __func__, __LINE__, vg_ret);
+        ret = AVDK_ERR_HWERROR;
+        goto error;
+    }
 
     return AVDK_ERR_OK;
+
+error:
+    vg_lite_set_buffer(NULL);
+    if (control->gpu_contiguous_buffer) {
+        os_free(control->gpu_contiguous_buffer);
+        control->gpu_contiguous_buffer = NULL;
+    }
+    if (control->gpu_mutex) {
+        rtos_deinit_mutex(&control->gpu_mutex);
+        control->gpu_mutex = NULL;
+    }
+    if (control->blit_mutex) {
+        rtos_deinit_mutex(&control->blit_mutex);
+        control->blit_mutex = NULL;
+    }
+    return ret;
 }
 
 static avdk_err_t gpu_ctlr_deinit(bk_gpu_ctlr_handle_t handle)
 {
     gpu_vn_ctlr_t *control =  __containerof(handle, gpu_vn_ctlr_t, ops);
     AVDK_RETURN_ON_FALSE(control, AVDK_ERR_INVAL, TAG, "control is NULL");
+    vg_lite_error_t vg_ret = VG_LITE_SUCCESS;
 
     if (control->config.flexa) {
         if (control->blit_mutex) {
@@ -1228,7 +1259,12 @@ static avdk_err_t gpu_ctlr_deinit(bk_gpu_ctlr_handle_t handle)
         return AVDK_ERR_INVAL;
     }
 
-    vg_lite_close();
+    vg_ret = vg_lite_close();
+    if (vg_ret != VG_LITE_SUCCESS) {
+        LOGE("%s, %d vg_lite_close failed %d\n", __func__, __LINE__, vg_ret);
+        return AVDK_ERR_HWERROR;
+    }
+    vg_lite_set_buffer(NULL);
 
     bk_gpu_driver_deinit();
 
