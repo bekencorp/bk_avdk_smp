@@ -43,20 +43,6 @@ void vcdec_h264_set_rd_ptr(vcdec_handle handle, uint32_t rd_ptr);
 void vcdec_h264_reset(vcdec_handle handle);
 
 /**
- * @brief     Register memory allocator for H.264 decoder
- *
- * This API registers malloc and free callbacks used by decoder internal
- * frame/reconstruction buffer allocation.
- *
- * @param handle decoder handle returned by vcdec_h264_init
- * @param pmalloc memory allocation callback
- * @param pfree memory free callback
- *
- * @return VCDEC_OK for success, others for failure
- */
-vcdec_ret_e vcdec_h264_memalloc_register(vcdec_handle handle, void* (*pmalloc)(uint32_t), void (*pfree)(void*));
-
-/**
  * @brief     Initialize H.264 decoder
  *
  * This API creates an H.264 decoder instance and initializes decoder context.
