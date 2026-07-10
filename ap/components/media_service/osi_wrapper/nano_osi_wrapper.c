@@ -41,17 +41,17 @@ static void *nano_memcpy_wrapper(void *dest, const void *src, uint32_t n)
  *   - spun the CPU on bk_delay_us during every chunk, and
  *   - left the PSRAM bus idle between chunks while the CPU reprogrammed.
  *
- * Instead we build a single HPDMA linked-list (one descriptor per <=60 KB
- * chunk), arm the finish interrupt on the LAST descriptor only, kick the whole
- * chain with one bk_hpdma_link_transfer(), and block the caller on a semaphore
- * that the finish ISR posts. The CPU is suspended (not busy-waiting) for the
- * whole transfer, the chain runs back-to-back in hardware, and link mode uses a
- * 128-bit datapath. Any failure falls back to CPU memcpy so correctness is
- * never at risk.
+ * Instead we build a single HPDMA linked-list. For contiguous buffers each
+ * descriptor uses 2D mode (xsize=row bytes, ysize=row count, step=0) so one node
+ * can cover many 60 KB rows; only a short tail needs a second node. Arm the
+ * finish interrupt on the LAST descriptor only, kick the whole chain with one
+ * bk_hpdma_link_transfer(), and block the caller on a semaphore that the finish
+ * ISR posts. Any failure falls back to CPU memcpy so correctness is never at
+ * risk.
  */
-#define NANO_HPDMA_MAX_CHUNK   0xF000U  /* 61440, safely < 0xFFFF */
-#define NANO_HPDMA_MAX_DESCS   48U      /* covers up to ~2.8 MB per transfer */
-#define NANO_HPDMA_WAIT_MS     200U
+#define NANO_HPDMA_MAX_CHUNK   0xFFFFU  /* 65535 */
+#define NANO_HPDMA_WAIT_MS_MIN 200U
+#define NANO_HPDMA_WAIT_MS_PER_CHUNK 2U
 
 static beken_semaphore_t s_nano_dma_sem;
 static bool s_nano_dma_sem_ready;
@@ -66,28 +66,126 @@ static void nano_dma_finish_isr(hpdma_id_t hpdma_id, void *user_data)
 }
 
 /*
+ * Count linked-list descriptors for a contiguous [src, src+n) -> [dst, dst+n)
+ * copy. Each descriptor uses 2D mode (xsize bytes/row, ysize rows, step=0) so
+ * multiple <=NANO_HPDMA_MAX_CHUNK rows are merged into one node instead of one
+ * node per row.
+ */
+static uint32_t nano_hpdma_desc_count(uint32_t n)
+{
+    uint32_t cnt = 0U;
+    uint32_t remain = n;
+    const uint32_t row_bytes = NANO_HPDMA_MAX_CHUNK;
+
+    while (remain > 0U) {
+        if (remain <= 0xFFFFU) {
+            cnt++;
+            break;
+        }
+        {
+            uint32_t rows = remain / row_bytes;
+
+            if (rows > 0xFFFFU) {
+                rows = 0xFFFFU;
+            }
+            if (rows == 0U) {
+                break;
+            }
+            cnt++;
+            remain -= rows * row_bytes;
+        }
+    }
+    return cnt;
+}
+
+/*
+ * Fill contiguous-copy descriptors. step=0 packs rows back-to-back (see
+ * hpdma_test_run_link_2d with src_pitch==xsize).
+ */
+static uint32_t nano_hpdma_fill_descs(hpdma_link_config_t *cfg,
+				      const uint8_t *s, uint8_t *d,
+				      uint32_t n, uint32_t desc_cnt)
+{
+    uint32_t desc_idx = 0U;
+    uint32_t offset = 0U;
+    uint32_t remain = n;
+    const uint16_t row_bytes = (uint16_t)NANO_HPDMA_MAX_CHUNK;
+
+    while (remain > 0U && desc_idx < desc_cnt) {
+        if (remain <= 0xFFFFU) {
+            cfg[desc_idx].src_addr = (uint32_t)(uintptr_t)(s + offset);
+            cfg[desc_idx].dst_addr = (uint32_t)(uintptr_t)(d + offset);
+            cfg[desc_idx].src_xsize = (uint16_t)remain;
+            cfg[desc_idx].dst_xsize = (uint16_t)remain;
+            cfg[desc_idx].src_ysize = 1U;
+            cfg[desc_idx].dst_ysize = 1U;
+            cfg[desc_idx].src_step = 0U;
+            cfg[desc_idx].dst_step = 0U;
+            desc_idx++;
+            break;
+        }
+
+        {
+            uint32_t rows = remain / (uint32_t)row_bytes;
+
+            if (rows > 0xFFFFU) {
+                rows = 0xFFFFU;
+            }
+            if (rows == 0U) {
+                break;
+            }
+
+            cfg[desc_idx].src_addr = (uint32_t)(uintptr_t)(s + offset);
+            cfg[desc_idx].dst_addr = (uint32_t)(uintptr_t)(d + offset);
+            cfg[desc_idx].src_xsize = row_bytes;
+            cfg[desc_idx].dst_xsize = row_bytes;
+            cfg[desc_idx].src_ysize = (uint16_t)rows;
+            cfg[desc_idx].dst_ysize = (uint16_t)rows;
+            cfg[desc_idx].src_step = 0U;
+            cfg[desc_idx].dst_step = 0U;
+            desc_idx++;
+
+            offset += (uint32_t)row_bytes * rows;
+            remain -= (uint32_t)row_bytes * rows;
+        }
+    }
+
+    for (uint32_t i = 0U; i < desc_idx; i++) {
+        cfg[i].finish_int_en = (i == desc_idx - 1U) ? 1U : 0U;
+        cfg[i].half_finish_int_en = 0U;
+    }
+    return desc_idx;
+}
+
+/*
  * Linked-list async copy. Returns 0 on success, non-zero so the caller can fall
  * back to CPU memcpy. n must be > 0.
  */
 static int nano_dma_memcpy_link(void *dest, const void *src, uint32_t n)
 {
-    hpdma_link_config_t cfg[NANO_HPDMA_MAX_DESCS];
-    uint32_t desc_cnt = (n + NANO_HPDMA_MAX_CHUNK - 1U) / NANO_HPDMA_MAX_CHUNK;
+    hpdma_link_config_t *cfg = NULL;
+    uint32_t desc_cnt = nano_hpdma_desc_count(n);
+    uint32_t wait_ms = NANO_HPDMA_WAIT_MS_MIN +
+		       desc_cnt * NANO_HPDMA_WAIT_MS_PER_CHUNK;
     uint8_t *d = (uint8_t *)dest;
     const uint8_t *s = (const uint8_t *)src;
     void *table = NULL;
     hpdma_id_t chnl = HPDMA_ID_MAX;
-    uint32_t remain = n;
-    uint32_t i;
     int rc = -1;
 
-    if (desc_cnt > NANO_HPDMA_MAX_DESCS) {
-        return -1;  /* too large for one chain; caller uses CPU fallback */
+    if (desc_cnt == 0U) {
+        return -1;
+    }
+
+    cfg = (hpdma_link_config_t *)os_malloc(sizeof(hpdma_link_config_t) * desc_cnt);
+    if (cfg == NULL) {
+        return -1;
     }
 
     /* One-shot semaphore creation, reused across all transfers. */
     if (!s_nano_dma_sem_ready) {
         if (rtos_init_semaphore(&s_nano_dma_sem, 1) != BK_OK) {
+            os_free(cfg);
             return -1;
         }
         s_nano_dma_sem_ready = true;
@@ -95,31 +193,20 @@ static int nano_dma_memcpy_link(void *dest, const void *src, uint32_t n)
 
     table = bk_hpdma_link_init(desc_cnt);
     if (table == NULL) {
+        os_free(cfg);
         return -1;
     }
 
     chnl = bk_hpdma_alloc(HPDMA_DEV_DTCM);
     if (chnl >= HPDMA_ID_MAX) {
         bk_hpdma_link_deinit(table);
+        os_free(cfg);
         return -1;
     }
 
     os_memset(cfg, 0, sizeof(cfg[0]) * desc_cnt);
-    for (i = 0; i < desc_cnt; i++) {
-        uint32_t chunk = (remain > NANO_HPDMA_MAX_CHUNK) ? NANO_HPDMA_MAX_CHUNK : remain;
-
-        cfg[i].src_addr = (uint32_t)(uintptr_t)(s + i * NANO_HPDMA_MAX_CHUNK);
-        cfg[i].dst_addr = (uint32_t)(uintptr_t)(d + i * NANO_HPDMA_MAX_CHUNK);
-        cfg[i].src_xsize = (uint16_t)chunk;
-        cfg[i].dst_xsize = (uint16_t)chunk;
-        cfg[i].src_ysize = 1U;
-        cfg[i].dst_ysize = 1U;
-        cfg[i].src_step = 0U;
-        cfg[i].dst_step = 0U;
-        /* Only the last node raises finish so we wake up exactly once. */
-        cfg[i].finish_int_en = (i == desc_cnt - 1U) ? 1U : 0U;
-        cfg[i].half_finish_int_en = 0U;
-        remain -= chunk;
+    if (nano_hpdma_fill_descs(cfg, s, d, n, desc_cnt) != desc_cnt) {
+        goto out;
     }
 
     if (bk_hpdma_link_set_descs(table, cfg, desc_cnt) != BK_OK) {
@@ -133,7 +220,7 @@ static int nano_dma_memcpy_link(void *dest, const void *src, uint32_t n)
         goto out;
     }
 
-    if (rtos_get_semaphore(&s_nano_dma_sem, NANO_HPDMA_WAIT_MS) != BK_OK) {
+    if (rtos_get_semaphore(&s_nano_dma_sem, wait_ms) != BK_OK) {
         bk_hpdma_stop(chnl);
         goto out;
     }
@@ -144,6 +231,7 @@ out:
     bk_hpdma_disable_finish_interrupt(chnl);
     bk_hpdma_free(HPDMA_DEV_DTCM, chnl);
     bk_hpdma_link_deinit(table);
+    os_free(cfg);
     return rc;
 }
 
@@ -152,7 +240,12 @@ static int nano_dma_memcpy_wrapper(void *dest, const void *src, uint32_t n)
     if (dest == NULL || src == NULL || n == 0U) {
         return -1;
     }
-    return nano_dma_memcpy_link(dest, src, n);
+    if (nano_dma_memcpy_link(dest, src, n) == 0) {
+        return 0;
+    }
+    /* Descriptor alloc / HPDMA kick failure: fall back to CPU copy. */
+    os_memcpy(dest, src, n);
+    return 0;
 }
 #endif
 
