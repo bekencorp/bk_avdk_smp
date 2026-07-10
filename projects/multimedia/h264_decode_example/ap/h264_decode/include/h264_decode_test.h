@@ -24,6 +24,7 @@ typedef enum {
  *   - h264_decode vcdec_h264d_flexa [1280x720_1i30p|1280x720_ibbp]
  *   - h264_decode vcdec_h264d_frame_zerocopy [1280x720_1i30p|1280x720_ibbp]
  *   - h264_decode vcdec_h264d_frame_rgb             (PP RGB565/RGB888 frame output)
+ *   - h264_decode vcdec_h264d_scale [stream]          (PP down-scale frame output)
  *
  * Notes:
  * - All subcommands exercise the `bk_decoder/h264d` controller abstraction
@@ -39,6 +40,7 @@ void vcdec_h264_frame_test(h264_decode_test_stream_t stream);
 void vcdec_h264_flexa_test(h264_decode_test_stream_t stream);
 void vcdec_h264_frame_zerocopy_test(h264_decode_test_stream_t stream);
 void vcdec_h264_frame_rgb_test(void);
+void vcdec_h264_frame_scale_test(h264_decode_test_stream_t stream);
 void vcdec_h264_run_boot_demo(void);
 
 #ifdef __cplusplus

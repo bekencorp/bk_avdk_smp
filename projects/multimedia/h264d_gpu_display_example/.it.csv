@@ -7,3 +7,9 @@ h264d_gpu_display_PIP_01,ap_cmd h264d_gpu_display isp_open,1,CMDRSP:OK,60
 h264d_gpu_display_PIP_01,ap_cmd h264d_gpu_display start,1,loop 1 start,60
 h264d_gpu_display_PIP_01,ap_cmd h264d_gpu_display isp_close,1,CMDRSP:OK,60
 h264d_gpu_display_PIP_01,ap_cmd h264d_gpu_display stop,1,[RESULT][PASS],60
+h264d_gpu_display_dec_scale_down,ap_cmd h264d_gpu_display start_dec_scale 2 640 360,1,[RESULT][PASS],60
+h264d_gpu_display_dec_scale_up,ap_cmd h264d_gpu_display start_dec_scale 2 1920 1080,1,[RESULT][PASS],60
+h264d_gpu_display_dec_scale_cvt_down,ap_cmd h264d_gpu_display start_dec_scale_cvt 2 640 360,1,[RESULT][PASS],60
+h264d_gpu_display_dec_scale_cvt_up,ap_cmd h264d_gpu_display start_dec_scale_cvt 2 1920 1080,1,[RESULT][PASS],60
+h264d_gpu_display_dec_scale_cvt888_down,ap_cmd h264d_gpu_display start_dec_scale_cvt888 2 640 360,1,[RESULT][PASS],60
+h264d_gpu_display_dec_scale_cvt888_up,ap_cmd h264d_gpu_display start_dec_scale_cvt888 2 1920 1080,1,[RESULT][PASS],60

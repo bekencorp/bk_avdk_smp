@@ -24,6 +24,7 @@ typedef enum {
     H264D_TEST_ID_VCDEC_H264_FLEXA = 1,
     H264D_TEST_ID_VCDEC_H264_FRAME_ZC = 2,
     H264D_TEST_ID_VCDEC_H264_FRAME_RGB = 3,
+    H264D_TEST_ID_VCDEC_H264_FRAME_SCALE = 4,
 } h264d_test_id_t;
 
 #define H264D_TEST_THREAD_ARG(test_id, stream_id) \
@@ -38,6 +39,7 @@ extern void vcdec_h264_frame_test(h264_decode_test_stream_t stream);
 extern void vcdec_h264_flexa_test(h264_decode_test_stream_t stream);
 extern void vcdec_h264_frame_zerocopy_test(h264_decode_test_stream_t stream);
 extern void vcdec_h264_frame_rgb_test(void);
+extern void vcdec_h264_frame_scale_test(h264_decode_test_stream_t stream);
 #endif
 
 static void cli_write_rsp(char *pcWriteBuffer, int xWriteBufferLen, const char *msg)
@@ -111,8 +113,9 @@ static void h264d_test_task_entry(void *arg)
         vcdec_h264_frame_zerocopy_test(stream_id);
     } else if (test_id == H264D_TEST_ID_VCDEC_H264_FRAME_RGB) {
         vcdec_h264_frame_rgb_test();
-    }
-    else
+    } else if (test_id == H264D_TEST_ID_VCDEC_H264_FRAME_SCALE) {
+        vcdec_h264_frame_scale_test(stream_id);
+    } else
 #endif
     {
         LOGE("invalid test id=%u\r\n", (unsigned)test_id);
@@ -135,6 +138,7 @@ static void h264_decode_print_usage(void)
     bk_printf("  h264_decode vcdec_h264d_frame_zerocopy [1280x720_1i30p|1280x720_ibbp] - vcdec H.264 zero-copy/B-frame frame decode test\r\n");
     bk_printf("    (stream defaults to 1280x720_ibbp; `1280x720` is an alias for it)\r\n");
     bk_printf("  h264_decode vcdec_h264d_frame_rgb                 - vcdec H.264 frame RGB565/RGB888 format test\r\n");
+    bk_printf("  h264_decode vcdec_h264d_scale [1280x720_1i30p|1280x720_ibbp] - vcdec H.264 PP down-scale test (1/2)\r\n");
 #endif
 }
 
@@ -181,8 +185,11 @@ void cli_h264_decode_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
     } else if (os_strcmp(argv[1], "vcdec_h264d_frame_rgb") == 0) {
         test_id = H264D_TEST_ID_VCDEC_H264_FRAME_RGB;
         task_name = "vcdec_h264d_frgb_test";
-    }
-    else
+    } else if (os_strcmp(argv[1], "vcdec_h264d_scale") == 0) {
+        test_id = H264D_TEST_ID_VCDEC_H264_FRAME_SCALE;
+        task_name = "vcdec_h264d_scale_test";
+        need_stream_arg = 1U;
+    } else
 #endif
     {
         LOGE("%s: unknown subcommand: %s\r\n", __func__, argv[1]);

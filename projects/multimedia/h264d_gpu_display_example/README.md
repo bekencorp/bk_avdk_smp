@@ -121,6 +121,11 @@ Command failure prints: "CMDRSP:ERROR"
 ```text
 h264d_gpu_display help
 h264d_gpu_display start [loops]
+h264d_gpu_display start_rgb565 [loops]
+h264d_gpu_display start_rgb888 [loops]
+h264d_gpu_display start_dec_scale [loops] [out_w out_h]
+h264d_gpu_display start_dec_scale_cvt [loops] [out_w out_h]
+h264d_gpu_display start_dec_scale_cvt888 [loops] [out_w out_h]
 h264d_gpu_display stop
 h264d_gpu_display isp_open
 h264d_gpu_display isp_open <sensor_w> <sensor_h> <fps> <isp_w> <isp_h>
@@ -129,6 +134,11 @@ h264d_gpu_display isp_close
 ```
 
 - `start [loops]`: starts the H264 decode GPU display task. If `loops` is omitted or is `0`, the task loops continuously. If `loops` is non-zero, the task exits automatically after the specified number of loops.
+- `start_rgb565 [loops]` / `start_rgb888 [loops]`: decode to RGB565/RGB888 then display via the GPU blit path.
+- `start_dec_scale [loops] [out_w out_h]`: **tests the H264 decoder's own scaler**. Uses the frame-mode controller so the decoder PP resizes the native stream (1280x720 by default) to `out_w x out_h`, keeping NV12 output (scale only, no format change). Defaults to a `640x352` down-scale when `out_w/out_h` are omitted; pass `1920 1088` for an up-scale. The scaled frame is then scaled/rotated to the panel resolution by the GPU blit and shown on the MIPI display.
+- `start_dec_scale_cvt [loops] [out_w out_h]`: **tests decoder scale + color convert (RGB565)**. Same as above but the PP output is converted to RGB565 (resize and NV12->RGB565 happen together), then displayed via the GPU as well.
+- `start_dec_scale_cvt888 [loops] [out_w out_h]`: **tests decoder scale + color convert (RGB888)**. Same as the RGB565 variant but the PP output is converted to RGB888 (32bpp), then displayed via the GPU.
+- `out_w/out_h` should be multiples of 16 (PP output height is internally 16-aligned); the PP supports both up- and down-scale independently per axis.
 - `stop`: requests the current decode display task to exit after the current frame.
 - `isp_open`: starts the ISP PIP overlay feature. When no parameters are passed, the default sensor/ISP/PIP configuration is used.
 - `isp_close`: closes the ISP PIP overlay feature.
@@ -176,7 +186,33 @@ You can also specify the sensor size, ISP output size, and PIP position:
 h264d_gpu_display isp_open 1280 720 20 640 360 696 32
 ```
 
-### 5.4 Integration Test Commands
+### 5.4 Decoder Scale / Scale + Format Convert
+
+The following commands verify the H264 decoder PP scaler and color-convert. The decoder resizes (and optionally converts to RGB565), then the frame is scaled/rotated to the panel resolution by the GPU and shown on the display:
+
+```text
+# scale only (NV12 -> NV12), down-scale 1280x720 -> 640x352
+h264d_gpu_display start_dec_scale 2 640 352
+# scale only, up-scale 1280x720 -> 1920x1088
+h264d_gpu_display start_dec_scale 2 1920 1088
+# scale + format convert (NV12 -> RGB565), down-scale
+h264d_gpu_display start_dec_scale_cvt 2 640 352
+# scale + format convert, up-scale
+h264d_gpu_display start_dec_scale_cvt 2 1920 1088
+# scale + format convert (NV12 -> RGB888), down-scale / up-scale
+h264d_gpu_display start_dec_scale_cvt888 2 640 352
+h264d_gpu_display start_dec_scale_cvt888 2 1920 1088
+```
+
+Expected final log (`<mode>` is `dec_scale_nv12`, `dec_scale_rgb565` or `dec_scale_rgb888`):
+
+```text
+[RESULT][PASS] <mode> out=... decoded_frames=...
+```
+
+The log also prints the per-frame output geometry read back via `get_info`, confirming the scale took effect.
+
+### 5.5 Integration Test Commands
 
 `.it.csv` contains:
 
@@ -188,6 +224,12 @@ ap_cmd h264d_gpu_display isp_open
 ap_cmd h264d_gpu_display start
 ap_cmd h264d_gpu_display isp_close
 ap_cmd h264d_gpu_display stop
+ap_cmd h264d_gpu_display start_dec_scale 2 640 352
+ap_cmd h264d_gpu_display start_dec_scale 2 1920 1088
+ap_cmd h264d_gpu_display start_dec_scale_cvt 2 640 352
+ap_cmd h264d_gpu_display start_dec_scale_cvt 2 1920 1088
+ap_cmd h264d_gpu_display start_dec_scale_cvt888 2 640 352
+ap_cmd h264d_gpu_display start_dec_scale_cvt888 2 1920 1088
 ```
 
 The expected results match `CMDRSP:OK`, `loop 1 start`, or `[RESULT][PASS]` logs.

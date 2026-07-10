@@ -59,6 +59,24 @@
 #define H264D_GPU_DISPLAY_GPU_DST_HEIGHT        H264D_GPU_DISPLAY_GPU_DISPLAY_HEIGHT
 #endif
 
+/*
+ * H264 decoder post-processor (PP) scale test targets, used by the
+ * start_dec_scale / start_dec_scale_cvt CLI commands. These exercise the
+ * *decoder's own* scaler (out_width/out_height) and color-convert (out_format),
+ * NOT the GPU blit path. The frame-mode controller decodes the native
+ * 1280x720 / 720x1280 stream and lets the PP resize it to these targets.
+ *
+ * The frame-mode decoder PP produces these heights as-is (only NV12 is rounded
+ * up to an even number), so the standard 16:9 targets 640x360 and 1920x1080
+ * are used directly. The DOWN target is a down-scale and the UP target is an
+ * up-scale relative to the default 1280x720 stream; the PP supports both
+ * directions independently per axis.
+ */
+#define H264D_GPU_DISPLAY_DEC_SCALE_DOWN_WIDTH   640U
+#define H264D_GPU_DISPLAY_DEC_SCALE_DOWN_HEIGHT  360U
+#define H264D_GPU_DISPLAY_DEC_SCALE_UP_WIDTH     1920U
+#define H264D_GPU_DISPLAY_DEC_SCALE_UP_HEIGHT    1080U
+
 /* ISP PIP defaults (used by CLI when arguments are omitted). */
 #ifndef CONFIG_H264D_GPU_DISPLAY_ISP_SENSOR_DEFAULT_WIDTH
 #define CONFIG_H264D_GPU_DISPLAY_ISP_SENSOR_DEFAULT_WIDTH    1280

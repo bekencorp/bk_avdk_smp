@@ -120,6 +120,11 @@ make bk7259 PROJECT=multimedia/h264d_gpu_display_example
 ```text
 h264d_gpu_display help
 h264d_gpu_display start [loops]
+h264d_gpu_display start_rgb565 [loops]
+h264d_gpu_display start_rgb888 [loops]
+h264d_gpu_display start_dec_scale [loops] [out_w out_h]
+h264d_gpu_display start_dec_scale_cvt [loops] [out_w out_h]
+h264d_gpu_display start_dec_scale_cvt888 [loops] [out_w out_h]
 h264d_gpu_display stop
 h264d_gpu_display isp_open
 h264d_gpu_display isp_open <sensor_w> <sensor_h> <fps> <isp_w> <isp_h>
@@ -128,6 +133,11 @@ h264d_gpu_display isp_close
 ```
 
 - `start [loops]`：启动 H264 解码 GPU 显示任务；`loops` 省略或为 `0` 时持续循环，非 0 时运行指定轮数后自动退出
+- `start_rgb565 [loops]` / `start_rgb888 [loops]`：解码为 RGB565/RGB888 后走 GPU blit 显示
+- `start_dec_scale [loops] [out_w out_h]`：**测试 H264 解码器自身的缩放能力**。使用 frame 模式解码控制器，让解码器 PP 把原生码流（默认 1280×720）缩放到 `out_w×out_h`，输出仍为 NV12（不改格式，纯缩放）。省略 `out_w/out_h` 时默认下采样到 `640×352`；也可传 `1920 1088` 做上采样。缩放后的帧再经 GPU blit 缩放/旋转到屏幕分辨率并送 MIPI 屏显示
+- `start_dec_scale_cvt [loops] [out_w out_h]`：**测试 H264 解码器缩放 + 格式转换（RGB565）**。同上，但 PP 输出转换为 RGB565（缩放与 NV12→RGB565 转换同时进行），随后同样经 GPU 上屏显示
+- `start_dec_scale_cvt888 [loops] [out_w out_h]`：**测试 H264 解码器缩放 + 格式转换（RGB888）**。与上一条一致，但 PP 输出转换为 RGB888（32bpp），随后经 GPU 上屏显示
+- `out_w/out_h` 建议为 16 的倍数（PP 输出高度内部按 16 对齐）；解码器 PP 水平/垂直独立支持上采样和下采样
 - `stop`：请求当前解码显示任务在当前帧结束后退出
 - `isp_open`：启动 ISP 小窗叠加功能，未传参时使用默认 sensor/ISP/PIP 配置
 - `isp_close`：关闭 ISP 小窗叠加功能
@@ -175,7 +185,33 @@ h264d_gpu_display stop
 h264d_gpu_display isp_open 1280 720 20 640 360 696 32
 ```
 
-### 5.4 集成测试命令
+### 5.4 解码器缩放 / 缩放+格式转换
+
+以下命令验证 H264 解码器 PP 的缩放与格式转换能力：解码器先把码流缩放（并按需转 RGB565），再经 GPU blit 缩放/旋转到屏幕分辨率并上屏显示：
+
+```text
+# 纯缩放（NV12 -> NV12），下采样 1280x720 -> 640x352
+h264d_gpu_display start_dec_scale 2 640 352
+# 纯缩放，上采样 1280x720 -> 1920x1088
+h264d_gpu_display start_dec_scale 2 1920 1088
+# 缩放 + 格式转换（NV12 -> RGB565），下采样
+h264d_gpu_display start_dec_scale_cvt 2 640 352
+# 缩放 + 格式转换，上采样
+h264d_gpu_display start_dec_scale_cvt 2 1920 1088
+# 缩放 + 格式转换（NV12 -> RGB888），下采样 / 上采样
+h264d_gpu_display start_dec_scale_cvt888 2 640 352
+h264d_gpu_display start_dec_scale_cvt888 2 1920 1088
+```
+
+预期最终日志（`<mode>` 为 `dec_scale_nv12`、`dec_scale_rgb565` 或 `dec_scale_rgb888`）：
+
+```text
+[RESULT][PASS] <mode> out=... decoded_frames=...
+```
+
+日志中还会打印每帧经 `get_info` 回读的输出尺寸，用于确认缩放确实生效。
+
+### 5.5 集成测试命令
 
 `.it.csv` 包含：
 
@@ -187,6 +223,12 @@ ap_cmd h264d_gpu_display isp_open
 ap_cmd h264d_gpu_display start
 ap_cmd h264d_gpu_display isp_close
 ap_cmd h264d_gpu_display stop
+ap_cmd h264d_gpu_display start_dec_scale 2 640 352
+ap_cmd h264d_gpu_display start_dec_scale 2 1920 1088
+ap_cmd h264d_gpu_display start_dec_scale_cvt 2 640 352
+ap_cmd h264d_gpu_display start_dec_scale_cvt 2 1920 1088
+ap_cmd h264d_gpu_display start_dec_scale_cvt888 2 640 352
+ap_cmd h264d_gpu_display start_dec_scale_cvt888 2 1920 1088
 ```
 
 期望结果匹配 `CMDRSP:OK`、`loop 1 start` 或 `[RESULT][PASS]` 日志。
