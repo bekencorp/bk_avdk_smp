@@ -20,7 +20,13 @@
 #include <os/os.h>
 #include <driver/mailbox_channel.h>
 #include <driver/mailbox.h>
+#include <driver/aon_rtc.h>
 #include "mailbox_hal.h"
+
+/* Overall deadline for the synchronous physical-channel HW send. If the peer
+ * core never frees the HW mailbox (e.g. it is hung) we give up instead of
+ * polling forever. AON-RTC is used because it runs even with interrupts off. */
+#define MB_PHY_SYNC_TX_TIMEOUT_US   (50 * 1000)
 
 #define MB_PHY_CMD_CHNL		(MAILBOX_BOX0)
 #define MB_PHY_ACK_CHNL		(MAILBOX_BOX1)
@@ -588,11 +594,19 @@ static bk_err_t mb_phy_chnl_tx_cmd_sync(u8 log_chnl, mb_phy_chnl_cmd_t *cmd_ptr)
 	 * but the interrupt may be disabled when this API is called.
 	 *    wait physical channel HW to be IDLE by <POLLing> !!
 	 */
+	uint64_t deadline_us = bk_aon_rtc_get_us() + MB_PHY_SYNC_TX_TIMEOUT_US;
+
 	while(1)
 	{
 		ret_code = bk_mailbox_send_safe((mailbox_data_t *)cmd_ptr, SELF_CPU, dst_cpu, (void *)&chnl_type);
 
 		if(ret_code != BK_ERR_MAILBOX_TIMEOUT)
+		{
+			break;
+		}
+
+		/* peer HW mailbox stuck busy (e.g. CP hung): stop polling forever. */
+		if(bk_aon_rtc_get_us() >= deadline_us)
 		{
 			break;
 		}
