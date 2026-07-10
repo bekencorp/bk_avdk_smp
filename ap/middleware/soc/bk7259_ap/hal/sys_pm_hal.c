@@ -1158,6 +1158,10 @@ bk_err_t sys_hal_auxldo_enable(auxldo_sel_t auxldo_sel,uint32_t value)
 		default:
 			return BK_ERR_PARAM;
 	}
+	if(value != 0)
+	{
+		bk_delay_us(10);
+	}
 	return BK_OK;
 }
 uint32_t sys_hal_auxldo_enable_state_get(auxldo_sel_t auxldo_sel)
