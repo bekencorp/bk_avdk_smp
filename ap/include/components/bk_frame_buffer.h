@@ -14,6 +14,7 @@
 
 #pragma once
 
+#include <common/bk_err.h>
 #include <components/media_types.h>
 
 #ifdef __cplusplus
@@ -21,6 +22,8 @@ extern "C" {
 #endif
 
 #define MEM_SLAB_MEM_DEBUG (1)
+
+#define BK_FRAME_BUFFER_FLAG_WRITE_THROUGH (1U << 0)
 
 typedef enum
 {
@@ -35,6 +38,7 @@ void *bk_frame_buffer_malloc_debug(frame_buffer_heap_type_t type, uint32_t size,
 #else
 void *bk_frame_buffer_malloc(frame_buffer_heap_type_t type, uint32_t size);
 #endif
+bk_err_t bk_frame_buffer_set(void *frame, uint32_t flags);
 void bk_frame_buffer_free(void *frame);
 void bk_frame_buffer_init(void);
 void bk_frame_buffer_resume(void);
