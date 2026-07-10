@@ -12,6 +12,7 @@
 #include "../core/lv_global.h"
 
 #if (LV_USE_STDLIB_MALLOC == LV_STDLIB_CUSTOM)
+    #include "lv_mem_adapt.h"
     #include <os/mem.h>
 #endif
 
@@ -72,12 +73,7 @@ void * lv_malloc(size_t size)
     }
 
 #if (LV_USE_STDLIB_MALLOC == LV_STDLIB_CUSTOM)
-    void * alloc = os_malloc(size);
-#ifdef CONFIG_AP_HSRAM_HEAP_ADDR
-    if(alloc == NULL) {
-        alloc = hsram_malloc(size);
-    }
-#endif
+    void * alloc = lv_mem_adapt_malloc(size);
 #else
     void * alloc = lv_malloc_core(size);
 #endif
@@ -111,12 +107,7 @@ void * lv_malloc_zeroed(size_t size)
     }
 
 #if (LV_USE_STDLIB_MALLOC == LV_STDLIB_CUSTOM)
-    void * alloc = os_malloc(size);
-#ifdef CONFIG_AP_HSRAM_HEAP_ADDR
-    if(alloc == NULL) {
-        alloc = hsram_malloc(size);
-    }
-#endif
+    void * alloc = lv_mem_adapt_malloc(size);
 #else
     void * alloc = lv_malloc_core(size);
 #endif
@@ -156,7 +147,7 @@ void lv_free(void * data)
     if(data == NULL) return;
 
 #if (LV_USE_STDLIB_MALLOC == LV_STDLIB_CUSTOM)
-    os_free(data);
+    lv_mem_adapt_free(data);
 #else
     lv_free_core(data);
 #endif
@@ -183,21 +174,7 @@ void * lv_realloc(void * data_p, size_t new_size)
     if(data_p == &zero_mem) return lv_malloc(new_size);
 
 #if (LV_USE_STDLIB_MALLOC == LV_STDLIB_CUSTOM)
-    void * new_p = os_realloc(data_p, new_size);
-#ifdef CONFIG_AP_HSRAM_HEAP_ADDR
-    if(new_p == NULL) {
-        /* os_realloc keeps data_p intact when the new (SRAM) block fails, so we
-         * can spill to HSRAM manually. Do NOT use hsram_realloc here: it frees
-         * the old block via hsram_free_release unconditionally, which would
-         * corrupt the HSRAM heap if data_p actually lives in SRAM. os_free is
-         * region-routed and safe for both. */
-        new_p = hsram_malloc(new_size);
-        if(new_p != NULL && data_p != NULL) {
-            os_memcpy(new_p, data_p, new_size);
-            os_free(data_p);
-        }
-    }
-#endif
+    void * new_p = lv_mem_adapt_realloc(data_p, new_size);
 #else
     void * new_p = lv_realloc_core(data_p, new_size);
 #endif

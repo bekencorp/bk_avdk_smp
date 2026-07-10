@@ -69,8 +69,8 @@ menu "LVGL"
         default n
 
     config LV_IMG_UTILITY_CUSTOMIZE
-        depends on LVGL
-        bool "Enable LVGL use customized image decoding method"
+        depends on LVGL && VFS
+        bool "Enable custom image load utility for JPEG/PNG"
         default n
 
     config LVGL_TASK_PRIORITY

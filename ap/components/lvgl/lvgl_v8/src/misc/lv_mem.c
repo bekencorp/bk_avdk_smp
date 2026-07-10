@@ -135,11 +135,6 @@ void * lv_mem_alloc(size_t size)
     void * alloc = lv_tlsf_malloc(tlsf, size);
 #else
     void * alloc = LV_MEM_CUSTOM_ALLOC(size);
-#ifdef CONFIG_AP_HSRAM_HEAP_ADDR
-    if(alloc == NULL) {
-        alloc = hsram_malloc(size);
-    }
-#endif
 #endif
 
     if(alloc == NULL) {
@@ -212,20 +207,6 @@ void * lv_mem_realloc(void * data_p, size_t new_size)
     void * new_p = lv_tlsf_realloc(tlsf, data_p, new_size);
 #else
     void * new_p = LV_MEM_CUSTOM_REALLOC(data_p, new_size);
-#ifdef CONFIG_AP_HSRAM_HEAP_ADDR
-    if(new_p == NULL) {
-        /* os_realloc keeps data_p intact when the new (SRAM) block fails, so we
-         * can spill to HSRAM manually. Do NOT use hsram_realloc here: it frees
-         * the old block via hsram_free_release unconditionally, which would
-         * corrupt the HSRAM heap if data_p actually lives in SRAM. os_free is
-         * region-routed and safe for both. */
-        new_p = hsram_malloc(new_size);
-        if(new_p != NULL && data_p != NULL) {
-            os_memcpy(new_p, data_p, new_size);
-            os_free(data_p);
-        }
-    }
-#endif
 #endif
     if(new_p == NULL) {
         LV_LOG_ERROR("couldn't allocate memory");

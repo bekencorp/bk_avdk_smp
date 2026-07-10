@@ -54,10 +54,10 @@
     #endif
 
 #else       /*LV_MEM_CUSTOM*/
-#include <os/mem.h>   /*Header for the dynamic memory function*/
-#  define LV_MEM_CUSTOM_ALLOC     os_malloc
-#  define LV_MEM_CUSTOM_FREE      os_free
-#  define LV_MEM_CUSTOM_REALLOC   os_realloc
+#include "lv_mem_adapt.h"   /*Header for the dynamic memory function*/
+#  define LV_MEM_CUSTOM_ALLOC     lv_mem_adapt_malloc
+#  define LV_MEM_CUSTOM_FREE      lv_mem_adapt_free
+#  define LV_MEM_CUSTOM_REALLOC   lv_mem_adapt_realloc
 #endif     /*LV_MEM_CUSTOM*/
 
 /*Number of the intermediate memory buffer used during rendering and other internal processing mechanisms.

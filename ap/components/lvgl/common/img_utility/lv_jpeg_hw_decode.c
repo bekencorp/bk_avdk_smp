@@ -1,9 +1,13 @@
 #include "os/os.h"
 #include "os/mem.h"
-#include "driver/dma2d.h"
+#include "common/bk_err.h"
 #include "lv_jpeg_hw_decode.h"
-#include "components/bk_jpeg_decode/bk_jpeg_decode_hw.h"
+#if CONFIG_BK_DECODER && CONFIG_FRAME_BUFFER
+#include "components/bk_decode/bk_jpeg_decode_ctlr.h"
+#include "components/bk_frame_buffer.h"
 #include "components/media_types.h"
+#include "driver/psram.h"
+#endif
 
 #define TAG "lv_hw_dec"
 
@@ -12,205 +16,225 @@
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
 #define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
-static beken_semaphore_t lv_dma2d_sem = NULL;
-static frame_buffer_t *g_dec_out_frame = NULL;
-static bk_jpeg_decode_hw_handle_t lv_jpeg_decode_handle = NULL;
+#if CONFIG_BK_DECODER && CONFIG_FRAME_BUFFER
 
-static bk_err_t lv_jpeg_decode_complete(uint32_t format_type, uint32_t result, frame_buffer_t *out_frame);
-
-static bk_jpeg_decode_hw_config_t lv_jpeg_decode_config = {
-    .decode_cbs = {.out_complete = lv_jpeg_decode_complete,}
-};
-
-static void lv_dma2d_config_error(void *arg)
+static uint8_t lv_jpeg_clip_u8(int value)
 {
-    LOGD("%s \n", __func__);
-}
-
-static void lv_dma2d_transfer_error(void *arg)
-{
-    LOGE("%s \n", __func__);
-}
-
-static void lv_dma2d_transfer_complete(void *arg)
-{
-    rtos_set_semaphore(&lv_dma2d_sem);
-}
-
-static bk_err_t lv_dma2d_yuyv2rgb565_init(void)
-{
-    bk_err_t ret;
-
-    ret = rtos_init_semaphore_ex(&lv_dma2d_sem, 1, 0);
-    if (BK_OK != ret) {
-        LOGE("%s %d lv_dma2d_sem init failed\n", __func__, __LINE__);
-        return ret;
+    if (value < 0) {
+        return 0;
     }
 
-    bk_dma2d_driver_init();
-    bk_dma2d_register_int_callback_isr(DMA2D_CFG_ERROR_ISR, lv_dma2d_config_error, NULL);
-    bk_dma2d_register_int_callback_isr(DMA2D_TRANS_ERROR_ISR, lv_dma2d_transfer_error, NULL);
-    bk_dma2d_register_int_callback_isr(DMA2D_TRANS_COMPLETE_ISR, lv_dma2d_transfer_complete, NULL);
-    bk_dma2d_int_enable(DMA2D_CFG_ERROR | DMA2D_TRANS_ERROR | DMA2D_TRANS_COMPLETE, 1);
-
-    return ret;
-}
-
-static bk_err_t lv_dma2d_yuyv2rgb565_deinit(void)
-{
-    bk_err_t ret;
-
-    bk_dma2d_stop_transfer();
-    bk_dma2d_int_enable(DMA2D_CFG_ERROR | DMA2D_TRANS_ERROR | DMA2D_TRANS_COMPLETE, 0);
-    bk_dma2d_driver_deinit();
-    ret = rtos_deinit_semaphore(&lv_dma2d_sem);
-    if (BK_OK != ret) {
-        LOGE("%s %d lv_dma2d_sem deinit failed\n", __func__, __LINE__);
+    if (value > 255) {
+        return 255;
     }
 
-    return ret;
+    return (uint8_t)value;
 }
 
-static void lv_dma2d_yuyv2rgb565(void *src, const void *dst, uint16_t width, uint16_t height, bool byte_swap)
+static inline uint16_t bswap16_self(uint16_t x)
 {
-    dma2d_memcpy_pfc_t dma2d_memcpy_pfc = {0};
+    uint32_t result;
+    __asm__ volatile (
+        "eor   %1, %1, %1, ror #16 \n"
+        "mov   %1, %1, ror #8      \n"
+        : "=r" (result)
+        : "0" ((uint32_t)x << 16)
+    );
 
-    dma2d_memcpy_pfc.input_addr = (char *)src;
-    dma2d_memcpy_pfc.output_addr = (char *)dst;
-    dma2d_memcpy_pfc.mode = DMA2D_M2M_PFC;
-    dma2d_memcpy_pfc.input_color_mode = DMA2D_INPUT_YUYV;
-    dma2d_memcpy_pfc.output_color_mode = DMA2D_OUTPUT_RGB565;
-    dma2d_memcpy_pfc.src_pixel_byte = TWO_BYTES;
-    dma2d_memcpy_pfc.dst_pixel_byte = TWO_BYTES;
-    dma2d_memcpy_pfc.dma2d_width = width;
-    dma2d_memcpy_pfc.dma2d_height = height;
-    dma2d_memcpy_pfc.src_frame_width = width;
-    dma2d_memcpy_pfc.src_frame_height = height;
-    dma2d_memcpy_pfc.dst_frame_width = width;
-    dma2d_memcpy_pfc.dst_frame_height = height;
-    dma2d_memcpy_pfc.src_frame_xpos = 0;
-    dma2d_memcpy_pfc.src_frame_ypos = 0;
-    dma2d_memcpy_pfc.dst_frame_xpos = 0;
-    dma2d_memcpy_pfc.dst_frame_ypos = 0;
-    dma2d_memcpy_pfc.input_red_blue_swap = 0;
-    dma2d_memcpy_pfc.output_red_blue_swap = 0;
+    return (uint16_t)(result >> 16);
+}
 
-    if (byte_swap) {
-        dma2d_memcpy_pfc.out_byte_by_byte_reverse = 1;
-    } else {
-        dma2d_memcpy_pfc.out_byte_by_byte_reverse = 0;
+static bk_err_t lv_jpeg_nv12_to_rgb565(const uint8_t *src_nv12,
+                                       uint32_t width,
+                                       uint32_t height,
+                                       uint8_t *dst_rgb565,
+                                       bool byte_swap)
+{
+    if (src_nv12 == NULL || dst_rgb565 == NULL || (width & 1U) || (height & 1U)) {
+        return BK_FAIL;
     }
 
-    bk_dma2d_memcpy_or_pixel_convert(&dma2d_memcpy_pfc);
-    bk_dma2d_start_transfer();
+    const uint8_t *y_plane = src_nv12;
+    const uint8_t *uv_plane = src_nv12 + width * height;
+    uint16_t *dst = (uint16_t *)dst_rgb565;
 
-    rtos_get_semaphore(&lv_dma2d_sem, BEKEN_NEVER_TIMEOUT);
-}
+    for (uint32_t y = 0; y < height; y++) {
+        const uint8_t *y_row = y_plane + y * width;
+        const uint8_t *uv_row = uv_plane + (y >> 1) * width;
 
-static bk_err_t lv_jpeg_decode_complete(uint32_t format_type, uint32_t result, frame_buffer_t *out_frame)
-{
-    if (result == BK_OK) {
-        LOGD("%s, %d, jpeg decode success! format_type: %d, out_frame: %p\n", __func__, __LINE__, format_type, out_frame);
-    } else {
-        LOGE("%s, %d, jpeg decode failed! format_type: %d, result: %d, out_frame: %p\n", __func__, __LINE__, format_type, result, out_frame);
+        for (uint32_t x = 0; x < width; x++) {
+            const uint32_t uv_idx = x & ~1U;
+            const int u = (int)uv_row[uv_idx] - 128;
+            const int v = (int)uv_row[uv_idx + 1U] - 128;
+            int c = (int)y_row[x] - 16;
+            c = (c < 0) ? 0 : c;
+
+            const uint8_t r = lv_jpeg_clip_u8((298 * c + 409 * v + 128) >> 8);
+            const uint8_t g = lv_jpeg_clip_u8((298 * c - 100 * u - 208 * v + 128) >> 8);
+            const uint8_t b = lv_jpeg_clip_u8((298 * c + 516 * u + 128) >> 8);
+            uint16_t rgb565 = (uint16_t)(((uint16_t)(r >> 3) << 11) |
+                                         ((uint16_t)(g >> 2) << 5) |
+                                         (uint16_t)(b >> 3));
+
+            dst[y * width + x] = byte_swap ? bswap16_self(rgb565) : rgb565;
+        }
     }
 
     return BK_OK;
 }
 
-bk_err_t lv_jpeg_hw_decode_init(void)
+static void lv_jpeg_set_rgb565_header(lv_img_dsc_t *img_dst, uint32_t width, uint32_t height)
 {
-    bk_err_t ret = BK_FAIL;
-
-    lv_dma2d_yuyv2rgb565_init();
-
-    bk_hardware_jpeg_decode_new(&lv_jpeg_decode_handle, &lv_jpeg_decode_config);
-    bk_jpeg_decode_hw_open(lv_jpeg_decode_handle);
-
-    g_dec_out_frame = lv_vendor_malloc(sizeof(frame_buffer_t));
-    if (!g_dec_out_frame) {
-        LOGD("[%s][%d] g_dec_out_frame malloc fail\n", __FUNCTION__, __LINE__);
-        return ret;
-    }
-    os_memset(g_dec_out_frame, 0, sizeof(frame_buffer_t));
-
-    return ret;
-}
-
-bk_err_t lv_jpeg_hw_decode_deinit(void)
-{
-    bk_err_t ret = BK_FAIL;
-
-    lv_dma2d_yuyv2rgb565_deinit();
-    bk_jpeg_decode_hw_close(lv_jpeg_decode_handle);
-
-    bk_jpeg_decode_hw_delete(lv_jpeg_decode_handle);
-    lv_jpeg_decode_handle = NULL;
-
-    if (g_dec_out_frame) {
-        os_free(g_dec_out_frame);
-        g_dec_out_frame = NULL;
-    }
-
-    return ret;
-}
-
-bk_err_t lv_jpeg_hw_decode_start(frame_buffer_t *jpeg_frame, lv_img_dsc_t *img_dst, bool byte_swap)
-{
-    bk_err_t ret = BK_FAIL;
-    bk_jpeg_decode_img_info_t img_info = {0}; 
-
-    if (jpeg_frame == NULL) {
-        LOGE("[%s][%d] jpeg_frame is null\r\n", __func__, __LINE__);
-        return ret;
-    }
-
-    if (img_dst == NULL) {
-        LOGE("[%s][%d] img_dst is null\r\n", __func__, __LINE__);
-        return ret;
-    }
-
-    img_info.frame = jpeg_frame;
-    ret = bk_jpeg_decode_hw_get_img_info(lv_jpeg_decode_handle, &img_info);
-    if (ret != BK_OK) {
-        LOGE("[%s][%d] get img info failed, ret: %d\r\n", __func__, __LINE__, ret);
-        return ret;
-    }
-
+#if CONFIG_LVGL_V8
     img_dst->header.always_zero = 0;
     img_dst->header.cf = LV_IMG_CF_TRUE_COLOR;
-    img_dst->header.w = img_info.width;
-    img_dst->header.h = img_info.height;
+    img_dst->header.w = width;
+    img_dst->header.h = height;
+#else
+    img_dst->header.magic = LV_IMAGE_HEADER_MAGIC;
+    img_dst->header.cf = LV_COLOR_FORMAT_RGB565;
+    img_dst->header.flags = 0;
+    img_dst->header.w = width;
+    img_dst->header.h = height;
+    img_dst->header.stride = width * 2;
+#endif
+}
+
+static void lv_jpeg_hw_destroy_decoder(bk_jpeg_decode_ctlr_handle_t *decoder)
+{
+    if (decoder == NULL || *decoder == NULL) {
+        return;
+    }
+
+    bk_jpeg_decode_close(*decoder);
+    bk_jpeg_decode_deinit(*decoder);
+    bk_jpeg_decode_delete(*decoder);
+    *decoder = NULL;
+}
+
+static bk_err_t lv_jpeg_hw_get_info(uint8_t *jpeg_data,
+                                    uint32_t jpeg_size,
+                                    bk_jpeg_decode_img_info_t *img_info)
+{
+    os_memset(img_info, 0, sizeof(*img_info));
+    img_info->input_stream = jpeg_data;
+    img_info->input_stream_length = jpeg_size;
+
+    bk_err_t ret = bk_jpeg_decode_get_img_info(img_info);
+    if (ret != BK_OK) {
+        LOGE("[%s][%d] get img info failed, ret: %d\r\n", __func__, __LINE__, ret);
+    }
+
+    return ret;
+}
+
+static bk_err_t lv_jpeg_hw_create_decoder(bk_jpeg_decode_ctlr_handle_t *decoder,
+                                          const bk_jpeg_decode_img_info_t *img_info)
+{
+    bk_jpeg_decode_frame_config_t config = DEFAULT_JPEG_DECODE_FRAME_CONFIG;
+    config.out_width = img_info->width;
+    config.out_height = img_info->height;
+    config.out_format = BK_PIXEL_FORMAT_NV12;
+
+    bk_err_t ret = bk_jpeg_decode_frame_ctlr_new(decoder, &config);
+    if (ret != BK_OK) {
+        return ret;
+    }
+
+    ret = bk_jpeg_decode_init(*decoder);
+    if (ret != BK_OK) {
+        lv_jpeg_hw_destroy_decoder(decoder);
+        return ret;
+    }
+
+    ret = bk_jpeg_decode_open(*decoder);
+    if (ret != BK_OK) {
+        lv_jpeg_hw_destroy_decoder(decoder);
+    }
+
+    return ret;
+}
+
+bk_err_t lv_jpeg_hw_decode_start(uint8_t *jpeg_data, uint32_t jpeg_size, lv_img_dsc_t *img_dst, bool byte_swap)
+{
+    bk_err_t ret = BK_FAIL;
+    uint8_t *nv12_data = NULL;
+    bk_jpeg_decode_ctlr_handle_t decoder = NULL;
+    bk_jpeg_decode_img_info_t img_info = {0};
+
+    if (jpeg_data == NULL || jpeg_size == 0 || img_dst == NULL) {
+        LOGE("[%s][%d] invalid params\r\n", __func__, __LINE__);
+        return ret;
+    }
+
+    ret = lv_jpeg_hw_get_info(jpeg_data, jpeg_size, &img_info);
+    if (ret != BK_OK) {
+        return ret;
+    }
+
+    lv_jpeg_set_rgb565_header(img_dst, img_info.width, img_info.height);
     img_dst->data_size = img_info.width * img_info.height * 2;
     img_dst->data = psram_malloc(img_dst->data_size);
     if (!img_dst->data) {
-        LOGE("[%s][%d] malloc psram size %d fail\r\n", __FUNCTION__, __LINE__, img_dst->data_size);
+        LOGE("[%s][%d] malloc psram size %d fail\r\n", __func__, __LINE__, img_dst->data_size);
         ret = BK_ERR_NO_MEM;
         return ret;
     }
 
     do {
-        g_dec_out_frame->frame = psram_malloc(img_dst->data_size);
-        if (!g_dec_out_frame->frame) {
-            LOGE("[%s][%d] malloc psram size %d fail\r\n", __FUNCTION__, __LINE__, img_dst->data_size);
+        const uint32_t nv12_size = bk_image_size_get(img_info.width, img_info.height, BK_PIXEL_FORMAT_NV12);
+        nv12_data = bk_frame_buffer_malloc(MEM_SLAB_HEAP_UNCODED, nv12_size);
+        if (nv12_data == NULL) {
+            LOGE("[%s][%d] malloc nv12 size %d fail\r\n", __func__, __LINE__, nv12_size);
             ret = BK_ERR_NO_MEM;
             break;
         }
-        g_dec_out_frame->size = img_dst->data_size;
 
-        ret = bk_jpeg_decode_hw_decode(lv_jpeg_decode_handle, jpeg_frame, g_dec_out_frame);
+        ret = lv_jpeg_hw_create_decoder(&decoder, &img_info);
+        if (ret != BK_OK) {
+            LOGE("%s create decoder fail %d\n", __func__, ret);
+            break;
+        }
+
+        bk_jpeg_decode_input_t input = {0};
+        input.stream = jpeg_data;
+        input.stream_len = jpeg_size;
+        input.out_buffer = nv12_data;
+        input.out_buffer_size = nv12_size;
+
+        ret = bk_jpeg_decode_frame(decoder, &input);
         if (ret != BK_OK) {
             LOGE("%s hw decode start fail %d\n", __func__, ret);
             break;
         }
 
-        lv_dma2d_yuyv2rgb565(g_dec_out_frame->frame, img_dst->data, img_dst->header.w, img_dst->header.h, byte_swap);
+        ret = lv_jpeg_nv12_to_rgb565(nv12_data, img_info.width, img_info.height, (uint8_t *)img_dst->data, byte_swap);
     } while(0);
 
-    if (g_dec_out_frame->frame) {
-        psram_free(g_dec_out_frame->frame);
-        g_dec_out_frame->frame = NULL;
+    lv_jpeg_hw_destroy_decoder(&decoder);
+    if (nv12_data != NULL) {
+        bk_frame_buffer_free(nv12_data);
+    }
+    if (ret != BK_OK && img_dst->data != NULL) {
+        psram_free((void *)img_dst->data);
+        img_dst->data = NULL;
+        img_dst->data_size = 0;
     }
 
     return ret;
 }
+
+#else
+
+bk_err_t lv_jpeg_hw_decode_start(uint8_t *jpeg_data, uint32_t jpeg_size, lv_img_dsc_t *img_dst, bool byte_swap)
+{
+    (void)jpeg_data;
+    (void)jpeg_size;
+    (void)img_dst;
+    (void)byte_swap;
+
+    LOGE("%s requires CONFIG_BK_DECODER and CONFIG_FRAME_BUFFER\r\n", __func__);
+    return BK_ERR_NOT_SUPPORT;
+}
+
+#endif

@@ -490,6 +490,7 @@ if(CONFIG_LVGL)
 	)
 
 	list(APPEND srcs
+		common/lv_mem_adapt.c
 		common/lv_vendor.c
 		common/camera_blend/lv_camera_blend.c
 		common/hpdma/lv_hpdma.c
