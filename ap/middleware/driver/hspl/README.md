@@ -61,7 +61,7 @@ typedef enum {
     BK_HSPL_RES_ADC,
     BK_HSPL_RES_DAC,
     BK_HSPL_RES_PMU,
-    BK_HSPL_RES_USER0,
+    BK_HSPL_RES_UART_LOG,
 
     BK_HSPL_RES_OS,
     BK_HSPL_RES_LVGL,
@@ -77,7 +77,7 @@ typedef enum {
     BK_HSPL_RES_SDIO_HS,
     BK_HSPL_RES_SDIO_HS_HS,
     BK_HSPL_RES_USB,
-    BK_HSPL_RES_USER1,
+    BK_HSPL_RES_PSRAM,
     BK_HSPL_RES_USER2,
 
     BK_HSPL_RES_MAX,

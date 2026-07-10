@@ -20,6 +20,7 @@
 #include "clock_driver.h"
 #include "sys_driver.h"
 #include "psram_hal.h"
+#include "../hspl/hspl_res_lock.h"
 #include "driver/psram_types.h"
 #include "psram_driver.h"
 #include <driver/psram.h>
@@ -48,7 +49,6 @@ static beken_thread_t psram_task = NULL;
 extern void bk_delay_us(uint32_t us);
 static bool s_psram_server_is_init = false;
 static bool s_psram_heap_is_init = false;
-static beken_mutex_t s_psram_channel_mutex = NULL;
 static uint8_t s_psram_channelmap = 0;
 
 #define PSRAM_RETURN_ON_SERVER_NOT_INIT() do {\
@@ -56,6 +56,29 @@ static uint8_t s_psram_channelmap = 0;
 					return BK_ERR_PSRAM_SERVER_NOT_INIT;\
 				}\
 			} while(0)
+
+static bk_err_t bk_psram_write_through_lock(uint32_t *int_level)
+{
+	bk_err_t ret;
+
+	if (!int_level) {
+		return BK_ERR_PARAM;
+	}
+
+	*int_level = rtos_disable_int();
+	ret = bk_hspl_res_try_lock(BK_HSPL_RES_PSRAM);
+	if (ret != BK_OK) {
+		rtos_enable_int(*int_level);
+	}
+
+	return ret;
+}
+
+static void bk_psram_write_through_unlock(uint32_t int_level)
+{
+	bk_hspl_res_unlock(BK_HSPL_RES_PSRAM);
+	rtos_enable_int(int_level);
+}
 
 bk_err_t bk_psram_set_clk(psram_clk_t clk)
 {
@@ -96,20 +119,11 @@ bk_err_t bk_psram_set_transfer_mode(psram_tansfer_mode_t transfer_mode)
 
 psram_write_through_area_t bk_psram_alloc_write_through_channel(void)
 {
-	uint8_t channel = 0;
-	bk_err_t ret = BK_OK;
-	
-	if (s_psram_channel_mutex == NULL)
-	{
-		ret = rtos_init_mutex(&s_psram_channel_mutex);
-		if (ret != BK_OK) {
-			PSRAM_LOGE("Failed to create psram channel mutex\n");
-			return channel;
-		}
-	}
+	uint8_t channel = PSRAM_WRITE_THROUGH_AREA_COUNT;
+	uint32_t int_level;
 
-	if (s_psram_channel_mutex) {
-		rtos_lock_mutex(&s_psram_channel_mutex);
+	if (bk_psram_write_through_lock(&int_level) != BK_OK) {
+		return PSRAM_WRITE_THROUGH_AREA_COUNT;
 	}
 	
 	for (channel = 0; channel < PSRAM_WRITE_THROUGH_AREA_COUNT; channel++)
@@ -121,9 +135,7 @@ psram_write_through_area_t bk_psram_alloc_write_through_channel(void)
 		}
 	}
 	
-	if (s_psram_channel_mutex) {
-		rtos_unlock_mutex(&s_psram_channel_mutex);
-	}
+	bk_psram_write_through_unlock(int_level);
 
 	return channel;
 }
@@ -131,8 +143,10 @@ psram_write_through_area_t bk_psram_alloc_write_through_channel(void)
 psram_write_through_area_t bk_psram_alloc_write_through_channel_with_psram_id(uint8_t psram_id)
 {
 	uint8_t channel = PSRAM_WRITE_THROUGH_AREA_COUNT; /* invalid */
-	bk_err_t ret = BK_OK;
+	bk_err_t ret;
 	uint32_t start, end;
+	uint32_t int_level;
+	bool channel_full = false;
 
 	/* psram_id 0 -> area 0~3, psram_id 1 -> area 4~7; only 0/1 supported */
 	if (psram_id > 1) {
@@ -140,16 +154,9 @@ psram_write_through_area_t bk_psram_alloc_write_through_channel_with_psram_id(ui
 		return (psram_write_through_area_t)PSRAM_WRITE_THROUGH_AREA_COUNT;
 	}
 
-	if (s_psram_channel_mutex == NULL) {
-		ret = rtos_init_mutex(&s_psram_channel_mutex);
-		if (ret != BK_OK) {
-			PSRAM_LOGE("Failed to create psram channel mutex\n");
-			return (psram_write_through_area_t)channel;
-		}
-	}
-
-	if (s_psram_channel_mutex) {
-		rtos_lock_mutex(&s_psram_channel_mutex);
+	ret = bk_psram_write_through_lock(&int_level);
+	if (ret != BK_OK) {
+		return (psram_write_through_area_t)channel;
 	}
 
 	if (psram_id == 0) {
@@ -167,12 +174,14 @@ psram_write_through_area_t bk_psram_alloc_write_through_channel_with_psram_id(ui
 		}
 	}
 	if (channel >= end) {
-		PSRAM_LOGE("psram_id=%u write-through channel full, no free area\n", psram_id);
 		channel = PSRAM_WRITE_THROUGH_AREA_COUNT;
+		channel_full = true;
 	}
 
-	if (s_psram_channel_mutex) {
-		rtos_unlock_mutex(&s_psram_channel_mutex);
+	bk_psram_write_through_unlock(int_level);
+
+	if (channel_full) {
+		PSRAM_LOGE("psram_id=%u write-through channel full, no free area\n", psram_id);
 	}
 
 	return (psram_write_through_area_t)channel;
@@ -180,23 +189,25 @@ psram_write_through_area_t bk_psram_alloc_write_through_channel_with_psram_id(ui
 
 bk_err_t bk_psram_free_write_through_channel(psram_write_through_area_t area)
 {
+	uint32_t int_level;
+	bk_err_t ret;
+
 	if (area >= PSRAM_WRITE_THROUGH_AREA_COUNT)
 	{
 		PSRAM_LOGE("%s over range failed\r\n", __func__);
 		return BK_ERR_PARAM;
 	}
 
-	if (s_psram_channel_mutex) {
-		rtos_lock_mutex(&s_psram_channel_mutex);
+	ret = bk_psram_write_through_lock(&int_level);
+	if (ret != BK_OK) {
+		return ret;
 	}
 	
 	if (s_psram_channelmap & (0x1 << area)) {
 		s_psram_channelmap &= ~(0x1 << area);
 	}
 	
-	if (s_psram_channel_mutex) {
-		rtos_unlock_mutex(&s_psram_channel_mutex);
-	}
+	bk_psram_write_through_unlock(int_level);
 
 	return BK_OK;
 }
