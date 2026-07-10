@@ -18,9 +18,12 @@
 #include <driver/int_types.h>
 #include <os/os.h>
 #include "sys_hal.h"
+#include "sys_ll.h"
 #include "sys_driver.h"
+#include "aon_pmu_hal.h"
 #include "aon_pmu_ll.h"
 #include "bk_arch.h"
+#include "bk_misc.h"
 
 #define LPVAD_LOG(fmt, ...) bk_printf("[lpvad] " fmt "\r\n", ##__VA_ARGS__)
 
@@ -46,7 +49,7 @@ bk_err_t bk_lp_vad_set_sleep_para_before_sleep(void)
 	sys_hal_set_ana_reg2_value(reg2);
 
 	/* Enable micbias (ana_reg20 bit5) */
-	sys_hal_set_micbias_enable(1);
+	//sys_hal_set_micbias_enable(1);
 
 	/* Enable mic2 mode (ana_reg27 bit28) */
 	sys_hal_set_mic2_enable(1);
@@ -54,18 +57,23 @@ bk_err_t bk_lp_vad_set_sleep_para_before_sleep(void)
 	sys_hal_set_vad_enable(1);
 
 	sys_hal_set_vad_viniset(1);
-	rtos_delay_milliseconds(10);
+	bk_delay_us(10000);
 
 	sys_hal_set_vad_rstn(1);
+	__ISB();
+	__DSB();
+	bk_delay_us(1000);
+	__ISB();
+	__DSB();
+
 	return BK_OK;
 }
 
 bk_err_t bk_lp_vad_set_wakeup_para_after_wakeup(void)
 {
-	/* restore reg 22 23 28 via direct REG_WRITE (clocks already off, bypass analog SPI HAL) */
-	REG_WRITE(SOC_SYS_REG_BASE + (0x56 << 2), s_backup_ana_reg22);
-	REG_WRITE(SOC_SYS_REG_BASE + (0x57 << 2), s_backup_ana_reg23);
-	REG_WRITE(SOC_SYS_REG_BASE + (0x5c << 2), s_backup_ana_reg28);
+	sys_hal_set_gadc_config(s_backup_ana_reg22);
+	sys_hal_set_vad_config(s_backup_ana_reg23);
+	sys_hal_set_ana_reg28_value(s_backup_ana_reg28);
 
 	return BK_OK;
 }
@@ -159,9 +167,7 @@ bk_err_t bk_lp_vad_deinit(void)
 bk_err_t bk_lp_vad_deepsleep_enter(void)
 {
 	//uint32_t reg2 = 0;
-	uint32_t reg_data = 0;
-	uint32_t wakeup_ena = 0;
-	uint32_t i = 0;
+	uint32_t value = 0;
 	uint8_t mem_halt_pwd = 0;
 
 	//LPVAD_LOG("set_para_before_sleep enter, is_init=%d", s_lp_vad_is_init);
@@ -169,8 +175,6 @@ bk_err_t bk_lp_vad_deepsleep_enter(void)
 		//LPVAD_LOG("set_para_before_sleep fail, not inited");
 		return BK_ERR_AUD_DRV_NOT_INIT;
 	}
-	//LPVAD_LOG("set_para_before_sleep args mem_halt_pwd=0x%x config_vad=%u 0x%08x", mem_halt_pwd, config_vad, SOC_SYS_REG_BASE);
-
 	/* spi latch ON */
 	sys_hal_set_ana_reg_spi_latch1v(1);
 
@@ -179,93 +183,61 @@ bk_err_t bk_lp_vad_deepsleep_enter(void)
 	/* Core LDO: vcorelsel=0x6, vcorehsel=0x8 (fix off-by-one from original shift 19 to correct shift 20) */
 	sys_hal_set_core_ldo_low_vol(0x6);
 	sys_hal_set_core_ldo_high_vol(0x8);
-	/* CoreHS LDO: addSYSTEM_Reg0x10 bits[17:15]=0x6 bits[14:11]=0x8 */
-	reg_data = REG_READ(SOC_SYS_REG_BASE + (0x10 << 2));
-	reg_data &= ~((0x7U << 15) | (0xFU << 11));
-	reg_data |= ((0x6U << 15) | (0x8U << 11));
-	REG_WRITE(SOC_SYS_REG_BASE + (0x10 << 2), reg_data);
+	value = sys_ll_get_reserver_reg0x10_value();
+	value &= ~((0x7U << 15) | (0xFU << 11));
+	value |= ((0x6U & 0x7U) << 15) | ((0x8U & 0xFU) << 11);
+	sys_ll_set_reserver_reg0x10_value(value);
 	/* spi latch OFF */
 	sys_hal_set_ana_reg_spi_latch1v(0);
 
-	/* setf_SYSTEM_Reg0x4_cpu_int_mask */
-	reg_data = REG_READ(SOC_SYS_REG_BASE + (0x4 << 2));
-	reg_data |= (1U << 2);
-	//REG_WRITE(SOC_SYS_REG_BASE + (0x4 << 2), reg_data); //charl20260323
-	/* addSYSTEM_Reg0x10 |= 0xf */
-	reg_data = REG_READ(SOC_SYS_REG_BASE + (0x10 << 2));
-	reg_data |= 0xFU;
-	REG_WRITE(SOC_SYS_REG_BASE + (0x10 << 2), reg_data);
+	value = sys_ll_get_reserver_reg0x10_value();
+	value |= 0xFU;
+	sys_ll_set_reserver_reg0x10_value(value);
 	/* Power down blp and wlp peripherals */
 	aon_pmu_ll_set_r42_pwd_blppwd(1);
-	aon_pmu_ll_set_r42_pwd_wlppwd(1);
-	/* Set Core and Flash clock to XTAL: addSYSTEM_Reg0x8 */
-	reg_data = REG_READ(SOC_SYS_REG_BASE + (0x8 << 2));
-	reg_data &= ~((0x7U << 8) | (0x3U << 6) | (0xFU << 2) | (0x3U << 0));
-	REG_WRITE(SOC_SYS_REG_BASE + (0x8 << 2), reg_data);
-	/* AON_PMU_Reg0x41: wakeup_ena, lpo_config, mem halt/ret (atomic batch write) */
-	wakeup_ena = REG_READ(SOC_AON_PMU_REG_BASE + 0x104);
-	wakeup_ena |= (1U << 6);
-	wakeup_ena &= ~(0x3U << 0);
-	wakeup_ena |= (0x2U << 0);
+	aon_pmu_hal_set_wlp_power_down(1);
+	/* Set Core and Flash clock to XTAL */
+	value = sys_ll_get_cpu_clk_div_mode1_value();
+	value &= ~((0x7U << 8) | (0x3U << 6) | (0xFU << 2) | (0x3U << 0));
+	sys_ll_set_cpu_clk_div_mode1_value(value);
+	aon_pmu_hal_set_wakeup_source(WAKEUP_SOURCE_INT_VAD);
+	aon_pmu_hal_lpo_src_set(0x2);
 	if (mem_halt_pwd & (1U << 0)) {
-		wakeup_ena |= (1U << 25);
+		aon_pmu_ll_set_r41_halt_sram0(1);
 	}
 	if (mem_halt_pwd & (1U << 1)) {
-		wakeup_ena |= (1U << 26);
+		aon_pmu_ll_set_r41_halt_sram1(1);
 	}
 	if (mem_halt_pwd & (1U << 2)) {
-		wakeup_ena |= (1U << 27);
+		aon_pmu_ll_set_r41_halt_sram2(1);
 	}
 	if (mem_halt_pwd & (1U << 3)) {
-		wakeup_ena |= (1U << 29);
+		aon_pmu_ll_set_r41_halt_cache(1);
 	}
-	wakeup_ena |= (1U << 28);
-	REG_WRITE(SOC_AON_PMU_REG_BASE + 0x104, wakeup_ena);
+	aon_pmu_ll_set_r41_mem_ret_en(1);
 
 	/* sleep_ana_set_tmp(); */
 	lp_vad_sleep_ana_set_tmp();
 
 	/* Clear wakeup source status */
 	aon_pmu_ll_set_r43_clr_wakeup(1);
-	/* addSYSTEM_Reg0x11  |= 0x1 | (0x1 << 4) */
-	reg_data = REG_READ(SOC_SYS_REG_BASE + (0x11 << 2));
-	reg_data |= 0x1U | (1U << 4);
-	REG_WRITE(SOC_SYS_REG_BASE + (0x11 << 2), reg_data);
-	/* addAON_PMU_Reg0x0  = addAON_PMU_Reg0x0 & (~0x3) | 0x3 */
-	reg_data = REG_READ(SOC_AON_PMU_REG_BASE + (0x0 << 2));
-	reg_data = (reg_data & (~0x3U)) | 0x3U;
-	REG_WRITE(SOC_AON_PMU_REG_BASE + (0x0 << 2), reg_data);
+	aon_pmu_ll_set_r43_clr_wakeup(0);
+	value = sys_ll_get_cpu_power_sleep_wakeup_value();
+	value |= 0x1U | (1U << 4);
+	sys_ll_set_cpu_power_sleep_wakeup_value(value);
+	value = aon_pmu_ll_get_r0();
+	value = (value & (~0x3U)) | 0x3U;
+	aon_pmu_ll_set_r0(value);
 
-	/* for(gpio_i=0; gpio_i<72; gpio_i++) PMU_GPIO_CFG[gpio_i]=0x0 */
-	for (i = 0; i < 72; i++) {
-		//REG_WRITE(SOC_AON_GPIO_REG_BASE + (i << 2), 0x0);
-	}
-
-	/* addAON_PMU_Reg0x0  |= (0x1 << 31) */
-	reg_data = REG_READ(SOC_AON_PMU_REG_BASE + (0x0 << 2));
-	reg_data |= (1U << 31);
-	//REG_WRITE(SOC_AON_PMU_REG_BASE + (0x0 << 2), reg_data);
-
-	/* addAON_PMU_Reg0x25 = 0x424B55AA; addAON_PMU_Reg0x25 = 0xBDB4AA55; */
-	//REG_WRITE(SOC_AON_PMU_REG_BASE + (0x25 << 2), 0x424B55AA);//charl20260323
-	//REG_WRITE(SOC_AON_PMU_REG_BASE + (0x25 << 2), 0xBDB4AA55);//charl20260323
-
-	/* addAON_GPIO_Reg0x19 = (0x2 << 24) */
-	//REG_WRITE(SOC_AON_GPIO_REG_BASE + (0x19 << 2), (0x2U << 24));//charl20260323
-
-	/* Reg0x41 bit15 gpio_func_ctrl_en clear */
-	//aon_pmu_ll_set_r41_gpio_func_ctrl_en(0); //charl20260323
-
-	/* backup reg 22 23 28 via direct REG_READ (clocks already off, bypass analog SPI HAL) */
-	s_backup_ana_reg22 = REG_READ(SOC_SYS_REG_BASE + (0x56 << 2));
-	s_backup_ana_reg23 = REG_READ(SOC_SYS_REG_BASE + (0x57 << 2));
-	s_backup_ana_reg28 = REG_READ(SOC_SYS_REG_BASE + (0x5c << 2));
+	s_backup_ana_reg22 = sys_hal_get_gadc_config();
+	s_backup_ana_reg23 = sys_hal_get_vad_config();
+	s_backup_ana_reg28 = sys_hal_get_ana_reg28_value();
 
 	bk_lp_vad_set_sleep_para_before_sleep();
 
 	__ISB();
 	__DSB();
-	rtos_delay_milliseconds(1000);
+	bk_delay_us(1000000);
 
 	/* SetSleepMode(1) equivalent: enter sleepdeep then sync barrier */
 	SCB->SCR |= SCB_SCR_SLEEPDEEP_Msk;
