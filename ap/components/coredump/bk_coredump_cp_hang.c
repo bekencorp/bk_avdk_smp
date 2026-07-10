@@ -339,6 +339,10 @@ static void cp_hang_monitor_task(void *param)
 
 		s_cp_hang_state.dumping = 1U;
 		s_cp_hang_state.timeout_tick = now;
+		/* Publish "AP is taking over due to CP hang" before any logging so the
+		 * shell log path stops forwarding to the (dead) CP over the mailbox and
+		 * the dump can go straight out the UART. */
+		cp_hang_set_ap_dumping(1U);
 		BK_LOGE(CP_HANG_TAG, "CP heartbeat timeout: last=%u now=%u timeout=%u src=%u\r\n",
 			last_tick, now, s_cp_hang_state.timeout_ms, s_cp_hang_state.src_cpu);
 		cp_hang_dump_from_ap(now);
