@@ -198,6 +198,7 @@ typedef struct {
 	int (*_bk_feature_fast_dhcp_enable)(void);
 	int (*_bk_feature_get_scan_speed_level)(void);
 	int (*_bk_feature_not_check_ssid_enable)(void);
+	int (*_bk_feature_keep_alive_arp_reply_enable)(void);
 	int (*_bk_feature_config_cache_enable)(void);
 	int (*_bk_feature_config_ckmn_enable)(void);
 	int (*_bk_feature_sta_vsie_enable)(void);

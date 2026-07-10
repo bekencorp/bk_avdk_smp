@@ -778,6 +778,11 @@ static int bk_feature_not_check_ssid_enable_wrapper(void)
     return bk_feature_not_check_ssid_enable();
 }
 
+static int bk_feature_keep_alive_arp_reply_enable_wrapper(void)
+{
+    return bk_feature_keep_alive_arp_reply_enable();
+}
+
 static int bk_feature_config_cache_enable_wrapper(void)
 {
     return bk_feature_config_cache_enable();
@@ -1540,6 +1545,7 @@ __attribute__((section(".dtcm_sec_data "))) wifi_os_funcs_t g_wifi_os_funcs = {
 	._bk_feature_get_scan_speed_level = bk_feature_get_scan_speed_level_wrapper,
 	._bk_feature_fast_dhcp_enable = bk_feature_fast_dhcp_enable_wrapper,
 	._bk_feature_not_check_ssid_enable = bk_feature_not_check_ssid_enable_wrapper,
+	._bk_feature_keep_alive_arp_reply_enable = bk_feature_keep_alive_arp_reply_enable_wrapper,
 	._bk_feature_config_cache_enable = bk_feature_config_cache_enable_wrapper,
 	._bk_feature_config_ckmn_enable = bk_feature_ckmn_enable_wrapper,
 	._bk_feature_sta_vsie_enable = bk_feature_sta_vsie_enable_wrapper,

@@ -385,4 +385,7 @@ menu "Bk_Wifi"
 		default n
 		help
 			Enable DSSS ONLY
+	config KEEP_ALIVE_ARP_REPLY_ENABLE
+		bool "Enable keep alive ARP reply"
+		default n
 endmenu
