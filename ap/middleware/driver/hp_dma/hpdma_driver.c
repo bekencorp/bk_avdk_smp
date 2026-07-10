@@ -591,6 +591,14 @@ bk_err_t bk_hpdma_init(hpdma_id_t id, const hpdma_config_t *config)
     uint32_t src_total_size = config->src.xsize * config->src.ysize;
     uint32_t dst_total_size = config->dst.xsize * config->dst.ysize;
 
+    /*
+     * Address-alias note: the cache is indexed by the CPU-side 0x2Cxxxxxx
+     * alias, so this flush MUST use the original start_addr (0x2C) passed by
+     * the caller, never the 0x28 alias written to the hardware - otherwise it
+     * would flush the wrong cache lines and DMA would read stale data. Writing
+     * 0x28 to the register while flushing 0x2C for the cache is intentional;
+     * do not "unify" them to a single alias in later maintenance.
+     */
     // Flush source cache to ensure DMA reads latest CPU-written data
     if (src_total_size > 0) {
         flush_dcache((void *)config->src.start_addr, src_total_size);
@@ -1477,9 +1485,282 @@ uint32_t bk_hpdma_get_half_finish_interrupt_cnt(hpdma_id_t id)
 	return hpdma_hal_half_finish_interrupt_cnt(&s_hpdma.hal, id);
 }
 
+/* ------------------------------------------------------------------ *
+ * memcpy completion helpers (link-mode split + interrupt/semaphore wait)
+ * ------------------------------------------------------------------ */
+
+/*
+ * HPDMA single-shot xsize is a 16-bit field: one descriptor / one single-mode
+ * transfer can move at most 0xFFFF bytes. Anything larger is split into
+ * 0xF000-byte chunks (safely below the limit) and chained as a linked list.
+ */
+#define HPDMA_SINGLE_MAX_XFER   0xF000U   /* 61440, < 16-bit xsize limit 0xFFFF */
+#define HPDMA_DONE_WAIT_MS      1000U     /* semaphore wait bound for one transfer */
+
+/*
+ * A linked-list descriptor is a 2D transfer: it moves xsize bytes per row for
+ * ysize rows, advancing the row start by (xsize + step). With step == 0 the
+ * rows are back-to-back, so one descriptor copies xsize*ysize *contiguous*
+ * bytes. Both fields are 16-bit, so a single node can move up to
+ * HPDMA_LINK_ROW_BYTES * HPDMA_LINK_MAX_ROWS (~4 GiB) instead of the old
+ * 0xF000-per-node limit -- i.e. one or two descriptors cover any 32-bit length.
+ * HPDMA_LINK_ROW_BYTES is kept 16-byte aligned so every row is a whole number
+ * of 128-bit words (the width the link path configures).
+ */
+#define HPDMA_LINK_ROW_BYTES    0xFFF0U   /* per-row xsize, 16-byte aligned, <= 0xFFFF */
+#define HPDMA_LINK_MAX_ROWS     0xFFFFU   /* 16-bit ysize limit */
+
+/*
+ * Per-channel completion semaphore. Lazily created the first time a channel is
+ * used on the interrupt-wait path and then reused. Indexed by logic channel id
+ * (== the channel value the ISR reports on unit 0).
+ */
+static beken_semaphore_t s_hpdma_done_sem[SOC_HPDMA_CHAN_NUM_PER_UNIT] = {NULL};
+
+typedef struct {
+    hpdma_isr_t saved_cb;
+    void       *saved_data;
+    bool        armed;
+} hpdma_done_ctx_t;
+
+/* Driver-owned finish callback: wake the task blocked in hpdma_wait_done(). */
+static void hpdma_internal_finish_isr(hpdma_id_t id, void *user_data)
+{
+    (void)user_data;
+    if ((id < SOC_HPDMA_CHAN_NUM_PER_UNIT) && (s_hpdma_done_sem[id] != NULL)) {
+        rtos_set_semaphore(&s_hpdma_done_sem[id]);
+    }
+}
+
+/*
+ * True only when it is safe to block the caller on a semaphore: task context,
+ * scheduler running and not suspended. Otherwise the caller must busy-wait.
+ */
+static bool hpdma_can_block(void)
+{
+    return (!rtos_is_in_interrupt_context()
+            && rtos_is_scheduler_started()
+            && !rtos_is_scheduler_suspended());
+}
+
+/*
+ * Install the internal finish callback + enable the finish interrupt so the
+ * transfer completion posts the per-channel semaphore. Saves any pre-existing
+ * finish callback so an externally supplied channel is restored afterwards.
+ * Must be called from task context (creates the semaphore on first use).
+ *
+ * finish_int_en, dest_req_mux and src_req_mux are independent bitfields of the
+ * same req_mux register, so arming here before bk_hpdma_init() (which only
+ * touches the req_mux dev fields) is preserved across init.
+ */
+static bk_err_t hpdma_arm_completion(hpdma_id_t id, hpdma_done_ctx_t *ctx)
+{
+    ctx->armed = false;
+    if (id >= SOC_HPDMA_CHAN_NUM_PER_UNIT) {
+        return BK_ERR_HPDMA_ID;
+    }
+
+    if (s_hpdma_done_sem[id] == NULL) {
+        if (rtos_init_semaphore(&s_hpdma_done_sem[id], 1) != BK_OK) {
+            return BK_FAIL;
+        }
+    }
+
+    /* Drop any stale post left by a previous timed-out transfer. */
+    while (rtos_get_semaphore(&s_hpdma_done_sem[id], BEKEN_NO_WAIT) == BK_OK) {
+    }
+
+    uint32_t int_mask = hpdma_enter_critical();
+    ctx->saved_cb = s_hpdma_finish_isr[id].callback;
+    ctx->saved_data = s_hpdma_finish_isr[id].user_data;
+    s_hpdma_finish_isr[id].callback = hpdma_internal_finish_isr;
+    s_hpdma_finish_isr[id].user_data = NULL;
+    hpdma_exit_critical(int_mask);
+
+    bk_hpdma_enable_finish_interrupt(id);
+    ctx->armed = true;
+    return BK_OK;
+}
+
+static void hpdma_disarm_completion(hpdma_id_t id, hpdma_done_ctx_t *ctx)
+{
+    if (!ctx->armed) {
+        return;
+    }
+    bk_hpdma_disable_finish_interrupt(id);
+
+    uint32_t int_mask = hpdma_enter_critical();
+    s_hpdma_finish_isr[id].callback = ctx->saved_cb;
+    s_hpdma_finish_isr[id].user_data = ctx->saved_data;
+    hpdma_exit_critical(int_mask);
+    ctx->armed = false;
+}
+
+/*
+ * Wait for the channel to finish. When use_sem is true the caller has armed the
+ * finish interrupt via hpdma_arm_completion() and we block on the semaphore
+ * (CPU is yielded). Otherwise we fall back to the bounded busy-poll on dma_en.
+ */
+static bk_err_t hpdma_wait_done(hpdma_id_t id, uint32_t timeout_ms, bool use_sem)
+{
+    if (use_sem) {
+        if (rtos_get_semaphore(&s_hpdma_done_sem[id], timeout_ms) != BK_OK) {
+            HPDMA_LOGE("wait_done: ch%d sem timeout, remain=%u dst_wr=0x%x\r\n", id,
+                       hpdma_hal_get_remain_len(&s_hpdma.hal, id),
+                       hpdma_hal_get_dest_write_addr(&s_hpdma.hal, id));
+            uint32_t int_mask = hpdma_enter_critical();
+            hpdma_hal_stop_disable_only(&s_hpdma.hal, id);
+            hpdma_exit_critical(int_mask);
+            return BK_ERR_HPDMA_TIMEOUT;
+        }
+        return BK_OK;
+    }
+
+    uint32_t spun_us = 0;
+    while (hpdma_hal_get_enable_status(&s_hpdma.hal, id)) {
+        bk_delay_us(1);
+        if (++spun_us > HPDMA_MAX_BUSY_TIME) {
+            HPDMA_LOGE("wait_done: ch%d hung; remain=%u dst_wr=0x%x\r\n", id,
+                       hpdma_hal_get_remain_len(&s_hpdma.hal, id),
+                       hpdma_hal_get_dest_write_addr(&s_hpdma.hal, id));
+            uint32_t int_mask = hpdma_enter_critical();
+            hpdma_hal_stop_disable_only(&s_hpdma.hal, id);
+            hpdma_exit_critical(int_mask);
+            return BK_ERR_HPDMA_TIMEOUT;
+        }
+    }
+    return BK_OK;
+}
+
+/*
+ * Copy >0 bytes via an HPDMA linked list on the given (already allocated)
+ * channel. Each descriptor is a step==0 2D transfer, so it moves
+ * HPDMA_LINK_ROW_BYTES bytes per row over up to HPDMA_LINK_MAX_ROWS contiguous
+ * rows (xsize*ysize bytes total). len is therefore covered by a handful of
+ * descriptors: the bulk goes into full-width row descriptors and any trailing
+ * (len % HPDMA_LINK_ROW_BYTES) bytes go into a final single-row node. The
+ * finish interrupt is armed on the LAST descriptor only, the whole chain is
+ * kicked once, and we block on the completion semaphore (task context) or
+ * busy-wait (otherwise). This is how transfers larger than the 16-bit
+ * single-shot limit are handled.
+ */
+static bk_err_t hpdma_memcpy_link_by_chnl(void *out, const void *in, uint32_t len, hpdma_id_t chnl)
+{
+    const uint8_t *s = (const uint8_t *)in;
+    uint8_t *d = (uint8_t *)out;
+
+    uint32_t full_rows = len / HPDMA_LINK_ROW_BYTES;
+    uint32_t tail = len % HPDMA_LINK_ROW_BYTES;
+    uint32_t row_descs = (full_rows + HPDMA_LINK_MAX_ROWS - 1U) / HPDMA_LINK_MAX_ROWS;
+    uint32_t desc_cnt = row_descs + (tail ? 1U : 0U);
+
+    void *table = bk_hpdma_link_init(desc_cnt);
+    if (table == NULL) {
+        return BK_ERR_NO_MEM;
+    }
+
+    uint32_t idx = 0;
+    uint32_t off = 0;
+    uint32_t rows_left = full_rows;
+    while (rows_left > 0U) {
+        uint32_t rows = (rows_left > HPDMA_LINK_MAX_ROWS) ? HPDMA_LINK_MAX_ROWS : rows_left;
+        uint32_t bytes = rows * HPDMA_LINK_ROW_BYTES;
+        hpdma_link_config_t cfg;
+
+        os_memset(&cfg, 0, sizeof(cfg));
+        cfg.src_addr = (uint32_t)(uintptr_t)(s + off);
+        cfg.dst_addr = (uint32_t)(uintptr_t)(d + off);
+        cfg.src_xsize = (uint16_t)HPDMA_LINK_ROW_BYTES;
+        cfg.dst_xsize = (uint16_t)HPDMA_LINK_ROW_BYTES;
+        cfg.src_ysize = (uint16_t)rows;
+        cfg.dst_ysize = (uint16_t)rows;
+        cfg.src_step = 0U;   /* step==0 => rows are contiguous */
+        cfg.dst_step = 0U;
+        /* Only the last node raises finish, so we wake up exactly once. */
+        cfg.finish_int_en = (idx == desc_cnt - 1U) ? 1U : 0U;
+        cfg.half_finish_int_en = 0U;
+
+        bk_err_t set_ret = bk_hpdma_link_set_desc(table, idx, &cfg);
+        if (set_ret != BK_OK) {
+            bk_hpdma_link_deinit(table);
+            return set_ret;
+        }
+        off += bytes;
+        rows_left -= rows;
+        idx++;
+    }
+
+    if (tail) {
+        hpdma_link_config_t cfg;
+
+        os_memset(&cfg, 0, sizeof(cfg));
+        cfg.src_addr = (uint32_t)(uintptr_t)(s + off);
+        cfg.dst_addr = (uint32_t)(uintptr_t)(d + off);
+        cfg.src_xsize = (uint16_t)tail;
+        cfg.dst_xsize = (uint16_t)tail;
+        cfg.src_ysize = 1U;
+        cfg.dst_ysize = 1U;
+        cfg.src_step = 0U;
+        cfg.dst_step = 0U;
+        cfg.finish_int_en = (idx == desc_cnt - 1U) ? 1U : 0U;
+        cfg.half_finish_int_en = 0U;
+
+        bk_err_t set_ret = bk_hpdma_link_set_desc(table, idx, &cfg);
+        if (set_ret != BK_OK) {
+            bk_hpdma_link_deinit(table);
+            return set_ret;
+        }
+        idx++;
+    }
+
+    hpdma_done_ctx_t ctx = {0};
+    bool use_sem = hpdma_can_block();
+    if (use_sem && (hpdma_arm_completion(chnl, &ctx) != BK_OK)) {
+        use_sem = false;   /* fall back to busy-wait if arming failed */
+    }
+
+    bk_err_t ret = bk_hpdma_link_transfer(chnl, table);
+    if (ret != BK_OK) {
+        hpdma_disarm_completion(chnl, &ctx);
+        bk_hpdma_link_deinit(table);
+        return ret;
+    }
+
+    ret = hpdma_wait_done(chnl, HPDMA_DONE_WAIT_MS, use_sem);
+
+    hpdma_disarm_completion(chnl, &ctx);
+
+#if CONFIG_SUPPORT_CACHEABLE_SRAM
+    if (ret == BK_OK) {
+        /* Invalidate destination cache so the CPU sees DMA-written data. */
+        flush_dcache((void *)out, len);
+    }
+#endif
+    __DMB();
+
+    bk_hpdma_link_deinit(table);
+    return ret;
+}
+
 bk_err_t hpdma_memcpy_by_chnl(void *out, const void *in, uint32_t len, hpdma_id_t cpy_chnl)
 {
     hpdma_config_t hpdma_config;
+
+    if (out == NULL || in == NULL) {
+        return BK_ERR_NULL_PARAM;
+    }
+    if (len == 0) {
+        return BK_OK;
+    }
+    /*
+     * Single-shot xsize is a 16-bit field. Refuse >0xFFFF here instead of
+     * silently truncating len into xsize; callers with larger transfers must
+     * use the linked-list path (hpdma_memcpy_link_by_chnl / bk_hpdma_memcpy).
+     */
+    if (len > 0xFFFFU) {
+        HPDMA_LOGE("memcpy_by_chnl: len %u exceeds single-shot 0xFFFF; use link mode\r\n", len);
+        return BK_ERR_HPDMA_TRANS_LEN;
+    }
 
     os_memset(&hpdma_config, 0, sizeof(hpdma_config_t));
 
@@ -1531,6 +1812,20 @@ bk_err_t hpdma_memcpy_by_chnl(void *out, const void *in, uint32_t len, hpdma_id_
         return pre_wait;
     }
 
+    /*
+     * S1 (HPDMA review): completion no longer busy-waits when we are in a
+     *   context that can block. hpdma_arm_completion() installs a driver-owned
+     *   finish callback + enables the finish interrupt so hpdma_wait_done()
+     *   sleeps on a semaphore and yields the CPU. Armed BEFORE bk_hpdma_init /
+     *   start so the completion can never be missed; finish_int_en is an
+     *   independent req_mux bitfield that init preserves.
+     */
+    hpdma_done_ctx_t ctx = {0};
+    bool use_sem = hpdma_can_block();
+    if (use_sem && (hpdma_arm_completion(cpy_chnl, &ctx) != BK_OK)) {
+        use_sem = false;
+    }
+
     uint32_t int_mask = hpdma_enter_critical();
 
     // Note: Cache operations for source and destination are handled in bk_hpdma_init
@@ -1554,54 +1849,88 @@ bk_err_t hpdma_memcpy_by_chnl(void *out, const void *in, uint32_t len, hpdma_id_
     hpdma_exit_critical(int_mask);
 
     /*
-     * S1 (HPDMA review):
-     *   Previously this was a raw BK_WHILE(enable) - a permanent spin
-     *   if the channel never auto-clears dma_en (broken int routing,
-     *   bus_err, hardware hang). bk_hpdma_memcpy is on the PSRAM stress
-     *   hot path, so an unbounded wait there directly translates to a
-     *   WDT reset. Now bounded by HPDMA_MAX_BUSY_TIME us, with explicit
-     *   teardown on timeout via hpdma_hal_stop_disable_only so the
-     *   channel reaches a known-dead state without disturbing the
-     *   interrupt status the caller may still want to read.
+     * S1 (HPDMA review): bounded wait (semaphore or busy-poll fallback). On
+     *   timeout hpdma_wait_done() halts the channel via stop_disable_only so it
+     *   reaches a known-dead state without disturbing interrupt status.
      */
-    {
-        uint32_t spun_us = 0;
-        while (hpdma_hal_get_enable_status(&s_hpdma.hal, cpy_chnl)) {
-            bk_delay_us(1);
-            if (++spun_us > HPDMA_MAX_BUSY_TIME) {
-                HPDMA_LOGE("memcpy: ch%d hung; remain=%u dst_wr=0x%x\r\n",
-                           cpy_chnl,
-                           hpdma_hal_get_remain_len(&s_hpdma.hal, cpy_chnl),
-                           hpdma_hal_get_dest_write_addr(&s_hpdma.hal, cpy_chnl));
-                hpdma_hal_stop_disable_only(&s_hpdma.hal, cpy_chnl);
-                return BK_ERR_HPDMA_TIMEOUT;
-            }
-        }
-    }
+    bk_err_t ret = hpdma_wait_done(cpy_chnl, HPDMA_DONE_WAIT_MS, use_sem);
+
+    hpdma_disarm_completion(cpy_chnl, &ctx);
 
 #if CONFIG_SUPPORT_CACHEABLE_SRAM
     // Invalidate destination cache to ensure CPU reads DMA-written data
-    flush_dcache((void *)out, len);
+    if (ret == BK_OK) {
+        flush_dcache((void *)out, len);
+    }
 #endif
     __DMB();
 
-    return BK_OK;
+    return ret;
+}
+
+/*
+ * Copy len bytes on an already-allocated channel, choosing single-shot for
+ * len <= HPDMA_SINGLE_MAX_XFER and the linked-list split for anything larger
+ * (the single-shot xsize field is only 16 bits). Exposed so callers that
+ * manage their own channel can copy arbitrary lengths.
+ */
+bk_err_t bk_hpdma_memcpy_link(void *out, const void *in, uint32_t len, hpdma_id_t cpy_chnl)
+{
+    HPDMA_RETURN_ON_NOT_INIT();
+    HPDMA_RETURN_ON_INVALID_ID(cpy_chnl);
+
+    if (out == NULL || in == NULL) {
+        return BK_ERR_NULL_PARAM;
+    }
+    if (len == 0) {
+        return BK_OK;
+    }
+
+    if (len > HPDMA_SINGLE_MAX_XFER) {
+        return hpdma_memcpy_link_by_chnl(out, in, len, cpy_chnl);
+    }
+    return hpdma_memcpy_by_chnl(out, in, len, cpy_chnl);
 }
 
 bk_err_t bk_hpdma_memcpy(void *out, const void *in, uint32_t len)
 {
     HPDMA_RETURN_ON_NOT_INIT();
 
+    if (out == NULL || in == NULL) {
+        return BK_ERR_NULL_PARAM;
+    }
+    if (len == 0) {
+        return BK_OK;
+    }
+
     bk_err_t ret;
     hpdma_id_t cpy_chnl = bk_hpdma_alloc(HPDMA_DEV_DTCM);
     HPDMA_RETURN_ON_INVALID_ID(cpy_chnl);
 
-    ret = hpdma_memcpy_by_chnl(out, in, len, cpy_chnl);
+    /*
+     * len > 16-bit single-shot limit is split into a linked list of
+     * <=HPDMA_SINGLE_MAX_XFER chunks; smaller copies keep the single-shot path.
+     * Cache maintenance for both paths happens inside the callees:
+     *   - Before transfer: bk_hpdma_init() / bk_hpdma_link_transfer() flush src.
+     *   - After transfer: flush_dcache() invalidates the destination.
+     */
+    if (len > HPDMA_SINGLE_MAX_XFER) {
+        ret = hpdma_memcpy_link_by_chnl(out, in, len, cpy_chnl);
+    } else {
+        ret = hpdma_memcpy_by_chnl(out, in, len, cpy_chnl);
+    }
 
-    // Note: Cache operations are handled inside hpdma_memcpy_by_chnl:
-    //   - Before transfer: bk_hpdma_init() may flush source and destination cache
-    //   - After transfer: flush_dcache() invalidates destination cache
     bk_hpdma_free(HPDMA_DEV_DTCM, cpy_chnl);
+
+    /*
+     * Correctness over speed: if the DMA path failed (alloc/link/timeout), fall
+     * back to a CPU copy so the caller always ends up with the right data.
+     */
+    if (ret != BK_OK) {
+        HPDMA_LOGW("memcpy: DMA path failed ret=%d, falling back to CPU copy (len=%u)\r\n", ret, len);
+        os_memcpy(out, in, len);
+        ret = BK_OK;
+    }
 
     return ret;
 }
@@ -1823,7 +2152,18 @@ void *bk_hpdma_link_init(uint32_t link_cnt)
             HPDMA_LOGE("Descriptor alignment error: curr=0x%x next=0x%x\r\n", curr_desc_addr, next_desc_addr);
         }
 
-        curr_desc->next_desc_addr = (uint32_t)next_desc_addr;
+        /*
+         * The HPDMA engine walks the chain via this DES5 pointer and can
+         * only reach the 0x28xxxxxx SRAM alias. next_desc_addr here is the
+         * CPU-side allocation (0x2Cxxxxxx when CONFIG_SRAM_DIRECT_ADDR is on),
+         * which the engine cannot fetch - it would stall after the first node
+         * with dma_en stuck at 1 and no finish interrupt. Mirror the same
+         * SOC_SRAM_PERI_ADDR() conversion already applied to desc->src/dst_addr
+         * (bk_hpdma_link_set_desc) and to the channel's next_ll_addr register
+         * (hpdma_hal_set_next_ll_addr). The macro is range-guarded and leaves
+         * 0x28/PSRAM/register addresses unchanged.
+         */
+        curr_desc->next_desc_addr = (uint32_t)SOC_SRAM_PERI_ADDR(next_desc_addr);
         HPDMA_LOGV("Desc[%d] addr=0x%x next_addr=0x%x\r\n", i, curr_desc_addr, curr_desc->next_desc_addr);
     }
 

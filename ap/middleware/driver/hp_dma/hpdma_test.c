@@ -18,6 +18,9 @@
 #include <driver/hpdma.h>
 #include <driver/hal/hal_hpdma_types.h>
 #include "hpdma_driver.h"
+#if CONFIG_AON_RTC || CONFIG_ANA_RTC
+#include <driver/aon_rtc.h>
+#endif
 
 #if CONFIG_SUPPORT_CACHEABLE_SRAM
 #include "cache.h"
@@ -26,6 +29,9 @@
 // Forward declarations for internal functions
 extern bk_err_t bk_hpdma_memcpy(void *out, const void *in, uint32_t len);
 extern bk_err_t hpdma_memcpy_by_chnl(void *out, const void *in, uint32_t len, hpdma_id_t cpy_chnl);
+
+/* Defined further down; used by both cli_hpdma_throughput and hpdma_stress. */
+static uint64_t hpdma_test_now_us(void);
 
 #define HPDMA_TEST_DEFAULT_ALIGN  16
 #define HPDMA_CLI_DEFAULT_LEN     16
@@ -128,6 +134,7 @@ static void cli_hpdma_help(void)
     CLI_LOGD("hpdma chnl alloc\r\n");
     CLI_LOGD("hpdma chnl_free {free|force} {id}    (force: S0/C - reclaim wedged channel)\r\n");
     CLI_LOGD("hpdma copy {src_hex} {dst_hex} {len_dec}\r\n");
+    CLI_LOGD("hpdma copy_big [len_bytes_dec]    (>64KB link-split self-test; no arg = size sweep)\r\n");
     CLI_LOGD("hpdma link_test_1d {link_cnt_dec} {trans_len_dec}\r\n");
     CLI_LOGD("hpdma link_test_2d {link_cnt_dec} {xsize_dec} {ysize_dec} {step_dec}\r\n");
     CLI_LOGD("hpdma concurrent_test {chan_cnt_dec} {trans_len_dec}\r\n");
@@ -935,7 +942,7 @@ struct hpdma_stress_state {
     uint8_t             *src_aligned[HPDMA_ID_MAX];
     uint8_t             *dst_aligned[HPDMA_ID_MAX];
     uint32_t             buf_size;
-    uint32_t             start_ms;
+    uint64_t             start_us;
     volatile uint32_t    loop_cnt[HPDMA_ID_MAX];
     volatile uint32_t    err_cnt[HPDMA_ID_MAX];
 };
@@ -1038,7 +1045,7 @@ static int hpdma_stress_start_locked(uint32_t size, uint32_t chan_cnt)
     hpdma_stress_init_channels(st);
     st->chan_cnt = (uint8_t)chan_cnt;
     st->buf_size = size;
-    st->start_ms = rtos_get_time();
+    st->start_us = hpdma_test_now_us();
 
     for (uint32_t i = 0; i < chan_cnt; i++) {
         hpdma_link_config_t cfg = {0};
@@ -1096,9 +1103,8 @@ static void hpdma_stress_status(void)
         HPDMA_TEST_LOG("stress: idle\r\n");
         return;
     }
-    uint32_t now_ms = rtos_get_time();
-    uint32_t elapsed = now_ms - st->start_ms;
-    if (elapsed == 0) elapsed = 1;
+    uint64_t elapsed_us = hpdma_test_now_us() - st->start_us;
+    if (elapsed_us == 0) elapsed_us = 1;
     uint32_t total_loops = 0;
     uint32_t total_errs = 0;
     for (uint32_t i = 0; i < st->chan_cnt; i++) {
@@ -1106,12 +1112,12 @@ static void hpdma_stress_status(void)
         total_errs += st->err_cnt[i];
     }
     uint64_t total_bytes = (uint64_t)total_loops * st->buf_size;
-    /* KB/s = bytes / ms; integer math, no FPU. */
-    uint32_t kbps = (uint32_t)(total_bytes / elapsed);
+    /* KB/s = bytes * 1e6 / us / 1024; integer math, no FPU. */
+    uint32_t kbps = (uint32_t)(total_bytes * 1000000ULL / elapsed_us / 1024ULL);
     HPDMA_TEST_LOG("stress: running=%u chan_cnt=%u size=%u loops=%u err=%u "
-                   "elapsed_ms=%u total_bytes=%llu rate~%uKB/s\r\n",
+                   "elapsed_us=%llu total_bytes=%llu rate~%uKB/s\r\n",
                    st->running, st->chan_cnt, st->buf_size,
-                   total_loops, total_errs, elapsed,
+                   total_loops, total_errs, (unsigned long long)elapsed_us,
                    (unsigned long long)total_bytes, kbps);
     for (uint32_t i = 0; i < st->chan_cnt; i++) {
         HPDMA_TEST_LOG("stress: ch%u dma_id=%u loops=%u err=%u\r\n",
@@ -1150,15 +1156,16 @@ static void hpdma_stress_stop(void)
         total_errs += st->err_cnt[i];
     }
     uint32_t size = st->buf_size;
-    uint32_t elapsed = rtos_get_time() - st->start_ms;
-    if (elapsed == 0) elapsed = 1;
+    uint64_t elapsed_us = hpdma_test_now_us() - st->start_us;
+    if (elapsed_us == 0) elapsed_us = 1;
 
     hpdma_stress_cleanup();
 
     HPDMA_TEST_LOG("stress: stopped RESULT: %s chan_cnt=%u data_ok=%d/%u "
-                   "loops=%u err=%u size=%u elapsed_ms=%u\r\n",
+                   "loops=%u err=%u size=%u elapsed_us=%llu\r\n",
                    (ok_count == chan_cnt && total_errs == 0) ? "SUCCESS" : "FAILED",
-                   chan_cnt, ok_count, chan_cnt, total_loops, total_errs, size, elapsed);
+                   chan_cnt, ok_count, chan_cnt, total_loops, total_errs, size,
+                   (unsigned long long)elapsed_us);
 }
 
 static void cli_hpdma_stress(char *pcWriteBuffer, int xWriteBufferLen,
@@ -1237,7 +1244,7 @@ static void cli_hpdma_throughput(char *pcWriteBuffer, int xWriteBufferLen,
                           hpdma_link_transfer_complete_callback, (void *)&sem);
     bk_hpdma_enable_finish_interrupt(dma_id);
 
-    uint32_t t0 = rtos_get_time();
+    uint64_t t0 = hpdma_test_now_us();
     int errs = 0;
     for (uint32_t i = 0; i < iter; i++) {
         if (bk_hpdma_link_transfer(dma_id, desc_table) != BK_OK) {
@@ -1249,16 +1256,18 @@ static void cli_hpdma_throughput(char *pcWriteBuffer, int xWriteBufferLen,
             break;
         }
     }
-    uint32_t elapsed = rtos_get_time() - t0;
-    if (elapsed == 0) elapsed = 1;
+    uint64_t elapsed_us = hpdma_test_now_us() - t0;
+    if (elapsed_us == 0) elapsed_us = 1;
     uint64_t total_bytes = (uint64_t)iter * size;
-    uint32_t kbps = (uint32_t)(total_bytes / elapsed);
-    uint32_t mbps_x100 = (uint32_t)((total_bytes * 100ULL) / elapsed / 1024ULL);
+    /* bytes/s = total_bytes * 1e6 / us; derive KB/s and MB/s(x100) from it. */
+    uint64_t bps = total_bytes * 1000000ULL / elapsed_us;
+    uint32_t kbps = (uint32_t)(bps / 1024ULL);
+    uint32_t mbps_x100 = (uint32_t)((bps * 100ULL) / (1024ULL * 1024ULL));
 
-    HPDMA_TEST_LOG("throughput: RESULT: %s size_kb=%u iter=%u errs=%d elapsed_ms=%u "
+    HPDMA_TEST_LOG("throughput: RESULT: %s size_kb=%u iter=%u errs=%d elapsed_us=%llu "
                    "total_bytes=%llu rate=%u.%02uMB/s (%uKB/s)\r\n",
                    (errs == 0) ? "SUCCESS" : "FAILED",
-                   size_kb, iter, errs, elapsed,
+                   size_kb, iter, errs, (unsigned long long)elapsed_us,
                    (unsigned long long)total_bytes,
                    mbps_x100 / 100, mbps_x100 % 100, kbps);
 
@@ -1463,6 +1472,75 @@ out:
     return rc;
 }
 
+/*
+ * Microsecond timestamp for single-copy timing. A single >64KB DMA transfer
+ * completes in tens of microseconds, far below the 1ms resolution of
+ * rtos_get_time(), so KB/s computed from a millisecond clock is a pure timer-
+ * quantization artifact (len / {1,2} ms). Use the AON-RTC us counter when
+ * available; fall back to the ms tick (scaled to us) otherwise so the test
+ * still builds on configs without AON-RTC.
+ */
+static uint64_t hpdma_test_now_us(void)
+{
+#if CONFIG_AON_RTC || CONFIG_ANA_RTC
+    return bk_aon_rtc_get_us();
+#else
+    return (uint64_t)rtos_get_time() * 1000ULL;
+#endif
+}
+
+/*
+ * Single bk_hpdma_memcpy() run for `len` bytes with timing + first-mismatch
+ * reporting. Used by the `hpdma copy_big` CLI to validate the linked-list split
+ * path (len > HPDMA_SINGLE_MAX_XFER) that used to silently truncate at 64 KB.
+ * *out_elapsed_us is the microsecond wall time of the copy itself.
+ *
+ * Returns:
+ *    0                     : copied and verified byte-for-byte
+ *   -2                     : buffer allocation failed (caller may treat as SKIP)
+ *   -1                     : memcpy failed or data mismatch
+ */
+static int hpdma_test_memcpy_big(uint32_t len, uint32_t *out_elapsed_us)
+{
+    int rc = -1;
+    uint8_t *src = (uint8_t *)hpdma_test_aligned_alloc(len, HPDMA_TEST_DEFAULT_ALIGN);
+    uint8_t *dst = (uint8_t *)hpdma_test_aligned_alloc(len, HPDMA_TEST_DEFAULT_ALIGN);
+    if (out_elapsed_us) {
+        *out_elapsed_us = 0;
+    }
+    if (src == NULL || dst == NULL) {
+        rc = -2;   /* out of memory: not a functional failure */
+        goto out;
+    }
+
+    hpdma_test_fill_pattern(src, len, 0xBE);
+    os_memset(dst, 0, len);
+
+    uint64_t t0 = hpdma_test_now_us();
+    bk_err_t ret = bk_hpdma_memcpy(dst, src, len);
+    uint32_t elapsed = (uint32_t)(hpdma_test_now_us() - t0);
+    if (out_elapsed_us) {
+        *out_elapsed_us = elapsed;
+    }
+
+    if (ret != BK_OK) {
+        HPDMA_TEST_ERR("copy_big: len=%u memcpy ret=%d\r\n", len, ret);
+        goto out;
+    }
+
+    uint32_t diff = hpdma_test_diff_offset(src, dst, len);
+    if (diff == len) {
+        rc = 0;
+    } else {
+        HPDMA_TEST_ERR("copy_big: len=%u data MISMATCH at offset %u\r\n", len, diff);
+    }
+
+out:
+    if (src) hpdma_test_aligned_free(src);
+    if (dst) hpdma_test_aligned_free(dst);
+    return rc;
+}
+
 static void cli_hpdma_auto(char *pcWriteBuffer, int xWriteBufferLen,
                            int argc, char **argv)
 {
@@ -1494,6 +1572,8 @@ static void cli_hpdma_auto(char *pcWriteBuffer, int xWriteBufferLen,
         HPDMA_AUTO_CASE("memcpy 256B",        hpdma_test_memcpy_check(256));
         HPDMA_AUTO_CASE("memcpy 4KB",         hpdma_test_memcpy_check(4096));
         HPDMA_AUTO_CASE("memcpy 16KB",        hpdma_test_memcpy_check(16384));
+        /* Crosses the 16-bit single-shot limit -> exercises the link split. */
+        HPDMA_AUTO_CASE("memcpy 64KB link",   hpdma_test_memcpy_check(0x10000));
 
         HPDMA_AUTO_CASE("alloc_churn 100x",   hpdma_test_alloc_churn(100));
 
@@ -1511,6 +1591,81 @@ static void cli_hpdma_auto(char *pcWriteBuffer, int xWriteBufferLen,
     const char *verdict = (total_pass == total_total) ? "PASS" : "FAIL";
     HPDMA_TEST_LOG("RESULT: %s %u/%u elapsed=%ums rounds=%u\r\n",
                    verdict, total_pass, total_total, elapsed, outer_iter);
+}
+
+/*
+ * hpdma copy_big [len_bytes_dec]
+ *   One-shot validation of the oversized-copy (linked-list split) path.
+ *   - With an explicit length: run that single size and report PASS/FAIL +
+ *     elapsed time and rough throughput.
+ *   - Without arguments: sweep boundary sizes around the 16-bit single-shot
+ *     limit plus MB-level sizes. Sizes that cannot be allocated on this board
+ *     are reported as SKIP (out of memory), not FAIL, so the command always
+ *     runs whatever fits.
+ */
+static void cli_hpdma_copy_big(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
+{
+    if (argc >= 2) {
+        uint32_t len = os_strtoul(argv[1], NULL, 10);
+        if (len == 0) {
+            CLI_LOGD("usage: hpdma copy_big [len_bytes_dec]\r\n");
+            return;
+        }
+        uint32_t elapsed_us = 0;
+        int rc = hpdma_test_memcpy_big(len, &elapsed_us);
+        if (rc == 0) {
+            /* bytes/s = len * 1e6 / us; KB/s and MB/s(x100) derived from it. */
+            uint64_t bps = (elapsed_us > 0) ? ((uint64_t)len * 1000000ULL / elapsed_us) : 0;
+            uint32_t kbps = (uint32_t)(bps / 1024ULL);
+            uint32_t mbps_x100 = (uint32_t)((bps * 100ULL) / (1024ULL * 1024ULL));
+            HPDMA_TEST_LOG("copy_big len=%u PASS elapsed=%uus (~%u.%02u MB/s, %u KB/s)\r\n",
+                           len, elapsed_us, mbps_x100 / 100, mbps_x100 % 100, kbps);
+        } else if (rc == -2) {
+            HPDMA_TEST_LOG("copy_big len=%u SKIP (out of memory)\r\n", len);
+        } else {
+            HPDMA_TEST_ERR("copy_big len=%u FAIL\r\n", len);
+        }
+        return;
+    }
+
+    static const uint32_t sizes[] = {
+        0xF000U,          /* == HPDMA_SINGLE_MAX_XFER: last single-shot size   */
+        0xF000U + 1U,     /* first size that takes the linked-list split path  */
+        0xFFFFU,          /* 16-bit xsize max                                  */
+        0x10000U,         /* 64 KB: the old silent-truncation boundary         */
+        0x40000U,         /* 256 KB (~5 chained nodes)                         */
+        0x80000U,         /* 512 KB                                            */
+        0x100000U,        /* 1 MB   (best effort, SKIP if no memory)           */
+        0x300000U,        /* 3 MB   (best effort, SKIP if no memory)           */
+    };
+
+    uint32_t pass = 0, fail = 0, skip = 0;
+    uint32_t t0 = rtos_get_time();
+
+    for (uint32_t i = 0; i < (uint32_t)(sizeof(sizes) / sizeof(sizes[0])); i++) {
+        uint32_t len = sizes[i];
+        uint32_t elapsed_us = 0;
+        int rc = hpdma_test_memcpy_big(len, &elapsed_us);
+        if (rc == 0) {
+            uint64_t bps = (elapsed_us > 0) ? ((uint64_t)len * 1000000ULL / elapsed_us) : 0;
+            uint32_t kbps = (uint32_t)(bps / 1024ULL);
+            uint32_t mbps_x100 = (uint32_t)((bps * 100ULL) / (1024ULL * 1024ULL));
+            HPDMA_TEST_LOG("copy_big len=%-8u PASS elapsed=%uus (~%u.%02u MB/s, %u KB/s)\r\n",
+                           len, elapsed_us, mbps_x100 / 100, mbps_x100 % 100, kbps);
+            pass++;
+        } else if (rc == -2) {
+            HPDMA_TEST_LOG("copy_big len=%-8u SKIP (out of memory)\r\n", len);
+            skip++;
+        } else {
+            HPDMA_TEST_ERR("copy_big len=%-8u FAIL\r\n", len);
+            fail++;
+        }
+    }
+
+    uint32_t elapsed_all = rtos_get_time() - t0;
+    const char *verdict = (fail == 0) ? "PASS" : "FAIL";
+    HPDMA_TEST_LOG("copy_big RESULT: %s pass=%u fail=%u skip=%u elapsed=%ums\r\n",
+                   verdict, pass, fail, skip, elapsed_all);
 }
 
 static void cli_hpdma_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
@@ -1532,6 +1687,8 @@ static void cli_hpdma_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, ch
         cli_hpdma_chnl_free(pcWriteBuffer, xWriteBufferLen, argc - 1, argv + 1);
     } else if (os_strcmp(argv[1], "copy") == 0) {
         cli_hpdma_copy(pcWriteBuffer, xWriteBufferLen, argc - 1, argv + 1);
+    } else if (os_strcmp(argv[1], "copy_big") == 0) {
+        cli_hpdma_copy_big(pcWriteBuffer, xWriteBufferLen, argc - 1, argv + 1);
     } else if (os_strcmp(argv[1], "link_test_1d") == 0) {
         cli_hpdma_link_test_1d(pcWriteBuffer, xWriteBufferLen, argc - 1, argv + 1);
     } else if (os_strcmp(argv[1], "link_test_2d") == 0) {
@@ -1552,6 +1709,6 @@ static void cli_hpdma_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, ch
 }
 
 DRV_CLI_CMD_EXPORT static const struct cli_command s_hpdma_commands[] = {
-    {"hpdma", "hpdma help | hpdma {driver|chan|int|chnl|chnl_free|copy|link_test_1d|link_test_2d|concurrent_test|throughput|stress|neg_test|auto} ...", cli_hpdma_cmd},
+    {"hpdma", "hpdma help | hpdma {driver|chan|int|chnl|chnl_free|copy|copy_big|link_test_1d|link_test_2d|concurrent_test|throughput|stress|neg_test|auto} ...", cli_hpdma_cmd},
 };
 

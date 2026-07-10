@@ -358,11 +358,46 @@ bk_err_t bk_hpdma_enable_fifo_err_interrupt(hpdma_id_t id);
 bk_err_t bk_hpdma_disable_fifo_err_interrupt(hpdma_id_t id);
 
 
+/*
+ * ============================================================================
+ * SRAM address-alias contract (0x2C/0x28 conversion)
+ * ============================================================================
+ * On BK7259 the on-chip SRAM is exposed to the CPU through the cacheable alias
+ * 0x2Cxxxxxx, while the HPDMA engine can ONLY access the peripheral alias
+ * 0x28xxxxxx (same physical SRAM, only Bit26 differs).
+ *
+ * Contract: every SRAM address that is written to the hardware is converted
+ * 0x2C->0x28 inside the driver (SOC_SRAM_PERI_ADDR). The application just
+ * passes the 0x2C pointer it already holds and never has to care about the
+ * alias. The conversion covers: src/dst start_addr, loop_end_addr, pause_addr
+ * and the next_ll_addr register, plus the descriptor src_addr/dst_addr and the
+ * next_desc_addr chain pointer. The macro is range-guarded: PSRAM/QSPI/register
+ * addresses and addresses that are already 0x28 pass through unchanged, so it
+ * is safe to apply unconditionally.
+ *
+ * Caller-side caveats:
+ *   1. Linked-list descriptors MUST be built via bk_hpdma_link_set_desc() /
+ *      bk_hpdma_link_set_descs(). Do NOT malloc your own memory and write the
+ *      hpdma_descriptor_t src_addr/dst_addr/next_desc_addr fields directly - in
+ *      that case the driver only converts the first next_ll_addr register while
+ *      the addresses inside the descriptors stay 0x2C, which the engine cannot
+ *      fetch, so the chain stalls after the first node (dma_en stuck, no finish
+ *      interrupt). This is the contract implied by the "convert while building,
+ *      no extra list rescan" performance trade-off.
+ *   2. Getter APIs (e.g. bk_hpdma_get_next_ll_addr) return the raw 0x28 value
+ *      from the hardware and do NOT convert back 0x28->0x2C. If you need to
+ *      compare against a 0x2C pointer you hold, or compute an offset by
+ *      subtracting a base address, convert first with SOC_SRAM_CPU_ADDR(),
+ *      otherwise the result is off by 0x04000000.
+ * ============================================================================
+ */
+
 /**
  * @brief     Set DMA source start address
  *
  * @param id DMA channel
- * @param start_addr DMA source start address
+ * @param start_addr DMA source start address (pass the CPU-side 0x2C alias;
+ *                   the driver converts it to the HPDMA-visible 0x28 alias)
  *
  * @return
  *    - BK_OK: succeed
@@ -375,7 +410,8 @@ bk_err_t bk_hpdma_set_src_start_addr(hpdma_id_t id, uint32_t start_addr);
  * @brief     Set DMA dest start address
  *
  * @param id DMA channel
- * @param start_addr DMA dest start address
+ * @param start_addr DMA dest start address (pass the CPU-side 0x2C alias;
+ *                   the driver converts it to the HPDMA-visible 0x28 alias)
  *
  * @return
  *    - BK_OK: succeed
@@ -721,7 +757,8 @@ uint32_t bk_hpdma_get_half_finish_interrupt_cnt(hpdma_id_t id);
  * @brief     Set next linked list address
  *
  * @param id DMA channel
- * @param ll_addr Linked list address
+ * @param ll_addr Linked list address (pass the CPU-side 0x2C alias; the driver
+ *                converts it to the HPDMA-visible 0x28 alias)
  *
  * @return
  *    - BK_OK: succeed
@@ -734,7 +771,13 @@ bk_err_t bk_hpdma_set_next_ll_addr(hpdma_id_t id, uint32_t ll_addr);
  *
  * @param id DMA channel
  *
- * @return Next linked list address
+ * @note Returns the raw 0x28 peripheral alias from the hardware register; it is
+ *       NOT converted back to 0x2C. Today it is only used for a done-check
+ *       (compare against 0, which is alias-agnostic). If you need to compare it
+ *       against a 0x2C pointer you hold, or subtract a base address, convert
+ *       first with SOC_SRAM_CPU_ADDR().
+ *
+ * @return Next linked list address (0x28 peripheral alias)
  */
 uint32_t bk_hpdma_get_next_ll_addr(hpdma_id_t id);
 
@@ -744,6 +787,12 @@ uint32_t bk_hpdma_get_next_ll_addr(hpdma_id_t id);
  * This API allocates and initializes a descriptor table for linked list DMA transfers.
  *
  * @param link_cnt Number of descriptors in the linked list
+ *
+ * @note The next_desc_addr chain pointers between descriptors are converted
+ *       0x2C->0x28 by this API. After you get the returned desc_table, only
+ *       fill it via bk_hpdma_link_set_desc(); do NOT write the
+ *       hpdma_descriptor_t fields directly (see the SRAM address-alias contract
+ *       at the top of this file).
  *
  * @return
  *    - Pointer to the first descriptor (16-byte aligned) on success
@@ -765,6 +814,12 @@ void bk_hpdma_link_deinit(void *desc_table);
  *
  * This API configures a descriptor at the specified index for DMA transfer.
  * Supports both 1D and 2D transfers.
+ *
+ * @note config src_addr/dst_addr take the CPU-side 0x2C alias; this API applies
+ *       the 0x2C->0x28 conversion when writing the descriptor. This is the only
+ *       supported entry point for building linked-list descriptors - do not
+ *       bypass it and write the descriptor struct directly (see the SRAM
+ *       address-alias contract at the top of this file).
  *
  * @param desc_table Descriptor table pointer
  * @param index Descriptor index
@@ -814,18 +869,52 @@ bk_err_t bk_hpdma_link_transfer(hpdma_id_t id, void *desc_table);
 /**
  * @brief     Memory copy using HPDMA
  *
- * This API performs memory copy operation using HPDMA.
+ * This API performs a memory copy operation using HPDMA.
  * It automatically allocates a DMA channel, performs the transfer, and frees the channel.
+ *
+ * Length is no longer limited to the 16-bit single-shot size: transfers larger
+ * than HPDMA_SINGLE_MAX_XFER (0xF000 bytes) are automatically split into a
+ * linked list of chunks and kicked as a single chain.
+ *
+ * When called from task context (scheduler running, not suspended), completion
+ * is awaited on a semaphore posted by the finish interrupt, so the CPU is
+ * yielded instead of busy-waiting. In non-blockable contexts (ISR / critical
+ * section) it falls back to a bounded busy-poll. If the DMA path fails for any
+ * reason, it transparently falls back to a CPU copy so the data is always
+ * correct.
  *
  * @param out Destination address
  * @param in Source address
  * @param len Number of bytes to copy
  *
  * @return
- *    - BK_OK: succeed
+ *    - BK_OK: succeed (including successful CPU fallback)
+ *    - BK_ERR_NULL_PARAM: out or in is NULL
  *    - others: other errors
  */
 bk_err_t bk_hpdma_memcpy(void *out, const void *in, uint32_t len);
+
+/**
+ * @brief     Memory copy using HPDMA on a caller-owned channel
+ *
+ * Same behaviour as bk_hpdma_memcpy() (arbitrary length via linked-list split,
+ * interrupt/semaphore completion with busy-poll fallback) but on a channel the
+ * caller has already allocated with bk_hpdma_alloc(). The channel is NOT freed
+ * by this call. No CPU fallback is performed; the DMA error is returned so the
+ * caller can decide how to recover.
+ *
+ * @param out Destination address
+ * @param in Source address
+ * @param len Number of bytes to copy
+ * @param cpy_chnl DMA channel allocated by the caller
+ *
+ * @return
+ *    - BK_OK: succeed
+ *    - BK_ERR_NULL_PARAM: out or in is NULL
+ *    - BK_ERR_HPDMA_ID: invalid channel id
+ *    - others: other errors
+ */
+bk_err_t bk_hpdma_memcpy_link(void *out, const void *in, uint32_t len, hpdma_id_t cpy_chnl);
 
 
 #ifdef __cplusplus
