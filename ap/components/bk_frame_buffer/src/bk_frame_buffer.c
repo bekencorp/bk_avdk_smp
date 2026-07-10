@@ -41,6 +41,11 @@ void *bk_frame_buffer_malloc(frame_buffer_heap_type_t type, uint32_t size)
 }
 #endif
 
+bk_err_t bk_frame_buffer_set(void *frame, uint32_t flags)
+{
+    return bk_mem_slab_set(frame, flags);
+}
+
 void bk_frame_buffer_free(void *frame)
 {
     bk_mem_slab_free(frame);

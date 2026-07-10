@@ -8,6 +8,7 @@
 #include <os/os.h>
 #include <os/mem.h>
 #include <common/bk_assert.h>
+#include <soc/soc.h>
 
 #include <driver/int.h>
 
@@ -25,6 +26,9 @@
 #define FB_LIST_PATTERN           (0xA55AA55A)
 #define FB_ALLOCATED_PATTERN      (0x83388338)
 #define FB_FREE_PATTERN           (0xF00FF00F)
+
+#define BK_FRAME_BUFFER_SUPPORTED_FLAGS (BK_FRAME_BUFFER_FLAG_WRITE_THROUGH)
+#define BK_MEM_SLAB_WRITE_THROUGH_CHANNEL_INVALID (PSRAM_WRITE_THROUGH_AREA_COUNT)
 
 fb_mem_heap_t frame_mem_heap = {0};
 
@@ -89,6 +93,126 @@ static bool bk_mem_slab_is_in_heap(uint8_t type, void *mem_ptr)
 
     return ret;
 }
+
+#if (CONFIG_PSRAM_WRITE_THROUGH)
+static uint32_t bk_mem_slab_get_payload_size(fb_block_used *block)
+{
+    return block->size - sizeof(fb_block_used);
+}
+
+static uint32_t bk_mem_slab_get_request_size(fb_block_used *block)
+{
+#if MEM_SLAB_MEM_DEBUG
+    return block->user_size;
+#else
+    return bk_mem_slab_get_payload_size(block);
+#endif
+}
+
+static bool bk_mem_slab_is_write_through_aligned(uint32_t value)
+{
+    return ((value & (ALIGN_BYTES - 1)) == 0);
+}
+
+static psram_write_through_area_t bk_mem_slab_alloc_write_through_channel(uint32_t start)
+{
+#if CONFIG_PSRAM_INTERLEAVE
+    (void)start;
+    return bk_psram_alloc_write_through_channel_with_psram_id(0);
+#else
+    if ((start >= (uint32_t)SOC_PSRAM1_DATA_BASE)
+        && (start < ((uint32_t)SOC_PSRAM1_DATA_BASE + SOC_PSRAM_DATA_SIZE)))
+    {
+        return bk_psram_alloc_write_through_channel_with_psram_id(1);
+    }
+
+    return bk_psram_alloc_write_through_channel_with_psram_id(0);
+#endif
+}
+
+static bk_err_t bk_mem_slab_enable_write_through(fb_block_used *block, void *mem_ptr)
+{
+    bk_err_t ret = BK_OK;
+    uint32_t start = (uint32_t)(uintptr_t)mem_ptr;
+    uint32_t request_size = bk_mem_slab_get_request_size(block);
+    uint32_t end = start + bk_mem_slab_get_payload_size(block);
+    psram_write_through_area_t area = PSRAM_WRITE_THROUGH_AREA_COUNT;
+
+    if ((block->flag & BK_FRAME_BUFFER_FLAG_WRITE_THROUGH) != 0)
+    {
+        return BK_OK;
+    }
+
+    if (!bk_mem_slab_is_write_through_aligned(start)
+        || !bk_mem_slab_is_write_through_aligned(request_size))
+    {
+        LOGE("%s write-through setup failed, frame:%p addr_align:%u size:%u size_align:%u, require %u-byte aligned addr and size\n",
+            __func__, mem_ptr, start & (ALIGN_BYTES - 1), request_size,
+            request_size & (ALIGN_BYTES - 1), ALIGN_BYTES);
+        return BK_ERR_PARAM;
+    }
+
+    area = bk_mem_slab_alloc_write_through_channel(start);
+    if (area >= PSRAM_WRITE_THROUGH_AREA_COUNT)
+    {
+        return BK_ERR_NO_MEM;
+    }
+
+    ret = bk_psram_enable_write_through(area, start, end);
+    if (ret != BK_OK)
+    {
+        (void)bk_psram_free_write_through_channel(area);
+        return ret;
+    }
+
+    block->flag |= BK_FRAME_BUFFER_FLAG_WRITE_THROUGH;
+    block->write_through_channel = area;
+
+    return BK_OK;
+}
+
+static void bk_mem_slab_cleanup_write_through(fb_block_used *block)
+{
+    uint32_t area = block->write_through_channel;
+
+    if ((block->flag & BK_FRAME_BUFFER_FLAG_WRITE_THROUGH) == 0)
+    {
+        return;
+    }
+
+    block->flag &= ~BK_FRAME_BUFFER_FLAG_WRITE_THROUGH;
+    block->write_through_channel = BK_MEM_SLAB_WRITE_THROUGH_CHANNEL_INVALID;
+
+    if (area >= PSRAM_WRITE_THROUGH_AREA_COUNT)
+    {
+        LOGW("%s invalid write-through area %u\n", __func__, area);
+        return;
+    }
+
+    if (bk_psram_disable_write_through((psram_write_through_area_t)area) != BK_OK)
+    {
+        LOGW("%s disable write-through area %u failed\n", __func__, area);
+    }
+
+    if (bk_psram_free_write_through_channel((psram_write_through_area_t)area) != BK_OK)
+    {
+        LOGW("%s free write-through area %u failed\n", __func__, area);
+    }
+}
+#else
+static bk_err_t bk_mem_slab_enable_write_through(fb_block_used *block, void *mem_ptr)
+{
+    (void)block;
+    (void)mem_ptr;
+
+    return BK_ERR_NOT_SUPPORT;
+}
+
+static void bk_mem_slab_cleanup_write_through(fb_block_used *block)
+{
+    (void)block;
+}
+#endif
 
 void bk_mem_slab_init(void)
 {
@@ -216,6 +340,8 @@ void *bk_mem_slab_malloc(frame_buffer_heap_type_t type, uint32_t size)
         // save the size of the allocated block
         alloc->size = totalsize;
         alloc->corrupt_check = FB_ALLOCATED_PATTERN;
+        alloc->flag = 0;
+        alloc->write_through_channel = BK_MEM_SLAB_WRITE_THROUGH_CHANNEL_INVALID;
 #if MEM_SLAB_MEM_DEBUG
         alloc->func = func;
         alloc->line = line;
@@ -268,6 +394,40 @@ int bk_mem_slab_overflow_check(fb_block_used *head)
     return MEM_SLAB_ERR_OK;
 }
 
+bk_err_t bk_mem_slab_set(void *mem_ptr, uint32_t flags)
+{
+    fb_block_used *block = NULL;
+    int ret = MEM_SLAB_ERR_OK;
+    GLOBAL_INT_DECLARATION();
+
+    if (mem_ptr == NULL)
+    {
+        return BK_ERR_NULL_PARAM;
+    }
+
+    if ((flags & ~BK_FRAME_BUFFER_SUPPORTED_FLAGS) != 0)
+    {
+        return BK_ERR_NOT_SUPPORT;
+    }
+
+    block = ((fb_block_used *)mem_ptr) - 1;
+
+    GLOBAL_INT_DISABLE();
+    ret = bk_mem_slab_overflow_check(block);
+    GLOBAL_INT_RESTORE();
+    if (ret != MEM_SLAB_ERR_OK)
+    {
+        LOGE("%s invalid frame buffer: %d\n", __func__, ret);
+        return BK_ERR_PARAM;
+    }
+
+    if ((flags & BK_FRAME_BUFFER_FLAG_WRITE_THROUGH) != 0)
+    {
+        return bk_mem_slab_enable_write_through(block, mem_ptr);
+    }
+
+    return BK_OK;
+}
 
 void bk_mem_slab_free(void *mem_ptr)
 {
@@ -299,6 +459,8 @@ void bk_mem_slab_free(void *mem_ptr)
         BK_ASSERT(0);
         return;
     }
+
+    bk_mem_slab_cleanup_write_through(bfreed);
 
     // check if memory block has been corrupted or not
     //BT_ASSERT_INFO(bfreed->corrupt_check == FB_ALLOCATED_PATTERN, bfreed->corrupt_check, mem_ptr);

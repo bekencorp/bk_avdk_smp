@@ -48,12 +48,14 @@ typedef __ALIGN_DATA struct
 #endif
     /// Size of the current used block (including delimiter)
     uint32_t size;
+    uint32_t flag;
+    uint32_t write_through_channel;
 #if MEM_SLAB_MEM_DEBUG
     uint32_t user_size;
-    uint32_t reserved[10];
+    uint32_t reserved[8];
     uint32_t head_end_check;
 #else
-    uint32_t reserved[14];
+    uint32_t reserved[12];
 #endif
 } fb_block_used;
 
@@ -78,4 +80,5 @@ void *bk_mem_slab_malloc_debug(frame_buffer_heap_type_t type, uint32_t size, con
 void *bk_mem_slab_malloc(frame_buffer_heap_type_t type, uint32_t size);
 #endif
 
+bk_err_t bk_mem_slab_set(void *mem_ptr, uint32_t flags);
 void bk_mem_slab_free(void *mem_ptr);
