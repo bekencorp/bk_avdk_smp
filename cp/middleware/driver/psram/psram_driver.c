@@ -20,6 +20,7 @@
 #include "clock_driver.h"
 #include "sys_driver.h"
 #include "psram_hal.h"
+#include "../hspl/hspl_res_lock.h"
 #include "driver/psram_types.h"
 #include "psram_driver.h"
 #include <driver/psram.h>
@@ -63,7 +64,6 @@ static beken_thread_t psram_task = NULL;
 extern void bk_delay_us(uint32_t us);
 static bool s_psram_heap_is_init = false;
 static beken_mutex_t s_psram_mutex = NULL;
-static beken_mutex_t s_psram_channel_mutex = NULL;
 static volatile bool s_psram_init_done[PSRAM_ID_MAX] = {false};
 static uint8_t s_psram_channelmap[PSRAM_ID_MAX] = {0};
 #define PSRAM_INIT_WAIT_TIMEOUT_MS   100
@@ -106,6 +106,29 @@ static inline bool bk_psram_any_init_done(void)
 		}
 	}
 	return false;
+}
+
+static bk_err_t bk_psram_write_through_lock(uint32_t *int_level)
+{
+	bk_err_t ret;
+
+	if (!int_level) {
+		return BK_ERR_PARAM;
+	}
+
+	*int_level = rtos_disable_int();
+	ret = bk_hspl_res_try_lock(BK_HSPL_RES_PSRAM);
+	if (ret != BK_OK) {
+		rtos_enable_int(*int_level);
+	}
+
+	return ret;
+}
+
+static void bk_psram_write_through_unlock(uint32_t int_level)
+{
+	bk_hspl_res_unlock(BK_HSPL_RES_PSRAM);
+	rtos_enable_int(int_level);
 }
 
 bk_err_t bk_psram_set_clk_with_id(psram_id_t psram_id, psram_clk_t clk)
@@ -215,13 +238,15 @@ psram_write_through_area_t bk_psram_alloc_write_through_channel(void)
 
 psram_write_through_area_t bk_psram_alloc_write_through_channel_with_id(psram_id_t psram_id)
 {
-	uint8_t channel = 0;
+	uint8_t channel = PSRAM_WRITE_THROUGH_AREA_COUNT;
+	uint32_t int_level;
+
 	if (psram_id >= PSRAM_ID_MAX) {
 		return PSRAM_WRITE_THROUGH_AREA_COUNT;
 	}
 
-	if (s_psram_channel_mutex) {
-		rtos_lock_mutex(&s_psram_channel_mutex);
+	if (bk_psram_write_through_lock(&int_level) != BK_OK) {
+		return PSRAM_WRITE_THROUGH_AREA_COUNT;
 	}
 
 	for (channel = 0; channel < PSRAM_WRITE_THROUGH_AREA_COUNT; channel++)
@@ -233,9 +258,7 @@ psram_write_through_area_t bk_psram_alloc_write_through_channel_with_id(psram_id
 		}
 	}
 
-	if (s_psram_channel_mutex) {
-		rtos_unlock_mutex(&s_psram_channel_mutex);
-	}
+	bk_psram_write_through_unlock(int_level);
 
 	return channel;
 }
@@ -247,6 +270,9 @@ bk_err_t bk_psram_free_write_through_channel(psram_write_through_area_t area)
 
 bk_err_t bk_psram_free_write_through_channel_with_id(psram_id_t psram_id, psram_write_through_area_t area)
 {
+	uint32_t int_level;
+	bk_err_t ret;
+
 	if (psram_id >= PSRAM_ID_MAX) {
 		return BK_ERR_PARAM;
 	}
@@ -256,17 +282,16 @@ bk_err_t bk_psram_free_write_through_channel_with_id(psram_id_t psram_id, psram_
 		return BK_ERR_PARAM;
 	}
 
-	if (s_psram_channel_mutex) {
-		rtos_lock_mutex(&s_psram_channel_mutex);
+	ret = bk_psram_write_through_lock(&int_level);
+	if (ret != BK_OK) {
+		return ret;
 	}
 
 	if (s_psram_channelmap[psram_id] & (0x1 << area)) {
 		s_psram_channelmap[psram_id] &= ~(0x1 << area);
 	}
 
-	if (s_psram_channel_mutex) {
-		rtos_unlock_mutex(&s_psram_channel_mutex);
-	}
+	bk_psram_write_through_unlock(int_level);
 
 	return BK_OK;
 }
@@ -422,15 +447,6 @@ bk_err_t bk_psram_init_with_id(psram_id_t psram_id)
 		ret = rtos_init_mutex(&s_psram_mutex);
 		if (ret != BK_OK) {
 			MEM_STATIC_LOGE("Failed to create psram mutex\n");
-			return ret;
-		}
-	}
-
-	if (s_psram_channel_mutex == NULL)
-	{
-		ret = rtos_init_mutex(&s_psram_channel_mutex);
-		if (ret != BK_OK) {
-			MEM_STATIC_LOGE("Failed to create psram channel mutex\n");
 			return ret;
 		}
 	}

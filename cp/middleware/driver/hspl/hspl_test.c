@@ -181,9 +181,9 @@ static void cli_hspl_help(void)
 	CLI_LOGD("hspl timeout_irq {hspl_id} {enable|disable|clear}\r\n");
 	CLI_LOGD("hspl raw_sta {hspl_id} {ch}      - Read STA raw\r\n");
 	CLI_LOGD("hspl raw_lock {ch}               - Read LOCK raw on HSPL_ID_0 (NOTE: reading LOCK triggers lock attempt)\r\n");
-	CLI_LOGD("hspl res_lock {flash|clock|sys_sw_regs|uart_log|os|user1|user2} {timeout_us}\r\n");
-	CLI_LOGD("hspl res_must_lock {flash|clock|sys_sw_regs|uart_log|os|user1|user2}\r\n");
-	CLI_LOGD("hspl res_unlock {flash|clock|sys_sw_regs|uart_log|os|user1|user2}\r\n");
+	CLI_LOGD("hspl res_lock {flash|clock|sys_sw_regs|psram|uart_log|os|user1|user2} {timeout_us}\r\n");
+	CLI_LOGD("hspl res_must_lock {flash|clock|sys_sw_regs|psram|uart_log|os|user1|user2}\r\n");
+	CLI_LOGD("hspl res_unlock {flash|clock|sys_sw_regs|psram|uart_log|os|user1|user2}\r\n");
 	CLI_LOGD("hspl stress {hspl_id} {ch} {iter} {hold_ms} - Parallel stress test (CPU0 vs CPU2)\r\n");
 	CLI_LOGD("hspl stress_auto {hspl_id} {ch} {iter} {hold_ms} - Auto parallel stress test (auto start on CPU0 & CPU2)\r\n");
 	CLI_LOGD("hspl stress_stop                  - Stop stress test\r\n");
@@ -199,9 +199,10 @@ static bool cli_hspl_parse_res(const char *name, bk_hspl_res_t *res)
 	if (os_strcmp(name, "flash") == 0) *res = BK_HSPL_RES_FLASH;
 	else if (os_strcmp(name, "clock") == 0) *res = BK_HSPL_RES_CLOCK;
 	else if (os_strcmp(name, "sys_sw_regs") == 0) *res = BK_HSPL_RES_SYS_SW_REGS;
+	else if (os_strcmp(name, "adc") == 0) *res = BK_HSPL_RES_ADC;
 	else if (os_strcmp(name, "uart_log") == 0) *res = BK_HSPL_RES_UART_LOG;
 	else if (os_strcmp(name, "os") == 0) *res = BK_HSPL_RES_OS;
-	else if (os_strcmp(name, "user1") == 0) *res = BK_HSPL_RES_USER1;
+	else if (os_strcmp(name, "psram") == 0) *res = BK_HSPL_RES_PSRAM;
 	else if (os_strcmp(name, "user2") == 0) *res = BK_HSPL_RES_USER2;
 	else return false;
 
