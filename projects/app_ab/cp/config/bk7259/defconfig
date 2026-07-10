@@ -1,0 +1,22 @@
+#
+# Automatically generated project default config. You can update it with menuconfig [D] option.
+# This file contains only differences compared to board defconfig.
+#
+CONFIG_SOC_SMP=y
+CONFIG_CPU_ID_OFFSET=0
+CONFIG_SMP_CORE_CNT=2
+# CONFIG_FREERTOS_V10 is not set
+CONFIG_FREERTOS_SMP=y
+CONFIG_FREERTOS_ALLOW_OS_API_IN_IRQ_DISABLED=y
+CONFIG_SPINLOCK=y
+CONFIG_MAC802154_ENABLE=y
+CONFIG_MAC802154=y
+CONFIG_AT_CMD=y
+CONFIG_BTDM_CONTROLLER_ONLY=y
+
+CONFIG_TIMER_SUPPORT_ID_BITS=4095
+
+# dbg_probe: pre-landed but disabled by default (sources compile to no-op).
+CONFIG_DBG_PROBE=n
+CONFIG_WIFI_FAST_DHCP=y
+CONFIG_SOFTAP_WPA3=y

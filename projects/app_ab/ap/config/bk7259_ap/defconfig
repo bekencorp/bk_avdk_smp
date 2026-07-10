@@ -1,0 +1,44 @@
+#
+# Automatically generated project default config. You can update it with menuconfig [D] option.
+# This file contains only differences compared to board defconfig.
+#
+
+CONFIG_BLUETOOTH_AP=y
+CONFIG_AT=y
+CONFIG_DEFAULT_AT_PORT=5
+CONFIG_WIFI_AT_ENABLE=y
+CONFIG_MISC_AT_ENABLE=y
+CONFIG_AT_MAX_PORT_CNT=1
+CONFIG_GPIO_DUMP_MAP_DEV_DEBUG=y
+CONFIG_IPERF_TEST=y
+CONFIG_DEMOS_IPERF=y
+
+CONFIG_SDCARD=y
+CONFIG_FATFS=y
+CONFIG_FATFS_SDCARD=y
+CONFIG_VFS=y
+
+# dbg_probe: pre-landed but disabled by default. Enable in menuconfig and tune
+# ports/pins in ap/config/bk7259_ap/usr_dbg_probe_cfg.h when needed.
+CONFIG_DBG_PROBE=n
+CONFIG_QSPI_TEST=y
+CONFIG_QSPI=y
+CONFIG_QSPI_MST_FLASH=n
+CONFIG_QSPI_NAND_FLASH=y
+CONFIG_QSPI_QUAD_WIRE=y
+CONFIG_QSPI_NAND_FLASH_SIZE=0x8000000
+CONFIG_SOFTAP_WPA3=y
+
+#@ Enable Ota Http
+CONFIG_OTA_HTTP=y
+CONFIG_OTA=y
+#@ enable http update ab partition
+CONFIG_HTTP_AB_PARTITION=y
+#@ enable ota update default partition
+CONFIG_OTA_UPDATE_DEFAULT_PARTITION=y
+#@ enable ota evade method
+CONFIG_OTA_EVADE_METHOD=y
+#@ enable ota position independent update
+CONFIG_OTA_POSITION_INDEPENDENT_AB=y
+#@ enable ota hash function
+CONFIG_OTA_HASH_FUNCTION=y
