@@ -129,6 +129,42 @@ static avdk_err_t video_play_lcd_apply_video_format(bk_display_ctlr_handle_t han
         return AVDK_ERR_INVAL;
     }
 
+    if (fmt == VIDEO_PLAY_LCD_VIDEO_FMT_RGB888_RAW)
+    {
+        const bk_display_pixel_format_config_t cfg = {
+            .format = BK_PIXEL_FORMAT_RGB888,
+            .decompress = false,
+        };
+
+        avdk_err_t ret = bk_display_pixel_format_set(handle, &cfg);
+        if (ret != AVDK_ERR_OK)
+        {
+            LOGE("%s: DPU runtime switch to RGB888+decompress=false failed, ret=%d\n", __func__, ret);
+            return ret;
+        }
+
+        LOGI("%s: DPU runtime switched to RGB888 (decompress=false)\n", __func__);
+        return AVDK_ERR_OK;
+    }
+
+    if (fmt == VIDEO_PLAY_LCD_VIDEO_FMT_ARGB8888_RAW)
+    {
+        const bk_display_pixel_format_config_t cfg = {
+            .format = BK_PIXEL_FORMAT_ARGB8888,
+            .decompress = false,
+        };
+
+        avdk_err_t ret = bk_display_pixel_format_set(handle, &cfg);
+        if (ret != AVDK_ERR_OK)
+        {
+            LOGE("%s: DPU runtime switch to ARGB8888+decompress=false failed, ret=%d\n", __func__, ret);
+            return ret;
+        }
+
+        LOGI("%s: DPU runtime switched to ARGB8888 (decompress=false)\n", __func__);
+        return AVDK_ERR_OK;
+    }
+
     if (fmt == VIDEO_PLAY_LCD_VIDEO_FMT_ARGB8888_COMPRESSED)
     {
         const bk_display_pixel_format_config_t cfg = {
@@ -190,7 +226,11 @@ video_play_lcd_video_fmt_t video_play_lcd_format_for_video_codec(video_player_vi
 #if CONFIG_BK_VIDEO_PLAYER_ENABLE_HW_H264_VIDEO_DECODER
     if (format == VIDEO_PLAYER_VIDEO_FORMAT_H264)
     {
+#if VIDEO_PLAY_H264_FLEXA_RAW_ARGB8888_ENABLE
+        return VIDEO_PLAY_LCD_VIDEO_FMT_ARGB8888_RAW;
+#else
         return VIDEO_PLAY_LCD_VIDEO_FMT_ARGB8888_COMPRESSED;
+#endif
     }
 #else
     (void)format;
@@ -251,7 +291,7 @@ avdk_err_t video_play_lcd_open_with_format(bk_display_ctlr_handle_t *out_handle,
     /* Bring the DPU video layer in line with what the active video decoder
      * will produce. Failure is logged but not fatal so the upper layer can
      * still bring the LCD up; expect garbled frames in that case. */
-        (void)video_play_lcd_apply_video_format(handle, fmt);
+    (void)video_play_lcd_apply_video_format(handle, fmt);
 
     if (out_handle != NULL)
     {

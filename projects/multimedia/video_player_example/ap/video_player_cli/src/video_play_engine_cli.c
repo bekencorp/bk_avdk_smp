@@ -88,11 +88,27 @@ static const char *video_play_engine_h264_decoder_mode_name(video_play_engine_h2
 static video_play_lcd_video_fmt_t video_play_engine_lcd_format_for_h264_decoder(
     video_play_engine_h264_decoder_mode_t mode)
 {
-    /* Both the legacy frame decoder and the zero-copy/B-frame decoder emit raw
-     * NV12 frames; only the Flexa+GPU path produces compressed ARGB8888. */
-    return (mode == VIDEO_PLAY_ENGINE_H264_DECODER_FLEXA_GPU)
-        ? VIDEO_PLAY_LCD_VIDEO_FMT_ARGB8888_COMPRESSED
-        : VIDEO_PLAY_LCD_VIDEO_FMT_NV12_RAW;
+    if (mode == VIDEO_PLAY_ENGINE_H264_DECODER_FRAME)
+    {
+#if VIDEO_PLAY_H264_FRAME_RGB888_ENABLE
+        return VIDEO_PLAY_LCD_VIDEO_FMT_RGB888_RAW;
+#else
+        return VIDEO_PLAY_LCD_VIDEO_FMT_NV12_RAW;
+#endif
+    }
+
+    /* The zero-copy/B-frame decoder emits raw NV12 frames; only the Flexa+GPU
+     * path can switch between compressed and raw ARGB8888 experiments. */
+    if (mode == VIDEO_PLAY_ENGINE_H264_DECODER_FRAME_ZEROCOPY)
+    {
+        return VIDEO_PLAY_LCD_VIDEO_FMT_NV12_RAW;
+    }
+
+#if VIDEO_PLAY_H264_FLEXA_RAW_ARGB8888_ENABLE
+    return VIDEO_PLAY_LCD_VIDEO_FMT_ARGB8888_RAW;
+#else
+    return VIDEO_PLAY_LCD_VIDEO_FMT_ARGB8888_COMPRESSED;
+#endif
 }
 
 static bool video_play_engine_is_rotate_option(const char *arg)
@@ -792,10 +808,15 @@ void cli_video_play_engine_cmd(char *pcWriteBuffer, int xWriteBufferLen, int arg
         cfg.audio.decode_complete_cb = video_play_audio_decode_complete_cb;
         cfg.video.decode_complete_cb = video_play_video_decode_complete_cb;
 
-        /* H264 frame mode uses NV12 output and switches the DPU to NV12.
-         * Flexa GPU mode ignores this requested format and emits compressed
-         * ARGB8888 for the board-default DPU DEC400 path. */
+        /* Frame defaults to NV12. Flexa follows H264_FLEXA_RAW_ARGB8888_ENABLE
+         * so GPU output and DPU decompress setting stay in lockstep. */
         cfg.video.output_format = PIXEL_FMT_NV12;
+#if VIDEO_PLAY_H264_FRAME_RGB888_ENABLE
+        if (requested_h264_decoder_mode == VIDEO_PLAY_ENGINE_H264_DECODER_FRAME)
+        {
+            cfg.video.output_format = PIXEL_FMT_RGB888;
+        }
+#endif
         cfg.video.rotate_degree = video_play_video_get_rotate_degree();
         s_play_user_ctx.lcd_handle = s_lcd_display_handle;
         // Audio output may be opened later after probing media info.

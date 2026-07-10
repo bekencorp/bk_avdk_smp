@@ -70,7 +70,11 @@ static avdk_err_t video_play_playlist_prepare_lcd_for_file(const char *file_path
     video_play_lcd_video_fmt_t fmt = VIDEO_PLAY_LCD_VIDEO_FMT_NV12_RAW;
 
 #if CONFIG_BK_VIDEO_PLAYER_ENABLE_HW_H264_VIDEO_DECODER
+#if VIDEO_PLAY_H264_FLEXA_RAW_ARGB8888_ENABLE
+    fmt = VIDEO_PLAY_LCD_VIDEO_FMT_ARGB8888_RAW;
+#else
     fmt = VIDEO_PLAY_LCD_VIDEO_FMT_ARGB8888_COMPRESSED;
+#endif
 #endif
 
     if (file_path != NULL && s_video_player_app_handle != NULL)

@@ -31,7 +31,8 @@ static bool s_runtime_lcd_fmt_valid = false;
 static video_play_rotate_mode_t s_video_rotate_mode = VIDEO_PLAY_ROTATE_NONE;
 
 static void video_play_lcd_sync_format_for_output_frame(bk_display_ctlr_handle_t handle,
-                                                        uint32_t display_pixel_fmt)
+                                                        uint32_t display_pixel_fmt,
+                                                        bool argb8888_compressed)
 {
     if (handle == NULL)
     {
@@ -42,16 +43,27 @@ static void video_play_lcd_sync_format_for_output_frame(bk_display_ctlr_handle_t
 #if CONFIG_BK_VIDEO_PLAYER_ENABLE_HW_H264_VIDEO_DECODER
     if (display_pixel_fmt == PIXEL_FMT_ARGB8888)
     {
-        need = VIDEO_PLAY_LCD_VIDEO_FMT_ARGB8888_COMPRESSED;
+        need = argb8888_compressed
+            ? VIDEO_PLAY_LCD_VIDEO_FMT_ARGB8888_COMPRESSED
+            : VIDEO_PLAY_LCD_VIDEO_FMT_ARGB8888_RAW;
+    }
+    else if (display_pixel_fmt == PIXEL_FMT_RGB888)
+    {
+        need = VIDEO_PLAY_LCD_VIDEO_FMT_RGB888_RAW;
     }
     else if (display_pixel_fmt == PIXEL_FMT_RGB565)
     {
         need = VIDEO_PLAY_LCD_VIDEO_FMT_RGB565_RAW;
     }
 #else
+    (void)argb8888_compressed;
     if (display_pixel_fmt == PIXEL_FMT_RGB565)
     {
         need = VIDEO_PLAY_LCD_VIDEO_FMT_RGB565_RAW;
+    }
+    else if (display_pixel_fmt == PIXEL_FMT_RGB888)
+    {
+        need = VIDEO_PLAY_LCD_VIDEO_FMT_RGB888_RAW;
     }
     else
     {
@@ -430,7 +442,19 @@ void video_play_video_decode_complete_cb(void *user_data, const video_player_vid
         }
     }
 
-    video_play_lcd_sync_format_for_output_frame(ctx->lcd_handle, display_pixel_fmt);
+    bool display_argb8888_compressed = false;
+    if (display_pixel_fmt == PIXEL_FMT_ARGB8888)
+    {
+#if VIDEO_PLAY_H264_FLEXA_RAW_ARGB8888_ENABLE
+        display_argb8888_compressed = gpu_post_frame;
+#else
+        display_argb8888_compressed = true;
+#endif
+    }
+
+    video_play_lcd_sync_format_for_output_frame(ctx->lcd_handle,
+                                                display_pixel_fmt,
+                                                display_argb8888_compressed);
 
     avdk_err_t (*free_cb)(void *) = display_frame_free_cb;
     if (gpu_post_frame)
