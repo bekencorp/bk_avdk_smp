@@ -7,9 +7,11 @@
 #include "components/bk_decode/bk_h264_decode_ctlr.h"
 #include "components/bk_decode/bk_h264_decode_types.h"
 #include "components/bk_frame_buffer.h"
+#include "components/bk_hardware_ram.h"
 #include "components/media_types.h"
 #include "components/bk_video_player/bk_video_player_types.h"
 #include "components/bk_video_player/video_decoder/bk_video_player_hw_h264_decoder.h"
+#include "modules/vg_lite_gpu/vg_lite.h"
 
 #define TAG "vp_h264_frame_dec"
 
@@ -27,6 +29,21 @@
 #define H264_PARAM_SET_MAX_SIZE  1024U
 #define H264_FRAME_PAD_BYTES     128U
 #define H264_ALIGN_UP(v, a)      (((v) + ((a) - 1U)) & ~((a) - 1U))
+
+#ifndef H264_FRAME_GPU_ARGB8888_ENABLE
+#define H264_FRAME_GPU_ARGB8888_ENABLE 1
+#endif
+
+#ifndef H264_FRAME_GPU_TARGET_WIDTH
+#define H264_FRAME_GPU_TARGET_WIDTH   0U
+#endif
+
+#ifndef H264_FRAME_GPU_TARGET_HEIGHT
+#define H264_FRAME_GPU_TARGET_HEIGHT  0U
+#endif
+
+void bk_gpu_driver_init(void);
+void bk_gpu_driver_deinit(void);
 
 static bool hw_h264_frame_is_valid_nal_type(uint8_t type)
 {
@@ -53,6 +70,13 @@ typedef struct
     uint16_t  pps_size;
     uint8_t   nalu_length_size;
     bool      need_inject_params;
+
+#if H264_FRAME_GPU_ARGB8888_ENABLE
+    uint8_t  *gpu_decode_buf;
+    uint32_t  gpu_decode_buf_size;
+    void     *gpu_contiguous_buffer;
+    bool      gpu_initialized;
+#endif
 } hw_h264_decoder_frame_ctx_t;
 
 typedef struct
@@ -393,6 +417,204 @@ static void hw_h264_frame_done_cb(int status, void *args)
     }
 }
 
+#if H264_FRAME_GPU_ARGB8888_ENABLE
+static avdk_err_t hw_h264_frame_gpu_ensure_init(hw_h264_decoder_frame_ctx_t *ctx)
+{
+    if (ctx->gpu_initialized)
+    {
+        return AVDK_ERR_OK;
+    }
+
+    bk_gpu_driver_init();
+
+    ctx->gpu_contiguous_buffer = bk_get_gpu_flexa_buffer(CONFIG_VG_LITE_GPU_CONTIGUOUS_MEM_SZ);
+    if (ctx->gpu_contiguous_buffer == NULL)
+    {
+        LOGE("%s: alloc VG-Lite contiguous buffer failed, size=%u\n",
+             __func__, (unsigned)CONFIG_VG_LITE_GPU_CONTIGUOUS_MEM_SZ);
+        bk_gpu_driver_deinit();
+        return AVDK_ERR_NOMEM;
+    }
+
+    vg_lite_error_t vg_ret = vg_lite_set_buffer((uint8_t *)ctx->gpu_contiguous_buffer);
+    if (vg_ret == VG_LITE_SUCCESS)
+    {
+        vg_ret = vg_lite_init(0, 0);
+    }
+    if (vg_ret != VG_LITE_SUCCESS)
+    {
+        LOGE("%s: VG-Lite init failed, ret=%d\n", __func__, (int)vg_ret);
+        hsram_free(ctx->gpu_contiguous_buffer);
+        ctx->gpu_contiguous_buffer = NULL;
+        bk_gpu_driver_deinit();
+        return AVDK_ERR_GENERIC;
+    }
+
+    ctx->gpu_initialized = true;
+    LOGI("%s: frame ARGB8888 GPU path initialized, target=%ux%u (0 means source size)\n",
+         __func__,
+         (unsigned)H264_FRAME_GPU_TARGET_WIDTH,
+         (unsigned)H264_FRAME_GPU_TARGET_HEIGHT);
+    return AVDK_ERR_OK;
+}
+
+static void hw_h264_frame_gpu_deinit(hw_h264_decoder_frame_ctx_t *ctx)
+{
+    if (ctx == NULL)
+    {
+        return;
+    }
+
+    if (ctx->gpu_initialized)
+    {
+        (void)vg_lite_close();
+        bk_gpu_driver_deinit();
+        ctx->gpu_initialized = false;
+    }
+
+    if (ctx->gpu_contiguous_buffer != NULL)
+    {
+        hsram_free(ctx->gpu_contiguous_buffer);
+        ctx->gpu_contiguous_buffer = NULL;
+    }
+}
+
+static avdk_err_t hw_h264_frame_ensure_gpu_decode_buf(hw_h264_decoder_frame_ctx_t *ctx,
+                                                      uint32_t need)
+{
+    if (ctx->gpu_decode_buf != NULL && ctx->gpu_decode_buf_size >= need)
+    {
+        return AVDK_ERR_OK;
+    }
+
+    if (ctx->gpu_decode_buf != NULL)
+    {
+        bk_frame_buffer_free(ctx->gpu_decode_buf);
+        ctx->gpu_decode_buf = NULL;
+        ctx->gpu_decode_buf_size = 0;
+    }
+
+    ctx->gpu_decode_buf = (uint8_t *)bk_frame_buffer_malloc(MEM_SLAB_HEAP_UNCODED,
+                                                            need + H264_FRAME_PAD_BYTES);
+    if (ctx->gpu_decode_buf == NULL)
+    {
+        LOGE("%s: alloc GPU decode tmp failed, size=%u\n", __func__, (unsigned)need);
+        return AVDK_ERR_NOMEM;
+    }
+
+    ctx->gpu_decode_buf_size = need;
+    return AVDK_ERR_OK;
+}
+
+static avdk_err_t hw_h264_frame_gpu_nv12_to_argb8888(hw_h264_decoder_frame_ctx_t *ctx,
+                                                   const uint8_t *nv12,
+                                                   uint32_t visible_w,
+                                                   uint32_t visible_h,
+                                                   uint32_t coded_w,
+                                                   uint32_t coded_h,
+                                                   uint8_t *argb8888,
+                                                   uint32_t dst_w,
+                                                   uint32_t dst_h)
+{
+    if (ctx == NULL || nv12 == NULL || argb8888 == NULL ||
+        visible_w == 0U || visible_h == 0U ||
+        visible_w > coded_w || visible_h > coded_h ||
+        ((visible_w | visible_h | coded_w | coded_h | dst_w | dst_h) & 1U) != 0U)
+    {
+        return AVDK_ERR_INVAL;
+    }
+
+    avdk_err_t ret = hw_h264_frame_gpu_ensure_init(ctx);
+    if (ret != AVDK_ERR_OK)
+    {
+        return ret;
+    }
+
+    vg_lite_buffer_t src_buf;
+    vg_lite_buffer_t dst_buf;
+    vg_lite_matrix_t matrix;
+    vg_lite_rectangle_t src_rect = {
+        .x = 0,
+        .y = 0,
+        .width = (vg_lite_int32_t)visible_w,
+        .height = (vg_lite_int32_t)visible_h,
+    };
+
+    os_memset(&src_buf, 0, sizeof(src_buf));
+    os_memset(&dst_buf, 0, sizeof(dst_buf));
+    os_memset(&matrix, 0, sizeof(matrix));
+
+    src_buf.width = (vg_lite_uint32_t)coded_w;
+    src_buf.height = (vg_lite_uint32_t)coded_h;
+    src_buf.stride = (vg_lite_int32_t)coded_w;
+    src_buf.format = VG_LITE_NV12;
+    src_buf.compress_mode = VG_LITE_DEC_DISABLE;
+    src_buf.tiled = VG_LITE_LINEAR;
+    src_buf.yuv.swizzle = VG_LITE_SWIZZLE_UV;
+    src_buf.yuv.yuv2rgb = VG_LITE_YUV601;
+    src_buf.yuv.uv_stride = (vg_lite_uint32_t)coded_w;
+    src_buf.yuv.uv_height = (vg_lite_uint32_t)(coded_h / 2U);
+
+    vg_lite_error_t vg_ret = vg_lite_allocate_with_data(&src_buf,
+                                                        (void *)nv12,
+                                                        (void *)(nv12 + (coded_w * coded_h)),
+                                                        NULL,
+                                                        NULL);
+    if (vg_ret != VG_LITE_SUCCESS)
+    {
+        LOGE("%s: wrap NV12 source failed, ret=%d\n", __func__, (int)vg_ret);
+        return AVDK_ERR_GENERIC;
+    }
+
+    dst_buf.width = (vg_lite_uint32_t)dst_w;
+    dst_buf.height = (vg_lite_uint32_t)dst_h;
+    dst_buf.stride = (vg_lite_int32_t)(dst_w * 4U);
+    dst_buf.format = VG_LITE_BGRA8888;
+    dst_buf.compress_mode = VG_LITE_DEC_DISABLE;
+    dst_buf.tiled = VG_LITE_LINEAR;
+
+    vg_ret = vg_lite_allocate_with_data(&dst_buf, argb8888, NULL, NULL, NULL);
+    if (vg_ret != VG_LITE_SUCCESS)
+    {
+        LOGE("%s: wrap ARGB8888 dst failed, ret=%d\n", __func__, (int)vg_ret);
+        (void)vg_lite_free_without_free_data(&src_buf);
+        return AVDK_ERR_GENERIC;
+    }
+
+    vg_lite_identity(&matrix);
+    vg_lite_scale((vg_lite_float_t)dst_w / (vg_lite_float_t)visible_w,
+                  (vg_lite_float_t)dst_h / (vg_lite_float_t)visible_h,
+                  &matrix);
+
+    vg_ret = vg_lite_blit_rect(&dst_buf,
+                               &src_buf,
+                               &src_rect,
+                               &matrix,
+                               VG_LITE_BLEND_NONE,
+                               0,
+                               VG_LITE_FILTER_POINT);
+    if (vg_ret == VG_LITE_SUCCESS)
+    {
+        vg_ret = vg_lite_finish();
+    }
+
+    (void)vg_lite_free_without_free_data(&dst_buf);
+    (void)vg_lite_free_without_free_data(&src_buf);
+
+    if (vg_ret != VG_LITE_SUCCESS)
+    {
+        LOGE("%s: VG-Lite NV12->ARGB8888 failed, ret=%d, src=%ux%u/%ux%u dst=%ux%u\n",
+             __func__, (int)vg_ret,
+             (unsigned)visible_w, (unsigned)visible_h,
+             (unsigned)coded_w, (unsigned)coded_h,
+             (unsigned)dst_w, (unsigned)dst_h);
+        return AVDK_ERR_GENERIC;
+    }
+
+    return AVDK_ERR_OK;
+}
+#endif
+
 static void hw_h264_frame_pack_nv12_visible(uint8_t *buf,
                                             uint32_t visible_w,
                                             uint32_t visible_h,
@@ -571,6 +793,16 @@ static avdk_err_t hw_h264_decoder_frame_deinit(struct video_player_video_decoder
         ctx->annexb_buf_size = 0;
     }
 
+#if H264_FRAME_GPU_ARGB8888_ENABLE
+    if (ctx->gpu_decode_buf != NULL)
+    {
+        bk_frame_buffer_free(ctx->gpu_decode_buf);
+        ctx->gpu_decode_buf = NULL;
+        ctx->gpu_decode_buf_size = 0;
+    }
+    hw_h264_frame_gpu_deinit(ctx);
+#endif
+
     hw_h264_frame_release_param_sets(ctx);
     ctx->is_initialized = false;
     ctx->need_inject_params = true;
@@ -596,9 +828,11 @@ static avdk_err_t hw_h264_decoder_frame_decode(struct video_player_video_decoder
     {
         requested_fmt = PIXEL_FMT_NV12;
     }
-    if (requested_fmt != PIXEL_FMT_NV12 && requested_fmt != PIXEL_FMT_YUV420SP)
+    if (requested_fmt != PIXEL_FMT_NV12 &&
+        requested_fmt != PIXEL_FMT_YUV420SP &&
+        requested_fmt != PIXEL_FMT_ARGB8888)
     {
-        LOGE("%s: frame decoder only supports NV12 output, fmt=%d\n", __func__, requested_fmt);
+        LOGE("%s: frame decoder only supports NV12/ARGB8888 output, fmt=%d\n", __func__, requested_fmt);
         out_buffer->length = 0;
         return AVDK_ERR_UNSUPPORTED;
     }
@@ -609,13 +843,47 @@ static avdk_err_t hw_h264_decoder_frame_decode(struct video_player_video_decoder
     const uint32_t coded_height = H264_ALIGN_UP(height, 16U);
     const uint32_t visible_out_size = (width * height * 3U) / 2U;
     const uint32_t coded_out_size = (coded_width * coded_height * 3U) / 2U;
-    if (coded_out_size > out_buffer->length)
+    const bool argb8888_output = (requested_fmt == PIXEL_FMT_ARGB8888);
+    const uint32_t argb8888_width = (H264_FRAME_GPU_TARGET_WIDTH > 0U) ?
+                                    H264_FRAME_GPU_TARGET_WIDTH : width;
+    const uint32_t argb8888_height = (H264_FRAME_GPU_TARGET_HEIGHT > 0U) ?
+                                     H264_FRAME_GPU_TARGET_HEIGHT : height;
+    const uint32_t argb8888_out_size = argb8888_width * argb8888_height * 4U;
+    avdk_err_t ret = AVDK_ERR_OK;
+
+    if (!argb8888_output && coded_out_size > out_buffer->length)
     {
         LOGE("%s: output too small, need=%u got=%u\n",
              __func__, coded_out_size, out_buffer->length);
         out_buffer->length = 0;
         return AVDK_ERR_NOMEM;
     }
+#if H264_FRAME_GPU_ARGB8888_ENABLE
+    if (argb8888_output)
+    {
+        if (argb8888_out_size > out_buffer->length)
+        {
+            LOGE("%s: ARGB8888 output too small, need=%u got=%u\n",
+                 __func__, (unsigned)argb8888_out_size, (unsigned)out_buffer->length);
+            out_buffer->length = 0;
+            return AVDK_ERR_NOMEM;
+        }
+
+        ret = hw_h264_frame_ensure_gpu_decode_buf(ctx, coded_out_size);
+        if (ret != AVDK_ERR_OK)
+        {
+            out_buffer->length = 0;
+            return ret;
+        }
+    }
+#else
+    if (argb8888_output)
+    {
+        LOGE("%s: ARGB8888 GPU path disabled\n", __func__);
+        out_buffer->length = 0;
+        return AVDK_ERR_UNSUPPORTED;
+    }
+#endif
 
     uint8_t *bs_data = in_buffer->data;
     uint32_t bs_len = in_buffer->length;
@@ -626,7 +894,6 @@ static avdk_err_t hw_h264_decoder_frame_decode(struct video_player_video_decoder
                                  hw_h264_frame_buffer_is_annex_b(in_buffer->data,
                                                                  in_buffer->length);
     const bool need_inject_before = ctx->need_inject_params;
-    avdk_err_t ret = AVDK_ERR_OK;
 
     if (!is_annexb_input)
     {
@@ -671,10 +938,18 @@ static avdk_err_t hw_h264_decoder_frame_decode(struct video_player_video_decoder
         ctx->need_inject_params = false;
     }
 
+    uint8_t *decode_out = out_buffer->data;
+#if H264_FRAME_GPU_ARGB8888_ENABLE
+    if (argb8888_output)
+    {
+        decode_out = ctx->gpu_decode_buf;
+    }
+#endif
+
     bk_h264_decode_input_t in = {0};
     in.stream = bs_data;
     in.stream_len = bs_len;
-    in.out_buffer = out_buffer->data;
+    in.out_buffer = decode_out;
     in.out_buffer_size = coded_out_size;
 
     ret = bk_h264_decode_frame(ctx->hw_decoder_handle, &in);
@@ -689,13 +964,39 @@ static avdk_err_t hw_h264_decoder_frame_decode(struct video_player_video_decoder
         return ret;
     }
 
-    hw_h264_frame_pack_nv12_visible(out_buffer->data,
-                                    width,
-                                    height,
-                                    coded_width,
-                                    coded_height);
+#if H264_FRAME_GPU_ARGB8888_ENABLE
+    if (argb8888_output)
+    {
+        ret = hw_h264_frame_gpu_nv12_to_argb8888(ctx,
+                                               ctx->gpu_decode_buf,
+                                               width,
+                                               height,
+                                               coded_width,
+                                               coded_height,
+                                               out_buffer->data,
+                                               argb8888_width,
+                                               argb8888_height);
+        if (ret != AVDK_ERR_OK)
+        {
+            out_buffer->length = 0;
+            out_buffer->pts = in_buffer->pts;
+            return ret;
+        }
 
-    out_buffer->length = visible_out_size;
+        out_buffer->length = argb8888_out_size;
+    }
+    else
+#endif
+    {
+        hw_h264_frame_pack_nv12_visible(out_buffer->data,
+                                        width,
+                                        height,
+                                        coded_width,
+                                        coded_height);
+
+        out_buffer->length = visible_out_size;
+    }
+
     out_buffer->pts = in_buffer->pts;
     return AVDK_ERR_OK;
 }

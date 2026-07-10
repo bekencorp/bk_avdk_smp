@@ -86,6 +86,19 @@
  #include "components/bk_video_player/video_decoder/bk_video_player_hw_h264_decoder.h"
  #include <soc/soc.h>
  
+#if defined(H264_FLEXA_RAW_ARGB8888_ENABLE) && defined(VIDEO_PLAY_H264_FLEXA_RAW_ARGB8888_ENABLE) && \
+    (H264_FLEXA_RAW_ARGB8888_ENABLE != VIDEO_PLAY_H264_FLEXA_RAW_ARGB8888_ENABLE)
+#error "H264_FLEXA_RAW_ARGB8888_ENABLE and VIDEO_PLAY_H264_FLEXA_RAW_ARGB8888_ENABLE must match"
+#endif
+
+#ifndef H264_FLEXA_RAW_ARGB8888_ENABLE
+#ifdef VIDEO_PLAY_H264_FLEXA_RAW_ARGB8888_ENABLE
+#define H264_FLEXA_RAW_ARGB8888_ENABLE VIDEO_PLAY_H264_FLEXA_RAW_ARGB8888_ENABLE
+#else
+#define H264_FLEXA_RAW_ARGB8888_ENABLE 0
+#endif
+#endif
+
  #define TAG "vp_h264_dec"
  
  #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
@@ -882,14 +895,19 @@ static avdk_err_t hw_h264_decoder_setup_pipeline(hw_h264_decoder_ctx_t *ctx)
         __func__, ctx->flexa_pp_buf, (unsigned)ctx->flexa_pp_size,
         ((uintptr_t)ctx->flexa_pp_buf & 0x3FU) == 0U ? 1U : 0U);
 
-    /* dst must stay 16-aligned for DEC400 compression. We use the MB-aligned
-    * source dims directly: scale=false (set in resolve_dims) means the
-    * GPU does not actually scale, and the H264 IP recon write stride is
-    * already mb_w wide, so passing dst=mb keeps the GPU's Flexa segment
-    * stride identical to the H264 IP's segment stride. Any non-16 dst
-    * (e.g. dst=1080) would trip vg_lite "dec align error". */
+    /* DEC400 compressed output must stay 16-aligned. The raw experiment can
+     * target the visible DPU surface directly so the raw stride matches LCD. */
+#if H264_FLEXA_RAW_ARGB8888_ENABLE
+    const uint16_t dst_w = ctx->out_w;
+    const uint16_t dst_h = ctx->out_h;
+    const bool gpu_compress = false;
+    const bool gpu_scale = (dst_w != ctx->mb_w || dst_h != ctx->mb_h);
+#else
     const uint16_t dst_w = ctx->mb_w;
     const uint16_t dst_h = ctx->mb_h;
+    const bool gpu_compress = true;
+    const bool gpu_scale = ctx->scale_enable;
+#endif
 
     bk_gpu_ctlr_config_t gpu_cfg;
     os_memset(&gpu_cfg, 0, sizeof(gpu_cfg));
@@ -900,8 +918,8 @@ static avdk_err_t hw_h264_decoder_setup_pipeline(hw_h264_decoder_ctx_t *ctx)
     gpu_cfg.dst_height        = dst_h;
     gpu_cfg.src_format        = BK_PIXEL_FORMAT_NV12;
     gpu_cfg.dst_format        = BK_PIXEL_FORMAT_ARGB8888;
-    gpu_cfg.scale             = ctx->scale_enable;
-    gpu_cfg.compress          = true;   /* DEC400 tile compressed for DPU */
+    gpu_cfg.scale             = gpu_scale;
+    gpu_cfg.compress          = gpu_compress;
     gpu_cfg.src_buffer        = ctx->flexa_pp_buf;
     gpu_cfg.flexa             = true;
     gpu_cfg.flexa_lines       = H264_DECODER_GPU_FLEXA_LINES;
@@ -1255,8 +1273,8 @@ static avdk_err_t hw_h264_decoder_decode(struct video_player_video_decoder_ops_s
     AVDK_RETURN_ON_FALSE(ctx->h264_handle,       AVDK_ERR_GENERIC, TAG, "h264 not initialized");
     AVDK_RETURN_ON_FALSE(ctx->gpu_handle,        AVDK_ERR_GENERIC, TAG, "gpu not initialized");
 
-    (void)out_fmt; /* GPU pipeline always emits compressed ARGB8888; the
-                    * engine's requested format is ignored intentionally. */
+    (void)out_fmt; /* Flexa GPU output is ARGB8888; compression is controlled
+                    * by H264_FLEXA_RAW_ARGB8888_ENABLE, not out_fmt. */
 
     /* Step 1: Annex-B prep (same as the frame-mode path). */
     uint8_t  *bs_data = in_buffer->data;

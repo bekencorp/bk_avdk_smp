@@ -48,7 +48,10 @@ uint32_t video_player_calc_output_buffer_size(uint32_t width, uint32_t height, p
         case PIXEL_FMT_YUV420:
             return (mb_aligned_width * mb_aligned_height * 3U) / 2U;
         case PIXEL_FMT_RGB888:
+        case PIXEL_FMT_BGR888:
             return pixels * 3U;
+        case PIXEL_FMT_ARGB8888:
+            return pixels * 4U;
         default:
             return pixels * 2U;
     }
