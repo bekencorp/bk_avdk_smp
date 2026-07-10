@@ -7,7 +7,7 @@
 #include "driver/flash.h"
 #include "driver/flash_partition.h"
 
-#define CPU_OPREATE_FLASH_ADDRESS	(0x02000000)
+#define CPU_OPREATE_FLASH_ADDRESS	(SOC_FLASH_DATA_BASE)
 
 uint32_t fnv1a_r(unsigned char oneByte, uint32_t hash)
 {
@@ -71,7 +71,7 @@ int32_t ota_read_partition(const bk_logic_partition_t *part, uint32_t addr, uint
             return BK_FAIL;
         }
 
-        ret = ota_read_part_handler(((part->partition_start_addr + offset)*32/34 + addr), buf, size);
+        ret = ota_read_part_handler((part->partition_start_addr + offset + addr), buf, size);
  
         if (ret < 0)
         {
@@ -85,7 +85,7 @@ int32_t ota_get_rbl_head(const bk_logic_partition_t *bk_ptr, struct ota_rbl_head
 {
     OTA_LOGD("p_start_addr :0x%x,p_length:0x%x, p_name:%s\r\n",bk_ptr->partition_start_addr,bk_ptr->partition_length,bk_ptr->partition_description);
 	/* firmware header is on other partition bottom */
-    ota_read_partition(bk_ptr, 0, (uint8_t *)hdr, sizeof(struct ota_rbl_head), (partition_len - (RBL_HEAD_POS*34/32)));
+    ota_read_partition(bk_ptr, 0, (uint8_t *)hdr, sizeof(struct ota_rbl_head), (partition_len - RBL_HEAD_POS));
 
 	return 0;
 }

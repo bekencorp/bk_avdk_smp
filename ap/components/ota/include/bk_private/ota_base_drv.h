@@ -95,6 +95,7 @@ typedef struct __attribute__((packed))
     bk_logic_partition_t *pt;              /**/
     flash_protect_type_t  protect_type;    /**/
     uint8_t  wr_flash_flag;                /*the write flash flag*/
+    uint8_t  wr_err;                       /*sticky: a flash write failed, abort session*/
     int      fd;                           /*the file*/
     char dest_path_name[FD_DEST_PATH_LEN]; /*file path name*/
     uint8_t  init_flag;                    /*init flag*/ 

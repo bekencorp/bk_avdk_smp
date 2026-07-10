@@ -96,6 +96,7 @@ static int ota_do_init(f_ota_t* ota_ptr)
     ota_ptr->received_total_size  = 0;
     ota_ptr->wr_last_len          = 0;
     ota_ptr->wr_flash_flag        = 0;
+    ota_ptr->wr_err               = 0;
     ota_ptr->ota_crc.crc          = 0xFFFFFFFF;
     ota_ptr->wr_address           = ota_ptr->pt->partition_start_addr;
     ota_ptr->protect_type         = bk_flash_get_protect_type();
@@ -197,6 +198,7 @@ static int ota_do_write_flash(f_ota_t* ota_ptr, uint16_t len)
                         if (!os_memcmp(ota_ptr->wr_buf, ota_ptr->rd_buf, len)) {
                         } else{
                             OTA_LOGE("wr flash write err\n");
+                            ota_ptr->wr_err = 1;
                             return BK_FAIL;
                         }
                     }
@@ -226,6 +228,13 @@ static int ota_do_process_data_wifi(f_ota_t *ota_ptr, uint16_t len, ota_wr_callb
 {
     int ret = BK_FAIL;
     uint32_t write_len = 0, i = 0;
+
+    /* A previous chunk already failed to write flash: abort the whole session
+     * instead of retrying every incoming chunk (which floods the log with
+     * "wr flash write err"/"wr 1k data fail"). */
+    if (ota_ptr->wr_err) {
+        return BK_FAIL;
+    }
 
     OTA_LOGD("wr_addr:0x%x, len :0x%x \r\n", ota_ptr->wr_address, len);
     while (i < len)
@@ -302,6 +311,11 @@ static int ota_do_process_data_ble(f_ota_t *ota_ptr, uint16_t len, ota_wr_callba
 
     int ret = BK_FAIL;
     uint32_t write_len = 0, i = 0;
+
+    /* A previous chunk already failed to write flash: abort the session. */
+    if (ota_ptr->wr_err) {
+        return BK_FAIL;
+    }
 
     OTA_LOGV("wr_addr:0x%x, new_seq:0x%x, curr_seq :0x%x,len :0x%x \r\n",
              ota_ptr->wr_address, ota_ptr->new_sequence_number, ota_ptr->curr_sequence_number, len);
