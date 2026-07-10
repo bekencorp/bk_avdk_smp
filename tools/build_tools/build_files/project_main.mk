@@ -27,8 +27,13 @@ SDK_PY_LIBS := $(SDK_DIR)/tools/env_tools/bk_py_libs
 .PHONY: clean
 
 $(SOC_TARGET):
+ifeq ($(findstring Windows_NT,$(OS)), Windows_NT)
+	@$(MAKE) $(SOC_TARGET) PROJECT=$(PROJECT_NAME) PROJECT_DIR=$(PROJECT_PATH) BUILD_DIR=$(PROJECT_BUILD_DIR) \
+		PYTHONPATH="$(SDK_PY_LIBS);$(PYTHONPATH)" -C $(SDK_DIR)
+else
 	@$(MAKE) $(SOC_TARGET) PROJECT=$(PROJECT_NAME) PROJECT_DIR=$(PROJECT_PATH) BUILD_DIR=$(PROJECT_BUILD_DIR) \
 		PYTHONPATH=$(SDK_PY_LIBS):$$PYTHONPATH -C $(SDK_DIR)
+endif
 
 clean:
 	@echo "rm -rf ./build"
