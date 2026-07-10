@@ -24,6 +24,19 @@
 #include "spinlock.h"
 
 #include "cache.h"
+#include <driver/aon_rtc.h>
+
+/* Max time to wait for the peer core (CP) to consume a synchronous mailbox log
+ * buffer. A healthy CP acks within microseconds; exceeding this means the CP is
+ * unresponsive (e.g. hung), so we abandon the send instead of hard-spinning with
+ * interrupts disabled -- which would escalate a CP hang into an AP watchdog.
+ * AON-RTC is used because systick / rtos_get_time() is frozen while interrupts
+ * are disabled in this path. */
+#define SHELL_MB_SYNC_TX_TIMEOUT_US   (50 * 1000)
+
+/* Nonzero once AP has detected a CP hang and is taking over the dump: stop
+ * pushing logs to the (dead) CP over the mailbox. Provided by sys_sw_regs. */
+extern uint32_t bk_sys_sw_regs_get_ap_cp_hang_dumping(void);
 
 #define ACK_STATE_MASK   0xFFFF
 
@@ -332,6 +345,13 @@ static bk_err_t write_sync(shell_mb_ext_t *mb_ext, u8 * p_buf, u16 buf_len)
 	}
 #endif //#if (!CONFIG_SOC_BK7259) ///TODO: BK7259_BringUP
 
+	/* CP is known hung (AP is running the cp-hang dump): never push logs to it
+	 * over the mailbox, it will never ack and we would spin forever. */
+	if(bk_sys_sw_regs_get_ap_cp_hang_dumping())
+	{
+		return BK_FAIL;
+	}
+
 	if(mb_ext->tx_sync_buf == NULL)
 	{
 		mb_ext->tx_sync_buf = mb_chnl_get_tx_buff(mb_ext->chnl_id);
@@ -372,12 +392,27 @@ static bk_err_t write_sync(shell_mb_ext_t *mb_ext, u8 * p_buf, u16 buf_len)
 
 		if(ret_code == BK_OK)
 		{
+			uint64_t start_us = bk_aon_rtc_get_us();
+
 			while(*buff_busy)
 			{
 				/* wait buffer to be free (*buff_busy == 0). */
 				#if CONFIG_SUPPORT_CACHEABLE_SRAM
 				flush_dcache((void *)buff_busy, 1);
 				#endif
+
+				/* Bail out if the peer (CP) never consumes the buffer, so a hung
+				 * CP cannot hard-hang this core with interrupts disabled. */
+				if((bk_aon_rtc_get_us() - start_us) >= SHELL_MB_SYNC_TX_TIMEOUT_US)
+				{
+					ret_code = BK_ERR_MAILBOX_TIMEOUT;
+					break;
+				}
+			}
+
+			if(ret_code != BK_OK)
+			{
+				break;
 			}
 		}
 		else
