@@ -210,14 +210,17 @@ void aon_pmu_hal_lpo_src_set(uint32_t lpo_src)
 
 	if(lpo_src == PM_LPO_SRC_ROSC)
 	{
-		if(sys_ll_get_ana_reg5_en_xtall() == 0x1)
+		if(aon_pmu_hal_get_chip_model() != BK7259_CHIP_MODEL_V2_MPW)
 		{
-			sys_ll_set_ana_reg5_en_xtall(0x0);
-		}
+			if(sys_ll_get_ana_reg5_en_xtall() == 0x1)
+			{
+				sys_ll_set_ana_reg5_en_xtall(0x0);
+			}
 
-		if(sys_ll_get_ana_reg5_itune_xtall() != 0xF)
-		{
-			sys_ll_set_ana_reg5_itune_xtall(0xF);
+			if(sys_ll_get_ana_reg5_itune_xtall() != 0xF)
+			{
+				sys_ll_set_ana_reg5_itune_xtall(0xF);
+			}
 		}
 
 		if(sys_ll_get_ana_reg5_rosc_disable() == 0x1)
