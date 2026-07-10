@@ -99,6 +99,9 @@ set(tflm_make_extra_args)
 if(tflm_detected_float_abi)
     list(APPEND tflm_make_extra_args "FLOAT=${tflm_detected_float_abi}")
 endif()
+if(CMAKE_HOST_WIN32)
+    list(APPEND tflm_make_extra_args "TFLM_BUILD_LIBRARY_ONLY=1")
+endif()
 
 # Calculate project include path and config path for tflite-micro Makefile
 # From ap/components/bk_tflite_micro to ap/include
@@ -153,9 +156,11 @@ if (CONFIG_NPU)
     get_filename_component(_tflm_lib_dir ${TFLM_LIB_DIR} DIRECTORY)
     get_filename_component(TFLM_VARIANT_DIR ${_tflm_lib_dir} DIRECTORY)
 
-    # Note: Cache API adaptation is now implemented in bk_ethosu.c
-    # ETHOSU_EXTRA_FLAGS is no longer needed as cache functions are conditionally
-    # compiled based on CONFIG_NPU_CACHE in bk_ethosu.c
+    if(CMAKE_HOST_WIN32)
+        # The downloaded Ethos-U driver maps through BK logging macros, which can
+        # trip -Wunused-value under -Werror in this Windows toolchain.
+        list(APPEND tflm_make_extra_args "ETHOSU_EXTRA_FLAGS=-Wno-unused-value")
+    endif()
     set(make_env_cmd ${CMAKE_COMMAND} -E env)
     
     add_custom_command(OUTPUT ${TFLM_LIB_DIR}

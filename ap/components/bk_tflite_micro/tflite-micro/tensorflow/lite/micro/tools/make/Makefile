@@ -295,10 +295,10 @@ ifeq ($(ENABLE_COMPRESSION), yes)
 endif
 GENDIR := $(GENDIR)_$(TOOLCHAIN)/
 
-CORE_OBJDIR := $(GENDIR)obj/core/
-KERNEL_OBJDIR := $(GENDIR)obj/kernels/
-THIRD_PARTY_KERNEL_OBJDIR := $(GENDIR)obj/third_party_kernels/
-THIRD_PARTY_OBJDIR := $(GENDIR)obj/third_party/
+CORE_OBJDIR := $(GENDIR)obj/c/
+KERNEL_OBJDIR := $(GENDIR)obj/k/
+THIRD_PARTY_KERNEL_OBJDIR := $(GENDIR)obj/tpk/
+THIRD_PARTY_OBJDIR := $(GENDIR)obj/tp/
 GENERATED_SRCS_DIR := $(GENDIR)genfiles/
 BINDIR := $(GENDIR)bin/
 LIBDIR := $(GENDIR)lib/
@@ -781,6 +781,7 @@ INCLUDES += -I$(GENERATED_SRCS_DIR)
 INCLUDES += -I$(GENERATED_SRCS_DIR)$(TENSORFLOW_ROOT)
 
 # Load the examples.
+ifneq ($(TFLM_BUILD_LIBRARY_ONLY),1)
 include $(MICRO_LITE_EXAMPLE_TESTS)
 
 # Load the integration tests.
@@ -798,6 +799,7 @@ endif
 # Load the benchmarks.
 include $(OLD_MICRO_LITE_BENCHMARKS)
 include $(MICRO_LITE_BENCHMARKS)
+endif
 
 # Load custom kernel tests.
 include $(MAKEFILE_DIR)/additional_tests.inc
@@ -807,17 +809,94 @@ THIRD_PARTY_TARGETS :=
 $(foreach DOWNLOAD,$(THIRD_PARTY_DOWNLOADS),$(eval $(call create_download_rule,$(DOWNLOAD))))
 third_party_downloads: $(THIRD_PARTY_TARGETS)
 
+# Keep object paths short enough for Windows toolchains while preserving the
+# final BASE_GENDIR/lib output path used by all hosts.
+shorten_src_path = $(patsubst $(TENSORFLOW_ROOT)tensorflow/lite/micro/%,tflm/%,$(patsubst $(TENSORFLOW_ROOT)signal/%,sig/%,$(patsubst $(DOWNLOADS_DIR)/%,dl/%,$(patsubst $(DOWNLOADS_DIR)/cmsis_nn/Source/%,cnn/%,$(1)))))
+srcs_to_objs = $(patsubst %.S,%.o,$(patsubst %.cc,%.o,$(patsubst %.c,%.o,$(call shorten_src_path,$(1)))))
+
 MICROLITE_LIB_OBJS := $(addprefix $(CORE_OBJDIR), \
-$(patsubst %.S,%.o,$(patsubst %.cc,%.o,$(patsubst %.c,%.o,$(MICROLITE_CC_SRCS)))))
+$(call srcs_to_objs,$(MICROLITE_CC_SRCS)))
 
 MICROLITE_THIRD_PARTY_OBJS := $(addprefix $(THIRD_PARTY_OBJDIR), \
-$(patsubst %.S,%.o,$(patsubst %.cc,%.o,$(patsubst %.c,%.o,$(THIRD_PARTY_CC_SRCS)))))
+$(call srcs_to_objs,$(THIRD_PARTY_CC_SRCS)))
 
 MICROLITE_THIRD_PARTY_KERNEL_OBJS := $(addprefix $(THIRD_PARTY_KERNEL_OBJDIR), \
-$(patsubst %.S,%.o,$(patsubst %.cc,%.o,$(patsubst %.c,%.o,$(THIRD_PARTY_KERNEL_CC_SRCS)))))
+$(call srcs_to_objs,$(THIRD_PARTY_KERNEL_CC_SRCS)))
 
 MICROLITE_KERNEL_OBJS := $(addprefix $(KERNEL_OBJDIR), \
-$(patsubst %.S,%.o,$(patsubst %.cc,%.o,$(patsubst %.c,%.o,$(MICROLITE_CC_KERNEL_SRCS)))))
+$(call srcs_to_objs,$(MICROLITE_CC_KERNEL_SRCS)))
+
+$(CORE_OBJDIR)tflm/%.o: $(TENSORFLOW_ROOT)tensorflow/lite/micro/%.cc $(THIRD_PARTY_TARGETS)
+	@mkdir -p $(dir $@)
+	$(CXX) $(CXXFLAGS) $(CORE_OPTIMIZATION_LEVEL) $(INCLUDES) -c $< -o $@
+
+$(CORE_OBJDIR)tflm/%.o: $(TENSORFLOW_ROOT)tensorflow/lite/micro/%.c $(THIRD_PARTY_TARGETS)
+	@mkdir -p $(dir $@)
+	$(CC) $(CCFLAGS) $(CORE_OPTIMIZATION_LEVEL) $(INCLUDES) -c $< -o $@
+
+$(CORE_OBJDIR)tflm/%.o: $(TENSORFLOW_ROOT)tensorflow/lite/micro/%.S $(THIRD_PARTY_TARGETS)
+	@mkdir -p $(dir $@)
+	$(CC) $(CCFLAGS) $(CORE_OPTIMIZATION_LEVEL) $(INCLUDES) -c $< -o $@
+
+$(KERNEL_OBJDIR)tflm/%.o: $(TENSORFLOW_ROOT)tensorflow/lite/micro/%.cc $(THIRD_PARTY_TARGETS)
+	@mkdir -p $(dir $@)
+	$(CXX) $(CXXFLAGS) $(KERNEL_OPTIMIZATION_LEVEL) $(INCLUDES) -c $< -o $@
+
+$(KERNEL_OBJDIR)tflm/%.o: $(TENSORFLOW_ROOT)tensorflow/lite/micro/%.c $(THIRD_PARTY_TARGETS)
+	@mkdir -p $(dir $@)
+	$(CC) $(CCFLAGS) $(KERNEL_OPTIMIZATION_LEVEL) $(INCLUDES) -c $< -o $@
+
+$(KERNEL_OBJDIR)tflm/%.o: $(TENSORFLOW_ROOT)tensorflow/lite/micro/%.S $(THIRD_PARTY_TARGETS)
+	@mkdir -p $(dir $@)
+	$(CC) $(CCFLAGS) $(KERNEL_OPTIMIZATION_LEVEL) $(INCLUDES) -c $< -o $@
+
+$(KERNEL_OBJDIR)sig/%.o: $(TENSORFLOW_ROOT)signal/%.cc $(THIRD_PARTY_TARGETS)
+	@mkdir -p $(dir $@)
+	$(CXX) $(CXXFLAGS) $(KERNEL_OPTIMIZATION_LEVEL) $(INCLUDES) -c $< -o $@
+
+$(KERNEL_OBJDIR)sig/%.o: $(TENSORFLOW_ROOT)signal/%.c $(THIRD_PARTY_TARGETS)
+	@mkdir -p $(dir $@)
+	$(CC) $(CCFLAGS) $(KERNEL_OPTIMIZATION_LEVEL) $(INCLUDES) -c $< -o $@
+
+$(KERNEL_OBJDIR)sig/%.o: $(TENSORFLOW_ROOT)signal/%.S $(THIRD_PARTY_TARGETS)
+	@mkdir -p $(dir $@)
+	$(CC) $(CCFLAGS) $(KERNEL_OPTIMIZATION_LEVEL) $(INCLUDES) -c $< -o $@
+
+$(THIRD_PARTY_OBJDIR)dl/%.o: $(DOWNLOADS_DIR)/%.cc $(THIRD_PARTY_TARGETS)
+	@mkdir -p $(dir $@)
+	$(CXX) $(CXXFLAGS) $(CORE_OPTIMIZATION_LEVEL) $(INCLUDES) -c $< -o $@
+
+$(THIRD_PARTY_OBJDIR)dl/%.o: $(DOWNLOADS_DIR)/%.c $(THIRD_PARTY_TARGETS)
+	@mkdir -p $(dir $@)
+	$(CC) $(CCFLAGS) $(CORE_OPTIMIZATION_LEVEL) $(INCLUDES) -c $< -o $@
+
+$(THIRD_PARTY_OBJDIR)dl/%.o: $(DOWNLOADS_DIR)/%.S $(THIRD_PARTY_TARGETS)
+	@mkdir -p $(dir $@)
+	$(CC) $(CCFLAGS) $(CORE_OPTIMIZATION_LEVEL) $(INCLUDES) -c $< -o $@
+
+$(THIRD_PARTY_KERNEL_OBJDIR)dl/%.o: $(DOWNLOADS_DIR)/%.cc $(THIRD_PARTY_KERNEL_TARGETS)
+	@mkdir -p $(dir $@)
+	$(CXX) $(CXXFLAGS) $(THIRD_PARTY_KERNEL_OPTIMIZATION_LEVEL) $(INCLUDES) -c $< -o $@
+
+$(THIRD_PARTY_KERNEL_OBJDIR)dl/%.o: $(DOWNLOADS_DIR)/%.c $(THIRD_PARTY_KERNEL_TARGETS)
+	@mkdir -p $(dir $@)
+	$(CC) $(CCFLAGS) $(THIRD_PARTY_KERNEL_OPTIMIZATION_LEVEL) $(INCLUDES) -c $< -o $@
+
+$(THIRD_PARTY_KERNEL_OBJDIR)dl/%.o: $(DOWNLOADS_DIR)/%.S $(THIRD_PARTY_KERNEL_TARGETS)
+	@mkdir -p $(dir $@)
+	$(CC) $(CCFLAGS) $(THIRD_PARTY_KERNEL_OPTIMIZATION_LEVEL) $(INCLUDES) -c $< -o $@
+
+$(THIRD_PARTY_KERNEL_OBJDIR)cnn/%.o: $(DOWNLOADS_DIR)/cmsis_nn/Source/%.cc $(THIRD_PARTY_KERNEL_TARGETS)
+	@mkdir -p $(dir $@)
+	$(CXX) $(CXXFLAGS) $(THIRD_PARTY_KERNEL_OPTIMIZATION_LEVEL) $(INCLUDES) -c $< -o $@
+
+$(THIRD_PARTY_KERNEL_OBJDIR)cnn/%.o: $(DOWNLOADS_DIR)/cmsis_nn/Source/%.c $(THIRD_PARTY_KERNEL_TARGETS)
+	@mkdir -p $(dir $@)
+	$(CC) $(CCFLAGS) $(THIRD_PARTY_KERNEL_OPTIMIZATION_LEVEL) $(INCLUDES) -c $< -o $@
+
+$(THIRD_PARTY_KERNEL_OBJDIR)cnn/%.o: $(DOWNLOADS_DIR)/cmsis_nn/Source/%.S $(THIRD_PARTY_KERNEL_TARGETS)
+	@mkdir -p $(dir $@)
+	$(CC) $(CCFLAGS) $(THIRD_PARTY_KERNEL_OPTIMIZATION_LEVEL) $(INCLUDES) -c $< -o $@
 
 $(CORE_OBJDIR)%.o: %.cc $(THIRD_PARTY_TARGETS)
 	@mkdir -p $(dir $@)
@@ -871,9 +950,15 @@ microlite: $(MICROLITE_LIB_PATH)
 
 # Gathers together all the objects we've compiled into a single '.a' archive.
 $(MICROLITE_LIB_PATH): $(MICROLITE_LIB_OBJS) $(MICROLITE_KERNEL_OBJS) $(MICROLITE_THIRD_PARTY_OBJS) $(MICROLITE_THIRD_PARTY_KERNEL_OBJS) $(MICROLITE_CUSTOM_OP_OBJS)
+ifeq ($(HOST_OS),windows)
+	$(shell mkdir -p $(dir $@))
+	$(file >$@.rsp,$^)
+	$(AR) $(ARFLAGS) $(MICROLITE_LIB_PATH) @$@.rsp
+else
 	@mkdir -p $(dir $@)
 	$(AR) $(ARFLAGS) $(MICROLITE_LIB_PATH) $(MICROLITE_LIB_OBJS) \
 	$(MICROLITE_KERNEL_OBJS) $(MICROLITE_THIRD_PARTY_OBJS) $(MICROLITE_THIRD_PARTY_KERNEL_OBJS) $(MICROLITE_CUSTOM_OP_OBJS)
+endif
 
 $(BINDIR)%_test : $(CORE_OBJDIR)%_test.o $(MICROLITE_LIB_PATH)
 	@mkdir -p $(dir $@)
@@ -902,16 +987,19 @@ else
 endif
 
 # Create kernel test targets.
+ifneq ($(TFLM_BUILD_LIBRARY_ONLY),1)
 include $(TENSORFLOW_ROOT)tensorflow/lite/micro/kernels/Makefile.inc
 
 # Create binary size test target.
 include $(TENSORFLOW_ROOT)tensorflow/lite/micro/tools/ci_build/binary_size_test/Makefile.inc
+endif
 
 # Some tests have additional dependencies (beyond libtensorflow-microlite.a) and
 # those need to be explicitly specified with their own individual call to the
 # microlite_test helper function. For these tests, we also need to make sure to
 # not add targets for them if they have been excluded as part of the target
 # specific Makefile.
+ifneq ($(TFLM_BUILD_LIBRARY_ONLY),1)
 EXPLICITLY_SPECIFIED_TEST:= $(TENSORFLOW_ROOT)tensorflow/lite/micro/memory_arena_threshold_test.cc
 ifneq ($(findstring $(EXPLICITLY_SPECIFIED_TEST),$(MICROLITE_TEST_SRCS)),)
   MICROLITE_TEST_SRCS := $(filter-out $(EXPLICITLY_SPECIFIED_TEST), $(MICROLITE_TEST_SRCS))
@@ -955,6 +1043,7 @@ endif
 # add a make target in a common way.
 $(foreach TEST_TARGET,$(filter-out $(TENSORFLOW_ROOT)tensorflow/lite/micro/kernels/%,$(MICROLITE_TEST_SRCS)),\
 $(eval $(call microlite_test,$(notdir $(basename $(TEST_TARGET))),$(TEST_TARGET))))
+endif
 
 ifeq ($(TARGET_SPECIFIC_MAKE_TEST),0)
 test: $(MICROLITE_TEST_TARGETS)

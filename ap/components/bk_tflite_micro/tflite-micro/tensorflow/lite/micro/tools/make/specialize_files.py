@@ -31,7 +31,10 @@ def _specialize_files(base_file_list, directory):
   for fpath in base_file_list:
     fname = os.path.basename(fpath)
     if fname in specialize_files:
-      specialized_list.append(os.path.join(directory, fname))
+      specialized_path = os.path.join(directory, fname)
+      if os.sep == "\\":
+        specialized_path = specialized_path.replace("\\", "/")
+      specialized_list.append(specialized_path)
     else:
       specialized_list.append(fpath)
   return specialized_list
