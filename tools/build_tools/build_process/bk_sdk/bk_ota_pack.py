@@ -292,6 +292,10 @@ def pack_ota_rbl_ab(
         raise RuntimeError("generate ota rbl file fail.")
     logger.info(f"generate ota firmware {ota_bin}")
 
+    if curr_project.use_format_packager:
+        logger.info("skip overwriting format all-app.bin with ota rbl")
+        return ota_bin
+
     with all_app_bin.open("rb+") as dest_f, ota_bin.open("rb") as src_f:
         dest_f.seek(bootloader_size)
         write_data = src_f.read()
@@ -324,11 +328,13 @@ def pack_ota_app_bin(pack_dir: Path, output_bin: Path):
     with pack_json.open("r") as f:
         apps_part_info = json.load(f)
     sections: list[dict[str, str]] = apps_part_info["section"]
-    for index, part in enumerate(sections):
-        if "bootloader" in part["partition"]:
-            sections.pop(index)
-            apps_part_info["count"] -= 1
-            break
+    sections[:] = [part for part in sections if "bootloader" not in part["partition"]]
+    extra_partitions = set(curr_project.extra_pack_partitions)
+    if extra_partitions:
+        sections[:] = [
+            part for part in sections if part["partition"] not in extra_partitions
+        ]
+    apps_part_info["count"] = len(sections)
 
     if curr_project.flash_crc_enable:
         for part in sections:

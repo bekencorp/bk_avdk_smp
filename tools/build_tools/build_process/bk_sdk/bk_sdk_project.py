@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import csv
+import importlib
+import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -169,6 +171,29 @@ class bk_sdk_project(bk_project):
         return self._flash_crc_enable
 
     @property
+    def use_format_packager(self) -> bool:
+        """Whether all-app.bin is generated as a format (head-described) package.
+
+        A format package starts with a global header + image table (instead of a
+        raw flash image), so download tools can dispatch each image to its
+        partition. It also means the OTA rbl must NOT be written back into
+        all-app.bin.
+        """
+        return self.project_name == "app_ab"
+
+    @property
+    def extra_pack_partitions(self) -> list[str]:
+        """Non-executable partitions to additionally embed into the download package.
+
+        These partitions are not part of the app/OTA payload; they are only
+        pre-provisioned into all-app.bin (e.g. AB state flags). Add project
+        specific partitions here instead of scattering per-project checks.
+        """
+        if self.project_name == "app_ab":
+            return ["ota_fina_executive"]
+        return []
+
+    @property
     def ram_regions_setting(self) -> Path:
         config_dir = Path(__file__).absolute().parent
         chip_specific_config = config_dir / f"smp_ram_setting_{self.soc_name}.json"
@@ -204,6 +229,62 @@ class bk_sdk_project(bk_project):
             app_type = "cp"
         return self.sdk_path / app_type / "middleware/boards" / app_name
 
+    @staticmethod
+    def _extra_pack_bin_name(partition_name: str) -> str:
+        return f"{partition_name}.bin"
+
+    def _get_partition_info(self, partition_name: str) -> dict:
+        partitions_json = self.project_build_parititons_dir / "partitions.json"
+        if not partitions_json.exists():
+            raise FileNotFoundError(f"{partitions_json} not found.")
+
+        with partitions_json.open("r") as f:
+            partitions_info = json.load(f)
+
+        for part in partitions_info["section"]:
+            if part["Name"] == partition_name:
+                return part
+        raise RuntimeError(f"partition {partition_name} not found.")
+
+    def _append_extra_pack_partitions(self) -> None:
+        partitions = self.extra_pack_partitions
+        if not partitions:
+            return
+
+        from bk_misc import format_size
+
+        pack_json = self.project_build_parititons_dir / "bk_package.json"
+        if not pack_json.exists():
+            raise FileNotFoundError(f"{pack_json} not found.")
+
+        with pack_json.open("r") as f:
+            pack_info = json.load(f)
+
+        sections = pack_info["section"]
+        existing = {item["partition"] for item in sections}
+        for name in partitions:
+            if name in existing:
+                continue
+            part = self._get_partition_info(name)
+            sections.append(
+                {
+                    "firmware": self._extra_pack_bin_name(name),
+                    "partition": name,
+                    "start_addr": f"0x{part['Offset']:08x}",
+                    "size": format_size(part["Size"]),
+                }
+            )
+        pack_info["count"] = len(sections)
+
+        with pack_json.open("w") as f:
+            json.dump(pack_info, f, indent=4)
+
+    def _write_extra_pack_bins(self, pack_dir: Path) -> None:
+        for name in self.extra_pack_partitions:
+            part = self._get_partition_info(name)
+            bin_path = pack_dir / self._extra_pack_bin_name(name)
+            bin_path.write_bytes(bytes([0xFF]) * part["Size"])
+
     def pre_auto_partition(self) -> None:
         pass
 
@@ -211,9 +292,20 @@ class bk_sdk_project(bk_project):
         from .bk_ota_pack import gen_ota_pack_json
 
         gen_ota_pack_json()
+        self._append_extra_pack_partitions()
 
     def pre_package(self) -> None:
         pass
+
+    def get_packager(self, pack_dir: Path, pack_json: Path, output_bin: Path):
+        if self.use_format_packager:
+            bk_packager = importlib.import_module("bk_packager")
+            if self.flash_crc_enable:
+                return bk_packager.bk_packager_format_crc(
+                    pack_dir, pack_json, output_bin
+                )
+            return bk_packager.bk_packager_format(pack_dir, pack_json, output_bin)
+        return super().get_packager(pack_dir, pack_json, output_bin)
 
     def post_package(self) -> None:
         from .bk_ota_pack import ota_pack
@@ -226,3 +318,7 @@ class bk_sdk_project(bk_project):
         from .bk_ota_pack import handle_bootloader_bin
 
         handle_bootloader_bin(pack_dir)
+
+    def copy_binaries_to_pack_dir(self, pack_dir: Path) -> None:
+        super().copy_binaries_to_pack_dir(pack_dir)
+        self._write_extra_pack_bins(pack_dir)
