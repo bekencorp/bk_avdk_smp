@@ -196,11 +196,7 @@ def get_bootloader_json_for_inserting():
 
 #get bootloader path
 def get_bootloader_path(armino_path, chip):
-    bootloader_no_insert_part_path = None
-    if project_name == 'customization/config_ab':
-        bootloader_no_insert_part_path = '%s/components/bk_libs/%s/bootloader/ab_bootloader'%(armino_path, chip)
-    else:
-        bootloader_no_insert_part_path = '%s/components/bk_libs/%s/bootloader/normal_bootloader'%(armino_path, chip)
+    bootloader_no_insert_part_path = '%s/components/bk_libs/%s/bootloader/normal_bootloader'%(armino_path, chip)
     if os.path.exists('%s/partition_bootloader.json'%(pack_boot_tools)):
         print('project %s/%s in automatic_project list'%(project_name, armino_soc))
     else:
@@ -249,36 +245,21 @@ def copy_bootloader_to_component_bklibs_dir(sour_boot_dir,dest_boot_dir):
 
 #copy bootloader bin-elf-asm to relating directory
 def copy_bootloader_to_relevant_dir():
-    project_bootloader_ab = "properties/modules/bootloader/aboot/arm_bootloader_ab/output"
     project_bootloader = "properties/modules/bootloader/aboot/arm_bootloader/output"
     if project_name != "ate_mini_code":
-        if project_name == 'customization/config_ab':
-            if os.path.exists('%s/%s/bootloader.bin'%(armino_path,project_bootloader_ab)):
-                #copy bootloader bin to 'components/bk_libs/%s'%(chip)
-                dest_boot_dir = '%s/components/bk_libs/%s/bootloader/ab_bootloader'%(armino_path, chip)
-                copy_bootloader_to_component_bklibs_dir(project_bootloader_ab,dest_boot_dir)
+        if os.path.exists('%s/%s/bootloader.bin'%(armino_path,project_bootloader)):
+            print("PROJECT_DIR:",os.getenv("PROJECT_DIR"))
+            #copy bootloader bin to 'components/bk_libs/%s'%(chip)
+            dest_boot_dir = '%s/components/bk_libs/%s/bootloader/normal_bootloader'%(armino_path, chip)
+            copy_bootloader_to_component_bklibs_dir(project_bootloader,dest_boot_dir)
 
-                #copy bootloader elf-map-asm to build directory
-                try:
-                    shutil.copytree('%s/%s/'%(armino_path,project_bootloader_ab), './bootloader_out')
-                except FileExistsError:
-                    #raise RuntimeError("==========>./bootloader_out exist")
-                    shutil.rmtree('./bootloader_out')
-                    shutil.copytree('%s/%s/'%(armino_path,project_bootloader_ab), './bootloader_out')
-        else:
-            if os.path.exists('%s/%s/bootloader.bin'%(armino_path,project_bootloader)):
-                print("PROJECT_DIR:",os.getenv("PROJECT_DIR"))
-                #copy bootloader bin to 'components/bk_libs/%s'%(chip)
-                dest_boot_dir = '%s/components/bk_libs/%s/bootloader/normal_bootloader'%(armino_path, chip)
-                copy_bootloader_to_component_bklibs_dir(project_bootloader,dest_boot_dir)
-
-                #copy bootloader and monitor elf-map-asm to build directory
-                try:
-                    shutil.copytree('%s/%s/'%(armino_path,project_bootloader), './bootloader_out')
-                except FileExistsError:
-                    #raise RuntimeError("==========>./bootloader_out exist")
-                    shutil.rmtree('./bootloader_out')
-                    shutil.copytree('%s/%s/'%(armino_path,project_bootloader), './bootloader_out')
+            #copy bootloader and monitor elf-map-asm to build directory
+            try:
+                shutil.copytree('%s/%s/'%(armino_path,project_bootloader), './bootloader_out')
+            except FileExistsError:
+                #raise RuntimeError("==========>./bootloader_out exist")
+                shutil.rmtree('./bootloader_out')
+                shutil.copytree('%s/%s/'%(armino_path,project_bootloader), './bootloader_out')
 
 #create image that only supports encryption 
 #reads the size byte from the offset of src_file and overwrites dest_file to generate a new file
