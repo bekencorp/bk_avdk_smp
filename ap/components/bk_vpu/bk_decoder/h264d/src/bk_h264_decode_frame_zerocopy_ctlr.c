@@ -39,6 +39,7 @@
 #include "private_h264_decode_ctlr.h"
 #include "hw_decoder_ctlr.h"
 #include "modules/vcdec/vcdec_h264_api.h"
+#include "modules/vcdec/vcdec_common.h"
 #include "h264d_fbpool.h"
 #include "avdk_monitor.h"
 
@@ -110,8 +111,8 @@ static avdk_err_t h264_decode_ctlr_init(bk_h264_decode_ctlr_handle_t handle)
 		goto error;
 	}
 
-	if (vcdec_h264_memalloc_register(ctrl->vcdec_handle, h264_decode_mem_malloc, h264_decode_mem_free) != VCDEC_OK) {
-		LOGE("vcdec_h264_memalloc_register failed\r\n");
+	if (vcdec_register_memalloc(ctrl->vcdec_handle, h264_decode_mem_malloc, h264_decode_mem_free) != VCDEC_OK) {
+		LOGE("vcdec_register_memalloc failed\r\n");
 		ret = AVDK_ERR_GENERIC;
 		goto error;
 	}
