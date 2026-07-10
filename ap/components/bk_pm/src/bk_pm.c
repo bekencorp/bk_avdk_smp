@@ -16,7 +16,7 @@
 
 #include "pm_debug.h"
 
-/* 1. 核心电源管理API */
+/* 1. Core power management APIs */
 uint64_t bk_pm_suppress_ticks_and_sleep(uint32_t sleep_ticks)
 {
 #if CONFIG_PM_ENABLE
@@ -32,9 +32,9 @@ void bk_pm_enter_sleep(void)
 	LOGD("bk_pm_enter_sleep: sleep_ticks=%d (weak default)\n", sleep_ticks);
 	bk_pm_suppress_ticks_and_sleep(sleep_ticks);
 }
-/* 用于 CONFIG_PM_ENABLE=n 和 CONFIG_PM_CLIENT=y 时的默认实现 */
+/* Default implementations used when CONFIG_PM_ENABLE=n and CONFIG_PM_CLIENT=y */
 /*=====================WEAK FUNCTION START=====================*/
-/* 2. MCU电源管理 */
+/* 2. MCU power management */
 bk_err_t __attribute__((weak)) bk_pm_mcu_pm_ctrl(uint32_t power_state)
 {
 	LOGD("bk_pm_mcu_pm_ctrl: power_state=%d (weak default)\n", power_state);
@@ -44,17 +44,17 @@ bk_err_t __attribute__((weak)) bk_pm_mcu_pm_ctrl(uint32_t power_state)
 uint32_t __attribute__((weak)) bk_pm_mcu_pm_state_get(void)
 {
 	LOGD("bk_pm_mcu_pm_state_get: returning 0x1 (weak default)\n");
-	return 0x1; /* 禁用MCU电源管理 */
+	return 0x1; /* Disable MCU power management by default */
 }
 
-/* 3. 睡眠模式管理 */
+/* 3. Sleep mode management */
 bk_err_t __attribute__((weak)) bk_pm_sleep_mode_set(pm_sleep_mode_e sleep_mode)
 {
 	LOGD("bk_pm_sleep_mode_set: sleep_mode=%d (weak default)\n", sleep_mode);
 	return BK_OK;
 }
 
-/* 4. 唤醒源管理 */
+/* 4. Wakeup source management */
 bk_err_t __attribute__((weak)) bk_pm_wakeup_source_set(pm_wakeup_source_e wakeup_source, void* source_param)
 {
 	LOGD("bk_pm_wakeup_source_set: wakeup_source=%d, source_param=%p (weak default)\n", wakeup_source, source_param);
@@ -85,7 +85,7 @@ bk_err_t __attribute__((weak)) bk_pm_exit_low_vol_wakeup_source_set(void)
 	return BK_OK;
 }
 
-/* 5. 模块投票控制 */
+/* 5. Module vote control */
 bk_err_t __attribute__((weak)) bk_pm_module_vote_sleep_ctrl(pm_sleep_module_name_e module, uint32_t sleep_state, uint32_t sleep_time)
 {
 	LOGD("bk_pm_module_vote_sleep_ctrl: module=%d, sleep_state=%d, sleep_time=%d (weak default)\n", module, sleep_state, sleep_time);
@@ -98,7 +98,7 @@ bk_err_t __attribute__((weak)) bk_pm_module_vote_power_ctrl(pm_power_module_name
 	return BK_OK;
 }
 
-/* 6. 时钟和频率管理 */
+/* 6. Clock and frequency management */
 bk_err_t __attribute__((weak)) bk_pm_module_vote_cpu_freq(pm_dev_id_e module, pm_cpu_freq_e cpu_freq)
 {
 	LOGD("bk_pm_module_vote_cpu_freq: module=%d, cpu_freq=%d (weak default)\n", module, cpu_freq);
@@ -123,7 +123,7 @@ bk_err_t __attribute__((weak)) bk_pm_clock_ctrl(pm_dev_clk_e module, pm_dev_clk_
 	return BK_OK;
 }
 
-/* 7. 电压管理 */
+/* 7. Voltage management */
 bk_err_t __attribute__((weak)) bk_pm_lp_vol_set(uint32_t lp_vol)
 {
 	LOGD("bk_pm_lp_vol_set: lp_vol=%d (weak default)\n", lp_vol);
@@ -133,7 +133,7 @@ bk_err_t __attribute__((weak)) bk_pm_lp_vol_set(uint32_t lp_vol)
 uint32_t __attribute__((weak)) bk_pm_lp_vol_get(void)
 {
 	LOGD("bk_pm_lp_vol_get: returning 0 (weak default)\n");
-	return 0; /* 默认0.6V */
+	return 0; /* Default 0.6V */
 }
 
 bk_err_t __attribute__((weak)) bk_pm_rf_tx_vol_set(uint32_t tx_vol)
@@ -145,7 +145,7 @@ bk_err_t __attribute__((weak)) bk_pm_rf_tx_vol_set(uint32_t tx_vol)
 uint32_t __attribute__((weak)) bk_pm_rf_tx_vol_get(void)
 {
 	LOGD("bk_pm_rf_tx_vol_get: returning 0 (weak default)\n");
-	return 0; /* 默认1.25V */
+	return 0; /* Default 1.25V */
 }
 
 bk_err_t __attribute__((weak)) bk_pm_rf_rx_vol_set(uint32_t rx_vol)
@@ -157,10 +157,10 @@ bk_err_t __attribute__((weak)) bk_pm_rf_rx_vol_set(uint32_t rx_vol)
 uint32_t __attribute__((weak)) bk_pm_rf_rx_vol_get(void)
 {
 	LOGD("bk_pm_rf_rx_vol_get: returning 0 (weak default)\n");
-	return 0; /* 默认1.25V */
+	return 0; /* Default 1.25V */
 }
 
-/* 9. 32K时钟源管理 */
+/* 9. 32K clock source management */
 bk_err_t __attribute__((weak)) bk_pm_lpo_src_set(pm_lpo_src_e lpo_src)
 {
 	LOGD("bk_pm_lpo_src_set: lpo_src=%d (weak default)\n", lpo_src);
@@ -188,15 +188,15 @@ bk_err_t __attribute__((weak)) pm_extern32k_unregister_cb(pm_cb_extern32k_cfg_t 
 	return BK_OK;
 }
 
-/* 9. 模块状态查询 */
+/* 9. Module state query */
 int32_t __attribute__((weak)) bk_pm_module_sleep_state_get(pm_sleep_module_name_e module)
 {
-	return 0; /* 默认active状态 */
+	return 0; /* Default active state */
 }
 
 int32_t __attribute__((weak)) bk_pm_module_power_state_get(pm_power_module_name_e module)
 {
-	return 0; /* 默认ON状态 */
+	return 0; /* Default ON state */
 }
 
 uint32_t __attribute__((weak)) bk_pm_get_video_vote_pwr_state(void)
@@ -209,7 +209,7 @@ uint32_t __attribute__((weak)) bk_pm_get_audio_vote_pwr_state(void)
 	return 0;
 }
 
-/* 10. 回调函数注册 */
+/* 10. Callback registration */
 bk_err_t __attribute__((weak)) bk_pm_sleep_register_cb(pm_sleep_mode_e sleep_mode, pm_dev_id_e dev_id, pm_cb_conf_t *enter_config, pm_cb_conf_t *exit_config)
 {
 	LOGD("bk_pm_sleep_register_cb: sleep_mode=%d, dev_id=%d (weak default)\n", sleep_mode, dev_id);
@@ -234,7 +234,7 @@ bk_err_t __attribute__((weak)) bk_pm_light_sleep_unregister_cb(bool enter_cb, bo
 	return BK_OK;
 }
 
-/* 11. 低电压超时管理 */
+/* 11. Low-voltage timeout management */
 bk_err_t __attribute__((weak)) bk_pm_enter_lv_time_out_register_callback(pm_enter_lv_timeout_cb_t* lv_timeout_cb)
 {
 	return BK_OK;
@@ -263,63 +263,30 @@ bk_err_t __attribute__((weak)) bk_pm_module_lv_sleep_state_clear(pm_dev_id_e mod
 	return BK_OK;
 }
 
-/* 12. 自动电源管理 */
-uint32_t __attribute__((weak)) bk_pm_cp1_auto_power_down_state_get(void)
-{
-	return 0; /* 默认禁用 */
-}
-
-bk_err_t __attribute__((weak)) bk_pm_cp1_auto_power_down_state_set(uint32_t value)
-{
-	return BK_OK;
-}
-
-uint32_t __attribute__((weak)) bk_pm_cp1_boot_flag_get(void)
-{
-	return 0; /* 默认未启动 */
-}
-
-pm_mem_auto_ctrl_e __attribute__((weak)) bk_pm_mem_auto_power_down_state_get(void)
-{
-	LOGD("bk_pm_mem_auto_power_down_state_get: returning PM_MEM_AUTO_CTRL_DISABLE (weak default)\n");
-	return PM_MEM_AUTO_CTRL_DISABLE;
-}
-
-bk_err_t __attribute__((weak)) bk_pm_mem_auto_power_down_state_set(pm_mem_auto_ctrl_e value)
-{
-	LOGD("bk_pm_mem_auto_power_down_state_set: value=%d (weak default)\n", value);
-	return BK_OK;
-}
-
-/* 13. 校准和特殊功能 */
+/* 13. Calibration and special functions */
 bk_err_t __attribute__((weak)) bk_pm_rosc_calibration(pm_rosc_cali_mode_e rosc_cali_mode, uint32_t cali_interval)
-{
-	return BK_OK;
-}
-
-bk_err_t __attribute__((weak)) bk_pm_external_ldo_ctrl(uint32_t value)
 {
 	return BK_OK;
 }
 
 bool __attribute__((weak)) bk_pm_phy_cali_state_get(void)
 {
-	return 0; /* 默认未校准 */
+	return 0; /* Not calibrated by default */
 }
 
 bool __attribute__((weak)) bk_pm_phy_reinit_flag_get(void)
 {
-	return false; /* 默认未重初始化 */
+	return false; /* Not reinitialized by default */
 }
 
 void __attribute__((weak)) bk_pm_phy_reinit_flag_clear(void)
 {
-	/* 空实现 */
+	/* Empty implementation */
 }
 
 uint32_t __attribute__((weak)) bk_pm_phy_pm_state_get(void)
 {
-	return 0; /* 默认关闭 */
+	return 0; /* Off by default */
 }
 
 uint32_t __attribute__((weak)) bk_pm_wakeup_from_lowvol_consume_time_get(void)
@@ -327,30 +294,30 @@ uint32_t __attribute__((weak)) bk_pm_wakeup_from_lowvol_consume_time_get(void)
 	return 0;
 }
 
-/* 14. WiFi专用接口 */
+/* 14. WiFi-specific interfaces */
 void __attribute__((weak)) bk_pm_wifi_rtc_set(uint32_t tick, void *callback)
 {
-	/* 空实现 */
+	/* Empty implementation */
 }
 
 void __attribute__((weak)) bk_pm_wifi_rtc_clear(void)
 {
-	/* 空实现 */
+	/* Empty implementation */
 }
 
-/* 15. 深度睡眠模块配置 */
+/* 15. Deep-sleep module configuration */
 bk_err_t __attribute__((weak)) bk_pm_clear_deep_sleep_modules_config(pm_power_module_name_e module_name)
 {
 	return BK_OK;
 }
 
-/* 16. 硬件初始化 */
+/* 16. Hardware initialization */
 void __attribute__((weak)) pm_hardware_init(void)
 {
-	/* 空实现 */
+	/* Empty implementation */
 }
 
-/* 17. Mailbox 初始化 */
+/* 17. Mailbox initialization */
 bk_err_t __attribute__((weak)) bk_pm_mailbox_init(void)
 {
 	return BK_OK;

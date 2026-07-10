@@ -480,6 +480,14 @@ bk_err_t pm_debug_lv_state(void)
 	return BK_OK;
 }
 
+bk_err_t pm_debug_lv_aon_flush(void)
+{
+#if CONFIG_DEEP_LV_DEBUG_LOG
+	sys_hal_lv_aon_debug_flush();
+#endif
+	return BK_OK;
+}
+
 bk_err_t bk_pm_enter_lv_time_out_register_callback(pm_enter_lv_timeout_cb_t* lv_timeout_cb)
 {
 	bk_err_t ret = BK_OK;

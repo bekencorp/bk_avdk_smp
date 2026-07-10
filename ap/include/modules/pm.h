@@ -35,8 +35,6 @@ typedef void (*sleep_callback_t)(void *arg);
 #define PARAM_DATA_VALID  (0xFFFF)
 #define PM_APP_AUTO_VOTE_ENABLE          (0x1)
 #define PM_APP_AUTO_VOTE_DISENABLE       (0x0)
-#define PM_CP1_AUTO_POWER_DOWN_ENABLE    (0x1)
-#define PM_CP1_AUTO_POWER_DOWN_DISENABLE (0x0)
 
 /*--------------------------WAKEUP SOURCE DEFINE  START--------------------------------*/
 #define pm_wakeup_source_e                wakeup_source_t
@@ -257,12 +255,6 @@ typedef enum
 	PM_CP1_AUTO_CTRL_DISABLE = 0,
 	PM_CP1_AUTO_CTRL_ENABLE    = 1,
 }pm_cp1_auto_ctrl_e;
-
-typedef enum
-{
-	PM_MEM_AUTO_CTRL_DISABLE = 0,
-	PM_MEM_AUTO_CTRL_ENABLE    = 1,
-}pm_mem_auto_ctrl_e;
 
 typedef enum
 {
@@ -707,9 +699,6 @@ typedef enum {
 
 /*config whether auto vote*/
 #define PM_APP_AUTO_VOTE_CTRL            (PM_APP_AUTO_VOTE_ENABLE)
-
-/*config cpu1 auto power down according media*/
-#define PM_CP1_AUTO_POWER_DOWN_CTRL      (PM_CP1_AUTO_POWER_DOWN_ENABLE)
 
 /*=====================CONFIG  SECTION  END=======================*/
 
@@ -1160,82 +1149,6 @@ bk_err_t bk_pm_exit_low_vol_wakeup_source_set(void);
  */
 pm_wakeup_source_e bk_pm_exit_low_vol_wakeup_source_get(void);
 /**
- * @brief get memory auto power down flag
- *
- * get memory auto power down flag
- *
- * @attention
- * - This API is used to get memory auto power down flag
- *
- * @param
- * -void
- * @return
- * - memory auto power down flag(PM_MEM_AUTO_CTRL_DISABLE:disable memory auto power down feature ;PM_MEM_AUTO_CTRL_ENABLE:enable memory auto power down feature)
- */
-pm_mem_auto_ctrl_e bk_pm_mem_auto_power_down_state_get(void);
-/**
- * @brief memory auto power down flag set
- *
- * set memory auto power down flag
- *
- * @attention
- * - This API is used to set memory auto power down flag
- *
- * @param
- * -PM_MEM_AUTO_CTRL_DISABLE:disable memory auto power down feature ;PM_MEM_AUTO_CTRL_ENABLE:enable memory auto power down feature
- * @return
- * - BK_OK: succeed
- * - others: other errors.
- *
- */
-bk_err_t bk_pm_mem_auto_power_down_state_set(pm_mem_auto_ctrl_e value);
-
-/**
- * @brief get cp1 auto power down flag
- *
- * get cp1 auto power down flag
- *
- * @attention
- * - This API is used to get cp1 auto power down flag
- *
- * @param
- * -void
- * @return
- * - cp1 auto power down flag(0x0:close cp1 auto power down feature ;0x1:open cp1 auto power down feature)
- */
-uint32_t bk_pm_cp1_auto_power_down_state_get(void);
-/**
- * @brief cp1 auto power down flag set
- *
- * set cp1 auto power down flag
- *
- * @attention
- * - This API is used to set cp1 auto power down flag
- *
- * @param
- * -0x0:close cp1 auto power down feature ;0x1:open cp1 auto power down feature
- * @return
- * - BK_OK: succeed
- * - others: other errors.
- *
- */
-bk_err_t bk_pm_cp1_auto_power_down_state_set(uint32_t value);
-
-/**
- * @brief get cpu1 boot flag
- *
- * get cpu1 boot flag(ready or not ready)
- *
- * @attention
- * - This API is used to get cpu1 boot flag(ready or not ready)
- *
- * @param
- * -void
- * @return
- * - the flag of cpu1 boot flag (0x0:cpu1 not boot ready;0x1:cpu1 boot ready)
- */
-uint32_t bk_pm_cp1_boot_flag_get(void);
-/**
  * @brief rosc calibration
  *
  * rosc calibration
@@ -1251,21 +1164,6 @@ uint32_t bk_pm_cp1_boot_flag_get(void);
  *  - others: other errors.
  */
 bk_err_t bk_pm_rosc_calibration(pm_rosc_cali_mode_e rosc_cali_mode, uint32_t cali_interval);
-/**
- * @brief using the gpio to control the external ldo
- *
- * control the external ldo
- *
- * @attention
- * - This API is used to use the specific gpio(define in  GPIO_CTRL_LDO_OUTPUT_HIGH_MAP or GPIO_CTRL_LDO_OUTPUT_LOW_MAP in gpio_map.h) control the external ldo
- *
- * @param
- * -value:0x1:output high; 0x0:output low
- * @return
- *  - BK_OK: succeed
- *  - others: other errors.
- */
-bk_err_t bk_pm_external_ldo_ctrl(uint32_t value);
 /**
  * @brief get the state of phy calibration
  *

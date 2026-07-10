@@ -516,6 +516,10 @@ uint32_t sys_drv_psram_disckg_with_id(uint32_t id, uint32_t value);
 uint32_t sys_drv_set_psram_pad_latch(uint32_t value);
 /**  psram End **/
 
+/**  power Start **/
+bk_err_t sys_drv_power_xtal_rx_tx_anabuf_ctrl(pm_xtal_rx_tx_anabuf_state_e sleep_state);
+/**  power End **/
+
 uint32_t sys_drv_cali_dpll(uint32_t param);
 #if CONFIG_ATE_TEST
 uint32_t sys_drv_cali_dpll_ate(void);

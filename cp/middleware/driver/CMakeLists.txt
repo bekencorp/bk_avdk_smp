@@ -87,6 +87,7 @@ endif()
 		sys_ctrl/sys_bt_driver.c
 		sys_ctrl/sys_wifi_driver.c
 		sys_ctrl/sys_psram_driver.c
+		sys_ctrl/sys_power_driver.c
 		sys_ctrl/sys_touch_driver.c
 		wdt/wdt_driver.c
 		#icu/icu_driver.c

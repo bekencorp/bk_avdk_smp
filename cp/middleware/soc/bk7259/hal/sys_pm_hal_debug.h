@@ -19,21 +19,22 @@
 #define PM_HAL_LOGD HAL_LOGD
 #define PM_HAL_LOGV HAL_LOGV
 
-#define LV_DEBUG_GPIO 18
+void sys_hal_lv_deep_sleep_enter_clear(void);
+void sys_hal_lv_deep_sleep_enter_set(void);
 
-#if CONFIG_PM_HAL_DEBUG
-void sys_hal_debug_get_sys_regs_before_sleep(void);
-void sys_hal_debug_get_sys_regs_after_waked(void);
-void sys_hal_debug_dump_sys_regs(void);
-void sys_hal_debug_check_sys_regs(void);
-void sys_hal_debug_gpio_up(int id);
-void sys_hal_debug_gpio_down(int id);
-#else
-#define sys_hal_debug_get_sys_regs_before_sleep()
-#define sys_hal_debug_get_sys_regs_after_waked()
-#define sys_hal_debug_dump_sys_regs()
-#define sys_hal_debug_check_sys_regs()
-#define sys_hal_debug_gpio_up(id)
-#define sys_hal_debug_gpio_down(id)
+#if CONFIG_PM_CLOCK_VOTE_RECORD
+void sys_hal_pm_clock_vote_record(uint32_t module, uint32_t clock_state, uint32_t return_address);
 #endif
 
+#if CONFIG_PM_POWER_VOTE_RECORD
+void sys_hal_pm_power_vote_record(uint32_t module, uint32_t power_state, uint32_t return_address, uint32_t filter_domain);
+#endif
+
+#if CONFIG_DEEP_LV_DEBUG_LOG
+void sys_hal_lv_aon_snap_pre_record(void);
+void sys_hal_lv_aon_snap_at_sleep_record(void);
+void sys_hal_lv_aon_snap_post_record(void);
+void sys_hal_lv_aon_ldo_record(uint32_t pre, uint32_t sleep_cfg, uint32_t after_sleep_set,
+	uint32_t after_ramp, uint32_t backup, uint32_t after_ana_restore, uint32_t final);
+void sys_hal_lv_aon_debug_flush(void);
+#endif

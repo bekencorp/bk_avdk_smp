@@ -34,7 +34,6 @@ uint64_t static s_startup_rtc_tick = 0;
 static gpio_ldo_vote_node_t *s_gpio_ldo_vote_list       = NULL;
 
 static uint32_t s_pm_mcu_pm_state                       = 0;
-static uint32_t s_pm_cp1_auto_power_down_flag           = PM_CP1_AUTO_POWER_DOWN_CTRL;
 static uint32_t s_pm_lowvol_consume_time_exit_wfi       = 0;
 
 /*=====================VARIABLE  SECTION  END=================*/
@@ -44,8 +43,6 @@ static uint32_t s_pm_lowvol_consume_time_exit_wfi       = 0;
 
 /*================FUNCTION DECLARATION  SECTION  END========*/
 
-
-static pm_mem_auto_ctrl_e s_pm_mem_auto_power_down_flag = PM_MEM_AUTO_CTRL_ENABLE;
 
 uint32_t bk_pm_mcu_pm_state_get()
 {
@@ -62,69 +59,7 @@ uint32_t bk_pm_wakeup_from_lowvol_consume_time_get()
 	return ((s_pm_lowvol_consume_time_exit_wfi * 1000) / bk_rtc_get_ms_tick_count()); // unit: us
 }
 
-// TODO: is still in use ?
-uint32_t bk_pm_cp1_boot_flag_get()
-{
-	return 0; // s_pm_cp1_boot_ready;
-}
-
-uint32_t bk_pm_cp1_auto_power_down_state_get()
-{
-	return s_pm_cp1_auto_power_down_flag;
-}
-
-bk_err_t bk_pm_cp1_auto_power_down_state_set(uint32_t value)
-{
-	s_pm_cp1_auto_power_down_flag = value;
-	return BK_OK;
-}
-
-pm_mem_auto_ctrl_e bk_pm_mem_auto_power_down_state_get()
-{
-	return s_pm_mem_auto_power_down_flag;
-}
-
-bk_err_t bk_pm_mem_auto_power_down_state_set(pm_mem_auto_ctrl_e value)
-{
-	s_pm_mem_auto_power_down_flag = value;
-	return BK_OK;
-}
 /*=========================SPECIFIC API END========================*/
-
-/*=========================EXTERNAL LDO CTRL START========================*/
-// bk_err_t bk_pm_module_vote_ctrl_external_ldo(gpio_ctrl_ldo_module_e module,gpio_id_t gpio_id,gpio_output_state_e value)
-// {
-// 	bk_gpio_ctrl_external_ldo(module,gpio_id,value);
-// 	return BK_OK;
-// }
-
-bk_err_t bk_pm_external_ldo_ctrl(uint32_t value)
-{
-	uint32_t i = 0;
-	uint32_t gpio_ctrl_ldo_output_high_map[] = GPIO_CTRL_LDO_OUTPUT_HIGH_MAP;
-	uint32_t gpio_ctrl_ldo_output_low_map[] = GPIO_CTRL_LDO_OUTPUT_LOW_MAP;
-
-	if (value == 0x1) // output higt
-	{
-		for (i = 0; i < sizeof(gpio_ctrl_ldo_output_high_map) / sizeof(uint32_t); i++)
-		{
-			bk_gpio_set_output_high(gpio_ctrl_ldo_output_high_map[i]);
-		}
-	}
-	else if (value == 0x0) // output low
-	{
-		for (i = 0; i < sizeof(gpio_ctrl_ldo_output_low_map) / sizeof(uint32_t); i++)
-		{
-			bk_gpio_set_output_low(gpio_ctrl_ldo_output_low_map[i]);
-		}
-	}
-	else
-	{
-	}
-
-	return BK_OK;
-}
-/*=========================EXTERNAL LDO CTRL END========================*/
 
 /*=========================POWER/VOLTAGE CTRL START========================*/
 // TODO: for debug use?

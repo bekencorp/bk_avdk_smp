@@ -3732,7 +3732,7 @@ void sys_hal_early_init(void)
 		sys_hal_analog_set(ANALOG_REG11, 0xC3DD4587);//siqing20260202 bit[27:25] = 1 for Reduce BUCK frequency to 1 MHz
 		sys_hal_analog_set(ANALOG_REG12, 0x346E9878);
 		sys_hal_analog_set(ANALOG_REG13, 0x346E9858);//siqing20260330 bit[5]=0 per V2 sys_ana.ini 0x4d: dzcdcal (bit4)=1, dzcdmsel (bit5)=0; do not set both to 1. Low-power BUCK_L discontinuous-current reverse conduction caused abnormal measured efficiency.
-		sys_hal_analog_set(ANALOG_REG14, 0xF4E670EE);
+		sys_hal_analog_set(ANALOG_REG14, 0x74E670EE);
 		sys_hal_analog_set(ANALOG_REG15, 0);
 
 		sys_hal_analog_set(ANALOG_REG16, 0x9E436000);
@@ -3751,9 +3751,9 @@ void sys_hal_early_init(void)
 }
 void sys_hal_early_init_sleep(void)
 {
-	uint32_t chip_id;
+	//uint32_t chip_id;
 	uint32_t val;
-	chip_id = aon_pmu_hal_get_chipid();
+	//chip_id = aon_pmu_hal_get_chipid();
 
 	sys_ll_set_ana_reg10_spi_latch1v(1);
 
@@ -3789,7 +3789,7 @@ void sys_hal_early_init_sleep(void)
     sys_ll_set_ana_reg10_spi_latch1v(0);
 
 	/*early init cpu flash time*/
-	sys_hal_dpll_cpu_flash_time_early_init_sleep(chip_id);
+	//sys_hal_dpll_cpu_flash_time_early_init_sleep(chip_id);
 
 }
 void sys_hal_set_7816_int_en(uint32_t core_index, uint32_t value)

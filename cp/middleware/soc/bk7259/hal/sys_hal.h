@@ -103,6 +103,10 @@ void sys_hal_enter_deep_sleep(void *param);
 void sys_hal_enter_normal_sleep();
 void sys_hal_enter_normal_wakeup();
 void sys_hal_enter_low_voltage(void);
+bk_err_t sys_hal_set_alo2core_power_switch(uint32_t value);
+#if CONFIG_DEEP_LV_DEBUG_LOG
+void sys_hal_lv_aon_debug_flush(void);
+#endif
 void sys_hal_enter_cpu_wfi(void);
 void sys_hal_module_power_ctrl(power_module_name_t module,power_module_state_t power_state);
 void sys_hal_wakeup_interrupt_clear(wakeup_source_t interrupt_source);
@@ -762,6 +766,7 @@ int sys_hal_set_lv_ctrl_hf(bool lp_ena);
 int sys_hal_set_lv_ctrl_flash(bool lp_ena);
 int sys_hal_set_lv_ctrl_core(bool lp_ena);
 int sys_hal_set_lpo_src(sys_lpo_src_t src);
+bk_err_t sys_hal_xtal_rx_tx_anabuf_ctrl(pm_xtal_rx_tx_anabuf_state_e sleep_mode);
 void sys_hal_dump_ctrl(void);
 void sys_hal_set_ram_sph_cfg(uint32_t value);
 void sys_hal_set_ram_tph_cfg(uint32_t value);

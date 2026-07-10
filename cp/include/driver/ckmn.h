@@ -119,6 +119,28 @@ bk_err_t bk_ckmn_sleep_regs_backup(void);
 bk_err_t bk_ckmn_sleep_regs_restore(void);
 
 /**
+ * @brief     Power down CKMN before low voltage sleep
+ *
+ * Disable ckest/correction and clear CKMN control registers to minimize
+ * AON leakage during sleep.
+ *
+ * @return
+ *    - BK_OK: succeed
+ *    - others: other errors.
+ */
+bk_err_t bk_ckmn_power_down_for_sleep(void);
+
+/**
+ * @brief     Get last CKMN sleep backup register values
+ *
+ * @param global_ctrl saved CKMN_CTRL
+ * @param rc32k_ctrl saved CKMN_RC32K_CTRL
+ * @param corr_cfg saved CKMN_CORR_CFG
+ */
+void bk_ckmn_sleep_regs_get_backup(uint32_t *global_ctrl, uint32_t *rc32k_ctrl,
+	uint32_t *corr_cfg);
+
+/**
  * @brief    Set the number of counts for RC32K accuracy statistics
  *
  * This API 26m digital clock measurement 32k analog clock.

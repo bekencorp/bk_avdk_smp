@@ -347,6 +347,22 @@ bk_err_t bk_ckmn_soft_reset(void)
 	return BK_OK;
 }
 
+__IRAM_SEC bk_err_t bk_ckmn_power_down_for_sleep(void)
+{
+	CKMN_RETURN_ON_NOT_INIT();
+
+	bk_ckmn_ckest_disable();
+	bk_ckmn_disable_autosw_26m();
+	bk_ckmn_disable_autosw_32k();
+	bk_ckmn_disable_corr_26m();
+	bk_ckmn_disable_corr_32k();
+	REG_WRITE(CKMN_CTRL_ADDR, 0);
+	REG_WRITE(CKMN_RC32K_CTRL_ADDR, 0);
+	REG_WRITE(CKMN_CORR_CFG_ADDR, 0);
+
+	return BK_OK;
+}
+
 __IRAM_SEC bk_err_t bk_ckmn_sleep_regs_backup(void)
 {
 	CKMN_RETURN_ON_NOT_INIT();
@@ -358,6 +374,20 @@ __IRAM_SEC bk_err_t bk_ckmn_sleep_regs_backup(void)
 	s_ckmn_sleep_regs.valid = true;
 
 	return BK_OK;
+}
+
+void bk_ckmn_sleep_regs_get_backup(uint32_t *global_ctrl, uint32_t *rc32k_ctrl,
+	uint32_t *corr_cfg)
+{
+	if (global_ctrl) {
+		*global_ctrl = s_ckmn_sleep_regs.global_ctrl;
+	}
+	if (rc32k_ctrl) {
+		*rc32k_ctrl = s_ckmn_sleep_regs.rc32k_ctrl;
+	}
+	if (corr_cfg) {
+		*corr_cfg = s_ckmn_sleep_regs.corr_cfg;
+	}
 }
 
 __IRAM_SEC bk_err_t bk_ckmn_sleep_regs_restore(void)

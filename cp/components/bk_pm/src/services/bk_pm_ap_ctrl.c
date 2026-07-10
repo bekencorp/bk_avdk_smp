@@ -340,6 +340,7 @@ boot_ap:
 		#if CONFIG_PM_AP_POWERDOWN_WHEN_LV
 		bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_CPU1, 0, 0);
 		bk_pm_module_vote_cpu_freq(PM_DEV_ID_CPU1,PM_CPU_FRQ_240M);
+		bk_pm_module_vote_xtal_rx_tx_anabuf_ctrl(PM_XTAL_RX_TX_ANABUF_MODULE_NAME_AP, PM_XTAL_RX_TX_ANABUF_EXIT_SLEEP);
 		#endif
 		#if CONFIG_DEEP_LV
 		if(g_enter_sleep == 0x1)
@@ -504,6 +505,7 @@ static void pm_module_shutdown_cpu1(pm_power_module_name_e module)
 
 			#if CONFIG_PM_AP_POWERDOWN_WHEN_LV
 			bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_CPU1, 1, 0);
+			bk_pm_module_vote_xtal_rx_tx_anabuf_ctrl(PM_XTAL_RX_TX_ANABUF_MODULE_NAME_AP, PM_XTAL_RX_TX_ANABUF_ENTER_SLEEP);
 			bk_pm_module_vote_cpu_freq(PM_DEV_ID_CPU1,PM_CPU_FRQ_DEFAULT);
 			#endif
 			bk_printf_nonblock(4,NULL,"Shutdown_cp1[%d][%d][%d]\r\n",s_pm_cp1_closing,ret,s_pm_cp1_sema_count); //4:BK_LOG_DEBUG
@@ -603,9 +605,9 @@ bk_err_t bk_pm_module_vote_boot_ap_ctrl(pm_boot_ap_module_name_e module,pm_power
 						#endif
 						LOGI("pm_dbg ap_close: ap_sleep_state ready, start shutdown\r\n");
 						pm_ap_powerdown_proof_log("ap_sleep_ready");
-#if CONFIG_HSPL_LEAK_DEBUG
+						#if CONFIG_HSPL_LEAK_DEBUG
 						pm_check_ap_hspl_leak();
-#endif
+						#endif
 						pm_module_shutdown_cpu1(POWER_SUB_DOMAIN_NAME_AP_CPU);
 						pm_ap_powerdown_proof_log("shutdown_func_return");
 						LOGI("AP_PD_PROOF callback_begin: AP power already off, run CP callbacks\r\n");

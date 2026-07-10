@@ -22,6 +22,7 @@
 #include "pm_sleep.h"
 #include "pm_wakeup_source.h"
 #include "pm_debug.h"
+#include "sys_pm_hal_debug.h"
 
 
 #if CONFIG_PM_PROTECT_TIME_CHECK
@@ -40,22 +41,6 @@ static uint64_t s_pm_enter_normal_sleep_modules = 0;
 static uint64_t s_pm_enter_low_vol_modules    = 0;
 static uint32_t s_pm_enter_deep_sleep_modules = 0;
 
-#if CONFIG_PM_POWER_VOTE_RECORD
-#define PM_POWER_VOTE_RECORD_NUM             (64)
-
-typedef struct {
-	uint32_t module;
-	uint32_t domain;
-	uint32_t submodule;
-	uint32_t power_state;
-	uint32_t return_address;
-	uint32_t power_status;
-} pm_power_vote_record_t;
-
-static volatile uint32_t s_pm_power_vote_record_idx = 0;
-static volatile pm_power_vote_record_t s_pm_power_vote_records[PM_POWER_VOTE_RECORD_NUM];
-#endif
-
 #if CONFIG_PM_PROTECT_TIME_CHECK
 static uint64_t s_bt_need_wakeup_time         = 0;
 static system_wakeup_param_t s_bt_system_wakeup_param;
@@ -67,31 +52,6 @@ static void pm_enter_normal_sleep_modules_config(void);
 static void pm_enter_low_vol_modules_config(void);
 static void pm_enter_deep_sleep_modules_config(void);
 static void pm_core_debug(void);
-
-#if CONFIG_PM_POWER_VOTE_RECORD
-static void pm_power_vote_record(uint32_t module, uint32_t power_state, uint32_t return_address, uint32_t filter_domain)
-{
-	uint32_t domain = module / PM_MODULE_SUB_POWER_DOMAIN_MAX;
-	uint32_t submodule = module % PM_MODULE_SUB_POWER_DOMAIN_MAX;
-	uint32_t index = s_pm_power_vote_record_idx;
-
-	if ((domain > PM_POWER_DOMAIN_4) || (domain != filter_domain))
-	{
-		return;
-	}
-
-	s_pm_power_vote_records[index].module = module;
-	s_pm_power_vote_records[index].domain = domain;
-	s_pm_power_vote_records[index].submodule = submodule;
-	s_pm_power_vote_records[index].power_state = power_state;
-	s_pm_power_vote_records[index].return_address = return_address;
-	s_pm_power_vote_records[index].power_status = sys_drv_module_power_state_get(domain);
-	s_pm_power_vote_record_idx = (s_pm_power_vote_record_idx + 1) % PM_POWER_VOTE_RECORD_NUM;
-
-	BK_LOGV(NULL, "pm_pow_vote_rec: mod = %d, dom = %d, sub = %d, op = %d, ret = %p, pow_sta = %d\n",
-		module, domain, submodule, power_state, return_address, s_pm_power_vote_records[index].power_status);
-}
-#endif
 
 void pm_hardware_init(void)
 {
@@ -311,7 +271,7 @@ bk_err_t bk_pm_module_vote_power_ctrl(pm_power_module_name_e module, pm_power_mo
 		BK_LOGD(NULL, "cpu0 vote power 0x%X 0x%X\r\n", s_pm_on_modules, s_pm_off_modules);
 
 #if CONFIG_PM_POWER_VOTE_RECORD
-	pm_power_vote_record(module, power_state, (uint32_t)__builtin_return_address(0), PM_POWER_DOMAIN_2);
+	sys_hal_pm_power_vote_record(module, power_state, (uint32_t)__builtin_return_address(0), PM_POWER_DOMAIN_2);
 #endif
 	return BK_OK;
 }

@@ -396,12 +396,13 @@ uint32_t aon_pmu_hal_get_r0(void)
 {
 	return aon_pmu_ll_get_r0();
 }
-static uint32_t s_pmu_saved_regs[2] = {0};
+static uint32_t s_pmu_saved_regs[3] = {0};
 
 __IRAM_SEC void aon_pmu_hal_backup(void)
 {
 	s_pmu_saved_regs[0] = aon_pmu_ll_get_r40();
 	s_pmu_saved_regs[1] = aon_pmu_ll_get_r41();
+	s_pmu_saved_regs[2] = aon_pmu_ll_get_r2();
 }
 
 __IRAM_SEC void aon_pmu_hal_restore(void)
@@ -410,4 +411,5 @@ __IRAM_SEC void aon_pmu_hal_restore(void)
 	aon_pmu_ll_set_r0(reg);
 	// aon_pmu_ll_set_r40(s_pmu_saved_regs[0]);
 	aon_pmu_ll_set_r41(s_pmu_saved_regs[1]);
+	aon_pmu_ll_set_r2(s_pmu_saved_regs[2]);
 }

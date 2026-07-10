@@ -47,6 +47,7 @@ static uint32_t s_pm_vehp_spi_debug_state               = 0;
 static uint32_t s_pm_wrlp_encp_state                    = 0;
 static uint32_t s_pm_hssub_power_state                  = 0;
 static uint32_t s_pm_ap_cpu_state                       = 0;
+static uint32_t s_pm_xtal_rx_tx_anabuf_ctrl_state       = 0;
 
 static void pm_module_check_power_off(uint32_t *pm_off_modules, uint32_t *pm_on_modules, pm_power_module_name_e module);
 
@@ -262,20 +263,6 @@ void pm_check_power_on_module(uint32_t *pm_off_modules, uint32_t *pm_on_modules,
 		*pm_off_modules |= (0x1 << (PM_POWER_SUB_DOMAIN_MAC%PM_MODULE_SUB_POWER_DOMAIN_MAX));
 		// BK_LOGD(NULL, "wifi not power on \r\n");
 	}
-
-	// if (!(*pm_on_modules & (0x1 << PM_POWER_MODULE_NAME_AUDP))) // when the module not power on , set the module sleep state
-	// {
-	// 	*pm_sleeped_modules |= 0x1ULL << PM_POWER_MODULE_NAME_AUDP;
-	// 	*pm_off_modules |= 0x1 << PM_POWER_MODULE_NAME_AUDP;
-	// 	// BK_LOGD(NULL, "audio not power on \r\n");
-	// }
-
-	// if (!(*pm_on_modules & (0x1 << PM_POWER_MODULE_NAME_VIDP))) // when the module not power on , set the module sleep state
-	// {
-	// 	*pm_sleeped_modules |= 0x1ULL << PM_POWER_MODULE_NAME_VIDP;
-	// 	*pm_off_modules |= 0x1 << PM_POWER_MODULE_NAME_VIDP;
-	// 	// BK_LOGD(NULL, "video not power on \r\n");
-	// }
 }
 
 void pm_check_power_off_module(uint32_t *pm_off_modules, uint32_t *pm_on_modules, uint64_t *pm_sleeped_modules)
@@ -310,6 +297,50 @@ uint32_t bk_pm_get_video_vote_pwr_state(void)
 uint32_t bk_pm_phy_pm_state_get()
 {
 	return s_pm_phy_pm_state;
+}
+
+uint32_t bk_pm_get_xtal_rx_tx_anabuf_ctrl_state(void)
+{
+	return s_pm_xtal_rx_tx_anabuf_ctrl_state;
+}
+
+bk_err_t bk_pm_module_vote_xtal_rx_tx_anabuf_ctrl(pm_xtal_rx_tx_anabuf_module_name_e module, pm_xtal_rx_tx_anabuf_state_e sleep_state)
+{
+	bk_err_t ret = BK_OK;
+	GLOBAL_INT_DECLARATION();
+
+	if (module > PM_XTAL_RX_TX_ANABUF_MODULE_NAME_MAX)
+	{
+		return BK_ERR_PARAM;
+	}
+
+	if (sleep_state == PM_XTAL_RX_TX_ANABUF_ENTER_SLEEP)
+	{
+		GLOBAL_INT_DISABLE();
+		if(s_pm_xtal_rx_tx_anabuf_ctrl_state == 0)
+		{
+			ret = sys_drv_power_xtal_rx_tx_anabuf_ctrl(PM_XTAL_RX_TX_ANABUF_ENTER_SLEEP);
+		}
+		s_pm_xtal_rx_tx_anabuf_ctrl_state |= (1UL << module);
+		GLOBAL_INT_RESTORE();
+	}
+	else if (sleep_state == PM_XTAL_RX_TX_ANABUF_EXIT_SLEEP)
+	{
+		GLOBAL_INT_DISABLE();
+		s_pm_xtal_rx_tx_anabuf_ctrl_state &= ~(1UL << module);
+
+		if(s_pm_xtal_rx_tx_anabuf_ctrl_state == 0)
+		{
+			ret = sys_drv_power_xtal_rx_tx_anabuf_ctrl(PM_XTAL_RX_TX_ANABUF_EXIT_SLEEP);
+		}
+		GLOBAL_INT_RESTORE();
+	}
+	else
+	{
+		return BK_ERR_PARAM;
+	}
+
+	return ret;
 }
 /*=========================MODULES POWER CTRL END========================*/
 
@@ -363,6 +394,7 @@ void pm_power_dump(void)
 	LOGD("pm vehp_spi_debug:0x%x\r\n",s_pm_vehp_spi_debug_state);
 	LOGD("pm wrlp_encp:0x%x\r\n",s_pm_wrlp_encp_state);
 	LOGD("pm hssub_power:0x%x\r\n",s_pm_hssub_power_state);
+	LOGD("pm xtal_rx_tx_anabuf:0x%x\r\n",s_pm_xtal_rx_tx_anabuf_ctrl_state);
 }
 
 void pm_power_modules_dump_with_sleep_mode(pm_sleep_mode_e sleep_mode)

@@ -510,7 +510,6 @@ static void cli_ate_main(uint32_t data)
 			BK_LOGD(NULL,"cli_ate_main: ATE create background sema failed\r\n");
 	}
 
-	bk_pm_cp1_auto_power_down_state_set(0x0);
 	bk_pm_module_vote_power_ctrl(PM_POWER_MODULE_NAME_CPU1, PM_POWER_MODULE_STATE_ON);
 	extern void start_cpu1_core(void);
 	start_cpu1_core();

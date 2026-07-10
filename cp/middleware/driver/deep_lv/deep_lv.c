@@ -71,7 +71,7 @@
 #include "arch_interrupt.h"
 #include "bk_arch.h"
 #include "cache.h"
-#if CONFIG_DEEP_LV_DEBUG
+#if CONFIG_DEEP_LV_DEBUG_GPIO
 #include "pm_debug.h"
 #endif
 
@@ -579,7 +579,7 @@ __IRAM_PM __attribute__((noinline)) void dlv_restore_post_core_prepare(void)
 	arch_int_set_default_priority();
 	dlv_nvic_restore(dlv);
 	portNVIC_SHPR3_REG = scb_info->shpr3_val;
-	#if CONFIG_DEEP_LV_DEBUG
+	#if CONFIG_DEEP_LV_DEBUG_GPIO
 	PM_GPIO_UP(37);//3
 	PM_GPIO_DOWN(37);
 	#endif
@@ -613,7 +613,7 @@ __IRAM_PM __attribute__((naked, noreturn)) static void dlv_restore_post_core_fin
 __IRAM_PM void dlv_context_restore(void)
 {
 	dlv_context_t *dlv = &s_dlv_context;
-#if CONFIG_DEEP_LV_DEBUG
+#if CONFIG_DEEP_LV_DEBUG_GPIO
 	PM_GPIO_UP(37);//2
 	PM_GPIO_DOWN(37);
 #endif
@@ -633,7 +633,7 @@ __IRAM_PM __attribute__((noinline)) void dlv_deep_lv_exit_prepare(void)
 		if (dlv_startup) {
 			aon_pmu_hal_set_dlv_startup(0);
 		}
-#if CONFIG_DEEP_LV_DEBUG
+#if CONFIG_DEEP_LV_DEBUG_GPIO
 		PM_GPIO_UP(37);//4
 		PM_GPIO_DOWN(37);
 #endif

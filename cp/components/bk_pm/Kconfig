@@ -75,14 +75,79 @@ menu "PM"
 		bool "Enable deep low voltage"
 		default n
 
-	config DEEP_LV_DEBUG
-		bool "Enable deep low voltage debug"
+	config DEEP_LV_DEBUG_GPIO
+		bool "Enable deep low voltage debug (GPIO toggle markers)"
 		default n
+
+	config DEEP_LV_DEBUG_LOG
+		bool "Enable deep low voltage AON snapshot debug log"
+		default n
+		help
+			Enable the AON register snapshot/diff log around deep LV
+			sleep entry/exit. Independent from DEEP_LV_DEBUG_GPIO so the
+			GPIO toggle markers can be disabled while the snapshot
+			log stays enabled.
+
+	config PM_AP_SRAM_POWER_CTRL
+		bool "Enable AP SRAM power control in deep low voltage"
+		depends on DEEP_LV
+		default y
+		help
+			Enable AP SRAM power control before entering deep low
+			voltage sleep.
+
+	menu "AP SRAM power control in deep low voltage"
+		depends on PM_AP_SRAM_POWER_CTRL
+
+		config PM_AP_MEM3_POWER_DOWN
+			bool "Power down AP MEM3 in deep low voltage"
+			default y
+			help
+				Power down AP MEM3 before entering deep low voltage sleep.
+				Disable this option to keep MEM3 powered for SRAM data retention.
+
+		config PM_AP_MEM4_POWER_DOWN
+			bool "Power down AP MEM4 in deep low voltage"
+			default y
+			help
+				Power down AP MEM4 before entering deep low voltage sleep.
+				Disable this option to keep MEM4 powered for SRAM data retention.
+
+		config PM_AP_MEM5_POWER_DOWN
+			bool "Power down AP MEM5 in deep low voltage"
+			default y
+			help
+				Power down AP MEM5 before entering deep low voltage sleep.
+				Disable this option to keep MEM5 powered for SRAM data retention.
+
+		config PM_AP_MEM6_POWER_DOWN
+			bool "Power down AP MEM6 in deep low voltage"
+			default y
+			help
+				Power down AP MEM6 before entering deep low voltage sleep.
+				Disable this option to keep MEM6 powered for SRAM data retention.
+
+		config PM_AP_CPU2_CACHE_POWER_DOWN
+			bool "Power down AP CPU2 cache SRAM in deep low voltage"
+			default y
+			help
+				Power down AP CPU2 cache SRAM before entering deep low
+				voltage sleep. Disable this option to keep it powered for
+				data retention.
+
+		config PM_AP_CPU3_CACHE_POWER_DOWN
+			bool "Power down AP CPU3 cache SRAM in deep low voltage"
+			default y
+			help
+				Power down AP CPU3 cache SRAM before entering deep low
+				voltage sleep. Disable this option to keep it powered for
+				data retention.
+	endmenu
 
 	config AON_LDO_SEL
 		int "Config AON LDO voltage select"
 		range 0 7
-		default 2
+		default 4
 		help
 			Config AON LDO voltage select.
 			0:0.6V; 1:0.65V; 2:0.7V; 3:0.75V; 4:0.8V; 5:0.85V; 6:0.9V; 7:0.95V.

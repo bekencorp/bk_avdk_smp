@@ -114,3 +114,7 @@
 #define EN_ALL          (EN_XTAL | EN_DCO | EN_TEMP | EN_DPLL | EN_TEMP_GSEL)
 
 #define ENTER_LOWVOL_WAKEUP_PROTECT_TIME 5 // ms
+
+#if CONFIG_DEEP_LV_DEBUG_LOG
+void sys_hal_lv_aon_debug_flush(void);
+#endif

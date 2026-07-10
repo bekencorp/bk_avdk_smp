@@ -518,13 +518,19 @@ static void cli_pm_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char 
 static void cli_pm_debug(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
 	UINT32 pm_debug  = 0;
-	if (argc != 2)
+	UINT32 aon_flush = 0;
+
+	if ((argc != 2) && (argc != 3))
 	{
 		BK_LOGD(NULL,"set low power debug parameter invalid %d\r\n",argc);
 		return;
 	}
 
 	pm_debug = os_strtoul(argv[1], NULL, 10);
+	if (argc == 3)
+	{
+		aon_flush = os_strtoul(argv[2], NULL, 10);
+	}
 
 	pm_debug_ctrl(pm_debug);
 
@@ -533,11 +539,17 @@ static void cli_pm_debug(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
 		pm_debug_pwr_clk_state();
 		pm_debug_lv_state();
 		bk_pm_cpu_freq_dump();
+
+		if(aon_flush == 1)
+		{
+			pm_debug_lv_aon_flush();
+		}
 	}
 	/*for temp debug*/
 	if(pm_debug == 16)
 	{
-
+		void sys_drv_enter_deep_sleep(void *param);
+		sys_drv_enter_deep_sleep(NULL);
 	}
 
 	if(pm_debug == 32)
@@ -1283,7 +1295,7 @@ static void cli_pm_rosc_accuracy(char *pcWriteBuffer, int xWriteBufferLen, int a
 	}
 
 	timer_count_interval   = os_strtoul(argv[1], NULL, 10);
-	bk_timer_start(0, timer_count_interval, cli_pm_timer_isr);
+	bk_timer_start(TIMER_ID1, timer_count_interval, cli_pm_timer_isr);
 #endif
 }
 static void cli_pm_rosc_cali(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
@@ -1456,21 +1468,6 @@ static void cli_pm_rosc_ppm(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
 #endif
 }
 
-static void cli_pm_cp1_ctrl(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
-{
-#if 1 && (CONFIG_CPU_CNT > 1)
-	UINT32 cp1_ctrl = 0;
-
-	if (argc != 2)
-	{
-		BK_LOGD(NULL,"cp1 ctrl parameter invalid %d\r\n",argc);
-		return;
-	}
-
-	cp1_ctrl   = os_strtoul(argv[1], NULL, 10);
-	bk_pm_cp1_auto_power_down_state_set(cp1_ctrl);
-#endif
-}
 static void cli_pm_boot_cp1(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
 #if 1 && (CONFIG_CPU_CNT > 1)
@@ -1588,7 +1585,6 @@ static const struct cli_command s_pwr_commands[] = {
 	{"pm_rosc_pin", "pm_rosc_pin [lpo_clk:0:ana;1:dig]", cli_pm_clk_pin},
 	{"pm_wakeup_source", "pm_wakeup_source [pm_sleep_mode]", cli_pm_wakeup_source},
 	{"pm_rosc_ppm", "pm_rosc_ppm [interval] [count]", cli_pm_rosc_ppm},
-	{"pm_cp1_ctrl", "pm_cp1_ctrl [cp1_auto_pw_ctrl]", cli_pm_cp1_ctrl},
 	{"pm_boot_cp1", "pm_boot_cp1 [module_name] [ctrl_state:0:on 1:off] | pm_boot_cp1 stress [start_module] [task_count] [loop_count] [on_hold_ms] [off_hold_ms]", cli_pm_boot_cp1},
 #if (CONFIG_CPU_CNT > 2)
 	{"pm_boot_cp2", "pm_boot_cp2 [module_name] [ctrl_state:0x0:bootup; 0x1:shutdowm]", cli_pm_boot_cp2},

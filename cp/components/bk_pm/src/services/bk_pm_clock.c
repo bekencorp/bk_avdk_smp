@@ -14,6 +14,7 @@
 #include <modules/pm.h>
 #include "pm_debug.h"
 #include "sys_driver.h"
+#include "sys_pm_hal_debug.h"
 #include "aon_pmu_driver.h"
 
 
@@ -22,24 +23,6 @@
 
 static int8_t s_pm_cpu_freq[PM_DEV_ID_MAX] = {0};
 static pm_cpu_freq_e s_pm_current_cpu_freq = PM_CPU_FRQ_DEFAULT;
-
-#if CONFIG_PM_CLOCK_VOTE_RECORD
-#define PM_CLOCK_VOTE_RECORD_NUM             (64)
-#define PM_CLOCK_VOTE_RECORD_MODULE_START    (PM_CLK_ID_AUDIO)
-#define PM_CLOCK_VOTE_RECORD_MODULE_END      (PM_CLK_ID_OFDM)
-
-typedef struct
-{
-	uint32_t module;
-	uint32_t clock_state;
-	uint32_t return_address;
-	uint32_t clk_status;
-	uint32_t module_clk_status;
-} pm_clock_vote_record_t;
-
-static volatile uint32_t s_pm_clock_vote_record_idx = 0;
-static volatile pm_clock_vote_record_t s_pm_clock_vote_records[PM_CLOCK_VOTE_RECORD_NUM];
-#endif
 
 typedef struct
 {
@@ -51,31 +34,6 @@ static pm_cb_module_cfg_t s_pm_cb_module_cfg;
 static beken_semaphore_t s_sync_sema = NULL;
 
 bk_err_t bk_pm_cpu_freq_dump(void);
-
-#if CONFIG_PM_CLOCK_VOTE_RECORD
-static void pm_clock_vote_record(uint32_t module, uint32_t clock_state, uint32_t return_address,
-	uint32_t module_start, uint32_t module_end)
-{
-	uint32_t index = s_pm_clock_vote_record_idx;
-
-	if ((module < module_start) || (module > module_end))
-	{
-		return;
-	}
-
-	s_pm_clock_vote_records[index].module = module;
-	s_pm_clock_vote_records[index].clock_state = clock_state;
-	s_pm_clock_vote_records[index].return_address = return_address;
-	s_pm_clock_vote_records[index].clk_status = sys_drv_dev_clk_pwr_status_get(module);
-	s_pm_clock_vote_records[index].module_clk_status = sys_drv_dev_clk_pwr_is_enabled(module);
-	s_pm_clock_vote_record_idx = (s_pm_clock_vote_record_idx + 1) % PM_CLOCK_VOTE_RECORD_NUM;
-
-	BK_LOGV(NULL, "pm_clk_vote_rec: mod = %d, op = %d, ret = %p, clk_sta = %x, mod_clk_sta = %d\n",
-		module, clock_state, return_address, s_pm_clock_vote_records[index].clk_status,
-		s_pm_clock_vote_records[index].module_clk_status);
-}
-#endif
-
 
 static const char *pm_dev_id_to_string(uint32_t dev_id)
 {
@@ -267,8 +225,7 @@ bk_err_t bk_pm_clock_ctrl(pm_dev_clk_e module, pm_dev_clk_pwr_e clock_state)
 	GLOBAL_INT_DISABLE();
 	sys_drv_dev_clk_pwr_up(module, clock_state);
 #if CONFIG_PM_CLOCK_VOTE_RECORD
-	pm_clock_vote_record(module, clock_state, (uint32_t)__builtin_return_address(0),
-		PM_CLOCK_VOTE_RECORD_MODULE_START, PM_CLOCK_VOTE_RECORD_MODULE_END);
+	sys_hal_pm_clock_vote_record(module, clock_state, (uint32_t)__builtin_return_address(0));
 #endif
 	GLOBAL_INT_RESTORE();
 	return BK_OK;

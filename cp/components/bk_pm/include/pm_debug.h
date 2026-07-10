@@ -22,7 +22,7 @@
 #define LOGD(...) BK_LOGD(PM_TAG, ##__VA_ARGS__)
 #define LOGV(...) BK_LOGV(PM_TAG, ##__VA_ARGS__)
 
-#if CONFIG_DEEP_LV_DEBUG
+#if CONFIG_DEEP_LV_DEBUG_GPIO
 #define PM_GPIO_UP(id)   *(volatile uint32_t*) (SOC_AON_GPIO_REG_BASE + ((id) << 2)) = 0x2000002
 #define PM_GPIO_DOWN(id) *(volatile uint32_t*) (SOC_AON_GPIO_REG_BASE + ((id) << 2)) = 0x2000000
 #else

@@ -26,7 +26,7 @@
 #include <driver/psram.h>
 #include "sys_hal.h"
 #include "driver/aon_rtc.h"
-#if CONFIG_DEEP_LV_DEBUG
+#if CONFIG_DEEP_LV_DEBUG_GPIO
 #include "pm_debug.h"
 #endif
 #if CONFIG_AP_EMUBOOT
@@ -273,14 +273,10 @@ extern void bk_wdt_force_feed(void);
 void dlv_hook(void)
 {
 #if CONFIG_DEEP_LV
-    asm volatile ("nop");
-    asm volatile ("nop");
-    asm volatile ("nop");
-    asm volatile ("nop");
-    asm volatile ("nop");
+    sys_hal_set_alo2core_power_switch(1);
     if (dlv_is_startup())
     {
-#if CONFIG_DEEP_LV_DEBUG
+#if CONFIG_DEEP_LV_DEBUG_GPIO
         PM_GPIO_UP(37);//1
         PM_GPIO_DOWN(37);
 		early_jtag_gpio_map();

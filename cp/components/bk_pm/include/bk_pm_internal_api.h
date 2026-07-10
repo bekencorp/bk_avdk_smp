@@ -216,6 +216,22 @@ bk_err_t pm_debug_pwr_clk_state(void);
 bk_err_t pm_debug_lv_state(void);
 
 /****************************************************************************
+ * Name: pm_debug_lv_aon_flush
+ *
+ * Description:
+ *   Flush the AON register snapshot/diff log captured around deep LV
+ *   sleep entry/exit. Intended to be invoked on demand from a debug
+ *   CLI (e.g. pm_debug) rather than automatically on every wake, so
+ *   the snapshot of the most recent sleep cycle can be printed when
+ *   needed. No-op when CONFIG_DEEP_LV_DEBUG_LOG is disabled.
+ *
+ * Returns:
+ *   BK_OK on success, or error code on failure
+ *
+ ****************************************************************************/
+bk_err_t pm_debug_lv_aon_flush(void);
+
+/****************************************************************************
  * Name: bk_pm_low_vol_vote_state_get
  *
  * Description:
