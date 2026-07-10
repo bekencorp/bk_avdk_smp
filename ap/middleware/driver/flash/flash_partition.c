@@ -33,7 +33,17 @@
 
 #define PARTITION_AMOUNT    50
 
+/* When hardware flash CRC is enabled, every 32 logical bytes occupy 34 physical
+ * bytes (2 CRC bytes per 32). BK7259 runs with CRC disabled
+ * (CONFIG_FLASH_CRC_ENABLE=0), so physical == logical and the LOGICAL_2_PHY /
+ * PHY_2_LOGICAL macros below must be identity. Only inflate by 34/32 when CRC is
+ * actually enabled (CONFIG_FLASH_CRC_ENABLE comes from partitions_gen.h via
+ * <driver/flash_partition.h> -> <partitions.h>). */
+#if CONFIG_FLASH_CRC_ENABLE
 #define FLASH_PHYSICAL_ADDR_UNIT_SIZE     34
+#else
+#define FLASH_PHYSICAL_ADDR_UNIT_SIZE     32
+#endif
 #define FLASH_LOGICAL_ADDR_UNIT_SIZE      32
 
 #define FLASH_PHY_ADDR_VALID(addr)    (((addr) % FLASH_PHYSICAL_ADDR_UNIT_SIZE) < FLASH_LOGICAL_ADDR_UNIT_SIZE)
@@ -42,6 +52,8 @@
 
 #define SOC_FLASH_BASE_ADDR           0x02000000
 #define FLASH_LOGICAL_BASE_ADDR       SOC_FLASH_BASE_ADDR
+#define FLASH_ADDR_OFFSET             (0x18)
+#define FLASH_OFFSET_ENABLE           (0x19)
 
 #if CONFIG_FLASH_ORIGIN_API
 #define PAR_OPT_READ_POS      (0)
@@ -181,7 +193,16 @@ static bk_err_t flash_partition_write_perm_check(bk_logic_partition_t *partition
 	// flash ctrl only can read/write 16MB.
 	uint32_t   fun_flash_logical_addr = ((uint32_t)flash_partition_write_perm_check) & (FLASH_MAX_SIZE - 1) ;
 	uint32_t   fun_flash_phy_addr = FLASH_LOGICAL_2_PHY(fun_flash_logical_addr);
-	
+	/* AB position-independent: when the core executes from the B slot, the
+	 * linked (logical) address must be shifted by the remap offset to get the
+	 * real physical location of the running code. Mirror the CP-side logic so
+	 * AP does not wrongly treat the A slot as the running partition. */
+	uint32_t   execute_part_val = (REG_READ(SOC_FLASH_REG_BASE + FLASH_OFFSET_ENABLE*4)) & 0x1;
+	if(execute_part_val == 1) //execute_B
+	{
+		fun_flash_phy_addr += FLASH_LOGICAL_2_PHY(REG_READ(SOC_FLASH_REG_BASE + FLASH_ADDR_OFFSET*4) - SOC_FLASH_BASE_ADDR) ;
+	}
+
 	if(fun_flash_phy_addr < partition_info->partition_start_addr)
 	{
 		return BK_OK;  // not write current running partition.
@@ -192,6 +213,13 @@ static bk_err_t flash_partition_write_perm_check(bk_logic_partition_t *partition
 		return BK_OK;  // not write current running partition.
 	}
 	
+	/* Diagnostic: rejected because the target partition contains the running
+	 * code (fun_flash_phy_addr). Print the boundaries so we can tell a real
+	 * running-partition overlap from a wrong length/boundary calculation. */
+	FLASH_LOGW("write perm reject: run_phy:0x%x part:%s start:0x%x len:0x%x end:0x%x\r\n",
+	           fun_flash_phy_addr, partition_info->partition_description,
+	           partition_info->partition_start_addr, partition_info->partition_length,
+	           partition_info->partition_start_addr + partition_info->partition_length);
 	return BK_FAIL;  // not permit to write current running partition.
 #else
 	return BK_OK;
@@ -415,8 +443,12 @@ bk_err_t bk_flash_partition_write_perm_check_by_addr(uint32_t addr, uint32_t siz
 
 	bk_err_t   ret_val = flash_partition_addr_check(partition_info, offset, size);
 
-	if(ret_val != BK_OK)
+	if(ret_val != BK_OK) {
+		FLASH_LOGW("write perm addr_check fail: addr:0x%x size:0x%x part:%s start:0x%x len:0x%x\r\n",
+		           addr, size, partition_info->partition_description,
+		           partition_info->partition_start_addr, partition_info->partition_length);
 		return ret_val;
+	}
 
 	return flash_partition_write_perm_check(partition_info);
 }
