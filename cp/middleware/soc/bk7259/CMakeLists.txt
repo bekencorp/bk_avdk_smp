@@ -34,7 +34,6 @@ list(APPEND srcs
 	"misc/stack_base.c"
 	"vt_relocate.c"
 	"soc_init.c"
-	"misc/soc_flash_dump.c"
 	"hal/psram_ll.c"
 	"hal/pwm_hal_debug.c"
 	"hal/timer_hal_debug.c"
@@ -90,6 +89,14 @@ list(APPEND srcs
 if (CONFIG_MAILBOX_V2_0)
 list(APPEND srcs
 	"hal/mbox0_hal.c"
+)
+endif()
+
+# Crash-dump-to-flash writer: only build when the dump output method is Flash.
+# Avoids pulling in the BK_PARTITION_OTA reference when dumps go to UART.
+if (CONFIG_DUMP_BY_FLASH)
+list(APPEND srcs
+	"misc/soc_flash_dump.c"
 )
 endif()
 

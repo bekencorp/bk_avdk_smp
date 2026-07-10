@@ -168,8 +168,6 @@ static float cli_adc_read_single_chan(UINT8 adc_chan, uint32_t clk)
 
 bk_err_t _cont_mode_cont_rd_data_handler(uint32_t mode, uint16_t *buf, uint32_t data_cnt)
 {
-    bk_partition_t dump_partition_id = BK_PARTITION_OTA;
-
     if(NULL == buf) {
         return BK_FAIL;
     }
@@ -186,14 +184,22 @@ bk_err_t _cont_mode_cont_rd_data_handler(uint32_t mode, uint16_t *buf, uint32_t 
         bk_printf("\r\n");
         bk_set_printf_sync(log_mode);
     } else if(DATA_HANDLE_MODE_SAVE_FLASH == mode) {
+#if defined(BK_PARTITION_OTA)
+        /* Debug-only: dump ADC samples into the dedicated OTA partition.
+         * A/B projects do not have this scratch partition (only s_app, the
+         * inactive AB firmware slot), so this save-to-flash mode is disabled
+         * there to avoid erasing/overwriting the AB slot. */
         bk_err_t ret;
+        bk_partition_t dump_partition_id = BK_PARTITION_OTA;
 
         bk_flash_partition_erase(dump_partition_id, 0, data_cnt + 2047);
-
         ret = bk_flash_partition_write(dump_partition_id, (uint8_t *)buf, 0, data_cnt);
         if(BK_OK != ret) {
             return ret;
         }
+#else
+        return BK_ERR_NOT_SUPPORT;
+#endif
     }
 
     return BK_OK;
