@@ -114,10 +114,9 @@ class bk_sdk_project(bk_project):
             / self._project_info.soc_name
             / "bootloader"
         )
-        if self.is_ab_project:
-            dirname = "ab_bootloader"
-        else:
-            dirname = "normal_bootloader"
+        # Force AB projects to package the normal arm_bootloader binary while
+        # keeping AB partition/OTA logic (driven by is_ab_project) untouched.
+        dirname = "normal_bootloader"
 
         return bootloader_libs_path / dirname / "bootloader.bin"
 
@@ -126,10 +125,9 @@ class bk_sdk_project(bk_project):
         bootloader_propertites_path = (
             self.sdk_path / "cp/properties/modules/bootloader/aboot"
         )
-        if self.is_ab_project:
-            dirname = "arm_bootloader_ab"
-        else:
-            dirname = "arm_bootloader"
+        # Force AB projects to build/backup the normal arm_bootloader binary
+        # while keeping AB partition/OTA logic (driven by is_ab_project) untouched.
+        dirname = "arm_bootloader"
 
         return bootloader_propertites_path / dirname / "output/bootloader.bin"
 

@@ -10,7 +10,6 @@ import zlib
 from pathlib import Path
 
 import bk_packager
-from bk_crc import bk_crc16
 from bk_misc import parse_format_size
 from bk_ota_partition import bk_ota_partition
 
@@ -283,21 +282,15 @@ def pack_ota_rbl_ab(
     pack_dir: Path, bootloader_size: int, origin_ota_app_bin: Path, all_app_bin: Path
 ):
     ota_bin = Path("app_ab_crc.rbl")
-    ota_app_temp_bin = pack_dir / "ota_app_temp.bin"
     soc_name = curr_project.soc_name
     cmd = (
-        f"python3 {ota_tool} -i {origin_ota_app_bin} -o {ota_app_temp_bin} "
+        f"python3 {ota_tool} -i {origin_ota_app_bin} -o {ota_bin} "
         + f"-g {header_path} -ap {armino_path} -soc {soc_name} -pjd {project_dir} packager"
     )
-    # raise RuntimeError(cmd)
     ret = os.system(cmd)
     if ret != 0:
         raise RuntimeError("generate ota rbl file fail.")
-
-    crc_handler = bk_crc16()
-    crc_handler.crc_file(ota_app_temp_bin, ota_bin)
     logger.info(f"generate ota firmware {ota_bin}")
-    ota_app_temp_bin.unlink()
 
     with all_app_bin.open("rb+") as dest_f, ota_bin.open("rb") as src_f:
         dest_f.seek(bootloader_size)

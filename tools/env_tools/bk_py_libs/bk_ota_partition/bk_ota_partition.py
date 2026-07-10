@@ -173,9 +173,13 @@ class bk_ota_partition:
 
         if self.crc_enable:
             bootloader_start = int(bootloader_start / 34 * 32)
-            bootloader_size = int(bootloader_size / 34 * 32 / 1024)
+            bootloader_size = bootloader_size / 34 * 32
             app_start = int(app_start / 34 * 32)
-            app_size = int(app_size / 34 * 32 / 1024)
+            app_size = app_size / 34 * 32
+
+        # size field uses "K" unit, so always convert bytes to KB.
+        bootloader_size = int(bootloader_size / 1024)
+        app_size = int(app_size / 1024)
 
         bootloader_sect = pack_partition(
             "bootloader.bin",
