@@ -797,19 +797,19 @@ static void cli_pm_boot_cp2(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
 	//bk_pm_module_vote_boot_cp2_ctrl(module_name,boot_cp2_state);
 }
 #endif//CONFIG_CPU_CNT > 2
-static void cli_pm_boot_cp1(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
+static void cli_pm_boot_ap(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
 // #if 1 && (CONFIG_CPU_CNT > 1)
-// 	UINT32 boot_cp1_state = 0;
+// 	UINT32 boot_ap_state = 0;
 // 	UINT32 module_name    = 0;
 // 	if (argc != 3)
 // 	{
-// 		BK_LOGD(NULL, "cp1 ctrl parameter invalid %d\r\n",argc);
+// 		BK_LOGD(NULL, "ap ctrl parameter invalid %d\r\n",argc);
 // 		return;
 // 	}
 // 	module_name   = os_strtoul(argv[1], NULL, 10);
-// 	boot_cp1_state   = os_strtoul(argv[2], NULL, 10);
-// 	bk_pm_module_vote_boot_ap_ctrl(module_name,boot_cp1_state);
+// 	boot_ap_state   = os_strtoul(argv[2], NULL, 10);
+// 	bk_pm_module_vote_boot_ap_ctrl(module_name,boot_ap_state);
 // #endif
 }
 #endif//CONFIG_DEBUG_VERSION
@@ -852,12 +852,12 @@ static void cli_pm_demo_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
 		bk_pm_demo_send_msg(&msg);
 		#endif
 	} 
-	else if (os_strcmp(argv[1], "low_vol") == 0)
+	else if (os_strcmp(argv[1], "sleep") == 0)
 	{
-		CLI_LOGD("pm demo low vol\r\n");
+		CLI_LOGD("pm demo sleep\r\n");
 		if (argc != 6)
 		{
-			BK_LOGD(NULL, "set pm demo low vol parameter invalid %d\r\n",argc);
+			BK_LOGD(NULL, "set pm demo sleep parameter invalid %d\r\n",argc);
 			return;
 		}
 		#if CONFIG_PM_DEMO_ENABLE
@@ -906,7 +906,7 @@ static const struct cli_command s_pwr_commands[] = {
 #if (CONFIG_CPU_CNT > 2)
 	{"pm_boot_cp2", "pm_boot_cp2 [module_name] [ctrl_state:0x0:bootup; 0x1:shutdowm]", cli_pm_boot_cp2},
 #endif
-	{"pm_boot_cp1", "pm_boot_cp1 [module_name] [ctrl_state:0x0:bootup; 0x1:shutdowm]", cli_pm_boot_cp1},
+	{"pm_boot_ap", "pm_boot_ap [module_name] [ctrl_state:0x0:bootup; 0x1:shutdowm]", cli_pm_boot_ap},
 	{"pm_demo", "pm_demo {init||send_cmd|config_data}", cli_pm_demo_cmd},
 #else
 	{"pm", "pm [sleep_mode] [wake_source] [vote1] [vote2] [vote3] [param1] [param2] [param3]", cli_pm_cmd},
