@@ -168,7 +168,7 @@ static bk_err_t pm_message_handle(void)
 
 								// bk_pm_wakeup_source_set(PM_WAKEUP_SOURCE_INT_RTC, NULL);
 								// rtos_delay_milliseconds(2);
-								bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_APP, 0x1, 0x0);
+								//bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_APP, 0x1, 0x0);
 							}
 						}
 						else if (msg.param1 == PM_MODE_NORMAL_SLEEP)

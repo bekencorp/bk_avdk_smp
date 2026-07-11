@@ -11,6 +11,7 @@ extern void rtos_set_user_app_entry(beken_thread_function_t entry);
 
 void user_app_main(void) {
     //bk_start_ap_system();
+    bk_pm_module_vote_boot_ap_ctrl(PM_BOOT_AP_MODULE_NAME_APP, PM_POWER_MODULE_STATE_ON);
 }
 
 int main(void)
