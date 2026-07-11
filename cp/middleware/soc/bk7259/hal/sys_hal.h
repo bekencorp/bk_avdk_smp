@@ -110,6 +110,7 @@ void sys_hal_lv_aon_debug_flush(void);
 void sys_hal_enter_cpu_wfi(void);
 void sys_hal_module_power_ctrl(power_module_name_t module,power_module_state_t power_state);
 void sys_hal_wakeup_interrupt_clear(wakeup_source_t interrupt_source);
+bk_err_t sys_hal_ap_clock_power_ctrl(power_module_state_t power_state);
 void sys_hal_module_power_ctrl(power_module_name_t module,power_module_state_t power_state);
 void sys_hal_module_RF_power_ctrl (module_name_t module,power_module_state_t power_state);
 void sys_hal_cpu0_main_int_ctrl(dev_clk_pwr_ctrl_t clock_state);

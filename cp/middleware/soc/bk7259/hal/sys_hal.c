@@ -111,7 +111,7 @@ static void sys_hal_delay(volatile uint32_t times);
 static bk_err_t sys_hal_m55_clock_power_init();
 static bk_err_t sys_hal_m55_clock_power_init();
 __IRAM_SEC int32 sys_hal_module_power_state_get(power_module_name_t module);
-static bk_err_t sys_hal_ap_clock_power_ctrl(power_module_state_t power_state);
+bk_err_t sys_hal_ap_clock_power_ctrl(power_module_state_t power_state);
 
 bk_err_t sys_hal_init()
 {
@@ -3399,36 +3399,11 @@ uint32_t sys_hal_cali_dpll(uint32_t first_time)
 
 	return BK_OK;
 }
-static bk_err_t sys_hal_ap_clock_power_ctrl(power_module_state_t power_state)
+bk_err_t sys_hal_ap_clock_power_ctrl(power_module_state_t power_state)
 {
 	uint32_t regData = 0;
 	if(power_state == POWER_MODULE_STATE_ON)
 	{
-
-		// sys_ll_set_ana_reg10_spi_latch1v(1);
-		// sys_ll_set_ana_reg9_pwd_hsldo(0);
-		// sys_ll_set_ana_reg16_enhspw(1);
-		// sys_ll_set_ana_reg16_vcorehssel(0xA);//0.7+0.025*0xA=0.95v
-		// sys_ll_set_ana_reg10_spi_latch1v(0);
-
-		// /*"M55S Access Secure*/
-		// regData  = REG_READ(SOC_PPRO_REG_BASE + 0xF*4);
-		// regData &= ~((0x1<<3)|(0x1<<2));
-		// regData |=  ((  0<<3)|(  0<<2));
-		// REG_WRITE(SOC_PPRO_REG_BASE + 0xF*4, regData);
-
-		// /*M55:Default enable all the clock source for bringup */
-		// REG_WRITE(SOC_SYS_AHBP_REG_BASE + 0xA*4, 0xFFFFFFFF);
-
-		// /*M55 cpu freq and bus 480M, subbus 240M */
-		// regData = REG_READ(SOC_SYS_AHBP_REG_BASE + 0x8*4);
-		// regData |= 0x1 << 4;
-		// REG_WRITE(SOC_SYS_AHBP_REG_BASE + 0x8*4, regData);
-
-		// regData = REG_READ(SOC_SYS_AHBP_REG_BASE + 0x8*4);
-		// regData |= 0x0 << 2;
-		// regData |= 0x1 << 0;
-		// REG_WRITE(SOC_SYS_AHBP_REG_BASE + 0x8*4, regData);
 		sys_ll_set_ana_reg10_spi_latch1v(1);
 		sys_ll_set_ana_reg9_pwd_hsldo(1);
 		bk_delay_us(20);

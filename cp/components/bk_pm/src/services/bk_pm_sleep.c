@@ -31,6 +31,7 @@
 #include "pm_debug.h"
 #include "pm_wakeup_source.h"
 #include "pm_interface.h"
+#include "sys_pm_hal_debug.h"
 #include <driver/uart.h>
 #include <driver/hal/hal_uart_types.h>
 #include <components/system.h>
@@ -175,7 +176,7 @@ uint64_t pm_low_voltage_process()
 	#if CONFIG_AON_RTC || CONFIG_ANA_RTC
 	uint64_t entry_tick         = 0ULL;
 	entry_tick = bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
-#endif
+	#endif
 	if(pm_low_voltage_resource_set() != 0)
 	{
 		GLOBAL_INT_RESTORE();
@@ -220,7 +221,9 @@ uint64_t pm_low_voltage_process()
 		sleep_tick = exit_tick - entry_tick;
 	}
 #endif
-
+#if CONFIG_PM_CP_DEEP_LV_SRAM_CHECK
+	sys_pm_hal_sram_crc_dump();
+#endif
 	GLOBAL_INT_RESTORE();
 	//pm_enable_int(irq_level);
 	/* Execute post-sleep (wakeup) callbacks */

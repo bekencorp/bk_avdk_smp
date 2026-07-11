@@ -21,6 +21,7 @@
 #include "gpio_driver.h"
 #include <os/mem.h>
 #include "pm_debug.h"
+#include "sys_pm_hal_debug.h"
 
 /*=====================DEFINE  SECTION  END=====================*/
 typedef struct gpio_ldo_vote_node {
@@ -58,6 +59,18 @@ uint32_t bk_pm_wakeup_from_lowvol_consume_time_get()
 {
 	return ((s_pm_lowvol_consume_time_exit_wfi * 1000) / bk_rtc_get_ms_tick_count()); // unit: us
 }
+
+#if CONFIG_PM_CP_DEEP_LV_SRAM_CHECK
+void bk_pm_cp_deep_lv_sram_check_set_idle_stack(void *start, void *end)
+{
+	sys_pm_hal_sram_crc_set_idle_stack(start, end);
+}
+
+void bk_pm_cp_deep_lv_sram_check_get_idle_stack(void **start, void **end)
+{
+	sys_pm_hal_sram_crc_get_idle_stack(start, end);
+}
+#endif
 
 /*=========================SPECIFIC API END========================*/
 

@@ -227,9 +227,9 @@ volatile uint32_t g_reset_entry_state = 0;
  *----------------------------------------------------------------------------*/
 __NO_RETURN ENTRY_SECTION void Reset_Handler(void)
 {
-  g_reset_entry_state = 1;
   __disable_irq();
   dlv_hook();
+  g_reset_entry_state = 1;
 
   __set_MSPLIM((uint32_t)(&__STACK_LIMIT));
 

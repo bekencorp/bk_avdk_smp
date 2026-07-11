@@ -1272,6 +1272,27 @@ uint32_t bk_pm_phy_pm_state_get(void);
  *  - the consume time of wakeup from lowvol
  */
 uint32_t bk_pm_wakeup_from_lowvol_consume_time_get(void);
+
+#if CONFIG_PM_CP_DEEP_LV_SRAM_CHECK
+void bk_pm_cp_deep_lv_sram_check_set_idle_stack(void *start, void *end);
+void bk_pm_cp_deep_lv_sram_check_get_idle_stack(void **start, void **end);
+#else
+static inline void bk_pm_cp_deep_lv_sram_check_set_idle_stack(void *start, void *end)
+{
+	(void)start;
+	(void)end;
+}
+static inline void bk_pm_cp_deep_lv_sram_check_get_idle_stack(void **start, void **end)
+{
+	if (start) {
+		*start = (void *)0;
+	}
+	if (end) {
+		*end = (void *)0;
+	}
+}
+#endif
+
 /**
  * @brief register sleep mode(low voltage and deepsleep) config
  *

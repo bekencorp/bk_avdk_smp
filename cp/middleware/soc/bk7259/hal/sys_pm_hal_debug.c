@@ -15,8 +15,10 @@
 #include "sys_pm_hal_debug.h"
 
 #include <stddef.h>
-
+#include <stdint.h>
+#include "pm_debug.h"
 #include "aon_pmu_hal.h"
+#include <os/os.h>
 #include "sys_ll.h"
 #include "sys_types.h"
 
@@ -29,6 +31,355 @@
  * CONFIG_DEEP_LV_DEBUG_LOG block so the snapshot log can be disabled
  * while the deep-sleep entered flag still works. */
 static volatile uint32_t s_lv_deep_sleep_entered = 0;
+
+#if CONFIG_PM_CP_DEEP_LV_SRAM_CHECK
+#define SYS_PM_SRAM_CRC_MAGIC                 (0x43504352u) /* "CPCR" */
+#define SYS_PM_SRAM_CRC_STATUS_MAGIC_ERR      (1u << 0)
+#define SYS_PM_SRAM_CRC_STATUS_RANGE_ERR      (1u << 1)
+#define SYS_PM_SRAM_CRC_STATUS_VALUE_ERR      (1u << 2)
+#define SYS_PM_SRAM_CRC_REGION_IRAM           (0)
+#define SYS_PM_SRAM_CRC_REGION_DATA           (1)
+#define SYS_PM_SRAM_CRC_REGION_BSS            (2)
+#define SYS_PM_SRAM_CRC_REGION_NUM            (3)
+#define SYS_PM_SRAM_CRC_BLOCK_SIZE            (0x4u)
+#define SYS_PM_SRAM_CRC_BLOCK_NUM_MAX         (1024u)
+#define SYS_PM_SRAM_CRC_SKIP_RANGE_NUM        (4)
+
+typedef struct {
+	uint32_t magic;
+	uint32_t magic_inv;
+	uint32_t start;
+	uint32_t end;
+	uint32_t length;
+	uint32_t crc_before;
+	uint32_t crc_before_inv;
+	uint32_t crc_after;
+	uint32_t last_status;
+	uint32_t mismatch_count;
+	uint32_t first_bad_start;
+	uint32_t first_bad_end;
+	uint32_t first_bad_crc_before;
+	uint32_t first_bad_crc_after;
+} sys_pm_sram_crc_record_t;
+
+extern uint8_t __iram_start__;
+extern uint8_t __iram_end__;
+extern uint8_t __data_start__;
+extern uint8_t __data_end__;
+extern uint8_t _bss_start;
+extern uint8_t _bss_end;
+
+static void *s_sys_pm_crc_idle_stack_start;
+static void *s_sys_pm_crc_idle_stack_end;
+static sys_pm_sram_crc_record_t s_sys_pm_sram_crc_records[SYS_PM_SRAM_CRC_REGION_NUM];
+static uint32_t s_sys_pm_sram_crc_blocks[SYS_PM_SRAM_CRC_REGION_NUM][SYS_PM_SRAM_CRC_BLOCK_NUM_MAX]
+	__attribute__((section(".dtcm_sec_data")));
+
+static uint32_t s_sys_pm_crc32_nibble_table[16] __attribute__((section(".dtcm_sec_data"))) = {
+	0x00000000u, 0x1db71064u, 0x3b6e20c8u, 0x26d930acu,
+	0x76dc4190u, 0x6b6b51f4u, 0x4db26158u, 0x5005713cu,
+	0xedb88320u, 0xf00f9344u, 0xd6d6a3e8u, 0xcb61b38cu,
+	0x9b64c2b0u, 0x86d3d2d4u, 0xa00ae278u, 0xbdbdf21cu,
+};
+
+__IRAM_PM static inline uint32_t sys_pm_hal_crc32_update_u8(uint32_t crc, uint8_t data)
+{
+	crc ^= data;
+	crc = (crc >> 4) ^ s_sys_pm_crc32_nibble_table[crc & 0x0fu];
+	crc = (crc >> 4) ^ s_sys_pm_crc32_nibble_table[crc & 0x0fu];
+
+	return crc;
+}
+
+__IRAM_PM static uint32_t sys_pm_hal_crc32_update_buf(uint32_t crc, const void *data, uint32_t length)
+{
+	const uint32_t *word = (const uint32_t *)data;
+	uint32_t words = length >> 2;
+
+	while (words-- > 0) {
+		uint32_t value = *word++;
+
+		crc = sys_pm_hal_crc32_update_u8(crc, (uint8_t)(value));
+		crc = sys_pm_hal_crc32_update_u8(crc, (uint8_t)(value >> 8));
+		crc = sys_pm_hal_crc32_update_u8(crc, (uint8_t)(value >> 16));
+		crc = sys_pm_hal_crc32_update_u8(crc, (uint8_t)(value >> 24));
+	}
+
+	const uint8_t *byte = (const uint8_t *)word;
+	for (uint32_t i = 0; i < (length & 0x3u); i++) {
+		crc = sys_pm_hal_crc32_update_u8(crc, byte[i]);
+	}
+
+	return crc;
+}
+
+__IRAM_PM static uint32_t sys_pm_hal_fast_crc32(const void *data, uint32_t length)
+{
+	uint32_t crc = sys_pm_hal_crc32_update_buf(0xffffffffu, data, length);
+
+	return ~crc;
+}
+
+__IRAM_PM static void sys_pm_hal_crc32_update_range_skip(uint32_t *crc, uint32_t *cursor,
+	uint32_t end, uint32_t skip_start, uint32_t skip_end)
+{
+	uint32_t start = *cursor;
+
+	if ((skip_end <= start) || (skip_start >= end)) {
+		return;
+	}
+
+	if (skip_start > start) {
+		uint32_t update_end = (skip_start < end) ? skip_start : end;
+		*crc = sys_pm_hal_crc32_update_buf(*crc, (const void *)(uintptr_t)start, update_end - start);
+	}
+
+	if (skip_end > *cursor) {
+		*cursor = (skip_end < end) ? skip_end : end;
+	}
+}
+
+__IRAM_PM static void sys_pm_hal_sram_crc_skip_range_get(uint32_t index, uint32_t *start, uint32_t *end)
+{
+	switch (index) {
+	case 0:
+		*start = (uint32_t)(uintptr_t)s_sys_pm_crc32_nibble_table;
+		*end = *start + sizeof(s_sys_pm_crc32_nibble_table);
+		break;
+	case 1:
+		*start = (uint32_t)(uintptr_t)s_sys_pm_sram_crc_records;
+		*end = *start + sizeof(s_sys_pm_sram_crc_records);
+		break;
+	case 2:
+		*start = (uint32_t)(uintptr_t)s_sys_pm_sram_crc_blocks;
+		*end = *start + sizeof(s_sys_pm_sram_crc_blocks);
+		break;
+	case 3:
+		*start = (uint32_t)(uintptr_t)s_sys_pm_crc_idle_stack_start;
+		*end = (uint32_t)(uintptr_t)s_sys_pm_crc_idle_stack_end;
+		break;
+	default:
+		*start = 0;
+		*end = 0;
+		break;
+	}
+}
+
+__IRAM_PM static uint32_t sys_pm_hal_region_crc32(uint32_t start, uint32_t end)
+{
+	uint32_t crc = 0xffffffffu;
+	uint32_t cursor = start;
+
+	if (end <= start) {
+		return 0;
+	}
+
+	for (uint32_t handled = 0; handled < SYS_PM_SRAM_CRC_SKIP_RANGE_NUM; handled++) {
+		uint32_t next_start = 0xffffffffu;
+		uint32_t next_end = 0;
+
+		for (uint32_t i = 0; i < SYS_PM_SRAM_CRC_SKIP_RANGE_NUM; i++) {
+			uint32_t skip_start = 0;
+			uint32_t skip_end = 0;
+			sys_pm_hal_sram_crc_skip_range_get(i, &skip_start, &skip_end);
+			if ((skip_end > cursor) && (skip_start < end) && (skip_start < next_start)) {
+				next_start = skip_start;
+				next_end = skip_end;
+			}
+		}
+
+		if (next_start == 0xffffffffu) {
+			break;
+		}
+		sys_pm_hal_crc32_update_range_skip(&crc, &cursor, end, next_start, next_end);
+	}
+
+	if (cursor < end) {
+		crc = sys_pm_hal_crc32_update_buf(crc, (const void *)(uintptr_t)cursor, end - cursor);
+	}
+
+	return ~crc;
+}
+
+void sys_pm_hal_sram_crc_set_idle_stack(void *start, void *end)
+{
+	s_sys_pm_crc_idle_stack_start = start;
+	s_sys_pm_crc_idle_stack_end = end;
+}
+
+void sys_pm_hal_sram_crc_get_idle_stack(void **start, void **end)
+{
+	if (start) {
+		*start = s_sys_pm_crc_idle_stack_start;
+	}
+	if (end) {
+		*end = s_sys_pm_crc_idle_stack_end;
+	}
+}
+
+__IRAM_PM static uint32_t sys_pm_hal_sram_crc_block_count(uint32_t length)
+{
+	uint32_t blocks = (length + SYS_PM_SRAM_CRC_BLOCK_SIZE - 1) / SYS_PM_SRAM_CRC_BLOCK_SIZE;
+
+	return (blocks > SYS_PM_SRAM_CRC_BLOCK_NUM_MAX) ? SYS_PM_SRAM_CRC_BLOCK_NUM_MAX : blocks;
+}
+
+__IRAM_PM static const char *sys_pm_hal_sram_crc_region_name(uint32_t region)
+{
+	switch (region) {
+	case SYS_PM_SRAM_CRC_REGION_IRAM:
+		return "IRAM";
+	case SYS_PM_SRAM_CRC_REGION_DATA:
+		return "DATA";
+	case SYS_PM_SRAM_CRC_REGION_BSS:
+		return "BSS";
+	default:
+		return "UNKNOWN";
+	}
+}
+
+__IRAM_PM static void sys_pm_hal_sram_crc_region_get(uint32_t region, uint32_t *start, uint32_t *end)
+{
+	switch (region) {
+	case SYS_PM_SRAM_CRC_REGION_IRAM:
+		*start = (uint32_t)(uintptr_t)&__iram_start__;
+		*end = (uint32_t)(uintptr_t)&__iram_end__;
+		break;
+	case SYS_PM_SRAM_CRC_REGION_DATA:
+		*start = (uint32_t)(uintptr_t)&__data_start__;
+		*end = (uint32_t)(uintptr_t)&__data_end__;
+		break;
+	case SYS_PM_SRAM_CRC_REGION_BSS:
+		*start = (uint32_t)(uintptr_t)&_bss_start;
+		*end = (uint32_t)(uintptr_t)&_bss_end;
+		break;
+	default:
+		*start = 0;
+		*end = 0;
+		break;
+	}
+}
+
+__IRAM_PM void sys_pm_hal_sram_crc_save(void)
+{
+	for (uint32_t i = 0; i < SYS_PM_SRAM_CRC_REGION_NUM; i++) {
+		uint32_t start = 0;
+		uint32_t end = 0;
+		sys_pm_hal_sram_crc_region_get(i, &start, &end);
+		uint32_t length = end - start;
+		uint32_t crc = (i == SYS_PM_SRAM_CRC_REGION_IRAM) ?
+			sys_pm_hal_fast_crc32((const void *)(uintptr_t)start, length) :
+			sys_pm_hal_region_crc32(start, end);
+
+		s_sys_pm_sram_crc_records[i].magic = SYS_PM_SRAM_CRC_MAGIC;
+		s_sys_pm_sram_crc_records[i].magic_inv = ~SYS_PM_SRAM_CRC_MAGIC;
+		s_sys_pm_sram_crc_records[i].start = start;
+		s_sys_pm_sram_crc_records[i].end = end;
+		s_sys_pm_sram_crc_records[i].length = length;
+		s_sys_pm_sram_crc_records[i].crc_before = crc;
+		s_sys_pm_sram_crc_records[i].crc_before_inv = ~crc;
+		s_sys_pm_sram_crc_records[i].crc_after = 0;
+		s_sys_pm_sram_crc_records[i].last_status = 0;
+		s_sys_pm_sram_crc_records[i].first_bad_start = 0;
+		s_sys_pm_sram_crc_records[i].first_bad_end = 0;
+		s_sys_pm_sram_crc_records[i].first_bad_crc_before = 0;
+		s_sys_pm_sram_crc_records[i].first_bad_crc_after = 0;
+
+		uint32_t blocks = sys_pm_hal_sram_crc_block_count(length);
+		for (uint32_t j = 0; j < blocks; j++) {
+			uint32_t block_start = start + j * SYS_PM_SRAM_CRC_BLOCK_SIZE;
+			uint32_t block_end = block_start + SYS_PM_SRAM_CRC_BLOCK_SIZE;
+			if (block_end > end) {
+				block_end = end;
+			}
+			s_sys_pm_sram_crc_blocks[i][j] = (i == SYS_PM_SRAM_CRC_REGION_IRAM) ?
+				sys_pm_hal_fast_crc32((const void *)(uintptr_t)block_start, block_end - block_start) :
+				sys_pm_hal_region_crc32(block_start, block_end);
+		}
+	}
+}
+
+__IRAM_PM uint32_t sys_pm_hal_sram_crc_check(void)
+{
+	uint32_t final_status = 0;
+
+	for (uint32_t i = 0; i < SYS_PM_SRAM_CRC_REGION_NUM; i++) {
+		uint32_t start = 0;
+		uint32_t end = 0;
+		uint32_t status = 0;
+		sys_pm_hal_sram_crc_region_get(i, &start, &end);
+
+		if ((s_sys_pm_sram_crc_records[i].magic != SYS_PM_SRAM_CRC_MAGIC) ||
+			(s_sys_pm_sram_crc_records[i].magic_inv != ~SYS_PM_SRAM_CRC_MAGIC) ||
+			(s_sys_pm_sram_crc_records[i].crc_before_inv != ~s_sys_pm_sram_crc_records[i].crc_before)) {
+			status |= SYS_PM_SRAM_CRC_STATUS_MAGIC_ERR;
+		}
+
+		if ((s_sys_pm_sram_crc_records[i].start != start) ||
+			(s_sys_pm_sram_crc_records[i].end != end) ||
+			(s_sys_pm_sram_crc_records[i].length != (end - start))) {
+			status |= SYS_PM_SRAM_CRC_STATUS_RANGE_ERR;
+		}
+
+		if (status == 0) {
+			s_sys_pm_sram_crc_records[i].crc_after = (i == SYS_PM_SRAM_CRC_REGION_IRAM) ?
+				sys_pm_hal_fast_crc32((const void *)(uintptr_t)start, s_sys_pm_sram_crc_records[i].length) :
+				sys_pm_hal_region_crc32(start, end);
+			if (s_sys_pm_sram_crc_records[i].crc_after != s_sys_pm_sram_crc_records[i].crc_before) {
+				status |= SYS_PM_SRAM_CRC_STATUS_VALUE_ERR;
+				uint32_t blocks = sys_pm_hal_sram_crc_block_count(s_sys_pm_sram_crc_records[i].length);
+				for (uint32_t j = 0; j < blocks; j++) {
+					uint32_t block_start = start + j * SYS_PM_SRAM_CRC_BLOCK_SIZE;
+					uint32_t block_end = block_start + SYS_PM_SRAM_CRC_BLOCK_SIZE;
+					if (block_end > end) {
+						block_end = end;
+					}
+					uint32_t block_crc = (i == SYS_PM_SRAM_CRC_REGION_IRAM) ?
+						sys_pm_hal_fast_crc32((const void *)(uintptr_t)block_start, block_end - block_start) :
+						sys_pm_hal_region_crc32(block_start, block_end);
+					if (block_crc != s_sys_pm_sram_crc_blocks[i][j]) {
+						s_sys_pm_sram_crc_records[i].first_bad_start = block_start;
+						s_sys_pm_sram_crc_records[i].first_bad_end = block_end;
+						s_sys_pm_sram_crc_records[i].first_bad_crc_before = s_sys_pm_sram_crc_blocks[i][j];
+						s_sys_pm_sram_crc_records[i].first_bad_crc_after = block_crc;
+						break;
+					}
+				}
+			}
+		}
+
+		if (status != 0) {
+			s_sys_pm_sram_crc_records[i].mismatch_count++;
+		}
+		s_sys_pm_sram_crc_records[i].last_status = status;
+		final_status |= status;
+	}
+
+	return final_status;
+}
+
+void sys_pm_hal_sram_crc_dump(void)
+{
+	for (uint32_t i = 0; i < SYS_PM_SRAM_CRC_REGION_NUM; i++) {
+		if (s_sys_pm_sram_crc_records[i].last_status == 0) {
+			continue;
+		}
+
+		LOGE("CP SRAM %s CRC check failed: status=0x%x pre=0x%x post=0x%x range=[0x%x,0x%x) count=%u first_bad=[0x%x,0x%x) block_pre=0x%x block_post=0x%x\r\n",
+			sys_pm_hal_sram_crc_region_name(i),
+			s_sys_pm_sram_crc_records[i].last_status,
+			s_sys_pm_sram_crc_records[i].crc_before,
+			s_sys_pm_sram_crc_records[i].crc_after,
+			s_sys_pm_sram_crc_records[i].start,
+			s_sys_pm_sram_crc_records[i].end,
+			s_sys_pm_sram_crc_records[i].mismatch_count,
+			s_sys_pm_sram_crc_records[i].first_bad_start,
+			s_sys_pm_sram_crc_records[i].first_bad_end,
+			s_sys_pm_sram_crc_records[i].first_bad_crc_before,
+			s_sys_pm_sram_crc_records[i].first_bad_crc_after);
+	}
+}
+#endif
 
 #if CONFIG_PM_CLOCK_VOTE_RECORD
 #define PM_CLOCK_VOTE_RECORD_NUM             (64)
@@ -318,8 +669,10 @@ static void sys_hal_lv_aon_snap_print(const char *stage, const sys_pm_lv_aon_sna
 		snap->ana0, snap->ana2, snap->ana3);
 	PM_HAL_LOGD("  ana5=0x%08x ana7=0x%08x ana8=0x%08x\r\n",
 		snap->ana5, snap->ana7, snap->ana8);
-	PM_HAL_LOGD("  ana9=0x%08x valoldo=%u ana10=0x%08x\r\n",
-		snap->ana9, snap->valoldosel, snap->ana10);
+	PM_HAL_LOGD("  ana9=0x%08x valoldo=%u alopow=%u aloldohp=%u ana10=0x%08x\r\n",
+		snap->ana9, snap->valoldosel,
+		(snap->ana9 >> 19) & 1U, (snap->ana9 >> 21) & 1U,
+		snap->ana10);
 	PM_HAL_LOGD("  ana11=0x%08x ana12=0x%08x ana13=0x%08x ana14=0x%08x\r\n",
 		snap->ana11, snap->ana12, snap->ana13, snap->ana14);
 	PM_HAL_LOGD("  aon r0=0x%08x r2=0x%08x r40=0x%08x\r\n",
@@ -365,6 +718,12 @@ static void sys_hal_lv_aon_snap_print(const char *stage, const sys_pm_lv_aon_sna
 		snap->sys_reg0xc,
 		(snap->aon_r2 >> 16) & 1U, (snap->aon_r2 >> 17) & 1U,
 		(snap->aon_r2 >> 18) & 1U);
+	PM_HAL_LOGD("  r2 m55_clk=%u mem_pwd[3:6]=%u%u%u%u cache_pwd[2:3]=%u%u mem_auto=%u auto_sel=%u\r\n",
+		(snap->aon_r2 >> 20) & 1U,
+		(snap->aon_r2 >> 19) & 1U, (snap->aon_r2 >> 21) & 1U,
+		(snap->aon_r2 >> 22) & 1U, (snap->aon_r2 >> 23) & 1U,
+		(snap->aon_r2 >> 24) & 1U, (snap->aon_r2 >> 25) & 1U,
+		(snap->aon_r2 >> 28) & 1U, (snap->aon_r2 >> 29) & 1U);
 	if (snap->ldo_log_valid) {
 		PM_HAL_LOGD("  lv aon ldo: pre=%u sleep_cfg=%u after_sleep=%u ramp=%u backup=%u after_ana_restore=%u final=%u\r\n",
 			snap->ldo_pre, snap->ldo_sleep_cfg, snap->ldo_after_sleep_set,

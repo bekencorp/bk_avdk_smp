@@ -22,6 +22,32 @@
 void sys_hal_lv_deep_sleep_enter_clear(void);
 void sys_hal_lv_deep_sleep_enter_set(void);
 
+#if CONFIG_PM_CP_DEEP_LV_SRAM_CHECK
+void sys_pm_hal_sram_crc_set_idle_stack(void *start, void *end);
+void sys_pm_hal_sram_crc_get_idle_stack(void **start, void **end);
+void sys_pm_hal_sram_crc_save(void);
+uint32_t sys_pm_hal_sram_crc_check(void);
+void sys_pm_hal_sram_crc_dump(void);
+#else
+static inline void sys_pm_hal_sram_crc_set_idle_stack(void *start, void *end)
+{
+	(void)start;
+	(void)end;
+}
+static inline void sys_pm_hal_sram_crc_get_idle_stack(void **start, void **end)
+{
+	if (start) {
+		*start = (void *)0;
+	}
+	if (end) {
+		*end = (void *)0;
+	}
+}
+static inline void sys_pm_hal_sram_crc_save(void) {}
+static inline uint32_t sys_pm_hal_sram_crc_check(void) { return 0; }
+static inline void sys_pm_hal_sram_crc_dump(void) {}
+#endif
+
 #if CONFIG_PM_CLOCK_VOTE_RECORD
 void sys_hal_pm_clock_vote_record(uint32_t module, uint32_t clock_state, uint32_t return_address);
 #endif

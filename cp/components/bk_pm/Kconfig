@@ -88,6 +88,13 @@ menu "PM"
 			GPIO toggle markers can be disabled while the snapshot
 			log stays enabled.
 
+	config PM_CP_DEEP_LV_SRAM_CHECK
+		bool "Enable CP SRAM CRC check in deep low voltage"
+		depends on DEEP_LV
+		default n
+		help
+			Check CP SRAM code/data retention around deep low voltage sleep.
+
 	config PM_AP_SRAM_POWER_CTRL
 		bool "Enable AP SRAM power control in deep low voltage"
 		depends on DEEP_LV

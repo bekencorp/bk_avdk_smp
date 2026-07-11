@@ -26,6 +26,8 @@
 #include <driver/psram.h>
 #include "sys_hal.h"
 #include "driver/aon_rtc.h"
+#include "timer_hal.h"
+#include "sys_pm_hal_debug.h"
 #if CONFIG_DEEP_LV_DEBUG_GPIO
 #include "pm_debug.h"
 #endif
@@ -273,25 +275,31 @@ extern void bk_wdt_force_feed(void);
 void dlv_hook(void)
 {
 #if CONFIG_DEEP_LV
-    sys_hal_set_alo2core_power_switch(1);
-    if (dlv_is_startup())
-    {
-#if CONFIG_DEEP_LV_DEBUG_GPIO
-        PM_GPIO_UP(37);//1
-        PM_GPIO_DOWN(37);
+	if(sys_hal_set_alo2core_power_switch(1) == BK_OK)
+	{
+		timer_hal_early_delay_us(10);
+	}
+	if (dlv_is_startup())
+	{
+        #if CONFIG_PM_CP_DEEP_LV_SRAM_CHECK
+		sys_pm_hal_sram_crc_check();
+        #endif
+		#if CONFIG_DEEP_LV_DEBUG_GPIO
+		PM_GPIO_UP(37);//1
+		PM_GPIO_DOWN(37);
 		early_jtag_gpio_map();
-#endif
+		#endif
 		bk_wdt_force_feed();
 		bk_rtc_update_base_time();
 		uint64_t current = bk_aon_rtc_get_us();
 		sys_hal_set_low_voltage_wakeup_time_us(current);
 
-        extern uint32_t __STACK_LIMIT;
-        __set_MSPLIM((uint32_t)(&__STACK_LIMIT));
+		extern uint32_t __STACK_LIMIT;
+		__set_MSPLIM((uint32_t)(&__STACK_LIMIT));
 
-        dlv_system_init();
-        dlv_startup();
-    }
+		dlv_system_init();
+		dlv_startup();
+	}
 #endif
 }
 

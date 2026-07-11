@@ -18,7 +18,8 @@
 #include <driver/pwr_clk.h>
 #include <driver/rosc_32k.h>
 #include <driver/rosc_ppm.h>
-
+#include "sys_pm_hal_debug.h"
+#include "pm_debug.h"
 
 #if 1//CONFIG_SYSTEM_CTRL
 #define PM_MANUAL_LOW_VOL_VOTE_ENABLE          (0)
@@ -548,8 +549,7 @@ static void cli_pm_debug(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
 	/*for temp debug*/
 	if(pm_debug == 16)
 	{
-		void sys_drv_enter_deep_sleep(void *param);
-		sys_drv_enter_deep_sleep(NULL);
+
 	}
 
 	if(pm_debug == 32)
