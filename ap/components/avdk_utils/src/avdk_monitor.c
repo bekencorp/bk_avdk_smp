@@ -33,11 +33,46 @@ static void avdk_monitor_task_entry(void* arg)
     while (avdk_monitor_info->enable) {
         AVDK_GOTO_VOID_ON_FALSE(avdk_monitor_info, error, TAG, "avdk_monitor_info is NULL");
 
-        LOGI("%d-MP[F:%d, L: %d], %d-SP[F:%d, L: %d], %d-GPU[F: %d, L: %d], %d-DPU[F: %d, I: %d]\n", 
-            avdk_monitor_info->mp, avdk_monitor_info->isp_mp_frame_count, avdk_monitor_info->isp_mp_line_count,
-            avdk_monitor_info->sp, avdk_monitor_info->isp_sp_frame_count, avdk_monitor_info->isp_sp_line_count,
-            avdk_monitor_info->gpu, avdk_monitor_info->gpu_frame_count, avdk_monitor_info->gpu_line_count,
-            avdk_monitor_info->dpu, avdk_monitor_info->dpu_fps_count, avdk_monitor_info->dpu_isr_count);
+        const uint32_t period_s = AVDK_MONITOR_TASK_DELAY_SECONDS / 1000;
+
+        /* Embedded: keep this to a single, dense line. Only modules that are
+         * open (enable bit set) are reported; per module we show f=fps (frame
+         * rate / is it working) and i=irq count over the window (is the module
+         * interrupt firing). Counters are per-window: cleared after each print. */
+        char line[128];
+        int off = 0;
+
+        if (avdk_monitor_info->mp) {
+            off += os_snprintf(line + off, sizeof(line) - off, "MP[%uf %ui] ",
+                avdk_monitor_info->isp_mp_frame_count / period_s, avdk_monitor_info->isp_mp_line_count);
+            avdk_monitor_info->isp_mp_frame_count = 0;
+            avdk_monitor_info->isp_mp_line_count = 0;
+        }
+        if (avdk_monitor_info->sp) {
+            off += os_snprintf(line + off, sizeof(line) - off, "SP[%uf %ui] ",
+                avdk_monitor_info->isp_sp_frame_count / period_s, avdk_monitor_info->isp_sp_line_count);
+            avdk_monitor_info->isp_sp_frame_count = 0;
+            avdk_monitor_info->isp_sp_line_count = 0;
+        }
+        if (avdk_monitor_info->gpu) {
+            off += os_snprintf(line + off, sizeof(line) - off, "GPU[%uf %ui] ",
+                avdk_monitor_info->gpu_frame_count / period_s, avdk_monitor_info->gpu_line_count);
+            avdk_monitor_info->gpu_frame_count = 0;
+            avdk_monitor_info->gpu_line_count = 0;
+        }
+        if (avdk_monitor_info->dpu) {
+            uint16_t cur_dpu_isr = avdk_monitor_info->dpu_isr_count;
+            uint16_t cur_dpu_fps = avdk_monitor_info->dpu_fps_count;
+            off += os_snprintf(line + off, sizeof(line) - off,
+                "DPU[rps %u fps %u] ",cur_dpu_fps / period_s, cur_dpu_isr / period_s);
+            avdk_monitor_info->dpu_fps_count = 0;
+            avdk_monitor_info->dpu_isr_count = 0;
+        }
+
+        if (off > 0) {
+            LOGI("%s\n", line);
+        }
+
         rtos_delay_milliseconds(AVDK_MONITOR_TASK_DELAY_SECONDS);
     }
 
