@@ -35,9 +35,6 @@
 #include "adc_hal.h"
 #include "i2c_hal.h"
 
-#if CONFIG_QSPI
-#include "qspi_hal.h"
-#endif
 #if CONFIG_AON_RTC
 #include "aon_rtc_hal.h"
 #endif
@@ -290,12 +287,6 @@ static void cli_reg_dump_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc,
 	else if (os_strcmp(argv[1], "i2c") == 0) {
 		i2c_struct_dump(index);
 	}
-#if CONFIG_QSPI
-	else if (os_strcmp(argv[1], "qspi") == 0) {
-		uint32_t id = 0;
-		qspi_struct_dump(id);
-	}
-#endif
 #if CONFIG_AON_RTC
 	else if (os_strcmp(argv[1], "aon_rtc") == 0) {
 		aon_rtc_struct_dump();
