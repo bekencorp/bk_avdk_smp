@@ -278,6 +278,54 @@ def pack_ota_rbl_non_ab(origin_ota_app_bin: Path):
     return ota_bin
 
 
+def rebuild_format_all_app_bin(
+    pack_dir: Path, ota_bin: Path, all_app_bin: Path
+) -> None:
+    """Rebuild the format all-app.bin so slot A is the combined AB image.
+
+    firmware_package() first builds the format all-app.bin from the split
+    app/app1 payload, which leaves the slot tail (the RBL head) unwritten. The AB
+    bootloader validates each slot as a single combined image whose RBL head sits
+    at the slot tail, so slot A must be packaged as the one app_ab_crc.rbl image
+    while the non-executable partitions (AB flag) stay as separate sections.
+    """
+    build_partitions_dir = curr_project.project_build_parititons_dir
+
+    # configurationab.json already describes the combined AB slot layout
+    # (bootloader + one slot-sized app image at the slot base).
+    with (build_partitions_dir / "configurationab.json").open("r") as f:
+        format_info = json.load(f)
+    sections: list[dict] = format_info["section"]
+
+    # the slot-A section firmware is app_ab.bin; feed it the combined AB image.
+    slot_image = pack_dir / "app_ab.bin"
+    shutil.copy(ota_bin, slot_image)
+
+    # keep the pre-provisioned non-executable partitions (AB flag) in the package.
+    with (build_partitions_dir / "bk_package.json").open("r") as f:
+        pack_info = json.load(f)
+    extra_partitions = set(curr_project.extra_pack_partitions)
+    present = {part["partition"] for part in sections}
+    for part in pack_info["section"]:
+        if part["partition"] in extra_partitions and part["partition"] not in present:
+            sections.append(part)
+    format_info["count"] = len(sections)
+
+    format_json = pack_dir / "all_app_format.json"
+    with format_json.open("w") as f:
+        json.dump(format_info, f, indent=4)
+
+    packager = curr_project.get_packager(pack_dir, format_json, all_app_bin)
+    packager.pack()
+
+    # match cmake_Gen_img / pack_all_bin 32-byte alignment.
+    padding_len = (32 - all_app_bin.stat().st_size % 32) % 32
+    if padding_len:
+        with all_app_bin.open("ab") as f:
+            f.write(bytes([0xFF]) * padding_len)
+    logger.info("rebuild format all-app.bin: slot A = app_ab.bin + extra partitions")
+
+
 def pack_ota_rbl_ab(
     pack_dir: Path, bootloader_size: int, origin_ota_app_bin: Path, all_app_bin: Path
 ):
@@ -293,7 +341,7 @@ def pack_ota_rbl_ab(
     logger.info(f"generate ota firmware {ota_bin}")
 
     if curr_project.use_format_packager:
-        logger.info("skip overwriting format all-app.bin with ota rbl")
+        rebuild_format_all_app_bin(pack_dir, ota_bin, all_app_bin)
         return ota_bin
 
     with all_app_bin.open("rb+") as dest_f, ota_bin.open("rb") as src_f:

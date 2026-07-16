@@ -4,10 +4,65 @@ import csv
 import importlib
 import json
 import re
+import struct
+import zlib
 from dataclasses import dataclass
 from pathlib import Path
 
 from bk_project import app_info, bk_project
+
+
+# --------------------------------------------------------------------------- #
+# AB ping-pong flag record (single source of truth for the on-flash layout).
+#
+# This 32-byte record is pre-provisioned into sector 0 of ota_fina_executive so
+# the very first boot has a valid "NORMAL / exec_slot=A / seq=1" state instead of
+# a virgin 0xFF partition. The C firmware (ab_flag.h) MUST use the identical
+# byte layout, reserved-byte convention (memset 0) and CRC32 (zlib/PKZIP, poly
+# 0xEDB88320, init 0 -- see bootloader ota/ota_verify.c: ota_verify_calc_crc32).
+# --------------------------------------------------------------------------- #
+AB_FLAG_MAGIC = 0x31464241  # 'A''B''F''1' little-endian
+AB_FLAG_STRUCT_VER = 1
+AB_FLAG_RECORD_SIZE = 32
+AB_FLAG_SECTOR_SIZE = 0x1000
+AB_STATE_NORMAL = 0x01
+AB_DL_IDLE = 0x00
+AB_SLOT_A = 0x00
+AB_FLAG_DEFAULT_TRY_MAX = 3
+# struct layout of the CRC-covered head [0x00..0x1B] (28 bytes), little-endian:
+#   I magic | H struct_ver | H size | I seq | B exec_slot | B update_slot |
+#   B boot_state | B dl_state | B try_max | 3s rsvd0 | 8s rsvd1
+_AB_FLAG_HEAD_FMT = "<IHHIBBBBB3s8s"
+
+
+def build_ab_flag_record() -> bytes:
+    """Build the 32-byte initial AB flag record (NORMAL / exec=A / seq=1)."""
+    head = struct.pack(
+        _AB_FLAG_HEAD_FMT,
+        AB_FLAG_MAGIC,
+        AB_FLAG_STRUCT_VER,
+        AB_FLAG_RECORD_SIZE,
+        1,  # seq
+        AB_SLOT_A,  # exec_slot
+        AB_SLOT_A,  # update_slot
+        AB_STATE_NORMAL,  # boot_state
+        AB_DL_IDLE,  # dl_state
+        AB_FLAG_DEFAULT_TRY_MAX,  # try_max
+        b"\x00" * 3,  # rsvd0
+        b"\x00" * 8,  # rsvd1
+    )
+    assert len(head) == AB_FLAG_RECORD_SIZE - 4, f"head len {len(head)}"
+    crc = zlib.crc32(head) & 0xFFFFFFFF
+    record = head + struct.pack("<I", crc)
+    assert len(record) == AB_FLAG_RECORD_SIZE
+    return record
+
+
+def build_ab_flag_partition(size: int) -> bytes:
+    """Sector 0 = valid record padded with 0xFF; remaining sectors all 0xFF."""
+    record = build_ab_flag_record()
+    sector0 = record + bytes([0xFF]) * (AB_FLAG_SECTOR_SIZE - len(record))
+    return sector0 + bytes([0xFF]) * (size - AB_FLAG_SECTOR_SIZE)
 
 
 @dataclass
@@ -283,7 +338,15 @@ class bk_sdk_project(bk_project):
         for name in self.extra_pack_partitions:
             part = self._get_partition_info(name)
             bin_path = pack_dir / self._extra_pack_bin_name(name)
-            bin_path.write_bytes(bytes([0xFF]) * part["Size"])
+            size = part["Size"]
+            if re.match(r"^ota_fina_executive(\d)*$", name):
+                if size < 2 * AB_FLAG_SECTOR_SIZE:
+                    raise RuntimeError(
+                        f"{name} size 0x{size:x} < 8K, AB ping-pong needs two 4K sectors"
+                    )
+                bin_path.write_bytes(build_ab_flag_partition(size))
+            else:
+                bin_path.write_bytes(bytes([0xFF]) * size)
 
     def pre_auto_partition(self) -> None:
         pass
