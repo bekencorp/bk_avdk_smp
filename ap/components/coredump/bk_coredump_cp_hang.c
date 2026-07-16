@@ -14,6 +14,7 @@
 #include "sys_sw_regs.h"
 
 #if CONFIG_SUPPORT_WWDT
+#include <driver/wwdt.h>
 #include "wwdt_driver.h"
 #endif
 
@@ -100,9 +101,6 @@ static inline uint32_t cp_hang_elapsed(uint32_t now, uint32_t last)
 
 static inline void cp_hang_feed_watchdog(void)
 {
-#if CONFIG_SUPPORT_WWDT
-	bk_wwdt_force_feed();
-#endif
 	bk_cp_hang_dump_by_ap_feed_aon_wdt();
 }
 
@@ -302,6 +300,9 @@ static void cp_hang_dump_from_ap(uint32_t now)
 		now = cp_hang_now();
 	}
 
+#if CONFIG_SUPPORT_WWDT
+	bk_wwdt_driver_deinit();
+#endif
 	cp_hang_feed_watchdog();
 	rtos_disable_int();
 	cp_hang_stop_other_ap_cores();
