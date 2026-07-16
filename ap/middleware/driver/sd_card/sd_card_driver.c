@@ -15,18 +15,20 @@
 /*
  * SD memory card protocol driver.
  *
- * This layer implements the SD card identification/transfer state machine and
- * depends ONLY on the generic SDIO host controller interface
- * (<driver/sdio_host.h>). It does not touch controller registers, controller
- * private headers or controller base addresses directly, so it is decoupled
- * from the underlying DesignWare MSHC host driver and from which of the two
- * BK7259 controllers the card happens to be wired to.
+ * This layer implements the SD card identification/transfer state machine using
+ * the generic SDIO host controller interface (<driver/sdio_host.h>). It does
+ * not touch controller registers, controller private headers or controller base
+ * addresses directly, so it is decoupled from the underlying DesignWare MSHC
+ * host driver and from which of the two BK7259 controllers the card happens to
+ * be wired to.
  */
 
 #include <os/os.h>
+#include <driver/gpio.h>
 #include <driver/sdio_host.h>
 #include <driver/sd_card.h>
 #include "sd_card_driver.h"
+#include "gpio_driver.h"
 
 /* Which physical SDIO host controller the SD card is wired to. The single
  * source of truth is CONFIG_SDCARD_HOST_ID (0 = SDIO0, 1 = SDIO1), an int
@@ -59,6 +61,51 @@ typedef struct {
 static bool s_sd_card_is_init = false;
 static sd_card_obj_t s_sd_card_obj = {0};
 static uint32_t sdio_rca = 0xAAAA0000;
+
+#if CONFIG_SDCARD_BUSWIDTH_4LINE && CONFIG_USR_GPIO_CFG_EN
+static gpio_dev_t sd_card_data3_func(sdio_host_id_t host_id)
+{
+	return (host_id == SDIO_HOST_ID_1) ?
+		GPIO_DEV_SDIO1_HOST_DATA3 : GPIO_DEV_SDIO_HOST_DATA3;
+}
+
+/* SD cards sample CD/DAT3 (CS) when CMD0 is received. Some boards wire an
+ * on-board SD-NAND to the 4-bit bus and rely on the host DAT3 pad to idle high;
+ * on BK7259 this is not always strong enough during 1-bit identification. Keep
+ * the project pinmux table standard (DATA3 is configured as SDIO in
+ * usr_gpio_cfg.h), but temporarily detach that pad and drive it high until the
+ * card is enumerated. The pad is restored to SDIO DATA3 before ACMD6 switches
+ * the card to 4-bit mode. */
+static bk_err_t sd_card_force_data3_high(sdio_host_id_t host_id,
+					 gpio_dev_t *data3_func)
+{
+	gpio_dev_t func = sd_card_data3_func(host_id);
+	gpio_id_t gpio_id = gpio_get_id_by_func(func);
+	bk_err_t ret;
+
+	*data3_func = func;
+
+	if (gpio_id >= SOC_GPIO_NUM) {
+		SD_CARD_LOGE("DATA3 function %u is not configured in usr_gpio_cfg.h\r\n",
+			     (unsigned)func);
+		return BK_FAIL;
+	}
+
+	ret = gpio_dev_unprotect_map(gpio_id, GPIO_DEV_GPIO_OUTPUT);
+	if (ret != BK_OK)
+		return ret;
+
+	return bk_gpio_set_output_high(gpio_id);
+}
+
+static bk_err_t sd_card_restore_data3_func(gpio_dev_t data3_func)
+{
+	if (data3_func == GPIO_DEV_INVALID)
+		return BK_OK;
+
+	return gpio_dev_map_by_func(data3_func);
+}
+#endif
 
 /* Convenience wrapper: issue a command on the SD card host controller. The
  * caller-visible response code is preserved in *resp (may be NULL). */
@@ -255,6 +302,9 @@ sd_card_state_t bk_sd_card_get_card_state(void)
 bk_err_t bk_sd_card_init(void)
 {
 	bk_err_t ret = BK_OK;
+#if CONFIG_SDCARD_BUSWIDTH_4LINE && CONFIG_USR_GPIO_CFG_EN
+	gpio_dev_t data3_func = GPIO_DEV_INVALID;
+#endif
 	sdio_host_cfg_t cfg = {
 		.is_emmc = false,
 		.init_clock_hz = 0,   /* host default identification clock */
@@ -266,21 +316,48 @@ bk_err_t bk_sd_card_init(void)
 		return BK_OK;
 	}
 
-	ret = bk_sdio_host_init(SDCARD_HOST_ID, &cfg);
+#if CONFIG_SDCARD_BUSWIDTH_4LINE && CONFIG_USR_GPIO_CFG_EN
+	ret = sd_card_force_data3_high(SDCARD_HOST_ID, &data3_func);
 	if (ret)
 		return ret;
+#endif
+
+	ret = bk_sdio_host_init(SDCARD_HOST_ID, &cfg);
+	if (ret) {
+#if CONFIG_SDCARD_BUSWIDTH_4LINE && CONFIG_USR_GPIO_CFG_EN
+		(void)sd_card_restore_data3_func(data3_func);
+#endif
+		return ret;
+	}
 
 	ret = sd_card_identify();
+	if (ret) {
+#if CONFIG_SDCARD_BUSWIDTH_4LINE && CONFIG_USR_GPIO_CFG_EN
+		(void)sd_card_restore_data3_func(data3_func);
+#endif
+		return ret;
+	}
+
+#if CONFIG_SDCARD_BUSWIDTH_4LINE && CONFIG_USR_GPIO_CFG_EN
+	ret = sd_card_restore_data3_func(data3_func);
 	if (ret)
 		return ret;
+#endif
 
 	rtos_delay_milliseconds(1);
 
-	/* ACMD6: set 1-bit bus width (CMD55 then CMD6 arg=0). */
-	sd_send(SD_CMD_APP_CMD, SDIO_HOST_RESP_R1, sdio_rca, NULL);
+#if CONFIG_SDCARD_BUSWIDTH_4LINE
+	/* 4-bit bus (opt-in via Kconfig; default build stays 1-bit). The card is
+	 * now fully enumerated and latched in SD mode, and DATA3 has been restored
+	 * to its SDIO function. Switch the card (ACMD6 arg=2 => 4-bit) and match
+	 * the controller's DAT_XFER_WIDTH. */
+	sd_send(SD_CMD_APP_CMD, SDIO_HOST_RESP_R1, sdio_rca, NULL);    /* CMD55 */
 	rtos_delay_milliseconds(1);
-	sd_send(SD_CMD_APP_CMD6_SET_BUS_WIDTH, SDIO_HOST_RESP_R1, 0, NULL);
+	sd_send(SD_CMD_APP_CMD6_SET_BUS_WIDTH, SDIO_HOST_RESP_R1, 2, NULL); /* ACMD6 arg=2 => 4-bit */
 	rtos_delay_milliseconds(1);
+	bk_sdio_host_set_bus_width(SDCARD_HOST_ID, SDIO_HOST_BUS_WIDTH_4);
+	rtos_delay_milliseconds(1);
+#endif
 
 	/* CMD16: set block length to 512. The legacy driver issued this with the
 	 * controller long-response code; preserve that exact behavior. */

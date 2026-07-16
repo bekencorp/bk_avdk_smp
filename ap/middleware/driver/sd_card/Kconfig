@@ -14,6 +14,22 @@ menu "SDCARD"
 		  the generic bk_sdio_host_*() API. Boards wiring the SD card to
 		  SDIO1 (e.g. BK7259 Robot V1 AI kit) should set this to 1.
 
+	config SDCARD_BUSWIDTH_4LINE
+		bool "Use 4-bit SD data bus (default is 1-bit)"
+		depends on SDCARD
+		default n
+		help
+		  Master switch for the SD data bus width. Default (n) keeps the
+		  proven 1-bit bus. Set y to switch the card and the SDIO controller
+		  to 4-bit (DAT0~DAT3) after enumeration for ~4x data throughput.
+
+		  Requirements when enabling:
+		    - all four data lines (DATA0~DATA3), CLK and CMD must be muxed
+		      for the chosen SDIO group in the board usr_gpio_cfg.h;
+		    - DAT3 is temporarily forced high by the SD card driver during
+		      the CMD0/CMD8 identification window, then restored to the SDIO
+		      DATA3 function before the 4-bit switch.
+
 	config SDCARD_CHECK_INSERTION_EN
 		bool "Whether to use pin to determine whether the sdcard is connected"
 		default n
