@@ -1869,23 +1869,23 @@ static int get_fwd_blk_id(void)
 static void fwd_mb_log_state(void)
 {
 	int ret = 0;
-	int blk_id = get_fwd_blk_id();
-	if (blk_id < 0) {
-		return;
+	int blk_id;
+
+	while ((blk_id = get_fwd_blk_id()) >= 0) {
+		int try_cnt = FORWARD_TRY_COUNT;
+		do {
+			ret = result_fwd(blk_id);
+			try_cnt--;
+			if (ret) {
+				break;
+			}
+			if (try_cnt == 0) {
+				shell_assert_out(1, "Error: forward mb log state fail! blk: %x\r\n", blk_id);
+				break;
+			}
+			rtos_delay_milliseconds(SHELL_LOG_FWD_WAIT_TIME);
+		} while (1);
 	}
-	int try_cnt = FORWARD_TRY_COUNT;
-	do {
-		ret = result_fwd(blk_id);
-		try_cnt--;
-		if (ret) {
-			break;
-		}
-		if (try_cnt == 0) {
-			shell_assert_out(1, "Error: forward mb log state fail! blk: %x\r\n", blk_id);
-			break;
-		}
-		rtos_delay_milliseconds(SHELL_LOG_FWD_WAIT_TIME);
-	} while (1);
 }
 
 static void output_mb_log_ex(void)
