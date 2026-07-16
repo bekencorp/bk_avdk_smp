@@ -1,6 +1,6 @@
 # PSRAM Data Retention（PSRAM 掉电数据保持）
 
-> 目标：在 AP（M55）核掉电、或 CP（M52）核进入 Low-Voltage / Deep Sleep 时，把外置 PSRAM 芯片的 cell 数据保留下来，使 AP 重新上电 / CP 唤醒后能够**继续访问之前的内存内容**，而不需要重新从 flash 拷贝或从远端重传。
+> 目标：在 AP 核掉电、或 CP 核进入 Low-Voltage / Deep Sleep 时，把外置 PSRAM 芯片的 cell 数据保留下来，使 AP 重新上电 / CP 唤醒后能够**继续访问之前的内存内容**，而不需要重新从 flash 拷贝或从远端重传。
 
 本文档面向 `pm_doorbell` 这种"CP 主、AP 多媒体"双核场景下的 PSRAM data retention 功能开发与维护。
 
@@ -27,7 +27,7 @@
 PSRAM retention 是 **CP 单核驱动**的能力，AP 侧只是"被关电 / 被上电"的对象，本身不参与控制。
 
 ```
-┌────────────────── CP 侧（M52）─────────────────┐         ┌─── AP（M55）───┐
+┌────────────────── CP 侧────────────────────────┐         ┌─── AP──────────┐
 │                                                │         │                │
 │  pm_boot_ap 9 1                                │         │                │
 │       │                                        │         │                │
@@ -44,7 +44,7 @@ PSRAM retention 是 **CP 单核驱动**的能力，AP 侧只是"被关电 / 被�
 │       ▼                                        │         │                │
 │  pm_module_shutdown_cpu1():                    │         │                │
 │       ├─ pm_ap_first_boot_set(false)           │         │   核掉电      │
-│       └─ M55 LDO/reset/iso 控制                │   ──►   │   PSRAM cells │
+│       └─ AP  LDO/reset/iso 控制                │   ──►   │   PSRAM cells │
 │                                                │         │   仍带电      │
 │       ── 时间过去 ──                           │         │                │
 │                                                │         │                │
@@ -249,7 +249,7 @@ pm_psram:I(...):retention_probe verify PASS bank0 @0x60FFF000 seq=1 words=256
 pm_psram:I(...):retention_probe verify PASS bank1 @0x64D7F000 seq=1 words=256
 ... ap system started ...
 bk_init:D(...):First Boot: 0    # AP 收到 first_boot=0
-M55 main running...
+AP main running...
 ```
 
 ### 方案 B：AP 关电 + CP LV sleep + 唤醒 + AP 上电

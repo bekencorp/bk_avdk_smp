@@ -31,13 +31,13 @@ BK7259 有两个 HSPL 硬件块：
 
 | 实例 ID | 基地址 | 说明 | 驱动枚举 |
 |---------|--------|------|----------|
-| 0 | 0x45010000 | M52 侧映射 | `BK_HSPL_ID_0` |
-| 1 | 0x480C0000 | M55 侧映射 | `BK_HSPL_ID_1` |
+| 0 | 0x45010000 | CP 侧映射 | `BK_HSPL_ID_0` |
+| 1 | 0x480C0000 | AP 侧映射 | `BK_HSPL_ID_1` |
 
 ### 实例分工与中断归属
 
-- **BK_HSPL_ID_0**：用于 **CP 与 AP 之间 4 个 CPU 的资源互斥**，HSPL 超时中断由 **M52** 侧处理。
-- **BK_HSPL_ID_1**：用于 **AP 侧 SMP（CPU2/CPU3）内部资源互斥**，HSPL 超时中断由 **AP M55** 侧处理。
+- **BK_HSPL_ID_0**：用于 **CP 与 AP 之间 4 个 CPU 的资源互斥**，HSPL 超时中断由 **CP** 侧处理。
+- **BK_HSPL_ID_1**：用于 **AP 侧 SMP（CPU2/CPU3）内部资源互斥**，HSPL 超时中断由 **AP** 侧处理。
 
 ### 寄存器说明
 
@@ -319,45 +319,45 @@ if (ret == BK_OK) {
 
 资源映射采用**自动映射规则**，资源ID直接对应HSPL实例和通道：
 
-- **资源 0-15**：使用 `BK_HSPL_ID_0` (M52) 的通道 0-15
-- **资源 16-31**：使用 `BK_HSPL_ID_1` (M55) 的通道 0-15
+- **资源 0-15**：使用 `BK_HSPL_ID_0` (CP) 的通道 0-15
+- **资源 16-31**：使用 `BK_HSPL_ID_1` (AP) 的通道 0-15
 
 #### 资源映射表
 
 | 资源ID | 资源名称 | HSPL 实例 | 通道 | 说明 |
 |--------|---------|-----------|------|------|
-| 0 | FLASH | BK_HSPL_ID_0 (M52) | 0 | CP/AP共享 |
-| 1 | CLOCK | BK_HSPL_ID_0 (M52) | 1 | CP/AP共享 |
-| 2 | POWER | BK_HSPL_ID_0 (M52) | 2 | CP/AP共享 |
-| 3 | SYS | BK_HSPL_ID_0 (M52) | 3 | CP/AP共享 |
-| 4 | RTC | BK_HSPL_ID_0 (M52) | 4 | CP/AP共享 |
-| 5 | ANA | BK_HSPL_ID_0 (M52) | 5 | CP/AP共享 |
-| 6 | FUSE | BK_HSPL_ID_0 (M52) | 6 | CP/AP共享 |
-| 7 | TRNG | BK_HSPL_ID_0 (M52) | 7 | CP/AP共享 |
-| 8 | WDT | BK_HSPL_ID_0 (M52) | 8 | CP/AP共享 |
-| 9 | SPI | BK_HSPL_ID_0 (M52) | 9 | CP/AP共享 |
-| 10 | GPIO | BK_HSPL_ID_0 (M52) | 10 | CP/AP共享 |
-| 11 | PWM | BK_HSPL_ID_0 (M52) | 11 | CP/AP共享 |
-| 12 | ADC | BK_HSPL_ID_0 (M52) | 12 | CP/AP共享 |
-| 13 | DAC | BK_HSPL_ID_0 (M52) | 13 | CP/AP共享 |
-| 14 | PMU | BK_HSPL_ID_0 (M52) | 14 | CP/AP共享 |
-| 15 | USER0 | BK_HSPL_ID_0 (M52) | 15 | CP/AP共享 |
-| 16 | OS | BK_HSPL_ID_1 (M55) | 0 | **仅AP SMP** |
-| 17 | LVGL | BK_HSPL_ID_1 (M55) | 1 | **仅AP SMP** |
-| 18 | AUDIO | BK_HSPL_ID_1 (M55) | 2 | **仅AP SMP** |
-| 19 | VIDEO | BK_HSPL_ID_1 (M55) | 3 | **仅AP SMP** |
-| 20 | GPU | BK_HSPL_ID_1 (M55) | 4 | **仅AP SMP** |
-| 21 | NPU | BK_HSPL_ID_1 (M55) | 5 | **仅AP SMP** |
-| 22 | DSP | BK_HSPL_ID_1 (M55) | 6 | **仅AP SMP** |
-| 23 | ISP | BK_HSPL_ID_1 (M55) | 7 | **仅AP SMP** |
-| 24 | VDEC | BK_HSPL_ID_1 (M55) | 8 | **仅AP SMP** |
-| 25 | VENC | BK_HSPL_ID_1 (M55) | 9 | **仅AP SMP** |
-| 26 | SDIO | BK_HSPL_ID_1 (M55) | 10 | **仅AP SMP** |
-| 27 | SDIO_HS | BK_HSPL_ID_1 (M55) | 11 | **仅AP SMP** |
-| 28 | SDIO_HS_HS | BK_HSPL_ID_1 (M55) | 12 | **仅AP SMP** |
-| 29 | USB | BK_HSPL_ID_1 (M55) | 13 | **仅AP SMP** |
-| 30 | USER1 | BK_HSPL_ID_1 (M55) | 14 | **仅AP SMP** |
-| 31 | USER2 | BK_HSPL_ID_1 (M55) | 15 | **仅AP SMP** |
+| 0 | FLASH | BK_HSPL_ID_0 (CP) | 0 | CP/AP共享 |
+| 1 | CLOCK | BK_HSPL_ID_0 (CP) | 1 | CP/AP共享 |
+| 2 | POWER | BK_HSPL_ID_0 (CP) | 2 | CP/AP共享 |
+| 3 | SYS | BK_HSPL_ID_0 (CP) | 3 | CP/AP共享 |
+| 4 | RTC | BK_HSPL_ID_0 (CP) | 4 | CP/AP共享 |
+| 5 | ANA | BK_HSPL_ID_0 (CP) | 5 | CP/AP共享 |
+| 6 | FUSE | BK_HSPL_ID_0 (CP) | 6 | CP/AP共享 |
+| 7 | TRNG | BK_HSPL_ID_0 (CP) | 7 | CP/AP共享 |
+| 8 | WDT | BK_HSPL_ID_0 (CP) | 8 | CP/AP共享 |
+| 9 | SPI | BK_HSPL_ID_0 (CP) | 9 | CP/AP共享 |
+| 10 | GPIO | BK_HSPL_ID_0 (CP) | 10 | CP/AP共享 |
+| 11 | PWM | BK_HSPL_ID_0 (CP) | 11 | CP/AP共享 |
+| 12 | ADC | BK_HSPL_ID_0 (CP) | 12 | CP/AP共享 |
+| 13 | DAC | BK_HSPL_ID_0 (CP) | 13 | CP/AP共享 |
+| 14 | PMU | BK_HSPL_ID_0 (CP) | 14 | CP/AP共享 |
+| 15 | USER0 | BK_HSPL_ID_0 (CP) | 15 | CP/AP共享 |
+| 16 | OS | BK_HSPL_ID_1 (AP) | 0 | **仅AP SMP** |
+| 17 | LVGL | BK_HSPL_ID_1 (AP) | 1 | **仅AP SMP** |
+| 18 | AUDIO | BK_HSPL_ID_1 (AP) | 2 | **仅AP SMP** |
+| 19 | VIDEO | BK_HSPL_ID_1 (AP) | 3 | **仅AP SMP** |
+| 20 | GPU | BK_HSPL_ID_1 (AP) | 4 | **仅AP SMP** |
+| 21 | NPU | BK_HSPL_ID_1 (AP) | 5 | **仅AP SMP** |
+| 22 | DSP | BK_HSPL_ID_1 (AP) | 6 | **仅AP SMP** |
+| 23 | ISP | BK_HSPL_ID_1 (AP) | 7 | **仅AP SMP** |
+| 24 | VDEC | BK_HSPL_ID_1 (AP) | 8 | **仅AP SMP** |
+| 25 | VENC | BK_HSPL_ID_1 (AP) | 9 | **仅AP SMP** |
+| 26 | SDIO | BK_HSPL_ID_1 (AP) | 10 | **仅AP SMP** |
+| 27 | SDIO_HS | BK_HSPL_ID_1 (AP) | 11 | **仅AP SMP** |
+| 28 | SDIO_HS_HS | BK_HSPL_ID_1 (AP) | 12 | **仅AP SMP** |
+| 29 | USB | BK_HSPL_ID_1 (AP) | 13 | **仅AP SMP** |
+| 30 | USER1 | BK_HSPL_ID_1 (AP) | 14 | **仅AP SMP** |
+| 31 | USER2 | BK_HSPL_ID_1 (AP) | 15 | **仅AP SMP** |
 
 > **注意**：
 > - 资源ID与HSPL通道号一一对应，映射规则固定，无需手动配置
@@ -415,7 +415,7 @@ HSPL 驱动已集成到构建系统中，启用 `CONFIG_HSPL` 后会自动编译
 
 ### 5. 多核同步
 
-- **4 核支持**：HSPL 支持 4 核（M52 CPU0/CPU1 和 M55 CPU2/CPU3）之间的同步
+- **4 核支持**：HSPL 支持 4 核（CP CPU0/CPU1 和 AP CPU2/CPU3）之间的同步
 - **实例选择**：根据资源的使用情况选择合适的 HSPL 实例
 
 ### 6. 性能考虑
@@ -532,8 +532,8 @@ void multi_channel_example(void)
 ### Q1: 如何选择合适的 HSPL 实例？
 
 **A:** 根据资源的使用情况选择：
-- 如果资源主要在 M52 侧使用，选择 `BK_HSPL_ID_0`
-- 如果资源主要在 M55 侧使用，选择 `BK_HSPL_ID_1`
+- 如果资源主要在 CP 侧使用，选择 `BK_HSPL_ID_0`
+- 如果资源主要在 AP 侧使用，选择 `BK_HSPL_ID_1`
 - 如果资源在多个核心间共享，可以任意选择
 
 ### Q2: 如何避免死锁？

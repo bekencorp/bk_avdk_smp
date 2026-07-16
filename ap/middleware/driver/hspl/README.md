@@ -4,15 +4,15 @@
 
 BK7259 有 **两个等价的 HSPL 硬件块**，寄存器定义一致，仅 **基地址不同**：
 
-- **M52 侧映射**：`0x45010000`（驱动中 `BK_HSPL_ID_0`）
-- **M55 侧映射**：`0x480C0000`（驱动中 `BK_HSPL_ID_1`）
+- **CP 侧映射**：`0x45010000`（驱动中 `BK_HSPL_ID_0`）
+- **AP 侧映射**：`0x480C0000`（驱动中 `BK_HSPL_ID_1`）
 
 上层可以把不同的共享资源分配到不同 HSPL 实例/通道上，完成 **4 核之间**的硬件自旋锁。
 
 ## 实例分工与中断归属
 
-- **BK_HSPL_ID_0**：用于 CP/AP 跨核互斥，HSPL 超时中断由 **M52** 侧处理
-- **BK_HSPL_ID_1**：用于 AP SMP 内部互斥（CPU2/CPU3），HSPL 超时中断由 **AP M55** 侧处理
+- **BK_HSPL_ID_0**：用于 CP/AP 跨核互斥，HSPL 超时中断由 **CP** 侧处理
+- **BK_HSPL_ID_1**：用于 AP SMP 内部互斥（CPU2/CPU3），HSPL 超时中断由 **AP** 侧处理
 
 ## 文档
 
@@ -39,8 +39,8 @@ BK7259 有 **两个等价的 HSPL 硬件块**，寄存器定义一致，仅 **�
 
 为了让上层更好用，增加资源级 API（见 `hspl_res_lock.h/.c`），采用**自动映射规则**：
 
-- **资源 0-15**：自动映射到 `BK_HSPL_ID_0` (M52) 的通道 0-15
-- **资源 16-31**：自动映射到 `BK_HSPL_ID_1` (M55) 的通道 0-15
+- **资源 0-15**：自动映射到 `BK_HSPL_ID_0` (CP) 的通道 0-15
+- **资源 16-31**：自动映射到 `BK_HSPL_ID_1` (AP) 的通道 0-15
 
 资源枚举示例（完整列表见 `hspl_res_lock.h`）：
 
@@ -113,9 +113,9 @@ void flash_critical_section(void)
 使能 `CONFIG_HSPL_TEST` 后，可以用 CLI 验证：
 
 - **按实例/通道**：
-  - `hspl lock {hspl_id} {ch}`（例如：`hspl lock 0 0` 表示 M52 实例 ch0）
+  - `hspl lock {hspl_id} {ch}`（例如：`hspl lock 0 0` 表示 CP 实例 ch0）
   - `hspl unlock {hspl_id} {ch}`
-  - `hspl state {hspl_id} {ch|all}`（例如：`hspl state 1 all` 表示 M55 实例所有通道状态）
+  - `hspl state {hspl_id} {ch|all}`（例如：`hspl state 1 all` 表示 AP 实例所有通道状态）
 - **按资源**：
   - `hspl res_lock flash 1000` - 资源0，映射到 HSPL_0 通道0
   - `hspl res_lock os 1000` - 资源16，映射到 HSPL_1 通道0
@@ -128,7 +128,7 @@ void flash_critical_section(void)
 
 ### 5) 并行压力测试（CPU0 vs CPU2）
 
-支持在 **CP M52 CPU0** 和 **AP M55 CPU2** 上并行运行压力测试，验证 HSPL 在多核竞争场景下的正确性。
+支持在 **CP CPU0** 和 **AP CPU2** 上并行运行压力测试，验证 HSPL 在多核竞争场景下的正确性。
 
 #### 自动化压力测试（推荐）
 

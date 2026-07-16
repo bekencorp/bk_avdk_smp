@@ -59,7 +59,7 @@ ipi_driver init
 ### 3. 测试环境
 
 - **硬件平台**：BK7259
-- **CPU 核心**：CP M52 CPU0 和 AP M55 CPU2
+- **CPU 核心**：CP CPU0 和 AP CPU2
 - **通信方式**：IPI（Inter-Processor Interrupt）
 
 ---
@@ -216,7 +216,7 @@ hspl stress_auto 0 0 10000 2
 - `hold_ms`: 每次持有锁的时间（毫秒）
 
 **功能**：
-- 自动在 **CP M52 CPU0** 和 **AP M55 CPU2** 上启动并行压力测试
+- 自动在 **CP CPU0** 和 **AP CPU2** 上启动并行压力测试
 - 两个 CPU 同时竞争同一个 HSPL 通道
 - 自动统计成功/失败次数
 
