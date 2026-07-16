@@ -211,17 +211,15 @@ void aon_rtc_update_boot_time()
 #endif
 
 
-static uint64_t aon_rtc_counter_get_tick()
+static uint64_t aon_rtc_counter_get_tick(void)
 {
-	volatile uint32_t val = REG_READ(AON_RTC_CNT_VAL_L_ADDR);
-	volatile uint32_t val_hi = REG_READ(AON_RTC_CNT_VAL_H_ADDR);
+	volatile uint32_t val_hi, val;
 
-	while (REG_READ(AON_RTC_CNT_VAL_L_ADDR) != val
-		|| REG_READ(AON_RTC_CNT_VAL_H_ADDR) != val_hi)
-	{
-		val = REG_READ(AON_RTC_CNT_VAL_L_ADDR);
+	do {
 		val_hi = REG_READ(AON_RTC_CNT_VAL_H_ADDR);
-	}
+		val = REG_READ(AON_RTC_CNT_VAL_L_ADDR);
+	} while (REG_READ(AON_RTC_CNT_VAL_H_ADDR) != val_hi);
+
 	return (((uint64_t)(val_hi) << 32) + val);
 }
 
