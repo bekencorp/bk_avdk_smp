@@ -100,14 +100,6 @@ uint32_t sys_drv_flash_get_clk_sel(void);
 
 uint32_t sys_drv_flash_get_clk_div(void);
 
-void sys_drv_set_qspi_vddram_voltage(uint32_t param);
-
-void sys_drv_set_qspi_io_voltage(uint32_t param);
-
-void sys_drv_qspi_clk_sel(uint32_t id, uint32_t param);
-
-void sys_drv_qspi_set_src_clk_div(uint32_t id, uint32_t value);
-
 void sys_drv_trng_disckg_set(uint32_t value);
 
 #if ((CONFIG_SDIO_V2P0) || (CONFIG_SDIO_V2P1))

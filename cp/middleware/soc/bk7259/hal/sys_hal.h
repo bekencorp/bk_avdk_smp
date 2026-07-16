@@ -76,17 +76,6 @@ uint32_t sys_hal_flash_get_clk_div(void);
 
 /** Platform flash End **/
 
-/** Platform qspi Start **/
-void sys_hal_set_qspi_vddram_voltage(uint32_t param);
-
-void sys_hal_set_qspi_io_voltage(uint32_t param);
-
-void sys_hal_qspi_clk_sel(uint32_t id, uint32_t param);
-
-void sys_hal_qspi_set_src_clk_div(uint32_t id, uint32_t value);
-
-/** Platform qspi End **/
-
 /** Platform SDIO Start **/
 void sys_hal_set_sdio_clk_en(uint32_t value);
 void sys_hal_set_cpu0_sdio_int_en(uint32_t value);

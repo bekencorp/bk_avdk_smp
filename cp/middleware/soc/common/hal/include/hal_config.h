@@ -36,7 +36,6 @@ extern "C" {
 #define CFG_HAL_DEBUG_ADC        1
 #define CFG_HAL_DEBUG_SDMADC     1
 #define CFG_HAL_DEBUG_SPI        1
-#define CFG_HAL_DEBUG_QSPI       1
 #define CFG_HAL_DEBUG_AON_RTC    1
 #define CFG_HAL_DEBUG_I2C        1
 #define CFG_HAL_DEBUG_AUD        1

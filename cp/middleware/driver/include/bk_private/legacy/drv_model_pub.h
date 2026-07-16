@@ -54,9 +54,6 @@ typedef enum _dd_device_type_
 #if !CFG_CONFIG_FULLY_HOSTED
     DD_DEV_TYPE_SPI,
 #endif
-#if CONFIG_QSPI
-    DD_DEV_TYPE_QSPI,
-#endif
     DD_DEV_TYPE_SCTRL,
     DD_DEV_TYPE_WDT,
     DD_DEV_TYPE_TRNG,

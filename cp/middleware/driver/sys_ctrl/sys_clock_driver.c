@@ -324,25 +324,6 @@ uint32_t sys_drv_flash_get_clk_div(void)
 	return sys_hal_flash_get_clk_div();
 }
 
-//sys_ctrl CMD: CMD_QSPI_CLK_SEL
-void sys_drv_qspi_clk_sel(uint32_t id, uint32_t param)
-{
-	uint32_t int_level = sys_drv_enter_critical();
-
-	sys_hal_qspi_clk_sel(id, param);
-
-	sys_drv_exit_critical(int_level);
-}
-
-void sys_drv_qspi_set_src_clk_div(uint32_t id, uint32_t value)
-{
-	uint32_t int_level = sys_drv_enter_critical();
-
-	sys_hal_qspi_set_src_clk_div(id, value);
-
-	sys_drv_exit_critical(int_level);
-}
-
 uint32_t sys_drv_psram_clk_sel_with_id(uint32_t id, uint32_t value)
 {
 	uint32_t int_level = sys_drv_enter_critical();

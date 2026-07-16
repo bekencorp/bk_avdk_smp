@@ -54,10 +54,6 @@
 #include "bk_ef.h"
 #endif
 
-#if CONFIG_QSPI
-#include <driver/qspi.h>
-#endif
-
 #if CONFIG_CALENDAR
 #include <driver/calendar.h>
 #endif
@@ -334,10 +330,6 @@ int driver_init(void) {
 
 #if CONFIG_I2C
 	bk_i2c_driver_init();
-#endif
-
-#if CONFIG_QSPI
-	bk_qspi_driver_init();
 #endif
 
 #if CONFIG_CALENDAR

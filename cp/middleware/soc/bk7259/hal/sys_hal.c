@@ -25,7 +25,6 @@
 #include <driver/int.h>
 #include <driver/aon_rtc.h>
 #include <driver/hal/hal_spi_types.h>
-#include <driver/hal/hal_qspi_types.h>
 #include <gpio_driver.h>
 #include "timer_hal.h"
 #include <driver/pwr_clk.h>
@@ -1388,30 +1387,6 @@ void sys_hal_spi_select_clock(spi_id_t num, spi_src_clk_t mode)
 		default:
 			break;
 	}
-}
-
-void sys_hal_set_qspi_vddram_voltage(uint32_t param)
-{
-	// TODO: Implement QSPI VDD RAM voltage control
-	return;
-}
-
-void sys_hal_set_qspi_io_voltage(uint32_t param)
-{
-	// TODO: Implement QSPI IO voltage control
-	return;
-}
-
-void sys_hal_qspi_clk_sel(uint32_t id, uint32_t param)
-{
-	// TODO: Implement QSPI clock selection
-	return;
-}
-
-void sys_hal_qspi_set_src_clk_div(uint32_t id, uint32_t value)
-{
-	// TODO: Implement QSPI clock divider
-	return;
 }
 
 #if 1	//tmp build

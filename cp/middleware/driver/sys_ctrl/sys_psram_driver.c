@@ -16,26 +16,6 @@
 #include "sys_driver.h"
 #include "sys_ll.h"
 
-//sys_ctrl CMD: CMD_QSPI_VDDRAM_VOLTAGE
-void sys_drv_set_qspi_vddram_voltage(uint32_t param)
-{
-	uint32_t int_level = sys_drv_enter_critical();
-
-	sys_hal_set_qspi_vddram_voltage(param);
-
-	sys_drv_exit_critical(int_level);
-}
-
-//sys_ctrl CMD: CMD_QSPI_IO_VOLTAGE
-void sys_drv_set_qspi_io_voltage(uint32_t param)
-{
-	uint32_t int_level = sys_drv_enter_critical();
-
-	sys_hal_set_qspi_io_voltage(param);
-
-	sys_drv_exit_critical(int_level);
-}
-
 /**  psram Start **/
 uint32_t sys_drv_psram_volstage_sel(uint32_t value)
 {

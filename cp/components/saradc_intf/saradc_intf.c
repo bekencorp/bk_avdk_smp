@@ -255,33 +255,6 @@ TADC_ENTITY_T *tadc_entity_init(void)
 	return adc_entity;
 }
 
-#if (!CONFIG_SOC_BK7231) && (!CONFIG_SOC_BK7231N) && (!CONFIG_SOC_BK7236A) && (!CONFIG_SOC_BK7256XX)
-/*
-vol:	PSRAM_VDD_1_8V
-		PSRAM_VDD_2_5V
-		PSRAM_VDD_3_3V
-*/
-void saradc_config_vddram_voltage(UINT32 vol)
-{
-	UINT32 param;
-
-	param = BLK_BIT_MIC_QSPI_RAM_OR_FLASH;
-	sddev_control(DD_DEV_TYPE_SCTRL, CMD_SCTRL_BLK_ENABLE, &param);
-
-	param = vol;
-	sddev_control(DD_DEV_TYPE_SCTRL, CMD_QSPI_VDDRAM_VOLTAGE, &param);
-}
-
-void saradc_disable_vddram_voltage(void)
-{
-	UINT32 param;
-
-	param = BLK_BIT_MIC_QSPI_RAM_OR_FLASH;
-	sddev_control(DD_DEV_TYPE_SCTRL, CMD_SCTRL_BLK_DISABLE, &param);
-
-}
-#endif
-
 void tadc_send_msg(UINT32 new_msg)
 {
 	bk_err_t ret;
