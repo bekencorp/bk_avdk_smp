@@ -187,9 +187,7 @@ void lv_init(void)
     /*Initialize members of static variable lv_global */
     LV_GLOBAL_INIT(LV_GLOBAL_DEFAULT());
 
-#if LV_USE_STDLIB_MALLOC != LV_STDLIB_CUSTOM
     lv_mem_init();
-#endif
 
     lv_draw_buf_init_handlers();
 

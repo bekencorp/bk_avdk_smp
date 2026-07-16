@@ -455,30 +455,28 @@ if(CONFIG_LVGL)
 			lvgl_v9/porting/lv_port_indev.c
 		)
 
-		if (CONFIG_LV_USE_DRAW_VG_LITE)
-			list(APPEND srcs
-				lvgl_v9/src/draw/vg_lite/lv_draw_buf_vg_lite.c
-				lvgl_v9/src/draw/vg_lite/lv_draw_vg_lite.c
-				lvgl_v9/src/draw/vg_lite/lv_draw_vg_lite_arc.c
-				lvgl_v9/src/draw/vg_lite/lv_draw_vg_lite_border.c
-				lvgl_v9/src/draw/vg_lite/lv_draw_vg_lite_box_shadow.c
-				lvgl_v9/src/draw/vg_lite/lv_draw_vg_lite_fill.c
-				lvgl_v9/src/draw/vg_lite/lv_draw_vg_lite_img.c
-				lvgl_v9/src/draw/vg_lite/lv_draw_vg_lite_label.c
-				lvgl_v9/src/draw/vg_lite/lv_draw_vg_lite_layer.c
-				lvgl_v9/src/draw/vg_lite/lv_draw_vg_lite_line.c
-				lvgl_v9/src/draw/vg_lite/lv_draw_vg_lite_mask_rect.c
-				lvgl_v9/src/draw/vg_lite/lv_draw_vg_lite_triangle.c
-				lvgl_v9/src/draw/vg_lite/lv_draw_vg_lite_vector.c
-				lvgl_v9/src/draw/vg_lite/lv_vg_lite_decoder.c
-				lvgl_v9/src/draw/vg_lite/lv_vg_lite_grad.c
-				lvgl_v9/src/draw/vg_lite/lv_vg_lite_math.c
-				lvgl_v9/src/draw/vg_lite/lv_vg_lite_path.c
-				lvgl_v9/src/draw/vg_lite/lv_vg_lite_pending.c
-				lvgl_v9/src/draw/vg_lite/lv_vg_lite_stroke.c
-				lvgl_v9/src/draw/vg_lite/lv_vg_lite_utils.c
-			)
-		endif()
+		list(APPEND srcs
+			lvgl_v9/src/draw/vg_lite/lv_draw_buf_vg_lite.c
+			lvgl_v9/src/draw/vg_lite/lv_draw_vg_lite.c
+			lvgl_v9/src/draw/vg_lite/lv_draw_vg_lite_arc.c
+			lvgl_v9/src/draw/vg_lite/lv_draw_vg_lite_border.c
+			lvgl_v9/src/draw/vg_lite/lv_draw_vg_lite_box_shadow.c
+			lvgl_v9/src/draw/vg_lite/lv_draw_vg_lite_fill.c
+			lvgl_v9/src/draw/vg_lite/lv_draw_vg_lite_img.c
+			lvgl_v9/src/draw/vg_lite/lv_draw_vg_lite_label.c
+			lvgl_v9/src/draw/vg_lite/lv_draw_vg_lite_layer.c
+			lvgl_v9/src/draw/vg_lite/lv_draw_vg_lite_line.c
+			lvgl_v9/src/draw/vg_lite/lv_draw_vg_lite_mask_rect.c
+			lvgl_v9/src/draw/vg_lite/lv_draw_vg_lite_triangle.c
+			lvgl_v9/src/draw/vg_lite/lv_draw_vg_lite_vector.c
+			lvgl_v9/src/draw/vg_lite/lv_vg_lite_decoder.c
+			lvgl_v9/src/draw/vg_lite/lv_vg_lite_grad.c
+			lvgl_v9/src/draw/vg_lite/lv_vg_lite_math.c
+			lvgl_v9/src/draw/vg_lite/lv_vg_lite_path.c
+			lvgl_v9/src/draw/vg_lite/lv_vg_lite_pending.c
+			lvgl_v9/src/draw/vg_lite/lv_vg_lite_stroke.c
+			lvgl_v9/src/draw/vg_lite/lv_vg_lite_utils.c
+		)
 	endif()
 
 	list(APPEND incs

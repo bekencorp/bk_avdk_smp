@@ -7,9 +7,9 @@
 extern "C" {
 #endif
 
-void *lv_mem_adapt_malloc(size_t size);
-void *lv_mem_adapt_realloc(void *ptr, size_t size);
-void lv_mem_adapt_free(void *ptr);
+void *lv_malloc_core(size_t size);
+void *lv_realloc_core(void *ptr, size_t size);
+void lv_free_core(void *ptr);
 
 #ifdef __cplusplus
 }

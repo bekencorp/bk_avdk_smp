@@ -10,11 +10,7 @@
 #include "../misc/lv_assert.h"
 #include "../misc/lv_log.h"
 #include "../core/lv_global.h"
-
-#if (LV_USE_STDLIB_MALLOC == LV_STDLIB_CUSTOM)
-    #include "lv_mem_adapt.h"
-    #include <os/mem.h>
-#endif
+#include <os/mem.h>
 
 #if LV_USE_OS == LV_OS_PTHREAD
     #include <pthread.h>
@@ -72,11 +68,7 @@ void * lv_malloc(size_t size)
         return &zero_mem;
     }
 
-#if (LV_USE_STDLIB_MALLOC == LV_STDLIB_CUSTOM)
-    void * alloc = lv_mem_adapt_malloc(size);
-#else
     void * alloc = lv_malloc_core(size);
-#endif
 
     if(alloc == NULL) {
         LV_LOG_INFO("couldn't allocate memory (%lu bytes)", (unsigned long)size);
@@ -106,11 +98,7 @@ void * lv_malloc_zeroed(size_t size)
         return &zero_mem;
     }
 
-#if (LV_USE_STDLIB_MALLOC == LV_STDLIB_CUSTOM)
-    void * alloc = lv_mem_adapt_malloc(size);
-#else
     void * alloc = lv_malloc_core(size);
-#endif
     if(alloc == NULL) {
         LV_LOG_INFO("couldn't allocate memory (%lu bytes)", (unsigned long)size);
 #if LV_LOG_LEVEL <= LV_LOG_LEVEL_INFO
@@ -146,11 +134,7 @@ void lv_free(void * data)
     if(data == &zero_mem) return;
     if(data == NULL) return;
 
-#if (LV_USE_STDLIB_MALLOC == LV_STDLIB_CUSTOM)
-    lv_mem_adapt_free(data);
-#else
     lv_free_core(data);
-#endif
 }
 
 void * lv_reallocf(void * data_p, size_t new_size)
@@ -173,11 +157,7 @@ void * lv_realloc(void * data_p, size_t new_size)
 
     if(data_p == &zero_mem) return lv_malloc(new_size);
 
-#if (LV_USE_STDLIB_MALLOC == LV_STDLIB_CUSTOM)
-    void * new_p = lv_mem_adapt_realloc(data_p, new_size);
-#else
     void * new_p = lv_realloc_core(data_p, new_size);
-#endif
 
     if(new_p == NULL) {
         LV_LOG_ERROR("couldn't reallocate memory");
@@ -245,19 +225,13 @@ lv_result_t lv_mem_test(void)
         return LV_RESULT_INVALID;
     }
 
-#if (LV_USE_STDLIB_MALLOC == LV_STDLIB_CUSTOM)
-    return LV_RESULT_OK;
-#else
     return lv_mem_test_core();
-#endif
 }
 
 void lv_mem_monitor(lv_mem_monitor_t * mon_p)
 {
-#if (LV_USE_STDLIB_MALLOC != LV_STDLIB_CUSTOM)
     lv_memzero(mon_p, sizeof(lv_mem_monitor_t));
     lv_mem_monitor_core(mon_p);
-#endif
 }
 
 /**********************

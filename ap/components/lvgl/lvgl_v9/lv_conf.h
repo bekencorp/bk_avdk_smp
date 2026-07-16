@@ -122,15 +122,41 @@
  * RENDERING CONFIGURATION
  *========================*/
 
+ /** Use VG-Lite GPU. */
+#define LV_USE_DRAW_VG_LITE 0
+
+#if LV_USE_DRAW_VG_LITE
+    /** Enable VG-Lite custom external 'gpu_init()' function */
+    #define LV_VG_LITE_USE_GPU_INIT 0
+
+    /** Enable VG-Lite assert. */
+    #define LV_VG_LITE_USE_ASSERT 0
+
+    /** VG-Lite flush commit trigger threshold. GPU will try to batch these many draw tasks. */
+    #define LV_VG_LITE_FLUSH_MAX_COUNT 8
+
+    /** Enable border to simulate shadow.
+     *  NOTE: which usually improves performance,
+     *  but does not guarantee the same rendering quality as the software. */
+    #define LV_VG_LITE_USE_BOX_SHADOW 1
+
+    /** VG-Lite gradient maximum cache number.
+     *  @note  The memory usage of a single gradient image is 4K bytes. */
+    #define LV_VG_LITE_GRAD_CACHE_CNT 32
+
+    /** VG-Lite stroke maximum cache number. */
+    #define LV_VG_LITE_STROKE_CACHE_CNT 32
+#endif
+
 /** Align stride of all layers and images to this bytes */
-#if CONFIG_LV_USE_DRAW_VG_LITE
+#if LV_USE_DRAW_VG_LITE
 #define LV_DRAW_BUF_STRIDE_ALIGN                12
 #else
 #define LV_DRAW_BUF_STRIDE_ALIGN                1
 #endif
 
 /** Align start address of draw_buf addresses to this bytes*/
-#if CONFIG_LV_USE_DRAW_VG_LITE
+#if LV_USE_DRAW_VG_LITE
 #define LV_DRAW_BUF_ALIGN                       64
 #else
 #define LV_DRAW_BUF_ALIGN                       4
@@ -440,7 +466,7 @@
 /** Will be added where memory needs to be aligned (with -Os data might not be aligned to boundary by default).
  *  E.g. __attribute__((aligned(4)))*/
 
-#if CONFIG_LV_USE_DRAW_VG_LITE
+#if LV_USE_DRAW_VG_LITE
 #define LV_ATTRIBUTE_MEM_ALIGN __attribute__((aligned(64)))
 #else
 #define LV_ATTRIBUTE_MEM_ALIGN __attribute__((aligned(4)))
@@ -730,6 +756,27 @@
  *====================*/
 /* Documentation for libraries can be found here: https://docs.lvgl.io/master/details/libs/index.html . */
 
+/* File system interfaces for common APIs */
+
+/** Setting a default driver letter allows skipping the driver prefix in filepaths.
+ *  Documentation about how to use the below driver-identifier letters can be found at
+ *  https://docs.lvgl.io/master/details/main-modules/fs.html#lv-fs-identifier-letters . */
+#define LV_FS_DEFAULT_DRIVER_LETTER '\0'
+
+/** API for FATFS (needs to be added separately). Uses f_open, f_read, etc. */
+#define LV_USE_FS_FATFS 0
+#if LV_USE_FS_FATFS
+    #define LV_FS_FATFS_LETTER '\0'     /**< Set an upper-case driver-identifier letter for this driver (e.g. 'A'). */
+    #define LV_FS_FATFS_PATH ""         /**< Set the working directory. File/directory paths will be appended to it. */
+    #define LV_FS_FATFS_CACHE_SIZE 0    /**< >0 to cache this number of bytes in lv_fs_read() */
+#endif
+
+/** API for LittleFs. */
+#define LV_USE_FS_LITTLEFS 0
+#if LV_USE_FS_LITTLEFS
+    #define LV_FS_LITTLEFS_LETTER '\0'  /**< Set an upper-case driver-identifier letter for this driver (e.g. 'A'). */
+    #define LV_FS_LITTLEFS_PATH ""      /**< Set the working directory. File/directory paths will be appended to it. */
+#endif
 
 /** LODEPNG decoder library */
 #define LV_USE_LODEPNG 0

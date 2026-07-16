@@ -259,7 +259,7 @@ bk_err_t lv_vendor_init(lv_vnd_config_t *config)
 
     vnd_data->lv_new_frame_flag = true;
 
-#if (CONFIG_LV_USE_DRAW_VG_LITE)
+#if defined(LV_USE_DRAW_VG_LITE) && LV_USE_DRAW_VG_LITE
     lv_gpu_init(vnd_data->config.width / 4, vnd_data->config.height / 4);
     vnd_data->gpu_inited = true;
 #else
@@ -314,7 +314,7 @@ bk_err_t lv_vendor_init(lv_vnd_config_t *config)
 #if CONFIG_LVGL_V8
             vnd_data->config.draw_buf_2_1 = lv_vendor_malloc(vnd_data->config.draw_pixel_size * sizeof(bk_color_t));
 #else
-#if CONFIG_LV_USE_DRAW_VG_LITE
+#if defined(LV_USE_DRAW_VG_LITE) && LV_USE_DRAW_VG_LITE
             vnd_data->config.draw_buf_2_1 = lv_vendor_malloc(vnd_data->config.draw_pixel_size + 64);
 #else
             vnd_data->config.draw_buf_2_1 = lv_vendor_malloc(vnd_data->config.draw_pixel_size);
@@ -324,7 +324,7 @@ bk_err_t lv_vendor_init(lv_vnd_config_t *config)
                 LOGE("%s vendor_config.draw_buf_2_1 malloc failed\n", __func__);
                 goto fail;
             }
-#if CONFIG_LV_USE_DRAW_VG_LITE
+#if defined(LV_USE_DRAW_VG_LITE) && LV_USE_DRAW_VG_LITE
             vnd_data->config.draw_buf_2_1 = (void *)(((uintptr_t)vnd_data->config.draw_buf_2_1 + 63) & ~63);
 #endif
         } else {
@@ -353,7 +353,7 @@ bk_err_t lv_vendor_init(lv_vnd_config_t *config)
             goto fail;
         }
 
-    #if CONFIG_LV_USE_DRAW_VG_LITE
+    #if defined(LV_USE_DRAW_VG_LITE) && LV_USE_DRAW_VG_LITE
         vnd_data->config.draw_buf_2_1 = (void *)(((uintptr_t)vnd_data->config.frame_buffer[0] + 63) & ~63);
         vnd_data->config.draw_buf_2_2 = (void *)(((uintptr_t)vnd_data->config.frame_buffer[1] + 63) & ~63);
     #else

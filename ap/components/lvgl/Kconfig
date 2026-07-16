@@ -15,43 +15,6 @@ menu "LVGL"
             bool "LVGL V9"
     endchoice
 
-    config LV_USE_DRAW_VG_LITE
-        depends on LVGL_V9
-        bool "Enable LVGL Drawing with VG-Lite GPU"
-        default n
-
-    config LV_VG_LITE_USE_GPU_INIT
-        depends on LV_USE_DRAW_VG_LITE
-        bool "Enable VG-Lite custom external 'gpu_init()' function"
-        default n
-
-    config LV_VG_LITE_USE_ASSERT
-        depends on LV_USE_DRAW_VG_LITE
-        bool "Enable VG-Lite assert"
-        default n
-
-    config LV_VG_LITE_FLUSH_MAX_COUNT
-        depends on LV_USE_DRAW_VG_LITE
-        int "Set VG-Lite flush commit trigger threshold"
-        default 8
-        help
-            GPU will try to batch these many draw tasks
-
-    config LV_VG_LITE_USE_BOX_SHADOW
-        depends on LV_USE_DRAW_VG_LITE
-        bool "Enable border to simulate shadow"
-        default n
-
-    config LV_VG_LITE_GRAD_CACHE_CNT
-        depends on LV_USE_DRAW_VG_LITE
-        int "Set VG-Lite gradient image maximum cache number"
-        default 32
-
-    config LV_VG_LITE_STROKE_CACHE_CNT
-        depends on LV_USE_DRAW_VG_LITE
-        int "Set VG-Lite stroke image maximum cache number"
-        default 32
-
     config LV_USE_PERF_MONITOR
         bool "Enable Lv Use Perf Monitor"
         default n
@@ -67,6 +30,14 @@ menu "LVGL"
         depends on LVGL
         bool "Enable Lv Attribute Fast Mem"
         default n
+
+    config LVGL_MEM_USE_PSRAM
+        depends on LVGL
+        bool "Use PSRAM for LVGL internal memory allocation"
+        default n
+        help
+            Use PSRAM for LVGL's lv_malloc/lv_realloc/lv_free backend.
+            The default is HSRAM for better latency.
 
     config LV_IMG_UTILITY_CUSTOMIZE
         depends on LVGL && VFS

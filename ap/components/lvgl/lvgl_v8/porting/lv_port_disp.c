@@ -13,6 +13,7 @@
 #include "lv_vendor.h"
 #include "lv_hpdma.h"
 #include "lv_gpu_rotate.h"
+#include <modules/vg_lite_gpu/vg_lite.h>
 
 #define TAG "LVGL_DISP"
 
@@ -31,9 +32,19 @@
 #define LV_FRAME_COLOR_SIZE sizeof(lv_color_t)
 #endif
 
+#define LV_COMPRESSED_TILE_WIDTH 16
+#define LV_COMPRESSED_TILE_HEIGHT 4
+
 /**********************
  *      TYPEDEFS
  **********************/
+typedef struct {
+    const lv_area_t *area;
+    lv_area_t rotated_area;
+    uint8_t *color_ptr;
+    lv_coord_t width;
+    lv_coord_t height;
+} lv_partial_flush_ctx_t;
 
 /**********************
  *  STATIC PROTOTYPES
@@ -45,9 +56,19 @@ static void disp_deinit(lv_vnd_data_t *vnd_data);
 
 static void disp_flush(lv_disp_drv_t * disp_drv, const lv_area_t * area, lv_color_t * color_p);
 
+static void lv_disp_compress_rounder_cb(lv_disp_drv_t *disp_drv, lv_area_t *area);
+
+static bool lv_v8_gpu_rotate_enabled(const lv_vnd_data_t *vnd_data);
+
+static void lv_partial_rotate_area(lv_disp_drv_t *disp_drv, rott_angle_t rotation,
+                                   const lv_area_t *src_area, lv_area_t *dst_area);
+
 /**********************
  *  STATIC VARIABLES
  **********************/
+static vg_lite_buffer_t lv_dst_buf;
+static vg_lite_buffer_t lv_src_buf;
+static vg_lite_matrix_t lv_matrix;
 
 /**********************
  *      MACROS
@@ -102,7 +123,9 @@ void bk_lv_port_disp_init(lv_vnd_data_t *vnd_data)
 
     if (vnd_data->config.render_mode == RENDER_PARTIAL_MODE && vnd_data->config.rotation != ROTATE_NONE) {
 #if !LV_USE_GPU_ROTATE
-        disp_drv.sw_rotate = 1;
+        if (!vnd_data->config.output_compress) {
+            disp_drv.sw_rotate = 1;
+        }
 #endif
         if (vnd_data->config.rotation == ROTATE_90) {
             disp_drv.rotated = LV_DISP_ROT_90;
@@ -113,12 +136,19 @@ void bk_lv_port_disp_init(lv_vnd_data_t *vnd_data)
         }
 
 #if LV_USE_GPU_ROTATE
-        vnd_data->rotate_buffer = lv_vendor_malloc(vnd_data->config.draw_pixel_size * sizeof(lv_color_t));
-        if (vnd_data->rotate_buffer == NULL) {
-            LOGE("%s lvgl rotate buffer malloc fail!\n", __func__);
-            return;
+        if (lv_v8_gpu_rotate_enabled(vnd_data)) {
+            vnd_data->rotate_buffer = lv_vendor_malloc(vnd_data->config.draw_pixel_size * sizeof(lv_color_t));
+            if (vnd_data->rotate_buffer == NULL) {
+                LOGE("%s lvgl rotate buffer malloc fail!\n", __func__);
+                return;
+            }
         }
 #endif
+    }
+
+    if (vnd_data->config.render_mode == RENDER_PARTIAL_MODE &&
+        vnd_data->config.output_compress) {
+        disp_drv.rounder_cb = lv_disp_compress_rounder_cb;
     }
 
     lv_disp_drv_register(&disp_drv);
@@ -151,6 +181,127 @@ static lv_vnd_data_t *lv_get_vnd_data(lv_disp_drv_t *disp_drv)
 #endif
 
     return NULL;
+}
+
+static bool lv_v8_gpu_rotate_enabled(const lv_vnd_data_t *vnd_data)
+{
+    return (vnd_data != NULL) &&
+           (vnd_data->config.render_mode == RENDER_PARTIAL_MODE) &&
+           (vnd_data->config.rotation != ROTATE_NONE) &&
+           !vnd_data->config.output_compress;
+}
+
+static int32_t lv_partial_align_down(int32_t value, int32_t align)
+{
+    return value & ~(align - 1);
+}
+
+static int32_t lv_partial_align_up(int32_t value, int32_t align)
+{
+    return (value + align - 1) & ~(align - 1);
+}
+
+static lv_coord_t lv_v8_get_logical_hor_res(const lv_disp_drv_t *disp_drv)
+{
+    if (disp_drv->rotated == LV_DISP_ROT_90 || disp_drv->rotated == LV_DISP_ROT_270) {
+        return disp_drv->ver_res;
+    }
+
+    return disp_drv->hor_res;
+}
+
+static lv_coord_t lv_v8_get_logical_ver_res(const lv_disp_drv_t *disp_drv)
+{
+    if (disp_drv->rotated == LV_DISP_ROT_90 || disp_drv->rotated == LV_DISP_ROT_270) {
+        return disp_drv->hor_res;
+    }
+
+    return disp_drv->ver_res;
+}
+
+static vg_lite_color_t lv_partial_color_to_vg(lv_color_t color)
+{
+    lv_color32_t color32;
+    color32.full = lv_color_to32(color);
+
+    return ((vg_lite_color_t)color32.ch.alpha << 24) |
+           ((vg_lite_color_t)color32.ch.blue << 16) |
+           ((vg_lite_color_t)color32.ch.green << 8) |
+           (vg_lite_color_t)color32.ch.red;
+}
+
+static vg_lite_color_t lv_partial_get_default_clear_color(void)
+{
+    lv_color_t color;
+
+#if LV_USE_THEME_DEFAULT
+    #if LV_THEME_DEFAULT_DARK
+        color = lv_color_hex(0x15171A);
+    #else
+        color = lv_palette_lighten(LV_PALETTE_GREY, 4);
+    #endif
+#elif LV_USE_THEME_MONO
+    color = lv_color_white();
+#else
+    color = lv_color_white();
+#endif
+
+    return lv_partial_color_to_vg(color);
+}
+
+static void lv_disp_compress_rounder_cb(lv_disp_drv_t *disp_drv, lv_area_t *area)
+{
+    lv_vnd_data_t *vnd_data = lv_get_vnd_data(disp_drv);
+    if (vnd_data == NULL || area == NULL || !vnd_data->config.output_compress) {
+        return;
+    }
+
+    lv_area_t phys = *area;
+    lv_partial_rotate_area(disp_drv, vnd_data->config.rotation, area, &phys);
+
+    phys.x1 = lv_partial_align_down(phys.x1, LV_COMPRESSED_TILE_WIDTH);
+    phys.y1 = lv_partial_align_down(phys.y1, LV_COMPRESSED_TILE_HEIGHT);
+    phys.x2 = lv_partial_align_up(phys.x2 + 1, LV_COMPRESSED_TILE_WIDTH) - 1;
+    phys.y2 = lv_partial_align_up(phys.y2 + 1, LV_COMPRESSED_TILE_HEIGHT) - 1;
+
+    if (phys.x1 < 0) phys.x1 = 0;
+    if (phys.y1 < 0) phys.y1 = 0;
+    if (phys.x2 > vnd_data->config.disp_width - 1) phys.x2 = vnd_data->config.disp_width - 1;
+    if (phys.y2 > vnd_data->config.disp_height - 1) phys.y2 = vnd_data->config.disp_height - 1;
+
+    lv_area_t out = phys;
+    switch (vnd_data->config.rotation) {
+        case ROTATE_90:
+            out.y1 = phys.x1;
+            out.y2 = phys.x2;
+            out.x1 = disp_drv->ver_res - phys.y2 - 1;
+            out.x2 = disp_drv->ver_res - phys.y1 - 1;
+            break;
+        case ROTATE_270:
+            out.x1 = phys.y1;
+            out.x2 = phys.y2;
+            out.y1 = disp_drv->hor_res - phys.x2 - 1;
+            out.y2 = disp_drv->hor_res - phys.x1 - 1;
+            break;
+        case ROTATE_180:
+            out.x1 = disp_drv->hor_res - phys.x2 - 1;
+            out.x2 = disp_drv->hor_res - phys.x1 - 1;
+            out.y1 = disp_drv->ver_res - phys.y2 - 1;
+            out.y2 = disp_drv->ver_res - phys.y1 - 1;
+            break;
+        default:
+            out = phys;
+            break;
+    }
+
+    lv_coord_t app_w = lv_v8_get_logical_hor_res(disp_drv);
+    lv_coord_t app_h = lv_v8_get_logical_ver_res(disp_drv);
+    if (out.x1 < 0) out.x1 = 0;
+    if (out.y1 < 0) out.y1 = 0;
+    if (out.x2 > app_w - 1) out.x2 = app_w - 1;
+    if (out.y2 > app_h - 1) out.y2 = app_h - 1;
+
+    *area = out;
 }
 
 /**********************
@@ -229,8 +380,35 @@ static void disp_init(lv_vnd_data_t *vnd_data)
     } else {
         lv_hpdma_memcpy_init(vnd_data);
 #if LV_USE_GPU_ROTATE
-        lv_gpu_rotate_init(vnd_data);
+        if (lv_v8_gpu_rotate_enabled(vnd_data)) {
+            lv_gpu_rotate_init(vnd_data);
+        }
 #endif
+        if (vnd_data->config.output_compress) {
+            os_memset(&lv_dst_buf, 0, sizeof(vg_lite_buffer_t));
+#if (LV_COLOR_DEPTH == 16)
+            lv_dst_buf.format = VG_LITE_BGR565;
+#elif (LV_COLOR_DEPTH == 24)
+            lv_dst_buf.format = VG_LITE_BGR888;
+#elif (LV_COLOR_DEPTH == 32)
+            lv_dst_buf.format = VG_LITE_BGRA8888;
+#endif
+            lv_dst_buf.format = VG_LITE_BGRA8888;
+            lv_dst_buf.tiled = 1;
+            lv_dst_buf.compress_mode = VG_LITE_DEC_HV_SAMPLE;
+
+            os_memset(&lv_src_buf, 0, sizeof(vg_lite_buffer_t));
+#if (LV_COLOR_DEPTH == 16)
+            lv_src_buf.format = VG_LITE_BGR565;
+#elif (LV_COLOR_DEPTH == 24)
+            lv_src_buf.format = VG_LITE_BGR888;
+#elif (LV_COLOR_DEPTH == 32)
+            lv_src_buf.format = VG_LITE_BGRA8888;
+#endif
+            lv_src_buf.compress_mode = VG_LITE_DEC_DISABLE;
+
+            vg_lite_identity(&lv_matrix);
+        }
     }
 }
 
@@ -247,8 +425,14 @@ static void disp_deinit(lv_vnd_data_t *vnd_data)
         }
     } else {
 #if LV_USE_GPU_ROTATE
-        lv_gpu_rotate_deinit(vnd_data);
+        if (lv_v8_gpu_rotate_enabled(vnd_data)) {
+            lv_gpu_rotate_deinit(vnd_data);
+        }
 #endif
+        if (vnd_data->config.output_compress) {
+            vg_lite_free_without_free_data(&lv_src_buf);
+            vg_lite_free_without_free_data(&lv_dst_buf);
+        }
         lv_hpdma_memcpy_deinit(vnd_data);
     }
 }
@@ -292,7 +476,6 @@ static void lv_get_display_buffer(lv_vnd_data_t *vnd_data, const lv_area_t *area
 #endif
 }
 
-#if LV_USE_GPU_ROTATE
 static void lv_partial_rotate_area(lv_disp_drv_t *disp_drv, rott_angle_t rotation,
                                    const lv_area_t *src_area, lv_area_t *dst_area)
 {
@@ -321,7 +504,6 @@ static void lv_partial_rotate_area(lv_disp_drv_t *disp_drv, rott_angle_t rotatio
             break;
     }
 }
-#endif
 
 /* Enable updating the screen (the flushing process) when disp_flush() is called by LVGL
  */
@@ -414,8 +596,122 @@ static void lv_partial_copy_to_frame_buffer(lv_vnd_data_t *vnd_data, const lv_ar
 #endif
 }
 
+static void lv_partial_set_compress_matrix(const lv_vnd_data_t *vnd_data, const lv_partial_flush_ctx_t *ctx)
+{
+    vg_lite_identity(&lv_matrix);
+
+    switch (vnd_data->config.rotation) {
+        case ROTATE_90:
+            vg_lite_rotate(270.0f, &lv_matrix);
+            lv_matrix.m[0][2] = ctx->area->x1;
+            lv_matrix.m[1][2] = ctx->area->y1 + ctx->width;
+            break;
+        case ROTATE_270:
+            vg_lite_rotate(90.0f, &lv_matrix);
+            lv_matrix.m[0][2] = ctx->area->x1 + ctx->height;
+            lv_matrix.m[1][2] = ctx->area->y1;
+            break;
+        case ROTATE_180:
+            vg_lite_rotate(180.0f, &lv_matrix);
+            lv_matrix.m[0][2] = ctx->area->x1 + ctx->width;
+            lv_matrix.m[1][2] = ctx->area->y1 + ctx->height;
+            break;
+        default:
+            vg_lite_translate(ctx->area->x1, ctx->area->y1, &lv_matrix);
+            break;
+    }
+}
+
+static void lv_partial_prepare_compress(lv_disp_drv_t *disp_drv, lv_vnd_data_t *vnd_data,
+                                        lv_color_t *color_p, lv_partial_flush_ctx_t *ctx)
+{
+    ctx->color_ptr = (uint8_t *)color_p;
+
+    if (vnd_data->config.rotation != ROTATE_NONE) {
+        lv_partial_rotate_area(disp_drv, vnd_data->config.rotation, ctx->area, &ctx->rotated_area);
+        ctx->area = &ctx->rotated_area;
+    }
+}
+
+static void lv_partial_flush_compress(lv_vnd_data_t *vnd_data, lv_partial_flush_ctx_t *ctx)
+{
+    vg_lite_rectangle_t rect = {
+        .x = 0,
+        .y = 0,
+        .width = ctx->width,
+        .height = ctx->height,
+    };
+
+    bool gpu_locked = lv_vendor_gpu_lock();
+
+    lv_src_buf.width = ctx->width;
+    lv_src_buf.height = ctx->height;
+    vg_lite_allocate_with_data(&lv_src_buf, ctx->color_ptr, NULL, NULL, NULL);
+
+    lv_dst_buf.width = vnd_data->config.disp_width;
+    lv_dst_buf.height = vnd_data->config.disp_height;
+    vg_lite_allocate_with_data(&lv_dst_buf, vnd_data->disp_buf, NULL, NULL, NULL);
+
+    vg_lite_rectangle_t clear_rect = {
+        .x = ctx->area->x1,
+        .y = ctx->area->y1,
+        .width = lv_area_get_width(ctx->area),
+        .height = lv_area_get_height(ctx->area),
+    };
+    vg_lite_clear(&lv_dst_buf, &clear_rect, lv_partial_get_default_clear_color());
+
+    lv_partial_set_compress_matrix(vnd_data, ctx);
+    vg_lite_error_t ret = vg_lite_blit_rect(&lv_dst_buf, &lv_src_buf, &rect, &lv_matrix,
+                                            VG_LITE_BLEND_NONE, 0, VG_LITE_FILTER_POINT);
+    if (ret != VG_LITE_SUCCESS) {
+        LOGE("%s blit compressed frame buffer failed, ret=%d, area=(%d,%d)-(%d,%d)\n",
+             __func__, ret, ctx->area->x1, ctx->area->y1, ctx->area->x2, ctx->area->y2);
+    }
+    vg_lite_finish();
+
+    lv_vendor_gpu_unlock(gpu_locked);
+}
+
+static void lv_partial_copy_compressed_last_frame(lv_vnd_data_t *vnd_data)
+{
+    uint32_t x1 = (uint32_t)lv_partial_align_down(vnd_data->d_area.x1, LV_COMPRESSED_TILE_WIDTH);
+    uint32_t y1 = (uint32_t)lv_partial_align_down(vnd_data->d_area.y1, LV_COMPRESSED_TILE_HEIGHT);
+    uint32_t x2 = (uint32_t)lv_partial_align_up(vnd_data->d_area.x2 + 1, LV_COMPRESSED_TILE_WIDTH);
+    uint32_t y2 = (uint32_t)lv_partial_align_up(vnd_data->d_area.y2 + 1, LV_COMPRESSED_TILE_HEIGHT);
+
+    if (x2 > vnd_data->config.disp_width) {
+        x2 = vnd_data->config.disp_width;
+    }
+
+    if (y2 > vnd_data->config.disp_height) {
+        y2 = vnd_data->config.disp_height;
+    }
+
+    if (x1 >= x2 || y1 >= y2) {
+        LOGE("%s invalid compressed area: (%d,%d)-(%d,%d)\n",
+             __func__, vnd_data->d_area.x1, vnd_data->d_area.y1,
+             vnd_data->d_area.x2, vnd_data->d_area.y2);
+        return;
+    }
+
+    uint32_t line_bytes = (x2 - x1) * LV_COMPRESSED_TILE_HEIGHT;
+    uint32_t band_count = (y2 - y1) / LV_COMPRESSED_TILE_HEIGHT;
+    uint32_t frame_stride = vnd_data->config.disp_width * LV_COMPRESSED_TILE_HEIGHT;
+    uint32_t step_bytes = frame_stride - line_bytes;
+    uint32_t offset = (y1 / LV_COMPRESSED_TILE_HEIGHT) * frame_stride + x1 * LV_COMPRESSED_TILE_HEIGHT;
+    void *src_start = (uint8_t *)vnd_data->disp_buf + offset;
+    void *dst_start = (uint8_t *)vnd_data->copy_buf + offset;
+
+    lv_hpdma_copy_area(src_start, dst_start, line_bytes, band_count, step_bytes, step_bytes, false);
+}
+
 static void lv_partial_copy_last_frame(lv_vnd_data_t *vnd_data, lv_coord_t lv_hor)
 {
+    if (vnd_data->config.output_compress) {
+        lv_partial_copy_compressed_last_frame(vnd_data);
+        return;
+    }
+
     uint32_t area_width = lv_area_get_width(&vnd_data->d_area);
     uint32_t area_height = lv_area_get_height(&vnd_data->d_area);
     uint32_t line_bytes = area_width * LV_FRAME_COLOR_SIZE;
@@ -434,14 +730,23 @@ static void lv_disp_flush_for_partial_mode(lv_disp_drv_t * disp_drv, const lv_ar
         return;
     }
 
-    lv_coord_t lv_hor = disp_drv->hor_res;
+    lv_coord_t lv_hor = (vnd_data->config.rotation == ROTATE_NONE ||
+                         vnd_data->config.rotation == ROTATE_180) ?
+                         disp_drv->hor_res : disp_drv->ver_res;
     const lv_color_t *color_ptr = color_p;
     lv_coord_t width = lv_area_get_width(area);
     lv_coord_t height = lv_area_get_height(area);
     lv_area_t dst_area = *area;
+    lv_partial_flush_ctx_t ctx = {
+        .area = area,
+        .rotated_area = *area,
+        .color_ptr = NULL,
+        .width = width,
+        .height = height,
+    };
 
 #if LV_USE_GPU_ROTATE
-    if (vnd_data->config.rotation != ROTATE_NONE) {
+    if (lv_v8_gpu_rotate_enabled(vnd_data)) {
         lv_gpu_rotate_process(vnd_data, (uint8_t *)color_p, width, height);
         color_ptr = (const lv_color_t *)vnd_data->rotate_buffer;
         lv_partial_rotate_area(disp_drv, vnd_data->config.rotation, area, &dst_area);
@@ -453,9 +758,16 @@ static void lv_disp_flush_for_partial_mode(lv_disp_drv_t * disp_drv, const lv_ar
     }
 #endif
 
-    lv_get_display_buffer(vnd_data, &dst_area);
-    _lv_area_join(&vnd_data->d_area, &vnd_data->d_area, &dst_area);
-    lv_partial_copy_to_frame_buffer(vnd_data, &dst_area, color_ptr, width, height, lv_hor);
+    if (vnd_data->config.output_compress) {
+        lv_partial_prepare_compress(disp_drv, vnd_data, color_p, &ctx);
+        lv_get_display_buffer(vnd_data, ctx.area);
+        _lv_area_join(&vnd_data->d_area, &vnd_data->d_area, ctx.area);
+        lv_partial_flush_compress(vnd_data, &ctx);
+    } else {
+        lv_get_display_buffer(vnd_data, &dst_area);
+        _lv_area_join(&vnd_data->d_area, &vnd_data->d_area, &dst_area);
+        lv_partial_copy_to_frame_buffer(vnd_data, &dst_area, color_ptr, width, height, lv_hor);
+    }
 
     if (lv_disp_flush_is_last(disp_drv)) {
         vnd_data->config.flush_cb(vnd_data->config.args, vnd_data->disp_buf, lvgl_frame_buffer_free_cb);

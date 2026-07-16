@@ -135,7 +135,7 @@ extern "C" {
 #include "src/lvgl_private.h"
 #endif
 
-#if CONFIG_LV_USE_DRAW_VG_LITE
+#if LV_USE_DRAW_VG_LITE
 #include "modules/vg_lite_gpu/vg_lite.h"
 #endif
 
