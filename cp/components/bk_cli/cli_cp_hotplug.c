@@ -268,6 +268,10 @@ static void cli_cpu_hotplug_help(void)
 	CLI_LOGI("cpu gov on|off|status\r\n");
 	CLI_LOGI("cpu gov stress <cycles>\r\n");
 #endif
+#if CONFIG_CPU_HP_VOTE
+	CLI_LOGI("cpu vote reg|unreg|on|off <name>\r\n");
+	CLI_LOGI("cpu vote status|test\r\n");
+#endif
 }
 
 #if CONFIG_CPU_HP_GOVERNOR
@@ -421,6 +425,321 @@ static void cli_cpu_hp_governor_cmd(int argc, char **argv)
 }
 #endif
 
+#if CONFIG_CPU_HP_VOTE
+
+static void cli_cpu_hp_vote_help(void)
+{
+	CLI_LOGI("cpu vote reg <name>\r\n");
+	CLI_LOGI("cpu vote unreg <name>\r\n");
+	CLI_LOGI("cpu vote on <name>\r\n");
+	CLI_LOGI("cpu vote off <name>\r\n");
+	CLI_LOGI("cpu vote status\r\n");
+	CLI_LOGI("cpu vote test\r\n");
+}
+
+#define CPU_HP_VOTE_TEST_POLL_MS      (20)
+#define CPU_HP_VOTE_TEST_TIMEOUT_MS   (500)
+
+/* Poll until cpu1 online-state == @want (offline teardown is asynchronous). */
+static uint32_t cli_cpu_hp_vote_wait_online(uint32_t want, uint32_t timeout_ms)
+{
+	for (uint32_t waited = 0; waited <= timeout_ms; waited += CPU_HP_VOTE_TEST_POLL_MS) {
+		if (bk_cpu_hp_is_online(CPU1_CORE_ID) == want) {
+			return 1;
+		}
+		rtos_delay_milliseconds(CPU_HP_VOTE_TEST_POLL_MS);
+	}
+
+	return (bk_cpu_hp_is_online(CPU1_CORE_ID) == want);
+}
+
+/*
+ * Guard for the self-test: it needs a clean slate (no voters registered
+ * and no tasks pinned to cpu1), otherwise cpu1 would legitimately stay online
+ * and the AND-offline assertions could not hold. Returns 1 when safe to run.
+ */
+static uint32_t cli_cpu_hp_vote_precheck(const char *what)
+{
+	uint32_t vc = bk_cpu_hp_vote_get_voter_count();
+
+	if (vc != 0) {
+		CLI_LOGE("cpu vote %s: skip, %u voter(s) already registered\r\n", what, vc);
+		return 0;
+	}
+	if (xTaskHasTasksPinnedToCore(SMP_CORE1_ID) == pdTRUE) {
+		CLI_LOGE("cpu vote %s: skip, tasks pinned to cpu1 block offline\r\n", what);
+		return 0;
+	}
+
+	return 1;
+}
+
+/*
+ * Restore the hotplug core to its pre-test online/offline state. The self-test
+ * drives the core purely through votes and ends with every vote released (core
+ * offline); if it was online beforehand (boot-online default, or a prior
+ * user/governor state) put it back so the test is non-destructive. Only called
+ * on the clean-completion path, when no voters remain.
+ */
+static void cli_cpu_hp_vote_restore(uint32_t was_online, const char *what)
+{
+	if (was_online == bk_cpu_hp_is_online(CPU1_CORE_ID)) {
+		return;
+	}
+
+	if (was_online) {
+		bk_cpu_hp_online_direct(CPU1_CORE_ID);
+	} else {
+		bk_cpu_hp_offline_direct(CPU1_CORE_ID);
+	}
+	CLI_LOGI("cpu vote %s: restored cpu1 %s\r\n", what, was_online ? "online" : "offline");
+}
+
+/*
+ * Self-test for the voting layer: verifies OR power-up (any online vote onlines
+ * cpu1), AND power-down (cpu1 offlines only when all voters release), vote
+ * idempotency, unregister-releases-vote, and parameter validation.
+ *
+ * Preconditions: no voters registered yet and no tasks pinned to cpu1 (either
+ * would legitimately keep cpu1 online and make the AND-offline steps fail).
+ */
+static void cli_cpu_hp_vote_test(void)
+{
+	cpu_hp_voter_handle_t a = NULL;
+	cpu_hp_voter_handle_t b = NULL;
+	uint32_t pass = 0;
+	uint32_t total = 0;
+	uint32_t was_online = 0;
+	bk_err_t ret;
+
+#define VOTE_CHECK(cond, desc) do {                       \
+		total++;                                  \
+		if (cond) {                               \
+			pass++;                           \
+			CLI_LOGI("  [PASS] %s\r\n", desc);\
+		} else {                                  \
+			CLI_LOGE("  [FAIL] %s\r\n", desc);\
+		}                                         \
+	} while (0)
+
+	if (!cli_cpu_hp_vote_precheck("test")) {
+		return;
+	}
+
+	was_online = bk_cpu_hp_is_online(CPU1_CORE_ID);
+
+	CLI_LOGI("cpu vote test: start\r\n");
+
+	if (bk_cpu_hp_is_online(CPU1_CORE_ID)) {
+		if ((bk_cpu_hp_offline_direct(CPU1_CORE_ID) != BK_OK) ||
+		    !cli_cpu_hp_vote_wait_online(0, CPU_HP_VOTE_TEST_TIMEOUT_MS)) {
+			CLI_LOGE("cpu vote test: skip, cannot establish offline baseline\r\n");
+			cli_cpu_hp_vote_restore(was_online, "test");
+			return;
+		}
+	}
+
+	/* Parameter validation on a NULL handle. */
+	VOTE_CHECK(bk_cpu_hp_vote_online(NULL) == BK_ERR_PARAM, "online(NULL) rejected");
+	VOTE_CHECK(bk_cpu_hp_vote_unregister(NULL) == BK_ERR_PARAM, "unregister(NULL) rejected");
+
+	a = bk_cpu_hp_vote_register("test_a");
+	b = bk_cpu_hp_vote_register("test_b");
+	VOTE_CHECK((a != NULL) && (b != NULL), "register two voters");
+	if ((a == NULL) || (b == NULL)) {
+		goto cleanup;
+	}
+	VOTE_CHECK(bk_cpu_hp_vote_get_voter_count() == 2, "voter_count == 2");
+
+	/* OR: first online vote powers cpu1 up. */
+	ret = bk_cpu_hp_vote_online(a);
+	VOTE_CHECK((ret == BK_OK) && cli_cpu_hp_vote_wait_online(1, CPU_HP_VOTE_TEST_TIMEOUT_MS),
+		"A online -> cpu1 online");
+	VOTE_CHECK(bk_cpu_hp_vote_get_online_count() == 1, "online_count == 1");
+
+	/* Second online vote: cpu1 stays online, count grows. */
+	ret = bk_cpu_hp_vote_online(b);
+	VOTE_CHECK((ret == BK_OK) && bk_cpu_hp_is_online(CPU1_CORE_ID), "B online -> cpu1 still online");
+	VOTE_CHECK(bk_cpu_hp_vote_get_online_count() == 2, "online_count == 2");
+
+	/* Idempotency: repeating an online vote must not change the count. */
+	ret = bk_cpu_hp_vote_online(a);
+	VOTE_CHECK((ret == BK_OK) && (bk_cpu_hp_vote_get_online_count() == 2),
+		"A online again idempotent (count==2)");
+
+	/* AND: releasing one voter while another holds keeps cpu1 online. */
+	ret = bk_cpu_hp_vote_offline(a);
+	VOTE_CHECK((ret == BK_OK) && bk_cpu_hp_is_online(CPU1_CORE_ID), "A offline -> cpu1 still online");
+	VOTE_CHECK(bk_cpu_hp_vote_get_online_count() == 1, "online_count == 1");
+
+	/* AND: last release powers cpu1 down. */
+	ret = bk_cpu_hp_vote_offline(b);
+	VOTE_CHECK((ret == BK_OK) && cli_cpu_hp_vote_wait_online(0, CPU_HP_VOTE_TEST_TIMEOUT_MS),
+		"B offline -> cpu1 offline (all released)");
+	VOTE_CHECK(bk_cpu_hp_vote_get_online_count() == 0, "online_count == 0");
+
+	/* Unregistering the last online voter must release its vote and offline cpu1. */
+	ret = bk_cpu_hp_vote_online(a);
+	VOTE_CHECK((ret == BK_OK) && cli_cpu_hp_vote_wait_online(1, CPU_HP_VOTE_TEST_TIMEOUT_MS),
+		"A online again -> cpu1 online");
+	ret = bk_cpu_hp_vote_unregister(a);
+	a = NULL;
+	VOTE_CHECK((ret == BK_OK) && cli_cpu_hp_vote_wait_online(0, CPU_HP_VOTE_TEST_TIMEOUT_MS),
+		"unregister online voter -> cpu1 offline");
+	VOTE_CHECK(bk_cpu_hp_vote_get_online_count() == 0, "online_count == 0 after unregister");
+
+cleanup:
+	if (a != NULL) {
+		bk_cpu_hp_vote_unregister(a);
+	}
+	if (b != NULL) {
+		bk_cpu_hp_vote_unregister(b);
+	}
+	VOTE_CHECK(bk_cpu_hp_vote_get_voter_count() == 0, "cleanup: voter_count == 0");
+
+	/*
+	 * Ticket-pool batch test (pool-size agnostic): register voters until the
+	 * ticket pool is full, which also exercises the pool-full NULL return, then
+	 * check find-by-name across every allocated bit and online/offline on the
+	 * last-allocated voter. Runs on the clean offline baseline established above.
+	 */
+	{
+#define VOTE_BATCH_CAP   (64)   /* try more than any expected pool size */
+		static cpu_hp_voter_handle_t many[VOTE_BATCH_CAP];
+		uint32_t n = 0;
+		uint32_t i;
+#if CONFIG_CPU_HP_VOTE_FIND
+		uint32_t ok_find = 1;
+#endif
+
+		for (i = 0; i < VOTE_BATCH_CAP; i++) {
+			char nm[16];
+
+			snprintf(nm, sizeof(nm), "v%u", i);
+			many[i] = bk_cpu_hp_vote_register(nm);
+			if (many[i] == NULL) {
+				break;
+			}
+			n++;
+		}
+		VOTE_CHECK((n > 0) && (bk_cpu_hp_vote_get_voter_count() == n),
+			"batch register voters until pool full");
+		VOTE_CHECK((bk_cpu_hp_vote_get_online_count() == 0) &&
+			!bk_cpu_hp_is_online(CPU1_CORE_ID),
+			"batch voters registered, cpu1 stays offline");
+
+#if CONFIG_CPU_HP_VOTE_FIND
+		for (i = 0; i < n; i++) {
+			char nm[16];
+
+			snprintf(nm, sizeof(nm), "v%u", i);
+			if (bk_cpu_hp_vote_find(nm) != many[i]) {
+				ok_find = 0;
+				break;
+			}
+		}
+		VOTE_CHECK(ok_find, "find every batch voter by name");
+#endif
+
+	if (n > 0) {
+			ret = bk_cpu_hp_vote_online(many[n - 1]);
+			VOTE_CHECK((ret == BK_OK) &&
+				cli_cpu_hp_vote_wait_online(1, CPU_HP_VOTE_TEST_TIMEOUT_MS),
+				"last batch voter online -> cpu1 online");
+			ret = bk_cpu_hp_vote_offline(many[n - 1]);
+			VOTE_CHECK((ret == BK_OK) &&
+				cli_cpu_hp_vote_wait_online(0, CPU_HP_VOTE_TEST_TIMEOUT_MS),
+				"last batch voter offline -> cpu1 offline");
+		}
+
+		for (i = 0; i < n; i++) {
+			bk_cpu_hp_vote_unregister(many[i]);
+			many[i] = NULL;
+		}
+		VOTE_CHECK(bk_cpu_hp_vote_get_voter_count() == 0,
+			"unregister all batch voters (voter_count==0)");
+#undef VOTE_BATCH_CAP
+	}
+
+	cli_cpu_hp_vote_restore(was_online, "test");
+
+	CLI_LOGI("cpu vote test: done, %u/%u checks PASS\r\n", pass, total);
+
+#undef VOTE_CHECK
+}
+
+static void cli_cpu_hp_vote_cmd(int argc, char **argv)
+{
+	if (argc < 3) {
+		cli_cpu_hp_vote_help();
+		return;
+	}
+
+	if (os_strcmp(argv[2], "status") == 0) {
+		CLI_LOGI("cpu vote: online_count=%u voter_count=%u\r\n",
+			bk_cpu_hp_vote_get_online_count(),
+			bk_cpu_hp_vote_get_voter_count());
+#if CONFIG_CPU_HP_VOTE_DUMP
+		bk_cpu_hp_vote_dump();
+#else
+		CLI_LOGI("cpu vote: dump disabled (CONFIG_CPU_HP_VOTE_DUMP=n)\r\n");
+#endif
+		return;
+	}
+
+	if (os_strcmp(argv[2], "test") == 0) {
+		cli_cpu_hp_vote_test();
+		return;
+	}
+
+	if (argc < 4) {
+		cli_cpu_hp_vote_help();
+		return;
+	}
+
+#if CONFIG_CPU_HP_VOTE_FIND
+	if (os_strcmp(argv[2], "reg") == 0) {
+		if (bk_cpu_hp_vote_find(argv[3]) != NULL) {
+			CLI_LOGE("cpu vote: '%s' already registered\r\n", argv[3]);
+			return;
+		}
+		if (bk_cpu_hp_vote_register(argv[3]) == NULL) {
+			CLI_LOGE("cpu vote: register '%s' failed\r\n", argv[3]);
+			return;
+		}
+		CLI_LOGI("cpu vote: registered '%s'\r\n", argv[3]);
+		return;
+	}
+
+	cpu_hp_voter_handle_t voter = bk_cpu_hp_vote_find(argv[3]);
+	if (voter == NULL) {
+		CLI_LOGE("cpu vote: '%s' not registered\r\n", argv[3]);
+		return;
+	}
+
+	if (os_strcmp(argv[2], "unreg") == 0) {
+		bk_err_t ret = bk_cpu_hp_vote_unregister(voter);
+		CLI_LOGI("cpu vote: unregister '%s' ret=%d\r\n", argv[3], ret);
+	} else if (os_strcmp(argv[2], "on") == 0) {
+		bk_err_t ret = bk_cpu_hp_vote_online(voter);
+		CLI_LOGI("cpu vote: '%s' online ret=%d online_count=%u\r\n",
+			argv[3], ret, bk_cpu_hp_vote_get_online_count());
+	} else if (os_strcmp(argv[2], "off") == 0) {
+		bk_err_t ret = bk_cpu_hp_vote_offline(voter);
+		CLI_LOGI("cpu vote: '%s' offline ret=%d online_count=%u\r\n",
+			argv[3], ret, bk_cpu_hp_vote_get_online_count());
+	} else {
+		cli_cpu_hp_vote_help();
+	}
+#else
+	/* reg/unreg/on/off all resolve a voter by name, which needs find(); keep them
+	 * consistent: all unavailable when CONFIG_CPU_HP_VOTE_FIND is off. */
+	(void)argv;
+	CLI_LOGI("cpu vote: reg/unreg/on/off need CONFIG_CPU_HP_VOTE_FIND\r\n");
+#endif /* CONFIG_CPU_HP_VOTE_FIND */
+}
+#endif /* CONFIG_CPU_HP_VOTE */
+
 static void cli_cpu_print_state(void)
 {
 	for (uint32_t cpu = CPU0_CORE_ID; cpu <= CPU1_CORE_ID; cpu++) {
@@ -491,7 +810,7 @@ static void cli_cpu_hotplug_cmd(char *pcWriteBuffer, int xWriteBufferLen, int ar
 		if (!cli_cpu_hotplug_target_valid(cpu)) {
 			return;
 		}
-		ret = bk_cpu_hp_offline(cpu);
+		ret = bk_cpu_hp_offline_direct(cpu);
 		CLI_LOGI("cpu%u offline ret=%d\r\n", cpu, ret);
 		return;
 	}
@@ -503,7 +822,7 @@ static void cli_cpu_hotplug_cmd(char *pcWriteBuffer, int xWriteBufferLen, int ar
 		if (!cli_cpu_hotplug_target_valid(cpu)) {
 			return;
 		}
-		ret = bk_cpu_hp_online(cpu);
+		ret = bk_cpu_hp_online_direct(cpu);
 		CLI_LOGI("cpu%u online ret=%d\r\n", cpu, ret);
 		return;
 	}
@@ -516,6 +835,13 @@ static void cli_cpu_hotplug_cmd(char *pcWriteBuffer, int xWriteBufferLen, int ar
 #if CONFIG_CPU_HP_GOVERNOR
 	if (os_strcmp(argv[1], "gov") == 0) {
 		cli_cpu_hp_governor_cmd(argc, argv);
+		return;
+	}
+#endif
+
+#if CONFIG_CPU_HP_VOTE
+	if (os_strcmp(argv[1], "vote") == 0) {
+		cli_cpu_hp_vote_cmd(argc, argv);
 		return;
 	}
 #endif
@@ -543,9 +869,9 @@ static void cli_cpu_hotplug_cmd(char *pcWriteBuffer, int xWriteBufferLen, int ar
 		taskYIELD();
 		rtos_delay_milliseconds(2);
 
-		ret = bk_cpu_hp_offline(CPU1_CORE_ID);
+		ret = bk_cpu_hp_offline_direct(CPU1_CORE_ID);
 		if (ret != expected_ret) {
-			recover_ret = bk_cpu_hp_online(CPU1_CORE_ID);
+			recover_ret = bk_cpu_hp_online_direct(CPU1_CORE_ID);
 			CLI_LOGE("cpu busy-test recovery online ret=%d\r\n", recover_ret);
 		}
 
@@ -568,14 +894,14 @@ static void cli_cpu_hotplug_cmd(char *pcWriteBuffer, int xWriteBufferLen, int ar
 		}
 
 		for (uint32_t i = 0; i < loops; i++) {
-			ret = bk_cpu_hp_offline(cpu);
+			ret = bk_cpu_hp_offline_direct(cpu);
 			if (ret != BK_OK) {
 				CLI_LOGE("cpu%u offline failed at loop %u, ret=%d\r\n", cpu, i, ret);
 				return;
 			}
 			rtos_delay_milliseconds(1);
 
-			ret = bk_cpu_hp_online(cpu);
+			ret = bk_cpu_hp_online_direct(cpu);
 			if (ret != BK_OK) {
 				CLI_LOGE("cpu%u online failed at loop %u, ret=%d\r\n", cpu, i, ret);
 				return;
@@ -689,7 +1015,7 @@ static void cli_dbg_probe_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc
 #endif /* CONFIG_DBG_PROBE */
 
 static const struct cli_command s_cpu_hotplug_commands[] = {
-	{"cpu", "cpu {list|state|offline 1|online 1|irq-affinity|task-affinity|stress 1 <loops>|busy-test|gov on|off|status|gov stress <cycles>}", cli_cpu_hotplug_cmd},
+	{"cpu", "cpu {list|state|offline 1|online 1|irq-affinity|task-affinity|stress 1 <loops>|busy-test|gov on|off|status|gov stress <cycles>|vote reg|unreg|on|off <name>|vote status|test}", cli_cpu_hotplug_cmd},
 #if CONFIG_DBG_PROBE
 	{"dbgp", "dbgp {mod|sink|etest|stest|shared|excl|v5|dump}", cli_dbg_probe_cmd},
 #endif
