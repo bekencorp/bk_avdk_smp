@@ -52,12 +52,5 @@ menu "SPI"
 		bool "Enable spi test"
 		default n
 
-	config SPI_API_TEST
-		depends on SPI
-		bool "Enable spi api test"
-		default n
-		help
-			Enable spi api test.
-
 endmenu
 

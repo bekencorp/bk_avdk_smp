@@ -10,10 +10,6 @@ if (CONFIG_SPI)
 		list(APPEND srcs spi/spi_test.c)
 	endif()
 
-	if (CONFIG_CLI AND CONFIG_SPI_API_TEST)
-		list(APPEND srcs spi/cli_spi_api.c)
-	endif()
-
 	set(incs ${incs} PARENT_SCOPE)
 	set(srcs ${srcs} PARENT_SCOPE)
 endif()

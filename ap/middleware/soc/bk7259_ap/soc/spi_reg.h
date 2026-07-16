@@ -18,7 +18,10 @@
 extern "C" {
 #endif
 
-#define SPI_R_BASE(_id)          (SOC_SPI_REG_BASE + _id * 0x1010000)
+#define SPI_R_BASE(_id)          ((_id) == 0 ? SOC_SPI0_REG_BASE : \
+                                  (_id) == 1 ? SOC_SPI1_REG_BASE : \
+                                  (_id) == 2 ? SOC_SPI2_REG_BASE : \
+                                               SOC_SPI3_REG_BASE)
 
 #define SPI_R_CTRL(_id)          (SPI_R_BASE(_id) + 4 * 0x04)
 

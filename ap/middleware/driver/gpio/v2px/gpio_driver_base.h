@@ -24,3 +24,4 @@
 #define GPIO_LOGV(...) BK_LOGV(GPIO_TAG, ##__VA_ARGS__)
 
 bk_err_t bk_gpio_set_gpio_func(uint32_t gpio_id, IOMX_CODE_T func_code);
+uint32_t bk_gpio_get_gpio_func_code(uint32_t gpio_id);

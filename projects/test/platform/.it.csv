@@ -444,106 +444,98 @@ spi_1_empty_115k_01,ap_cmd empty command,2,spi write bytes,1
 spi_1_read_115k_02,ap_cmd spi 0 read 1,2,CMDRSP:OK,
 spi_1_write_115k_02,ap_cmd spi 0 write 1,1,spi write bytes,
 spi_1_empty_115k_02,ap_cmd empty command,2,spi read,1
-spi_api_driver_init_01,ap_cmd argspi -d init,1,SPI driver initialized successfully,
-spi_api_driver_deinit_01,ap_cmd argspi -d deinit,1,SPI driver deinitialized successfully,
-spi_api_init_master_01,ap_cmd argspi -i 0 -a init -l master -t 8 -p 0 -s 0 -m 4 -b 115200 -o MSB,1,SPI initialized,
-spi_api_deinit_01,ap_cmd argspi -i 0 -a deinit,1,spi deinit,
-spi_api_init_slave_01,ap_cmd argspi -i 0 -a init -l slave -t 8 -p 1 -s 1 -e 4 -b 115200 -o MSB,1,SPI initialized,
-spi_api_set_mode_0_01,ap_cmd argspi -i 0 -e mode -m 0,1,SPI 0 set mode succeed,
-spi_api_set_mode_1_01,ap_cmd argspi -i 0 -e mode -m 1,1,SPI 0 set mode succeed,
-spi_api_set_mode_2_01,ap_cmd argspi -i 0 -e mode -m 2,1,SPI 0 set mode succeed,
-spi_api_set_mode_3_01,ap_cmd argspi -i 0 -e mode -m 3,1,SPI 0 set mode succeed,
-spi_api_set_mode_invalid_01,ap_cmd argspi -i 0 -e mode -m 4,1,SPI mode value must be between 0 and 3,
-spi_api_set_width_0_01,ap_cmd argspi -i 0 -e bit_width -t 0,1,SPI 0 set bit width succeed,
-spi_api_set_width_1_01,ap_cmd argspi -i 0 -e bit_width -t 1,1,SPI 0 set bit width succeed,
-spi_api_set_width_invalid_01,ap_cmd argspi -i 0 -e bit_width -t 2,1,SPI bit width value must be between 0 and 1,
-spi_api_set_wire_0_01,ap_cmd argspi -i 0 -e wire_mode -m 0,1,SPI 0 set wire mode succeed,
-spi_api_set_wire_1_01,ap_cmd argspi -i 0 -e wire_mode -m 1,1,SPI 0 set wire mode succeed,
-spi_api_set_baud_01,ap_cmd argspi -i 0 -e baud -b 10000,1,SPI id 0 set baud_rate 10000 successfully,
-spi_api_set_order_0_01,ap_cmd argspi -i 0 -e bit_order -o 0,1,SPI 0 set bit order succeed,
-spi_api_set_order_1_01,ap_cmd argspi -i 0 -e bit_order -o 1,1,SPI 0 set bit order succeed,
-spi_api_set_order_invalid_01,ap_cmd argspi -i 0 -e bit_order -o 2,1,SPI bit order value must be between 0 and 1,
-spi_api_rx_isr_01,ap_cmd argspi -i 0 -r rx_isr,1,SPI ID: 0 Registered RX interrupt ISR,
-spi_api_unrx_isr_01,ap_cmd argspi -i 0 -r unrx_isr,1,SPI ID: 0 Unregister the RX finish interrupt service routine,
-spi_api_rx_finish_01,ap_cmd argspi -i 0 -r rx_finish,1,SPI ID: 0 Registered RX finish interrupt ISR,
-spi_api_unrx_finish_01,ap_cmd argspi -i 0 -r unrx_finish,1,SPI ID: 0 Unregister the TX finish interrupt service routine,
-spi_api_tx_finish_01,ap_cmd argspi -i 0 -r tx_finish,1,SPI ID: 0 Registered TX finish interrupt ISR,
-spi_api_untx_finish_01,ap_cmd argspi -i 0 -r untx_finish,1,SPI ID: 0 Send data to the SPI port from a given buffer and length in async mode,
-spi_api_deinit_02,ap_cmd argspi -i 0 -a deinit,1,spi deinit,
-spi_api_deinit_03,ap_cmd argspi -i 0 -a deinit,2,spi deinit,
-spi_api_driver_init_02,ap_cmd argspi -d init,1,SPI driver initialized successfully,
-spi_api_driver_init_03,ap_cmd argspi -d init,2,SPI driver initialized successfully,
-spi_api_init_master_02,ap_cmd argspi -i 0 -a init -l master -t 8 -p 1 -s 1 -m 4 -b 10000 -o MSB,1,SPI initialized,1
-spi_api_init_slave_02,ap_cmd argspi -i 0 -a init -l slave -t 8 -p 1 -s 1 -m 4 -b 10000 -o MSB,2,SPI initialized,1
-spi_api_write_9_01,ap_cmd argspi -i 0 -c write -t 9,2,CMDRSP:OK,
-spi_api_read_9_01,ap_cmd argspi -i 0 -c read -t 9,1,spi read,10
+spi_api_driver_init_01,ap_cmd spi_driver init,1,spi driver init,
+spi_api_driver_deinit_01,ap_cmd spi_driver deinit,1,spi driver deinit,
+spi_api_init_master_01,ap_cmd spi 0 init master 8 0 0 4 115200 MSB 0,1,spi init,
+spi_api_deinit_01,ap_cmd spi 0 deinit,1,spi deinit,
+spi_api_init_slave_01,ap_cmd spi 0 init slave 8 1 1 4 115200 MSB 0,1,spi init,
+spi_api_set_mode_0_01,ap_cmd spi_config 0 mode 0,1,spi(0) config mode:,
+spi_api_set_mode_1_01,ap_cmd spi_config 0 mode 1,1,spi(0) config mode:,
+spi_api_set_mode_2_01,ap_cmd spi_config 0 mode 2,1,spi(0) config mode:,
+spi_api_set_mode_3_01,ap_cmd spi_config 0 mode 3,1,spi(0) config mode:,
+spi_api_set_width_0_01,ap_cmd spi_config 0 bit_width 8,1,spi(0) config bit_width:,
+spi_api_set_width_1_01,ap_cmd spi_config 0 bit_width 16,1,spi(0) config bit_width:,
+spi_api_set_wire_0_01,ap_cmd spi_config 0 wire_mode 4,1,spi(0) config wire_mode:,
+spi_api_set_wire_1_01,ap_cmd spi_config 0 wire_mode 3,1,spi(0) config wire_mode:,
+spi_api_set_baud_01,ap_cmd spi_config 0 baud_rate 10000,1,spi(0) config baud_rate:,
+spi_api_set_order_0_01,ap_cmd spi_config 0 bit_order MSB,1,spi(0) config bit_order:,
+spi_api_set_order_1_01,ap_cmd spi_config 0 bit_order LSB,1,spi(0) config bit_order:,
+spi_api_rx_isr_01,ap_cmd spi_int 0 reg rx,1,register rx interrupt isr,
+spi_api_tx_finish_01,ap_cmd spi_int 0 reg tx,1,register tx finish interrupt isr,
+spi_api_deinit_02,ap_cmd spi 0 deinit,1,spi deinit,
+spi_api_deinit_03,ap_cmd spi 0 deinit,2,spi deinit,
+spi_api_driver_init_02,ap_cmd spi_driver init,1,spi driver init,
+spi_api_driver_init_03,ap_cmd spi_driver init,2,spi driver init,
+spi_api_init_master_02,ap_cmd spi 0 init master 8 1 1 4 10000 MSB 0,1,spi init,1
+spi_api_init_slave_02,ap_cmd spi 0 init slave 8 1 1 4 10000 MSB 0,2,spi init,1
+spi_api_write_9_01,ap_cmd spi 0 write 9,2,CMDRSP:OK,
+spi_api_read_9_01,ap_cmd spi 0 read 9,1,spi read,10
 spi_api_empty_9_01,ap_cmd empty command,2,spi write bytes,1
-spi_api_read_9_02,ap_cmd argspi -i 0 -c read -t 9,2,CMDRSP:OK,
-spi_api_write_9_02,ap_cmd argspi -i 0 -c write -t 9,1,spi write bytes,
+spi_api_read_9_02,ap_cmd spi 0 read 9,2,CMDRSP:OK,
+spi_api_write_9_02,ap_cmd spi 0 write 9,1,spi write bytes,
 spi_api_empty_9_02,ap_cmd empty command,2,spi read,1
-spi_api_deinit_04,ap_cmd argspi -i 0 -a deinit,1,spi deinit,10
-spi_api_deinit_05,ap_cmd argspi -i 0 -a deinit,2,spi deinit,10
-spi_api_driver_init_04,ap_cmd argspi -d init,1,SPI driver initialized successfully,10
-spi_api_driver_init_05,ap_cmd argspi -d init,2,SPI driver initialized successfully,10
-spi_api_init_master_03,ap_cmd argspi -i 0 -a init -l master -t 8 -p 1 -s 1 -m 4 -b 10000 -o MSB,1,SPI initialized,10
-spi_api_init_slave_03,ap_cmd argspi -i 0 -a init -l slave -t 8 -p 1 -s 1 -m 4 -b 10000 -o MSB,2,SPI initialized,10
-spi_api_write_async_10_01,ap_cmd argspi -i 0 -c write_async -t 10,2,CMDRSP:OK,
-spi_api_read_10_01,ap_cmd argspi -i 0 -c read -t 10,1,spi read,1
+spi_api_deinit_04,ap_cmd spi 0 deinit,1,spi deinit,10
+spi_api_deinit_05,ap_cmd spi 0 deinit,2,spi deinit,10
+spi_api_driver_init_04,ap_cmd spi_driver init,1,spi driver init,10
+spi_api_driver_init_05,ap_cmd spi_driver init,2,spi driver init,10
+spi_api_init_master_03,ap_cmd spi 0 init master 8 1 1 4 10000 MSB 0,1,spi init,10
+spi_api_init_slave_03,ap_cmd spi 0 init slave 8 1 1 4 10000 MSB 0,2,spi init,10
+spi_api_write_async_10_01,ap_cmd spi 0 write_async 10,2,CMDRSP:OK,
+spi_api_read_10_01,ap_cmd spi 0 read 10,1,spi read,1
 spi_api_empty_10_01,ap_cmd empty command,2,spi write bytes async,1
-spi_api_read_10_02,ap_cmd argspi -i 0 -c read -t 10,2,CMDRSP:OK,
-spi_api_write_async_10_02,ap_cmd argspi -i 0 -c write_async -t 10,1,spi write bytes async,1
+spi_api_read_10_02,ap_cmd spi 0 read 10,2,CMDRSP:OK,
+spi_api_write_async_10_02,ap_cmd spi 0 write_async 10,1,spi write bytes async,1
 spi_api_empty_10_02,ap_cmd empty command,2,recv_buffer[9],10
-spi_4095_deinit_high_01,ap_cmd argspi -i 0 -a deinit,1,spi deinit,
-spi_4095_deinit_high_02,ap_cmd argspi -i 0 -a deinit,2,spi deinit,
-spi_4095_driver_init_high_01,ap_cmd argspi -d init,1,SPI driver initialized successfully,
-spi_4095_driver_init_high_02,ap_cmd argspi -d init,2,SPI driver initialized successfully,
-spi_4095_master_init_high_01,ap_cmd argspi -i 0 -a init -l master -t 8 -p 0 -s 0 -m 4 -b 115200 -o MSB,1,SPI initialized,10
-spi_4095_slave_init_high_01,ap_cmd argspi -i 0 -a init -l slave -t 8 -p 0 -s 0 -m 4 -b 115200 -o MSB,2,SPI initialized,10
-spi_4095_write_high_01,ap_cmd argspi -i 0 -c write -t 4095,2,CMDRSP:OK,
-spi_4095_read_high_01,ap_cmd argspi -i 0 -c read -t 4095,1,recv_buffer[4094],20
+spi_4095_deinit_high_01,ap_cmd spi 0 deinit,1,spi deinit,
+spi_4095_deinit_high_02,ap_cmd spi 0 deinit,2,spi deinit,
+spi_4095_driver_init_high_01,ap_cmd spi_driver init,1,spi driver init,
+spi_4095_driver_init_high_02,ap_cmd spi_driver init,2,spi driver init,
+spi_4095_master_init_high_01,ap_cmd spi 0 init master 8 0 0 4 115200 MSB 0,1,spi init,10
+spi_4095_slave_init_high_01,ap_cmd spi 0 init slave 8 0 0 4 115200 MSB 0,2,spi init,10
+spi_4095_write_high_01,ap_cmd spi 0 write 4095,2,CMDRSP:OK,
+spi_4095_read_high_01,ap_cmd spi 0 read 4095,1,recv_buffer[4094],20
 spi_4095_empty_high_01,ap_cmd empty command,2,spi write bytes,20
-spi_4095_read_high_02,ap_cmd argspi -i 0 -c read -t 4095,2,CMDRSP:OK,
-spi_4095_write_high_02,ap_cmd argspi -i 0 -c write -t 4095,1,spi write bytes,1
+spi_4095_read_high_02,ap_cmd spi 0 read 4095,2,CMDRSP:OK,
+spi_4095_write_high_02,ap_cmd spi 0 write 4095,1,spi write bytes,1
 spi_4095_empty_high_02,ap_cmd empty command,2,recv_buffer[4094],20
-spi_4095_deinit_mid_01,ap_cmd argspi -i 0 -a deinit,1,spi deinit,
-spi_4095_deinit_mid_02,ap_cmd argspi -i 0 -a deinit,2,spi deinit,
-spi_4095_driver_init_mid_01,ap_cmd argspi -d init,1,SPI driver initialized successfully,
-spi_4095_driver_init_mid_02,ap_cmd argspi -d init,2,SPI driver initialized successfully,
-spi_4095_master_init_mid_01,ap_cmd argspi -i 0 -a init -l master -t 8 -p 0 -s 0 -m 4 -b 115200 -o MSB,1,SPI initialized,
-spi_4095_slave_init_mid_01,ap_cmd argspi -i 0 -a init -l slave -t 8 -p 0 -s 0 -m 4 -b 115200 -o MSB,2,SPI initialized,
-spi_4095_write_mid_01,ap_cmd argspi -i 0 -c write -t 4095,2,CMDRSP:OK,
-spi_4095_read_mid_01,ap_cmd argspi -i 0 -c read -t 4095,1,recv_buffer[4094],20
+spi_4095_deinit_mid_01,ap_cmd spi 0 deinit,1,spi deinit,
+spi_4095_deinit_mid_02,ap_cmd spi 0 deinit,2,spi deinit,
+spi_4095_driver_init_mid_01,ap_cmd spi_driver init,1,spi driver init,
+spi_4095_driver_init_mid_02,ap_cmd spi_driver init,2,spi driver init,
+spi_4095_master_init_mid_01,ap_cmd spi 0 init master 8 0 0 4 115200 MSB 0,1,spi init,
+spi_4095_slave_init_mid_01,ap_cmd spi 0 init slave 8 0 0 4 115200 MSB 0,2,spi init,
+spi_4095_write_mid_01,ap_cmd spi 0 write 4095,2,CMDRSP:OK,
+spi_4095_read_mid_01,ap_cmd spi 0 read 4095,1,recv_buffer[4094],20
 spi_4095_empty_mid_01,ap_cmd empty command,2,spi write bytes,1
-spi_4095_read_mid_02,ap_cmd argspi -i 0 -c read -t 4095,2,CMDRSP:OK,
-spi_4095_write_mid_02,ap_cmd argspi -i 0 -c write -t 4095,1,spi write bytes,1
+spi_4095_read_mid_02,ap_cmd spi 0 read 4095,2,CMDRSP:OK,
+spi_4095_write_mid_02,ap_cmd spi 0 write 4095,1,spi write bytes,1
 spi_4095_empty_mid_02,ap_cmd empty command,2,recv_buffer[4094],20
-spi_1_deinit_mid_01,ap_cmd argspi -i 0 -a deinit,1,spi deinit,
-spi_1_deinit_mid_02,ap_cmd argspi -i 0 -a deinit,2,spi deinit,
-spi_1_driver_init_mid_01,ap_cmd argspi -d init,1,SPI driver initialized successfully,
-spi_1_driver_init_mid_02,ap_cmd argspi -d init,2,SPI driver initialized successfully,
-spi_1_master_init_mid_01,ap_cmd argspi -i 0 -a init -l master -t 8 -p 0 -s 0 -m 4 -b 115200 -o LSB,1,SPI initialized,10
-spi_1_slave_init_mid_01,ap_cmd argspi -i 0 -a init -l slave -t 8 -p 0 -s 0 -m 4 -b 115200 -o LSB,2,SPI initialized,10
-spi_1_write_mid_01,ap_cmd argspi -i 0 -c write -t 1,2,CMDRSP:OK,
-spi_1_read_mid_01,ap_cmd argspi -i 0 -c read -t 1,1,recv_buffer[0],10
+spi_1_deinit_mid_01,ap_cmd spi 0 deinit,1,spi deinit,
+spi_1_deinit_mid_02,ap_cmd spi 0 deinit,2,spi deinit,
+spi_1_driver_init_mid_01,ap_cmd spi_driver init,1,spi driver init,
+spi_1_driver_init_mid_02,ap_cmd spi_driver init,2,spi driver init,
+spi_1_master_init_mid_01,ap_cmd spi 0 init master 8 0 0 4 115200 LSB 0,1,spi init,10
+spi_1_slave_init_mid_01,ap_cmd spi 0 init slave 8 0 0 4 115200 LSB 0,2,spi init,10
+spi_1_write_mid_01,ap_cmd spi 0 write 1,2,CMDRSP:OK,
+spi_1_read_mid_01,ap_cmd spi 0 read 1,1,recv_buffer[0],10
 spi_1_empty_mid_01,ap_cmd empty command,2,spi write bytes,1
-spi_1_read_mid_02,ap_cmd argspi -i 0 -c read -t 1,2,CMDRSP:OK,
-spi_1_write_mid_02,ap_cmd argspi -i 0 -c write -t 1,1,spi write bytes,10
+spi_1_read_mid_02,ap_cmd spi 0 read 1,2,CMDRSP:OK,
+spi_1_write_mid_02,ap_cmd spi 0 write 1,1,spi write bytes,10
 spi_1_empty_mid_02,ap_cmd empty command,2,recv_buffer[0],10
-spi_int_deinit_01,ap_cmd argspi -i 0 -a deinit,1,spi deinit,10
-spi_int_deinit_02,ap_cmd argspi -i 0 -a deinit,2,spi deinit,10
-spi_int_driver_init_01,ap_cmd argspi -d init,1,SPI driver initialized successfully,
-spi_int_driver_init_02,ap_cmd argspi -d init,2,SPI driver initialized successfully,
-spi_int_master_init_01,ap_cmd argspi -i 0 -a init -l master -t 8 -p 0 -s 0 -m 4 -b 115200 -o LSB,1,SPI initialized,
-spi_int_slave_init_01,ap_cmd argspi -i 0 -a init -l slave -t 8 -p 0 -s 0 -m 4 -b 115200 -o LSB,2,SPI initialized,
-spi_int_rx_isr_01,ap_cmd argspi -i 0 -r rx_isr,2,SPI ID: 0 Registered RX interrupt ISR,
-spi_int_write_1024_01,ap_cmd argspi -i 0 -c write -t 1024,2,CMDRSP:OK,
-spi_int_read_1024_01,ap_cmd argspi -i 0 -c read -t 1024,1,recv_buffer[1023],10
+spi_int_deinit_01,ap_cmd spi 0 deinit,1,spi deinit,10
+spi_int_deinit_02,ap_cmd spi 0 deinit,2,spi deinit,10
+spi_int_driver_init_01,ap_cmd spi_driver init,1,spi driver init,
+spi_int_driver_init_02,ap_cmd spi_driver init,2,spi driver init,
+spi_int_master_init_01,ap_cmd spi 0 init master 8 0 0 4 115200 LSB 0,1,spi init,
+spi_int_slave_init_01,ap_cmd spi 0 init slave 8 0 0 4 115200 LSB 0,2,spi init,
+spi_int_rx_isr_01,ap_cmd spi_int 0 reg rx,2,register rx interrupt isr,
+spi_int_write_1024_01,ap_cmd spi 0 write 1024,2,CMDRSP:OK,
+spi_int_read_1024_01,ap_cmd spi 0 read 1024,1,recv_buffer[1023],10
 spi_int_empty_01,ap_cmd empty command,2,spi write bytes,1
-spi_int_read_1024_02,ap_cmd argspi -i 0 -c read -t 1024,2,CMDRSP:OK,
-spi_int_write_1024_02,ap_cmd argspi -i 0 -c write -t 1024,1,spi write bytes,1
+spi_int_read_1024_02,ap_cmd spi 0 read 1024,2,CMDRSP:OK,
+spi_int_write_1024_02,ap_cmd spi 0 write 1024,1,spi write bytes,1
 spi_int_empty_02,ap_cmd empty command,2,recv_buffer[1023],10
-spi_int_rx_finish_01,ap_cmd argspi -i 0 -r rx_finish,2,SPI ID: 0 Registered RX finish interrupt ISR,10
-spi_int_tx_finish_01,ap_cmd argspi -i 0 -r tx_finish,1,SPI ID: 0 Registered TX finish interrupt ISR,10
+spi_int_tx_finish_01,ap_cmd spi_int 0 reg tx,1,register tx finish interrupt isr,10
 adc_driver_deinit_01,sadc_driver deinit,1,adc driver deinit success,
 adc_driver_init_01,sadc_driver init,1,adc driver init success,
 adc_config_01,sadc 1 config 1 64 64 1,1,adc init test,

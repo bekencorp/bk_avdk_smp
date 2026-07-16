@@ -218,26 +218,6 @@ bk_err_t bk_spi_write_bytes(spi_id_t id, const void *data, uint32_t size);
 bk_err_t bk_spi_read_bytes(spi_id_t id, void *data, uint32_t size);
 
 /**
- * @brief     SPI write and read bytes
- *
- * @param id SPI id
- * @param tx_data write data buffer address
- * @param tx_size data length to read
- * @param rx_data pointer to the receive buffer
- * @param rx_size data length to read
- * @param timeout_ms timeout ms, if set BEKEN_WAIT_FOREVER, read will wait forever
- *
- * @return
- *    - BK_OK: succeed
- *    - BK_ERR_SPI_NOT_INIT: SPI driver not init
- *    - BK_ERR_SPI_INVALID_ID: SPI id number is invalid
- *    - BK_ERR_SPI_ID_NOT_INIT: SPI id not init
- *    - others: other errors.
- */
-bk_err_t bk_spi_transmit(spi_id_t id, const void *tx_data, uint32_t tx_size, void *rx_data, uint32_t rx_size);
-
-
-/**
  * @brief     Register the RX finish interrupt service routine for SPI id
  *
  * @param id spi id
@@ -349,24 +329,6 @@ bk_err_t bk_spi_dma_write_bytes(spi_id_t id, const void *data, uint32_t size);
  *    - others: other errors.
  */
 bk_err_t bk_spi_dma_read_bytes(spi_id_t id, void *data, uint32_t size);
-
-/**
- * @brief     SPI write and read bytes byte dma
- *
- * @param id SPI id
- * @param tx_data write data buffer address
- * @param tx_size data length to read
- * @param rx_data pointer to the receive buffer
- * @param rx_size data length to read
- * @param timeout_ms timeout ms, if set BEKEN_WAIT_FOREVER, read will wait forever
- *
- * @return
- *    - BK_ERR_SPI_NOT_INIT: SPI driver not init
- *    - BK_ERR_SPI_INVALID_ID: SPI id number is invalid
- *    - BK_ERR_SPI_ID_NOT_INIT: SPI id not init
- *    - others: other errors.
- */
-bk_err_t bk_spi_dma_transmit(spi_id_t id, const void *tx_data, uint32_t tx_size, void *rx_data, uint32_t rx_size);
 
 /**
  * @brief     SPI init duplex transmit

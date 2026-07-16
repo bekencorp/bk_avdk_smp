@@ -162,17 +162,17 @@ static spi_driver_t s_spi[SOC_SPI_UNIT_NUM] = {
 #if (SOC_SPI_UNIT_NUM > 1)
 	{
 		.hal.hw = (spi_hw_t *)(SOC_SPI1_REG_BASE),
-	}
+	},
 #endif
 #if(SOC_SPI_UNIT_NUM > 2)
 	{
 		.hal.hw = (spi_hw_t *)(SOC_SPI2_REG_BASE),
-	}
+	},
 #endif
 #if(SOC_SPI_UNIT_NUM > 3)
 	{
 		.hal.hw = (spi_hw_t *)(SOC_SPI3_REG_BASE),
-	}
+	},
 #endif
 };
 static bool s_spi_driver_is_init = false;
@@ -241,21 +241,21 @@ static void spi_clock_enable(spi_id_t id)
 	switch(id)
 	{
 		case SPI_ID_0:
-			bk_pm_clock_ctrl(CLK_PWR_ID_SPI1, CLK_PWR_CTRL_PWR_UP);
+			bk_pm_clock_ctrl(CLK_PWR_ID_SPI0, CLK_PWR_CTRL_PWR_UP);
 			break;
 #if (SOC_SPI_UNIT_NUM > 1)
 		case SPI_ID_1:
-			bk_pm_clock_ctrl(CLK_PWR_ID_SPI2, CLK_PWR_CTRL_PWR_UP);
+			bk_pm_clock_ctrl(CLK_PWR_ID_SPI1, CLK_PWR_CTRL_PWR_UP);
 			break;
 #endif
 #if (SOC_SPI_UNIT_NUM > 2)
 		case SPI_ID_2:
-			bk_pm_clock_ctrl(CLK_PWR_ID_SPI3, CLK_PWR_CTRL_PWR_UP);
+			bk_pm_clock_ctrl(CLK_PWR_ID_SPI2, CLK_PWR_CTRL_PWR_UP);
 			break;
 #endif
 #if (SOC_SPI_UNIT_NUM > 3)
 		case SPI_ID_3:
-			bk_pm_clock_ctrl(CLK_PWR_ID_SPI4, CLK_PWR_CTRL_PWR_UP);
+			bk_pm_clock_ctrl(CLK_PWR_ID_SPI3, CLK_PWR_CTRL_PWR_UP);
 			break;
 #endif
 		default:
@@ -268,21 +268,21 @@ static void spi_clock_disable(spi_id_t id)
 	switch(id)
 	{
 		case SPI_ID_0:
-			bk_pm_clock_ctrl(CLK_PWR_ID_SPI_1, CLK_PWR_CTRL_PWR_DOWN);
+			bk_pm_clock_ctrl(CLK_PWR_ID_SPI0, CLK_PWR_CTRL_PWR_DOWN);
 			break;
 #if (SOC_SPI_UNIT_NUM > 1)
 		case SPI_ID_1:
-			bk_pm_clock_ctrl(CLK_PWR_ID_SPI_2, CLK_PWR_CTRL_PWR_DOWN);
+			bk_pm_clock_ctrl(CLK_PWR_ID_SPI1, CLK_PWR_CTRL_PWR_DOWN);
 			break;
 #endif
 #if (SOC_SPI_UNIT_NUM > 2)
 		case SPI_ID_2:
-			bk_pm_clock_ctrl(CLK_PWR_ID_SPI_3, CLK_PWR_CTRL_PWR_DOWN);
+			bk_pm_clock_ctrl(CLK_PWR_ID_SPI2, CLK_PWR_CTRL_PWR_DOWN);
 			break;
 #endif
 #if (SOC_SPI_UNIT_NUM > 3)
 		case SPI_ID_3:
-			bk_pm_clock_ctrl(CLK_PWR_ID_SPI_4, CLK_PWR_CTRL_PWR_DOWN);
+			bk_pm_clock_ctrl(CLK_PWR_ID_SPI3, CLK_PWR_CTRL_PWR_DOWN);
 			break;
 #endif
 		default:
@@ -510,7 +510,7 @@ static void spi_dma_tx_init(spi_id_t id, dma_id_t spi_tx_dma_chan, dma_data_widt
 	dma_config.src.addr_inc_en = DMA_ADDR_INC_ENABLE;
 	dma_config.src.addr_loop_en = DMA_ADDR_LOOP_DISABLE;
 	dma_config.dst.width = spi_tx_dma_width;
-	dma_config.dst.start_addr = SPI_R_DATA(id);
+	dma_config.dst.start_addr = (uint32_t)&s_spi[id].hal.hw->data.v;
 	dma_config.dst.dev = int_cfg_table[id].dma_dev;
 
 	BK_LOG_ON_ERR(bk_dma_init(spi_tx_dma_chan, &dma_config));
@@ -533,7 +533,7 @@ static void spi_dma_rx_init(spi_id_t id, dma_id_t spi_rx_dma_chan, dma_data_widt
 	dma_config.chan_prio = 0;
 	dma_config.src.dev = int_cfg_table[id].dma_dev;
 	dma_config.src.width = spi_rx_dma_width;
-	dma_config.src.start_addr = SPI_R_DATA(id);
+	dma_config.src.start_addr = (uint32_t)&s_spi[id].hal.hw->data.v;
 	dma_config.dst.dev = DMA_DEV_DTCM;
 	dma_config.dst.width = DMA_DATA_WIDTH_32BITS;
 	dma_config.dst.addr_inc_en = DMA_ADDR_INC_ENABLE;
@@ -934,24 +934,6 @@ bk_err_t bk_spi_read_bytes(spi_id_t id, void *data, uint32_t size)
 	return BK_OK;
 }
 
-bk_err_t bk_spi_transmit(spi_id_t id, const void *tx_data, uint32_t tx_size, void *rx_data, uint32_t rx_size)
-{
-	SPI_RETURN_ON_INVALID_ID(id);
-	SPI_RETURN_ON_ID_NOT_INIT(id);
-	SPI_PM_CHECK_RESTORE(id);
-
-	if (tx_size && tx_data) {
-		BK_LOG_ON_ERR(bk_spi_write_bytes(id, tx_data, tx_size));
-	}
-
-	if (rx_size && rx_data) {
-		BK_LOG_ON_ERR(bk_spi_read_bytes(id, rx_data, rx_size));
-	}
-
-	return BK_OK;
-}
-
-
 bk_err_t bk_spi_clr_tx(spi_id_t id)
 {
     spi_hal_disable_tx_fifo_int(&s_spi[id].hal);
@@ -1196,22 +1178,6 @@ bk_err_t bk_spi_dma_read_bytes(spi_id_t id, void *data, uint32_t size)
 		left_len -= rx_len;
 		buf_offset += rx_len;
 	}
-	return BK_OK;
-}
-
-bk_err_t bk_spi_dma_transmit(spi_id_t id, const void *tx_data, uint32_t tx_size, void *rx_data, uint32_t rx_size)
-{
-	SPI_RETURN_ON_INVALID_ID(id);
-	SPI_RETURN_ON_ID_NOT_INIT(id);
-
-	if (tx_size && tx_data) {
-		BK_LOG_ON_ERR(bk_spi_dma_write_bytes(id, tx_data, tx_size));
-	}
-
-	if (rx_size && rx_data) {
-		BK_LOG_ON_ERR(bk_spi_dma_read_bytes(id, rx_data, rx_size));
-	}
-
 	return BK_OK;
 }
 

@@ -18,16 +18,22 @@
 #include <components/bk_platform.h>
 #include <driver/uart.h>
 #include <driver/dma.h>
+#include <driver/gpio.h>
+#include <driver/hal/hal_io_matrix_types.h>
+#include <common/bk_err.h>
+#include "../gpio/v2px/gpio_driver_base.h"
 
 static void cli_spi_help(void)
 {
 	CLI_LOGD("spi_driver {init|deinit}\r\n");
 	CLI_LOGD("spi {id} {init} [mode] [bit_width] [bit_width] [cpol] [cpha] [wire_mode] [baud_rate] [bit_order]\r\n");
 	CLI_LOGD("spi {id} {deinit} \r\n");
-	CLI_LOGD("spi {id} {write} [buf_len]\r\n");
-	CLI_LOGD("spi_data_test {id} {master|slave} {baud_rate} {start|stop} {uart2|uart3} {exchange}\r\n");
-	CLI_LOGD("spi_data_test {id} {master|slave} {send} {buf_len}\r\n");
-	CLI_LOGD("spi_flash {id} {readid|erase|read|write} {addr} {len}\r\n");
+	CLI_LOGD("spi {id} {write|read|write_async|read_async} [buf_len]\r\n");
+	CLI_LOGD("spi_lb {id} [quick|full]                    -- single board loopback (jumper MOSI<->MISO)\r\n");
+	CLI_LOGD("spi_peer {master|slave} {id} {baud} {rounds} {data_len} [gap_ms] [dma|fifo]  -- dual board peer\r\n");
+	CLI_LOGD("spi_peer stop\r\n");
+	CLI_LOGD("spi_api_test {id}                            -- negative / API validation test\r\n");
+	CLI_LOGD("spi_flash {id} {readid|erase|read|write} {addr} {len}  -- compat/debug, needs CONFIG_SPI_MST_FLASH\r\n");
 }
 
 static void cli_spi_rx_isr(spi_id_t id, void *param)
@@ -160,38 +166,35 @@ static void cli_spi_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
 			os_free(recv_data);
 		}
 		recv_data = NULL;
-	} else if (os_strcmp(argv[2], "transmit") == 0) {
-		int send_len = os_strtoul(argv[3], NULL, 10);
-		int recv_len = os_strtoul(argv[4], NULL, 10);
-
-		uint8_t *send_data = (uint8_t *)os_zalloc(send_len);
+	} else if (os_strcmp(argv[2], "write_async") == 0) {
+		uint32_t buf_len = os_strtoul(argv[3], NULL, 10);
+		uint8_t *send_data = (uint8_t *)os_zalloc(buf_len);
 		if (send_data == NULL) {
 			CLI_LOGE("send buffer malloc failed\r\n");
 			return;
 		}
-		for (int i = 0; i < send_len; i++) {
+		for (int i = 0; i < buf_len; i++) {
 			send_data[i] = i & 0xff;
 		}
-		uint8_t *recv_data = (uint8_t *)os_malloc(recv_len);
-		if (recv_data == NULL) {
-			CLI_LOGE("recv buffer malloc failed\r\n");
-			return;
-		}
-		os_memset(recv_data, 0xff, recv_len);
-		int ret = bk_spi_transmit(spi_id, send_data, send_len, recv_data, recv_len);
-		if (ret < 0) {
-			CLI_LOGE("spi transmit failed, ret:-0x%x\r\n", -ret);
-			goto transmit_exit;
-		}
-		for (int i = 0; i < recv_len; i++) {
-			CLI_LOGD("recv_buffer[%d]=0x%x\r\n", i, recv_data[i]);
-		}
-transmit_exit:
+		BK_LOG_ON_ERR(bk_spi_write_bytes_async(spi_id, send_data, buf_len));
 		if (send_data) {
 			os_free(send_data);
 		}
 		send_data = NULL;
-
+		CLI_LOGD("spi write bytes async, spi_id=%d, data_len=%d\n", spi_id, buf_len);
+	} else if (os_strcmp(argv[2], "read_async") == 0) {
+		uint32_t buf_len = os_strtoul(argv[3], NULL, 10);
+		uint8_t *recv_data = (uint8_t *)os_malloc(buf_len);
+		if (recv_data == NULL) {
+			CLI_LOGE("recv buffer malloc failed\r\n");
+			return;
+		}
+		os_memset(recv_data, 0xff, buf_len);
+		BK_LOG_ON_ERR(bk_spi_read_bytes_async(spi_id, recv_data, buf_len));
+		CLI_LOGD("spi read async, spi_id=%d, size:%d\n", spi_id, buf_len);
+		for (int i = 0; i < buf_len; i++) {
+			CLI_LOGD("recv_buffer[%d]=0x%x\n", i, recv_data[i]);
+		}
 		if (recv_data) {
 			os_free(recv_data);
 		}
@@ -331,372 +334,678 @@ static void cli_spi_int_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
 	}
 }
 
+/*======================================================================
+ * Standardized SPI test suite
+ *
+ * Ported/adapted from common industry practices:
+ *   - Espressif ESP-IDF   : spi_test() length/clock/DMA matrix + hex diff
+ *                           on mismatch; TEST_CASE_MULTIPLE_DEVICES model.
+ *   - Zephyr spi_loopback : clock-mode / word-size / stress sweeps.
+ *   - ARM CMSIS-Driver Val: loopback (MOSI<->MISO) + bidirectional peer.
+ *
+ * Three commands:
+ *   spi_lb       - single board loopback self-test (jumper MOSI<->MISO),
+ *                  full-duplex via bk_spi_dma_duplex_xfer.
+ *   spi_peer     - dual board master/slave peer test, covers BOTH non-DMA
+ *                  (bk_spi_write/read_bytes) and DMA (bk_spi_dma_write/read_bytes)
+ *                  data paths, synchronized by an extra SYNC gpio (polling).
+ *   spi_api_test - negative / API validation.
+ *
+ * All results use grep-friendly prefixes: SPI_LB / SPI_PEER / SPI_API,
+ * with explicit PASS/FAIL and a trailing SUMMARY line for CI parsing.
+ *====================================================================*/
+
+#define SPI_TEST_SEED_BASE   0x53504954u  /* "SPIT" */
+#define SPI_TEST_MAX_LEN     4096
+
+typedef struct {
+	uint32_t pass;
+	uint32_t total;
+} spi_test_stat_t;
+
+/* Deterministic byte generator (LCG) so master and slave, running on
+ * different chips, produce an identical pattern from the same seed. */
+static uint8_t spi_test_next_byte(uint32_t *state)
+{
+	*state = (*state) * 1103515245u + 12345u;
+	return (uint8_t)((*state >> 16) & 0xff);
+}
+
+static void spi_test_fill_pattern(uint8_t *buf, uint32_t len, uint32_t seed)
+{
+	uint32_t st = seed;
+	for (uint32_t i = 0; i < len; i++) {
+		buf[i] = spi_test_next_byte(&st);
+	}
+}
+
+/* Compare buf against the pattern for seed; on first mismatch print the
+ * offset and 16 bytes of expected vs received (Espressif style). */
+static bool spi_test_verify(const uint8_t *buf, uint32_t len, uint32_t seed)
+{
+	uint32_t st = seed;
+	for (uint32_t i = 0; i < len; i++) {
+		uint8_t exp = spi_test_next_byte(&st);
+		if (buf[i] != exp) {
+			uint32_t from = (i >= 8) ? (i - 8) : 0;
+			CLI_LOGI("mismatch @%u (len=%u)\r\n", i, len);
+			st = seed;
+			for (uint32_t k = 0; k < from; k++) {
+				(void)spi_test_next_byte(&st);
+			}
+			CLI_LOGI("exp:");
+			for (uint32_t k = from; k < from + 16 && k < len; k++) {
+				CLI_LOGI(" %02x", spi_test_next_byte(&st));
+			}
+			CLI_LOGI("\r\ngot:");
+			for (uint32_t k = from; k < from + 16 && k < len; k++) {
+				CLI_LOGI(" %02x", buf[k]);
+			}
+			CLI_LOGI("\r\n");
+			return false;
+		}
+	}
+	return true;
+}
+
+#if CONFIG_SPI_DMA
+static void spi_test_dma_dev(spi_id_t id, dma_dev_t *tx_dev, dma_dev_t *rx_dev)
+{
+#if (SOC_SPI_UNIT_NUM > 1)
+	if (id == SPI_ID_1) {
+		*tx_dev = DMA_DEV_GSPI1;
+		*rx_dev = DMA_DEV_GSPI1_RX;
+		return;
+	}
+#endif
+#if (SOC_SPI_UNIT_NUM > 2)
+	if (id == SPI_ID_2) {
+		*tx_dev = DMA_DEV_GSPI2;
+		*rx_dev = DMA_DEV_GSPI2_RX;
+		return;
+	}
+#endif
+#if (SOC_SPI_UNIT_NUM > 3)
+	if (id == SPI_ID_3) {
+		*tx_dev = DMA_DEV_GSPI3;
+		*rx_dev = DMA_DEV_GSPI3_RX;
+		return;
+	}
+#endif
+	*tx_dev = DMA_DEV_GSPI0;
+	*rx_dev = DMA_DEV_GSPI0_RX;
+}
+#endif
+
+/* Build a spi_config_t. When dma_on, tx/rx channels must be pre-allocated. */
+static void spi_test_build_config(spi_config_t *cfg, spi_role_t role, spi_mode_t mode,
+				  uint32_t baud, bool dma_on, dma_id_t tx_chan, dma_id_t rx_chan)
+{
+	os_memset(cfg, 0, sizeof(*cfg));
+	cfg->role = role;
+	cfg->bit_width = SPI_BIT_WIDTH_8BITS;
+	cfg->polarity = (mode & 0x2) ? SPI_POLARITY_HIGH : SPI_POLARITY_LOW;
+	cfg->phase = (mode & 0x1) ? SPI_PHASE_2ND_EDGE : SPI_PHASE_1ST_EDGE;
+	cfg->wire_mode = SPI_4WIRE_MODE;
+	cfg->baud_rate = baud;
+	cfg->bit_order = SPI_MSB_FIRST;
+#if (CONFIG_SPI_BYTE_INTERVAL)
+	cfg->byte_interval = 1;
+#endif
+#if CONFIG_SPI_DMA
+	cfg->dma_mode = dma_on ? SPI_DMA_MODE_ENABLE : SPI_DMA_MODE_DISABLE;
+	cfg->spi_tx_dma_chan = tx_chan;
+	cfg->spi_rx_dma_chan = rx_chan;
+	cfg->spi_tx_dma_width = DMA_DATA_WIDTH_8BITS;
+	cfg->spi_rx_dma_width = DMA_DATA_WIDTH_8BITS;
+#else
+	(void)dma_on; (void)tx_chan; (void)rx_chan;
+#endif
+}
+
+/*--------------------- single board loopback (spi_lb) ---------------------*/
+#if CONFIG_SPI_DMA
+static bool spi_lb_run_one(spi_id_t id, uint32_t len, uint32_t baud, spi_mode_t mode, uint32_t seed)
+{
+	bool ok = false;
+	dma_dev_t tx_dev, rx_dev;
+	dma_id_t tx_chan = DMA_ID_MAX, rx_chan = DMA_ID_MAX;
+	uint8_t *tx = (uint8_t *)os_malloc(len);
+	uint8_t *rx = (uint8_t *)os_malloc(len);
+
+	if (!tx || !rx) {
+		CLI_LOGE("SPI_LB: FAIL alloc (len=%u)\r\n", len);
+		goto out_free;
+	}
+
+	spi_test_dma_dev(id, &tx_dev, &rx_dev);
+	tx_chan = bk_dma_alloc(tx_dev);
+	rx_chan = bk_dma_alloc(rx_dev);
+	if (tx_chan == DMA_ID_MAX || rx_chan == DMA_ID_MAX) {
+		CLI_LOGE("SPI_LB: FAIL dma alloc (tx=%u rx=%u)\r\n", tx_chan, rx_chan);
+		goto out_dma;
+	}
+
+	spi_config_t cfg;
+	spi_test_build_config(&cfg, SPI_ROLE_MASTER, mode, baud, true, tx_chan, rx_chan);
+
+	spi_test_fill_pattern(tx, len, seed);
+	os_memset(rx, 0x55, len);
+
+	if (bk_spi_init(id, &cfg) != BK_OK) {
+		CLI_LOGE("SPI_LB: FAIL init\r\n");
+		goto out_dma;
+	}
+	bk_spi_dma_duplex_init(id);
+
+	if (bk_spi_dma_duplex_xfer(id, tx, len, rx, len) == BK_OK) {
+		ok = spi_test_verify(rx, len, seed);
+	}
+
+	bk_spi_dma_duplex_deinit(id);
+	bk_spi_deinit(id);
+
+out_dma:
+	if (tx_chan != DMA_ID_MAX) bk_dma_free(tx_dev, tx_chan);
+	if (rx_chan != DMA_ID_MAX) bk_dma_free(rx_dev, rx_chan);
+out_free:
+	if (tx) os_free(tx);
+	if (rx) os_free(rx);
+
+	CLI_LOGI("SPI_LB: %s (len=%u baud=%u mode=%u)\r\n", ok ? "PASS" : "FAIL", len, baud, mode);
+	return ok;
+}
+
+static void spi_lb_run_matrix(spi_id_t id, bool full)
+{
+	static const uint32_t lens[] = {1, 3, 4, 16, 21, 32, 36, 63, 64, 128, 129, 255, 256, 1024, 4095, 4096};
+	static const uint32_t bauds[] = {100000, 1000000, 4000000, 8000000};
+	spi_test_stat_t st = {0, 0};
+	uint32_t seed = SPI_TEST_SEED_BASE;
+
+	/* 1. length sweep @ 1MHz mode0 (aligned/unaligned/boundary) */
+	for (uint32_t i = 0; i < sizeof(lens) / sizeof(lens[0]); i++) {
+		if (!full && lens[i] > 256 && lens[i] != 4096) continue;
+		st.total++;
+		if (spi_lb_run_one(id, lens[i], 1000000, SPI_POL_MODE_0, seed++)) st.pass++;
+	}
+
+	/* 2. clock mode sweep 0..3 @ len=256 1MHz */
+	for (uint32_t m = 0; m < 4; m++) {
+		st.total++;
+		if (spi_lb_run_one(id, 256, 1000000, (spi_mode_t)m, seed++)) st.pass++;
+	}
+
+	/* 3. baud sweep @ len=256 mode0 */
+	for (uint32_t b = 0; b < sizeof(bauds) / sizeof(bauds[0]); b++) {
+		st.total++;
+		if (spi_lb_run_one(id, 256, bauds[b], SPI_POL_MODE_0, seed++)) st.pass++;
+	}
+
+	/* 4. stress: repeated random lengths */
+	uint32_t rounds = full ? 100 : 20;
+	for (uint32_t r = 0; r < rounds; r++) {
+		uint32_t len = 1 + (bk_rand() % SPI_TEST_MAX_LEN);
+		st.total++;
+		if (spi_lb_run_one(id, len, 2000000, SPI_POL_MODE_0, seed++)) st.pass++;
+	}
+
+	CLI_LOGI("SPI_LB SUMMARY: %u/%u PASS\r\n", st.pass, st.total);
+	if (st.pass == st.total) {
+		CLI_LOGI("SPI_LB: ALL PASS\r\n");
+	}
+}
+#endif /* CONFIG_SPI_DMA */
+
+static void cli_spi_lb_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
+{
+	if (argc < 2) {
+		cli_spi_help();
+		return;
+	}
+#if CONFIG_SPI_DMA
+	spi_id_t id = os_strtoul(argv[1], NULL, 10);
+	bool full = true;
+	if (argc >= 3 && os_strcmp(argv[2], "quick") == 0) {
+		full = false;
+	}
+	CLI_LOGI("SPI_LB START: id=%d %s (jumper MOSI<->MISO required)\r\n", id, full ? "full" : "quick");
+	spi_lb_run_matrix(id, full);
+#else
+	CLI_LOGE("SPI_LB: CONFIG_SPI_DMA disabled, loopback needs duplex dma\r\n");
+#endif
+}
+
+/*--------------------- dual board peer test (spi_peer) ---------------------*/
+/*
+ * SPI peer-to-peer test between two boards (one master, one slave), ported from
+ * the proven thread-based design: each side runs a dedicated thread, generates a
+ * deterministic pattern and exchanges it in two phases per round (master drives
+ * the clock):
+ *   Phase A  master -> slave : master writes data_len bytes,  slave reads data_len bytes
+ *   Phase B  slave  -> master: slave  writes data_len payload, master reads data_len+1 bytes
+ *
+ * Transfer path is selectable at runtime via the trailing [dma|fifo] argument
+ * (default dma when CONFIG_SPI_DMA is enabled). In DMA mode a master RX-only
+ * transfer would NOT drive the SPI clock and stall forever, so the master
+ * clocks the bus with bk_spi_dma_duplex_xfer (TX dummy while capturing RX).
+ *
+ * BK SPI-slave HW quirk: this SoC's SPI slave automatically inserts one
+ * redundant 0x72 byte in front of the first byte it transmits. So the slave
+ * sends payload only and the receiving master reads (payload_len + 1) bytes,
+ * checks the leading byte is 0x72, then drops it before validating the payload.
+ * The slave must NOT add the 0x72 itself (that would double it and shift by one).
+ */
+#define SPI_PEER_REDUNDANT_BYTE   0x72
+#define SPI_PEER_DEFAULT_GAP_MS   5
+#define SPI_PEER_MAX_LOG_ERR      8
+
+/* The peer test does blocking SPI transfers. When the link partner is absent or
+ * desynced a transfer can stall long enough to trip the task watchdog, so stop
+ * it for the lifetime of the test thread and restore it on exit. */
+#if CONFIG_TASK_WDT
+extern void bk_task_wdt_start(void);
+extern void bk_task_wdt_stop(void);
+#define SPI_PEER_TASK_WDT_STOP()   bk_task_wdt_stop()
+#define SPI_PEER_TASK_WDT_START()  bk_task_wdt_start()
+#else
+#define SPI_PEER_TASK_WDT_STOP()   do {} while (0)
+#define SPI_PEER_TASK_WDT_START()  do {} while (0)
+#endif
+
 typedef struct {
 	beken_thread_t handle;
-	beken_semaphore_t uart_rx_semaphore;
-	beken_semaphore_t spi_tx_finish_semaphore;
+	spi_id_t spi_id;
 	spi_role_t role;
 	uint32_t baud_rate;
-	spi_id_t spi_id;
-	uart_id_t uart_id;
+	uint32_t rounds;
 	uint32_t data_len;
-	uint8_t *data;
-	uint8_t *uart_get_data;
-	uint8_t *spi_get_buffer;
-	dma_id_t spi_tx_dma_chan;  /**< SPI tx dma channel */
-	dma_id_t spi_rx_dma_chan;  /**< SPI rx dma channel */
-	bool exchange_flag;
+	uint32_t gap_ms;
+	bool use_dma;
+#if CONFIG_SPI_DMA
+	dma_dev_t tx_dma_dev;
+	dma_dev_t rx_dma_dev;
+	dma_id_t tx_dma_chan;
+	dma_id_t rx_dma_chan;
+#endif
+} spi_peer_test_t;
 
-} spi_data_test_config_t;
+static spi_peer_test_t s_spi_peer;
 
-static spi_data_test_config_t s_spi_test;
-#define PER_PACKET_MAX_BYTES_SIZE   256
-
-static uint32_t spi_data_test_send(spi_id_t id, uint32_t buf_len)
+/* deterministic pattern for the master -> slave direction */
+static inline uint8_t spi_peer_m2s_byte(uint32_t round, uint32_t idx)
 {
-	bool middle_exchange_flag = s_spi_test.exchange_flag;
-
-	while(buf_len > PER_PACKET_MAX_BYTES_SIZE){
-
-		s_spi_test.data = (uint8_t *)os_zalloc(PER_PACKET_MAX_BYTES_SIZE);
-
-		s_spi_test.exchange_flag = 0;
-		s_spi_test.data_len = PER_PACKET_MAX_BYTES_SIZE;
-
-		for (int i = 0; i < PER_PACKET_MAX_BYTES_SIZE; i++) {
-			s_spi_test.data[i] = bk_rand();
-	}
-
-		BK_LOG_ON_ERR(bk_spi_write_bytes(id, s_spi_test.data, PER_PACKET_MAX_BYTES_SIZE));
-		buf_len = buf_len - PER_PACKET_MAX_BYTES_SIZE;
-	}
-
-	s_spi_test.data = (uint8_t *)os_zalloc(buf_len);
-	s_spi_test.exchange_flag = middle_exchange_flag;
-	s_spi_test.data_len = buf_len;
-
-	for (int i = 0; i < buf_len; i++) {
-		s_spi_test.data[i] = bk_rand();
-	}
-
-	BK_LOG_ON_ERR(bk_spi_write_bytes(id, s_spi_test.data, buf_len));
-	CLI_LOGD("spi MASTER write bytes, spi_id=%d, data_len=%d\n", id, buf_len);
-
-	return BK_OK;
+	return (uint8_t)(round + idx);
 }
 
-static void spi_data_test_tx_finish_isr(uart_id_t id, void *param)
+/* deterministic pattern for the slave -> master direction */
+static inline uint8_t spi_peer_s2m_byte(uint32_t round, uint32_t idx)
 {
-	int ret;
-
-	ret = rtos_set_semaphore(&s_spi_test.spi_tx_finish_semaphore);
-	if(kNoErr !=ret)
-		CLI_LOGD("spi_data_test_Tx_isr: spi set sema failed\r\n");
-
-	return;
+	return (uint8_t)(0xC0 + round + idx);
 }
 
-static void spi_data_test_spi_config(spi_id_t id, spi_role_t role, uint32_t baud_rate)
+static bk_err_t spi_peer_write(spi_id_t id, const void *data, uint32_t size)
+{
+#if CONFIG_SPI_DMA
+	if (s_spi_peer.use_dma) {
+		return bk_spi_dma_write_bytes(id, data, size);
+	}
+#endif
+	return bk_spi_write_bytes(id, data, size);
+}
+
+static bk_err_t spi_peer_read(spi_id_t id, void *data, uint32_t size)
+{
+#if CONFIG_SPI_DMA
+	if (s_spi_peer.use_dma) {
+		return bk_spi_dma_read_bytes(id, data, size);
+	}
+#endif
+	return bk_spi_read_bytes(id, data, size);
+}
+
+static void spi_peer_config(spi_id_t id, spi_role_t role, uint32_t baud_rate)
 {
 	spi_config_t config = {0};
+
 	config.role = role;
 	config.bit_width = SPI_BIT_WIDTH_8BITS;
-	config.polarity = 1;
-	config.phase = 1;
+	config.polarity = SPI_POLARITY_HIGH;
+	config.phase = SPI_PHASE_2ND_EDGE;
 	config.wire_mode = SPI_4WIRE_MODE;
 	config.baud_rate = baud_rate;
 	config.bit_order = SPI_MSB_FIRST;
 #if (CONFIG_SPI_BYTE_INTERVAL)
 	config.byte_interval = 1;
 #endif
-
 #if CONFIG_SPI_DMA
-	config.dma_mode = 1;
-	s_spi_test.spi_tx_dma_chan = bk_dma_alloc(DMA_DEV_DTCM);
-	config.spi_tx_dma_chan = s_spi_test.spi_tx_dma_chan;
-	s_spi_test.spi_rx_dma_chan = bk_dma_alloc(DMA_DEV_DTCM);
-	config.spi_rx_dma_chan = s_spi_test.spi_rx_dma_chan;
-	config.spi_tx_dma_width = DMA_DATA_WIDTH_8BITS;
-	config.spi_rx_dma_width = DMA_DATA_WIDTH_8BITS;
+	if (s_spi_peer.use_dma) {
+		spi_test_dma_dev(id, &s_spi_peer.tx_dma_dev, &s_spi_peer.rx_dma_dev);
+		s_spi_peer.tx_dma_chan = bk_dma_alloc(s_spi_peer.tx_dma_dev);
+		s_spi_peer.rx_dma_chan = bk_dma_alloc(s_spi_peer.rx_dma_dev);
+		config.dma_mode = SPI_DMA_MODE_ENABLE;
+		config.spi_tx_dma_chan = s_spi_peer.tx_dma_chan;
+		config.spi_rx_dma_chan = s_spi_peer.rx_dma_chan;
+		config.spi_tx_dma_width = DMA_DATA_WIDTH_8BITS;
+		config.spi_rx_dma_width = DMA_DATA_WIDTH_8BITS;
+	}
 #endif
-
-	if(role == SPI_ROLE_MASTER)
-		BK_LOG_ON_ERR(bk_spi_register_tx_finish_isr(id, (spi_isr_t)spi_data_test_tx_finish_isr, NULL));
 
 	BK_LOG_ON_ERR(bk_spi_init(id, &config));
-
 }
 
-static void spi_data_test_spi_deconfig(spi_id_t id)
+static void spi_peer_deconfig(spi_id_t id)
 {
-	BK_LOG_ON_ERR(bk_spi_unregister_tx_finish_isr(id));
 	BK_LOG_ON_ERR(bk_spi_deinit(id));
 #if CONFIG_SPI_DMA
-	if (s_spi_test.spi_tx_dma_chan != 0) {
-		bk_dma_free(DMA_DEV_DTCM, s_spi_test.spi_tx_dma_chan);
-		s_spi_test.spi_tx_dma_chan = 0;
-	}
-	if (s_spi_test.spi_rx_dma_chan != 0) {
-		bk_dma_free(DMA_DEV_DTCM, s_spi_test.spi_rx_dma_chan);
-		s_spi_test.spi_rx_dma_chan = 0;
+	if (s_spi_peer.use_dma) {
+		bk_dma_free(s_spi_peer.tx_dma_dev, s_spi_peer.tx_dma_chan);
+		bk_dma_free(s_spi_peer.rx_dma_dev, s_spi_peer.rx_dma_chan);
 	}
 #endif
 }
 
-static void spi_data_test_exchange_role(void)
+static void spi_peer_master_thread(void *arg)
 {
-	spi_data_test_spi_deconfig(s_spi_test.spi_id);
+	spi_id_t id = s_spi_peer.spi_id;
+	uint32_t len = s_spi_peer.data_len;
+	uint32_t rounds = s_spi_peer.rounds;
+	uint32_t gap_ms = s_spi_peer.gap_ms;
+	uint32_t total_err = 0;
 
-	if(s_spi_test.role == SPI_ROLE_MASTER)
-		s_spi_test.role = SPI_ROLE_SLAVE;
-	else
-		s_spi_test.role = SPI_ROLE_MASTER;
+	SPI_PEER_TASK_WDT_STOP();
 
-	spi_data_test_spi_config(s_spi_test.spi_id, s_spi_test.role, s_spi_test.baud_rate);
+	uint8_t *tx = (uint8_t *)os_zalloc(len);
+	uint8_t *rx = (uint8_t *)os_zalloc(len + 1); /* +1 for the redundant 0x72 */
+	/* Dummy buffer for the full-duplex DMA path: a master RX-only DMA transfer
+	 * does not drive the SPI clock, so it would stall forever. We instead clock
+	 * the bus with a duplex xfer (TX dummy while capturing RX). Sized len+1 to
+	 * cover both phases. */
+	uint8_t *dummy = (uint8_t *)os_zalloc(len + 1);
 
-}
-
-static void cli_spi_data_txrx_test(uint32_t data)
-{
-	int ret = -1;
-
-	int spi_tx_finish_isr_ret = -1;
-	int uart_isr_ret = -1;
-	int cnt = 0;
-	uint8_t rx_data;
-
-	if(NULL == s_spi_test.uart_rx_semaphore)
-	{
-		ret = rtos_init_semaphore(&s_spi_test.uart_rx_semaphore, 1);
-		if (kNoErr != ret)
-			CLI_LOGD("s_spi_test.uart_rx_semaphore failed\r\n");
+	if ((tx == NULL) || (rx == NULL) || (dummy == NULL)) {
+		CLI_LOGE("[SPI-PEER][M] buffer malloc failed\r\n");
+		goto exit;
 	}
 
-	if(NULL == s_spi_test.spi_tx_finish_semaphore)
-	{
-		ret = rtos_init_semaphore(&s_spi_test.spi_tx_finish_semaphore, 1);
-		if (kNoErr != ret)
-			CLI_LOGD("s_spi_test.spi_tx_finish_semaphore failed\r\n");
+	spi_peer_config(id, SPI_ROLE_MASTER, s_spi_peer.baud_rate);
+#if CONFIG_SPI_DMA
+	if (s_spi_peer.use_dma) {
+		bk_spi_dma_duplex_init(id);
 	}
+#endif
+	CLI_LOGI("[SPI-PEER][M] start id=%d baud=%d rounds=%d len=%d gap=%dms mode=%s\r\n",
+		 id, s_spi_peer.baud_rate, rounds, len, gap_ms, s_spi_peer.use_dma ? "dma" : "fifo");
 
-	CLI_LOGD("cli_spi_data_txrx_test\r\n");
+	for (uint32_t round = 0; round < rounds; round++) {
+		uint32_t round_err = 0;
 
-	while (1) {
+		/* Phase A: master -> slave */
+		for (uint32_t i = 0; i < len; i++) {
+			tx[i] = spi_peer_m2s_byte(round, i);
+		}
+#if CONFIG_SPI_DMA
+		if (s_spi_peer.use_dma) {
+			/* duplex so the master clocks the bus; RX captured into scratch */
+			BK_LOG_ON_ERR(bk_spi_dma_duplex_xfer(id, tx, len, dummy, len));
+		} else
+#endif
+		{
+			BK_LOG_ON_ERR(spi_peer_write(id, tx, len));
+		}
 
-		if (s_spi_test.role == SPI_ROLE_MASTER) {
+		/* give the slave time to switch from RX to TX */
+		rtos_delay_milliseconds(gap_ms);
 
-			spi_tx_finish_isr_ret = rtos_get_semaphore(&s_spi_test.spi_tx_finish_semaphore, BEKEN_WAIT_FOREVER);
-			if(kNoErr == spi_tx_finish_isr_ret) {
-				rtos_delay_milliseconds(10);
-				BK_LOG_ON_ERR(bk_uart_write_bytes(s_spi_test.uart_id, s_spi_test.data, s_spi_test.data_len));
-				for(int j = 0; j < s_spi_test.data_len; j++) {
-					CLI_LOGD("s_spi_test.data[%d]: %d\r\n", j, s_spi_test.data[j]);
+		/* Phase B: slave -> master, first byte is the redundant marker */
+		os_memset(rx, 0, len + 1);
+#if CONFIG_SPI_DMA
+		if (s_spi_peer.use_dma) {
+			/* duplex: TX dummy drives the clock while we capture the payload */
+			BK_LOG_ON_ERR(bk_spi_dma_duplex_xfer(id, dummy, len + 1, rx, len + 1));
+		} else
+#endif
+		{
+			BK_LOG_ON_ERR(spi_peer_read(id, rx, len + 1));
+		}
+
+		if (rx[0] != SPI_PEER_REDUNDANT_BYTE) {
+			CLI_LOGW("[M] round %d redundant byte mismatch: got 0x%02x exp 0x%02x\r\n",
+				 round, rx[0], SPI_PEER_REDUNDANT_BYTE);
+			round_err++;
+		}
+
+		/* strip the redundant byte, then verify the payload */
+		for (uint32_t i = 0; i < len; i++) {
+			uint8_t exp = spi_peer_s2m_byte(round, i);
+			if (rx[i + 1] != exp) {
+				if (round_err < SPI_PEER_MAX_LOG_ERR) {
+					CLI_LOGW("[M] round %d data[%d] mismatch: got 0x%02x exp 0x%02x\r\n",
+						 round, i, rx[i + 1], exp);
 				}
-				CLI_LOGD("spi Tx finish! UART send OK!\r\n");
-
-				if (s_spi_test.data) {
-					os_free(s_spi_test.data);
-				}
-
-				if(s_spi_test.exchange_flag) {
-					spi_data_test_exchange_role();
-					CLI_LOGD("spi EXCHANGE ROLE! MASTER ==> SLAVE\r\n");
-				}
-			}
-		} else {
-
-			uart_isr_ret = rtos_get_semaphore(&s_spi_test.uart_rx_semaphore, 300);
-			if(kNoErr == uart_isr_ret) {
-				while(1)  /* read all data from rx-FIFO. */
-				{
-					ret = uart_read_byte_ex(s_spi_test.uart_id, &rx_data);
-					if (ret == -1)
-						break;
-					s_spi_test.uart_get_data[cnt] = rx_data;
-					cnt++;
-					if(cnt >= PER_PACKET_MAX_BYTES_SIZE)
-						break;
-				}
-
-				if (cnt <= 0)
-					break;
-
-				if (cnt > 0) {
-					s_spi_test.data_len = cnt;
-					for(int i = 0; i < cnt; i++) {
-						if(s_spi_test.spi_get_buffer[i] != s_spi_test.uart_get_data[i])
-							CLI_LOGD("ERROR spi_get_buffer[%d]: %d uart_get_data[%d]: %d\r\n",
-									 i, s_spi_test.spi_get_buffer[i], i, s_spi_test.uart_get_data[i]);
-						else
-							CLI_LOGD("OK !!!spi get data == uart get data\r\n");
-
-						s_spi_test.spi_get_buffer[i] = 0;
-						s_spi_test.uart_get_data[i] = 0;
-					}
-					cnt = 0;
-				}
-
-				if(s_spi_test.exchange_flag) {
-					spi_data_test_exchange_role();
-					CLI_LOGD("spi EXCHANGE ROLE! SLAVE ==> MASTER\r\n");
-				}
-			}else {
-				CLI_LOGD("BEKEN_WAIT_FOREVER for spi read\r\n");
-				BK_LOG_ON_ERR(bk_spi_read_bytes(s_spi_test.spi_id, s_spi_test.spi_get_buffer, s_spi_test.data_len));
+				round_err++;
 			}
 		}
 
+		total_err += round_err;
+		CLI_LOGI("[M] round %d %s (errs=%d)\r\n", round, round_err ? "FAIL" : "PASS", round_err);
+		rtos_delay_milliseconds(gap_ms);
 	}
 
+	CLI_LOGI("[SPI-PEER][M] DONE rounds=%d total_errs=%d result=%s\r\n",
+		 rounds, total_err, total_err ? "FAIL" : "PASS");
+
+exit:
+#if CONFIG_SPI_DMA
+	if (s_spi_peer.use_dma) {
+		bk_spi_dma_duplex_deinit(id);
+	}
+#endif
+	if (tx) {
+		os_free(tx);
+	}
+	if (rx) {
+		os_free(rx);
+	}
+	if (dummy) {
+		os_free(dummy);
+	}
+	spi_peer_deconfig(id);
+	SPI_PEER_TASK_WDT_START();
+	s_spi_peer.handle = NULL;
+	rtos_delete_thread(NULL);
 }
 
-static void spi_data_test_uart_rx_isr(uart_id_t id, void *param)
+static void spi_peer_slave_thread(void *arg)
 {
-	int ret;
+	spi_id_t id = s_spi_peer.spi_id;
+	uint32_t len = s_spi_peer.data_len;
+	uint32_t rounds = s_spi_peer.rounds;
+	uint32_t total_err = 0;
 
-	ret = rtos_set_semaphore(&s_spi_test.uart_rx_semaphore);
-	if(kNoErr !=ret)
-		CLI_LOGD("spi_data_test_uart_rx_isr: uart set sema failed\r\n");
-	return;
+	SPI_PEER_TASK_WDT_STOP();
+
+	uint8_t *rx = (uint8_t *)os_zalloc(len);
+	uint8_t *tx = (uint8_t *)os_zalloc(len); /* payload only, HW auto-inserts the 0x72 head byte */
+
+	if ((tx == NULL) || (rx == NULL)) {
+		CLI_LOGE("[SPI-PEER][S] buffer malloc failed\r\n");
+		goto exit;
+	}
+
+	spi_peer_config(id, SPI_ROLE_SLAVE, s_spi_peer.baud_rate);
+	CLI_LOGI("[SPI-PEER][S] start id=%d baud=%d rounds=%d len=%d mode=%s\r\n",
+		 id, s_spi_peer.baud_rate, rounds, len, s_spi_peer.use_dma ? "dma" : "fifo");
+
+	for (uint32_t round = 0; round < rounds; round++) {
+		uint32_t round_err = 0;
+
+		/* Phase A: receive master -> slave */
+		os_memset(rx, 0, len);
+		BK_LOG_ON_ERR(spi_peer_read(id, rx, len));
+
+		for (uint32_t i = 0; i < len; i++) {
+			uint8_t exp = spi_peer_m2s_byte(round, i);
+			if (rx[i] != exp) {
+				if (round_err < SPI_PEER_MAX_LOG_ERR) {
+					CLI_LOGW("[S] round %d data[%d] mismatch: got 0x%02x exp 0x%02x\r\n",
+						 round, i, rx[i], exp);
+				}
+				round_err++;
+			}
+		}
+
+		/*
+		 * Phase B: send slave -> master, payload only.
+		 * This SoC's SPI slave HW automatically inserts one 0x72 byte in front
+		 * of the first transmitted byte, so we must NOT prepend it in software
+		 * (doing so produces a double 0x72 and shifts the payload by one byte).
+		 * The master reads len+1 bytes and strips that leading 0x72.
+		 */
+		for (uint32_t i = 0; i < len; i++) {
+			tx[i] = spi_peer_s2m_byte(round, i);
+		}
+		BK_LOG_ON_ERR(spi_peer_write(id, tx, len));
+
+		total_err += round_err;
+		CLI_LOGI("[S] round %d %s (rx errs=%d)\r\n", round, round_err ? "FAIL" : "PASS", round_err);
+	}
+
+	CLI_LOGI("[SPI-PEER][S] DONE rounds=%d total_errs=%d result=%s\r\n",
+		 rounds, total_err, total_err ? "FAIL" : "PASS");
+
+exit:
+	if (tx) {
+		os_free(tx);
+	}
+	if (rx) {
+		os_free(rx);
+	}
+	spi_peer_deconfig(id);
+	SPI_PEER_TASK_WDT_START();
+	s_spi_peer.handle = NULL;
+	rtos_delete_thread(NULL);
 }
 
-static void spi_data_test_uart_config(void)
+static void cli_spi_peer_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
-	uart_config_t config = {0};
-	os_memset(&config, 0, sizeof(uart_config_t));
-	config.baud_rate = UART_BAUD_RATE;
-	config.data_bits = UART_DATA_8_BITS;
-	config.parity = UART_PARITY_NONE;
-	config.stop_bits = UART_STOP_BITS_1;
-	config.flow_ctrl = UART_FLOWCTRL_DISABLE;
-	config.src_clk = UART_SCLK_XTAL_26M;
+	beken_thread_function_t entry = NULL;
 
-	BK_LOG_ON_ERR(bk_uart_init(s_spi_test.uart_id, &config));
-	BK_LOG_ON_ERR(bk_uart_disable_sw_fifo(s_spi_test.uart_id));
-	BK_LOG_ON_ERR(bk_uart_register_rx_isr(s_spi_test.uart_id,
-				  (uart_isr_t)spi_data_test_uart_rx_isr, NULL));
-	BK_LOG_ON_ERR(bk_uart_enable_rx_interrupt(s_spi_test.uart_id));
+	if ((argc >= 2) && (os_strcmp(argv[1], "stop") == 0)) {
+		if (s_spi_peer.handle) {
+			rtos_delete_thread(&s_spi_peer.handle);
+			s_spi_peer.handle = NULL;
+			spi_peer_deconfig(s_spi_peer.spi_id);
+			CLI_LOGI("[SPI-PEER] stopped\r\n");
+		} else {
+			CLI_LOGI("[SPI-PEER] not running\r\n");
+		}
+		return;
+	}
 
-}
-
-static void spi_data_test_uart_deconfig(void)
-{
-	BK_LOG_ON_ERR(bk_uart_disable_rx_interrupt(s_spi_test.uart_id));
-	BK_LOG_ON_ERR(bk_uart_register_rx_isr(s_spi_test.uart_id, NULL, NULL));
-	BK_LOG_ON_ERR(bk_uart_deinit(s_spi_test.uart_id));
-	s_spi_test.uart_id = UART_ID_MAX;
-
-}
-
-static void cli_spi_data_txrx_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
-{
-	if (argc < 4) {
+	if (argc < 6) {
 		cli_spi_help();
 		return;
 	}
 
-	spi_id_t spi_id = os_strtoul(argv[1], NULL, 10);
-	spi_role_t role;
-	uint32_t baud_rate;
+	if (s_spi_peer.handle) {
+		CLI_LOGW("[SPI-PEER] test already running, use 'spi_peer stop' first\r\n");
+		return;
+	}
 
-	if (os_strcmp(argv[2], "master") == 0) {
-			role = SPI_ROLE_MASTER;
-	} else if(os_strcmp(argv[2], "slave") == 0){
-			role = SPI_ROLE_SLAVE;
+	if (os_strcmp(argv[1], "master") == 0) {
+		s_spi_peer.role = SPI_ROLE_MASTER;
+		entry = (beken_thread_function_t)spi_peer_master_thread;
+	} else if (os_strcmp(argv[1], "slave") == 0) {
+		s_spi_peer.role = SPI_ROLE_SLAVE;
+		entry = (beken_thread_function_t)spi_peer_slave_thread;
 	} else {
 		cli_spi_help();
 		return;
 	}
 
-	baud_rate = os_strtoul(argv[3], NULL, 10);
+	s_spi_peer.spi_id = os_strtoul(argv[2], NULL, 10);
+	s_spi_peer.baud_rate = os_strtoul(argv[3], NULL, 10);
+	s_spi_peer.rounds = os_strtoul(argv[4], NULL, 10);
+	s_spi_peer.data_len = os_strtoul(argv[5], NULL, 10);
+	s_spi_peer.gap_ms = (argc > 6) ? os_strtoul(argv[6], NULL, 10) : SPI_PEER_DEFAULT_GAP_MS;
 
-	if (os_strcmp(argv[4], "start") == 0) {
-		s_spi_test.spi_id = spi_id;
-		s_spi_test.role = role;
-		s_spi_test.baud_rate = baud_rate;
-		s_spi_test.uart_get_data = (uint8_t *)os_zalloc(PER_PACKET_MAX_BYTES_SIZE);
-		s_spi_test.spi_get_buffer = (uint8_t *)os_zalloc(PER_PACKET_MAX_BYTES_SIZE);
-
-		if (!s_spi_test.handle) {
-			if (os_strcmp(argv[5], "uart2")== 0) {
-				s_spi_test.uart_id = UART_ID_1;
-				CLI_LOGV("cli_spi_test Maybe UART2 for log output!!!\n");
-			} else if (os_strcmp(argv[5], "uart3")== 0) {
-				s_spi_test.uart_id = UART_ID_2;
-				CLI_LOGV("cli_spi_test Maybe UART3 for log output!!!\n");
-			} else {
-					cli_spi_help();
-					return;
-			}
-		} else {
-			CLI_LOGD("spi_data_test TASK WARKING!!!\n");
-			return;
-		}
-
-		if (os_strcmp(argv[6], "exchange") == 0)
-			s_spi_test.exchange_flag = 1;
-		else
-			s_spi_test.exchange_flag = 0;
-
-		spi_data_test_uart_config();
-		spi_data_test_spi_config(spi_id, role, baud_rate);
-
-		if(rtos_create_thread(&s_spi_test.handle, 8, "spi_data_test",
-					(beken_thread_function_t) cli_spi_data_txrx_test, 2048, 0)) {
-				CLI_LOGD("spi_data_txrx_test rtos_create_thread FAILED!\n");
-				return;
-		}
-
+	/* transfer mode: default DMA when available; pass "fifo" to use the CPU/IRQ
+	 * FIFO path (e.g. to coexist with flash writes on SPI0) */
+#if CONFIG_SPI_DMA
+	s_spi_peer.use_dma = true;
+#else
+	s_spi_peer.use_dma = false;
+#endif
+	if ((argc > 7) && (os_strcmp(argv[7], "fifo") == 0)) {
+		s_spi_peer.use_dma = false;
+	} else if ((argc > 7) && (os_strcmp(argv[7], "dma") == 0)) {
+#if CONFIG_SPI_DMA
+		s_spi_peer.use_dma = true;
+#else
+		CLI_LOGW("[SPI-PEER] CONFIG_SPI_DMA off, falling back to FIFO\r\n");
+		s_spi_peer.use_dma = false;
+#endif
 	}
 
-	if (os_strcmp(argv[4], "stop") == 0) {
-		if (os_strcmp(argv[5], "uart2")== 0) {
-			if(s_spi_test.uart_id != UART_ID_1) {
-				CLI_LOGD("PLEASE enter a correct ID\n");
-				return;
-			} else
-				s_spi_test.uart_id = UART_ID_1;
-		} else if (os_strcmp(argv[5], "uart3")== 0) {
-			if(s_spi_test.uart_id != UART_ID_2) {
-				CLI_LOGD("PLEASE enter a correct ID\n");
-				return;
-			} else
-				s_spi_test.uart_id = UART_ID_2;
-		} else {
-			cli_spi_help();
-			return;
-		}
-
-		rtos_delete_thread(&s_spi_test.handle);
-		s_spi_test.handle = NULL;
-		spi_data_test_uart_deconfig();
-
-		if(s_spi_test.spi_id != spi_id) {
-			cli_spi_help();
-			return;
-		} else
-			spi_data_test_spi_deconfig(spi_id);
-
-		if(NULL != s_spi_test.uart_get_data)
-			os_free(s_spi_test.uart_get_data);
-
-		if(NULL != s_spi_test.spi_get_buffer)
-			os_free(s_spi_test.spi_get_buffer);
-		CLI_LOGD("cli_spi_data_txrx_test task stop\n");
+	if ((s_spi_peer.rounds == 0) || (s_spi_peer.data_len == 0)) {
+		CLI_LOGE("[SPI-PEER] rounds and data_len must be > 0\r\n");
+		return;
 	}
 
-	if (os_strcmp(argv[3], "send") == 0) {
-		uint32_t buf_len = os_strtoul(argv[4], NULL, 10);
-		if(s_spi_test.spi_id != spi_id) {
-			cli_spi_help();
-			return;
+	CLI_LOGI("[SPI-PEER] %s start mode=%s (run the peer as the opposite role first)\r\n",
+		 (s_spi_peer.role == SPI_ROLE_MASTER) ? "master" : "slave",
+		 s_spi_peer.use_dma ? "dma" : "fifo");
+
+	if (rtos_create_thread(&s_spi_peer.handle, 8, "spi_peer_test",
+			       entry, 2048, 0)) {
+		s_spi_peer.handle = NULL;
+		CLI_LOGE("[SPI-PEER] create thread failed\r\n");
+	}
+}
+
+/*--------------------- negative / API test (spi_api_test) ---------------------*/
+static void cli_spi_api_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
+{
+	spi_id_t id = (argc >= 2) ? os_strtoul(argv[1], NULL, 10) : SPI_ID_0;
+	spi_test_stat_t st = {0, 0};
+	spi_config_t cfg;
+
+	/* 1. NULL config rejected */
+	st.total++;
+	if (bk_spi_init(id, NULL) != BK_OK) {
+		st.pass++;
+		CLI_LOGI("SPI_API: PASS null-config-rejected\r\n");
+	} else {
+		bk_spi_deinit(id);
+		CLI_LOGI("SPI_API: FAIL null-config-rejected\r\n");
+	}
+
+	/* 2. invalid id rejected */
+	st.total++;
+	spi_test_build_config(&cfg, SPI_ROLE_MASTER, SPI_POL_MODE_0, 1000000, false, 0, 0);
+	if (bk_spi_init(SPI_ID_MAX, &cfg) != BK_OK) {
+		st.pass++;
+		CLI_LOGI("SPI_API: PASS invalid-id-rejected\r\n");
+	} else {
+		CLI_LOGI("SPI_API: FAIL invalid-id-rejected\r\n");
+	}
+
+	/* 3. operate on uninit id should be rejected (no GPIO map side effect) */
+	st.total++;
+	{
+		uint8_t dummy = 0;
+		if (bk_spi_write_bytes(id, &dummy, 1) == BK_ERR_SPI_ID_NOT_INIT) {
+			st.pass++;
+			CLI_LOGI("SPI_API: PASS uninit-id-write-rejected\r\n");
 		} else {
-			if(s_spi_test.role == SPI_ROLE_MASTER) {
-				spi_data_test_send(spi_id, buf_len);
-			} else {
-				CLI_LOGD("PLEASE use master send\n");
-			}
+			CLI_LOGI("SPI_API: FAIL uninit-id-write-rejected\r\n");
 		}
+	}
+
+	CLI_LOGI("SPI_API SUMMARY: %u/%u PASS\r\n", st.pass, st.total);
+	if (st.pass == st.total) {
+		CLI_LOGI("SPI_API: ALL PASS\r\n");
 	}
 }
 
@@ -709,7 +1018,7 @@ static void cli_spi_flash_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc
 	uint32_t spi_id = os_strtoul(argv[1], NULL, 10);
 	CLI_LOGD("spi_id:%08x\r\n",spi_id);
 
-#ifdef CONFIG_SPI_MST_FLASH
+#if CONFIG_SPI_MST_FLASH
 	extern uint32_t bk_spi_flash_read_id(spi_id_t id);
 	extern int bk_spi_flash_read(spi_id_t id, uint32_t base_addr, uint8_t *dst_data, uint32_t size);
 	extern int bk_spi_flash_write(spi_id_t id, uint32_t base_addr, const void *data, uint32_t size);
@@ -772,6 +1081,8 @@ static void cli_spi_flash_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc
 	} else {
 		cli_spi_help();
 	}
+#else
+	CLI_LOGE("please enable CONFIG_SPI_MST_FLASH\r\n");
 #endif
 	return;
 }
@@ -782,7 +1093,9 @@ DRV_CLI_CMD_EXPORT static const struct cli_command s_spi_commands[] = {
 	{"spi", "spi {init|write|read}", cli_spi_cmd},
 	{"spi_config", "spi_config {id} {mode|baud_rate} [...]", cli_spi_config_cmd},
 	{"spi_int", "spi_int {id} {reg} {tx|rx}", cli_spi_int_cmd},
-	{"spi_data_test", "spi_data_test {id} {master|slave} {baud_rate|send}[...]", cli_spi_data_txrx_test_cmd},
+	{"spi_lb", "spi_lb {id} [quick|full]", cli_spi_lb_cmd},
+	{"spi_peer", "spi_peer {master|slave} {id} {baud} {rounds} {data_len} [gap_ms] [dma|fifo] | spi_peer stop", cli_spi_peer_cmd},
+	{"spi_api_test", "spi_api_test {id}", cli_spi_api_test_cmd},
 	{"spi_flash", "spi_flash {id} {readid|read|write|erase} {addr} {len}[...]", cli_spi_flash_cmd},
 };
 

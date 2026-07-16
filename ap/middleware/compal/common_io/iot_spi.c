@@ -306,10 +306,15 @@ int32_t iot_spi_transfer_sync( IotSPIHandle_t const pxSPIPeripheral, uint8_t * c
     BK_LOGV(COMMON_SPI_TAG, "transfer_sync\r\n");
 
     IotSPIDescriptor_t * spi_ctx = (IotSPIDescriptor_t *) pxSPIPeripheral;
-    ret = bk_spi_transmit(spi_ctx->id, pvTxBuffer, xBytes, pvRxBuffer, xBytes);
+    ret = bk_spi_write_bytes(spi_ctx->id, pvTxBuffer, xBytes);
     if (ret != BK_OK) {
-        BK_LOGE(COMMON_SPI_TAG, "Failed to transfer SPI data\r\n");
+        BK_LOGE(COMMON_SPI_TAG, "Failed to write SPI data\r\n");
         return IOT_SPI_WRITE_FAILED;
+    }
+    ret = bk_spi_read_bytes(spi_ctx->id, pvRxBuffer, xBytes);
+    if (ret != BK_OK) {
+        BK_LOGE(COMMON_SPI_TAG, "Failed to read SPI data\r\n");
+        return IOT_SPI_READ_FAILED;
     }
 
 #if ( _SELF_TEST_ == 1 )        

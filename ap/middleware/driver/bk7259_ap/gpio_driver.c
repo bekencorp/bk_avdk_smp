@@ -63,8 +63,6 @@ static bool get_fix_gpio_mapping(gpio_dev_t dev, gpio_id_t gpio_id, IOMX_CODE_T 
 /* Here doesn't check the GPIO id is whether used by another CPU-CORE, but checked current CPU-CORE */
 bk_err_t gpio_dev_unprotect_map(gpio_id_t gpio_id, gpio_dev_t dev)
 {
-	GPIO_LOGD("%s:id=%d, dev=%d\r\n", __func__, gpio_id, dev);
-
 	IOMX_CODE_T func_code = FUNC_CODE_INVALID;
 
 	// Step 1: Fast check - GPIO_DEV_TO_IOMX_CODE_MAP (O(1) array access, flexible mux)
@@ -86,7 +84,12 @@ bk_err_t gpio_dev_unprotect_map(gpio_id_t gpio_id, gpio_dev_t dev)
 		}
 	}
 
-	bk_gpio_set_value(gpio_id, GPIO_REG_DEFAULT_VALUE);
+	// Idempotent: pad already at the target function, skip touching hardware.
+	if ((IOMX_CODE_T)bk_gpio_get_gpio_func_code(gpio_id) == func_code) {
+		return BK_OK;
+	}
+
+	GPIO_LOGD("%s:id=%d, dev=%d\r\n", __func__, gpio_id, dev);
 
 	return bk_gpio_set_gpio_func(gpio_id, func_code);
 }
