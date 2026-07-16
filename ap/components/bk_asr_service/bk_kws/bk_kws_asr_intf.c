@@ -56,7 +56,7 @@ extern int bk_kws_set_model_from_array(KWS_MODED_TYPE model_id);
 
 /* Alignment requirements specified by bk_kws.h. */
 #define KWS_ARENA_ALIGN     32u
-#define KWS_SCRATCH_ALIGN   16u
+#define KWS_SCRATCH_ALIGN   32u
 #define ALIGN_UP(p, a)      (((uintptr_t)(p) + ((a)-1u)) & ~((uintptr_t)((a)-1u)))
 
 /* -------- Heap-placement selectors --------------------------------------
@@ -145,7 +145,7 @@ int bk_tflite_asr_init(void)
     uint32_t scratch_sz = bk_kws_get_npu_scratch_size();
 
     /* Over-allocate by one alignment quantum: the heap allocators do not
-     * guarantee the 32/16-byte alignment that the KWS / NPU drivers require. */
+     * guarantee the 32-byte alignment that the KWS / NPU drivers require. */
     BK_LOGD(NULL, "bk_tflite_asr_init: before arena malloc: need=%u B from %s (free=%u B)\n",
         (unsigned)(arena_sz + KWS_ARENA_ALIGN), KWS_ARENA_HEAP_NAME, (unsigned)KWS_ARENA_FREE_SIZE());
     s_kws_tflm_buf_owner    = KWS_ARENA_MALLOC(arena_sz     + KWS_ARENA_ALIGN);
