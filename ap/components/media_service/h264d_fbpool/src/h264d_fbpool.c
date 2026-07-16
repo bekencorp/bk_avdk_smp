@@ -50,8 +50,11 @@ struct h264d_fbpool {
 	uint16_t              disp_tail;
 	uint16_t              disp_cnt;
 
+	uint32_t              acquire_timeout_ms; /* 0 = non-blocking acquire */
+
 	beken_mutex_t         lock;
 	beken_semaphore_t     disp_sem;
+	beken_semaphore_t     free_sem;   /* posted whenever a slot returns to FREE */
 
 	vcdec_fb_if_t         ifc;
 };
@@ -162,29 +165,70 @@ static vcdec_ret_e fbpool_reconfigure(void *ctx, uint16_t dpb_count,
 	return VCDEC_OK;
 }
 
+static vcdec_fb_t *fbpool_take_free_locked(h264d_fbpool_t *pool)
+{
+	uint8_t idx;
+	vcdec_fb_t *fb;
+
+	if (pool->free_top == 0U) {
+		return NULL;
+	}
+	idx = pool->free_idx[--pool->free_top];
+	fb = &pool->slots[idx];
+	fb->refcount = 1;
+	fb->state = VCDEC_FB_DECODING;
+	fb->in_disp_q = 0U;
+	fb->is_reference = 0U;
+	fb->is_long_term = 0U;
+	return fb;
+}
+
+/*
+ * Acquire a free slot as the decode target. When no slot is free, wait up to
+ * acquire_timeout_ms for the application to release a display frame (release
+ * runs on another thread and posts free_sem) and retry; return NULL on timeout
+ * so the caller can drop the frame. The deadline loop always re-checks the free
+ * list under the lock, so it is robust to stale/extra free_sem posts. When a
+ * slot is already free the fast path returns immediately (behavior-neutral
+ * under no contention).
+ */
 static vcdec_fb_t *fbpool_acquire(void *ctx)
 {
 	h264d_fbpool_t *pool = (h264d_fbpool_t *)ctx;
-	vcdec_fb_t *fb = NULL;
+	vcdec_fb_t *fb;
+	uint32_t start;
+	uint32_t timeout;
 
 	if (pool == NULL) {
 		return NULL;
 	}
-	rtos_lock_mutex(&pool->lock);
-	if (pool->free_top > 0U) {
-		uint8_t idx = pool->free_idx[--pool->free_top];
-		fb = &pool->slots[idx];
-		fb->refcount = 1;
-		fb->state = VCDEC_FB_DECODING;
-		fb->in_disp_q = 0U;
-		fb->is_reference = 0U;
-		fb->is_long_term = 0U;
+
+	timeout = pool->acquire_timeout_ms;
+	start = rtos_get_time();
+
+	for (;;) {
+		rtos_lock_mutex(&pool->lock);
+		fb = fbpool_take_free_locked(pool);
+		rtos_unlock_mutex(&pool->lock);
+		if (fb != NULL) {
+			return fb;
+		}
+
+		if (timeout == 0U) {
+			LOGE("acquire failed: no free slot (non-blocking)\r\n");
+			return NULL;
+		}
+
+		uint32_t elapsed = rtos_get_time() - start; /* unsigned: wrap-safe */
+		if (elapsed >= timeout) {
+			LOGE("acquire timeout (%ums): no free slot, drop frame\r\n",
+			     (unsigned)timeout);
+			return NULL;
+		}
+
+		/* Wait for a release to free a slot; result ignored, loop rechecks. */
+		(void)rtos_get_semaphore(&pool->free_sem, timeout - elapsed);
 	}
-	rtos_unlock_mutex(&pool->lock);
-	if (fb == NULL) {
-		LOGE("acquire failed: no free slot (free_top=0)\r\n");
-	}
-	return fb;
 }
 
 static void fbpool_ref(void *ctx, vcdec_fb_t *fb)
@@ -202,6 +246,7 @@ static void fbpool_ref(void *ctx, vcdec_fb_t *fb)
 static void fbpool_unref(void *ctx, vcdec_fb_t *fb)
 {
 	h264d_fbpool_t *pool = (h264d_fbpool_t *)ctx;
+	uint8_t freed = 0U;
 
 	if (pool == NULL || fb == NULL) {
 		return;
@@ -216,8 +261,12 @@ static void fbpool_unref(void *ctx, vcdec_fb_t *fb)
 		fb->is_reference = 0U;
 		fb->in_disp_q = 0U;
 		pool->free_idx[pool->free_top++] = fb->index;
+		freed = 1U;
 	}
 	rtos_unlock_mutex(&pool->lock);
+	if (freed) {
+		rtos_set_semaphore(&pool->free_sem);
+	}
 }
 
 static void fbpool_publish(void *ctx, vcdec_fb_t *fb)
@@ -251,6 +300,7 @@ static void fbpool_flush(void *ctx)
 	}
 	/* Drop pending (not-yet-dequeued) display holds. Frames already handed to
 	 * the application keep their hold until released. */
+	uint32_t freed = 0U;
 	rtos_lock_mutex(&pool->lock);
 	while (pool->disp_cnt > 0U) {
 		uint8_t idx = pool->disp_q[pool->disp_head];
@@ -266,6 +316,7 @@ static void fbpool_flush(void *ctx)
 			fb->state = VCDEC_FB_FREE;
 			fb->is_reference = 0U;
 			pool->free_idx[pool->free_top++] = fb->index;
+			freed++;
 		}
 	}
 	/* Drain any stale semaphore counts. */
@@ -273,32 +324,35 @@ static void fbpool_flush(void *ctx)
 	while (rtos_get_semaphore(&pool->disp_sem, 0) == BK_OK) {
 		;
 	}
+	while (freed-- > 0U) {
+		rtos_set_semaphore(&pool->free_sem);
+	}
 }
 
 /* ---- application-side API -------------------------------------------------- */
 
-vcdec_ret_e h264d_fbpool_create(h264d_fbpool_t **pool_p, uint32_t align,
-                                uint16_t disp_depth,
-                                h264d_fbpool_alloc_cb alloc_cb,
-                                h264d_fbpool_free_cb free_cb)
+avdk_err_t h264d_fbpool_create(h264d_fbpool_t **pool_p, uint32_t align,
+                               uint16_t disp_depth,
+                               h264d_fbpool_alloc_cb alloc_cb,
+                               h264d_fbpool_free_cb free_cb)
 {
 	h264d_fbpool_t *pool;
 
 	if (pool_p == NULL) {
-		return VCDEC_NULL_ARGUMENT;
+		return AVDK_ERR_INVAL;
 	}
 	if (disp_depth == 0U || disp_depth > FBPOOL_DISP_DEPTH_MAX) {
 		LOGE("invalid disp_depth=%u (max=%u)\r\n",
 		     (unsigned)disp_depth, (unsigned)FBPOOL_DISP_DEPTH_MAX);
-		return VCDEC_INVALID_ARGUMENT;
+		return AVDK_ERR_INVAL;
 	}
 	if ((alloc_cb == NULL) != (free_cb == NULL)) {
-		return VCDEC_INVALID_ARGUMENT;
+		return AVDK_ERR_INVAL;
 	}
 
 	pool = (h264d_fbpool_t *)os_malloc(sizeof(*pool));
 	if (pool == NULL) {
-		return VCDEC_MEMORY_ERROR;
+		return AVDK_ERR_NOMEM;
 	}
 	os_memset(pool, 0, sizeof(*pool));
 	pool->align = (align != 0U) ? align : FBPOOL_DEFAULT_ALIGN;
@@ -312,13 +366,20 @@ vcdec_ret_e h264d_fbpool_create(h264d_fbpool_t **pool_p, uint32_t align,
 
 	if (rtos_init_mutex(&pool->lock) != BK_OK) {
 		os_free(pool);
-		return VCDEC_MEMORY_ERROR;
+		return AVDK_ERR_NOMEM;
 	}
 	if (rtos_init_semaphore(&pool->disp_sem, FBPOOL_MAX_SLOTS) != BK_OK) {
 		rtos_deinit_mutex(&pool->lock);
 		os_free(pool);
-		return VCDEC_MEMORY_ERROR;
+		return AVDK_ERR_NOMEM;
 	}
+	if (rtos_init_semaphore(&pool->free_sem, FBPOOL_MAX_SLOTS) != BK_OK) {
+		rtos_deinit_semaphore(&pool->disp_sem);
+		rtos_deinit_mutex(&pool->lock);
+		os_free(pool);
+		return AVDK_ERR_NOMEM;
+	}
+	pool->acquire_timeout_ms = 0U; /* non-blocking until configured */
 
 	pool->ifc.ctx = pool;
 	pool->ifc.reconfigure = fbpool_reconfigure;
@@ -329,7 +390,7 @@ vcdec_ret_e h264d_fbpool_create(h264d_fbpool_t **pool_p, uint32_t align,
 	pool->ifc.flush = fbpool_flush;
 
 	*pool_p = pool;
-	return VCDEC_OK;
+	return AVDK_ERR_OK;
 }
 
 void h264d_fbpool_destroy(h264d_fbpool_t *pool)
@@ -340,37 +401,48 @@ void h264d_fbpool_destroy(h264d_fbpool_t *pool)
 	rtos_lock_mutex(&pool->lock);
 	fbpool_release_buffers(pool);
 	rtos_unlock_mutex(&pool->lock);
+	rtos_deinit_semaphore(&pool->free_sem);
 	rtos_deinit_semaphore(&pool->disp_sem);
 	rtos_deinit_mutex(&pool->lock);
 	os_free(pool);
 }
 
-vcdec_ret_e h264d_fbpool_get_if(h264d_fbpool_t *pool, vcdec_fb_if_t *out)
+void h264d_fbpool_set_acquire_timeout(h264d_fbpool_t *pool, uint32_t timeout_ms)
 {
-	if (pool == NULL || out == NULL) {
-		return VCDEC_NULL_ARGUMENT;
+	if (pool == NULL) {
+		return;
 	}
-	*out = pool->ifc;
-	return VCDEC_OK;
+	rtos_lock_mutex(&pool->lock);
+	pool->acquire_timeout_ms = timeout_ms;
+	rtos_unlock_mutex(&pool->lock);
 }
 
-vcdec_ret_e h264d_fbpool_dequeue(h264d_fbpool_t *pool, vcdec_frame_t *out,
-                                 uint32_t timeout_ms)
+avdk_err_t h264d_fbpool_get_if(h264d_fbpool_t *pool, vcdec_fb_if_t *out)
+{
+	if (pool == NULL || out == NULL) {
+		return AVDK_ERR_INVAL;
+	}
+	*out = pool->ifc;
+	return AVDK_ERR_OK;
+}
+
+avdk_err_t h264d_fbpool_dequeue(h264d_fbpool_t *pool, vcdec_frame_t *out,
+                                uint32_t timeout_ms)
 {
 	vcdec_fb_t *fb;
 	uint8_t idx;
 
 	if (pool == NULL || out == NULL) {
-		return VCDEC_NULL_ARGUMENT;
+		return AVDK_ERR_INVAL;
 	}
 	if (rtos_get_semaphore(&pool->disp_sem, timeout_ms) != BK_OK) {
-		return VCDEC_HW_TIMEOUT;
+		return AVDK_ERR_TIMEOUT;
 	}
 
 	rtos_lock_mutex(&pool->lock);
 	if (pool->disp_cnt == 0U) {
 		rtos_unlock_mutex(&pool->lock);
-		return VCDEC_HW_TIMEOUT;
+		return AVDK_ERR_TIMEOUT;
 	}
 	idx = pool->disp_q[pool->disp_head];
 	pool->disp_head = (uint16_t)((pool->disp_head + 1U) % FBPOOL_MAX_SLOTS);
@@ -389,17 +461,18 @@ vcdec_ret_e h264d_fbpool_dequeue(h264d_fbpool_t *pool, vcdec_frame_t *out,
 	out->poc = fb->poc;
 	out->token = fb;
 	rtos_unlock_mutex(&pool->lock);
-	return VCDEC_OK;
+	return AVDK_ERR_OK;
 }
 
-vcdec_ret_e h264d_fbpool_release(h264d_fbpool_t *pool, const vcdec_frame_t *frame)
+avdk_err_t h264d_fbpool_release(h264d_fbpool_t *pool, const vcdec_frame_t *frame)
 {
 	vcdec_fb_t *fb;
 
 	if (pool == NULL || frame == NULL || frame->token == NULL) {
-		return VCDEC_NULL_ARGUMENT;
+		return AVDK_ERR_INVAL;
 	}
 	fb = (vcdec_fb_t *)frame->token;
+	uint8_t freed = 0U;
 	rtos_lock_mutex(&pool->lock);
 	if (fb->refcount > 0) {
 		fb->refcount--;
@@ -410,9 +483,13 @@ vcdec_ret_e h264d_fbpool_release(h264d_fbpool_t *pool, const vcdec_frame_t *fram
 		fb->is_reference = 0U;
 		fb->in_disp_q = 0U;
 		pool->free_idx[pool->free_top++] = fb->index;
+		freed = 1U;
 	}
 	rtos_unlock_mutex(&pool->lock);
-	return VCDEC_OK;
+	if (freed) {
+		rtos_set_semaphore(&pool->free_sem);
+	}
+	return AVDK_ERR_OK;
 }
 
 uint16_t h264d_fbpool_free_count(h264d_fbpool_t *pool)

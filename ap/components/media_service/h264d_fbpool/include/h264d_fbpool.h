@@ -19,6 +19,7 @@
  */
 
 #include <stdint.h>
+#include <components/avdk_utils/avdk_error.h>
 #include "modules/vcdec/vcdec_fb_if.h"
 
 #ifdef __cplusplus
@@ -73,17 +74,16 @@ typedef void  (*h264d_fbpool_free_cb)(void *ptr);
  *                        @p alloc_cb and @p free_cb must both be NULL or both
  *                        be non-NULL.
  *
- * @return VCDEC_OK on success;
- *         VCDEC_NULL_ARGUMENT if @p pool is NULL;
- *         VCDEC_INVALID_ARGUMENT if @p disp_depth is out of range, or only one
- *         of @p alloc_cb / @p free_cb is NULL;
- *         VCDEC_MEMORY_ERROR if the pool object, mutex or semaphore allocation
+ * @return AVDK_ERR_OK on success;
+ *         AVDK_ERR_INVAL if @p pool is NULL, @p disp_depth is out of range, or
+ *         only one of @p alloc_cb / @p free_cb is NULL;
+ *         AVDK_ERR_NOMEM if the pool object, mutex or semaphore allocation
  *         fails.
  */
-vcdec_ret_e h264d_fbpool_create(h264d_fbpool_t **pool, uint32_t align,
-                                uint16_t disp_depth,
-                                h264d_fbpool_alloc_cb alloc_cb,
-                                h264d_fbpool_free_cb free_cb);
+avdk_err_t h264d_fbpool_create(h264d_fbpool_t **pool, uint32_t align,
+                               uint16_t disp_depth,
+                               h264d_fbpool_alloc_cb alloc_cb,
+                               h264d_fbpool_free_cb free_cb);
 
 /**
  * @brief Destroy the pool, freeing all physical slot buffers and the mutex /
@@ -109,10 +109,29 @@ void h264d_fbpool_destroy(h264d_fbpool_t *pool);
  * @param[in]  pool Pool handle from h264d_fbpool_create(). Must not be NULL.
  * @param[out] out  Receives the decode-side vtable. Must not be NULL.
  *
- * @return VCDEC_OK on success;
- *         VCDEC_NULL_ARGUMENT if @p pool or @p out is NULL.
+ * @return AVDK_ERR_OK on success;
+ *         AVDK_ERR_INVAL if @p pool or @p out is NULL.
  */
-vcdec_ret_e h264d_fbpool_get_if(h264d_fbpool_t *pool, vcdec_fb_if_t *out);
+avdk_err_t h264d_fbpool_get_if(h264d_fbpool_t *pool, vcdec_fb_if_t *out);
+
+/**
+ * @brief Set the decode-target acquire wait budget (milliseconds).
+ *
+ * By default acquire() is non-blocking: when no slot is free it fails at once
+ * (returns NULL) and the caller must drop the frame. With a non-zero budget the
+ * pool instead waits up to @p timeout_ms for a slot to be released by the
+ * application (dequeue/release runs on a different thread) before giving up.
+ * This trades frame rate for a bounded peak memory footprint (fewer display
+ * slots) without hard decode failures. When a slot is already free acquire()
+ * still returns immediately, so a non-zero budget is behavior-neutral under no
+ * contention.
+ *
+ * @param[in] pool       Pool handle from h264d_fbpool_create(). NULL is a no-op.
+ * @param[in] timeout_ms Max wait per acquire in ms; 0 restores non-blocking.
+ *
+ * @return None.
+ */
+void h264d_fbpool_set_acquire_timeout(h264d_fbpool_t *pool, uint32_t timeout_ms);
 
 /**
  * @brief Application: dequeue the next decoded frame in display (POC) order.
@@ -126,12 +145,12 @@ vcdec_ret_e h264d_fbpool_get_if(h264d_fbpool_t *pool, vcdec_fb_if_t *out);
  *                        format, POC and the opaque return token). Must not be NULL.
  * @param[in]  timeout_ms Max wait in milliseconds; 0 performs a non-blocking poll.
  *
- * @return VCDEC_OK and fills @p out on success;
- *         VCDEC_HW_TIMEOUT if no frame became available within @p timeout_ms;
- *         VCDEC_NULL_ARGUMENT if @p pool or @p out is NULL.
+ * @return AVDK_ERR_OK and fills @p out on success;
+ *         AVDK_ERR_TIMEOUT if no frame became available within @p timeout_ms;
+ *         AVDK_ERR_INVAL if @p pool or @p out is NULL.
  */
-vcdec_ret_e h264d_fbpool_dequeue(h264d_fbpool_t *pool, vcdec_frame_t *out,
-                                 uint32_t timeout_ms);
+avdk_err_t h264d_fbpool_dequeue(h264d_fbpool_t *pool, vcdec_frame_t *out,
+                                uint32_t timeout_ms);
 
 /**
  * @brief Application: return a previously dequeued frame to the pool.
@@ -144,10 +163,10 @@ vcdec_ret_e h264d_fbpool_dequeue(h264d_fbpool_t *pool, vcdec_frame_t *out,
  * @param[in] frame Frame previously returned by h264d_fbpool_dequeue(); its
  *                  @c token must be valid. Must not be NULL.
  *
- * @return VCDEC_OK on success;
- *         VCDEC_NULL_ARGUMENT if @p pool, @p frame or frame->token is NULL.
+ * @return AVDK_ERR_OK on success;
+ *         AVDK_ERR_INVAL if @p pool, @p frame or frame->token is NULL.
  */
-vcdec_ret_e h264d_fbpool_release(h264d_fbpool_t *pool, const vcdec_frame_t *frame);
+avdk_err_t h264d_fbpool_release(h264d_fbpool_t *pool, const vcdec_frame_t *frame);
 
 /**
  * @brief Diagnostics: number of slots currently on the FREE list.

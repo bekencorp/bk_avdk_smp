@@ -53,6 +53,68 @@
 #define H264_DECODE_FRAME_ZC_ALIGN          64U
 #define H264_DECODE_FRAME_ZC_DISP_DEPTH_DEF 1U
 
+/*
+ * Fixed decode-target acquire wait budget: when the frame pool is momentarily
+ * exhausted (the application still holds display frames) the decoder waits up to
+ * this long for a slot to be released before dropping the frame, trading frame
+ * rate for a bounded peak memory footprint. Must stay well below the decode-call
+ * semaphore wait (2000ms) so an exhausted pool degrades to a soft frame drop
+ * rather than a hard decode-call timeout.
+ */
+#define H264_DECODE_FRAME_ZC_ACQ_TMO_MS     200U
+
+/*
+ * Upper bound on how far into an access unit we scan for the first VCL slice
+ * NAL. Any SPS/PPS/SEI that may precede an IDR slice is tiny (tens of bytes),
+ * so a valid AU always exposes its first slice header well within this window.
+ * Capping the scan lets a corrupted/misframed AU fail fast instead of walking
+ * the entire (possibly hundreds-of-KB) buffer.
+ */
+#define H264_ZC_PEEK_MAX_SCAN               2048U
+
+/*
+ * Peek the frame type of an Annex-B access unit without fully parsing it: scan
+ * (up to H264_ZC_PEEK_MAX_SCAN bytes) for the first VCL slice NAL
+ * (nal_unit_type 1..5) and read its 1-byte NAL header. type == 5 marks an IDR;
+ * nal_ref_idc (top 2 bits) != 0 marks a reference picture. This is all the
+ * controller's frame-drop policy needs, and keeps that policy out of the codec
+ * core. Returns true when a VCL slice header is found within the scan window,
+ * false otherwise (empty/corrupt/misframed AU).
+ */
+static bool h264_zc_peek_frame_type(const uint8_t *buf, uint32_t len,
+				    uint8_t *is_idr, uint8_t *is_ref)
+{
+	uint32_t i = 0U;
+	uint32_t scan_len;
+
+	*is_idr = 0U;
+	*is_ref = 0U;
+	if (buf == NULL || len < 4U) {
+		return false;
+	}
+	/* Bound the search: a valid AU exposes its first slice header within the
+	 * leading SPS/PPS/SEI, which never approaches this window. */
+	scan_len = (len < H264_ZC_PEEK_MAX_SCAN) ? len : H264_ZC_PEEK_MAX_SCAN;
+	/* A 3-byte start code (00 00 01) is a suffix of the 4-byte one, so
+	 * scanning for 00 00 01 matches both. */
+	while (i + 3U < scan_len) {
+		if (buf[i] == 0U && buf[i + 1U] == 0U && buf[i + 2U] == 1U) {
+			uint8_t nal_hdr = buf[i + 3U];
+			uint8_t type = nal_hdr & 0x1FU;
+
+			if (type >= 1U && type <= 5U) {
+				*is_idr = (type == 5U) ? 1U : 0U;
+				*is_ref = ((nal_hdr >> 5U) & 0x3U) ? 1U : 0U;
+				return true;
+			}
+			i += 3U;
+		} else {
+			i++;
+		}
+	}
+	return false;
+}
+
 static void frame_done_cb(int status, void *args)
 {
 	DECODE_FRAME_DONE;
@@ -87,17 +149,22 @@ static avdk_err_t h264_decode_ctlr_init(bk_h264_decode_ctlr_handle_t handle)
 
 	disp_depth = (ctrl->config.disp_depth != 0U) ? ctrl->config.disp_depth : H264_DECODE_FRAME_ZC_DISP_DEPTH_DEF;
 	if (h264d_fbpool_create(&ctrl->pool, H264_DECODE_FRAME_ZC_ALIGN, disp_depth,
-				h264_decode_mem_malloc_align, h264_decode_mem_free) != VCDEC_OK ||
+				h264_decode_mem_malloc_align, h264_decode_mem_free) != AVDK_ERR_OK ||
 	    ctrl->pool == NULL) {
 		LOGE("%s %d h264d_fbpool_create failed\r\n", __func__, __LINE__);
 		ret = AVDK_ERR_GENERIC;
 		goto error;
 	}
-	if (h264d_fbpool_get_if(ctrl->pool, &ctrl->fbif) != VCDEC_OK) {
+	if (h264d_fbpool_get_if(ctrl->pool, &ctrl->fbif) != AVDK_ERR_OK) {
 		LOGE("%s %d h264d_fbpool_get_if failed\r\n", __func__, __LINE__);
 		ret = AVDK_ERR_GENERIC;
 		goto error;
 	}
+
+	/* Fixed acquire wait budget: on transient pool exhaustion the decoder waits
+	 * up to this long for the application to release a display frame, then drops
+	 * the frame (skip-until-IDR for reference/IDR frames) instead of failing. */
+	h264d_fbpool_set_acquire_timeout(ctrl->pool, H264_DECODE_FRAME_ZC_ACQ_TMO_MS);
 
 	vcdec_config_t cfg = {0};
 	cfg.mode = VCDEC_FLEXA_MODE_NONE;
@@ -117,7 +184,8 @@ static avdk_err_t h264_decode_ctlr_init(bk_h264_decode_ctlr_handle_t handle)
 		goto error;
 	}
 
-	LOGI("%s %d H264 frame-zerocopy decoder registered (disp_depth=%u)\r\n", __func__, __LINE__, (unsigned)disp_depth);
+	LOGI("%s %d H264 frame-zerocopy decoder registered (disp_depth=%u, acquire_tmo=%ums)\r\n",
+	     __func__, __LINE__, (unsigned)disp_depth, (unsigned)H264_DECODE_FRAME_ZC_ACQ_TMO_MS);
 	return AVDK_ERR_OK;
 
 error:
@@ -162,22 +230,77 @@ static avdk_err_t h264_decode_callback(void *param)
 {
 	private_h264_decode_frame_zerocopy_ctlr_t *ctrl = (private_h264_decode_frame_zerocopy_ctlr_t *)param;
 	vcdec_ret_e ret;
+	uint8_t is_idr = 0U;
+	uint8_t is_ref = 0U;
 
 	if (ctrl == NULL || ctrl->vcdec_handle == NULL) {
 		return AVDK_ERR_INVAL;
 	}
 
-	DECODE_FRAME_START;
-	ret = vcdec_h264_decode_frame(ctrl->vcdec_handle, &ctrl->decode_config);
-	if (ret != VCDEC_FRAME_READY && ret != VCDEC_OK) {
-		LOGE("%s %d vcdec_h264_decode_frame failed: %d\r\n", __func__, __LINE__, (int)ret);
+	/*
+	 * No VCL slice NAL within the first H264_ZC_PEEK_MAX_SCAN bytes: the
+	 * access unit is empty, corrupt, or misframed. Don't hand it to the HW
+	 * decoder (it can't be decoded and only wastes a decode cycle). Reclaim
+	 * the pool (keeps active SPS/PPS) and resync at the next IDR, then report
+	 * the failure for this AU.
+	 */
+	if (!h264_zc_peek_frame_type(ctrl->decode_config.input_stream,
+				     ctrl->decode_config.input_stream_len,
+				     &is_idr, &is_ref)) {
+		LOGE("peek: no VCL NAL within %uB (au_len=%u), drop AU and resync at next IDR\r\n",
+		     (unsigned)H264_ZC_PEEK_MAX_SCAN,
+		     (unsigned)ctrl->decode_config.input_stream_len);
+		vcdec_h264_recycle(ctrl->vcdec_handle);
+		ctrl->skip_until_idr = 1U;
 		ctrl->decode_result = AVDK_ERR_GENERIC;
-		DECODE_FRAME_END;
 		return AVDK_ERR_GENERIC;
 	}
+
+	/*
+	 * Resync gate: while recovering from a broken reference chain, drop every
+	 * non-IDR access unit (undecodable) and resume only at the next IDR. A
+	 * dropped frame is a consumed-but-no-output result, not an error.
+	 */
+	if (ctrl->skip_until_idr) {
+		if (!is_idr) {
+			ctrl->decode_result = BK_OK;
+			return AVDK_ERR_OK;
+		}
+		ctrl->skip_until_idr = 0U;
+	}
+
+	DECODE_FRAME_START;
+	ret = vcdec_h264_decode_frame(ctrl->vcdec_handle, &ctrl->decode_config);
 	DECODE_FRAME_END;
-	ctrl->decode_result = BK_OK;
-	return AVDK_ERR_OK;
+
+	if (ret == VCDEC_FRAME_READY || ret == VCDEC_OK) {
+		ctrl->decode_result = BK_OK;
+		return AVDK_ERR_OK;
+	}
+
+	if (ret == VCDEC_HW_TIMEOUT) {
+		/*
+		 * No decode target within the acquire wait budget: drop this frame,
+		 * trading frame rate for a bounded peak memory footprint. A
+		 * non-reference frame can be dropped in isolation (nothing references
+		 * it). Dropping a reference/IDR breaks the chain, so reclaim the pool
+		 * (vcdec_h264_recycle keeps the active SPS/PPS, so out-of-band
+		 * parameter-set streams still recover) and skip until the next IDR.
+		 */
+		if (is_ref || is_idr) {
+			vcdec_h264_recycle(ctrl->vcdec_handle);
+			ctrl->skip_until_idr = 1U;
+			LOGW("frame drop: reference/IDR lost (acquire timeout), skip until next IDR\r\n");
+		} else {
+			LOGW("frame drop: non-reference frame dropped (acquire timeout)\r\n");
+		}
+		ctrl->decode_result = BK_OK;
+		return AVDK_ERR_OK;
+	}
+
+	LOGE("%s %d vcdec_h264_decode_frame failed: %d\r\n", __func__, __LINE__, (int)ret);
+	ctrl->decode_result = AVDK_ERR_GENERIC;
+	return AVDK_ERR_GENERIC;
 }
 
 static avdk_err_t h264_decode_ctlr_decode_frame(bk_h264_decode_ctlr_handle_t handle, bk_h264_decode_input_t *input)
@@ -233,15 +356,15 @@ static avdk_err_t h264_decode_ctlr_dequeue(private_h264_decode_frame_zerocopy_ct
 {
 	bk_h264_decode_dequeue_t *dq = (bk_h264_decode_dequeue_t *)arg;
 	vcdec_frame_t frm = {0};
-	vcdec_ret_e vret;
+	avdk_err_t vret;
 
 	AVDK_RETURN_ON_FALSE(dq, AVDK_ERR_INVAL, TAG, "dequeue arg is NULL");
 	AVDK_RETURN_ON_FALSE(ctrl->pool, AVDK_ERR_INVAL, TAG, "pool is NULL");
 
 	vret = h264d_fbpool_dequeue(ctrl->pool, &frm, dq->timeout_ms);
-	if (vret != VCDEC_OK) {
+	if (vret != AVDK_ERR_OK) {
 		/* Timeout / empty: not a hard error, lets the caller stop draining. */
-		return AVDK_ERR_TIMEOUT;
+		return vret;
 	}
 
 	dq->frame.data = frm.data;
@@ -275,7 +398,7 @@ static avdk_err_t h264_decode_ctlr_release(private_h264_decode_frame_zerocopy_ct
 	frm.poc = of->poc;
 	frm.token = of->token;
 
-	if (h264d_fbpool_release(ctrl->pool, &frm) != VCDEC_OK) {
+	if (h264d_fbpool_release(ctrl->pool, &frm) != AVDK_ERR_OK) {
 		LOGE("%s %d h264d_fbpool_release failed\r\n", __func__, __LINE__);
 		return AVDK_ERR_GENERIC;
 	}
@@ -301,6 +424,7 @@ static avdk_err_t h264_decode_ctlr_ioctl(bk_h264_decode_ctlr_handle_t handle, ui
 		break;
 	case BK_H264_DECODE_IOCTL_RESET:
 		vcdec_h264_reset(ctrl->vcdec_handle);
+		ctrl->skip_until_idr = 0U;
 		break;
 	case BK_H264_DECODE_IOCTL_DEQUEUE:
 		return h264_decode_ctlr_dequeue(ctrl, arg);

@@ -119,6 +119,24 @@ vcdec_ret_e vcdec_h264_register_fb_if(vcdec_handle handle, const vcdec_fb_if_t *
 vcdec_ret_e vcdec_h264_flush(vcdec_handle handle);
 
 /**
+ * @brief     Reclaim pool/DPB occupancy after a dropped reference (pool mode)
+ *
+ * Drops every pending display hold and all DPB occupancy holds, and resets the
+ * POC state, so the frame pool memory is reclaimed and the decoder is ready to
+ * resync at the next IDR. Unlike vcdec_h264_reset() it KEEPS the active SPS/PPS
+ * (and does not touch the hardware), so streams that carry their parameter sets
+ * out-of-band (IDR does not re-send SPS/PPS) can still continue decoding after
+ * the resync. Intended for the controller's frame-drop policy: call it when a
+ * reference/IDR frame had to be dropped (broken reference chain). No-op without
+ * a pool.
+ *
+ * @param handle decoder handle returned by vcdec_h264_init
+ *
+ * @return VCDEC_OK for success, others for failure
+ */
+vcdec_ret_e vcdec_h264_recycle(vcdec_handle handle);
+
+/**
  * @brief     Close H.264 decoder
  *
  * This API closes current decoder instance and releases opened runtime

@@ -75,7 +75,7 @@ typedef struct {
 	void *frame_done_args;
 	/*
 	 * Number of extra display slots the application may hold concurrently on top
-	 * of the codec DPB. Range 1..4; 0 selects the controller default (2).
+	 * of the codec DPB. Range 1..4; 0 selects the controller default (1).
 	 */
 	uint16_t disp_depth;
 } bk_h264_decode_frame_zerocopy_config_t;
