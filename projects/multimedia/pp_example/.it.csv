@@ -1,0 +1,10 @@
+case名称,测试命令（必填）,输入设备（1代表设备1，2代表设备2以此类推，不填默认为设备1）,期望结果（选填）,超时时间(s)
+reboot,reboot,1,[RESULT][PASS] pp_nv12_rgb565_down success,120
+pp_nv12_rgb565_01,ap_cmd pp nv12_rgb565,1,[RESULT][PASS] pp_nv12_rgb565 success,120
+pp_nv12_rgb888_01,ap_cmd pp nv12_rgb888,1,[RESULT][PASS] pp_nv12_rgb888 success,120
+pp_nv12_scale_down_01,ap_cmd pp nv12_scale_down,1,[RESULT][PASS] pp_nv12_scale_down success,120
+pp_nv12_rgb565_down_01,ap_cmd pp nv12_rgb565_down,1,[RESULT][PASS] pp_nv12_rgb565_down success,120
+pp_nv12_rgb888_down_01,ap_cmd pp nv12_rgb888_down,1,[RESULT][PASS] pp_nv12_rgb888_down success,120
+pp_nv12_scale_up_01,ap_cmd pp nv12_scale_up,1,[RESULT][PASS] pp_nv12_scale_up success,180
+pp_nv12_rgb565_up_01,ap_cmd pp nv12_rgb565_up,1,[RESULT][PASS] pp_nv12_rgb565_up success,180
+pp_nv12_rgb888_up_01,ap_cmd pp nv12_rgb888_up,1,[RESULT][PASS] pp_nv12_rgb888_up success,180

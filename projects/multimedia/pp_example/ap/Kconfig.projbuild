@@ -1,0 +1,11 @@
+menu "PP Example Configuration"
+
+	config PP_EXAMPLE_ENABLE_MIPI_DISPLAY
+		bool "Enable MIPI display output after PP conversion"
+		default y
+		help
+			After bk_pp_process() completes, scale/rotate the output frame
+			via GPU and flush it to the MIPI panel (same path as
+			h264d_gpu_display_example start_dec_scale_cvt).
+
+endmenu
