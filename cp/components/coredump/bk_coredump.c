@@ -31,11 +31,8 @@ static hook_func s_ble_dump_func = NULL;
 
 static inline void coredump_feed_watchdogs(void)
 {
-#if CONFIG_WDT_EN
+    #if CONFIG_WDT_EN
     bk_wdt_force_feed();
-#endif
-#if CONFIG_SUPPORT_WWDT
-    bk_wwdt_force_feed();
 #endif
 }
 
@@ -93,6 +90,9 @@ static void bk_exception_preprocess(bk_exception_t *self)
     }
     coredump_stop_other_cores();
 
+#if CONFIG_SUPPORT_WWDT
+    bk_wwdt_driver_deinit();
+#endif
     coredump_feed_watchdogs();
     bk_misc_set_reset_reason(self->reset_reason);
     
@@ -215,6 +215,9 @@ void bk_coredump_dump_ap_memory_for_trap(void)
 {
     uint64_t dump_time_us = bk_aon_rtc_get_us();
 
+#if CONFIG_SUPPORT_WWDT
+    bk_wwdt_driver_deinit();
+#endif
     coredump_feed_watchdogs();
     bk_coredump_writer_init();
     bk_coredump_dump_time(dump_time_us);
@@ -233,14 +236,6 @@ void bk_coredump_dump_ap_memory_for_trap(void)
 
 static void bk_exception_postprocess(bk_exception_t *self)
 {
-#if CONFIG_SUPPORT_WWDT
-    /* Disable WWDT before rebooting. The reboot path does not feed watchdogs
-     * and can run for a while (delay, cpu-freq vote, flash power-saving); a 2nd
-     * WWDT timeout here re-enters NMI and ends up resetting only the CPU while
-     * peripherals (e.g. WIFI) keep their pending interrupts, which then fire
-     * before their handlers are re-registered and cause a null-pointer fault. */
-    bk_wwdt_driver_deinit();
-#endif
     if (self->reset_reason != RESET_SOURCE_CRASH_ASSERT) {
         BK_LOG_FLUSH();
     }

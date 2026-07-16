@@ -42,9 +42,6 @@ static inline void coredump_feed_watchdogs(void)
 #if CONFIG_WDT_EN
     bk_wdt_force_feed();
 #endif
-#if CONFIG_SUPPORT_WWDT
-    bk_wwdt_force_feed();
-#endif
 }
 
 static bool bk_coredump_uart_lock(void)
