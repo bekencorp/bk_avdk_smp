@@ -62,6 +62,8 @@ uint32_t bk_cpu_hp_get_domain_offline_mask(uint32_t cpu_id);
 
 bk_err_t bk_cpu_hp_offline(uint32_t cpu_id);
 bk_err_t bk_cpu_hp_online(uint32_t cpu_id);
+bk_err_t bk_cpu_hp_offline_direct(uint32_t cpu_id);
+bk_err_t bk_cpu_hp_online_direct(uint32_t cpu_id);
 uint32_t bk_cpu_hp_enter_primary(void);
 void bk_cpu_hp_exit_primary(uint32_t old_core_id);
 
@@ -105,6 +107,49 @@ bk_err_t bk_cpu_hp_governor_stop(void);
 void bk_cpu_hp_governor_get_status(bk_cpu_hp_governor_status_t *status);
 
 #endif /* CONFIG_CPU_HP_GOVERNOR */
+
+#if CONFIG_CPU_HP_VOTE
+
+typedef struct cpu_hp_voter *cpu_hp_voter_handle_t;
+
+/**
+ * @brief Join the vote.
+ *
+ * @param name voter name (required, must not be NULL).
+ * @return cpu_hp_voter_handle_t NULL if name is NULL or the voter table is full.
+ */
+cpu_hp_voter_handle_t bk_cpu_hp_vote_register(const char *name);
+/**
+ * @brief Leave the vote (== voting offline). May trigger power-down; returns its result.
+ * 
+ * @param voter voter handle
+ * @return bk_err_t BK_OK if the vote is unregistered successfully, otherwise an error code.
+ */
+bk_err_t bk_cpu_hp_vote_unregister(cpu_hp_voter_handle_t voter);
+
+bk_err_t bk_cpu_hp_vote_online(cpu_hp_voter_handle_t voter);
+bk_err_t bk_cpu_hp_vote_offline(cpu_hp_voter_handle_t voter);
+
+/**
+ * @brief Get the wanted state of a voter.
+ * 
+ * @param voter voter handle
+ * @param wanted pointer to the wanted state
+ * @return bk_err_t BK_OK if the wanted state is retrieved successfully, otherwise an error code.
+ */
+bk_err_t bk_cpu_hp_vote_get_wanted(cpu_hp_voter_handle_t voter, uint32_t *wanted);
+uint32_t bk_cpu_hp_vote_get_online_count(void);
+uint32_t bk_cpu_hp_vote_get_voter_count(void);
+
+#if CONFIG_CPU_HP_VOTE_FIND
+cpu_hp_voter_handle_t bk_cpu_hp_vote_find(const char *name);
+#endif /* CONFIG_CPU_HP_VOTE_FIND */
+
+#if CONFIG_CPU_HP_VOTE_DUMP
+void bk_cpu_hp_vote_dump(void);
+#endif /* CONFIG_CPU_HP_VOTE_DUMP */
+
+#endif /* CONFIG_CPU_HP_VOTE */
 
 #endif /* CONFIG_CPU_HOTPLUG */
 

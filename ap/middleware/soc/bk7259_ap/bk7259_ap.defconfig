@@ -1479,6 +1479,13 @@ CONFIG_HIGH_PERFORMANCE_DMA_TEST=y
 CONFIG_SUPPORT_MULTICORE=y
 # CONFIG_MULTICORE_TEST is not set
 # end of multicore
+
+#
+# CPU Hotplug
+#
+# CONFIG_CPU_HOTPLUG_BOOT_OFFLINE is not set
+CONFIG_CPU_HP_VOTE=y
+
 # end of Driver
 
 #

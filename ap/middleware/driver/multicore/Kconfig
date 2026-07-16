@@ -18,6 +18,41 @@ menu "Multicore"
 		bool "Keep secondary hotplug CPU offline at power-on (online via cpu online <id>)"
 		default n
 
+	config CPU_HP_VOTE
+		depends on CPU_HOTPLUG
+		bool "Enable CPU hotplug voting layer"
+		default n
+
+	if CPU_HP_VOTE
+
+		config CPU_HP_VOTE_MAX_VOTERS
+			int "Maximum number of concurrently registered voters"
+			default 64
+
+		config CPU_HP_VOTE_DUMP
+			bool "Enable bk_cpu_hp_vote_dump() per-voter listing"
+			default y
+
+		config CPU_HP_VOTE_NAME
+			bool "Record a name string for each voter (find-by-name and dump labels)"
+			default n
+
+		config CPU_HP_VOTE_NAME_LEN
+			depends on CPU_HP_VOTE_NAME
+			int "Maximum length of voter name string"
+			default 16
+
+		config CPU_HP_VOTE_FIND
+			depends on CPU_HP_VOTE_NAME && CPU_HP_VOTE_DUMP
+			bool "Enable bk_cpu_hp_vote_find() (look up a voter by name)"
+			default n
+
+		config CPU_HP_VOTE_STATIC
+			bool "Allocate voter handles from a static pool (no malloc)"
+			default n
+
+	endif
+
 	config CPU_HP_GOVERNOR
 		depends on CPU_HOTPLUG
 		bool "Enable dynamic CPU load governor (auto online/offline CP1)"
