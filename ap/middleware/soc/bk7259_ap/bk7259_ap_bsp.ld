@@ -39,7 +39,7 @@ The follow four shared memory address area mapping to the same physical memory
 ******************************************************************************/
 
 __AP_APP_IRAM_OFFSET = 0x0; /* 0x20000000;*/
-__AP_SPINLOCK_SECTION_SIZE = 0x8000;
+__AP_SPINLOCK_SECTION_SIZE = 0x10000;
 
 #if CONFIG_SRAM_DIRECT_ADDR
 __AP_APP_RAM_OFFSET = 0x04000000;
@@ -364,10 +364,10 @@ SECTIONS
     .sram_spinlock_section :
     {
         PROVIDE(__sram_spinlock_flash_begin = LOADADDR(.sram_spinlock_section));
-        . = ALIGN(4);
+        . = ALIGN(32);
         __sram_spinlock_start__ = .;
         *(.sram_spinlock_section)
-        . = ALIGN(4);
+        . = ALIGN(32);
         __sram_spinlock_end__ = .;
     } > SPINLOCK_RAM AT > FLASH
 

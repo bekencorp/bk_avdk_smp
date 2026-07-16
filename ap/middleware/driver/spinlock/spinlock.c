@@ -27,40 +27,71 @@
 #endif
 
 
-
-
-void bk_atomic_set(  volatile uint32_t *lk ) /* PRIVILEGED_FUNCTION */
-{
-	int result;
-
-	do
-	{
-		while(__LDAEX(lk) != 0);
-
-		result = __STREXW(1, lk);
-	} while(result != 0);
-
-	return;
-}
-
-void bk_atomic_clear(volatile uint32_t *lk)
-{
-	__STL(0, lk);
-
-	return;
-}
-
 #define arch_int_disable	rtos_disable_int
 #define arch_int_restore	rtos_enable_int
 
-void spinlock_fence(void)
+#if CONFIG_SOC_SMP
+static inline void spinlock_take(volatile spinlock_t *lock)
 {
-    __asm volatile
-    (
-		"	dsb 											\n"
-		"	isb 											\n"
-	);
+	uint32_t core_id;
+	int status;
+
+	core_id = (uint32_t)portGET_CORE_ID();
+
+	if(core_id == lock->owner)
+	{
+		BK_ASSERT(lock->count > 0 && lock->count < 0xFF);
+		lock->count++;
+		return;
+	}
+
+	do
+	{
+		while (__LDAEX(&lock->owner) != SPIN_LOCK_FREE)
+		{
+			__CLREX();
+			__WFE();
+		}
+
+		BK_ASSERT((core_id == 0) || (core_id == 1));
+		status = __STREXW(core_id, &lock->owner);
+	} while (status != 0);
+
+	__DMB();
+	lock->core_id = core_id;
+	lock->count = 1;
 }
+
+static inline void spinlock_give(volatile spinlock_t *lock)
+{
+	uint32_t core_id;
+
+	core_id = (uint32_t)portGET_CORE_ID();
+
+	if(core_id != lock->owner)
+	{
+		BK_ASSERT(0);
+		return;
+	}
+
+	if(lock->count == 0)
+	{
+		BK_ASSERT(0);
+		return;
+	}
+
+	lock->count--;
+
+	if(lock->count == 0)
+	{
+		lock->core_id = SPINLOCK_CORE_ID_UNINITILIZE;
+		__DMB();
+		__STL(SPIN_LOCK_FREE, &lock->owner);
+		__DSB();
+		__SEV();
+	}
+}
+#endif
 
 void spinlock_init(spinlock_t *slock)
 {
@@ -69,41 +100,18 @@ void spinlock_init(spinlock_t *slock)
     Current_TCB = (beken_thread_t)xTaskGetCurrentTaskHandle();
     slock->taskTCBPointer = (uint32_t )Current_TCB;
 #endif
-	slock->owner = 0;
+	slock->owner = SPIN_LOCK_FREE;
 	slock->count = 0;
 	slock->core_id = SPINLOCK_CORE_ID_UNINITILIZE;
 }
 
-#if CONFIG_SPINLOCK_DEBUG
-void spinlock_deinit(spinlock_t *slock)
-{
-    slock->taskTCBPointer = 0;
-}
-#endif
-
 uint32_t spinlock_acquire(volatile spinlock_t *slock, int32_t timeout)
 {
 	uint32_t flag = arch_int_disable();
+	(void)timeout;
 
-#if (CONFIG_CPU_CNT > 1)
-	uint32_t core_id;
-
-	// Note: The core IDs are the full 32 bit (CORE_ID_REGVAL_PRO/CORE_ID_REGVAL_APP) values
-	core_id = (uint32_t)portGET_CORE_ID();
-
-	if(core_id == slock->core_id)
-	{
-		slock->count++;
-		arch_int_restore(flag);
-		return flag;
-	}
-
-	bk_atomic_set(( volatile uint32_t *)&slock->owner);
-	spinlock_fence();
-
-	slock->core_id = core_id;
-	slock->count = 1;
-
+#if CONFIG_SOC_SMP
+	spinlock_take(slock);
 #endif
 	arch_int_restore(flag);
 
@@ -112,147 +120,25 @@ uint32_t spinlock_acquire(volatile spinlock_t *slock, int32_t timeout)
 
 void spinlock_release(volatile spinlock_t *slock, uint32_t flag2)
 {
-#if (CONFIG_CPU_CNT > 1)
-	uint32_t core_id;
-
 	uint32_t flag = arch_int_disable();
+	(void)flag2;
 
-	// Note: The core IDs are the full 32 bit (CORE_ID_REGVAL_PRO/CORE_ID_REGVAL_APP) values
-	core_id = (uint32_t)portGET_CORE_ID();
-
-	if(core_id != slock->core_id)
-	{
-		BK_ASSERT(0);
-		return;
-	}
-
-	if(slock->count == 0)
-	{
-		BK_ASSERT(0);
-		return;
-	}
-
-	slock->count--;
-
-	if(slock->count == 0)
-	{
-		slock->core_id = SPINLOCK_CORE_ID_UNINITILIZE;
-
-		spinlock_fence();
-
-		bk_atomic_clear(( volatile uint32_t *)&slock->owner);
-	}
+#if CONFIG_SOC_SMP
+	spinlock_give(slock);
 #endif
-
 	arch_int_restore(flag);
 }
 
 #if (CONFIG_SOC_SMP)
 
-/*TODO: the driver layer shall be independent of the architecture or arm instruction*/
-static inline int __spin_lock(volatile spinlock_t *lock)
-{
-	uint32_t core_id;
-	int status = 0;
-
-	// Note: The core IDs are the full 32 bit (CORE_ID_REGVAL_PRO/CORE_ID_REGVAL_APP) values
-	core_id = portGET_CORE_ID();
-
-	// The caller is already the owner of the lock. Simply increment the nesting count
-	if (lock->owner == core_id)
-	{
-		BK_ASSERT(lock->count > 0 && lock->count < 0xFF);	  // Bad count value implies memory corruption
-		lock->count ++;
-		return 1;
-	}
-
-	do
-	{
-		// Note: __LDAEX and __STREXW are CMSIS functions
-
-		while (__LDAEX(&lock->owner) != SPIN_LOCK_FREE)
-		{
-			__WFE();
-		}
-
-		BK_ASSERT((core_id == 0) || (core_id  == 1));
-
-		// lock is free
-		status = __STREXW(core_id, &lock->owner); // Try to set
-
-	} while (status != 0); // retry until lock successfully
-
-	lock->count ++;
-
-	return 1;
-}
-
-static inline int __spin_lock_try(volatile spinlock_t *lock)
-{
-	uint32_t core_id;
-	int status = 0;
-
-	// Note: The core IDs are the full 32 bit (CORE_ID_REGVAL_PRO/CORE_ID_REGVAL_APP) values
-	core_id = portGET_CORE_ID();
-
-	// The caller is already the owner of the lock. Simply increment the nesting count
-	if (lock->owner == core_id)
-	{
-		BK_ASSERT(lock->count > 0 && lock->count < 0xFF);	  // Bad count value implies memory corruption
-		lock->count ++;
-		return 1;
-	}
-
-	// Note: __LDAEX and __STREXW are CMSIS functions
-
-	if (__LDAEX(&lock->owner) != SPIN_LOCK_FREE)
-	{
-		return 0;
-	}
-
-	BK_ASSERT((core_id == 0) || (core_id  == 1));
-	// lock is free
-	status = __STREXW(core_id, &lock->owner); // Try to set
-
-	if(status != 0)
-	{
-		return 0;
-	}
-
-	lock->count ++;
-
-	return 1;
-}
-
 void spin_lock(volatile spinlock_t *lock)
 {
-	__spin_lock(lock);
-}
-
-int spin_trylock(volatile spinlock_t *lock)
-{
-	return __spin_lock_try(lock);
+	spinlock_take(lock);
 }
 
 void spin_unlock(volatile spinlock_t *lock)
 {
-    uint32_t core_id;
-
-    core_id = portGET_CORE_ID();
-    BK_ASSERT(core_id == lock->owner); // This is a lock that we didn't acquire, or the lock is corrupt
-    BK_ASSERT((lock->count > 0) && (lock->count < 0x100));
-
-    lock->count  --;
-
-    if (!lock->count)
-	{
-		// If this is the last recursive release of the lock, mark the lock as free
-		// Note: __STL, __DSB, __SEV are CMSIS functions.
-
-		__STL(SPIN_LOCK_FREE, &lock->owner);
-		__DSB();
- 		__SEV();
-    }
+	spinlock_give(lock);
 }
 
 uint32_t _spin_lock_irqsave(volatile spinlock_t *lock)
@@ -282,54 +168,32 @@ SPINLOCK_SECTION spinlock_t s_spinlock_memlock = SPIN_LOCK_INIT;
 #ifndef CONFIG_SPINLOCK_DYNAMIC_CNT
 #define CONFIG_SPINLOCK_DYNAMIC_CNT (128)
 #endif
-SPINLOCK_SECTION spinlock_t s_spinlock_mem[CONFIG_SPINLOCK_DYNAMIC_CNT] = {SPINLOCK_ACQUIRE_INITIALIZER};
-#define SPINLOCK_FULL_GROUPS_CNT ((CONFIG_SPINLOCK_DYNAMIC_CNT)/32)
+SPINLOCK_SECTION spinlock_t s_spinlock_mem[CONFIG_SPINLOCK_DYNAMIC_CNT];
 #define SPINLOCK_GROUPS_CNT ((CONFIG_SPINLOCK_DYNAMIC_CNT+31)/32)
-#define SPINLOCK_GROUP_REMAINDER (CONFIG_SPINLOCK_DYNAMIC_CNT - (((CONFIG_SPINLOCK_DYNAMIC_CNT)/32)*32))
 static uint32_t s_mem_manage_bits[SPINLOCK_GROUPS_CNT];
 
 spinlock_t *spinlock_mem_dynamic_alloc()
 {
-	uint32_t i, j;
-	bool find_out = 0;
+	uint32_t i, j, k;
 	spinlock_t *lock_p = NULL;
 	uint32_t int_level = rtos_disable_int();
 	spin_lock(&s_spinlock_memlock);
 
-	for(i = 0; i < SPINLOCK_FULL_GROUPS_CNT; i++)
+	for(k = 0; k < CONFIG_SPINLOCK_DYNAMIC_CNT; k++)
 	{
-		for(j=0; j <32; j++)
+		i = k / 32;
+		j = k - (i * 32);
+		if(s_mem_manage_bits[i] & (0x1 << j))
 		{
-			if(s_mem_manage_bits[i] & (0x1<<j))
-				continue;
-			else
-			{
-				find_out = 1;
-				s_mem_manage_bits[i] |= 0x1<<j;
-				goto exit;
-			}
-		}
-	}
-
-	for(j = 0; j < SPINLOCK_GROUP_REMAINDER; j++)
-	{
-		if(s_mem_manage_bits[SPINLOCK_GROUPS_CNT - 1] & (0x1<<j))
 			continue;
-		else
-		{
-			find_out = 1;
-			s_mem_manage_bits[i] |= 0x1<<j;
-			goto exit;
 		}
+		s_mem_manage_bits[i] |= 0x1 << j;
+		spinlock_init(&s_spinlock_mem[k]);
+		lock_p = &s_spinlock_mem[k];
+		break;
 	}
 
-exit:
-	if(find_out)
-	{
-	    spinlock_init(&s_spinlock_mem[(i * 32) + j]);
-        lock_p = &s_spinlock_mem[(i * 32) + j];
-	}
-	else
+	if(lock_p == NULL)
 	{
 		BK_LOGD(NULL, "%s fail:spinlock doesn't free? or increase CONFIG_SPINLOCK_DYNAMIC_CNT\r\n", __func__);
 		BK_ASSERT(0);	//please check whether some spinlock doesn't free, or increases CONFIG_SPINLOCK_DYNAMIC_CNT value
@@ -347,7 +211,7 @@ bk_err_t spinlock_mem_dynamic_free(spinlock_t *slock)
 	uint32_t i, j, k;
 	if((slock) &&
 		((uint32_t)slock >= (uint32_t)&s_spinlock_mem[0]) &&
-		((uint32_t)slock <= (uint32_t)&s_spinlock_mem[CONFIG_SPINLOCK_DYNAMIC_CNT]))
+		((uint32_t)slock < (uint32_t)&s_spinlock_mem[CONFIG_SPINLOCK_DYNAMIC_CNT]))
 	{
 		k = slock - &s_spinlock_mem[0];
 		i = k/32;
@@ -362,7 +226,7 @@ bk_err_t spinlock_mem_dynamic_free(spinlock_t *slock)
 	int_level = rtos_disable_int();
 	spin_lock(&s_spinlock_memlock);
 #if CONFIG_SPINLOCK_DEBUG
-    spinlock_deinit(slock);
+    slock->taskTCBPointer = 0;
 #endif
     s_mem_manage_bits[i] &= ~(0x1<<j);
 	spin_unlock(&s_spinlock_memlock);

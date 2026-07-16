@@ -106,7 +106,7 @@ ARM_MPU_Region_t mpu_regions[] = {
 #if (CONFIG_AP_PSRAM_CODE_SECTION_ADDR && CONFIG_AP_PSRAM_CODE_SECTION_SIZE && CONFIG_AP_PSRAM_CODE_SECTION_ADDR > 0x64000000UL)
 /* heap + data (heap~code): L2 cacheable, L1 non-cacheable (attr 5) */
 { ARM_MPU_RBAR(CONFIG_AP_PSRAM_HEAP_ADDR, ARM_MPU_SH_NON, 0, 1, 0),
-  ARM_MPU_RLAR(CONFIG_AP_PSRAM_CODE_SECTION_ADDR - 0x20, 1) },
+  ARM_MPU_RLAR(CONFIG_AP_PSRAM_CODE_SECTION_ADDR - 0x20, 5) },
 /* code section: L1+L2 write-back cacheable (attr 3) */
 { ARM_MPU_RBAR(CONFIG_AP_PSRAM_CODE_SECTION_ADDR, ARM_MPU_SH_NON, 0, 1, 0),
   ARM_MPU_RLAR(0x81FFFFE0UL, 3) },
@@ -128,7 +128,7 @@ ARM_MPU_RLAR(0x81FFFFE0UL, 1) },
     #if (CONFIG_AP_PSRAM_CODE_SECTION_ADDR && CONFIG_AP_PSRAM_CODE_SECTION_SIZE && CONFIG_AP_PSRAM_CODE_SECTION_ADDR > 0x64000000UL)
         /* heap + data (heap~code，data 段紧贴 heap 之后落在此区): L2 cacheable, L1 non-cacheable (attr 5) */
         { ARM_MPU_RBAR(CONFIG_AP_PSRAM_HEAP_ADDR, ARM_MPU_SH_NON, 0, 1, 0),
-          ARM_MPU_RLAR(CONFIG_AP_PSRAM_CODE_SECTION_ADDR - 0x20, 1) },
+          ARM_MPU_RLAR(CONFIG_AP_PSRAM_CODE_SECTION_ADDR - 0x20, 5) },
         /* code section: L1+L2 write-back cacheable (attr 3) */
         { ARM_MPU_RBAR(CONFIG_AP_PSRAM_CODE_SECTION_ADDR, ARM_MPU_SH_NON, 0, 1, 0),
           ARM_MPU_RLAR(0x67FFFFE0UL, 3) },
