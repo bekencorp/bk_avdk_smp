@@ -62,9 +62,9 @@ typedef enum {
  * @{
  */
 typedef enum {
-	HPDMA_INT_0 = 0,  /**< DMA INT 0  AP cpu core 0*/
-	HPDMA_INT_1,      /**< DMA INT 1  AP cpu core 1*/
-	HPDMA_INT_2,      /**< DMA INT 2  CP */
+	HPDMA_INT_0 = 0,  /**< DMA INT 0  m55 cpu core 0*/
+	HPDMA_INT_1,      /**< DMA INT 1  m55 cpu core 1*/
+	HPDMA_INT_2,      /**< DMA INT 2  m52 */
 	HPDMA_INT_3,      /**< DMA INT 3  NA*/
     HPDMA_INT_4,      /**< DMA INT 4  NA*/
 	HPDMA_INT_MAX,    /**< DMA channel max */
