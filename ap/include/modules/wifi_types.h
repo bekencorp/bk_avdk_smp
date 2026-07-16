@@ -157,6 +157,7 @@ typedef enum {
 	EVENT_WIFI_SCAN_DONE = 0,	   /**< WiFi scan done event */
 	EVENT_WIFI_STA_ASSOCIATED,	   /**< WiFi associated event */
 	EVENT_WIFI_STA_CONNECTED,	   /**< The BK STA is connected */
+	EVENT_WIFI_STA_GOT_IPV4,	   /**< The BK STA got ipv4 address */
 	EVENT_WIFI_STA_GOT_IPV6,	   /**< The BK STA got ipv6 address*/
 	EVENT_WIFI_STA_DISCONNECTED,   /**< The BK STA is disconnected */
 

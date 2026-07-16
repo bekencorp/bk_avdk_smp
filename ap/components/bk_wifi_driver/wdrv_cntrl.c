@@ -179,6 +179,12 @@ void wdrv_notify_sta_connected(void)
                                 BEKEN_NEVER_TIMEOUT));
 }
 
+void wdrv_notify_sta_got_ipv4(void)
+{
+    BK_LOG_ON_ERR(bk_event_post(EVENT_MOD_WIFI, EVENT_WIFI_STA_GOT_IPV4,
+                                NULL, 0, BEKEN_NEVER_TIMEOUT));
+}
+
 #if CONFIG_P2P
 void wdrv_p2p_role_clear(void)
 {
@@ -686,7 +692,7 @@ void wdrv_rx_handle_wifi_cntrl_event(wdrv_rx_msg *msg)
                 break;
             }
 #endif
-            wdrv_notify_sta_connected();
+            wdrv_notify_sta_got_ipv4();
             break;
         }
         case BK_EVT_IPV6_IND:

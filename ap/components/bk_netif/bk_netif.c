@@ -89,6 +89,8 @@ bk_err_t netif_wifi_event_cb(void *arg, event_module_t event_module,
 	switch (event_id) {
 #ifdef CONFIG_WIFI_VNET_CONTROLLER
     case EVENT_WIFI_STA_CONNECTED:
+		break;
+    case EVENT_WIFI_STA_GOT_IPV4:
     {
         netif_ip4_config_t wdrv_static_ip;
 
