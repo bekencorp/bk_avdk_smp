@@ -25,6 +25,7 @@
 #include <driver/gpio.h>
 #include <driver/aud_adc.h>
 #include <driver/aud_adc_types.h>
+#include <timer/timer_driver.h>
 
 #include "gpio_driver.h"
 
@@ -132,6 +133,7 @@ bk_err_t bk_aud_adc_init(aud_adc_config_t *adc_config)
     sys_drv_aud_adcbias_en(1);
     sys_drv_aud_micbias_en(1);
     sys_drv_aud_audbias_en(1);
+    bk_timer_delay_us(1000);
 
     /* config mic analog gain in dB */
     bk_aud_adc_set_ana_gain_db(AUD_ADC_CHL_0, adc_config->chl_cfg[0].ana_gain);
@@ -680,21 +682,21 @@ bk_err_t bk_aud_adc_start(aud_adc_chl_t chl)
         case AUD_ADC_CHL_0:
             sys_drv_aud_mic1_en(1);
             sys_drv_aud_mic1_rst_set(1);
-            delay(10);
+            bk_timer_delay_us(100);
             sys_drv_aud_mic1_rst_set(0);
             break;
 
         case AUD_ADC_CHL_1:
             sys_drv_aud_mic2_en(1);
             sys_drv_aud_mic2_rst_set(1);
-            delay(10);
+            bk_timer_delay_us(100);
             sys_drv_aud_mic2_rst_set(0);
             break;
 
         case AUD_ADC_CHL_2:
             sys_drv_aud_mic3_en(1);
             sys_drv_aud_mic3_rst_set(1);
-            delay(10);
+            bk_timer_delay_us(100);
             sys_drv_aud_mic3_rst_set(0);
             break;
 
