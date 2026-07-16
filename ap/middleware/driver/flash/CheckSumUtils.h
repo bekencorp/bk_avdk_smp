@@ -119,6 +119,16 @@ void CRC32_Update( CRC32_Context *inContext, const void *inSrc, size_t inLen );
 void CRC32_Final( CRC32_Context *inContext, uint32_t *outResult );
 
 /**
+ * @brief   Standard zlib/PKZIP CRC32 (poly 0xEDB88320, init 0, final inversion).
+ *
+ * Matches Python zlib.crc32 and the bootloader ota_verify_calc_crc32. Unlike the
+ * CRC32_* context API above, this includes the final inversion (results differ
+ * by ^0xFFFFFFFF). Use this for the AB ping-pong flag record so AP matches the
+ * packager-provisioned CRC. Pass 0 as the initial crc (chainable).
+ */
+uint32_t crc32_zlib(uint32_t crc, const void *inSrc, size_t inLen);
+
+/**
   * @}
   */
 #endif //__CheckSumUtils_h__
