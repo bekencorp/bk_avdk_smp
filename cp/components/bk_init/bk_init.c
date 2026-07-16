@@ -47,11 +47,6 @@
 #include <driver/can.h>
 #endif
 
-#if (CONFIG_OTA_UPDATE_DEFAULT_PARTITION && CONFIG_HTTP_AB_PARTITION)
-#include <modules/ota.h>
-extern void bk_ota_confirm_update_partition(ota_confirm_flag ota_confirm_val);
-#endif
-
 #if (CONFIG_CLI)
 #include "bk_api_cli.h"
 #else
@@ -381,14 +376,6 @@ int bk_init(void)
 #if (CONFIG_OTA_UPDATE_DEFAULT_PARTITION&& CONFIG_HTTP_AB_PARTITION)
 #if (CONFIG_OTA_POSITION_INDEPENDENT_AB)
 	bk_ota_double_check_for_execution();
-#else
-#ifdef CONFIG_OTA_UPDATE_B_PARTITION
-	BK_LOGD(NULL,"exec part a\r\n");
-	bk_ota_confirm_update_partition(CONFIRM_EXEC_A);
-#else
-	BK_LOGD(NULL,"exec part b\r\n");
-	bk_ota_confirm_update_partition(CONFIRM_EXEC_B);
-#endif
 #endif
 #endif
 
