@@ -148,6 +148,12 @@ void bk_sys_sw_regs_set_cp_heap_free_ptr(uint32_t addr);
  */
 void bk_sys_sw_regs_set_cp_lwip_mem_info_ptr(uint32_t addr);
 /**
+ * @brief Publish the address of the CP chip UID snapshot (bk_uid_snapshot_t)
+ *        so AP can read the 32-byte UID cross-core without an OTP re-read.
+ * @param addr Address of the CP-side static bk_uid_snapshot_t instance; 0 clears.
+ */
+void bk_sys_sw_regs_set_cp_uid_ptr(uint32_t addr);
+/**
  * @brief Update PM info fields selected by mask.
  * @param info Input PM info values.
  * @param field_mask Bitmask of bk_sys_sw_regs_pm_shared_info_field_t to update.

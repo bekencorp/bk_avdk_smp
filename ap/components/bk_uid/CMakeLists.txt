@@ -7,7 +7,6 @@ if (CONFIG_GET_UID_ENABLE)
 	)
 
 	list(APPEND srcs
-		bk_uid_adaptor.c
 		bk_uid.c
 	)
 endif()

@@ -96,7 +96,6 @@ uint32_t bk_sys_sw_regs_get_ap_heap_dump(bk_sys_sw_regs_ap_heap_id_t id, ap_heap
     info->valid = slot->valid;
     info->pool_base = slot->pool_base;
     info->max_alloc_end = slot->max_alloc_end;
-    info->reserved = slot->reserved;
 
     return (info->valid == BK_SYS_SW_REGS_AP_HEAP_DUMP_VALID) ? 1 : 0;
 }
@@ -279,7 +278,6 @@ void bk_sys_sw_regs_update_ap_heap_dump(bk_sys_sw_regs_ap_heap_id_t id, uint32_t
         slot->valid = 0U;
         slot->pool_base = pool_base;
         slot->max_alloc_end = max_alloc_end;
-        slot->reserved = 0U;
         slot->valid = BK_SYS_SW_REGS_AP_HEAP_DUMP_VALID;
     } else if (max_alloc_end > slot->max_alloc_end) {
         slot->max_alloc_end = max_alloc_end;

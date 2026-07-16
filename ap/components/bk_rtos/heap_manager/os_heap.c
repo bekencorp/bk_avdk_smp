@@ -53,7 +53,6 @@ static void bk_heap_track_ap_heap_window(void *ptr, size_t size)
         slot->valid = 0U;
         slot->pool_base = pool_base;
         slot->max_alloc_end = alloc_end;
-        slot->reserved = 0U;
         slot->valid = BK_SYS_SW_REGS_AP_HEAP_DUMP_VALID;
     } else if (alloc_end > slot->max_alloc_end) {
         slot->max_alloc_end = alloc_end;

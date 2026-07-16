@@ -518,12 +518,6 @@ CONFIG_GET_UID_TEST=y
 # end of bk_uid
 
 #
-# modules::uid
-#
-CONFIG_UID=y
-# end of modules::uid
-
-#
 # Bk_usb
 #
 # CONFIG_USB is not set

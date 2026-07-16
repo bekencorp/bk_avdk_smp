@@ -342,7 +342,6 @@ CONFIG_GET_UID_TEST=y
 #
 # modules::uid
 #
-CONFIG_UID=y
 # end of modules::uid
 
 #

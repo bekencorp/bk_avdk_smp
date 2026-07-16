@@ -283,6 +283,15 @@ int driver_init(void) {
 // 	bk_aon_wdt_stop();
 // #endif
 
+#if CONFIG_GET_UID_ENABLE
+	/* Init UID (create lock + read OTP once + publish snapshot) BEFORE mailbox/IPC
+	 * comes up. The AP GET_CHIP_UID RPC is served from the IPC worker thread that
+	 * ipc_init() creates below, so doing this first guarantees the OTP is read
+	 * exactly once while still single-threaded and the snapshot is published
+	 * before any RPC can arrive. */
+	bk_uid_driver_init();
+#endif
+
 #if CONFIG_MAILBOX
 	extern bk_err_t ipc_init(void);
 	extern bk_err_t mb_ipc_init(void);
@@ -367,10 +376,6 @@ int driver_init(void) {
 #if (CONFIG_TRUSTENGINE)
 	extern int dubhe_driver_init( unsigned long dbh_base_addr );
 	dubhe_driver_init(SOC_SHANHAI_BASE);
-#endif
-
-#if CONFIG_GET_UID_ENABLE
-	bk_uid_driver_init();
 #endif
 
 #if CONFIG_USB //&& CONFIG_MENTOR_USB

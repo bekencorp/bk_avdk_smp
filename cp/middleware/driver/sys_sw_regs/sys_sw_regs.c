@@ -96,7 +96,6 @@ uint32_t bk_sys_sw_regs_get_ap_heap_dump(bk_sys_sw_regs_ap_heap_id_t id, ap_heap
     info->valid = slot->valid;
     info->pool_base = slot->pool_base;
     info->max_alloc_end = slot->max_alloc_end;
-    info->reserved = slot->reserved;
 
     return (info->valid == BK_SYS_SW_REGS_AP_HEAP_DUMP_VALID) ? 1 : 0;
 }
@@ -279,7 +278,6 @@ void bk_sys_sw_regs_update_ap_heap_dump(bk_sys_sw_regs_ap_heap_id_t id, uint32_t
         slot->valid = 0U;
         slot->pool_base = pool_base;
         slot->max_alloc_end = max_alloc_end;
-        slot->reserved = 0U;
         slot->valid = BK_SYS_SW_REGS_AP_HEAP_DUMP_VALID;
     } else if (max_alloc_end > slot->max_alloc_end) {
         slot->max_alloc_end = max_alloc_end;
@@ -410,6 +408,23 @@ void bk_sys_sw_regs_set_cp_lwip_mem_info_ptr(uint32_t addr)
     /* flush_dcache (SCB clean+invalidate by addr) carries its own DSB/ISB,
      * so the shadow is written back and visible to AP without extra barriers. */
     flush_dcache((void *)&s_sys_sw_regs.cp_lwip_mem_info_ptr, sizeof(s_sys_sw_regs.cp_lwip_mem_info_ptr));
+#endif
+}
+
+void bk_sys_sw_regs_set_cp_uid_ptr(uint32_t addr)
+{
+    /*
+     * Single 32-bit publish of a link-time-constant address (no lock needed).
+     * Called once from CP after the chip UID snapshot is fully written, so AP
+     * can read the 32-byte UID directly across cores without an OTP re-read.
+     * The pointer being non-zero is the validity gate; the snapshot itself is
+     * written (and DSB'd) by the caller before this publish.
+     */
+    s_sys_sw_regs.cp_uid_ptr = addr;
+    __asm volatile ("dsb" ::: "memory");
+#if CONFIG_SUPPORT_CACHEABLE_SRAM
+    flush_dcache((void *)&s_sys_sw_regs.cp_uid_ptr, sizeof(s_sys_sw_regs.cp_uid_ptr));
+    __asm volatile ("dsb" ::: "memory");
 #endif
 }
 

@@ -5,10 +5,10 @@ extern "C" {
 
 #include <common/bk_err.h>
 #include <stdint.h>
+#include <components/bk_uid.h> /* BK_UID_SIZE (single source of truth) */
 
 #define BK_API_RPC_EVENT_GET_CHIP_UID            (0x0001)
 
-#define BK_UID_SIZE            (32)
 typedef struct
 {
     uint16_t event;
