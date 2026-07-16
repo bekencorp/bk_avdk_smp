@@ -18,9 +18,6 @@
 #define TAG "HTTPS_OTA"
 
 extern UINT8  ota_flag ;
-#ifdef CONFIG_HTTP_AB_PARTITION
-extern part_flag update_part_flag;
-#endif
 
 #define HTTPS_INPUT_SIZE   (5120)
 

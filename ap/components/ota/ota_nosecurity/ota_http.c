@@ -31,9 +31,6 @@
 #define OTA_LOGD(...) 
 #endif
 
-#ifdef CONFIG_HTTP_AB_PARTITION
-extern part_flag update_part_flag;
-#endif
 u8  ota_flag =0;
 
 /*Please use the interface of the int bk_ota_start_download(const char *url, ota_wr_destination_t ota_dest_id) function in ota.c.*/

@@ -35,12 +35,6 @@
 #define RBL_HEAD_POS            (0x1000)
 #define RT_OTA_HASH_FNV_SEED    (0x811C9DC5)
 
-/** @brief   This macro defines the status of the download.  */
-#if CONFIG_OTA_EVADE_METHOD
-#define DOWNLOAD_STATUS_POS			(12)
-#define DOWNLOAD_START_FLAG			(0xFE)
-#define DOWNLOAD_SUCCESS_FLAG		(0xFC)
-#endif
 /**
  * OTA firmware encryption algorithm and compression algorithm
  */

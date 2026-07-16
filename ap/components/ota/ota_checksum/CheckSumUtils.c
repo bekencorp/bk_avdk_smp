@@ -148,3 +148,26 @@ void CRC32_Final( CRC32_Context *inContext, uint32_t *outResult )
 	*outResult = inContext->crc;
 }
 
+/*
+ * Standard zlib/PKZIP CRC32: poly 0xEDB88320 (reflected), init 0, final
+ * inversion. Matches Python zlib.crc32 and the bootloader
+ * ota_verify_calc_crc32 -- unlike the CRC32_* context API above, which omits
+ * the final inversion (its result differs by ^0xFFFFFFFF).
+ *
+ * Chainable like zlib: pass 0 as the initial crc, then feed the previous
+ * return value for the next chunk. Use this (NOT CRC32_*) for the AB ping-pong
+ * flag record so AP/CP match what the packager pre-provisions.
+ */
+uint32_t crc32_zlib(uint32_t crc, const void *inSrc, size_t inLen)
+{
+	const uint8_t *p = (const uint8_t *)inSrc;
+
+	make_crc32_table();
+	crc = crc ^ 0xFFFFFFFFu;
+	while (inLen--)
+	{
+		crc = crc32_table[(crc ^ *p++) & 0xff] ^ (crc >> 8);
+	}
+	return crc ^ 0xFFFFFFFFu;
+}
+

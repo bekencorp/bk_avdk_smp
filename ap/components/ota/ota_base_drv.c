@@ -17,7 +17,6 @@
 #ifdef CONFIG_HTTP_AB_PARTITION
 #include "modules/ota.h"
 #include "driver/flash_partition.h"
-extern part_flag update_part_flag;
 #endif
 
 #ifdef CONFIG_HTTP_OTA_WITH_BLE
@@ -66,18 +65,12 @@ static int ota_do_init(f_ota_t* ota_ptr)
     OTA_MALLOC(ota_ptr->rd_buf, OTA_FLASH_BUFFER_LENGTH);
 
 #ifdef CONFIG_HTTP_AB_PARTITION
-    exec_flag ret = bk_ota_get_current_partition();
-    OTA_LOGI("ret :0x%x \r\n",ret);
-    if(ret == EXEC_B_PART){
-        update_part_flag = UPDATE_A_PART;
-    } else{
-        update_part_flag = UPDATE_B_PART;
-    }
-
 #if CONFIG_OTA_POSITION_INDEPENDENT_AB
+    part_flag update_part = bk_ota_get_update_partition();
+
 	ota_ptr->partition_length = http_get_sapp_partition_length(BK_PARTITION_S_APP);
     OTA_LOGI("ota_ptr->partition_lenth :0x%x \r\n",ota_ptr->partition_length);
-    if(update_part_flag == UPDATE_B_PART){
+    if(update_part == UPDATE_B_PART){
         OTA_LOGI("UPDATE_B_PART\r\n");
         ota_ptr->pt = bk_flash_partition_get_info(BK_PARTITION_S_APP); //update B_parition
     }else{
