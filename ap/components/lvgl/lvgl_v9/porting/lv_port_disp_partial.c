@@ -78,7 +78,8 @@ void lv_port_disp_partial_init(lv_vnd_data_t *vnd_data)
     lv_hpdma_memcpy_init(vnd_data);
 
 #if LV_USE_GPU_ROTATE
-    if (vnd_data->config.rotation != ROTATE_NONE && !vnd_data->config.output_compress) {
+    if (vnd_data->config.rotation != ROTATE_NONE &&
+        !vnd_data->config.output_compress) {
         lv_gpu_rotate_init(vnd_data);
     }
 #endif
@@ -119,7 +120,7 @@ void lv_port_disp_partial_deinit(lv_vnd_data_t *vnd_data)
     lv_hpdma_memcpy_deinit(vnd_data);
 
 #if LV_USE_GPU_ROTATE
-    if (vnd_data->config.rotation != ROTATE_NONE && !vnd_data->config.output_compress) {
+    if (!vnd_data->config.output_compress) {
         lv_gpu_rotate_deinit(vnd_data);
     }
 #endif

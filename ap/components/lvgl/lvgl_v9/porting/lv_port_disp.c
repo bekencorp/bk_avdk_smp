@@ -199,7 +199,6 @@ void lv_port_disp_deinit(lv_vnd_data_t *vnd_data)
     }
 
     if (vnd_data->config.render_mode == RENDER_PARTIAL_MODE &&
-        vnd_data->config.rotation != ROTATE_NONE &&
         !vnd_data->config.output_compress) {
         if (vnd_data->rotate_buffer) {
             lv_vendor_free(vnd_data->rotate_buffer);

@@ -21,12 +21,13 @@
 static vg_lite_buffer_t s_lv_gpu_rotate_dst_buf;
 static vg_lite_buffer_t s_lv_gpu_rotate_src_buf;
 static vg_lite_matrix_t s_lv_gpu_rotate_matrix;
+static bool s_lv_gpu_rotate_inited = false;
 
 static bool lv_gpu_rotate_is_enabled(const lv_vnd_data_t *vnd_data)
 {
     return (vnd_data != NULL) &&
            (vnd_data->config.render_mode == RENDER_PARTIAL_MODE) &&
-           (vnd_data->config.rotation != ROTATE_NONE);
+           !vnd_data->config.output_compress;
 }
 
 static void lv_gpu_rotate_set_buffer_format(vg_lite_buffer_t *buf)
@@ -70,6 +71,10 @@ static void lv_gpu_rotate_set_matrix(rott_angle_t rotation, lv_coord_t src_width
 
 void lv_gpu_rotate_init(lv_vnd_data_t *vnd_data)
 {
+    if (s_lv_gpu_rotate_inited) {
+        return;
+    }
+
     if (!lv_gpu_rotate_is_enabled(vnd_data)) {
         LOGE("%s lv_gpu_rotate is not enabled\n", __func__);
         return;
@@ -78,10 +83,15 @@ void lv_gpu_rotate_init(lv_vnd_data_t *vnd_data)
     lv_gpu_rotate_set_buffer_format(&s_lv_gpu_rotate_dst_buf);
     lv_gpu_rotate_set_buffer_format(&s_lv_gpu_rotate_src_buf);
     vg_lite_identity(&s_lv_gpu_rotate_matrix);
+    s_lv_gpu_rotate_inited = true;
 }
 
 void lv_gpu_rotate_deinit(lv_vnd_data_t *vnd_data)
 {
+    if (!s_lv_gpu_rotate_inited) {
+        return;
+    }
+
     if (!lv_gpu_rotate_is_enabled(vnd_data)) {
         LOGE("%s lv_gpu_rotate is not enabled\n", __func__);
         return;
@@ -89,6 +99,7 @@ void lv_gpu_rotate_deinit(lv_vnd_data_t *vnd_data)
 
     vg_lite_free_without_free_data(&s_lv_gpu_rotate_src_buf);
     vg_lite_free_without_free_data(&s_lv_gpu_rotate_dst_buf);
+    s_lv_gpu_rotate_inited = false;
 }
 
 void lv_gpu_rotate_process(lv_vnd_data_t *vnd_data, uint8_t *src_buf, lv_coord_t src_width, lv_coord_t src_height)

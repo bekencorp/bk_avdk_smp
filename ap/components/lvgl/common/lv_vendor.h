@@ -76,6 +76,7 @@ typedef struct {
     hpdma_id_t lv_hpdma_id;
     beken_semaphore_t lv_hpdma_sem;
     bool lv_hpdma_in_use;
+    bool gpu_inited;
     lv_area_t d_area;
 } lv_vnd_data_t;
 
@@ -94,6 +95,10 @@ void lv_vendor_free(void *ptr);
 bk_err_t lv_vendor_init(lv_vnd_config_t *config);
 
 void lv_vendor_deinit(void);
+
+bk_err_t lv_vendor_set_dynamic_rotation(rott_angle_t rotation);
+
+rott_angle_t lv_vendor_get_rotation(void);
 
 void lv_vendor_start(void);
 
