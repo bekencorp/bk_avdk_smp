@@ -816,20 +816,20 @@ static void cli_pm_boot_ap(char *pcWriteBuffer, int xWriteBufferLen, int argc, c
 
 #endif//CONFIG_SYSTEM_CTRL
 
-static void cli_pm_demo_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
+static void cli_pm_ap_demo_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
 	if (os_strcmp(argv[1], "init") == 0)
 	{
-		CLI_LOGD("pm demo init\r\n");
+		CLI_LOGD("pm_ap_demo init\r\n");
 		pm_demo_thread_main();
 	} 
 	else if (os_strcmp(argv[1], "deep_sleep") == 0) 
 	{
-		CLI_LOGD("pm demo deep sleep\r\n");
+		CLI_LOGD("pm_ap_demo deep sleep\r\n");
 
 		if (argc != 6)
 		{
-			BK_LOGD(NULL, "set pm demo deep sleep parameter invalid %d\r\n",argc);
+			BK_LOGD(NULL, "set pm_ap_demo deep sleep parameter invalid %d\r\n",argc);
 			return;
 		}
 
@@ -854,10 +854,10 @@ static void cli_pm_demo_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
 	} 
 	else if (os_strcmp(argv[1], "sleep") == 0)
 	{
-		CLI_LOGD("pm demo sleep\r\n");
+		CLI_LOGD("pm_ap_demo sleep\r\n");
 		if (argc != 6)
 		{
-			BK_LOGD(NULL, "set pm demo sleep parameter invalid %d\r\n",argc);
+			BK_LOGD(NULL, "set pm_ap_demo sleep parameter invalid %d\r\n",argc);
 			return;
 		}
 		#if CONFIG_PM_DEMO_ENABLE
@@ -880,7 +880,7 @@ static void cli_pm_demo_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
 	} 
 	else 
 	{
-		CLI_LOGD("pm demo unknown cmd\r\n");
+		CLI_LOGD("pm_ap_demo unknown cmd\r\n");
 		return;
 	}
 }
@@ -907,12 +907,12 @@ static const struct cli_command s_pwr_commands[] = {
 	{"pm_boot_cp2", "pm_boot_cp2 [module_name] [ctrl_state:0x0:bootup; 0x1:shutdowm]", cli_pm_boot_cp2},
 #endif
 	{"pm_boot_ap", "pm_boot_ap [module_name] [ctrl_state:0x0:bootup; 0x1:shutdowm]", cli_pm_boot_ap},
-	{"pm_demo", "pm_demo {init||send_cmd|config_data}", cli_pm_demo_cmd},
+	{"pm_ap_demo", "pm_ap_demo {init|sleep|deep_sleep}", cli_pm_ap_demo_cmd},
 #else
 	{"pm", "pm [sleep_mode] [wake_source] [vote1] [vote2] [vote3] [param1] [param2] [param3]", cli_pm_cmd},
 	{"pm_vote", "pm_vote [pm_sleep_mode] [pm_vote] [pm_vote_value] [pm_sleep_time]", cli_pm_vote_cmd},
 	{"pm_debug", "pm_debug [debug_en_value]", cli_pm_debug},
-	{"pm_demo", "pm_demo {init||send_cmd|config_data}", cli_pm_demo_cmd},
+	{"pm_ap_demo", "pm_ap_demo {init|sleep|deep_sleep}", cli_pm_ap_demo_cmd},
 #endif //CONFIG_DEBUG_VERSION
 #endif //CONFIG_SYSTEM_CTRL
 };
