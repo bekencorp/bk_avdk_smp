@@ -1,5 +1,8 @@
 #include "cif_main.h"
 #include "cif_ipc.h"
+#if CONFIG_DCACHE
+#include "cache.h"
+#endif
 #if CONFIG_SOC_SMP
 #include "spinlock.h"
 #endif
@@ -29,6 +32,63 @@ __IRAM_SEC void cif_stats_exit_critical(uint32_t flags)
 
 extern void stack_mem_dump(uint32_t stack_top, uint32_t stack_bottom);
 extern bk_err_t cif_free_rxdata(struct common_header* co_hdr);
+
+#if CONFIG_CONTROLLER_AP_BUFFER_COPY && CONFIG_DCACHE
+static void cif_flush_pbuf_for_ap(struct pbuf *p)
+{
+    uint32_t start;
+    uint32_t end;
+
+    if (p == NULL) {
+        return;
+    }
+
+    if (p->next != NULL) {
+        CIF_LOGW("%s chained pbuf is not supported, flush head only\r\n", __func__);
+    }
+
+    start = (uint32_t)p;
+    end = start + sizeof(struct pbuf);
+    if (p->payload != NULL) {
+        uint32_t payload_end = (uint32_t)p->payload + p->len;
+        if (payload_end > end) {
+            end = payload_end;
+        }
+    }
+
+    flush_dcache(p, (long)(end - start));
+}
+
+static void cif_flush_rx_buffer_for_ap(uint8_t channel, void *head, uint8_t num)
+{
+    struct cpdu_t *cpdu = (struct cpdu_t *)head;
+
+    if (cpdu == NULL) {
+        return;
+    }
+
+    if (channel == RX_BK_CMD_DATA) {
+        flush_dcache(cpdu, cpdu->co_hdr.length);
+        return;
+    }
+
+    if (channel != RX_MSDU_DATA) {
+        return;
+    }
+
+    for (uint8_t i = 0; (cpdu != NULL) && (i < num); i++) {
+        struct cpdu_t *next = cpdu->next;
+
+        if (cpdu->co_hdr.special_type == TX_RLK_FREE_MEM_TYPE) {
+            flush_dcache(cpdu, sizeof(struct ctrl_cmd_hdr) + cpdu->co_hdr.length);
+        } else {
+            cif_flush_pbuf_for_ap(((struct pbuf *)cpdu) - 1);
+        }
+
+        cpdu = next;
+    }
+}
+#endif
 
 void cif_register_customer_msg_handler(cif_customer_msg_cb_t func)
 {
@@ -285,6 +345,10 @@ __IRAM2 bk_err_t cif_rxdata_pre_process(uint8_t channel,void* head,uint8_t need_
     if(first == NULL) goto ERR_EXIT;
 
     CIF_LOGV("%s,%d,p:0x%x,p:0x%x,num:%d\n",__func__,__LINE__,(struct pbuf*)first-1,(struct pbuf*)last-1,num);
+
+#if CONFIG_CONTROLLER_AP_BUFFER_COPY && CONFIG_DCACHE
+    cif_flush_rx_buffer_for_ap(channel, first, num);
+#endif
 
     ret = cif_rxbuf_push(channel,first,last,num);
     
