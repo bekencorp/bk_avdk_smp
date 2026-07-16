@@ -21,6 +21,7 @@
 #include "wifi_spinlock.h"
 #include "skbuff.h"
 #include "rwnx_tx.h"
+#include "rwnx_txq.h"
 #endif
 #include "ieee802_11_defs.h"
 #include "bk_wifi.h"
@@ -1645,6 +1646,15 @@ void rwnx_handle_recv_msg(struct ke_msg *rx_msg)
 		msg_ptr = (struct ke_msg *)rx_msg;
 		ind = (struct mm_channel_switch_ind *)msg_ptr->param;
 		roc_channel = ind->freq;
+#if CONFIG_RWNX_SW_TXQ && CONFIG_P2P
+		if (ind->roc) {
+			void *vif = mac_vif_mgmt_get_entry(ind->vif_index);
+
+			if (vif)
+				rwnx_txq_vif_start(vif, RWNX_TXQ_STOP_CHAN);
+			rwnx_txq_offchan_start();
+		}
+#endif
 		if (ind->roc)
 			wpa_ctrl_event_copy(WPA_CTRL_EVENT_REMAIN_ON_CHANNEL, ind, sizeof(*ind));
 	}	break;
@@ -1658,6 +1668,18 @@ void rwnx_handle_recv_msg(struct ke_msg *rx_msg)
 		struct rwnx_hw *rwnx_hw = &g_rwnx_hw;
 		struct rwnx_roc_elem *roc_elem = rwnx_hw->roc_elem;
 		roc_channel = 0;
+#if CONFIG_RWNX_SW_TXQ && CONFIG_P2P
+		{
+			struct ke_msg *msg_ptr = (struct ke_msg *)rx_msg;
+			struct mm_remain_on_channel_exp_ind *exp =
+				(struct mm_remain_on_channel_exp_ind *)msg_ptr->param;
+			void *vif = mac_vif_mgmt_get_entry(exp->vif_index);
+
+			if (vif)
+				rwnx_txq_vif_stop(vif, RWNX_TXQ_STOP_CHAN);
+			rwnx_txq_offchan_deinit(vif);
+		}
+#endif
 		if (roc_elem) {
 			rwnx_hw->roc_elem = 0;
 			os_free(roc_elem);

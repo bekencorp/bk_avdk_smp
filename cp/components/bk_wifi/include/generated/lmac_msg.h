@@ -2631,6 +2631,14 @@ struct apm_probe_client_ind
     /// Unique ID as returned in @ref APM_PROBE_CLIENT_CFM
     uint32_t probe_id;
 };
+
+/// Structure containing the parameters of the @ref APM_BROADCAST_DEAUTH_REQ message.
+struct apm_broadcast_deauth_req
+{
+    /// Index of the VIF whose associated STAs must be deauthenticated
+    /// (0xFF = first infra AP / first AP fallback)
+    uint8_t vif_idx;
+};
 /// Messages that are logically related to the task.
 
 /// Messages that are logically related to the task.

@@ -31,6 +31,10 @@
 #include "rwnx_intf.h"
 #include "rwnx_params.h"
 
+#if CONFIG_P2P
+#include "wifi_v2.h"
+#endif
+
 #define TAG "hitf"
 #include "common.h"
 #include "bk_wifi.h"
@@ -50,6 +54,8 @@ extern int sa_station_send_associate_cmd(CONNECT_PARAM_T *connect_param);
 /* forward declaration */
 FUNC_1PARAM_PTR bk_wlan_get_status_cb(void);
 void wpa_hostapd_release_scan_rst(void);
+struct vif_info_tag;
+uint16_t chan_get_vif_frequency(struct vif_info_tag *vif);
 
 bk_ap_no_password_cb_t bk_ap_no_password_connected = NULL;
 
@@ -254,9 +260,14 @@ int wpa_intf_channel_switch(struct prism2_hostapd_param *param, int len)
 	vif = mac_vif_mgmt_get_entry(vif_id);
 
 	ieee80211_freq_to_chan(freq, &chann);
-	if (chann == bk_wlan_ap_get_channel_config()) {
-		BK_LOGD(TAG, "CSA over same channel\r\n");
-		return BK_ERR_HITF_CSA_SAME_CHAN;
+	{
+		uint16_t cur_freq = chan_get_vif_frequency((struct vif_info_tag *)vif);
+
+		if (cur_freq && freq == cur_freq) {
+			BK_LOGD(TAG, "CSA over same channel (vif=%d ch=%u)\r\n",
+				vif_id, chann);
+			return BK_ERR_HITF_CSA_SAME_CHAN;
+		}
 	}
 
 	BK_LOGD(TAG, "CSA vif=%d vif_id=%d csa_cnt=%d\r\n", vif, param->vif_idx, csa_count);
@@ -487,9 +498,40 @@ int hapd_intf_remove_vif(struct prism2_hostapd_param *param, int len)
 	return ret;
 }
 
+static uint8_t hapd_intf_apm_start_channel(uint8_t vif_idx)
+{
+	uint8_t ch = 0;
+
+#if CONFIG_P2P
+	void *vif = mac_vif_mgmt_get_entry(vif_idx);
+
+	if (vif && mac_vif_mgmt_get_type(vif) == VIF_AP &&
+	    mac_vif_mgmt_interface_is_configured_for_p2p(vif)) {
+		ch = bk_wifi_p2p_go_get_channel_config();
+		if (ch)
+			return ch;
+	}
+#if CONFIG_P2P_SOFTAP_CHAN_ALIGN
+	if (vif && mac_vif_mgmt_get_type(vif) == VIF_AP &&
+	    !mac_vif_mgmt_interface_is_configured_for_p2p(vif)) {
+		ch = bk_wifi_p2p_go_get_channel();
+		if (!ch)
+			ch = bk_wifi_p2p_go_get_planned_channel();
+		if (ch)
+			return ch;
+	}
+#endif
+#endif
+	if (g_ap_param_ptr)
+		ch = g_ap_param_ptr->chann;
+
+	return ch;
+}
+
 int hapd_intf_start_apm(struct prism2_hostapd_param *param, int len)
 {
 	int ret;
+	uint8_t channel;
 	struct apm_start_cfm *cfm
 		= (struct apm_start_cfm *)os_malloc(sizeof(struct apm_start_cfm));
 
@@ -498,7 +540,8 @@ int hapd_intf_start_apm(struct prism2_hostapd_param *param, int len)
 		return BK_ERR_NO_MEM;
 	}
 
-	ret = rw_msg_send_apm_start_req(param->vif_idx, g_ap_param_ptr->chann, cfm);
+	channel = hapd_intf_apm_start_channel(param->vif_idx);
+	ret = rw_msg_send_apm_start_req(param->vif_idx, channel, cfm);
 	if (ret) {
 		BK_LOGE(TAG, "start apm failed, ret=%x!\r\n", ret);
 		os_free(cfm);
@@ -1111,6 +1154,7 @@ int wpa_hostapd_set_sta_flag(struct prism2_hostapd_param *param, int len)
 	u32 flag = 0;
 	bool opened = 0;
 	u8 sta_idx;
+	void *sta;
 
 	flag |= set_flag;
 	flag &= mask;
@@ -1121,15 +1165,21 @@ int wpa_hostapd_set_sta_flag(struct prism2_hostapd_param *param, int len)
 	if (!(flag & WPA_STA_AUTHENTICATED))
 		return 0;
 
+#if CONFIG_P2P
+	sta_idx = sta_mgmt_get_staid(param->vif_idx, param->sta_addr);
+#else
+	sta_idx = sta_mgmt_get_sta_id(param->sta_addr);
+#endif
+	if (sta_idx == INVALID_STA_IDX)
+		return 0;
+
+	sta = sta_mgmt_get_entry(sta_idx);
+
 	// Port already open
-	if (rwm_mgmt_sta_mac2port(param->sta_addr)) {
+	if (sta && sta_mgmt_get_ctrl_port_state(sta) == PORT_OPEN) {
 		BK_LOGD(TAG, "STA " MACSTR "already opened\n", MAC2STR(param->sta_addr));
 		return 0;
 	}
-
-	sta_idx = rwm_mgmt_sta_mac2idx(param->sta_addr);
-	if (sta_idx == 0xff)
-		return 0;
 
 	opened = 1;
 
@@ -1312,7 +1362,7 @@ int hapd_intf_ioctl(unsigned long arg)
 		break;
 
 	case PRISM2_HOSTAPD_BROADCAST_DEAUTH:
-		ret = rw_msg_send_apm_broadcast_deauth_req();
+		ret = rw_msg_send_apm_broadcast_deauth_req(param->vif_idx);
 		break;
 
 #ifdef CONFIG_IEEE80211R
@@ -1435,6 +1485,10 @@ int hapd_intf_ke_rx_handle(int dummy)
 
 		skb->sta_idx = 0xFF;  // FIXME BK7236
 		skb->vif_idx = type_ptr->vif_index;
+#if CONFIG_P2P
+		if (type_ptr->type == HOSTAPD_MGMT_ROBUST)
+			skb->offchannel = 1;
+#endif
 		skb->cb = hapd_intf_mgmt_tx_cb;
 		skb->args = skb; // cb args
 

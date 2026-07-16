@@ -300,8 +300,14 @@ int demo_state_app_init(void)
 		BK_LOGI(TAG, "[KW:]bridge: ssid=%s, channel=%d, cipher_type=%s\r\n",
 				   ssid, ap_info.channel, wifi_sec_type_string(ap_info.security));
 #else
-		BK_LOGI(TAG, "[KW:]softap: ssid=%s, channel=%d, cipher_type=%s\r\n",
-				   ssid, ap_info.channel, wifi_sec_type_string(ap_info.security));
+		{
+			uint8_t ap_ch = ap_info.channel;
+
+			if (!ap_ch)
+				ap_ch = bk_wlan_ap_get_channel_config();
+			BK_LOGI(TAG, "[KW:]softap: ssid=%s, channel=%d, cipher_type=%s\r\n",
+				   ssid, ap_ch, wifi_sec_type_string(ap_info.security));
+		}
 
 		BK_RETURN_ON_ERR(bk_netif_get_ip4_config(NETIF_IF_AP, &ap_ip4_info));
 		BK_LOGI(TAG, "[KW:]ip=%s,gate=%s,mask=%s,dns=%s\r\n",

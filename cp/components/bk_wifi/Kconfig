@@ -320,6 +320,16 @@ menu "Bk_Wifi"
 	    bool "Enable P2P Go"
 		default n
 
+	config P2P_SOFTAP_CHAN_ALIGN
+		bool "P2P GO and SoftAP channel coexist policy"
+		depends on P2P
+		default y
+		help
+			Bidirectional channel alignment for P2P GO and SoftAP:
+			SoftAP follows a planned/active GO channel at start; GO
+			follows live SoftAP/STA when no GO channel is set yet;
+			CSA SoftAP to GO after GO comes up on a different channel.
+
 	config TX_BUFING
 		bool "Enable Tx Bufing"
 		default n

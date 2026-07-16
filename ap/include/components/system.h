@@ -63,6 +63,10 @@ typedef enum {
 	MAC_TYPE_AP,
 	MAC_TYPE_BLUETOOTH,
 	MAC_TYPE_ETH,
+	/* P2P MAC: a single dedicated P2P address derived from the base MAC the
+	 * same way a phone does it -- by toggling the locally-administered bit in
+	 * byte0 (see bk_get_mac). Used for both P2P GO and P2P client roles. */
+	MAC_TYPE_P2P,
 	MAC_MAX,
 } mac_type_t;
 

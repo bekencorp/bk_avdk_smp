@@ -540,6 +540,9 @@ uint32_t bk_wifi_find_ie(uint32_t addr, uint16_t buflen, uint8_t ie_id);
 /* param_config */
 extern general_param_t *g_wlan_general_param;
 extern ap_param_t *g_ap_param_ptr;
+#if CONFIG_P2P
+extern ap_param_t *g_p2p_go_ap_param_ptr;
+#endif
 extern sta_param_t *g_sta_param_ptr;
 
 uint32_t cfg_param_init(void);
@@ -565,8 +568,8 @@ uint8_t bk_wlan_ap_get_channel_config(void);
 VOID bk_wlan_ap_set_channel_config(uint8_t channel);
 uint8_t bk_wlan_has_role(uint8_t role);
 void bk_wlan_reg_csa_cb_coexist_mode(void);
-#ifdef CONFIG_P2P
 uint8_t bk_wlan_ap_get_default_channel(void);
+#ifdef CONFIG_P2P
 void app_p2p_rw_event_func(void *new_evt);
 void app_p2p_restart_thread(void);
 #endif

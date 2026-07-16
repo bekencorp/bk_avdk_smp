@@ -74,6 +74,7 @@
 #include <os/os.h>
 #include "net.h"
 #include <common/bk_err.h>
+#include <components/system.h>   /* bk_get_mac / MAC_TYPE_P2P */
 #ifdef CONFIG_WIFI_VNET_CONTROLLER
 #include "wifi_api.h"
 #endif
@@ -125,6 +126,12 @@ static void low_level_init(struct netif *netif)
         bk_wifi_sta_get_mac(macptr);
     else if (netif == net_get_uap_handle())
         bk_wifi_ap_get_mac(macptr);
+#if CONFIG_P2P
+    else if (netif == net_get_p2p_go_handle())
+        bk_wifi_p2p_get_mac(macptr);   /* P2P GO BSSID */
+    else if (netif == net_get_p2p_gc_handle())
+        bk_get_mac(macptr, MAC_TYPE_P2P);  /* P2P client: base^0x02 */
+#endif
     else
         return;
 
@@ -217,12 +224,25 @@ static err_t low_level_output(struct netif *netif, struct pbuf *p)
         uint8_t vif_idx = 0;
         struct netif* sta_netif = net_get_sta_handle();
         struct netif* sap_netif = net_get_uap_handle();
+#if CONFIG_P2P
+        struct netif* go_netif = net_get_p2p_go_handle();
+        struct netif* gc_netif = net_get_p2p_gc_handle();
+#endif
         cpdu_t* cpdu = (cpdu_t*)(p + 1);
         // Sanity check
         if(netif == sta_netif){
             vif_idx = 0;
         }else if(netif == sap_netif){
             vif_idx = 1;
+#if CONFIG_P2P
+        }else if(netif == go_netif){
+            /* P2P GO. Tag wire id 2; CP maps it to the GO's current LMAC vif
+             * index by role (GO/GC float on vif0/vif1, no longer identity). */
+            vif_idx = 2;
+        }else if(netif == gc_netif){
+            /* P2P client. Tag wire id 3; CP maps it by role to the GC vif. */
+            vif_idx = 3;
+#endif
         }else{
             BK_LOGD(NULL, "%s,%d,netif err!\n",__func__,__LINE__);
             return ERR_ARG;
@@ -306,6 +326,12 @@ void ethernetif_input(int iface, struct pbuf *p, uint8_t dst_idx)
         netif = net_get_sta_handle();
     else if (iface == 1)
         netif = net_get_uap_handle();
+#if CONFIG_P2P
+    else if (iface == 2)
+        netif = net_get_p2p_go_handle();   /* P2P GO RX */
+    else if (iface == 3)
+        netif = net_get_p2p_gc_handle();   /* P2P client RX */
+#endif
     else {
         pbuf_free(p);
         p = NULL;

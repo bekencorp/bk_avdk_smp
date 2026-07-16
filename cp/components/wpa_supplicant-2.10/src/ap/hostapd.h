@@ -722,4 +722,19 @@ void fst_hostapd_fill_iface_obj(struct hostapd_data *hapd,
 				struct fst_wpa_obj *iface_obj);
 #endif /* CONFIG_FST_AP */
 
+#ifdef BK_SUPPLICANT
+int ap_channel_switch(struct hostapd_iface *ap_iface, int new_freq);
+int ap_channel_switch_stop(struct hostapd_iface *ap_iface);
+#if CONFIG_P2P
+int ap_infra_channel_switch(int new_freq);
+int ap_infra_channel_switch_stop(void);
+#if CONFIG_P2P_SOFTAP_CHAN_ALIGN
+bool hostapd_has_p2p_group_bss(void);
+bool hostapd_has_infra_bss(void);
+int hostapd_disable_infra_bss(void);
+int hostapd_disable_p2p_bss(void);
+#endif /* CONFIG_P2P_SOFTAP_CHAN_ALIGN */
+#endif /* CONFIG_P2P */
+#endif /* BK_SUPPLICANT */
+
 #endif /* HOSTAPD_H */

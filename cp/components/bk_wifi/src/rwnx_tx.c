@@ -789,10 +789,17 @@ void rwnx_start_xmit_mgmt(struct sk_buff *skb)
 	if (skb->sta_idx != INVALID_STA_IDX) {
 		txq = rwnx_txq_sta_get(sta_mgmt_get_entry(skb->sta_idx), NX_STA_MGMT_TXQ_IDX);
 	} else {
-		if (skb->offchannel)
-			txq = rwnx_txq_vif_get(mac_vif_mgmt_get_entry(skb->vif_idx), NX_OFF_CHAN_TXQ_IDX);
-		else
-			txq = rwnx_txq_vif_get(mac_vif_mgmt_get_entry(skb->vif_idx), NX_UNK_TXQ_TYPE);
+		if (skb->offchannel) {
+#if CONFIG_P2P
+			txq = &g_rwnx_hw.txq[NX_OFF_CHAN_TXQ_IDX];
+#else
+			txq = rwnx_txq_vif_get(mac_vif_mgmt_get_entry(skb->vif_idx),
+					       NX_OFF_CHAN_TXQ_IDX);
+#endif
+		} else {
+			txq = rwnx_txq_vif_get(mac_vif_mgmt_get_entry(skb->vif_idx),
+					      NX_UNK_TXQ_TYPE);
+		}
 	}
 	if (!txq || txq->idx == TXQ_INACTIVE) {
 		RWNX_LOGW("%s txq is invalid\n", __func__);
@@ -902,10 +909,17 @@ void rwnx_start_xmit_raw_ex(struct sk_buff *skb, raw_tx_cntrl_t *raw_tx_cntrl)
 	if (skb->sta_idx != INVALID_STA_IDX) {
 		txq = rwnx_txq_sta_get(sta_mgmt_get_entry(skb->sta_idx), NX_STA_MGMT_TXQ_IDX);
 	} else {
-		if (skb->offchannel)
-			txq = rwnx_txq_vif_get(mac_vif_mgmt_get_entry(skb->vif_idx), NX_OFF_CHAN_TXQ_IDX);
-		else
-			txq = rwnx_txq_vif_get(mac_vif_mgmt_get_entry(skb->vif_idx), NX_UNK_TXQ_TYPE);
+		if (skb->offchannel) {
+#if CONFIG_P2P
+			txq = &g_rwnx_hw.txq[NX_OFF_CHAN_TXQ_IDX];
+#else
+			txq = rwnx_txq_vif_get(mac_vif_mgmt_get_entry(skb->vif_idx),
+					       NX_OFF_CHAN_TXQ_IDX);
+#endif
+		} else {
+			txq = rwnx_txq_vif_get(mac_vif_mgmt_get_entry(skb->vif_idx),
+					      NX_UNK_TXQ_TYPE);
+		}
 	}
 
 	if (!txq || txq->idx == TXQ_INACTIVE)

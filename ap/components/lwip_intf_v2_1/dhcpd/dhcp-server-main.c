@@ -3,6 +3,8 @@
 #include "dhcp-priv.h"
 
 static beken_thread_t dhcpd_thread;
+
+extern int dhcp_server_init(void *intrfc_handle);
 static bool dhcpd_running;   
 
 int dhcp_server_start(void *intrfc_handle)
@@ -52,6 +54,12 @@ void dhcp_server_stop(void)
 	{
 		dhcp_w("server not dhcpd_running.\r\n");
 	}
+}
+
+void dhcp_server_stop_iface(void *intrfc_handle)
+{
+	(void)intrfc_handle;
+	dhcp_server_stop();
 }
 // eof
 

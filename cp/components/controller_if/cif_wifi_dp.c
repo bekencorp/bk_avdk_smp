@@ -26,6 +26,81 @@ extern uint8_t vif_mgmt_get_softap_vif_index();
 extern bk_err_t dma_memcpy(void *out, const void *in, uint32_t len);
 extern uint8_t get_ping_state();
 extern uint8_t iperf_get_state();
+extern int wifi_netif_vif_to_vifid(void *vif);
+extern void *mac_vif_mgmt_first_vif();
+extern void *mac_vif_mgmt_next_vif(void *vif);
+#if CONFIG_P2P
+extern bool mac_vif_mgmt_interface_is_configured_for_p2p(void *vif);
+#endif
+
+static inline bool cif_vif_is_p2p(void *vif)
+{
+#if CONFIG_P2P
+    return mac_vif_mgmt_interface_is_configured_for_p2p(vif);
+#else
+    (void)vif;
+    return false;
+#endif
+}
+
+/*
+ * Coexistence netif wire id (2-bit co_hdr.vif_idx). Roles are NOT pinned to a
+ * fixed LMAC VIF index any more (P2P GO/GC float on vif0/vif1 so the MCC
+ * channel scheduler can handle them). We therefore key the wire id off the
+ * (netif type, p2p) role instead of the LMAC index:
+ *
+ *   wire 0 = infra STA   (STA-type, !p2p) -> host g_mlan
+ *   wire 1 = SoftAP      (AP-type,  !p2p) -> host g_uap
+ *   wire 2 = P2P GO      (AP-type,   p2p) -> host g_p2p_go
+ *   wire 3 = P2P GC      (STA-type,  p2p) -> host g_p2p_gc
+ *
+ * The TX path is symmetric: host tags the wire id, CP maps it back to the
+ * current LMAC VIF index via cif_wire_to_lmac_vif() (no longer identity).
+ */
+static uint8_t cif_vif_to_netif_wire(void *vif)
+{
+    netif_if_t t = wifi_netif_vif_to_netif_type(vif);
+    bool p2p = cif_vif_is_p2p(vif);
+
+    if ((t == NETIF_IF_AP) && p2p)
+        return 2;
+    if ((t == NETIF_IF_STA) && p2p)
+        return 3;
+
+    return (uint8_t)t;
+}
+
+/*
+ * Reverse of cif_vif_to_netif_wire(): map a host wire id back to the LMAC VIF
+ * index currently held by that role. Since GO/GC float on vif0/vif1, the old
+ * identity mapping (wire==index) no longer holds, so look the role up in the
+ * active VIF table. Falls back to the wire id if no active match is found.
+ */
+static uint8_t cif_wire_to_lmac_vif(uint8_t wire)
+{
+    netif_if_t want_type;
+    bool want_p2p;
+
+    switch (wire)
+    {
+        case 0: want_type = NETIF_IF_STA; want_p2p = false; break;
+        case 1: want_type = NETIF_IF_AP;  want_p2p = false; break;
+        case 2: want_type = NETIF_IF_AP;  want_p2p = true;  break;
+        case 3: want_type = NETIF_IF_STA; want_p2p = true;  break;
+        default: return wire;
+    }
+
+    for (void *vif = mac_vif_mgmt_first_vif(); vif != NULL;
+         vif = mac_vif_mgmt_next_vif(vif))
+    {
+        if ((wifi_netif_vif_to_netif_type(vif) == want_type) &&
+            (cif_vif_is_p2p(vif) == want_p2p))
+            return wifi_netif_vif_to_vifid(vif);
+    }
+
+    return wire;
+}
+
 static uint8_t cif_vif_id_route()
 {
     uint8_t sta_vif_id = vif_mgmt_get_sta_vif_index();
@@ -66,8 +141,11 @@ __IRAM2 bk_err_t cif_handle_txdata(void *head)
     struct pbuf* pbuf = NULL;
 
     cpdu_t* cpdu = (cpdu_t*)head;
-    uint8_t vif_id = cpdu->co_hdr.vif_idx + 0xF;
-    BK_ASSERT(vif_id < 17);
+    /* Map the host wire id (0..3) to the LMAC VIF index this role currently
+     * holds (P2P GO/GC float on vif0/vif1), then tag it with the +0xF offset
+     * the downstream TX path expects. */
+    uint8_t vif_id = cif_wire_to_lmac_vif(cpdu->co_hdr.vif_idx) + 0xF;
+    BK_ASSERT(vif_id < 19);
 #if CONFIG_BK_RAW_LINK
     if (cpdu->co_hdr.special_type == TX_RAW_LINK_TYPE)
     {
@@ -466,7 +544,7 @@ __IRAM2 bool cif_rx_local_packet_check(struct pbuf **p_ptr, struct eth_hdr * eth
             cpdu->co_hdr.type = RX_MSDU_DATA;
             cpdu->co_hdr.need_free = 0;
             cpdu->co_hdr.special_type = 0;
-            cpdu->co_hdr.vif_idx = wifi_netif_vif_to_netif_type(vif);
+            cpdu->co_hdr.vif_idx = cif_vif_to_netif_wire(vif);
             cpdu->co_hdr.dst_index = dst_idx;
             //bk_mem_dump("cif_filter before snder",(uint32_t)p_copy->payload,100);
             ret = cif_msg_sender(cpdu,CIF_TASK_MSG_RX_DATA,0);
@@ -529,7 +607,7 @@ __IRAM2 bool cif_rx_local_packet_check(struct pbuf **p_ptr, struct eth_hdr * eth
                 cpdu->co_hdr.type = RX_MSDU_DATA;
                 cpdu->co_hdr.need_free = 0;
                 cpdu->co_hdr.special_type = 0;
-                cpdu->co_hdr.vif_idx = wifi_netif_vif_to_netif_type(vif);
+                cpdu->co_hdr.vif_idx = cif_vif_to_netif_wire(vif);
                 cpdu->co_hdr.dst_index = dst_idx;
                 CIF_LOGV("%s,%d p:%p next:%p payload:%p len:%d\r\n",
                     __func__,__LINE__, p_copy, p_copy->next, p_copy->payload, p_copy->tot_len);
@@ -592,7 +670,7 @@ __IRAM2 bool cif_rx_local_packet_check(struct pbuf **p_ptr, struct eth_hdr * eth
                 cpdu_nd->co_hdr.type         = RX_MSDU_DATA;
                 cpdu_nd->co_hdr.need_free    = 0;
                 cpdu_nd->co_hdr.special_type = 0;
-                cpdu_nd->co_hdr.vif_idx      = wifi_netif_vif_to_netif_type(vif);
+                cpdu_nd->co_hdr.vif_idx      = cif_vif_to_netif_wire(vif);
                 cpdu_nd->co_hdr.dst_index    = dst_idx;
 
                 ret = cif_msg_sender(cpdu_nd, CIF_TASK_MSG_RX_DATA, 0);
@@ -611,7 +689,7 @@ __IRAM2 bool cif_rx_local_packet_check(struct pbuf **p_ptr, struct eth_hdr * eth
                 cpdu_data->co_hdr.type         = RX_MSDU_DATA;
                 cpdu_data->co_hdr.need_free    = 0;
                 cpdu_data->co_hdr.special_type = 0;
-                cpdu_data->co_hdr.vif_idx      = wifi_netif_vif_to_netif_type(vif);
+                cpdu_data->co_hdr.vif_idx      = cif_vif_to_netif_wire(vif);
                 cpdu_data->co_hdr.dst_index    = dst_idx;
 
                 ret = cif_msg_sender(cpdu_data, CIF_TASK_MSG_RX_DATA, 0);

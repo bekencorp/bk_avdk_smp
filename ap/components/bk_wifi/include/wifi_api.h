@@ -215,6 +215,33 @@ bk_err_t bk_wifi_sta_get_mac(uint8_t *mac);
 bk_err_t bk_wifi_ap_get_mac(uint8_t *mac);
 
 /**
+ * @brief Get the P2P GO MAC/BSSID
+ */
+bk_err_t bk_wifi_p2p_get_mac(uint8_t *mac);
+
+/**
+ * @brief Query current P2P role (0=none, 1=go, 2=gc).
+ * In VNET controller mode the role is mirrored locally from CP events.
+ * @param role 0=none, 1=go, 2=gc
+ */
+bk_err_t bk_wifi_p2p_get_role(int *role);
+
+/**
+ * @brief Active P2P GO/GC group channel from CP (0 if none).
+ */
+uint8_t bk_wifi_p2p_get_operating_channel(void);
+
+/**
+ * @brief Read P2P GC IPv4 config from CP lwIP (controller mode).
+ */
+bk_err_t bk_wifi_p2p_get_gc_ip4_config(netif_ip4_config_t *ip_config);
+
+/**
+ * @brief Read P2P GO IPv4 config from CP lwIP (controller mode).
+ */
+bk_err_t bk_wifi_p2p_get_go_ip4_config(netif_ip4_config_t *ip_config);
+
+/**
  * @brief     Connect the BK STA to the AP.
  *
  * @attention 1. Make sure STA is started by bk_wifi_sta_start() before calling this API.

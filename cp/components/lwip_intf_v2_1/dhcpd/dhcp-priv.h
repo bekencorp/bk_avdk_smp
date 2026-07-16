@@ -53,7 +53,6 @@ struct dhcp_server_data {
 };
 
 void dhcp_enable_nack_dns_server(void);
-int dhcp_server_init(void *intrfc_handle);
 void dhcp_server(void* data);
 int dhcp_send_halt(void);
 int dhcp_free_allocations(void);

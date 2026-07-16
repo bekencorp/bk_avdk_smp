@@ -3,6 +3,8 @@
 #include "bk_private/bk_wifi.h"
 #if CONFIG_LWIP
 #include "lwip/ping.h"
+#include "lwip/inet.h"
+#include <../../lwip_intf_v2_1/lwip-2.1.2/port/net.h>
 #endif
 #include <components/netif.h>
 #include "cli.h"
@@ -29,18 +31,85 @@ static inline const char *if_idx_name(netif_if_t ifx)
 
 #if (CLI_CFG_NETIF == 1)
 
+static void ip_cmd_show_one_ip(netif_if_t ifx, const char *name, int up)
+{
+	netif_ip4_config_t config = {0};
+
+	if (!up) {
+		CLI_LOGD(" netif(%s) up=0 ip4=n/a mask=n/a gate=n/a dns=n/a\n", name);
+		return;
+	}
+
+	BK_LOG_ON_ERR(bk_netif_get_ip4_config(ifx, &config));
+	CLI_LOGD(" netif(%s) up=1 ip4=%s mask=%s gate=%s dns=%s\n",
+		name, config.ip, config.mask, config.gateway, config.dns);
+}
+
+#if CONFIG_P2P && CONFIG_LWIP
+#include "wifi_api.h"
+
+static bool ip_cmd_p2p_gc_has_ip(void)
+{
+	netif_ip4_config_t config = {0};
+
+	if (bk_netif_get_ip4_config(NETIF_IF_P2P, &config) == BK_OK &&
+	    config.ip[0] != '\0' && os_strcmp(config.ip, "0.0.0.0") != 0)
+		return true;
+	return bk_wifi_p2p_get_gc_ip4_config(&config) == BK_OK &&
+	       config.ip[0] != '\0' && os_strcmp(config.ip, "0.0.0.0") != 0;
+}
+
+static void ip_cmd_show_p2p_ip(const char *name, int up,
+			       bk_err_t (*get_ip4)(netif_ip4_config_t *))
+{
+	netif_ip4_config_t config = {0};
+
+	if (!up) {
+		CLI_LOGD(" netif(%s) up=0 ip4=n/a mask=n/a gate=n/a dns=n/a\n", name);
+		return;
+	}
+
+	if (get_ip4(&config) != BK_OK ||
+	    config.ip[0] == '\0' || os_strcmp(config.ip, "0.0.0.0") == 0) {
+		CLI_LOGD(" netif(%s) up=1 ip4=n/a mask=n/a gate=n/a dns=n/a\n", name);
+		return;
+	}
+
+	CLI_LOGD(" netif(%s) up=1 ip4=%s mask=%s gate=%s dns=%s\n",
+		name, config.ip, config.mask, config.gateway, config.dns);
+}
+
+static void ip_cmd_show_p2p_all(void)
+{
+	int role = 0;
+
+	bk_wifi_p2p_get_role(&role);
+	if (role == 1) {
+		ip_cmd_show_one_ip(NETIF_IF_P2P, "p2p_go", p2p_go_ip_is_start());
+	} else if (role == 2) {
+		ip_cmd_show_one_ip(NETIF_IF_P2P, "p2p_gc", p2p_gc_ip_is_start());
+	} else if (ip_cmd_p2p_gc_has_ip()) {
+		ip_cmd_show_one_ip(NETIF_IF_P2P, "p2p_gc", p2p_gc_ip_is_start());
+	}
+}
+#endif
+
 static void ip_cmd_show_ip(int ifx)
 {
 	netif_ip4_config_t config;
 
 	if (ifx == NETIF_IF_STA || ifx == NETIF_IF_AP || ifx == NETIF_IF_ETH || ifx == NETIF_IF_BRIDGE) {
-		BK_LOG_ON_ERR(bk_netif_get_ip4_config(ifx, &config));
-		CLI_DUMP_IP(" ", ifx, &config);
+		if (ifx == NETIF_IF_STA) {
+			ip_cmd_show_one_ip(NETIF_IF_STA, "sta", sta_ip_is_start());
+		} else if (ifx == NETIF_IF_AP) {
+			ip_cmd_show_one_ip(NETIF_IF_AP, "ap", uap_ip_is_start());
+		} else {
+			BK_LOG_ON_ERR(bk_netif_get_ip4_config(ifx, &config));
+			CLI_DUMP_IP(" ", ifx, &config);
+		}
 	} else {
-		BK_LOG_ON_ERR(bk_netif_get_ip4_config(NETIF_IF_STA, &config));
-		CLI_DUMP_IP(" ", NETIF_IF_STA, &config);
-		BK_LOG_ON_ERR(bk_netif_get_ip4_config(NETIF_IF_AP, &config));
-		CLI_DUMP_IP(" ", NETIF_IF_AP, &config);
+		ip_cmd_show_one_ip(NETIF_IF_STA, "sta", sta_ip_is_start());
+		ip_cmd_show_one_ip(NETIF_IF_AP, "ap", uap_ip_is_start());
 #ifdef CONFIG_ETH
 		BK_LOG_ON_ERR(bk_netif_get_ip4_config(NETIF_IF_ETH, &config));
 		CLI_DUMP_IP(" ", NETIF_IF_ETH, &config);
@@ -61,6 +130,9 @@ static void ip_cmd_show_ip(int ifx)
 		BK_LOG_ON_ERR(bk_netif_get_ip4_config(NETIF_IF_MODEM, &config));
 		CLI_DUMP_IP(" ", NETIF_IF_MODEM, &config);
 #endif
+#if CONFIG_P2P && CONFIG_LWIP
+		ip_cmd_show_p2p_all();
+#endif
 	}
 }
 
@@ -70,6 +142,9 @@ void cli_ip_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 	char *msg = NULL;
 	netif_ip4_config_t config = {0};
 	int ifx = NETIF_IF_COUNT;
+#if CONFIG_P2P && CONFIG_LWIP
+	int p2p_ifx = -1; /* 0=go, 1=gc, 2=all */
+#endif
 
 	if (argc > 1) {
 		if (os_strcmp("sta", argv[1]) == 0) {
@@ -84,6 +159,16 @@ void cli_ip_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 		} else if (os_strcmp("br", argv[1]) == 0) {
 			ifx = NETIF_IF_BRIDGE;
 #endif
+#if CONFIG_P2P && CONFIG_LWIP
+		} else if (os_strcmp("p2p_go", argv[1]) == 0 ||
+			   os_strcmp("go", argv[1]) == 0) {
+			p2p_ifx = 0;
+		} else if (os_strcmp("p2p_gc", argv[1]) == 0 ||
+			   os_strcmp("gc", argv[1]) == 0) {
+			p2p_ifx = 1;
+		} else if (os_strcmp("p2p", argv[1]) == 0) {
+			p2p_ifx = 2;
+#endif
 		} else {
 			CLI_LOGE("invalid netif name\n");
 			goto error;
@@ -92,6 +177,17 @@ void cli_ip_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 
 	if (argc == 1) {
 		ip_cmd_show_ip(NETIF_IF_COUNT);
+#if CONFIG_P2P && CONFIG_LWIP
+	} else if (p2p_ifx == 0 && argc == 2) {
+		ip_cmd_show_p2p_ip("p2p_go", p2p_go_ip_is_start(), bk_wifi_p2p_get_go_ip4_config);
+	} else if (p2p_ifx == 1 && argc == 2) {
+		ip_cmd_show_p2p_ip("p2p_gc", p2p_gc_ip_is_start(), bk_wifi_p2p_get_gc_ip4_config);
+	} else if (p2p_ifx == 2 && argc == 2) {
+		ip_cmd_show_p2p_all();
+	} else if (p2p_ifx >= 0 && argc > 2) {
+		CLI_LOGE("p2p netif is read-only, use: ip [p2p|p2p_go|p2p_gc|go|gc]\n");
+		goto error;
+#endif
 	} else if (argc == 2) {
 		ip_cmd_show_ip(ifx);
 	} else if (argc == 6) {
@@ -102,7 +198,11 @@ void cli_ip_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 		BK_LOG_ON_ERR(bk_netif_set_ip4_config(ifx, &config));
 		CLI_DUMP_IP("set static ip, ", ifx, &config);
 	} else {
+#if CONFIG_P2P
+		CLI_LOGE("usage: ip [sta|ap|p2p|p2p_go|p2p_gc|go|gc][{ip}{mask}{gate}{dns}]\n");
+#else
 		CLI_LOGE("usage: ip [sta|ap][{ip}{mask}{gate}{dns}]\n");
+#endif
 		goto error;
 	}
 
@@ -507,8 +607,8 @@ void cli_per_packet_info_output_cmd(char *pcWriteBuffer, int xWriteBufferLen, in
 
 #define NETIF_CMD_CNT (sizeof(s_netif_commands) / sizeof(struct cli_command))
 static const struct cli_command s_netif_commands[] = {
-	{"ip", "ip [sta|ap][{ip}{mask}{gate}{dns}]", cli_ip_cmd},
-	{"ipconfig", "ipconfig [sta|ap][{ip}{mask}{gate}{dns}]", cli_ip_cmd},
+	{"ip", "ip [sta|ap|p2p|p2p_go|p2p_gc][{ip}{mask}{gate}{dns}]", cli_ip_cmd},
+	{"ipconfig", "ipconfig [sta|ap|p2p|p2p_go|p2p_gc][{ip}{mask}{gate}{dns}]", cli_ip_cmd},
 	{"dhcpc", "dhcpc", cli_dhcpc_cmd},
 	{"ping", "ping <ip>", cli_ping_cmd},
 #ifdef CONFIG_IPV6

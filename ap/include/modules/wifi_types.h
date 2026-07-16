@@ -160,9 +160,13 @@ typedef enum {
 	EVENT_WIFI_STA_GOT_IPV6,	   /**< The BK STA got ipv6 address*/
 	EVENT_WIFI_STA_DISCONNECTED,   /**< The BK STA is disconnected */
 
-	EVENT_WIFI_AP_CONNECTED,	   /**< A STA is connected to the BK AP */
-	EVENT_WIFI_AP_DISCONNECTED,    /**< A STA is disconnected from the BK AP */
-	EVENT_WIFI_GO_DISCONNECTED,    /**< A GC is disconnected from the BK GO */
+	EVENT_WIFI_AP_CONNECTED,	   /**< A STA is connected to the BK AP (SoftAP role) */
+	EVENT_WIFI_AP_DISCONNECTED,    /**< A STA is disconnected from the BK AP (SoftAP role) */
+
+	EVENT_WIFI_GO_CONNECTED,	   /**< A GC is connected to the local P2P GO */
+	EVENT_WIFI_GO_DISCONNECTED,    /**< A GC is disconnected from the local P2P GO */
+	EVENT_WIFI_GC_CONNECTED,	   /**< The local P2P GC is connected to the remote GO */
+	EVENT_WIFI_GC_DISCONNECTED,    /**< The local P2P GC is disconnected from the remote GO */
 
 	EVENT_WIFI_NETWORK_FOUND,	   /**< The BK STA find target AP */
 	EVENT_WIFI_COUNT,			   /**< WiFi event count */

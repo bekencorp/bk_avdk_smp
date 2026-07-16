@@ -34,6 +34,7 @@
 #include "notify.h"
 #if BK_SUPPLICANT
 #include <components/event.h>
+#include <components/netif.h>
 #include <modules/wifi.h>
 //#include "bk_rw.h"
 #include "hostapd.h"
@@ -42,6 +43,8 @@
 #include "bk_wifi.h"
 #include "ctrl_iface.h"
 #include "bk_wifi_types.h"
+#include "wifi_v2.h"
+#include "bk_rw.h"
 #include <modules/wifi_types.h>
 #include "bk_feature.h"
  #include "wpa_psk_cache.h"
@@ -62,6 +65,37 @@
 
 #if BK_SUPPLICANT
 extern uint32_t wpa_hostapd_no_password_connected(const uint8_t *addr);
+#endif
+
+#if BK_SUPPLICANT && CONFIG_WIFI_VNET_CONTROLLER
+#include "cif_wifi_event.h"
+#endif
+
+#if BK_SUPPLICANT && CONFIG_P2P
+static bool wpas_is_p2p_gc_sta(const struct wpa_supplicant *wpa_s)
+{
+	if (!wpa_s || wpa_s->ap_iface)
+		return false;
+	if (wpa_s->p2p_group_interface == P2P_GROUP_INTERFACE_CLIENT)
+		return true;
+	if (wpa_s->current_ssid && wpa_s->current_ssid->p2p_group &&
+	    wpa_s->p2p_group_interface != P2P_GROUP_INTERFACE_GO)
+		return true;
+	return false;
+}
+
+static bool wpas_use_p2p_gc_netif(const struct wpa_supplicant *wpa_s)
+{
+	if (wpas_is_p2p_gc_sta(wpa_s))
+		return true;
+	/* p2p_group_interface may lag behind CONNECTED; DIRECT-* SSID is reliable. */
+	if (!wpa_s || !wpa_s->current_ssid || wpa_s->p2p_group_interface == P2P_GROUP_INTERFACE_GO)
+		return false;
+	if (wpa_s->current_ssid->ssid_len >= 7 &&
+	    os_memcmp(wpa_s->current_ssid->ssid, "DIRECT-", 7) == 0)
+		return true;
+	return false;
+}
 #endif
 
 int wpas_notify_supplicant_initialized(struct wpa_global *global)
@@ -146,6 +180,12 @@ void wlan_store_fci(struct wpa_supplicant *wpa_s)
 
 	if (unlikely(!wpa_s || !wpa_s->current_ssid || !wpa_s->current_bss))
 		goto out;
+
+#if CONFIG_P2P
+	/* Fast connect flash is for infra STA only, not P2P GC. */
+	if (wpas_use_p2p_gc_netif(wpa_s))
+		goto out;
+#endif
 
 	bss = wpa_s->current_bss;
 	ssid = wpa_s->current_ssid;
@@ -305,6 +345,12 @@ void wpas_notify_connected(struct wpa_supplicant *wpa_s)
 #if CONFIG_P2P
 	if (wpa_s->ap_iface)
 		return;
+
+	if (wpas_use_p2p_gc_netif(wpa_s)) {
+#if CONFIG_P2P_SOFTAP_CHAN_ALIGN
+		bk_wifi_p2p_softap_csa_to_group_deferred();
+#endif
+	}
 #endif
 	if (mhdr_get_station_status().state < WIFI_LINKSTATE_STA_CONNECTED) {
 		wifi_event_sta_connected_t sta_connected = {0};
@@ -326,8 +372,27 @@ void wpas_notify_connected(struct wpa_supplicant *wpa_s)
 					MIN(wpa_s->current_ssid->ssid_len, wpa_s->current_ssid->ssid_len));
 			os_memcpy(&sta_connected.bssid, wpa_s->current_ssid->bssid, ETH_ALEN);
 		}
-		BK_LOG_ON_ERR(bk_event_post(EVENT_MOD_WIFI, EVENT_WIFI_STA_CONNECTED,
+		BK_LOG_ON_ERR(bk_event_post(EVENT_MOD_WIFI,
+#if CONFIG_P2P
+					wpas_use_p2p_gc_netif(wpa_s) ?
+					EVENT_WIFI_GC_CONNECTED :
+#endif
+					EVENT_WIFI_STA_CONNECTED,
 					&sta_connected, sizeof(sta_connected), BEKEN_NEVER_TIMEOUT));
+#if CONFIG_WIFI_VNET_CONTROLLER
+#if CONFIG_P2P
+		if (wpas_use_p2p_gc_netif(wpa_s)) {
+			cif_handle_bk_cmd_wifi_event_ind(CIF_WIFI_EVT_GC_CONNECTED,
+							 &sta_connected,
+							 sizeof(sta_connected));
+		} else
+#endif
+		{
+			cif_handle_bk_cmd_wifi_event_ind(CIF_WIFI_EVT_STA_CONNECTED,
+							 &sta_connected,
+							 sizeof(sta_connected));
+		}
+#endif
 #if BK_SUPPLICANT
 		wlan_sta_bss_flush(0);
 		/* parse mac rates in the beacon frame and set 11b flags */
@@ -346,7 +411,6 @@ void wpas_notify_disconnected(struct wpa_supplicant *wpa_s)
 	wifi_event_sta_disconnected_t sta_disconnected = {0};
 
 #ifdef CONFIG_P2P
-	/* P2P GO only: already reported via hapd_notify_sta_disconnected -> BK_EVT_DISASSOC_GO_IND */
 	if (wpa_s->ap_iface &&
 	    (wpa_s->p2p_group_interface == P2P_GROUP_INTERFACE_GO ||
 	     wpa_s->p2p_group ||
@@ -394,11 +458,27 @@ void wpas_notify_disconnected(struct wpa_supplicant *wpa_s)
 		sta_disconnected.disconnect_reason = state.reason_code;
 
 		#if CONFIG_WIFI_VNET_CONTROLLER
-		cif_handle_bk_cmd_disconnect_ind(local_generated, state.reason_code);
+#if CONFIG_P2P
+		if (wpas_use_p2p_gc_netif(wpa_s)) {
+			cif_handle_bk_cmd_wifi_event_ind(CIF_WIFI_EVT_GC_DISCONNECTED,
+							 &sta_disconnected,
+							 sizeof(sta_disconnected));
+		} else
+#endif
+		{
+			cif_handle_bk_cmd_wifi_event_ind(CIF_WIFI_EVT_STA_DISCONNECTED,
+							 &sta_disconnected,
+							 sizeof(sta_disconnected));
+		}
 		#endif
 
-		BK_LOG_ON_ERR(bk_event_post(EVENT_MOD_WIFI, EVENT_WIFI_STA_DISCONNECTED,
-				&sta_disconnected, sizeof(sta_disconnected), BEKEN_NEVER_TIMEOUT));
+		BK_LOG_ON_ERR(bk_event_post(EVENT_MOD_WIFI,
+#if CONFIG_P2P
+					wpas_use_p2p_gc_netif(wpa_s) ?
+					EVENT_WIFI_GC_DISCONNECTED :
+#endif
+					EVENT_WIFI_STA_DISCONNECTED,
+					&sta_disconnected, sizeof(sta_disconnected), BEKEN_NEVER_TIMEOUT));
 	}
 }
 
@@ -409,7 +489,9 @@ void wpas_notify_disconnected_with_reason(int reason_code, bool local_generated)
 	sta_disconnected.local_generated = local_generated;
 
 #if CONFIG_WIFI_VNET_CONTROLLER
-	cif_handle_bk_cmd_disconnect_ind(sta_disconnected.local_generated, sta_disconnected.disconnect_reason);
+	cif_handle_bk_cmd_wifi_event_ind(CIF_WIFI_EVT_STA_DISCONNECTED,
+					 &sta_disconnected,
+					 sizeof(sta_disconnected));
 #endif
 
 	BK_LOG_ON_ERR(bk_event_post(EVENT_MOD_WIFI, EVENT_WIFI_STA_DISCONNECTED,
@@ -562,7 +644,7 @@ void hapd_notify_sta_connected(struct hostapd_data *hapd, const u8 *mac)
 #if CONFIG_P2P
 	if (hapd->p2p_group != NULL) {
 		cif_handle_bk_cmd_assoc_go_ind((uint8_t*)mac);
-		return; // Exit the function early
+		return;
 	}
 #endif
 	cif_handle_bk_cmd_assoc_ap_ind((uint8_t*)mac);
@@ -588,8 +670,7 @@ void hapd_notify_sta_disconnected(struct hostapd_data *hapd, const u8 *mac)
 	if (hapd->p2p_group != NULL)
 	{
 		cif_handle_bk_cmd_disassoc_go_ind((uint8_t*)mac);
-		uap_ip_down();
-		return; // Exit the function early
+		return;
 	}
 #endif
 	cif_handle_bk_cmd_disassoc_ap_ind((uint8_t*)mac);

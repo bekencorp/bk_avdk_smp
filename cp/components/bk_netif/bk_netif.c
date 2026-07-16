@@ -37,7 +37,7 @@ bk_err_t netif_wifi_event_cb(void *arg, event_module_t event_module,
 	switch (event_id) {
 	case EVENT_WIFI_STA_CONNECTED:
 #if CONFIG_NETIF_LWIP
-		if (sta_static_ip_flag !=0) {
+		if (sta_static_ip_flag != 0) {
 			sta_ip_mode_set(0);
 			BK_LOG_ON_ERR(bk_netif_set_ip4_config(NETIF_IF_STA, &static_ip));
 		}
@@ -51,6 +51,18 @@ bk_err_t netif_wifi_event_cb(void *arg, event_module_t event_module,
 		sta_ip_mode_set(1);
 #endif
 		break;
+#if CONFIG_P2P
+	case EVENT_WIFI_GC_CONNECTED:
+#if CONFIG_NETIF_LWIP
+		p2p_gc_ip_start();
+#endif
+		break;
+	case EVENT_WIFI_GC_DISCONNECTED:
+#if CONFIG_NETIF_LWIP
+		p2p_gc_ip_down();
+#endif
+		break;
+#endif
 	default:
 		return BK_OK;
 	}

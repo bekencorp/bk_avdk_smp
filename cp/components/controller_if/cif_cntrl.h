@@ -5,6 +5,7 @@ extern "C" {
 #endif
 
 #include "cif_main.h"
+#include "cif_wifi_event.h"
 
 #define CTRL_IF_CMD     os_printf
 
@@ -12,11 +13,13 @@ struct bk_msg_hdr;
 
 bk_err_t cif_bk_send_event(uint16_t event_id, uint8_t *event_data, uint16_t event_len);
 bk_err_t cif_bk_cmd_confirm(struct bk_msg_hdr *rx_msg, uint8_t *cfm_data, uint16_t cfm_len);
-bk_err_t cif_handle_bk_cmd_connect_ind(char *ssid, uint8_t rssi, uint32_t ip, uint32_t gw, uint32_t mk, uint32_t dns);
+bk_err_t cif_handle_bk_cmd_connect_ind(char *ssid, uint8_t rssi, uint32_t ip, uint32_t gw, uint32_t mk, uint32_t dns, uint8_t vif_idx);
 #ifdef CONFIG_IPV6
 bk_err_t cif_handle_bk_cmd_ipv6_ind(void *n);
 #endif
 bk_err_t cif_handle_bk_cmd_disconnect_ind(bool local_generated, uint16_t reason_code);
+bk_err_t cif_handle_bk_cmd_wifi_event_ind(uint16_t event_id, const void *data,
+		uint16_t data_len);
 bk_err_t cif_send_exit_sleep_cfm(void);
 bk_err_t cif_handle_bk_cmd(void *cmd);
 bk_err_t cif_handle_bk_cmd_enter_sleep_cfm(void);
@@ -39,6 +42,8 @@ bk_err_t cif_send_modexp_req(const uint8_t *base, uint16_t base_len,
 							  const uint8_t *exp,  uint16_t exp_len,
 							  const uint8_t *mod,  uint16_t mod_len,
 							  uint16_t result_max_len);
+bk_err_t cif_handle_bk_cmd_p2p_go_start_ind(uint8_t *mac_addr);
+bk_err_t cif_handle_bk_cmd_p2p_go_stop_ind(void);
 #endif
 #ifdef __cplusplus
 }

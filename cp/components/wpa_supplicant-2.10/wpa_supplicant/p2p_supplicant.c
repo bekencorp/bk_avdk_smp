@@ -50,6 +50,9 @@ extern sta_param_t *g_sta_param_ptr;
 #if CONFIG_EASY_FLASH
 #include "bk_ef.h"
 #endif
+#if defined(BK_SUPPLICANT) && CONFIG_P2P_SOFTAP_CHAN_ALIGN
+#include "wifi_v2.h"
+#endif
 #endif
 
 
@@ -113,6 +116,43 @@ extern sta_param_t *g_sta_param_ptr;
  */
 #define P2P_MAX_INITIAL_CONN_WAIT_GO_REINVOKE 15
 #endif /* P2P_MAX_INITIAL_CONN_WAIT_GO_REINVOKE */
+
+#if defined(BK_SUPPLICANT) && CONFIG_P2P_SOFTAP_CHAN_ALIGN
+#define P2P_COEXIST_GO_REINVOKE_TIMEOUT 30
+
+static void wpas_p2p_pin_listen_to_coexist_anchor(struct wpa_supplicant *wpa_s)
+{
+	uint8_t ch;
+
+	if (!wpa_s->global->p2p || !bk_wifi_infra_ap_vif_active())
+		return;
+
+	ch = bk_wifi_p2p_get_coexist_anchor_channel();
+	if (!ch)
+		return;
+
+	if (p2p_set_listen_channel(wpa_s->global->p2p, 81, ch, 0) == 0) {
+		wpa_dbg(wpa_s, MSG_DEBUG,
+			"P2P coexist: listen channel pinned to %u", ch);
+	}
+}
+
+static int wpas_p2p_go_reinvoke_timeout(void)
+{
+	if (bk_wifi_infra_ap_vif_active())
+		return P2P_COEXIST_GO_REINVOKE_TIMEOUT;
+	return P2P_MAX_INITIAL_CONN_WAIT_GO_REINVOKE;
+}
+#else
+static void wpas_p2p_pin_listen_to_coexist_anchor(struct wpa_supplicant *wpa_s)
+{
+}
+
+static int wpas_p2p_go_reinvoke_timeout(void)
+{
+	return P2P_MAX_INITIAL_CONN_WAIT_GO_REINVOKE;
+}
+#endif /* defined(BK_SUPPLICANT) && CONFIG_P2P_SOFTAP_CHAN_ALIGN */
 
 #define P2P_MGMT_DEVICE_PREFIX		"p2p-dev-"
 
@@ -473,6 +513,14 @@ static int wpas_p2p_scan(void *ctx, enum p2p_scan_type type, int freq,
 		if (params->freqs == NULL)
 			goto fail;
 		for (i = 0; i < ARRAY_SIZE(social_channels_freq); i++) {
+#if defined(BK_SUPPLICANT) && CONFIG_P2P_SOFTAP_CHAN_ALIGN
+			int anchor_freq;
+
+			if (bk_wifi_infra_ap_vif_active() &&
+			    (anchor_freq = bk_wifi_p2p_get_coexist_anchor_freq()) > 0 &&
+			    social_channels_freq[i] != anchor_freq)
+				continue;
+#endif /* defined(BK_SUPPLICANT) && CONFIG_P2P_SOFTAP_CHAN_ALIGN */
 			if (wpas_p2p_search_social_channel(
 				    wpa_s, social_channels_freq[i]))
 				params->freqs[num_channels++] =
@@ -495,6 +543,14 @@ static int wpas_p2p_scan(void *ctx, enum p2p_scan_type type, int freq,
 		if (params->freqs == NULL)
 			goto fail;
 		for (i = 0; i < ARRAY_SIZE(social_channels_freq); i++) {
+#if defined(BK_SUPPLICANT) && CONFIG_P2P_SOFTAP_CHAN_ALIGN
+			int anchor_freq;
+
+			if (bk_wifi_infra_ap_vif_active() &&
+			    (anchor_freq = bk_wifi_p2p_get_coexist_anchor_freq()) > 0 &&
+			    social_channels_freq[i] != anchor_freq)
+				continue;
+#endif /* defined(BK_SUPPLICANT) && CONFIG_P2P_SOFTAP_CHAN_ALIGN */
 			if (wpas_p2p_search_social_channel(
 				    wpa_s, social_channels_freq[i]))
 				params->freqs[num_channels++] =
@@ -1582,6 +1638,9 @@ static void wpas_group_formation_completed(struct wpa_supplicant *wpa_s,
 	}
 
 	if (!client) {
+#if BK_SUPPLICANT
+		wpas_p2p_stop_find(wpa_s->p2pdev ? wpa_s->p2pdev : wpa_s);
+#endif
 		wpas_notify_p2p_group_started(wpa_s, ssid, persistent, 0, NULL);
 		os_get_reltime(&wpa_s->global->p2p_go_wait_client);
 	}
@@ -2052,7 +2111,12 @@ static void p2p_go_configured(void *ctx, void *data)
 	wpa_printf(MSG_DEBUG, "P2P: XXXXXXXXXXX NO GO");
 #endif
 
+#if BK_SUPPLICANT
+	WPA_LOGI("P2P: Setting up WPS for GO provisioning, peer " MACSTR "\n",
+		 MAC2STR(params->peer_interface_addr));
+#else
 	wpa_printf(MSG_DEBUG, "P2P: Setting up WPS for GO provisioning");
+#endif
 	if (wpa_supplicant_ap_mac_addr_filter(wpa_s,
 					      params->peer_interface_addr)) {
 		wpa_printf(MSG_DEBUG, "P2P: Failed to setup MAC address "
@@ -2558,6 +2622,13 @@ static void wpas_go_neg_completed(void *ctx, struct p2p_go_neg_results *res)
 		wpa_s->off_channel_freq = 0;
 		wpa_s->roc_waiting_drv_freq = 0;
 	}
+
+#if BK_SUPPLICANT
+	if (res->role_go && !res->status) {
+		wpas_p2p_stop_find(wpa_s);
+		wpa_s->pending_listen_freq = 0;
+	}
+#endif
 
 	if (res->status) {
 		wpa_msg_global(wpa_s, MSG_INFO,
@@ -3414,6 +3485,21 @@ accept_inv:
 		}
 	}
 
+#if defined(BK_SUPPLICANT) && CONFIG_P2P_SOFTAP_CHAN_ALIGN
+	if (*go && bk_wifi_infra_ap_vif_active()) {
+		int anchor = bk_wifi_p2p_get_coexist_anchor_freq();
+
+		if (anchor > 0 &&
+		    (!channels || freq_included(wpa_s, channels, anchor))) {
+			wpa_printf(MSG_DEBUG,
+				   "P2P coexist: force invitation GO op_freq %d MHz",
+				   anchor);
+			*force_freq = anchor;
+			wpas_p2p_set_own_freq_preference(wpa_s, anchor);
+		}
+	}
+#endif /* defined(BK_SUPPLICANT) && CONFIG_P2P_SOFTAP_CHAN_ALIGN */
+
 	return P2P_SC_SUCCESS;
 }
 
@@ -3459,7 +3545,7 @@ static void wpas_invitation_received(void *ctx, const u8 *sa, const u8 *bssid,
 				0,
 				wpa_s->conf->p2p_go_he,
 				wpa_s->conf->p2p_go_edmg, NULL,
-				go ? P2P_MAX_INITIAL_CONN_WAIT_GO_REINVOKE : 0,
+				go ? wpas_p2p_go_reinvoke_timeout() : 0,
 				1, is_p2p_allow_6ghz(wpa_s->global->p2p));
 		} else if (bssid) {
 			wpa_s->user_initiated_pd = 0;
@@ -3688,8 +3774,7 @@ static void wpas_invitation_result(void *ctx, int status, const u8 *bssid,
 				      wpa_s->p2p_go_edmg,
 				      channels,
 				      ssid->mode == WPAS_MODE_P2P_GO ?
-				      P2P_MAX_INITIAL_CONN_WAIT_GO_REINVOKE :
-				      0, 1,
+				      wpas_p2p_go_reinvoke_timeout() : 0, 1,
 				      is_p2p_allow_6ghz(wpa_s->global->p2p));
 }
 
@@ -4765,8 +4850,8 @@ static void wpas_p2ps_prov_complete(void *ctx, u8 status, const u8 *dev,
 					0, 0, freq, 0, 0, 0, 0, 0, 0, NULL,
 					persistent_go->mode ==
 					WPAS_MODE_P2P_GO ?
-					P2P_MAX_INITIAL_CONN_WAIT_GO_REINVOKE :
-					0, 0, false);
+					wpas_p2p_go_reinvoke_timeout() : 0, 0,
+					false);
 			} else if (response_done) {
 				wpas_p2p_group_add(wpa_s, 1, freq,
 						   0, 0, 0, 0, 0, 0, false);
@@ -4900,7 +4985,7 @@ static int wpas_prov_disc_resp_cb(void *ctx)
 			wpa_s, persistent_go, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 			NULL,
 			persistent_go->mode == WPAS_MODE_P2P_GO ?
-			P2P_MAX_INITIAL_CONN_WAIT_GO_REINVOKE : 0, 0,
+			wpas_p2p_go_reinvoke_timeout() : 0, 0,
 			is_p2p_allow_6ghz(wpa_s->global->p2p));
 	} else {
 		wpas_p2p_group_add(wpa_s, 1, freq, 0, 0, 0, 0, 0, 0,
@@ -5159,6 +5244,7 @@ int wpas_p2p_init(struct wpa_global *global, struct wpa_supplicant *wpa_s)
 	global->p2p = p2p_init(&p2p);
 	if (global->p2p == NULL)
 		return -1;
+	wpas_p2p_pin_listen_to_coexist_anchor(wpa_s);
 	global->p2p_init_wpa_s = wpa_s;
 
 	for (i = 0; i < MAX_WPS_VENDOR_EXT; i++) {
@@ -7569,6 +7655,7 @@ int wpas_p2p_find(struct wpa_supplicant *wpa_s, unsigned int timeout,
 	}
 
 	wpa_supplicant_cancel_sched_scan(wpa_s);
+	wpas_p2p_pin_listen_to_coexist_anchor(wpa_s);
 
 	return p2p_find(wpa_s->global->p2p, timeout, type,
 			num_req_dev_types, req_dev_types, dev_id,

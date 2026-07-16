@@ -72,18 +72,70 @@ static char s_wifi_p2p_dev_name[SSID_MAX_LEN + 1] = {0};
 /* Default GO Intent for P2P negotiation, set via bk_wifi_p2p_enable()
  * -1 means "use underlying default (usually 15)" */
 static int s_wifi_p2p_default_intent = -1;
+
+static inline void wifi_p2p_set_enabled(bool enabled)
+{
+    wifi_lock();
+    s_wifi_p2p_enabled = enabled;
+    wifi_unlock();
+}
+
+static inline bool wifi_p2p_get_enabled(void)
+{
+    bool enabled;
+
+    wifi_lock();
+    enabled = s_wifi_p2p_enabled;
+    wifi_unlock();
+    return enabled;
+}
+
+static bk_err_t wifi_p2p_try_reserve(void)
+{
+    bk_err_t ret = BK_OK;
+
+    wifi_lock();
+    if (s_wifi_state_bits & WIFI_STA_STARTED_BIT || s_wifi_p2p_enabled) {
+        ret = BK_ERR_STATE;
+    } else {
+        s_wifi_p2p_enabled = true;
+    }
+    wifi_unlock();
+    return ret;
+}
+
+static void wifi_p2p_save_dev_name(const char *ssid, uint8_t ssid_len)
+{
+    char temp_ssid[SSID_MAX_LEN + 1];
+
+    os_memcpy(temp_ssid, ssid, ssid_len);
+    temp_ssid[ssid_len] = '\0';
+    os_memset(s_wifi_p2p_dev_name, 0, sizeof(s_wifi_p2p_dev_name));
+    os_memcpy(s_wifi_p2p_dev_name, temp_ssid, ssid_len);
+    s_wifi_p2p_dev_name[ssid_len] = '\0';
+}
 #endif
+static inline void wifi_set_state_bit_locked(uint16_t state_bit)
+{
+    s_wifi_state_bits |= state_bit;
+}
+
+static inline void wifi_clear_state_bit_locked(uint16_t state_bit)
+{
+    s_wifi_state_bits &= ~state_bit;
+}
+
 static inline void wifi_set_state_bit(uint16_t state_bit)
 {
     wifi_lock();
-    s_wifi_state_bits |= state_bit;
+    wifi_set_state_bit_locked(state_bit);
     wifi_unlock();
 }
 
 static inline void wifi_clear_state_bit(uint16_t state_bit)
 {
     wifi_lock();
-    s_wifi_state_bits &= ~state_bit;
+    wifi_clear_state_bit_locked(state_bit);
     wifi_unlock();
 }
 
@@ -212,6 +264,9 @@ bk_err_t bk_wifi_init(void)
     bk_wifi_ap_get_mac((uint8_t *)mac);
     host_wlan_add_netif(mac);
 
+#if defined(CONFIG_WIFI_VNET_CONTROLLER) && CONFIG_P2P
+    host_wlan_add_p2p_netifs();
+#endif
 #ifdef CONFIG_WIFI_VNET_CONTROLLER
     bk_wifi_sync_ip4_config_from_cp();
 #endif
@@ -310,6 +365,147 @@ bk_err_t bk_wifi_ap_get_mac(uint8_t *mac)
     os_memset(buffer_to_ipc, 0, WIFI_MAC_LEN);
     ret = wifi_send_com_api_cmd(AP_GET_MAC, 1, (uint32_t)buffer_to_ipc);
     os_memcpy(mac, buffer_to_ipc, WIFI_MAC_LEN);
+    os_free(buffer_to_ipc);
+
+    return ret;
+}
+
+bk_err_t bk_wifi_p2p_get_mac(uint8_t *mac)
+{
+    bk_err_t ret = 0;
+    void *buffer_to_ipc = NULL;
+
+    if (!mac)
+        return BK_ERR_NULL_PARAM;
+
+    buffer_to_ipc = os_malloc(WIFI_MAC_LEN);
+    if (!buffer_to_ipc)
+    {
+        WIFI_LOGE("%s malloc failed\r\n", __func__);
+        return BK_ERR_NO_MEM;
+    }
+
+    os_memset(buffer_to_ipc, 0, WIFI_MAC_LEN);
+    ret = wifi_send_com_api_cmd(P2P_GET_MAC, 1, (uint32_t)buffer_to_ipc);
+    os_memcpy(mac, buffer_to_ipc, WIFI_MAC_LEN);
+    os_free(buffer_to_ipc);
+
+    return ret;
+}
+
+bk_err_t bk_wifi_p2p_get_role(int *role)
+{
+#if CONFIG_WIFI_VNET_CONTROLLER
+    if (!role)
+        return BK_ERR_NULL_PARAM;
+
+#if CONFIG_P2P
+    *role = (int)wdrv_host_env.p2p_role;
+    return BK_OK;
+#else
+    *role = 0;
+    return BK_ERR_STATE;
+#endif
+#else
+    bk_err_t ret = BK_OK;
+    void *buffer_to_ipc = NULL;
+
+    if (!role)
+        return BK_ERR_NULL_PARAM;
+
+    buffer_to_ipc = os_malloc(sizeof(int));
+    if (!buffer_to_ipc) {
+        WIFI_LOGE("%s malloc failed\r\n", __func__);
+        return BK_ERR_NO_MEM;
+    }
+
+    os_memset(buffer_to_ipc, 0, sizeof(int));
+    ret = wifi_send_com_api_cmd(P2P_GET_ROLE, 1, (uint32_t)buffer_to_ipc);
+    *role = *(int *)buffer_to_ipc;
+    os_free(buffer_to_ipc);
+
+    return ret;
+#endif
+}
+
+uint8_t bk_wlan_ap_get_channel_config(void)
+{
+#if CONFIG_WIFI_VNET_CONTROLLER
+    uint8_t channel = 0;
+    void *buffer_to_ipc = os_malloc(1);
+
+    if (buffer_to_ipc) {
+        os_memset(buffer_to_ipc, 0, 1);
+        wifi_send_com_api_cmd(WIFI_GET_AP_OPER_CHANNEL, 1,
+                              (uint32_t)buffer_to_ipc);
+        channel = *(uint8_t *)buffer_to_ipc;
+        os_free(buffer_to_ipc);
+        return channel;
+    }
+#endif
+    return g_ap_param_ptr ? g_ap_param_ptr->chann : 0;
+}
+
+uint8_t bk_wifi_p2p_get_operating_channel(void)
+{
+    uint8_t channel = 0;
+    void *buffer_to_ipc = NULL;
+
+    buffer_to_ipc = os_malloc(1);
+    if (!buffer_to_ipc)
+        return 0;
+
+    os_memset(buffer_to_ipc, 0, 1);
+    wifi_send_com_api_cmd(P2P_GET_GROUP_CHANNEL, 1, (uint32_t)buffer_to_ipc);
+    channel = *(uint8_t *)buffer_to_ipc;
+    os_free(buffer_to_ipc);
+
+    return channel;
+}
+
+bk_err_t bk_wifi_p2p_get_gc_ip4_config(netif_ip4_config_t *ip_config)
+{
+    bk_err_t ret = BK_OK;
+    void *buffer_to_ipc = NULL;
+    uint32_t len_ip4_config = sizeof(netif_ip4_config_t);
+
+    if (!ip_config)
+        return BK_ERR_NULL_PARAM;
+
+    buffer_to_ipc = os_malloc(len_ip4_config);
+    if (!buffer_to_ipc) {
+        WIFI_LOGE("%s malloc failed\r\n", __func__);
+        return BK_ERR_NO_MEM;
+    }
+
+    os_memset(buffer_to_ipc, 0, len_ip4_config);
+    ret = wifi_send_com_api_cmd(P2P_GET_GC_NETIF_IP4_CONFIG, 1, (uint32_t)buffer_to_ipc);
+    if (ret == BK_OK)
+        os_memcpy(ip_config, buffer_to_ipc, len_ip4_config);
+    os_free(buffer_to_ipc);
+
+    return ret;
+}
+
+bk_err_t bk_wifi_p2p_get_go_ip4_config(netif_ip4_config_t *ip_config)
+{
+    bk_err_t ret = BK_OK;
+    void *buffer_to_ipc = NULL;
+    uint32_t len_ip4_config = sizeof(netif_ip4_config_t);
+
+    if (!ip_config)
+        return BK_ERR_NULL_PARAM;
+
+    buffer_to_ipc = os_malloc(len_ip4_config);
+    if (!buffer_to_ipc) {
+        WIFI_LOGE("%s malloc failed\r\n", __func__);
+        return BK_ERR_NO_MEM;
+    }
+
+    os_memset(buffer_to_ipc, 0, len_ip4_config);
+    ret = wifi_send_com_api_cmd(P2P_GET_GO_NETIF_IP4_CONFIG, 1, (uint32_t)buffer_to_ipc);
+    if (ret == BK_OK)
+        os_memcpy(ip_config, buffer_to_ipc, len_ip4_config);
     os_free(buffer_to_ipc);
 
     return ret;
@@ -831,8 +1027,15 @@ bk_err_t bk_wifi_ap_set_config(const wifi_ap_config_t *ap_config)
     WDRV_LOGD("ap configured\n");
 
     if (wifi_ap_is_started()) {
+#if CONFIG_WIFI_VNET_CONTROLLER
+        /* CP already restarts RF on AP_SET_CONFIG; refresh AP-side netif/DHCP only. */
+#if CONFIG_LWIP
+        uap_ip_start();
+#endif
+#else
         BK_LOG_ON_ERR(bk_wifi_ap_stop());
         BK_LOG_ON_ERR(bk_wifi_ap_start());
+#endif
     }
     return BK_OK;
 }
@@ -1324,6 +1527,7 @@ bk_err_t bk_wifi_sta_start(void)
 #if CONFIG_LWIP
     uint8_t mac[ETH_ALEN];
 #endif
+    bool start_new = true;
 
     WDRV_LOGD("sta starting\n");
 
@@ -1332,12 +1536,33 @@ bk_err_t bk_wifi_sta_start(void)
         return BK_ERR_WIFI_STA_NOT_CONFIG;
     }
 
-    wifi_sta_init_global_config();
+    wifi_lock();
+#if CONFIG_P2P
+    if (s_wifi_p2p_enabled) {
+        ret = BK_ERR_STATE;
+        start_new = false;
+    }
+#endif
+    if (start_new && (s_wifi_state_bits & WIFI_STA_STARTED_BIT)) {
+        start_new = false;
+    }
+    if (start_new) {
+        wifi_set_state_bit_locked(WIFI_STA_STARTED_BIT);
+    }
+    wifi_unlock();
 
-    if (wifi_sta_is_started()) {
+#if CONFIG_P2P
+    if (ret == BK_ERR_STATE) {
+        WDRV_LOGD("sta start fail, p2p already enabled\n");
+        return ret;
+    }
+#endif
+    if (!start_new) {
         WDRV_LOGD("sta already started, ignored!\n");
         return BK_OK;
     }
+
+    wifi_sta_init_global_config();
 
     //bk_wifi_init();
 
@@ -2568,6 +2793,12 @@ bk_err_t bk_wifi_p2p_enable(const char *ssid)
     const char *default_ssid = "BEKEN SMP_P2P";
     const char *actual_ssid = NULL;
 
+    ret = wifi_p2p_try_reserve();
+    if (ret != BK_OK) {
+        WIFI_LOGE("%s: p2p enable fail, sta started or p2p enabled\r\n", __func__);
+        return ret;
+    }
+
     if (ssid != NULL && os_strlen(ssid) > 0) {
         // Use provided SSID
         actual_ssid = ssid;
@@ -2582,12 +2813,14 @@ bk_err_t bk_wifi_p2p_enable(const char *ssid)
     uint8_t ssid_len = os_strlen(actual_ssid);
     if (ssid_len > SSID_MAX_LEN) {
         WIFI_LOGE("%s: SSID too long (%d > %d)\r\n", __func__, ssid_len, SSID_MAX_LEN);
+        wifi_p2p_set_enabled(false);
         return BK_ERR_PARAM;
     }
     buffer_to_ipc = os_malloc(ssid_len + 1);
     if (!buffer_to_ipc)
     {
         WIFI_LOGE("%s malloc failed\r\n", __func__);
+        wifi_p2p_set_enabled(false);
         return BK_ERR_NO_MEM;
     }
     os_memcpy(buffer_to_ipc, actual_ssid, ssid_len);
@@ -2597,16 +2830,10 @@ bk_err_t bk_wifi_p2p_enable(const char *ssid)
     os_free(buffer_to_ipc);
 
     if (ret == BK_OK) {
-        s_wifi_p2p_enabled = true;
-        // save p2p device name to local buffer
-        char temp_ssid[SSID_MAX_LEN + 1];
-        os_memcpy(temp_ssid, actual_ssid, ssid_len);
-        temp_ssid[ssid_len] = '\0';
-
-        os_memset(s_wifi_p2p_dev_name, 0, sizeof(s_wifi_p2p_dev_name));
-        os_memcpy(s_wifi_p2p_dev_name, temp_ssid, ssid_len);
-        s_wifi_p2p_dev_name[ssid_len] = '\0';
+        wifi_p2p_save_dev_name(actual_ssid, ssid_len);
+        wdrv_p2p_role_clear();
     } else {
+        wifi_p2p_set_enabled(false);
         WIFI_LOGE("AP: IPC P2P_ENABLE FAILED! SSID NOT saved! ret=%d\n", ret);
     }
 
@@ -2630,6 +2857,12 @@ bk_err_t bk_wifi_p2p_enable_with_intent(const char *ssid, int intent)
         s_wifi_p2p_default_intent = intent;
     }
 
+    ret = wifi_p2p_try_reserve();
+    if (ret != BK_OK) {
+        WIFI_LOGE("%s: p2p enable fail, sta started or p2p enabled\r\n", __func__);
+        return ret;
+    }
+
     if (ssid != NULL && os_strlen(ssid) > 0) {
         // Use provided SSID
         actual_ssid = ssid;
@@ -2644,12 +2877,14 @@ bk_err_t bk_wifi_p2p_enable_with_intent(const char *ssid, int intent)
     uint8_t ssid_len = os_strlen(actual_ssid);
     if (ssid_len > SSID_MAX_LEN) {
         WIFI_LOGE("%s: SSID too long (%d > %d)\r\n", __func__, ssid_len, SSID_MAX_LEN);
+        wifi_p2p_set_enabled(false);
         return BK_ERR_PARAM;
     }
     buffer_to_ipc = os_malloc(ssid_len + 1);
     if (!buffer_to_ipc)
     {
         WIFI_LOGE("%s malloc failed\r\n", __func__);
+        wifi_p2p_set_enabled(false);
         return BK_ERR_NO_MEM;
     }
     os_memcpy(buffer_to_ipc, actual_ssid, ssid_len);
@@ -2663,16 +2898,10 @@ bk_err_t bk_wifi_p2p_enable_with_intent(const char *ssid, int intent)
     os_free(buffer_to_ipc);
 
     if (ret == BK_OK) {
-        s_wifi_p2p_enabled = true;
-        // save p2p device name to local buffer
-        char temp_ssid[SSID_MAX_LEN + 1];
-        os_memcpy(temp_ssid, actual_ssid, ssid_len);
-        temp_ssid[ssid_len] = '\0';
-
-        os_memset(s_wifi_p2p_dev_name, 0, sizeof(s_wifi_p2p_dev_name));
-        os_memcpy(s_wifi_p2p_dev_name, temp_ssid, ssid_len);
-        s_wifi_p2p_dev_name[ssid_len] = '\0';
+        wifi_p2p_save_dev_name(actual_ssid, ssid_len);
+        wdrv_p2p_role_clear();
     } else {
+        wifi_p2p_set_enabled(false);
         WIFI_LOGE("AP: IPC P2P_ENABLE FAILED! SSID NOT saved! ret=%d\n", ret);
     }
 
@@ -2729,12 +2958,26 @@ bk_err_t bk_wifi_p2p_connect(const uint8_t *mac, int method, int intent)
 
 bk_err_t bk_wifi_p2p_cancel(void)
 {
-    return wifi_send_com_api_cmd(P2P_CANCEL, 0);
+    bk_err_t ret;
+#if CONFIG_WIFI_VNET_CONTROLLER
+    int role = (int)wdrv_host_env.p2p_role;
+
+    if (role == 1)
+        p2p_go_ip_down();
+    else if (role == 2)
+        p2p_gc_ip_down();
+#endif
+    ret = wifi_send_com_api_cmd(P2P_CANCEL, 0);
+#if CONFIG_WIFI_VNET_CONTROLLER
+    if (role != 0)
+        wdrv_p2p_role_clear();
+#endif
+    return ret;
 }
 
 bool bk_wifi_is_p2p_enabled(void)
 {
-    return s_wifi_p2p_enabled;
+    return wifi_p2p_get_enabled();
 }
 
 const char *bk_wifi_get_p2p_dev_name(void)
@@ -2750,7 +2993,8 @@ bk_err_t bk_wifi_p2p_disable(void)
 {
     bk_err_t ret = wifi_send_com_api_cmd(P2P_DISABLE, 0);
     if (ret == BK_OK) {
-        s_wifi_p2p_enabled = false;
+        wifi_p2p_set_enabled(false);
+        wdrv_p2p_role_clear();
     }
     return ret;
 }

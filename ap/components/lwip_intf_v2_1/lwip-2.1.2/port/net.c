@@ -68,6 +68,27 @@ struct ipv4_config uap_ip_settings = {
 	.dns2 = 0,
 };
 
+#if CONFIG_P2P
+struct ipv4_config p2p_go_ip_settings = {
+	.addr_type = ADDR_TYPE_STATIC,
+	.address = 0x0131a8c0, //192.168.49.1
+	.gw = 0x0131a8c0,      //192.168.49.1
+	.netmask = 0x00ffffff, //255.255.255.0
+	.dns1 = 0x0131a8c0,    //192.168.49.1
+	.dns2 = 0,
+};
+
+/* P2P client gets its address from the remote GO's DHCP server. */
+struct ipv4_config p2p_gc_ip_settings = {
+	.addr_type = ADDR_TYPE_DHCP,
+	.address = 0,
+	.gw = 0,
+	.netmask = 0,
+	.dns1 = 0,
+	.dns2 = 0,
+};
+#endif
+
 #ifdef CONFIG_ETH
 struct ipv4_config eth_ip_settings = {
 #if CONFIG_ETH_DHCP
@@ -130,6 +151,10 @@ struct ipv4_config modem_ip_settings = {
 static char up_iface;
 static bool sta_ip_start_flag = false;
 bool uap_ip_start_flag = false;
+#if CONFIG_P2P
+bool p2p_go_ip_start_flag = false;
+static bool p2p_gc_ip_start_flag = false;
+#endif
 #ifdef CONFIG_ETH
 static bool eth_ip_start_flag = false;
 #endif
@@ -173,6 +198,13 @@ FUNCPTR sta_connected_func;
 
 static struct iface g_mlan = {{0}, .name = "sta"};
 static struct iface g_uap = {{0}, .name = "ap"};
+#if CONFIG_P2P
+/* P2P GO host netif, independent subnet from the SoftAP's g_uap. */
+static struct iface g_p2p_go = {{0}, .name = "p2p_go"};
+/* P2P client host netif, independent from the infra STA's g_mlan so STA + P2P
+ * GC can coexist. Gets its IP from the remote GO via DHCP client. */
+static struct iface g_p2p_gc = {{0}, .name = "p2p_gc"};
+#endif
 #ifdef CONFIG_ETH
 static struct iface g_eth = {{0}, .name = "eth"};
 #endif
@@ -199,6 +231,7 @@ extern int net_get_if_ip_mask(uint32_t *nm, void *intrfc_handle);
 extern int net_configure_address(struct ipv4_config *addr, void *intrfc_handle);
 extern int dhcp_server_start(void *intrfc_handle);
 extern void dhcp_server_stop(void);
+extern void dhcp_server_stop_iface(void *intrfc_handle);
 extern void net_configure_dns(struct iface *, struct wlan_ip_config *ip);
 bk_err_t bk_wifi_get_ip_status(IPStatusTypedef *outNetpara, WiFi_Interface inInterface);
 #if CONFIG_NET_PAN
@@ -292,6 +325,30 @@ void net_wlan_init(void)
 			/*FIXME: Handle the error case cleanly */
 			LWIP_LOGE("ap netif add failed");
 		}
+
+#if CONFIG_P2P
+		/* P2P GO host netif, registered up-front (kept down until the GO
+		 * starts). Reuses lwip_netif_uap_init; low_level_init() sets its
+		 * hwaddr to the GO BSSID. */
+		ip_addr_set_ip4_u32(&g_p2p_go.ipaddr, INADDR_ANY);
+		ret = netifapi_netif_add(&g_p2p_go.netif, ip_2_ip4(&g_p2p_go.ipaddr),
+					 ip_2_ip4(&g_p2p_go.ipaddr), ip_2_ip4(&g_p2p_go.ipaddr), NULL,
+					 lwip_netif_uap_init, tcpip_input);
+		if (ret) {
+			LWIP_LOGE("p2p_go netif add failed");
+		}
+
+		/* P2P client host netif, registered up-front (kept down until the
+		 * client associates to a GO). STA-like: uses lwip_netif_init and gets
+		 * its address from the GO via DHCP client. */
+		ip_addr_set_ip4_u32(&g_p2p_gc.ipaddr, INADDR_ANY);
+		ret = netifapi_netif_add(&g_p2p_gc.netif, ip_2_ip4(&g_p2p_gc.ipaddr),
+					 ip_2_ip4(&g_p2p_gc.ipaddr), ip_2_ip4(&g_p2p_gc.ipaddr), NULL,
+					 lwip_netif_init, tcpip_input);
+		if (ret) {
+			LWIP_LOGE("p2p_gc netif add failed");
+		}
+#endif
 		wlan_init_done = 1;
 	}
 
@@ -369,6 +426,12 @@ static void wm_netif_status_static_callback(struct netif *n)
 			if (sta_connected_func != NULL)
 				(*sta_connected_func)();
 #endif // !CONFIG_DISABLE_DEPRECIATED_WIFI_API
+#if CONFIG_P2P
+		} else if (n == &g_p2p_gc.netif) {
+#if CONFIG_WIFI_VNET_CONTROLLER
+			wdrv_notify_gc_got_ip();
+#endif
+#endif
 		}
 	} else {
 		// static IP fail;
@@ -447,7 +510,20 @@ static void wm_netif_status_callback(struct netif *n)
 					if (sta_connected_func)
 						(*sta_connected_func)();
 #endif
+#if CONFIG_P2P
+				} else if (n == &g_p2p_gc.netif) {
+					const ip_addr_t *dns_server;
 
+#if CONFIG_WIFI_VNET_CONTROLLER
+					dns_server = dns_getserver(0);
+					wdrv_host_env.connect_ind.vif_idx = 3;
+					wdrv_host_env.connect_ind.ip = ip_addr_get_ip4_u32(&n->ip_addr);
+					wdrv_host_env.connect_ind.gw = ip_addr_get_ip4_u32(&n->gw);
+					wdrv_host_env.connect_ind.mk = ip_addr_get_ip4_u32(&n->netmask);
+					wdrv_host_env.connect_ind.dns = ip_addr_get_ip4_u32(dns_server);
+#endif
+				}
+#endif
 #endif // CONFIG_WIFI_ENABLE
 				}
 #ifdef CONFIG_BK_MODEM
@@ -536,6 +612,24 @@ void *net_get_sta_handle(void)
 void *net_get_uap_handle(void)
 {
 	return &g_uap.netif;
+}
+
+void *net_get_p2p_go_handle(void)
+{
+#if CONFIG_P2P
+	return &g_p2p_go.netif;
+#else
+	return NULL;
+#endif
+}
+
+void *net_get_p2p_gc_handle(void)
+{
+#if CONFIG_P2P
+	return &g_p2p_gc.netif;
+#else
+	return NULL;
+#endif
 }
 
 #if CONFIG_BRIDGE
@@ -832,6 +926,13 @@ void ap_set_default_netif(void)
 #endif
 }
 
+#if CONFIG_P2P
+void p2p_go_set_default_netif(void)
+{
+	netifapi_netif_set_default(net_get_p2p_go_handle());
+}
+#endif
+
 void reset_default_netif(void)
 {
 	if (sta_ip_is_start()) {
@@ -860,15 +961,272 @@ void uap_ip_down(void)
 
 void uap_ip_start(void)
 {
-	if (!uap_ip_start_flag) {
-		LWIP_LOGV("uap ip start\r\n");
-		uap_ip_start_flag = true;
-		net_configure_address(&uap_ip_settings, net_get_uap_handle());
-#if IP_NAPT
-		ip_napt_enable(ip4_addr_get_u32(ip_2_ip4(&g_uap.ipaddr)), 1);
+	if (uap_ip_start_flag) {
+		/* VIF may have been recreated on CP (channel change / restart with P2P GO). */
+		netifapi_netif_set_down(&g_uap.netif);
+		netif_set_status_callback(&g_uap.netif, NULL);
+#if CONFIG_P2P
+		dhcp_server_stop_iface(net_get_uap_handle());
+#else
+		dhcp_server_stop();
 #endif
+		uap_ip_start_flag = false;
+	}
+
+	LWIP_LOGV("uap ip start\r\n");
+	uap_ip_start_flag = true;
+	net_configure_address(&uap_ip_settings, net_get_uap_handle());
+#if IP_NAPT
+	ip_napt_enable(ip4_addr_get_u32(ip_2_ip4(&g_uap.ipaddr)), 1);
+#endif
+}
+
+extern bk_err_t bk_wifi_p2p_get_mac(uint8_t *mac);
+
+#if CONFIG_P2P
+void p2p_go_ip_start_with_mac(const uint8_t mac[6])
+{
+	uint8_t local_mac[6] = {0};
+	const uint8_t *use_mac = mac;
+
+	if (!p2p_go_ip_start_flag) {
+		if (use_mac == NULL || (use_mac[0] | use_mac[1] | use_mac[2] |
+		    use_mac[3] | use_mac[4] | use_mac[5]) == 0) {
+			bk_wifi_p2p_get_mac(local_mac);
+			use_mac = local_mac;
+		}
+		if (use_mac) {
+			memcpy(g_p2p_go.netif.hwaddr, use_mac, 6);
+			g_p2p_go.netif.hwaddr_len = 6;
+		}
+
+		p2p_go_ip_start_flag = true;
+		net_configure_address(&p2p_go_ip_settings, net_get_p2p_go_handle());
 	}
 }
+
+void p2p_go_ip_start(void)
+{
+	p2p_go_ip_start_with_mac(NULL);
+}
+
+void p2p_go_ip_down(void)
+{
+	if (p2p_go_ip_start_flag) {
+		LWIP_LOGD("p2p_go ip down\r\n");
+		p2p_go_ip_start_flag = false;
+
+		netifapi_netif_set_down(&g_p2p_go.netif);
+		netif_set_status_callback(&g_p2p_go.netif, NULL);
+		dhcp_server_stop_iface(net_get_p2p_go_handle());
+	}
+}
+
+uint32_t p2p_go_ip_is_start(void)
+{
+	return p2p_go_ip_start_flag;
+}
+
+void p2p_gc_ip_start(void)
+{
+#if CONFIG_WIFI_VNET_CONTROLLER
+	/* VNET host: CP runs DHCP; mirror static IP via p2p_gc_ip_apply_connect(). */
+	return;
+#endif
+	if (!p2p_gc_ip_start_flag) {
+		p2p_gc_ip_start_flag = true;
+		net_configure_address(&p2p_gc_ip_settings, net_get_p2p_gc_handle());
+	}
+}
+
+void p2p_gc_ip_apply_connect(uint32_t ip, uint32_t gw, uint32_t mk, uint32_t dns)
+{
+	struct ipv4_config cfg;
+
+#if CONFIG_WIFI_VNET_CONTROLLER
+	if (ip == 0)
+		return;
+
+	cfg.addr_type = ADDR_TYPE_STATIC;
+	cfg.address = ip;
+	cfg.gw = gw;
+	cfg.netmask = mk;
+	cfg.dns1 = dns;
+	cfg.dns2 = 0;
+#else
+	cfg.addr_type = ip ? ADDR_TYPE_STATIC : ADDR_TYPE_DHCP;
+	cfg.address = ip;
+	cfg.gw = gw;
+	cfg.netmask = mk;
+	cfg.dns1 = dns;
+	cfg.dns2 = 0;
+#endif
+
+	if (!p2p_gc_ip_start_flag)
+		p2p_gc_ip_start_flag = true;
+
+	net_configure_address(&cfg, net_get_p2p_gc_handle());
+}
+
+void p2p_gc_ip_down(void)
+{
+	if (p2p_gc_ip_start_flag) {
+		LWIP_LOGD("p2p_gc ip down\r\n");
+		p2p_gc_ip_start_flag = false;
+
+		netif_set_status_callback(&g_p2p_gc.netif, NULL);
+		netifapi_dhcp_stop(&g_p2p_gc.netif);
+		netifapi_netif_set_down(&g_p2p_gc.netif);
+	}
+}
+
+uint32_t p2p_gc_ip_is_start(void)
+{
+	return p2p_gc_ip_start_flag;
+}
+
+void net_get_p2p_go_cfg_addr(struct wlan_ip_config *addr)
+{
+	if (!addr)
+		return;
+
+	os_memset(addr, 0, sizeof(*addr));
+	addr->ipv4.address = p2p_go_ip_settings.address;
+	addr->ipv4.gw = p2p_go_ip_settings.gw;
+	addr->ipv4.netmask = p2p_go_ip_settings.netmask;
+	addr->ipv4.dns1 = p2p_go_ip_settings.dns1;
+}
+
+void net_get_p2p_go_if_addr(struct wlan_ip_config *addr)
+{
+	if (!addr)
+		return;
+
+	os_memset(addr, 0, sizeof(*addr));
+	if (p2p_go_ip_is_start() && netif_is_up(&g_p2p_go.netif) &&
+	    !ip_addr_isany(&g_p2p_go.netif.ip_addr)) {
+		net_get_if_addr(addr, net_get_p2p_go_handle());
+		return;
+	}
+#if CONFIG_WIFI_VNET_CONTROLLER
+	{
+		netif_ip4_config_t cp_cfg = {0};
+		int role = 0;
+
+		if (bk_wifi_p2p_get_role(&role) == BK_OK && role == 1 &&
+		    bk_wifi_p2p_get_go_ip4_config(&cp_cfg) == BK_OK &&
+		    cp_cfg.ip[0] != '\0' && os_strcmp(cp_cfg.ip, "0.0.0.0") != 0) {
+			addr->ipv4.address = ipaddr_addr(cp_cfg.ip);
+			addr->ipv4.netmask = ipaddr_addr(cp_cfg.mask);
+			addr->ipv4.gw = ipaddr_addr(cp_cfg.gateway);
+			addr->ipv4.dns1 = ipaddr_addr(cp_cfg.dns);
+			return;
+		}
+	}
+#endif
+	if (p2p_go_ip_is_start())
+		net_get_p2p_go_cfg_addr(addr);
+}
+
+void net_get_p2p_gc_if_addr(struct wlan_ip_config *addr)
+{
+	const ip_addr_t *dns;
+
+	if (!addr)
+		return;
+
+	os_memset(addr, 0, sizeof(*addr));
+	if (netif_is_up(&g_p2p_gc.netif) && !ip_addr_isany(&g_p2p_gc.netif.ip_addr)) {
+		addr->ipv4.address = ip_addr_get_ip4_u32(&g_p2p_gc.netif.ip_addr);
+		addr->ipv4.netmask = ip_addr_get_ip4_u32(&g_p2p_gc.netif.netmask);
+		addr->ipv4.gw = ip_addr_get_ip4_u32(&g_p2p_gc.netif.gw);
+		dns = dns_getserver(0);
+		addr->ipv4.dns1 = ip_addr_get_ip4_u32(dns);
+		return;
+	}
+#if CONFIG_WIFI_VNET_CONTROLLER
+	if (wdrv_host_env.connect_ind.ip != 0) {
+		addr->ipv4.address = wdrv_host_env.connect_ind.ip;
+		addr->ipv4.gw = wdrv_host_env.connect_ind.gw;
+		addr->ipv4.netmask = wdrv_host_env.connect_ind.mk;
+		addr->ipv4.dns1 = wdrv_host_env.connect_ind.dns;
+	}
+	if (addr->ipv4.address == 0) {
+		netif_ip4_config_t cp_cfg = {0};
+
+		if (bk_wifi_p2p_get_gc_ip4_config(&cp_cfg) == BK_OK &&
+		    cp_cfg.ip[0] != '\0' && os_strcmp(cp_cfg.ip, "0.0.0.0") != 0) {
+			addr->ipv4.address = ipaddr_addr(cp_cfg.ip);
+			addr->ipv4.netmask = ipaddr_addr(cp_cfg.mask);
+			addr->ipv4.gw = ipaddr_addr(cp_cfg.gateway);
+			addr->ipv4.dns1 = ipaddr_addr(cp_cfg.dns);
+			p2p_gc_ip_apply_connect(addr->ipv4.address, addr->ipv4.gw,
+						addr->ipv4.netmask, addr->ipv4.dns1);
+		}
+	}
+#endif
+}
+#else
+void p2p_go_ip_start_with_mac(const uint8_t mac[6])
+{
+	LWIP_UNUSED_ARG(mac);
+}
+
+void p2p_go_ip_start(void)
+{
+}
+
+void p2p_go_ip_down(void)
+{
+}
+
+uint32_t p2p_go_ip_is_start(void)
+{
+	return false;
+}
+
+void p2p_gc_ip_start(void)
+{
+}
+
+void p2p_gc_ip_apply_connect(uint32_t ip, uint32_t gw, uint32_t mk, uint32_t dns)
+{
+	LWIP_UNUSED_ARG(ip);
+	LWIP_UNUSED_ARG(gw);
+	LWIP_UNUSED_ARG(mk);
+	LWIP_UNUSED_ARG(dns);
+}
+
+void p2p_gc_ip_down(void)
+{
+}
+
+uint32_t p2p_gc_ip_is_start(void)
+{
+	return false;
+}
+
+void net_get_p2p_go_cfg_addr(struct wlan_ip_config *addr)
+{
+	if (!addr)
+		return;
+	os_memset(addr, 0, sizeof(*addr));
+}
+
+void net_get_p2p_go_if_addr(struct wlan_ip_config *addr)
+{
+	if (!addr)
+		return;
+	os_memset(addr, 0, sizeof(*addr));
+}
+
+void net_get_p2p_gc_if_addr(struct wlan_ip_config *addr)
+{
+	if (!addr)
+		return;
+	os_memset(addr, 0, sizeof(*addr));
+}
+#endif
 
 uint32_t uap_ip_is_start(void)
 {
@@ -991,6 +1349,7 @@ int net_configure_address(struct ipv4_config *addr, void *intrfc_handle)
 	 * address configuration.
 	 */
 	netif_set_status_callback(&if_handle->netif, NULL);
+	netifapi_dhcp_stop(&if_handle->netif);
 
 	switch (addr->addr_type) {
 	case ADDR_TYPE_STATIC:
@@ -1020,6 +1379,12 @@ int net_configure_address(struct ipv4_config *addr, void *intrfc_handle)
 #if CONFIG_BRIDGE
 		} else if (if_handle == &g_br) {
 			netifapi_netif_set_default(net_get_br_handle());
+#endif
+#if CONFIG_P2P
+		} else if (if_handle == &g_p2p_gc) {
+			netif_set_status_callback(&if_handle->netif, wm_netif_status_static_callback);
+			netifapi_netif_set_up(&if_handle->netif);
+			net_configure_dns(if_handle, (struct wlan_ip_config *)addr);
 #endif
 		} else {
 			/*AP never configure DNS server address!!!*/
@@ -1070,10 +1435,25 @@ int net_configure_address(struct ipv4_config *addr, void *intrfc_handle)
 		up_iface = 1;
 		modem_set_default_netif();
 #endif
-	} else {
-		// softap IP up, start dhcp server;
+#if CONFIG_P2P
+	} else if (if_handle == &g_p2p_gc) {
+		/* P2P GC DHCP client only; do not start a DHCP server or change default. */
+		up_iface = 0;
+	} else if (if_handle == &g_p2p_go) {
+#if CONFIG_WIFI_VNET_CONTROLLER
+		/* VNET: CP serves GO client DHCP on g_p2p_go; host mirrors static IP. */
+		up_iface = 0;
+#else
+		dhcp_server_start(net_get_p2p_go_handle());
+		up_iface = 0;
+#endif
+#endif
+	} else if (if_handle == &g_uap) {
+		/* softap IP up, start dhcp server */
 		dhcp_server_start(net_get_uap_handle());
 		ap_set_default_netif();
+		up_iface = 0;
+	} else {
 		up_iface = 0;
 	}
 
@@ -1092,6 +1472,10 @@ int net_get_if_addr(struct wlan_ip_config *addr, void *intrfc_handle)
 
 	if (netif_is_up(&if_handle->netif)) {
 		if (if_handle == &g_mlan
+#if CONFIG_P2P
+			|| if_handle == &g_p2p_gc
+			|| if_handle == &g_p2p_go
+#endif
 #ifdef CONFIG_ETH
 			|| if_handle == &g_eth
 #endif
@@ -1295,12 +1679,14 @@ void net_wlan_initial(void)
 {
 	net_ipv4stack_init();
 
+#if !CONFIG_WIFI_VNET_CONTROLLER
 #ifdef CONFIG_IPV6
 	net_ipv6stack_init(&g_mlan.netif);
 #endif /* CONFIG_IPV6 */
 
 #if CONFIG_MDNS
 	mdns_resp_init();
+#endif
 #endif
 }
 
@@ -1705,6 +2091,40 @@ int host_wlan_add_netif(uint8_t *mac)
 
 	return ERR_OK;
 
+}
+
+int host_wlan_add_p2p_netifs(void)
+{
+#if !CONFIG_P2P
+	return ERR_OK;
+#else
+	static int p2p_netif_added;
+	err_t err;
+
+	if (p2p_netif_added)
+		return ERR_OK;
+
+	ip_addr_set_ip4_u32(&g_p2p_go.ipaddr, INADDR_ANY);
+	err = netifapi_netif_add(&g_p2p_go.netif, ip_2_ip4(&g_p2p_go.ipaddr),
+				 ip_2_ip4(&g_p2p_go.ipaddr), ip_2_ip4(&g_p2p_go.ipaddr), NULL,
+				 lwip_netif_uap_init, tcpip_input);
+	if (err) {
+		LWIP_LOGE("p2p_go netif add failed(%d)\n", err);
+		return err;
+	}
+
+	ip_addr_set_ip4_u32(&g_p2p_gc.ipaddr, INADDR_ANY);
+	err = netifapi_netif_add(&g_p2p_gc.netif, ip_2_ip4(&g_p2p_gc.ipaddr),
+				 ip_2_ip4(&g_p2p_gc.ipaddr), ip_2_ip4(&g_p2p_gc.ipaddr), NULL,
+				 lwip_netif_init, tcpip_input);
+	if (err) {
+		LWIP_LOGE("p2p_gc netif add failed(%d)\n", err);
+		return err;
+	}
+
+	p2p_netif_added = 1;
+	return ERR_OK;
+#endif
 }
 
 int host_wlan_remove_netif(void)

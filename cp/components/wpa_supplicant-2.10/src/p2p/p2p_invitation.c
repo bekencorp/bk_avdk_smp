@@ -13,6 +13,11 @@
 #include "common/wpa_ctrl.h"
 #include "p2p_i.h"
 #include "p2p.h"
+#ifdef BK_SUPPLICANT
+#if CONFIG_P2P_SOFTAP_CHAN_ALIGN
+#include "wifi_v2.h"
+#endif
+#endif
 
 
 static struct wpabuf * p2p_build_invitation_req(struct p2p_data *p2p,
@@ -293,8 +298,11 @@ void p2p_process_invitation_req(struct p2p_data *p2p, const u8 *sa,
 			goto fail;
 		}
 
-		if (status == P2P_SC_SUCCESS)
+		if (status == P2P_SC_SUCCESS) {
+			p2p->op_reg_class = reg_class;
+			p2p->op_channel = channel;
 			channels = &intersection;
+		}
 	} else {
 		p2p_dbg(p2p, "No forced channel from invitation processing - figure out best one to use");
 
@@ -419,11 +427,33 @@ fail:
 	p2p->inv_op_freq = op_freq;
 
 	p2p->pending_action_state = P2P_PENDING_INVITATION_RESPONSE;
+#ifdef BK_SUPPLICANT
+	p2p->inv_rx_freq = freq;
+	p2p->inv_resp_retry = 0;
+	wpabuf_free(p2p->inv_resp_pending);
+	p2p->inv_resp_pending = resp;
+	resp = NULL;
+	{
+		unsigned int wait_time = 50;
+#if CONFIG_P2P_SOFTAP_CHAN_ALIGN
+		if (bk_wifi_infra_ap_vif_active())
+			wait_time = 200;
+#endif
+		if (p2p_send_action(p2p, freq, sa, p2p->cfg->dev_addr,
+				    p2p->cfg->dev_addr,
+				    wpabuf_head(p2p->inv_resp_pending),
+				    wpabuf_len(p2p->inv_resp_pending),
+				    wait_time) < 0) {
+			p2p_dbg(p2p, "Failed to send Action frame");
+		}
+	}
+#else /* BK_SUPPLICANT */
 	if (p2p_send_action(p2p, freq, sa, p2p->cfg->dev_addr,
 			    p2p->cfg->dev_addr,
 			    wpabuf_head(resp), wpabuf_len(resp), 50) < 0) {
 		p2p_dbg(p2p, "Failed to send Action frame");
 	}
+#endif /* BK_SUPPLICANT */
 
 out:
 	wpabuf_free(resp);
@@ -643,8 +673,41 @@ void p2p_invitation_resp_cb(struct p2p_data *p2p, int success)
 
 	p2p->cfg->send_action_done(p2p->cfg->cb_ctx);
 
+#ifdef BK_SUPPLICANT
+	{
+		unsigned int wait_time = 50;
+#if CONFIG_P2P_SOFTAP_CHAN_ALIGN
+		if (bk_wifi_infra_ap_vif_active())
+			wait_time = 200;
+#endif
+		if (!success && p2p->inv_status == P2P_SC_SUCCESS &&
+		    p2p->inv_resp_pending && p2p->inv_resp_retry < 2) {
+			p2p->inv_resp_retry++;
+			p2p_dbg(p2p, "P2P: Retry Invitation Response (attempt %u)",
+				p2p->inv_resp_retry);
+			p2p->pending_action_state = P2P_PENDING_INVITATION_RESPONSE;
+			if (p2p_send_action(p2p, p2p->inv_rx_freq, p2p->inv_sa,
+					    p2p->cfg->dev_addr, p2p->cfg->dev_addr,
+					    wpabuf_head(p2p->inv_resp_pending),
+					    wpabuf_len(p2p->inv_resp_pending),
+					    wait_time) < 0) {
+				p2p_dbg(p2p, "P2P: Failed to retry Invitation Response");
+			}
+			return;
+		}
+
+		wpabuf_free(p2p->inv_resp_pending);
+		p2p->inv_resp_pending = NULL;
+
+		if (!success) {
+			p2p_dbg(p2p, "P2P: Invitation Response TX failed - skip group start");
+			return;
+		}
+	}
+#else /* BK_SUPPLICANT */
 	if (!success)
 		p2p_dbg(p2p, "Assume Invitation Response was actually received by the peer even though Ack was not reported");
+#endif /* BK_SUPPLICANT */
 
 	if (p2p->cfg->invitation_received) {
 		p2p->cfg->invitation_received(p2p->cfg->cb_ctx,

@@ -175,6 +175,11 @@ enum BK_EVENT_TYPE
     BK_EVT_ASSOC_GO_IND         = 0xC,
     BK_EVT_DISASSOC_GO_IND      = 0xD,
     BK_EVT_MODEXP_REQ           = 0xE,
+    BK_EVT_P2P_GO_START_IND     = 0xF,
+    BK_EVT_P2P_GO_STOP_IND      = 0x10,
+    BK_EVT_P2P_GC_START_IND     = 0x11,
+    BK_EVT_P2P_GC_STOP_IND      = 0x12,
+    BK_EVT_WIFI_EVENT_IND       = 0x13,
     // BLE event
     // BK_EVT_BLE_XX            = 0x101
 
@@ -359,6 +364,7 @@ struct bk_msg_connect_ind
     uint32_t  mk;
     uint32_t  gw;
     uint32_t  dns;
+    uint8_t vif_idx;   /* keep right after dns to match AP wdrv_connect_ind layout */
     uint8_t status;
 };
 

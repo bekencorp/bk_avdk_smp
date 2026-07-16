@@ -24,7 +24,11 @@
 
 general_param_t *g_wlan_general_param = NULL;
 ap_param_t *g_ap_param_ptr = NULL;
+#if CONFIG_P2P
+ap_param_t *g_p2p_go_ap_param_ptr = NULL;
+#endif
 sta_param_t *g_sta_param_ptr = NULL;
+
 wifi_mac_config_t g_wifi_mac_config = {
 	WIFI_CFG_DFT_RAW_TX_AC,
 	WIFI_CFG_DFT_RAW_TX_AC_TIMEOUT_MS,
@@ -72,6 +76,13 @@ uint32_t cfg_param_init(void)
 		g_ap_param_ptr = (ap_param_t *)os_zalloc(sizeof(ap_param_t));
 		BK_ASSERT(g_ap_param_ptr); /* ASSERT VERIFIED */
 	}
+
+#if CONFIG_P2P
+	if (NULL == g_p2p_go_ap_param_ptr) {
+		g_p2p_go_ap_param_ptr = (ap_param_t *)os_zalloc(sizeof(ap_param_t));
+		BK_ASSERT(g_p2p_go_ap_param_ptr); /* ASSERT VERIFIED */
+	}
+#endif
 
 #if COFIG_AP_STATYPE_LIMIT
 	if (wifi_bk_feature_ap_statype_limit_enable())

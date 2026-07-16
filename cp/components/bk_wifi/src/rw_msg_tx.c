@@ -29,6 +29,9 @@
 #include "rwnx_params.h"
 #include "rwnx_defs.h"
 #include "bk_wifi.h"
+#if CONFIG_P2P
+#include "wifi_v2.h"
+#endif
 #include "rwnx_misc.h"
 
 #include "rwnx_err.h"
@@ -404,7 +407,7 @@ int rw_msg_send_add_if(const unsigned char *mac,
 	    add_if_req_param->mac_addr_hi_mask = 0;
 	    add_if_req_param->mac_addr_low_mask = 0x2;
 #else
-	    add_if_req_param->mac_addr_low_mask = 0;
+	    add_if_req_param->mac_addr_low_mask = 0x2;
 	    add_if_req_param->mac_addr_hi_mask = ((NX_VIRT_DEV_MAX - 1) << 8);
 #endif
 	}
@@ -769,10 +772,24 @@ int rw_msg_mfp_connect_deauth(u8 vif_idx,u8 *bssid,bool encrypt,
 }
 // #endif
 
+static ap_param_t *rw_msg_ap_param_for_vif(u8 vif_index)
+{
+	ap_param_t *ap_param = g_ap_param_ptr;
+#if CONFIG_P2P
+	void *vif = mac_vif_mgmt_get_entry(vif_index);
+
+	if (vif && mac_vif_mgmt_get_type(vif) == VIF_AP &&
+	    mac_vif_mgmt_interface_is_configured_for_p2p(vif))
+		ap_param = bk_wifi_p2p_go_ap_param_ensure();
+#endif
+	return ap_param;
+}
+
 int rw_msg_send_apm_start_req(u8 vif_index, u8 channel,
 							  struct apm_start_cfm *cfm)
 {
 	struct apm_start_req *req;
+	ap_param_t *ap_param;
 
 	/* Build the APM_START_REQ message */
 	req = ke_msg_alloc(APM_START_REQ, TASK_APM, TASK_API,
@@ -807,13 +824,29 @@ int rw_msg_send_apm_start_req(u8 vif_index, u8 channel,
 	req->tim_len = 6;
 	req->bcn_int = BEACON_INTERVAL;
 
-	if (g_ap_param_ptr->cipher_suite > BK_SECURITY_TYPE_WEP) {
-		req->flags = USE_PAIRWISE_KEY;
-		req->flags |= USE_PRIVACY;
-		req->flags |= CONTROL_PORT_HOST;
-	} else {
-		req->flags = 0;
+#if CONFIG_P2P
+	{
+		void *vif = mac_vif_mgmt_get_entry(vif_index);
+		int p2p_go_ap = vif && mac_vif_mgmt_get_type(vif) == VIF_AP &&
+				mac_vif_mgmt_interface_is_configured_for_p2p(vif);
+
+		if (p2p_go_ap) {
+			req->flags = USE_PAIRWISE_KEY | USE_PRIVACY | CONTROL_PORT_HOST;
+		} else
+#endif
+	{
+		ap_param = rw_msg_ap_param_for_vif(vif_index);
+		if (ap_param && ap_param->cipher_suite > BK_SECURITY_TYPE_WEP) {
+			req->flags = USE_PAIRWISE_KEY;
+			req->flags |= USE_PRIVACY;
+			req->flags |= CONTROL_PORT_HOST;
+		} else {
+			req->flags = 0;
+		}
 	}
+#if CONFIG_P2P
+	}
+#endif
 
 #ifdef CONFIG_AP_PS
 	req->flags |= VIF_AP_PS;
@@ -845,16 +878,17 @@ int rw_msg_send_apm_stop_req(u8 vif_index)
 	return rw_msg_send(req, 1, APM_STOP_CFM, NULL);
 }
 
-int rw_msg_send_apm_broadcast_deauth_req(void)
+int rw_msg_send_apm_broadcast_deauth_req(uint8_t vif_idx)
 {
-	void *req;
+	struct apm_broadcast_deauth_req *req;
 
-	/* APM_BROADCAST_DEAUTH_REQ carries no parameters; allocate a minimal body. */
-	req = ke_msg_alloc(APM_BROADCAST_DEAUTH_REQ, TASK_APM, TASK_API, 0);
+	req = ke_msg_alloc(APM_BROADCAST_DEAUTH_REQ, TASK_APM, TASK_API,
+			   sizeof(struct apm_broadcast_deauth_req));
 	if (!req)
 		return -1;
 
-	/* Fire-and-forget: no confirmation needed, core_thread handles the call. */
+	req->vif_idx = vif_idx;
+
 	return rw_msg_send(req, 0, 0, NULL);
 }
 
@@ -1743,10 +1777,27 @@ int rw_msg_send_roc(u8 vif_index, unsigned int freq, uint32_t duration)
 	req->chan.center1_freq = freq;
 	req->duration_ms  = duration;
 
+#if CONFIG_RWNX_SW_TXQ && CONFIG_P2P
+	{
+		void *vif = mac_vif_mgmt_get_entry(vif_index);
+
+		if (vif)
+			rwnx_txq_offchan_init(vif);
+	}
+#endif
+
 	/* Send the MM_REMAIN_ON_CHANNEL_REQ message to LMAC FW */
 	ret = rw_msg_send(req, 1, MM_REMAIN_ON_CHANNEL_CFM, &cfm);
 	if (ret || cfm.status) {
 		RWNX_LOGE("%s: failed ret %d, cfm.status %d\n", __func__, ret, cfm.status);
+#if CONFIG_RWNX_SW_TXQ && CONFIG_P2P
+		{
+			void *vif = mac_vif_mgmt_get_entry(vif_index);
+
+			if (vif)
+				rwnx_txq_offchan_deinit(vif);
+		}
+#endif
 		os_free(roc_elem);
 		return -1;
 	} else {
