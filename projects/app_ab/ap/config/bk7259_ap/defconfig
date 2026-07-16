@@ -36,8 +36,6 @@ CONFIG_OTA=y
 CONFIG_HTTP_AB_PARTITION=y
 #@ enable ota update default partition
 CONFIG_OTA_UPDATE_DEFAULT_PARTITION=y
-#@ enable ota evade method
-CONFIG_OTA_EVADE_METHOD=y
 #@ enable ota position independent update
 CONFIG_OTA_POSITION_INDEPENDENT_AB=y
 #@ enable ota hash function
