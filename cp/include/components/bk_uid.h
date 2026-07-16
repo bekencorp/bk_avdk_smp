@@ -14,9 +14,24 @@
 
 #pragma once
 
+#include <stdint.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+/* Chip UID length in bytes. Single source of truth for the UID feature; the
+ * UID RPC transport (bk_api_rpc.h) includes this header and reuses BK_UID_SIZE. */
+#define BK_UID_SIZE           (32)
+#define BK_UID_SNAPSHOT_MAGIC (0x55494430U) /* 'UID0' */
+
+/* Chip UID snapshot placed in CP SRAM. CP fills uid[] then sets magic; the
+ * snapshot address is published to sys_sw_regs.cp_uid_ptr so AP can read the
+ * UID cross-core without re-reading OTP. */
+typedef struct {
+    volatile uint32_t magic;                /**< BK_UID_SNAPSHOT_MAGIC when uid[] is valid */
+    volatile uint8_t  uid[BK_UID_SIZE];
+} bk_uid_snapshot_t;
 
 bk_err_t bk_uid_adaptor_init(void);
 
