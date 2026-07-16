@@ -15,7 +15,6 @@
 #ifdef CONFIG_HTTP_AB_PARTITION
 #include "driver/flash.h"
 #include "modules/ota.h"
-extern part_flag update_part_flag;
 #endif
 #ifdef CONFIG_TASK_WDT
 #include "bk_wdt.h"
