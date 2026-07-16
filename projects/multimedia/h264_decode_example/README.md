@@ -14,6 +14,7 @@ Everything is exposed through the single `h264_decode` CLI:
 |------------|-----|----------|-------------------|
 | frame (whole-frame) | `h264_decode vcdec_h264d [1280x720_1i30p\|1280x720_ibbp]` | No | `1280x720_1i30p` |
 | frame RGB (whole-frame conversion) | `h264_decode vcdec_h264d_frame_rgb` | No | built-in RGB test frame |
+| OSD (PP alpha-blend) | `h264_decode vcdec_h264d_osd` | No | built-in RGB test frame + 320x320 OSD |
 | flexa (segmented) | `h264_decode vcdec_h264d_flexa [1280x720_1i30p\|1280x720_ibbp]` | No | `1280x720_1i30p` |
 | frame-zerocopy (zero-copy) | `h264_decode vcdec_h264d_frame_zerocopy [1280x720_1i30p\|1280x720_ibbp]` | Yes | `1280x720_1i30p` and `1280x720_ibbp` |
 
@@ -69,6 +70,7 @@ h264_decode_example/
 - Three `bk_decoder` (`bk_h264_decode_ctlr`) controllers, each test case in its own source file:
   - `h264_decode vcdec_h264d [stream]` — frame controller (whole-frame, **non-B**), `vcdec_h264_frame_test.c`
   - `h264_decode vcdec_h264d_frame_rgb` — frame controller PP RGB565/RGB888 output-format test, `vcdec_h264_rgb_test.c`
+  - `h264_decode vcdec_h264d_osd` — frame controller PP 320x320 OSD alpha-blend test (RGB565/RGB888 output), `vcdec_h264_osd_test.c`
   - `h264_decode vcdec_h264d_flexa [stream]` — flexa/segmented controller (**non-B**), `vcdec_h264_flexa_test.c`
   - `h264_decode vcdec_h264d_frame_zerocopy [stream]` — zero-copy / **B-frame** controller, `vcdec_h264_frame_zerocopy_test.c`
 - Two 1280x720 streams are embedded simultaneously (each under its own symbol):
@@ -96,6 +98,7 @@ make bk7259 PROJECT=multimedia/h264_decode_example -j32
 h264_decode help
 h264_decode vcdec_h264d 1280x720_1i30p
 h264_decode vcdec_h264d_frame_rgb
+h264_decode vcdec_h264d_osd
 h264_decode vcdec_h264d_flexa 1280x720_1i30p
 h264_decode vcdec_h264d_frame_zerocopy 1280x720_1i30p
 h264_decode vcdec_h264d_frame_zerocopy 1280x720_ibbp
@@ -115,6 +118,7 @@ test passed. At the end of a run, check the per-controller result line:
 ```text
 [RESULT][PASS] vcdec_h264_test success, decoded_aus=..., rounds=...                 # vcdec_h264d (frame)
 [RESULT][PASS] vcdec_h264_frame_rgb_test success                                    # vcdec_h264d_frame_rgb
+[RESULT][PASS] vcdec_h264_osd_test success                                          # vcdec_h264d_osd
 [RESULT][PASS] vcdec_h264_flexa_test success, decoded_aus=..., rounds=...           # vcdec_h264d_flexa
 [RESULT][PASS] vcdec_h264_frame_zerocopy_test success, decoded_aus=..., rounds=...  # vcdec_h264d_frame_zerocopy
 ```

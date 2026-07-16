@@ -10,6 +10,7 @@ set(srcs
     src/h264d_gpu_display_h264_parser.c
     src/h264d_gpu_display_gpu.c
     src/h264d_gpu_display_gpu_blit.c
+    src/h264d_xrgb888_320x320.c
 )
 
 set(priv_req

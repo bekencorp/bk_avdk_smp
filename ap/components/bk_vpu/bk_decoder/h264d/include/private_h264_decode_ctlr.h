@@ -39,6 +39,7 @@ typedef struct {
 	vcdec_h264_decode_config_t decode_config;
 	uint32_t decode_result;
 	beken_semaphore_t decode_done_sem;
+	beken_mutex_t osd_mutex;
 
 	bk_h264_decode_frame_config_t config;
 	bk_h264_decode_ctlr_t ops;

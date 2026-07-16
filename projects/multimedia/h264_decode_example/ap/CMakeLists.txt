@@ -16,8 +16,10 @@ list(APPEND srcs
     h264_decode/src/vcdec_h264_flexa_test.c
     h264_decode/src/vcdec_h264_frame_zerocopy_test.c
     h264_decode/src/vcdec_h264_rgb_test.c
+    h264_decode/src/vcdec_h264_osd_test.c
     h264_decode/src/vcdec_h264_scale_test.c
     h264_decode/src/vcdec_h264_boot_demo.c
+    h264_decode/common/h264d_xrgb888_320x320.c
 )
 endif()
 

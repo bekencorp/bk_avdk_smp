@@ -5,3 +5,4 @@ vcdec_h264_flexa_1i30p_01,ap_cmd h264_decode vcdec_h264d_flexa 1280x720_1i30p,1,
 vcdec_h264_fzc_1i30p_01,ap_cmd h264_decode vcdec_h264d_frame_zerocopy 1280x720_1i30p,1,[RESULT][PASS] vcdec_h264_frame_zerocopy_test success,60
 vcdec_h264_fzc_ibbp_01,ap_cmd h264_decode vcdec_h264d_frame_zerocopy 1280x720_ibbp,1,[RESULT][PASS] vcdec_h264_frame_zerocopy_test success,60
 vcdec_h264_frame_rgb_1i30p_01,ap_cmd h264_decode vcdec_h264d_frame_rgb,1,[RESULT][PASS] vcdec_h264_frame_rgb_test success,120
+vcdec_h264_osd_1i30p_01,ap_cmd h264_decode vcdec_h264d_osd,1,[RESULT][PASS] vcdec_h264_osd_test success,120

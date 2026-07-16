@@ -515,6 +515,9 @@ static avdk_err_t h264_decode_ctlr_ioctl(bk_h264_decode_ctlr_handle_t handle, ui
 		rtos_set_event_flags(&ctrl->port_done_events, H264_DECODE_PORT_DONE_BIT(i));
 		break;
 	}
+	case BK_H264_DECODE_IOCTL_SET_OSD:
+		LOGI("%s %d cmd %u is unsupported in flexa mode\r\n", __func__, __LINE__, cmd);
+		break;
 	default:
 		LOGE("Unknown ioctl: %u\r\n", (unsigned)cmd);
 		return AVDK_ERR_INVAL;

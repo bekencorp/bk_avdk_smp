@@ -50,11 +50,15 @@
 #define H264D_GPU_DISPLAY_SEG_HEIGHT_MB   1U
 #define H264D_GPU_DISPLAY_SEG_NUM         4U
 #define H264D_GPU_DISPLAY_FPS_TIMER_MS    4000U
+#define H264D_GPU_DISPLAY_OSD_WIDTH          320U
+#define H264D_GPU_DISPLAY_OSD_HEIGHT         320U
 
 typedef enum {
 	H264D_GPU_DISPLAY_RUN_FLEXA_NV12 = 0,
 	H264D_GPU_DISPLAY_RUN_FRAME_RGB565,
 	H264D_GPU_DISPLAY_RUN_FRAME_RGB888,
+	H264D_GPU_DISPLAY_RUN_FRAME_RGB565_OSD,
+	H264D_GPU_DISPLAY_RUN_FRAME_RGB888_OSD,
 	/* Decoder PP scale-only (NV12 in -> NV12 out at a different resolution). */
 	H264D_GPU_DISPLAY_RUN_DEC_SCALE,
 	/* Decoder PP scale + color convert (NV12 in -> RGB565 out at a new size). */
@@ -86,6 +90,9 @@ static volatile h264d_gpu_display_run_mode_t s_h264d_gpu_display_run_mode = H264
 /* Decoder PP scale target (start_dec_scale / start_dec_scale_cvt). 0 = default. */
 static volatile uint16_t s_h264d_gpu_display_scale_out_w = 0U;
 static volatile uint16_t s_h264d_gpu_display_scale_out_h = 0U;
+
+extern const unsigned int h264d_xrgb888_320x320_len;
+extern const unsigned char h264d_xrgb888_320x320[];
 
 static void *h264d_gpu_display_stream_buffer_malloc(uint32_t size)
 {
@@ -203,6 +210,10 @@ static const char *h264d_gpu_display_run_mode_name(h264d_gpu_display_run_mode_t 
 		return "frame_rgb565";
 	case H264D_GPU_DISPLAY_RUN_FRAME_RGB888:
 		return "frame_rgb888";
+	case H264D_GPU_DISPLAY_RUN_FRAME_RGB565_OSD:
+		return "frame_rgb565_osd";
+	case H264D_GPU_DISPLAY_RUN_FRAME_RGB888_OSD:
+		return "frame_rgb888_osd";
 	case H264D_GPU_DISPLAY_RUN_DEC_SCALE:
 		return "dec_scale_nv12";
 	case H264D_GPU_DISPLAY_RUN_DEC_SCALE_CVT:
@@ -216,7 +227,8 @@ static const char *h264d_gpu_display_run_mode_name(h264d_gpu_display_run_mode_t 
 
 static bk_pixel_format_t h264d_gpu_display_run_mode_format(h264d_gpu_display_run_mode_t mode)
 {
-	return (mode == H264D_GPU_DISPLAY_RUN_FRAME_RGB565) ?
+	return (mode == H264D_GPU_DISPLAY_RUN_FRAME_RGB565 ||
+		mode == H264D_GPU_DISPLAY_RUN_FRAME_RGB565_OSD) ?
 		BK_PIXEL_FORMAT_RGB565 : BK_PIXEL_FORMAT_RGB888;
 }
 
@@ -815,6 +827,257 @@ cleanup:
 	return ret;
 }
 
+
+static avdk_err_t h264d_gpu_display_run_osd(h264d_gpu_display_run_mode_t mode)
+{
+	avdk_err_t ret = AVDK_ERR_OK;
+	uint8_t *stream_buf = NULL;
+	uint8_t *rgb_buf = NULL;
+	uint8_t *osd_buf = NULL;
+	uint32_t osd_size = 0U;
+	h264d_gpu_display_h264_frame_t *frame_table = NULL;
+	uint32_t frame_count = 0U;
+	uint32_t stream_size = H264D_GPU_DISPLAY_STREAM_BYTES;
+	const uint32_t width = H264D_GPU_DISPLAY_TEST_STREAM_WIDTH;
+	const uint32_t height = H264D_GPU_DISPLAY_TEST_STREAM_HEIGHT;
+	bk_pixel_format_t rgb_format = h264d_gpu_display_run_mode_format(mode);
+	uint32_t rgb_size = h264d_gpu_display_rgb_output_size(width, height, rgb_format);
+	uint32_t frame_index;
+	uint32_t loop_index = 0U;
+	uint8_t aborted = 0U;
+	bk_h264_decode_ctlr_handle_t decoder = NULL;
+	h264d_gpu_display_fps_t fps;
+	h264d_gpu_display_frame_done_t frame_done;
+	bk_h264_decode_frame_config_t dec_cfg = DEFAULT_H264_DECODE_FRAME_CONFIG;
+
+	os_memset(&fps, 0, sizeof(fps));
+	os_memset(&frame_done, 0, sizeof(frame_done));
+
+	stream_buf = (uint8_t *)h264d_gpu_display_stream_buffer_malloc(stream_size);
+	if (stream_buf == NULL) {
+		ret = AVDK_ERR_NOMEM;
+		goto cleanup;
+	}
+	os_memcpy(stream_buf, H264D_GPU_DISPLAY_STREAM_DATA, stream_size);
+	LOGI("osd test stream copied, mode=%s stream=%s bytes=%u\r\n",
+	     h264d_gpu_display_run_mode_name(mode),
+	     H264D_GPU_DISPLAY_TEST_STREAM_NAME,
+	     (unsigned)stream_size);
+
+	ret = h264d_gpu_display_h264_build_frame_table(stream_buf, stream_size, &frame_table, &frame_count);
+	if (ret != AVDK_ERR_OK) {
+		goto cleanup;
+	}
+
+	rgb_buf = (uint8_t *)bk_frame_buffer_malloc(MEM_SLAB_HEAP_UNCODED, rgb_size);
+	if (rgb_buf == NULL) {
+		LOGE("alloc osd decode buffer failed, size=%u\r\n", (unsigned)rgb_size);
+		ret = AVDK_ERR_NOMEM;
+		goto cleanup;
+	}
+	os_memset(rgb_buf, 0, rgb_size);
+	LOGI("osd decode buffer=%p size=%u format=%u\r\n",
+	     rgb_buf, (unsigned)rgb_size, (unsigned)rgb_format);
+
+	osd_size = h264d_xrgb888_320x320_len;
+	osd_buf = (uint8_t *)bk_frame_buffer_malloc(MEM_SLAB_HEAP_UNCODED, osd_size);
+	if (osd_buf == NULL) {
+		LOGE("alloc osd buffer failed, size=%u\r\n", (unsigned)osd_size);
+		ret = AVDK_ERR_NOMEM;
+		goto cleanup;
+	}
+	os_memcpy(osd_buf, h264d_xrgb888_320x320, osd_size);
+
+#if H264D_GPU_DISPLAY_ENABLE_MIPI_DISPLAY
+	LOGI("stage: open dpu for osd test\r\n");
+	ret = h264d_gpu_display_dpu_open();
+	if (ret != AVDK_ERR_OK) {
+		goto cleanup;
+	}
+#else
+	LOGI("stage: display disabled, osd test will only run decode+gpu blit\r\n");
+#endif
+
+	dec_cfg.timeout_ms = H264D_GPU_DISPLAY_TIMEOUT_MS;
+	dec_cfg.out_width = (uint16_t)width;
+	dec_cfg.out_height = (uint16_t)height;
+	dec_cfg.out_format = rgb_format;
+	dec_cfg.frame_done_cb = h264d_gpu_display_frame_done_cb;
+	dec_cfg.frame_done_args = &frame_done;
+	dec_cfg.osd[0].enable = 1U;
+	dec_cfg.osd[0].originX = 0;
+	dec_cfg.osd[0].originY = 0;
+	dec_cfg.osd[0].height = H264D_GPU_DISPLAY_OSD_HEIGHT;
+	dec_cfg.osd[0].width = H264D_GPU_DISPLAY_OSD_WIDTH;
+	dec_cfg.osd[0].alphaBlendEna = 1U;
+	dec_cfg.osd[0].blendComponentBase = osd_buf;
+	dec_cfg.osd[0].blendWidth = H264D_GPU_DISPLAY_OSD_WIDTH;
+	dec_cfg.osd[0].blendHeight = H264D_GPU_DISPLAY_OSD_HEIGHT;
+	LOGI("osd enabled: pos=%ux%u size=%ux%u fmt=%u buf=%p bytes=%u\r\n",
+	     (unsigned)dec_cfg.osd[0].originX,
+	     (unsigned)dec_cfg.osd[0].originY,
+	     (unsigned)dec_cfg.osd[0].width,
+	     (unsigned)dec_cfg.osd[0].height,
+	     (unsigned)rgb_format,
+	     dec_cfg.osd[0].blendComponentBase,
+	     (unsigned)osd_size);
+
+	ret = bk_h264_decode_frame_ctlr_new(&decoder, &dec_cfg);
+	if (ret != AVDK_ERR_OK) {
+		goto cleanup;
+	}
+	ret = bk_h264_decode_init(decoder);
+	if (ret != AVDK_ERR_OK) {
+		goto cleanup;
+	}
+	ret = bk_h264_decode_open(decoder);
+	if (ret != AVDK_ERR_OK) {
+		goto cleanup;
+	}
+
+	ret = h264d_gpu_display_fps_timer_start(&fps);
+	if (ret != AVDK_ERR_OK) {
+		goto cleanup;
+	}
+
+	LOGI("osd demo start, mode=%s decode=%ux%u display=%ux%u rotate=%u\r\n",
+	     h264d_gpu_display_run_mode_name(mode),
+	     (unsigned)width,
+	     (unsigned)height,
+	     (unsigned)H264D_GPU_DISPLAY_GPU_DISPLAY_WIDTH,
+	     (unsigned)H264D_GPU_DISPLAY_GPU_DISPLAY_HEIGHT,
+	     (unsigned)H264D_GPU_DISPLAY_GPU_ROTATE_DEGREE);
+
+	while (s_h264d_gpu_display_stop_request == 0U) {
+		uint32_t frame_done_this_loop = 0U;
+
+		LOGI(">>> osd loop %u start\r\n", (unsigned)(loop_index + 1U));
+		for (frame_index = 0U; frame_index < frame_count; frame_index++) {
+			const h264d_gpu_display_h264_frame_t *frame = &frame_table[frame_index];
+			bk_h264_decode_input_t input = {0};
+			void *display_frame = NULL;
+			uint32_t display_frame_size = 0U;
+			uint32_t rgb_hash;
+			uint32_t expected_frame_done = frame_done.frame_done_count + 1U;
+
+			if (s_h264d_gpu_display_stop_request != 0U) {
+				aborted = 1U;
+				break;
+			}
+
+			input.stream = stream_buf + frame->offset;
+			input.stream_len = frame->size;
+			input.out_buffer = rgb_buf;
+			input.out_buffer_size = rgb_size;
+
+			ret = bk_h264_decode_frame(decoder, &input);
+			if (ret != AVDK_ERR_OK ||
+			    frame_done.frame_done_count != expected_frame_done ||
+			    frame_done.last_frame_status != BK_OK) {
+				LOGE("osd decode failed loop=%u frame=%u ret=%d done=%u expected=%u status=%d\r\n",
+				     (unsigned)(loop_index + 1U),
+				     (unsigned)(fps.decoded_frames + 1U),
+				     (int)ret,
+				     (unsigned)frame_done.frame_done_count,
+				     (unsigned)expected_frame_done,
+				     (int)frame_done.last_frame_status);
+				ret = AVDK_ERR_GENERIC;
+				goto cleanup;
+			}
+
+			rgb_hash = h264d_gpu_display_buffer_hash(rgb_buf, rgb_size);
+			if (fps.decoded_frames < 4U) {
+				LOGI("osd frame %u hash=0x%08x first_word=0x%08x\r\n",
+				     (unsigned)(fps.decoded_frames + 1U),
+				     (unsigned)rgb_hash,
+				     (unsigned)((const uint32_t *)rgb_buf)[0]);
+			}
+
+			ret = h264d_gpu_display_gpu_blit_rgb_frame(rgb_buf,
+								  (uint16_t)width,
+								  (uint16_t)height,
+								  rgb_format,
+								  &display_frame,
+								  &display_frame_size);
+			if (ret != AVDK_ERR_OK) {
+				goto cleanup;
+			}
+
+#if H264D_GPU_DISPLAY_ENABLE_MIPI_DISPLAY
+			ret = h264d_gpu_display_dpu_flush(display_frame, h264d_gpu_display_display_frame_free);
+			if (ret != AVDK_ERR_OK) {
+				LOGE("osd dpu flush failed ret=%d\r\n", (int)ret);
+				(void)h264d_gpu_display_display_frame_free(display_frame);
+				goto cleanup;
+			}
+#else
+			LOGI("osd display disabled, drop gpu frame=%p size=%u\r\n",
+			     display_frame, (unsigned)display_frame_size);
+			(void)h264d_gpu_display_display_frame_free(display_frame);
+#endif
+
+			fps.decoded_frames++;
+			frame_done_this_loop++;
+			rtos_delay_milliseconds(33U);
+		}
+
+		if (frame_done_this_loop == 0U) {
+			break;
+		}
+
+		loop_index++;
+		LOGI("<<< osd loop %u done (frame_done=%u total_frames=%u)\r\n",
+		     (unsigned)loop_index,
+		     (unsigned)frame_done_this_loop,
+		     (unsigned)fps.decoded_frames);
+
+		if (aborted != 0U) {
+			break;
+		}
+		if (s_h264d_gpu_display_max_loops != 0U &&
+		    loop_index >= s_h264d_gpu_display_max_loops) {
+			LOGI("osd loop budget %u reached, exiting\r\n",
+			     (unsigned)s_h264d_gpu_display_max_loops);
+			break;
+		}
+	}
+
+	if (fps.decoded_frames == 0U) {
+		ret = AVDK_ERR_GENERIC;
+		goto cleanup;
+	}
+
+	ret = AVDK_ERR_OK;
+
+cleanup:
+	h264d_gpu_display_fps_timer_stop(&fps);
+	h264d_gpu_display_gpu_blit_deinit();
+#if H264D_GPU_DISPLAY_ENABLE_MIPI_DISPLAY
+	h264d_gpu_display_dpu_close();
+#endif
+	if (decoder != NULL) {
+		(void)bk_h264_decode_close(decoder);
+		(void)bk_h264_decode_deinit(decoder);
+		(void)bk_h264_decode_delete(decoder);
+	}
+	if (rgb_buf != NULL) {
+		bk_frame_buffer_free(rgb_buf);
+	}
+	if (osd_buf != NULL) {
+		bk_frame_buffer_free(osd_buf);
+	}
+	h264d_gpu_display_h264_frame_table_free(frame_table);
+	if (stream_buf != NULL) {
+		h264d_gpu_display_stream_buffer_free(stream_buf);
+	}
+
+	LOGI("[RESULT][%s] %s decoded_frames=%u\r\n",
+	     (ret == AVDK_ERR_OK) ? "PASS" : "FAIL",
+	     h264d_gpu_display_run_mode_name(mode),
+	     (unsigned)fps.decoded_frames);
+	return ret;
+}
+
 /*
  * Decoder-only scale / scale+convert test. Unlike run() and run_rgb(), this
  * path drives the H264 decoder's frame-mode controller so the on-chip
@@ -1099,6 +1362,9 @@ static void h264d_gpu_display_task_entry(void *arg)
 		   mode == H264D_GPU_DISPLAY_RUN_DEC_SCALE_CVT ||
 		   mode == H264D_GPU_DISPLAY_RUN_DEC_SCALE_CVT888) {
 		(void)h264d_gpu_display_run_dec_scale(mode);
+	} else if (mode == H264D_GPU_DISPLAY_RUN_FRAME_RGB565_OSD ||
+		   mode == H264D_GPU_DISPLAY_RUN_FRAME_RGB888_OSD) {
+		(void)h264d_gpu_display_run_osd(mode);
 	} else {
 		(void)h264d_gpu_display_run_rgb(mode);
 	}
@@ -1119,6 +1385,8 @@ static void h264d_gpu_display_print_usage(void)
 #endif
 	bk_printf("  h264d_gpu_display start_rgb565 [loops]                       - decode H264 to RGB565, then GPU -> display\r\n");
 	bk_printf("  h264d_gpu_display start_rgb888 [loops]                       - decode H264 to RGB888(32bpp), then GPU -> display\r\n");
+	bk_printf("  h264d_gpu_display start_osd_rgb565 [loops]                   - RGB565 PP alpha-blend 320x320 image at 0,0, then GPU -> display\r\n");
+	bk_printf("  h264d_gpu_display start_osd_rgb888 [loops]                   - RGB888 PP alpha-blend 320x320 image at 0,0, then GPU -> display\r\n");
 	bk_printf("  h264d_gpu_display start_dec_scale [loops] [out_w out_h]      - H264 decoder PP scale only (NV12->NV12 at out_w x out_h), then GPU->display\r\n");
 	bk_printf("  h264d_gpu_display start_dec_scale_cvt [loops] [out_w out_h]  - H264 decoder PP scale + convert (NV12->RGB565 at out_w x out_h), then GPU->display\r\n");
 	bk_printf("  h264d_gpu_display start_dec_scale_cvt888 [loops] [out_w out_h] - H264 decoder PP scale + convert (NV12->RGB888 at out_w x out_h), then GPU->display\r\n");
@@ -1273,6 +1541,25 @@ static void cli_h264d_gpu_display_cmd(char *pcWriteBuffer, int xWriteBufferLen, 
 		return;
 	}
 
+	if (os_strcmp(argv[1], "start_osd_rgb565") == 0 ||
+	    os_strcmp(argv[1], "start_osd_rgb888") == 0) {
+		uint32_t loops = 0U;
+		h264d_gpu_display_run_mode_t mode = H264D_GPU_DISPLAY_RUN_FRAME_RGB888_OSD;
+
+		if (os_strcmp(argv[1], "start_osd_rgb565") == 0) {
+			mode = H264D_GPU_DISPLAY_RUN_FRAME_RGB565_OSD;
+		}
+		if (argc >= 3) {
+			loops = (uint32_t)os_strtoul(argv[2], NULL, 10);
+		}
+
+		ret = h264d_gpu_display_start_mode(loops, mode);
+		h264d_gpu_display_write_rsp(pcWriteBuffer,
+					       xWriteBufferLen,
+					       (ret == AVDK_ERR_OK) ? CLI_CMD_RSP_SUCCEED : CLI_CMD_RSP_ERROR);
+		return;
+	}
+
 	if (os_strcmp(argv[1], "start_dec_scale") == 0 ||
 	    os_strcmp(argv[1], "start_dec_scale_cvt") == 0 ||
 	    os_strcmp(argv[1], "start_dec_scale_cvt888") == 0) {
@@ -1345,7 +1632,7 @@ static void cli_h264d_gpu_display_cmd(char *pcWriteBuffer, int xWriteBufferLen, 
 int cli_h264d_gpu_display_init(void)
 {
 	static const struct cli_command s_h264d_gpu_display_cmds[] = {
-		{"h264d_gpu_display", "h264d_gpu_display help|start [loops]|start_dec_scale [loops] [w h]|start_dec_scale_cvt [loops] [w h]|start_dec_scale_cvt888 [loops] [w h]|stop|isp_open|isp_close", cli_h264d_gpu_display_cmd},
+		{"h264d_gpu_display", "h264d_gpu_display help|start [loops]|start_rgb565|start_rgb888|start_osd_rgb565 [loops]|start_osd_rgb888 [loops]|start_dec_scale [loops] [w h]|start_dec_scale_cvt [loops] [w h]|start_dec_scale_cvt888 [loops] [w h]|stop|isp_open|isp_close", cli_h264d_gpu_display_cmd},
 	};
 
 	return cli_register_commands(s_h264d_gpu_display_cmds, sizeof(s_h264d_gpu_display_cmds) / sizeof(s_h264d_gpu_display_cmds[0]));

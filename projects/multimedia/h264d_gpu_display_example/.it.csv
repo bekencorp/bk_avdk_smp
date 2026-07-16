@@ -3,6 +3,8 @@ reboot,reboot,1,[RESULT][PASS],60
 h264d_gpu_display_01,ap_cmd h264d_gpu_display start 2,1,[RESULT][PASS],60
 h264d_gpu_display_02,ap_cmd h264d_gpu_display start 20,1,loop 1 start,60
 h264d_gpu_display_02,ap_cmd h264d_gpu_display stop,1,[RESULT][PASS],60
+h264d_gpu_display_osd_rgb565,ap_cmd h264d_gpu_display start_osd_rgb565 2,1,[RESULT][PASS],60
+h264d_gpu_display_osd_rgb888,ap_cmd h264d_gpu_display start_osd_rgb888 2,1,[RESULT][PASS],60
 h264d_gpu_display_PIP_01,ap_cmd h264d_gpu_display isp_open,1,CMDRSP:OK,60
 h264d_gpu_display_PIP_01,ap_cmd h264d_gpu_display start,1,loop 1 start,60
 h264d_gpu_display_PIP_01,ap_cmd h264d_gpu_display isp_close,1,CMDRSP:OK,60

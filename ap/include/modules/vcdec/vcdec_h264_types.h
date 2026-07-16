@@ -54,6 +54,8 @@ typedef struct vcdec_h264_info_t {
 /** @deprecated alias; use vcdec_pp_out_format_e. */
 typedef vcdec_pp_out_format_e vcdec_h264_out_format_e;
 
+typedef vcdec_pp_osd_config_t vcdec_h264_osd_config_t;
+
 typedef struct vcdec_h264_decode_config_t {
 	uint8_t *input_stream;      /* H264 bitstream buffer */
 	uint32_t input_stream_len;  /* H264 bitstream length in bytes */
@@ -64,6 +66,7 @@ typedef struct vcdec_h264_decode_config_t {
 	vcdec_h264_out_format_e out_format; /* NV12 zero-copy or PP RGB output */
 	uint16_t segment_height;    /* Output ring-buffer segment height (in MB rows) */
 	uint8_t  segment_number;    /* Number of output ring-buffer segments */
+	vcdec_h264_osd_config_t osd[2]; /* Optional PP alpha blend overlays */
 } vcdec_h264_decode_config_t;
 
 #ifdef __cplusplus

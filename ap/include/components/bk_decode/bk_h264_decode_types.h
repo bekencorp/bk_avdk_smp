@@ -33,6 +33,7 @@ typedef enum {
 	BK_H264_DECODE_IOCTL_UNREGISTER_BOND,
 	BK_H264_DECODE_IOCTL_FLEXA_NOTIFY_PORT_DONE,
 	BK_H264_DECODE_IOCTL_RESET,
+	BK_H264_DECODE_IOCTL_SET_OSD,                /* arg: bk_h264_decode_osd_t* */
 	/* Zero-copy frame controller only (bk_h264_decode_frame_zerocopy_ctlr_new): */
 	BK_H264_DECODE_IOCTL_DEQUEUE,  /* arg: bk_h264_decode_dequeue_t*  - pull next display-order frame */
 	BK_H264_DECODE_IOCTL_RELEASE,  /* arg: bk_h264_decode_out_frame_t* - return a dequeued frame */
@@ -52,10 +53,33 @@ typedef struct {
 } bk_h264_decode_port_rd_t;
 
 typedef struct {
+	uint32_t enable;
+	int32_t originX;
+	int32_t originY;
+	uint32_t height;
+	uint32_t width;
+	uint32_t alphaBlendEna;
+	uint8_t *blendComponentBase;
+	int32_t blendOriginX;
+	int32_t blendOriginY;
+	uint32_t blendWidth;
+	uint32_t blendHeight;
+} bk_h264_decode_osd_config_t;
+
+typedef void (*bk_h264_decode_osd_update_cb)(bk_h264_decode_osd_config_t *osd);
+
+typedef struct {
+	bk_h264_decode_osd_config_t osd[2];
+	bk_h264_decode_osd_update_cb osd_update_cb;
+} bk_h264_decode_osd_t;
+
+typedef struct {
 	uint32_t timeout_ms;
 	uint16_t out_width;
 	uint16_t out_height;
 	uint32_t out_format;
+	bk_h264_decode_osd_config_t osd[2];
+	bk_h264_decode_osd_update_cb osd_update_cb;
 	bk_h264_decode_frame_done_cb frame_done_cb;
 	void *frame_done_args;
 } bk_h264_decode_frame_config_t;
@@ -158,6 +182,8 @@ struct bk_h264_decode_ctlr_t {
 	.out_width = 1280U, \
 	.out_height = 720U, \
 	.out_format = BK_PIXEL_FORMAT_NV12, \
+	.osd = {{0}}, \
+	.osd_update_cb = NULL, \
 	.frame_done_cb = NULL, \
 	.frame_done_args = NULL, \
 }

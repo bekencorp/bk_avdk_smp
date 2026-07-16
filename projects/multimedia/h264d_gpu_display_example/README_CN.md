@@ -122,6 +122,8 @@ h264d_gpu_display help
 h264d_gpu_display start [loops]
 h264d_gpu_display start_rgb565 [loops]
 h264d_gpu_display start_rgb888 [loops]
+h264d_gpu_display start_osd_rgb565 [loops]
+h264d_gpu_display start_osd_rgb888 [loops]
 h264d_gpu_display start_dec_scale [loops] [out_w out_h]
 h264d_gpu_display start_dec_scale_cvt [loops] [out_w out_h]
 h264d_gpu_display start_dec_scale_cvt888 [loops] [out_w out_h]
@@ -134,6 +136,7 @@ h264d_gpu_display isp_close
 
 - `start [loops]`：启动 H264 解码 GPU 显示任务；`loops` 省略或为 `0` 时持续循环，非 0 时运行指定轮数后自动退出
 - `start_rgb565 [loops]` / `start_rgb888 [loops]`：解码为 RGB565/RGB888 后走 GPU blit 显示
+- `start_osd_rgb565 [loops]` / `start_osd_rgb888 [loops]`：解码器 PP 输出 RGB565/RGB888 时叠加 320x320 OSD 图片，再经 GPU blit 显示
 - `start_dec_scale [loops] [out_w out_h]`：**测试 H264 解码器自身的缩放能力**。使用 frame 模式解码控制器，让解码器 PP 把原生码流（默认 1280×720）缩放到 `out_w×out_h`，输出仍为 NV12（不改格式，纯缩放）。省略 `out_w/out_h` 时默认下采样到 `640×352`；也可传 `1920 1088` 做上采样。缩放后的帧再经 GPU blit 缩放/旋转到屏幕分辨率并送 MIPI 屏显示
 - `start_dec_scale_cvt [loops] [out_w out_h]`：**测试 H264 解码器缩放 + 格式转换（RGB565）**。同上，但 PP 输出转换为 RGB565（缩放与 NV12→RGB565 转换同时进行），随后同样经 GPU 上屏显示
 - `start_dec_scale_cvt888 [loops] [out_w out_h]`：**测试 H264 解码器缩放 + 格式转换（RGB888）**。与上一条一致，但 PP 输出转换为 RGB888（32bpp），随后经 GPU 上屏显示
@@ -219,6 +222,8 @@ h264d_gpu_display start_dec_scale_cvt888 2 1920 1088
 ap_cmd h264d_gpu_display start 2
 ap_cmd h264d_gpu_display start 20
 ap_cmd h264d_gpu_display stop
+ap_cmd h264d_gpu_display start_osd_rgb565 2
+ap_cmd h264d_gpu_display start_osd_rgb888 2
 ap_cmd h264d_gpu_display isp_open
 ap_cmd h264d_gpu_display start
 ap_cmd h264d_gpu_display isp_close

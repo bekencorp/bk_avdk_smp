@@ -123,6 +123,8 @@ h264d_gpu_display help
 h264d_gpu_display start [loops]
 h264d_gpu_display start_rgb565 [loops]
 h264d_gpu_display start_rgb888 [loops]
+h264d_gpu_display start_osd_rgb565 [loops]
+h264d_gpu_display start_osd_rgb888 [loops]
 h264d_gpu_display start_dec_scale [loops] [out_w out_h]
 h264d_gpu_display start_dec_scale_cvt [loops] [out_w out_h]
 h264d_gpu_display start_dec_scale_cvt888 [loops] [out_w out_h]
@@ -135,6 +137,7 @@ h264d_gpu_display isp_close
 
 - `start [loops]`: starts the H264 decode GPU display task. If `loops` is omitted or is `0`, the task loops continuously. If `loops` is non-zero, the task exits automatically after the specified number of loops.
 - `start_rgb565 [loops]` / `start_rgb888 [loops]`: decode to RGB565/RGB888 then display via the GPU blit path.
+- `start_osd_rgb565 [loops]` / `start_osd_rgb888 [loops]`: blend a 320x320 OSD image while the decoder PP outputs RGB565/RGB888, then display via the GPU blit path.
 - `start_dec_scale [loops] [out_w out_h]`: **tests the H264 decoder's own scaler**. Uses the frame-mode controller so the decoder PP resizes the native stream (1280x720 by default) to `out_w x out_h`, keeping NV12 output (scale only, no format change). Defaults to a `640x352` down-scale when `out_w/out_h` are omitted; pass `1920 1088` for an up-scale. The scaled frame is then scaled/rotated to the panel resolution by the GPU blit and shown on the MIPI display.
 - `start_dec_scale_cvt [loops] [out_w out_h]`: **tests decoder scale + color convert (RGB565)**. Same as above but the PP output is converted to RGB565 (resize and NV12->RGB565 happen together), then displayed via the GPU as well.
 - `start_dec_scale_cvt888 [loops] [out_w out_h]`: **tests decoder scale + color convert (RGB888)**. Same as the RGB565 variant but the PP output is converted to RGB888 (32bpp), then displayed via the GPU.
@@ -220,6 +223,8 @@ The log also prints the per-frame output geometry read back via `get_info`, conf
 ap_cmd h264d_gpu_display start 2
 ap_cmd h264d_gpu_display start 20
 ap_cmd h264d_gpu_display stop
+ap_cmd h264d_gpu_display start_osd_rgb565 2
+ap_cmd h264d_gpu_display start_osd_rgb888 2
 ap_cmd h264d_gpu_display isp_open
 ap_cmd h264d_gpu_display start
 ap_cmd h264d_gpu_display isp_close
