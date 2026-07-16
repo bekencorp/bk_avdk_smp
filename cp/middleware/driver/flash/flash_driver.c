@@ -22,7 +22,6 @@
 #include "sys_driver.h"
 #include "driver/flash_partition.h"
 #include <modules/chip_support.h>
-#include "flash_bypass.h"
 #ifdef CONFIG_HSPL
 #include "hspl_res_lock.h"
 #endif

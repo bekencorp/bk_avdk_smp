@@ -50,7 +50,6 @@
 #include "sdio_host.h"
 #include "sdio_types.h"
 #include "securityip.h"
-#include "spi.h"
 #include "timer.h"
 #include "touch.h"
 #include "tp.h"

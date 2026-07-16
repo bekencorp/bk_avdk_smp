@@ -58,10 +58,6 @@
 #include <driver/qspi.h>
 #endif
 
-#if CONFIG_SPI
-#include <driver/spi.h>
-#endif
-
 #if CONFIG_CALENDAR
 #include <driver/calendar.h>
 #endif
@@ -334,10 +330,6 @@ int driver_init(void) {
 
 #if CONFIG_SARADC
 	bk_adc_driver_init();
-#endif
-
-#if CONFIG_SPI
-	bk_spi_driver_init();
 #endif
 
 #if CONFIG_I2C

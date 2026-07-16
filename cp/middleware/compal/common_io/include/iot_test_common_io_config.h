@@ -18,9 +18,6 @@
 /* I2C includes */
 #include "iot_i2c.h"
 
-/* SPI includes */
-#include "iot_spi.h"
-
 
 /*------------------------UART-------------------------------*/
 
@@ -54,17 +51,5 @@ extern uint8_t uctestIotI2CWriteVal;           /* Write value that will be used 
 extern uint8_t uctestIotI2CInstanceIdx;        /* I2C instance used in the test */
 extern uint8_t uctestIotI2CInstanceNum;        /* The total number of I2C instances on the device */
 extern uint16_t ucAssistedTestIotI2CSlaveAddr; /* The slave address to be set for the assisted test. */
-
-/*------------------------SPI-------------------------------*/
-#define IOT_TEST_COMMON_IO_SPI_SUPPORTED                     1
-#define IOT_TEST_COMMON_IO_SPI_ASSISTED   1
-
-#define SPI_TEST_SET                                         1
-
-extern uint32_t ultestIotSpiInstance;
-extern IotSPIMode_t xtestIotSPIDefaultConfigMode;
-extern IotSPIBitOrder_t xtestIotSPIDefaultconfigBitOrder;
-extern uint32_t ultestIotSPIFrequency;
-extern uint32_t ultestIotSPIDummyValue;
 
 #endif /* ifndef _TEST_IOT_CONFIG_H_ */

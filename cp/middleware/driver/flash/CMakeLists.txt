@@ -2,7 +2,6 @@ if (CONFIG_FLASH)
 	list(APPEND incs flash)
 	list(APPEND srcs
 		flash/flash_partition.c
-		flash/flash_bypass.c
 		flash/flash_notify.c
 		flash/CheckSumUtils.c
 	)

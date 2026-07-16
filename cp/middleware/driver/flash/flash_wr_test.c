@@ -3,7 +3,6 @@
 #include "driver/flash.h"
 #include <driver/flash_partition.h>
 #include "sys_driver.h"
-#include "flash_bypass.h"
 #include "flash.h"
 #include <driver/psram.h>
 #include "bk_misc.h"

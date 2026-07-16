@@ -11,7 +11,6 @@ if(CONFIG_COMMON_IO)
 	list(APPEND srcs
 				common_io/iot_uart.c
 				common_io/iot_adc.c
-				common_io/iot_spi.c
 				common_io/iot_gpio.c
 				common_io/iot_flash.c
 				common_io/iot_timer.c
@@ -40,7 +39,6 @@ endif()
 				common_io/test/test_iot_adc.c
 				common_io/test/test_iot_gpio.c
 				common_io/test/test_iot_uart.c
-				common_io/test/test_iot_spi.c
 				common_io/test/test_iot_flash.c
 				common_io/test/test_iot_timer.c
 				common_io/test/test_iot_tsensor.c
