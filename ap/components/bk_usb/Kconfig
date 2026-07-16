@@ -100,6 +100,16 @@ menu "Bk_usb"
 			bool "Enable Usb Device MSC"
 			default n
 
+		config USBD_MSC_STORAGE_QSPI_NAND
+			bool "Back USB MSC with QSPI SPI-NAND (Dhara FTL) instead of SD card"
+			depends on USBD_MSC && QSPI_NAND_FLASH && DHARA_FTL
+			default n
+			help
+				Route the USB Mass Storage LUN to the QSPI SPI-NAND FTL block
+				device (512B sectors) so a PC sees the on-board NAND as a
+				removable FAT disk. When disabled, the LUN keeps using the SD
+				card backend.
+
 		config USBD_MTP
 			bool "Enable Usb Device MTP"
 			depends on BK_USB_CHERRYUSB_V1_6

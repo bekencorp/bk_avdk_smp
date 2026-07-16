@@ -7,7 +7,8 @@
 static void fatfs_operate(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
 	uint32_t cmd;
-	char *disk_name[DISK_NUMBER_COUNT] = {"ram", "sdio_sd", "udisk", "flash"};
+	char *disk_name[DISK_NUMBER_COUNT] = {"ram", "sdio_sd", "udisk", "flash",
+					      "spi0_flash", "spi1_flash", "qspi0", "qspi1"};
 	DISK_NUMBER drv_num = DISK_NUMBER_SDIO_SD;
 	char file_name[64] = {'d', 'e', 'f', 'a', 'u', 'l', 't', 'f', 'i', 'l', 'e', 'n', 'a', 'm', 'e', '.', 't', 'x', 't', 0};
 	char write_content[64];

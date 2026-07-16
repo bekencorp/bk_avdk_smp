@@ -57,8 +57,16 @@ extern "C" {
 
 #define NAND_PAGE_SIZE_BYTES         2048U
 #define NAND_SPARE_SIZE_BYTES        64U
+#define NAND_PAGE_PLUS_SPARE_BYTES   (NAND_PAGE_SIZE_BYTES + NAND_SPARE_SIZE_BYTES)
 #define NAND_BLOCK_PAGE_COUNT        64U
 #define NAND_BLOCK_SIZE_BYTES        (NAND_PAGE_SIZE_BYTES * NAND_BLOCK_PAGE_COUNT)
+
+/* Factory bad-block marker: manufacturer writes a non-FFh value into the first
+ * spare byte of page 0 (and page 1) of a bad block, with on-die ECC disabled.
+ * Confirm the exact column/page against the ZB35Q01CYIG datasheet before relying
+ * on a single page. */
+#define NAND_BAD_MARKER_COLUMN       NAND_PAGE_SIZE_BYTES
+#define NAND_BAD_MARKER_GOOD         0xFFU
 #ifdef CONFIG_QSPI_NAND_FLASH_SIZE
 #define NAND_DEVICE_TOTAL_SIZE       (CONFIG_QSPI_NAND_FLASH_SIZE)
 #else
@@ -70,6 +78,15 @@ extern "C" {
 #define NAND_STATUS_WEL              BIT(1)
 #define NAND_STATUS_E_FAIL           BIT(2)
 #define NAND_STATUS_P_FAIL           BIT(3)
+
+/* C0h status register ECC status field (ECCS1:ECCS0).
+ * 00 = no error, 01 = corrected, 10 = uncorrectable, 11 = corrected w/ rewrite.
+ * Confirm the field position against the ZB35Q01CYIG datasheet. */
+#define NAND_STATUS_ECC_MASK         (BIT(4) | BIT(5))
+#define NAND_STATUS_ECC_POS          4
+#define NAND_ECC_NO_ERROR            0x0U
+#define NAND_ECC_CORRECTED           0x1U
+#define NAND_ECC_UNCORRECTABLE       0x2U
 
 #define NAND_DEFAULT_TIMEOUT_MS      100U
 #define NAND_ERASE_TIMEOUT_MS        3000U

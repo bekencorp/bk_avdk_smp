@@ -216,6 +216,46 @@ int msc_storage_deinit(void)
 	return bk_cherryusb_device_close() == BK_OK ? 0 : BK_FAIL;
 }
 
+#if CONFIG_USBD_MSC_STORAGE_QSPI_NAND
+/* MSC LUN backed by the QSPI SPI-NAND Dhara FTL block device: a PC sees the
+ * on-board NAND as a removable FAT disk. The FTL provides 512B logical sectors
+ * with wear levelling and power-fail-safe mapping, so the host may format and
+ * read/write it like any USB stick. */
+#include <driver/nand_ftl.h>
+
+#define BK_V16_MSC_NAND_QSPI_ID   QSPI_ID_0
+
+void usbd_msc_get_cap(uint8_t busid, uint8_t lun, uint32_t *block_num, uint32_t *block_size)
+{
+	(void)busid;
+	(void)lun;
+	if (!bk_nand_ftl_is_inited(BK_V16_MSC_NAND_QSPI_ID)) {
+		(void)bk_nand_ftl_init(BK_V16_MSC_NAND_QSPI_ID);
+	}
+	*block_num = bk_nand_ftl_sector_count(BK_V16_MSC_NAND_QSPI_ID);
+	*block_size = bk_nand_ftl_sector_size(BK_V16_MSC_NAND_QSPI_ID);
+}
+
+int usbd_msc_sector_read(uint8_t busid, uint8_t lun, uint32_t sector, uint8_t *buffer, uint32_t length)
+{
+	(void)busid;
+	(void)lun;
+	return (bk_nand_ftl_read(BK_V16_MSC_NAND_QSPI_ID, sector, buffer,
+				 length / BK_NAND_FTL_SECTOR_SIZE) == BK_OK) ? 0 : -1;
+}
+
+int usbd_msc_sector_write(uint8_t busid, uint8_t lun, uint32_t sector, uint8_t *buffer, uint32_t length)
+{
+	int ret;
+	(void)busid;
+	(void)lun;
+	ret = (bk_nand_ftl_write(BK_V16_MSC_NAND_QSPI_ID, sector, buffer,
+				 length / BK_NAND_FTL_SECTOR_SIZE) == BK_OK) ? 0 : -1;
+	/* Keep host-visible writes durable; the FTL sync is cheap when clean. */
+	(void)bk_nand_ftl_sync(BK_V16_MSC_NAND_QSPI_ID);
+	return ret;
+}
+#else
 void usbd_msc_get_cap(uint8_t busid, uint8_t lun, uint32_t *block_num, uint32_t *block_size)
 {
 	extern uint32_t bk_sd_card_get_card_size(void);
@@ -240,4 +280,5 @@ int usbd_msc_sector_write(uint8_t busid, uint8_t lun, uint32_t sector, uint8_t *
 	(void)lun;
 	return bk_sd_card_write_blocks(buffer, sector, length / 512);
 }
+#endif /* CONFIG_USBD_MSC_STORAGE_QSPI_NAND */
 #endif

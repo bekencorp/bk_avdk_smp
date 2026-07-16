@@ -160,7 +160,7 @@ This option is used for beken file scan
 / Drive/Volume Configurations
 /---------------------------------------------------------------------------*/
 
-#define FF_VOLUMES		9
+#define FF_VOLUMES		8
 /* Number of volumes (logical drives) to be used. (1-10) */
 
 

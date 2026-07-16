@@ -1,0 +1,46 @@
+# KCONFIG_GROUP: Storage::File System
+menu "Dhara NAND FTL"
+	config DHARA_FTL
+		bool "Enable Dhara NAND FTL (block device over QSPI SPI-NAND)"
+		depends on QSPI_NAND_FLASH
+		default n
+		help
+			Flash translation layer (Dhara) that turns the raw QSPI SPI-NAND
+			(2KB page / 128KB erase block, on-die ECC) into a 512-byte logical
+			sector block device with page-level mapping, wear levelling,
+			power-fail-safe recovery and bad-block handling.
+			This is the backing required to run FatFS on NAND (enable
+			FATFS_QSPI_0_FLASH / FATFS_QSPI_1_FLASH; disk_io.c auto-routes the
+			QSPI drive to this FTL when QSPI_NAND_FLASH is set) and to expose the
+			NAND as a USB MSC removable disk to a PC (see
+			USBD_MSC_STORAGE_QSPI_NAND).
+
+	config NAND_FTL_START_BLOCK
+		int "FTL partition start block"
+		depends on DHARA_FTL
+		default 0
+		help
+			Index of the first 128KB physical block owned by the FTL. Use a
+			non-zero value to leave room for another consumer (e.g. littlefs)
+			at the start of the device. Must not overlap any other NAND user.
+
+	config NAND_FTL_BLOCK_COUNT
+		int "FTL partition block count (0 = to end of device)"
+		depends on DHARA_FTL
+		default 0
+		help
+			Number of 128KB blocks the FTL manages. 0 means from the start
+			block to the end of the device. Larger partitions need more RAM
+			for the bad-block cache and scale mount time.
+
+	config NAND_FTL_GC_RATIO
+		int "FTL garbage-collection ratio"
+		depends on DHARA_FTL
+		range 1 64
+		default 8
+		help
+			Dhara garbage-collection aggressiveness: GC steps performed per
+			real write. Higher values keep more free space (higher usable
+			capacity) at the cost of slower, less predictable writes. Always
+			use the same value for a given formatted device.
+endmenu

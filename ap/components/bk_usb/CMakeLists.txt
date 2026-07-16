@@ -244,4 +244,8 @@ endif() # CONFIG_ATE
 # the VFS public headers.
 # utf8 provides conv_utf8 / Utf8ToGb2312 used by bk_mtp/bk_usbd_mtp.c for
 # GB2312<->UTF filename conversion when CONFIG_USBD_MTP && CONFIG_VFS.
-armino_component_register(SRCS "${srcs}" INCLUDE_DIRS "${incs}" PRIV_REQUIRES bk_common driver bk_vfs utf8)
+set(usb_priv_req bk_common driver bk_vfs utf8)
+if (CONFIG_USBD_MSC_STORAGE_QSPI_NAND)
+	list(APPEND usb_priv_req dhara)
+endif()
+armino_component_register(SRCS "${srcs}" INCLUDE_DIRS "${incs}" PRIV_REQUIRES "${usb_priv_req}")

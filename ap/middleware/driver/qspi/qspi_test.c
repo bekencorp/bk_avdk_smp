@@ -22,6 +22,7 @@
 #include "qspi_hw.h"
 #if CONFIG_QSPI_NAND_FLASH
 #include "qspi_nand_flash.h"
+#include <driver/qspi_nand_bbm.h>
 #endif
 
 #define PSRAM_TEST_START_ADDR(_id)         (QSPI_DCACHE_BASE_ADDR(_id))
@@ -691,6 +692,10 @@ static void cli_nand_usage(void)
 	CLI_LOGI("qspi_nand test_page {page} - Test erase/write/read on a page\r\n");
 	CLI_LOGI("qspi_nand page_test {page} - Single page erase/write/read verify\r\n");
 	CLI_LOGI("qspi_nand block_test {block} - Full block erase/write/read verify\r\n");
+	CLI_LOGI("qspi_nand factory_bad {block} - Check factory bad-block marker\r\n");
+	CLI_LOGI("qspi_nand bbm init - Bring up the bad-block management layer\r\n");
+	CLI_LOGI("qspi_nand bbm dump - Dump BBT: layout, bad blocks, remaps\r\n");
+	CLI_LOGI("qspi_nand bbm inject {logical_block} - Force-retire+remap a logical block\r\n");
 }
 
 static void cli_qspi_nand_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
@@ -925,6 +930,35 @@ pt_end:
 		CLI_LOGI("=== BLOCK_TEST PASS ===\r\n");
 bt_end:
 		os_free(buf);
+	} else if (os_strcmp(subcmd, "factory_bad") == 0) {
+		if (!s_nand_initialized) { CLI_LOGE("not initialized\r\n"); return; }
+		if (argc < 3) { CLI_LOGI("Usage: qspi_nand factory_bad <block>\r\n"); return; }
+		uint32_t block = os_strtoul(argv[2], NULL, 0);
+		bool is_bad = false;
+		bk_err_t ret = bk_qspi_flash_nand_is_factory_bad(qspi_id, block, &is_bad);
+		if (ret == BK_OK) {
+			CLI_LOGI("block %u factory bad: %s\r\n", block, is_bad ? "YES" : "no");
+		} else {
+			CLI_LOGE("factory_bad check failed: %d\r\n", ret);
+		}
+	} else if (os_strcmp(subcmd, "bbm") == 0) {
+		if (argc < 3) { CLI_LOGI("Usage: qspi_nand bbm {init|dump|inject <block>}\r\n"); return; }
+		const char *bbm_sub = argv[2];
+		if (os_strcmp(bbm_sub, "init") == 0) {
+			if (!s_nand_initialized) { CLI_LOGE("run 'qspi_nand init' first\r\n"); return; }
+			bk_err_t ret = bk_qspi_nand_bbm_init(qspi_id);
+			CLI_LOGI("bbm init %s (logical size=%u bytes)\r\n",
+			         (ret == BK_OK) ? "done" : "FAIL", bk_qspi_nand_bbm_logical_size(qspi_id));
+		} else if (os_strcmp(bbm_sub, "dump") == 0) {
+			bk_qspi_nand_bbm_dump(qspi_id);
+		} else if (os_strcmp(bbm_sub, "inject") == 0) {
+			if (argc < 4) { CLI_LOGI("Usage: qspi_nand bbm inject <logical_block>\r\n"); return; }
+			uint32_t lb = os_strtoul(argv[3], NULL, 0);
+			bk_err_t ret = bk_qspi_nand_bbm_inject_bad(qspi_id, lb);
+			CLI_LOGI("bbm inject logical %u %s\r\n", lb, (ret == BK_OK) ? "done" : "FAIL");
+		} else {
+			CLI_LOGI("Usage: qspi_nand bbm {init|dump|inject <block>}\r\n");
+		}
 	} else {
 		cli_nand_usage();
 	}

@@ -1518,6 +1518,10 @@ int bk_cli_init(void)
 	cli_fatfs_init();
 #endif
 
+#if CONFIG_DHARA_FTL
+	cli_nand_ftl_init();
+#endif
+
 #if (CLI_CFG_VFS == 1)
 	cli_vfs_init();
 #endif

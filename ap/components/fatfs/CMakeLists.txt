@@ -15,7 +15,12 @@ if (CONFIG_FATFS)
 		)
 endif()
 
+set(priv_req bk_common bk_usb)
+if (CONFIG_QSPI_NAND_FLASH AND (CONFIG_FATFS_QSPI_0_FLASH OR CONFIG_FATFS_QSPI_1_FLASH))
+	list(APPEND priv_req dhara)
+endif()
+
 armino_component_register(SRCS "${srcs}"
 		INCLUDE_DIRS "${incs}"
-		PRIV_REQUIRES bk_common bk_usb
+		PRIV_REQUIRES "${priv_req}"
 		)

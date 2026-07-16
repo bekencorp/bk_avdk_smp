@@ -17,6 +17,8 @@ CONFIG_SDCARD=y
 CONFIG_FATFS=y
 CONFIG_FATFS_SDCARD=y
 CONFIG_VFS=y
+CONFIG_LITTLEFS=y
+CONFIG_VFS_TEST=y
 
 # dbg_probe: pre-landed but disabled by default. Enable in menuconfig and tune
 # ports/pins in ap/config/bk7259_ap/usr_dbg_probe_cfg.h when needed.
@@ -27,4 +29,18 @@ CONFIG_QSPI_MST_FLASH=n
 CONFIG_QSPI_NAND_FLASH=y
 CONFIG_QSPI_QUAD_WIRE=y
 CONFIG_QSPI_NAND_FLASH_SIZE=0x8000000
+
+# FATFS on QSPI SPI-NAND via the Dhara FTL (512B sectors, wear levelling,
+# power-fail-safe, bad-block handling). The FTL owns the whole NAND by default
+# (START_BLOCK=0, BLOCK_COUNT=0 => to end of device); confine it here if the
+# device is shared with another NAND consumer.
+CONFIG_DHARA_FTL=y
+CONFIG_NAND_FTL_START_BLOCK=0
+CONFIG_NAND_FTL_BLOCK_COUNT=0
+CONFIG_NAND_FTL_GC_RATIO=8
+# QSPI-0 FATFS drive: since the QSPI device is SPI-NAND (QSPI_NAND_FLASH),
+# disk_io.c routes this drive through the Dhara FTL. Device name: qspi0_flash.
+CONFIG_FATFS_QSPI_0_FLASH=y
+# To export the NAND FAT volume to a PC over USB, also enable USB device MSC and:
+# CONFIG_USBD_MSC_STORAGE_QSPI_NAND=y
 CONFIG_SOFTAP_WPA3=y

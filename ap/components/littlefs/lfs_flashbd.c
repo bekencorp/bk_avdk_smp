@@ -12,6 +12,10 @@
 #include <driver/qspi_flash.h>
 #endif
 
+#if (defined CONFIG_QSPI_NAND_FLASH)
+#include <driver/qspi_nand_bbm.h>
+#endif
+
 int lfs_flashbd_createcfg(const struct lfs_config *cfg,
         const struct lfs_flashbd_config *bdcfg) {
     LFS_FLASHBD_TRACE("lfs_flashbd_createcfg(%p {.context=%p, "
@@ -275,14 +279,23 @@ int lfs_qspi_flashbd_init(uint32_t id) {
 
 	if (qspi_inited)
 		return 0;
-	qspi_inited = 1;
 
 	ret = bk_qspi_driver_init();
 	if (ret)
 		return ret;
 
 	ret = bk_qspi_flash_init(id);
+	if (ret)
+		return ret;
 
+#if (defined CONFIG_QSPI_NAND_FLASH)
+	/* Bring up the bad-block management layer that backs the logical space. */
+	ret = bk_qspi_nand_bbm_init(id);
+	if (ret)
+		return ret;
+#endif
+
+	qspi_inited = 1;
 	return ret;
 }
 
@@ -292,6 +305,7 @@ int lfs_qspi_flashbd_read(const struct lfs_config *cfg, lfs_block_t block,
                 "0x%"PRIx32", %"PRIu32", %p, %"PRIu32")",
             (void*)cfg, block, off, buffer, size);
     lfs_flashbd_t *bd = cfg->context;
+    int ret;
 
     // check if read is valid
     LFS_ASSERT(off  % cfg->read_size == 0);
@@ -299,7 +313,19 @@ int lfs_qspi_flashbd_read(const struct lfs_config *cfg, lfs_block_t block,
     LFS_ASSERT(block < cfg->block_count);
 
     // read data
-	bk_qspi_flash_read(bd->device_id, cfg->block_size*block+off+bd->start_addr,buffer,size);
+#if (defined CONFIG_QSPI_NAND_FLASH)
+	ret = bk_qspi_nand_bbm_read(bd->device_id, cfg->block_size*block+off+bd->start_addr, buffer, size);
+	if (ret == BK_ERR_QSPI_NAND_ECC_FAIL) {
+		LFS_FLASHBD_TRACE("lfs_qspi_flashbd_read -> %d", LFS_ERR_CORRUPT);
+		return LFS_ERR_CORRUPT;
+	}
+#else
+	ret = bk_qspi_flash_read(bd->device_id, cfg->block_size*block+off+bd->start_addr, buffer, size);
+#endif
+	if (ret != BK_OK) {
+		LFS_FLASHBD_TRACE("lfs_qspi_flashbd_read -> %d", LFS_ERR_IO);
+		return LFS_ERR_IO;
+	}
 
     LFS_FLASHBD_TRACE("lfs_qspi_flashbd_read -> %d", 0);
     return 0;
@@ -311,6 +337,7 @@ int lfs_qspi_flashbd_prog(const struct lfs_config *cfg, lfs_block_t block,
                 "0x%"PRIx32", %"PRIu32", %p, %"PRIu32")",
             (void*)cfg, block, off, buffer, size);
     lfs_flashbd_t *bd = cfg->context;
+    int ret;
 
     // check if write is valid
     LFS_ASSERT(off  % cfg->prog_size == 0);
@@ -318,21 +345,48 @@ int lfs_qspi_flashbd_prog(const struct lfs_config *cfg, lfs_block_t block,
     LFS_ASSERT(block < cfg->block_count);
 
     // progflash data
-	bk_qspi_flash_write(bd->device_id, cfg->block_size*block+off+bd->start_addr,(uint8_t *)buffer,size);
+#if (defined CONFIG_QSPI_NAND_FLASH)
+	ret = bk_qspi_nand_bbm_prog(bd->device_id, cfg->block_size*block+off+bd->start_addr, buffer, size);
+	if (ret != BK_OK) {
+		/* Program failure: BBM already retired the block, ask littlefs to relocate. */
+		LFS_FLASHBD_TRACE("lfs_qspi_flashbd_prog -> %d", LFS_ERR_CORRUPT);
+		return LFS_ERR_CORRUPT;
+	}
+#else
+	ret = bk_qspi_flash_write(bd->device_id, cfg->block_size*block+off+bd->start_addr, (uint8_t *)buffer, size);
+	if (ret != BK_OK) {
+		LFS_FLASHBD_TRACE("lfs_qspi_flashbd_prog -> %d", LFS_ERR_IO);
+		return LFS_ERR_IO;
+	}
+#endif
 
-    LFS_FLASHBD_TRACE("lfs_qspi_flashbd_prog -> %d", id);
+    LFS_FLASHBD_TRACE("lfs_qspi_flashbd_prog -> %d", 0);
     return 0;
 }
 
 int lfs_qspi_flashbd_erase(const struct lfs_config *cfg, lfs_block_t block) {
     LFS_FLASHBD_TRACE("lfs_qspi_flashbd_erase(%p, 0x%"PRIx32")", (void*)cfg, block);
     lfs_flashbd_t *bd = cfg->context;
+    int ret;
 
     // check if erase is valid
     LFS_ASSERT(block < cfg->block_count);
 
     // erase
-	bk_qspi_flash_erase(bd->device_id, cfg->block_size*block+bd->start_addr, cfg->block_size);
+#if (defined CONFIG_QSPI_NAND_FLASH)
+	ret = bk_qspi_nand_bbm_erase(bd->device_id, cfg->block_size*block+bd->start_addr, cfg->block_size);
+	if (ret != BK_OK) {
+		/* Erase failed even after remap: mark the block bad for littlefs. */
+		LFS_FLASHBD_TRACE("lfs_qspi_flashbd_erase -> %d", LFS_ERR_CORRUPT);
+		return LFS_ERR_CORRUPT;
+	}
+#else
+	ret = bk_qspi_flash_erase(bd->device_id, cfg->block_size*block+bd->start_addr, cfg->block_size);
+	if (ret != BK_OK) {
+		LFS_FLASHBD_TRACE("lfs_qspi_flashbd_erase -> %d", LFS_ERR_IO);
+		return LFS_ERR_IO;
+	}
+#endif
 
     LFS_FLASHBD_TRACE("lfs_qspi_flashbd_erase -> %d", 0);
     return 0;

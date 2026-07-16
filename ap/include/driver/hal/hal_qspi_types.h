@@ -23,6 +23,10 @@ extern "C" {
 
 #define BK_ERR_QSPI_NOT_INIT    (BK_ERR_QSPI_BASE - 1) /**< QSPI driver not init */
 #define BK_ERR_QSPI_ID_NOT_INIT (BK_ERR_QSPI_BASE - 2) /**< QSPI id not init */
+#define BK_ERR_QSPI_NAND_PROG_FAIL  (BK_ERR_QSPI_BASE - 3) /**< NAND program status P-FAIL */
+#define BK_ERR_QSPI_NAND_ERASE_FAIL (BK_ERR_QSPI_BASE - 4) /**< NAND erase status E-FAIL */
+#define BK_ERR_QSPI_NAND_ECC_FAIL   (BK_ERR_QSPI_BASE - 5) /**< NAND on-die ECC uncorrectable */
+#define BK_ERR_QSPI_NAND_NO_SPARE   (BK_ERR_QSPI_BASE - 6) /**< NAND bad-block spare pool exhausted */
 
 #define QSPI_FIFO_LEN_MAX       256
 

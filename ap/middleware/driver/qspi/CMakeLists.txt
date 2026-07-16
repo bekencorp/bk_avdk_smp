@@ -11,6 +11,7 @@ if (CONFIG_QSPI)
 
 	if (CONFIG_QSPI_NAND_FLASH)
 		list(APPEND srcs qspi/qspi_nand_flash.c)
+		list(APPEND srcs qspi/qspi_nand_bbm.c)
 	elseif (CONFIG_QSPI_NOR_FLASH)
 		list(APPEND srcs qspi/qspi_flash.c)
 	endif()

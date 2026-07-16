@@ -186,6 +186,12 @@ bk_err_t bk_qspi_flash_write(qspi_id_t id, uint32_t base_addr, const void *data,
 bk_err_t bk_qspi_flash_read(qspi_id_t id, uint32_t base_addr, void *data, uint32_t size);
 
 #if CONFIG_QSPI_NAND_FLASH
+
+/* Public NAND geometry. Keep in sync with the driver-internal
+ * NAND_PAGE_SIZE_BYTES / NAND_BLOCK_SIZE_BYTES in qspi_nand_flash.h. */
+#define QSPI_NAND_PAGE_SIZE    2048U
+#define QSPI_NAND_BLOCK_SIZE   (QSPI_NAND_PAGE_SIZE * 64U)
+
 bk_err_t bk_qspi_flash_nand_get_id(qspi_id_t id, uint8_t *buf, uint32_t len);
 bk_err_t bk_qspi_flash_nand_get_feature(qspi_id_t id, uint8_t addr, uint8_t *value);
 bk_err_t bk_qspi_flash_nand_set_feature(qspi_id_t id, uint8_t addr, uint8_t value);
@@ -200,6 +206,72 @@ bk_err_t bk_qspi_flash_nand_page_program(qspi_id_t id, uint32_t page, uint32_t c
 bk_err_t bk_qspi_flash_nand_page_read(qspi_id_t id, uint32_t page, uint32_t column, uint8_t *buf, uint32_t len);
 bk_err_t bk_qspi_flash_nand_page_program_quad(qspi_id_t id, uint32_t page, uint32_t column, const uint8_t *buf, uint32_t len);
 bk_err_t bk_qspi_flash_nand_page_read_quad(qspi_id_t id, uint32_t page, uint32_t column, uint8_t *buf, uint32_t len);
+
+/**
+ * @brief      Read the spare/OOB region of a NAND page (main data untouched)
+ *
+ * @param page    absolute page index
+ * @param oob_off byte offset inside the 64-byte spare region
+ * @param buf     destination buffer
+ * @param len     number of spare bytes to read (oob_off + len <= spare size)
+ * @return
+ *    - BK_OK: succeed
+ *    - BK_ERR_PARAM: invalid range
+ *    - others: other errors.
+ */
+bk_err_t bk_qspi_flash_nand_read_oob(qspi_id_t id, uint32_t page, uint32_t oob_off, uint8_t *buf, uint32_t len);
+
+/**
+ * @brief      Program the spare/OOB region of a NAND page (read-modify-write)
+ *
+ * @param page    absolute page index
+ * @param oob_off byte offset inside the 64-byte spare region
+ * @param buf     source buffer
+ * @param len     number of spare bytes to write (oob_off + len <= spare size)
+ * @return
+ *    - BK_OK: succeed
+ *    - BK_ERR_QSPI_NAND_PROG_FAIL: program status reported P-FAIL
+ *    - others: other errors.
+ */
+bk_err_t bk_qspi_flash_nand_write_oob(qspi_id_t id, uint32_t page, uint32_t oob_off, const uint8_t *buf, uint32_t len);
+
+/**
+ * @brief      Check whether a block carries the factory bad-block marker
+ *
+ * Reads the spare marker of page 0 and page 1 with on-die ECC disabled.
+ *
+ * @param block   block index
+ * @param is_bad  set true if the block is factory-marked bad
+ * @return
+ *    - BK_OK: succeed
+ *    - others: other errors.
+ */
+bk_err_t bk_qspi_flash_nand_is_factory_bad(qspi_id_t id, uint32_t block, bool *is_bad);
+
+/**
+ * @brief      Persistently mark a block bad (ECC-off spare marker on page 0/1)
+ *
+ * Symmetric to bk_qspi_flash_nand_is_factory_bad(): drives spare[0] of the first
+ * two pages to 0x00 with on-die ECC disabled, so the block reads back as bad
+ * after reboot. Best-effort: a failing block may not accept the write.
+ *
+ * @param block  block index
+ * @return BK_OK on success (marker write status is not fatal), else error.
+ */
+bk_err_t bk_qspi_flash_nand_mark_bad(qspi_id_t id, uint32_t block);
+
+/**
+ * @brief      Test whether a page is fully erased (all 0xFF, main + spare)
+ *
+ * Reads the page with ECC disabled and checks every byte, avoiding the ambiguity
+ * of an erased page tripping the on-die ECC engine. Used by the FTL/journal to
+ * find the write frontier.
+ *
+ * @param page    absolute page index
+ * @param erased  set true if the whole page (incl. spare) reads as 0xFF
+ * @return BK_OK on success, else error.
+ */
+bk_err_t bk_qspi_flash_nand_page_is_erased(qspi_id_t id, uint32_t page, bool *erased);
 #endif /* CONFIG_QSPI_NAND_FLASH */
 
 /**

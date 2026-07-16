@@ -36,6 +36,10 @@
 #include <driver/qspi_flash.h>
 #endif
 
+#if (defined CONFIG_QSPI_NAND_FLASH)
+#include <driver/nand_ftl.h>
+#endif
+
 
 #if CONFIG_SDCARD_POWER_GPIO_CTRL
 #include <driver/gpio.h>
@@ -173,6 +177,17 @@ DSTATUS disk_status (
 		stat = RES_OK;
 		return stat;
 
+#if (defined CONFIG_QSPI_NAND_FLASH) && (defined CONFIG_FATFS_QSPI_0_FLASH || defined CONFIG_FATFS_QSPI_1_FLASH)
+#if (defined CONFIG_FATFS_QSPI_0_FLASH)
+	case DEV_QSPI_0_FLASH:
+#endif
+#if (defined CONFIG_FATFS_QSPI_1_FLASH)
+	case DEV_QSPI_1_FLASH:
+#endif
+		stat = bk_nand_ftl_is_inited(QSPI_ID_0 + (pdrv - DEV_QSPI_0_FLASH)) ? 0 : STA_NOINIT;
+		return stat;
+#endif
+
 	default:
 		break;
 	}
@@ -265,10 +280,17 @@ DSTATUS disk_initialize (
 #if (defined CONFIG_FATFS_QSPI_1_FLASH)
 	case DEV_QSPI_1_FLASH:
 #endif
+#if (defined CONFIG_QSPI_NAND_FLASH)
+		if(bk_nand_ftl_init(QSPI_ID_0 + (pdrv-DEV_QSPI_0_FLASH)) != BK_OK)
+			stat = STA_NOINIT;
+		else
+			stat = RES_OK;
+#else
 		if(bk_qspi_flash_init(QSPI_ID_0 + (pdrv-DEV_QSPI_0_FLASH)))
 			stat = RES_ERROR;	
 		else
 			stat = RES_OK;
+#endif
 		return stat;
 #endif
 
@@ -375,6 +397,12 @@ DRESULT disk_read (
 #if (defined CONFIG_FATFS_QSPI_1_FLASH)
 	case DEV_QSPI_1_FLASH:
 #endif
+#if (defined CONFIG_QSPI_NAND_FLASH)
+		if (bk_nand_ftl_read(QSPI_ID_0 + (pdrv-DEV_QSPI_0_FLASH), sector, buff, count) != BK_OK)
+			res = RES_ERROR;
+		else
+			res = RES_OK;
+#else
 		if(bk_qspi_flash_read(QSPI_ID_0 + (pdrv-DEV_QSPI_0_FLASH), sector * FLASH_SECTOR_SIZE, buff, count * FLASH_SECTOR_SIZE))
 		{
 			FATFS_LOGI("qspi_flash_read res:%d\r\n", res);
@@ -382,6 +410,7 @@ DRESULT disk_read (
 		}
 		else
 			res = RES_OK;
+#endif
 
 		return res;
 #endif
@@ -527,6 +556,12 @@ DRESULT disk_write (
 #if (defined CONFIG_FATFS_QSPI_1_FLASH)
 	case DEV_QSPI_1_FLASH:
 #endif
+#if (defined CONFIG_QSPI_NAND_FLASH)
+		if (bk_nand_ftl_write(QSPI_ID_0 + (pdrv-DEV_QSPI_0_FLASH), sector, buff, count) != BK_OK)
+			res = RES_ERROR;
+		else
+			res = RES_OK;
+#else
 		if(bk_qspi_flash_erase(QSPI_ID_0 + (pdrv-DEV_QSPI_0_FLASH), sector * FLASH_SECTOR_SIZE, count * FLASH_SECTOR_SIZE) == BK_OK)
 		{
 			if(bk_qspi_flash_write(QSPI_ID_0 + (pdrv-DEV_QSPI_0_FLASH), sector * FLASH_SECTOR_SIZE, buff, count * FLASH_SECTOR_SIZE))
@@ -536,6 +571,7 @@ DRESULT disk_write (
 		}
 		else
 			res = RES_OK;
+#endif
 
 		return res;
 #endif
@@ -673,10 +709,10 @@ DRESULT disk_ioctl (
 #if (defined CONFIG_FATFS_SPI_1_FLASH)
 	case DEV_SPI_1_FLASH:
 #endif
-#if (defined CONFIG_FATFS_QSPI_0_FLASH)
+#if (defined CONFIG_FATFS_QSPI_0_FLASH) && !(defined CONFIG_QSPI_NAND_FLASH)
 	case DEV_QSPI_0_FLASH :
 #endif
-#if (defined CONFIG_FATFS_QSPI_1_FLASH)
+#if (defined CONFIG_FATFS_QSPI_1_FLASH) && !(defined CONFIG_QSPI_NAND_FLASH)
 	case DEV_QSPI_1_FLASH :
 #endif
 		switch(cmd)
@@ -703,6 +739,42 @@ DRESULT disk_ioctl (
 		}
 
 		return res;
+
+#if (defined CONFIG_QSPI_NAND_FLASH) && (defined CONFIG_FATFS_QSPI_0_FLASH || defined CONFIG_FATFS_QSPI_1_FLASH)
+#if (defined CONFIG_FATFS_QSPI_0_FLASH)
+	case DEV_QSPI_0_FLASH :
+#endif
+#if (defined CONFIG_FATFS_QSPI_1_FLASH)
+	case DEV_QSPI_1_FLASH :
+#endif
+	{
+		qspi_id_t nand_id = QSPI_ID_0 + (pdrv - DEV_QSPI_0_FLASH);
+		switch(cmd)
+		{
+		case CTRL_SYNC:
+			res = (bk_nand_ftl_sync(nand_id) == BK_OK) ? RES_OK : RES_ERROR;
+			break;
+		case GET_SECTOR_SIZE:
+			*(WORD *)buff = (WORD)bk_nand_ftl_sector_size(nand_id);
+			res = RES_OK;
+			break;
+		case GET_BLOCK_SIZE:
+			/* Erase-block hint in sectors. The FTL hides NAND erase, so 1 is fine. */
+			*(WORD *)buff = 1;
+			res = RES_OK;
+			break;
+		case GET_SECTOR_COUNT:
+			*(DWORD *)buff = bk_nand_ftl_sector_count(nand_id);
+			FATFS_LOGI("nand ftl sector cnt=%d\r\n", *(DWORD *)buff);
+			res = RES_OK;
+			break;
+		default:
+			res = RES_PARERR;
+			break;
+		}
+		return res;
+	}
+#endif
 
 	default:
 		break;
@@ -766,10 +838,17 @@ DSTATUS disk_uninitialize ( BYTE pdrv/* Physical drive nmuber to identify the dr
 #if (defined CONFIG_FATFS_QSPI_1_FLASH)
 	case DEV_QSPI_1_FLASH:
 #endif
+#if (defined CONFIG_QSPI_NAND_FLASH)
+		/* Keep the FTL resident (it may still back the USB MSC LUN); just make
+		 * sure everything is durable before the volume goes away. */
+		bk_nand_ftl_sync(QSPI_ID_0 + (pdrv-DEV_QSPI_0_FLASH));
+		stat = RES_OK;
+#else
 		if(bk_qspi_flash_deinit(QSPI_ID_0 + (pdrv-DEV_QSPI_0_FLASH)))
 			stat = RES_ERROR;	
 		else
 			stat = RES_OK;
+#endif
 		return stat;
 #endif
 

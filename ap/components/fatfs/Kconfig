@@ -41,21 +41,29 @@ menu "FATFS"
 			The application can read/writes data to flash by FATFS file system API, or the upper layer of VFS posix API.
 
 	config FATFS_QSPI_0_FLASH
-		bool "Support FATFS with QSPI-0 FLASH"
-		depends on QSPI_NOR_FLASH
+		bool "Support FATFS with QSPI-0 FLASH/NAND"
+		depends on QSPI_NOR_FLASH || QSPI_NAND_FLASH
 		default n
 		help
 			BEKEN Chip sets QSPI-0 as master device, the slave device is a flash.
 			The flash device is mounted with FATFS.
+			When the QSPI device is SPI-NAND (QSPI_NAND_FLASH), this drive is
+			served through the Dhara FTL (see CONFIG_DHARA_FTL): 512B logical
+			sectors with wear levelling, power-fail-safe mapping and bad-block
+			handling, so FAT can be used safely on NAND and exported to a PC over
+			USB MSC. With NOR (QSPI_NOR_FLASH) it uses the linear NOR path.
 			The application can read/writes data to flash by FATFS file system API, or the upper layer of VFS posix API.
 
 	config FATFS_QSPI_1_FLASH
-		bool "Support FATFS with QSPI-1 FLASH"
-		depends on QSPI_NOR_FLASH
+		bool "Support FATFS with QSPI-1 FLASH/NAND"
+		depends on QSPI_NOR_FLASH || QSPI_NAND_FLASH
 		default n
 		help
 			BEKEN Chip sets QSPI-1 as master device, the slave device is a flash.
 			The flash device is mounted with FATFS.
+			When the QSPI device is SPI-NAND (QSPI_NAND_FLASH), this drive is
+			served through the Dhara FTL (see CONFIG_DHARA_FTL); with NOR it uses
+			the linear NOR path.
 			The application can read/writes data to flash by FATFS file system API, or the upper layer of VFS posix API.
 endmenu
 

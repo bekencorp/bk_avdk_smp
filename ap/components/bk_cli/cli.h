@@ -93,6 +93,9 @@ int cli_psram_init(void);
 int cli_matter_init(void);
 int cli_partition_init(void);
 int cli_fatfs_init(void);
+#if CONFIG_DHARA_FTL
+int cli_nand_ftl_init(void);
+#endif
 int cli_vfs_init(void);
 int cli_temp_detect_init(void);
 int cli_mico_init(void);

@@ -29,8 +29,33 @@
 #include "driver/flash_partition.h"
 #endif
 
+#if CONFIG_USBD_MSC_STORAGE_QSPI_NAND
+#include <driver/nand_ftl.h>
+#define USB_VFS_NAND_QSPI_ID    QSPI_ID_0
+#endif
+
 #define USB_VFS_MOUNT_POINT     "/"
 #define USB_VFS_TAG             "usb_vfs"
+
+#if CONFIG_FATFS && CONFIG_USBD_MSC_STORAGE_QSPI_NAND
+/* FatFs-on-QSPI-NAND (via the Dhara FTL) is the local mount that shares the
+ * same block device as the USB MSC LUN. Only one side may touch the FTL at a
+ * time; the U-disk handover drops this mount (after syncing) before MSC goes
+ * live, and restores it (re-reading a fresh FAT) once the host releases. */
+static int _fs_mount_fatfs_nand(void)
+{
+    struct bk_fatfs_partition partition = { 0 };
+
+    partition.part_type             = FATFS_DEVICE;
+    /* QSPI-NAND is served on the QSPI-0 drive via the Dhara FTL; the device
+     * name is the reused qspi0_flash slot (disk_io.c routes it to the FTL when
+     * CONFIG_QSPI_NAND_FLASH is set). */
+    partition.part_dev.device_name  = FATFS_DEV_QSPI0_FLASH;
+    partition.mount_path            = USB_VFS_MOUNT_POINT;
+
+    return mount("SOURCE_NONE", partition.mount_path, "fatfs", 0, &partition);
+}
+#endif /* CONFIG_FATFS && CONFIG_USBD_MSC_STORAGE_QSPI_NAND */
 
 #if CONFIG_FATFS
 /* FatFs-on-SD-card is the primary backing on the robot V1 AI kit
@@ -83,7 +108,9 @@ static int _fs_mount_littlefs(void)
 
 static int _fs_mount(void)
 {
-#if CONFIG_FATFS
+#if CONFIG_FATFS && CONFIG_USBD_MSC_STORAGE_QSPI_NAND
+    return _fs_mount_fatfs_nand();
+#elif CONFIG_FATFS
     return _fs_mount_fatfs();
 #elif CONFIG_LITTLEFS
     return _fs_mount_littlefs();
@@ -115,6 +142,11 @@ bk_err_t lv_vfs_deinit(void)
         return BK_FAIL;
     }
     bk_printf("[%s] umount success\r\n", USB_VFS_TAG);
+#endif
+#if CONFIG_USBD_MSC_STORAGE_QSPI_NAND
+    /* Local FatFs is now detached; make the FTL durable before the host owns
+     * the block device so MSC starts from a consistent, flushed image. */
+    (void)bk_nand_ftl_sync(USB_VFS_NAND_QSPI_ID);
 #endif
     return BK_OK;
 }

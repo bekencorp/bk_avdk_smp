@@ -88,6 +88,10 @@ if (CONFIG_FATFS)
 	list(APPEND srcs "cli_fatfs.c")
 endif()
 
+if (CONFIG_DHARA_FTL)
+	list(APPEND srcs "cli_nand_ftl.c")
+endif()
+
 if (CONFIG_VFS)
 	list(APPEND srcs
 		cli_vfs.c
@@ -218,6 +222,9 @@ if (CONFIG_BK_MODEM)
 endif()
 
 set(PRIV_REQUIRES_LIST bk_common psa_mbedtls bk_netif bk_ps fatfs bk_vfs bk_init bk_libs bk_wifi compal ota cmsis flashdb bk_wifi_driver lwip_intf_v2_1 console bk_batt_monitor app)
+if (CONFIG_DHARA_FTL)
+	list(APPEND PRIV_REQUIRES_LIST dhara)
+endif()
 
 armino_component_register(SRCS "cli_gsensor.c" "${srcs}"
 	INCLUDE_DIRS "${incs}"
