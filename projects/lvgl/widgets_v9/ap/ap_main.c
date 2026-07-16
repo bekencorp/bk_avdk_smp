@@ -182,14 +182,52 @@ err:
 
 #define CMDS_COUNT  (sizeof(s_widgets_commands) / sizeof(struct cli_command))
 
+static bk_err_t widgets_rotation_from_degrees(uint16_t degrees, rott_angle_t *rotation)
+{
+    if (rotation == NULL) {
+        return BK_FAIL;
+    }
+
+    switch (degrees) {
+    case 0:
+        *rotation = ROTATE_NONE;
+        return BK_OK;
+    case 90:
+        *rotation = ROTATE_90;
+        return BK_OK;
+    case 180:
+        *rotation = ROTATE_180;
+        return BK_OK;
+    case 270:
+        *rotation = ROTATE_270;
+        return BK_OK;
+    default:
+        return BK_FAIL;
+    }
+}
+
 void cli_widgets_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
-    LOGD("%s %d\r\n", __func__, __LINE__);
+    (void)pcWriteBuffer;
+    (void)xWriteBufferLen;
+
+    if (argc == 3 && os_strcmp(argv[1], "rot") == 0) {
+        uint16_t degrees = (uint16_t)os_strtoul(argv[2], NULL, 10);
+        rott_angle_t rotation = ROTATE_NONE;
+        bk_err_t ret = widgets_rotation_from_degrees(degrees, &rotation);
+        if (ret == BK_OK) {
+            ret = lv_vendor_set_dynamic_rotation(rotation);
+        }
+        LOGI("widgets rot %u ret=%d\r\n", degrees, ret);
+        return;
+    }
+
+    LOGI("usage: widgets rot <0|90|180|270>\r\n");
 }
 
 static const struct cli_command s_widgets_commands[] =
 {
-    {"widgets", "widgets", cli_widgets_cmd},
+    {"widgets", "widgets rot <0|90|180|270>", cli_widgets_cmd},
 };
 
 int cli_widgets_init(void)
