@@ -345,12 +345,14 @@ static bk_err_t write_sync(shell_mb_ext_t *mb_ext, u8 * p_buf, u16 buf_len)
 	}
 #endif //#if (!CONFIG_SOC_BK7259) ///TODO: BK7259_BringUP
 
+#if CONFIG_CP_HANG_DUMP_BY_AP
 	/* CP is known hung (AP is running the cp-hang dump): never push logs to it
 	 * over the mailbox, it will never ack and we would spin forever. */
 	if(bk_sys_sw_regs_get_ap_cp_hang_dumping())
 	{
 		return BK_FAIL;
 	}
+#endif
 
 	if(mb_ext->tx_sync_buf == NULL)
 	{
