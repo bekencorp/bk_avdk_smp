@@ -24,6 +24,7 @@ extern "C" {
 typedef enum {
 	HW_DECODER_TYPE_JPEG,
 	HW_DECODER_TYPE_H264,
+	HW_DECODER_TYPE_PP,   /* standalone PP (memory-in/memory-out), shares VCDec HW */
 	HW_DECODER_TYPE_MAX,
 } hw_decoder_type_t;
 

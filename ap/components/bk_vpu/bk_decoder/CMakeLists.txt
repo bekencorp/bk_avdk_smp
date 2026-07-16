@@ -2,6 +2,7 @@ set(incs ./
     common
     jpegd/include
     h264d/include
+    pp/include
 )
 
 set(srcs "")
@@ -11,6 +12,14 @@ list(APPEND srcs
     common/bk_decode_pp_helper.c
     common/hw_decoder_ctlr.c
 )
+
+# Standalone PP (NV12 -> RGB) converter
+if (CONFIG_BK_DECODER)
+    list(APPEND srcs
+        pp/src/bk_pp.c
+        pp/src/bk_pp_ctlr.c
+    )
+endif()
 
 # JPEG decoder (vcdec-based)
 if (CONFIG_BK_DECODER)
