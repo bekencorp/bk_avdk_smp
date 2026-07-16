@@ -373,6 +373,65 @@ bk_err_t bk_otp_apb_read_by_offset(uint32_t item_offset, uint8_t* buf, uint32_t 
 	return BK_OK;
 }
 
+/**
+ * @brief     OTP2 read with item real offset
+ *
+ * @param item_offset the real item offset to read from otp2
+ * @param buf point to the buffer that reads the data
+ * @param size length of item to read
+ *
+ * @return
+ *    - BK_OK: succeed
+ *    - BK_ERR_OTP_ADDR_OUT_OF_RANGE: buf is NULL, size is 0, or item_offset+size exceeds the OTP2 bank
+ *    - others: other errors.
+ */
+/* OTP2 (AHB) bank size in bytes; a raw offset read must stay within this range. */
+#define OTP2_AHB_BANK_SIZE  (0x800)
+
+bk_err_t bk_otp_ahb_read_by_offset(uint32_t item_offset, uint8_t* buf, uint32_t size)
+{
+	if ((buf == NULL) || (size == 0) ||
+	    (size > OTP2_AHB_BANK_SIZE) ||
+	    (item_offset >= OTP2_AHB_BANK_SIZE) ||
+	    ((item_offset + size) > OTP2_AHB_BANK_SIZE)) {
+		return BK_ERR_OTP_ADDR_OUT_OF_RANGE;
+	}
+
+	OTP_ACTIVE(2)
+
+	uint32_t location = item_offset / 4;
+	uint32_t start = item_offset % 4;
+	uint32_t value;
+
+	while(size > 0) {
+		value = otp2_read_otp(location);
+
+		uint8_t * src_data = (uint8_t *)&value;
+		int cpy_cnt;
+
+		src_data += start;
+
+		cpy_cnt = (size >= (4 - start)) ? (4 - start) : size;
+
+		switch( cpy_cnt ) {
+			case 4:
+				*buf++ = *src_data++;
+			case 3:
+				*buf++ = *src_data++;
+			case 2:
+				*buf++ = *src_data++;
+			case 1:
+				*buf++ = *src_data++;
+		}
+
+		size -= cpy_cnt;
+		location++;
+		start = 0;
+	}
+	OTP_SLEEP()
+	return BK_OK;
+}
+
 static uint32_t bk_otp2_check_clean_range(uint32_t start_offset, uint32_t end_offset)
 {
 	uint32_t start_location = start_offset >> 2;

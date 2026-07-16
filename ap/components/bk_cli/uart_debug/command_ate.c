@@ -1328,7 +1328,7 @@ int set_device_id_to_efuse(const unsigned char *content, int cnt, UINT8 *tx_buff
     int ret = 0;
 
     tx_buffer[0] = 0x55;
-    if (cnt < 7) {
+    if (cnt < (2 + EFUSE_DEVICE_ID_BYTE_NUM)) {
         /* return param num error */
         tx_buffer[1] = 0x77;
         tx_buffer[2] = 0x1;

@@ -961,7 +961,7 @@ int set_device_id_to_efuse(const unsigned char *content, int cnt, UINT8 *tx_buff
     int ret = 0;
 
     tx_buffer[0] = 0x55;
-    if (cnt < 7) {
+    if (cnt < (2 + EFUSE_DEVICE_ID_BYTE_NUM)) {
         /* return param num error */
         tx_buffer[1] = 0x77;
         tx_buffer[2] = 0x1;
@@ -1092,15 +1092,15 @@ int set_mac_address_to_efuse(const unsigned char *content, int cnt, UINT8 *tx_bu
 #else
 int set_device_id_to_efuse(const unsigned char *content, int cnt, UINT8 *tx_buffer)
 {
-    uint8_t device_id_write[EFUSE_DEVICE_ID_BYTE_NUM] = {0};
-    uint8_t efuse_addr[EFUSE_DEVICE_ID_BYTE_NUM] = {EFUSE_ADDR_BYTE28, EFUSE_ADDR_BYTE27, EFUSE_ADDR_BYTE26, \
+    uint8_t device_id_write[EFUSE_LEGACY_DEVICE_ID_BYTE_NUM] = {0};
+    uint8_t efuse_addr[EFUSE_LEGACY_DEVICE_ID_BYTE_NUM] = {EFUSE_ADDR_BYTE28, EFUSE_ADDR_BYTE27, EFUSE_ADDR_BYTE26, \
                                                     EFUSE_ADDR_BYTE25, EFUSE_ADDR_BYTE24};
-    uint8_t device_id_read[EFUSE_DEVICE_ID_BYTE_NUM] = {0};
+    uint8_t device_id_read[EFUSE_LEGACY_DEVICE_ID_BYTE_NUM] = {0};
     uint8_t retry_times = 0;
     int ret = 0;
 
     tx_buffer[0] = 0x55;
-    if (cnt < 7) {
+    if (cnt < (2 + EFUSE_LEGACY_DEVICE_ID_BYTE_NUM)) {
         /* return param num error */
         tx_buffer[1] = 0x77;
         tx_buffer[2] = 0x1;
@@ -1108,7 +1108,7 @@ int set_device_id_to_efuse(const unsigned char *content, int cnt, UINT8 *tx_buff
         return BK_FAIL;
     }
 
-    for(int iIndex = 0; iIndex < EFUSE_DEVICE_ID_BYTE_NUM; iIndex++) {
+    for(int iIndex = 0; iIndex < EFUSE_LEGACY_DEVICE_ID_BYTE_NUM; iIndex++) {
         device_id_write[iIndex] = (uint8_t) (content[2 + iIndex] & 0xFF);
     }
 
@@ -1136,7 +1136,7 @@ int set_device_id_to_efuse(const unsigned char *content, int cnt, UINT8 *tx_buff
         return BK_FAIL;
     }
 
-    for(int iIndex = 0; iIndex < EFUSE_DEVICE_ID_BYTE_NUM; iIndex++) {
+    for(int iIndex = 0; iIndex < EFUSE_LEGACY_DEVICE_ID_BYTE_NUM; iIndex++) {
         retry_times = 0;
 retry_efuse_write:
         //efuse write
@@ -1165,21 +1165,21 @@ retry_efuse_write:
                     tx_buffer[2] = 0xff;
                 }
 
-                for(int jIndex = 0; jIndex < EFUSE_DEVICE_ID_BYTE_NUM; jIndex++) {
+                for(int jIndex = 0; jIndex < EFUSE_LEGACY_DEVICE_ID_BYTE_NUM; jIndex++) {
                     bk_efuse_read_byte(efuse_addr[jIndex], &(device_id_read[jIndex]));
                     tx_buffer[3 + jIndex] = device_id_read[jIndex];
                 }
-                uart_send_bytes_for_ate(tx_buffer, 8);
+                uart_send_bytes_for_ate(tx_buffer, 3 + EFUSE_LEGACY_DEVICE_ID_BYTE_NUM);
                 return BK_FAIL;
             }
         }
     }
 
     tx_buffer[1] = 0x88;
-    for(int iIndex = 0; iIndex < EFUSE_DEVICE_ID_BYTE_NUM; iIndex++) {
+    for(int iIndex = 0; iIndex < EFUSE_LEGACY_DEVICE_ID_BYTE_NUM; iIndex++) {
         tx_buffer[2 + iIndex] = device_id_read[iIndex];
     }
-    uart_send_bytes_for_ate(tx_buffer, 7);
+    uart_send_bytes_for_ate(tx_buffer, 2 + EFUSE_LEGACY_DEVICE_ID_BYTE_NUM);
 
     return BK_OK;
 }

@@ -209,6 +209,19 @@ bk_err_t bk_otp_read_random_number(uint32_t* buf, uint32_t size);
  */
 bk_err_t bk_otp_apb_read_by_offset(uint32_t item_offset, uint8_t* buf, uint32_t size);
 
+/**
+ * @brief     OTP2 read with item real offset
+ *
+ * @param item_offset the real item offset to read from otp2
+ * @param buf point to the buffer that reads the data
+ * @param size length of item to read
+ *
+ * @return
+ *    - BK_OK: succeed
+ *    - others: other errors.
+ */
+bk_err_t bk_otp_ahb_read_by_offset(uint32_t item_offset, uint8_t* buf, uint32_t size);
+
 #ifdef __cplusplus
 }
 #endif

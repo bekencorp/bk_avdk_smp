@@ -335,8 +335,15 @@ CONFIG_UART_PRINT_BAUD_RATE=115200
 #
 # bk_uid
 #
-# CONFIG_GET_UID_ENABLE is not set
+CONFIG_GET_UID_ENABLE=y
+CONFIG_GET_UID_TEST=y
 # end of bk_uid
+
+#
+# modules::uid
+#
+CONFIG_UID=y
+# end of modules::uid
 
 #
 # Bk_Wifi
@@ -1026,7 +1033,7 @@ CONFIG_PM_AP_CPU3_CACHE_POWER_DOWN=y
 #
 # OTP
 #
-# CONFIG_OTP_V1 is not set
+CONFIG_OTP_V1=y
 # CONFIG_PHY_RFCALI_TO_OTP is not set
 # CONFIG_AON_ENCP is not set
 # end of OTP
