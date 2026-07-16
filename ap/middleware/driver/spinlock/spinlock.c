@@ -16,6 +16,7 @@
 #include <common/bk_typedef.h>
 #include "spinlock.h"
 #include "cmsis_gcc.h"
+#include "../hspl/hspl_driver.h"
 
 #if CONFIG_SOC_SMP
 #include "FreeRTOS.h"
@@ -31,6 +32,26 @@
 #define arch_int_restore	rtos_enable_int
 
 #if CONFIG_SOC_SMP
+#if !CONFIG_HSPL
+#error "CONFIG_SOC_SMP spinlock requires CONFIG_HSPL; exclusive LDAEX/STREXW fallback is disabled"
+#endif
+
+static inline void spinlock_owner_hspl_lock(void)
+{
+	while (bk_hspl_try_lock_direct(BK_HSPL_ID_1, 0) != BK_OK)
+	{
+		__NOP();
+	}
+	__DMB();
+}
+
+static inline void spinlock_owner_hspl_unlock(void)
+{
+	__DMB();
+	(void)bk_hspl_unlock_direct(BK_HSPL_ID_1, 0);
+	__DSB();
+}
+
 static inline void spinlock_take(volatile spinlock_t *lock)
 {
 	uint32_t core_id;
@@ -45,16 +66,26 @@ static inline void spinlock_take(volatile spinlock_t *lock)
 		return;
 	}
 
+	BK_ASSERT((core_id == 0) || (core_id == 1));
+
 	do
 	{
-		while (__LDAEX(&lock->owner) != SPIN_LOCK_FREE)
+		spinlock_owner_hspl_lock();
+		if(lock->owner == SPIN_LOCK_FREE)
 		{
-			__CLREX();
+			lock->owner = core_id;
+			status = 0;
+		}
+		else
+		{
+			status = 1;
+		}
+		spinlock_owner_hspl_unlock();
+
+		if(status != 0)
+		{
 			__WFE();
 		}
-
-		BK_ASSERT((core_id == 0) || (core_id == 1));
-		status = __STREXW(core_id, &lock->owner);
 	} while (status != 0);
 
 	__DMB();
@@ -86,7 +117,9 @@ static inline void spinlock_give(volatile spinlock_t *lock)
 	{
 		lock->core_id = SPINLOCK_CORE_ID_UNINITILIZE;
 		__DMB();
-		__STL(SPIN_LOCK_FREE, &lock->owner);
+		spinlock_owner_hspl_lock();
+		lock->owner = SPIN_LOCK_FREE;
+		spinlock_owner_hspl_unlock();
 		__DSB();
 		__SEV();
 	}

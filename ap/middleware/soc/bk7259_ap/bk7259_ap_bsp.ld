@@ -39,7 +39,6 @@ The follow four shared memory address area mapping to the same physical memory
 ******************************************************************************/
 
 __AP_APP_IRAM_OFFSET = 0x0; /* 0x20000000;*/
-__AP_SPINLOCK_SECTION_SIZE = 0xC000;
 
 #if CONFIG_SRAM_DIRECT_ADDR
 __AP_APP_RAM_OFFSET = 0x04000000;
@@ -48,19 +47,17 @@ __AP_APP_RAM_OFFSET = 0x0;
 #endif
 
 __AP_APP_RAM_BASE = CONFIG_AP_RAM_ADDR + __AP_APP_RAM_OFFSET; /* 0x28xxxxxx + 0x04000000 = 0x2Cxxxxxx */
-__AP_SPINLOCK_RAM_BASE = CONFIG_AP_RAM_ADDR + CONFIG_AP_RAM_SIZE - __AP_SPINLOCK_SECTION_SIZE;
 __AP_SWAP_BASE = CONFIG_SWAP_ADDR + __AP_APP_RAM_OFFSET;
 
 __AP_APP_IRAM_BASE = CONFIG_AP_RAM_ADDR + __AP_APP_RAM_OFFSET - __AP_APP_IRAM_OFFSET;  /*0x2Cxxxxxx = 0x2Cxxxxxx - __AP_APP_IRAM_OFFSET*/
-__AP_APP_IRAM_SIZE = CONFIG_AP_RAM_SIZE - __AP_SPINLOCK_SECTION_SIZE;
+__AP_APP_IRAM_SIZE = CONFIG_AP_RAM_SIZE;
 
 MEMORY
 {
   FLASH (rx)            : ORIGIN = (SOC_FLASH_DATA_BASE + CONFIG_AP_VIRTUAL_PARTITION_OFFSET), LENGTH = CONFIG_AP_VIRTUAL_PARTITION_SIZE
   IRAM (rx)             : ORIGIN = __AP_APP_IRAM_BASE, LENGTH = __AP_APP_IRAM_SIZE
 
-  RAM (rwx)             : ORIGIN = __AP_APP_RAM_BASE, LENGTH = CONFIG_AP_RAM_SIZE - __AP_SPINLOCK_SECTION_SIZE
-  SPINLOCK_RAM (rwx)    : ORIGIN = __AP_SPINLOCK_RAM_BASE, LENGTH = __AP_SPINLOCK_SECTION_SIZE
+  RAM (rwx)             : ORIGIN = __AP_APP_RAM_BASE, LENGTH = CONFIG_AP_RAM_SIZE
   SWAP (rwx)            : ORIGIN = __AP_SWAP_BASE, LENGTH = CONFIG_SWAP_SIZE
 
   DTCM (rwx)            : ORIGIN = SOC_DTCM_DATA_BASE + 0, LENGTH = CONFIG_DTCM_SIZE
@@ -364,15 +361,12 @@ SECTIONS
     .sram_spinlock_section :
     {
         PROVIDE(__sram_spinlock_flash_begin = LOADADDR(.sram_spinlock_section));
-        . = ALIGN(32);
+        . = ALIGN(4);
         __sram_spinlock_start__ = .;
         *(.sram_spinlock_section)
-        . = ALIGN(32);
+        . = ALIGN(4);
         __sram_spinlock_end__ = .;
-    } > SPINLOCK_RAM AT > FLASH
-
-    ASSERT((__sram_spinlock_end__ - __sram_spinlock_start__) <= __AP_SPINLOCK_SECTION_SIZE,
-           ".sram_spinlock_section exceeds reserved SPINLOCK_RAM size")
+    } > RAM AT > FLASH
 
     .uninitialized (NOLOAD):
     {

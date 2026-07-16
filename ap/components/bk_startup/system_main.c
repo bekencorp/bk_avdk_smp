@@ -47,6 +47,10 @@
 
 #include "soc/soc.h"
 
+#if CONFIG_HSPL
+extern bk_err_t bk_hspl_driver_early_init(void);
+#endif
+
 static beken_thread_function_t s_user_app_entry = NULL;
 beken_semaphore_t user_app_sema = NULL;
 
@@ -446,6 +450,9 @@ void entry_main(void)
 	save_mtime_point(CPU_MAIN_ENTRY_TIME);
 #endif
     set_ap_startup_index(AP_ENTER_ENTRY_MAIN);
+#if CONFIG_HSPL
+	bk_hspl_driver_early_init();
+#endif
 	rtos_init();
 
 #if CONFIG_GCOV

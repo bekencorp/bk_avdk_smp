@@ -20,30 +20,15 @@ extern "C" {
 #endif
 
 #include <common/bk_typedef.h>
-#define SPINLOCK_OBJECT_ALIGN_BYTES 32
-#define SPINLOCK_EXCLUSIVE_BEAT_BYTES 16
 
 typedef struct {
-	/* Hardware exclusive monitor tracks one 128-bit SRAM address beat.
-	 * Keep owner as the only real field in this beat. */
 	uint32_t  owner;
-	uint32_t  owner_128bit_reserved[3];
 	uint32_t  count;	
 	uint32_t  core_id;
 #if CONFIG_SPINLOCK_DEBUG
     uint32_t  taskTCBPointer;
-	uint32_t  exclusive_back_padding[1];
-#else
-	uint32_t  exclusive_back_padding[2];
 #endif
-} __attribute__((aligned(SPINLOCK_OBJECT_ALIGN_BYTES))) spinlock_t;
-
-typedef char spinlock_owner_must_start_at_object_base[
-	(__builtin_offsetof(spinlock_t, owner) == 0) ? 1 : -1];
-typedef char spinlock_count_must_not_share_owner_128bit[
-	(__builtin_offsetof(spinlock_t, count) >= SPINLOCK_EXCLUSIVE_BEAT_BYTES) ? 1 : -1];
-typedef char spinlock_object_size_must_preserve_array_alignment[
-	((sizeof(spinlock_t) % SPINLOCK_OBJECT_ALIGN_BYTES) == 0) ? 1 : -1];
+} spinlock_t;
 
 #define SPINLOCK_WAIT_FOREVER  (-1)
 #define SPINLOCK_NO_WAIT        0
@@ -104,7 +89,7 @@ void _spin_unlock_irqrestore(volatile spinlock_t *lock, uint32_t flags);
 	}
 
 #if CONFIG_SPINLOCK_SECTION
-#define SPINLOCK_SECTION __attribute__((used, aligned(SPINLOCK_OBJECT_ALIGN_BYTES), section(".sram_spinlock_section"))) 
+#define SPINLOCK_SECTION __attribute__((used, section(".sram_spinlock_section")))
 spinlock_t *spinlock_mem_dynamic_alloc(void);
 bk_err_t spinlock_mem_dynamic_free(spinlock_t *slock);
 #else

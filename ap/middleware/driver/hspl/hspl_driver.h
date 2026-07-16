@@ -62,6 +62,16 @@ typedef enum {
 typedef void (*hspl_timeout_callback_t)(uint8_t channel, void *param);
 
 /**
+ * @brief Early HSPL hardware init
+ *
+ * Only enables HSPL clock/reset and clears timeout config. It is safe to call
+ * before full driver/interrupt initialization.
+ *
+ * @return BK_OK on success
+ */
+bk_err_t bk_hspl_driver_early_init(void);
+
+/**
  * @brief Initialize HSPL driver
  * @return BK_OK on success, BK_FAIL on failure
  */
@@ -72,6 +82,27 @@ bk_err_t bk_hspl_driver_init(void);
  * @return BK_OK on success, BK_FAIL on failure
  */
 bk_err_t bk_hspl_driver_deinit(void);
+
+/**
+ * @brief Try to lock a HSPL channel directly
+ *
+ * Caller must call bk_hspl_driver_early_init() first. This function does not
+ * trigger full HSPL driver init, timeout monitor setup, or ISR registration.
+ *
+ * @param channel 0..15
+ * @return BK_OK if lock succeeds, BK_FAIL otherwise
+ */
+bk_err_t bk_hspl_try_lock_direct(bk_hspl_id_t hspl_id, uint8_t channel);
+
+/**
+ * @brief Unlock a HSPL channel directly
+ *
+ * Caller must call bk_hspl_driver_early_init() first.
+ *
+ * @param channel 0..15
+ * @return BK_OK on success, BK_FAIL otherwise
+ */
+bk_err_t bk_hspl_unlock_direct(bk_hspl_id_t hspl_id, uint8_t channel);
 
 /**
  * @brief Try to lock a HSPL channel by reading its LOCK register
