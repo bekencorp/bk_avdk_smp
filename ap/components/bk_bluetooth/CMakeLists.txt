@@ -37,6 +37,15 @@ if (CONFIG_BLUETOOTH_AP)
     endif()
 
 	if (CONFIG_BLUETOOTH_HOST_ONLY OR CONFIG_BLUETOOTH_SUPPORT_AP_PWD_ALL)
+		list(APPEND incs
+			include
+			include/private
+			at
+			.
+		)
+	endif()
+
+	if ((CONFIG_BLUETOOTH_HOST_ONLY OR CONFIG_BLUETOOTH_SUPPORT_AP_PWD_ALL) AND NOT CONFIG_BLE_MESH_ZEPHYR)
 		if (CONFIG_BLUETOOTH_HOST_ONLY)
 			list(APPEND srcs
 				"core/hci/hal_hci_core.c"
@@ -106,13 +115,6 @@ if (CONFIG_BLUETOOTH_AP)
 				api/ble_gap_export_api.c
 			)
 		endif()
-
-		list(APPEND incs
-			include
-			include/private
-			at
-			.
-			)
 
 		if (CONFIG_BLUETOOTH_HOST_ONLY)
 			list(APPEND srcs core/feat_config/bt_feature_config.c)
@@ -196,7 +198,7 @@ if (CONFIG_BLUETOOTH_AP)
 
 	# BLE boarding/provisioning (formerly the separate bt/ sub-component).
 	# ble_boarding.c: direct BLE implementation kept under service/common.
-	if (CONFIG_BLE AND NOT CONFIG_BTDM_CONTROLLER_ONLY)
+	if (CONFIG_BLE AND NOT CONFIG_BTDM_CONTROLLER_ONLY AND NOT CONFIG_BLE_MESH_ZEPHYR)
 		list(APPEND srcs
 			service/common/ble_boarding.c
 			)
@@ -245,7 +247,7 @@ if (CONFIG_BLUETOOTH_AP)
     set(bt_host_exist 0)
     set(bt_host_basename)
 
-    if(CONFIG_BLUETOOTH_HOST_ONLY)
+    if(CONFIG_BLUETOOTH_HOST_ONLY AND NOT CONFIG_BLE_MESH_ZEPHYR)
         set(bt_host_exist 1)
     endif()
 
