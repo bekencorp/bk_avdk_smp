@@ -58,27 +58,16 @@ typedef enum
 */
 uint8 bk_ota_get_current_partition(void);
 
-/** 
-* @brief customer can use this callback to register cb fuction .
-*    when download success ,ota will call customer's cb and pass a parameter(1)to customer ,
-*    then customer  will return a value deciding which partition to execute
-* 
-* @param 
-*       temp_exec_part means ota pass value to customer 1: reps downlaod sucess. others reps downlaod fail
-*       cb means call the customer's cb.
-*          
+/**
+* @brief  Get the OTA target (update) partition: the slot opposite the one
+*         currently running. Derived on demand from bk_ota_get_current_partition(),
+*         so there is no cached global state to keep in sync.
+*
+* @return part_flag
+* 	 UPDATE_A_PART(0): OTA writes/verifies slot A (currently running B).
+* 	 UPDATE_B_PART(1): OTA writes/verifies slot B (currently running A).
 */
-typedef uint8 (*callback_func)(uint8 temp_exec_part);
-void bk_ota_register_temp_partition_callback(callback_func cb);
-
-/** 
-* @brief  customer finally decided which partition to execute.
-* 
-* @param  ota_confirm_val = 3: maens finally execute A partition.
-*         ota_confirm_val = 4: maens finally execute B partition.
-* 
-*/
-void bk_ota_confirm_update_partition(ota_confirm_flag ota_confirm_val);
+part_flag bk_ota_get_update_partition(void);
 
 /** 
 * @brief  Accept the OTA image
@@ -120,10 +109,6 @@ int bk_ota_start_download(const char *url,  ota_wr_destination_t ota_dest_id);
 */
 void bk_ota_double_check_for_execution(void);
 #endif
-
-void ota_write_flash(bk_partition_t ota_partition_flag, u8 flag, u8 offset);
-uint8 ota_temp_execute_partition(int state_val);
-//uint8 custmer_state_cb(uint8 temp_exec_part);
 
 #define INS_NO_CRC_CHUNK  (32)
 #define INS_CRC_CHUNK     (34)
