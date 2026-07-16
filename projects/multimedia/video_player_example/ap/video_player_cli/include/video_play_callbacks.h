@@ -52,6 +52,14 @@ void video_play_video_buffer_free_yuv_coded_cb(void *user_data, video_player_buf
 void video_play_video_decode_complete_cb(void *user_data, const video_player_video_frame_meta_t *meta, video_player_buffer_t *buffer);
 void video_play_audio_decode_complete_cb(void *user_data, const video_player_audio_packet_meta_t *meta, video_player_buffer_t *buffer);
 
+// ====== Display worker lifecycle ======
+// The video decode-complete callback offloads GPU rotate / LCD format sync /
+// display flush to a dedicated worker thread instead of running them inline on
+// the decode thread. Create the worker before playback starts, and tear it down
+// after the engine (and thus the decode thread) has been stopped.
+avdk_err_t video_play_display_worker_init(void);
+void video_play_display_worker_deinit(void);
+
 void video_play_lcd_runtime_format_reset(void);
 void video_play_lcd_runtime_format_mark(video_play_lcd_video_fmt_t fmt);
 void video_play_video_set_rotate_mode(video_play_rotate_mode_t mode);

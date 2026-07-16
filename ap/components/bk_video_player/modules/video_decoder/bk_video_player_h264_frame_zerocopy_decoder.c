@@ -56,6 +56,7 @@
 #include "components/media_types.h"
 #include "components/bk_video_player/bk_video_player_types.h"
 #include "components/bk_video_player/video_decoder/bk_video_player_hw_h264_decoder.h"
+#include "bk_video_player_h264_frame_common.h"
 
 #define TAG "vp_h264_fzc_dec"
 
@@ -69,10 +70,6 @@
 #define H264_NALU_TYPE_SPS       7
 #define H264_NALU_TYPE_PPS       8
 #define H264_NALU_HDR_TYPE(b)    ((uint8_t)((b) & 0x1FU))
-
-#define H264_PARAM_SET_MAX_SIZE  1024U
-#define H264_FRAME_PAD_BYTES     128U
-#define H264_ALIGN_UP(v, a)      (((v) + ((a) - 1U)) & ~((a) - 1U))
 
 /* Display bridging parameters.
  *
@@ -189,7 +186,7 @@ static avdk_err_t hw_h264_fzc_parse_avcc(hw_h264_fzc_ctx_t *ctx,
         }
         const uint16_t len = (uint16_t)(((uint16_t)cfg[off] << 8) | cfg[off + 1U]);
         off += 2U;
-        if (len == 0U || len > H264_PARAM_SET_MAX_SIZE || off + len > cfg_size)
+        if (len == 0U || len > VP_H264_PARAM_SET_MAX_SIZE || off + len > cfg_size)
         {
             return AVDK_ERR_INVAL;
         }
@@ -224,7 +221,7 @@ static avdk_err_t hw_h264_fzc_parse_avcc(hw_h264_fzc_ctx_t *ctx,
         }
         const uint16_t len = (uint16_t)(((uint16_t)cfg[off] << 8) | cfg[off + 1U]);
         off += 2U;
-        if (len == 0U || len > H264_PARAM_SET_MAX_SIZE || off + len > cfg_size)
+        if (len == 0U || len > VP_H264_PARAM_SET_MAX_SIZE || off + len > cfg_size)
         {
             return AVDK_ERR_INVAL;
         }
@@ -280,10 +277,11 @@ static avdk_err_t hw_h264_fzc_ensure_annexb_buf(hw_h264_fzc_ctx_t *ctx, uint32_t
         ctx->annexb_buf_size = 0;
     }
 
-    ctx->annexb_buf = (uint8_t *)bk_frame_buffer_malloc(MEM_SLAB_HEAP_CODED,
-                                                        need + H264_FRAME_PAD_BYTES);
+    const uint32_t alloc_size = vp_h264_annexb_alloc_size(need + VP_H264_FRAME_PAD_BYTES);
+    ctx->annexb_buf = (uint8_t *)bk_frame_buffer_malloc(MEM_SLAB_HEAP_CODED, alloc_size);
     if (ctx->annexb_buf == NULL)
     {
+        LOGE("%s: alloc annexb buffer failed, need=%u\n", __func__, (unsigned)alloc_size);
         return AVDK_ERR_NOMEM;
     }
 
@@ -607,8 +605,8 @@ static avdk_err_t hw_h264_fzc_reset_controller(hw_h264_fzc_ctx_t *ctx,
 
     bk_h264_decode_frame_zerocopy_config_t cfg = DEFAULT_H264_DECODE_FRAME_ZEROCOPY_CONFIG;
     cfg.timeout_ms = 1000U;
-    cfg.out_width = (uint16_t)H264_ALIGN_UP(width, 16U);
-    cfg.out_height = (uint16_t)H264_ALIGN_UP(height, 16U);
+    cfg.out_width = (uint16_t)vp_h264_align_up(width, 16U);
+    cfg.out_height = (uint16_t)vp_h264_align_up(height, 16U);
     cfg.out_format = BK_PIXEL_FORMAT_NV12;
     cfg.disp_depth = (uint16_t)VP_H264_FZC_DISP_DEPTH;
     cfg.frame_done_cb = hw_h264_frame_done_cb;

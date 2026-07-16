@@ -239,6 +239,28 @@ video_play_lcd_video_fmt_t video_play_lcd_format_for_video_codec(video_player_vi
     return VIDEO_PLAY_LCD_VIDEO_FMT_NV12_RAW;
 }
 
+bool video_play_lcd_get_size(uint16_t *width, uint16_t *height)
+{
+    if (width == NULL || height == NULL)
+    {
+        return false;
+    }
+
+    *width = 0U;
+    *height = 0U;
+
+    display_board_config_t *board = app_display_board_config_get();
+    if (board == NULL || board->mipi.panel == NULL)
+    {
+        return false;
+    }
+
+    *width = board->mipi.panel->timing.h_size;
+    *height = board->mipi.panel->timing.v_size;
+
+    return (*width != 0U && *height != 0U);
+}
+
 avdk_err_t video_play_lcd_apply_format(bk_display_ctlr_handle_t handle,
                                        video_play_lcd_video_fmt_t fmt)
 {

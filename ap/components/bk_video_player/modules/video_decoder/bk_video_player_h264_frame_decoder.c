@@ -11,6 +11,7 @@
 #include "components/media_types.h"
 #include "components/bk_video_player/bk_video_player_types.h"
 #include "components/bk_video_player/video_decoder/bk_video_player_hw_h264_decoder.h"
+#include "bk_video_player_h264_frame_common.h"
 #include "modules/vg_lite_gpu/vg_lite.h"
 
 #define TAG "vp_h264_frame_dec"
@@ -26,9 +27,7 @@
 #define H264_NALU_TYPE_PPS       8
 #define H264_NALU_HDR_TYPE(b)    ((uint8_t)((b) & 0x1FU))
 
-#define H264_PARAM_SET_MAX_SIZE  1024U
 #define H264_FRAME_PAD_BYTES     128U
-#define H264_ALIGN_UP(v, a)      (((v) + ((a) - 1U)) & ~((a) - 1U))
 
 #ifndef H264_FRAME_GPU_ARGB8888_ENABLE
 #define H264_FRAME_GPU_ARGB8888_ENABLE 1
@@ -136,7 +135,7 @@ static avdk_err_t hw_h264_frame_parse_avcc(hw_h264_decoder_frame_ctx_t *ctx,
         }
         const uint16_t len = (uint16_t)(((uint16_t)cfg[off] << 8) | cfg[off + 1U]);
         off += 2U;
-        if (len == 0U || len > H264_PARAM_SET_MAX_SIZE || off + len > cfg_size)
+        if (len == 0U || len > VP_H264_PARAM_SET_MAX_SIZE || off + len > cfg_size)
         {
             return AVDK_ERR_INVAL;
         }
@@ -171,7 +170,7 @@ static avdk_err_t hw_h264_frame_parse_avcc(hw_h264_decoder_frame_ctx_t *ctx,
         }
         const uint16_t len = (uint16_t)(((uint16_t)cfg[off] << 8) | cfg[off + 1U]);
         off += 2U;
-        if (len == 0U || len > H264_PARAM_SET_MAX_SIZE || off + len > cfg_size)
+        if (len == 0U || len > VP_H264_PARAM_SET_MAX_SIZE || off + len > cfg_size)
         {
             return AVDK_ERR_INVAL;
         }
@@ -258,10 +257,11 @@ static avdk_err_t hw_h264_frame_ensure_annexb_buf(hw_h264_decoder_frame_ctx_t *c
         ctx->annexb_buf_size = 0;
     }
 
-    ctx->annexb_buf = (uint8_t *)bk_frame_buffer_malloc(MEM_SLAB_HEAP_CODED,
-                                                        need + H264_FRAME_PAD_BYTES);
+    const uint32_t alloc_size = vp_h264_annexb_alloc_size(need + VP_H264_FRAME_PAD_BYTES);
+    ctx->annexb_buf = (uint8_t *)bk_frame_buffer_malloc(MEM_SLAB_HEAP_CODED, alloc_size);
     if (ctx->annexb_buf == NULL)
     {
+        LOGE("%s: alloc annexb buffer failed, need=%u\n", __func__, (unsigned)alloc_size);
         return AVDK_ERR_NOMEM;
     }
 
@@ -663,8 +663,8 @@ static avdk_err_t hw_h264_frame_reset_controller(hw_h264_decoder_frame_ctx_t *ct
 
     bk_h264_decode_frame_config_t cfg = DEFAULT_H264_DECODE_FRAME_CONFIG;
     cfg.timeout_ms = 1000U;
-    cfg.out_width = (uint16_t)H264_ALIGN_UP(width, 16U);
-    cfg.out_height = (uint16_t)H264_ALIGN_UP(height, 16U);
+    cfg.out_width = (uint16_t)vp_h264_align_up(width, 16U);
+    cfg.out_height = (uint16_t)vp_h264_align_up(height, 16U);
     cfg.out_format = BK_PIXEL_FORMAT_NV12;
     cfg.frame_done_cb = hw_h264_frame_done_cb;
     cfg.frame_done_args = NULL;
@@ -839,8 +839,8 @@ static avdk_err_t hw_h264_decoder_frame_decode(struct video_player_video_decoder
 
     const uint32_t width = ctx->video_params.width;
     const uint32_t height = ctx->video_params.height;
-    const uint32_t coded_width = H264_ALIGN_UP(width, 16U);
-    const uint32_t coded_height = H264_ALIGN_UP(height, 16U);
+    const uint32_t coded_width = vp_h264_align_up(width, 16U);
+    const uint32_t coded_height = vp_h264_align_up(height, 16U);
     const uint32_t visible_out_size = (width * height * 3U) / 2U;
     const uint32_t coded_out_size = (coded_width * coded_height * 3U) / 2U;
     const bool argb8888_output = (requested_fmt == PIXEL_FMT_ARGB8888);

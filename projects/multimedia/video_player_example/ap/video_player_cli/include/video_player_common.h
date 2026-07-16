@@ -5,6 +5,7 @@
 extern "C" {
 #endif
 #include <stdbool.h>
+#include <stdint.h>
 
 #include <components/avdk_utils/avdk_error.h>
 #include <components/bk_video_player/bk_video_player_types.h>
@@ -61,6 +62,7 @@ avdk_err_t video_play_lcd_apply_format(bk_display_ctlr_handle_t handle,
 avdk_err_t video_play_lcd_ensure_open(bk_display_ctlr_handle_t *out_handle,
                                       video_play_lcd_video_fmt_t fmt);
 video_play_lcd_video_fmt_t video_play_lcd_format_for_video_codec(video_player_video_format_t format);
+bool video_play_lcd_get_size(uint16_t *width, uint16_t *height);
 avdk_err_t video_play_lcd_close(void);
 int sd_card_mount(void);
 int sd_card_unmount(void);

@@ -429,6 +429,8 @@ static avdk_err_t select_decoders_try_opened_parser_locked(private_video_player_
         media_info.file_size_bytes = stat_file_size_bytes;
     }
     media_info.video.rotate_degree = controller->config.video.rotate_degree;
+    media_info.video.display_width = controller->config.video.display_width;
+    media_info.video.display_height = controller->config.video.display_height;
     controller->current_media_info = media_info;
 
     controller->audio_track_enabled = false;
@@ -810,6 +812,8 @@ static avdk_err_t select_decoders(private_video_player_ctlr_t *controller, const
                     media_info.file_size_bytes = stat_file_size_bytes;
                 }
                 media_info.video.rotate_degree = controller->config.video.rotate_degree;
+                media_info.video.display_width = controller->config.video.display_width;
+                media_info.video.display_height = controller->config.video.display_height;
                 controller->current_media_info = media_info;
 
                 controller->audio_track_enabled = false;

@@ -71,8 +71,10 @@
  *         standalone application that drove this pipeline first.
  */
 
- #include "os/os.h"
- #include "os/mem.h"
+#include <stdint.h>
+
+#include "os/os.h"
+#include "os/mem.h"
  
  #include "components/avdk_utils/avdk_check.h"
  #include "components/bk_decode/bk_h264_decode_ctlr.h"
@@ -184,7 +186,7 @@ static inline uint32_t hw_h264_frame_buf_alloc_size(uint32_t payload_plus_pad)
   * H264_DECODER_SEG_HEIGHT_MB * 16; the GPU and H264 IP have to agree on
   * this value. */
  #define H264_DECODER_GPU_FLEXA_LINES        16U
- 
+
  /* HSRAM Flexa ring buffer alignment: 64-byte cache line. */
  #define H264_DECODER_FLEXA_PP_ALIGN         64U
  
@@ -242,8 +244,10 @@ static inline uint32_t hw_h264_frame_buf_alloc_size(uint32_t payload_plus_pad)
      uint16_t src_h;
      uint16_t mb_w;       /* MB-aligned src width  (16 px aligned) */
      uint16_t mb_h;       /* MB-aligned src height (16 px aligned) */
-     uint16_t out_w;      /* Post-rotation visible width  (reported to engine) */
+    uint16_t out_w;      /* Post-rotation visible width  (reported to engine) */
     uint16_t out_h;      /* Post-rotation visible height (reported to engine) */
+    uint16_t display_w;  /* Target display profile width, 0 = use MB-aligned source */
+    uint16_t display_h;  /* Target display profile height, 0 = use MB-aligned source */
     uint16_t rotate_degree;
     bool     scale_enable;
  
@@ -849,11 +853,9 @@ static uint32_t hw_h264_calc_flexa_pp_size(uint16_t mb_w)
         3U / 2U;
 }
 
-#define H264_DECODER_PANEL_WIDTH   1080U
-#define H264_DECODER_PANEL_HEIGHT  1920U
-
 static void hw_h264_decoder_resolve_dims(hw_h264_decoder_ctx_t *ctx,
-                                        uint16_t width, uint16_t height)
+                                        uint16_t width, uint16_t height,
+                                        uint16_t display_width, uint16_t display_height)
 {
     ctx->src_w = width;
     ctx->src_h = height;
@@ -863,13 +865,10 @@ static void hw_h264_decoder_resolve_dims(hw_h264_decoder_ctx_t *ctx,
     ctx->mb_h  = (uint16_t)((height + 15U) & ~15U);
 
 
-    ctx->out_w = width;
-    ctx->out_h = height;
-    if (ctx->rotate_degree == 90U || ctx->rotate_degree == 270U)
-    {
-        ctx->out_w = height;
-        ctx->out_h = width;
-    }
+    ctx->out_w = ctx->mb_w;
+    ctx->out_h = ctx->mb_h;
+    ctx->display_w = display_width;
+    ctx->display_h = display_height;
     ctx->scale_enable = false;
 }
 
@@ -895,16 +894,26 @@ static avdk_err_t hw_h264_decoder_setup_pipeline(hw_h264_decoder_ctx_t *ctx)
         __func__, ctx->flexa_pp_buf, (unsigned)ctx->flexa_pp_size,
         ((uintptr_t)ctx->flexa_pp_buf & 0x3FU) == 0U ? 1U : 0U);
 
-    /* DEC400 compressed output must stay 16-aligned. The raw experiment can
-     * target the visible DPU surface directly so the raw stride matches LCD. */
+    /* Raw output keeps the experiment's direct visible surface path. The
+     * default DEC400 path keeps the DPU on the display profile supplied by the
+     * upper layer and lets Flexa GPU scale the decoded H264 image to it. */
 #if H264_FLEXA_RAW_ARGB8888_ENABLE
-    const uint16_t dst_w = ctx->out_w;
-    const uint16_t dst_h = ctx->out_h;
+    uint16_t dst_w = ctx->out_w;
+    uint16_t dst_h = ctx->out_h;
     const bool gpu_compress = false;
     const bool gpu_scale = (dst_w != ctx->mb_w || dst_h != ctx->mb_h);
 #else
-    const uint16_t dst_w = ctx->mb_w;
-    const uint16_t dst_h = ctx->mb_h;
+    uint16_t dst_w = (ctx->display_w != 0U) ? ctx->display_w : ctx->mb_w;
+    uint16_t dst_h = (ctx->display_h != 0U) ? ctx->display_h : ctx->mb_h;
+    if (ctx->rotate_degree == 90U || ctx->rotate_degree == 270U)
+    {
+        uint16_t tmp = dst_w;
+        dst_w = dst_h;
+        dst_h = tmp;
+    }
+    ctx->out_w = dst_w;
+    ctx->out_h = dst_h;
+    ctx->scale_enable = (dst_w != ctx->mb_w || dst_h != ctx->mb_h);
     const bool gpu_compress = true;
     const bool gpu_scale = ctx->scale_enable;
 #endif
@@ -920,6 +929,7 @@ static avdk_err_t hw_h264_decoder_setup_pipeline(hw_h264_decoder_ctx_t *ctx)
     gpu_cfg.dst_format        = BK_PIXEL_FORMAT_ARGB8888;
     gpu_cfg.scale             = gpu_scale;
     gpu_cfg.compress          = gpu_compress;
+    gpu_cfg.horizontal_mirror = true;
     gpu_cfg.src_buffer        = ctx->flexa_pp_buf;
     gpu_cfg.flexa             = true;
     gpu_cfg.flexa_lines       = H264_DECODER_GPU_FLEXA_LINES;
@@ -1095,8 +1105,10 @@ static avdk_err_t hw_h264_decoder_init(struct video_player_video_decoder_ops_s *
     AVDK_RETURN_ON_FALSE(params, AVDK_ERR_INVAL, TAG, "params is NULL");
     hw_h264_decoder_ctx_t *ctx = &self->ctx;
 
-    LOGI("%s: width=%u height=%u format=%u fps=%u codec_cfg=%p sz=%u\n",
-        __func__, params->width, params->height, params->format, params->fps,
+    LOGI("%s: width=%u height=%u display=%ux%u format=%u fps=%u codec_cfg=%p sz=%u\n",
+        __func__, params->width, params->height,
+        params->display_width, params->display_height,
+        params->format, params->fps,
         params->codec_config, params->codec_config_size);
 
     if (params->format != VIDEO_PLAYER_VIDEO_FORMAT_H264)
@@ -1113,6 +1125,14 @@ static avdk_err_t hw_h264_decoder_init(struct video_player_video_decoder_ops_s *
     {
         LOGW("%s: GPU pipeline requires even width/height, got %ux%u\n",
             __func__, params->width, params->height);
+        return AVDK_ERR_UNSUPPORTED;
+    }
+    if (((params->display_width == 0U) != (params->display_height == 0U)) ||
+        (params->display_width > UINT16_MAX) || (params->display_height > UINT16_MAX) ||
+        ((params->display_width | params->display_height) & 1U))
+    {
+        LOGW("%s: invalid display size %ux%u\n",
+            __func__, params->display_width, params->display_height);
         return AVDK_ERR_UNSUPPORTED;
     }
     if (s_active_ctx != NULL)
@@ -1196,7 +1216,9 @@ static avdk_err_t hw_h264_decoder_init(struct video_player_video_decoder_ops_s *
 
     hw_h264_decoder_resolve_dims(ctx,
                                 (uint16_t)params->width,
-                                (uint16_t)params->height);
+                                (uint16_t)params->height,
+                                (uint16_t)params->display_width,
+                                (uint16_t)params->display_height);
 
     s_active_ctx = ctx;
 

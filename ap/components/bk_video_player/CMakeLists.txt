@@ -1,4 +1,4 @@
-set(incs include decode legacy/include modules/container_parser modules/video_decoder modules/audio_decoder)
+set(incs include decode legacy/include common modules/container_parser modules/video_decoder modules/audio_decoder)
 set(srcs "")
 
 if (CONFIG_AVI_PLAYER)

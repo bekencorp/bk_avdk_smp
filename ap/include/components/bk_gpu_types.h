@@ -53,6 +53,7 @@ typedef struct
     bk_pixel_format_t src_format;
     bk_pixel_format_t dst_format;
     uint16_t rotate_degree;
+    bool horizontal_mirror;
     uint8_t *src_buffer;
     uint8_t *dst_buffer;
 

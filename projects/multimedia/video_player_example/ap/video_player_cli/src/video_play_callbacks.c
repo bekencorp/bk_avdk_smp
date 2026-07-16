@@ -374,31 +374,59 @@ void video_play_video_buffer_free_yuv_coded_cb(void *user_data, video_player_buf
     buffer->user_data    = NULL;
 }
 
-void video_play_video_decode_complete_cb(void *user_data, const video_player_video_frame_meta_t *meta, video_player_buffer_t *buffer)
+/* ================= Display worker (offload post-decode work) =================
+ *
+ * decode_complete_cb runs on the video decode thread, which has already done PTS
+ * pacing. Doing the heavy GPU rotate + LCD format sync + bk_display_flush there
+ * would stall decoding and couple decode throughput to display latency. Instead
+ * the callback becomes a thin producer that snapshots the frame into a queue and
+ * returns; this worker thread performs the actual post-decode processing.
+ *
+ * Threading model: single producer (decode thread) / single consumer (worker).
+ * Queue is drop-oldest on full, so the newest frame always wins and memory stays
+ * bounded.
+ */
+#define VIDEO_PLAY_DISPLAY_QUEUE_DEPTH        (1U)
+#define VIDEO_PLAY_DISPLAY_WORKER_STACK_SIZE  (8 * 1024)
+#define VIDEO_PLAY_DISPLAY_WORKER_PRIORITY    (BEKEN_DEFAULT_WORKER_PRIORITY)
+#define VIDEO_PLAY_DISPLAY_POP_TIMEOUT_MS     (50U)
+
+typedef struct
 {
-    if (buffer == NULL || buffer->data == NULL)
+    void *pixel;                            /* owned raw decoded frame (pre-rotate) */
+    uint32_t decoder_pixel_fmt;
+    video_player_video_format_t video_format;
+    uint16_t width;
+    uint16_t height;
+    video_play_rotate_mode_t rotate_mode;   /* snapshot at enqueue time */
+    bk_display_ctlr_handle_t lcd_handle;
+} video_play_display_node_t;
+
+static beken_queue_t s_display_queue = NULL;
+static beken_thread_t s_display_thread = NULL;
+static beken_semaphore_t s_display_exit_sem = NULL;
+static volatile bool s_display_worker_exit = false;
+static bool s_display_worker_ready = false;
+
+/* Perform the post-decode processing that used to run inline in the callback:
+ * optional GPU rotate, LCD format sync, and the display flush. */
+static void video_play_display_process_node(const video_play_display_node_t *node)
+{
+    if (node == NULL || node->pixel == NULL)
     {
         return;
     }
 
-    video_play_user_ctx_t *ctx = (video_play_user_ctx_t *)user_data;
-    void *pixel = buffer->data;
-    const uint32_t decoder_pixel_fmt = (meta != NULL) ? (uint32_t)meta->output_format : 0U;
-    const video_play_rotate_mode_t rotate_mode = video_play_video_effective_rotate_mode(meta);
-    const bool h264_output_frame = (meta != NULL &&
-                                    meta->video.format == VIDEO_PLAYER_VIDEO_FORMAT_H264 &&
+    void *pixel = node->pixel;
+    const uint32_t decoder_pixel_fmt = node->decoder_pixel_fmt;
+    const video_play_rotate_mode_t rotate_mode = node->rotate_mode;
+    const bool h264_output_frame = (node->video_format == VIDEO_PLAYER_VIDEO_FORMAT_H264 &&
                                     (decoder_pixel_fmt == PIXEL_FMT_ARGB8888 ||
                                      decoder_pixel_fmt == PIXEL_FMT_RGB565));
     uint32_t display_pixel_fmt = decoder_pixel_fmt;
     bool gpu_post_frame = false;
 
-    /* Transfer ownership out of the engine; null fields so buffer_free_yuv_cb
-     * is a no-op and we never double-free. */
-    buffer->data         = NULL;
-    buffer->frame_buffer = NULL;
-    buffer->length       = 0;
-
-    if (ctx == NULL || ctx->lcd_handle == NULL)
+    if (node->lcd_handle == NULL)
     {
         video_play_free_output_pixel(decoder_pixel_fmt, pixel);
         return;
@@ -406,16 +434,15 @@ void video_play_video_decode_complete_cb(void *user_data, const video_player_vid
 
     if (rotate_mode != VIDEO_PLAY_ROTATE_NONE &&
         decoder_pixel_fmt == PIXEL_FMT_NV12 &&
-        meta != NULL &&
-        (meta->video.format == VIDEO_PLAYER_VIDEO_FORMAT_MJPEG ||
-         meta->video.format == VIDEO_PLAYER_VIDEO_FORMAT_H264))
+        (node->video_format == VIDEO_PLAYER_VIDEO_FORMAT_MJPEG ||
+         node->video_format == VIDEO_PLAYER_VIDEO_FORMAT_H264))
     {
-        const uint32_t src_w = meta->video.width;
-        const uint32_t src_h = meta->video.height;
-        const uint32_t src_stride = (meta->video.format == VIDEO_PLAYER_VIDEO_FORMAT_MJPEG)
+        const uint32_t src_w = node->width;
+        const uint32_t src_h = node->height;
+        const uint32_t src_stride = (node->video_format == VIDEO_PLAYER_VIDEO_FORMAT_MJPEG)
                                     ? ((src_w + 15U) & ~15U)
                                     : src_w;
-        const uint32_t src_y_height = (meta->video.format == VIDEO_PLAYER_VIDEO_FORMAT_MJPEG)
+        const uint32_t src_y_height = (node->video_format == VIDEO_PLAYER_VIDEO_FORMAT_MJPEG)
                                       ? ((src_h + 15U) & ~15U)
                                       : src_h;
         video_play_gpu_postprocess_frame_t gpu_frame;
@@ -452,7 +479,7 @@ void video_play_video_decode_complete_cb(void *user_data, const video_player_vid
 #endif
     }
 
-    video_play_lcd_sync_format_for_output_frame(ctx->lcd_handle,
+    video_play_lcd_sync_format_for_output_frame(node->lcd_handle,
                                                 display_pixel_fmt,
                                                 display_argb8888_compressed);
 
@@ -468,7 +495,7 @@ void video_play_video_decode_complete_cb(void *user_data, const video_player_vid
     }
 #endif
 
-    avdk_err_t ret = bk_display_flush(ctx->lcd_handle, pixel, free_cb);
+    avdk_err_t ret = bk_display_flush(node->lcd_handle, pixel, free_cb);
     if (ret != AVDK_ERR_OK)
     {
         LOGW("%s: bk_display_flush failed, ret=%d\n", __func__, ret);
@@ -482,6 +509,177 @@ void video_play_video_decode_complete_cb(void *user_data, const video_player_vid
         {
             (void)free_cb(pixel);
         }
+    }
+}
+
+/* Free a queued node's frame without displaying it (drop / teardown paths).
+ * Queued frames are always the raw decoded (pre-rotate) buffer, so the
+ * allocator-aware free is the correct release path. */
+static void video_play_display_node_discard(const video_play_display_node_t *node)
+{
+    if (node != NULL && node->pixel != NULL)
+    {
+        video_play_free_output_pixel(node->decoder_pixel_fmt, node->pixel);
+    }
+}
+
+static void video_play_display_worker_thread(void *arg)
+{
+    (void)arg;
+
+    LOGW("%s: display worker started\n", __func__);
+
+    while (!s_display_worker_exit)
+    {
+        video_play_display_node_t node;
+        if (rtos_pop_from_queue(&s_display_queue, &node, VIDEO_PLAY_DISPLAY_POP_TIMEOUT_MS) == BK_OK)
+        {
+            video_play_display_process_node(&node);
+        }
+    }
+
+    /* Exit requested: drain any leftover frames and free them (do not display,
+     * the LCD is about to be closed by the runtime teardown). */
+    video_play_display_node_t node;
+    while (rtos_pop_from_queue(&s_display_queue, &node, BEKEN_NO_WAIT) == BK_OK)
+    {
+        video_play_display_node_discard(&node);
+    }
+
+    LOGW("%s: display worker exiting\n", __func__);
+    rtos_set_semaphore(&s_display_exit_sem);
+    rtos_delete_thread(NULL);
+}
+
+avdk_err_t video_play_display_worker_init(void)
+{
+    if (s_display_worker_ready)
+    {
+        return AVDK_ERR_OK;
+    }
+
+    s_display_worker_exit = false;
+
+    if (rtos_init_queue(&s_display_queue, "vp_disp_q",
+                        sizeof(video_play_display_node_t),
+                        VIDEO_PLAY_DISPLAY_QUEUE_DEPTH) != BK_OK)
+    {
+        LOGE("%s: init display queue failed\n", __func__);
+        s_display_queue = NULL;
+        return AVDK_ERR_NOMEM;
+    }
+
+    if (rtos_init_semaphore(&s_display_exit_sem, 1) != BK_OK)
+    {
+        LOGE("%s: init display exit semaphore failed\n", __func__);
+        rtos_deinit_queue(&s_display_queue);
+        s_display_queue = NULL;
+        return AVDK_ERR_NOMEM;
+    }
+
+    if (rtos_create_thread(&s_display_thread, VIDEO_PLAY_DISPLAY_WORKER_PRIORITY, "vp_display",
+                           (beken_thread_function_t)video_play_display_worker_thread,
+                           VIDEO_PLAY_DISPLAY_WORKER_STACK_SIZE,
+                           NULL) != BK_OK)
+    {
+        LOGE("%s: create display worker thread failed\n", __func__);
+        rtos_deinit_semaphore(&s_display_exit_sem);
+        s_display_exit_sem = NULL;
+        rtos_deinit_queue(&s_display_queue);
+        s_display_queue = NULL;
+        return AVDK_ERR_GENERIC;
+    }
+
+    s_display_worker_ready = true;
+    LOGW("%s: display worker ready\n", __func__);
+    return AVDK_ERR_OK;
+}
+
+void video_play_display_worker_deinit(void)
+{
+    if (!s_display_worker_ready)
+    {
+        return;
+    }
+
+    /* Callers guarantee the decode thread is already stopped (engine stop/close
+     * joined it), so no more frames are being produced here. */
+    s_display_worker_exit = true;
+
+    if (s_display_thread != NULL)
+    {
+        /* Worker drains and frees any remaining queued frames before exit. */
+        rtos_get_semaphore(&s_display_exit_sem, BEKEN_WAIT_FOREVER);
+        s_display_thread = NULL;
+    }
+
+    if (s_display_exit_sem != NULL)
+    {
+        rtos_deinit_semaphore(&s_display_exit_sem);
+        s_display_exit_sem = NULL;
+    }
+
+    if (s_display_queue != NULL)
+    {
+        rtos_deinit_queue(&s_display_queue);
+        s_display_queue = NULL;
+    }
+
+    s_display_worker_ready = false;
+}
+
+void video_play_video_decode_complete_cb(void *user_data, const video_player_video_frame_meta_t *meta, video_player_buffer_t *buffer)
+{
+    if (buffer == NULL || buffer->data == NULL)
+    {
+        return;
+    }
+
+    video_play_user_ctx_t *ctx = (video_play_user_ctx_t *)user_data;
+    void *pixel = buffer->data;
+    const uint32_t decoder_pixel_fmt = (meta != NULL) ? (uint32_t)meta->output_format : 0U;
+    const video_play_rotate_mode_t rotate_mode = video_play_video_effective_rotate_mode(meta);
+
+    /* Transfer ownership out of the engine; null fields so buffer_free_yuv_cb
+     * is a no-op and we never double-free. */
+    buffer->data         = NULL;
+    buffer->frame_buffer = NULL;
+    buffer->length       = 0;
+
+    /* No display target, or worker not running: never do heavy processing on the
+     * decode thread. Just release the frame. */
+    if (ctx == NULL || ctx->lcd_handle == NULL ||
+        !s_display_worker_ready || s_display_queue == NULL)
+    {
+        video_play_free_output_pixel(decoder_pixel_fmt, pixel);
+        return;
+    }
+
+    video_play_display_node_t node;
+    node.pixel            = pixel;
+    node.decoder_pixel_fmt = decoder_pixel_fmt;
+    node.video_format     = (meta != NULL) ? meta->video.format : VIDEO_PLAYER_VIDEO_FORMAT_UNKNOWN;
+    node.width            = (meta != NULL) ? (uint16_t)meta->video.width : 0U;
+    node.height           = (meta != NULL) ? (uint16_t)meta->video.height : 0U;
+    node.rotate_mode      = rotate_mode;
+    node.lcd_handle       = ctx->lcd_handle;
+
+    /* Drop-oldest on full so the newest frame always wins. Single producer means
+     * the pop below cannot race another producer, so the subsequent push always
+     * finds a free slot. */
+    if (rtos_is_queue_full(&s_display_queue))
+    {
+        video_play_display_node_t old_node;
+        if (rtos_pop_from_queue(&s_display_queue, &old_node, BEKEN_NO_WAIT) == BK_OK)
+        {
+            video_play_display_node_discard(&old_node);
+        }
+    }
+
+    if (rtos_push_to_queue(&s_display_queue, &node, BEKEN_NO_WAIT) != BK_OK)
+    {
+        LOGW("%s: enqueue display frame failed, drop\n", __func__);
+        video_play_free_output_pixel(decoder_pixel_fmt, pixel);
     }
 }
 

@@ -653,6 +653,11 @@ static void video_play_engine_destroy_runtime(bool close_lcd)
         s_video_player_core_started = false;
     }
 
+    // The engine (and thus the video decode thread) is now stopped, so no more
+    // decode-complete callbacks will enqueue frames. Tear down the display
+    // worker; it drains and frees any frames still queued.
+    video_play_display_worker_deinit();
+
     if (s_audio_player_handle != NULL)
     {
         audio_player_device_stop(s_audio_player_handle);
@@ -716,12 +721,12 @@ void cli_video_play_engine_cmd(char *pcWriteBuffer, int xWriteBufferLen, int arg
             goto exit;
         }
         video_play_rotate_mode_t previous_rotate_mode = video_play_video_get_rotate_mode();
-        video_play_video_set_rotate_mode(requested_rotate_mode);
+        bool need_recreate_runtime = (s_video_player_core_handle != NULL &&
+                                      s_video_player_core_opened &&
+                                      (requested_h264_decoder_mode != s_h264_decoder_mode ||
+                                       requested_rotate_mode != previous_rotate_mode));
 
-        if (s_video_player_core_handle != NULL &&
-            s_video_player_core_opened &&
-            (requested_h264_decoder_mode != s_h264_decoder_mode ||
-             requested_rotate_mode != previous_rotate_mode))
+        if (need_recreate_runtime)
         {
             LOGI("%s: switching H264 decoder mode/rotation, decoder=%s -> %s, rotate=%u -> %u, recreating engine\n",
                  __func__,
@@ -730,6 +735,11 @@ void cli_video_play_engine_cmd(char *pcWriteBuffer, int xWriteBufferLen, int arg
                  (unsigned)previous_rotate_mode,
                  (unsigned)requested_rotate_mode);
             video_play_engine_destroy_runtime(true);
+        }
+
+        if (requested_rotate_mode != previous_rotate_mode)
+        {
+            video_play_video_set_rotate_mode(requested_rotate_mode);
         }
 
         /*
@@ -777,6 +787,16 @@ void cli_video_play_engine_cmd(char *pcWriteBuffer, int xWriteBufferLen, int arg
             LOGI("%s: LCD display opened successfully\n", __func__);
         }
 
+        // Start the display worker before playback so decode-complete callbacks
+        // offload GPU rotate / format sync / flush instead of blocking the
+        // decode thread. Idempotent: safe to call again on replay.
+        ret = video_play_display_worker_init();
+        if (ret != AVDK_ERR_OK)
+        {
+            LOGE("%s: video_play_display_worker_init failed, ret=%d\n", __func__, ret);
+            goto exit;
+        }
+
         // Initialize video player engine configuration
         bk_video_player_config_t cfg;
         os_memset(&cfg, 0, sizeof(cfg));
@@ -818,6 +838,15 @@ void cli_video_play_engine_cmd(char *pcWriteBuffer, int xWriteBufferLen, int arg
         }
 #endif
         cfg.video.rotate_degree = video_play_video_get_rotate_degree();
+        uint16_t display_w = 0U;
+        uint16_t display_h = 0U;
+        if (video_play_lcd_get_size(&display_w, &display_h))
+        {
+            cfg.video.display_width = display_w;
+            cfg.video.display_height = display_h;
+            LOGI("%s: video display target %ux%u\n",
+                 __func__, (unsigned)display_w, (unsigned)display_h);
+        }
         s_play_user_ctx.lcd_handle = s_lcd_display_handle;
         // Audio output may be opened later after probing media info.
         s_play_user_ctx.audio_player_handle = NULL;

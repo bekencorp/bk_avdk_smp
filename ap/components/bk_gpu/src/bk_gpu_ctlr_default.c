@@ -429,14 +429,83 @@ static void gpu_flex_init_dma(gpu_flex_data_t *data)
 #endif
 }
 
-/**
- * @brief Update transformation matrix for current processing line
- * @param data GPU flex data structure
- * @param config GPU controller configuration
- * @param draw_matrix Optional box matrix for face detection (can be NULL)
- */
-static void gpu_flex_update_matrix(gpu_flex_data_t *data,
-                                    const bk_gpu_ctlr_config_t *config)
+static void gpu_flex_update_horizontal_mirror_matrix(gpu_flex_data_t *data,
+                                                     const bk_gpu_ctlr_config_t *config)
+{
+    if (config->rotate_degree != 0 &&
+        config->rotate_degree != 90 &&
+        config->rotate_degree != 180 &&
+        config->rotate_degree != 270)
+    {
+        return;
+    }
+
+    float mirror_scale_x = config->scale ? data->scale_x : 1.0f;
+    float mirror_scale_y = config->scale ? data->scale_y : 1.0f;
+    float draw_scale_x = 1.0f;
+    float draw_scale_y = 1.0f;
+    float offset_x;
+    float offset_y;
+
+    if (config->rotate_degree == 0)
+    {
+        mirror_scale_x = -mirror_scale_x;
+        draw_scale_x = -draw_scale_x;
+        offset_x = (float)data->output_width;
+        offset_y = -((float)(data->flexa_index - 1) * config->flexa_lines);
+    }
+    else if (config->rotate_degree == 90)
+    {
+        mirror_scale_y = -mirror_scale_y;
+        draw_scale_y = -draw_scale_y;
+        offset_x = -((float)(data->flexa_index - 1) * config->flexa_lines);
+        offset_y = 0.0f;
+    }
+    else if (config->rotate_degree == 180)
+    {
+        mirror_scale_x = -mirror_scale_x;
+        draw_scale_x = -draw_scale_x;
+        offset_x = 0.0f;
+        offset_y = ((float)data->flexa_index * config->flexa_lines);
+    }
+    else if (config->rotate_degree == 270)
+    {
+        mirror_scale_y = -mirror_scale_y;
+        draw_scale_y = -draw_scale_y;
+        offset_x = ((float)data->flexa_index * config->flexa_lines);
+        offset_y = (float)data->output_width;
+    }
+    else
+    {
+        return;
+    }
+
+    vg_lite_identity(&data->matrix);
+    if (config->rotate_degree != 0)
+    {
+        vg_lite_rotate((float)config->rotate_degree, &data->matrix);
+    }
+    vg_lite_scale(mirror_scale_x, mirror_scale_y, &data->matrix);
+    data->matrix.m[0][2] = offset_x;
+    data->matrix.m[1][2] = offset_y;
+
+    if (data->draw_enable)
+    {
+        vg_lite_identity(&data->draw_matrix);
+        if (config->rotate_degree != 0)
+        {
+            vg_lite_rotate((float)config->rotate_degree, &data->draw_matrix);
+        }
+        vg_lite_scale(draw_scale_x, draw_scale_y, &data->draw_matrix);
+        data->draw_matrix.m[0][2] = offset_x;
+        data->draw_matrix.m[1][2] = offset_y;
+    }
+
+    return;
+}
+
+static void gpu_flex_update_strip_translate_matrix(gpu_flex_data_t *data,
+                                                   const bk_gpu_ctlr_config_t *config)
 {
     if (config->rotate_degree == 0)
     {
@@ -458,6 +527,19 @@ static void gpu_flex_update_matrix(gpu_flex_data_t *data,
             data->draw_matrix.m[0][2] = offset;
         }
     }
+    else if (config->rotate_degree == 180)
+    {
+        float offset_x = (float)data->output_width;
+        float offset_y = ((float)data->flexa_index * config->flexa_lines);
+        data->matrix.m[0][2] = offset_x;
+        data->matrix.m[1][2] = offset_y;
+
+        if (data->draw_enable)
+        {
+            data->draw_matrix.m[0][2] = offset_x;
+            data->draw_matrix.m[1][2] = offset_y;
+        }
+    }
     else if (config->rotate_degree == 270)
     {
         float offset_x = -((float)(data->flexa_index - 1) * config->flexa_lines);
@@ -471,7 +553,18 @@ static void gpu_flex_update_matrix(gpu_flex_data_t *data,
             data->draw_matrix.m[1][2] = offset_y;
         }
     }
+}
 
+static void gpu_flex_update_matrix(gpu_flex_data_t *data,
+                                    const bk_gpu_ctlr_config_t *config)
+{
+    if (config->horizontal_mirror)
+    {
+        gpu_flex_update_horizontal_mirror_matrix(data, config);
+        return;
+    }
+
+    gpu_flex_update_strip_translate_matrix(data, config);
 }
 
 /**
@@ -684,7 +777,8 @@ static inline bool gpu_flex_data_line_pull_out(gpu_flex_data_t *data, gpu_vn_ctl
         uint32_t ysize = config->compress ? data->output_width / 4 : data->output_width;
         uint32_t offset;
 
-        if (config->rotate_degree == 90)
+        if ((config->rotate_degree == 90 && !config->horizontal_mirror) ||
+            (config->rotate_degree == 270 && config->horizontal_mirror))
         {
             offset = (data->output_height - data->flexa_index * config->flexa_lines) * pixel_size;
         }
@@ -699,6 +793,16 @@ static inline bool gpu_flex_data_line_pull_out(gpu_flex_data_t *data, gpu_vn_ctl
     {
         uint32_t offset = (data->flexa_index - 1) * data->output_width_x_flexa_lines;
         uint32_t xsize = data->output_width * bk_pixel_size_get(config->dst_format);
+        uint32_t ysize = config->compress ? config->flexa_lines / 4 : config->flexa_lines;
+
+        gpu_flex_data_dma_transfer(data, offset, xsize, ysize, 0);
+    }
+    else if (config->rotate_degree == 180)
+    {
+        uint32_t pixel_size = bk_pixel_size_get(config->dst_format);
+        uint32_t offset = (data->output_height - data->flexa_index * config->flexa_lines) *
+                          (config->compress ? data->output_width : data->output_width * pixel_size);
+        uint32_t xsize = data->output_width * pixel_size;
         uint32_t ysize = config->compress ? config->flexa_lines / 4 : config->flexa_lines;
 
         gpu_flex_data_dma_transfer(data, offset, xsize, ysize, 0);
