@@ -1615,7 +1615,10 @@ void bt_gatt_foreach_attr_type(uint16_t start_handle, uint16_t end_handle,
 			       const void *attr_data, uint16_t num_matches,
 			       bt_gatt_attr_func_t func, void *user_data)
 {
-	size_t i,j;
+	size_t i;
+#if CONFIG_ACLSEMI_BTC_FEATURE_INCLUDED
+	size_t j;
+#endif
 
 	if (!num_matches) {
 		num_matches = UINT16_MAX;
