@@ -1032,7 +1032,6 @@ bk_err_t bk_wifi_ap_set_config(const wifi_ap_config_t *ap_config)
 #if CONFIG_LWIP
         uap_ip_start();
 #endif
-#else
         BK_LOG_ON_ERR(bk_wifi_ap_stop());
         BK_LOG_ON_ERR(bk_wifi_ap_start());
 #endif
