@@ -54,7 +54,7 @@ static uint64_t s_last_task_wdt_feed_tick[TASK_WDT_CORE_NUM] = {0};
 /* Per-core timestamp used to throttle repeated timeout logs. */
 static uint64_t s_last_task_wdt_log_tick[TASK_WDT_CORE_NUM] = {0};
 static uint64_t s_last_task_wdt_check_tick = 0;
-static uint32_t s_task_wdt_feed_bits = 0;
+static volatile uint32_t s_task_wdt_feed_bits = 0;
 static bool s_task_wdt_enabled = false;
 #if CONFIG_TASK_WDT_TEST
 static uint32_t s_task_wdt_skip_feed_bits = 0;
@@ -206,9 +206,9 @@ bk_err_t bk_task_wdt_set_feed_bits(uint32_t core_id, bool set_flag)
 
 	if (set_flag) {
 		uint64_t current_tick = GET_TASK_CURRENT_TICK();
-		s_task_wdt_feed_bits |= BIT(core_id);
 		s_last_task_wdt_feed_tick[core_id] = current_tick;
 		s_last_task_wdt_log_tick[core_id] = current_tick;
+		s_task_wdt_feed_bits |= BIT(core_id);
 	} else {
 		s_task_wdt_feed_bits &= ~BIT(core_id);
 		s_last_task_wdt_feed_tick[core_id] = 0;
