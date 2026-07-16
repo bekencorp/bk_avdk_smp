@@ -61,6 +61,7 @@ bk_err_t lvgl_app_widgets_init(void)
 {
     bk_err_t ret = BK_OK;
     lv_vnd_config_t lv_vnd_config = {0};
+    uint32_t frame_buffer_size = 0;
 
     g_disp_ctx = os_malloc(sizeof(display_ctx_t));
     if (g_disp_ctx == NULL) {
@@ -72,8 +73,8 @@ bk_err_t lvgl_app_widgets_init(void)
     bk_display_dpu_config_t dpu_config =
     {
         .video.enable = true,
-        .video.decompress = false,
-        .video.format = BK_PIXEL_FORMAT_RGB565,
+        .video.decompress = true,
+        .video.format = BK_PIXEL_FORMAT_ARGB8888,
     };
 
     const bk_lcd_panel_config_t panel_config =
@@ -114,7 +115,7 @@ bk_err_t lvgl_app_widgets_init(void)
     lv_vnd_config.rotation = ROTATE_NONE;
     lv_vnd_config.disp_width = WIDTH;
     lv_vnd_config.disp_height = HEIGHT;
-    lv_vnd_config.output_compress = false;
+    lv_vnd_config.output_compress = true;
     if (lv_vnd_config.output_compress && lv_vnd_config.render_mode == RENDER_PARTIAL_MODE) {
         if (WIDTH % 16 || HEIGHT % 4) {
             lv_vnd_config.disp_width = (WIDTH + 15) & ~15;
@@ -123,11 +124,17 @@ bk_err_t lvgl_app_widgets_init(void)
         LOGI("lv_vnd_config.disp_width:%d, lv_vnd_config.disp_height:%d\r\n", lv_vnd_config.disp_width, lv_vnd_config.disp_height);
     }
 
+    if (lv_vnd_config.output_compress) {
+        frame_buffer_size = lv_vnd_config.disp_width * lv_vnd_config.disp_height;
+    } else {
+        frame_buffer_size = lv_vnd_config.disp_width * lv_vnd_config.disp_height * sizeof(bk_color_t);
+    }
+
     for (int i = 0; i < CONFIG_LVGL_FRAME_BUFFER_NUM; i++) {
         if (i % 2) {
-            lv_vnd_config.frame_buffer[i] = bk_frame_buffer_malloc(MEM_SLAB_HEAP_UNCODED, lv_vnd_config.disp_width * lv_vnd_config.disp_height * sizeof(bk_color_t));
+            lv_vnd_config.frame_buffer[i] = bk_frame_buffer_malloc(MEM_SLAB_HEAP_UNCODED, frame_buffer_size);
         } else {
-            lv_vnd_config.frame_buffer[i] = bk_frame_buffer_malloc(MEM_SLAB_HEAP_CODED, lv_vnd_config.disp_width * lv_vnd_config.disp_height * sizeof(bk_color_t));
+            lv_vnd_config.frame_buffer[i] = bk_frame_buffer_malloc(MEM_SLAB_HEAP_CODED, frame_buffer_size);
         }
     }
     lv_vnd_config.args = g_disp_ctx->dpu_ctlr_handle;
