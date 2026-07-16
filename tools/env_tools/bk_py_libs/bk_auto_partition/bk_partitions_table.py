@@ -112,7 +112,7 @@ class bk_partitions_table:
                 msg = f"auto partition table format error, line:\n{part_line}"
                 raise RuntimeError(msg)
 
-        csv_contents = self._csv_path.read_text()
+        csv_contents = self._csv_path.read_text(encoding="utf-8")
         lines = csv_contents.splitlines()
         index = 0
         for line in lines:

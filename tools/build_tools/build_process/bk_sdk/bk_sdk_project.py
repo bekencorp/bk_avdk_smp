@@ -88,7 +88,7 @@ class bk_sdk_project(bk_project):
     def _check_flash_crc_enable(self):
         if not self.auto_partitions_table.exists():
             return
-        text = self.auto_partitions_table.read_text()
+        text = self.auto_partitions_table.read_text(encoding="utf-8")
         match = re.search(
             r"^[#\s]*Flash_CRC_ENABLE\s*=\s*(\w+)", text, re.MULTILINE | re.IGNORECASE
         )
