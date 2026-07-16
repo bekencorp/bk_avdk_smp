@@ -3,12 +3,52 @@
 #include "wdrv_cntrl.h"
 #include "wdrv_tx.h"
 #include "wdrv_co_list.h"
+#if CONFIG_DCACHE
+#include "cache.h"
+#endif
 #if CONFIG_BK_RAW_LINK
 #include "raw_link_api.h"
 #endif
 
 extern void ethernetif_input(int iface, struct pbuf *p, uint8_t dst_idx);
 void __asm_flush_dcache_range(void* begin, void* end);
+
+#if CONFIG_CONTROLLER_AP_BUFFER_COPY && CONFIG_DCACHE
+static void wdrv_flush_rx_header(cpdu_t *cpdu)
+{
+    if (cpdu != NULL) {
+        flush_dcache(cpdu, sizeof(cpdu_t));
+    }
+}
+
+static void wdrv_flush_rx_pbuf(struct pbuf *p)
+{
+    uint32_t start;
+    uint32_t end;
+    uint32_t header_end;
+    uint32_t payload_end;
+
+    if (p == NULL) {
+        return;
+    }
+
+    flush_dcache(p, sizeof(struct pbuf));
+
+    start = PTR_TO_U32(p);
+    header_end = start + sizeof(struct pbuf);
+    end = header_end;
+    if (p->payload != NULL) {
+        payload_end = PTR_TO_U32(p->payload) + p->len;
+        if (payload_end > end) {
+            end = payload_end;
+        }
+    }
+
+    if (end > header_end) {
+        flush_dcache((void *)header_end, (long)(end - header_end));
+    }
+}
+#endif
 
 void wdrv_rx_confirm_tx_msg(wdrv_rx_msg *msg)
 {
@@ -73,6 +113,10 @@ void wdrv_rxdata_process(struct pbuf *p)
 {
     struct cpdu_t* cpdu = NULL;
     cpdu = (struct cpdu_t*)(p + 1);
+#if CONFIG_CONTROLLER_AP_BUFFER_COPY && CONFIG_DCACHE
+    wdrv_flush_rx_pbuf(p);
+    cpdu = (struct cpdu_t*)(p + 1);
+#endif
 #ifdef CONFIG_CONTROLLER_RX_DIRECT_PSH
     struct pbuf* p_copy = NULL;
     bk_err_t ret = BK_OK;
@@ -163,6 +207,9 @@ uint8_t wdrv_recv_buffer(void *param, uint32_t *payload)
     while(head)
     {
         struct cpdu_t * hdr = PTR_FROM_U32(struct cpdu_t,head);
+#if CONFIG_CONTROLLER_AP_BUFFER_COPY && CONFIG_DCACHE
+        wdrv_flush_rx_header(hdr);
+#endif
         temp_next = hdr->next;
         WDRV_LOGV("%s,chan_id=%d,head=0x%x,tail=0x%x,num=%d,start!\n",__func__,chan_id,head,tail,num);
         //stack_mem_dump((uint32_t)head,(uint32_t)head+300);

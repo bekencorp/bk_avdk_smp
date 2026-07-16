@@ -2,12 +2,92 @@
 #include "wdrv_ipc.h"
 #include "wdrv_main.h"
 #include "wdrv_cntrl.h"
+#if CONFIG_DCACHE
+#include "cache.h"
+#endif
 #if CONFIG_CONTROLLER_AP_BUFFER_COPY
 cp_mem_addr_info_t g_cp_mem_addr_info = {0};
 #endif
 void __asm_flush_dcache_range(void* begin, void* end);
 
 #if CONFIG_CONTROLLER_AP_BUFFER_COPY
+static void wdrv_flush_pbuf_for_cp(struct pbuf *p)
+{
+    uint32_t start;
+    uint32_t end;
+
+    if (p == NULL) {
+        return;
+    }
+
+    if (p->next != NULL) {
+        WDRV_LOGW("%s chained pbuf is not supported, flush head only\r\n", __func__);
+    }
+
+    start = PTR_TO_U32(p);
+    end = start + sizeof(struct pbuf);
+    if (p->payload != NULL) {
+        uint32_t payload_end = PTR_TO_U32(p->payload) + p->len;
+        if (payload_end > end) {
+            end = payload_end;
+        }
+    }
+
+#if CONFIG_DCACHE
+    flush_dcache(p, (long)(end - start));
+#endif
+}
+
+static void wdrv_flush_tx_buffer_for_cp(uint8_t channel, void *head, uint8_t num)
+{
+    struct cpdu_t *cpdu = (struct cpdu_t *)head;
+
+    if (cpdu == NULL) {
+        return;
+    }
+
+    if (channel == TX_BK_CMD_DATA) {
+        if (cpdu->co_hdr.is_buf_bank) {
+            ipc_addr_bank_t *bank = (ipc_addr_bank_t *)cpdu;
+            uint32_t bank_len = sizeof(ipc_addr_bank_t);
+
+            for (uint8_t i = 0; i < bank->num; i++) {
+                wdrv_flush_pbuf_for_cp(PTR_FROM_U32(struct pbuf, bank->addr[i]));
+            }
+            if (bank->num > 1) {
+                bank_len += (bank->num - 1) * sizeof(bank->addr[0]);
+            }
+#if CONFIG_DCACHE
+            flush_dcache(bank, (long)bank_len);
+#endif
+        } else {
+#if CONFIG_DCACHE
+            flush_dcache(cpdu, cpdu->co_hdr.length);
+#endif
+        }
+        return;
+    }
+
+    if (channel != TX_MSDU_DATA) {
+        return;
+    }
+
+    for (uint8_t i = 0; (cpdu != NULL) && (i < num); i++) {
+        cpdu_t *next = cpdu->next;
+
+        if (cpdu->co_hdr.special_type == 0) {
+            struct pbuf *p = ((struct pbuf *)cpdu) - 1;
+            wdrv_flush_pbuf_for_cp(p);
+        } else {
+#if CONFIG_DCACHE
+            flush_dcache(cpdu, cpdu->co_hdr.length + sizeof(struct ctrl_cmd_hdr));
+#endif
+        }
+
+        cpdu = next;
+    }
+}
+
 static uint32_t wdrv_cp_read_u32_addr(uint32_t addr, uint32_t size)
 {
     if (addr == 0) {
@@ -299,6 +379,11 @@ void wdrv_txdata_pre_process(uint8_t channel, void* head,uint8_t need_retry)
     if(first == NULL) goto ERR_EXIT;
 
     WDRV_LOGV("%s,%d,p:0x%x,p:0x%x,num:%d\n",__func__,__LINE__,(struct pbuf*)first-1,(struct pbuf*)last-1,num);
+
+#if CONFIG_CONTROLLER_AP_BUFFER_COPY
+    /* List links and headers are final here; flush once before notifying CP. */
+    wdrv_flush_tx_buffer_for_cp(channel, first, num);
+#endif
 
     ret = wdrv_txbuf_push(channel,first,last,num);
     
