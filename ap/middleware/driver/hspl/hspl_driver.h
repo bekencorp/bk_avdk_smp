@@ -45,8 +45,8 @@ typedef struct {
  * @brief HSPL HW IDs (two blocks, different base addresses)
  *
  * BK7259 has two equivalent HSPL blocks:
- * - HSPL_ID_0: base 0x45010000 (M52-side mapping)
- * - HSPL_ID_1: base 0x480C0000 (M55-side mapping)
+ * - HSPL_ID_0: base 0x45010000 (CP-side mapping)
+ * - HSPL_ID_1: base 0x480C0000 (AP-side mapping)
  */
 typedef enum {
 	BK_HSPL_ID_0 = 0, /**< base: 0x45010000 */

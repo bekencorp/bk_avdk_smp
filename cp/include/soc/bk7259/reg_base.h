@@ -57,8 +57,8 @@
 /*
  * SRAM direct-address (0x2Cxxxxxx) -> peripheral-address (0x28xxxxxx)
  *
- * When CONFIG_SRAM_DIRECT_ADDR is enabled, the CP(M52) OS places its data in
- * the 0x2Cxxxxxx SRAM alias (Bit26 set) because the M52 core accesses that
+ * When CONFIG_SRAM_DIRECT_ADDR is enabled, the CP OS places its data in
+ * the 0x2Cxxxxxx SRAM alias (Bit26 set) because the CP core accesses that
  * alias faster. Peripherals (DMA / codec / display / ...) can ONLY access the
  * 0x28xxxxxx SRAM alias, so an SRAM buffer pointer handed to a peripheral must
  * be translated back first.
@@ -209,7 +209,7 @@
 #define SOC_SHANHAI_BASE         (0x42110000 + SOC_ADDR_OFFSET)
 #define SOC_WWDT_REG_BASE        (0xE0050000 + SOC_ADDR_OFFSET)
 
-/* M55 start */
+/* AP start */
 #define SOC_SYS_AHBP_REG_BASE    (0x48000000 + SOC_ADDR_OFFSET)
 #define SOC_QSPI0_REG_BASE       (0x48020000 + SOC_ADDR_OFFSET)
 #define SOC_QSPI1_REG_BASE       (0x48030000 + SOC_ADDR_OFFSET)
@@ -230,10 +230,10 @@
 #define SOC_DPU_REG_BASE         (0x4C2C0000 + SOC_ADDR_OFFSET)
 #define SOC_GPU_REG_BASE         (0x4C280000 + SOC_ADDR_OFFSET)
 #define SOC_PPHS_REG_BASE        (0x480D0000 + SOC_ADDR_OFFSET)
-/* M55 end */
+/* AP end */
 
 
-// The following base addresses not exist in the m52 address mapping.
+// The following base addresses not exist in the CP address mapping.
 #define SOC_IRDA_REG_BASE        SOC_IRDA0_REG_BASE
 #define SOC_CAN_REG_BASE         SOC_CAN0_REG_BASE
 #define SOC_SDIO_REG_BASE        SOC_SDIO0_REG_BASE
