@@ -1472,7 +1472,12 @@ static const bk_camera_sensor_format_t cv2005_format_array[] = {
         .fps = 20,
         .output_pixel_fmt = BK_PIXEL_FORMAT_RGGB10,
     },
-
+    {
+        .width = 1920,
+        .height = 1080,
+        .fps = 30,
+        .output_pixel_fmt = BK_PIXEL_FORMAT_RGGB10,
+    },
     {
         .width = 1920,
         .height = 1080,
