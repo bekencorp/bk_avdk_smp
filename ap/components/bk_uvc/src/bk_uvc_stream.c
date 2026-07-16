@@ -1,5 +1,6 @@
 #include <os/os.h>
 #include <os/mem.h>
+#include <cache.h>
 
 #include <avdk_check.h>
 #include <components/bk_uvc_camera.h>
@@ -23,6 +24,8 @@
 #endif
 
 #define UVC_TASK_STACK_SIZE (CONFIG_UVC_TASK_STACK_SIZE == 0 ? 2048 : CONFIG_UVC_TASK_STACK_SIZE)
+
+#define UVC_CACHE_LINE_SIZE                 32
 
 #define UVC_HEADER_LEN_DEFAULT              12
 #define UVC_HEADER_LEN_BASIC                 2
@@ -2033,6 +2036,24 @@ static void uvc_camera_process_task_main(beken_thread_arg_t data)
         {
             continue;
         }
+
+#ifdef CONFIG_UVC_USE_PSRAM_ALLOC
+        /* The USB controller DMAs camera data straight into this PSRAM buffer,
+         * which is L2-cacheable (MPU attr 5) but bypassed by the DMA master.
+         * As the consumer, refresh the AP cache before reading, otherwise a
+         * stale L2 line from the previous use of this URB corrupts the stream.
+         * flush_dcache() does L1+L2 clean & invalidate with an internal __DSB().
+         * psram_malloc only guarantees 8-byte alignment, so round the range down
+         * to the 32-byte cache line and pad the length up, since invalidate acts
+         * on whole lines. */
+        if (urb->transfer_buffer != NULL && urb->transfer_buffer_length != 0)
+        {
+            uint32_t flush_start = (uint32_t)urb->transfer_buffer & ~(UVC_CACHE_LINE_SIZE - 1);
+            uint32_t flush_end = ((uint32_t)urb->transfer_buffer + urb->transfer_buffer_length
+                                  + (UVC_CACHE_LINE_SIZE - 1)) & ~(UVC_CACHE_LINE_SIZE - 1);
+            flush_dcache((void *)flush_start, (long)(flush_end - flush_start));
+        }
+#endif
 
         uvc_param = (uvc_param_t *)urb->arg;
         uvc_camera_stream_set_processing(uvc_param, true);
