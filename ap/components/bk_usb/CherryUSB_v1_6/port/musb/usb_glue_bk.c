@@ -188,7 +188,7 @@ static void bk_analog_layer_usb_sys_related_ops(uint32_t usb_mode, bool ops)
             delay(100);
 
             REG_USB_USR_710 |= (0x1 << 15);
-            //REG_USB_USR_710 |= (0x1<<14);
+            REG_USB_USR_710 &= ~(0x1 << 14);   /* id_dig_reg=0 -> ID low -> A-host */
             REG_USB_USR_710 |= (0x1 << 16);
             REG_USB_USR_710 |= (0x1 << 17);
             REG_USB_USR_710 |= (0x1 << 18);

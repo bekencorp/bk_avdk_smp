@@ -486,6 +486,11 @@ static int usbh_video_ctrl_connect(struct usbh_hubport *hport, uint8_t intf)
 
                             USB_ASSERT(format_index != 0);
                             USB_ASSERT(format_index <= CONFIG_USBHOST_VIDEO_MAX_FORMATS);
+                            if (num_of_frames > CONFIG_USBHOST_VIDEO_MAX_FRAMES) {
+                                USB_LOG_WRN("Clamp uncompressed num_of_frames from %u to %u\r\n",
+                                            num_of_frames, CONFIG_USBHOST_VIDEO_MAX_FRAMES);
+                                num_of_frames = CONFIG_USBHOST_VIDEO_MAX_FRAMES;
+                            }
 
                             video_class->format[format_index - 1].num_of_frames = num_of_frames;
                             video_class->format[format_index - 1].format_type = USBH_VIDEO_FORMAT_UNCOMPRESSED;
@@ -496,6 +501,11 @@ static int usbh_video_ctrl_connect(struct usbh_hubport *hport, uint8_t intf)
 
                             USB_ASSERT(format_index != 0);
                             USB_ASSERT(format_index <= CONFIG_USBHOST_VIDEO_MAX_FORMATS);
+                            if (num_of_frames > CONFIG_USBHOST_VIDEO_MAX_FRAMES) {
+                                USB_LOG_WRN("Clamp mjpeg num_of_frames from %u to %u\r\n",
+                                            num_of_frames, CONFIG_USBHOST_VIDEO_MAX_FRAMES);
+                                num_of_frames = CONFIG_USBHOST_VIDEO_MAX_FRAMES;
+                            }
 
                             video_class->format[format_index - 1].num_of_frames = num_of_frames;
                             video_class->format[format_index - 1].format_type = USBH_VIDEO_FORMAT_MJPEG;
@@ -504,9 +514,12 @@ static int usbh_video_ctrl_connect(struct usbh_hubport *hport, uint8_t intf)
                             frame_index = p[DESC_bFrameIndex];
 
                             USB_ASSERT(format_index != 0);
-                            USB_ASSERT(frame_index != 0);
                             USB_ASSERT(format_index <= CONFIG_USBHOST_VIDEO_MAX_FORMATS);
-                            USB_ASSERT(frame_index <= CONFIG_USBHOST_VIDEO_MAX_FRAMES);
+                            if ((frame_index == 0) || (frame_index > CONFIG_USBHOST_VIDEO_MAX_FRAMES)) {
+                                USB_LOG_WRN("Ignore invalid uncompressed frame_index:%u for format:%u\r\n",
+                                            frame_index, format_index);
+                                break;
+                            }
 
                             {
                                 struct video_cs_if_vs_frame_uncompressed_descriptor *fd =
@@ -522,9 +535,12 @@ static int usbh_video_ctrl_connect(struct usbh_hubport *hport, uint8_t intf)
                             frame_index = p[DESC_bFrameIndex];
 
                             USB_ASSERT(format_index != 0);
-                            USB_ASSERT(frame_index != 0);
                             USB_ASSERT(format_index <= CONFIG_USBHOST_VIDEO_MAX_FORMATS);
-                            USB_ASSERT(frame_index <= CONFIG_USBHOST_VIDEO_MAX_FRAMES);
+                            if ((frame_index == 0) || (frame_index > CONFIG_USBHOST_VIDEO_MAX_FRAMES)) {
+                                USB_LOG_WRN("Ignore invalid mjpeg frame_index:%u for format:%u\r\n",
+                                            frame_index, format_index);
+                                break;
+                            }
 
                             {
                                 struct video_cs_if_vs_frame_mjpeg_descriptor *fd =
