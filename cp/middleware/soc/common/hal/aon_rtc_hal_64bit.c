@@ -159,14 +159,12 @@ void aon_rtc_hal_clear_upper_int_status(aon_rtc_hal_t *hal)
 __IRAM_SEC uint64_t aon_rtc_hal_get_counter_val(aon_rtc_hal_t *hal)
 {
 	hal->hw = (aon_rtc_hw_t *)AON_RTC_LL_REG_BASE(hal->id);
-	volatile uint32_t val = aon_rtc_ll_get_counter_val(hal->hw);
-	volatile uint32_t val_hi = aon_rtc_ll_get_counter_val_hi(hal->hw);
+	volatile uint32_t val_hi, val;
 
-	while (aon_rtc_ll_get_counter_val(hal->hw) != val
-		|| aon_rtc_ll_get_counter_val_hi(hal->hw) != val_hi){
-		val = aon_rtc_ll_get_counter_val(hal->hw);
+	do {
 		val_hi = aon_rtc_ll_get_counter_val_hi(hal->hw);
-	}
+		val = aon_rtc_ll_get_counter_val(hal->hw);
+	} while (aon_rtc_ll_get_counter_val_hi(hal->hw) != val_hi);
 
 	return (((uint64_t)(val_hi) << 32) + val);
 }
