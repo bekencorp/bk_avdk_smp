@@ -269,15 +269,19 @@ bk_err_t bk_ap_get_mac(uint8_t *mac, mac_type_t type)
 	if(bk_phy_driver_init() != BK_OK)
 		return BK_FAIL;
 
-	phy_cmd_t cmd_buff;
+	phy_cmd_t *cmd_buff = os_zalloc(sizeof(phy_cmd_t));
 
-	memset(&cmd_buff, 0, sizeof(cmd_buff));
-	cmd_buff.param = type;
+	if (!cmd_buff)
+		return BK_ERR_NO_MEM;
+
+	cmd_buff->param = type;
 
 	rtos_lock_mutex(&phy_mutex);
+	/* Drop stale RX data before issuing a new request on this reused IPC socket. */
+	mb_ipc_recv(phy_socket_handle, NULL, NULL, 0, 0);
 
 	int ret = mb_ipc_send(phy_socket_handle, PHY_CMD_GET_MAC_ADDR,
-		(u8 *)&cmd_buff, sizeof(phy_cmd_t), PHY_OPERATE_TIMEOUT);
+		(u8 *)cmd_buff, sizeof(phy_cmd_t), PHY_OPERATE_TIMEOUT);
 
 	if(ret != 0)
 	{
@@ -287,9 +291,9 @@ bk_err_t bk_ap_get_mac(uint8_t *mac, mac_type_t type)
 
 	u8 user_cmd = INVALID_USER_CMD_ID;
 
-	memset(&cmd_buff, 0, sizeof(phy_cmd_t));
+	memset(cmd_buff, 0, sizeof(phy_cmd_t));
 
-	ret = mb_ipc_recv(phy_socket_handle, &user_cmd, (u8 *)&cmd_buff,
+	ret = mb_ipc_recv(phy_socket_handle, &user_cmd, (u8 *)cmd_buff,
 		sizeof(phy_cmd_t), PHY_OPERATE_TIMEOUT);
 
 	if(ret != sizeof(phy_cmd_t))
@@ -305,19 +309,20 @@ bk_err_t bk_ap_get_mac(uint8_t *mac, mac_type_t type)
 		goto get_mac_exit;
 	}
 
-	if(cmd_buff.ret_status != BK_OK)
+	if(cmd_buff->ret_status != BK_OK)
 	{
 		line_num = __LINE__;
-		ret = cmd_buff.ret_status;
+		ret = cmd_buff->ret_status;
 		goto get_mac_exit;
 	}
 
-	memcpy(mac, cmd_buff.mac, BK_MAC_ADDR_LEN);
+	memcpy(mac, cmd_buff->mac, BK_MAC_ADDR_LEN);
 	ret_val = BK_OK;
 
 get_mac_exit:
 
 	rtos_unlock_mutex(&phy_mutex);
+	os_free(cmd_buff);
 
 #if LOCAL_TRACE
 	if(ret_val != BK_OK)
