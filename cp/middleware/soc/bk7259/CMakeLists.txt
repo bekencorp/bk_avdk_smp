@@ -74,7 +74,6 @@ list(APPEND srcs
 	"hal/scr_hal_debug.c"
 	"hal/can_hal_debug.c"
 	"hal/irda_hal.c"
-	"hal/i3c_hal.c"
 	"hal/mcheck_hal.c"
 	"hal/multicore_hal.c"
 	"hal/wwdt_hal.c"

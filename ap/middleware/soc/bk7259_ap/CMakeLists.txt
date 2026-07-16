@@ -73,6 +73,7 @@ list(APPEND srcs
 	#"hal/scr_hal.c"
 	#"hal/scr_hal_debug.c"
 	"hal/spi_hal.c"
+	"hal/i3c_hal.c"
 	"hal/qspi_hal.c"
 	#"hal/can_hal_debug.c"
 	#"hal/irda_hal.c"
