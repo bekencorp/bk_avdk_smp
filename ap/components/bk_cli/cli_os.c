@@ -42,8 +42,48 @@ static void cli_os_info_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
 #endif
 }
 
+#if CONFIG_SOC_SMP
+#define ASSERT_DUMP_TASK_PRIORITY   BEKEN_APPLICATION_PRIORITY
+#define ASSERT_DUMP_TASK_STACK_SIZE 2048
+
+static void cli_assert_dump_task(beken_thread_arg_t arg)
+{
+	CLI_LOGI("assert: trigger assert on core=%u\r\n", rtos_get_core_id());
+	BK_ASSERT(false);
+
+	/* Only reached if asserts are compiled out; clean up the helper task. */
+	rtos_delete_thread(NULL);
+}
+#endif // CONFIG_SOC_SMP
+
 static void cli_assert_dump_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
+#if CONFIG_SOC_SMP
+	if (argc >= 2) {
+		uint32_t core_id = os_strtoul(argv[1], NULL, 10);
+		beken_thread_t thread = NULL;
+		bk_err_t ret;
+
+		if (core_id == 0) {
+			ret = rtos_core0_create_thread(&thread, ASSERT_DUMP_TASK_PRIORITY,
+				"assert", cli_assert_dump_task, ASSERT_DUMP_TASK_STACK_SIZE, NULL);
+		} else if (core_id == 1) {
+			ret = rtos_core1_create_thread(&thread, ASSERT_DUMP_TASK_PRIORITY,
+				"assert", cli_assert_dump_task, ASSERT_DUMP_TASK_STACK_SIZE, NULL);
+		} else {
+			CLI_LOGI("assert: invalid core %u, use 0(AP1) or 1(AP2)\r\n", core_id);
+			return;
+		}
+
+		if (ret != BK_OK) {
+			CLI_LOGI("assert: create assert task on core %u failed, ret=%d\r\n", core_id, ret);
+		} else {
+			CLI_LOGI("assert: scheduled assert on core %u\r\n", core_id);
+		}
+		return;
+	}
+#endif // CONFIG_SOC_SMP
+
 	BK_ASSERT(false);
 }
 
@@ -212,7 +252,7 @@ static const struct cli_command s_os_commands[] = {
 	{"cpuload", "show task cpu load", cli_task_cpuload_cmd},
 	{"backtrace", "show task backtrace", cli_task_backtrace_cmd},
 	{"osinfo", "show os runtime information", cli_os_info_cmd},
-	{"assert", "asset and dump system information", cli_assert_dump_cmd},
+	{"assert", "assert [0(AP1)|1(AP2)] dump system info on current or chosen core", cli_assert_dump_cmd},
 	{"stackguard", "stackguard <override_len>", cli_test_stack_guard_cmd},
 #if (CONFIG_FREERTOS_TRACE)
 	{"trace", "test trace information", cli_trace_cmd},
