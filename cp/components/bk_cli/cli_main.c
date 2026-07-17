@@ -1552,6 +1552,14 @@ int bk_cli_init(void)
 	cli_cp_hotplug_init();
 #endif
 
+#if CONFIG_SOC_SMP
+	cli_basepri_stress_init();
+#endif
+
+#if (CONFIG_FREERTOS_USE_TICKLESS_IDLE >= 2) && CONFIG_PM_ENABLE
+	cli_wfi_basepri_stress_init();
+#endif
+
 #if (CLI_CFG_KEYVALUE == 1)
     cli_keyVaule_init();
 #endif

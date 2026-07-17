@@ -25,6 +25,7 @@ list(APPEND srcs
 if (CONFIG_SOC_SMP)
 	list(APPEND srcs
 		cli_cp_hotplug.c
+		cli_basepri_stress.c
 	)
 endif()
 
@@ -38,6 +39,7 @@ endif()
 if (CONFIG_PM_ENABLE)
 	list(APPEND srcs
 		cli_pwr.c
+		cli_wfi_basepri_stress.c
 	)
 endif()
 
