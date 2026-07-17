@@ -8,11 +8,11 @@ extern "C" {
  * Wi-Fi event IDs for CP -> AP IPC (values match ap/include/modules/wifi_types.h).
  */
 #define CIF_WIFI_EVT_STA_CONNECTED        2
-#define CIF_WIFI_EVT_STA_DISCONNECTED     4
-#define CIF_WIFI_EVT_GO_CONNECTED         7
-#define CIF_WIFI_EVT_GO_DISCONNECTED      8
-#define CIF_WIFI_EVT_GC_CONNECTED         9
-#define CIF_WIFI_EVT_GC_DISCONNECTED     10
+#define CIF_WIFI_EVT_STA_DISCONNECTED     5
+#define CIF_WIFI_EVT_GO_CONNECTED         8
+#define CIF_WIFI_EVT_GO_DISCONNECTED      9
+#define CIF_WIFI_EVT_GC_CONNECTED        10
+#define CIF_WIFI_EVT_GC_DISCONNECTED     11
 
 #define CIF_WIFI_EVENT_IND_MAX_DATA      64
 
