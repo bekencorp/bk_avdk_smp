@@ -410,6 +410,37 @@ static gpio_id_t uart_cfg_rx_pin(uart_id_t id)
 	return uart_hal_get_rx_pin(id);
 }
 
+/* Resolve a UART TX pin.
+ *
+ * When CONFIG_USR_GPIO_CFG_EN is set the pin assignment lives in
+ * GPIO_DEFAULT_DEV_CONFIG (usr_gpio_cfg.h) and is the single source of truth,
+ * so the pin is looked up by its UART TXD function. Otherwise it falls back to
+ * the Kconfig-based CONFIG_UARTx_TX_PIN value. */
+static gpio_id_t uart_cfg_tx_pin(uart_id_t id)
+{
+#if CONFIG_USR_GPIO_CFG_EN
+	gpio_dev_t func = GPIO_DEV_NONE;
+
+	switch (id) {
+	case UART_ID_0: func = GPIO_DEV_UART0_TXD; break;
+	case UART_ID_1: func = GPIO_DEV_UART1_TXD; break;
+	case UART_ID_2: func = GPIO_DEV_UART2_TXD; break;
+#if (SOC_UART_ID_NUM_PER_UNIT >= 6)
+	case UART_ID_5: func = GPIO_DEV_UART5_TXD; break;
+#endif
+	default: break;
+	}
+
+	if (func != GPIO_DEV_NONE) {
+		gpio_id_t pin = gpio_get_id_by_func(func);
+		if (pin < SOC_GPIO_NUM) {
+			return pin;
+		}
+	}
+#endif
+	return uart_hal_get_tx_pin(id);
+}
+
 static void uart_init_gpio(uart_id_t id)
 {
 #if CONFIG_USR_GPIO_CFG_EN
@@ -1882,7 +1913,7 @@ bk_err_t bk_uart_disable_sw_fifo(uart_id_t id)
 
 uint32_t bk_uart_get_ate_detect_gpio(void)
 {
-	return uart_hal_get_tx_pin(CONFIG_UART_ATE_PORT);
+	return uart_cfg_tx_pin(CONFIG_UART_ATE_PORT);
 }
 
 gpio_id_t bk_uart_get_rx_gpio(uart_id_t id)

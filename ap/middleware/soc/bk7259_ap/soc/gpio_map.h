@@ -24,61 +24,6 @@ extern "C" {
 #include <soc/soc.h>
 #include "sdkconfig.h"
 
-/* uart gpio pin map */
-#define UART0_TX_PIN  CONFIG_UART0_TX_PIN
-#define UART0_RX_PIN  CONFIG_UART0_RX_PIN
-#define UART0_CTS_PIN CONFIG_UART0_CTS_PIN
-#define UART0_RTS_PIN CONFIG_UART0_RTS_PIN
-
-#define UART1_TX_PIN  CONFIG_UART1_TX_PIN
-#define UART1_RX_PIN  CONFIG_UART1_RX_PIN
-
-#define UART2_TX_PIN  CONFIG_UART2_TX_PIN
-#define UART2_RX_PIN  CONFIG_UART2_RX_PIN
-
-#define UART3_TX_PIN  CONFIG_UART3_TX_PIN
-#define UART3_RX_PIN  CONFIG_UART3_RX_PIN
-
-#define UART4_TX_PIN  CONFIG_UART4_TX_PIN
-#define UART4_RX_PIN  CONFIG_UART4_RX_PIN
-
-#define UART5_TX_PIN  CONFIG_UART5_TX_PIN
-#define UART5_RX_PIN  CONFIG_UART5_RX_PIN
-
-#define GPIO_PWM_MAP_TABLE \
-{ \
-	{GPIO_47, GPIO_DEV_PWM0},\
-	{GPIO_48, GPIO_DEV_PWM1},\
-	{GPIO_49, GPIO_DEV_PWM2},\
-	{GPIO_50, GPIO_DEV_PWM3},\
-	{GPIO_51, GPIO_DEV_PWM4},\
-	{GPIO_52, GPIO_DEV_PWM5},\
-	{GPIO_53, GPIO_DEV_PWM6},\
-	{GPIO_54, GPIO_DEV_PWM7},\
-	{GPIO_55, GPIO_DEV_PWM8},\
-	{GPIO_8, GPIO_DEV_PWM9},\
-	{GPIO_28, GPIO_DEV_PWM10},\
-	{GPIO_9, GPIO_DEV_PWM11},\
-}
-
-
-#define GPIO_CTRL_LDO_OUTPUT_HIGH_MAP  \
-{\
-	/* GPIO_2, */\
-	/* GPIO_28, */\
-}
-
-#define GPIO_CTRL_LDO_OUTPUT_LOW_MAP  \
-{\
-	/* GPIO_4, */\
-	/* GPIO_26, */\
-}
-/*---multi modules use one gpio to control different ldo---*/
-#define GPIO_CTRL_LDO_MAP  \
-{\
-	{GPIO_13,  GPIO_OUTPUT_STATE_LOW},\
-	{GPIO_28,  GPIO_OUTPUT_STATE_LOW},\
-}
 /*
  * Camera DVP GPIO MAP
  */
@@ -180,75 +125,8 @@ extern "C" {
 #define LCD_RGB_VSYNC_FUNC 			(GPIO_DEV_LCD_VSYNC)
 #define LCD_RGB_DE_FUNC 			(GPIO_DEV_LCD_DE)
 
-/*
- * LCD MCU GPIO MAP
- */
-#define LCD_MCU_D0_PIN 				(GPIO_47)
-#define LCD_MCU_D1_PIN 				(GPIO_46)
-#define LCD_MCU_D2_PIN 				(GPIO_45)
-#define LCD_MCU_D3_PIN 				(GPIO_44)
-#define LCD_MCU_D4_PIN 				(GPIO_43)
-#define LCD_MCU_D5_PIN 				(GPIO_42)
-#define LCD_MCU_D6_PIN 				(GPIO_41)
-#define LCD_MCU_D7_PIN 				(GPIO_40)
-#define LCD_MCU_D8_PIN 				(GPIO_21)
-#define LCD_MCU_D9_PIN 				(GPIO_20)
-#define LCD_MCU_D10_PIN 			(GPIO_19)
-#define LCD_MCU_D11_PIN 			(GPIO_18)
-#define LCD_MCU_D12_PIN 			(GPIO_17)
-#define LCD_MCU_D13_PIN 			(GPIO_16)
-#define LCD_MCU_D14_PIN 			(GPIO_15)
-#define LCD_MCU_D15_PIN 			(GPIO_14)
-#define LCD_MCU_D16_PIN 			(GPIO_48)
-#define LCD_MCU_D17_PIN 			(GPIO_49)
-#define LCD_MCU_RDX_PIN 		 	(GPIO_26)
-#define LCD_MCU_WRX_PIN 		 	(GPIO_25)
-#define LCD_MCU_RSX_PIN 		 	(GPIO_24)
-#define LCD_MCU_RESET_PIN 		 	(GPIO_23)
-#define LCD_MCU_CSX_PIN 		 	(GPIO_22)
-
-#define LCD_MCU_D0_FUNC 			(GPIO_DEV_LCD_B3)
-#define LCD_MCU_D1_FUNC 			(GPIO_DEV_LCD_B4)
-#define LCD_MCU_D2_FUNC 			(GPIO_DEV_LCD_B5)
-#define LCD_MCU_D3_FUNC 			(GPIO_DEV_LCD_B6)
-#define LCD_MCU_D4_FUNC 			(GPIO_DEV_LCD_B7)
-#define LCD_MCU_D5_FUNC 			(GPIO_DEV_LCD_G2)
-#define LCD_MCU_D6_FUNC 			(GPIO_DEV_LCD_G3)
-#define LCD_MCU_D7_FUNC 			(GPIO_DEV_LCD_G4)
-#define LCD_MCU_D8_FUNC 			(GPIO_DEV_LCD_R5)
-#define LCD_MCU_D9_FUNC 			(GPIO_DEV_LCD_R6)
-#define LCD_MCU_D10_FUNC 			(GPIO_DEV_LCD_R7)
-#define LCD_MCU_D11_FUNC 			(GPIO_DEV_LCD_VSYNC)
-#define LCD_MCU_D12_FUNC 			(GPIO_DEV_LCD_HSYNC)
-#define LCD_MCU_D13_FUNC 			(GPIO_DEV_LCD_DE)
-#define LCD_MCU_D14_FUNC 			(GPIO_DEV_LCD_DISP)
-#define LCD_MCU_D15_FUNC 			(GPIO_DEV_LCD_CLK)
-#define LCD_MCU_D16_FUNC 			(GPIO_DEV_LCD_R2)
-#define LCD_MCU_D17_FUNC 			(GPIO_DEV_LCD_R1)
-#define LCD_MCU_RDX_FUNC 		 	(GPIO_DEV_LCD_G5)
-#define LCD_MCU_WRX_FUNC 		 	(GPIO_DEV_LCD_G6)
-#define LCD_MCU_RSX_FUNC 		 	(GPIO_DEV_LCD_G7)
-#define LCD_MCU_RESET_FUNC 		 	(GPIO_DEV_LCD_R3)
-#define LCD_MCU_CSX_FUNC 		 	(GPIO_DEV_LCD_R4)
-
-/*
-* AUDIO PA GPIO MAP
-*/
-#define AUD_DAC_PA_CTRL_GPIO		(GPIO_5)
-#define AUD_DAC_PA_ENABLE_LEVEL		(1)
-
-/*
-* VIDEO PA GPIO MAP
-*/
-// LCD AND SD POWER CTRL
-#define LCD_LDO_CTRL_GPIO                  (GPIO_13)
-#define LCD_LDO_CTRL_ACTIVE_LEVEL          (1)
-
 #define SDCARD_LDO_CTRL_GPIO               (GPIO_13)
 #define SDCARD_LDO_CTRL_ACTIVE_LEVEL       CONFIG_LDO3V3_CTRL_LEVEL
-
-// LCD BACKLIGHT CTRL
-#define LCD_BACKLIGHT_CTRL_ACTIVE_LEVEL    (1)
 
 #if CONFIG_GPIO_WAKEUP_SUPPORT
 #define GPIO_STATIC_WAKEUP_SOURCE_MAP  \
@@ -259,8 +137,6 @@ extern "C" {
 	}
 
 #endif
-
-#define IRDA_PIN    (GPIO_25)
 
 #define GPIO_DEV_TO_IOMX_CODE_MAP \
 {\

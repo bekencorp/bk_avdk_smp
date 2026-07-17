@@ -376,7 +376,7 @@ bk_err_t bk_gpio_unregister_isr(gpio_id_t id);
  * control the external ldo,multi modules power on use one gpio control
  *
  * @attention
- * - This API is used to use the specific gpio(define in  GPIO_CTRL_LDO_MAP in gpio_map.h) control the external ldo(multi modules power on use one gpio control)
+ * - This API uses the specified gpio_id to control the external ldo (multi modules power on use one gpio control)
  *
  * @param
  * -module:module ID (0~31), can use gpio_ctrl_ldo_module_e enum or custom value

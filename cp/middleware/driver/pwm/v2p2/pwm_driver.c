@@ -55,11 +55,6 @@ typedef struct {
 } pwm_driver_t;
 
 typedef struct {
-	gpio_id_t gpio_id;
-	gpio_dev_t gpio_dev;
-} pwm_gpio_map_t;
-
-typedef struct {
 	pwm_chan_t sw_ch;
 	pwm_chan_t tim_ch;
 } pwm_tim_map_t;
@@ -135,7 +130,6 @@ typedef enum {
 static bool s_pwm_driver_is_init = false;
 static pwm_driver_t s_pwm = {0};
 static pwm_isr_t s_pwm_isr[SOC_PWM_CHAN_NUM_MAX] = {NULL};
-static const pwm_gpio_map_t s_pwm_pin_id_map[SOC_PWM_CHAN_NUM_MAX] = GPIO_PWM_MAP_TABLE;
 
 #if CONFIG_PWM_PHASE_SHIFT
 static uint8_t s_pwm_mode = 0;
@@ -146,11 +140,30 @@ static pwm_phase_shift_config_t *s_shift_config = NULL;
 
 static void pwm0_isr(void);
 
+#define PWM_SET_PIN(ch) gpio_dev_map_by_func(GPIO_DEV_PWM##ch)
+
 static void pwm_chan_init_gpio(pwm_chan_t sw_ch)
 {
-#if CONFIG_USR_GPIO_CFG_EN
-	gpio_dev_map_by_func(s_pwm_pin_id_map[sw_ch].gpio_dev);
-#endif
+	/* Map this channel's PWM function to its pad via GPIO_DEFAULT_DEV_CONFIG in
+	 * usr_gpio_cfg.h. Each channel is mapped to its explicit GPIO_DEV_PWM<n>
+	 * (mirrors i2c_driver's I2C_SET_PIN, so no reliance on the enum being
+	 * contiguous); gpio_dev_map_by_func() resolves the gpio id from that table
+	 * and re-applies its pull/capacity, so no explicit pull-up here. */
+	switch (sw_ch) {
+	case 0:  PWM_SET_PIN(0);  break;
+	case 1:  PWM_SET_PIN(1);  break;
+	case 2:  PWM_SET_PIN(2);  break;
+	case 3:  PWM_SET_PIN(3);  break;
+	case 4:  PWM_SET_PIN(4);  break;
+	case 5:  PWM_SET_PIN(5);  break;
+	case 6:  PWM_SET_PIN(6);  break;
+	case 7:  PWM_SET_PIN(7);  break;
+	case 8:  PWM_SET_PIN(8);  break;
+	case 9:  PWM_SET_PIN(9);  break;
+	case 10: PWM_SET_PIN(10); break;
+	case 11: PWM_SET_PIN(11); break;
+	default: break;
+	}
 }
 
 static void pwm_chan_init_common(pwm_chan_t sw_ch)
