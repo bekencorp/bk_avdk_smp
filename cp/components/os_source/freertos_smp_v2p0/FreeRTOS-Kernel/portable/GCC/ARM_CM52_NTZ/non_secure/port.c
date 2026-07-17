@@ -40,6 +40,7 @@
 #include "portasm.h"
 
 #include "cmsis_gcc.h"
+#include "bk_arch.h"
 #include "bk_wdt.h"
 #include "bk_aon_wdt.h"
 #if CONFIG_SUPPORT_WWDT
@@ -453,6 +454,16 @@ PRIVILEGED_DATA static volatile uint32_t ulCriticalNesting = 0xaaaaaaaaUL;
     static uint8_t ucPrimaryCoreNum = INVALID_PRIMARY_CORE_NUM;
 extern uint32_t rtos_get_time_diff(void);
 #if ((configUSE_TICKLESS_IDLE == 1))
+static inline void prvAssertBasepriClearedBeforePrimaskEnable(const char *where)
+{
+    uint32_t basepri = port_get_basepri();
+
+    if (basepri != 0UL) {
+        BK_LOGE("OS", "%s: BASEPRI leak before cpsie i, BASEPRI=0x%x\r\n", where, basepri);
+        configASSERT(basepri == 0UL);
+    }
+}
+
     __attribute__( ( weak ) ) void vPortSuppressTicksAndSleep( TickType_t xExpectedIdleTime )
     {
         TickType_t xModifiableIdleTime;
@@ -475,6 +486,7 @@ extern uint32_t rtos_get_time_diff(void);
         {
             /* Re-enable interrupts - see comments above the cpsid instruction
              * above. */
+            prvAssertBasepriClearedBeforePrimaskEnable("tickless-abort");
             __asm volatile ( "cpsie i" ::: "memory" );
         }
         else
@@ -498,6 +510,7 @@ extern uint32_t rtos_get_time_diff(void);
 
             /* Step the tick to account for any tick periods that elapsed. */
             /* Exit with interrupts enabled. */
+            prvAssertBasepriClearedBeforePrimaskEnable("tickless-exit");
             __asm volatile ( "cpsie i" ::: "memory" );
         }
     }
@@ -612,6 +625,16 @@ static inline void systick_update(TickType_t xExpectedIdleTime, uint32_t ulReloa
  * release initializer (not SPIN_LOCK_INIT). */
 static SPINLOCK_SECTION volatile spinlock_t pm_sleep_spin_lock = SPINLOCK_ACQUIRE_INITIALIZER;
 
+static inline void prvAssertBasepriClearedBeforePrimaskEnable(const char *where)
+{
+    uint32_t basepri = port_get_basepri();
+
+    if (basepri != 0UL) {
+        BK_LOGE("OS", "%s: BASEPRI leak before cpsie i, BASEPRI=0x%x\r\n", where, basepri);
+        configASSERT(basepri == 0UL);
+    }
+}
+
 void vPortSuppressTicksAndSleep( TickType_t xExpectedIdleTime )
 {
     uint32_t ulReloadValue;
@@ -662,6 +685,7 @@ void vPortSuppressTicksAndSleep( TickType_t xExpectedIdleTime )
         * above. */
         // __asm volatile ( "cpsie i" ::: "memory" );
         spinlock_release(&pm_sleep_spin_lock, 0UL);
+        prvAssertBasepriClearedBeforePrimaskEnable("tickless-abort");
         __asm volatile ( "cpsie i" ::: "memory" );
 
     } else {
@@ -700,7 +724,9 @@ void vPortSuppressTicksAndSleep( TickType_t xExpectedIdleTime )
 #endif
         /* Re-enable interrupts to allow the interrupt that brought the MCU
         * out of sleep mode to execute immediately. See comments above
-        * the cpsid instruction above. */
+        * the cpsid instruction above. BASEPRI is already 0 (the PM path never
+        * raised it), so no manual clear is needed before "cpsie i". */
+        prvAssertBasepriClearedBeforePrimaskEnable("tickless-wake");
         __asm volatile ( "cpsie i" ::: "memory" );
         __asm volatile ( "dsb" );
         __asm volatile ( "isb" );
@@ -722,6 +748,7 @@ void vPortSuppressTicksAndSleep( TickType_t xExpectedIdleTime )
 
         /* Restart SysTick. */
         portNVIC_SYSTICK_CTRL_REG |= portNVIC_SYSTICK_ENABLE_BIT;
+        prvAssertBasepriClearedBeforePrimaskEnable("tickless-exit");
         __asm volatile ( "cpsie i" ::: "memory" );
     }
 }
@@ -1729,21 +1756,21 @@ uint32_t platform_cpsr_content( void )
 
 int port_disable_interrupts_flag(void)
 {
-    uint32_t primask_val = __get_PRIMASK();
-    __disable_irq();
-    return primask_val;
+    return portDISABLE_INTERRUPTS();
 }
 
 void port_enable_interrupts_flag(int val)
 {
-    __set_PRIMASK(val);
+    portRESTORE_INTERRUPTS(val);
 }
 
 bool platform_local_irq_disabled(void)
 {
-    uint32_t primask_val = __get_PRIMASK();
+    uint32_t basepri_val = port_get_basepri();
 
-    return !!primask_val;
+    /* Interrupts are disabled if either BASEPRI (runtime critical sections) or
+     * PRIMASK (tickless sleep-entry window masks via "cpsid i") is set. */
+    return !!basepri_val || !!__get_PRIMASK();
 }
 
 void port_check_isr_stack(void)
