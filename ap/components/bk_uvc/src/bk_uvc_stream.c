@@ -771,9 +771,10 @@ static avdk_err_t uvc_camera_stream_packet_urb(uvc_param_t *uvc_param)
     uvc_device = (struct usbh_video *)(uvc_param->port_info->usb_device);
 #if CONFIG_BK_USB_CHERRYUSB_V1_6
     /* v1.6 URBs are addressed by (hport, ep-descriptor), not a pipe handle.
-     * usbh_video_open() points uvc_device->isoin at the ISO IN ep descriptor. */
+     * usbh_video_open() points uvc_device->isoin at the ISO IN ep descriptor for
+     * ISO cameras, and uvc_device->bulkin for BULK cameras; pick the right one. */
     urb->hport = uvc_device->hport;
-    urb->ep = uvc_device->isoin;
+    urb->ep = uvc_device->is_bulk ? uvc_device->bulkin : uvc_device->isoin;
     if (urb->ep == NULL || urb->hport == NULL)
     {
         LOGE("%s, %d\n", __func__, __LINE__);
