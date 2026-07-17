@@ -18,6 +18,7 @@
 #include <components/bk_audio/audio_pipeline/audio_event_iface.h>
 #include <components/bk_audio/audio_pipeline/audio_port.h>
 #include <components/bk_audio/audio_pipeline/audio_types.h>
+#include <components/bk_audio/audio_pipeline/audio_uplink_layout.h>
 #include <os/os.h>
 
 #ifdef __cplusplus
@@ -267,6 +268,35 @@ bk_err_t audio_element_setinfo(audio_element_handle_t el, audio_element_info_t *
  *     - BK_FAIL
  */
 bk_err_t audio_element_getinfo(audio_element_handle_t el, audio_element_info_t *info);
+
+/**
+ * @brief  Publish this element's uplink capture caps (producer side, e.g. mic).
+ *         The pipeline forwards the effective caps downstream at link time so a
+ *         consumer (e.g. AEC) can derive the interleaved lane layout without any
+ *         hand-set lane geometry. Purely additive; elements that never call this
+ *         are unaffected.
+ */
+bk_err_t audio_element_set_uplink_caps(audio_element_handle_t el, const aud_uplink_caps_t *caps);
+
+/**
+ * @brief  Get this element's EFFECTIVE uplink caps: its own published caps if
+ *         valid, otherwise the caps forwarded from upstream (pass-through). Used
+ *         by the pipeline to propagate caps across intermediate elements (e.g. a
+ *         resampler that does not change channel geometry).
+ */
+bk_err_t audio_element_get_uplink_caps(audio_element_handle_t el, aud_uplink_caps_t *caps);
+
+/**
+ * @brief  Set the uplink caps forwarded from upstream (called by the pipeline at
+ *         link time). Consumers read these via audio_element_get_input_uplink_caps().
+ */
+bk_err_t audio_element_set_input_uplink_caps(audio_element_handle_t el, const aud_uplink_caps_t *caps);
+
+/**
+ * @brief  Get the uplink caps forwarded from upstream (consumer side, e.g. AEC).
+ *         caps->valid is 0 when no producer upstream published any.
+ */
+bk_err_t audio_element_get_input_uplink_caps(audio_element_handle_t el, aud_uplink_caps_t *caps);
 
 /**
  * @brief      Set audio element URI.

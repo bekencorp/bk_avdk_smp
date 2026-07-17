@@ -1765,7 +1765,6 @@ audio_element_handle_t onboard_speaker_stream_init(onboard_speaker_stream_cfg_t 
     bk_err_t ret = BK_OK;
     uint32 i = 0, k = 0;
     aud_dac_chl_t effective_dac_chl;
-    BK_LOGD(TAG, "%s, line:%d\n", __func__, __LINE__);
 
     gl_onboard_speaker = audio_calloc(1, sizeof(onboard_speaker_stream_t));
     AUDIO_MEM_CHECK(TAG, gl_onboard_speaker, return NULL);
@@ -1804,7 +1803,6 @@ audio_element_handle_t onboard_speaker_stream_init(onboard_speaker_stream_cfg_t 
 
     /*input buffer size = max frame size*/
     cfg.buffer_len = k;
-    BK_LOGD(TAG, "cfg.buffer_len: %d\n", cfg.buffer_len);
 
     uint32_t dma_frame_ref_src = AUD_DAC_SOURCE_A2DP;
     if (config->dac_source_bitmap & (1 << AUD_DAC_SOURCE_A2DP))

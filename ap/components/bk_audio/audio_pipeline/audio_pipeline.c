@@ -505,6 +505,7 @@ bk_err_t audio_pipeline_link(audio_pipeline_handle_t pipeline, const char *link_
 {
     bk_err_t ret = BK_OK;
     bool first = false, last = false;
+    audio_element_handle_t prev_el = NULL;
     if (pipeline->linked)
     {
         audio_pipeline_unlink(pipeline);
@@ -527,6 +528,20 @@ bk_err_t audio_pipeline_link(audio_pipeline_handle_t pipeline, const char *link_
         {
             return ret;
         }
+        /* Forward uplink capture caps downstream (additive; no effect unless a
+         * producer upstream published caps). get_uplink_caps returns the
+         * upstream's effective caps (own, or its own forwarded-in), so it passes
+         * cleanly across intermediate elements that do not change channel
+         * geometry (e.g. a resampler). */
+        if (prev_el)
+        {
+            aud_uplink_caps_t caps;
+            if (audio_element_get_uplink_caps(prev_el, &caps) == BK_OK)
+            {
+                audio_element_set_input_uplink_caps(el, &caps);
+            }
+        }
+        prev_el = el;
     }
     pipeline->linked = true;
     PIPELINE_DEBUG(pipeline);

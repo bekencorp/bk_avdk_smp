@@ -7,6 +7,7 @@ list(APPEND srcs
 		audio_element.c
 		audio_event_iface.c
 		audio_pipeline.c
+		audio_uplink_layout.c
 		ringbuf.c
 		framebuf.c
 		audio_mem.c

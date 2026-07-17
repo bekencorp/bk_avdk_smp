@@ -111,11 +111,6 @@ menu "Adk"
 					help
 						Enable AEC v3 component version2
 			endchoice
-
-			config AUD_AEC_LOOP
-				depends on ADK_AEC_V3_ALGORITHM_COMPONENT_V2
-				bool "enable aec_en"
-				default y
 		endmenu
 
 		menu "Agc_algorithm"

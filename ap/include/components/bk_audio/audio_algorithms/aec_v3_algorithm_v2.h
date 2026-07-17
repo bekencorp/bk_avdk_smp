@@ -75,13 +75,34 @@ extern "C" {
                          +---------------------------------------------------------------------------------------------------------+
 
 */
+/* Selects the PATH the reference signal takes into the AEC. This is orthogonal to
+ * how a HARDWARE reference is laid out on the ADC stream (see aec_hw_ref_t / the
+ * aec_loop field): mode chooses ADC-stream vs software ringbuffer; aec_loop then
+ * chooses, within HARDWARE, append-lane vs in-channel. Do NOT add a value here to
+ * encode the append/in-channel distinction - it belongs on aec_loop, and dozens
+ * of `mode == AEC_MODE_HARDWARE` sites would silently miss a new enumerator. */
 typedef enum
 {
-    AEC_MODE_HARDWARE,      /*!< hardware mode: Hardware mode get source and reference signal through audio adc L and R channel. Audio adc L channel
-                                 connect to mic, and collect source signal. Audio adc R channel connect to speaker, and collect reference signal. */
-    AEC_MODE_SOFTWARE       /*!< software mode: Software mode get source and reference signal through audio adc L and software writting. Audio adc L
-                                 channel connect to mic, and collect source signal. Software write speaker data to input ringbuffer to support reference signal. */
+    AEC_MODE_HARDWARE,      /*!< hardware mode: the reference arrives interleaved on the ADC stream together with
+                                 the mic(s). How the ref lane is placed depends on aec_loop: 1 = aec_en appends a
+                                 dedicated ref lane at the end of the stream; 0 = plain hw loopback, the ref rides a
+                                 real ADC channel (ch0 by convention). For the classic single-mic case this is the
+                                 old "adc L = mic, adc R = ref" layout. */
+    AEC_MODE_SOFTWARE       /*!< software mode: mic(s) arrive on the ADC stream, the reference is written by software
+                                 into the multi_input ringbuffer (no ref lane on the ADC stream). */
 } aec_v3_mode_t;
+
+/* Semantic names for the aec_loop field values (HARDWARE mode only). Values are
+ * kept identical to the historical aec_loop 0/1 so this is purely self-describing
+ * and behaviour-neutral. See audio_uplink_layout.h for the resulting lane layout. */
+typedef enum
+{
+    AEC_HW_REF_IN_CHANNEL = 0,  /*!< plain hw loopback: aec_en NOT set; ref occupies a real ADC channel (ch0). */
+    AEC_HW_REF_APPEND     = 1,  /*!< aec loop: aec_en sets the register; hw appends a ref lane at the stream end. */
+} aec_hw_ref_t;
+
+/* Sentinel for aec_v3_cfg_t.ref_ch: keep the shipped/default reference position. */
+#define AEC_REF_CH_DEFAULT   (0xFF)
 
 typedef enum
 {
@@ -133,6 +154,22 @@ typedef struct
     uint8_t ec_only_output; /*!< 0:disable,1:enable */
     uint8_t dual_perp;      /*!< dual channel direction,0:0 degree,1:90 degree*/
     uint8_t multi_output_use_ec_out; /*!< when ec_only_output=1: 0=multi_output use aec out, 1=multi_output use ec out; when ec_only_output=0, multi_output always aec out */
+    uint8_t aec_loop;       /*!< hardware reference mechanism, see aec_hw_ref_t. Replaces the former
+                                 CONFIG_AUD_AEC_LOOP compile switch. Dual mic only:
+                                 AEC_HW_REF_APPEND(1)     = aec_en appends ref lane at end, de-interleave /8;
+                                 AEC_HW_REF_IN_CHANNEL(0) = ref rides ADC ch0 (first), de-interleave /6.
+                                 No functional effect for single mic. Default 1 preserves legacy (macro default y). */
+    uint8_t ref_ch;         /*!< which ADC lane carries the reference, for the IN_CHANNEL mechanism only
+                                 (aec_loop=AEC_HW_REF_IN_CHANNEL, dual mic). 0..2 pins the ref to that lane,
+                                 the remaining lanes become the mics in order. AEC_REF_CH_DEFAULT keeps the
+                                 shipped position (ch0). Ignored for APPEND (hw fixes ref last) and single mic. */
+    uint8_t adc_ch_num;     /*!< number of ADC channels actually enabled on the mic side (popcount of the
+                                 mic ch_bitmap, EXCLUDING the appended aec_en ref lane). This is what lets the
+                                 AEC de-interleave the correct number of lanes instead of assuming the legacy
+                                 /4,/6,/8. Set it to the mic's adc chl_num (see aud_uplink_resolve()).
+                                 0 = UNKNOWN: fall back to the legacy hard-coded layout (bit-for-bit compatible
+                                 with shipped configs that never set this field, e.g. ai). */
+    uint32_t reserved[4];
 } aec_v3_cfg_t;
 
 typedef struct {
@@ -165,12 +202,16 @@ typedef struct
     int                     out_block_num;      /*!< Number of output block*/
     int                     multi_out_port_num; /*!< The number of multiple output audio port */
     int                     multi_in_port_num;  /*!< The number of multiple input audio port; set to 1 when AEC_MODE_SOFTWARE */
-    int                     dual_ch;            /*!< Enable dual channel input(1)/Disable dual channel input(0)*/
+    int                     dual_ch;            /*!< mic-count selector: 0=single mic, 1=dual mic, 2=triple mic.
+                                                     Historically a 0/1 flag (name kept for compatibility). 2 (triple)
+                                                     is RESERVED: the lane layout supports it, but the AEC algorithm
+                                                     and de-interleave still consume at most 2 mics. */
     ec_out_callback         ec_out_cb;          /*!< echo cancellation output callback function */
     vad_state_callback      vad_state_cb;       /*!< VAD state callback function */
     aec_phase_callback      aec_phase_cb;       /*!< AEC phase callback function */
     aec_level_callback      aec_level_cb;       /*!< AEC output level callback function, range: 0~100 */
     int16_t                 interleaved_out_phase_enable; /*!< 0: off; non-zero: malloc interleave buf and fill (out,phase) per frame */
+    uint32_t                reserved[2];
 } aec_v3_algorithm_cfg_t;
 
 #define AEC_V3_DELAY_SAMPLE_POINTS_MAX           (1000)
@@ -197,6 +238,9 @@ typedef struct
 #define AEC_V3_VAD_BAD_FRAME_NUM                  (16)
 #define AEC_V3_ALGORITHM_EC_ONLY_OUTPUT           (0x0)
 #define AEC_V3_ALGORITHM_MULTI_OUTPUT_USE_EC_OUT  (0)
+#define AEC_V3_ALGORITHM_AEC_LOOP                 (AEC_HW_REF_APPEND)  /* =1, preserves legacy CONFIG_AUD_AEC_LOOP default y */
+#define AEC_V3_ALGORITHM_REF_CH                   (AEC_REF_CH_DEFAULT) /* keep shipped ref position */
+#define AEC_V3_ALGORITHM_ADC_CH_NUM               (0)                  /* 0 = unknown -> legacy layout */
 
 #define DEFAULT_AEC_V3_ALGORITHM_CONFIG() {                                  \
     .task_stack = AEC_V3_ALGORITHM_TASK_STACK,                               \
@@ -222,6 +266,9 @@ typedef struct
         .ec_only_output = AEC_V3_ALGORITHM_EC_ONLY_OUTPUT,                   \
         .dual_perp      = DUAL_CH_0_DEGREE,                                  \
         .multi_output_use_ec_out = AEC_V3_ALGORITHM_MULTI_OUTPUT_USE_EC_OUT, \
+        .aec_loop       = AEC_V3_ALGORITHM_AEC_LOOP,                         \
+        .ref_ch         = AEC_V3_ALGORITHM_REF_CH,                           \
+        .adc_ch_num     = AEC_V3_ALGORITHM_ADC_CH_NUM,                       \
     },                                                      \
     .vad_cfg = {                                            \
         .vad_enable = 0,                                    \

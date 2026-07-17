@@ -1177,16 +1177,16 @@ static bk_err_t voice_config_check(voice_cfg_t cfg)
          */
         if (cfg.aec_en)
         {
+            #if CONFIG_ADK_AEC_V3_ALGORITHM_COMPONENT_V2
+            /* V2: the AEC derives the whole uplink lane geometry (mic count, ref lane,
+             * de-interleave) from the mic's published caps (ch_bitmap/aec_en) at
+             * pipeline open. The old service-layer chl_num<->dual_ch coupling assertion
+             * is therefore obsolete - it never rejected (return was commented out) and
+             * false-fired on valid configs (e.g. 2-mic HW append with chl_num=2) - so
+             * it has been removed. */
+            #else
             aec_v3_mode_t mode = cfg.aec_cfg.aec_alg_cfg.aec_cfg.mode;
             uint8_t chl_num    = cfg.mic_cfg.onboard_mic_cfg.adc_cfg.chl_num;
-            int32_t dual_ch    = cfg.aec_cfg.aec_alg_cfg.dual_ch;
-            #if CONFIG_ADK_AEC_V3_ALGORITHM_COMPONENT_V2
-            if ((mode == AEC_MODE_HARDWARE && !dual_ch && chl_num != 1) || (mode == AEC_MODE_HARDWARE && dual_ch && chl_num != 3))
-            {
-                BK_LOGE(TAG, "%s, %d, aec mode: %d, mic chanels: %d, dual_ch: %d are not match\n", __func__, __LINE__, mode, chl_num, dual_ch);
-                return BK_FAIL;
-            }
-            #else
             if ((mode == AEC_MODE_HARDWARE && chl_num < 2) || (mode == AEC_MODE_SOFTWARE && chl_num > 2))
             {
                 BK_LOGE(TAG, "%s, %d, aec mode: %d, mic chanels: %d are not match\n", __func__, __LINE__, mode, chl_num);
