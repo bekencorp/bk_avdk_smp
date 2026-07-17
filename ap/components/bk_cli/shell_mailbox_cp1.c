@@ -378,8 +378,42 @@ static bk_err_t write_sync(shell_mb_ext_t *mb_ext, u8 * p_buf, u16 buf_len)
 		}
 
 		buff_busy = (volatile u8 * )&tx_buff[0];
+
+		/* Wait for any in-flight transfer on this shared buffer to complete before
+		 * reusing it, so a concurrent writer (e.g. the INSRT sync path racing the
+		 * async pump across AP cores) cannot stomp a buffer the CP is still reading.
+		 * Bounded by the same timeout so a hung CP cannot hard-hang this core. */
+		{
+			uint64_t reuse_start_us = bk_aon_rtc_get_us();
+
+			while(*buff_busy)
+			{
+				#if CONFIG_SUPPORT_CACHEABLE_SRAM
+				flush_dcache((void *)buff_busy, 1);
+				#endif
+
+				if((bk_aon_rtc_get_us() - reuse_start_us) >= SHELL_MB_SYNC_TX_TIMEOUT_US)
+				{
+					ret_code = BK_ERR_MAILBOX_TIMEOUT;
+					break;
+				}
+			}
+
+			if(ret_code != BK_OK)
+			{
+				break;
+			}
+		}
+
 		tx_buff[0] = 1;  /* the buffer is busy. */
 		memcpy(&tx_buff[1], p_buf, cpy_len);
+
+		#if CONFIG_SUPPORT_CACHEABLE_SRAM
+		/* Clean (write back) the busy flag + payload to shared SRAM before signalling
+		 * the CP, so the CP reads the freshly written content instead of a stale /
+		 * uninitialised (0x55) cache line. flush_dcache = clean + invalidate. */
+		flush_dcache((void *)tx_buff, cpy_len + 1);
+		#endif
 
 		mb_chnl_cmd_t	mb_cmd_buf;
 		log_cmd_t * cmd_buf = (log_cmd_t *)&mb_cmd_buf;
@@ -630,7 +664,15 @@ static u16 shell_mb_write_sync(shell_dev_t * shell_dev, u8 * pBuf, u16 BufLen)
 
 	bk_err_t		ret_code;
 
+	/* Serialise with the async tx pump across AP cores: the pump manipulates the
+	 * same shared tx_sync_buf under mb_pump_lock, while this sync (INSRT fallback)
+	 * path previously only disabled local interrupts and gave no cross-core
+	 * exclusion on SMP - the root cause of the 0x55 log corruption. The internal
+	 * write_sync() never takes this lock itself, so acquiring it here cannot
+	 * self-deadlock. */
+	uint32_t flags = mb_pump_enter();
 	ret_code = write_sync(mb_ext, pBuf, BufLen);
+	mb_pump_exit(flags);
 
 	if(ret_code != BK_OK)
 		return 0;
