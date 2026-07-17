@@ -22,8 +22,19 @@ __attribute__((section(".iram"))) void arch_deep_sleep(void)
 
 __attribute__((section(".iram"))) void arch_sleep(void)
 {
+	uint32_t saved_basepri = bk_arch_get_basepri();
+	uint32_t restore_basepri = (saved_basepri != 0UL);
+
+	if (restore_basepri) {
+		bk_arch_set_basepri(0UL);
+	}
+
 	SCB->SCR &= ~SCB_SCR_SLEEPDEEP_Msk;
 	__WFI();
+
+	if (restore_basepri) {
+		bk_arch_set_basepri(saved_basepri);
+	}
 }
 __attribute__((section(".iram"))) uint64_t check_IRQ_pending(void)
 {

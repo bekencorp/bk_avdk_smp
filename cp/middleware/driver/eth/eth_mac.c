@@ -190,6 +190,7 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include "common/bk_include.h"
+#include <os/os.h>
 #include "eth_mac.h"
 #include "cmsis_gcc.h"
 #ifdef CONFIG_SUPPORT_CACHEABLE_SRAM
@@ -3426,6 +3427,7 @@ static uint32_t ETH_Prepare_Tx_Descriptors(ETH_HandleTypeDef *heth, ETH_TxPacket
 
   ETH_BufferTypeDef  *txbuffer = pTxConfig->TxBuffer;
   uint32_t           bd_count = 0;
+  uint32_t           int_level;
 
   /* Current Tx Descriptor Owned by DMA: cannot be used by the application  */
   if ((READ_BIT(dmatxdesc->DESC3, ETH_DMATXNDESCWBF_OWN) == ETH_DMATXNDESCWBF_OWN)
@@ -3701,13 +3703,11 @@ static uint32_t ETH_Prepare_Tx_Descriptors(ETH_HandleTypeDef *heth, ETH_TxPacket
 
   dmatxdesclist->CurTxDesc = descidx;
 
-  /* disable the interrupt */
-  __disable_irq();
+  int_level = rtos_disable_int();
 
   dmatxdesclist->BuffersInUse += bd_count + 1U;
 
-  /* Enable interrupts back */
-  __enable_irq();
+  rtos_enable_int(int_level);
 
 
   /* Return function status */

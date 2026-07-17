@@ -27,6 +27,9 @@
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
 #define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
+#define DWT_DEBUG_MONITOR_IRQN       ((uint32_t)-4)
+#define DWT_DEBUG_MONITOR_PRIORITY   (0U)
+
 BIT_CAP_STR_T cap_str_array[CAP_MAX_CNT] = STR_CAP_TABLE;
 ID_CAP_T id_cap_array[ID_MAX_CNT] = ID_CAP_TABLE;
 
@@ -92,6 +95,7 @@ void dwt_enable_debug_monitor_exception(void)
 
 void dwt_enable_debug_monitor_mode(void)
 {
+    NVIC_SetPriority(DWT_DEBUG_MONITOR_IRQN, DWT_DEBUG_MONITOR_PRIORITY);
     DCB->DEMCR |= DCB_DEMCR_TRCENA_Msk | DCB_DEMCR_MON_EN_Msk;
 }
 
