@@ -33,6 +33,7 @@
     #endif
 
 #include "spinlock.h"
+#include "bk_arch.h"
 
 /*------------------------------------------------------------------------------
  * Port specific definitions.
@@ -223,10 +224,9 @@ extern BaseType_t xIsPrivileged( void ) /* __attribute__ (( naked )) */;
 /**
  * @brief Critical section management.
  */
-static inline void _enable_irq_(void)
-{
-  __asm volatile ("cpsie i" : : : "memory");
-}
+    #define port_get_basepri                      bk_arch_get_basepri
+    #define port_set_basepri                      bk_arch_set_basepri
+    #define port_raise_basepri                    bk_arch_raise_basepri
 
 #if configUSE_OS_API_IN_IRQ_DISABLED
 UBaseType_t vTaskEnterCritical(void);
@@ -252,13 +252,9 @@ void vTaskExitCritical(void);
 #define portCLEAR_INTERRUPT_MASK_FROM_ISR( x )     do { portRESTORE_INTERRUPTS( x ); } while (0)
 #endif
 
-#define portDISABLE_INTERRUPTS()                  ({                  \
-   uint32_t ulState;                                                  \
-   __asm volatile ("mrs %0, PRIMASK" : "=r" (ulState)::);              \
-   __asm volatile ( " cpsid i " ::: "memory" );                       \
-   ulState;})
+#define portDISABLE_INTERRUPTS()                  bk_arch_raise_basepri()
 
-    #define portRESTORE_INTERRUPTS(ulState) __asm volatile ("msr PRIMASK,%0"::"r" (ulState) : )
+    #define portRESTORE_INTERRUPTS(ulState)       bk_arch_set_basepri( ulState )
 
     bk_err_t vPortYieldCore(int xCoreID);
     #define portYIELD_CORE(a) vPortYieldCore(a)
@@ -272,7 +268,7 @@ void vTaskExitCritical(void);
     #define portRELEASE_TASK_LOCK() spin_unlock(&task_spin_lock)
 
     #define portINTERRUPTS_DISABLED(__ulState)        ( __ulState != 0 )
-    #define portENABLE_INTERRUPTS()                   _enable_irq_()
+    #define portENABLE_INTERRUPTS()                   port_set_basepri( 0UL )
 
 /*-----------------------------------------------------------*/
 enum

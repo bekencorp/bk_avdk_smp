@@ -34,6 +34,7 @@
 #endif
 
 #include "portmacrocommon.h"
+#include "bk_arch.h"
 
 /*------------------------------------------------------------------------------
  * Port specific definitions.
@@ -55,17 +56,11 @@
 /**
  * @brief Critical section management.
  */
-static inline void _disable_irq_(void)
-{
-  __asm volatile ("cpsid i" : : : "memory");
-}
-
-static inline void _enable_irq_(void)
-{
-  __asm volatile ("cpsie i" : : : "memory");
-}
-#define portDISABLE_INTERRUPTS()                  _disable_irq_()
-#define portENABLE_INTERRUPTS()                   _enable_irq_()
+    #define port_get_basepri                      bk_arch_get_basepri
+    #define port_set_basepri                      bk_arch_set_basepri
+    #define port_raise_basepri                    bk_arch_raise_basepri
+    #define portDISABLE_INTERRUPTS()              ( void ) bk_arch_raise_basepri()
+    #define portENABLE_INTERRUPTS()               bk_arch_set_basepri( 0UL )
 
 typedef void* portMUX_TYPE;               /**< TODO:temp for single CORE/AMP-CORE build */
 

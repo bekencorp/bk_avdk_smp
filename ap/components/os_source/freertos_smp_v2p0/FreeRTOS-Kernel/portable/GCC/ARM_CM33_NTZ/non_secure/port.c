@@ -443,6 +443,16 @@ PRIVILEGED_DATA static volatile uint32_t ulCriticalNesting = 0xaaaaaaaaUL;
     static uint8_t ucPrimaryCoreNum = INVALID_PRIMARY_CORE_NUM;
 extern uint32_t rtos_get_time_diff(void);
 #if ( configUSE_TICKLESS_IDLE == 1 )
+static inline void prvAssertBasepriClearedBeforePrimaskEnable(const char *where)
+{
+    uint32_t basepri = port_get_basepri();
+
+    if (basepri != 0UL) {
+        BK_LOGE("OS", "%s: BASEPRI leak before cpsie i, BASEPRI=0x%x\r\n", where, basepri);
+        configASSERT(basepri == 0UL);
+    }
+}
+
     __attribute__( ( weak ) ) void vPortSuppressTicksAndSleep( TickType_t xExpectedIdleTime )
     {
         TickType_t xModifiableIdleTime;
@@ -465,6 +475,7 @@ extern uint32_t rtos_get_time_diff(void);
         {
             /* Re-enable interrupts - see comments above the cpsid instruction
              * above. */
+            prvAssertBasepriClearedBeforePrimaskEnable("tickless-abort");
             __asm volatile ( "cpsie i" ::: "memory" );
         }
         else
@@ -488,6 +499,7 @@ extern uint32_t rtos_get_time_diff(void);
 
             /* Step the tick to account for any tick periods that elapsed. */
             /* Exit with interrupts enabled. */
+            prvAssertBasepriClearedBeforePrimaskEnable("tickless-exit");
             __asm volatile ( "cpsie i" ::: "memory" );
         }
     }
@@ -954,7 +966,8 @@ void vPortSVCHandler_C( uint32_t * pulCallerStackAddress ) /* PRIVILEGED_FUNCTIO
 #if configDEBUG_SMP
 void xPortDebug(const char *str)
 {
-    BK_LOGD(NULL, "#%d %s  NVIC_SHPR3: 0x%x, PRIMASK 0x%x\n", portGET_CORE_ID(), str, portNVIC_SHPR3_REG, __get_PRIMASK());
+    BK_LOGD(NULL, "#%d %s  NVIC_SHPR3: 0x%x, PRIMASK 0x%x, BASEPRI 0x%x\n",
+        portGET_CORE_ID(), str, portNVIC_SHPR3_REG, __get_PRIMASK(), port_get_basepri());
 }
 #endif
 
@@ -973,7 +986,8 @@ BaseType_t xPortStartSchedulerOnCore( void ) /* PRIVILEGED_FUNCTION */
     portNVIC_SHPR3_REG |= portNVIC_PENDSV_PRI;
 
     #if configDEBUG_SMP
-        BK_LOGD(NULL, "#%d NVIC_SHPR3: 0x%x, PRIMASK 0x%x\n", portGET_CORE_ID(), portNVIC_SHPR3_REG, __get_PRIMASK());
+        BK_LOGD(NULL, "#%d NVIC_SHPR3: 0x%x, PRIMASK 0x%x, BASEPRI 0x%x\n",
+            portGET_CORE_ID(), portNVIC_SHPR3_REG, __get_PRIMASK(), port_get_basepri());
     #endif
     #if ( configENABLE_MPU == 1 )
     {
@@ -1397,21 +1411,21 @@ uint32_t platform_cpsr_content( void )
 
 int port_disable_interrupts_flag(void)
 {
-    uint32_t primask_val = __get_PRIMASK();
-    __disable_irq();
-    return primask_val;
+    return portDISABLE_INTERRUPTS();
 }
 
 void port_enable_interrupts_flag(int val)
 {
-    __set_PRIMASK(val);
+    portRESTORE_INTERRUPTS(val);
 }
 
 bool platform_local_irq_disabled(void)
 {
-    uint32_t primask_val = __get_PRIMASK();
+    uint32_t basepri_val = port_get_basepri();
 
-    return !!primask_val;
+    /* Interrupts are disabled if either BASEPRI (runtime critical sections) or
+     * PRIMASK (tickless sleep-entry window masks via "cpsid i") is set. */
+    return !!basepri_val || !!__get_PRIMASK();
 }
 
 void port_check_isr_stack(void)

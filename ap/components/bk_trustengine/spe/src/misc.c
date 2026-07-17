@@ -8,6 +8,7 @@
 #include "tfm_core_utils.h"
 #include "bk_uart.h"
 #include <components/system.h>
+#include "bk_arch.h"
 
 #define CONFIG_STDIO_PRINTF_BUF_SIZE    128
 
@@ -133,17 +134,12 @@ void psa_eoi(uint32_t irq_signal)
 
 unsigned int hal_irq_disable(void)
 {
-	uint32_t primask_val;
-
-	primask_val = __get_PRIMASK();
-	__disable_irq();
-
-	return primask_val;
+	return bk_arch_raise_basepri();
 }
 
 void hal_irq_enable(unsigned int key)
 {
-	__set_PRIMASK(key);
+	bk_arch_set_basepri(key);
 }
 
 void rand_bytes(uint8_t *data, uint32_t len)

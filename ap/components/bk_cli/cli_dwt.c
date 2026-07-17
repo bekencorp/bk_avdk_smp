@@ -3,6 +3,8 @@
 #include "sdkconfig.h"
 
 #if CONFIG_ARCH_CORTEX_M
+#include "bk_arch.h"
+#include "bk_arm_arch.h"
 #include "dwt.h"
 extern void bk_delay_us(UINT32 us);
 void smp_arch_dwt_trap_write(uint32_t addr, uint32_t data);
@@ -40,8 +42,16 @@ static void dwt_command_usage(void)
     BK_LOGD(NULL, "dwtdd data_address data_value\r\n");
     BK_LOGD(NULL, "     data_address: watch this data address, hex format\r\n");
     BK_LOGD(NULL, "     data_value: match the data value with watching this data address, hex format\r\n");
+    BK_LOGD(NULL, "dwtcs data_address [data_value]\r\n");
+    BK_LOGD(NULL, "     temporary test: trigger DWT write watchpoint inside rtos_disable_int()\r\n");
     BK_LOGD(NULL, "dwtf ms\r\n");
     BK_LOGD(NULL, "     ms: measure window in milliseconds using bk_delay_us()\r\n");
+}
+
+static void dwt_print_irq_mask_state(const char *stage)
+{
+    BK_LOGD(NULL, "%s: PRIMASK=%u BASEPRI=0x%x\r\n",
+            stage, __get_PRIMASK(), __get_BASEPRI());
 }
 
 static void dwti_Command(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
@@ -117,6 +127,47 @@ static void dwtdd_Command(char *pcWriteBuffer, int xWriteBufferLen, int argc, ch
 #else
     dwt_conditional_data_watchpoint(addr, value);
 #endif
+}
+
+static void dwtcs_Command(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
+{
+    uint32_t addr;
+    uint32_t value = 0xAABBCCDD;
+    uint32_t int_level;
+    volatile uint32_t *watch_addr;
+
+    if ((argc < 2) || (argc > 3)) {
+        dwt_command_usage();
+        return;
+    }
+
+    if (dwt_parse_hex_u32(argv[1], &addr) != 0) {
+        dwt_command_usage();
+        return;
+    }
+    if ((argc >= 3) && (dwt_parse_hex_u32(argv[2], &value) != 0)) {
+        dwt_command_usage();
+        return;
+    }
+
+    watch_addr = (volatile uint32_t *)addr;
+    BK_LOGD(NULL, "dwtcs: addr=0x%x value=0x%x\r\n", addr, value);
+
+#ifdef CONFIG_SOC_SMP
+    smp_dwt_set_data_write(addr);
+#else
+    dwt_set_data_address_write(addr);
+#endif
+
+    dwt_print_irq_mask_state("dwtcs-before-critical");
+    int_level = rtos_disable_int();
+    dwt_print_irq_mask_state("dwtcs-in-critical-before-write");
+
+    *watch_addr = value;
+
+    dwt_print_irq_mask_state("dwtcs-in-critical-after-write");
+    rtos_enable_int(int_level);
+    dwt_print_irq_mask_state("dwtcs-after-critical");
 }
 
 #ifdef CONFIG_SOC_SMP
@@ -199,6 +250,7 @@ DRV_CLI_CMD_EXPORT static const struct cli_command s_dwt_commands[] = {
     {"dwti", "dwti 0x<instruction_addr>", dwti_Command},
     {"dwtf", "dwtf <ms> (decimal, measure CPU freq)", dwtf_Command},
     {"dwtdd", "dwtdd 0x<addr> 0x<value>", dwtdd_Command},
+    {"dwtcs", "dwtcs 0x<addr> [0x<value>] (temporary critical-section DWT test)", dwtcs_Command},
 #ifdef CONFIG_SOC_SMP
     {"dwtdw", "dwtdw 0x<data_address>", dwtdw_Command},
 #else
