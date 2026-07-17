@@ -29,6 +29,15 @@ extern "C" {
 avdk_err_t bk_jpeg_encode_frame_new(bk_jpeg_encode_ctlr_handle_t *handle, bk_jpeg_encode_frame_config_t *config);
 
 /**
+ * @brief Create software frame-mode JPEG encoder.
+ * @param handle Output pointer that receives the encoder handle
+ * @param config Software frame encoder configuration
+ * @return AVDK error code
+ */
+avdk_err_t bk_jpeg_encode_sw_frame_new(bk_jpeg_encode_ctlr_handle_t *handle,
+				       bk_jpeg_encode_sw_frame_config_t *config);
+
+/**
  * @brief Create hardware-Flexa JPEG encoder (VCENC JPEG low-latency HW sync path).
  * @param handle Output pointer that receives the encoder handle
  * @param config Hardware Flexa encoder configuration

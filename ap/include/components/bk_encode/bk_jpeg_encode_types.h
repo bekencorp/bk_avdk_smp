@@ -64,6 +64,19 @@ typedef struct {
 typedef struct {
 	uint32_t width;
 	uint32_t height;
+	uint32_t input_format; /*!< e.g. BK_PIXEL_FORMAT_YUYV */
+	uint32_t input_buf;    /*!< YUYV input base address */
+	uint32_t input_size;
+	uint8_t quality;
+	void *(*outbuf_malloc)(uint32_t outbuf_size, void *args);
+	void *outbuf_malloc_args;
+	uint32_t (*outbuf_complete)(bk_jpeg_encode_outbuf_info_t *info);
+	void *outbuf_complete_args;
+} bk_jpeg_encode_sw_frame_config_t;
+
+typedef struct {
+	uint32_t width;
+	uint32_t height;
 	uint32_t input_format;
 	uint32_t input_flexa_cnt;
 	uint32_t input_buf;
@@ -92,7 +105,7 @@ typedef struct {
 } bk_jpeg_encode_sw_flexa_config_t;
 
 typedef struct {
-	uint32_t pic_buf;   /*!< override input NV12 base for this frame */
+	uint32_t pic_buf;   /*!< override input base for this frame */
 	uint32_t pic_lines; /*!< unused */
 	uint32_t out_buf;   /*!< optional; 0 = allocate via outbuf_malloc */
 	uint32_t out_size;  /*!< optional output capacity when out_buf non-zero */
@@ -118,6 +131,19 @@ struct bk_jpeg_encode_ctlr_t {
 	.input_buf = 0, \
 	.input_size = 0, \
 	.quality = 5, \
+	.outbuf_malloc = NULL, \
+	.outbuf_malloc_args = NULL, \
+	.outbuf_complete = NULL, \
+	.outbuf_complete_args = NULL, \
+}
+
+#define DEFAULT_JPEG_ENCODE_SW_FRAME_CONFIG { \
+	.width = 640, \
+	.height = 480, \
+	.input_format = BK_PIXEL_FORMAT_YUYV, \
+	.input_buf = 0, \
+	.input_size = 0, \
+	.quality = 75, \
 	.outbuf_malloc = NULL, \
 	.outbuf_malloc_args = NULL, \
 	.outbuf_complete = NULL, \
