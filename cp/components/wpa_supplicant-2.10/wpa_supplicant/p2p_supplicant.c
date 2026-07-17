@@ -2638,7 +2638,7 @@ static void wpas_go_neg_completed(void *ctx, struct p2p_go_neg_results *res)
 		wpas_p2p_remove_pending_group_interface(wpa_s);
 #if BK_SUPPLICANT
 		WPA_LOGW("%s status:%d WIFI_REASON_P2P_NEG_FAILED\r\n", __func__, res->status);
-		wpas_notify_disconnected_with_reason(true, WIFI_REASON_P2P_NEG_FAILED);
+		wpas_notify_disconnected_with_reason(WIFI_REASON_P2P_NEG_FAILED, true);
 #endif
 		return;
 	}
