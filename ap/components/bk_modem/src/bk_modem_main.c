@@ -183,7 +183,7 @@ void bk_modem_del_resource(void)
     bk_modem_status = 0;
     bk_modem_env.comm_proto = INVALID_MODE;
     bk_modem_env.comm_if = INVALID_IF;
-    bk_modem_env.is_ec_nat_set = false;
+    //bk_modem_env.is_ec_nat_set = false;
     
     bk_pm_module_vote_power_ctrl(PM_SLEEP_MODULE_NAME_BK_MODEM, PM_POWER_MODULE_STATE_OFF);
 }
@@ -279,6 +279,7 @@ bk_err_t bk_modem_init(bk_modem_comm_proto comm_proto, bk_modem_comm_if comm_if)
     // Set communication parameters and start appropriate interface
     bk_modem_env.comm_proto = comm_proto;
     bk_modem_env.comm_if = comm_if;
+    bk_modem_env.entered_sleep = false;
     if (comm_proto == PPP_MODE)
     {
         if (comm_if == USB_IF)
@@ -324,7 +325,7 @@ void bk_modem_set_state(enum bk_modem_state_e bk_modem_state)
  * @brief Get the current modem state machine state
  * @return Current modem state
  */
-enum bk_modem_state_e bk_modem_get_state(void)
+uint8_t bk_modem_get_state(void)
 {
     return s_bk_modem_state;
 }

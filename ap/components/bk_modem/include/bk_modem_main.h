@@ -94,13 +94,14 @@ struct bk_modem_env_s
     enum bk_modem_ppp_mode_e bk_modem_ppp_mode;
     bool is_ppp_started;
     bool is_ec_nat_set;
+    bool entered_sleep;
     enum bk_modem_comm_proto_e comm_proto;
     enum bk_modem_comm_if_e comm_if;
 };
 
 extern struct bk_modem_env_s bk_modem_env;
 extern void bk_modem_set_state(enum bk_modem_state_e bk_modem_state);
-extern enum bk_modem_state_e bk_modem_get_state(void);
+extern uint8_t bk_modem_get_state(void);
 extern int bk_modem_send_msg(int type, uint32_t arg, uint32_t len, void *param);
 extern void bk_modem_power_on_modem(void);
 extern void bk_modem_power_off_modem(void);

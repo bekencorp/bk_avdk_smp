@@ -634,6 +634,68 @@ bk_err_t bk_modem_at_change_ue_resp_mode(void)
 #endif
 
 /**
+ * @brief Save current configuration profile to non-volatile memory
+ * @return BK_OK if command succeeds, BK_FAIL otherwise
+ *        This function sends the AT&W command to store the active profile
+ *        (user-defined S-register values and settings) to NVM so that they are
+ *        preserved across power cycles.
+ */
+bk_err_t bk_modem_at_save_settings(void)
+{
+	if (BK_OK == bk_modem_at_cmd_send(AT_W, 3, 5000))
+	{
+		BK_MODEM_LOGI("AT_W, rsp:%s\r\n",g_modem_at_rsp_buf);
+		return BK_OK;
+	}
+	else
+	{
+		BK_MODEM_LOGI("at_cmd_send fail!, AT_W\r\n");
+		return BK_FAIL;
+	}
+}
+
+/**
+ * @brief Enable network registration unsolicited result code
+ * @return BK_OK if command succeeds, BK_FAIL otherwise
+ *        This function sends AT+CEREG=1 to enable network registration URC
+ *        (+CEREG: <stat>) reported by the modem when registration state changes.
+ */
+bk_err_t bk_modem_at_cereg_enable(void)
+{
+	if (BK_OK == bk_modem_at_cmd_send(AT_CEREG_1, 3, 5000))
+	{
+		BK_MODEM_LOGI("AT_CEREG_1, rsp:%s\r\n",g_modem_at_rsp_buf);
+		return BK_OK;
+	}
+	else
+	{
+		BK_MODEM_LOGI("at_cmd_send fail!, AT_CEREG_1\r\n");
+		return BK_FAIL;
+	}
+}
+
+/**
+ * @brief Enable network registration URC with location information
+ * @return BK_OK if command succeeds, BK_FAIL otherwise
+ *        This function sends AT+CEREG=2 to enable network registration URC with
+ *        location information (+CEREG: <stat>[,<tac>,<ci>[,<AcT>]]) reported by
+ *        the modem when registration state changes.
+ */
+bk_err_t bk_modem_at_cereg_enable_with_loc(void)
+{
+	if (BK_OK == bk_modem_at_cmd_send(AT_CEREG_2, 3, 5000))
+	{
+		BK_MODEM_LOGI("AT_CEREG_2, rsp:%s\r\n",g_modem_at_rsp_buf);
+		return BK_OK;
+	}
+	else
+	{
+		BK_MODEM_LOGI("at_cmd_send fail!, AT_CEREG_2\r\n");
+		return BK_FAIL;
+	}
+}
+
+/**
  * @brief Disconnect the current call
  * @return BK_OK if disconnection succeeds, BK_FAIL otherwise
  *        This command instructs the DCE to disconnect from the line and terminate any call in progress.
@@ -851,6 +913,28 @@ bk_err_t bk_modem_ec_at_rst(void)
 	}
     
 	return BK_OK;
+}
+
+/**
+ * @brief Configure sleep clock in EC mode
+ * @return BK_OK if command succeeds, BK_FAIL otherwise
+ *        This function sends AT+ECSCLKEX=1,15000,30 to enable the extended sleep
+ *        clock with the configured inactivity timeout and wake-up margin.
+ */
+bk_err_t bk_modem_ec_at_sclkex_set(void)
+{
+	if (BK_OK == bk_modem_at_cmd_send(AT_ECSCLKEX, 3, 5000))
+	{
+		BK_MODEM_LOGI("rsp:%s\r\n",g_modem_at_rsp_buf);
+		return BK_OK;
+	}
+	else
+	{
+		BK_MODEM_LOGI("at_cmd_send fail!, AT_ECSCLKEX\r\n");
+		return BK_FAIL;
+	}
+
+	return BK_FAIL;
 }
 
 /**

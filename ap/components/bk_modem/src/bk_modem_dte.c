@@ -278,12 +278,19 @@ void bk_modem_dte_handle_modem_check(void)
             break;
         }
 
-        if (!bk_modem_dce_exit_flight_mode())
+        if (bk_modem_env.comm_proto == UART_NIC_MODE)
         {
-            temp_flag = 6;
-            break;
+            if (!bk_modem_dce_exit_flight_mode())
+            {
+                temp_flag = 8;
+                break;
+            }
+
+            bk_modem_set_state(UART_NIC_START);
+            bk_modem_send_msg(MSG_MODEM_UART_NIC_START, 0,0,0);
+            return;
         }
-        
+
         if (!bk_modem_dce_check_sim())
         {
             temp_flag = 2;
@@ -315,11 +322,6 @@ void bk_modem_dte_handle_modem_check(void)
         {
             bk_modem_set_state(PPP_START);
             bk_modem_send_msg(MSG_PPP_START, 0,0,0);
-        }
-        else if (bk_modem_env.comm_proto == UART_NIC_MODE)
-        {
-            bk_modem_set_state(UART_NIC_START);
-            bk_modem_send_msg(MSG_MODEM_UART_NIC_START, 0,0,0);            
         }
         BK_MODEM_LOGI("%s: modem check pass\r\n", __func__);
         return;
@@ -646,7 +648,8 @@ void bk_modem_dte_handle_uart_nic_start(void)
     } 
     
     // Configure EC mode settings
-    if ((bk_modem_dce_ec_check_nat()) && (!bk_modem_env.is_ec_nat_set))
+    //if ((bk_modem_dce_ec_check_nat()) && (!bk_modem_env.is_ec_nat_set))
+    if (!bk_modem_dce_ec_check_nat())
     {
         if (!bk_modem_dce_ec_close_rndis())
         {
@@ -654,50 +657,59 @@ void bk_modem_dte_handle_uart_nic_start(void)
             goto fail;
         }
 
-        if (!bk_modem_dce_ec_open_datapath())
+        if (!bk_modem_at_cereg_enable())
         {
             temp_flag = 2;
-            goto fail;    
+            goto fail;
         }
 
         if (!bk_modem_dce_ec_set_nat())
         {
-            temp_flag =3;
+            temp_flag = 3;
             goto fail;
         }
 
-        /* If UART is at 2M, send AT+XJCFG to set modem to 5.2M before reset */
-        if ((bk_modem_env.comm_if == UART_IF) && (bk_modem_uart_get_baud_rate() == BK_MODEM_UART_2M_BAUD))
+        if (!bk_modem_dce_save_settings())
         {
-            if (BK_OK != bk_modem_at_xjcfg_set_baud_5m2())
-            {
-                BK_MODEM_LOGW("AT+XJCFG=netPortBaudRate,5200000 fail\r\n");
-            }
-            rtos_delay_milliseconds(200);
+            temp_flag = 4;
+            goto fail;
         }
 
-        bk_modem_env.is_ec_nat_set = true;
-
+        //bk_modem_env.is_ec_nat_set = true;
         bk_modem_dce_ec_rst();
 
-        /* After ec_rst, modem uses 5.2M, set UART baud rate to 5.2M */
-        if ((bk_modem_env.comm_if == UART_IF) && (bk_modem_uart_get_baud_rate() == BK_MODEM_UART_2M_BAUD))
-        {
-            bk_modem_uart_set_baud_rate(BK_MODEM_UART_5M2_BAUD);
-        }
-        rtos_delay_milliseconds(3000);
-
-        bk_modem_set_state(MODEM_CHECK);
-        bk_modem_send_msg(MSG_MODEM_CHECK, 0,0,0);
-
         return;
+    }
+
+    if (!bk_modem_dce_check_sim())
+    {
+        temp_flag = 5;
+        goto fail;
+    }
+
+    if (!bk_modem_dce_cereg_enable_with_loc())
+    {
+        temp_flag = 6;
+        goto fail;
+    }
+
+    if (!bk_modem_dce_ec_open_datapath())
+    {
+        temp_flag = 7;
+        goto fail;    
+    }
+
+    if (!bk_modem_dce_ec_sclkex_set())
+    {
+        temp_flag = 8;
+        goto fail;
     }
 
     // Initialize and perform EC handshake
     os_ret = rtos_init_semaphore(&bk_modem_ec_hs_sema, 1);
     if (os_ret != kNoErr)
     {
-        temp_flag =4;
+        temp_flag = 9;
         goto fail;     
     }
 
@@ -705,7 +717,7 @@ void bk_modem_dte_handle_uart_nic_start(void)
     os_ret = rtos_get_semaphore(&bk_modem_ec_hs_sema, 1000);
     if (os_ret != kNoErr)
     {
-        temp_flag = 5;
+        temp_flag = 10;
         bk_modem_ec_hs = 0;
         goto fail;        
     }
@@ -717,12 +729,12 @@ void bk_modem_dte_handle_uart_nic_start(void)
 fail:
     BK_MODEM_LOGI("%s: uart nic start fail %d\r\n", __func__, temp_flag);
 
-    if (temp_flag == 5)
+    if (temp_flag == 9)
     {
         rtos_deinit_semaphore(&bk_modem_ec_hs_sema);
         bk_modem_ec_hs_sema = NULL;
     }
-    bk_modem_env.is_ec_nat_set = false;
+    //bk_modem_env.is_ec_nat_set = false;
     bk_modem_set_state(MODEM_CHECK);
     bk_modem_send_msg(MSG_MODEM_CHECK, 0,0,0);
 }

@@ -1161,6 +1161,13 @@ static bk_err_t uart_enter_deep_sleep(uint64_t sleep_time, void *args)
 }
 
 #if CONFIG_UART_PM_CB_SUPPORT	//this macro config set to n
+
+#if CONFIG_UART_RX_DMA
+static bk_err_t uart_rx_dma_restore(uart_id_t id);
+#endif
+#if CONFIG_UART_TX_DMA
+static bk_err_t uart_tx_dma_restore(uart_id_t id);
+#endif
 static bk_err_t uart_pm_backup(uint64_t sleep_time, void *args)
 {
 	uart_id_t uart_id = (uart_id_t)args;
@@ -1188,6 +1195,33 @@ static bk_err_t uart_pm_restore(uint64_t sleep_time, void *args)
 	if (s_uart[uart_id].pm_bakeup_is_valid)
 	{
 		uart_hal_restore(&s_uart[uart_id].hal, s_uart[uart_id].pm_backup);
+
+		/*
+		 * Low voltage wake-up only restores UART HAL registers; the DMA
+		 * channel registers (src/dst addr, transfer len, isr, finish-int
+		 * enable, start bit) are not preserved. Re-configure and restart
+		 * the DMA channel here so that RX path works immediately after
+		 * wake-up without depending on a later API call.
+		 */
+		#if CONFIG_BK_MODEM
+		extern uint8_t bk_modem_get_state(void);
+		if (bk_modem_get_state() == 5)
+		{
+			#if CONFIG_UART_RX_DMA
+			if (s_uart[uart_id].rx_dma_enable)
+			{
+				uart_rx_dma_restore(uart_id);
+			}
+			#endif
+			#if CONFIG_UART_TX_DMA
+			if (s_uart[uart_id].tx_dma_enable)
+			{
+				uart_tx_dma_restore(uart_id);
+			}
+			#endif
+		}
+		#endif
+
 		s_uart[uart_id].pm_bakeup_is_valid = 0;
 	}
 
@@ -1503,6 +1537,65 @@ bk_err_t uart_rx_dma_deinit(uart_id_t id)
 
 	return bk_dma_free(uart_id_to_dma_dev(id, 1), dma_id);
 }
+
+#if CONFIG_UART_PM_CB_SUPPORT
+/*
+ * Re-configure and restart the RX DMA channel on an already-allocated
+ * rx_dma_id (typically called from uart_pm_restore() after low voltage
+ * wake-up). The DMA channel is NOT re-allocated to avoid leaking the
+ * previous channel or double-alloc.
+ */
+static bk_err_t uart_rx_dma_restore(uart_id_t id)
+{
+	dma_id_t dma_id = s_uart[id].rx_dma_id;
+	dma_config_t dma_cfg = {0};
+
+	if (dma_id >= DMA_ID_MAX)
+		return BK_FAIL;
+
+	if (s_uart_rx_kfifo[id] == NULL)
+		return BK_FAIL;
+
+	bk_dma_stop(dma_id);
+
+	dma_cfg.dst.dev          = DMA_DEV_DTCM;
+	dma_cfg.dst.width        = DMA_DATA_WIDTH_32BITS;
+	dma_cfg.dst.addr_inc_en  = DMA_ADDR_INC_ENABLE;
+	dma_cfg.dst.addr_loop_en = DMA_ADDR_LOOP_DISABLE;
+	dma_cfg.dst.start_addr   = (uint32_t)s_uart_rx_kfifo[id]->buffer;
+	dma_cfg.dst.end_addr     = dma_cfg.dst.start_addr + s_uart_rx_kfifo[id]->size;
+
+	uart_rx_dma_src_port_config(id, &dma_cfg.src);
+
+	dma_cfg.mode      = DMA_WORK_MODE_SINGLE;
+	dma_cfg.chan_prio = 0;
+
+	BK_LOG_ON_ERR(bk_dma_init(dma_id, &dma_cfg));
+	BK_LOG_ON_ERR(bk_dma_set_transfer_len(dma_id, s_uart_rx_kfifo[id]->size));
+#if (CONFIG_SPE)
+	BK_LOG_ON_ERR(bk_dma_set_dest_sec_attr(dma_id, DMA_ATTR_SEC));
+	BK_LOG_ON_ERR(bk_dma_set_src_sec_attr(dma_id, DMA_ATTR_SEC));
+#endif
+	bk_dma_register_isr(dma_id, NULL, uart_rx_dma_fifo_full);
+	BK_LOG_ON_ERR(bk_dma_enable_finish_interrupt(dma_id));
+
+	/*
+	 * DMA destination is reset to kfifo buffer start, so align kfifo
+	 * pointers and software DMA accounting. Any unread bytes buffered
+	 * before low voltage are discarded, which is acceptable on wake-up.
+	 */
+	s_uart_rx_kfifo[id]->in          = 0;
+	s_uart_rx_kfifo[id]->out         = 0;
+	s_uart[id].last_dma_len          = s_uart_rx_kfifo[id]->size;
+	s_uart[id].rx_dma_accounted_len  = 0;
+	s_uart[id].rx_dma_stopped        = false;
+	s_uart[id].rx_hw_stopped         = false;
+
+	BK_LOG_ON_ERR(bk_dma_start(dma_id));
+
+	return BK_OK;
+}
+#endif //CONFIG_UART_PM_CB_SUPPORT
 #endif
 
 #if (CONFIG_UART_TX_DMA)
@@ -1591,6 +1684,50 @@ static bk_err_t uart_tx_dma_deinit(uart_id_t id)
 	s_uart[id].tx_dma_enable = 0;
 	return bk_dma_free(uart_id_to_dma_dev(id, 0), dma_id);
 }
+
+#if CONFIG_UART_PM_CB_SUPPORT
+/*
+ * Re-configure the TX DMA channel on an already-allocated tx_dma_id.
+ * TX DMA is started per-transfer by uart_tx_dma_write_to_fifo(), so this
+ * function only restores channel configuration without calling start.
+ */
+static bk_err_t uart_tx_dma_restore(uart_id_t id)
+{
+	dma_id_t dma_id = s_uart[id].tx_dma_id;
+	dma_config_t dma_cfg = {0};
+	uint32_t tx_dma_dummy_buffer[8] = {0};
+
+	if (dma_id >= DMA_ID_MAX)
+		return BK_FAIL;
+
+	bk_dma_stop(dma_id);
+
+	uart_tx_dma_dst_port_config(id, &dma_cfg.dst);
+
+	dma_cfg.src.dev          = DMA_DEV_DTCM;
+	dma_cfg.src.width        = DMA_DATA_WIDTH_32BITS;
+	dma_cfg.src.addr_inc_en  = DMA_ADDR_INC_ENABLE;
+	dma_cfg.src.addr_loop_en = DMA_ADDR_LOOP_DISABLE;
+	dma_cfg.src.start_addr   = (uint32_t)(&tx_dma_dummy_buffer[0]);
+	dma_cfg.src.end_addr     = (uint32_t)(&tx_dma_dummy_buffer[0]) + 8;
+
+	dma_cfg.mode          = DMA_WORK_MODE_SINGLE;
+	dma_cfg.chan_prio     = 0;
+	dma_cfg.dest_wr_intlv = 8;
+
+	BK_LOG_ON_ERR(bk_dma_init(dma_id, &dma_cfg));
+	bk_dma_set_dest_burst_len(dma_id, BURST_LEN_SINGLE);
+	bk_dma_set_src_burst_len(dma_id, BURST_LEN_SINGLE);
+#if (CONFIG_SPE)
+	BK_LOG_ON_ERR(bk_dma_set_dest_sec_attr(dma_id, DMA_ATTR_SEC));
+	BK_LOG_ON_ERR(bk_dma_set_src_sec_attr(dma_id, DMA_ATTR_SEC));
+#endif
+	BK_LOG_ON_ERR(bk_dma_register_isr(dma_id, NULL, uart_tx_dma_write_done));
+	BK_LOG_ON_ERR(bk_dma_enable_finish_interrupt(dma_id));
+
+	return BK_OK;
+}
+#endif //CONFIG_UART_PM_CB_SUPPORT
 #endif
 
 bk_err_t bk_uart_init(uart_id_t id, const uart_config_t *config)
@@ -2095,7 +2232,6 @@ bk_err_t bk_uart_read_bytes(uart_id_t id, void *data, uint32_t size, uint32_t ti
 				
 				GLOBAL_INT_RESTORE();
 			} else {
-				GLOBAL_INT_RESTORE();
 				UART_LOGW("UART%d: DMA not stopped, Buffer unused=%d bytes\n", 
 							id, unused);
 			}
@@ -2350,7 +2486,9 @@ static void uart_isr_common(uart_id_t id)
 			//TODO:Discard the RX FIFO data,set WR_PTR to RD_PTR
 			if(s_uart[id].rx_dma_enable)
 			{
+#if CONFIG_UART_ERR_INTERRUPT
 				uint32_t discard_len = s_uart_rx_kfifo[id]->out - s_uart_rx_kfifo[id]->in;
+#endif
 				s_uart_rx_kfifo[id]->in = s_uart_rx_kfifo[id]->out;
 #if CONFIG_UART_ERR_INTERRUPT
 				UART_LOGW("uart rx error(0x%x)!,discard_len=%d\r\n", (int_status & (BIT(2) | BIT(3) | BIT(4))), discard_len);

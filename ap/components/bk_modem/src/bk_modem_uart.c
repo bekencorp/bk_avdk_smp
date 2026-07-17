@@ -31,6 +31,9 @@ static beken_queue_t bk_modem_uart_tx_queue = NULL;       /* UART transmit messa
 
 uint8_t *g_uart_rx_buff = NULL;                           /* UART receive buffer pointer */
 static uint32_t s_uart_tx_no = 0;                         /* UART transmit sequence number */
+/* Set by SRDY falling-edge ISR to indicate a (>=1us) low pulse from slave was captured.
+ * Used by the TX path to detect the ~50us ACK pulse that can't be caught by polling. */
+static volatile uint8_t s_srdy_pulse_flag = 0;
 beken2_timer_t uar_nic_sleep_timer;                       /* Sleep timer in NIC mode */
 static uint32_t s_modem_uart_baud_rate = BK_MODEM_UART_5M2_BAUD;  /* Current UART baud rate */
 
@@ -67,11 +70,21 @@ static void bk_modem_uart_sleep_check(void)
  */
 void bk_modem_uart_nic_sleep_handle(BUS_MSG_T *msg)
 {
+    bk_modem_env.entered_sleep = true;
+
     /* Set MASTER_MRDY_GPIO high, indicating ready to sleep */
     bk_gpio_set_output_high(MASTER_MRDY_GPIO);
 
+    for (int i = 0; i < 5; i ++)
+    {
+        if (bk_gpio_get_input(MASTER_SRDY_GPIO))
+            break;
+
+        rtos_delay_milliseconds(2);
+    }
+
     /* Turn off Modem power module */
-    bk_pm_module_vote_power_ctrl(PM_SLEEP_MODULE_NAME_BK_MODEM, PM_POWER_MODULE_STATE_OFF);
+    bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_BK_MODEM, 0x1, 0x0);
 }
 
 /**
@@ -110,7 +123,7 @@ static bk_err_t bk_modem_uart_rx_send_msg(int type, uint32_t arg, uint32_t len, 
     ret = rtos_push_to_queue(&bk_modem_uart_rx_queue, &msg, BEKEN_NO_WAIT);
     if (kNoErr != ret)
     {
-        BK_MODEM_LOGI("%s: push rx queue fail!", __func__);
+        //BK_MODEM_LOGI("%s: push rx queue fail!", __func__);
     }
 
     return ret;
@@ -169,17 +182,27 @@ static void bk_modem_uart_nic_send(BUS_MSG_T *msg)
     header->field.is_tx_end = false;
     header->field.checksum = bk_modem_uart_nic_csum(header);
     
+    /* Arm pulse flag before the write; any SRDY falling edge after this point
+     * (including the slave's ~50us ACK pulse) will set the flag via ISR. */
+    s_srdy_pulse_flag = 0;
+
     /* Send data via UART (including header) */
     bk_uart_write_bytes(BK_MODEM_UART_ID, header, msg->len+UART_NIC_HD_SIZE);
 
-    BK_MODEM_LOGI("bk_modem_uart_nic_send len %d\r\n", msg->len);
-    /* Turn on Modem power module */
-    bk_pm_module_vote_power_ctrl(PM_SLEEP_MODULE_NAME_BK_MODEM, PM_POWER_MODULE_STATE_ON);
-}
+    /* Wait for the ~50us SRDY low pulse from slave (captured by falling-edge ISR).
+     * A 50us pulse is too short to be caught reliably by GPIO polling, so we rely
+     * on the ISR-set flag and re-check every 2ms. */
+    for (uint8_t i = 0; i < 5; i++)
+    {
+        if (s_srdy_pulse_flag)
+            break;
+        rtos_delay_milliseconds(2);
+    }
+    //BK_MODEM_LOGI("bk_modem_uart_nic_send len %d, pulse=%d\r\n", msg->len, s_srdy_pulse_flag);
 
-/* NIC RX: wait for full frame (header + payload); per-chunk read timeout (ms) */
-#define BK_MODEM_UART_NIC_RX_CHUNK_MS   40
-#define BK_MODEM_UART_NIC_RX_DEADLINE_MS 400
+    /* Turn on Modem power module */
+    bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_BK_MODEM, 0x0, 0x0);
+}
 
 /**
  * @brief Receive data in NIC mode
@@ -189,104 +212,54 @@ static void bk_modem_uart_nic_send(BUS_MSG_T *msg)
  */
 static void bk_modem_uart_nic_rx(BUS_MSG_T *msg)
 {
-	uint32_t total_read = 0;
-	uint32_t t_start = rtos_get_time();
+    uint32_t length;
+    /* Clear receive buffer */
+    os_memset(g_uart_rx_buff, 0, UART_NIC_RX_MTU);
 
-	(void)msg;
-	os_memset(g_uart_rx_buff, 0, UART_NIC_RX_MTU);
+    /* Read data from UART */
+    length = bk_uart_read_bytes(BK_MODEM_UART_ID, g_uart_rx_buff, UART_NIC_RX_MTU, 0);
 
-	/* Assemble one NIC frame: ISR may fire before all bytes are in the RX kfifo. */
-	while (total_read < UART_NIC_RX_MTU) {
-		if ((rtos_get_time() - t_start) > BK_MODEM_UART_NIC_RX_DEADLINE_MS) {
-			break;
-		}
-
-		bk_err_t r = bk_uart_read_bytes(BK_MODEM_UART_ID, g_uart_rx_buff + total_read,
-						UART_NIC_RX_MTU - total_read, BK_MODEM_UART_NIC_RX_CHUNK_MS);
-
-		if (r == BK_ERR_UART_RX_TIMEOUT) {
-			if (total_read >= UART_NIC_HD_SIZE) {
-				UART_NIC_HD_T *h = (UART_NIC_HD_T *)g_uart_rx_buff;
-				if (bk_modem_uart_nic_csum(h) == h->field.checksum) {
-					uint32_t need = h->field.data_len + UART_NIC_HD_SIZE;
-					if (need <= UART_NIC_RX_MTU && total_read >= need) {
-						break;
-					}
-				}
-			}
-			if (total_read == 0) {
-				return;
-			}
-			continue;
-		}
-
-		if (r < 0) {
-			break;
-		}
-
-		total_read += (uint32_t)r;
-
-		if (total_read >= UART_NIC_HD_SIZE) {
-			UART_NIC_HD_T *h = (UART_NIC_HD_T *)g_uart_rx_buff;
-			if (bk_modem_uart_nic_csum(h) == h->field.checksum) {
-				uint32_t need = h->field.data_len + UART_NIC_HD_SIZE;
-				if (need > UART_NIC_RX_MTU) {
-					BK_MODEM_LOGW("%s: need %u > mtu\r\n", __func__, need);
-					return;
-				}
-				if (total_read >= need) {
-					break;
-				}
-			}
-		}
-	}
-
-	if (total_read < UART_NIC_HD_SIZE) {
-		return;
-	}
-
-	UART_NIC_HD_T *header = (UART_NIC_HD_T *)g_uart_rx_buff;
-	if (bk_modem_uart_nic_csum(header) != header->field.checksum) {
-		BK_MODEM_LOGW("%s: bad checksum total_read=%u\r\n", __func__, total_read);
-		return;
-	}
-
-	uint32_t rx_data_len = header->field.data_len;
-	if ((rx_data_len + UART_NIC_HD_SIZE) > total_read
-	    || (rx_data_len + UART_NIC_HD_SIZE) > UART_NIC_RX_MTU) {
-		BK_MODEM_LOGW("%s: incomplete frame rx_data_len=%u total_read=%u\r\n",
-			__func__, rx_data_len, total_read);
-		return;
-	}
-
-	if (header->field.type == AT_CMD_MODE) {
-		if (total_read < UART_NIC_RX_MTU) {
-			g_uart_rx_buff[total_read] = 0;
-			BK_MODEM_LOGI("bk_modem_uart_nic_rx at cmd, len %u, rx_data_len %u\r\n",
-				total_read, rx_data_len);
-			bk_modem_dte_recv_data_uart(rx_data_len, g_uart_rx_buff + UART_NIC_HD_SIZE, AT_CMD_MODE);
-		}
-	} else if (header->field.type == NIC_DATA_MODE) {
-		BK_MODEM_LOGI("bk_modem_uart_nic_rx data, len %u, rx_data_len %u\r\n", total_read, rx_data_len);
-		bk_modem_dte_recv_data_uart(rx_data_len, g_uart_rx_buff + UART_NIC_HD_SIZE, NIC_DATA_MODE);
-	} else {
-		BK_MODEM_LOGW("%s: unknown type %u\r\n", __func__, (unsigned)header->field.type);
-		return;
-	}
-
-    /* Send handshake signal to slave device indicating data has been received */
-    if (bk_gpio_get_output(MASTER_MRDY_GPIO))
+    if(length)
     {
-        bk_gpio_set_output_low(MASTER_MRDY_GPIO);
+        UART_NIC_HD_T *header = (UART_NIC_HD_T *)g_uart_rx_buff;
+        /* Verify checksum */
+        if (bk_modem_uart_nic_csum(header) == header->field.checksum)
+        {
+            uint32_t rx_data_len = header->field.data_len;
+            if ((rx_data_len + UART_NIC_HD_SIZE) <= length)
+            {
+                /* Different processing according to data type */
+                if (header->field.type == AT_CMD_MODE)
+                {
+                    if (length < UART_NIC_RX_MTU)
+                    {
+                        g_uart_rx_buff[length] = 0;
+                        //BK_MODEM_LOGI("bk_modem_uart_nic_rx at cmd, len %d, rx_data_len %d\r\n",length, rx_data_len);
+                        bk_modem_dte_recv_data_uart(rx_data_len, g_uart_rx_buff+UART_NIC_HD_SIZE, AT_CMD_MODE);
+                    }
+                }
+                else if (header->field.type == NIC_DATA_MODE)
+                {
+                    //BK_MODEM_LOGI("bk_modem_uart_nic_rx data, len %d, rx_data_len %d\r\n",length, rx_data_len);
+                    bk_modem_dte_recv_data_uart(rx_data_len, g_uart_rx_buff+UART_NIC_HD_SIZE, NIC_DATA_MODE);
+                }
+            }
+        }
+
+        /* Send handshake signal to slave device indicating data has been received */
+        if (bk_gpio_get_output(MASTER_MRDY_GPIO))
+        {
+            bk_gpio_set_output_low(MASTER_MRDY_GPIO);
+            bk_delay_us(50);
+        }
+
+        bk_gpio_set_output_high(MASTER_MRDY_GPIO);
         bk_delay_us(50);
+        bk_gpio_set_output_low(MASTER_MRDY_GPIO);
+
+        /* Turn on Modem power module */
+        bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_BK_MODEM, 0x0, 0x0);
     }
-
-    bk_gpio_set_output_high(MASTER_MRDY_GPIO);
-    bk_delay_us(50);
-    bk_gpio_set_output_low(MASTER_MRDY_GPIO);
-
-    /* Turn on Modem power module */
-    bk_pm_module_vote_power_ctrl(PM_SLEEP_MODULE_NAME_BK_MODEM, PM_POWER_MODULE_STATE_ON);
 }
 
 /**
@@ -307,7 +280,7 @@ static void bk_modem_uart_rx_thread_main(void *args)
 
         if (ret ==  kNoErr)
         {
-            BK_MODEM_LOGI("%s: msg.type %d\r\n", __func__, msg.type);
+            //BK_MODEM_LOGI("%s: msg.type %d\r\n", __func__, msg.type);
             switch (msg.type)
             {
                 case MSG_MODEM_UART_RX:
@@ -447,7 +420,16 @@ bk_err_t bk_modem_uart_tx_send_msg(int type, uint32_t arg, uint32_t len, void *p
     {
         if (type == MSG_MODEM_UART_NIC_TX)
         {
-            BK_MODEM_LOGI("bk_modem_uart_tx_send_msg wakeup!\r\n");
+            if (bk_modem_env.entered_sleep)
+            {
+                bk_modem_uart_sleep_check();
+                bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_BK_MODEM, 0x0, 0x0);
+                bk_uart_enable_rx_interrupt(BK_MODEM_UART_ID);
+
+                bk_modem_env.entered_sleep = false;
+            }
+
+            //BK_MODEM_LOGI("bk_modem_uart_tx_send_msg wakeup!\r\n");
             return BK_OK;
         }
         else
@@ -484,6 +466,11 @@ void bk_modem_uart_sdry_int_cb(gpio_id_t gpio_id)
     {
         BK_MODEM_LOGI("[%s][%d] gpio_id:%d\r\n", __FUNCTION__, __LINE__, gpio_id);
     }
+
+    bk_gpio_clear_interrupt(MASTER_SRDY_GPIO);
+
+    /* Latch the falling edge so the TX path can detect the slave's ~50us ACK pulse. */
+    s_srdy_pulse_flag = 1;
 
     /* Send wakeup message to transmit queue */
     bk_modem_uart_tx_send_msg(MSG_MODEM_UART_NIC_TX,0,0,0);
@@ -599,10 +586,12 @@ bk_err_t bk_modem_uart_init(uint32_t baud_rate)
         
         /* Configure MASTER_MRDY_GPIO pin (host ready signal) */
         gpio_config_t cfg;
+        gpio_dev_unmap(MASTER_MRDY_GPIO);
         cfg.func_mode = GPIO_SECOND_FUNC_DISABLE;
         cfg.io_mode = GPIO_OUTPUT_ENABLE;
         cfg.pull_mode = GPIO_PULL_DOWN_EN;
         bk_gpio_set_config(MASTER_MRDY_GPIO, &cfg);
+		cfg.pull_mode = GPIO_PULL_UP_EN;
         #if CONFIG_GPIO_DYNAMIC_KPSTAT_SUPPORT
         bk_gpio_register_lowpower_keep_status(MASTER_MRDY_GPIO, &cfg);
         #endif
@@ -617,8 +606,8 @@ bk_err_t bk_modem_uart_init(uint32_t baud_rate)
         /* Register SRDY pin interrupt handler */
         bk_gpio_register_isr(MASTER_SRDY_GPIO, bk_modem_uart_sdry_int_cb);
         #if CONFIG_GPIO_DYNAMIC_WAKEUP_SUPPORT
-        /* Register wakeup source */
-        bk_gpio_register_wakeup_source(MASTER_SRDY_GPIO, GPIO_INT_TYPE_FALLING_EDGE);
+        /* Register SRDY as an AP wake source through the AP GPIO/PM client path. */
+        bk_gpio_set_wakeup(MASTER_SRDY_GPIO, GPIO_INT_TYPE_FALLING_EDGE, true);
         #endif
         /* Enable interrupt */
         bk_gpio_enable_interrupt(MASTER_SRDY_GPIO);

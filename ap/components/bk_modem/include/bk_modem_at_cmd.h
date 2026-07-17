@@ -7,6 +7,7 @@
 #define ATH						"ATH\r"
 #define AT_C					"AT&C\r"
 #define AT_D					"AT&D\r"
+#define AT_W					"AT&W\r"
 #define AT_CONNECT_CMD			"ATD*99#\r"
 #define AT_CHANGE_TO_AT_MODE	"+++"
 
@@ -18,6 +19,8 @@
 #define AT_CFUN_0				"AT+CFUN=0\r"
 #define AT_CFUN_1				"AT+CFUN=1\r"
 #define AT_CEREG				"AT+CEREG?\r"
+#define AT_CEREG_1				"AT+CEREG=1\r"
+#define AT_CEREG_2				"AT+CEREG=2\r"  
 
 #define AT_RSP_OK				"OK"
 #define AT_RSP_ERROR			"ERROR"
@@ -33,6 +36,7 @@
 #define AT_ECNETCFG_S			"AT+ECNETCFG=\"nat\",1,\"192.168.10.2\"\r"
 #define AT_ECNETDEVCTL			"AT+ECNETDEVCTL=3,1,1\r"
 #define AT_ECRST				"AT+ECRST\r"
+#define AT_ECSCLKEX             "AT+ECSCLKEX=1,3,30\r"
 #define AT_XJCFG_BAUD_5M2		"AT+XJCFG=netPortBaudRate,5200000\r"
 ///ec at end
 
@@ -68,6 +72,12 @@ bk_err_t bk_modem_at_disconnect(void);
 bk_err_t bk_modem_at_control_dcd(void);
 //AT_D
 bk_err_t bk_modem_at_change_ue_resp_mode(void);
+//AT_W
+bk_err_t bk_modem_at_save_settings(void);
+//AT_CEREG_1
+bk_err_t bk_modem_at_cereg_enable(void);
+//AT_CEREG_2
+bk_err_t bk_modem_at_cereg_enable_with_loc(void);
 
 // receive at command responce
 void bk_modem_at_rcv_resp(const char *resp,uint32_t len);
@@ -80,5 +90,6 @@ bk_err_t bk_modem_ec_at_set_nat(void);
 bk_err_t bk_modem_ec_at_close_rndis(void);
 bk_err_t bk_modem_ec_at_open_datapath(void);
 bk_err_t bk_modem_ec_at_rst(void);
+bk_err_t bk_modem_ec_at_sclkex_set(void);
 bk_err_t bk_modem_at_xjcfg_set_baud_5m2(void);
 #endif
