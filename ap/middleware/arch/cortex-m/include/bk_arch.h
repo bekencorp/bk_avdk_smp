@@ -27,6 +27,31 @@
 #else
 #endif
 
+#define BK_ARCH_BASEPRI_IRQ_MASK        (1UL << (8UL - __NVIC_PRIO_BITS))
+
+static inline uint32_t bk_arch_get_basepri(void)
+{
+	return __get_BASEPRI();
+}
+
+static inline void bk_arch_set_basepri(uint32_t basepri)
+{
+	__set_BASEPRI(basepri);
+	__DSB();
+	__ISB();
+}
+
+static inline uint32_t bk_arch_raise_basepri(void)
+{
+	uint32_t old_basepri = bk_arch_get_basepri();
+
+	if ((old_basepri == 0UL) || (old_basepri > BK_ARCH_BASEPRI_IRQ_MASK)) {
+		bk_arch_set_basepri(BK_ARCH_BASEPRI_IRQ_MASK);
+	}
+
+	return old_basepri;
+}
+
 void arch_init(void);
 void arch_wait_for_interrupt(void);
 void arch_parse_stack_backtrace(const char *str_type, uint32_t stack_top,

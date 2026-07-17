@@ -151,14 +151,14 @@ static inline void _cpu_hp_barrier(void)
 	__asm volatile("isb sy" ::: "memory");
 }
 
-static inline void _cpu_hp_disable_local_irq(void)
+static inline uint32_t _cpu_hp_disable_local_irq(void)
 {
-	__asm volatile("cpsid i" ::: "memory");
+	return rtos_disable_int();
 }
 
-static inline void _cpu_hp_enable_local_irq(void)
+static inline void _cpu_hp_enable_local_irq(uint32_t irq_level)
 {
-	__asm volatile("cpsie i" ::: "memory");
+	rtos_enable_int(irq_level);
 }
 
 static inline void _cpu_hp_wfi(void)
@@ -737,17 +737,18 @@ void bk_cpu_hp_idle_handler(void)
 {
 	cpu_hp_domain_t *domain = &_ap_domain;
 	uint32_t cpu_id = CPU3_CORE_ID;
+	uint32_t irq_level;
 
 	if (portGET_CORE_ID() != SMP_CORE1_ID) {
 		return;
 	}
 
-	_cpu_hp_disable_local_irq();
+	irq_level = _cpu_hp_disable_local_irq();
 	spin_lock(&_cpu_hp_spin_lock);
 	if (_cpu3_wants_offline != 1) {
 		_cpu_hp_domain_set_active(domain, cpu_id, 1);
 		spin_unlock(&_cpu_hp_spin_lock);
-		_cpu_hp_enable_local_irq();
+		_cpu_hp_enable_local_irq(irq_level);
 		return;
 	}
 

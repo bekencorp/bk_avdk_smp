@@ -14,6 +14,7 @@
 
 #include "sdkconfig.h"
 #include "armcm52.h"
+#include "../cortex-m/include/bk_arch.h"
 #include "arch_interrupt.h"
 #include "components/log.h"
 #include "interrupt_controller.h"
@@ -93,13 +94,16 @@ void arch_interrupt_unregister_int(uint32_t int_number)
 
 void arch_int_init_all_irq(void)
 {
-	__disable_irq();
+	uint32_t old_basepri = bk_arch_raise_basepri();
+
 	__disable_fault_irq();
 
 	for (uint32_t irq_type = 0; irq_type < __INT_NUMBER_MAX; irq_type++) {
 		NVIC_SetPriority(irq_type, IRQ_DEFAULT_PRIORITY);
 		NVIC_DisableIRQ(irq_type);
 	}
+
+	bk_arch_set_basepri(old_basepri);
 }
 
 bk_err_t arch_isr_entry_init(void)

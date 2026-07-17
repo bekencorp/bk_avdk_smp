@@ -13,10 +13,10 @@
 // limitations under the License.
 
 #include "sdkconfig.h"
+#include "bk_arch.h"
 #include "arch_interrupt.h"
 #include "components/log.h"
 #include "interrupt_controller.h"
-#include "armstar.h"
 
 #define TO_NVIC_IRQ(irq)            ((uint32_t)(irq))
 
@@ -102,13 +102,16 @@ int_group_isr_t arch_interrupt_get_handler(uint32_t int_number)
 
 void arch_int_init_all_irq(void)
 {
-	__disable_irq();
+	uint32_t old_basepri = bk_arch_raise_basepri();
+
 	__disable_fault_irq();
 
 	for (uint32_t irq_type = 0; irq_type < __INT_NUMBER_MAX; irq_type++) {
 		NVIC_SetPriority(irq_type, IRQ_DEFAULT_PRIORITY);
 		NVIC_DisableIRQ(irq_type);
 	}
+
+	bk_arch_set_basepri(old_basepri);
 }
 
 void arch_int_enable_all_irq(void)
@@ -119,17 +122,20 @@ void arch_int_enable_all_irq(void)
 	}
 
 	__enable_fault_irq();
-	__enable_irq();
+	bk_arch_set_basepri(0UL);
 }
 
 void arch_int_disable_all_irq(void)
 {
-	__disable_irq();
+	uint32_t old_basepri = bk_arch_raise_basepri();
+
 	__disable_fault_irq();
 
 	for (uint32_t irq_type = 0; irq_type < __INT_NUMBER_MAX; irq_type++) {
 		NVIC_DisableIRQ(irq_type);
 	}
+
+	bk_arch_set_basepri(old_basepri);
 }
 
 bk_err_t arch_isr_entry_init(void)
