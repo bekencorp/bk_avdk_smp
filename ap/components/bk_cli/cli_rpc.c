@@ -471,11 +471,15 @@ static void debug_core_mark(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
 	extern void core_mark(int argc, char *argv[]);
 	extern bk_err_t bk_wwdt_stop(void);
 	extern bk_err_t bk_wwdt_start(uint32_t timeout_ms, bool is_enable_window, uint32_t window_val);
+#if (CONFIG_TASK_WDT)
 	extern void bk_task_wdt_stop(void);
+#endif
 	extern bk_err_t sys_drv_switch_cpu_bus_freq(pm_cpu_freq_e cpu_bus_freq);
 
 	bk_wwdt_stop();
+#if (CONFIG_TASK_WDT)
 	bk_task_wdt_stop();
+#endif
 
 	/* Prevent idle WFI during benchmark so CPU clock is never gated.
 	 * Without this, DWT stops during WFI and CoreMark reports ~4.5x
