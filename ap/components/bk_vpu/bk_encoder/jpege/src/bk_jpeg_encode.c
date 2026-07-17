@@ -81,6 +81,15 @@ avdk_err_t bk_jpeg_encode_hw_flexa_new(bk_jpeg_encode_ctlr_handle_t *handle,
 	return bk_jpeg_encode_hw_flexa_ctlr_new(handle, config);
 }
 
+avdk_err_t bk_jpeg_encode_sw_frame_new(bk_jpeg_encode_ctlr_handle_t *handle,
+				       bk_jpeg_encode_sw_frame_config_t *config)
+{
+	AVDK_RETURN_ON_FALSE(handle && config, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
+	extern avdk_err_t bk_jpeg_encode_sw_frame_ctlr_new(bk_jpeg_encode_ctlr_handle_t *handle,
+							   bk_jpeg_encode_sw_frame_config_t *config);
+	return bk_jpeg_encode_sw_frame_ctlr_new(handle, config);
+}
+
 avdk_err_t bk_jpeg_encode_sw_flexa_new(bk_jpeg_encode_ctlr_handle_t *handle,
 				       bk_jpeg_encode_sw_flexa_config_t *config)
 {

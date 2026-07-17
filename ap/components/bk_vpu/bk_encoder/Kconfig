@@ -29,6 +29,20 @@ menu "BEKEN CODEC ENCODER"
 		help
 			"Maximum MJPEG/JPEG encoder output buffer size in bytes"
 
+	config VIDEO_DTCM
+		bool "Use DTCM video codec libraries"
+		default n
+		depends on BK_ENCODER
+		help
+			"Select DTCM prebuilt libraries for video codec helpers"
+
+	config VIDEO_DTCM_ALL
+		bool "Use full DTCM video codec libraries"
+		default n
+		depends on VIDEO_DTCM
+		help
+			"Select full DTCM prebuilt libraries instead of the partial DTCM variant"
+
 	config H264_ENCODER_USE_OS_MALLOC
 		bool "H264 Encoder Use OS Malloc"
 		default n
