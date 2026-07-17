@@ -48,7 +48,7 @@ static const ee_u16 state_known_crc[]  = { (ee_u16)0x5e47,
                                     (ee_u16)0xe5a4,
                                     (ee_u16)0x8e3a,
                                     (ee_u16)0x8d84 };
-void *
+COREMARK_FUNC_ATTR void *
 iterate(void *pres)
 {
     ee_u32        i;
@@ -62,10 +62,18 @@ iterate(void *pres)
 
     for (i = 0; i < iterations; i++)
     {
+        coremark_seg_enter(COREMARK_SEG_LIST);
         crc      = core_bench_list(res, 1);
+        coremark_seg_exit(COREMARK_SEG_LIST);
+        coremark_seg_enter(COREMARK_SEG_CRC);
         res->crc = crcu16(crc, res->crc);
+        coremark_seg_exit(COREMARK_SEG_CRC);
+        coremark_seg_enter(COREMARK_SEG_LIST);
         crc      = core_bench_list(res, -1);
+        coremark_seg_exit(COREMARK_SEG_LIST);
+        coremark_seg_enter(COREMARK_SEG_CRC);
         res->crc = crcu16(crc, res->crc);
+        coremark_seg_exit(COREMARK_SEG_CRC);
         if (i == 0)
             res->crclist = res->crc;
     }
@@ -82,7 +90,31 @@ ee_s32 get_seed_32(int i);
 #endif
 
 #if (MEM_METHOD == MEM_STATIC)
+#if defined(COREMARK_SRAM3_DATA) && (COREMARK_SRAM3_DATA == 1)
+#define static_memblk ((ee_u8 *)0x2c100000UL)
+#elif defined(COREMARK_SRAM4_DATA) && (COREMARK_SRAM4_DATA == 1)
+#define static_memblk ((ee_u8 *)0x2c140000UL)
+#elif defined(COREMARK_DTCM_DATA) && (COREMARK_DTCM_DATA == 1)
+ee_u8 static_memblk[TOTAL_DATA_SIZE] __attribute__((section(".dtcm_noinit"), aligned(32)));
+#else
 ee_u8 static_memblk[TOTAL_DATA_SIZE];
+#endif
+#endif
+#define COREMARK_FIXED_DATA_ARENA 0
+#if (MEM_METHOD == MEM_MALLOC)
+#if defined(COREMARK_SRAM3_DATA) && (COREMARK_SRAM3_DATA == 1)
+#undef COREMARK_FIXED_DATA_ARENA
+#define COREMARK_FIXED_DATA_ARENA 1
+#define coremark_fixed_memblk ((ee_u8 *)0x2c100000UL)
+#elif defined(COREMARK_SRAM4_DATA) && (COREMARK_SRAM4_DATA == 1)
+#undef COREMARK_FIXED_DATA_ARENA
+#define COREMARK_FIXED_DATA_ARENA 1
+#define coremark_fixed_memblk ((ee_u8 *)0x2c140000UL)
+#elif defined(COREMARK_DTCM_DATA) && (COREMARK_DTCM_DATA == 1)
+#undef COREMARK_FIXED_DATA_ARENA
+#define COREMARK_FIXED_DATA_ARENA 1
+static ee_u8 coremark_fixed_memblk[TOTAL_DATA_SIZE * MULTITHREAD] __attribute__((section(".dtcm_noinit"), aligned(32)));
+#endif
 #endif
 const char *mem_name[3] = { "Static", "Heap", "Stack" };
 /* Function: main
@@ -104,7 +136,7 @@ const char *mem_name[3] = { "Static", "Heap", "Stack" };
 
 */
 
-void core_mark(int argc, char *argv[])
+COREMARK_FUNC_ATTR void core_mark(int argc, char *argv[])
 {
     ee_u16       i, j = 0, num_algorithms = 0;
     ee_s16       known_id = -1, total_errors = 0;
@@ -164,7 +196,11 @@ void core_mark(int argc, char *argv[])
             results[i].size = malloc_override;
         else
             results[i].size = TOTAL_DATA_SIZE;
+#if COREMARK_FIXED_DATA_ARENA
+        results[i].memblock[0] = (void *)(coremark_fixed_memblk + (i * results[i].size));
+#else
         results[i].memblock[0] = portable_malloc(results[i].size);
+#endif
         results[i].seed1       = results[0].seed1;
         results[i].seed2       = results[0].seed2;
         results[i].seed3       = results[0].seed3;
@@ -254,6 +290,7 @@ for (i = 0; i < MULTITHREAD; i++)
     }
     /* perform actual benchmark */
     start_time();
+    coremark_seg_reset();
 #if (MULTITHREAD > 1)
     if (default_num_contexts > MULTITHREAD)
     {
@@ -274,6 +311,7 @@ for (i = 0; i < MULTITHREAD; i++)
 #endif
     stop_time();
     total_time = get_time();
+    coremark_seg_report(results[0].iterations, default_num_contexts);
     /* get a function of the input to report */
     seedcrc = crc16(results[0].seed1, seedcrc);
     seedcrc = crc16(results[0].seed2, seedcrc);
@@ -376,6 +414,12 @@ for (i = 0; i < MULTITHREAD; i++)
     ee_printf("Parallel %s : %d\n", PARALLEL_METHOD, default_num_contexts);
 #endif
     ee_printf("Memory location  : %s\n", MEM_LOCATION);
+#if (MEM_METHOD == MEM_STATIC)
+    ee_printf("CoreMark data addr: 0x%08lx\n", (unsigned long)results[0].memblock[0]);
+#elif (MEM_METHOD == MEM_MALLOC) && COREMARK_FIXED_DATA_ARENA
+    for (i = 0; i < MULTITHREAD; i++)
+        ee_printf("CoreMark data addr[%u]: 0x%08lx\n", (unsigned)i, (unsigned long)results[i].memblock[0]);
+#endif
     /* output for verification */
     ee_printf("seedcrc          : 0x%04x\n", seedcrc);
     if (results[0].execs & ID_LIST)
@@ -422,7 +466,7 @@ for (i = 0; i < MULTITHREAD; i++)
             "Cannot validate operation for these seed values, please compare "
             "with results on a known platform.\n");
 
-#if (MEM_METHOD == MEM_MALLOC)
+#if (MEM_METHOD == MEM_MALLOC) && !COREMARK_FIXED_DATA_ARENA
     for (i = 0; i < MULTITHREAD; i++)
         portable_free(results[i].memblock[0]);
 #endif

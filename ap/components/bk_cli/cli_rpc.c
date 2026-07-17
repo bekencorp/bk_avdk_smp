@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include "sys_rtos.h"
 #include <os/os.h>
+#include <modules/pm.h>
 #include <common/bk_kernel_err.h>
 
 #include "bk_cli.h"
@@ -62,7 +63,7 @@ static void debug_perfmon_command(char *pcWriteBuffer, int xWriteBufferLen, int 
 static void debug_show_boot_time(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv);
 #endif
 
-//#define CORE_MARK_ENABLED
+#define CORE_MARK_ENABLED
 
 #ifdef CORE_MARK_ENABLED
 static void debug_core_mark(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv);
@@ -351,15 +352,185 @@ static void debug_show_boot_time(char *pcWriteBuffer, int xWriteBufferLen, int a
 #endif
 
 #ifdef CORE_MARK_ENABLED
+
+/* PMU helpers for M55 cache miss measurement (CMSIS memory-mapped PMU_Type) */
+#if !CONFIG_ARCH_RISCV
+/* armcm55.h defines __FPU_PRESENT/__DSP_PRESENT/__PMU_PRESENT/__NVIC_PRIO_BITS
+ * which core_cm55.h requires to be set before inclusion */
+#include "armcm55.h"
+#include "core_cm55.h"
+#define COREMARK_PMU_ENABLED 1
+
+/* Use CMSIS PMU_CTRL_* macros for enable/reset bits */
+#define CM_PMU_ENABLE (PMU_CTRL_ENABLE_Msk)
+#define CM_PMU_RESET  (PMU_CTRL_EVENTCNT_RESET_Msk | PMU_CTRL_CYCCNT_RESET_Msk)
+
+/* ARMv8 standard PMU event numbers */
+#define PMU_EV_L1I_CACHE_REFILL  0x0001u
+#define PMU_EV_L1D_CACHE_REFILL  0x0003u
+#define PMU_EV_L1D_CACHE         0x0004u
+#define PMU_EV_BR_MIS_PRED       0x0010u
+
+#endif /* !CONFIG_ARCH_RISCV */
+
+#ifdef COREMARK_PMU_ENABLED
+
+/* M55 PMU — each core has its own PMU registers at the same virtual address.
+ * The PMU is banked per-PE, so we must start/stop from within the task that
+ * runs the workload (not from an outer CLI task on a potentially different core).
+ *
+ * PMCR bits: E=bit0 (global enable), P=bit1 (reset event counters),
+ *            C=bit2 (reset cycle counter).
+ * Write E|P|C to enable and simultaneously reset all counters.
+ *
+ * CoreSight LAR at PMU_BASE+0xFB0 must be unlocked before writing PMU regs.
+ * On many SoCs the ROM table already unlocks it at boot; write it anyway.
+ */
+#define PMU_LAR  (*((volatile uint32_t *)(PMU_BASE + 0xFB0u)))
+#define PMU_LAR_UNLOCK_KEY  0xC5ACCE55u
+
+/* PMCR bits */
+#define PMCR_E  (1u << 0)
+#define PMCR_P  (1u << 1)
+#define PMCR_C  (1u << 2)
+
+static void pmu_core_start(void)
+{
+	/* DEMCR.TRCENA must be 1 to enable the PMU (and DWT/ETM) clock domain.
+	 * Without this bit the PMU registers accept writes but counters never tick. */
+	DCB->DEMCR |= DCB_DEMCR_TRCENA_Msk;
+	__DSB(); __ISB();
+
+	PMU_LAR = PMU_LAR_UNLOCK_KEY;
+	__DSB();
+
+	/* Step 1: disable all counters */
+	PMU->CNTENCLR = 0xFFFFFFFFu;
+	__DSB();
+
+	/* Step 2: reset event counters and cycle counter (P and C are self-clearing) */
+	PMU->CTRL = PMCR_P | PMCR_C;
+	__DSB();
+
+	/* Step 3: configure event types BEFORE enabling */
+	PMU->EVTYPER[0] = PMU_EV_L1I_CACHE_REFILL;
+	PMU->EVTYPER[1] = PMU_EV_L1D_CACHE_REFILL;
+	PMU->EVTYPER[2] = PMU_EV_BR_MIS_PRED;
+	PMU->EVTYPER[3] = PMU_EV_L1D_CACHE;
+	__DSB();
+
+	/* Step 4: select which counters to enable (cycle counter = bit31) */
+	PMU->CNTENSET = (1u << 31) | (1u << 0) | (1u << 1) | (1u << 2) | (1u << 3);
+	__DSB();
+
+	/* Step 5: global enable only — P/C already reset above, don't reset again */
+	PMU->CTRL = PMCR_E;
+	__ISB();
+
+	BK_LOGI("pmu", "DEMCR=0x%08x CTRL=0x%08x CNTENSET=0x%08x\r\n",
+	        (unsigned)DCB->DEMCR, (unsigned)PMU->CTRL, (unsigned)PMU->CNTENSET);
+}
+
+static void pmu_core_stop_report(const char *label)
+{
+	/* Stop counting first, then read */
+	PMU->CTRL = 0;
+	__DSB();
+
+	uint32_t cycles = PMU->CCNTR;
+	uint32_t ev0    = PMU->EVCNTR[0];   /* L1I refill (miss) */
+	uint32_t ev1    = PMU->EVCNTR[1];   /* L1D refill (miss) */
+	uint32_t ev2    = PMU->EVCNTR[2];   /* branch mispredict */
+	uint32_t ev3    = PMU->EVCNTR[3];   /* L1D access */
+
+	uint32_t d_miss_pct = ev3 ? (ev1 * 100u / ev3) : 0u;
+	BK_LOGI("pmu", "[%s] cycles=%u\r\n", label, cycles);
+	BK_LOGI("pmu", "[%s] L1I-miss=%u\r\n", label, ev0);
+	BK_LOGI("pmu", "[%s] L1D-miss=%u  L1D-access=%u  D-miss%%=%u%%\r\n",
+	        label, ev1, ev3, d_miss_pct);
+	BK_LOGI("pmu", "[%s] BR-mispredict=%u\r\n", label, ev2);
+}
+#endif /* COREMARK_PMU_ENABLED */
+
+#ifndef COREMARK_CPU_FREQ_MHZ
+#define COREMARK_CPU_FREQ_MHZ 480
+#endif
+
+#if (COREMARK_CPU_FREQ_MHZ == 240)
+#define COREMARK_CPU_FREQ_ENUM PM_CPU_FRQ_240M
+#elif (COREMARK_CPU_FREQ_MHZ == 480)
+#define COREMARK_CPU_FREQ_ENUM PM_CPU_FRQ_480M
+#else
+#error "Unsupported COREMARK_CPU_FREQ_MHZ"
+#endif
+
+#define COREMARK_CPU_FREQ_HZ ((uint32_t)COREMARK_CPU_FREQ_MHZ * 1000000UL)
+
 static void debug_core_mark(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
 	extern void core_mark(int argc, char *argv[]);
+	extern bk_err_t bk_wwdt_stop(void);
+	extern bk_err_t bk_wwdt_start(uint32_t timeout_ms, bool is_enable_window, uint32_t window_val);
+	extern void bk_task_wdt_stop(void);
+	extern bk_err_t sys_drv_switch_cpu_bus_freq(pm_cpu_freq_e cpu_bus_freq);
 
-	u32  int_mask = rtos_enter_critical();
+	bk_wwdt_stop();
+	bk_task_wdt_stop();
 
+	/* Prevent idle WFI during benchmark so CPU clock is never gated.
+	 * Without this, DWT stops during WFI and CoreMark reports ~4.5x
+	 * lower score than the actual CPU computation rate. */
+	bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_APP, 0, 0);
+
+	sys_drv_switch_cpu_bus_freq(COREMARK_CPU_FREQ_ENUM);
+	BK_LOGI("coremark", "CPU boosted to %u MHz\r\n", (unsigned)COREMARK_CPU_FREQ_MHZ);
+
+	/* Dump Flash clock register */
+	{
+		extern uint32_t sys_hal_flash_get_clk_sel(void);
+		extern uint32_t sys_hal_flash_get_clk_div(void);
+		uint32_t fsel = sys_hal_flash_get_clk_sel();
+		uint32_t fdiv = sys_hal_flash_get_clk_div();
+		BK_LOGI("coremark", "Flash clk: cksel=%u ckdiv=%u => source=%s div=/%u\r\n",
+		        fsel, fdiv,
+		        fsel == 0 ? "XTAL-26M" : fsel == 1 ? "DPLL" : "DCO",
+		        fdiv + 1);
+	}
+
+	/* DWT self-test: measure a known 100ms delay with both DWT and Timer0. */
+	{
+		extern uint64_t get_timer_value(void);
+		DCB->DEMCR |= DCB_DEMCR_TRCENA_Msk;
+		DWT->CYCCNT = 0;
+		DWT->CTRL  |= DWT_CTRL_CYCCNTENA_Msk;
+		__DSB(); __ISB();
+
+		/* busy-wait 100ms using Timer0 as reference (26MHz → 2600000 ticks) */
+		uint32_t dwt0  = DWT->CYCCNT;
+		uint64_t tmr0  = get_timer_value();
+		while ((uint32_t)(get_timer_value() - tmr0) < 2600000u) { /* spin ~100ms */ }
+		uint32_t dwt1  = DWT->CYCCNT;
+		uint64_t tmr1  = get_timer_value();
+
+		uint32_t dwt_cy = dwt1 - dwt0;
+		uint32_t tmr_tk = (uint32_t)(tmr1 - tmr0);
+		BK_LOGI("coremark", "DWT self-test 100ms: DWT=%u cy (%.3fs@%uM)  Timer0=%u tk (%.3fs@26M)  ratio=%.2f\r\n",
+		        dwt_cy, (double)dwt_cy/(double)COREMARK_CPU_FREQ_HZ,
+		        (unsigned)COREMARK_CPU_FREQ_MHZ,
+		        tmr_tk, (double)tmr_tk/26000000.0,
+		        (double)dwt_cy / (double)COREMARK_CPU_FREQ_HZ / ((double)tmr_tk / 26000000.0 + 1e-9));
+	}
+
+	/* PMU per-core measurement is now done inside coremark_parallel_task()
+	 * in core_portme.c — each core reports its own cache/branch stats. */
 	core_mark(argc, argv);
 
-	rtos_exit_critical(int_mask);
+	/* Restore default frequency and re-enable idle sleep */
+	sys_drv_switch_cpu_bus_freq(PM_CPU_FRQ_480M);
+	bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_APP, 1, 0);
+	BK_LOGI("coremark", "CPU freq restored\r\n");
+
+	bk_wwdt_start(CONFIG_INT_WWDT_PERIOD_MS, false, 0);
 }
 
 #include "./core_mark/core_main.c"

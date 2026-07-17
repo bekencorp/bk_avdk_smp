@@ -66,6 +66,42 @@ void       stop_time(void);
 CORE_TICKS get_time(void);
 secs_ret   time_in_secs(CORE_TICKS ticks);
 
+typedef enum coremark_seg_id_e
+{
+    COREMARK_SEG_LIST = 0,
+    COREMARK_SEG_MATRIX,
+    COREMARK_SEG_STATE,
+    COREMARK_SEG_CRC,
+    COREMARK_SEG_LIST_FIND_REV,
+    COREMARK_SEG_LIST_FIND_ONLY,
+    COREMARK_SEG_LIST_REVERSE,
+    COREMARK_SEG_LIST_SORT_COMPLEX,
+    COREMARK_SEG_LIST_REMOVE_CRC,
+    COREMARK_SEG_LIST_SORT_IDX,
+    COREMARK_SEG_LIST_FINAL_CRC,
+    COREMARK_SEG_COUNT
+} coremark_seg_id;
+
+#ifndef COREMARK_SEGMENT_ENABLE
+#define COREMARK_SEGMENT_ENABLE 0
+#endif
+
+#if COREMARK_SEGMENT_ENABLE
+void coremark_seg_reset(void);
+void coremark_seg_enter(coremark_seg_id seg);
+void coremark_seg_exit(coremark_seg_id seg);
+void coremark_seg_report(ee_u32 iterations, ee_u32 contexts);
+void coremark_find_nodes_enable(ee_u32 enable);
+void coremark_find_nodes_add(ee_u32 nodes);
+#else
+#define coremark_seg_reset()                  ((void)0)
+#define coremark_seg_enter(seg)               ((void)0)
+#define coremark_seg_exit(seg)                ((void)0)
+#define coremark_seg_report(iterations, ctxs) ((void)0)
+#define coremark_find_nodes_enable(enable)    ((void)0)
+#define coremark_find_nodes_add(nodes)        ((void)0)
+#endif
+
 /* Misc useful functions */
 ee_u16 crcu8(ee_u8 data, ee_u16 crc);
 ee_u16 crc16(ee_s16 newval, ee_u16 crc);

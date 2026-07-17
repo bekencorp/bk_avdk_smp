@@ -42,7 +42,7 @@ the switch/if behaviour, we are using a small moore machine.
         Go over the input twice, once direct, and once after introducing some
    corruption.
 */
-ee_u16
+COREMARK_FUNC_ATTR ee_u16
 core_bench_state(ee_u32 blksize,
                  ee_u8 *memblock,
                  ee_s16 seed1,

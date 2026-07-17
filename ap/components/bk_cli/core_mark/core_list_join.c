@@ -88,17 +88,21 @@ calc_func(ee_s16 *pdata, core_results *res)
             case 0:
                 if (dtype < 0x22) /* set min period for bit corruption */
                     dtype = 0x22;
+                coremark_seg_enter(COREMARK_SEG_STATE);
                 retval = core_bench_state(res->size,
                                           res->memblock[3],
                                           res->seed1,
                                           res->seed2,
                                           dtype,
                                           res->crc);
+                coremark_seg_exit(COREMARK_SEG_STATE);
                 if (res->crcstate == 0)
                     res->crcstate = retval;
                 break;
             case 1:
+                coremark_seg_enter(COREMARK_SEG_MATRIX);
                 retval = core_bench_matrix(&(res->mat), dtype, res->crc);
+                coremark_seg_exit(COREMARK_SEG_MATRIX);
                 if (res->crcmatrix == 0)
                     res->crcmatrix = retval;
                 break;
@@ -155,7 +159,7 @@ copy_info(list_data *to, list_data *from)
         - Single remove/reinsert
         * At the end of this function, the list is back to original state
 */
-ee_u16
+COREMARK_FUNC_ATTR ee_u16
 core_bench_list(core_results *res, ee_s16 finder_idx)
 {
     ee_u16     retval = 0;
@@ -170,11 +174,18 @@ core_bench_list(core_results *res, ee_s16 finder_idx)
     info.idx = finder_idx;
     /* find <find_num> values in the list, and change the list each time
      * (reverse and cache if value found) */
+    coremark_seg_enter(COREMARK_SEG_LIST_FIND_REV);
     for (i = 0; i < find_num; i++)
     {
         info.data16 = (i & 0xff);
+        coremark_find_nodes_enable(1);
+        coremark_seg_enter(COREMARK_SEG_LIST_FIND_ONLY);
         this_find   = core_list_find(list, &info);
+        coremark_seg_exit(COREMARK_SEG_LIST_FIND_ONLY);
+        coremark_find_nodes_enable(0);
+        coremark_seg_enter(COREMARK_SEG_LIST_REVERSE);
         list        = core_list_reverse(list);
+        coremark_seg_exit(COREMARK_SEG_LIST_REVERSE);
         if (this_find == NULL)
         {
             missed++;
@@ -200,10 +211,15 @@ core_bench_list(core_results *res, ee_s16 finder_idx)
         ee_printf("List find %d: [%d,%d,%d]\n", i, retval, missed, found);
 #endif
     }
+    coremark_seg_exit(COREMARK_SEG_LIST_FIND_REV);
     retval += found * 4 - missed;
     /* sort the list by data content and remove one item*/
-    if (finder_idx > 0)
+    if (finder_idx > 0) {
+        coremark_seg_enter(COREMARK_SEG_LIST_SORT_COMPLEX);
         list = core_list_mergesort(list, cmp_complex, res);
+        coremark_seg_exit(COREMARK_SEG_LIST_SORT_COMPLEX);
+    }
+    coremark_seg_enter(COREMARK_SEG_LIST_REMOVE_CRC);
     remover = core_list_remove(list->next);
     /* CRC data content of list from location of index N forward, and then undo
      * remove */
@@ -219,15 +235,20 @@ core_bench_list(core_results *res, ee_s16 finder_idx)
     ee_printf("List sort 1: %04x\n", retval);
 #endif
     remover = core_list_undo_remove(remover, list->next);
+    coremark_seg_exit(COREMARK_SEG_LIST_REMOVE_CRC);
     /* sort the list by index, in effect returning the list to original state */
+    coremark_seg_enter(COREMARK_SEG_LIST_SORT_IDX);
     list = core_list_mergesort(list, cmp_idx, NULL);
+    coremark_seg_exit(COREMARK_SEG_LIST_SORT_IDX);
     /* CRC data content of list */
+    coremark_seg_enter(COREMARK_SEG_LIST_FINAL_CRC);
     finder = list->next;
     while (finder)
     {
         retval = crc16(list->info->data16, retval);
         finder = finder->next;
     }
+    coremark_seg_exit(COREMARK_SEG_LIST_FINAL_CRC);
 #if CORE_DEBUG
     ee_printf("List sort 2: %04x\n", retval);
 #endif
@@ -434,16 +455,39 @@ core_list_undo_remove(list_head *item_removed, list_head *item_modified)
 list_head *
 core_list_find(list_head *list, list_data *info)
 {
+#if COREMARK_SEGMENT_ENABLE
+    ee_u32 nodes = 0;
+#endif
     if (info->idx >= 0)
     {
         while (list && (list->info->idx != info->idx))
+        {
+#if COREMARK_SEGMENT_ENABLE
+            nodes++;
+#endif
             list = list->next;
+        }
+#if COREMARK_SEGMENT_ENABLE
+        if (list)
+            nodes++;
+        coremark_find_nodes_add(nodes);
+#endif
         return list;
     }
     else
     {
         while (list && ((list->info->data16 & 0xff) != info->data16))
+        {
+#if COREMARK_SEGMENT_ENABLE
+            nodes++;
+#endif
             list = list->next;
+        }
+#if COREMARK_SEGMENT_ENABLE
+        if (list)
+            nodes++;
+        coremark_find_nodes_add(nodes);
+#endif
         return list;
     }
 }

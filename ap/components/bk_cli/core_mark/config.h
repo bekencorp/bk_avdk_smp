@@ -7,6 +7,10 @@
 #ifndef __CONFIG_H__
 #define __CONFIG_H__
 
-#define ITERATIONS 3500
+#ifndef COREMARK_TEST_ITERATIONS
+#define COREMARK_TEST_ITERATIONS 12000
+#endif
+
+#define ITERATIONS COREMARK_TEST_ITERATIONS
 
 #endif // __CONFIG_H__

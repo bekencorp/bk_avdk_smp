@@ -233,4 +233,108 @@ armino_component_register(SRCS "cli_gsensor.c" "${srcs}"
 	PRIV_REQUIRES ${PRIV_REQUIRES_LIST}
 	)
 
+if(DEFINED ENV{COREMARK_CONTEXTS})
+	set(coremark_contexts "$ENV{COREMARK_CONTEXTS}")
+else()
+	set(coremark_contexts "2")
+endif()
+
+if(DEFINED ENV{COREMARK_OPT_FLAG})
+	set(coremark_opt_flag "$ENV{COREMARK_OPT_FLAG}")
+else()
+	set(coremark_opt_flag "-Os")
+endif()
+
+if(DEFINED ENV{COREMARK_TEST_ITERATIONS})
+	set(coremark_iterations "$ENV{COREMARK_TEST_ITERATIONS}")
+else()
+	set(coremark_iterations "12000")
+endif()
+
+if(DEFINED ENV{COREMARK_CPU_FREQ_MHZ})
+	set(coremark_cpu_freq_mhz "$ENV{COREMARK_CPU_FREQ_MHZ}")
+else()
+	set(coremark_cpu_freq_mhz "480")
+endif()
+
+# Enable M55 MVE (Helium) for CoreMark if requested
+if(DEFINED ENV{COREMARK_ENABLE_MVE} AND "$ENV{COREMARK_ENABLE_MVE}" STREQUAL "1")
+	set(coremark_mve_flags "-march=armv8.1-m.main+mve")
+	set(coremark_opt_label "${coremark_opt_flag}+MVE")
+else()
+	set(coremark_mve_flags "")
+	set(coremark_opt_label "${coremark_opt_flag}")
+endif()
+
+# Suppress aggressive inlining by GCC14 if requested (mimics GCC10 code structure)
+if(DEFINED ENV{COREMARK_NO_INLINE} AND "$ENV{COREMARK_NO_INLINE}" STREQUAL "1")
+	set(coremark_inline_flags "-fno-inline-functions;-fno-inline-small-functions")
+	set(coremark_opt_label "${coremark_opt_label}+NoInline")
+elseif(DEFINED ENV{COREMARK_INLINE_LIMIT})
+	# GCC10 default -finline-limit=30; GCC14 default is much higher (~600)
+	# Use = syntax so GCC doesn't misparse the value as a linker input file
+	set(coremark_inline_flags
+	    "--param=max-inline-insns-single=$ENV{COREMARK_INLINE_LIMIT}"
+	    "--param=max-inline-insns-auto=$ENV{COREMARK_INLINE_LIMIT}")
+	set(coremark_opt_label "${coremark_opt_label}+InlineLimit$ENV{COREMARK_INLINE_LIMIT}")
+else()
+	set(coremark_inline_flags "")
+endif()
+
+# Place CoreMark hot functions in PSRAM code section if requested
+if(DEFINED ENV{COREMARK_PSRAM_CODE} AND "$ENV{COREMARK_PSRAM_CODE}" STREQUAL "1")
+	set(coremark_psram_flag "-DCOREMARK_PSRAM_CODE=1")
+	set(coremark_opt_label "${coremark_opt_label}+PSRAM")
+else()
+	set(coremark_psram_flag "")
+endif()
+
+# Place CoreMark hot functions in internal SRAM (.iram) to eliminate Flash XIP stall
+if(DEFINED ENV{COREMARK_IRAM_CODE} AND "$ENV{COREMARK_IRAM_CODE}" STREQUAL "1")
+	set(coremark_iram_flag "-DCOREMARK_IRAM_CODE=1")
+	set(coremark_opt_label "${coremark_opt_label}+IRAM")
+else()
+	set(coremark_iram_flag "")
+endif()
+
+set(coremark_freq_flag "-DCOREMARK_CPU_FREQ_MHZ=${coremark_cpu_freq_mhz}")
+set(coremark_opt_label "${coremark_opt_label}+${coremark_cpu_freq_mhz}M")
+
+set(coremark_data_flags "")
+if(DEFINED ENV{COREMARK_SRAM3_DATA} AND "$ENV{COREMARK_SRAM3_DATA}" STREQUAL "1")
+	list(APPEND coremark_data_flags "-DCOREMARK_SRAM3_DATA=1")
+	set(coremark_opt_label "${coremark_opt_label}+SRAM3DATA")
+elseif(DEFINED ENV{COREMARK_SRAM4_DATA} AND "$ENV{COREMARK_SRAM4_DATA}" STREQUAL "1")
+	list(APPEND coremark_data_flags "-DCOREMARK_SRAM4_DATA=1")
+	set(coremark_opt_label "${coremark_opt_label}+SRAM4DATA")
+elseif(DEFINED ENV{COREMARK_DTCM_DATA} AND "$ENV{COREMARK_DTCM_DATA}" STREQUAL "1")
+	list(APPEND coremark_data_flags "-DCOREMARK_DTCM_DATA=1")
+	set(coremark_opt_label "${coremark_opt_label}+DTCMDATA")
+endif()
+
+set(coremark_measure_flags "")
+if(DEFINED ENV{COREMARK_SEGMENT_ENABLE} AND "$ENV{COREMARK_SEGMENT_ENABLE}" STREQUAL "1")
+	list(APPEND coremark_measure_flags "-DCOREMARK_SEGMENT_ENABLE=1")
+	set(coremark_opt_label "${coremark_opt_label}+SEG")
+endif()
+if(DEFINED ENV{COREMARK_PMU_ENABLE} AND "$ENV{COREMARK_PMU_ENABLE}" STREQUAL "1")
+	list(APPEND coremark_measure_flags "-DCOREMARK_PMU_ENABLE=1")
+	set(coremark_opt_label "${coremark_opt_label}+PMU")
+endif()
+
+component_compile_options(
+	${coremark_opt_flag}
+	${coremark_mve_flags}
+	${coremark_inline_flags}
+	${coremark_psram_flag}
+	${coremark_iram_flag}
+	${coremark_freq_flag}
+	${coremark_data_flags}
+	${coremark_measure_flags}
+	-DCOREMARK_CONTEXTS=${coremark_contexts}
+	-DCOREMARK_TEST_ITERATIONS=${coremark_iterations}
+	-DCOREMARK_OPT_LABEL="${coremark_opt_label}"
+	-DCOREMARK_COMPILER_FLAGS="${coremark_opt_label}"
+)
+
 armino_component_register_call_subdirs()
