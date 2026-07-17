@@ -14,7 +14,9 @@
 #define _COMPILER_H_
 
 /// define the force inlining attribute for this compiler  gcc: __attribute__((always_inline))
+#ifndef __INLINE
 #define __INLINE                     static inline
+#endif
 
 /// function returns struct in registers (4 words max, var with gnuarm)
 #if !defined(__VIR)
