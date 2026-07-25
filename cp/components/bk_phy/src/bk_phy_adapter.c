@@ -15,6 +15,9 @@
 #include "bk_phy_adapter.h"
 #include "driver/wdt.h"
 #include "bk_wdt.h"
+#if CONFIG_SUPPORT_WWDT
+#include "driver/wwdt.h"
+#endif
 #include "bk_wifi.h"
 #include "adc_driver.h"
 #include "sys_driver.h"
@@ -513,14 +516,32 @@ static void sys_drv_optim_dpd_tx(uint32_t vbias)
 }
 
 static int bk_wdt_stop_wrapper(void) {
-#if (CONFIG_TASK_WDT)
+#if CONFIG_INT_WDT
+    extern void close_wdt(void);
+
+    close_wdt();
+
+#if CONFIG_SUPPORT_WWDT
+    bk_wwdt_stop();
+#endif
+
+#if INT_AON_WDT
+    bk_wdt_suspend();
+#endif
+
+#if CONFIG_TASK_WDT
     bk_task_wdt_stop();
 #endif
-#if CONFIG_WDT_EN
+
+    return BK_OK;
+#elif CONFIG_WDT_EN
     return bk_wdt_stop();
 #else
-    return BK_FAIL;
+#if CONFIG_TASK_WDT
+    bk_task_wdt_stop();
 #endif
+    return BK_FAIL;
+#endif /* CONFIG_INT_WDT */
 }
 
 static bk_err_t bk_cal_saradc_start(int32_t adc_channel, int32_t adc_clk, int32_t steady_time)
