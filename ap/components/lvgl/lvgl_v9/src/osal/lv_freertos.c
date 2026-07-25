@@ -94,7 +94,7 @@ lv_result_t lv_thread_init(lv_thread_t * pxThread,  const char * const name,
     pxThread->pvStartRoutine = pvStartRoutine;
 
 #if (CONFIG_SOC_SMP)
-    BaseType_t xTaskCreateStatus = rtos_smp_create_thread(
+    BaseType_t xTaskCreateStatus = rtos_create_hsram_thread(
                                        (beken_thread_t *)&pxThread->xTaskHandle,
                                        9 - tskIDLE_PRIORITY - xSchedPriority,
                                        name,

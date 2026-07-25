@@ -639,7 +639,7 @@ void lv_vendor_start(void)
         return;
     }
 
-    ret = rtos_create_sram_thread(&g_disp_thread_handle,
+    ret = rtos_create_hsram_thread(&g_disp_thread_handle,
                              CONFIG_LVGL_TASK_PRIORITY,
                              "lvgl",
                              (beken_thread_function_t)lv_task_entry,

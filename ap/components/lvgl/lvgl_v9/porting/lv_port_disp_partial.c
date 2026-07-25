@@ -23,6 +23,7 @@
 
 #define LV_COMPRESSED_TILE_WIDTH 16
 #define LV_COMPRESSED_TILE_HEIGHT 4
+#define LV_PARTIAL_HPDMA_WAIT_MS 5000
 
 typedef struct {
     const lv_area_t *area;
@@ -288,11 +289,31 @@ static void lv_partial_flush_copy_to_disp_buf(lv_vnd_data_t *vnd_data, const lv_
     if (vnd_data->config.draw_buf_2_2) {
         // to do
     } else {
-        offset = ctx->area->y1 * ctx->lv_hor + ctx->area->x1;
-        for (y = ctx->area->y1; y <= ctx->area->y2; y++) {
-            lv_memcpy_one_line((uint8_t *)vnd_data->disp_buf + offset * ctx->color_size, color_ptr, ctx->width);
-            offset += ctx->lv_hor;
-            color_ptr += ctx->lv_stride;
+        uint32_t line_bytes = ctx->width * ctx->color_size;
+        uint32_t area_height = lv_area_get_height(ctx->area);
+        uint32_t dst_step = (ctx->lv_hor - ctx->width) * ctx->color_size;
+        uint32_t src_step = ctx->lv_stride - line_bytes;
+        void *dst_start = (uint8_t *)vnd_data->disp_buf +
+                          (ctx->area->y1 * ctx->lv_hor + ctx->area->x1) * ctx->color_size;
+
+        bk_err_t ret = lv_hpdma_memcpy_start(color_ptr, dst_start, line_bytes, area_height,
+                                             line_bytes, area_height, src_step, dst_step);
+
+        if (ret == BK_OK) {
+            ret = lv_hpdma_memcpy_wait_finish(LV_PARTIAL_HPDMA_WAIT_MS);
+            if (ret != BK_OK) {
+                LOGE("%s %d hpdma wait timeout\n", __func__, __LINE__);
+                lv_hpdma_memcpy_stop();
+            }
+        }
+
+        if (ret != BK_OK) {
+            offset = ctx->area->y1 * ctx->lv_hor + ctx->area->x1;
+            for (y = ctx->area->y1; y <= ctx->area->y2; y++) {
+                lv_memcpy_one_line((uint8_t *)vnd_data->disp_buf + offset * ctx->color_size, color_ptr, ctx->width);
+                offset += ctx->lv_hor;
+                color_ptr += ctx->lv_stride;
+            }
         }
     }
 }

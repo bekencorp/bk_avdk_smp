@@ -26,11 +26,6 @@ menu "LVGL"
         bool "Enable Swap the 2 bytes of RGB565 color"
         default n
 
-    config LV_ATTRIBUTE_FAST_MEM
-        depends on LVGL
-        bool "Enable Lv Attribute Fast Mem"
-        default n
-
     config LVGL_MEM_USE_PSRAM
         depends on LVGL
         bool "Use PSRAM for LVGL internal memory allocation"
