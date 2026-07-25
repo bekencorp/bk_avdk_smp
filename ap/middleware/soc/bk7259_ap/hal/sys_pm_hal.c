@@ -1335,13 +1335,3 @@ void sys_hal_low_power_hardware_init()
 	/*dco cali*/
 	sys_hal_dco_cali(DCO_CALIB_SPEED_240M);
 }
-
-void sys_hal_set_ota_finish(uint32_t value)
-{
-	aon_pmu_ll_set_r0_ota_finish(value);
-}
-
-uint32_t sys_hal_get_ota_finish(void)
-{
-	return aon_pmu_ll_get_r0_ota_finish();
-}
