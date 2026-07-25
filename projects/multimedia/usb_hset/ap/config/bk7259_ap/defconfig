@@ -1,0 +1,28 @@
+#
+# usb_hset: minimal USB device build for USB HSET.
+#
+# Enumerates a USB 2.0 HIGH-SPEED CDC-ACM device at power-up and responds to the
+# host SET_FEATURE(TEST_MODE) request (Test_J / Test_K / Test_SE0_NAK /
+# Test_Packet) for HS signal-quality / eye-diagram compliance testing with an
+# oscilloscope + USBHSET-style host. All original usb_example features
+# (udisk host/MSC, MTP, UVC, UAC/voice, camera/display/audio/BLE/NPU) are
+# trimmed out; only differences vs the board defconfig are listed here.
+#
+
+# --- USB device: HS CDC-ACM + USB 2.0 test mode ---
+CONFIG_USB=y
+# CONFIG_BK_USB_CHERRYUSB_LEGACY is not set
+CONFIG_BK_USB_CHERRYUSB_V1_6=y
+CONFIG_USB_DEVICE=y
+CONFIG_USB_HSET=y
+# Use the M55-resident USBD IRQ path, NOT the RISC-V USB bridge. The bridge
+# device-event drain (usb_dc_riscv_poll_events -> usbd_event_suspend_handler)
+# faults on this SDK, and the proven eye-test build (ATE) also ran with the
+# bridge off. CONFIG_USB_RISCV_BRIDGE defaults to y, so disable it explicitly.
+# CONFIG_USB_RISCV_BRIDGE is not set
+# NOTE: CONFIG_USB_HOST is left at its default (y). It is not used at runtime
+# (the app only starts the device), but the device-mode PHY/clock bring-up
+# helpers (spitrig_toggle / usb_clk_config / sys_ana_usb_phy_op) and the
+# RISC-V USB bridge live in the host controller file on this SDK, so the
+# device link needs them.
+CONFIG_TASK_USB_PRIO=2
