@@ -28,7 +28,7 @@ AB_FLAG_SECTOR_SIZE = 0x1000
 AB_STATE_NORMAL = 0x01
 AB_DL_IDLE = 0x00
 AB_SLOT_A = 0x00
-AB_FLAG_DEFAULT_TRY_MAX = 3
+AB_FLAG_DEFAULT_TRY_MAX = 5  # trial boots before rollback (must be <= 7, 3-bit reboot counter)
 # struct layout of the CRC-covered head [0x00..0x1B] (28 bytes), little-endian:
 #   I magic | H struct_ver | H size | I seq | B exec_slot | B update_slot |
 #   B boot_state | B dl_state | B try_max | 3s rsvd0 | 8s rsvd1
