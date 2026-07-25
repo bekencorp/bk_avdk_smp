@@ -15,6 +15,10 @@
  * Thread Safety:
  *   Software I2C transactions are serialized globally because different
  *   handles may still target the same GPIO pins.
+ *
+ *   A per-pin-pair reference count keeps the bus alive until the last user
+ *   deinits, so one module deinit cannot break another module still sharing
+ *   the same SDA/SCL pins.
  * 
  *****************************************************************************/
 
@@ -70,6 +74,55 @@ typedef struct {
 	gpio_id_t sda_pin;         /**< SDA GPIO pin */
 	gpio_id_t scl_pin;         /**< SCL GPIO pin */
 } sw_i2c_config_t;
+
+/*
+ * Per-pin-pair reference count.
+ *
+ * The handle-based API allocates a fresh handle per sw_i2c_init() call, but
+ * several handles may target the same SDA/SCL pins. To avoid one caller's
+ * deinit tearing the bus down while another caller is still using it, a
+ * reference count is kept per pin pair: the hardware is initialized only on
+ * the first user (ref 0 -> 1) and released only on the last (ref 1 -> 0).
+ * Accessed under the bus mutex, which every init/deinit already holds.
+ */
+#define SW_I2C_MAX_BUSES		4
+
+typedef struct {
+	gpio_id_t sda_pin;         /**< SDA GPIO pin */
+	gpio_id_t scl_pin;         /**< SCL GPIO pin */
+	uint32_t  ref;             /**< active users of this pin pair */
+	bool      used;            /**< slot in use */
+} sw_i2c_bus_ref_t;
+
+static sw_i2c_bus_ref_t s_sw_i2c_bus_ref[SW_I2C_MAX_BUSES];
+
+/* Find the ref-count slot matching the given pins, or NULL. Call under lock. */
+static sw_i2c_bus_ref_t *sw_i2c_bus_ref_find(gpio_id_t sda_pin, gpio_id_t scl_pin)
+{
+	for (int i = 0; i < SW_I2C_MAX_BUSES; i++) {
+		if (s_sw_i2c_bus_ref[i].used &&
+		    s_sw_i2c_bus_ref[i].sda_pin == sda_pin &&
+		    s_sw_i2c_bus_ref[i].scl_pin == scl_pin) {
+			return &s_sw_i2c_bus_ref[i];
+		}
+	}
+	return NULL;
+}
+
+/* Allocate a free ref-count slot for the given pins, or NULL. Call under lock. */
+static sw_i2c_bus_ref_t *sw_i2c_bus_ref_alloc(gpio_id_t sda_pin, gpio_id_t scl_pin)
+{
+	for (int i = 0; i < SW_I2C_MAX_BUSES; i++) {
+		if (!s_sw_i2c_bus_ref[i].used) {
+			s_sw_i2c_bus_ref[i].used = true;
+			s_sw_i2c_bus_ref[i].sda_pin = sda_pin;
+			s_sw_i2c_bus_ref[i].scl_pin = scl_pin;
+			s_sw_i2c_bus_ref[i].ref = 0;
+			return &s_sw_i2c_bus_ref[i];
+		}
+	}
+	return NULL;
+}
 
 /*****************************************************
  * These Macros could be used for RISCV 120Mhz.
@@ -453,8 +506,23 @@ sw_i2c_handle_t* sw_i2c_init(const sw_i2c_config_t *cfg)
 
 	// Unmap GPIO here as the sw i2c pin is usually dynamical
 
-	// Initialize I2C
-	i2c_init(handle);
+	// Look up (or allocate) the ref-count slot for this pin pair. The
+	// hardware is only initialized on the first user (ref 0 -> 1).
+	sw_i2c_bus_ref_t *bus_ref = sw_i2c_bus_ref_find(handle->sda_pin, handle->scl_pin);
+	if (bus_ref == NULL) {
+		bus_ref = sw_i2c_bus_ref_alloc(handle->sda_pin, handle->scl_pin);
+		if (bus_ref == NULL) {
+			os_free(handle);
+			sw_i2c_bus_unlock();
+			return NULL;
+		}
+	}
+
+	if (bus_ref->ref == 0) {
+		// Initialize I2C only for the first user of this pin pair
+		i2c_init(handle);
+	}
+	bus_ref->ref++;
 
 	sw_i2c_bus_unlock();
 	return handle;
@@ -467,10 +535,19 @@ bk_err_t sw_i2c_deinit(sw_i2c_handle_t *handle)
 
 	if (sw_i2c_bus_lock() != BK_OK)
 		return BK_FAIL;
-	
-	// Set pins to low before deinit
-	i2c_set_scl_low(handle);
-	i2c_set_sda_low(handle);
+
+	// Decrement the pin pair's ref count; only release the bus (pull pins
+	// low) when the last user of this pin pair deinits.
+	sw_i2c_bus_ref_t *bus_ref = sw_i2c_bus_ref_find(handle->sda_pin, handle->scl_pin);
+	if (bus_ref != NULL && bus_ref->ref > 0) {
+		bus_ref->ref--;
+		if (bus_ref->ref == 0) {
+			// Set pins to low before releasing the bus
+			i2c_set_scl_low(handle);
+			i2c_set_sda_low(handle);
+			bus_ref->used = false;
+		}
+	}
 
 	sw_i2c_bus_unlock();
 	
