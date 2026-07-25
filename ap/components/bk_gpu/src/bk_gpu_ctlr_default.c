@@ -380,7 +380,7 @@ static void gpu_flex_configure_dst_buffer(gpu_flex_data_t *data, bk_gpu_ctlr_con
     data->dst_buf.format = gpu_format_convert(config->dst_format);
 
     data->dst_buf.tiled = config->compress == true ? VG_LITE_TILED : VG_LITE_LINEAR;
-    data->dst_buf.screen_copy = 1;
+    data->dst_buf.screen_copy = config->compress ? 1 : 0;
     vg_lite_allocate_with_data(&data->dst_buf, (void *)(uintptr_t)data->buffers[data->dst_buf_idx], NULL, NULL, NULL);
 }
 
@@ -586,7 +586,7 @@ static inline void gpu_flex_data_init(gpu_flex_data_t *data, gpu_vn_ctlr_t *gpu_
     gpu_vn_ctlr->flexa_abort_notified = false;
     data->input_width = config->src_width;
     data->input_height = config->src_height;
-    data->output_width = config->dst_width;
+    data->output_width = config->compress ? ((config->dst_width + GPU_HIGHT_ALIGNMENT) & ~GPU_HIGHT_ALIGNMENT) : config->dst_width;
     data->output_height = (config->dst_height + GPU_HIGHT_ALIGNMENT) & ~GPU_HIGHT_ALIGNMENT;
     data->flexa_index = 1;
     data->read_lines = 0;

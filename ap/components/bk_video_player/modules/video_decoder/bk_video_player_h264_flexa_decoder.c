@@ -898,10 +898,20 @@ static avdk_err_t hw_h264_decoder_setup_pipeline(hw_h264_decoder_ctx_t *ctx)
      * default DEC400 path keeps the DPU on the display profile supplied by the
      * upper layer and lets Flexa GPU scale the decoded H264 image to it. */
 #if H264_FLEXA_RAW_ARGB8888_ENABLE
-    uint16_t dst_w = ctx->out_w;
-    uint16_t dst_h = ctx->out_h;
+    uint16_t dst_w = (ctx->display_w != 0U) ? ctx->display_w : ctx->mb_w;
+    uint16_t dst_h = (ctx->display_h != 0U) ? ctx->display_h : ctx->mb_h;
+    if (ctx->rotate_degree == 90U || ctx->rotate_degree == 270U)
+    {
+        uint16_t tmp = dst_w;
+        dst_w = dst_h;
+        dst_h = tmp;
+    }
+    const bool horizontal_mirror = ((dst_w & 15U) == 0U);
+    ctx->out_w = dst_w;
+    ctx->out_h = dst_h;
+    ctx->scale_enable = (dst_w != ctx->mb_w || dst_h != ctx->mb_h);
     const bool gpu_compress = false;
-    const bool gpu_scale = (dst_w != ctx->mb_w || dst_h != ctx->mb_h);
+    const bool gpu_scale = ctx->scale_enable;
 #else
     uint16_t dst_w = (ctx->display_w != 0U) ? ctx->display_w : ctx->mb_w;
     uint16_t dst_h = (ctx->display_h != 0U) ? ctx->display_h : ctx->mb_h;
@@ -911,9 +921,11 @@ static avdk_err_t hw_h264_decoder_setup_pipeline(hw_h264_decoder_ctx_t *ctx)
         dst_w = dst_h;
         dst_h = tmp;
     }
+    const bool horizontal_mirror = ((dst_w & 15U) == 0U);
     ctx->out_w = dst_w;
     ctx->out_h = dst_h;
     ctx->scale_enable = (dst_w != ctx->mb_w || dst_h != ctx->mb_h);
+    
     const bool gpu_compress = true;
     const bool gpu_scale = ctx->scale_enable;
 #endif
@@ -929,7 +941,7 @@ static avdk_err_t hw_h264_decoder_setup_pipeline(hw_h264_decoder_ctx_t *ctx)
     gpu_cfg.dst_format        = BK_PIXEL_FORMAT_ARGB8888;
     gpu_cfg.scale             = gpu_scale;
     gpu_cfg.compress          = gpu_compress;
-    gpu_cfg.horizontal_mirror = true;
+    gpu_cfg.horizontal_mirror = horizontal_mirror;
     gpu_cfg.src_buffer        = ctx->flexa_pp_buf;
     gpu_cfg.flexa             = true;
     gpu_cfg.flexa_lines       = H264_DECODER_GPU_FLEXA_LINES;
