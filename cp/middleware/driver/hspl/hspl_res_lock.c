@@ -17,9 +17,14 @@
 #include <common/bk_assert.h>
 #include <os/os.h>
 #include "arch_interrupt.h"
+#include "sys_sw_regs.h"
 
 #if CONFIG_AON_RTC
 #include <driver/aon_rtc.h>
+#endif
+
+#if CONFIG_SUPPORT_WWDT
+#include "wwdt_driver.h"
 #endif
 
 #define HSPL_MAX_CORES        2
@@ -311,6 +316,24 @@ bk_err_t bk_hspl_res_must_lock(bk_hspl_res_t res)
 			uint32_t now_ms = hspl_get_time_ms();
 
 			if (hspl_must_lock_elapsed_ms(start_ms, now_ms, timeout_ms) >= timeout_ms) {
+				/* BK7259SW-2460: the AP holds UART_LOG for the whole CP-hang
+				 * coredump. Asserting here would re-enter the log path via the
+				 * assert flush -> recursive assert -> MSP overflow; returning
+				 * TIMEOUT would let the caller write the shared console and
+				 * garble the AP dump. So while the AP is dumping keep spinning
+				 * silently (no console write, no assert) until it releases the
+				 * lock or reboots the system. */
+				if ((res == BK_HSPL_RES_UART_LOG) &&
+					(bk_sys_sw_regs_get_ap_cp_hang_dumping() != 0U)) {
+				#if CONFIG_SUPPORT_WWDT
+					/* Keep CP alive through the whole AP dump so it stays parked
+					 * and silent until the system reboots, instead of being reset
+					 * mid-dump by its own watchdog. */
+					bk_wwdt_force_feed();
+				#endif
+					start_ms = hspl_get_time_ms();
+					continue;
+				}
 				hspl_res_must_lock_assert_timeout(res, timeout_ms);
 				return BK_ERR_TIMEOUT;
 			}
