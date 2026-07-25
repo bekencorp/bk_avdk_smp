@@ -66,12 +66,11 @@ ARM_MPU_Region_t mpu_regions[] = {
         shared memory(smem5) 0x2818 0000-----------0x281B FFFF   0x3818 0000-----------0x381B FFFF
         shared memory(smem6) 0x281C 0000-----------0x281D FFFF   0x381C 0000-----------0x381D FFFF
      */
-    { ARM_MPU_RBAR(0x28000000UL, ARM_MPU_SH_INNER, 0, 1, 0),
-      ARM_MPU_RLAR(0x2805FFE0UL, 1) },
+    /* 0x28 aliases are not used on AP; keep them restricted to save MPU regions. */
+    { ARM_MPU_RBAR(0x28000000UL, ARM_MPU_SH_NON, 1, 0, 1),
+      ARM_MPU_RLAR(0x281DFFE0UL, 1) },
     { ARM_MPU_RBAR(0x2C000000UL, ARM_MPU_SH_INNER, 0, 1, 0),
       ARM_MPU_RLAR(0x2C05FFE0UL, 1) },
-    { ARM_MPU_RBAR(0x28100000UL, ARM_MPU_SH_INNER, 0, 1, 0),
-      ARM_MPU_RLAR(0x281DFFE0UL, 1) },
     { ARM_MPU_RBAR(0x2C100000UL, ARM_MPU_SH_INNER, 0, 1, 0),
       ARM_MPU_RLAR(0x2C1DFFE0UL, 1) },
 
@@ -104,9 +103,18 @@ ARM_MPU_Region_t mpu_regions[] = {
     { ARM_MPU_RBAR(0x80000000UL, ARM_MPU_SH_NON, 0, 1, 0),
       ARM_MPU_RLAR(CONFIG_AP_PSRAM_HEAP_ADDR - 0x20, 1) },
 #if (CONFIG_AP_PSRAM_CODE_SECTION_ADDR && CONFIG_AP_PSRAM_CODE_SECTION_SIZE && CONFIG_AP_PSRAM_CODE_SECTION_ADDR > 0x64000000UL)
+#if (CONFIG_AP_PSRAM_DATA_SECTION_ADDR && CONFIG_AP_PSRAM_DATA_SECTION_SIZE)
+/* heap section: L2 cacheable, L1 non-cacheable (attr 5) */
+{ ARM_MPU_RBAR(CONFIG_AP_PSRAM_HEAP_ADDR, ARM_MPU_SH_NON, 0, 1, 0),
+  ARM_MPU_RLAR(CONFIG_AP_PSRAM_DATA_SECTION_ADDR - 0x20, 5) },
+/* data section: non-cacheable (attr 1) */
+{ ARM_MPU_RBAR(CONFIG_AP_PSRAM_DATA_SECTION_ADDR, ARM_MPU_SH_NON, 0, 1, 0),
+  ARM_MPU_RLAR(CONFIG_AP_PSRAM_DATA_SECTION_ADDR + CONFIG_AP_PSRAM_DATA_SECTION_SIZE - 0x20, 1) },
+#else
 /* heap + data (heap~code): L2 cacheable, L1 non-cacheable (attr 5) */
 { ARM_MPU_RBAR(CONFIG_AP_PSRAM_HEAP_ADDR, ARM_MPU_SH_NON, 0, 1, 0),
   ARM_MPU_RLAR(CONFIG_AP_PSRAM_CODE_SECTION_ADDR - 0x20, 5) },
+#endif
 /* code section: L1+L2 write-back cacheable (attr 3) */
 { ARM_MPU_RBAR(CONFIG_AP_PSRAM_CODE_SECTION_ADDR, ARM_MPU_SH_NON, 0, 1, 0),
   ARM_MPU_RLAR(0x81FFFFE0UL, 3) },
@@ -126,9 +134,18 @@ ARM_MPU_RLAR(0x81FFFFE0UL, 1) },
 
 
     #if (CONFIG_AP_PSRAM_CODE_SECTION_ADDR && CONFIG_AP_PSRAM_CODE_SECTION_SIZE && CONFIG_AP_PSRAM_CODE_SECTION_ADDR > 0x64000000UL)
-        /* heap + data (heap~code，data 段紧贴 heap 之后落在此区): L2 cacheable, L1 non-cacheable (attr 5) */
+        #if (CONFIG_AP_PSRAM_DATA_SECTION_ADDR && CONFIG_AP_PSRAM_DATA_SECTION_SIZE)
+        /* heap section: L2 cacheable, L1 non-cacheable (attr 5) */
+        { ARM_MPU_RBAR(CONFIG_AP_PSRAM_HEAP_ADDR, ARM_MPU_SH_NON, 0, 1, 0),
+          ARM_MPU_RLAR(CONFIG_AP_PSRAM_DATA_SECTION_ADDR - 0x20, 5) },
+        /* data section: non-cacheable (attr 1) */
+        { ARM_MPU_RBAR(CONFIG_AP_PSRAM_DATA_SECTION_ADDR, ARM_MPU_SH_NON, 0, 1, 0),
+          ARM_MPU_RLAR(CONFIG_AP_PSRAM_DATA_SECTION_ADDR + CONFIG_AP_PSRAM_DATA_SECTION_SIZE - 0x20, 1) },
+        #else
+        /* heap + data (heap~code): L2 cacheable, L1 non-cacheable (attr 5) */
         { ARM_MPU_RBAR(CONFIG_AP_PSRAM_HEAP_ADDR, ARM_MPU_SH_NON, 0, 1, 0),
           ARM_MPU_RLAR(CONFIG_AP_PSRAM_CODE_SECTION_ADDR - 0x20, 5) },
+        #endif
         /* code section: L1+L2 write-back cacheable (attr 3) */
         { ARM_MPU_RBAR(CONFIG_AP_PSRAM_CODE_SECTION_ADDR, ARM_MPU_SH_NON, 0, 1, 0),
           ARM_MPU_RLAR(0x67FFFFE0UL, 3) },
