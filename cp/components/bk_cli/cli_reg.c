@@ -33,7 +33,6 @@
 #include "wdt_hal.h"
 #include "efuse_hal.h"
 #include "adc_hal.h"
-#include "i2c_hal.h"
 
 #if CONFIG_AON_RTC
 #include "aon_rtc_hal.h"
@@ -284,9 +283,6 @@ static void cli_reg_dump_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc,
 		sdmadc_struct_dump(0x2,0x8);
 	}
 #endif 
-	else if (os_strcmp(argv[1], "i2c") == 0) {
-		i2c_struct_dump(index);
-	}
 #if CONFIG_AON_RTC
 	else if (os_strcmp(argv[1], "aon_rtc") == 0) {
 		aon_rtc_struct_dump();

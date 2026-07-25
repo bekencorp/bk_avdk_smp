@@ -328,10 +328,6 @@ int driver_init(void) {
 	bk_adc_driver_init();
 #endif
 
-#if CONFIG_I2C
-	bk_i2c_driver_init();
-#endif
-
 #if CONFIG_CALENDAR
 	bk_calendar_driver_init();
 #endif

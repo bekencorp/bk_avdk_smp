@@ -59,7 +59,6 @@ list(APPEND srcs
 	"hal/sys_pm_hal_ctrl.c"
 	"hal/sys_pm_hal_debug.c"
 	#"hal/i2s_hal_debug.c"
-	"hal/i2c_hal_debug.c"
 	# "hal/jpeg_hal_debug.c"
 	# "hal/jpeg_ll.c"
 	"hal/flash_hal_debug.c"
