@@ -67,6 +67,16 @@ static void fatfs_operate(char *pcWriteBuffer, int xWriteBufferLen, int argc, ch
 			test_fatfs_append_write(drv_num, file_name, write_content, content_len);
 			BK_LOGD(NULL, "append and write:%s,%s\r\n", file_name, write_content);
 			break;
+		//fatfstest X dev-num file-name
+		case 'X':
+			if(argc < 4)
+			{
+				BK_LOGD(NULL, "Delete Fatfs argc < 4! Usage: fatfstest X dev-num file-name\r\n");
+				return;
+			}
+			test_fatfs_delete(drv_num, file_name);
+			BK_LOGD(NULL, "delete:%s\r\n", file_name);
+			break;
 		//fatfstest D dev-num file-name start-addr dump-len
 		case 'D':
 		{

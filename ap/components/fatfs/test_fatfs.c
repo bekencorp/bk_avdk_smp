@@ -424,6 +424,28 @@ error1:
     f_close(&file);
 }
 
+void test_fatfs_delete(DISK_NUMBER number, char *filename)
+{
+	char cFileName[FF_MAX_LFN];
+	FRESULT fr;
+
+	FATFS_LOGD("\r\n----- %s %d start -----\r\n", __func__, number);
+	if (filename)
+		sprintf(cFileName, "%d:/%s", number, filename);
+	else
+		sprintf(cFileName, "%d:/%s", number, TEST_TXT_FILE_NAME);
+
+	FATFS_LOGD("f_unlink \"%s\"\r\n", cFileName);
+	fr = f_unlink(cFileName);
+	if (fr == FR_OK) {
+		FATFS_LOGD("f_unlink OK\r\n");
+	} else {
+		FATFS_LOGD("f_unlink failed fr = %d\r\n", fr);
+	}
+
+	FATFS_LOGD("----- %s %d over  -----\r\n\r\n", __func__, number);
+}
+
 #define TEST_FATFS_PACKET_LEN (1<<10)
 void test_fatfs_dump(DISK_NUMBER number, char *filename, uint32_t start_addr, uint32_t dump_len)
 {
