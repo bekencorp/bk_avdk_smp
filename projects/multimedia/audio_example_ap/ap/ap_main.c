@@ -103,7 +103,7 @@ extern int cli_network_provisioning_init(void);
     bk_ipc_test_init();
 #endif
 
-    BK_LOGI(NULL, "M55 main running...\r\n");
+    BK_LOGI(NULL, "AP main running...\r\n");
 
 
 #if CONFIG_AUDIO

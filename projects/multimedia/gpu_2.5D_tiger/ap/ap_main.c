@@ -104,7 +104,7 @@ int main(void)
 
     bk_printf("lodoen enable...\r\n");
 
-    bk_printf("M55 main running...\r\n");
+    BK_LOGI(NULL, "AP main running...\r\n");
 
     avdk_monitor_init();
     avdk_monitor_start();

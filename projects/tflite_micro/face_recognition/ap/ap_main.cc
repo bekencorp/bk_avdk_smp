@@ -67,7 +67,7 @@ int main(void)
     bk_init();
     media_service_init();
 
-    bk_printf("M55 main running...\r\n");
+    BK_LOGI(NULL, "AP main running...\r\n");
 
     camera_board_config_t camera_board = {0};
     display_board_config_t display_board = {0};

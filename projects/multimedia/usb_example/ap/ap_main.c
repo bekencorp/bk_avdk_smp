@@ -699,7 +699,7 @@ int main(void)
 {
     bk_init();
 
-    LOGI("M55 main running...\r\n");
+    BK_LOGI(NULL, "AP main running...\r\n");
 
     /* Register the `udisk` host-test CLI from main() (console core, after the
      * CLI subsystem is up). Doing it here instead of from the early msc_init
