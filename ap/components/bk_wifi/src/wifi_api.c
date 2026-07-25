@@ -34,7 +34,7 @@
 #include "wifi_api_ipc.h"
 #include "wdrv_cntrl.h"
 #ifdef CONFIG_WIFI_VNET_CONTROLLER
-#include <components/netif.h>
+#include "bk_netif.h"
 #endif
 #if CONFIG_NETIF_LWIP
 #include "lwip/inet.h"
