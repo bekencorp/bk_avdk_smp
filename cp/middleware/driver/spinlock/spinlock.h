@@ -21,12 +21,12 @@ extern "C" {
 
 #include <common/bk_typedef.h>
 typedef struct {
-#if CONFIG_SPINLOCK_DEBUG
-    uint32_t taskTCBPointer;
-#endif
 	uint32_t  owner; 
 	uint32_t  count;	
     uint32_t  core_id;
+#if CONFIG_SPINLOCK_DEBUG
+    uint32_t taskTCBPointer;
+#endif
 } spinlock_t;
 
 #define SPINLOCK_WAIT_FOREVER  (-1)
@@ -36,20 +36,18 @@ typedef struct {
 #define SPINLOCK_CORE_ID_UNINITILIZE (0xF2EE)
 #if CONFIG_SPINLOCK_DEBUG
 // #define SPIN_LOCK_INIT   {.task_number=0xbeef, .task_affinity=0xad, .task_priority=0xde, .owner = SPIN_LOCK_FREE, .count = 0}
-// #define SPIN_LOCK_ACQUIRE_INIT   {.task_number=0xbeef, .task_affinity=0xad, .task_priority=0xde, .owner = 0, .count = 0,.core_id=SPINLOCK_CORE_ID_UNINITILIZE}
-#define SPIN_LOCK_INIT   {.taskTCBPointer = 0xdeadbeef, .owner = SPIN_LOCK_FREE, .count = 0}
-#define SPIN_LOCK_ACQUIRE_INIT   {.taskTCBPointer = 0xdeadbeef, .owner = 0, .count = 0,.core_id=SPINLOCK_CORE_ID_UNINITILIZE}
+#define SPIN_LOCK_INIT   {.taskTCBPointer = 0xdeadbeef, .owner = SPIN_LOCK_FREE, .count = 0, .core_id = SPINLOCK_CORE_ID_UNINITILIZE}
 #else
-#define SPIN_LOCK_INIT   { .owner = SPIN_LOCK_FREE, .count = 0}	//only matched with spin_lock/spin_unlock, if wants to be used for spinlock_acquire,please initilize it with SPINLOCK_ACQUIRE_INITIALIZER
-#define SPIN_LOCK_ACQUIRE_INIT   { .owner = 0, .count = 0,.core_id=SPINLOCK_CORE_ID_UNINITILIZE}	//match with spinlock_acquire
+#define SPIN_LOCK_INIT   { .owner = SPIN_LOCK_FREE, .count = 0, .core_id = SPINLOCK_CORE_ID_UNINITILIZE}
 #endif
+#define SPIN_LOCK_ACQUIRE_INIT   SPIN_LOCK_INIT
 
 //adapte for freertos smp v2p0
-#define SPINLOCK_FREE (SPIN_LOCK_FREE)         //0xB33FFFFF
+#define SPINLOCK_FREE (SPIN_LOCK_FREE)
 #define SPINLOCK_INITIALIZER   SPIN_LOCK_INIT
 #define SPINLOCK_ACQUIRE_INITIALIZER   SPIN_LOCK_ACQUIRE_INIT
 
-//only matched with spinlock_acquire, if wants to be used for spin_lock/spin_unlock,please initilize it with SPIN_LOCK_INIT
+// spinlock_acquire/release and spin_lock/unlock share the same owner/free convention.
 void spinlock_init(spinlock_t *slock);
 uint32_t spinlock_acquire(volatile spinlock_t *slock, int32_t timeout);	//@cyg:TODO:timeout doesn't support until-now.
 void spinlock_release(volatile spinlock_t *slock, uint32_t flag);
@@ -59,9 +57,6 @@ void spinlock_release(volatile spinlock_t *slock, uint32_t flag);
 void spin_lock_init(spinlock_t *lock);
 void spin_lock(volatile spinlock_t *lock);
 void spin_unlock(volatile spinlock_t *lock);
-
-/* spin_trylock: 0: spin lock failed, 1: spin lock success  */
-int spin_trylock(volatile spinlock_t *lock);
 
 uint32_t _spin_lock_irqsave(volatile spinlock_t *lock);
 void _spin_unlock_irqrestore(volatile spinlock_t *lock, uint32_t flags);

@@ -10,13 +10,11 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
-#include <common/bk_err.h>     /* bk_err_t (used by spinlock.h below) */
 #include "cmsis_compiler.h"
 #include "dbg_probe_lock.h"
 #include "dbg_probe_cfg.h"
 #include "dbg_sink_uart.h"
 #include "dbg_sink_ram.h"
-#include "spinlock.h"
 #include <soc/soc.h>
 #include <soc/bk7259/reg_base.h>
 
@@ -115,11 +113,12 @@ static inline void dbg_probe_rtc_force_enable(void) {}
 /* ---- Ver4 SMP per-core instance table (RAM; valid only post runtime_init) ----
  * Each online core points at one sink. Exclusive: each core on its own
  * configured port (DBG_PROBE_UART_PORT / DBG_PROBE_CORE1_UART_PORT, irq-disable
- * only). Shared: both cores -> one sink (spinlock+irq). A core with a NULL slot
+ * only). Shared: both cores -> one sink, but UART writes are skipped so the
+ * spinlock layer does not need a non-blocking acquire API. A core with a NULL slot
  * (never inited / hot-unplugged) silently drops. .bss => 0. */
 typedef struct {
 	void    *base;     /* uart_hw base; NULL = inactive -> drop */
-	uint8_t  shared;   /* 0 = exclusive (irq only), 1 = shared (spinlock) */
+	uint8_t  shared;   /* 0 = exclusive UART, 1 = shared UART skipped */
 } dbg_sink_inst_t;
 
 static dbg_sink_inst_t  s_dbg_sink[DBG_PROBE_NUM_CORES];
@@ -133,16 +132,12 @@ static void dbg_probe_emit_sync(uint32_t core, uint32_t counter);
 #endif
 
 /* Per-core UART-drop accounting. A frame's UART copy is lost when the TX FIFO
- * stays full past the bounded cap, or (shared mode) the spinlock can't be taken
- * within DBG_PROBE_SHARED_SPIN_MAX tries. The RAM-ring copy is never affected.
+ * stays full past the bounded cap, or when shared UART mode is enabled. The
+ * RAM-ring copy is never affected.
  * The accumulated count is reported as a DROP frame (U32 kind + DBG_MOD_DROP)
  * the next time that core successfully writes UART, then cleared. .bss => 0. */
 static uint32_t s_drop_cnt[DBG_PROBE_NUM_CORES];
 static void dbg_probe_emit_drop(uint32_t core, uint32_t count);
-
-/* One shared lock, only taken by shared-mode instances. Placed in the spinlock
- * SRAM section so it is cross-core coherent (see spinlock.c notes). */
-static spinlock_t s_dbg_spin SPINLOCK_SECTION = SPIN_LOCK_INIT;
 
 /* SMP core id for the RUNTIME dispatch path only. Uses the SDK-blessed accessor
  * (multicore HAL reads the WWDT cpuid register with a magic check). The legacy
@@ -170,8 +165,7 @@ static inline uint32_t dbg_probe_core_id(void)
  * frame was handed to the FIFO (false = UART copy dropped). Caller MUST already
  * hold the per-core critical section (IRQs off).
  *   exclusive instance -> direct write (irq-disable is enough);
- *   shared instance    -> bounded spin_trylock so a hot-unplugged lock owner
- *                         can't dead-wait us (give up after SHARED_SPIN_MAX).
+ *   shared instance    -> skip UART to avoid blocking on cross-core serialization.
  * base==NULL (no wire bound / hot-unplugged) is NOT a drop: the RAM ring still
  * captured the frame, so it returns true. */
 static bool dbg_probe_write_uart_locked(dbg_sink_inst_t *inst,
@@ -181,20 +175,7 @@ static bool dbg_probe_write_uart_locked(dbg_sink_inst_t *inst,
 		return true;
 	}
 	if (inst->shared) {
-		bool got = false;
-		bool wrote;
-		for (uint32_t n = 0; n < (uint32_t)DBG_PROBE_SHARED_SPIN_MAX; n++) {
-			if (spin_trylock(&s_dbg_spin)) {
-				got = true;
-				break;
-			}
-		}
-		if (!got) {
-			return false;
-		}
-		wrote = dbg_sink_uart_write_base(inst->base, frame, len);
-		spin_unlock(&s_dbg_spin);
-		return wrote;
+		return false;
 	}
 	return dbg_sink_uart_write_base(inst->base, frame, len);
 }
@@ -599,18 +580,15 @@ void dbg_probe_set_shared(bool on)
 	 * cross-core lock, so a probe racing the switch could briefly see a mixed
 	 * (base, shared) pair. The write ORDER below keeps every transient on the
 	 * safe side: the `shared` flag is raised BEFORE bases converge and cleared
-	 * only AFTER bases diverge, so a racing core may at worst take the spinlock
-	 * needlessly — it can never write the converged wire lock-free. The CLI
-	 * additionally refuses bare shared/excl flips while a burst is running. */
+	 * only AFTER bases diverge, so a racing core may at worst skip one UART write.
+	 * The CLI additionally refuses bare shared/excl flips while a burst is running. */
 	if (on) {
-		/* SHARED: converge BOTH cores onto ONE wire so the spinlock serialization
-		 * is observable on a single capture. The convergence port is parameterized
-		 * (DBG_PROBE_SHARED_PORT, default = master/core0 port). Both instances
-		 * take s_dbg_spin. */
+		/* SHARED: converge BOTH cores onto ONE wire, but CP skips UART writes in
+		 * this mode because spinlock has no non-blocking acquire API. */
 		const dbg_uart_hw_desc_t *ds =
 			dbg_probe_board_uart_desc((uint8_t)DBG_PROBE_SHARED_PORT);
 		void *shared_base = (ds != NULL) ? ds->hw : NULL;
-		s_dbg_sink[0].shared = 1u;   /* 1) lock model first: both cores spin */
+		s_dbg_sink[0].shared = 1u;   /* 1) skip model first */
 		s_dbg_sink[1].shared = 1u;
 		__DMB();                     /* 2) publish flags before bases move */
 		s_dbg_sink[0].base   = shared_base;

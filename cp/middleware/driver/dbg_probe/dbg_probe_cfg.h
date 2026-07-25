@@ -81,8 +81,9 @@
 #endif
 
 /* SHARED-mode convergence port: when dbg_probe_set_shared(true) is used, BOTH
- * cores converge onto this ONE wire (serialized by s_dbg_spin). Default = the
- * master/core0 port (DBG_PROBE_UART_PORT) — semantically the natural choice.
+ * cores converge onto this ONE wire, but CP skips shared UART writes because
+ * spinlock exposes only blocking acquire/release. Default = the master/core0
+ * port (DBG_PROBE_UART_PORT) — semantically the natural choice.
  * Override in usr_dbg_probe_cfg.h only if the master port is unusable at
  * runtime on a given board (e.g. its pad is re-muxed away by the project's
  * usr_gpio_cfg.h default GPIO map). */
@@ -93,12 +94,6 @@
 /* Number of CP cores the probe dispatches across (SMP: core0 + core1). */
 #ifndef DBG_PROBE_NUM_CORES
 #define DBG_PROBE_NUM_CORES        2u
-#endif
-
-/* Bounded spin retries for the SMP-shared lock before dropping the frame
- * (prevents dead-wait if the lock owner core was hot-unplugged). */
-#ifndef DBG_PROBE_SHARED_SPIN_MAX
-#define DBG_PROBE_SHARED_SPIN_MAX  100000u
 #endif
 
 /* ---- Ver6 RAM ring buffer (per-core, overwrite). Sizes are per core; total
