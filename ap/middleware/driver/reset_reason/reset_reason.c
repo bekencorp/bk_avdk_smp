@@ -235,9 +235,6 @@ uint32_t reset_reason_init(void)
 	s_start_type = ap_reset_reason;
 	s_misc_value_save = cp_reset_reason;
 
-	#if !CONFIG_SOC_BK7259 ///TODO:
-	arch_init_exception_magic_status();
-	#endif //!CONFIG_SOC_BK7259 ///TODO:
 	s_initialized = true;
 	return s_start_type;
 }
