@@ -212,11 +212,19 @@ if (CONFIG_BLUETOOTH_AP)
 
 	if (CONFIG_BLE_LE_AUDIO)
 		list(APPEND srcs
-			service/dm/ble/bap/bk_dm_bap.c
+			service/dm/ble/le_audio/bk_dm_le_audio_gap.c
+			service/dm/ble/le_audio/bap/bk_dm_bap.c
+			service/dm/ble/le_audio/vcp/bk_dm_vcp.c
+			service/dm/ble/le_audio/micp/bk_dm_micp.c
+			service/dm/ble/le_audio/csip/bk_dm_csip.c
+			service/dm/ble/le_audio/mcp/bk_dm_mcp.c
+			service/dm/ble/le_audio/ccp/bk_dm_ccp.c
+			service/dm/ble/le_audio/bass/bk_dm_bass.c
 		)
 		list(APPEND incs
 			include
 			include/private
+			service/dm/ble/le_audio
 			.
 		)
 	endif()

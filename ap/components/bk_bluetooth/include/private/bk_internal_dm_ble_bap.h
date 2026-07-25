@@ -9,6 +9,7 @@
 #define BKI_BAP_SINK_EVT_DISABLE_CNF                         0x02U
 #define BKI_BAP_SINK_EVT_DISABLE_IND                         0x03U
 #define BKI_BAP_SINK_EVT_ENABLE_CNF                          0x04U
+#define BKI_BAP_SINK_EVT_DISSOCIATE_CNF                      0x05U
 
 
 typedef struct
@@ -154,14 +155,67 @@ typedef struct
     uint16_t local_cis_handle;
 } bki_bap_unicast_iso_path_t;
 
+#define BKI_BAP_UNICAST_STATE_CODEC_CONFIGURED              0x01U
+#define BKI_BAP_UNICAST_STATE_QOS_CONFIGURED                0x02U
+#define BKI_BAP_UNICAST_STATE_ENABLING                      0x03U
+
+typedef struct
+{
+    uint8_t ase_id;
+    uint8_t ase_role;
+    uint8_t state;
+    uint16_t acl_handle;
+} bki_bap_unicast_state_t;
+
+typedef struct
+{
+    uint8_t phase;
+    uint8_t status;
+    uint8_t addr_type;
+    uint8_t addr[6];
+    uint16_t acl_handle;
+} bki_bap_unicast_ready_t;
+
+#define BKI_BAP_UNICAST_READY_ACL_CONNECTED    0x01U
+#define BKI_BAP_UNICAST_READY_GA_SETUP         0x02U
+#define BKI_BAP_UNICAST_READY_CAPABILITIES     0x03U
+#define BKI_BAP_UNICAST_READY_ACL_DISCONNECTED 0x04U
+
+typedef struct
+{
+    uint16_t supported_contexts;
+    uint16_t available_contexts;
+    uint32_t audio_location;
+
+    uint16_t supported_sampling_frequencies;
+    uint8_t supported_frame_durations;
+    uint8_t supported_channel_counts;
+    uint16_t frame_octets_min;
+    uint16_t frame_octets_max;
+    uint8_t max_codec_frames_per_sdu;
+} bki_bap_pacs_cfg_t;
+
+typedef struct
+{
+    uint8_t ase_count;
+    uint8_t pref_framing;
+    uint8_t pref_phy;
+    uint16_t pref_max_transport_latency;
+    uint32_t pref_presentation_delay_min;
+    uint32_t pref_presentation_delay_max;
+    uint8_t pref_retransmission_number;
+    uint32_t supported_presentation_delay_min;
+    uint32_t supported_presentation_delay_max;
+} bki_bap_ascs_cfg_t;
 
 uint32_t appl_le_audio_ga_init(void);
-uint32_t appl_le_audio_ga_sink_register(uint16_t contexts, bki_bap_sink_callbacks_t *bki_bap_sink_callbacks);
-uint32_t appl_le_audio_ga_source_register(uint16_t contexts, bki_bap_source_callbacks_t *bki_bap_source_callbacks);
-uint32_t appl_le_audio_ga_ascs_register(uint8_t role, uint8_t ase_count);
+/* See bk_internal_dm_ble_gap.h for appl_le_audio_ga_gatt_db_register(). */
+uint32_t appl_le_audio_ga_pacs_register(uint8_t role, const bki_bap_pacs_cfg_t *pacs_cfg);
+uint32_t appl_le_audio_ga_ascs_register(uint8_t role, const bki_bap_ascs_cfg_t *ascs_cfg);
+uint32_t appl_le_audio_ga_sink_register(bki_bap_sink_callbacks_t *bki_bap_sink_callbacks);
+uint32_t appl_le_audio_ga_source_register(bki_bap_source_callbacks_t *bki_bap_source_callbacks);
 uint32_t appl_le_audio_unicast_set_peer(uint8_t *addr, uint8_t addr_type);
 uint32_t appl_le_audio_unicast_connect(uint8_t *addr, uint8_t addr_type, uint8_t extended);
-uint32_t appl_le_audio_unicast_adv(uint8_t enable);
 uint32_t appl_le_audio_unicast_setup(void);
 uint32_t appl_le_audio_unicast_get_capabilities(uint8_t role);
 uint32_t appl_le_audio_unicast_discover(void);
@@ -179,6 +233,8 @@ void bk_dm_bap_internal_unicast_cis_handle_assigned(const bki_bap_unicast_cis_in
 void bk_dm_bap_internal_unicast_cis_request(const bki_bap_unicast_cis_info_t *info);
 void bk_dm_bap_internal_unicast_cis_established(const bki_bap_unicast_cis_info_t *info);
 void bk_dm_bap_internal_unicast_iso_path_ready(const bki_bap_unicast_iso_path_t *info);
+void bk_dm_bap_internal_unicast_state_changed(const bki_bap_unicast_state_t *info);
+void bk_dm_bap_internal_unicast_ready(const bki_bap_unicast_ready_t *info);
 uint32_t appl_le_audio_broadcast_scan_start(void);
 uint32_t appl_le_audio_broadcast_scan_stop(void);
 uint32_t appl_le_audio_broadcast_associate(bki_bap_source_announce_data_t *bap_source_announce_data);
@@ -194,8 +250,8 @@ uint32_t appl_le_audio_broadcast_sep_register(uint8_t ssn,
     uint8_t nstream,
     bki_bap_codec_ie_t *stream,
     uint8_t *sep);
-uint32_t appl_le_audio_setup_announcement(uint8_t ssn, uint32_t broadcast_id, uint8_t type, uint32_t presentation_delay);
-uint32_t appl_le_audio_end_announcement(uint8_t ssn);
+uint32_t appl_le_audio_broadcast_setup_announcement(uint8_t ssn, uint32_t broadcast_id, uint8_t type, uint32_t presentation_delay);
+uint32_t appl_le_audio_broadcast_end_announcement(uint8_t ssn);
 uint32_t appl_le_audio_broadcast_start(uint8_t ssn,
     uint32_t sdu_interval,
     uint16_t max_sdu,

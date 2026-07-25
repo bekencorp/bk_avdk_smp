@@ -23,6 +23,7 @@
 #include <os/str.h>
 #include <os/os.h>
 
+#include "../le_audio/bk_dm_le_audio_gap.h"
 #include "bk_internal_dm_ble_bap.h"
 #include <components/bluetooth/bk_assigned_numbers.h>
 #include <components/bluetooth/bk_dm_bluetooth_types.h>
@@ -38,6 +39,269 @@
 
 static const bk_bap_sink_callbacks_t *sink_callbacks = NULL;
 static const bk_bap_source_callbacks_t *source_callbacks = NULL;
+
+static const bk_bap_pacs_cfg_t s_bap_default_pacs_cfg =
+{
+    .supported_contexts = BK_GAP_DEFAULT_CONTEXTS,
+    .available_contexts = BK_GAP_DEFAULT_CONTEXTS,
+    .audio_location = BK_BT_AUDIO_LOCATION_FRONT_LEFT | BK_BT_AUDIO_LOCATION_FRONT_RIGHT,
+    .supported_sampling_frequencies = BK_BAP_LC3_CAP_FREQ_48KHZ,
+    .supported_frame_durations = BK_BAP_LC3_CAP_DURATION_10MS,
+    .supported_channel_counts = BK_BAP_LC3_CAP_CHANNEL_COUNT_1,
+    .frame_octets_min = 100U,
+    .frame_octets_max = 100U,
+    .max_codec_frames_per_sdu = 1U,
+};
+
+static const bk_bap_ascs_cfg_t s_bap_default_ascs_cfg =
+{
+    .ase_count = BK_GAP_DEFAULT_AES_COUNT,
+    .pref_framing = BK_BAP_QOS_FRAMING_UNFRAMED,
+    .pref_phy = BK_BAP_QOS_PHY_1M,
+    .pref_max_transport_latency = BK_BAP_QOS_LATENCY_10MS,
+    .pref_presentation_delay_min = BK_BAP_QOS_PRESENTATION_DELAY_0US,
+    .pref_presentation_delay_max = BK_BAP_QOS_PRESENTATION_DELAY_40MS,
+    .pref_retransmission_number = BK_BAP_QOS_RETRANSMISSION_2,
+    .supported_presentation_delay_min = BK_BAP_QOS_PRESENTATION_DELAY_0US,
+    .supported_presentation_delay_max = BK_BAP_QOS_PRESENTATION_DELAY_40MS,
+};
+
+static bki_bap_pacs_cfg_t s_bap_sink_pacs_cfg;
+static bki_bap_pacs_cfg_t s_bap_source_pacs_cfg;
+static bki_bap_ascs_cfg_t s_bap_sink_ascs_cfg;
+static bki_bap_ascs_cfg_t s_bap_source_ascs_cfg;
+
+static void bk_dm_bap_copy_pacs_cfg(bki_bap_pacs_cfg_t *dst, const bk_bap_pacs_cfg_t *src)
+{
+    if (src == NULL)
+    {
+        src = &s_bap_default_pacs_cfg;
+    }
+
+    dst->supported_contexts = src->supported_contexts;
+    dst->available_contexts = src->available_contexts;
+    dst->audio_location = src->audio_location;
+    dst->supported_sampling_frequencies = src->supported_sampling_frequencies;
+    dst->supported_frame_durations = src->supported_frame_durations;
+    dst->supported_channel_counts = src->supported_channel_counts;
+    dst->frame_octets_min = src->frame_octets_min;
+    dst->frame_octets_max = src->frame_octets_max;
+    dst->max_codec_frames_per_sdu = src->max_codec_frames_per_sdu;
+}
+
+static void bk_dm_bap_copy_ascs_cfg(bki_bap_ascs_cfg_t *dst, const bk_bap_ascs_cfg_t *src)
+{
+    if (src == NULL)
+    {
+        src = &s_bap_default_ascs_cfg;
+    }
+
+    dst->ase_count = src->ase_count;
+    dst->pref_framing = src->pref_framing;
+    dst->pref_phy = src->pref_phy;
+    dst->pref_max_transport_latency = src->pref_max_transport_latency;
+    dst->pref_presentation_delay_min = src->pref_presentation_delay_min;
+    dst->pref_presentation_delay_max = src->pref_presentation_delay_max;
+    dst->pref_retransmission_number = src->pref_retransmission_number;
+    dst->supported_presentation_delay_min = src->supported_presentation_delay_min;
+    dst->supported_presentation_delay_max = src->supported_presentation_delay_max;
+}
+
+/* PACS (Sink/Source PAC records) is registered eagerly in the sink/source
+ * register calls, but ASCS ASE registration is deferred to the GATT DB pre-seal
+ * hook (see bk_dm_bap_pre_seal_cb). Registering ASEs interleaved with PACS (sink
+ * PACS -> sink ASE -> source PACS -> source ASE) splits PACS's attribute handles
+ * across ASCS, yielding two primary services with overlapping handle ranges that
+ * peers cannot discover (ASCS shows up empty). Deferring ASCS keeps the two
+ * service ranges disjoint. */
+static uint8_t s_bap_sink_registered = 0U;
+static uint8_t s_bap_source_registered = 0U;
+static uint8_t s_bap_ascs_registered = 0U;
+
+/* Unicast server connectable extended advertising, driven through the shared LE
+ * Audio GAP helper (GA-native ext-adv path). */
+#define BAP_UNICAST_ADV_HANDLE        0U
+#define BAP_UNICAST_ADV_INTERVAL_MIN  0x0078U
+#define BAP_UNICAST_ADV_INTERVAL_MAX  0x00A0U
+
+static const uint8_t s_unicast_full_name[] = "BK7259 LE Audio";
+static uint8_t s_unicast_gap_cb_registered = 0U;
+static uint8_t s_unicast_adv_started = 0U;
+
+/* BAP-compliant Unicast Server announcement for connectable extended
+ * advertising (BAP spec Table 3.7): Flags + Service Data (ASCS UUID +
+ * Announcement Type + Available Audio Contexts + Metadata) + Complete Local
+ * Name. Extended connectable advertising is non-scannable, so everything goes
+ * in the advertising data (there is no scan response). */
+static void bk_dm_bap_build_unicast_adv_ext(uint8_t *adv_data, uint8_t *adv_len)
+{
+	uint8_t pos = 0U;
+	uint16_t avail_sink = BK_GAP_DEFAULT_CONTEXTS;
+	uint16_t avail_src = BK_GAP_DEFAULT_CONTEXTS;
+
+	adv_data[pos++] = 0x02U; /* Flags */
+	adv_data[pos++] = 0x01U;
+	adv_data[pos++] = 0x06U; /* LE General Discoverable + BR/EDR Not Supported */
+
+	/* Service Data - 16-bit UUID: BAP Unicast Server Announcement (Table 3.7).
+	 * length = type(1) + ASCS UUID(2) + Announcement Type(1) +
+	 *          Available Audio Contexts(4) + Metadata_Length(1) = 9 */
+	adv_data[pos++] = 0x09U;
+	adv_data[pos++] = 0x16U; /* Service Data - 16-bit UUID */
+	adv_data[pos++] = (uint8_t)(BK_BT_UUID_ASCS & 0xFFU);
+	adv_data[pos++] = (uint8_t)((BK_BT_UUID_ASCS >> 8U) & 0xFFU);
+	adv_data[pos++] = 0x00U; /* Announcement Type: General */
+	adv_data[pos++] = (uint8_t)(avail_sink & 0xFFU);        /* Sink available contexts */
+	adv_data[pos++] = (uint8_t)((avail_sink >> 8U) & 0xFFU);
+	adv_data[pos++] = (uint8_t)(avail_src & 0xFFU);         /* Source available contexts */
+	adv_data[pos++] = (uint8_t)((avail_src >> 8U) & 0xFFU);
+	adv_data[pos++] = 0x00U; /* Metadata_Length = 0 */
+
+	adv_data[pos++] = (uint8_t)(1U + sizeof(s_unicast_full_name) - 1U);
+	adv_data[pos++] = 0x09U; /* Complete Local Name */
+	os_memcpy(&adv_data[pos], s_unicast_full_name, sizeof(s_unicast_full_name) - 1U);
+	pos += (uint8_t)(sizeof(s_unicast_full_name) - 1U);
+
+	*adv_len = pos;
+}
+
+/* ACL connect-ready up-call: fed from the shared GAP helper on link-up. */
+static void bk_dm_bap_gap_conn_cb(uint8_t connected,
+                                  uint8_t status,
+                                  uint8_t addr_type,
+                                  const uint8_t addr[6],
+                                  uint16_t acl_handle,
+                                  void *ctx)
+{
+    bki_bap_unicast_ready_t info;
+
+    (void)ctx;
+    if (connected && status != BK_OK)
+    {
+        return;
+    }
+
+    os_memset(&info, 0, sizeof(info));
+    info.phase = connected ? BKI_BAP_UNICAST_READY_ACL_CONNECTED
+                           : BKI_BAP_UNICAST_READY_ACL_DISCONNECTED;
+    info.status = status;
+    info.addr_type = addr_type;
+    info.acl_handle = acl_handle;
+    if (addr != NULL)
+    {
+        os_memcpy(info.addr, addr, sizeof(info.addr));
+    }
+
+    /* Connectable extended advertising is auto-terminated on connection;
+     * clear the flag so a later re-advertise starts fresh. */
+    s_unicast_adv_started = 0U;
+
+    bk_dm_bap_internal_unicast_ready(&info);
+}
+
+static void bk_dm_bap_pre_seal_cb(void *ctx);
+
+static bk_err_t bk_dm_bap_register_gap_events(void)
+{
+    bk_err_t ret;
+
+    if (s_unicast_gap_cb_registered)
+    {
+        return BK_OK;
+    }
+
+    ret = bk_dm_le_audio_gap_register_conn_callback(bk_dm_bap_gap_conn_cb, NULL);
+    if (ret != BK_OK)
+    {
+        return ret;
+    }
+
+    /* Add the ASCS ASEs from the pre-seal hook so they land after all PACS
+     * records but before the GATT DB is committed. */
+    ret = bk_dm_le_audio_gap_register_pre_seal_callback(bk_dm_bap_pre_seal_cb, NULL);
+    if (ret == BK_OK)
+    {
+        s_unicast_gap_cb_registered = 1U;
+    }
+    return ret;
+}
+
+/* Pre-seal hook: add the ASCS ASEs once, after all PACS records are in place.
+ * The shared GAP helper invokes this right before it commits the GATT DB (on the
+ * first advertise), so the ASCS attributes are laid out after - and with a handle
+ * range disjoint from - PACS. Registering ASEs interleaved with PACS would split
+ * PACS's handles across ASCS, yielding two primary services with overlapping
+ * handle ranges that peers cannot discover (ASCS shows up empty). */
+static void bk_dm_bap_pre_seal_cb(void *ctx)
+{
+    uint16_t ret;
+
+    (void)ctx;
+
+    if (s_bap_ascs_registered)
+    {
+        return;
+    }
+
+    if (s_bap_sink_registered)
+    {
+        ret = appl_le_audio_ga_ascs_register(BK_GAP_ROLE_SINK, &s_bap_sink_ascs_cfg);
+        LOGI("%s ascs role=sink ret=%d\n", __func__, ret);
+    }
+
+    if (s_bap_source_registered)
+    {
+        ret = appl_le_audio_ga_ascs_register(BK_GAP_ROLE_SOURCE, &s_bap_source_ascs_cfg);
+        LOGI("%s ascs role=source ret=%d\n", __func__, ret);
+    }
+
+    s_bap_ascs_registered = 1U;
+}
+
+static bk_err_t bk_dm_bap_unicast_adv_set(uint8_t enable)
+{
+    uint8_t adv_data[64];
+    uint8_t adv_len = 0;
+    bk_ble_gap_ext_adv_params_t adv_param;
+    bk_err_t ret;
+
+    if (bk_dm_bap_register_gap_events() != BK_OK)
+    {
+        return BK_FAIL;
+    }
+
+    if (!enable)
+    {
+        if (s_unicast_adv_started)
+        {
+            ret = bk_dm_le_audio_gap_adv_stop(BAP_UNICAST_ADV_HANDLE);
+            if (ret != BK_OK)
+            {
+                return ret;
+            }
+            s_unicast_adv_started = 0U;
+        }
+        return BK_OK;
+    }
+
+    os_memset(&adv_param, 0, sizeof(adv_param));
+    adv_param.interval_min = BAP_UNICAST_ADV_INTERVAL_MIN;
+    adv_param.interval_max = BAP_UNICAST_ADV_INTERVAL_MAX;
+
+    /* BAP Table 3.7 Unicast Server announcement over connectable extended
+     * advertising (non-scannable, so no scan response). */
+    bk_dm_bap_build_unicast_adv_ext(adv_data, &adv_len);
+
+    ret = bk_dm_le_audio_gap_adv_start(BAP_UNICAST_ADV_HANDLE, &adv_param,
+                                       adv_data, adv_len, NULL, 0U);
+    if (ret != BK_OK)
+    {
+        return ret;
+    }
+
+    s_unicast_adv_started = 1U;
+    return BK_OK;
+}
 
 void bk_dm_bap_internal_unicast_ase_discovered(const bki_bap_unicast_ase_discovered_t *info)
 {
@@ -168,13 +432,70 @@ void bk_dm_bap_internal_unicast_iso_path_ready(const bki_bap_unicast_iso_path_t 
     }
 }
 
+void bk_dm_bap_internal_unicast_state_changed(const bki_bap_unicast_state_t *info)
+{
+    bk_bap_unicast_state_t public_info;
+
+    if (info == NULL)
+    {
+        return;
+    }
+
+    public_info.ase_id = info->ase_id;
+    public_info.ase_role = info->ase_role;
+    public_info.state = info->state;
+    public_info.acl_handle = info->acl_handle;
+
+    if (sink_callbacks && sink_callbacks->unicast_state_cb)
+    {
+        sink_callbacks->unicast_state_cb(&public_info);
+    }
+
+    if (source_callbacks && source_callbacks->unicast_state_cb)
+    {
+        if (!sink_callbacks || source_callbacks->unicast_state_cb != sink_callbacks->unicast_state_cb)
+        {
+            source_callbacks->unicast_state_cb(&public_info);
+        }
+    }
+}
+
+void bk_dm_bap_internal_unicast_ready(const bki_bap_unicast_ready_t *info)
+{
+    bk_bap_unicast_ready_t public_info;
+
+    if (info == NULL)
+    {
+        return;
+    }
+
+    public_info.phase = info->phase;
+    public_info.status = info->status;
+    public_info.addr_type = info->addr_type;
+    public_info.acl_handle = info->acl_handle;
+    os_memcpy(public_info.addr, info->addr, sizeof(public_info.addr));
+
+    if (sink_callbacks && sink_callbacks->unicast_ready_cb)
+    {
+        sink_callbacks->unicast_ready_cb(&public_info);
+    }
+
+    if (source_callbacks && source_callbacks->unicast_ready_cb)
+    {
+        if (!sink_callbacks || source_callbacks->unicast_ready_cb != sink_callbacks->unicast_ready_cb)
+        {
+            source_callbacks->unicast_ready_cb(&public_info);
+        }
+    }
+}
+
 uint32_t bk_dm_bap_get_channel_count(uint32_t channel_allocation)
 {
     uint32_t count = 0, i;
 
     for (i = 0; i < 32; i++)
     {
-        if (BIT(i) & channel_allocation)
+        if ((1UL << i) & channel_allocation)
         {
             count++;
         }
@@ -190,12 +511,16 @@ bk_err_t bk_dm_bap_unicast_set_peer(uint8_t *addr, uint8_t addr_type)
 
 bk_err_t bk_dm_bap_unicast_connect(uint8_t *addr, uint8_t addr_type, uint8_t extended)
 {
+    if (bk_dm_bap_register_gap_events() != BK_OK)
+    {
+        return BK_FAIL;
+    }
     return appl_le_audio_unicast_connect(addr, addr_type, extended);
 }
 
 bk_err_t bk_dm_bap_unicast_adv(uint8_t enable)
 {
-    return appl_le_audio_unicast_adv(enable);
+    return bk_dm_bap_unicast_adv_set(enable);
 }
 
 bk_err_t bk_dm_bap_unicast_setup(void)
@@ -408,6 +733,12 @@ static inline void bk_dm_bap_announcement_sink_callback(bki_bap_source_announce_
         bk_bap_source_announce_data.advertising_sid = bap_source_announce_data->advertising_sid;
         bk_bap_source_announce_data.address_type = bap_source_announce_data->address_type;
         bk_bap_source_announce_data.rssi = bap_source_announce_data->rssi;
+        bk_bap_source_announce_data.broadcast_id =
+            (bap_source_announce_data->length >= 3U) ?
+            ((uint32_t)bap_source_announce_data->data[0] |
+             ((uint32_t)bap_source_announce_data->data[1] << 8) |
+             ((uint32_t)bap_source_announce_data->data[2] << 16)) :
+            0U;
 
         //BK_MEM_DUMP("source: \n", (uint32_t)bap_source_announcement->data, (uint32_t)bap_source_announcement->length);
         sink_callbacks->announcement_cb(&bk_bap_source_announce_data);
@@ -532,6 +863,10 @@ static inline void bk_dm_bap_broadcast_event_sink_cb(uint32_t event, uint32_t st
 
             case BKI_BAP_SINK_EVT_ENABLE_CNF:
                 sink_cb_evt = BK_BAP_SINK_ENABLE_CNF;
+            break;
+
+            case BKI_BAP_SINK_EVT_DISSOCIATE_CNF:
+                sink_cb_evt = BK_BAP_SINK_DISSOCIATE_CNF;
             break;
 
         }
@@ -729,7 +1064,7 @@ bk_err_t bk_dm_bap_setup_announcement(uint8_t session, uint32_t broadcast_id, ui
 {
     bk_err_t ret = BK_FAIL;
 
-    ret = appl_le_audio_setup_announcement(session, broadcast_id, type, presentation_delay);
+    ret = appl_le_audio_broadcast_setup_announcement(session, broadcast_id, type, presentation_delay);
 
     return ret;
 }
@@ -738,7 +1073,7 @@ bk_err_t bk_dm_bap_end_announcement(uint8_t session)
 {
     bk_err_t ret = BK_FAIL;
 
-    ret = appl_le_audio_end_announcement(session);
+    ret = appl_le_audio_broadcast_end_announcement(session);
 
     return ret;
 }
@@ -820,44 +1155,70 @@ bk_err_t bk_dm_bap_init(void)
     return ret;
 }
 
-bk_err_t bk_dm_bap_sink_register(const bk_bap_sink_callbacks_t *bk_bap_sink_callbacks)
+bk_err_t bk_dm_bap_pacs_register(uint8_t role, const bk_bap_pacs_cfg_t *pacs_cfg)
 {
     bk_err_t ret = BK_FAIL;
 
-    sink_callbacks = bk_bap_sink_callbacks;
+    if (role == BK_GAP_ROLE_SINK)
+    {
+        bk_dm_bap_copy_pacs_cfg(&s_bap_sink_pacs_cfg, pacs_cfg);
+        ret = appl_le_audio_ga_pacs_register(BK_GAP_ROLE_SINK, &s_bap_sink_pacs_cfg);
+        LOGI("%s pacs role=sink ret=%d\n", __func__, ret);
+        return ret;
+    }
+    if (role == BK_GAP_ROLE_SOURCE)
+    {
+        bk_dm_bap_copy_pacs_cfg(&s_bap_source_pacs_cfg, pacs_cfg);
+        ret = appl_le_audio_ga_pacs_register(BK_GAP_ROLE_SOURCE, &s_bap_source_pacs_cfg);
+        LOGI("%s pacs role=source ret=%d\n", __func__, ret);
+        return ret;
+    }
 
-    ret = appl_le_audio_ga_sink_register(BK_GAP_DEFAULT_CONTEXTS, &internal_sink_callbacks);
-    LOGI("%s ga_sink_register ret=%d\n", __func__, ret);
+    return BK_ERR_PARAM;
+}
+
+bk_err_t bk_dm_bap_ascs_register(uint8_t role, const bk_bap_ascs_cfg_t *ascs_cfg)
+{
+    bk_err_t ret;
+
+    ret = bk_dm_bap_register_gap_events();
     if (ret != BK_OK)
     {
         return ret;
     }
 
-    ret = appl_le_audio_ga_ascs_register(BK_GAP_ROLE_SINK, BK_GAP_DEFAULT_AES_COUNT);
-    LOGI("%s ga_ascs_register role=sink ret=%d\n", __func__, ret);
+    if (role == BK_GAP_ROLE_SINK)
+    {
+        bk_dm_bap_copy_ascs_cfg(&s_bap_sink_ascs_cfg, ascs_cfg);
+        s_bap_sink_registered = 1U;
+        return BK_OK;
+    }
+    if (role == BK_GAP_ROLE_SOURCE)
+    {
+        bk_dm_bap_copy_ascs_cfg(&s_bap_source_ascs_cfg, ascs_cfg);
+        s_bap_source_registered = 1U;
+        return BK_OK;
+    }
 
+    return BK_ERR_PARAM;
+}
+
+bk_err_t bk_dm_bap_sink_register(const bk_bap_sink_callbacks_t *bk_bap_sink_callbacks)
+{
+    bk_err_t ret;
+
+    sink_callbacks = bk_bap_sink_callbacks;
+    ret = appl_le_audio_ga_sink_register(&internal_sink_callbacks);
+    LOGI("%s role callback ret=%d\n", __func__, ret);
     return ret;
 }
 
 bk_err_t bk_dm_bap_source_register(const bk_bap_source_callbacks_t *bk_bap_source_callbacks)
 {
-    bk_err_t ret = BK_FAIL;
+    bk_err_t ret;
 
-    /* Publish the application callbacks BEFORE registering with the GA layer,
-     * so a callback fired synchronously during registration cannot dereference
-     * a NULL source_callbacks pointer (mirrors the sink_register ordering). */
     source_callbacks = bk_bap_source_callbacks;
-
-    ret = appl_le_audio_ga_source_register(BK_GAP_DEFAULT_CONTEXTS, &internal_source_callbacks);
-    LOGI("%s ga_source_register ret=%d\n", __func__, ret);
-    if (ret != BK_OK)
-    {
-        return ret;
-    }
-
-    ret = appl_le_audio_ga_ascs_register(BK_GAP_ROLE_SOURCE, BK_GAP_DEFAULT_AES_COUNT);
-    LOGI("%s ga_ascs_register role=source ret=%d\n", __func__, ret);
-
+    ret = appl_le_audio_ga_source_register(&internal_source_callbacks);
+    LOGI("%s role callback ret=%d\n", __func__, ret);
     return ret;
 }
-
