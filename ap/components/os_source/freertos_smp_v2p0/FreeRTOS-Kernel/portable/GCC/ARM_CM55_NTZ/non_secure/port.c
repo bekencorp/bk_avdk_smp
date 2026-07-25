@@ -361,7 +361,6 @@ void vSetCoreActive( BaseType_t xCoreID, BaseType_t value );
 BaseType_t xTaskIsCoreOnline( BaseType_t xCoreID );
 BaseType_t xTaskIsCoreActive( BaseType_t xCoreID );
 extern void bk_cpu_hp_core_stop_hmb_isr(void);
-extern void bk_cpu_hp_core_online(void);
 
 #if ( configENABLE_MPU == 1 )
 
@@ -1250,10 +1249,6 @@ void xPortDebug(const char *str)
 /*-----------------------------------------------------------*/
 BaseType_t xPortStartSchedulerOnCore( void ) /* PRIVILEGED_FUNCTION */
 {
-    #if ( configUSE_CPUHOTPLUG == 1 )
-        bk_cpu_hp_core_online();
-    #endif
-
     //if( ucPrimaryCoreNum == portGET_CORE_ID())
     {
         /* Make PendSV, CallSV and SysTick the same priority as the kernel. */

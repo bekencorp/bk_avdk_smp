@@ -182,6 +182,15 @@ static inline void *task_malloc(size_t size, beken_mem_type_t eMemType)
 
         configASSERT( taskVALID_CORE_ID( xCoreID ) == pdTRUE || xCoreID == tskNO_AFFINITY );
 
+        #if ( configUSE_CPUHOTPLUG == 1 )
+        {
+            if( prvTaskCanCreatePinnedToCore( pxTaskCode, xCoreID ) == pdFALSE )
+            {
+                return pdFAIL;
+            }
+        }
+        #endif
+
         {
             TCB_t * pxNewTCB;
 
@@ -322,6 +331,15 @@ static inline void *task_malloc(size_t size, beken_mem_type_t eMemType)
         configASSERT( ( puxStackBuffer ) );
         configASSERT( ( pxTaskBuffer ) );
         configASSERT( taskVALID_CORE_ID( xCoreID ) == pdTRUE || xCoreID == tskNO_AFFINITY );
+
+        #if ( configUSE_CPUHOTPLUG == 1 )
+        {
+            if( prvTaskCanCreatePinnedToCore( pxTaskCode, xCoreID ) == pdFALSE )
+            {
+                return NULL;
+            }
+        }
+        #endif
 
         {
             TCB_t * pxNewTCB;
