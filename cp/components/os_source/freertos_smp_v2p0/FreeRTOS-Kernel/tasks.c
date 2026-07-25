@@ -582,6 +582,28 @@ BaseType_t xTaskIsCoreActive( BaseType_t xCoreID )
     return xCoreActive[ xCoreID ];
 }
 
+static BaseType_t prvTaskCanCreatePinnedToCore( TaskFunction_t pxTaskCode,
+                                                BaseType_t xCoreID )
+{
+    if( xCoreID == tskNO_AFFINITY )
+    {
+        return pdTRUE;
+    }
+
+    if( taskVALID_CORE_ID( xCoreID ) == pdFALSE )
+    {
+        return pdFALSE;
+    }
+
+    if( ( xCoreOnline[ xCoreID ] == pdFALSE ) &&
+        ( pxTaskCode != prvIdleTask ) )
+    {
+        return pdFALSE;
+    }
+
+    return pdTRUE;
+}
+
 void vTaskHotplugClearCurrentTCB( BaseType_t xCoreID )
 {
     if( taskVALID_CORE_ID( xCoreID ) == pdTRUE )

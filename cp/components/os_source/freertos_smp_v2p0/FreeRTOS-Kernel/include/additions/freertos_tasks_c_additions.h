@@ -158,6 +158,15 @@ _Static_assert( offsetof( StaticTask_t, pxDummy8 ) == offsetof( TCB_t, pxEndOfSt
 
         configASSERT( taskVALID_CORE_ID( xCoreID ) == pdTRUE || xCoreID == tskNO_AFFINITY );
 
+        #if ( configUSE_CPUHOTPLUG == 1 )
+        {
+            if( prvTaskCanCreatePinnedToCore( pxTaskCode, xCoreID ) == pdFALSE )
+            {
+                return pdFAIL;
+            }
+        }
+        #endif
+
         {
             TCB_t * pxNewTCB;
 
@@ -372,6 +381,15 @@ _Static_assert( offsetof( StaticTask_t, pxDummy8 ) == offsetof( TCB_t, pxEndOfSt
         configASSERT( ( puxStackBuffer ) );
         configASSERT( ( pxTaskBuffer ) );
         configASSERT( taskVALID_CORE_ID( xCoreID ) == pdTRUE || xCoreID == tskNO_AFFINITY );
+
+        #if ( configUSE_CPUHOTPLUG == 1 )
+        {
+            if( prvTaskCanCreatePinnedToCore( pxTaskCode, xCoreID ) == pdFALSE )
+            {
+                return NULL;
+            }
+        }
+        #endif
 
         {
             TCB_t * pxNewTCB;
