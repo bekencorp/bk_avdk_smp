@@ -25,26 +25,6 @@
 #include "os_mutex.h"
 #endif
 
-#if WIFI_SCAN_DEMO
-#include "wifi_scan.h"
-#endif
-
-#if WIFI_SOFTAP_DEMO
-#include "wifi_softap.h"
-#endif
-
-#if WIFI_DELETE_SOFTAP_DEMO
-#include "wifi_delete_softap.h"
-#endif
-
-#if WIFI_STATION_DEMO
-#include "wifi_station.h"
-#endif
-
-#if WIFI_AIRKISS_STATION_DEMO
-#include "wifi_Airkiss_station.h"
-#endif
-
 #if TCP_CLIENT_DEMO
 #include "tcp_client_demo.h"
 #endif
@@ -87,10 +67,6 @@
 
 #if LIGHT_CLIENT_APP_DEMO
 #include "light_client_app_demo.h"
-#endif
-
-#if WIFI_STATION_PS_DEMO
-#include "wifi_station_ps_demo.h"
 #endif
 
 #endif /*_DEMO_CASE_H_*/
