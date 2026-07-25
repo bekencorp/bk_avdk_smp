@@ -78,6 +78,11 @@ typedef struct vsiGC4653_DEVICE_S {
 #define GC4653_DGAIN_1          0x20e
 #define GC4653_DGAIN_2          0x20f
 
+/* 0x0101 Image_Orientation: bit[0]=mirror, bit[1]=vflip */
+#define GC4653_REG_MIRROR_FLIP    0x0101
+#define GC4653_MIRROR_BIT         (1U << 0)
+#define GC4653_VFLIP_BIT          (1U << 1)
+
 enum GC4653_REG_INDEX {
     REG_EXPTIME_H		= 0,
     REG_EXPTIME_L		= 1,
@@ -1125,20 +1130,25 @@ int gc4653_set_fps_test(bk_camera_sensor_ctlr_t *controller, uint16_t hts, uint1
     return 0;
 }
 
-avdk_err_t gc4653_set_ppi(bk_camera_sensor_ctlr_t *controller, uint16_t width, uint16_t height)
+static bool s_gc4653_hmirror;
+static bool s_gc4653_vflip;
+static uint16_t s_gc4653_out_width;
+static uint16_t s_gc4653_out_height;
+
+static void gc4653_write_window_regs(bk_camera_bus_t *bus, uint16_t width, uint16_t height)
 {
-    bk_camera_csi_sensor_t *csi_sensor = __containerof(controller, bk_camera_csi_sensor_t, ops);
-    AVDK_RETURN_ON_FALSE(csi_sensor, AVDK_ERR_INVAL, TAG, "csi sensor is NULL");
-    bk_camera_bus_t *bus = csi_sensor->config.bus;
-
-    if (width > WIN_MAX_X || width <= 0 || height > WIN_MAX_Y || height <= 0)
-    {
-        return -1;
-    }
-    bk_mipi_csi_controller_init(width, height, 0x2b);
-
     uint16_t win_y_start = (WIN_MAX_Y - height) / 2;
     uint16_t win_x_start = (WIN_MAX_X - width) / 2;
+
+    /* Toggle window start by 1 pixel to preserve GRBG Bayer phase. */
+    if (s_gc4653_hmirror)
+    {
+        win_x_start ^= 1;
+    }
+    if (s_gc4653_vflip)
+    {
+        win_y_start ^= 1;
+    }
 
     bus->write16(bus, 0x0351, UINT16_HB(win_y_start));
     bus->write16(bus, 0x0352, UINT16_LB(win_y_start));
@@ -1150,9 +1160,73 @@ avdk_err_t gc4653_set_ppi(bk_camera_sensor_ctlr_t *controller, uint16_t width, u
     bus->write16(bus, 0x034e, UINT16_HB(height));
     bus->write16(bus, 0x034f, UINT16_LB(height));
 
-    uint16_t lwc_set = width * 5 / 4 / 2 * 2; //width*5/4, then align to 2
+    uint16_t lwc_set = width * 5 / 4 / 2 * 2;
     bus->write16(bus, 0x010e, UINT16_HB(lwc_set));
     bus->write16(bus, 0x010d, UINT16_LB(lwc_set));
+}
+
+static void gc4653_apply_mirror_reg(bk_camera_bus_t *bus)
+{
+    uint8_t val;
+
+    if (bus == NULL)
+    {
+        return;
+    }
+
+    bus->read16(bus, GC4653_REG_MIRROR_FLIP, &val);
+    val &= (uint8_t)~(GC4653_MIRROR_BIT | GC4653_VFLIP_BIT);
+    if (s_gc4653_hmirror)
+    {
+        val |= GC4653_MIRROR_BIT;
+    }
+    if (s_gc4653_vflip)
+    {
+        val |= GC4653_VFLIP_BIT;
+    }
+    bus->write16(bus, GC4653_REG_MIRROR_FLIP, val);
+
+    if (s_gc4653_out_width > 0 && s_gc4653_out_height > 0)
+    {
+        gc4653_write_window_regs(bus, s_gc4653_out_width, s_gc4653_out_height);
+    }
+}
+
+static avdk_err_t gc4653_set_hmirror(bk_camera_sensor_ctlr_t *controller, bool enable)
+{
+    bk_camera_csi_sensor_t *csi_sensor = __containerof(controller, bk_camera_csi_sensor_t, ops);
+    AVDK_RETURN_ON_FALSE(csi_sensor, AVDK_ERR_INVAL, TAG, "csi sensor is NULL");
+
+    s_gc4653_hmirror = enable;
+    gc4653_apply_mirror_reg(csi_sensor->config.bus);
+    return AVDK_ERR_OK;
+}
+
+static avdk_err_t gc4653_set_vflip(bk_camera_sensor_ctlr_t *controller, bool enable)
+{
+    bk_camera_csi_sensor_t *csi_sensor = __containerof(controller, bk_camera_csi_sensor_t, ops);
+    AVDK_RETURN_ON_FALSE(csi_sensor, AVDK_ERR_INVAL, TAG, "csi sensor is NULL");
+
+    s_gc4653_vflip = enable;
+    gc4653_apply_mirror_reg(csi_sensor->config.bus);
+    return AVDK_ERR_OK;
+}
+
+avdk_err_t gc4653_set_ppi(bk_camera_sensor_ctlr_t *controller, uint16_t width, uint16_t height)
+{
+    bk_camera_csi_sensor_t *csi_sensor = __containerof(controller, bk_camera_csi_sensor_t, ops);
+    AVDK_RETURN_ON_FALSE(csi_sensor, AVDK_ERR_INVAL, TAG, "csi sensor is NULL");
+    bk_camera_bus_t *bus = csi_sensor->config.bus;
+
+    if (width > WIN_MAX_X || width <= 0 || height > WIN_MAX_Y || height <= 0)
+    {
+        return -1;
+    }
+
+    s_gc4653_out_width = width;
+    s_gc4653_out_height = height;
+    bk_mipi_csi_controller_init(width, height, 0x2b);
+    gc4653_write_window_regs(bus, width, height);
 
     return 0;
 }
@@ -1261,8 +1335,12 @@ avdk_err_t gc4653_set_format(bk_camera_sensor_ctlr_t *controller, bk_camera_sens
     bk_camera_csi_sensor_t *csi_sensor = __containerof(controller, bk_camera_csi_sensor_t, ops);
     AVDK_RETURN_ON_FALSE(csi_sensor, AVDK_ERR_INVAL, TAG, "csi sensor is NULL");
     AVDK_RETURN_ON_FALSE(format, AVDK_ERR_INVAL, TAG, "format is NULL");
+
+    gc4653_apply_mirror_reg(csi_sensor->config.bus);
     gc4653_set_ppi(controller, format->width, format->height);
     gc4653_set_fps(controller, format->fps);
+    bk_mipi_csi_controller_reset();
+    gc4653_apply_mirror_reg(csi_sensor->config.bus);
     return AVDK_ERR_OK;
 }
 
@@ -1448,6 +1526,8 @@ avdk_err_t gc4653_detect(bk_camera_sensor_handle_t *handle, bk_camera_sensor_con
     csi_sensor->ops.get_sensor_object = gc4653_get_sensor_object;
     csi_sensor->ops.get_sensor_cfg = gc4653_get_sensor_cfg;
     csi_sensor->ops.query_support_formats = gc4653_query_support_formats;
+    csi_sensor->ops.set_hmirror = gc4653_set_hmirror;
+    csi_sensor->ops.set_vflip = gc4653_set_vflip;
     csi_sensor->isp_pub_attr = &gc4653_mipi_linear_attr;
     csi_sensor->sensor_config = &csi_sensor_gc4653;
     *handle = (bk_camera_sensor_handle_t)&csi_sensor->ops;

@@ -67,6 +67,11 @@
 // #define CV2005_AGAIN_3           0xB8
 // #define CV2005_AGAIN_4           0xB9
 
+/* 0x3028: bit[0]=H_MIRROR, bit[1]=V_FLIP */
+#define CV2005_REG_MIRROR_FLIP    0x3028
+#define CV2005_MIRROR_BIT         (1U << 0)
+#define CV2005_VFLIP_BIT          (1U << 1)
+
 //to do 
 // const uint8_t cv2005_regValTable[29][4] = {
 
@@ -1273,43 +1278,54 @@ int cv2005_set_fps_test(bk_camera_sensor_ctlr_t *controller, uint16_t hts, uint1
     return 0;
 }
 
-avdk_err_t cv2005_set_ppi(bk_camera_sensor_ctlr_t *controller, uint16_t width, uint16_t height)
-{
-    bk_camera_csi_sensor_t *csi_sensor = __containerof(controller, bk_camera_csi_sensor_t, ops);
-    AVDK_RETURN_ON_FALSE(csi_sensor, AVDK_ERR_INVAL, TAG, "csi sensor is NULL");
-    bk_camera_bus_t *bus = csi_sensor->config.bus;
+static uint16_t s_cv2005_out_width;
+static uint16_t s_cv2005_out_height;
+static bool s_cv2005_hmirror;
+static bool s_cv2005_vflip;
 
+static void cv2005_write_crop_regs(bk_camera_bus_t *bus, uint16_t width, uint16_t height)
+{
     uint16_t full_width = 1928;
     uint16_t full_height = 1088;
-
-    if (width > full_width || width <= 0 || height > full_height || height <= 0)
-    {
-        LOGE("Invalid width/height: %dx%d\n", width, height);
-        return AVDK_ERR_INVAL;
-    }
-
-    bk_mipi_csi_controller_init(width, height, 0x2b);
-
-    uint8_t WCROP_MODE = 4;
+    uint8_t WCROP_MODE;
     uint8_t DCROP_MODE = 1;
     uint16_t X_CROP_STA = (full_width - width) >> 2 << 1;
     uint16_t X_CROP_WIDTH = width;
-
     uint16_t Y_DCROP_STA = (full_height - height) >> 2 << 1;
     uint16_t Y_DCROP_HEIGHT = height;
 
-    if (full_height - height >= 32) {
-        WCROP_MODE = 4;
-        uint16_t Y_WCROP_STA = Y_DCROP_STA - 8;
-        uint16_t Y_WCROP_HEIGHT = Y_DCROP_HEIGHT + 16;
-        Y_DCROP_STA = 8;
+    /* Toggle crop start by 1 pixel to preserve RGGB Bayer phase. */
+    if (s_cv2005_hmirror)
+    {
+        X_CROP_STA ^= 1;
+    }
 
+    if (full_height - height >= 32)
+    {
+        uint16_t Y_WCROP_STA = ((full_height - height) >> 2 << 1) - 8;
+        uint16_t Y_WCROP_HEIGHT = Y_DCROP_HEIGHT + 16;
+
+        Y_DCROP_STA = 8;
+        if (s_cv2005_vflip)
+        {
+            Y_DCROP_STA ^= 1;
+            Y_WCROP_STA ^= 2;
+        }
+
+        WCROP_MODE = 4;
         bus->write16(bus, 0x3014, WCROP_MODE);
         bus->write16(bus, 0x303C, UINT16_LB(Y_WCROP_STA));
         bus->write16(bus, 0x303D, UINT16_HB(Y_WCROP_STA));
         bus->write16(bus, 0x303E, UINT16_LB(Y_WCROP_HEIGHT));
         bus->write16(bus, 0x303F, UINT16_HB(Y_WCROP_HEIGHT));
-    } else {
+    }
+    else
+    {
+        if (s_cv2005_vflip)
+        {
+            Y_DCROP_STA ^= 1;
+        }
+
         WCROP_MODE = 0;
         bus->write16(bus, 0x3014, WCROP_MODE);
     }
@@ -1323,6 +1339,24 @@ avdk_err_t cv2005_set_ppi(bk_camera_sensor_ctlr_t *controller, uint16_t width, u
     bus->write16(bus, 0x3035, UINT16_HB(Y_DCROP_STA));
     bus->write16(bus, 0x3036, UINT16_LB(Y_DCROP_HEIGHT));
     bus->write16(bus, 0x3037, UINT16_HB(Y_DCROP_HEIGHT));
+}
+
+avdk_err_t cv2005_set_ppi(bk_camera_sensor_ctlr_t *controller, uint16_t width, uint16_t height)
+{
+    bk_camera_csi_sensor_t *csi_sensor = __containerof(controller, bk_camera_csi_sensor_t, ops);
+    AVDK_RETURN_ON_FALSE(csi_sensor, AVDK_ERR_INVAL, TAG, "csi sensor is NULL");
+    bk_camera_bus_t *bus = csi_sensor->config.bus;
+
+    if (width > 1928 || width <= 0 || height > 1088 || height <= 0)
+    {
+        LOGE("Invalid width/height: %dx%d\n", width, height);
+        return AVDK_ERR_INVAL;
+    }
+
+    s_cv2005_out_width = width;
+    s_cv2005_out_height = height;
+    bk_mipi_csi_controller_init(width, height, 0x2b);
+    cv2005_write_crop_regs(bus, width, height);
 
     return AVDK_ERR_OK;
 }
@@ -1392,6 +1426,53 @@ avdk_err_t cv2005_ctrl(bk_camera_sensor_ctlr_t *controller, uint8_t cmd, uint16_
     return 0;
 }
 
+static void cv2005_apply_mirror_reg(bk_camera_bus_t *bus)
+{
+    uint8_t val;
+
+    if (bus == NULL)
+    {
+        return;
+    }
+
+    bus->read16(bus, CV2005_REG_MIRROR_FLIP, &val);
+    val &= (uint8_t)~(CV2005_MIRROR_BIT | CV2005_VFLIP_BIT);
+    if (s_cv2005_hmirror)
+    {
+        val |= CV2005_MIRROR_BIT;
+    }
+    if (s_cv2005_vflip)
+    {
+        val |= CV2005_VFLIP_BIT;
+    }
+    bus->write16(bus, CV2005_REG_MIRROR_FLIP, val);
+
+    if (s_cv2005_out_width > 0 && s_cv2005_out_height > 0)
+    {
+        cv2005_write_crop_regs(bus, s_cv2005_out_width, s_cv2005_out_height);
+    }
+}
+
+static avdk_err_t cv2005_set_hmirror(bk_camera_sensor_ctlr_t *controller, bool enable)
+{
+    bk_camera_csi_sensor_t *csi_sensor = __containerof(controller, bk_camera_csi_sensor_t, ops);
+    AVDK_RETURN_ON_FALSE(csi_sensor, AVDK_ERR_INVAL, TAG, "csi sensor is NULL");
+
+    s_cv2005_hmirror = enable;
+    cv2005_apply_mirror_reg(csi_sensor->config.bus);
+    return AVDK_ERR_OK;
+}
+
+static avdk_err_t cv2005_set_vflip(bk_camera_sensor_ctlr_t *controller, bool enable)
+{
+    bk_camera_csi_sensor_t *csi_sensor = __containerof(controller, bk_camera_csi_sensor_t, ops);
+    AVDK_RETURN_ON_FALSE(csi_sensor, AVDK_ERR_INVAL, TAG, "csi sensor is NULL");
+
+    s_cv2005_vflip = enable;
+    cv2005_apply_mirror_reg(csi_sensor->config.bus);
+    return AVDK_ERR_OK;
+}
+
 avdk_err_t cv2005_set_format(bk_camera_sensor_ctlr_t *controller, bk_camera_sensor_format_t *format)
 {
     bk_camera_csi_sensor_t *csi_sensor = __containerof(controller, bk_camera_csi_sensor_t, ops);
@@ -1400,10 +1481,11 @@ avdk_err_t cv2005_set_format(bk_camera_sensor_ctlr_t *controller, bk_camera_sens
 
     LOGI("setformat : width=%d, height=%d, fps=%d\n", format->width, format->height, format->fps);
 
+    cv2005_apply_mirror_reg(csi_sensor->config.bus);
     cv2005_set_ppi(controller, format->width, format->height);
     cv2005_set_fps(controller, format->fps);
-
     bk_mipi_csi_controller_reset();
+    cv2005_apply_mirror_reg(csi_sensor->config.bus);
 
     return AVDK_ERR_OK;
 }
@@ -1569,6 +1651,8 @@ avdk_err_t cv2005_detect(bk_camera_sensor_handle_t *handle, bk_camera_sensor_con
     csi_sensor->ops.init = cv2005_init;
     csi_sensor->ops.set_format = cv2005_set_format;
     csi_sensor->ops.reg_ctrl = cv2005_ctrl;
+    csi_sensor->ops.set_hmirror = cv2005_set_hmirror;
+    csi_sensor->ops.set_vflip = cv2005_set_vflip;
     csi_sensor->ops.get_sensor_object = cv2005_get_sensor_object;
     csi_sensor->ops.get_sensor_cfg = cv2005_get_sensor_cfg;
     csi_sensor->ops.query_support_formats = cv2005_query_support_formats;

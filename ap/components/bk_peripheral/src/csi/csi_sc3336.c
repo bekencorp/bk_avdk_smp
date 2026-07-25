@@ -40,6 +40,9 @@
 #define WIN_MAX_X 2304
 #define WIN_MAX_Y 1296
 
+#define UINT16_HB(x) (((x) >> 8) & 0xFF)
+#define UINT16_LB(x) ((x) & 0xFF)
+
 #define sc3336_REG_BYTE_NUM  2
 #define sc3336_DATA_BYTE_NUM 1
 #define sc3336_REG_EXPOSURE_H 0x3e00
@@ -47,6 +50,9 @@
 #define sc3336_REG_EXPOSURE_L 0x3e02
 #define sc3336_REG_VTS_H 0x320e
 #define sc3336_REG_VTS_L 0x320f
+#define SC3336_REG_MIRROR_FLIP 0x3221
+#define SC3336_MIRROR_BITS     ((1U << 1) | (1U << 2))
+#define SC3336_VFLIP_BITS      ((1U << 5) | (1U << 6))
 
 /* SC3336_PCLK = VTS * HTS * FPS */
 #define SC3336_FPS_BASE         20
@@ -1522,6 +1528,73 @@ static avdk_err_t sc3336_init(bk_camera_sensor_ctlr_t *controller)
     return 0;
 }
 
+static bool s_sc3336_hmirror;
+static bool s_sc3336_vflip;
+static uint16_t s_sc3336_base_win_x;
+static uint16_t s_sc3336_base_win_y;
+
+static void sc3336_capture_window_base(bk_camera_bus_t *bus)
+{
+    uint8_t hb = 0;
+    uint8_t lb = 0;
+
+    bus->read16(bus, 0x3210, &hb);
+    bus->read16(bus, 0x3211, &lb);
+    s_sc3336_base_win_x = (uint16_t)((hb << 8) | lb);
+    bus->read16(bus, 0x3212, &hb);
+    bus->read16(bus, 0x3213, &lb);
+    s_sc3336_base_win_y = (uint16_t)((hb << 8) | lb);
+}
+
+static void sc3336_write_window_regs(bk_camera_bus_t *bus)
+{
+    uint16_t win_x = s_sc3336_base_win_x;
+    uint16_t win_y = s_sc3336_base_win_y;
+
+    /* Toggle window start by 1 pixel to preserve BGGR Bayer phase. */
+    if (s_sc3336_hmirror)
+    {
+        win_x ^= 1;
+    }
+    if (s_sc3336_vflip)
+    {
+        win_y ^= 1;
+    }
+
+    bus->write16(bus, 0x3210, UINT16_HB(win_x));
+    bus->write16(bus, 0x3211, UINT16_LB(win_x));
+    bus->write16(bus, 0x3212, UINT16_HB(win_y));
+    bus->write16(bus, 0x3213, UINT16_LB(win_y));
+}
+
+static void sc3336_apply_mirror_reg(bk_camera_bus_t *bus)
+{
+    uint8_t tmp;
+
+    if (bus == NULL)
+    {
+        return;
+    }
+
+    tmp = 0;
+    if (s_sc3336_hmirror)
+    {
+        tmp |= SC3336_MIRROR_BITS;
+    }
+    if (s_sc3336_vflip)
+    {
+        tmp |= SC3336_VFLIP_BITS;
+    }
+    bus->write16(bus, SC3336_REG_MIRROR_FLIP, tmp);
+
+    if (pSc3336Dev != NULL
+        && pSc3336Dev->width == 1920
+        && pSc3336Dev->height == 1080)
+    {
+        sc3336_write_window_regs(bus);
+    }
+}
+
 static avdk_err_t sc3336_set_ppi(bk_camera_sensor_ctlr_t *controller, uint16_t width, uint16_t height)
 {
     bk_camera_csi_sensor_t *csi_sensor = __containerof(controller, bk_camera_csi_sensor_t, ops);
@@ -1554,6 +1627,11 @@ static avdk_err_t sc3336_set_ppi(bk_camera_sensor_ctlr_t *controller, uint16_t w
     pSc3336Dev->width = width;
     pSc3336Dev->height = height;
 
+    if (width == 1920 && height == 1080)
+    {
+        sc3336_capture_window_base(bus);
+    }
+
     return 0;
 }
 
@@ -1578,14 +1656,36 @@ static avdk_err_t sc3336_set_fps(bk_camera_sensor_ctlr_t *controller, uint16_t f
     return BK_OK;
 }
 
+static avdk_err_t sc3336_set_hmirror(bk_camera_sensor_ctlr_t *controller, bool enable)
+{
+    bk_camera_csi_sensor_t *csi_sensor = __containerof(controller, bk_camera_csi_sensor_t, ops);
+    AVDK_RETURN_ON_FALSE(csi_sensor, AVDK_ERR_INVAL, TAG, "csi sensor is NULL");
+
+    s_sc3336_hmirror = enable;
+    sc3336_apply_mirror_reg(csi_sensor->config.bus);
+    return AVDK_ERR_OK;
+}
+
+static avdk_err_t sc3336_set_vflip(bk_camera_sensor_ctlr_t *controller, bool enable)
+{
+    bk_camera_csi_sensor_t *csi_sensor = __containerof(controller, bk_camera_csi_sensor_t, ops);
+    AVDK_RETURN_ON_FALSE(csi_sensor, AVDK_ERR_INVAL, TAG, "csi sensor is NULL");
+
+    s_sc3336_vflip = enable;
+    sc3336_apply_mirror_reg(csi_sensor->config.bus);
+    return AVDK_ERR_OK;
+}
+
 static avdk_err_t sc3336_set_format(bk_camera_sensor_ctlr_t *controller, bk_camera_sensor_format_t *format)
 {
     bk_camera_csi_sensor_t *csi_sensor = __containerof(controller, bk_camera_csi_sensor_t, ops);
     AVDK_RETURN_ON_FALSE(csi_sensor, AVDK_ERR_INVAL, TAG, "csi sensor is NULL");
     AVDK_RETURN_ON_FALSE(format, AVDK_ERR_INVAL, TAG, "format is NULL");
+    sc3336_apply_mirror_reg(csi_sensor->config.bus);
     sc3336_set_ppi(controller, format->width, format->height);
     sc3336_set_fps(controller, format->fps);
     bk_mipi_csi_controller_reset();
+    sc3336_apply_mirror_reg(csi_sensor->config.bus);
     return AVDK_ERR_OK;
 }
 
@@ -1702,6 +1802,8 @@ avdk_err_t sc3336_detect(bk_camera_sensor_handle_t *handle, bk_camera_sensor_con
     csi_sensor->ops.init = sc3336_init;
     csi_sensor->ops.set_format = sc3336_set_format;
     csi_sensor->ops.reg_ctrl = sc3336_ctrl;
+    csi_sensor->ops.set_hmirror = sc3336_set_hmirror;
+    csi_sensor->ops.set_vflip = sc3336_set_vflip;
     csi_sensor->ops.get_sensor_object = sc3336_get_sensor_object;
     csi_sensor->ops.get_sensor_cfg = sc3336_get_sensor_cfg;
     csi_sensor->ops.query_support_formats = sc3336_query_support_formats;

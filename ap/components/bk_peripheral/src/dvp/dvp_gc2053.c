@@ -29,6 +29,11 @@
 #define CHIP_ID_VAL_HB (0x20)
 #define CHIP_ID_VAL_LB (0x53)
 
+#define GC2053_REG_PAGE_SEL    0xfe
+#define GC2053_REG_MIRROR_FLIP 0x17
+#define GC2053_MIRROR_BIT      (1U << 0)
+#define GC2053_VFLIP_BIT       (1U << 1)
+
 #define TAG "gc2053"
 #define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
 
@@ -313,6 +318,41 @@ static avdk_err_t gc2053_set_format(bk_camera_sensor_ctlr_t *controller, bk_came
     return AVDK_ERR_OK;
 }
 
+static void gc2053_set_mirror_flip_bit(bk_camera_bus_t *bus, uint8_t bit, bool enable)
+{
+    uint8_t val = 0;
+
+    bus->write8(bus, GC2053_REG_PAGE_SEL, 0x00);
+    bus->read8(bus, GC2053_REG_MIRROR_FLIP, &val);
+    if (enable)
+    {
+        val |= bit;
+    }
+    else
+    {
+        val &= (uint8_t)~bit;
+    }
+    bus->write8(bus, GC2053_REG_MIRROR_FLIP, val);
+}
+
+static avdk_err_t gc2053_set_hmirror(bk_camera_sensor_ctlr_t *controller, bool enable)
+{
+    bk_camera_dvp_sensor_t *dvp_sensor = __containerof(controller, bk_camera_dvp_sensor_t, ops);
+    AVDK_RETURN_ON_FALSE(dvp_sensor, AVDK_ERR_INVAL, TAG, "dvp sensor is NULL");
+
+    gc2053_set_mirror_flip_bit(dvp_sensor->config.bus, GC2053_MIRROR_BIT, enable);
+    return AVDK_ERR_OK;
+}
+
+static avdk_err_t gc2053_set_vflip(bk_camera_sensor_ctlr_t *controller, bool enable)
+{
+    bk_camera_dvp_sensor_t *dvp_sensor = __containerof(controller, bk_camera_dvp_sensor_t, ops);
+    AVDK_RETURN_ON_FALSE(dvp_sensor, AVDK_ERR_INVAL, TAG, "dvp sensor is NULL");
+
+    gc2053_set_mirror_flip_bit(dvp_sensor->config.bus, GC2053_VFLIP_BIT, enable);
+    return AVDK_ERR_OK;
+}
+
 avdk_err_t dvp_gc2053_detect(bk_camera_sensor_handle_t *handle, bk_camera_sensor_config_t *config)
 {
     uint8_t hb_id = 0, lb_id;
@@ -340,6 +380,8 @@ avdk_err_t dvp_gc2053_detect(bk_camera_sensor_handle_t *handle, bk_camera_sensor
     dvp_sensor->ops.init = gc2053_init;
     dvp_sensor->ops.set_format = gc2053_set_format;
     dvp_sensor->ops.reg_ctrl = NULL;
+    dvp_sensor->ops.set_hmirror = gc2053_set_hmirror;
+    dvp_sensor->ops.set_vflip = gc2053_set_vflip;
     dvp_sensor->ops.get_sensor_object = gc2053_get_sensor_object;
     dvp_sensor->ops.get_sensor_cfg = gc2053_get_sensor_cfg;
     dvp_sensor->ops.query_support_formats = gc2053_query_support_formats;

@@ -61,6 +61,13 @@
 #define OV2775_DGAIN_VS_H   0x315E
 #define OV2775_DGAIN_VS_L   0x315F
 
+#define OV2775_REG_READ_MODE       0x30C0
+#define OV2775_REG_ODP_H_OFFS_L    0x30A9
+#define OV2775_REG_ISP_SETTING     0x3252
+#define OV2775_MIRROR_BIT          (1U << 2)
+#define OV2775_VFLIP_BIT           (1U << 3)
+#define OV2775_ISP_MIRROR_CROP_BIT (1U << 0)
+
 enum OV2775_REG_INDEX {
     REG_VTS_H       = 0,
     REG_VTS_L       = 1,
@@ -2519,6 +2526,11 @@ avdk_err_t ov2775_init(bk_camera_sensor_ctlr_t *controller)
     return 0;
 }
 
+static bool s_ov2775_hmirror;
+static bool s_ov2775_vflip;
+static uint8_t s_ov2775_base_odp_h_offs_l = 0x04;
+static uint8_t s_ov2775_base_isp_setting = 0x20;
+
 avdk_err_t ov2775_set_ppi(bk_camera_sensor_ctlr_t *controller, uint16_t width, uint16_t height)
 {
     bk_camera_csi_sensor_t *csi_sensor = __containerof(controller, bk_camera_csi_sensor_t, ops);
@@ -2567,6 +2579,9 @@ avdk_err_t ov2775_set_ppi(bk_camera_sensor_ctlr_t *controller, uint16_t width, u
             bus->write16(bus, OV2775_mipi2lane_720P[i][0], OV2775_mipi2lane_720P[i][1]);
         }
     }
+
+    bus->read16(bus, OV2775_REG_ODP_H_OFFS_L, &s_ov2775_base_odp_h_offs_l);
+    bus->read16(bus, OV2775_REG_ISP_SETTING, &s_ov2775_base_isp_setting);
 
     return 0;
 }
@@ -2641,13 +2656,73 @@ avdk_err_t ov2775_ctrl(bk_camera_sensor_ctlr_t *controller, uint8_t cmd, uint16_
     return 0;
 }
 
+static void ov2775_apply_mirror_reg(bk_camera_bus_t *bus)
+{
+    uint8_t val = 0;
+
+    if (bus == NULL)
+    {
+        return;
+    }
+
+    bus->read16(bus, OV2775_REG_READ_MODE, &val);
+    val &= (uint8_t)~(OV2775_MIRROR_BIT | OV2775_VFLIP_BIT);
+    if (s_ov2775_hmirror)
+    {
+        val |= OV2775_MIRROR_BIT;
+    }
+    if (s_ov2775_vflip)
+    {
+        val |= OV2775_VFLIP_BIT;
+    }
+    bus->write16(bus, OV2775_REG_READ_MODE, val);
+
+    /* Horizontal mirror: ODP_H_OFFS_L=1, ISP_SETTING[0]=1. */
+    if (s_ov2775_hmirror)
+    {
+        bus->write16(bus, OV2775_REG_ODP_H_OFFS_L, 0x01);
+        bus->read16(bus, OV2775_REG_ISP_SETTING, &val);
+        val |= OV2775_ISP_MIRROR_CROP_BIT;
+        bus->write16(bus, OV2775_REG_ISP_SETTING, val);
+    }
+    else
+    {
+        bus->write16(bus, OV2775_REG_ODP_H_OFFS_L, s_ov2775_base_odp_h_offs_l);
+        bus->write16(bus, OV2775_REG_ISP_SETTING, s_ov2775_base_isp_setting);
+    }
+}
+
+static avdk_err_t ov2775_set_hmirror(bk_camera_sensor_ctlr_t *controller, bool enable)
+{
+    bk_camera_csi_sensor_t *csi_sensor = __containerof(controller, bk_camera_csi_sensor_t, ops);
+    AVDK_RETURN_ON_FALSE(csi_sensor, AVDK_ERR_INVAL, TAG, "csi sensor is NULL");
+
+    s_ov2775_hmirror = enable;
+    ov2775_apply_mirror_reg(csi_sensor->config.bus);
+    return AVDK_ERR_OK;
+}
+
+static avdk_err_t ov2775_set_vflip(bk_camera_sensor_ctlr_t *controller, bool enable)
+{
+    bk_camera_csi_sensor_t *csi_sensor = __containerof(controller, bk_camera_csi_sensor_t, ops);
+    AVDK_RETURN_ON_FALSE(csi_sensor, AVDK_ERR_INVAL, TAG, "csi sensor is NULL");
+
+    s_ov2775_vflip = enable;
+    ov2775_apply_mirror_reg(csi_sensor->config.bus);
+    return AVDK_ERR_OK;
+}
+
 avdk_err_t ov2775_set_format(bk_camera_sensor_ctlr_t *controller, bk_camera_sensor_format_t *format)
 {
     bk_camera_csi_sensor_t *csi_sensor = __containerof(controller, bk_camera_csi_sensor_t, ops);
     AVDK_RETURN_ON_FALSE(csi_sensor, AVDK_ERR_INVAL, TAG, "csi sensor is NULL");
     AVDK_RETURN_ON_FALSE(format, AVDK_ERR_INVAL, TAG, "format is NULL");
+
+    ov2775_apply_mirror_reg(csi_sensor->config.bus);
     ov2775_set_ppi(controller, format->width, format->height);
     ov2775_set_fps(controller, format->fps);
+    bk_mipi_csi_controller_reset();
+    ov2775_apply_mirror_reg(csi_sensor->config.bus);
     return AVDK_ERR_OK;
 }
 
@@ -2719,6 +2794,8 @@ avdk_err_t ov2775_detect(bk_camera_sensor_handle_t *handle, bk_camera_sensor_con
     csi_sensor->ops.init = ov2775_init;
     csi_sensor->ops.set_format = ov2775_set_format;
     csi_sensor->ops.reg_ctrl = ov2775_ctrl;
+    csi_sensor->ops.set_hmirror = ov2775_set_hmirror;
+    csi_sensor->ops.set_vflip = ov2775_set_vflip;
     csi_sensor->ops.get_sensor_object = ov2775_get_sensor_object;
     csi_sensor->ops.get_sensor_cfg = ov2775_get_sensor_cfg;
 

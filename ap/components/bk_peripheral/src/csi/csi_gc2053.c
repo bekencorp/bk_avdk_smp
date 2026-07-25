@@ -79,6 +79,11 @@
 #define GC2053_AGAIN_3			0xB8
 #define GC2053_AGAIN_4			0xB9
 
+/* P0:0x17[1:0] mirror/vflip; P1:0x99 auto_mirror/auto_updown offset Bayer by default. */
+#define GC2053_REG_MIRROR_FLIP 0x17
+#define GC2053_MIRROR_BIT      (1U << 0)
+#define GC2053_VFLIP_BIT       (1U << 1)
+
 typedef struct
 {
     uint8_t val1;
@@ -863,6 +868,32 @@ static avdk_err_t gc2053_init(bk_camera_sensor_ctlr_t *controller)
     return 0;
 }
 
+static bool s_gc2053_hmirror;
+static bool s_gc2053_vflip;
+
+static void gc2053_apply_mirror_reg(bk_camera_bus_t *bus)
+{
+    uint8_t val = 0;
+
+    if (bus == NULL)
+    {
+        return;
+    }
+
+    bus->write8(bus, 0xfe, 0x00);
+    bus->read8(bus, GC2053_REG_MIRROR_FLIP, &val);
+    val &= (uint8_t)~(GC2053_MIRROR_BIT | GC2053_VFLIP_BIT);
+    if (s_gc2053_hmirror)
+    {
+        val |= GC2053_MIRROR_BIT;
+    }
+    if (s_gc2053_vflip)
+    {
+        val |= GC2053_VFLIP_BIT;
+    }
+    bus->write8(bus, GC2053_REG_MIRROR_FLIP, val);
+}
+
 static avdk_err_t gc2053_set_ppi(bk_camera_sensor_ctlr_t *controller, uint16_t width, uint16_t height)
 {
     bk_camera_csi_sensor_t *csi_sensor = __containerof(controller, bk_camera_csi_sensor_t, ops);
@@ -940,9 +971,11 @@ static avdk_err_t gc2053_set_format(bk_camera_sensor_ctlr_t *controller, bk_came
     bk_camera_csi_sensor_t *csi_sensor = __containerof(controller, bk_camera_csi_sensor_t, ops);
     AVDK_RETURN_ON_FALSE(csi_sensor, AVDK_ERR_INVAL, TAG, "csi sensor is NULL");
     AVDK_RETURN_ON_FALSE(format, AVDK_ERR_INVAL, TAG, "format is NULL");
+    gc2053_apply_mirror_reg(csi_sensor->config.bus);
     gc2053_set_ppi(controller, format->width, format->height);
     gc2053_set_fps(controller, format->fps);
     bk_mipi_csi_controller_reset();
+    gc2053_apply_mirror_reg(csi_sensor->config.bus);
     return AVDK_ERR_OK;
 }
 
@@ -988,6 +1021,26 @@ static avdk_err_t gc2053_ctrl(bk_camera_sensor_ctlr_t *controller, uint8_t cmd, 
     }
 
     return 0;
+}
+
+static avdk_err_t gc2053_set_hmirror(bk_camera_sensor_ctlr_t *controller, bool enable)
+{
+    bk_camera_csi_sensor_t *csi_sensor = __containerof(controller, bk_camera_csi_sensor_t, ops);
+    AVDK_RETURN_ON_FALSE(csi_sensor, AVDK_ERR_INVAL, TAG, "csi sensor is NULL");
+
+    s_gc2053_hmirror = enable;
+    gc2053_apply_mirror_reg(csi_sensor->config.bus);
+    return AVDK_ERR_OK;
+}
+
+static avdk_err_t gc2053_set_vflip(bk_camera_sensor_ctlr_t *controller, bool enable)
+{
+    bk_camera_csi_sensor_t *csi_sensor = __containerof(controller, bk_camera_csi_sensor_t, ops);
+    AVDK_RETURN_ON_FALSE(csi_sensor, AVDK_ERR_INVAL, TAG, "csi sensor is NULL");
+
+    s_gc2053_vflip = enable;
+    gc2053_apply_mirror_reg(csi_sensor->config.bus);
+    return AVDK_ERR_OK;
 }
 
 static const csi_sensor_config_t csi_sensor_gc2053 =
@@ -1154,6 +1207,8 @@ avdk_err_t gc2053_detect(bk_camera_sensor_handle_t *handle, bk_camera_sensor_con
     csi_sensor->ops.init = gc2053_init;
     csi_sensor->ops.set_format = gc2053_set_format;
     csi_sensor->ops.reg_ctrl = gc2053_ctrl;
+    csi_sensor->ops.set_hmirror = gc2053_set_hmirror;
+    csi_sensor->ops.set_vflip = gc2053_set_vflip;
     csi_sensor->ops.get_sensor_object = gc2053_get_sensor_object;
     csi_sensor->ops.get_sensor_cfg = gc2053_get_sensor_cfg;
     csi_sensor->ops.query_support_formats = gc2053_query_support_formats;

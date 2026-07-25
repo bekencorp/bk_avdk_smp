@@ -32,6 +32,11 @@
 #define CHIP_ID_VAL_HB (0x21)
 #define CHIP_ID_VAL_LB (0x45)
 
+#define GC2145_REG_PAGE_SEL    0xfe
+#define GC2145_REG_MIRROR_FLIP 0x17
+#define GC2145_MIRROR_BIT      (1U << 0)
+#define GC2145_VFLIP_BIT       (1U << 1)
+
 #define TAG "gc2145"
 #define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
 
@@ -2104,6 +2109,41 @@ avdk_err_t gc2145_set_format(bk_camera_sensor_ctlr_t *controller, bk_camera_sens
     return AVDK_ERR_OK;
 }
 
+static void gc2145_set_mirror_flip_bit(bk_camera_bus_t *bus, uint8_t bit, bool enable)
+{
+    uint8_t val = 0;
+
+    bus->write8(bus, GC2145_REG_PAGE_SEL, 0x00);
+    bus->read8(bus, GC2145_REG_MIRROR_FLIP, &val);
+    if (enable)
+    {
+        val |= bit;
+    }
+    else
+    {
+        val &= (uint8_t)~bit;
+    }
+    bus->write8(bus, GC2145_REG_MIRROR_FLIP, val);
+}
+
+static avdk_err_t gc2145_set_hmirror(bk_camera_sensor_ctlr_t *controller, bool enable)
+{
+    bk_camera_dvp_sensor_t *dvp_sensor = __containerof(controller, bk_camera_dvp_sensor_t, ops);
+    AVDK_RETURN_ON_FALSE(dvp_sensor, AVDK_ERR_INVAL, TAG, "dvp sensor is NULL");
+
+    gc2145_set_mirror_flip_bit(dvp_sensor->config.bus, GC2145_MIRROR_BIT, enable);
+    return AVDK_ERR_OK;
+}
+
+static avdk_err_t gc2145_set_vflip(bk_camera_sensor_ctlr_t *controller, bool enable)
+{
+    bk_camera_dvp_sensor_t *dvp_sensor = __containerof(controller, bk_camera_dvp_sensor_t, ops);
+    AVDK_RETURN_ON_FALSE(dvp_sensor, AVDK_ERR_INVAL, TAG, "dvp sensor is NULL");
+
+    gc2145_set_mirror_flip_bit(dvp_sensor->config.bus, GC2145_VFLIP_BIT, enable);
+    return AVDK_ERR_OK;
+}
+
 avdk_err_t gc2145_detect(bk_camera_sensor_handle_t *handle, bk_camera_sensor_config_t *config)
 {
     uint8_t hb_id = 0, lb_id;
@@ -2159,6 +2199,8 @@ avdk_err_t gc2145_detect(bk_camera_sensor_handle_t *handle, bk_camera_sensor_con
     dvp_sensor->ops.init = gc2145_init_raw;
     dvp_sensor->ops.set_format = gc2145_set_format;
     dvp_sensor->ops.reg_ctrl = NULL;
+    dvp_sensor->ops.set_hmirror = gc2145_set_hmirror;
+    dvp_sensor->ops.set_vflip = gc2145_set_vflip;
     dvp_sensor->ops.get_sensor_object = gc2145_get_sensor_object;
     dvp_sensor->ops.get_sensor_cfg = gc2145_get_sensor_cfg;
     dvp_sensor->ops.query_support_formats = gc2145_query_support_formats;
