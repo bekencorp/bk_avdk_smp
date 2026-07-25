@@ -77,7 +77,6 @@ uint32_t bk_sys_sw_regs_get_ap_heap_dump(bk_sys_sw_regs_ap_heap_id_t id, ap_heap
 uint32_t bk_sys_sw_regs_get_ap_extra_dump(uint32_t index, ap_extra_dump_info_t *info);
 uint32_t bk_sys_sw_regs_get_hspl_owner(uint8_t res, uint8_t *core, uint32_t *pc);
 uint32_t bk_sys_sw_regs_get_ap_cp_hang_dumping(void);
-uint32_t bk_sys_sw_regs_get_cp_coredump_active(void);
 
 /**
  * @brief Read PM info snapshot from shared registers.
@@ -135,7 +134,6 @@ void bk_sys_sw_regs_set_adc_key_sample(uint16_t raw, uint16_t mv, uint8_t status
 void bk_sys_sw_regs_set_hspl_owner(uint8_t res, uint8_t core, uint32_t pc);
 void bk_sys_sw_regs_clear_hspl_owner(uint8_t res);
 void bk_sys_sw_regs_set_ap_cp_hang_dumping(uint32_t value);
-void bk_sys_sw_regs_set_cp_coredump_active(uint32_t value);
 
 /**
  * @brief Get the SSPL list.

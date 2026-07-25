@@ -91,8 +91,7 @@ typedef union {
         volatile adc_key_sample_info_t adc_key_sample; /**< CP ADC key latest sample */
         volatile uint8_t flash_init_done; /**< CP flash init completion flag */
         volatile uint8_t ap_cp_hang_dumping; /**< AP is dumping CP-hang context and owns UART output */
-        volatile uint8_t cp_coredump_active; /**< CP is in its own coredump flow; AP should not start CP-hang dump */
-        volatile uint8_t reserved0[1];
+        volatile uint8_t reserved0[2];
         volatile uint32_t hspl_owner_pc[32]; /**< HSPL owner caller PC shadow, 0 means free */
         volatile uint8_t hspl_owner_core[32]; /**< HSPL owner core shadow */
         volatile uint32_t cp_heap_size_ptr; /**< Addr of CP system heap xFreeBytesRemaining (size_t); 0 = not published */

@@ -4,7 +4,6 @@
 #include <driver/ipi_driver.h>
 #include <modules/pm.h>
 #include <os/os.h>
-#include "sys_sw_regs.h"
 
 #define CP_HANG_TAG "cp_hang"
 #define CP_HANG_HEARTBEAT_EVENT 1U
@@ -100,7 +99,6 @@ bk_err_t bk_cp_hang_debug_heartbeat_init(void)
 {
 	bk_err_t ret;
 
-	bk_sys_sw_regs_set_cp_coredump_active(0U);
 	cp_hang_register_ap_power_callbacks();
 
 	ret = rtos_create_thread(NULL, CP_HANG_HEARTBEAT_PRIORITY,

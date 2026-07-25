@@ -9,7 +9,6 @@
 #include "os/os.h"
 #include "reg_base.h"
 #include "bk_rtos_debug.h"
-#include "sys_sw_regs.h"
 #include <driver/aon_rtc.h>
 #if CONFIG_SOC_SMP
 #include "multicore_driver.h"
@@ -74,7 +73,6 @@ static void bk_exception_preprocess(bk_exception_t *self)
     bool secondary;
 
     rtos_disable_int();
-    bk_sys_sw_regs_set_cp_coredump_active(1U);
 
     /* Mark "in exception" BEFORE taking any resource lock, so the HSPL/SSPL
      * lock layer (see arch_is_enter_exception()) skips its blocking/assert path

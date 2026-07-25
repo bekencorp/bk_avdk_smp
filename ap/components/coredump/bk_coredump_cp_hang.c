@@ -366,11 +366,6 @@ static void cp_hang_monitor_task(void *param)
 			continue;
 		}
 
-		if (bk_sys_sw_regs_get_cp_coredump_active() != 0U) {
-			s_cp_hang_state.last_tick = now;
-			continue;
-		}
-
 		if ((s_cp_hang_state.seen == 0U) || (s_cp_hang_state.dumping != 0U)) {
 			continue;
 		}
