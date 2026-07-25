@@ -71,6 +71,7 @@ typedef struct
 
     volatile bool flexa_stop;
     bool flexa_frame_active;
+    bool flexa_abort_notified;
     uint8_t *gpu_contiguous_buffer;
 
     bool blit_enable;

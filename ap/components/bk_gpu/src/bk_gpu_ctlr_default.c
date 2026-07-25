@@ -270,6 +270,7 @@ static void gpu_flexa_event_ready_handle(uint32_t frame_seq, uint32_t line, gpu_
         if (gpu_vn_ctlr->line_err_flag)
         {
             gpu_vn_ctlr->line_err_flag = 0;
+            gpu_vn_ctlr->flexa_abort_notified = false;
         }
     }
 
@@ -379,6 +380,7 @@ static void gpu_flex_configure_dst_buffer(gpu_flex_data_t *data, bk_gpu_ctlr_con
     data->dst_buf.format = gpu_format_convert(config->dst_format);
 
     data->dst_buf.tiled = config->compress == true ? VG_LITE_TILED : VG_LITE_LINEAR;
+    data->dst_buf.screen_copy = 1;
     vg_lite_allocate_with_data(&data->dst_buf, (void *)(uintptr_t)data->buffers[data->dst_buf_idx], NULL, NULL, NULL);
 }
 
@@ -581,6 +583,7 @@ static inline void gpu_flex_data_init(gpu_flex_data_t *data, gpu_vn_ctlr_t *gpu_
     gpu_vn_ctlr->line_frame_seq = 0;
     gpu_vn_ctlr->active_frame_seq = 0;
     gpu_vn_ctlr->flexa_frame_active = false;
+    gpu_vn_ctlr->flexa_abort_notified = false;
     data->input_width = config->src_width;
     data->input_height = config->src_height;
     data->output_width = config->dst_width;
@@ -686,6 +689,7 @@ static inline void gpu_flex_restart(gpu_vn_ctlr_t *gpu_vn_ctlr)
     /* Mark error so main loop will skip current frame and wait for a fresh one. */
     gpu_vn_ctlr->line_err_flag = 1;
     gpu_vn_ctlr->flexa_frame_active = false;
+    gpu_vn_ctlr->flexa_abort_notified = false;
 
     /* Reset per-frame counters; next frame will start from index 1. */
     flex->flexa_index = 1;
@@ -719,6 +723,7 @@ static inline void gpu_flex_abort_current_frame(gpu_vn_ctlr_t *gpu_vn_ctlr)
         gpu_vn_ctlr->bond != NULL &&
         gpu_vn_ctlr->bond->frame_done != NULL) {
         gpu_vn_ctlr->bond->frame_done(BK_FAIL, gpu_vn_ctlr->bond);
+        gpu_vn_ctlr->flexa_abort_notified = true;
     }
 }
 
@@ -1176,6 +1181,7 @@ static void gpu_flex_main_entry(void *arg)
             flex->flexa_index = 1;
             flex->read_lines = 0;
             gpu_vn_ctlr->line_err_flag = 0;
+            gpu_vn_ctlr->flexa_abort_notified = false;
             gpu_vn_ctlr->active_frame_seq = src_frame_seq;
             gpu_vn_ctlr->flexa_frame_active = true;
             GPU_FRAME_START();
@@ -1203,7 +1209,8 @@ static void gpu_flex_main_entry(void *arg)
         /* Handle line error flag */
         if (gpu_vn_ctlr->line_err_flag)
         {
-            if (!gpu_vn_ctlr->flexa_stop &&
+            if (!gpu_vn_ctlr->flexa_abort_notified &&
+                !gpu_vn_ctlr->flexa_stop &&
                 gpu_vn_ctlr->bond != NULL &&
                 gpu_vn_ctlr->bond->flexa_done != NULL) {
                 gpu_vn_ctlr->bond->flexa_done(src_line_count, gpu_vn_ctlr->bond);
