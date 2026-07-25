@@ -409,12 +409,8 @@ static void wm_netif_status_static_callback(struct netif *n)
 	if (n->flags & NETIF_FLAG_UP) {
 		if (n == &g_mlan.netif) {
 #if CONFIG_WIFI_VNET_CONTROLLER
-			if (wdrv_sta_ipv4_already_notified())
-				return;
 			LWIP_LOGD("using static ip...\n");
 			LWIP_LOGD("ip_addr: "BK_IP4_FORMAT" \r\n", BK_IP4_STR(ip_addr_get_ip4_u32(&n->ip_addr)));
-			wifi_netif_call_status_cb_when_sta_got_ip();
-			wdrv_notify_sta_got_ip();
 #else
 			LWIP_LOGD("using static ip...\n");
 			LWIP_LOGD("ip_addr: "BK_IP4_FORMAT" \r\n", BK_IP4_STR(ip_addr_get_ip4_u32(&n->ip_addr)));
