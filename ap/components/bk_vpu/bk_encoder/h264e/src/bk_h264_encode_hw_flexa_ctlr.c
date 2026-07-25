@@ -666,9 +666,6 @@ static avdk_err_t h264_encode_ctlr_ioctl(bk_h264_encode_ctlr_handle_t handle, ui
                 return AVDK_ERR_INVAL;
             }
             if (control->bond == bond) {
-                if (control->encoder_inited) {
-                    (void)vcenc_h264_abort(&control->enc_param);
-                }
                 control->bond = NULL;
             } else {
                 LOGW("%s %d bond is not registered\r\n", __func__, __LINE__);
@@ -677,7 +674,7 @@ static avdk_err_t h264_encode_ctlr_ioctl(bk_h264_encode_ctlr_handle_t handle, ui
             break;
         }
         default:
-            LOGE("Unknown ioctl command: %d\r\n", cmd);
+            LOGW("Unknown ioctl command: %d\r\n", cmd);
             return AVDK_ERR_INVAL;
     }
     return AVDK_ERR_OK;
