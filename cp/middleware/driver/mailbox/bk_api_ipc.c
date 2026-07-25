@@ -28,6 +28,24 @@ BK_SECTION_DEF(ipc_chan_reg, bk_ipc_chan_cfg_t);
 
 #define IPC_SUPPORTED_CRC
 
+/* --- IPC data object pool + sync-send timeout (perf / anti dead-wait) --- */
+#ifndef CONFIG_MAILBOX_IPC_DATA_POOL_NUM
+#define IPC_DATA_POOL_NUM           8
+#else
+#define IPC_DATA_POOL_NUM           CONFIG_MAILBOX_IPC_DATA_POOL_NUM
+#endif
+
+#ifndef CONFIG_MAILBOX_IPC_SYNC_TIMEOUT_MS
+#define IPC_SYNC_SEND_TIMEOUT_MS    2000
+#else
+#define IPC_SYNC_SEND_TIMEOUT_MS    CONFIG_MAILBOX_IPC_SYNC_TIMEOUT_MS
+#endif
+
+/* Internal-only flag stored in bk_ipc_data_t::flags. It does not collide with
+ * MIPC_CHAN_SEND_FLAG_SYNC(1<<0)/MIPC_CHAN_HAND_FLAG_ASYNC(1<<1) and is only ever
+ * evaluated locally, so it is not part of the AP/CP wire contract. */
+#define MIPC_INTERNAL_FLAG_ABANDONED (1 << 7)
+
 #define IPC_EVENT_SEND              (1 << 0)
 #define IPC_EVENT_RECV              (1 << 1)
 #define IPC_EVENT_FREE              (1 << 2)
@@ -103,6 +121,90 @@ static inline void bk_ipc_exit_critical(uint32_t flags)
 
 bk_ipc_info_t *bk_ipc_info = NULL;
 
+/*
+ * bk_ipc_data_t object pool.
+ *
+ * Every bk_ipc_send() used to os_malloc()/os_free() one bk_ipc_data_t per call,
+ * churning the heap on a hot cross-core path. The pool serves the common case
+ * from a fixed, pre-allocated arena and only falls back to the heap when the
+ * pool is temporarily exhausted, so a send can never fail on a transient burst.
+ *
+ * The arena is drawn from os_malloc() at init on purpose: it keeps the exact
+ * same memory characteristics (address range / cache attributes) as the old
+ * per-call allocation, so the existing cross-core visibility handling
+ * (flush_all_dcache()/__DMB() in the RX ISR) still applies unchanged.
+ */
+static bk_ipc_data_t *s_ipc_data_pool = NULL;
+static uint8_t s_ipc_data_pool_inuse[IPC_DATA_POOL_NUM];
+
+static void bk_ipc_data_pool_init(void)
+{
+    if (s_ipc_data_pool == NULL)
+    {
+        s_ipc_data_pool = (bk_ipc_data_t *)os_malloc(sizeof(bk_ipc_data_t) * IPC_DATA_POOL_NUM);
+
+        if (s_ipc_data_pool != NULL)
+        {
+            os_memset(s_ipc_data_pool, 0, sizeof(bk_ipc_data_t) * IPC_DATA_POOL_NUM);
+        }
+
+        os_memset(s_ipc_data_pool_inuse, 0, sizeof(s_ipc_data_pool_inuse));
+    }
+}
+
+static bk_ipc_data_t *bk_ipc_data_alloc(void)
+{
+    bk_ipc_data_t *data = NULL;
+    uint32_t flags = bk_ipc_enter_critical();
+
+    if (s_ipc_data_pool != NULL)
+    {
+        for (int i = 0; i < IPC_DATA_POOL_NUM; i++)
+        {
+            if (!s_ipc_data_pool_inuse[i])
+            {
+                s_ipc_data_pool_inuse[i] = 1;
+                data = &s_ipc_data_pool[i];
+                break;
+            }
+        }
+    }
+
+    bk_ipc_exit_critical(flags);
+
+    if (data == NULL)
+    {
+        /* pool exhausted: fall back to heap so a burst never fails the send */
+        data = (bk_ipc_data_t *)os_malloc(sizeof(bk_ipc_data_t));
+
+        if (data == NULL)
+        {
+            return NULL;
+        }
+    }
+
+    os_memset(data, 0, sizeof(bk_ipc_data_t));
+    return data;
+}
+
+static void bk_ipc_data_free(bk_ipc_data_t *data)
+{
+    if (data == NULL)
+    {
+        return;
+    }
+
+    if (s_ipc_data_pool != NULL && data >= s_ipc_data_pool && data < (s_ipc_data_pool + IPC_DATA_POOL_NUM))
+    {
+        uint32_t flags = bk_ipc_enter_critical();
+        s_ipc_data_pool_inuse[data - s_ipc_data_pool] = 0;
+        bk_ipc_exit_critical(flags);
+    }
+    else
+    {
+        os_free(data);
+    }
+}
 
 
 bk_ipc_core_t bk_ipc_cpu_id_get(void)
@@ -341,7 +443,7 @@ void bk_ipc_data_clear(LIST_HEADER_T *list)
             if (tmp != NULL)
             {
                 list_del(pos);
-                os_free(tmp);
+                bk_ipc_data_free(tmp);
             }
         }
     }
@@ -576,12 +678,26 @@ static int bk_ipc_send_sync(bk_ipc_info_t *ipc_info, bk_ipc_data_t *ipc_data)
         goto out;
     }
 
-    ret = rtos_get_semaphore(&ipc_data->sem, BEKEN_WAIT_FOREVER);
+    ret = rtos_get_semaphore(&ipc_data->sem, IPC_SYNC_SEND_TIMEOUT_MS);
 
     if (ret != BK_OK)
     {
-        LOGE("%s wait local semaphore failed\n", __func__);
-        goto out;
+        /* No ACK within the timeout. Close the timeout-vs-late-ACK race with one
+         * non-blocking retry: if the peer just ACKed, treat it as success. */
+        if (rtos_get_semaphore(&ipc_data->sem, BEKEN_NO_WAIT) == BK_OK)
+        {
+            ret = BK_OK;
+        }
+        else
+        {
+            /* Peer did not respond. Do NOT deinit sem or free ipc_data here: a
+             * late ACK may still reference them. Mark the object abandoned and
+             * hand ownership to the ACK path (RX ISR -> free_list -> ipc thread),
+             * which reclaims sem+data safely in thread context. */
+            ipc_data->flags |= MIPC_INTERNAL_FLAG_ABANDONED;
+            LOGE("%s wait ack timeout, abandon ipc_data\n", __func__);
+            return ret;
+        }
     }
 
 out:
@@ -610,15 +726,13 @@ int bk_ipc_send(bk_ipc_t *ipc, void *data, uint32_t size, uint32_t flags, uint32
         return -1;
     }
 
-    ipc_data = (bk_ipc_data_t *)os_malloc(sizeof(bk_ipc_data_t));
+    ipc_data = bk_ipc_data_alloc();
 
     if (ipc_data == NULL)
     {
-        LOGE("%s ipc_data malloc failed\n", __func__);
+        LOGE("%s ipc_data alloc failed\n", __func__);
         return -1;
     }
-
-    os_memset(ipc_data, 0, sizeof(bk_ipc_data_t));
 
     ipc_data->data = data;
     ipc_data->size = size;
@@ -655,9 +769,12 @@ int bk_ipc_send(bk_ipc_t *ipc, void *data, uint32_t size, uint32_t flags, uint32
 
 out:
 
-    if ((flags & MIPC_CHAN_SEND_FLAG_SYNC) && (ipc_data != NULL))
+    /* Abandoned (timed-out) sync objects are owned by the ACK path now; freeing
+     * them here would race a late ACK. All other sync objects are freed here. */
+    if ((flags & MIPC_CHAN_SEND_FLAG_SYNC) && (ipc_data != NULL)
+        && !(ipc_data->flags & MIPC_INTERNAL_FLAG_ABANDONED))
     {
-        os_free(ipc_data);
+        bk_ipc_data_free(ipc_data);
         ipc_data = NULL;
     }
 
@@ -796,7 +913,8 @@ static void bk_ipc_mailbox_rx_isr(void *param, mb_chnl_cmd_t *cmd_buf)
             bk_ipc_crc_check(data, cmd_buf->param2);
 #endif
 
-            if (data->flags & MIPC_CHAN_SEND_FLAG_SYNC)
+            if ((data->flags & MIPC_CHAN_SEND_FLAG_SYNC)
+                && !(data->flags & MIPC_INTERNAL_FLAG_ABANDONED))
             {
                 LOGV("%s set sync sem\n", __func__);
                 bk_err_t ret = rtos_set_semaphore(&data->sem);
@@ -808,6 +926,8 @@ static void bk_ipc_mailbox_rx_isr(void *param, mb_chnl_cmd_t *cmd_buf)
             }
             else
             {
+                /* Async completion, or a late ACK for a sync send whose caller
+                 * already timed out: let the ipc thread reclaim sem+data. */
                 bk_ipc_data_push(&ipc_info->free_list, data);
                 bk_ipc_event_notify(ipc_info, IPC_EVENT_FREE);
             }
@@ -905,17 +1025,31 @@ static void bk_ipc_thread_entry(beken_thread_arg_t param)
                         break;
                     }
 
-                    bk_ipc_handle_t *local_handle = bk_ipc_get_handle_by_name(&ipc_info->channel_list, data->handle->cfg->name);
-
-                    if (local_handle && local_handle->cfg->tx_cb)
+                    if (data->sem)
                     {
-                        ipc_obj_t ipc_obj = (ipc_obj_t)data;
-                        ret = local_handle->cfg->tx_cb(ipc_obj);
+                        /* Abandoned sync object: its caller already gave up and
+                         * already called bk_cpu_sleep_unlock() in bk_ipc_send(),
+                         * so skip tx_cb and the unlock here; just reclaim the
+                         * semaphore (safe in thread context, unlike the RX ISR). */
+                        rtos_deinit_semaphore(&data->sem);
+                        data->sem = NULL;
+                        bk_ipc_data_free(data);
+                        data = NULL;
                     }
+                    else
+                    {
+                        bk_ipc_handle_t *local_handle = bk_ipc_get_handle_by_name(&ipc_info->channel_list, data->handle->cfg->name);
 
-                    os_free(data);
-                    data = NULL;
-                    bk_cpu_sleep_unlock(ipc_info);
+                        if (local_handle && local_handle->cfg->tx_cb)
+                        {
+                            ipc_obj_t ipc_obj = (ipc_obj_t)data;
+                            ret = local_handle->cfg->tx_cb(ipc_obj);
+                        }
+
+                        bk_ipc_data_free(data);
+                        data = NULL;
+                        bk_cpu_sleep_unlock(ipc_info);
+                    }
 
                 }
                 while (true);
@@ -1030,6 +1164,8 @@ bk_ipc_info_t *bk_ipc_core_init(uint8_t channel)
     }
 
     os_memset(ipc_info, 0, sizeof(bk_ipc_info_t));
+
+    bk_ipc_data_pool_init();
 
     ipc_info->state = IPC_MSTATE_IDLE;
     INIT_LIST_HEAD(&ipc_info->channel_list);

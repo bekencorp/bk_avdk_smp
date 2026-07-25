@@ -18,7 +18,27 @@ menu "MAILBOX"
 		help
 			Start a CPU0 echo server on a free server port that echoes payloads
 			back to AP-side stress clients. Pairs with the AP "ipc_stress" CLI.
-    
+
+	config MAILBOX_IPC_DATA_POOL_NUM
+		depends on MAILBOX_IPC
+		int "MAILBOX IPC data object pool size"
+		default 8
+		help
+			Number of pre-allocated bk_ipc_data_t objects served from the IPC
+			send object pool instead of the heap. Sends that exceed the pool
+			temporarily fall back to os_malloc, so raising this only reduces
+			heap traffic under concurrent/burst sends.
+
+	config MAILBOX_IPC_SYNC_TIMEOUT_MS
+		depends on MAILBOX_IPC
+		int "MAILBOX synchronous IPC send timeout (ms)"
+		default 2000
+		help
+			Bounded wait for a synchronous IPC send to receive its ACK from the
+			peer core. On timeout the send returns an error instead of blocking
+			forever; the request object is safely reclaimed if a late ACK
+			arrives. Set smaller for faster caller recovery.
+
     config SLAVE_HEART_BEAT
 		depends on MAILBOX
 		bool "Enable heartbeat mechanism when dual core communication"
