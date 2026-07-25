@@ -5,6 +5,7 @@
 #include "lwip/ping.h"
 #endif
 #include <components/netif.h>
+#include "bk_netif.h"
 #include "cli.h"
 
 

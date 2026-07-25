@@ -1,4 +1,5 @@
 #include <components/netif.h>
+#include "bk_netif.h"
 #include <components/log.h>
 #include <common/bk_err.h>
 #include <os/mem.h>

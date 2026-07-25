@@ -16,6 +16,9 @@
 #include <modules/wifi.h>
 #include <components/netif.h>
 #include <components/event.h>
+#if CONFIG_WIFI_ENABLE
+#include "bk_netif.h"
+#endif
 #include <driver/uart.h>
 #include <string.h>
 #include <modules/pm.h>
