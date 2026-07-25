@@ -713,6 +713,57 @@ static inline bool gpu_flex_current_block_has_padding(const gpu_flex_data_t *dat
     return data->flexa_index == 1 || data->flexa_index == last_block_index;
 }
 
+static inline bool gpu_flex_draw_path_intersects_block(const gpu_flex_data_t *data)
+{
+    const vg_lite_path_t *path = &data->draw_path;
+    const vg_lite_matrix_t *matrix = &data->draw_matrix;
+    vg_lite_float_t x[4] = {
+        path->bounding_box[0],
+        path->bounding_box[2],
+        path->bounding_box[2],
+        path->bounding_box[0],
+    };
+    vg_lite_float_t y[4] = {
+        path->bounding_box[1],
+        path->bounding_box[1],
+        path->bounding_box[3],
+        path->bounding_box[3],
+    };
+    vg_lite_float_t min_x;
+    vg_lite_float_t min_y;
+    vg_lite_float_t max_x;
+    vg_lite_float_t max_y;
+
+    min_x = max_x = matrix->m[0][0] * x[0] + matrix->m[0][1] * y[0] + matrix->m[0][2];
+    min_y = max_y = matrix->m[1][0] * x[0] + matrix->m[1][1] * y[0] + matrix->m[1][2];
+
+    for (uint32_t i = 1; i < 4; i++)
+    {
+        vg_lite_float_t tx = matrix->m[0][0] * x[i] + matrix->m[0][1] * y[i] + matrix->m[0][2];
+        vg_lite_float_t ty = matrix->m[1][0] * x[i] + matrix->m[1][1] * y[i] + matrix->m[1][2];
+
+        if (tx < min_x) min_x = tx;
+        if (tx > max_x) max_x = tx;
+        if (ty < min_y) min_y = ty;
+        if (ty > max_y) max_y = ty;
+    }
+
+    if (path->stroke != NULL)
+    {
+        vg_lite_float_t margin = path->stroke->line_width + 1.0f;
+
+        min_x -= margin;
+        min_y -= margin;
+        max_x += margin;
+        max_y += margin;
+    }
+
+    return (max_x > 0.0f) &&
+           (max_y > 0.0f) &&
+           (min_x < (vg_lite_float_t)data->dst_buf.width) &&
+           (min_y < (vg_lite_float_t)data->dst_buf.height);
+}
+
 static inline void gpu_flex_abort_current_frame(gpu_vn_ctlr_t *gpu_vn_ctlr)
 {
     bool notify_frame_fail = gpu_vn_ctlr->flexa_frame_active;
@@ -1103,23 +1154,25 @@ static bool gpu_flex_process_line_block(gpu_flex_data_t *data,
                  VG_LITE_BLEND_NONE, 0, VG_LITE_FILTER_POINT);
     vg_lite_finish();
 
-    /* Draw face detection rectangles if enabled */
-    rtos_lock_mutex(&data->draw_mutex);
-
+    /* Draw path changes are rare; avoid taking draw_mutex on every block when disabled. */
     if (data->draw_enable)
     {
-        gpu_draw_path_process(&data->draw_matrix, &data->draw_path, &data->dst_buf);
+        rtos_lock_mutex(&data->draw_mutex);
+        if (data->draw_enable && gpu_flex_draw_path_intersects_block(data))
+        {
+            gpu_draw_path_process(&data->draw_matrix, &data->draw_path, &data->dst_buf);
+        }
+        rtos_unlock_mutex(&data->draw_mutex);
     }
+
     if (gpu_flex_frame_abort_needed(data, gpu_vn_ctlr, frame_seq))
     {
         gpu_flex_abort_current_frame(gpu_vn_ctlr);
         GPU_LINE_END();
-        rtos_unlock_mutex(&data->draw_mutex);
         rtos_unlock_mutex(&gpu_vn_ctlr->gpu_mutex);
         return false;
     }
     GPU_LINE_END();
-    rtos_unlock_mutex(&data->draw_mutex);
     rtos_unlock_mutex(&gpu_vn_ctlr->gpu_mutex);
     HPDMA_LINE_START();
     /* Pull out processed line data */
