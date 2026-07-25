@@ -67,7 +67,6 @@ bk_err_t bk_cpu_hp_online_direct(uint32_t cpu_id);
 uint32_t bk_cpu_hp_enter_primary(void);
 void bk_cpu_hp_exit_primary(uint32_t old_core_id);
 
-void bk_cpu_hp_core_online(void);
 void bk_cpu_hp_core_stop_hmb_isr(void);
 void bk_cpu_hp_idle_handler(void);
 
