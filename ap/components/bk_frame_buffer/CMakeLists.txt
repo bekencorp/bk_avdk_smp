@@ -1,12 +1,13 @@
 set(incs include src)
 set(srcs "")
-set(priv_req bk_common)
+set(priv_req bk_common driver)
 
 if (CONFIG_FRAME_BUFFER)
 	list(APPEND srcs
 		src/bk_mem_slab.c
 		src/bk_mem_sram.c
 		src/bk_frame_buffer.c
+		src/bk_frame_queue.c
 	)
 endif()
 
