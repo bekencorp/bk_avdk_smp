@@ -1,0 +1,19 @@
+menu "LE Audio Broadcast Source Configuration"
+
+    config LE_AUDIO_BROADCAST_NAME
+        string "LE Audio device name"
+        default "BK Broadcast Source"
+
+    config LE_AUDIO_SAMPLE_RATE
+        int "LC3 sample rate"
+        default 48000
+
+    config LE_AUDIO_FRAME_US
+        int "LC3 frame duration in us"
+        default 10000
+
+    config LE_AUDIO_FRAME_BYTES
+        int "LC3 frame bytes"
+        default 120
+
+endmenu

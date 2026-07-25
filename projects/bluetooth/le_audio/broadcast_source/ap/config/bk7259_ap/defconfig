@@ -1,0 +1,19 @@
+#
+# LE Audio broadcast source (BIS TX only) AP default config.
+# TX path is software LC3 encode + BLE ISO send, so no local audio playback
+# stack (ADK / audio_play / DAC / media_service) is needed.
+#
+
+# CONFIG_SOC_SMP is not set
+# CONFIG_ALL_CODE_IN_PSRAM is not set
+CONFIG_BLUETOOTH_AP=y
+CONFIG_BT=y
+CONFIG_BLE=y
+CONFIG_BLE_LE_AUDIO=y
+CONFIG_FREERTOS_V10=y
+# CONFIG_FREERTOS_SMP is not set
+CONFIG_FREERTOS_USE_QUEUE_SETS=y
+
+CONFIG_XTAL_FREQ=12000000
+
+CONFIG_BLUETOOTH_BTDM_COMPONENT_ENABLE=y
