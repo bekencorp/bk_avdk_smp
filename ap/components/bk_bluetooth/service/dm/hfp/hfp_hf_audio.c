@@ -9,6 +9,7 @@
 
 #include <driver/aud_dac_types.h>
 #include "audio_play.h"
+#include "spk_service.h"
 #include "audio_record.h"
 #include "components/bluetooth/bk_dm_hfp.h"
 #include "components/log.h"
@@ -31,15 +32,23 @@
 
 #define HF_MIC_THREAD_PRI       BEKEN_DEFAULT_WORKER_PRIORITY-1
 
-#define BT_DAC_DB_MIN                  (-36.0f)
-#define BT_DAC_DB_MAX                  (8.0f)
-#define BT_DAC_DB_SMOOTH_GAMMA         (2.35f)
+/* HFP DAC digital-gain mapping curve. SCO voice source levels are low, so keep a
+ * small positive boost at max volume to make calls loud enough. */
+#define HFP_DAC_DB_MIN                 (-36.0f)
+#define HFP_DAC_DB_MAX                 (8.0f)
+#define HFP_DAC_DB_SMOOTH_GAMMA        (2.35f)
 
 #ifndef BK_AUD_DAC_DIG_GAIN_DB_SILENCE
-#define BK_AUD_DAC_DIG_GAIN_DB_SILENCE    BT_DAC_DB_MIN//(-144.0f)
+#define BK_AUD_DAC_DIG_GAIN_DB_SILENCE (HFP_DAC_DB_MIN)
 #endif
 
 #define HFP_GAIN_MAX 15 //see hfp protocol
+
+/* HFP EQ: DL = speaker, UL = mic. Flags below just pick whether an EQ node is
+ * inserted; the tuned coefficients are project-owned and baked in at create time
+ * (bt_hfp_audio_dl_fill_eq / _ul_fill_eq). Only built with CONFIG_ADK_EQ_ALGORITHM. */
+#define HFP_DL_EQ_ENABLE      1                /* downlink: 0 bypass, 1 insert EQ node */
+#define HFP_UL_EQ_ENABLE      1                /* uplink:   0 bypass, 1 insert EQ node */
 
 /* Speaker reassembly buffer: holds at most one odd trailing byte plus one SCO
  * packet, so audio_play always receives whole 16-bit samples. */
@@ -60,6 +69,18 @@ static beken_semaphore_t hf_mic_speaker_exit_sema = NULL;
 static uint8_t s_hf_spk_buf[HF_SPK_BUF_SIZE];
 static uint16_t s_hf_spk_residual = 0;
 
+/* Last HFP speaker gain (+VGS). The phone may push it before the call audio is
+ * up, so cache it here and re-apply once the CALL source is attached. 0xFF: none. */
+static uint8_t s_pending_hfp_vol = 0xFF;
+
+#if CONFIG_ADK_ONBOARD_SPEAKER_STREAM_SUPPORT_MULTIPLE_SOURCE
+static int hfp_hf_pcm_to_spk(void *user, void *pcm, uint32_t len)
+{
+    (void)user;
+    return spk_service_write(SPK_SERVICE_SRC_CALL, pcm, len);
+}
+#endif
+
 #ifdef CONFIG_AUDIO
 static void mic_task(void *arg);
 static int mic_task_init();
@@ -73,8 +94,8 @@ static float hfp_vol_to_dac_dig_gain_db(uint8_t vol)
 
     {
         float norm = (float)vol / (float)HFP_GAIN_MAX;
-        float shaped = powf(norm, BT_DAC_DB_SMOOTH_GAMMA);
-        return BT_DAC_DB_MIN + (BT_DAC_DB_MAX - BT_DAC_DB_MIN) * shaped;
+        float shaped = powf(norm, HFP_DAC_DB_SMOOTH_GAMMA);
+        return HFP_DAC_DB_MIN + (HFP_DAC_DB_MAX - HFP_DAC_DB_MIN) * shaped;
     }
 }
 
@@ -85,6 +106,12 @@ float hfp_hf_audio_set_gain(uint8_t hfp_vol)
 
     if(s_audio_play_obj)
     {
+#if CONFIG_ADK_ONBOARD_SPEAKER_STREAM_SUPPORT_MULTIPLE_SOURCE
+        /* Persistent-speaker path: master volume on the global digital gain,
+         * mute gated per-source so a concurrent music stream is untouched. */
+        spk_service_set_volume(gain_db);
+        spk_service_set_src_mute(SPK_SERVICE_SRC_CALL, (hfp_vol == 0) ? 1 : 0);
+#else
         audio_play_set_volume(s_audio_play_obj, gain_db);
 
         if (hfp_vol == 0)
@@ -95,10 +122,18 @@ float hfp_hf_audio_set_gain(uint8_t hfp_vol)
         {
             audio_play_control(s_audio_play_obj, AUDIO_PLAY_UNMUTE);
         }
+#endif
     }
     else
     {
+#if CONFIG_ADK_ONBOARD_SPEAKER_STREAM_SUPPORT_MULTIPLE_SOURCE
+        /* Call audio not up yet: remember the gain and apply it on attach so we
+         * don't disturb a concurrently playing music stream's global volume. */
+        s_pending_hfp_vol = hfp_vol;
+        LOGD("%s cache hfp vol %u until call audio starts\n", __func__, hfp_vol);
+#else
         LOGE("%s audio play not enable\n", __func__);
+#endif
     }
 
     return gain_db;
@@ -129,10 +164,51 @@ void hfp_hf_audio_start(uint8_t codec, const uint8_t *peer_addr)
     cfg.dac_source_bitmap = ONBOARD_SPEAKER_STREAM_DAC_SOURCE_CALL_BIT;
     cfg.main_dac_source   = AUD_DAC_SOURCE_CALL;
 
+#if HFP_DL_EQ_ENABLE && CONFIG_ADK_EQ_ALGORITHM
+    {
+        eq_algorithm_cfg_t eq_cfg = DEFAULT_EQ_ALGORITHM_CONFIG();
+        eq_cfg.eq_mode       = EQ_MODE_SOFTWARE;
+        eq_cfg.eq_chl_num    = cfg.nChans;
+        eq_cfg.eq_frame_size = cfg.nChans ? (int)(cfg.frame_size / cfg.nChans) : (int)cfg.frame_size;
+#if CONFIG_AUD_PARAM_CTRL
+        cfg.eq_enable = bt_hfp_audio_dl_fill_eq(&eq_cfg.eq_cal_para, cfg.sampRate);
+#else
+        cfg.eq_enable = 1;
+#endif
+        cfg.eq_cfg    = eq_cfg;
+    }
+#endif
+
+#if CONFIG_ADK_ONBOARD_SPEAKER_STREAM_SUPPORT_MULTIPLE_SOURCE
+    if (BK_OK != spk_service_init())
+    {
+        LOGE("%s spk_service init err\n", __func__);
+        return;
+    }
+    cfg.pcm_sink      = hfp_hf_pcm_to_spk;
+    cfg.pcm_sink_user = NULL;
+    {
+        spk_source_cfg_t scfg =
+        {
+            .src           = SPK_SERVICE_SRC_CALL,
+            .nChans        = cfg.nChans,
+            .sampRate      = cfg.sampRate,
+            .bitsPerSample = cfg.bitsPerSample,
+            .frame_size    = cfg.frame_size,
+            .volume        = cfg.volume,
+        };
+        if (BK_OK != spk_service_attach(&scfg))
+        {
+            LOGE("%s spk_service attach CALL err\n", __func__);
+            return;
+        }
+    }
+#else
     /* The A2DP player and the HFP player share the same DAC, so wait for the
      * A2DP audio path to release it before opening the call player. */
     LOGI("%s wait a2dp task end\n", __func__);
     a2dp_sink_audio_wait_player_end();
+#endif
 
     s_hf_spk_residual = 0;
 
@@ -140,6 +216,9 @@ void hfp_hf_audio_start(uint8_t codec, const uint8_t *peer_addr)
     if(!s_audio_play_obj)
     {
         LOGE("%s create audio play err\n", __func__);
+#if CONFIG_ADK_ONBOARD_SPEAKER_STREAM_SUPPORT_MULTIPLE_SOURCE
+        spk_service_detach(SPK_SERVICE_SRC_CALL);
+#endif
         return;
     }
 
@@ -148,8 +227,24 @@ void hfp_hf_audio_start(uint8_t codec, const uint8_t *peer_addr)
         LOGE("%s open audio play err %d\n", __func__, ret);
         audio_play_destroy(s_audio_play_obj);
         s_audio_play_obj = NULL;
+#if CONFIG_ADK_ONBOARD_SPEAKER_STREAM_SUPPORT_MULTIPLE_SOURCE
+        spk_service_detach(SPK_SERVICE_SRC_CALL);
+#endif
         return;
     }
+
+#if CONFIG_ADK_ONBOARD_SPEAKER_STREAM_SUPPORT_MULTIPLE_SOURCE
+    /* Apply any speaker gain the phone sent before the call audio was ready. */
+    if (s_pending_hfp_vol != 0xFF)
+    {
+        hfp_hf_audio_set_gain(s_pending_hfp_vol);
+        s_pending_hfp_vol = 0xFF;
+    }
+#endif
+
+#if CONFIG_AUD_PARAM_CTRL
+    bt_hfp_audio_dl_bind(s_audio_play_obj, cfg.sampRate);
+#endif
 
     hf_auido_start = 1;
     mic_task_init();
@@ -193,6 +288,9 @@ void hfp_hf_audio_stop(void)
      * write can be in flight here; close it directly. */
     if (s_audio_play_obj)
     {
+#if CONFIG_AUD_PARAM_CTRL
+        bt_hfp_audio_dl_unbind();
+#endif
         bk_err_t ret = audio_play_close(s_audio_play_obj);
         if (ret)
         {
@@ -206,6 +304,10 @@ void hfp_hf_audio_stop(void)
         }
 
         s_audio_play_obj = NULL;
+#if CONFIG_ADK_ONBOARD_SPEAKER_STREAM_SUPPORT_MULTIPLE_SOURCE
+        /* Release the CALL aux source; the shared speaker/DAC stays alive. */
+        spk_service_detach(SPK_SERVICE_SRC_CALL);
+#endif
     }
 #endif
 }
@@ -303,6 +405,21 @@ static void mic_task(void *arg)
     cfg.encoder_type = (CODEC_VOICE_MSBC == bt_audio_hfp_hf_codec) ? AUDIO_RECORD_ENCODER_SBC : AUDIO_RECORD_ENCODER_PCM;
     cfg.ch_bitmap = ONBOARD_MIC_ADC_ACTIVE_CH_0_BIT;
 
+#if HFP_UL_EQ_ENABLE && CONFIG_ADK_EQ_ALGORITHM
+    {
+        eq_algorithm_cfg_t eq_cfg = DEFAULT_EQ_ALGORITHM_CONFIG();
+        eq_cfg.eq_mode       = EQ_MODE_SOFTWARE;
+        eq_cfg.eq_chl_num    = cfg.nChans;
+        eq_cfg.eq_frame_size = cfg.nChans ? (int)(cfg.frame_size / cfg.nChans) : (int)cfg.frame_size;
+#if CONFIG_AUD_PARAM_CTRL
+        cfg.eq_enable = bt_hfp_audio_ul_fill_eq(&eq_cfg.eq_cal_para, cfg.sampRate);
+#else
+        cfg.eq_enable = 1;
+#endif
+        cfg.eq_cfg    = eq_cfg;
+    }
+#endif
+
 #if CONFIG_AUDIO_RECORD
     s_audio_record_obj = audio_record_create(AUDIO_RECORD_ONBOARD_MIC, &cfg);
 
@@ -317,6 +434,9 @@ static void mic_task(void *arg)
         LOGE("%s open audio record err\n", __func__, ret);
         goto end;
     }
+#if CONFIG_AUD_PARAM_CTRL
+    bt_hfp_audio_ul_bind(s_audio_record_obj, cfg.sampRate);
+#endif
 #endif
 
     LOGI("%s init success!! \r\n", __func__);
@@ -379,6 +499,9 @@ static void mic_task(void *arg)
 
 end:
     LOGD("%s exit start!! \r\n", __func__);
+#if CONFIG_AUD_PARAM_CTRL
+    bt_hfp_audio_ul_unbind();
+#endif
 #if CONFIG_AUDIO_RECORD
     ret = audio_record_close(s_audio_record_obj);
     if(ret)

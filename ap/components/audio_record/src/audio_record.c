@@ -20,6 +20,9 @@
 #include <components/bk_audio/audio_streams/raw_stream.h>
 #include <components/bk_audio/audio_streams/onboard_mic_stream_v2.h>
 #include <components/bk_audio/audio_encoders/sbc_enc.h>
+#if CONFIG_ADK_EQ_ALGORITHM
+#include <components/bk_audio/audio_algorithms/eq_algorithm.h>
+#endif
 #include "audio_record.h"
 
 #define AUDIO_RECORD_TAG "aud_rec"
@@ -29,6 +32,9 @@
 typedef struct {
     audio_pipeline_handle_t pipeline;
     audio_element_handle_t mic;
+#if CONFIG_ADK_EQ_ALGORITHM
+    audio_element_handle_t eq;
+#endif
     audio_element_handle_t encoder;
     audio_element_handle_t raw_stream;
     audio_event_iface_handle_t listener_evt;
@@ -165,6 +171,16 @@ bk_err_t audio_record_open(audio_record_t *record)
         BK_LOGE(AUDIO_RECORD_TAG, "%s, encoder init failed type:%d\n", __func__, record->config.encoder_type);
         goto fail;
     }
+
+#if CONFIG_ADK_EQ_ALGORITHM
+    if (record->config.eq_enable) {
+        ctx->eq = eq_algorithm_init(&record->config.eq_cfg);
+        if (!ctx->eq) {
+            BK_LOGE(AUDIO_RECORD_TAG, "%s, eq init failed\n", __func__);
+            goto fail;
+        }
+    }
+#endif
     /*
      * Avoid forever blocking in raw_stream_read().
      * HFP stop path waits thread exit by semaphore, so reader must wake up
@@ -175,18 +191,32 @@ bk_err_t audio_record_open(audio_record_t *record)
     if (BK_OK != audio_pipeline_register(ctx->pipeline, ctx->mic, "mic")) {
         goto fail;
     }
+#if CONFIG_ADK_EQ_ALGORITHM
+    if (ctx->eq && BK_OK != audio_pipeline_register(ctx->pipeline, ctx->eq, "eq")) {
+        goto fail;
+    }
+#endif
     if (ctx->encoder && BK_OK != audio_pipeline_register(ctx->pipeline, ctx->encoder, "encoder")) {
         goto fail;
     }
     if (BK_OK != audio_pipeline_register(ctx->pipeline, ctx->raw_stream, "raw")) {
         goto fail;
     }
-    if (ctx->encoder) {
-        if (BK_OK != audio_pipeline_link(ctx->pipeline, (const char *[]) {"mic", "encoder", "raw"}, 3)) {
-            goto fail;
+    {
+        /* mic -> [eq] -> [encoder] -> raw */
+        const char *link_tag[4];
+        int link_num = 0;
+        link_tag[link_num++] = "mic";
+#if CONFIG_ADK_EQ_ALGORITHM
+        if (ctx->eq) {
+            link_tag[link_num++] = "eq";
         }
-    } else {
-        if (BK_OK != audio_pipeline_link(ctx->pipeline, (const char *[]) {"mic", "raw"}, 2)) {
+#endif
+        if (ctx->encoder) {
+            link_tag[link_num++] = "encoder";
+        }
+        link_tag[link_num++] = "raw";
+        if (BK_OK != audio_pipeline_link(ctx->pipeline, link_tag, link_num)) {
             goto fail;
         }
     }
@@ -238,6 +268,11 @@ fail:
         if (ctx->mic) {
             audio_element_deinit(ctx->mic);
         }
+#if CONFIG_ADK_EQ_ALGORITHM
+        if (ctx->eq) {
+            audio_element_deinit(ctx->eq);
+        }
+#endif
         if (ctx->encoder) {
             audio_element_deinit(ctx->encoder);
         }
@@ -284,6 +319,11 @@ bk_err_t audio_record_close(audio_record_t *record)
     if (ctx->pipeline && ctx->encoder) {
         audio_pipeline_unregister(ctx->pipeline, ctx->encoder);
     }
+#if CONFIG_ADK_EQ_ALGORITHM
+    if (ctx->pipeline && ctx->eq) {
+        audio_pipeline_unregister(ctx->pipeline, ctx->eq);
+    }
+#endif
     if (ctx->pipeline && ctx->mic) {
         audio_pipeline_unregister(ctx->pipeline, ctx->mic);
     }
@@ -294,6 +334,11 @@ bk_err_t audio_record_close(audio_record_t *record)
     if (ctx->mic) {
         audio_element_deinit(ctx->mic);
     }
+#if CONFIG_ADK_EQ_ALGORITHM
+    if (ctx->eq) {
+        audio_element_deinit(ctx->eq);
+    }
+#endif
     if (ctx->encoder) {
         audio_element_deinit(ctx->encoder);
     }
@@ -354,7 +399,7 @@ bk_err_t audio_record_control(audio_record_t *record, audio_record_ctl_t ctl)
     }
 }
 
-bk_err_t audio_play_set_adc_gain(audio_record_t *record, float value)
+bk_err_t audio_record_set_adc_gain(audio_record_t *record, float value)
 {
     if (!record) {
         return BK_FAIL;
@@ -364,4 +409,14 @@ bk_err_t audio_play_set_adc_gain(audio_record_t *record, float value)
     return audio_record_control(record, AUDIO_RECORD_SET_ADC_GAIN);
 }
 
+void *audio_record_get_eq(audio_record_t *record)
+{
+#if CONFIG_ADK_EQ_ALGORITHM
+    audio_record_ctx_t *ctx = record ? (audio_record_ctx_t *)record->record_ctx : NULL;
+    return ctx ? (void *)ctx->eq : NULL;
+#else
+    (void)record;
+    return NULL;
+#endif
+}
 

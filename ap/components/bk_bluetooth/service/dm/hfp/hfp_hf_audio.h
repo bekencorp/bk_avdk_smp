@@ -26,6 +26,25 @@ float hfp_hf_audio_set_gain(uint8_t hfp_vol);
 /* Block until the speaker/mic tasks have fully exited. */
 int32_t hfp_hf_audio_wait_player_end(void);
 
+#if CONFIG_AUD_PARAM_CTRL
+struct audio_play;
+struct audio_record;
+/* Bind/unbind the HFP downlink (speaker) / uplink (mic) to the param-ctrl
+ * framework so the tuning tool can push EQ coefficients into the EQ nodes. */
+void bt_hfp_audio_dl_bind(struct audio_play *play, uint32_t sample_rate);
+void bt_hfp_audio_dl_unbind(void);
+void bt_hfp_audio_ul_bind(struct audio_record *record, uint32_t sample_rate);
+void bt_hfp_audio_ul_unbind(void);
+struct _app_eq_t;
+/* Bake the rate-matched HFP downlink (speaker) / uplink (mic) EQ preset into a
+ * create-time eq_cal_para (call before audio_play_create / audio_record_create):
+ *   - app_eq_en gates whether the preset coefficients are copied in;
+ *   - the return value is the preset .eq_en, used to drive cfg.eq_enable.
+ * The post-open bind still registers the running element with the debug tool. */
+int bt_hfp_audio_dl_fill_eq(struct _app_eq_t *eq_cal_para, uint32_t sample_rate);
+int bt_hfp_audio_ul_fill_eq(struct _app_eq_t *eq_cal_para, uint32_t sample_rate);
+#endif
+
 #ifdef __cplusplus
 }
 #endif

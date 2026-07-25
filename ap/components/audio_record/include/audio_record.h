@@ -21,6 +21,7 @@ extern "C" {
 #endif
 
 #include <components/bk_audio/audio_streams/onboard_mic_stream_v2.h>
+#include <components/bk_audio/audio_algorithms/eq_algorithm.h>
 
 typedef enum
 {
@@ -70,6 +71,8 @@ typedef struct
     uint32_t pool_size;
     audio_record_encoder_t encoder_type; /*!< encoder type, PCM means output is pcm stream */
     uint32_t ch_bitmap;
+    uint8_t eq_enable;                   /*!< insert an EQ node after the mic when non-zero */
+    eq_algorithm_cfg_t eq_cfg;           /*!< EQ node config, only used when eq_enable is set */
 } audio_record_cfg_t;
 
 #define DEFAULT_AUDIO_RECORD_CONFIG() {              \
@@ -83,6 +86,7 @@ typedef struct
     .pool_size  = 640,                               \
     .encoder_type = AUDIO_RECORD_ENCODER_PCM,        \
     .ch_bitmap    = ONBOARD_MIC_ADC_ACTIVE_CH_0_BIT, \
+    .eq_enable    = 0,                               \
 }
 
 typedef struct audio_record audio_record_t;
@@ -196,9 +200,9 @@ bk_err_t audio_record_read_data(audio_record_t *record, char *buffer, uint32_t l
 bk_err_t audio_record_control(audio_record_t *record, audio_record_ctl_t ctl);
 
 /**
- * @brief      Open audio record
+ * @brief      Set the ADC gain of audio record
  *
- * This API open audio record and start record.
+ * This API updates the ADC gain of the audio record and applies it immediately.
  *
  *
  * @param[in] record    The audio record handle
@@ -208,7 +212,14 @@ bk_err_t audio_record_control(audio_record_t *record, audio_record_ctl_t ctl);
  *    - BK_OK: success
  *    - NULL: failed
  */
-bk_err_t audio_play_set_adc_gain(audio_record_t *record, float value);
+bk_err_t audio_record_set_adc_gain(audio_record_t *record, float value);
+
+/**
+ * @brief  Get the EQ audio element of a running audio_record. Returns NULL when
+ *         EQ is disabled or not created. Used by the param-ctrl framework to
+ *         push tuned uplink EQ coefficients.
+ */
+void *audio_record_get_eq(audio_record_t *record);
 
 #ifdef __cplusplus
 }

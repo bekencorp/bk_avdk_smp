@@ -7,6 +7,7 @@
 
 #include "mpeg4_latm_dec.h"
 #include "audio_play.h"
+#include "spk_service.h"
 #include "components/log.h"
 
 #define TAG "bk_a2dp_audio"
@@ -24,10 +25,12 @@
 #define A2DP_SBC_CHANNEL_STEREO       0x02U
 #define A2DP_SBC_CHANNEL_JOINT_STEREO 0x01U
 
-#define BT_DAC_DB_MIN          (-36.0f)
-#define BT_DAC_DB_MAX          (8.0f)
-#define BT_DAC_DB_SMOOTH_GAMMA (2.35f)
-#define AVRCP_GAIN_MAX         (64 - 1)
+/* A2DP DAC digital-gain mapping curve. Music peaks near 0 dBFS, so cap the DAC
+ * digital gain at 0 dB to avoid clipping/distortion at max volume. */
+#define A2DP_DAC_DB_MIN          (-36.0f)
+#define A2DP_DAC_DB_MAX          (0.0f)
+#define A2DP_DAC_DB_SMOOTH_GAMMA (2.35f)
+#define AVRCP_GAIN_MAX           (64 - 1)
 
 #define A2DP_POP_NOISE_SUPPRESS_ENABLE 1
 #if A2DP_POP_NOISE_SUPPRESS_ENABLE
@@ -35,8 +38,13 @@
 #endif
 
 #ifndef BK_AUD_DAC_DIG_GAIN_DB_SILENCE
-#define BK_AUD_DAC_DIG_GAIN_DB_SILENCE (BT_DAC_DB_MIN)
+#define BK_AUD_DAC_DIG_GAIN_DB_SILENCE (A2DP_DAC_DB_MIN)
 #endif
+
+/* A2DP downlink EQ (music). Flag below just picks whether an EQ node is inserted
+ * into the audio_play pipeline; the tuned coefficients are project-owned and baked
+ * in at create time (bt_a2dp_audio_fill_eq). Only built with CONFIG_ADK_EQ_ALGORITHM. */
+#define A2DP_EQ_ENABLE       1                /* 0: bypass EQ, 1: insert EQ node */
 
 typedef enum
 {
@@ -65,6 +73,14 @@ static bk_a2dp_audio_ctx_t s_a2dp_audio =
     .decoder_type = AUDIO_PLAY_DECODER_SBC,
 };
 
+#if CONFIG_ADK_ONBOARD_SPEAKER_STREAM_SUPPORT_MULTIPLE_SOURCE
+static int a2dp_sink_pcm_to_spk(void *user, void *pcm, uint32_t len)
+{
+    (void)user;
+    return spk_service_write(SPK_SERVICE_SRC_A2DP, pcm, len);
+}
+#endif
+
 /* Hook invoked before opening the A2DP audio player. A project that runs an
  * HFP speaker/mic task (e.g. the HFP demo) overrides this strong symbol to wait
  * for that task to tear down first. The weak default is a no-op for projects
@@ -82,8 +98,8 @@ static float a2dp_vol_to_dac_dig_gain_db(uint8_t vol)
     }
 
     float norm = (float)vol / (float)AVRCP_GAIN_MAX;
-    float shaped = powf(norm, BT_DAC_DB_SMOOTH_GAMMA);
-    return BT_DAC_DB_MIN + (BT_DAC_DB_MAX - BT_DAC_DB_MIN) * shaped;
+    float shaped = powf(norm, A2DP_DAC_DB_SMOOTH_GAMMA);
+    return A2DP_DAC_DB_MIN + (A2DP_DAC_DB_MAX - A2DP_DAC_DB_MIN) * shaped;
 }
 
 static float a2dp_sink_audio_apply_gain(uint8_t avrcp_vol, bool unmute)
@@ -93,6 +109,30 @@ static float a2dp_sink_audio_apply_gain(uint8_t avrcp_vol, bool unmute)
     LOGI("a2dp_sink_audio_apply_gain gain: %d, dig_gain_db: %f, unmute: %d\n", gain, dig_gain_db, unmute);
     if(s_audio_play_obj)
     {
+#if CONFIG_ADK_ONBOARD_SPEAKER_STREAM_SUPPORT_MULTIPLE_SOURCE
+        spk_service_set_volume(dig_gain_db);
+
+        if (gain == 0)
+        {
+            spk_service_set_src_mute(SPK_SERVICE_SRC_A2DP, 1);
+        }
+#if A2DP_POP_NOISE_SUPPRESS_ENABLE
+        else if (unmute)
+        {
+            spk_service_set_src_mute(SPK_SERVICE_SRC_A2DP, 0);
+        }
+        else
+        {
+            spk_service_set_src_mute(SPK_SERVICE_SRC_A2DP, 1);
+        }
+#else
+        else
+        {
+            (void)unmute;
+            spk_service_set_src_mute(SPK_SERVICE_SRC_A2DP, 0);
+        }
+#endif
+#else /* single-source legacy path */
         audio_play_set_volume(s_audio_play_obj, dig_gain_db);
 
         if (gain == 0)
@@ -115,6 +155,7 @@ static float a2dp_sink_audio_apply_gain(uint8_t avrcp_vol, bool unmute)
             audio_play_control(s_audio_play_obj, AUDIO_PLAY_UNMUTE);
         }
 #endif
+#endif /* CONFIG_ADK_ONBOARD_SPEAKER_STREAM_SUPPORT_MULTIPLE_SOURCE */
     }
     return dig_gain_db;
 }
@@ -150,9 +191,16 @@ static void a2dp_sink_audio_player_close(void)
 {
     if (s_audio_play_obj)
     {
+#if CONFIG_AUD_PARAM_CTRL
+        bt_a2dp_audio_unbind();
+#endif
         audio_play_close(s_audio_play_obj);
         audio_play_destroy(s_audio_play_obj);
         s_audio_play_obj = NULL;
+#if CONFIG_ADK_ONBOARD_SPEAKER_STREAM_SUPPORT_MULTIPLE_SOURCE
+        /* Release the A2DP main source; the shared speaker/DAC stays alive. */
+        spk_service_detach(SPK_SERVICE_SRC_A2DP);
+#endif
         LOGI("%s audio play closed\n", __func__);
     }
 }
@@ -218,12 +266,56 @@ static bk_a2dp_audio_player_open_result_t a2dp_sink_audio_player_open(uint8_t op
     cfg.decoder_type = decoder_type;
     cfg.dac_source_bitmap = ONBOARD_SPEAKER_STREAM_DAC_SOURCE_A2DP_BIT;
 
+#if A2DP_EQ_ENABLE && CONFIG_ADK_EQ_ALGORITHM
+    {
+        eq_algorithm_cfg_t eq_cfg = DEFAULT_EQ_ALGORITHM_CONFIG();
+        eq_cfg.eq_mode       = EQ_MODE_SOFTWARE;
+        eq_cfg.eq_chl_num    = cfg.nChans;
+        eq_cfg.eq_frame_size = cfg.nChans ? (int)(cfg.frame_size / cfg.nChans) : (int)cfg.frame_size;
+#if CONFIG_AUD_PARAM_CTRL
+        cfg.eq_enable = bt_a2dp_audio_fill_eq(&eq_cfg.eq_cal_para, cfg.sampRate);
+#else
+        cfg.eq_enable = 1;
+#endif
+        cfg.eq_cfg    = eq_cfg;
+    }
+#endif
+
+#if CONFIG_ADK_ONBOARD_SPEAKER_STREAM_SUPPORT_MULTIPLE_SOURCE
+    if (BK_OK != spk_service_init())
+    {
+        LOGE("%s spk_service init err\n", __func__);
+        return BK_A2DP_AUDIO_PLAYER_OPEN_FAILED;
+    }
+    cfg.pcm_sink      = a2dp_sink_pcm_to_spk;
+    cfg.pcm_sink_user = NULL;
+    {
+        spk_source_cfg_t scfg =
+        {
+            .src           = SPK_SERVICE_SRC_A2DP,
+            .nChans        = cfg.nChans,
+            .sampRate      = cfg.sampRate,
+            .bitsPerSample = cfg.bitsPerSample,
+            .frame_size    = cfg.frame_size,
+            .volume        = cfg.volume,
+        };
+        if (BK_OK != spk_service_attach(&scfg))
+        {
+            LOGE("%s spk_service attach A2DP err\n", __func__);
+            return BK_A2DP_AUDIO_PLAYER_OPEN_FAILED;
+        }
+    }
+#else
     wait_hfp_speaker_mic_task_end();
+#endif
 
     s_audio_play_obj = audio_play_create(AUDIO_PLAY_ONBOARD_SPEAKER, &cfg);
     if (!s_audio_play_obj)
     {
         LOGE("%s create audio play err\n", __func__);
+#if CONFIG_ADK_ONBOARD_SPEAKER_STREAM_SUPPORT_MULTIPLE_SOURCE
+        spk_service_detach(SPK_SERVICE_SRC_A2DP);
+#endif
         return BK_A2DP_AUDIO_PLAYER_OPEN_FAILED;
     }
 
@@ -233,8 +325,15 @@ static bk_a2dp_audio_player_open_result_t a2dp_sink_audio_player_open(uint8_t op
         LOGE("%s open audio play err %d\n", __func__, ret);
         audio_play_destroy(s_audio_play_obj);
         s_audio_play_obj = NULL;
+#if CONFIG_ADK_ONBOARD_SPEAKER_STREAM_SUPPORT_MULTIPLE_SOURCE
+        spk_service_detach(SPK_SERVICE_SRC_A2DP);
+#endif
         return BK_A2DP_AUDIO_PLAYER_OPEN_FAILED;
     }
+
+#if CONFIG_AUD_PARAM_CTRL
+    bt_a2dp_audio_bind(s_audio_play_obj, cfg.sampRate);
+#endif
 
 #if A2DP_POP_NOISE_SUPPRESS_ENABLE
     a2dp_sink_audio_apply_gain(avrcp_vol, false);

@@ -67,6 +67,11 @@ int main(void)
 	cli_headset_demo_init();
 #endif
 
+#if CONFIG_AUDIO_PLAY
+	extern int audio_play_cli_init(void);
+	audio_play_cli_init();
+#endif
+
 #if CONFIG_BLE
     //cli_gatt_param_t param = {.rpa = 0, .p_rpa = &param.rpa, .pa = 0, .p_pa = &param.pa};
 

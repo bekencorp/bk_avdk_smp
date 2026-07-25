@@ -34,9 +34,24 @@ if (CONFIG_BT)
 		a2dp_sink_demo_cli.c
 		hfp_hf/hfp_hf_demo.c
 		)
+
+	if (CONFIG_AUD_PARAM_CTRL)
+		list(APPEND incs
+			audio_param
+		)
+		list(APPEND srcs
+			audio_param/bt_audio_param.c
+			audio_param/a2dp_audio_para.c
+			audio_param/hfp_audio_para.c
+			)
+	endif()
 endif()
 
 set(priv_req  bk_init media_service bk_cli audio_play audio_record lwip_intf_v2_1 bk_bluetooth)
+
+if (CONFIG_AUD_PARAM_CTRL)
+    list(APPEND priv_req bk_aud_param_ctrl)
+endif()
 
 if ("${ARMINO_SOC}" STREQUAL "bk7258")
 list(APPEND priv_req)

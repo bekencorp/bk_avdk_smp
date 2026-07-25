@@ -16,4 +16,65 @@ menu "Audio Play"
 		bool "Enable AAC decoder path in audio_play"
 		default y
 
+	config SPK_SERVICE_IDLE_LINGER_MS
+		depends on AUDIO_PLAY && ADK_ONBOARD_SPEAKER_STREAM_SUPPORT_MULTIPLE_SOURCE
+		int "Speaker service idle linger before auto-deinit (ms, 0=stay resident)"
+		default 5000
+		help
+		  When the last playback source (A2DP/CALL/HINT) detaches, the shared
+		  speaker/DAC lingers for this many milliseconds before being torn down.
+		  A non-zero value bridges short gaps (track changes, call->music) so the
+		  DAC is not re-initialised back to back (avoids pop/latency). Set to 0 to
+		  keep the legacy behaviour where the speaker stays resident forever.
+
+	config SPK_SERVICE_DUCK_ENABLE
+		depends on AUDIO_PLAY && ADK_ONBOARD_SPEAKER_STREAM_SUPPORT_MULTIPLE_SOURCE
+		bool "Enable prompt ducking (lower music/voice while a prompt plays)"
+		default y
+		help
+		  While a prompt (HINT) is audible, attenuate the background music/voice
+		  using the DAC per-source (first-stage) pre-mix gains, without touching
+		  the master volume. Ducking is a prompt-only feature: music (A2DP) and
+		  voice (CALL) are mutually exclusive by the app focus policy (a call
+		  pauses music), so they never duck each other. Disable to mix a prompt at
+		  full level over the background.
+
+	config SPK_SERVICE_DUCK_HINT_ON_A2DP_DB
+		depends on SPK_SERVICE_DUCK_ENABLE
+		int "Prompt-over-music duck attenuation (dB, negative)"
+		range -100 0
+		default -12
+		help
+		  How much to lower A2DP music while a prompt plays. 0 = no ducking, more
+		  negative = quieter background. -100 (or lower) fully mutes the music
+		  (register forced to zero) so a prompt effectively silences it. Whole dB.
+
+	config SPK_SERVICE_DUCK_HINT_ON_CALL_DB
+		depends on SPK_SERVICE_DUCK_ENABLE
+		int "Prompt-over-voice duck attenuation (dB, negative)"
+		range -100 0
+		default -6
+		help
+		  How much to lower HFP call voice while a prompt plays. Kept lighter than
+		  music so call intelligibility is preserved. -100 fully mutes the voice.
+		  Whole dB.
+
+	config SPK_SERVICE_DUCK_RAMP_MS
+		depends on SPK_SERVICE_DUCK_ENABLE
+		int "Duck in/out ramp time (ms)"
+		range 0 500
+		default 30
+		help
+		  Duration of the smooth gain ramp when ducking engages/releases, so the
+		  level change does not click. 0 applies the change in a single step.
+
+	config SPK_SERVICE_DUCK_RAMP_STEP_MS
+		depends on SPK_SERVICE_DUCK_ENABLE
+		int "Duck ramp step interval (ms)"
+		range 1 100
+		default 5
+		help
+		  Granularity of the duck ramp: a smaller step is smoother but writes the
+		  gain registers more often over the ramp window.
+
 endmenu

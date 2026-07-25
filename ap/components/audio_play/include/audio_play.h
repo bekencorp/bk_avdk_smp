@@ -21,6 +21,7 @@ extern "C" {
 #endif
 
 #include <components/bk_audio/audio_streams/onboard_speaker_stream_v2.h>
+#include <components/bk_audio/audio_algorithms/eq_algorithm.h>
 #include <driver/aud_dac_types.h>
 
 
@@ -40,6 +41,8 @@ typedef enum
     AUDIO_PLAY_DECODER_SBC,
     AUDIO_PLAY_DECODER_AAC,
     AUDIO_PLAY_DECODER_MSBC,
+    AUDIO_PLAY_DECODER_MP3,
+    AUDIO_PLAY_DECODER_WAV,
 } audio_play_decoder_t;
 
 typedef enum {
@@ -64,6 +67,22 @@ typedef enum
     AUDIO_PLAY_SET_VOLUME,
 } audio_play_ctl_t;
 
+/**
+ * @brief  PCM sink callback for "external sink" mode.
+ *
+ * When set in audio_play_cfg_t, audio_play does NOT create its own onboard
+ * speaker. Instead the pipeline runs raw -> [decoder] -> raw_read and a pump
+ * task delivers each decoded PCM frame to this callback, so the caller can
+ * route it to a shared/persistent speaker (e.g. spk_service).
+ *
+ * @param[in] user    user pointer from audio_play_cfg_t.pcm_sink_user
+ * @param[in] pcm     interleaved PCM buffer
+ * @param[in] len     bytes available in pcm
+ *
+ * @return  number of bytes consumed (normally len), or <0 on fatal error
+ */
+typedef int (*audio_play_pcm_sink_t)(void *user, void *pcm, uint32_t len);
+
 typedef struct
 {
     uint8_t port;                   /*!< select port when connect multiple speaker, default 0 when connect one device */
@@ -77,6 +96,10 @@ typedef struct
     uint32_t                dac_source_bitmap;  /*!< bitmap of active dac source,bit[x]:0:source_x inactive;1:source_x active*/
     aud_dac_source_t        main_dac_source;    /*!< main input source mapped to element->in */
     audio_play_decoder_t    decoder_type;       /*!< decoder type, PCM means input data is pcm stream */
+    uint8_t                 eq_enable;          /*!< insert an EQ node before the speaker when non-zero */
+    eq_algorithm_cfg_t      eq_cfg;             /*!< EQ node config, only used when eq_enable is set */
+    audio_play_pcm_sink_t   pcm_sink;           /*!< non-NULL: external-sink mode, no onboard speaker is created */
+    void                    *pcm_sink_user;     /*!< user pointer passed back to pcm_sink */
 } audio_play_cfg_t;
 
 #define DEFAULT_AUDIO_PLAY_CONFIG() {       \
@@ -91,6 +114,7 @@ typedef struct
     .dac_source_bitmap = DEFAULT_ACTIVE_DAC_SOURCE_BITMAP, \
     .main_dac_source   = DEFAULT_DAC_SOURCE,               \
     .decoder_type = AUDIO_PLAY_DECODER_PCM, \
+    .eq_enable = 0,                         \
 }
 
 typedef struct audio_play audio_play_t;
@@ -189,6 +213,33 @@ bk_err_t audio_play_close(audio_play_t *play);
 bk_err_t audio_play_write_data(audio_play_t *play, char *buffer, uint32_t len);
 
 /**
+ * @brief  Signal end-of-stream to the decode pipeline.
+ *
+ * For a finite in-memory clip (WAV/MP3/...) the caller pushes all encoded bytes
+ * via audio_play_write_data() and then calls this once. It marks the raw source
+ * element's output done so the decoder receives AEL_IO_DONE, flushes its final
+ * frames and stops cleanly instead of looping on input-read timeouts.
+ *
+ * @param[in] play  The audio play handle
+ *
+ * @return BK_OK on success, otherwise error.
+ */
+bk_err_t audio_play_write_eos(audio_play_t *play);
+
+/**
+ * @brief  Query whether the external-sink PCM tail reader hit end-of-stream.
+ *
+ * In external-sink (pcm_sink) mode the pump stops as soon as the decoder has
+ * drained all PCM (AEL_IO_DONE). Callers can poll this to finish promptly
+ * instead of waiting on an idle timeout.
+ *
+ * @param[in] play  The audio play handle
+ *
+ * @return true once all decoded PCM has been delivered, false otherwise.
+ */
+bool audio_play_pcm_ended(audio_play_t *play);
+
+/**
  * @brief      Control audio play
  *
  * This API can control audio play, such as pause, resume and so on.
@@ -217,6 +268,30 @@ bk_err_t audio_play_control(audio_play_t *play, audio_play_ctl_t ctl);
  *    - NULL: failed
  */
 bk_err_t audio_play_set_volume(audio_play_t *play, float volume);
+
+/**
+ * @brief  Get the EQ audio element of a running audio_play (external-sink or
+ *         speaker mode). Returns NULL when EQ is disabled or not created.
+ *         Used by the param-ctrl framework to push tuned EQ coefficients.
+ */
+void *audio_play_get_eq(audio_play_t *play);
+
+/**
+ * @brief  Query the decoded PCM format discovered by the decoder element.
+ *
+ * Only meaningful in external-sink mode with a real decoder (MP3/WAV/...): the
+ * decoder fills its output info once it has parsed the first frame, so this is
+ * intended to be called from the pcm_sink callback (i.e. after the first PCM
+ * frame is produced). Any out pointer may be NULL.
+ *
+ * @param[in]  play      audio play handle
+ * @param[out] sampRate  decoded sample rate in Hz
+ * @param[out] nChans    decoded channel count (1 mono / 2 stereo)
+ * @param[out] bits      decoded bit width
+ *
+ * @return BK_OK if a valid (non-zero rate/channels) format is available.
+ */
+bk_err_t audio_play_get_pcm_info(audio_play_t *play, uint32_t *sampRate, uint8_t *nChans, uint8_t *bits);
 
 #ifdef __cplusplus
 }
