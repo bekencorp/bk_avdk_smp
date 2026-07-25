@@ -561,6 +561,58 @@ __WEAK void usb_dc_low_level_deinit(void)
     sys_drv_usb_clock_ctrl(false, NULL);
 }
 
+#ifdef CONFIG_USBDEV_TEST_MODE
+/* USB 2.0 spec 7.1.20 fixed 53-byte test packet payload. The MUSB core appends
+ * the DATA0 PID + CRC16 and re-sends it continuously once TxPktRdy is set, so
+ * it only has to be loaded into the EP0 FIFO once. */
+static const uint8_t g_musb_test_packet[53] = {
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA,
+    0xAA, 0xEE, 0xEE, 0xEE, 0xEE, 0xEE, 0xEE, 0xEE,
+    0xEE, 0xFE, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x7F, 0xBF, 0xDF,
+    0xEF, 0xF7, 0xFB, 0xFD, 0xFC, 0x7E, 0xBF, 0xDF,
+    0xEF, 0xF7, 0xFB, 0xFD, 0x7E,
+};
+
+/*
+ * Enter a USB 2.0 high-speed test mode in response to a host
+ * SET_FEATURE(TEST_MODE) request. The device core (usbd_core.c) calls this
+ * AFTER the control-transfer status stage has completed. test_mode is the test
+ * selector = HI_BYTE(wIndex) per USB 2.0 spec 9.4.9 Table 9-7:
+ *   1 = Test_J, 2 = Test_K, 3 = Test_SE0_NAK, 4 = Test_Packet
+ *   (5 = Test_Force_Enable is hub-only and not applicable to a device)
+ * These map onto the MUSB TESTMODE register (offset 0x0F):
+ *   D0 Test_SE0_NAK (0x01), D1 Test_J (0x02), D2 Test_K (0x04), D3 Test_Packet (0x08).
+ */
+void usbd_execute_test_mode(uint8_t busid, uint8_t test_mode)
+{
+    (void)busid;
+
+    switch (test_mode) {
+        case 1: /* Test_J */
+            HWREGB(USB_BASE + MUSB_TESTMODE_OFFSET) = 0x02;
+            break;
+        case 2: /* Test_K */
+            HWREGB(USB_BASE + MUSB_TESTMODE_OFFSET) = 0x04;
+            break;
+        case 3: /* Test_SE0_NAK */
+            HWREGB(USB_BASE + MUSB_TESTMODE_OFFSET) = 0x01;
+            break;
+        case 4: /* Test_Packet: load the standard 53-byte packet into the EP0
+                 * FIFO, enter the mode, then set TxPktRdy so the core starts
+                 * (and keeps) transmitting it. */
+            musb_set_active_ep(0);
+            musb_write_packet(0, (uint8_t *)g_musb_test_packet, sizeof(g_musb_test_packet));
+            HWREGB(USB_BASE + MUSB_TESTMODE_OFFSET) = 0x08;
+            HWREGB(USB_BASE + MUSB_IND_TXCSRL_OFFSET) = USB_CSRL0_TXRDY;
+            break;
+        default:
+            break;
+    }
+}
+#endif /* CONFIG_USBDEV_TEST_MODE */
+
 int usb_dc_init(uint8_t busid)
 {
     (void)busid;

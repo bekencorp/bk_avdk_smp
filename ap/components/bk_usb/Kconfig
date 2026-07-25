@@ -40,6 +40,13 @@ menu "Bk_usb"
 			bool "Enable USB Device Mode"
 			default n
 
+		config USB_HSET
+			depends on USB_DEVICE && BK_USB_CHERRYUSB_V1_6
+			bool "Enable USB HSET device mode"
+			default n
+			help
+				Enable USB 2.0 HS test modes via SET_FEATURE(TEST_MODE)
+
 		config TASK_USB_PRIO
 			int "Set Task Usb Prio"
 			range 1 10

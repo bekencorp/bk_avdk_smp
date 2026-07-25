@@ -72,6 +72,22 @@ if (CONFIG_USB)
 			${BK_CHERRYUSB_DIR}/port/beken_musb/usb_dc_beken_musb_mhdrc.c
 		)
 
+		# USB 2.0 device test mode (SET_FEATURE TEST_MODE -> MUSB TESTMODE reg).
+		# CONFIG_USBDEV_TEST_MODE gates the device-core dispatch (usbd_core.c)
+		# and the port implementation
+		# (usb_dc_beken_musb_mhdrc.c::usbd_execute_test_mode). It also needs the
+		# device-side CDC-ACM class driver used by the usb_hset CDC device;
+		# it is pulled in here (rather than via CONFIG_USB_CDC, which would also
+		# require the host usbh_cdc_acm.c that is not shipped in this SDK tree).
+		# Opt-in via CONFIG_USB_HSET; harmless to existing device builds
+		# when off. See ap/components/bk_usb/Kconfig.
+		if (CONFIG_USB_HSET)
+			add_compile_definitions(CONFIG_USBDEV_TEST_MODE)
+			list(APPEND srcs
+				${BK_CHERRYUSB_DIR}/class/cdc/usbd_cdc_acm.c
+			)
+		endif()
+
 		list(APPEND incs
 			${BK_CHERRYUSB_DIR}/demo/beken/usb_device
 		)
