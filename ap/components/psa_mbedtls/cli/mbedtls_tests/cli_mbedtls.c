@@ -48,6 +48,11 @@ static void cli_mbedtls_help(void)
 
 const uint32_t test_len[] = {32, 1024, 4096};
 
+#if CONFIG_MBEDTLS_USE_PSRAM
+#define USE_PSRAM CONFIG_MBEDTLS_USE_PSRAM
+#else
+#define USE_PSRAM 0
+#endif
 static void mbedtls_tls_log_mem_probe(const char *stage)
 {
 #if defined(MBEDTLS_PLATFORM_MEMORY)
@@ -62,7 +67,7 @@ static void mbedtls_tls_log_mem_probe(const char *stage)
 			 stage,
 			 ptr,
 			 probe_len,
-			 (unsigned int)CONFIG_MBEDTLS_USE_PSRAM,
+			 (unsigned int)USE_PSRAM,
 			 (unsigned int)free_before,
 			 (unsigned int)free_after_alloc,
 			 (unsigned int)used_before,
