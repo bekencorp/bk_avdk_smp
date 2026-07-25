@@ -132,7 +132,7 @@ class bk_ram_region:
         #     raise RuntimeError("RAM regions config overlaps")
 
     def _parse_ram_mem_csv(self):
-        csv_contents = self.ram_mem_csv.read_text()
+        csv_contents = self.ram_mem_csv.read_text(encoding="utf-8")
         lines = csv_contents.splitlines()
 
         for line in lines:
