@@ -154,7 +154,7 @@ static void shell_mb_rx_isr(shell_mb_ext_t *mb_ext, mb_chnl_cmd_t *cmd_buf)
 	{
 		user_cmd_t * user_cmd = (user_cmd_t *)cmd_buf;
 
-#if CONFIG_DCACHE
+#if CONFIG_CACHE_MAINTENANCE
 		flush_dcache((void *)user_cmd->buf, user_cmd->len);
 #endif
 
@@ -320,7 +320,7 @@ static bk_err_t write_sync(shell_mb_ext_t *mb_ext, u8 * p_buf, u16 buf_len)
 			while(*buff_busy)
 			{
 				/* wait buffer to be free (*buff_busy == 0). */
-				#if CONFIG_DCACHE
+				#if CONFIG_CACHE_MAINTENANCE
 				flush_dcache((void *)buff_busy, 1);
 				#endif
 			}

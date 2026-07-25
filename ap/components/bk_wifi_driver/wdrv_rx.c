@@ -3,7 +3,7 @@
 #include "wdrv_cntrl.h"
 #include "wdrv_tx.h"
 #include "wdrv_co_list.h"
-#if CONFIG_DCACHE
+#if CONFIG_CACHE_MAINTENANCE
 #include "cache.h"
 #endif
 #if CONFIG_BK_RAW_LINK
@@ -13,7 +13,7 @@
 extern void ethernetif_input(int iface, struct pbuf *p, uint8_t dst_idx);
 void __asm_flush_dcache_range(void* begin, void* end);
 
-#if CONFIG_CONTROLLER_AP_BUFFER_COPY && CONFIG_DCACHE
+#if CONFIG_CONTROLLER_AP_BUFFER_COPY && CONFIG_CACHE_MAINTENANCE
 static void wdrv_flush_rx_header(cpdu_t *cpdu)
 {
     if (cpdu != NULL) {
@@ -113,7 +113,7 @@ void wdrv_rxdata_process(struct pbuf *p)
 {
     struct cpdu_t* cpdu = NULL;
     cpdu = (struct cpdu_t*)(p + 1);
-#if CONFIG_CONTROLLER_AP_BUFFER_COPY && CONFIG_DCACHE
+#if CONFIG_CONTROLLER_AP_BUFFER_COPY && CONFIG_CACHE_MAINTENANCE
     wdrv_flush_rx_pbuf(p);
     cpdu = (struct cpdu_t*)(p + 1);
 #endif
@@ -207,7 +207,7 @@ uint8_t wdrv_recv_buffer(void *param, uint32_t *payload)
     while(head)
     {
         struct cpdu_t * hdr = PTR_FROM_U32(struct cpdu_t,head);
-#if CONFIG_CONTROLLER_AP_BUFFER_COPY && CONFIG_DCACHE
+#if CONFIG_CONTROLLER_AP_BUFFER_COPY && CONFIG_CACHE_MAINTENANCE
         wdrv_flush_rx_header(hdr);
 #endif
         temp_next = hdr->next;

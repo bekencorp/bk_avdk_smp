@@ -2,7 +2,7 @@
 #include "wdrv_ipc.h"
 #include "wdrv_main.h"
 #include "wdrv_cntrl.h"
-#if CONFIG_DCACHE
+#if CONFIG_CACHE_MAINTENANCE
 #include "cache.h"
 #endif
 #if CONFIG_CONTROLLER_AP_BUFFER_COPY
@@ -33,7 +33,7 @@ static void wdrv_flush_pbuf_for_cp(struct pbuf *p)
         }
     }
 
-#if CONFIG_DCACHE
+#if CONFIG_CACHE_MAINTENANCE
     flush_dcache(p, (long)(end - start));
 #endif
 }
@@ -57,11 +57,11 @@ static void wdrv_flush_tx_buffer_for_cp(uint8_t channel, void *head, uint8_t num
             if (bank->num > 1) {
                 bank_len += (bank->num - 1) * sizeof(bank->addr[0]);
             }
-#if CONFIG_DCACHE
+#if CONFIG_CACHE_MAINTENANCE
             flush_dcache(bank, (long)bank_len);
 #endif
         } else {
-#if CONFIG_DCACHE
+#if CONFIG_CACHE_MAINTENANCE
             flush_dcache(cpdu, cpdu->co_hdr.length);
 #endif
         }
@@ -79,7 +79,7 @@ static void wdrv_flush_tx_buffer_for_cp(uint8_t channel, void *head, uint8_t num
             struct pbuf *p = ((struct pbuf *)cpdu) - 1;
             wdrv_flush_pbuf_for_cp(p);
         } else {
-#if CONFIG_DCACHE
+#if CONFIG_CACHE_MAINTENANCE
             flush_dcache(cpdu, cpdu->co_hdr.length + sizeof(struct ctrl_cmd_hdr));
 #endif
         }

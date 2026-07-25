@@ -7,7 +7,7 @@
 #include "usbh_core.h"
 #include "usbh_msc.h"
 
-#ifdef CONFIG_DCACHE
+#if CONFIG_CACHE_MAINTENANCE
 #ifndef CONFIG_USB_DCACHE_ENABLE
 #error CONFIG_USB_DCACHE_ENABLE must be enabled to use msc disk
 #endif
@@ -40,7 +40,7 @@ static int disk_msc_access_read(struct disk_info *disk, uint8_t *buff,
     uint8_t *align_buf;
 
     align_buf = (uint8_t *)buff;
-#ifdef CONFIG_DCACHE
+#if CONFIG_CACHE_MAINTENANCE
     if ((uint32_t)buff & (CONFIG_USB_ALIGN_SIZE - 1)) {
         align_buf = (uint8_t *)k_aligned_alloc(CONFIG_USB_ALIGN_SIZE, count * active_msc_class->blocksize);
         if (!align_buf) {
@@ -54,7 +54,7 @@ static int disk_msc_access_read(struct disk_info *disk, uint8_t *buff,
     } else {
         ret = 0;
     }
-#ifdef CONFIG_DCACHE
+#if CONFIG_CACHE_MAINTENANCE
     if ((uint32_t)buff & (CONFIG_USB_ALIGN_SIZE - 1)) {
         usb_memcpy(buff, align_buf, count * active_msc_class->blocksize);
         k_free(align_buf);
@@ -70,7 +70,7 @@ static int disk_msc_access_write(struct disk_info *disk, const uint8_t *buff,
     uint8_t *align_buf;
 
     align_buf = (uint8_t *)buff;
-#ifdef CONFIG_DCACHE
+#if CONFIG_CACHE_MAINTENANCE
     if ((uint32_t)buff & (CONFIG_USB_ALIGN_SIZE - 1)) {
         align_buf = (uint8_t *)k_aligned_alloc(CONFIG_USB_ALIGN_SIZE, count * active_msc_class->blocksize);
         if (!align_buf) {
@@ -85,7 +85,7 @@ static int disk_msc_access_write(struct disk_info *disk, const uint8_t *buff,
     } else {
         ret = 0;
     }
-#ifdef CONFIG_DCACHE
+#if CONFIG_CACHE_MAINTENANCE
     if ((uint32_t)buff & (CONFIG_USB_ALIGN_SIZE - 1)) {
         k_free(align_buf);
     }

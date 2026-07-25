@@ -83,7 +83,7 @@ static void shell_ipc_rx_isr(shell_ipc_ext_t *ipc_ext, mb_chnl_cmd_t *cmd_buf)
 		{
 			log_cmd_t * log_cmd = (log_cmd_t *)cmd_buf;
 
-#if CONFIG_DCACHE
+#if CONFIG_CACHE_MAINTENANCE
 			flush_dcache((void *)log_cmd->buf, log_cmd->len);
 #endif
 
@@ -96,7 +96,7 @@ static void shell_ipc_rx_isr(shell_ipc_ext_t *ipc_ext, mb_chnl_cmd_t *cmd_buf)
 		{
 			log_cmd_t * log_cmd = (log_cmd_t *)cmd_buf;
 
-#if CONFIG_DCACHE
+#if CONFIG_CACHE_MAINTENANCE
 			flush_dcache((void *)log_cmd->buf, log_cmd->len);
 #endif
 			log_cmd_t    new_log_cmd_buf;

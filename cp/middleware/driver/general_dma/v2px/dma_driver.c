@@ -375,7 +375,7 @@ bk_err_t bk_dma_init(dma_id_t id, const dma_config_t *config)
     DMA_RETURN_ON_INVALID_ADDR(config->dst.start_addr, config->dst.end_addr);
     DMA_LOG_ON_ID_IS_STARTED(dma_num,dma_channel);
 
-#if CONFIG_DCACHE
+#if CONFIG_CACHE_MAINTENANCE
     arch_dcache_flush_and_invd_range((void *)config->src.start_addr, config->src.end_addr - config->src.start_addr);
     arch_dcache_flush_and_invd_range((void *)config->dst.start_addr, config->dst.end_addr - config->dst.start_addr);
 #endif
@@ -1082,7 +1082,7 @@ bk_err_t bk_dma_stateless_judgment_configuration(void *out, const void *in, uint
 
     /* init */
     s_dma[dma_num].id_init_bits |= BIT(dma_channel);
-#if CONFIG_DCACHE
+#if CONFIG_CACHE_MAINTENANCE
     arch_dcache_flush_and_invd_range((void *)dma_config.src.start_addr, dma_config.src.end_addr - dma_config.src.start_addr);
     arch_dcache_flush_and_invd_range((void *)dma_config.dst.start_addr, dma_config.dst.end_addr - dma_config.dst.start_addr);
 #endif
@@ -1163,7 +1163,7 @@ bk_err_t dma_memcpy(void *out, const void *in, uint32_t len)
 
     ret = dma_memcpy_by_chnl(out, in, len, cpy_chnl);
 
-#if CONFIG_DCACHE
+#if CONFIG_CACHE_MAINTENANCE
     flush_all_dcache();
 #endif
     bk_dma_free(DMA_DEV_DTCM, cpy_chnl);
@@ -1191,7 +1191,7 @@ static void dma_isr_common(dma_unit_t dma_unit_id)
             }
         }
         if (dma_hal_is_finish_interrupt_triggered(hal, id)) {
-#if CONFIG_DCACHE
+#if CONFIG_CACHE_MAINTENANCE
             flush_all_dcache();
 #endif
             DMA_LOGV("dma_isr ALL FINISH TRIGGERED! id: %d\r\n", id);

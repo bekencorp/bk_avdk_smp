@@ -15,7 +15,7 @@
 #include <modules/pm.h>
 #include "sdkconfig.h"
 #include <driver/pwr_clk.h>
-#if CONFIG_DCACHE
+#if CONFIG_CACHE_MAINTENANCE
 #include "cache.h"
 #endif
 #include <components/ate.h>
@@ -427,7 +427,7 @@ void set_printf_uart_port(char *pcWriteBuffer, int xWriteBufferLen, int argc, ch
 	BK_LOGD(NULL, "uart_port end.\r\n");
 }
 
-#if CONFIG_DCACHE
+#if CONFIG_CACHE_MAINTENANCE
 static void prvBUS(void) {
 	union {
 		char a[10];
@@ -754,7 +754,7 @@ static const struct cli_command s_misc_commands[] = {
 	{"mac", "mac [mac], get/set mac. e.g. mac c89346000001", mac_command},
 
 	{"cputest", "cputest [count]", cli_cpu_test},
-#if CONFIG_DCACHE
+#if CONFIG_CACHE_MAINTENANCE
 	{"cache", "cache {mode|flush [addr] [size]}", cli_cache_cmd},
 #endif
 

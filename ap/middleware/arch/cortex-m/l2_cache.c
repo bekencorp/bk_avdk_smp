@@ -360,36 +360,62 @@ int32_t l1_cache_clean_invalidate_range(cache_type_t type,
 
 int32_t cache_clean_all(cache_type_t type, l2c_op_type_t operation)
 {
-    int32_t ret;
-    
-    /* Clean L1 cache first */
-    ret = l1_cache_clean_all(type);
-    if (ret != 0) {
-        return ret;
+    int32_t ret = 0;
+
+    if (type != CACHE_TYPE_DCACHE) {
+        return -1;
     }
+
+#if CONFIG_DCACHE
+    {
+        ret = l1_cache_clean_all(type);
+        if (ret != 0) {
+            return ret;
+        }
+    }
+#endif
     
-    /* Then clean L2 cache */
+#if CONFIG_L2_CACHE_ENABLE
     if (operation == L2C_OP_CLEAN || operation == L2C_OP_CLEAN_INVALID) {
         ret = l2_cache_maintain_all(operation);
     }
+#else
+    (void)operation;
+#endif
     
     return ret;
 }
 
 int32_t cache_invalidate_all(cache_type_t type, l2c_op_type_t operation)
 {
-    int32_t ret;
-    
-    /* Invalidate L1 cache first */
-    ret = l1_cache_invalidate_all(type);
-    if (ret != 0) {
-        return ret;
+    int32_t ret = 0;
+    bool maintain_l1 = false;
+
+    if ((type != CACHE_TYPE_ICACHE) && (type != CACHE_TYPE_DCACHE)) {
+        return -1;
+    }
+
+#if CONFIG_ICACHE
+    maintain_l1 = maintain_l1 || (type == CACHE_TYPE_ICACHE);
+#endif
+#if CONFIG_DCACHE
+    maintain_l1 = maintain_l1 || (type == CACHE_TYPE_DCACHE);
+#endif
+
+    if (maintain_l1) {
+        ret = l1_cache_invalidate_all(type);
+        if (ret != 0) {
+            return ret;
+        }
     }
     
-    /* Then invalidate L2 cache */
+#if CONFIG_L2_CACHE_ENABLE
     if (operation == L2C_OP_INVALID || operation == L2C_OP_CLEAN_INVALID) {
         ret = l2_cache_maintain_all(operation);
     }
+#else
+    (void)operation;
+#endif
     
     return ret;
 }
@@ -397,16 +423,26 @@ int32_t cache_invalidate_all(cache_type_t type, l2c_op_type_t operation)
 int32_t cache_clean_invalidate_all(cache_type_t type,
                                     l2c_op_type_t operation)
 {
-    int32_t ret;
-    
-    /* Clean and invalidate L1 cache first */
-    ret = l1_cache_clean_invalidate_all(type);
-    if (ret != 0) {
-        return ret;
+    int32_t ret = 0;
+
+    if (type != CACHE_TYPE_DCACHE) {
+        return -1;
     }
+
+#if CONFIG_DCACHE
+    {
+        ret = l1_cache_clean_invalidate_all(type);
+        if (ret != 0) {
+            return ret;
+        }
+    }
+#endif
     
-    /* Then clean and invalidate L2 cache */
+#if CONFIG_L2_CACHE_ENABLE
     ret = l2_cache_maintain_all(operation);
+#else
+    (void)operation;
+#endif
     
     return ret;
 }
@@ -416,19 +452,30 @@ int32_t cache_clean_range(cache_type_t type,
                           uint32_t start_addr,
                           uint32_t size)
 {
-    int32_t ret;
+    int32_t ret = 0;
     uint32_t end_addr = start_addr + size;
-    
-    /* Clean L1 cache first */
-    ret = l1_cache_clean_range(type, start_addr, size);
-    if (ret != 0) {
-        return ret;
+
+    if (type != CACHE_TYPE_DCACHE) {
+        return -1;
     }
+
+#if CONFIG_DCACHE
+    {
+        ret = l1_cache_clean_range(type, start_addr, size);
+        if (ret != 0) {
+            return ret;
+        }
+    }
+#endif
     
-    /* Then clean L2 cache */
+#if CONFIG_L2_CACHE_ENABLE
     if (operation == L2C_OP_CLEAN || operation == L2C_OP_CLEAN_INVALID) {
         ret = l2_cache_maintain_range(operation, start_addr, end_addr);
     }
+#else
+    (void)operation;
+    (void)end_addr;
+#endif
     
     return ret;
 }
@@ -438,19 +485,36 @@ int32_t cache_invalidate_range(cache_type_t type,
                                 uint32_t start_addr,
                                 uint32_t size)
 {
-    int32_t ret;
+    int32_t ret = 0;
     uint32_t end_addr = start_addr + size;
-    
-    /* Invalidate L1 cache first */
-    ret = l1_cache_invalidate_range(type, start_addr, size);
-    if (ret != 0) {
-        return ret;
+    bool maintain_l1 = false;
+
+    if ((type != CACHE_TYPE_ICACHE) && (type != CACHE_TYPE_DCACHE)) {
+        return -1;
+    }
+
+#if CONFIG_ICACHE
+    maintain_l1 = maintain_l1 || (type == CACHE_TYPE_ICACHE);
+#endif
+#if CONFIG_DCACHE
+    maintain_l1 = maintain_l1 || (type == CACHE_TYPE_DCACHE);
+#endif
+
+    if (maintain_l1) {
+        ret = l1_cache_invalidate_range(type, start_addr, size);
+        if (ret != 0) {
+            return ret;
+        }
     }
     
-    /* Then invalidate L2 cache */
+#if CONFIG_L2_CACHE_ENABLE
     if (operation == L2C_OP_INVALID || operation == L2C_OP_CLEAN_INVALID) {
         ret = l2_cache_maintain_range(operation, start_addr, end_addr);
     }
+#else
+    (void)operation;
+    (void)end_addr;
+#endif
     
     return ret;
 }
@@ -460,17 +524,28 @@ int32_t cache_clean_invalidate_range(cache_type_t type,
                                       uint32_t start_addr,
                                       uint32_t size)
 {
-    int32_t ret;
+    int32_t ret = 0;
     uint32_t end_addr = start_addr + size;
-    
-    /* Clean and invalidate L1 cache first */
-    ret = l1_cache_clean_invalidate_range(type, start_addr, size);
-    if (ret != 0) {
-        return ret;
+
+    if (type != CACHE_TYPE_DCACHE) {
+        return -1;
     }
+
+#if CONFIG_DCACHE
+    {
+        ret = l1_cache_clean_invalidate_range(type, start_addr, size);
+        if (ret != 0) {
+            return ret;
+        }
+    }
+#endif
     
-    /* Then clean and invalidate L2 cache */
+#if CONFIG_L2_CACHE_ENABLE
     ret = l2_cache_maintain_range(operation, start_addr, end_addr);
+#else
+    (void)operation;
+    (void)end_addr;
+#endif
     
     return ret;
 }

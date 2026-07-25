@@ -207,7 +207,7 @@ static bk_err_t multicore_hal_m55_core_copy_code_and_data(uint32_t boot_addr, bo
 		}
 	}
 
-#if CONFIG_DCACHE
+#if CONFIG_CACHE_MAINTENANCE
 	flush_all_dcache();
 #endif
 

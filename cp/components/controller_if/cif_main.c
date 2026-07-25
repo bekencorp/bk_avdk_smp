@@ -1,6 +1,6 @@
 #include "cif_main.h"
 #include "cif_ipc.h"
-#if CONFIG_DCACHE
+#if CONFIG_CACHE_MAINTENANCE
 #include "cache.h"
 #endif
 #if CONFIG_SOC_SMP
@@ -33,7 +33,7 @@ __IRAM_SEC void cif_stats_exit_critical(uint32_t flags)
 extern void stack_mem_dump(uint32_t stack_top, uint32_t stack_bottom);
 extern bk_err_t cif_free_rxdata(struct common_header* co_hdr);
 
-#if CONFIG_CONTROLLER_AP_BUFFER_COPY && CONFIG_DCACHE
+#if CONFIG_CONTROLLER_AP_BUFFER_COPY && CONFIG_CACHE_MAINTENANCE
 static void cif_flush_pbuf_for_ap(struct pbuf *p)
 {
     uint32_t start;
@@ -346,7 +346,7 @@ __IRAM2 bk_err_t cif_rxdata_pre_process(uint8_t channel,void* head,uint8_t need_
 
     CIF_LOGV("%s,%d,p:0x%x,p:0x%x,num:%d\n",__func__,__LINE__,(struct pbuf*)first-1,(struct pbuf*)last-1,num);
 
-#if CONFIG_CONTROLLER_AP_BUFFER_COPY && CONFIG_DCACHE
+#if CONFIG_CONTROLLER_AP_BUFFER_COPY && CONFIG_CACHE_MAINTENANCE
     cif_flush_rx_buffer_for_ap(channel, first, num);
 #endif
 

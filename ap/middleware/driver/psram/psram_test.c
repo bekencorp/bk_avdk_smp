@@ -1214,7 +1214,7 @@ static uint32_t test_frame_strip(uint8_t *src, uint32_t size)
 			src[size - 8], src[size - 7], src[size - 6], src[size - 5],
 			src[size - 4], src[size - 3], src[size - 2], src[size - 1], src, size);
 
-#if (CONFIG_DCACHE)
+#if (CONFIG_CACHE_MAINTENANCE)
 		arch_dcache_flush_and_invd_range(src, 16);
 #endif
 
@@ -1380,7 +1380,7 @@ static void psram_wt_verify_task_main(void *arg)
 		uint32_t mismatch = 0;
 		uint32_t err_count = 0;
 
-#if (CONFIG_DCACHE)
+#if (CONFIG_CACHE_MAINTENANCE)
 		arch_dcache_flush_and_invd_range((uint8_t *)start_addr, total_size);
 #endif
 		for (i = 0; i < size_a / 4; i++)
@@ -1407,7 +1407,7 @@ static void psram_wt_verify_task_main(void *arg)
 			break;
 		}
 
-#if (CONFIG_DCACHE)
+#if (CONFIG_CACHE_MAINTENANCE)
 		arch_dcache_invd_range((uint8_t *)(start_addr + size_a), size_a);
 #endif
 		for (i = 0; i < size_a / 4; i++) {
@@ -1816,7 +1816,7 @@ static void cli_psram_cmd_handle_ext(char *pcWriteBuffer, int xWriteBufferLen, i
 		}
 		else
 		{
-#if (CONFIG_DCACHE)
+#if (CONFIG_CACHE_MAINTENANCE)
 			arch_dcache_flush_and_invd_range((uint8_t *)addr, length);
 #endif
 			msg = CLI_CMD_RSP_SUCCEED;

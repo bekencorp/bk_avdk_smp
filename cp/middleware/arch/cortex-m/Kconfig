@@ -78,13 +78,17 @@ menu "Arch::Cm"
 			bool "Enable Dcache"
 			default y
 			help
-				Enable data cache
+				Enable the core-local L1 data cache for the selected Cortex-M
+				core. This does not control the shared L2 cache; use
+				L2_CACHE_ENABLE for L2. Keep this aligned with
+				MPU/cacheable-memory settings.
 
 		config ICACHE
 			bool "Enable Icache"
 			default y
 			help
-				Enable code cache
+				Enable the core-local L1 instruction cache for the selected
+				Cortex-M core. This does not control the shared L2 cache.
 			
 		config SUPPORT_CACHEABLE_SRAM
             depends on MPU && DCACHE
@@ -100,6 +104,15 @@ menu "Arch::Cm"
 		config L2_CACHE_ENABLE
 			bool "Enable l2 Cache"
 			default n
+
+		config CACHE_MAINTENANCE
+			bool
+			default y if DCACHE || L2_CACHE_ENABLE
+			default n
+			help
+				Enable cache maintenance APIs when any data cache level is
+				present. This keeps L2-only configurations able to clean or
+				invalidate shared buffers even when L1 DCache is disabled.
 
 		config HEAP_IN_CACHE
 			depends on SUPPORT_CACHEABLE_SRAM

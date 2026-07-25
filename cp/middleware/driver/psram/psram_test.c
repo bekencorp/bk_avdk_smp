@@ -1224,7 +1224,7 @@ static uint32_t test_frame_strip(uint8_t *src, uint32_t size)
 			src[size - 8], src[size - 7], src[size - 6], src[size - 5],
 			src[size - 4], src[size - 3], src[size - 2], src[size - 1], src, size);
 
-#if (CONFIG_DCACHE)
+#if (CONFIG_CACHE_MAINTENANCE)
 		arch_dcache_flush_and_invd_range(src, 16);
 #endif
 
@@ -1855,7 +1855,7 @@ static void cli_psram_cmd_handle_ext(char *pcWriteBuffer, int xWriteBufferLen, i
 		}
 		else
 		{
-#if (CONFIG_DCACHE)
+#if (CONFIG_CACHE_MAINTENANCE)
 			arch_dcache_flush_and_invd_range((uint8_t *)addr, length);
 #endif
 			msg = CLI_CMD_RSP_SUCCEED;

@@ -770,7 +770,7 @@ void bk_cpu_hp_idle_handler(void)
 		AP_HOTPLUG_NVIC_ICPR_BASE[i] = 0xffffffff;
 	}
 
-#if CONFIG_DCACHE
+#if CONFIG_CACHE_MAINTENANCE
 	flush_all_dcache();
 #endif
 	vTaskHotplugClearCurrentTCB(SMP_CORE1_ID);

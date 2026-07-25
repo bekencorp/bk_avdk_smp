@@ -33,7 +33,7 @@ void arch_dcache_enable(void)
 {
 #if CONFIG_L2_CACHE_ENABLE
 	l1_cache_enable(CACHE_TYPE_DCACHE, true);
-#else
+#elif CONFIG_DCACHE
 	SCB_EnableDCache();
 #endif
 }
@@ -42,7 +42,7 @@ void arch_dcache_disable(void)
 {
 #if CONFIG_L2_CACHE_ENABLE
 	l1_cache_enable(CACHE_TYPE_DCACHE, false);
-#else
+#elif CONFIG_DCACHE
 	SCB_DisableDCache();
 #endif
 }
@@ -52,8 +52,10 @@ int arch_dcache_flush_all(void)
 #if CONFIG_L2_CACHE_ENABLE
 	/* Clean L1 then L2 cache */
 	return cache_clean_all(CACHE_TYPE_DCACHE, L2C_OP_CLEAN);
-#else
+#elif CONFIG_DCACHE
 	SCB_CleanDCache();
+	return 0;
+#else
 	return 0;
 #endif
 }
@@ -63,26 +65,26 @@ int arch_dcache_invd_all(void)
 #if CONFIG_L2_CACHE_ENABLE
 	/* Invalidate L1 then L2 cache */
 	return cache_invalidate_all(CACHE_TYPE_DCACHE, L2C_OP_INVALID);
-#else
+#elif CONFIG_DCACHE
 	SCB_InvalidateDCache();
+	return 0;
+#else
 	return 0;
 #endif
 }
 
 int arch_dcache_flush_and_invd_all(void)
 {
-#if defined(__DCACHE_PRESENT) && (__DCACHE_PRESENT == 1U)
+#if CONFIG_L2_CACHE_ENABLE
+	/* Clean and invalidate L1 then L2 cache */
+	return cache_clean_invalidate_all(CACHE_TYPE_DCACHE, L2C_OP_CLEAN_INVALID);
+#elif CONFIG_DCACHE && defined(__DCACHE_PRESENT) && (__DCACHE_PRESENT == 1U)
 	/* Check if DCache is present and enabled */
 	/* CLIDR bit[1] indicates DCache presence, CCR bit[16] indicates DCache enable */
 	if (SCB->CLIDR & (1UL << 1U)) {
 		if (SCB->CCR & (1UL << 16U)) {
-#if CONFIG_L2_CACHE_ENABLE
-			/* Clean and invalidate L1 then L2 cache */
-			return cache_clean_invalidate_all(CACHE_TYPE_DCACHE, L2C_OP_CLEAN_INVALID);
-#else
 			SCB_CleanInvalidateDCache();
 			return 0;
-#endif
 		}
 	}
 #endif
@@ -95,8 +97,12 @@ int arch_dcache_flush_range(void *start_addr, size_t size)
 	/* Clean L1 then L2 cache by range */
 	return cache_clean_range(CACHE_TYPE_DCACHE, L2C_OP_CLEAN,
 	                         (uint32_t)start_addr, size);
-#else
+#elif CONFIG_DCACHE
 	SCB_CleanDCache_by_Addr(start_addr, size);
+	return 0;
+#else
+	ARG_UNUSED(start_addr);
+	ARG_UNUSED(size);
 	return 0;
 #endif
 }
@@ -107,8 +113,12 @@ int arch_dcache_invd_range(void *start_addr, size_t size)
 	/* Invalidate L1 then L2 cache by range */
 	return cache_invalidate_range(CACHE_TYPE_DCACHE, L2C_OP_INVALID,
 	                              (uint32_t)start_addr, size);
-#else
+#elif CONFIG_DCACHE
 	SCB_InvalidateDCache_by_Addr(start_addr, size);
+	return 0;
+#else
+	ARG_UNUSED(start_addr);
+	ARG_UNUSED(size);
 	return 0;
 #endif
 }
@@ -119,8 +129,12 @@ int arch_dcache_flush_and_invd_range(void *start_addr, size_t size)
 	/* Clean and invalidate L1 then L2 cache by range */
 	return cache_clean_invalidate_range(CACHE_TYPE_DCACHE, L2C_OP_CLEAN_INVALID,
 	                                    (uint32_t)start_addr, size);
-#else
+#elif CONFIG_DCACHE
 	SCB_CleanInvalidateDCache_by_Addr(start_addr, size);
+	return 0;
+#else
+	ARG_UNUSED(start_addr);
+	ARG_UNUSED(size);
 	return 0;
 #endif
 }
@@ -129,7 +143,7 @@ void arch_icache_enable(void)
 {
 #if CONFIG_L2_CACHE_ENABLE
 	l1_cache_enable(CACHE_TYPE_ICACHE, true);
-#else
+#elif CONFIG_ICACHE
 	SCB_EnableICache();
 #endif
 }
@@ -138,7 +152,7 @@ void arch_icache_disable(void)
 {
 #if CONFIG_L2_CACHE_ENABLE
 	l1_cache_enable(CACHE_TYPE_ICACHE, false);
-#else
+#elif CONFIG_ICACHE
 	SCB_DisableICache();
 #endif
 }
@@ -154,8 +168,10 @@ int arch_icache_invd_all(void)
 #if CONFIG_L2_CACHE_ENABLE
 	/* Invalidate L1 then L2 cache */
 	return cache_invalidate_all(CACHE_TYPE_ICACHE, L2C_OP_INVALID);
-#else
+#elif CONFIG_ICACHE
 	SCB_InvalidateICache();
+	return 0;
+#else
 	return 0;
 #endif
 }
@@ -181,8 +197,12 @@ int arch_icache_invd_range(void *start_addr, size_t size)
 	/* Invalidate L1 then L2 cache by range */
 	return cache_invalidate_range(CACHE_TYPE_ICACHE, L2C_OP_INVALID,
 	                              (uint32_t)start_addr, size);
-#else
+#elif CONFIG_ICACHE
 	SCB_InvalidateICache_by_Addr(start_addr, size);
+	return 0;
+#else
+	ARG_UNUSED(start_addr);
+	ARG_UNUSED(size);
 	return 0;
 #endif
 }

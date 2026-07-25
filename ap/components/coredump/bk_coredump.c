@@ -261,7 +261,7 @@ static COREDUMP_IRAM void coredump_check_psram_code(void)
         return;
     }
 
-#if CONFIG_DCACHE
+#if CONFIG_CACHE_MAINTENANCE
     arch_dcache_flush_and_invd_range((void *)info.run_addr, info.size);
     __DSB();
     BK_DUMP_OUT("AP_PSRAM_CODE compare after dcache clean-invalidate, run=0x%08lx, load=0x%08lx, size=0x%08lx\r\n",
@@ -308,7 +308,7 @@ static COREDUMP_IRAM void coredump_check_psram_code(void)
 
 static COREDUMP_IRAM void coredump_flush_for_cp_dump(void)
 {
-#if CONFIG_DCACHE
+#if CONFIG_CACHE_MAINTENANCE
     arch_dcache_flush_all();
     __DSB();
     BK_DUMP_OUT("AP coredump dcache flushed before CP RAM dump\r\n");
