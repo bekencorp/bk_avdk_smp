@@ -7,6 +7,7 @@
 #include <../../lwip_intf_v2_1/lwip-2.1.2/port/net.h>
 #endif
 #include <components/netif.h>
+#include "bk_netif.h"
 #include "cli.h"
 
 

@@ -108,6 +108,7 @@ extern bk_err_t bk_dbg_init(void);
 // #endif
 #if CONFIG_WIFI_VNET_CONTROLLER
 #include "wifi_api.h"
+#include "bk_netif.h"
 #endif
 
 void rtos_user_app_launch_over(void);
