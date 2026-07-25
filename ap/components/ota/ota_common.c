@@ -21,14 +21,13 @@
 #define FLASH_DEFAULT_VALUE               (0xFFFFFFFF)
 
 /* AON PMU trial reboot counter, shared with the bootloader (driver_ab.c): the
- * count lives in the reset_count field bits[23:20] (written via PMU_REG0, read
- * back from PMU_REG7A). The bootloader increments it on every TRIAL boot and
- * rolls back once it reaches try_max; clearing it here on a successful confirm
- * gives each new OTA a full trial budget again (otherwise consecutive OTAs
- * without an intervening cold/NORMAL boot would accumulate the count and
- * spuriously roll back). */
-#define AB_PMU_REBOOT_CNT_BIT             (20)
-#define AB_PMU_REBOOT_CNT_MASK            (0xFU)
+ * count lives in the aon_pmu_r0_t bl2_reset_count field (written via PMU_REG0,
+ * read back from PMU_REG7A). The bootloader increments it on every TRIAL boot
+ * and rolls back once it reaches try_max; clearing it here on a successful
+ * confirm gives each new OTA a full trial budget again (otherwise consecutive
+ * OTAs without an intervening cold/NORMAL boot would accumulate the count and
+ * spuriously roll back). The field position/width comes from the SoC register
+ * definition (aon_pmu_struct.h), so no local bit/mask duplication is needed. */
 
 /* The OTA target slot is always the one opposite the running slot; derive it on
  * demand instead of caching it in a global (the running slot never changes
@@ -123,6 +122,11 @@ static uint32_t ap_ab_commit(ab_slot_t exec_slot, ab_slot_t update_slot,
 	rec.boot_state = boot_state;
 	rec.dl_state = dl_state;
 	rec.try_max = try_max ? try_max : (uint8_t)AB_FLAG_DEFAULT_TRY_MAX;
+	/* The bootloader reboot counter is a 3-bit AON PMU field saturating at 7;
+	 * never persist a threshold that count could never reach. */
+	if (rec.try_max > 7u) {
+		rec.try_max = AB_FLAG_DEFAULT_TRY_MAX;
+	}
 	ap_ab_record_commit(&rec);
 	return rec.seq;
 }
@@ -142,7 +146,7 @@ static int ap_slot_has_image(ab_slot_t slot)
 	return (head_word != FLASH_DEFAULT_VALUE);
 }
 
-/* Clear the AON PMU trial reboot counter (bits[23:20]) through the AP PMU HAL/LL
+/* Clear the AON PMU trial reboot counter (bits[14:12]) through the AP PMU HAL/LL
  * instead of poking registers directly. The counter is written via PMU_REG0 plus
  * the PMU_REG25 magic latch and read back from PMU_REG7A (aon_pmu_ll_get_r7a_value),
  * which is the authoritative live view of the latched value; aon_pmu_hal_set_r0()
@@ -150,10 +154,11 @@ static int ap_slot_has_image(ab_slot_t slot)
  * bl_ab_reboot_count_clear() (write R0, read R7A). */
 static void ap_ab_reboot_count_clear(void)
 {
-	uint32_t reg = aon_pmu_ll_get_r7a_value();
+	aon_pmu_r0_t r;
 
-	reg &= ~(AB_PMU_REBOOT_CNT_MASK << AB_PMU_REBOOT_CNT_BIT);
-	aon_pmu_hal_set_r0(reg);
+	r.v = aon_pmu_ll_get_r7a_value();
+	r.bl2_reset_count = 0;
+	aon_pmu_hal_set_r0(r.v);
 }
 
 /* Confirm the currently running trial slot: if the active record is TRIAL and

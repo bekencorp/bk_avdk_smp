@@ -43,7 +43,7 @@ extern "C" {
 #define AB_FLAG_CRC_LEN      28u          /* bytes [0..0x1B] covered by crc32 */
 #define AB_FLAG_SECTOR       0x1000u      /* one 4K sector per ping-pong copy */
 #define AB_FLAG_COPIES       2u
-#define AB_FLAG_DEFAULT_TRY_MAX 3u        /* trial boots before rollback */
+#define AB_FLAG_DEFAULT_TRY_MAX 5u        /* trial boots before rollback (must be <= 7, 3-bit reboot counter) */
 
 typedef enum {
     AB_SLOT_A = 0,
@@ -73,7 +73,7 @@ typedef struct {
     uint8_t  update_slot;  /* 0x0D OTA target / trial slot */
     uint8_t  boot_state;   /* 0x0E ab_boot_state_t */
     uint8_t  dl_state;     /* 0x0F ab_dl_state_t (diagnostic / partial-download hint) */
-    uint8_t  try_max;      /* 0x10 rollback threshold (default 3) */
+    uint8_t  try_max;      /* 0x10 rollback threshold (default 5, max 7) */
     uint8_t  rsvd0[3];     /* 0x11..0x13 */
     uint32_t rsvd1[2];     /* 0x14..0x1B reserved */
     uint32_t crc32;        /* 0x1C CRC32 over bytes [0..0x1B] */
