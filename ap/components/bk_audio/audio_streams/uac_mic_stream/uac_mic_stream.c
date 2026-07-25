@@ -28,9 +28,31 @@
 #include <driver/audio_ring_buff.h>
 #include <driver/int.h>
 #include <components/usbh_hub_multiple_classes_api.h>
+#include <soc/soc.h>
+#if CONFIG_ADK_USE_PSRAM
+#include <cache.h>
+#endif
 
 
 #define TAG  "UAC_MIC"
+
+#define UAC_MIC_USB_BUF(p)  ((void *)(uintptr_t)SOC_SRAM_PERI_ADDR((uint32_t)(uintptr_t)(p)))
+
+#if CONFIG_ADK_USE_PSRAM
+#define UAC_MIC_CACHE_LINE_SIZE     32
+static inline void uac_mic_dcache_refresh(void *addr, uint32_t size)
+{
+    if (addr == NULL || size == 0)
+    {
+        return;
+    }
+    uint32_t start = (uint32_t)addr & ~(UAC_MIC_CACHE_LINE_SIZE - 1);
+    uint32_t end = ((uint32_t)addr + size + (UAC_MIC_CACHE_LINE_SIZE - 1)) & ~(UAC_MIC_CACHE_LINE_SIZE - 1);
+    flush_dcache((void *)start, (long)(end - start));
+}
+#else
+#define uac_mic_dcache_refresh(addr, size)
+#endif  //CONFIG_ADK_USE_PSRAM
 
 
 //#define UAC_MIC_DEBUG   //GPIO debug
@@ -318,7 +340,7 @@ static void usb_hub_uac_mic_port_dev_complete_callback(void *pCompleteParam, int
 
     if (uac_mic->status == UAC_MIC_STA_WORKING)
     {
-        uac_mic->uac_mic_urb->transfer_buffer = uac_mic->urb_buff_addr;
+        uac_mic->uac_mic_urb->transfer_buffer = UAC_MIC_USB_BUF(uac_mic->urb_buff_addr);
         uac_mic->uac_mic_urb->transfer_buffer_length = uac_mic->urb_buff_size;
         uac_mic->uac_mic_urb->actual_length = 0;
     }
@@ -331,6 +353,7 @@ static void usb_hub_uac_mic_port_dev_complete_callback(void *pCompleteParam, int
     if (nbytes > 0)
     {
         uac_mic->urb_err_cnt = 0;
+        uac_mic_dcache_refresh(uac_mic->urb_buff_addr, uac_mic->urb_buff_size);
         if (ring_buffer_get_free_size(&uac_mic->mic_rb) >= nbytes)
         {
             ring_buffer_write(&uac_mic->mic_rb, (uint8_t *)uac_mic->uac_mic_urb->transfer_buffer, nbytes);
@@ -404,13 +427,13 @@ bk_err_t usb_hub_uac_mic_port_device_urb_fill(uac_mic_stream_t *uac_mic)
         packet_count = 1;
         xfer_size = uac_mic->urb_buff_size;
 
-        uac_mic->uac_mic_urb->transfer_buffer = uac_mic->urb_buff_addr;
+        uac_mic->uac_mic_urb->transfer_buffer = UAC_MIC_USB_BUF(uac_mic->urb_buff_addr);
         uac_mic->uac_mic_urb->transfer_buffer_length = xfer_size;
         uac_mic->uac_mic_urb->num_of_iso_packets = packet_count;
 #if CONFIG_BK_USB_CHERRYUSB_V1_6
         packet_size = uac_mic->urb_buff_size;
         for (uint32_t i = 0; i < packet_count; i++) {
-            uac_mic->uac_mic_urb->iso_packet[i].transfer_buffer = uac_mic->urb_buff_addr + (i * packet_size);
+            uac_mic->uac_mic_urb->iso_packet[i].transfer_buffer = UAC_MIC_USB_BUF(uac_mic->urb_buff_addr + (i * packet_size));
             uac_mic->uac_mic_urb->iso_packet[i].transfer_buffer_length = packet_size;
             uac_mic->uac_mic_urb->iso_packet[i].actual_length = 0;
             uac_mic->uac_mic_urb->iso_packet[i].errorcode = 0;
