@@ -82,11 +82,6 @@ typedef struct {
 #define uart_hal_read_byte(hal, id) uart_ll_read_byte((hal)->hw, id)
 #define uart_hal_get_write_data_addr(hal, id) uart_ll_get_write_data_addr((hal)->hw, id)
 #define uart_hal_get_read_data_addr(hal, id) uart_ll_get_read_data_addr((hal)->hw, id)
-#define uart_hal_get_tx_pin(id) uart_ll_get_tx_pin(id)
-#define uart_hal_get_rx_pin(id) uart_ll_get_rx_pin(id)
-#define uart_hal_get_cts_pin(id) uart_ll_get_cts_pin(id)
-#define uart_hal_get_rts_pin(id) uart_ll_get_rts_pin(id)
-
 #define uart_hal_wait_tx_over() uart_ll_wait_tx_over()
 
 #if CONFIG_UART_PM_CB_SUPPORT

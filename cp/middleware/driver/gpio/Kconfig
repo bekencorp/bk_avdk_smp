@@ -91,7 +91,7 @@ menu "GPIO"
 
 	config USR_GPIO_CFG_EN
 		bool "Enable user-defined GPIO config for each project"
-		default n
+		default y
 
 	config GPIO_TEST
 		depends on GPIO && DRIVER_TEST

@@ -379,173 +379,99 @@ static void uart_interrupt_disable(uart_id_t id)
 	}
 }
 
-/* Resolve a UART RX pin.
- *
- * When CONFIG_USR_GPIO_CFG_EN is set the pin assignment lives in
- * GPIO_DEFAULT_DEV_CONFIG (usr_gpio_cfg.h) and is the single source of truth,
- * so the pin is looked up by its UART RXD function. Otherwise it falls back to
- * the Kconfig-based CONFIG_UARTx_RX_PIN value. */
-static gpio_id_t uart_cfg_rx_pin(uart_id_t id)
+/* Resolve the UART TXD/RXD device function for a UART id, or GPIO_DEV_NONE
+ * when the UART has no configurable pad function. */
+static gpio_dev_t uart_txd_dev(uart_id_t id)
 {
-#if CONFIG_USR_GPIO_CFG_EN
-	gpio_dev_t func = GPIO_DEV_NONE;
-
 	switch (id) {
-	case UART_ID_0: func = GPIO_DEV_UART0_RXD; break;
-	case UART_ID_1: func = GPIO_DEV_UART1_RXD; break;
-	case UART_ID_2: func = GPIO_DEV_UART2_RXD; break;
+	case UART_ID_0: return GPIO_DEV_UART0_TXD;
+	case UART_ID_1: return GPIO_DEV_UART1_TXD;
+	case UART_ID_2: return GPIO_DEV_UART2_TXD;
 #if (SOC_UART_ID_NUM_PER_UNIT >= 6)
-	case UART_ID_5: func = GPIO_DEV_UART5_RXD; break;
+	case UART_ID_5: return GPIO_DEV_UART5_TXD;
 #endif
-	default: break;
+	default: return GPIO_DEV_NONE;
 	}
-
-	if (func != GPIO_DEV_NONE) {
-		gpio_id_t pin = gpio_get_id_by_func(func);
-		if (pin < SOC_GPIO_NUM) {
-			return pin;
-		}
-	}
-#endif
-	return uart_hal_get_rx_pin(id);
 }
 
-/* Resolve a UART TX pin.
- *
- * When CONFIG_USR_GPIO_CFG_EN is set the pin assignment lives in
- * GPIO_DEFAULT_DEV_CONFIG (usr_gpio_cfg.h) and is the single source of truth,
- * so the pin is looked up by its UART TXD function. Otherwise it falls back to
- * the Kconfig-based CONFIG_UARTx_TX_PIN value. */
+static gpio_dev_t uart_rxd_dev(uart_id_t id)
+{
+	switch (id) {
+	case UART_ID_0: return GPIO_DEV_UART0_RXD;
+	case UART_ID_1: return GPIO_DEV_UART1_RXD;
+	case UART_ID_2: return GPIO_DEV_UART2_RXD;
+#if (SOC_UART_ID_NUM_PER_UNIT >= 6)
+	case UART_ID_5: return GPIO_DEV_UART5_RXD;
+#endif
+	default: return GPIO_DEV_NONE;
+	}
+}
+
+/* Map/unmap a UART pad by its function. Only acts when the function is present
+ * in the board's GPIO_DEFAULT_DEV_CONFIG (usr_gpio_cfg.h); otherwise silently
+ * skips so UARTs not owned by this core's table are left untouched. The
+ * function-selector write itself is idempotent inside gpio_dev_map_by_func(). */
+static void uart_map_func(gpio_dev_t func)
+{
+	if (func != GPIO_DEV_NONE && gpio_get_id_by_func(func) < SOC_GPIO_NUM) {
+		gpio_dev_map_by_func(func);
+	}
+}
+
+static void uart_unmap_func(gpio_dev_t func)
+{
+	if (func != GPIO_DEV_NONE && gpio_get_id_by_func(func) < SOC_GPIO_NUM) {
+		gpio_dev_unmap_by_func(func);
+	}
+}
+
+/* Resolve a UART RX pin. The pin assignment lives in GPIO_DEFAULT_DEV_CONFIG
+ * (usr_gpio_cfg.h) and is the single source of truth, so the pin is looked up
+ * by its UART RXD function. Returns SOC_GPIO_NUM when the UART is not present
+ * in the board's GPIO config table. */
+static gpio_id_t uart_cfg_rx_pin(uart_id_t id)
+{
+	gpio_dev_t func = uart_rxd_dev(id);
+
+	return (func != GPIO_DEV_NONE) ? gpio_get_id_by_func(func) : SOC_GPIO_NUM;
+}
+
+/* Resolve a UART TX pin. The pin assignment lives in GPIO_DEFAULT_DEV_CONFIG
+ * (usr_gpio_cfg.h) and is the single source of truth, so the pin is looked up
+ * by its UART TXD function. Returns SOC_GPIO_NUM when the UART is not present
+ * in the board's GPIO config table. */
 static gpio_id_t uart_cfg_tx_pin(uart_id_t id)
 {
-#if CONFIG_USR_GPIO_CFG_EN
-	gpio_dev_t func = GPIO_DEV_NONE;
+	gpio_dev_t func = uart_txd_dev(id);
 
-	switch (id) {
-	case UART_ID_0: func = GPIO_DEV_UART0_TXD; break;
-	case UART_ID_1: func = GPIO_DEV_UART1_TXD; break;
-	case UART_ID_2: func = GPIO_DEV_UART2_TXD; break;
-#if (SOC_UART_ID_NUM_PER_UNIT >= 6)
-	case UART_ID_5: func = GPIO_DEV_UART5_TXD; break;
-#endif
-	default: break;
-	}
-
-	if (func != GPIO_DEV_NONE) {
-		gpio_id_t pin = gpio_get_id_by_func(func);
-		if (pin < SOC_GPIO_NUM) {
-			return pin;
-		}
-	}
-#endif
-	return uart_hal_get_tx_pin(id);
+	return (func != GPIO_DEV_NONE) ? gpio_get_id_by_func(func) : SOC_GPIO_NUM;
 }
 
 static void uart_init_gpio(uart_id_t id)
 {
-#if CONFIG_USR_GPIO_CFG_EN
-	/* UART pin muxing is fully owned by GPIO_DEFAULT_DEV_CONFIG in
-	 * usr_gpio_cfg.h and applied once at boot by gpio_default_map_init().
-	 * The UART driver no longer maps/pulls UART GPIOs in this mode; only the
-	 * UART-controller-side hardware-flow-control setting remains here. */
+	/* UART pin assignment lives in GPIO_DEFAULT_DEV_CONFIG (usr_gpio_cfg.h).
+	 * Re-apply the TX/RX mapping here so a UART re-init after a
+	 * disable_tx/disable_rx (which drives the pad to high-Z) is restored. */
+	uart_map_func(uart_txd_dev(id));
+	uart_map_func(uart_rxd_dev(id));
+
 #if CONFIG_UART0_FLOW_CTRL
 	if (id == UART_ID_0) {
 		bk_uart_set_hw_flow_ctrl(id, UART0_FLOW_CTRL_CNT);
 	}
 #endif
-#else /* !CONFIG_USR_GPIO_CFG_EN: legacy Kconfig-driven pin muxing */
-	switch (id)
-	{
-		case UART_ID_0:
-		{
-			gpio_dev_map(uart_hal_get_tx_pin(id), GPIO_DEV_UART0_TXD);
-			gpio_dev_map(uart_hal_get_rx_pin(id), GPIO_DEV_UART0_RXD);
-			bk_gpio_pull_up(uart_hal_get_tx_pin(id));
-			bk_gpio_pull_up(uart_hal_get_rx_pin(id));
-#if CONFIG_UART0_FLOW_CTRL
-			//GPIO12 is RTS.GPIO13 is CTS
-			gpio_dev_map(uart_hal_get_cts_pin(id), GPIO_DEV_UART0_CTS);
-			bk_gpio_pull_down(uart_hal_get_cts_pin(id));
-
-			gpio_dev_map(uart_hal_get_rts_pin(id), GPIO_DEV_UART0_RTS);
-			bk_gpio_pull_down(uart_hal_get_rts_pin(id));
-			bk_uart_set_hw_flow_ctrl(id, UART0_FLOW_CTRL_CNT);
-#endif
-			break;
-		}
-		case UART_ID_1:
-		{
-			gpio_dev_map(uart_hal_get_tx_pin(id), GPIO_DEV_UART1_TXD);
-			gpio_dev_map(uart_hal_get_rx_pin(id), GPIO_DEV_UART1_RXD);
-			bk_gpio_pull_up(uart_hal_get_tx_pin(id));
-			bk_gpio_pull_up(uart_hal_get_rx_pin(id));
-			break;
-		}
-		case UART_ID_2:
-		{
-			gpio_dev_map(uart_hal_get_tx_pin(id), GPIO_DEV_UART2_TXD);
-			gpio_dev_map(uart_hal_get_rx_pin(id), GPIO_DEV_UART2_RXD);
-			bk_gpio_pull_up(uart_hal_get_tx_pin(id));
-			bk_gpio_pull_up(uart_hal_get_rx_pin(id));
-			break;
-		}
-#if (SOC_UART_ID_NUM_PER_UNIT  >= 4)
-		case UART_ID_3:
-		{
-			gpio_dev_map(uart_hal_get_tx_pin(id), GPIO_DEV_UART3_TXD);
-			gpio_dev_map(uart_hal_get_rx_pin(id), GPIO_DEV_UART3_RXD);
-			bk_gpio_pull_up(uart_hal_get_tx_pin(id));
-			bk_gpio_pull_up(uart_hal_get_rx_pin(id));
-			break;
-		}
-#endif
-#if (SOC_UART_ID_NUM_PER_UNIT  >= 5)
-		case UART_ID_4:
-		{
-			gpio_dev_map(uart_hal_get_tx_pin(id), GPIO_DEV_UART4_TXD);
-			gpio_dev_map(uart_hal_get_rx_pin(id), GPIO_DEV_UART4_RXD);
-			bk_gpio_pull_up(uart_hal_get_tx_pin(id));
-			bk_gpio_pull_up(uart_hal_get_rx_pin(id));
-			break;
-		}
-#endif
-#if (SOC_UART_ID_NUM_PER_UNIT  >= 6)
-		case UART_ID_5:
-		{
-			gpio_dev_map(uart_hal_get_tx_pin(id), GPIO_DEV_UART5_TXD);
-			gpio_dev_map(uart_hal_get_rx_pin(id), GPIO_DEV_UART5_RXD);
-			bk_gpio_pull_up(uart_hal_get_tx_pin(id));
-			bk_gpio_pull_up(uart_hal_get_rx_pin(id));
-			break;
-		}
-#endif
-
-		default:
-			break;
-	}
-#endif /* CONFIG_USR_GPIO_CFG_EN */
-	(void)id;
 }
 
 static void uart_deinit_tx_gpio(uart_id_t id)
 {
-#if !CONFIG_USR_GPIO_CFG_EN
-	/* In USR_GPIO_CFG mode the pad is owned by the boot-time config table and
-	 * must stay mapped so a later re-init keeps working, so only unmap in the
-	 * legacy Kconfig-driven mode. */
-	gpio_dev_unmap(uart_hal_get_tx_pin(id));
-	bk_gpio_pull_up(uart_hal_get_tx_pin(id));
-#endif
-	(void)id;
+	/* Drive the TX pad to a true high-impedance, low-power state. */
+	uart_unmap_func(uart_txd_dev(id));
 }
 
 static void uart_deinit_rx_gpio(uart_id_t id)
 {
-#if !CONFIG_USR_GPIO_CFG_EN
-	gpio_dev_unmap(uart_hal_get_rx_pin(id));
-	bk_gpio_pull_up(uart_hal_get_rx_pin(id));
-#endif
-	(void)id;
+	/* Drive the RX pad to a true high-impedance, low-power state. */
+	uart_unmap_func(uart_rxd_dev(id));
 }
 
 static bk_err_t uart_id_init_kfifo(uart_id_t id)
