@@ -2568,17 +2568,6 @@ void sys_hal_low_power_hardware_init()
 	bk_sys_sw_regs_update_pm_shared_info(&shared_info, BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_ALL, BK_SYS_SW_REGS_LOCK_DISABLE);
 }
 
-
-void sys_hal_set_ota_finish(uint32_t value)
-{
-	aon_pmu_ll_set_r0_ota_finish(value);
-}
-
-uint32_t sys_hal_get_ota_finish(void)
-{
-	return aon_pmu_ll_get_r0_ota_finish();
-}
-
 bk_err_t sys_hal_flash_cksel_clkdiv_set(cksel_sys_flash_t cksel, uint32_t ckdiv)
 {
 	sys_ll_set_cpu_clk_div_mode1_cksel_flash(cksel);

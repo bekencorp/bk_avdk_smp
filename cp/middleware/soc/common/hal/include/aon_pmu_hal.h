@@ -98,12 +98,6 @@ void aon_pmu_hal_restore(void);
 void aon_pmu_hal_save_time(bool is_startup);
 uint32_t aon_pmu_hal_get_por_timing(void);
 uint32_t aon_pmu_hal_get_ana_gpio_status(void);
-
-uint32_t aon_pmu_hal_get_ota_finish(void);
-void aon_pmu_hal_set_ota_finish(uint32_t value);
-uint32_t aon_pmu_hal_get_xip_ota_finish(void);
-void aon_pmu_hal_set_xip_ota_finish(uint32_t value);
-
 void aon_pmu_hal_set_wlp_power_down(uint32_t v);
 
 void aon_pmu_struct_dump(uint32_t start, uint32_t end);

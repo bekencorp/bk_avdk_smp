@@ -26,12 +26,13 @@ typedef volatile union {
 	struct {
 		uint32_t memchk_bps                       :  1; /**<bit[0 : 0] */
 		uint32_t fast_boot                        :  1; /**<bit[1 : 1] */
-		uint32_t ota_finish                       :  1; /**<bit[2 : 2] */
+		uint32_t dig_wake_en                      :  1; /**<bit[2 : 2] */
 		uint32_t bl2_deep_sleep                   :  1; /**<bit[3 : 3] */
-		uint32_t dlv_startup                      :  1; /**<bit[4 : 4] */
-		uint32_t aon_reg0_for_software            :  7; /**<bit[5 : 11] */
-		uint32_t gpio_retention_bitmap            :  8; /**<bit[12 : 19] */
-		uint32_t reset_count                      :  4 ;/**<bit[20 : 23] */
+		uint32_t aon_reg0_for_software            :  4; /**<bit[4 : 7] */
+		uint32_t gpio_retention_bitmap            :  4; /**<bit[8 : 11] */
+		uint32_t bl2_reset_count                  :  3; /**<bit[12 :14] */
+		uint32_t secboot_bootloader_address       :  8; /**<bit[15:22] */
+		uint32_t dlv_startup                      :  1; /**<bit[23:23] */
 		uint32_t reset_reason                     :  7; /**<bit[24 : 30] */
 		uint32_t gpio_sleep                       :  1; /**<bit[31 : 31] */
 	};

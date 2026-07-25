@@ -109,21 +109,6 @@ static inline uint32_t aon_pmu_ll_get_r7b_gpio_sleep(void) {
 	return r->gpio_sleep;
 }
 
-static inline void aon_pmu_ll_set_r0_ota_finish(uint32_t v) {
-	aon_pmu_r0_t *r = (aon_pmu_r0_t*)(SOC_AON_PMU_REG_BASE + (0x0 << 2));
-	r->ota_finish = v;
-}
-
-static inline uint32_t aon_pmu_ll_get_r0_ota_finish(void) {
-	aon_pmu_r0_t *r = (aon_pmu_r0_t*)(SOC_AON_PMU_REG_BASE + (0x0 << 2));
-	return r->ota_finish;
-}
-
-static inline uint32_t aon_pmu_ll_get_r7b_ota_finish(void) {
-	aon_pmu_r0_t *r = (aon_pmu_r0_t*)(SOC_AON_PMU_REG_BASE + (0x7b << 2));
-	return r->ota_finish;
-}
-
 static inline void aon_pmu_ll_set_r0_reset_reason(uint32_t v) {
 	aon_pmu_r0_t *r = (aon_pmu_r0_t*)(SOC_AON_PMU_REG_BASE + (0x0 << 2));
 	r->reset_reason = v;
