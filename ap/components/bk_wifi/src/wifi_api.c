@@ -1535,10 +1535,6 @@ bk_err_t bk_wifi_sta_start(void)
         return BK_ERR_WIFI_STA_NOT_CONFIG;
     }
 
-#if CONFIG_WIFI_VNET_CONTROLLER
-    wdrv_reset_sta_ipv4_notified();
-#endif
-
     wifi_lock();
 #if CONFIG_P2P
     if (s_wifi_p2p_enabled) {
