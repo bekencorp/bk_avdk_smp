@@ -204,17 +204,17 @@ void get_version(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv
 		return;
 	}
 
-	CLI_LOGD("get_version\r\n");
+	CLI_LOGI("get_version\r\n");
 	//BK_LOGD(NULL, "firmware version : %s", BEKEN_SDK_REV);
-	CLI_LOGD("firmware version : %s\r\n", build_version);
-	CLI_LOGD("chip id : %x \r\n", sys_drv_get_chip_id());
-	CLI_LOGD("soc: %s\n", CONFIG_SOC_STR);
-	CLI_LOGD("cpu id : %d\n", rtos_get_core_id());
+	CLI_LOGI("firmware version : %s\r\n", build_version);
+	CLI_LOGI("chip id : %x \r\n", sys_drv_get_chip_id());
+	CLI_LOGI("soc: %s\n", CONFIG_SOC_STR);
+	CLI_LOGI("cpu id : %d\n", rtos_get_core_id());
 
 #if CONFIG_SOC_SMP
-	CLI_LOGD("system: ap smp\n");
+	CLI_LOGI("system: ap smp\n");
 #else
-	CLI_LOGD("system: ap single core\n");
+	CLI_LOGI("system: ap single core\n");
 #endif
 }
 
