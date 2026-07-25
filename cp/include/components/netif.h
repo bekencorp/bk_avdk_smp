@@ -28,16 +28,6 @@ extern "C" {
  */
 
 /**
- * @brief  Initialize the TCP/IP stack
- *
- * @attention This API should be called exactly once from application code, when the application starts up.
- * @return
- *   - BK_OK: success
- *   - BK_FAIL: otherwise
- */
-bk_err_t bk_netif_init(void);
-
-/**
  * @brief  Set netif interface's IP4 address information
  *
  * This function is mainly used to set a static IP on an interface.
@@ -92,24 +82,6 @@ bk_err_t bk_netif_get_ip4_config(netif_if_t ifx, netif_ip4_config_t *config);
  *   - BK_ERR_NULL_PARAM: config is NULL
  */
 bk_err_t bk_netif_get_ip6_addr_info(netif_if_t ifx);
-
-/**
- * @brief  Start the DHCP client for specified interface
- *
- * If this API is called, the interface will get the IP address via DHCP.
- *
- * If the interface is has a static IP and is already up, we need to stop
- * the interface (for STA, call bk_wifi_sta_stop() or bk_wifi_sta_disconnect()
- * to stop the interface) before this API is called, or restart the interface
- * after this API is called.
- *
- * @param ifx  netif interface ID, currently only support NETIF_IF_STA.
- *
- * @return
- *   - BK_OK: succeed
- *   - BK_ERR_NETIF_IF: invalid netif interface ID
- */
-bk_err_t bk_netif_dhcpc_start(netif_if_t ifx);
 
 /**
  * @brief

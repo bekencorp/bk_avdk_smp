@@ -50,20 +50,6 @@ extern "C" {
 //bk_err_t bk_wifi_init(const wifi_init_config_t *init_config);
 
 /**
- * @brief     Deinit the BK WiFi driver
- *
- * This API free all resources related to WiFi.
- *
- * @attention 1. This API is not ready yet, will support in future release.
- *
- * @return
- *    - BK_OK: succeed
- *    - BK_ERR_NOT_SUPPORT: The API is not supported yet.
- *    - others: other errors.
- */
-bk_err_t bk_wifi_deinit(void);
-
-/**
  * @brief     Start the BK STA
  *
  * This API init the resoure specific to BK STA, e.g. init STA specific globals, init
