@@ -475,8 +475,6 @@ void wdrv_notify_gc_got_ip(void);
 void wdrv_p2p_role_clear(void);
 #endif
 void wdrv_notify_sta_got_ip(void);
-void wdrv_reset_sta_ipv4_notified(void);
-bool wdrv_sta_ipv4_already_notified(void);
 void bk_rx_handle_customer_event(void *data, uint16_t len);
 int bk_wdrv_send_customer_data(uint8_t *data, uint16_t len);
 void wdrv_notify_sta_disconnected(void *data, uint16_t len);
