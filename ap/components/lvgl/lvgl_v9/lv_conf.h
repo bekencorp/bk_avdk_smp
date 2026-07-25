@@ -229,7 +229,7 @@
     #define LV_USE_DRAW_ARM2D_SYNC      0
 
     /** Enable native helium assembly to be compiled. */
-    #define LV_USE_NATIVE_HELIUM_ASM    0
+    #define LV_USE_NATIVE_HELIUM_ASM    1
 
     /**
      * - 0: Use a simple renderer capable of drawing only simple rectangles with gradient, images, text, and straight lines only.
@@ -249,7 +249,7 @@
         #define LV_DRAW_SW_CIRCLE_CACHE_SIZE 4
     #endif
 
-    #define  LV_USE_DRAW_SW_ASM     LV_DRAW_SW_ASM_NONE
+    #define  LV_USE_DRAW_SW_ASM     LV_DRAW_SW_ASM_HELIUM
 
     #if LV_USE_DRAW_SW_ASM == LV_DRAW_SW_ASM_CUSTOM
         #define  LV_DRAW_SW_ASM_CUSTOM_INCLUDE ""

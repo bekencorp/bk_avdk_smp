@@ -227,7 +227,7 @@ if(CONFIG_LVGL)
 			lvgl_v9/src/draw/sw/blend/lv_draw_sw_blend_to_rgb565_swapped.c
 			lvgl_v9/src/draw/sw/blend/lv_draw_sw_blend_to_rgb888.c
 			# lvgl_v9/src/draw/sw/blend/neon/lv_blend_neon.S
-			# lvgl_v9/src/draw/sw/blend/helium/lv_blend_helium.S
+			lvgl_v9/src/draw/sw/blend/helium/lv_blend_helium.S
 			lvgl_v9/src/draw/dma2d/lv_draw_dma2d.c
 			lvgl_v9/src/draw/dma2d/lv_draw_dma2d_fill.c
 			lvgl_v9/src/draw/dma2d/lv_draw_dma2d_img.c
@@ -530,6 +530,12 @@ if (CONFIG_LVGL)
 		# Keep lv_memset/lv_memcpy from being emitted as wide stores on PSRAM buffers.
 		set_source_files_properties(lvgl_v9/src/stdlib/builtin/lv_string_builtin.c
 			PROPERTIES COMPILE_OPTIONS "-fno-tree-vectorize"
+		)
+
+		# The ASM compiler path does not inherit the AP CPU flags in this build system.
+		# Keep the native Helium object compatible with the Cortex-M55 AP image.
+		set_source_files_properties(lvgl_v9/src/draw/sw/blend/helium/lv_blend_helium.S
+			PROPERTIES COMPILE_OPTIONS "-mcpu=cortex-m55;-mfloat-abi=hard;-mfpu=fpv5-sp-d16;-mcmse"
 		)
 	endif()
 
