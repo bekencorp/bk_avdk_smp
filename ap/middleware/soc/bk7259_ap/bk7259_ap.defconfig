@@ -634,7 +634,7 @@ CONFIG_WIFI_DRIVER_DEBUG=y
 # Cmsis
 #
 # CONFIG_CMSIS is not set
-CONFIG_DCACHE=y
+# CONFIG_DCACHE is not set
 CONFIG_ICACHE=y
 # end of Cmsis
 
