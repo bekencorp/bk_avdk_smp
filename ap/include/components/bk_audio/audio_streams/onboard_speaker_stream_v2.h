@@ -231,6 +231,20 @@ bk_err_t onboard_speaker_stream_get_input_port_info_by_port_id(audio_element_han
  *                 - other: failed
  */
 bk_err_t onboard_speaker_stream_set_input_port_info(audio_element_handle_t onboard_speaker_stream, audio_port_info_t *port_info);
+
+/**
+ * @brief      Update the sample rate of a single auxiliary (non-main) DAC source.
+ *
+ * @param[in]      onboard_speaker_stream  element handle
+ * @param[in]      dma_src   auxiliary DAC source (must not be the main source)
+ * @param[in]      rate      new PCM sample rate for this source
+ * @param[in]      frame_ms  per-source frame/DMA-period duration in ms (> 0)
+ *
+ * @return         Result
+ *                 - BK_OK: success
+ *                 - other: failed
+ */
+bk_err_t onboard_speaker_stream_set_aux_format(audio_element_handle_t onboard_speaker_stream, aud_dac_source_t dma_src, int rate, int frame_ms);
 #endif
 
 /**

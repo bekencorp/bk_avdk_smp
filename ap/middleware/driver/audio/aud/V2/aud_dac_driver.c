@@ -572,6 +572,24 @@ bk_err_t bk_aud_dac_get_dig_gain_db(float *db)
     return ret;
 }
 
+bk_err_t bk_aud_dac_spk0_set_source_gain_db(aud_dac_source_t source, float db)
+{
+    if (db != db) {
+        LOGE("%s,%d db is NaN!\n", __func__, __LINE__);
+        return BK_FAIL;
+    }
+    return bk_aud_dac_spk0_set_source_gain(source, bk_aud_dac_dig_gain_db_to_reg(db));
+}
+
+bk_err_t bk_aud_dac_spk1_set_source_gain_db(aud_dac_source_t source, float db)
+{
+    if (db != db) {
+        LOGE("%s,%d db is NaN!\n", __func__, __LINE__);
+        return BK_FAIL;
+    }
+    return bk_aud_dac_spk1_set_source_gain(source, bk_aud_dac_dig_gain_db_to_reg(db));
+}
+
 
 bk_err_t bk_aud_dac_mute(void)
 {

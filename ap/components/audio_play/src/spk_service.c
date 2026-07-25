@@ -293,10 +293,21 @@ static uint8_t spk_service_aux_priority(spk_service_src_t src)
  * re-lock and the aux source keeps its own exact clock. */
 static void spk_service_relock_main_clock(spk_service_ctx_t *ctx)
 {
-    if (ctx->attached[SPK_SERVICE_MAIN_SOURCE] && ctx->main_sample_rate && ctx->speaker)
+    if (!ctx->speaker)
+    {
+        return;
+    }
+
+    if (ctx->attached[SPK_SERVICE_MAIN_SOURCE] && ctx->main_sample_rate)
     {
         onboard_speaker_stream_set_param(ctx->speaker, (int)ctx->main_sample_rate,
                                          SPK_SERVICE_BITS, (int)ctx->main_chans,
+                                         (aud_dac_source_t)SPK_SERVICE_MAIN_SOURCE);
+    }
+    else
+    {
+        onboard_speaker_stream_set_param(ctx->speaker, DEFAULT_AUD_DAC_SAMPLE_RATE,
+                                         SPK_SERVICE_BITS, SPK_SERVICE_SPK_CHL,
                                          (aud_dac_source_t)SPK_SERVICE_MAIN_SOURCE);
     }
 }

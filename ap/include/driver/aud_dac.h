@@ -387,6 +387,8 @@ bk_err_t bk_aud_dac_spk0_set_source_gain(aud_dac_source_t source, uint32_t value
 bk_err_t bk_aud_dac_spk1_set_source_gain(aud_dac_source_t source, uint32_t value);
 bk_err_t bk_aud_dac_spk0_get_source_gain(aud_dac_source_t source, uint32_t *value);
 bk_err_t bk_aud_dac_spk1_get_source_gain(aud_dac_source_t source, uint32_t *value);
+bk_err_t bk_aud_dac_spk0_set_source_gain_db(aud_dac_source_t source, float db);
+bk_err_t bk_aud_dac_spk1_set_source_gain_db(aud_dac_source_t source, float db);
 /**
  * @brief Enable or disable one DAC source on both L (spk0) and R (spk1) FIFO paths.
  *        Parameter @p spk is reserved for API compatibility and is ignored.
