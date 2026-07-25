@@ -168,6 +168,17 @@ uint32_t bk_sys_sw_regs_get_ap_cp_hang_dumping(void)
     return s_sys_sw_regs.ap_cp_hang_dumping;
 }
 
+uint32_t bk_sys_sw_regs_get_cp_coredump_active(void)
+{
+#if CONFIG_SUPPORT_CACHEABLE_SRAM
+    __asm volatile ("dsb" ::: "memory");
+    arch_dcache_invd_range((void *)&s_sys_sw_regs.cp_coredump_active, sizeof(s_sys_sw_regs.cp_coredump_active));
+    __asm volatile ("dsb" ::: "memory");
+#endif
+
+    return s_sys_sw_regs.cp_coredump_active;
+}
+
 uint32_t bk_sys_sw_regs_get_adc_key_sample(adc_key_sample_info_t *info)
 {
     uint32_t flags;
@@ -377,6 +388,17 @@ void bk_sys_sw_regs_set_ap_cp_hang_dumping(uint32_t value)
     __asm volatile ("dsb" ::: "memory");
 #if CONFIG_SUPPORT_CACHEABLE_SRAM
     flush_dcache((void *)&s_sys_sw_regs.ap_cp_hang_dumping, sizeof(s_sys_sw_regs.ap_cp_hang_dumping));
+    __asm volatile ("dsb" ::: "memory");
+#endif
+}
+
+void bk_sys_sw_regs_set_cp_coredump_active(uint32_t value)
+{
+    /* Emergency path marker: CP writes it from exception context, AP polls it. */
+    s_sys_sw_regs.cp_coredump_active = (value != 0U) ? 1U : 0U;
+    __asm volatile ("dsb" ::: "memory");
+#if CONFIG_SUPPORT_CACHEABLE_SRAM
+    flush_dcache((void *)&s_sys_sw_regs.cp_coredump_active, sizeof(s_sys_sw_regs.cp_coredump_active));
     __asm volatile ("dsb" ::: "memory");
 #endif
 }
