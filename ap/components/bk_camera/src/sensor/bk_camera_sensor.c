@@ -40,6 +40,20 @@ avdk_err_t bk_camera_sensor_set_format(bk_camera_sensor_handle_t handle, bk_came
     return handle->set_format(handle, format);
 }
 
+avdk_err_t bk_camera_sensor_set_hmirror(bk_camera_sensor_handle_t handle, bool enable)
+{
+    AVDK_RETURN_ON_FALSE(handle, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
+    AVDK_RETURN_ON_FALSE(handle->set_hmirror, AVDK_ERR_UNSUPPORTED, TAG, AVDK_ERR_UNSUPPORTED_FUNCTION_TEXT);
+    return handle->set_hmirror(handle, enable);
+}
+
+avdk_err_t bk_camera_sensor_set_vflip(bk_camera_sensor_handle_t handle, bool enable)
+{
+    AVDK_RETURN_ON_FALSE(handle, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
+    AVDK_RETURN_ON_FALSE(handle->set_vflip, AVDK_ERR_UNSUPPORTED, TAG, AVDK_ERR_UNSUPPORTED_FUNCTION_TEXT);
+    return handle->set_vflip(handle, enable);
+}
+
 avdk_err_t bk_camera_sensor_init(bk_camera_sensor_handle_t handle)
 {
     AVDK_RETURN_ON_FALSE(handle, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
