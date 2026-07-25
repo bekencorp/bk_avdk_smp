@@ -17,6 +17,8 @@
 #define TEST_MP3_FILE_NAME      "/Panama_Matteo.mp3"
 #define TEST_TXT_FILE_NAME      "/test1.txt"
 #define TEST_DUMP_FILE_NAME      "/dump1.txt"
+#define FATFS_SCAN_MAX_DEPTH    12
+#define FATFS_SCAN_MAX_PATH_LEN 512
 
 void bk_mem_dump_ex(const char *title, unsigned char *data, uint32_t data_len);
 
@@ -51,41 +53,70 @@ static bool fatfs_is_valid_src_addr(uint32_t addr, uint32_t len)
 		fatfs_addr_in_range(addr, len, CONFIG_AP_PSRAM_CODE_SECTION_ADDR, CONFIG_AP_PSRAM_CODE_SECTION_SIZE);
 }
 
-FRESULT scan_files
-(
-    char *path        /* Start node to be scanned (***also used as work area***) */
-)
+static FRESULT scan_files_internal ( const char *path, uint32_t depth )
 {
     FRESULT fr;
-    DIR dir;
-    FILINFO fno;
+    DIR *dir = NULL;
+    FILINFO *fno = NULL;
 
-    fr = f_opendir(&dir, path);                 /* Open the directory */
+    dir = os_malloc(sizeof(DIR));
+    fno = os_malloc(sizeof(FILINFO));
+    if ((dir == NULL) || (fno == NULL)) {
+        FATFS_LOGE("%s: malloc fail dir=%p fno=%p\r\n", __func__, dir, fno);
+        if (dir) {
+            os_free(dir);
+        }
+        if (fno) {
+            os_free(fno);
+        }
+        return FR_NOT_ENOUGH_CORE;
+    }
+
+    fr = f_opendir(dir, path);                 /* Open the directory */
     if (fr == FR_OK)
     {
         FATFS_LOGD("%s/\r\n", path);
         while (1)
         {
-            fr = f_readdir(&dir, &fno);         /* Read a directory item */
+            fr = f_readdir(dir, fno);          /* Read a directory item */
             if (fr != FR_OK)
             {
                 break;  /* Break on error */
             }
-            if (fno.fname[0] == 0)
+            if (fno->fname[0] == 0)
             {
                 break;  /* Break on end of dir */
             }
-            if (fno.fattrib & AM_DIR)
+            if (fno->fattrib & AM_DIR)
             {
                 /* It is a directory */
-                char *pathTemp = os_malloc(strlen(path)+strlen(fno.fname)+2);
+                size_t path_len = strlen(path);
+                size_t name_len = strlen(fno->fname);
+                size_t new_len = path_len + name_len + 2;
+                char *pathTemp = NULL;
+
+                if ((strcmp(fno->fname, ".") == 0) || (strcmp(fno->fname, "..") == 0)) {
+                    continue;
+                }
+
+                if (depth >= FATFS_SCAN_MAX_DEPTH) {
+                    FATFS_LOGW("skip deep dir: %s/%s\r\n", path, fno->fname);
+                    continue;
+                }
+
+                if (new_len > FATFS_SCAN_MAX_PATH_LEN) {
+                    FATFS_LOGW("skip long path: %s/%s\r\n", path, fno->fname);
+                    continue;
+                }
+
+                pathTemp = os_malloc(new_len);
                 if(pathTemp == 0)
                 {
                     FATFS_LOGE("%s:os_malloc dir fail \r\n", __func__);
                     break;
                 }
-                sprintf(pathTemp, "%s/%s", path, fno.fname);
-                fr = scan_files(pathTemp);      /* Enter the directory */
+                snprintf(pathTemp, new_len, "%s/%s", path, fno->fname);
+                fr = scan_files_internal(pathTemp, depth + 1);      /* Enter the directory */
                 if (fr != FR_OK)
                 {
                     os_free(pathTemp);
@@ -101,17 +132,24 @@ FRESULT scan_files
             else
             {
                 /* It is a file. */
-                FATFS_LOGD("%s/%s\r\n", path, fno.fname);
+                FATFS_LOGD("%s/%s\r\n", path, fno->fname);
             }
         }
-        f_closedir(&dir);
+        f_closedir(dir);
     }
     else
     {
         FATFS_LOGD("f_opendir failed:fr=%d\r\n", fr);
     }
 
+    os_free(fno);
+    os_free(dir);
     return fr;
+}
+
+FRESULT scan_files ( char *path /* Start node to be scanned */)
+{
+    return scan_files_internal(path, 0);
 }
 
 void test_mount(DISK_NUMBER number)
