@@ -469,14 +469,18 @@ static void pmu_core_stop_report(const char *label)
 static void debug_core_mark(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
 	extern void core_mark(int argc, char *argv[]);
+#if CONFIG_SUPPORT_WWDT
 	extern bk_err_t bk_wwdt_stop(void);
 	extern bk_err_t bk_wwdt_start(uint32_t timeout_ms, bool is_enable_window, uint32_t window_val);
+#endif
 #if (CONFIG_TASK_WDT)
 	extern void bk_task_wdt_stop(void);
 #endif
 	extern bk_err_t sys_drv_switch_cpu_bus_freq(pm_cpu_freq_e cpu_bus_freq);
 
+#if CONFIG_SUPPORT_WWDT
 	bk_wwdt_stop();
+#endif
 #if (CONFIG_TASK_WDT)
 	bk_task_wdt_stop();
 #endif
@@ -534,7 +538,9 @@ static void debug_core_mark(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
 	bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_APP, 1, 0);
 	BK_LOGI("coremark", "CPU freq restored\r\n");
 
+#if CONFIG_SUPPORT_WWDT
 	bk_wwdt_start(CONFIG_INT_WWDT_PERIOD_MS, false, 0);
+#endif
 }
 
 #include "./core_mark/core_main.c"
