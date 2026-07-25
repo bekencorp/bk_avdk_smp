@@ -211,6 +211,11 @@ typedef struct
 	uint32_t pending_out_buf;
 	uint32_t pending_out_size;
 	bool pending_valid;
+	/*
+	 * Per-frame encode outcome from vcenc dispatch; encoder thread reports
+	 * bond frame_done once per frame based on this value.
+	 */
+	uint32_t encode_result;
 	beken_semaphore_t enc_done_sem;
 
 	bk_flexa_bond_t *bond;
