@@ -22,6 +22,9 @@
 #include "private_h264_decode_ctlr.h"
 #include "bk_decode_pp_helper.h"
 #include "hw_decoder_ctlr.h"
+#if CONFIG_L2_CACHE_ENABLE || CONFIG_DCACHE
+#include "cache.h"
+#endif
 #include "modules/vcdec/vcdec_h264_api.h"
 #include "modules/vcdec/vcdec_common.h"
 #include "avdk_monitor.h"
@@ -56,6 +59,13 @@ static void frame_done_cb(int status, void *args)
 		LOGE("control is NULL\r\n");
 		return;
 	}
+#if CONFIG_L2_CACHE_ENABLE || CONFIG_DCACHE
+	if (status == BK_OK && ctrl->decode_config.output_buffer != NULL &&
+	    ctrl->decode_config.output_size > 0U) {
+		flush_dcache(ctrl->decode_config.output_buffer,
+			     (long)ctrl->decode_config.output_size);
+	}
+#endif
 	if (ctrl->config.frame_done_cb != NULL) {
 		ctrl->config.frame_done_cb(status, ctrl->config.frame_done_args);
 	}
@@ -144,6 +154,14 @@ static avdk_err_t h264_decode_callback(void *param)
 	if (ctrl == NULL || ctrl->vcdec_handle == NULL) {
 		return AVDK_ERR_INVAL;
 	}
+
+#if CONFIG_L2_CACHE_ENABLE || CONFIG_DCACHE
+	if (ctrl->decode_config.input_stream != NULL &&
+	    ctrl->decode_config.input_stream_len > 0U) {
+		flush_dcache(ctrl->decode_config.input_stream,
+			     (long)ctrl->decode_config.input_stream_len);
+	}
+#endif
 
 	DECODE_FRAME_START;
 	ret = vcdec_h264_decode_frame(ctrl->vcdec_handle, &ctrl->decode_config);

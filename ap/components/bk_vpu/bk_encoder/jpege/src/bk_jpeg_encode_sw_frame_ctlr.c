@@ -22,6 +22,9 @@
 #include <modules/jpeg_enc_sw.h>
 
 #include "components/bk_encode/bk_jpeg_encode_ctlr.h"
+#if CONFIG_L2_CACHE_ENABLE || CONFIG_DCACHE
+#include "cache.h"
+#endif
 
 #define TAG "bk_jpeg_enc_swfrm"
 
@@ -110,6 +113,16 @@ static avdk_err_t jpeg_sw_frame_ctlr_encode_frame(bk_jpeg_encode_ctlr_handle_t h
 	}
 	AVDK_RETURN_ON_FALSE(out_base, AVDK_ERR_INVAL, TAG, "invalid output buffer");
 
+#if CONFIG_L2_CACHE_ENABLE || CONFIG_DCACHE
+	{
+		uint32_t flush_sz = control->config.width * control->config.height * 3U / 2U;
+
+		if (flush_sz > 0U) {
+			flush_dcache((void *)(uintptr_t)in_base, (long)flush_sz);
+		}
+	}
+#endif
+
 	if (control->encoder.codec != NULL) {
 		(void)control->encoder.deinit(&control->encoder.codec);
 		control->encoder.codec = NULL;
@@ -150,6 +163,10 @@ static avdk_err_t jpeg_sw_frame_ctlr_encode_frame(bk_jpeg_encode_ctlr_handle_t h
 			.sequence = 0,
 			.args = control->config.outbuf_complete_args,
 		};
+#if CONFIG_L2_CACHE_ENABLE || CONFIG_DCACHE
+		flush_dcache((void *)(uintptr_t)out_base,
+			     (long)((size_t)header_len + (size_t)enc_size));
+#endif
 		control->config.outbuf_complete(&info);
 	}
 	return AVDK_ERR_OK;

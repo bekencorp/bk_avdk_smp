@@ -9,6 +9,9 @@
 #include "private_h264_encode_ctlr.h"
 #include "h264_encode_vcenc_rate_ctrl_priv.h"
 #include "hw_encoder_ctlr.h"
+#if CONFIG_L2_CACHE_ENABLE || CONFIG_DCACHE
+#include "cache.h"
+#endif
 #include <components/bk_frame_buffer.h>
 #include "avdk_monitor.h"
 
@@ -32,6 +35,11 @@ static void handle_encode_error(private_h264_encode_hw_flexa_ctlr_t *ctrl, void 
             .sequence = 0,
             .args = ctrl->config.outbuf_complete_args,
         };
+#if CONFIG_L2_CACHE_ENABLE || CONFIG_DCACHE
+        if (size > 0U) {
+            flush_dcache(buffer, (long)size);
+        }
+#endif
         ctrl->config.outbuf_complete(&info);
         ctrl->pending_out_buf = 0;
     }
@@ -59,6 +67,11 @@ static void handle_video_frame(private_h264_encode_hw_flexa_ctlr_t *ctrl, void *
             .sequence = ctrl->debug_info.all_frame_count,
             .args = ctrl->config.outbuf_complete_args,
         };
+#if CONFIG_L2_CACHE_ENABLE || CONFIG_DCACHE
+        if (size > 0U) {
+            flush_dcache(buffer, (long)size);
+        }
+#endif
         ctrl->config.outbuf_complete(&info);
         ctrl->pending_out_buf = (uint32_t)next_buffer;
         ctrl->pending_out_size = CONFIG_BK_ENCODER_H264_MAX_OUTPUT_BUFFER;
@@ -135,6 +148,23 @@ static avdk_err_t h264_encode_msg_callback(void *param)
     ctrl->enc_param.force_idr_flag = ctrl->force_idr ? 1U : 0U;
     ctrl->force_idr = false;
     ctrl->debug_info.all_frame_count++;
+#if CONFIG_L2_CACHE_ENABLE || CONFIG_DCACHE
+    if (ctrl->enc_param.in_buffer != 0U) {
+        uint32_t line_bytes = ctrl->config.width * 3U / 2U;
+        uint32_t flush_sz = ctrl->config.width * ctrl->config.height * 3U / 2U;
+
+        if (ctrl->enc_param.in_lines != 0U) {
+            if (ctrl->enc_param.in_lines <= ctrl->config.height) {
+                flush_sz = ctrl->enc_param.in_lines * line_bytes;
+            } else {
+                flush_sz = ctrl->enc_param.in_lines;
+            }
+        } else if (ctrl->config.input_size != 0U) {
+            flush_sz = ctrl->config.input_size;
+        }
+        flush_dcache((void *)(uintptr_t)ctrl->enc_param.in_buffer, (long)flush_sz);
+    }
+#endif
     vcenc_ret_e venc_ret = vcenc_h264_encode_frame(&ctrl->enc_param);
     ctrl->enc_param.update_flag = 0;
     if (venc_ret != VCENC_FRAME_READY && venc_ret != VCENC_OK) {

@@ -23,6 +23,9 @@
 #include "private_jpeg_decode_ctlr.h"
 #include "bk_decode_pp_helper.h"
 #include "hw_decoder_ctlr.h"
+#if CONFIG_L2_CACHE_ENABLE || CONFIG_DCACHE
+#include "cache.h"
+#endif
 #include "modules/vcdec/vcdec_jpeg_api.h"
 #include "avdk_monitor.h"
 #include "common/avdk_pixel_types.h"
@@ -42,6 +45,13 @@ static void frame_done_cb(int status, void *args)
         LOGE("control is NULL\r\n");
         return;
     }
+#if CONFIG_L2_CACHE_ENABLE || CONFIG_DCACHE
+    if (status == BK_OK && ctrl->decode_config.output_buffer != NULL &&
+        ctrl->decode_config.output_size > 0U) {
+        flush_dcache(ctrl->decode_config.output_buffer,
+                     (long)ctrl->decode_config.output_size);
+    }
+#endif
     if (ctrl->config.frame_done_cb != NULL)
     {
         ctrl->config.frame_done_cb(status, ctrl->config.frame_done_args);
@@ -114,6 +124,14 @@ static avdk_err_t jpeg_decode_callback(void *param)
     if (!ctrl->vcdec_handle) {
         return AVDK_ERR_INVAL;
     }
+
+#if CONFIG_L2_CACHE_ENABLE || CONFIG_DCACHE
+    if (ctrl->decode_config.input_stream != NULL &&
+        ctrl->decode_config.input_stream_len > 0U) {
+        flush_dcache(ctrl->decode_config.input_stream,
+                     (long)ctrl->decode_config.input_stream_len);
+    }
+#endif
 
     DECODE_FRAME_START;
     vcdec_ret_e ret = vcdec_jpeg_decode_frame(ctrl->vcdec_handle, &ctrl->decode_config);

@@ -38,6 +38,9 @@
 #include "components/bk_decode/bk_h264_decode_ctlr.h"
 #include "private_h264_decode_ctlr.h"
 #include "hw_decoder_ctlr.h"
+#if CONFIG_L2_CACHE_ENABLE || CONFIG_DCACHE
+#include "cache.h"
+#endif
 #include "modules/vcdec/vcdec_h264_api.h"
 #include "modules/vcdec/vcdec_common.h"
 #include "h264d_fbpool.h"
@@ -269,6 +272,14 @@ static avdk_err_t h264_decode_callback(void *param)
 		ctrl->skip_until_idr = 0U;
 	}
 
+#if CONFIG_L2_CACHE_ENABLE || CONFIG_DCACHE
+	if (ctrl->decode_config.input_stream != NULL &&
+	    ctrl->decode_config.input_stream_len > 0U) {
+		flush_dcache(ctrl->decode_config.input_stream,
+			     (long)ctrl->decode_config.input_stream_len);
+	}
+#endif
+
 	DECODE_FRAME_START;
 	ret = vcdec_h264_decode_frame(ctrl->vcdec_handle, &ctrl->decode_config);
 	DECODE_FRAME_END;
@@ -366,6 +377,12 @@ static avdk_err_t h264_decode_ctlr_dequeue(private_h264_decode_frame_zerocopy_ct
 		/* Timeout / empty: not a hard error, lets the caller stop draining. */
 		return vret;
 	}
+
+#if CONFIG_L2_CACHE_ENABLE || CONFIG_DCACHE
+	if (frm.data != NULL && frm.data_len > 0U) {
+		flush_dcache(frm.data, (long)frm.data_len);
+	}
+#endif
 
 	dq->frame.data = frm.data;
 	dq->frame.data_len = frm.data_len;

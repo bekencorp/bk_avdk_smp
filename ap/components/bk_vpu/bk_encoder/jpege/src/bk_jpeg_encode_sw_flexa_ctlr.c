@@ -7,6 +7,9 @@
 #include "components/bk_encode/bk_jpeg_encode_ctlr.h"
 #include "hw_encoder_ctlr.h"
 #include "private_jpeg_encode_ctlr.h"
+#if CONFIG_L2_CACHE_ENABLE || CONFIG_DCACHE
+#include "cache.h"
+#endif
 
 #define TAG "bk_jpeg_enc_swf"
 
@@ -52,6 +55,11 @@ static void jpeg_sw_flexa_complete(private_jpeg_encode_sw_flexa_ctlr_t *ctrl,
 			.sequence = 0,
 			.args = ctrl->config.outbuf_complete_args,
 		};
+#if CONFIG_L2_CACHE_ENABLE || CONFIG_DCACHE
+		if (length > 0U) {
+			flush_dcache(buffer, (long)length);
+		}
+#endif
 		ctrl->config.outbuf_complete(&info);
 	}
 	if (buffer == (void *)(uintptr_t)ctrl->jpeg_param.out_buffer)
@@ -108,6 +116,17 @@ static avdk_err_t jpeg_sw_flexa_msg_callback(void *param)
 	if (ctrl == NULL)
 		return AVDK_ERR_INVAL;
 
+#if CONFIG_L2_CACHE_ENABLE || CONFIG_DCACHE
+	{
+		uint32_t line_bytes = ctrl->config.width * 3U / 2U;
+		uint32_t lines = ctrl->jpeg_param.in_lines ? ctrl->jpeg_param.in_lines : ctrl->config.height;
+		uint32_t flush_sz = lines * line_bytes;
+
+		if (ctrl->jpeg_param.in_buffer != 0U && flush_sz > 0U) {
+			flush_dcache((void *)(uintptr_t)ctrl->jpeg_param.in_buffer, (long)flush_sz);
+		}
+	}
+#endif
 	ctrl->last_flexa_line = 0;
 	ctrl->jpeg_param.linebuf_wr_cnt = JPEG_SW_FLEXA_INITIAL_WR_BLOCKS;
 	ctrl->last_ret = vcenc_jpeg_encode_frame(&ctrl->jpeg_param);

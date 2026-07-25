@@ -22,6 +22,9 @@
 #include "components/bk_encode/bk_jpeg_encode_ctlr.h"
 #include "hw_encoder_ctlr.h"
 #include "private_jpeg_encode_ctlr.h"
+#if CONFIG_L2_CACHE_ENABLE || CONFIG_DCACHE
+#include "cache.h"
+#endif
 
 #define TAG "bk_jpeg_enc_frm"
 
@@ -71,6 +74,11 @@ static void jpeg_encode_done_cb(void *buffer, uint32_t length, uint32_t type, ui
 		.sequence = 0,
 		.args = ctrl->config.outbuf_complete_args,
 	};
+#if CONFIG_L2_CACHE_ENABLE || CONFIG_DCACHE
+	if (length > 0U) {
+		flush_dcache(buffer, (long)length);
+	}
+#endif
 	ctrl->config.outbuf_complete(&info);
 }
 
@@ -82,6 +90,15 @@ static avdk_err_t jpeg_encode_msg_callback(void *param)
 	if (ctrl == NULL)
 		return AVDK_ERR_INVAL;
 
+#if CONFIG_L2_CACHE_ENABLE || CONFIG_DCACHE
+	{
+		uint32_t flush_sz = ctrl->config.width * ctrl->config.height * 3U / 2U;
+
+		if (ctrl->jpeg_param.in_buffer != 0U && flush_sz > 0U) {
+			flush_dcache((void *)(uintptr_t)ctrl->jpeg_param.in_buffer, (long)flush_sz);
+		}
+	}
+#endif
 	ctrl->last_ret = vcenc_jpeg_encode_frame(&ctrl->jpeg_param);
 	signal_jpeg_encode_done(ctrl);
 	return jpeg_vcenc_ret_to_avdk(ctrl->last_ret);
