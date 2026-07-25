@@ -1,5 +1,5 @@
 set(incs .)
-set(srcs ap_main.c frame_buffer_test.c)
+set(srcs ap_main.c frame_buffer_test.c frame_queue_test.c)
 
 set(priv_req bk_network_provisioning bk_frame_buffer avdk_utils)
 
