@@ -857,9 +857,6 @@ bk_err_t sdio_host_init()
 	sdio_gpio_init(s_active_id, SDIO_WIRE_WIDTH_SEL_1);
 	PWR_CTRL_R(SDIO_ACTIVE_BASE) = 0x01;
 
-	//tuning_cfg(SDIO_ACTIVE_BASE,0x0,0x0,0,0,0x0,0x0,0,0,1);
-	tuning_cfg(SDIO_ACTIVE_BASE,0x0,0x0,0,0,0x0,0x0,0,0,0);	//TODO: V2 chip positive edge tuning
-
 	ret = mshc_host_init(SDIO_ACTIVE_BASE,0x3,300,0xff,0xa,SD_CARD,UHS_MODE_SDR12,DATA_WIDTH1);	  //400k //addr,sys_div,sdclk_div,tmclk_div,cqetmclk_div,CARD_IS_EMMC,UHS_MODE_SEL,DAT_XFER_WIDTH
 	if(BK_OK != ret)
 		return ret;
@@ -1412,6 +1409,7 @@ bk_err_t bk_sdio_host_init(sdio_host_id_t id, const sdio_host_cfg_t *cfg)
 		ret = mshc_host_init(s_active_base, 0x3, 300, 0xff, 0xa,
 				     1 /*CARD_IS_EMMC*/, UHS_MODE_EMMC_DS, DATA_WIDTH1);
 	} else {
+		tuning_cfg(s_active_base, 0, 0, 0, 0, 0, 0, 0, 0, 1);
 		ret = sdio_host_init();         /* SD path, behavior preserved */
 	}
 
