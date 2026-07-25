@@ -38,6 +38,25 @@
  * pushing logs to the (dead) CP over the mailbox. Provided by sys_sw_regs. */
 extern uint32_t bk_sys_sw_regs_get_ap_cp_hang_dumping(void);
 
+#if CONFIG_CACHE_MAINTENANCE
+/* True only for buffers in the L2-cacheable PSRAM heap (MPU attr5: Outer/L2
+ * write-back, Inner/L1 non-cacheable). The static log pool and os_malloc dynamic
+ * logs live in non-cacheable SRAM (attr1) and need no cache maintenance.
+ * ptr_is_psram_heap() lives in the (non-exported) heap_manager, declared here. */
+#if CONFIG_PSRAM_AS_SYS_MEMORY
+extern bool ptr_is_psram_heap(void *ptr);
+#endif
+static inline bool shell_mb_payload_needs_cache_clean(void *payload)
+{
+#if CONFIG_PSRAM_AS_SYS_MEMORY
+	return ptr_is_psram_heap(payload);
+#else
+	(void)payload;
+	return false;
+#endif
+}
+#endif
+
 #define ACK_STATE_MASK   0xFFFF
 
 #define TX_QUEUE_LEN     8
@@ -257,6 +276,20 @@ static void shell_mb_tx_isr2(shell_mb_ext_t *mb_ext)
 		cmd_buf->len = mb_ext->packet_len;
 		cmd_buf->tag = mb_ext->packet_tag;
 
+#if CONFIG_CACHE_MAINTENANCE
+		/* Mailbox carries only a POINTER; the CP reads the payload from shared memory
+		 * and invalidates first. During a burst dynamic logs spill to the PSRAM heap
+		 * (L2 write-back, L1 non-cacheable), so this side must clean (write back) the
+		 * payload to main memory before handing the pointer over, else the CP reads
+		 * stale/uninitialised PSRAM -> 0x55 garble. Non-cacheable SRAM buffers (static
+		 * pool / os_malloc) are skipped by the ptr_is_psram_heap gate. */
+		if(shell_mb_payload_needs_cache_clean(mb_ext->cur_packet) &&
+			(mb_ext->packet_len > 0))
+		{
+			flush_dcache(mb_ext->cur_packet, mb_ext->packet_len);
+		}
+#endif
+
 		bk_err_t		ret_code;
 
 		ret_code = mb_chnl_write(mb_ext->chnl_id, &mb_cmd_buf);
@@ -280,53 +313,51 @@ static void shell_mb_tx_isr2(shell_mb_ext_t *mb_ext)
 	}
 }
 
-/* Returns whether CP signalled flow-control BLOCK for this packet. Frees the
- * completed buffer via tx_complete_callback (must run OUTSIDE the pump lock). */
-static u8 shell_mb_tx_cmpl_isr2(shell_mb_ext_t *mb_ext, mb_chnl_ack_t *ack_buf)
+static void shell_mb_tx_cmpl_isr(shell_mb_ext_t *mb_ext, mb_chnl_ack_t *ack_buf)
 {
-	u8 set_block = 0;
+	u8    *done_packet = NULL;
+	u16    done_tag = 0;
+	u8     do_free = 0;
+	u8     set_block = 0;
 
 	if(ack_buf->hdr.cmd != MB_CMD_LOG_OUT)
 	{
 		/*
 		 *   !!!  FAULT  !!!
 		 */
-
-	//	return;
 	}
-	
-	if ( ((ack_buf->hdr.state & CHNL_STATE_COM_FAIL) == 0) && 
+
+	if ( ((ack_buf->hdr.state & CHNL_STATE_COM_FAIL) == 0) &&
      		(ack_buf->ack_state & ACK_STATE_BLOCK) ) {
 		set_block = 1;
 	}
 
-	/* MB_CMD_LOG_OUT tx complete. */
-
-	if( (ack_buf->hdr.state & CHNL_STATE_COM_FAIL) 
+	if( (ack_buf->hdr.state & CHNL_STATE_COM_FAIL)
 		|| ((ack_buf->ack_state & ACK_STATE_MASK) != ACK_STATE_PENDING) )
 	{
-		/* MB_CMD_LOG_OUT handle complete. */
-		/* so notify app to free buffer. */
-		if(mb_ext->tx_complete_callback != NULL)
-		{
-			mb_ext->tx_complete_callback(mb_ext->cur_packet, mb_ext->packet_tag);
-		}
+		do_free = 1;
 	}
 
-	return set_block;
-}
-
-static void shell_mb_tx_cmpl_isr(shell_mb_ext_t *mb_ext, mb_chnl_ack_t *ack_buf)
-{
-	/* callback (frees buffer / releases semaphore) runs outside the pump lock. */
-	u8 set_block = shell_mb_tx_cmpl_isr2(mb_ext, ack_buf);
-
-	/* log_blocked update + tx pump must be atomic vs the producer (write_async). */
 	uint32_t flags = mb_pump_enter();
+	if(do_free)
+	{
+		done_packet = mb_ext->cur_packet;
+		done_tag    = mb_ext->packet_tag;
+		mb_ext->cur_packet = NULL;
+		mb_ext->packet_len = 0;
+	}
 	if(set_block)
 	{
 		mb_ext->log_blocked = 1;
 	}
+	mb_pump_exit(flags);
+
+	if(do_free && (mb_ext->tx_complete_callback != NULL))
+	{
+		mb_ext->tx_complete_callback(done_packet, done_tag);
+	}
+
+	flags = mb_pump_enter();
 	shell_mb_tx_isr2(mb_ext);
 	mb_pump_exit(flags);
 	return;
