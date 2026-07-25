@@ -54,8 +54,8 @@ isp_example/
 |---------|-------------|-------------|
 | **isp** | `detect` | Scan CSI sensors |
 | | `open` | Open a channel (see syntax below) |
-| | `close` | `isp close <mp\|sp>` |
-| | `read` | `isp read <mp\|sp>` — read one frame, hex dump |
+| | `close` | `isp close <mp or sp>` |
+| | `read` | `isp read <mp or sp>` — read one frame, hex dump |
 | | `sensor_open` | MIPI mini-code sensor init |
 | | `init` / `soft_reset` | Controller init / soft reset |
 | **isp_api** | many | Step-by-step Camera API (stub, returns `AVDK_ERR_UNSUPPORTED`) |

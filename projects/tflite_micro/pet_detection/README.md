@@ -63,13 +63,18 @@ common_components/avdk_nn_module/
 ### 3.1 Main Features
 
 1. **On-device inference and post-processing**
-  - Runs the int8 detection model with TFLM + Ethos-U.
-  - Uses YOLOv8-style post-processing: reverse letterbox mapping, per-class NMS, and outputs original-image `x1,y1,x2,y2` plus `class_id` (`k_class_names`: cat / dog).
+
+    - Runs the int8 detection model with TFLM + Ethos-U.
+    - Uses YOLOv8-style post-processing: reverse letterbox mapping, per-class NMS, and outputs original-image `x1,y1,x2,y2` plus `class_id` (`k_class_names`: cat / dog).
+
 2. **Input**
-  - The current demo does not read from a camera. It only uses the **fixed model input tensors** in `pet_image_input_*.cc`, which match the buffer passed to the Interpreter in the Python generation script.
+
+    - The current demo does not read from a camera. It only uses the **fixed model input tensors** in `pet_image_input_*.cc`, which match the buffer passed to the Interpreter in the Python generation script.
+
 3. **Output information**
-  - First initialization prints scratch / model / arena source, pointer, and size.
-  - Each sample image prints the number of `detections` and each bbox, score, and class.
+
+    - First initialization prints scratch / model / arena source, pointer, and size.
+    - Each sample image prints the number of `detections` and each bbox, score, and class.
 
 ### 3.2 Inference Time and GPIO (tflm_pet_detection_demo.cpp)
 

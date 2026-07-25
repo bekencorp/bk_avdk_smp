@@ -67,7 +67,7 @@ uvc_display_example/
 
 | 命令 | 用法 | 说明 |
 |------|------|------|
-| **uvc** | `uvc open <port> <w> <h> [mjpeg\|yuv\|h264\|h265]` | 开流；省略 format 时默认 `mjpeg` |
+| **uvc** | `uvc open <port> <w> <h> [mjpeg or yuv or h264 or h265]` | 开流；省略 format 时默认 `mjpeg` |
 | | `uvc close <port>` | 关流 |
 | **decode** | `decode open` / `close` | 打开/关闭 MJPEG Flexa 解码（固定 1920×1080） |
 | **display** | `display open` / `close` | 打开/关闭 LCD；仅当 decode 已打开时启用 GPU 视频路径 |

@@ -67,7 +67,7 @@ uvc_display_example/
 
 | Command | Usage | Description |
 |---------|-------|-------------|
-| **uvc** | `uvc open <port> <w> <h> [mjpeg\|yuv\|h264\|h265]` | Start stream; defaults to `mjpeg` if format omitted |
+| **uvc** | `uvc open <port> <w> <h> [mjpeg or yuv or h264 or h265]` | Start stream; defaults to `mjpeg` if format omitted |
 | | `uvc close <port>` | Stop stream |
 | **decode** | `decode open` / `close` | Open/close MJPEG Flexa decode (fixed 1920×1080) |
 | **display** | `display open` / `close` | LCD on/off; GPU video path only when decode is open |

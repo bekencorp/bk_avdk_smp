@@ -62,21 +62,21 @@ common_components/avdk_nn_module/
 
 1. **端侧推理与后处理**
 
-- 使用 TFLM + Ethos-U 运行 int8 检测模型。
-- 后处理为 YOLOv8 风格：letterbox 逆映射、按类 NMS、输出原图坐标的 `x1,y1,x2,y2` 与 `class_id`（`k_class_names`：cat / dog）。
+    - 使用 TFLM + Ethos-U 运行 int8 检测模型。
+    - 后处理为 YOLOv8 风格：letterbox 逆映射、按类 NMS、输出原图坐标的 `x1,y1,x2,y2` 与 `class_id`（`k_class_names`：cat / dog）。
 
 2. **输入**
 
-- 当前 demo 不读摄像头，仅使用 `pet_image_input_*.cc` 中**固化的模型输入张量**（与 Python 生成脚本中传入 Interpreter 的 buffer 一致）。
+    - 当前 demo 不读摄像头，仅使用 `pet_image_input_*.cc` 中**固化的模型输入张量**（与 Python 生成脚本中传入 Interpreter 的 buffer 一致）。
 
 3. **输出信息**
 
-- 首次初始化打印 scratch / model / arena 来源、指针与大小。
-- 每张样例图打印 `detections` 条数及每条 bbox、score、class。
+    - 首次初始化打印 scratch / model / arena 来源、指针与大小。
+    - 每张样例图打印 `detections` 条数及每条 bbox、score、class。
 
 ### 推理耗时与 GPIO（tflm_pet_detection_demo.cpp）
 
-- **DWT**：`pet_log_dwt_interval` 在「模型 load+init+AllocateTensors」与每次「`Invoke`」后打印耗时；**按 480 MHz** 将 cycle 差换算为 `us`（<1 ms）或 `ms`（≥1 ms），与 `tflite_micro_example` 中 person 示例习惯一致。若芯片主频非 480 MHz，需自行修正换算。
+- **DWT**：`pet_log_dwt_interval` 在「模型 load+init+AllocateTensors」与每次 Invoke 后打印耗时；**按 480 MHz** 将 cycle 差换算为 `us`（<1 ms）或 `ms`（≥1 ms），与 `tflite_micro_example` 中 person 示例习惯一致。若芯片主频非 480 MHz，需自行修正换算。
 - **GPIO_55**：每次 `Invoke()` 前拉高、结束后拉低，可用逻辑分析仪测量高电平宽度作为单次推理时间。
 
 ### 内存来源（与 tflite 示例同思路）
@@ -212,14 +212,14 @@ vela yolov8n_full_integer_quant.tflite \
 
 #### 步骤 2：将二进制固化为 C 源文件
 
-若 Vela 只产出扁平二进制、或你需把某 `*.tflite` 转成 C 数组再与现有 `pet_detect_model_data.cc` 对齐，可用 `xxd` 生成无符号名的原始数组，再**手工**改成工程约定符号：
+若 Vela 只产出扁平二进制、或你需把某 `*.tflite` 转成 C 数组再与现有 `pet_detect_model_data.cc` 对齐，可用 `xxd` 生成无符号名的原始数组，再 **手工** 改成工程约定符号：
 
 ```bash
 xxd -i -c 12 xxxx.tflite > xxxx.cc
 ```
 
 - `-c 12`：每行 12 个字节
-- `xxd -i` 会按**文件名**生成 `unsigned char 文件名各节[]` 与长度宏/常量；**必须**改为与头文件一致的名字，并加上本工程中的对齐与链接属性，例如：
+- `xxd -i` 会按 **文件名** 生成 `unsigned char 文件名各节[]` 与长度宏/常量；**必须** 改为与头文件一致的名字，并加上本工程中的对齐与链接属性，例如：
   - 符号：`pet_detection_vela_tflite[]`、`pet_detection_vela_tflite_len`（与 `tflm_pet_detection_model.h` 中 `extern` 一致）；
   - 建议：`#include "avdk_nn_module.h"`，数组使用 `extern "C"` 与 `DATA_ALIGN_ATTRIBUTE`（见现有 `pet_detect_model_data.cc` 头几行）；
   - 正常 Ethos 路径应 **先 Vela，再**对 Vela 输出做 `xxd` 或直接使用 Vela 导出的 C。
@@ -229,9 +229,9 @@ xxd -i -c 12 xxxx.tflite > xxxx.cc
 1. 步骤 2 整理好的数组，**整体替换**
    `common_components/avdk_nn_module/src/tflm_pet_detection/pet_detect_model_data.cc`。
 2. 确认 `pet_detection_vela_tflite_len` 与数组字节数一致。
-3. 按上一节 **「与** `tflm_pet_detection_model.h` **的对应修改」** 更新该头文件中的宏与 `constexpr`，使之与**新** Vela 产物及 TFLite 张量形状一致。
+3. 按上一节「与 tflm_pet_detection_model.h 的对应修改」更新该头文件中的宏与 `constexpr`，使之与**新** Vela 产物及 TFLite 张量形状一致。
 4. Kconfig 中保持 `CONFIG_TFLM_PET_DETECTION_V1=y`。
-5. 全量重编并跑 `pet_detection` 工程，用串口日志与 PC 侧 `tflite_int8_inference.py` 的 `*_output.txt` 做对比回归；若输入/类别有变，同步 **「与** `pet_image_input.h` **的对应修改」**。
+5. 全量重编并跑 `pet_detection` 工程，用串口日志与 PC 侧 `tflite_int8_inference.py` 的 `*_output.txt` 做对比回归；若输入/类别有变，同步「与 pet_image_input.h 的对应修改」。
 
 ### 功能与回归建议
 
@@ -241,10 +241,10 @@ xxd -i -c 12 xxxx.tflite > xxxx.cc
 
 ## 注意事项
 
-1. 推理任务在 `ap_main` 中为**死循环**调用，不会自行退出。
+1. 推理任务在 `ap_main` 中为 **死循环** 调用，不会自行退出。
 2. Vela 模型与 tensor arena 占用大，**分区与 RAM 配置**（`partitions/bk7259`）需满足跑通要求。
 3. 更新模型时务必同时更新：Vela 产物、头文件常量、嵌入的 `model_input` 与 Python 参考 `*_output.txt` 元数据。
-4. 类别显示名为固件中 `k_class_names`；PC 端 `output.txt` 可能为 `class0` 等字符串，**以** `class_id` **为准**对照。
+4. 类别显示名为固件中 `k_class_names`；PC 端 `output.txt` 可能为 `class0` 等字符串，对照时请 **以 class_id 为准**。
 5. 更通用的 TFLM 使用说明可对照：`tflite_micro/tflite_micro_example/README_CN_.md`。
 
 ## 参考工程

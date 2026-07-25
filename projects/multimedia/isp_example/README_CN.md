@@ -54,8 +54,8 @@ isp_example/
 |------|--------|------|
 | **isp** | `detect` | 扫描 CSI 传感器 |
 | | `open` | 打开通道，见下方语法 |
-| | `close` | `isp close <mp\|sp>` |
-| | `read` | `isp read <mp\|sp>` — 读一帧并 hex dump |
+| | `close` | `isp close <mp or sp>` |
+| | `read` | `isp read <mp or sp>` — 读一帧并 hex dump |
 | | `sensor_open` | MIPI mini code 传感器初始化 |
 | | `init` / `soft_reset` | 控制器初始化 / 软复位 |
 | **isp_api** | 多子命令 | 分步调用 Camera API（当前桩实现，返回 `AVDK_ERR_UNSUPPORTED`） |
