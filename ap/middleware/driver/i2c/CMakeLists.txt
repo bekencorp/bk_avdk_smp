@@ -4,7 +4,6 @@ if (CONFIG_I2C)
 	if (CONFIG_SIM_I2C)
 		list(APPEND srcs
 			i2c/sim_i2c_driver.c
-			i2c/sim_i2c_driver_v2.c
 		)
 	else()
 		list(APPEND srcs
