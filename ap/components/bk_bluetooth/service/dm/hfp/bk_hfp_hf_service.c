@@ -178,9 +178,20 @@ static void hfp_service_cb(bk_hf_client_cb_event_t event, bk_hf_client_cb_param_
             LOGI("+CCWA: HFP calling waiting number:%s, name: %s\n", param->ccwa.number, param->ccwa.name);
             break;
         case BK_HF_CLIENT_CLCC_EVT:
+        {
+            bk_hfp_hf_clcc_info_t clcc = {0};
+
             LOGI("+CLCC: HFP calls result dir:%d, idx:%d, mpty:%d, number:%s, status:%d \n",
                  param->clcc.dir, param->clcc.idx, param->clcc.mpty, param->clcc.number, param->clcc.status);
-            break;
+
+            clcc.idx = param->clcc.idx;
+            clcc.dir = (int)param->clcc.dir;
+            clcc.status = (int)param->clcc.status;
+            clcc.mpty = (int)param->clcc.mpty;
+            clcc.number = (const char *)param->clcc.number;
+            hfp_service_emit(BK_HFP_HF_EVT_CLCC, &clcc);
+        }
+        break;
 
         case BK_HF_CLIENT_VOLUME_CONTROL_EVT:
         {

@@ -46,6 +46,8 @@ typedef enum
     BK_HFP_HF_EVT_BTRH,
     /** Raw AT data is received from the Audio Gateway. Event data: bk_hfp_hf_unknown_data_info_t. */
     BK_HFP_HF_EVT_UNKNOWN_DATA,
+    /** Current call list entry is received (+CLCC). Event data: bk_hfp_hf_clcc_info_t. */
+    BK_HFP_HF_EVT_CLCC,
 } bk_hfp_hf_evt_t;
 
 /** Service-level connection event payload. */
@@ -103,6 +105,16 @@ typedef struct
     const char *number; /**< Caller number string. */
     const char *name;   /**< Caller name string, if provided by the peer. */
 } bk_hfp_hf_clip_info_t;
+
+/** Current call list entry payload (+CLCC). Strings valid only in callback. */
+typedef struct
+{
+    int idx;            /**< Call index (starting from 1). */
+    int dir;            /**< Direction: 0 = outgoing (MO), 1 = incoming (MT). */
+    int status;         /**< Call status (see +CLCC status). */
+    int mpty;           /**< Multi-party flag: 0 = single, 1 = multi-party. */
+    const char *number; /**< Phone number string, may be NULL/empty. */
+} bk_hfp_hf_clcc_info_t;
 
 /** Call hold and response status payload (+BTRH). */
 typedef struct
