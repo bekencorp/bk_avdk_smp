@@ -23,13 +23,141 @@ extern "C" {
 #define BK_GAP_ROLE_SINK            0x01U
 #define BK_GAP_ROLE_SOURCE          0x02U
 
-#define BK_GAP_DEFAULT_CONTEXTS     0x04U
-#define BK_GAP_DEFAULT_AES_COUNT    0x02U
+/* Audio Context Type bit masks (Assigned Numbers, PACS contexts). */
+#define BK_GAP_CONTEXT_UNSPECIFIED        (0x0001U << 0U)
+#define BK_GAP_CONTEXT_CONVERSATIONAL     (0x0001U << 1U)
+#define BK_GAP_CONTEXT_MEDIA              (0x0001U << 2U)
+#define BK_GAP_CONTEXT_GAME               (0x0001U << 3U)
+#define BK_GAP_CONTEXT_INSTRUCTIONAL      (0x0001U << 4U)
+#define BK_GAP_CONTEXT_VOICE_ASSISTANTS   (0x0001U << 5U)
+#define BK_GAP_CONTEXT_LIVE               (0x0001U << 6U)
+#define BK_GAP_CONTEXT_SOUND_EFFECTS      (0x0001U << 7U)
+#define BK_GAP_CONTEXT_NOTIFICATIONS      (0x0001U << 8U)
+#define BK_GAP_CONTEXT_RINGTONE           (0x0001U << 9U)
+#define BK_GAP_CONTEXT_ALERTS             (0x0001U << 10U)
+#define BK_GAP_CONTEXT_EMERGENCY_ALARM    (0x0001U << 11U)
+#define BK_GAP_DEFAULT_CONTEXTS           (BK_GAP_CONTEXT_UNSPECIFIED | BK_GAP_CONTEXT_MEDIA)
+
+#define BK_GAP_DEFAULT_ASE_COUNT          0x01U
+/* Backward-compatible alias kept for older demo code. */
+#define BK_GAP_DEFAULT_AES_COUNT          BK_GAP_DEFAULT_ASE_COUNT
 
 #define BK_GAP_MAX_BIS              (2)
 
 #define BK_BAP_CODEC_IE_LEN         24U
 #define BK_BAP_METADATA_LEN         24U
+
+/*
+ * LC3 codec-specific capability bit masks used by bk_bap_pacs_cfg_t.
+ * These are PACS capability masks, not the single-value codec configuration
+ * enums used in bk_bap_lc3_codec_specific_conf_t.
+ */
+#define BK_BAP_LC3_CAP_FREQ_8KHZ             (0x0001U << 0U)
+#define BK_BAP_LC3_CAP_FREQ_11KHZ            (0x0001U << 1U)
+#define BK_BAP_LC3_CAP_FREQ_16KHZ            (0x0001U << 2U)
+#define BK_BAP_LC3_CAP_FREQ_22KHZ            (0x0001U << 3U)
+#define BK_BAP_LC3_CAP_FREQ_24KHZ            (0x0001U << 4U)
+#define BK_BAP_LC3_CAP_FREQ_32KHZ            (0x0001U << 5U)
+#define BK_BAP_LC3_CAP_FREQ_44KHZ            (0x0001U << 6U)
+#define BK_BAP_LC3_CAP_FREQ_48KHZ            (0x0001U << 7U)
+#define BK_BAP_LC3_CAP_FREQ_88KHZ            (0x0001U << 8U)
+#define BK_BAP_LC3_CAP_FREQ_96KHZ            (0x0001U << 9U)
+#define BK_BAP_LC3_CAP_FREQ_176KHZ           (0x0001U << 10U)
+#define BK_BAP_LC3_CAP_FREQ_192KHZ           (0x0001U << 11U)
+#define BK_BAP_LC3_CAP_FREQ_384KHZ           (0x0001U << 12U)
+
+#define BK_BAP_LC3_CAP_DURATION_7_5MS         (0x01U << 0U)
+#define BK_BAP_LC3_CAP_DURATION_10MS          (0x01U << 1U)
+#define BK_BAP_LC3_CAP_DURATION_7_5MS_PREF    (0x01U << 4U)
+#define BK_BAP_LC3_CAP_DURATION_10MS_PREF     (0x01U << 5U)
+
+#define BK_BAP_LC3_CAP_CHANNEL_COUNT_1        (0x01U << 0U)
+#define BK_BAP_LC3_CAP_CHANNEL_COUNT_2        (0x01U << 1U)
+#define BK_BAP_LC3_CAP_CHANNEL_COUNT_3        (0x01U << 2U)
+#define BK_BAP_LC3_CAP_CHANNEL_COUNT_4        (0x01U << 3U)
+#define BK_BAP_LC3_CAP_CHANNEL_COUNT_5        (0x01U << 4U)
+#define BK_BAP_LC3_CAP_CHANNEL_COUNT_6        (0x01U << 5U)
+#define BK_BAP_LC3_CAP_CHANNEL_COUNT_7        (0x01U << 6U)
+#define BK_BAP_LC3_CAP_CHANNEL_COUNT_8        (0x01U << 7U)
+
+/*
+ * LC3 codec configuration values used by bk_bap_lc3_codec_specific_conf_t.
+ * Keep these separate from the PACS capability bit masks above.
+ */
+#define BK_BAP_LC3_CFG_FREQ_8KHZ              0x01U
+#define BK_BAP_LC3_CFG_FREQ_11KHZ             0x02U
+#define BK_BAP_LC3_CFG_FREQ_16KHZ             0x03U
+#define BK_BAP_LC3_CFG_FREQ_22KHZ             0x04U
+#define BK_BAP_LC3_CFG_FREQ_24KHZ             0x05U
+#define BK_BAP_LC3_CFG_FREQ_32KHZ             0x06U
+#define BK_BAP_LC3_CFG_FREQ_44KHZ             0x07U
+#define BK_BAP_LC3_CFG_FREQ_48KHZ             0x08U
+#define BK_BAP_LC3_CFG_FREQ_88KHZ             0x09U
+#define BK_BAP_LC3_CFG_FREQ_96KHZ             0x0AU
+#define BK_BAP_LC3_CFG_FREQ_176KHZ            0x0BU
+#define BK_BAP_LC3_CFG_FREQ_192KHZ            0x0CU
+#define BK_BAP_LC3_CFG_FREQ_384KHZ            0x0DU
+
+#define BK_BAP_LC3_CFG_DURATION_7_5MS         0x00U
+#define BK_BAP_LC3_CFG_DURATION_10MS          0x01U
+
+#define BK_BAP_QOS_FRAMING_UNFRAMED           0x00U
+#define BK_BAP_QOS_FRAMING_FRAMED             0x01U
+
+/* Supported PHY bit masks used in ASE QoS capabilities. */
+#define BK_BAP_QOS_PHY_1M                     (0x01U << 0U)
+#define BK_BAP_QOS_PHY_2M                     (0x01U << 1U)
+#define BK_BAP_QOS_PHY_CODED                  (0x01U << 2U)
+
+/* Max transport latency values are in milliseconds. */
+#define BK_BAP_QOS_LATENCY_5MS                0x0005U
+#define BK_BAP_QOS_LATENCY_10MS               0x000AU
+#define BK_BAP_QOS_LATENCY_20MS               0x0014U
+#define BK_BAP_QOS_LATENCY_30MS               0x001EU
+#define BK_BAP_QOS_LATENCY_40MS               0x0028U
+
+/* Retransmission number values are raw counts. */
+#define BK_BAP_QOS_RETRANSMISSION_0           0x00U
+#define BK_BAP_QOS_RETRANSMISSION_1           0x01U
+#define BK_BAP_QOS_RETRANSMISSION_2           0x02U
+#define BK_BAP_QOS_RETRANSMISSION_3           0x03U
+#define BK_BAP_QOS_RETRANSMISSION_4           0x04U
+#define BK_BAP_QOS_RETRANSMISSION_5           0x05U
+
+/* Presentation delay values are in microseconds. */
+#define BK_BAP_QOS_PRESENTATION_DELAY_NO_PREF 0x00000000UL
+#define BK_BAP_QOS_PRESENTATION_DELAY_0US     0x00000000UL
+#define BK_BAP_QOS_PRESENTATION_DELAY_10MS    0x00002710UL
+#define BK_BAP_QOS_PRESENTATION_DELAY_20MS    0x00004E20UL
+#define BK_BAP_QOS_PRESENTATION_DELAY_30MS    0x00007530UL
+#define BK_BAP_QOS_PRESENTATION_DELAY_40MS    0x00009C40UL
+
+typedef struct
+{
+    uint16_t supported_contexts;
+    uint16_t available_contexts;
+    uint32_t audio_location;
+
+    uint16_t supported_sampling_frequencies;
+    uint8_t supported_frame_durations;
+    uint8_t supported_channel_counts;
+    uint16_t frame_octets_min;
+    uint16_t frame_octets_max;
+    uint8_t max_codec_frames_per_sdu;
+} bk_bap_pacs_cfg_t;
+
+typedef struct
+{
+    uint8_t ase_count;
+    uint8_t pref_framing;
+    uint8_t pref_phy;
+    uint16_t pref_max_transport_latency;
+    uint32_t pref_presentation_delay_min;
+    uint32_t pref_presentation_delay_max;
+    uint8_t pref_retransmission_number;
+    uint32_t supported_presentation_delay_min;
+    uint32_t supported_presentation_delay_max;
+} bk_bap_ascs_cfg_t;
 
 typedef enum {
     BK_BAP_SINK_INVALID = 0,
@@ -37,6 +165,7 @@ typedef enum {
     BK_BAP_SINK_DISABLE_IND,
     BK_BAP_SINK_DISABLE_CNF,
     BK_BAP_SINK_ENABLE_CNF,
+    BK_BAP_SINK_DISSOCIATE_CNF,
 } bk_bap_sink_cb_evt_t;
 
 
@@ -77,6 +206,7 @@ typedef struct
     uint8_t address_type;
     uint8_t address[6];
     int8_t rssi;
+    uint32_t broadcast_id;
     uint32_t sample_rate;
 } bk_bap_source_announce_data_t;
 
@@ -182,6 +312,38 @@ typedef struct
     uint16_t local_cis_handle;
 } bk_bap_unicast_iso_path_t;
 
+typedef enum
+{
+    BK_BAP_UNICAST_STATE_CODEC_CONFIGURED = 0x01,
+    BK_BAP_UNICAST_STATE_QOS_CONFIGURED   = 0x02,
+    BK_BAP_UNICAST_STATE_ENABLING         = 0x03,
+} bk_bap_unicast_state_evt_t;
+
+typedef struct
+{
+    uint8_t ase_id;
+    uint8_t ase_role;
+    uint8_t state;        /* bk_bap_unicast_state_evt_t */
+    uint16_t acl_handle;
+} bk_bap_unicast_state_t;
+
+typedef struct
+{
+    uint8_t phase;       /* bk_bap_unicast_ready_evt_t */
+    uint8_t status;
+    uint8_t addr_type;
+    uint8_t addr[6];
+    uint16_t acl_handle;
+} bk_bap_unicast_ready_t;
+
+typedef enum
+{
+    BK_BAP_UNICAST_READY_ACL_CONNECTED    = 0x01,
+    BK_BAP_UNICAST_READY_GA_SETUP         = 0x02,
+    BK_BAP_UNICAST_READY_CAPABILITIES     = 0x03,
+    BK_BAP_UNICAST_READY_ACL_DISCONNECTED = 0x04,
+} bk_bap_unicast_ready_evt_t;
+
 typedef struct
 {
     void (* announcement_cb)(bk_bap_source_announce_data_t *bk_bap_source_announce_data);
@@ -194,6 +356,8 @@ typedef struct
     void (* unicast_cis_request_cb)(bk_bap_unicast_cis_info_t *info);
     void (* unicast_cis_established_cb)(bk_bap_unicast_cis_info_t *info);
     void (* unicast_iso_path_ready_cb)(bk_bap_unicast_iso_path_t *info);
+    void (* unicast_state_cb)(bk_bap_unicast_state_t *info);
+    void (* unicast_ready_cb)(bk_bap_unicast_ready_t *info);
 } bk_bap_sink_callbacks_t;
 
 typedef struct
@@ -206,6 +370,8 @@ typedef struct
     void (* unicast_cis_handle_assigned_cb)(bk_bap_unicast_cis_info_t *info);
     void (* unicast_cis_established_cb)(bk_bap_unicast_cis_info_t *info);
     void (* unicast_iso_path_ready_cb)(bk_bap_unicast_iso_path_t *info);
+    void (* unicast_state_cb)(bk_bap_unicast_state_t *info);
+    void (* unicast_ready_cb)(bk_bap_unicast_ready_t *info);
 } bk_bap_source_callbacks_t;
 
 

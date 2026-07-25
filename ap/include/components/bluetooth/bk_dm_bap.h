@@ -22,6 +22,8 @@ extern "C" {
 #endif
 
 bk_err_t bk_dm_bap_init(void);
+bk_err_t bk_dm_bap_pacs_register(uint8_t role, const bk_bap_pacs_cfg_t *pacs_cfg);
+bk_err_t bk_dm_bap_ascs_register(uint8_t role, const bk_bap_ascs_cfg_t *ascs_cfg);
 bk_err_t bk_dm_bap_sink_register(const bk_bap_sink_callbacks_t *bk_bap_sink_callbacks);
 bk_err_t bk_dm_bap_source_register(const bk_bap_source_callbacks_t *bk_bap_source_callbacks);
 
@@ -30,8 +32,8 @@ uint32_t bk_dm_bap_get_channel_count(uint32_t channel_allocation);
 /**
  *
  * @brief
- *  LE Audio unicast/CIS debug helpers. Thin wrappers around the EtherMind GA
- *  reference flow for step-by-step ACL + PACS/ASCS + CIS bring-up.
+ *  LE Audio unicast/CIS debug helpers for step-by-step ACL + PACS/ASCS + CIS
+ *  bring-up.
  * @return
  *                  - BK_ERR_BT_SUCCESS: success
  *                  - others: fail
