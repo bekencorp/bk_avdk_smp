@@ -24,6 +24,10 @@
 #include "bk_private/bk_wifi_types.h"
 #include "bk_net.h"
 #include "event.h"
+#include <components/netif_types.h>
+#if CONFIG_IPV6
+#include "lwip/ip6_addr.h"
+#endif
 
 
 /*global variable defination*/
@@ -159,6 +163,12 @@ static bk_err_t at_wlan_netif_event_cb(void *arg, event_module_t event_module,
 			atsvr_event_sender("wifi",AT_WLAN_STA_GOT_IP,0,NULL,false);
 
 			break;
+#if CONFIG_IPV6
+		case EVENT_NETIF_GOT_IP6:
+			atsvr_event_sender("wifi", AT_WLAN_STA_GOT_IPV6,
+				sizeof(netif_event_got_ip6_t), event_data, true);
+			break;
+#endif
 		case EVENT_NETIF_DHCP_TIMEOUT:
 			BK_LOGE(TAG,"DHCP timeout\r\n");
 			rtos_set_semaphore(&at_wlan_cfg.sta_protection);
@@ -224,6 +234,54 @@ int at_wlan_event_handler(atsvr_msg_t *msg)
 		}else
 			snprintf(resultbuf,sizeof(resultbuf),"\r\nsta sema has lost,this connection has failed\r\nEVT:INVALID IP ADDR\r\n\r\n");
 		break;
+#if CONFIG_IPV6
+	case AT_WLAN_STA_GOT_IPV6:
+	{
+		netif_event_got_ip6_t *got_ip6 = (netif_event_got_ip6_t *)(msg->msg_param);
+		char ipv6_resultbuf[512];
+		char ip6_str[48];
+		int offset;
+		int n;
+
+		offset = snprintf(ipv6_resultbuf, sizeof(ipv6_resultbuf), "\r\n" AT_WLAN_EVT_GOT_IPV6 "sta got ipv6:");
+		if (offset < 0)
+			offset = 0;
+		else if (offset >= (int)sizeof(ipv6_resultbuf))
+			offset = (int)sizeof(ipv6_resultbuf) - 1;
+
+		if (got_ip6 && got_ip6->addr_count > 0) {
+			uint8_t i;
+			uint8_t addr_count = got_ip6->addr_count;
+
+			if (addr_count > NETIF_MAX_IPV6_ADDRESSES)
+				addr_count = NETIF_MAX_IPV6_ADDRESSES;
+
+			for (i = 0; i < addr_count; i++) {
+				ip6addr_ntoa_r((const ip6_addr_t *)got_ip6->ipv6_addr[i].address,
+					ip6_str, sizeof(ip6_str));
+				if (i > 0) {
+					n = snprintf(ipv6_resultbuf + offset,
+						sizeof(ipv6_resultbuf) - offset, ",");
+					if (n > 0) {
+						offset += n;
+						if (offset >= (int)sizeof(ipv6_resultbuf))
+							offset = (int)sizeof(ipv6_resultbuf) - 1;
+					}
+				}
+				n = snprintf(ipv6_resultbuf + offset,
+					sizeof(ipv6_resultbuf) - offset, "%s", ip6_str);
+				if (n > 0) {
+					offset += n;
+					if (offset >= (int)sizeof(ipv6_resultbuf))
+						offset = (int)sizeof(ipv6_resultbuf) - 1;
+				}
+			}
+		}
+		snprintf(ipv6_resultbuf + offset, sizeof(ipv6_resultbuf) - offset, "\r\n\r\n");
+		ATSVR_SIZEOF_OUTPUT_STRRING(ipv6_resultbuf);
+		break;
+	}
+#endif
 	case AT_WLAN_LOSS_DHCP:
 		snprintf(resultbuf,sizeof(resultbuf),"\r\n"AT_WLAN_EVT_STA_LOSS_DHCP"sta has lost DHCP\r\n\r\n");
 		ATSVR_SIZEOF_OUTPUT_STRRING(resultbuf);

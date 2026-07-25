@@ -22,9 +22,6 @@
 #endif
 
 uint8 sta_static_ip_flag = 0;
-#ifdef CONFIG_WIFI_VNET_CONTROLLER
-extern wdrv_wlan wdrv_host_env;
-#endif
 
 bk_err_t bk_netif_static_ip(netif_ip4_config_t static_ip4_config)
 {
@@ -54,32 +51,6 @@ bk_err_t bk_netif_static_ip(netif_ip4_config_t static_ip4_config)
 	return BK_OK;
 }
 
-#if CONFIG_NETIF_LWIP && defined(CONFIG_WIFI_VNET_CONTROLLER)
-static void netif_vnet_fill_ip4_from_connect_ind(netif_ip4_config_t *ip4)
-{
-	os_snprintf(ip4->ip, NETIF_IP4_STR_LEN, "%u.%u.%u.%u",
-		    (wdrv_host_env.connect_ind.ip >> 0) & 0xff,
-		    (wdrv_host_env.connect_ind.ip >> 8) & 0xff,
-		    (wdrv_host_env.connect_ind.ip >> 16) & 0xff,
-		    (wdrv_host_env.connect_ind.ip >> 24) & 0xff);
-	os_snprintf(ip4->mask, NETIF_IP4_STR_LEN, "%u.%u.%u.%u",
-		    (wdrv_host_env.connect_ind.mk >> 0) & 0xff,
-		    (wdrv_host_env.connect_ind.mk >> 8) & 0xff,
-		    (wdrv_host_env.connect_ind.mk >> 16) & 0xff,
-		    (wdrv_host_env.connect_ind.mk >> 24) & 0xff);
-	os_snprintf(ip4->gateway, NETIF_IP4_STR_LEN, "%u.%u.%u.%u",
-		    (wdrv_host_env.connect_ind.gw >> 0) & 0xff,
-		    (wdrv_host_env.connect_ind.gw >> 8) & 0xff,
-		    (wdrv_host_env.connect_ind.gw >> 16) & 0xff,
-		    (wdrv_host_env.connect_ind.gw >> 24) & 0xff);
-	os_snprintf(ip4->dns, NETIF_IP4_STR_LEN, "%u.%u.%u.%u",
-		    (wdrv_host_env.connect_ind.dns >> 0) & 0xff,
-		    (wdrv_host_env.connect_ind.dns >> 8) & 0xff,
-		    (wdrv_host_env.connect_ind.dns >> 16) & 0xff,
-		    (wdrv_host_env.connect_ind.dns >> 24) & 0xff);
-}
-#endif
-
 bk_err_t netif_wifi_event_cb(void *arg, event_module_t event_module,
                 int event_id, void *event_data)
 {
@@ -91,31 +62,7 @@ bk_err_t netif_wifi_event_cb(void *arg, event_module_t event_module,
 #ifdef CONFIG_WIFI_VNET_CONTROLLER
     case EVENT_WIFI_STA_CONNECTED:
 		break;
-    case EVENT_WIFI_STA_GOT_IPV4:
-    {
-        netif_ip4_config_t wdrv_static_ip;
-
-        netif_vnet_fill_ip4_from_connect_ind(&wdrv_static_ip);
-        sta_ip_mode_set(0);
-        sta_ip_down();
-        BK_LOG_ON_ERR(bk_netif_set_ip4_config_local(NETIF_IF_STA, &wdrv_static_ip));
-        sta_ip_start();
-    }
 #endif
-		break;
-	case EVENT_WIFI_STA_GOT_IPV6:
-	{
-#ifdef CONFIG_IPV6
-		struct ipv6_config ipv6_configs[MAX_IPV6_ADDRESSES];
-		LWIP_LOGE("%s IPv6 address count: %d\n", __func__, wdrv_host_env.ipv6_ind.addr_count);
-		for (int i = 0; i < wdrv_host_env.ipv6_ind.addr_count && i < MAX_IPV6_ADDRESSES; i++) {
-			os_memcpy(&ipv6_configs[i].address, wdrv_host_env.ipv6_ind.ipv6_addr[i].address, 16);
-			ipv6_configs[i].addr_state = wdrv_host_env.ipv6_ind.ipv6_addr[i].addr_state;
-		}
-		net_configure_ipv6_address(ipv6_configs, wdrv_host_env.ipv6_ind.addr_count, net_get_sta_handle());
-#endif
-	}
-		break;
 	case EVENT_WIFI_STA_DISCONNECTED:
 #if CONFIG_NETIF_LWIP
 		sta_ip_down();

@@ -30,6 +30,7 @@
 #include "wdrv_co_list.h"
 #include "wdrv_tx.h"
 #include <components/netif.h>
+#include "bk_netif.h"
 #include "components/event.h"
 #include "wifi_api_ipc.h"
 #if CONFIG_BRIDGE
@@ -49,6 +50,19 @@ wifi_linkstate_reason_t connect_flag = {WIFI_LINKSTATE_STA_IDLE, WIFI_REASON_MAX
 
 FUNC_1PARAM_PTR connection_status_cb = 0;
 
+#if CONFIG_WIFI_VNET_CONTROLLER
+static bool sta_got_ipv4_notified;
+
+void wdrv_reset_sta_ipv4_notified(void)
+{
+	sta_got_ipv4_notified = false;
+}
+
+bool wdrv_sta_ipv4_already_notified(void)
+{
+	return sta_got_ipv4_notified;
+}
+#endif
 
 static rx_handle_customer_event_cb s_rx_handle_cust_event_cb = NULL;
 
@@ -179,11 +193,60 @@ void wdrv_notify_sta_connected(void)
                                 BEKEN_NEVER_TIMEOUT));
 }
 
+#if CONFIG_WIFI_VNET_CONTROLLER
+static void wdrv_fill_ip4_from_connect_ind(netif_ip4_config_t *ip4)
+{
+	os_snprintf(ip4->ip, NETIF_IP4_STR_LEN, "%u.%u.%u.%u",
+		    (wdrv_host_env.connect_ind.ip >> 0) & 0xff,
+		    (wdrv_host_env.connect_ind.ip >> 8) & 0xff,
+		    (wdrv_host_env.connect_ind.ip >> 16) & 0xff,
+		    (wdrv_host_env.connect_ind.ip >> 24) & 0xff);
+	os_snprintf(ip4->mask, NETIF_IP4_STR_LEN, "%u.%u.%u.%u",
+		    (wdrv_host_env.connect_ind.mk >> 0) & 0xff,
+		    (wdrv_host_env.connect_ind.mk >> 8) & 0xff,
+		    (wdrv_host_env.connect_ind.mk >> 16) & 0xff,
+		    (wdrv_host_env.connect_ind.mk >> 24) & 0xff);
+	os_snprintf(ip4->gateway, NETIF_IP4_STR_LEN, "%u.%u.%u.%u",
+		    (wdrv_host_env.connect_ind.gw >> 0) & 0xff,
+		    (wdrv_host_env.connect_ind.gw >> 8) & 0xff,
+		    (wdrv_host_env.connect_ind.gw >> 16) & 0xff,
+		    (wdrv_host_env.connect_ind.gw >> 24) & 0xff);
+	os_snprintf(ip4->dns, NETIF_IP4_STR_LEN, "%u.%u.%u.%u",
+		    (wdrv_host_env.connect_ind.dns >> 0) & 0xff,
+		    (wdrv_host_env.connect_ind.dns >> 8) & 0xff,
+		    (wdrv_host_env.connect_ind.dns >> 16) & 0xff,
+		    (wdrv_host_env.connect_ind.dns >> 24) & 0xff);
+}
+
 void wdrv_notify_sta_got_ipv4(void)
 {
-    BK_LOG_ON_ERR(bk_event_post(EVENT_MOD_WIFI, EVENT_WIFI_STA_GOT_IPV4,
-                                NULL, 0, BEKEN_NEVER_TIMEOUT));
+    netif_ip4_config_t ip4 = {0};
+    netif_event_got_ip4_t event_data = {0};
+    wifi_linkstate_reason_t info;
+
+    if (wdrv_host_env.connect_ind.ip == 0)
+        return;
+
+    if (sta_got_ipv4_notified)
+        return;
+    sta_got_ipv4_notified = true;
+
+    wdrv_fill_ip4_from_connect_ind(&ip4);
+    sta_ip_mode_set(0);
+    sta_ip_down();
+    BK_LOG_ON_ERR(bk_netif_set_ip4_config_local(NETIF_IF_STA, &ip4));
+    sta_ip_start();
+
+    info.state = WIFI_LINKSTATE_STA_GOT_IP;
+    info.reason_code = WIFI_REASON_MAX;
+    mhdr_set_station_status(info);
+
+    event_data.netif_if = NETIF_IF_STA;
+    os_memcpy(event_data.ip, ip4.ip, NETIF_IP4_STR_LEN);
+    BK_LOG_ON_ERR(bk_event_post(EVENT_MOD_NETIF, EVENT_NETIF_GOT_IP4,
+                                &event_data, sizeof(event_data), BEKEN_NEVER_TIMEOUT));
 }
+#endif
 
 #if CONFIG_P2P
 void wdrv_p2p_role_clear(void)
@@ -237,6 +300,10 @@ void wdrv_notify_sta_disconnected(void *data, uint16_t len)
     wifi_linkstate_reason_t info = {0};
     os_memcpy(&sta_disconnected, data, len);
 
+#if CONFIG_WIFI_VNET_CONTROLLER
+    wdrv_reset_sta_ipv4_notified();
+#endif
+
     info.state = WIFI_LINKSTATE_STA_DISCONNECTED;
     info.reason_code = sta_disconnected.disconnect_reason;
     mhdr_set_station_status(info);
@@ -260,12 +327,35 @@ void wdrv_notify_sap_sta_connected(void)
 
 void wdrv_notify_sta_got_ipv6(void)
 {
-    wifi_event_got_ipv6_t got_ipv6 = {0};
+#if CONFIG_IPV6
+    netif_event_got_ip6_t got_ipv6 = {0};
+    struct ipv6_config ipv6_configs[MAX_IPV6_ADDRESSES];
+    uint8_t addr_count;
+    int i;
 
-    os_memcpy(&got_ipv6, &wdrv_host_env.ipv6_ind, sizeof(got_ipv6));
+    addr_count = wdrv_host_env.ipv6_ind.addr_count;
+    if (addr_count > NETIF_MAX_IPV6_ADDRESSES)
+        addr_count = NETIF_MAX_IPV6_ADDRESSES;
+    if (addr_count == 0)
+        return;
 
-    BK_LOG_ON_ERR(bk_event_post(EVENT_MOD_WIFI, EVENT_WIFI_STA_GOT_IPV6,
+    got_ipv6.netif_if = NETIF_IF_STA;
+    got_ipv6.addr_count = addr_count;
+    for (i = 0; i < addr_count; i++) {
+        os_memcpy(&got_ipv6.ipv6_addr[i], &wdrv_host_env.ipv6_ind.ipv6_addr[i],
+                  sizeof(got_ipv6.ipv6_addr[i]));
+        os_memcpy(&ipv6_configs[i].address, got_ipv6.ipv6_addr[i].address, 16);
+        ipv6_configs[i].addr_state = got_ipv6.ipv6_addr[i].addr_state;
+    }
+
+    if (net_configure_ipv6_address(ipv6_configs, addr_count, net_get_sta_handle()) != 0) {
+        WDRV_LOGE(TAG, "configure IPv6 address failed\n");
+        return;
+    }
+
+    BK_LOG_ON_ERR(bk_event_post(EVENT_MOD_NETIF, EVENT_NETIF_GOT_IP6,
                                 &got_ipv6, sizeof(got_ipv6), BEKEN_NEVER_TIMEOUT));
+#endif
 }
 
 void wdrv_notify_sap_sta_disconnected(void)
@@ -323,6 +413,12 @@ void wdrv_notify_sta_got_ip(void)
 {
     wifi_linkstate_reason_t info;
     netif_ip4_config_t wdrv_got_ip = {0};
+
+#if CONFIG_WIFI_VNET_CONTROLLER
+    if (sta_got_ipv4_notified)
+        return;
+    sta_got_ipv4_notified = true;
+#endif
 
     /* set wifi status */
     info.state = WIFI_LINKSTATE_STA_GOT_IP;
@@ -567,6 +663,28 @@ void wdrv_rx_handle_wifi_api_event(wdrv_rx_msg *msg)
 }
 
 #if CONFIG_WIFI_VNET_CONTROLLER
+static wifi_event_t wdrv_cif_to_wifi_event(uint16_t cif_evt)
+{
+	switch (cif_evt) {
+	case CIF_WIFI_EVT_STA_CONNECTED:
+		return EVENT_WIFI_STA_CONNECTED;
+	case CIF_WIFI_EVT_STA_DISCONNECTED:
+		return EVENT_WIFI_STA_DISCONNECTED;
+#if CONFIG_P2P
+	case CIF_WIFI_EVT_GO_CONNECTED:
+		return EVENT_WIFI_GO_CONNECTED;
+	case CIF_WIFI_EVT_GO_DISCONNECTED:
+		return EVENT_WIFI_GO_DISCONNECTED;
+	case CIF_WIFI_EVT_GC_CONNECTED:
+		return EVENT_WIFI_GC_CONNECTED;
+	case CIF_WIFI_EVT_GC_DISCONNECTED:
+		return EVENT_WIFI_GC_DISCONNECTED;
+#endif
+	default:
+		return EVENT_WIFI_COUNT;
+	}
+}
+
 static void wdrv_handle_wifi_event_ind(cif_wifi_event_ind_t *ind)
 {
     wifi_event_t evt;
@@ -579,7 +697,9 @@ static void wdrv_handle_wifi_event_ind(cif_wifi_event_ind_t *ind)
     if (!ind || ind->data_len > CIF_WIFI_EVENT_IND_MAX_DATA)
         return;
 
-    evt = (wifi_event_t)ind->event_id;
+    evt = wdrv_cif_to_wifi_event(ind->event_id);
+    if (evt >= EVENT_WIFI_COUNT)
+        return;
 
     switch (evt) {
     case EVENT_WIFI_STA_CONNECTED:
@@ -697,8 +817,15 @@ void wdrv_rx_handle_wifi_cntrl_event(wdrv_rx_msg *msg)
         }
         case BK_EVT_IPV6_IND:
 #if CONFIG_IPV6
+            if (!msg->param || msg->param_len < sizeof(struct wdrv_ipv6_ind)) {
+                WDRV_LOGE(TAG, "invalid IPv6 ind, len=%u\n", msg->param_len);
+                break;
+            }
+            os_memset(&wdrv_host_env.ipv6_ind, 0, sizeof(wdrv_host_env.ipv6_ind));
             os_memcpy(&wdrv_host_env.ipv6_ind, msg->param, sizeof(struct wdrv_ipv6_ind));
-            WDRV_LOGE(TAG, "%s IPv6 address count: %d\n", __func__, wdrv_host_env.ipv6_ind.addr_count);
+            if (wdrv_host_env.ipv6_ind.addr_count > MAX_IPV6_ADDRESSES_IN_MSG)
+                wdrv_host_env.ipv6_ind.addr_count = MAX_IPV6_ADDRESSES_IN_MSG;
+            WDRV_LOGD(TAG, "IPv6 address count: %d\n", wdrv_host_env.ipv6_ind.addr_count);
             wdrv_notify_sta_got_ipv6();
 #endif
             break;

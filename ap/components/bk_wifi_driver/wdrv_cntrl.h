@@ -367,6 +367,13 @@ enum BK_EVENT_TYPE
 };
 
 /* CP -> AP Wi-Fi event passthrough (see cp/components/controller_if/cif_wifi_event.h) */
+#define CIF_WIFI_EVT_STA_CONNECTED        2
+#define CIF_WIFI_EVT_STA_DISCONNECTED     5
+#define CIF_WIFI_EVT_GO_CONNECTED         8
+#define CIF_WIFI_EVT_GO_DISCONNECTED      9
+#define CIF_WIFI_EVT_GC_CONNECTED        10
+#define CIF_WIFI_EVT_GC_DISCONNECTED     11
+
 #define CIF_WIFI_EVENT_IND_MAX_DATA      64
 
 typedef struct {
@@ -461,12 +468,15 @@ int bk_platform_get_wlan_status(void);
 extern void wdrv_rx_handle_event(wdrv_rx_msg *msg);
 extern void wdrv_rx_handle_cmd_confirm(wdrv_rx_msg *msg);
 void wdrv_notify_sta_connected(void);
+void wdrv_notify_sta_got_ipv4(void);
 #if CONFIG_P2P
 void wdrv_notify_gc_got_ipv4(void);
 void wdrv_notify_gc_got_ip(void);
 void wdrv_p2p_role_clear(void);
 #endif
 void wdrv_notify_sta_got_ip(void);
+void wdrv_reset_sta_ipv4_notified(void);
+bool wdrv_sta_ipv4_already_notified(void);
 void bk_rx_handle_customer_event(void *data, uint16_t len);
 int bk_wdrv_send_customer_data(uint8_t *data, uint16_t len);
 void wdrv_notify_sta_disconnected(void *data, uint16_t len);
