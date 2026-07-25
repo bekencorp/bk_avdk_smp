@@ -277,11 +277,7 @@ bk_err_t bk_tp_i2c_init(const tp_config_t *config)
     i2c_config.baud_rate = I2C_BAUD_RATE_100KHZ;
     i2c_config.addr_mode = I2C_ADDR_MODE_7BIT;
 
-#if CONFIG_SIM_I2C_HW_BOARD_V3
-    if (BK_OK != bk_i2c_init_v2(TP_I2C_ID, &i2c_config))
-#else
     if (BK_OK != bk_i2c_init(TP_I2C_ID, &i2c_config))
-#endif
     {
         LOGE("%s, I2C%d init fail!\r\n", TP_I2C_ID);
         return BK_FAIL;
