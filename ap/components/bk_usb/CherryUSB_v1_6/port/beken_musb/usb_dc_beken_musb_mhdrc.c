@@ -3,6 +3,35 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  */
+
+/*
+ * v0.7 -> v1.6 device-controller ABI adaptation.
+ *
+ * This MUSB-MHDRC port was written against the legacy no-busid CherryUSB device
+ * API (it pulls the v0.7 usb_dc.h shim via <components/cherryusb/usbd_core.h>),
+ * but it is compiled into the v1.6 stack whose core (usbd_core.c) calls these
+ * controller entry points WITH a leading busid, e.g. usbd_ep_open(busid, ep).
+ * Linking by name only, the legacy no-busid definitions received garbage in the
+ * busid register and MemFaulted (g_usbd_core[<garbage>]).
+ *
+ * Rename the legacy prototypes out of the way here so we can redefine the real
+ * public symbols below with the exact v1.6 (busid, ...) signatures the core
+ * calls. Everything else (v0.7 macros, struct usbd_endpoint_cfg, the EP flag
+ * defines used by usbd_ep_open) stays available from the shim. The reverse
+ * direction (this port calling the core's usbd_event_*_handler upcalls) is
+ * handled by the busid-injection macros further down.
+ */
+#define usb_dc_init         usb_dc_init__legacy_decl
+#define usb_dc_deinit       usb_dc_deinit__legacy_decl
+#define usbd_set_address    usbd_set_address__legacy_decl
+#define usbd_ep_open        usbd_ep_open__legacy_decl
+#define usbd_ep_close       usbd_ep_close__legacy_decl
+#define usbd_ep_set_stall   usbd_ep_set_stall__legacy_decl
+#define usbd_ep_clear_stall usbd_ep_clear_stall__legacy_decl
+#define usbd_ep_is_stalled  usbd_ep_is_stalled__legacy_decl
+#define usbd_ep_start_write usbd_ep_start_write__legacy_decl
+#define usbd_ep_start_read  usbd_ep_start_read__legacy_decl
+
 #include <components/cherryusb/usbd_core.h>
 #include "usb_beken_musb_reg.h"
 #include "sys_driver.h"
@@ -13,6 +42,57 @@
 
 #include "riscv_bridge/riscv_usb_bridge.h"
 #include "riscv_bridge/riscv_usb_probe_defs.h"
+
+/* Restore the real names so the definitions below export the true public
+ * symbols with the v1.6 (busid, ...) signatures. */
+#undef usb_dc_init
+#undef usb_dc_deinit
+#undef usbd_set_address
+#undef usbd_ep_open
+#undef usbd_ep_close
+#undef usbd_ep_set_stall
+#undef usbd_ep_clear_stall
+#undef usbd_ep_is_stalled
+#undef usbd_ep_start_write
+#undef usbd_ep_start_read
+
+/*
+ * v0.7 -> v1.6 device-event ABI shim (busid injection).
+ *
+ * This port is written against the legacy no-busid CherryUSB device API (it
+ * includes the v0.7 usb_dc.h shim, which declares usbd_event_*_handler(void)),
+ * but it is linked against the v1.6 core whose real symbols take a leading
+ * busid: usbd_event_reset_handler(uint8_t busid), etc. Calling them without a
+ * busid leaves the argument register garbage, so the core indexes
+ * g_usbd_core[<garbage>] and MemFaults on the first RESET/SUSPEND.
+ *
+ * Route every core upcall through a function-pointer cast that forces busid 0
+ * (single-bus device: MTP/MSC both use bus 0). The parenthesized identifier
+ * inside each macro is followed by ')', not '(', so it does not re-expand. This
+ * fixes both the M55 USBD_IRQHandler path and the RISC-V bridge poll path.
+ */
+/* Launder the target through void* so GCC does not diagnose the deliberate
+ * v0.7(void)->v1.6(busid) prototype mismatch as -Werror=cast-function-type /
+ * "function called through a non-compatible type". Statement macros (do/while)
+ * because every call site is a statement returning void. */
+#define usbd_event_reset_handler() \
+    do { void *bk_fp_ = (void *)usbd_event_reset_handler; \
+         ((void (*)(uint8_t))bk_fp_)(0); } while (0)
+#define usbd_event_resume_handler() \
+    do { void *bk_fp_ = (void *)usbd_event_resume_handler; \
+         ((void (*)(uint8_t))bk_fp_)(0); } while (0)
+#define usbd_event_suspend_handler() \
+    do { void *bk_fp_ = (void *)usbd_event_suspend_handler; \
+         ((void (*)(uint8_t))bk_fp_)(0); } while (0)
+#define usbd_event_ep0_setup_complete_handler(psetup) \
+    do { void *bk_fp_ = (void *)usbd_event_ep0_setup_complete_handler; \
+         ((void (*)(uint8_t, uint8_t *))bk_fp_)(0, (psetup)); } while (0)
+#define usbd_event_ep_in_complete_handler(ep, nbytes) \
+    do { void *bk_fp_ = (void *)usbd_event_ep_in_complete_handler; \
+         ((void (*)(uint8_t, uint8_t, uint32_t))bk_fp_)(0, (ep), (nbytes)); } while (0)
+#define usbd_event_ep_out_complete_handler(ep, nbytes) \
+    do { void *bk_fp_ = (void *)usbd_event_ep_out_complete_handler; \
+         ((void (*)(uint8_t, uint8_t, uint32_t))bk_fp_)(0, (ep), (nbytes)); } while (0)
 
 #define HWREG(x) \
     (*((volatile uint32_t *)(x)))
@@ -58,6 +138,28 @@
 /* 20h-5Fh EP0-15 FIFOs */
 #define MUSB_FIFO_OFFSET 0x20
 #define USB_FIFO_BASE(ep_idx) (USB_BASE + MUSB_FIFO_OFFSET + 0x4 * ep_idx)
+
+/*
+ * Report the negotiated device port speed.
+ *
+ * Every other CherryUSB v1.6 device port implements usbd_get_port_speed(), but
+ * the beken MUSB-MHDRC port was missing it, leaving usbd_core.c
+ * (usbd_setup_request_handler, USB_DESCRIPTOR_TYPE_DEVICE case) with an
+ * undefined reference. Read the MUSB POWER HSMODE bit: after reset/HS chirp the
+ * controller latches HSMODE when it enumerated at high speed (BK7259 forces
+ * USB_POWER_HSENAB via CONFIG_USB_HS); otherwise it is running full speed.
+ */
+uint8_t usbd_get_port_speed(uint8_t busid)
+{
+    (void)busid;
+
+    if (HWREGB(USB_BASE + MUSB_POWER_OFFSET) & USB_POWER_HSMODE)
+    {
+        return USB_SPEED_HIGH;
+    }
+
+    return USB_SPEED_FULL;
+}
 
 /* 60h-7Fh Additional Control & Configuration Registers */
 #define MUSB_DEVCTL_OFFSET     0x60
@@ -459,8 +561,9 @@ __WEAK void usb_dc_low_level_deinit(void)
     sys_drv_usb_clock_ctrl(false, NULL);
 }
 
-int usb_dc_init(void)
+int usb_dc_init(uint8_t busid)
 {
+    (void)busid;
     usb_dc_low_level_init();
 
 #ifdef CONFIG_USB_HS
@@ -488,14 +591,16 @@ int usb_dc_init(void)
     return 0;
 }
 
-int usb_dc_deinit(void)
+int usb_dc_deinit(uint8_t busid)
 {
+    (void)busid;
     usb_dc_low_level_deinit();
     return 0;
 }
 
-int usbd_set_address(const uint8_t addr)
+int usbd_set_address(uint8_t busid, const uint8_t addr)
 {
+    (void)busid;
     if (addr == 0) {
         HWREGB(USB_BASE + MUSB_FADDR_OFFSET) = 0;
     }
@@ -504,8 +609,17 @@ int usbd_set_address(const uint8_t addr)
     return 0;
 }
 
-int usbd_ep_open(const struct usbd_endpoint_cfg *ep_cfg)
+int usbd_ep_open(uint8_t busid, const struct usb_endpoint_descriptor *ep)
 {
+    /* Translate the v1.6 endpoint descriptor into the legacy ep_cfg this port
+     * body was written against, so the register logic below stays unchanged. */
+    struct usbd_endpoint_cfg ep_cfg_local = {
+        .ep_addr = ep->bEndpointAddress,
+        .ep_type = (uint8_t)(ep->bmAttributes & 0x03U),
+        .ep_mps  = (uint16_t)(ep->wMaxPacketSize & 0x07FFU),
+    };
+    const struct usbd_endpoint_cfg *ep_cfg = &ep_cfg_local;
+    (void)busid;
     uint16_t used = 0;
     uint16_t fifo_size = 0;
     uint8_t ep_idx = USB_EP_GET_IDX(ep_cfg->ep_addr);
@@ -634,13 +748,15 @@ int usbd_ep_open(const struct usbd_endpoint_cfg *ep_cfg)
     return 0;
 }
 
-int usbd_ep_close(const uint8_t ep)
+int usbd_ep_close(uint8_t busid, const uint8_t ep)
 {
+    (void)busid;
     return 0;
 }
 
-int usbd_ep_set_stall(const uint8_t ep)
+int usbd_ep_set_stall(uint8_t busid, const uint8_t ep)
 {
+    (void)busid;
     uint8_t ep_idx = USB_EP_GET_IDX(ep);
     uint8_t old_ep_idx;
 
@@ -667,8 +783,9 @@ int usbd_ep_set_stall(const uint8_t ep)
     return 0;
 }
 
-int usbd_ep_clear_stall(const uint8_t ep)
+int usbd_ep_clear_stall(uint8_t busid, const uint8_t ep)
 {
+    (void)busid;
     uint8_t ep_idx = USB_EP_GET_IDX(ep);
     uint8_t old_ep_idx;
 
@@ -699,13 +816,15 @@ int usbd_ep_clear_stall(const uint8_t ep)
     return 0;
 }
 
-int usbd_ep_is_stalled(const uint8_t ep, uint8_t *stalled)
+int usbd_ep_is_stalled(uint8_t busid, const uint8_t ep, uint8_t *stalled)
 {
+    (void)busid;
     return 0;
 }
 
-int usbd_ep_start_write(const uint8_t ep, const uint8_t *data, uint32_t data_len)
+int usbd_ep_start_write(uint8_t busid, const uint8_t ep, const uint8_t *data, uint32_t data_len)
 {
+    (void)busid;
     uint8_t ep_idx = USB_EP_GET_IDX(ep);
     uint8_t old_ep_idx;
 
@@ -762,8 +881,9 @@ int usbd_ep_start_write(const uint8_t ep, const uint8_t *data, uint32_t data_len
     return 0;
 }
 
-int usbd_ep_start_read(const uint8_t ep, uint8_t *data, uint32_t data_len)
+int usbd_ep_start_read(uint8_t busid, const uint8_t ep, uint8_t *data, uint32_t data_len)
 {
+    (void)busid;
     uint8_t ep_idx = USB_EP_GET_IDX(ep);
     uint8_t old_ep_idx;
 
