@@ -53,9 +53,10 @@ bk_err_t bk_multicore_stop(uint32_t cpu_id)
 #if CONFIG_CPU_HOTPLUG
 
 #define AP_HOTPLUG_TIMEOUT_STAPS        (3)
+#define AP_HOTPLUG_TIMEOUT_STAPS_ONLINE (20)
 #define AP_HOTPLUG_TIMEOUT_ONE_STEP     (1)
-#define AP_HOTPLUG_TIMEOUT_ONE_STEP_US  (AP_HOTPLUG_TIMEOUT_ONE_STEP * 500) /* 1500us */
-#define AP_HOTPLUG_TIMEOUT_ONE_STEP_MS  (AP_HOTPLUG_TIMEOUT_ONE_STEP)       /* 3ms */
+#define AP_HOTPLUG_TIMEOUT_ONE_STEP_US  (AP_HOTPLUG_TIMEOUT_ONE_STEP * 500) /* 500us */
+#define AP_HOTPLUG_TIMEOUT_ONE_STEP_MS  (AP_HOTPLUG_TIMEOUT_ONE_STEP)       /* 1ms */
 #define AP_HOTPLUG_CPU3_ROUTE_REGS      (3)
 #define AP_HOTPLUG_PRIMARY_ROUTE_REGS   (2)
 #define AP_HOTPLUG_NVIC_WORDS           (4)
@@ -566,9 +567,6 @@ static bk_err_t _cpu_hp_online_internal(uint32_t cpu_id, uint32_t from_atomic)
 	_cpu3_irq_route_mask_all();
 	vTaskHotplugResetIdleTaskContext(smp_core);
 #if CONFIG_CPU_HOTPLUG_BOOT_OFFLINE
-	} else {
-		_cpu3_irq_route_backup();
-		domain->cold_boot = 0;
 	}
 #endif
 	vPortHotplugResetCoreState(smp_core);
@@ -577,9 +575,10 @@ static bk_err_t _cpu_hp_online_internal(uint32_t cpu_id, uint32_t from_atomic)
 	_cpu_hp_set_state(domain, cpu_id, BK_CPU_HP_STATE_SECONDARY_BOOT);
 
 	ret = bk_multicore_start(CPU3_CORE_ID);
-	if (ret == BK_OK) {
-		ret = _cpu_hotplug_wait_ack(&_cpu3_online_ack, AP_HOTPLUG_TIMEOUT_STAPS);
-	}
+	if (ret == BK_OK)
+		ret = _cpu_hotplug_wait_ack(&_cpu3_online_ack, AP_HOTPLUG_TIMEOUT_STAPS_ONLINE);
+	else
+		goto fail_online;
 
 	if (ret == BK_OK) {
 #if CONFIG_TASK_WDT
@@ -588,7 +587,14 @@ static bk_err_t _cpu_hp_online_internal(uint32_t cpu_id, uint32_t from_atomic)
 		(void)smp_core;
 #endif
 		_cpu_hp_domain_set_online(domain, cpu_id, 1);
+#if CONFIG_CPU_HOTPLUG_BOOT_OFFLINE
+		if (domain->cold_boot == 1)
+			domain->cold_boot = 0;
+		else
+			_cpu3_irq_route_restore();
+#else
 		_cpu3_irq_route_restore();
+#endif
 		mbox0_init_on_current_core(CPU3_CORE_ID);
 		_cpu_hp_domain_set_active(domain, cpu_id, 1);
 		_cpu_hp_set_state(domain, cpu_id, BK_CPU_HP_STATE_ONLINE);
@@ -596,12 +602,14 @@ static bk_err_t _cpu_hp_online_internal(uint32_t cpu_id, uint32_t from_atomic)
 		 * outgoing doorbell that was lost while CPU3 was still joining, so a
 		 * stuck "busy" flag can't swallow the next hotplug STOP. */
 		crosscore_int_reset_send();
-	} else {
-		bk_multicore_stop(CPU3_CORE_ID);
-		_cpu_hp_domain_set_active(domain, cpu_id, 0);
-		_cpu_hp_domain_set_online(domain, cpu_id, 0);
-		_cpu_hp_set_state(domain, cpu_id, BK_CPU_HP_STATE_OFFLINE);
+		goto out;
 	}
+
+fail_online:
+	bk_multicore_stop(CPU3_CORE_ID);
+	_cpu_hp_domain_set_active(domain, cpu_id, 0);
+	_cpu_hp_domain_set_online(domain, cpu_id, 0);
+	_cpu_hp_set_state(domain, cpu_id, BK_CPU_HP_STATE_OFFLINE);
 
 out:
 	if (!from_atomic)
@@ -733,16 +741,20 @@ void bk_cpu_hp_core_stop_hmb_isr(void)
 	_cpu_hp_domain_set_active(domain, cpu_id, 0);
 }
 
-void bk_cpu_hp_idle_handler(void)
+static void _cpu_hp_idle_handler_online(cpu_hp_domain_t *domain, uint32_t cpu_id)
 {
-	cpu_hp_domain_t *domain = &_ap_domain;
-	uint32_t cpu_id = CPU3_CORE_ID;
-	uint32_t irq_level;
-
-	if (portGET_CORE_ID() != SMP_CORE1_ID) {
-		return;
+	if ((portGET_CORE_ID() == SMP_CORE1_ID) &&
+	    (_ap_domain.cpu_state[CPU3_CORE_ID] == BK_CPU_HP_STATE_SECONDARY_BOOT)) {
+		_cpu_hp_set_state(&_ap_domain, CPU3_CORE_ID, BK_CPU_HP_STATE_JOIN_SCHEDULER);
+		_cpu3_online_ack = 1;
+		_cpu_hp_barrier();
 	}
+	_cpu3_wants_offline = -1;
+}
 
+static void _cpu_hp_idle_handler_offline(cpu_hp_domain_t *domain, uint32_t cpu_id)
+{
+	uint32_t irq_level;
 	irq_level = _cpu_hp_disable_local_irq();
 	spin_lock(&_cpu_hp_spin_lock);
 	if (_cpu3_wants_offline != 1) {
@@ -784,15 +796,19 @@ void bk_cpu_hp_idle_handler(void)
 	}
 }
 
-void bk_cpu_hp_core_online(void)
+void bk_cpu_hp_idle_handler(void)
 {
-	if ((portGET_CORE_ID() == SMP_CORE1_ID) &&
-	    (_ap_domain.cpu_state[CPU3_CORE_ID] == BK_CPU_HP_STATE_SECONDARY_BOOT)) {
-		_cpu_hp_set_state(&_ap_domain, CPU3_CORE_ID, BK_CPU_HP_STATE_JOIN_SCHEDULER);
-		_cpu3_online_ack = 1;
-		_cpu_hp_barrier();
+	cpu_hp_domain_t *domain = &_ap_domain;
+	uint32_t cpu_id = CPU3_CORE_ID;
+
+	if (portGET_CORE_ID() != SMP_CORE1_ID) {
+		return;
 	}
-	_cpu3_wants_offline = 0;
+
+	if (domain->offline_mask & BK_CPU_MASK(cpu_id))
+		_cpu_hp_idle_handler_online(domain, cpu_id);
+	else
+		_cpu_hp_idle_handler_offline(domain, cpu_id);
 }
 
 #if CONFIG_CPU_HP_GOVERNOR
