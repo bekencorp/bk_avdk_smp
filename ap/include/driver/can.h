@@ -140,6 +140,24 @@ void bk_can_register_err_callback(can_callback_des_t *err_cb);
  */
 bk_err_t can_driver_bit_rate_config(can_bit_rate_e s_speed, can_bit_rate_e f_speed);
 
+/**
+ * @brief Enable or disable internal loopback mode
+ *
+ * @param[in]   enable    true to enable, false to disable
+ *
+ * @return     bk_err_t error code
+ */
+bk_err_t bk_can_set_loopback_internal(bool enable);
+
+/**
+ * @brief Enable or disable external loopback mode
+ *
+ * @param[in]   enable    true to enable, false to disable
+ *
+ * @return     bk_err_t error code
+ */
+bk_err_t bk_can_set_loopback_external(bool enable);
+
 #ifdef __cplusplus
 }
 #endif

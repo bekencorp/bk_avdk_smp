@@ -20,7 +20,7 @@
 extern "C" {
 #endif
 
-#define RX_INT_FLAG_GROUP               ((1 << CAN_IE_RIF_POS) | (1 << CAN_IE_RAFIF_POS) | (1 << CAN_IE_RAFIF_POS))
+#define RX_INT_FLAG_GROUP               ((1 << CAN_IE_RIF_POS) | (1 << CAN_IE_RAFIF_POS) | (1 << CAN_IE_RFIF_POS))
 #define TX_INT_FLAG_GROUP               ((1 << CAN_IE_TSIF_POS)| (1 << CAN_IE_TPIF_POS))
 #define ERR_INT_FLAG_GROUP              ((1 << CAN_IE_EIF_POS) | (1 << CAN_IE_BEIF_POS) | (1 << CAN_IE_ALIF_POS))
 #define TT_INT_FLAG_GROUP               ((1 << POS_bc_TTIF) | (1 << POS_bc_TEIF) | (1 << POS_bc_WTIF))

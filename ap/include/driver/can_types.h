@@ -15,7 +15,6 @@
 #pragma once
 
 #include <driver/hal/hal_can_types.h>
-#include "gpio_driver.h"
 #include "spinlock.h"
 #include "bk_fifo.h"
 
@@ -32,17 +31,6 @@ extern "C" {
 #define BK_ERR_CAN_PARITY_ERROR			(BK_ERR_CAN_BASE - 6) /**< CAN identifier parity error */
 #define BK_ERR_CAN_HAL_INVALID_ADDR		(BK_ERR_CAN_BASE - 7) /**< CAN invalid addr */
 #define BK_ERR_CAN_HAL_INVALID_ARG		(BK_ERR_CAN_BASE - 8) /**< CAN invalid arg */
-
-typedef struct {
-	gpio_id_t           id;
-	gpio_dev_t          dev;
-} can_gpio_map_t;
-
-typedef struct {
-    can_gpio_map_t      tx;
-    can_gpio_map_t      rx;
-    can_gpio_map_t      standby;
-} can_gpio_t;
 
 enum can_status_e {
     CAN_STATUS_CLOSED = 0,

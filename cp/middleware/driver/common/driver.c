@@ -366,10 +366,6 @@ int driver_init(void) {
 	bk_usb_driver_init();
 #endif
 
-#if CONFIG_CAN
-	bk_can_driver_init();
-#endif
-
 #if CONFIG_PWM
 	bk_pwm_driver_init();
 #endif

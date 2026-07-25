@@ -1,18 +1,9 @@
 #include "FreeRTOS.h"
 #include "task.h"
 #include "cli.h"
-#include "gpio_driver.h"
-#include "bk_icu.h"
-#include "bk_gpio.h"
 #include <driver/can.h>
 #include <driver/can_types.h>
-#include <driver/int_types.h>
-#include <driver/int.h>
-#include "can_hal.h"
-
-#if (CONFIG_SYSTEM_CTRL)
-#include "sys_driver.h"
-#endif
+#include "can_statis.h"
 
 #define CLI_CAN_STB 			0
 #define CLI_CAN_PTB 			1
@@ -152,10 +143,10 @@ static void can_loop(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **
 	}
 
 	if (os_strcmp(argv[1], "i") == 0) {
-		can_hal_set_lbmi(1);
+		bk_can_set_loopback_internal(true);
 
 	} else {
-		can_hal_set_lbme(1);
+		bk_can_set_loopback_external(true);
 	}
 
 	ret = rtos_create_thread(&rcv_thread, 2, "can_rcv", cli_can_recevie, configMINIMAL_STACK_SIZE * 20, (void *)(ex_size + 5));
@@ -173,10 +164,10 @@ static void can_loop(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **
 	}
 
 	if (os_strcmp(argv[1], "i") == 0) {
-		can_hal_set_lbmi(0);
+		bk_can_set_loopback_internal(false);
 
 	} else {
-		can_hal_set_lbme(0);
+		bk_can_set_loopback_external(false);
 	}
 }
 
@@ -202,13 +193,13 @@ static void cli_can_statis(char *pcWriteBuffer, int xWriteBufferLen, int argc, c
 		return;
 	}
 
-#if CONFIG_LIN_STATIS
+#if CONFIG_CAN_STATIS
 	if (os_strcmp(argv[1], "dump") == 0) {
 		can_statis_dump();
-		CLI_LOGD("lin dump statis ok\r\n");
+		CLI_LOGD("can dump statis ok\r\n");
 	} else if (os_strcmp(argv[1], "reset") == 0) {
 		can_statis_init();
-		CLI_LOGD("lin reset statis ok\r\n");
+		CLI_LOGD("can reset statis ok\r\n");
 	}
 #endif
 

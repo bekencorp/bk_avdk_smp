@@ -23,7 +23,7 @@ extern "C" {
 #endif
 
 
-#define CAN_RID_ESI_ADDR (SOC_CAN_REG_BASE + (0x0 << 2))
+#define CAN_RID_ESI_ADDR (SOC_CAN0_REG_BASE + (0x0 << 2))
 
 #define CAN_RID_ESI_ID_POS (0)
 #define CAN_RID_ESI_ID_MASK (0x1fffffff)
@@ -34,7 +34,7 @@ extern "C" {
 #define CAN_RID_ESI_ESI_POS (31)
 #define CAN_RID_ESI_ESI_MASK (0x1)
 
-#define CAN_RBUF_CTRL_ADDR (SOC_CAN_REG_BASE + (0x1 << 2))
+#define CAN_RBUF_CTRL_ADDR (SOC_CAN0_REG_BASE + (0x1 << 2))
 
 #define CAN_RBUF_CTRL_DLC_POS (0)
 #define CAN_RBUF_CTRL_DLC_MASK (0xf)
@@ -54,27 +54,27 @@ extern "C" {
 #define CAN_RBUF_CTRL_RESERVED_8_31_POS (8)
 #define CAN_RBUF_CTRL_RESERVED_8_31_MASK (0xffffff)
 
-#define CAN_RDATA0_3_ADDR (SOC_CAN_REG_BASE + (0x2 << 2))
-#define CAN_RDATA4_7_ADDR (SOC_CAN_REG_BASE + (0x3 << 2))
-#define CAN_RDATA8_11_ADDR (SOC_CAN_REG_BASE + (0x4 << 2))
-#define CAN_RDATA12_15_ADDR (SOC_CAN_REG_BASE + (0x5 << 2))
-#define CAN_RDATA16_19_ADDR (SOC_CAN_REG_BASE + (0x6 << 2))
-#define CAN_RDATA20_23_ADDR (SOC_CAN_REG_BASE + (0x7 << 2))
-#define CAN_RDATA24_27_ADDR (SOC_CAN_REG_BASE + (0x8 << 2))
-#define CAN_RDATA28_31_ADDR (SOC_CAN_REG_BASE + (0x9 << 2))
-#define CAN_RDATA32_25_ADDR (SOC_CAN_REG_BASE + (0xa << 2))
-#define CAN_RDATA36_39_ADDR (SOC_CAN_REG_BASE + (0xb << 2))
-#define CAN_RDATA40_43_ADDR (SOC_CAN_REG_BASE + (0xc << 2))
-#define CAN_RDATA44_47_ADDR (SOC_CAN_REG_BASE + (0xd << 2))
-#define CAN_RDATA48_51_ADDR (SOC_CAN_REG_BASE + (0xe << 2))
-#define CAN_RDATA52_55_ADDR (SOC_CAN_REG_BASE + (0xf << 2))
-#define CAN_RDATA56_59_ADDR (SOC_CAN_REG_BASE + (0x10 << 2))
-#define CAN_RDATA60_63_ADDR (SOC_CAN_REG_BASE + (0x11 << 2))
+#define CAN_RDATA0_3_ADDR (SOC_CAN0_REG_BASE + (0x2 << 2))
+#define CAN_RDATA4_7_ADDR (SOC_CAN0_REG_BASE + (0x3 << 2))
+#define CAN_RDATA8_11_ADDR (SOC_CAN0_REG_BASE + (0x4 << 2))
+#define CAN_RDATA12_15_ADDR (SOC_CAN0_REG_BASE + (0x5 << 2))
+#define CAN_RDATA16_19_ADDR (SOC_CAN0_REG_BASE + (0x6 << 2))
+#define CAN_RDATA20_23_ADDR (SOC_CAN0_REG_BASE + (0x7 << 2))
+#define CAN_RDATA24_27_ADDR (SOC_CAN0_REG_BASE + (0x8 << 2))
+#define CAN_RDATA28_31_ADDR (SOC_CAN0_REG_BASE + (0x9 << 2))
+#define CAN_RDATA32_25_ADDR (SOC_CAN0_REG_BASE + (0xa << 2))
+#define CAN_RDATA36_39_ADDR (SOC_CAN0_REG_BASE + (0xb << 2))
+#define CAN_RDATA40_43_ADDR (SOC_CAN0_REG_BASE + (0xc << 2))
+#define CAN_RDATA44_47_ADDR (SOC_CAN0_REG_BASE + (0xd << 2))
+#define CAN_RDATA48_51_ADDR (SOC_CAN0_REG_BASE + (0xe << 2))
+#define CAN_RDATA52_55_ADDR (SOC_CAN0_REG_BASE + (0xf << 2))
+#define CAN_RDATA56_59_ADDR (SOC_CAN0_REG_BASE + (0x10 << 2))
+#define CAN_RDATA60_63_ADDR (SOC_CAN0_REG_BASE + (0x11 << 2))
 
 #define CAN_RDATA_POS (0)
 #define CAN_RDATA_MASK (0xffffffff)
 
-#define CAN_TID_ESI_ADDR (SOC_CAN_REG_BASE + (0x14 << 2))
+#define CAN_TID_ESI_ADDR (SOC_CAN0_REG_BASE + (0x14 << 2))
 
 #define CAN_TID_ESI_ID_POS (0)
 #define CAN_TID_ESI_ID_MASK (0x1fffffff)
@@ -85,7 +85,7 @@ extern "C" {
 #define CAN_TID_ESI_POS (31)
 #define CAN_TID_ESI_MASK (0x1)
 
-#define CAN_TBUF_CTRL_ADDR (SOC_CAN_REG_BASE + (0x15 << 2))
+#define CAN_TBUF_CTRL_ADDR (SOC_CAN0_REG_BASE + (0x15 << 2))
 
 #define CAN_TBUF_CTRL_DLC_POS (0)
 #define CAN_TBUF_CTRL_DLC_MASK (0xf)
@@ -105,37 +105,37 @@ extern "C" {
 #define CAN_TBUF_CTRL_RESERVED_8_31_POS (8)
 #define CAN_TBUF_CTRL_RESERVED_8_31_MASK (0xffffff)
 
-#define CAN_TDATA0_3_ADDR (SOC_CAN_REG_BASE + (0x16 << 2))
-#define CAN_TDATA4_7_ADDR (SOC_CAN_REG_BASE + (0x17 << 2))
-#define CAN_TDATA8_11_ADDR (SOC_CAN_REG_BASE + (0x18 << 2))
-#define CAN_TDATA12_15_ADDR (SOC_CAN_REG_BASE + (0x19 << 2))
-#define CAN_TDATA16_19_ADDR (SOC_CAN_REG_BASE + (0x1a << 2))
-#define CAN_TDATA20_23_ADDR (SOC_CAN_REG_BASE + (0x1b << 2))
-#define CAN_TDATA24_27_ADDR (SOC_CAN_REG_BASE + (0x1c << 2))
-#define CAN_TDATA28_31_ADDR (SOC_CAN_REG_BASE + (0x1d << 2))
-#define CAN_TDATA32_25_ADDR (SOC_CAN_REG_BASE + (0x1e << 2))
-#define CAN_TDATA36_39_ADDR (SOC_CAN_REG_BASE + (0x1f << 2))
-#define CAN_TDATA40_43_ADDR (SOC_CAN_REG_BASE + (0x20 << 2))
-#define CAN_TDATA44_47_ADDR (SOC_CAN_REG_BASE + (0x21 << 2))
-#define CAN_TDATA48_51_ADDR (SOC_CAN_REG_BASE + (0x22 << 2))
-#define CAN_TDATA52_55_ADDR (SOC_CAN_REG_BASE + (0x23 << 2))
-#define CAN_TDATA56_59_ADDR (SOC_CAN_REG_BASE + (0x24 << 2))
-#define CAN_TDATA60_63_ADDR (SOC_CAN_REG_BASE + (0x25 << 2))
+#define CAN_TDATA0_3_ADDR (SOC_CAN0_REG_BASE + (0x16 << 2))
+#define CAN_TDATA4_7_ADDR (SOC_CAN0_REG_BASE + (0x17 << 2))
+#define CAN_TDATA8_11_ADDR (SOC_CAN0_REG_BASE + (0x18 << 2))
+#define CAN_TDATA12_15_ADDR (SOC_CAN0_REG_BASE + (0x19 << 2))
+#define CAN_TDATA16_19_ADDR (SOC_CAN0_REG_BASE + (0x1a << 2))
+#define CAN_TDATA20_23_ADDR (SOC_CAN0_REG_BASE + (0x1b << 2))
+#define CAN_TDATA24_27_ADDR (SOC_CAN0_REG_BASE + (0x1c << 2))
+#define CAN_TDATA28_31_ADDR (SOC_CAN0_REG_BASE + (0x1d << 2))
+#define CAN_TDATA32_25_ADDR (SOC_CAN0_REG_BASE + (0x1e << 2))
+#define CAN_TDATA36_39_ADDR (SOC_CAN0_REG_BASE + (0x1f << 2))
+#define CAN_TDATA40_43_ADDR (SOC_CAN0_REG_BASE + (0x20 << 2))
+#define CAN_TDATA44_47_ADDR (SOC_CAN0_REG_BASE + (0x21 << 2))
+#define CAN_TDATA48_51_ADDR (SOC_CAN0_REG_BASE + (0x22 << 2))
+#define CAN_TDATA52_55_ADDR (SOC_CAN0_REG_BASE + (0x23 << 2))
+#define CAN_TDATA56_59_ADDR (SOC_CAN0_REG_BASE + (0x24 << 2))
+#define CAN_TDATA60_63_ADDR (SOC_CAN0_REG_BASE + (0x25 << 2))
 
 #define CAN_TDATA_POS (0)
 #define CAN_TDATA_MASK (0xffffffff)
 
-#define CAN_TTS_L_ADDR (SOC_CAN_REG_BASE + (0x26 << 2))
+#define CAN_TTS_L_ADDR (SOC_CAN0_REG_BASE + (0x26 << 2))
 
 #define CAN_TTS_L_POS (0)
 #define CAN_TTS_L_MASK (0xffffffff)
 
-#define CAN_TTS_H_ADDR (SOC_CAN_REG_BASE + (0x27 << 2))
+#define CAN_TTS_H_ADDR (SOC_CAN0_REG_BASE + (0x27 << 2))
 
 #define CAN_TTS_H_POS (0)
 #define CAN_TTS_H_MASK (0xffffffff)
 
-#define CAN_CFG_ADDR (SOC_CAN_REG_BASE + (0x28 << 2))
+#define CAN_CFG_ADDR (SOC_CAN0_REG_BASE + (0x28 << 2))
 
 #define CAN_CFG_BUSOFF_POS (0)
 #define CAN_CFG_BUSOFF_MASK (0x1)
@@ -224,7 +224,7 @@ extern "C" {
 #define CAN_CFG_SACK_POS (31)
 #define CAN_CFG_SACK_MASK (0x1)
 
-#define CAN_IE_ADDR (SOC_CAN_REG_BASE + (0x29 << 2))
+#define CAN_IE_ADDR (SOC_CAN0_REG_BASE + (0x29 << 2))
 
 #define CAN_IE_TSFF_POS (0)
 #define CAN_IE_TSFF_MASK (0x1)
@@ -304,7 +304,7 @@ extern "C" {
 #define CAN_IE_AFWL_POS (28)
 #define CAN_IE_AFWL_MASK (0xf)
 
-#define CAN_SSEG_ADDR (SOC_CAN_REG_BASE + (0x2a << 2))
+#define CAN_SSEG_ADDR (SOC_CAN0_REG_BASE + (0x2a << 2))
 
 #define CAN_SSEG1_POS (0)
 #define CAN_SSEG1_MASK (0xff)
@@ -325,7 +325,7 @@ extern "C" {
 #define CAN_SPRESC_MASK (0xff)
 
 
-#define CAN_FSEG_ADDR (SOC_CAN_REG_BASE + (0x2b << 2))
+#define CAN_FSEG_ADDR (SOC_CAN0_REG_BASE + (0x2b << 2))
 
 #define CAN_FSEG1_POS (0)
 #define CAN_FSEG1_MASK (0x1f)
@@ -348,7 +348,7 @@ extern "C" {
 #define CAN_FPRESC_POS (23)
 #define CAN_FPRESC_MASK (0xff)
 
-#define CAN_CAP_ADDR (SOC_CAN_REG_BASE + (0x2c << 2))
+#define CAN_CAP_ADDR (SOC_CAN0_REG_BASE + (0x2c << 2))
 
 #define CAN_CAP_ALC_POS (0)
 #define CAN_CAP_ALC_MASK (0x1f)
@@ -368,7 +368,7 @@ extern "C" {
 #define CAN_CAP_TECNT_POS (24)
 #define CAN_CAP_TECNT_MASK (0xff)
 
-#define CAN_ACF_ADDR (SOC_CAN_REG_BASE + (0x2d << 2))
+#define CAN_ACF_ADDR (SOC_CAN0_REG_BASE + (0x2d << 2))
 
 #define CAN_ACF_ACFADR_POS (0)
 #define CAN_ACF_ACFADR_MASK (0xf)
@@ -397,7 +397,7 @@ extern "C" {
 #define CAN_ACF_AE_8_15_POS (24)
 #define CAN_ACF_AE_8_15_MASK (0xff)
 
-#define CAN_AID_ADDR (SOC_CAN_REG_BASE + (0x2e << 2))
+#define CAN_AID_ADDR (SOC_CAN0_REG_BASE + (0x2e << 2))
 
 #define CAN_AID_ACODE_OR_AMASK_POS (0)
 #define CAN_AID_ACODE_OR_AMASK_MASK (0x1fffffff)
@@ -411,7 +411,7 @@ extern "C" {
 #define CAN_AID_RESERVED_BIT_31_31_POS (31)
 #define CAN_AID_RESERVED_BIT_31_31_MASK (0x1)
 
-#define CAN_TTCFG_ADDR (SOC_CAN_REG_BASE + (0x2f << 2))
+#define CAN_TTCFG_ADDR (SOC_CAN0_REG_BASE + (0x2f << 2))
 
 #define CAN_TTCFG_VER_0_POS (0)
 #define CAN_TTCFG_VER_0_MASK (0xff)
@@ -449,7 +449,7 @@ extern "C" {
 #define CAN_TTCFG_WTIE_POS (31)
 #define CAN_TTCFG_WTIE_MASK (0x1)
 
-#define CAN_REF_MSG_ADDR (SOC_CAN_REG_BASE + (0x30 << 2))
+#define CAN_REF_MSG_ADDR (SOC_CAN0_REG_BASE + (0x30 << 2))
 
 #define CAN_REF_ID_POS (0)
 #define CAN_REF_ID_MASK (0x1fffffff)
@@ -460,7 +460,7 @@ extern "C" {
 #define CAN_REF_IDE_POS (31)
 #define CAN_REF_IDE_MASK (0x1)
 
-#define CAN_TRIG_CFG_ADDR (SOC_CAN_REG_BASE + (0x31 << 2))
+#define CAN_TRIG_CFG_ADDR (SOC_CAN0_REG_BASE + (0x31 << 2))
 
 #define CAN_TRIG_CFG_TTPTR_POS (0)
 #define CAN_TRIG_CFG_TTPTR_MASK (0x3f)
@@ -480,7 +480,7 @@ extern "C" {
 #define CAN_TT_TRIG_POS (16)
 #define CAN_TT_TRIG_MASK (0xffff)
 
-#define CAN_MEM_STAT_ADDR (SOC_CAN_REG_BASE + (0x32 << 2))
+#define CAN_MEM_STAT_ADDR (SOC_CAN0_REG_BASE + (0x32 << 2))
 
 #define CAN_MEM_TT_WTRIG_POS (0)
 #define CAN_MEM_TT_WTRIG_MASK (0xffff)
@@ -518,7 +518,7 @@ extern "C" {
 #define CAN__RESERVED_29_31_POS (29)
 #define CAN__RESERVED_29_31_MASK (0x7)
 
-#define CAN_MEM_ES_ADDR (SOC_CAN_REG_BASE + (0x33 << 2))
+#define CAN_MEM_ES_ADDR (SOC_CAN0_REG_BASE + (0x33 << 2))
 
 #define CAN_MEM_ES_MEBP1_POS (0)
 #define CAN_MEM_ES_MEBP1_MASK (0x3f)
@@ -554,7 +554,7 @@ extern "C" {
 #define CAN_MEM_ES_RESERVED_27_31_POS (27)
 #define CAN_MEM_ES_RESERVED_27_31_MASK (0x1f)
 
-#define CAN_SCFG_ADDR (SOC_CAN_REG_BASE + (0x34 << 2))
+#define CAN_SCFG_ADDR (SOC_CAN0_REG_BASE + (0x34 << 2))
 
 #define CAN_SCFG_XMREN_POS (0)
 #define CAN_SCFG_XMREN_MASK (0x1)
@@ -574,7 +574,7 @@ extern "C" {
 #define CAN_SCFG_RESERVED_7_31_POS (7)
 #define CAN_SCFG_RESERVED_7_31_MASK (0x1ffffff)
 
-#define CAN_FD_ADDR (SOC_CAN_REG_BASE + (0x200 << 2))
+#define CAN_FD_ADDR (SOC_CAN0_REG_BASE + (0x200 << 2))
 
 #define CAN_FD_ENABLE_POS (0)
 #define CAN_FD_ENABLE_MASK (0x1)

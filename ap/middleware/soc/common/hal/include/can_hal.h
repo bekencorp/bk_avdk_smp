@@ -216,6 +216,13 @@ void can_hal_set_ie_value(uint32_t v);
 
 uint32_t can_hal_get_ie_value(void);
 
+/* Enable/disable the CAN controller interrupt sources used by the driver
+ * (error, TX-primary/secondary done, RX, RX-FIFO/almost-full, bus error,
+ * arbitration lost, error passive). AFWL threshold field is left untouched. */
+void can_hal_int_enable(void);
+
+void can_hal_int_disable(void);
+
 uint32_t can_hal_get_tsff(void);
 
 void can_hal_set_eie(uint32_t v);

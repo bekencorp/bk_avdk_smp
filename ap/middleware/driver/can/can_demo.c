@@ -1,19 +1,8 @@
 #include "FreeRTOS.h"
 #include "task.h"
 #include "cli.h"
-#include "gpio_driver.h"
-#include "bk_icu.h"
-#include "bk_gpio.h"
 #include <driver/can.h>
 #include <driver/can_types.h>
-#include <driver/int_types.h>
-#include <driver/int.h>
-#include "can_hal.h"
-#include <components/bk_platform.h>
-
-#if (CONFIG_SYSTEM_CTRL)
-#include "sys_driver.h"
-#endif
 
 #define CAN_STB_DEMO_SEND 1
 #define CAN_STB_DEMO_RECEIVE 2
@@ -71,10 +60,7 @@ static void can_demo_speed_cfg(char *pcWriteBuffer, int xWriteBufferLen, int arg
 		CLI_LOGD("beyond configurable range!!!\r\n");
 		return;
 	}
-	can_hal_set_reset(1);
-	can_hal_bit_rate_config(s_speed, f_speed);
-	can_hal_set_reset(0);
-
+	can_driver_bit_rate_config(s_speed, f_speed);
 }
 
 #define CAN_FD_STB_DEMO1_ENABLE 1

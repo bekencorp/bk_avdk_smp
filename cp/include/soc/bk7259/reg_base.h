@@ -235,6 +235,5 @@
 
 // The following base addresses not exist in the CP address mapping.
 #define SOC_IRDA_REG_BASE        SOC_IRDA0_REG_BASE
-#define SOC_CAN_REG_BASE         SOC_CAN0_REG_BASE
 #define SOC_SDIO_REG_BASE        SOC_SDIO0_REG_BASE
 

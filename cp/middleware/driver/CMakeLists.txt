@@ -351,19 +351,6 @@ if (CONFIG_SCR)
 	)
 endif()
 
-if (CONFIG_CAN)
-	list(APPEND incs can)
-	list(APPEND srcs can/can_driver.c can/can_statis.c)
-
-	if (CONFIG_CAN_TEST)
-		list(APPEND srcs can/can_test.c)
-	endif()
-
-	if (CONFIG_CAN_DEMO)
-		list(APPEND srcs can/can_demo.c)
-	endif()
-endif()
-
 if (CONFIG_XDAC)
 	list(APPEND srcs
 		"xdac/xdac_driver.c"

@@ -28,9 +28,9 @@ typedef struct {
 
 static void can_dump_rid_esi(void)
 {
-	can_id_esi_t *r = (can_id_esi_t *)(SOC_CAN_REG_BASE + (0x0 << 2));
+	can_id_esi_t *r = (can_id_esi_t *)(SOC_CAN0_REG_BASE + (0x0 << 2));
 
-	SOC_LOGD("rid_esi: %8x\r\n", REG_READ(SOC_CAN_REG_BASE + (0x0 << 2)));
+	SOC_LOGD("rid_esi: %8x\r\n", REG_READ(SOC_CAN0_REG_BASE + (0x0 << 2)));
 	SOC_LOGD("	id: %8x\r\n", r->id);
 	SOC_LOGD("	reserved_29_30: %8x\r\n", r->reserved_29_30);
 	SOC_LOGD("	esi: %8x\r\n", r->esi);
@@ -38,9 +38,9 @@ static void can_dump_rid_esi(void)
 
 static void can_dump_rbuf_ctrl(void)
 {
-	can_buf_ctrl_t *r = (can_buf_ctrl_t *)(SOC_CAN_REG_BASE + (0x1 << 2));
+	can_buf_ctrl_t *r = (can_buf_ctrl_t *)(SOC_CAN0_REG_BASE + (0x1 << 2));
 
-	SOC_LOGD("rbuf_ctrl: %8x\r\n", REG_READ(SOC_CAN_REG_BASE + (0x1 << 2)));
+	SOC_LOGD("rbuf_ctrl: %8x\r\n", REG_READ(SOC_CAN0_REG_BASE + (0x1 << 2)));
 	SOC_LOGD("	dlc: %8x\r\n", r->dlc);
 	SOC_LOGD("	brs: %8x\r\n", r->brs);
 	SOC_LOGD("	fdf: %8x\r\n", r->fdf);
@@ -52,15 +52,15 @@ static void can_dump_rbuf_ctrl(void)
 static void can_dump_rdata(void)
 {
 	for (uint32_t idx = 0; idx < 16; idx++) {
-		SOC_LOGD("rdata: %8x\r\n", REG_READ(SOC_CAN_REG_BASE + ((0x2 + idx) << 2)));
+		SOC_LOGD("rdata: %8x\r\n", REG_READ(SOC_CAN0_REG_BASE + ((0x2 + idx) << 2)));
 	}
 }
 
 static void can_dump_tid_esi(void)
 {
-	can_id_esi_t *r = (can_id_esi_t *)(SOC_CAN_REG_BASE + (0x14 << 2));
+	can_id_esi_t *r = (can_id_esi_t *)(SOC_CAN0_REG_BASE + (0x14 << 2));
 
-	SOC_LOGD("tid_esi: %8x\r\n", REG_READ(SOC_CAN_REG_BASE + (0x14 << 2)));
+	SOC_LOGD("tid_esi: %8x\r\n", REG_READ(SOC_CAN0_REG_BASE + (0x14 << 2)));
 	SOC_LOGD("	tid: %8x\r\n", r->id);
 	SOC_LOGD("	reserved_29_30: %8x\r\n", r->reserved_29_30);
 	SOC_LOGD("	esi: %8x\r\n", r->esi);
@@ -68,9 +68,9 @@ static void can_dump_tid_esi(void)
 
 static void can_dump_tbuf_ctrl(void)
 {
-	can_buf_ctrl_t *r = (can_buf_ctrl_t *)(SOC_CAN_REG_BASE + (0x15 << 2));
+	can_buf_ctrl_t *r = (can_buf_ctrl_t *)(SOC_CAN0_REG_BASE + (0x15 << 2));
 
-	SOC_LOGD("tbuf_ctrl: %8x\r\n", REG_READ(SOC_CAN_REG_BASE + (0x15 << 2)));
+	SOC_LOGD("tbuf_ctrl: %8x\r\n", REG_READ(SOC_CAN0_REG_BASE + (0x15 << 2)));
 	SOC_LOGD("	dlc: %8x\r\n", r->dlc);
 	SOC_LOGD("	brs: %8x\r\n", r->brs);
 	SOC_LOGD("	fdf: %8x\r\n", r->fdf);
@@ -82,24 +82,24 @@ static void can_dump_tbuf_ctrl(void)
 static void can_dump_tdata(void)
 {
 	for (uint32_t idx = 0; idx < 16; idx++) {
-		SOC_LOGD("tdata: %8x\r\n", REG_READ(SOC_CAN_REG_BASE + ((0x16 + idx) << 2)));
+		SOC_LOGD("tdata: %8x\r\n", REG_READ(SOC_CAN0_REG_BASE + ((0x16 + idx) << 2)));
 	}
 }
 
 static void can_dump_tts_l(void)
 {
-	SOC_LOGD("tts_l: %8x\r\n", REG_READ(SOC_CAN_REG_BASE + (0x26 << 2)));
+	SOC_LOGD("tts_l: %8x\r\n", REG_READ(SOC_CAN0_REG_BASE + (0x26 << 2)));
 }
 
 static void can_dump_tts_h(void)
 {
-	SOC_LOGD("tts_H: %8x\r\n", REG_READ(SOC_CAN_REG_BASE + (0x27 << 2)));
+	SOC_LOGD("tts_H: %8x\r\n", REG_READ(SOC_CAN0_REG_BASE + (0x27 << 2)));
 }
 
 static void can_dump_cfg(void)
 {
-	can_cfg_t *r = (can_cfg_t *)(SOC_CAN_REG_BASE + (0x28 << 2));
-	SOC_LOGD("cfg: %8x\r\n", REG_READ(SOC_CAN_REG_BASE + (0x28 << 2)));
+	can_cfg_t *r = (can_cfg_t *)(SOC_CAN0_REG_BASE + (0x28 << 2));
+	SOC_LOGD("cfg: %8x\r\n", REG_READ(SOC_CAN0_REG_BASE + (0x28 << 2)));
 	SOC_LOGD("	busoff : %8x\r\n", r->busoff );
 	SOC_LOGD("	tactive : %8x\r\n", r->tactive );
 	SOC_LOGD("	ractive : %8x\r\n", r->ractive );
@@ -134,9 +134,9 @@ static void can_dump_cfg(void)
 
 static void can_dump_ie(void)
 {
-	can_ie_t *r = (can_ie_t *)(SOC_CAN_REG_BASE + (0x29 << 2));
+	can_ie_t *r = (can_ie_t *)(SOC_CAN0_REG_BASE + (0x29 << 2));
 
-	SOC_LOGD("ie: %8x\r\n", REG_READ(SOC_CAN_REG_BASE + (0x29 << 2)));
+	SOC_LOGD("ie: %8x\r\n", REG_READ(SOC_CAN0_REG_BASE + (0x29 << 2)));
 	SOC_LOGD("	tsff : %8x\r\n", r->tsff );
 	SOC_LOGD("	eie : %8x\r\n", r->eie );
 	SOC_LOGD("	tsie : %8x\r\n", r->tsie );
@@ -168,9 +168,9 @@ static void can_dump_ie(void)
 
 static void can_dump_sseg(void)
 {
-	can_sseg_t *r = (can_sseg_t *)(SOC_CAN_REG_BASE + (0x2a << 2));
+	can_sseg_t *r = (can_sseg_t *)(SOC_CAN0_REG_BASE + (0x2a << 2));
 
-	SOC_LOGD("sseg: %8x\r\n", REG_READ(SOC_CAN_REG_BASE + (0x2a << 2)));
+	SOC_LOGD("sseg: %8x\r\n", REG_READ(SOC_CAN0_REG_BASE + (0x2a << 2)));
 	SOC_LOGD("	s_seg_1: %8x\r\n", r->s_seg_1);
 	SOC_LOGD("	s_seg_2: %8x\r\n", r->s_seg_2);
 	SOC_LOGD("	reserved_15_15: %8x\r\n", r->reserved_15_15);
@@ -181,9 +181,9 @@ static void can_dump_sseg(void)
 
 static void can_dump_fseg(void)
 {
-	can_fseg_t *r = (can_fseg_t *)(SOC_CAN_REG_BASE + (0x2b << 2));
+	can_fseg_t *r = (can_fseg_t *)(SOC_CAN0_REG_BASE + (0x2b << 2));
 
-	SOC_LOGD("fseg: %8x\r\n", REG_READ(SOC_CAN_REG_BASE + (0x2b << 2)));
+	SOC_LOGD("fseg: %8x\r\n", REG_READ(SOC_CAN0_REG_BASE + (0x2b << 2)));
 	SOC_LOGD("	f_seg_1: %8x\r\n", r->f_seg_1);
 	SOC_LOGD("	reserved_5_7: %8x\r\n", r->reserved_5_7);
 	SOC_LOGD("	f_seg_2: %8x\r\n", r->f_seg_2);
@@ -195,9 +195,9 @@ static void can_dump_fseg(void)
 
 static void can_dump_cap(void)
 {
-	can_cap_t *r = (can_cap_t *)(SOC_CAN_REG_BASE + (0x2c << 2));
+	can_cap_t *r = (can_cap_t *)(SOC_CAN0_REG_BASE + (0x2c << 2));
 
-	SOC_LOGD("ealcap: %8x\r\n", REG_READ(SOC_CAN_REG_BASE + (0x2c << 2)));
+	SOC_LOGD("ealcap: %8x\r\n", REG_READ(SOC_CAN0_REG_BASE + (0x2c << 2)));
 	SOC_LOGD("	alc: %8x\r\n", r->alc);
 	SOC_LOGD("	koer: %8x\r\n", r->koer);
 	SOC_LOGD("	sspoff: %8x\r\n", r->sspoff);
@@ -208,9 +208,9 @@ static void can_dump_cap(void)
 
 static void can_dump_acf(void)
 {
-	can_acf_t *r = (can_acf_t *)(SOC_CAN_REG_BASE + (0x2d << 2));
+	can_acf_t *r = (can_acf_t *)(SOC_CAN0_REG_BASE + (0x2d << 2));
 
-	SOC_LOGD("acf: %8x\r\n", REG_READ(SOC_CAN_REG_BASE + (0x2d << 2)));
+	SOC_LOGD("acf: %8x\r\n", REG_READ(SOC_CAN0_REG_BASE + (0x2d << 2)));
 	SOC_LOGD("	acfadr : %8x\r\n", r->acfadr );
 	SOC_LOGD("	reserved_4_4: %8x\r\n", r->reserved_4_4);
 	SOC_LOGD("	selmask : %8x\r\n", r->selmask );
@@ -225,9 +225,9 @@ static void can_dump_acf(void)
 
 static void can_dump_aid(void)
 {
-	can_aid_t *r = (can_aid_t *)(SOC_CAN_REG_BASE + (0x2e << 2));
+	can_aid_t *r = (can_aid_t *)(SOC_CAN0_REG_BASE + (0x2e << 2));
 
-	SOC_LOGD("aid: %8x\r\n", REG_READ(SOC_CAN_REG_BASE + (0x2e << 2)));
+	SOC_LOGD("aid: %8x\r\n", REG_READ(SOC_CAN0_REG_BASE + (0x2e << 2)));
 	SOC_LOGD("	acode_or_amask: %8x\r\n", r->acode_or_amask);
 	SOC_LOGD("	aide: %8x\r\n", r->aide);
 	SOC_LOGD("	aidee: %8x\r\n", r->aidee);
@@ -236,9 +236,9 @@ static void can_dump_aid(void)
 
 static void can_dump_ttcfg(void)
 {
-	can_ttcfg_t *r = (can_ttcfg_t *)(SOC_CAN_REG_BASE + (0x2f << 2));
+	can_ttcfg_t *r = (can_ttcfg_t *)(SOC_CAN0_REG_BASE + (0x2f << 2));
 
-	SOC_LOGD("ttcfg: %8x\r\n", REG_READ(SOC_CAN_REG_BASE + (0x2f << 2)));
+	SOC_LOGD("ttcfg: %8x\r\n", REG_READ(SOC_CAN0_REG_BASE + (0x2f << 2)));
 	SOC_LOGD("	ver_0: %8x\r\n", r->ver_0);
 	SOC_LOGD("	ver_1: %8x\r\n", r->ver_1);
 	SOC_LOGD("	tbptr : %8x\r\n", r->tbptr );
@@ -255,9 +255,9 @@ static void can_dump_ttcfg(void)
 
 static void can_dump_ref_msg(void)
 {
-	can_ref_msg_t *r = (can_ref_msg_t *)(SOC_CAN_REG_BASE + (0x30 << 2));
+	can_ref_msg_t *r = (can_ref_msg_t *)(SOC_CAN0_REG_BASE + (0x30 << 2));
 
-	SOC_LOGD("ref_msg: %8x\r\n", REG_READ(SOC_CAN_REG_BASE + (0x30 << 2)));
+	SOC_LOGD("ref_msg: %8x\r\n", REG_READ(SOC_CAN0_REG_BASE + (0x30 << 2)));
 	SOC_LOGD("	ref_id: %8x\r\n", r->ref_id);
 	SOC_LOGD("	reserved_29_30: %8x\r\n", r->reserved_29_30);
 	SOC_LOGD("	ref_ide: %8x\r\n", r->ref_ide);
@@ -265,9 +265,9 @@ static void can_dump_ref_msg(void)
 
 static void can_dump_trig_cfg(void)
 {
-	can_trig_cfg_t *r = (can_trig_cfg_t *)(SOC_CAN_REG_BASE + (0x31 << 2));
+	can_trig_cfg_t *r = (can_trig_cfg_t *)(SOC_CAN0_REG_BASE + (0x31 << 2));
 
-	SOC_LOGD("trig_cfg: %8x\r\n", REG_READ(SOC_CAN_REG_BASE + (0x31 << 2)));
+	SOC_LOGD("trig_cfg: %8x\r\n", REG_READ(SOC_CAN0_REG_BASE + (0x31 << 2)));
 	SOC_LOGD("	ttptr : %8x\r\n", r->ttptr );
 	SOC_LOGD("	reserved_6_7: %8x\r\n", r->reserved_6_7);
 	SOC_LOGD("	ttype: %8x\r\n", r->ttype);
@@ -278,9 +278,9 @@ static void can_dump_trig_cfg(void)
 
 static void can_dump_mem_stat(void)
 {
-	can_mem_stat_t *r = (can_mem_stat_t *)(SOC_CAN_REG_BASE + (0x32 << 2));
+	can_mem_stat_t *r = (can_mem_stat_t *)(SOC_CAN0_REG_BASE + (0x32 << 2));
 
-	SOC_LOGD("mem_stat: %8x\r\n", REG_READ(SOC_CAN_REG_BASE + (0x32 << 2)));
+	SOC_LOGD("mem_stat: %8x\r\n", REG_READ(SOC_CAN0_REG_BASE + (0x32 << 2)));
 	SOC_LOGD("	tt_wtrig: %8x\r\n", r->ttwtrig);
 	SOC_LOGD("	mpen : %8x\r\n", r->mpen );
 	SOC_LOGD("	mdwie : %8x\r\n", r->mdwie );
@@ -297,9 +297,9 @@ static void can_dump_mem_stat(void)
 
 static void can_dump_mem_es(void)
 {
-	can_mem_es_t *r = (can_mem_es_t *)(SOC_CAN_REG_BASE + (0x33 << 2));
+	can_mem_es_t *r = (can_mem_es_t *)(SOC_CAN0_REG_BASE + (0x33 << 2));
 
-	SOC_LOGD("mem_es: %8x\r\n", REG_READ(SOC_CAN_REG_BASE + (0x33 << 2)));
+	SOC_LOGD("mem_es: %8x\r\n", REG_READ(SOC_CAN0_REG_BASE + (0x33 << 2)));
 	SOC_LOGD("	mebp1 : %8x\r\n", r->mebp1 );
 	SOC_LOGD("	me1ee : %8x\r\n", r->me1ee );
 	SOC_LOGD("	meaee : %8x\r\n", r->meaee );
@@ -315,9 +315,9 @@ static void can_dump_mem_es(void)
 
 static void can_dump_scfg(void)
 {
-	can_scfg_t *r = (can_scfg_t *)(SOC_CAN_REG_BASE + (0x34 << 2));
+	can_scfg_t *r = (can_scfg_t *)(SOC_CAN0_REG_BASE + (0x34 << 2));
 
-	SOC_LOGD("scfg: %8x\r\n", REG_READ(SOC_CAN_REG_BASE + (0x34 << 2)));
+	SOC_LOGD("scfg: %8x\r\n", REG_READ(SOC_CAN0_REG_BASE + (0x34 << 2)));
 	SOC_LOGD("	xmren : %8x\r\n", r->xmren );
 	SOC_LOGD("	seif : %8x\r\n", r->seif );
 	SOC_LOGD("	swie : %8x\r\n", r->swie );
@@ -328,9 +328,9 @@ static void can_dump_scfg(void)
 
 static void can_dump_fd(void)
 {
-	can_fd_t *r = (can_fd_t *)(SOC_CAN_REG_BASE + (0x200 << 2));
+	can_fd_t *r = (can_fd_t *)(SOC_CAN0_REG_BASE + (0x200 << 2));
 
-	SOC_LOGD("fd: %8x\r\n", REG_READ(SOC_CAN_REG_BASE + (0x200 << 2)));
+	SOC_LOGD("fd: %8x\r\n", REG_READ(SOC_CAN0_REG_BASE + (0x200 << 2)));
 	SOC_LOGD("	can_fd_enable: %8x\r\n", r->can_fd_enable);
 	SOC_LOGD("	reserved_1_31: %8x\r\n", r->reserved_1_31);
 }

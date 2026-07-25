@@ -43,10 +43,6 @@
 #include <components/sensor.h>
 #endif
 
-#if CONFIG_CAN
-#include <driver/can.h>
-#endif
-
 #if (CONFIG_CLI)
 #include "bk_api_cli.h"
 #else

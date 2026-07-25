@@ -486,6 +486,32 @@ uint32_t can_hal_get_ie_value(void)
 	return can_ll_get_ie_value();
 }
 
+void can_hal_int_enable(void)
+{
+	can_ll_set_eie(1);
+	can_ll_set_tsie(1);
+	can_ll_set_tpie(1);
+	can_ll_set_rafie(1);
+	can_ll_set_rfie(1);
+	can_ll_set_rie(1);
+	can_ll_set_beie(1);
+	can_ll_set_alie(1);
+	can_ll_set_epie(1);
+}
+
+void can_hal_int_disable(void)
+{
+	can_ll_set_eie(0);
+	can_ll_set_tsie(0);
+	can_ll_set_tpie(0);
+	can_ll_set_rafie(0);
+	can_ll_set_rfie(0);
+	can_ll_set_rie(0);
+	can_ll_set_beie(0);
+	can_ll_set_alie(0);
+	can_ll_set_epie(0);
+}
+
 uint32_t can_hal_get_tsff(void)
 {
 	return can_ll_get_tsff();
