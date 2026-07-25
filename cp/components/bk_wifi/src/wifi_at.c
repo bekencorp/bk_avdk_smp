@@ -189,7 +189,6 @@ int at_wlan_event_handler(atsvr_msg_t *msg)
 		ATSVR_SIZEOF_OUTPUT_STRRING(resultbuf);
 		if(at_wlan_cfg.sta_protection != NULL){
 			rtos_set_semaphore(&at_wlan_cfg.sta_protection);
-			at_wlan_stat.dhcp = 1;
 			at_wlan_stat.station_status = AT_WLAN_STATION_UP;
 		}else
 			snprintf(resultbuf,sizeof(resultbuf),"\r\nsta sema has lost,this connection has failed\r\nEVT:INVALID IP ADDR\r\n\r\n");
@@ -300,49 +299,6 @@ static int at_wlan_get_station_mac(int sync,int argc, char **argv)
 	return 0;
 
 }
-
-static void at_wlan_set_sta_dhcp(int en)
-{
-	at_wlan_stat.dhcp = ( en ) ? 1 : 0;
-}
-
-
-
-static int at_wlan_set_station_dhcp(int sync,int argc, char **argv)
-{
-    char *mode;
-    unsigned int param;
-
-    if(argc != 1){
-		atsvr_cmd_rsp_error();
-        return -1;
-    }
-
-    mode = argv[0];
-    if(strcmp(mode,"ON DHCP") == 0){
-        param = 1;
-    }else if(strcmp(mode,"OFF DHCP") == 0){
-       param = 0;
-    }else if(strcmp(mode,"1") == 0){
-        param = 1;
-    }else if(strcmp(mode,"0") == 0){
-       param = 0;
-    }else{
-        atsvr_cmd_rsp_error();
-        return -1;
-    }
-
-    at_wlan_set_sta_dhcp(param);
-    atsvr_cmd_rsp_ok();
-	return 0;
-}
-
-static int at_wlan_get_station_dhcp(void)
-{
-	return ( at_wlan_stat.dhcp != 0 ) ? 1 : 0;
-}
-
-
 
 #include "conv_utf8_pub.h"
 int at_wlan_station_start(int sync, int argc, char **argv)
@@ -1358,8 +1314,6 @@ const struct _atsvr_command wifi_cmds_table[] = {
 	/*STA*/
 	ATSVR_CMD_HADLER("AT+WLMAC","AT+WLMAC",
 					NULL,at_wlan_get_station_mac,false,0,0,NULL,false),
-	ATSVR_CMD_HADLER("AT+SETSTADHCP","AT+SETSTADHCP=0/1",
-					NULL,at_wlan_set_station_dhcp,false,0,0,NULL,false),
 	ATSVR_CMD_HADLER("AT+STASTART","AT+STASTART=SSID,PWD",
 					NULL,at_wlan_station_start,false,AT_WLAN_STA_TIMEOUT_MS,true,NULL,false),
 	ATSVR_CMD_HADLER("AT+STASTOP","AT+STASTOP",

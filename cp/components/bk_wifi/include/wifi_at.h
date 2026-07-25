@@ -201,7 +201,6 @@ static inline const char *at_wlan_error_code_string(wifi_err_reason_t type)
 
 typedef struct{
 	int  scan_time; //use for 120ms scan
-	unsigned dhcp : 1;
 	unsigned station_status : 1;
 	unsigned reserved1 : 1;
 	unsigned reserved2 : 1;
