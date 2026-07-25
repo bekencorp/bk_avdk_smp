@@ -34,8 +34,6 @@ typedef struct bk_flexa_bond_config {
 	void *bond;
 	void *in_stream;
 	void *out_stream;
-	uint32_t set_sbi_flag;
-	uint32_t flexa_sbi;
 	beken_semaphore_t sem;
 	bk_flexa_bond_kind_t in_stream_type;
 	bk_flexa_bond_kind_t out_stream_type;

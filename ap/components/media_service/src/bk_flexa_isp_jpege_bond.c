@@ -30,16 +30,31 @@
 
 #define BK_FLEXA_ISP_BOND_STOP_WAIT_MS 2000U
 
+typedef struct {
+	uint8_t set_sbi_flag;
+	uint8_t flexa_sbi;
+} isp_jpege_bond_priv_t;
+
+static isp_jpege_bond_priv_t *isp_jpege_bond_priv(bk_flexa_bond_config_t *bond_p)
+{
+	if (bond_p == NULL) {
+		return NULL;
+	}
+	return (isp_jpege_bond_priv_t *)bond_p->bond;
+}
+
 static void isp_jpege_bond_wait_sbi_disabled(bk_flexa_bond_config_t *bond_p)
 {
 	bk_flexa_bond_t *in_stream;
+	isp_jpege_bond_priv_t *priv = isp_jpege_bond_priv(bond_p);
 
-	if (bond_p == NULL) {
+	if (priv == NULL) {
 		return;
 	}
 
-	bond_p->flexa_sbi = 0;
-	bond_p->set_sbi_flag = 1;
+	priv->flexa_sbi = 0;
+	priv->set_sbi_flag = 1;
+
 	if (rtos_get_semaphore(&bond_p->sem, BK_FLEXA_ISP_BOND_STOP_WAIT_MS) == BK_OK) {
 		return;
 	}
@@ -50,7 +65,7 @@ static void isp_jpege_bond_wait_sbi_disabled(bk_flexa_bond_config_t *bond_p)
 
 		LOGW("%s SBI disable wait timeout, force disable\r\n", __func__);
 		bk_isp_flexa_sbi_config(&isp_h, ISP_MP_CHN_ID, 0);
-		bond_p->set_sbi_flag = 0;
+		priv->set_sbi_flag = 0;
 	}
 }
 
@@ -60,6 +75,7 @@ static void isp_jpege_handle_frame_end_cb(uint32_t seq, uint32_t line, uint8_t c
 	(void)seq;
 	(void)line;
 	(void)chnl;
+	(void)ok;
 
 	if (in_stream == NULL || in_stream->bond_config == NULL) {
 		return;
@@ -72,10 +88,13 @@ static void isp_jpege_handle_frame_end_cb(uint32_t seq, uint32_t line, uint8_t c
 	if (enc == NULL) {
 		return;
 	}
-	if (in_stream->bond_config->set_sbi_flag == 1) {
-		in_stream->bond_config->set_sbi_flag = 0;
+	isp_jpege_bond_priv_t *priv = isp_jpege_bond_priv(in_stream->bond_config);
+
+	if (priv != NULL && priv->set_sbi_flag == 1) {
+		priv->set_sbi_flag = 0;
 		isp_handle_t isp_h = (isp_handle_t)in_stream->handle;
-		if (in_stream->bond_config->flexa_sbi == 1) {
+
+		if (priv->flexa_sbi == 1) {
 			bk_isp_flexa_sbi_config(&isp_h, ISP_MP_CHN_ID, 1);
 		} else {
 			bk_isp_flexa_sbi_config(&isp_h, ISP_MP_CHN_ID, 0);
@@ -100,9 +119,11 @@ static void isp_jpege_enc_frame_done(uint32_t status, void *args)
 	if (isp_h == NULL) {
 		return;
 	}
-	if (status == BK_FAIL) {
+	isp_jpege_bond_priv_t *priv = isp_jpege_bond_priv(out_stream->bond_config);
+
+	if (status == BK_FAIL && priv != NULL) {
 		bk_isp_flexa_sbi_config(&isp_h, ISP_MP_CHN_ID, 0);
-		out_stream->bond_config->set_sbi_flag = 1;
+		priv->set_sbi_flag = 1;
 	}
 }
 
@@ -118,6 +139,7 @@ avdk_err_t bk_flexa_isp_jpege_bond_start(void **bond, void *isp, bk_jpeg_encode_
 	avdk_err_t ret = AVDK_ERR_OK;
 	bk_err_t br;
 	bk_flexa_bond_config_t *bond_new = NULL;
+	isp_jpege_bond_priv_t *priv = NULL;
 	bk_flexa_bond_t *in_stream = NULL;
 	bk_flexa_bond_t *out_stream = NULL;
 	isp_handle_t isp_h = NULL;
@@ -139,6 +161,14 @@ avdk_err_t bk_flexa_isp_jpege_bond_start(void **bond, void *isp, bk_jpeg_encode_
 	}
 	os_memset(bond_new, 0, sizeof(bk_flexa_bond_config_t));
 
+	priv = (isp_jpege_bond_priv_t *)os_malloc(sizeof(isp_jpege_bond_priv_t));
+	if (priv == NULL) {
+		LOGE("%s malloc bond priv failed\r\n", __func__);
+		goto error;
+	}
+	os_memset(priv, 0, sizeof(isp_jpege_bond_priv_t));
+	bond_new->bond = priv;
+
 	in_stream = (bk_flexa_bond_t *)os_malloc(sizeof(bk_flexa_bond_t));
 	if (in_stream == NULL) {
 		LOGE("%s malloc in_stream failed\r\n", __func__);
@@ -157,8 +187,8 @@ avdk_err_t bk_flexa_isp_jpege_bond_start(void **bond, void *isp, bk_jpeg_encode_
 	bond_new->out_stream = out_stream;
 	bond_new->in_stream_type = BK_FLEXA_TYPE_ISP;
 	bond_new->out_stream_type = BK_FLEXA_TYPE_MJPEGE;
-	bond_new->set_sbi_flag = 1;
-	bond_new->flexa_sbi = 1;
+	priv->set_sbi_flag = 1;
+	priv->flexa_sbi = 1;
 
 	ret = rtos_init_semaphore(&bond_new->sem, 1);
 	if (ret != BK_OK) {
@@ -217,9 +247,12 @@ error:
 		if (bond_new->sem != NULL) {
 			rtos_deinit_semaphore(&bond_new->sem);
 		}
+		if (bond_new->bond != NULL) {
+			os_free(bond_new->bond);
+			bond_new->bond = NULL;
+		}
 		os_free(bond_new);
 	}
-	bond_new = NULL;
 	LOGE("%s bond failed\r\n", __func__);
 	return ret;
 }
@@ -240,8 +273,6 @@ void bk_flexa_isp_jpege_bond_stop(void *bond)
 	bk_flexa_bond_t *out_stream = bond_p->out_stream;
 	if (out_stream != NULL && out_stream->handle != NULL) {
 		(void)bk_jpeg_encode_ioctl((bk_jpeg_encode_ctlr_handle_t)out_stream->handle,
-					   BK_JPEG_ENCODE_IOCTL_STOP_ENCODE, NULL);
-		(void)bk_jpeg_encode_ioctl((bk_jpeg_encode_ctlr_handle_t)out_stream->handle,
 					   BK_JPEG_ENCODE_IOCTL_UNREGISTER_BOND, out_stream);
 	}
 	if (bond_p->in_stream != NULL) {
@@ -255,6 +286,10 @@ void bk_flexa_isp_jpege_bond_stop(void *bond)
 	if (bond_p->sem != NULL) {
 		rtos_deinit_semaphore(&bond_p->sem);
 		bond_p->sem = NULL;
+	}
+	if (bond_p->bond != NULL) {
+		os_free(bond_p->bond);
+		bond_p->bond = NULL;
 	}
 	os_free(bond_p);
 	bond_p = NULL;
