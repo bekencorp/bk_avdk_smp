@@ -19,6 +19,7 @@ extern "C" {
 #endif
 
 #include <os/os.h>
+#include <stdbool.h>
 #include <avdk_types.h>
 #include <avdk_error.h>
 #include <avdk_check.h>
@@ -78,6 +79,8 @@ struct bk_camera_sensor_ctlr_t
     int (*set_format)(bk_camera_sensor_ctlr_t *controller, bk_camera_sensor_format_t *format);  /**< Set sensor resolution */
     int (*power_down)(bk_camera_sensor_ctlr_t *controller);  /**< Power down or reset the sensor */
     int (*reg_ctrl)(bk_camera_sensor_ctlr_t *controller, uint8_t cmd, uint16_t addr, uint8_t val);  /**< Register control function */
+    avdk_err_t (*set_hmirror)(bk_camera_sensor_ctlr_t *controller, bool enable);  /**< Horizontal mirror */
+    avdk_err_t (*set_vflip)(bk_camera_sensor_ctlr_t *controller, bool enable);    /**< Vertical flip */
     void *(*get_sensor_object)(bk_camera_sensor_ctlr_t *controller);  /**< Get pointer to sensor object */
     void *(*get_sensor_cfg)(bk_camera_sensor_ctlr_t *controller);   /**< Get pointer to sensor configuration */
     avdk_err_t (*query_support_formats)(bk_camera_sensor_ctlr_t *controller, bk_camera_sensor_format_array_t *format_array);  /**< Query supported formats */
@@ -135,6 +138,18 @@ void *bk_camera_sensor_get_sensor_cfg(bk_camera_sensor_handle_t handle);
  * @return Error code
  */
 avdk_err_t bk_camera_sensor_set_format(bk_camera_sensor_handle_t handle, bk_camera_sensor_format_t *format);
+
+/**
+ * @brief Set horizontal mirror on the sensor output.
+ * @return AVDK_ERR_OK on success, AVDK_ERR_UNSUPPORTED if the sensor has no hook.
+ */
+avdk_err_t bk_camera_sensor_set_hmirror(bk_camera_sensor_handle_t handle, bool enable);
+
+/**
+ * @brief Set vertical flip on the sensor output.
+ * @return AVDK_ERR_OK on success, AVDK_ERR_UNSUPPORTED if the sensor has no hook.
+ */
+avdk_err_t bk_camera_sensor_set_vflip(bk_camera_sensor_handle_t handle, bool enable);
 
 /**
  * @brief Query supported sensor formats
