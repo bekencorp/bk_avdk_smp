@@ -530,9 +530,11 @@ bk_err_t dpu_core_deinit(dpu_handle_t *handle)
     AVDK_RETURN_ON_FALSE(*handle, BK_ERR_NULL_PARAM, TAG, "invalid handle");
     dpu_context_t *context = (dpu_context_t*)*handle;
 
-    dpu_frame_deinit();
-
+    /* Mask and unregister the DPU IRQ before tearing down the frame/DC state, so a
+     * still-pending dpu_isr() cannot run against resources dpu_frame_deinit() is freeing. */
     dpu_sys_interrupt_deinit();
+
+    dpu_frame_deinit();
 
 #if CONFIG_DPU_FLUSH_TIMER_DEBUG
     if (context->debug.timer_started)
