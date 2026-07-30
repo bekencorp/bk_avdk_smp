@@ -185,7 +185,11 @@ int bk_https_ota_download(const char *url)
 		ota_do_deinit_operation();
 		return err;
 	}
+	/* Disable STA power-save during download; PS sleep drops MAC timer IRQs and
+	 * stalls the transfer. Restored right after, before any branch. */
+	bk_wifi_sta_pm_disable();
 	err = bk_http_client_perform(client);
+	bk_wifi_sta_pm_enable();
 	if(err == BK_OK){
 		BK_LOGI(TAG, "bk_http_client_perform ok\r\n");
 

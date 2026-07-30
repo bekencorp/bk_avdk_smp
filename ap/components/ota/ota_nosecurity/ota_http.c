@@ -88,6 +88,10 @@ int bk_http_ota_download(const char *uri)
 	httpclient.header = "Accept: text/xml,text/html,\r\n";
 	httpclient_data.response_buf = http_content;
 	httpclient_data.response_content_len = HTTP_RESP_CONTENT_LEN;
+
+	/* Disable STA power-save during download; PS sleep drops MAC timer IRQs and
+	 * stalls the transfer. Restored right after, before any branch. */
+	bk_wifi_sta_pm_disable();
 	ret = httpclient_common(&httpclient,
 							uri,
 							80,/*port*/
@@ -95,6 +99,7 @@ int bk_http_ota_download(const char *uri)
 							HTTPCLIENT_GET,
 							300000,
 							&httpclient_data);
+	bk_wifi_sta_pm_enable();
 
 
 	ota_flag = 0;
