@@ -42,6 +42,14 @@ void psram_free_debug(const char *func_name, int line, void *ptr);
 void psram_free_release(void *ptr);
 #endif
 
+#if defined(CONFIG_AP_PSRAM_NOCACHE_HEAP_ADDR) && (CONFIG_AP_PSRAM_NOCACHE_HEAP_SIZE > 0)
+void *psram_nocache_malloc_impl(size_t size);
+void psram_nocache_free_impl(void *ptr);
+bool ptr_is_psram_nocache_heap(void *ptr);
+void psram_nocache_free_debug(const char *func_name, int line, void *ptr);
+void psram_nocache_free_release(void *ptr);
+#endif
+
 #ifdef __cplusplus
 }
 #endif

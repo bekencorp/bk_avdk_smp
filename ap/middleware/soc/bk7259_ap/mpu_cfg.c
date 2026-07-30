@@ -99,53 +99,35 @@ ARM_MPU_Region_t mpu_regions[] = {
        ARM_MPU_RLAR(0x7FFFFFE0UL, 1) },
 
 #if CONFIG_PSRAM_INTERLEAVE
-    /* MPU region 6 psram0 */
+    /* PSRAM before AP heap (including nocache heap and data): non-cacheable. */
     { ARM_MPU_RBAR(0x80000000UL, ARM_MPU_SH_NON, 0, 1, 0),
       ARM_MPU_RLAR(CONFIG_AP_PSRAM_HEAP_ADDR - 0x20, 1) },
 #if (CONFIG_AP_PSRAM_CODE_SECTION_ADDR && CONFIG_AP_PSRAM_CODE_SECTION_SIZE && CONFIG_AP_PSRAM_CODE_SECTION_ADDR > 0x64000000UL)
-#if (CONFIG_AP_PSRAM_DATA_SECTION_ADDR && CONFIG_AP_PSRAM_DATA_SECTION_SIZE)
-/* heap section: L2 cacheable, L1 non-cacheable (attr 5) */
-{ ARM_MPU_RBAR(CONFIG_AP_PSRAM_HEAP_ADDR, ARM_MPU_SH_NON, 0, 1, 0),
-  ARM_MPU_RLAR(CONFIG_AP_PSRAM_DATA_SECTION_ADDR - 0x20, 5) },
-/* data section: non-cacheable (attr 1) */
-{ ARM_MPU_RBAR(CONFIG_AP_PSRAM_DATA_SECTION_ADDR, ARM_MPU_SH_NON, 0, 1, 0),
-  ARM_MPU_RLAR(CONFIG_AP_PSRAM_DATA_SECTION_ADDR + CONFIG_AP_PSRAM_DATA_SECTION_SIZE - 0x20, 1) },
-#else
-/* heap + data (heap~code): L2 cacheable, L1 non-cacheable (attr 5) */
-{ ARM_MPU_RBAR(CONFIG_AP_PSRAM_HEAP_ADDR, ARM_MPU_SH_NON, 0, 1, 0),
-  ARM_MPU_RLAR(CONFIG_AP_PSRAM_CODE_SECTION_ADDR - 0x20, 5) },
-#endif
-/* code section: L1+L2 write-back cacheable (attr 3) */
-{ ARM_MPU_RBAR(CONFIG_AP_PSRAM_CODE_SECTION_ADDR, ARM_MPU_SH_NON, 0, 1, 0),
-  ARM_MPU_RLAR(0x81FFFFE0UL, 3) },
-#else
-/* MPU region 7 psram1 */
-{ ARM_MPU_RBAR(0x81000000UL, ARM_MPU_SH_NON, 0, 1, 0),
-ARM_MPU_RLAR(0x81FFFFE0UL, 1) },
-#endif
+    /* AP heap: L2 cacheable, L1 non-cacheable (attr 5). */
+    { ARM_MPU_RBAR(CONFIG_AP_PSRAM_HEAP_ADDR, ARM_MPU_SH_NON, 0, 1, 0),
+    ARM_MPU_RLAR(CONFIG_AP_PSRAM_CODE_SECTION_ADDR - 0x20, 5) },
+    /* code section: L1+L2 write-back cacheable (attr 3) */
+    { ARM_MPU_RBAR(CONFIG_AP_PSRAM_CODE_SECTION_ADDR, ARM_MPU_SH_NON, 0, 1, 0),
+    ARM_MPU_RLAR(0x81FFFFE0UL, 3) },
+    #else
+    /* MPU region 7 psram1 */
+    { ARM_MPU_RBAR(0x81000000UL, ARM_MPU_SH_NON, 0, 1, 0),
+    ARM_MPU_RLAR(0x81FFFFE0UL, 1) },
+    #endif
 
      /* MPU region 11b ppb and other (0x88000000~0xEFFFFFE0) - device memory */
      { ARM_MPU_RBAR(0x88000000UL, ARM_MPU_SH_NON, 0, 1, 1),
       ARM_MPU_RLAR(0xEFFFFFE0UL, 2) }
 #else
-    /* MPU region 6 psram0 */
+    /* PSRAM before AP heap (including nocache heap and data): non-cacheable. */
     { ARM_MPU_RBAR(0x60000000UL, ARM_MPU_SH_NON, 0, 1, 0),
       ARM_MPU_RLAR(CONFIG_AP_PSRAM_HEAP_ADDR - 0x20, 1) },
 
 
     #if (CONFIG_AP_PSRAM_CODE_SECTION_ADDR && CONFIG_AP_PSRAM_CODE_SECTION_SIZE && CONFIG_AP_PSRAM_CODE_SECTION_ADDR > 0x64000000UL)
-        #if (CONFIG_AP_PSRAM_DATA_SECTION_ADDR && CONFIG_AP_PSRAM_DATA_SECTION_SIZE)
-        /* heap section: L2 cacheable, L1 non-cacheable (attr 5) */
-        { ARM_MPU_RBAR(CONFIG_AP_PSRAM_HEAP_ADDR, ARM_MPU_SH_NON, 0, 1, 0),
-          ARM_MPU_RLAR(CONFIG_AP_PSRAM_DATA_SECTION_ADDR - 0x20, 5) },
-        /* data section: non-cacheable (attr 1) */
-        { ARM_MPU_RBAR(CONFIG_AP_PSRAM_DATA_SECTION_ADDR, ARM_MPU_SH_NON, 0, 1, 0),
-          ARM_MPU_RLAR(CONFIG_AP_PSRAM_DATA_SECTION_ADDR + CONFIG_AP_PSRAM_DATA_SECTION_SIZE - 0x20, 1) },
-        #else
-        /* heap + data (heap~code): L2 cacheable, L1 non-cacheable (attr 5) */
+        /* AP heap: L2 cacheable, L1 non-cacheable (attr 5). */
         { ARM_MPU_RBAR(CONFIG_AP_PSRAM_HEAP_ADDR, ARM_MPU_SH_NON, 0, 1, 0),
           ARM_MPU_RLAR(CONFIG_AP_PSRAM_CODE_SECTION_ADDR - 0x20, 5) },
-        #endif
         /* code section: L1+L2 write-back cacheable (attr 3) */
         { ARM_MPU_RBAR(CONFIG_AP_PSRAM_CODE_SECTION_ADDR, ARM_MPU_SH_NON, 0, 1, 0),
           ARM_MPU_RLAR(0x67FFFFE0UL, 3) },
@@ -164,6 +146,15 @@ ARM_MPU_RLAR(0x81FFFFE0UL, 1) },
    超限会导致末尾 region 被悄悄丢弃，难以排查，故在编译期卡死。 */
 _Static_assert(sizeof(mpu_regions) / sizeof(mpu_regions[0]) <= 16,
                "mpu_regions exceeds the 16 hardware MPU regions (extra ones are silently dropped)");
+
+#if defined(CONFIG_AP_PSRAM_NOCACHE_HEAP_ADDR) && (CONFIG_AP_PSRAM_NOCACHE_HEAP_SIZE > 0)
+#if (CONFIG_AP_PSRAM_DATA_SECTION_ADDR && CONFIG_AP_PSRAM_DATA_SECTION_SIZE)
+_Static_assert((CONFIG_AP_PSRAM_NOCACHE_HEAP_ADDR + CONFIG_AP_PSRAM_NOCACHE_HEAP_SIZE) <= CONFIG_AP_PSRAM_DATA_SECTION_ADDR,
+               "AP_PSRAM_NOCACHE_HEAP must be placed before AP_PSRAM_DATA_SECTION");
+_Static_assert((CONFIG_AP_PSRAM_DATA_SECTION_ADDR + CONFIG_AP_PSRAM_DATA_SECTION_SIZE) <= CONFIG_AP_PSRAM_HEAP_ADDR,
+               "AP_PSRAM_DATA_SECTION must be placed before AP_PSRAM_HEAP");
+#endif
+#endif
 
 /*
  For the star processor, only two combinations of these attributes are valid:Device-nGnRnE/Device-nGnRE

@@ -9,10 +9,19 @@
 
 static bk_heap_region_id_t s_psram_region_id = BK_HEAP_INVALID_REGION_ID;
 static Heap_4_1_Data_t s_psram_heap_data;
+#if defined(CONFIG_AP_PSRAM_NOCACHE_HEAP_ADDR) && (CONFIG_AP_PSRAM_NOCACHE_HEAP_SIZE > 0)
+static bk_heap_region_id_t s_psram_nocache_region_id = BK_HEAP_INVALID_REGION_ID;
+static Heap_4_1_Data_t s_psram_nocache_heap_data;
+#endif
 
 #define PSRAM_START_ADDRESS    (uint32_t)(CONFIG_AP_PSRAM_HEAP_ADDR)
 #define PSRAM_END_ADDRESS      (uint32_t)(CONFIG_AP_PSRAM_HEAP_ADDR + CONFIG_AP_PSRAM_HEAP_SIZE)
 #define PSRAM_HEAP_SIZE        CONFIG_AP_PSRAM_HEAP_SIZE
+#if defined(CONFIG_AP_PSRAM_NOCACHE_HEAP_ADDR) && (CONFIG_AP_PSRAM_NOCACHE_HEAP_SIZE > 0)
+#define PSRAM_NOCACHE_START_ADDRESS    (uint32_t)(CONFIG_AP_PSRAM_NOCACHE_HEAP_ADDR)
+#define PSRAM_NOCACHE_END_ADDRESS      (uint32_t)(CONFIG_AP_PSRAM_NOCACHE_HEAP_ADDR + CONFIG_AP_PSRAM_NOCACHE_HEAP_SIZE)
+#define PSRAM_NOCACHE_HEAP_SIZE        CONFIG_AP_PSRAM_NOCACHE_HEAP_SIZE
+#endif
 
 static void psram_heap_init(void)
 {
@@ -36,6 +45,32 @@ static void insure_psram_heap_available(void)
     // TODO
 }
 
+#if defined(CONFIG_AP_PSRAM_NOCACHE_HEAP_ADDR) && (CONFIG_AP_PSRAM_NOCACHE_HEAP_SIZE > 0)
+static void psram_nocache_heap_init(void)
+{
+    if (s_psram_nocache_region_id != BK_HEAP_INVALID_REGION_ID) {
+        return;
+    }
+    s_psram_nocache_region_id = bk_heap_add_region(PSRAM_NOCACHE_START_ADDRESS,
+                                                   PSRAM_NOCACHE_HEAP_SIZE,
+                                                   &heap_4_1_ops,
+                                                   &s_psram_nocache_heap_data);
+    BK_ASSERT(s_psram_nocache_region_id != BK_HEAP_INVALID_REGION_ID);
+#if CONFIG_MEM_DEBUG
+    bk_heap_psram_nocache_debug_init();
+#endif
+}
+
+static void insure_psram_nocache_heap_available(void)
+{
+    if (s_psram_nocache_region_id == BK_HEAP_INVALID_REGION_ID) {
+        port_heap_enter_critical();
+        psram_nocache_heap_init();
+        port_heap_exit_critical();
+    }
+}
+#endif
+
 void *psram_malloc_impl(size_t size)
 {
     insure_psram_heap_available();
@@ -52,11 +87,36 @@ bool ptr_is_psram_heap(void *ptr)
     return (ptr >= (void *)PSRAM_START_ADDRESS && ptr < (void *)PSRAM_END_ADDRESS);
 }
 
+#if defined(CONFIG_AP_PSRAM_NOCACHE_HEAP_ADDR) && (CONFIG_AP_PSRAM_NOCACHE_HEAP_SIZE > 0)
+void *psram_nocache_malloc_impl(size_t size)
+{
+    insure_psram_nocache_heap_available();
+    return bk_heap_malloc(s_psram_nocache_region_id, size);
+}
+
+void psram_nocache_free_impl(void *ptr)
+{
+    bk_heap_free(s_psram_nocache_region_id, ptr);
+}
+
+bool ptr_is_psram_nocache_heap(void *ptr)
+{
+    return (ptr >= (void *)PSRAM_NOCACHE_START_ADDRESS && ptr < (void *)PSRAM_NOCACHE_END_ADDRESS);
+}
+#endif
+
 #if CONFIG_MEM_DEBUG
 size_t psram_get_allocated_size(void *ptr)
 {
     return bk_heap_get_allocated_size(s_psram_region_id, ptr);
 }
+
+#if defined(CONFIG_AP_PSRAM_NOCACHE_HEAP_ADDR) && (CONFIG_AP_PSRAM_NOCACHE_HEAP_SIZE > 0)
+size_t psram_nocache_get_allocated_size(void *ptr)
+{
+    return bk_heap_get_allocated_size(s_psram_nocache_region_id, ptr);
+}
+#endif
 #endif
 
 size_t xPortGetPsramTotalHeapSize(void)

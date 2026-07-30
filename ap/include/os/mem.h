@@ -150,6 +150,14 @@ void *psram_realloc_debug(const char *func_name, int line, void *ptr, size_t siz
 void *psram_realloc_release(void *ptr, size_t size);
 void *psram_zalloc_release(size_t size);
 
+#if defined(CONFIG_AP_PSRAM_NOCACHE_HEAP_ADDR) && (CONFIG_AP_PSRAM_NOCACHE_HEAP_SIZE > 0)
+void *psram_nocache_malloc_debug(const char *func_name, int line, size_t size, int need_zero);
+void *psram_nocache_malloc_release(size_t size);
+void *psram_nocache_zalloc_release(size_t size);
+void psram_nocache_free_debug(const char *func_name, int line, void *ptr);
+void psram_nocache_free_release(void *ptr);
+#endif
+
 void *hsram_malloc_debug(const char *func_name, int line, size_t size, int need_zero);
 void *hsram_malloc_release(size_t size);
 void *hsram_realloc_debug(const char *func_name, int line, void *ptr, size_t size, int need_zero);
@@ -170,6 +178,16 @@ void *hsram_zalloc_release(size_t size);
 #define psram_malloc(size)      psram_malloc_debug((const char*)__FUNCTION__,__LINE__,size, 0)
 #define psram_zalloc(size)      psram_malloc_debug((const char*)__FUNCTION__,__LINE__,size, 1)
 #define psram_realloc(ptr, size) psram_realloc_debug((const char*)__FUNCTION__,__LINE__,ptr,size)
+
+#if defined(CONFIG_AP_PSRAM_NOCACHE_HEAP_ADDR) && (CONFIG_AP_PSRAM_NOCACHE_HEAP_SIZE > 0)
+#define psram_nocache_malloc(size)       psram_nocache_malloc_debug((const char*)__FUNCTION__,__LINE__,size, 0)
+#define psram_nocache_zalloc(size)       psram_nocache_malloc_debug((const char*)__FUNCTION__,__LINE__,size, 1)
+#define psram_nocache_free(ptr)          psram_nocache_free_debug((const char*)__FUNCTION__,__LINE__,ptr)
+#elif defined(CONFIG_AP_PSRAM_NOCACHE_HEAP_ADDR)
+#define psram_nocache_malloc(size)       ((void)(size), (void *)NULL)
+#define psram_nocache_zalloc(size)       ((void)(size), (void *)NULL)
+#define psram_nocache_free(ptr)          ((void)(ptr))
+#endif
 
 #define hsram_malloc(size)      hsram_malloc_debug((const char*)__FUNCTION__,__LINE__,size, 0)
 #define hsram_zalloc(size)      hsram_malloc_debug((const char*)__FUNCTION__,__LINE__,size, 1)
@@ -195,6 +213,16 @@ void os_trace_heap_free_addr(uint32_t addr);
 #define psram_malloc(size)      psram_malloc_release(size)
 #define psram_zalloc(size)      psram_zalloc_release(size)
 #define psram_realloc(ptr, size) psram_realloc_release(ptr, size)
+
+#if defined(CONFIG_AP_PSRAM_NOCACHE_HEAP_ADDR) && (CONFIG_AP_PSRAM_NOCACHE_HEAP_SIZE > 0)
+#define psram_nocache_malloc(size)       psram_nocache_malloc_release(size)
+#define psram_nocache_zalloc(size)       psram_nocache_zalloc_release(size)
+#define psram_nocache_free(ptr)          psram_nocache_free_release(ptr)
+#elif defined(CONFIG_AP_PSRAM_NOCACHE_HEAP_ADDR)
+#define psram_nocache_malloc(size)       ((void)(size), (void *)NULL)
+#define psram_nocache_zalloc(size)       ((void)(size), (void *)NULL)
+#define psram_nocache_free(ptr)          ((void)(ptr))
+#endif
 
 #define hsram_malloc(size)      hsram_malloc_release(size)
 #define hsram_zalloc(size)      hsram_zalloc_release(size)
