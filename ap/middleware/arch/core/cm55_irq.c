@@ -18,6 +18,8 @@
 #include "components/log.h"
 #include "interrupt_controller.h"
 
+#define TAG "irq"
+
 #define TO_NVIC_IRQ(irq)            ((uint32_t)(irq))
 
 void arch_int_enable_irq(uint32_t irq)
@@ -83,6 +85,19 @@ void arch_interrupt_register_int(uint32_t int_number, int_group_isr_t isr_callba
 	NVIC_EnableIRQ(int_number);
 }
 
+/* Safe placeholder for unregistered IRQ vectors. A late/stale IRQ that arrives
+ * after unregister lands here and simply returns, instead of the CPU fetching a
+ * NULL vector slot and jumping to PC=0. The peripheral source is already masked
+ * by its driver, so this runs at most once per stale edge. */
+static __attribute__((section(".itcm_sec_code"))) void arch_interrupt_null_isr(void)
+{
+	/* Direct-vector stub: the IRQ number is not passed as an argument, so read the
+	 * active exception from IPSR and convert it to the external IRQ number. */
+	uint32_t irq = (__get_IPSR() & 0x1FFU) - 16U;
+
+	BK_LOGW(TAG, "spurious IRQ %u on unregistered vector\n", (unsigned int)irq);
+}
+
 void arch_interrupt_unregister_int(uint32_t int_number)
 {
 	int ret;
@@ -91,10 +106,12 @@ void arch_interrupt_unregister_int(uint32_t int_number)
 		return;
 	}
 	// NVIC_DisableIRQ(int_number);
-	ret = int_controller_disconnect_by_intc_id(INT_CONTROLLER_ID_PRIMARY, int_number);
+	/* Leave a non-NULL safe stub in the live vector slot instead of NULL, so a late
+	 * cross-core IRQ cannot make the CPU fetch a NULL handler and jump to PC=0. */
+	ret = int_controller_connect_by_intc_id(INT_CONTROLLER_ID_PRIMARY, int_number, arch_interrupt_null_isr);
 	BK_ASSERT(ret == BK_OK);
 #if CONFIG_SOC_SMP
-	ret = int_controller_disconnect_by_intc_id(INT_CONTROLLER_ID_SECONDARY, int_number);
+	ret = int_controller_connect_by_intc_id(INT_CONTROLLER_ID_SECONDARY, int_number, arch_interrupt_null_isr);
 	BK_ASSERT(ret == BK_OK);
 #endif
 }
