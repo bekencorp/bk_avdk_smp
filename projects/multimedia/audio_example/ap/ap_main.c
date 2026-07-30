@@ -102,8 +102,6 @@ extern int cli_network_provisioning_init(void);
 #if (BK_IPC_UT_TEST)
     bk_ipc_test_init();
 #endif
-
-    BK_LOGI(NULL, "AP main running...\r\n");
     uint32_t count = 0;
 
     while(1)

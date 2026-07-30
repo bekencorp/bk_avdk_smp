@@ -201,8 +201,6 @@ int main(void)
     bk_ipc_test_init();
 #endif
 
-    BK_LOGI(NULL, "AP main running...\r\n");
-
 #if CONFIG_PWM
     {
         beken_thread_t servo_thread;

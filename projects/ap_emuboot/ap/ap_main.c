@@ -12,7 +12,5 @@ int main(void)
 
     bk_init();
 
-    BK_LOGI(NULL, "AP main running...\r\n");
-
     return 0;
 }

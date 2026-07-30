@@ -28,8 +28,6 @@ int main(void)
     bk_init();
     media_service_init();
 
-    BK_LOGI(NULL, "AP main running...\r\n");
-
     bk_auxldo_enable();
 
     bk_printf("lodoen enable...\r\n");

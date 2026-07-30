@@ -104,8 +104,6 @@ int main(void)
 
     bk_printf("lodoen enable...\r\n");
 
-    BK_LOGI(NULL, "AP main running...\r\n");
-
     avdk_monitor_init();
     avdk_monitor_start();
     draw_tiger();
