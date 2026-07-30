@@ -73,8 +73,8 @@ bk_err_t lvgl_app_widgets_init(void)
     bk_display_dpu_config_t dpu_config =
     {
         .video.enable = true,
-        .video.decompress = true,
-        .video.format = BK_PIXEL_FORMAT_ARGB8888,
+        .video.decompress = false,
+        .video.format = BK_PIXEL_FORMAT_RGB565,
     };
 
     const bk_lcd_panel_config_t panel_config =
@@ -115,7 +115,7 @@ bk_err_t lvgl_app_widgets_init(void)
     lv_vnd_config.rotation = ROTATE_NONE;
     lv_vnd_config.disp_width = WIDTH;
     lv_vnd_config.disp_height = HEIGHT;
-    lv_vnd_config.output_compress = true;
+    lv_vnd_config.output_compress = false;
     if (lv_vnd_config.output_compress && lv_vnd_config.render_mode == RENDER_PARTIAL_MODE) {
         if (WIDTH % 16 || HEIGHT % 4) {
             lv_vnd_config.disp_width = (WIDTH + 15) & ~15;
