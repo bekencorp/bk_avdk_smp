@@ -1,6 +1,6 @@
 # LVGL Widgets V9 Example
 
-* [中文版](./README_CN.md)
+* [中文](./README_CN.md)
 
 ## 1. Overview
 

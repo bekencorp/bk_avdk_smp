@@ -1,5 +1,7 @@
 # SPP Demo
 
+* [中文](./README_CN.md)
+
 ## Overview
 
 This project demonstrates how to use the Bluetooth SPP (Serial Port Profile)

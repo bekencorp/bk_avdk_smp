@@ -1,5 +1,7 @@
 # SPP Demo
 
+* [English](./README.md)
+
 ## 工程概述
 
 本工程演示如何使用 Bluetooth SPP (Serial Port Profile) 协议在两块 Beken

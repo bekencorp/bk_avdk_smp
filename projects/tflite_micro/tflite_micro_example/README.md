@@ -1,5 +1,7 @@
 # TensorFlow Lite Micro Example Project
 
+* [中文](./README_CN.md)
+
 ## 1. Project Overview
 This project is a combined TensorFlow Lite Micro (TFLM) and Ethos-U NPU example used to verify that the on-device inference pipeline works properly on the Beken platform.
 

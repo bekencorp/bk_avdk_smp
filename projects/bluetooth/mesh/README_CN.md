@@ -1,5 +1,7 @@
 # 蓝牙 Mesh 示例工程
 
+* [English](./README.md)
+
 本工程在 BK7259 AP 核运行 Zephyr BLE Host 和 Bluetooth Mesh 协议栈，CP 核运行
 BLE controller-only，通过 HCI over IPC 通信。工程移植自 BK7258 Mesh demo，保留
 `provisioner` / `provisionee` 双角色和旧 `ble_mesh` CLI。

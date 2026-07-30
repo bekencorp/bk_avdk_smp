@@ -1,5 +1,7 @@
 # Bluetooth Mesh Example
 
+* [中文](./README_CN.md)
+
 This project runs the Zephyr BLE Host and Bluetooth Mesh stack on the AP core,
 with the BK7259 BLE controller running on the CP core through HCI over IPC. It is
 ported from the BK7258 Mesh demo and keeps the `provisioner` / `provisionee`

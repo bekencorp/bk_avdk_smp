@@ -1,6 +1,6 @@
 # TensorFlow Lite Micro Pet Detection (Cat/Dog YOLOv8) Project
 
-- [中文](./README_CN.md)
+* [中文](./README_CN.md)
 
 ## 1. Project Overview
 

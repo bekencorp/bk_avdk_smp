@@ -1,5 +1,7 @@
 # TensorFlow Lite Micro 宠物检测（猫/狗 YOLOv8）工程
 
+* [English](./README.md)
+
 ## 项目概述
 
 本工程在 Beken 平台上通过 **TensorFlow Lite Micro（TFLM）** 与 **Ethos-U NPU** 跑通端侧**猫/狗检测**（YOLOv8 int8 量化 + 后处理）全链路。模型权重经 **Vela** 编译后放入公共组件 `avdk_nn_module`；应用侧以嵌入的预处理输入张量做离线样例推理。

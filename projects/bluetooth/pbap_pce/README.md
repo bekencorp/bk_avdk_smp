@@ -1,6 +1,8 @@
-PBAP PCE demo
+# PBAP PCE Demo
 
-Function:
+* [中文](./README_CN.md)
+
+## Function
 This demo is used for PBAP PCE API functional verification.
 It provides CLI commands to initialize PBAP PCE, connect/disconnect a remote device,
 handle OBEX authentication, browse phonebook folders, get phonebook size, download

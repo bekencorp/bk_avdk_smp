@@ -1,6 +1,8 @@
-PBAP PCE demo
+# PBAP PCE Demo
 
-功能说明：
+* [English](./README.md)
+
+## 功能说明
 该 demo 用于进行 PBAP PCE API 的功能验证。
 它提供了一组 CLI 命令，用于初始化 PBAP PCE、连接/断开远端设备、
 处理 OBEX 认证、浏览电话本目录、获取电话本大小、下载电话本数据、

@@ -46,7 +46,7 @@ The diagram below shows how the data flows:
    ap_cmd headset pair_mode
    ```
 
-   A device named `soundbar_XXYYZZ` (the suffix is the last 3 bytes of the local Bluetooth MAC) will appear in the phone's Bluetooth list; tap to connect.
+A device named `soundbar_XXYYZZ` (the suffix is the last 3 bytes of the local Bluetooth MAC) will appear in the phone's Bluetooth list; tap to connect.
 
 5. **Play music**: once the phone is connected, just play a song and the audio will come out of the board's speaker. You can also remote-control playback via serial:
 

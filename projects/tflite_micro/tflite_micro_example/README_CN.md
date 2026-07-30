@@ -1,5 +1,7 @@
 # TensorFlow Lite Micro 示例工程
 
+* [English](./README.md)
+
 ## 1. 项目概述
 本工程是一个 TensorFlow Lite Micro（TFLM）与 Ethos-U NPU 的组合示例，用于在 Beken 平台上验证端侧推理链路是否可用。
 

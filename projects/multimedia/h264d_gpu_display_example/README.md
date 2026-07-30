@@ -1,6 +1,6 @@
 # H264 Decode GPU Display Example
 
-* [Chinese](./README_CN.md)
+* [中文](./README_CN.md)
 
 ## 1. Project Overview
 
