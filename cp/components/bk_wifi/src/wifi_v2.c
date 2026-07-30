@@ -2545,21 +2545,34 @@ bk_err_t bk_wifi_sta_start(void)
 	return BK_OK;
 }
 
+static void wifi_sta_reset_link_status(void)
+{
+	wifi_linkstate_reason_t info = {
+		.state = WIFI_LINKSTATE_STA_IDLE,
+		.reason_code = WIFI_REASON_MAX,
+	};
+
+	mhdr_set_station_status(info);
+#if CONFIG_LWIP
+	sta_ip_down();
+#endif
+}
+
 bk_err_t bk_wifi_sta_stop(void)
 {
 	WIFI_LOGD("sta stopping\n");
 
 	if (!wifi_sta_is_started()) {
 		WIFI_LOGV("sta stop, already stopped\n");
+		wifi_sta_reset_link_status();
 		return BK_OK;
 	}
 	_wifi_sta_exit();
 
 	wifi_clear_state_bit(WIFI_STA_STARTED_BIT);
+	/* Re-assert idle after STARTED cleared to win race with late DHCP callback. */
+	wifi_sta_reset_link_status();
 	WIFI_LOGI("sta stopped(%x)\n", s_wifi_state_bits);
-#if CONFIG_WIFI_VNET_CONTROLLER
-	//cif_handle_bk_cmd_disconnect_ind(true, WIFI_REASON_RESERVED);
-#endif
 	return BK_OK;
 }
 
@@ -4011,6 +4024,9 @@ bk_err_t bk_wifi_ap_stop(void)
 
 	if (!wifi_ap_is_started()) {
 		WIFI_LOGV("ap stop: already stopped\n");
+#if CONFIG_LWIP
+		uap_ip_down();
+#endif
 		rtos_unlock_recursive_mutex(&s_ap_op_mutex);
 		return BK_OK;
 	}
@@ -4547,8 +4563,8 @@ bk_err_t bk_wifi_get_wifi_status(void *out)
 	wifi_status_t* status = (wifi_status_t*)out;
 	if (!status)
 		return BK_ERR_NULL_PARAM;
-	status->is_sta_up = wifi_netif_sta_is_got_ip();
-	status->is_ap_up = uap_ip_is_start();
+	status->is_sta_up = wifi_sta_is_started() && wifi_netif_sta_is_got_ip();
+	status->is_ap_up = wifi_ap_is_started() && uap_ip_is_start();
 	if(status->is_sta_up)
 	{
 		os_memset(&status->link_status, 0x0, sizeof(wifi_link_status_t));

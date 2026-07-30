@@ -111,6 +111,9 @@ void wifi_netif_notify_sta_got_ip(enum ip_ver ver)
 	wifi_linkstate_reason_t info;
 	unsigned char vif_idx;
 
+	if (!wifi_sta_is_started())
+		return;
+
 	/* set wifi status */
 	info.state = WIFI_LINKSTATE_STA_GOT_IP;
 	info.reason_code = WIFI_REASON_MAX;
