@@ -33,7 +33,10 @@ static void cli_can_help(void)
 
 static void cli_can_driver_init(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
-	if (bk_can_driver_init() == BK_OK) {
+	/* driver_init only loads the software layer; bk_can_init(NULL) then brings up
+	 * the hardware with the driver's default config so the CLI still enables CAN
+	 * in one command. */
+	if (bk_can_driver_init() == BK_OK && bk_can_init(NULL) == BK_OK) {
 		CLI_LOGI("init success\r\n");
 	} else {
 		CLI_LOGE("init failed\r\n");

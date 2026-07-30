@@ -36,8 +36,8 @@
 #define CAN_ERR_RECOVER_STACK_SIZE      1024
 
 #define CAN_RETURN_ON_DEVICE_NOT_INIT() do { \
-	if (!s_can_driver_is_init) { \
-			CAN_LOGE("can driver not init\r\n"); \
+	if (!s_can_hw_is_init) { \
+			CAN_LOGE("can hw not init\r\n"); \
 			return BK_ERR_CAN_NOT_INIT; \
 		} \
 	} while(0)
@@ -48,6 +48,7 @@
 static can_env_t *s_can_env;
 static can_dev_t s_can_dev;
 static bool s_can_driver_is_init = false;
+static bool s_can_hw_is_init = false;
 static can_callback_des_t s_can_isr_user_rx_cb;
 static can_callback_des_t s_can_isr_user_tx_cb;
 static can_callback_des_t s_can_isr_user_err_cb;
@@ -58,6 +59,12 @@ static beken_thread_t s_can_err_thread;
 static bk_err_t can_err_recover_init(void);
 static void can_err_recover_deinit(void);
 static void can_apply_protocol(can_protocol_e protocol);
+static void can_err_int(void *param);
+static void can_fill_default_config(can_dev_t *dev);
+#if (CONFIG_CAN_PM_CB_SUPPORT)
+static int bk_can_backup(uint64_t sleep_time_ms, void *args);
+static int bk_can_restore(uint64_t sleep_time_ms, void *args);
+#endif
 #if CONFIG_USR_GPIO_CFG_EN
 #define CAN_SET_PIN(chn) do { \
 	if ((chn) == CAN_CHAN_0) { \
@@ -461,6 +468,20 @@ static void can_err_recover_deinit(void)
 	s_can_err_pending = 0;
 }
 
+static void can_fill_default_config(can_dev_t *dev)
+{
+	if (dev == NULL) {
+		return;
+	}
+	dev->config.protocol = CAN_PROTO_FD;
+	dev->config.s_speed = CAN_BR_1M;
+	dev->config.f_speed = CAN_BR_2M;
+	dev->config.rx_size = DEFAULT_FIFO_SIZE;
+	dev->config.tx_size = DEFAULT_FIFO_SIZE;
+	dev->err_cb.cb = can_err_int;
+	dev->err_cb.param = NULL;
+}
+
 static void can_apply_protocol(can_protocol_e protocol)
 {
 	if (protocol == CAN_PROTO_FD) {
@@ -474,7 +495,7 @@ static can_koer_code_e bk_can_get_koer(void)
 {
     can_koer_code_e koer_c = CAN_KOER_NO;
 
-    if (!s_can_driver_is_init) {
+    if (!s_can_hw_is_init) {
         return CAN_KOER_NO;
     }
     can_hal_ctrl(CMD_CAN_GET_KOER, &koer_c);
@@ -662,19 +683,31 @@ bk_err_t can_driver_bit_rate_config(can_bit_rate_e s_speed, can_bit_rate_e f_spe
 bk_err_t bk_can_init(can_dev_t *can)
 {
     bk_err_t ret = BK_OK;
+    can_dev_t default_dev;
 
+    if (s_can_hw_is_init) {
+        return BK_OK;
+    }
+
+    /* A NULL config means "bring up with the driver's built-in defaults", so the
+     * internal default error callback (can_err_int) stays inside the driver and
+     * callers/CLI can enable the hardware with a single argument-less call. */
     if (can == NULL) {
-        return BK_ERR_PARAM;
+        can_fill_default_config(&default_dev);
+        can = &default_dev;
     }
 
     if (can->config.s_speed > CAN_BR_1M) {
         return BK_ERR_PARAM;
     }
 
+    bk_pm_module_vote_power_ctrl(PM_POWER_SUB_MODULE_NAME_AHBP_CAN, PM_POWER_MODULE_STATE_ON);
+
     if (s_can_env == NULL) {
         s_can_env = os_zalloc(sizeof(can_env_t));
         if(!s_can_env) {
             CAN_LOGE("%s,%d s_can_env malloc fail\r\n", __func__, __LINE__);
+            bk_pm_module_vote_power_ctrl(PM_POWER_SUB_MODULE_NAME_AHBP_CAN, PM_POWER_MODULE_STATE_OFF);
             return BK_ERR_CAN_CHK_ERROR;
         }
     }
@@ -686,6 +719,7 @@ bk_err_t bk_can_init(can_dev_t *can)
     ret = can_err_recover_init();
     if (ret != BK_OK) {
         bk_can_base_deinit();
+        bk_pm_module_vote_power_ctrl(PM_POWER_SUB_MODULE_NAME_AHBP_CAN, PM_POWER_MODULE_STATE_OFF);
         return ret;
     }
     rtos_init_semaphore(&(s_can_env->rx_semphr), 1);
@@ -735,14 +769,26 @@ bk_err_t bk_can_init(can_dev_t *can)
 
     bk_interrupt_register_m55sub_int(INT_SRC_CP_CAN, can_isr);
 
-    s_can_driver_is_init = true;
+    s_can_hw_is_init = true;
+
+#if (CONFIG_CAN_PM_CB_SUPPORT)
+    pm_cb_conf_t enter_config = {bk_can_backup, NULL};
+    pm_cb_conf_t exit_config = {bk_can_restore, NULL};
+    bk_pm_sleep_register_cb(PM_MODE_LOW_VOLTAGE, PM_DEV_ID_CAN, &enter_config, &exit_config);
+#endif
 
     return BK_OK;
 }
 
 bk_err_t bk_can_deinit(void)
 {
-    s_can_driver_is_init = false;
+    if (!s_can_hw_is_init) {
+        return BK_OK;
+    }
+    s_can_hw_is_init = false;
+#if (CONFIG_CAN_PM_CB_SUPPORT)
+    bk_pm_sleep_unregister_cb(PM_MODE_LOW_VOLTAGE, PM_DEV_ID_CAN, true, true);
+#endif
     can_err_recover_deinit();
     can_hal_int_disable();
     bk_interrupt_unregister_m55sub_int(INT_SRC_CP_CAN);
@@ -764,6 +810,8 @@ bk_err_t bk_can_deinit(void)
         os_free(s_can_env);
         s_can_env = NULL;
     }
+
+    bk_pm_module_vote_power_ctrl(PM_POWER_SUB_MODULE_NAME_AHBP_CAN, PM_POWER_MODULE_STATE_OFF);
 
     return BK_OK;
 }
@@ -822,31 +870,17 @@ static int bk_can_restore(uint64_t sleep_time_ms, void *args)
 }
 #endif
 
+/* Software-layer load only: fill the default config and register CLI, with no
+ * hardware side effect (no power-up, no GPIO map, no interrupt). This runs at
+ * boot under CONFIG_CAN so merely enabling the macro does NOT bring the CAN
+ * controller live. The hardware is enabled later, on demand, by bk_can_init(). */
 bk_err_t bk_can_driver_init(void)
 {
 	if (s_can_driver_is_init) {
 		return BK_OK;
 	}
 
-	s_can_dev.config.protocol = CAN_PROTO_FD;
-	s_can_dev.config.s_speed = CAN_BR_1M;
-	s_can_dev.config.f_speed = CAN_BR_2M;
-	s_can_dev.config.rx_size = DEFAULT_FIFO_SIZE;
-	s_can_dev.config.tx_size = DEFAULT_FIFO_SIZE;
-	s_can_dev.err_cb.cb = can_err_int;
-	s_can_dev.err_cb.param = NULL;
-
-	bk_pm_module_vote_power_ctrl(PM_POWER_SUB_MODULE_NAME_AHBP_CAN, PM_POWER_MODULE_STATE_ON);
-#if (CONFIG_CAN_PM_CB_SUPPORT)
-	pm_cb_conf_t enter_config = {bk_can_backup, NULL};
-	pm_cb_conf_t exit_config = {bk_can_restore, NULL};
-	bk_pm_sleep_register_cb(PM_MODE_LOW_VOLTAGE, PM_DEV_ID_CAN, &enter_config, &exit_config);
-#endif
-
-	BK_LOG_ON_ERR(bk_can_init(&s_can_dev));
-	if (!s_can_driver_is_init) {
-		return BK_ERR_CAN_NOT_INIT;
-	}
+	can_fill_default_config(&s_can_dev);
 
 #if CONFIG_CAN_TEST
     int bk_can_register_cli_test_feature(void);
@@ -857,6 +891,9 @@ bk_err_t bk_can_driver_init(void)
     int bk_can_register_cli_demo(void);
     bk_can_register_cli_demo();
 #endif
+
+	s_can_driver_is_init = true;
+
 	return BK_OK;
 }
 
@@ -865,11 +902,14 @@ bk_err_t bk_can_driver_deinit(void)
 	if (!s_can_driver_is_init) {
 		return BK_OK;
 	}
+
+	/* Tear the hardware down first if some caller left it enabled, so unloading
+	 * the driver never leaves the controller powered/interrupting. */
+	if (s_can_hw_is_init) {
+		bk_can_deinit();
+	}
+
 	s_can_driver_is_init = false;
-#if (CONFIG_CAN_PM_CB_SUPPORT)
-	bk_pm_sleep_unregister_cb(PM_MODE_LOW_VOLTAGE, PM_DEV_ID_CAN, true, true);
-#endif
-	bk_can_deinit();
-	bk_pm_module_vote_power_ctrl(PM_POWER_SUB_MODULE_NAME_AHBP_CAN, PM_POWER_MODULE_STATE_OFF);
+
 	return BK_OK;
 }
