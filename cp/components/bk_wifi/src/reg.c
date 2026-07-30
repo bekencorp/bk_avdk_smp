@@ -2544,8 +2544,10 @@ void regulatory_hint_11d(struct wiphy *wiphy, wifi_band_t band, const u8 *countr
 	else if (country_ie[2] == 'O')
 		env = ENVIRON_OUTDOOR;
 
-	if (likely(last_request->initiator == NL80211_REGDOM_SET_BY_COUNTRY_IE &&
-	    wiphy_idx_valid(last_request->wiphy_idx)))
+	/* Skip only when duplicate: same alpha2 as last COUNTRY_IE request */
+	if (last_request->initiator == NL80211_REGDOM_SET_BY_COUNTRY_IE &&
+	    alpha2_equal(last_request->alpha2, alpha2) &&
+	    wiphy_idx_valid(last_request->wiphy_idx))
 		goto out;
 
 	request = os_zalloc(sizeof(struct regulatory_request));

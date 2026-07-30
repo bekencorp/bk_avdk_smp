@@ -686,6 +686,7 @@ void bk_wifi_set_regd_updated_by_scan(bool enable);
 struct ieee80211_channel;
 bool chan_need_disabled(struct ieee80211_channel *channel);
 bool regd_chan_available(int freq, const char *alpha2);
+void regulatory_hint_disconnect(void);
 
 //Optimize it
 __attribute__((weak)) uint32_t cfg_ap_is_open_system(void);
