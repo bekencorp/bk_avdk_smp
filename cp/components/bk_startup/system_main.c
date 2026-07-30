@@ -512,6 +512,7 @@ static void app_main_thread(void *arg)
 
 	pm_thread_main();
 	main();
+	BK_LOGI(NULL, "CP main running...\r\n");
 
 #if CONFIG_MATTER_START && CONFIG_SUPPORT_MATTER
 #ifdef CONFIG_MATTER_EXAMPLE
