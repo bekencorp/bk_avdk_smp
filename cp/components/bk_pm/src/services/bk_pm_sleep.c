@@ -312,6 +312,10 @@ void pm_super_deep_sleep_prepare()
 {
 	for (uint8_t i = 0; i < PM_SLEEP_CB_IND_PRI_1; i++)
 	{
+		if((PM_DEV_ID_MAC == s_pm_superdeep_enter_cb_conf[i].id)|(PM_DEV_ID_BTDM == s_pm_superdeep_enter_cb_conf[i].id))
+		{
+			continue;
+		}
 		if (s_pm_superdeep_enter_cb_conf[i].cfg.cb != NULL)
 		{
 			// BK_LOGD(NULL, "%d %d\r\n", i, s_pm_superdeep_enter_cb_conf[i].id);
@@ -322,6 +326,7 @@ void pm_super_deep_sleep_prepare()
 
 void pm_super_deep_sleep_process()
 {
+	bk_printf("pm_super_deep_sleep_process\r\n");
 	for (uint8_t i = s_pm_superdeep_enter_cb_cnt[PM_CB_PRIORITY_1]; i < PM_DEEPSLEEP_CB_SIZE; i++)
 	{
 		if (s_pm_superdeep_enter_cb_conf[i].cfg.cb != NULL)
@@ -329,20 +334,18 @@ void pm_super_deep_sleep_process()
 			s_pm_superdeep_enter_cb_conf[i].cfg.cb(0, s_pm_superdeep_enter_cb_conf[i].cfg.args);
 		}
 	}
+// #if CONFIG_GPIO_RETENTION_SUPPORT
+// 	gpio_retention_sync(false);
+// #endif
 
-#if CONFIG_GPIO_RETENTION_SUPPORT
-	gpio_retention_sync(false);
-#endif
-
-#if CONFIG_GPIO_WAKEUP_SUPPORT
-	uint64_t skip_io = BIT64(16); // workaround fix for super deep gpio wakeup
-#if CONFIG_GPIO_RETENTION_SUPPORT
-	skip_io |= gpio_retention_map_get();
-#endif
-	gpio_hal_switch_to_low_power_status(skip_io);
-#endif
-
-	pm_enter_super_deep_sleep();
+// #if CONFIG_GPIO_WAKEUP_SUPPORT
+// 	uint64_t skip_io = BIT64(16); // workaround fix for super deep gpio wakeup
+// #if CONFIG_GPIO_RETENTION_SUPPORT
+// 	skip_io |= gpio_retention_map_get();
+// #endif
+// 	gpio_hal_switch_to_low_power_status(skip_io);
+// #endif
+ 	pm_enter_super_deep_sleep();
 }
 #endif
 /*=========================SLEEP/WAKEUP FUNCTION END========================*/

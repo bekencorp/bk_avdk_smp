@@ -247,6 +247,7 @@ bk_err_t bk_pm_sleep_mode_set(pm_sleep_mode_e sleep_mode)
 #if CONFIG_PM_SUPER_DEEP_SLEEP
 	else if (s_pm_sleep_mode == PM_MODE_SUPER_DEEP_SLEEP)
 	{
+		bk_printf("enter super deep sleep\r\n");
 		pm_super_deep_sleep_prepare();
 	}
 #endif

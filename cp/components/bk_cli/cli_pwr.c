@@ -416,7 +416,7 @@ static void cli_pm_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char 
 		if (pm_sleep_mode == PM_MODE_SUPER_DEEP_SLEEP)
 		{
 			#if CONFIG_GPIO_ANA_WAKEUP_SUPPORT
-			//bk_gpio_ana_register_wakeup_source(pm_param1,pm_param2);
+			bk_gpio_ana_register_wakeup_source(pm_param1,pm_param2);
 			#endif
 		}
 		else

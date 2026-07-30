@@ -1178,12 +1178,10 @@ __IRAM_SEC uint64_t bk_aon_rtc_get_current_tick_with_compensation(aon_rtc_id_t i
 static int ana_wakesource_rtc_enter_cb(uint64_t sleep_time, void *args)
 {
 	uint32_t period = s_wkup_time_period;
-
 	if (period >= RTC_ANA_TIME_PERIOD_MAX) {
 		AON_RTC_LOGW("rtc wakeup period range 0~15\r\n");
 	}
 	sys_drv_rtc_ana_wakeup_enable(period);
-
 	return 0;
 }
 
