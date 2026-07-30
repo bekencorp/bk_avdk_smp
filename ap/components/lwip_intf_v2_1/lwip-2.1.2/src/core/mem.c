@@ -195,7 +195,11 @@ mem_trim(void *mem, mem_size_t size)
 #endif
 #ifndef mem_clib_malloc
 #if CONFIG_LWIP_MEM_LIBC_MALLOC_USE_PSRAM
-#define mem_clib_malloc psram_malloc
+#if defined(CONFIG_AP_PSRAM_NOCACHE_HEAP_ADDR) && (CONFIG_AP_PSRAM_NOCACHE_HEAP_SIZE > 0)
+#define mem_clib_malloc psram_nocache_malloc
+#else
+#error "LWIP PSRAM allocation requires a non-cacheable AP PSRAM heap"
+#endif
 #else
 #define mem_clib_malloc os_malloc
 #endif
