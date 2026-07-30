@@ -23,6 +23,9 @@
 extern "C" {
 #endif
 
+/* Max independent OSD sprite slots (multi-blit). */
+#define BK_GPU_BLIT_SLOT_MAX  4
+
 typedef enum
 {
     BK_GPU_IOCTL_SET_FLEXA_LINES_READY,
@@ -34,6 +37,8 @@ typedef enum
     BK_GPU_IOCTL_LOCK,
     BK_GPU_IOCTL_UNLOCK,
     BK_GPU_IOCTL_SET_FLEXA_EVENT_READY,
+    /* args = bool*: false = frame-end OSD blit; true = per flexa block. */
+    BK_GPU_IOCTL_SET_OSD_BY_FLEXA,
 } bk_gpu_ioctl_cmd_t;
 
 typedef struct
@@ -73,14 +78,40 @@ typedef struct
 
 typedef struct
 {
+    /*
+     * Full width/height of src_buffer in pixels (sprite stride).
+     *
+     * VG-Lite uses these to compute row offsets when src_x/src_y/src_width/
+     * src_height select a sub-rectangle smaller than the whole buffer (e.g.
+     * OSD bbox crop inside an ARGB sprite from bk_draw_osd).
+     *
+     * Set both to 0 for whole-buffer blit; stride then falls back to
+     * src_width/src_height (typical for PIP NV12 frames).
+     * Required when src_* is a strict sub-rect and src_width != sprite width.
+     */    
+    uint16_t sprite_width;    
+    uint16_t sprite_height;
+
+    /*
+     * Source crop rectangle inside src_buffer (pixels to blit).
+     * Whole-buffer blit: src_x/src_y = 0, src_width/src_height = frame size.
+     */
     uint16_t src_x;
     uint16_t src_y;
     uint16_t src_width;
     uint16_t src_height;
+
     bk_pixel_format_t src_format;
     uint16_t dst_x;
     uint16_t dst_y;
     uint16_t rotate_degree;
+    /* Alpha blend mode for the overlay blit.
+     * 0: opaque copy (VG_LITE_BLEND_NONE) - default, unchanged legacy behavior.
+     * 1: alpha blend over the destination (VG_LITE_BLEND_SRC_OVER) - for
+     *    transparent OSD sprites (ARGB8888) composited onto the video frame. */
+    uint8_t alpha_blend;
+    /* OSD slot index [0, BK_GPU_BLIT_SLOT_MAX). Default 0. */
+    uint8_t osd_slot;
     void *args;
     void (*free)(void *frame, void *args);
 } bk_gpu_blit_config_t;

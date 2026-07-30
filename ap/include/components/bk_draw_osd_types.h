@@ -21,6 +21,7 @@
 #include <components/avdk_utils/avdk_check.h>
 #include <components/avdk_utils/avdk_error.h>
 #include <common/avdk_pixel_types.h>   /* bk7259: frame_buffer_t + pixel_format_t (no multimedia/frame_buffer.h) */
+#include <components/bk_gpu_types.h>   /* bk_gpu_ctlr_handle_t + bk_pixel_format_t (external GPU for pipeline submit model) */
 #include "modules/lcd_font.h"
 
 #ifdef __cplusplus
@@ -36,8 +37,6 @@ extern "C" {
 #define MAX_BLEND_NAME_LEN    20
 #define MAX_BLEND_CONTENT_LEN 31
 
-/* bk7259: 7258 由 driver/lcd_types.h 的 data_format_t 提供 ARGB8888=0；
- * 7259 该枚举命名不同，OSD asset 仅用到 ARGB8888，这里给出等价定义。 */
 #ifndef ARGB8888
 enum { ARGB8888 = 0 };
 #endif
@@ -56,6 +55,13 @@ typedef enum
      BLEND_TYPE_FONT,                    /**< font type */
 }blend_type_t;
 
+/**< Font backend: LVGL runtime decode / bk_font (emWin) pre-rendered glyphs */
+typedef enum
+{
+    OSD_FONT_LVGL = 0,                   /**< const lv_font_t * (decoded in bk_osd_lv_font.c; scale supported) */
+    OSD_FONT_BKFONT,                     /**< const gui_font_digit_struct * (fixed-size prerendered glyphs) */
+}osd_font_kind_t;
+
 typedef struct {
     uint8_t format;             /**< data_format_t, should be ARGB8888                    */
     uint32_t data_len;          /**< ARGB8888 image size, should be: (xsize * ysize * 4) (no used)  */
@@ -63,8 +69,11 @@ typedef struct {
 }blend_image_t;
 
 typedef struct {
-    const gui_font_digit_struct * font_digit_type;   /**< character database */
+    const gui_font_digit_struct * font_digit_type;   /**< character database (bkfont/emWin) */
     uint32_t color;            /**< font color value used by RGB565 date*/
+    /* Current: font assets in blend_info[] support bkfont only. To let LVGL text participate in
+     * auto-clustering, extend with { osd_font_kind_t kind; const void *lv_font; uint8_t scale; }
+     * and dispatch by kind in the controller (see bk_osd_lv_font.h). */
 }blend_font_t;
 
 typedef struct 
@@ -103,13 +112,19 @@ typedef struct{
 
 
 typedef struct {
+    /* Pipeline submit model: OSD registers composited sprites with this external GPU (SRC_OVER each frame).
+     * MIPI and UVC each hold a separate instance bound to their own pipeline GPU handle. */
+    bk_gpu_ctlr_handle_t gpu;            /**< bound external pipeline GPU handle (required) */
+    uint16_t panel_w;                    /**< target display width (rotated buffer width) */
+    uint16_t panel_h;                    /**< target display height */
+    bk_pixel_format_t src_format;        /**< sprite format: MIPI=ABGR8888 / UVC=ARGB8888 (upstream channel order) */
     const blend_info_t *blend_assets;    /**<  the pointer, pointer to current blend info, lifetime >= handle */
     const blend_info_t *blend_info;      /**<  initial default display items array, only read at new time */
-    bool draw_in_psram;                  /**< true: use PSRAM, false: use SRAM */
+    bool draw_in_psram;                  /**< legacy field; unused in pipeline model */
 } osd_ctlr_config_t;
 
 typedef struct{
-    frame_buffer_t *frame;      /**< the pointer, pointer to the struct frame buffer */
+    frame_buffer_t *frame;      /**< legacy frame buffer pointer (unused in pipeline model) */
     uint16_t width;             /**< osd draw visible width */
     uint16_t height;            /**< osd draw visible height */
 }osd_bg_info_t;
@@ -120,14 +135,21 @@ typedef struct bk_draw_osd_ctlr *bk_draw_osd_ctlr_handle_t;
 
 typedef struct bk_draw_osd_ctlr
 {
-    avdk_err_t (*draw_image)(bk_draw_osd_ctlr_handle_t controller, osd_bg_info_t *bg_info,  const blend_info_t *info);
-    avdk_err_t (*draw_font)(bk_draw_osd_ctlr_handle_t controller, osd_bg_info_t *bg_info,  const blend_info_t *info);
-    avdk_err_t (*draw_osd_array)(bk_draw_osd_ctlr_handle_t controller, osd_bg_info_t *bg_info, const blend_info_t *info);
-    avdk_err_t (*add_or_updata)(bk_draw_osd_ctlr_handle_t controller, const char *name, const char* content);
+    /* Pipeline compositing: all render entry points are one-shot/self-contained (internal sprite/slot/GPU submit). */
+    /* One-shot single element (image or font); uses element xpos/ypos/color/content; takes next free slot */
+    avdk_err_t (*draw_element)(bk_draw_osd_ctlr_handle_t controller, const blend_info_t *info);
+    /* One-shot raw font text (LVGL/bkfont); takes next free slot */
+    avdk_err_t (*draw_text)(bk_draw_osd_ctlr_handle_t controller, osd_font_kind_t kind, const void *font,
+                            const char *utf8, uint16_t x, uint16_t y, uint32_t argb, uint8_t scale);
+    /* Array render: auto-cluster by spatial proximity into GPU slots (<= BK_GPU_BLIT_SLOT_MAX), one tight
+     * bounding-box sprite per cluster; slot cursor stops after used clusters. No manual slot/begin/commit. */
+    avdk_err_t (*draw_osd_array)(bk_draw_osd_ctlr_handle_t controller, const blend_info_t *list);
+    /* Clear registered blits and reset slot cursor */
+    avdk_err_t (*clear)(bk_draw_osd_ctlr_handle_t controller);
+    avdk_err_t (*add_or_update)(bk_draw_osd_ctlr_handle_t controller, const char *name, const char* content);
+    avdk_err_t (*remove)(bk_draw_osd_ctlr_handle_t controller, const char *name);
     avdk_err_t (*ioctl)(bk_draw_osd_ctlr_handle_t controller, uint32_t ioctl_cmd, uint32_t param1, uint32_t param2, uint32_t param3);
     avdk_err_t (*delete)(bk_draw_osd_ctlr_handle_t controller);
-    avdk_err_t (*remove)(bk_draw_osd_ctlr_handle_t controller, const char *name);
-    avdk_err_t (*close)(bk_draw_osd_ctlr_handle_t controller);
 }bk_draw_osd_ctlr_t;
 
 
