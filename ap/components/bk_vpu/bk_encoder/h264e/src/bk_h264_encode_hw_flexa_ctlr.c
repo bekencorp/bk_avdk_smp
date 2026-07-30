@@ -8,6 +8,7 @@
 #include "modules/vcenc/vcenc_h264_api.h"
 #include "private_h264_encode_ctlr.h"
 #include "h264_encode_vcenc_rate_ctrl_priv.h"
+#include "h264_encode_osd_priv.h"
 #include "hw_encoder_ctlr.h"
 #if CONFIG_L2_CACHE_ENABLE || CONFIG_DCACHE
 #include "cache.h"
@@ -16,6 +17,23 @@
 #include "avdk_monitor.h"
 
 #define TAG "bk_h264_encode_ctlr"
+#define H264_HW_FLEXA_ENC_DONE_WAIT_MS 5000U
+
+static uint32_t h264_hw_flexa_pending_in_lines(const bk_h264_encode_hw_flexa_config_t *config)
+{
+    uint32_t bytes_per_row;
+
+    if (config == NULL || config->width == 0U) {
+        return 0U;
+    }
+
+    bytes_per_row = config->width * 3U / 2U;
+    if (bytes_per_row == 0U || config->input_size == 0U) {
+        return 0U;
+    }
+
+    return config->input_size / bytes_per_row;
+}
 
 #define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
 #define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
@@ -165,7 +183,9 @@ static avdk_err_t h264_encode_msg_callback(void *param)
         flush_dcache((void *)(uintptr_t)ctrl->enc_param.in_buffer, (long)flush_sz);
     }
 #endif
+    h264_encode_osd_sync_to_vcenc(&ctrl->enc_param, ctrl->osd_slots);
     vcenc_ret_e venc_ret = vcenc_h264_encode_frame(&ctrl->enc_param);
+    h264_encode_osd_finish_frame(ctrl->osd_slots);
     ctrl->enc_param.update_flag = 0;
     if (venc_ret != VCENC_FRAME_READY && venc_ret != VCENC_OK) {
         LOGE("vcenc_h264_encode_frame failed: %d\r\n", venc_ret);
@@ -224,7 +244,7 @@ static void h264_encoder_entry(void *arg)
             continue;
         }
         ctrl->pending_in_buf = ctrl->config.input_buf;
-        ctrl->pending_in_lines = ctrl->config.input_size;
+        ctrl->pending_in_lines = h264_hw_flexa_pending_in_lines(&ctrl->config);
 
         hw_encoder_msg_t msg = {
             .type = HW_ENCODER_MSG_ENCODE,
@@ -239,7 +259,7 @@ static void h264_encoder_entry(void *arg)
             handle_encode_error(ctrl, (void *)ctrl->pending_out_buf, 0);
             continue;
         }
-        ret = rtos_get_semaphore(&ctrl->enc_done_sem, 1000);
+        ret = rtos_get_semaphore(&ctrl->enc_done_sem, H264_HW_FLEXA_ENC_DONE_WAIT_MS);
         if (ret != BK_OK) {
             LOGE("get semaphore failed: %d\r\n", ret);
             handle_encode_error(ctrl, (void *)ctrl->pending_out_buf, 0);
@@ -330,6 +350,7 @@ static avdk_err_t h264_encode_ctlr_open(bk_h264_encode_ctlr_handle_t handle)
         return AVDK_ERR_GENERIC;
     }
     control->encoder_inited = true;
+    h264_encode_osd_module_init();
 
     /* Apply legacy open-time fixed-QP defaults. */
     vcenc_rate_ctrl_t rc;
@@ -400,6 +421,7 @@ static avdk_err_t h264_encode_ctlr_close(bk_h264_encode_ctlr_handle_t handle)
     }
 
     if (control->encoder_inited) {
+        h264_encode_osd_release_all(&control->enc_param, control->osd_slots);
         (void)vcenc_h264_close(&control->enc_param);
         (void)vcenc_h264_deinit(&control->enc_param);
         control->encoder_inited = false;
@@ -660,6 +682,9 @@ static avdk_err_t h264_encode_ctlr_ioctl(bk_h264_encode_ctlr_handle_t handle, ui
             return h264_encode_ctlr_set_rate_ctrl(control, (bk_h264_encode_rate_ctrl_t *)arg);
         case BK_H264_ENCODE_IOCTL_GET_RATE_CTRL:
             return h264_encode_ctlr_get_rate_ctrl(control, (bk_h264_encode_rate_ctrl_t *)arg);
+        case BK_H264_ENCODE_IOCTL_SET_OSD:
+            return h264_encode_set_osd_common(&control->enc_param, control->encoder_inited,
+                                              control->osd_slots, (bk_h264_encode_osd_t *)arg);
         case H264_ENCODE_IOCTL_SET_VCENC_RATE_CTRL_PRIV:
             return h264_encode_set_vcenc_rate_ctrl_common(&control->enc_param, control->encoder_inited, (bk_h264_encode_vcenc_rate_ctrl_t *)arg);
         case H264_ENCODE_IOCTL_GET_VCENC_RATE_CTRL_PRIV:

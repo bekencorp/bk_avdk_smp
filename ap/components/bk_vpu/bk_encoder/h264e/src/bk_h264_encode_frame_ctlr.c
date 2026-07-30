@@ -8,6 +8,7 @@
 #include "modules/vcenc/vcenc_h264_api.h"
 #include "private_h264_encode_ctlr.h"
 #include "h264_encode_vcenc_rate_ctrl_priv.h"
+#include "h264_encode_osd_priv.h"
 #include "hw_encoder_ctlr.h"
 #if CONFIG_L2_CACHE_ENABLE || CONFIG_DCACHE
 #include "cache.h"
@@ -187,7 +188,9 @@ static avdk_err_t h264_encode_msg_callback(void *param)
         flush_dcache((void *)(uintptr_t)ctrl->enc_param.in_buffer, (long)flush_sz);
     }
 #endif
+    h264_encode_osd_sync_to_vcenc(&ctrl->enc_param, ctrl->osd_slots);
     vcenc_ret_e venc_ret = vcenc_h264_encode_frame(&ctrl->enc_param);
+    h264_encode_osd_finish_frame(ctrl->osd_slots);
     ctrl->enc_param.update_flag = 0;
     ENCODE_FRAME_END;
     if (venc_ret != VCENC_FRAME_READY && venc_ret != VCENC_OK) {
@@ -411,6 +414,7 @@ static avdk_err_t h264_encode_ctlr_close(bk_h264_encode_ctlr_handle_t handle)
     }
 
     if (control->encoder_inited) {
+        h264_encode_osd_release_all(&control->enc_param, control->osd_slots);
         (void)vcenc_h264_close(&control->enc_param);
         (void)vcenc_h264_deinit(&control->enc_param);
         control->encoder_inited = false;
@@ -682,6 +686,9 @@ static avdk_err_t h264_encode_ctlr_ioctl(bk_h264_encode_ctlr_handle_t handle, ui
             return h264_encode_ctlr_set_rate_ctrl(control, (bk_h264_encode_rate_ctrl_t *)arg);
         case BK_H264_ENCODE_IOCTL_GET_RATE_CTRL:
             return h264_encode_ctlr_get_rate_ctrl(control, (bk_h264_encode_rate_ctrl_t *)arg);
+        case BK_H264_ENCODE_IOCTL_SET_OSD:
+            return h264_encode_set_osd_common(&control->enc_param, control->encoder_inited,
+                                              control->osd_slots, (bk_h264_encode_osd_t *)arg);
         case H264_ENCODE_IOCTL_SET_VCENC_RATE_CTRL_PRIV:
             return h264_encode_set_vcenc_rate_ctrl_common(&control->enc_param, control->encoder_inited, (bk_h264_encode_vcenc_rate_ctrl_t *)arg);
         case H264_ENCODE_IOCTL_GET_VCENC_RATE_CTRL_PRIV:
