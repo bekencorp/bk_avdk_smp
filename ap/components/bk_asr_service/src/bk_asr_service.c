@@ -40,6 +40,7 @@ struct aud_asr
 	beken_semaphore_t sem;
 	uint8_t *read_buff;
 	bool running;
+	bool init_ok;                                                                  /**< set by aud_asr_task_main once the aud_asr_init() callback succeeds */
 	uint32_t max_read_size;                                                         /**< the max size of data read from asr handle, used in asr_read_callback */
 	void (*aud_asr_result_handle)(void *p1, void *p2);
 	int (*aud_asr_init)(void);
@@ -173,6 +174,7 @@ static void aud_asr_task_main(beken_thread_arg_t param_data)
 			goto aud_asr_exit;
 		}
 	}
+	aud_asr_handle->init_ok = true;
 	rtos_set_semaphore(&aud_asr_handle->sem);
 	while (1)
 	{
@@ -368,6 +370,37 @@ aud_asr_handle_t bk_aud_asr_init(aud_asr_cfg_t *cfg)
 
     rtos_get_semaphore(&aud_asr_handle->sem, BEKEN_NEVER_TIMEOUT);
 
+    if (!aud_asr_handle->init_ok)
+    {
+        BK_LOGE(TAG, "%s, %d, aud_asr_init callback failed\n", __func__, __LINE__);
+
+        rtos_deinit_semaphore(&aud_asr_handle->sem);
+        aud_asr_handle->sem = NULL;
+
+        if (aud_asr_handle->read_buff)
+        {
+            if (aud_asr_handle->mem_type == AUDIO_MEM_TYPE_PSRAM)
+            {
+                psram_free(aud_asr_handle->read_buff);
+            }
+            else
+            {
+                os_free(aud_asr_handle->read_buff);
+            }
+        }
+
+        if (aud_asr_handle->mem_type == AUDIO_MEM_TYPE_PSRAM)
+        {
+            psram_free(aud_asr_handle);
+        }
+        else
+        {
+            os_free(aud_asr_handle);
+        }
+
+        return NULL;
+    }
+
     cli_asr_dump_init();
 
     BK_LOGD(TAG, "init aud asr task complete\n");
@@ -418,11 +451,15 @@ bk_err_t bk_aud_asr_deinit(aud_asr_handle_t aud_asr_handle)
 
     BK_LOGD(TAG, "%s\n", __func__);
 
-    ret = aud_asr_send_msg(aud_asr_handle->aud_asr_msg_que, AUD_ASR_EXIT, NULL);
-    if (ret != BK_OK)
+    uint32_t retry = 0;
+    while ((ret = aud_asr_send_msg(aud_asr_handle->aud_asr_msg_que, AUD_ASR_EXIT, NULL)) != BK_OK)
     {
-        BK_LOGE(TAG, "%s, %d, send message: AUD_ASR_EXIT fail\n", __func__, __LINE__);
-        return ret;
+        if (++retry > 50)
+        {
+            BK_LOGE(TAG, "%s, %d, send message: AUD_ASR_EXIT keeps failing, give up\n", __func__, __LINE__);
+            return ret;
+        }
+        rtos_delay_milliseconds(2);
     }
 
     rtos_get_semaphore(&aud_asr_handle->sem, BEKEN_NEVER_TIMEOUT);

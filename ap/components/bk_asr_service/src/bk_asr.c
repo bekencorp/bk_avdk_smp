@@ -79,6 +79,7 @@ static bk_err_t asr_pipeline_deinit(asr_handle_t asr_handle)
             BK_LOGE(TAG, "%s, %d, destroy asr pipeline fail\n", __func__, __LINE__);
             return BK_FAIL;
         }
+        asr_handle->asr_evt = NULL;
     }
 
     if (BK_OK != audio_pipeline_deinit(asr_handle->asr_pipeline))
@@ -172,6 +173,7 @@ static bk_err_t asr_pipeline_deinit_with_mic(asr_handle_t asr_handle)
             BK_LOGE(TAG, "%s, %d, destroy asr pipeline fail\n", __func__, __LINE__);
             return BK_FAIL;
         }
+        asr_handle->asr_evt = NULL;
     }
 
     if (BK_OK != audio_pipeline_deinit(asr_handle->asr_pipeline))
@@ -385,7 +387,7 @@ static bk_err_t asr_pipeline_init_with_mic(asr_handle_t asr_handle, asr_cfg_t *c
     }
     return BK_OK;
 fail:
-    asr_pipeline_deinit(asr_handle);
+    asr_pipeline_deinit_with_mic(asr_handle);
     return BK_FAIL;
 }
 
@@ -1051,6 +1053,7 @@ bk_err_t bk_asr_deinit(asr_handle_t asr_handle)
     }
 
     asr_listener_stop(asr_handle);
+    asr_listener_deinit(asr_handle);
 #if (CONFIG_ASR_SERVICE_WITH_MIC)
     asr_pipeline_deinit_with_mic(asr_handle);
 #else
@@ -1060,7 +1063,16 @@ bk_err_t bk_asr_deinit(asr_handle_t asr_handle)
 
     //bk_pm_module_vote_cpu_freq(PM_DEV_ID_AUDIO, PM_CPU_FRQ_DEFAULT);
 
-    asr_listener_deinit(asr_handle);
+    if (asr_handle->asr_raw_read)
+    {
+        audio_element_deinit(asr_handle->asr_raw_read);
+        asr_handle->asr_raw_read = NULL;
+    }
+    if (asr_handle->asr_in_rb)
+    {
+        audio_port_deinit(asr_handle->asr_in_rb);
+        asr_handle->asr_in_rb = NULL;
+    }
 
     asr_handle->status = ASR_STA_NONE;
 
