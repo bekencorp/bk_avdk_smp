@@ -64,7 +64,7 @@ static void avdk_monitor_task_entry(void* arg)
             uint16_t cur_dpu_isr = avdk_monitor_info->dpu_isr_count;
             uint16_t cur_dpu_fps = avdk_monitor_info->dpu_fps_count;
             off += os_snprintf(line + off, sizeof(line) - off,
-                "DPU[rps %u fps %u] ",cur_dpu_fps / period_s, cur_dpu_isr / period_s);
+                "DPU[fps %u rps %u] ",cur_dpu_fps / period_s, cur_dpu_isr / period_s);
             avdk_monitor_info->dpu_fps_count = 0;
             avdk_monitor_info->dpu_isr_count = 0;
         }

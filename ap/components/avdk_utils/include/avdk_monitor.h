@@ -9,6 +9,7 @@ extern "C" {
 // #define DPU_LOGIC_DEBUG
 // #define DECODE_LOGIC_DEBUG
 // #define ENCODE_LOGIC_DEBUG
+// #define OSD_LOGIC_DEBUG
 
 #ifdef ISP_LOGIC_DEBUG
 #define ISP_MP_FRAME_START() do {GPIO_UP(0); } while (0);
@@ -37,7 +38,13 @@ extern "C" {
 #define GPU_LINE_END() do { GPIO_DOWN(9); } while (0);
 #define HPDMA_LINE_START() do {GPIO_UP(20); } while (0);
 #define HPDMA_LINE_END() do { GPIO_DOWN(20); } while (0);
-
+#ifdef OSD_LOGIC_DEBUG
+/* OSD SRC_OVER profiling on scope (GPIO15=total, GPIO16=per slot). */
+#define OSD_BLIT_START() do { GPIO_UP(15); } while (0);
+#define OSD_BLIT_END() do { GPIO_DOWN(15); } while (0);
+#define OSD_SLOT_START() do { GPIO_UP(16); } while (0);
+#define OSD_SLOT_END() do { GPIO_DOWN(16); } while (0);
+#endif
 #else
 #define GPU_FRAME_START()
 #define GPU_FRAME_END()
@@ -46,6 +53,11 @@ extern "C" {
 
 #define HPDMA_LINE_START()
 #define HPDMA_LINE_END()
+
+#define OSD_BLIT_START()
+#define OSD_BLIT_END()
+#define OSD_SLOT_START()
+#define OSD_SLOT_END()
 #endif
 
 #ifdef DPU_LOGIC_DEBUG
