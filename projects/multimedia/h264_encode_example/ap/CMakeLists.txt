@@ -1,8 +1,10 @@
 set(incs . include ./h264_encode/include ./h264_encode/common)
 set(srcs ap_main.c
     h264_encode/src/h264_encode_cli.c
+    h264_encode/src/h264_encode_osd.c
     h264_encode/src/vcenc_h264_test.c
     h264_encode/common/h264_encode_stream_256x128.c
+    h264_encode/common/h264_osd_draw.c
     )
 
 set(priv_req media_service bk_cli avdk_utils psram_stress_service)

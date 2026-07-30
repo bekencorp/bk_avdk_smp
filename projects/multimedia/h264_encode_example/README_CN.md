@@ -10,6 +10,8 @@
 
 - VCENC H264 整帧模式编码测试：`h264_encode vcenc_h264e`
 - VCENC H264 软件 FLEXA 模式编码测试：`h264_encode vcenc_h264e_flexa`
+- 整帧 / FLEXA 编码回归测试（纯编码，不叠加 OSD）
+- 交互式 OSD 测试：`h264_encode osd`（8 路通道 + ARGB8888 / NV12 / Bitmap 三种格式，单帧编码）
 - `CONFIG_BK_ENCODER` 使能时的上电自动编码自检
 - `.it.csv` 集成测试入口
 
@@ -113,11 +115,13 @@ make bk7259 PROJECT=multimedia/h264_encode_example
 h264_encode help
 h264_encode vcenc_h264e
 h264_encode vcenc_h264e_flexa
+h264_encode osd
 ```
 
 - `vcenc_h264e`：执行整帧模式编码测试
 - `vcenc_h264e_flexa`：执行软件 FLEXA 模式编码测试
-- 两个命令都使用内置 256x128 NV12 图像，GOP 为 15，共编码 30 帧
+- `osd`：执行 OSD 测试（8 路通道 + ARGB8888 / NV12 / Bitmap 三种格式，单帧编码）
+- 两个编码命令都使用内置 256x128 NV12 图像，GOP 为 15，共编码 30 帧
 - `CMDRSP:OK` 只表示测试线程创建成功，最终是否通过请看 `[RESULT]` 日志
 
 ## 5. 测试示例
@@ -146,13 +150,28 @@ h264_encode vcenc_h264e_flexa
 [RESULT][PASS] vcenc_h264_flexa_test success, frames=30/30 encoded_size=... frame_type=...
 ```
 
-### 5.3 集成测试命令
+### 5.3 OSD 测试（8 路 + 三种格式）
+
+```text
+h264_encode osd
+```
+
+预期最终日志：
+
+```text
+[RESULT][PASS] h264_encode_osd_test success, slots=8/8 formats=3/3 frames=1/1 encoded_size=... frame_type=...
+```
+
+单帧同时启用 8 路 OSD，其中 slot1 为 NV12、slot2 为 Bitmap，其余为 ARGB8888；每路独占一个 CTB 单元（4 列 × 2 行）。
+
+### 5.4 集成测试命令
 
 `.it.csv` 包含：
 
 ```text
 ap_cmd h264_encode vcenc_h264e
 ap_cmd h264_encode vcenc_h264e_flexa
+ap_cmd h264_encode osd
 ```
 
 期望结果分别匹配对应的 `[RESULT][PASS]` 日志。
@@ -170,6 +189,52 @@ ap_cmd h264_encode vcenc_h264e_flexa
 - 每次测试帧数：`30`
 - 整帧控制器：`bk_h264_encode_frame_new()`
 - FLEXA 控制器：`bk_h264_encode_sw_flexa_new()`
+
+### 6.2 H264 OSD 使用规范
+
+本工程通过 `bk_h264_encode_set_osd()` 叠加 OSD，支持 ARGB8888、NV12、Bitmap 三种像素格式。使用前请遵守以下约束：
+
+| 项目 | 说明 |
+|------|------|
+| 通道数量 | 硬件最多 **8 路**，index 取值 **0～7** |
+| 像素格式 | **0=ARGB8888**（像素自带 Alpha，`alpha` 无效）；**1=NV12**（使用全局 `alpha`）；**2=Bitmap**（1bpp，颜色由 `bitmap_y/u/v` 指定） |
+| 坐标对齐 | **x、y 需 2 像素对齐** |
+| 尺寸对齐 | ARGB8888/NV12：**2 像素对齐**；Bitmap：**8 像素对齐** |
+| 边界 | OSD 区域不得超出编码画面（本工程为 256×128） |
+| Stride | ARGB8888：`width×4`；NV12：Y/UV stride 均为 `width`；Bitmap：`width/8` |
+| CTB 重叠 | H.264 编码 CTB 为 **64×16**，**多路 OSD 不得占用同一 CTB** |
+| 缓存 | CPU 写入 OSD buffer 后需 **flush D-Cache**，再调用 `bk_h264_encode_set_osd()` |
+| 内存生命周期 | 通过 `buffer_free` 回调释放 OSD buffer |
+| 禁用某路 | `buffer = NULL` 提交对应 index 即可清除该路 OSD |
+
+**`h264_encode osd` 测试布局（CTB 合规，4 列 × 2 行）**
+
+| Slot | 格式 | 标签 | x | y | 宽×高 |
+|------|------|------|---|---|-------|
+| 0 | ARGB8888 | 00:00:00 | 4 | 0 | 48×16 |
+| 1 | NV12 | 01 | 68 | 0 | 32×16 |
+| 2 | Bitmap | 02 | 132 | 0 | 32×16 |
+| 3 | ARGB8888 | 03 | 196 | 0 | 32×16 |
+| 4 | ARGB8888 | 04 | 4 | 16 | 32×16 |
+| 5 | ARGB8888 | 05 | 68 | 16 | 32×16 |
+| 6 | ARGB8888 | 06 | 132 | 16 | 32×16 |
+| 7 | ARGB8888 | 07 | 196 | 16 | 32×16 |
+
+**整帧 / Flexa 编码测试**：不叠加 OSD，仅验证纯 H.264 编码流程。
+
+**API 调用顺序**
+
+1. 创建并 `open` 编码器
+2. 按格式分配 buffer，绘制内容并 flush cache
+3. 填充 `bk_h264_encode_osd_t`（含 index、format、坐标、尺寸、alpha/bitmap 颜色、`buffer_free`）
+4. 调用 `bk_h264_encode_set_osd()`（每帧编码前可更新）
+5. 调用 `bk_h264_encode_start()` 开始编码
+
+**常见错误**
+
+- 多路 OSD 在同一 CTB 内重叠 → 编码 pipeline 异常或超时
+- 坐标/尺寸未对齐、越界 → `bk_h264_encode_set_osd()` 返回失败
+- 未 flush cache → 画面 OSD 内容错乱
 
 ## 7. 注意事项
 

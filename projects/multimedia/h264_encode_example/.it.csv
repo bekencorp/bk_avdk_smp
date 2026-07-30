@@ -2,3 +2,4 @@ case名称,测试命令（必填）,输入设备（1代表设备1，2代表设�
 reboot,reboot,1,[RESULT][PASS] vcenc_h264_frame_test success,60
 vcenc_h264_frame_01,ap_cmd h264_encode vcenc_h264e,1,[RESULT][PASS] vcenc_h264_frame_test success,60
 vcenc_h264_flexa_01,ap_cmd h264_encode vcenc_h264e_flexa,1,[RESULT][PASS] vcenc_h264_flexa_test success,60
+h264_encode_osd_01,ap_cmd h264_encode osd,1,[RESULT][PASS] h264_encode_osd_test success,60

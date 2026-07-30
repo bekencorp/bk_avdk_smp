@@ -8,8 +8,8 @@ This project demonstrates H264 encoding on the Beken platform. The current test 
 
 The project provides:
 
-- Frame-mode VCENC H264 encode test: `h264_encode vcenc_h264e`
-- Software FLEXA VCENC H264 encode test: `h264_encode vcenc_h264e_flexa`
+- Frame-mode and software FLEXA VCENC H264 encode tests (pure encode, no OSD)
+- Interactive OSD test command: `h264_encode osd` (8 channels + ARGB8888 / NV12 / Bitmap, single frame)
 - Boot-time VCENC H264 self-test when `CONFIG_BK_ENCODER` is enabled
 - Integration-test entries in `.it.csv`
 
@@ -119,11 +119,13 @@ Command execution failure prints: "CMDRSP:ERROR"
 h264_encode help
 h264_encode vcenc_h264e
 h264_encode vcenc_h264e_flexa
+h264_encode osd
 ```
 
 - `vcenc_h264e` runs the frame-mode encoder test.
 - `vcenc_h264e_flexa` runs the software FLEXA encoder test.
-- Both commands encode the built-in 256x128 NV12 frame for 30 frames with GOP 15.
+- `osd` runs the OSD test (8 channels + ARGB8888, NV12, Bitmap; one encoded frame).
+- Both encode commands use the built-in 256x128 NV12 frame for 30 frames with GOP 15.
 - `CMDRSP:OK` means the test task was created successfully; check `[RESULT]` logs for the final pass/fail status.
 
 ## 5. Test Examples
@@ -152,13 +154,30 @@ Expected final log:
 [RESULT][PASS] vcenc_h264_flexa_test success, frames=30/30 encoded_size=... frame_type=...
 ```
 
-### 5.3 Integration Test Commands
+### 5.3 OSD Test (8 Channels + 3 Formats)
+
+```text
+h264_encode osd
+```
+
+Expected final log:
+
+```text
+[RESULT][PASS] h264_encode_osd_test success, slots=8/8 formats=3/3 frames=1/1 encoded_size=... frame_type=...
+```
+
+All 8 OSD slots are enabled in one frame: slot1 NV12, slot2 Bitmap, the rest ARGB8888. Each region occupies one CTB cell (4 columns × 2 rows).
+
+Tests slot0 ARGB8888, slot1 NV12, and slot2 Bitmap on separate CTB columns.
+
+### 5.4 Integration Test Commands
 
 `.it.csv` contains:
 
 ```text
 ap_cmd h264_encode vcenc_h264e
 ap_cmd h264_encode vcenc_h264e_flexa
+ap_cmd h264_encode osd
 ```
 
 The expected result strings are the corresponding `[RESULT][PASS]` logs.
@@ -176,6 +195,51 @@ The current VCENC H264 test uses the following fixed test configuration:
 - Frames per test: `30`
 - Frame-mode controller: `bk_h264_encode_frame_new()`
 - FLEXA controller: `bk_h264_encode_sw_flexa_new()`
+
+### 6.2 H264 OSD Usage Guidelines
+
+This project overlays OSD via `bk_h264_encode_set_osd()`. Supported formats: ARGB8888 (0), NV12 (1), Bitmap (2).
+
+| Item | Requirement |
+|------|-------------|
+| Slot count | Hardware supports up to **8** overlays, index **0..7** |
+| Pixel format | **0=ARGB8888** (per-pixel alpha; `alpha` ignored); **1=NV12** (global `alpha`); **2=Bitmap** (1bpp; color via `bitmap_y/u/v`) |
+| Position alignment | **x/y must be 2-pixel aligned** |
+| Size alignment | ARGB8888/NV12: **2-pixel aligned**; Bitmap: **8-pixel aligned** |
+| Stride | ARGB8888: `width×4`; NV12: Y/UV stride = `width`; Bitmap: `width/8` |
+| CTB overlap | H.264 CTB is **64×16**; multiple OSD regions must not share the same CTB |
+| Cache | **Flush D-Cache** after CPU writes, before `bk_h264_encode_set_osd()` |
+| Buffer lifetime | Release OSD buffers in the `buffer_free` callback |
+| Disable a slot | Submit the slot index with `buffer = NULL` |
+
+**`h264_encode osd` test layout (CTB-safe, 4 columns × 2 rows)**
+
+| Slot | Format | Label | x | y | Size |
+|------|--------|-------|---|---|------|
+| 0 | ARGB8888 | 00:00:00 | 4 | 0 | 48×16 |
+| 1 | NV12 | 01 | 68 | 0 | 32×16 |
+| 2 | Bitmap | 02 | 132 | 0 | 32×16 |
+| 3 | ARGB8888 | 03 | 196 | 0 | 32×16 |
+| 4 | ARGB8888 | 04 | 4 | 16 | 32×16 |
+| 5 | ARGB8888 | 05 | 68 | 16 | 32×16 |
+| 6 | ARGB8888 | 06 | 132 | 16 | 32×16 |
+| 7 | ARGB8888 | 07 | 196 | 16 | 32×16 |
+
+**Frame / Flexa encode tests**: no OSD overlay; they validate the pure H.264 encode path only.
+
+**API call order**
+
+1. Create and `open` the encoder
+2. Allocate buffer for the chosen format, draw content, flush cache
+3. Fill `bk_h264_encode_osd_t` (index, format, position, size, alpha/bitmap color, `buffer_free`)
+4. Call `bk_h264_encode_set_osd()`
+5. Call `bk_h264_encode_start()`
+
+**Common mistakes**
+
+- Overlapping OSD regions in the same CTB → pipeline hang or encode timeout
+- Misaligned or out-of-bounds geometry → `bk_h264_encode_set_osd()` failure
+- Missing cache flush → corrupted OSD content
 
 ## 7. Notes
 
