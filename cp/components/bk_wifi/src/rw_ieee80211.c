@@ -12,9 +12,15 @@
 #include "ctrl_iface.h"
 #include "rwnx_defs.h"
 #include "components/ate.h"
+#include "rwnx_tx.h"
+#include "wifi_v2.h"
 #if CONFIG_RWNX_TD
 #include "rwnx_td.h"
 #endif
+
+int rwnx_reg_notifier(struct wiphy *wiphy, struct regulatory_request *request);
+extern int manual_cal_get_tx_power(wifi_standard standard, float *powerdBm);
+extern int manual_cal_set_tx_power(wifi_standard standard, float powerdBm);
 
 #if CONFIG_POWER_TABLE
 //#include "bk_pwr_tbl.h"
@@ -24,6 +30,7 @@
 #include "bk_wifi_prop_private.h"
 #include "reg_domain.h"
 
+#if !CONFIG_WIFI_REGDOMAIN
 typedef struct _wifi_cn_code_st_ {
 	UINT32 init;
 	wifi_country_t cfg;
@@ -36,6 +43,7 @@ WIFI_CN_ST g_country_code = {0};
 #define COUNTRY_CODE_EP   {.cc= "EP", .schan=1, .nchan=13, .max_tx_power=0, .policy=WIFI_COUNTRY_POLICY_MANUAL};
 #define COUNTRY_CODE_JP   {.cc= "JP", .schan=1, .nchan=14, .max_tx_power=0, .policy=WIFI_COUNTRY_POLICY_MANUAL};
 #define COUNTRY_CODE_AU   {.cc= "AU", .schan=1, .nchan=13, .max_tx_power=0, .policy=WIFI_COUNTRY_POLICY_MANUAL};
+#endif // CONFIG_WIFI_REGDOMAIN
 
 static struct ieee80211_channel rw_2ghz_channels[] = {
 	CHAN2G(1, 2412, 0),
@@ -83,11 +91,11 @@ struct ieee80211_channel rw_5ghz_channels[] = {
 	CHAN5G(165, 0),
 };
 
-#if CONFIG_WIFI_BAND_5G
+#if CONFIG_WIFI_BAND_5G && !CONFIG_WIFI_REGDOMAIN
 //struct for channels list
 typedef struct {
 	char countrycode[3];
-	int channels_5g[26];
+	int channels_5g[MAC_DOMAINCHANNEL_5G_MAX];
 	int num_channels;
 } Countrychannels;
 
@@ -412,7 +420,9 @@ UINT32 rw_ieee80211_init(void)
 
 	wiphy->bands[IEEE80211_BAND_2GHZ] = &rwnx_band_2GHz;
 	wiphy->bands[IEEE80211_BAND_5GHZ] = &rwnx_band_5GHz;
-
+#if CONFIG_WIFI_REGDOMAIN
+	wiphy->reg_notifier = rwnx_reg_notifier;
+#endif
 	intf.msg_outbound_func = mr_kmsg_fwd;
 	intf.data_outbound_func = rwm_upload_data;
 	intf.rx_alloc_func = rwm_get_rx_free_node;
@@ -420,6 +430,35 @@ UINT32 rw_ieee80211_init(void)
 
 	rwnxl_register_connector(&intf);
 
+#if CONFIG_WIFI_REGDOMAIN
+//	wiphy->regulatory_flags = REGULATORY_WIPHY_SELF_MANAGED;
+//	bk_wifi_set_country_code(CONFIG_DEFAULT_COUNTRY_CODE);
+	struct ieee80211_supported_band *sband;
+	wifi_band_t band;
+
+	/* sanity check supported bands/channels */
+	for (band = 0; band < IEEE80211_NUM_BANDS; band++) {
+		sband = wiphy->bands[band];
+		if (!sband)
+			continue;
+
+		sband->band = band;
+		if (WARN_ON(!sband->n_channels))
+			return -EINVAL;
+
+		for (i = 0; i < sband->n_channels; i++) {
+			sband->channels[i].orig_flags =
+				sband->channels[i].flags;
+			sband->channels[i].orig_mag = INT_MAX;
+			sband->channels[i].orig_mpwr =
+				sband->channels[i].max_power;
+			sband->channels[i].band = band;
+
+			if (WARN_ON(sband->channels[i].freq_offset >= 1000))
+				return -EINVAL;
+		}
+	}
+#else // !CONFIG_WIFI_REGDOMAIN
 	/* init country code */
 	g_country_code.cfg.cc[0] = 'C';
 	g_country_code.cfg.cc[1] = 'N';
@@ -439,6 +478,7 @@ UINT32 rw_ieee80211_init(void)
 
 
 	g_country_code.init = 1;
+#endif // CONFIG_WIFI_REGDOMAIN
 
 	return 0;
 }
@@ -517,12 +557,13 @@ static UINT32 rw_ieee80211_set_chan_power(void)
 		}
 	}
     manual_cal_set_cc_backoff_flag(true);
-	RWNX_LOGD("set regulation %d chan maxpower:%ddbm\r\n", regulation,txpwr);
+	RWNX_LOGI("set regulation %d chan maxpower:%ddbm\n", regulation,txpwr);
 
 	return kNoErr;
 }
 #endif
 
+#if !CONFIG_WIFI_REGDOMAIN
 static int country_validate(const wifi_country_t *country)
 {
 	if (!country)
@@ -541,9 +582,21 @@ static int country_validate(const wifi_country_t *country)
 
 	return BK_OK;
 }
+#endif
 
 int rw_ieee80211_set_country(const wifi_country_t *country)
 {
+#if CONFIG_WIFI_REGDOMAIN
+	char alpha2[4] = {0};
+
+	if (!country)
+		return BK_ERR_NULL_PARAM;
+
+	alpha2[0] = country->cc[0];
+	alpha2[1] = country->cc[1];
+
+	return bk_wifi_set_country_code(alpha2);
+#else // !CONFIG_WIFI_REGDOMAIN
 	int ret = country_validate(country);
 	UINT32 prev_policy;
 
@@ -556,7 +609,7 @@ int rw_ieee80211_set_country(const wifi_country_t *country)
 	prev_policy = g_country_code.cfg.policy;
 
 	os_memcpy(&g_country_code.cfg, country, sizeof(wifi_country_t));
-	RWNX_LOGD("set country code {cc=%s, chan=<%d-%d> policy=%s}\r\n", country->cc,
+	RWNX_LOGI("set country code {cc=%s, chan=<%d-%d> policy=%s}\n", country->cc,
 			  country->schan, (country->schan + country->nchan - 1),
 			  country->policy == WIFI_COUNTRY_POLICY_MANUAL ? "manual" : "auto");
 
@@ -566,6 +619,7 @@ int rw_ieee80211_set_country(const wifi_country_t *country)
 			//TODO
 		}
 	}
+#endif // CONFIG_WIFI_REGDOMAIN
 
 	//TODO apply the country
 #if CONFIG_POWER_TABLE
@@ -576,14 +630,16 @@ int rw_ieee80211_set_country(const wifi_country_t *country)
 
 int rw_ieee80211_get_country(wifi_country_t *country)
 {
+#if !CONFIG_WIFI_REGDOMAIN
 	if (country) {
 		if (g_country_code.init == 0)
 			return BK_ERR_WIFI_NOT_INIT;
 
 		os_memcpy(country, &g_country_code.cfg, sizeof(wifi_country_t));
 		return BK_OK;
-	} else
-		return BK_ERR_PARAM;
+	}
+#endif
+	return BK_ERR_PARAM;
 }
 
 UINT32 rw_ieee80211_get_centre_frequency(UINT32 chan_id)
@@ -614,6 +670,27 @@ UINT32 rw_ieee80211_get_centre_frequency(UINT32 chan_id)
 	}
 }
 
+struct ieee80211_channel *ieee80211_get_channel(struct wiphy *wiphy, int freq)
+{
+	wifi_band_t band;
+	struct ieee80211_supported_band *sband;
+	int i;
+
+	for (band = 0; band < IEEE80211_NUM_BANDS; band++) {
+		sband = wiphy->bands[band];
+
+		if (!sband)
+			continue;
+
+		for (i = 0; i < sband->n_channels; i++) {
+			if (sband->channels[i].center_freq == freq)
+				return &sband->channels[i];
+		}
+	}
+
+	return NULL;
+}
+
 UINT8 rw_ieee80211_get_chan_id(UINT32 freq)
 {
 	int i;
@@ -639,7 +716,51 @@ UINT8 rw_ieee80211_get_chan_id(UINT32 freq)
 	return 0;
 }
 
+bool rw_ieee80211_5g_channel_supported(uint8_t chan)
+{
+	struct ieee80211_channel *channels = rw_5ghz_channels;;
+	int num_chans = ARRAY_SIZE(rw_5ghz_channels);;
+	for (int i = 0; i < num_chans; i++) {
+		if (channels[i].hw_value == chan)
+			return true;
+	}
+
+	return false;
+}
+
 #if CONFIG_WIFI_BAND_5G
+#if CONFIG_WIFI_REGDOMAIN
+bool check_non_radar_channel_available(int chan)
+{
+	struct wiphy *wiphy = &g_wiphy;
+	struct ieee80211_channel *channel;
+	int num_chan;
+	int i;
+
+	// Iterate all bands and channels
+	for (int band = IEEE80211_BAND_2GHZ; band < IEEE80211_NUM_BANDS; band++) {
+		if (!wiphy->bands[band])
+			continue;
+		num_chan = wiphy->bands[band]->n_channels;
+		channel = wiphy->bands[band]->channels;
+		for (i = 0; i < num_chan; i++, channel++) {
+			// For ATE, assume channel is available
+			if ((channel->flags & IEEE80211_CHAN_DISABLED) && !ate_is_enabled())
+				continue;
+
+			// Found channel, check RADAR flag
+			if (channel->hw_value == chan) {
+				if ((channel->flags & (IEEE80211_CHAN_RADAR | IEEE80211_CHAN_NO_IR)) ==
+					(IEEE80211_CHAN_RADAR | IEEE80211_CHAN_NO_IR))
+					return false;
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+#else
 /* select 5g non radar avaliable channels list according to country code*/
 int* rw_select_5g_non_radar_avaliable_channels(int *selected_channel_size)
 {
@@ -670,11 +791,43 @@ int* rw_select_5g_channels_by_regulatory_domain(int *selected_channels_size)
 	return selected_channels_5g;
 }
 #endif
+#endif
 
 UINT8 rw_ieee80211_init_scan_chan(void *request)
 {
-	UINT32 i, start_chan, num_chan_2g, num_chan_5g = 0, num_chan_6g = 0;  // FIXME: bk7239 6E
 	struct scanu_start_req * req = (struct scanu_start_req*)request;
+#if CONFIG_WIFI_REGDOMAIN
+	struct wiphy *wiphy = &g_wiphy;
+	struct ieee80211_channel *channel;
+	int num_chan;
+	int cnt = 0;
+	int i;
+
+	// Iterate all bands and channels
+	for (int band = IEEE80211_BAND_2GHZ; band < IEEE80211_NUM_BANDS; band++) {
+		if (!wiphy->bands[band])
+			continue;
+		num_chan = wiphy->bands[band]->n_channels;
+		channel = wiphy->bands[band]->channels;
+		for (i = 0; i < num_chan; i++, channel++) {
+			if (chan_need_disabled(channel)) {
+				RWNX_LOGV("disable band %d, freq %d\n", band, channel->center_freq);
+				continue;
+			}
+
+			req->chan[cnt].band = channel->band;
+			req->chan[cnt].freq = channel->center_freq;
+			req->chan[cnt].tx_power = VIF_UNDEF_POWER;
+			req->chan[cnt].flags = get_chan_flags(channel->flags);
+			RWNX_LOGV("band %d, freq %d\n", band, channel->center_freq);
+
+			cnt++;
+		}
+	}
+
+	req->chan_cnt = cnt;
+#else // !CONFIG_WIFI_REGDOMAIN
+	UINT32 i, start_chan, num_chan_2g, num_chan_5g = 0, num_chan_6g = 0;  // FIXME: bk7239n 6E
 
 	BK_ASSERT(g_country_code.init); /* ASSERT VERIFIED */
 
@@ -705,6 +858,17 @@ UINT8 rw_ieee80211_init_scan_chan(void *request)
 	}
 
 #if CONFIG_WIFI_BAND_5G
+	if (ate_is_enabled()) {
+		struct ieee80211_channel *channel = rw_5ghz_channels;
+		for (i = 0; i < ARRAY_SIZE(rw_5ghz_channels); i++) {
+			req->chan[i + num_chan_2g].band = IEEE80211_BAND_5GHZ;
+			req->chan[i + num_chan_2g].flags = 0;
+			req->chan[i + num_chan_2g].freq = channel[i].center_freq;
+
+			BK_ASSERT(req->chan[i + num_chan_2g].freq);
+		}
+		num_chan_5g = g_wiphy.bands[IEEE80211_BAND_5GHZ]->n_channels;
+	} else {
 	int selected_channels_size = 0;
 	int *selected_channels_5g = rw_select_5g_channels_by_regulatory_domain(&selected_channels_size);
 
@@ -717,15 +881,41 @@ UINT8 rw_ieee80211_init_scan_chan(void *request)
 		BK_ASSERT(req->chan[i + num_chan_2g].freq);
 	}
 	num_chan_5g = selected_channels_size;
+	}
 #endif
 
 	req->chan_cnt = num_chan_2g + num_chan_5g + num_chan_6g;
+#endif // CONFIG_WIFI_REGDOMAIN
 
 	return 0;
 }
 
-UINT8 rw_ieee80211_is_scan_rst_in_countrycode(UINT8 freq)
+UINT8 rw_ieee80211_is_scan_rst_in_countrycode(uint8_t chan)
 {
+#if CONFIG_WIFI_REGDOMAIN
+	struct wiphy *wiphy = &g_wiphy;
+	struct ieee80211_channel *channel;
+	int num_chan;
+	int i;
+
+	// Iterate all bands and channels
+	for (int band = IEEE80211_BAND_2GHZ; band < IEEE80211_NUM_BANDS; band++) {
+		if (!wiphy->bands[band])
+			continue;
+		num_chan = wiphy->bands[band]->n_channels;
+		channel = wiphy->bands[band]->channels;
+		for (i = 0; i < num_chan; i++, channel++) {
+			// For ATE, assume channel is available
+			if ((channel->flags & IEEE80211_CHAN_DISABLED) && !ate_is_enabled())
+				continue;
+
+			if (channel->hw_value == chan)
+				return 1;
+		}
+	}
+
+	return 0;
+#else
 	UINT32 start_chan, end_chan;
 
 	BK_ASSERT(g_country_code.init); /* ASSERT VERIFIED */
@@ -738,14 +928,51 @@ UINT8 rw_ieee80211_is_scan_rst_in_countrycode(UINT8 freq)
 	start_chan = g_country_code.cfg.schan;
 	end_chan = (start_chan + g_country_code.cfg.nchan - 1);
 
-	if ((freq < start_chan) || (freq > end_chan))
-		return 0;
+	if (chan <= 14) {
+		return (chan >= start_chan && chan <= end_chan);
+	} else {
+#if CONFIG_WIFI_BAND_5G
+		// 5G // FIXME: 6E
+		int selected_channels_size = 0;
+		int *selected_channels_5g = rw_select_5g_channels_by_regulatory_domain(&selected_channels_size);
+		for (int i = 0; i < selected_channels_size; i++) {
+			if (chan == selected_channels_5g[i])
+				return 1;
+		}
+#endif
+	}
 
-	return 1;
+	return 0;
+#endif
 }
 
 UINT8 rw_ieee80211_get_scan_default_chan_num(void)
 {
+#if CONFIG_WIFI_REGDOMAIN
+	struct wiphy *wiphy = &g_wiphy;
+	struct ieee80211_channel *channel;
+	int num_chan;
+	int i;
+	int cnt = 0;
+
+	// Iterate all bands and channels
+	for (int band = IEEE80211_BAND_2GHZ; band < IEEE80211_NUM_BANDS; band++) {
+		if (!wiphy->bands[band])
+			continue;
+		num_chan = wiphy->bands[band]->n_channels;
+		channel = wiphy->bands[band]->channels;
+		for (i = 0; i < num_chan; i++, channel++) {
+#if 0
+			// For ATE, assume channel is available
+			if ((channel->flags & IEEE80211_CHAN_DISABLED) && !ate_is_enabled() && g_rwnx_hw.connected)
+				continue;
+#endif
+			cnt++;
+		}
+	}
+
+	return cnt;
+#else
 	UINT8 chan_num = 0;
 	UINT8 num_chan_2g = 0;
 	UINT8 num_chan_5g = 0;
@@ -769,9 +996,10 @@ UINT8 rw_ieee80211_get_scan_default_chan_num(void)
 	chan_num = num_chan_2g + num_chan_5g;
 
 	return chan_num;
+#endif
 }
 
-#if CONFIG_WIFI_AUTO_COUNTRY_CODE
+#if CONFIG_WIFI_AUTO_COUNTRY_CODE && !CONFIG_WIFI_REGDOMAIN
 bool country_code_policy_is_auto(void)
 {
 	return (g_country_code.cfg.policy == WIFI_COUNTRY_POLICY_AUTO);
@@ -791,5 +1019,175 @@ uint64_t rwnx_hw_mm_features()
 	return g_rwnx_hw.version_cfm.features;
 }
 
+u32 ieee80211_channel_to_freq_khz(int chan, wifi_band_t band)
+{
+	/* see 802.11 17.3.8.3.2 and Annex J
+	 * there are overlapping channel numbers in 5GHz and 2GHz bands */
+	if (chan <= 0)
+		return 0; /* not supported */
+	switch (band) {
+	case IEEE80211_BAND_2GHZ:
+		if (chan == 14)
+			return MHZ_TO_KHZ(2484);
+		else if (chan < 14)
+			return MHZ_TO_KHZ(2407 + chan * 5);
+		break;
+	case IEEE80211_BAND_5GHZ:
+		if (chan >= 182 && chan <= 196)
+			return MHZ_TO_KHZ(4000 + chan * 5);
+		else
+			return MHZ_TO_KHZ(5000 + chan * 5);
+		break;
+	case IEEE80211_BAND_6GHZ:
+		/* see 802.11ax D6.1 27.3.23.2 */
+		if (chan == 2)
+			return MHZ_TO_KHZ(5935);
+		if (chan <= 233)
+			return MHZ_TO_KHZ(5950 + chan * 5);
+		break;
+	case IEEE80211_BAND_60GHZ:
+		if (chan < 7)
+			return MHZ_TO_KHZ(56160 + chan * 2160);
+		break;
+#if 0
+	case IEEE80211_BAND_S1GHZ:
+		return 902000 + chan * 500;
+#endif
+	default:
+		;
+	}
+	return 0; /* not supported */
+}
+
+int ieee80211_channel_to_frequency(int chan, wifi_band_t band)
+{
+	return KHZ_TO_MHZ(ieee80211_channel_to_freq_khz(chan, band));
+}
+
+int ieee80211_freq_khz_to_channel(u32 freq)
+{
+	/* TODO: just handle MHz for now */
+	freq = KHZ_TO_MHZ(freq);
+
+	/* see 802.11 17.3.8.3.2 and Annex J */
+	if (freq == 2484)
+		return 14;
+	else if (freq < 2484)
+		return (freq - 2407) / 5;
+	else if (freq >= 4910 && freq <= 4980)
+		return (freq - 4000) / 5;
+	else if (freq < 5925)
+		return (freq - 5000) / 5;
+	else if (freq == 5935)
+		return 2;
+	else if (freq <= 45000) /* DMG band lower limit */
+		/* see 802.11ax D6.1 27.3.22.2 */
+		return (freq - 5950) / 5;
+	else if (freq >= 58320 && freq <= 70200)
+		return (freq - 56160) / 2160;
+	else
+		return 0;
+}
+
+/**
+ * ieee80211_frequency_to_channel - convert frequency to channel number
+ * @freq: center frequency in MHz
+ * Return: The corresponding channel, or 0 if the conversion failed.
+ */
+int ieee80211_frequency_to_channel(int freq)
+{
+	return ieee80211_freq_khz_to_channel(MHZ_TO_KHZ(freq));
+}
+
+int get_wiphy_idx(struct wiphy *wiphy)
+{
+	return 1;
+}
+
+#if CONFIG_WIFI_REGDOMAIN
+void rwnx_reg_update_max_txpower(struct mac_chan_op *chan)
+{
+	struct wiphy *wiphy = &g_wiphy;
+	struct ieee80211_supported_band *sband;
+	struct ieee80211_channel *channel;
+	struct ieee80211_channel *channel_sec = NULL;
+	float pwr;
+	int regd_max_pwr = 0;
+
+	// Invalid band
+	if (chan->band >= IEEE80211_NUM_BANDS)
+		return;
+
+	// Support bands
+	sband = wiphy->bands[chan->band];
+	if (!sband)
+		return;
+
+	// Get current channel of supported band
+	channel = ieee80211_get_channel(wiphy, chan->prim20_freq);
+	// Skip disabled channel
+	if (channel->flags & IEEE80211_CHAN_DISABLED) {
+		WIFI_LOGE("chan is disabled while set max tx power\n");
+		return;
+	}
+
+	// TODO: BW80, 160, 80+80
+	if (chan->type == PHY_CHNL_BW_40) {
+		if (chan->center1_freq < chan->prim20_freq)
+			channel_sec = ieee80211_get_channel(wiphy, chan->center1_freq - 10);  // HT40-
+		else
+			channel_sec = ieee80211_get_channel(wiphy, chan->center1_freq + 10);  // HT40+
+		WIFI_LOGD("secondary chan power %d\n", channel_sec->max_power);
+	}
+
+	// regulatory domain's max tx power
+	regd_max_pwr = channel->max_power;
+
+	// If secondary channel's max power less than primary
+	if (channel_sec && (channel_sec->max_power < regd_max_pwr))
+		regd_max_pwr = channel_sec->max_power;
+
+	// Update current tx power of this channel
+	for (wifi_standard std = WIFI_STANDARD_11A; std <= WIFI_STANDARD_11AX; std++) {
+		if (manual_cal_get_tx_power(std, &pwr) == BK_OK) {
+			WIFI_LOGV("current txpwr %f, reg %d\n", pwr, regd_max_pwr);
+			if (pwr > regd_max_pwr) {
+				if (manual_cal_set_tx_power(std, regd_max_pwr) != BK_OK)
+					WIFI_LOGE("set regd txpwr fail, band %d, freq %d\n",
+							  channel->band, channel->freq_offset);
+			}
+		}
+	}
+}
+
+
+int rwnx_reg_notifier(struct wiphy *wiphy,
+			    struct regulatory_request *request)
+{
+	// After sta connected to AP, set max tx power
+	if (g_rwnx_hw.connected)
+		rwnx_reg_update_max_txpower(&g_rwnx_hw.chan);
+
+	// Reconfig mac channel
+	if (rwm_mgmt_is_vif_first_used()) {
+		rw_msg_send_me_chan_config_req();
+	}
+
+	return 0;
+}
+
+void rwnx_regulatory_hint_11d(int freq, const u8 *country_ie, u8 country_ie_len)
+{
+    wifi_band_t band = IEEE80211_BAND_2GHZ;
+    if (freq >= 5925) {
+        band = IEEE80211_BAND_6GHZ;
+    } else if (freq >= 4900) {
+        band = IEEE80211_BAND_5GHZ;
+    } else if (freq >= 2400) {
+        band = IEEE80211_BAND_2GHZ;
+    }
+	regulatory_hint_11d(&g_wiphy, band, country_ie, country_ie_len);
+}
+#endif
 // eof
 

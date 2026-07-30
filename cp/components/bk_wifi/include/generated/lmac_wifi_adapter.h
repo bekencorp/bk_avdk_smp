@@ -54,6 +54,8 @@ enum coex_wifi_event{
     COEX_WIFI_MAC_DOZE              = 1 << 9,
 };
 
+struct mac_chan_op;
+
 typedef struct {
 	int _version;
 	int (*_manual_cal_rfcali)(void);
@@ -93,6 +95,8 @@ typedef struct {
 	void (*_rwnx_cal_set_channel)(UINT32 freq);
 	void (*_bk7011_cal_pll)(void);
 	void (*_bk7011_update_by_rx)(int8_t rssi, int8_t freq_offset);
+	void (*_bk7011_update_max_tx_power)(struct mac_chan_op *chan);
+	int (*_bk_feature_regd_updated_by_scan_enable)(void);
 	INT32 (*_rwnx_cal_load_trx_rcbekn_reg_val)(void);
 	UINT8 (*_manual_get_epa_flag)(void);
 	UINT32(*_rxsens_start_flag_get)(void);

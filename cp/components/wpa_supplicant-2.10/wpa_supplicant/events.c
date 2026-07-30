@@ -1440,6 +1440,17 @@ static bool wpa_scan_res_ok(struct wpa_supplicant *wpa_s, struct wpa_ssid *ssid,
 			wpa_psk_request(bss->ssid, bss->ssid_len, ssid->passphrase, psk, psk_len);
 		}
 	}
+#ifdef CONFIG_WIFI_REGDOMAIN
+	ie = wpa_bss_get_ie(bss, WLAN_EID_COUNTRY);
+	if (ie && ie[1] >= 2) {
+		if (!regd_chan_available(bss->freq, (char *)(ie + 2))) {
+			if (debug_print)
+				wpa_dbg(wpa_s, MSG_DEBUG,
+					"	skip - regulatory forbiden for the BSS");
+			return false;
+		}
+	}
+#endif
 #endif
 
 	/* check the list of BSSIDs to ignore */

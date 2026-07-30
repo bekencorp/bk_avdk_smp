@@ -1056,16 +1056,37 @@ bk_err_t bk_wifi_get_tx_raw_timeout(uint16_t *time);
   */
  
 bk_err_t bk_wifi_capa_config(wifi_capability_t capa_id, uint32_t capa_val);
- /**
 
- * @brief     configure country info
+/**
+ * @addtogroup Country_Regulatory
+ * @brief Country / regulatory domain configuration
  *
+ * Two mutually exclusive mechanisms are provided:
+ *
+ * 1. **Original country code** (bk_wifi_set_country / bk_wifi_get_country)
+ *    - Uses struct wifi_country_t (cc, start channel, channel count, policy).
+ *    - Available only when CONFIG_WIFI_REGDOMAIN is **disabled**.
+ *    - User is responsible for per-country rules.
+ *
+ * 2. **Linux country code** (bk_wifi_set_country_code / bk_wifi_get_country_code)
+ *    - Uses ISO/IEC 3166-1 alpha2 string (e.g. "US", "CN"); aligns with Linux nl80211.
+ *    - Available only when CONFIG_WIFI_REGDOMAIN is **enabled**.
+ *    - Uses built-in regulatory database.
+ *
+ * Choose one set of APIs according to your build configuration.
+ * @{
+ */
+
+/**
+ * @brief     Configure country info (original country code API).
+ *
+ * @attention This API is only available when CONFIG_WIFI_REGDOMAIN is disabled.
  * @attention 1. The default country is {.cc="CN", .schan=1, .nchan=13, policy=WIFI_COUNTRY_POLICY_AUTO}
  * @attention 2. When the country policy is WIFI_COUNTRY_POLICY_AUTO, the country info of the AP to which
  *               the station is connected is used. E.g. if the configured country info is {.cc="USA", .schan=1, .nchan=11}
  *               and the country info of the AP to which the station is connected is {.cc="JP", .schan=1, .nchan=14}
  *               then the country info that will be used is {.cc="JP", .schan=1, .nchan=14}. If the station disconnected
- *               from the AP the country info is set back back to the country info of the station automatically,
+ *               from the AP the country info is set back to the country info of the station automatically,
  *               {.cc="USA", .schan=1, .nchan=11} in the example.
  * @attention 3. When the country policy is WIFI_COUNTRY_POLICY_MANUAL, always use the configured country info.
  * @attention 4. When the country info is changed because of configuration or because the station connects to a different
@@ -1081,19 +1102,45 @@ bk_err_t bk_wifi_capa_config(wifi_capability_t capa_id, uint32_t capa_val);
  *    - BK_ERR_WIFI_NOT_INIT: WiFi is not initialized
  *    - BK_ERR_PARAM: invalid argument
  */
+
 bk_err_t bk_wifi_set_country(const wifi_country_t *country);
 
 /**
-  * @brief     get the current country info
-  *
-  * @param     country  country info
-  *
-  * @return
-  *    - BK_OK: succeed
-  *    - BK_ERR_WIFI_NOT_INIT: WiFi is not initialized
-  *    - BK_ERR_PARAM: invalid argument
-  */
-bk_err_t bk_wifi_get_country(wifi_country_t *country);
+ * @brief     Get the current country info (original country code API).
+ *
+ * @param     country  Output buffer to receive the current country info (wifi_country_t).
+ * @attention This API is only available when CONFIG_WIFI_REGDOMAIN is disabled.
+ *
+ * @return
+ *    - BK_OK: succeed
+ *    - BK_ERR_WIFI_NOT_INIT: WiFi is not initialized
+ *    - BK_ERR_PARAM: invalid argument
+ */
+
+ bk_err_t bk_wifi_get_country(wifi_country_t *country);
+/**
+ * @brief     Set country code (Linux country code API).
+ *
+ * Enable CONFIG_WIFI_REGDOMAIN in the build configuration to use this API.
+ *
+ * @param     alpha2   ISO/IEC 3166-1 alpha2 country code (e.g. "US", "CN").
+ *
+ * @return
+ *    - BK_OK: succeed
+ *    - BK_ERR_WIFI_NOT_INIT: WiFi is not initialized
+ *    - BK_ERR_PARAM: invalid argument
+ */
+bk_err_t bk_wifi_set_country_code(const char *alpha2);
+
+/**
+ * @brief     Get the current country code (Linux country code API).
+ *
+ * Enable CONFIG_WIFI_REGDOMAIN in the build configuration to use this API.
+ *
+ * @return    Country code string (e.g. "US", "CN"), or NULL if not set.
+ */
+char *bk_wifi_get_country_code(void);
+/** @} */ /* Country_Regulatory */
 
 /**
  * @brief  enable wifi sta power management

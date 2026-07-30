@@ -1281,6 +1281,37 @@ bk_err_t bk_wifi_set_country(const wifi_country_t *country)
     return ret;
 }
 
+bk_err_t bk_wifi_set_country_code(const char *alpha2)
+{
+    bk_err_t ret = BK_OK;
+    void *buffer_to_ipc = NULL;
+    uint32_t len = 4;
+
+    if (alpha2 == NULL) {
+        WIFI_LOGE("%s failed, invalid input param\r\n", __func__);
+        return BK_ERR_PARAM;
+    }
+
+    buffer_to_ipc = os_malloc(len);
+    if (!buffer_to_ipc) {
+        WIFI_LOGE("%s malloc failed\r\n", __func__);
+        return BK_ERR_NO_MEM;
+    }
+
+    os_memset(buffer_to_ipc, 0, len);
+    os_strlcpy((char *)buffer_to_ipc, alpha2, len);
+    ret = wifi_send_com_api_cmd(WIFI_SET_AP_REGD_DOMAIN, 1, (uint32_t)buffer_to_ipc);
+
+    os_free(buffer_to_ipc);
+
+    return ret;
+}
+
+void bk_wifi_print_regdomain(void)
+{
+    wifi_send_com_api_cmd(WIFI_GET_AP_REGD_DOMAIN, 0);
+}
+
 bk_err_t bk_wifi_get_country(wifi_country_t *country)
 {
     bk_err_t ret = BK_OK;

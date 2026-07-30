@@ -1693,7 +1693,13 @@ int cli_wifi_event_cb(void *arg, event_module_t event_module,
 	case EVENT_WIFI_CSI_ALG_IND:
 		break;
 	#endif
+	#if CONFIG_WIFI_REGDOMAIN
+	case EVENT_WIFI_REGDOMAIN_CHANGED: {
+		wifi_event_reg_change_t *event = event_data;
 
+		bk_printf("Regulatory domain changed to %c%c\n", event->alpha2[0], event->alpha2[1]);
+	}	break;
+	#endif
 	default:
 		CLI_LOGD("rx event <%d %d>\n", event_module, event_id);
 		break;
@@ -2600,6 +2606,37 @@ void cif_debug_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **ar
 }
 #endif
 
+#if CONFIG_WIFI_REGDOMAIN
+/*
+ * regulatory domain command.
+ *     regd get
+ *     regd set <alpha2>
+ */
+void cli_wifi_regd_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
+{
+	CLI_LOGD("regulatory command\r\n");
+
+	if (argc > 1 && !strcmp(argv[1], "get")) {
+		bk_wifi_print_regdomain();
+		return;
+	} else if (argc > 2 && !strcmp(argv[1], "set")) {
+		char alpha2[3] = {0};
+		os_strlcpy(alpha2, argv[2], 3);
+		bk_wifi_set_country_code(alpha2);
+		return;
+	} else if (argc > 2 && !strcmp(argv[1], "updated_by_scan")) {
+		bool enable = atoi(argv[2]);
+		bk_wifi_set_regd_updated_by_scan(enable);
+		os_printf("regd updated_by_scan %d\n", enable);
+		return;
+	}
+
+	CLI_LOGE("Usage: \n");
+	CLI_LOGE("	%s get\n", argv[0]);
+	CLI_LOGE("	%s set <alpha2>\n", argv[0]);
+	CLI_LOGE("	%s updated_by_scan <enable>\n", argv[0]);
+}
+#endif
 
 #define WIFI_CMD_CNT (sizeof(s_wifi_commands) / sizeof(struct cli_command))
 static const struct cli_command s_wifi_commands[] = {
@@ -2607,6 +2644,9 @@ static const struct cli_command s_wifi_commands[] = {
 	{"ap", "ap ssid [password] [channel[1:14]]", cli_wifi_ap_cmd},
 	{"start_hidden_softap", "start_hidden_softap ssid [password] [channel[1:14]]", cli_wifi_hidden_ap_cmd},
 	{"sta", "sta ssid [password][bssid][channel]", cli_wifi_sta_cmd}, //TODO support connect speicific BSSID
+#if CONFIG_WIFI_REGDOMAIN
+	{"regd", "get|set <alpha2>", cli_wifi_regd_cmd},
+#endif
 #if CONFIG_COMPONENTS_WPA2_ENTERPRISE
 	{"sta_eap", "sta_eap ssid password [identity] [client_cert] [private_key]", cli_wifi_sta_eap_cmd},
 #endif

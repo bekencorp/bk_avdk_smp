@@ -290,6 +290,23 @@ static void bk7011_update_by_rx_wrapper(int8_t rssi, int8_t freq_offset)
 	#endif
 }
 
+static void bk7011_update_max_tx_power_wrapper(struct mac_chan_op *chan)
+{
+#if CONFIG_WIFI_REGDOMAIN
+	extern void rwnx_reg_update_max_txpower(struct mac_chan_op *chan);
+	rwnx_reg_update_max_txpower(chan);
+#endif
+}
+
+static int bk_feature_regd_updated_by_scan_wrapper(void)
+{
+#if CONFIG_WIFI_REGDOMAIN
+	return bk_wifi_regd_updated_by_scan();
+#else
+	return 0;
+#endif
+}
+
 static void sys_drv_set_cpu_power_sleep_wakeup_pwd_ofdm_wrapper(uint32_t v)
 {
 	sys_drv_set_cpu_power_sleep_wakeup_pwd_ofdm(v);
@@ -1442,6 +1459,8 @@ __attribute__((section(".dtcm_sec_data "))) wifi_os_funcs_t g_wifi_os_funcs = {
 	._rwnx_cal_set_channel = rwnx_cal_set_channel_wrapper,
 	._bk7011_cal_pll = bk7011_cal_pll,
 	._bk7011_update_by_rx = bk7011_update_by_rx_wrapper,
+	._bk7011_update_max_tx_power = bk7011_update_max_tx_power_wrapper,
+	._bk_feature_regd_updated_by_scan_enable = bk_feature_regd_updated_by_scan_wrapper,
 	._rwnx_cal_load_trx_rcbekn_reg_val = rwnx_cal_load_trx_rcbekn_reg_val,
 	._manual_get_epa_flag = manual_get_epa_flag,
 	._rxsens_start_flag_get = rxsens_start_flag_get,

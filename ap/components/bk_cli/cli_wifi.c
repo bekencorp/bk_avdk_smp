@@ -1295,9 +1295,32 @@ error:
 }
 #endif
 
+/*
+ * regulatory domain command (forwarded to CP).
+ *     regd get
+ *     regd set <alpha2>
+ */
+void cli_wifi_regd_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
+{
+	if (argc > 1 && !os_strcmp(argv[1], "get")) {
+		bk_wifi_print_regdomain();
+		return;
+	} else if (argc > 2 && !os_strcmp(argv[1], "set")) {
+		char alpha2[3] = {0};
+		os_strlcpy(alpha2, argv[2], sizeof(alpha2));
+		bk_wifi_set_country_code(alpha2);
+		return;
+	}
+
+	CLI_LOGE("Usage:\n");
+	CLI_LOGE("\t%s get\n", argv[0]);
+	CLI_LOGE("\t%s set <alpha2>\n", argv[0]);
+}
+
 #define WIFI_CMD_CNT (sizeof(s_wifi_commands) / sizeof(struct cli_command))
 static const struct cli_command s_wifi_commands[] = {
 	{"scan", "scan [ssid]", cli_wifi_scan_cmd},
+	{"regd", "regd {get|set <alpha2>}", cli_wifi_regd_cmd},
 #ifdef CONFIG_WIFI_SOFTAP
 	{"ap", "ap {ssid} [password] [channel] [hidden]", cli_wifi_ap_cmd},
 #endif

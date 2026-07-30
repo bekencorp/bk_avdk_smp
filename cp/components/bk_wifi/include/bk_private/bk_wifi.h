@@ -679,6 +679,13 @@ uint32_t evm_req_tx_for_ate(uint32_t frame_len);
 uint32_t hal_machw_frame_duration_ate(uint8_t bw, uint8_t modf, uint8_t rate, uint8_t long_preamble, uint8_t short_gi, uint16_t len);
 
 void mdm_set_scramblerctrl(uint32_t value);
+void bk_wifi_print_regdomain();
+const char *reg_current_regd();
+bool bk_wifi_regd_updated_by_scan();
+void bk_wifi_set_regd_updated_by_scan(bool enable);
+struct ieee80211_channel;
+bool chan_need_disabled(struct ieee80211_channel *channel);
+bool regd_chan_available(int freq, const char *alpha2);
 
 //Optimize it
 __attribute__((weak)) uint32_t cfg_ap_is_open_system(void);

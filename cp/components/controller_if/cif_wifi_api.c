@@ -14,6 +14,9 @@
 #include <modules/raw_link.h>
 #include "cif_raw_link_api.h"
 #endif
+#if CONFIG_WIFI_REGDOMAIN
+extern void bk_wifi_print_regdomain(void);
+#endif
 
 static bk_err_t bk_wifi_sta_get_arp_table(wifi_arp_sync_table_t *table)
 {
@@ -252,6 +255,26 @@ bk_err_t cif_handle_wifi_api_cmd(struct bk_msg_hdr *msg)
             ret = bk_wifi_get_country(country);
             break;
         }
+
+#if CONFIG_WIFI_REGDOMAIN
+        case WIFI_SET_AP_REGD_DOMAIN:
+        {
+            const char *alpha2 = (const char *)(arg_info->args[0]);
+            if (!alpha2) {
+                ret = BK_ERR_NULL_PARAM;
+                break;
+            }
+            ret = bk_wifi_set_country_code(alpha2);
+            break;
+        }
+
+        case WIFI_GET_AP_REGD_DOMAIN:
+        {
+            bk_wifi_print_regdomain();
+            ret = BK_OK;
+            break;
+        }
+#endif
 
         case STA_GET_LISTEN_INTERVAL:
         {

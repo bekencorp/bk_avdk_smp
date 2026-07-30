@@ -100,6 +100,8 @@ enum CIF_WIFI_API_CMD_TYPE
     WIFI_GET_BLOCK_BCMC_EN              = 0x36F,
     WIFI_SET_RC_CONFIG                  = 0x370,
     WIFI_GET_AP_OPER_CHANNEL            = 0x371,
+    WIFI_SET_AP_REGD_DOMAIN             = 0x372,
+    WIFI_GET_AP_REGD_DOMAIN             = 0x373,
 
     //Common PHY command section
     PHY_CAL_RFCALI                      = 0x380,
