@@ -190,11 +190,14 @@ static void bk_exception_dump_main(bk_exception_t *self)
     coredump_prompt_prologue();
 
     coredump_feed_watchdogs();
-    bk_coredump_memory();
+    bk_coredump_memory_essential();
 
 #if CONFIG_MEMDUMP_ALL
     coredump_execute_hook_function();
 #endif
+
+    bk_coredump_memory_extended();
+    bk_coredump_memory_peripherals();
 
     coredump_feed_watchdogs();
     coredump_prompt_info();

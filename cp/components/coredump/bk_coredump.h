@@ -60,6 +60,9 @@ void bk_coredump_dump_time(uint64_t time_us);
 const char *bk_coredump_get_fault_type(void);
 
 void bk_coredump_memory(void);
+void bk_coredump_memory_essential(void);
+void bk_coredump_memory_extended(void);
+void bk_coredump_memory_peripherals(void);
 void bk_coredump_ap_memory(void);
 void bk_coredump_dump_ap_memory_for_trap(void);
 
