@@ -2065,9 +2065,6 @@ int wpa_supplicant_handle_events(wpah_msg_t *msg)
 	}	break;
 
 	case WPA_CTRL_EVENT_DISCONNECT_IND: {
-#if CONFIG_WIFI_REGDOMAIN
-		regulatory_hint_disconnect();
-#endif
 		struct sm_disconnect_ind *ind = (struct sm_disconnect_ind *)msg->argu;
 		union wpa_event_data data;
 		struct disassoc_info *info = (struct disassoc_info *)&data.disassoc_info;
