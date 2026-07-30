@@ -68,7 +68,8 @@ typedef enum{
     SHORT_PRESS = 0,
     DOUBLE_PRESS = 1,
     LONG_PRESS =2,
-    LONG_PRESS_UP =3
+    LONG_PRESS_UP =3,
+    HOLD_PRESS =4      // Long-press hold, repeats while the key stays pressed
 } key_action_t;
 
 typedef struct {
@@ -78,6 +79,7 @@ typedef struct {
     key_event_t double_event;         // Double press event
     key_event_t long_event;           // Long press event
     key_event_t long_press_up_event;  // Long press release event
+    key_event_t hold_event;           // Long-press hold event (repeating)
 } KeyConfig_t;
 
 typedef struct

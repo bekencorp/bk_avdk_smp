@@ -14,7 +14,20 @@
 //According to your need to modify the constants.
 #define TICKS_INTERVAL    6	//ms
 #define DEBOUNCE_TICKS    3	//MAX 8
-#define SHORT_TICKS       (96 /TICKS_INTERVAL)
+/*
+ * SHORT_TICKS is the inter-click gap window: after a key is released the state
+ * machine waits this long for the next press to arrive before committing to a
+ * SINGLE_CLICK. It therefore also defines how relaxed a double click can be.
+ * 96ms was far too tight for a human double click (natural gap is 200~400ms),
+ * so a normal double click was usually parsed as two separate single clicks.
+ * Widen the window to 300ms; the cost is that single-click reporting is delayed
+ * by the same amount, which is acceptable for a dashboard UI.
+ */
+#ifdef CONFIG_GPIO_KEY_SHORT_PRESS_TICKS
+#define SHORT_TICKS       CONFIG_GPIO_KEY_SHORT_PRESS_TICKS
+#else
+#define SHORT_TICKS       (300 / TICKS_INTERVAL)
+#endif
 #ifdef CONFIG_GPIO_KEY_LONG_PRESS_TICKS
 #define LONG_TICKS        CONFIG_GPIO_KEY_LONG_PRESS_TICKS
 #else

@@ -34,9 +34,17 @@ static uint8_t key_count = 0;
 
 
 
+/*
+ * multi_button fires LONG_PRESS_HOLD on every tick (~6ms) while the key stays
+ * pressed, which would flood the key queue. Throttle it to a sane repeat rate.
+ */
+#define HOLD_REPEAT_INTERVAL_MS (200)
+static uint32_t s_last_hold_ms = 0;
+
 static void short_press_cb(void *param);
 static void double_press_cb(void *param);
 static void long_press_cb(void *param);
+static void hold_press_cb(void *param);
 static void long_press_up_cb(void *param);
 static void key_thread(void *param);
 
@@ -58,6 +66,13 @@ void bk_configure_key(KeyConfig_t *KeyConfig)
     
     bk_err_t ret;
 
+    /*
+     * HOLD (LONG_PRESS_HOLD) is currently unused by the project. Attaching a
+     * callback here makes multi_button fire it on every tick while any key is
+     * held, flooding the queue/log with "no registered callback" for keys that
+     * have no hold action. Pass NULL so no HOLD event is generated at all; the
+     * HOLD plumbing (types/fields/hold_press_cb) is kept for future use.
+     */
     ret = key_item_configure(KeyConfig->gpio_id, 
                                  KeyConfig->active_level, 
                                  short_press_cb, 
@@ -182,6 +197,9 @@ static void process_key_event(uint8_t gpio_id, key_action_t action) {
                 case LONG_PRESS_UP:
                     event = key_configs[i].long_press_up_event;
                     break;
+                case HOLD_PRESS:
+                    event = key_configs[i].hold_event;
+                    break;
                 default:
                     break;
             }
@@ -273,6 +291,33 @@ void long_press_cb(void *param) {
 	}
     
    
+}
+
+void hold_press_cb(void *param) {
+    bk_err_t ret;
+    uint32_t now_ms = rtos_get_time();
+
+    /* Runs in the key timer context, fired every tick while held.
+     * Throttle to a repeat interval and never block the timer callback. */
+    if ((s_last_hold_ms != 0) &&
+        ((now_ms - s_last_hold_ms) < HOLD_REPEAT_INTERVAL_MS)) {
+        return;
+    }
+    s_last_hold_ms = now_ms;
+
+    BUTTON_S * handle = (BUTTON_S *)param;
+    uint32_t gpio_id = (uint32_t)(handle->user_data);
+
+    KeyEventMsg_t msg = {
+        .gpio_id = gpio_id,
+        .action = HOLD_PRESS
+    };
+
+    ret = rtos_push_to_queue(&s_key_msgqueue, &msg, 0);
+
+    if (kNoErr != ret){
+		LOGI("key send msg failed");
+	}
 }
 
 void long_press_up_cb(void *param) {
