@@ -314,19 +314,12 @@ bk_err_t lv_vendor_init(lv_vnd_config_t *config)
 #if CONFIG_LVGL_V8
             vnd_data->config.draw_buf_2_1 = lv_vendor_malloc(vnd_data->config.draw_pixel_size * sizeof(bk_color_t));
 #else
-#if defined(LV_USE_DRAW_VG_LITE) && LV_USE_DRAW_VG_LITE
-            vnd_data->config.draw_buf_2_1 = lv_vendor_malloc(vnd_data->config.draw_pixel_size + 64);
-#else
             vnd_data->config.draw_buf_2_1 = lv_vendor_malloc(vnd_data->config.draw_pixel_size);
-#endif
 #endif
             if (vnd_data->config.draw_buf_2_1 == NULL) {
                 LOGE("%s vendor_config.draw_buf_2_1 malloc failed\n", __func__);
                 goto fail;
             }
-#if defined(LV_USE_DRAW_VG_LITE) && LV_USE_DRAW_VG_LITE
-            vnd_data->config.draw_buf_2_1 = (void *)(((uintptr_t)vnd_data->config.draw_buf_2_1 + 63) & ~63);
-#endif
         } else {
             LOGW("%s !!!The draw_buf_2_1 is customized instead of default config\n", __func__);
             vnd_data->config.draw_buf_2_1 = config->draw_buf_2_1;
@@ -353,13 +346,8 @@ bk_err_t lv_vendor_init(lv_vnd_config_t *config)
             goto fail;
         }
 
-    #if defined(LV_USE_DRAW_VG_LITE) && LV_USE_DRAW_VG_LITE
-        vnd_data->config.draw_buf_2_1 = (void *)(((uintptr_t)vnd_data->config.frame_buffer[0] + 63) & ~63);
-        vnd_data->config.draw_buf_2_2 = (void *)(((uintptr_t)vnd_data->config.frame_buffer[1] + 63) & ~63);
-    #else
         vnd_data->config.draw_buf_2_1 = vnd_data->config.frame_buffer[0];
         vnd_data->config.draw_buf_2_2 = vnd_data->config.frame_buffer[1];
-    #endif
 
         if (config->rotation != ROTATE_NONE) {
             LOGW("%s Direct mode and full mode don't support rotation because of very low frame rate\r\n", __func__);

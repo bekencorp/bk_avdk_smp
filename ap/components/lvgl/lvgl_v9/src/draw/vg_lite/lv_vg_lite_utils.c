@@ -17,6 +17,7 @@
 #include "lv_vg_lite_pending.h"
 #include "lv_vg_lite_grad.h"
 #include "lv_draw_vg_lite_type.h"
+#include "soc/reg_base.h"
 #include <string.h>
 #include <math.h>
 
@@ -306,6 +307,7 @@ static void path_data_print_cb(void * user_data, uint8_t op_code, const float * 
 {
     LV_UNUSED(user_data);
     const char * op_str = lv_vg_lite_vlc_op_string(op_code);
+    LV_UNUSED(op_str);
 
     switch(len) {
         case 0:
@@ -583,7 +585,7 @@ vg_lite_buffer_format_t lv_vg_lite_vg_fmt(lv_color_format_t cf)
             return VG_LITE_BGRA8888;
 
         case LV_COLOR_FORMAT_ARGB8888_PREMULTIPLIED:
-            return VG_sBGRA_8888_PRE;
+            return OPENVG_sBGRA_8888_PRE;
 
         case LV_COLOR_FORMAT_XRGB8888:
             return VG_LITE_BGRX8888;
@@ -646,7 +648,7 @@ void lv_vg_lite_buffer_format_bytes(
         case VG_LITE_BGRX8888:
         case VG_LITE_XBGR8888:
         case VG_LITE_XRGB8888:
-        case VG_sBGRA_8888_PRE:
+        case OPENVG_sBGRA_8888_PRE:
             *mul = 4;
             break;
         case VG_LITE_NV12:
@@ -750,17 +752,17 @@ void lv_vg_lite_buffer_init(
     if(format == VG_LITE_NV12) {
         lv_yuv_buf_t * frame_p = (lv_yuv_buf_t *)ptr;
         buffer->memory = (void *)frame_p->semi_planar.y.buf;
-        buffer->address = (uintptr_t)frame_p->semi_planar.y.buf;
+        buffer->address = SOC_SRAM_PERI_ADDR((uintptr_t)frame_p->semi_planar.y.buf);
         buffer->yuv.swizzle = VG_LITE_SWIZZLE_UV;
         buffer->yuv.alpha_stride = buffer->stride;
         buffer->yuv.uv_height = buffer->height / 2;
         buffer->yuv.uv_memory = (void *)frame_p->semi_planar.uv.buf;
-        buffer->yuv.uv_planar = (uint32_t)(uintptr_t)frame_p->semi_planar.uv.buf;
+        buffer->yuv.uv_planar = SOC_SRAM_PERI_ADDR((uintptr_t)frame_p->semi_planar.uv.buf);
         buffer->yuv.uv_stride = frame_p->semi_planar.uv.stride;
     }
     else {
         buffer->memory = (void *)ptr;
-        buffer->address = (uintptr_t)ptr;
+        buffer->address = SOC_SRAM_PERI_ADDR((uintptr_t)ptr);
     }
 }
 

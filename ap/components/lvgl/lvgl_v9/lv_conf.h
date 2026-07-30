@@ -122,45 +122,11 @@
  * RENDERING CONFIGURATION
  *========================*/
 
- /** Use VG-Lite GPU. */
-#define LV_USE_DRAW_VG_LITE 0
-
-#if LV_USE_DRAW_VG_LITE
-    /** Enable VG-Lite custom external 'gpu_init()' function */
-    #define LV_VG_LITE_USE_GPU_INIT 0
-
-    /** Enable VG-Lite assert. */
-    #define LV_VG_LITE_USE_ASSERT 0
-
-    /** VG-Lite flush commit trigger threshold. GPU will try to batch these many draw tasks. */
-    #define LV_VG_LITE_FLUSH_MAX_COUNT 8
-
-    /** Enable border to simulate shadow.
-     *  NOTE: which usually improves performance,
-     *  but does not guarantee the same rendering quality as the software. */
-    #define LV_VG_LITE_USE_BOX_SHADOW 1
-
-    /** VG-Lite gradient maximum cache number.
-     *  @note  The memory usage of a single gradient image is 4K bytes. */
-    #define LV_VG_LITE_GRAD_CACHE_CNT 32
-
-    /** VG-Lite stroke maximum cache number. */
-    #define LV_VG_LITE_STROKE_CACHE_CNT 32
-#endif
-
 /** Align stride of all layers and images to this bytes */
-#if LV_USE_DRAW_VG_LITE
-#define LV_DRAW_BUF_STRIDE_ALIGN                12
-#else
 #define LV_DRAW_BUF_STRIDE_ALIGN                1
-#endif
 
 /** Align start address of draw_buf addresses to this bytes*/
-#if LV_USE_DRAW_VG_LITE
-#define LV_DRAW_BUF_ALIGN                       64
-#else
 #define LV_DRAW_BUF_ALIGN                       4
-#endif
 
 /** Using matrix for transformations.
  * Requirements:
@@ -229,7 +195,7 @@
     #define LV_USE_DRAW_ARM2D_SYNC      0
 
     /** Enable native helium assembly to be compiled. */
-    #define LV_USE_NATIVE_HELIUM_ASM    1
+    #define LV_USE_NATIVE_HELIUM_ASM    0
 
     /**
      * - 0: Use a simple renderer capable of drawing only simple rectangles with gradient, images, text, and straight lines only.
@@ -249,7 +215,7 @@
         #define LV_DRAW_SW_CIRCLE_CACHE_SIZE 4
     #endif
 
-    #define  LV_USE_DRAW_SW_ASM     LV_DRAW_SW_ASM_HELIUM
+    #define  LV_USE_DRAW_SW_ASM     LV_DRAW_SW_ASM_NONE
 
     #if LV_USE_DRAW_SW_ASM == LV_DRAW_SW_ASM_CUSTOM
         #define  LV_DRAW_SW_ASM_CUSTOM_INCLUDE ""
@@ -258,6 +224,32 @@
     /** Enable drawing complex gradients in software: linear at an angle, radial or conical */
     #define LV_USE_DRAW_SW_COMPLEX_GRADIENTS    0
 
+#endif
+
+/** Use VG-Lite GPU. */
+#define LV_USE_DRAW_VG_LITE 0
+
+#if LV_USE_DRAW_VG_LITE
+    /** Enable VG-Lite custom external 'gpu_init()' function */
+    #define LV_VG_LITE_USE_GPU_INIT 0
+
+    /** Enable VG-Lite assert. */
+    #define LV_VG_LITE_USE_ASSERT 0
+
+    /** VG-Lite flush commit trigger threshold. GPU will try to batch these many draw tasks. */
+    #define LV_VG_LITE_FLUSH_MAX_COUNT 0
+
+    /** Enable border to simulate shadow.
+     *  NOTE: which usually improves performance,
+     *  but does not guarantee the same rendering quality as the software. */
+    #define LV_VG_LITE_USE_BOX_SHADOW 1
+
+    /** VG-Lite gradient maximum cache number.
+     *  @note  The memory usage of a single gradient image is 4K bytes. */
+    #define LV_VG_LITE_GRAD_CACHE_CNT 32
+
+    /** VG-Lite stroke maximum cache number. */
+    #define LV_VG_LITE_STROKE_CACHE_CNT 32
 #endif
 
 /** Accelerate blends, fills, etc. with STM32 DMA2D */
@@ -465,12 +457,7 @@
 
 /** Will be added where memory needs to be aligned (with -Os data might not be aligned to boundary by default).
  *  E.g. __attribute__((aligned(4)))*/
-
-#if LV_USE_DRAW_VG_LITE
-#define LV_ATTRIBUTE_MEM_ALIGN __attribute__((aligned(64)))
-#else
 #define LV_ATTRIBUTE_MEM_ALIGN __attribute__((aligned(4)))
-#endif
 
 /** Attribute to mark large constant arrays, for example for font bitmaps */
 #define LV_ATTRIBUTE_LARGE_CONST
