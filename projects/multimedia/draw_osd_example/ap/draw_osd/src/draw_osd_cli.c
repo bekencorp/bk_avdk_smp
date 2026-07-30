@@ -3,193 +3,154 @@
 #include <os/str.h>
 #include <common/bk_include.h>
 #include <components/avdk_utils/avdk_error.h>
-#include "components/bk_draw_osd.h"
-#include "components/bk_display.h"
-#include "osd_disp_compat.h"
 #include "draw_osd_test.h"
-#include "draw_osd_complex_test.h"
-#include "blend.h"
+#include "osd_uvc.h"
+#include "osd_mipi.h"
 #include "cli.h"
 
 #define TAG "draw_osd"
-
 #define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
 #define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
-#define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
-#define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
-/* 暴露给 draw_osd_complex_test.c 使用（extern 声明在 draw_osd_complex_test.h 中） */
-bk_draw_osd_ctlr_handle_t draw_osd_handle = NULL;
-bk_display_ctlr_handle_t  lcd_display_handle = NULL;
-
-/* 分配一帧 RGB565 蓝底背景（OSD_BG_W x OSD_BG_H） */
-static frame_buffer_t *osd_alloc_bg_frame(uint16_t color)
+/* IT result log: strings must match .it.csv exactly ([RESULT][PASS] <name> success).
+ * Shared by boot auto-start (ap_main.c) and CLI subcommands on success/failure. */
+void draw_osd_log_result(const char *name, bool pass, const char *stage)
 {
-    uint32_t len = (uint32_t)OSD_BG_W * OSD_BG_H * 2;
-    frame_buffer_t *fb = frame_buffer_display_malloc(len);
-    if (fb == NULL) {
+    if (name == NULL) {
+        return;
+    }
+    if (pass) {
+        LOGI("[RESULT][PASS] %s success\r\n", name);
+    } else {
+        LOGE("[RESULT][FAIL] %s failed at %s\r\n", name, (stage != NULL) ? stage : "unknown");
+    }
+}
+
+/*
+ * Pipeline-only OSD example commands (MIPI / UVC real UI only). Single command family:
+ *
+ *   ap_cmd osd <mipi|uvc> <frame|flexa>   — show OSD on that path (auto-starts pipeline on first use)
+ *       mipi / uvc — select path; each owns a separate bk_draw_osd instance
+ *       frame      — one SRC_OVER at frame end (OSD_BLEND_AT_FRAME_END)
+ *       flexa      — SRC_OVER per flexa block (OSD_BLEND_PER_FLEXA); cost spread across frame
+ *   ap_cmd osd <mipi|uvc> update <name> <content>
+ *                                         — runtime dynamic list edit (requires prior show):
+ *                                            update wifi_group wifi_rssi_2 / update text1 12:53
+ *   ap_cmd osd <mipi|uvc> remove <name>   — remove element, e.g. remove wifi_group / remove text1
+ *   ap_cmd osd <mipi|uvc> clear           — remove OSD overlay only; keep live video
+ *   ap_cmd osd <mipi|uvc> close           — remove OSD and close pipeline (free GPU/memory before switching camera)
+ *
+ * Content from assets blend_info[] (see blend_dsc.c); positioned by xpos/ypos.
+ * Component auto-clusters array into slots (multi-blit); internal, no CLI control needed.
+ * Blend timing (frame/flexa) set by osd_mipi_show/osd_uvc_show via bk_gpu_ioctl(BK_GPU_IOCTL_SET_OSD_BY_FLEXA) on bound GPU.
+ *
+ * Note: mipi and uvc cannot run together (shared GPU/display memory); run `osd <current> close` before switching.
+ * mipi / uvc subcommands log [RESULT][PASS|FAIL] (case osd_<pipe>_<suffix>, matches .it.csv).
+ */
+
+/* Build IT case name osd_<pipe>_<suffix> into buf. Returns buf or NULL (action/arg not IT-scored).
+ *   update text1        -> osd_<pipe>_update_text
+ *   update wifi_group   -> osd_<pipe>_update_wifi
+ *   remove wifi_group   -> osd_<pipe>_remove_wifi
+ *   clear/close/frame/flexa -> osd_<pipe>_clear/close/frame/flexa */
+static const char *draw_osd_it_case(char *buf, uint32_t buflen, const char *pipe,
+                                    const char *action, const char *name)
+{
+    const char *suffix = NULL;
+
+    if (os_strcmp(action, "update") == 0) {
+        if (name != NULL && os_strcmp(name, "text1") == 0) {
+            suffix = "update_text";
+        } else if (name != NULL && os_strcmp(name, "wifi_group") == 0) {
+            suffix = "update_wifi";
+        }
+    } else if (os_strcmp(action, "remove") == 0) {
+        if (name != NULL && os_strcmp(name, "wifi_group") == 0) {
+            suffix = "remove_wifi";
+        }
+    } else if (os_strcmp(action, "clear") == 0 || os_strcmp(action, "close") == 0 ||
+               os_strcmp(action, "frame") == 0 || os_strcmp(action, "flexa") == 0) {
+        suffix = action;
+    }
+
+    if (suffix == NULL) {
         return NULL;
     }
-    for (uint32_t i = 0; i < len; i += 2) {
-        *(uint16_t *)(fb->frame + i) = color;
-    }
-    fb->fmt    = PIXEL_FMT_RGB565_LE;
-    fb->width  = OSD_BG_W;
-    fb->height = OSD_BG_H;
-    return fb;
+    os_snprintf(buf, buflen, "osd_%s_%s", pipe, suffix);
+    return buf;
 }
 
 void cli_draw_osd_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
     avdk_err_t ret = AVDK_ERR_UNKNOWN;
     char *msg = NULL;
+    const char *result_case = NULL;
+    const char *stage = "exec";
 
-    if (argc < 2) {
-        LOGE("%s, %d: insufficient arguments\n", __func__, __LINE__);
+    if (argc < 3) {
+        LOGI("usage: osd <mipi|uvc> <frame|flexa|update|remove|clear|close>\n");
         goto exit;
     }
 
-    if (strcmp(argv[1], "init") == 0)
-    {
-        osd_ctlr_config_t osd_cfg = {0};
-        osd_cfg.blend_assets  = blend_assets;   /**< all assets */
-        osd_cfg.blend_info    = blend_info;      /**< real display */
-        osd_cfg.draw_in_psram = false;
-        ret = bk_draw_osd_new(&draw_osd_handle, &osd_cfg);
-        AVDK_GOTO_VOID_ON_FALSE(ret == AVDK_ERR_OK, exit, TAG, "bk_draw_osd_new failed!\n");
-
-        ret = osd_display_open(&lcd_display_handle);
-        AVDK_GOTO_VOID_ON_FALSE(ret == AVDK_ERR_OK, exit, TAG, "osd_display_open failed!\n");
-        LOGD("osd init success!\n");
+    bool is_mipi = (os_strcmp(argv[1], "mipi") == 0);
+    bool is_uvc  = (os_strcmp(argv[1], "uvc") == 0);
+    if (!is_mipi && !is_uvc) {
+        LOGE("pipe must be mipi|uvc (got '%s')\n", argv[1]);
+        goto exit;
     }
-    else if (strcmp(argv[1], "deinit") == 0)
-    {
-        ret = bk_draw_osd_delete(draw_osd_handle);
-        draw_osd_handle = NULL;
-        AVDK_GOTO_VOID_ON_FALSE(ret == AVDK_ERR_OK, exit, TAG, "bk_draw_osd_delete failed!\n");
-        ret = osd_display_close(lcd_display_handle);
-        lcd_display_handle = NULL;
-        AVDK_GOTO_VOID_ON_FALSE(ret == AVDK_ERR_OK, exit, TAG, "osd_display_close failed!\n");
+
+    /* Compute IT case name (symmetric for mipi/uvc); log [RESULT] on success/failure at exit */
+    char case_buf[40];
+    result_case = draw_osd_it_case(case_buf, sizeof(case_buf), argv[1], argv[2],
+                                   (argc > 3) ? argv[3] : NULL);
+
+    if (os_strcmp(argv[2], "update") == 0) {
+        const char *name    = (argc > 3) ? argv[3] : NULL;
+        const char *content = (argc > 4) ? argv[4] : NULL;
+        ret = is_mipi ? osd_mipi_update(name, content) : osd_uvc_update(name, content);
+        goto exit;
     }
-    else if (strcmp(argv[1], "array") == 0)
-    {
-        AVDK_RETURN_VOID_ON_FALSE(draw_osd_handle, TAG, "draw_osd_handle is NULL!");
-        AVDK_RETURN_VOID_ON_FALSE(lcd_display_handle, TAG, "lcd_display_handle is NULL!");
 
-        frame_buffer_t *bg_frame = osd_alloc_bg_frame(0x0000);
-        AVDK_GOTO_VOID_ON_FALSE(bg_frame, exit, TAG, "frame_buffer_display_malloc failed!\n");
-
-        if (argv[2] != NULL && (strcmp(argv[2], "update") == 0 || strcmp(argv[2], "updata") == 0))
-        {
-            if (argv[3] == NULL) {
-                frame_buffer_display_free(bg_frame);
-                LOGE("%s, %d: insufficient arguments\n", __func__, __LINE__);
-                goto exit;
-            }
-            ret = bk_draw_osd_add_or_updata(draw_osd_handle, argv[3], argv[4]);
-        }
-        else if (argv[2] != NULL && strcmp(argv[2], "remove") == 0)
-        {
-            if (argv[3] == NULL) {
-                frame_buffer_display_free(bg_frame);
-                LOGE("%s, %d: insufficient arguments\n", __func__, __LINE__);
-                goto exit;
-            }
-            ret = bk_draw_osd_remove(draw_osd_handle, argv[3]);
-        }
-
-        osd_bg_info_t bg_info = {0};
-        bg_info.frame  = bg_frame;
-        bg_info.width  = OSD_BG_W;
-        bg_info.height = OSD_BG_H;
-        ret = bk_draw_osd_array(draw_osd_handle, &bg_info, NULL);
-
-        ret = osd_display_flush(lcd_display_handle, bg_frame);
-        if (ret != AVDK_ERR_OK) {
-            LOGE("osd_display_flush failed\n");
-        }
+    if (os_strcmp(argv[2], "remove") == 0) {
+        const char *name = (argc > 3) ? argv[3] : NULL;
+        ret = is_mipi ? osd_mipi_remove(name) : osd_uvc_remove(name);
+        goto exit;
     }
-    else if (strcmp(argv[1], "get_info") == 0)
-    {
-        uint32_t is_printf = 1;
-        const blend_info_t *resources = NULL;
-        uint32_t size = 0;
-        if (argc > 2 && strcmp(argv[2], "no_print") == 0) {
-            is_printf = 0;
-        }
-        LOGI("get current draw info (print mode: %s)\n", is_printf ? "open" : "close");
-        ret = bk_draw_osd_ioctl(draw_osd_handle, OSD_CTLR_CMD_GET_DRAW_INFO, is_printf, (uint32_t)&resources, (uint32_t)&size);
+
+    /* clear: remove OSD overlay only; keep video */
+    if (os_strcmp(argv[2], "clear") == 0) {
+        ret = is_mipi ? osd_mipi_clear() : osd_uvc_clear();
+        goto exit;
     }
-    else if (strcmp(argv[1], "get_assets") == 0)
-    {
-        uint32_t is_printf = 1;
-        if (argc > 2 && strcmp(argv[2], "no_print") == 0) {
-            is_printf = 0;
-        }
-        LOGI("get all available assets (print mode: %s)\n", is_printf ? "open" : "close");
-        ret = bk_draw_osd_ioctl(draw_osd_handle, OSD_CTLR_CMD_GET_ALL_ASSETS, is_printf, 0, 0);
+
+    /* close: remove OSD and close pipeline (free GPU/memory before switching camera) */
+    if (os_strcmp(argv[2], "close") == 0) {
+        ret = is_mipi ? osd_mipi_close() : osd_uvc_close();
+        goto exit;
     }
-    else if (strcmp(argv[1], "img") == 0)
-    {
-        AVDK_RETURN_VOID_ON_FALSE(draw_osd_handle, TAG, "draw_osd_handle is NULL!");
-        AVDK_RETURN_VOID_ON_FALSE(lcd_display_handle, TAG, "lcd_display_handle is NULL!");
 
-        frame_buffer_t *bg_frame = osd_alloc_bg_frame(0x001f);
-        AVDK_GOTO_VOID_ON_FALSE(bg_frame, exit, TAG, "frame_buffer_display_malloc failed!\n");
-
-        osd_bg_info_t bg_info = {0};
-        bg_info.frame  = bg_frame;
-        bg_info.width  = OSD_BG_W;
-        bg_info.height = OSD_BG_H;
-
-        blend_info_t wifi_info = {.name = "wifi", .addr = &img_wifi_rssi0, .content = "wifi0"};
-        ret = bk_draw_osd_image(draw_osd_handle, &bg_info, &wifi_info);
-
-        ret = osd_display_flush(lcd_display_handle, bg_frame);
-        if (ret != AVDK_ERR_OK) {
-            LOGE("osd_display_flush failed\n");
-        }
+    /* frame / flexa: select blend timing (osd_*_show sets via ioctl on bound GPU) */
+    osd_blend_mode_t mode;
+    if (os_strcmp(argv[2], "frame") == 0) {
+        mode = OSD_BLEND_AT_FRAME_END;
+    } else if (os_strcmp(argv[2], "flexa") == 0) {
+        mode = OSD_BLEND_PER_FLEXA;
+    } else {
+        LOGE("action must be frame|flexa|update|remove|clear|close (got '%s')\n", argv[2]);
+        result_case = NULL;
+        goto exit;
     }
-    else if (strcmp(argv[1], "font") == 0)
-    {
-        AVDK_RETURN_VOID_ON_FALSE(draw_osd_handle, TAG, "draw_osd_handle is NULL!");
-        AVDK_RETURN_VOID_ON_FALSE(lcd_display_handle, TAG, "lcd_display_handle is NULL!");
 
-        frame_buffer_t *bg_frame = osd_alloc_bg_frame(0x001f);
-        AVDK_GOTO_VOID_ON_FALSE(bg_frame, exit, TAG, "frame_buffer_display_malloc failed!\n");
-
-        osd_bg_info_t bg_info = {0};
-        bg_info.frame  = bg_frame;
-        bg_info.width  = OSD_BG_W;
-        bg_info.height = OSD_BG_H;
-
-        blend_info_t font_info = {.name = "clock", .addr = &font_clock, .content = "12:68"};
-        ret = bk_draw_osd_font(draw_osd_handle, &bg_info, &font_info);
-
-        ret = osd_display_flush(lcd_display_handle, bg_frame);
-        if (ret != AVDK_ERR_OK) {
-            LOGE("osd_display_flush failed\n");
-        }
-    }
-    else if (strcmp(argv[1], "test") == 0)
-    {
-        ret = osd_complex_test_dispatch(argc, argv);
-    }
-    else
-    {
-        LOGE("%s, %d: invalid arguments\n", __func__, __LINE__);
-    }
+    LOGI("osd %s: blend=%s\n", argv[1], (mode == OSD_BLEND_PER_FLEXA) ? "flexa(per-block)" : "frame(frame-end)");
+    ret = is_mipi ? osd_mipi_show(mode) : osd_uvc_show(mode);
 
 exit:
-    if (ret != AVDK_ERR_OK) {
-        msg = CLI_CMD_RSP_ERROR;
-    } else {
-        msg = CLI_CMD_RSP_SUCCEED;
+    if (result_case != NULL) {
+        draw_osd_log_result(result_case, (ret == AVDK_ERR_OK), stage);
     }
-
-    LOGI("%s ---complete\n", __func__);
-
+    msg = (ret == AVDK_ERR_OK) ? CLI_CMD_RSP_SUCCEED : CLI_CMD_RSP_ERROR;
+    LOGI("%s ---complete (ret=%d)\n", __func__, ret);
     if (pcWriteBuffer != NULL && msg != NULL) {
         os_memcpy(pcWriteBuffer, msg, os_strlen(msg));
     }
@@ -199,7 +160,7 @@ exit:
 
 static const struct cli_command s_draw_osd_test_commands[] =
 {
-    {"osd", "init | array | img | font | get_info | get_assets | test <sub> | deinit", cli_draw_osd_test_cmd},
+    {"osd", "osd <mipi|uvc> <frame|flexa|update|remove|clear|close>", cli_draw_osd_test_cmd},
 };
 
 int cli_draw_osd_test_init(void)

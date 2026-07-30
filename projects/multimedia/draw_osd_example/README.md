@@ -11,7 +11,6 @@ The project provides:
 - A demo of the `bk_draw_osd` component API: controller create/delete, full-array draw, single icon/font draw, runtime add/update/remove, and ioctl extension commands
 - An `osd` CLI command family (CLI / `ap_cmd`)
 - A set of self-check cases `osd test <sub>` (stability, concurrency, multi-instance, invalid params, unaligned, PSRAM switch, etc.)
-- A 7259 display compatibility layer `osd_disp_compat` that adapts the 7258-style `frame_buffer_t` + `frame_buffer_display_malloc/free` API onto the 7259 DSI display stack (`bk_display_dsi_bus / panel / dpu` + `bk_frame_buffer_*` + `bk_display_flush`)
 - An `.it.csv` integration-test entry
 
 ### 1.1 Test Environment
@@ -46,12 +45,15 @@ draw_osd_example/
 │   │   ├── blend_dsc.c       # Asset arrays blend_assets / blend_info
 │   │   └── blend.h           # Asset header
 │   ├── config/bk7259_ap/     # AP config (with CONFIG_MEDIA_OSD=y)
-│   └── draw_osd/
-│       ├── include/          # draw_osd_test.h / draw_osd_complex_test.h / osd_disp_compat.h
-│       └── src/
-│           ├── draw_osd_cli.c            # osd CLI command impl
-│           ├── draw_osd_complex_test.c   # osd test self-check suite
-│           └── osd_disp_compat.c         # 7259 display / frame-buffer compat layer
+│   ├── draw_osd/             # osd CLI + shared display layer (LCD/DPU, reused by MIPI/UVC)
+│   │   ├── include/          # draw_osd_test.h (incl. osd_blend_mode_t) / display.h
+│   │   └── src/              # draw_osd_cli.c / display.c
+│   ├── uvc/                 # UVC path: camera+MJPEG decode+queue+bond (uvc_pipeline.c) + osd_uvc
+│   │   ├── include/          # uvc_pipeline.h / osd_uvc.h
+│   │   └── src/              # uvc_pipeline.c / osd_uvc.c
+│   └── mipi/                # MIPI path: GC2053 camera + pipeline + osd_mipi
+│       ├── include/          # mipi_pipeline.h / osd_mipi.h
+│       └── src/              # mipi_pipeline.c (camera merged in) / osd_mipi.c
 ├── cp/                       # CP-side code
 └── partitions/bk7259/        # Partition config
 ```
@@ -63,7 +65,6 @@ draw_osd_example/
 - Blend icons + text onto an RGB565 background frame and flush to the panel, via `bk_draw_osd`
 - An `osd` CLI covering the full controller lifecycle and single-element drawing
 - `osd test <sub>` self-check cases for robustness and edge conditions (pass marker: `==== [name] PASS ====`)
-- `osd_disp_compat` abstracts the 7259 DSI display so the business code keeps the same call style as on 7258
 
 ### 3.2 OSD Assets
 
@@ -90,38 +91,22 @@ After flashing, the serial log prints `draw_osd_example m55 running...`, then yo
 - Command dispatched OK: `CMDRSP:OK`
 - Command dispatch failed: `CMDRSP:ERROR`
 
-> `CMDRSP:OK` only means the command was dispatched; for `osd test` cases, the real pass/fail is shown by the `==== [name] PASS ====` log.
-
 #### 4.2.1 CLI Commands
 
-```text
-osd init                         # create OSD controller + open display
-osd array [update <name> <content> | remove <name>]
-                                 # draw the full asset array (optionally edit first)
-osd img                          # draw a single icon (wifi)
-osd font                         # draw a single font (clock)
-osd get_info  [no_print]         # query currently added OSD elements
-osd get_assets [no_print]        # query all available assets
-osd test <sub>                   # run a self-check case (see below)
-osd deinit                       # delete controller + close display
-```
-
-Subcommands of `osd test <sub>`:
+pipeline-only on-device OSD: overlay `blend_info[]` onto live MIPI / UVC video (pure blend_info).
 
 ```text
-osd test invalid_param           # invalid-parameter guarding
-osd test cfg_unchanged           # config not mutated internally
-osd test unaligned               # unaligned size/coordinate
-osd test psram_switch            # runtime PSRAM/SRAM switch
-osd test shrink                  # free internal buffers then redraw
-osd test concurrent [sec]        # multi-thread concurrent draw (default 10s)
-osd test stability  [N]          # repeated create/draw/delete (default 20 loops)
-osd test multi_inst              # multiple controller instances
-osd test null_assets             # empty asset array tolerance
-osd test all                     # run all cases in sequence
+osd <mipi|uvc> <frame|flexa>     # bring up the pipeline (first call) and overlay OSD
+                                 #   frame = one SRC_OVER at frame end
+                                 #   flexa = per-block SRC_OVER (cost spread over the frame)
+osd <mipi|uvc> clear             # remove the overlay only (keep live video)
+osd <mipi|uvc> close             # remove overlay and close that pipeline (free GPU/mem before switching source)
 ```
 
-> `stability / multi_inst / null_assets` create their own handle and run standalone; the others require `osd init` first.
+- Content comes from `blend_info[]` in `assets/blend_dsc.c`, positioned by each element's `xpos/ypos`.
+- The component auto-clusters the array into slots (multi-blit); no command needed.
+- The blend timing is pushed to the bound GPU via `bk_gpu_ioctl(BK_GPU_IOCTL_SET_OSD_BY_FLEXA)`.
+- MIPI and UVC share the GPU/display memory and cannot run at once: `osd <src> close` before switching source.
 
 ## 5. Examples
 
@@ -131,42 +116,29 @@ Expected log after power-on:
 draw_osd_example m55 running...
 ```
 
-Draw the full OSD array:
+Overlay OSD on local MIPI camera video (frame-end blend):
 
 ```text
-ap_cmd osd init
-ap_cmd osd array
+ap_cmd osd mipi frame
 ```
 
-Run all self-check cases (init first):
+Close MIPI first, then switch to UVC video with per-block (flexa) blend:
 
 ```text
-ap_cmd osd init
-ap_cmd osd test all
+ap_cmd osd mipi close
+ap_cmd osd uvc flexa
 ```
 
-Expected final log:
+Clear the overlay (keep video):
 
 ```text
-==== [all] ALL TESTS PASS ====
-```
-
-### 5.1 Integration Test Commands
-
-`.it.csv` contains 18 cases covering: reboot self-check, basic drawing (init/array/img/font/get_info/get_assets/deinit), and all `osd test` subcommands. The regression framework sends each command in order and matches the expected-result substring within the timeout:
-
-```text
-reboot                           -> draw_osd_example m55 running
-ap_cmd osd test invalid_param    -> [invalid_param] PASS
-ap_cmd osd test all              -> [all] ALL TESTS PASS
-...
+ap_cmd osd mipi clear
 ```
 
 ## 6. Configuration
 
 - Component switch: `CONFIG_MEDIA_OSD=y` (`ap/config/bk7259_ap/defconfig`)
-- Default panel: `ST7701SN MIPI 480x854` (`CONFIG_LCD_ST7701SN_MIPI_480x854=y`)
-- Background frame: `OSD_BG_W = 480`, `OSD_BG_H = 854`, `PIXEL_FMT_RGB565_LE` (see `osd_disp_compat.h`)
+- Default panel: `hx8399c MIPI 1080x1920` (see `ap/draw_osd/src/display.c`)
 - Draw memory pool: `draw_in_psram` defaults to `false` (SRAM), switchable at runtime via `OSD_CTLR_CMD_SET_PSRAM_USAGE`
 
 ## 7. Notes
@@ -174,6 +146,6 @@ ap_cmd osd test all              -> [all] ALL TESTS PASS
 1. `blend_assets` / `blend_info` must end with `{.addr = NULL}`. The component does not deep-copy; asset pointers must stay valid for the whole handle lifetime (keep them in const/global storage).
 2. Icon blending only supports `ARGB8888` sources; fonts must be generated with FontCvt.exe.
 3. An OSD element's coordinate + size must not exceed the background frame bounds, otherwise the draw fails.
-4. `add_or_updata` / `remove` only modify the in-memory array; call `bk_draw_osd_array` again to apply.
+4. `add_or_update` / `remove` only modify the in-memory array; call `bk_draw_osd_array` again to apply.
 5. Do not switch PSRAM/SRAM every frame; a switch frees the old pool and reallocates in the new one, which is costly and meant for occasional use only.
-6. Display uses the 7259 DSI stack; `osd_disp_compat` wraps init and flush. If you change the panel, adjust this compat layer and the defconfig accordingly.
+6. Display uses the 7259 DSI stack via the shared `ap/draw_osd/` (`display_open` + `bk_display_flush`). If you change the panel, adjust that module and the defconfig accordingly.

@@ -4,176 +4,197 @@
 
 ## 1. 项目概述
 
-本项目演示 Beken BK7259 平台上的软件 OSD（On-Screen Display）叠加显示流程。基于 `bk_draw_osd` 组件，将图标（ARGB8888）和字库文字混合到背景帧上，再通过 MIPI DSI 屏显示。混合运算由 `image_scale` 软件实现（`argb8888_to_*_blend` / `*_convert`），无需 GPU。
+本项目演示 Beken BK7259 平台上的 **GPU OSD（On-Screen Display）** 叠加：基于 `bk_draw_osd` 组件，将图标（ARGB8888）和字库文字合成到 sprite，注册给视频 pipeline 的 GPU，每帧 `SRC_OVER` 融合到 MIPI / UVC 实时画面上。
 
 当前工程提供：
 
-- `bk_draw_osd` 组件接口演示：控制器创建/删除、整组绘制、单图标/单字体绘制、运行时增删改、ioctl 扩展命令
-- `osd` CLI 命令族（CLI / `ap_cmd`）
-- 一组自检测试用例 `osd test <sub>`（稳定性、并发、多实例、非法参数、非对齐、PSRAM 切换等）
-- 7259 显示兼容层 `osd_disp_compat`：把 7258 风格的 `frame_buffer_t` + `frame_buffer_display_malloc/free` 适配到 7259 的 DSI 显示栈（`bk_display_dsi_bus / panel / dpu` + `bk_frame_buffer_*` + `bk_display_flush`）
+- **MIPI 通路**：GC2053 CSI → ISP → GPU → DPU → hx8399c 1080×1920 竖屏
+- **UVC 通路**：USB MJPEG → 硬解 → GPU → DPU → 同一块屏
+- **`osd` CLI**：在真实视频上显示 / 更新 / 移除 OSD，或关闭 pipeline、切换通路
+- **上电自启**：默认自动拉起 MIPI 摄像头 + OSD（整帧融合 `frame-end`）
 - `.it.csv` 集成测试入口
 
 ### 1.1 测试环境
 
-   * 硬件配置：
-      * 核心板，**BK7259_QF128_12.3X12.3_V4.0**
-      * PSRAM 32M
-   * 默认 MIPI 屏：`ST7701SN MIPI 480x854`
-      * 背景帧格式：`PIXEL_FMT_RGB565_LE`
-      * 图标资源格式：`ARGB8888`
+| 项目 | 说明 |
+|------|------|
+| 核心板 | **BK7259_QF128_12.3X12.3_V4.0**，PSRAM 32M |
+| 默认 MIPI 屏 | **hx8399c MIPI 1080×1920**（竖屏显示） |
+| MIPI 摄像头 | GC2053，1920×1080@25fps |
+| UVC | USB 摄像头 MJPEG 1920×1080@30（port 1） |
+| 面板 VDDIO | 需 1.8V（`display.c` 内 `PM_AUXLDO_USER_DISPLAY`） |
+| 晶振 | `CONFIG_XTAL_FREQ=12000000`（MIPI sensor I2C） |
 
-> 提示：请使用参考外设进行 demo 工程的熟悉和学习。如果外设规格不一样，代码可能需要重新配置。
+> 请使用参考外设熟悉 demo；外设不同需同步改 `display.c`、相机配置与 assets 坐标。
 
 ## 2. 目录结构
 
-项目采用 AP-CP 双核架构，OSD 业务代码位于 AP 目录下。项目结构如下：
-
 ```
 draw_osd_example/
-├── CMakeLists.txt            # 项目级 CMake 构建文件
-├── Makefile                  # Make 构建文件
-├── README.md                 # 项目说明文档（英文）
-├── README_CN.md              # 项目说明文档（中文）
 ├── .it.csv                   # 集成测试用例
-├── pj_config.mk              # 项目配置
-├── ap/                       # AP 端代码
-│   ├── CMakeLists.txt        # AP 端 CMake（注册源码 + 拷贝 .it.csv）
-│   ├── ap_main.c             # AP 主入口：bk_init / media_service_init / 注册 osd CLI
-│   ├── assets/               # UI 工具生成的资源
-│   │   ├── bk_img.c          # 图标资源（ARGB8888）
-│   │   ├── bk_font.c         # 字库资源
-│   │   ├── blend_dsc.c       # 资源数组 blend_assets / blend_info
-│   │   └── blend.h           # 资源头文件
-│   ├── config/bk7259_ap/     # AP 配置（含 CONFIG_MEDIA_OSD=y）
-│   └── draw_osd/
-│       ├── include/          # draw_osd_test.h / draw_osd_complex_test.h / osd_disp_compat.h
-│       └── src/
-│           ├── draw_osd_cli.c            # osd CLI 命令实现
-│           ├── draw_osd_complex_test.c   # osd test 自检用例集
-│           └── osd_disp_compat.c         # 7259 显示/帧缓冲兼容层
-├── cp/                       # CP 端代码
-└── partitions/bk7259/        # 分区配置
+├── ap/
+│   ├── ap_main.c             # 上电注册 CLI + 自动启动 MIPI OSD
+│   ├── assets/               # UI 工具生成的图标/字库
+│   ├── draw_osd/             # draw_osd_cli.c、display.c（LCD/DPU/VDDIO）
+│   ├── mipi/                 # mipi_pipeline.c、osd_mipi.c
+│   └── uvc/                  # uvc_pipeline.c、osd_uvc.c
+└── ...
 ```
 
-## 3. 功能说明
-
-### 3.1 主要功能
-
-- 基于 `bk_draw_osd` 组件，将图标 + 文字混合到 RGB565 背景帧并刷屏
-- 提供 `osd` CLI，覆盖控制器全生命周期与单元素绘制
-- 提供 `osd test <sub>` 自检用例，验证健壮性与边界（结果以 `==== [name] PASS ====` 标识）
-- 通过 `osd_disp_compat` 抽象 7259 DSI 显示，业务代码与 7258 保持一致的调用风格
-
-### 3.2 OSD 资源
-
-资源由 UI 工具生成，位于 `ap/assets/`：
-
-- `blend_assets`：全部可用资源数组（图标 + 字体），必须以 `{.addr = NULL}` 结尾
-- `blend_info`：上电默认绘制的资源子集
-- 每个资源带 `name`（同类标签，可重复）与 `content`（具体内容，用于区分）
-
-## 4. 编译与运行
-
-### 4.1 编译方法
+## 3. 编译与烧录
 
 ```bash
+cd <SDK根目录>
 make bk7259 PROJECT=multimedia/draw_osd_example -j32
 ```
 
-产物位于 `build/bk7259/draw_osd_example/`，整包固件为 `package/all-app.bin`。
+产物：`build/bk7259/draw_osd_example/package/all-app.bin`
 
-### 4.2 运行方法
+烧录后串口打印 `draw_osd_example m55 running...`，约 5s 后自动开 flexa OSD 并常驻显示，成功即打印 `[RESULT][PASS] draw_osd_mipi_flexa_boot success`（需 MIPI 摄像头与屏已接好）。
 
-编译完成后将固件烧录到开发板。上电后串口会打印 `draw_osd_example m55 running...`，随后可通过串口终端发送 `osd` 命令。
+- 命令成功：`CMDRSP:OK` + `[RESULT][PASS] <case名> success`
+- 命令失败：`CMDRSP:ERROR` + `[RESULT][FAIL] <case名> failed at ...`
 
-- 命令派发成功打印：`CMDRSP:OK`
-- 命令派发失败打印：`CMDRSP:ERROR`
+> OSD 命令在 **AP** 侧；从 CP 串口发送需加 `ap_cmd` 前缀。
 
-> `CMDRSP:OK` 仅表示命令被正确派发；`osd test` 用例最终是否通过，请看 `==== [name] PASS ====` 日志。
+## 4. 注意事项（必读）
 
-#### 4.2.1 当前 CLI 命令
+1. **MIPI 与 UVC 不能同时开**（共用 GPU/显示内存）。切换前先 `osd <当前源> close`。
+2. **OSD sprite 格式**：MIPI / UVC 均用 `ABGR8888`（补偿 GPU 压缩底图 BGRA 字节序），否则图标/汉字红蓝反色。
+3. **`blend_assets` / `blend_info`** 必须以 `{.addr = NULL}` 结尾；资源指针生命周期需 ≥ OSD 实例。
+4. **`update` / `remove` 后** 组件内部会重调 `bk_draw_osd_array` 生效；`clear` 只撤 OSD 保留视频；`close` 撤 OSD 并关 pipeline。
 
-```text
-osd init                         # 创建 OSD 控制器 + 打开显示
-osd array [update <name> <content> | remove <name>]
-                                 # 绘制整组资源（可选先增删改再绘制）
-osd img                          # 绘制单个图标（wifi）
-osd font                         # 绘制单个字体（clock）
-osd get_info  [no_print]         # 查询当前已添加的 OSD 元素
-osd get_assets [no_print]        # 查询全部可用资源
-osd test <sub>                   # 运行自检用例（见下）
-osd deinit                       # 删除控制器 + 关闭显示
-```
+---
 
-`osd test <sub>` 支持的子命令：
+## 5. 使用指南（CLI 速查）
+
+### 5.1 命令格式
 
 ```text
-osd test invalid_param           # 非法参数防护
-osd test cfg_unchanged           # 配置不被内部篡改
-osd test unaligned               # 非对齐尺寸/坐标
-osd test psram_switch            # 运行时 PSRAM/SRAM 切换
-osd test shrink                  # 主动释放内部缓冲后再绘制
-osd test concurrent [sec]        # 多线程并发绘制（默认 10s）
-osd test stability  [N]          # 反复创建/绘制/删除（默认 20 轮）
-osd test multi_inst              # 多控制器实例并存
-osd test null_assets             # 空资源数组容错
-osd test all                     # 顺序跑全部用例
+ap_cmd osd <mipi|uvc> <frame|flexa|update|remove|clear|close> [参数...]
 ```
 
-> `stability / multi_inst / null_assets` 自带 handle，可独立运行；其余子命令需先执行 `osd init`。
+| 动作 | 说明 |
+|------|------|
+| `frame` | 显示 OSD，整帧末一次 SRC_OVER（默认，元素少时推荐） |
+| `flexa` | 显示 OSD，按 flexa 逐块分散融合（元素多/分散时用） |
+| `update <name> <content>` | 改图标或文本（必须带 content） |
+| `remove <name>` | 从显示列表移除元素 |
+| `clear` | 只撤 OSD 叠加，保留实时视频 |
+| `close` | 撤 OSD 并关闭该通路 pipeline（切源前必做） |
 
-## 5. 测试示例
+显示内容默认来自 `ap/assets/blend_dsc.c` 的 `blend_info[]`（text1、text2、wifi_group、beken_logo 等），坐标由各资源 `xpos/ypos` 决定。
 
-上电后预期日志：
+### 5.2 上电默认行为
+
+固件上电后会自动执行等价于 `ap_cmd osd mipi flexa` 的 IT case：
+
+- 等待约 5s（避开 CP/AP 启动 log 与 HSPL UART 锁争用）
+- 打开 MIPI pipeline（GC2053 + ISP + GPU + LCD），flexa 模式叠加默认 `blend_info[]`
+- 开成功即打印 `[RESULT][PASS] draw_osd_mipi_flexa_boot success`，之后 OSD 常驻显示（不关 pipeline）
+
+若摄像头未接或开 pipeline 失败，串口会打印 `[RESULT][FAIL] draw_osd_mipi_flexa_boot failed at show`。
+
+### 5.3 常用操作示例
+
+**只撤 OSD，视频继续：**
 
 ```text
-draw_osd_example m55 running...
+ap_cmd osd mipi clear
 ```
 
-绘制整组 OSD：
+**彻底关闭 MIPI（释放 GPU/内存）：**
 
 ```text
-ap_cmd osd init
-ap_cmd osd array
+ap_cmd osd mipi close
 ```
 
-运行全部自检用例（需先 init）：
+**重新打开 MIPI OSD（关闭后或 clear 后）：**
 
 ```text
-ap_cmd osd init
-ap_cmd osd test all
+ap_cmd osd mipi frame
 ```
 
-预期最终日志：
+**运行时改 WiFi 图标 / 时间文字：**
 
 ```text
-==== [all] ALL TESTS PASS ====
+ap_cmd osd mipi update wifi_group wifi_rssi_full
+ap_cmd osd mipi update wifi_group wifi_rssi_2
+ap_cmd osd mipi update text1 12:53
 ```
 
-### 5.1 集成测试命令
-
-`.it.csv` 共 18 条用例，覆盖：reboot 自检、基础绘制（init/array/img/font/get_info/get_assets/deinit）、以及全部 `osd test` 自检子命令。回归框架按行顺序发送命令并在超时内匹配“期望结果”子串：
+**移除某个元素：**
 
 ```text
-reboot                           -> draw_osd_example m55 running
-ap_cmd osd test invalid_param    -> [invalid_param] PASS
-ap_cmd osd test all              -> [all] ALL TESTS PASS
-...
+ap_cmd osd mipi remove wifi_group
+ap_cmd osd mipi remove text1
 ```
 
-## 6. 配置选项
+**从 MIPI 切到 UVC（需 UVC 摄像头 + 先关 MIPI）：**
 
-- 组件开关：`CONFIG_MEDIA_OSD=y`（`ap/config/bk7259_ap/defconfig`）
-- 默认屏：`ST7701SN MIPI 480x854`（`CONFIG_LCD_ST7701SN_MIPI_480x854=y`）
-- 背景帧：`OSD_BG_W = 480`、`OSD_BG_H = 854`、`PIXEL_FMT_RGB565_LE`（见 `osd_disp_compat.h`）
-- 绘制内存池：`draw_in_psram` 默认 `false`（SRAM），可经 `OSD_CTLR_CMD_SET_PSRAM_USAGE` 运行时切换
+```text
+ap_cmd osd mipi close
+ap_cmd osd uvc flexa
+```
 
-## 7. 注意事项
+UVC 侧命令与 MIPI 对称，例如：
 
-1. `blend_assets` / `blend_info` 必须以 `{.addr = NULL}` 结尾；组件内部不深拷贝，资源指针需在 handle 生命周期内始终有效（建议放 const/全局区）。
-2. 图标混合只支持 `ARGB8888` 源；字体需用 FontCvt.exe 生成。
-3. OSD 元素坐标 + 尺寸不能超出背景帧边界，否则绘制失败。
-4. `add_or_updata` / `remove` 只改内存数组，需重新调用 `bk_draw_osd_array` 才会生效。
-5. 不要每帧切换 PSRAM/SRAM；切换会触发释放旧池 + 在新池重新分配，开销较大，仅用于偶发场景。
-6. 显示走 7259 DSI 栈，`osd_disp_compat` 已封装初始化与刷新；如换屏需同步调整该兼容层与 defconfig。
+```text
+ap_cmd osd uvc update text1 13:52
+ap_cmd osd uvc remove wifi_group
+ap_cmd osd uvc clear
+ap_cmd osd uvc close
+```
+
+**从 UVC 切回 MIPI：**
+
+```text
+ap_cmd osd uvc close
+ap_cmd osd mipi frame
+```
+
+### 5.4 资产与命名
+
+| 类型 | 列表项 `name` | `update` 的 `content` 示例 |
+|------|---------------|---------------------------|
+| WiFi 图标组 | `wifi_group` | `wifi_rssi_none` / `wifi_rssi_1` … `wifi_rssi_full` |
+| 时间文本 | `text1` | 任意字符串，如 `12:53` |
+| 欢迎语 | `text2` | 任意字符串 |
+| Logo | `beken_logo` | `beken_logo` |
+
+### 5.5 典型问题
+
+| 现象 | 处理 |
+|------|------|
+| 屏不亮 | 查背光 GPIO_7、复位 GPIO_60、面板 VDDIO 1.8V |
+| 图标/汉字红蓝反 | 确认 `osd_*` 里 `src_format = ABGR8888` |
+| MIPI 相机打不开 | 查 VDDIO、`CONFIG_XTAL_FREQ=12000000`、GC2053 接线 |
+| UVC OOM | 先 `osd mipi close` 再开 UVC |
+| `update` 报错 | 必须两个参数：`update <name> <content>`；移除用 `remove <name>` |
+| `no osd instance` | 先 `frame`/`flexa` 或等上电自启完成 |
+
+### 5.6 集成测试（`.it.csv`）
+
+自动化测试按 `.it.csv` 期望结果匹配 `[RESULT][PASS] <case名> success`。每个 CLI 子命令（mipi/uvc 对称）成功即打对应 PASS 行，失败打 `[RESULT][FAIL] <case名> failed at ...`：
+
+| 通路 | 命令 | 期望 log |
+|------|------|----------|
+| 上电 | 自启 | `[RESULT][PASS] draw_osd_mipi_flexa_boot success` |
+| MIPI | `osd mipi update text1 ...` | `[RESULT][PASS] osd_mipi_update_text success` |
+| MIPI | `osd mipi update wifi_group ...` | `[RESULT][PASS] osd_mipi_update_wifi success` |
+| MIPI | `osd mipi remove wifi_group` | `[RESULT][PASS] osd_mipi_remove_wifi success` |
+| MIPI | `osd mipi clear` | `[RESULT][PASS] osd_mipi_clear success` |
+| MIPI | `osd mipi flexa` | `[RESULT][PASS] osd_mipi_flexa success` |
+| MIPI | `osd mipi frame` | `[RESULT][PASS] osd_mipi_frame success` |
+| MIPI | `osd mipi close` | `[RESULT][PASS] osd_mipi_close success` |
+| UVC | `osd uvc flexa` | `[RESULT][PASS] osd_uvc_flexa success` |
+| UVC | `osd uvc update text1 ...` | `[RESULT][PASS] osd_uvc_update_text success` |
+| UVC | `osd uvc update wifi_group ...` | `[RESULT][PASS] osd_uvc_update_wifi success` |
+| UVC | `osd uvc remove wifi_group` | `[RESULT][PASS] osd_uvc_remove_wifi success` |
+| UVC | `osd uvc clear` | `[RESULT][PASS] osd_uvc_clear success` |
+| UVC | `osd uvc frame` | `[RESULT][PASS] osd_uvc_frame success` |
+| UVC | `osd uvc close` | `[RESULT][PASS] osd_uvc_close success` |
+
+> case 名规则：`osd_<pipe>_<suffix>`。UVC 相关 case 需接 UVC 摄像头；且因 MIPI/UVC 共用显存，`.it.csv` 里先跑完 MIPI 段并 `close`，再进入 UVC 段。
+
+更详细的组件 API、doorbell 移植说明见 [`docs/bk_draw_osd_usage_CN.md`](./docs/bk_draw_osd_usage_CN.md).
