@@ -208,23 +208,13 @@ bk_err_t cif_handle_bk_cmd_disconnect_req(struct bk_msg_hdr *msg)
     return BK_OK;
 }
 
-bk_err_t cif_handle_bk_cmd_disconnect_ind(bool local_generated, uint16_t reason_code)
-{
-    wifi_event_sta_disconnected_t sta_disconnected = {0};
-
-    sta_disconnected.disconnect_reason = reason_code;
-    sta_disconnected.local_generated = local_generated;
-    //CTRL_IF_CMD("%s, reason %d,%d\n",__func__,reason_code,local_generated);
-
-    return cif_bk_send_event(BK_EVT_DISCONNECT_IND, (uint8_t *)(&sta_disconnected), sizeof(sta_disconnected));
-}
-
-bk_err_t cif_handle_bk_cmd_wifi_event_ind(uint16_t event_id, const void *data,
-		uint16_t data_len)
+bk_err_t cif_handle_bk_cmd_wifi_event_ind(cif_wifi_event_id_t event_id,
+		const void *data, uint16_t data_len)
 {
 	cif_wifi_event_ind_t ind = {0};
 
-	if (!data || data_len > CIF_WIFI_EVENT_IND_MAX_DATA)
+	if (event_id >= CIF_WIFI_EVT_COUNT || !data ||
+	    data_len > CIF_WIFI_EVENT_IND_MAX_DATA)
 		return BK_ERR_PARAM;
 
 	ind.event_id = event_id;
@@ -365,14 +355,6 @@ bk_err_t cif_handle_bk_cmd_start_ap_ind(uint8_t status)
 
     return cif_bk_send_event(BK_EVT_START_AP_IND, (uint8_t *)&cfm, sizeof(cfm));
 }
-bk_err_t cif_handle_bk_cmd_assoc_ap_ind(uint8_t* mac_addr)
-{
-    return cif_bk_send_event(BK_EVT_ASSOC_AP_IND, mac_addr, 6);
-}
-bk_err_t cif_handle_bk_cmd_disassoc_ap_ind(uint8_t* mac_addr)
-{
-    return cif_bk_send_event(BK_EVT_DISASSOC_AP_IND, mac_addr, 6);
-}
 bk_err_t cif_handle_bk_cmd_stop_ap_req(struct bk_msg_hdr *msg)
 {
     CTRL_IF_CMD("%s\n",__func__);
@@ -430,26 +412,6 @@ bk_err_t cif_handle_bk_cmd_scan_wifi_req(struct bk_msg_hdr *msg)
     return BK_OK;
 
 }
-
-bk_err_t cif_handle_bk_cmd_scan_wifi_ind(uint32_t scan_id,uint32_t scan_use_time)
-{
-    bk_err_t ret = BK_OK;
-
-    //CTRL_IF_CMD("%s,%d\n",__func__,scan_id);
-
-    #if BK_SUPPLICANT
-    if (scan_id != 0) {
-        wifi_event_scan_done_t event_data = {0};
-        event_data.scan_id = scan_id;
-        event_data.scan_use_time = scan_use_time;
-
-        ret = cif_bk_send_event(BK_EVT_SCAN_WIFI_IND, (uint8_t *)(&event_data), sizeof(event_data));
-    }
-    #endif
-
-    return ret;
-}
-
 
 bk_err_t cif_handle_bk_cmd_bcn_cc_ind(uint8_t *cc, uint8_t cc_len)
 {
@@ -914,26 +876,6 @@ bk_err_t cif_handle_bk_cmd(void *head)
 }
 
 #if CONFIG_P2P
-bk_err_t cif_handle_bk_cmd_assoc_go_ind(uint8_t* mac_addr)
-{
-	wifi_event_ap_connected_t ev = {0};
-
-	if (mac_addr)
-		os_memcpy(ev.mac, mac_addr, WIFI_MAC_LEN);
-	return cif_handle_bk_cmd_wifi_event_ind(CIF_WIFI_EVT_GO_CONNECTED,
-						&ev, sizeof(ev));
-}
-
-bk_err_t cif_handle_bk_cmd_disassoc_go_ind(uint8_t* mac_addr)
-{
-	wifi_event_ap_connected_t ev = {0};
-
-	if (mac_addr)
-		os_memcpy(ev.mac, mac_addr, WIFI_MAC_LEN);
-	return cif_handle_bk_cmd_wifi_event_ind(CIF_WIFI_EVT_GO_DISCONNECTED,
-						&ev, sizeof(ev));
-}
-
 bk_err_t cif_handle_bk_cmd_p2p_go_start_ind(uint8_t *mac_addr)
 {
     return cif_bk_send_event(BK_EVT_P2P_GO_START_IND, mac_addr, mac_addr ? 6 : 0);

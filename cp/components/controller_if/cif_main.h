@@ -163,31 +163,18 @@ enum BK_EVENT_TYPE
 {
     BK_EVT_IPV4_IND             = 0x1,
     BK_EVT_IPV6_IND             = 0x2,
-    BK_EVT_DISCONNECT_IND       = 0x3,
-    BK_EVT_START_AP_IND         = 0x4,
-    BK_EVT_ASSOC_AP_IND         = 0x5,
-    BK_EVT_DISASSOC_AP_IND      = 0x6,
-    BK_EVT_STOP_AP_IND          = 0x7,
-    BK_EVT_SCAN_WIFI_IND        = 0x8,
-    BK_EVT_WIFI_FAIL_IND        = 0x9,
-    BK_EVT_BCN_CC_RXED          = 0xA,
-    BK_EVT_CSI_INFO_IND         = 0xB,
-    BK_EVT_ASSOC_GO_IND         = 0xC,
-    BK_EVT_DISASSOC_GO_IND      = 0xD,
-    BK_EVT_MODEXP_REQ           = 0xE,
-    BK_EVT_P2P_GO_START_IND     = 0xF,
-    BK_EVT_P2P_GO_STOP_IND      = 0x10,
-    BK_EVT_P2P_GC_START_IND     = 0x11,
-    BK_EVT_P2P_GC_STOP_IND      = 0x12,
-    BK_EVT_WIFI_EVENT_IND       = 0x13,
-    // BLE event
-    // BK_EVT_BLE_XX            = 0x101
+    BK_EVT_START_AP_IND         = 0x3,
+    BK_EVT_STOP_AP_IND          = 0x4,
+    BK_EVT_BCN_CC_RXED          = 0x5,
+    BK_EVT_CSI_INFO_IND         = 0x6,
+    BK_EVT_MODEXP_REQ           = 0x7,
+    BK_EVT_P2P_GO_START_IND     = 0x8,
+    BK_EVT_P2P_GO_STOP_IND      = 0x9,
+    BK_EVT_WIFI_EVENT_IND       = 0xA,
 
-    // system event
     BK_EVT_CONTROLLER_AT_IND    = 0x201,
     BK_EVT_CUSTOMER_IND         = 0x202,
 
-    // Wi-Fi API event
     BK_EVT_WIFI_API_START       = 0x300,
     BK_EVT_WIFI_API_END         = 0x3FF,
 
