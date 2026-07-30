@@ -27,15 +27,52 @@ extern "C" {
 
 #define CAN_LL_REG_BASE   SOC_CAN0_REG_BASE
 
-#define CAN_BR_MAP \
+/* Bit-timing tables. Encoding (see can_struct.h): value packs the seg register as
+ * [presc:8][sjw:8(fits 7b)][seg_2:8(fits 7b)][seg_1:8], i.e.
+ *   value = (presc<<24)|(sjw<<16)|(seg_2<<8)|seg_1.
+ * One Tq = (presc+1) source clocks, so:
+ *   bit_rate = clk / ((presc+1) * (seg_1 + seg_2 + 2)),  sample point = (seg_1+1)/(seg_1+seg_2+2).
+ *
+ * The CAN0 clock source is picked dynamically per requested bit rate (see
+ * can_hal_pick_clk_hz / bk_can_clock_enable): low rates that divide 26M exactly
+ * use the 26MHz XTAL (direct crystal, low jitter), while 800K/4M/5M can only be
+ * produced exactly by the 120MHz PLL. There is one table per source clock; the
+ * active one is chosen by the current clk source. Low rates (250K/500K/1M/2M)
+ * are exact in BOTH tables, so any (arb,data) combo is safe. */
+#define CAN_CLK_HZ_26M    26000000u
+#define CAN_CLK_HZ_120M   120000000u
+
+/* 120MHz PLL source: all rates exact. Sample point lowered to ~73% (75% for 5M)
+ * and SJW widened vs the old ~80%/small-SJW table: a tight SJW works in loopback
+ * (TX==RX clock, zero phase error) but cannot resync to a real async peer whose
+ * clock differs slightly, which shows up as receive-only failure (koer OTHER).
+ * Wider SJW + earlier sample point buys resync margin for real-bus reception. */
+#define CAN_BR_MAP_120M \
 { \
-    {CAN_BR_250K, 0x0F02020b}, \
-    {CAN_BR_500K, 0x0702020b}, \
-    {CAN_BR_800K, 0x0303030e}, \
-    {CAN_BR_1M, 0x01050518}, \
-    {CAN_BR_2M, 0x00050518}, \
-    {CAN_BR_4M, 0x0002020b}, \
-    {CAN_BR_5M, 0x00020208}, \
+    {CAN_BR_250K, 0x1F03030A}, /* 250K, SP 73.3%, sjw 3 (was 2) */ \
+    {CAN_BR_500K, 0x0F03030A}, /* 500K, SP 73.3%, sjw 3 */ \
+    {CAN_BR_800K, 0x0903030A}, /* 800K, SP 73.3%, sjw 3 */ \
+    {CAN_BR_1M, 0x03060715},   /* 1M,   SP 73.3%, sjw 6 (was 5) */ \
+    {CAN_BR_2M, 0x01060715},   /* 2M,   SP 73.3%, sjw 6 */ \
+    {CAN_BR_4M, 0x0103030A},   /* 4M,   SP 73.3%, sjw 3 */ \
+    {CAN_BR_5M, 0x01030208},   /* 5M,   SP 75.0%, sjw 3 (was 2) */ \
+}
+
+/* 26MHz XTAL source: 250K(=104)/500K(=52)/1M(=26)/2M(=13) exact. Sample point
+ * lowered to ~73% (77% for 2M) and SJW widened vs the old ~80%/sjw=4 table, for
+ * the same resync-margin reason as the 120M table above (loopback hides a tight
+ * SJW; real async reception needs the margin).
+ * 800K(32.5)/4M(6.5)/5M(5.2) do NOT divide 26M evenly; placeholders, never
+ * selected under 26M (those rates force the 120MHz source). */
+#define CAN_BR_MAP_26M \
+{ \
+    {CAN_BR_250K, 0x03050612}, /* 250K, 26 Tq, SP 73.1%, sjw 5 (was 4) */ \
+    {CAN_BR_500K, 0x01050612}, /* 500K, 26 Tq, SP 73.1%, sjw 5 */ \
+    {CAN_BR_800K, 0x03050612}, /* unsupported @26M (32.5): placeholder, forces 120M */ \
+    {CAN_BR_1M, 0x00050612},   /* 1M,   26 Tq, SP 73.1%, sjw 5 */ \
+    {CAN_BR_2M, 0x00030209},   /* 2M,   13 Tq, SP 76.9%, sjw 3 (was 2) */ \
+    {CAN_BR_4M, 0x00030209}, /* unsupported @26M (6.5): placeholder, forces 120M */ \
+    {CAN_BR_5M, 0x00030209}, /* unsupported @26M (5.2): placeholder, forces 120M */ \
 }
 
 //reg :rid

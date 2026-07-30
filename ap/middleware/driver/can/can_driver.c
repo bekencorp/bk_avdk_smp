@@ -100,7 +100,12 @@ static void can_deinit_gpio(can_channel_t chn)
 
 bk_err_t bk_can_clock_enable(void)
 {
-	sys_hal_can0_cksel_set(CKSEL_SYS_XTAL_120M_120M);
+	/* Program the cksel mux to match the HAL's currently selected source clock
+	 * (picked per requested bit rate). Also keeps the PM restore path correct,
+	 * since bk_can_restore reuses this to re-power the controller. */
+	uint32_t cksel = (can_hal_get_clk_hz() == CAN_CLK_HZ_120M)
+		? CKSEL_SYS_XTAL_120M_120M : CKSEL_SYS_XTAL_120M_XTAL;
+	sys_hal_can0_cksel_set(cksel);
 	bk_pm_clock_ctrl(CLK_PWR_ID_CAN0, CLK_PWR_CTRL_PWR_UP);
 
 	return BK_OK;
@@ -381,6 +386,10 @@ bk_err_t bk_can_set_loopback_external(bool enable)
 {
     CAN_RETURN_ON_DEVICE_NOT_INIT();
     can_hal_set_lbme(enable ? 1 : 0);
+    /* External loopback puts the frame on the real bus; a single node has no
+     * peer to acknowledge it, so enable self-ACK to let the node ACK its own
+     * frames. Cleared on exit to keep normal bus operation ACK-correct. */
+    can_hal_set_sack(enable ? 1 : 0);
 
     return BK_OK;
 }
@@ -484,7 +493,10 @@ void bk_can_register_err_callback(can_callback_des_t *err_cb)
 static void can_err_int(void *param)
 {
     uint32_t err_code = (uint32_t)param;
-    CAN_LOGD("%s,%d err code 0x%x\r\n", __func__, __LINE__, err_code);
+    /* KOER (kind of error) pinpoints the cause: 4=ACK (no peer/listen-only or
+     * bit-rate not synced), 5=CRC / 2=FORM / 3=STUFF (FD/ISO mismatch or bit
+     * timing), 1=BIT. Helps triage real-bus errors that only show as BUS ERROR. */
+    CAN_LOGD("%s,%d err code 0x%x koer 0x%x\r\n", __func__, __LINE__, err_code, bk_can_get_koer());
 
     if(s_can_isr_user_err_cb.cb) {
         s_can_isr_user_err_cb.cb(s_can_isr_user_err_cb.param);
@@ -574,6 +586,60 @@ void can_isr(void)
 	can_hal_set_ie_value(intc_stat);
 }
 
+/* Read back the live bit-timing registers and report the *actual* on-wire bit
+ * rate and sample point, so a test operator can confirm the controller really
+ * runs at the nominal rate (e.g. that "1M" is 1.000M, not 967.7k) instead of
+ * trusting the requested enum. Computed from real registers, not the table.
+ * The Tq base clock is the currently selected source (26M XTAL or 120M PLL,
+ * picked per bit rate), read from the HAL so it always matches the live cksel. */
+void bk_can_dump_bit_rate(void)
+{
+    uint32_t clk_hz = can_hal_get_clk_hz();
+    uint32_t s_seg1 = can_hal_get_sseg1();
+    uint32_t s_seg2 = can_hal_get_sseg2();
+    uint32_t s_presc = can_hal_get_spresc();
+    uint32_t f_seg1 = can_hal_get_fseg1();
+    uint32_t f_seg2 = can_hal_get_fseg2();
+    uint32_t f_presc = can_hal_get_fpresc();
+
+    uint32_t s_tq = s_seg1 + s_seg2 + 2;
+    uint32_t f_tq = f_seg1 + f_seg2 + 2;
+    uint32_t s_bps = clk_hz / ((s_presc + 1) * s_tq);
+    uint32_t f_bps = clk_hz / ((f_presc + 1) * f_tq);
+    /* sample point in 0.1% units: (seg1+1)/total_tq */
+    uint32_t s_sp = (s_seg1 + 1) * 1000 / s_tq;
+    uint32_t f_sp = (f_seg1 + 1) * 1000 / f_tq;
+
+    CAN_LOGI("bit rate: arb=%u bps (sp %u.%u%%), data=%u bps (sp %u.%u%%) sspoff=%u tdcen=%u iso=%u\r\n",
+             s_bps, s_sp / 10, s_sp % 10, f_bps, f_sp / 10, f_sp % 10,
+             can_hal_get_sspoff(), can_hal_get_tdcen(), can_hal_get_fd_iso());
+}
+
+/* Switch ISO vs non-ISO (BOSCH) CAN-FD at runtime so a bench operator can match
+ * the analyzer. The fd_iso bit lives in the cfg register; write it in reset. */
+void bk_can_set_iso(uint32_t iso)
+{
+    can_hal_set_reset(1);
+    can_hal_set_fd_iso(iso ? 1 : 0);
+    can_hal_set_reset(0);
+    bk_can_dump_bit_rate();
+}
+
+/* Live override of the FD data-phase secondary sample point (SSP), in fast-phase
+ * Tq, for bench-tuning 4M/5M BRS against a real transceiver without a rebuild.
+ * Must be called after the bit rate is configured (config recomputes SSPOFF). */
+void bk_can_set_ssp(uint32_t sspoff_tq)
+{
+    /* SSPOFF/TDCEN live in the CAP register, which only latches writes while the
+     * controller is held in reset (same as can_driver_bit_rate_config); writing
+     * it in normal mode is silently ignored. */
+    can_hal_set_reset(1);
+    can_hal_set_sspoff(sspoff_tq);
+    can_hal_set_tdcen(1);
+    can_hal_set_reset(0);
+    bk_can_dump_bit_rate();
+}
+
 bk_err_t can_driver_bit_rate_config(can_bit_rate_e s_speed, can_bit_rate_e f_speed)
 {
     if (s_speed < CAN_BR_250K || s_speed > CAN_BR_5M || f_speed < CAN_BR_250K || f_speed > CAN_BR_5M) {
@@ -581,8 +647,14 @@ bk_err_t can_driver_bit_rate_config(can_bit_rate_e s_speed, can_bit_rate_e f_spe
         return BK_ERR_PARAM;
     }
     can_hal_set_reset(1);
+    /* can_hal_bit_rate_config picks the source clock for these rates and loads the
+     * matching table; re-program the cksel mux to match while still in reset so a
+     * runtime rate change that flips 26M<->120M doesn't glitch a running clock. */
     can_hal_bit_rate_config(s_speed, f_speed);
+    bk_can_clock_enable();
     can_hal_set_reset(0);
+
+    bk_can_dump_bit_rate();
 
     return BK_OK;
 }
@@ -607,6 +679,9 @@ bk_err_t bk_can_init(can_dev_t *can)
         }
     }
 
+    /* Pre-select the source clock from the requested rates so bk_can_base_init
+     * powers up with the right cksel mux, before the controller leaves reset. */
+    can_hal_select_clk(can->config.s_speed, can->config.f_speed);
     bk_can_base_init();
     ret = can_err_recover_init();
     if (ret != BK_OK) {
@@ -755,7 +830,7 @@ bk_err_t bk_can_driver_init(void)
 
 	s_can_dev.config.protocol = CAN_PROTO_FD;
 	s_can_dev.config.s_speed = CAN_BR_1M;
-	s_can_dev.config.f_speed = CAN_BR_4M;
+	s_can_dev.config.f_speed = CAN_BR_2M;
 	s_can_dev.config.rx_size = DEFAULT_FIFO_SIZE;
 	s_can_dev.config.tx_size = DEFAULT_FIFO_SIZE;
 	s_can_dev.err_cb.cb = can_err_int;

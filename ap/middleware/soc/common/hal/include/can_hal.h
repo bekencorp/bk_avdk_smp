@@ -685,6 +685,14 @@ bk_err_t can_hal_ctrl(uint32_t cmd, void *parm);
 
 void can_hal_bit_rate_config(can_bit_rate_e s_speed, can_bit_rate_e f_speed);
 
+/* Currently selected CAN0 source clock in Hz (CAN_CLK_HZ_26M / CAN_CLK_HZ_120M). */
+uint32_t can_hal_get_clk_hz(void);
+
+/* Pre-select the source clock for the given rates without touching bit-timing
+ * registers, so the driver can program the cksel mux before the controller
+ * leaves reset. can_hal_bit_rate_config re-selects the same clock. */
+void can_hal_select_clk(can_bit_rate_e s_speed, can_bit_rate_e f_speed);
+
 #if CFG_HAL_DEBUG_CAN
 void can_struct_dump(uint32_t start, uint32_t end);
 #else

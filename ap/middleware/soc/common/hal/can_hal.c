@@ -24,6 +24,10 @@
 extern "C" {
 #endif
 
+/* Default FD data-phase secondary-sample-point offset used only for >=4M BRS.
+ * Bench-measured sweet spot on the TCAN1042 board; tune via `can_ssp` if needed. */
+#define CAN_FD_DATA_SSPOFF_DEFAULT	12u
+
 #define IDLE_CNT				300
 #define LOOP_PRT(x)				\
 {								\
@@ -33,8 +37,39 @@ extern "C" {
 	}							\
 }
 
-static can_core_br_tab_s can_br_tab[] = CAN_BR_MAP;
+static can_core_br_tab_s can_br_tab_120m[] = CAN_BR_MAP_120M;
+static can_core_br_tab_s can_br_tab_26m[] = CAN_BR_MAP_26M;
+/* Currently selected CAN0 source clock (Hz). Chosen per requested bit rate; the
+ * driver programs the actual cksel mux to match (see bk_can_clock_enable). */
+static uint32_t s_can_clk_hz = CAN_CLK_HZ_120M;
 static can_hal_t s_can_hal_env;
+
+/* 800K/4M/5M do not divide 26M evenly, so they can only be produced exactly by
+ * the 120MHz PLL. All other rates are exact on both sources. */
+static bool can_speed_needs_120m(can_bit_rate_e br)
+{
+	return (br == CAN_BR_800K) || (br == CAN_BR_4M) || (br == CAN_BR_5M);
+}
+
+/* One CAN clock feeds both arbitration and data prescalers, so use 120M if
+ * either rate requires it; otherwise prefer the low-jitter 26M XTAL. */
+static uint32_t can_hal_pick_clk_hz(can_bit_rate_e s_speed, can_bit_rate_e f_speed)
+{
+	if (can_speed_needs_120m(s_speed) || can_speed_needs_120m(f_speed)) {
+		return CAN_CLK_HZ_120M;
+	}
+	return CAN_CLK_HZ_26M;
+}
+
+uint32_t can_hal_get_clk_hz(void)
+{
+	return s_can_clk_hz;
+}
+
+void can_hal_select_clk(can_bit_rate_e s_speed, can_bit_rate_e f_speed)
+{
+	s_can_clk_hz = can_hal_pick_clk_hz(s_speed, f_speed);
+}
 
 uint32_t can_hal_get_rid_esi_value(void)
 {
@@ -1552,11 +1587,13 @@ uint32_t can_hal_get_fd_enable(void)
 
 static uint32_t can_hal_get_br_reg_val(can_bit_rate_e br)
 {
+	can_core_br_tab_s *tab = (s_can_clk_hz == CAN_CLK_HZ_26M) ? can_br_tab_26m : can_br_tab_120m;
+	uint32_t cnt = (s_can_clk_hz == CAN_CLK_HZ_26M) ? ARRAY_SIZE(can_br_tab_26m) : ARRAY_SIZE(can_br_tab_120m);
 	uint32_t i;
 
-	for (i = 0; i < ARRAY_SIZE(can_br_tab); i++) {
-		if (br == can_br_tab[i].br) {
-			return can_br_tab[i].reg_val;
+	for (i = 0; i < cnt; i++) {
+		if (br == tab[i].br) {
+			return tab[i].reg_val;
 		}
 	}
 
@@ -1566,6 +1603,11 @@ static uint32_t can_hal_get_br_reg_val(can_bit_rate_e br)
 void can_hal_bit_rate_config(can_bit_rate_e s_speed, can_bit_rate_e f_speed)
 {
 	uint32_t value;
+	uint32_t sspoff;
+
+	/* Pick the source clock first so the table lookup below and bk_can_dump_bit_rate
+	 * use the clock that the driver will program into the cksel mux. */
+	s_can_clk_hz = can_hal_pick_clk_hz(s_speed, f_speed);
 
 	value = can_hal_get_br_reg_val(s_speed);
 
@@ -1574,6 +1616,32 @@ void can_hal_bit_rate_config(can_bit_rate_e s_speed, can_bit_rate_e f_speed)
 	value = can_hal_get_br_reg_val(f_speed);
 
 	can_ll_set_fseg_value(value);
+
+	/* Transmitter delay compensation (TDC) is only worth enabling when the FD
+	 * data-phase bit time gets close to the transceiver loop delay. On this board
+	 * (TCAN1042, loop delay ~130..255ns):
+	 *   - <=2M (bit >=500ns): the 80% primary sample point (>=400ns) already sits
+	 *     safely after the delayed edge, so plain sampling works. Forcing TDC on
+	 *     here with any SSPOFF actually MOVES the sample point and breaks 2M BRS.
+	 *   - 4M (bit 250ns) / 5M (bit 200ns): bit time ~ loop delay, so the node must
+	 *     self-check its own TX at a secondary sample point (SSP) instead.
+	 * So enable TDC only for >=4M; leave it off (and SSPOFF cleared) below that so
+	 * classic CAN and <=2M FD-BRS keep their previously-verified timing.
+	 *
+	 * For 4M/5M the SSPOFF sweet spot measured on the bench is small (~8..12 field
+	 * units; higher values push the SSP past the bit and give KOER=BIT). Start at
+	 * a low value and allow bk_can_set_ssp()/`can_ssp` to fine-tune per board. */
+	if (f_speed >= CAN_BR_4M) {
+		sspoff = CAN_FD_DATA_SSPOFF_DEFAULT;
+		if (sspoff > CAN_CAP_SSPOFF_MASK) {
+			sspoff = CAN_CAP_SSPOFF_MASK;
+		}
+		can_hal_set_sspoff(sspoff);
+		can_hal_set_tdcen(1);
+	} else {
+		can_hal_set_tdcen(0);
+		can_hal_set_sspoff(0);
+	}
 }
 
 static void can_hal_mem_protect_set(void)
@@ -1600,6 +1668,11 @@ static bk_err_t can_hw_init(can_speed_t *can_speed)
 	can_hal_set_afwl(MAX_ACF_NUM & CAN_IE_AFWL_MASK);
 
 	can_hal_set_fd_enable(1);
+
+	/* Force ISO CAN-FD. This bit was never initialized, so the FD CRC/stuff-count
+	 * format was left at the reset default and could silently be non-ISO (BOSCH),
+	 * which mismatches ISO peers/analyzers and shows up as FORM/CRC (koer 2/5). */
+	can_hal_set_fd_iso(1);
 
 	can_hal_set_reset(0);
 	return BK_OK;
