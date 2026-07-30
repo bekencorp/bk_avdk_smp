@@ -34,6 +34,15 @@ menu "LVGL"
             Use PSRAM for LVGL's lv_malloc/lv_realloc/lv_free backend.
             The default is HSRAM for better latency.
 
+    config LVGL_USE_KEYPAD
+        depends on LVGL
+        bool "Enable LVGL keypad input device"
+        default n
+        help
+            Enable the generic LVGL keypad input device. Board-specific keypad
+            drivers should translate hardware key events to LV_KEY_* values and
+            submit them through lv_vendor_keypad_send_key*().
+
     config LV_IMG_UTILITY_CUSTOMIZE
         depends on LVGL && VFS
         bool "Enable custom image load utility for JPEG/PNG"

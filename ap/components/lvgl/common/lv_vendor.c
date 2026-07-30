@@ -232,6 +232,36 @@ void lv_vendor_set_ready_frame_buffer(void *frame_buffer)
     }
 }
 
+bk_err_t lv_vendor_keypad_send_key(uint32_t key)
+{
+    return lv_port_keypad_send_key(key);
+}
+
+bk_err_t lv_vendor_keypad_send_key_state(uint32_t key, lv_indev_state_t state)
+{
+    return lv_port_keypad_send_key_state(key, state);
+}
+
+void lv_vendor_keypad_reset(void)
+{
+    lv_port_keypad_reset();
+}
+
+lv_indev_t *lv_vendor_keypad_get_indev(void)
+{
+    return lv_port_keypad_get_indev();
+}
+
+lv_group_t *lv_vendor_keypad_get_default_group(void)
+{
+    return lv_port_keypad_get_default_group();
+}
+
+bk_err_t lv_vendor_keypad_set_group(lv_group_t *group)
+{
+    return lv_port_keypad_set_group(group);
+}
+
 bk_err_t lv_vendor_init(lv_vnd_config_t *config)
 {
     bk_err_t ret;
