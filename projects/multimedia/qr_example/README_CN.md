@@ -10,6 +10,7 @@
 
 - SP 识别、MP 屏幕预览的完整模式
 - 不启动 GPU 和显示的 MP-only 识别模式
+- 可选的二维码 Wi-Fi 配网
 - 单帧最多 4 个二维码识别结果
 - 二维码四角坐标、payload 和扫描耗时日志
 
@@ -67,6 +68,20 @@ qr_example/
 - 单个 payload 缓冲区：8,896 字节
 - 扫描间隔：100 ms
 
+### 3.4 可选二维码 Wi-Fi 配网
+
+`start wifi` 和 `start_mp wifi` 会保持二维码识别持续运行，并额外把识别到的 payload 按 Wi-Fi 配网数据解析。合法 payload 必须是只包含以下三个字符串字段的 JSON object：
+
+```json
+{"p":"12345678","s":"test_wifi","t":"1234512345"}
+```
+
+- `s`：Wi-Fi SSID，长度 1 到 32 字节
+- `p`：Wi-Fi 密码，允许为空；非空时长度必须为 8 到 63 字节
+- `t`：token/筛选字段，目前只要求存在
+
+一次合法 payload 触发 Wi-Fi 连接后，后续扫码仍会继续打印识别结果；但本地 QR Wi-Fi 状态处于连接中、已连接或已获取 IP 时，不会再次控制 Wi-Fi start。首次扫描未找到 AP（`WIFI_REASON_NO_AP_FOUND`）会保持 `CONNECTING`，因为 Wi-Fi 栈后续可能继续全信道重试。收到 `EVENT_NETIF_GOT_IP4` 后，Demo 会记录并打印分配到的 IP，并将状态切到 `GOT_IP`。
+
 ## 4. 编译与运行
 
 ### 4.1 编译
@@ -84,13 +99,23 @@ make bk7259 PROJECT=multimedia/qr_example
 ```text
 ap_cmd qr help
 ap_cmd qr start
+ap_cmd qr start wifi
 ap_cmd qr start_mp
+ap_cmd qr start_mp wifi
 ap_cmd qr stop
+ap_cmd qr stop_mp
+ap_cmd qr wifi status
+ap_cmd qr wifi disconnect
 ```
 
 - `start`：启动 SP 二维码识别和 MP 屏幕预览
+- `start wifi`：启动 SP 识别，并开启二维码 Wi-Fi 配网
 - `start_mp`：启动 MP-only 二维码识别，不开启显示
+- `start_mp wifi`：启动 MP-only 识别，并开启二维码 Wi-Fi 配网
 - `stop`：停止识别并释放 camera、ZBar、GPU、display 和 frame buffer 资源
+- `stop_mp`：MP-only 停止别名，释放与 `stop` 相同的二维码识别资源
+- `wifi status`：打印本地 QR Wi-Fi 状态、当前 STA 链路状态、RSSI 和已记录的 IP
+- `wifi disconnect`：停止 Wi-Fi STA，并重置 QR Wi-Fi 状态
 - `CMDRSP:OK` 表示命令执行成功，`CMDRSP:ERROR` 表示参数错误或资源启动失败
 
 ## 5. 测试示例
@@ -123,9 +148,27 @@ ap_cmd qr start_mp
 
 该模式无屏幕预览，识别结果仍通过串口输出。结束时执行 `ap_cmd qr stop`。
 
+### 5.3 Wi-Fi 配网
+
+```text
+ap_cmd qr start wifi
+```
+
+将包含 JSON 配网 payload 的二维码置于摄像头视野中。Demo 会继续打印所有二维码识别结果，只有 payload 通过 `p/s/t` 格式和长度检查后才会启动 Wi-Fi。可用 `ap_cmd qr wifi status` 查看本地配网状态、Wi-Fi STA 链路状态、RSSI 和 IP，或用 `ap_cmd qr wifi disconnect` 停止 STA 连接。
+
+预期 Wi-Fi 配网日志包括：
+
+```text
+QR Wi-Fi state: IDLE -> CONNECTING
+QR Wi-Fi connected: ssid=...
+QR Wi-Fi state: CONNECTING -> CONNECTED
+QR Wi-Fi got IP: if=... ip=...
+QR Wi-Fi state: CONNECTED -> GOT_IP
+```
+
 ## 6. 配置说明
 
-工程默认使能 ISP、MIPI CSI、frame buffer、VG-Lite GPU、DPU、MIPI DSI、GC2053、ER68576B 和 media service。主要板级参数位于 `ap/ap_main.c`：
+工程默认使能 ISP、MIPI CSI、frame buffer、VG-Lite GPU、DPU、MIPI DSI、GC2053、ER68576B、media service、CJSON、Wi-Fi VNET controller、BK netif 和 LWIP。主要板级参数位于 `ap/ap_main.c`：
 
 - sensor GPIO、I2C、分辨率和帧率
 - ISP MP 尺寸与格式
@@ -141,3 +184,5 @@ ap_cmd qr start_mp
 3. ZBar 只读取 NV12 的 Y 分量；修改识别尺寸时需同步调整 ISP 输出。
 4. 二维码应清晰、完整且具有足够对比度；反光、失焦、运动模糊或尺寸过小会降低识别率。
 5. `CMDRSP:OK` 只表示识别任务启动成功；二维码是否识别成功以 `found ... QR code(s)` 日志为准。
+6. `start wifi` 和 `start_mp wifi` 应用新的二维码 Wi-Fi 配置前会先调用 `bk_wifi_sta_stop()`，确保重复配网从干净的 STA 状态开始。
+7. `CONNECTING` 阶段临时出现的 `WIFI_REASON_NO_AP_FOUND` 只视为扫描 miss，不作为最终失败；密码错误或后续断开事件仍会将本地状态切到 `FAILED`。

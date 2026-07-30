@@ -14,6 +14,7 @@
 #include "app_camera.h"
 #include "app_display.h"
 #include "app_gpu.h"
+#include "qr_wifi.h"
 
 #define TAG "qr"
 
@@ -55,6 +56,7 @@ typedef struct {
     bk_pixel_format_t saved_mp_format;
     uint8_t saved_sp_enable;
     uint8_t opened;
+    uint8_t wifi_mode_enabled;
 } qr_demo_ctx_t;
 
 static qr_demo_ctx_t s_qr_ctx;
@@ -105,6 +107,9 @@ static void qr_process_zbar(const uint8_t *frame)
              (unsigned)result->payload_len,
              (int)result->payload_len,
              (const char *)result->payload);
+        if (s_qr_ctx.wifi_mode_enabled != 0U) {
+            (void)qr_wifi_provisioning(result->payload, result->payload_len);
+        }
     }
 }
 
@@ -311,30 +316,27 @@ static avdk_err_t qr_start_input_thread(void)
     return ret;
 }
 
-static avdk_err_t qr_open_display(void)
+static avdk_err_t qr_start_display_preview(void)
 {
-    display_board_config_t *config = app_display_board_config_get();
-    if (config == NULL) {
+    display_board_config_t *display_config = app_display_board_config_get();
+    if (display_config == NULL) {
         LOGE("display board config is NULL\r\n");
         return AVDK_ERR_INVAL;
     }
 
-    avdk_err_t ret = app_mipi_lcd_turn_on(config);
+    avdk_err_t ret = app_mipi_lcd_turn_on(display_config);
     if (ret != AVDK_ERR_OK) {
         LOGE("app_mipi_lcd_turn_on failed=%d\r\n", (int)ret);
+        return ret;
     }
-    return ret;
-}
 
-static avdk_err_t qr_open_gpu(void)
-{
-    gpu_board_config_t *config = app_gpu_board_config_get();
-    if (config == NULL) {
+    gpu_board_config_t *gpu_config = app_gpu_board_config_get();
+    if (gpu_config == NULL) {
         LOGE("gpu board config is NULL\r\n");
         return AVDK_ERR_INVAL;
     }
 
-    avdk_err_t ret = app_gpu_turn_on(config);
+    ret = app_gpu_turn_on(gpu_config);
     if (ret != AVDK_ERR_OK) {
         LOGE("app_gpu_turn_on failed=%d\r\n", (int)ret);
         return ret;
@@ -349,7 +351,7 @@ static avdk_err_t qr_open_gpu(void)
     return ret;
 }
 
-static void qr_close_gpu(void)
+static void qr_stop_display_preview(void)
 {
     if (s_qr_ctx.isp_gpu_bond != NULL) {
         bk_flexa_isp_gpu_bond_stop(s_qr_ctx.isp_gpu_bond);
@@ -360,16 +362,13 @@ static void qr_close_gpu(void)
     if (gpu != NULL) {
         (void)app_gpu_turn_off(gpu);
     }
-}
 
-static void qr_close_display(void)
-{
     if (app_mipi_lcd_state_get()) {
         (void)app_mipi_lcd_turn_off();
     }
 }
 
-static void qr_close_input(void)
+static void qr_stop_input_path(void)
 {
     if (s_qr_ctx.input_thread != NULL) {
         s_qr_ctx.input_thread_running = 0U;
@@ -391,25 +390,32 @@ static void qr_close_input(void)
         s_qr_ctx.input_frame = NULL;
     }
     s_qr_ctx.input_frame_size = 0U;
-}
 
-static void qr_close_camera(void)
-{
     if (app_isp_handle_get() != NULL) {
         (void)app_isp_camera_turn_off();
     }
+    qr_restore_camera_config();
 }
 
-static avdk_err_t qr_demo_open(void)
+static avdk_err_t qr_demo_start(uint8_t wifi_mode_enabled)
 {
+    avdk_err_t ret = AVDK_ERR_OK;
+
     if (s_qr_ctx.opened != 0U) {
         LOGW("QR demo already opened\r\n");
         return AVDK_ERR_BUSY;
     }
 
     os_memset(&s_qr_ctx, 0, sizeof(s_qr_ctx));
+    s_qr_ctx.wifi_mode_enabled = wifi_mode_enabled;
+    if (s_qr_ctx.wifi_mode_enabled != 0U) {
+        ret = qr_wifi_start();
+        if (ret != AVDK_ERR_OK) {
+            goto error;
+        }
+    }
 
-    avdk_err_t ret = qr_open_camera();
+    ret = qr_open_camera();
     if (ret != AVDK_ERR_OK) {
         goto error;
     }
@@ -421,11 +427,7 @@ static avdk_err_t qr_demo_open(void)
     if (ret != AVDK_ERR_OK) {
         goto error;
     }
-    ret = qr_open_display();
-    if (ret != AVDK_ERR_OK) {
-        goto error;
-    }
-    ret = qr_open_gpu();
+    ret = qr_start_display_preview();
     if (ret != AVDK_ERR_OK) {
         goto error;
     }
@@ -435,30 +437,41 @@ static avdk_err_t qr_demo_open(void)
     }
 
     s_qr_ctx.opened = 1U;
-    LOGI("QR preview started; decoder=zbar recognition uses SP %ux%u Y plane\r\n",
-         QR_WIDTH, QR_HEIGHT);
+    LOGI("QR preview started; decoder=zbar recognition uses SP %ux%u Y plane, wifi=%u\r\n",
+         QR_WIDTH, QR_HEIGHT, s_qr_ctx.wifi_mode_enabled);
     return AVDK_ERR_OK;
 
 error:
-    qr_close_gpu();
-    qr_close_display();
-    qr_close_input();
-    qr_close_camera();
+    if (s_qr_ctx.wifi_mode_enabled != 0U) {
+        s_qr_ctx.wifi_mode_enabled = 0U;
+        (void)qr_wifi_stop();
+    }
+    qr_stop_display_preview();
+    qr_stop_input_path();
     os_memset(&s_qr_ctx, 0, sizeof(s_qr_ctx));
     LOGE("QR preview start failed=%d\r\n", (int)ret);
     return ret;
 }
 
-static avdk_err_t qr_demo_open_mp(void)
+static avdk_err_t qr_demo_start_mp(uint8_t wifi_mode_enabled)
 {
+    avdk_err_t ret = AVDK_ERR_OK;
+
     if (s_qr_ctx.opened != 0U) {
         LOGW("QR demo already opened\r\n");
         return AVDK_ERR_BUSY;
     }
 
     os_memset(&s_qr_ctx, 0, sizeof(s_qr_ctx));
+    s_qr_ctx.wifi_mode_enabled = wifi_mode_enabled;
+    if (s_qr_ctx.wifi_mode_enabled != 0U) {
+        ret = qr_wifi_start();
+        if (ret != AVDK_ERR_OK) {
+            goto error;
+        }
+    }
 
-    avdk_err_t ret = qr_open_camera_mp_only();
+    ret = qr_open_camera_mp_only();
     if (ret != AVDK_ERR_OK) {
         goto error;
     }
@@ -472,46 +485,58 @@ static avdk_err_t qr_demo_open_mp(void)
     }
 
     s_qr_ctx.opened = 1U;
-    LOGI("QR MP-only started; decoder=zbar at %ux%u NV12\r\n",
-         QR_WIDTH, QR_HEIGHT);
+    LOGI("QR MP-only started; decoder=zbar at %ux%u NV12, wifi=%u\r\n",
+         QR_WIDTH, QR_HEIGHT, s_qr_ctx.wifi_mode_enabled);
     return AVDK_ERR_OK;
 
 error:
-    qr_close_input();
-    qr_close_camera();
-    qr_restore_camera_config();
+    if (s_qr_ctx.wifi_mode_enabled != 0U) {
+        s_qr_ctx.wifi_mode_enabled = 0U;
+        (void)qr_wifi_stop();
+    }
+    qr_stop_input_path();
     os_memset(&s_qr_ctx, 0, sizeof(s_qr_ctx));
     LOGE("QR MP-only start failed=%d\r\n", (int)ret);
     return ret;
 }
 
-static avdk_err_t qr_demo_close(void)
+static avdk_err_t qr_demo_stop(void)
 {
     if (s_qr_ctx.opened == 0U &&
         s_qr_ctx.isp_gpu_bond == NULL &&
         s_qr_ctx.input_thread == NULL &&
         app_gpu_handle_get() == NULL &&
         !app_mipi_lcd_state_get() &&
-        app_isp_handle_get() == NULL) {
+        app_isp_handle_get() == NULL &&
+        qr_wifi_is_active() == 0) {
         LOGI("QR demo already closed\r\n");
         return AVDK_ERR_OK;
     }
 
-    qr_close_gpu();
-    qr_close_display();
-    qr_close_input();
-    qr_close_camera();
-    qr_restore_camera_config();
+    if (s_qr_ctx.wifi_mode_enabled != 0U) {
+        s_qr_ctx.wifi_mode_enabled = 0U;
+        (void)qr_wifi_stop();
+    }
+    qr_stop_display_preview();
+    qr_stop_input_path();
     os_memset(&s_qr_ctx, 0, sizeof(s_qr_ctx));
     LOGI("QR demo stopped\r\n");
     return AVDK_ERR_OK;
 }
 
+static avdk_err_t qr_demo_stop_mp(void)
+{
+    return qr_demo_stop();
+}
+
 static void qr_print_usage(void)
 {
     bk_printf("qr help\r\n");
-    bk_printf("qr start     - display MP preview; scan SP with zbar\r\n");
-    bk_printf("qr start_mp  - scan MP with zbar without display\r\n");
+    bk_printf("qr start [wifi]     - display MP preview; scan SP with zbar\r\n");
+    bk_printf("qr start_mp [wifi]  - scan MP with zbar without display\r\n");
+    bk_printf("qr wifi disconnect\r\n");
+    bk_printf("qr wifi status\r\n");
+    bk_printf("qr stop_mp\r\n");
     bk_printf("qr stop\r\n");
 }
 
@@ -529,18 +554,49 @@ static void cli_qr_cmd(char *pcWriteBuffer, int xWriteBufferLen,
         return;
     }
 
-    if (argc != 2) {
+    if (argc < 2 || argc > 3) {
         LOGE("bad arg count\r\n");
         qr_write_rsp(pcWriteBuffer, xWriteBufferLen, CLI_CMD_RSP_ERROR);
         return;
     }
 
     if (os_strcmp(argv[1], "start") == 0) {
-        ret = qr_demo_open();
+        if (argc == 3 && os_strcmp(argv[2], "wifi") != 0) {
+            qr_print_usage();
+            qr_write_rsp(pcWriteBuffer, xWriteBufferLen, CLI_CMD_RSP_ERROR);
+            return;
+        }
+        ret = qr_demo_start((argc == 3) ? 1U : 0U);
     } else if (os_strcmp(argv[1], "start_mp") == 0) {
-        ret = qr_demo_open_mp();
+        if (argc == 3 && os_strcmp(argv[2], "wifi") != 0) {
+            qr_print_usage();
+            qr_write_rsp(pcWriteBuffer, xWriteBufferLen, CLI_CMD_RSP_ERROR);
+            return;
+        }
+        ret = qr_demo_start_mp((argc == 3) ? 1U : 0U);
+    } else if (os_strcmp(argv[1], "stop_mp") == 0) {
+        if (argc != 2) {
+            qr_write_rsp(pcWriteBuffer, xWriteBufferLen, CLI_CMD_RSP_ERROR);
+            return;
+        }
+        ret = qr_demo_stop_mp();
     } else if (os_strcmp(argv[1], "stop") == 0) {
-        ret = qr_demo_close();
+        if (argc != 2) {
+            qr_write_rsp(pcWriteBuffer, xWriteBufferLen, CLI_CMD_RSP_ERROR);
+            return;
+        }
+        ret = qr_demo_stop();
+    } else if (os_strcmp(argv[1], "wifi") == 0 && argc == 3) {
+        if (os_strcmp(argv[2], "disconnect") == 0) {
+            ret = qr_wifi_disconnect();
+        } else if (os_strcmp(argv[2], "status") == 0) {
+            qr_wifi_print_status();
+            ret = AVDK_ERR_OK;
+        } else {
+            qr_print_usage();
+            qr_write_rsp(pcWriteBuffer, xWriteBufferLen, CLI_CMD_RSP_ERROR);
+            return;
+        }
     } else {
         qr_print_usage();
         qr_write_rsp(pcWriteBuffer, xWriteBufferLen, CLI_CMD_RSP_ERROR);
@@ -554,7 +610,7 @@ static void cli_qr_cmd(char *pcWriteBuffer, int xWriteBufferLen,
 int cli_qr_demo_init(void)
 {
     static const struct cli_command s_qr_cmds[] = {
-        {"qr", "qr help|start|start_mp|stop",
+        {"qr", "qr help|start [wifi]|start_mp [wifi]|stop|stop_mp|wifi disconnect|wifi status",
          cli_qr_cmd},
     };
 

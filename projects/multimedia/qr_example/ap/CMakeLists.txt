@@ -2,6 +2,7 @@ set(incs . include src)
 set(srcs
     ap_main.c
     src/qr_demo.c
+    src/qr_wifi.c
 )
 
 set(priv_req
@@ -11,7 +12,11 @@ set(priv_req
     bk_display
     bk_gpu
     bk_frame_buffer
+    bk_event
+    bk_wifi_driver
     avdk_utils
+    json
+    lwip_intf_v2_1
     multimedia_device_service
     bk_peripheral
 )
