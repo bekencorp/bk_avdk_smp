@@ -18,6 +18,7 @@ list(APPEND srcs
 	cli_heap.c
 	cli_mem.c
 	cli_sram.c
+	cli_sram_bus_bench.c
 	cli_os.c
 	cli_rpc.c
 	cli_reg.c
