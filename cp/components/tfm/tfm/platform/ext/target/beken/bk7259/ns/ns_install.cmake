@@ -1,0 +1,13 @@
+install(FILES       ${TARGET_PLATFORM_PATH}/cpuarch.cmake               DESTINATION ${INSTALL_PLATFORM_NS_DIR})
+install(FILES       ${TARGET_PLATFORM_PATH}/config.cmake                DESTINATION ${INSTALL_PLATFORM_NS_DIR})
+install(FILES       ${TARGET_PLATFORM_PATH}/ld/bk7259_ns.ld             DESTINATION ${INSTALL_PLATFORM_NS_DIR}/linker_scripts)
+install(FILES       ${TARGET_PLATFORM_PATH}/startup/startup_bk7259_ns.c DESTINATION ${INSTALL_PLATFORM_NS_DIR})
+install(FILES       ${TARGET_PLATFORM_PATH}/ns/CMakeLists.txt           DESTINATION ${INSTALL_PLATFORM_NS_DIR})
+install(DIRECTORY   ${TARGET_PLATFORM_PATH}/board                       DESTINATION ${INSTALL_PLATFORM_NS_DIR})
+install(DIRECTORY   ${TARGET_PLATFORM_PATH}/idk                         DESTINATION ${INSTALL_PLATFORM_NS_DIR})
+install(DIRECTORY   ${TARGET_PLATFORM_PATH}/partition                   DESTINATION ${INSTALL_PLATFORM_NS_DIR})
+install(DIRECTORY   ${TARGET_PLATFORM_PATH}/stub                        DESTINATION ${INSTALL_PLATFORM_NS_DIR})
+install(DIRECTORY   ${TARGET_PLATFORM_PATH}/../common                   DESTINATION ${INSTALL_PLATFORM_NS_DIR})
+install(DIRECTORY   ${TARGET_PLATFORM_PATH}/../../../driver             DESTINATION ${INSTALL_PLATFORM_NS_DIR})
+
+

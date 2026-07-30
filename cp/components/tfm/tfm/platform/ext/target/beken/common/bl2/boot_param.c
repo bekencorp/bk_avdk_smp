@@ -1,0 +1,266 @@
+// Copyright 2023-2028 Beken
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+/* boot_param: read/select/commit the 32-byte ab_flag_record_t in the dedicated
+ * boot_param partition (two 4K ping-pong sectors).
+ *
+ * Boot-path responsibilities:
+ *   - boot_param_load()            : read the freshest valid record into RAM.
+ *   - boot_param_decide_slot()     : A/B state machine; on TRIAL bumps try_count
+ *                                    (or rolls back once exhausted) and commits
+ *                                    BEFORE boot_go reads the slot.
+ *   - boot_get_active_slot_hook()  : feeds the preferred slot to MCUboot.
+ *   - boot_param_reconcile_booted(): AFTER boot_go, if MCUboot fell back to a
+ *                                    different (good) slot because the preferred
+ *                                    one failed validation, persist that good
+ *                                    slot so later resets boot it directly.
+ * A valid record only gets rewritten on TRIAL / fallback; a plain NORMAL boot
+ * that lands on its preferred slot performs zero flash writes. */
+
+#define MODULE_DEBUG_LOG_ENABLE 1
+
+#include <string.h>
+#include "boot_param.h"
+#include "tfm_flash_partition.h"
+#include "partitions.h"
+#include "components/log.h"
+
+#define TAG "boot_param"
+
+/* Line-mode bracket for post-boot_go commits. The low-level op_sw erase/PP are
+ * ignored while the device is in QUAD continuous-read (the XIP path leaves it in
+ * that state after boot_go), so a commit must drop to TWO first and restore QUAD
+ * afterwards. Kept here (not in flash_min.c) so the shared download/flash driver
+ * behaviour is untouched. TEMPORARY: fold into the flash driver once the A/B OTA
+ * write path is finalized. */
+extern void bk_flash_min_switch_line_mode_two(void);
+extern void bk_flash_min_restore_line_mode(void);
+
+typedef struct {
+	int8_t           latest_sector_idx; /* ping-pong sector 0/1 holding `active`; -1=virgin */
+	ab_flag_record_t latest_record;     /* authoritative record (valid, largest seq) */
+	uint8_t          preferred_slot;    /* cached A/B slot from decide_slot() */
+	bool             inited;            /* load() has run */
+} ab_flag_ctx_t;
+
+static ab_flag_ctx_t s_ab;
+
+/* Flash back-end (boot_param_ops), CRC32 (boot_param_crc32) and the partition
+ * base (boot_param_partition_base) live in the shared boot_param_ops.c, linked
+ * into both BL2 and the SPE confirm path. */
+
+uint32_t boot_param_get_sector_addr(int idx)
+{
+	return boot_param_partition_base() + (uint32_t)idx * AB_FLAG_SECTOR;
+}
+
+int boot_param_load(void)
+{
+	memset(&s_ab, 0, sizeof(s_ab));
+	s_ab.preferred_slot = AB_SLOT_A;
+
+	/* Shared ping-pong selector: reads both sectors, validates each and returns
+	 * the freshest valid copy (or -1 = virgin) in s_ab.latest_record. */
+	s_ab.latest_sector_idx = (int8_t)ab_record_read_latest(boot_param_partition_base(),
+							   &boot_param_ops, &s_ab.latest_record);
+	s_ab.inited = true;
+
+	if (s_ab.latest_sector_idx < 0) {
+		BK_LOGW(TAG, "virgin: no valid boot_param record\r\n");
+		return -1;
+	}
+
+	BK_LOGI(TAG, "active idx=%d seq=%u exec=%d update=%d state=%x dl=%x try(pmu)=%u/%u\r\n",
+		s_ab.latest_sector_idx, s_ab.latest_record.seq, s_ab.latest_record.exec_slot,
+		s_ab.latest_record.update_slot, s_ab.latest_record.boot_state, s_ab.latest_record.dl_state,
+		boot_param_pmu_try_get(), s_ab.latest_record.try_max);
+
+	return 0;
+}
+
+uint8_t boot_param_decide_slot(void)
+{
+	if (!s_ab.inited) {
+		(void)boot_param_load();
+	}
+
+	/* Virgin / invalid record -> deterministic fallback to slot A. */
+	if (s_ab.latest_sector_idx < 0) {
+		s_ab.preferred_slot = AB_SLOT_A;
+		BK_LOGW(TAG, "decide: virgin -> slot A\r\n");
+		return s_ab.preferred_slot;
+	}
+
+	ab_flag_record_t rec = s_ab.latest_record;  /* working copy for write-back */
+	uint8_t preferred;
+	bool need_commit = false;
+
+	switch (rec.boot_state) {
+	case AB_STATE_TRIAL: {
+		uint8_t try_max = rec.try_max ? rec.try_max : (uint8_t)AB_TRY_MAX_DEFAULT;
+		uint8_t try_cnt;
+
+		/* try_max must fit the 3-bit PMU counter (max 7), else rollback never
+		 * fires; a bad value falls back to the default. */
+		if (try_max > AB_PMU_TRY_MAX) {
+			try_max = AB_TRY_MAX_DEFAULT;
+		}
+
+		/* Count this attempt in AON_PMU (register-only, no flash write). */
+		boot_param_pmu_try_inc();
+		try_cnt = boot_param_pmu_try_get();
+
+		if (try_cnt < try_max) {
+			preferred = rec.update_slot;
+			BK_LOGI(TAG, "decide: TRIAL try=%u/%u -> update_slot %d\r\n",
+				try_cnt, try_max, preferred);
+		} else {
+			/* Exhausted: roll back to exec_slot, settle to NORMAL (one commit)
+			 * and clear the counter. */
+			preferred = rec.exec_slot;
+			rec.boot_state = AB_STATE_NORMAL;
+			rec.update_slot = rec.exec_slot;
+			rec.try_count = 0;
+			need_commit = true;
+			boot_param_pmu_try_clear();
+			BK_LOGW(TAG, "decide: TRIAL exhausted (%u/%u) -> rollback exec_slot %d, state=NORMAL\r\n",
+				try_cnt, try_max, preferred);
+		}
+		break;
+	}
+	case AB_STATE_CONFIRMED:
+	case AB_STATE_NORMAL:
+	default:
+		/* Stable boot: touch neither flash nor PMU (counter already 0). */
+		preferred = rec.exec_slot;
+		BK_LOGI(TAG, "decide: NORMAL -> exec_slot %d\r\n", preferred);
+		break;
+	}
+
+	if (preferred != AB_SLOT_A && preferred != AB_SLOT_B) {
+		BK_LOGW(TAG, "decide: bad slot %d -> force A\r\n", preferred);
+		preferred = AB_SLOT_A;
+	}
+
+	/* Persist trial-count bump / rollback before boot_go reads the slot. */
+	if (need_commit) {
+		(void)boot_param_commit(&rec);
+	}
+
+	s_ab.preferred_slot = preferred;
+	return preferred;
+}
+
+uint8_t boot_param_preferred_slot(void)
+{
+	return s_ab.preferred_slot;
+}
+
+int boot_param_get_latest_record(ab_flag_record_t *out)
+{
+	if (out == NULL || s_ab.latest_sector_idx < 0) {
+		return -1;
+	}
+	*out = s_ab.latest_record;
+	return 0;
+}
+
+int boot_param_commit(const ab_flag_record_t *rec)
+{
+	if (rec == NULL) {
+		return -1;
+	}
+
+	/* Drop out of QUAD continuous-read so the op_sw erase/PP below are accepted
+	 * (post-boot_go the flash is left in continuous-read by the XIP path). */
+	bk_flash_min_switch_line_mode_two();
+
+	/* Shared ping-pong commit: stamps magic/ver/size, bumps seq, computes CRC
+	 * and writes the OPPOSITE sector so the current copy survives a torn write. */
+	ab_flag_record_t out = *rec;
+	int write_idx = ab_record_commit(boot_param_partition_base(), &boot_param_ops, &out);
+
+	/* Restore QUAD continuous-read so a subsequent do_boot XIP fetch runs in the
+	 * same mode as the normal (no-commit) boot path. */
+	bk_flash_min_restore_line_mode();
+
+	/* Refresh in-RAM authoritative state to the freshly committed copy. */
+	s_ab.latest_sector_idx = (int8_t)write_idx;
+	s_ab.latest_record = out;
+
+	BK_LOGI(TAG, "commit ok sector %d seq=%u crc=%x\r\n", write_idx, out.seq, out.crc32);
+	return 0;
+}
+
+/* MCUboot slot-selection hook (see bootutil/boot_hooks.h). Maps the cached A/B
+ * preference (A=0/B=1) onto MCUboot primary(0)/secondary(1). Returns 0 to hand
+ * MCUboot the preferred slot; MCUboot still validates availability and
+ * auto-falls-back on a bad signature. */
+int boot_get_active_slot_hook(int img_index, uint32_t *slot)
+{
+	(void)img_index;
+	*slot = (uint32_t)boot_param_preferred_slot();
+	return 0;
+}
+
+/* Map the physical image offset MCUboot booted (rsp.br_image_off / flash_area
+ * fa_off) to an A/B slot: it equals secondary_all's base -> slot B, else A.
+ * partition_get_phy_offset() returning 0 (table miss) safely degrades to A. */
+static uint8_t boot_param_slot_from_offset(uint32_t image_off)
+{
+	uint32_t sec = partition_get_phy_offset(PARTITION_SECONDARY_ALL);
+
+	if (sec != 0u && image_off == sec) {
+		return AB_SLOT_B;
+	}
+	return AB_SLOT_A;
+}
+
+void boot_param_reconcile_booted(uint32_t image_off)
+{
+	if (!s_ab.inited) {
+		return;
+	}
+
+	uint8_t booted    = boot_param_slot_from_offset(image_off);
+	uint8_t preferred = s_ab.preferred_slot;
+
+	/* Preference honoured: nothing to reconcile, no flash write. TRIAL
+	 * bookkeeping was done in decide_slot(); confirming a TRIAL is the app's job. */
+	if (booted == preferred) {
+		return;
+	}
+
+	/* Fallback: preferred slot failed validation, MCUboot booted the other slot.
+	 * Persist it as exec_slot/NORMAL so later resets go straight to the good slot. */
+	ab_flag_record_t rec;
+	if (boot_param_get_latest_record(&rec) != 0) {
+		/* Virgin record but we still booted something: synthesize a NORMAL one. */
+		memset(&rec, 0, sizeof(rec));
+		rec.try_max = AB_TRY_MAX_DEFAULT;
+	}
+	rec.exec_slot   = booted;
+	rec.update_slot = booted;
+	rec.boot_state  = AB_STATE_NORMAL;
+	rec.try_count   = 0;
+	rec.dl_state    = AB_DL_IDLE;
+
+	(void)boot_param_commit(&rec);
+	/* Trial ended (preferred slot rejected): reset the AON_PMU budget too. */
+	boot_param_pmu_try_clear();
+	s_ab.preferred_slot = booted;
+
+	BK_LOGW(TAG, "reconcile: preferred slot[%d] failed, booted slot[%d] -> commit NORMAL\r\n",
+		preferred, booted);
+}

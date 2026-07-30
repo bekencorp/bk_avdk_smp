@@ -1,0 +1,118 @@
+menu "TFM (Trusted Firmware-M)"
+
+config TFM
+    bool "Enable TF-M secure firmware (TrustZone-M SPE)"
+    default n
+    help
+        Build Trusted Firmware-M (TF-M 2.1.0 baseline) as the secure world
+        (SPE) on the CP (M52). Enables BL2 (MCUboot) secure boot and the
+        secure partition manager. Requires CONFIG_PSA_MBEDTLS.
+
+config SECURITY_FIRMWARE
+    bool "Build security firmware (signed image + secure pack)"
+    default n
+    help
+        Master switch that makes the build produce a signed/secure-packed
+        firmware via beken_utils (BL2 + tfm_s + primary_all). Read by the
+        board wrapper (bk7259.wrapper) to select the secure pack path.
+
+menu "TF-M Options"
+    depends on TFM
+
+config TFM_PROFILE
+    string "TF-M profile"
+    default "profile_medium"
+
+config TFM_BUILD_TYPE
+    string "TF-M cmake build type"
+    default "minsizerel"
+
+config TFM_BL2
+    string "Build BL2 (MCUboot)"
+    default "ON"
+
+config TFM_BL2_DOWNLOAD
+	bool "Enable BL2 download"
+	default y
+	help
+		Enable BL2 Download
+
+config TFM_ISOLATION_LEVEL
+    int "TF-M isolation level (1/2/3)"
+    default 2
+
+config TFM_TEST_S
+    string "Build TF-M secure tests"
+    default "OFF"
+
+config TFM_TEST_NS
+    string "Build TF-M non-secure tests"
+    default "OFF"
+
+config TFM_FPGA
+    string "TF-M FPGA target"
+    default "OFF"
+
+config TFM_LOG_LEVEL
+    string "TF-M secure log level"
+    default "INFO"
+
+config TFM_BL2_LOG_LEVEL
+    string "BL2/MCUboot log level"
+    default "INFO"
+
+config CPU0_SPE_RAM_SIZE
+    hex "CP SPE (secure world) RAM size"
+    default 0x1C000
+
+config TFM_HEAP_SIZE
+    hex "TF-M heap size"
+    default 0x6000
+
+config BL2_UPGRADE_STRATEGY
+    string "MCUboot upgrade strategy"
+    default "DIRECT_XIP"
+
+config XIP_NO_VERSION
+    bool "XIP image without version header"
+    default y
+
+config TFM_CRYPTO
+    bool "Enable TF-M Crypto partition (PSA Crypto)"
+    default y
+
+config TFM_PS
+    bool "Enable TF-M Protected Storage partition"
+    default n
+
+config TFM_FWU
+    bool "Enable TF-M Firmware Update partition"
+    default n
+
+config INITIAL_ATTESTATION
+    bool "Enable TF-M Initial Attestation"
+    default n
+
+config TFM_REG_ACCESS_NSC
+    bool "Enable NSC register access gateway (psa_reg_read/write)"
+    default n
+    help
+        Beken ARMv8-M CMSE non-secure-callable (NSC) register access. When set,
+        the secure world builds reg_nsc.c and exports psa_reg_read/psa_reg_write/
+        psa_reg_dump into libtfm_s_veneers.a so the non-secure cpu0_app can reach
+        registers through the secure world. Forwarded to the TF-M build as
+        CONFIG_REG_ACCESS_NSC.
+
+config TFM_AP_BOOT_NSC
+    bool "Enable NSC AP boot release gateway (psa_ap_boot)"
+    default n
+    help
+        Defer AP core release from TF-M ns_agent to the NS cpu0_app. When set,
+        the secure world exports psa_ap_boot into libtfm_s_veneers.a; the NS app
+        calls it after bk_init() to install the boot shim and release the AP CPU.
+        AP power-on remains in TF-M isolation (bk_ap_power_domain_on). Forwarded
+        to the TF-M build as CONFIG_AP_BOOT_NSC.
+
+endmenu # TF-M Options
+
+endmenu # TFM
