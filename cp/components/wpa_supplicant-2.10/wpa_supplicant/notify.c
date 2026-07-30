@@ -67,10 +67,6 @@
 extern uint32_t wpa_hostapd_no_password_connected(const uint8_t *addr);
 #endif
 
-#if BK_SUPPLICANT && CONFIG_WIFI_VNET_CONTROLLER
-#include "cif_wifi_event.h"
-#endif
-
 #if BK_SUPPLICANT && CONFIG_P2P
 static bool wpas_is_p2p_gc_sta(const struct wpa_supplicant *wpa_s)
 {
@@ -641,15 +637,17 @@ void hapd_notify_sta_connected(struct hostapd_data *hapd, const u8 *mac)
 	}
 #endif
 #if CONFIG_WIFI_VNET_CONTROLLER
+	os_memcpy(ap_connected.mac, mac, ETH_ALEN);
 #if CONFIG_P2P
 	if (hapd->p2p_group != NULL) {
-		cif_handle_bk_cmd_assoc_go_ind((uint8_t*)mac);
+		cif_handle_bk_cmd_wifi_event_ind(CIF_WIFI_EVT_GO_CONNECTED,
+						 &ap_connected, sizeof(ap_connected));
 		return;
 	}
 #endif
-	cif_handle_bk_cmd_assoc_ap_ind((uint8_t*)mac);
+	cif_handle_bk_cmd_wifi_event_ind(CIF_WIFI_EVT_AP_CONNECTED,
+					 &ap_connected, sizeof(ap_connected));
 #endif
-	os_memcpy(ap_connected.mac, mac, ETH_ALEN);
 	BK_LOG_ON_ERR(bk_event_post(EVENT_MOD_WIFI, EVENT_WIFI_AP_CONNECTED,
 				&ap_connected, sizeof(ap_connected), BEKEN_NEVER_TIMEOUT));
 }
@@ -666,16 +664,18 @@ void hapd_notify_sta_disconnected(struct hostapd_data *hapd, const u8 *mac)
 	}
 #endif
 #if CONFIG_WIFI_VNET_CONTROLLER
+	os_memcpy(ap_disconnected.mac, mac, ETH_ALEN);
 #if CONFIG_P2P
-	if (hapd->p2p_group != NULL)
-	{
-		cif_handle_bk_cmd_disassoc_go_ind((uint8_t*)mac);
+	if (hapd->p2p_group != NULL) {
+		cif_handle_bk_cmd_wifi_event_ind(CIF_WIFI_EVT_GO_DISCONNECTED,
+						 &ap_disconnected,
+						 sizeof(ap_disconnected));
 		return;
 	}
 #endif
-	cif_handle_bk_cmd_disassoc_ap_ind((uint8_t*)mac);
+	cif_handle_bk_cmd_wifi_event_ind(CIF_WIFI_EVT_AP_DISCONNECTED,
+					 &ap_disconnected, sizeof(ap_disconnected));
 #endif
-	os_memcpy(ap_disconnected.mac, mac, ETH_ALEN);
 #if CONFIG_AP_STATYPE_LIMIT
 	if (bk_feature_ap_statype_limit_enable())
 		bk_vsie_cus_del_sta(ap_disconnected.mac, true);
