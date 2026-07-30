@@ -18,8 +18,9 @@
  * TODO: promote kws_model include dir into a public REQUIRES so we can just
  *       #include "bk_kws.h" instead of replicating the contract.
  *
- *   bk_kws.cc:320   extern "C" void bk_kws_init();                      (0 args)
- *   bk_kws.cc:360   extern "C" int  bk_tflite_ASR_Recog(short *, int,
+ *   bk_kws.cc       extern "C" void bk_kws_init();                      (0 args)
+ *   bk_kws.cc       extern "C" void bk_kws_deinit();
+ *   bk_kws.cc       extern "C" int  bk_tflite_ASR_Recog(short *, int,
  *                                       const char **, float *, int16_t *);
  *   bk_kws.h        uint32_t bk_kws_get_tflm_buf_size(void);
  *                   void     bk_kws_set_tflm_buf(void *buf);
@@ -31,6 +32,7 @@ extern void     bk_kws_set_tflm_buf(void *buf);
 extern uint32_t bk_kws_get_npu_scratch_size(void);
 extern void     bk_kws_set_npu_scratch(void *buf);
 extern void     bk_kws_init(void);
+extern void     bk_kws_deinit(void);
 extern int      bk_kws_is_ready(void);
 extern int      bk_kws_switch_model(int model_id);
 extern int      bk_tflite_ASR_Recog(short *buf, int buf_len,
@@ -198,9 +200,10 @@ int bk_tflite_asr_recog(void *read_buf, uint32_t read_size, void *p1, void *p2)
 
 void bk_tflite_asr_deinit(void)
 {
-    /* Detach pointers in the KWS module first so any stray invoke after
-     * deinit hits the NULL guard inside the library instead of dereferencing
-     * freed memory. */
+    /* Tear down interpreter + Ethos-U while arena/scratch are still valid,
+     * then detach and free the caller-owned buffers. */
+    bk_kws_deinit();
+
     bk_kws_set_tflm_buf(NULL);
     bk_kws_set_npu_scratch(NULL);
 
