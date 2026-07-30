@@ -43,7 +43,8 @@ vcenc_ret_e vcenc_h264_deinit(h264_enc_param_t *enc_param);
 
 vcenc_ret_e vcenc_h264_set_osd(h264_enc_param_t *enc_param, uint32_t index, void *buffer,
 				uint32_t format, uint8_t alpha, uint32_t x, uint32_t y,
-				uint32_t width, uint32_t height);
+				uint32_t width, uint32_t height,
+				uint8_t bitmap_y, uint8_t bitmap_u, uint8_t bitmap_v);
 
 vcenc_ret_e vcenc_h264_set_mosaic(h264_enc_param_t *enc_param, uint32_t index, uint32_t enable,
 				   uint32_t x, uint32_t y, uint32_t width, uint32_t height);

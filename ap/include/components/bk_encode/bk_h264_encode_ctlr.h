@@ -131,6 +131,22 @@ avdk_err_t bk_h264_encode_get_rate_ctrl(bk_h264_encode_ctlr_handle_t handle,
                                          bk_h264_encode_rate_ctrl_t *rate_ctrl);
 
 /**
+ * @brief Configure hardware OSD overlay with externally owned buffer
+ *
+ * The caller allocates and fills @p osd->buffer, then passes ownership to the
+ * encoder via @p osd->buffer_free. After a successful call the caller must not
+ * modify the buffer. When a slot receives a new buffer pointer, the previous
+ * buffer is released through its registered free callback. All active OSD
+ * buffers are released automatically when the encoder is closed.
+ *
+ * @param handle Encoder handle
+ * @param osd OSD overlay config (buffer_free required when buffer != NULL)
+ * @return AVSDK error code
+ */
+avdk_err_t bk_h264_encode_set_osd(bk_h264_encode_ctlr_handle_t handle,
+                                  bk_h264_encode_osd_t *osd);
+
+/**
  * @brief Delete encoder
  * @param handle Encoder handle
  * @return AVSDK error code

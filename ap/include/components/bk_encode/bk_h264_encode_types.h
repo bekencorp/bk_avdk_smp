@@ -40,7 +40,40 @@ typedef enum {
     BK_H264_ENCODE_IOCTL_STOP_ENCODE,      // arg: uint32_t*
     BK_H264_ENCODE_IOCTL_SET_RATE_CTRL,      // arg: bk_h264_encode_rate_ctrl_t*
     BK_H264_ENCODE_IOCTL_GET_RATE_CTRL,      // arg: bk_h264_encode_rate_ctrl_t*
+    BK_H264_ENCODE_IOCTL_SET_OSD,            // arg: bk_h264_encode_osd_t*
 } bk_h264_encode_ioctl_cmd_t;
+
+typedef enum
+{
+    BK_H264_ENCODE_OVERLAY_FORMAT_ARGB8888 = 0,
+    BK_H264_ENCODE_OVERLAY_FORMAT_NV12 = 1,
+    BK_H264_ENCODE_OVERLAY_FORMAT_BITMAP = 2,
+} bk_h264_encode_overlay_format_t;
+
+typedef void (*bk_h264_encode_osd_buffer_free_cb_t)(void *buffer, void *free_arg);
+
+typedef struct
+{
+    uint32_t index;     /* overlay slot index, 0..7 */
+    void *buffer;       /* pixel buffer in memory visible to encoder */
+    uint32_t format;    /* bk_h264_encode_overlay_format_t */
+    uint8_t alpha;      /* global alpha for NV12/Bitmap; ignored for ARGB8888 */
+    uint32_t x;
+    uint32_t y;
+    uint32_t width;
+    uint32_t height;
+    uint8_t bitmap_y;   /* Bitmap foreground Y; valid when format == BITMAP */
+    uint8_t bitmap_u;   /* Bitmap foreground U */
+    uint8_t bitmap_v;   /* Bitmap foreground V */
+    /*
+     * Required when buffer != NULL. Encoder takes ownership after a successful
+     * set_osd; caller must not modify the buffer afterwards. On overlay update
+     * the previous buffer is released via this callback. All active buffers are
+     * released when the encoder is closed.
+     */
+    bk_h264_encode_osd_buffer_free_cb_t buffer_free;
+    void *free_arg;
+} bk_h264_encode_osd_t;
 
 typedef enum
 {
