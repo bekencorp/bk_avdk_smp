@@ -141,6 +141,35 @@ void bk_can_register_err_callback(can_callback_des_t *err_cb);
 bk_err_t can_driver_bit_rate_config(can_bit_rate_e s_speed, can_bit_rate_e f_speed);
 
 /**
+ * @brief   Print the actual arbitration/data bit rate and sample point
+ *
+ * @note    Reads the live bit-timing registers and computes the real on-wire
+ *          bit rate (base clock 60MHz), so callers can verify the controller
+ *          runs at the nominal rate rather than trusting the requested enum.
+ */
+void bk_can_dump_bit_rate(void);
+
+/**
+ * @brief   Override the FD data-phase secondary sample point (SSP) at runtime
+ *
+ * @param   sspoff_tq  SSP offset in fast-phase Tq (bench tuning for 4M/5M BRS)
+ *
+ * @note    Call after the bit rate is configured; bit-rate config recomputes
+ *          SSPOFF, so this must run afterwards to take effect.
+ */
+void bk_can_set_ssp(uint32_t sspoff_tq);
+
+/**
+ * @brief   Select ISO vs non-ISO (BOSCH) CAN-FD frame format at runtime
+ *
+ * @param   iso  1 = ISO CAN-FD (default), 0 = non-ISO / BOSCH FD
+ *
+ * @note    Must match the peer/analyzer; a mismatch shows up as FORM/CRC errors
+ *          (koer 2/5) in the FD CRC / stuff-count region.
+ */
+void bk_can_set_iso(uint32_t iso);
+
+/**
  * @brief Enable or disable internal loopback mode
  *
  * @param[in]   enable    true to enable, false to disable
