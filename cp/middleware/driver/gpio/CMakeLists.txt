@@ -1,6 +1,6 @@
 if (CONFIG_GPIO)
 	list(APPEND incs gpio)
-	if (CONFIG_ANA_GPIO)
+	if (CONFIG_ANA_GPIO OR CONFIG_GPIO_ANA_WAKEUP_SUPPORT)
 		list(APPEND srcs gpio/ana_gpio_driver.c)
 	endif()
 

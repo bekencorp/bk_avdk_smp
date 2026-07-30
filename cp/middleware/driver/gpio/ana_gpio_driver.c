@@ -16,12 +16,15 @@
 #include <soc/soc.h>
 
 #include "ana_gpio_driver.h"
-#include "io_matrix_driver.h"
 #include "sys_driver.h"
+#if CONFIG_ANA_GPIO
+#include "io_matrix_driver.h"
 #include "bk_intc.h"
 #include "sys_hal.h"
 #include "aon_pmu_hal.h"
+#endif
 
+#if CONFIG_ANA_GPIO
 gpio_id_t ana_gpio_get_wakeup_pin(void)
 {
 	gpio_id_t gpio_id = SOC_GPIO_NUM;
@@ -101,3 +104,63 @@ bk_err_t ana_gpio_clear_wakeup_source(void)
 
 	return BK_OK;
 }
+#endif
+
+#if CONFIG_GPIO_ANA_WAKEUP_SUPPORT
+#define GPIO_ANA_WAKEUP_MAX (2)
+
+static uint32_t s_wkup_cnt;
+static gpio_wakeup_config_t s_wkup_cfg[GPIO_ANA_WAKEUP_MAX];
+
+static int gpio_ana_enter_cb(uint64_t sleep_time, void *args)
+{
+	for (uint32_t i = 0; i < MIN(s_wkup_cnt, GPIO_ANA_WAKEUP_MAX); i++) {
+		sys_drv_gpio_ana_wakeup_enable(i, s_wkup_cfg[i].id,
+			(uint32_t)s_wkup_cfg[i].int_type);
+	}
+
+	return 0;
+}
+
+bk_err_t bk_gpio_ana_register_wakeup_source(gpio_id_t gpio_id, gpio_int_type_t int_type)
+{
+	pm_cb_conf_t enter_conf;
+
+	if (gpio_id >= SOC_GPIO_NUM) {
+		return BK_ERR_GPIO_CHAN_ID;
+	}
+
+	if (int_type >= GPIO_INT_TYPE_MAX) {
+		return BK_ERR_GPIO_INVALID_INT_TYPE;
+	}
+
+	if (gpio_id > GPIO_15 || int_type > GPIO_INT_TYPE_HIGH_LEVEL) {
+		ANA_GPIO_LOGE("gpio ana wakeup source not support id: %d type: %d\r\n", gpio_id, int_type);
+		return BK_ERR_ANA_GPIO_TYPE_NOT_SUPPORT;
+	}
+
+	for (uint32_t i = 0; i < s_wkup_cnt; i++) {
+		if (s_wkup_cfg[i].id == gpio_id) {
+			s_wkup_cfg[i].int_type = int_type;
+			ANA_GPIO_LOGI("update ana wakeup gpio id: %d type: %d\r\n", gpio_id, int_type);
+			return BK_OK;
+		}
+	}
+
+	if (s_wkup_cnt >= GPIO_ANA_WAKEUP_MAX) {
+		ANA_GPIO_LOGE("too many ana gpio wakeup sources, max: %d\r\n", GPIO_ANA_WAKEUP_MAX);
+		return BK_ERR_GPIO_WAKESOURCE_OVER_MAX_CNT;
+	}
+
+	s_wkup_cfg[s_wkup_cnt].id = gpio_id;
+	s_wkup_cfg[s_wkup_cnt].int_type = int_type;
+	s_wkup_cfg[s_wkup_cnt].valid = 1;
+	s_wkup_cnt++;
+	ANA_GPIO_LOGI("regist wakeup source gpio id: %d type: %d\r\n", gpio_id, int_type);
+
+	enter_conf.cb = gpio_ana_enter_cb;
+	enter_conf.args = NULL;
+
+	return bk_pm_sleep_register_cb(PM_MODE_SUPER_DEEP_SLEEP, PM_DEV_ID_GPIO, &enter_conf, NULL);
+}
+#endif

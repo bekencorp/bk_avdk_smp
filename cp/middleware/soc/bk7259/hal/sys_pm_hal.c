@@ -16,6 +16,7 @@
 #include <modules/pm.h>
 #include "sys_hal.h"
 #include "sys_ll.h"
+#include "gpio_ll.h"
 #include "aon_pmu_hal.h"
 #include "gpio_hal_v2px.h"
 #include "gpio_driver_base.h"
@@ -31,6 +32,7 @@
 #include "sys_pm_hal_ctrl.h"
 #include "pm_debug.h"
 #include "modules/pm.h"
+#include "cache.h"
 
 #include "sys_sw_regs.h"
 #include <driver/pwr_clk.h>
@@ -42,17 +44,15 @@
 #if CONFIG_SUPPORT_WWDT
 #include <driver/wwdt.h>
 #endif
-#if CONFIG_SUPPORT_CACHEABLE_SRAM
-#include "cache.h"
-#endif
+
 #if CONFIG_DEEP_LV
 #include "FreeRTOS.h"
 //#include "armstar.h"
 #include "deep_lv/deep_lv.h"
-#include <driver/ckmn.h>
-#if CONFIG_CKMN
-#include "ckmn_reg.h"
 #endif
+#if CONFIG_CKMN
+#include <driver/ckmn.h>
+#include "ckmn_reg.h"
 #endif
 #if CONFIG_MPU
 #include "mpu.h"
@@ -827,6 +827,7 @@ static inline void sys_hal_set_halt_config(pm_sleep_mode_e sleep_mode)
 		aon_pmu_ll_set_r41_halt_sram1(1);
 		aon_pmu_ll_set_r41_halt_sram2(1);
 		aon_pmu_ll_set_r41_mem_ret_en(0);
+		aon_pmu_ll_set_r41_halt_cache(1);
 	}
 }
 static inline void sys_hal_power_on_and_select_rosc(pm_lpo_src_e lpo_src)
@@ -1200,6 +1201,10 @@ static inline void sys_hal_set_low_voltage(pm_sleep_mode_e sleep_mode, volatile 
 	}
 	sys_hal_disable_spi_latch();
 
+	#if CONFIG_CKMN
+	bk_ckmn_power_down_for_sleep();
+	#endif
+
 	if (param && *(uint8_t *)param)
 	{
 		#if CONFIG_AON_PMU_REG0_REFACTOR_DEV
@@ -1210,6 +1215,9 @@ static inline void sys_hal_set_low_voltage(pm_sleep_mode_e sleep_mode, volatile 
 		#endif
 		aon_pmu_ll_set_r3_shutdown_flag(1);
 		sys_ll_set_ana_reg11_sd(1);//shutdown directly
+		SYS_PM_HAL_CPU_BARRIER();
+		/*-----enter deep sleep-------*/
+		arch_deep_sleep();
 	}
 	else
 	{
@@ -1218,6 +1226,8 @@ static inline void sys_hal_set_low_voltage(pm_sleep_mode_e sleep_mode, volatile 
 		#if 1//CONFIG_AON_PMU_REG0_REFACTOR_DEV
 		aon_pmu_hal_r0_latch_to_r7b();
 		#endif
+		aon_pmu_ll_set_r40_halt_volt(1);
+
 		sys_hal_disable_hf_clock();
 		bk_delay_us(10);
 		if(sys_ll_get_ana_reg5_en_cb() != 0)
@@ -1225,14 +1235,9 @@ static inline void sys_hal_set_low_voltage(pm_sleep_mode_e sleep_mode, volatile 
 			sys_ll_set_ana_reg5_en_cb(0);
 			bk_delay_us(10);
 		}
-		/* Once XTAL/DCO/CB are gated, a direct valoldosel write can no longer be
-		 * serialized to the analog AON LDO (register reads back OK but the LDO
-		 * output does not change). Enable hardware voltage halt (halt_volt=1, same
-		 * as the working enter_low_voltage path) so the halt state machine drives
-		 * the AON LDO to the valoldosel target on sleep entry without needing the
-		 * ANA-SPI clock. Only this bit of r40 is changed; the rest of the deep
-		 * halt profile from sys_hal_set_power_parameter() stays intact. */
-		aon_pmu_ll_set_r40_halt_volt(1);
+		arch_icache_invd_all();
+		sys_hal_enable_spi_latch();
+		bk_delay_us(10);
 		sys_ll_set_ana_reg9_valoldosel(PM_DEEP_SLEEP_AON_LDO_SEL);
 		bk_delay_us(10);
 		if(sys_ll_get_ana_reg9_valoldosel() != PM_DEEP_SLEEP_AON_LDO_SEL)
@@ -1241,6 +1246,7 @@ static inline void sys_hal_set_low_voltage(pm_sleep_mode_e sleep_mode, volatile 
 			bk_delay_us(10);
 		}
 		sys_hal_disable_spi_latch();
+		bk_delay_us(10);
 		SYS_PM_HAL_CPU_BARRIER();
 		/*-----enter deep sleep-------*/
 		arch_deep_sleep();
@@ -2194,13 +2200,21 @@ void sys_hal_rtc_ana_wakeup_enable(uint32_t period)
 	#else
 	sys_ll_set_ana_reg9_clk_sel(0);
 	#endif
+	uint64_t sleep_ticks = (uint64_t)period * bk_rtc_get_clock_freq() / 1000;
+	const uint64_t rtc_set_max = (1ULL << 36) - 1;
+
+	if (sleep_ticks > rtc_set_max) {
+		sleep_ticks = rtc_set_max;
+	}
 
 	sys_hal_enable_spi_latch();
 
 	/* disable spi timer wakeup before updating the rtc/timer count */
 	sys_ll_set_ana_reg11_spi_timerwken(0);
 	sys_ll_set_ana_reg18_timer_set(0xffffffff);
-	sys_ll_set_ana_reg17_rtc_set(period);
+	/* rtc_set[35:32] is in ana_reg16, rtc_set[31:0] is in ana_reg17. */
+	sys_ll_set_ana_reg16_rtc_set((uint32_t)((sleep_ticks >> 32) & 0xf));
+	sys_ll_set_ana_reg17_rtc_set((uint32_t)sleep_ticks);
 
 	sys_ll_set_ana_reg11_gpio_wkrst1v(1);
 	sys_ll_set_ana_reg11_timer_wkrstn(0);
@@ -2221,6 +2235,39 @@ void sys_hal_rtc_ana_wakeup_enable(uint32_t period)
 
 void sys_hal_gpio_ana_wakeup_enable(uint32_t count, uint32_t index, uint32_t type)
 {
+	if ((count >= 2) || (index >= 32) || (type > GPIO_INT_TYPE_HIGH_LEVEL)) {
+		return;
+	}
+
+	sys_hal_enable_spi_latch();
+
+	/*
+	 * Start a new GPIO wakeup bitmap when configuring the first channel;
+	 * preserve it while adding the optional second channel.
+	 */
+	uint32_t gpio_wakeup_bitmap = 0;
+	if (count != 0) {
+		gpio_wakeup_bitmap = sys_ll_get_ana_reg15_gpiowken();
+	}
+
+	sys_ll_set_ana_reg11_gpio_wkrst1v(1);
+	sys_ll_set_ana_reg11_timer_wkrstn(0);
+	sys_ll_set_ana_reg10_rtc_wkrstn(0);
+	sys_ll_set_ana_reg15_gpiowken(gpio_wakeup_bitmap | BIT(index));
+
+	/*
+	 * ANA GPIO wakeup detection uses the pad pull level as its polarity:
+	 * low-level wakeup selects pull-down, high-level wakeup selects pull-up.
+	 * Keep this value aligned with the BK7259 shutdown GPIO reference flow.
+	 */
+	gpio_ll_set_cfg_value(index, BIT(24) | BIT(5) | ((type & 0x1) << 4));
+
+	/* Latch the GPIO wakeup configuration into the always-on analog domain. */
+	sys_ll_set_ana_reg10_rst_wks(1);
+	sys_ll_set_ana_reg11_gpio_wkrst1v(0);
+	sys_ll_set_ana_reg10_rst_wks(0);
+
+	sys_hal_disable_spi_latch();
 }
 void sys_hal_enter_cpu_wfi()
 {
