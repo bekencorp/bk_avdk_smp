@@ -20,8 +20,13 @@ Configure the Project
 如果要自己创建工程使用此功能时，需要额外开启如下宏配置：
 
 AP侧需要开启如下宏配置
+   CONFIG_LWIP_MEM_LIBC_MALLOC=y
    CONFIG_LWIP_MEM_LIBC_MALLOC_USE_PSRAM=y
    CONFIG_CONTROLLER_AP_BUFFER_COPY=y
+
+平台分区需要配置 ``AP_PSRAM_NOCACHE_HEAP``，其大小可根据 LWIP buffer
+的实际需求调整。为保持 PSRAM 总占用不变，需要同步减小
+``AP_PSRAM_HEAP``，本示例配置为 128 KB。
 
 CP侧需要开启如下配置
     CONFIG_CONTROLLER_AP_BUFFER_COPY=y
