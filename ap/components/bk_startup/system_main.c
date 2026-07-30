@@ -416,6 +416,7 @@ static void app_main_thread(void *arg)
 	bk_pm_ap_thread_main();
 
 	main();
+	BK_LOGI(NULL, "AP main running...\r\n");
 
 #if CONFIG_MATTER_START && CONFIG_SUPPORT_MATTER
 #ifdef CONFIG_MATTER_EXAMPLE
