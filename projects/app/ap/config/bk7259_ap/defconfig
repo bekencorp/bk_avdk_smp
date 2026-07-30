@@ -46,3 +46,4 @@ CONFIG_FATFS_QSPI_0_FLASH=y
 # To export the NAND FAT volume to a PC over USB, also enable USB device MSC and:
 # CONFIG_USBD_MSC_STORAGE_QSPI_NAND=y
 CONFIG_SOFTAP_WPA3=y
+CONFIG_IPV6=y
