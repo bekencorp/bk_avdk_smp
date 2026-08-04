@@ -328,8 +328,8 @@ static int psram_hal_W955D8MKY_5J_init_with_id(psram_id_t psram_id, uint32_t *id
 static int psram_hal_APS128XXO_OB9_init_with_id(psram_id_t psram_id, uint32_t *id)
 {
 	uint32_t val = 0;
-	psram_ll_set_mode_value(psram_id, PSRAM_MODE7);
-	psram_ll_set_reg5_value(psram_id, 0x14e4);
+	psram_ll_set_mode_value(psram_id, 0xEC084049);
+	psram_ll_set_reg5_value(psram_id, 0x2A4);
 	psram_hal_set_cmd_reset_with_id(psram_id);
 
 	psram_delay(500);
@@ -346,12 +346,12 @@ static int psram_hal_APS128XXO_OB9_init_with_id(psram_id_t psram_id, uint32_t *i
 	}
 
 	val = psram_ll_get_regb_value(psram_id);
-	val = (val & ~(0x7 << 2)) | (0x4 << 2);
+	val = (val & ~(0x7 << 2)) | (0x6 << 2);
 	psram_hal_cmd_write_with_id(psram_id, 0x00000000, val);
 
 	psram_hal_cmd_read_with_id(psram_id, 0x00000004);
 	val = psram_ll_get_regb_value(psram_id);
-	val = (val & ~(0x7 << 5)) | (0x6 << 5);
+	val = (val & ~(0x7 << 5)) | (0x3 << 5);
 	psram_hal_cmd_write_with_id(psram_id, 0x00000004, val);
 
 	psram_hal_cmd_read_with_id(psram_id, 0x00000008);//1 0001 10001101
