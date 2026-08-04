@@ -25,6 +25,7 @@
 
 #include "cache.h"
 #include <driver/aon_rtc.h>
+#include "soc_debug.h"
 
 /* Max time to wait for the peer core (CP) to consume a synchronous mailbox log
  * buffer. A healthy CP acks within microseconds; exceeding this means the CP is

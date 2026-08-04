@@ -469,6 +469,14 @@ bk_err_t bk_ckmn_clear_cor26m_intr_status(void);
 bk_err_t bk_ckmn_clear_cor32k_intr_status(void);
 
 /**
+ * @brief Start the clock monitor (init + set 26M/32K targets + enable autosw).
+ *
+ * Convenience wrapper used by the TF-M secure firmware. Implemented for BK7259
+ * in the TF-M platform shim (beken/bk7259/sys_drv_int_shim.c).
+ */
+void bk_ckmn_start(void);
+
+/**
  * @}
  */
 

@@ -663,6 +663,22 @@ void     sys_drv_set_vad_viniset(uint32_t v);
 void     sys_drv_set_vad_rstn(uint32_t v);
 /** VAD Control (ana_reg23) End **/
 
+/* TF-M secure-side critical-section primitives (used by bk_tfm_ppc.c when
+ * locking Flash/SYS to secure). Implemented for BK7259 in the TF-M platform
+ * shim (beken/bk7259/sys_drv_int_shim.c). Guarded so it only takes effect in
+ * the secure build that needs it. */
+#ifndef BK_SYS_LOCK_CTX_T_DEFINED
+#define BK_SYS_LOCK_CTX_T_DEFINED
+typedef struct {
+	uint32_t int0;
+	uint32_t int1;
+} sys_lock_ctx_t;
+
+void sys_drv_enable_int(sys_lock_ctx_t *ctx);
+void sys_drv_disable_int(sys_lock_ctx_t *ctx);
+void sys_drv_set_base_addr(uint32_t addr);
+#endif /* BK_SYS_LOCK_CTX_T_DEFINED */
+
 #endif //_SYS_DRV_H_
 // eof
 

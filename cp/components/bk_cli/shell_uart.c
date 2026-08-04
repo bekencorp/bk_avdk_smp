@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include <os/os.h>
 #include "cli.h"
 #include "shell_drv.h"
 #if CONFIG_AT
@@ -276,6 +277,22 @@ static void shell_uart_tx_trigger(shell_uart_ext_t *uart_ext)
 		return;
 
 	uart_ext->tx_stopped = 0;   // set tx_stopped to 0 firstly, then enable TX.
+
+	/* BK7259: before the scheduler starts, global IRQ is masked, so enabling the
+	 * TX interrupt only leaves it pending (unserviced) and it fires the instant
+	 * vStartFirstTask does cpsie i - before the first task's PSP exists - which
+	 * faults. Drain the log by polling the TX ISR instead of enabling the IRQ. */
+	if(!rtos_is_scheduler_started())
+	{
+		while(uart_ext->tx_stopped == 0)
+		{
+			if(uart_write_ready(uart_ext->uart_id) == BK_OK)
+			{
+				shell_uart_tx_isr(uart_ext->uart_id, uart_ext);
+			}
+		}
+		return;
+	}
 
 	bk_uart_enable_tx_interrupt(uart_ext->uart_id);
 }

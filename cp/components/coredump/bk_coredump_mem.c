@@ -36,8 +36,8 @@ static bool bk_coredump_window_needs_ap_power(uint32_t addr, uint32_t size)
         return true;
     }
     /* PSRAM / QSPI media memory (AP / media power domain). */
-    if ((addr < (SOC_QSPI1_DATA_BASE + SOC_QSPI1_DATA_SIZE)) &&
-        (end > SOC_PSRAM0_DATA_BASE)) {
+    if ((addr < ((uint32_t)SOC_QSPI1_DATA_BASE + (uint32_t)SOC_QSPI1_DATA_SIZE)) &&
+        (end > (uint32_t)SOC_PSRAM0_DATA_BASE)) {
         return true;
     }
     return false;

@@ -26,10 +26,6 @@ menu "App"
 		bool "Enable Ntp Sync Rtc"
 		default n
 
-	config SECURITY_OTA
-		bool "Enable Seucirty Ota API"
-		default n
-
 	config AP_EMUBOOT
 		bool "Enable AP EMUBOOT project"
 		default n

@@ -258,6 +258,7 @@ static bk_err_t pm_message_handle(void)
 					bk_pm_cp0_response_cp1(PM_GET_PM_DATA_CMD,data_type,cp_pm_data,0);
 				}
 				break;
+#if CONFIG_PSRAM
 				case PM_CP_CORE_PSRAM_POWER:
 				{
 #if CONFIG_PSRAM
@@ -268,6 +269,7 @@ static bk_err_t pm_message_handle(void)
 					bk_pm_cp0_response_cp1(PM_CTRL_PSRAM_POWER_CMD, msg.param2,0,0);
 				}
 				break;
+#endif
 				case PM_CP_CORE_POWER_CTRL:
 				{
 					ret = bk_pm_module_vote_power_ctrl(msg.param1,msg.param2);

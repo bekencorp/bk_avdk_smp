@@ -97,7 +97,7 @@ void flash_struct_dump(void)
 	SOC_LOGD("    tres1_trdp_delay_cnt: %x\n", hw->ps_ctrl.tres1_trdp_delay_cnt);
 	SOC_LOGD("    tdp_trdpdd_delay_cnt: %x\n", hw->ps_ctrl.tdp_trdpdd_delay_cnt);
 	SOC_LOGD("    dpd_fbd:              %x\n", hw->ps_ctrl.dpd_fbd);
-	SOC_LOGD("    prefetch_version:     %x\n", hw->ps_ctrl.prefetch_version);
+	SOC_LOGD("    flash_ota_en:         %x\n", hw->ps_ctrl.flash_ota_en);
 	SOC_LOGD("    reserved:             %x\n", hw->ps_ctrl.reserved);
 	SOC_LOGD("    dpd_status:           %x\n", hw->ps_ctrl.dpd_status);
 	SOC_LOGD("\r\n");

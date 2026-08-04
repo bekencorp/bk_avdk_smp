@@ -201,22 +201,13 @@ void tfm_hal_verify_configuration(void);
 
 FIH_RET_TYPE(enum tfm_hal_status_t) tfm_hal_set_up_static_boundaries(uintptr_t *p_spm_boundary)
 {
-    /* BK7259 bring-up diag: raw UART1 markers (TF-M log not up yet). 'B<step>'. */
-    #define BMARK(c) do { volatile unsigned int *u1=(volatile unsigned int*)0x45830000; \
-        volatile unsigned char *u1b=(volatile unsigned char*)0x45830000; \
-        while (u1[0x18/4]&(1u<<16)){} u1b[0x1C]=(c); \
-        while (u1[0x18/4]&(1u<<16)){} u1b[0x1C]='\r'; \
-        while (u1[0x18/4]&(1u<<16)){} u1b[0x1C]='\n'; } while(0)
-    BMARK('s');
     bk_sw_fih_set_data(FIH_SW_INDEX3);
     bk_fih_set_src(FIH_DATA_SAU, 0xdd); 
     sau_and_idau_cfg(); //Never failed
-    BMARK('t');
     bk_sw_fih_set_data(FIH_SW_INDEX4);
     bk_fih_set_dst(FIH_DATA_SAU, 0xdd); 
 
     bk_sw_cmp_data();
-    BMARK('u');
 
     /* Power on the AP power domain before configuring the AP AHBP MPC/PPHS. */
     bk_ap_power_domain_on();
@@ -224,12 +215,10 @@ FIH_RET_TYPE(enum tfm_hal_status_t) tfm_hal_set_up_static_boundaries(uintptr_t *
     if (bk_mpc_cfg() != BK_OK) {
         FIH_RET(fih_int_encode(TFM_HAL_ERROR_GENERIC));
     }
-    BMARK('v');
 
     if (bk_ppc_init() != BK_OK) {
         FIH_RET(fih_int_encode(TFM_HAL_ERROR_GENERIC));
     }
-    BMARK('w');
     bk_sw_fih_set_data(FIH_SW_INDEX9);
     bk_fih_set_src(FIH_DATA_MPU, 0xee); 
     /* Set up static isolation boundaries inside SPE */
@@ -294,7 +283,6 @@ FIH_RET_TYPE(enum tfm_hal_status_t) tfm_hal_set_up_static_boundaries(uintptr_t *
 
     *p_spm_boundary = (uintptr_t)PROT_BOUNDARY_VAL;
 
-    BMARK('x');
     FIH_RET(fih_int_encode(TFM_HAL_SUCCESS));
 }
 

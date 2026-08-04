@@ -83,7 +83,6 @@ CONFIG_BLUETOOTH=y
 CONFIG_OTA_HTTP=y
 # CONFIG_OTA_TFTP is not set
 # CONFIG_NTP_SYNC_RTC is not set
-# CONFIG_SECURITY_OTA is not set
 # end of App
 
 #

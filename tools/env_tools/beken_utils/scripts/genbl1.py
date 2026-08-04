@@ -105,11 +105,13 @@ class Genbl1:
 
         self.run_cmd(f'./gen_key.sh {self.sig_sch} {self.prvkey} {self.pubkey}')
 
-    def __init__(self, sec_boot=True, sig_sch='ec256', prvkey='', pubkey='bl1_ec256_pubkey.pem'):
+    def __init__(self, sec_boot=True, sig_sch='ec256', prvkey='', pubkey='bl1_ec256_pubkey.pem',outfile =''):
         self.is_sec_boot = sec_boot
         self.sig_sch = sig_sch
         self.prvkey = prvkey
         self.pubkey = pubkey
+
+        self.outfile = outfile
 
         if (prvkey == ''):
             logging.debug(f'missing private key')

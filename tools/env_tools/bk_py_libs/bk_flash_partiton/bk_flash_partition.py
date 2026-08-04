@@ -12,6 +12,39 @@ from bk_misc import format_size
 
 logger = logging.getLogger(__package__)
 
+# Secure code partitions that must keep their own name and NOT consume an
+# application index slot (verified/handled specially by the secure packer).
+SECURE_KEEP_NAMES = (
+    "primary_tfm_s",
+    "secondary_tfm_s",
+    "bl1_control",
+    "primary_manifest",
+    "secondary_manifest",
+)
+
+
+def adapt_partition_name(name: str, execute: bool, app_count: int) -> tuple[str, int]:
+    """Normalize a partition name to the canonical on-flash naming scheme.
+
+    Single source of truth shared by every partition/OTA/pack generator so the
+    layout header, pack.json and OTA metadata always agree:
+      - bootloader-class code (name contains "bootloader" or is bl2/bl2_B)
+        -> "bootloader"
+      - secure reserved partitions -> keep their own name, no application slot
+      - any other executable partition -> "application", "application1", ...
+      - data partitions -> passed through unchanged
+
+    Returns (adapted_name, updated_app_count).
+    """
+    if ("bootloader" in name or name in ("bl2", "bl2_B")) and execute:
+        return "bootloader", app_count
+    if name in SECURE_KEEP_NAMES:
+        return name, app_count
+    if execute:
+        adapted = "application" + (str(app_count) if app_count else "")
+        return adapted, app_count + 1
+    return name, app_count
+
 
 @dataclass
 class partition_info:
@@ -63,11 +96,9 @@ class bk_flash_partition:
     def _part_adapter(self):
         app_count = 0
         for part in self.part_info:
-            if "bootloader" in part.Name and part.Execute:
-                part.Name = "bootloader"
-            elif part.Execute:
-                part.Name = "application" + (str(app_count) if app_count else "")
-                app_count += 1
+            part.Name, app_count = adapt_partition_name(
+                part.Name, part.Execute, app_count
+            )
 
     def gen_partitions_layout_hdr(self, partition_hdr_file: Path):
         logger.debug(f"Create partition hdr file: {partition_hdr_file}")

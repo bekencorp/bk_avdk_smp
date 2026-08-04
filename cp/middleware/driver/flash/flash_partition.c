@@ -71,12 +71,29 @@ static const bk_logic_partition_t bk_flash_partitions[] = BK_FLASH_PARTITIONS_MA
 
 static bool flash_partition_is_valid(bk_partition_t partition)
 {
-	if ((partition >= BK_PARTITION_BOOTLOADER)
-		&& (partition < ARRAY_SIZE(bk_flash_partitions))) {
-		return true;
-	} else {
+	/* Valid iff: in range, slot populated, and physically AT/AFTER the bootloader.
+	 * The pre-bootloader region (bl1_control/boot_flag/partition/primary_manifest)
+	 * is the protected boot area and must stay inaccessible via this API.
+	 *
+	 * Protect by flash OFFSET, not by partition ID: IDs are generated and their
+	 * order is NOT the flash order. The old `partition >= BK_PARTITION_BOOTLOADER`
+	 * check only worked when the bootloader had the smallest ID (non-secure app).
+	 * In secureboot_xip the bootloader lands at a high ID, so real partitions
+	 * (sys_rf/sys_net/ota...) were wrongly rejected -> get_info() NULL ->
+	 * get_rf_firmware_info() dereferenced NULL@0x8 -> NS SecureFault. */
+	if (partition >= ARRAY_SIZE(bk_flash_partitions)) {
 		return false;
 	}
+	if (bk_flash_partitions[partition].partition_description == NULL) {
+		/* unused/zero-filled reserved slot (e.g. ID 0/1 in secureboot_xip) */
+		return false;
+	}
+	if (bk_flash_partitions[partition].partition_start_addr <
+		bk_flash_partitions[BK_PARTITION_BOOTLOADER].partition_start_addr) {
+		/* physically before the bootloader -> protected boot region */
+		return false;
+	}
+	return true;
 }
 
 static int is_alpha(char c)

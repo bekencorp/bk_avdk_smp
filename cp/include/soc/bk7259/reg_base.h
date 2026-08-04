@@ -69,15 +69,36 @@
  * is returned unchanged so the macro is safe to apply unconditionally.
  */
 #define SOC_SRAM_DIRECT_ADDR_BIT     (0x04000000U)   /* Bit26 */
-#define SOC_SRAM_DIRECT_ADDR_BASE    (0x2C000000U)
 #define SOC_SRAM_DIRECT_ADDR_MASK    (0xFF000000U)
+
+#define SOC_SRAM_DIRECT_ADDR_BASE    (0x2C000000U)
+#define SOC_SRAM_DIRECT_ADDR_BASE_SECURE    (0x3C000000U)
+
+#define SOC_SRAM_NORMAL_ADDR_BASE    (0x28000000U)
+#define SOC_SRAM_NORMAL_ADDR_BASE_SECURE    (0x38000000U)
 
 #define SOC_SRAM_PERI_ADDR(addr) \
     ((((unsigned int)(addr) & SOC_SRAM_DIRECT_ADDR_MASK) == SOC_SRAM_DIRECT_ADDR_BASE) ? \
      ((unsigned int)(addr) & ~SOC_SRAM_DIRECT_ADDR_BIT) : ((unsigned int)(addr)))
+
+#define SOC_SRAM_PERI_ADDR_SECURE(addr) \
+    ((((unsigned int)(addr) & SOC_SRAM_DIRECT_ADDR_MASK) == SOC_SRAM_DIRECT_ADDR_BASE_SECURE) ? \
+     ((unsigned int)(addr) & ~SOC_SRAM_DIRECT_ADDR_BIT) : ((unsigned int)(addr)))
+
+#define SOC_SRAM_PERI_ADDR_NORMAL(addr) \
+    ((((unsigned int)(addr) & SOC_SRAM_DIRECT_ADDR_MASK) == SOC_SRAM_NORMAL_ADDR_BASE) ? \
+     ((unsigned int)(addr) | SOC_SRAM_DIRECT_ADDR_BIT) : ((unsigned int)(addr)))
+
+#define SOC_SRAM_PERI_ADDR_NORMAL_SECURE(addr) \
+    ((((unsigned int)(addr) & SOC_SRAM_DIRECT_ADDR_MASK) == SOC_SRAM_NORMAL_ADDR_BASE_SECURE) ? \
+     ((unsigned int)(addr) | SOC_SRAM_DIRECT_ADDR_BIT) : ((unsigned int)(addr)))
 #else
 #define SOC_SRAM_PERI_ADDR(addr) (addr)
+#define SOC_SRAM_PERI_ADDR_SECURE(addr) (addr)
+#define SOC_SRAM_PERI_ADDR_NORMAL(addr) (addr)
+#define SOC_SRAM_PERI_ADDR_NORMAL_SECURE(addr) (addr)
 #endif /* CONFIG_SRAM_DIRECT_ADDR */
+
 
 #if CONFIG_PSRAM_INTERLEAVE
 #define SOC_PSRAM0_DATA_BASE     ((unsigned int)(0x60000000UL + SOC_ADDR_OFFSET + CONFIG_PSRAM_INTERLEAVE_OFFSET))
@@ -207,7 +228,7 @@
 #define SOC_OTP_AHB_BASE         (0x42010000 + SOC_ADDR_OFFSET)
 #define SOC_OTP_APB_BASE         (0x42100000 + SOC_ADDR_OFFSET)
 #define SOC_SHANHAI_BASE         (0x42110000 + SOC_ADDR_OFFSET)
-#define SOC_WWDT_REG_BASE        (0xE0050000 + SOC_ADDR_OFFSET)
+#define SOC_WWDT_REG_BASE        (0xE0050000)
 
 /* AP start */
 #define SOC_SYS_AHBP_REG_BASE    (0x48000000 + SOC_ADDR_OFFSET)

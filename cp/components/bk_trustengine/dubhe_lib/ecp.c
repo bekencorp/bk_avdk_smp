@@ -2175,6 +2175,54 @@ cleanup:
     return( ret );
 }
 
+/*
+ * Write a private key (mbedtls 3.6 _ext API).
+ *
+ * mbedtls-3.6.0 psa_crypto_ecp.c calls mbedtls_ecp_write_key_ext, which this
+ * (older) dubhe_lib ecp.c predates. Provide it in terms of the grp bit size and
+ * the existing fixed-length write path so the Dubhe ECP backend satisfies the
+ * newer PSA core. *olen is the canonical (nbits+7)/8 length.
+ */
+int mbedtls_ecp_write_key_ext( const mbedtls_ecp_keypair *key,
+                               size_t *olen, unsigned char *buf, size_t buflen )
+{
+    int ret = MBEDTLS_ERR_ECP_FEATURE_UNAVAILABLE;
+    size_t len;
+
+    ECP_VALIDATE_RET( key != NULL );
+    ECP_VALIDATE_RET( olen != NULL );
+    ECP_VALIDATE_RET( buf != NULL );
+
+    len = ( key->grp.nbits + 7 ) / 8;
+    if( len > buflen )
+    {
+        *olen = 0;
+        return( MBEDTLS_ERR_ECP_BUFFER_TOO_SMALL );
+    }
+    *olen = len;
+
+    if( key->d.n == 0 )
+        return( MBEDTLS_ERR_ECP_BAD_INPUT_DATA );
+
+#if defined(MBEDTLS_ECP_MONTGOMERY_ENABLED)
+    if( mbedtls_ecp_get_type( &key->grp ) == MBEDTLS_ECP_TYPE_MONTGOMERY )
+    {
+        MBEDTLS_MPI_CHK( mbedtls_mpi_write_binary_le( &key->d, buf, len ) );
+        goto cleanup;
+    }
+#endif
+#if defined(MBEDTLS_ECP_SHORT_WEIERSTRASS_ENABLED)
+    if( mbedtls_ecp_get_type( &key->grp ) == MBEDTLS_ECP_TYPE_SHORT_WEIERSTRASS )
+    {
+        MBEDTLS_MPI_CHK( mbedtls_mpi_write_binary( &key->d, buf, len ) );
+        goto cleanup;
+    }
+#endif
+cleanup:
+
+    return( ret );
+}
+
 
 /*
  * Check a public-private key pair

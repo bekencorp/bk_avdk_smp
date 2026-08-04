@@ -157,8 +157,8 @@ __IRAM_PM static void sys_hal_config_ap_sram_power_down(void)
 #define PM_VDDDIG_H_VOL_0v9                   (0xC)
 #define PM_VDDDIG_H_VOL_0V95                  (0xE)
 #define SYS_PM_HAL_CPU_BARRIER()              do {      \
-	asm volatile ("dsb");                               \
-	asm volatile ("isb");                               \
+	__asm__ volatile ("dsb");                           \
+	__asm__ volatile ("isb");                           \
 } while (0)
 
 /* SRAM-safe instruction-cache invalidate. Implemented with direct SCB->ICIALLU
@@ -168,11 +168,11 @@ __IRAM_PM static void sys_hal_config_ap_sram_power_down(void)
 #define SYS_PM_HAL_REG_SCB_ICIALLU            ( *( ( volatile uint32_t * ) 0xE000EF50 ) )
 __attribute__((always_inline)) static inline void sys_pm_hal_iram_icache_invd(void)
 {
-	asm volatile ("dsb" ::: "memory");
-	asm volatile ("isb" ::: "memory");
+	__asm__ volatile ("dsb" ::: "memory");
+	__asm__ volatile ("isb" ::: "memory");
 	SYS_PM_HAL_REG_SCB_ICIALLU = 0UL; /* invalidate entire I-cache */
-	asm volatile ("dsb" ::: "memory");
-	asm volatile ("isb" ::: "memory");
+	__asm__ volatile ("dsb" ::: "memory");
+	__asm__ volatile ("isb" ::: "memory");
 }
 
 #if CONFIG_OTA_POSITION_INDEPENDENT_AB || CONFIG_DIRECT_XIP

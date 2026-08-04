@@ -27,6 +27,7 @@
 #else
 #endif
 
+#if CONFIG_ARM_CORE_STAR || CONFIG_ARM_CORE_CM52 || CONFIG_ARM_CORE_CM55
 #define BK_ARCH_BASEPRI_IRQ_MASK        (1UL << (8UL - __NVIC_PRIO_BITS))
 
 static inline uint32_t bk_arch_get_basepri(void)
@@ -51,6 +52,7 @@ static inline uint32_t bk_arch_raise_basepri(void)
 
 	return old_basepri;
 }
+#endif
 
 void arch_init(void);
 void arch_wait_for_interrupt(void);

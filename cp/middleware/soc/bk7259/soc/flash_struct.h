@@ -107,7 +107,7 @@ typedef volatile struct {
 			uint32_t tres1_trdp_delay_cnt: 12; /**< bit[0:11] Tres1-Trdp delay time */
 			uint32_t tdp_trdpdd_delay_cnt: 12; /**< bit[12:23] Tdp-Tdpdd delay time */
 			uint32_t dpd_fbd:               1; /**< bit[24] deep power-down forbid */
-			uint32_t prefetch_version:      1; /**< bit[25] prefetch version */
+			uint32_t flash_ota_en:          1; /**< bit[25] flash ota enable */
 			uint32_t reserved:              5; /**< bit[26:30] prefetch version */
 			uint32_t dpd_status:            1; /**< bit[31] deep power-down status */
 		};

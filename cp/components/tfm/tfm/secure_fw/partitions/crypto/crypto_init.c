@@ -256,17 +256,6 @@ static psa_status_t tfm_crypto_call_srv(const psa_msg_t *msg)
     return status;
 }
 
-/* BK7259 bring-up diag: raw UART1 (secure) marker 'K'<c>.
- * Spin until the TX FIFO has fully drained after the marker so that a fault in
- * the immediately following call cannot swallow the in-flight characters. */
-#define CK_PUTC(ch) do { volatile unsigned int *u1=(volatile unsigned int*)0x45830000; \
-    volatile unsigned char *u1b=(volatile unsigned char*)0x45830000; \
-    while (u1[0x18/4]&(1u<<16)){} u1b[0x1C]=(ch); } while(0)
-/* bit (1<<19) of FIFO-status reg @0x18 is "TX FIFO empty / write finish". */
-#define CK_FLUSH() do { volatile unsigned int *u1=(volatile unsigned int*)0x45830000; \
-    for (volatile int _i=0;_i<20000;_i++){ if (!(u1[0x18/4]&(1u<<16))) {} } } while(0)
-#define CK_MARK(c) do { CK_PUTC('K'); CK_PUTC(c); CK_PUTC('\r'); CK_PUTC('\n'); CK_FLUSH(); } while(0)
-
 static psa_status_t tfm_crypto_engine_init(void)
 {
     psa_status_t status = PSA_ERROR_GENERIC_ERROR;
@@ -283,11 +272,9 @@ static psa_status_t tfm_crypto_engine_init(void)
     /* Initialise the underlying Cryptographic library that provides the
      * PSA Crypto core layer
      */
-    CK_MARK('a');
     library_info = tfm_crypto_library_get_info();
     LOG_DBGFMT("[DBG][Crypto] Init \033[0;32m%s\033[0m...\r\n", library_info);
     status = tfm_crypto_core_library_init();
-    CK_MARK('b');
     if (status != PSA_SUCCESS) {
         return status;
     }
@@ -316,11 +303,9 @@ static psa_status_t tfm_crypto_engine_init(void)
      * calls crypto_hw_accelerator_init() (-> dubhe_driver_init) in
      * boot_platform_post_init(). Do the same here before psa_crypto_init().
      */
-    CK_MARK('h');
     if (crypto_hw_accelerator_init() != 0) {
         return PSA_ERROR_HARDWARE_FAILURE;
     }
-    CK_MARK('i');
 #endif /* CRYPTO_HW_ACCELERATOR */
 
     /* Perform the initialisation of the PSA subsystem available through the chosen
@@ -328,9 +313,7 @@ static psa_status_t tfm_crypto_engine_init(void)
      * the function below will perform also the same operations done by the HAL init
      * crypto_hw_accelerator_init()
      */
-    CK_MARK('c');
     status = psa_crypto_init();
-    CK_MARK('d');
     return status;
 }
 
@@ -344,17 +327,14 @@ psa_status_t tfm_crypto_init(void)
 {
     psa_status_t status;
 
-    CK_MARK('0');
     /* Initialise other modules of the service */
     status = tfm_crypto_module_init();
-    CK_MARK('1');
     if (status != PSA_SUCCESS) {
         return status;
     }
 
     /* Initialise the engine layer */
     status =  tfm_crypto_engine_init();
-    CK_MARK('2');
     if (status != PSA_SUCCESS) {
         return status;
     }

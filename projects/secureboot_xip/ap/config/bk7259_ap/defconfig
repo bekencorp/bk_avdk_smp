@@ -1,0 +1,67 @@
+#
+# secureboot_xip AP defconfig (diff vs board defconfig)
+#
+CONFIG_SOC_SMP=y
+CONFIG_CPU_ID_OFFSET=2
+CONFIG_SMP_CORE_CNT=2
+# CONFIG_FREERTOS_V10 is not set
+CONFIG_FREERTOS_SMP=y
+# Run the AP as the Non-Secure processing environment: the cross-bus master path
+# is forced Non-Secure by hardware, so the AP image uses Non-Secure aliases for
+# all memory and peripherals.
+CONFIG_SPE=0
+
+# PSRAM: CP does not init PSRAM in secureboot_xip; disable on AP to skip the
+# bk_init() probe read at 0x70000000 that bus-faults before controller init.
+# CONFIG_PSRAM is not set
+# CONFIG_PSRAM_AS_SYS_MEMORY is not set
+
+# GDMA registers live in the CP domain; this core is forced Non-Secure on the
+# cross-bus master path, so disable the general DMA driver during bring-up.
+# SPI then runs in non-DMA (CPU) mode.
+# CONFIG_GENERAL_DMA is not set
+# CONFIG_SPI_DMA is not set
+
+# The L2 cache controller is a secure resource; a Non-Secure master cannot reach
+# its control registers, so its maintenance loop would spin forever during
+# bring-up. Disable L2 management here so all cache maintenance uses the core's
+# private L1 (no external controller access). L2 stays bypassed.
+# CONFIG_L2_CACHE_ENABLE is not set
+
+# Use the CPU-direct SRAM alias for AP memory access.
+CONFIG_SRAM_DIRECT_ADDR=y
+
+# CONFIG_PSRAM_TEST is not set
+CONFIG_SLAVE_HEART_BEAT=n
+
+# Bring-up: disable AP window watchdog. HW period is 16-bit (timeout_ms*32); values
+# above ~2047ms wrap and fire in ~1.3s. Heartbeat tasks feed task_wdt explicitly.
+# CONFIG_SUPPORT_WWDT is not set
+
+CONFIG_SECURE_OTA_XIP=y
+
+# The AP runtime partition map (BK_FLASH_PARTITIONS_MAP) only carries
+# {name, offset, size} -- partition_options is always 0. With the write-perm
+# check enabled, flash_partition_write_perm_check() sees PAR_OPT_WRITE_EN unset
+# and rejects EVERY direct AP flash erase/write (e.g. secure-XIP OTA staging
+# into secondary_all -> "erase fail @0x36c000"). Disable the check on the NS AP
+# so the OTA staging path can erase/program the inactive slot.
+# CONFIG_FLASH_PARTITION_CHECK_VALID is not set
+
+# CONFIG_SYSTICK_32K is not set
+
+CONFIG_BLUETOOTH_AP=y
+CONFIG_AT=y
+CONFIG_DEFAULT_AT_PORT=5
+CONFIG_WIFI_AT_ENABLE=y
+CONFIG_MISC_AT_ENABLE=y
+CONFIG_AT_MAX_PORT_CNT=1
+CONFIG_IPERF_TEST=y
+CONFIG_DEMOS_IPERF=y
+
+CONFIG_SDCARD=y
+CONFIG_FATFS=y
+CONFIG_FATFS_SDCARD=y
+CONFIG_VFS=y
+CONFIG_LITTLEFS=y
+CONFIG_VFS_TEST=y

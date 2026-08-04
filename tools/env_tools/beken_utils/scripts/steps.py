@@ -44,7 +44,7 @@ def get_app_bin_hash():
     o = OTA('ota.csv')
     s = Security('security.csv')
     ota_type = o.get_strategy()
-    p = Partitions('partitions.csv', ota_type, s.secureboot_en)
+    p = Partitions('partitions.csv', ota_type, s.secureboot_en, s.crc_en)
     p.gen_bins_for_bl2_signing()
 
     pbl2 = p.find_partition_by_name('bl2')
@@ -69,7 +69,7 @@ def sign_from_app_sig():
     o = OTA('ota.csv')
     s = Security('security.csv')
     ota_type = o.get_strategy()
-    p = Partitions('partitions.csv', ota_type, s.secureboot_en)
+    p = Partitions('partitions.csv', ota_type, s.secureboot_en, s.crc_en)
 
     pbl2 = p.find_partition_by_name('bl2')
     bl1_sign('sign_from_sig', s.bl1_root_key_type, s.bl1_root_privkey, s.bl1_root_pubkey, None, pbl2.bin_name, pbl2.load_addr, pbl2.static_addr, 'primary_manifest.bin')
@@ -85,7 +85,7 @@ def get_ota_bin_hash():
     o = OTA('ota.csv')
     s = Security('security.csv')
     ota_type = o.get_strategy()
-    p = Partitions('partitions.csv', ota_type, s.secureboot_en)
+    p = Partitions('partitions.csv', ota_type, s.secureboot_en, s.crc_en)
 
     if (ota_type == 'OVERWRITE'):
         compress_bin('primary_all_code_signed.bin', 'compress.bin')
@@ -107,7 +107,7 @@ def sign_from_ota_sig():
     o = OTA('ota.csv')
     s = Security('security.csv')
     ota_type = o.get_strategy()
-    p = Partitions('partitions.csv', ota_type, s.secureboot_en)
+    p = Partitions('partitions.csv', ota_type, s.secureboot_en, s.crc_en)
 
     ota_sig = get_app_sig('ota_sig.json')
     if (ota_type == 'OVERWRITE'):
@@ -120,7 +120,8 @@ def steps_pack():
     o = OTA('ota.csv')
     s = Security('security.csv')
     ota_type = o.get_strategy()
-    p = Partitions('partitions.csv', ota_type, s.secureboot_en)
-    p.pack_bin('pack.json', s.flash_aes_type, s.flash_aes_key, o.get_app_security_counter(),o.get_encrypt())
+    boot_ota = o.get_boot_ota()
+    p = Partitions('partitions.csv', ota_type, boot_ota, s.secureboot_en, s.crc_en)
+    p.pack_bin('pack.json', s.flash_aes_type, s.flash_aes_key, o.get_app_security_counter(),o.get_encrypt(), o.get_boot_ota())
     insert_pk_hash('bootloader.bin', s.bl2_root_pubkey)
     p.install_bin()

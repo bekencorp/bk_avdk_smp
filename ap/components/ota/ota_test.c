@@ -14,16 +14,13 @@
 
 #include "cli.h"
 #include "modules/ota.h"
-#if CONFIG_SECURITY_OTA
-#include "_ota.h"
-#endif
 
 
-#if CONFIG_HTTP_AB_PARTITION
+#if CONFIG_HTTP_AB_PARTITION || CONFIG_SECURE_OTA_XIP
 static void get_http_ab_version(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
 	exec_flag ret_partition = 0;
-#if CONFIG_OTA_POSITION_INDEPENDENT_AB
+
 	ret_partition = bk_ota_get_current_partition();
 	if(ret_partition == 0x0)
 	{
@@ -33,17 +30,7 @@ static void get_http_ab_version(char *pcWriteBuffer, int xWriteBufferLen, int ar
 	{
     	BK_LOGD(NULL,"partition B\r\n");
     }
-#else
-	ret_partition = bk_ota_get_current_partition();
-	if((ret_partition == 0xFF) ||(ret_partition == EXEX_A_PART))
-	{
-    	BK_LOGD(NULL,"partition A\r\n");
-    }
-	else
-	{
-    	BK_LOGD(NULL,"partition B\r\n");
-    }
-#endif
+
 }
 
 extern int bk_ota_swap_execute_partition(void);
@@ -60,19 +47,6 @@ static void swap_ab_execute_partition(char *pcWriteBuffer, int xWriteBufferLen, 
 	{
 		os_printf("swap success\r\n");
 		bk_reboot();
-	}
-}
-#endif
-
-#if CONFIG_DIRECT_XIP && CONFIG_SECURITY_OTA
-static void get_http_ab_version(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
-{
-	extern uint32_t flash_get_excute_enable();
-	uint32_t id = flash_get_excute_enable();
-	if(id == 0){
-		BK_LOGD(NULL,"partition A\r\n");
-	} else if (id == 1){
-		BK_LOGD(NULL,"partition B\r\n");
 	}
 }
 #endif
@@ -300,13 +274,11 @@ DRV_CLI_CMD_EXPORT static const struct cli_command s_ota_commands[] = {
 
 #endif
 
-#if CONFIG_HTTP_AB_PARTITION
+#if CONFIG_HTTP_AB_PARTITION ||CONFIG_SECURE_OTA_XIP	
 	{"ab_version", NULL, get_http_ab_version},
+#if CONFIG_HTTP_AB_PARTITION
 	{"swap_ab_partition", NULL, swap_ab_execute_partition},
 #endif
-
-#if CONFIG_DIRECT_XIP && CONFIG_SECURITY_OTA
-	{"ab_version", NULL, get_http_ab_version},
 #endif
 };
 

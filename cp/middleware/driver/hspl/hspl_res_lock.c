@@ -201,6 +201,11 @@ bk_err_t bk_hspl_res_unlock(bk_hspl_res_t res)
 		return BK_ERR_PARAM;
 	}
 
+#if (CONFIG_SECURITY_FIRMWARE && !CONFIG_SOC_SMP)
+	/* BK7259 secure-boot single-core: HSPL is a no-op (see bk_hspl_res_must_lock). */
+	(void)hspl_id; (void)channel; (void)core_id; (void)flags; (void)ret;
+	return BK_OK;
+#else
 	hspl_res_get_map_internal(res, &hspl_id, &channel);
 	if (hspl_id == BK_HSPL_ID_1) {
 		return BK_ERR_NOT_SUPPORT;
@@ -220,6 +225,7 @@ bk_err_t bk_hspl_res_unlock(bk_hspl_res_t res)
 	}
 	rtos_enable_int(flags);
 	return ret;
+#endif /* CONFIG_SECURITY_FIRMWARE && !CONFIG_SOC_SMP */
 }
 
 static inline uint32_t hspl_res_must_lock_timeout_ms(bk_hspl_res_t res)
@@ -267,6 +273,22 @@ bk_err_t bk_hspl_res_must_lock(bk_hspl_res_t res)
 		return BK_ERR_PARAM;
 	}
 
+#if (CONFIG_SECURITY_FIRMWARE && !CONFIG_SOC_SMP)
+	/*
+	 * BK7259 secure-boot single-core (CONFIG_SOC_SMP=n) bring-up: HSPL is a
+	 * CP/AP cross-core hardware semaphore (HSPL0 @0x55010000, HSPL1 in the AP
+	 * subsystem @0x580C0000). In this Phase-1 single-core CP image the AP is not
+	 * started and the HW semaphore has no remote arbiter, so the acquire loop
+	 * (bk_hspl_try_lock) never succeeds and must_lock() busy-waits forever
+	 * (NS reset stalled in driver_early_init / reset_reason / sys_drv_init).
+	 * With a single core there is no cross-core contention, so degrade the lock
+	 * to a no-op: rtos_disable/enable_int() in the callers already provides the
+	 * needed same-core mutual exclusion. Skip the hardware semaphore entirely.
+	 */
+	(void)hspl_id; (void)channel; (void)core_id; (void)flags;
+	(void)timeout_ms; (void)start_ms; (void)use_timeout;
+	return BK_OK;
+#else
 	hspl_res_get_map_internal(res, &hspl_id, &channel);
 	if (hspl_id == BK_HSPL_ID_1) {
 		return BK_ERR_NOT_SUPPORT;
@@ -339,6 +361,7 @@ bk_err_t bk_hspl_res_must_lock(bk_hspl_res_t res)
 			}
 		}
 	}
+#endif /* CONFIG_SECURITY_FIRMWARE && !CONFIG_SOC_SMP */
 }
 
 bk_err_t bk_hspl_res_lock_irqsave(bk_hspl_res_t res, uint32_t *flags)

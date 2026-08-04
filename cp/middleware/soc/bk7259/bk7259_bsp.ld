@@ -19,10 +19,28 @@
 OUTPUT_FORMAT("elf32-littlearm", "elf32-bigarm", "elf32-littlearm")
 
 __MSP_STACK_SIZE = (4 << 10);
+#if (CONFIG_SPE)
 #if (CONFIG_SOC_SMP)
 __MIN_HEAP_SIZE  = (64 << 10);  /* SMP: two cores use more RAM for stacks */
 #else
 __MIN_HEAP_SIZE  = (86 << 10);
+#endif
+#else
+#if (CONFIG_SOC_SMP)
+__MIN_HEAP_SIZE  = (16 << 10);  /* SMP NS: ~18KB heap after SPE carve-out */
+#elif (CONFIG_SECURITY_FIRMWARE)
+/*
+ * BK7259 secure-boot single-core (CONFIG_SOC_SMP=n) Non-Secure app: the NS RAM
+ * is the SPE-carved remainder (CONFIG_CP_RAM_SIZE - CONFIG_CPU0_SPE_RAM_SIZE),
+ * not the whole SRAM. The default non-SMP NS heap of 50KB does not fit after
+ * .data/.bss/.ramcode/stack, tripping the "Heap smaller than minimize size"
+ * link assert. Use the same modest heap floor as the SMP-NS case (post
+ * SPE carve-out), which is what this secure-boot layout actually has room for.
+ */
+__MIN_HEAP_SIZE  = (16 << 10);
+#else
+__MIN_HEAP_SIZE  = (50 << 10);
+#endif
 #endif
 PERSIST_MEM_AREA_SIZE = 4;
 REBOOT_TAG_AREA_SIZE = 4;
@@ -41,25 +59,38 @@ The follow four shared memory address area mapping to the same physical memory
     0x38000000 ~ 0x380a0000  ---- data area, recommend put sram data
 ******************************************************************************/
 
+#if CONFIG_SPE
+#define __CP_APP_NS_ADDR_OFFSET 0x0
+#else
+#define __CP_APP_NS_ADDR_OFFSET 0x10000000
+#endif
+
 __CP_APP_IRAM_OFFSET = 0x00000000;
 
 #if CONFIG_SRAM_DIRECT_ADDR
-__CP_APP_RAM_OFFSET = 0x04000000;
+__CP_APP_RAM_OFFSET = 0x04000000 + __CP_APP_NS_ADDR_OFFSET;
 #else
-__CP_APP_RAM_OFFSET = 0x0;
+__CP_APP_RAM_OFFSET = 0x0 + __CP_APP_NS_ADDR_OFFSET;
 #endif
 
-__CP_APP_RAM_BASE = CONFIG_CP_RAM_ADDR + __CP_APP_RAM_OFFSET; /* 0x28000000 + 0x04000000 = 0x2C000000 */
-__CP_SWAP_BASE = CONFIG_SWAP_ADDR + __CP_APP_RAM_OFFSET; /* 0x2805F000 + 0x04000000 = 0x2C05F000 */
+#if CONFIG_SPE
+__CP_APP_RAM_BASE = CONFIG_CP_RAM_ADDR + __CP_APP_RAM_OFFSET;
+__CP_APP_RAM_SIZE = CONFIG_CP_RAM_SIZE;
+#else
+__CP_APP_RAM_BASE = CONFIG_CP_RAM_ADDR + __CP_APP_RAM_OFFSET + CONFIG_CPU0_SPE_RAM_SIZE;
+__CP_APP_RAM_SIZE = CONFIG_CP_RAM_SIZE - CONFIG_CPU0_SPE_RAM_SIZE;
+#endif
 
-__CP_APP_IRAM_BASE = CONFIG_CP_RAM_ADDR + __CP_APP_RAM_OFFSET - __CP_APP_IRAM_OFFSET;  /*0x2C000000 = 0x2C000000 - __CP_APP_IRAM_OFFSET*/
-__CP_APP_IRAM_SIZE = CONFIG_CP_RAM_SIZE;
+__CP_SWAP_BASE = CONFIG_SWAP_ADDR + __CP_APP_RAM_OFFSET;
+
+__CP_APP_IRAM_BASE = __CP_APP_RAM_BASE - __CP_APP_IRAM_OFFSET;
+__CP_APP_IRAM_SIZE = __CP_APP_RAM_SIZE;
 
 MEMORY
 {
   FLASH (rx)            : ORIGIN = (SOC_FLASH_DATA_BASE + CONFIG_CP_VIRTUAL_PARTITION_OFFSET), LENGTH = CONFIG_CP_VIRTUAL_PARTITION_SIZE
   IRAM (rx)             : ORIGIN = __CP_APP_IRAM_BASE, LENGTH = __CP_APP_IRAM_SIZE
-  RAM (rwx)             : ORIGIN = __CP_APP_RAM_BASE, LENGTH = CONFIG_CP_RAM_SIZE
+  RAM (rwx)             : ORIGIN = __CP_APP_RAM_BASE, LENGTH = __CP_APP_RAM_SIZE
   SWAP (rwx)            : ORIGIN = __CP_SWAP_BASE, LENGTH = CONFIG_SWAP_SIZE
 
 #if CONFIG_PSRAM
@@ -497,7 +528,7 @@ SECTIONS
 
     ASSERT((s_rom_end < ORIGIN(FLASH) + LENGTH(FLASH)), "ROM overflow!!!")
     ASSERT(((ORIGIN(RAM) + LENGTH(RAM)) > (_heap_start + __MSP_STACK_SIZE + 8)), "Stack overflowed with bss")
-    ASSERT(((_heap_end - _heap_start) >= __MIN_HEAP_SIZE), "Heap smaller than minimize size 90K!!!")
+    ASSERT(((_heap_end - _heap_start) >= __MIN_HEAP_SIZE), "Heap smaller than minimize size!!!")
     ASSERT((_shared_memory_end - _shared_memory_start) == 1024, ".shared_memory sections must be 1024 bytes!!!")
 #if (CONFIG_SOC_SMP)
     PROVIDE(_estack_cpu0 = _estack_core0);

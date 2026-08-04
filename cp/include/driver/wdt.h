@@ -147,6 +147,15 @@ void bk_wdt_set_feed_time(uint32_t dw_set_time);
  */
 bool bk_wdt_is_driver_inited(void);
 
+/* Low-level WDT register operations used by the TF-M secure FIH macros
+ * (hal_hw_fih.h FIH_ASSERT*). Implemented by the platform (BK7259:
+ * armino_min wdt). Declared here so consumers including <driver/wdt.h> have
+ * the prototypes (otherwise an implicit-declaration error). */
+void update_wdt(uint32_t val);
+void update_aon_wdt(uint32_t val);
+void close_wdt(void);
+void close_aon_wdt(void);
+
 /**
  * @}
  */

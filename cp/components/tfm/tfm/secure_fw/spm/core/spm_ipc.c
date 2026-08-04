@@ -359,41 +359,25 @@ int32_t tfm_spm_get_client_id(bool ns_caller)
     return client_id;
 }
 
-/* BK7259 bring-up diag: raw UART1 marker (works in handler mode, unlike SPMLOG
- * which may be gated). 'P0'=enter tfm_spm_init, 'P1'=after connection space,
- * 'P2'=after nspm ctx init, 'P3'=before system_run. */
-#define SPM_RAWMARK(c) do { volatile unsigned int *u1=(volatile unsigned int*)0x45830000; \
-    volatile unsigned char *u1b=(volatile unsigned char*)0x45830000; \
-    while (u1[0x18/4]&(1u<<16)){} u1b[0x1C]='P'; \
-    while (u1[0x18/4]&(1u<<16)){} u1b[0x1C]=(c); \
-    while (u1[0x18/4]&(1u<<16)){} u1b[0x1C]='\r'; \
-    while (u1[0x18/4]&(1u<<16)){} u1b[0x1C]='\n'; } while(0)
-
 uint32_t tfm_spm_init(void)
 {
     struct partition_t *partition;
     uint32_t service_setting;
     fih_int fih_rc = FIH_FAILURE;
 
-    SPM_RAWMARK('0');
     spm_init_connection_space();
-    SPM_RAWMARK('1');
 
     UNI_LISI_INIT_NODE(PARTITION_LIST_ADDR, next);
     UNI_LISI_INIT_NODE(&services_listhead, next);
 
     /* Init the nonsecure context. */
     tfm_nspm_ctx_init();
-    SPM_RAWMARK('2');
 
     while (1) {
         partition = load_a_partition_assuredly(PARTITION_LIST_ADDR);
         if (partition == NO_MORE_PARTITION) {
             break;
         }
-        /* 'L'=load, 'B'=bound, 'C'=comp-ok, low nibble of pid. */
-        SPM_RAWMARK('L'); SPM_RAWMARK('0' + (char)(partition->p_ldinf->pid & 0xF));
-
         service_setting = load_services_assuredly(
                                 partition,
                                 &services_listhead,
@@ -408,13 +392,9 @@ uint32_t tfm_spm_init(void)
         if (fih_not_eq(fih_rc, fih_int_encode(TFM_HAL_SUCCESS))) {
             tfm_core_panic();
         }
-        SPM_RAWMARK('B');
-
         backend_init_comp_assuredly(partition, service_setting);
-        SPM_RAWMARK('C');
     }
 
-    SPM_RAWMARK('3');
     return backend_system_run();
 }
 

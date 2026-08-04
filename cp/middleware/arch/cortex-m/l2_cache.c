@@ -49,6 +49,7 @@
 
 static int32_t l2_cache_wait_req_complete(void)
 {
+#if CONFIG_SPE
     uint32_t timeout = L2C_OP_WAIT_TIMEOUT;
 
     while (timeout > 0U) {
@@ -68,6 +69,20 @@ static int32_t l2_cache_wait_req_complete(void)
     }
 
     return -1;
+#else
+    /*
+     * Non-Secure (NSPE) side: the L2C maintenance completion is reported through
+     * the *secure* status/clear registers (SECIRQSTAT/SECIRQCLR @ 0xE0060100/104).
+     * From the Non-Secure world REQ_DONE is never observable, so this poll would
+     * spin the full L2C_OP_WAIT_TIMEOUT (~1e6 iters, ~7s) on every boot — this was
+     * the dominant cause of the multi-second gap between the secure log ending and
+     * the non-secure app starting. NS cannot (and must not) drive the secure L2
+     * controller;
+     * the L1 cache maintenance (SCB_*) in cache.c has already been performed, so
+     * just return success without waiting.
+     */
+    return 0;
+#endif
 }
 
 int32_t l2_cache_init(void)

@@ -15,6 +15,7 @@
 #include "bk_wifi.h"
 #include "bk_wifi_types.h"
 #include "wifi_api.h"
+#include "soc_debug.h"
 
 #include "ftp/ftpd.h"
 
@@ -1349,7 +1350,8 @@ int cli_wifi_init(void)
 	#endif
 	BK_LOG_ON_ERR(bk_event_register_cb(EVENT_MOD_WIFI, EVENT_ID_ALL, cli_wifi_event_cb, NULL));
 	BK_LOG_ON_ERR(bk_event_register_cb(EVENT_MOD_NETIF, EVENT_ID_ALL, cli_netif_event_cb, NULL));
-	return cli_register_commands(s_wifi_commands, WIFI_CMD_CNT);
+	int _reg_ret = cli_register_commands(s_wifi_commands, WIFI_CMD_CNT);
+	return _reg_ret;
 }
 
 #endif //#if (CLI_CFG_WIFI == 1)

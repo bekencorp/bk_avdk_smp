@@ -17,7 +17,8 @@ project_dir = os.getenv("PROJECT_DIR")
 project_name = os.getenv("PROJECT")
 armino_soc = os.getenv("ARMINO_SOC")
 build_path=os.path.realpath('.')
-header_path = "{}/tools/env_tools/rtt_ota/ota-rbl/".format(armino_path)
+armino_avdk_path = os.getenv("ARMINO_AVDK_DIR") or armino_path
+header_path = "{}/tools/env_tools/rtt_ota/ota-rbl/".format(armino_avdk_path)
 is_secure_boot = False
 
 cpu1_bin  = f'{armino_path}/{project_dir}/{armino_soc}_cpu1.bin'
@@ -25,9 +26,9 @@ bootloader_bin = f'{armino_path}/properties/modules/bootloader/aboot/arm_bootloa
 
 nosecurity_pack = "%s/middleware/boards/%s/%s_nosecurity.wrapper"%(armino_path, armino_soc, armino_soc)
 nosecurity_cpu1_bin = '%s/%s/app1.bin'%(armino_path, project_dir)
-pack_boot_tools = '%s/tools/env_tools/beken_packager'%(armino_path)
+pack_boot_tools = '%s/tools/env_tools/beken_packager'%(armino_avdk_path)
 
-project_full_path = f'{armino_path}/{project_dir}/config/{armino_soc}'
+project_full_path = os.path.join(armino_path, project_dir, 'config', armino_soc)
 secure_config_path = os.path.join(project_full_path,'config')
 
 if os.path.exists(secure_config_path):
@@ -106,11 +107,12 @@ def copy_file(src, dst):
 def pack(prebuild):
 
 	soc = armino_soc
-	tools_dir = f'{armino_path}/tools/env_tools'
+	tools_dir = f'{armino_avdk_path}/tools/env_tools'
 	bin_dir = build_path
 	cpu0_armino_soc = armino_soc.replace('_cp1', '')
 	base_cfg_dir = f'{armino_path}/middleware/boards/{cpu0_armino_soc}' #CPU1 share the same config with CPU0
-	prefered_cfg_dir = f'{armino_path}/{project_dir}/config'
+	prefered_cfg_dir = os.path.join(armino_path, project_dir, 'config')
+	project_partitions_cfg_dir = os.path.join(armino_path, project_dir, 'partitions', cpu0_armino_soc)
 	gen_dir = f'{build_path}/generated'
 	debug = True
 
@@ -144,6 +146,11 @@ def pack(prebuild):
 	install_configs(prefered_cfg_dir, _BUILD_DIR)
 	install_configs(f'{prefered_cfg_dir}/common', _BUILD_DIR)
 	install_configs(f'{prefered_cfg_dir}/{cpu0_armino_soc}', _BUILD_DIR)
+	install_configs(project_partitions_cfg_dir, _BUILD_DIR)
+	# security.csv and pack.json belong to the partition layout. Copy these two
+	# files last so prebuild and final packing use the same project configuration.
+	copy_file(f'{project_partitions_cfg_dir}/security.csv', f'{_BUILD_DIR}/security.csv')
+	copy_file(f'{project_partitions_cfg_dir}/pack.json', f'{_BUILD_DIR}/pack.json')
 
 	debug_option = ''
 	if (debug):
@@ -161,11 +168,46 @@ def pack(prebuild):
 
 	logging.debug(f'Copy Armino bin to {_BUILD_DIR}')
 
+	# The partition pre-build step generates partitions.csv / partitions.json /
+	# bk_package.json etc. into the SMP-shared {build}/../partitions dir. The
+	# secure pack flow runs in _build and expects them there, so copy them in.
+	partitions_gen_dir = os.path.realpath(f'{CMAKE_BIN_DIR}/../partitions')
+	if os.path.exists(partitions_gen_dir):
+		logging.debug(f'Copy generated partition files from {partitions_gen_dir}')
+		copy_files('.csv', partitions_gen_dir, _BUILD_DIR)
+		copy_files('.json', partitions_gen_dir, _BUILD_DIR)
+		copy_files('.h', partitions_gen_dir, _BUILD_DIR)
+		copy_files('.txt', partitions_gen_dir, _BUILD_DIR)
+
 	if (os.path.exists(f'{CMAKE_BIN_DIR}/app.bin') == True):
 		copy_file(f'{CMAKE_BIN_DIR}/app.bin', f'{_BUILD_DIR}/cpu0_app.bin')
+	ap_app_bin = os.path.realpath(f'{CMAKE_BIN_DIR}/../{armino_soc}_ap/app.bin')
+	if os.path.exists(ap_app_bin):
+		copy_file(ap_app_bin, f'{_BUILD_DIR}/ap_app.bin')
+	else:
+		logging.info(f'{ap_app_bin} not exist (AP firmware); primary_ap_app will be empty')
+
+	ap_ppc_config_bin = os.path.realpath(
+		f'{CMAKE_BIN_DIR}/../{armino_soc}_ap/armino/partitions/_build/ppc_config.bin'
+	)
+	if os.path.exists(ap_ppc_config_bin):
+		copy_file(ap_ppc_config_bin, f'{_BUILD_DIR}/ppc_config_ap.bin')
+	elif is_secure_boot:
+		raise FileNotFoundError(
+			f'{ap_ppc_config_bin} not exist (AP PPC config is required for secure boot packaging)'
+		)
+	else:
+		logging.info(f'{ap_ppc_config_bin} not exist; AP PPC config area will be padded')
+
+	# The TF-M install layout puts the freshly linked bl2.bin/tfm_s.bin in
+	# tfm_install/bin (this TF-M version). Older layouts used tfm_install/outputs.
+	# Prefer whichever exists, falling back to bin, so the packer always picks up
+	# the current build instead of stale binaries left in _BUILD_DIR.
 	TFM_BIN_DIR = f'{CMAKE_BIN_DIR}/tfm_install/outputs'
+	if (os.path.exists(TFM_BIN_DIR) == False):
+		TFM_BIN_DIR = f'{CMAKE_BIN_DIR}/tfm_install/bin'
 	if (os.path.exists(TFM_BIN_DIR) == True):
-		logging.debug(f'Copy TFM bin to {_BUILD_DIR}')
+		logging.debug(f'Copy TFM bin from {TFM_BIN_DIR} to {_BUILD_DIR}')
 		copy_files('.bin', TFM_BIN_DIR, _BUILD_DIR)
 
 	if (os.path.exists(cpu1_bin) == True):
@@ -194,8 +236,8 @@ def pack(prebuild):
 	copy_file(f'{_BUILD_DIR}/bootloader.bin', f'{CMAKE_INSTALL_DIR}/bootloader.bin')
 	copy_file(f'{_BUILD_DIR}/provision_pack.bin', f'{CMAKE_INSTALL_DIR}/provision_pack.bin')
 	copy_file(f'{CMAKE_BIN_DIR}/app.elf', f'{CMAKE_INSTALL_DIR}/app.elf')
-	copy_file(f'{CMAKE_BIN_DIR}/tfm_install/outputs/tfm_s.elf', f'{CMAKE_INSTALL_DIR}/tfm_s.elf')
-	copy_file(f'{CMAKE_BIN_DIR}/tfm_install/outputs/bl2.elf', f'{CMAKE_INSTALL_DIR}/bl2.elf')
+	copy_file(f'{TFM_BIN_DIR}/tfm_s.elf', f'{CMAKE_INSTALL_DIR}/tfm_s.elf')
+	copy_file(f'{TFM_BIN_DIR}/bl2.elf', f'{CMAKE_INSTALL_DIR}/bl2.elf')
 	copy_file(f'{_BUILD_DIR}/otp_efuse_config.json', f'{CMAKE_INSTALL_DIR}/otp_efuse_config.json')
 	copy_file(f'{CMAKE_BIN_DIR}/armino/partitions/_build/partitions_layout.txt', f'{CMAKE_INSTALL_DIR}/partitions_layout.txt')
 	copy_file(f'{bin_dir}/sdkconfig', f'{CMAKE_INSTALL_DIR}/sdkconfig')
@@ -212,7 +254,8 @@ def pack(prebuild):
 		copy_file(f'{_BUILD_DIR}/pack.json', f'{pack_dir}/pack.json')
 		copy_file(f'{_BUILD_DIR}/primary_all.bin', f'{pack_dir}/primary_all.bin')
 		copy_file(f'{_BUILD_DIR}/pack_cmd_list.txt', f'{pack_dir}/pack_cmd_list.txt')
-		copy_file(f'{CMAKE_INSTALL_DIR}/../armino/partitions/_build/ppc_config.bin', f'{pack_dir}/ppc_config.bin')
+		copy_file(f'{_BUILD_DIR}/ppc_config.bin', f'{pack_dir}/ppc_config.bin')
+		copy_file(f'{_BUILD_DIR}/ppc_config_ap.bin', f'{pack_dir}/ppc_config_ap.bin')
 		copy_files('.pem', _BUILD_DIR, pack_dir)
 
 	move_file('all-app.bin', _BUILD_DIR, CMAKE_BIN_DIR)

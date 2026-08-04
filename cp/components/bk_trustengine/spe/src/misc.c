@@ -8,7 +8,9 @@
 #include "tfm_core_utils.h"
 #include "bk_uart.h"
 #include <components/system.h>
+#if CONFIG_ARM_CORE_STAR || CONFIG_ARM_CORE_CM52 || CONFIG_ARM_CORE_CM55
 #include "bk_arch.h"
+#endif
 
 #define CONFIG_STDIO_PRINTF_BUF_SIZE    128
 
@@ -110,10 +112,16 @@ ulong_t psa_get_tick(void)
 	return 0;
 }
 
+/* TF-M 2.1.0 provides the real psa_wait() in secure_fw runtime
+ * (psa_api_ipc.c). This file is a Beken shim for an older TF-M that lacked it;
+ * keeping it here causes a multiple-definition link error. Guard it out for the
+ * 2.1.0 baseline. */
+#if !defined(CONFIG_TFM_2_1_0_PSA_API)
 uint32_t psa_wait(uint32_t signal_mask, uint32_t timeout)
 {	/*TODO wangzhilei*/
 	return signal_mask;
 }
+#endif
 
 #if CONFIG_REDEFINE_PSA_EVENT
 void psa_notify(int32_t partition_id)
@@ -134,12 +142,25 @@ void psa_eoi(uint32_t irq_signal)
 
 unsigned int hal_irq_disable(void)
 {
+#if CONFIG_ARM_CORE_STAR || CONFIG_ARM_CORE_CM52 || CONFIG_ARM_CORE_CM55
 	return bk_arch_raise_basepri();
+#else
+	uint32_t primask_val;
+
+	primask_val = __get_PRIMASK();
+	__disable_irq();
+
+	return primask_val;
+#endif
 }
 
 void hal_irq_enable(unsigned int key)
 {
+#if CONFIG_ARM_CORE_STAR || CONFIG_ARM_CORE_CM52 || CONFIG_ARM_CORE_CM55
 	bk_arch_set_basepri(key);
+#else
+	__set_PRIMASK(key);
+#endif
 }
 
 void rand_bytes(uint8_t *data, uint32_t len)

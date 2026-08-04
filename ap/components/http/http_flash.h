@@ -1,19 +1,11 @@
 #include "bk_drv_model.h"
-#if (CONFIG_SECURITY_OTA)
-#include "partitions.h"
-#endif
 #if CONFIG_FLASH_ORIGIN_API
 #include "BkDriverFlash.h"
 #else
 #include <driver/flash_partition.h>
 #endif
 
-#if (CONFIG_SECURITY_OTA)
-#undef HTTP_WR_TO_FLASH
-#define HTTP_WR_TO_FLASH        0
-#else
 #define HTTP_WR_TO_FLASH        1
-#endif
 
 typedef struct http_data_st {
 	UINT32 http_total;

@@ -73,8 +73,11 @@ static const bk_logic_partition_t bk_flash_partitions[] = BK_FLASH_PARTITIONS_MA
 
 static bool flash_partition_is_valid(bk_partition_t partition)
 {
-	if ((partition >= BK_PARTITION_BOOTLOADER) 
-		&& (partition < ARRAY_SIZE(bk_flash_partitions))) {
+	/* Valid when the id indexes a populated map entry. The map uses designated
+	 * initializers, so unused indices are zero-filled (description == NULL) and
+	 * must be rejected; id order cannot be assumed. */
+	if ((partition < ARRAY_SIZE(bk_flash_partitions))
+		&& (bk_flash_partitions[partition].partition_description != NULL)) {
 		return true;
 	} else {
 		return false;

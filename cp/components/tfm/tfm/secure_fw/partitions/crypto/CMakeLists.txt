@@ -10,8 +10,11 @@
 
 # This defines the configuration files for the users of the client interface
 set(TFM_MBEDCRYPTO_CONFIG_CLIENT_PATH ${TFM_MBEDCRYPTO_CONFIG_PATH})
-cmake_path(REMOVE_EXTENSION TFM_MBEDCRYPTO_CONFIG_CLIENT_PATH)
-cmake_path(APPEND_STRING TFM_MBEDCRYPTO_CONFIG_CLIENT_PATH "_client.h")
+get_filename_component(_tfm_mbedcrypto_cfg_dir "${TFM_MBEDCRYPTO_CONFIG_CLIENT_PATH}" DIRECTORY)
+get_filename_component(_tfm_mbedcrypto_cfg_name "${TFM_MBEDCRYPTO_CONFIG_CLIENT_PATH}" NAME_WE)
+set(TFM_MBEDCRYPTO_CONFIG_CLIENT_PATH "${_tfm_mbedcrypto_cfg_dir}/${_tfm_mbedcrypto_cfg_name}_client.h")
+unset(_tfm_mbedcrypto_cfg_dir)
+unset(_tfm_mbedcrypto_cfg_name)
 
 add_library(psa_crypto_config INTERFACE)
 target_compile_definitions(psa_crypto_config
@@ -38,7 +41,7 @@ endif()
 
 find_package(Python3)
 
-cmake_minimum_required(VERSION 3.21)
+cmake_minimum_required(VERSION 3.16)
 
 add_library(tfm_psa_rot_partition_crypto STATIC)
 

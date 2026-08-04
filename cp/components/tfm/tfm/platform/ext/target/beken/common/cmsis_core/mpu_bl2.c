@@ -18,6 +18,7 @@
 #include "core_star.h"
 #include "sdkconfig.h"
 #include "hal_hw_fih.h"
+#include "partitions.h"
 
 #define MPU_MAX_NUM_REGIONS     (8UL)                   /* 支持的最大区域数量 */
 #define MPU_MAX_NUM_ATTRS       (8UL)                   /* 支持的最大区域数量 */
@@ -53,7 +54,7 @@ static const ARM_MPU_Region_t mpu_regions[] = {
     /* region 0: Flash (secure 0x04xxxxxx) - BL2 code XIP + reading images to
      * verify/decrypt. Executable, cacheable write-through read-allocate (attr 4). */
     { ARM_MPU_RBAR(0x04000000UL, ARM_MPU_SH_NON, 1, 1, 0),
-      ARM_MPU_RLAR(0x04FFFFE0UL, 4) },
+      ARM_MPU_RLAR((0x04000000UL + CONFIG_PRIMARY_ALL_PHY_PARTITION_OFFSET - 0x10), 4)},
 
     /* region 1: Flash XIP-write window (secure 0x05xxxxxx), non-cacheable (attr 1),
      * execute-never - used by the packer/XIP-remap path. */

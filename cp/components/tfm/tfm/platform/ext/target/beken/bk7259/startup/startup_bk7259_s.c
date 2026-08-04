@@ -27,10 +27,6 @@
 #include "hal_hw_fih.h"
 #include "hal_sw_fih.h"
 
-/* BK7259 bring-up: define TFMS_RESET_MARK_DEBUG to emit raw UART1 markers
- * tracing tfm_s early startup. Disabled by default (boot chain validated). */
-#define TFMS_RESET_MARK_DEBUG 1
-
 #define ENTRY_SECTION  __attribute__((section(".fix.reset_entry")))
 #define SYSTEM_BASE_ADDR                 (0x44010000)
 #define OTP_APB_BASE_ADDRESSS            (0x42100000)  /* BK7259 OTP APB base (was bk7239n 0x4b100000) */
@@ -68,21 +64,8 @@ extern int main(void);
 extern void *memcpy(void *, const void *, unsigned int);
 extern void *memset(void *, int, unsigned int);
 
-#if defined(TFMS_RESET_MARK_DEBUG)
-void tfms_mark(const char *s)
-{
-    volatile unsigned int  *u1  = (volatile unsigned int  *)0x45830000;
-    volatile unsigned char *u1b = (volatile unsigned char *)0x45830000;
-    for (; *s; ++s) { while (u1[0x18 / 4] & (1u << 16)) { } u1b[0x1C] = (unsigned char)*s; }
-}
-
-#endif
-
 static __NO_RETURN void Pre_Main(void)
 {
-#if defined(TFMS_RESET_MARK_DEBUG)
-    tfms_mark("TS2:premain\r\n");
-#endif
     for (const __copy_table_t *t = &__copy_table_start__; t < &__copy_table_end__; ++t) {
         if (t->wlen > 0) {
             memcpy(t->dest, t->src, t->wlen * 4);
@@ -93,21 +76,12 @@ static __NO_RETURN void Pre_Main(void)
             memset(t->dest, 0, t->wlen * 4);
         }
     }
-#if defined(TFMS_RESET_MARK_DEBUG)
-    tfms_mark("TS3:tables-done\r\n");
-#endif
     /* BK7259: do NOT re-enter newlib _start()/_mainCRTStartup here. Like the
      * bk7259 BL2 startup, the C-runtime relocation (copy/zero tables above) is
      * already done; _mainCRTStartup re-inits the stack/runtime and hangs the
      * secure image (observed: stops right after TS3). Run the init-array
      * constructors and call main() directly (the tail of CMSIS __cmsis_start). */
-#if defined(TFMS_RESET_MARK_DEBUG)
-    tfms_mark("TS4:initarray\r\n");
-#endif
     __libc_init_array();
-#if defined(TFMS_RESET_MARK_DEBUG)
-    tfms_mark("TS5:main\r\n");
-#endif
     (void)main();
     while (1) { }
 }
@@ -230,15 +204,6 @@ const VECTOR_TABLE_Type __VECTOR_TABLE[] __VECTOR_TABLE_ATTRIBUTE = {
     0,
 };
 
-/* BK7259 bring-up: raw UART1 (secure log, 0x45830000) marker to confirm tfm_s
- * is entered and trace where its early startup faults. No-op unless
- * TFMS_RESET_MARK_DEBUG is defined. */
-#if defined(TFMS_RESET_MARK_DEBUG)
-#define TFMS_MARK(s) tfms_mark(s)
-#else
-#define TFMS_MARK(s) do {} while (0)
-#endif
-
 __NO_RETURN ENTRY_SECTION __attribute__((naked)) void Reset_Handler(void)
 {
     /* BK7259 bring-up: keep tfm_s reset minimal and aligned with the bk7259
@@ -252,13 +217,6 @@ __NO_RETURN ENTRY_SECTION __attribute__((naked)) void Reset_Handler(void)
      *   - sys_hal_switch_cpu_bus_freq() (BL2 kept the bootrom clock; re-switching
      *     here is unnecessary and risky)
      * The watchdogs are already disabled by BL2. */
-    /* Pure inline-asm '@' on UART1 as the very first instruction (naked-safe,
-     * no stack/func call) to prove tfm_s is entered at the right address. */
-    __asm volatile(
-        "ldr  r0, =0x45830000   \n"
-        "movs r1, #0x40         \n"   /* '@' */
-        "str  r1, [r0, #0x1C]   \n"
-        : : : "r0", "r1");
     __set_MSPLIM((uint32_t)(&__STACK_LIMIT));
 
 #if defined (__ARM_FEATURE_CMSE) && (__ARM_FEATURE_CMSE == 3U)
@@ -267,7 +225,6 @@ __NO_RETURN ENTRY_SECTION __attribute__((naked)) void Reset_Handler(void)
 
     /* CMSIS System Initialization */
     SystemInit();
-    TFMS_MARK("TS1:sysinit\r\n");
 
     /* Enter PreMain (C library entry point) */
     Pre_Main();

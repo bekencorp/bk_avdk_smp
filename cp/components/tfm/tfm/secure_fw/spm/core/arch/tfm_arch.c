@@ -16,33 +16,6 @@
 #pragma required = tfm_arch_clear_fp_data
 #endif
 
-/* BK7259 bring-up diag: C helper (raw UART1 'Y') called right before the
- * exception-return to the first scheduled thread. Done as a normal C function
- * (not inline asm in the naked routine) to avoid literal-pool/register issues. */
-void tfm_arch_dbg_mark_Y(uint32_t excret)
-{
-    volatile unsigned int *u1=(volatile unsigned int*)0x45830000;
-    volatile unsigned char *u1b=(volatile unsigned char*)0x45830000;
-    static const char hx[]="0123456789abcdef";
-    /* Print 'Y' + the exc_return + PSP of the thread we are about to return
-     * into, to identify the first scheduled thread's context. */
-    uint32_t psp = __get_PSP();
-    /* The thread we are about to return into has its initial exception stack
-     * frame at PSP: [r0,r1,r2,r3,r12,lr,pc,xpsr]. PC is at PSP+0x18. Dump PSP
-     * and the stacked PC to identify the first thread's entry. */
-    uint32_t stacked_pc = ((volatile uint32_t *)psp)[6];
-    while(u1[0x18/4]&(1u<<16)){} u1b[0x1C]='Y';
-    for (int i=0;i<8;i++){ while(u1[0x18/4]&(1u<<16)){} u1b[0x1C]=hx[(excret>>((7-i)*4))&0xF]; }
-    while(u1[0x18/4]&(1u<<16)){} u1b[0x1C]=' ';
-    for (int i=0;i<8;i++){ while(u1[0x18/4]&(1u<<16)){} u1b[0x1C]=hx[(psp>>((7-i)*4))&0xF]; }
-    while(u1[0x18/4]&(1u<<16)){} u1b[0x1C]=' ';
-    while(u1[0x18/4]&(1u<<16)){} u1b[0x1C]='P';
-    while(u1[0x18/4]&(1u<<16)){} u1b[0x1C]='C';
-    for (int i=0;i<8;i++){ while(u1[0x18/4]&(1u<<16)){} u1b[0x1C]=hx[(stacked_pc>>((7-i)*4))&0xF]; }
-    while(u1[0x18/4]&(1u<<16)){} u1b[0x1C]='\r';
-    while(u1[0x18/4]&(1u<<16)){} u1b[0x1C]='\n';
-}
-
 __naked void tfm_arch_free_msp_and_exc_ret(uint32_t msp_base,
                                            uint32_t exc_return)
 {
@@ -53,8 +26,6 @@ __naked void tfm_arch_free_msp_and_exc_ret(uint32_t msp_base,
 #if (CONFIG_TFM_FLOAT_ABI > 0)
         "bl      tfm_arch_clear_fp_data         \n"
 #endif
-        "mov     r0, r5                         \n"   /* pass exc_return to mark_Y */
-        "bl      tfm_arch_dbg_mark_Y            \n"
         "mov     sp, r4                         \n"
         "bx      r5                             \n"
     );

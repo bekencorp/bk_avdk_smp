@@ -25,6 +25,10 @@
 extern uint32_t __vector_core1_table;
 #endif
 
+/* Secure boot shim entry (first Secure RAM block). The secondary core enters
+ * here in the Secure state and the shim switches it to Non-Secure. */
+#define AP_BOOT_SHIM_BASE   0x28100000u
+
 static void multicore_hal_m55_core_init_common(void)
 {
 	uint32_t reg_val = 0;
@@ -93,14 +97,25 @@ bk_err_t multicore_hal_start(uint32_t id)
 		break;
 	case CPU3_CORE_ID:
 		multicore_hal_m55_core_init_common();
-#if CONFIG_SOC_SMP
+#if !CONFIG_SPE
+		/* Non-Secure build: the secondary core also resets in the Secure state
+		 * and must enter the Secure boot shim first, which sets up the SAU and
+		 * branches to the core's Non-Secure vector. Pointing it directly at the
+		 * Non-Secure vector would execute Non-Secure code in the Secure state. */
+		boot_addr = AP_BOOT_SHIM_BASE;
+#elif CONFIG_SOC_SMP
 		boot_addr = (uint32_t)&__vector_core1_table;
 #else
 		boot_addr = SOC_FLASH_DATA_BASE + CONFIG_AP_VIRTUAL_PARTITION_OFFSET;
 #endif
 		sys_ahbp_ll_set_reg5_cpu1_sw_rstn(0);
 		sys_ahbp_ll_set_reg5_cpu1_offset((boot_addr) >> 8);
+#if CONFIG_SPE
 		sys_ahbp_ll_set_reg5_cpu1_init_dtcm_en(1);
+#else
+		/* NS AP: TCM is not used; keep DTCM disabled on the secondary core. */
+		sys_ahbp_ll_set_reg5_cpu1_init_dtcm_en(0);
+#endif
 		sys_ahbp_ll_set_reg5_cpu1_wait(0);
 		sys_ahbp_ll_set_reg5_cpu1_wfe_pulse(0);
 		sys_ahbp_ll_set_reg5_cpu1_sw_rstn(1);

@@ -52,12 +52,26 @@ typedef enum EXEC_CONFIRM_TAG
 uint8 bk_ota_get_current_partition(void);
 
 /** 
-* @brief  Accept the OTA image
-*         This API is for MCUBOOT SWAP strategy only, if the image is accepted, then
-*         the MCUBOOT will make the image permanently, otherwise it will revert the
-*         OTA process.
+* @brief customer can use this callback to register cb fuction .
+*    when download success ,ota will call customer's cb and pass a parameter(1)to customer ,
+*    then customer  will return a value deciding which partition to execute
+* 
+* @param 
+*       temp_exec_part means ota pass value to customer 1: reps downlaod sucess. others reps downlaod fail
+*       cb means call the customer's cb.
+*          
 */
-void bk_ota_accept_image(void);
+typedef uint8 (*callback_func)(uint8 temp_exec_part);
+void bk_ota_register_temp_partition_callback(callback_func cb);
+
+/** 
+* @brief  customer finally decided which partition to execute.
+* 
+* @param  ota_confirm_val = 3: maens finally execute A partition.
+*         ota_confirm_val = 4: maens finally execute B partition.
+* 
+*/
+void bk_ota_confirm_update_partition(ota_confirm_flag ota_confirm_val);
 
 /** 
 * @brief  when do ota update,customer can call this interface .

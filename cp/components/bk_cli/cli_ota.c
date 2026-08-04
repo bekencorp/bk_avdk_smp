@@ -1,8 +1,5 @@
 #include "cli.h"
 #include "modules/ota.h"
-#if CONFIG_SECURITY_OTA
-#include "_ota.h"
-#endif
 
 #if CONFIG_OTA_TFTP
 extern void tftp_start(void);
@@ -56,19 +53,6 @@ void get_http_ab_version(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
     	BK_LOGD(NULL,"partition B\r\n");
     }
 #endif
-}
-#endif
-
-#if CONFIG_DIRECT_XIP && CONFIG_SECURITY_OTA
-void get_http_ab_version(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
-{
-	extern uint32_t flash_get_excute_enable();
-	uint32_t id = flash_get_excute_enable();
-	if(id == 0){
-		BK_LOGD(NULL,"partition A\r\n");
-	} else if (id == 1){
-		BK_LOGD(NULL,"partition B\r\n");
-	}
 }
 #endif
 
@@ -151,10 +135,6 @@ static const struct cli_command s_ota_commands[] = {
 #endif
 
 #if CONFIG_HTTP_AB_PARTITION
-	{"ab_version", NULL, get_http_ab_version},
-#endif
-
-#if CONFIG_DIRECT_XIP && CONFIG_SECURITY_OTA
 	{"ab_version", NULL, get_http_ab_version},
 #endif
 };

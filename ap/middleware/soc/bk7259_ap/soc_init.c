@@ -43,6 +43,7 @@
 
 #include "multicore_driver.h"
 #include "interrupt.h"
+#include "soc_debug.h"
 
 #define TAG "soc_init"
 
@@ -114,7 +115,10 @@ void _soc_start(void)
     uint32_t core_id = portGET_CORE_ID();
     if (core_id == 0) {
 #endif
-        relocate_vector_table();
+    /* Only the primary core relocates to the SRAM vector table. The secondary
+     * core keeps the vector table already selected by its boot path and must not
+     * override it with the primary core's table. */
+    relocate_vector_table();
 #if CONFIG_SOC_SMP
     }
 #endif

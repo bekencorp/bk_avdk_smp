@@ -8,6 +8,14 @@ menu "PSRAM"
 		bool "Enable psram_malloc API"
 		default n
 
+	config USE_PSRAM_HEAP_AT_SRAM_OOM
+		depends on PSRAM_AS_SYS_MEMORY
+		bool "Fallback to PSRAM heap when SRAM heap is exhausted"
+		help
+		  When SRAM heap allocation fails, retry the allocation from the
+		  PSRAM heap so os_malloc can still succeed.
+		default n
+
 	config PSRAM_WRITE_THROUGH
 		depends on PSRAM
 		bool "Enable PSRAM write through"

@@ -51,6 +51,7 @@
 
 #include "mb_ipc_cmd.h"
 #include "interrupt_base.h"
+#include "soc_debug.h"
 
 #if (CONFIG_PSRAM)
 #include <driver/psram.h>

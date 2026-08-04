@@ -593,6 +593,7 @@ static const f_ota_func_t s_ota_fun ={
     .data_process = ota_do_process_data,
     .crc          = ota_do_check_crc,
     .deinit       = ota_do_deinit,
+    .finish       = NULL,
 #if (CONFIG_REMOTE_VFS_CLIENT || CONFIG_VFS)
     .mount        = ota_do_mount,
     .open         = ota_do_open_file,

@@ -19,11 +19,12 @@ class tlv_c:
         self.fill_en = False
         self.firmware_en = False
         self.value_en = False
+        self.crc_en = True
         if "firmware" in self.tlv_json.keys():
             self.firmware_en = True
             self.firmware = tlv_dic['firmware']
             self.firmware_size = os.path.getsize(self.firmware)
-            self.crc_firmware_size = crc_size(self.firmware_size)
+            self.crc_firmware_size = crc_size(self.firmware_size, self.crc_en)
             if not os.path.exists(self.firmware):
                 logging.error(f'tlv{idx} firmware %s not exists' % (self.firmware))
                 exit(0)
@@ -82,9 +83,9 @@ class tlv_c:
 
         if ("crc" in tlv_dic):
             if (tlv_dic['crc'] == 'y') or (tlv_dic['crc'] == 'Y'):
-                self.crc_start_addr = crc_addr(self.cpu_start_addr)
-                self.crc_size = crc_size(self.cpu_size)
                 self.crc_en = True
+                self.crc_start_addr = crc_addr(self.cpu_start_addr, self.crc_en)
+                self.crc_size = crc_size(self.cpu_size, self.crc_en)
 
         if is_out_of_range(self.crc_start_addr, self.crc_size):
             logging.error(f'tlv{self.idx} crc is out of range')

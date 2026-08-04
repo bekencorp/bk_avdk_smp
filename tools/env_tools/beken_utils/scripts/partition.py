@@ -8,7 +8,10 @@ import copy
 import hashlib
 import math
 import csv
-
+import struct
+import zlib
+from enum import Enum
+import sys
 from .crc import *
 from .common import *
 from .security import *
@@ -16,13 +19,52 @@ from .ota import *
 from .parse_csv import *
 
 SZ_16M = 0x1000000
+FLASH_BASE_ADDR = 0x04000000
+FLASH_SIZE = 0x800000
 FLASH_SECTOR_SZ = 0x1000
 CRC_UNIT_DATA_SZ = 32
+CRC_EN = False
 CRC_UNIT_TOTAL_SZ = 34
 GLOBAL_HDR_LEN = 32
 IMG_HDR_LEN = 32
 HDR_SZ = 0x1000
 TAIL_SZ = 0x1000
+PPC_CONFIG_BIN_SIZE = 0x200
+PPC_CONFIG_AREA_SIZE = 0x400
+
+
+def get_xts_aes_bits(aes_key):
+    if aes_key == None:
+        raise ValueError("AES key is required for FIXED encryption")
+
+    key_len = len(aes_key)
+    if key_len == 64:
+        return 128
+    if key_len == 128:
+        return 256
+
+    raise ValueError(f"Unsupported AES key length: {key_len}, expected 64 or 128 hex chars")
+
+flags_mapping = {
+    "encrypted"   : 0,
+    "bk_1"        : 1,
+    "bk_2"        : 2,
+    "bk_3"        : 3,
+    "bk_4"        : 4,
+    "bk_5"        : 5,
+    "bk_6"        : 6,
+    "bk_7"        : 7,
+    # More internal flags can be added within the range of [0 ~ 7]
+    "customer_8"  : 8,
+    "customer_9"  : 9,
+    "customer_10" : 10,
+    "customer_11" : 11,
+    "customer_12" : 12,
+    "customer_13" : 13,
+    "customer_14" : 14,
+    "customer_15" : 15,
+    # More customer flags can be added within the range of [8 ~ 15]
+}
 
 partition_keys_v2 = [
     'Name',
@@ -41,6 +83,29 @@ partition_keys_v1 = [
     'Read',
     'Write'
 ]
+
+class PartitionType(Enum):
+    PARTITION_TYPE_APP  = 0X00
+    PARTITION_TYPE_DATA = 0X01
+    PARTITION_TYPE_ANY  = 0Xff
+
+class PartitionSubType(Enum):
+    PARTITION_SubType_BK_UNDEFINED_0   = 0X00
+    PARTITION_SubType_BK_UNDEFINED_1   = 0X01
+    PARTITION_SubType_BK_UNDEFINED_2   = 0X02
+    PARTITION_SubType_BK_UNDEFINED_3   = 0X03
+    PARTITION_SubType_BK_UNDEFINED_4   = 0X04
+    PARTITION_SubType_BK_UNDEFINED_5   = 0X05
+    PARTITION_SubType_BK_UNDEFINED_6   = 0X06
+    PARTITION_SubType_BK_UNDEFINED_7   = 0X07
+    PARTITION_SubType_BK_UNDEFINED_8   = 0X08
+    PARTITION_SubType_BK_UNDEFINED_9   = 0X09
+    PARTITION_SubType_BK_UNDEFINED_10  = 0X0a
+    PARTITION_SubType_BK_UNDEFINED_11  = 0X0b
+    PARTITION_SubType_BK_UNDEFINED_12  = 0X0c
+    PARTITION_SubType_BK_UNDEFINED_13  = 0X0d
+    PARTITION_SubType_BK_UNDEFINED_14  = 0X0e
+    PARTITION_SubType_BK_UNDEFINED_15  = 0X0f
 
 class Hdr:
     def __init__(self, magic, crc, version, hdr_len, img_num, flags = 0):
@@ -65,7 +130,7 @@ class Imghdr:
         self.reserved = bytes(0)
         logging.debug(f'img hdr: img_len=%x, img_offset=%x, flash_offset=%x, crc=%x, version=%x flags=%x'
             %(img_len, img_offset, flash_offset, crc, version, flags))
- 
+
 class Partition:
     def is_overwrite(self):
         return self.ota_type == 'OVERWRITE'
@@ -75,7 +140,7 @@ class Partition:
 
     def is_out_of_range(self, addr):
         if (addr >= SZ_16M):
-            return True 
+            return True
         else:
             return False
 
@@ -105,7 +170,7 @@ class Partition:
             logging.debug(f'Partition csv v1.0')
             self.partition_subtype = None
             self.partition_flags = None
-            if self.pdic['Execute'] == 'TRUE':
+            if parse_bool(self.pdic['Execute']):
                 self.partition_type = 'app'
             else:
                 self.partition_type = 'data'
@@ -137,7 +202,7 @@ class Partition:
             self.need_add_crc = False
 
         logging.debug(f'need_add_crc={self.need_add_crc}')
- 
+
     def parse_and_validate_partition_name(self):
         reserved_partition_names = ['primary_all', 'secondary_all', 'all']
         secureboot_partitions = ['bl1_control', 'primary_manifest', 'secondary_manifest']
@@ -183,6 +248,10 @@ class Partition:
         if (self.partition_name == 'bl1_control'):
             return
 
+        if (self.partition_name == 'boot_flag'):
+            self.bin_name = 'boot_flag.bin'
+            return
+
         if (self.partition_name == 'primary_manifest'):
             self.bin_name = 'primary_manifest.bin'
             return
@@ -193,6 +262,10 @@ class Partition:
 
         if (self.partition_name == 'bl2'):
             self.bin_name = 'bl2.bin'
+            return
+
+        if (self.partition_name == 'bl2_B'):
+            self.bin_name = 'bl2_B.bin'
             return
 
         if (self.partition_name == 'ota'):
@@ -214,17 +287,17 @@ class Partition:
         self.bin_verifier = None
         self.bin_hdr_size = 0
         self.bin_tail_size = 0
- 
+
         if self.is_data_partition():
             return
 
-        if (self.partition_name == 'bl2'):
+        if (self.partition_name == 'bl2') or (self.partition_name == 'bl2_B'):
             if self.bl1_secureboot_en:
                 self.bin_verifier = 'bl1'
         elif (self.bl2_exists) and (self.idx > self.bl2_partition_idx):
             self.bin_verifier = 'bl2'
             self.Dbus_en = True
-            self.bin_hdr_size = crc_size(HDR_SZ)
+            self.bin_hdr_size = crc_size(HDR_SZ, CRC_EN)
             self.bin_tail_size = 0x1000
             if self.is_primary:
                 self.partitions.append_primary_partitions_verified_by_bl2(self.partition_name)
@@ -279,7 +352,18 @@ class Partition:
                 exit(1)
 
         logging.debug(f'partition{self.idx} {self.partition_name} partition size=%x' %(self.partition_size))
- 
+
+    def parse_and_validate_partition_flags(self):
+        flags_enum = 0
+        if None == self.partition_flags:
+            return
+        flag_list = re.split(r'\s*\|\s*', self.partition_flags)
+
+        for flag in flag_list:
+            if flag in flags_mapping:
+                flags_enum |= (1 << flags_mapping[flag])
+
+        self.partition_flags = flags_enum
 
     def find_partition_by_name(self, name):
         for p in self.partitions.partitions:
@@ -290,7 +374,7 @@ class Partition:
     '''
     +------------------------+  <--- partition_offset/bin_hdr_offset
     |  HDR (plain data)      |
-    |  (bin_hdr_size)        |  
+    |  (bin_hdr_size)        |
     |                        |
     +------------------------+  <--- bin_code_partition_offset
     |  vector/CRC aligned pad|
@@ -323,12 +407,13 @@ class Partition:
             p = self.find_partition_by_name(self.pre_partition)
 
         s_ns_boundary = p.partition_offset + p.partition_size
-        if (s_ns_boundary % (68<<10)) != 0:
-            block = s_ns_boundary // (68<<10)
-            suggest_boundary = (block + 1) * (68 << 10)
+        boundary = (68 << 10) if CRC_EN else (64 << 10)
+        if (s_ns_boundary % boundary) != 0:
+            block = s_ns_boundary // boundary
+            suggest_boundary = (block + 1) * boundary
             diff = suggest_boundary - s_ns_boundary
             logging.error(f'NS start {s_ns_boundary/1024}, suggest start {suggest_boundary/1024}')
-            logging.error(f'The offset of partition next to {p.partition_name} is %x, NOT in 68K boundary!' %(s_ns_boundary))
+            logging.error(f'The offset of partition next to {p.partition_name} is %x, NOT in {boundary >> 10}K boundary!' %(s_ns_boundary))
             size_k = p.partition_size/1024
             suggest_size_k = (p.partition_size + diff)/1024
             logging.error(f'Suggest to change {p.partition_name} partition size from {size_k}k to {suggest_size_k}k')
@@ -338,28 +423,28 @@ class Partition:
         # Are the results of two branches the same?
         if self.Dbus_en:
             self.phy_partition_offset = ceil_align(self.partition_offset, CRC_UNIT_TOTAL_SZ)
-            self.vir_partition_offset = phy2virtual(self.phy_partition_offset)
+            self.vir_partition_offset = phy2virtual(self.phy_partition_offset, CRC_EN)
             self.vir_code_offset = ceil_align(self.vir_partition_offset + hdr_size,self.cpu_vector_align_bytes)
-            self.phy_code_offset = virtual2phy(self.vir_code_offset)
+            self.phy_code_offset = virtual2phy(self.vir_code_offset, CRC_EN)
         else:
             self.phy_partition_offset = self.partition_offset
-            self.vir_partition_offset = phy2virtual(self.phy_partition_offset)
+            self.vir_partition_offset = phy2virtual(self.phy_partition_offset, CRC_EN)
             phy_min_code_offset = self.phy_partition_offset + hdr_size
-            vir_min_code_offset = phy2virtual(phy_min_code_offset)
+            vir_min_code_offset = phy2virtual(phy_min_code_offset, CRC_EN)
             self.vir_code_offset = ceil_align(vir_min_code_offset,self.cpu_vector_align_bytes)
-            self.phy_code_offset = virtual2phy(self.vir_code_offset)
+            self.phy_code_offset = virtual2phy(self.vir_code_offset, CRC_EN)
 
-        logging.debug(f'name = %s, phy_partition_offset= 0x%x, vir_partition_offset= 0x%x,vir_code_offset= 0x%x, phy_code_offset= 0x%x' 
+        logging.debug(f'name = %s, phy_partition_offset= 0x%x, vir_partition_offset= 0x%x,vir_code_offset= 0x%x, phy_code_offset= 0x%x'
                     %(self.partition_name,self.phy_partition_offset,self.vir_partition_offset,self.vir_code_offset,self.phy_code_offset))
 
 
     def calculate_size(self):
         self.partition_hdr_pad_size =self.phy_partition_offset - self.partition_offset
-        self.partition_tail_pad_size = (self.partition_offset+self.partition_size) - floor_align(self.partition_offset+self.partition_size,34)
+        self.partition_tail_pad_size = (self.partition_offset+self.partition_size) - floor_align(self.partition_offset+self.partition_size,CRC_UNIT_TOTAL_SZ)
         self.phy_partition_size = self.partition_size - self.partition_hdr_pad_size - self.partition_tail_pad_size
-        self.vir_partition_size = phy2virtual(self.phy_partition_size)
+        self.vir_partition_size = phy2virtual(self.phy_partition_size, CRC_EN)
         self.phy_code_size = self.phy_partition_size - (self.phy_code_offset - self.phy_partition_offset)
-        self.vir_code_size = phy2virtual(self.phy_code_size)
+        self.vir_code_size = phy2virtual(self.phy_code_size, CRC_EN)
 
         logging.debug(f'phy_partition_size= 0x%x, vir_partition_size= 0x%x' %(self.phy_partition_size,self.vir_partition_size))
 
@@ -370,7 +455,7 @@ class Partition:
             exit(1)
 
         if(self.is_app_partition()):
-            if (self.is_secondary) and (self.bin_verifier == "bl2"):
+            if (self.is_secondary) and ((self.bin_verifier == "bl2") or (self.bin_verifier == "bl2_B")):
                 if (self.primary_partition == None):
                     logging.error(f'partition{self.idx} {self.partition_name} missing primary partition')
                     exit(1)
@@ -379,7 +464,7 @@ class Partition:
                         self.calculate_offset(HDR_SZ)
                     else:
                         self.calculate_offset(0)
-            elif (self.bin_verifier == "bl2"):
+            elif ((self.bin_verifier == "bl2") or(self.bin_verifier == "bl2_B")):
                 if len(self.partitions.primary_partitions_verified_by_bl2) == 1:
                     self.calculate_offset(HDR_SZ)
                 else:
@@ -398,7 +483,7 @@ class Partition:
         if (self.is_app_partition() == False):
             return
 
-        virtual_1st_instruction_addr = phy2virtual(self.phy_code_offset)
+        virtual_1st_instruction_addr = phy2virtual(self.phy_code_offset, CRC_EN)
         static_addr_int = self.flash_base_addr + virtual_1st_instruction_addr
         static_addr_hex = f'0x%08x' %(static_addr_int)
         self.static_addr = static_addr_hex
@@ -463,6 +548,7 @@ class Partition:
         self.parse_and_validate_partition_size()
         self.parse_and_validate_address()
         self.parse_and_validate_static_and_load_addr()
+        self.parse_and_validate_partition_flags()
 
     def init_buf(self, buf, size, fill):
         for i in range(size):
@@ -475,11 +561,12 @@ class Partition:
         return self.partitions.is_last_bin_verified_by_bl2(self.partition_name)
 
     def add_magic_code(self, bin_file):
-        print(f'Add magic code BK7236 to {bin_file}')
-        bk7236 = b'\x42\x4b\x37\x32\x33\x36\x00'
+        print(f'Add magic code BK.SB to {bin_file}')
+        # 42 4B 2E 53 42 0A => "BK.SB" + 0x0A
+        binary_magic = bytes([0x42, 0x4B, 0x2E, 0x53, 0x42, 0x0A])
         with open(bin_file, 'r+b') as f:
-                f.seek(0x100)
-                f.write(bk7236)
+            f.seek(0x100)
+            f.write(binary_magic)
 
     def process_partition_aes_crc(self, aes_type, aes_key):
         if self.bin_name == None:
@@ -488,19 +575,21 @@ class Partition:
         if self.is_all_partition:
             self.bin_name = f'{self.partition_name}_code_signed.bin'
 
-        if self.is_data_partition() or (aes_type == 'RANDOM' and self.partition_name != 'bl2' and self.partition_name != 'bl1_control') or (self.need_add_crc == False):
+        if self.is_data_partition() or (aes_type == 'RANDOM' and self.partition_name != 'bl2' and self.partition_name != 'bl2_B' and self.partition_name != 'bl1_control') or (self.need_add_crc == False):
             self.crc_bin_name = self.bin_name
             partition_hdr_pad_size = 0
         else:
             if aes_type == 'FIXED':
                 self.aes_bin_name = f'{self.file_name_prefix}_code_aes.bin'
-                aes_tool = f'{self.tools_dir}/packager_tools/beken_aes'
+                aes_tool = f'{self.tools_dir}/packager_tools/xts_aes.py'
+                aes_bits = get_xts_aes_bits(aes_key)
                 if self.is_all_partition:
-                    start_address = hex(phy2virtual(self.phy_partition_offset))
+                    start_address = hex(phy2virtual(self.phy_partition_offset, CRC_EN))
                 else:
                     start_address = hex(self.vir_code_offset)
                 logging.debug(f'encrypt {self.partition_name}, startaddress={start_address}, out={self.aes_bin_name}')
-                cmd = f'{aes_tool} encrypt -infile {self.bin_name} -keywords {aes_key} -outfile {self.aes_bin_name} -startaddress {start_address}'
+                #print(f'aes_key {aes_key} aes_bits {aes_bits}')
+                cmd = f'python3 {aes_tool} encrypt -infile {self.bin_name} -keywords {aes_key}  -aes {aes_bits} -outfile {self.aes_bin_name} -startaddress {start_address}'
                 run_cmd_not_check_ret(cmd)
             else:
                 self.aes_bin_name = self.bin_name
@@ -508,18 +597,25 @@ class Partition:
             if self.vir_code_offset == 0:
                 self.add_magic_code(self.aes_bin_name)
 
-            self.crc_bin_name = f'{self.file_name_prefix}_code_crc.bin'
-            crc(self.aes_bin_name, self.crc_bin_name)
+            if CRC_EN == True:
+                self.crc_bin_name = f'{self.file_name_prefix}_code_crc.bin'
+                crc(self.aes_bin_name, self.crc_bin_name)
+            else:
+                self.crc_bin_name  = self.aes_bin_name
+
             partition_hdr_pad_size = self.partition_hdr_pad_size
 
             if self.is_xip() and self.is_primary:
                 all_bin_pack = self.crc_bin_name
                 with open(all_bin_pack,'rb+') as f:
-                    xip_status_phy_offset = ceil_align((self.partition_offset + self.partition_size - 4096),34)
+                    xip_status_phy_offset = ceil_align((self.partition_offset + self.partition_size - 4096), CRC_UNIT_TOTAL_SZ)
+                    print(f'xip_status_phy_offset {xip_status_phy_offset}')
                     phy_bin_offset = xip_status_phy_offset - self.phy_partition_offset
+                    print(f'phy_bin_offset {phy_bin_offset}')
                     f.seek(0, os.SEEK_END)  # set file pointer to the end of file.
                     end_pos = f.tell()      # get postion of end of file
                     offset = phy_bin_offset - end_pos
+                    print(f'offset {offset}, end pos {end_pos}')
                     if offset < 0:
                         raise RuntimeError(f"file {self.file_name_prefix} don't have enough space.")
                     f.write(bytes([0xff]) * offset) # padding 0xff
@@ -530,10 +626,23 @@ class Partition:
         self.bin_size = os.path.getsize(self.crc_bin_name) + partition_hdr_pad_size
         logging.debug(f'{self.bin_name}: bin_size={self.bin_size}, pad_hdr_size={partition_hdr_pad_size} {self.partition_hdr_pad_size}')
         self.partition_buf = bytearray()
+        pad_size = 0
+        if self.partition_name == 'bl2' or self.partition_name == 'bl2_B':
+            bl2_p = self.find_partition_by_name(self.partition_name)
+            pad_size = bl2_p.phy_code_offset - bl2_p.partition_offset
+            logging.debug(f' partition_name:{self.partition_name} , pad_size {pad_size}, phy_code_offset {bl2_p.phy_code_offset}, partition_offset {bl2_p.partition_offset}')
+
         with open(self.crc_bin_name, 'rb') as f:
-            pad = bytes([0xFF]*partition_hdr_pad_size)
+            pad = bytes([0xFF]*(partition_hdr_pad_size + pad_size))
+            logging.debug(f' pad {pad_size}')
             self.partition_buf = pad
             self.partition_buf += f.read()
+
+            # crc_en=FALSE ? crc_bin_name ? primary_all_code_aes.bin????????? primary_all_code_crc.bin
+            if self.partition_name == 'primary_all' and self.is_all_partition:
+                with open('primary_all.bin', 'wb') as f2:
+                    f2.seek(0)
+                    f2.write(self.partition_buf)
 
 class Partitions:
     def is_overwrite(self):
@@ -565,6 +674,12 @@ class Partitions:
             if (name == p.partition_name):
                 return p
         return None
+
+    def process_crc_en(self, crc_en):
+        global CRC_EN
+        global CRC_UNIT_TOTAL_SZ
+        CRC_EN = parse_bool(crc_en)
+        CRC_UNIT_TOTAL_SZ = 34 if CRC_EN else 32
 
     def create_normal_partitions(self):
         deduced_next_partition_offset = 0
@@ -614,14 +729,14 @@ class Partitions:
 
         if (partition_name == 'primary_all'):
             all_partition.partition_hdr_pad_size = partition_1st.phy_partition_offset - partition_1st.partition_offset
-            all_partition.partition_tail_pad_size = (all_partition.partition_offset+all_partition.partition_size) - floor_align(all_partition.partition_offset+all_partition.partition_size,34)
+            all_partition.partition_tail_pad_size = (all_partition.partition_offset+all_partition.partition_size) - floor_align(all_partition.partition_offset+all_partition.partition_size, CRC_UNIT_TOTAL_SZ)
 
             all_partition.phy_partition_size = all_partition.partition_size-all_partition.partition_hdr_pad_size-all_partition.partition_tail_pad_size
-            all_partition.vir_partition_size = phy2virtual(all_partition.phy_partition_size)
+            all_partition.vir_partition_size = phy2virtual(all_partition.phy_partition_size, CRC_EN)
 
             all_partition.vir_sign_size = floor_align(all_partition.vir_partition_size,4096) - TAIL_SZ
             all_partition.vir_code_size = all_partition.vir_sign_size - code_pad_size - HDR_SZ
-            all_partition.phy_code_size = virtual2phy(all_partition.vir_code_size)
+            all_partition.phy_code_size = virtual2phy(all_partition.vir_code_size, CRC_EN)
         else:
             partition_primary = self.find_partition_by_name('primary_all')
             all_partition.phy_code_size = partition_primary.phy_code_size
@@ -642,50 +757,128 @@ class Partitions:
         if partition == None:
             logging.debug(f'partition partition not exists, not create partition.bin')
             return
-        
-        with open('partition_raw.bin','wb') as f,open('ppc_config.bin','rb') as f_src:
-            f.write(f_src.read())
+        if self.boot_ota == True:
+            partition_B = self.find_partition_by_name("partition_B")
+            if partition_B == None:
+                logging.debug(f'partition_B partition not exists, not create partition_B.bin')
+                return
+
+        ppc_config_files = ('ppc_config.bin', 'ppc_config_ap.bin')
+        with open('partition_raw.bin', 'wb') as f:
+            for file_name in ppc_config_files:
+                if not os.path.exists(file_name):
+                    if file_name == 'ppc_config_ap.bin':
+                        logging.debug(
+                            f'{file_name} not exists, pad AP PPC config area with 0xFF'
+                        )
+                        f.write(bytes([0xFF] * PPC_CONFIG_BIN_SIZE))
+                        continue
+                    raise FileNotFoundError(f'{file_name} not exists')
+
+                file_size = os.path.getsize(file_name)
+                if file_size != PPC_CONFIG_BIN_SIZE:
+                    raise ValueError(
+                        f'Invalid {file_name} size: {file_size}, '
+                        f'expected {PPC_CONFIG_BIN_SIZE}'
+                    )
+                with open(file_name, 'rb') as f_src:
+                    f.write(f_src.read())
+
+            if f.tell() != PPC_CONFIG_AREA_SIZE:
+                raise ValueError(
+                    f'Invalid combined PPC config size: {f.tell()}, '
+                    f'expected {PPC_CONFIG_AREA_SIZE}'
+                )
 
         with open("partition_raw.bin", 'a+b') as f:
             for p in self.partitions:
                 name = p.partition_name.encode('utf-8')
-                if len(name) < 24:
-                    name += bytes([0xFF] * (24 - len(name)))
+                if len(name) < 20:
+                    name += bytes([0xFF] * (20 - len(name)))
                 f.write(name)
-    
+
+                partition_type = PartitionType.PARTITION_TYPE_ANY
+                if p.partition_type == 'app':
+                    partition_type = PartitionType.PARTITION_TYPE_APP
+                elif p.partition_type == 'data':
+                    partition_type = PartitionType.PARTITION_TYPE_DATA
+                else:
+                    partition_type = PartitionType.PARTITION_TYPE_ANY
+
+                type = struct.pack(">B",(partition_type.value))
+                f.write(type)
+
+                partition_subtype = PartitionSubType.PARTITION_SubType_BK_UNDEFINED_0
+
+                subtype = struct.pack(">B",(partition_subtype.value))
+                f.write(subtype)
+
                 offset = struct.pack(">I",(p.partition_offset))
                 f.write(offset)
-    
+
                 size = struct.pack(">I",(p.partition_size))
                 f.write(size)
- 
+
+                raw_flags = p.partition_flags
+                if raw_flags is None or raw_flags == '':
+                    flags = 0
+                else:
+                    try:
+                        flags = int(raw_flags, 0) if isinstance(raw_flags, str) else int(raw_flags)
+                    except (TypeError, ValueError) as exc:
+                        raise ValueError(
+                            f'Invalid flags for partition {p.partition_name}: {raw_flags!r}'
+                        ) from exc
+
+                if not 0 <= flags <= 0xFFFF:
+                    raise ValueError(
+                        f'Partition flags out of 16-bit range for {p.partition_name}: {flags}'
+                    )
+                f.write(struct.pack(">H", flags))
+
+            raw_size = f.tell()
+            if raw_size > partition.partition_size:
+                raise ValueError(
+                    f'partition.bin content too large: {raw_size}, '
+                    f'partition size is {partition.partition_size}'
+                )
+            f.write(bytes([0xFF] * (partition.partition_size - raw_size)))
+
         if aes_type == 'RANDOM':
             with open('partition.bin','wb+') as f,open('partition_raw.bin','rb') as f_src:
                 f.write(f_src.read())
         else:
-            phy_partition_offset = ceil_align(partition.partition_offset, CRC_UNIT_TOTAL_SZ)
+            phy_partition_offset = ceil_align(partition.partition_offset, CRC_UNIT_DATA_SZ)
             if aes_type == 'FIXED':
                 aes_infile = f'partition_raw.bin'
-                aes_bin_name = f'partition_aes.bin'
-                aes_tool = f'{self.tools_dir}/packager_tools/beken_aes'
-                start_address = hex(phy2virtual(phy_partition_offset))
+                aes_bin_name = f'partition_raw.bin'
+
+                aes_tool = f'{self.tools_dir}/packager_tools/xts_aes.py'
+                # start_address = hex(phy2virtual(phy_partition_offset, CRC_EN))
+                start_address = hex(phy_partition_offset)
                 cmd = f'{aes_tool} encrypt -infile {aes_infile} -keywords {aes_key} -outfile {aes_bin_name} -startaddress {start_address}'
-                run_cmd_not_check_ret(cmd)
+                #run_cmd_not_check_ret(cmd)
             else:
                 aes_bin_name = f'partition_raw.bin'
 
             crc_bin_name = f'partition_crc.bin'
-            crc(aes_bin_name, crc_bin_name)
+            # crc(aes_bin_name, crc_bin_name)
 
             pad_size = phy_partition_offset - partition.partition_offset
             pad = bytes([0xFF]*(pad_size))
-            with open('partition.bin','wb+') as f,open('partition_crc.bin','rb') as f_src:
+            with open('partition.bin','wb+') as f,open('partition_raw.bin','rb') as f_src:
                 f.write(pad)
                 buf = f_src.read()
                 f.write(buf)
+            if self.boot_ota == True:
+                with open('partition.bin', 'rb') as f_src,open('partition_B.bin', 'wb') as f_dst:
+                        f_dst.write(f_src.read())
 
         partition.bin_name = 'partition.bin'
         partition.bin_size = os.path.getsize(partition.bin_name)
+        if self.boot_ota == True:
+            partition_B.bin_name = 'partition_B.bin'
+            partition_B.bin_size = os.path.getsize(partition_B.bin_name)
 
     def check_partition_illegal(self):
         if(self.is_overwrite()):
@@ -702,7 +895,8 @@ class Partitions:
         else:
             logging.debug("No OTA")
 
-    def create_partitions(self):
+    def create_partitions(self, crc_en):
+        self.process_crc_en(crc_en)
         self.create_normal_partitions()
         self.create_all_partitions()
 
@@ -753,9 +947,9 @@ class Partitions:
                logging.error(f'secureboot should contains "bl1_control", "primary_manifest"')
                exit(1)
 
-            if (not ('bl1_control' in self.partition_names)) or (not ('primary_manifest' in self.partition_names)):
-                logging.error(f'secureboot missing "bl1_control" or "primary_manifest"')
-                exit(1)
+            #if (not ('bl1_control' in self.partition_names)) or (not ('primary_manifest' in self.partition_names)) or (not ('secondary_manifest' in self.partition_names)):
+               #logging.error(f'secureboot missing "bl1_control" or "primary_manifest" or "secondary_manifest"')
+               #exit(1)
 
     def check_duplicated_partitions(self):
         if (len(self.partition_names) != len(set(self.partition_names))):
@@ -772,7 +966,7 @@ class Partitions:
         self.parse_and_validate_secureboot_partitions()
         self.parse_and_validate_tfm_ns()
         self.parse_and_validate_tfm_s()
-        self.parse_and_validate_cpu0_app()
+        #self.parse_and_validate_cpu0_app()
 
     def parse_and_validate_partitions_after_create(self):
         logging.debug(f'after create validation')
@@ -797,22 +991,27 @@ class Partitions:
 
         self.bl2_exists = False
         self.bl2_partition_idx = -1
+        self.bl2_B_partition_idx = -1
         if 'bl2' in self.partition_names:
             self.bl2_exists = True
             self.bl2_partition_idx = self.partition_names.index('bl2')
+
+        if 'bl2_B' in self.partition_names:
+            self.bl2_exists = True
+            self.bl2_partition_idx = self.partition_names.index('bl2_B')
 
         self.bootloader_exists = False
         if 'primary_bootloader' in self.partition_names:
             self.bootloader_exists = True
 
         logging.debug(f'bl1_secureboot_en={self.bl1_secureboot_en}, tfm_exists={self.tfm_exists}, bl2_exits={self.bl2_exists}, bl2_index={self.bl2_partition_idx}')
- 
+
     def init_globals_default(self):
         self.partitions = []
         self.partition_names = []
 
-        self.flash_base_addr = 0x02000000
-        self.flash_size = 0x400000
+        self.flash_base_addr = FLASH_BASE_ADDR
+        self.flash_size = FLASH_SIZE
         self.cpu_vector_align_bytes = 512
         self.need_crc = True
         self.primary_partitions_verified_by_bl2 = []
@@ -830,10 +1029,12 @@ class Partitions:
             for row in rows:
                 print(row)
 
-    def __init__(self, partition_csv, ota_type, bl1_secureboot_en):
+    def __init__(self, partition_csv, ota_type, boot_ota, bl1_secureboot_en, crc_en):
         self.bl1_secureboot_en = bl1_secureboot_en
         self.partition_csv = partition_csv
         self.ota_type = ota_type
+        self.boot_ota = boot_ota
+        self.crc_en = crc_en
 
         self.secondary_all_partitions_cnt = 0
         self.csv = Csv(partition_csv, True, partition_keys_v2, partition_keys_v1)
@@ -841,7 +1042,7 @@ class Partitions:
         self.init_globals_default()
         self.init_globals()
         self.parse_and_validate_partitions_before_create()
-        self.create_partitions()
+        self.create_partitions(self.crc_en)
         self.parse_and_validate_partitions_after_create()
 
     def gen_bin_for_bl2_signing(self, partition_name, child_partition_names):
@@ -869,7 +1070,7 @@ class Partitions:
                 with open(p.bin_name, 'rb') as pf:
                     f.write(pf.read())
 
-    def process_bl1_control(self, aes_type):
+    def process_bl1_control(self, aes_type, boot_ota):
         if self.bl1_secureboot_en == False:
             return
 
@@ -877,7 +1078,7 @@ class Partitions:
         p.bin_name = 'bl1_control.bin'
         with open(p.bin_name, 'wb') as f:
             logging.debug(f'create new {p.bin_name}')
-            pad = bytes([0xFF]*(0x1000))
+            pad = bytes([0xFF]*(0xF00))
             f.write(pad)
 
         if aes_type == 'RANDOM':
@@ -897,6 +1098,88 @@ class Partitions:
                     bl1_control_f.seek(0)
                     bl1_control_f.write(bl2_msp_pc)
 
+    def process_boot_flag(self, aes_type):
+        # Generate the boot control block the BootROM reads from the boot_flag
+        # partition (LAYOUT_CTRL_PARTITION_FLASH_OFFSET = 0x1000). It must start
+        # with the 'cTrL' magic (0x4C725463) + boot_flag=PRIMARY(1); otherwise the
+        # BootROM's hal_ctrl_partition_load_and_init() sees an invalid BC magic.
+        # Mirrors the bk7259 bringup beken_utils process_boot_flag.
+        if self.bl1_secureboot_en == False:
+            return
+
+        p = self.find_partition_by_name('boot_flag')
+        if p == None:
+            return
+
+        boot_flag_val = bytes([0x63, 0x54, 0x72, 0x4c, 0x1])  # 'cTrL' + flag=PRIMARY
+        p.bin_name = 'boot_flag.bin'
+        with open(p.bin_name, 'wb+') as f:
+            logging.debug(f'create new {p.bin_name}')
+            pad = bytes([0x0] * (0x20))
+            f.write(pad)
+            f.seek(32)
+            pad = bytes([0xFF] * (0xFE0))
+            f.write(pad)
+
+        with open(p.bin_name, 'rb+') as f:
+            f.seek(0)
+            f.write(boot_flag_val)
+
+    def process_boot_param(self, aes_type):
+        # Pre-provision the AB ping-pong flag partition (boot_param) so the very
+        # first boot sees a valid "NORMAL / exec_slot=A / seq=1" record instead of
+        # a virgin 0xFF sector. The 32-byte layout, reserved-byte convention
+        # (memset 0) and CRC32 (zlib/PKZIP) MUST stay identical to the C firmware
+        # common/bl2/boot_param.h (single source of truth for ab_flag_record_t,
+        # mirrors Gerrit #96393).
+        p = self.find_partition_by_name('boot_param')
+        if p == None:
+            return
+
+        AB_FLAG_MAGIC = 0x31464241        # 'A''B''F''1' little-endian
+        AB_FLAG_STRUCT_VER = 1
+        AB_FLAG_RECORD_SIZE = 32
+        AB_FLAG_SECTOR_SIZE = 0x1000
+        AB_STATE_NORMAL = 0x01
+        AB_DL_IDLE = 0x00
+        AB_SLOT_A = 0x00
+        AB_FLAG_DEFAULT_TRY_MAX = 5
+
+        # CRC-covered head [0x00..0x1B] (28 bytes), little-endian:
+        #   I magic | H struct_ver | H size | I seq | B exec_slot | B update_slot |
+        #   B boot_state | B dl_state | B try_max | 3s rsvd0 | 8s rsvd1
+        head = struct.pack(
+            '<IHHIBBBBB3s8s',
+            AB_FLAG_MAGIC,
+            AB_FLAG_STRUCT_VER,
+            AB_FLAG_RECORD_SIZE,
+            1,                          # seq
+            AB_SLOT_A,                  # exec_slot
+            AB_SLOT_A,                  # update_slot
+            AB_STATE_NORMAL,            # boot_state
+            AB_DL_IDLE,                 # dl_state
+            AB_FLAG_DEFAULT_TRY_MAX,    # try_max
+            b'\x00' * 3,                # rsvd0
+            b'\x00' * 8,                # rsvd1
+        )
+        if len(head) != AB_FLAG_RECORD_SIZE - 4:
+            raise RuntimeError(f'ab_flag head size {len(head)} != 28')
+        crc = zlib.crc32(head) & 0xFFFFFFFF
+        record = head + struct.pack('<I', crc)
+
+        size = p.partition_size
+        if size < 2 * AB_FLAG_SECTOR_SIZE:
+            raise RuntimeError(
+                f'boot_param size 0x{size:x} < 8K, AB ping-pong needs two 4K sectors')
+
+        sector0 = record + bytes([0xFF]) * (AB_FLAG_SECTOR_SIZE - len(record))
+        content = sector0 + bytes([0xFF]) * (size - AB_FLAG_SECTOR_SIZE)
+
+        p.bin_name = 'boot_param.bin'
+        logging.debug(f'create new {p.bin_name}: record crc=0x{crc:08x}, size=0x{size:x}')
+        with open(p.bin_name, 'wb+') as f:
+            f.write(content)
+
     def process_aes_crc(self, aes_type, aes_key):
         for p in self.partitions:
             if (p.partition_name in self.primary_partitions_verified_by_bl2) or (p.partition_name in self.secondary_partitions_verified_by_bl2) or p.partition_name == "secondary_all":
@@ -907,8 +1190,8 @@ class Partitions:
         self.gen_bin_for_bl2_signing('primary_all', self.primary_partitions_verified_by_bl2)
         self.gen_bin_for_bl2_signing('secondary_all', self.secondary_partitions_verified_by_bl2)
 
-    def gen_all_app_global_hdr(self, img_num, img_hdr_list, version):
-        magic = "BKDLV10.".encode()
+    def gen_all_app_global_hdr(self, img_num, img_hdr_list, version, magic_val):
+        magic = magic_val.encode()
         magic = struct.pack('8s', magic)
         version = struct.pack('>I', version)
         hdr_len = struct.pack('>H', GLOBAL_HDR_LEN)
@@ -927,6 +1210,26 @@ class Partitions:
         logging.debug(f'add download global hdr: magic={magic}, img_num={img_num}, version={version}, flags={flags}, crc={global_crc}')
         return all_app_global_hdr
 
+    def gen_bootloader_ota_global_hdr(self, img_num, img_hdr_list, version, magic_val):
+        magic = magic_val.encode()
+        magic = struct.pack('8s', magic)
+        version = struct.pack('<I', version)
+        hdr_len = struct.pack('<H', GLOBAL_HDR_LEN)
+        img_num = struct.pack('<H', img_num)
+        flags = struct.pack('<I', 0)
+        reserved1 = struct.pack('<I', 0)
+        reserved2 = struct.pack('<I', 0)
+        global_crc_content = version + hdr_len + img_num + flags + reserved1 + reserved2
+        for img_hdr in img_hdr_list:
+            global_crc_content += img_hdr
+
+        self.init_crc32_table()
+        global_crc = self.crc32(0xffffffff, global_crc_content)
+        global_crc = struct.pack('<I', global_crc)
+        all_app_global_hdr = magic + global_crc + version + hdr_len + img_num + flags + reserved1 + reserved2
+        logging.debug(f'add download global hdr: magic={magic}, img_num={img_num}, version={version}, flags={flags}, crc={global_crc}')
+        return all_app_global_hdr
+
     def gen_sub_img_hdr(self, partition, img_offset, version=0, type=0):
         logging.debug(f'add download img hdr of {partition.partition_name}: partition_size=%x, img_offset=%x, version=%x, type=%x'
                        %(partition.partition_size, img_offset, version ,type))
@@ -940,8 +1243,9 @@ class Partitions:
             flash_start_addr = struct.pack('>I', partition.phy_code_offset)
         img_offset = struct.pack('>I', img_offset)
         # img_len = len(partition.partition_buf)
-        img_len = struct.pack('>I', partition.bin_size)
+        img_len = struct.pack('>I', len(partition.partition_buf))
 
+        logging.debug(f" partition_name :{partition.partition_name}, len_partition_buf :{len(partition.partition_buf)} bin_size :{partition.bin_size}")
         self.init_crc32_table()
         checksum = self.crc32(0xffffffff,partition.partition_buf)
         checksum = struct.pack('>I', checksum)
@@ -950,6 +1254,35 @@ class Partitions:
         type = struct.pack('>H', type)
         reserved = 0
         reserved = struct.pack('>H', reserved)
+
+        hdr = partition_offset + partition_size + flash_start_addr + img_offset + img_len  + checksum + version + type + reserved
+        return hdr
+
+    def gen_sub_img_hdr_with_little_endian(self, partition, img_offset, version=0, type=0):
+        logging.debug(f'add download img hdr of {partition.partition_name}: partition_size=%x, img_offset=%x, version=%x, type=%x'
+                       %(partition.partition_size, img_offset, version ,type))
+
+        partition_offset = struct.pack('<I', partition.partition_offset)
+        partition_size = struct.pack('<I', partition.partition_size)
+        if (type == 0 or partition.is_data_partition() or partition.partition_name == "primary_all"):
+            flash_start_addr = struct.pack('<I', partition.partition_offset)
+        else:
+            # flash_start_addr = struct.pack('>I', partition.vir_code_offset)
+            flash_start_addr = struct.pack('<I', partition.phy_code_offset)
+        img_offset = struct.pack('<I', img_offset)
+        # img_len = len(partition.partition_buf)
+        img_len = struct.pack('<I', len(partition.partition_buf))
+
+        logging.debug(f" partition_name :{partition.partition_name}, len_partition_buf :{len(partition.partition_buf)} bin_size :{partition.bin_size}")
+
+        self.init_crc32_table()
+        checksum = self.crc32(0xffffffff,partition.partition_buf)
+        checksum = struct.pack('<I', checksum)
+
+        version = struct.pack('<I', version)
+        type = struct.pack('<H', type)
+        reserved = 0
+        reserved = struct.pack('<H', reserved)
 
         hdr = partition_offset + partition_size + flash_start_addr + img_offset + img_len  + checksum + version + type + reserved
         return hdr 
@@ -969,15 +1302,22 @@ class Partitions:
         for idx in partition_idx_list:
             partition = self.partitions[idx]
             i += 1
-            img_hdr = self.gen_sub_img_hdr(partition, img_offset=offset, version=0, type=type_list[i])
+            if bin_name == 'bootloader_ota.bin':
+                img_hdr = self.gen_sub_img_hdr_with_little_endian(partition, img_offset=offset, version=0, type=type_list[i])
+            else:
+                img_hdr = self.gen_sub_img_hdr(partition, img_offset=offset, version=0, type=type_list[i])
             offset = offset + len(partition.partition_buf)
             img_hdr_list.append(img_hdr)
 
-        any_app_global_hdr = self.gen_all_app_global_hdr(img_num=img_num, img_hdr_list=img_hdr_list, version=1)
+        if bin_name == 'bootloader_ota.bin':
+            any_global_hdr = self.gen_bootloader_ota_global_hdr(img_num=img_num, img_hdr_list=img_hdr_list, version=1, magic_val="BL2DLV10") #with little_endian
+        else:
+            any_global_hdr = self.gen_all_app_global_hdr(img_num=img_num, img_hdr_list=img_hdr_list, version=1, magic_val="BKDLV10.") #with big_endian
+
         offset = 0
         with open(pack_file_name, 'wb+') as f:
             f.seek(offset)
-            f.write(any_app_global_hdr)
+            f.write(any_global_hdr)
             offset += GLOBAL_HDR_LEN
 
             for img_hdr in img_hdr_list:
@@ -1008,9 +1348,14 @@ class Partitions:
                     pad_size = p.phy_code_offset - first_partition_offset - f.tell()
                 else:
                     pad_size = p.partition_offset - first_partition_offset - f.tell()
+
                 pad = bytes([0xFF]*(pad_size))
                 f.write(pad)
-                f.write(p.partition_buf)
+                if p.partition_name == 'bl2' or p.partition_name == 'bl2_B':
+                    f.seek(p.partition_offset)
+                    f.write(p.partition_buf)
+                else:
+                    f.write(p.partition_buf)
 
         if (bin_name == 'provision_pack.bin'):
             append_bin = 'provision.bin'
@@ -1024,12 +1369,35 @@ class Partitions:
                 content = af.read()
                 f.write(content)
 
+        if bin_name in ('bootloader.bin', 'bootloader_B.bin'):
+            aligned_size = ceil_align(f.tell(), FLASH_SECTOR_SZ)
+            f.write(bytes([0xFF] * (aligned_size - f.tell())))
+            f.flush()
+
+        if bin_name == 'bootloader_B.bin':
+            boot_B_bin_name = 'bootloader_B.bin'
+            boot_flag_val = bytearray([2])
+            with open(boot_B_bin_name, 'rb') as b_flag_f:
+                data = b_flag_f.read()
+
+            position = (self.find_partition_by_name('boot_flag').partition_offset + 4)
+            logging.debug(f'position  {position}, boot_flag_val {boot_flag_val}')
+            data = data[:position] + boot_flag_val + data[position+1:]
+            with open(boot_B_bin_name, 'wb') as b_flag_f1:
+                b_flag_f1.write(data)
+
         f.flush()
         f.close()
 
     def gen_provisioning_bin(self, aes_type):
         idx_list = self.get_pack_idx_list('bootloader.bin')
         self.gen_merged_partitions_bin('bootloader.bin', idx_list)
+
+        if (self.boot_ota == True):
+            idx_list = self.get_pack_idx_list('bootloader_B.bin')
+            logging.debug(f'********************* bootloader_B idx_list {idx_list}')
+            self.gen_merged_partitions_bin('bootloader_B.bin', idx_list)
+
         if aes_type == 'RANDOM':
             self.gen_merged_partitions_bin('provision_pack.bin', idx_list)
 
@@ -1043,6 +1411,56 @@ class Partitions:
                 self.gen_merged_all_bin(pack_bin, idx_list, [0]*len(idx_list))
         else:
             self.gen_merged_partitions_bin(pack_bin, idx_list)
+
+    def gen_bootloader_ota_bin(self, aes_type):
+        if self.boot_ota  == False:
+            return
+
+        pack_bin = 'bootloader_ota.bin'
+        idx_list = self.get_pack_idx_list(pack_bin)
+        if self.bl1_secureboot_en == True:
+            if aes_type == 'RANDOM':
+                self.gen_merged_all_bin(pack_bin, idx_list, [1]*len(idx_list))
+            else:
+                self.gen_merged_all_bin(pack_bin, idx_list, [0]*len(idx_list))
+        else:
+            self.gen_merged_partitions_bin(pack_bin, idx_list)
+
+    def gen_ota_combine_bin(self):
+        if self.boot_ota == False:
+            return
+        pack_bin = 'ota_combine.bin'
+        magic_val = 'OTA_COMBINE.'
+        if os.path.exists('ota.bin') and os.path.exists('bootloader_ota.bin'):
+            with open('bootloader_ota.bin', 'rb') as src_f1,open('ota.bin', 'rb') as src_f2,open(pack_bin, 'wb')as dst_f1:
+                bootloader_ota_img_data = src_f1.read()
+                bootloader_ota_img_len = os.path.getsize('bootloader_ota.bin')
+                logging.debug(f'bootloader_ota_img_len :{bootloader_ota_img_len}')
+                ota_img_data = src_f2.read()
+                ota_img_len = os.path.getsize('ota.bin')
+                logging.debug(f'ota_img_len :{ota_img_len}')
+
+                magic = magic_val.encode()
+                magic = struct.pack('12s', magic)
+                img_offset = bootloader_ota_img_len + 32
+                img_offset = struct.pack('<I', img_offset)
+                img_len = struct.pack('<I', ota_img_len)
+
+                self.init_crc32_table()
+                check_ota_sum = self.crc32(0xffffffff,ota_img_data)
+                check_ota_sum = struct.pack('<I', check_ota_sum)
+
+                reserved = struct.pack('4B', *[0]*4)
+                self.init_crc32_table()
+                ota_combine_head = magic + img_offset + img_len + check_ota_sum + reserved
+                check_ota_combine_sum = self.crc32(0xffffffff,ota_combine_head)
+                check_ota_combine_sum = struct.pack('<I', check_ota_combine_sum)
+
+                new_data = ota_combine_head + check_ota_combine_sum+ bootloader_ota_img_data + ota_img_data
+                dst_f1.write(new_data)
+        else:
+            logging.error(f'ota_combine.bin must contain the ota.bin and bootloader_ota.bin')
+
 
     def init_crc32_table(self):
         self.crc32_table = []
@@ -1150,18 +1568,28 @@ class Partitions:
         ota_sign_bin = 'ota_signed.bin'
         ota_partition = self.find_partition_by_name("primary_all")
 
+        if ota_aes_en and not aes_key:
+            logging.warning('OTA encryption requested, but no flash AES key is configured; generate signed OTA without encryption')
+            ota_aes_en = False
+
         if ota_aes_en:
             aes_bin_name = "ota_aes.bin"
 
-            aes_tool = f'{self.tools_dir}/../tools/packager_tools/beken_aes'
-            start_address = hex(phy2virtual(ota_partition.phy_partition_offset))
-            cmd = f'{aes_tool} encrypt -infile {ota_sign_bin} -keywords {aes_key} -outfile {aes_bin_name} -startaddress {start_address}'
+            aes_tool = f'{self.tools_dir}/packager_tools/xts_aes.py'
+            aes_bits = get_xts_aes_bits(aes_key)
+            start_address = hex(phy2virtual(ota_partition.phy_partition_offset, CRC_EN))
+            cmd = f'python3 {aes_tool} encrypt -infile {ota_sign_bin} -keywords {aes_key} -aes {aes_bits} -outfile {aes_bin_name} -startaddress {start_address}'
+
             run_cmd_not_check_ret(cmd)
-            crc_bin_name = f'ota_aes_crc.bin'
-            crc(aes_bin_name, crc_bin_name)
+            if CRC_EN == True:
+                crc_bin_name = f'ota_aes_crc.bin'
+                crc(aes_bin_name, crc_bin_name)
+            else:
+                crc_bin_name = f'ota_aes.bin'
 
             ota_sign_bin = crc_bin_name
-
+        else:
+            ota_sign_bin = f'ota_signed.bin'
         size = os.path.getsize(ota_sign_bin)
 
         # Add OTA Hdr
@@ -1217,10 +1645,12 @@ class Partitions:
         logging.debug(f'Partition id list of {pack_name}:{idx_list}')
         return idx_list
 
-    def pack_bin(self, pack_json, aes_type, aes_key, security_counter, ota_aes_en):
+    def pack_bin(self, pack_json, aes_type, aes_key, security_counter, ota_aes_en, boot_ota):
         self.parse_and_validate_partitions_after_build()
         self.parse_and_validate_pack_json(pack_json)
-        self.process_bl1_control(aes_type)
+        self.process_boot_flag(aes_type)
+        self.process_boot_param(aes_type)
+        self.process_bl1_control(aes_type, boot_ota)
         self.create_partition_partition(aes_type, aes_key)
         self.process_aes_crc(aes_type, aes_key)
         self.gen_ota_bin(ota_aes_en, aes_key, security_counter)
@@ -1239,3 +1669,6 @@ class Partitions:
         self.copy_file('ota.bin', install_dir)
         self.copy_file('bootloader.bin', install_dir)
         self.copy_file('provision_pack.bin', install_dir)
+        self.copy_file('otp_efuse_config.json', install_dir)
+        self.copy_file('primary_all.bin', install_dir)
+        self.copy_file('partition.bin', install_dir)

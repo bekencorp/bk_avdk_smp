@@ -6,6 +6,7 @@
 #include "driver/flash.h"
 #include "common/bk_err.h"
 #include "bk_private/bk_ota_private.h"
+#include <soc/soc.h>   /* SOC_FLASH_REG_BASE: applies the S/NS address offset */
 
 #ifdef CONFIG_HTTP_AB_PARTITION
 #include "modules/ota.h"
@@ -15,9 +16,18 @@
 #include "aon_pmu_hal.h"
 #endif
 
-#ifdef CONFIG_HTTP_AB_PARTITION
-#define FLASH_BASE_ADDRESS                (0x44030000)
+/* Flash XIP remap register (bit0: 0=slot A/primary, 1=slot B/secondary), set by
+ * MCUboot BL2. Defined unconditionally so the secure-XIP OTA path can read the
+ * running slot without CONFIG_HTTP_AB_PARTITION.
+ *
+ * Use SOC_FLASH_REG_BASE (not a hardcoded 0x44030000) so the S/NS address
+ * offset is applied: on the Non-Secure AP (CONFIG_SPE=0) this resolves to the
+ * NS alias 0x54030000. A raw read of the secure alias 0x44030000 from the NS
+ * AP triggers a Secure/BusFault that hangs the caller (e.g. `ab_version`). */
+#define FLASH_BASE_ADDRESS                (SOC_FLASH_REG_BASE)
 #define FLASH_OFFSET_ENABLE               (0x19)
+
+#ifdef CONFIG_HTTP_AB_PARTITION
 #define FLASH_DEFAULT_VALUE               (0xFFFFFFFF)
 
 /* AON PMU trial reboot counter, shared with the bootloader (driver_ab.c): the
@@ -200,16 +210,6 @@ static void ap_ab_try_confirm(void)
 	OTA_LOGI("OTA confirmed: exec slot %d (seq->%u)\r\n", (int)running, (unsigned)seq);
 }
 
-static uint8 ota_get_flash_offset_enable_value(void)
-{
-	uint8 ret_val;
-
-	ret_val = (REG_READ((FLASH_BASE_ADDRESS + FLASH_OFFSET_ENABLE*4)) & 0x1);
-	OTA_LOGI("ret_val  :0x%x\r\n",ret_val);
-
-	return ret_val;
-}
-
 void bk_ota_double_check_for_execution(void)
 {
 	/* Lightweight automatic confirm: reaching app init counts as "the trial
@@ -217,15 +217,6 @@ void bk_ota_double_check_for_execution(void)
 	 * (see ap_ab_try_confirm). AP-only -- CP has no OTA component. */
 	OTA_LOGI("bk_ota_double_check_for_execution\r\n");
 	ap_ab_try_confirm();
-}
-
-uint8 bk_ota_get_current_partition(void)
-{
-	uint8 ret_val;
-	
-	ret_val = ota_get_flash_offset_enable_value();
-
-	return ret_val;  //ret_val: 0x0 represents A 0x1 :represents B.
 }
 
 #ifdef CONFIG_OTA_HASH_FUNCTION
@@ -325,6 +316,23 @@ uint32 http_get_sapp_partition_length(bk_partition_t partition)
 }
 
 #endif // CONFIG_HTTP_AB_PARTITION
+
+/* HW XIP remap accessor (bit0: 0=A, 1=B), compiled unconditionally so the
+ * secure-XIP OTA backend can read the running slot. */
+static uint8 ota_get_flash_offset_enable_value(void)
+{
+	uint8 ret_val;
+
+	ret_val = (REG_READ((FLASH_BASE_ADDRESS + FLASH_OFFSET_ENABLE*4)) & 0x1);
+	OTA_LOGI("ret_val  :0x%x\r\n",ret_val);
+
+	return ret_val;
+}
+
+uint8 bk_ota_get_current_partition(void)
+{
+	return ota_get_flash_offset_enable_value();  //0x0: slot A, 0x1: slot B
+}
 
 #if CONFIG_OTA_DISPLAY_PICTURE_DEMO
 #include "bk_partition.h"

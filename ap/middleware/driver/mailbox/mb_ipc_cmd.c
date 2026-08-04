@@ -25,6 +25,7 @@
 #include "driver/flash.h"
 
 #include "cache.h"
+#include "soc_debug.h"
 
 #if (CONFIG_USB_CDC_ACM_DEMO)
 #include "bk_cherry_usb_cdc_acm_api.h"
@@ -402,6 +403,7 @@ static bk_err_t ipc_send_cmd(ipc_chnl_cb_t *chnl_cb, u8 cmd, u8 *cmd_buf, u16 cm
 		}
 
 		ret_val = rtos_get_semaphore(&chnl_cb->rsp_sema, IPC_RSP_TIMEOUT);  /* isr_callback will set this semaphore. */
+
 		if(ret_val != BK_OK)
 		{
 			break;

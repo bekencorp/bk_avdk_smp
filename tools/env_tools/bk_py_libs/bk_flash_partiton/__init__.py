@@ -1,6 +1,8 @@
 import logging
 
 from .bk_flash_partition import (
+    SECURE_KEEP_NAMES,
+    adapt_partition_name,
     bk_flash_partition,
     bk_flash_partition_content_generator,
     partition_info,
@@ -12,6 +14,8 @@ __all__ = [
     "bk_flash_partition",
     "bk_flash_partition_content_generator",
     "partition_info",
+    "adapt_partition_name",
+    "SECURE_KEEP_NAMES",
 ]
 
 

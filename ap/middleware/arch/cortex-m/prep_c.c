@@ -23,6 +23,7 @@
 
 #include "cmsis_gcc.h"
 #include "soc/soc.h"
+#include "soc_debug.h"
 
 void _soc_start(void);
 void soc_prep_data_relocation(void);

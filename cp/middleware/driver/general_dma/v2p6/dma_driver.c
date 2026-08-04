@@ -116,8 +116,9 @@ static void dma_id_deinit_common(dma_id_t id)
 
 static void dma_id_enable_interrupt_common(dma_id_t id)
 {
-
+#if (CONFIG_SPE)
     dma_hal_set_int_allocate(&s_dma.hal, id, DMA_INT_0);
+#endif
     sys_drv_set_int_en(rtos_get_core_id(), INT_SRC_GDMA, 1);
 }
 
@@ -679,6 +680,7 @@ bk_err_t bk_dma_flush_src_buffer(dma_id_t id)
     return BK_OK;
 }
 
+#if CONFIG_SPE
 bk_err_t bk_dma_set_pixel_trans_type(dma_id_t id, dma_pixel_trans_type_t type)
 {
     DMA_RETURN_ON_NOT_INIT();
@@ -793,7 +795,7 @@ bk_err_t bk_dma_set_int_allocate(dma_id_t id,dma_int_id_t int_id)
     dma_hal_set_int_allocate(&s_dma.hal, id, int_id);
     return BK_OK;
 }
-
+#endif
 
 uint32_t bk_dma_get_repeat_wr_pause(dma_id_t id)
 {
@@ -1185,10 +1187,9 @@ bk_err_t bk_dma_link_transfer(dma_id_t id, void *desc_table)
 #if CONFIG_SPE
     bk_dma_set_src_sec_attr(id, DMA_ATTR_SEC);
     bk_dma_set_dest_sec_attr(id, DMA_ATTR_SEC);
-#endif
-
     bk_dma_set_src_burst_len(id, BURST_LEN_INC16);
     bk_dma_set_dest_burst_len(id, BURST_LEN_INC16);
+#endif
 
     bk_dma_start(id);
     

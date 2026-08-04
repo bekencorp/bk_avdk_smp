@@ -304,15 +304,6 @@ typedef thrd_fn_t (*comp_init_fn_t)(struct partition_t *, uint32_t, uint32_t *);
 comp_init_fn_t comp_init_fns[] = {partition_init, ns_agent_tz_init};
 
 /* Parameters are treated as assuredly */
-/* BK7259 bring-up diag: raw UART1 marker 'Q<n>' to localise the secure-side
- * reset during partition thread init (between SPM 'B' and 'C' marks). */
-#define BIC_RAWMARK(c) do { volatile unsigned int *u1=(volatile unsigned int*)0x45830000; \
-    volatile unsigned char *u1b=(volatile unsigned char*)0x45830000; \
-    while (u1[0x18/4]&(1u<<16)){} u1b[0x1C]='Q'; \
-    while (u1[0x18/4]&(1u<<16)){} u1b[0x1C]=(c); \
-    while (u1[0x18/4]&(1u<<16)){} u1b[0x1C]='\r'; \
-    while (u1[0x18/4]&(1u<<16)){} u1b[0x1C]='\n'; } while(0)
-
 void backend_init_comp_assuredly(struct partition_t *p_pt, uint32_t service_setting)
 {
     const struct partition_load_info_t *p_pldi = p_pt->p_ldinf;
@@ -320,27 +311,19 @@ void backend_init_comp_assuredly(struct partition_t *p_pt, uint32_t service_sett
     uint32_t param;
     int32_t index = PARTITION_TYPE_TO_INDEX(p_pldi->flags);
 
-    BIC_RAWMARK('0');
     ARCH_CTXCTRL_INIT(&p_pt->ctx_ctrl,
                       LOAD_ALLOCED_STACK_ADDR(p_pldi),
                       p_pldi->stack_size);
-    BIC_RAWMARK('1');
-
     watermark_stack(p_pt);
-    BIC_RAWMARK('2');
 
     THRD_INIT(&p_pt->thrd, &p_pt->ctx_ctrl,
               TO_THREAD_PRIORITY(PARTITION_PRIORITY(p_pldi->flags)));
-    BIC_RAWMARK('3');
 
     thrd_entry = (comp_init_fns[index])(p_pt, service_setting, &param);
-    BIC_RAWMARK('4');
 
     prv_process_metadata(p_pt);
-    BIC_RAWMARK('5');
 
     thrd_start(&p_pt->thrd, thrd_entry, THRD_GENERAL_EXIT, (void *)param);
-    BIC_RAWMARK('6');
 }
 
 uint32_t backend_system_run(void)
@@ -366,7 +349,6 @@ uint32_t backend_system_run(void)
     thrd_set_query_callback(query_state);
 
     control = thrd_start_scheduler(&CURRENT_THREAD);
-    BIC_RAWMARK('S');  /* scheduler picked first thread */
 
     p_cur_pt = TO_CONTAINER(CURRENT_THREAD->p_context_ctrl,
                             struct partition_t, ctx_ctrl);
@@ -375,7 +357,6 @@ uint32_t backend_system_run(void)
     if (fih_not_eq(fih_rc, fih_int_encode(TFM_HAL_SUCCESS))) {
         tfm_core_panic();
     }
-    BIC_RAWMARK('T');  /* boundary activated; about to exc-return to 1st thread */
 
     return control;
 }

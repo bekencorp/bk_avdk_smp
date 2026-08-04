@@ -17,6 +17,7 @@
 
 #include <os/os.h>
 #include "mb_ipc_cmd.h"
+#include "soc_debug.h"
 #if CONFIG_SLAVE_HEART_BEAT_USE_IPI
 #include <driver/ipi_driver.h>
 #include <soc/soc.h>

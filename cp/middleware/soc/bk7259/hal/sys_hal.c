@@ -62,8 +62,8 @@
 #define SYS_HAL_DCO_BAND_MAX                (0x3F)
 
 #define SYS_PM_HAL_CPU_BARRIER()              do {      \
-	asm volatile ("dsb");                               \
-	asm volatile ("isb");                               \
+	__asm__ volatile ("dsb");                           \
+	__asm__ volatile ("isb");                           \
 } while (0)
 
 /* [EXPERIMENT] Force all low-power code out of .iram (0x2C non-cacheable SRAM)
@@ -3449,12 +3449,13 @@ bk_err_t sys_hal_ap_clock_power_ctrl(power_module_state_t power_state)
 		regData |=  ((0<<16));
 		REG_WRITE(SOC_AON_PMU_REG_BASE + 0x2*4, regData);
 
+#if CONFIG_SPE
 		/*"M55S Access Secure*/
 		regData  = REG_READ(SOC_PPRO_REG_BASE + 0xF*4);
 		regData &= ~((0x1<<3)|(0x1<<2));
 		regData |=  ((  0<<3)|(  0<<2));
 		REG_WRITE(SOC_PPRO_REG_BASE + 0xF*4, regData);
-
+#endif
 		/*PSRAM Enable*/
 		sys_ll_set_ana_reg14_enpsram(1);
 		//bk_delay_us(10);
@@ -3514,7 +3515,11 @@ static bk_err_t sys_hal_m55_clock_power_init()
 	//bk_delay_us(200);
 	sys_ll_set_ana_reg10_spi_latch1v(0);
 
-#if 1
+	/* AON_PMU AP power sequence + PPRO AP secure access are secure-only
+	 * registers. In the secure-boot flow TFM (ap_power_domain_on) owns the AP
+	 * power-up, so the Non-Secure world (CONFIG_SPE=0) must not touch them; app /
+	 * secure builds (CONFIG_SPE=1) still run the full sequence here. */
+#if CONFIG_SPE
 	regData = REG_READ(SOC_AON_PMU_REG_BASE + 0x2*4);
 	regData &= ~((0x1F<<21)|(0x1<<19));
 	regData |=  ((0x1F<<21)|(  0<<19));
@@ -3577,7 +3582,7 @@ static bk_err_t sys_hal_m55_clock_power_init()
 	regData &= ~((0x1<<3)|(0x1<<2));
 	regData |=  ((  0<<3)|(  0<<2));
 	REG_WRITE(SOC_PPRO_REG_BASE + 0xF*4, regData);
-
+#endif
 	/*PSRAM Enable*/
 	sys_ll_set_ana_reg14_enpsram(1);
 	//bk_delay_us(10);
@@ -3591,7 +3596,6 @@ static bk_err_t sys_hal_m55_clock_power_init()
 	REG_WRITE(SOC_SYS_AHBP_REG_BASE + 0x53*4,  (0x5A<<24) |               (0x901));
 	REG_WRITE(SOC_SYS_AHBP_REG_BASE + 0x53*4,  (0xA5<<24) |               (0x901));
 	//bk_delay_us(10);
-#endif
 	/*M55:Default enable all the clock source for bringup */
 	REG_WRITE(SOC_SYS_AHBP_REG_BASE + 0xA*4, 0xFFFFFFFF);
 
@@ -3675,7 +3679,13 @@ void sys_hal_early_init(void)
 	sys_hal_analog_set(ANALOG_REG2, 0x04248050); //wangjian20221110 xtal=0x50
 	sys_hal_analog_set(ANALOG_REG3, 0xC5F00B88); //ronghui20241226 <10>=1 for xtal
 	sys_hal_analog_set(ANALOG_REG4, 0x9FC9A7F0);
+#if CONFIG_SPE
+	/* ana_reg9 carries the AP HS-LDO power-down bit (pwd_hsldo). On NS
+	 * (CONFIG_SPE=0) TFM already brought the AP HS domain up; re-writing this
+	 * table value (pwd_hsldo=1) powers it down and breaks PSRAM/AHBP, so only
+	 * the app/secure monolithic build writes it. */
 	sys_hal_analog_set(ANALOG_REG9, 0x57E627E6); //shuguang20241226 <8:6>=7 for EVM
+#endif
 
 	//if ((chip_id & PM_CHIP_ID_MASK) == (PM_CHIP_ID_BK7259 & PM_CHIP_ID_MASK))
 	{
@@ -3686,7 +3696,11 @@ void sys_hal_early_init(void)
 		sys_hal_analog_set(ANALOG_REG14, 0x74E670EE);
 		sys_hal_analog_set(ANALOG_REG15, 0);
 
+#if CONFIG_SPE
+		/* ana_reg16 carries the AP HS power-switch enable (enhspw) + vcorehssel.
+		 * Same reason as ana_reg9: NS must not clobber TFM's HS-domain bring-up. */
 		sys_hal_analog_set(ANALOG_REG16, 0x9E436000);
+#endif
 		sys_hal_analog_set(ANALOG_REG19, 0xEE1D8033);//tenglong20251231 bit[24:22] = 0 for evm;siqing20260202 bit[13:9] = 0 for Reduce buck ripple
 	}
 

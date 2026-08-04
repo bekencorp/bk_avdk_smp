@@ -20,6 +20,7 @@
 #endif
 #include "spinlock.h"
 #include <arch_interrupt.h>
+#include "soc_debug.h"
 
 #define DEV_UART        1
 #define DEV_MAILBOX     2
@@ -826,9 +827,39 @@ static int log_tx_complete(u8 *pbuf, u16 buf_tag,
 		if( ( buf_tag != block_tag ) || (blk_id >= free_q->blk_num) ||
 			( (&free_q->log_buf[blk_id * free_q->blk_len]) != pbuf) )
 		{
-			/* something wrong!!! */
-			/*        FAULT !!!!      */
-			shell_assert_out(bTRUE, "FATAL:%x,%x\r\n", buf_tag, block_tag);
+			/* The finished block is not at the FIFO head. This happens when
+			 * logs from both cores interleave, so their TX completions can
+			 * arrive out of enqueue order. Recover instead of dropping the
+			 * block: locate it in the busy queue, remove it, and free it so
+			 * logging keeps running. */
+			if( (blk_id < free_q->blk_num) &&
+				((&free_q->log_buf[blk_id * free_q->blk_len]) == pbuf) )
+			{
+				u16 in_flight = SHELL_LOG_BUSY_NUM - log_busy_queue.free_cnt;
+				u16 idx = log_busy_queue.list_out_idx;
+				for(u16 n = 0; n < in_flight; n++)
+				{
+					if(log_busy_queue.blk_list[idx] == buf_tag)
+					{
+						u16 cur = idx;
+						for(u16 m = n; (m + 1) < in_flight; m++)
+						{
+							u16 nxt = ((cur + 1) < SHELL_LOG_BUSY_NUM) ? (cur + 1) : 0;
+							log_busy_queue.blk_list[cur] = log_busy_queue.blk_list[nxt];
+							cur = nxt;
+						}
+						log_busy_queue.list_in_idx = (log_busy_queue.list_in_idx == 0) ?
+							(SHELL_LOG_BUSY_NUM - 1) : (log_busy_queue.list_in_idx - 1);
+						log_busy_queue.free_cnt++;
+						free_log_blk(buf_tag);
+						if (log_buf_semaphore != NULL) {
+							rtos_set_semaphore(&log_buf_semaphore);
+						}
+						return 1;
+					}
+					idx = ((idx + 1) < SHELL_LOG_BUSY_NUM) ? (idx + 1) : 0;
+				}
+			}
 
 			return -1;
 		}
@@ -1550,6 +1581,7 @@ static void rx_ind_process(void)
 			BK_ASSERT(ret == kNoErr);
 
 			cmd_line_buf.rsp_buff[0] = 0;
+
 			/* handle command. */
 			if( cmd_line_buf.cmd_data_len > 0 )
 			{

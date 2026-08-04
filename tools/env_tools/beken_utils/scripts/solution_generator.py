@@ -21,6 +21,7 @@ CFG_FOLDER_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(_
 FLASH_AES_KEY_CFG_PATH = os.path.join(CFG_FOLDER_PATH, 'flash_aes_key.json')
 RSA_PRVI_KEY_PATH = os.path.join(CFG_FOLDER_PATH, 'rsa_privkey.pem')
 RSA_PUB_KEY_PATH = os.path.join(CFG_FOLDER_PATH, 'rsa_pubkey.pem')
+OTP_CTRL_CONFIG_PATH = os.path.join(CFG_FOLDER_PATH, 'otp_ctrl_config.json')
 
 def random_generate_key_str(lenth):
     candidate_chars = string.hexdigits[:-6]
@@ -97,7 +98,7 @@ class Mock:
         public_key = private_key.public_key()
         pem_private = private_key.private_bytes(
             encoding=serialization.Encoding.PEM,
-            format=serialization.PrivateFormat.TraditionalOpenSSL,
+            format=serialization.PrivateFormat.PKCS8,
             encryption_algorithm=serialization.NoEncryption()
         )
         with open(RSA_PRVI_KEY_PATH, 'wb') as f:
@@ -125,6 +126,50 @@ class KeyGenerator:
     def random_generate_key_str(cls, lenth):
         candidate_chars = string.hexdigits[:-6]
         return ''.join(random.choice(candidate_chars) for _ in range(lenth))
+
+    @staticmethod
+    def _validate_hex_entry(name, entry, expected_bytes):
+        if not isinstance(entry, dict):
+            logging.error('%s: entry must be a JSON object', name)
+            exit(-1)
+        for field in ('content', 'byte_lenth'):
+            if field not in entry:
+                logging.error('%s: missing "%s"', name, field)
+                exit(-1)
+        content = entry['content'].strip().lower()
+        try:
+            bytes.fromhex(content)
+        except ValueError:
+            logging.error('%s: content must be hexadecimal', name)
+            exit(-1)
+        if len(content) != expected_bytes * 2:
+            logging.error(
+                '%s: content hex length must be %d (for %d bytes), got %d',
+                name, expected_bytes * 2, expected_bytes, len(content))
+            exit(-1)
+        if int(entry['byte_lenth']) != expected_bytes:
+            logging.error('%s: byte_lenth must be %d', name, expected_bytes)
+            exit(-1)
+
+    @classmethod
+    def _load_required_json_hex_config(cls, path, label, expected_bytes):
+        """Single JSON object {content, byte_lenth}; hex content length must match expected_bytes."""
+        if not os.path.isfile(path):
+            logging.error(
+                'Missing required file: %s. Configure %s under beken_utils/config/ (no fallback).',
+                path, label)
+            exit(-1)
+        try:
+            with open(path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+        except (OSError, json.JSONDecodeError) as e:
+            logging.error('Cannot read %s: %s', path, e)
+            exit(-1)
+        if not isinstance(data, dict):
+            logging.error('%s: root must be a JSON object', path)
+            exit(-1)
+        cls._validate_hex_entry('%s (%s)' % (os.path.basename(path), label), data, expected_bytes)
+        return data
 
     @classmethod
     def get_key_from_exist_config(cls, k_args: list):
@@ -262,19 +307,11 @@ class KeyGenerator:
             bl1_rotpk_hash = h.reverse_order(hash_dict['bl1_rotpk_hash'])
             bl2_rotpk_hash = h.reverse_order(hash_dict['bl2_rotpk_hash'])
         else:
-            tmp_bl1_res = cls.get_key_from_exist_config(['key_content', 'Bl1 boot Public key hash'])
-            tmp_bl2_res = cls.get_key_from_exist_config(['key_content', 'Bl2 boot Public key hash'])
-            if tmp_bl1_res is None or tmp_bl2_res is None:
-                h = Rotpk_hash(pub_key_path)
-                hash_dict = h.gen_rotpk_hash()
-                bl1_rotpk_hash = h.reverse_order(hash_dict['bl1_rotpk_hash'])
-                bl2_rotpk_hash = h.reverse_order(hash_dict['bl2_rotpk_hash'])
-            else:
-                return [
-                    tmp_bl1_res,
-                    tmp_bl2_res
-                ]
-        
+            h = Rotpk_hash(pub_key_path)
+            hash_dict = h.gen_rotpk_hash()
+            bl1_rotpk_hash = h.reverse_order(hash_dict['bl1_rotpk_hash'])
+            bl2_rotpk_hash = h.reverse_order(hash_dict['bl2_rotpk_hash'])
+      
         return [
             {
                 "content": bl1_rotpk_hash,
@@ -298,6 +335,37 @@ class KeyGenerator:
                 return tmp_key
 
     @classmethod
+    def generate_otp_ctrl(cls):
+        tmp_res = cls.get_key_from_exist_config(['key_content', 'OTP ctrl'])
+        if tmp_res:
+            cls._validate_hex_entry('OTP ctrl (existing key_content.json)', tmp_res, 4)
+            return tmp_res
+        return cls._load_required_json_hex_config(
+            OTP_CTRL_CONFIG_PATH, 'OTP control', 4)
+
+    @classmethod
+    def generate_padding(cls, key_content_cfg, key_content_catgory):
+        # Calculate total length of all key content fields (excluding padding)
+        total_bytes = 0
+        for tmp_catgory in key_content_catgory:
+            if tmp_catgory == 'Padding':
+                continue
+            entry = key_content_cfg.get(tmp_catgory)
+            if isinstance(entry, dict) and 'byte_lenth' in entry:
+                total_bytes += int(entry['byte_lenth'])
+
+        # Calculate padding needed for 16-byte alignment (AES_CBC requirement)
+        padding_bytes = (16 - (total_bytes % 16)) % 16
+
+        # Generate padding content using incremental 0x00~0x0F pattern
+        padding_content = ''.join(f"{i:02x}" for i in range(padding_bytes))
+
+        return {
+            "content": padding_content,
+            "byte_lenth": padding_bytes
+        }
+
+    @classmethod
     def generate_all_key_info(cls):
         key_info = {
             "key_content": {
@@ -307,7 +375,9 @@ class KeyGenerator:
                 "Ek1": None,
                 "EK2": None,
                 "Ek3": None,
-                "Model key": None
+                "Model key": None,
+                "OTP ctrl": None,
+                "Padding": None
             },
             "boot_key": None,
             "aes_cfg": {
@@ -319,6 +389,7 @@ class KeyGenerator:
         key_info["key_content"]["Model key"] = cls.generate_model_key()
         key_info["key_content"]["EK2"] = cls.generate_ek2()
         key_info["key_content"]["Ek3"] = cls.generate_ek3()
+        key_info["key_content"]["OTP ctrl"] = cls.generate_otp_ctrl()
         key_info["boot_key"] = cls.generate_boot_key()
         key_info["key_content"]["Ek1"] = cls.generate_ek1(
             key_info["boot_key"]["content"], 
@@ -330,6 +401,9 @@ class KeyGenerator:
         (bl1_boot_key_hash, bl2_boot_key_hash) = cls.gen_boot_public_key_hash()
         key_info["key_content"]["Bl1 boot Public key hash"] = bl1_boot_key_hash
         key_info["key_content"]["Bl2 boot Public key hash"] = bl2_boot_key_hash
+        # Padding 必须在上述字段全部就绪后再算，否则总长错误且此前会对 None 解引用
+        key_content_catgory = ['Flash Aes key', 'Bl1 boot Public key hash', 'Bl2 boot Public key hash', 'Ek1', 'EK2', 'Ek3', 'Model key', 'OTP ctrl', 'Padding']
+        key_info["key_content"]["Padding"] = cls.generate_padding(key_info["key_content"], key_content_catgory)
         with open(os.path.join(cls.OUTPUT_FOLDER, cls.KEY_CONTENT_JSON_NAME), 'w') as f:
             json.dump(key_info, f, indent=4)
         logging.debug(key_info)
@@ -345,7 +419,7 @@ class KeyContentEncrypt:
         key_content_cfg = self.cfg_info['key_content']
         key_content_bytes = None
         key_content_str = ''
-        key_content_catgory = ['Flash Aes key', 'Bl1 boot Public key hash', 'Bl2 boot Public key hash', 'Ek1', 'EK2', 'Ek3', 'Model key']
+        key_content_catgory = ['Flash Aes key', 'Bl1 boot Public key hash', 'Bl2 boot Public key hash', 'Ek1', 'EK2', 'Ek3', 'Model key', 'OTP ctrl', 'Padding']
         for tmp_catgory in key_content_catgory:
             if tmp_catgory not in key_content_cfg.keys():
                 raise Exception('{0} is not exist, please check config file'.format(tmp_catgory))

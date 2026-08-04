@@ -32,19 +32,29 @@
 
 #define SOC_FLASH_DATA_BASE      (0x04000000 + SOC_ADDR_OFFSET)
 #define SOC_ROM_DATA_BASE        (0x02000000 + SOC_ADDR_OFFSET)
+#if CONFIG_SRAM_DIRECT_ADDR
 #define SOC_SRAM0_DATA_BASE      (0x2C000000 + SOC_ADDR_OFFSET) //128K
-#define SOC_SRAM0_DATA_SIZE      0x20000
 #define SOC_SRAM1_DATA_BASE      (0x2C020000 + SOC_ADDR_OFFSET) //128K
-#define SOC_SRAM1_DATA_SIZE      0x20000
 #define SOC_SRAM2_DATA_BASE      (0x2C040000 + SOC_ADDR_OFFSET) //128K
-#define SOC_SRAM2_DATA_SIZE      0x20000
 #define SOC_SRAM3_DATA_BASE      (0x2C100000 + SOC_ADDR_OFFSET) //256K
-#define SOC_SRAM3_DATA_SIZE      0x40000
 #define SOC_SRAM4_DATA_BASE      (0x2C140000 + SOC_ADDR_OFFSET) //256K
-#define SOC_SRAM4_DATA_SIZE      0x40000
 #define SOC_SRAM5_DATA_BASE      (0x2C180000 + SOC_ADDR_OFFSET) //256K
-#define SOC_SRAM5_DATA_SIZE      0x40000
 #define SOC_SRAM6_DATA_BASE      (0x2C1C0000 + SOC_ADDR_OFFSET) //128K
+#else
+#define SOC_SRAM0_DATA_BASE      (0x28000000 + SOC_ADDR_OFFSET) //128K
+#define SOC_SRAM1_DATA_BASE      (0x28020000 + SOC_ADDR_OFFSET) //128K
+#define SOC_SRAM2_DATA_BASE      (0x28040000 + SOC_ADDR_OFFSET) //128K
+#define SOC_SRAM3_DATA_BASE      (0x28100000 + SOC_ADDR_OFFSET) //256K
+#define SOC_SRAM4_DATA_BASE      (0x28140000 + SOC_ADDR_OFFSET) //256K
+#define SOC_SRAM5_DATA_BASE      (0x28180000 + SOC_ADDR_OFFSET) //256K
+#define SOC_SRAM6_DATA_BASE      (0x281C0000 + SOC_ADDR_OFFSET) //128K
+#endif
+#define SOC_SRAM0_DATA_SIZE      0x20000
+#define SOC_SRAM1_DATA_SIZE      0x20000
+#define SOC_SRAM2_DATA_SIZE      0x20000
+#define SOC_SRAM3_DATA_SIZE      0x40000
+#define SOC_SRAM4_DATA_SIZE      0x40000
+#define SOC_SRAM5_DATA_SIZE      0x40000
 #define SOC_SRAM6_DATA_SIZE      0x20000
 #define SOC_SRAM_DATA_END       (SOC_SRAM6_DATA_BASE +SOC_SRAM6_DATA_SIZE)
 #define SOC_USB_TCM_BASE         (0x29000000 + SOC_ADDR_OFFSET)
@@ -53,45 +63,28 @@
 #define SOC_RAM_SIZE             CONFIG_AP_RAM_SIZE
 
 #if CONFIG_SRAM_DIRECT_ADDR
-/*
- * SRAM direct-address (0x2Cxxxxxx) -> peripheral-address (0x28xxxxxx)
- *
- * When CONFIG_SRAM_DIRECT_ADDR is enabled, the AP(M55) OS places its data in
- * the 0x2Cxxxxxx SRAM alias (Bit26 set). Peripherals (DMA / codec / display /
- * ...) can ONLY access the 0x28xxxxxx SRAM alias, so an SRAM buffer pointer
- * handed to a peripheral must be translated back first.
- *
- * SOC_SRAM_PERI_ADDR() clears Bit26 (0x04000000) to map 0x2Cxxxxxx ->
- * 0x28xxxxxx. It is valid ONLY for 0x2Cxxxxxx addresses (0x2C000000 ~
- * 0x2CFFFFFF); every other address (0x28xxxxxx SRAM, PSRAM, registers, ...)
- * is returned unchanged so the macro is safe to apply unconditionally.
- */
-#define SOC_SRAM_DIRECT_ADDR_BIT     (0x04000000U)   /* Bit26 */
-#define SOC_SRAM_DIRECT_ADDR_BASE    (0x2C000000U)
+#define SOC_SRAM_DIRECT_ADDR_BIT     (0x04000000U)
 #define SOC_SRAM_DIRECT_ADDR_MASK    (0xFF000000U)
+#define SOC_SRAM_DIRECT_ADDR_BASE    (0x2C000000U)
+#define SOC_SRAM_PERI_ADDR_BASE      (0x28000000U)
+#define SOC_SRAM_DIRECT_ADDR_BASE_NS (0x3C000000U)
+#define SOC_SRAM_PERI_ADDR_BASE_NS   (0x38000000U)
 
 #define SOC_SRAM_PERI_ADDR(addr) \
     ((((unsigned int)(addr) & SOC_SRAM_DIRECT_ADDR_MASK) == SOC_SRAM_DIRECT_ADDR_BASE) ? \
+     ((unsigned int)(addr) & ~SOC_SRAM_DIRECT_ADDR_BIT) : \
+     (((unsigned int)(addr) & SOC_SRAM_DIRECT_ADDR_MASK) == SOC_SRAM_DIRECT_ADDR_BASE_NS) ? \
      ((unsigned int)(addr) & ~SOC_SRAM_DIRECT_ADDR_BIT) : ((unsigned int)(addr)))
 
-/*
- * Forward of SOC_SRAM_PERI_ADDR: map an SRAM peripheral-alias address
- * (0x28xxxxxx) to the AP(M55) CPU-direct alias (0x2Cxxxxxx) by setting Bit26.
- *
- * Some AP heap/data bases are configured with the 0x28xxxxxx peripheral alias
- * (e.g. CONFIG_AP_HSRAM_HEAP_ADDR). The AP CPU runs entirely in the 0x2Cxxxxxx
- * direct alias, so those bases must be lifted to 0x2Cxxxxxx before the CPU
- * touches them. Only 0x28xxxxxx SRAM addresses are translated; every other
- * address is returned unchanged so the macro is safe to apply unconditionally.
- */
- #define SOC_SRAM_PERI_ADDR_BASE      (0x28000000U)
- #define SOC_SRAM_CPU_ADDR(addr) \
-     ((((unsigned int)(addr) & SOC_SRAM_DIRECT_ADDR_MASK) == SOC_SRAM_PERI_ADDR_BASE) ? \
-      ((unsigned int)(addr) | SOC_SRAM_DIRECT_ADDR_BIT) : ((unsigned int)(addr)))
- #else
- #define SOC_SRAM_PERI_ADDR(addr) (addr)
- #define SOC_SRAM_CPU_ADDR(addr)  (addr)
- #endif /* CONFIG_SRAM_DIRECT_ADDR */
+#define SOC_SRAM_CPU_ADDR(addr) \
+    ((((unsigned int)(addr) & SOC_SRAM_DIRECT_ADDR_MASK) == SOC_SRAM_PERI_ADDR_BASE) ? \
+     ((unsigned int)(addr) | SOC_SRAM_DIRECT_ADDR_BIT) : \
+     (((unsigned int)(addr) & SOC_SRAM_DIRECT_ADDR_MASK) == SOC_SRAM_PERI_ADDR_BASE_NS) ? \
+     ((unsigned int)(addr) | SOC_SRAM_DIRECT_ADDR_BIT) : ((unsigned int)(addr)))
+#else
+#define SOC_SRAM_PERI_ADDR(addr) (addr)
+#define SOC_SRAM_CPU_ADDR(addr)  (addr)
+#endif /* CONFIG_SRAM_DIRECT_ADDR */
 
 #if CONFIG_PSRAM_INTERLEAVE
 #define SOC_PSRAM0_DATA_BASE     ((unsigned int)(0x60000000UL + SOC_ADDR_OFFSET + CONFIG_PSRAM_INTERLEAVE_OFFSET))
@@ -163,8 +156,8 @@
 #define SOC_TIMER3_REG_BASE      (0x458d0000 + SOC_ADDR_OFFSET)
 #define SOC_PWM_REG_BASE         (0x458a0000 + SOC_ADDR_OFFSET)
 #define SOC_SADC_REG_BASE        (0x45890000 + SOC_ADDR_OFFSET)
-#define SOC_I3C_REG_BASE         (0x458b0000 + SOC_ADDR_OFFSET)  /* Beken strap block */
-#define SOC_I3C_IP_REG_BASE      (0x458b8000 + SOC_ADDR_OFFSET)  /* I3C controller (+0x8000) */
+#define SOC_I3C_REG_BASE         (0x458b0000 + SOC_ADDR_OFFSET)
+#define SOC_I3C_IP_REG_BASE      (0x458b8000 + SOC_ADDR_OFFSET)
 
 #define SOC_AUD_REG_BASE         (0x4101A000 + SOC_ADDR_OFFSET)
 #define SOC_AUDIO_REG_REG_BASE   (0x4101A000 + SOC_ADDR_OFFSET)
@@ -218,7 +211,11 @@
 #define SOC_OTP_AHB_BASE         (0x42010000 + SOC_ADDR_OFFSET)
 #define SOC_OTP_APB_BASE         (0x42100000 + SOC_ADDR_OFFSET)
 #define SOC_SHANHAI_BASE         (0x42110000 + SOC_ADDR_OFFSET)
-#define SOC_WWDT_REG_BASE        (0xE0050000 + SOC_ADDR_OFFSET)
+/* WWDT SMB registers live in the per-core PPB system region (0xE00xxxxx),
+ * which has a fixed architectural address and no Non-Secure alias. It must be
+ * reached at its real address regardless of the Secure/Non-Secure alias offset,
+ * so the offset is not applied here. */
+#define SOC_WWDT_REG_BASE        (0xE0050000)
 
 /* M55 start */
 #define SOC_SYS_AHBP_REG_BASE    (0x48000000 + SOC_ADDR_OFFSET)

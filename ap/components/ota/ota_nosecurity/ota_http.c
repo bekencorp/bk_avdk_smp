@@ -156,8 +156,7 @@ int bk_http_ota_download(const char *uri)
 		bk_reboot();
 #else
 		OTA_LOGI("ota_success.\r\n");
-		ota_do_deinit_operation();
-		bk_reboot();
+		bk_ota_finish_and_reboot();
 #endif /*CONFIG_HTTP_AB_PARTITION*/
 	}
 	return ret;

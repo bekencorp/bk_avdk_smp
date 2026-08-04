@@ -310,6 +310,16 @@ static inline void flash_ll_write_disable(flash_hw_t *hw)
 	while (flash_ll_is_busy(hw));
 }
 
+static inline void flash_ll_set_ota_enable(flash_hw_t *hw, bool enable)
+{
+	hw->ps_ctrl.flash_ota_en = enable;
+}
+
+static inline bool flash_ll_get_ota_enable_value(flash_hw_t *hw)
+{
+	return hw->ps_ctrl.flash_ota_en;
+}
+
 static inline uint32_t flash_ll_read_offset_enable(flash_hw_t *hw)
 {
 	return hw->flash_ctrl.flash_offset_enable & 0x1;

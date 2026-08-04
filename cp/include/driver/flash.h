@@ -240,6 +240,10 @@ bk_err_t bk_flash_read_bytes(uint32_t address, uint8_t *user_buf, uint32_t size)
  */
 bk_err_t bk_flash_read_word(uint32_t address, uint32_t *user_buf, uint32_t size);
 
+/* CBUS (instruction bus) flash read, used by TF-M BL2 flash_map and SCA
+ * defense. Defined in flash_driver_ext.c. */
+void bk_flash_read_cbus(uint32_t address, void *user_buf, uint32_t size);
+
 /**
  * @brief   Get flash  init  flag
  *

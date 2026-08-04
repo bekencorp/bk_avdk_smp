@@ -2058,6 +2058,19 @@ static inline uint32_t sys_ll_get_cpu_power_sleep_wakeup_value(void) {
 	return r->v;
 }
 
+/* BK7259 does not gate the ENCP (Dubhe TrustEngine) power domain through the
+ * cpu_power_sleep_wakeup register the way bk7236/bk7239 do (the field does not
+ * exist on this SoC; the TrustEngine is powered at boot). The Beken Dubhe
+ * driver (dubhe_driver.c, TEE_M path) probes/clears this bit unconditionally,
+ * so expose no-op accessors: "already powered" (get==0) and clear is a nop. */
+static inline uint32_t sys_ll_get_cpu_power_sleep_wakeup_pwd_encp(void) {
+	return 0;
+}
+
+static inline void sys_ll_set_cpu_power_sleep_wakeup_pwd_encp(uint32_t v) {
+	(void)v;
+}
+
 static inline void sys_ll_set_cpu_power_sleep_wakeup_sleep_en_global(uint32_t v) {
 	sys_cpu_power_sleep_wakeup_t *r = (sys_cpu_power_sleep_wakeup_t*)(SOC_SYS_REG_BASE + (0x11 << 2));
 	r->sleep_en_global = v;

@@ -78,8 +78,11 @@ class Csv:
             csv_data = csv.reader(f)
 
             row_idx = 0
-            for row in csv_data:
+            for line_num, row in enumerate(csv_data, start=1):
                 row = [cell.strip() for cell in row]
+                if not row or all(not cell for cell in row):
+                    continue
+
                 if row_idx == 0:
                     row_idx = 1
                     if self.check_keys(row, self.supported_key_list) == True:
@@ -95,6 +98,13 @@ class Csv:
                         exit(1)
                     continue
 
+                if len(row) != len(self.active_key_list):
+                    logging.error(
+                        f"{self.csv_file}:{line_num} has {len(row)} fields, "
+                        f"expected {len(self.active_key_list)}"
+                    )
+                    exit(1)
+
                 dic = {}
                 key_idx = 0
                 for cell in row:
@@ -109,15 +119,30 @@ class Csv:
 
             actual_keys = []
             row_idx = 0
-            for row in csv_data:
+            for line_num, row in enumerate(csv_data, start=1):
+                row = [cell.strip() for cell in row]
+                if not row or all(not cell for cell in row):
+                    continue
+
                 if row_idx == 0:
                     row_idx = 1
-                    if (row[0].upper() != "FIELD") or (row[1].upper() != "VALUE"):
+                    if (
+                        len(row) < 2
+                        or row[0].upper() != "FIELD"
+                        or row[1].upper() != "VALUE"
+                    ):
                         logging.error(
                             f'{self.csv_file} first row should be "Field", "Value"'
                         )
                         exit(1)
                     continue
+
+                if len(row) < 2 or not row[0]:
+                    logging.error(
+                        f'{self.csv_file}:{line_num} should contain "Field,Value"'
+                    )
+                    exit(1)
+
                 actual_keys.append(row[0])
                 self.dic[row[0]] = row[1]
 

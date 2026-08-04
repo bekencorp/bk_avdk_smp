@@ -12,10 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "armstar.h"
 #include "os/os.h"
 #include "common/bk_assert.h"
 #include "sdkconfig.h"
+#include "bk_arch.h"
+#include "soc/bk7259/reg_base.h"
 
 /*
 * #define ARM_MPU_RBAR(BASE, SH, RO, NP, XN)
@@ -35,81 +36,102 @@
 * \param IDX The attribute index to be associated with this memory region.
 */
 
-ARM_MPU_Region_t mpu_regions[] = {
-    /* MPU region 0, RO-code/RO-data.
-    	itcm_s:   0x0000 0000-----------0x0000 3FFF
-    	itcm_ns:  0x1000 0000-----------0x1000 3FFF
-     */
-    { ARM_MPU_RBAR(0x10000020UL, ARM_MPU_SH_NON, 1, 1, 0),
-      ARM_MPU_RLAR(0x10003FE0UL, 1) },                         /* ITCM, for RO-code/RO-data, noncache. */
+#define NS_MEM_OFFSET SOC_S_NS_ADDR_DIFF
 
+ARM_MPU_Region_t mpu_regions[] = {
     /* MPU region 1, RO-code/RO-data.
-    	Flash_s:  0x0200 0000-----------0x02FF FFFF
+    	Flash_s:  0x0400 0000-----------0x04FF FFFF
     	Flash_ns: 0x1200 0000-----------0x12FF FFFF
      */
-    { ARM_MPU_RBAR(0x12000000UL, ARM_MPU_SH_NON, 1, 1, 0),
-      ARM_MPU_RLAR(0x12FFFFE0UL, 4) },                     /* Flash, for RO-code/RO-data. WT-RA */
+    { ARM_MPU_RBAR(0x04000000UL + NS_MEM_OFFSET, ARM_MPU_SH_NON, 1, 1, 0),
+      ARM_MPU_RLAR(0x04FFFFE0UL + NS_MEM_OFFSET, 4) },
 
-    { ARM_MPU_RBAR(0x03000000UL, ARM_MPU_SH_NON, 0, 1, 0),
-      ARM_MPU_RLAR(0x03FFFFE0UL, 1) },                     /* Flash, for XIP WRITE, nocacheable */
+    { ARM_MPU_RBAR(0x05000000UL + NS_MEM_OFFSET, ARM_MPU_SH_NON, 0, 1, 0),
+      ARM_MPU_RLAR(0x05FFFFE0UL + NS_MEM_OFFSET, 1) },
 
     /* MPU region 2
-    	iram_s:  0x0800 0000-----------0x0809 FFFF
-    	iram_ns: 0x1800 0000-----------0x1809 FFFF
+    	dtcm_s:  0x20 00 0000-----------0x2000 FFFF
+    	dtcm_ns: 0x3000 0000-----------0x3000 FFFF
      */
-    { ARM_MPU_RBAR(0x18000000UL, ARM_MPU_SH_NON, 1, 1, 0),
-      ARM_MPU_RLAR(0x1FFFFFE0UL, 1) },                     /* SRAM, for RO-code/RO-data. WT-RA */
+    { ARM_MPU_RBAR(0x20000000UL + NS_MEM_OFFSET, ARM_MPU_SH_NON, 0, 1, 0),
+      ARM_MPU_RLAR(0x2001FFE0UL + NS_MEM_OFFSET, 1) },
 
     /* MPU region 3
-    	dtcm_s:  0x2000 0000-----------0x2000 3FFF
-    	dtcm_ns: 0x3000 0000-----------0x3000 3FFF
+        shared memory(smem0) 0x2800 0000-----------0x2801 FFFF   0x3800 0000-----------0x3801 FFFF
+        shared memory(smem1) 0x2802 0000-----------0x2803 FFFF   0x3802 0000-----------0x3803 FFFF
+        shared memory(smem2) 0x2804 0000-----------0x2805 FFFF   0x3804 0000-----------0x3805 FFFF
+        shared memory(smem3) 0x2810 0000-----------0x2813 FFFF   0x3810 0000-----------0x3813 FFFF
+        shared memory(smem4) 0x2814 0000-----------0x2817 FFFF   0x3814 0000-----------0x3817 FFFF
+        shared memory(smem5) 0x2818 0000-----------0x281B FFFF   0x3818 0000-----------0x381B FFFF
+        shared memory(smem6) 0x281C 0000-----------0x281D FFFF   0x381C 0000-----------0x381D FFFF
      */
-    { ARM_MPU_RBAR(0x30000000UL, ARM_MPU_SH_NON, 0, 1, 1),
-      ARM_MPU_RLAR(0x30003FE0UL, 1) },                     /* DTCM, for W/R-data, noncache. */
+    { ARM_MPU_RBAR(0x28000000UL + NS_MEM_OFFSET, ARM_MPU_SH_INNER, 0, 1, 0),
+      ARM_MPU_RLAR(0x2805FFE0UL + NS_MEM_OFFSET, 1) },
+    { ARM_MPU_RBAR(0x2C000000UL + NS_MEM_OFFSET, ARM_MPU_SH_INNER, 0, 1, 0),
+      ARM_MPU_RLAR(0x2C05FFE0UL + NS_MEM_OFFSET, 1) },
+    { ARM_MPU_RBAR(0x28100000UL + NS_MEM_OFFSET, ARM_MPU_SH_INNER, 0, 1, 0),
+      ARM_MPU_RLAR(0x281DFFE0UL + NS_MEM_OFFSET, 1) },
+    { ARM_MPU_RBAR(0x2C100000UL + NS_MEM_OFFSET, ARM_MPU_SH_INNER, 0, 1, 0),
+      ARM_MPU_RLAR(0x2C1DFFE0UL + NS_MEM_OFFSET, 1) },
 
     /* MPU region 4
-        shared memory(smem0) 0x2800 0000-----------0x2800 FFFF   0x3800 0000-----------0x3800 FFFF 
-        shared memory(smem1) 0x2801 0000-----------0x2801 FFFF   0x3801 0000-----------0x3801 FFFF
-        shared memory(smem2) 0x2802 0000-----------0x2803 FFFF   0x3802 0000-----------0x3803 FFFF
-        shared memory(smem3) 0x2804 0000-----------0x2805 FFFF   0x3804 0000-----------0x3805 FFFF
-        shared memory(smem4) 0x2806 0000-----------0x2807 FFFF   0x3806 0000-----------0x3807 FFFF
-        shared memory(smem4) 0x2808 0000-----------0x2809 FFFF   0x3808 0000-----------0x3809 FFFF 
+    	usb_t_dtcm_s:  0x2900 0000-----------0x2900 FFFF
+    	usb_t_dtcm_ns: 0x3900 0000-----------0x3900 FFFF
      */
-    #if CONFIG_SUPPORT_CACHEABLE_SRAM
-    { ARM_MPU_RBAR(0x38000000UL, ARM_MPU_SH_NON, 0, 1, 0),
-      ARM_MPU_RLAR(0x3FFFFFE0UL, 0) },
-    #else
-    { ARM_MPU_RBAR(0x38000000UL, ARM_MPU_SH_INNER, 0, 1, 0),
-      ARM_MPU_RLAR(0x3FFFFFE0UL, 1) },
-    #endif
+    { ARM_MPU_RBAR(0x29000000UL + NS_MEM_OFFSET, ARM_MPU_SH_NON, 0, 1, 0),
+      ARM_MPU_RLAR(0x2900FFE0UL + NS_MEM_OFFSET, 1) },
 
     /* MPU region 5 periphral, device memory
         device memory is shareable, and must not be cached.
         please refer to the document:star_user_guide_reference_material.pdf page50
 	 */
-    { ARM_MPU_RBAR(0x50000000UL, ARM_MPU_SH_INNER, 0, 1, 1),
-      ARM_MPU_RLAR(0x5FFFFFE0UL, 2) },
+    { ARM_MPU_RBAR(0x40000000UL + NS_MEM_OFFSET, ARM_MPU_SH_INNER, 0, 1, 1),
+      ARM_MPU_RLAR(0x4FFFFFE0UL + NS_MEM_OFFSET, 2) },
 
-    /* MPU region 6 psram */
-    { ARM_MPU_RBAR(0x70000000UL, ARM_MPU_SH_NON, 0, 1, 0),
-      ARM_MPU_RLAR(0x73FFFFE0UL, 1) },
+    /* Non-secure QSPI window. */
+    { ARM_MPU_RBAR(0x68000000UL + NS_MEM_OFFSET, ARM_MPU_SH_NON, 0, 1, 1),
+      ARM_MPU_RLAR(0x6FFFFFE0UL + NS_MEM_OFFSET, 3) },
 
-    /* MPU region 7 qspi0 */
-    { ARM_MPU_RBAR(0x74000000UL, ARM_MPU_SH_NON, 0, 1, 1),
-      ARM_MPU_RLAR(0x77FFFFE0UL, 1) },
+#if CONFIG_PSRAM_INTERLEAVE
+    /* Non-secure interleaved PSRAM. */
+    { ARM_MPU_RBAR(0x80000000UL + NS_MEM_OFFSET, ARM_MPU_SH_NON, 0, 1, 0),
+      ARM_MPU_RLAR((uint32_t)CONFIG_AP_PSRAM_HEAP_ADDR + NS_MEM_OFFSET - 0x20, 1) },
+#if (CONFIG_AP_PSRAM_CODE_SECTION_ADDR && CONFIG_AP_PSRAM_CODE_SECTION_SIZE && CONFIG_AP_PSRAM_CODE_SECTION_ADDR > 0x64000000UL)
+    { ARM_MPU_RBAR((uint32_t)CONFIG_AP_PSRAM_HEAP_ADDR + NS_MEM_OFFSET, ARM_MPU_SH_NON, 0, 1, 0),
+      ARM_MPU_RLAR((uint32_t)CONFIG_AP_PSRAM_CODE_SECTION_ADDR + NS_MEM_OFFSET - 0x20, 5) },
+    { ARM_MPU_RBAR((uint32_t)CONFIG_AP_PSRAM_CODE_SECTION_ADDR + NS_MEM_OFFSET, ARM_MPU_SH_NON, 0, 1, 0),
+      ARM_MPU_RLAR(0x81FFFFE0UL + NS_MEM_OFFSET, 3) },
+#else
+    { ARM_MPU_RBAR(0x81000000UL + NS_MEM_OFFSET, ARM_MPU_SH_NON, 0, 1, 0),
+      ARM_MPU_RLAR(0x81FFFFE0UL + NS_MEM_OFFSET, 1) },
+#endif
+#else
+    /* Non-secure PSRAM. */
+    { ARM_MPU_RBAR(0x60000000UL + NS_MEM_OFFSET, ARM_MPU_SH_NON, 0, 1, 1),
+      ARM_MPU_RLAR(0x7FFFFFE0UL + NS_MEM_OFFSET, 1) },
+#if (CONFIG_AP_PSRAM_CODE_SECTION_ADDR && CONFIG_AP_PSRAM_CODE_SECTION_SIZE && CONFIG_AP_PSRAM_CODE_SECTION_ADDR > 0x64000000UL)
+    { ARM_MPU_RBAR((uint32_t)CONFIG_AP_PSRAM_HEAP_ADDR + NS_MEM_OFFSET, ARM_MPU_SH_NON, 0, 1, 0),
+      ARM_MPU_RLAR((uint32_t)CONFIG_AP_PSRAM_CODE_SECTION_ADDR + NS_MEM_OFFSET - 0x20, 5) },
+    { ARM_MPU_RBAR((uint32_t)CONFIG_AP_PSRAM_CODE_SECTION_ADDR + NS_MEM_OFFSET, ARM_MPU_SH_NON, 0, 1, 0),
+      ARM_MPU_RLAR(0x67FFFFE0UL + NS_MEM_OFFSET, 3) },
+#else
+    { ARM_MPU_RBAR(0x64000000UL + NS_MEM_OFFSET, ARM_MPU_SH_NON, 0, 1, 0),
+      ARM_MPU_RLAR(0x67FFFFE0UL + NS_MEM_OFFSET, 1) },
+#endif
+#endif
 
-     /* MPU region 8 qspi1 */
-     { ARM_MPU_RBAR(0x78000000UL, ARM_MPU_SH_NON, 0, 1, 1),
-       ARM_MPU_RLAR(0x7BFFFFE0UL, 1) },
 
-     /* MPU region 9 ppb and other */
-     { ARM_MPU_RBAR(0x7C000000UL, ARM_MPU_SH_NON, 0, 1, 1),
-       ARM_MPU_RLAR(0x7FFFFFE0UL, 1) },
-
-      /* MPU region 10 ppb and other */
-      { ARM_MPU_RBAR(0x80000000UL, ARM_MPU_SH_NON, 0, 1, 1),
-        ARM_MPU_RLAR(0xEFFFFFE0UL, 2) }
+#if CONFIG_PSRAM_INTERLEAVE
+    { ARM_MPU_RBAR(0x88000000UL + NS_MEM_OFFSET, ARM_MPU_SH_NON, 0, 1, 1),
+      ARM_MPU_RLAR(0xEFFFFFE0UL + NS_MEM_OFFSET, 2) }
+#else
+    { ARM_MPU_RBAR(0x80000000UL + NS_MEM_OFFSET, ARM_MPU_SH_NON, 0, 1, 1),
+      ARM_MPU_RLAR(0xEFFFFFE0UL + NS_MEM_OFFSET, 2) }
+#endif
 };
+
+_Static_assert(sizeof(mpu_regions) / sizeof(mpu_regions[0]) <= 16,
+               "mpu_regions exceeds hardware region count");
 
 /*
  For the star processor, only two combinations of these attributes are valid:Device-nGnRnE/Device-nGnRE
@@ -121,6 +143,7 @@ uint8_t mpu_attrs[] = {
     ARM_MPU_ATTR(0x0, 0x0), // Device memory, bit[3:4]:nGnRnE-00,nGnRE-01
     ARM_MPU_ATTR(0xf, 0xf), // Normal memory, cacheable write back, read allocate, write allocate
     ARM_MPU_ATTR(0xa, 0xa), // Normal memory, cacheable write through, read allocate, (RO) no WA.
+    ARM_MPU_ATTR(0xf, 0x4), // L2 cacheable, L1 non-cacheable
 };
 	
 void mpu_register_regions(ARM_MPU_Region_t *regions, uint32_t region_cnt);

@@ -190,33 +190,21 @@ static ARM_FLASH_CAPABILITIES Flash_GetCapabilities(void)
     return DriverCapabilities;
 }
 
-/* BK7259 bring-up diag: raw UART1 (secure) byte. 'F'<c>. */
-#define FI_PUTC(ch) do { volatile unsigned int *u1=(volatile unsigned int*)0x45830000; \
-    volatile unsigned char *u1b=(volatile unsigned char*)0x45830000; \
-    while (u1[0x18/4]&(1u<<16)){} u1b[0x1C]=(ch); } while(0)
-#define FI_MARK(c) do { FI_PUTC('F'); FI_PUTC(c); FI_PUTC('\r'); FI_PUTC('\n'); } while(0)
-
 static int32_t Flash_Initialize(ARM_Flash_SignalEvent_t cb_event)
 {
     uint32_t ppc_flash_ns_flag;
     uint32_t flash_size = 0;
     ARG_UNUSED(cb_event);
 
-    FI_MARK('0');
     ppc_flash_ns_flag = bk_ppc_lock_flash();
-    FI_MARK('1');
     BK_LOG_ON_ERR(bk_flash_driver_init());
-    FI_MARK('2');
     bk_flash_set_protect_type(FLASH_PROTECT_NONE); //TODO wangzhilei double check
-    FI_MARK('3');
 
     flash_size = bk_flash_get_current_total_size();
-    FI_MARK('4');
     /* Optimze it if we support more than one flash */
     s_flash_sector_count = flash_size / FLASH0_SECTOR_SIZE;
 
     bk_ppc_unlock_flash(ppc_flash_ns_flag);
-    FI_MARK('5');
 
     return ARM_DRIVER_OK;
 }

@@ -19,6 +19,7 @@
 #include "bk_arch.h"
 #include "dbg_probe.h"
 #include <stdint.h>
+#include "soc_debug.h"
 
 /*----------------------------------------------------------------------------
   External References
@@ -120,16 +121,12 @@ volatile uint32_t g_reset_entry_state_core1 = 0;
 __NO_RETURN ENTRY_SECTION void Reset_Handler_Core1(void)
 {
   g_reset_entry_state_core1 = 1;
-  // dlv_hook();
 
   __set_MSPLIM((uint32_t)(&__STACK_LIMIT_CORE1));
 
   __disable_irq();
 
   b_system_base_init();
-  // volatile uint32_t g_debug_flag = 1;
-  // while(g_debug_flag);
-
   b_prep_entry_main();
 
   /* AP SMP: core1 runs after core0 already initialized RAM, so the runtime path

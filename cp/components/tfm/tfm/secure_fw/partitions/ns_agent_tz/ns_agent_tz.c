@@ -15,10 +15,13 @@
 #include "tfm_hal_platform.h"
 #include "bk_tfm_ppc.h"
 
+#define TAG "ns_agent_tz"
+
 /* Load the plaintext CP/AP ppc_config.bin words from the partition header
  * before BXNS. AP release remains deferred to psa_ap_boot() after bk_init(). */
 __used static void ns_init_hook(void)
 {
+    BK_LOGI(TAG, "config ppc and NSPE is coming\r\n");
     if (bk_ppc_apply_config_from_flash() != 0) {
         /* Fail closed if either image is missing, erased, or unreadable. */
         while (1) {

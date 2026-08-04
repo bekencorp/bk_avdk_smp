@@ -9,7 +9,7 @@ if (NOT TFM_PARTITION_PROTECTED_STORAGE)
     return()
 endif()
 
-cmake_minimum_required(VERSION 3.21)
+cmake_minimum_required(VERSION 3.16)
 
 add_library(tfm_app_rot_partition_ps STATIC)
 

@@ -7,9 +7,10 @@ from .parse_csv import *
 
 ota_keys = [
     'strategy',
-    'encrypt'
+    'encrypt',  
     'app_security_counter',
-    'app_version'
+    'app_version',
+    'bootloader_ota',
 ]
 
 class OTA(list):
@@ -31,6 +32,12 @@ class OTA(list):
 
     def get_version(self):
         return self.csv.dic['app_version']
+
+    def get_boot_ota(self):
+        if 'bootloader_ota' in self.csv.dic :
+            return (self.csv.dic['bootloader_ota'] == 'TRUE')
+        else:
+            return False
 
     def is_overwrite(self):
         if(self.csv.dic['strategy'].upper() == 'OVERWRITE'):

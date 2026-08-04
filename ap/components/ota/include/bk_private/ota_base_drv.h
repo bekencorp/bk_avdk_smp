@@ -119,6 +119,7 @@ typedef struct
     void (*umount)(f_ota_t* ota_ptr);
     int (*close)(f_ota_t* ota_ptr);
     int (*deinit)(f_ota_t* ota_ptr);
+    int (*finish)(f_ota_t* ota_ptr);   /* optional success finalize; NULL = none */
 }f_ota_func_t;
 
 extern const f_ota_func_t *f_ota_fun_ptr;

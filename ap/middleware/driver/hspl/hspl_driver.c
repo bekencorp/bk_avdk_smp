@@ -35,24 +35,24 @@
 #define HSPL_REG_LOCK0       (0x10) /* 0x10..0x1F: LOCK registers for channel 0..15 */
 #define HSPL_REG_STA0        (0x20) /* 0x20..0x2F: STA registers for channel 0..15 (read-only helper) */
 
-/* HSPL lock register encoding (based on BK7259 verification tests) */
+/* HSPL lock register encoding (from verification tests) */
 #define HSPL_LOCK_SUCCESS_BIT     (1U << 0)  /* read returns 1 when lock succeeds */
 #define HSPL_LOCK_OWNER_SHIFT     (1)
 #define HSPL_LOCK_OWNER_MASK      (0xFU << HSPL_LOCK_OWNER_SHIFT)
 #define HSPL_LOCK_OWNER_VALID_BIT (1U << 5)  /* read returns 6'b1xxxx0 when already locked */
 
-/* HSPL STA register encoding (based on BK7259 verification tests) */
+/* HSPL STA register encoding (from verification tests) */
 #define HSPL_STA_OWNER_SHIFT      (1)
 #define HSPL_STA_OWNER_MASK       (0xFU << HSPL_STA_OWNER_SHIFT)
 #define HSPL_STA_OWNER_VALID_BIT  (1U << 5)
 
-/* Timeout config (based on BK7259 verification tests) */
+/* Timeout config (from verification tests) */
 #define HSPL_TIMEOUT_EN_BIT       (1U << 24)
 #define HSPL_TIMEOUT_SEL_SHIFT    (20)
 #define HSPL_TIMEOUT_SEL_MASK     (0xFU << HSPL_TIMEOUT_SEL_SHIFT)
 #define HSPL_TIMEOUT_TH_MASK      (0xFFFFFU) /* bits[19:0] */
 
-/* Timeout control (based on BK7259 verification tests) */
+/* Timeout control (from verification tests) */
 #define HSPL_TIMEOUT_IRQ_CLR_BIT  (1U << 0)
 #define HSPL_TIMEOUT_IRQ_EN_BIT   (1U << 1)
 
@@ -246,8 +246,8 @@ static void hspl_dump_timeout_state(bk_hspl_id_t hspl_id)
 
 /*
  * Local HSPL interrupt handling:
- * - CP(M52) handles BK_HSPL_ID_0
- * - AP(M55) handles BK_HSPL_ID_1
+ * - CP handles BK_HSPL_ID_0
+ * - AP handles BK_HSPL_ID_1
  */
 /* AP side: handle BK_HSPL_ID_1 */
 #define HSPL_LOCAL_HSPL_ID  BK_HSPL_ID_1

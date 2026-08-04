@@ -1,0 +1,13 @@
+Field,Value
+secureboot_en,TRUE
+flash_aes_type,FIXED
+flash_aes_mode,128
+single_bin,FALSE
+crc_en,FALSE
+flash_aes_key,18fb833140fb4f819cd6c239f05d64e05cdc65b9a703744ebfd62a7f39bfc7735cdc65b9a703744ebfd62a7f39bfc77318fb833140fb4f819cd6c239f05d64e0
+root_key_type,ec256
+root_pubkey,root_ec256_pubkey.pem
+root_privkey,root_ec256_privkey.pem
+new_pubkey,
+new_privkey,
+update_key,FALSE

@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <components/log.h>
+#include "soc_debug.h"
 #include <modules/wifi.h>
 #include <components/netif.h>
 #include <components/event.h>

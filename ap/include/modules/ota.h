@@ -70,14 +70,6 @@ uint8 bk_ota_get_current_partition(void);
 part_flag bk_ota_get_update_partition(void);
 
 /** 
-* @brief  Accept the OTA image
-*         This API is for MCUBOOT SWAP strategy only, if the image is accepted, then
-*         the MCUBOOT will make the image permanently, otherwise it will revert the
-*         OTA process.
-*/
-void bk_ota_accept_image(void);
-
-/** 
 * @brief  when do ota update,customer can call this interface .
 * 
 * @param  Enables to execute a single HTTP request on a given URL

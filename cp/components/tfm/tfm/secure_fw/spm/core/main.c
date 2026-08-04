@@ -39,27 +39,15 @@ static fih_int tfm_core_init(void)
     volatile enum tfm_plat_err_t plat_err = TFM_PLAT_ERR_SYSTEM_ERR;
     fih_int fih_rc = FIH_FAILURE;
 
-    /* BK7259 bring-up diag: raw UART1 markers inside tfm_core_init (TF-M log not
-     * up until tfm_hal_platform_init). 'C<step>'. */
-    #define CMARK(c) do { volatile unsigned int *u1=(volatile unsigned int*)0x45830000; \
-        volatile unsigned char *u1b=(volatile unsigned char*)0x45830000; \
-        while (u1[0x18/4]&(1u<<16)){} u1b[0x1C]=(c); \
-        while (u1[0x18/4]&(1u<<16)){} u1b[0x1C]='\r'; \
-        while (u1[0x18/4]&(1u<<16)){} u1b[0x1C]='\n'; } while(0)
-    CMARK('0');
     plat_err = bk_flash_driver_init();
     if (plat_err != TFM_PLAT_ERR_SUCCESS) {
         FIH_RET(fih_int_encode(TFM_HAL_ERROR_GENERIC));
     }
-    CMARK('1');
-
     plat_err = TFM_PLAT_ERR_SYSTEM_ERR;
     plat_err = partition_init();
     if (plat_err != TFM_PLAT_ERR_SUCCESS) {
         FIH_RET(fih_int_encode(TFM_HAL_ERROR_GENERIC));
     }
-    CMARK('2');
-
     /*
      * Access to any peripheral should be performed after programming
      * the necessary security components such as PPC/SAU.
@@ -68,7 +56,6 @@ static fih_int tfm_core_init(void)
     if (fih_not_eq(fih_rc, fih_int_encode(TFM_HAL_SUCCESS))) {
         FIH_RET(fih_int_encode(SPM_ERROR_GENERIC));
     }
-    CMARK('3');
 #ifdef TFM_FIH_PROFILE_ON
     FIH_CALL(tfm_hal_verify_static_boundaries, fih_rc);
     if (fih_not_eq(fih_rc, fih_int_encode(TFM_HAL_SUCCESS))) {
@@ -80,8 +67,6 @@ static fih_int tfm_core_init(void)
     if (fih_not_eq(fih_rc, fih_int_encode(TFM_HAL_SUCCESS))) {
         FIH_RET(fih_int_encode(SPM_ERROR_GENERIC));
     }
-    CMARK('4');
-
     /*
      * Print the TF-M version now that the platform has initialized
      * the logging backend.
@@ -133,8 +118,8 @@ int main(void)
 #endif
     /* BK7259 bring-up: drop the psa_level3 secure-hardening and non-secure
      * peripheral bring-up that ran before tfm_core_init() and hung the secure
-     * image right at main() entry (observed: stops after "TS5:main", before any
-     * TF-M log). Per the bring-up decision (drop FIH/anti-tamper, do NOT reuse
+     * image before TF-M logging was initialized. Per the bring-up decision
+     * (drop FIH/anti-tamper, do NOT reuse
      * the non-secure driver stack), remove:
      *   - bk_sca_random_freq_init / bk_anti_tamper_enable / bk_ckmn_start
      *     (SCA / anti-tamper / clock-monitor hardening)
@@ -145,39 +130,25 @@ int main(void)
      * Keep only what TF-M core needs: systick, MSP limit, and tfm_core_init. */
     fih_int fih_rc = FIH_FAILURE;
 
-    /* BK7259 bring-up diag: raw UART1 markers (TF-M log not up yet). 'M<n>'. */
-    #define MMARK(c) do { volatile unsigned int *u1=(volatile unsigned int*)0x45830000; \
-        volatile unsigned char *u1b=(volatile unsigned char*)0x45830000; \
-        while (u1[0x18/4]&(1u<<16)){} u1b[0x1C]=(c); \
-        while (u1[0x18/4]&(1u<<16)){} u1b[0x1C]='\r'; \
-        while (u1[0x18/4]&(1u<<16)){} u1b[0x1C]='\n'; } while(0)
-    MMARK('a');
     extern void systick_init(void);
     systick_init();
-    MMARK('b');
     tfm_arch_set_msplim(SPM_BOOT_STACK_TOP);
-    MMARK('c');
 
     FIH_LOOP4(fih_delay_init());
-    MMARK('d');
 
     FIH_CALL(tfm_core_init, fih_rc);
-    MMARK('e');
     if (fih_not_eq(fih_rc, fih_int_encode(SPM_SUCCESS))) {
         tfm_core_panic();
     }
-    MMARK('f');
     bk_sw_fih_set_data(FIH_SW_INDEX18);
     /* All isolation should have been set up at this point */
     FIH_LABEL_CRITICAL_POINT();
-    MMARK('g');
 
     /*
      * Prioritise secure exceptions to avoid NS being able to pre-empt
      * secure SVC or SecureFault. Do it before PSA API initialization.
      */
     tfm_arch_set_secure_exception_priorities();
-    MMARK('h');
     
 #ifdef TFM_FIH_PROFILE_ON
     /* Check secure exception priority */
@@ -188,9 +159,7 @@ int main(void)
 #endif
 
     /* Further SPM initialization. */
-    MMARK('i');
     BACKEND_SPM_INIT();
-    MMARK('j');
 
     return 0;
 }

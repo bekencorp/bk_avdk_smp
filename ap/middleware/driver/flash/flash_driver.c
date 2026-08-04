@@ -976,23 +976,6 @@ __attribute__((section(".iram"))) bk_err_t bk_flash_exit_deep_sleep(void)
 	return BK_FAIL;
 }
 
-#if CONFIG_SECURITY_OTA
-uint32_t flash_get_excute_enable()
-{
-	return flash_hal_read_offset_enable(&s_flash.hal);
-}
-
-void bk_flash_enable_cpu_data_wr(void)
-{
-	flash_hal_enable_cpu_data_wr(&s_flash.hal);
-}
-
-void bk_flash_disable_cpu_data_wr(void)
-{
-	flash_hal_disable_cpu_data_wr(&s_flash.hal);
-}
-#endif
-
 /* flash dump APIs are called in context of interrupt disabled. */
 bk_err_t bk_flash_dump_erase_sector(uint32_t address)
 {

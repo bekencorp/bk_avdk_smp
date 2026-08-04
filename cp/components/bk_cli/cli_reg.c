@@ -137,10 +137,10 @@ static void cli_reg_write_read_cmd_common(char *pcWriteBuffer, int xWriteBufferL
 		cli_hexstr2bin((char *)optr_tab, (u8 *)&reg_addr, 4);
 		reg_addr = ntohl(reg_addr);
 		if (is_secure) {
-			BK_LOGD(NULL, "regshow R: addr:0x%08x, value:0x%08x\r\n", reg_addr, REG_READ(reg_addr));
+			BK_LOGD(NULL, "regshow non_secure R: addr:0x%08x, value:0x%08x\r\n", reg_addr, REG_READ(reg_addr));
 		} else {
 #if CONFIG_TFM_REG_ACCESS_NSC
-			BK_LOGD(NULL, "regshow R: addr:0x%08x, value:0x%08x\r\n", reg_addr, psa_reg_read(reg_addr));
+			BK_LOGD(NULL, "regshow secure R: addr:0x%08x, value:0x%08x\r\n", reg_addr, psa_reg_read(reg_addr));
 #endif
 		}
 	} else if (os_strncmp(argv[1], "-w", 2) == 0) {

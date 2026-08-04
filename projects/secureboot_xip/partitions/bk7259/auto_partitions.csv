@@ -1,0 +1,55 @@
+# BK7259 security_boot partition table (8MB), Scheme B.
+#
+# Separate signed code partitions (aligned with the bk7236 secure reference and
+# the beken_utils packer contract). The packer auto-collects every primary_*
+# code partition placed AFTER `bl2` into a single virtual `primary_all`, which
+# BL2 (MCUboot, EC-P256) signs once. So scheme B keeps clear per-image partition
+# boundaries (for DBUS/MPC isolation and PartyA-secure / downstream-NS IP
+# separation) while still producing a single BL2-verified primary_all.
+#
+# Packer naming contract:
+#   - bl2                : BL2 (MCUboot) image, verified by BootROM (bl1).
+#   - bl1_control        : secureboot metadata (reserved name).
+#   - primary_manifest   : secureboot manifest (reserved name).
+#   - partition          : partition table image.
+#   - primary_tfm_s      -> tfm_s.bin   (CP TF-M Secure; PartyA, secure world).
+#   - primary_cpu0_app   -> cpu0_app.bin(CP non-secure app; downstream).
+#   - primary_ap_app     -> ap_app.bin  (AP firmware).
+#   - secondary_*        -> same .bin as their primary_* twin; packer folds them
+#                           into virtual `secondary_all` (slot B) for DIRECT_XIP.
+#   - sys_its/sys_ps     : required by TF-M (ITS/PS backends).
+#   - sys_net/sys_rf     : required by primary_cpu0_app.
+#
+# Constraints honored:
+#   - primary_* code partitions are placed AFTER bl2 (verified by BL2).
+#   - end(primary_tfm_s) is 68K-aligned (TF-M S/NS boundary requirement).
+#   - BK7259 disables flash CRC -> identity mapping (security.csv crc_en=FALSE).
+FLASH_CAPACITY=8M
+#Name,Offset,Size,Type,Read,Write
+# bl1_control must be a CODE partition so the secure packer AES-encrypts it and
+# writes the BootROM 'BK.SB' magic at offset 0x100 (which selects secure boot).
+# Kept out of the application numbering by bk_flash_partition._part_adapter.
+bl1_control,0x0,4k,code,TRUE,TRUE
+boot_flag,0x1000,4k,data,TRUE,TRUE
+partition,0x2000,4k,data,TRUE,TRUE
+primary_manifest,0x3000,4k,data,TRUE,TRUE
+bl2,0x4000,96k,code,TRUE,FALSE
+sys_its,0x1C000,8k,data,TRUE,TRUE
+sys_ps,0x1E000,8k,data,TRUE,TRUE
+primary_tfm_s,0x20000,320k,code,TRUE,FALSE
+primary_cpu0_app,0x70000,1644k,code,TRUE,FALSE
+primary_ap_app,0x20B000,1412k,code,TRUE,FALSE
+secondary_tfm_s,0x36C000,320k,code,TRUE,FALSE
+secondary_cpu0_app,0x3BC000,1644k,code,TRUE,FALSE
+secondary_ap_app,0x557000,1412k,code,TRUE,FALSE
+usr_config,0x6B8000,60k,data,TRUE,TRUE
+easyflash,0x6C7000,8k,data,TRUE,TRUE
+easyflash_ap,0x6C9000,8k,data,TRUE,TRUE
+boot_param,0x6CB000,8k,data,TRUE,TRUE
+# DIRECT_XIP A/B OTA writes the inactive slot (secondary_all), so `ota` is NO
+# longer the OTA image store. Kept as a small tail data partition only to satisfy
+# legacy references (BK_PARTITION_OTA: crash dump + nosecurity OTA driver). AP-side
+# OTA will be migrated to the secondary slot in the OTA end-to-end phase.
+ota,0x6CD000,1180k,data,TRUE,TRUE
+sys_rf,0x7FE000,4k,data,TRUE,TRUE
+sys_net,0x7FF000,4k,data,TRUE,TRUE

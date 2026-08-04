@@ -67,4 +67,3 @@
 #define SYS_REG_SET(reg_id, l, h, v) REG_SET((SOC_SYSTEM_REG_BASE + ((reg_id) << 2)), (l), (h), (v))
 #define SYS_REG_OR(reg_id, l, h, v)  REG_OR((SOC_SYSTEM_REG_BASE + ((reg_id) << 2)), (l), (h), (v))
 
-

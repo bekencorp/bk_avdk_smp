@@ -10,6 +10,7 @@ import zlib
 from pathlib import Path
 
 import bk_packager
+from bk_flash_partiton import adapt_partition_name
 from bk_misc import parse_format_size
 from bk_ota_partition import bk_ota_partition
 
@@ -102,16 +103,6 @@ def build_metadata(magic: int, entry_size: int, entries: bytes, ota_scheme: int)
     return header + entries
 
 
-def _adapt_partition_name(name: str, execute: bool, app_count: int) -> tuple[str, int]:
-    """Replicate bk_flash_partition._part_adapter naming so on-flash names match App."""
-    if "bootloader" in name and execute:
-        return "bootloader", app_count
-    if execute:
-        adapted = "application" + (str(app_count) if app_count else "")
-        return adapted, app_count + 1
-    return name, app_count
-
-
 def serialize_partitions_table(partitions_json: Path) -> bytes:
     """Serialize the FULL App partition table (App naming/semantics) from partitions.json."""
     if not partitions_json.exists():
@@ -124,7 +115,7 @@ def serialize_partitions_table(partitions_json: Path) -> bytes:
     app_count = 0
     for part in sections:
         execute = bool(part["Execute"])
-        name, app_count = _adapt_partition_name(part["Name"], execute, app_count)
+        name, app_count = adapt_partition_name(part["Name"], execute, app_count)
         options = 0
         if part["Read"]:
             options |= PAR_OPT_READ_EN

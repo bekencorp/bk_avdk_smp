@@ -203,15 +203,43 @@ package_script := $(ARMINO_AVDK_DIR)/tools/build_tools/build_process/bk_build_pa
 package_dir := $(PROJECT_BUILD_DIR)/package
 package_json := $(PARTITIONS_DIR)/bk_package.json
 build_summary := $(package_dir)/build_summary.txt
+
+# Secure firmware detection: when the project enables CONFIG_SECURITY_FIRMWARE,
+# the per-subsystem secure pack (board wrapper -> beken_utils) already produces
+# the signed/encrypted all-app.bin + bootloader.bin during build_smp_firmware.
+# The generic SMP packager (bk_build_package.py) would re-combine raw
+# per-partition bins (primary_tfm_s.bin ...) and is incompatible with the
+# secure flow, so skip it for secure builds.
+SECURITY_CONFIG_FILE := $(PROJECT_DIR)/config/$(ARMINO_SOC_NAME)/config
+IS_SECURITY_FIRMWARE := $(shell test -f $(SECURITY_CONFIG_FILE) && grep -q '^CONFIG_SECURITY_FIRMWARE=y' $(SECURITY_CONFIG_FILE) && echo y)
+secure_install_dir := $(PROJECT_BUILD_DIR)/$(ARMINO_SOC)/install
+
 ifeq ($(WIN32),1)
 package: $(package_script) $(ARMINO_SOC)_cp $(ARMINO_SOC)_ap
 else
 package: $(package_script) build_smp_firmware
 endif
+ifeq ($(IS_SECURITY_FIRMWARE),y)
+	@echo "Secure firmware: staging $(secure_install_dir) -> $(package_dir) (generic SMP packager skipped)."
+	@if [ ! -d "$(secure_install_dir)" ]; then \
+		echo "ERROR: secure install dir not found: $(secure_install_dir)"; \
+		echo "       CP secure pack (bk7259.wrapper) may not have run."; \
+		exit 1; \
+	fi
+	@mkdir -p $(package_dir)
+	@cp -a $(secure_install_dir)/. $(package_dir)/
+	@echo "firmware: $(package_dir)/all-app.bin" > $(build_summary)
+	@echo "bootloader: $(package_dir)/bootloader.bin" >> $(build_summary)
+	@echo "ota binary: $(package_dir)/ota.bin" >> $(build_summary)
+ifneq ($(PRINT_SUMMARY), 0)
+	@cat $(build_summary)
+endif
+else
 	@mkdir -p $(package_dir)
 	@$(RUN_PYTHON3) $(package_script) $(PROJECT_BUILD_DIR) $(package_json) $(build_summary)
 ifneq ($(PRINT_SUMMARY), 0)
 	@cat $(build_summary)
+endif
 endif
 
 .PHONY: smp_doc ap_doc cp_doc doc build_smp_firmware

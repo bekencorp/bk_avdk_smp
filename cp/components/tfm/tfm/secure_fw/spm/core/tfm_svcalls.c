@@ -203,19 +203,7 @@ static uint32_t handle_spm_svc_requests(uint32_t svc_number, uint32_t exc_return
     switch (svc_number) {
     case TFM_SVC_SPM_INIT:
         exc_return = tfm_spm_init();
-        /* BK7259 bring-up diag: raw UART1 'W' = tfm_spm_init returned (after
-         * QT), about to check msp sealing; 'V' = sealing ok, about to exc-ret. */
-        { volatile unsigned int *u1=(volatile unsigned int*)0x45830000;
-          volatile unsigned char *u1b=(volatile unsigned char*)0x45830000;
-          while(u1[0x18/4]&(1u<<16)){} u1b[0x1C]='W';
-          while(u1[0x18/4]&(1u<<16)){} u1b[0x1C]='\r';
-          while(u1[0x18/4]&(1u<<16)){} u1b[0x1C]='\n'; }
         tfm_arch_check_msp_sealing();
-        { volatile unsigned int *u1=(volatile unsigned int*)0x45830000;
-          volatile unsigned char *u1b=(volatile unsigned char*)0x45830000;
-          while(u1[0x18/4]&(1u<<16)){} u1b[0x1C]='V';
-          while(u1[0x18/4]&(1u<<16)){} u1b[0x1C]='\r';
-          while(u1[0x18/4]&(1u<<16)){} u1b[0x1C]='\n'; }
         /* The following call does not return */
         tfm_arch_free_msp_and_exc_ret(SPM_BOOT_STACK_BOTTOM, exc_return);
         break;

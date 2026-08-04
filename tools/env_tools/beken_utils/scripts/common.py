@@ -28,17 +28,30 @@ def decimal2int(str):
     return int(str, base=10) % (2**32)
 
 
-def crc_size(size):
-    return (((size + 31) >> 5) * 34)
+def crc_size(size, crc_en):
+    if crc_en is True:
+        return (((size + 31) >> 5) * 34)
+    return size
 
-def virtual2phy(addr):
-    return ((addr % 32) + ((addr >> 5) * 34))
+def virtual2phy(addr, crc_en):
+    if crc_en is True:
+        return ((addr % 32) + ((addr >> 5) * 34))
+    return addr
 
-def phy2virtual(addr):
-    return ((addr % 34) + ((addr // 34) * 32))
+def phy2virtual(addr, crc_en):
+    if crc_en is True:
+        return ((addr % 34) + ((addr // 34) * 32))
+    return addr
 
-def crc_addr(addr):
-    return crc_size(addr)
+def crc_addr(addr, crc_en):
+    return crc_size(addr, crc_en)
+def get_xts_aes_bits(aes_key):
+    if aes_key is None:
+        raise ValueError("AES key is required for FIXED encryption")
+    key_len = len(aes_key)
+    if key_len not in (64, 128):
+        raise ValueError(f"Unsupported AES key length: {key_len}")
+    return 128
 
 
 def size2int(str):
@@ -102,9 +115,19 @@ def int2hexstr4(v):
     return (f'%08x' %(v))
 
 def parse_bool(v):
-    if v == 'TRUE':
+    if isinstance(v, bool):
+        return v
+
+    if not isinstance(v, str):
+        raise ValueError(f'Invalid boolean value: {v!r}')
+
+    normalized = v.strip().upper()
+    if normalized == 'TRUE':
         return True
-    return False
+    if normalized == 'FALSE':
+        return False
+
+    raise ValueError(f'Invalid boolean value: {v!r}, expected TRUE or FALSE')
 
 def clear_dir(directory):
     for filename in os.listdir(directory):

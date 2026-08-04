@@ -29,9 +29,6 @@
 
 /* SDK flash offset(remap)-enable setter; getter is already visible via flash.h. */
 extern void flash_set_excute_enable(int enable);
-/* DIRECT_XIP A/B debug: remap delta getter (added in flash_min.c) to verify the
- * secondary read is actually redirected to B before trusting the data. */
-extern uint32_t flash_get_addr_offset(void);
 
 #define FLASH_PROGRAM_UNIT    TFM_HAL_FLASH_PROGRAM_UNIT
 
@@ -159,20 +156,7 @@ int flash_area_read(const struct flash_area *area, uint32_t off, void *dst,
         uint32_t saved_remap  = flash_get_excute_enable();
 
         flash_set_excute_enable(is_secondary);
-        if (is_secondary) {
-            /* B is read through A's VA and only the HW remap (offset_enable +
-             * addr_offset) redirects the fetch to B. If the remap did not take,
-             * the read silently aliases back to A. Read it back and warn so we
-             * can distinguish "remap not effective" from a real bad image. */
-            uint32_t remap_en = flash_get_excute_enable();
-            uint32_t addr_off = flash_get_addr_offset();
-            BOOT_LOG_INF("flash_area_read: SECONDARY off=0x%x remap_en=%u addr_offset=0x%x",
-                         off, remap_en, addr_off);
-            if (remap_en != 1 || addr_off == 0) {
-                BOOT_LOG_ERR("flash_area_read: SECONDARY remap NOT effective (remap_en=%u addr_offset=0x%x) -> aliases to primary!",
-                             remap_en, addr_off);
-            }
-        }
+
         bk_flash_read_cbus(fa_off + off, dst, len);
         flash_set_excute_enable(saved_remap);
         return 0;

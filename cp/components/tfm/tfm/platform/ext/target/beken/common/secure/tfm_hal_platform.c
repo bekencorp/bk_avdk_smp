@@ -28,7 +28,7 @@
 
 /* Hardware register base addresses */
 #define DMA0_BASE_ADDR             0x45020000
-#define DMA1_BASE_ADDR             0x45030000
+#define DMA1_BASE_ADDR             0x4C300000
 #define PPRO_BASE_ADDR             0x41040000
 
 /* DMA register offsets */

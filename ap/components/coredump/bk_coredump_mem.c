@@ -27,15 +27,31 @@ void bk_dump_dtcm(void)
     }
 }
 
+/*
+ * The low part of SRAM3 is the secure carve-out and is unreachable from a
+ * Non-Secure alias (the read SecureFaults / stalls the bus), so the dump must
+ * start past it. On this core the carve-out is 0x1000 (4K) at the SRAM3 base
+ * (0x28100000).
+ */
+#define COREDUMP_SRAM3_SECURE_SKIP   (0x1000U)
+
 void bk_dump_all_sram(void)
 {
     uint32_t sram_info_count = bk_get_sram_info_count();
     const bk_dump_mem_info_t *sram_info_list = bk_get_sram_info_list();
     for (int i = 0; i < sram_info_count; i++) {
+        uint32_t start = sram_info_list[i].start_addr;
+        uint32_t size = sram_info_list[i].size;
+
+        if ((start == (uint32_t)SOC_SRAM3_DATA_BASE) && (size > COREDUMP_SRAM3_SECURE_SKIP)) {
+            start += COREDUMP_SRAM3_SECURE_SKIP;
+            size -= COREDUMP_SRAM3_SECURE_SKIP;
+        }
+
         bk_coredump_write_memory(
             sram_info_list[i].name,
-            sram_info_list[i].start_addr,
-            sram_info_list[i].start_addr + sram_info_list[i].size
+            start,
+            start + size
         );
     }
     bk_coredump_write_memory("MEM_CHECK", (uint32_t)SOC_MEM_CHECK_REG_BASE, (uint32_t)(SOC_MEM_CHECK_REG_BASE + 0x81 * 4));

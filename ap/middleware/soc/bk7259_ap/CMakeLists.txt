@@ -144,7 +144,7 @@ add_custom_command(
 			-I ${armino_path}/middleware/boards/${target}/partitions
 			-I $ENV{SECURITY_PREBUILD_DIR}/
 			-I $ENV{PARTITIONS_DIR}
-	MAIN_DEPENDENCY ${LD_DIR}/${target}.ld ${sdkconfig_header}
+	MAIN_DEPENDENCY ${LD_FILE} ${sdkconfig_header}
 	DEPENDS ${ld_header_dependencies}
 	COMMENT "Generating linker script..."
 	VERBATIM)

@@ -62,8 +62,11 @@ def gen_manifest_bin(action_type, manifest_json_file, outfile):
         os.remove('bl1_manifest_digest.txt')
 
 def bl1_sign(action_type, key_type, privkey_pem_file, pubkey_pem_file, signature, bin_file, static_addr, load_addr, outfile):
-    manifest_json_file = 'primary_manifest.json'
-    g = Genbl1(True, key_type, privkey_pem_file, pubkey_pem_file)
+    if outfile == "secondary_manifest.bin" :
+        manifest_json_file = 'secondary_manifest.json'
+    else :
+        manifest_json_file = 'primary_manifest.json'
+    g = Genbl1(True, key_type, privkey_pem_file, pubkey_pem_file, outfile)
     g.gen_key_desc()
-    g.gen_manifest(5, static_addr, load_addr, bin_file, manifest_json_file)
+    g.gen_manifest(7, static_addr, load_addr, bin_file, manifest_json_file)
     gen_manifest_bin(action_type, manifest_json_file, outfile)

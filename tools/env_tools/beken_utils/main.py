@@ -68,14 +68,24 @@ def pipeline():
 
 @gen.command("partition")
 @click.option("--partition_csv", type=click.Path(exists=True, dir_okay=False), required=False, default='partitions.csv', help="partition CSV file.")
-@click.option("--ota_type", type=click.Choice(['OVERWRITE', 'XIP']), default='OVERWRITE', required=True, help="The OTA type.")
+@click.option("--ota_type", type=click.Choice(['OVERWRITE', 'XIP']), default=None, required=False, help="The OTA type; defaults to ota.csv strategy.")
 @click.option("--out_hdr_file", type=str, required=False, default='partition_gen.h', help="Output file")
 @click.option("--out_layout_file", type=str, required=False, default='partition_layout.h', help="Output file")
 @click.option("--debug", is_flag=True, help="Enable debug")
 def gen_partition_command(partition_csv, ota_type, out_hdr_file, out_layout_file, debug):
     """gen partition header and layout file."""
     set_debug(debug)
-    p = Partitions(partition_csv, ota_type)
+    security = Security('security.csv')
+    ota = OTA('ota.csv')
+    if ota_type is None:
+        ota_type = ota.get_strategy()
+    p = Partitions(
+        partition_csv,
+        ota_type,
+        ota.get_boot_ota(),
+        security.secureboot_en,
+        security.crc_en,
+    )
     gen_partitions_hdr_file(p, out_hdr_file)
     gen_partitions_layout_file(p, out_layout_file)
 
@@ -135,7 +145,7 @@ def gen_ota_command(otp_csv, outfile, debug):
 def gen_otp_efuse_command(flash_aes_type, flash_aes_key, pubkey_pem_file, secure_boot, outfile, debug):
     """gen otp_efuse_config.json from security csv files."""
     set_debug(debug)
-    gen_otp_efuse_config_file(flash_aes_type, flash_aes_key, pubkey_pem_file, secure_boot, outfile)
+    gen_otp_efuse_config_file(flash_aes_type, flash_aes_key, pubkey_pem_file, secure_boot, False, outfile)
 
 @gen.command("all")
 @click.option("--debug", is_flag=True, help="Enable debug")
@@ -231,10 +241,11 @@ def pack_command(debug):
 @pack.command("all")
 @click.option("--debug", is_flag=True, help="Enable debug")
 @click.option("--config_dir", type=click.Path(exists=True, dir_okay=True), required=False, default=None, help="configuration files dir")
-def pack_command(debug, config_dir):
+@click.option("--aes_key", type=str, required=False, default=None, help="configuration flash aes key")
+def pack_command(debug, config_dir, aes_key):
     """Pack downloadable bin in a single command"""
     set_debug(debug)
-    pack_all(config_dir)
+    pack_all(config_dir, aes_key)
 
 @sign.command("bl1_sign_hash")
 @click.option("--privkey_pem_file", type=click.Path(exists=True, dir_okay=False), required=False, default='root_ec256_privkey.pem', help="PEM private key file.")
