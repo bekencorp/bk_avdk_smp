@@ -277,10 +277,10 @@ extern void bk_wdt_force_feed(void);
 void dlv_hook(void)
 {
 #if CONFIG_DEEP_LV
-	if(sys_hal_set_alo2core_power_switch(1) == BK_OK)
-	{
-		timer_hal_early_delay_us(10);
-	}
+	// if(sys_hal_set_alo2core_power_switch(1) == BK_OK)
+	// {
+	// 	timer_hal_early_delay_us(10);
+	// }
 	if (dlv_is_startup())
 	{
         #if CONFIG_PM_CP_DEEP_LV_SRAM_CHECK
@@ -289,7 +289,7 @@ void dlv_hook(void)
 		#if CONFIG_DEEP_LV_DEBUG_GPIO
 		PM_GPIO_UP(37);//1
 		PM_GPIO_DOWN(37);
-		early_jtag_gpio_map();
+		//early_jtag_gpio_map();
 		#endif
 		bk_wdt_force_feed();
 		bk_rtc_update_base_time();
