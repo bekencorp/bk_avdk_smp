@@ -106,7 +106,13 @@ uint32_t bk_h264_debug_sei_generate(const uint8_t *frame, uint32_t frame_len,
 	payload.version     = (uint8_t)BK_H264_SEI_VERSION;
 	payload.sequence    = sequence;
 	payload.payload_len = frame_len;
+#if CONFIG_BK_H264E_DEBUG_SEI_CRC
+	/* Costly: scans the whole frame from PSRAM. Gated by Kconfig so it can be
+	 * skipped when only sequence/length diagnostics are needed. */
 	payload.payload_crc = bk_h264_sei_crc32(frame, frame_len);
+#else
+	payload.payload_crc = 0U; /* CRC disabled: receiver should ignore this field */
+#endif
 
 	raw[r++] = 0x06U;         /* NAL header: forbidden=0, ref_idc=0, type=6 (SEI) */
 	raw[r++] = 0x05U;         /* payloadType = 5 (user_data_unregistered) */

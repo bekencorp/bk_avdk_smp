@@ -66,6 +66,29 @@ menu "BEKEN CODEC ENCODER"
 			"Select CKSEL_H264_240M (highest supported encoder frequency).
 			When disabled, CKSEL_H264_80M is used."
 
+	config BK_ENCODER_HW_TASK_PRIORITY
+		int "Hardware encoder worker task priority (smaller = higher)"
+		default 2
+		range 0 9
+		help
+			"Priority of the shared hardware encoder worker task (hw_encoder),
+			which runs vcenc_h264_encode_frame and the per-frame done callback.
+			BEKEN convention: a SMALLER number means HIGHER scheduling priority.
+			Default 2 matches the historical library value. Raising it (i.e.
+			decreasing the number) above the network/WiFi tasks reduces the
+			encode-start scheduling latency that can starve the ISP flexa FIFO."
+
+	config BK_ENCODER_H264_HW_FLEXA_TASK_PRIORITY
+		int "H.264 hardware-flexa encode task priority (smaller = higher)"
+		default 2
+		range 0 9
+		depends on BK_ENCODER
+		help
+			"Priority of the H.264 HARDWARE-flexa control task (h264e_encoder,
+			created in bk_h264_encode_hw_flexa_ctlr.c). This is distinct from the
+			software-flexa path. BEKEN convention: a SMALLER number means HIGHER
+			scheduling priority. Default 2 matches the historical library value."
+
 	config BK_H264E_DEBUG_SEI
 		bool "Insert debug SEI NAL into each H264 frame (transport diagnostics)"
 		default n
@@ -75,5 +98,16 @@ menu "BEKEN CODEC ENCODER"
 			encoded H.264 frame carrying per-frame sequence/length/CRC32/timestamp
 			so a receiver can detect frame loss, reorder, truncation and corruption
 			without decoding. Disabled by default; enable only for debugging."
+
+	config BK_H264E_DEBUG_SEI_CRC
+		bool "Compute per-frame CRC32 in debug SEI (costly: scans whole frame)"
+		default n
+		depends on BK_H264E_DEBUG_SEI
+		help
+			"When enabled, the debug SEI carries a CRC32 over the whole encoded
+			frame so a receiver can detect corruption. Computing it reads the
+			entire frame from PSRAM byte by byte and is time-consuming (it eats
+			into the encoder inter-frame slack). Disable to skip the scan and put
+			payload_crc = 0 when only sequence/length diagnostics are needed."
 
 endmenu

@@ -36,7 +36,6 @@
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
 
-#define HW_ENCODER_TASK_PRIO        2
 #define HW_ENCODER_TASK_STACK_SIZE  (4 * 1024)
 #define HW_ENCODER_QUEUE_SIZE       16
 
@@ -232,7 +231,7 @@ static avdk_err_t hw_encoder_ctlr_create(void)
 
     /* Worker thread */
     ret = rtos_create_hsram_thread(&g_hw_encoder_ctlr->task,
-                            HW_ENCODER_TASK_PRIO,
+                            CONFIG_BK_ENCODER_HW_TASK_PRIORITY,
                             "hw_encoder",
                             (beken_thread_function_t)hw_encoder_task,
                             HW_ENCODER_TASK_STACK_SIZE,
