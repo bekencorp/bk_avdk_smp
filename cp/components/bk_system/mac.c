@@ -34,168 +34,117 @@
 
 #define TAG "mac"
 
-#if ((CONFIG_SOC_BK7231) && (CONFIG_BASE_MAC_FROM_EFUSE))
-#error "BK7231 not support efuse!"
-#endif
 
 #define BASE_MAC_LEN  (6)
 #define DEFAULT_MAC_ADDR "\xC8\x47\x8C\x00\x00\x18"
 static uint8_t s_base_mac[] = DEFAULT_MAC_ADDR;
 static bool s_mac_inited = false;
 
-#if (CONFIG_BASE_MAC_FROM_EFUSE)
-static int write_base_mac_to_efuse(const uint8_t *mac)
+#if (CONFIG_BASE_MAC_FROM_OTP2)
+/**
+ * to find an empty mac addr item
+ */
+int get_otp2_mac_addr_item(UINT32 *item)
 {
-#if 0
-	uint8_t efuse_addr = 0;
-	uint8_t efuse_data = 0;
-	int i = 0, ret;
-
-	if (!mac)
-		return BK_ERR_PARAM;
-
-	for (i = 0; i < EFUSE_MAC_LEN; i++) {
-		efuse_addr = EFUSE_MAC_START_ADDR + i;
-		efuse_data = mac[i];
-
-		if (i == 0) {
-			// ensure mac[0]-bit0 in efuse not '1'
-			efuse_data &= ~(0x01);
-		}
-
-		ret = bk_efuse_write_byte(efuse_addr, efuse_data);
-		if (ret != BK_OK) {
-			BK_LOGD(TAG, "efuse set mac failed(%x)\r\n", ret);
-			return ret;
-		}
-	}
-
-	BK_LOGD(TAG, "efuse set mac: "BK_MAC_FORMAT"\n", BK_MAC_STR(mac));
-	return BK_OK;
-#else
-	BK_LOGD(TAG, "write mac to eufse stub");
-	return BK_OK;
-#endif
-}
-
-static int read_base_mac_from_efuse(uint8_t *mac)
-{
-	uint8_t efuse_addr = 0;
-	uint8_t efuse_data = 0;
-	int i = 0, ret;
-
-	if (!mac)
-		return BK_ERR_PARAM;
-
-	for (i = 0; i < BK_MAC_ADDR_LEN; i++) {
-		efuse_addr = EFUSE_MAC_START_ADDR + i;
-		efuse_data = 0;
-
-		ret = bk_efuse_read_byte(efuse_addr, &efuse_data);
-		if (ret == BK_OK)
-			mac[i] = efuse_data;
-		else {
-			os_memset(mac, 0, BK_MAC_ADDR_LEN);
-			mac[i] = 0;
-			BK_LOGE(TAG, "efuse get mac failed(%x)\n", ret);
-			return ret;
-		}
-	}
-
-	BK_LOGD(TAG, "efuse get mac: "BK_MAC_FORMAT"\n", BK_MAC_STR(mac));
-
-	if (BK_IS_ZERO_MAC(mac)) {
-		BK_LOGE(TAG, "efuse MAC all zero, see as error\r\n");
-		return BK_ERR_ZERO_MAC;
-	}
-
-	return BK_OK;
-}
-#endif
-
-#if (CONFIG_BASE_MAC_FROM_RF_OTP_FLASH)
-static int read_base_mac_from_rf_otp_flash(uint8_t *mac)
-{
-#if (CONFIG_SOC_BK7236XX || CONFIG_SOC_BK7239XX || CONFIG_SOC_BK7286XX)
-#if CONFIG_OTP_V1
-    uint8_t buf[6];
-    bk_err_t result;
-
-    result = bk_otp_apb_read(OTP_MAC_ADDRESS, buf, sizeof(buf));
-    if ((result == BK_OK) && ((buf[0] != 0) || (buf[1] != 0) || (buf[2] != 0) || (buf[3] != 0) || (buf[4] != 0) || (buf[5] != 0)))
-    {
-        os_memcpy(mac, buf, sizeof(buf));
-        return result;
-    }
-#endif
-#endif
-
-        if (manual_cal_get_macaddr_from_flash((uint8_t *)mac))
-		return BK_OK;
-	else
-		return BK_FAIL;
-}
-
-static int write_base_mac_to_rf_otp_flash(const uint8_t *mac)
-{
-	if (manual_cal_write_macaddr_to_flash((uint8_t *)s_base_mac))
-		return BK_OK;
-	else
-		return BK_FAIL;
-}
-
-#endif
-
-#if (CONFIG_BASE_MAC_FROM_OTP1)
-static int write_base_mac_to_otp1(const uint8_t *mac)
-{
-#if CONFIG_OTP_V1
+    UINT8 i = OTP_MAC_ADDRESS1;
     int ret = BK_FAIL;
     uint8_t mac_r[] = DEFAULT_MAC_ADDR;
 
-    ret = bk_otp_apb_read(OTP_MAC_ADDRESS, mac_r, BASE_MAC_LEN);
-    if(ret == 0)
+    for(i = OTP_MAC_ADDRESS1; i <= OTP_MAC_ADDRESS4; i++)
     {
-        for(UINT8 i = 0; i < BASE_MAC_LEN; i++)
+        *item = i;
+        ret = bk_otp_ahb_read(i,(UINT8 *)&mac_r,BASE_MAC_LEN);
+        for(UINT8 j = 0; j < BASE_MAC_LEN; j++)
         {
-            if(mac_r[i] == 0x00)
+            if(mac_r[j] == 0x00)
             {
                ret += 1;
             }
         }
         if(ret == BASE_MAC_LEN)
         {
-           ret = bk_otp_apb_update(OTP_MAC_ADDRESS, (uint8_t *)mac, BASE_MAC_LEN);
-           if(ret == 0)
+            return BK_OK;
+        }
+        else if(i == OTP_MAC_ADDRESS4 && ret != BASE_MAC_LEN)
+        {
+            return BK_FAIL;
+        }
+    }
+    return ret;
+
+}
+
+static int write_base_mac_to_otp2(const uint8_t *mac)
+{
+#if CONFIG_OTP
+    int ret = BK_FAIL;
+    uint8_t buf[6];
+    UINT32 item = OTP_MAC_ADDRESS1;
+
+    ret = get_otp2_mac_addr_item(&item);
+    if((item > OTP_MAC_ADDRESS1 && item <= OTP_MAC_ADDRESS4) && ret == BK_OK)
+    {
+        item -= 1;
+    }
+
+    ret = bk_otp_ahb_read(item, buf, BASE_MAC_LEN);
+
+    if(((buf[0] != mac[0]) || (buf[1] != mac[1]) || (buf[2] != mac[2]) || (buf[3] != mac[3])
+        || (buf[4] != mac[4]) || (buf[5] != mac[5])) && ret == BK_OK)
+    {
+        ret = get_otp2_mac_addr_item(&item);
+        if(ret == BK_OK)
+        {
+           ret = bk_otp_ahb_update(item, (uint8_t *)mac, BASE_MAC_LEN);
+           if(ret == BK_OK)
                return BK_OK;
            else
                return BK_FAIL;
         }
         else
-        {
             return BK_FAIL;
-        }
     }
+    else
+        return BK_OK;
+#else
     return BK_FAIL;
 #endif
 }
 
-static int read_base_mac_to_otp1(uint8_t *mac)
+static int read_base_mac_to_otp2(uint8_t *mac)
 {
-#if CONFIG_OTP_V1
+#if CONFIG_OTP
     int ret = BK_FAIL;
     uint8_t buf[6];
-    ret = bk_otp_apb_read(OTP_MAC_ADDRESS, buf, BASE_MAC_LEN);
+    UINT32 item = OTP_MAC_ADDRESS1;
+
+    ret = get_otp2_mac_addr_item(&item);
+    if((item > OTP_MAC_ADDRESS1 && item <= OTP_MAC_ADDRESS4) && ret == BK_OK)
+    {
+        item -= 1;
+    }
+
+    ret = bk_otp_ahb_read(item, buf, BASE_MAC_LEN);
     if ((ret == BK_OK) && ((buf[0] != 0) || (buf[1] != 0) || (buf[2] != 0) || (buf[3] != 0) || (buf[4] != 0) || (buf[5] != 0)))
     {
         os_memcpy(mac, buf, sizeof(buf));
         return ret;
     }
-#endif
-    if (manual_cal_get_macaddr_from_flash((uint8_t *)mac))
-        return BK_OK;
+    else if(ret == BK_OK)
+    {
+        ret = bk_otp_apb_read(OTP_MAC_ADDRESS1, buf, BASE_MAC_LEN);
+        if ((ret == BK_OK) && ((buf[0] != 0) || (buf[1] != 0) || (buf[2] != 0) || (buf[3] != 0) || (buf[4] != 0) || (buf[5] != 0)))
+        {
+            os_memcpy(mac, buf, sizeof(buf));
+            return ret;
+        }
+        else
+            return BK_FAIL;
+    }
     else
         return BK_FAIL;
+#endif
+
 }
 #endif
 
@@ -476,12 +425,10 @@ static int mac_init(void)
 	int ret = BK_FAIL;
 
 #if (CONFIG_NEW_MAC_POLICY)
-        get_net_info(WIFI_MAC_ITEM, s_base_mac, NULL, NULL);
+        ret = get_net_info(WIFI_MAC_ITEM, s_base_mac, NULL, NULL);
         ret = sync_mac_record();
-#elif (CONFIG_BASE_MAC_FROM_RF_OTP_FLASH)
-        ret = read_base_mac_from_rf_otp_flash(s_base_mac);
-#elif (CONFIG_BASE_MAC_FROM_OTP1)
-        ret = read_base_mac_to_otp1(s_base_mac);
+#elif (CONFIG_BASE_MAC_FROM_OTP2)
+        ret = read_base_mac_to_otp2(s_base_mac);
 #endif
 
 #if (CONFIG_RANDOM_MAC_ADDR)
@@ -495,8 +442,6 @@ static int mac_init(void)
 #if (CONFIG_NEW_MAC_POLICY)
 		save_net_info(WIFI_MAC_ITEM, s_base_mac, NULL, NULL);
 		ret = sync_mac_record();
-#elif (CONFIG_BASE_MAC_FROM_RF_OTP_FLASH)
-		ret = write_base_mac_to_rf_otp_flash(s_base_mac);
 #endif
 		BK_LOGD(TAG, "use random mac "BK_MAC_FORMAT" as base mac\n", BK_MAC_STR(s_base_mac));
 	}
@@ -610,12 +555,9 @@ bk_err_t bk_set_base_mac(const uint8_t *mac)
 	ret = save_net_info(WIFI_MAC_ITEM, s_base_mac, NULL, NULL);
 	ret = sync_mac_record();
 	ret = get_net_info(WIFI_MAC_ITEM, s_base_mac, NULL, NULL);
-#elif (CONFIG_BASE_MAC_FROM_RF_OTP_FLASH)
-	ret = write_base_mac_to_rf_otp_flash(s_base_mac);
-	ret = read_base_mac_from_rf_otp_flash(s_base_mac);
-#elif (CONFIG_BASE_MAC_FROM_OTP1)
-	ret = write_base_mac_to_otp1(s_base_mac);
-	ret = read_base_mac_to_otp1(s_base_mac);
+#elif (CONFIG_BASE_MAC_FROM_OTP2)
+	ret = write_base_mac_to_otp2(s_base_mac);
+	ret = read_base_mac_to_otp2(s_base_mac);
 #endif
 
 	if (ret != BK_OK)

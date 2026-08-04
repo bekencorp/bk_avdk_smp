@@ -12,8 +12,8 @@ menu "BK_system"
 				bool "BASE_MAC_FROM_RF_OTP_FLASH"
 			config NEW_MAC_POLICY
 				bool "NEW_MAC_POLICY"
-			config BASE_MAC_FROM_OTP1
-				bool "BASE_MAC_FROM_OTP1"
+			config BASE_MAC_FROM_OTP2
+				bool "BASE_MAC_FROM_OTP2"
 		endchoice
 
 		config RANDOM_MAC_ADDR
