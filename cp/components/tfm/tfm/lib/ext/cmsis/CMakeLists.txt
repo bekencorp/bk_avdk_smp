@@ -27,7 +27,10 @@ fetch_remote_library(
 
 add_library(cmsis INTERFACE)
 
-set_target_properties(cmsis PROPERTIES EXCLUDE_FROM_ALL TRUE)
+# EXCLUDE_FROM_ALL on INTERFACE requires CMake >= 3.19; Docker armino-idk ships 3.16.
+if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.19")
+  set_target_properties(cmsis PROPERTIES EXCLUDE_FROM_ALL TRUE)
+endif()
 
 target_include_directories(cmsis
     INTERFACE
