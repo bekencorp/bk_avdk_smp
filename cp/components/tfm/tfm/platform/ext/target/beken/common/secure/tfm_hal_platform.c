@@ -35,6 +35,10 @@
 #define DMA_CTRL_REG_OFFSET        0x02
 #define DMA_ENABLE_REG_OFFSET      0x04
 #define DMA_MASK_REG_OFFSET        0x05
+#define DMA0_INT_ALLOC_REG_OFFSET  0x0A
+#define DMA1_INT_ALLOC_REG_OFFSET  0x0B
+#define DMA0_INT_ALLOC_VALUE       0x0000AA00
+#define DMA1_INT_ALLOC_VALUE       0x00000000
 
 /* PPRO register offsets */
 #define PPRO_RESET_REG_OFFSET      0x02
@@ -218,22 +222,26 @@ void tfm_hal_dma_init(void)
 	volatile uint32_t *dma0_ctrl = (volatile uint32_t *)(DMA0_BASE_ADDR + DMA_CTRL_REG_OFFSET * 4);
 	volatile uint32_t *dma0_enable = (volatile uint32_t *)(DMA0_BASE_ADDR + DMA_ENABLE_REG_OFFSET * 4);
 	volatile uint32_t *dma0_mask = (volatile uint32_t *)(DMA0_BASE_ADDR + DMA_MASK_REG_OFFSET * 4);
+	volatile uint32_t *dma0_int_alloc = (volatile uint32_t *)(DMA0_BASE_ADDR + DMA0_INT_ALLOC_REG_OFFSET * 4);
 	
 	volatile uint32_t *dma1_ctrl = (volatile uint32_t *)(DMA1_BASE_ADDR + DMA_CTRL_REG_OFFSET * 4);
 	volatile uint32_t *dma1_enable = (volatile uint32_t *)(DMA1_BASE_ADDR + DMA_ENABLE_REG_OFFSET * 4);
 	volatile uint32_t *dma1_mask = (volatile uint32_t *)(DMA1_BASE_ADDR + DMA_MASK_REG_OFFSET * 4);
+	volatile uint32_t *dma1_int_alloc = (volatile uint32_t *)(DMA1_BASE_ADDR + DMA1_INT_ALLOC_REG_OFFSET * 4);
 	
 	/* Soft reset DMA0 module */
 	*dma0_ctrl = 0;
 	*dma0_ctrl = 1;
 	*dma0_mask = 0xFFF;
 	*dma0_enable = 0;
+	*dma0_int_alloc = DMA0_INT_ALLOC_VALUE;
 
 	/* Soft reset DMA1 module */
 	*dma1_ctrl = 0;
 	*dma1_ctrl = 1;
 	*dma1_mask = 0xFFF;
 	*dma1_enable = 0;
+	*dma1_int_alloc = DMA1_INT_ALLOC_VALUE;
 }
 
 void ppro_init(void)
