@@ -640,6 +640,12 @@ int arm_ce_gcm_finish( arm_ce_gcm_ctx_t *ctx,
         return DBH_GCM_ERR_BAD_STATE;
     }
 
+    if ( prv->state != CE_GCM_STATE_UPDATE_PAYLOAD ) {
+        ret = ce_gcm_finish_update_aad(ctx);
+        if ( 0 != ret ) {
+            return ret;
+        }
+    }
     /** check if need padding and handle padding */
     if ( 0 != prv->mlen % ARM_CE_SCA_BLK_SIZE ) {
         padding_sz = ARM_CE_SCA_BLK_SIZE - (prv->mlen % ARM_CE_SCA_BLK_SIZE);
