@@ -422,7 +422,7 @@ void app_dbg_audparam(uint8_t * params, int len)
 			uint8_t __maybe_unused eqType = params[5]; /// unused params now
 			if(eq_dbg_eq_para)
 			{
-				eq_dbg_eq_para->globle_gain         = (uint32_t)(1.12f * total_gain);
+				eq_dbg_eq_para->globle_gain         = total_gain;
 				eq_dbg_eq_para->eq_load.f_gain      = (params[9]<<24)|(params[8]<<16)|(params[7]<<8)|(params[6]);
 				eq_dbg_eq_para->eq_load.samplerate  = (params[11]<<8)|(params[10]);
 
