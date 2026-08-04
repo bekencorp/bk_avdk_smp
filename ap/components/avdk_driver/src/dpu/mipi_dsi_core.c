@@ -112,11 +112,12 @@ uint16_t mipi_dsi_gen_write_dcs_command(int lcd_cmd, const void *param, uint8_t 
     return status;
 }
 
-static void mipi_dsi_isr()
-{
-    uint32_t status0 = reg_INT_ST0;
-    uint32_t status1 = reg_INT_ST1;
+/* Min spacing between DSI ISR error decodes: DPI FIFO errors (dpi_pld_full /
+ * dpi_bpl_udflw) are log-only and fire hundreds of times during teardown. */
+#define MIPI_DSI_ISR_LOG_WINDOW_MS  200u
 
+static void mipi_dsi_isr_decode(uint32_t status0, uint32_t status1)
+{
     if(status0)                           LOGI("DPHY ERR:%x\n", status0);
 
     if(status1 & mipi_int1_te_err         )  LOGI("DSI ERR te_err\n");
@@ -141,6 +142,39 @@ static void mipi_dsi_isr()
     if(status1 & mipi_int1_hs_tran_tmour  )  LOGI("DSI ERR lp_rece_tmout\n");
 }
 
+static void mipi_dsi_isr()
+{
+    uint32_t status0 = reg_INT_ST0;
+    uint32_t status1 = reg_INT_ST1;
+
+    if ((status0 == 0u) && (status1 == 0u))
+        return;
+
+    /* Rate-limit: at most one decode per window, fold dropped count into the
+     * next emit. Single-core ISR, so function-statics need no locking. */
+    static uint32_t last_emit_ms = 0u;
+    static uint32_t dropped = 0u;
+    static bool emitted_once = false;
+    uint32_t now = rtos_get_time();
+
+    if (emitted_once && ((now - last_emit_ms) < MIPI_DSI_ISR_LOG_WINDOW_MS))
+    {
+        dropped++;
+        return;
+    }
+
+    emitted_once = true;
+    last_emit_ms = now;
+
+    if (dropped != 0u)
+    {
+        LOGI("DSI ERR suppressed %u (rate-limited)\n", (unsigned)dropped);
+        dropped = 0u;
+    }
+
+    mipi_dsi_isr_decode(status0, status1);
+}
+
 void mipi_dsi_interrupt_init(void)
 {
     bk_int_isr_register(INT_SRC_DSI, (int_group_isr_t)mipi_dsi_isr, NULL);
@@ -159,6 +193,12 @@ void mipi_dsi_sys_init(void)
     // mipi_dsi interrupt init
     mipi_dsi_interrupt_init();
     hal_dsi_sys_clk_switch(1);
+}
+
+void mipi_dsi_video_mode_set(bool video)
+{
+    /* 0 == VIDMODE (stream pixels), 1 == CMDMODE (exchange DCS). */
+    hal_dsi_operation_mode_set(video ? 0u : 1u);
 }
 
 bk_err_t mipi_dsi_panel_set_pattern(mipi_dsi_pattern_type_t pattern)
