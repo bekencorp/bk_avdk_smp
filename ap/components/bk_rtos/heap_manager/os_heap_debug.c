@@ -6,6 +6,7 @@
 
 #if CONFIG_SUPPORT_WWDT
 #include "wwdt_driver.h"
+#include <driver/wwdt.h>
 #endif
 #if CONFIG_TASK_WDT
 #include "bk_wdt.h"
@@ -326,12 +327,9 @@ static void show_mem_info(bk_heap_debug_info_t *info)
     bk_task_wdt_feed();
 #endif
 
-    if (arch_is_enter_exception())
-    {
-    #if CONFIG_SUPPORT_WWDT
-        bk_wwdt_force_feed();
-    #endif
-    }
+#if CONFIG_SUPPORT_WWDT
+    (void)bk_wwdt_feed();
+#endif
 
 }
 
