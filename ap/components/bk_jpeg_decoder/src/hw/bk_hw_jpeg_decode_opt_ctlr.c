@@ -32,9 +32,15 @@
 #define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
 #define YUV_PIXEL_BYTES 2  // YUYV format uses 2 bytes per pixel
+#define HW_JPEG_DECODE_WIDTH_ALIGN 32
 
 #define DEFAULT_IMAGE_MAX_WIDTH (864)
 #define DEFAULT_LINES_PER_BLOCK (JPEG_DECODE_OPT_LINES_PER_BLOCK_8)
+
+static bool hardware_jpeg_decode_opt_is_width_valid(uint32_t width)
+{
+    return (width % HW_JPEG_DECODE_WIDTH_ALIGN) == 0;
+}
 
 // Open hardware optimized decoder
 static avdk_err_t hardware_jpeg_decode_opt_ctlr_open(bk_jpeg_decode_hw_ctlr_handle_t handler)
@@ -134,6 +140,12 @@ static avdk_err_t hardware_jpeg_decode_opt_ctlr_decode(bk_jpeg_decode_hw_ctlr_ha
         LOGE(" %s %d bk_get_jpeg_data_info failed %d\n", __func__, __LINE__, ret);
         return AVDK_ERR_INVAL;
     }
+    if (!hardware_jpeg_decode_opt_is_width_valid(img_info.width))
+    {
+        LOGE(" %s %d hardware jpeg decode requires width %u to be multiple of %u\n",
+             __func__, __LINE__, img_info.width, HW_JPEG_DECODE_WIDTH_ALIGN);
+        return AVDK_ERR_INVAL;
+    }
 
     if (controller->config.image_max_width < img_info.width)
     {
@@ -185,6 +197,21 @@ static avdk_err_t hardware_jpeg_decode_opt_ctlr_decode_async(bk_jpeg_decode_hw_c
     AVDK_RETURN_ON_FALSE(in_frame->frame, AVDK_ERR_INVAL, TAG, "in_frame frame is NULL");
     AVDK_RETURN_ON_FALSE(controller->module_status.status == JPEG_DECODE_ENABLED, AVDK_ERR_INVAL, TAG, "jpeg decode is disabled");
     AVDK_RETURN_ON_FALSE(in_frame->length > 0, AVDK_ERR_INVAL, TAG, "in_frame length is 0");
+
+    bk_jpeg_decode_img_info_t img_info = {0};
+    img_info.frame = in_frame;
+    ret = bk_get_jpeg_data_info(&img_info);
+    if (ret != AVDK_ERR_OK)
+    {
+        LOGE(" %s %d bk_get_jpeg_data_info failed %d\n", __func__, __LINE__, ret);
+        return AVDK_ERR_INVAL;
+    }
+    if (!hardware_jpeg_decode_opt_is_width_valid(img_info.width))
+    {
+        LOGE(" %s %d hardware jpeg decode requires width %u to be multiple of %u\n",
+             __func__, __LINE__, img_info.width, HW_JPEG_DECODE_WIDTH_ALIGN);
+        return AVDK_ERR_INVAL;
+    }
 
     ret = hw_jpeg_decode_opt_start_async(in_frame);
     if (ret != BK_OK)

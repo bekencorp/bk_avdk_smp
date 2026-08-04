@@ -201,6 +201,18 @@ static void jpeg_dec_line_eof_cb(jpeg_dec_res_t *result)
         return;
     }
 
+    if (result == NULL || result->ok == false)
+    {
+        LOGE("%s %d hardware decode line result failed\n", __func__, __LINE__);
+        g_hw_jpeg_decode_opt->decode_err = true;
+        ret = hardware_opt_decode_task_send_msg(HARDWARE_OPT_DECODE_EVENT_DECODE_COMPLETE, BK_FAIL);
+        if (ret != BK_OK)
+        {
+            LOGE("%s %d CRITICAL: semaphore set failed: %d, thread may hang!\n", __func__, __LINE__, ret);
+        }
+        return;
+    }
+
     // Check for division by zero
     if (g_hw_jpeg_decode_opt->lines_per_block == 0)
     {
