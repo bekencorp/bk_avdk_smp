@@ -449,6 +449,8 @@ void bk_wifi_csi_info_cb(void *data);
 FUNC_1PARAM_PTR bk_wlan_get_status_cb(void);
 void wifi_netif_call_status_cb_when_sta_got_ip(void);
 void mhdr_set_station_status(wifi_linkstate_reason_t info);
+wifi_linkstate_reason_t mhdr_get_station_status(void);
+void wdrv_reset_sta_link_state(wifi_link_state_t state);
 void bk_wlan_status_register_cb(FUNC_1PARAM_PTR cb);
 
 typedef void (* rx_handle_customer_event_cb)(void *data, uint16_t len);

@@ -1437,6 +1437,7 @@ bk_err_t bk_wifi_sta_start(void)
     bool start_new = true;
 
     WDRV_LOGD("sta starting\n");
+    wdrv_reset_sta_link_state(WIFI_LINKSTATE_STA_CONNECTING);
 
     if (!wifi_sta_is_configured()) {
         WDRV_LOGD("sta start fail, sta not configured\n");
@@ -1510,6 +1511,7 @@ bk_err_t bk_wifi_sta_set_config(const wifi_sta_config_t *config)
     }
 
     wifi_sta_set_global_config(config);
+    wdrv_reset_sta_link_state(WIFI_LINKSTATE_STA_IDLE);
 
     wifi_set_state_bit(WIFI_STA_CONFIGURED_BIT);
     WDRV_LOGD("sta configured(%x)\n", s_wifi_state_bits);

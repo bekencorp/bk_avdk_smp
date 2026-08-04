@@ -338,6 +338,17 @@ wifi_linkstate_reason_t mhdr_get_station_status(void)
 	return connect_flag;
 }
 
+void wdrv_reset_sta_link_state(wifi_link_state_t state)
+{
+	wifi_linkstate_reason_t info = {
+		.state = state,
+		.reason_code = WIFI_REASON_MAX,
+	};
+
+	mhdr_set_station_status(info);
+	wdrv_host_env.wlan_link_sta_status = state;
+}
+
 FUNC_1PARAM_PTR bk_wlan_get_status_cb(void)
 {
 	return connection_status_cb;
@@ -637,7 +648,7 @@ static void wdrv_handle_wifi_event_ind(cif_wifi_event_ind_t *ind)
 
     switch (evt) {
     case EVENT_WIFI_STA_CONNECTED:
-        wdrv_host_env.wlan_link_sta_status = WIFI_LINKSTATE_STA_CONNECTED;
+        wdrv_reset_sta_link_state(WIFI_LINKSTATE_STA_CONNECTED);
         wdrv_host_env.wlan_mode = WIFI_MODE_STA;
         if (ind->data_len >= sizeof(wifi_event_sta_connected_t)) {
             conn = (wifi_event_sta_connected_t *)ind->data;
