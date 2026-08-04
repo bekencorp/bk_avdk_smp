@@ -50,6 +50,7 @@ typedef enum {
 
 typedef enum {
 	EVENT_NETIF_GOT_IP4, /**< Netif get IP4 event */
+	EVENT_NETIF_GOT_IP6, /**< Netif get IP6 event */
 	EVENT_NETIF_DHCP_TIMEOUT, /**get IP4 addr timeout, 20s**/
 } netif_event_t;
 
@@ -64,6 +65,17 @@ typedef struct {
 	netif_if_t netif_if;               /**< Netif interface ID */
 	char ip[NETIF_IP4_STR_LEN];        /**< Local IP address. */
 } netif_event_got_ip4_t;
+
+#define NETIF_MAX_IPV6_ADDRESSES 3
+typedef struct {
+	netif_if_t netif_if;
+	uint8_t addr_count;
+	struct {
+		uint8_t address[16];
+		uint8_t addr_state;
+		uint8_t addr_type;
+	} ipv6_addr[NETIF_MAX_IPV6_ADDRESSES];
+} netif_event_got_ip6_t;
 
 /**
  * @}

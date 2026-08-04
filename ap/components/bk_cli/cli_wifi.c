@@ -967,6 +967,12 @@ int cli_netif_event_cb(void *arg, event_module_t event_module,
 		}
 		CLI_LOGW("%s got ip %s\n", netif_name, got_ip->ip);
 		break;
+#if CONFIG_IPV6
+	case EVENT_NETIF_GOT_IP6:
+		CLI_LOGW("BK STA got ipv6, addr_count=%d\n",
+				 ((netif_event_got_ip6_t *)event_data)->addr_count);
+		break;
+#endif
 	default:
 		CLI_LOGW("rx event <%d %d>\n", event_module, event_id);
 		break;
