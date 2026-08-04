@@ -121,17 +121,12 @@ bk_err_t bk_hspl_driver_init(void)
 		HSPL_REG_WR32(base0, HSPL_REG_TIMEOUT_CFG, 0x0);
 		HSPL_REG_WR32(base0, HSPL_REG_TIMEOUT_CTL, 0x0);
 	}
-#if CONFIG_SPE
-	/* HSPL_ID_1 belongs to the AP side; the Non-Secure CP must not touch it
-	 * (AP initializes its own HSPL1). Keep it for app/secure monolithic builds. */
+
 	if (base1) {
 		HSPL_REG_WR32(base1, HSPL_REG_CLKRST, 0x1);
 		HSPL_REG_WR32(base1, HSPL_REG_TIMEOUT_CFG, 0x0);
 		HSPL_REG_WR32(base1, HSPL_REG_TIMEOUT_CTL, 0x0);
 	}
-#else
-	(void)base1;
-#endif
 
 	bk_int_isr_register(HSPL_LOCAL_INT_SRC, bk_hspl_isr_dispatch, NULL);
 

@@ -11,10 +11,10 @@ CONFIG_FREERTOS_SMP=y
 # all memory and peripherals.
 CONFIG_SPE=0
 
-# PSRAM: CP does not init PSRAM in secureboot_xip; disable on AP to skip the
-# bk_init() probe read at 0x70000000 that bus-faults before controller init.
-# CONFIG_PSRAM is not set
-# CONFIG_PSRAM_AS_SYS_MEMORY is not set
+# PSRAM: SPE enables analog LDO + AHBP bus clock; CP inits controller.
+CONFIG_PSRAM=y
+CONFIG_PSRAM_TEST=y
+CONFIG_PSRAM_AS_SYS_MEMORY=y
 
 # GDMA registers live in the CP domain; this core is forced Non-Secure on the
 # cross-bus master path, so disable the general DMA driver during bring-up.
@@ -31,7 +31,6 @@ CONFIG_SPE=0
 # Use the CPU-direct SRAM alias for AP memory access.
 CONFIG_SRAM_DIRECT_ADDR=y
 
-# CONFIG_PSRAM_TEST is not set
 CONFIG_SLAVE_HEART_BEAT=n
 
 # Bring-up: disable AP window watchdog. HW period is 16-bit (timeout_ms*32); values

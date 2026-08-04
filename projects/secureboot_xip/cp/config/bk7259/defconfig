@@ -68,7 +68,7 @@ CONFIG_PSA_MBEDTLS=y
 CONFIG_SW_CRYPTO=y
 
 # --- PSRAM: CP does not use PSRAM, keep it disabled on CP ---
-# CONFIG_PSRAM is not set
+CONFIG_PSRAM=y
 # CONFIG_PSRAM_AS_SYS_MEMORY is not set
 # CONFIG_PSRAM_WRITE_THROUGH is not set
 # CONFIG_PSRAM_CALIBRATE is not set

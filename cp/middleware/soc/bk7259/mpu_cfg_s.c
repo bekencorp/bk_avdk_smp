@@ -72,11 +72,7 @@ ARM_MPU_Region_t mpu_regions[] = {
     { ARM_MPU_RBAR(0x2C100000UL + NS_MEM_OFFSET, ARM_MPU_SH_INNER, 0, 1, 0),
       ARM_MPU_RLAR(0x2C1DFFE0UL + NS_MEM_OFFSET, 1) },
 
-    /* MPU region 4, DTCM (NS alias). */
-    { ARM_MPU_RBAR(0x28200000UL + NS_MEM_OFFSET, ARM_MPU_SH_NON, 0, 1, 1),
-      ARM_MPU_RLAR(0x2820FFE0UL + NS_MEM_OFFSET, 1) },
-
-    /* MPU region
+   /* MPU region
     	m55_dtcm_s:  0x2820 0000-----------0x2820 FFFF
     	m55_dtcm_ns: 0x3820 0000-----------0x3820 FFFF
      */
@@ -107,12 +103,12 @@ ARM_MPU_Region_t mpu_regions[] = {
         ARM_MPU_RLAR(0x87FFFFE0UL + NS_MEM_OFFSET, 1) },
 
      /* MPU region 11b ppb and other (0x88000000~0xEFFFFFE0) - device memory */
-     { ARM_MPU_RBAR(0x88000000UL, ARM_MPU_SH_NON, 0, 1, 1),
+     { ARM_MPU_RBAR(0x88000000UL + NS_MEM_OFFSET, ARM_MPU_SH_NON, 0, 1, 1),
        ARM_MPU_RLAR(0xEFFFFFE0UL, 2) }
   #else
      /* MPU region 10 ppb and other */
      { ARM_MPU_RBAR(0x80000000UL + NS_MEM_OFFSET, ARM_MPU_SH_NON, 0, 1, 1),
-      ARM_MPU_RLAR(0xEFFFFFE0UL + NS_MEM_OFFSET, 2) }
+      ARM_MPU_RLAR(0xEFFFFFE0UL, 2) }
  #endif
 };
 
