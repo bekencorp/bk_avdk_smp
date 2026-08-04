@@ -75,6 +75,7 @@ typedef enum
 {
     BK_CAM_IOCTL_UNKNOW = 0,  /**< Unknown IOCTL command */
     BK_CAM_IOCTL_SOFTRESET,  /**< Soft reset the ISP controller */
+    BK_CAM_IOCTL_GET_EXPOSURE_LUMINANCE,  /**< Get weighted mean exposure luminance (0-255000) into a uint32_t */
 } bk_cam_interface_ioctl_t;
 
 /**

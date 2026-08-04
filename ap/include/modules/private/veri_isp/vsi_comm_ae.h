@@ -112,6 +112,7 @@ typedef struct vsiISP_EXPOSURE_INFO_S {
     vsi_u32_t dgain[HDR_FRAME_MAX];     /**< \brief The digital gain. */
     vsi_u32_t exposure[HDR_FRAME_MAX];  /**< \brief The exposure. */
     vsi_u32_t iso;                       /**< \brief The ISO. The larger the value, the more sensitive the camera or sensor to light.*/
+    vsi_u32_t meanLum;                   /**< \brief The current weighted mean luminance, scaled by 1000. */
     vsi_u32_t ratio[HDR_FRAME_MAX - 1]; /**< \brief Reserved. */
 } ISP_EXPOSURE_INFO_S;
 

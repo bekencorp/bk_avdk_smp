@@ -47,6 +47,8 @@ bk_err_t bk_isp_flexa_sbi_config(isp_handle_t *handle, uint8_t chnl, uint8_t ena
 
 bk_err_t bk_isp_soft_reset(isp_handle_t *handle);
 
+bk_err_t bk_isp_get_exposure_luminance(isp_handle_t *handle, uint32_t *luminance);
+
 #ifdef __cplusplus
 }
 #endif
