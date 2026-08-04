@@ -29,8 +29,10 @@ extern "C" {
 
 //This way of setting ana_reg_bit value is only for sys_ctrl, other driver please implement by yourself!!
 
-#define SYS_ANALOG_REG_SPI_STATE_REG (SYS_CPU_ANASPI_FREQ_ADDR)
-#define SYS_ANALOG_REG_SPI_STATE_POS(idx) (idx + 8)
+#define SYS_ANALOG_REG_SPI_STATE_REG (SYS_ANAREG_STAT_ADDR)
+#define SYS_ANALOG_REG_SPI_STATE_REG1 (SYS_RESERVER_REG0X3B_ADDR)
+#define SYS_ANALOG_REG_SPI_STATE_POS(idx) (idx)
+#define SYS_ANALOG_REG_SPI_STATE1_POS (SYS_RESERVER_REG0X3B_ANAREGB_STAT_POS)
 #define GET_SYS_ANALOG_REG_IDX(addr) ((addr - SYS_ANA_REG0_ADDR) >> 2)
 
 static inline uint32_t sys_ll_get_analog_reg_value(uint32_t addr)
@@ -45,7 +47,11 @@ static inline void sys_ll_set_analog_reg_value(uint32_t addr, uint32_t value)
 
 	REG_WRITE(addr, value);
 
-	while(REG_READ(SYS_ANALOG_REG_SPI_STATE_REG) & (1 << SYS_ANALOG_REG_SPI_STATE_POS(idx)));
+	if (idx < 32) {
+		while (REG_READ(SYS_ANALOG_REG_SPI_STATE_REG) & (1U << SYS_ANALOG_REG_SPI_STATE_POS(idx)));
+	} else {
+		while (REG_READ(SYS_ANALOG_REG_SPI_STATE_REG1) & (1U << SYS_ANALOG_REG_SPI_STATE1_POS));
+	}
 }
 
 static inline void sys_set_ana_reg_bit(uint32_t reg_addr, uint32_t pos, uint32_t mask, uint32_t value)
