@@ -24,8 +24,8 @@
  *
  ****************************************************************************/
 
-#ifndef __MPI_ISP_DPCC_H__
-#define __MPI_ISP_DPCC_H__
+#ifndef __MPI_ISP_RDMA_H__
+#define __MPI_ISP_RDMA_H__
 
 #ifdef __cplusplus
 #if __cplusplus
@@ -34,58 +34,54 @@ extern "C"{
 #endif
 
 /**
- * @cond DPCC_V10
+ * @cond RDMA_V10
  *
- * @defgroup mpi_isp_dpcc DPCC V10 Definitions
+ * @defgroup mpi_isp_rdma RDMA V10 Definitions
  * @{
  *
  */
 
-#define VSI_ISP_DPCC_STRENGTH_MAX 5             /**< \brief The maximum value of <tt>strength</tt> for DPCC. */
-#define VSI_ISP_DPCC_STRENGTH_MIN 0             /**< \brief The minimum value of <tt>strength</tt> for DPCC. */
+/*****************************************************************************/
+/**
+ * @brief   Sets the RDMA attributes of an ISP device port.
+ *
+ * \param   IspChn              The ID of the port.
+ * \param   pRdmaAttr           A pointer to the RDMA attributes.
+ *
+ * \retval  VSI_SUCCESS         The operation succeeds.
+ * \retval  VSI_FAILURE         The operation fails.
+ *
+ *****************************************************************************/
 
-
-/** \brief Contains the DPCC attributes. */
-typedef struct vsiISP_DPCC_ATTR_S {
-    vsi_bool_t enable;                    /**< \brief Whether to enable DPCC.
-                                               \n Valid values:
-                                               \n - 0: Disable.
-                                               \n - 1: Enable. */
-    vsi_u8_t   strength;                  /**< \brief The DPCC strength.
-                                               \n A greater value indicates stronger DPCC effects.
-                                               \n Valid value range: [0, 5]. */
-} ISP_DPCC_ATTR_S;
-
-/** \brief DPCC metadata that needs to be written into registers. */
-typedef ISP_DPCC_ATTR_S ISP_DPCC_META_S;
-
+int VSI_MPI_ISP_SetRdmaAttr(ISP_CHN IspChn, FORMAT_S *pRdmaAttr);
 
 /*****************************************************************************/
 /**
- * @brief   Gets the DPCC attributes of an ISP device port.
+ * @brief   Gets the RDMA attributes of an ISP device port.
  *
- * @param   IspPort             The ID of the port.
- * @param   pDpccAttr           A pointer to a memory place for receiving the DPCC attributes.
+ * \param   IspChn              The ID of the port.
+ * \param   pRdmaAttr           A pointer to a memory place for receiving the RDMA attributes.
  *
- * @retval  VSI_SUCCESS         The operation succeeds.
+ * \retval  VSI_SUCCESS         The operation succeeds.
+ * \retval  VSI_FAILURE         The operation fails.
  *
  *****************************************************************************/
-int VSI_MPI_ISP_GetDpccAttr(ISP_PORT IspPort, ISP_DPCC_ATTR_S *pDpccAttr);
 
+int VSI_MPI_ISP_GetRdmaAttr(ISP_CHN IspChn, FORMAT_S *pRdmaAttr);
 
 /*****************************************************************************/
 /**
- * @brief   Sets the DPCC attributes of an ISP device port.
+ * @brief   Enables the RDMA attributes of an ISP device port.
  *
- * @param   IspPort             The ID of the port.
- * @param   pDpccAttr           A pointer to the DPCC attributes.
+ * \param   IspChn              The ID of the port.
+ * \param   enable              Whether to enable the RDMA attributes of the port.
  *
- * @retval  VSI_SUCCESS         The operation succeeds.
+ * \retval  VSI_SUCCESS         The operation succeeds.
  *
  *****************************************************************************/
-int VSI_MPI_ISP_SetDpccAttr(ISP_PORT IspPort, ISP_DPCC_ATTR_S *pDpccAttr);
+int VSI_MPI_ISP_EnableRdmaAttr(ISP_CHN IspChn, vsi_bool_t enable);
 
-/* @} mpi_isp_dpcc */
+/* @} mpi_isp_rdma */
 /* @endcond */
 
 #ifdef __cplusplus

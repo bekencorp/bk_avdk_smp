@@ -34,7 +34,7 @@ extern "C"{
 #endif
 
 /**
- * @defgroup mpi_isp_metadata Mpp Metadata Definitions
+ * @defgroup mpi_isp_metadata Metadata Definitions
  * @{
  *
  */
@@ -56,37 +56,38 @@ extern "C"{
 #include "mpi_isp_dmsc.h"
 #include "mpi_isp_flt.h"
 #include "mpi_isp_ccm.h"
-#include "mpi_isp_gamma_out.h"
+#include "mpi_isp_gamma_out_v20.h"
 #include "mpi_isp_csm.h"
 #include "mpi_isp_cproc.h"
+#include "mpi_isp_afm.h"
+#include "mpi_isp_af.h"
 
 
-/** \brief   The ISP version of MetaData. */
-#define ISP_VERSION_META "ISPNANO_V2401"
-
-/** \brief   MetaData. */
+/** \brief Contains the metadata of an ISP device port. */
 typedef struct vsiISP_METADATA_S {
     char ispVersion[32];            /**< \brief The ISP version. */
-    ISP_EXPOSURE_META_S  ae;        /**< \brief AE. */
-    ISP_BLS_META_S       bls;       /**< \brief BLS. */
-    ISP_GAMMAIN_META_S   gammaIn;   /**< \brief Gamma in. */
-    ISP_LSC_META_S       lsc;       /**< \brief LSC. */
-    ISP_DG_META_S        dg;        /**< \brief DG. */
-    ISP_EXPM_META_S      aem;       /**< \brief AE measurement. */
-    ISP_HIST256_META_S   hist256;   /**< \brief HIST256. */
-    ISP_WBM_META_S       wbm;       /**< \brief WB measurement. */
-    ISP_AWB_META_S       wb;        /**< \brief AWB. */
-    ISP_WDR_META_S       wdr;       /**< \brief WDR. */
-    ISP_GE_META_S        ge;        /**< \brief Ge. */
-    ISP_DPCC_META_S      dpcc;      /**< \brief Dpcc. */
-    ISP_DPF_META_S       dpf;       /**< \brief Dpf. */
-    ISP_2DNR_META_S      nr2d;      /**< \brief 2DNR. */
-    ISP_DMSC_META_S      dmsc;      /**< \brief Demosaic. */
-    ISP_FLT_META_S       flt;       /**< \brief Filter. */
-    ISP_CCM_META_S       ccm;       /**< \brief CCM. */
-    ISP_GAMMA_OUT_META_S gammaOut;  /**< \brief Gamma out. */
-    ISP_CSM_META_S       csm;       /**< \brief CSM. */
-    ISP_CPROC_META_S     cproc;     /**< \brief CPROC. */
+    ISP_EXPOSURE_META_S  ae;        /**< \brief The metadata of exposure. */
+    ISP_BLS_META_S       bls;       /**< \brief The metadata of black level subtraction (BLS). */
+    ISP_GAMMAIN_META_S   gammaIn;   /**< \brief The metadata of gamma in. */
+    ISP_LSC_META_S       lsc;       /**< \brief The metadata of lens shade correction (LSC). */
+    ISP_DG_META_S        dg;        /**< \brief The metadata of digital gain (DG). */
+    ISP_EXPM_META_S      aem;       /**< \brief The metadata of exposure measurement (EXPM). */
+    ISP_HIST256_META_S   hist256;   /**< \brief The metadata of 256-bin histogram (HIST256). */
+    ISP_WBM_META_S       wbm;       /**< \brief The metadata of white balance measurement (WBM). */
+    ISP_AWB_META_S       wb;        /**< \brief The metadata of white balance (WB). */
+    ISP_WDR_META_S       wdr;       /**< \brief The metadata of wide dynamic range (WDR). */
+    ISP_GE_META_S        ge;        /**< \brief The metadata of green equilibrium (GE). */
+    ISP_DPCC_META_S      dpcc;      /**< \brief The metadata of defect pixel cluster correction (DPCC). */
+    ISP_DPF_META_S       dpf;       /**< \brief The metadata of denoise pre-filter (DPF). */
+    ISP_2DNR_META_S      nr2d;      /**< \brief The metadata of 2D noise reduction (2DNR). */
+    ISP_DMSC_META_S      dmsc;      /**< \brief The metadata of demosaic (DMSC). */
+    ISP_FLT_META_S       flt;       /**< \brief The metadata of filter (FLT). */
+    ISP_CCM_META_S       ccm;       /**< \brief The metadata of color correction matrix (CCM). */
+    ISP_GAMMA_OUT_V20_META_S gammaOut;  /**< \brief The metadata of gamma out. */
+    ISP_CSM_META_S       csm;       /**< \brief The metadata of color space matrix (CSM). */
+    ISP_CPROC_META_S     cproc;     /**< \brief The metadata of color processing (CPROC). */
+    ISP_AFM_META_S       afm;       /**< \brief The metadata of auto focus measurement (AFM). */
+    ISP_FOCUS_META_S     af;        /**< \brief The metadata of auto focus (AF). */
 } ISP_METADATA_S;
 
 /* @} mpi_isp_metadata */

@@ -43,32 +43,36 @@ extern "C"{
 
 #define DG_SIZE 4              /**< \brief The size of DG. */
 
-#define VSI_ISP_DG_MIN 256     /**< \brief The minimum value of digital gain. */
-#define VSI_ISP_DG_MAX 65535   /**< \brief The maximum value of digital gain. */
+#define VSI_ISP_DG_MIN 256     /**< \brief The minimum value of <tt>gains</tt> for DG. */
+#define VSI_ISP_DG_MAX 65535   /**< \brief The maximum value of <tt>gains</tt> for DG. */
 
-/** \brief   DG attributes. */
+/** \brief Contains the DG attributes. */
 typedef struct vsiISP_DG_ATTR_S {
-    vsi_bool_t           enable;           /**< \brief Whether to enable DG. \n 0: Disable. \n 1: Enable. */
-    vsi_u16_t            gains[DG_SIZE];   /**< \brief DG configurations. \n gains[0]: R. \n gains[1]: Gb.
-                                                                          \n gains[2]: Gr. \n gains[3]: B.
-                                                                          \n Range: [256 65535].
-                                                                          \n 8-bit fractional part[1 255.99].
-                                                                          \n (256 / 256) = 1.
-                                                                          \n  (65535 / 256) = 255.99. */
+    vsi_bool_t           enable;           /**< \brief Whether to enable DG.
+                                                \n Valid values:
+                                                \n - 0: Disable.
+                                                \n - 1: Enable. */
+    vsi_u16_t            gains[DG_SIZE];   /**< \brief DG configurations.
+                                                \n gains[0]: R.
+                                                \n gains[1]: Gb.
+                                                \n gains[2]: Gr.
+                                                \n gains[3]: B.
+                                                \n Valid value range: [256, 65535].
+                                                \n Value range for the 8-bit fractional part: [1, 255.99]. */
 } ISP_DG_ATTR_S;
 
-/** \brief DG metadata structure that need to be written into registers. */
+/** \brief DG metadata that needs to be written into registers. */
 typedef ISP_DG_ATTR_S ISP_DG_META_S;
 
 
 /*****************************************************************************/
 /**
- * @brief   Gets DG attributes.
+ * @brief   Gets the DG attributes of an ISP device port.
  *
- * @param   IspPort             Port ID
- * @param   pDgAttr           Pointer to the DG attributes
+ * @param   IspPort             The ID of the port.
+ * @param   pDgAttr             A pointer to a memory place for receiving the DG attributes.
  *
- * @retval  VSI_SUCCESS         Operation succeeded
+ * @retval  VSI_SUCCESS         The operation succeeds.
  *
  *****************************************************************************/
 int VSI_MPI_ISP_GetDgAttr(ISP_PORT IspPort, ISP_DG_ATTR_S *pDgAttr);
@@ -76,12 +80,12 @@ int VSI_MPI_ISP_GetDgAttr(ISP_PORT IspPort, ISP_DG_ATTR_S *pDgAttr);
 
 /*****************************************************************************/
 /**
- * @brief   Sets DG attributes.
+ * @brief   Sets DG attributes of an ISP device port.
  *
- * @param   IspPort             Port ID
- * @param   pDgAttr           Pointer to the DG attributes
+ * @param   IspPort             The ID of the port.
+ * @param   pDgAttr             A pointer to the DG attributes.
  *
- * @retval  VSI_SUCCESS         Operation succeeded
+ * @retval  VSI_SUCCESS         The operation succeeds.
  *
  *****************************************************************************/
 int VSI_MPI_ISP_SetDgAttr(ISP_PORT IspPort, ISP_DG_ATTR_S *pDgAttr);

@@ -58,6 +58,7 @@ typedef struct
     int (*sem_init)(beken_semaphore_t *os_sem, uint32_t value);
     int (*sem_post)(beken_semaphore_t *os_sem);
     int (*sem_wait)(beken_semaphore_t *os_sem, uint32_t ms);
+    int (*sem_get_value)(beken_semaphore_t *os_sem, int *val);
     int (*sem_destroy)(beken_semaphore_t *os_sem);
 
     // Thread operations: use beken_thread_t* directly (beken_thread_t is void*)

@@ -41,83 +41,82 @@ extern "C"{
  *
  */
 
-#define VSI_ISP_CCM_MATRIX_SIZE        9           /**< \brief The matrix size of color correction . */
+#define VSI_ISP_CCM_MATRIX_SIZE        9           /**< \brief The size of the CCM. */
 
-#define VSI_ISP_CCM_MATRIX_MIN         -1024       /**< \brief The minimum value of color matrix coefficient. */
-#define VSI_ISP_CCM_MATRIX_MAX         1023        /**< \brief The maximum value of color matrix coefficient. */
+#define VSI_ISP_CCM_MATRIX_MIN         -1024       /**< \brief The minimum value of <tt>colorMatrix</tt> for CCM. */
+#define VSI_ISP_CCM_MATRIX_MAX         1023        /**< \brief The maximum value of <tt>colorMatrix</tt> for CCM. */
 
-#define VSI_ISP_CCM_OFFSET_MIN         -2048       /**< \brief The minimum value of color offset coefficient. */
-#define VSI_ISP_CCM_OFFSET_MAX         2047        /**< \brief The maximum value of color offset coefficient. */
+#define VSI_ISP_CCM_OFFSET_MIN         -2048       /**< \brief The minimum value of each color offset parameter for CCM. */
+#define VSI_ISP_CCM_OFFSET_MAX         2047        /**< \brief The maximum value of each color offset parameter for CCM. */
 
-#define VSI_ISP_COLOR_TEMP_MIN         2000        /**< \brief The minimum value of color temperature. */
-#define VSI_ISP_COLOR_TEMP_MAX         10000       /**< \brief The maximum value of color temperature. */
+#define VSI_ISP_COLOR_TEMP_MIN         2000        /**< \brief The minimum value of <tt>colorTemp</tt> for CCM. */
+#define VSI_ISP_COLOR_TEMP_MAX         10000       /**< \brief The maximum value of <tt>colorTemp</tt> for CCM. */
 
-/** \brief   CCM manual attributes. */
+/** \brief Contains the CCM attributes for use in manual mode. */
 typedef struct vsiISP_CCM_MANUAL_ATTR_S {
-    vsi_s16_t colorMatrix[VSI_ISP_CCM_MATRIX_SIZE]; /**< \brief Color correction matrix coefficient. The value range is [-1024, 1023].
-                                                    \n The value range for the 7-bit fractional part is (-8, 7.996,).
-                                                    \n (-1024 / 128) = -8
-                                                    \n (1023 / 128) = 7.996*/
-    vsi_s16_t rOffset;   /**< \brief Red color offset coefficient.
-                                \n Range [-2048, 2047]*/
-    vsi_s16_t gOffset;   /**< \brief Green color offset coefficient.
-                                \n Range [-2048, 2047]*/
-    vsi_s16_t bOffset;   /**< \brief Blue color offset coefficient.
-                                \n Range [-2048, 2047]*/
+    vsi_s16_t colorMatrix[VSI_ISP_CCM_MATRIX_SIZE]; /**< \brief The CCM coefficients.
+                                                         \n Valid value range: [-1024, 1023].
+                                                         \n Value range for the 7-bit fractional part: (-8, 7.996). */
+    vsi_s16_t rOffset;   /**< \brief The red color offset.
+                              \n Valid value range: [-2048, 2047]. */
+    vsi_s16_t gOffset;   /**< \brief The green color offset.
+                              \n Valid value range: [-2048, 2047]. */
+    vsi_s16_t bOffset;   /**< \brief The blue color offset.
+                              \n Valid value range: [-2048, 2047]. */
 } ISP_CCM_MANUAL_ATTR_S;
 
-/** \brief   CCM illuminant attributes. */
+/** \brief Contains the CCM attributes of an illuminant. */
 typedef struct vsiISP_ILLUMINANT_CCM_S
 {
-    vsi_s16_t colorMatrix[VSI_ISP_CCM_MATRIX_SIZE]; /**< \brief Color correction matrix coefficient. The value range is [-1024 1023].
-                                                    \n The value range for the 7-bit fractional part is (-8, 7.996).
-                                                    \n (-1024 / 128) = -8
-                                                    \n (1023 / 128) = 7.996*/
-    vsi_s16_t rOffset;   /**< \brief Red color offset coefficient.
-                                \n Range [-2048, 2047]*/
-    vsi_s16_t gOffset;   /**< \brief Green color offset coefficient.
-                                \n Range [-2048, 2047]*/
-    vsi_s16_t bOffset;   /**< \brief Blue color offset coefficient.
-                                \n Range [-2048, 2047]*/
-    vsi_u32_t colorTemp;   /**< \brief Color temperature value.
-                                \n Range [2000, 10000]*/
+    vsi_s16_t colorMatrix[VSI_ISP_CCM_MATRIX_SIZE]; /**< \brief The CCM coefficients.
+                                                         \n Valid value range: [-1024, 1023].
+                                                         \n Value range for the 7-bit fractional part: (-8, 7.996). */
+    vsi_s16_t rOffset;   /**< \brief The red color offset.
+                              \n Valid value range: [-2048, 2047]. */
+    vsi_s16_t gOffset;   /**< \brief The green color offset.
+                              \n Valid value range: [-2048, 2047]. */
+    vsi_s16_t bOffset;   /**< \brief The blue color offset.
+                              \n Valid value range: [-2048, 2047]. */
+    vsi_u32_t colorTemp; /**< \brief The color temperature.
+                              \n Valid value range: [2000, 10000]. */
 } ISP_ILLUMINANT_CCM_S;
 
-/** \brief   CCM auto attributes. */
+/** \brief Contains the CCM attributes for use in auto mode. */
 typedef struct vsiISP_CCM_AUTO_ATTR_S {
-    ISP_ILLUMINANT_CCM_S illuminantCCM[ILLUMINANT_TYPE_CNT]; /**< \brief CCM illuminant attributes */
+    ISP_ILLUMINANT_CCM_S illuminantCCM[ILLUMINANT_TYPE_CNT]; /**< \brief The CCM attributes of each illuminant. */
 } ISP_CCM_AUTO_ATTR_S;
 
-/** \brief   CCM attributes. */
+/** \brief Contains the CCM attributes. */
 typedef struct vsiISP_CCM_ATTR_S {
-    vsi_u32_t             opType; /**< \brief CCM mode attributes. For details, see <tt>ISP_OP_TYPE_E</tt>. */
-    ISP_CCM_MANUAL_ATTR_S manualAttr; /**< \brief CCM manual attributes */
-    ISP_CCM_AUTO_ATTR_S   autoAttr;   /**< \brief CCM auto attributes */
+    vsi_u32_t             opType;     /**< \brief The operation mode of CCM.
+                                           \n Valid values: See <tt> \ref ISP_OP_TYPE_E</tt>. */
+    ISP_CCM_MANUAL_ATTR_S manualAttr; /**< \brief The CCM attributes for use in manual mode. */
+    ISP_CCM_AUTO_ATTR_S   autoAttr;   /**< \brief The CCM attributes for use in auto mode. */
 } ISP_CCM_ATTR_S;
 
-/** \brief CCM metadata structure that need to be written into registers. */
+/** \brief CCM metadata that needs to be written into registers. */
 typedef ISP_CCM_MANUAL_ATTR_S ISP_CCM_META_S;
 
 /*****************************************************************************/
 /**
- * @brief   Gets CCM attributes.
+ * @brief   Gets the CCM attributes of an ISP device port.
  *
- * @param   IspPort             Port ID.
- * @param   pCcmAttr          Pointer to the CCM attributes.
+ * @param   IspPort             The ID of the port.
+ * @param   pCcmAttr            A pointer to a memory place for receiving the CCM attributes.
  *
- * @retval  VSI_SUCCESS         Operation succeeded.
+ * @retval  VSI_SUCCESS         The operation succeeds.
  *
  *****************************************************************************/
 int VSI_MPI_ISP_GetCcmAttr(ISP_PORT IspPort, ISP_CCM_ATTR_S *pCcmAttr);
 
 /*****************************************************************************/
 /**
- * @brief   Sets CCM configuration parameters.
+ * @brief   Sets the CCM attributes of an ISP device port.
  *
- * @param   IspPort             Port ID.
- * @param   pCcmAttr          Pointer to the CCM attributes.
+ * @param   IspPort             The ID of the port.
+ * @param   pCcmAttr            A pointer to the CCM attributes.
  *
- * @retval  VSI_SUCCESS         Operation succeeded.
+ * @retval  VSI_SUCCESS         The operation succeeds.
  *
  *****************************************************************************/
 int VSI_MPI_ISP_SetCcmAttr(ISP_PORT IspPort, ISP_CCM_ATTR_S *pCcmAttr);

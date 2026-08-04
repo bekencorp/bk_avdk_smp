@@ -24,8 +24,8 @@
  *
  ****************************************************************************/
 
-#ifndef __MPI_ISP_DPCC_H__
-#define __MPI_ISP_DPCC_H__
+#ifndef __MPI_ISP_WB_H__
+#define __MPI_ISP_WB_H__
 
 #ifdef __cplusplus
 #if __cplusplus
@@ -33,59 +33,77 @@ extern "C"{
 #endif
 #endif
 
+#include "vsi_comm_awb.h"
+
 /**
- * @cond DPCC_V10
+ * @cond WB_V10
  *
- * @defgroup mpi_isp_dpcc DPCC V10 Definitions
+ * @defgroup mpi_isp_wb WB V10 Definitions
  * @{
  *
  */
 
-#define VSI_ISP_DPCC_STRENGTH_MAX 5             /**< \brief The maximum value of <tt>strength</tt> for DPCC. */
-#define VSI_ISP_DPCC_STRENGTH_MIN 0             /**< \brief The minimum value of <tt>strength</tt> for DPCC. */
-
-
-/** \brief Contains the DPCC attributes. */
-typedef struct vsiISP_DPCC_ATTR_S {
-    vsi_bool_t enable;                    /**< \brief Whether to enable DPCC.
-                                               \n Valid values:
-                                               \n - 0: Disable.
-                                               \n - 1: Enable. */
-    vsi_u8_t   strength;                  /**< \brief The DPCC strength.
-                                               \n A greater value indicates stronger DPCC effects.
-                                               \n Valid value range: [0, 5]. */
-} ISP_DPCC_ATTR_S;
-
-/** \brief DPCC metadata that needs to be written into registers. */
-typedef ISP_DPCC_ATTR_S ISP_DPCC_META_S;
-
-
 /*****************************************************************************/
 /**
- * @brief   Gets the DPCC attributes of an ISP device port.
+ * @brief   Registers the AWB library for an ISP device port.
  *
  * @param   IspPort             The ID of the port.
- * @param   pDpccAttr           A pointer to a memory place for receiving the DPCC attributes.
+ * @param   pAwbLib             A pointer to the AWB library.
  *
  * @retval  VSI_SUCCESS         The operation succeeds.
  *
  *****************************************************************************/
-int VSI_MPI_ISP_GetDpccAttr(ISP_PORT IspPort, ISP_DPCC_ATTR_S *pDpccAttr);
-
+int VSI_MPI_ISP_AwbRegCallBack(ISP_PORT IspPort, ISP_AWB_FUNC_S *pAwbLib);
 
 /*****************************************************************************/
 /**
- * @brief   Sets the DPCC attributes of an ISP device port.
+ * @brief   Unregisters the AWB library for an ISP device port.
  *
  * @param   IspPort             The ID of the port.
- * @param   pDpccAttr           A pointer to the DPCC attributes.
  *
  * @retval  VSI_SUCCESS         The operation succeeds.
  *
  *****************************************************************************/
-int VSI_MPI_ISP_SetDpccAttr(ISP_PORT IspPort, ISP_DPCC_ATTR_S *pDpccAttr);
+int VSI_MPI_ISP_AwbUnRegCallBack(ISP_PORT IspPort);
 
-/* @} mpi_isp_dpcc */
+/*****************************************************************************/
+/**
+ * @brief   Gets the WB attributes of an ISP device port.
+ *
+ * @param   IspPort             The ID of the port.
+ * @param   pWbAttr             A pointer to a memory place for receiving the WB attributes.
+ *
+ * @retval  VSI_SUCCESS         The operation succeeds.
+ *
+ *****************************************************************************/
+int VSI_MPI_ISP_GetWbAttr(ISP_PORT IspPort, ISP_WB_ATTR_S *pWbAttr);
+
+/*****************************************************************************/
+/**
+ * @brief   Sets the WB attributes of an ISP device port.
+ *
+ * @param   IspPort             The ID of the port.
+ * @param   pWbAttr             A pointer to the WB attributes.
+
+ *
+ * @retval  VSI_SUCCESS         The operation succeeds.
+ *
+ *****************************************************************************/
+int VSI_MPI_ISP_SetWbAttr(ISP_PORT IspPort, ISP_WB_ATTR_S *pWbAttr);
+
+/*****************************************************************************/
+/**
+ * @brief   Gets the AWB information of an ISP device port.
+ *
+ * @param   IspPort             The ID of the port.
+ * @param   pAwbInfo            A pointer to a memory place for receiving the AWB information.
+ *
+ * @retval  VSI_SUCCESS         The operation succeeds.
+ *
+ *****************************************************************************/
+int VSI_MPI_ISP_QueryAwbInfo(ISP_PORT IspPort,  ISP_AWB_INFO_S *pAwbInfo);
+
+/* @} mpi_isp_wb */
 /* @endcond */
 
 #ifdef __cplusplus

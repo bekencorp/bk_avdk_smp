@@ -41,64 +41,73 @@ extern "C"{
  *
  */
 
-#define VSI_ISP_FLT_LEVEL_MIN    0    /**< \brief The minimum value of denosing level and sharpening level. */
-#define VSI_ISP_FLT_LEVEL_MAX    10   /**< \brief The maximum value of denosing level and sharpening level. */
+#define VSI_ISP_FLT_LEVEL_MIN    0    /**< \brief The minimum value of each level parameter for FLT. */
+#define VSI_ISP_FLT_LEVEL_MAX    10   /**< \brief The maximum value of each level parameter for FLT. */
 
 
 
-/** \brief   Filter manual attributes. */
+/** \brief Contains the FLT attributes for use in manual mode. */
 typedef struct vsiISP_FLT_MANUAL_ATTR_S {
-    vsi_u8_t denoiseLevel;    /**< \brief Denosing level configurations.
-                                    \n Range: [0, 10]*/
-    vsi_u8_t sharpenLevel;    /**< \brief Sharpening level configurations.
-                                    \n Range: [0, 10]*/
+    vsi_u8_t denoiseLevel;    /**< \brief The denosing level.
+                                   \n Valid value range: [0, 10]. */
+    vsi_u8_t sharpenLevel;    /**< \brief The sharpening level.
+                                   \n Valid value range: [0, 10]. */
 } ISP_FLT_MANUAL_ATTR_S;
 
-/** \brief   Filter auto attributes. */
+/** \brief Contains the FLT attributes for use in auto mode. */
 typedef struct vsiISP_FLT_AUTO_ATTR_S {
-    vsi_u8_t denoiseLevel[ISP_AUTO_STRENGTH_NUN];    /**< \brief Denosing level configurations.
-                                                            \n Range: [0, 10]*/
-    vsi_u8_t sharpenLevel[ISP_AUTO_STRENGTH_NUN];    /**< \brief Sharpening level configurations.
-                                                            \n Range: [0, 10]*/
+    vsi_u8_t denoiseLevel[ISP_AUTO_STRENGTH_NUM];    /**< \brief The denosing level.
+                                                          \n Valid value range: [0, 10]. */
+    vsi_u8_t sharpenLevel[ISP_AUTO_STRENGTH_NUM];    /**< \brief The sharpening level.
+                                                          \n Valid value range: [0, 10]. */
 } ISP_FLT_AUTO_ATTR_S;
 
-/** \brief   Filter attributes. */
+/** \brief Contains the FLT attributes. */
 typedef struct vsiISP_FLT_ATTR_S {
-    vsi_bool_t            enable;         /**< \brief Whether to enable FLT. \n 0: Disable FLT. \n 1: Enable FLT. */
-    vsi_u32_t             opType;         /**< \brief FLT mode attributes. For details, see <tt>ISP_OP_TYPE_E</tt> */
-    ISP_FLT_MANUAL_ATTR_S manualAttr;     /**< \brief FLT manual attributes */
-    ISP_FLT_AUTO_ATTR_S   autoAttr;       /**< \brief FLT auto attributes */
+    vsi_bool_t            enable;         /**< \brief Whether to enable FLT.
+                                               \n Valid values:
+                                               \n - 0: Disable.
+                                               \n - 1: Enable. */
+    vsi_u32_t             opType;         /**< \brief The operation mode of FLT.
+                                               \n Valid values: See <tt> \ref ISP_OP_TYPE_E</tt> */
+    ISP_FLT_MANUAL_ATTR_S manualAttr;     /**< \brief The FLT attributes for use in manual mode. */
+    ISP_FLT_AUTO_ATTR_S   autoAttr;       /**< \brief The FLT attributes for use in auto mode. */
 } ISP_FLT_ATTR_S;
 
-/** \brief   Filter metadata structure that need to be written into registers. */
+/** \brief Contains the FLT metadata that needs to be written into registers. */
 typedef struct vsiISP_FLT_S {
-    vsi_bool_t enable;     /**< \brief Whether to enable FLT. \n 0: Disable FLT. \n 1: Enable FLT. */
-    vsi_u8_t denoiseLevel; /**< \brief Denosing level configurations. */
-    vsi_u8_t sharpenLevel; /**< \brief Sharpening level configurations. */
+    vsi_bool_t enable;     /**< \brief Whether to enable FLT.
+                                \n Valid values:
+                                \n - 0: Disable.
+                                \n - 1: Enable. */
+    vsi_u8_t denoiseLevel; /**< \brief The denosing level.
+                                \n Valid value range: [0, 10]. */
+    vsi_u8_t sharpenLevel; /**< \brief The sharpening level.
+                                \n Valid value range: [0, 10]. */
 } ISP_FLT_META_S;
 
 
 /*****************************************************************************/
 /**
- * @brief   Gets FLT attributes.
+ * @brief   Gets the FLT attributes of an ISP device port.
  *
- * @param   IspPort             Port ID
- * @param   pFltAttr            Pointer to the FLT attributes
+ * @param   IspPort             The ID of the port.
+ * @param   pFltAttr            A pointer to a memory place for receiving the FLT attributes.
  *
- * @retval  VSI_SUCCESS         Operation succeeded
+ * @retval  VSI_SUCCESS         The operation succeeds.
  *
  *****************************************************************************/
 int VSI_MPI_ISP_GetFltAttr(ISP_PORT IspPort, ISP_FLT_ATTR_S *pFltAttr);
 
 /*****************************************************************************/
 /**
- * @brief   Sets FLT attributes.
+ * @brief   Sets the FLT attributes of an ISP device port.
  *
- * @param   IspPort             Port ID
- * @param   pFltAttr            Pointer to the FLT attributes
+ * @param   IspPort             The ID of the port.
+ * @param   pFltAttr            A pointer to the FLT attributes.
 
  *
- * @retval  VSI_SUCCESS         Operation succeeded
+ * @retval  VSI_SUCCESS         The operation succeeds.
  *
  *****************************************************************************/
 int VSI_MPI_ISP_SetFltAttr(ISP_PORT IspPort, ISP_FLT_ATTR_S *pFltAttr);

@@ -80,17 +80,12 @@ static inline void isp_isr_unlock_irqrestore(uint32_t irq_flags)
     rtos_enable_int(irq_flags);
 }
 
-#ifdef ISP_AE_V10
 #include "mpi_isp_ae.h"
-#endif
 
-#ifdef VSI_AE_ALGO
 extern ISP_AE_FUNC_S vsiAeAlgo;
-#endif
+extern vsi_u32_t VSI_ISP_AeGetMeanLum(ISP_PORT IspPort);
 
-#ifdef VSI_AWB_ALGO
 extern ISP_AWB_FUNC_S vsiAwbAlgo;
-#endif
 
 void bk_mipi_csi_ext_set_enable(uint8_t mode);
 int VSI_MPI_ISP_SetScaleAttr(ISP_CHN IspChn, ISP_CHN_ATTR_S *pChnAttr);
@@ -130,19 +125,15 @@ int isp_set_port_attribute(ISP_PORT IspPort, ISP_PUB_ATTR_S *pPubAttr)
         if (ret) {
             return ret;
         }
-#ifdef VSI_AE_ALGO
         ret = VSI_MPI_ISP_AeRegCallBack(IspPort, &vsiAeAlgo);
         if (ret) {
             return ret;
         }
-#endif
 
-#ifdef VSI_AWB_ALGO
         ret = VSI_MPI_ISP_AwbRegCallBack(IspPort, &vsiAwbAlgo);
         if (ret) {
             return ret;
         }
-#endif
     }
 
     ISP_PORT_ATTR_S portAttr;
@@ -253,7 +244,6 @@ static void isp_mi_isr_callback(uint32_t state, void *args)
     uint8_t i = 0;
     isp_control_t *control = (isp_control_t *)args;
 
-    //LOGD("%s, %d, %d\n", __func__, __LINE__, state);
 
     if (control && control->state == ISP_FSM_CHN_ENABLE)
     {
@@ -488,8 +478,9 @@ static bk_err_t bk_isp_complete_buffer_config(isp_control_t *control, uint8_t ch
         }
 
         buf.planes[0].dmaPhyAddr = (vsi_dma_t)(uintptr_t)control->chn[chnl].frame_buffer[i];
+        buf.imageSize = frame_size;
 
-        LOGI("stbuf[%d] fmt:%d \r\n", i, buf.numPlanes);
+        LOGI("stbuf[%d] fmt:%d, imageSize:%d \r\n", i, buf.numPlanes, buf.imageSize);
         LOGI("plane[%d]: addr %x, size %d \r\n", 0, buf.planes[0].dmaPhyAddr, buf.planes[0].size);
 
         for (index = 1; index < buf.numPlanes; index++) {
@@ -667,7 +658,7 @@ bk_err_t bk_isp_port_init(isp_handle_t *handle, void *sensor_attr)
     ret = isp_set_port_attribute(control->port, pubAttr);
     if (ret)
     {
-        LOGE("%s, VSI_ISP_MPI_SetPubAttr failed\n", __func__);
+        LOGE("%s, isp_set_port_attribute failed\n", __func__);
         ret = BK_FAIL;;
     }
     else if (pubAttr->ispInputType == INPUT_TYPE_SENSOR)
@@ -1003,7 +994,7 @@ bk_err_t bk_isp_close(isp_handle_t *handle, uint8_t chnl)
         chnl_config->enable = true;
     }
 
-    for (uint8_t i = 0; i < ISP_FRAME_CNT_MAX; i++)
+    for (uint8_t i = 0; i < ISP_CHN_CNT; i++)
     {
         if (control->chn[i].enable)
         {
@@ -1261,14 +1252,8 @@ bk_err_t bk_isp_get_exposure_luminance(isp_handle_t *handle, uint32_t *luminance
     }
 
     isp_control_t *control = (isp_control_t *)*handle;
-    ISP_EXPOSURE_INFO_S exposure_info = {0};
-    int ret = VSI_MPI_ISP_QueryExposureInfo(control->port, &exposure_info);
-    if (ret != VSI_SUCCESS)
-    {
-        LOGE("%s, query exposure info failed: %d\n", __func__, ret);
-        return BK_FAIL;
-    }
 
-    *luminance = exposure_info.meanLum;
+    *luminance = VSI_ISP_AeGetMeanLum(control->port);
+
     return BK_OK;
 }

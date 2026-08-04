@@ -36,147 +36,162 @@ extern "C"{
 /**
  * @cond WB_V10
  *
- * @defgroup mpi_isp_wb WB V10 Common Definitions
+ * @defgroup mpi_isp_wb WB V10 Definitions
  * @{
  *
  */
 
+#include <modules/veri_isp/vsios_type.h>
 #include "vsi_comm_video.h"
 #include "vsi_comm_isp.h"
 #include "vsi_comm_sns.h"
 #include "mpi_isp_wbm.h"
 
-#define VSI_ISP_AWB_CURVE_CNT      16     /**< \brief The value of WB quadratic curve count. */
-#define VSI_ISP_WB_GAIN_MIN        256    /**< \brief The minimum value of WB gain. */
-#define VSI_ISP_WB_GAIN_MAX        1023   /**< \brief The maximum value of WB gain. */
-#define VSI_ISP_AWB_SPEED_MIN      0      /**< \brief The minimum value of AWB speed. */
-#define VSI_ISP_AWB_SPEED_MAX      255    /**< \brief The maximum value of AWB speed. */
-#define VSI_ISP_AWB_TOLERANCE_MIN  0      /**< \brief The minimum value of AWB tolerance. */
-#define VSI_ISP_AWB_TOLERANCE_MAX  100    /**< \brief The maximum value of AWB tolerance. */
+#define VSI_ISP_AWB_CURVE_CNT      16     /**< \brief The number of WB quadratic curves. */
+#define VSI_ISP_WB_GAIN_MIN        256    /**< \brief The minimum value of each gain parameter for WB. */
+#define VSI_ISP_WB_GAIN_MAX        1023   /**< \brief The maximum value of each gain parameter for WB. */
+#define VSI_ISP_AWB_SPEED_MIN      0      /**< \brief The minimum value of <tt>speed</tt> for AWB. */
+#define VSI_ISP_AWB_SPEED_MAX      255    /**< \brief The maximum value of <tt>speed</tt> for AWB. */
+#define VSI_ISP_AWB_TOLERANCE_MIN  0      /**< \brief The minimum value of <tt>tolerance</tt> for AWB. */
+#define VSI_ISP_AWB_TOLERANCE_MAX  100    /**< \brief The maximum value of <tt>tolerance</tt> for AWB. */
 
-/** \brief   WB gain. */
+/** \brief Contains the WB gains. */
 typedef struct vsiISP_AWB_GAIN_S {
-    vsi_u16_t rGain;    /**< \brief The gain value for the red channel.
-                             \n Range [256, 1023]. */
-    vsi_u16_t grGain;   /**< \brief The gain value for the green channel in red lines.
-                             \n Range [256, 1023]. */
-    vsi_u16_t gbGain;   /**< \brief The gain value for the green channel in blue lines.
-                             \n Range [256, 1023]. */
-    vsi_u16_t bGain;    /**< \brief The gain value for the blue channel.
-                             \n Range [256, 1023]. */
+    vsi_u16_t rGain;    /**< \brief The R gains.
+                             \n Valid value range: [256, 1023]. */
+    vsi_u16_t grGain;   /**< \brief The Gr gains.
+                             \n Valid value range: [256, 1023]. */
+    vsi_u16_t gbGain;   /**< \brief The Gb gains.
+                             \n Valid value range: [256, 1023]. */
+    vsi_u16_t bGain;    /**< \brief The B gains.
+                             \n Valid value range: [256, 1023]. */
 } ISP_WB_GAIN_S;
 
-/** \brief   Calibration data for AWB center line. */
+/** \brief Contains the AWB calibration data of the center line. */
 typedef struct vsISP_AWB_CALIB_CENTER_LINE_S {
-    vsi_s32_t rgParam;   /**< \brief The ratio of red channel gain to green channel gain of center line. */
-    vsi_s32_t bgParam;   /**< \brief The ratio of blue channel gain to green channel gain of center line. */
-    vsi_s32_t distParam; /**< \brief The distance parameter of center line. */
+    vsi_s32_t rgParam;   /**< \brief The ratio of R gain to G gain of the center line. */
+    vsi_s32_t bgParam;   /**< \brief The ratio of B gain to G gain of the center line. */
+    vsi_s32_t distParam; /**< \brief The distance parameter of the center line. */
 } ISP_AWB_CALIB_CENTER_LINE_S;
 
-/** \brief   Calibration data for AWB white pixel curve. */
+/** \brief Contains the AWB calibration data of the white pixel curve. */
 typedef struct vsiISP_AWB_CALIB_WP_CURVE_S {
-    vsi_s32_t rg[VSI_ISP_AWB_CURVE_CNT];        /**< \brief Horizontal coordinate of the projection of the edge of the orange box along the sampling point to the center line during AWB calibration. */
-    vsi_s32_t dist[VSI_ISP_AWB_CURVE_CNT];      /**< \brief Distance between the horizontal coordinate of the sampling point on the edge of the orange box and Rg during AWB calibration. */
+    vsi_s32_t rg[VSI_ISP_AWB_CURVE_CNT];        /**< \brief The horizontal coordinate of the projection of the edge of the orange box along the sampling point to the center line. */
+    vsi_s32_t dist[VSI_ISP_AWB_CURVE_CNT];      /**< \brief The distance between the horizontal coordinate of the sampling point on the edge of the orange box and Rg. */
 } ISP_AWB_CALIB_WP_CURVE_S;
 
-/** \brief   Calibration data for AWB white pixel range. */
+/** \brief Contains the AWB calibration data of the white pixel range. */
 typedef struct vsiISP_AWB_CALIB_WP_RANGE_S {
     ISP_AWB_CALIB_WP_CURVE_S wpLCurve;  /**< \brief The left edge of the orange box. */
     ISP_AWB_CALIB_WP_CURVE_S wpRCurve;  /**< \brief The right edge of the orange box. */
 } ISP_AWB_CALIB_WP_RANGE_S;
 
-/** \brief   Calibration data for AWB illuminance. */
+/** \brief Contains the AWB calibration data of an illuminant. */
 typedef struct vsiISP_AWB_CALIB_ILLUMINANT_S {
-    vsi_u32_t illuType;                 /**< \brief The index of color temperature, reference ISP_ILLUMINANT_TYPE_E. */
-    vsi_u32_t colorTemp;                /**< \brief The value of color temperature. */
-    ISP_WB_GAIN_S wbGain;               /**< \brief The WB gain. */
+    vsi_u32_t illuType;                 /**< \brief The type of the illuminant.
+                                             \n Valid values: See <tt> \ref ISP_ILLUMINANT_TYPE_E</tt>. */
+    vsi_u32_t colorTemp;                /**< \brief The color temperature of the illuminant. */
+    ISP_WB_GAIN_S wbGain;               /**< \brief The WB gains of the illuminant. */
 } ISP_AWB_CALIB_ILLUMINANT_S;
 
-/** \brief   Calibration data for AWB. */
+/** \brief Contains the AWB calibration data. */
 typedef struct vsiISP_AWB_CALIB_PARAM_S {
-    ISP_AWB_CALIB_CENTER_LINE_S centLine;  /**< \brief AWB center line. */
-    vsi_s32_t rgMin;                       /**< \brief Minimum Rg value in indoor scenes when the AWB clip box is calibrated. */
-    vsi_s32_t rgMax;                       /**< \brief Maximum Rg boundary value of the orange box when the AWB clip box is calibrated. */
-    ISP_AWB_CALIB_WP_RANGE_S wpRange0;     /**< \brief The white pixel range zero. */
-    ISP_AWB_CALIB_WP_RANGE_S wpRange1;     /**< \brief The white pixel range one. */
-    ISP_AWB_CALIB_ILLUMINANT_S illuminant[ILLUMINANT_TYPE_CNT]; /**< \brief  The illuminance. */
+    ISP_AWB_CALIB_CENTER_LINE_S centLine;  /**< \brief The AWB center line. */
+    vsi_s32_t rgMin;                       /**< \brief The minimum Rg value in indoor scenes when the AWB clip box is calibrated. */
+    vsi_s32_t rgMax;                       /**< \brief The maximum Rg value of the orange box when the AWB clip box is calibrated. */
+    ISP_AWB_CALIB_WP_RANGE_S wpRange0;     /**< \brief The white pixel range 0. */
+    ISP_AWB_CALIB_WP_RANGE_S wpRange1;     /**< \brief The white pixel range 1. */
+    ISP_AWB_CALIB_ILLUMINANT_S illuminant[ILLUMINANT_TYPE_CNT]; /**< \brief  The illuminant. */
 } ISP_AWB_CALIB_PARAM_S;
 
-/** \brief   AWB information. */
+/** \brief Contains the AWB information. */
 typedef struct vsiISP_AWB_INFO_S {
     vsi_u32_t colorTemp;      /**< \brief The color temperature. */
-    ISP_WB_GAIN_S wbGain;     /**< \brief The WB gain. */
+    ISP_WB_GAIN_S wbGain;     /**< \brief The WB gains. */
+    vsi_bool_t isStable;      /**< \brief The status of AWB.
+                                   \n Valid values:
+                                   \n - 0: Unstable.
+                                   \n - 1: Stable. */
 } ISP_AWB_INFO_S;
 
 
-/** \brief   Manual WB attributes. */
+/** \brief Contains the WB attributes for use in manual mode. */
 typedef struct vsiISP_MWB_ATTR_S {
-    ISP_WB_GAIN_S wbGain;     /**< \brief The WB gain. */
+    ISP_WB_GAIN_S wbGain;     /**< \brief The WB gains. */
 } ISP_MWB_ATTR_S;
 
-/** \brief   Auto WB attributes. */
+/** \brief Contains the WB attributes for use in auto mode. */
 typedef struct vsiISP_AWB_ATTR_S {
     vsi_u8_t  runInterval;      /**< \brief The number of interval frames to run AWB. */
     vsi_u8_t  speed;            /**< \brief The speed of approaching the target.
-                                     \n Range [0, 255]. */
+                                     \n Valid value range: [0, 255]. */
     vsi_u8_t  tolerance;        /**< \brief The tolerance range.
-                                      If the actual luminance falls in this range, it is considered that the target luminance is reached.
-                                     \n Range [0, 100].  */
+                                     \n If the actual luminance falls in this range, it is considered that the target luminance is reached.
+                                     \n Valid value range: [0, 100].  */
     vsi_u32_t  initColorTemp;   /**< \brief The initial color temperature. */
     ISP_AWB_CALIB_PARAM_S calibParam; /**< \brief The AWB calibration data. */
-    vsi_u8_t  reserver[256];          /**< \brief Reserved */
+    vsi_u8_t  reserver[256];          /**< \brief Reserved. */
 } ISP_AWB_ATTR_S;
 
-/** \brief   WB attributes. */
+/** \brief Contains the WB attributes. */
 typedef struct vsiISP_WB_ATTR_S {
-    vsi_bool_t enable;      /**< \brief Whether to enable WB. \n 0: Disable WB. \n 1: Enable WB. */
-    vsi_u32_t opType;       /**< \brief WB mode attributes. For details, see <tt>ISP_OP_TYPE_E</tt> */
-    ISP_MWB_ATTR_S manualAttr; /**< \brief WB manual attributes */
-    ISP_AWB_ATTR_S autoAttr;   /**< \brief WB auto attributes */
+    vsi_bool_t enable;      /**< \brief Whether to enable WB.
+                                 \n Valid values:
+                                 \n - 0: Disable.
+                                 \n - 1: Enable. */
+    vsi_u32_t opType;       /**< \brief The operation mode of WB.
+                                 \n Valid values: See <tt> \ref ISP_OP_TYPE_E</tt>. */
+    ISP_MWB_ATTR_S manualAttr; /**< \brief The WB attributes for use in manual mode. */
+    ISP_AWB_ATTR_S autoAttr;   /**< \brief The WB attributes for use in auto mode. */
 } ISP_WB_ATTR_S;
 
-/** \brief   WB metadata structure that need to be written into registers. */
+/** \brief Contains the WB metadata that needs to be written into registers. */
 typedef struct vsiISP_WB_S {
-    vsi_bool_t enable;  /**< \brief Whether to enable WB. \n 0: Disable WB. \n 1: Enable WB. */
-    vsi_u16_t rGain;    /**< \brief The gain value for the red channel. */
-    vsi_u16_t grGain;   /**< \brief The gain value for the green channel in red lines. */
-    vsi_u16_t gbGain;   /**< \brief The gain value for the green channel in blue lines. */
-    vsi_u16_t bGain;    /**< \brief The gain value for the blue channel. */
+    vsi_bool_t enable;  /**< \brief Whether to enable WB.
+                             \n Valid values:
+                             \n - 0: Disable.
+                             \n - 1: Enable. */
+    vsi_u16_t rGain;    /**< \brief The R gains. */
+    vsi_u16_t grGain;   /**< \brief The Gr gains. */
+    vsi_u16_t gbGain;   /**< \brief The Gb gains. */
+    vsi_u16_t bGain;    /**< \brief The B gains. */
 } ISP_AWB_META_S;
 
-/** \brief   AWB parameters. */
+/** \brief Contains the AWB parameters. */
 typedef struct vsiISP_AWB_PARAM_S {
-    vsi_u32_t hdrMode;          /**< \brief The HDR mode. For details, see <tt>ISP_HDR_MODE_E</tt>. */
-    vsi_u32_t stichMode;        /**< \brief The stitching mode. For details, see <tt>ISP_STICH_MODE_E</tt>. */
-    ISP_WB_ATTR_S   wbAttr;     /**< \brief WB attributes */
+    vsi_u32_t hdrMode;          /**< \brief The HDR mode.
+                                     \n Valid values: See <tt> \ref ISP_HDR_MODE_E</tt>. */
+    vsi_u32_t stichMode;        /**< \brief The stitching mode.
+                                     \n Valid values: See <tt> \ref ISP_STICH_MODE_E</tt>. */
+    ISP_WB_ATTR_S   wbAttr;     /**< \brief The WB attributes. */
 } ISP_AWB_PARAM_S;
 
-/** \brief   WB statistics. */
+/** \brief Contains the WB statistics. */
 typedef struct vsiISP_AWB_STAT_INFO_S {
-    ISP_WBM_STATISTICS_S    wbmStat;  /**< \brief The statistic of WB. */
+    ISP_WBM_STATISTICS_S    wbmStat;  /**< \brief The WB statistic. */
 } ISP_AWB_STAT_INFO_S;
 
-/** \brief   AWB result. */
+/** \brief Contains the AWB results. */
 typedef struct vsiISP_AWB_RESULT_S {
-    ISP_WB_GAIN_S wbGain;    /**< \brief WB gain. */
+    ISP_WB_GAIN_S wbGain;    /**< \brief The WB gains. */
     vsi_u32_t colorTemp;     /**< \brief The color temperature. */
 } ISP_AWB_RESULT_S;
 
-/** \brief   AWB commands. */
+/** \brief Defines the AWB commands. */
 typedef enum vsiISP_AWB_CMD_E {
-    ISP_AWB_CMD_SET_ATTR    = 0,   /**< \brief The index of setting AWB attributes. */
-    ISP_AWB_CMD_GET_ATTR    = 1,   /**< \brief The index of getting AWB attributes. */
-    ISP_AWB_CMD_QUERY_INFO  = 2,   /**< \brief The index of querying AWB information. */
+    ISP_AWB_CMD_SET_ATTR    = 0,   /**< \brief Command to set the AWB attributes. */
+    ISP_AWB_CMD_GET_ATTR    = 1,   /**< \brief Command to get the AWB attributes. */
+    ISP_AWB_CMD_QUERY_INFO  = 2,   /**< \brief Command to query the AWB information. */
 } ISP_AWB_CMD_E;
 
-/** \brief   AWB functions. */
+/** \brief Defines the AWB library. */
 typedef struct vsiISP_AWB_FUNC_S {
     int (*pfnAwbInit)(ISP_PORT IspPort, const ISP_AWB_PARAM_S *pParam,
-                        ISP_AWB_RESULT_S *pAwbResult);         /**< \brief The function pointer of initializing AWB. */
+                        ISP_AWB_RESULT_S *pAwbResult);         /**< \brief A pointer to the function that initializes AWB. */
     int (*pfnAwbRun) (ISP_PORT IspPort, const ISP_AWB_STAT_INFO_S *pAwbStatInfo,
-                        ISP_AWB_RESULT_S *pAwbResult);         /**< \brief The function pointer of running AWB. */
-    int (*pfnAwbCtrl)(ISP_PORT IspPort, vsi_u32_t cmd, void *pValue); /**< \brief The function pointer of controlling AWB. */
-    int (*pfnAwbExit)(ISP_PORT IspPort);                              /**< \brief The function pointer of exiting AWB. */
+                        ISP_AWB_RESULT_S *pAwbResult);         /**< \brief A pointer to the function that runs AWB. */
+    int (*pfnAwbCtrl)(ISP_PORT IspPort, vsi_u32_t cmd, void *pValue); /**< \brief A pointer to the function that controls AWB. */
+    int (*pfnAwbExit)(ISP_PORT IspPort);                              /**< \brief A pointer to the function that exits AWB. */
 } ISP_AWB_FUNC_S;
 
 /* @} mpi_isp_wb */

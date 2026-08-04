@@ -24,7 +24,6 @@ extern "C" {
 
 extern const csi_sensor_config_t csi_sensor_gc4653;
 //extern const csi_sensor_config_t csi_sensor_gc2053;
-extern const csi_sensor_config_t csi_sensor_ov2775;
 
 typedef enum {
 	CSI_SNS_READ = 0,

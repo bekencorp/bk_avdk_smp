@@ -310,6 +310,16 @@ static int nano_sem_wait_wrapper(beken_semaphore_t *os_sem, uint32_t ms)
     return rtos_get_semaphore(os_sem, ms);
 }
 
+static int nano_sem_get_value_wrapper(beken_semaphore_t *os_sem, int *val)
+{
+    if (!os_sem || !val) {
+        return -1;
+    }
+
+    *val = rtos_get_semaphore_count(os_sem);
+    return 0;
+}
+
 static int nano_sem_destroy_wrapper(beken_semaphore_t *os_sem)
 {
     return rtos_deinit_semaphore(os_sem);
@@ -491,6 +501,7 @@ static bk_nano_osi_funcs_t s_nano_osi_funcs =
     .sem_init    = nano_sem_init_wrapper,
     .sem_post    = nano_sem_post_wrapper,
     .sem_wait    = nano_sem_wait_wrapper,
+    .sem_get_value = nano_sem_get_value_wrapper,
     .sem_destroy = nano_sem_destroy_wrapper,
 
     .init_queue    = nano_init_queue_wrapper,

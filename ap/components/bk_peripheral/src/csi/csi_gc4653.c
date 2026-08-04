@@ -334,7 +334,7 @@ static int GC4653_InitAeDefault(ISP_PORT IspPort)
             pAeSnsDft->minDgain  = 1024;
             pAeSnsDft->dgainStep = 1;
 
-            pAeSnsDft->aeTarget = 48;
+            pAeSnsDft->target = 48;
             pAeSnsDft->dampOver = 0x40;
             pAeSnsDft->dampUnder = 0x40;
             pAeSnsDft->tolerance = 1;

@@ -1042,7 +1042,7 @@ static int sc3336_InitAeDefault(ISP_PORT IspPort)
             pAeSnsDft->minDgain  = 1024;
             pAeSnsDft->dgainStep = 1;
 
-            pAeSnsDft->aeTarget = 62;
+            pAeSnsDft->target = 62;
             pAeSnsDft->dampOver = 0x40;
             pAeSnsDft->dampUnder = 0x40;
             pAeSnsDft->tolerance = 2;
@@ -1069,7 +1069,7 @@ static int sc3336_InitAeDefault(ISP_PORT IspPort)
             pAeSnsDft->minDgain  = 1024;
             pAeSnsDft->dgainStep = 1;
 
-            pAeSnsDft->aeTarget = 62;
+            pAeSnsDft->target = 62;
             pAeSnsDft->dampOver = 0x40;
             pAeSnsDft->dampUnder = 0x40;
             pAeSnsDft->tolerance = 2;
@@ -1096,7 +1096,7 @@ static int sc3336_InitAeDefault(ISP_PORT IspPort)
             pAeSnsDft->minDgain  = 1024;
             pAeSnsDft->dgainStep = 1;
 
-            pAeSnsDft->aeTarget = 62;
+            pAeSnsDft->target = 62;
             pAeSnsDft->dampOver = 0x40;
             pAeSnsDft->dampUnder = 0x40;
             pAeSnsDft->tolerance = 2;
@@ -1123,7 +1123,7 @@ static int sc3336_InitAeDefault(ISP_PORT IspPort)
             pAeSnsDft->minDgain  = 1024;
             pAeSnsDft->dgainStep = 1;
 
-            pAeSnsDft->aeTarget = 62;
+            pAeSnsDft->target = 62;
             pAeSnsDft->dampOver = 0x40;
             pAeSnsDft->dampUnder = 0x40;
             pAeSnsDft->tolerance = 2;
@@ -1476,6 +1476,7 @@ static int sc3336_InitAeSnsFunc(AE_SNS_FUNC_S *pAeSnsFunc)
 const ISP_SNS_OBJ_S snssc3336Obj = {
     .pfnInitIspSnsFunc = sc3336_InitIspSnsFunc,
     .pfnInitAeSnsFunc  = sc3336_InitAeSnsFunc,
+    .pfnInitAfSnsFunc  = NULL,
 };
 
 

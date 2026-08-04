@@ -24,78 +24,108 @@
  *
  ****************************************************************************/
 
-#ifndef __MPI_ISP_MI_H__
-#define __MPI_ISP_MI_H__
+#ifndef __MPI_ISP_AF_H__
+#define __MPI_ISP_AF_H__
+
+#ifdef __cplusplus
+#if __cplusplus
+extern "C"{
+#endif
+#endif
+
+/**
+ * @cond AF_V10
+ *
+ * @defgroup mpi_isp_af AF V10 Definitions
+ * @{
+ *
+ */
+
+#include "vsi_comm_af.h"
 
 /*****************************************************************************/
 /**
- * @brief   Gets MI attributes.
- *
- * @param   IspChn              Channel ID
- * @param   pChnAttr            Pointer to the channel attributes
- *
- * @retval  VSI_SUCCESS         The operation succeeds.
- *
- *****************************************************************************/
-int VSI_MPI_ISP_SetMiChnAttr(ISP_CHN IspChn, ISP_CHN_ATTR_S *pChnAttr);
-
-/*****************************************************************************/
-/**
- * @brief   Gets MI attributes.
- *
- * @param   IspChn              Channel ID
- * @param   stream              Enable/Disable stream
- *
- * @retval  VSI_SUCCESS         The operation succeeds.
- *
- *****************************************************************************/
-int VSI_MPI_ISP_SetMiChnStream(ISP_CHN IspChn, vsi_u8_t stream);
-
-/*****************************************************************************/
-/**
- * @brief   Gets MI attributes.
- *
- * @param   IspChn              Channel ID
- * @param   miMis            Mi mis value
- *
- * @retval  VSI_SUCCESS         The operation succeeds.
- *
- *****************************************************************************/
-int VSI_MPI_ISP_MiIrqProcess(ISP_PORT IspPort, vsi_u32_t miMis);
-
-/*****************************************************************************/
-/**
- * @brief   Process MI Sbi interrupt.
+ * @brief   Registers the AF library for an ISP device port.
  *
  * @param   IspPort             The ID of the port.
- * @param   miMis               Mi mis value
+ * @param   pAfLib              A pointer to the AF library.
  *
  * @retval  VSI_SUCCESS         The operation succeeds.
  *
  *****************************************************************************/
-int VSI_MPI_ISP_MiV10SbiIrqProcess(ISP_PORT IspPort, vsi_u32_t miMis);
+int VSI_MPI_ISP_AfRegCallBack(ISP_PORT IspPort, ISP_AF_FUNC_S *pAfLib);
+
 
 /*****************************************************************************/
 /**
- * @brief   Set ring buffer format.
+ * @brief   Unregisters the AF library for an ISP device port.
  *
- * @param   IspChn              Channel ID
- * @param   pFormat             Format pointer
+ * @param   IspPort             The ID of the port.
  *
  * @retval  VSI_SUCCESS         The operation succeeds.
  *
  *****************************************************************************/
-int VSI_MPI_ISP_SetRingBufferFmt(ISP_CHN IspChn , FORMAT_S *pFormat);
+int VSI_MPI_ISP_AfUnRegCallBack(ISP_PORT IspPort);
+
 
 /*****************************************************************************/
 /**
- * @brief   Set MI line enable.
+ * @brief   Sets the focus attributes of an ISP device port.
  *
- * @param   IspChn              Channel ID
- * @param   enable              Enable/Disable line
+ * @param   IspPort             The ID of the port.
+ * @param   pFocusAttr          A pointer to the focus attributes.
  *
  * @retval  VSI_SUCCESS         The operation succeeds.
  *
  *****************************************************************************/
-int VSI_MPI_ISP_SetMiV10LineEnable(ISP_CHN IspChn, vsi_u8_t enable);
+int VSI_MPI_ISP_SetFocusAttr(ISP_PORT IspPort, ISP_FOCUS_ATTR_S *pFocusAttr);
+
+
+/*****************************************************************************/
+/**
+ * @brief   Gets the focus attributes of an ISP device port.
+ *
+ * @param   IspPort             The ID of the port.
+ * @param   pFocusAttr          A pointer to the focus attributes.
+ *
+ * @retval  VSI_SUCCESS         The operation succeeds.
+ *
+ *****************************************************************************/
+int VSI_MPI_ISP_GetFocusAttr(ISP_PORT IspPort, ISP_FOCUS_ATTR_S *pFocusAttr);
+
+
+/*****************************************************************************/
+/**
+ * @brief   Gets the focus information of an ISP device port.
+ *
+ * @param   IspPort             The ID of the port.
+ * @param   pFocusInfo          A pointer to the focus information.
+ *
+ * @retval  VSI_SUCCESS         The operation succeeds.
+ *
+ *****************************************************************************/
+int VSI_MPI_ISP_QueryFocusInfo(ISP_PORT IspPort,  ISP_FOCUS_INFO_S *pFocusInfo);
+
+
+/*****************************************************************************/
+/**
+ * @brief   Gets the streaming status of the sensor of an ISP device port.
+ *
+ * @param   IspPort             The ID of the port.
+ *
+ * @retval  true                Streaming on
+ * @retval  false               Streaming off
+ *
+ *****************************************************************************/
+vsi_bool_t VSI_MPI_ISP_AfGetSnsStreamStat(ISP_PORT IspPort);
+
+/* @} mpi_isp_af */
+/* @endcond */
+
+#ifdef __cplusplus
+#if __cplusplus
+}
+#endif
+#endif
+
 #endif

@@ -41,53 +41,71 @@ extern "C"{
  *
  */
 
-#define VSI_ISP_WDR_STRENGTH_MIN 0           /**< \brief The minimum value of WDR strength. */
-#define VSI_ISP_WDR_STRENGTH_MAX 128         /**< \brief The maximum value of WDR strength. */
-#define VSI_ISP_WDR_GLOBAL_STRENGTH_MIN 0    /**< \brief The minimum value of WDR global strength. */
-#define VSI_ISP_WDR_GLOBAL_STRENGTH_MAX 128  /**< \brief The maximum value of WDR global strength. */
-#define VSI_ISP_WDR_MAX_GAIN_MIN 1           /**< \brief The minimum value of WDR max gain. */
-#define VSI_ISP_WDR_MAX_GAIN_MAX 255         /**< \brief The maximum value of WDR max gain. */
+#define VSI_ISP_WDR_STRENGTH_MIN 0           /**< \brief The minimum value of <tt>strength</tt> for WDR. */
+#define VSI_ISP_WDR_STRENGTH_MAX 128         /**< \brief The maximum value of <tt>strength</tt> for WDR. */
+#define VSI_ISP_WDR_GLOBAL_STRENGTH_MIN 0    /**< \brief The minimum value of <tt>globalStrength</tt> for WDR. */
+#define VSI_ISP_WDR_GLOBAL_STRENGTH_MAX 128  /**< \brief The maximum value of <tt>globalStrength</tt> for WDR. */
+#define VSI_ISP_WDR_MAX_GAIN_MIN 1           /**< \brief The minimum value of <tt>maxGain</tt> for WDR. */
+#define VSI_ISP_WDR_MAX_GAIN_MAX 255         /**< \brief The maximum value of <tt>maxGain</tt> for WDR. */
 
-/** \brief   Manual WDR attributes. */
+/** \brief Contains the WDR attributes for use in manual mode. */
 typedef struct vsiISP_WDR_MANUAL_ATTR_S {
-    vsi_u8_t strength;        /**< \brief WDR V3 strength. \n Range [0, 128]. */
-    vsi_u8_t globalStrength;  /**< \brief WDR V3 global strength. \n Range [0, 128]. */
-    vsi_u8_t maxGain;         /**< \brief WDR V3 maxGain. \n Range [1, 255]. */
+    vsi_u8_t strength;        /**< \brief The WDR strength.
+                                   \n A greater value indicates stronger WDR effects.
+                                   \n Valid value range: [0, 128]. */
+    vsi_u8_t globalStrength;  /**< \brief The global WDR strength.
+                                   \n Valid value range: [0, 128]. */
+    vsi_u8_t maxGain;         /**< \brief The maximum WDR gain.
+                                   \n Valid value range: [1, 255]. */
 } ISP_WDR_MANUAL_ATTR_S;
 
-/** \brief   Auto WDR attributes. */
+/** \brief Contains the WDR attributes for use in auto mode. */
 typedef struct vsiISP_WDR_AUTO_ATTR_S {
-    vsi_u8_t strength[ISP_AUTO_STRENGTH_NUN];        /**< \brief WDR V3 strength. \n Range [0, 128]. */
-    vsi_u8_t globalStrength[ISP_AUTO_STRENGTH_NUN];  /**< \brief WDR V3 global strength. \n Range [0, 128]. */
-    vsi_u8_t maxGain[ISP_AUTO_STRENGTH_NUN];         /**< \brief WDR V3 maxGain. \n Range [1, 255]. */
+    vsi_u8_t strength[ISP_AUTO_STRENGTH_NUM];        /**< \brief The WDR strength.
+                                                          \n Valid value range: [0, 128]. */
+    vsi_u8_t globalStrength[ISP_AUTO_STRENGTH_NUM];  /**< \brief The global WDR strength.
+                                                          \n Valid value range: [0, 128]. */
+    vsi_u8_t maxGain[ISP_AUTO_STRENGTH_NUM];         /**< \brief The maximum WDR gain.
+                                                          \n Valid value range: [1, 255]. */
 } ISP_WDR_AUTO_ATTR_S;
 
-/** \brief   WDR attributes. */
+/** \brief Contains the WDR attributes. */
 typedef struct vsiISP_WDR_ATTR_S {
-    vsi_bool_t           enable;    /**< \brief Whether to enable WDR. \n 0: Disable. \n 1: Enable. */
-    vsi_u32_t            opType;   /**< \brief The running mode, reference ISP_OP_TYPE_E. \n 0: Automatic. \n 1: Manual. */
-    ISP_WDR_MANUAL_ATTR_S manualAttr;  /**< \brief WDR manual attributes. */
-    ISP_WDR_AUTO_ATTR_S  autoAttr;     /**< \brief WDR auto attributes. */
+    vsi_bool_t           enable;       /**< \brief Whether to enable WDR.
+                                            \n Valid values:
+                                            \n - 0: Disable.
+                                            \n - 1: Enable. */
+    vsi_u32_t            opType;       /**< \brief The operation mode of WDR.
+                                            \n Valid values: See <tt> \ref ISP_OP_TYPE_E</tt>. */
+    ISP_WDR_MANUAL_ATTR_S manualAttr;  /**< \brief The WDR attributes for use in manual mode. */
+    ISP_WDR_AUTO_ATTR_S  autoAttr;     /**< \brief The WDR attributes for use in auto mode. */
 } ISP_WDR_ATTR_S;
 
 
-/** \brief   WDR metadata structure that need to be written into registers. */
+/** \brief Contains the WDR metadata that needs to be written into registers. */
 typedef struct vsiISP_WDR_S {
-    vsi_bool_t enable;       /**< \brief Whether to enable WDR. \n 0: Disable. \n 1: Enable. */
-    vsi_u8_t strength;       /**< \brief WDR V3 strength. \n Range [0, 128]. */
-    vsi_u8_t globalStrength; /**< \brief WDR V3 global strength. \n Range [0, 128]. */
-    vsi_u8_t maxGain;        /**< \brief WDR V3 maxGain. \n Range [1, 255]. */
+    vsi_bool_t enable;       /**< \brief Whether to enable WDR.
+                                  \n Valid values:
+                                  \n - 0: Disable.
+                                  \n - 1: Enable. */
+    vsi_u8_t strength;       /**< \brief The WDR strength.
+                                  \n A greater value indicates stronger WDR effects.
+                                  \n Valid value range: [0, 128]. */
+    vsi_u8_t globalStrength; /**< \brief The global WDR strength.
+                                  \n Valid value range: [0, 128]. */
+    vsi_u8_t maxGain;        /**< \brief The maximum WDR gain.
+                                  \n Valid value range: [1, 255]. */
 } ISP_WDR_META_S;
 
 
 /*****************************************************************************/
 /**
- * @brief   Gets WDR attributes.
+ * @brief   Gets the WDR attributes of an ISP device port.
  *
- * @param   IspPort             Port ID
- * @param   pWdrAttr            Pointer to the WDR attributes
+ * @param   IspPort             The ID of the port.
+ * @param   pWdrAttr            A pointer to a memory place for receiving the WDR attributes.
  *
- * @retval  VSI_SUCCESS         Operation succeeded
+ * @retval  VSI_SUCCESS         The operation succeeds.
  *
  *****************************************************************************/
 int VSI_MPI_ISP_GetWdrAttr(ISP_PORT IspPort, ISP_WDR_ATTR_S *pWdrAttr);
@@ -95,12 +113,12 @@ int VSI_MPI_ISP_GetWdrAttr(ISP_PORT IspPort, ISP_WDR_ATTR_S *pWdrAttr);
 
 /*****************************************************************************/
 /**
- * @brief   Sets WDR attributes.
+ * @brief   Sets the WDR attributes of an ISP device port.
  *
- * @param   IspPort             Port ID
- * @param   pWdrAttr            Pointer to the WDR attributes
+ * @param   IspPort             The ID of the port.
+ * @param   pWdrAttr            A pointer to the WDR attributes.
  *
- * @retval  VSI_SUCCESS         Operation succeeded
+ * @retval  VSI_SUCCESS         The operation succeeds.
  *
  *****************************************************************************/
 int VSI_MPI_ISP_SetWdrAttr(ISP_PORT IspPort, ISP_WDR_ATTR_S *pWdrAttr);
