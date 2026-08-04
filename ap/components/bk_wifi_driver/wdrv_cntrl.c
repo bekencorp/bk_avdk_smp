@@ -44,19 +44,7 @@ wifi_linkstate_reason_t connect_flag = {WIFI_LINKSTATE_STA_IDLE, WIFI_REASON_MAX
 
 FUNC_1PARAM_PTR connection_status_cb = 0;
 
-#if CONFIG_WIFI_VNET_CONTROLLER
-static bool sta_got_ipv4_notified;
-
-void wdrv_reset_sta_ipv4_notified(void)
-{
-	sta_got_ipv4_notified = false;
-}
-
-bool wdrv_sta_ipv4_already_notified(void)
-{
-	return sta_got_ipv4_notified;
-}
-#endif
+void wdrv_notify_sta_got_ip(void);
 
 static rx_handle_customer_event_cb s_rx_handle_cust_event_cb = NULL;
 
@@ -215,15 +203,9 @@ static void wdrv_fill_ip4_from_connect_ind(netif_ip4_config_t *ip4)
 void wdrv_notify_sta_got_ipv4(void)
 {
     netif_ip4_config_t ip4 = {0};
-    netif_event_got_ip4_t event_data = {0};
-    wifi_linkstate_reason_t info;
 
     if (wdrv_host_env.connect_ind.ip == 0)
         return;
-
-    if (sta_got_ipv4_notified)
-        return;
-    sta_got_ipv4_notified = true;
 
     wdrv_fill_ip4_from_connect_ind(&ip4);
     sta_ip_mode_set(0);
@@ -231,14 +213,8 @@ void wdrv_notify_sta_got_ipv4(void)
     ip_address_set(1, 0, ip4.ip, ip4.mask, ip4.gateway, ip4.dns);
     sta_ip_start();
 
-    info.state = WIFI_LINKSTATE_STA_GOT_IP;
-    info.reason_code = WIFI_REASON_MAX;
-    mhdr_set_station_status(info);
-
-    event_data.netif_if = NETIF_IF_STA;
-    os_memcpy(event_data.ip, ip4.ip, NETIF_IP4_STR_LEN);
-    BK_LOG_ON_ERR(bk_event_post(EVENT_MOD_NETIF, EVENT_NETIF_GOT_IP4,
-                                &event_data, sizeof(event_data), BEKEN_NEVER_TIMEOUT));
+    /* Single notify entry: legacy cb + EVENT_NETIF_GOT_IP4 (dedup by link state). */
+    wdrv_notify_sta_got_ip();
 }
 #endif
 
@@ -279,10 +255,6 @@ void wdrv_notify_sta_disconnected(void *data, uint16_t len)
     wifi_event_sta_disconnected_t sta_disconnected = {0};
     wifi_linkstate_reason_t info = {0};
     os_memcpy(&sta_disconnected, data, len);
-
-#if CONFIG_WIFI_VNET_CONTROLLER
-    wdrv_reset_sta_ipv4_notified();
-#endif
 
     info.state = WIFI_LINKSTATE_STA_DISCONNECTED;
     info.reason_code = sta_disconnected.disconnect_reason;
@@ -393,20 +365,17 @@ void wdrv_notify_sta_got_ip(void)
 {
     wifi_linkstate_reason_t info;
     netif_ip4_config_t wdrv_got_ip = {0};
+    netif_event_got_ip4_t event_data = {0};
 
-#if CONFIG_WIFI_VNET_CONTROLLER
-    if (sta_got_ipv4_notified)
+    info = mhdr_get_station_status();
+    if (info.state == WIFI_LINKSTATE_STA_GOT_IP)
         return;
-    sta_got_ipv4_notified = true;
-#endif
 
-    /* set wifi status */
     info.state = WIFI_LINKSTATE_STA_GOT_IP;
     info.reason_code = WIFI_REASON_MAX;
     mhdr_set_station_status(info);
+    wifi_netif_call_status_cb_when_sta_got_ip();
 
-    /* post event GOT_IP4 */
-    netif_event_got_ip4_t event_data = {0};
     event_data.netif_if = NETIF_IF_STA;
 #if CONFIG_P2P
     //TODO current not support p2p coexist with sta or softap
