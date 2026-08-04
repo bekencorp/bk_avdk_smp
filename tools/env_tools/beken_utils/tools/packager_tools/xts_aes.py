@@ -137,7 +137,7 @@ def load_key_from_file(path):
     raise ValueError("No valid key found in keyfile")
 
 
-def prepare_input_data(path: str) -> tuple[bytes, int]:
+def prepare_input_data(path: str):
     with open(path, 'rb') as f:
         data = f.read()
 
