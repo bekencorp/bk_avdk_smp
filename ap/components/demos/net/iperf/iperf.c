@@ -32,6 +32,8 @@
 #define IPERF_DEFAULT_SPEED_LIMIT   (-1)
 #define IPERF_REPORT_TASK_NAME "iperf_report_task"
 #define IPERF_REPORT_TASK_STACK 2048
+#define IPERF_REPORT_TASK_STOP_WAIT_MS 20
+#define IPERF_REPORT_TASK_STOP_WAIT_CNT 100
 
 #define IPERF_UDP_FIN_MAX_RETRY_CNTS 10 /* UDP FIN or FINACK max retries */
 #define IPERF_UDP_FIN_TO 250000 /* 250ms: select timeout for UDP FIN */
@@ -100,6 +102,7 @@ static uint32_t s_tick_delta = 0;
 static uint32_t s_pkt_delta = 0;
 static uint32_t s_time = IPERF_DEFAULT_TIME;
 static beken_mutex_t iperf_mutex;
+static volatile uint32_t s_report_task_running;
 //modifiable iperf parameters
 //priority of iperf task
 static uint32_t iperf_priority = THREAD_PROIRITY;
@@ -123,6 +126,23 @@ static void iperf_reset(void)
 		os_free(s_param.host);
 	s_param.host = NULL;
 	s_param.state = IPERF_STATE_STOPPED;
+}
+
+static void iperf_cleanup(void)
+{
+	if (s_param.state == IPERF_STATE_STARTED) {
+		s_param.state = IPERF_STATE_STOPPING;
+	}
+
+	for (uint32_t i = 0; s_report_task_running && i < IPERF_REPORT_TASK_STOP_WAIT_CNT; i++) {
+		rtos_delay_milliseconds(IPERF_REPORT_TASK_STOP_WAIT_MS);
+	}
+
+	if (iperf_mutex) {
+		rtos_deinit_mutex(&iperf_mutex);
+	}
+
+	iperf_reset();
 }
 
 static void iperf_set_sock_opt(int sock)
@@ -342,18 +362,25 @@ static void iperf_report_task_handler(void *arg)
 	{
 		s_param.state = IPERF_STATE_STOPPING;
 	}
+	s_report_task_running = 0;
 	rtos_delete_thread(NULL);
-	rtos_deinit_mutex(&iperf_mutex);
 }
 
 static err_t iperf_report_task_start(void)
 {
 	int ret;
+
+	if (s_report_task_running) {
+		return BK_OK;
+	}
+
+	s_report_task_running = 1;
 	ret = rtos_create_thread(NULL, iperf_report_priority, IPERF_REPORT_TASK_NAME,
 						iperf_report_task_handler, IPERF_REPORT_TASK_STACK,
 						(beken_thread_arg_t) 0);
 	
 	if (ret != kNoErr) {
+		s_report_task_running = 0;
 		BK_LOGE(TAG, "create task %s failed", IPERF_REPORT_TASK_NAME);
 		return BK_FAIL;
 	}
@@ -474,7 +501,7 @@ _tx_retry:
 _exit:
 	if (send_buf)
 		os_free(send_buf);
-	iperf_reset();
+	iperf_cleanup();
 	BK_LOGD(NULL, "iperf: is stopped\n");
 	rtos_delete_thread(NULL);
 }
@@ -577,7 +604,7 @@ __exit:
 		recv_data = NULL;
 	}
 
-	iperf_reset();
+	iperf_cleanup();
 	BK_LOGD(NULL, "iperf: iperf is stopped\n");
 	rtos_delete_thread(NULL);
 }
@@ -728,7 +755,7 @@ udp_exit:
 		os_free(buffer);
 		buffer = NULL;
 	}
-	iperf_reset();
+	iperf_cleanup();
 	BK_LOGD(NULL, "iperf_udp: is stopped\n");
 	rtos_delete_thread(NULL);
 }
@@ -844,7 +871,7 @@ userver_exit:
 		buffer = NULL;
 	}
 
-	iperf_reset();
+	iperf_cleanup();
 	BK_LOGD(NULL, "iperf_udp: iperf is stopped\n");
 	rtos_delete_thread(NULL);
 }
@@ -1121,7 +1148,12 @@ void iperf(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 			}
 		}
 	}
-	rtos_init_mutex(&iperf_mutex);
+	if (s_param.state == IPERF_STATE_STOPPED && iperf_mutex == NULL) {
+		if (rtos_init_mutex(&iperf_mutex) != kNoErr) {
+			BK_LOGE(TAG, "create iperf mutex failed");
+			return;
+		}
+	}
 	iperf_start(mode, host, port);
 
 	return;
