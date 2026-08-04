@@ -190,6 +190,14 @@ typedef struct
      *  ::bk_lcd_rgb_default_init to send @c init_cmds, NULL to skip, or
      *  a custom function (may compose by calling the default first). */
     bk_err_t (*init)(bk_avdk_lcd_panel_t *panel);
+    /** Optional power-down command sequence (e.g. DISPOFF/SLPIN) sent over the
+     *  panel's SW SPI channel by ::bk_lcd_rgb_default_off. NULL = no sequence. */
+    const lcd_rgb_spi_init_cmd_t *off_cmds;
+    /** Off hook driven by teardown (::bk_lcd_panel_off) after the DPU stops
+     *  scanning. ::bk_lcd_rgb_default_off to send @c off_cmds, NULL to skip, or
+     *  a custom function. RESETn is parked at its active level by the common
+     *  driver regardless of this hook. */
+    bk_err_t (*off)(bk_avdk_lcd_panel_t *panel);
 } bk_display_rgb_panel_t;
 
 /** MIPI-DSI panel descriptor. */
@@ -201,6 +209,12 @@ typedef struct
     uint8_t fps;
     bk_display_timing_t timing;
     const lcd_mipi_init_cmd_t *init_cmds;       /**< terminated by ``{0, NULL, 0}`` */
+    /** Optional power-down DCS sequence, same encoding as @c init_cmds
+     *  (delay marker ``{0, (const uint8_t []){ms}, 0xFF}``, terminated by
+     *  ``{0, NULL, 0}``). Typical content is 28h DISPOFF + 10h SLPIN with
+     *  the datasheet delays so the panel discharges its charge pumps
+     *  before VDDIO drops. NULL = no sequence. */
+    const lcd_mipi_init_cmd_t *off_cmds;
     const uint8_t *read_id_regs;
     uint8_t read_id_bytes;
     bool reset_active_level;        /**< true = active-high RST, false = active-low RST */
@@ -212,6 +226,11 @@ typedef struct
      *  ::bk_lcd_mipi_default_init to send @c init_cmds, NULL to skip, or
      *  a custom function (may compose by calling the default first). */
     bk_err_t (*init)(bk_avdk_lcd_panel_t *panel);
+    /** Power-down hook driven by ::bk_display_deinit() (before RESETn is
+     *  parked and the DSI bus / VDDIO are torn down, while the DCS command
+     *  channel is still alive). ::bk_lcd_mipi_default_off to send
+     *  @c off_cmds, NULL to skip, or a custom function. */
+    bk_err_t (*off)(bk_avdk_lcd_panel_t *panel);
 } bk_display_dsi_panel_t;
 
 /**

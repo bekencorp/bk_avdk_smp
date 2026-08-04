@@ -144,6 +144,18 @@ bk_err_t bk_lcd_mipi_default_init(bk_avdk_lcd_panel_t *panel);
 bk_err_t bk_lcd_mipi_default_reset(bk_avdk_lcd_panel_t *panel);
 
 /**
+ * @brief Send the descriptor's @c off_cmds DCS power-down sequence (DSI).
+ *
+ * Plug into ::bk_display_dsi_panel_t::off. Runs during
+ * ::bk_display_deinit() while the DSI command channel is still up, so the
+ * panel can be walked to DISPOFF / SLPIN before power is removed.
+ *
+ * @param[in] panel Panel handle.
+ * @return BK_OK (also when @c off_cmds is NULL); channel error on bus failure.
+ */
+bk_err_t bk_lcd_mipi_default_off(bk_avdk_lcd_panel_t *panel);
+
+/**
  * @brief Send the descriptor's @c init_cmds SPI sequence (RGB).
  * @param[in] panel Panel handle.
  * @return BK_OK; channel error code on bus failure.
@@ -156,6 +168,13 @@ bk_err_t bk_lcd_rgb_default_init(bk_avdk_lcd_panel_t *panel);
  * @return BK_OK; no-op when @c reset_pin < 0.
  */
 bk_err_t bk_lcd_rgb_default_reset(bk_avdk_lcd_panel_t *panel);
+
+/**
+ * @brief Send the descriptor's @c off_cmds SPI sequence (RGB).
+ * @param[in] panel Panel handle.
+ * @return BK_OK (also when @c off_cmds is NULL); channel error on bus failure.
+ */
+bk_err_t bk_lcd_rgb_default_off(bk_avdk_lcd_panel_t *panel);
 /** @} */
 
 /**

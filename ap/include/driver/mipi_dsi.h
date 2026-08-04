@@ -25,6 +25,7 @@
  */
 
 #include <stdint.h>
+#include <stdbool.h>
 #include <common/bk_err.h>
 #include <driver/dpu_types.h>
 
@@ -65,6 +66,17 @@ bk_err_t mipi_dsi_deinit(void);
  * @return BK_OK on success.
  */
 bk_err_t mipi_dsi_clock_set(bk_panel_clock_config_t *dsi);
+
+/**
+ * @brief Select the DSI host operating mode (video vs. command).
+ *
+ * Command mode is required to exchange DCS packets, video mode to stream
+ * pixels. Park the host in command mode once the DPU scan is stopped so the
+ * video machine does not pull an idle DPI FIFO and storm the FIFO error IRQs.
+ *
+ * @param[in] video @c true to enter video mode, @c false for command mode.
+ */
+void mipi_dsi_video_mode_set(bool video);
 
 /**
  * @brief Send a generic-write packet on the DSI command channel.
