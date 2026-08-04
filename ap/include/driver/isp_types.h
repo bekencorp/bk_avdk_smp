@@ -28,7 +28,7 @@ extern "C" {
 #include <vsi_comm_video.h>
 #include <vsi_comm_isp.h>
 #include <modules/private/veri_isp/vsi_comm_sns.h>
-#include <modules/private/veri_isp/mpi_ispnano_sbi.h>
+#include <modules/private/veri_isp/mpi_isp_sbi.h>
 #include <mpi_isp.h>
 #include <modules/private/veri_isp/mpi_isp_mi.h>
 #include <modules/private/veri_isp/vsios_i2c.h>

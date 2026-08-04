@@ -42,46 +42,43 @@ extern "C"{
  */
 
 
-#define VSI_ISP_GE_THRESHOLD_MAX 65535         /**< \brief The maximum value of <tt>threshold</tt> for GE. */
-#define VSI_ISP_GE_THRESHOLD_MIN 0             /**< \brief The minimum value of <tt>threshold</tt> for GE. */
+#define VSI_ISP_GE_THRESHOLD_MAX 65535         /**< \brief The maximum value of the GE threshold. */
+#define VSI_ISP_GE_THRESHOLD_MIN 0             /**< \brief The minimum value of the GE threshold. */
 
 
-/** \brief Contains the GE attributes. */
+/** \brief   GE attributes. */
 typedef struct vsiISP_GE_ATTR_S {
-    vsi_bool_t            enable;      /**< \brief Whether to enable GE.
-                                            \n Valid values:
-                                            \n - 0: Disable.
-                                            \n - 1: Enable. */
+    vsi_bool_t            enable;        /**< \brief Whether to enable GE. \n 0: Disable GE. \n 1: Enable GE. */
     vsi_u16_t             threshold;   /**< \brief GE threshold value.
-                                            \n Valid value range: [0, 65535]. */
+                                            \n Range: [0 65535] */
 } ISP_GE_ATTR_S;
 
-/** \brief GE metadata that needs to be written into registers. */
+/** \brief GE metadata structure that need to be written into registers. */
 typedef ISP_GE_ATTR_S ISP_GE_META_S;
 
 
 /*****************************************************************************/
 /**
- * @brief   Gets the GE attributes of an ISP device port.
+ * @brief   Gets GE attributes.
  *
- * \param   IspPort             The ID of the port.
- * \param   pGeAttr             A pointer to a memory place for receiving the GE attributes.
+ * \param   IspPort             Port ID
+ * \param   pGeAttr           Pointer to the GE attributes
  *
- * \retval  VSI_SUCCESS         The operation succeeds.
+ * \retval  VSI_SUCCESS         Operation succeeded
  *
  *****************************************************************************/
 int VSI_MPI_ISP_GetGeAttr(ISP_PORT IspPort, ISP_GE_ATTR_S *pGeAttr);
 
 /*****************************************************************************/
 /**
- * @brief   Sets the GE attributes of an ISP device port.
+ * @brief   Sets GE attributes.
  *
- * @param   IspPort                  The ID of the port.
- * @param   pGeAttr                  A pointer to the GE attributes.
+ * @param   IspPort                  Port ID
+ * @param   pGeAttr                Pointer to the GE attributes
 
  *
- * @retval  VSI_SUCCESS              The operation succeeds.
- * @retval  VSI_ERR_ILLEGAL_PARAM    Parameters are invalid.
+ * @retval  VSI_SUCCESS              Operation succeeded
+ * @retval  VSI_ERR_ILLEGAL_PARAM    Invalid parameter
  *
  *****************************************************************************/
 int VSI_MPI_ISP_SetGeAttr(ISP_PORT IspPort, ISP_GE_ATTR_S *pGeAttr);

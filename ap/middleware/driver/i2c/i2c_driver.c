@@ -861,6 +861,8 @@ bk_err_t bk_i2c_master_read_noaddr(i2c_id_t id, uint8_t *data, uint32_t size, ui
 
 bk_err_t bk_i2c_slave_write(i2c_id_t id, const uint8_t *data, uint32_t size, uint32_t timeout_ms)
 {
+	bk_err_t ret = BK_OK;
+
 	I2C_RETURN_ON_NOT_INIT();
 	I2C_RETURN_ON_ID_NOT_INIT(id);
 	I2C_PM_CHECK_RESTORE(id);
@@ -876,16 +878,22 @@ bk_err_t bk_i2c_slave_write(i2c_id_t id, const uint8_t *data, uint32_t size, uin
 	s_i2c[id].int_status = 0;
 	rtos_exit_critical(int_level);
 
-	rtos_get_semaphore(&s_i2c[id].tx_sema, timeout_ms);
+	ret = rtos_get_semaphore(&s_i2c[id].tx_sema, timeout_ms);
 	//reset i2c to clear fifo
 	i2c_hal_stop_common(&s_i2c[id].hal);
 	i2c_hal_start_common(&s_i2c[id].hal);
+	if (ret != kNoErr) {
+		I2C_LOGW("I2C(%d) slave_write get semaphore timeout\r\n", id);
+		return BK_ERR_I2C_ACK_TIMEOUT;
+	}
 
 	return BK_OK;
 }
 
 bk_err_t bk_i2c_slave_read(i2c_id_t id, uint8_t *data, uint32_t size, uint32_t timeout_ms)
 {
+	bk_err_t ret = BK_OK;
+
 	I2C_RETURN_ON_NOT_INIT();
 	I2C_RETURN_ON_ID_NOT_INIT(id);
 	I2C_PM_CHECK_RESTORE(id);
@@ -901,7 +909,11 @@ bk_err_t bk_i2c_slave_read(i2c_id_t id, uint8_t *data, uint32_t size, uint32_t t
 	s_i2c[id].int_status = 0;
 	rtos_exit_critical(int_level);
 
-	rtos_get_semaphore(&s_i2c[id].rx_sema, timeout_ms);
+	ret = rtos_get_semaphore(&s_i2c[id].rx_sema, timeout_ms);
+	if (ret != kNoErr) {
+		I2C_LOGW("I2C(%d) slave_read get semaphore timeout\r\n", id);
+		return BK_ERR_I2C_ACK_TIMEOUT;
+	}
 
 	return BK_OK;
 }
@@ -910,6 +922,7 @@ bk_err_t bk_i2c_memory_write(i2c_id_t id, const i2c_mem_param_t *mem_param)
 {
 	bk_err_t ret = BK_OK;
 
+	BK_RETURN_ON_NULL(mem_param);
 	I2C_RETURN_ON_NOT_INIT();
 	I2C_RETURN_ON_ID_NOT_INIT(id);
 	I2C_PM_CHECK_RESTORE(id);
@@ -944,6 +957,7 @@ bk_err_t bk_i2c_memory_read(i2c_id_t id, const i2c_mem_param_t *mem_param)
 {
 	bk_err_t ret = BK_OK;
 
+	BK_RETURN_ON_NULL(mem_param);
 	I2C_RETURN_ON_NOT_INIT();
 	I2C_RETURN_ON_ID_NOT_INIT(id);
 	I2C_PM_CHECK_RESTORE(id);

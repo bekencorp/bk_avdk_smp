@@ -33,6 +33,13 @@ menu "UART"
 		help
 		Default 0 mean use UART0
 
+	config UART_UNSAFE_WRITE_TIMEOUT_MS
+		int "Unsafe UART byte write timeout in milliseconds"
+		range 100 10000
+		default 2000
+		help
+			Bounds polling when the UART TX FIFO cannot accept another byte.
+
 	config UART_ATE_PRINT_PORT
 		int "Config Uart ATE Print Port"
 		range 0 2

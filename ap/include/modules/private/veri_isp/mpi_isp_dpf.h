@@ -41,97 +41,69 @@ extern "C"{
  *
  */
 
-#define DPF_NOISE_CURVE_SIZE 17    /**< \brief The number of control points on the DPF noise curve. */
+#define DPF_NOISE_CURVE_SIZE 17    /**< \brief DPF noise curve size. */
 
-#define VSI_ISP_DPF_STRENGTH_MAX    65    /**< \brief The maximum value of <tt>pinvStrength</tt> for DPF. */
-#define VSI_ISP_DPF_SIGMA_G_MIN     16    /**< \brief The minimum value of <tt>sigmaG</tt> for DPF. */
-#define VSI_ISP_DPF_SIGMA_G_MAX     2048  /**< \brief The maximum value of <tt>sigmaG</tt> for DPF. */
-#define VSI_ISP_DPF_SIGMA_RB_MIN    16    /**< \brief The minimum value of <tt>sigmaRb</tt> for DPF. */
-#define VSI_ISP_DPF_SIGMA_RB_MAX    2048  /**< \brief The maximum value of <tt>sigmaRb</tt> for DPF. */
-#define VSI_ISP_DPF_NOISE_CURVE_MAX 1023  /**< \brief The maximum value of <tt>noiseCurve</tt> for DPF. */
+#define VSI_ISP_DPF_STRENGTH_MAX    65    /**< \brief The maximum value of pinvStrength. */
+#define VSI_ISP_DPF_SIGMA_G_MIN     16    /**< \brief The minimum value of sigmaG. */
+#define VSI_ISP_DPF_SIGMA_G_MAX     2048  /**< \brief The maximum value of sigmaG. */
+#define VSI_ISP_DPF_SIGMA_RB_MIN    16    /**< \brief The minimum value of sigmaRb. */
+#define VSI_ISP_DPF_SIGMA_RB_MAX    2048  /**< \brief The maximum value of sigmaRb. */
+#define VSI_ISP_DPF_NOISE_CURVE_MAX 1023  /**< \brief The maximum value of noiseCurve. */
 
-/** \brief Contains the DPF attributes for use in manual mode. */
+/** \brief   DPF manual attributes. */
 typedef struct vsiISP_DPF_MANUAL_ATTR_S {
-    vsi_u8_t   pinvStrength;                   /**< \brief The DPF strength.
-                                                    \n A greater value indicates weaker denoising effects.
-                                                    \n Valid value range: (0, 65]. */
-    vsi_u16_t  sigmaG;                         /**< \brief The Gaussian sigma for the green channel.
-                                                    \n A greater value indicates larger weights of neighboring pixels.
-                                                    \n Valid value range: [16, 2048].
-                                                    \n Value range for the 4-bit fractional part: [1.0, 128.0]. */
-    vsi_u16_t  sigmaRb;                        /**< \brief The Gaussian sigma for the red and blue channels.
-                                                    \n A greater value indicates larger weights of neighboring pixels.
-                                                    \n Valid value range: [16, 2048].
-                                                    \n Value range for the 4-bit fractional part: [1.0 128.0]. */
-    vsi_u16_t  noiseCurve[DPF_NOISE_CURVE_SIZE]; /**< \brief The NUV noise curve.
-                                                      \n A smaller value indicates stronger denoising effects.
-                                                      \n Valid value range: [0, 1023].
-                                                      \n Value range for the 8-bit fractional part: [0 4095.0]. */
+    vsi_u8_t   pinvStrength;                       /**< \brief Strength. A larger value indicates the weaker denoising effect. Range: (0, 65]. */
+    vsi_u16_t  sigmaG;                            /**< \brief Gaussian sigma for green channel. The larger the value, the more the neighbor pixel weight.
+                                                    \n Range: [16, 2048].
+                                                    \n 4-bit fractional part[1.0 128.0].
+                                                    \n (16 / 16) = 1.
+                                                    \n (2048 / 16) = 128. */
+    vsi_u16_t  sigmaRb;                           /**< \brief Gaussian sigma for red and blue channels. The larger the value, the more the neighbor pixel weight.
+                                                    \n Range: [16, 2048].
+                                                    \n 4-bit fractional part[1.0 128.0].
+                                                    \n (16 / 16) = 1.
+                                                    \n (2048 / 16) = 128. */
+    vsi_u16_t  noiseCurve[DPF_NOISE_CURVE_SIZE]; /**< \brief NUV noise curve. The smaller the value, the stronger denoising.
+                                                    \n Range: [0, 1023]
+                                                    \n 8-bit integral part[0 4095.0]
+                                                    \n (0 >> 2) = 0
+                                                    \n (4095 >> 2) = 1023 */
 } ISP_DPF_MANUAL_ATTR_S;
 
-/** \brief Contains the DPF attributes for use in auto mode. */
+/** \brief   DPF auto attributes. */
 typedef struct vsiISP_DPF_AUTO_ATTR_S {
-    vsi_u8_t   pinvStrength[ISP_AUTO_STRENGTH_NUM];  /**< \brief The DPF strength.
-                                                          \n A greater value indicates weaker denoising effects.
-                                                          \n Valid value range: (0, 65]. */
-    vsi_u16_t  sigmaG[ISP_AUTO_STRENGTH_NUM];        /**< \brief The Gaussian sigma for the green channel.
-                                                          \n A greater value indicates larger weights of neighboring pixels.
-                                                          \n Valid value range: [16, 2048].
-                                                          \n Value range for the 4-bit fractional part: [1.0, 128.0]. */
-    vsi_u16_t  sigmaRb[ISP_AUTO_STRENGTH_NUM];       /**< \brief The Gaussian sigma for the red and blue channels.
-                                                          \n A greater value indicates larger weights of neighboring pixels.
-                                                          \n Valid value range: [16, 2048].
-                                                          \n Value range for the 4-bit fractional part: [1.0 128.0]. */
-    vsi_u16_t  noiseCurve[ISP_AUTO_STRENGTH_NUM][DPF_NOISE_CURVE_SIZE];  /**< \brief The NUV noise curve.
-                                                                              \n A smaller value indicates stronger denoising effects.
-                                                                              \n Valid value range: [0, 1023].
-                                                                              \n Value range for the 8-bit fractional part: [0 4095.0]. */
+    vsi_u8_t   pinvStrength[ISP_AUTO_STRENGTH_NUN];  /**< \brief Strength. A larger value indicates the weaker denoising effect. */
+    vsi_u16_t  sigmaG[ISP_AUTO_STRENGTH_NUN];       /**< \brief Gaussian sigma for green channel. The larger the value, the more the neighbor pixel weight. */
+    vsi_u16_t  sigmaRb[ISP_AUTO_STRENGTH_NUN];      /**< \brief Gaussian sigma for red and blue channels. The larger the value, the more the neighbor pixel weight. */
+    vsi_u16_t  noiseCurve[ISP_AUTO_STRENGTH_NUN][DPF_NOISE_CURVE_SIZE];  /**< \brief NUV noise curve. The smaller the value, the stronger denoising. */
 } ISP_DPF_AUTO_ATTR_S;
 
-/** \brief Contains the DPF attributes. */
+/** \brief   DPF attributes. */
 typedef struct  vsiISP_DPF_ATTR_S {
-    vsi_bool_t enable;                 /**< \brief Whether to enable DPF.
-                                            \n Valid values;
-                                            \n - 0: Disable.
-                                            \n - 1: Enable. */
-    vsi_u32_t  opType;                 /**< \brief The operation mode of DPF.
-                                            \n Valid values: See <tt> \ref ISP_OP_TYPE_E</tt>. */
-    ISP_DPF_MANUAL_ATTR_S manualAttr;  /**< \brief The DPF attributes for use in manual mode. */
-    ISP_DPF_AUTO_ATTR_S autoAttr;      /**< \brief The DPF attributes for use in auto mode. */
+    vsi_bool_t enable;                 /**< \brief Whether to enable DPF. \n 0: Disable. \n 1: Enable. */
+    vsi_u32_t  opType;                 /**< \brief The running mode, reference ISP_OP_TYPE_E. \n 0: Automatic. \n 1: Manual. */
+    ISP_DPF_MANUAL_ATTR_S manualAttr;  /**< \brief DPF manual attributes. */
+    ISP_DPF_AUTO_ATTR_S autoAttr;      /**< \brief DPF auto attributes. */
 } ISP_DPF_ATTR_S;
 
-/** \brief Contains the DPF metadata that needs to be written into registers. */
+/** \brief   DPF metadata structure that need to be written into registers. */
 typedef struct vsiISP_DPF_S {
-    vsi_bool_t enable;        /**< \brief Whether to enable DPF.
-                                   \n Valid values;
-                                   \n - 0: Disable.
-                                   \n - 1: Enable. */
-    vsi_u8_t   pinvStrength;  /**< \brief The DPF strength.
-                                   \n A greater value indicates weaker denoising effects.
-                                   \n Valid value range: (0, 65]. */
-    vsi_u16_t  sigmaG;        /**< \brief The Gaussian sigma for the green channel.
-                                   \n A greater value indicates larger weights of neighboring pixels.
-                                   \n Valid value range: [16, 2048].
-                                   \n Value range for the 4-bit fractional part: [1.0, 128.0]. */
-    vsi_u16_t  sigmaRb;       /**< \brief The Gaussian sigma for the red and blue channels.
-                                   \n A greater value indicates larger weights of neighboring pixels.
-                                   \n Valid value range: [16, 2048].
-                                   \n Value range for the 4-bit fractional part: [1.0 128.0]. */
-    vsi_u16_t  noiseCurve[DPF_NOISE_CURVE_SIZE]; /**< \brief The NUV noise curve.
-                                                      \n A smaller value indicates stronger denoising effects.
-                                                      \n Valid value range: [0, 1023].
-                                                      \n Value range for the 8-bit fractional part: [0 4095.0]. */
+    vsi_bool_t enable;        /**< \brief Whether to enable DPF. \n 0: Disable. \n 1: Enable. */
+    vsi_u8_t   pinvStrength;  /**< \brief Strength. A larger value indicates the weaker denoising effect. Range: (0, 65]. */
+    vsi_u16_t  sigmaG;        /**< \brief Gaussian sigma for green channel. */
+    vsi_u16_t  sigmaRb;       /**< \brief Gaussian sigma for red and blue channels. */
+    vsi_u16_t  noiseCurve[DPF_NOISE_CURVE_SIZE]; /**< \brief NUV noise curve. */
 } ISP_DPF_META_S;
 
 
 /*****************************************************************************/
 /**
- * @brief   Gets the DPF attributes of an ISP device port.
+ * @brief   Gets DPF attributes.
  *
- * @param   IspPort             The ID of the port.
- * @param   pDpfAttr            A pointer to a memory place for receiving the DPF attributes.
+ * @param   IspPort             Port ID
+ * @param   pDpfAttr          Pointer to the DPF attributes
  *
- * @retval  VSI_SUCCESS         The operation succeeds.
+ * @retval  VSI_SUCCESS         Operation succeeded
  *
  *****************************************************************************/
 int VSI_MPI_ISP_GetDpfAttr(ISP_PORT IspPort, ISP_DPF_ATTR_S *pDpfAttr);
@@ -139,12 +111,12 @@ int VSI_MPI_ISP_GetDpfAttr(ISP_PORT IspPort, ISP_DPF_ATTR_S *pDpfAttr);
 
 /*****************************************************************************/
 /**
- * @brief   Sets the DPF attributes of an ISP device port.
+ * @brief   Sets DPF attributes.
  *
- * @param   IspPort             The ID of the port.
- * @param   pDpfAttr            A pointer to the DPF attributes.
+ * @param   IspPort             Port ID
+ * @param   pDpfAttr          Pointer to the DPF attributes
  *
- * @retval  VSI_SUCCESS         The operation succeeds.
+ * @retval  VSI_SUCCESS         Operation succeeded
  *
  *****************************************************************************/
 int VSI_MPI_ISP_SetDpfAttr(ISP_PORT IspPort, ISP_DPF_ATTR_S *pDpfAttr);

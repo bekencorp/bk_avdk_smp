@@ -27,6 +27,10 @@
 
 #define CHECK_HANDLE(h)  do { if (!(h)) return AUDIO_PLAYER_NOT_INIT; } while (0)
 
+#define AUDIO_PLAYER_VOLUME_DB_MAX       (12)
+#define AUDIO_PLAYER_VOLUME_DB_MIN       (-100)
+#define AUDIO_PLAYER_VOLUME_DB_DEFAULT   (-7)
+
 static int _advance_music_index(bk_audio_player_handle_t player, int direction)
 {
     int index;
@@ -550,7 +554,7 @@ int bk_audio_player_new(bk_audio_player_handle_t *handle, bk_audio_player_cfg_t 
     player->output_to_file = 0;
     player->output_file = NULL;
 
-    player->spk_gain = 25;
+    player->spk_gain = AUDIO_PLAYER_VOLUME_DB_DEFAULT;
 
     player->seek_position = -1;
     player->seek_in_progress = 0;
@@ -669,15 +673,14 @@ int bk_audio_player_set_volume(bk_audio_player_handle_t handle, int volume)
     bk_audio_player_handle_t player = (bk_audio_player_handle_t)handle;
 
     CHECK_HANDLE(handle);
-    if (volume < 0 || volume > 100)
+    /* volume is a digital gain in dB, forwarded as-is (mapping owned by app layer) */
+    if (volume < AUDIO_PLAYER_VOLUME_DB_MIN || volume > AUDIO_PLAYER_VOLUME_DB_MAX)
     {
         return AUDIO_PLAYER_INVALID;
     }
 
-
     player->spk_gain = volume;
-    volume = volume * 63 / 100;
-    bk_printf("volume :%d\r\n", volume);
+    BK_LOGI(AUDIO_PLAYER_TAG, "set volume(dB): %d\n", volume);
 
     play_sm_set_volume(player, volume);
 

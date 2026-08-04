@@ -24,9 +24,7 @@
  *
  ****************************************************************************/
 
-#pragma once
-
-/* TODO: Re-tune GC2053 calibration data for ISPNANO_V2401 after V1.5.1 migration. */
+ #pragma once
 
 #ifdef __cplusplus
 #if __cplusplus
@@ -621,6 +619,7 @@ const static ISP_CALIB_DATA_S GC2053_720P_CalibParam = {
                 .height = TUNING_HEIGHT,
             },
             .mode = HIST256_G_MODE,
+            .step = 4,
             .weight = {
                 {0, 0, 0, 0, 0},
                 {1, 2, 2, 2, 1},
@@ -634,28 +633,28 @@ const static ISP_CALIB_DATA_S GC2053_720P_CalibParam = {
             .opType = OP_TYPE_AUTO,
             .manualAttr = {
                 .intTime = 10000,
-                .aGain = 3072,
-                .dGain = 1024,
+                .again = 3072,
+                .dgain = 1024,
             },
             .autoAttr = {
                 .expTimeRange = {
                     .min =  100,
                     .max =  300000,
                 },
-                .aGainRange = {
+                .againRange = {
                     .min = 64 * 1024,
                     .max = 832 * 1024,
                 },
-                .dGainRange = {
+                .dgainRange = {
                     .min = 1024,
                     .max = 1024,
                 },
-                .runInterval = 1,
-                .target = 62,
+                .aeRunInterval = 1,
+                .aeTarget = 62,
                 .dampOver = 0x40,
                 .dampUnder = 0x40,
                 .tolerance = 2,
-                .antiFlicker = {
+                .antiflicker = {
                     .enable = 0,
                     .flickerFreq = 100,
                 },
@@ -664,7 +663,7 @@ const static ISP_CALIB_DATA_S GC2053_720P_CalibParam = {
                 .aeRoute = {
                     .totalNum = 0,
                 },
-                .delayAttr = {
+                .aeDelayAttr = {
                     .blackDelayFrame = 0,
                     .whiteDelayFrame = 0,
                 },
@@ -701,12 +700,7 @@ const static ISP_CALIB_DATA_S GC2053_720P_CalibParam = {
             .enable = 1,
             .opType = OP_TYPE_AUTO,
             .manualAttr = {
-                .wbGain = {
-                    .rGain = 0x16F,
-                    .grGain = 0x100,
-                    .gbGain = 0x100,
-                    .bGain = 0x21C,
-                },
+                .wbGain = {0x16F, 0x100, 0x100, 0x21C},
             },
             .autoAttr = {
                 .runInterval = 1,
@@ -714,11 +708,7 @@ const static ISP_CALIB_DATA_S GC2053_720P_CalibParam = {
                 .tolerance = 1,
                 .initColorTemp = 5000,
                 .calibParam = {
-                    .centLine = {
-                        .rgParam = -766376,
-                        .bgParam = -642393,
-                        .distParam = -2921800,
-                    },
+                    .centLine = {-766376, -642393, -2921800},
                     .rgMin = 1086700,
                     .rgMax = 3050800,
                     .wpRange0 = {
@@ -752,52 +742,27 @@ const static ISP_CALIB_DATA_S GC2053_720P_CalibParam = {
                     .illuminant[ILLUMINANT_A] = {
                         .illuType = ILLUMINANT_A,
                         .colorTemp = 2856,
-                        .wbGain = {
-                            .rGain = 0x101,
-                            .grGain = 0x100,
-                            .gbGain = 0x100,
-                            .bGain = 0x254,
-                        },
+                        .wbGain = {0x101, 0x100, 0x100, 0x254},
                     },
                     .illuminant[ILLUMINANT_TL84] = {
                         .illuType = ILLUMINANT_TL84,
                         .colorTemp = 4000,
-                        .wbGain = {
-                            .rGain = 0x15B,
-                            .grGain = 0x100,
-                            .gbGain = 0x100,
-                            .bGain = 0x1EA,
-                        },
+                        .wbGain = {0x15B, 0x100, 0x100, 0x1EA},
                     },
                     .illuminant[ILLUMINANT_CWF] = {
                         .illuType = ILLUMINANT_CWF,
                         .colorTemp = 4100,
-                        .wbGain = {
-                            .rGain = 0x160,
-                            .grGain = 0x100,
-                            .gbGain = 0x100,
-                            .bGain = 0x1FA,
-                        },
+                        .wbGain = {0x160, 0x100, 0x100, 0x1FA},
                     },
                     .illuminant[ILLUMINANT_D50] = {
                         .illuType = ILLUMINANT_D50,
                         .colorTemp = 5000,
-                        .wbGain = {
-                            .rGain = 0x160,
-                            .grGain = 0x100,
-                            .gbGain = 0x100,
-                            .bGain = 0x1FA,
-                        },
+                        .wbGain = {0x160, 0x100, 0x100, 0x1FA},
                     },
                     .illuminant[ILLUMINANT_D65] = {
                         .illuType = ILLUMINANT_D65,
                         .colorTemp = 6500,
-                        .wbGain = {
-                            .rGain = 0x19A,
-                            .grGain = 0x100,
-                            .gbGain = 0x100,
-                            .bGain = 0x185,
-                        },
+                        .wbGain = {0x19A, 0x100, 0x100, 0x185},
                     },
                 },
             },
@@ -1038,8 +1003,10 @@ const static ISP_CALIB_DATA_S GC2053_720P_CalibParam = {
             .threshold = 4,
             .cacAttr = {
                 .enable = 0,
-                .hOffset = 1,
-                .vOffset = 1,
+                .hClipMode = 0,
+                .vClipMode = 0,
+                .hStart = 1,
+                .vStart = 1,
                 .aBlue = -56,
                 .aRed = 2,
                 .bBlue = 70,
@@ -1157,7 +1124,7 @@ const static ISP_CALIB_DATA_S GC2053_720P_CalibParam = {
                     2112, 2176, 2240, 2304, 2368, 2432, 2496, 2560,
                     2624, 2688, 2752, 2816, 2880, 2944, 3008, 3072,
                     3136, 3200, 3264, 3328, 3392, 3456, 3520, 3584,
-                    3648, 3712, 3776, 3840, 3904, 3968, 4032
+                    3648, 3712, 3776, 3840, 3904, 3968, 4032, 4095
                 },
                 .redY = {
                     0x0000005e, 0x000000ad, 0x000000f0, 0x00000122, 0x00000144, 0x0000015f, 0x00000177, 0x0000018d,
@@ -1187,7 +1154,7 @@ const static ISP_CALIB_DATA_S GC2053_720P_CalibParam = {
                     2112, 2176, 2240, 2304, 2368, 2432, 2496, 2560,
                     2624, 2688, 2752, 2816, 2880, 2944, 3008, 3072,
                     3136, 3200, 3264, 3328, 3392, 3456, 3520, 3584,
-                    3648, 3712, 3776, 3840, 3904, 3968, 4032
+                    3648, 3712, 3776, 3840, 3904, 3968, 4032, 4095
                 },
                 .greenY = {
                     0x0000005e, 0x000000ad, 0x000000f0, 0x00000122, 0x00000144, 0x0000015f, 0x00000177, 0x0000018d,
@@ -1217,7 +1184,7 @@ const static ISP_CALIB_DATA_S GC2053_720P_CalibParam = {
                     2112, 2176, 2240, 2304, 2368, 2432, 2496, 2560,
                     2624, 2688, 2752, 2816, 2880, 2944, 3008, 3072,
                     3136, 3200, 3264, 3328, 3392, 3456, 3520, 3584,
-                    3648, 3712, 3776, 3840, 3904, 3968, 4032
+                    3648, 3712, 3776, 3840, 3904, 3968, 4032, 4095
                 },
                 .blueY = {
                     0x0000005e, 0x000000ad, 0x000000f0, 0x00000122, 0x00000144, 0x0000015f, 0x00000177, 0x0000018d,
@@ -1239,10 +1206,21 @@ const static ISP_CALIB_DATA_S GC2053_720P_CalibParam = {
 
         .cproc = {
             .enable = 1,
-            .brightness = -10,
-            .contrast = 170,
-            .saturation = 140,
-            .hue = 0,
+            .opType = OP_TYPE_MANUAL,
+            .manualAttr = {
+                .brightness = -10,
+                .contrast = 170,
+                .saturation = 140,
+                .hue = 0,
+            },
+            .autoAttr = {
+                .brightness = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+                .contrast = {0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80,
+                            0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80},
+                .saturation = {0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80,
+                            0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80},
+                .hue = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+            },
         },
     },
 };

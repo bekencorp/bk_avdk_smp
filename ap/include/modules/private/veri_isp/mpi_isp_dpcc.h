@@ -41,33 +41,28 @@ extern "C"{
  *
  */
 
-#define VSI_ISP_DPCC_STRENGTH_MAX 5             /**< \brief The maximum value of <tt>strength</tt> for DPCC. */
-#define VSI_ISP_DPCC_STRENGTH_MIN 0             /**< \brief The minimum value of <tt>strength</tt> for DPCC. */
+#define VSI_ISP_DPCC_STRENGTH_MAX 5             /**< \brief The maximum value of DPCC effect. */
+#define VSI_ISP_DPCC_STRENGTH_MIN 0             /**< \brief The minimum value of DPCC effect. */
 
 
-/** \brief Contains the DPCC attributes. */
+/** \brief   DPCC attributes. */
 typedef struct vsiISP_DPCC_ATTR_S {
-    vsi_bool_t enable;                    /**< \brief Whether to enable DPCC.
-                                               \n Valid values:
-                                               \n - 0: Disable.
-                                               \n - 1: Enable. */
-    vsi_u8_t   strength;                  /**< \brief The DPCC strength.
-                                               \n A greater value indicates stronger DPCC effects.
-                                               \n Valid value range: [0, 5]. */
+    vsi_bool_t enable;                     /**< \brief Whether to enable DPCC. \n 0: Disable. \n 1: Enable. */
+    vsi_u8_t   strength;                  /**< \brief A larger value indicates stronger DPCC effects. Range:[0, 5]. */
 } ISP_DPCC_ATTR_S;
 
-/** \brief DPCC metadata that needs to be written into registers. */
+/** \brief DPCC metadata structure that need to be written into registers. */
 typedef ISP_DPCC_ATTR_S ISP_DPCC_META_S;
 
 
 /*****************************************************************************/
 /**
- * @brief   Gets the DPCC attributes of an ISP device port.
+ * @brief   Gets DPCC attributes.
  *
- * @param   IspPort             The ID of the port.
- * @param   pDpccAttr           A pointer to a memory place for receiving the DPCC attributes.
+ * @param   IspPort             Port ID
+ * @param   pDpccAttr          Pointer to the DPCC attributes
  *
- * @retval  VSI_SUCCESS         The operation succeeds.
+ * @retval  VSI_SUCCESS         Operation succeeded
  *
  *****************************************************************************/
 int VSI_MPI_ISP_GetDpccAttr(ISP_PORT IspPort, ISP_DPCC_ATTR_S *pDpccAttr);
@@ -75,12 +70,12 @@ int VSI_MPI_ISP_GetDpccAttr(ISP_PORT IspPort, ISP_DPCC_ATTR_S *pDpccAttr);
 
 /*****************************************************************************/
 /**
- * @brief   Sets the DPCC attributes of an ISP device port.
+ * @brief   Sets DPCC attributes.
  *
- * @param   IspPort             The ID of the port.
- * @param   pDpccAttr           A pointer to the DPCC attributes.
+ * @param   IspPort             Port ID
+ * @param   pDpccAttr          Pointer to the DPCC attributes
  *
- * @retval  VSI_SUCCESS         The operation succeeds.
+ * @retval  VSI_SUCCESS         Operation succeeded
  *
  *****************************************************************************/
 int VSI_MPI_ISP_SetDpccAttr(ISP_PORT IspPort, ISP_DPCC_ATTR_S *pDpccAttr);

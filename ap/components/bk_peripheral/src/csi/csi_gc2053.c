@@ -378,7 +378,7 @@ static int GC2053_InitAeDefault(ISP_PORT IspPort)
             pAeSnsDft->minDgain  = 1024;
             pAeSnsDft->dgainStep = 1;
 
-            pAeSnsDft->target = 48;
+            pAeSnsDft->aeTarget = 48;
             pAeSnsDft->dampOver = 0x40;
             pAeSnsDft->dampUnder = 0x40;
             pAeSnsDft->tolerance = 1;
@@ -684,7 +684,6 @@ static int GC2053_InitAeSnsFunc(AE_SNS_FUNC_S *pAeSnsFunc)
 const ISP_SNS_OBJ_S snsGC2053Obj = {
     .pfnInitIspSnsFunc = GC2053_InitIspSnsFunc,
     .pfnInitAeSnsFunc  = GC2053_InitAeSnsFunc,
-    .pfnInitAfSnsFunc  = NULL,
 };
 
 #endif

@@ -245,6 +245,25 @@ ble_err_t bk_ble_tx_power_set(float pwr_gain)
     bt_ipc_hci_send_vendor_cmd(cmd_data, sizeof(cmd_data));
     return 0;
 }
+
+void bk_ble_dut_start(uint8_t uart_id)
+{
+    uint8_t cmd_data[3];
+
+    cmd_data[0] = BT_VENDOR_SUB_OPCODE_BLE_DUT_START >> 8;
+    cmd_data[1] = BT_VENDOR_SUB_OPCODE_BLE_DUT_START & 0xff;
+    cmd_data[2] = uart_id;
+    bt_ipc_hci_send_vendor_cmd(cmd_data, sizeof(cmd_data));
+}
+
+void bk_ble_dut_stop(void)
+{
+    uint8_t cmd_data[2];
+
+    cmd_data[0] = BT_VENDOR_SUB_OPCODE_BLE_DUT_STOP >> 8;
+    cmd_data[1] = BT_VENDOR_SUB_OPCODE_BLE_DUT_STOP & 0xff;
+    bt_ipc_hci_send_vendor_cmd(cmd_data, sizeof(cmd_data));
+}
 #endif
 
 void bk_bluetooth_init_deinit_compelete(void)

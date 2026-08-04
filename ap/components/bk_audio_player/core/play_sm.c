@@ -177,6 +177,12 @@ static int audio_pipeline_setup(bk_audio_player_handle_t player, char *url)
 
     BK_LOGI(AUDIO_PLAYER_TAG, "pipeline setup : url %s\n", url);
 
+    if (!player || !player->player_priv)
+    {
+        BK_LOGE(AUDIO_PLAYER_TAG, "%s, invalid player, %d\n", __func__, __LINE__);
+        return AUDIO_PLAYER_ERR;
+    }
+
     priv = (player_priv_t *)player->player_priv;
 
     if (!url)
@@ -273,7 +279,7 @@ static int audio_pipeline_setup(bk_audio_player_handle_t player, char *url)
     {
         priv->gain_step = 1;
     }
-    BK_LOGI(AUDIO_PLAYER_TAG, "gain_step is %d\n", priv->gain_step);
+    //BK_LOGI(AUDIO_PLAYER_TAG, "gain_step is %d\n", priv->gain_step);
 
     bk_audio_player_notify(player, AUDIO_PLAYER_EVENT_SONG_START, NULL);
     return AUDIO_PLAYER_OK;
@@ -312,6 +318,12 @@ static void audio_pipeline_teardown(bk_audio_player_handle_t player)
 
     BK_LOGI(AUDIO_PLAYER_TAG, "pipeline teardown\n");
 
+    if (!player || !player->player_priv)
+    {
+        BK_LOGE(AUDIO_PLAYER_TAG, "%s, invalid player, %d\n", __func__, __LINE__);
+        return;
+    }
+
     player->seek_position = -1;
     player->seek_in_progress = 0;
     player->last_seek_second = -1;
@@ -319,7 +331,10 @@ static void audio_pipeline_teardown(bk_audio_player_handle_t player)
     priv = (player_priv_t *)player->player_priv;
 
     /* mute audio dac before close audio to avoid "pop" voice */
-    audio_sink_control(priv->sink, AUDIO_SINK_MUTE);
+    if (priv->sink)
+    {
+        audio_sink_control(priv->sink, AUDIO_SINK_MUTE);
+    }
 
     bk_audio_player_decoder_t *codec = priv->codec;
     bk_audio_player_source_t *source = priv->source;
@@ -362,6 +377,12 @@ static int audio_pipeline_pause(bk_audio_player_handle_t player)
 
     BK_LOGI(AUDIO_PLAYER_TAG, "pipeline pause\n");
 
+    if (!player || !player->player_priv)
+    {
+        BK_LOGE(AUDIO_PLAYER_TAG, "%s, invalid player, %d\n", __func__, __LINE__);
+        return AUDIO_PLAYER_ERR;
+    }
+
     priv = (player_priv_t *)player->player_priv;
 
     audio_sink_control(priv->sink, AUDIO_SINK_PAUSE);
@@ -376,6 +397,12 @@ static int audio_pipeline_resume(bk_audio_player_handle_t player)
 
     BK_LOGI(AUDIO_PLAYER_TAG, "pipeline resume\n");
 
+    if (!player || !player->player_priv)
+    {
+        BK_LOGE(AUDIO_PLAYER_TAG, "%s, invalid player, %d\n", __func__, __LINE__);
+        return AUDIO_PLAYER_ERR;
+    }
+
     priv = (player_priv_t *)player->player_priv;
 
     audio_sink_control(priv->sink, AUDIO_SINK_RESUME);
@@ -389,6 +416,12 @@ static int audio_pipeline_frame_info_change(bk_audio_player_handle_t player)
     player_priv_t *priv;
 
     BK_LOGI(AUDIO_PLAYER_TAG, "frame_info change\n");
+
+    if (!player || !player->player_priv)
+    {
+        BK_LOGE(AUDIO_PLAYER_TAG, "%s, invalid player, %d\n", __func__, __LINE__);
+        return AUDIO_PLAYER_ERR;
+    }
 
     priv = (player_priv_t *)player->player_priv;
 
@@ -405,6 +438,12 @@ static int audio_pipeline_frame_info_change(bk_audio_player_handle_t player)
 int play_sm_init(bk_audio_player_handle_t player)
 {
     player_priv_t *priv;
+
+    if (player == NULL)
+    {
+        BK_LOGE(AUDIO_PLAYER_TAG, "%s, invalid player, %d\n", __func__, __LINE__);
+        return AUDIO_PLAYER_ERR;
+    }
 
     priv = player_malloc(sizeof(player_priv_t));
     if (!priv)
@@ -426,7 +465,7 @@ int play_sm_init(bk_audio_player_handle_t player)
 
 void play_sm_deinit(bk_audio_player_handle_t player)
 {
-    if (!player->player_priv)
+    if (!player || !player->player_priv)
     {
         return;
     }
@@ -442,6 +481,12 @@ void play_sm_deinit(bk_audio_player_handle_t player)
 int play_sm_play(bk_audio_player_handle_t player, music_info_t *info)
 {
     int ret = AUDIO_PLAYER_INVALID;
+
+    if (player == NULL || info == NULL || info->url == NULL)
+    {
+        BK_LOGE(AUDIO_PLAYER_TAG, "%s, invalid param, %d\n", __func__, __LINE__);
+        return AUDIO_PLAYER_ERR;
+    }
 
     switch (player->cur_state)
     {
@@ -500,6 +545,12 @@ int play_sm_stop(bk_audio_player_handle_t player)
 {
     int ret = AUDIO_PLAYER_INVALID;
 
+    if (player == NULL)
+    {
+        BK_LOGE(AUDIO_PLAYER_TAG, "%s, invalid player, %d\n", __func__, __LINE__);
+        return AUDIO_PLAYER_ERR;
+    }
+
     switch (player->cur_state)
     {
         case STATE_STOPED:
@@ -524,6 +575,12 @@ int play_sm_stop(bk_audio_player_handle_t player)
 int play_sm_pause(bk_audio_player_handle_t player)
 {
     int ret = AUDIO_PLAYER_INVALID;
+
+    if (player == NULL)
+    {
+        BK_LOGE(AUDIO_PLAYER_TAG, "%s, invalid player, %d\n", __func__, __LINE__);
+        return AUDIO_PLAYER_ERR;
+    }
 
     switch (player->cur_state)
     {
@@ -553,6 +610,12 @@ int play_sm_pause(bk_audio_player_handle_t player)
 int play_sm_resume(bk_audio_player_handle_t player)
 {
     int ret = AUDIO_PLAYER_INVALID;
+
+    if (player == NULL)
+    {
+        BK_LOGE(AUDIO_PLAYER_TAG, "%s, invalid player, %d\n", __func__, __LINE__);
+        return AUDIO_PLAYER_ERR;
+    }
 
     switch (player->cur_state)
     {
@@ -584,7 +647,19 @@ int play_sm_resume(bk_audio_player_handle_t player)
 int play_sm_set_volume(bk_audio_player_handle_t player, int volume)
 {
     player_priv_t *priv = NULL;
+
+    if (player == NULL || player->player_priv == NULL)
+    {
+        BK_LOGE(AUDIO_PLAYER_TAG, "%s, invalid player, %d\n", __func__, __LINE__);
+        return AUDIO_PLAYER_ERR;
+    }
+
     priv = (player_priv_t *)player->player_priv;
+    if (priv->sink == NULL)
+    {
+        BK_LOGE(AUDIO_PLAYER_TAG, "%s, invalid sink, %d\n", __func__, __LINE__);
+        return AUDIO_PLAYER_ERR;
+    }
 
     int temp_volume = priv->sink->info.volume;
 
@@ -605,12 +680,24 @@ int play_sm_get_time_pos(bk_audio_player_handle_t player)
 {
     player_priv_t *priv;
 
+    if (player == NULL || player->player_priv == NULL)
+    {
+        BK_LOGE(AUDIO_PLAYER_TAG, "%s, invalid player, %d\n", __func__, __LINE__);
+        return 0;
+    }
+
     if (player->cur_state != STATE_PLAYING && player->cur_state != STATE_PAUSED)
     {
         return 0;
     }
 
     priv = (player_priv_t *)player->player_priv;
+
+    if (priv->bytes_per_second == 0)
+    {
+        BK_LOGE(AUDIO_PLAYER_TAG, "%s, bytes_per_second is 0, %d\n", __func__, __LINE__);
+        return 0;
+    }
 
     return priv->consumed_bytes / priv->bytes_per_second;
 }
@@ -621,12 +708,24 @@ double play_sm_get_total_time(bk_audio_player_handle_t player)
     int file_size = 0;
     //int header_size = 0;
 
+    if (player == NULL || player->player_priv == NULL)
+    {
+        BK_LOGE(AUDIO_PLAYER_TAG, "%s, invalid player, %d\n", __func__, __LINE__);
+        return -1;
+    }
+
     if (player->cur_state != STATE_PLAYING && player->cur_state != STATE_PAUSED)
     {
         return -1;
     }
 
     priv = (player_priv_t *)player->player_priv;
+
+    if (priv->codec == NULL || priv->source == NULL)
+    {
+        BK_LOGE(AUDIO_PLAYER_TAG, "%s, invalid codec/source, %d\n", __func__, __LINE__);
+        return -1;
+    }
 
     /* check whether duration was been caculated */
     if (priv->codec->info.duration == 0)
@@ -651,6 +750,12 @@ double play_sm_get_total_time(bk_audio_player_handle_t player)
 int play_sm_seek(bk_audio_player_handle_t player, int miliseconds)
 {
     int ret = AUDIO_PLAYER_INVALID;
+
+    if (player == NULL)
+    {
+        BK_LOGE(AUDIO_PLAYER_TAG, "%s, invalid player, %d\n", __func__, __LINE__);
+        return AUDIO_PLAYER_ERR;
+    }
 
     switch (player->cur_state)
     {
@@ -722,6 +827,12 @@ int play_sm_chunk(bk_audio_player_handle_t player)
     int event = AUDIO_PLAYER_EVENT_LAST;
 
     //BK_LOGD(AUDIO_PLAYER_TAG, "play_sm_chunk\n");
+
+    if (player == NULL)
+    {
+        BK_LOGE(AUDIO_PLAYER_TAG, "%s, invalid player, %d\n", __func__, __LINE__);
+        return CHUNK_CONTINUE;
+    }
 
     if (player->output_to_file)
     {

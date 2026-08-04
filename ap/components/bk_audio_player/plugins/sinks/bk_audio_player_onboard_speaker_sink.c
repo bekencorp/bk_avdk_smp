@@ -66,9 +66,9 @@ static struct uart_util gl_ob_spk_dev_uart_util = {0};
 #endif
 
 
-static bk_err_t play_pipeline_open(uint32_t samp_rate, uint8_t bits, uint8_t chl_num, uint8_t gain)
+static bk_err_t play_pipeline_open(uint32_t samp_rate, uint8_t bits, uint8_t chl_num, int gain_db)
 {
-    BK_LOGI(AUDIO_PLAYER_TAG, "%s, sample_rate: %d, chl_num: %d, gain: %d \n", __func__, samp_rate, chl_num, gain);
+    BK_LOGI(AUDIO_PLAYER_TAG, "%s, sample_rate: %d, chl_num: %d, gain_db: %d \n", __func__, samp_rate, chl_num, gain_db);
     BK_LOGI(AUDIO_PLAYER_TAG, "step1: play pipeline init \n");
     audio_pipeline_cfg_t play_pipeline_cfg = DEFAULT_AUDIO_PIPELINE_CONFIG();
     play_pipeline_cfg.rb_size = 10 * 1024;
@@ -83,6 +83,7 @@ static bk_err_t play_pipeline_open(uint32_t samp_rate, uint8_t bits, uint8_t chl
     onboard_spk_cfg.sample_rate[onboard_spk_cfg.main_dac_source] = samp_rate;
     onboard_spk_cfg.frame_size[onboard_spk_cfg.main_dac_source]  = samp_rate * chl_num * 2 * 20 / 1000;
     onboard_spk_cfg.bits        = bits;
+    onboard_spk_cfg.dig_gain    = gain_db;   /* apply initial digital gain (dB) at init */
     onboard_spk_cfg.task_stack  = 1024;
     /* PA config */
     //onboard_spk_cfg.pa_ctrl_en = true;
@@ -317,7 +318,6 @@ static int device_sink_open(audio_sink_type_t sink_type, void *param, bk_audio_p
     int ret;
     bk_audio_player_handle_t player;
     audio_info_t *info;
-    int gain;
     device_sink_param_t *dev_param;
 
     if (sink_type != AUDIO_SINK_DEVICE)
@@ -353,9 +353,9 @@ static int device_sink_open(audio_sink_type_t sink_type, void *param, bk_audio_p
     sink->info.bitsPerSample = priv->sample_bits;
     sink->info.nChans = priv->channel_number;
 
-    gain = player->spk_gain * 63 / 100;
+    sink->info.volume = player->spk_gain;
 
-    ret = play_pipeline_open(info->sample_rate, info->sample_bits, info->channel_number, gain);
+    ret = play_pipeline_open(info->sample_rate, info->sample_bits, info->channel_number, player->spk_gain);
     if (ret != BK_OK)
     {
         BK_LOGE(AUDIO_PLAYER_TAG, "%s, play pipeline open fail, ret:%d, %d \n", __func__, ret, __LINE__);

@@ -24,8 +24,7 @@
  *
  ****************************************************************************/
 
-#ifndef __MPI_ISP_SCALE_H__
-#define __MPI_ISP_SCALE_H__
+#pragma once
 
 #ifdef __cplusplus
 #if __cplusplus
@@ -33,34 +32,10 @@ extern "C"{
 #endif
 #endif
 
-/**
- * @cond SCALE_V20
- *
- * @defgroup mpi_isp_scale SCALE V20 Definitions
- * @{
- *
- */
-
-/*****************************************************************************/
-/**
- * @brief   Sets the scaling attributes of an ISP channel.
- *
- * @param   IspChn              The ISP channel.
- * @param   pChnAttr            A pointer to the channel attributes.
-
- *
- * @retval  VSI_SUCCESS         The operation succeeds.
- *
- *****************************************************************************/
-int VSI_MPI_ISP_SetScaleAttr(ISP_CHN IspChn, ISP_CHN_ATTR_S *pChnAttr);
-
-/* @} mpi_isp_scale */
-/* @endcond */
+void OV2775_Linear1920x1080Init(vsi_u8_t i2cBus, vsios_i2c_attr_t *pI2cAttr);
 
 #ifdef __cplusplus
 #if __cplusplus
 }
 #endif
-#endif
-
 #endif

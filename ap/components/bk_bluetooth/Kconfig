@@ -14,6 +14,14 @@ menu "Bk_ble"
 		depends on BLUETOOTH_HOST_ONLY
 		default n
 
+	config BLUETOOTH_ENABLE_BT_DUT_TEST
+		bool "Enable manual Bluetooth DUT test"
+		depends on BT && CLI
+		default n
+		help
+			Register the bt_dut_test CLI command used to start and stop
+			Classic Bluetooth DUT mode without a USB HCI connection.
+
 	config BLE
 		bool "Enable Ble"
 		depends on (BLUETOOTH_HOST_ONLY || BLUETOOTH_SUPPORT_AP_PWD_ALL)

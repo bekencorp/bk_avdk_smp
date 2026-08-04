@@ -254,7 +254,9 @@ void cli_audio_player_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, ch
             }
             else
             {
-                ret = bk_audio_player_get_volume(s_player_handle);
+                int vol = bk_audio_player_get_volume(s_player_handle);
+                BK_LOGI(TAG, "current volume(dB): %d\n", vol);
+                ret = AUDIO_PLAYER_OK;
             }
         }
         else

@@ -41,60 +41,55 @@ extern "C"{
  *
  */
 
-/** \brief Defines the CSM types. */
+/** \brief   This enumeration specifies the CSM type. */
 typedef enum vsiISP_CSM_TYPE_E {
-    ISP_CSM_TYPE_601 = 0,   /**< \brief CSM based on ITU-R BT.601. */
-    ISP_CSM_TYPE_709,       /**< \brief CSM based on ITU-R BT.709. */
+    ISP_CSM_TYPE_601 = 0,   /**< \brief BT.601 standard. */
+    ISP_CSM_TYPE_709,       /**< \brief BT.709 standard. */
     ISP_CSM_TYPE_USER,      /**< \brief User-defined CSM. */
 } ISP_CSM_TYPE_E;
 
-/** \brief Defines the CSM quantization ranges. */
+/** \brief   This enumeration specifies the CSM quantization. */
 typedef enum vsiISP_CSM_QUANTIZATION_E {
     ISP_CSM_LIM_RANGE  = 0, /**< \brief Limited range. */
     ISP_CSM_FULL_RANGE = 1, /**< \brief Full range. */
 } ISP_CSM_QUANTIZATION_E;
 
-/** \brief Contains the CSM attributes. */
+/** \brief   This structure defines the CSM attributes. */
 typedef struct vsiISP_CSM_ATTR_S {
-    vsi_u32_t type;          /**< \brief The CSM type.
-                                  \n Valid values: See <tt> \ref ISP_CSM_TYPE_E</tt>. */
-    vsi_u32_t quantization;  /**< \brief The CSM quantization range.
-                                  \n Valid values: See <tt> \ref ISP_CSM_QUANTIZATION_E</tt>. */
-    vsi_s16_t coef[9];       /**< \brief The CSM coefficients.
-                                  \n Valid value range: [-256, 255].
-                                  \n Value range for the 7-bit fractional part: (-2, 1.996). */
+    vsi_u32_t type;          /**< \brief Standard type. For details, see <tt>ISP_CSM_TYPE_E</tt>. */
+    vsi_u32_t quantization;  /**< \brief Range type. For details, see <tt>ISP_CSM_QUANTIZATION_E</tt>. */
+    vsi_s16_t coef[9];       /**< \brief CSM coefficient. The range is [-256, 255].
+                                  \n The range for the 8-bit fractional part is (-1, 0.996). */
 } ISP_CSM_ATTR_S;
 
-/** \brief Contains the CSM metadata that needs to be written into registers. */
+/** \brief   CSM metadata structure that need to be written into registers. */
 typedef struct vsiISP_CSM_S {
-    vsi_u32_t quantization; /**< \brief The CSM quantization range.
-                                 \n Valid values: See <tt> \ref ISP_CSM_QUANTIZATION_E</tt>. */
-    vsi_s16_t coef[9];      /**< \brief The CSM coefficients.
-                                 \n Valid value range: [-256, 255].
-                                 \n Value range for the 8-bit fractional part: (-1, 0.996). */
+    vsi_u32_t quantization; /**< \brief Range type. For details, see <tt>ISP_CSM_QUANTIZATION_E</tt>. */
+    vsi_s16_t coef[9];      /**< \brief CSM coefficient. The range is [-256, 255].
+                                    \n The range for the 8-bit fractional part is (-1, 0.996). */
 } ISP_CSM_META_S;
 
 /*****************************************************************************/
 /**
- * @brief   Gets the CSM attributes of an ISP device port.
+ * @brief   Gets the CSM attributes.
  *
- * @param   IspPort             The ID of the port.
- * @param   pCsmAttr            A pointer to a memory place for receiving the CSM attributes.
+ * @param   IspPort             The port ID.
+ * @param   pCsmAttr            The pointer to the CSM attributes.
  *
- * @retval  VSI_SUCCESS         The operation succeeds.
+ * @retval  VSI_SUCCESS         The operation is successful.
  *
  *****************************************************************************/
 int VSI_MPI_ISP_GetCsmAttr(ISP_PORT IspPort, ISP_CSM_ATTR_S *pCsmAttr);
 
 /*****************************************************************************/
 /**
- * @brief   Sets the CSM attributes of an ISP device port.
+ * @brief   Sets CSM attributes.
  *
- * @param   IspPort             The ID of the port.
- * @param   pCsmAttr            A pointer to the CSM attributes.
+ * @param   IspPort             The port ID.
+ * @param   pCsmAttr            The pointer to the CSM attributes.
 
  *
- * @retval  VSI_SUCCESS         The operation succeeds.
+ * @retval  VSI_SUCCESS         The operation is successful.
  *
  *****************************************************************************/
 int VSI_MPI_ISP_SetCsmAttr(ISP_PORT IspPort, ISP_CSM_ATTR_S *pCsmAttr);

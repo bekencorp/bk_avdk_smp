@@ -17,6 +17,7 @@ void bk_coredump_memory_all(void)
     bk_dump_extra_mem();
     bk_dump_psram_mem();
     bk_dump_peri_regs();
+    bk_dump_peri_probes();
 }
 
 void bk_coredump_memory_cpu_essential(void)

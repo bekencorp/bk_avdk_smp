@@ -108,6 +108,12 @@ if (CONFIG_BLUETOOTH_AP)
 				api/bk_hfp_api.c
 				api/bk_pan_api.c
 			)
+
+			if (CONFIG_BLUETOOTH_ENABLE_BT_DUT_TEST)
+				list(APPEND srcs
+					core/dut/dut_test.c
+				)
+			endif()
 		endif()
 
 		if (CONFIG_BLE)

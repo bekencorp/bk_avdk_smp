@@ -39,6 +39,8 @@ enum {
      * expected to drop/ignore this opcode -- AP recovery happens implicitly
      * by going through its normal boot/init sequence. */
     BT_VENDOR_SUB_OPCODE_AP_WAKEUP_TRIGGER = 0x0020,
+    BT_VENDOR_SUB_OPCODE_BLE_DUT_START = 0x0021,
+    BT_VENDOR_SUB_OPCODE_BLE_DUT_STOP = 0x0022,
     BT_VENDOR_SUB_OPCODE_COUNT,
 };
 

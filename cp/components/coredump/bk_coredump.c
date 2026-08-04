@@ -10,6 +10,7 @@
 #include "reg_base.h"
 #include "bk_rtos_debug.h"
 #include <driver/aon_rtc.h>
+#include <modules/pm.h>
 #if CONFIG_SOC_SMP
 #include "multicore_driver.h"
 #endif
@@ -22,6 +23,9 @@
 
 #define BK_EXCEPTION_MAGIC 0xA55AA55A
 #define BK_ASSERT_MAGIC 0x55AA55AA
+#define RISCV_USB_CTRL_REG_ADDR (0x480A0714U + SOC_ADDR_OFFSET)
+#define RISCV_USB_POWER_EN      (1U << 14)
+#define RISCV_USB_CORE_EN       (1U << 15)
 static volatile bk_assert_info_t s_bk_assert_info;
 static volatile uint32_t s_bk_exception_magic = 0;
 static volatile uint32_t s_core_id = 0;
@@ -30,9 +34,9 @@ volatile uint32_t g_ap_dump_flag = 0;
 static hook_func s_wifi_dump_func = NULL;
 static hook_func s_ble_dump_func = NULL;
 
-static inline void coredump_feed_watchdogs(void)
+void bk_coredump_feed_watchdogs(void)
 {
-    #if CONFIG_WDT_EN
+#if CONFIG_WDT_EN
     bk_wdt_force_feed();
 #endif
 }
@@ -52,6 +56,29 @@ bool bk_check_assert(void)
     return false;
 }
 
+static inline void coredump_stop_riscv(void)
+{
+    /* The RISC-V core and its USB-HS control register live in the AP power
+     * domain. Reading/writing that register while the AP domain is powered
+     * down stalls the CP bus and would truncate the dump - the same hazard the
+     * AP-memory probes guard against. If the AP never booted, the RISC-V core
+     * is already off, so there is nothing to stop. */
+    if (!bk_pm_ap_boot_success_get()) {
+        return;
+    }
+
+    volatile uint32_t *riscv_ctrl = (volatile uint32_t *)RISCV_USB_CTRL_REG_ADDR;
+    uint32_t value = *riscv_ctrl;
+
+    value &= ~RISCV_USB_CORE_EN;
+    *riscv_ctrl = value;
+    __DSB();
+
+    value &= ~RISCV_USB_POWER_EN;
+    *riscv_ctrl = value;
+    __DSB();
+}
+
 static inline void coredump_stop_other_cores(void)
 {
     // smp needs stop other cores
@@ -67,7 +94,7 @@ static inline void coredump_stop_other_cores(void)
     }
 #endif
 
-    /* Stop AP CPU */
+    coredump_stop_riscv();
     multicore_hal_stop(CPU2_CORE_ID);
     multicore_hal_stop(CPU3_CORE_ID);
 }
@@ -98,7 +125,7 @@ static void bk_exception_preprocess(bk_exception_t *self)
 #if CONFIG_SUPPORT_WWDT
     bk_wwdt_driver_deinit();
 #endif
-    coredump_feed_watchdogs();
+    bk_coredump_feed_watchdogs();
     bk_misc_set_reset_reason(self->reset_reason);
     
     bk_set_printf_sync(true);  // set printf sync
@@ -171,20 +198,20 @@ static void coredump_execute_hook_function(void)
 {
     
     if (is_valid_function_addr(s_wifi_dump_func)) {
-        coredump_feed_watchdogs();
+        bk_coredump_feed_watchdogs();
         s_wifi_dump_func();
-        coredump_feed_watchdogs();
+        bk_coredump_feed_watchdogs();
     }
     if (is_valid_function_addr(s_ble_dump_func)) {
-        coredump_feed_watchdogs();
+        bk_coredump_feed_watchdogs();
         s_ble_dump_func();
-        coredump_feed_watchdogs();
+        bk_coredump_feed_watchdogs();
     }
 }
 
 static void bk_exception_dump_main(bk_exception_t *self)
 {
-    coredump_feed_watchdogs();
+    bk_coredump_feed_watchdogs();
     bk_coredump_writer_init();
 
     bk_coredump_meta_info();
@@ -194,7 +221,7 @@ static void bk_exception_dump_main(bk_exception_t *self)
 
     coredump_prompt_prologue();
 
-    coredump_feed_watchdogs();
+    bk_coredump_feed_watchdogs();
     bk_coredump_memory_essential();
 
 #if CONFIG_MEMDUMP_ALL
@@ -202,19 +229,29 @@ static void bk_exception_dump_main(bk_exception_t *self)
 #endif
 
     bk_coredump_memory_extended();
+    /* Peripheral register banks only (safe). The hang-prone AP/PSRAM probes
+     * are deferred to bk_dump_peri_probes() below, so they run only after the
+     * task-list/backtrace/epilogue are safely emitted. */
     bk_coredump_memory_peripherals();
 
-    coredump_feed_watchdogs();
+    bk_coredump_feed_watchdogs();
     coredump_prompt_info();
 
 #if CONFIG_CM_BACKTRACE
     if (self->reset_reason != RESET_SOURCE_CRASH_ASSERT) {
-        coredump_feed_watchdogs();
+        bk_coredump_feed_watchdogs();
         cm_backtrace_fault(self->lr, self->sp);
     }
 #endif
 
     coredump_prompt_epilogue();
+
+    /* Hang-prone AP/PSRAM diagnostic probes run LAST - after the epilogue but
+     * still inside the UART lock (writer_deinit releases it). The wedge sweep
+     * can stall on a wedged AP bus and trip the (never-stopped) AON WDT reset;
+     * by running it here, the essential dump and epilogue are already out. */
+    bk_coredump_feed_watchdogs();
+    bk_dump_peri_probes();
 
     bk_coredump_writer_deinit();
 }
@@ -226,13 +263,13 @@ void bk_coredump_dump_ap_memory_for_trap(void)
 #if CONFIG_SUPPORT_WWDT
     bk_wwdt_driver_deinit();
 #endif
-    coredump_feed_watchdogs();
+    bk_coredump_feed_watchdogs();
     bk_coredump_writer_init();
     bk_coredump_dump_time(dump_time_us);
     bk_coredump_write_prompt("***********************************************************************************************\r\n");
     bk_coredump_write_prompt("*************************************AP memory dump begin**************************************\r\n");
     bk_coredump_write_prompt("***********************************************************************************************\r\n");
-    coredump_feed_watchdogs();
+    bk_coredump_feed_watchdogs();
     bk_coredump_ap_memory();
     bk_coredump_write_prompt("***********************************************************************************************\r\n");
     bk_coredump_write_prompt("**************************************AP memory dump end***************************************\r\n");

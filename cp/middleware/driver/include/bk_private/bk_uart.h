@@ -35,9 +35,24 @@ void uart5_isr(void);
 void print_hex_dump(const char *prefix, const void *b, int len);
 uint32_t uart_get_length_in_buffer(uart_id_t id);
 uint32_t uart_id_to_pm_uart_id(uint32_t id);
+
+typedef struct {
+	uint64_t timestamp_ms;
+	uint32_t global_ctrl;
+	uint32_t config;
+	uint32_t fifo_config;
+	uint32_t fifo_status;
+	uint32_t int_enable;
+	uint32_t int_status;
+	uint32_t flow_ctrl_config;
+	uint32_t wake_config;
+} bk_uart_unsafe_snapshot_t;
+
 bk_err_t uart_write_ready(uart_id_t id);
 bk_err_t uart_write_byte(uart_id_t id, uint8_t data);
 bk_err_t bk_uart_write_byte_unsafe(uart_id_t id, uint8_t data);
+void bk_uart_snapshot_unsafe(uart_id_t id, bk_uart_unsafe_snapshot_t *snapshot);
+void bk_uart_recover_unsafe(uart_id_t id, const bk_uart_unsafe_snapshot_t *snapshot);
 void uart_write_byte_for_ate(uart_id_t id, uint8_t *data, uint8_t cnt);
 bk_err_t uart_write_string(uart_id_t id, const char *string);
 uint32_t uart_wait_tx_over();

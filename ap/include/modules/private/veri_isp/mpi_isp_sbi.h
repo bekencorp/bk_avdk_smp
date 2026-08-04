@@ -24,14 +24,16 @@
  *
  ****************************************************************************/
 
-#ifndef __MPI_ISPNANO_SBI_H__
-#define __MPI_ISPNANO_SBI_H__
+#ifndef __MPI_ISP_SBI_H__
+#define __MPI_ISP_SBI_H__
 
 #ifdef __cplusplus
 #if __cplusplus
 extern "C"{
 #endif
 #endif
+
+#include <driver/isp_base.h>
 
 /**
  * @cond SBI_V10
@@ -43,20 +45,13 @@ extern "C"{
 
 #define VSI_ISP_SBI_STREAM_MAX  3        /**< \brief The maximum SBI stream configuration array size pre-allocated. */
 
-
 /** \brief   This enumeration specifies the FLEXA SBI exception. */
 typedef enum VsiISP_SBI_EXCEPTION_ID_E {
-    ISP_SBI_EXCEPTION_TIME_OUT    = 0,    /**< \brief Stream Time out. */
-    ISP_SBI_EXCEPTION_OUT_OF_SYNC = 1,    /**< \brief Stream Out of synchronization. */
-    ISP_SBI_NO_EXCEPTION          = 2,    /**< \brief Stream running normally. */
-    ISP_SBI_DISABLED              = 3     /**< \brief Stream disabled. */
+    ISP_SBI_NO_EXCEPTION          = 0,    /**< \brief Stream running normally. */
+    ISP_SBI_DISABLED              = 1,    /**< \brief Stream disabled. */
+    ISP_SBI_EXCEPTION_TIME_OUT    = 2,    /**< \brief Stream Time out. */
+    ISP_SBI_EXCEPTION_OUT_OF_SYNC = 3     /**< \brief Stream Out of synchronization. */
 } ISP_SBI_EXCEPTION_ID_E;
-
-/** \brief   Defines the SBI call back attributes. */
-typedef void (* vsiISP_SBI_Cb_t)
-(
-    const void  *pUserCbCtx          /**< \brief User data pointer. */
-);
 
 /** \brief SBI stream configuration structure. */
 typedef struct vsiISP_SBI_STREAM_CFG_S {
@@ -83,7 +78,7 @@ typedef struct vsiISP_SBI_ATTR_S {
 /**
  * @brief   Gets SBI attributes.
  *
- * \param   IspChn              ISP information, including device ID, port ID, and channel ID.
+ * \param   IspChn              ISP information, include device ID, port ID, channel ID.
  * \param   pSbiAttr            Pointer to the SBI attributes
  *
  * \retval  VSI_SUCCESS         Operation succeeded
@@ -95,7 +90,7 @@ int VSI_MPI_ISP_GetSbiProducer(ISP_CHN IspChn, ISP_SBI_ATTR_S *pSbiAttr);
 /**
  * @brief   Sets SBI attributes.
  *
- * \param   IspChn              ISP information, including device ID, port ID, and channel ID.
+ * \param   IspChn              ISP information, include device ID, port ID, channel ID.
  * \param   pSbiAttr            Pointer to the SBI attributes
  *
  * \retval  VSI_SUCCESS         Operation succeeded
@@ -103,32 +98,6 @@ int VSI_MPI_ISP_GetSbiProducer(ISP_CHN IspChn, ISP_SBI_ATTR_S *pSbiAttr);
  *
  *****************************************************************************/
 int VSI_MPI_ISP_SetSbiProducer(ISP_CHN IspChn, ISP_SBI_ATTR_S *pSbiAttr);
-
-/*****************************************************************************/
-/**
- * @brief   Register SBI call back function.
- *
- * \param   IspChn              ISP information, including device ID, port ID, and channel ID.
- * \param   eventCb             Event call back function.
- * \param   pUserCbCtx          Pointer to the user data.
- *
- * \retval  VSI_SUCCESS         Operation succeeded
- * \retval  VSI_FAILURE         Operation failure
- *
- *****************************************************************************/
-int VSI_MPI_ISP_SbiRegCallBackProducer(ISP_CHN IspChn, vsiISP_SBI_Cb_t eventCb, void *pUserCbCtx);
-
-/*****************************************************************************/
-/**
- * @brief   UnRegister SBI call back function.
- *
- * \param   IspChn              ISP information, including device ID, port ID, and channel ID.
- *
- * \retval  VSI_SUCCESS         Operation succeeded
- * \retval  VSI_FAILURE         Operation failure
- *
- *****************************************************************************/
-int VSI_MPI_ISP_SbiUnRegCallBackProducer(ISP_CHN IspChn);
 
 /* @} mpi_isp_sbi */
 /* @endcond */

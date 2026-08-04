@@ -59,6 +59,7 @@ typedef enum
     ID_SC101,        /**< SC101 sensor */
     ID_GC2053,       /**< GC2053 sensor */
     ID_GC4653,       /**< GC4653 sensor */
+    ID_OV2775,       /**< OV2775 sensor */
     ID_GC2053D,      /**< GC2053D sensor */
 } sensor_id_t;
 

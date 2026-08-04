@@ -489,9 +489,11 @@ void bk_dump_peri_regs(void)
     uint32_t peri_reg_info_count = bk_get_peri_reg_info_count();
     const bk_dump_mem_info_t *peri_reg_info_list = bk_get_peri_reg_info_list();
 
-    /* Register banks first (RAM banks are dumped by bk_dump_all_sram). These
-     * reads go through the CP-local AHBP path and stay safe even when an AP
-     * bank is wedged, so they are not power-gated. */
+    /* Register banks only. These reads go through the CP-local AHBP path and
+     * stay safe even when an AP bank is wedged, so they are not power-gated.
+     * The hang-prone live-write/sub-bank probes are split into
+     * bk_dump_peri_probes() so the exception path can run them AFTER the
+     * task-list/backtrace/epilogue. */
     for (uint32_t i = 0; i < peri_reg_info_count; i++) {
         bk_coredump_write_memory(
             peri_reg_info_list[i].name,
@@ -499,11 +501,15 @@ void bk_dump_peri_regs(void)
             peri_reg_info_list[i].start_addr + peri_reg_info_list[i].size
         );
     }
+}
 
-    /* Diagnostic probes last (live write probes + hang-prone sub-bank sweep).
-     * They write/read PSRAM and AP SRAM/DTCM, which stall the bus when the AP
-     * power domain is down - skip them entirely in that case so the NMI
-     * watchdog cannot truncate the dump. */
+/* Diagnostic probes (live write probes + hang-prone sub-bank sweep). They
+ * write/read PSRAM and AP SRAM/DTCM, which stall the bus when the AP power
+ * domain is down - skip them entirely in that case. Because AON WDT is never
+ * stopped, the wedge sweep can trip the watchdog reset; run this LAST (after
+ * the epilogue) so a stall here cannot cost us the essential dump. */
+void bk_dump_peri_probes(void)
+{
     if (bk_pm_ap_boot_success_get()) {
         bk_dump_psram0_base_write_probe();
         bk_dump_ap_sram_dtcm_write_probes();

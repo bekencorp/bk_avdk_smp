@@ -24,6 +24,8 @@ typedef struct
 static bk_err_t bt_ipc_vendor_cmd_init_cb(uint16_t sub_opcode, const uint8_t *data, uint16_t len);
 static bk_err_t bt_ipc_vendor_cmd_deinit_cb(uint16_t sub_opcode, const uint8_t *data, uint16_t len);
 static bk_err_t bt_ipc_vendor_cmd_setpwr_cb(uint16_t sub_opcode, const uint8_t *data, uint16_t len);
+static bk_err_t bt_ipc_vendor_cmd_ble_dut_start_cb(uint16_t sub_opcode, const uint8_t *data, uint16_t len);
+static bk_err_t bt_ipc_vendor_cmd_ble_dut_stop_cb(uint16_t sub_opcode, const uint8_t *data, uint16_t len);
 #if CONFIG_BLUETOOTH_SUPPORT_AP_PWD_ALL
 static bk_err_t bt_ipc_vendor_cmd_ble_cb(uint16_t sub_opcode, const uint8_t *data, uint16_t len);
 #endif
@@ -33,6 +35,8 @@ static bt_ipc_vendor_cmd_handler_t s_bt_ipc_vendor_cmd_handlers[BT_IPC_VENDOR_CM
     {BT_VENDOR_SUB_OPCODE_INIT, bt_ipc_vendor_cmd_init_cb},
     {BT_VENDOR_SUB_OPCODE_DEINIT, bt_ipc_vendor_cmd_deinit_cb},
     {BT_VENDOR_SUB_OPCODE_SETPWR, bt_ipc_vendor_cmd_setpwr_cb},
+    {BT_VENDOR_SUB_OPCODE_BLE_DUT_START, bt_ipc_vendor_cmd_ble_dut_start_cb},
+    {BT_VENDOR_SUB_OPCODE_BLE_DUT_STOP, bt_ipc_vendor_cmd_ble_dut_stop_cb},
 #if CONFIG_BLUETOOTH_SUPPORT_AP_PWD_ALL
     {BT_VENDOR_SUB_OPCODE_BLE_CREATE_DB, bt_ipc_vendor_cmd_ble_cb},
     {BT_VENDOR_SUB_OPCODE_BLE_CREATE_ADV, bt_ipc_vendor_cmd_ble_cb},
@@ -127,6 +131,36 @@ static bk_err_t bt_ipc_vendor_cmd_setpwr_cb(uint16_t sub_opcode, const uint8_t *
     LOGD("pwr_gain :%f\n", pwr_gain);
 
     return bk_ble_tx_power_set(pwr_gain);
+}
+
+static bk_err_t bt_ipc_vendor_cmd_ble_dut_start_cb(uint16_t sub_opcode, const uint8_t *data, uint16_t len)
+{
+    (void)sub_opcode;
+
+    if ((data == NULL) || (len < sizeof(uint8_t)))
+    {
+        LOGW("%s, invalid len:%d\r\n", __func__, len);
+        return BK_ERR_PARAM;
+    }
+
+    LOGD("ble dut start, uart_id:%d\n", data[0]);
+
+    extern void ble_dut_start(uint8_t uart_id);
+    ble_dut_start(data[0]);
+    return BK_OK;
+}
+
+static bk_err_t bt_ipc_vendor_cmd_ble_dut_stop_cb(uint16_t sub_opcode, const uint8_t *data, uint16_t len)
+{
+    (void)sub_opcode;
+    (void)data;
+    (void)len;
+
+    LOGD("ble dut stop\n");
+
+    extern void ble_dut_stop(void);
+    ble_dut_stop();
+    return BK_OK;
 }
 
 #if CONFIG_BLUETOOTH_SUPPORT_AP_PWD_ALL

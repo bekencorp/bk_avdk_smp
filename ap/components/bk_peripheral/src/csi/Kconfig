@@ -25,6 +25,11 @@ menu "CSI Camera"
         bool "Enable CSI_GC4653"
         default n
 
+    config CSI_OV2775
+        depends on CSI_CAMERA
+        bool "Enable CSI_OV2775"
+        default n
+
     config CSI_SC4336
         depends on CSI_CAMERA
         bool "Enable CSI_SC4336"

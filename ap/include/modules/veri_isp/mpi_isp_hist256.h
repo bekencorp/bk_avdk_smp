@@ -41,87 +41,81 @@ extern "C"{
  *
  */
 
-#define VSI_ISP_HIST_STATIC_BLOCK_NUM 256   /**< \brief The number of bins in the histogram. */
-#define HIST256_H_GRID_ITEMS 5              /**< \brief The number of horizontal grid subwindows. */
-#define HIST256_V_GRID_ITEMS 5              /**< \brief The number of vertical grid subwindows. */
+#define VSI_ISP_HIST_STATIC_BLOCK_NUM 256   /**< \brief The number of bins */
+#define HIST256_H_GRID_ITEMS 5               /**< \brief The number of horizontal grid sub windows */
+#define HIST256_V_GRID_ITEMS 5               /**< \brief The number of vertical grid sub windows */
 
-#define VSI_ISP_HIST256_WEIGHT_MAX 16   /**< \brief The maximum value of <tt>weight</tt> for HIST256. */
+#define VSI_ISP_HIST256_STEP_MIN 3      /**< \brief The minimum value of HIST256 step. */
+#define VSI_ISP_HIST256_STEP_MAX 127    /**< \brief The maximum value of HIST256 step. */
+#define VSI_ISP_HIST256_WEIGHT_MAX 16   /**< \brief The maximum value of HIST256 weight. */
 
-/** \brief Contains the HIST256 statistics. */
+/** \brief   HIST256 attributes. */
 typedef struct vsiISP_HIST256_STATISTICS_S {
-    vsi_u32_t histogram[VSI_ISP_HIST_STATIC_BLOCK_NUM]; /**< \brief The statistics of each bin. */
+    vsi_u32_t histogram[VSI_ISP_HIST_STATIC_BLOCK_NUM]; /**< \brief Histogram statistics */
 } ISP_HIST256_STATISTICS_S;
 
-/** \brief Defines the histogram modes. */
+/** \brief   HIST256 mode. */
 typedef enum vsiISP_HIST256_MODE_E {
-    HIST256_R_MODE = 2,    /**< \brief Red histogram mode. */
-    HIST256_G_MODE = 3,    /**< \brief Green histogram mode. */
-    HIST256_B_MODE = 4,    /**< \brief Blue histogram mode. */
-    HIST256_Y_MODE = 5,    /**< \brief Y histogram mode. */
+    HIST256_MODE_MIN = 1,  /**< \brief The minimum value of Histogram mode */
+    HIST256_R_MODE = 2,    /**< \brief Histogram red mode */
+    HIST256_G_MODE = 3,    /**< \brief Histogram green mode */
+    HIST256_B_MODE = 4,    /**< \brief Histogram blue mode */
+    HIST256_Y_MODE = 5,    /**< \brief Histogram y mode */
+    HIST256_MODE_MAX,      /**< \brief The maximum value of Histogram mode */
 } ISP_HIST256_MODE_E;
 
-/** \brief Contains the HIST256 attributes. */
+/** \brief   HIST256 attributes. */
 typedef struct vsiISP_HIST256_ATTR_S {
-    vsi_bool_t enable;        /**< \brief Whether to enable HIST256.
-                                   \n Valid values:
-                                   \n - 0: Disable.
-                                   \n - 1: Enable. */
-    RECT_S     measRect;      /**< \brief The HIST256 window. */
-    vsi_u32_t  mode;          /**< \brief The histogram mode.
-                                   \n Valid values: See <tt> \ref ISP_HIST256_MODE_E</tt>. */
-    vsi_u8_t   weight[HIST256_H_GRID_ITEMS][HIST256_V_GRID_ITEMS];    /**< \brief The histogram weights.
-                                                                           \n Valid value range: [0, 16]. */
+    vsi_bool_t enable;        /**< \brief Whether to enable histogram. \n 0: Disable histogram. \n 1: Enable histogram. */
+    RECT_S     measRect;      /**< \brief Rectangle of HIST256 measurement */
+    vsi_u32_t  mode;          /**< \brief Histogram mode, reference ISP_HIST256_MODE_E */
+    vsi_u8_t   step;          /**< \brief Histogram step set. Range [3, 127] */
+    vsi_u8_t   weight[HIST256_H_GRID_ITEMS][HIST256_V_GRID_ITEMS];    /**< \brief Histogram weight. Range [0, 16] */
 } ISP_HIST256_ATTR_S;
 
 
-/** \brief Contains the HIST256 metadata that needs to be written into registers. */
+/** \brief   HIST256 metadata structure that need to be written into registers. */
 typedef struct vsiISP_HIST256_S {
-    vsi_bool_t enable;        /**< \brief Whether to enable HIST256.
-                                   \n Valid values:
-                                   \n - 0: Disable.
-                                   \n - 1: Enable. */
-    RECT_S subWinRect;        /**< \brief The HIST256 window. */
-    vsi_u32_t mode;           /**< \brief The histogram mode.
-                                   \n Valid values: See <tt> \ref ISP_HIST256_MODE_E</tt>. */
-    vsi_u8_t step;            /**< \brief The histogram step.
-                                   \n Valid value range: [3, 127]. */
-    vsi_u8_t weight[HIST256_H_GRID_ITEMS][HIST256_V_GRID_ITEMS];    /**< \brief The histogram weights.
-                                                                           \n Valid value range: [0, 16]. */
+    vsi_bool_t enable;        /**< \brief Whether to enable histogram. \n 0: Disable histogram. \n 1: Enable histogram. */
+    RECT_S subWinRect;        /**< \brief Sub-window rectangle of HIST256 measurement */
+    ISP_HIST256_MODE_E mode;  /**< \brief Histogram mode */
+    vsi_u8_t step;            /**< \brief Histogram step set. Range [3, 127] */
+    vsi_u8_t weight[HIST256_H_GRID_ITEMS][HIST256_V_GRID_ITEMS];    /**< \brief Histogram weight. Range [0, 16] */
 } ISP_HIST256_META_S;
 
 /*****************************************************************************/
 /**
- * @brief   Gets the HIST256 attributes of an ISP device port.
+ * @brief   Gets HIST256 configurations.
  *
- * @param   IspPort             The ID of the port.
- * @param   pHist256Attr        A pointer to a memory place for receiving the HIST256 attributes.
+ * @param   IspPort             Port ID
+ * @param   pHist256Attr      Pointer to the HIST256 configurations
  *
- * @retval  VSI_SUCCESS         The operation succeeds.
+ * @retval  VSI_SUCCESS         Operation succeeded
  *
  *****************************************************************************/
 int VSI_MPI_ISP_GetHist256Attr(ISP_PORT IspPort, ISP_HIST256_ATTR_S *pHist256Attr);
 
 /*****************************************************************************/
 /**
- * @brief   Sets the HIST256 attributes of an ISP device port.
+ * @brief   Sets HIST256 configurations.
  *
- * @param   IspPort             The ID of the port.
- * @param   pHist256Attr        A pointer to the HIST256 attributes.
+ * @param   IspPort             Port ID
+ * @param   pHist256Attr      Pointer to the HIST256 configurations
 
  *
- * @retval  VSI_SUCCESS         The operation succeeds.
+ * @retval  VSI_SUCCESS         Operation succeeded
  *
  *****************************************************************************/
 int VSI_MPI_ISP_SetHist256Attr(ISP_PORT IspPort, ISP_HIST256_ATTR_S *pHist256Attr);
 
 /*****************************************************************************/
 /**
- * @brief   Gets the HIST256 statistics of an ISP device port.
+ * @brief   Gets HIST256 statistics.
  *
- * @param   IspPort             The ID of the port.
- * @param   pHistStat           A pointer to a memory place for receiving the HIST256 statistics.
+ * @param   IspPort             Port ID
+ * @param   pHistStat         Pointer to the HIST256 statistics
  *
- * @retval  VSI_SUCCESS         The operation succeeds.
+ * @retval  VSI_SUCCESS         Operation succeeded
  *
  *****************************************************************************/
 int VSI_MPI_ISP_GetHist256Statistics(ISP_PORT IspPort, ISP_HIST256_STATISTICS_S *pHistStat);
