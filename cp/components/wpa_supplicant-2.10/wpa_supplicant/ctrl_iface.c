@@ -2195,13 +2195,17 @@ int wpa_supplicant_handle_events(wpah_msg_t *msg)
 				wpa_supplicant_event_sta(wpa_s, EVENT_ASSOC, &data);
 
 #if CONFIG_WIFI_REGDOMAIN
-				// handle dot11d
+				/* handle dot11d; current_bss may be NULL during rapid STA switch */
 				const uint8_t *country_ie = get_ie(data.assoc_info.resp_ies,
 						data.assoc_info.resp_ies_len, WLAN_EID_COUNTRY);
-				if (!country_ie)
+				if (!country_ie && wpa_s->current_bss)
 					country_ie = wpa_bss_get_ie(wpa_s->current_bss, WLAN_EID_COUNTRY);
-				if (country_ie)
-					rwnx_regulatory_hint_11d(wpa_s->current_bss->freq, country_ie + 2, *(country_ie + 1));
+				if (country_ie) {
+					int freq = wpa_s->current_bss ?
+						wpa_s->current_bss->freq : ind->chan.prim20_freq;
+
+					rwnx_regulatory_hint_11d(freq, country_ie + 2, *(country_ie + 1));
+				}
 #endif
 
 			} else {
