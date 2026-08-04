@@ -376,8 +376,13 @@ void wpas_notify_connected(struct wpa_supplicant *wpa_s)
 			cif_handle_bk_cmd_wifi_event_ind(CIF_WIFI_EVT_GC_CONNECTED,
 							 &sta_connected,
 							 sizeof(sta_connected));
-		}
+		} else
 #endif
+		{
+			cif_handle_bk_cmd_wifi_event_ind(CIF_WIFI_EVT_STA_CONNECTED,
+							 &sta_connected,
+							 sizeof(sta_connected));
+		}
 #endif
 #if BK_SUPPLICANT
 		wlan_sta_bss_flush(0);
