@@ -971,7 +971,7 @@ bk_err_t bk_asr_init(asr_cfg_t *cfg, asr_handle_t asr_handle)
 				BK_LOGE(TAG, "%s, %d, link asr_raw_read to asr_in_rb fail\n", __func__, __LINE__);
 				goto fail;
 			}
-		//	audio_element_set_input_timeout(asr_handle->asr_raw_read, 10);
+			audio_element_set_input_timeout(asr_handle->asr_raw_read, 40);
 			audio_element_run(asr_handle->asr_raw_read);
 		} else
 		{
@@ -1023,6 +1023,10 @@ fail:
         audio_element_deinit(asr_handle->asr_raw_read);
         asr_handle->asr_raw_read = NULL;
     }
+    if (asr_handle->asr_in_rb && asr_handle->mic_str)
+    {
+        audio_element_set_multi_output_port(asr_handle->mic_str, NULL, 0);
+    }
     if (asr_handle->asr_in_rb)
     {
         audio_port_deinit(asr_handle->asr_in_rb);
@@ -1067,6 +1071,10 @@ bk_err_t bk_asr_deinit(asr_handle_t asr_handle)
     {
         audio_element_deinit(asr_handle->asr_raw_read);
         asr_handle->asr_raw_read = NULL;
+    }
+    if (asr_handle->asr_in_rb && asr_handle->mic_str)
+    {
+        audio_element_set_multi_output_port(asr_handle->mic_str, NULL, 0);
     }
     if (asr_handle->asr_in_rb)
     {

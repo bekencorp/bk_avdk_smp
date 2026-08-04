@@ -30,7 +30,7 @@
 typedef STAILQ_HEAD(framebuf_node_list, framebuf_node_item) framebuf_node_list_t;
 
 struct framebuf {
-    uint8_t                     fb_total_node_num;           /**< frame buffer total node num includes free list and ready list */
+    uint32_t                    fb_total_node_num;           /**< frame buffer total node num includes free list and ready list */
     uint32_t                    fb_node_size;                /**< frame buffer node size, unit byte */
     framebuf_node_list_t        free_fb_node_list;           /**< free frame buffer node list */
     framebuf_node_list_t        ready_fb_node_list;          /**< ready frame buffer node list */
@@ -70,19 +70,34 @@ framebuf_handle_t fb_create(int node_size, int n_nodes, int info_size)
     STAILQ_INIT(&fb->free_fb_node_list);
     STAILQ_INIT(&fb->ready_fb_node_list);
 
-    for (uint32_t i = 0; i < n_nodes; i++) {
+    for (uint32_t i = 0; i < (uint32_t)n_nodes; i++) {
 
         framebuf_node_item_t *fb_node_item_ptr = (framebuf_node_item_t *)audio_calloc(1, sizeof(framebuf_node_item_t));
         AUDIO_MEM_CHECK(TAG, fb_node_item_ptr, goto _fb_init_failed);
 
         framebuf_node_t fb_node = (framebuf_node_t)audio_calloc(1, sizeof(struct framebuf_node));
-        AUDIO_MEM_CHECK(TAG, fb_node, goto _fb_init_failed);
+        if (fb_node == NULL) {
+            audio_free(fb_node_item_ptr);
+            BK_LOGE(TAG, "%s, %d, alloc fb_node failed \n", __func__, __LINE__);
+            goto _fb_init_failed;
+        }
         fb_node->size = fb->fb_node_size;
         fb_node->info_size = info_size;
         fb_node->buffer = (uint8_t *)audio_calloc(1, fb_node->size);
-        AUDIO_MEM_CHECK(TAG, fb_node->buffer, goto _fb_init_failed);
+        if (fb_node->buffer == NULL) {
+            audio_free(fb_node);
+            audio_free(fb_node_item_ptr);
+            BK_LOGE(TAG, "%s, %d, alloc fb_node buffer failed \n", __func__, __LINE__);
+            goto _fb_init_failed;
+        }
         fb_node->info = (void *)audio_calloc(1, info_size);
-        AUDIO_MEM_CHECK(TAG, fb_node->info, goto _fb_init_failed);
+        if (fb_node->info == NULL) {
+            audio_free(fb_node->buffer);
+            audio_free(fb_node);
+            audio_free(fb_node_item_ptr);
+            BK_LOGE(TAG, "%s, %d, alloc fb_node info failed \n", __func__, __LINE__);
+            goto _fb_init_failed;
+        }
 
         fb_node_item_ptr->fb_node = fb_node;
         STAILQ_INSERT_TAIL(&fb->free_fb_node_list, fb_node_item_ptr, next);
@@ -94,6 +109,7 @@ framebuf_handle_t fb_create(int node_size, int n_nodes, int info_size)
 
     return fb;
 _fb_init_failed:
+    /* nodes already linked into the list are released by fb_destroy() */
     fb_destroy(fb);
     return NULL;
 }
@@ -177,7 +193,7 @@ bk_err_t fb_reset(framebuf_handle_t fb)
     /* move frame_buffer node from ready_fb_node_list to free_fb_node_list */
     STAILQ_FOREACH_SAFE(fb_node_item_ptr, &fb->ready_fb_node_list, next, fb_node_tmp) {
         BK_LOGV(TAG, "%d, fb_node_buffer:%p size:%d \n", __LINE__, fb_node_item_ptr->fb_node->buffer, fb_node_item_ptr->fb_node->size);
-        STAILQ_REMOVE(&fb->free_fb_node_list, fb_node_item_ptr, framebuf_node_item, next);
+        STAILQ_REMOVE(&fb->ready_fb_node_list, fb_node_item_ptr, framebuf_node_item, next);
 
         fb_node_item_ptr->fb_node->length = 0;
         os_memset(fb_node_item_ptr->fb_node->info, 0, fb_node_item_ptr->fb_node->info_size);
@@ -499,7 +515,7 @@ void debug_fb_node_lists(framebuf_handle_t fb, int line, const char *func)
     BK_LOGD(TAG, "\n");
 
     BK_LOGD(TAG, "ready-node-list: \n");
-    STAILQ_FOREACH_SAFE(fb_node_item_ptr, &fb->free_fb_node_list, next, fb_node_tmp) {
+    STAILQ_FOREACH_SAFE(fb_node_item_ptr, &fb->ready_fb_node_list, next, fb_node_tmp) {
         BK_LOGD(TAG, "node_ptr:%p, length:%d, buffer:%p, size: %d, info:%p, info_size:%d\n",
                 fb_node_item_ptr,
                 fb_node_item_ptr->fb_node->length,

@@ -161,6 +161,28 @@ static bk_err_t _mp3_decoder_open(audio_element_handle_t self)
 static bk_err_t _mp3_decoder_close(audio_element_handle_t self)
 {
     BK_LOGV(TAG, "[%s] _mp3_decoder_close \n", audio_element_get_tag(self));
+    audio_element_state_t state = audio_element_get_state(self);
+
+    // Reset skip_idtag_done flag and info when component is not in PAUSED state
+    // Keep the flag unchanged when in PAUSED state to avoid re-executing skip_idtag after resume
+    if (state != AEL_STATE_PAUSED)
+    {
+        // Reset info to default values to ensure music info will be reported on next open
+        audio_element_info_t info = {0};
+        bk_err_t ret = audio_element_getinfo(self, &info);
+        if (ret == BK_OK)
+        {
+            info.sample_rates = 0;
+            info.channels = 0;
+            info.bits = 0;
+            audio_element_setinfo(self, &info);
+        }
+        BK_LOGV(TAG, "[%s] Component in state %d, reset skip_idtag_done flag and info \n", audio_element_get_tag(self), state);
+    }
+    else
+    {
+        BK_LOGV(TAG, "[%s] Component in PAUSED state, keep skip_idtag_done flag unchanged \n", audio_element_get_tag(self));
+    }
 
     return BK_OK;
 }
@@ -500,9 +522,9 @@ audio_element_handle_t mp3_decoder_init(mp3_decoder_cfg_t *config)
 
     audio_element_info_t info = {0};
     audio_element_getinfo(el, &info);
-    info.sample_rates = 8000;
-    info.channels = 2;
-    info.bits = 16;
+    info.sample_rates = 0;
+    info.channels = 0;
+    info.bits = 0;
     info.codec_fmt = BK_CODEC_TYPE_MP3;
     audio_element_setinfo(el, &info);
 

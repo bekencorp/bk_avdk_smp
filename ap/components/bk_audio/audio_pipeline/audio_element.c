@@ -1261,7 +1261,17 @@ bk_err_t audio_element_deinit(audio_element_handle_t el)
 {
     audio_element_stop(el);
     audio_element_wait_for_stop(el);
-    audio_element_terminate(el);
+    if (audio_element_terminate(el) != BK_OK)
+    {
+        audio_element_abort_output_port(el);
+        audio_element_abort_input_port(el);
+        if (audio_element_terminate_with_ticks(el, DEFAULT_MAX_WAIT_TIME) != BK_OK)
+        {
+            BK_LOGE(TAG, "[%s-%p] task did not terminate; leaking element to avoid use-after-free \n",
+                    el->tag, el);
+            return BK_FAIL;
+        }
+    }
     vEventGroupDelete(el->state_event);
 
     audio_event_iface_destroy(el->iface_event);

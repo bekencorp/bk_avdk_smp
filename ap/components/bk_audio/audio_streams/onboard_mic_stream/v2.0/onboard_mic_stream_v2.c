@@ -36,7 +36,7 @@
 #define TAG  "OB_MIC"
 
 #define DMA_CARRY_MIC_FRAME_NUM                (2)
-#define DMA_CARRY_MIC_RINGBUF_SAFE_INTERVAL    (DMA_CARRY_MIC_FRAME_NUM * 2)
+#define DMA_CARRY_MIC_RINGBUF_SAFE_INTERVAL    (32)
 
 //#define ONBOARD_MIC_DEBUG   //GPIO debug
 

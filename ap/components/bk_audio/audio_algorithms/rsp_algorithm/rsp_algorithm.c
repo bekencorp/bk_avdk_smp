@@ -60,15 +60,12 @@
 
 #endif
 
-#if CONFIG_ADK_UTILS
-
-#define RSP_DATA_DUMP
-#ifdef RSP_DATA_DUMP
-
 /* dump rsp data by uart */
-#define RSP_DATA_DUMP_BY_UART      (0)
+#if CONFIG_ADK_UTILS && CONFIG_ADK_UART_UTIL
+//#define RSP_DATA_DUMP_BY_UART
+#endif
 
-#if RSP_DATA_DUMP_BY_UART
+#ifdef RSP_DATA_DUMP_BY_UART
 #include <components/bk_audio/audio_utils/uart_util.h>
 static struct uart_util g_rsp_uart_util = {0};
 
@@ -85,13 +82,14 @@ static struct uart_util g_rsp_uart_util = {0};
 #define RSP_DATA_DUMP_OPEN()
 #define RSP_DATA_DUMP_CLOSE()
 #define RSP_DATA_DUMP_BEFORE_DATA(data_buf, len)
-#define RSP_DATA_DUMP_AFTER_DATA(data_buf, len) 
+#define RSP_DATA_DUMP_AFTER_DATA(data_buf, len)
 
 #endif
 
-#if CONFIG_ADK_UTILS
+/* count rsp data, only available when both adk utils and count util are enabled */
+#if CONFIG_ADK_UTILS && CONFIG_ADK_COUNT_UTIL
 #define AUD_RSP_DATA_COUNT
-#endif  //CONFIG_ADK_UTILS
+#endif
 
 #ifdef AUD_RSP_DATA_COUNT
 
@@ -112,10 +110,6 @@ static count_util_t aud_rsp_count_util = {0};
 
 #endif  //AUD_RSP_DATA_COUNT
 
-#endif  //RSP_DATA_DUMP
-
-#endif  //CONFIG_ADK_UTILS
-
 
 
 typedef struct rsp_algorithm
@@ -123,8 +117,9 @@ typedef struct rsp_algorithm
     aud_rsp_cfg_t rsp_cfg;
     int out_block_num;      /**< Number of output block, the size of block is frame size of 20ms audio data */
     int16_t *before_addr;
-    int16_t *after_addr;
-    uint32_t frame_size;    /**< 20ms data */
+    int16_t *after_addr;    /**< output buffer, sized for one resampled (20ms dest_rate) frame */
+    uint32_t frame_size;    /**< 20ms source data, in bytes */
+    uint32_t out_frame_size;/**< capacity of after_addr, in bytes (one 20ms dest_rate frame plus margin) */
 } rsp_algorithm_t;
 
 static bk_err_t _rsp_algorithm_open(audio_element_handle_t self)
@@ -144,8 +139,6 @@ static bk_err_t _rsp_algorithm_close(audio_element_handle_t self)
     BK_LOGD(TAG, "[%s] %s \n", audio_element_get_tag(self), __func__);
     return BK_OK;
 }
-
-static int16_t rsp_dbg[1024] = {0};
 
 static int _rsp_algorithm_process(audio_element_handle_t self, char *in_buffer, int in_len)
 {
@@ -169,16 +162,17 @@ static int _rsp_algorithm_process(audio_element_handle_t self, char *in_buffer, 
     if (r_size > 0)
     {
 		uint32_t rr = r_size >> 1;
-		uint32_t ww = r_size;
+		/* output capacity in samples, based on the dest_rate frame buffer (supports up/down sampling at any ratio) */
+		uint32_t ww = rsp->out_frame_size >> 1;
 
         RSP_ALGORITHM_START();
-		bk_aud_rsp_process(rsp->before_addr, (uint32_t*)&rr, rsp_dbg, &ww);
+		bk_aud_rsp_process(rsp->before_addr, &rr, rsp->after_addr, &ww);
         RSP_ALGORITHM_END();
 
         RSP_OUTPUT_START();
-		w_size = audio_element_output(self, (char *)rsp_dbg, ww*2);
+		w_size = audio_element_output(self, (char *)rsp->after_addr, ww*2);
         RSP_OUTPUT_END();
-		RSP_DATA_DUMP_AFTER_DATA(rsp_dbg, ww*2);
+		RSP_DATA_DUMP_AFTER_DATA(rsp->after_addr, ww*2);
 
     }
     else
@@ -198,6 +192,11 @@ static bk_err_t _rsp_algorithm_destroy(audio_element_handle_t self)
 
     rsp_algorithm_t *rsp = (rsp_algorithm_t *)audio_element_getdata(self);
 
+    if (rsp->after_addr)
+    {
+        audio_free(rsp->after_addr);
+        rsp->after_addr = NULL;
+    }
     audio_free(rsp);
 
     RSP_DATA_DUMP_CLOSE();
@@ -219,7 +218,18 @@ audio_element_handle_t rsp_algorithm_init(rsp_algorithm_cfg_t *config)
     rsp_algorithm_t *rsp_alg = audio_calloc(1, sizeof(rsp_algorithm_t));
     AUDIO_MEM_CHECK(TAG, rsp_alg, return NULL);
 
-    rsp_alg->frame_size = config->rsp_cfg.src_rate / 1000 * 2 * 20;   /* one frame <-> 20ms <-> Bytes */
+    rsp_alg->frame_size = config->rsp_cfg.src_rate / 1000 * 2 * 20;   /* source frame <-> 20ms <-> Bytes */
+
+    /* the resampled frame can be larger or smaller than the source frame; size the output buffer by
+       dest_rate and reserve a small margin for the resampler's boundary rounding */
+    rsp_alg->out_frame_size = (config->rsp_cfg.dest_rate / 1000 * 2 * 20) + 64;
+    rsp_alg->after_addr = (int16_t *)audio_calloc(1, rsp_alg->out_frame_size);
+    if (rsp_alg->after_addr == NULL)
+    {
+        BK_LOGE(TAG, "malloc rsp output buffer fail, size: %u \n", rsp_alg->out_frame_size);
+        audio_free(rsp_alg);
+        return NULL;
+    }
 
     audio_element_cfg_t cfg = DEFAULT_AUDIO_ELEMENT_CONFIG();
     cfg.open       = _rsp_algorithm_open;
@@ -235,10 +245,10 @@ audio_element_handle_t rsp_algorithm_init(rsp_algorithm_cfg_t *config)
     cfg.task_prio  = config->task_prio;
     cfg.task_core  = config->task_core;
 
-    /* 20ms, 16bit */
-    cfg.out_block_size = config->rsp_cfg.src_rate / 1000 * 2 * 20;
+    /* 20ms, 16bit; output block follows dest_rate so an upsampled frame always fits */
+    cfg.out_block_size = config->rsp_cfg.dest_rate / 1000 * 2 * 20;
     cfg.out_block_num  = config->out_block_num*2;
-	os_printf("[+++]%s, out_block_size:%d, block_num:%d\n", __func__, cfg.out_block_size, cfg.out_block_num);
+	BK_LOGD(TAG, "%s, out_block_size:%d, block_num:%d\n", __func__, cfg.out_block_size, cfg.out_block_num);
 
     {
         cfg.buffer_len = rsp_alg->frame_size;
@@ -246,8 +256,6 @@ audio_element_handle_t rsp_algorithm_init(rsp_algorithm_cfg_t *config)
     }
 
     cfg.tag = "rsp_algorithm";
-    el = audio_element_init(&cfg);
-    AUDIO_MEM_CHECK(TAG, el, goto _rsp_algorithm_init_exit);
 
     rsp_alg->rsp_cfg.complexity  = config->rsp_cfg.complexity;
     rsp_alg->rsp_cfg.src_ch      = config->rsp_cfg.src_ch;
@@ -259,21 +267,34 @@ audio_element_handle_t rsp_algorithm_init(rsp_algorithm_cfg_t *config)
     rsp_alg->rsp_cfg.down_ch_idx = config->rsp_cfg.down_ch_idx;
     rsp_alg->out_block_num       = config->out_block_num;
     rsp_alg->before_addr         = NULL;
-    rsp_alg->after_addr          = rsp_dbg;//NULL;
 
-    audio_element_setdata(el, rsp_alg);
-
+    /* init the resampler before creating the element, so that on failure no element has been
+       created yet (avoids leaking the element). bk_aud_rsp_deinit() must not be called when
+       bk_aud_rsp_init() failed, so it is only undone on the element-creation failure path below. */
     bk_err_t ret = bk_aud_rsp_init(rsp_alg->rsp_cfg);
     if (ret != BK_OK) {
         BK_LOGE(TAG, "rsp_init Fail\n");
         goto _rsp_algorithm_init_exit;
     }
 
+    el = audio_element_init(&cfg);
+    if (el == NULL) {
+        BK_LOGE(TAG, "audio_element_init Fail\n");
+        bk_aud_rsp_deinit();
+        goto _rsp_algorithm_init_exit;
+    }
+
+    audio_element_setdata(el, rsp_alg);
+
     RSP_DATA_DUMP_OPEN();
     AUD_RSP_DATA_COUNT_OPEN();
 
     return el;
 _rsp_algorithm_init_exit:
+    if (rsp_alg->after_addr)
+    {
+        audio_free(rsp_alg->after_addr);
+    }
     audio_free(rsp_alg);
     return NULL;
 }

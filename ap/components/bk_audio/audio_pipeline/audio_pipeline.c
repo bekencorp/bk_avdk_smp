@@ -573,6 +573,18 @@ bk_err_t audio_pipeline_unlink(audio_pipeline_handle_t pipeline)
             {
                 audio_element_set_output_port(el_item->el, NULL);
             }
+            {
+                int max_in = audio_element_get_multi_input_max_port_num(el_item->el);
+                for (int i = 0; i < max_in; i++)
+                {
+                    audio_element_set_multi_input_port(el_item->el, NULL, i);
+                }
+                int max_out = audio_element_get_multi_output_max_port_num(el_item->el);
+                for (int i = 0; i < max_out; i++)
+                {
+                    audio_element_set_multi_output_port(el_item->el, NULL, i);
+                }
+            }
             BK_LOGV(TAG, "audio_pipeline_unlink, %p, %s \n", el_item->el, audio_element_get_tag(el_item->el));
             //BK_LOGD(TAG, "[%s] el->in: %p, el->out: %p\n",  audio_element_get_tag(el_item->el), audio_element_get_input_port(el_item->el), audio_element_get_output_port(el_item->el));
         }

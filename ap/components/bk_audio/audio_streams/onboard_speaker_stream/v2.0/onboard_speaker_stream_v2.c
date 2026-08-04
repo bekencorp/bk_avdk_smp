@@ -137,7 +137,7 @@ static struct uart_util gl_ob_spk_uart_util = {0};
 #endif  //ONBOARD_MIC_DATA_DUMP_BY_UART
 
 
-#define DMA_CARRY_SPK_RINGBUF_SAFE_INTERVAL    (8)
+#define DMA_CARRY_SPK_RINGBUF_SAFE_INTERVAL    (32)
 
 //#define SPK_DATA_DEBUG
 
