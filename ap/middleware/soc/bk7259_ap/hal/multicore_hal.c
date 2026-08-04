@@ -159,7 +159,7 @@ bk_err_t multicore_hal_stop(uint32_t id)
 		sys_ahbp_ll_set_reg4_cpu0_wfe_pulse(0);
 		sys_ahbp_ll_set_reg4_cpu0_wait(0);
 		sys_ahbp_ll_set_reg4_cpu0_sw_rstn(0);
-		return BK_ERR_NOT_SUPPORT;
+		break;
 	default:
 		return BK_ERR_PARAM;
 	}
