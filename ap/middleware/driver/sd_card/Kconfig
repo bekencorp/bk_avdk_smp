@@ -30,6 +30,36 @@ menu "SDCARD"
 		      the CMD0/CMD8 identification window, then restored to the SDIO
 		      DATA3 function before the 4-bit switch.
 
+	config SDCARD_CLOCK_FREQ_HZ
+		int "SD card transfer clock frequency in Hz"
+		depends on SDCARD
+		default 20000000
+		range 400000 25000000
+		help
+		  SD data-transfer clock after card identification, passed to
+		  bk_sdio_host_set_clock(). Identification still runs at the
+		  host's low init clock (~400kHz).
+
+		  Default 20000000 (20MHz) is within SD Default-Speed (<=25MHz)
+		  and matches the SDR12 timing path used by this driver. Lower
+		  values (e.g. 5000000 / 10000000) can be used on boards with
+		  marginal SDIO signal integrity until the PCB/SI is fixed.
+
+	config SDCARD_MAX_BLOCKS_PER_XFER
+		int "Max blocks per CMD18 transfer (0=unlimited)"
+		depends on SDCARD
+		default 0
+		range 0 256
+		help
+		  Split large FATFS disk_read requests into smaller CMD18
+		  multi-block transfers. 0 keeps a single CMD18 with the full
+		  block count from the caller.
+
+		  On boards with marginal SDIO signal integrity, long
+		  multi-block PIO reads are more prone to DATA_END_BIT_ERR.
+		  Set a small value (e.g. 4) in the board defconfig as a
+		  software workaround until the PCB/SI is improved.
+
 	config SDCARD_CHECK_INSERTION_EN
 		bool "Whether to use pin to determine whether the sdcard is connected"
 		default n
