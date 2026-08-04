@@ -114,7 +114,7 @@ int jpg_decoder_init(void)
 
 	jpg_dec_st.scale_ratio = 0;
 	jpg_dec_st.rd_ptr = 0;//init rd pointer
-	jpg_dec_st.jpg_file_size = 1024;
+	jpg_dec_st.jpg_file_size = 0;
 
 	if(NULL != jpg_dec_st.workbuf)
 	{
@@ -771,7 +771,7 @@ JRESULT JpegdecInit(uint32_t length,unsigned char *input_buf, unsigned char * ou
 
 	jpg_dec_st.inputbuf = input_buf;
 	jpg_dec_st.rd_ptr = 0;//init rd pointer
-	jpg_dec_st.jpg_file_size = 1024;
+	jpg_dec_st.jpg_file_size = length;
 
 	ret = jd_prepare(&jdec, jpeg_dec_input_func, jpg_dec_st.workbuf, WORK_AREA_SIZE, NULL);
 	if(ret != JDR_OK) {
