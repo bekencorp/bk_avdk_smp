@@ -13,6 +13,7 @@
 #if CONFIG_SOC_SMP
 #include "multicore_driver.h"
 #endif
+#include "multicore_hal.h"
 
 #if CONFIG_SUPPORT_WWDT
 #include <driver/wwdt.h>
@@ -65,6 +66,10 @@ static inline void coredump_stop_other_cores(void)
         BK_DUMP_OUT("warning: unexpected CP core id %u, cannot stop peer core\r\n", core_id);
     }
 #endif
+
+    /* Stop AP CPU */
+    multicore_hal_stop(CPU2_CORE_ID);
+    multicore_hal_stop(CPU3_CORE_ID);
 }
 
 
