@@ -284,6 +284,7 @@ static int dpu_flush_complete_handle(void *param)
 {
     AVDK_RETURN_ON_FALSE(param, BK_ERR_NULL_PARAM, TAG, "invalid argument");
     dpu_context_t * context = (dpu_context_t *)param;
+    GLOBAL_INT_DECLARATION();
     LOGV("%s, %d\n", __func__, __LINE__);
     context->refresh_rate++;
     AVDK_MONITOR_DPU_ISR_PLUS();
@@ -291,16 +292,45 @@ static int dpu_flush_complete_handle(void *param)
 
     for(uint8_t layer = 0; layer < DPU_LAYER_MAX; layer++)
     {
+        void *frame_to_free = NULL;
+        flush_free_cb_t free_cb = NULL;
+        void *leaked_frame = NULL;
+        bool promoted = false;
+
+        /* SMP: serialize the frame/cb swap with the task-side publisher on the
+         * same global spinlock; free callback runs outside to keep irq-off short. */
+        GLOBAL_INT_DISABLE();
         if (context->update_frame[layer])
         {
             if (context->display_cb[layer])
             {
-                context->display_cb[layer](context->display_frame[layer]);
+                free_cb = context->display_cb[layer];
+                frame_to_free = context->display_frame[layer];
+            }
+            else if (context->display_frame[layer])
+            {
+                leaked_frame = context->display_frame[layer];
             }
             context->display_frame[layer] = context->update_frame[layer];
             context->display_cb[layer] = context->update_cb[layer];
             context->update_frame[layer] = NULL;
             context->update_cb[layer] = NULL;
+            promoted = true;
+        }
+        GLOBAL_INT_RESTORE();
+
+        if (promoted)
+        {
+            if (free_cb)
+            {
+                free_cb(frame_to_free);
+            }
+            else if (leaked_frame)
+            {
+                /* Canary: live frame with NULL cb -> buffer and its write-through channel leak. */
+                LOGW("layer%u display_frame %p has NULL cb, frame leaked\n",
+                     layer, leaked_frame);
+            }
             if (layer == DPU_LAYER_VIDEO)
             {
                 DPU_VIDEO_FRAME_END();
@@ -630,6 +660,7 @@ bk_err_t dpu_core_flush(dpu_handle_t *handle, dpu_layer_t layer, void *buff, flu
     dpu_context_t *context = (dpu_context_t*)*handle;
     void *old_display_frame = NULL;
     flush_free_cb_t old_display_cb = NULL;
+    GLOBAL_INT_DECLARATION();
 
     /* Validate layer index before accessing layer-specific resources */
     if (layer >= DPU_LAYER_MAX)
@@ -652,9 +683,12 @@ bk_err_t dpu_core_flush(dpu_handle_t *handle, dpu_layer_t layer, void *buff, flu
         ret = dpu_frame_commit(layer, buff);
         if (ret == BK_OK)
         {
+            /* Publish frame/cb pair atomically vs dpu_flush_complete_handle(). */
+            GLOBAL_INT_DISABLE();
             context->display_frame[layer] = buff;
             context->display_cb[layer] = cb;
             context->display_dirty = false;
+            GLOBAL_INT_RESTORE();
             context->frame_rate[layer]++;
             if (old_display_frame && old_display_cb && old_display_frame != buff)
             {
@@ -685,15 +719,29 @@ bk_err_t dpu_core_flush(dpu_handle_t *handle, dpu_layer_t layer, void *buff, flu
             }
         }
 
+        /* Publish frame/cb pair atomically; ISR keys off update_frame, so a
+         * half-updated pair would drop the free cb and leak the buffer/channel. */
+        GLOBAL_INT_DISABLE();
         context->update_frame[layer] = buff;
         context->update_cb[layer] = cb;
+        GLOBAL_INT_RESTORE();
         context->frame_rate[layer]++;
         ret = dpu_frame_update(layer, buff);
         if (ret != BK_OK)
         {
-            context->update_frame[layer] = NULL;
-            context->update_cb[layer] = NULL;
-            if (cb)
+            bool rollback;
+
+            /* Roll back only if still pending; the ISR may have promoted it
+             * already, in which case clearing here would drop cb or double-free. */
+            GLOBAL_INT_DISABLE();
+            rollback = (context->update_frame[layer] == buff);
+            if (rollback)
+            {
+                context->update_frame[layer] = NULL;
+                context->update_cb[layer] = NULL;
+            }
+            GLOBAL_INT_RESTORE();
+            if (rollback && cb)
             {
                 cb(buff);
             }
