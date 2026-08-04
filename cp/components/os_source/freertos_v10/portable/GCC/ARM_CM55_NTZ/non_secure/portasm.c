@@ -187,6 +187,8 @@ void vStartFirstTask( void ) /* __attribute__ (( naked )) PRIVILEGED_FUNCTION */
         "	msr msp, r0										\n"/* Set the MSP back to the start of the stack. */
         "	cpsie i											\n"/* Globally enable interrupts. */
         "	cpsie f											\n"
+        "	mov r0, #0										\n"/* Clear BASEPRI so the first task starts with interrupts fully enabled. */
+        "	msr basepri, r0									\n"/* Required under TrustZone (AIRCR.PRIS=1): a leftover BASEPRI mask would block the NS SVCall below and force a HardFault. */
         "	dsb												\n"
         "	isb												\n"
         "	svc %0											\n"/* System call to start the first task. */
