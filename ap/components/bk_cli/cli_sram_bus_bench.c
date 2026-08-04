@@ -149,24 +149,124 @@ __attribute__((noinline))
 static uint32_t sram_bus_seq_write(volatile uint32_t *buffer,
                                    uint32_t words, uint32_t repeats)
 {
+    volatile uint32_t *dst;
+    uint32_t remaining;
+    uint32_t value;
+    uint32_t repeat = 0U;
     uint32_t start;
     uint32_t end;
 
     sram_bus_barrier();
     start = dwt_get_cycle_counter_val();
-    for (uint32_t r = 0; r < repeats; ++r) {
-        for (uint32_t i = 0; i < words; i += 8U) {
-            buffer[i + 0U] = i + r;
-            buffer[i + 1U] = i + r + 1U;
-            buffer[i + 2U] = i + r + 2U;
-            buffer[i + 3U] = i + r + 3U;
-            buffer[i + 4U] = i + r + 4U;
-            buffer[i + 5U] = i + r + 5U;
-            buffer[i + 6U] = i + r + 6U;
-            buffer[i + 7U] = i + r + 7U;
-        }
-    }
+    __asm volatile(
+        "cmp %[words], #0\n"
+        "beq 3f\n"
+        "cmp %[repeats], #0\n"
+        "beq 3f\n"
+        "1:\n"
+        "mov %[dst], %[base]\n"
+        "mov %[remaining], %[words]\n"
+        "mov %[value], %[repeat]\n"
+        "2:\n"
+        "str %[value], [%[dst], #0]\n"
+        "adds %[value], %[value], #1\n"
+        "str %[value], [%[dst], #4]\n"
+        "adds %[value], %[value], #1\n"
+        "str %[value], [%[dst], #8]\n"
+        "adds %[value], %[value], #1\n"
+        "str %[value], [%[dst], #12]\n"
+        "adds %[value], %[value], #1\n"
+        "str %[value], [%[dst], #16]\n"
+        "adds %[value], %[value], #1\n"
+        "str %[value], [%[dst], #20]\n"
+        "adds %[value], %[value], #1\n"
+        "str %[value], [%[dst], #24]\n"
+        "adds %[value], %[value], #1\n"
+        "str %[value], [%[dst], #28]\n"
+        "adds %[value], %[value], #1\n"
+        "adds %[dst], %[dst], #32\n"
+        "subs %[remaining], %[remaining], #8\n"
+        "bne 2b\n"
+        "adds %[repeat], %[repeat], #1\n"
+        "cmp %[repeat], %[repeats]\n"
+        "bne 1b\n"
+        "3:\n"
+        : [dst] "=&r"(dst),
+          [remaining] "=&r"(remaining),
+          [value] "=&r"(value),
+          [repeat] "+&r"(repeat)
+        : [base] "r"(buffer),
+          [words] "r"(words),
+          [repeats] "r"(repeats)
+        : "cc", "memory");
     sram_bus_barrier();
+    end = dwt_get_cycle_counter_val();
+
+    return end - start;
+}
+
+__attribute__((noinline))
+static uint32_t sram_bus_seq_write_sync(volatile uint32_t *buffer,
+                                        uint32_t words, uint32_t repeats)
+{
+    volatile uint32_t *dst;
+    uint32_t remaining;
+    uint32_t value;
+    uint32_t repeat = 0U;
+    uint32_t start;
+    uint32_t end;
+
+    sram_bus_barrier();
+    start = dwt_get_cycle_counter_val();
+    __asm volatile(
+        "cmp %[words], #0\n"
+        "beq 3f\n"
+        "cmp %[repeats], #0\n"
+        "beq 3f\n"
+        "1:\n"
+        "mov %[dst], %[base]\n"
+        "mov %[remaining], %[words]\n"
+        "mov %[value], %[repeat]\n"
+        "2:\n"
+        "str %[value], [%[dst], #0]\n"
+        "dsb sy\n"
+        "adds %[value], %[value], #1\n"
+        "str %[value], [%[dst], #4]\n"
+        "dsb sy\n"
+        "adds %[value], %[value], #1\n"
+        "str %[value], [%[dst], #8]\n"
+        "dsb sy\n"
+        "adds %[value], %[value], #1\n"
+        "str %[value], [%[dst], #12]\n"
+        "dsb sy\n"
+        "adds %[value], %[value], #1\n"
+        "str %[value], [%[dst], #16]\n"
+        "dsb sy\n"
+        "adds %[value], %[value], #1\n"
+        "str %[value], [%[dst], #20]\n"
+        "dsb sy\n"
+        "adds %[value], %[value], #1\n"
+        "str %[value], [%[dst], #24]\n"
+        "dsb sy\n"
+        "adds %[value], %[value], #1\n"
+        "str %[value], [%[dst], #28]\n"
+        "dsb sy\n"
+        "adds %[value], %[value], #1\n"
+        "adds %[dst], %[dst], #32\n"
+        "subs %[remaining], %[remaining], #8\n"
+        "bne 2b\n"
+        "adds %[repeat], %[repeat], #1\n"
+        "cmp %[repeat], %[repeats]\n"
+        "bne 1b\n"
+        "3:\n"
+        : [dst] "=&r"(dst),
+          [remaining] "=&r"(remaining),
+          [value] "=&r"(value),
+          [repeat] "+&r"(repeat)
+        : [base] "r"(buffer),
+          [words] "r"(words),
+          [repeats] "r"(repeats)
+        : "cc", "memory");
     end = dwt_get_cycle_counter_val();
 
     return end - start;
@@ -261,6 +361,53 @@ static uint32_t sram_bus_random_rmw(sram_bus_node_t *first,
     sram_bus_barrier();
     end = dwt_get_cycle_counter_val();
     s_sram_bus_sink = (uintptr_t)node;
+
+    return end - start;
+}
+
+__attribute__((noinline))
+static uint32_t sram_bus_random_write(volatile uint32_t *buffer,
+                                      uint32_t words, uint32_t accesses)
+{
+    const uint32_t mask = words - 1U;
+    uint32_t index = 0U;
+    uint32_t start;
+    uint32_t end;
+
+    sram_bus_barrier();
+    start = dwt_get_cycle_counter_val();
+    for (uint32_t i = 0; i < accesses; ++i) {
+        index = (SRAM_BUS_BENCH_LCG_A * index +
+                 SRAM_BUS_BENCH_LCG_C) & mask;
+        buffer[index] = i ^ 0xA5A55A5AU;
+    }
+    sram_bus_barrier();
+    end = dwt_get_cycle_counter_val();
+    s_sram_bus_sink = index;
+
+    return end - start;
+}
+
+__attribute__((noinline))
+static uint32_t sram_bus_random_write_sync(volatile uint32_t *buffer,
+                                           uint32_t words,
+                                           uint32_t accesses)
+{
+    const uint32_t mask = words - 1U;
+    uint32_t index = 0U;
+    uint32_t start;
+    uint32_t end;
+
+    sram_bus_barrier();
+    start = dwt_get_cycle_counter_val();
+    for (uint32_t i = 0; i < accesses; ++i) {
+        index = (SRAM_BUS_BENCH_LCG_A * index +
+                 SRAM_BUS_BENCH_LCG_C) & mask;
+        buffer[index] = i ^ 0x5A5AA5A5U;
+        sram_bus_barrier();
+    }
+    end = dwt_get_cycle_counter_val();
+    s_sram_bus_sink = index;
 
     return end - start;
 }
@@ -395,9 +542,12 @@ static void sram_bus_run_region(const sram_bus_region_t *region,
     uint32_t overhead;
     uint32_t int_level;
     uint32_t write_cycles;
+    uint32_t write_sync_cycles;
     uint32_t read_cycles;
     uint32_t random_read_cycles;
     uint32_t random_rmw_cycles;
+    uint32_t random_write_cycles;
+    uint32_t random_write_sync_cycles;
     uint32_t memcpy_bytes;
     uint32_t memcpy_cycles;
     uint32_t ldmstm_cycles;
@@ -430,12 +580,16 @@ static void sram_bus_run_region(const sram_bus_region_t *region,
 
     /* Warm instruction paths before the measured samples. */
     (void)sram_bus_seq_write((volatile uint32_t *)(uintptr_t)cpu_addr, words, 1U);
+    (void)sram_bus_seq_write_sync(
+        (volatile uint32_t *)(uintptr_t)cpu_addr, words, 1U);
     (void)sram_bus_seq_read((volatile const uint32_t *)(uintptr_t)cpu_addr,
                             words, 1U);
 
     int_level = rtos_disable_int();
     overhead = sram_bus_measure_overhead();
     write_cycles = sram_bus_seq_write(
+        (volatile uint32_t *)(uintptr_t)cpu_addr, words, repeats);
+    write_sync_cycles = sram_bus_seq_write_sync(
         (volatile uint32_t *)(uintptr_t)cpu_addr, words, repeats);
     read_cycles = sram_bus_seq_read(
         (volatile const uint32_t *)(uintptr_t)cpu_addr, words, repeats);
@@ -448,6 +602,18 @@ static void sram_bus_run_region(const sram_bus_region_t *region,
     int_level = rtos_disable_int();
     random_read_cycles = sram_bus_random_read(first, random_accesses);
     random_rmw_cycles = sram_bus_random_rmw(first, random_accesses);
+    rtos_enable_int(int_level);
+
+    (void)sram_bus_random_write(
+        (volatile uint32_t *)(uintptr_t)cpu_addr, words, node_count);
+    (void)sram_bus_random_write_sync(
+        (volatile uint32_t *)(uintptr_t)cpu_addr, words, node_count);
+
+    int_level = rtos_disable_int();
+    random_write_cycles = sram_bus_random_write(
+        (volatile uint32_t *)(uintptr_t)cpu_addr, words, random_accesses);
+    random_write_sync_cycles = sram_bus_random_write_sync(
+        (volatile uint32_t *)(uintptr_t)cpu_addr, words, random_accesses);
     rtos_enable_int(int_level);
 
     memcpy_bytes = bytes / 2U;
@@ -471,6 +637,8 @@ static void sram_bus_run_region(const sram_bus_region_t *region,
 
     sram_bus_print_metric("seq_write", write_cycles, overhead,
                           seq_accesses, sizeof(uint32_t));
+    sram_bus_print_metric("seq_wr_sync", write_sync_cycles, overhead,
+                          seq_accesses, sizeof(uint32_t));
     sram_bus_print_metric("seq_read", read_cycles, overhead,
                           seq_accesses, sizeof(uint32_t));
     sram_bus_print_metric("random_rd", random_read_cycles, overhead,
@@ -478,6 +646,10 @@ static void sram_bus_run_region(const sram_bus_region_t *region,
     sram_bus_print_metric("random_rmw", random_rmw_cycles, overhead,
                           random_accesses,
                           sizeof(void *) + 2U * sizeof(uint32_t));
+    sram_bus_print_metric("random_wr", random_write_cycles, overhead,
+                          random_accesses, sizeof(uint32_t));
+    sram_bus_print_metric("random_wr_sync", random_write_sync_cycles, overhead,
+                          random_accesses, sizeof(uint32_t));
     sram_bus_print_transfer_metric("memcpy", memcpy_cycles,
                                    (uint64_t)memcpy_bytes * repeats);
     sram_bus_print_transfer_metric("cpu_ldm8", ldmstm_cycles,
@@ -735,6 +907,10 @@ static void cli_sram_bus_bench(char *pcWriteBuffer, int xWriteBufferLen,
              (unsigned)SRAM_BUS_BENCH_CPU_MHZ);
     CLI_LOGI("random_rd is a serialized pointer chase; seq_* measures CPU "
              "streaming, not guaranteed AXI burst\r\n");
+    CLI_LOGI("seq_write uses the same inline assembly on both chips; "
+             "seq_wr_sync executes DSB after every store\r\n");
+    CLI_LOGI("random_wr drains posted stores once; random_wr_sync uses DSB "
+             "after every store to measure completion latency\r\n");
     CLI_LOGI("cpu_ldm8 uses CPU LDMIA/STMIA (8 words/instruction); "
              "actual AXI AxLEN requires bus-monitor confirmation\r\n");
     CLI_LOGI("memcpy measures scalar CPU LDR/STR; HPDMA explicitly requests "
