@@ -172,42 +172,15 @@ void wdrv_notify_sta_connected(void)
 }
 
 #if CONFIG_WIFI_VNET_CONTROLLER
-static void wdrv_fill_ip4_from_connect_ind(netif_ip4_config_t *ip4)
-{
-	os_snprintf(ip4->ip, NETIF_IP4_STR_LEN, "%u.%u.%u.%u",
-		    (wdrv_host_env.connect_ind.ip >> 0) & 0xff,
-		    (wdrv_host_env.connect_ind.ip >> 8) & 0xff,
-		    (wdrv_host_env.connect_ind.ip >> 16) & 0xff,
-		    (wdrv_host_env.connect_ind.ip >> 24) & 0xff);
-	os_snprintf(ip4->mask, NETIF_IP4_STR_LEN, "%u.%u.%u.%u",
-		    (wdrv_host_env.connect_ind.mk >> 0) & 0xff,
-		    (wdrv_host_env.connect_ind.mk >> 8) & 0xff,
-		    (wdrv_host_env.connect_ind.mk >> 16) & 0xff,
-		    (wdrv_host_env.connect_ind.mk >> 24) & 0xff);
-	os_snprintf(ip4->gateway, NETIF_IP4_STR_LEN, "%u.%u.%u.%u",
-		    (wdrv_host_env.connect_ind.gw >> 0) & 0xff,
-		    (wdrv_host_env.connect_ind.gw >> 8) & 0xff,
-		    (wdrv_host_env.connect_ind.gw >> 16) & 0xff,
-		    (wdrv_host_env.connect_ind.gw >> 24) & 0xff);
-	os_snprintf(ip4->dns, NETIF_IP4_STR_LEN, "%u.%u.%u.%u",
-		    (wdrv_host_env.connect_ind.dns >> 0) & 0xff,
-		    (wdrv_host_env.connect_ind.dns >> 8) & 0xff,
-		    (wdrv_host_env.connect_ind.dns >> 16) & 0xff,
-		    (wdrv_host_env.connect_ind.dns >> 24) & 0xff);
-}
-
 void wdrv_notify_sta_got_ipv4(void)
 {
-    netif_ip4_config_t ip4 = {0};
-
     if (wdrv_host_env.connect_ind.ip == 0)
         return;
 
-    wdrv_fill_ip4_from_connect_ind(&ip4);
-    sta_ip_mode_set(0);
-    sta_ip_down();
-    BK_LOG_ON_ERR(bk_netif_set_ip4_config_local(NETIF_IF_STA, &ip4));
-    sta_ip_start();
+    sta_ip_apply_static_binary(wdrv_host_env.connect_ind.ip,
+                               wdrv_host_env.connect_ind.mk,
+                               wdrv_host_env.connect_ind.gw,
+                               wdrv_host_env.connect_ind.dns);
 
     /* Single notify entry: legacy cb + EVENT_NETIF_GOT_IP4 (dedup by link state). */
     wdrv_notify_sta_got_ip();
