@@ -126,6 +126,21 @@ void sys_drv_set_cpu2_reset(uint32_t reset_value)
 	sys_hal_set_cpu2_reset(reset_value);
 	sys_drv_exit_critical(int_level);
 }
+
+void sys_drv_set_cpu3_pwr_dw(uint32_t is_pwr_down)
+{
+	uint32_t int_level = sys_drv_enter_critical();
+	sys_hal_set_cpu3_pwr_dw(is_pwr_down);
+	sys_drv_exit_critical(int_level);
+}
+
+void sys_drv_set_cpu3_reset(uint32_t reset_value)
+{
+	uint32_t int_level = sys_drv_enter_critical();
+	sys_hal_set_cpu3_reset(reset_value);
+	sys_drv_exit_critical(int_level);
+}
+
 // #endif
 
 void sys_drv_enable_mac_wakeup_source()

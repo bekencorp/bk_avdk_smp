@@ -418,12 +418,22 @@ void sys_hal_set_cpu2_reset(uint32_t reset_value)
 	sys_ahbp_ll_set_reg4_cpu0_sw_rstn(reset_value);
 }
 
+void sys_hal_set_cpu3_reset(uint32_t reset_value)
+{
+	sys_ahbp_ll_set_reg5_cpu1_sw_rstn(reset_value);
+}
+
 void sys_hal_set_cpu1_pwr_dw(uint32_t is_pwr_down)
 {
 	return;
 }
 
 void sys_hal_set_cpu2_pwr_dw(uint32_t is_pwr_down)
+{
+	return;
+}
+
+void sys_hal_set_cpu3_pwr_dw(uint32_t is_pwr_down)
 {
 	return;
 }

@@ -136,6 +136,8 @@ void sys_drv_set_cpu2_boot_address_offset(uint32_t address_offset);
 void sys_drv_set_cpu2_pwr_dw(uint32_t is_pwr_down);
 void sys_drv_set_cpu2_reset(uint32_t reset_value);
 void sys_drv_set_cpu2_rxevt_sel(uint32 value);
+void sys_drv_set_cpu3_pwr_dw(uint32_t is_pwr_down);
+void sys_drv_set_cpu3_reset(uint32_t reset_value);
 void sys_drv_wakeup_source_clear(void);
 
 void sys_drv_enable_mac_wakeup_source();
