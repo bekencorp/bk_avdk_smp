@@ -14,6 +14,9 @@
 
 #endif
 #include "wifi_transfer.h"
+#include <driver/lcd_types.h>
+#include <components/bk_display_types.h>
+#include <components/bk_video_pipeline/bk_video_pipeline_types.h>
 
 typedef enum
 {
@@ -75,6 +78,9 @@ typedef struct
 	uint8_t h264_transfer : 1;
 	uint16_t lcd_id;
 	uint16_t camera_id;
+	const lcd_device_t *lcd_device;
+	bk_display_ctlr_handle_t display_ctlr_handle;
+	bk_video_pipeline_handle_t video_pipeline_handle;
 	void *video_handle;
 	const media_transfer_cb_t *camera_transfer_cb;
 	const media_transfer_cb_t *audio_transfer_cb;

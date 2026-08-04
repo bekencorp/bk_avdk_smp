@@ -24,7 +24,7 @@ list(APPEND srcs
 )
 endif()
 
-set(priv_req  media_service multimedia wifi_transfer avdk_utils lwip_intf_v2_1 bk_wifi_driver cs2p2p bt)
+set(priv_req  media_service multimedia wifi_transfer avdk_utils lwip_intf_v2_1 bk_wifi_driver cs2p2p bt bk_display bk_video_pipeline)
 
 if ("${ARMINO_SOC}" STREQUAL "bk7258")
 list(APPEND priv_req)

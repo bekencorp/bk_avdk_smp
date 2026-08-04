@@ -12,9 +12,7 @@
 
 #include "lwip/sockets.h"
 
-#include "img_service.h"
-
-#include "media_app.h"
+#include <driver/h264.h>
 #include <stdlib.h>
 
 #include "doorbell_comm.h"
@@ -365,7 +363,7 @@ bool doorbell_cs2_img_h264_drop_check(frame_buffer_t *frame,uint32_t count, uint
 		h264_base_config_t media_config;
 		int ret = 0;
 
-		ret = media_app_get_h264_encode_config(&media_config);
+		ret = bk_h264_get_h264_base_config(&media_config);
 		if (ret == BK_OK)
 		{
 			s_h264_drop_info.check_type = true;

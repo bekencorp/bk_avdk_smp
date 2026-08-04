@@ -19,17 +19,17 @@
 #endif
 
 #include <components/dvp_camera_types.h>
+#include <components/bk_display.h>
+#include <components/bk_video_pipeline/bk_video_pipeline.h>
 #include <driver/lcd.h>
+#include <driver/gpio.h>
+#include "frame_buffer.h"
 
 #include "doorbell_comm.h"
 #include "doorbell_transmission.h"
 #include "doorbell_cmd.h"
 #include "doorbell_devices.h"
 #include "doorbell_cs2_service.h"
-#include "media_app.h"
-#include "img_service.h"
-
-#include "uvc_pipeline_act.h"
 
 #include "media_utils.h"
 
@@ -57,8 +57,6 @@ extern const dvp_sensor_config_t **get_sensor_config_devices_list(void);
 extern int get_sensor_config_devices_num(void);
 
 extern const doorbell_service_interface_t *doorbell_current_service;
-static camera_type_t curr_cam_type = UNKNOW_CAMERA;
-
 
 #define DEVICE_RESPONSE_SIZE (DOORBELL_NETWORK_MAX_SIZE - sizeof(db_evt_head_t))
 
@@ -254,14 +252,14 @@ int doorbell_get_supported_lcd_devices(int opcode, db_channel_t *channel, doorbe
             os_memset(p, 0, DEVICE_RESPONSE_SIZE);
 
             LOGV("lcd: %s, ppi: %uX%u\n", device[i]->name,
-                 ppi_to_pixel_x(device[i]->ppi),
-                 ppi_to_pixel_y(device[i]->ppi));
+                 device[i]->width,
+                 device[i]->height);
             sprintf(p, "{\"name\": \"%s\", \"id\": \"%d\", \"type\": \"%s\", \"ppi\":\"%uX%u\"}",
                     device[i]->name,
                     device[i]->id,
                     device[i]->type == LCD_TYPE_RGB565 ? "rgb" : "mcu",
-                    ppi_to_pixel_x(device[i]->ppi),
-                    ppi_to_pixel_y(device[i]->ppi));
+                    device[i]->width,
+                    device[i]->height);
 
             LOGD("dump: %s\n", p);
 
@@ -283,7 +281,8 @@ int doorbell_get_supported_lcd_devices(int opcode, db_channel_t *channel, doorbe
 
 int doorbell_get_lcd_status(int opcode, db_channel_t *channel, doorbell_transmission_send_t cb)
 {
-    uint32_t lcd_status = media_app_get_lcd_status();
+    uint32_t lcd_status = (db_device_info && db_device_info->lcd_id != 0)
+        ? LCD_STATUS_OPEN : LCD_STATUS_CLOSE;
     db_evt_head_t *evt = os_malloc(sizeof(db_evt_head_t) + DEVICE_RESPONSE_SIZE);
     char *p = (char *)(evt + 1);
 
@@ -426,7 +425,7 @@ int doorbell_asr_turn_on(void)
 
 	if (parameters->uac == 1)
 	{
-		asr_cfg_t asr_uac_cfg = ASR_BY_UAC_MIC_SPK_CFG_DEFAULT();
+		asr_cfg_t asr_uac_cfg = ASR_BY_UAC_MIC_CFG_DEFAULT();
 		asr_cfg = asr_uac_cfg;
 		asr_cfg.mic_cfg.uac_mic_cfg.samp_rate  = mic_sample_rate;
 		asr_cfg.mic_cfg.uac_mic_cfg.frame_size = mic_sample_rate * 2 * 20 / 1000; //one frame size(20ms)
@@ -435,7 +434,7 @@ int doorbell_asr_turn_on(void)
 	}
 	else
 	{
-		asr_cfg_t asr_onboard_cfg = ASR_BY_ONBOARD_MIC_SPK_CFG_DEFAULT();
+		asr_cfg_t asr_onboard_cfg = ASR_BY_ONBOARD_MIC_CFG_DEFAULT();
 		asr_cfg = asr_onboard_cfg;
 		asr_cfg.mic_cfg.onboard_mic_cfg.adc_cfg.sample_rate = mic_sample_rate;
 		asr_cfg.mic_cfg.onboard_mic_cfg.frame_size = mic_sample_rate * 2 * 20 / 1000; //one frame size(20ms)
@@ -811,6 +810,167 @@ int doorbell_video_transfer_turn_off(void)
     return ret;
 }
 
+static media_rotate_t doorbell_display_get_rotate_angle(uint16_t rotate)
+{
+    switch (rotate)
+    {
+        case 90:
+            return ROTATE_90;
+        case 180:
+            return ROTATE_180;
+        case 270:
+            return ROTATE_270;
+        default:
+            return ROTATE_NONE;
+    }
+}
+
+static bk_err_t doorbell_display_frame_free_cb(void *frame)
+{
+    frame_buffer_display_free((frame_buffer_t *)frame);
+    return BK_OK;
+}
+
+static bk_err_t doorbell_display_decode_complete(dec_end_type_t format_type, bk_err_t result, frame_buffer_t *out_frame)
+{
+    (void)format_type;
+
+    if (out_frame == NULL)
+    {
+        return BK_OK;
+    }
+
+    if (result != BK_OK)
+    {
+        doorbell_display_frame_free_cb(out_frame);
+        return BK_OK;
+    }
+
+    if (db_device_info && db_device_info->display_ctlr_handle)
+    {
+        if (bk_display_flush(db_device_info->display_ctlr_handle, out_frame, doorbell_display_frame_free_cb) != BK_OK)
+        {
+            doorbell_display_frame_free_cb(out_frame);
+        }
+    }
+    else
+    {
+        doorbell_display_frame_free_cb(out_frame);
+    }
+
+    return BK_OK;
+}
+
+static frame_buffer_t *doorbell_display_decode_malloc(uint32_t size)
+{
+    return frame_buffer_display_malloc(size);
+}
+
+static bk_err_t doorbell_display_decode_free(frame_buffer_t *frame)
+{
+    frame_buffer_display_free(frame);
+    return BK_OK;
+}
+
+static const decode_callback_t doorbell_display_decode_cbs =
+{
+    .malloc = doorbell_display_decode_malloc,
+    .free = doorbell_display_decode_free,
+    .complete = doorbell_display_decode_complete,
+};
+
+static bk_err_t doorbell_jpeg_decode_close(void)
+{
+    if (db_device_info == NULL || db_device_info->video_pipeline_handle == NULL)
+    {
+        return BK_OK;
+    }
+
+    return bk_video_pipeline_close_rotate(db_device_info->video_pipeline_handle);
+}
+
+static bk_err_t doorbell_lcd_display_open(const lcd_config_t *lcd_open,
+                                          const bk_video_pipeline_decode_config_t *jpeg_dec_config)
+{
+    bk_err_t ret = BK_FAIL;
+    const lcd_device_t *device = lcd_open ? lcd_open->lcd_device : NULL;
+
+    if (db_device_info == NULL || device == NULL)
+    {
+        return BK_FAIL;
+    }
+
+    if (device->type == LCD_TYPE_RGB || device->type == LCD_TYPE_RGB565)
+    {
+        bk_display_rgb_ctlr_config_t rgb_ctlr_config = {0};
+        rgb_ctlr_config.lcd_device = device;
+        rgb_ctlr_config.clk_pin = GPIO_0;
+        rgb_ctlr_config.cs_pin = GPIO_12;
+        rgb_ctlr_config.sda_pin = GPIO_1;
+        rgb_ctlr_config.rst_pin = GPIO_6;
+        ret = bk_display_rgb_new(&db_device_info->display_ctlr_handle, &rgb_ctlr_config);
+    }
+    else if (device->type == LCD_TYPE_MCU8080)
+    {
+        bk_display_mcu_ctlr_config_t mcu_ctlr_config = {0};
+        mcu_ctlr_config.lcd_device = device;
+        ret = bk_display_mcu_new(&db_device_info->display_ctlr_handle, &mcu_ctlr_config);
+    }
+    else
+    {
+        LOGE("%s, unsupported lcd type %d\n", __func__, device->type);
+        return BK_FAIL;
+    }
+
+    if (ret != BK_OK)
+    {
+        LOGE("%s, create display failed, ret=%d\n", __func__, ret);
+        return ret;
+    }
+
+    ret = bk_display_open(db_device_info->display_ctlr_handle);
+    if (ret != BK_OK)
+    {
+        LOGE("%s, bk_display_open failed, ret=%d\n", __func__, ret);
+        bk_display_delete(db_device_info->display_ctlr_handle);
+        db_device_info->display_ctlr_handle = NULL;
+        return ret;
+    }
+
+    if (jpeg_dec_config == NULL)
+    {
+        return BK_OK;
+    }
+
+    if (db_device_info->video_pipeline_handle == NULL)
+    {
+        bk_video_pipeline_config_t video_pipeline_config = {0};
+        video_pipeline_config.decode_cbs = &doorbell_display_decode_cbs;
+        ret = bk_video_pipeline_new(&db_device_info->video_pipeline_handle, &video_pipeline_config);
+        if (ret != BK_OK)
+        {
+            LOGE("%s, bk_video_pipeline_new failed, ret=%d\n", __func__, ret);
+            bk_display_close(db_device_info->display_ctlr_handle);
+            bk_display_delete(db_device_info->display_ctlr_handle);
+            db_device_info->display_ctlr_handle = NULL;
+            return ret;
+        }
+    }
+
+    bk_video_pipeline_decode_config_t decode_config = *jpeg_dec_config;
+    ret = bk_video_pipeline_open_rotate(db_device_info->video_pipeline_handle, &decode_config);
+    if (ret != BK_OK)
+    {
+        LOGE("%s, bk_video_pipeline_open_rotate failed, ret=%d\n", __func__, ret);
+        bk_display_close(db_device_info->display_ctlr_handle);
+        bk_display_delete(db_device_info->display_ctlr_handle);
+        db_device_info->display_ctlr_handle = NULL;
+        return ret;
+    }
+
+    return BK_OK;
+}
+
 int doorbell_display_turn_on(display_parameters_t *parameters)
 {
     LOGD("%s, id: %d, rotate: %d fmt: %d\n", __func__, parameters->id, parameters->rotate_angle, parameters->pixel_format);
@@ -827,11 +987,11 @@ int doorbell_display_turn_on(display_parameters_t *parameters)
         return EVT_STATUS_ERROR;
     }
 
-    lcd_open_t lcd_open = {0};
-    lcd_open.device_ppi = device->ppi;
+    lcd_config_t lcd_open = {0};
     lcd_open.device_name = device->name;
+    lcd_open.lcd_device = device;
 
-    jpeg_decode_config_t jpeg_dec_config = {0};
+    bk_video_pipeline_decode_config_t jpeg_dec_config = {0};
     if (parameters->pixel_format == 0)
     {
         jpeg_dec_config.rotate_mode = HW_ROTATE;
@@ -844,14 +1004,16 @@ int doorbell_display_turn_on(display_parameters_t *parameters)
     {
         jpeg_dec_config.rotate_mode = NONE_ROTATE;
     }
-    jpeg_dec_config.rotate_angle = parameters->rotate_angle;  //0,90,180,270
+    jpeg_dec_config.rotate_angle = doorbell_display_get_rotate_angle(parameters->rotate_angle);
 
-    if (media_app_lcd_display_open(&lcd_open) != BK_OK)
+    if (doorbell_lcd_display_open(&lcd_open, &jpeg_dec_config) != BK_OK)
     {
-        media_app_jpeg_decode_close();
+        doorbell_jpeg_decode_close();
+        return EVT_STATUS_ERROR;
     }
 
     db_device_info->lcd_id = parameters->id;
+    db_device_info->lcd_device = device;
 
 #if (CONFIG_ASR_SERVICE_WITH_MIC)
 	db_device_info->asr_camera = BK_TRUE;
@@ -869,9 +1031,17 @@ int doorbell_display_turn_off(void)
         return EVT_STATUS_ALREADY;
     }
 
-    media_app_jpeg_decode_close();
-    media_app_lcd_display_close();
+    doorbell_jpeg_decode_close();
+
+    if (db_device_info->display_ctlr_handle)
+    {
+        bk_display_close(db_device_info->display_ctlr_handle);
+        bk_display_delete(db_device_info->display_ctlr_handle);
+        db_device_info->display_ctlr_handle = NULL;
+    }
+
     db_device_info->lcd_id = 0;
+    db_device_info->lcd_device = NULL;
 
 #if (CONFIG_ASR_SERVICE_WITH_MIC)
 	db_device_info->asr_camera = BK_FALSE;
@@ -1469,6 +1639,12 @@ void doorbell_devices_deinit(void)
 {
     if (db_device_info)
     {
+        if (db_device_info->video_pipeline_handle)
+        {
+            bk_video_pipeline_delete(db_device_info->video_pipeline_handle);
+            db_device_info->video_pipeline_handle = NULL;
+        }
+
         os_free(db_device_info);
         db_device_info = NULL;
     }
