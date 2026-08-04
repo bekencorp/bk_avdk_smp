@@ -374,7 +374,6 @@ bk_err_t dpu_core_init(dpu_config_t * dpu_config, dpu_handle_t *handle)
         LOGE("%s init event failed\n", __func__);
         goto err;
     }
-    dpu_sys_interrupt_init();
     LOGI("%s clk_src: %s, pixel_clock_hz: %u\n", __func__,
          (dpu_config->dpu_clk_src == DPU_CLK_SRC_DPHY_DPLL) ? "DPU_CLK_SRC_DPHY_DPLL" : "DPU_CLK_SRC_SYSCLK",
          (unsigned)dpu_config->pixel_clock_hz);
@@ -434,6 +433,10 @@ bk_err_t dpu_core_init(dpu_config_t * dpu_config, dpu_handle_t *handle)
         }
     }
 #endif
+
+    /* Enable the DPU IRQ last, after dcCore/frame/callback are ready, so a stale
+     * interrupt cannot run dpu_isr() against a not-yet-initialized dcCore. */
+    dpu_sys_interrupt_init();
 
     *handle = context;
     LOGI("%s dpu_core_init success\n", __func__);
