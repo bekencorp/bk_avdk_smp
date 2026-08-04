@@ -91,6 +91,12 @@ bk_err_t ntwk_fragment_start(chan_type_t chan_type, uint32_t fragment_size, void
 		LOGW("%s, fragment not started\n", __func__);
 		return BK_FAIL;
 	}
+
+    if (fragment_size == 0)
+    {
+        return BK_ERR_PARAM;
+    }
+
     s_fragment_cfg_mgr[chan_type]->fragment_data = (ntwk_fragm_head_t *)ntwk_malloc(NTWK_FRAG_HEADER_SIZE + fragment_size);
     if (s_fragment_cfg_mgr[chan_type]->fragment_data == NULL)
     {
@@ -382,6 +388,13 @@ static void unfragment_process_packet(unfragment_cfg_t *config, uint8_t *data, u
 
         LOGV("id:%d eof %d cnt %d size %d len %d org_len %d\r\n", hdr->id,hdr->eof,hdr->cnt,hdr->size,length,org_len);
 
+        if ((hdr->cnt == 0) || (hdr->size == 0) || (hdr->cnt > hdr->size) || (hdr->eof > 1))
+        {
+            LOGW("%s, invalid fragment header, id:%u eof:%u cnt:%u size:%u len:%u\r\n",
+                 __func__, hdr->id, hdr->eof, hdr->cnt, hdr->size, length);
+            return;
+        }
+
         if (hdr->cnt == 1) {
             frame_buffer->frame->length = 0;
             frame_buffer->frame_pkt_cnt = 0;
@@ -401,13 +414,16 @@ static void unfragment_process_packet(unfragment_cfg_t *config, uint8_t *data, u
         if (((frame_buffer->frame_pkt_cnt + 1) == hdr->cnt)
             && (frame_buffer->start_buf == FRAG_BUF_COPY))
         {
-            if (frame_buffer->frame->length + org_len > frame_buffer->frame->size)
+            /* Avoid unsigned overflow in length + org_len before bounds check. */
+            if ((frame_buffer->frame->length > frame_buffer->frame->size) ||
+                (org_len > (frame_buffer->frame->size - frame_buffer->frame->length)))
             {
-                frame_buffer->frame->length += org_len;
+                LOGE("%s transfer_length %u + %u is over cache buf size %u \r\n",
+                     __func__, frame_buffer->frame->length, org_len, frame_buffer->frame->size);
+                frame_buffer->frame->length = frame_buffer->frame->size;
                 frame_buffer->frame_pkt_cnt += 1;
                 if (hdr->eof == 1)
                 {
-                    LOGE("%s transfer_length %d is over cache buf size %d \r\n", __func__, frame_buffer->frame->length, frame_buffer->frame->size);
                     frame_buffer->buf_ptr = frame_buffer->frame->frame;
                     frame_buffer->frame->length = 0;
                     frame_buffer->frame->sequence = config->frame_cnt++;
@@ -597,6 +613,25 @@ bk_err_t ntwk_unfragment(uint32_t chan_type, uint8_t *data, uint32_t length)
 {
     data_elem_t *elem = NULL;
 
+    if ((chan_type >= NTWK_TRANS_CHAN_MAX) || (data == NULL))
+    {
+        LOGE("%s, invalid parameters, chan_type=%u, data=%p\n", __func__, chan_type, data);
+        return BK_ERR_PARAM;
+    }
+
+    if (length <= NTWK_FRAG_HEADER_SIZE)
+    {
+        //LOGE("%s, length is too short\n", __func__);
+        return BK_ERR_PARAM;
+    }
+
+    if (length > DATA_NODE_SIZE)
+    {
+        LOGE("%s, length %u exceeds data node size %u, chan_type=%u\n",
+             __func__, length, DATA_NODE_SIZE, chan_type);
+        return BK_ERR_PARAM;
+    }
+
     unfragment_cfg_t *config = s_unfragment_cfg_mgr[chan_type];
 
     if ((config == NULL) || (config->initialized == false) || (config->task_running == false))
@@ -606,12 +641,6 @@ bk_err_t ntwk_unfragment(uint32_t chan_type, uint8_t *data, uint32_t length)
     }
 
     data_pool_t *pool = &config->pool;
-
-    if (length <= 4)
-    {
-        //LOGE("%s, length is too short\n", __func__);
-        return -1;
-    }
 
     elem = (data_elem_t *)trans_list_pick(&pool->free);
     if (elem)
