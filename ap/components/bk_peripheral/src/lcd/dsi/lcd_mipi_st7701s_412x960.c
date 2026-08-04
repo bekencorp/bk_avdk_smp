@@ -70,6 +70,18 @@ static const lcd_mipi_init_cmd_t st7701s_mipi_412x960_init_cmds[] = {
     {0x00, NULL, 0}  // End marker
 };
 
+// Power-down sequence: DISPOFF -> (>=1 frame) -> SLPIN -> (charge-pump
+// discharge). Sent by bk_lcd_mipi_default_off() during bk_display_deinit()
+// while the DSI command channel is still up, before RESETn / VDDIO drop.
+// init leaves the panel on command page 0x00, so 28h/10h apply directly.
+static const lcd_mipi_init_cmd_t st7701s_mipi_412x960_off_cmds[] = {
+    {0x28, (const uint8_t []){0x00}, 0},  // disp off
+    {0x00, (const uint8_t []){20},   0xFF},
+    {0x10, (const uint8_t []){0x00}, 0},  // sleep in
+    {0x00, (const uint8_t []){120},  0xFF},
+    {0x00, NULL, 0}  // End marker
+};
+
 static const uint8_t st7701s_mipi_412x960_read_id_regs[] = {0xA1, 0};  // ST7701S uses 0xA1
 
 // Panel descriptor - referenced by board config and CLI
@@ -89,11 +101,13 @@ const bk_display_dsi_panel_t lcd_device_st7701s_mipi_412x960 = {
         .vsync_front_porch = 40,
     },
     .init_cmds = st7701s_mipi_412x960_init_cmds,
+    .off_cmds = st7701s_mipi_412x960_off_cmds,
     .read_id_regs = st7701s_mipi_412x960_read_id_regs,
     .read_id_bytes = 2,
     .reset_active_level = false,
     .reset = bk_lcd_mipi_default_reset,
     .init  = bk_lcd_mipi_default_init,
+    .off   = bk_lcd_mipi_default_off,
 };
 
 BK_LCD_PANEL_DEVICE_SECTION(lcd_device_st7701s_mipi_412x960, "st7701s_mipi_412x960", BK_LCD_PANEL_BUS_DSI);

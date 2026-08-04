@@ -70,6 +70,17 @@ static const lcd_mipi_init_cmd_t er68576b_mipi_720x1280_init_cmds[] = {
     {0x00, NULL, 0}  // End marker
 };
 
+// Power-down sequence: DISPOFF -> (>=1 frame) -> SLPIN -> (charge-pump
+// discharge). Sent by bk_lcd_mipi_default_off() during bk_display_deinit()
+// while the DSI command channel is still up, before RESETn / VDDIO drop.
+static const lcd_mipi_init_cmd_t er68576b_mipi_720x1280_off_cmds[] = {
+    {0x28, (const uint8_t []){0x00}, 0},        // disp off
+    {0x00, (const uint8_t []){50},   0xFF},     // delay 20ms
+    {0x10, (const uint8_t []){0x00}, 0},        // sleep in
+    {0x00, (const uint8_t []){120},  0xFF},     // delay 120ms
+    {0x00, NULL, 0}  // End marker
+};
+
 static const uint8_t er68576b_mipi_720x1280_read_id_regs[] = {0x04, 0};  // RDDID command (0x04)
 
 // Panel descriptor - referenced by board config and CLI
@@ -89,11 +100,13 @@ const bk_display_dsi_panel_t lcd_device_er68576b_mipi_720x1280 = {
         .vsync_front_porch = 20,
     },
     .init_cmds = er68576b_mipi_720x1280_init_cmds,
+    .off_cmds = er68576b_mipi_720x1280_off_cmds,
     .read_id_regs = er68576b_mipi_720x1280_read_id_regs,
     .read_id_bytes = 3,
     .reset_active_level = false,
     .reset = bk_lcd_mipi_default_reset,
     .init  = bk_lcd_mipi_default_init,
+    .off   = bk_lcd_mipi_default_off,
 };
 
 BK_LCD_PANEL_DEVICE_SECTION(lcd_device_er68576b_mipi_720x1280, "er68576b_mipi_720x1280", BK_LCD_PANEL_BUS_DSI);

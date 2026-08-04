@@ -47,6 +47,17 @@ static const lcd_mipi_init_cmd_t ek79007ad_mipi_1024x600_init_cmds[] = {
     {0x00, NULL, 0},
 };
 
+// Power-down sequence: DISPOFF -> (>=1 frame) -> SLPIN -> (charge-pump
+// discharge). Sent by bk_lcd_mipi_default_off() during bk_display_deinit()
+// while the DSI command channel is still up, before RESETn / VDDIO drop.
+static const lcd_mipi_init_cmd_t ek79007ad_mipi_1024x600_off_cmds[] = {
+    {0x28, (const uint8_t []){0x00}, 0},
+    {0x00, (const uint8_t []){50},   0xFF},
+    {0x10, (const uint8_t []){0x00}, 0},
+    {0x00, (const uint8_t []){120},  0xFF},
+    {0x00, NULL, 0},
+};
+
 static const uint8_t ek79007ad_mipi_1024x600_read_id_regs[] = {0x04, 0};
 
 const bk_display_dsi_panel_t lcd_device_ek79007ad_mipi_1024x600 = {
@@ -65,11 +76,13 @@ const bk_display_dsi_panel_t lcd_device_ek79007ad_mipi_1024x600 = {
         .vsync_front_porch = 12,
     },
     .init_cmds = ek79007ad_mipi_1024x600_init_cmds,
+    .off_cmds = ek79007ad_mipi_1024x600_off_cmds,
     .read_id_regs = ek79007ad_mipi_1024x600_read_id_regs,
     .read_id_bytes = 3,
     .reset_active_level = false,
     .reset = bk_lcd_mipi_default_reset,
     .init  = bk_lcd_mipi_default_init,
+    .off   = bk_lcd_mipi_default_off,
 };
 
 BK_LCD_PANEL_DEVICE_SECTION(lcd_device_ek79007ad_mipi_1024x600,

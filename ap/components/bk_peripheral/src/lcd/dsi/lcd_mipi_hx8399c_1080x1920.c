@@ -61,6 +61,17 @@ static const lcd_mipi_init_cmd_t hx8399c_mipi_1080x1920_init_cmds[] = {
     {0x00, NULL, 0}  // End marker
 };
 
+// Power-down sequence: DISPOFF -> (>=1 frame) -> SLPIN -> (charge-pump
+// discharge). Sent by bk_lcd_mipi_default_off() during bk_display_deinit()
+// while the DSI command channel is still up, before RESETn / VDDIO drop.
+static const lcd_mipi_init_cmd_t hx8399c_mipi_1080x1920_off_cmds[] = {
+    {0x28, (const uint8_t []){0x00}, 0},
+    {0x00, (const uint8_t []){50},   0xFF},
+    {0x10, (const uint8_t []){0x00}, 0},
+    {0x00, (const uint8_t []){120},  0xFF},
+    {0x00, NULL, 0}  // End marker
+};
+
 static const uint8_t hx8399c_mipi_1080x1920_read_id_regs[] = {0xDA, 0xDB, 0xDC, 0};
 
 // Panel descriptor - referenced by board config and CLI
@@ -80,11 +91,13 @@ const bk_display_dsi_panel_t lcd_device_hx8399c_mipi_1080x1920 = {
         .vsync_front_porch = 7,
     },
     .init_cmds = hx8399c_mipi_1080x1920_init_cmds,
+    .off_cmds = hx8399c_mipi_1080x1920_off_cmds,
     .read_id_regs = hx8399c_mipi_1080x1920_read_id_regs,
     .read_id_bytes = 3,
     .reset_active_level = false,
     .reset = bk_lcd_mipi_default_reset,
     .init  = bk_lcd_mipi_default_init,
+    .off   = bk_lcd_mipi_default_off,
 };
 
 BK_LCD_PANEL_DEVICE_SECTION(lcd_device_hx8399c_mipi_1080x1920, "hx8399c_mipi_1080x1920", BK_LCD_PANEL_BUS_DSI);
