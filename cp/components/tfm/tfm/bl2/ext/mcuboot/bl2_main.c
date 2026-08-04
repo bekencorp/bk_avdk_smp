@@ -36,7 +36,7 @@
 #include "flash_partition.h"
 #include "aon_pmu_hal.h"
 #include <modules/pm.h>
-#include "driver/efuse.h"
+#include "bk_efuse.h"
 #include "hal_hw_fih.h"
 #include "hal_sw_fih.h"
 #include "hal_efuse.h"
@@ -48,8 +48,10 @@
 #include "cache.h"
 #include "tfm_flash_partition.h"
 #include "driver/flash.h"
+#if CONFIG_BL2_DOWNLOAD
+#include "download_flash_adapter.h"
+#endif
 #include "boot_param.h"
-#include "bk_efuse.h"
 #include "bk_wdt.h"
 #include "bl2_flash_map.h"
 

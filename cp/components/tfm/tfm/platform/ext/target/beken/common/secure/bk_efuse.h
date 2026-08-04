@@ -14,6 +14,7 @@
 
 #pragma once
 
+#include <stdbool.h>
 #include <stdint.h>
 
 #ifdef __cplusplus
@@ -24,6 +25,13 @@ extern "C" {
 int      bk_efuse_init(void);
 uint32_t efuse_get_value(void);
 void     dump_efuse(void);
+
+/* Secure-boot policy derived from the cached eFuse value. */
+bool efuse_is_secureboot_enabled(void);
+bool efuse_is_spe_debug_enabled(void);
+bool efuse_is_info_log_enabled(void);
+bool efuse_is_err_log_enabled(void);
+bool efuse_is_secure_download_enabled(void);
 
 #ifdef __cplusplus
 }

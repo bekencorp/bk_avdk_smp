@@ -67,6 +67,7 @@ if (BL2_DOWNLOAD)
 	endif()
 
 	target_compile_options(download PUBLIC ${BL2_COMPILER_CP_FLAG})
+	target_include_directories(download PUBLIC ${CMAKE_CURRENT_LIST_DIR}/include)
 	target_include_directories(download PRIVATE ${download_inc})
 	target_link_libraries(platform_bl2 PUBLIC download)
 	link_directories(${CMAKE_CURRENT_BINARY_DIR})
