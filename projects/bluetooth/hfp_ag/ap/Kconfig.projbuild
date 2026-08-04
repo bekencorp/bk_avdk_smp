@@ -1,0 +1,13 @@
+menu "HFP AG Example Configuration"
+
+    config HFP_AG_DEMO
+        bool "hfp ag (audio gateway) demo"
+        depends on BT
+        default y
+        help
+            HFP AG (Hands-Free Profile - Audio Gateway) demo.
+            Consumes the SDK public components/bluetooth/bk_dm_hfp_ag.h API
+            (bridge lives in the SDK: ble_pub/ui/bt_hfp_ag_*, dispatched on
+            ui_ethermind_ctx_thread) and registers CLI commands to drive
+            AG-side call control.
+endmenu
