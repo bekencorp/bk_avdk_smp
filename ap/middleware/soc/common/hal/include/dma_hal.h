@@ -111,6 +111,10 @@ typedef struct {
 #define dma_hal_set_sec_attr(hal, id, attr) dma_ll_set_secure_attr((hal)->hw, id, attr)
 #define dma_hal_set_privileged_attr(hal, id, attr) dma_ll_set_privileged_attr((hal)->hw, id, attr);
 #define dma_hal_set_int_allocate(hal, id, int_id) dma_ll_set_int_allocate((hal)->hw, id, int_id);
+#else
+#define dma_hal_set_sec_attr(hal, id, attr)
+#define dma_hal_set_privileged_attr(hal, id, attr)
+#define dma_hal_set_int_allocate(hal, id, int_id)
 #endif
 
 

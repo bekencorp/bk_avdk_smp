@@ -375,7 +375,11 @@ bk_err_t bk_sd_card_init(void)
 	 * BUF_RD_ENABLE never asserts, no CRC/timeout). SDR12 is the exact
 	 * sampling path used by card identification, which is 100% reliable. */
 	bk_sdio_host_set_timing(SDCARD_HOST_ID, SDIO_HOST_TIMING_SDR12);
-	bk_sdio_host_set_clock(SDCARD_HOST_ID, 20000000);  /* 20MHz transfer clock */
+#if defined(CONFIG_SDCARD_CLOCK_FREQ_HZ)
+	bk_sdio_host_set_clock(SDCARD_HOST_ID, CONFIG_SDCARD_CLOCK_FREQ_HZ);
+#else
+	bk_sdio_host_set_clock(SDCARD_HOST_ID, 20000000);
+#endif
 	rtos_delay_milliseconds(1);
 
 	s_sd_card_is_init = true;
@@ -420,7 +424,7 @@ bk_err_t bk_sd_card_write_blocks(const uint8_t *data, uint32_t block_addr, uint3
 	return ret;
 }
 
-bk_err_t bk_sd_card_read_blocks(uint8_t *data, uint32_t block_addr, uint32_t block_num)
+static bk_err_t sd_card_read_blocks_once(uint8_t *data, uint32_t block_addr, uint32_t block_num)
 {
 	uint32_t arg = (s_sd_card_obj.sd_card.card_type == SD_CARD_TYPE_SDSC) ? (block_addr << 9) : block_addr;
 	sdio_host_cmd_t cmd = {
@@ -445,6 +449,36 @@ bk_err_t bk_sd_card_read_blocks(uint8_t *data, uint32_t block_addr, uint32_t blo
 		SD_CARD_LOGW("read blocks retry %d (addr=%d, cnt=%d)\r\n", i, block_addr, block_num);
 	}
 	return ret;
+}
+
+bk_err_t bk_sd_card_read_blocks(uint8_t *data, uint32_t block_addr, uint32_t block_num)
+{
+#if defined(CONFIG_SDCARD_MAX_BLOCKS_PER_XFER) && (CONFIG_SDCARD_MAX_BLOCKS_PER_XFER > 0)
+	/*
+	 * Split large reads into smaller CMD18 transfers. On boards with
+	 * marginal SDIO SI, long multi-block PIO reads are more likely to hit
+	 * DATA_END_BIT_ERR; limiting the per-xfer block count is a software
+	 * workaround (see CONFIG_SDCARD_MAX_BLOCKS_PER_XFER).
+	 */
+	const uint32_t max_chunk = (uint32_t)CONFIG_SDCARD_MAX_BLOCKS_PER_XFER;
+	uint32_t done = 0;
+
+	while (done < block_num) {
+		uint32_t chunk = block_num - done;
+		bk_err_t ret;
+
+		if (chunk > max_chunk)
+			chunk = max_chunk;
+		ret = sd_card_read_blocks_once(data + (done * SD_BLOCK_LEN),
+					       block_addr + done, chunk);
+		if (ret != BK_OK)
+			return ret;
+		done += chunk;
+	}
+	return BK_OK;
+#else
+	return sd_card_read_blocks_once(data, block_addr, block_num);
+#endif
 }
 
 bk_err_t bk_sd_card_get_card_info(sd_card_info_t *card_info)
