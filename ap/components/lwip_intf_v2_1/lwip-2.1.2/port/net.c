@@ -46,6 +46,7 @@
 #ifdef CONFIG_WIFI_VNET_CONTROLLER
 #include "wdrv_cntrl.h"
 #include "wifi_api.h"
+#include "bk_private/bk_wifi.h"
 #endif
 
 FUNC_1PARAM_PTR bk_wlan_get_status_cb(void);
@@ -724,6 +725,34 @@ void sta_ip_down(void)
 		}
 #endif
 	}
+}
+
+void sta_ip_apply_static_binary(uint32_t ip, uint32_t mk, uint32_t gw, uint32_t dns)
+{
+	struct ipv4_config addr = {
+		.addr_type = ADDR_TYPE_STATIC,
+		.address = ip,
+		.netmask = mk,
+		.gw = gw,
+		.dns1 = dns,
+	};
+	struct netif *n = &g_mlan.netif;
+
+	os_memcpy(&sta_ip_settings, &addr, sizeof(addr));
+
+	if (sta_ip_start_flag && (n->flags & NETIF_FLAG_UP) &&
+	    ip_addr_get_ip4_u32(&n->ip_addr) == ip &&
+	    ip_addr_get_ip4_u32(&n->netmask) == mk &&
+	    ip_addr_get_ip4_u32(&n->gw) == gw) {
+		return;
+	}
+
+	if (sta_ip_start_flag)
+		sta_ip_down();
+
+	sta_ip_start_flag = true;
+	LWIP_LOGI("sta ip start\r\n");
+	net_configure_address(&sta_ip_settings, net_get_sta_handle());
 }
 
 void sta_ip_start(void)
@@ -2057,21 +2086,33 @@ int host_wlan_add_netif(uint8_t *mac)
 {
 	struct iface *wlan_if = NULL;
 	err_t err;
-	u8 sta_mac[6], ap_mac[6];
 
-	bk_wifi_sta_get_mac(sta_mac);
-	bk_wifi_ap_get_mac(ap_mac);
-	if (memcmp(mac, sta_mac, 6) == 0) {
-		wlan_if = &g_mlan;
-	} else if (memcmp(mac, ap_mac, 6) == 0) {
-		wlan_if = &g_uap;
-	} else {
-		LWIP_LOGE("unknown netif\r\n");
+	if (!mac)
 		return ERR_ARG;
+
+#ifdef CONFIG_WIFI_VNET_CONTROLLER
+	if (g_sta_param_ptr && !memcmp(mac, g_sta_param_ptr->own_mac, 6))
+		wlan_if = &g_mlan;
+	else
+		wlan_if = &g_uap;
+#else
+	{
+		u8 sta_mac[6], ap_mac[6];
+
+		bk_wifi_sta_get_mac(sta_mac);
+		bk_wifi_ap_get_mac(ap_mac);
+		if (memcmp(mac, sta_mac, 6) == 0)
+			wlan_if = &g_mlan;
+		else if (memcmp(mac, ap_mac, 6) == 0)
+			wlan_if = &g_uap;
+		else {
+			LWIP_LOGE("unknown netif\r\n");
+			return ERR_ARG;
+		}
 	}
-	if (net_wlan_netif_in_list(&wlan_if->netif)) {
+#endif
+	if (net_wlan_netif_in_list(&wlan_if->netif))
 		return ERR_OK;
-	}
 
 	ip_addr_set_ip4_u32(&wlan_if->ipaddr, INADDR_ANY);
 	err = netifapi_netif_add(&wlan_if->netif,

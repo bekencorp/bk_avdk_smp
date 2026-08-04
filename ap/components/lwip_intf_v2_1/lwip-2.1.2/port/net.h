@@ -10,6 +10,7 @@ extern void uap_ip_down(void);
 extern void uap_ip_start(void);
 extern void sta_ip_down(void);
 extern void sta_ip_start(void);
+extern void sta_ip_apply_static_binary(uint32_t ip, uint32_t mk, uint32_t gw, uint32_t dns);
 extern uint32_t uap_ip_is_start(void);
 extern uint32_t sta_ip_is_start(void);
 extern void *net_get_sta_handle(void);
