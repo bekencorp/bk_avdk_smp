@@ -24,6 +24,7 @@
 #include "driver/dma.h"
 #include "driver/flash.h"
 #include "sys_driver.h"
+#include "hspl/hspl_res_lock.h"
 
 #include "cache.h"
 
@@ -717,7 +718,15 @@ static u32 ipc_cmd_handler(ipc_chnl_cb_t *chnl_cb, mb_chnl_ack_t *ack_buf)
 				/* no params, no returns. */
 				#if (CONFIG_SHELL_ASYNCLOG)
 				shell_set_log_cpu(SHELL_MAX_CPU_CNT);
-				shell_log_flush();
+				/* AP may still own UART_LOG while handing the dump over.
+				 * Flush only when the lock is immediately available; taking
+				 * it first also makes shell_log_flush()'s nested lock
+				 * acquisition recursive on this core. */
+				if (bk_hspl_res_try_lock(BK_HSPL_RES_UART_LOG) == BK_OK)
+				{
+					shell_log_flush();
+					bk_hspl_res_unlock(BK_HSPL_RES_UART_LOG);
+				}
 				#endif
 
 				bk_coredump_dump_ap_memory_for_trap();
