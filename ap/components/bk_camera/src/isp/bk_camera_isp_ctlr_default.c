@@ -504,6 +504,12 @@ static avdk_err_t isp_camera_ctlr_ioctl(bk_isp_camera_ctlr_handle_t handle, bk_c
         case BK_CAM_IOCTL_SOFTRESET:
             bk_isp_soft_reset(&controller->isp_handle);
             break;
+        case BK_CAM_IOCTL_GET_EXPOSURE_LUMINANCE:
+            AVDK_RETURN_ON_FALSE(arg, AVDK_ERR_INVAL, TAG, "arg is NULL");
+            AVDK_RETURN_ON_ERROR(
+                bk_isp_get_exposure_luminance(&controller->isp_handle, (uint32_t *)arg),
+                TAG, "get exposure luminance failed");
+            break;
         default:
             return AVDK_ERR_INVAL;
     }
