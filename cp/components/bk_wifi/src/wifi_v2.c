@@ -4219,8 +4219,6 @@ bk_err_t bk_wifi_monitor_set_channel(const wifi_channel_t *chan)
 	if (ret != BK_OK)
 		return ret;
 
-	rwnxl_reset_evt(0);
-
 	//always set to HT20
 	rw_msg_set_channel(chan->primary, PHY_CHNL_BW_20, NULL);
 
