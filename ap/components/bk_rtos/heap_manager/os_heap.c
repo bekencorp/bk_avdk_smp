@@ -156,6 +156,9 @@ static void bk_heap_free_impl(const bk_heap_t *self, const char *func_name, int 
 
 void os_free_debug(const char *func_name, int line, void *ptr)
 {
+    if (ptr == NULL) {
+        return;
+    }
     if (ptr_is_sram_heap(ptr)) {
         sram_free_debug(func_name, line, ptr);
     }
@@ -181,6 +184,9 @@ void os_free_debug(const char *func_name, int line, void *ptr)
 
 void os_free_release(void *ptr)
 {
+    if (ptr == NULL) {
+        return;
+    }
     if (ptr_is_sram_heap(ptr)) {
         sram_free_release(ptr);
     }
