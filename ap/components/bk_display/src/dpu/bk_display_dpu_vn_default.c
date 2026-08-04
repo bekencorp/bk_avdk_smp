@@ -227,6 +227,8 @@ static avdk_err_t dpu_ctlr_deinit(bk_display_ctlr_handle_t handle)
 
     if (was_active)
     {
+        /* Stop DPU scan before draining inflight flushes; the DPI feed only
+         * truly stops in dpu_core_deinit() below, so panel off is deferred. */
         (void)dpu_core_flush_stop(&controller->dpu_handle);
     }
 
@@ -263,10 +265,16 @@ static avdk_err_t dpu_ctlr_deinit(bk_display_ctlr_handle_t handle)
     controller->dpu_handle = NULL;
     controller->state = DISP_STATE_DEINIT;
     dpu_ctlr_unlock(controller);
-    bk_pm_module_vote_power_ctrl(PM_POWER_SUB_DOMAIN_DPU, PM_POWER_MODULE_STATE_OFF);
 
-    /* Park RESETn at idle level (no-op when reset_pin < 0 or .reset is NULL). */
-    (void)bk_lcd_panel_reset(controller->panel);
+    /* Panel power-down: DISPOFF/SLPIN then hold RESETn asserted. Only correct
+     * moment: DPU has stopped feeding (dpu_core_deinit above) and the DPU power
+     * domain is still ON (vote below not run yet), so the DSI command channel is
+     * alive. bk_lcd_panel_off() also parks RESETn at its active level so the pin
+     * is not driven above the panel supply when the app cuts VDDIO -- do NOT run
+     * a reset pulse here, it would release the hold. */
+    (void)bk_lcd_panel_off(controller->panel);
+
+    bk_pm_module_vote_power_ctrl(PM_POWER_SUB_DOMAIN_DPU, PM_POWER_MODULE_STATE_OFF);
     LOGI("%s complete\n", __func__);
 
     return BK_OK;
@@ -334,6 +342,9 @@ static avdk_err_t dpu_ctlr_close(bk_display_ctlr_handle_t handle)
         return AVDK_ERR_GENERIC;
     }
 
+    /* Pause DPU scan only (may be re-opened by a later flush()); do NOT send the
+     * panel power-down DCS here -- it is deferred to dpu_ctlr_deinit(), where the
+     * DPI scanout truly stops (dpu_core_deinit). */
     (void)dpu_core_flush_stop(&controller->dpu_handle);
 
     controller->state = DISP_STATE_CLOSED;

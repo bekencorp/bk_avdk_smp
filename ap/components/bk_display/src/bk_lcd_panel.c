@@ -32,6 +32,15 @@ bk_err_t bk_lcd_panel_init(bk_avdk_lcd_panel_handle_t panel)
     return panel->init(panel);
 }
 
+bk_err_t bk_lcd_panel_off(bk_avdk_lcd_panel_handle_t panel)
+{
+    AVDK_RETURN_ON_FALSE(panel, BK_ERR_NULL_PARAM, TAG, "invalid panel handle");
+    if (panel->off == NULL) {
+        return BK_OK;
+    }
+    return panel->off(panel);
+}
+
 bk_err_t bk_lcd_panel_delete(bk_avdk_lcd_panel_handle_t panel)
 {
     AVDK_RETURN_ON_FALSE(panel, BK_ERR_NULL_PARAM, TAG, "invalid panel handle");

@@ -28,6 +28,7 @@
 #include "gpio_driver.h"
 #include <components/bk_display_bus.h>
 #include <components/bk_lcd_panel.h>
+#include <driver/mipi_dsi.h>
 #include <avdk_check.h>
 #include <components/log.h>
 
@@ -78,6 +79,40 @@ bk_err_t bk_lcd_mipi_default_init(bk_avdk_lcd_panel_t *panel)
                                                     priv->panel->init_cmds[i].data,
                                                     priv->panel->init_cmds[i].data_len),
                              TAG, "send init command failed");
+    }
+
+    return BK_OK;
+}
+
+bk_err_t bk_lcd_mipi_default_off(bk_avdk_lcd_panel_t *panel)
+{
+    lcd_panel_common_t *priv = (lcd_panel_common_t *)panel;
+    AVDK_RETURN_ON_FALSE(priv && priv->panel, BK_ERR_NULL_PARAM, TAG, "invalid panel");
+
+    /* DPU has stopped feeding (called after dpu_core_deinit): park the DSI host
+     * in command mode so the video machine stops pulling the idle DPI FIFO (else
+     * dpi_bpl_udflw storm). Unconditional -- a pipeline concern, not gated on
+     * off_cmds. Next bring-up restores video mode in mipi_dsi_clock_set(). */
+    mipi_dsi_video_mode_set(false);
+
+    if (priv->panel->off_cmds == NULL) {
+        return BK_OK;
+    }
+
+    for (uint32_t i = 0; priv->panel->off_cmds[i].cmd != 0 || priv->panel->off_cmds[i].data != NULL; i++) {
+        if (priv->panel->off_cmds[i].cmd == 0 && priv->panel->off_cmds[i].data == NULL) {
+            break;
+        }
+        if (priv->panel->off_cmds[i].cmd == 0 && priv->panel->off_cmds[i].data_len == 0xFF
+            && priv->panel->off_cmds[i].data != NULL) {
+            rtos_delay_milliseconds(((const uint8_t *)priv->panel->off_cmds[i].data)[0]);
+            continue;
+        }
+        AVDK_RETURN_ON_ERROR(bk_display_bus_tx_param(priv->bus_handle,
+                                                    (int)priv->panel->off_cmds[i].cmd,
+                                                    priv->panel->off_cmds[i].data,
+                                                    priv->panel->off_cmds[i].data_len),
+                             TAG, "send off command failed");
     }
 
     return BK_OK;
@@ -149,6 +184,36 @@ static bk_err_t lcd_panel_common_reset(bk_avdk_lcd_panel_t *panel)
         return BK_OK;
     }
     return priv->panel->reset(panel);
+}
+
+static bk_err_t lcd_panel_common_off(bk_avdk_lcd_panel_t *panel)
+{
+    lcd_panel_common_t *priv = (lcd_panel_common_t *)panel;
+    AVDK_RETURN_ON_FALSE(priv && priv->panel, BK_ERR_NULL_PARAM, TAG, "invalid panel");
+
+    bk_err_t ret = BK_OK;
+    if (priv->panel->off != NULL) {
+        ret = priv->panel->off(panel);
+    } else {
+        LOGI("%s %s: off is NULL, skip cmds\n", __func__, priv->panel->name);
+    }
+
+    /* Assert RESETn to its active level and hold it there (no pulse, no release)
+     * so the panel is kept in reset before the caller cuts VDDIO -- avoids driving
+     * the reset pin above the removed supply. Polarity follows reset_active_level
+     * (active-low panels are held low). The next bring-up re-pulses via
+     * bk_lcd_mipi_default_reset(). Done unconditionally: a power-down concern, not
+     * gated on off_cmds / .off. */
+    if (priv->reset_gpio >= 0) {
+        BK_LOG_ON_ERR(bk_gpio_enable_output(priv->reset_gpio));
+        if (priv->reset_active_level) {
+            bk_gpio_set_output_high(priv->reset_gpio);
+        } else {
+            bk_gpio_set_output_low(priv->reset_gpio);
+        }
+    }
+
+    return ret;
 }
 
 static bk_err_t lcd_panel_common_read_id(bk_avdk_lcd_panel_t *panel, uint32_t *id)
@@ -283,6 +348,7 @@ bk_err_t bk_lcd_new_mipi_panel_common(bk_display_bus_handle_t bus_handle,
 
     panel->base.init               = lcd_panel_common_init;
     panel->base.reset              = lcd_panel_common_reset;
+    panel->base.off                = lcd_panel_common_off;
     panel->base.read_id            = lcd_panel_common_read_id;
     panel->base.del                = lcd_panel_common_del;
     panel->base.tx_param           = lcd_panel_common_tx_param;

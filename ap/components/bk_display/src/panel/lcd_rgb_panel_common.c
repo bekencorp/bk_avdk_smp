@@ -126,6 +126,39 @@ bk_err_t bk_lcd_rgb_default_init(bk_avdk_lcd_panel_t *panel)
     return BK_OK;
 }
 
+bk_err_t bk_lcd_rgb_default_off(bk_avdk_lcd_panel_t *panel)
+{
+    lcd_rgb_panel_common_t *priv = (lcd_rgb_panel_common_t *)panel;
+    AVDK_RETURN_ON_FALSE(priv && priv->panel, BK_ERR_NULL_PARAM, TAG, "invalid panel");
+
+    if (priv->panel->off_cmds == NULL) {
+        return BK_OK;
+    }
+
+    for (uint32_t i = 0; ; i++) {
+        const lcd_rgb_spi_init_cmd_t *cmd = &priv->panel->off_cmds[i];
+
+        if (cmd->cmd == 0 && cmd->data == NULL && cmd->data_len == 0) {
+            break;
+        }
+
+        if (cmd->cmd == 0 && cmd->data_len == 0xFF && cmd->data != NULL) {
+            const uint8_t *delay_ms = (const uint8_t *)cmd->data;
+            rtos_delay_milliseconds(delay_ms[0]);
+            continue;
+        }
+
+        if (cmd->cmd != 0) {
+            AVDK_RETURN_ON_ERROR(bk_display_bus_tx_param(priv->bus_handle, (int)cmd->cmd,
+                                                        cmd->data,
+                                                        cmd->data_len),
+                                 TAG, "send off cmd 0x%x failed", cmd->cmd);
+        }
+    }
+
+    return BK_OK;
+}
+
 bk_err_t bk_lcd_rgb_default_reset(bk_avdk_lcd_panel_t *panel)
 {
     lcd_rgb_panel_common_t *priv = (lcd_rgb_panel_common_t *)panel;
@@ -182,6 +215,35 @@ static bk_err_t lcd_rgb_panel_common_reset(bk_avdk_lcd_panel_t *panel)
         return BK_OK;
     }
     return priv->panel->reset(panel);
+}
+
+static bk_err_t lcd_rgb_panel_common_off(bk_avdk_lcd_panel_t *panel)
+{
+    lcd_rgb_panel_common_t *priv = (lcd_rgb_panel_common_t *)panel;
+    AVDK_RETURN_ON_FALSE(priv && priv->panel, BK_ERR_NULL_PARAM, TAG, "invalid panel");
+
+    bk_err_t ret = BK_OK;
+    if (priv->panel->off != NULL) {
+        ret = priv->panel->off(panel);
+    } else {
+        BK_LOGI(TAG, "%s %s: off is NULL, skip cmds", __func__, priv->panel->name);
+    }
+
+    /* Assert RESETn to its active level and hold it there (no pulse, no release)
+     * so the panel is kept in reset before the caller cuts VDDIO -- avoids driving
+     * the reset pin above the removed supply. Polarity follows reset_active_level.
+     * The next bring-up re-pulses via bk_lcd_rgb_default_reset(). Unconditional:
+     * a power-down concern, not gated on off_cmds / .off. */
+    if (priv->reset_gpio >= 0) {
+        BK_LOG_ON_ERR(bk_gpio_enable_output(priv->reset_gpio));
+        if (priv->reset_active_level) {
+            bk_gpio_set_output_high(priv->reset_gpio);
+        } else {
+            bk_gpio_set_output_low(priv->reset_gpio);
+        }
+    }
+
+    return ret;
 }
 
 static bk_err_t lcd_rgb_panel_common_read_id(bk_avdk_lcd_panel_t *panel, uint32_t *id)
@@ -282,6 +344,7 @@ bk_err_t bk_lcd_new_rgb_panel_common(bk_display_bus_handle_t bus_handle,
 
     panel->base.init               = lcd_rgb_panel_common_init;
     panel->base.reset              = lcd_rgb_panel_common_reset;
+    panel->base.off                = lcd_rgb_panel_common_off;
     panel->base.read_id            = lcd_rgb_panel_common_read_id;
     panel->base.del                = lcd_rgb_panel_common_del;
     panel->base.tx_param           = lcd_rgb_panel_common_tx_param;

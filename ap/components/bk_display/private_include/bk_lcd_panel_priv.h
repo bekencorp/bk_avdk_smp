@@ -35,6 +35,7 @@ struct bk_avdk_lcd_panel_t {
 
     bk_err_t (*reset)(bk_avdk_lcd_panel_t *panel);
     bk_err_t (*init)(bk_avdk_lcd_panel_t *panel);
+    bk_err_t (*off)(bk_avdk_lcd_panel_t *panel);
     bk_err_t (*del)(bk_avdk_lcd_panel_t *panel);
     bk_err_t (*read_id)(bk_avdk_lcd_panel_t *panel, uint32_t *id);
     bk_err_t (*tx_param)(bk_avdk_lcd_panel_t *panel,
@@ -66,6 +67,18 @@ bk_err_t bk_lcd_panel_reset(bk_avdk_lcd_panel_handle_t panel);
  * @return BK_OK; BK_ERR_NULL_PARAM / channel error code on failure.
  */
 bk_err_t bk_lcd_panel_init(bk_avdk_lcd_panel_handle_t panel);
+
+/**
+ * @brief Dispatch to the descriptor's @c off op (called by dpu_ctlr_deinit
+ *        before RESETn is parked, while the DCS command channel is alive).
+ *
+ * Optional phase: returns BK_OK as a no-op when the panel has no @c off op.
+ *
+ * @param[in] panel Panel handle.
+ * @return BK_OK; BK_ERR_NULL_PARAM if @p panel is NULL; channel error on
+ *         bus failure.
+ */
+bk_err_t bk_lcd_panel_off(bk_avdk_lcd_panel_handle_t panel);
 
 #ifdef __cplusplus
 }
