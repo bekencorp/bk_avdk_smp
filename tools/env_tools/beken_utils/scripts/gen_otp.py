@@ -38,7 +38,7 @@ def get_effective_flash_aes_key(flash_aes_key):
     return flash_aes_key
 
 
-def add_security_data(otp_efuse_config, name, start_addr, byte_len, data, permission="WR", mode="write"):
+def add_security_data(otp_efuse_config, name, start_addr, byte_len, data, permission="RO", mode="write"):
     entry = {
         "name": name,
         "mode": mode,
@@ -59,22 +59,48 @@ def gen_otp_efuse_config_file(aes_type, flash_aes_key, pubkey_pem_file, securebo
 
     otp_efuse_config = {
         "User_Operate_Enable":  "false",
+        "Security_Ctrl_Enable": "true",
         "Security_Data_Enable": "true",
-
         "User_Operate":[],
+
+        "Security_Ctrl":[{
+            "secure_boot_debug_disable":    "0,1,0",
+            "fast_boot_disable":            "0,2,0",
+            "secure_boot_supported":        "0,3,0",
+            "secure_boot_clock_select":     "0,4,0",
+            "random_delay_enable":          "0,5,0",
+            "power_on_fastboot_disable":    "0,6,0",
+            "boot_critical_error":          "0,7,0",
+
+            "attack_nmi_enable":            "2,4,0",
+            "spi_to_ahb_disable":           "2,5,0",
+            "auto_reset_enable[0]":         "2,6,0",
+            "auto_reset_enable[1]":         "2,7,0",
+        
+            "memchk_bps_enable":            "3,0,0",
+            "debug_hw_disable":             "3,1,0",
+            "shanghai_clk_gating_enable":   "3,2,0",
+            "flash_no_crc_enable":          "3,3,1",
+            "flash_aes_mode":               "3,4,0",
+            "flash_aes_enable":             "3,5,0",
+            "spi_download_disable":         "3,6,0",
+            "swd_jtag_disable":             "3,7,0"
+        }],
+
         "Security_Data":[]
     }
 
     data = {}
-    if secureboot_en:
-        if  aes_type == 'FIXED':
-            efuse_data = "28000000"   #if want to configure other value, please configure this item_value(0x28000008)
-        else:
-            efuse_data = "08000000"   #TODO temp use 8000000, the final value to be used 8000008 (bit3 reps: open secureboot)
+    # if secureboot_en:
+    #     if  aes_type == 'FIXED':
+    #         efuse_data = "28000000"   #if want to configure other value, please configure this item_value(0x28000008)
+    #     else:
+    #         efuse_data = "08000000"   #TODO temp use 8000000, the final value to be used 8000008 (bit3 reps: open secureboot)
 
-        add_security_data(otp_efuse_config, "efuse", 0x44850014, 0x4, efuse_data)
+    #     add_security_data(otp_efuse_config, "efuse", 0x44850014, 0x4, efuse_data)
 
     if aes_type == 'FIXED':
+        otp_efuse_config["Security_Ctrl"][0].update({"flash_aes_enable":"3,5,1"})
         flash_aes_key = get_effective_flash_aes_key(flash_aes_key)
         if flash_aes_key != None:
             if len(flash_aes_key) == 128:
@@ -83,6 +109,7 @@ def gen_otp_efuse_config_file(aes_type, flash_aes_key, pubkey_pem_file, securebo
                 add_security_data(otp_efuse_config, "flash_aes_key2", 0x42100560, 0x20, flash_aes_key2)
                 add_security_data(otp_efuse_config, "flash_aes_key1", 0x42100580, 0x20, flash_aes_key1)
             else:
+                otp_efuse_config["Security_Ctrl"][0].update({"flash_aes_mode":"3,4,1"})
                 flash_aes_key_byte_len = get_flash_aes_key_byte_len(flash_aes_key)
                 add_security_data(otp_efuse_config, "flash_aes_key", 0x42100580, flash_aes_key_byte_len, flash_aes_key)
 
