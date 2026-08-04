@@ -110,7 +110,7 @@ bk_err_t lvgl_app_widgets_init(void)
     lv_vnd_config.height = HEIGHT;
     lv_vnd_config.render_mode = RENDER_PARTIAL_MODE;
     if (lv_vnd_config.render_mode == RENDER_PARTIAL_MODE) {
-        lv_vnd_config.draw_pixel_size = WIDTH * 64 * sizeof(bk_color_t);
+        lv_vnd_config.draw_pixel_size = WIDTH * 128 * sizeof(bk_color_t);
     }
     lv_vnd_config.rotation = ROTATE_NONE;
     lv_vnd_config.disp_width = WIDTH;
