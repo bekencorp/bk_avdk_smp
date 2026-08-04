@@ -351,7 +351,7 @@ SECTIONS
 #if CONFIG_SPE
     .data :
 #else
-    .data (ORIGIN(RAM) + 0xE00) :
+    .data (ORIGIN(RAM) + 0x1000) :
 #endif
     {
         PROVIDE(__etext = LOADADDR(.data));
@@ -361,13 +361,13 @@ SECTIONS
         __data_start__ = .;
 
 #if !CONFIG_SPE
-        KEEP(*(.vectors_iram))
-
 #if CONFIG_SOC_SMP
-        . = ORIGIN(RAM) + 0x1000;
         __vector_core1_table = .;
         KEEP(*(.vectors_core1))
+
+        . = ALIGN(512);
 #endif
+        KEEP(*(.vectors_iram))
 
         *(.dtcm)
         *(.dtcm_section*)
@@ -600,6 +600,7 @@ SECTIONS
     #if (CONFIG_SOC_SMP && !CONFIG_SPE)
         /* The secure boot shim branches core1 to this fixed Non-Secure vector; keep
         * it in sync with AP_CORE1_NS_VECTOR in the secure world. */
+        ASSERT((__iram_end__ <= ORIGIN(RAM) + 0x1000), "AP IRAM overlaps core1 vector")
     #if CONFIG_SRAM_DIRECT_ADDR
         ASSERT((__vector_core1_table == 0x3C181000), "AP core1 NS vector moved: update AP_CORE1_NS_VECTOR")
     #else

@@ -30,17 +30,19 @@
 #endif
 
 #include "ram_regions.h"
+#include "soc/bk7259/reg_base.h"
 
+/* Default test windows use the current-world PSRAM data alias. */
 #ifndef CONFIG_PSRAM_TEST_CPU_ADDR
-#define CONFIG_PSRAM_TEST_CPU_ADDR       0x60000000
+#define CONFIG_PSRAM_TEST_CPU_ADDR       (0x60000000UL + SOC_ADDR_OFFSET)
 #define CONFIG_PSRAM_TEST_CPU_SIZE       0x00400000
 #endif
 #ifndef CONFIG_PSRAM_TEST_CPU_DMA_ADDR
-#define CONFIG_PSRAM_TEST_CPU_DMA_ADDR   0x60C00000
+#define CONFIG_PSRAM_TEST_CPU_DMA_ADDR   (0x60C00000UL + SOC_ADDR_OFFSET)
 #define CONFIG_PSRAM_TEST_CPU_DMA_SIZE   0x00100000
 #endif
 #ifndef CONFIG_PSRAM_TEST_TASK_ADDR
-#define CONFIG_PSRAM_TEST_TASK_ADDR      0x60400000
+#define CONFIG_PSRAM_TEST_TASK_ADDR      (0x60400000UL + SOC_ADDR_OFFSET)
 #define CONFIG_PSRAM_TEST_TASK_SIZE      0x00200000
 #endif
 
@@ -1369,7 +1371,6 @@ static void psram_wt_verify_task_main(void *arg)
 {
 	uint32_t start_addr = s_wt_verify_ctx.start_addr;
 	uint32_t size_a = s_wt_verify_ctx.size_a;
-	uint32_t total_size = s_wt_verify_ctx.total_size;
 	uint32_t base_pattern = 0xA55A0000;
 	const uint32_t max_print_errors = 10;
 	const char *name = (s_wt_verify_ctx.mode == WTV_MODE_512K) ? "wt_verify_512k" : "wt_verify_8k";
@@ -1381,7 +1382,7 @@ static void psram_wt_verify_task_main(void *arg)
 		uint32_t err_count = 0;
 
 #if (CONFIG_CACHE_MAINTENANCE)
-		arch_dcache_flush_and_invd_range((uint8_t *)start_addr, total_size);
+		arch_dcache_flush_and_invd_range((uint8_t *)start_addr, s_wt_verify_ctx.total_size);
 #endif
 		for (i = 0; i < size_a / 4; i++)
 			write_data(start_addr + i * 4, base_pattern + i);
@@ -1512,7 +1513,7 @@ static void cli_psram_cmd_handle_ext(char *pcWriteBuffer, int xWriteBufferLen, i
 			length = ((length >> 2) + 1) << 2;
 		}
 
-		if (addr > 0x60800000 || addr < SOC_PSRAM_DATA_BASE || length == 0)
+		if (addr > (0x60800000UL + SOC_ADDR_OFFSET) || addr < SOC_PSRAM_DATA_BASE || length == 0)
 		{
 			msg = CLI_CMD_RSP_ERROR;
 		}
@@ -1559,7 +1560,7 @@ static void cli_psram_cmd_handle_ext(char *pcWriteBuffer, int xWriteBufferLen, i
 			length = ((length >> 2) + 1) << 2;
 		}
 
-		if (addr > 0x60800000 || addr < SOC_PSRAM_DATA_BASE || length == 0)
+		if (addr > (0x60800000UL + SOC_ADDR_OFFSET) || addr < SOC_PSRAM_DATA_BASE || length == 0)
 		{
 			msg = CLI_CMD_RSP_ERROR;
 		}
@@ -1584,7 +1585,7 @@ static void cli_psram_cmd_handle_ext(char *pcWriteBuffer, int xWriteBufferLen, i
 		addr = os_strtoul(argv[2], NULL, 16);
 		length = 20;
 
-		if (addr > 0x60800000 || addr < SOC_PSRAM_DATA_BASE || length == 0)
+		if (addr > (0x60800000UL + SOC_ADDR_OFFSET) || addr < SOC_PSRAM_DATA_BASE || length == 0)
 		{
 			msg = CLI_CMD_RSP_ERROR;
 			goto out;
