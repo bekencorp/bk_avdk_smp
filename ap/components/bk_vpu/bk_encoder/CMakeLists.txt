@@ -27,6 +27,11 @@ if (CONFIG_BK_ENCODER)
         jpege/src/bk_jpeg_encode_hw_flexa_ctlr.c
         jpege/src/bk_jpeg_encode_sw_flexa_ctlr.c
     )
+    if (CONFIG_BK_H264E_DEBUG_SEI)
+        list(APPEND srcs
+            common/h264_debug_sei.c
+        )
+    endif()
 endif()
 
 if (CONFIG_H264E_STREAM_SESSION)

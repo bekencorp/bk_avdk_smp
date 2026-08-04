@@ -66,4 +66,14 @@ menu "BEKEN CODEC ENCODER"
 			"Select CKSEL_H264_240M (highest supported encoder frequency).
 			When disabled, CKSEL_H264_80M is used."
 
+	config BK_H264E_DEBUG_SEI
+		bool "Insert debug SEI NAL into each H264 frame (transport diagnostics)"
+		default n
+		depends on BK_ENCODER
+		help
+			"Append a fixed user_data_unregistered SEI (payloadType=5) to every
+			encoded H.264 frame carrying per-frame sequence/length/CRC32/timestamp
+			so a receiver can detect frame loss, reorder, truncation and corruption
+			without decoding. Disabled by default; enable only for debugging."
+
 endmenu
