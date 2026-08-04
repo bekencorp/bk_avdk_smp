@@ -1983,7 +1983,6 @@ void shell_task( void *para )
 
 		if(Events & SHELL_EVENT_RX_IND)
 		{
-			wakeup_process();
 			rx_ind_process();
 		}
 
