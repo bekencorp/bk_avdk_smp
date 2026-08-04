@@ -74,8 +74,9 @@ int bk_pphs_apply_config(const uint32_t config[BK_PPHS_CONFIG_WORD_COUNT])
         return BK_ERR_PARAM;
     }
 
-    /* Apply PPHS reg4..6 as masks and leave the master bank (reg7) untouched
-     * while the AP boot shim still runs Secure. */
+    /* Apply PPHS reg4..6 as masks; leave master bank (reg7) untouched.
+     * Flash config marks SYS Non-Secure (ahbp_ahb_sys_nsec) so CP NS can
+     * program AP SysCfg; Secure AHBP access after this must use the NS alias. */
     for (uint32_t i = 0; i < BK_PPHS_CONFIG_WORD_COUNT; i++) {
         volatile uint32_t *reg =
             (volatile uint32_t *)(SOC_PPHS_REG_BASE + ((0x4u + i) << 2));

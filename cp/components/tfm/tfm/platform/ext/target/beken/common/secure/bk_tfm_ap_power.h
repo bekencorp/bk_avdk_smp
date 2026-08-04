@@ -19,6 +19,6 @@
  * controller). The AP core is left in reset; it does not start executing here. */
 void bk_ap_power_domain_on(void);
 
-/* Release the AP core from software reset (SYS_AHBP reg4) so it boots from the
- * Secure flash alias. Call from the Secure world after isolation is configured. */
+/* Release the AP core from software reset (SYS_AHBP reg4 via NS alias) so it
+ * boots the Secure shim. Call from Secure after PPHS has marked SYS Non-Secure. */
 void bk_ap_release(void);

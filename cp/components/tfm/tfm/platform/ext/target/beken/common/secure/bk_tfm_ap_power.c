@@ -23,6 +23,15 @@
 
 extern void bk_delay_us(uint32_t us);
 
+/* PPHS marks SYS Non-Secure before CP enters NS; post-PPHS Secure access to
+ * AP SysCfg/AHBP must target the NS alias. */
+#define SYS_AHBP_NS_BASE  SOC_GET_NS_ADDR(SOC_SYS_AHBP_REG_BASE)
+
+static inline volatile uint32_t *sys_ahbp_ns_reg(uint32_t idx)
+{
+	return (volatile uint32_t *)(SYS_AHBP_NS_BASE + (idx << 2));
+}
+
 void bk_ap_power_domain_on(void)
 {
 	uint32_t reg_val;
@@ -97,8 +106,9 @@ void bk_ap_release(void)
 	 * The shim also serves core1 (released later by the AP), branching it to its
 	 * own Non-Secure vector selected by core id. */
 	uint32_t boot_addr = bk_ap_shim_install(AP_CORE1_NS_VECTOR);
+	sys_ahbp_reg4_t *reg4 = (sys_ahbp_reg4_t *)sys_ahbp_ns_reg(0x4u);
 
-	sys_ahbp_ll_set_reg4_cpu0_sw_rstn(0);
+	reg4->cpu0_sw_rstn = 0;
 
 	/* Open AP master-access gate (PPRO reg0xF, Secure-only). */
 	{
@@ -111,23 +121,23 @@ void bk_ap_release(void)
 		const uint32_t spsp_cfg = ((0x441u) << 10) | 0x241u;
 		const uint32_t stp_cfg = 0x901u;
 
-		sys_ahbp_ll_set_reg50_value((0x5Au << 24) | spsp_cfg);
-		sys_ahbp_ll_set_reg50_value((0xA5u << 24) | spsp_cfg);
-		sys_ahbp_ll_set_reg51_value((0x5Au << 24) | stp_cfg);
-		sys_ahbp_ll_set_reg51_value((0xA5u << 24) | stp_cfg);
-		sys_ahbp_ll_set_reg52_value((0x5Au << 24) | spsp_cfg);
-		sys_ahbp_ll_set_reg52_value((0xA5u << 24) | spsp_cfg);
-		sys_ahbp_ll_set_reg53_value((0x5Au << 24) | stp_cfg);
-		sys_ahbp_ll_set_reg53_value((0xA5u << 24) | stp_cfg);
+		*sys_ahbp_ns_reg(0x50u) = (0x5Au << 24) | spsp_cfg;
+		*sys_ahbp_ns_reg(0x50u) = (0xA5u << 24) | spsp_cfg;
+		*sys_ahbp_ns_reg(0x51u) = (0x5Au << 24) | stp_cfg;
+		*sys_ahbp_ns_reg(0x51u) = (0xA5u << 24) | stp_cfg;
+		*sys_ahbp_ns_reg(0x52u) = (0x5Au << 24) | spsp_cfg;
+		*sys_ahbp_ns_reg(0x52u) = (0xA5u << 24) | spsp_cfg;
+		*sys_ahbp_ns_reg(0x53u) = (0x5Au << 24) | stp_cfg;
+		*sys_ahbp_ns_reg(0x53u) = (0xA5u << 24) | stp_cfg;
 	}
 
-	sys_ahbp_ll_set_reg4_cpu0_offset(boot_addr >> 8);
-	sys_ahbp_ll_set_reg4_cpu0_init_dtcm_en(1);
+	reg4->cpu0_offset = boot_addr >> 8;
+	reg4->cpu0_init_dtcm_en = 1;
 
 	__DSB();
 	__ISB();
 
-	sys_ahbp_ll_set_reg4_cpu0_sw_rstn(1);
+	reg4->cpu0_sw_rstn = 1;
 
 	__DSB();
 	__ISB();

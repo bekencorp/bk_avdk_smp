@@ -42,6 +42,7 @@
  *   4. grants the Non-Secure state access to the FPU;
  *   5. selects the per-core Non-Secure vector table by core id;
  *   6. loads VTOR_NS / MSP_NS and branches to the Non-Secure reset handler.
+ * SYS Non-Secure attribute is applied earlier by CP PPHS config.
  *
  * The blob is fully position independent: the vector head, the two vector
  * parameter words and the code are copied verbatim to AP_SHIM_BASE. The secure
@@ -68,20 +69,8 @@ __asm__(
 "    .thumb\n"
 "    .thumb_func\n"
 "ap_shim_code:\n"
-"    ldr  r0, =0xE005001C\n"       /* AP per-core cpuid (PPB) */
-"    ldr  r1, [r0]\n"
-"    and  r1, r1, #0xF\n"          /* core0 -> 2, core1 -> 3 */
-     /* First AP core (cpu_id 2) switches the AP SysCfg to Non-Secure in PPHS
-      * (ahbp_ahb_sap bit0). This is deferred from the secure world's PPHS setup
-      * so the AP release path can drive SysCfg as a Secure master first; by the
-      * time the second core runs the shim SysCfg is already Non-Secure. */
-"    cmp  r1, #3\n"
-"    beq  9f\n"                    /* second core: SysCfg already Non-Secure */
-"    ldr  r0, =0x480D0010\n"       /* PPHS ahbp_ahb_sap */
-"    ldr  r2, [r0]\n"
-"    orr  r2, r2, #1\n"            /* ahbp_ahb_sys_nsec = 1 */
-"    str  r2, [r0]\n"
-"9:\n"
+     /* SYS is already Non-Secure from CP PPHS apply; shim only switches the
+      * core into the Non-Secure state. */
      /* SAU region0: 0x10000000..0xDFFFFFFF Non-Secure, then enable SAU */
 "    ldr  r0, =0xE000EDD8\n"       /* SAU_RNR  */
 "    movs r1, #0\n"
