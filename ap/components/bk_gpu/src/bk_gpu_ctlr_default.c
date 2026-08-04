@@ -309,12 +309,28 @@ static void gpu_isp_line_done_handle(uint32_t line, void *arg)
         return;
     }
 
-    frame_seq = gpu_vn_ctlr->line_frame_seq;
-    if ((line == 1) || ((gpu_vn_ctlr->line_cnt != 0) && (line < gpu_vn_ctlr->line_cnt))) {
-        frame_seq++;
+    /* Prefer the decode frame_seq handed down with this line (mjpegd flexa). It is
+     * delivered synchronously in the decoder's flexa_done context, so in_stream->last_seq
+     * identifies the exact decode frame these lines belong to. Aligning the GPU's per-frame
+     * seq to the decoder lets the decoder later drop cross-frame reports. Fall back to the
+     * locally derived counter for sources that do not stamp last_seq (e.g. ISP). */
+    uint32_t dec_seq = 0U;
+    if (gpu_vn_ctlr->bond != NULL && gpu_vn_ctlr->bond->bond_config != NULL) {
+        bk_flexa_bond_t *in_s = (bk_flexa_bond_t *)gpu_vn_ctlr->bond->bond_config->in_stream;
+        if (in_s != NULL) {
+            dec_seq = in_s->last_seq;
+        }
     }
-    if (frame_seq == 0) {
-        frame_seq = 1;
+    if (dec_seq != 0U) {
+        frame_seq = dec_seq;
+    } else {
+        frame_seq = gpu_vn_ctlr->line_frame_seq;
+        if ((line == 1) || ((gpu_vn_ctlr->line_cnt != 0) && (line < gpu_vn_ctlr->line_cnt))) {
+            frame_seq++;
+        }
+        if (frame_seq == 0) {
+            frame_seq = 1;
+        }
     }
 
     gpu_flexa_event_ready_handle(frame_seq, line, gpu_vn_ctlr);
@@ -784,7 +800,12 @@ static inline bool gpu_flex_draw_path_intersects_block(const gpu_flex_data_t *da
 
 static inline void gpu_flex_abort_current_frame(gpu_vn_ctlr_t *gpu_vn_ctlr)
 {
-    bool notify_frame_fail = gpu_vn_ctlr->flexa_frame_active;
+    /* Idempotent per frame: only notify frame_done(FAIL) once. flexa_abort_notified
+     * is cleared at each frame start, so repeated abort checks within the same frame
+     * (overrun / frame-mismatch) no longer send duplicate full-frame reports to the
+     * JPEG decoder. */
+    bool notify_frame_fail = gpu_vn_ctlr->flexa_frame_active &&
+                             !gpu_vn_ctlr->flexa_abort_notified;
 
     gpu_flex_restart(gpu_vn_ctlr);
 
@@ -1079,7 +1100,10 @@ static inline bool gpu_flex_data_frame_done(gpu_flex_data_t *data, gpu_vn_ctlr_t
         }
     }
 
-    if (gpu_vn_ctlr->bond != NULL && gpu_vn_ctlr->bond->frame_done != NULL) {
+    /* Mutually exclusive with the abort path: if this frame already reported
+     * frame_done(FAIL) via abort, do not also report a normal frame_done(OK). */
+    if (!gpu_vn_ctlr->flexa_abort_notified &&
+        gpu_vn_ctlr->bond != NULL && gpu_vn_ctlr->bond->frame_done != NULL) {
         gpu_vn_ctlr->bond->frame_done(BK_OK, gpu_vn_ctlr->bond);
     }
     /* Reset state for next frame.
@@ -1420,6 +1444,7 @@ static void gpu_flex_main_entry(void *arg)
                      __func__, src_frame_seq, src_line_count);
             }
             else if (gpu_vn_ctlr->flexa_frame_active &&
+                     !gpu_vn_ctlr->flexa_abort_notified &&
                      (flex->read_lines > 0) &&
                      (flex->read_lines < flex->input_height) &&
                      gpu_vn_ctlr->bond != NULL &&
@@ -1431,6 +1456,15 @@ static void gpu_flex_main_entry(void *arg)
             gpu_vn_ctlr->line_err_flag = 0;
             gpu_vn_ctlr->flexa_abort_notified = false;
             gpu_vn_ctlr->active_frame_seq = src_frame_seq;
+            /* Snapshot the decode frame_seq this GPU frame belongs to; reported back to
+             * the JPEG decoder on abort/completion (via in_stream->report_seq) so it can
+             * drop a report that arrives after the decoder already advanced frames. */
+            if (gpu_vn_ctlr->bond != NULL && gpu_vn_ctlr->bond->bond_config != NULL) {
+                bk_flexa_bond_t *in_s = (bk_flexa_bond_t *)gpu_vn_ctlr->bond->bond_config->in_stream;
+                if (in_s != NULL) {
+                    in_s->report_seq = src_frame_seq;
+                }
+            }
             gpu_vn_ctlr->flexa_frame_active = true;
             GPU_FRAME_START();
         }

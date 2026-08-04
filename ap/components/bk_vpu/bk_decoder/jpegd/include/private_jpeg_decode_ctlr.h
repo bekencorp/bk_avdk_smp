@@ -26,6 +26,7 @@ extern "C" {
 typedef struct {
     bk_flexa_bond_t *bond;
     uint8_t first_bond;
+    uint8_t done;           /* Port reported the full-frame value this frame (abort/end); excluded from backpressure min; cleared every frame */
     uint32_t rd_blocks;
 } bk_jpeg_decode_port_entry_t;
 
@@ -50,6 +51,7 @@ typedef struct {
     beken_event_t port_done_events;
     uint32_t all_ports_min_rd;
     uint32_t last_flexa_line;
+    uint32_t frame_seq;         /* Monotonic decode frame counter (never 0); +1 at each frame boundary. Delivered to consumers via bond->last_seq so their reports can be seq-gated against the current frame. */
 
     bk_jpeg_decode_port_entry_t port[BK_JPEG_DECODE_RD_PORT_MAX];
 

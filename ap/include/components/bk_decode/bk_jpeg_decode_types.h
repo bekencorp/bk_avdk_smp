@@ -46,6 +46,12 @@ typedef enum {
 typedef struct {
     void *port_ptr;
     uint32_t rd_blocks;
+    /* Decode frame sequence this report belongs to (as delivered to the consumer
+     * via bk_flexa_bond_t.last_seq at frame start). 0 == unknown/legacy consumer:
+     * the decoder accepts it unconditionally (backward compatible). A non-zero
+     * value that differs from the decoder's current frame is a stale cross-frame
+     * report and is dropped so it cannot pollute the new frame's backpressure. */
+    uint32_t frame_seq;
 } bk_jpeg_decode_port_rd_t;
 
 typedef enum {

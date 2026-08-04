@@ -72,6 +72,8 @@ static void gpu_bond_mjpegd_decode_error(uint32_t reason, void *args)
 	bk_jpeg_decode_port_rd_t rd_cmd = {
 		.port_ptr = in_stream,
 		.rd_blocks = out_stream->max_lines_per_frame,
+		/* decode_error is broadcast synchronously for the CURRENT decode frame */
+		.frame_seq = in_stream->last_seq,
 	};
 	(void)bk_jpeg_decode_ioctl(jpeg, BK_JPEG_DECODE_IOCTL_PORT_SET_RD_PTR, &rd_cmd);
 	(void)bk_jpeg_decode_ioctl(jpeg, BK_JPEG_DECODE_IOCTL_FLEXA_NOTIFY_PORT_DONE,
@@ -115,6 +117,8 @@ static void gpu_frame_done(uint32_t status, void *args)
 			bk_jpeg_decode_port_rd_t rd_cmd = {
 				.port_ptr = in_stream,
 				.rd_blocks = out_stream->max_lines_per_frame,
+				/* worker finished/aborted the frame it snapshotted at frame start */
+				.frame_seq = in_stream->report_seq,
 			};
 			(void)bk_jpeg_decode_ioctl(src, BK_JPEG_DECODE_IOCTL_PORT_SET_RD_PTR, &rd_cmd);
 		}
