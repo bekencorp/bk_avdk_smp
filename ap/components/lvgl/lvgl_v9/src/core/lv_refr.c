@@ -612,6 +612,13 @@ static void refr_invalid_areas(void)
 
         lv_area_t inv_a = disp_refr->inv_areas[i];
         if(disp_refr->render_mode == LV_DISPLAY_RENDER_MODE_PARTIAL) {
+            int32_t hor_res = lv_display_get_horizontal_resolution(disp_refr);
+            int32_t ver_res = lv_display_get_vertical_resolution(disp_refr);
+            if(inv_a.x1 == 0 && inv_a.y1 == 0 &&
+               inv_a.x2 == hor_res - 1 && inv_a.y2 == ver_res - 1) {
+                lv_hpdma_memcpy_stop();
+            }
+
             /*Calculate the max row num*/
             int32_t w = lv_area_get_width(&inv_a);
             int32_t h = lv_area_get_height(&inv_a);
@@ -690,10 +697,6 @@ static void refr_area(const lv_area_t * area_p, int32_t y_offset)
     layer->partial_y_offset = y_offset;
 
     if(disp_refr->render_mode == LV_DISPLAY_RENDER_MODE_PARTIAL) {
-        if (LV_VER_RES == lv_area_get_height(area_p) && LV_HOR_RES == lv_area_get_width(area_p)) {
-            lv_hpdma_memcpy_stop();
-        }
-
         /*In partial mode render this area to the buffer*/
         layer->buf_area = *area_p;
         layer_reshape_draw_buf(layer, LV_STRIDE_AUTO);

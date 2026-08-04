@@ -566,8 +566,12 @@ static void refr_area(const lv_area_t * area_p)
             refr_area_part(draw_ctx);
         }
         return;
-    } else {
-        if (LV_VER_RES == lv_area_get_height(area_p) && LV_HOR_RES == lv_area_get_width(area_p)) {
+    }
+    else {
+        lv_coord_t hor_res = lv_disp_get_hor_res(disp_refr);
+        lv_coord_t ver_res = lv_disp_get_ver_res(disp_refr);
+        if(area_p->x1 == 0 && area_p->y1 == 0 &&
+           area_p->x2 == hor_res - 1 && area_p->y2 == ver_res - 1) {
             lv_hpdma_memcpy_stop();
         }
     }
