@@ -1251,3 +1251,24 @@ bk_err_t bk_isp_soft_reset(isp_handle_t *handle)
 
     return BK_OK;
 }
+
+bk_err_t bk_isp_get_exposure_luminance(isp_handle_t *handle, uint32_t *luminance)
+{
+    if (handle == NULL || *handle == NULL || luminance == NULL)
+    {
+        LOGE("%s, invalid parameter\n", __func__);
+        return BK_FAIL;
+    }
+
+    isp_control_t *control = (isp_control_t *)*handle;
+    ISP_EXPOSURE_INFO_S exposure_info = {0};
+    int ret = VSI_MPI_ISP_QueryExposureInfo(control->port, &exposure_info);
+    if (ret != VSI_SUCCESS)
+    {
+        LOGE("%s, query exposure info failed: %d\n", __func__, ret);
+        return BK_FAIL;
+    }
+
+    *luminance = exposure_info.meanLum;
+    return BK_OK;
+}
