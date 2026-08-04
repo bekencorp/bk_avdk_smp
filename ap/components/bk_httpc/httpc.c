@@ -194,7 +194,6 @@ exit:
 	int ret = 0;
 	struct httpc_tls *tls = NULL;
 
-	mbedtls_platform_set_calloc_free(_calloc_func, free);
 	tls = (struct httpc_tls *) malloc(sizeof(struct httpc_tls));
 
 	if(tls) {
@@ -227,7 +226,8 @@ exit:
 				goto exit;
 			}
 
-			if((ret = mbedtls_pk_parse_key(&tls->key, (const unsigned char *) client_key, strlen(client_key) + 1, NULL, 0)) != 0) {
+			if((ret = mbedtls_pk_parse_key(&tls->key, (const unsigned char *) client_key,
+					strlen(client_key) + 1, NULL, 0, _random_func, NULL)) != 0) {
 				printf("\n[HTTPC] ERROR: mbedtls_pk_parse_key %d\n", ret);
 				ret = -1;
 				goto exit;
