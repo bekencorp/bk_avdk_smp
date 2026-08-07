@@ -37,7 +37,15 @@ bk_err_t bk_isp_register_isr_callback(isp_handle_t *handle, isp_isr_type_t type,
 
 bk_err_t bk_isp_deregister_isr_callback(isp_handle_t *handle, isp_isr_type_t type, void *arg);
 
-bk_err_t bk_isp_clock_enable(uint32_t clk, uint8_t enable);
+/**
+ * @brief Vote to enable/disable ISP (CISP) clock.
+ *
+ * Shared by ISP driver and camera bus. Clock is powered up on the first
+ * enable vote and powered down only when all enable votes are released.
+ *
+ * @param enable 1 to take a vote, 0 to release a vote
+ */
+bk_err_t bk_isp_clock_enable(uint8_t enable);
 
 bk_err_t bk_cis_auxs_clock_enable(uint32_t clk, uint32_t gpio, uint8_t enable);
 
