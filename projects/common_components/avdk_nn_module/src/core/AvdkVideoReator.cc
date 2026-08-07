@@ -116,6 +116,11 @@ static void aoo_detection_flush_cb(void *args, void *frame_buffer, int (*cb)(voi
     bk_gpu_blit_set(app_gpu_handle_get(), frame_buffer, &blit_config);
 }
 
+static bk_pixel_format_t avdk_video_reator_infer_format(AvdkDetectionModel *model)
+{
+    return (model->getFormat() == BK_PIXEL_FORMAT_RGB888) ? BK_PIXEL_FORMAT_BGRA8888 : model->getFormat();
+}
+
 void AvdkVideoReator::WorkerThread()
 {
     LOGI("AvdkVideoReator::WorkerThread\n");
@@ -168,7 +173,7 @@ void AvdkVideoReator::WorkerThread()
 
         LOGV("read frame: %p, size: %d, %d\n", soruce_frame, frame_size, ret);
 
-        ret = detection_model->run(soruce_frame, frame_size, BK_PIXEL_FORMAT_BGRA8888);
+        ret = detection_model->run(soruce_frame, frame_size, avdk_video_reator_infer_format(detection_model));
     }
 
     LOGI("############### Thread Exit ################\n");
@@ -240,7 +245,7 @@ void AvdkVideoReator::InferThread()
 
         LOGV("read frame: %p, size: %d, %d\n", soruce_frame, frame_size, ret);
 
-        ret = detection_model->run(soruce_frame, frame_size, BK_PIXEL_FORMAT_BGRA8888);
+        ret = detection_model->run(soruce_frame, frame_size, avdk_video_reator_infer_format(detection_model));
     }
 
     /* Free allocated frame buffer */

@@ -1,0 +1,10 @@
+set(incs .)
+set(srcs
+    ap_main.cc
+)
+
+set(priv_req bk_tflite_micro bk_frame_buffer avdk_utils avdk_nn_module media_service multimedia_device_service avdk_driver bk_peripheral bk_gpu bk_cli bk_vfs)
+
+armino_component_register(SRCS "${srcs}" INCLUDE_DIRS "${incs}" PRIV_REQUIRES "${priv_req}")
+
+

@@ -35,6 +35,7 @@ typedef enum {
     AVDK_NN_MEM_TYPE_SRAM,
     AVDK_NN_MEM_TYPE_PSRAM_HEAP,
     AVDK_NN_MEM_TYPE_PSRAM_SLAB,
+    AVDK_NN_MEM_TYPE_PSRAM_SLAB_UNCODED,
 } avdk_nn_mem_type_t;
 
 typedef enum {

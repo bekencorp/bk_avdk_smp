@@ -34,6 +34,10 @@ void *AvdkDetectionModel::allocMemory(avdk_nn_mem_type_t type, uint32_t size)
     {
         return bk_frame_buffer_malloc(MEM_SLAB_HEAP_CODED, size);
     }
+    else if (type == AVDK_NN_MEM_TYPE_PSRAM_SLAB_UNCODED)
+    {
+        return bk_frame_buffer_malloc(MEM_SLAB_HEAP_UNCODED, size);
+    }
 
     LOGE("Unsupported memory type alloc\n");
     return NULL;
@@ -55,6 +59,10 @@ void AvdkDetectionModel::freeMemory(avdk_nn_mem_type_t type, void *ptr)
         psram_free(ptr);
     }
     else if (type == AVDK_NN_MEM_TYPE_PSRAM_SLAB)
+    {
+        bk_frame_buffer_free(ptr);
+    }
+    else if (type == AVDK_NN_MEM_TYPE_PSRAM_SLAB_UNCODED)
     {
         bk_frame_buffer_free(ptr);
     }
@@ -222,6 +230,16 @@ int AvdkDetectionModel::init()
     {
         ret = -4;
         goto error;
+    }
+
+    {
+        const size_t arena_used = pinterpreter->arena_used_bytes();
+        const size_t arena_free = (arena_data_size > arena_used) ? (arena_data_size - arena_used) : 0U;
+        LOGI("%s arena total=%u used=%u free=%u\n",
+             name,
+             (unsigned)arena_data_size,
+             (unsigned)arena_used,
+             (unsigned)arena_free);
     }
 
     return ret;

@@ -1,4 +1,4 @@
-// Copyright 2020-2021 Beken
+// Copyright 2020-2025 Beken
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,25 +14,15 @@
 
 #pragma once
 
-#include <stdint.h>
 
-#include "AvdkDetectionModel.h"
-
+#ifdef __cplusplus
 extern "C" {
-extern const unsigned char person_detection_vela_tflite[];
-extern const unsigned int person_detection_vela_tflite_len;
+#endif
+
+
+/* CP-side GPIO configuration is used ONLY for declaring GPIO pins that
+ * require interrupts. All other GPIO pinmux/pull/level/etc. settings must
+ * be configured on the AP side. */
+#define GPIO_DEFAULT_DEV_CONFIG  \
+{\
 }
-
-class PersonDetectModel : public AvdkDetectionModel {
-public:
-    PersonDetectModel();
-
-    void resolverLoad(void) override;
-    void resourceLoad(void) override;
-    void resourceUnload(void) override;
-    int run(uint8_t *data, uint32_t size, bk_pixel_format_t format) override;
-
-private:
-    bool buildOutputTensors(void);
-    bool output_tensors_ready;
-};

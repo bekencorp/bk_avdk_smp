@@ -9,12 +9,19 @@ set(srcs
 	src/core/AvdkVideoReatorOSD.cc
 )
 
-if (CONFIG_TFLM_PERSON_DETECTION_V1)
+if (CONFIG_TFLM_PERSON_DETECTION_RGB OR CONFIG_TFLM_PERSON_DETECTION_GRAY)
 	list(APPEND srcs
-		src/tflm_person_detection/tfm_person_detection.c
 		src/tflm_person_detection/tflm_person_detection.cc
-		src/tflm_person_detection/person_detect_model_data.cc
 	)
+	if (CONFIG_TFLM_PERSON_DETECTION_RGB)
+		list(APPEND srcs
+			src/tflm_person_detection/person_detect_rgb_model_data.cc
+		)
+	elseif (CONFIG_TFLM_PERSON_DETECTION_GRAY)
+		list(APPEND srcs
+			src/tflm_person_detection/person_detect_gray_model_data.cc
+		)
+	endif()
 endif()
 
 if (CONFIG_TFLM_PET_DETECTION_V1)

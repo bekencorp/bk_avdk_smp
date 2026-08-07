@@ -1,8 +1,13 @@
 menu "AVDK NN Module"
 
-	config TFLM_PERSON_DETECTION_V1
+	config TFLM_PERSON_DETECTION_GRAY
 		depends on TFLITE_MICRO
-		bool "Enable tflm PERSON_DETECTTION_V1"
+		bool "Use tflm person detection gray model with NV12 MP input"
+		default n
+
+	config TFLM_PERSON_DETECTION_RGB
+		depends on TFLITE_MICRO
+		bool "Use tflm person detection RGB model with BGRA MP input"
 		default n
 
 	config TFLM_PET_DETECTION_V1
