@@ -24,8 +24,8 @@ extern "C" {
 int ota_boot_param_read_latest(ab_flag_record_t *rec);
 
 /* Arm a TRIAL boot for update_slot after a verified download: writes
- * exec_slot=running slot, boot_state=TRIAL, try_count=0 to the opposite
- * ping-pong sector (power-loss safe). BL2 bumps try_count and rolls back on
+ * exec_slot=running slot and boot_state=TRIAL to the opposite ping-pong sector
+ * (power-loss safe). BL2 tracks trial attempts in AON_PMU and rolls back on
  * try_max. @return 0 on success, -1 on error (partition missing). */
 int ota_boot_param_set_trial(uint8_t update_slot);
 

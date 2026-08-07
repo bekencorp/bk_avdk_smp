@@ -110,8 +110,7 @@ int ota_boot_param_set_trial(uint8_t update_slot)
 		rec.try_max = AB_FLAG_DEFAULT_TRY_MAX;
 	}
 
-	/* Zero rsvd0 for a fresh trial budget: byte 0x11 is the boot_param try_count
-	 * (CP boot_param.h), which a prior BL2 write may have left non-zero. */
+	/* Reserved bytes are CRC-covered and must stay canonical zero. */
 	memset(rec.rsvd0, 0, sizeof(rec.rsvd0));
 
 	protect_type = bk_flash_get_protect_type();

@@ -58,6 +58,11 @@ static void ota_log_progress_throttled(f_ota_t *ota_ptr)
 
 static int ota_do_init(f_ota_t* ota_ptr)
 {
+#if CONFIG_SECURE_OTA_XIP
+    /* DIRECT_XIP uses its own backend and has no ota partition. */
+    (void)ota_ptr;
+    return BK_ERR_NOT_SUPPORT;
+#else
     OTA_CHECK_POINTER(ota_ptr);
 
     OTA_MALLOC(ota_ptr->wr_buf, OTA_FLASH_BUFFER_LENGTH);
@@ -105,6 +110,7 @@ static int ota_do_init(f_ota_t* ota_ptr)
 #endif
 
     return BK_OK;
+#endif
 }
 
 static int ota_do_write_flash(f_ota_t* ota_ptr, uint16_t len)
