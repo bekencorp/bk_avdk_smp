@@ -116,6 +116,10 @@ if (CONFIG_CPU_PERF_TEST)
 	list(APPEND srcs "cli_cpu_perf.c")
 endif()
 
+if (CONFIG_OTP_V1 AND CONFIG_OTP_TEST)
+	list(APPEND srcs "cli_package_type.c")
+endif()
+
 elseif (CONFIG_SHELL_ASYNCLOG)
 	list(APPEND srcs "cli_main.c")
 endif() #if(CONFIG_CLI)

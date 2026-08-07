@@ -86,6 +86,7 @@ int cli_pwr_init(void);
 int cli_cp_hotplug_init(void);
 int cli_basepri_stress_init(void);
 int cli_wfi_basepri_stress_init(void);
+int cli_package_type_init(void);
 int cli_os_init(void);
 int cli_ota_init(void);
 
