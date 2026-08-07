@@ -287,7 +287,7 @@ static ble_err_t ble_ipc_client_send_async_cmd(uint16_t sub_opcode,
                                                uint8_t body_len,
                                                ble_cmd_cb_t callback)
 {
-    uint8_t payload[2 + sizeof(ble_adv_param_t)] = {0};
+    uint8_t payload[2 + 255] = {0};
     uint8_t req_id = callback ? ble_ipc_client_alloc_req_id() : 0;
 
     payload[0] = req_id;
