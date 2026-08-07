@@ -38,6 +38,7 @@
 #include "bk_rf_internal.h"
 #include "driver/ckmn.h"
 #include "sdkconfig.h"
+#include "aspl_lock.h"
 
 #if CONFIG_SUPPORT_CACHEABLE_SRAM
 #include "cache.h"
@@ -1146,6 +1147,16 @@ static uint16_t bt_get_low_voltage_wakeup_margin_cycles(void)
     return PM_SLEEP_WAKEUP_COMSUME_ALL_TIME_TICKS;
 }
 
+static uint32_t bt_flash_enter_critical(void)
+{
+    return bk_aspl_flash_enter_critical();
+}
+
+static void bt_flash_exit_critical(uint32_t flags)
+{
+    bk_aspl_flash_exit_critical(flags);
+}
+
 static void bt_sys_drv_rf_ctrl(bool en)
 {
     if (en)
@@ -1310,6 +1321,8 @@ static struct bt_osi_funcs_t bt_osi_funcs =
     ._bt_get_low_voltage_wakeup_margin_cycles = bt_get_low_voltage_wakeup_margin_cycles,
     ._bt_sys_drv_rf_ctrl = bt_sys_drv_rf_ctrl,
     ._bt_vote_cpu_freq = bt_vote_cpu_freq_wrapper,
+    ._bt_flash_enter_critical = bt_flash_enter_critical,
+    ._bt_flash_exit_critical = bt_flash_exit_critical,
 };
 
 int bk_bt_os_adapter_init(void)

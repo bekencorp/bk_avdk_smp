@@ -189,6 +189,8 @@ struct bt_osi_funcs_t
     uint16_t (*_bt_get_low_voltage_wakeup_margin_cycles)(void);
     void (*_bt_sys_drv_rf_ctrl)(bool en);
     void (*_bt_vote_cpu_freq)(uint32_t cpu_freq);
+    uint32_t (*_bt_flash_enter_critical)(void);
+    void (*_bt_flash_exit_critical)(uint32_t flags);
 };
 
 int bt_os_adapter_init(void *osi_funcs);
