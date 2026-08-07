@@ -60,4 +60,8 @@ int dubhe_driver_init( unsigned long dbh_base_addr );
  */
 void dubhe_driver_cleanup( void );
 
+#if !defined(TEE_M) && !defined(DUBHE_SECURE)
+void dubhe_ns_prepare_runtime( void );
+#endif
+
 #endif /* __DUBHE_DRIVER_H__ */

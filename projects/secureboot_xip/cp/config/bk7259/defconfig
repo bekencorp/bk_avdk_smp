@@ -58,15 +58,13 @@ CONFIG_TFM_AP_BOOT_NSC=y
 CONFIG_TFM_REG_ACCESS_NSC=y
 
 # --- Crypto backend ---
-# NS classic mbedtls: software (SW_CRYPTO). NS PSA/TLS-via-PSA: TF-M Crypto
-# partition (MBEDTLS_USE_PSA_CRYPTO). SPE uses Dubhe HW accelerator internally.
-# CONFIG_TRUSTENGINE remains off on NS (TE200 NS path has aes_alt issues).
+# NS classic mbedtls: TRUSTENGINE (Normal window). NS PSA/TLS-via-PSA: TF-M Crypto.
 CONFIG_PSA_MBEDTLS=y
 CONFIG_MBEDTLS_USE_PSA_CRYPTO=y
 CONFIG_PSA_MBEDTLS_TEST=y
 CONFIG_TRUSTENGINE_TEST=y
-# CONFIG_TRUSTENGINE is not set
-CONFIG_SW_CRYPTO=y
+CONFIG_TRUSTENGINE=y
+# CONFIG_SW_CRYPTO is not set
 
 # --- PSRAM: CP does not use PSRAM, keep it disabled on CP ---
 CONFIG_PSRAM=y

@@ -27,7 +27,9 @@
 #include <driver/int.h>
 #include "interrupt.h"
 #include <soc/bk7259/int_types_impl.h>
+#if defined(DUBHE_SECURE)
 #include <modules/pm.h>
+#endif
 
 unsigned long _g_Dubhe_RegBase;
 static int do_dubhe_driver_init( unsigned long dbh_base_addr );
@@ -118,6 +120,7 @@ int dubhe_clk_disable( dubhe_module_type_t type )
     return ret;
 }
 
+#if defined(DUBHE_SECURE)
 static int dubhe_lv_enter(uint64_t sleep_time, void *args)
 {
     dubhe_driver_cleanup();
@@ -136,6 +139,7 @@ static void dubhe_lv_init(void)
     pm_cb_conf_t exit = {dubhe_lv_exit, NULL};
     bk_pm_sleep_register_cb(PM_MODE_LOW_VOLTAGE, PM_DEV_ID_SECURE_WORLD, &enter, &exit);
 }
+#endif
 
 /* GCC 14+: ISR must be compiled with general-regs-only when FPU is enabled. */
 #pragma GCC push_options
@@ -151,14 +155,20 @@ static int do_dubhe_driver_init( unsigned long dbh_base_addr )
 {
     uint32_t int_level = rtos_disable_int();
 
+#if defined(DUBHE_SECURE)
     bk_pm_module_vote_power_ctrl(POWER_SUB_MODULE_NAME_ENCP_TRUSTENGINE, PM_POWER_MODULE_STATE_ON);
+#endif
     dubhe_delay_us(100);
 
     _g_Dubhe_RegBase = dbh_base_addr;
 
+#if defined(DUBHE_SECURE)
     bk_interrupt_register_m55sub_int(INT_SRC_CP_ENC_SEC, te200_isr);
+#else
+    bk_interrupt_register_m55sub_int(INT_SRC_CP_ENC_NSEC, te200_isr);
+#endif
 
-#if DUBHE_SECURE
+#if defined(DUBHE_SECURE)
     dubhe_dma_disable();
 #endif
 
@@ -166,7 +176,9 @@ static int do_dubhe_driver_init( unsigned long dbh_base_addr )
     dubhe_aca_driver_init( );
 #endif
 #if defined( ARM_CE_DUBHE_HASH )
+#if defined( DUBHE_SECURE )
     dubhe_clk_enable( DBH_MODULE_HASH );
+#endif
     arm_ce_hash_driver_init( );
 #endif
 #if defined( ARM_CE_DUBHE_SCA )
@@ -175,7 +187,7 @@ static int do_dubhe_driver_init( unsigned long dbh_base_addr )
 #if defined( ARM_CE_DUBHE_TRNG )
     arm_ce_trng_driver_init( );
 #endif
-#if defined( ARM_CE_DUBHE_OTP )
+#if defined( ARM_CE_DUBHE_OTP ) && defined( DUBHE_SECURE )
     arm_ce_otp_driver_init( );
 #endif
 
@@ -196,8 +208,10 @@ int dubhe_driver_init( unsigned long dbh_base_addr )
         dubhe_inited = true;
         need_init_driver = true;
 
+#if defined(DUBHE_SECURE)
         dubhe_lv_init();
         bk_pm_module_vote_power_ctrl(POWER_SUB_MODULE_NAME_ENCP_TRUSTENGINE, PM_POWER_MODULE_STATE_ON);
+#endif
     }
 
     if (need_init_driver == true) {
@@ -210,7 +224,11 @@ int dubhe_driver_init( unsigned long dbh_base_addr )
 void dubhe_driver_cleanup( void )
 {
 
+#if defined(DUBHE_SECURE)
     bk_interrupt_unregister_m55sub_int(INT_SRC_CP_ENC_SEC);
+#else
+    bk_interrupt_unregister_m55sub_int(INT_SRC_CP_ENC_NSEC);
+#endif
 
 #if defined( ARM_CE_DUBHE_ACA )
     dubhe_aca_driver_cleanup( );
@@ -219,7 +237,9 @@ void dubhe_driver_cleanup( void )
 #endif
 
     dubhe_event_cleanup( );
+#if defined(DUBHE_SECURE)
     bk_pm_module_vote_power_ctrl(POWER_SUB_MODULE_NAME_ENCP_TRUSTENGINE, PM_POWER_MODULE_STATE_OFF);
+#endif
     dubhe_delay_us(100);
 }
 

@@ -408,7 +408,8 @@ void mbedtls_platform_teardown(mbedtls_platform_context *ctx)
 /*
  * Hardware entropy entry for mbedtls and system RNG (strong override of
  * weak bk_rand/bk_fill_rand in bk_platform.c).
- * Backend: CONFIG_TRUSTENGINE > CONFIG_OTP_V1 > software rand().
+ * Backend: non-TFM TRUSTENGINE > OTP > software.
+ * TFM NS skips Normal-channel TRNG (SPE owns pool fill).
  */
 int bk_rng_get(unsigned char *output, size_t len)
 {
@@ -416,11 +417,14 @@ int bk_rng_get(unsigned char *output, size_t len)
         return -1;
     }
 
-#if CONFIG_TRUSTENGINE
+#if CONFIG_TRUSTENGINE && !CONFIG_TFM
     extern int arm_ce_seed_read(unsigned char *buf, size_t buf_len);
-    arm_ce_seed_read(output, len);
+    if (arm_ce_seed_read(output, len) == 0) {
+        return 0;
+    }
+#endif
 
-#elif CONFIG_OTP_V1
+#if CONFIG_OTP_V1
     bk_err_t bk_otp_read_random_number(uint32_t *value, uint32_t size);
     uint32_t rand_num = 0;
     for (size_t i = 0; i < len; i++) {
@@ -429,7 +433,6 @@ int bk_rng_get(unsigned char *output, size_t len)
         }
         output[i] = (rand_num >> (8 * (i % 4))) & 0xff;
     }
-
 #else
     for (size_t i = 0; i < len; i++) {
         output[i] = ((rand()) & 0xff);

@@ -23,17 +23,73 @@
 #include "dubhe_otp.h"
 #include "dubhe_driver.h"
 #include "system_hw.h"
-#include <modules/pm.h>
 #include "bk_misc.h"
 #include <driver/int.h>
 #include "sys_driver.h"
 #if !defined(TEE_M)
 #include <modules/pm.h>
+#if !defined(DUBHE_SECURE)
+#include "arch_interrupt.h"
+#include "sdkconfig.h"
+#if defined(CONFIG_TFM_REG_ACCESS_NSC) && CONFIG_TFM_REG_ACCESS_NSC
+/* Avoid including tfm_reg_nsc.h here: tfm/interface also ships mbedtls/ headers. */
+uint32_t psa_reg_read(uint32_t addr);
+void psa_reg_write(uint32_t addr, uint32_t value);
+#endif
+#endif
 #endif
 
 unsigned long _g_Dubhe_RegBase;
 static int do_dubhe_driver_init( unsigned long dbh_base_addr );
+static void dubhe_delay_us(uint32 num);
 bool dubhe_inited = false;
+#if !defined(TEE_M) && !defined(DUBHE_SECURE)
+static bool s_ns_runtime_ready;
+
+static void dubhe_ns_clear_engine_intr( void )
+{
+    uint32_t st;
+
+    if (_g_Dubhe_RegBase == 0) {
+        return;
+    }
+
+    st = DBH_READ_REGISTER( SCA, SCA_INTR_STAT );
+    if (st) {
+        DBH_WRITE_REGISTER( SCA, SCA_INTR_STAT, st );
+    }
+    st = DBH_READ_REGISTER( HASH, HASH_INTR_STAT );
+    if (st) {
+        DBH_WRITE_REGISTER( HASH, HASH_INTR_STAT, st );
+    }
+    st = DBH_READ_REGISTER( ACA, ACA_INTR_STAT );
+    if (st) {
+        DBH_WRITE_REGISTER( ACA, ACA_INTR_STAT, st );
+    }
+}
+
+/* TOP_CTRL is Secure-only; NS enables clocks via SPE NSC. */
+static int dubhe_ns_ensure_clocks( void )
+{
+#if defined(CONFIG_TFM_REG_ACCESS_NSC) && CONFIG_TFM_REG_ACCESS_NSC
+    uint32_t te_s = (uint32_t)SOC_GET_S_ADDR(SOC_SHANHAI_BASE);
+    uint32_t clk_addr = te_s + DBH_BASE_TOP_CTRL + DBH_CLK_CTRL_REG_OFFSET;
+    uint32_t clk;
+
+    clk = psa_reg_read(clk_addr);
+    clk |= (1UL << DBH_CLK_CTRL_HASH_EN_BIT_SHIFT)
+         | (1UL << DBH_CLK_CTRL_SCA_EN_BIT_SHIFT)
+         | (1UL << DBH_CLK_CTRL_ACA_EN_BIT_SHIFT)
+         | (1UL << DBH_CLK_CTRL_TRNG_EN_BIT_SHIFT);
+    clk &= ~(1UL << DBH_CLK_CTRL_DMA_AHB_EN_BIT_SHIFT);
+    psa_reg_write(clk_addr, clk);
+    dubhe_delay_us(10);
+    return 0;
+#else
+    return -1;
+#endif
+}
+#endif
 
 static void dubhe_delay_us(uint32 num) {
 
@@ -120,6 +176,7 @@ int dubhe_clk_disable( dubhe_module_type_t type )
     return ret;
 }
 
+#if !defined(TEE_M) && defined(DUBHE_SECURE)
 static int dubhe_lv_enter(uint64_t sleep_time, void *args)
 {
     dubhe_driver_cleanup();
@@ -138,9 +195,19 @@ static void dubhe_lv_init(void)
     pm_cb_conf_t exit = {dubhe_lv_exit, NULL};
     bk_pm_sleep_register_cb(PM_MODE_LOW_VOLTAGE, PM_DEV_ID_SECURE_WORLD, &enter, &exit);
 }
+#endif
 
 static void __BK_IRQ te200_isr(void)
 {
+#if !defined(TEE_M) && !defined(DUBHE_SECURE)
+	/* Before runtime ready, keep NSEC masked; avoid Default_Handler WFI loop. */
+	if (!s_ns_runtime_ready) {
+		sys_drv_int_disable(ENCP_NSEC_INTERRUPT_CTRL_BIT);
+		arch_int_disable_irq(INT_SRC_ENC_NSEC);
+		arch_int_clear_pending_irq(INT_SRC_ENC_NSEC);
+		return;
+	}
+#endif
 	extern int dubhe_intr_handler( void );
 	dubhe_intr_handler();
 }
@@ -153,21 +220,15 @@ static int do_dubhe_driver_init( unsigned long dbh_base_addr )
     if (sys_ll_get_cpu_power_sleep_wakeup_pwd_encp() != 0) {
         sys_ll_set_cpu_power_sleep_wakeup_pwd_encp(0);
     }
-#else
+#elif defined(DUBHE_SECURE)
     bk_pm_module_vote_power_ctrl(POWER_SUB_MODULE_NAME_ENCP_TRUSTENGINE, PM_POWER_MODULE_STATE_ON);
 #endif
     dubhe_delay_us(100);
 
     _g_Dubhe_RegBase = dbh_base_addr;
 
-#if !defined(TEE_M)
-    bk_int_isr_register(INT_SRC_ENC_SEC,  te200_isr,  NULL);
-    sys_drv_int_enable(ENCP_SEC_INTERRUPT_CTRL_BIT);
-#endif
-
-#if DUBHE_SECURE
+#if defined(DUBHE_SECURE)
     dubhe_dma_disable();
-#endif
 
 #if defined( ARM_CE_DUBHE_ACA )
     dubhe_aca_driver_init( );
@@ -190,6 +251,28 @@ static int do_dubhe_driver_init( unsigned long dbh_base_addr )
     dubhe_event_init( );
 #endif
 
+#if !defined(TEE_M)
+    bk_int_isr_register(INT_SRC_ENC_SEC,  te200_isr,  NULL);
+    sys_drv_int_enable(ENCP_SEC_INTERRUPT_CTRL_BIT);
+#endif
+
+#else /* Normal channel: SPE owns power/TOP_CTRL; defer engine bring-up to first use */
+
+#if !defined(TEE_M)
+    /*
+     * arch_int_init_all_irq() enables every NVIC line. ENC_NSEC vector is still
+     * Default_Handler until registered; a pending Normal-channel IRQ would WFI-loop.
+     * Install ISR early, then keep both SYS source and NVIC masked until first use.
+     */
+    s_ns_runtime_ready = false;
+    sys_drv_int_disable(ENCP_NSEC_INTERRUPT_CTRL_BIT);
+    bk_int_isr_register(INT_SRC_ENC_NSEC, te200_isr, NULL);
+    arch_int_disable_irq(INT_SRC_ENC_NSEC);
+    arch_int_clear_pending_irq(INT_SRC_ENC_NSEC);
+#endif
+
+#endif /* DUBHE_SECURE */
+
     rtos_enable_int(int_level);
     return 0;
 }
@@ -203,15 +286,14 @@ int dubhe_driver_init( unsigned long dbh_base_addr )
         dubhe_inited = true;
         need_init_driver = true;
 
+#if !defined(TEE_M) && defined(DUBHE_SECURE)
         dubhe_lv_init();
-#if defined(TEE_M)
+        bk_pm_module_vote_power_ctrl(POWER_SUB_MODULE_NAME_ENCP_TRUSTENGINE, PM_POWER_MODULE_STATE_ON);
+#elif defined(TEE_M)
         if (sys_ll_get_cpu_power_sleep_wakeup_pwd_encp() != 0) {
             sys_ll_set_cpu_power_sleep_wakeup_pwd_encp(0);
         }
-#else
-        bk_pm_module_vote_power_ctrl(POWER_SUB_MODULE_NAME_ENCP_TRUSTENGINE, PM_POWER_MODULE_STATE_ON);
 #endif
-        // dubhe_delay_us(500); //for power-on init, bk7239n need more delay before dubhe can work correctly
     }
 
 #if defined(TEE_M)
@@ -225,12 +307,59 @@ int dubhe_driver_init( unsigned long dbh_base_addr )
     return ret;
 }
 
+#if !defined(TEE_M) && !defined(DUBHE_SECURE)
+void dubhe_ns_prepare_runtime( void )
+{
+    uint32_t int_level;
+
+    if (s_ns_runtime_ready) {
+        return;
+    }
+
+    int_level = rtos_disable_int();
+
+    if (dubhe_ns_ensure_clocks() != 0) {
+        PAL_LOG_ERR("ns te: ensure clocks failed, continue\n");
+    }
+
+#if defined( DUBHE_FOR_RUNTIME )
+    dubhe_event_init( );
+#endif
+
+#if defined( ARM_CE_DUBHE_ACA )
+    dubhe_aca_driver_init( );
+#endif
+#if defined( ARM_CE_DUBHE_HASH )
+    arm_ce_hash_driver_init( );
+#endif
+#if defined( ARM_CE_DUBHE_SCA )
+    arm_ce_sca_driver_init( );
+#endif
+#if defined( ARM_CE_DUBHE_TRNG )
+    arm_ce_trng_driver_init( );
+#endif
+
+    dubhe_ns_clear_engine_intr();
+    arch_int_clear_pending_irq(INT_SRC_ENC_NSEC);
+    arch_int_enable_irq(INT_SRC_ENC_NSEC);
+    sys_drv_int_enable(ENCP_NSEC_INTERRUPT_CTRL_BIT);
+    s_ns_runtime_ready = true;
+    rtos_enable_int(int_level);
+}
+#endif
+
 void dubhe_driver_cleanup( void )
 {
 
 #if !defined(TEE_M)
+#if defined(DUBHE_SECURE)
     sys_drv_int_disable(ENCP_SEC_INTERRUPT_CTRL_BIT);
     bk_int_isr_unregister(INT_SRC_ENC_SEC);
+#else
+    sys_drv_int_disable(ENCP_NSEC_INTERRUPT_CTRL_BIT);
+    bk_int_isr_unregister(INT_SRC_ENC_NSEC);
+    s_ns_runtime_ready = false;
+#endif
 #endif
 
 #if defined( ARM_CE_DUBHE_ACA )
@@ -240,7 +369,7 @@ void dubhe_driver_cleanup( void )
 #endif
 
     dubhe_event_cleanup( );
-#if !defined(TEE_M)
+#if !defined(TEE_M) && defined(DUBHE_SECURE)
     bk_pm_module_vote_power_ctrl(POWER_SUB_MODULE_NAME_ENCP_TRUSTENGINE, PM_POWER_MODULE_STATE_OFF);
 #endif
     dubhe_delay_us(100);

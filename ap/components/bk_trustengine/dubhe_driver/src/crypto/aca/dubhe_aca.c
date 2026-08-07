@@ -65,6 +65,7 @@ void dubhe_aca_driver_init( void )
 {
     uint32_t value = 0;
     PAL_LOG_DEBUG( "dubhe_aca_driver_init start:0x%08x\n", _g_Dubhe_RegBase );
+#if defined( DUBHE_SECURE )
     /* Clock enable */
     value = DBH_READ_REGISTER( TOP_CTRL, CLK_CTRL );
 
@@ -83,6 +84,9 @@ void dubhe_aca_driver_init( void )
 
     DBH_REG_FLD_SET( RESET_CTRL, ACA, value, 0x0 );
     DBH_WRITE_REGISTER( TOP_CTRL, RESET_CTRL, value );
+#else
+    (void) value;
+#endif
 #if defined( DUBHE_FOR_RUNTIME )
     ACA_UNMASK_DEFAULT_INTR( );
 #endif
@@ -93,11 +97,13 @@ void dubhe_aca_driver_init( void )
 
 void dubhe_aca_driver_cleanup( void )
 {
+#if defined( DUBHE_SECURE )
     uint32_t value = 0;
     /*Disable the clock*/
     value = DBH_READ_REGISTER( TOP_CTRL, CLK_CTRL );
     DBH_REG_FLD_SET( CLK_CTRL, ACA_EN, value, 0x0 );
     DBH_WRITE_REGISTER( TOP_CTRL, CLK_CTRL, value );
+#endif
     aca_hw_resources_cleanup( );
 }
 

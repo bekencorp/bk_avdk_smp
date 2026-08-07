@@ -505,12 +505,15 @@ int te200_aes_gcm_large_data_test(uint32_t encrypt_len)
 
 	mbedtls_gcm_setkey( &ctx, cipher, key, GCM_KEY_BIT);
 
-	mbedtls_gcm_crypt_and_tag( &ctx, MBEDTLS_GCM_ENCRYPT,
+	ret = mbedtls_gcm_crypt_and_tag( &ctx, MBEDTLS_GCM_ENCRYPT,
                                 encrypt_len,
                                 iv, GCM_IV_LEN,
                                 ad_data, GCM_AD_LEN,
                                 input_p, output_p, 16, tag_buf );
 	mbedtls_gcm_free( &ctx );
+	if (ret != 0) {
+		goto exit;
+	}
 
 	end_tick = bk_aon_rtc_get_us();
 	tick_cnt = end_tick - start_tick;
@@ -528,13 +531,16 @@ int te200_aes_gcm_large_data_test(uint32_t encrypt_len)
 
 	mbedtls_gcm_setkey( &ctx, cipher,key, GCM_KEY_BIT);
 
-	mbedtls_gcm_crypt_and_tag( &ctx, MBEDTLS_GCM_DECRYPT,
+	ret = mbedtls_gcm_crypt_and_tag( &ctx, MBEDTLS_GCM_DECRYPT,
                                 encrypt_len,
                                 iv, GCM_IV_LEN,
                                 ad_data, GCM_AD_LEN,
                                 output_p, input_p, 16, tag_buf );
 
 	mbedtls_gcm_free( &ctx );
+	if (ret != 0) {
+		goto exit;
+	}
 
 	end_tick = bk_aon_rtc_get_us();
 	tick_cnt = end_tick - start_tick;

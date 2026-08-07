@@ -22,6 +22,7 @@
 
 #define POOL_SIZE ( 8 )
 #define WAIT_POOL_FILLED_US ( 3U )
+#define WAIT_POOL_FILLED_MAX ( 10000U )
 #define BIT_MASK( V, M ) ( ( V ) & ( M ) )
 
 #define _ALIGN_UP( addr, size )                                                \
@@ -46,6 +47,7 @@
     }
 #endif
 
+#if defined(DUBHE_SECURE)
 /*  default config for dubhe trng */
 static const dbh_trng_config_t trng_config = {
         .src = {
@@ -97,6 +99,7 @@ static const dbh_trng_config_t trng_config = {
             .adap_err_th = 1,
         }
 };
+#endif
 
 /* handler for handle trng error */
 __attribute__( ( __weak__ ) ) void on_trng_error( int errno )
@@ -112,6 +115,7 @@ __attribute__( ( __weak__ ) ) void on_trng_produce_data( void *data,
     (void) size;
 }
 
+#if defined(DUBHE_SECURE)
 static void arm_ce_trng_setup( const dbh_trng_config_t *trng_cfg )
 {
     uint32_t value = 0;
@@ -194,7 +198,9 @@ static int _arm_ce_trng_error_count( void )
 
     return err;
 }
+#endif
 
+#if defined(DUBHE_SECURE)
 static inline void _arm_ce_trng_reset( void )
 {
     uint32_t value = 0;
@@ -207,6 +213,7 @@ static inline void _arm_ce_trng_reset( void )
     DBH_REG_FLD_SET( RESET_CTRL, TRNG, value, 0x0 );
     DBH_WRITE_REGISTER( TOP_CTRL, RESET_CTRL, value );
 }
+#endif
 
 static inline void _arm_ce_fill_pool_request( void )
 {
@@ -307,7 +314,7 @@ int arm_ce_trng_calibration_dump( uint32_t regBase,
     return 0;
 }
 #else
-static void arm_ce_random_data_read( unsigned char *buf, size_t buf_len, bool need_error )
+static int arm_ce_random_data_read( unsigned char *buf, size_t buf_len, bool need_error )
 {
     uint32_t i, block_size = 0, extra_size = 0, error_count = 0;
     uint32_t random_data[POOL_SIZE];
@@ -319,8 +326,11 @@ static void arm_ce_random_data_read( unsigned char *buf, size_t buf_len, bool ne
 
     /* Read data from TRNG pool */
     for ( i = 0; i < block_size; ) {
-        /* fill request */
+        uint32_t wait_cnt = 0;
+
+#if defined( DUBHE_SECURE )
         _arm_ce_fill_pool_request();
+#endif
         /* wait pool full */
         do {
             if ( _arm_ce_is_pool_full() ) {
@@ -343,22 +353,33 @@ static void arm_ce_random_data_read( unsigned char *buf, size_t buf_len, bool ne
                 break;
             }
             pal_udelay( WAIT_POOL_FILLED_US );
+            if ( ++wait_cnt > WAIT_POOL_FILLED_MAX ) {
+                return DBH_TRNG_PARAM_INVALID;
+            }
+#if defined( DUBHE_SECURE )
+            /* Secure path may re-assert fill while waiting. */
+            if ( ( wait_cnt % 100U ) == 0U ) {
+                _arm_ce_fill_pool_request();
+            }
+#endif
         } while ( true );
     }
 
-    return;
+    return 0;
 }
 
 void arm_ce_trng_driver_init( void )
 {
-    _arm_ce_trng_reset( );
 #if defined( DUBHE_SECURE )
+    _arm_ce_trng_reset( );
     arm_ce_trng_setup( &trng_config );
 #endif
 }
 
 int arm_ce_seed_read( unsigned char *buf, size_t buf_len )
 {
+    int ret;
+
     if ( buf_len == 0 ) {
         return 0;
     }
@@ -370,15 +391,19 @@ int arm_ce_seed_read( unsigned char *buf, size_t buf_len )
 #if defined( DUBHE_FOR_RUNTIME )
     dubhe_mutex_lock( DBH_TRNG_MUTEX );
 #endif
+#if defined( DUBHE_SECURE )
     dubhe_clk_enable( DBH_MODULE_TRNG );
+#endif
 
-    arm_ce_random_data_read( buf, buf_len, false );
+    ret = arm_ce_random_data_read( buf, buf_len, false );
 
+#if defined( DUBHE_SECURE )
     dubhe_clk_disable( DBH_MODULE_TRNG );
+#endif
 #if defined( DUBHE_FOR_RUNTIME )
     dubhe_mutex_unlock( DBH_TRNG_MUTEX );
 #endif
-    return 0;
+    return ret;
 }
 
 /* dump unpredictable data for trng calibration */
@@ -396,17 +421,21 @@ int arm_ce_trng_calibration_dump( uint32_t regBase,
 #if defined( DUBHE_FOR_RUNTIME )
     dubhe_mutex_lock( DBH_TRNG_MUTEX );
 #endif
+#if defined( DUBHE_SECURE )
     dubhe_clk_enable( DBH_MODULE_TRNG );
+#endif
 
     if ( b_conf ) {
+#if defined( DUBHE_SECURE )
         _arm_ce_trng_reset( );
         if ( cfg == NULL ) {
             PAL_LOG_ERR("arm_ce_trng_calibration_dump input invalid\n");
             ret = DBH_TRNG_PARAM_INVALID;
             goto __out__;
         }
-#if defined( DUBHE_SECURE )
         arm_ce_trng_setup( cfg );
+#else
+        (void) cfg;
 #endif
     }
 
@@ -431,7 +460,9 @@ int arm_ce_trng_calibration_dump( uint32_t regBase,
     }
 
 __out__:
+#if defined( DUBHE_SECURE )
     dubhe_clk_disable( DBH_MODULE_TRNG );
+#endif
 #if defined( DUBHE_FOR_RUNTIME )
     dubhe_mutex_unlock( DBH_TRNG_MUTEX );
 #endif

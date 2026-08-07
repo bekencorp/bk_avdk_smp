@@ -68,7 +68,7 @@
 	#define MBEDTLS_SM4_C
 */
 
-#define TEE_M 1
+/* Non-TFM project: secure-domain TE access (Secure window + local PM). */
 #define ARM_CE_DUBHE 1
 #define DUBHE_SECURE 1
 #define ARM_CE_DUBHE_SCA 1

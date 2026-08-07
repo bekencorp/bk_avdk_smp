@@ -191,7 +191,11 @@ int dubhe_intr_handler( void )
 {
     volatile uint32_t value = 0;
 
+#if defined( DUBHE_SECURE )
     value = DBH_READ_REGISTER( TOP_STAT, TOP_INTR_STAT_HOST0 );
+#else
+    value = DBH_READ_REGISTER( TOP_STAT, TOP_INTR_STAT_HOST1 );
+#endif
     value &= 0x7F;
 
     if(BIT_MASK(value,DBH_STAT_ACA0_INTR)){
@@ -203,9 +207,11 @@ int dubhe_intr_handler( void )
     if(BIT_MASK(value,DBH_STAT_SCA0_INTR)){
         dubhe_sca_intr_handler( );
     }
+#if defined( DUBHE_SECURE )
     if(BIT_MASK(value,DBH_STAT_TRNG_INTR)){
         PAL_LOG_ERR( "!!!currently TRNG interrupt is not used !\n" );
     }
+#endif
 
     return ( 0 );
 }
@@ -216,7 +222,11 @@ int dubhe_intr_sync_handler( dubhe_event_type_t dubhe_event )
     uint32_t status = STATUS_INTR_UNHAPPEN;
     volatile uint32_t value = 0;
 
+#if defined( DUBHE_SECURE )
     value = DBH_READ_REGISTER( TOP_STAT, TOP_INTR_STAT_HOST0 );
+#else
+    value = DBH_READ_REGISTER( TOP_STAT, TOP_INTR_STAT_HOST1 );
+#endif
     value &= 0x7F;
     switch ( dubhe_event ) {
     case DBH_EVENT_SCA_CMD_EXCUTED:

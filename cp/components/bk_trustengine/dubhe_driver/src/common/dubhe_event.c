@@ -19,6 +19,7 @@
 #include "pal_log.h"
 #include "pal.h"
 #include "dubhe_sca.h"
+#include "dubhe_driver.h"
 #if defined( DUBHE_FOR_RUNTIME )
 #if !defined( TEE_M )
 #include <modules/pm.h>
@@ -198,7 +199,12 @@ void dubhe_event_cleanup( void )
 int32_t dubhe_wait_event( dubhe_event_type_t dubhe_event )
 {
 #if !defined( TEE_M )
+#if !defined( DUBHE_SECURE )
+    dubhe_ns_prepare_runtime( );
+#endif
+#if defined( DUBHE_SECURE )
     bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_ENCP, 0, 0);
+#endif
     int32_t ret = 0;
     switch ( dubhe_event ) {
     case DBH_EVENT_SCA_CMD_EXCUTED:
@@ -218,7 +224,9 @@ int32_t dubhe_wait_event( dubhe_event_type_t dubhe_event )
     default:
         ret = -1;
     }
+#if defined( DUBHE_SECURE )
     bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_ENCP, 1, 0);
+#endif
 
     return ret;
 #else
@@ -284,6 +292,9 @@ int32_t dubhe_mutex_lock( dubhe_mutex_type_t dubhe_mutex )
 {
 #if defined( DUBHE_FOR_RUNTIME )
 #if !defined( TEE_M )
+#if !defined( DUBHE_SECURE )
+    dubhe_ns_prepare_runtime( );
+#endif
     int ret = MUTEX_UNLOCK_FAIL;
     switch ( dubhe_mutex ) {
     case DBH_SCA_MUTEX:

@@ -248,7 +248,8 @@ int psa_tls_client_main(void)
      */
     BK_LOGD(TAG, "  > Write to server:");
 
-    len = sprintf((char *) buf, GET_REQUEST);
+    len = strlen(GET_REQUEST);
+    memcpy(buf, GET_REQUEST, len);
 
     while ((ret = mbedtls_ssl_write(&ssl, buf, len)) <= 0) {
         if (ret != MBEDTLS_ERR_SSL_WANT_READ && ret != MBEDTLS_ERR_SSL_WANT_WRITE) {

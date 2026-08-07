@@ -4241,8 +4241,12 @@ extern void tls_mbedtls_mem_free(void *ptr);
 #include "tfm_mbedcrypto_config_extra_nv_seed.h"
 #endif /* CRYPTO_NV_SEED */
 
-#if defined(CRYPTO_HW_ACCELERATOR) && !defined(CONFIG_TFM_CRYPTO)
+#if defined(CRYPTO_HW_ACCELERATOR)
+#if defined(CONFIG_TFM)
 #include "mbedtls_accelerator_config_ns.h"
+#else
+#include "mbedtls_accelerator_config.h"
+#endif
 #elif defined(MBEDTLS_ENTROPY_NV_SEED)
 #include "mbedtls_entropy_nv_seed_config.h"
 #endif
