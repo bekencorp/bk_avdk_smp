@@ -535,11 +535,11 @@ void bk_video_player_container_audio_parse_thread(void *arg)
         while (controller->audio_parse_thread_running && !controller->audio_parse_thread_exit)
         {
             // Capture session id at loop entry to prevent cross-session packet pollution.
-            uint32_t iter_session_id = controller->play_session_id;
+            uint32_t iter_session_id = controller->audio_play_session_id;
 
-            if (controller->play_session_id != last_seen_session_id)
+            if (controller->audio_play_session_id != last_seen_session_id)
             {
-                last_seen_session_id = controller->play_session_id;
+                last_seen_session_id = controller->audio_play_session_id;
                 last_audio_pts_ms = 0;
                 /*
                  * Keep audio behavior consistent with video parse thread (Scheme B):
@@ -809,7 +809,7 @@ void bk_video_player_container_audio_parse_thread(void *arg)
             }
 
             // If session changed during this loop iteration, drop the packet to avoid mixing sessions.
-            if (iter_session_id != controller->play_session_id)
+            if (iter_session_id != controller->audio_play_session_id)
             {
                 if (controller->config.audio.buffer_free_cb != NULL && buffer_node->buffer.data != NULL)
                 {

@@ -69,6 +69,12 @@ typedef struct
     uint16_t  pps_size;
     uint8_t   nalu_length_size;
     bool      need_inject_params;
+    uint16_t  decode_out_width;
+    uint16_t  decode_out_height;
+    uint16_t  visible_out_width;
+    uint16_t  visible_out_height;
+    uint32_t  hw_out_format;
+    bool      osd_enabled;
 
 #if H264_FRAME_GPU_ARGB8888_ENABLE
     uint8_t  *gpu_decode_buf;
@@ -85,8 +91,79 @@ typedef struct
 } hw_h264_decoder_frame_instance_t;
 
 static video_player_video_decoder_ops_t s_ops_template;
+static beken_mutex_t s_osd_provider_mutex = NULL;
+static bk_video_player_h264_osd_provider_t s_osd_provider;
 
 static avdk_err_t hw_h264_decoder_frame_deinit(struct video_player_video_decoder_ops_s *ops);
+
+avdk_err_t bk_video_player_hw_h264_frame_decoder_set_osd_provider(
+    const bk_video_player_h264_osd_provider_t *provider)
+{
+    if (provider != NULL && provider->acquire == NULL)
+    {
+        return AVDK_ERR_INVAL;
+    }
+
+    if (s_osd_provider_mutex == NULL)
+    {
+        if (provider == NULL)
+        {
+            return AVDK_ERR_OK;
+        }
+        if (rtos_init_mutex(&s_osd_provider_mutex) != BK_OK)
+        {
+            return AVDK_ERR_GENERIC;
+        }
+    }
+
+    rtos_lock_mutex(&s_osd_provider_mutex);
+    if (provider != NULL)
+    {
+        os_memcpy(&s_osd_provider, provider, sizeof(s_osd_provider));
+    }
+    else
+    {
+        os_memset(&s_osd_provider, 0, sizeof(s_osd_provider));
+    }
+    rtos_unlock_mutex(&s_osd_provider_mutex);
+    return AVDK_ERR_OK;
+}
+
+static bool hw_h264_frame_osd_acquire(bk_h264_decode_osd_t *osd,
+                                      void **token,
+                                      bk_video_player_h264_osd_provider_t *provider)
+{
+    if (osd == NULL || token == NULL || provider == NULL ||
+        s_osd_provider_mutex == NULL)
+    {
+        return false;
+    }
+
+    os_memset(provider, 0, sizeof(*provider));
+    rtos_lock_mutex(&s_osd_provider_mutex);
+    os_memcpy(provider, &s_osd_provider, sizeof(*provider));
+    rtos_unlock_mutex(&s_osd_provider_mutex);
+
+    if (provider->acquire == NULL)
+    {
+        return false;
+    }
+
+    os_memset(osd, 0, sizeof(*osd));
+    *token = NULL;
+    return provider->acquire(osd, token, provider->user_data);
+}
+
+static void hw_h264_frame_osd_release(
+    const bk_video_player_h264_osd_provider_t *provider,
+    void *token,
+    bool frame_ready)
+{
+    if (provider != NULL && provider->release != NULL)
+    {
+        provider->release(token, frame_ready, provider->user_data);
+    }
+}
 
 static void hw_h264_frame_release_param_sets(hw_h264_decoder_frame_ctx_t *ctx)
 {
@@ -649,9 +726,30 @@ static void hw_h264_frame_pack_nv12_visible(uint8_t *buf,
     }
 }
 
+static uint32_t hw_h264_frame_map_hw_format(pixel_format_t fmt)
+{
+    switch (fmt)
+    {
+    case PIXEL_FMT_RGB565:
+        return BK_PIXEL_FORMAT_RGB565;
+    case PIXEL_FMT_NV12:
+    case PIXEL_FMT_YUV420SP:
+    default:
+        return BK_PIXEL_FORMAT_NV12;
+    }
+}
+
+static uint32_t hw_h264_frame_rgb565_output_size(uint32_t width,
+                                                uint32_t height)
+{
+    const uint32_t h_aligned = (height + 15U) & ~15U;
+    return width * h_aligned * 2U;
+}
+
 static avdk_err_t hw_h264_frame_reset_controller(hw_h264_decoder_frame_ctx_t *ctx,
                                                  uint16_t width,
-                                                 uint16_t height)
+                                                 uint16_t height,
+                                                 pixel_format_t out_fmt)
 {
     if (ctx->hw_decoder_handle != NULL)
     {
@@ -663,9 +761,9 @@ static avdk_err_t hw_h264_frame_reset_controller(hw_h264_decoder_frame_ctx_t *ct
 
     bk_h264_decode_frame_config_t cfg = DEFAULT_H264_DECODE_FRAME_CONFIG;
     cfg.timeout_ms = 1000U;
-    cfg.out_width = (uint16_t)vp_h264_align_up(width, 16U);
-    cfg.out_height = (uint16_t)vp_h264_align_up(height, 16U);
-    cfg.out_format = BK_PIXEL_FORMAT_NV12;
+    cfg.out_width = width;
+    cfg.out_height = height;
+    cfg.out_format = hw_h264_frame_map_hw_format(out_fmt);
     cfg.frame_done_cb = hw_h264_frame_done_cb;
     cfg.frame_done_args = NULL;
 
@@ -693,6 +791,11 @@ static avdk_err_t hw_h264_frame_reset_controller(hw_h264_decoder_frame_ctx_t *ct
     }
 
     ctx->need_inject_params = true;
+    ctx->hw_out_format = cfg.out_format;
+    ctx->osd_enabled = false;
+    LOGI("%s: controller ready out_fmt=%u size=%ux%u\n",
+         __func__, (unsigned)cfg.out_format,
+         (unsigned)width, (unsigned)height);
     return AVDK_ERR_OK;
 }
 
@@ -742,6 +845,35 @@ static avdk_err_t hw_h264_decoder_frame_init(struct video_player_video_decoder_o
     ctx->video_params.codec_config_size = 0;
     ctx->nalu_length_size = 4U;
     ctx->need_inject_params = true;
+    ctx->decode_out_width = (uint16_t)vp_h264_align_up(params->width, 16U);
+    ctx->decode_out_height = (uint16_t)vp_h264_align_up(params->height, 16U);
+    ctx->visible_out_width = (uint16_t)params->width;
+    ctx->visible_out_height = (uint16_t)params->height;
+
+    if (params->display_width != 0U || params->display_height != 0U)
+    {
+        if (params->display_width == 0U || params->display_height == 0U ||
+            params->display_width > UINT16_MAX || params->display_height > UINT16_MAX ||
+            (params->display_width & 1U) || (params->display_height & 1U))
+        {
+            LOGW("%s: invalid display target %ux%u\n",
+                 __func__, params->display_width, params->display_height);
+            return AVDK_ERR_INVAL;
+        }
+
+        if (params->rotate_degree == 0U)
+        {
+            ctx->decode_out_width = (uint16_t)params->display_width;
+            ctx->decode_out_height = (uint16_t)params->display_height;
+            ctx->visible_out_width = (uint16_t)params->display_width;
+            ctx->visible_out_height = (uint16_t)params->display_height;
+        }
+        else
+        {
+            LOGW("%s: frame decoder keeps source size before rotate=%u\n",
+                 __func__, (unsigned)params->rotate_degree);
+        }
+    }
 
     if (params->codec_config != NULL && params->codec_config_size > 0U)
     {
@@ -754,9 +886,18 @@ static avdk_err_t hw_h264_decoder_frame_init(struct video_player_video_decoder_o
         }
     }
 
+    /*
+     * Initialize the controller in its requested hardware format. Previously
+     * every instance opened as NV12 and the first RGB565 frame immediately
+     * powered the decoder domain down and rebuilt it with PP enabled.
+     */
+    pixel_format_t initial_out_fmt =
+        (params->output_format == PIXEL_FMT_RGB565) ?
+        PIXEL_FMT_RGB565 : PIXEL_FMT_NV12;
     avdk_err_t ret = hw_h264_frame_reset_controller(ctx,
-                                                    (uint16_t)params->width,
-                                                    (uint16_t)params->height);
+                                                    ctx->decode_out_width,
+                                                    ctx->decode_out_height,
+                                                    initial_out_fmt);
     if (ret != AVDK_ERR_OK)
     {
         hw_h264_frame_release_param_sets(ctx);
@@ -764,10 +905,14 @@ static avdk_err_t hw_h264_decoder_frame_init(struct video_player_video_decoder_o
     }
 
     ctx->is_initialized = true;
-    LOGI("%s: frame decoder initialized %ux%u length_size=%u\n",
+    LOGI("%s: frame decoder initialized %ux%u -> %ux%u output=%u hw=%u length_size=%u\n",
          __func__,
          params->width,
          params->height,
+         (unsigned)ctx->visible_out_width,
+         (unsigned)ctx->visible_out_height,
+         (unsigned)params->output_format,
+         (unsigned)ctx->hw_out_format,
          ctx->nalu_length_size);
     return AVDK_ERR_OK;
 }
@@ -806,6 +951,8 @@ static avdk_err_t hw_h264_decoder_frame_deinit(struct video_player_video_decoder
     hw_h264_frame_release_param_sets(ctx);
     ctx->is_initialized = false;
     ctx->need_inject_params = true;
+    ctx->hw_out_format = 0;
+    ctx->osd_enabled = false;
     return AVDK_ERR_OK;
 }
 
@@ -830,20 +977,25 @@ static avdk_err_t hw_h264_decoder_frame_decode(struct video_player_video_decoder
     }
     if (requested_fmt != PIXEL_FMT_NV12 &&
         requested_fmt != PIXEL_FMT_YUV420SP &&
+        requested_fmt != PIXEL_FMT_RGB565 &&
         requested_fmt != PIXEL_FMT_ARGB8888)
     {
-        LOGE("%s: frame decoder only supports NV12/ARGB8888 output, fmt=%d\n", __func__, requested_fmt);
+        LOGE("%s: frame decoder only supports NV12/RGB565/ARGB8888 output, fmt=%d\n", __func__, requested_fmt);
         out_buffer->length = 0;
         return AVDK_ERR_UNSUPPORTED;
     }
 
     const uint32_t width = ctx->video_params.width;
     const uint32_t height = ctx->video_params.height;
-    const uint32_t coded_width = vp_h264_align_up(width, 16U);
-    const uint32_t coded_height = vp_h264_align_up(height, 16U);
-    const uint32_t visible_out_size = (width * height * 3U) / 2U;
-    const uint32_t coded_out_size = (coded_width * coded_height * 3U) / 2U;
+    const uint32_t decode_width = ctx->decode_out_width;
+    const uint32_t decode_height = ctx->decode_out_height;
+    const uint32_t visible_width = ctx->visible_out_width;
+    const uint32_t visible_height = ctx->visible_out_height;
+    const uint32_t visible_out_size = (visible_width * visible_height * 3U) / 2U;
+    const uint32_t decode_out_size = (decode_width * decode_height * 3U) / 2U;
     const bool argb8888_output = (requested_fmt == PIXEL_FMT_ARGB8888);
+    const bool rgb565_output = (requested_fmt == PIXEL_FMT_RGB565);
+    const uint32_t rgb565_out_size = visible_width * visible_height * 2U;
     const uint32_t argb8888_width = (H264_FRAME_GPU_TARGET_WIDTH > 0U) ?
                                     H264_FRAME_GPU_TARGET_WIDTH : width;
     const uint32_t argb8888_height = (H264_FRAME_GPU_TARGET_HEIGHT > 0U) ?
@@ -851,10 +1003,35 @@ static avdk_err_t hw_h264_decoder_frame_decode(struct video_player_video_decoder
     const uint32_t argb8888_out_size = argb8888_width * argb8888_height * 4U;
     avdk_err_t ret = AVDK_ERR_OK;
 
-    if (!argb8888_output && coded_out_size > out_buffer->length)
+    if (rgb565_output)
+    {
+        const uint32_t rgb565_hw_out_size =
+            hw_h264_frame_rgb565_output_size(visible_width, visible_height);
+        if (rgb565_hw_out_size > out_buffer->length)
+        {
+            LOGE("%s: RGB565 output too small, need=%u got=%u\n",
+                 __func__, (unsigned)rgb565_hw_out_size, (unsigned)out_buffer->length);
+            out_buffer->length = 0;
+            return AVDK_ERR_NOMEM;
+        }
+
+        if (ctx->hw_out_format != BK_PIXEL_FORMAT_RGB565)
+        {
+            ret = hw_h264_frame_reset_controller(ctx,
+                                                 ctx->decode_out_width,
+                                                 ctx->decode_out_height,
+                                                 PIXEL_FMT_RGB565);
+            if (ret != AVDK_ERR_OK)
+            {
+                out_buffer->length = 0;
+                return ret;
+            }
+        }
+    }
+    else if (!argb8888_output && decode_out_size > out_buffer->length)
     {
         LOGE("%s: output too small, need=%u got=%u\n",
-             __func__, coded_out_size, out_buffer->length);
+             __func__, decode_out_size, out_buffer->length);
         out_buffer->length = 0;
         return AVDK_ERR_NOMEM;
     }
@@ -869,7 +1046,7 @@ static avdk_err_t hw_h264_decoder_frame_decode(struct video_player_video_decoder
             return AVDK_ERR_NOMEM;
         }
 
-        ret = hw_h264_frame_ensure_gpu_decode_buf(ctx, coded_out_size);
+        ret = hw_h264_frame_ensure_gpu_decode_buf(ctx, decode_out_size);
         if (ret != AVDK_ERR_OK)
         {
             out_buffer->length = 0;
@@ -945,14 +1122,60 @@ static avdk_err_t hw_h264_decoder_frame_decode(struct video_player_video_decoder
         decode_out = ctx->gpu_decode_buf;
     }
 #endif
+    if (!argb8888_output && !rgb565_output && ctx->hw_out_format != BK_PIXEL_FORMAT_NV12)
+    {
+        ret = hw_h264_frame_reset_controller(ctx,
+                                             ctx->decode_out_width,
+                                             ctx->decode_out_height,
+                                             PIXEL_FMT_NV12);
+        if (ret != AVDK_ERR_OK)
+        {
+            out_buffer->length = 0;
+            return ret;
+        }
+    }
 
     bk_h264_decode_input_t in = {0};
     in.stream = bs_data;
     in.stream_len = bs_len;
     in.out_buffer = decode_out;
-    in.out_buffer_size = coded_out_size;
+    in.out_buffer_size = argb8888_output ? decode_out_size : out_buffer->length;
+
+    bk_h264_decode_osd_t osd;
+    bk_video_player_h264_osd_provider_t osd_provider;
+    void *osd_token = NULL;
+    bool osd_acquired = hw_h264_frame_osd_acquire(&osd, &osd_token, &osd_provider);
+    if (osd_acquired || ctx->osd_enabled)
+    {
+        if (!osd_acquired)
+        {
+            os_memset(&osd, 0, sizeof(osd));
+        }
+
+        ret = bk_h264_decode_ioctl(ctx->hw_decoder_handle,
+                                   BK_H264_DECODE_IOCTL_SET_OSD,
+                                   &osd);
+        if (ret != AVDK_ERR_OK)
+        {
+            if (osd_acquired)
+            {
+                hw_h264_frame_osd_release(&osd_provider, osd_token, false);
+            }
+            LOGE("%s: set PP OSD failed, ret=%d\n", __func__, ret);
+            out_buffer->length = 0;
+            out_buffer->pts = in_buffer->pts;
+            return ret;
+        }
+        ctx->osd_enabled = osd_acquired;
+    }
 
     ret = bk_h264_decode_frame(ctx->hw_decoder_handle, &in);
+    if (osd_acquired)
+    {
+        hw_h264_frame_osd_release(&osd_provider,
+                                  osd_token,
+                                  ret == AVDK_ERR_OK);
+    }
     if (ret != AVDK_ERR_OK)
     {
         LOGE("%s: bk_h264_decode_frame failed, ret=%d, bs_len=%u, pts=%llu, need_inj_before=%u\n",
@@ -971,8 +1194,8 @@ static avdk_err_t hw_h264_decoder_frame_decode(struct video_player_video_decoder
                                                ctx->gpu_decode_buf,
                                                width,
                                                height,
-                                               coded_width,
-                                               coded_height,
+                                               decode_width,
+                                               decode_height,
                                                out_buffer->data,
                                                argb8888_width,
                                                argb8888_height);
@@ -987,12 +1210,17 @@ static avdk_err_t hw_h264_decoder_frame_decode(struct video_player_video_decoder
     }
     else
 #endif
+    if (rgb565_output)
+    {
+        out_buffer->length = rgb565_out_size;
+    }
+    else
     {
         hw_h264_frame_pack_nv12_visible(out_buffer->data,
-                                        width,
-                                        height,
-                                        coded_width,
-                                        coded_height);
+                                        visible_width,
+                                        visible_height,
+                                        decode_width,
+                                        decode_height);
 
         out_buffer->length = visible_out_size;
     }

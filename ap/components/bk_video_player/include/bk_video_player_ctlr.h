@@ -130,6 +130,8 @@ typedef struct private_video_player_ctlr_s
     // - For PCM audio, audio track is enabled even when active_audio_decoder is NULL (zero-copy path).
     bool audio_track_enabled;
     bool video_track_enabled;
+    bool current_audio_track_index_valid;
+    uint8_t current_audio_track_index;
     // Protect active_* pointers and their underlying contexts (parser/decoder) from concurrent access.
     // This avoids races between stop/close (deinit) and parse/decode threads (use).
     beken_mutex_t active_mutex;
@@ -224,9 +226,12 @@ typedef struct private_video_player_ctlr_s
     // - Prefer audio-driven clock if audio stream exists.
     // - Fall back to video-driven clock if no audio stream exists.
     video_player_clock_source_t clock_source;
-    // Monotonic playback session id (incremented on each play start).
-    // Used to tag encoded packets and drop stale packets from previous sessions.
+    // Monotonic playback session id (incremented on each play start / full A/V seek).
+    // Used to tag encoded video packets and drop stale packets from previous sessions.
     uint32_t play_session_id;
+    // Audio-only session id (incremented on full A/V seek and audio-only track switch seek).
+    // Lets audio restart without restarting the video pipeline.
+    uint32_t audio_play_session_id;
 
     // Delivered decoded video frame index (1-based), used by decode_complete_cb meta.
     // Updated in video decode thread (sync delivery) and vp_evt thread (async delivery).
@@ -237,6 +242,31 @@ typedef struct private_video_player_ctlr_s
     uint32_t vp_evt_last_video_time_ms;
     uint32_t vp_evt_last_video_session_id;
 } private_video_player_ctlr_t;
+
+static inline void video_player_get_output_geometry(const private_video_player_ctlr_t *controller,
+                                                    uint32_t *width,
+                                                    uint32_t *height)
+{
+    if (controller == NULL || width == NULL || height == NULL)
+    {
+        return;
+    }
+
+    *width = controller->current_media_info.video.width;
+    *height = controller->current_media_info.video.height;
+
+    if ((controller->config.video.output_format == PIXEL_FMT_NV12 ||
+         controller->config.video.output_format == PIXEL_FMT_YUV420SP ||
+         controller->config.video.output_format == PIXEL_FMT_RGB565 ||
+         controller->config.video.output_format == PIXEL_FMT_RGB888) &&
+        controller->config.video.rotate_degree == 0U &&
+        controller->config.video.display_width != 0U &&
+        controller->config.video.display_height != 0U)
+    {
+        *width = controller->config.video.display_width;
+        *height = controller->config.video.display_height;
+    }
+}
 
 /**
  * @brief Handle play mode (called from parse/decode threads)

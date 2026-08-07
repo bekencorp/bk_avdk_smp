@@ -172,15 +172,14 @@ static inline uint32_t hw_h264_frame_buf_alloc_size(uint32_t payload_plus_pad)
   * reference h264d_gpu_display_example and works for all tested resolutions. */
  #define H264_DECODER_SEG_HEIGHT_MB          1U
  
- /* Number of segments in the H264->GPU Flexa ring buffer. Acts as a small
-  * pipeline depth that lets the H264 IP run ahead of the GPU by N-1 segments.
-  * 3 matches the reference example. */
- #define H264_DECODER_SEG_NUMBER             3U
+ /* Match the validated h264d_gpu_display example. Four segments give the
+  * decoder enough slack while VG-Lite rotates and compresses each strip. */
+ #define H264_DECODER_SEG_NUMBER             4U
  
  /* GPU-side ring depth (number of in-flight compressed ARGB frames). At least
   * 2 so the GPU does not block waiting for the LCD to release the previous
   * frame; 3 gives the LCD one frame of slack across DPU VSYNC jitter. */
- #define H264_DECODER_GPU_FLEXA_BUFF_CNT     3U
+ #define H264_DECODER_GPU_FLEXA_BUFF_CNT     4U
  
  /* How many lines of NV12 the GPU consumes per Flexa transaction. 16 matches
   * H264_DECODER_SEG_HEIGHT_MB * 16; the GPU and H264 IP have to agree on
@@ -189,18 +188,50 @@ static inline uint32_t hw_h264_frame_buf_alloc_size(uint32_t payload_plus_pad)
 
  /* HSRAM Flexa ring buffer alignment: 64-byte cache line. */
  #define H264_DECODER_FLEXA_PP_ALIGN         64U
+
+ /* Keep DPU release callbacks out of the general slab allocator. The GPU
+  * renders into one buffer while DPU owns display+update buffers. */
+ #define H264_DECODER_GPU_OUTPUT_POOL_COUNT  3U
+ #define H264_DECODER_GPU_POOL_WAIT_MS       100U
  
  /* Maximum time to wait for the GPU to finish a single frame. Generous: at
   * 30 fps each frame should complete in ~33 ms; the timeout only triggers on
   * pathological stalls. */
  #define H264_DECODER_FRAME_TIMEOUT_MS       2000U
  
- /* Counting semaphore depth. With H264_DECODER_GPU_FLEXA_BUFF_CNT==3 the GPU
-  * can have up to 3 frames ready before the decode thread consumes them, so
-  * size the semaphore accordingly. */
+ /* The GPU can have up to the configured ring depth ready before the decode
+  * thread consumes them, so size the semaphore accordingly. */
 #define H264_DECODER_FRAME_SEM_DEPTH        H264_DECODER_GPU_FLEXA_BUFF_CNT
  
- static bool h264_decoder_ptr_is_hsram(const void *ptr)
+typedef struct
+{
+    void *buffer;
+    bool in_use;
+} h264_decoder_gpu_pool_entry_t;
+
+static h264_decoder_gpu_pool_entry_t
+    s_gpu_output_pool[H264_DECODER_GPU_OUTPUT_POOL_COUNT];
+static uint32_t s_gpu_output_pool_size;
+static uint32_t s_gpu_output_pool_count;
+
+static bool h264_decoder_gpu_pool_release(void *ptr)
+{
+    bool released = false;
+    uint32_t flags = rtos_enter_critical();
+    for (uint32_t i = 0U; i < s_gpu_output_pool_count; i++)
+    {
+        if (s_gpu_output_pool[i].buffer == ptr)
+        {
+            s_gpu_output_pool[i].in_use = false;
+            released = true;
+            break;
+        }
+    }
+    rtos_exit_critical(flags);
+    return released;
+}
+
+static bool h264_decoder_ptr_is_hsram(const void *ptr)
  {
  #if defined(CONFIG_AP_HSRAM_HEAP_ADDR) && defined(CONFIG_AP_HSRAM_HEAP_SIZE) && (CONFIG_AP_HSRAM_HEAP_SIZE > 0)
      const uintptr_t addr  = (uintptr_t)ptr;
@@ -221,6 +252,11 @@ static inline uint32_t hw_h264_frame_buf_alloc_size(uint32_t payload_plus_pad)
          return AVDK_ERR_OK;
      }
  
+     if (h264_decoder_gpu_pool_release(frame))
+     {
+         return AVDK_ERR_OK;
+     }
+
      if (h264_decoder_ptr_is_hsram(frame))
      {
          hsram_free(frame);
@@ -709,15 +745,81 @@ static avdk_err_t hw_h264_avcc_to_annexb(hw_h264_decoder_ctx_t *ctx,
  // GPU buffer-management glue: callbacks the bk_gpu_ctlr invokes.
  // ---------------------------------------------------------------------------
  
+static bool h264_decoder_gpu_pool_init(uint32_t size)
+{
+    if (s_gpu_output_pool_count == H264_DECODER_GPU_OUTPUT_POOL_COUNT &&
+        s_gpu_output_pool_size == size)
+    {
+        return true;
+    }
+    if (s_gpu_output_pool_count != 0U)
+    {
+        return false;
+    }
+
+    for (uint32_t i = 0U; i < H264_DECODER_GPU_OUTPUT_POOL_COUNT; i++)
+    {
+        s_gpu_output_pool[i].buffer =
+            bk_frame_buffer_malloc(MEM_SLAB_HEAP_UNCODED, size);
+        if (s_gpu_output_pool[i].buffer == NULL)
+        {
+            for (uint32_t j = 0U; j < i; j++)
+            {
+                bk_frame_buffer_free(s_gpu_output_pool[j].buffer);
+                s_gpu_output_pool[j].buffer = NULL;
+            }
+            return false;
+        }
+        s_gpu_output_pool[i].in_use = false;
+    }
+
+    s_gpu_output_pool_size = size;
+    s_gpu_output_pool_count = H264_DECODER_GPU_OUTPUT_POOL_COUNT;
+    LOGI("%s: output pool ready: %u x %u bytes\n",
+         __func__,
+         (unsigned)H264_DECODER_GPU_OUTPUT_POOL_COUNT,
+         (unsigned)size);
+    return true;
+}
+
 static void *h264_decoder_gpu_frame_malloc(uint32_t size)
 {
-    /* The GPU produces compressed ARGB frames sized exactly to its tile
-    * compressed payload (not strict width*height*4 -- VG-Lite emits ~30%
-    * of that). MEM_SLAB_HEAP_UNCODED is the same heap the existing video
-    * path uses for decoded frames, so the downstream LCD free path
-    * (display_frame_free_cb -> bk_frame_buffer_free) Just Works without
-    * any allocator translation. */
-    void *ptr = bk_frame_buffer_malloc(MEM_SLAB_HEAP_UNCODED, size);
+    void *ptr = NULL;
+
+    if (h264_decoder_gpu_pool_init(size))
+    {
+        for (uint32_t waited_ms = 0U;
+             waited_ms <= H264_DECODER_GPU_POOL_WAIT_MS;
+             waited_ms++)
+        {
+            uint32_t flags = rtos_enter_critical();
+            for (uint32_t i = 0U; i < s_gpu_output_pool_count; i++)
+            {
+                if (!s_gpu_output_pool[i].in_use)
+                {
+                    s_gpu_output_pool[i].in_use = true;
+                    ptr = s_gpu_output_pool[i].buffer;
+                    break;
+                }
+            }
+            rtos_exit_critical(flags);
+
+            if (ptr != NULL)
+            {
+                return ptr;
+            }
+            if (waited_ms < H264_DECODER_GPU_POOL_WAIT_MS)
+            {
+                rtos_delay_milliseconds(1U);
+            }
+        }
+        LOGE("%s: output pool exhausted, size=%u\n",
+             __func__, (unsigned)size);
+        return NULL;
+    }
+
+    /* Fallback is only expected if fixed-pool allocation failed at startup. */
+    ptr = bk_frame_buffer_malloc(MEM_SLAB_HEAP_UNCODED, size);
     if (ptr == NULL)
     {
         LOGE("%s: alloc gpu output failed, size=%u\n", __func__, (unsigned)size);
@@ -898,32 +1000,39 @@ static avdk_err_t hw_h264_decoder_setup_pipeline(hw_h264_decoder_ctx_t *ctx)
      * default DEC400 path keeps the DPU on the display profile supplied by the
      * upper layer and lets Flexa GPU scale the decoded H264 image to it. */
 #if H264_FLEXA_RAW_ARGB8888_ENABLE
-    uint16_t dst_w = (ctx->display_w != 0U) ? ctx->display_w : ctx->mb_w;
-    uint16_t dst_h = (ctx->display_h != 0U) ? ctx->display_h : ctx->mb_h;
+    uint16_t panel_w = (ctx->display_w != 0U) ? ctx->display_w : ctx->mb_w;
+    uint16_t panel_h = (ctx->display_h != 0U) ? ctx->display_h : ctx->mb_h;
+    uint16_t dst_w = panel_w;
+    uint16_t dst_h = panel_h;
     if (ctx->rotate_degree == 90U || ctx->rotate_degree == 270U)
     {
-        uint16_t tmp = dst_w;
-        dst_w = dst_h;
-        dst_h = tmp;
+        dst_w = panel_h;
+        dst_h = panel_w;
     }
-    const bool horizontal_mirror = ((dst_w & 15U) == 0U);
-    ctx->out_w = dst_w;
-    ctx->out_h = dst_h;
+    const bool horizontal_mirror = false;
+    ctx->out_w = panel_w;
+    ctx->out_h = panel_h;
     ctx->scale_enable = (dst_w != ctx->mb_w || dst_h != ctx->mb_h);
     const bool gpu_compress = false;
     const bool gpu_scale = ctx->scale_enable;
 #else
-    uint16_t dst_w = (ctx->display_w != 0U) ? ctx->display_w : ctx->mb_w;
-    uint16_t dst_h = (ctx->display_h != 0U) ? ctx->display_h : ctx->mb_h;
+    uint16_t panel_w = (ctx->display_w != 0U) ? ctx->display_w : ctx->mb_w;
+    uint16_t panel_h = (ctx->display_h != 0U) ? ctx->display_h : ctx->mb_h;
+    uint16_t dst_w = panel_w;
+    uint16_t dst_h = panel_h;
+    /*
+     * Match h264d_gpu_display_example: the public display profile is the
+     * post-rotation panel geometry, while bk_gpu_ctlr consumes a pre-rotation
+     * destination surface.
+     */
     if (ctx->rotate_degree == 90U || ctx->rotate_degree == 270U)
     {
-        uint16_t tmp = dst_w;
-        dst_w = dst_h;
-        dst_h = tmp;
+        dst_w = panel_h;
+        dst_h = panel_w;
     }
-    const bool horizontal_mirror = ((dst_w & 15U) == 0U);
-    ctx->out_w = dst_w;
-    ctx->out_h = dst_h;
+    const bool horizontal_mirror = false;
+    ctx->out_w = panel_w;
+    ctx->out_h = panel_h;
     ctx->scale_enable = (dst_w != ctx->mb_w || dst_h != ctx->mb_h);
     
     const bool gpu_compress = true;

@@ -183,7 +183,7 @@ static void bk_video_player_audio_decode_thread(void *arg)
             }
 
             // Capture session id for this packet and drop stale packets from previous sessions.
-            uint32_t iter_session_id = controller->play_session_id;
+            uint32_t iter_session_id = controller->audio_play_session_id;
             if (iter_session_id != last_seen_session_id)
             {
                 alloc_fail_cnt = 0;
@@ -197,7 +197,7 @@ static void bk_video_player_audio_decode_thread(void *arg)
             }
 
             uint32_t pkt_session_id = (uint32_t)(uintptr_t)in_buffer->buffer.user_data;
-            if (pkt_session_id != 0 && pkt_session_id != controller->play_session_id)
+            if (pkt_session_id != 0 && pkt_session_id != controller->audio_play_session_id)
             {
                 if (controller->config.audio.buffer_free_cb != NULL && in_buffer->buffer.data != NULL)
                 {
@@ -250,7 +250,7 @@ static void bk_video_player_audio_decode_thread(void *arg)
                         break;
                     }
 
-                    if (iter_session_id != controller->play_session_id)
+                    if (iter_session_id != controller->audio_play_session_id)
                     {
                         break;
                     }
@@ -466,7 +466,7 @@ static void bk_video_player_audio_decode_thread(void *arg)
         }
 
         // Drop pending packet if session changed.
-        if (p->session_id != controller->play_session_id)
+        if (p->session_id != controller->audio_play_session_id)
         {
             if (controller->config.audio.buffer_free_cb != NULL)
             {
@@ -530,7 +530,7 @@ static void bk_video_player_audio_decode_thread(void *arg)
          *   while using AUDIO clock.
          */
         if (controller->clock_source == VIDEO_PLAYER_CLOCK_AUDIO &&
-            controller->play_session_id == last_seen_session_id &&
+            controller->audio_play_session_id == last_seen_session_id &&
             controller->audio_decode_thread_running &&
             controller->time_mutex != NULL)
         {

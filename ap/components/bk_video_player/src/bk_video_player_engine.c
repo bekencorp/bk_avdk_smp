@@ -404,6 +404,38 @@ avdk_err_t bk_video_player_engine_set_av_sync_offset_ms(bk_video_player_engine_h
     return handle->ctlr->ioctl(handle->ctlr, BK_VIDEO_PLAYER_IOCTL_CMD_SET_AV_SYNC_OFFSET_MS, &param);
 }
 
+avdk_err_t bk_video_player_engine_select_audio_track(bk_video_player_engine_handle_t handle, uint8_t index)
+{
+    AVDK_RETURN_ON_FALSE(handle, AVDK_ERR_INVAL, TAG, "handle is NULL");
+    AVDK_RETURN_ON_FALSE(handle->ctlr, AVDK_ERR_INVAL, TAG, "controller is NULL");
+    AVDK_RETURN_ON_FALSE(handle->ctlr->ioctl, AVDK_ERR_UNSUPPORTED, TAG, "ioctl function is NULL");
+
+    bk_video_player_audio_track_param_t param;
+    os_memset(&param, 0, sizeof(param));
+    param.index = index;
+    param.seek_pts_ms = VIDEO_PLAYER_PTS_INVALID;
+
+    return handle->ctlr->ioctl(handle->ctlr, BK_VIDEO_PLAYER_IOCTL_CMD_SELECT_AUDIO_TRACK, &param);
+}
+
+avdk_err_t bk_video_player_engine_get_audio_track_count(bk_video_player_engine_handle_t handle, uint8_t *count)
+{
+    AVDK_RETURN_ON_FALSE(handle, AVDK_ERR_INVAL, TAG, "handle is NULL");
+    AVDK_RETURN_ON_FALSE(count, AVDK_ERR_INVAL, TAG, "count is NULL");
+    AVDK_RETURN_ON_FALSE(handle->ctlr, AVDK_ERR_INVAL, TAG, "controller is NULL");
+    AVDK_RETURN_ON_FALSE(handle->ctlr->ioctl, AVDK_ERR_UNSUPPORTED, TAG, "ioctl function is NULL");
+
+    bk_video_player_audio_track_count_param_t param;
+    os_memset(&param, 0, sizeof(param));
+
+    avdk_err_t ret = handle->ctlr->ioctl(handle->ctlr, BK_VIDEO_PLAYER_IOCTL_CMD_GET_AUDIO_TRACK_COUNT, &param);
+    if (ret == AVDK_ERR_OK)
+    {
+        *count = param.count;
+    }
+    return ret;
+}
+
 avdk_err_t bk_video_player_engine_register_audio_decoder(bk_video_player_engine_handle_t handle,
                                                          const video_player_audio_decoder_ops_t *decoder_ops)
 {

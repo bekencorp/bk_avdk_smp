@@ -25,6 +25,91 @@
 
 #define H264_NALU_TYPE_IDR       5U
 #define H264_NALU_HDR_TYPE(b)    ((uint8_t)((b) & 0x1FU))
+#define H264_NALU_HDR_REF_IDC(b) ((uint8_t)(((b) >> 5U) & 0x03U))
+
+static bool video_player_h264_nalu_is_vcl(uint8_t nalu_type)
+{
+    return (nalu_type >= 1U && nalu_type <= H264_NALU_TYPE_IDR);
+}
+
+static void video_player_h264_classify_nalu(uint8_t nalu_header,
+                                            bool *has_vcl,
+                                            bool *has_reference_vcl)
+{
+    uint8_t nalu_type = H264_NALU_HDR_TYPE(nalu_header);
+    if (!video_player_h264_nalu_is_vcl(nalu_type))
+    {
+        return;
+    }
+
+    *has_vcl = true;
+    if (nalu_type == H264_NALU_TYPE_IDR || H264_NALU_HDR_REF_IDC(nalu_header) != 0U)
+    {
+        *has_reference_vcl = true;
+    }
+}
+
+static bool video_player_h264_packet_is_non_reference_picture(const uint8_t *data, uint32_t len)
+{
+    if (data == NULL || len < 5U)
+    {
+        return false;
+    }
+
+    bool has_vcl = false;
+    bool has_reference_vcl = false;
+    bool annex_b_seen = false;
+
+    for (uint32_t i = 0; i + 3U < len; i++)
+    {
+        if (data[i] != 0x00U || data[i + 1U] != 0x00U)
+        {
+            continue;
+        }
+
+        uint32_t prefix = 0U;
+        if (data[i + 2U] == 0x01U)
+        {
+            prefix = 3U;
+        }
+        else if (i + 3U < len && data[i + 2U] == 0x00U && data[i + 3U] == 0x01U)
+        {
+            prefix = 4U;
+        }
+
+        if (prefix > 0U && i + prefix < len)
+        {
+            annex_b_seen = true;
+            video_player_h264_classify_nalu(data[i + prefix], &has_vcl, &has_reference_vcl);
+        }
+    }
+
+    if (annex_b_seen)
+    {
+        return has_vcl && !has_reference_vcl;
+    }
+
+    uint32_t pos = 0U;
+    uint32_t nalu_count = 0U;
+    while (pos + 4U < len && nalu_count < 32U)
+    {
+        uint32_t nalu_len = ((uint32_t)data[pos] << 24) |
+                            ((uint32_t)data[pos + 1U] << 16) |
+                            ((uint32_t)data[pos + 2U] << 8) |
+                            (uint32_t)data[pos + 3U];
+        pos += 4U;
+        if (nalu_len == 0U || nalu_len > (len - pos))
+        {
+            return false;
+        }
+
+        video_player_h264_classify_nalu(data[pos], &has_vcl, &has_reference_vcl);
+        pos += nalu_len;
+        nalu_count++;
+    }
+
+    return has_vcl && !has_reference_vcl;
+}
 
 static bool video_player_h264_packet_contains_idr(const uint8_t *data, uint32_t len)
 {
@@ -87,7 +172,6 @@ static bool video_player_is_hw_h264_gpu_decoder(const video_player_video_decoder
 #endif
 
 
-
 void video_player_fill_video_frame_meta(private_video_player_ctlr_t *controller,
                                         video_player_video_decoder_ops_t *active_decoder,
                                         const video_player_buffer_t *out_buffer,
@@ -106,8 +190,11 @@ void video_player_fill_video_frame_meta(private_video_player_ctlr_t *controller,
         meta->output_format = PIXEL_FMT_ARGB8888;
     }
 #endif
-    meta->video.width = (uint16_t)controller->current_media_info.video.width;
-    meta->video.height = (uint16_t)controller->current_media_info.video.height;
+    uint32_t output_width = 0U;
+    uint32_t output_height = 0U;
+    video_player_get_output_geometry(controller, &output_width, &output_height);
+    meta->video.width = (uint16_t)output_width;
+    meta->video.height = (uint16_t)output_height;
 
     if (out_buffer != NULL)
     {
@@ -162,6 +249,23 @@ static uint64_t video_player_get_effective_audio_time_ms_for_video(private_video
     return bk_video_player_apply_av_sync_offset_ms(base_ms, offset_ms);
 }
 
+static uint64_t video_player_advance_keep_pts(uint64_t next_keep_pts_ms,
+                                             uint64_t current_pts_ms,
+                                             uint64_t interval_ms)
+{
+    if (next_keep_pts_ms == 0U)
+    {
+        return current_pts_ms + interval_ms;
+    }
+
+    do
+    {
+        next_keep_pts_ms += interval_ms;
+    } while (next_keep_pts_ms <= current_pts_ms);
+
+    return next_keep_pts_ms;
+}
+
 // Video decode thread (pipeline stage 2 for video)
 // Pipeline: Container parse -> Video decode -> Output
 static void bk_video_player_video_decode_thread(void *arg)
@@ -172,8 +276,11 @@ static void bk_video_player_video_decode_thread(void *arg)
     uint32_t last_video_time_ms = rtos_get_time();
     uint32_t last_seen_session_id = 0;
     uint64_t delivered_frame_index = 0;
+    uint32_t last_output_alloc_warn_ms = 0;
 
-    bool drop_until_keyframe = false;
+    bool uniform_drop_active = false;
+    uint64_t next_non_reference_keep_pts_ms = 0;
+    uint32_t catchup_recovered_since_ms = 0;
 
     LOGI("%s: Video decode thread started\n", __func__);
 
@@ -223,10 +330,11 @@ static void bk_video_player_video_decode_thread(void *arg)
             last_video_time_ms = rtos_get_time();
             last_seen_session_id = iter_session_id;
             delivered_frame_index = 0;
-            /* New session starts with a fresh decoder DPB (the parser will
-             * feed an IDR first). Clear the GOP-aware catch-up state so we
-             * don't spuriously hold off the first decode of the new stream. */
-            drop_until_keyframe = false;
+            /* New session starts with a fresh decoder DPB. Reset the
+             * PTS-based uniform frame selector for the new timeline. */
+            uniform_drop_active = false;
+            next_non_reference_keep_pts_ms = 0;
+            catchup_recovered_since_ms = 0;
         }
 
         // Drop stale packets from previous playback sessions (e.g. stop/start or seek restart).
@@ -280,11 +388,51 @@ static void bk_video_player_video_decode_thread(void *arg)
 
         if (controller->clock_source == VIDEO_PLAYER_CLOCK_AUDIO && in_pts_ms > 0)
         {
-            
             const uint64_t drop_threshold_ms = 500;
+            const uint64_t recovery_target_ms = 300;
+            const uint64_t recovery_exit_late_ms = 150;
+            const uint32_t recovery_stable_ms = 1000;
+            const uint64_t recovery_keep_interval_ms = 125;
+            const uint64_t steady_keep_interval_ms = 83;
             uint64_t cur_time_ms = video_player_get_effective_audio_time_ms_for_video(controller);
             bool seek_drop_protect = (seek_drop_enable && in_pts_ms < seek_drop_until_pts_ms);
             bool too_late = (cur_time_ms > 0 && in_pts_ms + drop_threshold_ms < cur_time_ms);
+            uint64_t late_ms = (cur_time_ms > in_pts_ms) ? (cur_time_ms - in_pts_ms) : 0;
+
+            if (!uniform_drop_active && too_late && !seek_drop_protect)
+            {
+                uniform_drop_active = true;
+                next_non_reference_keep_pts_ms = 0;
+                catchup_recovered_since_ms = 0;
+            }
+            else if (uniform_drop_active && !seek_drop_protect)
+            {
+                if (late_ms <= recovery_exit_late_ms)
+                {
+                    uint32_t now_ms = rtos_get_time();
+                    if (catchup_recovered_since_ms == 0U)
+                    {
+                        catchup_recovered_since_ms = now_ms;
+                    }
+                    else if ((uint32_t)(now_ms - catchup_recovered_since_ms) >=
+                             recovery_stable_ms)
+                    {
+                        /*
+                         * Catch-up is a temporary state. Once video has stayed
+                         * close to the audio clock for long enough, restore
+                         * normal frame delivery instead of permanently keeping
+                         * non-reference pictures at the 83 ms selector cadence.
+                         */
+                        uniform_drop_active = false;
+                        next_non_reference_keep_pts_ms = 0;
+                        catchup_recovered_since_ms = 0;
+                    }
+                }
+                else
+                {
+                    catchup_recovered_since_ms = 0;
+                }
+            }
 
             rtos_lock_mutex(&controller->active_mutex);
             const bool has_gop_drop = controller->video_predecode_gop_drop_enable;
@@ -294,8 +442,11 @@ static void bk_video_player_video_decode_thread(void *arg)
             {
                 if (has_gop_drop)
                 {
-                    if (drop_until_keyframe || too_late)
+                    if (uniform_drop_active)
                     {
+                        const uint64_t keep_interval_ms =
+                            (late_ms > recovery_target_ms) ?
+                            recovery_keep_interval_ms : steady_keep_interval_ms;
                         const bool is_h264_idr =
                             (controller->current_media_info.video.format == VIDEO_PLAYER_VIDEO_FORMAT_H264) &&
                             video_player_h264_packet_contains_idr(in_buffer_node->buffer.data,
@@ -303,21 +454,58 @@ static void bk_video_player_video_decode_thread(void *arg)
 
                         if (is_h264_idr)
                         {
-                            drop_until_keyframe = false;
+                            next_non_reference_keep_pts_ms = in_pts_ms + keep_interval_ms;
                         }
                         else
                         {
-                            drop_until_keyframe = true;
-                            if (controller->config.video.packet_buffer_free_cb != NULL && in_buffer_node->buffer.data != NULL)
+                            bool drop_packet = false;
+                            const bool is_non_reference =
+                                (controller->current_media_info.video.format == VIDEO_PLAYER_VIDEO_FORMAT_H264) &&
+                                video_player_h264_packet_is_non_reference_picture(in_buffer_node->buffer.data,
+                                                                                  in_buffer_node->buffer.length);
+                            if (is_non_reference)
                             {
-                                controller->config.video.packet_buffer_free_cb(controller->config.user_data, &in_buffer_node->buffer);
+                                if (next_non_reference_keep_pts_ms == 0U ||
+                                    in_pts_ms >= next_non_reference_keep_pts_ms)
+                                {
+                                    next_non_reference_keep_pts_ms =
+                                        video_player_advance_keep_pts(next_non_reference_keep_pts_ms,
+                                                                      in_pts_ms,
+                                                                      keep_interval_ms);
+                                }
+                                else
+                                {
+                                    drop_packet = true;
+                                }
                             }
-                            buffer_pool_put_empty(&controller->video_pipeline.parser_to_decode_pool, in_buffer_node);
-                            continue;
+                            else if (next_non_reference_keep_pts_ms == 0U ||
+                                     in_pts_ms >= next_non_reference_keep_pts_ms)
+                            {
+                                /*
+                                 * Reference pictures must still be decoded to preserve the DPB.
+                                 * Advance the display schedule so the following non-reference
+                                 * picture is not selected immediately beside this reference frame.
+                                 */
+                                next_non_reference_keep_pts_ms =
+                                    video_player_advance_keep_pts(next_non_reference_keep_pts_ms,
+                                                                  in_pts_ms,
+                                                                  keep_interval_ms);
+                            }
+
+                            if (drop_packet)
+                            {
+                                if (controller->config.video.packet_buffer_free_cb != NULL && in_buffer_node->buffer.data != NULL)
+                                {
+                                    controller->config.video.packet_buffer_free_cb(controller->config.user_data, &in_buffer_node->buffer);
+                                }
+                                buffer_pool_put_empty(&controller->video_pipeline.parser_to_decode_pool, in_buffer_node);
+                                continue;
+                            }
                         }
-                        /* fall through and decode this keyframe -- better to
-                         * show a slightly-late IDR than to wait a whole GOP for
-                         * the next one. */
+                        /* Decode IDR, every reference picture, and PTS-spaced
+                         * non-reference pictures. There is deliberately no
+                         * "drop until next IDR" mode, so the final GOP cannot
+                         * disappear when no later IDR exists. */
                     }
                 }
                 else
@@ -340,18 +528,33 @@ static void bk_video_player_video_decode_thread(void *arg)
         {
             // Output buffer format is decided by upper layer via controller->config.video.output_format.
             // Allocate buffer size based on the target format's packed size.
-            out_buffer.length = video_player_calc_output_buffer_size(controller->current_media_info.video.width,
-                                                                     controller->current_media_info.video.height,
+            uint32_t output_width = 0U;
+            uint32_t output_height = 0U;
+            video_player_get_output_geometry(controller, &output_width, &output_height);
+            out_buffer.length = video_player_calc_output_buffer_size(output_width,
+                                                                     output_height,
                                                                      controller->config.video.output_format);
             ret = controller->config.video.buffer_alloc_cb(controller->config.user_data, &out_buffer);
             if (ret != AVDK_ERR_OK)
             {
-                LOGE("%s: Failed to allocate video output buffer, ret=%d\n", __func__, ret);
-                if (controller->config.video.packet_buffer_free_cb != NULL && in_buffer_node->buffer.data != NULL)
+                uint32_t now_ms = rtos_get_time();
+                if (last_output_alloc_warn_ms == 0U ||
+                    (uint32_t)(now_ms - last_output_alloc_warn_ms) >= 1000U)
                 {
-                    controller->config.video.packet_buffer_free_cb(controller->config.user_data, &in_buffer_node->buffer);
+                    LOGW("%s: Video output buffer unavailable, retrying without dropping packet, ret=%d\n",
+                         __func__, ret);
+                    last_output_alloc_warn_ms = now_ms;
                 }
-                buffer_pool_put_empty(&controller->video_pipeline.parser_to_decode_pool, in_buffer_node);
+
+                /*
+                 * Preserve encoded packet order. Dropping an H.264 packet here
+                 * can remove a reference frame and corrupt every dependent
+                 * frame until the next IDR. Requeue it and apply backpressure
+                 * until a decoded-output buffer becomes available.
+                 */
+                buffer_pool_put_filled(&controller->video_pipeline.parser_to_decode_pool,
+                                       in_buffer_node);
+                rtos_delay_milliseconds(10);
                 continue;
             }
         }

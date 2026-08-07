@@ -39,15 +39,13 @@ typedef struct mp4_parser_ctx_s
     // Audio state
     uint32_t current_audio_sample;
     uint32_t total_audio_samples;
-    uint64_t audio_pts_base;
-    uint64_t audio_bytes_read;
     bool audio_eof;
 
     // Audio seek base for PTS generation (ms).
     // When upper layer requests a seek (target_pts != VIDEO_PLAYER_PTS_INVALID),
     // we reset these counters so audio PTS starts from target_pts and increases monotonically.
     uint64_t audio_seek_pts_ms;
-    uint64_t audio_time_units_since_seek;
+    uint64_t audio_frames_since_seek;
     
     // Video info (cached)
     uint32_t video_width;
@@ -84,9 +82,10 @@ typedef struct
 } mp4_parser_instance_t;
 
 // Caller must hold ctx->mutex.
-static uint64_t mp4_audio_frame_ms(const mp4_parser_ctx_t *ctx)
+static uint64_t mp4_audio_frames_to_ms(const mp4_parser_ctx_t *ctx,
+                                       uint64_t frame_count)
 {
-    if (ctx == NULL || ctx->mp4_handle == NULL)
+    if (ctx == NULL || ctx->mp4_handle == NULL || frame_count == 0U)
     {
         return 0;
     }
@@ -105,15 +104,13 @@ static uint64_t mp4_audio_frame_ms(const mp4_parser_ctx_t *ctx)
         return 0;
     }
 
-    // Derive per-sample duration from mdhd duration and sample_count.
-    // This avoids hardcoding AAC(1024 samples/frame) and matches writer's constant STTS model.
-    uint64_t num = (uint64_t)dur * 1000ULL;
-    uint64_t frame_ms = (num + denom / 2ULL) / denom;
-    if (frame_ms == 0)
-    {
-        frame_ms = 1;
-    }
-    return frame_ms;
+    /*
+     * Keep the duration as a rational value until the final accumulated PTS.
+     * Rounding a 48 kHz AAC frame from 21.333 ms to 21 ms and then adding that
+     * integer once per frame loses about 15.6 ms every second.
+     */
+    uint64_t num = frame_count * (uint64_t)dur * 1000ULL;
+    return (num + denom / 2ULL) / denom;
 }
 
 // Caller must hold ctx->mutex.
@@ -228,10 +225,14 @@ static uint32_t mp4_find_audio_sample_by_pts(mp4_parser_ctx_t *ctx, uint64_t tar
 
     if (ctx->audio_codec == MP4_CODEC_AAC)
     {
-        uint64_t frame_ms = mp4_audio_frame_ms(ctx);
-        if (frame_ms > 0)
+        uint32_t ts = MP4_audio_timescale(ctx->mp4_handle);
+        uint32_t dur = MP4_audio_duration(ctx->mp4_handle);
+        uint32_t cnt = MP4_audio_samples(ctx->mp4_handle);
+        uint64_t denom = (uint64_t)dur * 1000ULL;
+        if (ts > 0U && dur > 0U && cnt > 0U && denom > 0U)
         {
-            sample = (uint32_t)(target_pts_ms / frame_ms);
+            uint64_t num = target_pts_ms * (uint64_t)ts * (uint64_t)cnt;
+            sample = (uint32_t)((num + denom / 2ULL) / denom);
         }
         else
         {
@@ -390,11 +391,9 @@ static avdk_err_t mp4_parser_open(struct video_player_container_parser_ops_s *op
     // Initialize decode state
     ctx->current_video_sample = 0;
     ctx->current_audio_sample = 0;
-    ctx->audio_bytes_read = 0;
     ctx->video_pts_base = 0;
-    ctx->audio_pts_base = 0;
     ctx->audio_seek_pts_ms = 0;
-    ctx->audio_time_units_since_seek = 0;
+    ctx->audio_frames_since_seek = 0;
     ctx->video_eof = false;
     ctx->audio_eof = false;
     
@@ -638,7 +637,7 @@ static avdk_err_t mp4_parser_get_audio_packet_size(struct video_player_container
         ctx->current_audio_sample = target_sample;
         ctx->audio_eof = false;
         ctx->audio_seek_pts_ms = anchor_pts;
-        ctx->audio_time_units_since_seek = 0;
+        ctx->audio_frames_since_seek = 0;
     }
 
     if (ctx->current_audio_sample >= ctx->total_audio_samples)
@@ -807,7 +806,7 @@ static avdk_err_t mp4_parser_read_audio_packet(struct video_player_container_par
             ctx->current_audio_sample = target_sample;
             ctx->audio_eof = false;
             ctx->audio_seek_pts_ms = anchor_pts;
-            ctx->audio_time_units_since_seek = 0;
+            ctx->audio_frames_since_seek = 0;
         }
 
         if (ctx->current_audio_sample >= ctx->total_audio_samples)
@@ -851,9 +850,10 @@ static avdk_err_t mp4_parser_read_audio_packet(struct video_player_container_par
         {
             if (ctx->audio_codec == MP4_CODEC_AAC)
             {
-                uint64_t frame_ms = mp4_audio_frame_ms(ctx);
-                out_buffer->pts = ctx->audio_seek_pts_ms + ctx->audio_time_units_since_seek * frame_ms;
-                ctx->audio_time_units_since_seek++;
+                out_buffer->pts = ctx->audio_seek_pts_ms +
+                                  mp4_audio_frames_to_ms(ctx,
+                                                       ctx->audio_frames_since_seek);
+                ctx->audio_frames_since_seek++;
             }
             else
             {
@@ -871,8 +871,8 @@ static avdk_err_t mp4_parser_read_audio_packet(struct video_player_container_par
                     uint32_t samples_in_buffer = bytes_read / bytes_per_sample;
                     uint64_t denom = (uint64_t)ctx->audio_rate;
                     out_buffer->pts = ctx->audio_seek_pts_ms +
-                                      ((ctx->audio_time_units_since_seek * 1000ULL + denom / 2ULL) / denom);
-                    ctx->audio_time_units_since_seek += (uint64_t)samples_in_buffer;
+                                      ((ctx->audio_frames_since_seek * 1000ULL + denom / 2ULL) / denom);
+                    ctx->audio_frames_since_seek += (uint64_t)samples_in_buffer;
                 }
                 else if (ctx->duration_ms > 0 && ctx->total_audio_samples > 0)
                 {
@@ -880,7 +880,7 @@ static avdk_err_t mp4_parser_read_audio_packet(struct video_player_container_par
                     uint32_t sample_num = ctx->current_audio_sample;
                     out_buffer->pts = ((uint64_t)sample_num * ctx->duration_ms + (uint64_t)ctx->total_audio_samples / 2ULL) /
                                       (uint64_t)ctx->total_audio_samples;
-                    ctx->audio_time_units_since_seek++;
+                    ctx->audio_frames_since_seek++;
                 }
                 else
                 {
@@ -953,6 +953,84 @@ static avdk_err_t mp4_parser_get_media_info(struct video_player_container_parser
     return got_any ? AVDK_ERR_OK : AVDK_ERR_NODEV;
 }
 
+static avdk_err_t mp4_parser_ioctl(struct video_player_container_parser_ops_s *ops,
+                                   bk_video_player_ioctl_cmd_t cmd,
+                                   void *param)
+{
+    mp4_parser_instance_t *mp4_instance = __containerof(ops, mp4_parser_instance_t, ops);
+    AVDK_RETURN_ON_FALSE(mp4_instance, AVDK_ERR_INVAL, TAG, "parser_ctx is NULL");
+    mp4_parser_ctx_t *ctx = &mp4_instance->ctx;
+    AVDK_RETURN_ON_FALSE(ctx->mp4_handle, AVDK_ERR_GENERIC, TAG, "MP4 file not opened");
+
+    avdk_err_t ret = AVDK_ERR_OK;
+
+    if ((cmd == BK_VIDEO_PLAYER_IOCTL_CMD_GET_AUDIO_TRACK_COUNT ||
+         cmd == BK_VIDEO_PLAYER_IOCTL_CMD_SELECT_AUDIO_TRACK) &&
+        param == NULL)
+    {
+        return AVDK_ERR_INVAL;
+    }
+
+    rtos_lock_mutex(&ctx->mutex);
+    switch (cmd)
+    {
+        case BK_VIDEO_PLAYER_IOCTL_CMD_GET_AUDIO_TRACK_COUNT:
+        {
+            bk_video_player_audio_track_count_param_t *p = (bk_video_player_audio_track_count_param_t *)param;
+            p->count = MP4_audio_track_count(ctx->mp4_handle);
+            break;
+        }
+        case BK_VIDEO_PLAYER_IOCTL_CMD_SELECT_AUDIO_TRACK:
+        {
+            bk_video_player_audio_track_param_t *p = (bk_video_player_audio_track_param_t *)param;
+            uint32_t seek_sample = MP4_AUDIO_SEEK_SAMPLE_NONE;
+            uint64_t seek_pts_ms = p->seek_pts_ms;
+
+            if (ctx->has_index && seek_pts_ms != VIDEO_PLAYER_PTS_INVALID)
+            {
+                uint64_t anchor_pts = mp4_adjust_seek_pts_for_h264_sync_sample(ctx, seek_pts_ms);
+                seek_sample = mp4_find_audio_sample_by_pts(ctx, anchor_pts);
+            }
+
+            if (MP4_select_audio_track(ctx->mp4_handle, p->index, seek_sample) != 0)
+            {
+                ret = AVDK_ERR_INVAL;
+                break;
+            }
+
+            ctx->audio_channels = MP4_audio_channels(ctx->mp4_handle);
+            ctx->audio_rate = MP4_audio_rate(ctx->mp4_handle);
+            ctx->audio_bits = MP4_audio_bits(ctx->mp4_handle);
+            ctx->audio_codec = MP4_audio_format(ctx->mp4_handle);
+            ctx->total_audio_samples = MP4_audio_samples(ctx->mp4_handle);
+            ctx->audio_eof = false;
+
+            if (seek_sample != MP4_AUDIO_SEEK_SAMPLE_NONE)
+            {
+                ctx->current_audio_sample = seek_sample;
+                ctx->audio_seek_pts_ms = (seek_pts_ms != VIDEO_PLAYER_PTS_INVALID) ? seek_pts_ms : 0;
+                ctx->audio_frames_since_seek = 0;
+            }
+            else
+            {
+                ctx->current_audio_sample = 0;
+                ctx->audio_seek_pts_ms = 0;
+                ctx->audio_frames_since_seek = 0;
+            }
+            LOGD("%s: selected audio track %u/%u seek_sample=%u\n",
+                 __func__, (unsigned)p->index,
+                 (unsigned)MP4_audio_track_count(ctx->mp4_handle), seek_sample);
+            break;
+        }
+        default:
+            ret = AVDK_ERR_UNSUPPORTED;
+            break;
+    }
+    rtos_unlock_mutex(&ctx->mutex);
+
+    return ret;
+}
+
 static video_player_container_parser_ops_t *mp4_parser_create(void *video_packet_user_data,
                                                               video_player_video_packet_buffer_alloc_cb_t video_packet_alloc_cb,
                                                               video_player_video_packet_buffer_free_cb_t video_packet_free_cb)
@@ -1018,6 +1096,7 @@ static video_player_container_parser_ops_t s_mp4_parser_ops = {
     .read_video_packet = mp4_parser_read_video_packet,
     .read_audio_packet = mp4_parser_read_audio_packet,
     .get_supported_file_extensions = mp4_parser_get_supported_file_extensions,
+    .ioctl = mp4_parser_ioctl,
 };
 
 // Get MP4 container parser operations
