@@ -12,6 +12,13 @@
 #define PWM_CLOCK_SRC_XTAL 320000000
 #endif
 #define _PERIOD_2_FREQ(period)    ((period == 0) ? (0) : (PWM_CLOCK_SRC_XTAL / (period)))
+#define CLI_PWM_RETURN_ON_ERR(expr) do {\
+	bk_err_t ret = (expr);\
+	if (ret != BK_OK) {\
+		CLI_LOGE("%s: ret=-0x%x\r\n", __func__, -ret);\
+		return;\
+	}\
+} while (0)
 
 static void cli_pwm_help(void)
 {
@@ -52,10 +59,10 @@ static void cli_pwm_driver_cmd(char *pcWriteBuffer, int xWriteBufferLen, int arg
 	}
 
 	if (os_strcmp(argv[1], "init") == 0) {
-		BK_LOG_ON_ERR(bk_pwm_driver_init());
+		CLI_PWM_RETURN_ON_ERR(bk_pwm_driver_init());
 		CLI_LOGD("pwm init\n");
 	} else if (os_strcmp(argv[1], "deinit") == 0) {
-		BK_LOG_ON_ERR(bk_pwm_driver_deinit());
+		CLI_PWM_RETURN_ON_ERR(bk_pwm_driver_deinit());
 		CLI_LOGD("pwm deinit\n");
 	} else {
 		cli_pwm_help();
@@ -165,16 +172,16 @@ static void cli_pwm_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
 			config.duty3_cycle = os_strtoul(argv[6], NULL, 10);
 		config.psc = os_strtoul(argv[7], NULL, 10);
 
-		BK_LOG_ON_ERR(bk_pwm_init(chan, &config));
+		CLI_PWM_RETURN_ON_ERR(bk_pwm_init(chan, &config));
 		CLI_LOGD("pwm init, chan=%d period=%x duty=%x\n", chan, config.period_cycle, config.duty_cycle);
 	} else if (os_strcmp(argv[2], "start") == 0) {
-		BK_LOG_ON_ERR(bk_pwm_start(chan));
+		CLI_PWM_RETURN_ON_ERR(bk_pwm_start(chan));
 		CLI_LOGD("pwm start, chan=%d\n", chan);
 	} else if (os_strcmp(argv[2], "stop") == 0) {
-		BK_LOG_ON_ERR(bk_pwm_stop(chan));
+		CLI_PWM_RETURN_ON_ERR(bk_pwm_stop(chan));
 		CLI_LOGD("pwm stop, chan=%d\n", chan);
 	} else if (os_strcmp(argv[2], "deinit") == 0) {
-		BK_LOG_ON_ERR(bk_pwm_deinit(chan));
+		CLI_PWM_RETURN_ON_ERR(bk_pwm_deinit(chan));
 		CLI_LOGD("pwm deinit, chan=%d\n", chan);
 	} else if (os_strcmp(argv[2], "signal") == 0) {
 		if (argc != 4) {
@@ -183,9 +190,9 @@ static void cli_pwm_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
 		}
 
 		if (os_strcmp(argv[3], "low") == 0)
-			BK_LOG_ON_ERR(bk_pwm_set_init_signal_low(chan));
+			CLI_PWM_RETURN_ON_ERR(bk_pwm_set_init_signal_low(chan));
 		else
-			BK_LOG_ON_ERR(bk_pwm_set_init_signal_high(chan));
+			CLI_PWM_RETURN_ON_ERR(bk_pwm_set_init_signal_high(chan));
 		CLI_LOGD("pwm set signal, chan=%d\n", chan);
 	} else if (os_strcmp(argv[2], "duty") == 0) {
 		pwm_period_duty_config_t config = {0};
@@ -202,7 +209,7 @@ static void cli_pwm_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
 			config.duty3_cycle = os_strtoul(argv[6], NULL, 10);
 		if (argc > 7)
 			config.psc = os_strtoul(argv[7], NULL, 10);
-		BK_LOG_ON_ERR(bk_pwm_set_period_duty(chan, &config));
+		CLI_PWM_RETURN_ON_ERR(bk_pwm_set_period_duty(chan, &config));
 		CLI_LOGD("pwm duty, chan=%d period=%d t1=%d t2=%d t3=%d\n", chan, config.period_cycle,
 				 config.duty_cycle, config.duty2_cycle, config.duty3_cycle);
 	} else if (os_strcmp(argv[2], "duty_ramp") == 0) {

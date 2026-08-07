@@ -26,6 +26,13 @@ void bk_dump_hex(const char *prefix, const void *ptr, uint32_t buflen);
 
 #define CONFIG_STRUCT_FIELD_CNT   5
 #define ARG_ERR_REC_CNT           20
+#define CLI_PWM_RETURN_ON_ERR(expr) do {\
+    bk_err_t ret = (expr);\
+    if (ret != BK_OK) {\
+        CLI_LOGE("%s: ret=-0x%x\r\n", __func__, -ret);\
+        return;\
+    }\
+} while (0)
 
 static void cli_pwm_api_driver_handler(void **argtable)
 {
@@ -41,10 +48,10 @@ static void cli_pwm_api_driver_handler(void **argtable)
     else if (driver->count > 0)
     {
         if (strcmp(driver->sval[0], "init") == 0) {
-            BK_LOG_ON_ERR(bk_pwm_driver_init());
+            CLI_PWM_RETURN_ON_ERR(bk_pwm_driver_init());
             CLI_LOGD("PWM driver initialized successfully\r\n");
         } else if (strcmp(driver->sval[0], "deinit") == 0) {
-            BK_LOG_ON_ERR(bk_pwm_driver_deinit());
+            CLI_PWM_RETURN_ON_ERR(bk_pwm_driver_deinit());
             CLI_LOGD("PWM driver deinitialized successfully\r\n");
         } else {
             CLI_LOGE("Invalid parameter for init: %s\r\n", driver->sval[0]);
@@ -105,19 +112,19 @@ static void cli_pwm_api_handler(void **argtable)
                 CLI_LOGD("pwm_config.psc:0x%x\n", pwm_config.psc);
 
 
-                BK_LOG_ON_ERR(bk_pwm_init(channel_id, &pwm_config));
+                CLI_PWM_RETURN_ON_ERR(bk_pwm_init(channel_id, &pwm_config));
                 CLI_LOGD("PWM channel %d init succeeded\n", channel_id);
             } else {
                 CLI_LOGE("Not enough configuration parameters provided for channel init.\n");
             }
         } else if (strcmp(driver->sval[0], "deinit") == 0) {
-            BK_LOG_ON_ERR(bk_pwm_deinit(channel_id));
+            CLI_PWM_RETURN_ON_ERR(bk_pwm_deinit(channel_id));
             CLI_LOGD("PWM %d driver deinitialized successfully\r\n", channel_id);
         } else if (strcmp(driver->sval[0], "start") == 0) {
-            BK_LOG_ON_ERR(bk_pwm_start(channel_id));
+            CLI_PWM_RETURN_ON_ERR(bk_pwm_start(channel_id));
             CLI_LOGD("PWM %d driver start successfully\r\n", channel_id);
         } else if (strcmp(driver->sval[0], "stop") == 0) {
-            BK_LOG_ON_ERR(bk_pwm_stop(channel_id));
+            CLI_PWM_RETURN_ON_ERR(bk_pwm_stop(channel_id));
             CLI_LOGD("PWM %d driver stop successfully\r\n", channel_id);
         } else {
             CLI_LOGE("Invalid parameter for pwm: %s\r\n", driver->sval[0]);
@@ -202,19 +209,19 @@ static void cli_pwm_api_set_handler(void **argtable)
                     rtos_delay_milliseconds(100);
                 }
             }
-            BK_LOG_ON_ERR(bk_pwm_driver_init());
+            CLI_PWM_RETURN_ON_ERR(bk_pwm_driver_init());
             CLI_LOGD("PWM driver initialized successfully\r\n");
         } else if (strcmp(set->sval[0], "init_low") == 0) {
             uint32_t channel_id = (uint32_t)os_strtoul(id->sval[0], NULL, 10);
-            BK_LOG_ON_ERR(bk_pwm_set_init_signal_low(channel_id));
+            CLI_PWM_RETURN_ON_ERR(bk_pwm_set_init_signal_low(channel_id));
             CLI_LOGD("PWM %d set the initial signal to low successfully\r\n", channel_id);
         } else if (strcmp(set->sval[0], "init_high") == 0) {
             uint32_t channel_id = (uint32_t)os_strtoul(id->sval[0], NULL, 10);
-            BK_LOG_ON_ERR(bk_pwm_set_init_signal_high(channel_id));
+            CLI_PWM_RETURN_ON_ERR(bk_pwm_set_init_signal_high(channel_id));
             CLI_LOGD("PWM %d set the initial signal to high successfully\r\n", channel_id);
         } else if (strcmp(set->sval[0], "mode_timer") == 0) {
             uint32_t channel_id = (uint32_t)os_strtoul(id->sval[0], NULL, 10);
-            BK_LOG_ON_ERR(bk_pwm_set_mode_timer(channel_id));
+            CLI_PWM_RETURN_ON_ERR(bk_pwm_set_mode_timer(channel_id));
             CLI_LOGD("Set pwm %d channel as timer modesuccessfully\r\n", channel_id);
         } else {
             CLI_LOGE("Invalid parameter for set: %s\r\n", set->sval[0]);
@@ -262,16 +269,16 @@ static void cli_pwm_api_isr_handler(void **argtable)
             uint32_t channel_id = (uint32_t)os_strtoul(chan->sval[0], NULL, 10);
             pwm_isr_t pwm_isr = (pwm_isr_t)os_strtoul(isr->sval[0], NULL, 10);
 
-            BK_LOG_ON_ERR(bk_pwm_register_isr(channel_id, pwm_isr));
+            CLI_PWM_RETURN_ON_ERR(bk_pwm_register_isr(channel_id, pwm_isr));
             CLI_LOGD("PWM chan %d register interrupt isr succeed\n", channel_id);
         } else if (strcmp(interrupt->sval[0], "enable") == 0) {
             uint32_t channel_id = (uint32_t)os_strtoul(chan->sval[0], NULL, 10);
 
-            BK_LOG_ON_ERR(bk_pwm_enable_interrupt(channel_id));
+            CLI_PWM_RETURN_ON_ERR(bk_pwm_enable_interrupt(channel_id));
             CLI_LOGD("PWM chan%d enable interrupt succeed\n", channel_id);
         } else if (strcmp(interrupt->sval[0], "disable") == 0) {
             uint32_t channel_id = (uint32_t)os_strtoul(chan->sval[0], NULL, 10);
-            BK_LOG_ON_ERR(bk_pwm_disable_interrupt(channel_id));
+            CLI_PWM_RETURN_ON_ERR(bk_pwm_disable_interrupt(channel_id));
             CLI_LOGD("PWM chan%d disable interrupt succeed\n", channel_id);
         } else {
             CLI_LOGE("Invalid parameter for interrupt: %s\r\n", interrupt->sval[0]);
@@ -304,7 +311,7 @@ static void cli_pwm_api_group_handler(void **argtable)
 {
     struct arg_lit *help = (struct arg_lit *)argtable[0];
     struct arg_str *group = (struct arg_str *)argtable[1];
-    struct arg_int *arg_config_detail = (struct arg_int *)argtable[3];
+    struct arg_int *arg_config_detail = (struct arg_int *)argtable[2];
     pwm_group_init_config_t config = {0};
     pwm_group_t pwm_group = 0;
 
@@ -317,30 +324,38 @@ static void cli_pwm_api_group_handler(void **argtable)
     else if (group->count > 0)
     {
         if (strcmp(group->sval[0], "init") == 0) {
+            if (arg_config_detail->count < CONFIG_STRUCT_FIELD_CNT) {
+                CLI_LOGE("Not enough configuration parameters provided for group init.\n");
+                return;
+            }
             config.chan1 = (arg_config_detail->ival[0]);
             config.chan2 = (arg_config_detail->ival[1]);
             config.period_cycle = (arg_config_detail->ival[2]);
             config.chan1_duty_cycle = (arg_config_detail->ival[3]);
             config.chan2_duty_cycle = (arg_config_detail->ival[4]);
-            BK_LOG_ON_ERR(bk_pwm_group_init(&config, &pwm_group));
+            CLI_PWM_RETURN_ON_ERR(bk_pwm_group_init(&config, &pwm_group));
             CLI_LOGD("pwm init, group=%d chan1=%d chan2=%d period=%x d1=%x d2=%x\n",
                     pwm_group, config.chan1, config.chan2, config.period_cycle,
                     config.chan1_duty_cycle, config.chan2_duty_cycle);
         } else if (strcmp(group->sval[0], "deinit") == 0) {
-            BK_LOG_ON_ERR(bk_pwm_group_deinit(pwm_group));
+            CLI_PWM_RETURN_ON_ERR(bk_pwm_group_deinit(pwm_group));
             CLI_LOGD("pwm deinit, group=%d\n", pwm_group);
         } else if (strcmp(group->sval[0], "start") == 0) {
-            BK_LOG_ON_ERR(bk_pwm_group_start(pwm_group));
+            CLI_PWM_RETURN_ON_ERR(bk_pwm_group_start(pwm_group));
             CLI_LOGD("pwm start, group=%d\n", pwm_group);
         } else if (strcmp(group->sval[0], "stop") == 0) {
-            BK_LOG_ON_ERR(bk_pwm_group_stop(pwm_group));
+            CLI_PWM_RETURN_ON_ERR(bk_pwm_group_stop(pwm_group));
             CLI_LOGD("pwm stop, group=%d\n", pwm_group);
         } else if (strcmp(group->sval[0], "set_config") == 0) {
 		    pwm_group_config_t config = {0};
+            if (arg_config_detail->count < 3) {
+                CLI_LOGE("Not enough configuration parameters provided for group set_config.\n");
+                return;
+            }
             config.period_cycle = (arg_config_detail->ival[0]);
             config.chan1_duty_cycle = (arg_config_detail->ival[1]);
             config.chan2_duty_cycle = (arg_config_detail->ival[2]);
-            BK_LOG_ON_ERR(bk_pwm_group_set_config(pwm_group, &config));
+            CLI_PWM_RETURN_ON_ERR(bk_pwm_group_set_config(pwm_group, &config));
 		    CLI_LOGD("pwm config, group=%x period=%x chan1_duty=%x chan2_duty=%x\n",
 				 pwm_group, config.period_cycle, config.chan1_duty_cycle, config.chan2_duty_cycle);
         } else {
@@ -402,19 +417,19 @@ static void cli_pwm_api_capture_handler(void **argtable)
                 CLI_LOGE("Invalid parameter for edge: %s\r\n", edge->sval[0]);
             }
             config.isr = cli_pwm_capture_isr;
-            BK_LOG_ON_ERR(bk_pwm_capture_init(channel_id, &config));
+            CLI_PWM_RETURN_ON_ERR(bk_pwm_capture_init(channel_id, &config));
             CLI_LOGD("pwm_capture init, chan=%d\n", channel_id);
         } else if (strcmp(capture->sval[0], "deinit") == 0) {
             uint32_t channel_id = (uint32_t)os_strtoul(chan->sval[0], NULL, 10);
-            BK_LOG_ON_ERR(bk_pwm_capture_deinit(channel_id));
+            CLI_PWM_RETURN_ON_ERR(bk_pwm_capture_deinit(channel_id));
 		    CLI_LOGD("pwm_capture deinit, chan=%d\n", channel_id);
         } else if (strcmp(capture->sval[0], "start") == 0) {
             uint32_t channel_id = (uint32_t)os_strtoul(chan->sval[0], NULL, 10);
-            BK_LOG_ON_ERR(bk_pwm_capture_start(channel_id));
+            CLI_PWM_RETURN_ON_ERR(bk_pwm_capture_start(channel_id));
 	    	CLI_LOGD("pwm_capture start, chan=%d\n", channel_id);
         } else if (strcmp(capture->sval[0], "stop") == 0) {
             uint32_t channel_id = (uint32_t)os_strtoul(chan->sval[0], NULL, 10);
-            BK_LOG_ON_ERR(bk_pwm_capture_stop(channel_id));
+            CLI_PWM_RETURN_ON_ERR(bk_pwm_capture_stop(channel_id));
             CLI_LOGD("pwm_capture stop, chan=%d\n", channel_id);
         } else if (strcmp(capture->sval[0], "get_value") == 0) {
             uint32_t channel_id = (uint32_t)os_strtoul(chan->sval[0], NULL, 10);

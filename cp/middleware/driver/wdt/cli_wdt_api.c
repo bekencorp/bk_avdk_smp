@@ -27,6 +27,21 @@ void bk_dump_hex(const char *prefix, const void *ptr, uint32_t buflen);
 #define CONFIG_STRUCT_FIELD_CNT   5
 #define ARG_ERR_REC_CNT           20
 
+static bool s_wdt_legacy_feed_timer_started = false;
+
+static void timer_isr_callback(timer_id_t chan)
+{
+	BK_LOG_ON_ERR(bk_wdt_feed());
+}
+
+static void wdt_legacy_feed_timer_stop(void)
+{
+	if (s_wdt_legacy_feed_timer_started) {
+		BK_LOG_ON_ERR(bk_timer_stop(1));
+		s_wdt_legacy_feed_timer_started = false;
+	}
+}
+
 static void cli_wdt_api_driver_handler(void **argtable)
 {
     struct arg_lit *help = (struct arg_lit *)argtable[0];
@@ -44,6 +59,7 @@ static void cli_wdt_api_driver_handler(void **argtable)
             BK_LOG_ON_ERR(bk_wdt_driver_init());
             CLI_LOGD("WDT driver initialized successfully\r\n");
         } else if (strcmp(driver->sval[0], "deinit") == 0) {
+            wdt_legacy_feed_timer_stop();
             BK_LOG_ON_ERR(bk_wdt_driver_deinit());
             CLI_LOGD("WDT driver deinitialized successfully\r\n");
         } else {
@@ -71,11 +87,6 @@ static void cli_argwdt_driver_cmd(char *pcWriteBuffer, int xWriteBufferLen, int 
     common_cmd_handler(argc, argv, argtable, argtable_size, cli_wdt_api_driver_handler);
 }
 
-static void timer_isr_callback(timer_id_t chan)
-{
-	BK_LOG_ON_ERR(bk_wdt_feed());
-}
-
 static void cli_wdt_api_function_handler(void **argtable)
 {
     struct arg_lit *help = (struct arg_lit *)argtable[0];
@@ -95,6 +106,7 @@ static void cli_wdt_api_function_handler(void **argtable)
             BK_LOG_ON_ERR(bk_wdt_start(timeout_ms));
             CLI_LOGD("WDT start successfully\r\n");
         } else if (strcmp(function->sval[0], "stop") == 0) {
+            wdt_legacy_feed_timer_stop();
             BK_LOG_ON_ERR(bk_wdt_stop());
     #if (CONFIG_TASK_WDT)
             bk_task_wdt_stop();
@@ -103,6 +115,7 @@ static void cli_wdt_api_function_handler(void **argtable)
         } else if (strcmp(function->sval[0], "feed") == 0) {
             BK_LOG_ON_ERR(bk_wdt_start(6000));
             BK_LOG_ON_ERR(bk_timer_start(1, 1000, timer_isr_callback));
+            s_wdt_legacy_feed_timer_started = true;
             CLI_LOGD("WDT feed successfully\r\n");
         }else {
             CLI_LOGE("Invalid parameter for function: %s\r\n", function->sval[0]);
@@ -145,8 +158,9 @@ static void cli_wdt_api_config_handler(void **argtable)
     else if (config->count > 0)
     {
         if (strcmp(config->sval[0], "get") == 0) {
-            BK_LOG_ON_ERR(bk_wdt_get_feed_time());
-            CLI_LOGD("WDT get feed time successfully\r\n");
+            uint32_t feed_time = bk_wdt_get_feed_time();
+
+            CLI_LOGD("WDT feed time: %u\r\n", feed_time);
         } else if (strcmp(config->sval[0], "set") == 0) {
             uint32_t timeout_ms = (uint32_t)os_strtoul(timeout->sval[0], NULL, 10);
             bk_wdt_set_feed_time(timeout_ms);
