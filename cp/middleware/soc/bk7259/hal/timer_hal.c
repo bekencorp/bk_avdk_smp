@@ -52,7 +52,7 @@ __IRAM_SEC static inline uint32_t timer_hal_diff(uint32_t begin, uint32_t end)
 	}
 }
 
-__IRAM_SEC void timer_hal_us_init(uint32_t us)
+__IRAM_SEC void timer_hal_us_init(void)
 {
 	TIMER0_REG_SET(2, 0, 0, 1);
 	REG_WRITE((SOC_TIMER0_REG_BASE + (4 << 2)), TIMER0_PERIOD);
@@ -95,7 +95,7 @@ __IRAM_SEC void timer_hal_delay_us(uint32_t us)
 	} while (diff < delay_cycle);
 }
 
-static inline uint32_t timer_hal_get_timer0_cnt_noint(void)
+static inline __attribute__((always_inline)) uint32_t timer_hal_get_timer0_cnt_noint(void)
 {
 	TIMER0_REG_SET(8, 2, 3, 0);
 	TIMER0_REG_SET(8, 0, 0, 1);
@@ -104,7 +104,7 @@ static inline uint32_t timer_hal_get_timer0_cnt_noint(void)
 	return REG_READ(SOC_TIMER0_REG_BASE + (9 << 2));
 }
 
-static inline uint32_t timer_hal_diff_noint(uint32_t begin, uint32_t end)
+static inline __attribute__((always_inline)) uint32_t timer_hal_diff_noint(uint32_t begin, uint32_t end)
 {
 	if (end > begin) {
 		return end - begin;
@@ -113,7 +113,7 @@ static inline uint32_t timer_hal_diff_noint(uint32_t begin, uint32_t end)
 	}
 }
 
-void timer_hal_early_delay_us(uint32_t us)
+static inline __attribute__((always_inline)) void timer_hal_early_delay_us_inline(uint32_t us)
 {
 	uint32_t delay_cycle = TIMER_CLOCK_FREQ_XTAL / 1000 * us;
 
@@ -133,4 +133,14 @@ void timer_hal_early_delay_us(uint32_t us)
 		end = timer_hal_get_timer0_cnt_noint();
 		diff = timer_hal_diff_noint(begin, end);
 	} while (diff < delay_cycle);
+}
+
+void timer_hal_early_delay_us(uint32_t us)
+{
+	timer_hal_early_delay_us_inline(us);
+}
+
+__IRAM_SEC void timer_hal_early_delay_us_iram(uint32_t us)
+{
+	timer_hal_early_delay_us_inline(us);
 }

@@ -209,6 +209,8 @@ __IRAM_PM DLV_STATIC void dlv_mpu_save(dlv_context_t *dlv)
 	mpu_info->is_enable = (MPU->CTRL) & MPU_CTRL_ENABLE_Msk;
 	if(mpu_info->is_enable){
 		mpu_info->ctrl_val = MPU->CTRL;
+		mpu_info->mair0_val = MPU->MAIR0;
+		mpu_info->mair1_val = MPU->MAIR1;
 		mpu_info->rnr_val = MPU->RNR;
 
 		for(i = 0; i < 16; i ++){
@@ -336,9 +338,12 @@ __IRAM_PM DLV_STATIC void dlv_scb_restore(dlv_context_t *dlv)
 	SCB->VTOR = scb_info->vtor_val;
 	SCB->CPACR = scb_info->cpacr_val;
 	SCB->SCR = scb_info->scr_val;
-	SCB->CCR = ccr_val;
+	/* Keep caches disabled until their contents/tags have been invalidated. */
+	SCB->CCR = ccr_val & ~(SCB_CCR_IC_Msk | SCB_CCR_DC_Msk);
 	SCB->NSACR = scb_info->nsacr_val;
 	SCB->AIRCR = scb_info->aircr_val;
+	__DSB();
+	__ISB();
 	// SCB->SHPR[10] = scb_info->shpr_val[10];
 	// SCB->SHPR[11] = scb_info->shpr_val[11];
 	// SCB->SHCSR = scb_info->shcsr_val;
@@ -348,8 +353,14 @@ __IRAM_PM DLV_STATIC void dlv_scb_restore(dlv_context_t *dlv)
 	}
 
 	if(ccr_val & SCB_CCR_DC_Msk){
-		SCB_EnableDCache();
-		SCB_CleanInvalidateDCache();
+		/*
+		 * Dirty data was cleaned before entering Deep-LV. Invalidate stale
+		 * tags while disabled, then enable without a second set/way walk.
+		 */
+		SCB_InvalidateDCache();
+		SCB->CCR |= SCB_CCR_DC_Msk;
+		__DSB();
+		__ISB();
 	}
 }
 
@@ -403,6 +414,14 @@ __IRAM_PM DLV_STATIC void dlv_mpu_restore(dlv_context_t *dlv)
 	dlv_mpu_t *mpu_info = &(dlv->mpu);
 
 	if(mpu_info->is_enable){
+		/* Match the ARMv8-M MPU programming sequence used by the RTOS port. */
+		__DMB();
+		MPU->CTRL = 0;
+		__DSB();
+		__ISB();
+		MPU->MAIR0 = mpu_info->mair0_val;
+		MPU->MAIR1 = mpu_info->mair1_val;
+
 		for(i = 0; i < 16; i ++){
 			MPU->RNR = i;
 			MPU->RBAR = mpu_info->rbar_val[i];
@@ -411,6 +430,8 @@ __IRAM_PM DLV_STATIC void dlv_mpu_restore(dlv_context_t *dlv)
 
 		MPU->RNR = mpu_info->rnr_val;
 		MPU->CTRL = mpu_info->ctrl_val;
+		__DSB();
+		__ISB();
 	}
 }
 

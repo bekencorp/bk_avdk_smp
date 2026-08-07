@@ -267,7 +267,7 @@ pm_wakeup_source_e bk_pm_exit_low_vol_wakeup_source_get()
 	return s_pm_exit_low_vol_wakeup_source;
 }
 
-bk_err_t bk_pm_exit_low_vol_wakeup_source_set()
+__IRAM_PM bk_err_t bk_pm_exit_low_vol_wakeup_source_set()
 {
 	uint32_t pmu_state = 0;
 

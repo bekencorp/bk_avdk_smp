@@ -92,7 +92,7 @@ uint32_t bk_rtc_get_clock_freq(void)
 	return s_aon_rtc_clock_freq;
 }
 
-void bk_rtc_update_base_time(void)
+__IRAM_SEC void bk_rtc_update_base_time(void)
 {
 	uint64_t time_tick = ANA_RTC_CURRENT_TICK;
 	uint64_t time_diff = (time_tick - s_time_base_tick) * 1000LL / bk_rtc_get_ms_tick_count();

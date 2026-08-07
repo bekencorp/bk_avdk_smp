@@ -384,6 +384,7 @@ void sys_hal_cali_dpll_spi_trig_disable(void);
 void sys_hal_cali_dpll_spi_trig_enable(void);
 void sys_hal_cali_dpll_spi_detect_disable(void);
 void sys_hal_cali_dpll_spi_detect_enable(void);
+__IRAM_SEC void sys_hal_restore_dpll_retained_band(uint32_t retained_band);
 uint32_t sys_hal_bias_reg_clean(uint32_t param);
 uint32_t sys_hal_bias_reg_set(uint32_t param);
 uint32_t sys_hal_bias_reg_read(void);

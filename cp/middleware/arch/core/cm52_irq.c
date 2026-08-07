@@ -55,7 +55,7 @@ uint32_t arch_int_get_target_state(uint32_t irq)
 	return NVIC_GetTargetState(TO_NVIC_IRQ(irq));
 }
 
-void arch_interrupt_set_priority(uint32_t int_number, uint32_t int_priority)
+__IRAM_SEC void arch_interrupt_set_priority(uint32_t int_number, uint32_t int_priority)
 {
 	if (int_number > 0 && int_number < __INT_NUMBER_MAX) {
 		NVIC_SetPriority(TO_NVIC_IRQ(int_number), int_priority);

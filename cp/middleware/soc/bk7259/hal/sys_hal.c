@@ -606,16 +606,13 @@ __IRAM_SEC bk_err_t sys_hal_ctrl_vdddig_h_vol(uint32_t vol_value)
 		sys_ll_set_ana_reg10_spi_latch1v(0);
 		return BK_OK;
 	}
-
+	sys_ll_set_ana_reg10_spi_latch1v(1);
 	for(next_vol = cur_vol + 1; next_vol <= vol_value; next_vol++)
 	{
-		sys_ll_set_ana_reg10_spi_latch1v(1);
 		sys_ll_set_ana_reg10_vcorehsel(next_vol);
-		sys_ll_set_ana_reg10_spi_latch1v(0);
-		//sys_hal_delay(SYS_SWITCH_VDDDIG_VOL_DELAY_TIME);//delay 10uS for each VDDDIG step-up
-		bk_delay_us(10);
+		timer_hal_early_delay_us_iram(10);
 	}
-
+	sys_ll_set_ana_reg10_spi_latch1v(0);
 	return BK_OK;
 }
 
@@ -2332,6 +2329,25 @@ void sys_hal_cali_dpll_spi_detect_enable(void)
 {
 	sys_ll_set_ana_reg0_spideten(1);
 }
+
+__IRAM_SEC void sys_hal_restore_dpll_retained_band(uint32_t retained_band)
+{
+	/*
+	 * R7D is in the AON domain and retains the last calibrated DPLL band.
+	 * Program the band before selecting manual mode so the hardware observes
+	 * the same ordered ANA-SPI sequence as the original calibration path.
+	 */
+	sys_ll_set_ana_reg0_spideten(0);
+	sys_ll_set_ana_reg1_cben(0);
+	sys_ll_set_ana_reg7_bandmanual(retained_band);
+	sys_ll_set_ana_reg7_manual(1);
+	/* Clear the retained unlock indication before evaluating the new band. */
+	sys_ll_set_ana_reg0_rst_unlock(1);
+	sys_ll_set_ana_reg0_rst_unlock(0);
+	timer_hal_early_delay_us_iram(10);
+	sys_ll_set_ana_reg0_spideten(1);
+}
+
 void sys_hal_set_xtalh_ctune(uint32_t value)
 {
 	sys_ll_set_ana_reg3_ctune(value);
@@ -3377,6 +3393,8 @@ uint32_t sys_hal_cali_dpll(uint32_t first_time)
 	sys_ll_set_ana_reg7_bandmanual(aon_pmu_hal_get_dpll_band());
 	sys_ll_set_ana_reg7_manual(1);
 	sys_ll_set_ana_reg1_cben(0);
+	sys_ll_set_ana_reg0_rst_unlock(1);
+	sys_ll_set_ana_reg0_rst_unlock(0);
 
 	if (int_mask & DPLL_UNLOCK_INTERRUPT_CTRL_BIT)
 	{
@@ -3671,6 +3689,7 @@ void sys_hal_early_init(void)
 {
 	uint32_t chip_id;
 	uint32_t val;
+	sys_ll_set_cpu_anaspi_freq_anaspi_freq(2);//(CPU FREQ/2)/(2+1)
 	chip_id = aon_pmu_hal_get_chipid();
 
 	sys_ll_set_ana_reg10_spi_latch1v(1);

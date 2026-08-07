@@ -149,7 +149,7 @@ uint32_t bk_rtc_get_clock_freq(void) {
 	return s_aon_rtc_clock_freq;
 }
 
-uint64_t rtc_tick_to_us(uint64_t rtc_tick)
+__IRAM_SEC uint64_t rtc_tick_to_us(uint64_t rtc_tick)
 {
 	if(s_aon_rtc_clock_freq == AON_RTC_EXTERN_32K_CLOCK_FREQ)
 	{
@@ -214,7 +214,7 @@ static inline uint64_t get_diff_time_us(void) {
 	return time_diff;
 }
 
-void bk_rtc_update_base_time(void) {
+__IRAM_SEC void bk_rtc_update_base_time(void) {
 	uint64_t time_tick = bk_aon_rtc_get_current_tick(AONRTC_GET_SET_TIME_RTC_ID);
 	uint64_t time_diff = rtc_tick_to_us(time_tick - s_time_base_tick);  // *1000LL/bk_rtc_get_ms_tick_count();
 

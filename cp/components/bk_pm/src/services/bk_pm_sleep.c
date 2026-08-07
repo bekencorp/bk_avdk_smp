@@ -171,7 +171,9 @@ uint64_t pm_low_voltage_process()
 	//uint32_t irq_level = 0;
 	//irq_level = pm_disable_int();
 	uint64_t sleep_tick         = 0ULL;
-
+	#if CONFIG_DEEP_LV_DEBUG_GPIO
+	//PM_GPIO_UP(38);//1
+	#endif
 	GLOBAL_INT_DISABLE();
 	#if CONFIG_AON_RTC || CONFIG_ANA_RTC
 	uint64_t entry_tick         = 0ULL;
@@ -224,6 +226,9 @@ uint64_t pm_low_voltage_process()
 #if CONFIG_PM_CP_DEEP_LV_SRAM_CHECK
 	sys_pm_hal_sram_crc_dump();
 #endif
+	#if CONFIG_DEEP_LV_DEBUG_GPIO
+	//PM_GPIO_UP(38);//1
+	#endif
 	GLOBAL_INT_RESTORE();
 	//pm_enable_int(irq_level);
 	/* Execute post-sleep (wakeup) callbacks */
@@ -418,10 +423,18 @@ static int pm_low_voltage_resource_set()
 	return 0;
 }
 
-__attribute__((section(".iram"))) void pm_low_voltage_bsp_restore(void)
+__IRAM_PM void pm_low_voltage_bsp_restore(void)
 {
+	/*
+	 * Keep only the flash-controller restore on the 26 MHz critical path.
+	 * The remaining services are restored after the core/flash clocks have
+	 * returned to their pre-sleep frequencies.
+	 */
 	bk_flash_power_saving_exit();
+}
 
+__IRAM_PM void pm_low_voltage_deferred_restore(void)
+{
 #if CONFIG_CKMN
 	bk_rosc_32k_ckest_prog(32);
 #endif

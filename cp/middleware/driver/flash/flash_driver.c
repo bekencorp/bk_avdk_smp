@@ -942,10 +942,19 @@ bk_err_t bk_flash_register_ps_resume_callback(flash_ps_callback_t ps_resume_cb)
 #if CONFIG_DEEP_LV
 uint32_t g_pm_flash_saving_regs[23] = {0};
 #endif
+static uint32_t s_pm_flash_saving_status_reg = 0;
 bk_err_t bk_flash_power_saving_enter(void)
 {
 	// save flash ctrl setting to flash_ctrl_context;
 	flash_set_line_mode(FLASH_LINE_MODE_TWO);
+
+	/*
+	 * Deep-LV does not power down the external flash, so its status/QE bits
+	 * remain valid. Read them in command-safe dual-line mode before sleep and
+	 * reuse the snapshot on wake to avoid RDSR on the wake critical path.
+	 */
+	s_pm_flash_saving_status_reg = flash_read_status_reg();
+
 #if CONFIG_DEEP_LV
 	g_pm_flash_saving_regs[0] = REG_READ(SOC_FLASH_REG_BASE+0x4*4);
 	g_pm_flash_saving_regs[1] =REG_READ(SOC_FLASH_REG_BASE+0x7*4);
@@ -1004,8 +1013,8 @@ __attribute__((section(".iram"))) bk_err_t bk_flash_power_saving_exit(void)
 	// restore flash ctrl setting from flash_ctrl_context;
 	// the restore API must run in SRAM/ITCM.
 	// don't access flash before restoring setting, especially for A/B image project.
-	s_flash.flash_status_reg_val = flash_read_status_reg();
-	 s_flash.flash_line_mode = 0;
+	s_flash.flash_status_reg_val = s_pm_flash_saving_status_reg;
+	/* flash_set_line_mode(FLASH_LINE_MODE_TWO) updated this state on entry. */
 	flash_set_line_mode(s_flash.flash_cfg->line_mode);
 
 	return BK_OK;

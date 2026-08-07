@@ -144,7 +144,7 @@ bk_err_t bk_ckmn_ckest_enable(void)
 	return BK_OK;
 }
 
-bk_err_t bk_ckmn_ckest_disable(void)
+__IRAM_SEC bk_err_t bk_ckmn_ckest_disable(void)
 {
 	CKMN_RETURN_ON_NOT_INIT();
 	ckmn_hal_rc32k_intr_disable(&s_ckmn.hal);
@@ -153,7 +153,7 @@ bk_err_t bk_ckmn_ckest_disable(void)
 	return BK_OK;
 }
 
-bk_err_t bk_ckmn_ckest_check_busy(void)
+__IRAM_PM bk_err_t bk_ckmn_ckest_check_busy(void)
 {
 	CKMN_RETURN_ON_CKEST_BUSY();
 	return BK_OK;
@@ -182,7 +182,7 @@ bk_err_t bk_ckmn_enable_autosw_26m(void)
 	return BK_OK;
 }
 
-bk_err_t bk_ckmn_disable_autosw_26m(void)
+__IRAM_SEC bk_err_t bk_ckmn_disable_autosw_26m(void)
 {
 	CKMN_RETURN_ON_NOT_INIT();
 	ckmn_hal_autosw_26m_disable(&s_ckmn.hal);
@@ -198,7 +198,7 @@ bk_err_t bk_ckmn_enable_corr_26m(void)
 	return BK_OK;
 }
 
-bk_err_t bk_ckmn_disable_corr_26m(void)
+__IRAM_SEC bk_err_t bk_ckmn_disable_corr_26m(void)
 {
 	CKMN_RETURN_ON_NOT_INIT();
 	ckmn_hal_corr_26m_disable(&s_ckmn.hal);
@@ -220,7 +220,7 @@ bk_err_t bk_ckmn_enable_autosw_32k(void) {
 
 	return BK_OK;
 }
-bk_err_t bk_ckmn_disable_autosw_32k(void) {
+__IRAM_SEC bk_err_t bk_ckmn_disable_autosw_32k(void) {
 	CKMN_RETURN_ON_NOT_INIT();
 	ckmn_hal_autosw_32k_disable(&s_ckmn.hal);
 	ckmn_hal_corr_32k_disable(&s_ckmn.hal);
@@ -235,7 +235,7 @@ bk_err_t bk_ckmn_enable_corr_32k(void)
 	return BK_OK;
 }
 
-bk_err_t bk_ckmn_disable_corr_32k(void)
+__IRAM_SEC bk_err_t bk_ckmn_disable_corr_32k(void)
 {
 	CKMN_RETURN_ON_NOT_INIT();
 	ckmn_hal_corr_32k_disable(&s_ckmn.hal);

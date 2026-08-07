@@ -277,6 +277,7 @@ extern void bk_wdt_force_feed(void);
 void dlv_hook(void)
 {
 #if CONFIG_DEEP_LV
+    //PM_GPIO_UP(38);//1
 	// if(sys_hal_set_alo2core_power_switch(1) == BK_OK)
 	// {
 	// 	timer_hal_early_delay_us(10);
@@ -291,7 +292,7 @@ void dlv_hook(void)
 		PM_GPIO_DOWN(37);
 		//early_jtag_gpio_map();
 		#endif
-		bk_wdt_force_feed();
+		//bk_wdt_force_feed();
 		bk_rtc_update_base_time();
 		uint64_t current = bk_aon_rtc_get_us();
 		sys_hal_set_low_voltage_wakeup_time_us(current);
@@ -299,7 +300,7 @@ void dlv_hook(void)
 		extern uint32_t __STACK_LIMIT;
 		__set_MSPLIM((uint32_t)(&__STACK_LIMIT));
 
-		dlv_system_init();
+		//dlv_system_init();
 		dlv_startup();
 	}
 #endif

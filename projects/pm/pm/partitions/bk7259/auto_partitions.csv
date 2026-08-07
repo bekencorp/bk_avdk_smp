@@ -1,5 +1,6 @@
 # BK7259 flash does not insert CRC data for code partitions,,,,,
 # The occupied space is the configured partition size; bootloader is 64K (0x10000),,,,
+# Flash_CRC_ENABLE=FALSE
 FLASH_CAPACITY=8M
 #Name,Offset,Size,Type,Read,Write
 primary_bootloader,,64k,code,TRUE,FALSE
