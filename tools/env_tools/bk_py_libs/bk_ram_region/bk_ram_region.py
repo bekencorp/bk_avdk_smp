@@ -15,6 +15,7 @@ PSRAM_INTERLEAVE_OFFSET_PSRAM1 = 0x1D000000  # 0x64000000 -> 0x81000000
 PSRAM_INTERLEAVE_BASE = 0x80000000
 PSRAM_NON_INTERLEAVE_PSRAM1_BASE = 0x64000000
 PSRAM_NON_INTERLEAVE_PSRAM0_BASE = 0x60000000
+SECURE_REGION_ALIGNMENT = 0x1000
 
 
 @dataclass
@@ -75,7 +76,7 @@ class bk_ram_region:
 
     def _check_default_setting(self) -> None:
         # Only check default setting for bk7259
-        if self.soc_name not in ("bk7259"):
+        if self.soc_name not in (None, "bk7259"):
             return
 
         def find_region(def_region_name: str) -> int:
@@ -110,6 +111,19 @@ class bk_ram_region:
                 base = self.psram_base
                 capacity = self.psram_capacity
                 self.psram_regions_num += 1
+            elif region.type == "SECURE":
+                base = self.sram_base
+                capacity = self.sram_capacity
+                if (region.offset % SECURE_REGION_ALIGNMENT) != 0:
+                    raise RuntimeError(
+                        f"{region.name} addr is not {SECURE_REGION_ALIGNMENT:#x} aligned"
+                    )
+                if (region.size == 0) or (
+                    (region.size % SECURE_REGION_ALIGNMENT) != 0
+                ):
+                    raise RuntimeError(
+                        f"{region.name} size is not {SECURE_REGION_ALIGNMENT:#x} aligned"
+                    )
             else:
                 raise RuntimeError(f"{region.type} is not supported")
             if region.offset < base:
@@ -151,16 +165,20 @@ class bk_ram_region:
 
     def _parse_line_mem_region(self, line_content: str) -> mem_region:
         region_content = line_content.split(",")
+        region_type = region_content[1].strip()
         offset_str = region_content[2].strip()
         if len(offset_str) == 0:
+            if region_type == "SECURE":
+                raise RuntimeError("SECURE region requires an explicit offset")
             offset = self.total_offset
         else:
             offset = int(offset_str, 16)
         size = int(region_content[3].strip(), 16)
-        self.total_offset = offset + size
+        if region_type != "SECURE":
+            self.total_offset = offset + size
         return mem_region(
             name=region_content[0].strip(),
-            type=region_content[1].strip(),
+            type=region_type,
             offset=offset,
             size=size,
         )

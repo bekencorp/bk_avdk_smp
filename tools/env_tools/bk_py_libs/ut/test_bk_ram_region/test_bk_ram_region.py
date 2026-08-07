@@ -64,6 +64,41 @@ class test_bk_ram_region(TestCase):
         self.assertEqual(expected_file_md5, gen_file_md5)
         mem_header.unlink()
 
+    def test_bk_ram_region_secure_regions(self):
+        workdir = curr_dir / "workspace"
+        mem_csv = workdir / "ram_region_secure.csv"
+        mem_header = workdir / "ram_region_secure.h"
+        mem_csv.write_text(
+            "#Name,Type,Offset,Size\n"
+            "CP_SPE_RAM,SECURE,0x28000000,0x14000\n"
+            "AP_SPE_RAM,SECURE,0x28100000,0x1000\n"
+            "CP_RAM,SRAM,0x28000000,0x5F000\n"
+            "SWAP,SRAM,,0x1000\n",
+            encoding="utf-8",
+        )
+
+        try:
+            ram_region = bk_ram_region(mem_csv)
+            ram_region.set_sram_setting(0x28000000, 0x140000)
+            ram_region.gen_memory_layout_hdr(mem_header)
+            header = mem_header.read_text(encoding="utf-8")
+
+            self.assertRegex(
+                header, r"#define CONFIG_CP_SPE_RAM_SIZE\s+0x00014000"
+            )
+            self.assertRegex(
+                header, r"#define CONFIG_AP_SPE_RAM_SIZE\s+0x00001000"
+            )
+            self.assertRegex(
+                header, r"#define CONFIG_CP_RAM_ADDR\s+0x28000000"
+            )
+            self.assertRegex(
+                header, r"#define CONFIG_SWAP_ADDR\s+0x2805F000"
+            )
+        finally:
+            mem_csv.unlink(missing_ok=True)
+            mem_header.unlink(missing_ok=True)
+
     def test_bk_ram_region_set_default_setting(self):
         workdir = curr_dir / "workspace"
         mem_csv = workdir / "ram_region.csv"
