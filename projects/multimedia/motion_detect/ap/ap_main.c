@@ -76,6 +76,7 @@ int main(void)
     app_gpu_board_config_set(&gpu_board);
 
     cli_motion_detect_demo_init();
+    (void)motion_detect_demo_boot_start();
 
     return 0;
 }

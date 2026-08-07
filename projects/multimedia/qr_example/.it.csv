@@ -1,0 +1,5 @@
+case名称,测试命令（必填）,输入设备（1代表设备1，2代表设备2以此类推，不填默认为设备1）,期望结果（选填）,超时时间(s)
+reboot,reboot,1,QR preview started,120
+qr_stop,ap_cmd qr stop,1,QR demo stopped,60
+qr_start_mp,ap_cmd qr start_mp,1,QR MP-only started,120
+qr_stop_mp,ap_cmd qr stop_mp,1,QR demo stopped,60

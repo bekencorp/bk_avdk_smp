@@ -500,6 +500,11 @@ error:
     return ret;
 }
 
+int qr_demo_boot_start(void)
+{
+    return qr_demo_start(0);
+}
+
 static avdk_err_t qr_demo_stop(void)
 {
     if (s_qr_ctx.opened == 0U &&

@@ -249,6 +249,89 @@ static const grid_point_t k_fisheye_grid_points[] = {
     { 7, 15, 1667.0f, 580.0f },
 };
 
+static int fisheye_run_calibration(uint8_t is_dump, uint16_t output_width, uint16_t output_height)
+{
+    if (output_width == 0 || output_width > DEFAULT_INPUT_WIDTH)
+    {
+        output_width = DEFAULT_OUTPUT_WIDTH;
+        output_height = DEFAULT_OUTPUT_HEIGHT;
+    }
+    if (output_height == 0 || output_height > DEFAULT_INPUT_HEIGHT)
+    {
+        output_width = DEFAULT_OUTPUT_WIDTH;
+        output_height = DEFAULT_OUTPUT_HEIGHT;
+    }
+
+    LOGI("fisheye calibration, dump: %d, output_width: %d, output_height: %d\r\n", is_dump, output_width, output_height);
+
+    unsigned char *output_buffer = bk_frame_buffer_malloc(MEM_SLAB_HEAP_UNCODED, output_width * output_height * 2 *2);
+    if (output_buffer == NULL)
+    {
+        LOGE("Failed to malloc output buffer\n");
+        return BK_FAIL;
+    }
+
+    uint32_t t0 = rtos_get_time();
+    uint32_t t1 = 0;
+    uint32_t dt_ms = 0;
+
+    fisheye_calibration(
+        (grid_point_t *)k_fisheye_grid_points,
+        (uint32_t)(sizeof(k_fisheye_grid_points) / sizeof(k_fisheye_grid_points[0])),
+        (point_t *)k_tv_points_001,
+        (point_t *)k_tv_points_001,
+        DEFAULT_INPUT_WIDTH,
+        DEFAULT_INPUT_HEIGHT,
+        output_width,
+        output_height,
+        (int16_t *)output_buffer);
+
+    t1 = rtos_get_time();
+    dt_ms = t1 - t0;
+    bk_printf_raw(0, NULL, "fisheye calibration execute time: %d ms\r\n", dt_ms);
+
+    if (is_dump)
+    {
+        const uint32_t total = (uint32_t)output_width * (uint32_t)output_height * 4U;
+        const int line_bytes = 16;
+        char line[16 * 3 + 8];
+
+        int prev_sync = bk_get_printf_sync();
+        bk_set_printf_sync(1);
+        t1 = rtos_get_time();
+        dt_ms = t1 - t0;
+        for (uint32_t base = 0; base < total; base += (uint32_t)line_bytes)
+        {
+            uint32_t n = (uint32_t)line_bytes;
+            if (base + n > total)
+            {
+                n = total - base;
+            }
+            char *p = line;
+            for (uint32_t j = 0; j < n; j++)
+            {
+                p += os_snprintf(p, (size_t)(line + sizeof(line) - p), "%02x ", output_buffer[base + j]);
+            }
+            bk_printf_raw(0, NULL, "%s\r\n", line);
+            if (base % (line_bytes*8) == 0)
+            {
+                rtos_delay_milliseconds(10);
+            }
+        }
+        t1 = rtos_get_time();
+        dt_ms = t1 - t0;
+        LOGI("fisheye calibration dump execute time: %d ms\r\n", dt_ms);
+        bk_set_printf_sync((uint8_t)prev_sync);
+    }
+    bk_frame_buffer_free(output_buffer);
+    return BK_OK;
+}
+
+int fisheye_run_default_it_test(void)
+{
+    return fisheye_run_calibration(0, DEFAULT_OUTPUT_WIDTH, DEFAULT_OUTPUT_HEIGHT);
+}
+
 static void cli_fisheye_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
     (void)pcWriteBuffer;
@@ -279,79 +362,8 @@ static void cli_fisheye_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
             output_width = (uint16_t)os_strtoul(argv[3], NULL, 10);
             output_height = (uint16_t)os_strtoul(argv[4], NULL, 10);
         }
-        if (output_width == 0 || output_width > DEFAULT_INPUT_WIDTH)
-        {
-            output_width = DEFAULT_OUTPUT_WIDTH;
-            output_height = DEFAULT_OUTPUT_HEIGHT;
-        }
-        if (output_height == 0 || output_height > DEFAULT_INPUT_HEIGHT)
-        {
-            output_width = DEFAULT_OUTPUT_WIDTH;
-            output_height = DEFAULT_OUTPUT_HEIGHT;
-        }
 
-        LOGI("fisheye calibration, dump: %d, output_width: %d, output_height: %d\r\n", is_dump, output_width, output_height);
-
-        unsigned char *output_buffer = bk_frame_buffer_malloc(MEM_SLAB_HEAP_UNCODED, output_width * output_height * 2 *2);
-        if (output_buffer == NULL)
-        {
-            LOGE("Failed to malloc output buffer\n");
-            return;
-        }
-
-        uint32_t t0 = rtos_get_time();
-        uint32_t t1 = 0;
-        uint32_t dt_ms = 0;
-
-        fisheye_calibration(
-            (grid_point_t *)k_fisheye_grid_points,
-            (uint32_t)(sizeof(k_fisheye_grid_points) / sizeof(k_fisheye_grid_points[0])),
-            (point_t *)k_tv_points_001,
-            (point_t *)k_tv_points_001,
-            DEFAULT_INPUT_WIDTH,
-            DEFAULT_INPUT_HEIGHT,
-            output_width,
-            output_height,
-            (int16_t *)output_buffer);
-
-        t1 = rtos_get_time();
-        dt_ms = t1 - t0;
-        bk_printf_raw(0, NULL, "fisheye calibration execute time: %d ms\r\n", dt_ms);
-        
-        if (is_dump)
-        {
-            const uint32_t total = (uint32_t)output_width * (uint32_t)output_height * 4U;
-            const int line_bytes = 16;
-            char line[16 * 3 + 8];
-
-            int prev_sync = bk_get_printf_sync();
-            bk_set_printf_sync(1);
-            t1 = rtos_get_time();
-            dt_ms = t1 - t0;
-            for (uint32_t base = 0; base < total; base += (uint32_t)line_bytes)
-            {
-                uint32_t n = (uint32_t)line_bytes;
-                if (base + n > total)
-                {
-                    n = total - base;
-                }
-                char *p = line;
-                for (uint32_t j = 0; j < n; j++)
-                {
-                    p += os_snprintf(p, (size_t)(line + sizeof(line) - p), "%02x ", output_buffer[base + j]);
-                }
-                bk_printf_raw(0, NULL, "%s\r\n", line);
-                if (base % (line_bytes*8) == 0)
-                {
-                    rtos_delay_milliseconds(10);
-                }
-            }
-            t1 = rtos_get_time();
-            dt_ms = t1 - t0;
-            LOGI("fisheye calibration dump execute time: %d ms\r\n", dt_ms);
-            bk_set_printf_sync((uint8_t)prev_sync);
-        }
-        bk_frame_buffer_free(output_buffer);
+        (void)fisheye_run_calibration(is_dump, output_width, output_height);
     }
 }
 

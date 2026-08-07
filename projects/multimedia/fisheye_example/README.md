@@ -164,5 +164,4 @@ The AP component **`fisheye`** is added via `EXTRA_COMPONENTS_DIRS` → `ap/prop
 1. Calibration data is tied to **1920×1080** input; change sensor or resolution → update grids and points.  
 2. **Dump** is for debug or offline extraction only; large resolutions can take minutes to dump.  
 3. **Logs are printed on the CP core**; use the CP UART to view output.  
-4. UART baud rate is **460800**; match it in your terminal.  
-5. Prefix commands with **`ap_cmd`**, e.g. `ap_cmd fisheye cal 0`.
+4. Prefix commands with **`ap_cmd`**, e.g. `ap_cmd fisheye cal 0`.

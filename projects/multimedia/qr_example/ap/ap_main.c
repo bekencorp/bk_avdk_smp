@@ -76,6 +76,7 @@ int main(void)
     app_gpu_board_config_set(&gpu_board);
 
     cli_qr_demo_init();
+    (void)qr_demo_boot_start();
 
     return 0;
 }

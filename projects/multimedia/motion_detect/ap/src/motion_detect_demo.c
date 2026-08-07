@@ -609,6 +609,11 @@ error:
     return ret;
 }
 
+int motion_detect_demo_boot_start(void)
+{
+    return motion_detect_demo_open();
+}
+
 static avdk_err_t motion_detect_demo_close(void)
 {
     if (s_motion_ctx.opened == 0U &&

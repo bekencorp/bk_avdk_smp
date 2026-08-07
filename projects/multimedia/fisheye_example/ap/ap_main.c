@@ -35,6 +35,7 @@ int main(void)
     bk_frame_buffer_init();
 #endif
     fisheye_cli_init();
+    (void)fisheye_run_default_it_test();
 
     return 0;
 }
