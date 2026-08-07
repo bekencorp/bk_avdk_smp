@@ -3,6 +3,11 @@
     "SRAM_CAPACITY": "1280K",
     "PSRAM_BASE_ADDR": "0x60000000",
     "PSRAM_CAPACITY": "8M",
+    "PSRAM_MPU_DEFAULT_ATTR": "NON_CACHE",
+    "PSRAM_MPU_POLICIES": {
+        "AP_PSRAM_HEAP": "L2_WRITE_BACK",
+        "AP_PSRAM_CODE_SECTION": "L1_L2_WRITE_BACK"
+    },
     "Default_Regions": [
 
     ]

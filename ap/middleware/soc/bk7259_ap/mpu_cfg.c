@@ -98,63 +98,54 @@ ARM_MPU_Region_t mpu_regions[] = {
      { ARM_MPU_RBAR(0x70000000UL, ARM_MPU_SH_NON, 0, 1, 1),
        ARM_MPU_RLAR(0x7FFFFFE0UL, 1) },
 
-#if CONFIG_PSRAM_INTERLEAVE
-    /* PSRAM before AP heap (including nocache heap and data): non-cacheable. */
-    { ARM_MPU_RBAR(0x80000000UL, ARM_MPU_SH_NON, 0, 1, 0),
-      ARM_MPU_RLAR(CONFIG_AP_PSRAM_HEAP_ADDR - 0x20, 1) },
-#if (CONFIG_AP_PSRAM_CODE_SECTION_ADDR && CONFIG_AP_PSRAM_CODE_SECTION_SIZE && CONFIG_AP_PSRAM_CODE_SECTION_ADDR > 0x64000000UL)
-    /* AP heap: L2 cacheable, L1 non-cacheable (attr 5). */
-    { ARM_MPU_RBAR(CONFIG_AP_PSRAM_HEAP_ADDR, ARM_MPU_SH_NON, 0, 1, 0),
-    ARM_MPU_RLAR(CONFIG_AP_PSRAM_CODE_SECTION_ADDR - 0x20, 5) },
-    /* code section: L1+L2 write-back cacheable (attr 3) */
-    { ARM_MPU_RBAR(CONFIG_AP_PSRAM_CODE_SECTION_ADDR, ARM_MPU_SH_NON, 0, 1, 0),
-    ARM_MPU_RLAR(0x81FFFFE0UL, 3) },
-    #else
-    /* MPU region 7 psram1 */
-    { ARM_MPU_RBAR(0x81000000UL, ARM_MPU_SH_NON, 0, 1, 0),
-    ARM_MPU_RLAR(0x81FFFFE0UL, 1) },
-    #endif
+    /*
+     * PSRAM MPU addresses and attributes are generated into ram_regions.h.
+     * Change layout in <project>/partitions/bk7259/ram_regions.csv.
+     * Change default cache policy in smp_ram_setting_bk7259.json, or override
+     * it per project in partitions/bk7259/ram_regions_mpu.json.
+     *
+     * Default layout:
+     *   PSRAM_MEM_SLAB_UNCODED:
+     *     0x60000000 - 0x60FFFFE0, attr 1, non-cacheable
+     *   PSRAM_MEM_SLAB_CODED / CP_PSRAM_HEAP /
+     *   AP_PSRAM_NOCACHE_HEAP / AP_PSRAM_DATA_SECTION:
+     *     0x64000000 - 0x64E7FFE0, attr 1, non-cacheable
+     *   AP_PSRAM_HEAP:
+     *     0x64E80000 - 0x64EFFFE0, attr 5, L2 write-back
+     *   AP_PSRAM_CODE_SECTION:
+     *     0x64F00000 - 0x64FFFFE0, attr 3, L1/L2 write-back
+     */
+#if CONFIG_PSRAM_MPU_REGION_COUNT > 0
+    { ARM_MPU_RBAR(CONFIG_PSRAM_MPU_REGION_0_BASE, ARM_MPU_SH_NON, 0, 1, 0),
+      ARM_MPU_RLAR(CONFIG_PSRAM_MPU_REGION_0_LIMIT, CONFIG_PSRAM_MPU_REGION_0_ATTR) },
+#endif
+#if CONFIG_PSRAM_MPU_REGION_COUNT > 1
+    { ARM_MPU_RBAR(CONFIG_PSRAM_MPU_REGION_1_BASE, ARM_MPU_SH_NON, 0, 1, 0),
+      ARM_MPU_RLAR(CONFIG_PSRAM_MPU_REGION_1_LIMIT, CONFIG_PSRAM_MPU_REGION_1_ATTR) },
+#endif
+#if CONFIG_PSRAM_MPU_REGION_COUNT > 2
+    { ARM_MPU_RBAR(CONFIG_PSRAM_MPU_REGION_2_BASE, ARM_MPU_SH_NON, 0, 1, 0),
+      ARM_MPU_RLAR(CONFIG_PSRAM_MPU_REGION_2_LIMIT, CONFIG_PSRAM_MPU_REGION_2_ATTR) },
+#endif
+#if CONFIG_PSRAM_MPU_REGION_COUNT > 3
+    { ARM_MPU_RBAR(CONFIG_PSRAM_MPU_REGION_3_BASE, ARM_MPU_SH_NON, 0, 1, 0),
+      ARM_MPU_RLAR(CONFIG_PSRAM_MPU_REGION_3_LIMIT, CONFIG_PSRAM_MPU_REGION_3_ATTR) },
+#endif
 
-     /* MPU region 11b ppb and other (0x88000000~0xEFFFFFE0) - device memory */
+#if CONFIG_PSRAM_INTERLEAVE
+    /* MPU region ppb and other (0x88000000~0xEFFFFFE0) - device memory */
      { ARM_MPU_RBAR(0x88000000UL, ARM_MPU_SH_NON, 0, 1, 1),
       ARM_MPU_RLAR(0xEFFFFFE0UL, 2) }
 #else
-    /* PSRAM before AP heap (including nocache heap and data): non-cacheable. */
-    { ARM_MPU_RBAR(0x60000000UL, ARM_MPU_SH_NON, 0, 1, 0),
-      ARM_MPU_RLAR(CONFIG_AP_PSRAM_HEAP_ADDR - 0x20, 1) },
-
-
-    #if (CONFIG_AP_PSRAM_CODE_SECTION_ADDR && CONFIG_AP_PSRAM_CODE_SECTION_SIZE && CONFIG_AP_PSRAM_CODE_SECTION_ADDR > 0x64000000UL)
-        /* AP heap: L2 cacheable, L1 non-cacheable (attr 5). */
-        { ARM_MPU_RBAR(CONFIG_AP_PSRAM_HEAP_ADDR, ARM_MPU_SH_NON, 0, 1, 0),
-          ARM_MPU_RLAR(CONFIG_AP_PSRAM_CODE_SECTION_ADDR - 0x20, 5) },
-        /* code section: L1+L2 write-back cacheable (attr 3) */
-        { ARM_MPU_RBAR(CONFIG_AP_PSRAM_CODE_SECTION_ADDR, ARM_MPU_SH_NON, 0, 1, 0),
-          ARM_MPU_RLAR(0x67FFFFE0UL, 3) },
-    #else
-        /* MPU region 7 psram1 */
-        { ARM_MPU_RBAR(0x64000000UL, ARM_MPU_SH_NON, 0, 1, 0),
-        ARM_MPU_RLAR(0x67FFFFE0UL, 1) },
-    #endif
-     /* MPU region 10b ppb and other (0x88000000~0xEFFFFFE0) - device memory */
+    /* MPU region ppb and other (0x80000000~0xEFFFFFE0) - device memory */
      { ARM_MPU_RBAR(0x80000000UL, ARM_MPU_SH_NON, 0, 1, 1),
       ARM_MPU_RLAR(0xEFFFFFE0UL, 2) }
 #endif
 };
 
-/* 硬件仅 16 个 MPU region，mpu_enable() 对超出部分是静默截断（不报错）。
-   超限会导致末尾 region 被悄悄丢弃，难以排查，故在编译期卡死。 */
+/* BK7259 hardware provides at most 16 MPU regions. */
 _Static_assert(sizeof(mpu_regions) / sizeof(mpu_regions[0]) <= 16,
                "mpu_regions exceeds the 16 hardware MPU regions (extra ones are silently dropped)");
-
-#if defined(CONFIG_AP_PSRAM_NOCACHE_HEAP_ADDR) && (CONFIG_AP_PSRAM_NOCACHE_HEAP_SIZE > 0)
-#if (CONFIG_AP_PSRAM_DATA_SECTION_ADDR && CONFIG_AP_PSRAM_DATA_SECTION_SIZE)
-_Static_assert((CONFIG_AP_PSRAM_NOCACHE_HEAP_ADDR + CONFIG_AP_PSRAM_NOCACHE_HEAP_SIZE) <= CONFIG_AP_PSRAM_DATA_SECTION_ADDR,
-               "AP_PSRAM_NOCACHE_HEAP must be placed before AP_PSRAM_DATA_SECTION");
-_Static_assert((CONFIG_AP_PSRAM_DATA_SECTION_ADDR + CONFIG_AP_PSRAM_DATA_SECTION_SIZE) <= CONFIG_AP_PSRAM_HEAP_ADDR,
-               "AP_PSRAM_DATA_SECTION must be placed before AP_PSRAM_HEAP");
-#endif
-#endif
 
 /*
  For the star processor, only two combinations of these attributes are valid:Device-nGnRnE/Device-nGnRE

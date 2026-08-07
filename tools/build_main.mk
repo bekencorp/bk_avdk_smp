@@ -191,9 +191,14 @@ print_partitions: $(auto_partition_out)
 	@echo ============================================================
 
 ram_partition_script := $(ARMINO_AVDK_DIR)/tools/build_tools/build_process/bk_build_ram_regions.py
-RAM_REGIONS_TABLE := $(PROJECT_DIR)/partitions/$(ARMINO_SOC_NAME)/ram_regions.csv
+RAM_REGIONS_DIR := $(PROJECT_DIR)/partitions/$(ARMINO_SOC_NAME)
+RAM_REGIONS_TABLE := $(RAM_REGIONS_DIR)/ram_regions.csv
+RAM_REGIONS_MPU_POLICY := $(wildcard $(RAM_REGIONS_DIR)/ram_regions_mpu.json)
 ram_regions_out := $(PARTITIONS_DIR)/ram_regions.h
-$(ram_regions_out): $(RAM_REGIONS_TABLE)
+ram_regions_setting := $(firstword \
+	$(wildcard $(ARMINO_AVDK_DIR)/tools/build_tools/build_process/bk_sdk/smp_ram_setting_$(ARMINO_SOC_NAME).json) \
+	$(ARMINO_AVDK_DIR)/tools/build_tools/build_process/bk_sdk/smp_ram_setting.json)
+$(ram_regions_out): $(RAM_REGIONS_DIR) $(RAM_REGIONS_TABLE) $(RAM_REGIONS_MPU_POLICY) $(ram_partition_script) $(ram_regions_setting)
 	@mkdir -p $(PARTITIONS_DIR)
 	@$(RUN_PYTHON3) $(ram_partition_script)
 

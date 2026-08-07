@@ -16,6 +16,8 @@ PSRAM_INTERLEAVE_BASE = 0x80000000
 PSRAM_NON_INTERLEAVE_PSRAM1_BASE = 0x64000000
 PSRAM_NON_INTERLEAVE_PSRAM0_BASE = 0x60000000
 SECURE_REGION_ALIGNMENT = 0x1000
+PSRAM_NS_ADDR_DIFF = 0x10000000
+MPU_MIN_REGION_ALIGNMENT = 32
 
 
 @dataclass
@@ -64,10 +66,24 @@ class bk_ram_region:
         for r in self.regions:
             if r.type != "PSRAM":
                 continue
-            if r.offset >= PSRAM_NON_INTERLEAVE_PSRAM1_BASE:
-                r.offset += PSRAM_INTERLEAVE_OFFSET_PSRAM1
-            elif r.offset >= PSRAM_NON_INTERLEAVE_PSRAM0_BASE:
-                r.offset += PSRAM_INTERLEAVE_OFFSET_PSRAM0
+            offset = r.offset
+            ns_alias = False
+            for base in (
+                PSRAM_NON_INTERLEAVE_PSRAM0_BASE,
+                PSRAM_NON_INTERLEAVE_PSRAM1_BASE,
+            ):
+                ns_base = base + PSRAM_NS_ADDR_DIFF
+                if ns_base <= offset < ns_base + self.psram_capacity:
+                    offset -= PSRAM_NS_ADDR_DIFF
+                    ns_alias = True
+                    break
+            if offset >= PSRAM_NON_INTERLEAVE_PSRAM1_BASE:
+                offset += PSRAM_INTERLEAVE_OFFSET_PSRAM1
+            elif offset >= PSRAM_NON_INTERLEAVE_PSRAM0_BASE:
+                offset += PSRAM_INTERLEAVE_OFFSET_PSRAM0
+            if ns_alias:
+                offset += PSRAM_NS_ADDR_DIFF
+            r.offset = offset
 
     def _gen_regions(self) -> None:
         if not self.ram_mem_csv.exists():
@@ -199,6 +215,146 @@ class bk_ram_region:
         with hdr_file.open("w", newline="\n") as f:
             f.write(self._get_region_hdr_text())
         logger.info(f"generate ram region header file: {hdr_file}")
+
+    def _psram_bank_ranges(self) -> tuple[tuple[int, int], tuple[int, int]]:
+        if self.soc_name != "bk7259":
+            raise RuntimeError("PSRAM MPU region generation is only supported for bk7259")
+        if self.psram_interleave:
+            return (
+                (PSRAM_INTERLEAVE_BASE, 0x81000000),
+                (0x81000000, 0x82000000),
+            )
+        return (
+            (PSRAM_NON_INTERLEAVE_PSRAM0_BASE, PSRAM_NON_INTERLEAVE_PSRAM1_BASE),
+            (PSRAM_NON_INTERLEAVE_PSRAM1_BASE, 0x68000000),
+        )
+
+    def _canonical_psram_addr(self, addr: int, size: int) -> int:
+        """Return the secure/canonical alias for a BK7259 PSRAM interval."""
+        for base, bank_end in self._psram_bank_ranges():
+            if base <= addr and addr + size <= bank_end:
+                return addr
+            ns_base = base + PSRAM_NS_ADDR_DIFF
+            if ns_base <= addr and addr + size <= bank_end + PSRAM_NS_ADDR_DIFF:
+                return addr - PSRAM_NS_ADDR_DIFF
+        raise RuntimeError(
+            f"PSRAM region [0x{addr:08x}, 0x{addr + size:08x}) is outside BK7259 PSRAM banks"
+        )
+
+    def _build_psram_mpu_segments(
+        self, policies: dict[str, int], default_attr: int
+    ) -> list[tuple[int, int, int, list[str]]]:
+        if not self.regions:
+            raise RuntimeError("RAM regions must be generated before PSRAM MPU regions")
+        valid_attrs = {1, 3, 5}
+        if default_attr not in valid_attrs:
+            raise RuntimeError(f"invalid default MPU attribute index: {default_attr}")
+
+        explicit: list[tuple[int, int, int, str]] = []
+        for region in self.regions:
+            if region.type != "PSRAM" or region.size == 0:
+                continue
+            attr = policies.get(region.name, default_attr)
+            if not isinstance(attr, int) or attr not in valid_attrs:
+                raise RuntimeError(f"{region.name} has invalid MPU attribute index: {attr}")
+            start = self._canonical_psram_addr(region.offset, region.size)
+            explicit.append((start, start + region.size, attr, region.name))
+
+        explicit.sort(key=lambda item: item[0])
+        for previous, current in zip(explicit, explicit[1:]):
+            if current[0] < previous[1]:
+                raise RuntimeError(
+                    f"PSRAM regions overlap after alias normalization: "
+                    f"{previous[3]} and {current[3]}"
+                )
+
+        segments: list[tuple[int, int, int, list[str]]] = []
+        for bank_base, bank_aperture_end in self._psram_bank_ranges():
+            cursor = bank_base
+            bank_regions = [
+                item for item in explicit if bank_base <= item[0] < bank_aperture_end
+            ]
+            configured_end = bank_base + self.psram_capacity
+            bank_end = max(
+                configured_end,
+                max((item[1] for item in bank_regions), default=configured_end),
+            )
+            bank_end = (
+                bank_end + MPU_MIN_REGION_ALIGNMENT - 1
+            ) & ~(MPU_MIN_REGION_ALIGNMENT - 1)
+            if bank_end > bank_aperture_end:
+                raise RuntimeError(
+                    f"configured PSRAM bank end 0x{bank_end:08x} exceeds "
+                    f"aperture end 0x{bank_aperture_end:08x}"
+                )
+            for start, end, attr, name in bank_regions:
+                if cursor < start:
+                    segments.append((cursor, start, default_attr, ["reserved"]))
+                segments.append((start, end, attr, [name]))
+                cursor = end
+            if cursor < bank_end:
+                tail_attr = (
+                    bank_regions[-1][2]
+                    if bank_regions
+                    and bank_end - cursor < MPU_MIN_REGION_ALIGNMENT
+                    else default_attr
+                )
+                segments.append((cursor, bank_end, tail_attr, ["reserved"]))
+
+        merged: list[tuple[int, int, int, list[str]]] = []
+        for start, end, attr, names in segments:
+            if merged and merged[-1][1] == start and merged[-1][2] == attr:
+                prev_start, _, prev_attr, prev_names = merged[-1]
+                merged[-1] = (prev_start, end, prev_attr, prev_names + names)
+            else:
+                merged.append((start, end, attr, names))
+        for start, end, _, names in merged:
+            if start % MPU_MIN_REGION_ALIGNMENT or end % MPU_MIN_REGION_ALIGNMENT:
+                logger.warning(
+                    "MPU rounds %s [0x%08x, 0x%08x) to 32-byte boundaries",
+                    ", ".join(names),
+                    start,
+                    end,
+                )
+        return merged
+
+    def append_psram_mpu_regions_hdr(
+        self,
+        hdr_file: Path,
+        policies: dict[str, int],
+        default_attr: int = 1,
+    ) -> None:
+        """Append named PSRAM MPU region macros to ram_regions.h."""
+        segments = self._build_psram_mpu_segments(policies, default_attr)
+        if len(segments) > 4:
+            raise RuntimeError(
+                f"PSRAM MPU requires {len(segments)} regions, but BK7259 has only "
+                "four MPU slots available for PSRAM"
+            )
+        lines = [
+            "",
+            "/* Auto-generated PSRAM MPU configuration. Do not edit. */",
+            f"#define CONFIG_PSRAM_MPU_REGION_COUNT {len(segments)}",
+        ]
+        for index, (start, end, attr, names) in enumerate(segments):
+            lines.append(f"/* {', '.join(names)} */")
+            limit = end - MPU_MIN_REGION_ALIGNMENT
+            prefix = f"CONFIG_PSRAM_MPU_REGION_{index}"
+            ns_prefix = f"CONFIG_PSRAM_MPU_NS_REGION_{index}"
+            lines.extend(
+                [
+                    f"#define {prefix + '_BASE':<40} 0x{start:08X}UL",
+                    f"#define {prefix + '_LIMIT':<40} 0x{limit:08X}UL",
+                    f"#define {prefix + '_ATTR':<40} {attr}",
+                    f"#define {ns_prefix + '_BASE':<40} "
+                    f"0x{start + PSRAM_NS_ADDR_DIFF:08X}UL",
+                    f"#define {ns_prefix + '_LIMIT':<40} "
+                    f"0x{limit + PSRAM_NS_ADDR_DIFF:08X}UL",
+                ]
+            )
+        with hdr_file.open("a", newline="\n") as f:
+            f.write("\n".join(lines) + "\n")
+        logger.info(f"append PSRAM MPU region macros to: {hdr_file}")
 
     def _get_region_hdr_text(self) -> str:
         hdr_text = ""
