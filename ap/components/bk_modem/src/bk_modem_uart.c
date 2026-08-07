@@ -522,8 +522,9 @@ bk_err_t bk_modem_uart_init(uint32_t baud_rate)
     }
 
     #if CONFIG_UART_RX_DMA
-    // Set special flag for modem uart.
-    config.rx_dma_rewind_when_fifo_empty = 1;
+    /* Disabled: rewind assumes "one idle IRQ == one whole frame drained in a
+     * single read". Use plain streaming RX DMA + kfifo instead. */
+    config.rx_dma_rewind_when_fifo_empty = 0;
     config.rx_dma_en = UART_DMA_ENABLE;
     #endif
     
