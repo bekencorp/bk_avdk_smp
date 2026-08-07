@@ -19,19 +19,19 @@
 /* boot_param ping-pong back-end (AP side): SDK flash driver + inline zlib CRC32.
  * See ab_flag.h for the shared record layout and algorithm. */
 
-static void ota_bp_read(uint32_t off, void *buf, uint32_t len)
+static int ota_bp_read(uint32_t off, void *buf, uint32_t len)
 {
-	bk_flash_read_bytes(off, (uint8_t *)buf, len);
+	return bk_flash_read_bytes(off, (uint8_t *)buf, len);
 }
 
-static void ota_bp_erase(uint32_t off)
+static int ota_bp_erase(uint32_t off)
 {
-	bk_flash_erase_sector(off);
+	return bk_flash_erase_sector(off);
 }
 
-static void ota_bp_write(uint32_t off, const void *buf, uint32_t len)
+static int ota_bp_write(uint32_t off, const void *buf, uint32_t len)
 {
-	bk_flash_write_bytes(off, (uint8_t *)buf, len);
+	return bk_flash_write_bytes(off, (uint8_t *)buf, len);
 }
 
 /* zlib/PKZIP CRC32 (init 0xFFFFFFFF, poly 0xEDB88320, final inversion), inlined
@@ -90,13 +90,20 @@ int ota_boot_param_set_trial(uint8_t update_slot)
 	ab_flag_record_t rec;
 	uint32_t base = ota_bp_partition_base();
 	flash_protect_type_t protect_type;
+	int latest_idx;
+	int write_idx;
 
 	if (base == 0) {
 		return -1;
 	}
 
 	/* Start from the freshest record (keep try_max); default on a virgin part. */
-	if (ab_record_read_latest(base, &s_ota_bp_ops, &rec) < 0) {
+	latest_idx = ab_record_read_latest(base, &s_ota_bp_ops, &rec);
+	if (latest_idx < -1) {
+		OTA_LOGE("boot_param read failed: %d\r\n", latest_idx);
+		return -1;
+	}
+	if (latest_idx < 0) {
 		memset(&rec, 0, sizeof(rec));
 		rec.try_max = AB_FLAG_DEFAULT_TRY_MAX;
 	}
@@ -115,8 +122,13 @@ int ota_boot_param_set_trial(uint8_t update_slot)
 
 	protect_type = bk_flash_get_protect_type();
 	bk_flash_set_protect_type(FLASH_PROTECT_NONE);
-	(void)ab_record_commit(base, &s_ota_bp_ops, &rec);
+	write_idx = ab_record_commit(base, &s_ota_bp_ops, &rec);
 	bk_flash_set_protect_type(protect_type);
+
+	if (write_idx < 0) {
+		OTA_LOGE("boot_param commit failed: %d\r\n", write_idx);
+		return -1;
+	}
 
 	OTA_LOGI("boot_param trial armed: exec=%u update=%u try_max=%u\r\n",
 			 rec.exec_slot, rec.update_slot, rec.try_max);

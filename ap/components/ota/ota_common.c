@@ -52,19 +52,19 @@ part_flag bk_ota_get_update_partition(void)
 /* See ab_flag.h for the shared record layout and algorithm.                   */
 /* -------------------------------------------------------------------------- */
 
-static void ap_flag_read(uint32_t addr, void *buf, uint32_t len)
+static int ap_flag_read(uint32_t addr, void *buf, uint32_t len)
 {
-	bk_flash_read_bytes(addr, (uint8_t *)buf, len);
+	return bk_flash_read_bytes(addr, (uint8_t *)buf, len);
 }
 
-static void ap_flag_erase(uint32_t addr)
+static int ap_flag_erase(uint32_t addr)
 {
-	bk_flash_erase_sector(addr);
+	return bk_flash_erase_sector(addr);
 }
 
-static void ap_flag_write(uint32_t addr, const void *buf, uint32_t len)
+static int ap_flag_write(uint32_t addr, const void *buf, uint32_t len)
 {
-	bk_flash_write_bytes(addr, (uint8_t *)buf, len);
+	return bk_flash_write_bytes(addr, (uint8_t *)buf, len);
 }
 
 static uint32_t ap_flag_crc32(const void *buf, uint32_t len)
