@@ -145,6 +145,11 @@ static bk_err_t _mp3_decoder_open(audio_element_handle_t self)
     mp3_decoder_t *mp3_dec = (mp3_decoder_t *)audio_element_getdata(self);
     mp3_dec->main_buff_readptr = mp3_dec->main_buff;
 
+    /* A reused decoder retains the 20 ms steady-state timeout set by the
+     * previous open. Allow the input stream enough time to reopen and provide
+     * the MP3/ID3 header before restoring the normal short timeout below. */
+    audio_element_set_input_timeout(self, 2000 / portTICK_RATE_MS);
+
     int ret = codec_mp3_skip_idtag(self);
     if (ret < 0)
     {
