@@ -1896,13 +1896,24 @@ def convert_file(
 # 文档构建
 # ---------------------------------------------------------------------------
 
-def _run_md2rst(src_file_path, dst_file_path):
+def _run_md2rst(src_file_path):
     try:
-        result = convert_file(src_file_path, dst_file_path)
+        result = convert_file(src_file_path, output_path=None)
     except Exception as exc:
         raise RuntimeError(f"md2rst failed for {src_file_path}: {exc}") from exc
     for warning in result.warnings:
         print(warning)
+    return result.text
+
+def _write_text_if_changed(path, text, encoding="utf-8"):
+    if os.path.isfile(path):
+        with open(path, "r", encoding=encoding) as f:
+            if f.read() == text:
+                return False
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    with open(path, "w", encoding=encoding, newline="\n") as f:
+        f.write(text)
+    return True
 
 def _cjk_display_width(text: str) -> int:
     """Return reST title underline width (wide/fullwidth chars count as 2)."""
@@ -1916,34 +1927,19 @@ def _cjk_display_width(text: str) -> int:
     return width + 4
 
 def translate_md2rst(src_path, dst_path, lan):
-    src_file = ""
-    dst_file = ""
-
     if lan == 'en':
         src_file = "README.md"
-        dst_file = "index.rst"
-
     elif lan == 'zh_CN':
         src_file = "README_CN.md"
-        dst_file = "index.rst"
     else:
-        return
-
-    # 检查源文件是否存在
-    if not os.path.isfile(os.path.join(src_path, src_file)):
-        return
+        return None
 
     src_file_path = os.path.join(src_path, src_file)
-    dst_file_path = os.path.join(dst_path, dst_file)
-    os.makedirs(dst_path, exist_ok=True)
-
-    _run_md2rst(src_file_path, dst_file_path)
+    if not os.path.isfile(src_file_path):
+        return None
+    return _run_md2rst(src_file_path)
 
 def write_projects_index(dst_path, title, entries):
-    index_path = os.path.join(dst_path, "index.rst")
-    if os.path.exists(index_path):
-        return
-
     normalized_entries = sorted(set(entries))
     if not normalized_entries:
         return
@@ -1960,8 +1956,7 @@ def write_projects_index(dst_path, title, entries):
         lines.append(f"   {entry}/index")
     lines.append("")
 
-    with open(index_path, "w", encoding="utf-8") as index_file:
-        index_file.write("\n".join(lines))
+    _write_text_if_changed(os.path.join(dst_path, "index.rst"), "\n".join(lines))
 
 def get_projects_index_title(src_path, lan):
     dirname = os.path.basename(src_path)
@@ -1992,7 +1987,7 @@ def _is_local_doc_asset(path: str) -> bool:
     normalized = _normalize_doc_asset_path(path).replace("\\", "/")
     return ".." not in normalized.split("/")
 
-def _collect_referenced_doc_assets(readme_path: str, rst_path: str) -> List[str]:
+def _collect_referenced_doc_assets(readme_path: str, rst_text: str = None) -> List[str]:
     asset_paths = set()
 
     if os.path.isfile(readme_path):
@@ -2003,9 +1998,7 @@ def _collect_referenced_doc_assets(readme_path: str, rst_path: str) -> List[str]
             if _is_local_doc_asset(url):
                 asset_paths.add(_normalize_doc_asset_path(url))
 
-    if os.path.isfile(rst_path):
-        with open(rst_path, "r", encoding="utf-8") as rst_file:
-            rst_text = rst_file.read()
+    if rst_text:
         for line in rst_text.splitlines():
             match = RST_IMAGE_REF_PATTERN.match(line.strip())
             if not match:
@@ -2025,15 +2018,12 @@ def _static_image_ref(dst_path: str, static_dir: str, image_basename: str) -> st
     rel_static = os.path.relpath(static_dir, dst_path).replace("\\", "/")
     return f"{rel_static}/{image_basename}"
 
-def _rewrite_rst_image_paths(rst_path: str, path_rewrites: dict) -> None:
-    if not os.path.isfile(rst_path) or not path_rewrites:
-        return
-
-    with open(rst_path, "r", encoding="utf-8") as rst_file:
-        lines = rst_file.readlines()
+def _rewrite_image_paths_in_text(text: str, path_rewrites: dict) -> str:
+    if not text or not path_rewrites:
+        return text
 
     new_lines = []
-    for line in lines:
+    for line in text.splitlines(keepends=True):
         match = RST_IMAGE_REF_PATTERN.match(line.strip())
         if match:
             old_path = match.group(1)
@@ -2041,12 +2031,11 @@ def _rewrite_rst_image_paths(rst_path: str, path_rewrites: dict) -> None:
             new_path = path_rewrites.get(normalized) or path_rewrites.get(old_path)
             if new_path:
                 indent = line[: len(line) - len(line.lstrip())]
-                new_lines.append(f"{indent}.. image:: {new_path}\n")
+                newline = "\n" if line.endswith("\n") else ""
+                new_lines.append(f"{indent}.. image:: {new_path}{newline}")
                 continue
         new_lines.append(line)
-
-    with open(rst_path, "w", encoding="utf-8") as rst_file:
-        rst_file.writelines(new_lines)
+    return "".join(new_lines)
 
 def _files_are_identical(path_a: str, path_b: str) -> bool:
     """Return True when two files have the same content."""
@@ -2078,9 +2067,9 @@ def _pick_static_image_basename(
         f"unable to find unused static image name for {src_file} under {static_dir}"
     )
 
-def _copy_referenced_doc_assets(src_path, dst_path, readme_path, rst_path, static_dir=None):
-    """Copy only image assets referenced by README / generated RST."""
-    asset_paths = _collect_referenced_doc_assets(readme_path, rst_path)
+def _copy_referenced_doc_assets(src_path, dst_path, readme_path, rst_text, static_dir=None):
+    """Copy referenced assets; return rst_text with static image paths applied."""
+    asset_paths = _collect_referenced_doc_assets(readme_path, rst_text)
     path_rewrites = {}
     project_name = os.path.basename(os.path.normpath(src_path))
 
@@ -2104,25 +2093,36 @@ def _copy_referenced_doc_assets(src_path, dst_path, readme_path, rst_path, stati
         else:
             dst_file = os.path.join(dst_path, rel_path)
             os.makedirs(os.path.dirname(dst_file), exist_ok=True)
-            shutil.copy2(src_file, dst_file)
+            if not os.path.isfile(dst_file) or not _files_are_identical(src_file, dst_file):
+                shutil.copy2(src_file, dst_file)
 
     if static_dir:
-        _rewrite_rst_image_paths(rst_path, path_rewrites)
+        return _rewrite_image_paths_in_text(rst_text, path_rewrites)
+    return rst_text
 
 def copy_projects_doc(src_path, dst_path, lan, static_dir=None):
     print(f"copy_projects_doc: {src_path} -> {dst_path}")
     if not os.path.isdir(src_path):
         return 0
 
+    skip_dirs = {".git", "build", "__pycache__"}
     child_doc_dirs = []
+    src_child_names = set()
     for item in sorted(os.listdir(src_path)):
-        if item == '.git':
+        if item in skip_dirs:
             continue
         item_path = os.path.join(src_path, item)
         item_dst_path = os.path.join(dst_path, item)
         if os.path.isdir(item_path):
+            src_child_names.add(item)
             if copy_projects_doc(item_path, item_dst_path, lan, static_dir):
                 child_doc_dirs.append(item)
+
+    if os.path.isdir(dst_path):
+        for item in os.listdir(dst_path):
+            item_dst_path = os.path.join(dst_path, item)
+            if os.path.isdir(item_dst_path) and item not in src_child_names:
+                shutil.rmtree(item_dst_path)
 
     readme_name = "README.md" if lan == 'en' else "README_CN.md"
     readme_path = os.path.join(src_path, readme_name)
@@ -2130,22 +2130,28 @@ def copy_projects_doc(src_path, dst_path, lan, static_dir=None):
     has_local_doc = os.path.isfile(readme_path) or os.path.isfile(projects_rst_path)
 
     if not has_local_doc and not child_doc_dirs:
+        if os.path.isdir(dst_path):
+            shutil.rmtree(dst_path)
         return 0
 
-    run_cmd(f'mkdir -p {dst_path}')
+    os.makedirs(dst_path, exist_ok=True)
     if os.path.isfile(readme_path):
-        translate_md2rst(src_path, dst_path, lan)
-        _copy_referenced_doc_assets(
-            src_path,
-            dst_path,
-            readme_path,
-            os.path.join(dst_path, "index.rst"),
-            static_dir,
-        )
+        rst_text = translate_md2rst(src_path, dst_path, lan)
+        if rst_text is not None:
+            rst_text = _copy_referenced_doc_assets(
+                src_path,
+                dst_path,
+                readme_path,
+                rst_text,
+                static_dir,
+            )
+            _write_text_if_changed(os.path.join(dst_path, "index.rst"), rst_text)
     elif os.path.isfile(projects_rst_path):
-        shutil.copyfile(projects_rst_path, os.path.join(dst_path, "index.rst"))
-
-    write_projects_index(dst_path, get_projects_index_title(src_path, lan), child_doc_dirs)
+        dst_index = os.path.join(dst_path, "index.rst")
+        if not os.path.isfile(dst_index) or not _files_are_identical(projects_rst_path, dst_index):
+            shutil.copyfile(projects_rst_path, dst_index)
+    else:
+        write_projects_index(dst_path, get_projects_index_title(src_path, lan), child_doc_dirs)
     return 1
 
 def build_lan_doc(doc_path, target, lan):
@@ -2153,27 +2159,18 @@ def build_lan_doc(doc_path, target, lan):
     lan_dir = f'{doc_path}/{lan}'
 
     if "ap/docs" in doc_path:
-        print("cp/docs not support")
-        print(f"doc_path: {doc_path}")
-        print(f"target: {target}")
-        print(f"lan: {lan}")
-        armino_path = os.getenv('ARMINO_PATH')
-        print(f"armino_path: {armino_path}")
-        print(f"lan_dir: {lan_dir}")
-        run_cmd(f'rm -rf {lan_dir}/examples/projects')
         if target in ('bk7236', 'bk7258', 'bk7259'):
             static_dir = _common_static_dir(lan_dir)
+            sdk_path = os.getenv('ARMINO_AVDK_DIR')
+            if not sdk_path:
+                sdk_path = os.path.abspath(os.path.join(lan_dir, "../../../.."))
             copy_projects_doc(
-                f'{lan_dir}/../../../../projects',
+                os.path.join(sdk_path, "projects"),
                 f'{lan_dir}/examples/projects',
                 lan,
                 static_dir,
             )
 
-    # clean build space (use absolute paths; no chdir so zh/en can build in parallel)
-    run_cmd(f'rm -rf {doc_path}/{lan}/_build')
-    run_cmd(f'rm -rf {doc_path}/{lan}/xml')
-    run_cmd(f'rm -rf {doc_path}/{lan}/xml_in')
     run_cmd(f'rm -rf {doc_path}/{lan}/man')
     run_cmd(f'rm -rf {doc_path}/{lan}/__pycache__')
 
@@ -2181,10 +2178,43 @@ def build_lan_doc(doc_path, target, lan):
     if p.returncode:
         print("make doc failed!")
         raise RuntimeError(f"make arminodocs failed for {lan} ({lan_dir})")
+    run_cmd(f'rm -rf {doc_path}/build/{lan}')
     run_cmd(f'mkdir -p {doc_path}/build/{lan}')
     run_cmd(f'cp -r {lan_dir}/_build/* {doc_path}/build/{lan}/')
 
-def build_with_target(clean, target, doc_build_path):
+def clean_with_target(armino_path, target, doc_build_path):
+    target_path = os.path.join(armino_path, 'docs', target)
+    generated_paths = [
+        doc_build_path,
+        os.path.join(target_path, 'build'),
+        os.path.join(target_path, '__pycache__'),
+    ]
+    for lan in ('en', 'zh_CN'):
+        lan_path = os.path.join(target_path, lan)
+        generated_paths.extend(
+            os.path.join(lan_path, name)
+            for name in (
+                '_build',
+                'xml',
+                'xml_in',
+                'man',
+                '__pycache__',
+                'examples/projects',
+                'projects',
+                'source',
+                'sphinx-warning-log.txt',
+                'sphinx-warning-log-sanitized.txt',
+                'doxygen-warning-log.txt',
+            )
+        )
+
+    for path in generated_paths:
+        if os.path.isdir(path):
+            shutil.rmtree(path)
+        elif os.path.isfile(path):
+            os.remove(path)
+
+def build_with_target(target, doc_build_path):
     cur_dir_is_docs_dir = True
     saved_dir = os.getcwd()
     if 'ARMINO_PATH' in os.environ:
@@ -2199,22 +2229,6 @@ def build_with_target(clean, target, doc_build_path):
         DOCS_PATH = f"{os.getcwd()}/docs/{target}"
 
     build_dir = doc_build_path
-    if (clean):
-        run_cmd(f'rm -rf {build_dir}')
-        run_cmd(f'rm -rf {DOCS_PATH}/en/_build')
-        run_cmd(f'rm -rf {DOCS_PATH}/en/xml')
-        run_cmd(f'rm -rf {DOCS_PATH}/en/xml_in')
-        run_cmd(f'rm -rf {DOCS_PATH}/en/man')
-        run_cmd(f'rm -rf {DOCS_PATH}/zh_CN/_build')
-        run_cmd(f'rm -rf {DOCS_PATH}/zh_CN/xml')
-        run_cmd(f'rm -rf {DOCS_PATH}/zh_CN/xml_in')
-        run_cmd(f'rm -rf {DOCS_PATH}/zh_CN/man')
-        run_cmd(f'rm -rf {DOCS_PATH}/__pycache__')
-        if (target == 'bk7259'):
-            run_cmd(f'rm -rf {DOCS_PATH}/en/projects')
-            run_cmd(f'rm -rf {DOCS_PATH}/zh_CN/projects')
-        return
-
     if not os.path.exists(build_dir):
         run_cmd(f'mkdir -p {build_dir}')
 
@@ -2239,16 +2253,17 @@ def build_doc_internal(clean, target):
     else:
         raise RuntimeError("not find env ARMINO_DIR")
 
-    sub_doc_name = os.path.basename(os.getcwd())
+    sub_doc_name = os.path.basename(os.path.normpath(armino_path))
     doc_build_path = sdk_path + f"/build/doc/{sub_doc_name}_doc"
+    build_target = "bk7259" if target == "all" else target
+    if clean:
+        clean_with_target(armino_path, build_target, doc_build_path)
+        return
+
     if not os.path.exists(doc_build_path):
         os.makedirs(doc_build_path)
 
-    if (target == "all"):
-        build_with_target(clean, "bk7259", doc_build_path)
-    else:
-        build_with_target(clean, target, doc_build_path)
-
+    build_with_target(build_target, doc_build_path)
     run_cmd(f'cp {armino_path}/docs/version.json {doc_build_path}/version.json')
 
 def build_doc(target):

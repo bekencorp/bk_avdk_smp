@@ -283,8 +283,11 @@ $(ARMINO_SOC)_ap_menuconfig: common
 $(ARMINO_SOC)_cp_menuconfig: common
 	@make menuconfig ARMINO_TOOLS_PATH=$(ARMINO_TOOLS_PATH) PROJECT_DIR=$(PROJECT_DIR) BUILD_DIR=$(PROJECT_BUILD_DIR) APP_NAME=$(APP_NAME) APP_VERSION=$(APP_VERSION) MENUCONFIG_DEST_TYPE=cp SOC_NAME=$(ARMINO_SOC) -C $(ARMINO_CP_DIR)
 clean:
-	@echo "rm -rf ./build"
+	@echo "clean docs"
 	@$(RUN_PYTHON3) ./tools/armino_doc.py --clean True
+	@ARMINO_DIR=$(ARMINO_AP_DIR) ARMINO_PATH=$(ARMINO_AP_DIR) $(RUN_PYTHON3) $(ARMINO_TOOLS_PATH)/build_tools/armino_doc.py clean
+	@ARMINO_DIR=$(ARMINO_CP_DIR) ARMINO_PATH=$(ARMINO_CP_DIR) $(RUN_PYTHON3) $(ARMINO_TOOLS_PATH)/build_tools/armino_doc.py clean
+	@echo "clean build"
 	@rm -rf ./build
 	@rm -rf $(ARMINO_AP_DIR)/build
 	@rm -rf $(ARMINO_CP_DIR)/build
