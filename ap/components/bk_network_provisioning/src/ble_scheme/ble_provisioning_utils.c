@@ -48,6 +48,58 @@ void bk_ble_provisioning_set_adv_name(const char *name)
     s_adv_name_override[sizeof(s_adv_name_override) - 1] = '\0';
 }
 
+/* Application-defined manufacturer payload that follows the 2-byte company ID.
+ * Empty (s_manuf_data_len == 0) => no Scan Response is emitted, so advertising
+ * stays byte-for-byte identical to before for every existing user. */
+#define MANUF_DATA_MAX_LEN 24
+static uint8_t  s_manuf_data[MANUF_DATA_MAX_LEN];
+static uint16_t s_manuf_data_len;
+
+void bk_ble_provisioning_set_manuf_data(const uint8_t *data, uint16_t len)
+{
+    if (data == NULL || len == 0)
+    {
+        s_manuf_data_len = 0;
+        return;
+    }
+
+    if (len > sizeof(s_manuf_data))
+    {
+        len = sizeof(s_manuf_data);
+    }
+
+    os_memcpy(s_manuf_data, data, len);
+    s_manuf_data_len = len;
+}
+
+/* Build the 5-byte manufacturer core header {proto_ver, device_type, fw x3} per
+ * the BLE provisioning adv spec and store it as the manufacturer payload (the
+ * company ID is prepended by the SDK when advertising). Keeps proto_ver and the
+ * field order owned by the component so every solution stays consistent. */
+void bk_ble_provisioning_set_dev_info(uint8_t device_type,
+                                      uint8_t fw_major, uint8_t fw_minor, uint8_t fw_patch)
+{
+    const uint8_t core[5] = { BK_BLE_PROV_PROTO_VER, device_type, fw_major, fw_minor, fw_patch };
+    bk_ble_provisioning_set_manuf_data(core, sizeof(core));
+}
+
+/* Canonical Local Name tag per adv spec 4.2. Solutions format the advertised
+ * name as "BK_<TAG>_<MAC3>" from this so naming is uniform across products. */
+const char *bk_ble_provisioning_dev_type_tag(uint8_t device_type)
+{
+    switch (device_type)
+    {
+        case BK_BLE_PROV_DEV_TYPE_DOORLOCK:  return "DOORLOCK";
+        case BK_BLE_PROV_DEV_TYPE_DOORBELL:  return "DOORBELL";
+        case BK_BLE_PROV_DEV_TYPE_DASHBOARD: return "DASHBOARD";
+        case BK_BLE_PROV_DEV_TYPE_INTERCOM:  return "INTERCOM";
+        case BK_BLE_PROV_DEV_TYPE_IPC:       return "IPC";
+        case BK_BLE_PROV_DEV_TYPE_ROBOT:     return "ROBOT";
+        case BK_BLE_PROV_DEV_TYPE_MESH:      return "MESH";
+        default:                             return "UNKNOWN";
+    }
+}
+
 #define BK_GATT_ATTR_TYPE(iuuid) {.len = BK_UUID_LEN_16, .uuid = {.uuid16 = iuuid}}
 #define BK_GATT_ATTR_CONTENT(iuuid) {.len = BK_UUID_LEN_16, .uuid = {.uuid16 = iuuid}}
 #define BK_GATT_ATTR_VALUE(ilen, ivalue) {.attr_max_len = ilen, .attr_len = ilen, .attr_value = ivalue}
@@ -688,6 +740,22 @@ static void dm_ble_gap_common_cb(bk_ble_gap_cb_event_t event, bk_ble_gap_cb_para
     }
     break;
 
+    case BK_BLE_GAP_EXT_SCAN_RSP_DATA_RAW_SET_COMPLETE_EVT:
+    {
+        struct ble_scan_rsp_data_raw_set_cmpl_evt_param *pm = (typeof(pm))param;
+
+        if (pm->status)
+        {
+            wboard_loge("set scan rsp raw err %d", pm->status);
+        }
+
+        if (s_ble_sema != NULL)
+        {
+            rtos_set_semaphore(&s_ble_sema);
+        }
+    }
+    break;
+
     case BK_BLE_GAP_EXT_ADV_START_COMPLETE_EVT:
     {
         struct ble_adv_start_cmpl_evt_param *pm = (typeof(pm))param;
@@ -1007,17 +1075,10 @@ int wifi_boarding_adv_start(void)
     adv_data[adv_index++] = 0x06;
     adv_data[len_index] = 2;
 
-    // name
-    len_index = adv_index;
-    adv_data[adv_index++] = 0x00;
-    adv_data[adv_index++] = BK_BLE_AD_TYPE_NAME_CMPL;
+    size_t name_len = strlen(adv_name);
+    int name_in_adv = 0;
 
-    ret = sprintf((char *)&adv_data[adv_index], "%s", adv_name);
-
-    adv_index += ret;
-    adv_data[len_index] = ret + 1;
-
-    /* 16bit uuid */
+    /* 16bit service data (kept: legacy scan filters may key on 0xFE01) */
     len_index = adv_index;
     adv_data[adv_index++] = 0x00;
     adv_data[adv_index++] = BK_BLE_AD_TYPE_SERVICE_DATA;
@@ -1025,13 +1086,35 @@ int wifi_boarding_adv_start(void)
     adv_data[adv_index++] = BOARDING_UUID >> 8;
     adv_data[len_index] = 3;
 
-    /* manufacturer */
+    /* manufacturer: company id + optional 5B core header. Per the adv spec the
+     * core header (proto_ver/device_type/fw) lives in the ADV packet so a
+     * passive scan can read it. When no payload was set (s_manuf_data_len == 0)
+     * only the company id is emitted, keeping advertising unchanged. */
     len_index = adv_index;
     adv_data[adv_index++] = 0x00;
     adv_data[adv_index++] = BK_BLE_AD_TYPE_MANU;
     adv_data[adv_index++] = BEKEN_COMPANY_ID & 0xFF;
     adv_data[adv_index++] = BEKEN_COMPANY_ID >> 8;
-    adv_data[len_index] = 3;
+    if (s_manuf_data_len > 0)
+    {
+        os_memcpy(&adv_data[adv_index], s_manuf_data, s_manuf_data_len);
+        adv_index += s_manuf_data_len;
+    }
+    adv_data[len_index] = (uint8_t)(adv_index - len_index - 1);
+
+    /* Local Name: keep in ADV when it still fits the 31-byte budget (name AD
+     * header = 2 bytes); otherwise defer the whole name to the Scan Response
+     * (adv spec dynamic placement). */
+    if (name_len > 0 && (adv_index + 2 + name_len) <= 31)
+    {
+        len_index = adv_index;
+        adv_data[adv_index++] = 0x00;
+        adv_data[adv_index++] = BK_BLE_AD_TYPE_NAME_CMPL;
+        os_memcpy(&adv_data[adv_index], adv_name, name_len);
+        adv_index += name_len;
+        adv_data[len_index] = (uint8_t)(name_len + 1);
+        name_in_adv = 1;
+    }
 
     ret = bk_ble_gap_set_adv_data_raw(0, adv_index, (const uint8_t *)adv_data);
 
@@ -1049,6 +1132,43 @@ int wifi_boarding_adv_start(void)
     {
         wboard_loge("wait set adv data err %d", ret);
         goto error;
+    }
+
+    /* Scan Response: carry the Complete Local Name only when it did not fit the
+     * ADV packet (adv spec dynamic placement). The core header stays in ADV, so
+     * the Scan Response holds just the name. Capacity = 31 - 2 (AD header). */
+    if (!name_in_adv && name_len > 0)
+    {
+        uint8_t  scan_rsp[31] = {0};
+        uint32_t sr_index = 0, sr_len_index = 0;
+
+        if (name_len > (size_t)(31 - 2))
+        {
+            name_len = (size_t)(31 - 2);                    /* truncate to fit */
+        }
+
+        sr_len_index = sr_index;
+        scan_rsp[sr_index++] = 0x00;                        /* length placeholder */
+        scan_rsp[sr_index++] = BK_BLE_AD_TYPE_NAME_CMPL;    /* 0x09 */
+        os_memcpy(&scan_rsp[sr_index], adv_name, name_len);
+        sr_index += name_len;
+        scan_rsp[sr_len_index] = (uint8_t)(sr_index - sr_len_index - 1);
+
+        ret = bk_ble_gap_set_scan_rsp_data_raw(0, sr_index, (const uint8_t *)scan_rsp);
+
+        if (ret)
+        {
+            wboard_loge("bk_ble_gap_set_scan_rsp_data_raw err %d", ret);
+            goto error;
+        }
+
+        ret = rtos_get_semaphore(&s_ble_sema, SYNC_CMD_TIMEOUT_MS);
+
+        if (ret != kNoErr)
+        {
+            wboard_loge("wait set scan rsp err %d", ret);
+            goto error;
+        }
     }
 
     const bk_ble_gap_ext_adv_t ext_adv =
