@@ -46,6 +46,15 @@ typedef struct {
        uint32_t version_id;
        uint32_t chip_id;
 } soc_info_t;
+
+typedef enum {
+	BK_PACKAGE_TYPE_UNKNOWN,                    /* OTP-ID is unassigned or invalid. */
+	BK_PACKAGE_TYPE_A_OLD_128A_S_MIC,           /* OTP-ID A0 5F 00 00: Die A, old 128A single-mic package. */
+	BK_PACKAGE_TYPE_A_NEW_128A_S_MIC,           /* OTP-ID A1 5E 00 00: Die A, new 128A single-mic package. */
+	BK_PACKAGE_TYPE_B_OLD_128A_S_MIC,           /* OTP-ID B0 4F 00 00: Die B(C), old 128A single-mic package. */
+	BK_PACKAGE_TYPE_B_NEW_128A_S_OR_128B_D_MIC, /* OTP-ID B1 4E 00 00: Die B(C), shared by two new packages: 128A single-mic and 128B dual-mic. */
+} bk_package_type_t;
+
 /**
  * @brief get soc info(chip id and version id)
  *
@@ -62,6 +71,19 @@ typedef struct {
  *
  */
 bk_err_t bk_soc_info_get(soc_info_t* soc_info);
+
+/**
+ * @brief Get the package type from OTP2.
+ *
+ * @param package_type[out] Package type decoded from the complete 4-byte OTP-ID.
+ *
+ * @return
+ * - BK_OK: read succeeded; unmatched OTP-ID returns BK_PACKAGE_TYPE_UNKNOWN
+ * - BK_ERR_NULL_PARAM: package_type is NULL
+ * - BK_ERR_NOT_SUPPORT: OTP v1 is disabled
+ * - others: OTP read error
+ */
+bk_err_t bk_get_package_type(bk_package_type_t *package_type);
 
 bool bk_is_chip_supported(void);
 
