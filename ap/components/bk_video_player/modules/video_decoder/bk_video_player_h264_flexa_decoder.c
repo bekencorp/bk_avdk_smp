@@ -1368,12 +1368,15 @@ static avdk_err_t hw_h264_decoder_deinit(struct video_player_video_decoder_ops_s
     AVDK_RETURN_ON_FALSE(self, AVDK_ERR_INVAL, TAG, "instance is NULL");
     hw_h264_decoder_ctx_t *ctx = &self->ctx;
 
-    hw_h264_decoder_teardown_pipeline(ctx);
-
+    /* Reject late GPU callbacks before unregistering the bond. The decoder
+     * worker is already joined by the controller deinit path before any
+     * instance-owned semaphore or memory is released. */
     if (s_active_ctx == ctx)
     {
         s_active_ctx = NULL;
     }
+
+    hw_h264_decoder_teardown_pipeline(ctx);
 
     if (ctx->frame_ready_sem != NULL)
     {

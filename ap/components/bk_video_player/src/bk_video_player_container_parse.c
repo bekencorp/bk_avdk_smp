@@ -53,6 +53,15 @@ static bool vp_audio_parse_should_exit(private_video_player_ctlr_t *controller)
            !controller->audio_parse_thread_running;
 }
 
+static void vp_video_parse_ack_quiesced(private_video_player_ctlr_t *controller)
+{
+    if (controller != NULL && controller->video_parse_quiesce_requested)
+    {
+        controller->video_parse_quiesce_requested = false;
+        rtos_set_semaphore(&controller->video_parse_quiesced_sem);
+    }
+}
+
 static uint64_t video_player_get_current_time_ms(private_video_player_ctlr_t *controller)
 {
     if (controller == NULL || controller->time_mutex == NULL)
@@ -105,6 +114,7 @@ static void bk_video_player_container_video_parse_thread(void *arg)
 
         if (!controller->video_parse_thread_running)
         {
+            vp_video_parse_ack_quiesced(controller);
             continue;
         }
 
@@ -183,7 +193,14 @@ static void bk_video_player_container_video_parse_thread(void *arg)
             video_player_buffer_node_t *buffer_node = buffer_pool_get_empty(&controller->video_pipeline.parser_to_decode_pool);
             if (buffer_node == NULL)
             {
-                if (controller->video_parse_thread_exit)
+                /*
+                 * Output-mode switching stops the producer before waiting for
+                 * its quiesce acknowledgement.  When the decoder/Flexa path is
+                 * stalled the two-node packet pool can remain full, so checking
+                 * only thread_exit here leaves the parser spinning forever and
+                 * prepare_video_decoder_switch blocked on its semaphore.
+                 */
+                if (vp_video_parse_should_exit(controller))
                 {
                     break;
                 }
@@ -494,6 +511,7 @@ static void bk_video_player_container_video_parse_thread(void *arg)
             buffer_pool_put_filled(&controller->video_pipeline.parser_to_decode_pool, buffer_node);
         }
 
+        vp_video_parse_ack_quiesced(controller);
         LOGI("%s: Container video parse thread stopped, waiting for next play signal\n", __func__);
     }
 
@@ -938,6 +956,14 @@ avdk_err_t bk_video_player_container_parse_init(private_video_player_ctlr_t *con
         return AVDK_ERR_GENERIC;
     }
 
+    if (rtos_init_semaphore(&controller->video_parse_quiesced_sem, 1) != BK_OK)
+    {
+        LOGE("%s: Failed to init video parse quiesce semaphore\n", __func__);
+        rtos_deinit_semaphore(&controller->audio_parse_sem);
+        rtos_deinit_semaphore(&controller->video_parse_sem);
+        return AVDK_ERR_GENERIC;
+    }
+
     controller->video_parse_thread_running = false;
     controller->audio_parse_thread_running = false;
     controller->video_parse_thread_exit = false;
@@ -951,6 +977,7 @@ avdk_err_t bk_video_player_container_parse_init(private_video_player_ctlr_t *con
     if (ret != BK_OK)
     {
         LOGE("%s: Failed to create video parse thread, ret=%d\n", __func__, ret);
+        rtos_deinit_semaphore(&controller->video_parse_quiesced_sem);
         rtos_deinit_semaphore(&controller->video_parse_sem);
         rtos_deinit_semaphore(&controller->audio_parse_sem);
         return AVDK_ERR_GENERIC;
@@ -969,6 +996,7 @@ avdk_err_t bk_video_player_container_parse_init(private_video_player_ctlr_t *con
         rtos_set_semaphore(&controller->video_parse_sem);
         rtos_thread_join(controller->video_parse_thread);
         controller->video_parse_thread = NULL;
+        rtos_deinit_semaphore(&controller->video_parse_quiesced_sem);
         rtos_deinit_semaphore(&controller->video_parse_sem);
         rtos_deinit_semaphore(&controller->audio_parse_sem);
         return AVDK_ERR_GENERIC;
@@ -1012,6 +1040,11 @@ void bk_video_player_container_parse_deinit(private_video_player_ctlr_t *control
     if (controller->audio_parse_sem != NULL)
     {
         rtos_deinit_semaphore(&controller->audio_parse_sem);
+    }
+    if (controller->video_parse_quiesced_sem != NULL)
+    {
+        rtos_deinit_semaphore(&controller->video_parse_quiesced_sem);
+        controller->video_parse_quiesced_sem = NULL;
     }
 
     LOGI("%s: Container parse resources deinitialized\n", __func__);

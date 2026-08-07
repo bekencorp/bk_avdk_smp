@@ -64,6 +64,25 @@ static bool video_player_audio_track_params_equal(const video_player_audio_param
     return a->format == b->format && video_player_audio_output_params_equal(a, b);
 }
 
+static void video_player_ctlr_set_audio_seek_gate(private_video_player_ctlr_t *controller,
+                                                  bool enable)
+{
+    if (controller == NULL)
+    {
+        return;
+    }
+    if (controller->time_mutex != NULL)
+    {
+        rtos_lock_mutex(&controller->time_mutex);
+        controller->audio_seek_gate_enable = enable;
+        rtos_unlock_mutex(&controller->time_mutex);
+    }
+    else
+    {
+        controller->audio_seek_gate_enable = enable;
+    }
+}
+
 static void video_player_ctlr_bump_play_session_id(private_video_player_ctlr_t *controller)
 {
     if (controller == NULL)
@@ -81,6 +100,7 @@ static void video_player_ctlr_bump_play_session_id(private_video_player_ctlr_t *
     {
         controller->audio_play_session_id = 1;
     }
+    video_player_ctlr_set_audio_seek_gate(controller, true);
 }
 
 static void video_player_ctlr_bump_audio_play_session_id(private_video_player_ctlr_t *controller)
@@ -95,6 +115,21 @@ static void video_player_ctlr_bump_audio_play_session_id(private_video_player_ct
     {
         controller->audio_play_session_id = 1;
     }
+}
+
+static void video_player_ctlr_bump_video_play_session_id(private_video_player_ctlr_t *controller)
+{
+    if (controller == NULL)
+    {
+        return;
+    }
+
+    controller->play_session_id++;
+    if (controller->play_session_id == 0)
+    {
+        controller->play_session_id = 1;
+    }
+    video_player_ctlr_set_audio_seek_gate(controller, false);
 }
 
 static avdk_err_t video_player_init_h264_preview_out(video_player_buffer_t *out)
@@ -440,6 +475,10 @@ static bool audio_decoder_supports_format(const video_player_audio_decoder_ops_t
                                          video_player_audio_format_t format);
 static bool video_decoder_supports_format(video_player_video_decoder_ops_t *decoder_template,
                                           video_player_video_format_t format);
+static bool video_player_try_select_video_decoder(
+    private_video_player_ctlr_t *controller,
+    video_player_video_params_t *video_params,
+    bool log_create_failure);
 
 // Try selecting decoders using an already-opened container parser.
 // Caller must hold decoder_list_mutex.
@@ -567,44 +606,8 @@ static avdk_err_t select_decoders_try_opened_parser_locked(private_video_player_
 
     if (video_present)
     {
-        video_player_video_decoder_ops_t *video_decoder_ops = NULL;
-        video_player_video_decoder_node_t *video_node = controller->video_decoder_list;
-        while (video_node != NULL)
-        {
-            if (video_node->ops == NULL || video_node->ops->create == NULL)
-            {
-                video_node = video_node->next;
-                continue;
-            }
-
-            if (!video_decoder_supports_format(video_node->ops, media_info.video.format))
-            {
-                video_node = video_node->next;
-                continue;
-            }
-
-            video_decoder_ops = video_node->ops->create();
-            if (video_decoder_ops == NULL)
-            {
-                video_node = video_node->next;
-                continue;
-            }
-            ret = video_decoder_ops->init(video_decoder_ops, &media_info.video);
-            if (ret == AVDK_ERR_OK)
-            {
-                controller->active_video_decoder = video_decoder_ops;
-                controller->video_predecode_gop_drop_enable = video_node->enable_predecode_gop_drop;
-                video_decoder_found = true;
-                controller->video_track_enabled = true;
-                break;
-            }
-            if (video_decoder_ops->destroy != NULL)
-            {
-                video_decoder_ops->destroy(video_decoder_ops);
-            }
-            video_decoder_ops = NULL;
-            video_node = video_node->next;
-        }
+        video_decoder_found = video_player_try_select_video_decoder(
+            controller, &media_info.video, false);
 
         if (!video_decoder_found)
         {
@@ -695,6 +698,75 @@ static bool video_decoder_supports_format(video_player_video_decoder_ops_t *deco
             return true;
         }
     }
+    return false;
+}
+
+static bool video_player_try_select_video_decoder(
+    private_video_player_ctlr_t *controller,
+    video_player_video_params_t *video_params,
+    bool log_create_failure)
+{
+    if (controller == NULL || video_params == NULL)
+    {
+        return false;
+    }
+
+    const uint32_t decoder_passes =
+        (controller->preferred_video_decoder_ops != NULL) ? 2U : 1U;
+    for (uint32_t decoder_pass = 0; decoder_pass < decoder_passes; decoder_pass++)
+    {
+        video_player_video_decoder_node_t *video_node =
+            controller->video_decoder_list;
+        while (video_node != NULL)
+        {
+            const bool is_preferred =
+                video_node->ops == controller->preferred_video_decoder_ops;
+            if (controller->preferred_video_decoder_ops != NULL &&
+                ((decoder_pass == 0U && !is_preferred) ||
+                 (decoder_pass == 1U && is_preferred)))
+            {
+                video_node = video_node->next;
+                continue;
+            }
+            if (video_node->ops == NULL || video_node->ops->create == NULL ||
+                !video_decoder_supports_format(video_node->ops,
+                                               video_params->format))
+            {
+                video_node = video_node->next;
+                continue;
+            }
+
+            video_player_video_decoder_ops_t *video_decoder_ops =
+                video_node->ops->create();
+            if (video_decoder_ops == NULL)
+            {
+                if (log_create_failure)
+                {
+                    LOGE("%s: Failed to create video decoder\n", __func__);
+                }
+                video_node = video_node->next;
+                continue;
+            }
+
+            avdk_err_t ret = video_decoder_ops->init(video_decoder_ops,
+                                                     video_params);
+            if (ret == AVDK_ERR_OK)
+            {
+                controller->active_video_decoder = video_decoder_ops;
+                controller->video_predecode_gop_drop_enable =
+                    video_node->enable_predecode_gop_drop;
+                controller->preferred_video_decoder_ops = video_node->ops;
+                controller->video_track_enabled = true;
+                return true;
+            }
+            if (video_decoder_ops->destroy != NULL)
+            {
+                video_decoder_ops->destroy(video_decoder_ops);
+            }
+            video_node = video_node->next;
+        }
+    }
+
     return false;
 }
 
@@ -810,7 +882,6 @@ static avdk_err_t select_decoders(private_video_player_ctlr_t *controller, const
             // Use template ops to match file path before create() to avoid unnecessary allocations.
             matched = container_parser_supports_file_path(parser_node->ops, file_path);
 
-            video_player_video_decoder_ops_t *video_decoder_ops = NULL;
             video_player_audio_decoder_ops_t *audio_decoder_ops = NULL;
 
             if (pass == 0)
@@ -953,49 +1024,8 @@ static avdk_err_t select_decoders(private_video_player_ctlr_t *controller, const
             // when get_media_info() succeeds above.
             if (controller->current_media_info.video.width != 0 && controller->current_media_info.video.height != 0)
             {
-                // Select video decoder: try decoders in registration order (hardware decoder should be registered first)
-                // Hardware decoder has strict requirements (width%16==0, height%8==0, YUV422 format)
-                // If hardware decoder init fails (returns AVDK_ERR_UNSUPPORTED), try next decoder (software decoder)
-                // Software decoder has no restrictions and can handle any JPEG frame
-                video_player_video_decoder_node_t *video_node = controller->video_decoder_list;
-                while (video_node != NULL)
-                {
-                    if (video_node->ops == NULL || video_node->ops->create == NULL)
-                    {
-                        video_node = video_node->next;
-                        continue;
-                    }
-
-                    if (!video_decoder_supports_format(video_node->ops, media_info.video.format))
-                    {
-                        video_node = video_node->next;
-                        continue;
-                    }
-
-                    video_decoder_ops = video_node->ops->create();
-                    if (video_decoder_ops == NULL)
-                    {
-                        LOGE("%s: Failed to create video decoder\n", __func__);
-                        video_node = video_node->next;
-                        break;
-                    }
-                    ret = video_decoder_ops->init(video_decoder_ops, &media_info.video);
-                    if (ret == AVDK_ERR_OK)
-                    {
-                        controller->active_video_decoder = video_decoder_ops;
-                        controller->video_predecode_gop_drop_enable = video_node->enable_predecode_gop_drop;
-                        video_decoder_found = true;
-                        controller->video_track_enabled = true;
-                        break;
-                    }
-                    if (video_decoder_ops->destroy != NULL)
-                    {
-                        video_decoder_ops->destroy(video_decoder_ops);
-                    }
-                    video_decoder_ops = NULL;
-                    // If init returns AVDK_ERR_UNSUPPORTED, try next decoder in list
-                    video_node = video_node->next;
-                }
+                video_decoder_found = video_player_try_select_video_decoder(
+                    controller, &media_info.video, true);
 
                 if (!video_decoder_found)
                 {
@@ -1524,6 +1554,7 @@ static avdk_err_t video_player_ctlr_open(bk_video_player_ctlr_handle_t handler)
     controller->delivered_video_frame_index = 0;
     controller->video_seek_drop_enable = false;
     controller->video_seek_drop_until_pts_ms = 0;
+    controller->audio_seek_gate_enable = false;
     controller->vp_evt_last_video_pts = 0;
     controller->vp_evt_last_video_time_ms = 0;
     controller->vp_evt_last_video_session_id = 0;
@@ -2170,6 +2201,169 @@ static avdk_err_t video_player_ctlr_register_video_decoder(bk_video_player_ctlr_
     AVDK_RETURN_ON_FALSE(decoder_ops, AVDK_ERR_INVAL, TAG, "decoder_ops is NULL");
 
     return bk_video_player_video_decoder_list_add(controller, decoder_ops);
+}
+
+static avdk_err_t video_player_ctlr_prepare_video_decoder_switch(
+    bk_video_player_ctlr_handle_t handler)
+{
+    private_video_player_ctlr_t *controller =
+        __containerof(handler, private_video_player_ctlr_t, ops);
+    AVDK_RETURN_ON_FALSE(controller, AVDK_ERR_INVAL, TAG, "controller is NULL");
+    AVDK_RETURN_ON_FALSE(controller->module_status.status == VIDEO_PLAYER_STATUS_PLAYING ||
+                         controller->module_status.status == VIDEO_PLAYER_STATUS_PAUSED,
+                         AVDK_ERR_INVAL, TAG, "player is not active");
+    AVDK_RETURN_ON_FALSE(!controller->video_decoder_switch_prepared,
+                         AVDK_ERR_BUSY, TAG, "video switch is already prepared");
+    AVDK_RETURN_ON_FALSE(controller->video_track_enabled,
+                         AVDK_ERR_UNSUPPORTED, TAG, "video track is disabled");
+    AVDK_RETURN_ON_FALSE(controller->active_video_decoder != NULL,
+                         AVDK_ERR_INVAL, TAG, "active video decoder is NULL");
+
+    /*
+     * Stop the producer first. The decoder remains running until the parser has
+     * acknowledged quiescence, so a parser blocked waiting for an empty pool
+     * node can always make progress.
+     */
+    controller->video_parse_quiesce_requested = true;
+    controller->video_parse_thread_running = false;
+    video_player_ctlr_bump_video_play_session_id(controller);
+    rtos_set_semaphore(&controller->video_parse_sem);
+    (void)rtos_get_semaphore(&controller->video_parse_quiesced_sem,
+                             BEKEN_WAIT_FOREVER);
+
+    /*
+     * Now stop the consumer and wait for its explicit acknowledgement. The ack
+     * is emitted only from the top of the decode loop, after the current
+     * decode(), pacing and callback path have all returned. This makes it safe
+     * to release the raw decoder pointer captured by that thread.
+     */
+    controller->video_decode_quiesce_requested = true;
+    controller->video_decode_thread_running = false;
+    (void)rtos_get_semaphore(&controller->video_decode_quiesced_sem,
+                             BEKEN_WAIT_FOREVER);
+
+    drain_filled_packet_pool_video(&controller->video_pipeline.parser_to_decode_pool,
+                                   controller->config.video.packet_buffer_free_cb,
+                                   controller->config.user_data);
+
+    rtos_lock_mutex(&controller->active_mutex);
+    video_player_video_decoder_ops_t *old_decoder =
+        controller->active_video_decoder;
+    controller->active_video_decoder = NULL;
+    controller->video_predecode_gop_drop_enable = false;
+    rtos_unlock_mutex(&controller->active_mutex);
+
+    avdk_err_t deinit_ret = AVDK_ERR_OK;
+    if (old_decoder->deinit != NULL)
+    {
+        deinit_ret = old_decoder->deinit(old_decoder);
+    }
+    if (old_decoder->destroy != NULL)
+    {
+        old_decoder->destroy(old_decoder);
+    }
+
+    controller->video_decoder_switch_prepared = true;
+    LOGI("%s: switch session=%u old=%p destroyed, audio_gate=off deinit=%d\n",
+         __func__, (unsigned)controller->play_session_id, old_decoder,
+         (int)deinit_ret);
+    return AVDK_ERR_OK;
+}
+
+static avdk_err_t video_player_ctlr_complete_video_decoder_switch(
+    bk_video_player_ctlr_handle_t handler,
+    const bk_video_player_video_switch_profile_t *profile)
+{
+    private_video_player_ctlr_t *controller =
+        __containerof(handler, private_video_player_ctlr_t, ops);
+    AVDK_RETURN_ON_FALSE(controller, AVDK_ERR_INVAL, TAG, "controller is NULL");
+    AVDK_RETURN_ON_FALSE(profile && profile->decoder_ops,
+                         AVDK_ERR_INVAL, TAG, "profile decoder is NULL");
+    AVDK_RETURN_ON_FALSE(profile->output_format != 0 &&
+                         profile->output_format != PIXEL_FMT_UNKNOW,
+                         AVDK_ERR_INVAL, TAG, "profile output format is invalid");
+    AVDK_RETURN_ON_FALSE(profile->buffer_alloc_cb && profile->buffer_free_cb,
+                         AVDK_ERR_INVAL, TAG, "profile buffer callbacks are NULL");
+    AVDK_RETURN_ON_FALSE(controller->video_decoder_switch_prepared,
+                         AVDK_ERR_INVAL, TAG, "video switch was not prepared");
+
+    bool decoder_registered = false;
+    bool enable_predecode_gop_drop = false;
+    rtos_lock_mutex(&controller->decoder_list_mutex);
+    for (video_player_video_decoder_node_t *node = controller->video_decoder_list;
+         node != NULL; node = node->next)
+    {
+        if (node->ops == profile->decoder_ops)
+        {
+            decoder_registered = true;
+            enable_predecode_gop_drop = node->enable_predecode_gop_drop;
+            break;
+        }
+    }
+    rtos_unlock_mutex(&controller->decoder_list_mutex);
+    AVDK_RETURN_ON_FALSE(decoder_registered, AVDK_ERR_NODEV, TAG,
+                         "target decoder is not registered");
+    AVDK_RETURN_ON_FALSE(profile->decoder_ops->create != NULL,
+                         AVDK_ERR_UNSUPPORTED, TAG, "target decoder has no create");
+
+    video_player_video_params_t params = controller->current_media_info.video;
+    params.output_format = profile->output_format;
+    params.rotate_degree = profile->rotate_degree;
+    params.display_width = profile->display_width;
+    params.display_height = profile->display_height;
+
+    video_player_video_decoder_ops_t *new_decoder =
+        profile->decoder_ops->create();
+    AVDK_RETURN_ON_FALSE(new_decoder, AVDK_ERR_NOMEM, TAG,
+                         "target decoder create failed");
+
+    avdk_err_t ret = new_decoder->init(new_decoder, &params);
+    if (ret != AVDK_ERR_OK)
+    {
+        if (new_decoder->destroy != NULL)
+        {
+            new_decoder->destroy(new_decoder);
+        }
+        LOGE("%s: target decoder init failed, ret=%d\n", __func__, ret);
+        return ret;
+    }
+
+    rtos_lock_mutex(&controller->active_mutex);
+    controller->config.video.output_format = profile->output_format;
+    controller->config.video.rotate_degree = profile->rotate_degree;
+    controller->config.video.display_width = profile->display_width;
+    controller->config.video.display_height = profile->display_height;
+    controller->config.video.buffer_alloc_cb = profile->buffer_alloc_cb;
+    controller->config.video.buffer_free_cb = profile->buffer_free_cb;
+    controller->current_media_info.video = params;
+    controller->active_video_decoder = new_decoder;
+    controller->preferred_video_decoder_ops = profile->decoder_ops;
+    controller->video_predecode_gop_drop_enable = enable_predecode_gop_drop;
+    controller->video_track_enabled = true;
+    rtos_unlock_mutex(&controller->active_mutex);
+
+    uint64_t resume_pts_ms = video_player_get_current_time_ms(controller);
+    video_pipeline_set_next_frame_pts(&controller->video_pipeline, resume_pts_ms);
+    video_pipeline_update_pts(&controller->video_pipeline, resume_pts_ms);
+    drain_filled_packet_pool_video(&controller->video_pipeline.parser_to_decode_pool,
+                                   controller->config.video.packet_buffer_free_cb,
+                                   controller->config.user_data);
+
+    controller->video_eof_reached = false;
+    controller->delivered_video_frame_index = 0;
+    controller->vp_evt_last_video_pts = 0;
+    controller->vp_evt_last_video_time_ms = rtos_get_time();
+    controller->vp_evt_last_video_session_id = controller->play_session_id;
+    controller->video_decoder_switch_prepared = false;
+
+    controller->video_decode_thread_running = true;
+    controller->video_parse_thread_running = true;
+    rtos_set_semaphore(&controller->video_parse_sem);
+
+    LOGI("%s: switch session=%u new=%p restarted at audio PTS=%llu, audio_gate=off\n",
+         __func__, (unsigned)controller->play_session_id, new_decoder,
+         (unsigned long long)resume_pts_ms);
+    return AVDK_ERR_OK;
 }
 
 static avdk_err_t video_player_ctlr_register_container_parser(bk_video_player_ctlr_handle_t handler,
@@ -2909,6 +3103,10 @@ avdk_err_t bk_video_player_ctlr_new(bk_video_player_ctlr_handle_t *handle, bk_vi
     controller->ops.register_audio_decoder = video_player_ctlr_register_audio_decoder;
     controller->ops.register_video_decoder = video_player_ctlr_register_video_decoder;
     controller->ops.register_container_parser = video_player_ctlr_register_container_parser;
+    controller->ops.prepare_video_decoder_switch =
+        video_player_ctlr_prepare_video_decoder_switch;
+    controller->ops.complete_video_decoder_switch =
+        video_player_ctlr_complete_video_decoder_switch;
     controller->ops.get_media_info = video_player_ctlr_get_media_info;
     controller->ops.get_status = video_player_ctlr_get_status;
     controller->ops.get_current_time = video_player_ctlr_get_current_time;

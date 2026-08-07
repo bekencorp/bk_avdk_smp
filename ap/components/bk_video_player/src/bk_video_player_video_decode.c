@@ -268,6 +268,15 @@ static uint64_t video_player_advance_keep_pts(uint64_t next_keep_pts_ms,
 
 // Video decode thread (pipeline stage 2 for video)
 // Pipeline: Container parse -> Video decode -> Output
+static void video_decode_ack_quiesced(private_video_player_ctlr_t *controller)
+{
+    if (controller != NULL && controller->video_decode_quiesce_requested)
+    {
+        controller->video_decode_quiesce_requested = false;
+        rtos_set_semaphore(&controller->video_decode_quiesced_sem);
+    }
+}
+
 static void bk_video_player_video_decode_thread(void *arg)
 {
     private_video_player_ctlr_t *controller = (private_video_player_ctlr_t *)arg;
@@ -289,6 +298,7 @@ static void bk_video_player_video_decode_thread(void *arg)
     {
         if (!controller->video_decode_thread_running)
         {
+            video_decode_ack_quiesced(controller);
             rtos_delay_milliseconds(10);
             continue;
         }
@@ -764,6 +774,7 @@ static void bk_video_player_video_decode_thread(void *arg)
                         {
                             controller->video_seek_drop_enable = false;
                             controller->video_seek_drop_until_pts_ms = 0;
+                            controller->audio_seek_gate_enable = false;
                         }
                         rtos_unlock_mutex(&controller->time_mutex);
                     }
@@ -872,6 +883,7 @@ static void bk_video_player_video_decode_thread(void *arg)
                                 // First decoded frame reaches seek target, disable dropping globally.
                                 controller->video_seek_drop_enable = false;
                                 controller->video_seek_drop_until_pts_ms = 0;
+                                controller->audio_seek_gate_enable = false;
                             }
                             rtos_unlock_mutex(&controller->time_mutex);
                         }
@@ -915,6 +927,7 @@ static void bk_video_player_video_decode_thread(void *arg)
                         {
                             controller->video_seek_drop_enable = false;
                             controller->video_seek_drop_until_pts_ms = 0;
+                            controller->audio_seek_gate_enable = false;
                         }
                         rtos_unlock_mutex(&controller->time_mutex);
                     }
@@ -960,6 +973,13 @@ avdk_err_t bk_video_player_video_decode_init(private_video_player_ctlr_t *contro
         return AVDK_ERR_NOMEM;
     }
 
+    if (rtos_init_semaphore(&controller->video_decode_quiesced_sem, 1) != BK_OK)
+    {
+        LOGE("%s: Failed to init video decode quiesce semaphore\n", __func__);
+        rtos_deinit_semaphore(&controller->video_decode_sem);
+        return AVDK_ERR_NOMEM;
+    }
+
     controller->video_decode_thread_running = false;
     controller->video_decode_thread_exit = false;
 
@@ -971,6 +991,7 @@ avdk_err_t bk_video_player_video_decode_init(private_video_player_ctlr_t *contro
     if (ret != BK_OK)
     {
         LOGE("%s: Failed to create video decode thread, ret=%d\n", __func__, ret);
+        rtos_deinit_semaphore(&controller->video_decode_quiesced_sem);
         rtos_deinit_semaphore(&controller->video_decode_sem);
         return AVDK_ERR_GENERIC;
     }
@@ -997,6 +1018,11 @@ void bk_video_player_video_decode_deinit(private_video_player_ctlr_t *controller
         controller->video_decode_thread = NULL;
         rtos_deinit_semaphore(&controller->video_decode_sem);
         controller->video_decode_sem = NULL;
+    }
+    if (controller->video_decode_quiesced_sem != NULL)
+    {
+        rtos_deinit_semaphore(&controller->video_decode_quiesced_sem);
+        controller->video_decode_quiesced_sem = NULL;
     }
 }
 

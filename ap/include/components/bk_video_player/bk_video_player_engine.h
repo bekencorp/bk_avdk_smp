@@ -236,6 +236,25 @@ avdk_err_t bk_video_player_engine_register_video_decoder(bk_video_player_engine_
                                                          video_player_video_decoder_ops_t *decoder_ops);
 
 /**
+ * @brief Quiesce the video pipeline and destroy only the active video decoder.
+ *
+ * This waits until video parsing is stopped and any in-flight decode() call has
+ * returned. The engine, container parser, audio decoder, audio threads and
+ * audio output remain active.
+ */
+avdk_err_t bk_video_player_engine_prepare_video_decoder_switch(
+    bk_video_player_engine_handle_t handle);
+
+/**
+ * @brief Install a target video profile and restart video at the audio clock.
+ *
+ * Must follow bk_video_player_engine_prepare_video_decoder_switch().
+ */
+avdk_err_t bk_video_player_engine_complete_video_decoder_switch(
+    bk_video_player_engine_handle_t handle,
+    const bk_video_player_video_switch_profile_t *profile);
+
+/**
  * @brief Register container parser
  *
  * @param handle Player engine handle

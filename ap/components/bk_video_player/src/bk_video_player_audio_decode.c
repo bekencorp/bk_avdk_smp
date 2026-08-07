@@ -126,6 +126,7 @@ static void bk_video_player_audio_decode_thread(void *arg)
     uint32_t last_seen_session_id = 0;
     uint64_t delivered_packet_index = 0;
     uint32_t seek_gate_start_tick_ms = 0;
+    bool seek_gate_was_on = false;
     uint64_t audio_pace_base_pts_ms = 0;
     uint32_t audio_pace_base_tick_ms = 0;
     bool audio_pace_base_valid = false;
@@ -189,7 +190,6 @@ static void bk_video_player_audio_decode_thread(void *arg)
                 alloc_fail_cnt = 0;
                 last_seen_session_id = iter_session_id;
                 delivered_packet_index = 0;
-                seek_gate_start_tick_ms = 0;
                 audio_pace_base_pts_ms = 0;
                 audio_pace_base_tick_ms = 0;
                 audio_pace_base_valid = false;
@@ -207,34 +207,39 @@ static void bk_video_player_audio_decode_thread(void *arg)
                 continue;
             }
 
-            // Seek gating: do not output audio until video preroll drop completes.
+            // Full-seek audio gating is deliberately independent from video
+            // preroll dropping. A video-only decoder switch may drop video
+            // preroll output while audio continues without interruption.
             if (controller->time_mutex != NULL)
             {
-                if (seek_gate_start_tick_ms == 0)
-                {
-                    seek_gate_start_tick_ms = rtos_get_time();
-                }
-
                 while (controller->audio_decode_thread_running && !controller->audio_decode_thread_exit)
                 {
                     bool gate_on = false;
                     uint64_t gate_pts = 0;
 
                     rtos_lock_mutex(&controller->time_mutex);
-                    gate_on = controller->video_seek_drop_enable;
+                    gate_on = controller->audio_seek_gate_enable;
                     gate_pts = controller->video_seek_drop_until_pts_ms;
                     rtos_unlock_mutex(&controller->time_mutex);
 
                     if (!gate_on)
                     {
+                        seek_gate_start_tick_ms = 0;
+                        seek_gate_was_on = false;
                         break;
+                    }
+                    if (!seek_gate_was_on)
+                    {
+                        seek_gate_start_tick_ms = rtos_get_time();
+                        seek_gate_was_on = true;
                     }
                     if (gate_pts == 0)
                     {
                         rtos_lock_mutex(&controller->time_mutex);
-                        controller->video_seek_drop_enable = false;
-                        controller->video_seek_drop_until_pts_ms = 0;
+                        controller->audio_seek_gate_enable = false;
                         rtos_unlock_mutex(&controller->time_mutex);
+                        seek_gate_start_tick_ms = 0;
+                        seek_gate_was_on = false;
                         break;
                     }
 
@@ -244,9 +249,10 @@ static void bk_video_player_audio_decode_thread(void *arg)
                     {
                         LOGW("%s: Seek gating timeout (%u ms), allow audio output\n", __func__, elapsed);
                         rtos_lock_mutex(&controller->time_mutex);
-                        controller->video_seek_drop_enable = false;
-                        controller->video_seek_drop_until_pts_ms = 0;
+                        controller->audio_seek_gate_enable = false;
                         rtos_unlock_mutex(&controller->time_mutex);
+                        seek_gate_start_tick_ms = 0;
+                        seek_gate_was_on = false;
                         break;
                     }
 

@@ -323,6 +323,25 @@ typedef struct video_player_video_decoder_ops_s
     avdk_err_t (*decode)(struct video_player_video_decoder_ops_s *ops, video_player_buffer_t *in_buffer, video_player_buffer_t *out_buffer, pixel_format_t out_fmt);
 } video_player_video_decoder_ops_t;
 
+/**
+ * Mutable video-only configuration used by decoder hot switching.
+ *
+ * The decoder template must be registered on the engine. prepare() stops the
+ * video pipeline and destroys the active decoder; complete() creates this
+ * decoder and restarts video at the current master-clock PTS. Audio state is
+ * intentionally not part of this profile.
+ */
+typedef struct
+{
+    video_player_video_decoder_ops_t *decoder_ops;
+    pixel_format_t output_format;
+    uint32_t rotate_degree;
+    uint32_t display_width;
+    uint32_t display_height;
+    video_player_video_buffer_alloc_cb_t buffer_alloc_cb;
+    video_player_video_buffer_free_cb_t buffer_free_cb;
+} bk_video_player_video_switch_profile_t;
+
 // Container parser operations (AVI/MP4/etc.)
 // The parser is responsible for:
 // - Parsing container headers and stream metadata
@@ -505,6 +524,12 @@ typedef struct bk_video_player
     avdk_err_t (*register_audio_decoder)(bk_video_player_handle_t handle, const video_player_audio_decoder_ops_t *decoder_ops);
     avdk_err_t (*register_video_decoder)(bk_video_player_handle_t handle, video_player_video_decoder_ops_t *decoder_ops);
     avdk_err_t (*register_container_parser)(bk_video_player_handle_t handle, video_player_container_parser_ops_t *parser_ops);
+
+    // Two-phase video-decoder-only hot switch. Audio and parser instances remain active.
+    avdk_err_t (*prepare_video_decoder_switch)(bk_video_player_handle_t handle);
+    avdk_err_t (*complete_video_decoder_switch)(
+        bk_video_player_handle_t handle,
+        const bk_video_player_video_switch_profile_t *profile);
 
     // info query
     avdk_err_t (*get_media_info)(bk_video_player_handle_t handle,

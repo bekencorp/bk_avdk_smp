@@ -121,6 +121,8 @@ typedef struct private_video_player_ctlr_s
     video_player_audio_decoder_ops_t *active_audio_decoder;
     video_player_video_decoder_ops_t *active_video_decoder;
     video_player_container_parser_ops_t *active_container_parser;
+    // Explicit default for future file opens; updated by video hot switch.
+    video_player_video_decoder_ops_t *preferred_video_decoder_ops;
     // Video catch-up policy for the current active decoder/session.
     bool video_predecode_gop_drop_enable;
     // Per-track enable flags for current file.
@@ -152,6 +154,8 @@ typedef struct private_video_player_ctlr_s
     beken_semaphore_t audio_parse_sem;
     beken_semaphore_t video_decode_sem;
     beken_semaphore_t audio_decode_sem;
+    beken_semaphore_t video_parse_quiesced_sem;
+    beken_semaphore_t video_decode_quiesced_sem;
     
     bool video_parse_thread_running;
     bool audio_parse_thread_running;
@@ -162,6 +166,9 @@ typedef struct private_video_player_ctlr_s
     bool audio_parse_thread_exit;
     bool video_decode_thread_exit;
     bool audio_decode_thread_exit;
+    bool video_parse_quiesce_requested;
+    bool video_decode_quiesce_requested;
+    bool video_decoder_switch_prepared;
 
     // Playback control
     bool is_paused;
@@ -221,6 +228,9 @@ typedef struct private_video_player_ctlr_s
     // In this mode we must NOT deliver decoded frames whose pts is less than the requested seek pts.
     bool video_seek_drop_enable;
     uint64_t video_seek_drop_until_pts_ms;
+    // Audio gating is a separate policy from video preroll dropping. Full A/V
+    // seeks enable it; video-decoder-only restarts leave audio uninterrupted.
+    bool audio_seek_gate_enable;
 
     // Clock source:
     // - Prefer audio-driven clock if audio stream exists.

@@ -456,6 +456,32 @@ avdk_err_t bk_video_player_engine_register_video_decoder(bk_video_player_engine_
     return handle->ctlr->register_video_decoder(handle->ctlr, decoder_ops);
 }
 
+avdk_err_t bk_video_player_engine_prepare_video_decoder_switch(
+    bk_video_player_engine_handle_t handle)
+{
+    AVDK_RETURN_ON_FALSE(handle, AVDK_ERR_INVAL, TAG, "handle is NULL");
+    AVDK_RETURN_ON_FALSE(handle->ctlr, AVDK_ERR_INVAL, TAG, "controller is NULL");
+    AVDK_RETURN_ON_FALSE(handle->ctlr->prepare_video_decoder_switch,
+                         AVDK_ERR_UNSUPPORTED, TAG,
+                         "prepare video switch function is NULL");
+
+    return handle->ctlr->prepare_video_decoder_switch(handle->ctlr);
+}
+
+avdk_err_t bk_video_player_engine_complete_video_decoder_switch(
+    bk_video_player_engine_handle_t handle,
+    const bk_video_player_video_switch_profile_t *profile)
+{
+    AVDK_RETURN_ON_FALSE(handle, AVDK_ERR_INVAL, TAG, "handle is NULL");
+    AVDK_RETURN_ON_FALSE(profile, AVDK_ERR_INVAL, TAG, "profile is NULL");
+    AVDK_RETURN_ON_FALSE(handle->ctlr, AVDK_ERR_INVAL, TAG, "controller is NULL");
+    AVDK_RETURN_ON_FALSE(handle->ctlr->complete_video_decoder_switch,
+                         AVDK_ERR_UNSUPPORTED, TAG,
+                         "complete video switch function is NULL");
+
+    return handle->ctlr->complete_video_decoder_switch(handle->ctlr, profile);
+}
+
 avdk_err_t bk_video_player_engine_register_container_parser(bk_video_player_engine_handle_t handle,
                                                             video_player_container_parser_ops_t *parser_ops)
 {
