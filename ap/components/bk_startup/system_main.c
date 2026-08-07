@@ -15,6 +15,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <common/bk_include.h>
+#include "ram_regions.h"
 #include "bk_private/components_init.h"
 #include "bk_private/bk_driver.h"
 #include "rtos_init.h"
@@ -203,7 +204,7 @@ void start_cpu1_core(void)
 	reset_cpu1_core(SOC_FLASH_DATA_BASE + addr, 1);
 #else
 	/* Non-Secure SMP: secondary core enters the Secure boot shim in SRAM. */
-	reset_cpu1_core(0x28100000u, 1);
+	reset_cpu1_core(CONFIG_AP_SPE_RAM_ADDR, 1);
 #endif
 
 	mb_ipc_reset_notify(1, 1);
