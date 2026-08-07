@@ -15,6 +15,7 @@
 #include "multicore_hal.h"
 #include "cpu_id.h"
 #include "partitions.h"
+#include "ram_regions.h"
 #include "sys_driver.h"
 #include "aon_pmu_ll.h"
 #include "sys_ahbp_ll.h"
@@ -24,10 +25,6 @@
 #if CONFIG_SOC_SMP
 extern uint32_t __vector_core1_table;
 #endif
-
-/* Secure boot shim entry (first Secure RAM block). The secondary core enters
- * here in the Secure state and the shim switches it to Non-Secure. */
-#define AP_BOOT_SHIM_BASE   0x28100000u
 
 static void multicore_hal_m55_core_init_common(void)
 {
@@ -102,7 +99,7 @@ bk_err_t multicore_hal_start(uint32_t id)
 		 * and must enter the Secure boot shim first, which sets up the SAU and
 		 * branches to the core's Non-Secure vector. Pointing it directly at the
 		 * Non-Secure vector would execute Non-Secure code in the Secure state. */
-		boot_addr = AP_BOOT_SHIM_BASE;
+		boot_addr = CONFIG_AP_SPE_RAM_ADDR;
 #elif CONFIG_SOC_SMP
 		boot_addr = (uint32_t)&__vector_core1_table;
 #else
