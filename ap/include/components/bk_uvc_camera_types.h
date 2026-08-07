@@ -42,6 +42,23 @@ typedef enum {
     UVC_DISCONNECTED,      /**< Device has been disconnected */
 } uvc_state_t;
 
+typedef enum {
+    BK_UVC_IOCTL_UNKNOWN = 0,
+    /** Set skip_frames for a port before bk_uvc_open; arg = bk_uvc_skip_frames_config_t * */
+    BK_UVC_IOCTL_SET_SKIP_FRAMES,
+} bk_uvc_ioctl_cmd_t;
+
+/**
+ * @brief Skip-frames config for BK_UVC_IOCTL_SET_SKIP_FRAMES.
+ *
+ * Issue after bk_uvc_init and before bk_uvc_open for the target port.
+ */
+typedef struct
+{
+    uint8_t port;      /**< UVC port id (1-based) */
+    uint8_t count;     /**< Drop first N frames after open (AE warmup), 0 = disabled */
+} bk_uvc_skip_frames_config_t;
+
 /**
  * @brief Auxiliary information returned by a frame separation callback
  *
@@ -66,7 +83,6 @@ typedef struct
     uint16_t height;
     uint32_t fps;
     uint8_t port;
-    uint8_t drop_num;
 } bk_cam_uvc_config_t;
 
 /**
@@ -91,7 +107,7 @@ struct bk_uvc_ctlr
     avdk_err_t (*close)(bk_uvc_ctlr_t *controller);                     /**< Close the active UVC device */
     avdk_err_t (*suspend)(bk_uvc_ctlr_t *controller);                   /**< Suspend the controller for power saving */
     avdk_err_t (*resume)(bk_uvc_ctlr_t *controller);                    /**< Resume controller operation after suspend */
-    avdk_err_t (*ioctl)(bk_uvc_ctlr_t *controller, uint32_t event, void *arg); /**< Issue controller specific IOCTL command */
+    avdk_err_t (*ioctl)(bk_uvc_ctlr_t *controller, bk_uvc_ioctl_cmd_t event, void *arg); /**< Issue controller specific IOCTL command */
     avdk_err_t (*del)(bk_uvc_ctlr_t *controller);                       /**< Delete the controller instance */
 };
 
@@ -112,7 +128,6 @@ typedef struct
         .height = 480,               \
         .fps = 30,                    \
         .port = 1,                 \
-        .drop_num = 0,                      \
     }
 
 #ifdef __cplusplus

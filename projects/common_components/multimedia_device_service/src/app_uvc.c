@@ -9,6 +9,7 @@
 #include "encode_frame_que.h"
 #include "doorbell_img_manager.h"
 #include "app_camera_types.h"
+#include "app_camera.h"
 #include "devices_mgmt.h"
 
 
@@ -483,7 +484,7 @@ static avdk_err_t uvc_camera_power_off(void)
     return AVDK_ERR_OK;
 }
 
-bk_uvc_ctlr_handle_t uvc_camera_turn_on(bk_cam_uvc_config_t *config)
+bk_uvc_ctlr_handle_t uvc_camera_turn_on(bk_cam_uvc_config_t *config, uint8_t skip_frames)
 {
     avdk_err_t ret = AVDK_ERR_GENERIC;
     bk_uvc_ctlr_handle_t handle = NULL;
@@ -551,6 +552,13 @@ bk_uvc_ctlr_handle_t uvc_camera_turn_on(bk_cam_uvc_config_t *config)
     {
         LOGE("%s, %d: bk_uvc_init failed\n", __func__, __LINE__);
         goto exit;
+    }
+
+    /* AE warmup: drop first N frames (unified with ISP via ioctl). Must be
+     * issued after init and before open. */
+    {
+        bk_uvc_skip_frames_config_t skip_cfg = { .port = config->port, .count = skip_frames };
+        (void)bk_uvc_ioctl(handle, BK_UVC_IOCTL_SET_SKIP_FRAMES, &skip_cfg);
     }
 
     ret = bk_uvc_open(handle, config);
@@ -627,7 +635,6 @@ avdk_err_t app_uvc_turn_on(camera_parameters_ext_t *parameters)
     config.height = parameters->camera_height;
     config.port = index + 1;
     config.format = BK_IMAGE_FORMAT_MJPEG;
-
     if (parameters->camera_out_format)
     {
         config.format = BK_IMAGE_FORMAT_H264;
@@ -637,7 +644,17 @@ avdk_err_t app_uvc_turn_on(camera_parameters_ext_t *parameters)
 
     bk_encoded_data_manager_init();
 
-    s_uvc_handle[index] = uvc_camera_turn_on(&config);
+    uint8_t skip_frames = parameters->skip_frames;
+    if (skip_frames == 0)
+    {
+        camera_board_config_t *board_cfg = app_camera_board_config_get();
+        if (board_cfg != NULL)
+        {
+            skip_frames = board_cfg->skip_frames;
+        }
+    }
+
+    s_uvc_handle[index] = uvc_camera_turn_on(&config, skip_frames);
     if (s_uvc_handle[index] == NULL)
     {
         LOGE("uvc open failed\n");

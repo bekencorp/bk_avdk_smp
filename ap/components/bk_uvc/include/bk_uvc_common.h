@@ -9,7 +9,6 @@
 
 #include <components/usbh_hub_multiple_classes_api.h>
 #include <components/bk_uvc_camera_types.h>
-//#include <components/frame_buffer.h>
 
 #include "FreeRTOS.h"
 #include "event_groups.h"
@@ -141,6 +140,8 @@ typedef struct
     volatile uint8_t processing;
     volatile uint32_t pending_urb_num;
     bk_cam_uvc_config_t *info;
+    uint8_t skip_frames;           /**< AE warmup: configured skip count, set via BK_UVC_IOCTL_SET_SKIP_FRAMES */
+    uint8_t skip_frames_remaining; /**< AE warmup: skip first N complete frames before upper layer */
     uvc_stream_state_t stream_state;
     struct usbh_urb *urb;
     frame_buffer_t *frame;
@@ -194,4 +195,4 @@ avdk_err_t bk_uvc_camera_stream_start(uvc_stream_handle_t *handle, bk_cam_uvc_co
 avdk_err_t bk_uvc_camera_stream_stop(uvc_stream_handle_t *handle, uint8_t port);
 avdk_err_t bk_uvc_camera_stream_suspend(uvc_stream_handle_t *handle, uint8_t port);
 avdk_err_t bk_uvc_camera_stream_resume(uvc_stream_handle_t *handle, uint8_t port);
-avdk_err_t bk_uvc_camera_stream_ioctl(uvc_stream_handle_t *handle, uint32_t event, void *arg);
+avdk_err_t bk_uvc_camera_stream_ioctl(uvc_stream_handle_t *handle, bk_uvc_ioctl_cmd_t event, void *arg);

@@ -163,7 +163,7 @@ static bk_err_t isp_camera_ctlr_port_init(bk_isp_camera_ctlr_handle_t handle, vo
     control->attr[ctrl_cfg->port_id].pSnsObj = (void*)ctrl_cfg->sensor_object;
     control->attr[ctrl_cfg->port_id].port_id = ctrl_cfg->port_id;
 
-    LOGI("port id %d \r\n", ctrl_cfg->port_id);
+    LOGI("port id %d\r\n", ctrl_cfg->port_id);
     AVDK_RETURN_ON_ERROR(bk_isp_port_init(&control->isp_handle, &(control->attr[ctrl_cfg->port_id])), TAG, "exe fail");
 
     return AVDK_ERR_OK;
@@ -374,9 +374,10 @@ static avdk_err_t isp_camera_ctlr_channel_open(bk_isp_camera_ctlr_handle_t handl
         .width = config->width,
         .height = config->height,
         .format = isp_camera_format_convert(config->format),
+        .skip_frames = controller->skip_frames[channel],
     };
 
-    LOGI("%s, buf_cnt: %d, chnl_id: %d, port_id: %d, enable_flexa: %d, work_mode: %d, width: %d, height: %d, format: %d\n",
+    LOGI("%s, buf_cnt: %d, chnl_id: %d, port_id: %d, enable_flexa: %d, work_mode: %d, width: %d, height: %d, format: %d, skip_frames: %d\n",
         __func__,
         isp_config.buf_cnt,
         isp_config.chnl_id,
@@ -385,7 +386,8 @@ static avdk_err_t isp_camera_ctlr_channel_open(bk_isp_camera_ctlr_handle_t handl
         isp_config.work_mode,
         isp_config.width,
         isp_config.height,
-        isp_config.format
+        isp_config.format,
+        isp_config.skip_frames
     );
 
     AVDK_RETURN_ON_ERROR(bk_isp_open(&controller->isp_handle, &isp_config), TAG, "exe fail");
@@ -504,12 +506,23 @@ static avdk_err_t isp_camera_ctlr_ioctl(bk_isp_camera_ctlr_handle_t handle, bk_c
         case BK_CAM_IOCTL_SOFTRESET:
             bk_isp_soft_reset(&controller->isp_handle);
             break;
+
         case BK_CAM_IOCTL_GET_EXPOSURE_LUMINANCE:
             AVDK_RETURN_ON_FALSE(arg, AVDK_ERR_INVAL, TAG, "arg is NULL");
             AVDK_RETURN_ON_ERROR(
                 bk_isp_get_exposure_luminance(&controller->isp_handle, (uint32_t *)arg),
                 TAG, "get exposure luminance failed");
             break;
+
+        case BK_CAM_IOCTL_SET_SKIP_FRAMES:
+        {
+            bk_isp_camera_skip_frames_config_t *cfg = (bk_isp_camera_skip_frames_config_t *)arg;
+            AVDK_RETURN_ON_FALSE(cfg, AVDK_ERR_INVAL, TAG, "skip_frames arg is NULL");
+            AVDK_RETURN_ON_FALSE(cfg->channel < ISP_CHANNEL_INSTANCE_MAX, AVDK_ERR_INVAL, TAG, "skip_frames channel invalid");
+            controller->skip_frames[cfg->channel] = cfg->count;
+            break;
+        }
+
         default:
             return AVDK_ERR_INVAL;
     }

@@ -77,6 +77,8 @@ typedef struct {
     uint16_t format;
     uint32_t clk;
     char *name;
+    /** Drop first N complete frames after channel open (AE warmup), 0 = disabled. */
+    uint8_t skip_frames;
 } isp_config_ext_t;
 
 typedef struct {
@@ -94,6 +96,9 @@ typedef struct {
     uint32_t u_addr;
     uint32_t v_addr;
     uint32_t sequence;
+    uint8_t skip_frames_remaining; /**< Frames left to drop (AE warmup); no ISR callback to upper layer. */
+    uint8_t skip_active;           /**< Current frame is being dropped. */
+    uint8_t warmup_done;           /**< Latched 1 only after this channel finished a configured (>0) skip countdown, or inherited an already-warmed peer at open. A skip=0 channel is NOT a warmup authority. */
     uint8_t *frame_buffer[ISP_FRAME_CNT_MAX];
     uint8_t malloc_flag;
 } isp_channel_config_t;

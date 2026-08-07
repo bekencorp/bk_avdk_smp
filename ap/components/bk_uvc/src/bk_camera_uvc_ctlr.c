@@ -14,7 +14,7 @@
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
 
-avdk_err_t bk_uvc_ctrl_init(bk_uvc_ctlr_handle_t handle)
+static avdk_err_t bk_uvc_ctrl_init(bk_uvc_ctlr_handle_t handle)
 {
     AVDK_RETURN_ON_FALSE(handle, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
     private_uvc_ctlr_t *controller = __containerof(handle, private_uvc_ctlr_t, ops);
@@ -25,7 +25,7 @@ avdk_err_t bk_uvc_ctrl_init(bk_uvc_ctlr_handle_t handle)
     return AVDK_ERR_OK;
 }
 
-avdk_err_t bk_uvc_ctrl_deinit(bk_uvc_ctlr_handle_t handle)
+static avdk_err_t bk_uvc_ctrl_deinit(bk_uvc_ctlr_handle_t handle)
 {
     AVDK_RETURN_ON_FALSE(handle, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
     private_uvc_ctlr_t *controller = __containerof(handle, private_uvc_ctlr_t, ops);
@@ -37,21 +37,24 @@ avdk_err_t bk_uvc_ctrl_deinit(bk_uvc_ctlr_handle_t handle)
     return AVDK_ERR_OK;
 }
 
-avdk_err_t bk_uvc_ctrl_open(bk_uvc_ctlr_handle_t handle, bk_cam_uvc_config_t *config)
+static avdk_err_t bk_uvc_ctrl_open(bk_uvc_ctlr_handle_t handle, bk_cam_uvc_config_t *config)
 {
     AVDK_RETURN_ON_FALSE(handle, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
     AVDK_RETURN_ON_FALSE(config, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
+    AVDK_RETURN_ON_FALSE(config->port > 0 && config->port <= UVC_PORT_MAX, AVDK_ERR_INVAL, TAG, "port out of range");
     private_uvc_ctlr_t *controller = __containerof(handle, private_uvc_ctlr_t, ops);
     AVDK_RETURN_ON_FALSE(controller, AVDK_ERR_INVAL, TAG, "control is NULL");
+    AVDK_RETURN_ON_FALSE(controller->stream_handle, AVDK_ERR_INVAL, TAG, "stream_handle is NULL");
 
     os_memcpy(&controller->config, config, sizeof(bk_cam_uvc_config_t));
-    LOGI("%s, %d, controller:%p, stream_handle:%p, config:%p\n", __func__, __LINE__, controller, controller->stream_handle, config);
+    LOGI("%s, %d, controller:%p, stream_handle:%p, config:%p\n",
+         __func__, __LINE__, controller, controller->stream_handle, config);
     AVDK_RETURN_ON_ERROR(bk_uvc_camera_stream_start(controller->stream_handle, config), TAG, "exe fail");
 
     return AVDK_ERR_OK;
 }
 
-avdk_err_t bk_uvc_ctrl_close(bk_uvc_ctlr_handle_t handle)
+static avdk_err_t bk_uvc_ctrl_close(bk_uvc_ctlr_handle_t handle)
 {
     AVDK_RETURN_ON_FALSE(handle, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
     private_uvc_ctlr_t *controller = __containerof(handle, private_uvc_ctlr_t, ops);
@@ -64,7 +67,7 @@ avdk_err_t bk_uvc_ctrl_close(bk_uvc_ctlr_handle_t handle)
     return AVDK_ERR_OK;
 }
 
-avdk_err_t bk_uvc_ctrl_suspend(bk_uvc_ctlr_handle_t handle)
+static avdk_err_t bk_uvc_ctrl_suspend(bk_uvc_ctlr_handle_t handle)
 {
     AVDK_RETURN_ON_FALSE(handle, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
     private_uvc_ctlr_t *controller = __containerof(handle, private_uvc_ctlr_t, ops);
@@ -77,7 +80,7 @@ avdk_err_t bk_uvc_ctrl_suspend(bk_uvc_ctlr_handle_t handle)
     return AVDK_ERR_OK;
 }
 
-avdk_err_t bk_uvc_ctrl_resume(bk_uvc_ctlr_handle_t handle)
+static avdk_err_t bk_uvc_ctrl_resume(bk_uvc_ctlr_handle_t handle)
 {
     AVDK_RETURN_ON_FALSE(handle, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
     private_uvc_ctlr_t *controller = __containerof(handle, private_uvc_ctlr_t, ops);
@@ -90,20 +93,24 @@ avdk_err_t bk_uvc_ctrl_resume(bk_uvc_ctlr_handle_t handle)
     return AVDK_ERR_OK;
 }
 
-avdk_err_t bk_uvc_ctrl_ioctl(bk_uvc_ctlr_handle_t handle, uint32_t event, void *arg)
+static avdk_err_t bk_uvc_ctrl_ioctl(bk_uvc_ctlr_handle_t handle, bk_uvc_ioctl_cmd_t event, void *arg)
 {
     AVDK_RETURN_ON_FALSE(handle, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
-    AVDK_RETURN_ON_FALSE(event, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
-    AVDK_RETURN_ON_FALSE(arg, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
     private_uvc_ctlr_t *controller = __containerof(handle, private_uvc_ctlr_t, ops);
     AVDK_RETURN_ON_FALSE(controller, AVDK_ERR_INVAL, TAG, "control is NULL");
-    LOGI("%s, %d, controller:%p, stream_handle:%p\n", __func__, __LINE__, controller, controller->stream_handle);
-    AVDK_RETURN_ON_ERROR(bk_uvc_camera_stream_ioctl(controller->stream_handle, event, arg), TAG, "exe fail");
 
-    return AVDK_ERR_OK;
+    switch (event)
+    {
+        default:
+            AVDK_RETURN_ON_FALSE(arg, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
+            AVDK_RETURN_ON_FALSE(controller->stream_handle, AVDK_ERR_INVAL, TAG, "stream_handle is NULL");
+            LOGI("%s, %d, controller:%p, stream_handle:%p\n", __func__, __LINE__, controller, controller->stream_handle);
+            AVDK_RETURN_ON_ERROR(bk_uvc_camera_stream_ioctl(controller->stream_handle, event, arg), TAG, "exe fail");
+            return AVDK_ERR_OK;
+    }
 }
 
-avdk_err_t bk_uvc_ctrl_del(bk_uvc_ctlr_handle_t handle)
+static avdk_err_t bk_uvc_ctrl_del(bk_uvc_ctlr_handle_t handle)
 {
     private_uvc_ctlr_t *controller = __containerof(handle, private_uvc_ctlr_t, ops);
     AVDK_RETURN_ON_FALSE(controller, AVDK_ERR_INVAL, TAG, "control is NULL");

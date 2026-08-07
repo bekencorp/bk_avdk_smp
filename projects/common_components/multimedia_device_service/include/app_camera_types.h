@@ -50,6 +50,9 @@ typedef struct
         uint16_t sp_height;
         bk_pixel_format_t sp_format;
     } isp;
+
+    /** Drop first N frames after open (AE warmup), 0 = disabled. */
+    uint8_t skip_frames;
 } camera_board_config_t;
 
 typedef struct
@@ -62,6 +65,8 @@ typedef struct
     uint16_t isp_output_width;
     uint16_t isp_output_height;
     uint16_t camera_out_format;
+    /** Per-open override; 0 = use board config. */
+    uint8_t skip_frames;
 } camera_parameters_ext_t;
 
 typedef struct

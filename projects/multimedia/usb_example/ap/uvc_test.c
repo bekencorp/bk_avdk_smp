@@ -384,7 +384,6 @@ static void uvc_fill_config(bk_cam_uvc_config_t *cfg, int argc, char **argv)
     cfg->width    = UVC_DEF_WIDTH;
     cfg->height   = UVC_DEF_HEIGHT;
     cfg->fps      = UVC_DEF_FPS;
-    cfg->drop_num = 0;
 
     if (argc >= 3) cfg->port   = (uint8_t)os_strtoul(argv[2], NULL, 10);
     if (argc >= 4) cfg->width  = (uint16_t)os_strtoul(argv[3], NULL, 10);

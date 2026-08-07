@@ -76,7 +76,19 @@ typedef enum
     BK_CAM_IOCTL_UNKNOW = 0,  /**< Unknown IOCTL command */
     BK_CAM_IOCTL_SOFTRESET,  /**< Soft reset the ISP controller */
     BK_CAM_IOCTL_GET_EXPOSURE_LUMINANCE,  /**< Get weighted mean exposure luminance (0-255000) into a uint32_t */
+    BK_CAM_IOCTL_SET_SKIP_FRAMES, /**< Set skip_frames for a channel before channel_open; arg = bk_isp_camera_skip_frames_config_t * */
 } bk_cam_interface_ioctl_t;
+
+/**
+ * @brief Skip-frames config for BK_CAM_IOCTL_SET_SKIP_FRAMES.
+ *
+ * Allowed only when the target channel is not open yet.
+ */
+typedef struct
+{
+    uint8_t channel;   /**< ISP channel id (ISP_MP_CHN_ID / ISP_SP_CHN_ID) */
+    uint8_t count;     /**< Drop first N frames after channel open (AE warmup), 0 = disabled */
+} bk_isp_camera_skip_frames_config_t;
 
 /**
  * @brief Camera ISP instance configuration structure

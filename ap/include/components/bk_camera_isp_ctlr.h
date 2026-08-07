@@ -78,6 +78,7 @@ typedef struct
     uint8_t *frame;
     uint32_t size;
     bk_isp_camera_channel_state_t channel_state[ISP_CHANNEL_INSTANCE_MAX];
+    uint8_t skip_frames[ISP_CHANNEL_INSTANCE_MAX];
     ISP_PUB_ATTR_S attr[ISP_PORT_CNT];
     // bk_isp_camera_ctlr_config_t config;
     bk_camera_ctlr_t ops;

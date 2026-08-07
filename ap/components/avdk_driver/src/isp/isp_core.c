@@ -203,9 +203,57 @@ static void isp_isr_callback_ext(vsi_u32_t state, void *args)
     isp_isr_callback(state_temp, args);
 }
 
+static bool isp_peer_channel_warmup_done(isp_control_t *control, uint8_t chnl_id)
+{
+    uint8_t peer_id = (chnl_id == ISP_MP_CHN_ID) ? ISP_SP_CHN_ID : ISP_MP_CHN_ID;
+
+    /* Only a peer that actually finished a warmup skip (warmup_done latched)
+     * proves the shared sensor/AE is stable. A peer that merely has
+     * skip_frames==0 (opted out, e.g. SP by default) is NOT an authority and
+     * must not short-circuit the warming channel. */
+    return control->chn[peer_id].enable
+        && control->chn[peer_id].warmup_done;
+}
+
+static bool isp_channel_skip_warmup_needed(isp_control_t *control, uint8_t chnl_id)
+{
+    if (control->chn[chnl_id].skip_frames_remaining == 0)
+    {
+        return false;
+    }
+
+    /* MP/SP share sensor/AE: late open after peer warmup must not skip again. */
+    if (isp_peer_channel_warmup_done(control, chnl_id))
+    {
+        return false;
+    }
+
+    return true;
+}
+
 static void isp_mi_isr_callback_handle(isp_control_t *control, uint8_t isr_type, uint8_t chnl_id, uint8_t ok)
 {
     uint8_t i = 0;
+
+    if (control->chn[chnl_id].skip_active)
+    {
+        if (isr_type == ISP_FRAME_END_DONE && ok)
+        {
+            if (control->chn[chnl_id].skip_frames_remaining > 0)
+            {
+                control->chn[chnl_id].skip_frames_remaining--;
+            }
+            if (control->chn[chnl_id].skip_frames_remaining == 0)
+            {
+                /* Finished a real warmup countdown: this channel is now a
+                 * warmup authority for its peer (shared sensor/AE is stable). */
+                control->chn[chnl_id].warmup_done = 1;
+            }
+            control->chn[chnl_id].skip_active = 0;
+        }
+        return;
+    }
+
     if (isr_type == ISP_MB_LINE_DONE)
     {
         for (i = 0; i < ISP_ISR_MODULE_MAX; i++)
@@ -263,6 +311,8 @@ static void isp_mi_isr_callback(uint32_t state, void *args)
             if (control->chn[ISP_MP_CHN_ID].line == 0)
             {
                 ISP_MP_FRAME_START();
+                control->chn[ISP_MP_CHN_ID].skip_active =
+                    isp_channel_skip_warmup_needed(control, ISP_MP_CHN_ID) ? 1 : 0;
             }
 
             ISP_MP_LINE_START();
@@ -279,6 +329,8 @@ static void isp_mi_isr_callback(uint32_t state, void *args)
             if (control->chn[ISP_SP_CHN_ID].line == 0)
             {
                 ISP_SP_FRAME_START();
+                control->chn[ISP_SP_CHN_ID].skip_active =
+                    isp_channel_skip_warmup_needed(control, ISP_SP_CHN_ID) ? 1 : 0;
             }
 
             ISP_SP_LINE_START();
@@ -883,6 +935,22 @@ bk_err_t bk_isp_open(isp_handle_t *handle, isp_config_ext_t *config)
     }
     control->chn[config->chnl_id].channel.chnId = config->chnl_id;
     control->chn[config->chnl_id].buf_cnt = config->buf_cnt;
+    control->chn[config->chnl_id].skip_frames_remaining = config->skip_frames;
+    control->chn[config->chnl_id].skip_active = 0;
+    /* Inherit a peer that already finished warmup: AE is stable, skip nothing
+     * and become an authority immediately. Otherwise only channels that run a
+     * real (>0) skip countdown may later latch warmup_done in the ISR; a plain
+     * skip==0 channel never becomes an authority so it can't cut a peer's
+     * warmup short. */
+    if (isp_peer_channel_warmup_done(control, config->chnl_id))
+    {
+        control->chn[config->chnl_id].skip_frames_remaining = 0;
+        control->chn[config->chnl_id].warmup_done = 1;
+    }
+    else
+    {
+        control->chn[config->chnl_id].warmup_done = 0;
+    }
 
     // step 3: config isp channel
     ret = VSI_MPI_ISP_SetChnAttr(control->chn[config->chnl_id].channel, &control->chn[config->chnl_id].chn_attr);

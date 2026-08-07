@@ -291,6 +291,16 @@ static bool uvc_camera_stream_port_should_drop(uvc_param_t *uvc_param)
     return should_drop;
 }
 
+static void uvc_camera_stream_skip_frames_reset(uvc_param_t *uvc_param)
+{
+    if (uvc_param == NULL)
+    {
+        return;
+    }
+
+    uvc_param->skip_frames_remaining = uvc_param->skip_frames;
+}
+
 static avdk_err_t uvc_camera_stream_wait_port_idle(uvc_param_t *uvc_param, uint32_t timeout_ms)
 {
     uvc_stream_handle_t *stream_handle = s_uvc_stream_handle;
@@ -953,6 +963,8 @@ static avdk_err_t uvc_camera_stream_start_handle(uvc_stream_handle_t *handle, ui
         LOGE("%s, not support this solution, please retry...\r\n", __func__);
         goto out;
     }
+
+    uvc_camera_stream_skip_frames_reset(uvc_param);
 
     if (uvc_param->stream_state != UVC_STREAM_CONFIGING_STATE)
     {
@@ -1709,10 +1721,10 @@ static void uvc_camera_stream_eof_handle(uvc_stream_handle_t *stream_handle, uvc
     LOGD("%s, %d, length:%d, fmt:%d\r\n", __func__, __LINE__, curr_frame_buffer->length, curr_frame_buffer->fmt);
     pro_config->frame_id[index]++;
 
-    if (uvc_param->info->drop_num > 0)
+    if (uvc_param->skip_frames_remaining > 0)
     {
-        uvc_param->info->drop_num--;
-        LOGD("[%d]%s, drop_num:%d\r\n", index, __func__, uvc_param->info->drop_num);
+        uvc_param->skip_frames_remaining--;
+        LOGD("[%d]%s, skip_frames_remaining:%d\r\n", index, __func__, uvc_param->skip_frames_remaining);
     }
     else
     {
@@ -2121,14 +2133,30 @@ static void uvc_camera_process_task_main(beken_thread_arg_t data)
     rtos_delete_thread(NULL);
 }
 
-avdk_err_t bk_uvc_camera_stream_ioctl(uvc_stream_handle_t *handle, uint32_t event, void *arg)
+avdk_err_t bk_uvc_camera_stream_ioctl(uvc_stream_handle_t *handle, bk_uvc_ioctl_cmd_t event, void *arg)
 {
-    // TODO: implement ioctl
-    (void)handle;
-    (void)event;
-    (void)arg;
+    if (handle == NULL)
+    {
+        return AVDK_ERR_INVAL;
+    }
 
-    return AVDK_ERR_UNSUPPORTED;
+    switch (event)
+    {
+        case BK_UVC_IOCTL_SET_SKIP_FRAMES:
+        {
+            bk_uvc_skip_frames_config_t *cfg = (bk_uvc_skip_frames_config_t *)arg;
+            if (cfg == NULL || cfg->port == 0 || cfg->port > UVC_PORT_MAX)
+            {
+                return AVDK_ERR_INVAL;
+            }
+            handle->camera[cfg->port - 1].skip_frames = cfg->count;
+            LOGI("%s set skip_frames port %u count %u\n", __func__, cfg->port, cfg->count);
+            return AVDK_ERR_OK;
+        }
+
+        default:
+            return AVDK_ERR_UNSUPPORTED;
+    }
 }
 
 avdk_err_t bk_uvc_camera_stream_suspend(uvc_stream_handle_t *handle, uint8_t port)
@@ -2289,8 +2317,8 @@ avdk_err_t bk_uvc_camera_stream_start(uvc_stream_handle_t *handle, bk_cam_uvc_co
     {
         uvc_param->info = (bk_cam_uvc_config_t *)os_malloc(sizeof(bk_cam_uvc_config_t));
         AVDK_RETURN_ON_FALSE(uvc_param->info, AVDK_ERR_NOMEM, TAG, AVDK_ERR_NOMEM_TEXT);
-        os_memcpy(uvc_param->info, config, sizeof(bk_cam_uvc_config_t));
     }
+    os_memcpy(uvc_param->info, config, sizeof(bk_cam_uvc_config_t));
 
     {
         uint32_t flags = uvc_stream_enter_critical();
