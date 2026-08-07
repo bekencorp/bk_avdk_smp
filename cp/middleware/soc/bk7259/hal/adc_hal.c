@@ -249,8 +249,7 @@ void adc_hal_calib_init(void)
 {
 	/* ana_reg0x22 */
 	uint32_t reg_val = sys_ll_get_ana_reg22_value();
-	reg_val |= (BIT(25) | BIT(31));
-	reg_val &= ~BIT(30);
+	reg_val |= (BIT(25) | BIT(30) | BIT(31));
 	sys_ll_set_ana_reg22_value(reg_val);
 
 	adc_ll_set_reg2_soft_rst(0);
