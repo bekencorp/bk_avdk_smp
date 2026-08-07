@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <common/bk_include.h>
+#include <driver/otp.h>
 #include <os/mem.h>
 #include <modules/chip_support.h>
 
@@ -146,5 +147,51 @@ bk_err_t bk_soc_info_get(soc_info_t* soc_info)
 	soc_info->version_id = aon_pmu_hal_get_chipid();
 
 	return BK_OK;
+}
+
+#if CONFIG_OTP_V1
+#define PACKAGE_TYPE_OTP_ID_SIZE (4U)
+
+typedef struct {
+	uint8_t otp_id[PACKAGE_TYPE_OTP_ID_SIZE];
+	bk_package_type_t package_type;
+} package_type_map_t;
+
+static const package_type_map_t s_package_type_map[] = {
+	{{0xA0, 0x5F, 0x00, 0x00}, BK_PACKAGE_TYPE_A_OLD_128A_S_MIC},
+	{{0xA1, 0x5E, 0x00, 0x00}, BK_PACKAGE_TYPE_A_NEW_128A_S_MIC},
+	{{0xB0, 0x4F, 0x00, 0x00}, BK_PACKAGE_TYPE_B_OLD_128A_S_MIC},
+	{{0xB1, 0x4E, 0x00, 0x00}, BK_PACKAGE_TYPE_B_NEW_128A_S_OR_128B_D_MIC},
+};
+#endif
+
+bk_err_t bk_get_package_type(bk_package_type_t *package_type)
+{
+	if (package_type == NULL) {
+		return BK_ERR_NULL_PARAM;
+	}
+
+#if CONFIG_OTP_V1
+	uint8_t otp_id[PACKAGE_TYPE_OTP_ID_SIZE];
+	bk_err_t ret = bk_otp_ahb_read(OTP_PACKAGE_TYPE, otp_id, sizeof(otp_id));
+
+	if (ret != BK_OK) {
+		return ret;
+	}
+
+	*package_type = BK_PACKAGE_TYPE_UNKNOWN;
+	for (uint32_t i = 0; i < ARRAY_SIZE(s_package_type_map); i++) {
+		const package_type_map_t *map = &s_package_type_map[i];
+
+		if (os_memcmp(otp_id, map->otp_id, sizeof(map->otp_id)) == 0) {
+			*package_type = map->package_type;
+			break;
+		}
+	}
+
+	return BK_OK;
+#else
+	return BK_ERR_NOT_SUPPORT;
+#endif
 }
 
