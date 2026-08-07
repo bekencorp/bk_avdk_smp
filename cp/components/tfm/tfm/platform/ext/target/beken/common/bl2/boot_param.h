@@ -16,6 +16,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <string.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -45,6 +46,7 @@ extern "C" {
 #define AB_FLAG_CRC_LEN     28u           /* CRC covers head bytes [0..0x1B] */
 #define AB_TRY_MAX_DEFAULT  5u            /* default rollback threshold */
 #define AB_PMU_TRY_MAX      7u            /* AON_PMU counter is 3-bit; try_max caps here */
+#define AB_FLAG_ERR_IO      (-2)
 
 typedef enum { AB_SLOT_A = 0, AB_SLOT_B = 1 } ab_slot_t;
 
@@ -81,11 +83,12 @@ _Static_assert(sizeof(ab_flag_record_t) == 32, "ab_flag_record_t must be 32 byte
 
 /* Back-end injected into the ping-pong algorithm below: flash driver +
  * zlib-CRC32. read/erase_sector/write take an ABSOLUTE flash offset (partition
- * base + sector offset); crc32 is the zlib-style CRC32 over [buf, buf+len). */
+ * base + sector offset) and return 0 on success. crc32 is the zlib-style CRC32
+ * over [buf, buf+len). */
 typedef struct {
-	void     (*read)(uint32_t off, void *buf, uint32_t len);
-	void     (*erase_sector)(uint32_t off);
-	void     (*write)(uint32_t off, const void *buf, uint32_t len);
+	int      (*read)(uint32_t off, void *buf, uint32_t len);
+	int      (*erase_sector)(uint32_t off);
+	int      (*write)(uint32_t off, const void *buf, uint32_t len);
 	uint32_t (*crc32)(const void *buf, uint32_t len);
 } ab_flag_ops_t;
 
@@ -111,8 +114,9 @@ static inline int ab_seq_newer(uint32_t a, uint32_t b)
 	return (int32_t)(a - b) > 0;
 }
 
-/* Validate one record: magic/size/struct_ver plus zlib-CRC32 over [0..CRC_LEN).
- * Rejects struct_ver 0 or newer-than-known rather than misparsing. */
+/* Validate one record: framing, semantic enums/slots, and zlib-CRC32 over
+ * [0..CRC_LEN). Rejects unknown layouts rather than misparsing. try_max is
+ * normalized by the state machine for compatibility. */
 static inline int ab_record_is_valid(const ab_flag_record_t *rec,
 				     const ab_flag_ops_t *ops)
 {
@@ -125,24 +129,45 @@ static inline int ab_record_is_valid(const ab_flag_record_t *rec,
 	if (rec->struct_ver == 0u || rec->struct_ver > AB_FLAG_STRUCT_VER) {
 		return 0;
 	}
+	if ((rec->exec_slot != AB_SLOT_A && rec->exec_slot != AB_SLOT_B) ||
+	    (rec->update_slot != AB_SLOT_A && rec->update_slot != AB_SLOT_B)) {
+		return 0;
+	}
+	if (rec->boot_state != AB_STATE_NORMAL &&
+	    rec->boot_state != AB_STATE_TRIAL &&
+	    rec->boot_state != AB_STATE_CONFIRMED) {
+		return 0;
+	}
+	if (rec->dl_state != AB_DL_IDLE &&
+	    rec->dl_state != AB_DL_ONGOING &&
+	    rec->dl_state != AB_DL_DONE) {
+		return 0;
+	}
+
 	if (ops->crc32(rec, AB_FLAG_CRC_LEN) != rec->crc32) {
 		return 0;
 	}
 	return 1;
 }
 
-/* Scan all ping-pong copies, return the freshest valid one in *latest and its
- * sector index [0..AB_FLAG_COPIES), or -1 if none valid (virgin/corrupt). */
+/* Scan all ping-pong copies. Returns the freshest valid sector, -1 if no copy
+ * is valid, or AB_FLAG_ERR_IO only when a read failed AND no valid copy was
+ * found (a healthy sector still wins over a glitch on the other one). */
 static inline int ab_record_read_latest(uint32_t part_base,
 					const ab_flag_ops_t *ops,
 					ab_flag_record_t *latest)
 {
 	ab_flag_record_t candidate;
 	int latest_idx = -1;
+	int io_err = 0;
 	uint32_t sector_idx;
 
 	for (sector_idx = 0; sector_idx < AB_FLAG_COPIES; sector_idx++) {
-		ops->read(part_base + sector_idx * AB_FLAG_SECTOR, &candidate, AB_FLAG_RECORD_SIZE);
+		if (ops->read(part_base + sector_idx * AB_FLAG_SECTOR,
+			      &candidate, AB_FLAG_RECORD_SIZE) != 0) {
+			io_err = 1;
+			continue;
+		}
 		if (!ab_record_is_valid(&candidate, ops)) {
 			continue;
 		}
@@ -151,18 +176,26 @@ static inline int ab_record_read_latest(uint32_t part_base,
 			latest_idx = (int)sector_idx;
 		}
 	}
+	if (latest_idx < 0 && io_err) {
+		return AB_FLAG_ERR_IO;
+	}
 	return latest_idx;
 }
 
 /* Power-loss-safe commit: caller fills the semantic fields of *new_record
- * (ideally memset(0) then field writes so reserved bytes stay 0). This stamps
- * magic/struct_ver/size, assigns the next seq, computes CRC, then erases and
- * writes the OPPOSITE sector. Returns the sector index written (0/1). */
+ * (memset(0) first so reserved bytes stay 0); this stamps magic/ver/size/seq/crc
+ * and writes the OPPOSITE sector, so a torn write leaves the current copy intact.
+ * No read-back: the CRC is the commit marker and the reader (BL2/SPE) validates
+ * at boot (a bad write fails CRC there and is ignored).
+ * Returns the written sector index, or AB_FLAG_ERR_IO on an erase/write failure. */
 static inline int ab_record_commit(uint32_t part_base, const ab_flag_ops_t *ops,
 				   ab_flag_record_t *new_record)
 {
 	ab_flag_record_t latest;
 	int latest_idx = ab_record_read_latest(part_base, ops, &latest);
+	if (latest_idx < -1) {
+		return latest_idx;
+	}
 	int write_idx = (latest_idx < 0) ? 0 : (latest_idx ^ 1);
 
 	new_record->magic = AB_FLAG_MAGIC;
@@ -171,9 +204,13 @@ static inline int ab_record_commit(uint32_t part_base, const ab_flag_ops_t *ops,
 	new_record->seq = (latest_idx < 0) ? 1u : (latest.seq + 1u);
 	new_record->crc32 = ops->crc32(new_record, AB_FLAG_CRC_LEN);
 
-	ops->erase_sector(part_base + (uint32_t)write_idx * AB_FLAG_SECTOR);
-	ops->write(part_base + (uint32_t)write_idx * AB_FLAG_SECTOR,
-		   new_record, AB_FLAG_RECORD_SIZE);
+	if (ops->erase_sector(part_base + (uint32_t)write_idx * AB_FLAG_SECTOR) != 0) {
+		return AB_FLAG_ERR_IO;
+	}
+	if (ops->write(part_base + (uint32_t)write_idx * AB_FLAG_SECTOR,
+		       new_record, AB_FLAG_RECORD_SIZE) != 0) {
+		return AB_FLAG_ERR_IO;
+	}
 	return write_idx;
 }
 

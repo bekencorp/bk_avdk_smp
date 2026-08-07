@@ -26,7 +26,34 @@
  * boot_param_partition_base). This unit only holds the SPE confirm transition. */
 
 #include <string.h>
+#include <stdio.h>
+#include <stdarg.h>
 #include "boot_param.h"
+#include "uart_stdout.h"
+
+/* SPE debug print: BK_LOG (SDK log path) is unsafe here, and the plain printf
+ * symbol may resolve to a semihosting stub (SVC -> "Unknown SPM SVC"). Format
+ * locally and push straight to the secure UART via stdio_output_string() - the
+ * same SVC-free path TF-M's own SPM log uses, and it is up by the time this
+ * runs (stdio_init() in tfm_hal_platform_init). */
+static void bp_log(const char *fmt, ...)
+{
+	char buf[96];
+	va_list ap;
+	int len;
+
+	va_start(ap, fmt);
+	len = vsnprintf(buf, sizeof(buf), fmt, ap);
+	va_end(ap);
+	if (len <= 0) {
+		return;
+	}
+	if (len > (int)sizeof(buf)) {
+		len = (int)sizeof(buf);
+	}
+	stdio_output_string((const unsigned char *)buf, (uint32_t)len);
+}
+#define BP_LOG(fmt, ...) bp_log("[bp_confirm] " fmt, ##__VA_ARGS__)
 
 /* op_sw erase/PP are ignored while the flash is in QUAD continuous-read (the XIP
  * path leaves it there), so a commit must drop to TWO first and restore after.
@@ -34,27 +61,45 @@
 extern void bk_flash_min_switch_line_mode_two(void);
 extern void bk_flash_min_restore_line_mode(void);
 
+/* Running A/B slot from the flash XIP remap enable (0=A / 1=B), set by MCUboot
+ * for the slot it actually booted. */
+extern uint32_t flash_get_excute_enable(void);
+
 /* Confirm the currently running TRIAL image. Idempotent: a non-TRIAL record (or
- * a virgin partition) does nothing and writes no flash. On TRIAL it adopts
- * update_slot as the committed exec_slot and settles to NORMAL. Returns 0 on
- * success / nothing-to-do, -1 if no valid record exists. */
+ * a virgin partition) does nothing and writes no flash. Reaching here means the
+ * secure world came up on the CURRENTLY RUNNING slot, so that slot is adopted as
+ * the committed exec_slot -- never the record's update_slot blindly: if MCUboot
+ * fell back off the trial slot (bad signature) and BL2 reconcile failed to
+ * rewrite the record, the running slot is still the exec_slot, and promoting the
+ * rejected update_slot here would defeat the rollback. Returns 0 on success /
+ * nothing-to-do, -1 if no valid record exists or the commit failed. */
 int boot_param_confirm(void)
 {
 	ab_flag_record_t rec;
 	uint32_t base = boot_param_partition_base();
+	uint8_t running = flash_get_excute_enable() ? (uint8_t)AB_SLOT_B : (uint8_t)AB_SLOT_A;
 	int idx;
 
 	idx = ab_record_read_latest(base, &boot_param_ops, &rec);
 	if (idx < 0) {
+		BP_LOG("no valid record (%d), skip\r\n", idx);
 		return -1;
 	}
 
 	if (rec.boot_state != AB_STATE_TRIAL) {
+		BP_LOG("state=%x not TRIAL, nothing to do\r\n", rec.boot_state);
 		return 0;
 	}
 
-	/* Adopt the trial slot as the new committed slot; drop the pending update. */
-	rec.exec_slot   = rec.update_slot;
+	BP_LOG("TRIAL running=%d exec=%d update=%d -> NORMAL\r\n",
+		running, rec.exec_slot, rec.update_slot);
+
+	/* Adopt the slot that actually brought up the secure world; drop the pending
+	 * update. This is a promotion when running==update_slot (trial succeeded) and
+	 * a repair when running==exec_slot (MCUboot fell back, reconcile did not
+	 * persist). */
+	rec.exec_slot   = running;
+	rec.update_slot = running;
 	rec.boot_state  = AB_STATE_NORMAL;
 	memset(rec.rsvd0, 0, sizeof(rec.rsvd0));
 	rec.dl_state    = AB_DL_IDLE;
@@ -63,11 +108,17 @@ int boot_param_confirm(void)
 	 * XIP path leaves it there after BL2 hands over), so drop to TWO around the
 	 * commit and restore after. XIP code fetch keeps working in TWO mode. */
 	bk_flash_min_switch_line_mode_two();
-	(void)ab_record_commit(base, &boot_param_ops, &rec);
+	idx = ab_record_commit(base, &boot_param_ops, &rec);
 	bk_flash_min_restore_line_mode();
+
+	if (idx < 0) {
+		BP_LOG("commit failed %d\r\n", idx);
+		return -1;
+	}
 
 	/* Trial confirmed: clear the AON_PMU counter (register-only, no flash). */
 	boot_param_pmu_try_clear();
 
+	BP_LOG("done, exec_slot=%d sector=%d\r\n", running, idx);
 	return 0;
 }

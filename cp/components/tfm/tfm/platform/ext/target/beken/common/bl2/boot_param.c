@@ -68,17 +68,24 @@ uint32_t boot_param_get_sector_addr(int idx)
 
 int boot_param_load(void)
 {
+	int latest_idx;
+
 	memset(&s_ab, 0, sizeof(s_ab));
 	s_ab.preferred_slot = AB_SLOT_A;
 
 	/* Shared ping-pong selector: reads both sectors, validates each and returns
 	 * the freshest valid copy (or -1 = virgin) in s_ab.latest_record. */
-	s_ab.latest_sector_idx = (int8_t)ab_record_read_latest(boot_param_partition_base(),
-							   &boot_param_ops, &s_ab.latest_record);
+	latest_idx = ab_record_read_latest(boot_param_partition_base(),
+					  &boot_param_ops, &s_ab.latest_record);
+	s_ab.latest_sector_idx = (int8_t)latest_idx;
 	s_ab.inited = true;
 
 	if (s_ab.latest_sector_idx < 0) {
-		BK_LOGW(TAG, "virgin: no valid boot_param record\r\n");
+		if (latest_idx == AB_FLAG_ERR_IO) {
+			BK_LOGE(TAG, "load: boot_param read failed\r\n");
+		} else {
+			BK_LOGW(TAG, "virgin: no valid boot_param record\r\n");
+		}
 		return -1;
 	}
 
@@ -128,13 +135,12 @@ uint8_t boot_param_decide_slot(void)
 				try_cnt, try_max, preferred);
 		} else {
 			/* Exhausted: roll back to exec_slot, settle to NORMAL (one commit)
-			 * and clear the counter. */
+			 * and clear the counter only after the commit succeeds. */
 			preferred = rec.exec_slot;
 			rec.boot_state = AB_STATE_NORMAL;
 			rec.update_slot = rec.exec_slot;
 			memset(rec.rsvd0, 0, sizeof(rec.rsvd0));
 			need_commit = true;
-			boot_param_pmu_try_clear();
 			BK_LOGW(TAG, "decide: TRIAL exhausted (%u/%u) -> rollback exec_slot %d, state=NORMAL\r\n",
 				try_cnt, try_max, preferred);
 		}
@@ -156,7 +162,11 @@ uint8_t boot_param_decide_slot(void)
 
 	/* Persist rollback before boot_go reads the slot. */
 	if (need_commit) {
-		(void)boot_param_commit(&rec);
+		if (boot_param_commit(&rec) == 0) {
+			boot_param_pmu_try_clear();
+		} else {
+			BK_LOGE(TAG, "decide: rollback commit failed\r\n");
+		}
 	}
 
 	s_ab.preferred_slot = preferred;
@@ -195,6 +205,11 @@ int boot_param_commit(const ab_flag_record_t *rec)
 	/* Restore QUAD continuous-read so a subsequent do_boot XIP fetch runs in the
 	 * same mode as the normal (no-commit) boot path. */
 	bk_flash_min_restore_line_mode();
+
+	if (write_idx < 0) {
+		BK_LOGE(TAG, "commit failed: %d\r\n", write_idx);
+		return -1;
+	}
 
 	/* Refresh in-RAM authoritative state to the freshly committed copy. */
 	s_ab.latest_sector_idx = (int8_t)write_idx;
@@ -257,9 +272,12 @@ void boot_param_reconcile_booted(uint32_t image_off)
 	memset(rec.rsvd0, 0, sizeof(rec.rsvd0));
 	rec.dl_state    = AB_DL_IDLE;
 
-	(void)boot_param_commit(&rec);
-	/* Trial ended (preferred slot rejected): reset the AON_PMU budget too. */
-	boot_param_pmu_try_clear();
+	if (boot_param_commit(&rec) == 0) {
+		/* Trial ended and the fallback state is durable. */
+		boot_param_pmu_try_clear();
+	} else {
+		BK_LOGE(TAG, "reconcile: fallback commit failed\r\n");
+	}
 	s_ab.preferred_slot = booted;
 
 	BK_LOGW(TAG, "reconcile: preferred slot[%d] failed, booted slot[%d] -> commit NORMAL\r\n",

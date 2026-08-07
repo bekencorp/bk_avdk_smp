@@ -33,6 +33,7 @@ typedef enum
 #if CONFIG_DIRECT_XIP
 extern void flash_set_xip_offset(uint32_t primary_start, uint32_t secondary_start,uint32_t code_size);
 extern void flash_set_ota_enable(bool enable);
+extern void flash_set_excute_enable(int enable);
 #endif /* CONFIG_DIRECT_XIP */
 
 /* When undefined FLASH_DEV_NAME_0 or FLASH_DEVICE_ID_0 , default */
@@ -116,6 +117,8 @@ static void flash_area_config_direct_xip(void)
 	uint32_t primary_start = flash_map[FLASH_MAP_IMAGE_PRIMARY_ALL].fa_off;
 	uint32_t secondary_start = flash_map[FLASH_MAP_IMAGE_SECONDARY_ALL].fa_off;
 
+	/* Clear stale slot-B remap before BL2 reads A/B images. */
+	flash_set_excute_enable(0);
 	flash_set_xip_offset(primary_start, secondary_start,flash_map[FLASH_MAP_IMAGE_PRIMARY_ALL].fa_size);
 
 	flash_set_ota_enable(true);

@@ -201,17 +201,22 @@ int main(void)
     (void)run_mcuboot_testsuite();
 #endif /* TEST_BL2 */
 
+#if CONFIG_DIRECT_XIP
+    if (arch_dcache_invd_all() != 0) {
+        BOOT_LOG_ERR("L1/L2 cache invalidate failed");
+        FIH_PANIC;
+    }
+#endif
+
     update_wdt(BL2_WDT_FEED_VAL);
     FIH_CALL(boot_go, fih_rc, &rsp);
     if (FIH_NOT_EQ(fih_rc, FIH_SUCCESS)) {
         BOOT_LOG_ERR("Unable to find bootable image");
         FIH_PANIC;
     }
-
     /* If MCUboot fell back off our preferred slot (it failed validation), persist
      * the slot actually booted so the next reset goes straight to the good one. */
     boot_param_reconcile_booted(rsp.br_image_off);
-
     do_boot(&rsp);
 
     BOOT_LOG_ERR("Never should get here");

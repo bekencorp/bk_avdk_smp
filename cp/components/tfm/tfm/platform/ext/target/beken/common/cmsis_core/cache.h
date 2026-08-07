@@ -34,5 +34,7 @@ void flush_dcache(void *va, long size);
 
 void flush_all_dcache(void);
 
+int arch_dcache_invd_all(void);
+
 void invalidate_icache(void);
 #endif //__CACHE_H__
