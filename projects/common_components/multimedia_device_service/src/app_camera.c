@@ -337,7 +337,7 @@ err:
     return AVDK_ERR_GENERIC;
 }
 
-int app_isp_mipi_sensor_init(const camera_board_config_t *config, bk_isp_camera_ctlr_config_t *isp_ctlr_config)
+int app_isp_mipi_sensor_turn_on(const camera_board_config_t *config, bk_isp_camera_ctlr_config_t *isp_ctlr_config)
 {
     bk_err_t ret = BK_OK;
     bk_camera_bus_t *bus = NULL;
@@ -402,6 +402,46 @@ int app_isp_mipi_sensor_init(const camera_board_config_t *config, bk_isp_camera_
     AVDK_GOTO_ON_FALSE(sensor_object, AVDK_ERR_GENERIC, err, TAG, "sensor object is NULL");
     isp_ctlr_config->sensor_object = sensor_object;
 
+    // step 3: enable sensor stream
+    ret = bk_camera_sensor_init(isp_cam_handle.sensor_handle);
+    if (ret != AVDK_ERR_OK)
+    {
+        LOGE("%s, sensor init failed: %d\n", __func__, ret);
+        goto err;
+    }
+    bk_camera_sensor_format_t format = {
+        .width = config->mipi.sensor_max_width,
+        .height = config->mipi.sensor_max_height,
+        .fps = config->mipi.sensor_fps,
+    };
+
+    /* GC2053 mirror (reg 0x17) must be set before MIPI stream start in set_format. */
+    ret = app_isp_sensor_apply_mirror(isp_cam_handle.sensor_handle,
+                                      config->mipi.hmirror != 0,
+                                      config->mipi.vflip != 0);
+    if (ret != AVDK_ERR_OK)
+    {
+        LOGE("%s, apply mirror before set_format failed: %d\n", __func__, ret);
+        goto err;
+    }
+
+    ret = bk_camera_sensor_set_format(isp_cam_handle.sensor_handle, &format);
+    if (ret != AVDK_ERR_OK)
+    {
+        LOGE("%s, set_format failed: %d\n", __func__, ret);
+        goto err;
+    }
+
+    ret = app_isp_sensor_apply_mirror(isp_cam_handle.sensor_handle,
+                                      config->mipi.hmirror != 0,
+                                      config->mipi.vflip != 0);
+    if (ret != AVDK_ERR_OK)
+    {
+        LOGE("%s, apply mirror after set_format failed: %d\n", __func__, ret);
+        goto err;
+    }
+
+    LOGI("%s hmirror=%u vflip=%u\n", __func__, config->mipi.hmirror, config->mipi.vflip);
     return AVDK_ERR_OK;
 
 err:
@@ -417,46 +457,6 @@ err:
         bk_camera_bus_delete(bus);
     }
     return (ret != BK_OK) ? ret : AVDK_ERR_GENERIC;
-}
-
-int app_isp_mipi_sensor_start(const camera_board_config_t *config)
-{
-    avdk_err_t ret;
-    bk_camera_sensor_format_t format = {
-        .width = config->mipi.sensor_max_width,
-        .height = config->mipi.sensor_max_height,
-        .fps = config->mipi.sensor_fps,
-    };
-
-    bk_camera_sensor_init(isp_cam_handle.sensor_handle);
-
-    /* GC2053 mirror (reg 0x17) must be set before MIPI stream start in set_format. */
-    ret = app_isp_sensor_apply_mirror(isp_cam_handle.sensor_handle,
-                                      config->mipi.hmirror != 0,
-                                      config->mipi.vflip != 0);
-    if (ret != AVDK_ERR_OK)
-    {
-        LOGE("%s, apply mirror before set_format failed: %d\n", __func__, ret);
-        return ret;
-    }
-
-    ret = bk_camera_sensor_set_format(isp_cam_handle.sensor_handle, &format);
-    if (ret != AVDK_ERR_OK)
-    {
-        return ret;
-    }
-
-    ret = app_isp_sensor_apply_mirror(isp_cam_handle.sensor_handle,
-                                      config->mipi.hmirror != 0,
-                                      config->mipi.vflip != 0);
-    if (ret != AVDK_ERR_OK)
-    {
-        LOGE("%s, apply mirror after set_format failed: %d\n", __func__, ret);
-        return ret;
-    }
-
-    LOGI("%s hmirror=%u vflip=%u\n", __func__, config->mipi.hmirror, config->mipi.vflip);
-    return AVDK_ERR_OK;
 }
 
 int app_isp_mipi_camera_mp_turn_on(const camera_board_config_t *config, bk_isp_camera_ctlr_config_t *isp_ctlr_config)
@@ -516,13 +516,11 @@ int app_isp_mipi_camera_turn_on(const camera_board_config_t *config)
 
     bk_isp_camera_ctlr_config_t isp_ctlr_config = CAM_CSI_DEFAULT_RAW10_CONFIG(config->mipi.sensor_max_width, config->mipi.sensor_max_height, config->mipi.sensor_fps);
 
-    ret = app_isp_mipi_sensor_init(config, &isp_ctlr_config);
+    ret = app_isp_mipi_sensor_turn_on(config, &isp_ctlr_config);
     AVDK_GOTO_ON_FALSE(ret == AVDK_ERR_OK, ret, err, TAG, "app_isp_mipi_sensor_turn_on failed");
     ret = app_isp_mipi_camera_mp_turn_on(config, &isp_ctlr_config);
     AVDK_GOTO_ON_FALSE(ret == AVDK_ERR_OK, ret, err, TAG, "app_isp_mipi_camera_mp_turn_on failed");
-    ret = app_isp_mipi_sensor_start(config);
-    AVDK_GOTO_ON_FALSE(ret == AVDK_ERR_OK, ret, err, TAG, "app_isp_mipi_sensor_start failed");
-    return ret;
+    return AVDK_ERR_OK;
 
 err:
     if (ldo_voted)
