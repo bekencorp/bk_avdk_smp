@@ -73,6 +73,17 @@ static void disp_invalidate_area_rounder(lv_event_t *e)
     }
 
     lv_display_rotation_t rot = lv_display_get_rotation(disp);
+
+    if (area->x1 == 0 && area->x2 == 0 && area->y1 == 0) {
+        int32_t h = lv_area_get_height(area);
+        int32_t row_align = (rot == LV_DISPLAY_ROTATION_90 || rot == LV_DISPLAY_ROTATION_270) ?
+                            LV_COMPRESS_TILE_W : LV_COMPRESS_TILE_H;
+        if (h > row_align) {
+            area->y2 = disp_align_down(h, row_align) - 1;
+        }
+        return;
+    }
+
     /* lv_display_rotate_area() uses the (un-rotated) disp->hor_res / ver_res,
      * which equal the created resolution == config.width / config.height. */
     int32_t int_hor = vnd_data->config.width;
@@ -124,8 +135,12 @@ static void disp_invalidate_area_rounder(lv_event_t *e)
     int32_t app_h = lv_display_get_vertical_resolution(disp);
     if (out.x1 < 0) out.x1 = 0;
     if (out.y1 < 0) out.y1 = 0;
+    if (out.x1 > app_w - 1) out.x1 = app_w - 1;
+    if (out.y1 > app_h - 1) out.y1 = app_h - 1;
     if (out.x2 > app_w - 1) out.x2 = app_w - 1;
     if (out.y2 > app_h - 1) out.y2 = app_h - 1;
+    if (out.x2 < out.x1) out.x2 = out.x1;
+    if (out.y2 < out.y1) out.y2 = out.y1;
 
     *area = out;
 }
@@ -152,7 +167,7 @@ void bk_lv_port_disp_init(lv_vnd_data_t *vnd_data)
 
     disp = lv_display_create(vnd_data->config.width, vnd_data->config.height);
 #if (LV_COLOR_DEPTH == 16 && CONFIG_LV_COLOR_16_SWAP)
-    lv_dislay_set_color_format(disp, LV_COLOR_FORMAT_RGB565_SWAPPED);
+    lv_display_set_color_format(disp, LV_COLOR_FORMAT_RGB565_SWAPPED);
 #endif
     lv_display_set_flush_cb(disp, disp_flush);
     lv_display_set_user_data(disp, vnd_data);

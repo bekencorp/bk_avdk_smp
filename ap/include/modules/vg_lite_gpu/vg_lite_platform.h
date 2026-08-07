@@ -55,51 +55,6 @@
 #ifndef _VG_LITE_PLATFORM_H
 #define _VG_LITE_PLATFORM_H
 
-#include "stdint.h"
-#include "stdlib.h"
-#include <stdio.h>
-#include "vg_lite_debug.h"
-#include "vg_lite_type.h"
-#include "vg_lite_option.h"
-
-#define _BAREMETAL 0
-#define VG_SYSTEM_RESERVE_COUNT 1
-
-#if 0 // TODO: remove this ?
-/* Implementation of list. ****************************************/
-typedef struct list_head {
-    struct list_head *next;
-    struct list_head *prev;
-}list_head_t;
-#else
-#include <bk_list.h>
-typedef struct list_head list_head_t;
-#endif
-
-typedef struct heap_node {
-    list_head_t list;
-    uint32_t offset;
-    unsigned long size;
-    int32_t status;
-    vg_lite_vidmem_pool_t pool;
-}heap_node_t;
-
-typedef struct vg_module_parameters
-{
-
-    uint32_t        register_mem_base;
-    uint32_t        gpu_mem_base[VG_SYSTEM_RESERVE_COUNT];
-
-    volatile void * contiguous_mem_base[VG_SYSTEM_RESERVE_COUNT];
-    uint32_t        contiguous_mem_size[VG_SYSTEM_RESERVE_COUNT];
-}
-vg_module_parameters_t;
-
-/*!
-@brief Initialize the hardware mem setting.
-*/
-void vg_lite_init_mem(vg_module_parameters_t *param);
-
 /*!
 @brief The hardware IRQ handler.
 */

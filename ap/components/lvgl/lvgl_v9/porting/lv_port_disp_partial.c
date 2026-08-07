@@ -48,27 +48,6 @@ static vg_lite_color_t lv_partial_color_to_vg(lv_color_t color)
            ((vg_lite_color_t)color32.green << 8) | (vg_lite_color_t)color32.red;
 }
 
-static vg_lite_color_t lv_partial_get_default_clear_color(void)
-{
-    lv_color_t color;
-
-#if LV_USE_THEME_DEFAULT
-    #if LV_THEME_DEFAULT_DARK
-        color = lv_color_hex(0x15171A);
-    #else
-        color = lv_palette_lighten(LV_PALETTE_GREY, 4);
-    #endif
-#elif LV_USE_THEME_SIMPLE
-    color = lv_palette_lighten(LV_PALETTE_GREY, 4);
-#elif LV_USE_THEME_MONO
-    color = lv_color_white();
-#else
-    color = lv_color_white();
-#endif
-
-    return lv_partial_color_to_vg(color);
-}
-
 static void lv_memcpy_one_line(void *dest_buf, const void *src_buf, uint32_t point_num)
 {
     os_memcpy(dest_buf, src_buf, point_num * sizeof(bk_color_t));
@@ -214,14 +193,6 @@ static void lv_partial_flush_compress(lv_vnd_data_t *vnd_data, lv_partial_flush_
     lv_dst_buf.width = vnd_data->config.disp_width;
     lv_dst_buf.height = vnd_data->config.disp_height;
     vg_lite_allocate_with_data(&lv_dst_buf, vnd_data->disp_buf, NULL, NULL, NULL);
-
-    vg_lite_rectangle_t clear_rect = {
-        .x = ctx->area->x1,
-        .y = ctx->area->y1,
-        .width = lv_area_get_width(ctx->area),
-        .height = lv_area_get_height(ctx->area),
-    };
-    vg_lite_clear(&lv_dst_buf, &clear_rect, lv_partial_get_default_clear_color());
 
     lv_partial_set_compress_matrix(vnd_data, ctx);
     vg_lite_error_t ret = vg_lite_blit_rect(&lv_dst_buf, &lv_src_buf, &rect, &lv_matrix, VG_LITE_BLEND_NONE, 0, VG_LITE_FILTER_POINT);
@@ -443,10 +414,29 @@ void lv_disp_flush_for_partial_mode(lv_display_t * disp_drv, const lv_area_t * a
         ctx.lv_hor = LV_VER_RES;
     }
 
+    if (ctx.width <= 0 || ctx.height <= 0) {
+        LOGW("%s skip empty flush area: (%d,%d)-(%d,%d)\n",
+             __func__, area->x1, area->y1, area->x2, area->y2);
+        if (lv_disp_flush_is_last(disp_drv) && vnd_data->disp_buf != NULL) {
+            lv_partial_flush_finish(disp_drv, vnd_data, ctx.lv_hor);
+        }
+        return;
+    }
+
     if (vnd_data->config.output_compress) {
         lv_partial_prepare_compress(disp_drv, px_map, &ctx);
     } else {
         lv_partial_flush_rotate(disp_drv, vnd_data, area, px_map, &ctx);
+    }
+
+    if (lv_area_get_width(ctx.area) <= 0 || lv_area_get_height(ctx.area) <= 0) {
+        LOGW("%s skip empty rotated flush area: (%d,%d)-(%d,%d), original=(%d,%d)-(%d,%d)\n",
+             __func__, ctx.area->x1, ctx.area->y1, ctx.area->x2, ctx.area->y2,
+             area->x1, area->y1, area->x2, area->y2);
+        if (lv_disp_flush_is_last(disp_drv) && vnd_data->disp_buf != NULL) {
+            lv_partial_flush_finish(disp_drv, vnd_data, ctx.lv_hor);
+        }
+        return;
     }
 
     lv_get_display_buffer(vnd_data, ctx.area);
