@@ -31,7 +31,7 @@ __MIN_HEAP_SIZE  = (16 << 10);  /* SMP NS: ~18KB heap after SPE carve-out */
 #elif (CONFIG_SECURITY_FIRMWARE)
 /*
  * BK7259 secure-boot single-core (CONFIG_SOC_SMP=n) Non-Secure app: the NS RAM
- * is the SPE-carved remainder (CONFIG_CP_RAM_SIZE - CONFIG_CPU0_SPE_RAM_SIZE),
+ * is the SPE-carved remainder (CONFIG_CP_RAM_SIZE - CONFIG_CP_SPE_RAM_SIZE),
  * not the whole SRAM. The default non-SMP NS heap of 50KB does not fit after
  * .data/.bss/.ramcode/stack, tripping the "Heap smaller than minimize size"
  * link assert. Use the same modest heap floor as the SMP-NS case (post
@@ -77,8 +77,8 @@ __CP_APP_RAM_OFFSET = 0x0 + __CP_APP_NS_ADDR_OFFSET;
 __CP_APP_RAM_BASE = CONFIG_CP_RAM_ADDR + __CP_APP_RAM_OFFSET;
 __CP_APP_RAM_SIZE = CONFIG_CP_RAM_SIZE;
 #else
-__CP_APP_RAM_BASE = CONFIG_CP_RAM_ADDR + __CP_APP_RAM_OFFSET + CONFIG_CPU0_SPE_RAM_SIZE;
-__CP_APP_RAM_SIZE = CONFIG_CP_RAM_SIZE - CONFIG_CPU0_SPE_RAM_SIZE;
+__CP_APP_RAM_BASE = CONFIG_CP_RAM_ADDR + __CP_APP_RAM_OFFSET + CONFIG_CP_SPE_RAM_SIZE;
+__CP_APP_RAM_SIZE = CONFIG_CP_RAM_SIZE - CONFIG_CP_SPE_RAM_SIZE;
 #endif
 
 __CP_SWAP_BASE = CONFIG_SWAP_ADDR + __CP_APP_RAM_OFFSET;
