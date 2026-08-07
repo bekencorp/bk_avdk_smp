@@ -18,13 +18,14 @@
  * the record in TRIAL: it is the running firmware's job to CONFIRM once it has
  * proven itself healthy. This module does that confirm by adopting update_slot
  * as the new exec_slot and settling the record back to NORMAL, so subsequent
- * resets boot the new slot directly (no more try_count bumps, no rollback).
+ * resets boot the new slot directly (no more PMU trial-count bumps or rollback).
  *
  * The record layout and ping-pong algorithm are shared with BL2 via boot_param.h
  * (static-inline ab_record_read_latest / ab_record_commit); the flash back-end +
  * CRC32 are the shared boot_param_ops.c (boot_param_ops /
  * boot_param_partition_base). This unit only holds the SPE confirm transition. */
 
+#include <string.h>
 #include "boot_param.h"
 
 /* op_sw erase/PP are ignored while the flash is in QUAD continuous-read (the XIP
@@ -55,7 +56,7 @@ int boot_param_confirm(void)
 	/* Adopt the trial slot as the new committed slot; drop the pending update. */
 	rec.exec_slot   = rec.update_slot;
 	rec.boot_state  = AB_STATE_NORMAL;
-	rec.try_count   = 0;
+	memset(rec.rsvd0, 0, sizeof(rec.rsvd0));
 	rec.dl_state    = AB_DL_IDLE;
 
 	/* op_sw erase/PP are ignored while the flash is in QUAD continuous-read (the

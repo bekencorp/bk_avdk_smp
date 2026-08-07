@@ -83,7 +83,7 @@ uint32_t boot_param_partition_base(void)
 	return base;
 }
 
-/* AON_PMU trial-boot counter: keeps the runtime try_count out of flash. Held in
+/* AON_PMU trial-boot counter: keeps the runtime attempt count out of flash. Held in
  * R0 bit[14:12] (3-bit), latched via the R25 magic handshake, read from R7A;
  * survives warm reset, cleared by cold power-on. Ported from aboot driver_ab.c. */
 #define BOOT_PARAM_PMU_R0        (0x0u)

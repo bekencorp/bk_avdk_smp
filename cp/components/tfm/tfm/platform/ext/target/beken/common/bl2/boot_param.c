@@ -17,7 +17,8 @@
  *
  * Boot-path responsibilities:
  *   - boot_param_load()            : read the freshest valid record into RAM.
- *   - boot_param_decide_slot()     : A/B state machine; on TRIAL bumps try_count
+ *   - boot_param_decide_slot()     : A/B state machine; on TRIAL bumps the PMU
+ *                                    trial counter
  *                                    (or rolls back once exhausted) and commits
  *                                    BEFORE boot_go reads the slot.
  *   - boot_get_active_slot_hook()  : feeds the preferred slot to MCUboot.
@@ -131,7 +132,7 @@ uint8_t boot_param_decide_slot(void)
 			preferred = rec.exec_slot;
 			rec.boot_state = AB_STATE_NORMAL;
 			rec.update_slot = rec.exec_slot;
-			rec.try_count = 0;
+			memset(rec.rsvd0, 0, sizeof(rec.rsvd0));
 			need_commit = true;
 			boot_param_pmu_try_clear();
 			BK_LOGW(TAG, "decide: TRIAL exhausted (%u/%u) -> rollback exec_slot %d, state=NORMAL\r\n",
@@ -153,7 +154,7 @@ uint8_t boot_param_decide_slot(void)
 		preferred = AB_SLOT_A;
 	}
 
-	/* Persist trial-count bump / rollback before boot_go reads the slot. */
+	/* Persist rollback before boot_go reads the slot. */
 	if (need_commit) {
 		(void)boot_param_commit(&rec);
 	}
@@ -253,7 +254,7 @@ void boot_param_reconcile_booted(uint32_t image_off)
 	rec.exec_slot   = booted;
 	rec.update_slot = booted;
 	rec.boot_state  = AB_STATE_NORMAL;
-	rec.try_count   = 0;
+	memset(rec.rsvd0, 0, sizeof(rec.rsvd0));
 	rec.dl_state    = AB_DL_IDLE;
 
 	(void)boot_param_commit(&rec);

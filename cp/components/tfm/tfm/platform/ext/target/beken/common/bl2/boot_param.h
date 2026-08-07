@@ -72,9 +72,7 @@ typedef struct {
 	uint8_t  boot_state;    /* 0x0E  ab_boot_state_t */
 	uint8_t  dl_state;      /* 0x0F  ab_dl_state_t */
 	uint8_t  try_max;       /* 0x10  rollback threshold (default 5) */
-	uint8_t  try_count;     /* 0x11  DEPRECATED: counter moved to AON_PMU
-				 *       (boot_param_pmu_try_*); kept for layout, always 0. */
-	uint8_t  rsvd0[2];      /* 0x12..0x13 */
+	uint8_t  rsvd0[3];      /* 0x11..0x13 reserved, must be zero */
 	uint32_t rsvd1[2];      /* 0x14..0x1B reserved */
 	uint32_t crc32;         /* 0x1C  CRC32 over bytes[0..0x1B] */
 } ab_flag_record_t;
@@ -99,7 +97,7 @@ extern const ab_flag_ops_t boot_param_ops;
  * fallback CONFIG_BOOT_PARAM_PHY_PARTITION_OFFSET). */
 uint32_t boot_param_partition_base(void);
 
-/* AON_PMU trial-boot counter (boot_param_ops.c): runtime try_count in a 3-bit
+/* AON_PMU trial-boot counter (boot_param_ops.c): runtime count in a 3-bit
  * AON_PMU field, not flash. Survives warm reset, cleared by cold power-on. Only
  * TRIAL boots touch it (decide_slot inc/clear, SPE confirm clear); NORMAL does
  * not. */
