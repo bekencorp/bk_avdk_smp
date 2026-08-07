@@ -554,7 +554,7 @@ bk_err_t hal_dsi_dphy_init_for_panel(uint64_t pclk_hz, uint8_t n_lanes, uint16_t
              (unsigned)overhead_permille, (unsigned)*out_lane_mbps, (unsigned)pixdiv, (unsigned)r5c);
         return BK_OK;
     }
-    LOGE("%s no PLL: pclk:%llu Hz min_lane_mbps:%llu\n", __func__,
+    LOGW("%s no PLL: pclk:%llu Hz min_lane_mbps:%llu\n", __func__,
          (unsigned long long)pclk_hz, (unsigned long long)min_lane_mbps);
     return BK_FAIL;
 }
@@ -720,8 +720,9 @@ void hal_dsi_dphy_init(uint32_t br)
     if(br == DPHY_BR_100M)       reg_NN_PHY_R5c = (0x4<<24) + (0x0<<19) + (0x8<<14) + (0x155<<4) + 0x6;  //fvco=1.6g, data rate=fvco/16=0.1g, dpi_clk=data_rate/8=12.5m
     else if(br == DPHY_BR_200M)  reg_NN_PHY_R5c = (0x3<<24) + (0x0<<19) + (0x8<<14) + (0x155<<4) + 0x6;  //fvco=1.6g, data rate=fvco/8=0.2g, dpi_clk=data_rate/8=25m
     else if(br == DPHY_BR_300M)  reg_NN_PHY_R5c = (0x3<<24) + (0x0<<19) + (0xC<<14) + (0x200<<4) + 0x6;  //fvco=2.4g, data rate=fvco/8=0.3g, dpi_clk=data_rate/8=37.5m
+    else if(br == DPHY_BR_350M)  reg_NN_PHY_R5c = (0x2<<24) + (0x0<<19) + (0x7<<14) + (0x12B<<4) + 0x6;  //fvco=1.4g, data rate=fvco/4=0.35g, dpi_clk=data_rate/8=43.75m
     else if(br == DPHY_BR_400M)  reg_NN_PHY_R5c = (0x2<<24) + (0x0<<19) + (0x8<<14) + (0x155<<4) + 0x6;  //fvco=1.6g, data rate=fvco/4=0.4g, dpi_clk=data_rate/8=50m
-    else if(br == DPHY_BR_440M)  reg_NN_PHY_R5c = (0x2<<24) + (0x0<<19) + (0x9<<14) + (0x0AB<<4) + 0x9;  //fvco=24Mhz*8*(9+0xAB/0x400)=1.76g, data rate=fvco/4=0.44g, pixel_clk=data_rate/9=48.89Mhz
+    else if(br == DPHY_BR_440M)  reg_NN_PHY_R5c = (0x2<<24) + (0x0<<19) + (0x9<<14) + (0x0AB<<4) + 0x7;  //fvco=24Mhz*8*(9+0xAB/0x400)=1.76g, data rate=fvco/4=0.44g, dpi_clk=data_rate/(0x7+2)=data_rate/9=48.89Mhz (pixdiv[3:0]=0x7; was 0x9 -> /11 bug)
     else if(br == DPHY_BR_500M)  reg_NN_PHY_R5c = (0x2<<24) + (0x0<<19) + (0xA<<14) + (0x1AB<<4) + 0x6;  //fvco=2.0g, data rate=fvco/4=0.5g, dpi_clk=data_rate/8=62.5m
     else if(br == DPHY_BR_600M)  reg_NN_PHY_R5c = (0x2<<24) + (0x0<<19) + (0xC<<14) + (0x200<<4) + 0x6;  //fvco=24Mhz*8*(12+0x200/0x400)=2.4g, data rate=fvco/4=0.6g, pixel_clk=data_rate/8=75Mhz
     else if(br == DPHY_BR_700M)  reg_NN_PHY_R5c = (0x1<<24) + (0x0<<19) + (0x7<<14) + (0x12B<<4) + 0x6;  //fvco=24Mhz*8*(7+0x12B/0x400)=1.4g, data rate=fvco/2=0.7g, pixel_clk=data_rate/8=87.5Mhz
@@ -792,47 +793,65 @@ void hal_dsi_dphy_init(uint32_t br)
 
     // LOGI("%s finish\n", __func__);
 }
-
 uint32_t hal_dsi_sysclk_lane_mbps_select(uint64_t pclk_hz, uint8_t n_lanes, uint16_t bpp,
-                                         uint32_t overhead_permille)
+    uint32_t overhead_permille)
 {
     static const uint32_t s_brackets[] = {
-        DPHY_BR_100M, DPHY_BR_200M, DPHY_BR_300M, DPHY_BR_400M, DPHY_BR_440M,
-        DPHY_BR_500M, DPHY_BR_600M, DPHY_BR_700M, DPHY_BR_800M, DPHY_BR_1000M,
-        DPHY_BR_1200M, DPHY_BR_1400M, DPHY_BR_1500M, DPHY_BR_1600M,
+    DPHY_BR_100M, DPHY_BR_200M, DPHY_BR_300M, DPHY_BR_350M, DPHY_BR_400M, DPHY_BR_440M,
+    DPHY_BR_500M, DPHY_BR_600M, DPHY_BR_700M, DPHY_BR_800M, DPHY_BR_1000M,
+    DPHY_BR_1200M, DPHY_BR_1400M, DPHY_BR_1500M, DPHY_BR_1600M,
     };
 
     uint32_t lane_cnt = (uint32_t)n_lanes + 1u;
+
+    /*
+    * SYSCLK fallback path: the DPU write side (a SYSCLK-divided pixel clock,
+    * ~= panel pclk) and the DSI link (lane byte clock) are *independent* clock
+    * domains, and VID_HLINE carries a blanking overhead. So even though the
+    * average link drain (lane_bitrate / bpp) already exceeds the DPU pixel
+    * rate, the DPI payload FIFO still peaks intra-line and asserts
+    * dpi_pld_full unless the link burst runs well above the raw pixel
+    * bandwidth. (Contrast the DPHY_DPLL path, where PHY and DPU share one PLL
+    * and stay phase-locked, so no such margin is needed.)
+    *
+    * We therefore size the per-lane rate to
+    *     raw_pixel_bw x (1 + overhead_permille) x (1 + FIFO_HEADROOM_permille)
+    * where overhead_permille is the DSI packet overhead and FIFO_HEADROOM is
+    * the extra intra-line drain margin. 1.30 x 1.30 ~= 1.69x lands jd9855
+    * (pclk~12.07 MHz, 1-lane/24bpp -> ~290 Mbps raw) on 500 Mbps/lane (400/440
+    * still overflow) and co5300 (pclk~9.23 MHz) on 400 Mbps/lane, both within
+    * their panel max. Tune FIFO_HEADROOM if a panel still logs dpi_pld_full.
+    */
+    const uint64_t fifo_headroom_permille = 300ULL;
+    uint64_t margin_permille = ((1000ULL + (uint64_t)overhead_permille)
+    * (1000ULL + fifo_headroom_permille)) / 1000ULL;
     uint64_t den = (uint64_t)lane_cnt * 1000000ULL * 1000ULL;
-    uint64_t min_lane_mbps = (pclk_hz * (uint64_t)bpp * (1000ULL + (uint64_t)overhead_permille) + den - 1ULL) / den;
+    uint64_t min_lane_mbps = (pclk_hz * (uint64_t)bpp * margin_permille + den - 1ULL) / den;
     uint32_t max_mbps = (lane_cnt == 1u) ? DPHY_BR_800M : DPHY_BR_1600M;
     uint32_t picked = max_mbps;
 
     if (min_lane_mbps > max_mbps) {
-        LOGW("%s pclk:%llu Hz need:%llu Mbps/lane exceeds SYSCLK cap %u Mbps; using cap\n",
-             __func__, (unsigned long long)pclk_hz, (unsigned long long)min_lane_mbps,
-             (unsigned)max_mbps);
+        LOGW("%s pclk:%llu Hz need:%llu Mbps/lane (incl. FIFO margin) exceeds SYSCLK cap %u Mbps; using cap\n",
+        __func__, (unsigned long long)pclk_hz, (unsigned long long)min_lane_mbps,
+        (unsigned)max_mbps);
         return max_mbps;
     }
 
-    /* 1-lane SYSCLK fallback: fixed 800 Mbps (legacy lookup under-provisioned). */
-    if (lane_cnt == 1u) {
-        picked = DPHY_BR_800M;
-    } else {
-        for (size_t i = 0; i < sizeof(s_brackets) / sizeof(s_brackets[0]); i++) {
-            if (s_brackets[i] >= (uint32_t)min_lane_mbps) {
-                picked = s_brackets[i];
-                break;
-            }
-        }
-        if (picked > max_mbps) {
-            picked = max_mbps;
+    /* Lowest ladder bucket that meets the margin-inflated per-lane need.
+    * Applies to 1-lane and multi-lane alike; max_mbps clamps the 1-lane cap. */
+    for (size_t i = 0; i < sizeof(s_brackets) / sizeof(s_brackets[0]); i++) {
+        if (s_brackets[i] >= (uint32_t)min_lane_mbps) {
+            picked = s_brackets[i];
+            break;
         }
     }
+    if (picked > max_mbps) {
+        picked = max_mbps;
+    }
 
-    LOGI("%s pclk:%llu Hz lanes:%u need:%llu Mbps/lane -> %u Mbps/lane\n", __func__,
-         (unsigned long long)pclk_hz, (unsigned)lane_cnt, (unsigned long long)min_lane_mbps,
-         (unsigned)picked);
+    LOGI("%s pclk:%llu Hz lanes:%u need(+margin):%llu Mbps/lane -> %u Mbps/lane\n", __func__,
+    (unsigned long long)pclk_hz, (unsigned)lane_cnt, (unsigned long long)min_lane_mbps,
+    (unsigned)picked);
     return picked;
 }
 
@@ -921,13 +940,16 @@ uint16_t hal_dsi_gen_write_pkt( uint8_t vc, uint8_t data_type,
                             uint8_t msb_byte, uint8_t lsb_byte, 
                             uint16_t param_length, const uint8_t *params)
 {
-    uint32_t save_mode;
-
     if((vc >= 4) || (param_length > 200) || (params == NULL))
         return false;
 
-    save_mode = hal_dsi_operation_mode_get();       // save mode
-    hal_dsi_operation_mode_set(1);                  // in cmd mode
+    /* Pure sender: the operating mode is a caller/lifecycle decision, not
+     * managed here. init_cmds run in command mode (parked by mipi_dsi_clock_set),
+     * teardown off_cmds in command mode (mipi_dsi_video_mode_set(false)), and
+     * runtime DCS (disp/sleep) in video mode -- there lp_cmd_en (VID_MODE_CFG[15])
+     * emits this write during the LP blanking period without stopping the video
+     * machine (avoids the dpi_pld_full storm). Reads still force command mode in
+     * hal_dsi_gen_read_pkt (BTA requires it). */
 
     while(reg_CMD_PKT_STATUS & ( 1 << 1))  LOGE("%s cmd full\n", __func__);
 
@@ -948,8 +970,7 @@ uint16_t hal_dsi_gen_write_pkt( uint8_t vc, uint8_t data_type,
         rtos_delay_milliseconds(50);
     else
         rtos_delay_milliseconds(1);
-    
-    hal_dsi_operation_mode_set(save_mode);          // save mode write back
+
     // LOGI("%s, cmd:%x, len:%d\n", __func__, lsb_byte, bytes_to_read);
 
     return true;

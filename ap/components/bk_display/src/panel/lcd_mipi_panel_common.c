@@ -51,6 +51,8 @@ typedef struct {
     bk_display_reset_timing_t reset_timing;
 } lcd_panel_common_t;
 
+static bk_err_t lcd_panel_common_read_id(bk_avdk_lcd_panel_t *panel, uint32_t *id);
+
 static inline uint16_t lcd_panel_common_pick_ms(uint16_t value, uint16_t fallback)
 {
     return value != 0u ? value : fallback;
@@ -91,8 +93,8 @@ bk_err_t bk_lcd_mipi_default_off(bk_avdk_lcd_panel_t *panel)
 
     /* DPU has stopped feeding (called after dpu_core_deinit): park the DSI host
      * in command mode so the video machine stops pulling the idle DPI FIFO (else
-     * dpi_bpl_udflw storm). Unconditional -- a pipeline concern, not gated on
-     * off_cmds. Next bring-up restores video mode in mipi_dsi_clock_set(). */
+     * dpi_bpl_udflw storm). Next bring-up re-arms video mode at the end of
+     * lcd_panel_common_init(), after init_cmds. */
     mipi_dsi_video_mode_set(false);
 
     if (priv->panel->off_cmds == NULL) {
@@ -167,11 +169,24 @@ static bk_err_t lcd_panel_common_init(bk_avdk_lcd_panel_t *panel)
     AVDK_RETURN_ON_ERROR(bk_display_bus_set_clock(priv->bus_handle, &clock_config), TAG, "set clock failed");
     priv->base.clk_src = clock_config.clk_src;
 
+    /* bk_display_bus_set_clock() -> mipi_dsi_clock_set() parks the host in
+     * COMMAND mode, so the init_cmds below go out as command-mode LP DCS
+     * (canonical MIPI bring-up), not squeezed into video blanking. */
+    bk_err_t ret = BK_OK;
     if (priv->panel->init == NULL) {
         LOGI("%s %s: init is NULL, skip\n", __func__, priv->panel->name);
-        return BK_OK;
+    } else {
+        ret = priv->panel->init(panel);
     }
-    return priv->panel->init(panel);
+
+    /* init_cmds are done in command mode; arm VIDEO mode so the DPU can stream
+     * pixels into the DPI FIFO. DCS read (BTA) is not done here: if no panel is
+     * connected the BTA never completes and the command engine stalls. Use
+     * bk_lcd_panel_read_id() / CLI at runtime when the link is known good.
+     * Runtime DCS (disp/sleep) still insert via lp_cmd_en in the LP blanking
+     * period without leaving video. */
+    mipi_dsi_video_mode_set(true);
+    return ret;
 }
 
 static bk_err_t lcd_panel_common_reset(bk_avdk_lcd_panel_t *panel)
@@ -245,25 +260,39 @@ static bk_err_t lcd_panel_common_read_id(bk_avdk_lcd_panel_t *panel, uint32_t *i
         return BK_ERR_NOT_SUPPORT;
     }
 
+    /* Runtime read (CLI / bk_lcd_panel_read_id): park command mode if video is
+     * active, then restore previous mode on exit. */
+    const bool was_video = mipi_dsi_video_mode_get();
+    LOGI("%s was_video: %d\n", __func__, was_video);
+
+    mipi_dsi_video_mode_set(false);
+
     if (reg_count == 1) {
         ret = bk_display_bus_rx_param(priv->bus_handle,
                                       (int)priv->panel->read_id_regs[0],
                                       id_buf, read_bytes);
-        if (ret != BK_OK) {
-            return ret;
-        }
     } else {
         if (reg_count != read_bytes) {
-            return BK_ERR_NOT_SUPPORT;
-        }
-        for (int i = 0; i < reg_count; i++) {
-            ret = bk_display_bus_rx_param(priv->bus_handle,
-                                          (int)priv->panel->read_id_regs[i],
-                                          &id_buf[i], 1);
-            if (ret != BK_OK) {
-                return ret;
+            ret = BK_ERR_NOT_SUPPORT;
+        } else {
+            ret = BK_OK;
+            for (int i = 0; i < reg_count; i++) {
+                ret = bk_display_bus_rx_param(priv->bus_handle,
+                                              (int)priv->panel->read_id_regs[i],
+                                              &id_buf[i], 1);
+                if (ret != BK_OK) {
+                    break;
+                }
             }
         }
+    }
+
+    if (was_video) {
+        mipi_dsi_video_mode_set(true);
+    }
+
+    if (ret != BK_OK) {
+        return ret;
     }
 
     if (read_bytes == 1) {

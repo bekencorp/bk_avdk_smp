@@ -44,6 +44,9 @@ void hal_dsi_host_power_up(void);
 
 void hal_dsi_operation_mode_set(uint32_t mode);
 
+/** @return MODE_CFG & 1: 0 = video (VIDMODE), 1 = command (CMDMODE). */
+uint32_t hal_dsi_operation_mode_get(void);
+
 void hal_dsi_config(uint8_t n_lanes, 
                     uint16_t width, 
                     uint16_t height, 

@@ -34,6 +34,7 @@
 #include <components/bk_display.h>
 #include "display_dpu_vn_ctlr.h"
 #include "bk_lcd_panel_priv.h"   /* bk_avdk_lcd_panel_t layout (bus, timing, pixel_clock_hz, clk_src) */
+#include "bk_lcd_panel_commands.h"   /* LCD_CMD_DISPON/DISPOFF/SLPIN/SLPOUT DCS codes */
 #include "avdk_monitor.h"
 #include "driver/sys_pm.h"
 #include "sys_types.h"
@@ -464,6 +465,38 @@ static avdk_err_t dpu_ctlr_ioctl(bk_display_ctlr_handle_t handle, bk_display_ioc
                 control->config.video.decompress = runtime_config->decompress;
                 LOGI("DPU runtime switch format=%d decompress=%d\n",
                      runtime_config->format, runtime_config->decompress);
+            }
+        break;
+        case BK_DISPLAY_IOCTL_PANEL_DISP_ON_OFF:
+            if (arg == NULL)
+            {
+                dpu_ctlr_unlock(control);
+                return AVDK_ERR_INVAL;
+            }
+            {
+                bool on = *(bool *)arg;
+                ret = bk_lcd_panel_tx_param(control->panel,
+                                            on ? LCD_CMD_DISPON : LCD_CMD_DISPOFF, NULL, 0);
+                LOGI("panel DISP %s\n", on ? "ON" : "OFF");
+            }
+        break;
+        case BK_DISPLAY_IOCTL_PANEL_SLEEP:
+            if (arg == NULL)
+            {
+                dpu_ctlr_unlock(control);
+                return AVDK_ERR_INVAL;
+            }
+            {
+                bool sleep = *(bool *)arg;
+                ret = bk_lcd_panel_tx_param(control->panel,
+                                            sleep ? LCD_CMD_SLPIN : LCD_CMD_SLPOUT, NULL, 0);
+                if (ret == AVDK_ERR_OK)
+                {
+                    /* MIPI DCS: >=120ms required after SLPIN/SLPOUT before the next
+                     * sleep command or safe drawing. */
+                    rtos_delay_milliseconds(120);
+                }
+                LOGI("panel SLEEP %s\n", sleep ? "IN" : "OUT");
             }
         break;
         default:

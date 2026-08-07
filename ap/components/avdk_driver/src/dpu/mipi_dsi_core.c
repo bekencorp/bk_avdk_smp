@@ -201,11 +201,31 @@ void mipi_dsi_video_mode_set(bool video)
     hal_dsi_operation_mode_set(video ? 0u : 1u);
 }
 
+bool mipi_dsi_video_mode_get(void)
+{
+    return hal_dsi_operation_mode_get() == 0u;
+}
+
 bk_err_t mipi_dsi_panel_set_pattern(mipi_dsi_pattern_type_t pattern)
 {
-    (void)pattern;
-    reg_VID_MODE_CFG |= (0x0<<20);  // vpg mode: 0:colorbar, 1:berpattern
-    reg_VID_MODE_CFG |= (0x1<<16);  // vpg_en
+    /* VID_MODE_CFG: [16]=vpg_en, [20]=vpg_mode (0:colorbar,1:ber), [24]=vpg_orientation (0:vert,1:horiz). */
+    reg_VID_MODE_CFG &= ~((1U << 16) | (1U << 20) | (1U << 24));
+
+    switch (pattern) {
+    case MIPI_DSI_PATTERN_BAR_VERTICAL:
+        reg_VID_MODE_CFG |= (0U << 20) | (0U << 24) | (1U << 16);
+        break;
+    case MIPI_DSI_PATTERN_BAR_HORIZONTAL:
+        reg_VID_MODE_CFG |= (0U << 20) | (1U << 24) | (1U << 16);
+        break;
+    case MIPI_DSI_PATTERN_BER_VERTICAL:
+        reg_VID_MODE_CFG |= (1U << 20) | (0U << 24) | (1U << 16);
+        break;
+    case MIPI_DSI_PATTERN_NONE:
+    default:
+        /* vpg_en=0: pattern generator off; video mode unchanged (DPI/VPG mux only). */
+        break;
+    }
 
     return BK_OK;
 }
@@ -382,8 +402,6 @@ bk_err_t mipi_dsi_clock_set(bk_panel_clock_config_t *dsi)
                    dsi->timing.vsync_pulse_width,
                    dsi->timing.vsync_back_porch,
                    dsi->timing.vsync_front_porch);
-
-    hal_dsi_operation_mode_set(0);
     return BK_OK;
 }
 

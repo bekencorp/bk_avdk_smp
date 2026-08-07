@@ -79,6 +79,13 @@ bk_err_t mipi_dsi_clock_set(bk_panel_clock_config_t *dsi);
 void mipi_dsi_video_mode_set(bool video);
 
 /**
+ * @brief Query whether the DSI host is in video mode.
+ *
+ * @return @c true if video mode (VIDMODE), @c false if command mode (CMDMODE).
+ */
+bool mipi_dsi_video_mode_get(void);
+
+/**
  * @brief Send a generic-write packet on the DSI command channel.
  *
  * @param[in] data_len Number of bytes in @p data.
@@ -108,9 +115,10 @@ uint16_t mipi_dsi_gen_write_dcs_command(int lcd_cmd, const void *param, uint8_t 
 uint16_t mipi_dsi_dcs_read(uint8_t cmd, uint8_t bytes_to_read, uint8_t *read_buffer);
 
 /**
- * @brief Set a built-in DSI host test pattern.
+ * @brief Set a built-in DSI host test pattern (VID_MODE_CFG vpg_en/mode/orientation).
  *
- * Useful for bring-up verification when no real video source is wired.
+ * Toggles the internal pattern generator only; does not change command/video mode.
+ * Caller must already be in video mode (e.g. after panel init) for patterns to show.
  *
  * @param[in] pattern Pattern selector.
  * @return BK_OK on success.

@@ -87,8 +87,10 @@ typedef struct
  * @brief Display ioctl command codes.
  */
 typedef enum {
-    BK_DISPLAY_IOCTL_UNKNOWN          = 0,
-    BK_DISPLAY_IOCTL_DPU_PIXEL_FORMAT = 1,    /**< arg = ::bk_display_pixel_format_config_t* */
+    BK_DISPLAY_IOCTL_UNKNOWN           = 0,
+    BK_DISPLAY_IOCTL_DPU_PIXEL_FORMAT  = 1,    /**< arg = ::bk_display_pixel_format_config_t* */
+    BK_DISPLAY_IOCTL_PANEL_DISP_ON_OFF = 2,    /**< arg = bool*  true=DISPON / false=DISPOFF */
+    BK_DISPLAY_IOCTL_PANEL_SLEEP       = 3,    /**< arg = bool*  true=SLPIN  / false=SLPOUT  */
 } bk_display_ioctl_cmd_t;
 
 /** Opaque display controller handle. Body lives in private_include/. */

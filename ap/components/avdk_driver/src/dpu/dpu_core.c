@@ -136,6 +136,10 @@ void dpu_clk_set(dpu_clk_src_t clk_src, uint32_t pixel_clock_hz)
                      __func__, (unsigned)req_hz, (unsigned long long)best_hz);
             }
         }
+        LOGI("%s: SYSCLK req:%u Hz applied:%llu Hz (root:%s div:%u)\n", __func__,
+             (unsigned)req_hz, (unsigned long long)best_hz,
+             (s_dpu_sysclk_pairs[best_i].sel != 0u) ? "320M" : "240M",
+             (unsigned)s_dpu_sysclk_pairs[best_i].div);
 
         dpu_clk_sel_div((uint32_t)s_dpu_sysclk_pairs[best_i].sel,
                         (uint32_t)s_dpu_sysclk_pairs[best_i].div);

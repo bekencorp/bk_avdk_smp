@@ -33,7 +33,8 @@ extern "C" {
 enum {
     DPHY_BR_100M  = 100,
     DPHY_BR_200M  = 200,
-    DPHY_BR_300M  = 250,
+    DPHY_BR_300M  = 300,
+    DPHY_BR_350M  = 350,
     DPHY_BR_400M  = 400,
     DPHY_BR_440M  = 440,
     DPHY_BR_500M  = 500,
