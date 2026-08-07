@@ -166,11 +166,58 @@ read-back PASS
 - `ap_cmd udisk dev`：切回 USB device MSC。
 - `ap_cmd udisk ls`：打印已挂载 U 盘 `2:` 根目录，主要用于调试已挂载状态。
 
-## 8. USB Device MTP 模式
+## 8. USB Host U 盘测速
+
+`udisk speed` 用于测量外接 U 盘的顺序写入和读取吞吐。它复用与 `udisk test` 相同的 host 切换和挂载流程，然后按固定块大小写入一个大文件（停止写入计时前会先 `f_sync`，让结果反映真正落盘的数据而非 FatFs 缓存），再重新打开文件读回、报告吞吐、删除测试文件并卸载。
+
+默认参数：
+
+- 总量：`32 MB`
+- 块大小：`128 KB`
+- 测试文件：`2:/bk_udisk_speed.bin`（测试结束后自动删除）
+
+运行默认测试：
+
+```text
+ap_cmd udisk speed
+```
+
+指定总量（MB）和块大小（KB）：
+
+```text
+ap_cmd udisk speed 64 128
+ap_cmd udisk speed 8 32
+```
+
+期望日志：
+
+```text
+==== U-disk speed test BEGIN (total=32 MB, block=128 KB) ====
+U-disk media READY after 1400 ms
+write: 32768 KB in 11569 ms -> 2832 KB/s (2.76 MB/s)
+read : 32768 KB in 3545 ms -> 9243 KB/s (9.02 MB/s)
+==== U-disk speed test PASS ====
+```
+
+注意事项：
+
+- 总量至少取几 MB，让传输进入稳态；总量太小主要测到的是 FatFs/USB 命令开销和 U 盘内部缓存。
+- 写吞吐受 U 盘闪存和 FAT 更新限制，读通常快得多。块大小超过 64~128 KB 后收益递减，因为瓶颈在闪存和 host 传输路径，而不是缓冲区大小。
+- 测试文件以 `FA_CREATE_ALWAYS` 创建，请勿在存有重要数据的 U 盘上测试。
+
+## 9. USB Device MTP 模式
+
+> **MTP 默认关闭，使用前必须先在 defconfig 中启用。** 在 `ap/config/bk7259_ap/defconfig` 中该项默认是 `# CONFIG_USBD_MTP is not set`，因此 `mtp` CLI 命令不会编进默认固件。要使用 MTP，请在 defconfig 中设置 `CONFIG_USBD_MTP=y`（或通过 `menuconfig` 打开），然后重新编译并烧录。其它 USB 功能（MSC / host U 盘 / UVC）默认已开启，无需此步骤。
 
 MTP 是 MSC 之外的另一种 USB device gadget。启动 MTP 时，工程会先关闭默认 MSC gadget，然后挂载 SD 卡 `/sd0`，并以 MTP 设备重新向 PC 枚举。
 
-启动 MTP：
+先在 `ap/config/bk7259_ap/defconfig` 中启用 MTP：
+
+```text
+CONFIG_USBD_MTP=y
+```
+
+重新编译并烧录后，启动 MTP：
 
 ```text
 ap_cmd mtp start
@@ -204,7 +251,7 @@ PC 侧现象：
 - Linux：可使用文件管理器的 MTP/GVFS 集成，或 `mtp-detect`、`mtp-files` 等工具。
 - macOS：系统不原生支持 MTP，需要使用 Android File Transfer 类工具。
 
-MTP 相关配置：
+MTP 相关配置（`CONFIG_USBD_MTP` **默认关闭**，需按上文先打开）：
 
 ```text
 CONFIG_USBD_MTP=y
@@ -214,7 +261,7 @@ CONFIG_USBD_MTP_DEVICE_TYPE="1"
 
 `CONFIG_USBD_MTP_DEVICE_TYPE` 对应 MTP `PerceivedDeviceType`，当前默认 `1` 表示 still image camera。
 
-## 9. USB Host UVC 摄像头测试
+## 10. USB Host UVC 摄像头测试
 
 `uvc` 命令用于验证 USB host UVC 摄像头 MJPEG 接收流程。命令会释放默认 MSC device gadget，切换 USB 控制器到 host 模式，枚举指定 port 上的 UVC 摄像头，打开 MJPEG 流并校验完整 JPEG 帧。
 
@@ -264,7 +311,7 @@ MJPEG frame #20 OK ...
 
 如果摄像头不支持指定 fps，示例会回退到该分辨率下摄像头描述符报告的第一个 fps。如果摄像头不支持默认 `1920x1080@30`，请改用摄像头实际支持的 MJPEG 分辨率。
 
-## 10. 命令速查
+## 11. 命令速查
 
 所有 AP 侧命令从主控制台执行时都需要添加 `ap_cmd` 前缀。
 
@@ -274,6 +321,7 @@ MJPEG frame #20 OK ...
 - `ap_cmd udisk enum`：切换到 host，等待任意 USB 设备枚举并打印描述符。
 - `ap_cmd udisk test`：切换到 host，枚举 U 盘，挂载、列目录、写入、读回并校验。
 - `ap_cmd udisk ls`：打印已挂载 U 盘 `2:` 根目录。
+- `ap_cmd udisk speed [MB] [blockKB]`：顺序写/读吞吐测速（默认 32MB/128KB）。
 - `ap_cmd mtp start`：关闭 MSC，启动 MTP device，并挂载 SD 卡 `/sd0`。
 - `ap_cmd mtp stop`：停止 MTP device；该命令不会自动恢复默认 MSC device。
 - `ap_cmd mtp status`：打印 MTP active 状态。
@@ -281,7 +329,7 @@ MJPEG frame #20 OK ...
 - `ap_cmd uvc open [port] [w] [h] [fps]`：打开 UVC MJPEG 流并持续运行。
 - `ap_cmd uvc close [port]`：停止并关闭指定 port 的 UVC 流。
 
-## 11. 关键配置
+## 12. 关键配置
 
 本示例依赖以下主要配置：
 
@@ -302,7 +350,7 @@ CONFIG_FATFS=y
 CONFIG_FATFS_SDCARD=y
 ```
 
-## 12. 注意事项
+## 13. 注意事项
 
 1. USB device 和 USB host 不能同时使用同一个控制器。执行 host 或 MTP 相关命令会改变当前 USB 角色。
 2. Host 模式依赖外部 VBUS 供电，供电异常会导致设备无法枚举。
@@ -311,7 +359,7 @@ CONFIG_FATFS_SDCARD=y
 5. `mtp stop` 只停止 MTP gadget。如需恢复上电默认 MSC device，请复位开发板。
 6. Windows 可能按 VID、PID 和 Serial 缓存 MTP 名称和图标。修改产品名或设备类型后，可能需要卸载旧设备记录或更换 USB 口重新枚举。
 
-## 13. 常见问题
+## 14. 常见问题
 
 ### 命令提示找不到
 

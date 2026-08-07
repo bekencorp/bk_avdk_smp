@@ -166,11 +166,58 @@ Related commands:
 - `ap_cmd udisk dev`: switch back to USB device MSC.
 - `ap_cmd udisk ls`: print the mounted U-disk `2:` root directory. This is mainly for debugging when the drive is already mounted.
 
-## 8. USB Device MTP Mode
+## 8. USB Host U-Disk Speed Test
+
+`udisk speed` measures sequential write and read throughput on an attached U-disk. It reuses the same host-switch and mount flow as `udisk test`, then writes a large file in fixed-size blocks (calling `f_sync` before stopping the write timer so the result reflects flushed data, not FatFs cache), re-opens the file and reads it back, reports the throughput, deletes the test file and unmounts.
+
+Default parameters:
+
+- Total size: `32 MB`
+- Block size: `128 KB`
+- Test file: `2:/bk_udisk_speed.bin` (removed automatically after the test)
+
+Run the default test:
+
+```text
+ap_cmd udisk speed
+```
+
+Specify total size (MB) and block size (KB):
+
+```text
+ap_cmd udisk speed 64 128
+ap_cmd udisk speed 8 32
+```
+
+Expected logs:
+
+```text
+==== U-disk speed test BEGIN (total=32 MB, block=128 KB) ====
+U-disk media READY after 1400 ms
+write: 32768 KB in 11569 ms -> 2832 KB/s (2.76 MB/s)
+read : 32768 KB in 3545 ms -> 9243 KB/s (9.02 MB/s)
+==== U-disk speed test PASS ====
+```
+
+Notes:
+
+- Use a total size of at least a few MB so the transfer reaches steady state. Too small a size mostly measures FatFs/USB command overhead and the drive's internal cache.
+- Write throughput is bounded by the U-disk flash and FAT updates; read is usually much faster. Increasing the block size beyond 64-128 KB gives diminishing returns, because the bottleneck is the flash and the host transfer path, not the buffer size.
+- The test file is created with `FA_CREATE_ALWAYS`; do not run the test on a disk that holds important data.
+
+## 9. USB Device MTP Mode
+
+> **MTP is disabled by default and must be enabled before use.** In `ap/config/bk7259_ap/defconfig` the option is shipped as `# CONFIG_USBD_MTP is not set`, so the `mtp` CLI command is compiled out of the default firmware. To use MTP, set `CONFIG_USBD_MTP=y` in the defconfig (or via `menuconfig`), then rebuild and reflash. All other USB features (MSC / host U-disk / UVC) are enabled by default and do not need this step.
 
 MTP is another USB device gadget beside MSC. When MTP starts, the project first stops the default MSC gadget, mounts the SD card at `/sd0`, and re-enumerates to the PC as an MTP device.
 
-Start MTP:
+Enable MTP in `ap/config/bk7259_ap/defconfig`:
+
+```text
+CONFIG_USBD_MTP=y
+```
+
+Then rebuild and reflash the firmware. Start MTP:
 
 ```text
 ap_cmd mtp start
@@ -204,7 +251,7 @@ PC-side behavior:
 - Linux: use file manager MTP/GVFS integration, or tools such as `mtp-detect` and `mtp-files`.
 - macOS: MTP is not supported natively. Use an Android File Transfer style tool.
 
-MTP-related configuration:
+MTP-related configuration (`CONFIG_USBD_MTP` is **off by default** and must be turned on as noted above):
 
 ```text
 CONFIG_USBD_MTP=y
@@ -214,7 +261,7 @@ CONFIG_USBD_MTP_DEVICE_TYPE="1"
 
 `CONFIG_USBD_MTP_DEVICE_TYPE` maps to the MTP `PerceivedDeviceType`. The default value `1` means still image camera.
 
-## 9. USB Host UVC Camera Test
+## 10. USB Host UVC Camera Test
 
 The `uvc` command verifies USB host UVC camera MJPEG receive flow. It releases the default MSC device gadget, switches the USB controller to host mode, enumerates the UVC camera on the selected port, opens an MJPEG stream and validates complete JPEG frames.
 
@@ -264,7 +311,7 @@ MJPEG frame #20 OK ...
 
 If the camera does not list the requested fps, the example falls back to the first fps reported for that resolution. If the camera does not support the default `1920x1080@30` mode, use an MJPEG mode supported by the camera.
 
-## 10. Command Reference
+## 11. Command Reference
 
 All AP-side commands require the `ap_cmd` prefix when sent from the main console.
 
@@ -274,6 +321,7 @@ All AP-side commands require the `ap_cmd` prefix when sent from the main console
 - `ap_cmd udisk enum`: switch to host, wait for any USB device to enumerate and print descriptors.
 - `ap_cmd udisk test`: switch to host, enumerate a U-disk, mount, list files, write, read back and verify.
 - `ap_cmd udisk ls`: print the mounted U-disk `2:` root directory.
+- `ap_cmd udisk speed [MB] [blockKB]`: sequential write/read throughput test (default 32MB/128KB).
 - `ap_cmd mtp start`: stop MSC, start MTP device and mount SD card `/sd0`.
 - `ap_cmd mtp stop`: stop MTP device. This command does not restore the default MSC device automatically.
 - `ap_cmd mtp status`: print MTP active state.
@@ -281,7 +329,7 @@ All AP-side commands require the `ap_cmd` prefix when sent from the main console
 - `ap_cmd uvc open [port] [w] [h] [fps]`: open a UVC MJPEG stream and keep running.
 - `ap_cmd uvc close [port]`: stop and close the UVC stream on the selected port.
 
-## 11. Key Configuration
+## 12. Key Configuration
 
 This example depends on the following main configuration options:
 
@@ -302,7 +350,7 @@ CONFIG_FATFS=y
 CONFIG_FATFS_SDCARD=y
 ```
 
-## 12. Notes
+## 13. Notes
 
 1. USB device and USB host cannot use the same controller at the same time. Host or MTP commands change the current USB role.
 2. Host mode requires external VBUS power. Incorrect power supply can prevent enumeration.
@@ -311,7 +359,7 @@ CONFIG_FATFS_SDCARD=y
 5. `mtp stop` only stops the MTP gadget. Reset the board to restore the boot-time default MSC device mode.
 6. Windows may cache MTP names and icons by VID, PID and Serial. After changing the product name or device type, uninstall the old portable-device record or use another USB port to re-enumerate.
 
-## 13. Troubleshooting
+## 14. Troubleshooting
 
 ### Command Not Found
 

@@ -81,6 +81,10 @@ bk_err_t usb_storage_enable(void)
  * CONFIG_USB_DEVICE and CONFIG_USB_HOST are enabled. */
 extern bk_err_t bk_usb_otg_manual_convers_mod(E_USB_MODE close_mod, E_USB_MODE open_mod);
 
+/* U-disk speed benchmark lives in udisk_speed_test.c; it reuses the host
+ * bring-up / media-wait helpers below (kept non-static for that reason). */
+extern int udisk_run_speed_test(uint32_t total_mb, uint32_t block_kb);
+
 #define UDISK_DRIVE_PATH        "2:"
 #define UDISK_TEST_FILE         "2:/bk_udisk_test.txt"
 #define UDISK_TEST_PAYLOAD      512u
@@ -108,7 +112,7 @@ static void udisk_ensure_driver_init(void)
 /* Wait for the host stack to finish SCSI INQUIRY + READ CAPACITY on the
  * inserted U-disk. usbh_ms_media_get_status() flips to non-zero once the
  * MSC class driver's connect callback has succeeded. */
-static int udisk_wait_media(uint32_t timeout_ms)
+int udisk_wait_media(uint32_t timeout_ms)
 {
     uint32_t waited = 0;
     while (waited < timeout_ms) {
@@ -124,7 +128,7 @@ static int udisk_wait_media(uint32_t timeout_ms)
     return -1;
 }
 
-static int udisk_switch_to_host(void)
+int udisk_switch_to_host(void)
 {
     if (s_udisk_in_host_mode) {
         LOGI("already in HOST mode\n");
@@ -483,6 +487,7 @@ static void cli_udisk_help(void)
     LOGI("  udisk dev     - switch USB back to DEVICE (MSC gadget, default)\n");
     LOGI("  udisk enum    - host + wait for inserted device + print descriptors\n");
     LOGI("  udisk test    - host + enumerate + mount + write/read/verify + ls\n");
+    LOGI("  udisk speed [MB] [blockKB] - sequential write/read throughput (default 32MB/128KB)\n");
     LOGI("  udisk ls      - list root dir of the mounted U-disk\n");
     LOGI("  udisk status  - print current mode + media status\n");
 }
@@ -520,6 +525,10 @@ static void cli_udisk_cmd(char *pcWriteBuffer, int xWriteBufferLen,
         (void)udisk_run_enum();
     } else if (os_strcmp(sub, "test") == 0) {
         (void)udisk_run_rw_test();
+    } else if (os_strcmp(sub, "speed") == 0) {
+        uint32_t mb = (argc >= 3) ? os_strtoul(argv[2], NULL, 10) : 0;
+        uint32_t kb = (argc >= 4) ? os_strtoul(argv[3], NULL, 10) : 0;
+        (void)udisk_run_speed_test(mb, kb);
     } else if (os_strcmp(sub, "ls") == 0) {
         (void)udisk_scan_root("manual ls");
     } else if (os_strcmp(sub, "status") == 0) {
@@ -537,7 +546,7 @@ static void cli_udisk_cmd(char *pcWriteBuffer, int xWriteBufferLen,
  * ("cmd NOT found: udisk"). */
 COMPONENTS_CLI_CMD_EXPORT
 static const struct cli_command s_udisk_cmds[] = {
-    {"udisk", "udisk host|dev|enum|test|ls|status", cli_udisk_cmd},
+    {"udisk", "udisk host|dev|enum|test|speed|ls|status", cli_udisk_cmd},
 };
 
 static void udisk_cli_register(void)
