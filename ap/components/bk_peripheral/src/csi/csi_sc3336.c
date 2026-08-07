@@ -1046,7 +1046,7 @@ static int sc3336_InitAeDefault(ISP_PORT IspPort)
             pAeSnsDft->dampOver = 0x40;
             pAeSnsDft->dampUnder = 0x40;
             pAeSnsDft->tolerance = 2;
-            pAeSnsDft->initExposure = 0x100 * pAeSnsDft->minAgain;
+            pAeSnsDft->initExposure = 0x08 * pAeSnsDft->minAgain;
             break;
         case SC3336_1080P25FPS_LINEAR_MODE:
             pAeSnsDft->fullLinesStd = SC3336_VMAX_1080P25FPS_LINEAR;
@@ -1073,7 +1073,7 @@ static int sc3336_InitAeDefault(ISP_PORT IspPort)
             pAeSnsDft->dampOver = 0x40;
             pAeSnsDft->dampUnder = 0x40;
             pAeSnsDft->tolerance = 2;
-            pAeSnsDft->initExposure = 0x100 * pAeSnsDft->minAgain;
+            pAeSnsDft->initExposure = 0x08 * pAeSnsDft->minAgain;
             break;
             case SC3336_300W10FPS_LINEAR_MODE:
             pAeSnsDft->fullLinesStd = SC3336_VMAX_300W10FPS_LINEAR;
@@ -1100,7 +1100,7 @@ static int sc3336_InitAeDefault(ISP_PORT IspPort)
             pAeSnsDft->dampOver = 0x40;
             pAeSnsDft->dampUnder = 0x40;
             pAeSnsDft->tolerance = 2;
-            pAeSnsDft->initExposure = 0x100 * pAeSnsDft->minAgain;
+            pAeSnsDft->initExposure = 0x08 * pAeSnsDft->minAgain;
             break;
         case SC3336_300W15FPS_LINEAR_MODE:
             pAeSnsDft->fullLinesStd = SC3336_VMAX_300W15FPS_LINEAR;
@@ -1127,7 +1127,7 @@ static int sc3336_InitAeDefault(ISP_PORT IspPort)
             pAeSnsDft->dampOver = 0x40;
             pAeSnsDft->dampUnder = 0x40;
             pAeSnsDft->tolerance = 2;
-            pAeSnsDft->initExposure = 0x100 * pAeSnsDft->minAgain;
+            pAeSnsDft->initExposure = 0x08 * pAeSnsDft->minAgain;
             break;
         default:
             return BK_FAIL;

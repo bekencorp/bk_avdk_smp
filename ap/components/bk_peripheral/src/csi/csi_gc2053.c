@@ -382,7 +382,7 @@ static int GC2053_InitAeDefault(ISP_PORT IspPort)
             pAeSnsDft->dampOver = 0x40;
             pAeSnsDft->dampUnder = 0x40;
             pAeSnsDft->tolerance = 1;
-            pAeSnsDft->initExposure = 0x100 * pAeSnsDft->minAgain;
+            pAeSnsDft->initExposure = 0x08 * pAeSnsDft->minAgain;
             break;
         default:
             break;
