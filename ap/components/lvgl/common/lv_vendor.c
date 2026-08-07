@@ -223,6 +223,11 @@ void lv_vendor_set_ready_frame_buffer(void *frame_buffer)
         return;
     }
 
+    if (lvgl_frame_queue == NULL) {
+        LOGE("%s lvgl_frame_queue is NULL\n", __func__);
+        return;
+    }
+
     msg.param0 = (uint32_t)frame_buffer;
     msg.param1 = 0;
     ret = rtos_push_to_queue(&lvgl_frame_queue, &msg, BEKEN_WAIT_FOREVER);
