@@ -73,12 +73,21 @@ typedef struct
 
 void *encoder_buffer_request(uint32_t buffer_len, void *args)
 {
+    static uint8_t size_mismatch_logged = 0;
     frame_buffer_t *temp_buffer = NULL;
     if (buffer_len > 0)
     {
         temp_buffer = (frame_buffer_t *)bk_encoded_data_request();
-        if(temp_buffer == NULL) {
+        if (temp_buffer == NULL)
+        {
             return NULL;
+        }
+
+        if ((buffer_len > temp_buffer->size) && (size_mismatch_logged == 0U))
+        {
+            size_mismatch_logged = 1U;
+            LOGE("%s: requested buffer size %u exceeds capacity %u\r\n",
+                 __func__, buffer_len, temp_buffer->size);
         }
     }
 
