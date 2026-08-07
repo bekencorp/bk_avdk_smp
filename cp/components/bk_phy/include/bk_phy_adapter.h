@@ -196,6 +196,7 @@ typedef struct {
     int(*_bk_feature_wifi_signal_cert_enable)(void);
     bool(*_me_is_connect_with_instrument)(void);
     void(*_bk_epa_gpio_config)(UINT32 rx_gpio, UINT32 tx_gpio, UINT32 lna_gpio);
+    int(*_bk_get_package_type)(uint8_t *package_type);
 } phy_os_funcs_t;
 
 
@@ -260,6 +261,10 @@ typedef struct {
     uint32_t _OTP_DIA;
     uint32_t _OTP_GADC_TEMPERATURE;
     uint32_t _OTP_RFCALI1;
+    uint32_t _BK_PACKAGE_TYPE_A_OLD_128A_S_MIC;
+    uint32_t _BK_PACKAGE_TYPE_A_NEW_128A_S_MIC;
+    uint32_t _BK_PACKAGE_TYPE_B_OLD_128A_S_MIC;
+    uint32_t _BK_PACKAGE_TYPE_B_NEW_128A_S_OR_128B_D_MIC;
 } phy_os_variable_t;
 
 /*******************************************************************************

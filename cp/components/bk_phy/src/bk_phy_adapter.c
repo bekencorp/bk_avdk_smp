@@ -62,6 +62,8 @@
 #endif
 #endif
 
+#include "chip_support.h"
+
 #define PHY_OSI_VERSION              0x00060006
 
 static void bk_set_g_saradc_flag(UINT8 flag)
@@ -825,6 +827,7 @@ const phy_os_funcs_t g_phy_os_funcs = {
     ._bk_feature_wifi_signal_cert_enable    = bk_feature_wifi_signal_cert_enable,
     ._me_is_connect_with_instrument         = me_is_connect_with_instrument,
     ._bk_epa_gpio_config                    = bk_epa_gpio_config,
+    ._bk_get_package_type                   = bk_get_package_type,
 };
 
 const phy_os_variable_t g_phy_os_variable = {
@@ -864,10 +867,10 @@ const phy_os_variable_t g_phy_os_variable = {
     ._pm_chip_id_mpw_v2_3    = PM_CHIP_ID_MPW_V2_3,
     ._pm_chip_id_mpw_v4      = PM_CHIP_ID_MPW_V4,
     ._pm_chip_id_mp_A        = PM_CHIP_ID_MP_A,
-    ._bk7259_chip_model_v2_mpw  = BK7259_CHIP_MODEL_V2_MPW,
-    ._bk7259_chip_model_v3a     = BK7259_CHIP_MODEL_V3A,
-    ._bk7259_chip_model_v3b     = BK7259_CHIP_MODEL_V3B,
-    ._bk7259_chip_model_unknown = BK7259_CHIP_MODEL_UNKNOWN,
+    ._bk7259_chip_model_v2_mpw      = BK7259_CHIP_MODEL_V2_MPW,
+    ._bk7259_chip_model_v3a         = BK7259_CHIP_MODEL_V3A,
+    ._bk7259_chip_model_v3b         = BK7259_CHIP_MODEL_V3B,
+    ._bk7259_chip_model_unknown     = BK7259_CHIP_MODEL_UNKNOWN,
     ._cmd_get_device_id             = CMD_GET_DEVICE_ID,
     ._cmd_sctrl_ble_powerdown       = CMD_SCTRL_BLE_POWERDOWN,
     ._cmd_sctrl_ble_powerup         = CMD_SCTRL_BLE_POWERUP,
@@ -898,11 +901,15 @@ const phy_os_variable_t g_phy_os_variable = {
     ._ieee80211_num_bands           = IEEE80211_NUM_BANDS ,
 
 #if CONFIG_OTP_V1
-    ._OTP_RFCALI1            = OTP_RFCALI1,
-    ._OTP_VDDDIG_BANDGAP     = OTP_VDDDIG_BANDGAP ,
-    ._OTP_DIA                = OTP_DIA ,
-    ._OTP_GADC_TEMPERATURE   = OTP_GADC_TEMPERATURE,
+    ._OTP_RFCALI1                   = OTP_RFCALI1,
+    ._OTP_VDDDIG_BANDGAP            = OTP_VDDDIG_BANDGAP ,
+    ._OTP_DIA                       = OTP_DIA ,
+    ._OTP_GADC_TEMPERATURE          = OTP_GADC_TEMPERATURE,
 #endif
+    ._BK_PACKAGE_TYPE_A_OLD_128A_S_MIC           = BK_PACKAGE_TYPE_A_OLD_128A_S_MIC,
+    ._BK_PACKAGE_TYPE_A_NEW_128A_S_MIC           = BK_PACKAGE_TYPE_A_NEW_128A_S_MIC,
+    ._BK_PACKAGE_TYPE_B_OLD_128A_S_MIC           = BK_PACKAGE_TYPE_B_OLD_128A_S_MIC,
+    ._BK_PACKAGE_TYPE_B_NEW_128A_S_OR_128B_D_MIC = BK_PACKAGE_TYPE_B_NEW_128A_S_OR_128B_D_MIC,
 };
 
 extern void phy_adapter_init(const void * phy_funcs, const void * phy_vars);
