@@ -287,7 +287,7 @@ avdk_err_t lcd_example_dsi_close(display_ctx_t *context)
 {
     if (context == NULL)
         return AVDK_ERR_INVAL;
-
+    bk_gpio_set_output_low(GPIO_7);
     if (context->dpu_ctlr_handle)
     {
         bk_display_deinit(context->dpu_ctlr_handle);
