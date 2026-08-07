@@ -202,7 +202,16 @@ $(ram_regions_out): $(RAM_REGIONS_DIR) $(RAM_REGIONS_TABLE) $(RAM_REGIONS_MPU_PO
 	@mkdir -p $(PARTITIONS_DIR)
 	@$(RUN_PYTHON3) $(ram_partition_script)
 
-build_prepare: $(auto_partition_out) print_partitions $(ram_regions_out)
+# Clean bootloader once before the AP/CP build to ensure a full rebuild.
+NORMAL_BOOTLOADER_DIR := $(ARMINO_CP_DIR)/properties/modules/bootloader/aboot/arm_bootloader
+.PHONY: bootloader_fullclean
+bootloader_fullclean:
+	@echo "[full-build] clean bootloader once for a reproducible full build"
+	@if [ -d "$(NORMAL_BOOTLOADER_DIR)" ]; then \
+		$(MAKE) -C $(NORMAL_BOOTLOADER_DIR) SOC_TYPE=$(ARMINO_SOC) clean; \
+	fi
+
+build_prepare: $(auto_partition_out) print_partitions $(ram_regions_out) bootloader_fullclean
 
 package_script := $(ARMINO_AVDK_DIR)/tools/build_tools/build_process/bk_build_package.py
 package_dir := $(PROJECT_BUILD_DIR)/package
@@ -279,4 +288,8 @@ clean:
 	@rm -rf ./build
 	@rm -rf $(ARMINO_AP_DIR)/build
 	@rm -rf $(ARMINO_CP_DIR)/build
+	@echo "clean bootloader output"
+	@if [ -d "$(NORMAL_BOOTLOADER_DIR)" ]; then \
+		$(MAKE) -C $(NORMAL_BOOTLOADER_DIR) SOC_TYPE=$(ARMINO_SOC) clean; \
+	fi
 
