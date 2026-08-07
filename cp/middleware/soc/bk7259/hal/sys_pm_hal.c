@@ -2573,7 +2573,10 @@ static int sys_hal_power_config_default()
 	sys_ll_set_ana_reg6_manu_cin(0x0);
 
 	#if CONFIG_PM_ONLY_CP_ENABLE
-	//sys_ll_set_reserver_reg0x10_pwd_cpu1(0x1);
+	#if CONFIG_PM_CP_CPU1_BAKP_AUDP_DOMAIN_DEFAULT_OFF
+	sys_ll_set_reserver_reg0x10_pwd_cpu1(0x1);
+	#endif
+
 	sys_ll_set_reserver_reg0x10_pwd_vehp(0x1);
 	//sys_ll_set_reserver_reg0x10_pwd_wrls(0x1);
 	sys_ll_set_reserver_reg0x10_rom_pgen(0x1);

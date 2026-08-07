@@ -3660,9 +3660,11 @@ static void sys_hal_dpll_cpu_flash_time_early_init(uint32_t chip_id)
 		sys_ll_set_cpu_clk_div_mode1_ckdiv_flash(0x2);
 		sys_ll_set_cpu_clk_div_mode1_cksel_flash(CKSEL_SYS_FLASH_240M);
 	}
+#if !CONFIG_PM_CP_PERI_CLK_DEFAULT_OFF
 	/*Default enable all the clock source for bringup */
 	REG_WRITE(SYS_CPU_DEVICE_CLK_ENABLE_ADDR, 0xFFFFFFFF);
 	REG_WRITE(SYS_RESERVER_REG0XD_ADDR, 0xFFFFFFFF);
+#endif
 
 	/*Set the cpu clock div:default:240M*/
 	sys_ll_set_cpu_clk_div_mode1_ckdiv_core(0x1);
