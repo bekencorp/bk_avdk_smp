@@ -753,17 +753,11 @@ void sdio_gpio_init(uint8_t io_pos, sdio_wire_width_sel_t width_sel)
 	(void)width_sel;
 }
 
-void tuning_cfg(uintptr_t addr,uint8 tuning_rx_sel0,uint8 tuning_rx_sel1,uint8 sample_rx_sel0,uint8 sample_rx_sel1,uint8 tuning_tx_sel0,uint8 tuning_tx_sel1,uint8 sample_tx_sel0,uint8 sample_tx_sel1,uint8 clk_drv_inv_sel)
+void tuning_cfg(uintptr_t addr,uint8 tuning_rx_sel0, uint8 sample_rx_sel0,uint8 tuning_tx_sel0,uint8 sample_tx_sel0,uint8 clk_drv_inv_sel)
 {
-	#if 0	//TODO:V1 chip uses two steps tuning, V2 chip uses one step tuning
-	sdio_reg5(addr) |= tuning_rx_sel0 <<5 | tuning_rx_sel1<<8 | sample_rx_sel0 <<14 | sample_rx_sel1 <<15;
-	sdio_reg5(addr) |= tuning_tx_sel0 <<17 | tuning_tx_sel1<<20 | sample_tx_sel0 <<26 | sample_tx_sel1 <<27;
-	sdio_reg5(addr) |= clk_drv_inv_sel << 29;
-	#else
 	sdio_reg5(addr) |= (tuning_rx_sel0 & 0x0f) <<5 | sample_rx_sel0 <<14;
 	sdio_reg5(addr) |= (tuning_tx_sel0 & 0x0f) <<17 | sample_tx_sel0 <<26;
 	sdio_reg5(addr) |= clk_drv_inv_sel << 29;
-	#endif
 }
 
 bk_err_t mshc_host_init(uintptr_t addr,uint16 sysclk_div,uint16 sdclk_div,uint8 tmclk_div,uint8 cqetmclk_div,uint8 CARD_IS_EMMC,uint8 UHS_MODE_SEL,uint8 DAT_XFER_WIDTH)
@@ -1405,11 +1399,11 @@ bk_err_t bk_sdio_host_init(sdio_host_id_t id, const sdio_host_cfg_t *cfg)
 		sys_drv_set_int_en(rtos_get_core_id(), INT_SRC_SDIO1, 1);
 		sdio_gpio_init(id, SDIO_WIRE_WIDTH_SEL_1);
 		PWR_CTRL_R(s_active_base) = 0x01;
-		tuning_cfg(s_active_base, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+		tuning_cfg(s_active_base, 0, 0, 0, 0, 0);
 		ret = mshc_host_init(s_active_base, 0x3, 300, 0xff, 0xa,
 				     1 /*CARD_IS_EMMC*/, UHS_MODE_EMMC_DS, DATA_WIDTH1);
 	} else {
-		tuning_cfg(s_active_base, 0, 0, 0, 0, 0, 0, 0, 0, 1);
+		tuning_cfg(s_active_base, 0, 0, 0x8, 1, 0);
 		ret = sdio_host_init();         /* SD path, behavior preserved */
 	}
 
