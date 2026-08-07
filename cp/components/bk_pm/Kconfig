@@ -71,6 +71,31 @@ menu "PM"
 		help
 			only cp enable ,ap disable
 
+	config PM_CP_PERI_CLK_DEFAULT_OFF
+		bool "Default disable CP peripheral clocks"
+		default n
+		help
+			Keep CP peripheral clocks disabled by default during early init.
+
+	config PM_CP_CPU1_BAKP_AUDP_DOMAIN_DEFAULT_OFF
+		bool "Default disable CP CPU1_BAKP_AUDP domain"
+		depends on PM_ONLY_CP_ENABLE
+		default n
+		help
+			Power down the CP CPU1_BAKP_AUDP domain during early init.
+
+	config PM_XTAL_RX_TX_ANABUF_DEFAULT_OFF
+		bool "Default disable XTAL RX/TX analog buffers"
+		default n
+		help
+			Keep XTAL RX/TX analog buffers disabled by default.
+
+	config PM_CURRENT_OPTIMIZE_XTAL_RX_TX_ANABUF
+		bool "Optimize PM current through XTAL RX/TX analog buffers"
+		default n
+		help
+			Optimize power-management current through XTAL RX/TX analog buffers.
+
 	config DEEP_LV
 		bool "Enable deep low voltage"
 		default n
