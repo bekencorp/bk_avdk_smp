@@ -218,7 +218,8 @@ static uint64_t aon_rtc_counter_get_tick(void)
 	do {
 		val_hi = REG_READ(AON_RTC_CNT_VAL_H_ADDR);
 		val = REG_READ(AON_RTC_CNT_VAL_L_ADDR);
-	} while (REG_READ(AON_RTC_CNT_VAL_H_ADDR) != val_hi);
+	} while (REG_READ(AON_RTC_CNT_VAL_H_ADDR) != val_hi
+		 || REG_READ(AON_RTC_CNT_VAL_L_ADDR) != val);
 
 	return (((uint64_t)(val_hi) << 32) + val);
 }

@@ -164,7 +164,8 @@ __IRAM_SEC uint64_t aon_rtc_hal_get_counter_val(aon_rtc_hal_t *hal)
 	do {
 		val_hi = aon_rtc_ll_get_counter_val_hi(hal->hw);
 		val = aon_rtc_ll_get_counter_val(hal->hw);
-	} while (aon_rtc_ll_get_counter_val_hi(hal->hw) != val_hi);
+	} while (aon_rtc_ll_get_counter_val_hi(hal->hw) != val_hi ||
+		 aon_rtc_ll_get_counter_val(hal->hw) != val);
 
 	return (((uint64_t)(val_hi) << 32) + val);
 }
