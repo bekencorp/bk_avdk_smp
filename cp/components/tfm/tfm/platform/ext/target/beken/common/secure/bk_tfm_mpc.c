@@ -48,6 +48,10 @@
 #error "AP_SPE_RAM must start at the smem3 base"
 #endif
 
+#if (CONFIG_AP_SPE_RAM_SIZE != 0x1000u)
+#error "AP_SPE_RAM must occupy one MPC block"
+#endif
+
 /* Index of the AP boot shim controller inside s_ap_mpc_base (smem3). */
 #define AP_MPC_SMEM3_IDX  0u
 

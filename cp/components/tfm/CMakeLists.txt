@@ -93,6 +93,8 @@ if (CONFIG_TFM AND tfm_present)
         message(FATAL_ERROR "PARTITIONS_DIR is not set")
     endif()
     set(ram_regions_header ${project_partitions_dir}/ram_regions.h)
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+        "${ram_regions_header}")
 
     function(get_ram_region_value macro_name output_var)
         if (NOT EXISTS ${ram_regions_header})
