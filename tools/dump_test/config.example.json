@@ -1,0 +1,54 @@
+{
+  "transport": {
+    "mode": "remote",
+    "port": "COM8",
+    "baudrate": 115200,
+    "view_log_script": "/home/jun.pan/.cursor/skills/view-bk7259-log/scripts/view_log.sh"
+  },
+  "network": {
+    "enabled": false,
+    "ssid": "replace-with-test-ssid",
+    "password": "",
+    "gateway": "192.168.1.1",
+    "ping_count": 1000,
+    "ping_length": 1400
+  },
+  "flash": {
+    "enabled": false,
+    "confirmed_safe": false,
+    "address": "0x00000000",
+    "length": "0x1000"
+  },
+  "filesystem": {
+    "enabled": false,
+    "type": "lfs",
+    "mount_point": "/lfs",
+    "test_path": "/lfs/dump_test.dat"
+  },
+  "filesystem_rename_cli": {
+    "enabled": false
+  },
+  "qspi": {
+    "enabled": false,
+    "confirmed_safe": false,
+    "id": 0,
+    "address": "0x00000000",
+    "length": 4096
+  },
+  "qspi_gc_cli": {
+    "enabled": false
+  },
+  "run": {
+    "fixed_repeats": 3,
+    "random_cases": 50,
+    "random_seed": 7259,
+    "prepare_timeout_s": 30,
+    "dump_timeout_s": 1800,
+    "boot_timeout_s": 120,
+    "recovery_timeout_s": 120,
+    "boot_expect": "user app entry|AP main running|armino app init",
+    "random_delay_min_s": 30,
+    "random_delay_max_s": 300,
+    "output_dir": "logs/dump_test"
+  }
+}
