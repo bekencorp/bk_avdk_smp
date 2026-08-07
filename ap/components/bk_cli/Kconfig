@@ -7,6 +7,15 @@ menu "Bk_cli"
 			bool "Enable Cli"
 			default y
 
+		config DUMP_TEST_CLI
+			bool "DUMP_TEST_CLI"
+			depends on CLI
+			default n
+			help
+				Enable destructive Dump test commands that intentionally trigger
+				exceptions and restarts. AP commands may also erase and write the
+				explicitly configured Flash test region.
+
 		config CLI_USER_CONFIG
 			depends on CLI
 			bool "Enable Cli User Config"

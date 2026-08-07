@@ -361,13 +361,18 @@ static int test_unlink_vfs(char *file_name)
 	return ret;
 }
 
+static int test_rename_vfs(char *old_name, char *new_name)
+{
+	return rename(old_name, new_name);
+}
+
 
 void cli_vfs_test(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
 	int ret;
 
 	if (argc < 2) {
-		BK_LOGD(NULL, "usage : vfs format|mount|umount|read|write|unlink\n");
+		BK_LOGD(NULL, "usage : vfs format|mount|umount|read|write|unlink|rename\n");
 		return;
 	}
 
@@ -470,6 +475,19 @@ void cli_vfs_test(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **arg
 
 		ret = test_unlink_vfs(file_name);
 		BK_LOGD(NULL, "unlink ret=%d\n", ret);
+	} else if (os_strcmp(argv[1], "rename") == 0) {
+		char *old_name;
+		char *new_name;
+
+		if (argc < 4) {
+			BK_LOGD(NULL, "usage : vfs rename OLD_FILE_NAME NEW_FILE_NAME\n");
+			return;
+		}
+		old_name = argv[2];
+		new_name = argv[3];
+
+		ret = test_rename_vfs(old_name, new_name);
+		BK_LOGD(NULL, "rename ret=%d\n", ret);
 	} else if (os_strcmp(argv[1], "threadsafe_test") == 0) {
 		uint32_t task_count = os_strtoul(argv[2], NULL, 10);
 		uint32_t file_size = os_strtoul(argv[3], NULL, 10);
