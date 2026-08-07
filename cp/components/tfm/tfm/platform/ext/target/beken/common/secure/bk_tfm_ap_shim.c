@@ -15,6 +15,13 @@
 #include <stdint.h>
 #include "bk_tfm_ap_shim.h"
 #include "partitions_gen.h"
+#include "ram_regions.h"
+
+#define STRINGIFY_VALUE_(value) #value
+#define STRINGIFY_VALUE(value) STRINGIFY_VALUE_(value)
+#define AP_SHIM_BASE CONFIG_AP_SPE_RAM_ADDR
+#define AP_SHIM_STACK_TOP \
+    (CONFIG_AP_SPE_RAM_ADDR + CONFIG_AP_SPE_RAM_SIZE - 0x200)
 
 /* AP flash XIP NS alias: SOC_FLASH_DATA_BASE (0x04000000 + 0x10000000). */
 #define AP_FLASH_XIP_BASE  0x14000000u
@@ -61,8 +68,9 @@ __asm__(
 "    .global ap_shim_blob\n"
 "    .global ap_shim_blob_end\n"
 "ap_shim_blob:\n"
-"    .word 0x28100E00\n"                                      /* initial MSP */
-"    .word (ap_shim_code - ap_shim_blob) + 0x28100000 + 1\n"  /* entry|thumb */
+"    .word " STRINGIFY_VALUE(AP_SHIM_STACK_TOP) "\n"                   /* initial MSP */
+"    .word (ap_shim_code - ap_shim_blob) + "
+               STRINGIFY_VALUE(CONFIG_AP_SPE_RAM_ADDR) " + 1\n"      /* entry|thumb */
 "    .word 0x14212000\n"                                      /* ns_vec0 core0 */
 "    .word 0\n"                                               /* ns_vec1 core1 */
 "    .align 3\n"

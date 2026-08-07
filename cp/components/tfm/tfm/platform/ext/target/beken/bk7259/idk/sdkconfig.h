@@ -141,10 +141,8 @@
 #define CONFIG_SYS_CPU0 1
 #define CONFIG_CPU_CNT  1
 
-/* CONFIG_TFM_RAM_SIZE (secure-world / SPE RAM carve-out) is intentionally NOT
- * defined here. It is generated into armino_config.h by CMake configure_file()
- * from the external Armino/SDK Kconfig (projects/.../cp/config/bk7259/defconfig
- * CONFIG_CPU0_SPE_RAM_SIZE), so the SPE RAM size is configured in one place. */
+/* CONFIG_TFM_RAM_SIZE is generated into armino_config.h from the project RAM
+ * regions so the secure RAM size has one configuration source. */
 #define CONFIG_UART_DEEPSLEEP_CB_SUPPORT 0
 #define CONFIG_UART_PM_CB_SUPPORT 0
 // #define CONFIG_CUSTOMIZED_PRINTF "log_port.h"

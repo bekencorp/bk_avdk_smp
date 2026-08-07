@@ -20,19 +20,13 @@
 extern "C" {
 #endif
 
-/* Reserved Secure RAM for the AP boot shim: first 4K block of smem3 (Secure
- * alias). Kept Secure by the smem3 MPC while the rest of the AP RAM is
- * Non-Secure. The shim vector head and code must be loaded here and the AP boot
- * vector pointed at this address. */
-#define AP_SHIM_BASE   0x28100000u
-
 /* core1 Non-Secure vector table (AP __vector_core1_table, RAM NS alias). It is
  * fixed by the AP link layout; the AP linker asserts this value so a layout
  * shift is caught at build time. */
 #define AP_CORE1_NS_VECTOR   0x3C181000u
 
-/* Install the shim into AP_SHIM_BASE, patch the core0/core1 Non-Secure vectors,
- * and return the AP boot address (shim entry vector). */
+/* Install the shim, patch the core0/core1 Non-Secure vectors, and return the
+ * shim entry address. */
 uint32_t bk_ap_shim_install(uint32_t core1_ns_vector);
 
 #ifdef __cplusplus

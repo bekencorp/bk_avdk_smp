@@ -88,6 +88,39 @@ if (CONFIG_TFM AND tfm_present)
     armino_build_get_property(partition_hdr_dir PARTITIONS_HDR_DIR)
     armino_build_get_property(armino_path ARMINO_PATH)
 
+    set(project_partitions_dir $ENV{PARTITIONS_DIR})
+    if (NOT project_partitions_dir)
+        message(FATAL_ERROR "PARTITIONS_DIR is not set")
+    endif()
+    set(ram_regions_header ${project_partitions_dir}/ram_regions.h)
+
+    function(get_ram_region_value macro_name output_var)
+        if (NOT EXISTS ${ram_regions_header})
+            message(FATAL_ERROR "Missing generated RAM regions header: ${ram_regions_header}")
+        endif()
+        file(STRINGS ${ram_regions_header} macro_lines
+            REGEX "^[ \t]*#define[ \t]+${macro_name}[ \t]+0x[0-9A-Fa-f]+[ \t]*$")
+        list(LENGTH macro_lines macro_count)
+        if (NOT macro_count EQUAL 1)
+            message(FATAL_ERROR
+                "Expected exactly one ${macro_name} in ${ram_regions_header}, found ${macro_count}")
+        endif()
+        string(REGEX REPLACE
+            "^[ \t]*#define[ \t]+${macro_name}[ \t]+(0x[0-9A-Fa-f]+)[ \t]*$"
+            "\\1" macro_value "${macro_lines}")
+        set(${output_var} ${macro_value} PARENT_SCOPE)
+    endfunction()
+
+    get_ram_region_value(CONFIG_CP_SPE_RAM_ADDR cp_spe_ram_addr)
+    get_ram_region_value(CONFIG_CP_SPE_RAM_SIZE cp_spe_ram_size)
+    get_ram_region_value(CONFIG_CP_RAM_ADDR cp_ram_addr)
+    get_ram_region_value(CONFIG_CP_RAM_SIZE cp_ram_size)
+    math(EXPR cp_spe_ram_end "${cp_spe_ram_addr} + ${cp_spe_ram_size}")
+    math(EXPR cp_ram_end "${cp_ram_addr} + ${cp_ram_size}")
+    if (NOT cp_spe_ram_addr EQUAL cp_ram_addr OR cp_spe_ram_end GREATER cp_ram_end)
+        message(FATAL_ERROR "CP_SPE_RAM must be a prefix of CP_RAM")
+    endif()
+
     set(tfm_platform beken/bk7259)
     # Use the SAME toolchain as the main SDK build (COMPILER_TOOLCHAIN_PATH from
     # soc_config.mk = GCC 14.3.rel1, which supports cortex-m52). The stale
@@ -155,8 +188,8 @@ if (CONFIG_TFM AND tfm_present)
                 -DPARTITION_HDR_DIR=${partition_hdr_dir}
                 # Project-level generated partitions dir (holds ram_regions.h,
                 # used by the kept SDK sys bring-up via driver/pwr_clk.h).
-                -DPROJECT_PARTITIONS_DIR=${CMAKE_BINARY_DIR}/../partitions
-                -DCONFIG_TFM_RAM_SIZE=${CONFIG_CPU0_SPE_RAM_SIZE}
+                -DPROJECT_PARTITIONS_DIR=${project_partitions_dir}
+                -DCONFIG_TFM_RAM_SIZE=${cp_spe_ram_size}
                 -DCONFIG_TFM_HEAP_SIZE=${CONFIG_TFM_HEAP_SIZE}
                 -DTFM_PARTITION_INITIAL_ATTESTATION=OFF
                 # Beken NSC gateways: forward the Armino switch into the TF-M

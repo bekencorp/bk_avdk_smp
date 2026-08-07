@@ -61,10 +61,6 @@ config TFM_BL2_LOG_LEVEL
     string "BL2/MCUboot log level"
     default "INFO"
 
-config CPU0_SPE_RAM_SIZE
-    hex "CP SPE (secure world) RAM size"
-    default 0x1C000
-
 config TFM_HEAP_SIZE
     hex "TF-M heap size"
     default 0x6000

@@ -19,6 +19,7 @@
 #include "cmsis.h"
 #include "tfm_flash_partition.h"
 #include "partitions_gen.h"
+#include "ram_regions.h"
 #include "hal_hw_fih.h"
 #include "hal_sw_fih.h"
 #include "bk_tfm_ppc.h"
@@ -42,6 +43,10 @@
 #define MPC_BLK_MAX_OFF   0x10u
 #define MPC_BLK_IDX_OFF   0x18u
 #define MPC_BLK_LUT_OFF   0x1Cu
+
+#if (CONFIG_AP_SPE_RAM_ADDR != 0x28100000u)
+#error "AP_SPE_RAM must start at the smem3 base"
+#endif
 
 /* Index of the AP boot shim controller inside s_ap_mpc_base (smem3). */
 #define AP_MPC_SMEM3_IDX  0u
