@@ -288,6 +288,8 @@ static void bk_video_player_video_decode_thread(void *arg)
     uint32_t last_output_alloc_warn_ms = 0;
 
     bool uniform_drop_active = false;
+    bool drop_until_next_idr = false;
+    uint64_t gop_drop_start_pts_ms = 0;
     uint64_t next_non_reference_keep_pts_ms = 0;
     uint32_t catchup_recovered_since_ms = 0;
 
@@ -343,6 +345,8 @@ static void bk_video_player_video_decode_thread(void *arg)
             /* New session starts with a fresh decoder DPB. Reset the
              * PTS-based uniform frame selector for the new timeline. */
             uniform_drop_active = false;
+            drop_until_next_idr = false;
+            gop_drop_start_pts_ms = 0;
             next_non_reference_keep_pts_ms = 0;
             catchup_recovered_since_ms = 0;
         }
@@ -462,6 +466,59 @@ static void bk_video_player_video_decode_thread(void *arg)
                             video_player_h264_packet_contains_idr(in_buffer_node->buffer.data,
                                                                   in_buffer_node->buffer.length);
 
+                        /*
+                         * When decode throughput is below the media frame rate, dropping only
+                         * non-reference pictures cannot catch up with streams whose P pictures
+                         * are all references. Skip the rest of the current GOP and resume at the
+                         * next IDR so the decoder starts from a valid, self-contained reference
+                         * chain. This happens before decode(), so the skipped pictures consume no
+                         * decoder/GPU time.
+                         */
+                        if (drop_until_next_idr && !is_h264_idr)
+                        {
+                            if (controller->config.video.packet_buffer_free_cb != NULL &&
+                                in_buffer_node->buffer.data != NULL)
+                            {
+                                controller->config.video.packet_buffer_free_cb(
+                                    controller->config.user_data,
+                                    &in_buffer_node->buffer);
+                            }
+                            buffer_pool_put_empty(&controller->video_pipeline.parser_to_decode_pool,
+                                                  in_buffer_node);
+                            continue;
+                        }
+
+                        if (drop_until_next_idr && is_h264_idr)
+                        {
+                            uint64_t skipped_ms = (in_pts_ms >= gop_drop_start_pts_ms) ?
+                                                  (in_pts_ms - gop_drop_start_pts_ms) : 0;
+                            LOGI("%s: GOP catch-up reached IDR, skipped=%llu ms, late=%llu ms\n",
+                                 __func__,
+                                 (unsigned long long)skipped_ms,
+                                 (unsigned long long)late_ms);
+                            drop_until_next_idr = false;
+                            gop_drop_start_pts_ms = 0;
+                        }
+                        else if (too_late && !is_h264_idr)
+                        {
+                            drop_until_next_idr = true;
+                            gop_drop_start_pts_ms = in_pts_ms;
+                            LOGW("%s: Video late by %llu ms, skip to next IDR from pts=%llu\n",
+                                 __func__,
+                                 (unsigned long long)late_ms,
+                                 (unsigned long long)in_pts_ms);
+                            if (controller->config.video.packet_buffer_free_cb != NULL &&
+                                in_buffer_node->buffer.data != NULL)
+                            {
+                                controller->config.video.packet_buffer_free_cb(
+                                    controller->config.user_data,
+                                    &in_buffer_node->buffer);
+                            }
+                            buffer_pool_put_empty(&controller->video_pipeline.parser_to_decode_pool,
+                                                  in_buffer_node);
+                            continue;
+                        }
+
                         if (is_h264_idr)
                         {
                             next_non_reference_keep_pts_ms = in_pts_ms + keep_interval_ms;
@@ -512,10 +569,9 @@ static void bk_video_player_video_decode_thread(void *arg)
                                 continue;
                             }
                         }
-                        /* Decode IDR, every reference picture, and PTS-spaced
-                         * non-reference pictures. There is deliberately no
-                         * "drop until next IDR" mode, so the final GOP cannot
-                         * disappear when no later IDR exists. */
+                        /* Decode the recovery IDR, every reference picture once
+                         * caught up, and PTS-spaced non-reference pictures while
+                         * the recovery state settles. */
                     }
                 }
                 else

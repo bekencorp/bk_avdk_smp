@@ -58,7 +58,7 @@ menu "Bk_video_player"
 
     config BK_VIDEO_PLAYER_AUDIO_PARSE_THREAD_STACK_SIZE
         int "audio parse thread stack size (bytes)"
-        default 2048
+        default 4096
 
     config BK_VIDEO_PLAYER_AUDIO_DECODE_THREAD_PRIORITY
         int "audio decode thread priority (audio_decode)"
