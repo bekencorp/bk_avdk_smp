@@ -231,22 +231,30 @@ static int GC2053_InitRegInfo(ISP_PORT IspPort)
 
     pSnsRegsInfo->snsData[REG_EXPTIME_H].delayFrameNum = 2;
     pSnsRegsInfo->snsData[REG_EXPTIME_H].regAddr = GC2053_EXPTIME_H;
+    pSnsRegsInfo->snsData[REG_EXPTIME_H].data = 0x00;
     pSnsRegsInfo->snsData[REG_EXPTIME_L].delayFrameNum = 2;
     pSnsRegsInfo->snsData[REG_EXPTIME_L].regAddr = GC2053_EXPTIME_L;
+    pSnsRegsInfo->snsData[REG_EXPTIME_L].data = 0x08;
 
     pSnsRegsInfo->snsData[REG_DGAIN_1].delayFrameNum = 2;
     pSnsRegsInfo->snsData[REG_DGAIN_1].regAddr = GC2053_DGAIN_1;
+    pSnsRegsInfo->snsData[REG_DGAIN_1].data = 0x01;
     pSnsRegsInfo->snsData[REG_DGAIN_2].delayFrameNum = 2;
     pSnsRegsInfo->snsData[REG_DGAIN_2].regAddr = GC2053_DGAIN_2;
+    pSnsRegsInfo->snsData[REG_DGAIN_2].data = 0x00;
 
     pSnsRegsInfo->snsData[REG_AGAIN_1].delayFrameNum = 2;
     pSnsRegsInfo->snsData[REG_AGAIN_1].regAddr = GC2053_AGAIN_1;
+    pSnsRegsInfo->snsData[REG_AGAIN_1].data = 0x00;
     pSnsRegsInfo->snsData[REG_AGAIN_2].delayFrameNum = 2;
     pSnsRegsInfo->snsData[REG_AGAIN_2].regAddr = GC2053_AGAIN_2;
+    pSnsRegsInfo->snsData[REG_AGAIN_2].data = 0x00;
     pSnsRegsInfo->snsData[REG_AGAIN_3].delayFrameNum = 2;
     pSnsRegsInfo->snsData[REG_AGAIN_3].regAddr = GC2053_AGAIN_3;
+    pSnsRegsInfo->snsData[REG_AGAIN_3].data = 0x01;
     pSnsRegsInfo->snsData[REG_AGAIN_4].delayFrameNum = 2;
     pSnsRegsInfo->snsData[REG_AGAIN_4].regAddr = GC2053_AGAIN_4;
+    pSnsRegsInfo->snsData[REG_AGAIN_4].data = 0x00;
 
     return BK_OK;
 }
@@ -616,8 +624,8 @@ static int GC2053_GainUpdate(ISP_PORT IspPort, vsi_u32_t *pAgain, vsi_u32_t *pDg
             pSnsRegsInfo->snsData[REG_AGAIN_4].data = reg_val.val4;
 
             /* Program digital gain registers from *pDgain (1x by default) */
-            pSnsRegsInfo->snsData[REG_DGAIN_1].data = (uint8_t)((*pDgain >> 8) & 0xFF);
-            pSnsRegsInfo->snsData[REG_DGAIN_2].data = (uint8_t)(*pDgain & 0xFF);
+            pSnsRegsInfo->snsData[REG_DGAIN_1].data = 0x01;
+            pSnsRegsInfo->snsData[REG_DGAIN_2].data = 0x00;
             break;
         default:
             break;
@@ -713,8 +721,8 @@ static const uint8_t sensor_gc2053_init_table[][2] =
     { 0x87, 0x18},
     { 0xee, 0x30},
     { 0xd0, 0xb7},
-    { 0x03, 0x02},
-    { 0x04, 0x00},
+    { 0x03, 0x00},
+    { 0x04, 0x08},
     { 0x05, 0x05},
     { 0x06, 0x35}, //hb=1333
     { 0x07, 0x00},
