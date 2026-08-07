@@ -138,6 +138,9 @@ avdk_err_t bk_camera_bus_enable(bk_camera_bus_t *bus)
 {
     AVDK_RETURN_ON_FALSE(bus, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
 
+    // isp clk en
+    bk_isp_clock_enable(true);
+
     // auxs/mclk (csi/dvp) clk en
     if (bus->mipi_port_en == 1)
     {
@@ -163,9 +166,6 @@ avdk_err_t bk_camera_bus_enable(bk_camera_bus_t *bus)
         bk_cis_mclk_clock_enable(20000000, 27, 1);
     }
 
-    // isp clk en
-    bk_isp_clock_enable(60000000, 1);
-
     return AVDK_ERR_OK;
 }
 
@@ -173,8 +173,6 @@ avdk_err_t bk_camera_bus_disable(bk_camera_bus_t *bus)
 {
     //AVDK_RETURN_ON_FALSE(bus, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
 
-    //TODO FIX ME
-    bk_isp_clock_enable(0, 0);
     if (bus->mipi_port_en == 1)
     {
         bk_cis_auxs_clock_enable(20000000, 59, 0);
@@ -206,6 +204,9 @@ avdk_err_t bk_camera_bus_disable(bk_camera_bus_t *bus)
 #else
     bk_i2c_deinit(bus->i2c_id);
 #endif
+
+    bk_isp_clock_enable(false);
+
     return AVDK_ERR_OK;
 }
 
