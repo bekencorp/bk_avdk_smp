@@ -17,11 +17,25 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "components/bk_decode/bk_h264_decode_types.h"
 #include "components/bk_video_player/bk_video_player_types.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+typedef bool (*bk_video_player_h264_osd_acquire_cb_t)(bk_h264_decode_osd_t *osd,
+                                                       void **token,
+                                                       void *user_data);
+typedef void (*bk_video_player_h264_osd_release_cb_t)(void *token,
+                                                       bool frame_ready,
+                                                       void *user_data);
+
+typedef struct {
+    bk_video_player_h264_osd_acquire_cb_t acquire;
+    bk_video_player_h264_osd_release_cb_t release;
+    void *user_data;
+} bk_video_player_h264_osd_provider_t;
 
 /**
  * @brief Get hardware H264 video decoder operations (Flexa + GPU path).
@@ -84,6 +98,17 @@ video_player_video_decoder_ops_t *bk_video_player_get_hw_h264_decoder_frame_ops(
  *         NULL on failure.
  */
 video_player_video_decoder_ops_t *bk_video_player_get_hw_h264_decoder_frame_zerocopy_ops(void);
+
+/**
+ * @brief Register the OSD source used by frame-mode H.264 decoder instances.
+ *
+ * The decoder acquires and pins one OSD buffer immediately before each
+ * synchronous decode and releases it after the VCDEC PP has completed. Passing
+ * NULL unregisters the current provider. Flexa and zero-copy decoders do not
+ * use this provider.
+ */
+avdk_err_t bk_video_player_hw_h264_frame_decoder_set_osd_provider(
+    const bk_video_player_h264_osd_provider_t *provider);
 
 /**
  * @brief Free a GPU-produced H.264 output frame using the matching allocator.

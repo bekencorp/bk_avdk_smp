@@ -30,6 +30,7 @@ extern "C" {
 // Track types
 #define MP4_TRACK_TYPE_VIDEO 0x76696465  // 'vide'
 #define MP4_TRACK_TYPE_AUDIO 0x736F756E  // 'soun'
+#define MP4_MAX_AUDIO_TRACKS 2
 
 // Video codec types
 #define MP4_CODEC_H264       0x61766331  // 'avc1'
@@ -102,6 +103,11 @@ double MP4_video_frame_rate(mp4_t *mp4);
 uint32_t MP4_video_codec(mp4_t *mp4);
 
 // Audio info functions
+uint8_t MP4_audio_track_count(mp4_t *mp4);
+uint8_t MP4_audio_active_track(mp4_t *mp4);
+#define MP4_AUDIO_SEEK_SAMPLE_NONE  (0xFFFFFFFFU)
+// seek_sample: MP4_AUDIO_SEEK_SAMPLE_NONE loads segment 0; otherwise preload segment for seek_sample.
+int MP4_select_audio_track(mp4_t *mp4, uint8_t index, uint32_t seek_sample);
 uint16_t MP4_audio_channels(mp4_t *mp4);
 uint16_t MP4_audio_bits(mp4_t *mp4);
 uint32_t MP4_audio_format(mp4_t *mp4);

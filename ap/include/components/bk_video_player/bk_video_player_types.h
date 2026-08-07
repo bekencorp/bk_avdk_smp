@@ -69,6 +69,10 @@ typedef enum
     BK_VIDEO_PLAYER_IOCTL_CMD_BASE = 0,
     // Set A/V sync offset (milliseconds). Param type: bk_video_player_av_sync_offset_param_t*.
     BK_VIDEO_PLAYER_IOCTL_CMD_SET_AV_SYNC_OFFSET_MS = 1,
+    // Select active MP4 audio track. Param type: bk_video_player_audio_track_param_t*.
+    BK_VIDEO_PLAYER_IOCTL_CMD_SELECT_AUDIO_TRACK = 2,
+    // Query MP4 audio track count. Param type: bk_video_player_audio_track_count_param_t*.
+    BK_VIDEO_PLAYER_IOCTL_CMD_GET_AUDIO_TRACK_COUNT = 3,
 } bk_video_player_ioctl_cmd_t;
 
 /**
@@ -81,6 +85,18 @@ typedef struct
 {
     int32_t offset_ms;
 } bk_video_player_av_sync_offset_param_t;
+
+typedef struct
+{
+    uint8_t index;
+    // Seek target in milliseconds when switching tracks. VIDEO_PLAYER_PTS_INVALID loads from start.
+    uint64_t seek_pts_ms;
+} bk_video_player_audio_track_param_t;
+
+typedef struct
+{
+    uint8_t count;
+} bk_video_player_audio_track_count_param_t;
 
 // Audio format enumeration (shared by all container parsers)
 typedef enum
@@ -155,6 +171,7 @@ typedef struct
     video_player_jpeg_subsampling_t jpeg_subsampling; // JPEG subsampling format, VIDEO_PLAYER_JPEG_SUBSAMPLING_NONE if not applicable
     const uint8_t *codec_config;
     uint32_t       codec_config_size;
+    pixel_format_t output_format;       // Requested decoder output format
     uint32_t       rotate_degree;       // Display rotation in degrees, decoder may ignore unsupported values
     uint32_t       display_width;       // Target display width in pixels, 0 = decoder default
     uint32_t       display_height;      // Target display height in pixels, 0 = decoder default
@@ -368,6 +385,11 @@ typedef struct video_player_container_parser_ops_s
     avdk_err_t (*get_supported_file_extensions)(const struct video_player_container_parser_ops_s *ops,
                                                 const char * const **exts,
                                                 uint32_t *ext_count);
+
+    // Optional extended parser control.
+    avdk_err_t (*ioctl)(struct video_player_container_parser_ops_s *ops,
+                        bk_video_player_ioctl_cmd_t cmd,
+                        void *param);
 } video_player_container_parser_ops_t;
 
 // -----------------------------------------------------------------------------

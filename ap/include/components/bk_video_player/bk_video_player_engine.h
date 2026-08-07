@@ -135,6 +135,24 @@ avdk_err_t bk_video_player_engine_rewind(bk_video_player_engine_handle_t handle,
 avdk_err_t bk_video_player_engine_set_av_sync_offset_ms(bk_video_player_engine_handle_t handle, int32_t offset_ms);
 
 /**
+ * @brief Select active audio track for the current media.
+ *
+ * @param handle Player engine handle
+ * @param index Audio track index, starting from 0
+ * @return avdk_err_t AVDK_ERR_OK on success, error code on failure
+ */
+avdk_err_t bk_video_player_engine_select_audio_track(bk_video_player_engine_handle_t handle, uint8_t index);
+
+/**
+ * @brief Get audio track count for the current media.
+ *
+ * @param handle Player engine handle
+ * @param count Output audio track count
+ * @return avdk_err_t AVDK_ERR_OK on success, error code on failure
+ */
+avdk_err_t bk_video_player_engine_get_audio_track_count(bk_video_player_engine_handle_t handle, uint8_t *count);
+
+/**
  * @brief Play (or replay) a file from the beginning
  *
  * This helper API hides the common start/restart sequence from upper layers.
