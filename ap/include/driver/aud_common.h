@@ -233,6 +233,8 @@ bk_err_t bk_aud_apll_config(aud_apll_freq_t freq);
 bk_err_t bk_aud_apll_spi_trigger(void);
 
 void bk_aud_hardware_reset(void);
+
+void bk_aud_hardware_reset_release(void);
 #endif
 /**
  * @}

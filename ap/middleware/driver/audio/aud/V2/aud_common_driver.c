@@ -458,8 +458,6 @@ bk_err_t bk_aud_driver_init(void)
 	sys_drv_set_int_en(rtos_get_core_id(), INT_SRC_AUDIO, 1);
 #endif
 	//sys_hal_aud_aud_en(1);
-	/* current version not support, next version support. */
-	//aud_hal_set_clk_control_soft_reset(1);
 
 	sys_drv_set_ana_reg25_value(0xC2A06AA6); /// fix value - 260116  //sys 0x59
 
@@ -528,12 +526,9 @@ bk_err_t bk_aud_driver_deinit(void)
 	sys_drv_set_ana_reg30_value(0);
 
 	sys_drv_aud_audbias_en(0);
-	/* current version not support, next version support. */
-#if 0   ////????
-	aud_hal_set_clk_control_soft_reset(0);
-	aud_hal_set_clk_control_soft_reset(1);
-	aud_hal_set_clk_control_soft_reset(0);
-#endif
+	bk_aud_hardware_reset_release();
+
+	bk_timer_delay_us(50);
 
 #endif
 	//bk_aud_clk_deconfig();
@@ -678,6 +673,14 @@ static void aud_isr(void)
 void bk_aud_hardware_reset(void)
 {
     /* Reset audio registers: AUD_REG_0x2 (0x4101a008) and AUD_REG_0x5E (0x4101a178) */
-    *((volatile UINT32 *)(SOC_AUDIO_REG_REG_BASE + (0x2 << 2))) = 0x1;
-    *((volatile UINT32 *)(SOC_AUDIO_REG_REG_BASE + (0x5E << 2))) = 0x43210;
+    audio_reg_hal_set_reserved0_value(0x1);   // soft reset
+    audio_reg_ll_set_interface_matrix_value(0x43210);
+}
+
+void bk_aud_hardware_reset_release(void)
+{
+    audio_reg_ll_set_interface_matrix_value(0x0);
+    audio_reg_hal_set_reserved0_value(0);
+    audio_reg_hal_set_reserved0_value(1);
+    audio_reg_hal_set_reserved0_value(0);
 }
