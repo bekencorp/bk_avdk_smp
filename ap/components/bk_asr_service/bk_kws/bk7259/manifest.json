@@ -1,0 +1,35 @@
+{
+  "name": "kws_model",
+  "soc": "bk7259",
+  "version": "20260805",
+  "sdk": "bk_avdk_smp_release_4.0.1",
+  "source": "4039421",
+  "perf_log": false,
+  "verbose_log": false,
+  "libraries": [
+    {
+      "file": "libkws_model.a",
+      "variant": "builtin",
+      "size": 3646874
+    },
+    {
+      "file": "libkws_model_vfs.a",
+      "variant": "vfs",
+      "size": 3523574
+    }
+  ],
+  "models": [
+    {
+      "file": "bk_kws_wakeup.tflite",
+      "model": "wakeup",
+      "mode": "vfs",
+      "size": 40800
+    },
+    {
+      "file": "bk_kws_commands.tflite",
+      "model": "commands",
+      "mode": "vfs",
+      "size": 80912
+    }
+  ]
+}
