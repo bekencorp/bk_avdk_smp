@@ -39,13 +39,8 @@ CONFIG_SLAVE_HEART_BEAT=n
 
 CONFIG_SECURE_OTA_XIP=y
 
-# The AP runtime partition map (BK_FLASH_PARTITIONS_MAP) only carries
-# {name, offset, size} -- partition_options is always 0. With the write-perm
-# check enabled, flash_partition_write_perm_check() sees PAR_OPT_WRITE_EN unset
-# and rejects EVERY direct AP flash erase/write (e.g. secure-XIP OTA staging
-# into secondary_all -> "erase fail @0x36c000"). Disable the check on the NS AP
-# so the OTA staging path can erase/program the inactive slot.
-# CONFIG_FLASH_PARTITION_CHECK_VALID is not set
+# A/B slots are writable; keep partition validation enabled.
+CONFIG_FLASH_PARTITION_CHECK_VALID=y
 
 # CONFIG_SYSTICK_32K is not set
 
