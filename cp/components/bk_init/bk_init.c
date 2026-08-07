@@ -107,6 +107,10 @@
 extern bk_err_t bk_dbg_init(void);
 #endif
 
+#if CONFIG_TFM
+#include "tfm_ns_interface.h"
+#endif
+
 extern void start_cpu1_core(void);
 
 
@@ -260,6 +264,12 @@ int components_init(void);
 int bk_init(void)
 {
 	components_init();
+
+#if CONFIG_TFM
+	if (tfm_ns_interface_init() != 0) {
+		BK_LOGE(TAG, "tfm_ns_interface_init failed\n");
+	}
+#endif
 
 	BK_LOGD(TAG, "armino app init: %s\n", build_version);
 	BK_LOGD(TAG, "verify id: %s\n", BK_VERIFY_ID);

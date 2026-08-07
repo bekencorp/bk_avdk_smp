@@ -39,18 +39,15 @@ if (CONFIG_TFM AND tfm_present)
         # second psa_call() definition (multiple-definition link error).
         tfm/interface/src/tfm_tz_psa_ns_api.c
         tfm/interface/src/os_wrapper/tfm_ns_interface_rtos.c
+        tfm_os_wrapper_mutex.c
     )
+    # Public headers for NSC veneers / PSA client SID. Note: interface/include
+    # also contains a mbedtls/ tree; dependents that use psa_mbedtls must keep
+    # psa_mbedtls include paths ahead of this component (do not re-export this
+    # path from other components' public INCLUDE_DIRS).
     list(APPEND incs
         tfm/interface/include
-        # tfm_crypto_defs.h -> crypto_keys/tfm_builtin_key_ids.h
         tfm/interface/include/crypto_keys
-        tfm/secure_fw/include
-        # config_tfm.h -> config_base.h lives in tfm/config.
-        tfm/config
-        # mbedtls/build_info.h -> mbedtls/mbedtls_config.h. The NS interface
-        # (tfm_crypto_api.c) compiles against the same mbedtls-3.6.0 headers
-        # used by the secure world.
-        mbedtls-3.6.0/include
         ${CMAKE_BINARY_DIR}/armino/tfm/generated/interface/include
     )
     if (CONFIG_TFM_CRYPTO)
@@ -66,7 +63,7 @@ endif()
 
 armino_component_register(SRCS "${srcs}"
     INCLUDE_DIRS "${incs}"
-    REQUIRES partitions)
+    REQUIRES partitions bk_rtos)
 
 if (CONFIG_TFM AND tfm_present)
     # The NS-side PSA crypto interface (tfm_crypto_api.c) is a *client*: the PSA
@@ -79,7 +76,11 @@ if (CONFIG_TFM AND tfm_present)
     target_compile_definitions(${COMPONENT_LIB} PRIVATE
         MBEDTLS_CONFIG_FILE="tfm_mbedcrypto_config_profile_medium_client.h"
     )
+    # Keep TF-M's own mbedtls-3.6.0 tree private to this component only.
     target_include_directories(${COMPONENT_LIB} PRIVATE
+        ${COMPONENT_DIR}/tfm/secure_fw/include
+        ${COMPONENT_DIR}/tfm/config
+        ${COMPONENT_DIR}/mbedtls-3.6.0/include
         ${COMPONENT_DIR}/tfm/lib/ext/mbedcrypto/mbedcrypto_config
     )
 endif()

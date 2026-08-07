@@ -76,11 +76,6 @@ if (CONFIG_TRUSTENGINE)
 		${TE_DIR}/dubhe_lib/rsa.c
 	)
 
-	list(APPEND srcs
-		mbedtls/library/psa_crypto.c
-		mbedtls/library/psa_crypto_client.c
-	)
-
 set(hw_defs
 	CRYPTO_HW_ACCELERATOR
 	CRYPTO_HW_ACCELERATOR_OTP_PROVISIONING

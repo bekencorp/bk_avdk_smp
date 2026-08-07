@@ -40,6 +40,10 @@ endif()
 
 set(priv_req bk_common bk_netif bk_ate driver easy_flash bk_libs bk_bluetooth bk_wifi bk_phy temp_detect)
 
+if (CONFIG_TFM)
+	list(APPEND priv_req tfm)
+endif()
+
 if (CONFIG_VND_CAL AND CONFIG_OVERRIDE_VND_CAL)
 	list(APPEND priv_req cp)
 else()
@@ -50,3 +54,10 @@ armino_component_register(SRCS "${srcs}" INCLUDE_DIRS "${incs}" PRIV_REQUIRES "$
 target_compile_definitions(${COMPONENT_LIB} PRIVATE
 	BK_VERIFY_ID=\"${bk_verify_id}\"
 )
+if (CONFIG_TFM)
+	# Keep TF-M headers private: public export of interface/include pulls in a
+	# conflicting mbedtls/ tree and breaks other components.
+	target_include_directories(${COMPONENT_LIB} PRIVATE
+		${CMAKE_CURRENT_LIST_DIR}/../tfm/tfm/interface/include
+	)
+endif()

@@ -16,7 +16,5 @@ if (CONFIG_SW_CRYPTO)
 		mbedtls/library/oid.c
 		mbedtls/library/rsa.c
 		mbedtls/library/pkparse.c
-		mbedtls/library/psa_crypto.c
-		mbedtls/library/psa_crypto_client.c
 	)
 endif()

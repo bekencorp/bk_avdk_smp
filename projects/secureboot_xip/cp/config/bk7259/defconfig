@@ -58,11 +58,13 @@ CONFIG_TFM_AP_BOOT_NSC=y
 CONFIG_TFM_REG_ACCESS_NSC=y
 
 # --- Crypto backend ---
-# NS world uses software crypto; the TF-M Secure world uses the Dubhe hardware
-# accelerator internally (via TF-M accelerator/ integration). Enabling
-# CONFIG_TRUSTENGINE for the NS build pulls in dubhe_lib NS sources that have an
-# aes_alt declaration issue.
+# NS classic mbedtls: software (SW_CRYPTO). NS PSA/TLS-via-PSA: TF-M Crypto
+# partition (MBEDTLS_USE_PSA_CRYPTO). SPE uses Dubhe HW accelerator internally.
+# CONFIG_TRUSTENGINE remains off on NS (TE200 NS path has aes_alt issues).
 CONFIG_PSA_MBEDTLS=y
+CONFIG_MBEDTLS_USE_PSA_CRYPTO=y
+CONFIG_PSA_MBEDTLS_TEST=y
+CONFIG_TRUSTENGINE_TEST=y
 # CONFIG_TRUSTENGINE is not set
 CONFIG_SW_CRYPTO=y
 

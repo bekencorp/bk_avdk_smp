@@ -9,11 +9,21 @@ menu "PSA Mbedtls"
 	menu "PSA Mbedtls Options"
 		depends on PSA_MBEDTLS
 
+		config MBEDTLS_USE_PSA_CRYPTO
+			bool "TLS/X509 use PSA via TF-M"
+			default n
+			depends on TFM && TFM_CRYPTO
+			help
+				NS PSA Crypto APIs are provided by the TF-M Crypto partition.
+				TLS/X509 call psa_* through the TF-M NS client (IPC/veneer).
+				Does not enable a local PSA Crypto server in NS.
+
 		config PSA_MBEDTLS_TEST
 			bool "Enable psa interface test"
 			default n
+			depends on MBEDTLS_USE_PSA_CRYPTO
 			help
-				control PSA interface cli testing code
+				PSA CLI tests; requires TF-M PSA client path
 
 		config MBEDTLS_SSL_IN_CONTENT_LEN
 			int "Config MBEDTLS_SSL_IN_CONTENT_LEN"
@@ -26,16 +36,16 @@ menu "PSA Mbedtls"
 		config TRUSTENGINE
 			bool "Enable TrustEngine hardware crypto"
 			help
-				Enable TrustEngine hardware acceleration for mbedtls.
-				Mutually exclusive with SW_CRYPTO.
+				Classic mbedtls crypto backend via TE200 hardware.
+				Mutually exclusive with SW_CRYPTO. Does not provide PSA server.
 
 		config SW_CRYPTO
 			bool "Enable software crypto"
 			default y
 			depends on !TRUSTENGINE
 			help
-				Pure software mbedtls crypto implementation.
-				Cannot be enabled together with TRUSTENGINE.
+				Classic mbedtls crypto backend via pure software.
+				Mutually exclusive with TRUSTENGINE. Does not provide PSA server.
 
 		config TE200_ENTROPY
 			bool "Enable TE200 entropy"
@@ -43,17 +53,11 @@ menu "PSA Mbedtls"
 			default n
 
 		config TRUSTENGINE_TEST
-			bool "Enable psa mbedtls cli test"
+			bool "Enable classic mbedtls cli test"
 			depends on PSA_MBEDTLS
 			default n
 			help
-				control mbedtls cli testing code
-
-		config MBEDTLS_USE_PSA_CRYPTO
-			bool "Enable use PSA crypto"
-			default n
-			help
-				tls use PSA interface to implement encryption
+				Classic mbedtls CLI testing code
 
 		config FULL_MBEDTLS
 			bool "Enable Full Mbedtls"

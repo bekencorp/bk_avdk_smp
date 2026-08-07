@@ -109,23 +109,17 @@ list(APPEND srcs
 	mbedtls/library/pkwrite.c
 	mbedtls/library/platform_util.c
 	mbedtls/library/poly1305.c
-	mbedtls/library/psa_util.c
 	mbedtls/library/cmac.c
-	mbedtls/library/psa_crypto_cipher.c
-	mbedtls/library/psa_crypto_slot_management.c
-	mbedtls/library/psa_crypto_rsa.c
-	mbedtls/library/psa_crypto_ffdh.c
-	mbedtls/library/psa_crypto_ecp.c
-	mbedtls/library/psa_crypto_driver_wrappers_no_static.c
-	mbedtls/library/psa_crypto_hash.c
-	mbedtls/library/psa_crypto_aead.c
-	mbedtls/library/psa_crypto_mac.c
-	mbedtls/library/psa_crypto_pake.c
-	mbedtls/library/psa_crypto_random.c
-	mbedtls/library/psa_crypto_se.c
-	mbedtls/library/psa_crypto_storage.c
-	mbedtls/library/psa_its_file.c
 )
+
+# PSA Crypto server sources are not built in NS. When USE_PSA is enabled,
+# psa_* APIs come from the tfm component; keep client helpers only.
+if (CONFIG_MBEDTLS_USE_PSA_CRYPTO)
+	list(APPEND srcs
+		mbedtls/library/psa_util.c
+		mbedtls/library/psa_crypto_client.c
+	)
+endif()
 
 if (CONFIG_PSA_MBEDTLS_TEST)
 	list(APPEND incs
@@ -175,9 +169,14 @@ endif()
 
 endif()
 
+set(psa_mbedtls_priv_requires bk_common lwip_intf_v2_1)
+if (CONFIG_MBEDTLS_USE_PSA_CRYPTO)
+	list(APPEND psa_mbedtls_priv_requires tfm)
+endif()
+
 armino_component_register(SRCS "${srcs}"
 	INCLUDE_DIRS "${incs}"
-	PRIV_REQUIRES bk_common lwip_intf_v2_1
+	PRIV_REQUIRES ${psa_mbedtls_priv_requires}
 )
 
 if (CONFIG_PSA_MBEDTLS)

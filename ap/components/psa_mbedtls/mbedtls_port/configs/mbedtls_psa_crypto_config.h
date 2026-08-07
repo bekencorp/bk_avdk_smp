@@ -1368,7 +1368,9 @@
  * \warning This interface is experimental and may change or be removed
  * without notice.
  */
-//#define MBEDTLS_PSA_CRYPTO_CLIENT
+#if CONFIG_MBEDTLS_USE_PSA_CRYPTO
+#define MBEDTLS_PSA_CRYPTO_CLIENT
+#endif
 
 /** \def MBEDTLS_PSA_CRYPTO_EXTERNAL_RNG
  *
@@ -2117,7 +2119,7 @@
  *
  * \note See docs/use-psa-crypto.md for a complete description this option.
  *
- * Requires: MBEDTLS_PSA_CRYPTO_C.
+ * Requires: MBEDTLS_PSA_CRYPTO_CLIENT (NS PSA via TF-M).
  *
  * Uncomment this to enable internal use of PSA Crypto and new associated APIs.
  */
@@ -2154,7 +2156,9 @@
  *          production, as long as you accept that you may need to make
  *          minor changes to psa/crypto_config.h when upgrading Mbed TLS.
  */
-//#define MBEDTLS_PSA_CRYPTO_CONFIG
+#if CONFIG_MBEDTLS_USE_PSA_CRYPTO
+#define MBEDTLS_PSA_CRYPTO_CONFIG
+#endif
 
 /**
  * \def MBEDTLS_VERSION_FEATURES
@@ -3152,8 +3156,11 @@
  *           or MBEDTLS_HMAC_DRBG_C and MBEDTLS_ENTROPY_C,
  *           or MBEDTLS_PSA_CRYPTO_EXTERNAL_RNG.
  *
+ * NS builds do not enable a local PSA Crypto server. When
+ * CONFIG_MBEDTLS_USE_PSA_CRYPTO is set, PSA APIs are provided by TF-M
+ * (MBEDTLS_PSA_CRYPTO_CLIENT). Otherwise only classic mbedtls is used.
  */
-#define MBEDTLS_PSA_CRYPTO_C
+//#define MBEDTLS_PSA_CRYPTO_C
 
 /**
  * \def MBEDTLS_PSA_CRYPTO_SE_C
