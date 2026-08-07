@@ -12,6 +12,10 @@ if (CONFIG_GPIO)
 		list(APPEND srcs gpio/gpio_test.c)
 	endif()
 
+	if (CONFIG_CLI AND CONFIG_GPIO_API_TEST)
+		list(APPEND srcs gpio/cli_gpio_api.c)
+	endif()
+
 	if (CONFIG_GPIO_V2PX)
 		list(APPEND incs gpio/v2px)
 		list(APPEND srcs gpio/v2px/gpio_driver_base.c)

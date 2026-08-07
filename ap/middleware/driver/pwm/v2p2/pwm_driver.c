@@ -462,18 +462,25 @@ bk_err_t bk_pwm_init(pwm_chan_t chan, const pwm_init_config_t *config)
 
 bk_err_t bk_pwm_deinit(pwm_chan_t chan)
 {
+	PWM_RETURN_ON_NOT_INIT();
+	PWM_RETURN_ON_INVALID_CHAN(chan);
+	PWM_RETURN_ON_CHAN_NOT_INIT(chan);
+
+	bk_pwm_stop(chan);
 	pwm_chan_deinit_common(chan);
 #if CONFIG_PWM_PM_CB_SUPPORT
 	bk_pm_sleep_unregister_cb(PM_MODE_LOW_VOLTAGE, PM_DEV_ID_PWM_1, true, false);
 	bk_pm_module_vote_power_ctrl(PM_POWER_SUB_MODULE_NAME_BAKP_PWM0, PM_POWER_MODULE_STATE_OFF);
 #endif
-	bk_pwm_stop(chan);
 
 	return BK_OK;
 }
 
 bk_err_t bk_pwm_start(pwm_chan_t chan)
 {
+	PWM_RETURN_ON_NOT_INIT();
+	PWM_RETURN_ON_INVALID_CHAN(chan);
+	PWM_RETURN_ON_CHAN_NOT_INIT(chan);
 	PWM_PM_CHECK_RESTORE(chan);
 	pwm_hal_set_single_chan_tim_enable(chan, 1);
 
@@ -482,6 +489,9 @@ bk_err_t bk_pwm_start(pwm_chan_t chan)
 
 bk_err_t bk_pwm_stop(pwm_chan_t chan)
 {
+	PWM_RETURN_ON_NOT_INIT();
+	PWM_RETURN_ON_INVALID_CHAN(chan);
+	PWM_RETURN_ON_CHAN_NOT_INIT(chan);
 	PWM_PM_CHECK_RESTORE(chan);
 	pwm_hal_set_single_chan_tim_enable(chan, 0);
 
@@ -550,13 +560,34 @@ bk_err_t bk_pwm_set_period_duty(pwm_chan_t chan, pwm_period_duty_config_t *confi
 
 bk_err_t bk_pwm_set_init_signal_low(pwm_chan_t chan)
 {
+	PWM_RETURN_ON_NOT_INIT();
+	PWM_RETURN_ON_INVALID_CHAN(chan);
+	PWM_RETURN_ON_CHAN_NOT_INIT(chan);
 	pwm_hal_set_init_level(chan, 0);
 	return BK_OK;
 }
 
 bk_err_t bk_pwm_set_init_signal_high(pwm_chan_t chan)
 {
+	PWM_RETURN_ON_NOT_INIT();
+	PWM_RETURN_ON_INVALID_CHAN(chan);
+	PWM_RETURN_ON_CHAN_NOT_INIT(chan);
 	pwm_hal_set_init_level(chan, 1);
+	return BK_OK;
+}
+
+bk_err_t bk_pwm_set_mode_timer(pwm_chan_t chan)
+{
+	PWM_RETURN_ON_NOT_INIT();
+	PWM_RETURN_ON_INVALID_CHAN(chan);
+
+	/* Timer mode: the channel counts to generate the period interrupt without
+	 * driving a duty waveform on the pad. Force the init level flag cleared and
+	 * set a zero duty so no output edge is produced; the caller drives timing via
+	 * the period/interrupt. */
+	s_pwm.chan_init_signal_level &= ~BIT(chan);
+	pwm_hal_set_init_level(chan, 0);
+
 	return BK_OK;
 }
 

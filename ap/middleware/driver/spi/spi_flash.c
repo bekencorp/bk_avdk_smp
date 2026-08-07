@@ -200,8 +200,6 @@ bk_err_t bk_spi_flash_init(spi_id_t id)
        config.bit_order = SPI_MSB_FIRST;
 #if CONFIG_SPI_DMA
        config.dma_mode = 1;
-       config.spi_tx_dma_chan = bk_dma_alloc(DMA_DEV_DTCM);
-       config.spi_rx_dma_chan = bk_dma_alloc(DMA_DEV_DTCM);
 #endif
     ret = bk_spi_init(id, &config);
     if (BK_OK != ret)

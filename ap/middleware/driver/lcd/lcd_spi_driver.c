@@ -392,8 +392,6 @@ static void lcd_spi_driver_init(spi_id_t id)
 
 #if CONFIG_SPI_DMA
     config.dma_mode = SPI_DMA_MODE_ENABLE;
-    config.spi_tx_dma_chan = bk_dma_alloc(DMA_DEV_GSPI0);
-    config.spi_rx_dma_chan = bk_dma_alloc(DMA_DEV_GSPI0_RX);
     config.spi_tx_dma_width = DMA_DATA_WIDTH_8BITS;
     config.spi_rx_dma_width = DMA_DATA_WIDTH_8BITS;
 #endif
@@ -404,11 +402,6 @@ static void lcd_spi_driver_init(spi_id_t id)
 static void lcd_spi_driver_deinit(spi_id_t id)
 {
     BK_LOG_ON_ERR(bk_spi_deinit(id));
-
-#if CONFIG_SPI_DMA
-    bk_dma_free(DMA_DEV_GSPI0, config.spi_tx_dma_chan);
-    bk_dma_free(DMA_DEV_GSPI0_RX, config.spi_rx_dma_chan);
-#endif
 }
 #endif
 

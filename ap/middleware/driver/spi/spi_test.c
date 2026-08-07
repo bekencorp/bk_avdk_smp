@@ -103,23 +103,7 @@ static void cli_spi_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
 #endif
 #if CONFIG_SPI_DMA
 		config.dma_mode = os_strtoul(argv[10], NULL, 10);
-		if (spi_id == 1){
-			config.spi_tx_dma_chan = bk_dma_alloc(DMA_DEV_GSPI1);
-			config.spi_rx_dma_chan = bk_dma_alloc(DMA_DEV_GSPI1_RX);
-#if (SOC_SPI_UNIT_NUM > 2)
-		} else if (spi_id == 2) {
-			config.spi_tx_dma_chan = bk_dma_alloc(DMA_DEV_GSPI2);
-			config.spi_rx_dma_chan = bk_dma_alloc(DMA_DEV_GSPI2_RX);
-#endif
-#if (SOC_SPI_UNIT_NUM > 3)
-		} else if (spi_id == 3) {
-			config.spi_tx_dma_chan = bk_dma_alloc(DMA_DEV_GSPI3);
-			config.spi_rx_dma_chan = bk_dma_alloc(DMA_DEV_GSPI3_RX);
-#endif
-		} else {
-			config.spi_tx_dma_chan = bk_dma_alloc(DMA_DEV_GSPI0);
-			config.spi_rx_dma_chan = bk_dma_alloc(DMA_DEV_GSPI0_RX);
-		}
+		/* DMA channels are owned by the spi driver (allocated in bk_spi_init). */
 		if (os_strtoul(argv[4], NULL, 10) == 8) {
 			config.spi_tx_dma_width = DMA_DATA_WIDTH_8BITS;
 			config.spi_rx_dma_width = DMA_DATA_WIDTH_8BITS;
@@ -408,38 +392,9 @@ static bool spi_test_verify(const uint8_t *buf, uint32_t len, uint32_t seed)
 	return true;
 }
 
-#if CONFIG_SPI_DMA
-static void spi_test_dma_dev(spi_id_t id, dma_dev_t *tx_dev, dma_dev_t *rx_dev)
-{
-#if (SOC_SPI_UNIT_NUM > 1)
-	if (id == SPI_ID_1) {
-		*tx_dev = DMA_DEV_GSPI1;
-		*rx_dev = DMA_DEV_GSPI1_RX;
-		return;
-	}
-#endif
-#if (SOC_SPI_UNIT_NUM > 2)
-	if (id == SPI_ID_2) {
-		*tx_dev = DMA_DEV_GSPI2;
-		*rx_dev = DMA_DEV_GSPI2_RX;
-		return;
-	}
-#endif
-#if (SOC_SPI_UNIT_NUM > 3)
-	if (id == SPI_ID_3) {
-		*tx_dev = DMA_DEV_GSPI3;
-		*rx_dev = DMA_DEV_GSPI3_RX;
-		return;
-	}
-#endif
-	*tx_dev = DMA_DEV_GSPI0;
-	*rx_dev = DMA_DEV_GSPI0_RX;
-}
-#endif
-
-/* Build a spi_config_t. When dma_on, tx/rx channels must be pre-allocated. */
+/* Build a spi_config_t. DMA channels are owned by the spi driver. */
 static void spi_test_build_config(spi_config_t *cfg, spi_role_t role, spi_mode_t mode,
-				  uint32_t baud, bool dma_on, dma_id_t tx_chan, dma_id_t rx_chan)
+				  uint32_t baud, bool dma_on)
 {
 	os_memset(cfg, 0, sizeof(*cfg));
 	cfg->role = role;
@@ -454,12 +409,10 @@ static void spi_test_build_config(spi_config_t *cfg, spi_role_t role, spi_mode_t
 #endif
 #if CONFIG_SPI_DMA
 	cfg->dma_mode = dma_on ? SPI_DMA_MODE_ENABLE : SPI_DMA_MODE_DISABLE;
-	cfg->spi_tx_dma_chan = tx_chan;
-	cfg->spi_rx_dma_chan = rx_chan;
 	cfg->spi_tx_dma_width = DMA_DATA_WIDTH_8BITS;
 	cfg->spi_rx_dma_width = DMA_DATA_WIDTH_8BITS;
 #else
-	(void)dma_on; (void)tx_chan; (void)rx_chan;
+	(void)dma_on;
 #endif
 }
 
@@ -468,8 +421,6 @@ static void spi_test_build_config(spi_config_t *cfg, spi_role_t role, spi_mode_t
 static bool spi_lb_run_one(spi_id_t id, uint32_t len, uint32_t baud, spi_mode_t mode, uint32_t seed)
 {
 	bool ok = false;
-	dma_dev_t tx_dev, rx_dev;
-	dma_id_t tx_chan = DMA_ID_MAX, rx_chan = DMA_ID_MAX;
 	uint8_t *tx = (uint8_t *)os_malloc(len);
 	uint8_t *rx = (uint8_t *)os_malloc(len);
 
@@ -478,23 +429,15 @@ static bool spi_lb_run_one(spi_id_t id, uint32_t len, uint32_t baud, spi_mode_t 
 		goto out_free;
 	}
 
-	spi_test_dma_dev(id, &tx_dev, &rx_dev);
-	tx_chan = bk_dma_alloc(tx_dev);
-	rx_chan = bk_dma_alloc(rx_dev);
-	if (tx_chan == DMA_ID_MAX || rx_chan == DMA_ID_MAX) {
-		CLI_LOGE("SPI_LB: FAIL dma alloc (tx=%u rx=%u)\r\n", tx_chan, rx_chan);
-		goto out_dma;
-	}
-
 	spi_config_t cfg;
-	spi_test_build_config(&cfg, SPI_ROLE_MASTER, mode, baud, true, tx_chan, rx_chan);
+	spi_test_build_config(&cfg, SPI_ROLE_MASTER, mode, baud, true);
 
 	spi_test_fill_pattern(tx, len, seed);
 	os_memset(rx, 0x55, len);
 
 	if (bk_spi_init(id, &cfg) != BK_OK) {
 		CLI_LOGE("SPI_LB: FAIL init\r\n");
-		goto out_dma;
+		goto out_free;
 	}
 	bk_spi_dma_duplex_init(id);
 
@@ -505,9 +448,6 @@ static bool spi_lb_run_one(spi_id_t id, uint32_t len, uint32_t baud, spi_mode_t 
 	bk_spi_dma_duplex_deinit(id);
 	bk_spi_deinit(id);
 
-out_dma:
-	if (tx_chan != DMA_ID_MAX) bk_dma_free(tx_dev, tx_chan);
-	if (rx_chan != DMA_ID_MAX) bk_dma_free(rx_dev, rx_chan);
 out_free:
 	if (tx) os_free(tx);
 	if (rx) os_free(rx);
@@ -622,12 +562,6 @@ typedef struct {
 	uint32_t data_len;
 	uint32_t gap_ms;
 	bool use_dma;
-#if CONFIG_SPI_DMA
-	dma_dev_t tx_dma_dev;
-	dma_dev_t rx_dma_dev;
-	dma_id_t tx_dma_chan;
-	dma_id_t rx_dma_chan;
-#endif
 } spi_peer_test_t;
 
 static spi_peer_test_t s_spi_peer;
@@ -680,12 +614,8 @@ static void spi_peer_config(spi_id_t id, spi_role_t role, uint32_t baud_rate)
 #endif
 #if CONFIG_SPI_DMA
 	if (s_spi_peer.use_dma) {
-		spi_test_dma_dev(id, &s_spi_peer.tx_dma_dev, &s_spi_peer.rx_dma_dev);
-		s_spi_peer.tx_dma_chan = bk_dma_alloc(s_spi_peer.tx_dma_dev);
-		s_spi_peer.rx_dma_chan = bk_dma_alloc(s_spi_peer.rx_dma_dev);
+		/* DMA channels are owned by the spi driver (allocated in bk_spi_init). */
 		config.dma_mode = SPI_DMA_MODE_ENABLE;
-		config.spi_tx_dma_chan = s_spi_peer.tx_dma_chan;
-		config.spi_rx_dma_chan = s_spi_peer.rx_dma_chan;
 		config.spi_tx_dma_width = DMA_DATA_WIDTH_8BITS;
 		config.spi_rx_dma_width = DMA_DATA_WIDTH_8BITS;
 	}
@@ -697,12 +627,6 @@ static void spi_peer_config(spi_id_t id, spi_role_t role, uint32_t baud_rate)
 static void spi_peer_deconfig(spi_id_t id)
 {
 	BK_LOG_ON_ERR(bk_spi_deinit(id));
-#if CONFIG_SPI_DMA
-	if (s_spi_peer.use_dma) {
-		bk_dma_free(s_spi_peer.tx_dma_dev, s_spi_peer.tx_dma_chan);
-		bk_dma_free(s_spi_peer.rx_dma_dev, s_spi_peer.rx_dma_chan);
-	}
-#endif
 }
 
 static void spi_peer_master_thread(void *arg)
@@ -983,7 +907,7 @@ static void cli_spi_api_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int a
 
 	/* 2. invalid id rejected */
 	st.total++;
-	spi_test_build_config(&cfg, SPI_ROLE_MASTER, SPI_POL_MODE_0, 1000000, false, 0, 0);
+	spi_test_build_config(&cfg, SPI_ROLE_MASTER, SPI_POL_MODE_0, 1000000, false);
 	if (bk_spi_init(SPI_ID_MAX, &cfg) != BK_OK) {
 		st.pass++;
 		CLI_LOGI("SPI_API: PASS invalid-id-rejected\r\n");

@@ -59,6 +59,7 @@ typedef struct {
 	beken_semaphore_t rx_sema;
 	dma_id_t spi_tx_dma_chan;
 	dma_id_t spi_rx_dma_chan;
+	bool dma_inited;
 #if CONFIG_SPI_PM_CB_SUPPORT
 	uint32_t pm_backup[SPI_PM_BACKUP_REG_NUM];
 	uint8_t pm_backup_is_valid;
@@ -176,6 +177,13 @@ static spi_driver_t s_spi[SOC_SPI_UNIT_NUM] = {
 #endif
 };
 static bool s_spi_driver_is_init = false;
+#if CONFIG_SPI_DMA
+/* Serializes DMA channel alloc/free bookkeeping in bk_spi_init/bk_spi_deinit so
+ * concurrent init/deinit (across ids, or racing on the same id) cannot double
+ * allocate or leak channels. The DMA pool itself is already critical-section
+ * protected; this mutex only guards the per-id s_spi[] channel bookkeeping. */
+static beken_mutex_t s_spi_dma_mutex = NULL;
+#endif
 static volatile spi_id_t s_current_spi_dma_wr_id;
 static volatile spi_id_t s_current_spi_dma_rd_id;
 static spi_callback_t s_spi_rx_isr[SOC_SPI_UNIT_NUM] = {NULL};
@@ -548,6 +556,67 @@ static void spi_dma_rx_init(spi_id_t id, dma_id_t spi_rx_dma_chan, dma_data_widt
 #endif
 }
 
+/* Release the DMA channels owned by an SPI id. Caller must hold s_spi_dma_mutex.
+ * Idempotent: safe to call when nothing is allocated. */
+static void spi_dma_chan_release_locked(spi_id_t id)
+{
+	spi_int_config_t tx_cfg_table[] = SPI_INT_CONFIG_TABLE;
+	spi_int_config_t rx_cfg_table[] = SPI_RX_INT_CONFIG_TABLE;
+
+	if (s_spi[id].spi_tx_dma_chan < DMA_ID_MAX) {
+		bk_dma_deinit(s_spi[id].spi_tx_dma_chan);
+		bk_dma_free(tx_cfg_table[id].dma_dev, s_spi[id].spi_tx_dma_chan);
+		s_spi[id].spi_tx_dma_chan = DMA_ID_MAX;
+	}
+	if (s_spi[id].spi_rx_dma_chan < DMA_ID_MAX) {
+		bk_dma_deinit(s_spi[id].spi_rx_dma_chan);
+		bk_dma_free(rx_cfg_table[id].dma_dev, s_spi[id].spi_rx_dma_chan);
+		s_spi[id].spi_rx_dma_chan = DMA_ID_MAX;
+	}
+	s_spi[id].dma_inited = false;
+}
+
+/* Allocate and initialize the tx/rx DMA channels for an SPI id. The channels
+ * are owned by the driver (allocated here, released in bk_spi_deinit); callers
+ * no longer need to allocate them. user_id comes from the per-id GSPIx dma_dev
+ * so each id uses distinct channels. */
+static bk_err_t spi_dma_init(spi_id_t id, const spi_config_t *config)
+{
+	spi_int_config_t tx_cfg_table[] = SPI_INT_CONFIG_TABLE;
+	spi_int_config_t rx_cfg_table[] = SPI_RX_INT_CONFIG_TABLE;
+	dma_data_width_t width = (config->bit_width == SPI_BIT_WIDTH_16BITS) ?
+				DMA_DATA_WIDTH_16BITS : DMA_DATA_WIDTH_8BITS;
+	dma_id_t tx_chan, rx_chan;
+
+	rtos_lock_mutex(&s_spi_dma_mutex);
+
+	/* Guard against re-init without deinit leaking previously owned channels. */
+	if (s_spi[id].dma_inited) {
+		spi_dma_chan_release_locked(id);
+	}
+
+	tx_chan = bk_dma_alloc(tx_cfg_table[id].dma_dev);
+	if (tx_chan >= DMA_ID_MAX) {
+		rtos_unlock_mutex(&s_spi_dma_mutex);
+		SPI_LOGE("spi(%d) alloc tx dma chan fail\r\n", id);
+		return BK_ERR_NO_MEM;
+	}
+	rx_chan = bk_dma_alloc(rx_cfg_table[id].dma_dev);
+	if (rx_chan >= DMA_ID_MAX) {
+		bk_dma_free(tx_cfg_table[id].dma_dev, tx_chan);
+		rtos_unlock_mutex(&s_spi_dma_mutex);
+		SPI_LOGE("spi(%d) alloc rx dma chan fail\r\n", id);
+		return BK_ERR_NO_MEM;
+	}
+
+	spi_dma_tx_init(id, tx_chan, width); /* stores tx_chan into s_spi[id] */
+	spi_dma_rx_init(id, rx_chan, width); /* stores rx_chan into s_spi[id] */
+	s_spi[id].dma_inited = true;
+
+	rtos_unlock_mutex(&s_spi_dma_mutex);
+	return BK_OK;
+}
+
 #endif /* CONFIG_SPI_DMA */
 
 #if (CONFIG_SPI_PM_CB_SUPPORT)
@@ -616,7 +685,18 @@ bk_err_t bk_spi_driver_init(void)
 		//bk_int_isr_register(cur_int_cfg->int_src, cur_int_cfg->isr, NULL);
 		bk_interrupt_register_m55sub_int(cur_int_cfg->int_src, cur_int_cfg->isr);
 		s_spi[id].hal.id = id;
+#if CONFIG_SPI_DMA
+		s_spi[id].spi_tx_dma_chan = DMA_ID_MAX;
+		s_spi[id].spi_rx_dma_chan = DMA_ID_MAX;
+		s_spi[id].dma_inited = false;
+#endif
 	}
+#if CONFIG_SPI_DMA
+	if (s_spi_dma_mutex == NULL) {
+		bk_err_t mret = rtos_init_mutex(&s_spi_dma_mutex);
+		BK_ASSERT(kNoErr == mret); /* ASSERT VERIFIED */
+	}
+#endif
 	spi_statis_init();
 	s_spi_driver_is_init = true;
 
@@ -655,6 +735,13 @@ bk_err_t bk_spi_driver_deinit(void)
 #endif
 	}
 
+#if CONFIG_SPI_DMA
+	if (s_spi_dma_mutex != NULL) {
+		rtos_deinit_mutex(&s_spi_dma_mutex);
+		s_spi_dma_mutex = NULL;
+	}
+#endif
+
 	s_spi_driver_is_init = false;
 
 	return BK_OK;
@@ -691,8 +778,11 @@ bk_err_t bk_spi_init(spi_id_t id, const spi_config_t *config)
 	spi_hal_start_common(&s_spi[id].hal);
 #if (CONFIG_SPI_DMA)
 	if (config->dma_mode) {
-		spi_dma_tx_init(id, config->spi_tx_dma_chan, config->spi_tx_dma_width);
-		spi_dma_rx_init(id, config->spi_rx_dma_chan, config->spi_rx_dma_width);
+		bk_err_t dma_ret = spi_dma_init(id, config);
+		if (dma_ret != BK_OK) {
+			spi_id_deinit_common(id);
+			return dma_ret;
+		}
 	}
 #endif
 
@@ -703,6 +793,14 @@ bk_err_t bk_spi_deinit(spi_id_t id)
 {
 	SPI_RETURN_ON_NOT_INIT();
 	SPI_RETURN_ON_INVALID_ID(id);
+
+#if (CONFIG_SPI_DMA)
+	rtos_lock_mutex(&s_spi_dma_mutex);
+	if (s_spi[id].dma_inited) {
+		spi_dma_chan_release_locked(id);
+	}
+	rtos_unlock_mutex(&s_spi_dma_mutex);
+#endif
 
 	spi_id_deinit_common(id);
 #if (CONFIG_SPI_PM_CB_SUPPORT)
@@ -1017,10 +1115,14 @@ bk_err_t bk_spi_read_bytes_async(spi_id_t id, void *data, uint32_t size)
 
 static bk_err_t spi_duplex_tx_rx_enable(spi_id_t id)
 {
-	bk_dma_start(s_spi[id].spi_tx_dma_chan);
+	/* Get the rx path (dma + rx_en) ready before tx starts clocking the bus.
+	 * With a pre-filled tx fifo, enabling tx first would immediately generate
+	 * SCK and shift out the first frame before rx_en is set, so at high clock
+	 * rates rx misses the first byte. Enable tx/rx together in a single
+	 * register write so the shared clock starts with rx already armed. */
 	bk_dma_start(s_spi[id].spi_rx_dma_chan);
-	spi_hal_enable_tx(&s_spi[id].hal);
-	spi_hal_enable_rx(&s_spi[id].hal);
+	bk_dma_start(s_spi[id].spi_tx_dma_chan);
+	spi_hal_enable_tx_rx(&s_spi[id].hal);
 	return BK_OK;
 }
 
@@ -1055,22 +1157,49 @@ bk_err_t bk_spi_dma_duplex_xfer(spi_id_t id, const void *tx_data, uint32_t tx_si
 	uint32_t offset = 0;
 	s_current_spi_dma_wr_id = id;
 	s_current_spi_dma_rd_id = id;
-
+	uint8_t *tx_buf = (uint8_t *)tx_data;
 	while(len > 0) {
+		uint32_t chunk_size = (len < SPI_MAX_LENGTH) ? len : SPI_MAX_LENGTH;
+		uint32_t frame_size = (s_spi[id].hal.hw->ctrl.bit_width == SPI_BIT_WIDTH_16BITS) ? 2 : 1;
+		/* Pre-fill part of the TX FIFO by CPU before enabling tx/rx, so that valid
+		 * TX data is already present the moment the SPI clock starts. Otherwise the
+		 * shared tx/rx clock can start toggling before the tx DMA has filled the FIFO,
+		 * causing the rx side to sample early (rx clock triggered ahead of tx data). */
+		uint32_t fifo_prefill = (chunk_size > (48 * frame_size)) ? (48 * frame_size) : chunk_size;
+
 		if(rx_data) {
+			s_spi[id].rx_buf = (uint8_t *)rx_data + offset;
+			if (s_spi[id].hal.hw->ctrl.bit_width == SPI_BIT_WIDTH_8BITS) {
+				s_spi[id].rx_size = chunk_size;
+			} else {
+				s_spi[id].rx_size = chunk_size >> 1;
+			}
+			s_spi[id].rx_offset = 0;
 			s_spi[id].is_rx_blocked = true;
 			spi_hal_clear_rx_fifo(&s_spi[id].hal);
-			spi_hal_set_rx_trans_len(&s_spi[id].hal, rx_size);
-			bk_dma_set_dest_start_addr(s_spi[id].spi_rx_dma_chan,((uint32_t)rx_data + offset));
-			bk_dma_set_transfer_len(s_spi[id].spi_rx_dma_chan,rx_size);
+			spi_hal_set_rx_trans_len(&s_spi[id].hal, chunk_size);
+			bk_dma_set_dest_start_addr(s_spi[id].spi_rx_dma_chan, ((uint32_t)rx_data + offset));
+			bk_dma_set_transfer_len(s_spi[id].spi_rx_dma_chan, chunk_size);
 		}
 
 		if(tx_data) {
 			s_spi[id].is_tx_blocked = true;
 			spi_hal_clear_tx_fifo(&s_spi[id].hal);
-			spi_hal_set_tx_trans_len(&s_spi[id].hal, tx_size);
-			bk_dma_set_src_start_addr(s_spi[id].spi_tx_dma_chan,((uint32_t)tx_data + offset));
-			bk_dma_set_transfer_len(s_spi[id].spi_tx_dma_chan,tx_size);
+			uint16_t *tx_data16 = (uint16_t *)((uint8_t *)tx_data + offset);
+
+			for (uint32_t i = 0; i < fifo_prefill; i += frame_size) {
+				uint32_t data;
+				if (frame_size == 1) {
+					data = (uint32_t)tx_buf[offset + i];
+				} else {
+					data = (uint32_t)tx_data16[i >> 1];
+				}
+				BK_WHILE (!spi_hal_is_tx_fifo_wr_ready(&s_spi[id].hal));
+				spi_hal_write_byte(&s_spi[id].hal, data);
+			}
+			spi_hal_set_tx_trans_len(&s_spi[id].hal, chunk_size);
+			bk_dma_set_src_start_addr(s_spi[id].spi_tx_dma_chan, ((uint32_t)tx_data + offset + fifo_prefill));
+			bk_dma_set_transfer_len(s_spi[id].spi_tx_dma_chan, chunk_size - fifo_prefill);
 		}
 		uint32_t int_level = spi_enter_critical();
 		spi_duplex_tx_rx_enable(id);
@@ -1089,8 +1218,8 @@ bk_err_t bk_spi_dma_duplex_xfer(spi_id_t id, const void *tx_data, uint32_t tx_si
 		dma_wait_to_idle(s_spi[id].spi_rx_dma_chan);
 		spi_exit_critical(int_level);
 
-		len = rx_size > 0 ? (len-rx_size) : (len-tx_size);
-		offset += rx_size > 0 ? (rx_size) : (tx_size);
+		len -= chunk_size;
+		offset += chunk_size;
 	}
 
 	return BK_OK;

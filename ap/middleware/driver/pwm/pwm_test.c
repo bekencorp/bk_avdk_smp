@@ -12,22 +12,29 @@
 #define PWM_CLOCK_SRC_XTAL 320000000
 #endif
 #define _PERIOD_2_FREQ(period)    ((period == 0) ? (0) : (PWM_CLOCK_SRC_XTAL / (period)))
+#define CLI_PWM_RETURN_ON_ERR(expr) do {\
+	bk_err_t ret = (expr);\
+	if (ret != BK_OK) {\
+		CLI_LOGE("%s: ret=-0x%x\r\n", __func__, -ret);\
+		return;\
+	}\
+} while (0)
 
 static void cli_pwm_help(void)
 {
 	CLI_LOGD("pwm_driver init\n");
 	CLI_LOGD("pwm_driver deinit\n");
-	CLI_LOGD("pwm {chan} init {period_v} {duty_v} [duty1_v][duty2_v][duty3_v]\n");
+	CLI_LOGD("pwm {chan} init {period_v} {duty_v} [duty2_v] [duty3_v] [psc]\n");
 	CLI_LOGD("pwm {chan} {start|stop|deinit}\n");
-	CLI_LOGD("pwm {chan} duty {period_v} {duty1_v} [duty2_v] [duty3_v]\n");
+	CLI_LOGD("pwm {chan} duty {period_v} {duty1_v} [duty2_v] [duty3_v] [psc]\n");
 	CLI_LOGD("pwm {chan|all} duty_ramp {freq} {psc}\n");
 	CLI_LOGD("pwm multi_chan_test {freq} {psc}\n");
 	CLI_LOGD("pwm {chan} signal {low|high}\n");
-	CLI_LOGD("pwm_group init {chan1} {chan2} {period} {chan1_duty} {chan2_duty}\n");
-	CLI_LOGD("pwm_group {start|stop|deinit}\n");
+	CLI_LOGD("pwm_group init {chan1} {chan2} {period} {chan1_duty} {chan2_duty} [psc]\n");
+	CLI_LOGD("pwm_group {start|stop|deinit} [group]\n");
 	CLI_LOGD("pwm_group config {group} {period} {chan1_duty} {chan2_duty}\n");
 	CLI_LOGD("pwm_int {chan} {reg|enable|disable}\n");
-	CLI_LOGD("pwm_capture {chan} {init}\nn");
+	CLI_LOGD("pwm_capture {chan} init [pos|neg|edge]\n");
 	CLI_LOGD("pwm_capture {chan} {start|stop|deinit}\n");
 	CLI_LOGD("pwm_idle_test {idle_start|idle_stop}\n");
 }
@@ -52,10 +59,10 @@ static void cli_pwm_driver_cmd(char *pcWriteBuffer, int xWriteBufferLen, int arg
 	}
 
 	if (os_strcmp(argv[1], "init") == 0) {
-		BK_LOG_ON_ERR(bk_pwm_driver_init());
+		CLI_PWM_RETURN_ON_ERR(bk_pwm_driver_init());
 		CLI_LOGD("pwm init\n");
 	} else if (os_strcmp(argv[1], "deinit") == 0) {
-		BK_LOG_ON_ERR(bk_pwm_driver_deinit());
+		CLI_PWM_RETURN_ON_ERR(bk_pwm_driver_deinit());
 		CLI_LOGD("pwm deinit\n");
 	} else {
 		cli_pwm_help();
@@ -67,7 +74,7 @@ static void cli_pwm_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
 {
 	uint32_t chan;
 
-	if (argc < 2) {
+	if (argc < 3) {
 		cli_pwm_help();
 		return;
 	}
@@ -155,6 +162,10 @@ static void cli_pwm_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
 
 	if (os_strcmp(argv[2], "init") == 0) {
 		CLI_RET_ON_INVALID_ARGC(argc, 5);
+		if (argc > 8) {
+			cli_pwm_help();
+			return;
+		}
 		pwm_init_config_t config = {0};
 
 		config.period_cycle = os_strtoul(argv[3], NULL, 10);
@@ -163,18 +174,19 @@ static void cli_pwm_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
 			config.duty2_cycle = os_strtoul(argv[5], NULL, 10);
 		if (argc > 6)
 			config.duty3_cycle = os_strtoul(argv[6], NULL, 10);
-		config.psc = os_strtoul(argv[7], NULL, 10);
+		if (argc > 7)
+			config.psc = os_strtoul(argv[7], NULL, 10);
 
-		BK_LOG_ON_ERR(bk_pwm_init(chan, &config));
+		CLI_PWM_RETURN_ON_ERR(bk_pwm_init(chan, &config));
 		CLI_LOGD("pwm init, chan=%d period=%x duty=%x\n", chan, config.period_cycle, config.duty_cycle);
 	} else if (os_strcmp(argv[2], "start") == 0) {
-		BK_LOG_ON_ERR(bk_pwm_start(chan));
+		CLI_PWM_RETURN_ON_ERR(bk_pwm_start(chan));
 		CLI_LOGD("pwm start, chan=%d\n", chan);
 	} else if (os_strcmp(argv[2], "stop") == 0) {
-		BK_LOG_ON_ERR(bk_pwm_stop(chan));
+		CLI_PWM_RETURN_ON_ERR(bk_pwm_stop(chan));
 		CLI_LOGD("pwm stop, chan=%d\n", chan);
 	} else if (os_strcmp(argv[2], "deinit") == 0) {
-		BK_LOG_ON_ERR(bk_pwm_deinit(chan));
+		CLI_PWM_RETURN_ON_ERR(bk_pwm_deinit(chan));
 		CLI_LOGD("pwm deinit, chan=%d\n", chan);
 	} else if (os_strcmp(argv[2], "signal") == 0) {
 		if (argc != 4) {
@@ -183,13 +195,17 @@ static void cli_pwm_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
 		}
 
 		if (os_strcmp(argv[3], "low") == 0)
-			BK_LOG_ON_ERR(bk_pwm_set_init_signal_low(chan));
+			CLI_PWM_RETURN_ON_ERR(bk_pwm_set_init_signal_low(chan));
 		else
-			BK_LOG_ON_ERR(bk_pwm_set_init_signal_high(chan));
+			CLI_PWM_RETURN_ON_ERR(bk_pwm_set_init_signal_high(chan));
 		CLI_LOGD("pwm set signal, chan=%d\n", chan);
 	} else if (os_strcmp(argv[2], "duty") == 0) {
 		pwm_period_duty_config_t config = {0};
 		if (argc < 5) {
+			cli_pwm_help();
+			return;
+		}
+		if (argc > 8) {
 			cli_pwm_help();
 			return;
 		}
@@ -202,7 +218,7 @@ static void cli_pwm_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
 			config.duty3_cycle = os_strtoul(argv[6], NULL, 10);
 		if (argc > 7)
 			config.psc = os_strtoul(argv[7], NULL, 10);
-		BK_LOG_ON_ERR(bk_pwm_set_period_duty(chan, &config));
+		CLI_PWM_RETURN_ON_ERR(bk_pwm_set_period_duty(chan, &config));
 		CLI_LOGD("pwm duty, chan=%d period=%d t1=%d t2=%d t3=%d\n", chan, config.period_cycle,
 				 config.duty_cycle, config.duty2_cycle, config.duty3_cycle);
 	} else if (os_strcmp(argv[2], "duty_ramp") == 0) {
@@ -287,17 +303,15 @@ static void cli_pwm_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
 
 static void cli_pwm_group_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
-	uint32_t group;
+	uint32_t group = 0;
 
 	if (argc < 2) {
 		cli_pwm_help();
 		return;
 	}
 
-	group = os_strtoul(argv[2], NULL, 10);
-
 	if (os_strcmp(argv[1], "init") == 0) {
-		if (argc != 8) {
+		if (argc < 7 || argc > 8) {
 			cli_pwm_help();
 			return;
 		}
@@ -309,18 +323,25 @@ static void cli_pwm_group_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc
 		config.period_cycle = os_strtoul(argv[4], NULL, 10);
 		config.chan1_duty_cycle = os_strtoul(argv[5], NULL, 10);
 		config.chan2_duty_cycle = os_strtoul(argv[6], NULL, 10);
-		config.psc = os_strtoul(argv[7], NULL, 10);
+		if (argc > 7)
+			config.psc = os_strtoul(argv[7], NULL, 10);
 		BK_LOG_ON_ERR(bk_pwm_group_init(&config, &group));
 		CLI_LOGD("pwm init, group=%d chan1=%d chan2=%d period=%x d1=%x d2=%x\n",
 				 group, config.chan1, config.chan2, config.period_cycle,
 				 config.chan1_duty_cycle, config.chan2_duty_cycle);
 	} else if (os_strcmp(argv[1], "start") == 0) {
+		if (argc > 2)
+			group = os_strtoul(argv[2], NULL, 10);
 		BK_LOG_ON_ERR(bk_pwm_group_start(group));
 		CLI_LOGD("pwm start, group=%d\n", group);
 	} else if (os_strcmp(argv[1], "stop") == 0) {
+		if (argc > 2)
+			group = os_strtoul(argv[2], NULL, 10);
 		BK_LOG_ON_ERR(bk_pwm_group_stop(group));
 		CLI_LOGD("pwm stop, group=%d\n", group);
 	} else if (os_strcmp(argv[1], "deinit") == 0) {
+		if (argc > 2)
+			group = os_strtoul(argv[2], NULL, 10);
 		BK_LOG_ON_ERR(bk_pwm_group_deinit(group));
 		CLI_LOGD("pwm deinit, group=%d\n", group);
 	} else if (os_strcmp(argv[1], "config") == 0) {
@@ -330,6 +351,7 @@ static void cli_pwm_group_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc
 			return;
 		}
 
+		group = os_strtoul(argv[2], NULL, 10);
 		config.period_cycle = os_strtoul(argv[3], NULL, 10);
 		config.chan1_duty_cycle = os_strtoul(argv[4], NULL, 10);
 		config.chan2_duty_cycle = os_strtoul(argv[5], NULL, 10);
@@ -391,9 +413,13 @@ static void cli_pwm_capture_cmd(char *pcWriteBuffer, int xWriteBufferLen, int ar
 	chan = os_strtoul(argv[1], NULL, 10);
 
 	if (os_strcmp(argv[2], "init") == 0) {
-		CLI_RET_ON_INVALID_ARGC(argc, 4);
 		pwm_capture_init_config_t config = {0};
-		if (os_strcmp(argv[3], "pos") == 0)
+		if (argc > 4) {
+			cli_pwm_help();
+			return;
+		}
+
+		if (argc == 3 || os_strcmp(argv[3], "pos") == 0)
 			config.edge = PWM_CAPTURE_POS;
 		else if (os_strcmp(argv[3], "neg") == 0)
 			config.edge = PWM_CAPTURE_NEG;
