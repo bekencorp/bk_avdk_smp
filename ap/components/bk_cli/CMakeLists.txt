@@ -129,7 +129,10 @@ endif()
 
 
 	if (CONFIG_OTP_V1 AND CONFIG_OTP_TEST)
-		list(APPEND srcs "cli_otp.c")
+		list(APPEND srcs
+			"cli_otp.c"
+			"cli_package_type.c"
+		)
 	endif()
 
 

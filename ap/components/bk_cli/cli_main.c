@@ -1561,6 +1561,7 @@ int bk_cli_init(void)
 
 #if CONFIG_OTP_V1 && CONFIG_OTP_TEST
 	cli_otp_init();
+	cli_package_type_init();
 #endif
 
 #if (CLI_CFG_KEY_DEMO == 1)
