@@ -8,6 +8,7 @@ const blend_info_t blend_assets[] =
     {.name = "ver",   .addr = &font_ver, .content = "v 1.0.0"},
     {.name = "text1" , .addr = &font_text1 , .content = "12:35" },
     {.name = "text2" , .addr = &font_text2 , .content = "博通集成欢迎您" },
+    {.name = "lv_clock" , .addr = &font_lv_clock , .content = "12:35" },
     {.name = "beken_logo" , .addr = &img_img2 , .content = "beken_logo" },
     {.name = "img3" , .addr = &img_img3 , .content = "img3" },
     {.name = "wifi_group" , .addr = &wifi_rssi_none , .content = "wifi_rssi_none" },
@@ -21,10 +22,11 @@ const blend_info_t blend_assets[] =
 
 const blend_info_t blend_info[] =
 {
-    {.name = "text1" , .addr = &font_text1 , .content = "12:00:00" },
+    {.name = "text1" , .addr = &font_text1 , .content = "00:00:00"},
     {.name = "text2" , .addr = &font_text2 , .content = "博通集成欢迎您" },
+    {.name = "lv_clock" , .addr = &font_lv_clock , .content = "12:35" },
     {.name = "beken_logo" , .addr = &img_img2 , .content = "beken_logo" },
-    {.name = "img3" , .addr = &img_img3 , .content = "img3" },
+   {.name = "img3" , .addr = &img_img3 , .content = "img3" },
     {.name = "wifi_group" , .addr = &wifi_rssi_none , .content = "wifi_rssi_none" },
     {.addr = NULL},
 };

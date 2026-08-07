@@ -69,11 +69,11 @@ typedef struct {
 }blend_image_t;
 
 typedef struct {
-    const gui_font_digit_struct * font_digit_type;   /**< character database (bkfont/emWin) */
-    uint32_t color;            /**< font color value used by RGB565 date*/
-    /* Current: font assets in blend_info[] support bkfont only. To let LVGL text participate in
-     * auto-clustering, extend with { osd_font_kind_t kind; const void *lv_font; uint8_t scale; }
-     * and dispatch by kind in the controller (see bk_osd_lv_font.h). */
+    const gui_font_digit_struct * font_digit_type;   /**< bkfont/emWin glyph table; set for bkfont */
+    uint32_t color;            /**< font color 0x00RRGGBB (alpha comes from the glyph coverage) */
+    const void *lv_font;       /**< LVGL font (const lv_font_t*); set INSTEAD of font_digit_type.
+                                *   Dispatch is by whichever pointer is non-NULL (bkfont takes precedence). */
+    uint8_t scale;             /**< LVGL integer up-scale (0/1 = 1x); ignored for bkfont */
 }blend_font_t;
 
 typedef struct 
@@ -81,10 +81,10 @@ typedef struct
     uint8_t version;               /**< version */
     blend_type_t blend_type;       /**< 0: image, 1:font */
     const char name[MAX_BLEND_NAME_LEN];        /**< image name like "wifi","clock", "weather" */
-    uint32_t width;                 /**< icon width   */
-    uint32_t height;                /**< icon height  */
-    uint32_t icon_width;                 /**< icon width   */
-    uint32_t icon_height;                /**< icon height  */
+    uint32_t width;                 /**< IMAGE: bitmap width (required). FONT: sprite box width
+                                     *   (0 = auto-size to text extent, recommended).          */
+    uint32_t height;                /**< IMAGE: bitmap height (required). FONT: sprite box height
+                                     *   (0 = auto-size to text extent).                        */
     uint32_t bg_width;                 /**< background window width   */
     uint32_t bg_height;                /**< background window height  */
     uint16_t xpos;                  /**< icon x pos based on background window */
@@ -112,11 +112,17 @@ typedef struct{
 
 
 typedef struct {
-    /* Pipeline submit model: OSD registers composited sprites with this external GPU (SRC_OVER each frame).
-     * MIPI and UVC each hold a separate instance bound to their own pipeline GPU handle. */
+    /* OSD registers composited sprites with this external GPU (SRC_OVER each frame).
+     * MIPI and UVC each hold a separate instance bound to their own GPU handle. */
     bk_gpu_ctlr_handle_t gpu;            /**< bound external pipeline GPU handle (required) */
     uint16_t panel_w;                    /**< target display width (rotated buffer width) */
     uint16_t panel_h;                    /**< target display height */
+    /* OSD content rotation at composite/blit, matching the video display rotation; must equal
+     * the pipeline's display rotate_degree.
+     * 0 (default): element xpos/ypos are in the final display-buffer space.
+     * 90/270: element xpos/ypos are in the pre-rotation viewer space (same frame as the
+     *   un-rotated image); each sprite is rotated by this angle into the panel buffer. */
+    uint16_t osd_rotate_degree;
     bk_pixel_format_t src_format;        /**< sprite format: MIPI=ABGR8888 / UVC=ARGB8888 (upstream channel order) */
     const blend_info_t *blend_assets;    /**<  the pointer, pointer to current blend info, lifetime >= handle */
     const blend_info_t *blend_info;      /**<  initial default display items array, only read at new time */
@@ -135,14 +141,15 @@ typedef struct bk_draw_osd_ctlr *bk_draw_osd_ctlr_handle_t;
 
 typedef struct bk_draw_osd_ctlr
 {
-    /* Pipeline compositing: all render entry points are one-shot/self-contained (internal sprite/slot/GPU submit). */
-    /* One-shot single element (image or font); uses element xpos/ypos/color/content; takes next free slot */
+    /* All render entry points are one-shot/self-contained (internal sprite/slot/GPU submit). */
+    /* One-shot single element (image or font); takes next free slot */
     avdk_err_t (*draw_element)(bk_draw_osd_ctlr_handle_t controller, const blend_info_t *info);
     /* One-shot raw font text (LVGL/bkfont); takes next free slot */
     avdk_err_t (*draw_text)(bk_draw_osd_ctlr_handle_t controller, osd_font_kind_t kind, const void *font,
                             const char *utf8, uint16_t x, uint16_t y, uint32_t argb, uint8_t scale);
-    /* Array render: auto-cluster by spatial proximity into GPU slots (<= BK_GPU_BLIT_SLOT_MAX), one tight
-     * bounding-box sprite per cluster; slot cursor stops after used clusters. No manual slot/begin/commit. */
+    /* Array render: auto-cluster into GPU slots (<= BK_GPU_BLIT_SLOT_MAX), one tight sprite per cluster.
+     * Incremental by default on the dynamic list (list == NULL): only changed clusters re-composited;
+     * an explicit list, an add/remove/clear, or a merged layout forces a full repaint. */
     avdk_err_t (*draw_osd_array)(bk_draw_osd_ctlr_handle_t controller, const blend_info_t *list);
     /* Clear registered blits and reset slot cursor */
     avdk_err_t (*clear)(bk_draw_osd_ctlr_handle_t controller);

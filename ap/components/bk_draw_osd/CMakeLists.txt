@@ -1,5 +1,7 @@
 set(incs include)
-set(srcs)
+set(srcs
+	src/bk_osd_emwin_font.c
+)
 
 if (CONFIG_VG_LITE_GPU)
 list(APPEND srcs

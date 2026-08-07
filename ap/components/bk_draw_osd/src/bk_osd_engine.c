@@ -11,6 +11,7 @@
 #include <components/bk_frame_buffer.h>
 
 #include "bk_osd_engine.h"
+#include "bk_osd_emwin_font.h"
 
 #define TAG "osd_engine"
 #define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
@@ -24,6 +25,7 @@ struct osd_engine {
     bk_gpu_ctlr_handle_t gpu;
     uint16_t panel_w;
     uint16_t panel_h;
+    uint16_t rotate_degree;   /* OSD content rotation: 0 / 90 / 270 */
     bk_pixel_format_t src_format;
 
     uint32_t *sprite;      /* in-progress sprite not yet committed (engine-owned) */
@@ -79,6 +81,7 @@ avdk_err_t osd_engine_new(osd_engine_handle_t *out, const osd_engine_config_t *c
     eng->gpu        = cfg->gpu;
     eng->panel_w    = cfg->panel_w;
     eng->panel_h    = cfg->panel_h;
+    eng->rotate_degree = cfg->rotate_degree;
     eng->src_format = cfg->src_format;
     *out = eng;
     return AVDK_ERR_OK;
@@ -120,8 +123,11 @@ avdk_err_t osd_engine_begin(osd_engine_handle_t eng, uint16_t w, uint16_t h,
     if (eng == NULL || w == 0 || h == 0) {
         return AVDK_ERR_INVAL;
     }
-    if (w > eng->panel_w) w = eng->panel_w;
-    if (h > eng->panel_h) h = eng->panel_h;
+    /* For 90/270 the sprite is authored in viewer space (axes swapped vs panel buffer). */
+    uint16_t max_w = (eng->rotate_degree == 90 || eng->rotate_degree == 270) ? eng->panel_h : eng->panel_w;
+    uint16_t max_h = (eng->rotate_degree == 90 || eng->rotate_degree == 270) ? eng->panel_w : eng->panel_h;
+    if (w > max_w) w = max_w;
+    if (h > max_h) h = max_h;
 
     /* Drop previous in-progress sprite (committed ones remain with GPU) */
     if (eng->sprite) {
@@ -159,8 +165,8 @@ avdk_err_t osd_engine_put_icon(osd_engine_handle_t eng, const bk_blend_t *icon,
         return AVDK_ERR_INVAL;
     }
     const uint32_t *src = (const uint32_t *)icon->image.data;
-    uint16_t iw = (uint16_t)(icon->width  ? icon->width  : icon->icon_width);
-    uint16_t ih = (uint16_t)(icon->height ? icon->height : icon->icon_height);
+    uint16_t iw = (uint16_t)icon->width;
+    uint16_t ih = (uint16_t)icon->height;
     uint16_t sw = eng->sw, sh = eng->sh;
     for (uint16_t row = 0; row < ih; row++) {
         uint16_t dy = y + row;
@@ -177,113 +183,26 @@ avdk_err_t osd_engine_put_icon(osd_engine_handle_t eng, const bk_blend_t *icon,
     return AVDK_ERR_OK;
 }
 
-/* ---- LVGL font rasterization (bk_osd_lv_font.c decode, integer scale, baseline-aligned) ---- */
+/* ---- LVGL font rasterization (shared with the H264 path via bk_osd_lv_font) ---- */
 static uint16_t engine_put_lvgl(struct osd_engine *eng, const lv_font_t *font, const char *utf8,
                                 uint16_t x, uint16_t y, uint32_t argb, uint8_t scale)
 {
-    if (font == NULL || utf8 == NULL) return x;
-    if (scale == 0) scale = 1;
-    uint32_t rgb = argb & 0x00FFFFFFu;
-    uint16_t sw = eng->sw, sh = eng->sh;
-    uint16_t pen_x = x;
-    int ascent = (int)(font->line_height - font->base_line);
-    int baseline = (int)y + ascent * scale;
-    const char *p = utf8;
-    while (*p) {
-        uint32_t cp = 0;
-        p += osd_utf8_next(p, &cp);
-        osd_glyph_t g;
-        if (!osd_font_get_glyph(font, cp, &g)) {
-            pen_x += 6 * scale;
-            continue;
-        }
-        int glyph_top = baseline - (g.ofs_y + g.box_h) * scale;
-        int gx0 = (int)pen_x + g.ofs_x * scale;
-        engine_bbox_add(eng, gx0, glyph_top, gx0 + g.box_w * scale, glyph_top + g.box_h * scale);
-        for (uint16_t gy = 0; gy < g.box_h; gy++) {
-            for (uint16_t gx = 0; gx < g.box_w; gx++) {
-                uint8_t a = osd_font_glyph_a8(&g, gx, gy);
-                if (a == 0) continue;
-                uint32_t pix = ((uint32_t)a << 24) | rgb;
-                for (uint8_t sy = 0; sy < scale; sy++) {
-                    int dy = glyph_top + gy * scale + sy;
-                    if (dy < 0 || dy >= sh) continue;
-                    uint32_t *drow = eng->sprite + (uint32_t)dy * sw;
-                    for (uint8_t sx = 0; sx < scale; sx++) {
-                        int dx = (int)pen_x + g.ofs_x * scale + gx * scale + sx;
-                        if (dx >= 0 && dx < sw) drow[dx] = pix;
-                    }
-                }
-            }
-        }
-        pen_x += g.adv_w * scale;
-        if (pen_x >= sw) break;
+    osd_lv_font_rect_t bb;
+    uint16_t pen_x = osd_lv_font_blit(eng->sprite, eng->sw, eng->sh, font, utf8, x, y, argb, scale, &bb);
+    if (bb.x1 > bb.x0 && bb.y1 > bb.y0) {
+        engine_bbox_add(eng, (int)bb.x0, (int)bb.y0, (int)bb.x1, (int)bb.y1);
     }
     return pen_x;
 }
 
-/* ---- bk_font/emWin glyph rasterization (gui_font_digit_struct, 4bpp) ---- */
-static const gui_font_digit_struct *bkfont_glyph(const gui_font_digit_struct *tbl, uint32_t cp)
-{
-    if (tbl == NULL) return NULL;
-    for (uint32_t i = 0; tbl[i].value != 0; i++) {
-        if (tbl[i].value == cp && tbl[i].data != NULL) return &tbl[i];
-    }
-    return NULL;
-}
-
-static uint8_t bkfont_pixel_a8(const gui_font_digit_struct *g, uint32_t stride, uint16_t gx, uint16_t gy)
-{
-    uint8_t bp = g->bit_point ? g->bit_point : 4;
-    const uint8_t *pb = &g->data[(uint32_t)gy * stride + ((uint32_t)gx * bp) / 8u];
-    if (bp == 4) {
-        uint8_t nib = (gx & 1u) ? (uint8_t)(*pb & 0x0Fu) : (uint8_t)((*pb >> 4) & 0x0Fu);
-        return (uint8_t)(nib * 17u);
-    }
-    if (bp == 1) {
-        static const uint8_t bitm[] = {0x80, 0x40, 0x20, 0x10, 0x08, 0x04, 0x02, 0x01};
-        return (*pb & bitm[gx & 7u]) ? 255u : 0u;
-    }
-    if (bp == 2) {
-        return (uint8_t)(((*pb >> (6u - 2u * (gx & 3u))) & 0x03u) * 85u);
-    }
-    return 0u;
-}
-
+/* ---- emWin glyph rasterization (shared with the H264 path via bk_osd_emwin_font) ---- */
 static uint16_t engine_put_bkfont(struct osd_engine *eng, const gui_font_digit_struct *tbl,
                                   const char *utf8, uint16_t x, uint16_t y, uint32_t argb)
 {
-    if (tbl == NULL || utf8 == NULL) return x;
-    uint32_t rgb = argb & 0x00FFFFFFu;
-    uint16_t sw = eng->sw, sh = eng->sh;
-    uint16_t def_adv = tbl[0].width ? tbl[0].width : 12;
-    uint16_t pen_x = x;
-    const char *p = utf8;
-    while (*p) {
-        uint32_t cp = 0;
-        p += osd_utf8_next(p, &cp);
-        const gui_font_digit_struct *g = bkfont_glyph(tbl, cp);
-        if (g == NULL) {
-            pen_x += def_adv;
-            continue;
-        }
-        uint8_t bp = g->bit_point ? g->bit_point : 4;
-        uint32_t stride = ((uint32_t)g->x_size * bp + (8u - bp)) / 8u;
-        engine_bbox_add(eng, (int)pen_x + g->x_pos, (int)y + g->y_pos,
-                        (int)pen_x + g->x_pos + g->x_size, (int)y + g->y_pos + g->y_size);
-        for (uint16_t gy = 0; gy < g->y_size; gy++) {
-            uint16_t dy = y + g->y_pos + gy;
-            if (dy >= sh) break;
-            uint32_t *drow = eng->sprite + (uint32_t)dy * sw;
-            for (uint16_t gx = 0; gx < g->x_size; gx++) {
-                uint8_t a = bkfont_pixel_a8(g, stride, gx, gy);
-                if (a == 0) continue;
-                int dx = (int)pen_x + g->x_pos + gx;
-                if (dx >= 0 && dx < sw) drow[dx] = ((uint32_t)a << 24) | rgb;
-            }
-        }
-        pen_x += g->width;
-        if (pen_x >= sw) break;
+    osd_emwin_font_rect_t bb;
+    uint16_t pen_x = osd_emwin_font_blit(eng->sprite, eng->sw, eng->sh, tbl, utf8, x, y, argb, &bb);
+    if (bb.x1 > bb.x0 && bb.y1 > bb.y0) {
+        engine_bbox_add(eng, (int)bb.x0, (int)bb.y0, (int)bb.x1, (int)bb.y1);
     }
     return pen_x;
 }
@@ -303,38 +222,14 @@ uint16_t osd_engine_put_text(osd_engine_handle_t eng, osd_font_kind_t kind, cons
 void osd_engine_text_extent(osd_font_kind_t kind, const void *font, const char *utf8,
                             uint8_t scale, uint16_t *out_w, uint16_t *out_h)
 {
-    uint32_t w = 0, h = 0;
-    if (font != NULL && utf8 != NULL) {
-        if (scale == 0) scale = 1;
-        const char *p = utf8;
-        if (kind == OSD_FONT_BKFONT) {
-            const gui_font_digit_struct *tbl = (const gui_font_digit_struct *)font;
-            uint16_t def_adv = tbl[0].width ? tbl[0].width : 12;
-            uint32_t maxb = 0;
-            while (*p) {
-                uint32_t cp = 0;
-                p += osd_utf8_next(p, &cp);
-                const gui_font_digit_struct *g = bkfont_glyph(tbl, cp);
-                if (g == NULL) { w += def_adv; continue; }
-                uint32_t b = (uint32_t)g->y_pos + g->y_size;
-                if (b > maxb) maxb = b;
-                w += g->width;
-            }
-            h = maxb;
-        } else {
-            const lv_font_t *lf = (const lv_font_t *)font;
-            while (*p) {
-                uint32_t cp = 0;
-                p += osd_utf8_next(p, &cp);
-                osd_glyph_t g;
-                w += (osd_font_get_glyph(lf, cp, &g) ? g.adv_w : 6u) * scale;
-            }
-            h = (uint32_t)lf->line_height * scale;
-        }
+    if (kind == OSD_FONT_BKFONT) {
+        /* emWin extent (incl. margin) lives in the shared util so both OSD paths agree. */
+        osd_emwin_font_text_extent((const gui_font_digit_struct *)font, utf8, out_w, out_h);
+        return;
     }
-    /* Small margin to avoid edge clipping; commit tightens the actual blit rect */
-    if (out_w) *out_w = (uint16_t)(w ? w + 2u : 0u);
-    if (out_h) *out_h = (uint16_t)(h ? h + 2u : 0u);
+
+    /* LVGL extent (incl. margin) lives in the shared util so both OSD paths agree. */
+    osd_lv_font_text_extent((const lv_font_t *)font, utf8, scale, out_w, out_h);
 }
 
 /* ---------------- commit / clear ---------------- */
@@ -364,9 +259,12 @@ avdk_err_t osd_engine_commit(osd_engine_handle_t eng)
 
     /* Auto bbox crop: blit only the content rect (4px-aligned for tile margin).
      * SRC_OVER cost = cw*ch; smaller area avoids flexa resync window drops.
-     * Falls back to full sprite if bb_valid is false. */
+     * Falls back to full sprite if bb_valid is false.
+     * Crop is only applied for rotate_degree == 0; rotated blits submit the full sprite so the
+     * GPU rotation matrix maps a whole viewer-space sprite (crop offset under rotation would
+     * need an axis-transformed dst, avoided here for correctness). */
     uint16_t cx = 0, cy = 0, cw = eng->sw, ch = eng->sh;
-    if (eng->bb_valid) {
+    if (eng->bb_valid && eng->rotate_degree == 0) {
         uint16_t x0 = eng->bb_x0 & (uint16_t)~3u;
         uint16_t y0 = eng->bb_y0 & (uint16_t)~3u;
         uint16_t x1 = (uint16_t)((eng->bb_x1 + 3u) & ~3u);
@@ -378,6 +276,52 @@ avdk_err_t osd_engine_commit(osd_engine_handle_t eng)
         ch = (uint16_t)(y1 - y0);
     }
 
+    /* Map composed sprite to panel-buffer placement.
+     * rotate 0  : dst = viewer/buffer coords + crop offset (legacy).
+     * rotate 90 : viewer (ex,ey) sprite (sw,sh) -> buffer x[panel_w-ey-sh .. panel_w-ey], y[ex .. ex+sw].
+     * rotate 270: viewer (ex,ey) sprite (sw,sh) -> buffer x[ey .. ey+sh],           y[panel_h-ex-sw .. panel_h-ex].
+     * (see gpu_frame_done_blit / gpu_flex_osd_slot_block_blit rotate matrix convention) */
+    uint16_t dst_x, dst_y;
+    if (eng->rotate_degree == 90) {
+        int32_t bx = (int32_t)eng->panel_w - (int32_t)eng->dst_y - (int32_t)eng->sh;
+        dst_x = (uint16_t)(bx < 0 ? 0 : bx);
+        dst_y = eng->dst_x;
+    } else if (eng->rotate_degree == 270) {
+        int32_t by = (int32_t)eng->panel_h - (int32_t)eng->dst_x - (int32_t)eng->sw;
+        dst_x = eng->dst_y;
+        dst_y = (uint16_t)(by < 0 ? 0 : by);
+    } else {
+        dst_x = (uint16_t)(eng->dst_x + cx);
+        dst_y = (uint16_t)(eng->dst_y + cy);
+    }
+
+    /* Footprint in the final display buffer. Rotated blits submit the whole sprite with axes
+     * swapped, so the on-screen size is (sh x sw); the un-rotated path uses the crop rect. */
+    uint16_t fw = (eng->rotate_degree == 90 || eng->rotate_degree == 270) ? eng->sh : cw;
+    uint16_t fh = (eng->rotate_degree == 90 || eng->rotate_degree == 270) ? eng->sw : ch;
+
+    /* Bounds guard: an element whose xpos/ypos (in the space implied by rotate_degree) lands off
+     * the panel is a coordinate/rotation misconfig (e.g. viewer-space coords rendered at rotate 0).
+     * Never hand the GPU an out-of-buffer dst: drop fully off-screen elements, clip the non-rotated
+     * partial-overflow case, and warn so the wrong coordinate/rotate pairing is visible in the log. */
+    if (dst_x >= eng->panel_w || dst_y >= eng->panel_h) {
+        LOGW("OSD element off-screen (dst=%u,%u panel=%ux%u rot=%u), skipped\n",
+             dst_x, dst_y, eng->panel_w, eng->panel_h, eng->rotate_degree);
+        bk_frame_buffer_free(eng->sprite);
+        eng->sprite = NULL;
+        return AVDK_ERR_OK;
+    }
+    if ((uint32_t)dst_x + fw > eng->panel_w || (uint32_t)dst_y + fh > eng->panel_h) {
+        if (eng->rotate_degree == 0) {
+            if ((uint32_t)dst_x + cw > eng->panel_w) cw = (uint16_t)(eng->panel_w - dst_x);
+            if ((uint32_t)dst_y + ch > eng->panel_h) ch = (uint16_t)(eng->panel_h - dst_y);
+            LOGW("OSD element exceeds panel, clipped to %ux%u at (%u,%u)\n", cw, ch, dst_x, dst_y);
+        } else {
+            LOGW("OSD element partially off-screen (rot=%u dst=%u,%u fp=%ux%u panel=%ux%u)\n",
+                 eng->rotate_degree, dst_x, dst_y, fw, fh, eng->panel_w, eng->panel_h);
+        }
+    }
+
     bk_gpu_blit_config_t blit;
     os_memset(&blit, 0, sizeof(blit));
     blit.src_x        = cx;
@@ -387,18 +331,13 @@ avdk_err_t osd_engine_commit(osd_engine_handle_t eng)
     blit.sprite_width  = eng->sw;   /* full sprite stride; src_* is the bbox crop sub-rect */
     blit.sprite_height = eng->sh;
     blit.src_format   = eng->src_format;
-    blit.dst_x        = (uint16_t)(eng->dst_x + cx);
-    blit.dst_y        = (uint16_t)(eng->dst_y + cy);
-    blit.rotate_degree = 0;
+    blit.dst_x        = dst_x;
+    blit.dst_y        = dst_y;
+    blit.rotate_degree = eng->rotate_degree;
     blit.alpha_blend  = 1;               /* transparent OSD -> SRC_OVER */
     blit.osd_slot     = eng->slot;       /* multi-region: submit to this slot */
-    blit.args         = eng;
+    blit.args         = NULL;
     blit.free         = osd_engine_free_cb;
-
-    /* Per-frame SRC_OVER blit area = cw*ch (tight bbox after auto-crop) */
-    LOGI("OSD_COMMIT slot=%u sprite=%ux%u crop=%ux%u area=%u dst=(%u,%u)\n",
-         (unsigned)eng->slot, eng->sw, eng->sh, cw, ch, (uint32_t)cw * ch,
-         (uint32_t)blit.dst_x, (uint32_t)blit.dst_y);
 
     uint32_t *sprite = eng->sprite;
     /* Release engine ownership before submit; GPU owns on success, freed below on failure */

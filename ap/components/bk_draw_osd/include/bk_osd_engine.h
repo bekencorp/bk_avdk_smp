@@ -26,8 +26,12 @@ typedef struct osd_engine *osd_engine_handle_t;
 
 typedef struct {
     bk_gpu_ctlr_handle_t gpu;        /**< Bound external pipeline GPU (required) */
-    uint16_t panel_w;                /**< Target display width */
-    uint16_t panel_h;                /**< Target display height */
+    uint16_t panel_w;                /**< Target display (panel buffer) width */
+    uint16_t panel_h;                /**< Target display (panel buffer) height */
+    /* OSD content rotation (0/90/270). 0: dst_x/dst_y passed to begin() are panel-buffer coords
+     * (legacy). 90/270: they are pre-rotation viewer coords; commit rotates the sprite and maps
+     * it into the panel buffer. Must match the video display rotation. */
+    uint16_t rotate_degree;
     bk_pixel_format_t src_format;    /**< Sprite source format (MIPI=ABGR8888 / UVC=ARGB8888) */
 } osd_engine_config_t;
 

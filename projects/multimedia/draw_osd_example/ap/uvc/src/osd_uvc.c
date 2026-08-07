@@ -94,7 +94,7 @@ avdk_err_t osd_uvc_show(osd_blend_mode_t mode)
     if (osd == NULL) return AVDK_ERR_GENERIC;
 
     LOGI("UVC OSD: blend=%s, list=blend_info\n", per_flexa ? "per-flexa" : "frame-end");
-    return bk_draw_osd_array(osd, NULL);   /* render default dynamic list, auto-cluster slots */
+    return bk_draw_osd_array(osd, NULL);
 }
 
 /* Runtime dynamic list refresh (no instance rebuild; re-render with array(NULL) after edits):

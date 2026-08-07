@@ -83,8 +83,7 @@ typedef struct {
     uint8_t version;
     blend_type_t blend_type;          // BLEND_TYPE_IMAGE / BLEND_TYPE_FONT
     const char name[20];
-    uint32_t width, height;           // 元素宽高（为 0 时回退 icon_width/height）
-    uint32_t icon_width, icon_height;
+    uint32_t width, height;           // IMAGE: 位图宽高(必填); FONT: sprite 框, 0=按文字自动测量
     uint32_t bg_width, bg_height;
     uint16_t xpos, ypos;              // 元素左上角（显示坐标系）
     union {
@@ -119,7 +118,7 @@ typedef enum { OSD_FONT_LVGL = 0, OSD_FONT_BKFONT } osd_font_kind_t;
 const bk_blend_t img_wifi = {
     .blend_type = BLEND_TYPE_IMAGE,
     .name  = "wifi",
-    .width = 48, .height = 48,        // 渲染取 width，为 0 回退 icon_width
+    .width = 48, .height = 48,        // 图标必填：位图实际尺寸
     .xpos  = 8,  .ypos  = 4,
     .image = { .format = ARGB8888, .data = wifi_argb8888, .data_len = 48*48*4 },
 };
@@ -129,7 +128,7 @@ extern const gui_font_digit_struct *const font_digit_black24;   // assets/bk_fon
 const bk_blend_t font_clock = {
     .blend_type = BLEND_TYPE_FONT,
     .name  = "clock",
-    .width = 200, .height = 28,
+    .width = 0, .height = 0,          // 0 = 按 content 自动测量宽高（推荐，避免手填导致截断）
     .xpos  = 64,  .ypos  = 8,
     .font  = { .font_digit_type = font_digit_black24, .color = 0xFFFFFF },
 };
@@ -144,7 +143,7 @@ const blend_info_t blend_info[] = {
 
 - **图标**：`BLEND_TYPE_IMAGE`，`image.data` 是 ARGB8888 字节流，`content` 忽略。
 - **文本**：`BLEND_TYPE_FONT`，`font.font_digit_type` 指字模表；`content` 非空显示 `content`，否则回退 `name`；`font.color` 为着色。
-- **坐标**：各元素用自身 `xpos/ypos`，宽高取 `width ? width : icon_width`。
+- **坐标**：各元素用自身 `xpos/ypos`。图标宽高必填(位图尺寸)；文本 `width/height` 可填 0，由组件按字库+content 自动测量，非 0 则作为固定框/裁剪上限。
 - **生命周期**：数组、`bk_blend_t`、图标/字模数据**均不深拷贝**，指针须在 OSD 实例存活期一直有效（一般定义为 `const` 全局）。
 
 ### 第 2 步：创建实例（绑定 pipeline GPU）

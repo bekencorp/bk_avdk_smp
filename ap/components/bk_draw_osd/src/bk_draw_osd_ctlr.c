@@ -30,6 +30,14 @@ typedef struct {
     beken_mutex_t        lock;
     uint8_t              next_slot;      /* next free GPU slot for one-shot element/text;
                                           * after array render, points past used clusters; clear resets to 0 */
+    /* Dirty tracking for incremental array render: dirty[i] marks dyn.entry[i] as changed since the
+     * last successful array render, so array() re-composites only the changed slot(s) (e.g. a 1s
+     * clock) and leaves the static ones on the GPU. layout_dirty forces a full render whenever the
+     * element set changes (add new / remove / clear / first render) since that can reshuffle the
+     * cluster->slot mapping. Kept as a parallel array (blend_info_t is a public/ROM struct). */
+    bool                *dirty;
+    size_t               dirty_cap;      /* allocated length of dirty[] (== dyn.capacity when synced) */
+    bool                 layout_dirty;   /* element set changed -> next array must repaint every slot */
 } private_osd_ctlr_t;
 
 /* ---------------- dynamic_array (ported from fa4592d) ---------------- */
@@ -192,6 +200,57 @@ static private_osd_ctlr_t *priv_of(bk_draw_osd_ctlr_handle_t handle)
     return __containerof(handle, private_osd_ctlr_t, ops);
 }
 
+/* Keep dirty[] as long as dyn.capacity (grown lazily). A capacity change only happens when the list
+ * grows, i.e. an element was added, which already forces layout_dirty; on alloc failure we fall back
+ * to a full repaint so we never read stale/short dirty state. Caller holds p->lock. */
+static void osd_dirty_sync(private_osd_ctlr_t *p)
+{
+    if (p->dirty_cap == p->dyn.capacity && p->dirty != NULL) {
+        return;
+    }
+    bool *tmp = os_realloc(p->dirty, p->dyn.capacity * sizeof(bool));
+    if (tmp == NULL) {
+        p->layout_dirty = true;   /* can't track precisely -> repaint everything next array */
+        return;
+    }
+    p->dirty = tmp;
+    for (size_t i = p->dirty_cap; i < p->dyn.capacity; i++) {
+        p->dirty[i] = true;
+    }
+    p->dirty_cap = p->dyn.capacity;
+}
+
+/* Mark every current element dirty (used on remove/clear/first render). Caller holds p->lock. */
+static void osd_dirty_mark_all(private_osd_ctlr_t *p)
+{
+    for (size_t i = 0; i < p->dirty_cap; i++) {
+        p->dirty[i] = true;
+    }
+    p->layout_dirty = true;
+}
+
+/* Resolve a FONT element to its rasterization backend. bkfont takes precedence (font_digit_type),
+ * else LVGL (lv_font). Dispatching by pointer (not by a kind enum) keeps existing bkfont assets
+ * working unchanged and lets both kinds share the array auto-cluster path. Returns false if the
+ * element carries no usable font pointer. */
+static bool osd_font_backend(const bk_blend_t *b, osd_font_kind_t *kind,
+                             const void **font, uint8_t *scale)
+{
+    if (b->font.font_digit_type != NULL) {
+        *kind = OSD_FONT_BKFONT;
+        *font = b->font.font_digit_type;
+        *scale = 1;
+        return true;
+    }
+    if (b->font.lv_font != NULL) {
+        *kind = OSD_FONT_LVGL;
+        *font = b->font.lv_font;
+        *scale = (b->font.scale != 0) ? b->font.scale : 1;
+        return true;
+    }
+    return false;
+}
+
 /* One-shot single element (image or font): tight sprite at element xpos/ypos, next free slot.
  * Image copies image.data; font uses bk_font glyphs + .color; text from content or name. */
 static avdk_err_t osd_draw_element(bk_draw_osd_ctlr_handle_t handle, const blend_info_t *info)
@@ -201,8 +260,19 @@ static avdk_err_t osd_draw_element(bk_draw_osd_ctlr_handle_t handle, const blend
         return AVDK_ERR_INVAL;
     }
     const bk_blend_t *b = info->addr;
-    uint16_t w = (uint16_t)(b->width  ? b->width  : b->icon_width);
-    uint16_t h = (uint16_t)(b->height ? b->height : b->icon_height);
+    uint16_t w = (uint16_t)b->width;
+    uint16_t h = (uint16_t)b->height;
+    osd_font_kind_t fk = OSD_FONT_BKFONT; const void *fp = NULL; uint8_t fsc = 1;
+    bool is_font = (b->blend_type == BLEND_TYPE_FONT) && osd_font_backend(b, &fk, &fp, &fsc);
+    /* Font elements may leave width/height 0: size the sprite to the actual text extent so the
+     * string is never clipped. A non-zero value stays authoritative (fixed field / explicit clip). */
+    if (is_font && (w == 0 || h == 0)) {
+        const char *text = (info->content[0] != '\0') ? info->content : b->name;
+        uint16_t tw = 0, th = 0;
+        osd_engine_text_extent(fk, fp, text, fsc, &tw, &th);
+        if (w == 0) w = tw;
+        if (h == 0) h = th;
+    }
     if (w == 0 || h == 0) {
         return AVDK_ERR_INVAL;
     }
@@ -221,11 +291,9 @@ static avdk_err_t osd_draw_element(bk_draw_osd_ctlr_handle_t handle, const blend
     }
     if (b->blend_type == BLEND_TYPE_IMAGE) {
         osd_engine_put_icon(p->engine, b, 0, 0);
-    } else if (b->font.font_digit_type != NULL) {
-        /* Asset fonts are bkfont-only today; extend blend_font_t with kind for LVGL clustering */
+    } else if (is_font) {
         const char *text = (info->content[0] != '\0') ? info->content : b->name;
-        osd_engine_put_text(p->engine, OSD_FONT_BKFONT, b->font.font_digit_type,
-                            text, 0, 0, b->font.color, 1);
+        osd_engine_put_text(p->engine, fk, fp, text, 0, 0, b->font.color, fsc);
     }
     ret = osd_engine_commit(p->engine);
     if (ret == AVDK_ERR_OK) p->next_slot++;
@@ -308,8 +376,20 @@ static avdk_err_t osd_draw_osd_array(bk_draw_osd_ctlr_handle_t handle, const ble
     int n = 0;
     for (const blend_info_t *it = arr; it->addr != NULL; it++) {
         const bk_blend_t *b = it->addr;
-        int32_t w = (int32_t)(b->width  ? b->width  : b->icon_width);
-        int32_t h = (int32_t)(b->height ? b->height : b->icon_height);
+        int32_t w = (int32_t)b->width;
+        int32_t h = (int32_t)b->height;
+        /* Font elements may leave width/height 0: size the cluster box to the text extent so the
+         * string is never clipped. A non-zero value stays authoritative (fixed field / clip). */
+        if (b->blend_type == BLEND_TYPE_FONT && (w == 0 || h == 0)) {
+            osd_font_kind_t fk; const void *fp; uint8_t fsc;
+            if (osd_font_backend(b, &fk, &fp, &fsc)) {
+                const char *text = (it->content[0] != '\0') ? it->content : b->name;
+                uint16_t tw = 0, th = 0;
+                osd_engine_text_extent(fk, fp, text, fsc, &tw, &th);
+                if (w == 0) w = (int32_t)tw;
+                if (h == 0) h = (int32_t)th;
+            }
+        }
         if (w <= 0 || h <= 0) continue;
         if (n >= OSD_CLUSTER_MAX_ELEMS) {
             LOGW("blend list > %d elems, extra ignored\n", OSD_CLUSTER_MAX_ELEMS);
@@ -355,11 +435,32 @@ static avdk_err_t osd_draw_osd_array(bk_draw_osd_ctlr_handle_t handle, const ble
         nclusters--;
     }
 
+    /* Incremental gate: normally re-composite only clusters whose members changed since the last
+     * render, leaving the static slots on the GPU (which keeps re-blitting them every frame). A full
+     * repaint is required when the element set changed (layout_dirty), on an explicit caller list
+     * (dirty is tracked against the dynamic list only), when dirty[] is unavailable, or when merging
+     * happened (nclusters < n): a merged layout can reshuffle which elements share a slot, so the
+     * cluster<->slot mapping is no longer guaranteed stable across calls and skipping is unsafe. */
+    bool full = p->layout_dirty || (list != NULL) || (p->dirty == NULL) || (nclusters < n);
+
     /* 4) Per cluster: compact to slots 0..nclusters-1, composite tight sprite, commit */
     avdk_err_t ret = AVDK_ERR_OK;
     uint8_t slot = 0;
     for (int c = 0; c < n; c++) {
         if (!active[c]) continue;
+
+        /* Skip an unchanged cluster: advance the slot cursor so the surviving slot number stays
+         * identical to when it was first laid out (the GPU keeps its existing blit for that slot). */
+        if (!full) {
+            bool cl_dirty = false;
+            for (int i = 0; i < n && !cl_dirty; i++) {
+                if (cid[i] != c) continue;
+                size_t di = (size_t)(elem[i] - arr);   /* arr == dyn.entry on this path */
+                if (di < p->dirty_cap && p->dirty[di]) cl_dirty = true;
+            }
+            if (!cl_dirty) { slot++; continue; }
+        }
+
         osd_rect_t *bx = &cbox[c];
         uint16_t sw = (uint16_t)(bx->x1 - bx->x0);
         uint16_t sh = (uint16_t)(bx->y1 - bx->y0);
@@ -375,11 +476,12 @@ static avdk_err_t osd_draw_osd_array(bk_draw_osd_ctlr_handle_t handle, const ble
             uint16_t y = (uint16_t)(rect[i].y0 - bx->y0);
             if (b->blend_type == BLEND_TYPE_IMAGE) {
                 osd_engine_put_icon(p->engine, b, x, y);
-            } else if (b->font.font_digit_type != NULL) {
-                /* Same as osd_draw_element: dispatch by b->font.kind when LVGL assets are supported */
-                const char *text = (elem[i]->content[0] != '\0') ? elem[i]->content : b->name;
-                osd_engine_put_text(p->engine, OSD_FONT_BKFONT, b->font.font_digit_type,
-                                    text, x, y, b->font.color, 1);
+            } else {
+                osd_font_kind_t fk; const void *fp; uint8_t fsc;
+                if (osd_font_backend(b, &fk, &fp, &fsc)) {
+                    const char *text = (elem[i]->content[0] != '\0') ? elem[i]->content : b->name;
+                    osd_engine_put_text(p->engine, fk, fp, text, x, y, b->font.color, fsc);
+                }
             }
         }
         ret = osd_engine_commit(p->engine);
@@ -388,8 +490,15 @@ static avdk_err_t osd_draw_osd_array(bk_draw_osd_ctlr_handle_t handle, const ble
     }
 
     p->next_slot = slot;   /* cursor past used clusters for follow-up element/text */
+
+    /* On a clean render the GPU now matches the list: drop dirty flags and the layout-changed
+     * marker. On mid-way failure we keep them so the next call retries the unpainted slots. */
+    if (ret == AVDK_ERR_OK) {
+        for (size_t i = 0; i < p->dirty_cap; i++) p->dirty[i] = false;
+        p->layout_dirty = false;
+    }
+
     rtos_unlock_mutex(&p->lock);
-    LOGI("osd array: %d elems -> %u slots (auto-cluster)\n", n, slot);
     return ret;
 }
 
@@ -398,6 +507,7 @@ static avdk_err_t osd_clear(bk_draw_osd_ctlr_handle_t handle)
     private_osd_ctlr_t *p = priv_of(handle);
     rtos_lock_mutex(&p->lock);
     p->next_slot = 0;      /* reset cursor; next render starts at slot 0 */
+    osd_dirty_mark_all(p); /* GPU blits dropped -> next array must repaint every slot */
     avdk_err_t ret = osd_engine_clear(p->engine);
     rtos_unlock_mutex(&p->lock);
     return ret;
@@ -408,7 +518,22 @@ static avdk_err_t osd_add_or_update(bk_draw_osd_ctlr_handle_t handle, const char
     private_osd_ctlr_t *p = priv_of(handle);
     if (name == NULL) return AVDK_ERR_INVAL;
     rtos_lock_mutex(&p->lock);
+    size_t before = p->dyn.size;
     avdk_err_t ret = dyn_add_or_update(&p->dyn, p->assets, p->assets_size, name, content);
+    if (ret == AVDK_ERR_OK) {
+        osd_dirty_sync(p);
+        if (p->dyn.size != before) {
+            /* A new element joined the list: cluster layout may change, so repaint all next array. */
+            p->layout_dirty = true;
+        } else {
+            /* In-place content update: mark just this element so array re-blits only its slot. */
+            blend_info_t *e = dyn_find(&p->dyn, name);
+            if (e != NULL) {
+                size_t idx = (size_t)(e - p->dyn.entry);
+                if (idx < p->dirty_cap) p->dirty[idx] = true;
+            }
+        }
+    }
     rtos_unlock_mutex(&p->lock);
     return ret;
 }
@@ -419,6 +544,7 @@ static avdk_err_t osd_remove(bk_draw_osd_ctlr_handle_t handle, const char *name)
     if (name == NULL) return AVDK_ERR_INVAL;
     rtos_lock_mutex(&p->lock);
     dyn_remove(&p->dyn, name);
+    osd_dirty_mark_all(p);   /* entries shifted -> slot mapping changes, repaint all next array */
     rtos_unlock_mutex(&p->lock);
     return AVDK_ERR_OK;
 }
@@ -474,6 +600,10 @@ static void osd_ctlr_destroy(private_osd_ctlr_t *p)
         os_free(p->dyn.entry);
         p->dyn.entry = NULL;
     }
+    if (p->dirty) {
+        os_free(p->dirty);
+        p->dirty = NULL;
+    }
     os_free(p);
 }
 
@@ -503,10 +633,11 @@ avdk_err_t osd_ctlr_new(bk_draw_osd_ctlr_handle_t *handle, osd_ctlr_config_t *co
     p->assets_size = config->blend_assets ? (uint32_t)array_length(config->blend_assets) : 0;
 
     osd_engine_config_t ecfg = {
-        .gpu        = config->gpu,
-        .panel_w    = config->panel_w,
-        .panel_h    = config->panel_h,
-        .src_format = config->src_format,
+        .gpu           = config->gpu,
+        .panel_w       = config->panel_w,
+        .panel_h       = config->panel_h,
+        .rotate_degree = config->osd_rotate_degree,
+        .src_format    = config->src_format,
     };
     ret = osd_engine_new(&p->engine, &ecfg);
     if (ret != AVDK_ERR_OK) {
@@ -520,6 +651,11 @@ avdk_err_t osd_ctlr_new(bk_draw_osd_ctlr_handle_t *handle, osd_ctlr_config_t *co
         goto err;
     }
     dyn_copy_defaults(&p->dyn, config->blend_info);
+    /* dirty[] is allocated lazily on first add_or_update/array; until then layout_dirty forces the
+     * first array() to paint every element (the GPU starts with no registered blits). */
+    p->dirty      = NULL;
+    p->dirty_cap  = 0;
+    p->layout_dirty = true;
 
     ret = rtos_init_mutex(&p->lock);
     if (ret != BK_OK) {

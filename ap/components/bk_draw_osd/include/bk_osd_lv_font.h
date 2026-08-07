@@ -131,14 +131,41 @@ typedef struct {
     uint8_t  stride;
 } osd_glyph_t;
 
+/** Drawn bounding box in target-buffer coords, half-open range [x0,x1) x [y0,y1). */
+typedef struct {
+    uint16_t x0;
+    uint16_t y0;
+    uint16_t x1;
+    uint16_t y1;
+} osd_lv_font_rect_t;
+
 /** Look up glyph for a Unicode codepoint. Returns true if found. */
-bool osd_font_get_glyph(const lv_font_t *font, uint32_t cp, osd_glyph_t *out);
+bool osd_lv_font_get_glyph(const lv_font_t *font, uint32_t cp, osd_glyph_t *out);
 
 /** Decode one glyph pixel to A8 (0..255). */
-uint8_t osd_font_glyph_a8(const osd_glyph_t *g, uint16_t x, uint16_t y);
+uint8_t osd_lv_font_glyph_a8(const osd_glyph_t *g, uint16_t x, uint16_t y);
 
-/** Read next UTF-8 codepoint; returns bytes consumed (>=1). */
-uint32_t osd_utf8_next(const char *s, uint32_t *cp);
+/**
+ * Pixel extent of @utf8 rendered with LVGL font @font at integer @scale (0/1 = 1x), plus a
+ * 2px safety margin (matches the sprite sizing both OSD paths expect). 0 on NULL/empty input.
+ * Mirrors osd_emwin_font_text_extent so the emWin and LVGL paths have the same shape.
+ */
+void osd_lv_font_text_extent(const lv_font_t *font, const char *utf8, uint8_t scale,
+                             uint16_t *out_w, uint16_t *out_h);
+
+/**
+ * Rasterize @utf8 into ARGB8888 target @dst (dst_w x dst_h, row stride = dst_w) at pen origin
+ * (x,y), baseline-aligned, integer up-scaled by @scale (0/1 = 1x). @argb supplies RGB; per-pixel
+ * alpha comes from glyph coverage. Writes are clipped to the target. When @out_bbox != NULL it
+ * receives the union of drawn glyph rects (clipped; zeroed if nothing drawn). Returns final pen x.
+ * Mirrors osd_emwin_font_blit so the H264 overlay path can reuse it directly.
+ */
+uint16_t osd_lv_font_blit(uint32_t *dst, uint16_t dst_w, uint16_t dst_h,
+                          const lv_font_t *font, const char *utf8,
+                          uint16_t x, uint16_t y, uint32_t argb, uint8_t scale,
+                          osd_lv_font_rect_t *out_bbox);
+
+/* osd_utf8_next() lives in bk_osd_emwin_font.h so the emWin path has no LVGL dependency. */
 
 #ifdef __cplusplus
 }

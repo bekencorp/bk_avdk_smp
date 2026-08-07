@@ -62,6 +62,7 @@ static bk_draw_osd_ctlr_handle_t mipi_osd_create(void)
     }
     osd_ctlr_config_t cfg = {0};
     cfg.gpu          = gpu;
+    cfg.osd_rotate_degree = 0;
     cfg.panel_w      = OSD_MIPI_PANEL_W;
     cfg.panel_h      = OSD_MIPI_PANEL_H;
     cfg.src_format   = BK_PIXEL_FORMAT_ABGR8888;   /* NV12->ARGB channel order compensation */
@@ -95,7 +96,7 @@ avdk_err_t osd_mipi_show(osd_blend_mode_t mode)
     if (osd == NULL) return AVDK_ERR_GENERIC;
 
     LOGI("MIPI OSD: blend=%s, list=blend_info\n", per_flexa ? "per-flexa" : "frame-end");
-    return bk_draw_osd_array(osd, NULL);   /* render default dynamic list, auto-cluster slots */
+    return bk_draw_osd_array(osd, NULL);
 }
 
 /* Runtime dynamic list refresh (no instance rebuild; re-render with array(NULL) after edits):

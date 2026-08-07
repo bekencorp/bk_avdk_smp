@@ -91,7 +91,7 @@ VG-Lite 在本 SDK 里是**单例全局上下文**，归各自 pipeline 的 `bk_
 "Font A"：**CPU 取字 → A8 alpha → 着色写进 sprite → 随 commit 一起 GPU SRC_OVER**（引擎内 `engine_put_lvgl`）。
 
 - 输入 `const lv_font_t *`（如工程 assets 里的 `osd_font_unscii_8` / `osd_font_montserrat_28`）；
-- `osd_font_get_glyph()` 取字形描述，`osd_font_glyph_a8()` 从位流解 alpha（`bk_osd_lv_font.c` 里为 `bpp=1/2/4/8` 连续位流写了快速路径）；
+- `osd_lv_font_get_glyph()` 取字形描述，`osd_lv_font_glyph_a8()` 从位流解 alpha（`bk_osd_lv_font.c` 里为 `bpp=1/2/4/8` 连续位流写了快速路径）；文字级的 `osd_lv_font_text_extent()` / `osd_lv_font_blit()` 与 emWin 侧 `osd_emwin_font_*` 对称，可被引擎和 H264 通路直接复用；
 - 按 `argb`（`0x00RRGGBB`）着色，alpha 来自字模；`scale` 支持整数放大（1..8）便于小字库肉眼观察；
 - 抗锯齿取决于字库 bpp：`unscii_8` 是 **1bpp（有锯齿）**，`montserrat_28` 是 **4bpp（抗锯齿）**。
 
@@ -122,7 +122,7 @@ VG-Lite 在本 SDK 里是**单例全局上下文**，归各自 pipeline 的 `bk_
 为只借 LVGL 字库格式、不引入整套 LVGL：
 
 - `include/bk_osd_lv_font.h`：最小类型定义（`lv_font_t`、`lv_font_fmt_txt_dsc_t`、kern/cache 等），补齐 `lvgl_v8` 抗锯齿字库（montserrat）需要的字段；
-- `src/bk_osd_lv_font.c`：`fmt_txt` 解码器实现（`osd_font_get_glyph` / `osd_font_glyph_a8`），直接从 `lv_font_t->dsc` 解码，不提供 `lv_font_get_*` 全局符号；
+- `src/bk_osd_lv_font.c`：`fmt_txt` 解码器 + 光栅化实现（`osd_lv_font_get_glyph` / `osd_lv_font_glyph_a8` / `osd_lv_font_text_extent` / `osd_lv_font_blit`），直接从 `lv_font_t->dsc` 解码，不提供 `lv_font_get_*` 全局符号；文字级接口与 `bk_osd_emwin_font.*` 对称，H264 通路可直接调用；
 - 字库 `.c`（如 `lv_font_montserrat_regular_48.c`）属于**工程资源**，由使用方放进自己的 `assets/`（不在组件内）。从 `lvgl_v8` 拷贝后：`#include "lvgl.h"` 改为 `#include "bk_osd_lv_font.h"`；`lv_font_t` 里 `.get_glyph_dsc` / `.get_glyph_bitmap` **置 `NULL`**（OSD 不走 LVGL 回调链）。同固件另链完整 LVGL 时，字库 `.c` 可保留标准 `lv_font_get_*` 指针。
 - **本示例（`draw_osd_example`）当前不再内置任何 LVGL 字库资源**：case8 已收敛为纯 `blend_info`（bk_font + 图标）渲染，不含 LVGL 演示；但组件里的 LVGL 驱动（`bk_osd_lv_font.*` 解码器 + 引擎 LVGL 光栅路径 + `bk_draw_osd_text` 接口）**完整保留**，其它工程要用 LVGL 抗锯齿字库时，自带字库 `.c` 放进本工程 `assets/`、经 `bk_draw_osd_text(handle, OSD_FONT_LVGL, &lv_font_xxx, ...)` 调用即可。
 

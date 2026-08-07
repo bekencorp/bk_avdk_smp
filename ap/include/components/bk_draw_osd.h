@@ -25,15 +25,14 @@ extern "C" {
  * component name: draw_osd
  * description: Public API (open interface)
  *
- * Pipeline compositing model: one bk_draw_osd instance binds one external pipeline GPU;
- * the component registers composited transparent sprites with that GPU, which SRC_OVER
- * blends them onto video each frame. Three render entry points only; begin/commit/slot
- * management is internal:
- *   - bk_draw_osd_array(h, list)    — batch render blend_info[] (NULL = default list), auto cluster/slot
- *   - bk_draw_osd_element(h, &info)   — one-shot single element (image or text), uses element coords/color/content
- *   - bk_draw_osd_text(h, kind, font, ...) — one-shot raw font text (when no blend_info)
- * Runtime refresh: bk_draw_osd_add_or_update()/bk_draw_osd_remove() update the dynamic list, then array(NULL).
- * MIPI and UVC each use a separate bk_draw_osd_new instance; no shared state, safe to run concurrently.
+ * One instance binds one external pipeline GPU; the component registers
+ * composited sprites that the GPU SRC_OVER blends onto video each frame.
+ * Slot/begin/commit is internal. Three render entries:
+ *   - bk_draw_osd_array(h, list)  — batch blend_info[] (NULL = default list), auto cluster/slot
+ *   - bk_draw_osd_element(h, &info) — one-shot single element (image or text)
+ *   - bk_draw_osd_text(h, ...)     — one-shot raw font text (no blend_info)
+ * Runtime refresh: add_or_update()/remove() then array(NULL).
+ * MIPI and UVC each use a separate instance; safe to run concurrently.
  *******************************************************************/
 
 /**
@@ -47,17 +46,15 @@ avdk_err_t bk_draw_osd_new(bk_draw_osd_ctlr_handle_t *handle, osd_ctlr_config_t 
 avdk_err_t bk_draw_osd_delete(bk_draw_osd_ctlr_handle_t handle);
 
 /**
- * @brief One-shot render of a single element (image or text). Self-contained: opens a tight sprite
- *        at info->xpos/ypos, composites, and submits to the next free GPU slot; no begin/commit.
+ * @brief One-shot render of a single element (image or text) into the next free GPU slot.
  *        - Image: copies info->addr->image.data;
- *        - Font: uses info->addr->font (bk_font glyph) + .color; text from info->content (or name if empty).
- *        Asset structs may be passed inline, e.g. &(blend_info_t){.addr=&font_text1, .content="12:35"}.
+ *        - Font: uses info->addr->font + .color; text from info->content (or name if empty).
+ *        Assets may be passed inline, e.g. &(blend_info_t){.addr=&font_text1, .content="12:35"}.
  */
 avdk_err_t bk_draw_osd_element(bk_draw_osd_ctlr_handle_t handle, const blend_info_t *info);
 
 /**
- * @brief One-shot render of raw UTF-8 font text (ad-hoc path without blend_info/bk_blend_t, e.g. LVGL fonts).
- *        Self-contained: opens a text-sized sprite and submits to the next free GPU slot.
+ * @brief One-shot render of raw UTF-8 font text (no blend_info, e.g. LVGL fonts) into the next free slot.
  * @param kind  OSD_FONT_LVGL (font = const lv_font_t*, integer scale)
  *              OSD_FONT_BKFONT (font = const gui_font_digit_struct*, scale ignored)
  * @param x,y   Position in panel coordinates
@@ -68,13 +65,14 @@ avdk_err_t bk_draw_osd_text(bk_draw_osd_ctlr_handle_t handle, osd_font_kind_t ki
                             uint16_t x, uint16_t y, uint32_t argb, uint8_t scale);
 
 /**
- * @brief Array render entry (recommended): render blend_info[] (NULL = default dynamic list from new()).
- *        Elements are auto-clustered by spatial proximity into GPU slots (tight bounding-box sprite per
- *        cluster, total <= BK_GPU_BLIT_SLOT_MAX):
- *        - Distant elements get separate small-region slots (flexa can skip blank blocks);
- *        - When count exceeds slot limit, merge by least wasted area; no elements dropped.
- *        No manual slot/begin/commit; one call suffices. Slot cursor stops after used clusters;
- *        element/text can append to remaining slots; clear() resets the cursor.
+ * @brief Array render entry (recommended): render blend_info[] (NULL = default dynamic list).
+ *        Elements auto-cluster by spatial proximity into GPU slots (one tight sprite per cluster,
+ *        total <= BK_GPU_BLIT_SLOT_MAX); when count exceeds the limit, merge by least wasted area
+ *        (no elements dropped). Slot cursor stops after used clusters; clear() resets it.
+ *
+ *        Incremental by default on the dynamic list (list == NULL): only elements changed via
+ *        add_or_update() are re-composited; unchanged slots keep being blitted. An explicit list,
+ *        an add/remove/clear, or a merged layout triggers a full repaint.
  * @param list  Display list (NULL = default dynamic list); terminated by {.addr=NULL}
  */
 avdk_err_t bk_draw_osd_array(bk_draw_osd_ctlr_handle_t handle, const blend_info_t *list);

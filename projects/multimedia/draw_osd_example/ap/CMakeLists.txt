@@ -8,6 +8,7 @@ list(APPEND srcs
     assets/bk_img.c
     assets/bk_font.c
     assets/blend_dsc.c
+    assets/lv_font_montserrat_regular_48.c   # LVGL-format font asset (runtime-decoded, no real LVGL)
 )
 
 set(priv_req media_service bk_cli avdk_utils bk_peripheral bk_draw_osd)

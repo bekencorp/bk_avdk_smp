@@ -9,6 +9,8 @@ extern const bk_blend_t font_weather;
 extern const bk_blend_t font_ver;
 extern const bk_blend_t font_text1;     /* "12:35" time glyph */
 extern const bk_blend_t font_text2;     /* CJK string glyph */
+extern const bk_blend_t font_time;     /* time glyph */
+extern const bk_blend_t font_lv_clock;  /* LVGL montserrat-48 font element (auto-clustered) */
 /* New OSD icons (RGBA raw data as arrays, 68px wide): wifi / weather(sun) / battery(charging) */
 extern const bk_blend_t img_wifi0;      /* 68x76  wifi none */
 extern const bk_blend_t img_wifi1;      /* 68x76  wifi 1 bar */

@@ -1,4 +1,5 @@
 #include "components/bk_draw_osd.h"
+#include "bk_osd_lv_font.h"
 
 #define BG_WIDTH       480
 #define BG_HEIGHT      854
@@ -2906,8 +2907,8 @@ GUI_CONST_STORAGE bk_blend_t font_text1 =
   .version = 0,
   .blend_type = BLEND_TYPE_FONT,
   .name = "text1",
-  .width = TEXT1_WIDTH,
-  .height = TEXT1_HEIGHT,
+  .width = 0,
+  .height = 0,
   .xpos = TEXT1_X,
   .ypos = TEXT1_Y,
   .font = 
@@ -3014,3 +3015,25 @@ GUI_CONST_STORAGE bk_blend_t font_ver =
     },
 };
 
+/* LVGL anti-aliased font element (montserrat 48, runtime-decoded via bk_osd_lv_font).
+ * Shows an lv_font_conv asset participating in blend_info[] / auto-cluster exactly like a bkfont
+ * element: set .font.lv_font (leave font_digit_type NULL) and width/height 0 for auto-sizing.
+ * Because it lives in the array, the clustering allocator manages its GPU slot -- no one-shot
+ * bk_draw_osd_text() call and no manual slot bookkeeping needed. */
+extern const lv_font_t lv_font_montserrat_regular_48;
+GUI_CONST_STORAGE bk_blend_t font_lv_clock =
+{
+    .version = 0,
+    .blend_type = BLEND_TYPE_FONT,
+    .name = "lv_clock",
+    .width = 0,
+    .height = 0,
+    .xpos = 40,
+    .ypos = 200,
+    .font =
+    {
+        .lv_font = &lv_font_montserrat_regular_48,
+        .color = 0xFFFFFF,
+        .scale = 1,
+    },
+};
