@@ -97,6 +97,7 @@ typedef struct
     uint32_t reconnect_interval_ms;    /**< Reconnect interval in ms. If 0, the component default is used. */
     uint8_t max_reconnect_count;       /**< Max reconnect attempts. If 0, the component default is used. */
     uint8_t io_capability;             /**< GAP IO capability. If 0xff, the component default is used. */
+    uint8_t role;                      /**< Link role applied after ACL is up: 0 = keep stack role (slave for headset/sink, default), 1 = master (A2DP source), 2 = slave. */
 } bt_manager_cfg_t;
 
 /**
@@ -184,3 +185,21 @@ void bt_manager_set_auto_accept_connection(uint8_t type, uint8_t accept); // typ
  * @brief Clear the reconnect information.
  */
 void bt_manager_clear_reconnect_info(void);
+
+/**
+ * @brief Start Classic Bluetooth device discovery (inquiry).
+ *
+ * Inquiry results are delivered as BK_BT_GAP_DISC_RES_EVT to the GAP callbacks
+ * registered via bt_manager_register_callback().
+ *
+ * @param sec Inquiry duration in seconds.
+ * @param num_report Max number of responses to report (0 = unlimited; capped at 255).
+ * @return 0 on success, otherwise error code.
+ */
+int bt_manager_discover_bt(uint32_t sec, uint32_t num_report);
+
+/**
+ * @brief Cancel an ongoing Classic Bluetooth device discovery.
+ * @return 0 on success, otherwise error code.
+ */
+int bt_manager_cancel_discover_bt(void);

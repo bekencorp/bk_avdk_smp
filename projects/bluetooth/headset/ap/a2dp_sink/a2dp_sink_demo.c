@@ -583,9 +583,9 @@ static void on_avrcp_ct_evt(bk_avrcp_ct_evt_t evt, void *arg, void *user_data)
 
 int a2dp_sink_demo_init(uint8_t aac_supported, uint8_t auto_accept_conn)
 {
-    bk_a2dp_sink_cfg_t sink_cfg;
-    bk_avrcp_ct_cfg_t avrcp_ct_cfg;
-    bk_avrcp_tg_cfg_t avrcp_tg_cfg;
+    bk_a2dp_sink_cfg_t sink_cfg = {0};
+    bk_avrcp_ct_cfg_t avrcp_ct_cfg = {0};
+    bk_avrcp_tg_cfg_t avrcp_tg_cfg = {0};
 
     LOGI("%s\n", __func__);
 

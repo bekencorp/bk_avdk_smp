@@ -278,4 +278,17 @@ menu "Bk_ble"
 			range 0 4
 			default 2
 	endmenu
+
+	menu "bluetooth dm BT Modules"
+		depends on BLUETOOTH_BTDM_COMPONENT_ENABLE
+
+		config BLUETOOTH_BTDM_COMPONENT_BT_A2DP_SOURCE_AAC
+			bool "Enable A2DP source AAC-LC encoding (FDK-AAC)"
+			default n
+			help
+				Advertise and encode AAC-LC for the A2DP source role, in
+				addition to SBC. This links the FDK-AAC encoder library which
+				adds roughly 230 KB of flash, so it is disabled by default to
+				keep code size down. When disabled, the A2DP source is SBC-only.
+	endmenu
 endmenu

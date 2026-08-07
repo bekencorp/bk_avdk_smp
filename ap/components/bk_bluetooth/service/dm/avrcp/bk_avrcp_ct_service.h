@@ -24,7 +24,22 @@ typedef enum
     BK_AVRCP_CT_EVT_ELEM_ATTR_RSP,
     /** arg: uint32_t * playing position in milliseconds */
     BK_AVRCP_CT_EVT_PLAY_POS_CHANGED,
+    /** arg: uint8_t * peer volume 0x00-0x7f (remote_volume_mode) */
+    BK_AVRCP_CT_EVT_REMOTE_VOLUME_CHANGED,
+    /** arg: uint8_t * peer battery status (remote_volume_mode) */
+    BK_AVRCP_CT_EVT_REMOTE_BATTERY_CHANGED,
+    /** arg: bk_avrcp_ct_abs_vol_rsp_t * (remote_volume_mode) */
+    BK_AVRCP_CT_EVT_SET_ABS_VOLUME_RSP,
 } bk_avrcp_ct_evt_t;
+
+/** Result of a set-absolute-volume command sent to the peer. */
+typedef struct
+{
+    /** 0 on success, non-zero when the peer rejected/failed the request. */
+    uint8_t status;
+    /** Volume echoed back by the peer, in the 0x00-0x7f range. */
+    uint8_t volume;
+} bk_avrcp_ct_abs_vol_rsp_t;
 
 /** AVRCP controller event callback. */
 typedef void (*bk_avrcp_ct_event_cb_t)(bk_avrcp_ct_evt_t evt, void *arg, void *user_data);
@@ -34,6 +49,13 @@ typedef struct
 {
     /** Non-zero to auto-connect CT after A2DP connects. */
     uint8_t auto_ct_connect_after_a2dp;
+    /**
+     * 0: media-control controller (headset - registers PLAY_STATUS/TRACK/POS
+     *    and drives remote media, default).
+     * 1: remote-volume controller (A2DP source - registers peer VOLUME/BATTERY
+     *    and sends absolute volume to the peer).
+     */
+    uint8_t remote_volume_mode;
 } bk_avrcp_ct_cfg_t;
 
 /** Register the application CT event callback. Call before service init. */
@@ -86,6 +108,9 @@ int bk_avrcp_ct_vol_down(void);
 
 /** Request media element attributes. Pass 0 to request the default title attr. */
 int bk_avrcp_ct_get_attr(uint32_t attr_id);
+
+/** Send an absolute volume (0x00-0x7f) to the peer (remote_volume_mode). */
+int bk_avrcp_ct_send_absolute_volume(uint8_t vol_0_7f);
 
 #ifdef __cplusplus
 }

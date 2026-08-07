@@ -150,6 +150,8 @@ if (CONFIG_BLUETOOTH_AP)
 				service/dm/bt_manager/bt_manager.c
 				service/dm/storage/bluetooth_storage.c
 				service/dm/a2dp/bk_a2dp_sink_service.c
+				service/dm/a2dp/bk_a2dp_source_service.c
+				service/dm/a2dp/bk_a2dp_source_pcm_service.c
 				service/dm/avrcp/bk_avrcp_ct_service.c
 				service/dm/avrcp/bk_avrcp_tg_service.c
 				service/dm/hfp/bk_hfp_hf_service.c

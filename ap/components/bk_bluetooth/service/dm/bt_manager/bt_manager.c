@@ -46,6 +46,8 @@ typedef struct
     uint32_t reconnect_interval_ms;
     uint8_t max_reconnect_count;
     uint8_t io_capability;
+    uint8_t role;
+    uint8_t discovery_status;   /* BK_BT_GAP_DISCOVERY_* inquiry state */
     beken2_timer_t recon_tmr;
     uint8_t recon_count;
     uint8_t peer_addr[6];
@@ -96,6 +98,7 @@ static void bt_manager_load_config(const bt_manager_cfg_t *cfg)
     btm_env.io_capability = (cfg && cfg->io_capability != BT_MANAGER_IO_CAP_DEFAULT_MARKER) ?
                             cfg->io_capability :
                             BK_BT_IO_CAP_NONE;
+    btm_env.role = (cfg) ? cfg->role : 0;
 }
 
 #if CONFIG_WIFI_COEX_SCHEME
@@ -533,6 +536,10 @@ void gap_event_cb(bk_gap_bt_cb_event_t event, bk_bt_gap_cb_param_t *param)
 
     switch (event)
     {
+        case BK_BT_GAP_DISC_STATE_CHANGED_EVT:
+            btm_env.discovery_status = param->disc_st_chg.state;
+            break;
+
         case BK_BT_GAP_ACL_DISCONN_CMPL_STAT_EVT:
         {
             uint8_t *addr = param->acl_disconn_cmpl_stat.bda;
@@ -584,6 +591,17 @@ void gap_event_cb(bk_gap_bt_cb_event_t event, bk_bt_gap_cb_param_t *param)
                 os_memcpy(btm_env.peer_addr, addr, 6);
                 btm_env.connect_state = BT_STATE_LINK_CONNECTED;
                 bt_manager_set_mode(BT_MNG_MODE_CONNECTEED);
+
+                if (btm_env.role == 1) /* 1 = master */
+                {
+                    LOGI("switch to master role\n");
+                    bk_bt_gap_switch_role(addr, BT_MASTER_ROLE);
+                }
+                else if (btm_env.role == 2) /* 2 = slave */
+                {
+                    LOGI("switch to slave role\n");
+                    bk_bt_gap_switch_role(addr, BT_SLAVE_ROLE);
+                }
             }
             else
             {
@@ -992,4 +1010,39 @@ void bt_manager_set_tmp_linkkey(uint8_t *addr, uint8_t *linkkey)
 {
     LOGI("%s set tmp linkkey\n", __func__);
     os_memcpy(btm_env.tmp_link_key, linkkey, sizeof(btm_env.tmp_link_key));
+}
+
+int bt_manager_discover_bt(uint32_t sec, uint32_t num_report)
+{
+    uint8_t inq_len = sec * 100 / 128;
+    uint8_t num_rpt = (num_report > 255 ? 255 : num_report);
+
+    if (btm_env.discovery_status != BK_BT_GAP_DISCOVERY_STOPPED)
+    {
+        LOGE("%s already discovering\n", __func__);
+        return -1;
+    }
+
+    if (inq_len > 0x30)
+    {
+        inq_len = 0x30;
+    }
+
+    if (inq_len == 0)
+    {
+        inq_len = 1;
+    }
+
+    return bk_bt_gap_start_discovery(BK_BT_INQ_MODE_GENERAL_INQUIRY, inq_len, num_rpt);
+}
+
+int bt_manager_cancel_discover_bt(void)
+{
+    if (btm_env.discovery_status != BK_BT_GAP_DISCOVERY_STARTED)
+    {
+        LOGE("%s not discovering\n", __func__);
+        return -1;
+    }
+
+    return bk_bt_gap_cancel_discovery();
 }
