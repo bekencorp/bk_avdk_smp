@@ -313,6 +313,15 @@ SECTIONS
         __dtcm_end__ = .;
     } > DTCM AT > FLASH
 
+    .dtcm_bench (NOLOAD) :
+    {
+        . = ALIGN(64);
+        __dtcm_bench_start__ = .;
+        KEEP(*(.dtcm_bench))
+        . = ALIGN(64);
+        __dtcm_bench_end__ = .;
+    } > DTCM
+
     .iram :
     {
         . = ALIGN(512);

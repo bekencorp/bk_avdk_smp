@@ -44,11 +44,16 @@
 #define SRAM_BUS_BENCH_LCG_A               1664525U
 #define SRAM_BUS_BENCH_LCG_C               1013904223U
 #define SRAM_BUS_BENCH_HPDMA_MAX_BYTES     0xF000U
+#define SRAM_BUS_BENCH_DTCM_BYTES           (8U * 1024U)
+
+#define SRAM_BUS_REGION_FLAG_PSRAM          (1U << 0)
 
 typedef struct {
     uint32_t addr;
+    uint32_t cpu_addr;
     uint32_t size;
     const char *name;
+    uint32_t flags;
 } sram_bus_region_t;
 
 typedef struct sram_bus_node {
@@ -59,19 +64,35 @@ typedef struct sram_bus_node {
 static volatile uintptr_t s_sram_bus_sink;
 
 /*
- * CONFIG_* addresses use the peripheral-visible 0x28 alias. The AP CPU must
- * access SRAM through SOC_SRAM_CPU_ADDR(), which maps it to the 0x2c alias
- * when CONFIG_SRAM_DIRECT_ADDR is enabled.
+ * The linker reserves this CPU-local buffer in DTCM. It is intentionally
+ * NOLOAD because every benchmark case initializes the tested memory first.
+ */
+static uint8_t s_sram_bus_dtcm[SRAM_BUS_BENCH_DTCM_BYTES]
+    __attribute__((section(".dtcm_bench"), aligned(64)));
+
+/*
+ * SRAM CONFIG_* addresses use the peripheral-visible 0x28 alias while
+ * cpu_addr uses the AP direct alias. DTCM and PSRAM use direct CPU addresses.
  */
 static const sram_bus_region_t s_sram_bus_regions[] = {
 #if defined(CONFIG_SRAM3_TEST_ADDR) && defined(CONFIG_SRAM3_TEST_SIZE)
-    {CONFIG_SRAM3_TEST_ADDR, CONFIG_SRAM3_TEST_SIZE, "SRAM3"},
+    {CONFIG_SRAM3_TEST_ADDR, SOC_SRAM_CPU_ADDR(CONFIG_SRAM3_TEST_ADDR),
+     CONFIG_SRAM3_TEST_SIZE, "SRAM3", 0U},
 #endif
 #if defined(CONFIG_SRAM4_TEST_ADDR) && defined(CONFIG_SRAM4_TEST_SIZE)
-    {CONFIG_SRAM4_TEST_ADDR, CONFIG_SRAM4_TEST_SIZE, "SRAM4"},
+    {CONFIG_SRAM4_TEST_ADDR, SOC_SRAM_CPU_ADDR(CONFIG_SRAM4_TEST_ADDR),
+     CONFIG_SRAM4_TEST_SIZE, "SRAM4", 0U},
 #endif
 #if defined(CONFIG_SRAM5_TEST_ADDR) && defined(CONFIG_SRAM5_TEST_SIZE)
-    {CONFIG_SRAM5_TEST_ADDR, CONFIG_SRAM5_TEST_SIZE, "SRAM5_LOW"},
+    {CONFIG_SRAM5_TEST_ADDR, SOC_SRAM_CPU_ADDR(CONFIG_SRAM5_TEST_ADDR),
+     CONFIG_SRAM5_TEST_SIZE, "SRAM5_LOW", 0U},
+#endif
+    {(uint32_t)(uintptr_t)s_sram_bus_dtcm,
+     (uint32_t)(uintptr_t)s_sram_bus_dtcm,
+     sizeof(s_sram_bus_dtcm), "DTCM_LOCAL", 0U},
+#if defined(CONFIG_PSRAM_TEST_CPU_ADDR) && defined(CONFIG_PSRAM_TEST_CPU_SIZE)
+    {CONFIG_PSRAM_TEST_CPU_ADDR, CONFIG_PSRAM_TEST_CPU_ADDR,
+     CONFIG_PSRAM_TEST_CPU_SIZE, "PSRAM_NC", SRAM_BUS_REGION_FLAG_PSRAM},
 #endif
 };
 
@@ -127,7 +148,7 @@ static void sram_bus_print_usage(void)
         CLI_LOGI("  %u: %s peripheral=0x%08x cpu=0x%08x size=%u\r\n",
                  (unsigned)i, s_sram_bus_regions[i].name,
                  (unsigned)s_sram_bus_regions[i].addr,
-                 (unsigned)SOC_SRAM_CPU_ADDR(s_sram_bus_regions[i].addr),
+                 (unsigned)s_sram_bus_regions[i].cpu_addr,
                  (unsigned)s_sram_bus_regions[i].size);
     }
 }
@@ -566,7 +587,7 @@ static void sram_bus_run_region(const sram_bus_region_t *region,
         return;
     }
 
-    cpu_addr = SOC_SRAM_CPU_ADDR(region->addr);
+    cpu_addr = region->cpu_addr;
     words = bytes / sizeof(uint32_t);
     words &= ~7U;
     node_count = bytes / sizeof(sram_bus_node_t);
@@ -784,8 +805,8 @@ static void sram_bus_run_hpdma_pair(const sram_bus_region_t *src_region,
                                     uint32_t repeats)
 {
     uint32_t bytes = requested_bytes;
-    uint32_t src_addr = SOC_SRAM_CPU_ADDR(src_region->addr);
-    uint32_t dst_addr = SOC_SRAM_CPU_ADDR(dst_region->addr);
+    uint32_t src_addr = src_region->cpu_addr;
+    uint32_t dst_addr = dst_region->cpu_addr;
 
     if (bytes > SRAM_BUS_BENCH_HPDMA_MAX_BYTES) {
         bytes = SRAM_BUS_BENCH_HPDMA_MAX_BYTES;
@@ -814,6 +835,7 @@ static void sram_bus_run_hpdma_pair(const sram_bus_region_t *src_region,
          ++i) {
         uint32_t cycles = 0U;
         uint32_t actual_burst = 0U;
+
         bk_err_t ret = sram_bus_hpdma_case(
             src_addr, dst_addr, bytes, repeats,
             s_sram_bus_burst_values[i], &cycles, &actual_burst);
@@ -842,6 +864,8 @@ static void sram_bus_run_hpdma_pair(const sram_bus_region_t *src_region,
 
 static void sram_bus_run_hpdma_matrix(uint32_t bytes, uint32_t repeats)
 {
+    const sram_bus_region_t *psram_region = NULL;
+
     if (SRAM_BUS_BENCH_REGION_COUNT < 3U) {
         CLI_LOGI("HPDMA burst matrix skipped: SRAM3/4/5 regions required\r\n");
         return;
@@ -857,6 +881,19 @@ static void sram_bus_run_hpdma_matrix(uint32_t bytes, uint32_t repeats)
                             &s_sram_bus_regions[2], bytes, repeats);
     sram_bus_run_hpdma_pair(&s_sram_bus_regions[2],
                             &s_sram_bus_regions[0], bytes, repeats);
+
+    for (uint32_t i = 0; i < SRAM_BUS_BENCH_REGION_COUNT; ++i) {
+        if ((s_sram_bus_regions[i].flags & SRAM_BUS_REGION_FLAG_PSRAM) != 0U) {
+            psram_region = &s_sram_bus_regions[i];
+            break;
+        }
+    }
+    if (psram_region != NULL) {
+        sram_bus_run_hpdma_pair(&s_sram_bus_regions[0],
+                                psram_region, bytes, repeats);
+        sram_bus_run_hpdma_pair(psram_region,
+                                &s_sram_bus_regions[0], bytes, repeats);
+    }
 }
 #endif /* CONFIG_HIGH_PERFORMANCE_DMA && CONFIG_SPE */
 
