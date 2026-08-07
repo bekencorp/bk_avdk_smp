@@ -42,6 +42,7 @@ static inline void rb_dcache_sync_after_write(const RingBufferContext *rb, uint3
 {
     if (bytes && (rb->dma_id != DMA_ID_MAX) && (rb->dma_type == RB_DMA_TYPE_READ))
     {
+        __DSB();
         flush_dcache((void *)&rb->address[offset], (long)bytes);
     }
 }

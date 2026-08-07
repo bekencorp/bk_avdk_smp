@@ -212,6 +212,8 @@ int32_t l2_cache_maintain_range(l2c_op_type_t operation,
 {
     uint32_t addr;
     
+    __DSB();
+
     /* Align start address to cache line */
     start_addr = start_addr & ~(L2C_CACHE_LINE_SIZE - 1U);
     

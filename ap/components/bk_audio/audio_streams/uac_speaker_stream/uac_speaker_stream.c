@@ -48,6 +48,7 @@ static inline void uac_spk_dcache_flush(void *addr, uint32_t size)
     }
     uint32_t start = (uint32_t)addr & ~(UAC_SPK_CACHE_LINE_SIZE - 1);
     uint32_t end = ((uint32_t)addr + size + (UAC_SPK_CACHE_LINE_SIZE - 1)) & ~(UAC_SPK_CACHE_LINE_SIZE - 1);
+    __DSB();
     flush_dcache((void *)start, (long)(end - start));
 }
 #else
