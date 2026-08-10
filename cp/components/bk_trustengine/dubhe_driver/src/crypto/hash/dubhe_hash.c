@@ -19,18 +19,13 @@
 #include "pal_string.h"
 #include "pal_time.h"
 #include "pal_log.h"
-#if !defined(DUBHE_SECURE)
 #include "reg_base.h"
-#endif
 
 #define PROC_TIME_FOR_ONE_BLOCK  ( 50 )
 
-/* Normal-host DMA uses peri NS alias 0x38xxxxxx; CPU direct is 0x3Cxxxxxx. */
-#if !defined(DUBHE_SECURE)
-#define DBH_HASH_DMA_ADDR(p) ((uint32_t)SOC_SRAM_PERI_ADDR_SECURE((uintptr_t)(p)))
-#else
-#define DBH_HASH_DMA_ADDR(p) ((uint32_t)(uintptr_t)(p))
-#endif
+#define DBH_HASH_DMA_ADDR(p)                                                   \
+    ((uint32_t)SOC_SRAM_PERI_ADDR(                                            \
+        SOC_SRAM_PERI_ADDR_SECURE((uintptr_t)(p))))
 
 #define GET_HASH_LEN( ctx )                                                    \
     ( ( ctx->mode == ARM_HASH_MODE_SHA1 )                                      \

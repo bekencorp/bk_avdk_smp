@@ -20,18 +20,11 @@
 #include "pal_log.h"
 #include "pal_string.h"
 #include "dubhe_intr_handler.h"
-#if !defined(DUBHE_SECURE)
 #include "reg_base.h"
-#endif
 
 #define PROC_TIME_FOR_ONE_BLOCK  ( 10 )
 
-/* Normal-host DMA uses peri NS alias 0x38xxxxxx; CPU direct is 0x3Cxxxxxx. */
-#if !defined(DUBHE_SECURE)
 #define DBH_SCA_DMA_ADDR(p) ((uint32_t)SOC_SRAM_PERI_ADDR((uintptr_t)(p)))
-#else
-#define DBH_SCA_DMA_ADDR(p) ((uint32_t)(uintptr_t)(p))
-#endif
 
 #define BIT_MASK( V, M ) ( ( V ) & ( M ) )
 #define RETRY_COUNT 2
