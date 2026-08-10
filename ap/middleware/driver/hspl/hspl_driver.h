@@ -71,6 +71,19 @@ typedef void (*hspl_timeout_callback_t)(uint8_t channel, void *param);
  */
 bk_err_t bk_hspl_driver_early_init(void);
 
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+/**
+ * @brief Restore and validate the AP-local HSPL after fast resume
+ *
+ * Fast resume retains the software initialization flags but the HSPL hardware
+ * clock/reset state may have been lost while AP was powered down. Call this
+ * with CPU3 held in reset and interrupts masked.
+ *
+ * @return BK_OK if HSPL1 channel 0 passes an acquire/release self-test
+ */
+bk_err_t bk_hspl_fast_resume_reinit(void);
+#endif
+
 /**
  * @brief Initialize HSPL driver
  * @return BK_OK on success, BK_FAIL on failure

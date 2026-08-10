@@ -26,6 +26,10 @@
 #include <string.h>
 #include "cache.h"
 #include "sdkconfig.h"
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+#include <sys_sw_regs.h>
+#include <modules/pm.h>
+#endif
 
 #if CONFIG_SOC_SMP
 extern uint32_t __vector_core1_table;
@@ -78,15 +82,39 @@ static void multicore_hal_m55_sram_power_on(void)
 	delay_ms(1);
 }
 
-static void multicore_hal_m55_core_init_common(void)
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+static bool multicore_hal_m55_sram_is_powered(void)
+{
+	return (aon_pmu_ll_get_r2_m55_mem3_pwd() == 0U) &&
+		(aon_pmu_ll_get_r2_m55_mem4_pwd() == 0U) &&
+		(aon_pmu_ll_get_r2_m55_mem5_pwd() == 0U) &&
+		(aon_pmu_ll_get_r2_m55_mem6_pwd() == 0U) &&
+		(aon_pmu_ll_get_r2_m55_cpu2_cache_pwd() == 0U) &&
+		(aon_pmu_ll_get_r2_m55_cpu3_cache_pwd() == 0U);
+}
+#endif
+
+static void multicore_hal_m55_core_init_common(bool reuse_retained_sram)
 {
 	uint32_t reg_val = 0;
 	volatile uint32_t *ppro_cfg = (volatile uint32_t *)0x44050000;
 
-	if (aon_pmu_ll_get_r2_m55_auto_sel() == 1) {
-		aon_pmu_ll_set_r2_m55_mem_auto_set(0); // m55 power seq on
+	/*
+	 * AP fast resume keeps M55 SRAM/cache SRAM powered. Avoid six fixed 1 ms
+	 * waits when all banks still report powered; if any status is unexpected,
+	 * fall back to the original full power-on sequence.
+	 */
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+	if (!reuse_retained_sram || !multicore_hal_m55_sram_is_powered()) {
+#else
+	(void)reuse_retained_sram;
+	{
+#endif
+		if (aon_pmu_ll_get_r2_m55_auto_sel() == 1) {
+			aon_pmu_ll_set_r2_m55_mem_auto_set(0); // m55 power seq on
+		}
+		multicore_hal_m55_sram_power_on();
 	}
-	multicore_hal_m55_sram_power_on();
 
 	// reg_val = sys_ll_get_ana_reg10_value();
 	// reg_val |= BIT(19);
@@ -233,6 +261,21 @@ uint32_t multicore_hal_get_cpu_id(void)
 __IRAM_SEC bk_err_t multicore_hal_start(uint32_t id)
 {
 	uint32_t boot_addr = 0;
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+	bool ap_fast_resume = false;
+#endif
+
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+	if (id == CPU2_CORE_ID) {
+		pm_shared_info_t shared_info = {0};
+		cache_data_invd_range((void *)&bk_sys_sw_regs_ptr()->pm_shared_info,
+			sizeof(bk_sys_sw_regs_ptr()->pm_shared_info));
+		__DSB();
+		bk_sys_sw_regs_get_pm_shared_info(&shared_info);
+		ap_fast_resume =
+			(shared_info.pm_ap_work_state & PM_AP_WORK_STATE_FAST_RESUME) != 0U;
+	}
+#endif
 
 	switch (id) {
 	case CPU1_CORE_ID:
@@ -247,7 +290,13 @@ __IRAM_SEC bk_err_t multicore_hal_start(uint32_t id)
 		sys_drv_set_cpu1_reset(1);
 		break;
 	case CPU2_CORE_ID:
-		multicore_hal_m55_core_init_common();
+		multicore_hal_m55_core_init_common(
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+			ap_fast_resume
+#else
+			false
+#endif
+		);
 		boot_addr = SOC_FLASH_DATA_BASE + CONFIG_AP_VIRTUAL_PARTITION_OFFSET;
 		/*
 		 * Keep AP in reset while CP patches the image into AP-visible memories.
@@ -256,9 +305,14 @@ __IRAM_SEC bk_err_t multicore_hal_start(uint32_t id)
 		sys_ahbp_ll_set_reg4_cpu0_sw_rstn(0);
 		sys_ahbp_ll_set_reg4_cpu0_offset((boot_addr) >> 8);
 		sys_ahbp_ll_set_reg4_cpu0_init_dtcm_en(1);
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+		if (!ap_fast_resume)
+#endif
+		{
 		if (multicore_hal_m55_core_copy_code_and_data(boot_addr, false) != BK_OK) {
 			SOC_LOGE("m55 core image copy failed, keep cpu0 in reset\r\n");
 			return BK_FAIL;
+		}
 		}
 		sys_ahbp_ll_set_reg4_cpu0_sw_rstn(1);
 
@@ -269,7 +323,7 @@ __IRAM_SEC bk_err_t multicore_hal_start(uint32_t id)
 		// sys_ahbp_ll_set_reg4_cpu0_sw_rstn(1);
 		break;
 	case CPU3_CORE_ID:
-		multicore_hal_m55_core_init_common();
+		multicore_hal_m55_core_init_common(false);
 		boot_addr = SOC_FLASH_DATA_BASE + CONFIG_AP_VIRTUAL_PARTITION_OFFSET;
 		sys_ahbp_ll_set_reg5_cpu1_sw_rstn(0);
 		sys_ahbp_ll_set_reg5_cpu1_offset((boot_addr) >> 8);

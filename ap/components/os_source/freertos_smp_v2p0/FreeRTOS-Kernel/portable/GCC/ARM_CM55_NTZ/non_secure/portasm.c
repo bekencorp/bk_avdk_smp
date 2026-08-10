@@ -40,6 +40,10 @@
  * header files. */
 #undef MPU_WRAPPERS_INCLUDED_FROM_API_FILE
 
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+extern void bk_cpu_hp_core_online_ready(void);
+#endif
+
 void vRestoreContextOfFirstTask( void ) /* __attribute__ (( naked )) PRIVILEGED_FUNCTION */
 {
     __asm volatile
@@ -86,6 +90,16 @@ void vRestoreContextOfFirstTask( void ) /* __attribute__ (( naked )) PRIVILEGED_
         "	adds r0, #32									\n"/* Discard everything up to r0. */
         "	msr  psp, r0									\n"/* This is now the new top of stack to use in the task. */
         "	isb												\n"
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+        /*
+         * Publish CPU3 online only after PSP/PSPLIM/CONTROL are valid, while
+         * BASEPRI still masks PendSV and SysTick. Preserve the restored task
+         * registers and keep the C-call stack 8-byte aligned.
+         */
+        "	stmdb sp!, {r0-r3, r12, lr}						\n"
+        "	bl bk_cpu_hp_core_online_ready					\n"
+        "	ldmia sp!, {r0-r3, r12, lr}						\n"
+#endif
         "	mov  r0, #0										\n"
         "	msr  basepri, r0								\n"/* Ensure that interrupts are enabled when the first task starts. */
         "	bx   r3											\n"/* Finally, branch to EXC_RETURN. */
@@ -97,6 +111,11 @@ void vRestoreContextOfFirstTask( void ) /* __attribute__ (( naked )) PRIVILEGED_
         "	adds r0, #32									\n"/* Discard everything up to r0. */
         "	msr  psp, r0									\n"/* This is now the new top of stack to use in the task. */
         "	isb												\n"
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+        "	stmdb sp!, {r0-r3, r12, lr}						\n"
+        "	bl bk_cpu_hp_core_online_ready					\n"
+        "	ldmia sp!, {r0-r3, r12, lr}						\n"
+#endif
         "	mov  r0, #0										\n"
         "	msr  basepri, r0								\n"/* Ensure that interrupts are enabled when the first task starts. */
         "	bx   r2											\n"/* Finally, branch to EXC_RETURN. */
@@ -377,11 +396,35 @@ void soc_svc_handler( void ) /* __attribute__ (( naked )) PRIVILEGED_FUNCTION */
         "	ite eq											\n"
         "	mrseq r0, msp									\n"
         "	mrsne r0, psp									\n"
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+        "	ldr r2, [r0, #24]								\n"/* Read the stacked PC. */
+        "	ldrb r2, [r2, #-2]								\n"/* Read the SVC immediate. */
+        "	cmp r2, %0										\n"
+        "	beq soc_dlv_restore_svchandler					\n"
+        "	cmp r2, %1										\n"
+        "	beq soc_dlv_svchandler							\n"
+#endif
         "	ldr r1, svchandler_address_const				\n"
         "	bx r1											\n"
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+        "soc_dlv_restore_svchandler:						\n"
+        "	ldr r1, dlv_restore_svchandler_address_const	\n"
+        "	bx r1											\n"
+        "soc_dlv_svchandler:								\n"
+        "	mov r0, lr										\n"/* Preserve EXC_RETURN and task r4-r11 before any C prologue. */
+        "	ldr r1, dlv_svchandler_address_const			\n"
+        "	bx r1											\n"
+#endif
         "													\n"
         "	.align 4										\n"
         "svchandler_address_const: .word vPortSVCHandler_C	\n"
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+        "dlv_restore_svchandler_address_const: .word deep_lv_exit \n"
+        "dlv_svchandler_address_const: .word dlv_stack_frame_save_and_dlv \n"
+#endif
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+        ::"i" ( portSVC_DEEP_LV_EXIT ), "i" ( portSVC_DEEP_LV_ENTER )
+#endif
     );
 }
 /*-----------------------------------------------------------*/

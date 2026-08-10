@@ -303,6 +303,24 @@ static shell_dev_t * cmd_dev = &shell_uart;
 static shell_dev_t * cmd_dev = &shell_dev_mb;
 #endif
 
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+void shell_fast_resume_flush(void)
+{
+#if (CMD_DEV == DEV_MAILBOX)
+	/*
+	 * AP power-down can occur after CP consumed a mailbox response but before
+	 * the TX-complete ACK reached AP. Complete all retained packets before a
+	 * new command reuses rsp_buff/rsp_buf_semaphore.
+	 */
+	cmd_dev->dev_drv->io_ctrl(cmd_dev, SHELL_IO_CTRL_FLUSH, NULL);
+#if (LOG_DEV == DEV_MAILBOX)
+	if (log_dev != cmd_dev)
+		log_dev->dev_drv->io_ctrl(log_dev, SHELL_IO_CTRL_FLUSH, NULL);
+#endif
+#endif
+}
+#endif
+
 
 static const char	 shell_fault_str[] = "\r\n!!CPUx:some LOGs discarded!!\r\n";
 static const u16     shell_fault_str_len = sizeof(shell_fault_str) - 1;
@@ -1030,8 +1048,6 @@ static void cmd_info_out(u8 * msg_buf, u16 msg_len, u16 blk_tag)
 /*             it is not a re-enterance function becaue of using rsp_buff. */
 static bool_t cmd_rsp_out(u8 * rsp_msg, u16 msg_len)
 {
-	u16    rsp_blk_tag = MAKE_BLOCK_TAG(0, SHELL_RSP_QUEUE_ID);
-
 	if(rsp_msg != cmd_line_buf.rsp_buff)
 	{
 		if(msg_len > sizeof(cmd_line_buf.rsp_buff))
@@ -1042,9 +1058,24 @@ static bool_t cmd_rsp_out(u8 * rsp_msg, u16 msg_len)
 		memcpy(cmd_line_buf.rsp_buff, rsp_msg, msg_len);
 	}
 
+#if (CMD_DEV == DEV_MAILBOX) && CONFIG_PM_AP_FAST_BOOT_ENABLE
+	/*
+	 * An async mailbox response is released only by MB_CMD_LOG_OUT_OK. That
+	 * completion can be lost when AP powers down or when mailbox state is
+	 * restored, even though CP already consumed and displayed the response.
+	 * The sync path copies into the mailbox-owned buffer and waits until CP
+	 * consumes it, so rsp_buff can be released without relying on a later IRQ.
+	 */
+	bool_t sent = cmd_dev->dev_drv->write_sync(cmd_dev,
+		cmd_line_buf.rsp_buff, msg_len);
+	rtos_set_semaphore(&cmd_line_buf.rsp_buf_semaphore);
+	return sent;
+#else
+	u16 rsp_blk_tag = MAKE_BLOCK_TAG(0, SHELL_RSP_QUEUE_ID);
 	cmd_info_out(cmd_line_buf.rsp_buff, msg_len, rsp_blk_tag);
 
 	return bTRUE;
+#endif
 }
 
 /* it is not a re-enterance function, should sync using ind_buf_semaphore. */
@@ -1578,7 +1609,18 @@ static void rx_ind_process(void)
 			}
 
 			bk_err_t ret = rtos_get_semaphore(&cmd_line_buf.rsp_buf_semaphore, SHELL_WAIT_OUT_TIME);
+#if (CMD_DEV == DEV_MAILBOX) && CONFIG_PM_AP_FAST_BOOT_ENABLE
+			/*
+			 * A command arriving from CP proves the peer is alive. If a legacy
+			 * async completion was lost across AP power-down, reclaim the sole
+			 * response buffer instead of turning a transport bookkeeping miss
+			 * into a system-wide Assert. Responses below use the synchronous
+			 * path, so no new completion dependency is introduced.
+			 */
+			(void)ret;
+#else
 			BK_ASSERT(ret == kNoErr);
+#endif
 
 			cmd_line_buf.rsp_buff[0] = 0;
 

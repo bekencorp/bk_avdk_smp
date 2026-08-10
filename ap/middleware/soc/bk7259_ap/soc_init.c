@@ -108,6 +108,56 @@ void _othercore_start(void)
 }
 #endif
 
+#if CONFIG_SOC_SMP && CONFIG_PM_AP_FAST_BOOT_ENABLE
+void cpu3_fast_resume_start(void)
+{
+	/*
+	 * AP0 already restored global RAM, PSRAM and the shared L2 state. Rebuild
+	 * only CPU3-private architectural state, then rejoin the retained SMP
+	 * scheduler. Do not rerun AP data relocation, application init or debug
+	 * probe setup on this path.
+	 */
+	bk_cpu3_fast_resume_stage_set(3U);
+	/*
+	 * L2 is shared with the already-running AP0. The arch_*_invd_all()
+	 * wrappers include L2 maintenance when CONFIG_L2_CACHE_ENABLE is set;
+	 * using them here can discard AP0 dirty kernel data (notably
+	 * xKernelLock) and later trigger spinlock owner assertions. CPU3 reset
+	 * only requires its private L1 tags to be discarded.
+	 */
+#if CONFIG_ICACHE
+	SCB_InvalidateICache();
+#endif
+
+#if CONFIG_MPU
+	mpu_enable();
+#endif
+	bk_cpu3_fast_resume_stage_set(4U);
+
+#if CONFIG_DCACHE
+	SCB_InvalidateDCache();
+#endif
+#if CONFIG_ICACHE
+	arch_icache_enable();
+#endif
+#if CONFIG_DCACHE
+	arch_dcache_enable();
+#endif
+
+	core_init();
+#if CONFIG_FORCE_PROTECT_CHANNEL
+	bk_mailbox_cc_init_on_current_core(rtos_get_core_id());
+#endif
+	soc_isr_init();
+	bk_cpu3_fast_resume_stage_set(6U);
+	_othercore_start();
+
+	while (1) {
+		__asm volatile("wfi");
+	}
+}
+#endif
+
 void _soc_start(void)
 {
     // // bk_sys_uart_write_string(0,"M55 ==> _soc_start\r\n");
@@ -249,11 +299,8 @@ void enable_dcache(int enable)
 
 void dlv_hook(void)
 {
-#if CONFIG_DEEP_LV
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
     if (dlv_is_startup()) {
-        extern uint32_t __STACK_LIMIT;
-        __set_MSPLIM((uint32_t)(&__STACK_LIMIT));
-        dlv_system_init();
         dlv_startup();
     }
 #endif

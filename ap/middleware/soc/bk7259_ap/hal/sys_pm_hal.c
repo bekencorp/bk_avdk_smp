@@ -32,9 +32,17 @@
 #include <driver/pwr_clk.h>
 #include "driver/flash.h"
 #include "cache.h"
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+#include "deep_lv.h"
+#include "driver/pm_ap_core.h"
+#include "hspl_driver.h"
+#endif
 #include "sys_ahbp_ll.h"
 #include "multicore_driver.h"
 #include <driver/dma.h>
+#if CONFIG_TASK_WDT
+#include "bk_private/bk_wdt.h"
+#endif
 
 extern uint64_t check_IRQ_pending(void);
 
@@ -552,7 +560,48 @@ void sys_hal_enter_cpu_wfi()
 			}
 
 #if CONFIG_CPU_HOTPLUG
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+			/*
+			 * Only CPU2 context is retained. CPU3 hotplug requires a normal
+			 * task context and must be completed before entering this idle
+			 * critical section; attempting it here races its ACK state machine.
+			 */
+			if (bk_cpu_hp_is_online(CPU3_CORE_ID)) {
+				static bool s_cpu3_online_warned;
+
+				if (!s_cpu3_online_warned) {
+					BK_LOGE("pm",
+						"AP fast resume blocked: CPU3 must be offline before AP OFF\r\n");
+					s_cpu3_online_warned = true;
+				}
+				sys_ahbp_ll_set_reg10_value(int_state0_31);
+				sys_ahbp_ll_set_reg11_value(int_state32_63);
+				portNVIC_SYSTICK_CTRL_REG = systick_ctrl_value;
+				return;
+			}
+#if CONFIG_TASK_WDT
+			/*
+			 * Task WDT uses AON time. Pause it before AP/CPU3 suspension so
+			 * the powered-off interval is not interpreted as scheduler stall.
+			 */
+			bk_task_wdt_stop();
+#endif
+#else
+			/* Preserve the original non-fast-boot hotplug lifecycle. */
 			bk_cpu_hp_offline(CPU3_CORE_ID);
+#endif
+#endif
+
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+			/*
+			 * DTCM loses power with AP CPU0. Back up the complete DTCM window
+			 * into retained AP SRAM before capturing the caller's architectural
+			 * state. The naked SVC records the label after WFI as ret_pc.
+			 */
+			dlv_dtcm_backup();
+			__asm goto ("" : : : "memory" : ap_fast_resume_after_wfi);
+			dlv_trigger_backup_context_to(
+				(uint32_t)(uintptr_t)&&ap_fast_resume_after_wfi);
 #endif
 
 			shared_info.pm_ap0_sleep_state = 1;
@@ -564,17 +613,109 @@ void sys_hal_enter_cpu_wfi()
 
 			arch_deep_sleep();
 
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+ap_fast_resume_after_wfi:
+			__DSB();
+			__ISB();
+			/*
+			 * entry_main() is skipped on fast resume, while the retained
+			 * s_hspl_hw_init flag may no longer match HSPL1 hardware state.
+			 * Restore and validate the primitive that serializes every SMP
+			 * spinlock before interrupts or CPU3 are released.
+			 */
+			if (bk_hspl_fast_resume_reinit() != BK_OK) {
+				BK_LOGE("pm", "AP fast resume: HSPL1 restore/self-test failed\r\n");
+				BK_ASSERT(0);
+				while (1) {
+					__WFI();
+				}
+			}
+#endif
+
 			shared_info.pm_ap0_sleep_state = 0;
 			bk_sys_sw_regs_update_pm_shared_info(&shared_info, BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_AP0_SLEEP_STATE, BK_SYS_SW_REGS_LOCK_DISABLE);
 
 			portNVIC_SYSTICK_CTRL_REG = systick_ctrl_value;
 
-#if CONFIG_CPU_HOTPLUG
+#if CONFIG_CPU_HOTPLUG && !CONFIG_PM_AP_FAST_BOOT_ENABLE
+			/* Match the original wake path when AP fast boot is disabled. */
 			bk_cpu_hp_online(CPU3_CORE_ID);
 #endif
 
 			sys_ahbp_ll_set_reg10_value(int_state0_31);
 			sys_ahbp_ll_set_reg11_value(int_state32_63);
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE && CONFIG_TASK_WDT
+			/*
+			 * Reset all retained AON timestamps to the current time. If CPU3
+			 * could not be restored, do not monitor its idle task.
+			 */
+			bk_task_wdt_start();
+#if CONFIG_CPU_HOTPLUG
+			if (!bk_cpu_hp_is_online(CPU3_CORE_ID)) {
+				bk_task_wdt_set_feed_bits(CPU3_CORE_ID & 0x1U, false);
+			}
+#endif
+#endif
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+			#if CONFIG_SYS_PRINT_DEV_MAILBOX
+			/*
+			 * Finish responses retained across AP power-down before CP is told
+			 * that AP can accept another shell command.
+			 */
+			extern void shell_fast_resume_flush(void);
+			shell_fast_resume_flush();
+			#endif
+			#if CONFIG_CP_HANG_DUMP_BY_AP
+			extern void bk_cp_hang_monitor_fast_resume_rebase(void);
+			bk_cp_hang_monitor_fast_resume_rebase();
+			#endif
+			/*
+			 * Fast resume kept PRIMASK set while DTCM, the exception frame,
+			 * SysTick and interrupt routing were restored. Scheduling may
+			 * resume only after this final step.
+			 */
+			dlv_interrupt_restore();
+			/*
+			 * Publish AP0 fast-resume completion independently of CPU3.
+			 * CPU3 is restarted asynchronously below; its failure must not
+			 * make CP discard an otherwise valid AP0 retained context.
+			 */
+			bk_pm_ap_boot_success_set(true);
+			/*
+			 * CPU3 was offlined by the PM task before context capture. Queue
+			 * its restart back to that normal CPU2 task context now that the
+			 * scheduler and interrupts have been restored.
+			 */
+			#if CONFIG_CPU_HOTPLUG
+			{
+				bk_cpu3_fast_resume_prepare();
+				pm_ap_core_msg_t msg = {
+					.event = PM_AP_CORE_CPU3_ONLINE,
+				};
+				bk_err_t ret = bk_pm_ap_core_send_msg(&msg);
+
+				if (ret != BK_OK) {
+					BK_LOGE("pm", "AP fast resume: queue CPU3 online failed[%d]\r\n", ret);
+				}
+			}
+			#endif
+			{
+				uint32_t total_us;
+				uint32_t dtcm_us;
+				uint32_t l1_scb_us;
+				uint32_t arch_us;
+				uint32_t finish_us;
+				extern void dlv_restore_profile_get(uint32_t *total_us,
+					uint32_t *dtcm_us, uint32_t *l1_scb_us,
+					uint32_t *arch_us, uint32_t *finish_us);
+
+				dlv_restore_profile_get(&total_us, &dtcm_us, &l1_scb_us,
+					&arch_us, &finish_us);
+				BK_LOGI("deep_lv",
+					"AP_TIME restore total_us=%u dtcm_us=%u l1_scb_us=%u arch_us=%u finish_us=%u\r\n",
+					total_us, dtcm_us, l1_scb_us, arch_us, finish_us);
+			}
+#endif
 		}
 		else
 		{

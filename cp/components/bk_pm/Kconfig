@@ -193,5 +193,14 @@ menu "PM"
 	config PM_AP_POWERDOWN_WHEN_LV
 		bool "Power down ap when sleep"
 		default n
+
+	config PM_AP_FAST_BOOT_ENABLE
+		bool "Restore AP FreeRTOS execution point after AP power cycle"
+		depends on PM_AP_POWERDOWN_WHEN_LV && PSRAM_DATA_RETENTION_ENABLE
+		default n
+		help
+			Keep the AP in reset while its SRAM and PSRAM contents remain
+			in place. AP DTCM is backed up into retained AP SRAM before
+			power-off and restored before interrupts are re-enabled.
 endmenu
 

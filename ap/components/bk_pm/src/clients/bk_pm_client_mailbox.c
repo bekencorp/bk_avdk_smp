@@ -73,6 +73,9 @@ static volatile  pm_mailbox_communication_state_e s_pm_cp2_wakeup_src_cfg_finish
 static mb_chnl_cmd_t                              s_pm_mb_data                   = {0};
 
 static volatile  uint32_t                         s_pm_cp1_boot_try_count        = 0;
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+static volatile  uint32_t                         s_pm_ap_recovery_request_seq   = 0;
+#endif
 
 /*=====================VARIABLE  SECTION  END=================*/
 
@@ -353,11 +356,33 @@ static void pm_cp1_mailbox_rx_isr(int *pm_mb, mb_chnl_cmd_t *cmd_buf)
 			bk_psram_heap_get_used_state();
 			break;
 		case PM_CP1_RECOVERY_CMD:
-            msg.event= PM_AP_CORE_AP_RECOVERY;
-			msg.param1 = cmd_buf->param1;
-			msg.param2 = cmd_buf->param2;
-			bk_pm_ap_core_send_msg(&msg);
-			bk_pm_cp1_ctrl_state_set(PM_MAILBOX_COMMUNICATION_INIT);
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+			/*
+			 * CP retries a close request to recover a lost mailbox interrupt
+			 * or ACK. Queue each transaction only once; a new sequence number
+			 * represents a new close attempt after resume or rollback.
+			 */
+			if ((cmd_buf->param1 == 0U) ||
+			    (cmd_buf->param1 != s_pm_ap_recovery_request_seq)) {
+#endif
+				msg.event= PM_AP_CORE_AP_RECOVERY;
+				msg.param1 = cmd_buf->param1;
+				msg.param2 = cmd_buf->param2;
+				ret = bk_pm_ap_core_send_msg(&msg);
+				if (ret == BK_OK) {
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+					s_pm_ap_recovery_request_seq = cmd_buf->param1;
+					LOGI("AP close request queued seq=%u\r\n",
+						cmd_buf->param1);
+#endif
+					bk_pm_cp1_ctrl_state_set(PM_MAILBOX_COMMUNICATION_INIT);
+				}
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+			} else {
+				LOGD("AP close request duplicate seq=%u ignored\r\n",
+					cmd_buf->param1);
+			}
+#endif
 			break;
         case PM_RTC_DEEPSLEEP_CMD:
 			if(cmd_buf->param1 == BK_OK)

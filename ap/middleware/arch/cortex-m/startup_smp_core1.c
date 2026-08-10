@@ -37,6 +37,10 @@ void dlv_hook(void);
 __FLASH_BOOT_CODE void b_system_base_init (void);
 __FLASH_BOOT_CODE void b_prep_entry_main(void);
 void b_program_start(void);
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+uint32_t bk_cpu3_fast_resume_consume(void);
+void cpu3_fast_resume_start(void);
+#endif
 typedef void(*VECTOR_ENTRY_TYPE)(void);
 
 /*----------------------------------------------------------------------------
@@ -128,6 +132,12 @@ __NO_RETURN ENTRY_SECTION void Reset_Handler_Core1(void)
 
   b_system_base_init();
   b_prep_entry_main();
+
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+  if (bk_cpu3_fast_resume_consume() != 0U) {
+    cpu3_fast_resume_start();
+  }
+#endif
 
   /* AP SMP: core1 runs after core0 already initialized RAM, so the runtime path
    * is safe here. Brings up core1's own debug port (UART2/GPIO22) and emits a

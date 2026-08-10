@@ -1,0 +1,28 @@
+#
+# Automatically generated project default config. You can update it with menuconfig [D] option.
+# This file contains only differences compared to board defconfig.
+#
+
+CONFIG_BLUETOOTH_AP=y
+CONFIG_AT=y
+CONFIG_DEFAULT_AT_PORT=5
+CONFIG_WIFI_AT_ENABLE=y
+CONFIG_MISC_AT_ENABLE=y
+CONFIG_AT_MAX_PORT_CNT=1
+
+# platform config for AP powerdown
+CONFIG_SLAVE_HEART_BEAT=n
+
+
+#pm
+CONFIG_FREERTOS_USE_TICKLESS_IDLE=2
+CONFIG_GPIO_WAKEUP_SUPPORT=y
+CONFIG_GPIO_DYNAMIC_WAKEUP_SUPPORT=y
+
+# AP fast boot
+CONFIG_PSRAM_DATA_RETENTION_ENABLE=y
+CONFIG_PM_AP_FAST_BOOT_ENABLE=y
+
+#BLE
+CONFIG_BLUETOOTH_HOST_ONLY=n
+CONFIG_BLUETOOTH_SUPPORT_AP_PWD_ALL=y

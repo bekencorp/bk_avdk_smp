@@ -575,6 +575,8 @@ bk_err_t bk_psram_deinit_with_id(psram_id_t psram_id)
 	return BK_OK;
 }
 
+#if CONFIG_PSRAM_DATA_RETENTION_ENABLE
+
 /* ============================================================
  * PSRAM data-retention helpers (used when AP / M55 subsystem
  * is powered down while CP keeps PSRAM contents alive).
@@ -639,7 +641,7 @@ bk_err_t bk_psram_deinit_with_id(psram_id_t psram_id)
  *     comment makes the dependency on AHBP_PSRAM-stays-on explicit.
  */
 #ifndef PM_PSRAM_RECOVER_RESET_CLOCK
-#define PM_PSRAM_RECOVER_RESET_CLOCK 0
+#define PM_PSRAM_RECOVER_RESET_CLOCK 1
 #endif
 
 static volatile bool     s_psram_retention_active[PSRAM_ID_MAX]    = {false};
@@ -682,9 +684,8 @@ static void psram_retention_recovery_one(psram_id_t psram_id)
 #if PM_PSRAM_RECOVER_RESET_CLOCK
 	/* Restore PSRAMx bus clock: 320M source / (1+1) = 160MHz.
 	 * All three writes go through sys_drv layer (id-routed, with
-	 * critical-section). Disabled by default since AHBP_PSRAM stays
-	 * powered through the AP power cycle in the current PM policy;
-	 * see PM_PSRAM_RECOVER_RESET_CLOCK comment for the rationale. */
+	 * critical-section). Enabled by default as a defensive recovery
+	 * step; see PM_PSRAM_RECOVER_RESET_CLOCK comment for the rationale. */
 	sys_drv_psram_clk_sel_with_id((uint32_t)psram_id, 0);    /* 320M source */
 	sys_drv_psram_set_clkdiv_with_id((uint32_t)psram_id, 1); /* /(1+1) -> 160MHz */
 	sys_drv_psram_disckg_with_id((uint32_t)psram_id, 1);     /* bus clk enable */
@@ -759,6 +760,8 @@ bk_err_t bk_psram_data_retention_recover(void)
 	MEM_STATIC_LOGI("psram_data_retention_recover: done\r\n");
 	return BK_OK;
 }
+
+#endif /* CONFIG_PSRAM_DATA_RETENTION_ENABLE */
 
 bk_err_t bk_psram_memcpy(uint8_t *start_addr, uint8_t *data_buf, uint32_t len)
 {

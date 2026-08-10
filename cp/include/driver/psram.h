@@ -321,6 +321,8 @@ bk_err_t bk_psram_deinit(void);
  */
 bk_err_t bk_psram_deinit_with_id(psram_id_t psram_id);
 
+#if CONFIG_PSRAM_DATA_RETENTION_ENABLE
+
 /**
  * @brief Prepare PSRAM for data-retention across an AP/M55 power-down.
  *
@@ -353,6 +355,8 @@ bk_err_t bk_psram_data_retention(void);
  * @return BK_OK on success.
  */
 bk_err_t bk_psram_data_retention_recover(void);
+
+#endif /* CONFIG_PSRAM_DATA_RETENTION_ENABLE */
 
 /**
  * @brief     continue write data to psram

@@ -185,8 +185,16 @@ bk_err_t bk_pm_ap_close_ap_handle_callback()
     {
         if(s_close_ap_cb_arry[i].close_ap_cb_fn != NULL)
         {
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+            uint32_t callback_start_ms = rtos_get_time();
+            LOGI("AP close callback begin module=%d fn=%p\r\n",
+                i, s_close_ap_cb_arry[i].close_ap_cb_fn);
+#endif
             s_close_ap_cb_arry[i].close_ap_cb_fn(s_close_ap_cb_arry[i].param1,s_close_ap_cb_arry[i].param2);
-            //LOGD("Handle close ap cb:%d,0x%x\r\n",i,s_close_ap_cb_arry[i].close_ap_cb_fn);
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+            LOGI("AP close callback end module=%d elapsed_ms=%u\r\n",
+                i, (uint32_t)(rtos_get_time() - callback_start_ms));
+#endif
         }
     }
     return BK_OK;

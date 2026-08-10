@@ -578,7 +578,7 @@ typedef enum {
 typedef enum {
 	PM_AP_WORK_STATE_FIRST_BOOT   = (1U << 0), /**< first AP boot */
 	PM_AP_WORK_STATE_BOOT_SUCCESS = (1U << 1), /**< AP boot success */
-	PM_AP_WORK_STATE_RESERVED2    = (1U << 2), /**< reserved for extension */
+	PM_AP_WORK_STATE_FAST_RESUME  = (1U << 2), /**< AP FreeRTOS context is ready for restore */
 	PM_AP_WORK_STATE_RESERVED3    = (1U << 3), /**< reserved for extension */
 } pm_ap_work_state_e;
 

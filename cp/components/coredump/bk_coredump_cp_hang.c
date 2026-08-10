@@ -7,6 +7,8 @@
 
 #define CP_HANG_TAG "cp_hang"
 #define CP_HANG_HEARTBEAT_EVENT 1U
+#define CP_HANG_HEARTBEAT_PAUSE_EVENT 2U
+#define CP_HANG_HEARTBEAT_RESUME_EVENT 3U
 #define CP_HANG_HEARTBEAT_STACK_SIZE 1024U
 #define CP_HANG_HEARTBEAT_PRIORITY 0U
 #define CP_HANG_TIMEOUT_MARGIN_MS 2000U
@@ -44,6 +46,18 @@ static uint16_t cp_hang_get_ap_timeout_ms(void)
 	return (uint16_t)timeout_ms;
 }
 
+static void cp_hang_send_ap_event(uint8_t event)
+{
+	if (s_cp_hang_ap_power_off != 0U) {
+		return;
+	}
+
+	if (bk_ipi_send_domain(IPI_AP_CORE0, IPI_DOMAIN_CP_HANG_DEBUG,
+		event, cp_hang_get_ap_timeout_ms()) != BK_OK) {
+		BK_LOGW(CP_HANG_TAG, "send cp hang event %u failed\r\n", event);
+	}
+}
+
 static void cp_hang_ap_poweroff_callback(void *arg)
 {
 	(void)arg;
@@ -57,8 +71,21 @@ static void cp_hang_ap_poweron_callback(void *arg)
 	(void)arg;
 
 	s_cp_hang_ap_power_off = 0U;
+	cp_hang_send_ap_event(CP_HANG_HEARTBEAT_RESUME_EVENT);
 	BK_LOGI(CP_HANG_TAG, "AP power on, resume CP hang heartbeat\r\n");
 }
+
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+void bk_cp_hang_debug_heartbeat_lv_enter(void)
+{
+	cp_hang_send_ap_event(CP_HANG_HEARTBEAT_PAUSE_EVENT);
+}
+
+void bk_cp_hang_debug_heartbeat_lv_exit(void)
+{
+	cp_hang_send_ap_event(CP_HANG_HEARTBEAT_RESUME_EVENT);
+}
+#endif
 
 static void cp_hang_register_ap_power_callbacks(void)
 {
@@ -79,8 +106,6 @@ static void cp_hang_register_ap_power_callbacks(void)
 
 static void cp_hang_debug_heartbeat_task(void *param)
 {
-	uint16_t ap_timeout_ms = cp_hang_get_ap_timeout_ms();
-
 	(void)param;
 
 	while (1) {
@@ -88,10 +113,7 @@ static void cp_hang_debug_heartbeat_task(void *param)
 		if (s_cp_hang_ap_power_off != 0U) {
 			continue;
 		}
-		if (bk_ipi_send_domain(IPI_AP_CORE0, IPI_DOMAIN_CP_HANG_DEBUG,
-			CP_HANG_HEARTBEAT_EVENT, ap_timeout_ms) != BK_OK) {
-			BK_LOGW(CP_HANG_TAG, "send cp hang debug heartbeat failed\r\n");
-		}
+		cp_hang_send_ap_event(CP_HANG_HEARTBEAT_EVENT);
 	}
 }
 

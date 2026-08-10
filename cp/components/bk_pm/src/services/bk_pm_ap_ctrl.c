@@ -23,6 +23,9 @@
 #include "sys_driver.h"
 #include <os/mem.h>
 #include <sys_sw_regs.h>
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+#include <multicore_driver.h>
+#endif
 #include "cache.h"
 #include "pm_debug.h"
 #if CONFIG_SUPPORT_WWDT
@@ -41,12 +44,49 @@ typedef struct ap_ctrl_callback_node {
 
 
 #define PM_SEND_CMD_CP1_RESPONSE_TIEM        (100)  //100ms
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+#define PM_WAIT_AP_SLEEP_TIMEOUT_MS          (5000)
+#define PM_AP_RECOVERY_RETRY_MS               (250)
+#else
 #define PM_WAIT_AP_SLEEP_TIMEOUT_MS          (3000)
+#endif
 #define PM_CP1_RECOVERY_DEFAULT_VALUE        (0xFFFFFFFFFFFFFFFFULL)
 
 #define PM_BOOT_AP_WAITING_TIEM             (1800) // 1.8s
 #define PM_BOOT_AP_TRY_COUNT                (3)
 #define PM_AP_CTRL_MUTEX_WAIT_WARN_MS       (500)
+
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+static uint32_t pm_ap_elapsed_us(uint64_t start_tick, uint64_t end_tick)
+{
+	uint64_t elapsed_tick = end_tick - start_tick;
+
+	return (uint32_t)((elapsed_tick * 1000ULL) / AON_RTC_MS_TICK_CNT);
+}
+
+static bool pm_ap_fast_resume_requested(void)
+{
+	pm_shared_info_t shared_info = {0};
+
+	bk_sys_sw_regs_get_pm_shared_info(&shared_info);
+	return (shared_info.pm_ap_work_state & PM_AP_WORK_STATE_FAST_RESUME) != 0U;
+}
+
+static void pm_ap_fast_resume_clear(void)
+{
+	pm_shared_info_t shared_info = {0};
+
+	bk_sys_sw_regs_get_pm_shared_info(&shared_info);
+	shared_info.pm_ap_work_state &= (uint8_t)~PM_AP_WORK_STATE_FAST_RESUME;
+	bk_sys_sw_regs_update_pm_shared_info(&shared_info,
+		BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_AP_WORK_STATE,
+		BK_SYS_SW_REGS_LOCK_DISABLE);
+	__DSB();
+	flush_dcache((void *)&bk_sys_sw_regs_ptr()->pm_shared_info,
+		sizeof(bk_sys_sw_regs_ptr()->pm_shared_info));
+	__DSB();
+}
+#endif
 
 /*=====================VARIABLE  SECTION  START=================*/
 #if (CONFIG_CPU_CNT > 1)
@@ -57,6 +97,17 @@ static volatile  uint32_t                         s_pm_cp1_boot_try_count       
 static volatile  uint32_t                         s_pm_cp1_psram_malloc_count    = 0;
 static volatile  uint64_t                         s_pm_cp1_module_recovery_state = PM_CP1_RECOVERY_DEFAULT_VALUE;
 static beken_mutex_t                              s_pm_cp1_vote_mutex            = NULL;
+#if CONFIG_DEEP_LV && CONFIG_PM_AP_FAST_BOOT_ENABLE
+/*
+ * The AP power domain also contains the mailbox register bank.  Keep an
+ * explicit validity bit so an ordinary AP power cycle restores the mailbox;
+ * g_enter_sleep only describes the CP deep-LV path and is not sufficient.
+ */
+static volatile bool                              s_pm_ap_mailbox_backup_valid   = false;
+#endif
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+static uint32_t                                   s_pm_ap_recovery_request_seq   = 0;
+#endif
 #endif
 
 static ap_ctrl_callback_node_t *s_ap_ctrl_callback_head                          = NULL;
@@ -334,6 +385,10 @@ extern uint32_t g_enter_sleep;
 #endif
 static void pm_module_bootup_cpu1(pm_power_module_name_e module)
 {
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+	uint64_t ap0_resume_start_tick = bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
+#endif
+
 	if(module == POWER_SUB_DOMAIN_NAME_AP_CPU)
 	{
 boot_ap:
@@ -342,6 +397,45 @@ boot_ap:
 		bk_pm_module_vote_cpu_freq(PM_DEV_ID_CPU1,PM_CPU_FRQ_240M);
 		bk_pm_module_vote_xtal_rx_tx_anabuf_ctrl(PM_XTAL_RX_TX_ANABUF_MODULE_NAME_AP, PM_XTAL_RX_TX_ANABUF_EXIT_SLEEP);
 		#endif
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+		bk_pm_module_vote_power_ctrl(POWER_SUB_DOMAIN_NAME_AP_CPU, PM_POWER_MODULE_STATE_ON);
+		#if CONFIG_SUPPORT_WWDT
+		bk_wwdt_feed();
+		#endif
+		extern void bk_delay_us(UINT32 us);
+		bk_delay_us(200);
+		#if CONFIG_PSRAM
+		if (bk_pm_module_vote_psram_ctrl(PM_POWER_PSRAM_MODULE_NAME_MEDIA,
+			PM_POWER_MODULE_STATE_ON) != BK_OK) {
+			LOGE("AP fast boot: PSRAM restore failed\r\n");
+		}
+		#endif
+		#if CONFIG_SUPPORT_WWDT
+		bk_wwdt_feed();
+		#endif
+		bk_delay_us(1000);
+		#if CONFIG_SUPPORT_WWDT
+		bk_wwdt_feed();
+		#endif
+		#if CONFIG_DEEP_LV
+		/*
+		 * Restore after AP/AHBP power and PSRAM are stable.  Restoring before
+		 * POWER_SUB_DOMAIN_NAME_AP_CPU is on is ineffective because the
+		 * mailbox bank is reset by the following power-on sequence.
+		 */
+		if (s_pm_ap_mailbox_backup_valid || (g_enter_sleep == 0x1))
+		{
+			extern void sys_hal_mailbox_regs_restore(void);
+			sys_hal_mailbox_regs_restore();
+			sys_hal_mailbox_saved_regs_dump();
+			s_pm_ap_mailbox_backup_valid = false;
+			g_enter_sleep = 0x0;
+		}
+		#endif
+		/* Keep mailbox heartbeat state machine aligned with every AP power-on. */
+		mb_ipc_reset_notify(1, 1);
+		LOGI("Ap_power_on: vote_on + context_restore + reset_notify(on)\r\n");
+#else
 		#if CONFIG_DEEP_LV
 		if(g_enter_sleep == 0x1)
 		{
@@ -369,7 +463,7 @@ boot_ap:
 		bk_delay_us(1000);
 		#if CONFIG_SUPPORT_WWDT
 		bk_wwdt_feed();
-		#endif	
+		#endif
 		#if 0//CONFIG_PSRAM
 		{
 			volatile uint32_t *psram_test_addr = (volatile uint32_t *)psram_malloc(sizeof(uint32_t));
@@ -392,6 +486,7 @@ boot_ap:
 			}
 		}
 		#endif
+#endif
 		extern bk_err_t bk_start_ap_system(void);
 		if (bk_start_ap_system() != BK_OK) {
 			LOGE("bk_start_ap_system failed\r\n");
@@ -400,8 +495,10 @@ boot_ap:
 #endif
 		}
 		LOGI("bk_start_ap_system done\r\n");
+#if !CONFIG_PM_AP_FAST_BOOT_ENABLE
 		bk_pm_ap_ctrl_callback_execute(PM_AP_CTRL_CB_TYPE_POWER_ON);
 		LOGI("bk_pm_ap_ctrl_callback_execute done\r\n");
+#endif
 		#if CONFIG_SUPPORT_WWDT
 		bk_wwdt_feed();
 		#endif
@@ -437,6 +534,31 @@ boot_ap:
 				#endif
 			}
 		}
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+		else
+		{
+			uint64_t ap0_ready_tick =
+				bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
+			uint64_t callback_start_tick;
+			uint64_t callback_end_tick;
+
+			LOGI("AP_TIME ap0_restore_scheduler_ready total_us=%u\r\n",
+				pm_ap_elapsed_us(ap0_resume_start_tick, ap0_ready_tick));
+			/*
+			 * AP fast resume restores mailbox/IPI interrupt state asynchronously.
+			 * Notify power-on clients only after AP reports boot_success, otherwise
+			 * the CP heartbeat RESUME event can be sent before AP can receive it.
+			 */
+			callback_start_tick =
+				bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
+			bk_pm_ap_ctrl_callback_execute(PM_AP_CTRL_CB_TYPE_POWER_ON);
+			callback_end_tick =
+				bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
+			LOGI("AP_TIME cp_power_on_callbacks total_us=%u\r\n",
+				pm_ap_elapsed_us(callback_start_tick, callback_end_tick));
+			LOGI("bk_pm_ap_ctrl_callback_execute done\r\n");
+		}
+#endif
 		#if CONFIG_SUPPORT_WWDT
 		bk_wwdt_feed();
 		#endif
@@ -476,13 +598,33 @@ static void pm_module_shutdown_cpu1(pm_power_module_name_e module)
 		if(module == POWER_SUB_DOMAIN_NAME_AP_CPU)
 		{
 			#if CONFIG_PM_AP_POWERDOWN_WHEN_LV
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+			if (pm_ap_fast_resume_requested()) {
+				/* AP SRAM/DTCM retain power; only stop execution before power-off. */
+				if (bk_multicore_stop(CONFIG_AP_SYS_MASTER_CPU_ID) != BK_OK) {
+					LOGE("AP fast resume: failed to hold AP reset\r\n");
+					pm_ap_fast_resume_clear();
+				}
+			} else {
+				LOGE("AP fast resume: AP did not publish a saved CPU context\r\n");
+			}
+			ret = bk_pm_module_vote_psram_ctrl(PM_POWER_PSRAM_MODULE_NAME_MEDIA,
+				PM_POWER_MODULE_STATE_OFF);
+			if (ret != BK_OK) {
+				LOGE("AP fast boot: PSRAM retention failed\r\n");
+				pm_ap_fast_resume_clear();
+			}
+#else
 			bk_pm_module_vote_psram_ctrl(PM_POWER_PSRAM_MODULE_NAME_MEDIA, PM_POWER_MODULE_STATE_OFF);
+#endif
 			#endif
 
 			bk_pm_module_vote_power_ctrl(POWER_SUB_DOMAIN_NAME_AP_CPU, PM_POWER_MODULE_STATE_OFF);
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
 			/* AP power is cut, force heartbeat state to OFF immediately. */
 			mb_ipc_reset_notify(1, 0);
 			LOGI("pm_dbg ap_power_off: vote_off + reset_notify(off)\r\n");
+#endif
 			pm_ap_powerdown_proof_log("after_power_vote_off");
 			//bk_pm_module_vote_cpu_freq(PM_DEV_ID_CPU1,PM_CPU_FRQ_DEFAULT);
 
@@ -491,9 +633,20 @@ static void pm_module_shutdown_cpu1(pm_power_module_name_e module)
 			s_pm_cp1_closing = 0;
 			s_pm_cp1_boot_try_count = 0;
 			pm_shared_info_t shared_info = {0};
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+			uint32_t sleep_state_mask =
+				BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_CP0_SLEEP_STATE;
 
 			shared_info.pm_cp0_sleep_state = 0;
+			shared_info.pm_ap0_sleep_state = 0;
+			sleep_state_mask |= BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_AP0_SLEEP_STATE;
+			bk_sys_sw_regs_update_pm_shared_info(&shared_info,
+				sleep_state_mask,
+				BK_SYS_SW_REGS_LOCK_DISABLE);
+#else
+			shared_info.pm_cp0_sleep_state = 0;
 			bk_sys_sw_regs_update_pm_shared_info(&shared_info, BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_CP0_SLEEP_STATE, BK_SYS_SW_REGS_LOCK_DISABLE);
+#endif
 			__DSB();
 			flush_dcache((void *)&bk_sys_sw_regs_ptr()->pm_shared_info, sizeof(bk_sys_sw_regs_ptr()->pm_shared_info));
 			__DSB();
@@ -550,8 +703,22 @@ bk_err_t bk_pm_module_vote_boot_ap_ctrl(pm_boot_ap_module_name_e module,pm_power
     {
 		if(s_pm_cp1_ctrl_state == 0)
 		{
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+			uint64_t startup_start_tick =
+				bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
+#endif
 			LOGD("boot_ap %d %d 0x%x [%d]E_2\r\n",module, power_state,s_pm_cp1_ctrl_state,ret);
 			pm_module_bootup_cpu1(POWER_SUB_DOMAIN_NAME_AP_CPU);
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+			if (bk_pm_ap_boot_success_get())
+			{
+				uint64_t startup_end_tick =
+					bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
+
+				LOGI("AP_TIME startup_success total_us=%u\r\n",
+					pm_ap_elapsed_us(startup_start_tick, startup_end_tick));
+			}
+#endif
 		}
 		GLOBAL_INT_DISABLE();
 		s_pm_cp1_ctrl_state |= 0x1 << (module);
@@ -566,12 +733,15 @@ bk_err_t bk_pm_module_vote_boot_ap_ctrl(pm_boot_ap_module_name_e module,pm_power
 			GLOBAL_INT_RESTORE();
 			if(0x0 == s_pm_cp1_ctrl_state)
 			{
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+				uint64_t shutdown_start_tick =
+					bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
+				uint32_t recovery_request_seq;
+				uint64_t next_recovery_retry_tick;
+#endif
 				s_pm_cp1_closing = 1;
 				BK_LOGD(NULL, "boot_ap %d %d close 0x%llx %d\r\n",module, power_state,s_pm_cp1_module_recovery_state,bk_pm_ap_boot_success_get());
 				pm_ap_powerdown_proof_log("vote_off_begin");
-				/* Ask AP to run registered stop notifications before power-off. */
-				//pm_cp0_mailbox_send_data(PM_CP1_RECOVERY_CMD,0,0,0);
-				//LOGI("ap_close: send recovery cmd\r\n");
 
 				pm_shared_info_t shared_info = {0};
 
@@ -588,6 +758,29 @@ bk_err_t bk_pm_module_vote_boot_ap_ctrl(pm_boot_ap_module_name_e module,pm_power
 				uint64_t current_tick = previous_tick;
 				bool ap_sleep_ready = false;
 				uint64_t next_log_tick = previous_tick + (500 * AON_RTC_MS_TICK_CNT);
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+				/*
+				 * Publish the shared sleep request before notifying AP. Use a
+				 * stable sequence number for retries so AP can suppress
+				 * duplicate recovery work while still accepting the next
+				 * close transaction.
+				 */
+				recovery_request_seq = ++s_pm_ap_recovery_request_seq;
+				if (recovery_request_seq == 0U) {
+					recovery_request_seq = ++s_pm_ap_recovery_request_seq;
+				}
+				ret = pm_cp0_mailbox_send_data(PM_CP1_RECOVERY_CMD,
+					recovery_request_seq, 0, 0);
+				if (ret != BK_OK) {
+					LOGE("ap_close: send recovery seq=%u failed[%d]\r\n",
+						recovery_request_seq, ret);
+				} else {
+					LOGI("ap_close: send recovery seq=%u\r\n",
+						recovery_request_seq);
+				}
+				next_recovery_retry_tick = previous_tick +
+					(PM_AP_RECOVERY_RETRY_MS * AON_RTC_MS_TICK_CNT);
+#endif
 
 				while ((current_tick - previous_tick) < (PM_WAIT_AP_SLEEP_TIMEOUT_MS * AON_RTC_MS_TICK_CNT))
 				{
@@ -599,9 +792,16 @@ bk_err_t bk_pm_module_vote_boot_ap_ctrl(pm_boot_ap_module_name_e module,pm_power
 
 					if (shared_info.pm_ap0_sleep_state == 0x1)
 					{
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+						uint64_t sleep_ready_tick =
+							bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
+#endif
 						#if CONFIG_DEEP_LV
 						sys_hal_mailbox_regs_backup();
 						sys_hal_mailbox_saved_regs_dump();
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+						s_pm_ap_mailbox_backup_valid = true;
+#endif
 						#endif
 						LOGI("pm_dbg ap_close: ap_sleep_state ready, start shutdown\r\n");
 						pm_ap_powerdown_proof_log("ap_sleep_ready");
@@ -617,14 +817,38 @@ bk_err_t bk_pm_module_vote_boot_ap_ctrl(pm_boot_ap_module_name_e module,pm_power
 						ap_sleep_ready = true;
 						s_pm_cp1_closing = 0;
 						pm_ap_powerdown_proof_log("vote_off_complete");
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+						uint64_t shutdown_end_tick =
+							bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
+						uint32_t total_us =
+							pm_ap_elapsed_us(shutdown_start_tick, shutdown_end_tick);
+						uint32_t sleep_ack_us =
+							pm_ap_elapsed_us(shutdown_start_tick, sleep_ready_tick);
+
+						LOGI("AP_TIME shutdown_success total_us=%u sleep_ack_us=%u poweroff_us=%u\r\n",
+							total_us, sleep_ack_us, total_us - sleep_ack_us);
+#endif
 						break;
 					}
 					current_tick = bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+					if (current_tick >= next_recovery_retry_tick)
+					{
+						ret = pm_cp0_mailbox_send_data(PM_CP1_RECOVERY_CMD,
+							recovery_request_seq, 0, 0);
+						LOGW("ap_close: retry recovery seq=%u ret=%d\r\n",
+							recovery_request_seq, ret);
+						next_recovery_retry_tick +=
+							(PM_AP_RECOVERY_RETRY_MS * AON_RTC_MS_TICK_CNT);
+					}
+#endif
 					if (current_tick >= next_log_tick)
 					{
-						LOGD("pm_dbg ap_close_wait: cp0_sleep=%d ap0_sleep=%d elapsed_ms=%llu\r\n",
+						uint32_t elapsed_ms = (uint32_t)
+							((current_tick - previous_tick) / AON_RTC_MS_TICK_CNT);
+						LOGD("pm_dbg ap_close_wait: cp0_sleep=%d ap0_sleep=%d elapsed_ms=%u\r\n",
 							shared_info.pm_cp0_sleep_state, shared_info.pm_ap0_sleep_state,
-							(current_tick - previous_tick) / AON_RTC_MS_TICK_CNT);
+							elapsed_ms);
 						next_log_tick += (500 * AON_RTC_MS_TICK_CNT);
 					}
 				}

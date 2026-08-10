@@ -20,6 +20,8 @@
 
 #define CP_HANG_TAG "cp_hang"
 #define CP_HANG_HEARTBEAT_EVENT 1U
+#define CP_HANG_HEARTBEAT_PAUSE_EVENT 2U
+#define CP_HANG_HEARTBEAT_RESUME_EVENT 3U
 #define CP_HANG_MONITOR_STACK_SIZE 2048U
 #define CP_HANG_MONITOR_PRIORITY (BEKEN_DEFAULT_WORKER_PRIORITY - 1)
 #define CP_HANG_MONITOR_CHECK_MS 500U
@@ -44,6 +46,7 @@
 typedef struct {
 	volatile uint8_t seen;
 	volatile uint8_t dumping;
+	volatile uint8_t paused;
 	volatile uint8_t src_cpu;
 	volatile uint16_t timeout_ms;
 	volatile uint32_t last_tick;
@@ -138,7 +141,9 @@ static void cp_hang_ipi_callback(ipi_core_id_t core_id, uint32_t value,
 	(void)value;
 	(void)param;
 
-	if (event != CP_HANG_HEARTBEAT_EVENT) {
+	if ((event != CP_HANG_HEARTBEAT_EVENT) &&
+		(event != CP_HANG_HEARTBEAT_PAUSE_EVENT) &&
+		(event != CP_HANG_HEARTBEAT_RESUME_EVENT)) {
 		return;
 	}
 
@@ -146,6 +151,12 @@ static void cp_hang_ipi_callback(ipi_core_id_t core_id, uint32_t value,
 	s_cp_hang_state.src_cpu = src_cpu;
 	s_cp_hang_state.last_tick = cp_hang_now();
 	s_cp_hang_state.seen = 1U;
+	if (event == CP_HANG_HEARTBEAT_PAUSE_EVENT) {
+		s_cp_hang_state.paused = 1U;
+	} else if (event == CP_HANG_HEARTBEAT_RESUME_EVENT) {
+		/* RESUME doubles as an immediate heartbeat after CP wakes. */
+		s_cp_hang_state.paused = 0U;
+	}
 }
 
 static void cp_hang_dump_window(const char *name, uint32_t start, uint32_t size)
@@ -366,7 +377,9 @@ static void cp_hang_monitor_task(void *param)
 			continue;
 		}
 
-		if ((s_cp_hang_state.seen == 0U) || (s_cp_hang_state.dumping != 0U)) {
+		if ((s_cp_hang_state.seen == 0U) ||
+			(s_cp_hang_state.dumping != 0U) ||
+			(s_cp_hang_state.paused != 0U)) {
 			continue;
 		}
 
@@ -386,6 +399,23 @@ static void cp_hang_monitor_task(void *param)
 		cp_hang_dump_from_ap(now);
 	}
 }
+
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+void bk_cp_hang_monitor_fast_resume_rebase(void)
+{
+	/*
+	 * Heartbeats retained from before AP power-down cannot prove that CP is
+	 * alive after resume. Keep the monitor disarmed until CP sends a fresh
+	 * RESUME or heartbeat after AP interrupt/IPI routing is operational.
+	 */
+	s_cp_hang_state.last_tick = cp_hang_now();
+	s_cp_hang_state.timeout_tick = 0U;
+	s_cp_hang_state.seen = 0U;
+	s_cp_hang_state.dumping = 0U;
+	s_cp_hang_state.paused = 0U;
+	cp_hang_set_ap_dumping(0U);
+}
+#endif
 
 bk_err_t bk_cp_hang_dump_by_ap_init(void)
 {

@@ -119,6 +119,47 @@ bk_err_t bk_hspl_driver_early_init(void)
 	return BK_OK;
 }
 
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+bk_err_t bk_hspl_fast_resume_reinit(void)
+{
+	uintptr_t base = hspl_get_base(BK_HSPL_ID_1);
+	uint32_t lock_val;
+	uint32_t state_val;
+
+	if (!base) {
+		return BK_FAIL;
+	}
+
+	/*
+	 * AP0 software state is retained, but HSSUB/HSPL hardware state is not
+	 * guaranteed to survive AP power-off. CPU3 is reset-held and PRIMASK is
+	 * still set here, so channel 0 cannot have a live AP owner. Re-establish
+	 * a known-free channel before any SMP scheduler lock is used.
+	 */
+	HSPL_REG_WR32(base, HSPL_REG_CLKRST, 0x1);
+	HSPL_REG_WR32(base, HSPL_REG_TIMEOUT_CFG, 0x0);
+	HSPL_REG_WR32(base, HSPL_REG_TIMEOUT_CTL, 0x0);
+	HSPL_REG_WR32(base, HSPL_REG_LOCK0, HSPL_UNLOCK_MAGIC);
+	__asm volatile("dsb sy" ::: "memory");
+	__asm volatile("isb sy" ::: "memory");
+
+	lock_val = HSPL_REG_RD32(base, HSPL_REG_LOCK0);
+	if ((lock_val & HSPL_LOCK_SUCCESS_BIT) == 0U) {
+		return BK_FAIL;
+	}
+
+	HSPL_REG_WR32(base, HSPL_REG_LOCK0, HSPL_UNLOCK_MAGIC);
+	__asm volatile("dsb sy" ::: "memory");
+	state_val = HSPL_REG_RD32(base, HSPL_REG_STA0);
+	if ((state_val & HSPL_STA_OWNER_VALID_BIT) != 0U) {
+		return BK_FAIL;
+	}
+
+	s_hspl_hw_init = true;
+	return BK_OK;
+}
+#endif
+
 static inline void hspl_lazy_init(void)
 {
 	if (s_hspl_driver_init) {

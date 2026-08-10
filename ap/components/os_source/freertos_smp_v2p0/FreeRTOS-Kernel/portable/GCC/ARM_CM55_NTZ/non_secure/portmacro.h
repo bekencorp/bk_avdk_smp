@@ -206,6 +206,10 @@ extern BaseType_t xIsPrivileged( void ) /* __attribute__ (( naked )) */;
     #define portSVC_FREE_SECURE_CONTEXT        1
     #define portSVC_START_SCHEDULER            2
     #define portSVC_RAISE_PRIVILEGE            3
+#if CONFIG_DEEP_LV || CONFIG_PM_AP_FAST_BOOT_ENABLE
+    #define portSVC_DEEP_LV_ENTER              0x0D
+    #define portSVC_DEEP_LV_EXIT               0x0E
+#endif
 /*-----------------------------------------------------------*/
 
 /**

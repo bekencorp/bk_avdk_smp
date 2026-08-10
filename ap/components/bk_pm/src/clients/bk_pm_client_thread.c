@@ -5,6 +5,11 @@
 #include "driver/pm_ap_core.h"
 #include <os/mem.h>
 #include "FreeRTOS.h"
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE && CONFIG_CPU_HOTPLUG
+#include "multicore_driver.h"
+#include "sys_types.h"
+#include <driver/aon_rtc.h>
+#endif
 
 /*=====================DEFINE  SECTION  START=====================*/
 
@@ -85,7 +90,60 @@ static bk_err_t pm_ap_core_message_handle(void)
                 break;
                 case PM_AP_CORE_AP_RECOVERY:
                 {
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+                    LOGI("AP fast suspend: recovery begin seq=%u\r\n",
+                        msg.param1);
+#endif
                     bk_pm_ap_close_ap_handle_callback();
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+                    LOGI("AP fast suspend: close callbacks ready seq=%u\r\n",
+                        msg.param1);
+#endif
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE && CONFIG_CPU_HOTPLUG
+                    /*
+                     * Fast resume retains CPU2 only. Run CPU3 hotplug from this
+                     * CPU2-pinned PM task before the idle path captures the AP
+                     * context. It is unsafe to run the hotplug state machine
+                     * from sys_hal_enter_cpu_wfi()'s critical section.
+                     */
+                    if (bk_cpu_hp_is_online(CPU3_CORE_ID)) {
+                        ret = bk_cpu_hp_offline_direct(CPU3_CORE_ID);
+                        if (ret != BK_OK) {
+                            LOGE("AP fast suspend: CPU3 offline failed[%d]\r\n", ret);
+                        } else {
+                            LOGI("AP fast suspend: CPU3 offline ready\r\n");
+                        }
+                    }
+#endif
+                }
+                break;
+                case PM_AP_CORE_CPU3_ONLINE:
+                {
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE && CONFIG_CPU_HOTPLUG
+                    if (!bk_cpu_hp_is_online(CPU3_CORE_ID)) {
+                        uint64_t online_start =
+                            bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
+                        ret = bk_cpu_hp_online_direct(CPU3_CORE_ID);
+                        uint64_t online_end =
+                            bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
+                        uint32_t online_us =
+                            (uint32_t)(((online_end - online_start) * 1000000ULL) >> 15);
+                        LOGI("AP_TIME cpu3_online total_us=%u stage=%u\r\n",
+                            online_us, bk_cpu3_fast_resume_stage_get());
+                        if (ret != BK_OK) {
+                            LOGE("AP fast resume: CPU3 online failed[%d]\r\n", ret);
+                        } else {
+                            LOGI("AP fast resume: CPU3 online ready\r\n");
+                        }
+                    }
+                    if (!bk_cpu_hp_is_online(CPU3_CORE_ID)) {
+                        /*
+                         * AP0 already published fast-resume success. Keep CPU3
+                         * failure visible without forcing CP into cold fallback.
+                         */
+                        LOGE("AP fast resume: CPU3 not ready, AP0 remains available\r\n");
+                    }
+#endif
                 }
                 break;
                 case PM_AP_CORE_SLEEP_WAKEUP_NOTIFY:

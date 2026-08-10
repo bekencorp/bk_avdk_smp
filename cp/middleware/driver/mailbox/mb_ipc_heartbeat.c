@@ -228,10 +228,18 @@ static bk_err_t mb_ipc_exit_lv(uint64_t sleep_time, void *args)
 {
 	cpu_x_heartbeat_timestamp = (u32)rtos_get_time();
 	s_mb_ipc_work_state = MB_IPC_EXIT_LV;
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE && CONFIG_CP_HANG_DUMP_BY_AP
+	extern void bk_cp_hang_debug_heartbeat_lv_exit(void);
+	bk_cp_hang_debug_heartbeat_lv_exit();
+#endif
 	return BK_OK;
 }
 static bk_err_t mb_ipc_enter_lv(uint64_t sleep_time, void *args)
 {
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE && CONFIG_CP_HANG_DUMP_BY_AP
+	extern void bk_cp_hang_debug_heartbeat_lv_enter(void);
+	bk_cp_hang_debug_heartbeat_lv_enter();
+#endif
 	return BK_OK;
 }
 static bk_err_t mb_ipc_init_lv_callback()
@@ -378,6 +386,19 @@ void mb_ipc_heartbeat_notify(u32 cpu_id)
 	{
 		return;
 	}
+
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+	/*
+	 * A fast-resumed AP continues in the existing heartbeat task, so its
+	 * one-shot POWER_UP indication at task entry is not sent again. A regular
+	 * heartbeat received while STARTING is equivalent proof that the AP is
+	 * alive and must complete the start handshake.
+	 */
+	if(cpu_x_state == CORE_STARTING)
+	{
+		rtos_set_event_ex(&mb_ipc_heart_event, MB_IPC_POWER_UP_FLAG);
+	}
+#endif
 	rtos_set_event_ex(&mb_ipc_heart_event, MB_IPC_HEARTBEAT_FLAG);
 }
 

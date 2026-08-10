@@ -168,6 +168,14 @@ volatile uint32_t g_reset_entry_state_core0 = 0;
  *----------------------------------------------------------------------------*/
 __NO_RETURN ENTRY_SECTION void Reset_Handler_Core0(void)
 {
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+  /*
+   * Resume before touching .data/.bss: CP has already restored AP SRAM/DTCM,
+   * and normal C runtime initialization would destroy the suspended RTOS.
+   */
+  dlv_hook();
+#endif
+
   g_reset_entry_state_core0 = 1;
 
   __set_MSPLIM((uint32_t)(&__STACK_LIMIT_CORE0));

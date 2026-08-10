@@ -52,8 +52,14 @@ bk_err_t bk_multicore_stop(uint32_t cpu_id)
 
 #if CONFIG_CPU_HOTPLUG
 
-#define AP_HOTPLUG_TIMEOUT_STAPS        (3)
-#define AP_HOTPLUG_TIMEOUT_STAPS_ONLINE (20)
+/*
+ * CPU3 hotplug requires task migration and an idle-task handshake. The old
+ * offline window was only 1.5 ms, which caused a false BK_ERR_TIMEOUT before
+ * CPU3 could drain its scheduler. Online can likewise take more than 30 ms
+ * after an AP power-cycle.
+ */
+#define AP_HOTPLUG_TIMEOUT_STAPS        (200)
+#define AP_HOTPLUG_TIMEOUT_STAPS_ONLINE (200)
 #define AP_HOTPLUG_TIMEOUT_ONE_STEP     (1)
 #define AP_HOTPLUG_TIMEOUT_ONE_STEP_US  (AP_HOTPLUG_TIMEOUT_ONE_STEP * 500) /* 500us */
 #define AP_HOTPLUG_TIMEOUT_ONE_STEP_MS  (AP_HOTPLUG_TIMEOUT_ONE_STEP)       /* 1ms */
@@ -109,6 +115,14 @@ static volatile uint32_t _cpu3_offline_ack1;
 static volatile uint32_t _cpu3_offline_ack2;
 static volatile uint32_t _cpu3_offline_ack3;
 static volatile uint32_t _cpu3_online_ack;
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+#define CPU3_FAST_RESUME_REQUEST_MAGIC (0x43503352UL)
+static SPINLOCK_SECTION volatile uint32_t _cpu3_fast_resume_request;
+static SPINLOCK_SECTION volatile uint32_t _cpu3_fast_resume_stage;
+static SPINLOCK_SECTION volatile uint32_t _cpu3_online_requested;
+/* 0: CPU3 waits with BASEPRI raised, 1: CPU0 published online state, 2: abort. */
+static SPINLOCK_SECTION volatile uint32_t _cpu3_online_release;
+#endif
 static ap_cpu3_irq_route_snapshot_t _cpu3_irq_route;
 
 static cpu_hp_domain_t _ap_domain = {
@@ -561,6 +575,11 @@ static bk_err_t _cpu_hp_online_internal(uint32_t cpu_id, uint32_t from_atomic)
 
 	_cpu_hp_set_state(domain, cpu_id, BK_CPU_HP_STATE_POWER_ON);
 	_cpu3_online_ack = 0;
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+	_cpu3_online_requested = 1;
+	_cpu3_online_release = 0;
+	_cpu_hp_barrier();
+#endif
 #if CONFIG_CPU_HOTPLUG_BOOT_OFFLINE
 	if (domain->cold_boot == 0) {
 #endif
@@ -580,7 +599,23 @@ static bk_err_t _cpu_hp_online_internal(uint32_t cpu_id, uint32_t from_atomic)
 	else
 		goto fail_online;
 
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+	/*
+	 * The ACK is valid only from vRestoreContextOfFirstTask(), after CPU3 has
+	 * installed a valid PSP/PSPLIM/CONTROL with PendSV and SysTick still
+	 * masked. Never expose CPU3 to IRQ routing or the SMP scheduler earlier.
+	 */
+	if ((ret == BK_OK) && (_cpu3_fast_resume_stage != 7U)) {
+		MULTICORE_LOGE("cpu3 invalid online ACK stage=%u\r\n",
+			_cpu3_fast_resume_stage);
+		ret = BK_ERR_STATE;
+	}
+#endif
+
 	if (ret == BK_OK) {
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+		_cpu3_online_requested = 0;
+#endif
 #if CONFIG_TASK_WDT
 		bk_task_wdt_set_feed_bits(smp_core, true);
 #else
@@ -602,10 +637,28 @@ static bk_err_t _cpu_hp_online_internal(uint32_t cpu_id, uint32_t from_atomic)
 		 * outgoing doorbell that was lost while CPU3 was still joining, so a
 		 * stuck "busy" flag can't swallow the next hotplug STOP. */
 		crosscore_int_reset_send();
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+		/*
+		 * Second phase of the online handshake. CPU3 is still blocked in
+		 * vRestoreContextOfFirstTask() with BASEPRI raised; release it only
+		 * after online/active state, IRQ routes and mailbox are all visible.
+		 */
+		_cpu3_online_release = 1U;
+		_cpu_hp_barrier();
+		__SEV();
+#endif
 		goto out;
 	}
 
 fail_online:
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+	MULTICORE_LOGE("cpu3 online failed[%d], fast-resume stage=%u\r\n",
+		ret, _cpu3_fast_resume_stage);
+	_cpu3_online_requested = 0;
+	_cpu3_online_release = 2U;
+	_cpu_hp_barrier();
+	__SEV();
+#endif
 	bk_multicore_stop(CPU3_CORE_ID);
 	_cpu_hp_domain_set_active(domain, cpu_id, 0);
 	_cpu_hp_domain_set_online(domain, cpu_id, 0);
@@ -741,14 +794,82 @@ void bk_cpu_hp_core_stop_hmb_isr(void)
 	_cpu_hp_domain_set_active(domain, cpu_id, 0);
 }
 
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+void bk_cpu3_fast_resume_prepare(void)
+{
+	_cpu3_fast_resume_stage = 1U;
+	_cpu3_fast_resume_request = CPU3_FAST_RESUME_REQUEST_MAGIC;
+	_cpu_hp_barrier();
+}
+
+uint32_t bk_cpu3_fast_resume_consume(void)
+{
+	if (_cpu3_fast_resume_request != CPU3_FAST_RESUME_REQUEST_MAGIC) {
+		return 0U;
+	}
+
+	_cpu3_fast_resume_request = 0U;
+	_cpu3_fast_resume_stage = 2U;
+	_cpu_hp_barrier();
+	return 1U;
+}
+
+uint32_t bk_cpu3_fast_resume_is_pending(void)
+{
+	return (_cpu3_fast_resume_request == CPU3_FAST_RESUME_REQUEST_MAGIC) ?
+		1U : 0U;
+}
+
+void bk_cpu3_fast_resume_stage_set(uint32_t stage)
+{
+	_cpu3_fast_resume_stage = stage;
+	_cpu_hp_barrier();
+}
+
+uint32_t bk_cpu3_fast_resume_stage_get(void)
+{
+	return _cpu3_fast_resume_stage;
+}
+
+void bk_cpu_hp_core_online_ready(void)
+{
+	if ((portGET_CORE_ID() == SMP_CORE1_ID) &&
+	    (_cpu3_online_requested != 0U)) {
+		_cpu3_fast_resume_stage = 7U;
+		_cpu3_online_ack = 1U;
+		_cpu_hp_barrier();
+
+		/*
+		 * Keep CPU3 inside the first-context restore window with BASEPRI
+		 * raised until CPU0 has published every online/active/IRQ/mailbox
+		 * state. This prevents an early PendSV/SysTick from entering the SMP
+		 * scheduler while CPU0 still treats CPU3 as offline.
+		 */
+		while (_cpu3_online_release == 0U) {
+			__WFE();
+		}
+		_cpu_hp_barrier();
+		if (_cpu3_online_release != 1U) {
+			while (1) {
+				__WFI();
+			}
+		}
+	}
+}
+#endif
+
 static void _cpu_hp_idle_handler_online(cpu_hp_domain_t *domain, uint32_t cpu_id)
 {
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+	bk_cpu_hp_core_online_ready();
+#else
 	if ((portGET_CORE_ID() == SMP_CORE1_ID) &&
 	    (_ap_domain.cpu_state[CPU3_CORE_ID] == BK_CPU_HP_STATE_SECONDARY_BOOT)) {
 		_cpu_hp_set_state(&_ap_domain, CPU3_CORE_ID, BK_CPU_HP_STATE_JOIN_SCHEDULER);
 		_cpu3_online_ack = 1;
 		_cpu_hp_barrier();
 	}
+#endif
 	_cpu3_wants_offline = -1;
 }
 
@@ -782,7 +903,19 @@ static void _cpu_hp_idle_handler_offline(cpu_hp_domain_t *domain, uint32_t cpu_i
 		AP_HOTPLUG_NVIC_ICPR_BASE[i] = 0xffffffff;
 	}
 
-#if CONFIG_CACHE_MAINTENANCE
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+	/*
+	 * CPU2 remains live while CPU3 is being offlined. flush_all_dcache()
+	 * includes shared-L2 maintenance when L2 is enabled and can discard or
+	 * rewrite CPU2's live FreeRTOS kernel state. Commit only CPU3's private
+	 * L1 dirty lines to L2/memory, then invalidate its private tags.
+	 */
+#if CONFIG_DCACHE
+	SCB_CleanInvalidateDCache();
+	__DSB();
+	__ISB();
+#endif
+#elif CONFIG_CACHE_MAINTENANCE
 	flush_all_dcache();
 #endif
 	vTaskHotplugClearCurrentTCB(SMP_CORE1_ID);

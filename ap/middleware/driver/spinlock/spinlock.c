@@ -101,12 +101,25 @@ static inline void spinlock_give(volatile spinlock_t *lock)
 
 	if(core_id != lock->owner)
 	{
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+		BK_DUMP_OUT("spinlock owner mismatch: lock=%p caller=%u owner=0x%x count=%u recorded_core=0x%x basepri=0x%x hspl_sta0=0x%x\r\n",
+			lock, (unsigned int)core_id, (unsigned int)lock->owner,
+			(unsigned int)lock->count, (unsigned int)lock->core_id,
+			(unsigned int)__get_BASEPRI(),
+			(unsigned int)bk_hspl_read_sta_raw(BK_HSPL_ID_1, 0));
+#endif
 		BK_ASSERT(0);
 		return;
 	}
 
 	if(lock->count == 0)
 	{
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+		BK_DUMP_OUT("spinlock zero count: lock=%p caller=%u owner=0x%x recorded_core=0x%x basepri=0x%x hspl_sta0=0x%x\r\n",
+			lock, (unsigned int)core_id, (unsigned int)lock->owner,
+			(unsigned int)lock->core_id, (unsigned int)__get_BASEPRI(),
+			(unsigned int)bk_hspl_read_sta_raw(BK_HSPL_ID_1, 0));
+#endif
 		BK_ASSERT(0);
 		return;
 	}

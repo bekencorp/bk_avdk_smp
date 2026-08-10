@@ -75,5 +75,16 @@ menu "PM"
 		bool "Power down ap when sleep"
 		default n
 
+	config PM_AP_FAST_BOOT_ENABLE
+		bool "Restore AP FreeRTOS execution point after AP power cycle"
+		depends on SOC_SMP && PSRAM_DATA_RETENTION_ENABLE
+		select DEEP_LV
+		default n
+		help
+			Save the AP CPU0 architectural context before WFI and resume it
+			from the reset vector using retained AP SRAM. Back up power-gated
+			DTCM into retained AP SRAM and restore it before re-enabling
+			interrupts. The secondary AP core must be offline before capture.
+
 endmenu
 

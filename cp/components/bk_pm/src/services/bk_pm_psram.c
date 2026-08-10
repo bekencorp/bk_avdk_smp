@@ -291,7 +291,7 @@ static bk_err_t bk_pm_psram_init_and_check(void)
 	{
 		return ret;
 	}
-	return BK_OK;
+	return ret;
 }
 
 /*
@@ -426,7 +426,7 @@ bk_err_t bk_pm_module_vote_psram_ctrl(pm_power_psram_module_name_e module,pm_pow
 			}
 		}
 	}
-	return BK_OK;
+	return ret;
 }
 
 bk_err_t pm_cp1_psram_malloc_count_state_set(uint32_t value)

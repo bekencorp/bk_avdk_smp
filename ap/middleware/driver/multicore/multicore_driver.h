@@ -69,6 +69,14 @@ void bk_cpu_hp_exit_primary(uint32_t old_core_id);
 
 void bk_cpu_hp_core_stop_hmb_isr(void);
 void bk_cpu_hp_idle_handler(void);
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+void bk_cpu3_fast_resume_prepare(void);
+uint32_t bk_cpu3_fast_resume_consume(void);
+uint32_t bk_cpu3_fast_resume_is_pending(void);
+void bk_cpu3_fast_resume_stage_set(uint32_t stage);
+uint32_t bk_cpu3_fast_resume_stage_get(void);
+void bk_cpu_hp_core_online_ready(void);
+#endif
 
 #if CONFIG_CPU_HP_GOVERNOR
 

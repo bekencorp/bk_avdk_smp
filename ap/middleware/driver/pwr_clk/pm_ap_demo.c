@@ -202,6 +202,16 @@ static bk_err_t pm_demo_message_handle(void)
 bk_err_t pm_demo_thread_main(void)
 {
 	bk_err_t ret = BK_OK;
+
+	/* Fast resume retains the demo queue and thread; repeated CLI "init"
+	 * commands must not create duplicate workers on the same retained state. */
+	if ((s_thd != NULL) && (s_queue != NULL))
+		return BK_OK;
+	if ((s_thd != NULL) || (s_queue != NULL)) {
+		LOGE("pm demo partial init state\r\n");
+		return BK_FAIL;
+	}
+
 	ret = rtos_init_queue(&s_queue,
 							"demo_queue",
 							sizeof(pm_ap_core_msg_t),

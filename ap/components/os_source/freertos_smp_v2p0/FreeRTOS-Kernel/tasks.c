@@ -625,9 +625,20 @@ void vTaskHotplugResetIdleTaskContext( BaseType_t xCoreID )
         return;
     }
 
+    /*
+     * CPU0 rebuilds CPU3's retained idle TCB while the CPU0 scheduler remains
+     * live. Serialize the complete TCB/stack/current-task update with normal
+     * scheduler decisions so no core can observe a partially rebuilt context.
+     */
+    #if CONFIG_PM_AP_FAST_BOOT_ENABLE
+    taskENTER_CRITICAL( &xKernelLock );
+    #endif
     pxIdleTCB = ( TCB_t * ) xIdleTaskHandle[ xCoreID ];
     if( pxIdleTCB == NULL )
     {
+        #if CONFIG_PM_AP_FAST_BOOT_ENABLE
+        taskEXIT_CRITICAL( &xKernelLock );
+        #endif
         return;
     }
 
@@ -703,6 +714,9 @@ void vTaskHotplugResetIdleTaskContext( BaseType_t xCoreID )
     pxCurrentTCBs[ xCoreID ] = pxIdleTCB;
     uxSchedulerSuspended[ xCoreID ] = ( UBaseType_t ) pdFALSE;
     xYieldPending[ xCoreID ] = pdFALSE;
+    #if CONFIG_PM_AP_FAST_BOOT_ENABLE
+    taskEXIT_CRITICAL( &xKernelLock );
+    #endif
 }
 
 BaseType_t xTaskHotplugSetCurrentTaskCoreID( BaseType_t xCoreID )

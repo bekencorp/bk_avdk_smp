@@ -203,13 +203,15 @@ psram_test_ext stack_stress_stop
 
 ### 测试地址与 PSRAM 栈分配范围
 
-`rtos_create_psram_thread` 内部通过 `xTaskCreateInPsram` → `psram_malloc` 分配 TCB 和栈内存。`psram_malloc` 从 **`AP_PSRAM_HEAP`** 区域分配：
+`rtos_create_psram_thread` 内部通过 `xTaskCreateInPsram` → `psram_malloc` 从
+**`AP_PSRAM_HEAP`** 分配任务栈。启用 AP fast boot 时，TCB 及其调度器链表节点
+保留在 SRAM，避免 PSRAM 恢复异常直接破坏 FreeRTOS ready/delayed list：
 
 | 堆区域 | 起始地址 | 大小 | 说明 |
 |--------|----------|------|------|
 | `AP_PSRAM_HEAP` | **0x64E20000** | **640KB**（0xA0000） | PSRAM 堆，`psram_malloc` 的内存来源 |
 
-因此，`stack_stress` 创建的 PSRAM 栈任务，其 **栈实际物理地址范围在 0x64E20000 ~ 0x64EC0000（AP_PSRAM_HEAP）内**，位于 PSRAM1 空间。
+因此，`stack_stress` 创建的 PSRAM 栈任务，其 **栈实际物理地址范围在 0x64E20000 ~ 0x64EC0000（AP_PSRAM_HEAP）内**，位于 PSRAM1 空间；启用 AP fast boot 时 TCB 不在此范围内。
 
 ### 栈空间预算
 

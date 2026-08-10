@@ -165,6 +165,25 @@ static inline void *task_malloc(size_t size, beken_mem_type_t eMemType)
     }
 }
 
+/*
+ * During AP fast boot, keep scheduler metadata in retained SRAM even when a
+ * task stack is placed in PSRAM. TCB_t embeds the state/event list items used
+ * by the scheduler; losing or transiently misreading one PSRAM cache line
+ * otherwise corrupts the global ready/delayed lists before the task stack is
+ * ever used.
+ */
+static inline void *task_tcb_malloc(size_t size, beken_mem_type_t eMemType)
+{
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+    if (eMemType == HEAP_MEM_TYPE_PSRAM)
+    {
+        return task_malloc(size, HEAP_MEM_TYPE_DEFAULT);
+    }
+#endif
+
+    return task_malloc(size, eMemType);
+}
+
 /* -------------------------------------------------- Task Creation ------------------------------------------------- */
 
 #if ( configSUPPORT_DYNAMIC_ALLOCATION == 1 )
@@ -202,7 +221,7 @@ static inline void *task_malloc(size_t size, beken_mem_type_t eMemType)
                 * the implementation of the port malloc function and whether or not static
                 * allocation is being used. */
 
-                pxNewTCB = ( TCB_t * ) task_malloc( sizeof( TCB_t ), eMemType );
+                pxNewTCB = ( TCB_t * ) task_tcb_malloc( sizeof( TCB_t ), eMemType );
 
                 if( pxNewTCB != NULL )
                 {
@@ -230,7 +249,7 @@ static inline void *task_malloc(size_t size, beken_mem_type_t eMemType)
                 if( pxStack != NULL )
                 {
                     /* Allocate space for the TCB. */
-                    pxNewTCB = ( TCB_t * ) task_malloc( sizeof( TCB_t ), eMemType ); /*lint !e9087 !e9079 All values returned by pvPortMalloc() have at least the alignment required by the MCU's stack, and the first member of TCB_t is always a pointer to the task's stack. */
+                    pxNewTCB = ( TCB_t * ) task_tcb_malloc( sizeof( TCB_t ), eMemType ); /*lint !e9087 !e9079 All values returned by pvPortMalloc() have at least the alignment required by the MCU's stack, and the first member of TCB_t is always a pointer to the task's stack. */
 
                     if( pxNewTCB != NULL )
                     {

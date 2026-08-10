@@ -62,6 +62,17 @@ set(srcs
 	#pwr_clk/pm_ap_core.c
 	chip_support/chip_support.c
 	)
+
+if (CONFIG_PM_AP_FAST_BOOT_ENABLE)
+	list(APPEND incs
+		deep_lv
+		$ENV{ARMINO_PATH}/components/bk_pm/include
+	)
+	list(APPEND srcs
+		deep_lv/deep_lv.c
+	)
+endif()
+
 if (CONFIG_SARADC)
 	list(APPEND srcs
 		saradc/saradc_client.c

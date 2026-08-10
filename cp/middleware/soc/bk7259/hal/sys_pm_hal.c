@@ -125,6 +125,30 @@ __IRAM_PM static void sys_hal_config_ap_sram_power_down(void)
 }
 #endif
 
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+/*
+ * AP fast boot restores the suspended RTOS directly from retained memory.
+ * Keep all AP SRAM banks and CPU cache SRAM powered while CP enters low
+ * voltage, regardless of the generic AP SRAM power-down configuration.
+ */
+__IRAM_PM static void sys_hal_keep_ap_sram_power_on(void)
+{
+	aon_pmu_ll_set_r2_m55_mem3_pwd(0);
+	timer_hal_early_delay_us_iram(1);
+	aon_pmu_ll_set_r2_m55_mem4_pwd(0);
+	timer_hal_early_delay_us_iram(1);
+	aon_pmu_ll_set_r2_m55_mem5_pwd(0);
+	timer_hal_early_delay_us_iram(1);
+	aon_pmu_ll_set_r2_m55_mem6_pwd(0);
+	timer_hal_early_delay_us_iram(1);
+	aon_pmu_ll_set_r2_m55_cpu2_cache_pwd(0);
+	timer_hal_early_delay_us_iram(1);
+	aon_pmu_ll_set_r2_m55_cpu3_cache_pwd(0);
+	timer_hal_early_delay_us_iram(1);
+	aon_pmu_ll_set_r2_m55_mem_auto_set(0);
+}
+#endif
+
 #define portNVIC_SYSTICK_CTRL_REG             ( *( ( volatile uint32_t * ) 0xe000e010 ) )
 #define portNVIC_SYSTICK_LOAD_REG             ( *( ( volatile uint32_t * ) 0xe000e014 ) )
 #define portNVIC_SYSTICK_CURRENT_VALUE_REG    ( *( ( volatile uint32_t * ) 0xe000e018 ) )
@@ -1714,7 +1738,9 @@ __IRAM_PM void sys_hal_enter_low_voltage(void)
 	uint32_t v_ana_r14 = sys_ll_get_ana_reg14_value();
 	#endif
 
-	#if CONFIG_PM_AP_SRAM_POWER_CTRL
+	#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+	sys_hal_keep_ap_sram_power_on();
+	#elif CONFIG_PM_AP_SRAM_POWER_CTRL
 	sys_hal_config_ap_sram_power_down();
 	#endif
 	#if CONFIG_DEEP_LV
@@ -2573,10 +2599,9 @@ static int sys_hal_power_config_default()
 	sys_ll_set_ana_reg6_manu_cin(0x0);
 
 	#if CONFIG_PM_ONLY_CP_ENABLE
-	#if CONFIG_PM_CP_CPU1_BAKP_AUDP_DOMAIN_DEFAULT_OFF
+	#if !CONFIG_PM_AP_FAST_BOOT_ENABLE && CONFIG_PM_CP_CPU1_BAKP_AUDP_DOMAIN_DEFAULT_OFF
 	sys_ll_set_reserver_reg0x10_pwd_cpu1(0x1);
 	#endif
-
 	sys_ll_set_reserver_reg0x10_pwd_vehp(0x1);
 	//sys_ll_set_reserver_reg0x10_pwd_wrls(0x1);
 	sys_ll_set_reserver_reg0x10_rom_pgen(0x1);
