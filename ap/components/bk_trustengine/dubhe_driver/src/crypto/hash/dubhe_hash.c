@@ -27,7 +27,7 @@
 
 /* Normal-host DMA uses peri NS alias 0x38xxxxxx; CPU direct is 0x3Cxxxxxx. */
 #if !defined(DUBHE_SECURE)
-#define DBH_HASH_DMA_ADDR(p) ((uint32_t)SOC_SRAM_PERI_ADDR_SECURE((uintptr_t)(p)))
+#define DBH_HASH_DMA_ADDR(p) ((uint32_t)SOC_SRAM_PERI_ADDR((uintptr_t)(p)))
 #else
 #define DBH_HASH_DMA_ADDR(p) ((uint32_t)(uintptr_t)(p))
 #endif

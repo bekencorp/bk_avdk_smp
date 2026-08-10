@@ -34,6 +34,31 @@
 unsigned long _g_Dubhe_RegBase;
 static int do_dubhe_driver_init( unsigned long dbh_base_addr );
 bool dubhe_inited = false;
+#if !defined(DUBHE_SECURE)
+static bool s_ns_runtime_ready;
+
+static void dubhe_ns_clear_engine_intr( void )
+{
+    uint32_t st;
+
+    if (_g_Dubhe_RegBase == 0) {
+        return;
+    }
+
+    st = DBH_READ_REGISTER( SCA, SCA_INTR_STAT );
+    if (st) {
+        DBH_WRITE_REGISTER( SCA, SCA_INTR_STAT, st );
+    }
+    st = DBH_READ_REGISTER( HASH, HASH_INTR_STAT );
+    if (st) {
+        DBH_WRITE_REGISTER( HASH, HASH_INTR_STAT, st );
+    }
+    st = DBH_READ_REGISTER( ACA, ACA_INTR_STAT );
+    if (st) {
+        DBH_WRITE_REGISTER( ACA, ACA_INTR_STAT, st );
+    }
+}
+#endif
 
 static void dubhe_delay_us(uint32 num) {
 
@@ -146,6 +171,11 @@ static void dubhe_lv_init(void)
 #pragma GCC target("general-regs-only")
 static void __BK_IRQ te200_isr(void)
 {
+#if !defined(DUBHE_SECURE)
+	if (!s_ns_runtime_ready) {
+		return;
+	}
+#endif
 	extern int dubhe_intr_handler(void);
 	dubhe_intr_handler();
 }
@@ -164,21 +194,13 @@ static int do_dubhe_driver_init( unsigned long dbh_base_addr )
 
 #if defined(DUBHE_SECURE)
     bk_interrupt_register_m55sub_int(INT_SRC_CP_ENC_SEC, te200_isr);
-#else
-    bk_interrupt_register_m55sub_int(INT_SRC_CP_ENC_NSEC, te200_isr);
-#endif
-
-#if defined(DUBHE_SECURE)
     dubhe_dma_disable();
-#endif
 
 #if defined( ARM_CE_DUBHE_ACA )
     dubhe_aca_driver_init( );
 #endif
 #if defined( ARM_CE_DUBHE_HASH )
-#if defined( DUBHE_SECURE )
     dubhe_clk_enable( DBH_MODULE_HASH );
-#endif
     arm_ce_hash_driver_init( );
 #endif
 #if defined( ARM_CE_DUBHE_SCA )
@@ -187,13 +209,36 @@ static int do_dubhe_driver_init( unsigned long dbh_base_addr )
 #if defined( ARM_CE_DUBHE_TRNG )
     arm_ce_trng_driver_init( );
 #endif
-#if defined( ARM_CE_DUBHE_OTP ) && defined( DUBHE_SECURE )
+#if defined( ARM_CE_DUBHE_OTP )
     arm_ce_otp_driver_init( );
 #endif
 
 #if defined( DUBHE_FOR_RUNTIME )
     dubhe_event_init( );
 #endif
+
+#else /* Normal: SPE owns power/TOP_CTRL; defer ENC_NSEC IRQ until first use */
+
+    s_ns_runtime_ready = false;
+
+#if defined( ARM_CE_DUBHE_ACA )
+    dubhe_aca_driver_init( );
+#endif
+#if defined( ARM_CE_DUBHE_HASH )
+    arm_ce_hash_driver_init( );
+#endif
+#if defined( ARM_CE_DUBHE_SCA )
+    arm_ce_sca_driver_init( );
+#endif
+#if defined( ARM_CE_DUBHE_TRNG )
+    arm_ce_trng_driver_init( );
+#endif
+
+#if defined( DUBHE_FOR_RUNTIME )
+    dubhe_event_init( );
+#endif
+
+#endif /* DUBHE_SECURE */
 
     rtos_enable_int(int_level);
     return 0;
@@ -221,13 +266,43 @@ int dubhe_driver_init( unsigned long dbh_base_addr )
     return ret;
 }
 
+#if !defined(DUBHE_SECURE)
+void dubhe_ns_prepare_runtime( void )
+{
+    uint32_t int_level;
+
+    if (s_ns_runtime_ready) {
+        return;
+    }
+
+    int_level = rtos_disable_int();
+
+    if (_g_Dubhe_RegBase == 0) {
+        rtos_enable_int(int_level);
+        return;
+    }
+
+#if defined( DUBHE_FOR_RUNTIME )
+    dubhe_event_init( );
+#endif
+
+    dubhe_ns_clear_engine_intr();
+    bk_interrupt_register_m55sub_int(INT_SRC_CP_ENC_NSEC, te200_isr);
+    s_ns_runtime_ready = true;
+    rtos_enable_int(int_level);
+}
+#endif
+
 void dubhe_driver_cleanup( void )
 {
 
 #if defined(DUBHE_SECURE)
     bk_interrupt_unregister_m55sub_int(INT_SRC_CP_ENC_SEC);
 #else
-    bk_interrupt_unregister_m55sub_int(INT_SRC_CP_ENC_NSEC);
+    if (s_ns_runtime_ready) {
+        bk_interrupt_unregister_m55sub_int(INT_SRC_CP_ENC_NSEC);
+        s_ns_runtime_ready = false;
+    }
 #endif
 
 #if defined( ARM_CE_DUBHE_ACA )

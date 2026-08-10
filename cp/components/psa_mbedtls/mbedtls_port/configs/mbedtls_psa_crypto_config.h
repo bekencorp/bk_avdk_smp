@@ -4224,7 +4224,8 @@
 #endif /* CRYPTO_NV_SEED */
 
 #if defined(CRYPTO_HW_ACCELERATOR)
-#if defined(CONFIG_TFM)
+/* SPE=1: Secure TE window. SPE=0: Normal TE window (NS). */
+#if !CONFIG_SPE
 #include "mbedtls_accelerator_config_ns.h"
 #else
 #include "mbedtls_accelerator_config.h"

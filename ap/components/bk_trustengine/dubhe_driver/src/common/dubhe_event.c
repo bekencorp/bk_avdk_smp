@@ -19,6 +19,7 @@
 #include "pal_log.h"
 #include "pal.h"
 #include "dubhe_sca.h"
+#include "dubhe_driver.h"
 #if defined( DUBHE_FOR_RUNTIME )
 #if !defined( TEE_M )
 static semaphore_t _g_aca_done_sem       = NULL;
@@ -196,6 +197,9 @@ void dubhe_event_cleanup( void )
 int32_t dubhe_wait_event( dubhe_event_type_t dubhe_event )
 {
 #if !defined( TEE_M )
+#if !defined( DUBHE_SECURE )
+    dubhe_ns_prepare_runtime( );
+#endif
     int32_t ret = 0;
     switch ( dubhe_event ) {
     case DBH_EVENT_SCA_CMD_EXCUTED:
@@ -282,6 +286,9 @@ int32_t dubhe_mutex_lock( dubhe_mutex_type_t dubhe_mutex )
 {
 #if defined( DUBHE_FOR_RUNTIME )
 #if !defined( TEE_M )
+#if !defined( DUBHE_SECURE )
+    dubhe_ns_prepare_runtime( );
+#endif
     int ret = MUTEX_UNLOCK_FAIL;
     switch ( dubhe_mutex ) {
     case DBH_SCA_MUTEX:

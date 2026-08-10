@@ -88,8 +88,8 @@ set(hw_defs
 	DUBHE_FOR_RUNTIME
 	MBEDTLS_LOG_LEVEL_ID=${MBEDTLS_LOG_LEVEL_ID}
 )
-	# Non-TFM: Secure window + local PM. TFM NS: Normal window, SPE owns power.
-	if (NOT CONFIG_TFM)
+	# SPE=1: Secure TE window + local PM. SPE=0: Normal TE window, SPE owns power.
+	if (CONFIG_SPE)
 		list(APPEND hw_defs DUBHE_SECURE)
 	endif()
 endif()

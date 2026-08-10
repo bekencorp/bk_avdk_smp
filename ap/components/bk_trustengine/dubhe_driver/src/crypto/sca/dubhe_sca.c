@@ -20,8 +20,18 @@
 #include "pal_log.h"
 #include "pal_string.h"
 #include "dubhe_intr_handler.h"
+#if !defined(DUBHE_SECURE)
+#include "reg_base.h"
+#endif
 
 #define PROC_TIME_FOR_ONE_BLOCK  ( 10 )
+
+/* Normal-host DMA uses peri NS alias 0x38xxxxxx; CPU direct is 0x3Cxxxxxx. */
+#if !defined(DUBHE_SECURE)
+#define DBH_SCA_DMA_ADDR(p) ((uint32_t)SOC_SRAM_PERI_ADDR((uintptr_t)(p)))
+#else
+#define DBH_SCA_DMA_ADDR(p) ((uint32_t)(uintptr_t)(p))
+#endif
 
 #define BIT_MASK( V, M ) ( ( V ) & ( M ) )
 #define RETRY_COUNT 2
@@ -510,14 +520,14 @@ static int arm_ce_sca_execute_sca_init( arm_ce_sca_context_t *ctx,
 
     /* Write parameter part */
     if ( key_type == ARM_CE_SCA_EXTERNAL_KEY )
-        DBH_WRITE_REGISTER( SCA, SCA_QUEUE, ( uint32_t )( ctx->ek1 ) );
+        DBH_WRITE_REGISTER( SCA, SCA_QUEUE, DBH_SCA_DMA_ADDR( ctx->ek1 ) );
     else {
-        DBH_WRITE_REGISTER( SCA, SCA_QUEUE, ( uint32_t )( ctx->ek3 ) );
-        DBH_WRITE_REGISTER( SCA, SCA_QUEUE, ( uint32_t )( ctx->ek2 ) );
-        DBH_WRITE_REGISTER( SCA, SCA_QUEUE, ( uint32_t )( ctx->ek1 ) );
+        DBH_WRITE_REGISTER( SCA, SCA_QUEUE, DBH_SCA_DMA_ADDR( ctx->ek3 ) );
+        DBH_WRITE_REGISTER( SCA, SCA_QUEUE, DBH_SCA_DMA_ADDR( ctx->ek2 ) );
+        DBH_WRITE_REGISTER( SCA, SCA_QUEUE, DBH_SCA_DMA_ADDR( ctx->ek1 ) );
     }
     if ( load_iv ) {
-        DBH_WRITE_REGISTER( SCA, SCA_QUEUE, (uint32_t) iv );
+        DBH_WRITE_REGISTER( SCA, SCA_QUEUE, DBH_SCA_DMA_ADDR( iv ) );
 
         /* For CTR calculate the iv, and save it */
         if ( aes_mode == DBH_SCA_MODE_CTR ) {
@@ -695,9 +705,9 @@ arm_ce_sca_write_process_paramters( arm_ce_sca_context_t *ctx,
     uint8_t opcode                          = DBH_SCA_PROCESS_OPCODE;
     unsigned char temp[ARM_CE_SCA_BLK_SIZE] = {0};
     uint32_t value                          = 0;
-    uint32_t output_addr                    = (uint32_t) output;
-    uint32_t input_addr                     = (uint32_t) input;
-    uint32_t extra_addr                     = (uint32_t) extra;
+    uint32_t output_addr                    = DBH_SCA_DMA_ADDR( output );
+    uint32_t input_addr                     = DBH_SCA_DMA_ADDR( input );
+    uint32_t extra_addr                     = DBH_SCA_DMA_ADDR( extra );
     size_t nc_off                           = ctx->inter_value.ctr_value.nc_off;
     int ret                                 = 0;
     arm_ce_sca_type_t sca_type              = ctx->sca_type;
@@ -736,7 +746,7 @@ arm_ce_sca_write_process_paramters( arm_ce_sca_context_t *ctx,
             DBH_WRITE_REGISTER( SCA, SCA_QUEUE, value );
             DBH_WRITE_REGISTER( SCA, SCA_QUEUE, extra_addr );
             DBH_WRITE_REGISTER( SCA, SCA_QUEUE, ARM_CE_SCA_BLK_SIZE );
-            DBH_WRITE_REGISTER( SCA, SCA_QUEUE, (uint32_t) temp );
+            DBH_WRITE_REGISTER( SCA, SCA_QUEUE, DBH_SCA_DMA_ADDR( temp ) );
             ret = arm_ce_sca_wait_engine_idle( );
             CHECK_RET( );
             pal_memcpy( output + crypt_info->output_offset,
@@ -763,12 +773,12 @@ arm_ce_sca_write_process_paramters( arm_ce_sca_context_t *ctx,
             DBH_WRITE_REGISTER(
                 SCA,
                 SCA_QUEUE,
-                ( uint32_t )( input + crypt_info->input_offset ) );
+                DBH_SCA_DMA_ADDR( input + crypt_info->input_offset ) );
             DBH_WRITE_REGISTER( SCA, SCA_QUEUE, crypt_info->input_data_length );
             DBH_WRITE_REGISTER(
                 SCA,
                 SCA_QUEUE,
-                ( uint32_t )( output + crypt_info->output_offset ) );
+                DBH_SCA_DMA_ADDR( output + crypt_info->output_offset ) );
 #if defined( DUBHE_FOR_RUNTIME )
             /* Wait for interrupt */
             if ( length > DBH_SCA_TRIG_INTR_BLK_SIZE ) {
@@ -792,7 +802,7 @@ arm_ce_sca_write_process_paramters( arm_ce_sca_context_t *ctx,
                 DBH_WRITE_REGISTER( SCA, SCA_QUEUE, value );
                 DBH_WRITE_REGISTER( SCA, SCA_QUEUE, extra_addr );
                 DBH_WRITE_REGISTER( SCA, SCA_QUEUE, ARM_CE_SCA_BLK_SIZE );
-                DBH_WRITE_REGISTER( SCA, SCA_QUEUE, (uint32_t) temp );
+                DBH_WRITE_REGISTER( SCA, SCA_QUEUE, DBH_SCA_DMA_ADDR( temp ) );
                 ret = arm_ce_sca_wait_engine_idle( );
                 CHECK_RET( );
 
@@ -914,7 +924,7 @@ static int arm_ce_sca_execute_sca_finish( arm_ce_sca_context_t *ctx,
 {
     uint8_t opcode    = DBH_SCA_FINISH_OPCODE;
     uint32_t value    = 0;
-    uint32_t mac_addr = (uint32_t) mac;
+    uint32_t mac_addr = DBH_SCA_DMA_ADDR( mac );
     int ret           = 0;
 
     value |= opcode << DBH_SCA_OPCODE_BIT_SHIFT;

@@ -417,7 +417,7 @@ int bk_rng_get(unsigned char *output, size_t len)
         return -1;
     }
 
-#if CONFIG_TRUSTENGINE && !CONFIG_TFM
+#if CONFIG_TRUSTENGINE && defined(DUBHE_SECURE)
     extern int arm_ce_seed_read(unsigned char *buf, size_t buf_len);
     if (arm_ce_seed_read(output, len) == 0) {
         return 0;

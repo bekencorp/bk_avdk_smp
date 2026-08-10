@@ -25,6 +25,7 @@
 #include "interrupt_controller.h"
 #include "stack_base.h"
 #include "sys_hal.h"
+#include "sys_ll.h"
 #include "sys_driver.h"
 
 #define TAG "INT"
@@ -312,9 +313,12 @@ void bk_interrupt_register_m55sub_int(uint32_t int_number, int_group_isr_t isr_c
 
     // BK_LOGE(TAG, "register  int_number(%d), isr_callback(%p)\n", int_number, isr_callback);
 	s_m55sub_irq_handler[int_number] = isr_callback;
-    sys_drv_set_m55sub_int_en(int_number, 1);
 	s_int_m55sub_nest++;
     if (s_int_m55sub_nest == 1) {
+		/* Clear reset-default all-1s inten before opening the aggregated CP IRQ. */
+		sys_ll_set_m55sub_int_0_31_en_m55sub_inten(0);
+		sys_ll_set_m55sub_int_32_63_en_m55sub_inten(0);
+		sys_ll_set_m55sub_int_64_95_en_m55sub_inten(0);
 		/// SMP should enable the interrupt on core 0
 		bk_int_isr_register(INT_SRC_M52S, soc_m55sub_handler, NULL);
 #if CONFIG_SOC_SMP
@@ -323,6 +327,7 @@ void bk_interrupt_register_m55sub_int(uint32_t int_number, int_group_isr_t isr_c
         sys_drv_set_int_en(rtos_get_core_id(), INT_SRC_M52S, 1);
 #endif
     }
+    sys_drv_set_m55sub_int_en(int_number, 1);
 }
 
 void bk_interrupt_unregister_m55sub_int(uint32_t int_number)
