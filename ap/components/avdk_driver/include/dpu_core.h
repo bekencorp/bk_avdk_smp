@@ -158,4 +158,18 @@ bk_err_t dpu_core_flush_restart(dpu_handle_t *handle);
  */
 bk_err_t dpu_core_runtime_switch(dpu_handle_t *handle, const bk_display_pixel_format_config_t *config);
 
+/**
+ * @brief Set the DPI wire OUTPUT coding on a live DPU (static, panel-dependent).
+ *
+ * Independent of the layer INPUT format: RMW of the DPI OUTPUT_FORMAT field.
+ * Takes a dedicated wire-coding enum (::bk_display_dpi_out_format_t), not a
+ * ::bk_pixel_format_t, so the exact 16/18/24-bit CFG variant is selectable.
+ *
+ * @param[in] handle          DPU instance.
+ * @param[in] dpi_out_format  DPI output coding, see ::bk_display_dpi_out_format_t.
+ *
+ * @return BK_OK on success.
+ */
+bk_err_t dpu_core_set_dpi_out_format(dpu_handle_t *handle, bk_display_dpi_out_format_t dpi_out_format);
+
 

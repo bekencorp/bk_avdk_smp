@@ -435,6 +435,11 @@ bk_err_t dpu_core_init(dpu_config_t * dpu_config, dpu_handle_t *handle)
 
     LOGI("%s, %dx%d, %d, %d, %d, %d, %d, %d\n", __func__, dpu_config->video_timing.h_size, dpu_config->video_timing.v_size, dpu_config->video_timing.hsync_pulse_width, dpu_config->video_timing.hsync_back_porch, dpu_config->video_timing.hsync_front_porch, dpu_config->video_timing.vsync_pulse_width, dpu_config->video_timing.vsync_back_porch, dpu_config->video_timing.vsync_front_porch);
 
+    /* The DPI wire OUTPUT format is programmed separately (and is static per
+     * panel) through dpu_core_set_dpi_out_format() / BK_DISPLAY_IOCTL_DPU_OUT_FORMAT,
+     * not from the layer INPUT format. Pass the layer format here only as the
+     * timing-config's nominal format; the actual OUTPUT_FORMAT bits are set by
+     * the ioctl around open. */
     dpu_frame_display_config(dpu_config->video_timing.h_size,
                              dpu_config->video_timing.v_size,
                              dpu_config->video_timing.hsync_pulse_width,
@@ -557,6 +562,43 @@ bk_err_t dpu_core_runtime_switch(dpu_handle_t *handle, const bk_display_pixel_fo
     }
 
 exit:
+    rtos_unlock_mutex(&context->flush_mutex);
+    return ret;
+}
+
+bk_err_t dpu_core_set_dpi_out_format(dpu_handle_t *handle, bk_display_dpi_out_format_t dpi_out_format)
+{
+    dpu_context_t *context;
+    dpu_dpi_out_format_t hw_format;
+    bk_err_t ret;
+
+    AVDK_RETURN_ON_FALSE(handle, BK_ERR_NULL_PARAM, TAG, "invalid argument");
+    context = (dpu_context_t *)*handle;
+    AVDK_RETURN_ON_FALSE(context, BK_ERR_NULL_PARAM, TAG, "invalid handle");
+
+    /* Map the public DPI wire coding onto the driver-level coding. */
+    switch (dpi_out_format)
+    {
+        case BK_DISPLAY_DPI_OUT_RGB565_CFG1: hw_format = DPU_DPI_OUT_RGB565_CFG1; break;
+        case BK_DISPLAY_DPI_OUT_RGB565_CFG2: hw_format = DPU_DPI_OUT_RGB565_CFG2; break;
+        case BK_DISPLAY_DPI_OUT_RGB565_CFG3: hw_format = DPU_DPI_OUT_RGB565_CFG3; break;
+        case BK_DISPLAY_DPI_OUT_RGB666_CFG1: hw_format = DPU_DPI_OUT_RGB666_CFG1; break;
+        case BK_DISPLAY_DPI_OUT_RGB666_CFG2: hw_format = DPU_DPI_OUT_RGB666_CFG2; break;
+        case BK_DISPLAY_DPI_OUT_RGB888:      hw_format = DPU_DPI_OUT_RGB888;      break;
+        default:
+            AVDK_RETURN_ON_FALSE(false, BK_ERR_PARAM, TAG, "invalid dpi out format");
+            return BK_ERR_PARAM;
+    }
+
+    /* Update the DPI output-format truth-source under flush_mutex, then mark the
+     * display dirty so the next flush performs a full commit that latches the
+     * new OUTPUT_FORMAT (a naked shadow write would be clobbered by that commit). */
+    rtos_lock_mutex(&context->flush_mutex);
+    ret = (dpu_frame_set_dpi_out_format(hw_format) == 0) ? BK_OK : BK_FAIL;
+    if (ret == BK_OK)
+    {
+        context->display_dirty = true;
+    }
     rtos_unlock_mutex(&context->flush_mutex);
     return ret;
 }
