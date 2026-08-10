@@ -80,3 +80,10 @@ avdk_err_t bk_display_pixel_format_set(bk_display_ctlr_handle_t handle, const bk
     bk_display_pixel_format_config_t pixel_format_config = *config;
     return bk_display_ioctl(handle, BK_DISPLAY_IOCTL_DPU_PIXEL_FORMAT, (void *)&pixel_format_config);
 }
+
+avdk_err_t bk_display_dpu_out_format_set(bk_display_ctlr_handle_t handle, bk_display_dpi_out_format_t dpi_out_format)
+{
+    AVDK_RETURN_ON_FALSE(handle, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
+    bk_display_dpi_out_format_t out_format = dpi_out_format;
+    return bk_display_ioctl(handle, BK_DISPLAY_IOCTL_DPU_OUT_FORMAT, (void *)&out_format);
+}

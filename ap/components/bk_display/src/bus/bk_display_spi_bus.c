@@ -176,7 +176,12 @@ static avdk_err_t spi_sw_delete(bk_display_bus_ctlr_t *controller)
 avdk_err_t bk_display_spi_bus_new(bk_display_bus_handle_t *handle, bk_display_spi_bus_config_t *config)
 {
     AVDK_RETURN_ON_FALSE(handle, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
-    AVDK_RETURN_ON_FALSE(config, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
+
+    *handle = NULL;
+    if (config == NULL) {
+        LOGI("SPI command bus disabled\n");
+        return AVDK_ERR_OK;
+    }
 
     spi_bus_vn_ctlr_t *bus = os_malloc(sizeof(spi_bus_vn_ctlr_t));
     AVDK_RETURN_ON_FALSE(bus, AVDK_ERR_NOMEM, TAG, AVDK_ERR_NOMEM_TEXT);

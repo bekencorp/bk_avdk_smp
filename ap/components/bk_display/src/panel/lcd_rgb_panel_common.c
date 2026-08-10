@@ -254,6 +254,7 @@ static bk_err_t lcd_rgb_panel_common_read_id(bk_avdk_lcd_panel_t *panel, uint32_
     if (priv->panel->read_id_regs == NULL) {
         return BK_ERR_NOT_SUPPORT;
     }
+    AVDK_RETURN_ON_FALSE(priv->bus_handle, BK_ERR_NOT_SUPPORT, TAG, "panel has no command bus");
 
     uint8_t id_buf[3] = {0};
     uint8_t reg_count = 0;
@@ -297,6 +298,7 @@ static bk_err_t lcd_rgb_panel_common_tx_param(bk_avdk_lcd_panel_t *panel,
 {
     lcd_rgb_panel_common_t *priv = (lcd_rgb_panel_common_t *)panel;
     AVDK_RETURN_ON_FALSE(priv, BK_ERR_NULL_PARAM, TAG, "invalid panel");
+    AVDK_RETURN_ON_FALSE(priv->bus_handle, BK_ERR_NOT_SUPPORT, TAG, "panel has no command bus");
     return bk_display_bus_tx_param(priv->bus_handle, lcd_cmd, param, param_size);
 }
 
@@ -307,6 +309,7 @@ static bk_err_t lcd_rgb_panel_common_rx_param(bk_avdk_lcd_panel_t *panel,
 {
     lcd_rgb_panel_common_t *priv = (lcd_rgb_panel_common_t *)panel;
     AVDK_RETURN_ON_FALSE(priv, BK_ERR_NULL_PARAM, TAG, "invalid panel");
+    AVDK_RETURN_ON_FALSE(priv->bus_handle, BK_ERR_NOT_SUPPORT, TAG, "panel has no command bus");
     return bk_display_bus_rx_param(priv->bus_handle, lcd_cmd, param, param_size);
 }
 
@@ -315,9 +318,14 @@ bk_err_t bk_lcd_new_rgb_panel_common(bk_display_bus_handle_t bus_handle,
                                      const bk_display_rgb_panel_t *panel_desc,
                                      bk_avdk_lcd_panel_handle_t *ret_panel)
 {
-    AVDK_RETURN_ON_FALSE(bus_handle && panel_config && panel_desc && ret_panel,
+    AVDK_RETURN_ON_FALSE(panel_config && panel_desc && ret_panel,
                          BK_ERR_NULL_PARAM, TAG, "invalid arguments");
     AVDK_RETURN_ON_FALSE(panel_desc->name != NULL, BK_ERR_NULL_PARAM, TAG, "panel name is NULL");
+    AVDK_RETURN_ON_FALSE(bus_handle ||
+                         (panel_desc->init_cmds == NULL &&
+                          panel_desc->off_cmds == NULL &&
+                          panel_desc->read_id_regs == NULL),
+                         BK_ERR_NOT_SUPPORT, TAG, "panel requires a command bus");
 
     lcd_rgb_panel_common_t *panel = os_malloc(sizeof(lcd_rgb_panel_common_t));
     AVDK_RETURN_ON_FALSE(panel, BK_ERR_NO_MEM, TAG, "malloc failed");

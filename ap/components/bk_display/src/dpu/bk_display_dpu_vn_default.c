@@ -436,16 +436,22 @@ avdk_err_t dpu_ctlr_flush(bk_display_ctlr_handle_t handle, uint8_t *frame, flush
 static avdk_err_t dpu_ctlr_ioctl(bk_display_ctlr_handle_t handle, bk_display_ioctl_cmd_t cmd, void *arg)
 {
     dpu_vn_ctlr_t *control = dpu_ctlr_from_handle(handle);
-    bk_display_pixel_format_config_t *runtime_config = (bk_display_pixel_format_config_t *)arg;
     avdk_err_t ret = AVDK_ERR_OK;
     AVDK_RETURN_ON_FALSE(control, AVDK_ERR_INVAL, TAG, "control is NULL");
     if (dpu_ctlr_lock(control) != AVDK_ERR_OK)
     {
         return AVDK_ERR_GENERIC;
     }
-    if (control->state != DISP_STATE_ACTIVE)
+
+    /* Pixel-format switch only requires the DPU to be ACTIVE (i.e. after open);
+     * it does NOT need frames to be actively flushing - with no pending frame the
+     * switch just reprograms the layer immediately. The static DPI output-format
+     * setting is applied through the display truth-source + a re-commit and may be
+     * programmed either just before or just after open, so it is also allowed in
+     * INITED. */
+    if ((control->state != DISP_STATE_ACTIVE) && (control->state != DISP_STATE_INITED))
     {
-        LOGE("%s display is not active, state=%d\n", __func__, control->state);
+        LOGE("%s invalid display state: %d\n", __func__, control->state);
         dpu_ctlr_unlock(control);
         return AVDK_ERR_GENERIC;
     }
@@ -453,10 +459,18 @@ static avdk_err_t dpu_ctlr_ioctl(bk_display_ctlr_handle_t handle, bk_display_ioc
     switch (cmd)
     {
         case BK_DISPLAY_IOCTL_DPU_PIXEL_FORMAT:
+        {
+            bk_display_pixel_format_config_t *runtime_config = (bk_display_pixel_format_config_t *)arg;
             if (runtime_config == NULL)
             {
                 dpu_ctlr_unlock(control);
                 return AVDK_ERR_INVAL;
+            }
+            if (control->state != DISP_STATE_ACTIVE)
+            {
+                LOGE("%s pixel-format switch needs ACTIVE, state=%d\n", __func__, control->state);
+                dpu_ctlr_unlock(control);
+                return AVDK_ERR_GENERIC;
             }
             ret = dpu_core_runtime_switch(&control->dpu_handle, runtime_config);
             if (ret == AVDK_ERR_OK)
@@ -466,6 +480,22 @@ static avdk_err_t dpu_ctlr_ioctl(bk_display_ctlr_handle_t handle, bk_display_ioc
                 LOGI("DPU runtime switch format=%d decompress=%d\n",
                      runtime_config->format, runtime_config->decompress);
             }
+        }
+        break;
+        case BK_DISPLAY_IOCTL_DPU_OUT_FORMAT:
+        {
+            bk_display_dpi_out_format_t *out_format = (bk_display_dpi_out_format_t *)arg;
+            if (out_format == NULL)
+            {
+                dpu_ctlr_unlock(control);
+                return AVDK_ERR_INVAL;
+            }
+            ret = dpu_core_set_dpi_out_format(&control->dpu_handle, *out_format);
+            if (ret == AVDK_ERR_OK)
+            {
+                LOGI("DPU DPI out format=%d\n", (int)*out_format);
+            }
+        }
         break;
         case BK_DISPLAY_IOCTL_PANEL_DISP_ON_OFF:
             if (arg == NULL)
