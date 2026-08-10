@@ -143,7 +143,7 @@ if (CONFIG_PSA_MBEDTLS_TEST)
 	)
 endif()
 
-if (CONFIG_TRUSTENGINE_TEST)
+if (CONFIG_CLASSIC_MBEDTLS_TEST)
 	list(APPEND incs
 		cli/mbedtls_tests
 	)

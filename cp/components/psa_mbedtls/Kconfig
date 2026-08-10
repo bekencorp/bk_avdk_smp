@@ -52,12 +52,12 @@ menu "PSA Mbedtls"
 			depends on TRUSTENGINE
 			default n
 
-		config TRUSTENGINE_TEST
-			bool "Enable classic mbedtls cli test"
+		config CLASSIC_MBEDTLS_TEST
+			bool "Enable classic Mbed TLS CLI tests"
 			depends on PSA_MBEDTLS
 			default n
 			help
-				Classic mbedtls CLI testing code
+				Classic Mbed TLS API, performance, and multithread CLI tests.
 
 		config FULL_MBEDTLS
 			bool "Enable Full Mbedtls"
