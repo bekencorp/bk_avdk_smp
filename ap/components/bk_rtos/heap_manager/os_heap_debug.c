@@ -378,24 +378,48 @@ int bk_heap_debug_dump_mem_stats(uint32_t start_tick, uint32_t ticks_since_mallo
     return 0;
 }
 
-void bk_heap_fill_overflow_tag(void *ptr)
+static bool bk_heap_debug_get_tag_bounds(void *ptr, uint8_t **tag, size_t *tag_size)
 {
     bk_heap_debug_info_t *info = (bk_heap_debug_info_t *)ptr;
-    uint8_t *mem_end = (uint8_t *)bk_heap_debug_get_ptr(ptr) + info->wantedSize;
-    uint32_t mem_end_len = os_heap_get_allocated_size(ptr) - sizeof(bk_heap_debug_info_t) - info->wantedSize;
-    os_memset(mem_end, MEM_OVERFLOW_TAG, mem_end_len);
+    size_t allocated_size = os_heap_get_allocated_size(ptr);
+    const size_t header_size = sizeof(bk_heap_debug_info_t);
+
+    if (info->wantedSize > SIZE_MAX - header_size ||
+        allocated_size < header_size + info->wantedSize) {
+        BK_DUMP_OUT("Invalid heap debug metadata at %p.\r\n", ptr);
+        BK_ASSERT(0);
+        return false;
+    }
+
+    *tag = (uint8_t *)bk_heap_debug_get_ptr(ptr) + info->wantedSize;
+    *tag_size = allocated_size - header_size - info->wantedSize;
+    return true;
+}
+
+void bk_heap_fill_overflow_tag(void *ptr)
+{
+    uint8_t *mem_end;
+    size_t mem_end_len;
+
+    if (bk_heap_debug_get_tag_bounds(ptr, &mem_end, &mem_end_len)) {
+        os_memset(mem_end, MEM_OVERFLOW_TAG, mem_end_len);
+    }
 }
 
 void stack_mem_dump(uint32_t stack_top, uint32_t stack_bottom);
 void bk_heap_overflow_check(void *ptr)
 {
     bk_heap_debug_info_t *info = (bk_heap_debug_info_t *)ptr;
-    uint8_t *mem_end = (uint8_t *)bk_heap_debug_get_ptr(ptr) + info->wantedSize;
-    uint32_t mem_end_len = os_heap_get_allocated_size(ptr) - sizeof(bk_heap_debug_info_t) - info->wantedSize;
+    uint8_t *mem_end;
+    size_t mem_end_len;
 
-    for ( int i = 0; i < mem_end_len; i++) {
+    if (!bk_heap_debug_get_tag_bounds(ptr, &mem_end, &mem_end_len)) {
+        return;
+    }
+    for (size_t i = 0; i < mem_end_len; i++) {
         if (MEM_OVERFLOW_TAG != mem_end[i]) {
-            BK_DUMP_OUT("Mem Overflow ......mem_end[%p + %d]=[0x%02x].....\r\n", mem_end, i, mem_end[i]);
+            BK_DUMP_OUT("Mem Overflow ......mem_end[%p + %u]=[0x%02x].....\r\n",
+                        mem_end, (unsigned int)i, mem_end[i]);
             show_mem_info(info);
 #if !(CONFIG_DEBUG_VERSION || CONFIG_DUMP_ENABLE)
             uint8_t *block_end = mem_end + mem_end_len;

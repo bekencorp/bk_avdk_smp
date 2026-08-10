@@ -117,10 +117,106 @@ typedef struct bk_heap_t {
 #endif
 } bk_heap_t;
 
+typedef void *(*bk_heap_debug_alloc_t)(const char *, int, size_t, int);
+typedef void (*bk_heap_debug_free_t)(const char *, int, void *);
+typedef void *(*bk_heap_release_alloc_t)(size_t);
+typedef void (*bk_heap_release_free_t)(void *);
+typedef size_t (*bk_heap_get_size_t)(void *);
+
+#if defined(CONFIG_OS_HEAP_USE_PSRAM)
+static bool s_os_heap_psram_ready;
+
+void os_heap_enable_psram_default(void)
+{
+    __atomic_store_n(&s_os_heap_psram_ready, true, __ATOMIC_RELEASE);
+}
+
+static bool os_heap_psram_is_ready(void)
+{
+    return __atomic_load_n(&s_os_heap_psram_ready, __ATOMIC_ACQUIRE);
+}
+#endif
+
+#if CONFIG_MEM_DEBUG
+static void *bk_heap_realloc_debug_impl(bk_heap_debug_alloc_t alloc_func,
+    bk_heap_debug_free_t free_func, bk_heap_get_size_t get_size_func,
+    const char *func_name, int line, void *ptr, size_t size, int need_zero)
+{
+    bk_heap_debug_info_t *info;
+    size_t allocated_size;
+    size_t user_capacity;
+    void *real_ptr;
+    void *tmp;
+
+    if (size == 0) {
+        if (ptr != NULL) {
+            free_func(func_name, line, ptr);
+        }
+        return NULL;
+    }
+    if (ptr == NULL) {
+        return alloc_func(func_name, line, size, need_zero);
+    }
+
+    real_ptr = bk_heap_debug_get_real_ptr(ptr);
+    info = (bk_heap_debug_info_t *)real_ptr;
+    allocated_size = get_size_func(real_ptr);
+    if (allocated_size < sizeof(*info) + MEM_CHECK_TAG_LEN) {
+        return NULL;
+    }
+    user_capacity = allocated_size - sizeof(*info) - MEM_CHECK_TAG_LEN;
+    if (info->wantedSize > user_capacity) {
+        return NULL;
+    }
+
+    tmp = alloc_func(func_name, line, size, need_zero);
+    if (tmp == NULL) {
+        return NULL;
+    }
+    os_memcpy(tmp, ptr, size < info->wantedSize ? size : info->wantedSize);
+    free_func(func_name, line, ptr);
+    return tmp;
+}
+#endif
+
+static void *bk_heap_realloc_release_impl(bk_heap_release_alloc_t alloc_func,
+    bk_heap_release_free_t free_func, bk_heap_get_size_t get_size_func,
+    void *ptr, size_t size)
+{
+    size_t old_size;
+    void *tmp;
+
+    if (size == 0) {
+        if (ptr != NULL) {
+            free_func(ptr);
+        }
+        return NULL;
+    }
+    if (ptr == NULL) {
+        return alloc_func(size);
+    }
+
+    old_size = get_size_func(ptr);
+    if (old_size == 0) {
+        return NULL;
+    }
+    tmp = alloc_func(size);
+    if (tmp == NULL) {
+        return NULL;
+    }
+    os_memcpy(tmp, ptr, size < old_size ? size : old_size);
+    free_func(ptr);
+    return tmp;
+}
+
 static void *bk_heap_malloc_impl(const bk_heap_t *self, const char *func_name, int line, size_t size, int need_zero)
 {
+    size_t real_size;
+
     check_heap_risk_debug(func_name, line, "malloc");
-    size_t real_size = bk_heap_debug_get_real_size(size);
+    if (!bk_heap_debug_get_real_size(size, &real_size)) {
+        return NULL;
+    }
     void *ptr = self->malloc(real_size);
     IF_NULL_RETURN_NULL(ptr);
     if (need_zero) {
@@ -219,12 +315,33 @@ void os_free_release(void *ptr)
         #error "Require CONFIG_AP_HSRAM_HEAP_ADDR to be defined"
     #endif
 #elif defined(CONFIG_OS_HEAP_USE_PSRAM)
-    void *os_malloc_debug(const char *func_name, int line, size_t size, int need_zero) __attribute__((alias("psram_malloc_debug")));
-    void *os_malloc_release(size_t size) __attribute__((alias("psram_malloc_release")));
-    void *os_zalloc_release(size_t size) __attribute__((alias("psram_zalloc_release")));
     #if !defined(CONFIG_AP_PSRAM_HEAP_ADDR)
         #error "Require CONFIG_AP_PSRAM_HEAP_ADDR to be defined"
     #endif
+
+void *os_malloc_debug(const char *func_name, int line, size_t size, int need_zero)
+{
+    if (!os_heap_psram_is_ready()) {
+        return sram_malloc_debug(func_name, line, size, need_zero);
+    }
+    return psram_malloc_debug(func_name, line, size, need_zero);
+}
+
+void *os_malloc_release(size_t size)
+{
+    if (!os_heap_psram_is_ready()) {
+        return sram_malloc_release(size);
+    }
+    return psram_malloc_release(size);
+}
+
+void *os_zalloc_release(size_t size)
+{
+    if (!os_heap_psram_is_ready()) {
+        return sram_zalloc_release(size);
+    }
+    return psram_zalloc_release(size);
+}
 #else /* default: SRAM */
     void *os_malloc_debug(const char *func_name, int line, size_t size, int need_zero) __attribute__((alias("sram_malloc_debug")));
     void *os_malloc_release(size_t size) __attribute__((alias("sram_malloc_release")));
@@ -233,28 +350,56 @@ void os_free_release(void *ptr)
 
 void *os_realloc_debug(const char *func_name, int line, void *ptr, size_t size, int need_zero)
 {
-    void *tmp;
-  
-    tmp = (void *)os_malloc_debug(func_name, line, size, need_zero);
-    if (tmp && ptr) {
-        os_memcpy(tmp, ptr, size);
-        os_free_debug(func_name, line, ptr);
-    }
-
-    return tmp;
+#if CONFIG_MEM_DEBUG
+#if defined(CONFIG_OS_HEAP_USE_HSRAM)
+    bk_heap_get_size_t get_size_func = hsram_get_allocated_size;
+#elif defined(CONFIG_OS_HEAP_USE_PSRAM)
+    bk_heap_get_size_t get_size_func = os_heap_get_allocated_size;
+#else
+    bk_heap_get_size_t get_size_func = sram_get_allocated_size;
+#endif
+    return bk_heap_realloc_debug_impl(os_malloc_debug, os_free_debug,
+                                      get_size_func, func_name, line,
+                                      ptr, size, need_zero);
+#else
+    return os_realloc_release(ptr, size);
+#endif
 }
 
 void *os_realloc_release(void *ptr, size_t size)
 {
-    void *tmp;
-
-    tmp = (void *)os_malloc_release(size);
-    if (tmp && ptr) {
-        os_memcpy(tmp, ptr, size);
-        os_free_release(ptr);
+#if defined(CONFIG_OS_HEAP_USE_HSRAM)
+    return bk_heap_realloc_release_impl(hsram_malloc_release, hsram_free_release,
+                                        hsram_get_allocated_size, ptr, size);
+#elif defined(CONFIG_OS_HEAP_USE_PSRAM)
+    if ((ptr == NULL) || ptr_is_psram_heap(ptr)) {
+        return bk_heap_realloc_release_impl(os_malloc_release, os_free_release,
+                                            psram_get_allocated_size, ptr, size);
+    } else if (ptr_is_sram_heap(ptr)) {
+        return bk_heap_realloc_release_impl(os_malloc_release, os_free_release,
+                                            sram_get_allocated_size, ptr, size);
     }
-
-    return tmp;
+#if defined(CONFIG_AP_PSRAM_NOCACHE_HEAP_ADDR) && (CONFIG_AP_PSRAM_NOCACHE_HEAP_SIZE > 0)
+    else if (ptr_is_psram_nocache_heap(ptr)) {
+        /* Keep non-cacheable buffers (e.g. DMA) inside the nocache heap; do not
+         * migrate them into cached PSRAM, which would break cache coherency. */
+        return bk_heap_realloc_release_impl(psram_nocache_malloc_release,
+                                            psram_nocache_free_release,
+                                            psram_nocache_get_allocated_size,
+                                            ptr, size);
+    }
+#endif
+#ifdef CONFIG_AP_HSRAM_HEAP_ADDR
+    else if (ptr_is_hsram_heap(ptr)) {
+        return hsram_realloc_release(ptr, size);
+    }
+#endif
+    BK_ASSERT(0);
+    return NULL;
+#else
+    return bk_heap_realloc_release_impl(sram_malloc_release, sram_free_release,
+                                        sram_get_allocated_size, ptr, size);
+#endif
 }
 
 /* =========================== SRAM HEAP =========================== */
@@ -343,28 +488,19 @@ void *hsram_zalloc_release(size_t size)
 
 void *hsram_realloc_debug(const char *func_name, int line, void *ptr, size_t size, int need_zero)
 {
-    void *tmp;
-  
-    tmp = (void *)hsram_malloc_debug(func_name, line, size, need_zero);
-    if (tmp && ptr) {
-        os_memcpy(tmp, ptr, size);
-        hsram_free_debug(func_name, line, ptr);
-    }
-
-    return tmp;
+#if CONFIG_MEM_DEBUG
+    return bk_heap_realloc_debug_impl(hsram_malloc_debug, hsram_free_debug,
+                                      hsram_get_allocated_size, func_name, line,
+                                      ptr, size, need_zero);
+#else
+    return hsram_realloc_release(ptr, size);
+#endif
 }
 
 void *hsram_realloc_release(void *ptr, size_t size)
 {
-    void *tmp;
-
-    tmp = (void *)hsram_malloc_release(size);
-    if (tmp && ptr) {
-        os_memcpy(tmp, ptr, size);
-        hsram_free_release(ptr);
-    }
-
-    return tmp;
+    return bk_heap_realloc_release_impl(hsram_malloc_release, hsram_free_release,
+                                        hsram_get_allocated_size, ptr, size);
 }
 #endif
 /* =========================== PSRAM HEAP =========================== */
@@ -407,28 +543,19 @@ void psram_free_release(void *ptr)
 
 void *psram_realloc_debug(const char *func_name, int line, void *ptr, size_t size)
 {
-    void *tmp;
-
-    tmp = (void *)psram_malloc_debug(func_name, line, size, 0);
-    if (tmp && ptr) {
-        os_memcpy(tmp, ptr, size);
-        psram_free_debug(func_name, line, ptr);
-    }
-
-    return tmp;
+#if CONFIG_MEM_DEBUG
+    return bk_heap_realloc_debug_impl(psram_malloc_debug, psram_free_debug,
+                                      psram_get_allocated_size, func_name, line,
+                                      ptr, size, 0);
+#else
+    return psram_realloc_release(ptr, size);
+#endif
 }
 
 void *psram_realloc_release(void *ptr, size_t size)
 {
-    void *tmp;
-
-    tmp = (void *)psram_malloc_release(size);
-    if (tmp && ptr) {
-        os_memcpy(tmp, ptr, size);
-        psram_free_release(ptr);
-    }
-
-    return tmp;
+    return bk_heap_realloc_release_impl(psram_malloc_release, psram_free_release,
+                                        psram_get_allocated_size, ptr, size);
 }
 
 void *psram_zalloc_release(size_t size)

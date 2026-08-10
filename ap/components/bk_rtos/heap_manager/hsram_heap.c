@@ -52,12 +52,10 @@ bool ptr_is_hsram_heap(void *ptr)
     return (ptr >= (void *)HSRAM_HEAP_START_ADDRESS && ptr < (void *)HSRAM_HEAP_END_ADDRESS);
 }
 
-#if CONFIG_MEM_DEBUG
 size_t hsram_get_allocated_size(void *ptr)
 {
     return bk_heap_get_allocated_size(s_hsram_region_id, ptr);
 }
-#endif
 
 size_t xPortGetHsramTotalHeapSize(void)
 {

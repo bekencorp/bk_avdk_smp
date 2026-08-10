@@ -1,4 +1,6 @@
 #include "bk_list.h"
+#include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 #define MEM_CHECK_TAG_LEN 4
@@ -24,9 +26,15 @@ typedef struct {
 } bk_heap_debug_info_t;
 
 
-static inline uint32_t bk_heap_debug_get_real_size(uint32_t size)
+static inline bool bk_heap_debug_get_real_size(size_t size, size_t *real_size)
 {
-    return size + sizeof(bk_heap_debug_info_t) + MEM_CHECK_TAG_LEN;
+    const size_t overhead = sizeof(bk_heap_debug_info_t) + MEM_CHECK_TAG_LEN;
+
+    if (size > SIZE_MAX - overhead) {
+        return false;
+    }
+    *real_size = size + overhead;
+    return true;
 }
 
 static inline void *bk_heap_debug_get_ptr(void *ptr)
@@ -49,11 +57,6 @@ void bk_heap_hsram_debug_init(void);
 void bk_heap_psram_debug_init(void);
 void bk_heap_psram_nocache_debug_init(void);
 
-size_t sram_get_allocated_size(void *ptr);
-size_t psram_get_allocated_size(void *ptr);
-size_t psram_nocache_get_allocated_size(void *ptr);
-size_t hsram_get_allocated_size(void *ptr);
-
 size_t os_heap_get_allocated_size(void *ptr);
 
 void bk_heap_overflow_check(void *ptr);
@@ -74,9 +77,10 @@ void bk_heap_debug_quarantine_free(void *ptr, uint32_t size, bk_heap_debug_free_
 #endif
 #else
 
-static inline uint32_t bk_heap_debug_get_real_size(uint32_t size)
+static inline bool bk_heap_debug_get_real_size(size_t size, size_t *real_size)
 {
-    return size;
+    *real_size = size;
+    return true;
 }
 
 static inline void *bk_heap_debug_get_ptr(void *ptr)

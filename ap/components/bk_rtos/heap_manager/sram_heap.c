@@ -51,12 +51,10 @@ bool ptr_is_sram_heap(void *ptr)
     return (ptr >= (void *)SRAM_HEAP_START_ADDRESS && ptr < (void *)SRAM_HEAP_END_ADDRESS);
 }
 
-#if CONFIG_MEM_DEBUG
 size_t sram_get_allocated_size(void *ptr)
 {
     return bk_heap_get_allocated_size(s_sram_region_id, ptr);
 }
-#endif
 
 uint32_t prvHeapGetTotalSize(void)
 {

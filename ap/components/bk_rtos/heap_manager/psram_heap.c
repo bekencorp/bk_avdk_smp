@@ -105,7 +105,6 @@ bool ptr_is_psram_nocache_heap(void *ptr)
 }
 #endif
 
-#if CONFIG_MEM_DEBUG
 size_t psram_get_allocated_size(void *ptr)
 {
     return bk_heap_get_allocated_size(s_psram_region_id, ptr);
@@ -116,7 +115,6 @@ size_t psram_nocache_get_allocated_size(void *ptr)
 {
     return bk_heap_get_allocated_size(s_psram_nocache_region_id, ptr);
 }
-#endif
 #endif
 
 size_t xPortGetPsramTotalHeapSize(void)
