@@ -46,6 +46,8 @@ typedef struct {
 	uint32_t int_status;
 	uint32_t flow_ctrl_config;
 	uint32_t wake_config;
+	uint32_t sys_clk_enable;
+	uint32_t sys_clk_source;
 } bk_uart_unsafe_snapshot_t;
 
 bk_err_t uart_write_ready(uart_id_t id);

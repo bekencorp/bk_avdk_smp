@@ -35,6 +35,7 @@
 #include <components/system.h>
 
 #include "sys_driver.h"
+#include "sys_hal.h"
 #include <modules/pm.h>
 #if (CONFIG_UART_RX_DMA || CONFIG_UART_TX_DMA)
 #include <driver/dma.h>
@@ -716,6 +717,23 @@ const uart_unsafe_t s_uart_unsafe_hw[SOC_UART_ID_NUM_PER_UNIT] = {
 #endif
 };
 
+static const dev_clk_pwr_id_t s_uart_unsafe_clk_id[SOC_UART_ID_NUM_PER_UNIT] = {
+	CLK_PWR_ID_UART0,
+	CLK_PWR_ID_UART1,
+#if (SOC_UART_ID_NUM_PER_UNIT >= 3)
+	CLK_PWR_ID_UART2,
+#endif
+#if (SOC_UART_ID_NUM_PER_UNIT >= 4)
+	CLK_PWR_ID_UART3,
+#endif
+#if (SOC_UART_ID_NUM_PER_UNIT >= 5)
+	CLK_PWR_ID_UART4,
+#endif
+#if (SOC_UART_ID_NUM_PER_UNIT >= 6)
+	CLK_PWR_ID_UART5,
+#endif
+};
+
 void bk_uart_snapshot_unsafe(uart_id_t id, bk_uart_unsafe_snapshot_t *snapshot)
 {
 	uart_hw_t *hw = s_uart_unsafe_hw[id].hal.hw;
@@ -729,14 +747,22 @@ void bk_uart_snapshot_unsafe(uart_id_t id, bk_uart_unsafe_snapshot_t *snapshot)
 	snapshot->int_status = hw->int_status.v;
 	snapshot->flow_ctrl_config = hw->flow_ctrl_config.v;
 	snapshot->wake_config = hw->wake_config.v;
+	snapshot->sys_clk_enable = sys_hal_clk_pwr_status_get(s_uart_unsafe_clk_id[id]);
+	snapshot->sys_clk_source = sys_hal_uart_select_clock_get(id);
 }
 
 void bk_uart_recover_unsafe(uart_id_t id, const bk_uart_unsafe_snapshot_t *snapshot)
 {
 	uart_hw_t *hw = s_uart_unsafe_hw[id].hal.hw;
 
+	sys_hal_clk_pwr_ctrl(s_uart_unsafe_clk_id[id], CLK_PWR_CTRL_PWR_UP);
+	sys_hal_uart_select_clock(id, UART_SCLK_XTAL_26M);
+	__DSB();
+
 	hw->int_enable.v = 0U;
 	hw->config.tx_enable = 0U;
+	hw->global_ctrl.soft_reset = 0U;
+	__DSB();
 	hw->global_ctrl.soft_reset = 1U;
 	__DSB();
 
@@ -757,7 +783,11 @@ bk_err_t bk_uart_write_byte_unsafe(uart_id_t id, uint8_t data)
 	uint64_t start_ms = bk_aon_rtc_get_ms();
 
 	while (!uart_hal_is_fifo_write_ready(&s_uart_unsafe_hw[id].hal, id)) {
-		if ((bk_aon_rtc_get_ms() - start_ms) >= CONFIG_UART_UNSAFE_WRITE_TIMEOUT_MS) {
+		uint64_t current_ms = bk_aon_rtc_get_ms();
+
+		if (current_ms < start_ms) {
+			start_ms = current_ms;
+		} else if ((current_ms - start_ms) >= CONFIG_UART_UNSAFE_WRITE_TIMEOUT_MS) {
 			return BK_ERR_TIMEOUT;
 		}
 	}
