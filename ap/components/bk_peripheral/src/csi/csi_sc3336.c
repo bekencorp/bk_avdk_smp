@@ -123,8 +123,6 @@ typedef struct vsisc3336_DEVICE_S {
     vsi_bool_t stream;
     AE_SNS_DEFAULT_S aeDefault;
     ISP_SNS_REGS_INFO_S snsRegsInfo;
-    uint32_t width;
-    uint32_t height;
 } sc3336_DEVICE_S;
 
 typedef struct
@@ -136,7 +134,7 @@ typedef struct
 } sc3336_again_val_t;
 
 static sc3336_DEVICE_S *sc3336Dev[ISP_DEV_CNT][ISP_PORT_CNT] = {0};
-static sc3336_DEVICE_S *pSc3336Dev = NULL;
+static uint16_t s_sc3336_width,s_sc3336_height;
 
 static ISP_CALIB_DATA_S * SC3336_2304x1296_CalibParam_dynamic = NULL;
 
@@ -370,7 +368,7 @@ static const uint16_t sensor_sc3336_init_table[][2] = {
     {0x5aed,0x2c},
     {0x36e9,0x53},
     {0x37f9,0x27},
-    {0x0100,0x01},
+    // {0x0100,0x01},
 };
 #elif (SC3336_PCLK == SC3336_PCLK_66M)
 // 2304x1296@20fps
@@ -533,7 +531,7 @@ static const uint16_t sensor_sc3336_init_table[][2] = {
     {0x5aed,0x2c},
     {0x36e9,0x20},
     {0x37f9,0x20},
-    {0x0100,0x01},
+    // {0x0100,0x01},
 };
 #elif (SC3336_PCLK == SC3336_PCLK_86M)
 // 2304x1296@20fps
@@ -696,7 +694,7 @@ static const uint16_t sensor_sc3336_init_table[][2] = {
     {0x5aed,0x2c},
     {0x36e9,0x44},
     {0x37f9,0x34},
-    {0x0100,0x01},
+    // {0x0100,0x01},
 };
 #endif
 
@@ -852,7 +850,7 @@ static const uint16_t sensor_sc3336_1080P25_init_table[][2] = {
     {0x5aed,0x2c},
     {0x36e9,0x54},
     {0x37f9,0x47},
-    {0x0100,0x01},
+    // {0x0100,0x01},
 };
 
 #define sc3336_TABLE_SIZE(table) (sizeof(table) / sizeof(table[0]))
@@ -870,8 +868,6 @@ static sc3336_DEVICE_S *sc3336_GetSensorDev(ISP_PORT IspPort)
             return NULL;
         }
         os_memset(sc3336Dev[IspPort.devId][IspPort.portId], 0 , sizeof(sc3336_DEVICE_S));
-
-        pSc3336Dev = sc3336Dev[IspPort.devId][IspPort.portId];
     }
 
     return sc3336Dev[IspPort.devId][IspPort.portId];
@@ -880,7 +876,7 @@ static sc3336_DEVICE_S *sc3336_GetSensorDev(ISP_PORT IspPort)
 
 static int sc3336_InitRegInfo(ISP_PORT IspPort)
 {
-    sc3336_DEVICE_S *psc3336Dev = sc3336_GetSensorDev(IspPort);
+    sc3336_DEVICE_S *psc3336Dev = sc3336Dev[IspPort.devId][IspPort.portId];
     if (psc3336Dev == NULL)
     {
         LOGE("%s %d failed\n", __func__, __LINE__);
@@ -961,7 +957,7 @@ static int sc3336_SensorInit(ISP_PORT IspPort, vsi_u8_t snsDev)
 
 static int sc3336_SensorExit(ISP_PORT IspPort)
 {
-    sc3336_DEVICE_S *psc3336Dev = sc3336_GetSensorDev(IspPort);
+    sc3336_DEVICE_S *psc3336Dev = sc3336Dev[IspPort.devId][IspPort.portId];
     if (psc3336Dev == NULL)
     {
         LOGE("%s %d failed\n", __func__, __LINE__);
@@ -980,7 +976,7 @@ static int sc3336_SensorExit(ISP_PORT IspPort)
 
 static int sc3336_WriteReg(ISP_PORT IspPort, vsi_u32_t addr, vsi_u32_t data)
 {
-    sc3336_DEVICE_S *psc3336Dev = sc3336_GetSensorDev(IspPort);
+    sc3336_DEVICE_S *psc3336Dev = sc3336Dev[IspPort.devId][IspPort.portId];
     if (psc3336Dev == NULL)
     {
         LOGE("%s %d failed\n", __func__, __LINE__);
@@ -996,7 +992,7 @@ static int sc3336_WriteReg(ISP_PORT IspPort, vsi_u32_t addr, vsi_u32_t data)
 
 static int sc3336_ReadReg(ISP_PORT IspPort, vsi_u32_t addr, vsi_u32_t *pData)
 {
-    sc3336_DEVICE_S *psc3336Dev = sc3336_GetSensorDev(IspPort);
+    sc3336_DEVICE_S *psc3336Dev = sc3336Dev[IspPort.devId][IspPort.portId];
     if (psc3336Dev == NULL)
     {
         LOGE("%s %d failed\n", __func__, __LINE__);
@@ -1012,7 +1008,7 @@ static int sc3336_ReadReg(ISP_PORT IspPort, vsi_u32_t addr, vsi_u32_t *pData)
 
 static int sc3336_InitAeDefault(ISP_PORT IspPort)
 {
-    sc3336_DEVICE_S *psc3336Dev = sc3336_GetSensorDev(IspPort);
+    sc3336_DEVICE_S *psc3336Dev = sc3336Dev[IspPort.devId][IspPort.portId];
     if (psc3336Dev == NULL)
     {
         LOGE("%s %d failed\n", __func__, __LINE__);
@@ -1138,7 +1134,7 @@ static int sc3336_InitAeDefault(ISP_PORT IspPort)
 
 static int sc3336_SetMode(ISP_PORT IspPort, ISP_SNS_MODE_S *pSnsMode)
 {
-    sc3336_DEVICE_S *psc3336Dev = sc3336_GetSensorDev(IspPort);
+    sc3336_DEVICE_S *psc3336Dev = sc3336Dev[IspPort.devId][IspPort.portId];
     if (psc3336Dev == NULL)
     {
         LOGE("%s %d failed\n", __func__, __LINE__);
@@ -1150,7 +1146,7 @@ static int sc3336_SetMode(ISP_PORT IspPort, ISP_SNS_MODE_S *pSnsMode)
         (pSnsMode->stichMode == psc3336Dev->snsMode.stichMode)) {
         return BK_OK;
     }
-    LOGI("sc3336_SetMode: %d, %d, %d, %d, %d\n", pSnsMode->width, pSnsMode->height, pSnsMode->hdrMode, pSnsMode->stichMode, pSnsMode->fps);
+    LOGI("sc3336_SetMode: %d, %d, %d, %d, %d\n", pSnsMode->width, pSnsMode->height, pSnsMode->hdrMode, pSnsMode->stichMode, pSnsMode->fps/ISP_SNS_FPS_ACCU);
 
     if ((pSnsMode->width  == 2304) &&
         (pSnsMode->height == 1296) &&
@@ -1190,7 +1186,7 @@ static int sc3336_SetMode(ISP_PORT IspPort, ISP_SNS_MODE_S *pSnsMode)
 
 static int sc3336_SetStream(ISP_PORT IspPort, vsi_bool_t stream)
 {
-    sc3336_DEVICE_S *psc3336Dev = sc3336_GetSensorDev(IspPort);
+    sc3336_DEVICE_S *psc3336Dev = sc3336Dev[IspPort.devId][IspPort.portId];
     if (psc3336Dev == NULL)
     {
         LOGE("%s %d failed\n", __func__, __LINE__);
@@ -1217,7 +1213,7 @@ static int sc3336_SetIspDefault(ISP_PORT IspPort)
 
 static int sc3336_GetAeDefault(ISP_PORT IspPort, AE_SNS_DEFAULT_S *pAeSnsDft)
 {
-    sc3336_DEVICE_S *psc3336Dev = sc3336_GetSensorDev(IspPort);
+    sc3336_DEVICE_S *psc3336Dev = sc3336Dev[IspPort.devId][IspPort.portId];
     if (psc3336Dev == NULL)
     {
         LOGE("%s %d failed\n", __func__, __LINE__);
@@ -1231,7 +1227,7 @@ static int sc3336_GetAeDefault(ISP_PORT IspPort, AE_SNS_DEFAULT_S *pAeSnsDft)
 
 static int sc3336_SetFps(ISP_PORT IspPort, vsi_u32_t fps)
 {
-    sc3336_DEVICE_S *psc3336Dev = sc3336_GetSensorDev(IspPort);
+    sc3336_DEVICE_S *psc3336Dev = sc3336Dev[IspPort.devId][IspPort.portId];
     AE_SNS_DEFAULT_S *pAeSnsDft = &psc3336Dev->aeDefault;
     ISP_SNS_REGS_INFO_S *pSnsRegsInfo = &psc3336Dev->snsRegsInfo;
     vsi_u32_t vts;
@@ -1255,14 +1251,14 @@ static int sc3336_SetFps(ISP_PORT IspPort, vsi_u32_t fps)
     pAeSnsDft->fullLines = vts;
     pAeSnsDft->fps = fps;
     pAeSnsDft->maxIntLine = pAeSnsDft->fullLines - 8;
-    LOGI("sc3336_SetFps: fullLines: %d, fps: %d, maxIntLine: %d\n", pAeSnsDft->fullLines, pAeSnsDft->fps, pAeSnsDft->maxIntLine);
+    LOGI("sc3336_SetFps: fullLines: %d, fps: %d, maxIntLine: %d\n", pAeSnsDft->fullLines, pAeSnsDft->fps/ISP_SNS_FPS_ACCU, pAeSnsDft->maxIntLine);
 
     return BK_OK;
 }
 
 static int sc3336_SlowFrameRate(ISP_PORT IspPort, vsi_u32_t fullLines)
 {
-    sc3336_DEVICE_S *psc3336Dev = sc3336_GetSensorDev(IspPort);
+    sc3336_DEVICE_S *psc3336Dev = sc3336Dev[IspPort.devId][IspPort.portId];
     const vsi_u32_t fps_min = 10 * ISP_SNS_FPS_ACCU;
     const vsi_u32_t fps_max = 20 * ISP_SNS_FPS_ACCU;
     vsi_u32_t tempfps;
@@ -1321,7 +1317,7 @@ static int sc3336_SlowFrameRate(ISP_PORT IspPort, vsi_u32_t fullLines)
 
 static int sc3336_GetSnsRegInfo(ISP_PORT IspPort, ISP_SNS_REGS_INFO_S *pSnsRegsInfo)
 {
-    sc3336_DEVICE_S *psc3336Dev = sc3336_GetSensorDev(IspPort);
+    sc3336_DEVICE_S *psc3336Dev = sc3336Dev[IspPort.devId][IspPort.portId];
     if (psc3336Dev == NULL)
     {
         LOGE("%s %d failed\n", __func__, __LINE__);
@@ -1335,7 +1331,7 @@ static int sc3336_GetSnsRegInfo(ISP_PORT IspPort, ISP_SNS_REGS_INFO_S *pSnsRegsI
 
 static int sc3336_IntTimeUpdate(ISP_PORT IspPort, vsi_u32_t *pIntLine)
 {
-    sc3336_DEVICE_S *psc3336Dev = sc3336_GetSensorDev(IspPort);
+    sc3336_DEVICE_S *psc3336Dev = sc3336Dev[IspPort.devId][IspPort.portId];
     if (psc3336Dev == NULL)
     {
         LOGE("%s %d failed\n", __func__, __LINE__);
@@ -1421,7 +1417,7 @@ static void sc3336_CalcGain(vsi_u32_t *pAgain, vsi_u32_t *gain_3e06, vsi_u32_t *
 
 static int sc3336_GainUpdate(ISP_PORT IspPort, vsi_u32_t *pAgain, vsi_u32_t *pDgain)
 {
-    sc3336_DEVICE_S *psc3336Dev = sc3336_GetSensorDev(IspPort);
+    sc3336_DEVICE_S *psc3336Dev = sc3336Dev[IspPort.devId][IspPort.portId];
     if (psc3336Dev == NULL)
     {
         LOGE("%s %d failed\n", __func__, __LINE__);
@@ -1587,9 +1583,8 @@ static void sc3336_apply_mirror_reg(bk_camera_bus_t *bus)
     }
     bus->write16(bus, SC3336_REG_MIRROR_FLIP, tmp);
 
-    if (pSc3336Dev != NULL
-        && pSc3336Dev->width == 1920
-        && pSc3336Dev->height == 1080)
+    if (s_sc3336_width == 1920
+        && s_sc3336_height == 1080)
     {
         sc3336_write_window_regs(bus);
     }
@@ -1624,8 +1619,8 @@ static avdk_err_t sc3336_set_ppi(bk_camera_sensor_ctlr_t *controller, uint16_t w
 
     bk_mipi_csi_controller_init(width, height, 0x2b);
 
-    pSc3336Dev->width = width;
-    pSc3336Dev->height = height;
+    s_sc3336_width = width;
+    s_sc3336_height = height;
 
     if (width == 1920 && height == 1080)
     {
@@ -1641,12 +1636,12 @@ static avdk_err_t sc3336_set_fps(bk_camera_sensor_ctlr_t *controller, uint16_t f
     AVDK_RETURN_ON_FALSE(csi_sensor, AVDK_ERR_INVAL, TAG, "csi sensor is NULL");
     bk_camera_bus_t *bus = csi_sensor->config.bus;
 
-    if (pSc3336Dev->width == 2304 && pSc3336Dev->height == 1296) {
+    if (s_sc3336_width == 2304 && s_sc3336_height == 1296) {
         uint32_t pclk = SC3336_PCLK;
         uint16_t vts = pclk / SC3336_HTS / fps;
         bus->write16(bus, sc3336_REG_VTS_L, (vts & 0xff));
         bus->write16(bus, sc3336_REG_VTS_H, (vts >> 8));
-    } else if (pSc3336Dev->width == 1920 && pSc3336Dev->height == 1080) {
+    } else if (s_sc3336_width == 1920 && s_sc3336_height == 1080) {
         uint32_t pclk = 2500 * 1360 * 30;
         uint16_t vts = pclk / 2500 / fps;
         bus->write16(bus, sc3336_REG_VTS_L, (vts & 0xff));
