@@ -140,6 +140,10 @@ void *os_realloc_debug(const char *func_name, int line, void *ptr, size_t size, 
 void *os_realloc_release(void *ptr, size_t size);
 void *os_zalloc_release(size_t size);
 
+#if defined(CONFIG_OS_HEAP_USE_PSRAM)
+void os_heap_enable_psram_default(void);
+#endif
+
 void *sram_malloc_debug(const char *func_name, int line, size_t size, int need_zero);
 void *sram_malloc_release(size_t size);
 void *sram_zalloc_release(size_t size);
