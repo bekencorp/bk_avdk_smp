@@ -25,9 +25,12 @@
 #include "hal_hw_fih.h"
 #include "driver/wdt.h"
 #include "bl2_board_clock.h"
+#include "deepsleep_fastboot_bl2.h"
 #include <soc/soc.h>
 
 #define ENTRY_SECTION  __attribute__((section(".fix.reset_entry")))
+#define BL2_STRINGIFY_(x) #x
+#define BL2_STRINGIFY(x)  BL2_STRINGIFY_(x)
 
 extern uint32_t __INITIAL_SP;
 extern uint32_t __STACK_LIMIT;
@@ -224,11 +227,28 @@ const VECTOR_TABLE_Type __VECTOR_IRAM[] __VECTOR_IRAM_ATTRIBUTE = {
     0,                                        /* Interrupt 3 */
     UART_InterruptHandler,                    /* Interrupt 4 */
 };
-
 __NO_RETURN ENTRY_SECTION __attribute__((naked)) void Reset_Handler(void)
 {
-    __set_MSPLIM((uint32_t)(&__STACK_LIMIT));
+    __asm volatile(
+#if CONFIG_DIRECT_XIP
+        /*
+         * This call and the fastboot probe are stackless. If the probe
+         * returns, install the BL2 stack and continue with a normal boot.
+         */
+        "bl bl2_deepsleep_fastboot\n"
+#endif
+        "ldr r0, =" BL2_STRINGIFY(__INITIAL_SP) "\n"
+        "msr msp, r0\n"
+        "ldr r0, =" BL2_STRINGIFY(__STACK_LIMIT) "\n"
+        "msr msplim, r0\n"
+        "dsb\n"
+        "isb\n"
+        "b Reset_Handler_C\n"
+    );
+}
 
+__NO_RETURN ENTRY_SECTION void Reset_Handler_C(void)
+{
     /* CMSIS System Initialization */
     SystemInit();
 

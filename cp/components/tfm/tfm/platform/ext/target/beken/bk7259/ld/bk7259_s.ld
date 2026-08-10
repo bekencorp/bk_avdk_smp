@@ -339,6 +339,18 @@ SECTIONS
         . += BOOT_TFM_SHARED_DATA_SIZE;
     } > RAM
 
+    .bl2_fastboot_retention BL2_DS_RETENTION_ADDR (NOLOAD) :
+    {
+        __bl2_fastboot_retention_start__ = .;
+        KEEP(*(.bl2_fastboot_retention))
+        __bl2_fastboot_retention_end__ = .;
+    } > RAM
+    ASSERT(ADDR(.bl2_fastboot_retention) ==
+           (ADDR(.tfm_bl2_shared_data) + SIZEOF(.tfm_bl2_shared_data)),
+           "BL2 fastboot retention must follow shared data")
+    ASSERT(SIZEOF(.bl2_fastboot_retention) == BL2_DS_RETENTION_SIZE,
+           "BL2 fastboot retention record size mismatch")
+
     .msp_stack ALIGN(TFM_LINKER_MSP_STACK_ALIGNMENT) :
     {
         . += __msp_stack_size__ - 0x8;

@@ -12,7 +12,7 @@ set(BL2_DOWNLOAD                        ON          CACHE BOOL      "Whether to 
 set(DEFAULT_MCUBOOT_FLASH_MAP           OFF         CACHE BOOL      "Whether to use the default flash map defined by TF-M project")
 set(MCUBOOT_IMAGE_NUMBER                1           CACHE STRING    "Whether to combine S and NS into either 1 image, or sign each seperately")
 set(PLATFORM_DEFAULT_IMAGE_SIGNING      OFF         CACHE BOOL      "Use default image signing implementation")
-# set(CONFIG_TFM_BOOT_STORE_MEASUREMENTS  OFF         CACHE BOOL      "Store measurement values from all the boot stages. Used for initial attestation token.")
+set(CONFIG_TFM_BOOT_STORE_MEASUREMENTS   OFF         CACHE BOOL      "Store measurement values from all the boot stages. Used for initial attestation token." FORCE)
 set(CONFIG_TFM_USE_TRUSTZONE            ON)
 set(MBEDCRYPTO_BUILD_TYPE               debug CACHE STRING "Build type of Mbed Crypto library")
 set(PLATFORM_FLIH_IRQ_TEST_SUPPORT      ON       CACHE BOOL      "Whether the platform has FLIH test support")

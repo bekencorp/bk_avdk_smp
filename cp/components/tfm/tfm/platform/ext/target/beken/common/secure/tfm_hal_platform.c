@@ -55,6 +55,7 @@
 
 extern uint32_t sys_is_enable_fast_boot(void);
 extern uint32_t sys_is_running_from_deep_sleep(void);
+extern void tfm_deepsleep_fastboot_save_xip(void);
 int bk_flash_set_dbus_security_region(uint32_t id, uint32_t start, uint32_t end, bool secure);
 /* A/B trial confirm (boot_param_confirm.c): settle a TRIAL boot record to NORMAL
  * once the image has proven it can bring up the secure world. */
@@ -156,9 +157,9 @@ FIH_RET_TYPE(enum tfm_hal_status_t) tfm_hal_platform_init(void)
         FIH_RET(fih_int_encode(TFM_HAL_ERROR_GENERIC));
     }
 
-/* Partition and flash map initialization - currently disabled
- * Enable when needed by uncommenting the code below
- */
+    /* Partition and flash map initialization - currently disabled
+     * Enable when needed by uncommenting the code below
+     */
 #if 0
     plat_err = partition_init();
     if (plat_err != TFM_PLAT_ERR_SUCCESS) {
@@ -173,10 +174,9 @@ FIH_RET_TYPE(enum tfm_hal_status_t) tfm_hal_platform_init(void)
     tfm_builtin_key_loader_init();
 #endif
 
-    /* A/B trial confirm: reaching here means MCUboot verified the image and the
-     * secure world came up, so adopt a TRIAL slot as the new NORMAL exec_slot.
-     * flash + partition table are ready (partition_init ran earlier in
-     * tfm_core_init). Idempotent: no-op for a non-TRIAL / virgin record. */
+    tfm_deepsleep_fastboot_save_xip();
+
+    /* Confirm the verified TRIAL image after secure-world initialization. */
     (void)boot_param_confirm();
 
     FIH_RET(fih_int_encode(TFM_HAL_SUCCESS));
