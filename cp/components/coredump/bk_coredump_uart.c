@@ -110,7 +110,8 @@ static bool coredump_uart_report_snapshot(const bk_uart_unsafe_snapshot_t *snaps
     int len = snprintf(buffer, sizeof(buffer),
                        "\r\n@UART0-timeout[%u]: time=%llu global=%08x config=%08x "
                        "fifo_cfg=%08x fifo_status=%08x int_en=%08x int_status=%08x "
-                       "flow=%08x wake=%08x; UART0 recovered, retry current 4KB block\r\n",
+                       "flow=%08x wake=%08x clk_en=%08x clk_src=%u; "
+                       "recovered, retry 4KB\r\n",
                        timeout_count,
                        (unsigned long long)snapshot->timestamp_ms,
                        snapshot->global_ctrl,
@@ -120,7 +121,9 @@ static bool coredump_uart_report_snapshot(const bk_uart_unsafe_snapshot_t *snaps
                        snapshot->int_enable,
                        snapshot->int_status,
                        snapshot->flow_ctrl_config,
-                       snapshot->wake_config);
+                       snapshot->wake_config,
+                       snapshot->sys_clk_enable,
+                       snapshot->sys_clk_source);
 
     if (len <= 0) {
         return true;
