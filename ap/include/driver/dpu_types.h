@@ -54,7 +54,11 @@ typedef enum {
 typedef struct {
     bool enable;
     bool decompress;
-    bk_pixel_format_t format;
+    bk_pixel_format_t format;             /* framebuffer / DPU layer INPUT format (must be a
+                                            * real viv_input_format: RGB565/RGB888/ARGB8888/...;
+                                            * RGB666 is NOT a valid layer input). The DPI wire
+                                            * OUTPUT format is configured separately and statically
+                                            * via BK_DISPLAY_IOCTL_DPU_OUT_FORMAT around open. */
     uint32_t   disp_x;         /* Rectangle start point X coordinate */
     uint32_t   disp_y;         /* Rectangle start point Y coordinate */
     uint32_t   disp_w;         /* Rectangle width*/

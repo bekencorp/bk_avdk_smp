@@ -49,6 +49,17 @@ typedef struct _layer_config
     uint32_t   disp_h;         /* Rectangle height */
 }layer_config;
 
+/* DPI parallel-RGB wire OUTPUT coding for dpu_frame_set_dpi_out_format(). Maps
+ * 1:1 onto the DPI_CONFIG.OUTPUT_FORMAT register field. */
+typedef enum {
+    DPU_DPI_OUT_RGB565_CFG1 = 0,   /**< D16CFG1 */
+    DPU_DPI_OUT_RGB565_CFG2,       /**< D16CFG2 */
+    DPU_DPI_OUT_RGB565_CFG3,       /**< D16CFG3 */
+    DPU_DPI_OUT_RGB666_CFG1,       /**< D18CFG1 */
+    DPU_DPI_OUT_RGB666_CFG2,       /**< D18CFG2 */
+    DPU_DPI_OUT_RGB888,            /**< D24 */
+} dpu_dpi_out_format_t;
+
 typedef int (*dpu_isr_cb_t)(void *params);               /**< jpegdec int isr register func type */
 
 void dpu_isr(void);
@@ -60,7 +71,7 @@ int dpu_frame_display_config( uint16_t width,
                               uint8_t  hsync_pulse_width,
                               uint16_t hsync_back_porch,
                               uint16_t hsync_front_porch,
-                              uint8_t  vsync_pulse_width, 
+                              uint8_t  vsync_pulse_width,
                               uint16_t vsync_back_porch,
                               uint16_t vsync_front_porch
                               );
@@ -71,5 +82,11 @@ int dpu_frame_flush_isr(uint32_t *vblank_count);
 int dpu_frame_flush_complete_register(dpu_isr_cb_t dpu_cb, void *cb_data);
 int dpu_frame_get_layer_address(uint8_t layer_id);
 int dpu_frame_trigger(uint8_t value);
+
+/* Static DPI-side output coding. Updates the display output-format truth-source
+ * and re-pushes the display config (marking it dirty); the caller triggers a
+ * commit so it latches at the next frame boundary. Meant to be called once
+ * around open. Returns 0 (vivSTATUS_OK) on success. */
+int dpu_frame_set_dpi_out_format(dpu_dpi_out_format_t dpi_out_format);
 
 #endif

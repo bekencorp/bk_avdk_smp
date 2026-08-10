@@ -96,8 +96,9 @@ avdk_err_t bk_display_dsi_bus_new(bk_display_bus_handle_t *handle, bk_display_ds
  * Hardware SPI LCD frame output is owned by ::bk_display_spi_ctlr_new(), not
  * by this bus API.
  *
- * @param[out] handle Bus handle.
- * @param[in]  config Bus configuration; must not be NULL.
+ * @param[out] handle Bus handle. Set to NULL when @p config is NULL.
+ * @param[in]  config Optional bus configuration. Pass NULL when the RGB panel
+ *                    does not need an SPI command channel.
  *
  * @return AVDK_ERR_OK on success.
  * @return AVDK_ERR_INVAL on bad arguments.

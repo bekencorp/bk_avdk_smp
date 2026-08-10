@@ -84,13 +84,34 @@ typedef struct
 } bk_display_pixel_format_config_t;
 
 /**
+ * @brief DPI parallel-RGB wire OUTPUT coding for ::BK_DISPLAY_IOCTL_DPU_OUT_FORMAT.
+ *
+ * These enumerate exactly the codings the DC can emit on the DPI bus (they map
+ * 1:1 onto the DPI_CONFIG.OUTPUT_FORMAT field). This is a wire-side coding and is
+ * intentionally distinct from ::bk_pixel_format_t (which describes the in-memory
+ * framebuffer / DPU layer INPUT): the same RGB565 layer can be serialised with
+ * several 16/18/24-bit codings. 16-bit has 3 CFG variants, 18-bit 2, 24-bit 1;
+ * the CFG variants differ in how colour bits map onto the parallel data lines,
+ * so a panel that looks colour-shifted usually just needs a different CFG.
+ */
+typedef enum {
+    BK_DISPLAY_DPI_OUT_RGB565_CFG1 = 0,   /**< 16-bit RGB565 (D16CFG1) */
+    BK_DISPLAY_DPI_OUT_RGB565_CFG2,       /**< 16-bit RGB565 (D16CFG2) */
+    BK_DISPLAY_DPI_OUT_RGB565_CFG3,       /**< 16-bit RGB565 (D16CFG3) */
+    BK_DISPLAY_DPI_OUT_RGB666_CFG1,       /**< 18-bit RGB666 (D18CFG1) */
+    BK_DISPLAY_DPI_OUT_RGB666_CFG2,       /**< 18-bit RGB666 (D18CFG2) */
+    BK_DISPLAY_DPI_OUT_RGB888,            /**< 24-bit RGB888 (D24) */
+} bk_display_dpi_out_format_t;
+
+/**
  * @brief Display ioctl command codes.
  */
 typedef enum {
     BK_DISPLAY_IOCTL_UNKNOWN           = 0,
-    BK_DISPLAY_IOCTL_DPU_PIXEL_FORMAT  = 1,    /**< arg = ::bk_display_pixel_format_config_t* */
+    BK_DISPLAY_IOCTL_DPU_PIXEL_FORMAT  = 1,    /**< arg = ::bk_display_pixel_format_config_t dpu layer input pixel format */
     BK_DISPLAY_IOCTL_PANEL_DISP_ON_OFF = 2,    /**< arg = bool*  true=DISPON / false=DISPOFF */
     BK_DISPLAY_IOCTL_PANEL_SLEEP       = 3,    /**< arg = bool*  true=SLPIN  / false=SLPOUT  */
+    BK_DISPLAY_IOCTL_DPU_OUT_FORMAT,    /**< arg = ::bk_display_dpi_out_format_t* DPI wire OUTPUT coding (static, set around open) */
 } bk_display_ioctl_cmd_t;
 
 /** Opaque display controller handle. Body lives in private_include/. */
@@ -225,6 +246,23 @@ avdk_err_t bk_display_ioctl(bk_display_ctlr_handle_t handle, bk_display_ioctl_cm
  * @return AVDK_ERR_OK on success.
  */
 avdk_err_t bk_display_pixel_format_set(bk_display_ctlr_handle_t handle, const bk_display_pixel_format_config_t *config);
+
+/**
+ * @brief Set the DPI wire OUTPUT coding sent to the panel (::BK_DISPLAY_IOCTL_DPU_OUT_FORMAT).
+ *
+ * The DPI output coding is independent of the DPU layer INPUT format
+ * (::bk_display_pixel_format_set()): the DC composites the RGB565/RGB888/
+ * ARGB8888 layer internally and serialises it on the bus in @p dpi_out_format
+ * (e.g. ::BK_DISPLAY_DPI_OUT_RGB666_CFG2 for an 18-bit panel). This is a static,
+ * panel-dependent setting - call it once, around ::bk_display_open(). Panels
+ * that keep the power-on default (D24) simply never call this.
+ *
+ * @param[in] handle          Display controller (INITED or ACTIVE).
+ * @param[in] dpi_out_format  DPI output coding, see ::bk_display_dpi_out_format_t.
+ *
+ * @return AVDK_ERR_OK on success.
+ */
+avdk_err_t bk_display_dpu_out_format_set(bk_display_ctlr_handle_t handle, bk_display_dpi_out_format_t dpi_out_format);
 
 #ifdef __cplusplus
 }

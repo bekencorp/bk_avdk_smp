@@ -53,14 +53,15 @@ bk_err_t bk_lcd_mipi_panel_new(bk_display_bus_handle_t bus_handle,
 /**
  * @brief Create an RGB panel handle.
  *
- * The SW SPI bus carries the register-init channel; reset polarity /
- * timing live on the descriptor.
+ * The optional SW SPI bus carries the register-init channel; reset polarity /
+ * timing live on the descriptor. The bus may be NULL only when the descriptor
+ * has no init, off, or read-ID commands.
  *
- * @param[in]  bus_handle    SW SPI bus.
+ * @param[in]  bus_handle    Optional SW SPI bus.
  * @param[in]  panel_config  Reset pin wiring.
  * @param[in]  panel_desc    RGB panel descriptor.
  * @param[out] ret_panel     Receives the new panel handle.
- * @return BK_OK; BK_ERR_NULL_PARAM / BK_ERR_NO_MEM on failure.
+ * @return BK_OK; BK_ERR_NULL_PARAM / BK_ERR_NO_MEM / BK_ERR_NOT_SUPPORT on failure.
  */
 bk_err_t bk_lcd_rgb_panel_new(bk_display_bus_handle_t bus_handle,
                               const bk_lcd_panel_config_t *panel_config,
