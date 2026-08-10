@@ -1655,7 +1655,7 @@ int bk_cli_init(void)
 	cli_psa_crypto_init();
 #endif
 
-#if (CONFIG_TRUSTENGINE_TEST && CONFIG_PSA_MBEDTLS)
+#if (CONFIG_CLASSIC_MBEDTLS_TEST && CONFIG_PSA_MBEDTLS)
 	cli_mbedtls_init();
 #endif
 
