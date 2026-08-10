@@ -40,4 +40,9 @@ menu "CSI Camera"
         bool "Enable CSI_SC3336"
         default n
 
+    config CSI_SC3336P
+        depends on CSI_CAMERA
+        bool "Enable CSI_SC3336P"
+        default n
+
 endmenu
