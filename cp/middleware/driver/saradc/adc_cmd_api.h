@@ -48,10 +48,6 @@
 #define ADC_SAMPLE_THRESHOLD_DEFAULT      32
 #define MAP_INVALID_ITEM                  0xFF
 
-#define BK_ERR_ADC_INSUFFICIENT_MEM      (BK_ERR_ADC_BASE - 11) /**< ADC out of memory */
-#define BK_ERR_ADC_DEINIT_MUTEX          (BK_ERR_ADC_BASE - 12) /**< ADC mutex deinit failed */
-#define BK_ERR_ADC_DEINIT_READ_SEMA      (BK_ERR_ADC_BASE - 13) /**< ADC read sync deinit failed */
-
 typedef void (*adc_isr_cb)(uint32_t param);
 typedef void (*FUNC_2PV_PTR)(void *ctx, void *arg);
 
@@ -87,6 +83,7 @@ struct sadc_calib_ana_context {
     uint32_t ana_reg4_val;
     uint32_t ana_reg5_val;
     uint32_t ana_reg10_val;
+    uint32_t ana_reg22_val;
 };
 
 struct sadc_statistics {
@@ -220,6 +217,14 @@ bk_err_t bk_adc_driver_init_test(void);
  */
 bk_err_t bk_adc_driver_deinit_test(void);
 
+bk_err_t bk_adc_channel_init_test(adc_config_t *config);
+bk_err_t bk_adc_channel_deinit_test(adc_chan_t chan);
+bk_err_t bk_adc_channel_read_test(adc_chan_t chan_id, uint16_t *data, uint32_t timeout);
+bk_err_t bk_adc_channel_raw_read_test(adc_chan_t channel_id, uint16_t* buf, uint32_t sample_cnt, uint32_t timeout);
+bk_err_t bk_adc_register_isr_callback_test(adc_isr_t isr, uint32_t param);
+bk_err_t bk_adc_unregister_isr_callback_test(void);
+bk_err_t bk_adc_set_vol_div_test(adc_chan_t adc_chan, adc_vol_div_t vol_div);
+
 /**
  * @brief     adc set config
  *
@@ -340,7 +345,7 @@ bk_err_t bk_adc_set_vol_div(adc_chan_t adc_chan, adc_vol_div_t vol_div);
  *
  * @return voltage value, the unit is mv
  */
-float bk_adc_data_calculate_test(uint16_t adc_val, adc_chan_t adc_chan);
+float bk_adc_data_calculate_test(UINT16 adc_val, UINT8 adc_chan);
 #endif
 //eof
 

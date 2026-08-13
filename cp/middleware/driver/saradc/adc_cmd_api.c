@@ -36,20 +36,21 @@
 
 uint32_t rc_drv_get_rf_rxon(void);
 
-struct sadc_device *saradc_dev_ptr = NULL;
+struct sadc_device *saradc_dev_test_ptr = NULL;
 static uint8_t s_saradc_use_calibration_val_flag = 0x0;
+static uint8_t s_adc_rx_null_buf_warned = 0;
 
 #define ADC_CALIBRATION_DATA_NUM    (10000)
 
 #define ADC_RETURN_ON_NOT_INIT() do {\
-		if (NULL == saradc_dev_ptr) {\
+		if (NULL == saradc_dev_test_ptr) {\
 			ADC_LOGE("adc driver not init\r\n");\
 			return BK_ERR_ADC_NOT_INIT;\
 		}\
 	} while(0)
 
 #define ADC_RETURN_ON_INVALID_CHAN(id) do {\
-		if (!adc_hal_is_valid_channel(&saradc_dev_ptr->hal, (id))) {\
+		if (!adc_hal_is_valid_channel(id)) {\
 			ADC_LOGE("ADC id number(%d) is invalid\r\n", (id));\
 			return BK_ERR_ADC_INVALID_CHAN;\
 		}\
@@ -146,7 +147,7 @@ static bk_err_t adc_chan_init_common(struct sadc_device *dev, adc_chan_t chan)
     hal_ptr = &dev->hal;
     adc_hal_stop_commom(hal_ptr);
 
-    ret = adc_init_gpio(dev, chan);
+    ret = adc_init_gpio(chan);
     if(BK_OK != ret) {
         return ret;
     }
@@ -168,7 +169,7 @@ static bk_err_t adc_chan_deinit_common(struct sadc_device *dev, adc_chan_t chan)
     adc_flush(dev);
 
     sys_drv_sadc_pwr_down();
-    adc_deinit_gpio(dev, chan);
+    adc_deinit_gpio(chan);
 
     return BK_OK;
 }
@@ -178,6 +179,7 @@ static bk_err_t adc_config_rx_buf(struct sadc_data *data, uint16_t* buf, uint32_
     data->buffer = buf;
     data->sampling_index = 0;
     data->sampling_request = size / DEFAULT_ADC_SAMPLE_UNIT_BYTES;
+    s_adc_rx_null_buf_warned = 0;
 
     return BK_OK;
 }
@@ -205,7 +207,7 @@ static bk_err_t adc_set_channel(struct sadc_device *dev, adc_chan_t adc_chan)
     return BK_OK;
 }
 
-bk_err_t adc_activate_config(struct sadc_device *dev, adc_config_t *config)
+bk_err_t adc_activate_config_test(struct sadc_device *dev, adc_config_t *config)
 {
     adc_hal_t *hal_ptr = &dev->hal;
 
@@ -290,7 +292,7 @@ static bk_err_t adc_set_sample_threshold(struct sadc_device *dev, uint32_t cnt)
     return BK_OK;
 }
 
-bk_err_t adc_channel_config(struct sadc_device *dev, adc_chan_t adc_chan)
+bk_err_t adc_channel_config_test(struct sadc_device *dev, adc_chan_t adc_chan)
 {
     bk_err_t ret;
 
@@ -327,9 +329,9 @@ bk_err_t adc_channel_config(struct sadc_device *dev, adc_chan_t adc_chan)
     return BK_OK;
 }
 
-bk_err_t bk_adc_channel_deinit(adc_chan_t chan)
+bk_err_t bk_adc_channel_deinit_test(adc_chan_t chan)
 {
-    struct sadc_device *dev = saradc_dev_ptr;
+    struct sadc_device *dev = saradc_dev_test_ptr;
     adc_config_t *config_cache_ptr;
 
     ADC_RETURN_ON_NOT_INIT();
@@ -355,7 +357,7 @@ bk_err_t bk_adc_channel_deinit(adc_chan_t chan)
     return BK_OK;
 }
 
-bk_err_t adc_hw_activate(struct sadc_device *dev)
+bk_err_t adc_hw_activate_test(struct sadc_device *dev)
 {
     adc_hal_t *hal_ptr = &dev->hal;
 
@@ -404,7 +406,7 @@ static bk_err_t adc_wait_for_read_complete(struct sadc_device *dev, uint32_t tim
 
 bk_err_t bk_adc_single_read_test(uint16_t* data)
 {
-    adc_hal_t *hal_ptr = &saradc_dev_ptr->hal;
+    adc_hal_t *hal_ptr = &saradc_dev_test_ptr->hal;
 
     *data = adc_hal_get_adc_data(hal_ptr);
 
@@ -440,7 +442,7 @@ static bk_err_t adc_revision_raw(struct sadc_device *dev, uint16_t* buf, uint32_
         return BK_OK;
     }
 
-    if (adc_hal_is_analog_channel(&dev->hal, dev->adc_chan) && (dev->adc_chan != ADC_0)) {
+    if (adc_hal_is_analog_channel(dev->adc_chan) && (dev->adc_chan != ADC_0)) {
         return BK_OK;
     }
 
@@ -506,14 +508,14 @@ static bk_err_t adc_revision_raw(struct sadc_device *dev, uint16_t* buf, uint32_
     return BK_OK;
 }
 
-bk_err_t bk_adc_get_raw(adc_chan_t chan_id, uint16_t* buf, uint32_t buf_size, uint32_t timeout)
+bk_err_t bk_adc_get_raw_test(adc_chan_t chan_id, uint16_t* buf, uint32_t buf_size, uint32_t timeout)
 {
     bk_err_t ret = BK_OK;
     struct sadc_device *dev;
     struct sadc_context *ctx_ptr;
     adc_config_t *channel_config_ptr;
 
-    dev = saradc_dev_ptr;
+    dev = saradc_dev_test_ptr;
     if((NULL == buf) || (NULL == dev)) {
         ret = BK_FAIL;
         goto get_exit;
@@ -535,10 +537,10 @@ bk_err_t bk_adc_get_raw(adc_chan_t chan_id, uint16_t* buf, uint32_t buf_size, ui
     dev->adc_chan = chan_id;
     #endif
 
-    BK_LOG_ON_ERR(adc_channel_config(dev, chan_id));
-    BK_LOG_ON_ERR(adc_activate_config(dev, channel_config_ptr));
+    BK_LOG_ON_ERR(adc_channel_config_test(dev, chan_id));
+    BK_LOG_ON_ERR(adc_activate_config_test(dev, channel_config_ptr));
     BK_LOG_ON_ERR(adc_config_rx_buf(&dev->data, buf, buf_size));
-    BK_LOG_ON_ERR(adc_hw_activate(dev));
+    BK_LOG_ON_ERR(adc_hw_activate_test(dev));
     BK_LOG_ON_ERR(adc_current_channel_convert(dev, buf,buf_size, timeout));
     BK_LOG_ON_ERR(adc_revision_raw(dev, buf,buf_size, timeout));
 
@@ -548,11 +550,11 @@ get_exit:
     return ret;
 }
 
-bk_err_t bk_adc_channel_init(adc_config_t *config)
+bk_err_t bk_adc_channel_init_test(adc_config_t *config)
 {
     adc_chan_t channel_id;
     adc_config_t *config_cache_ptr;
-    struct sadc_device *dev = saradc_dev_ptr;
+    struct sadc_device *dev = saradc_dev_test_ptr;
 
     BK_RETURN_ON_NULL(dev);
     BK_RETURN_ON_NULL(config);
@@ -580,7 +582,7 @@ bk_err_t bk_adc_channel_init(adc_config_t *config)
 uint32_t bk_saradc_read_raw_data_test(uint32_t timeout)
 {
     uint32_t raw_data;
-    struct sadc_device *dev = saradc_dev_ptr;
+    struct sadc_device *dev = saradc_dev_test_ptr;
     adc_hal_t *hal_ptr = &dev->hal;
 
     raw_data = adc_hal_get_adc_data(hal_ptr);
@@ -588,23 +590,23 @@ uint32_t bk_saradc_read_raw_data_test(uint32_t timeout)
     return raw_data;
 }
 
-bk_err_t bk_adc_channel_raw_read(adc_chan_t channel_id, uint16_t* buf, uint32_t sample_cnt, uint32_t timeout)
+bk_err_t bk_adc_channel_raw_read_test(adc_chan_t channel_id, uint16_t* buf, uint32_t sample_cnt, uint32_t timeout)
 {
     bk_err_t ret;
 
-    ret = bk_adc_get_raw(channel_id, buf, sample_cnt * DEFAULT_ADC_SAMPLE_UNIT_BYTES, timeout);
+    ret = bk_adc_get_raw_test(channel_id, buf, sample_cnt * DEFAULT_ADC_SAMPLE_UNIT_BYTES, timeout);
 
     return ret;
 }
 
-bk_err_t bk_adc_channel_read(adc_chan_t chan_id, uint16_t *data, uint32_t timeout)
+bk_err_t bk_adc_channel_read_test(adc_chan_t chan_id, uint16_t *data, uint32_t timeout)
 {
     int ret = BK_OK;
     uint32_t sum = 0;
     uint16_t samples[DEFAULT_AVERAGE_SAMPLE_SIZE] = {0};
     uint32_t num, average_sample_count;
 
-    ret = bk_adc_get_raw(chan_id, samples, DEFAULT_AVERAGE_SAMPLE_SIZE * DEFAULT_ADC_SAMPLE_UNIT_BYTES, timeout);
+    ret = bk_adc_get_raw_test(chan_id, samples, DEFAULT_AVERAGE_SAMPLE_SIZE * DEFAULT_ADC_SAMPLE_UNIT_BYTES, timeout);
 
     /* calculate the sample mean*/
     average_sample_count = DEFAULT_AVERAGE_SAMPLE_SIZE;
@@ -623,7 +625,7 @@ bk_err_t bk_adc_channel_read(adc_chan_t chan_id, uint16_t *data, uint32_t timeou
 
 /* gadc input divider selection based on analog channel of adc
  */
-bk_err_t bk_adc_set_vol_div(adc_chan_t adc_chan, adc_vol_div_t vol_div)
+bk_err_t bk_adc_set_vol_div_test(adc_chan_t adc_chan, adc_vol_div_t vol_div)
 {
     ADC_RETURN_ON_INVALID_CHAN(adc_chan);
 
@@ -649,9 +651,20 @@ static bk_err_t adc_handle_conversion_data(struct sadc_device *dev)
     sample_id = data_ptr->sampling_index;
     sample_request_cnt = data_ptr->sampling_request;
 
-    if(NULL == buf_ptr) {
-        ADC_LOGI("ADC rx buf null\r\n");
-        is_drop = 1;
+    if((NULL == buf_ptr) || (sample_request_cnt == 0)) {
+        if(!s_adc_rx_null_buf_warned) {
+            ADC_LOGW("ADC rx buf null, stop conversion\r\n");
+            s_adc_rx_null_buf_warned = 1;
+        }
+
+        while(!adc_hal_is_fifo_empty(hal_ptr)) {
+            adc_hal_get_adc_data(hal_ptr);
+            ADC_STATIS_INC(stats->adc_rx_total_cnt);
+            ADC_STATIS_INC(stats->adc_rx_drop_cnt);
+        }
+
+        adc_stop_conversion(dev);
+        return BK_OK;
     }
 
     while(!adc_hal_is_fifo_empty(hal_ptr)) {
@@ -663,7 +676,7 @@ static bk_err_t adc_handle_conversion_data(struct sadc_device *dev)
 
         if(0 == is_drop) {
             #if (CONFIG_SARADC_REVISION)
-            if ((dev->rf_active_patch) && (!adc_hal_is_analog_channel(hal_ptr, dev->adc_chan) || (dev->adc_chan == ADC_0))) {
+            if ((dev->rf_active_patch) && (!adc_hal_is_analog_channel(dev->adc_chan) || (dev->adc_chan == ADC_0))) {
                 //drop 2 in 3 to trigger ISR more times, and we could check RF_ACTIVE more correctly
                 adc_hal_get_adc_data(hal_ptr);
                 adc_hal_get_adc_data(hal_ptr);
@@ -704,7 +717,7 @@ static void adc_isr(void)
 {
     struct sadc_device *dev;
 
-    dev = saradc_dev_ptr;
+    dev = saradc_dev_test_ptr;
     BK_ASSERT(dev);
 
     adc_hal_clear_int_status(&dev->hal);
@@ -725,13 +738,13 @@ bk_err_t bk_adc_driver_deinit_test(void)
     adc_config_t *chan_cfg;
     struct sadc_device *dev;
 
-    dev = saradc_dev_ptr;
+    dev = saradc_dev_test_ptr;
     BK_ASSERT(dev);
 
     for(i = 0; i < ADC_MAX; i ++) {
         chan_cfg = dev->channel_cfg[i];
         if(chan_cfg) {
-            bk_adc_channel_deinit(i);
+            bk_adc_channel_deinit_test(i);
         }
     }
 
@@ -748,7 +761,60 @@ bk_err_t bk_adc_driver_deinit_test(void)
     dev = NULL;
 
 
-    saradc_dev_ptr = NULL;
+    saradc_dev_test_ptr = NULL;
+
+    return BK_OK;
+}
+
+bk_err_t adc_calib_save_analog_context_test(struct sadc_calib_ana_context *ana_context)
+{
+    ana_context->ana_reg22_val = sys_ll_get_ana_reg22_value();
+
+    return BK_OK;
+}
+
+bk_err_t adc_calib_restore_analog_context_test(struct sadc_calib_ana_context *ana_context)
+{
+    ana_context->ana_reg22_val = sys_ll_get_ana_reg22_value();
+
+    return BK_OK;
+}
+
+bk_err_t bk_adc_enter_calib_mode_test(void)
+{
+    adc_config_t config = {0};
+    struct sadc_calib_ana_context ana_context;
+
+    uint16_t *adc_raw_data_buf = (uint16_t *)os_zalloc(ADC_CALIBRATION_DATA_NUM * sizeof(uint16_t));
+    if (NULL == adc_raw_data_buf) {
+        ADC_LOGE("adc_raw_data_buf malloc failed\r\n");
+        return BK_ERR_NO_MEM;
+    }
+
+    config.chan = 0;
+    config.adc_mode = ADC_CONTINUOUS_MODE;
+    config.src_clk = ADC_SCLK_XTAL;
+    config.clk = 2;
+    config.saturate_mode = 0;
+    config.steady_ctrl= 0;
+    config.adc_filter = 0;
+    config.sample_rate = 0;
+
+    os_memset(adc_raw_data_buf, 0, ADC_CALIBRATION_DATA_NUM * sizeof(uint16_t));
+
+    adc_calib_save_analog_context_test(&ana_context);
+    sys_drv_set_ana_pwd_gadc_buf(1);
+    bk_adc_cont_start(&config, config.chan, adc_raw_data_buf, ADC_CALIBRATION_DATA_NUM);
+    adc_hal_calib_init();
+    bk_adc_cont_get_raw(config.chan, adc_raw_data_buf, ADC_CALIBRATION_DATA_NUM);
+    adc_hal_stop_commom(NULL);
+    adc_hal_set_cwt_calib(adc_raw_data_buf, ADC_CALIBRATION_DATA_NUM);
+
+    if (adc_raw_data_buf) {
+        os_free(adc_raw_data_buf);
+        adc_raw_data_buf = NULL;
+    }
+    adc_calib_restore_analog_context_test(&ana_context);
 
     return BK_OK;
 }
@@ -758,7 +824,7 @@ bk_err_t bk_adc_driver_init_test(void)
     bk_err_t ret;
     struct sadc_device *dev;
 
-    if(NULL != saradc_dev_ptr) {
+    if(NULL != saradc_dev_test_ptr) {
         return BK_OK;
     }
 
@@ -766,7 +832,7 @@ bk_err_t bk_adc_driver_init_test(void)
     if(NULL == dev) {
         return BK_ERR_ADC_INSUFFICIENT_MEM;
     }
-    saradc_dev_ptr = dev;
+    saradc_dev_test_ptr = dev;
 
     ret = adc_context_init(&dev->ctx);
     if(BK_OK != ret) {
@@ -784,7 +850,7 @@ bk_err_t bk_adc_driver_init_test(void)
     bk_int_isr_register(INT_SRC_SARADC, adc_isr, NULL);
 
     #if CONFIG_SARADC_V1P2
-    bk_adc_enter_calib_mode();
+    bk_adc_enter_calib_mode_test();
     #endif // CONFIG_SARADC_V1P2
 
     return BK_OK;
@@ -795,11 +861,11 @@ init_failed:
     return ret;
 }
 
-bk_err_t bk_adc_is_valid_analog_channel(uint32_t channel_id)
+bk_err_t bk_adc_is_valid_analog_channel_test(uint32_t channel_id)
 {
-    __unused struct sadc_device *dev = saradc_dev_ptr;
+    __unused struct sadc_device *dev = saradc_dev_test_ptr;
 
-    if (!adc_hal_is_valid_channel(&dev->hal, channel_id))
+    if (!adc_hal_is_valid_channel(channel_id))
     {
         ADC_LOGE("ADC id number(%d) is invalid\r\n", (channel_id));
         return BK_ERR_ADC_INVALID_CHAN;
@@ -808,9 +874,9 @@ bk_err_t bk_adc_is_valid_analog_channel(uint32_t channel_id)
     return BK_OK;
 }
 
-bk_err_t bk_adc_register_isr_callback(adc_isr_t isr, uint32_t param)
+bk_err_t bk_adc_register_isr_callback_test(adc_isr_t isr, uint32_t param)
 {
-    struct sadc_device *dev = saradc_dev_ptr;
+    struct sadc_device *dev = saradc_dev_test_ptr;
 
     if(NULL == dev) {
         return BK_FAIL;
@@ -825,9 +891,9 @@ bk_err_t bk_adc_register_isr_callback(adc_isr_t isr, uint32_t param)
     return BK_OK;
 }
 
-bk_err_t bk_adc_unregister_isr_callback(void)
+bk_err_t bk_adc_unregister_isr_callback_test(void)
 {
-    struct sadc_device *dev = saradc_dev_ptr;
+    struct sadc_device *dev = saradc_dev_test_ptr;
 
     if(NULL == dev) {
         return BK_FAIL;
@@ -844,7 +910,7 @@ bk_err_t bk_adc_unregister_isr_callback(void)
 
 bk_err_t bk_adc_register_isr_iot_callback_test(void* iot_callback, void *p_iot_context)
 {
-    struct sadc_device *dev = saradc_dev_ptr;
+    struct sadc_device *dev = saradc_dev_test_ptr;
 
     if(NULL == dev) {
         return BK_FAIL;
@@ -861,7 +927,7 @@ bk_err_t bk_adc_register_isr_iot_callback_test(void* iot_callback, void *p_iot_c
 
 bk_err_t bk_adc_unregister_isr_iot_callback_test(void)
 {
-    struct sadc_device *dev = saradc_dev_ptr;
+    struct sadc_device *dev = saradc_dev_test_ptr;
 
     if(NULL == dev) {
         return BK_FAIL;
@@ -876,24 +942,24 @@ bk_err_t bk_adc_unregister_isr_iot_callback_test(void)
     return BK_OK;
 }
 
-void bk_adc_set_using_calibration_val_flag(void)
+void bk_adc_set_using_calibration_val_flag_test(void)
 {
     s_saradc_use_calibration_val_flag = 1;
 }
 
-void bk_adc_clear_using_calibration_val_flag(void)
+void bk_adc_clear_using_calibration_val_flag_test(void)
 {
     s_saradc_use_calibration_val_flag = 0;
 }
 
-uint32_t bk_adc_is_using_calibration_val_flag(void)
+uint32_t bk_adc_is_using_calibration_val_flag_test(void)
 {
     return (!!(s_saradc_use_calibration_val_flag));
 }
 
 float saradc_calculate_test(UINT16 adc_val)
 {
-    struct sadc_device *dev = saradc_dev_ptr;
+    struct sadc_device *dev = saradc_dev_test_ptr;
     struct sadc_data *data = &dev->data;
     float practic_voltage = 0;
     UINT16 cali_low_val = data->sadc_cali_val[SARADC_CALIBRATE_LOW1];
@@ -913,14 +979,14 @@ float saradc_calculate_test(UINT16 adc_val)
 
 float bk_adc_data_calculate_test(UINT16 adc_val, UINT8 adc_chan)
 {
-    BK_RETURN_ON_NULL(saradc_dev_ptr);
+    BK_RETURN_ON_NULL(saradc_dev_test_ptr);
 
     float cali_value = 0;
     struct sadc_device *dev;
     adc_config_t *channel_config_ptr;
     adc_vol_div_t adc_vol_div;
 
-    dev = saradc_dev_ptr;
+    dev = saradc_dev_test_ptr;
     channel_config_ptr = dev->channel_cfg[adc_chan];
 
     if (NULL == channel_config_ptr) {
@@ -976,7 +1042,7 @@ float bk_adc_data_calculate_test(UINT16 adc_val, UINT8 adc_chan)
 UINT32 saradc_get_calibrate_value(uint16_t *value, SARADC_MODE1 mode)
 {
     uint32_t irq_level;
-    struct sadc_device *dev = saradc_dev_ptr;
+    struct sadc_device *dev = saradc_dev_test_ptr;
     struct sadc_context *ctx = &dev->ctx;
     struct sadc_data *data = &dev->data;
 
@@ -999,7 +1065,7 @@ UINT32 saradc_get_calibrate_value(uint16_t *value, SARADC_MODE1 mode)
 UINT32 saradc_set_calibrate_val_test(uint16_t *value, SARADC_MODE1 mode)
 {
     uint32_t irq_level;
-    struct sadc_device *dev = saradc_dev_ptr;
+    struct sadc_device *dev = saradc_dev_test_ptr;
     struct sadc_context *ctx = &dev->ctx;
     struct sadc_data *data = &dev->data;
 
@@ -1023,7 +1089,7 @@ UINT32 saradc_set_calibrate_val_test(uint16_t *value, SARADC_MODE1 mode)
 #if CONFIG_ADC_STATIS
 void adc_statis_dump_test(void)
 {
-    struct sadc_device *dev = saradc_dev_ptr;
+    struct sadc_device *dev = saradc_dev_test_ptr;
     struct sadc_statistics *stats = &dev->stats;
 
     BK_LOGI(TAG, "dump adc statis:\r\n");
@@ -1033,61 +1099,6 @@ void adc_statis_dump_test(void)
     BK_LOGI(TAG, "adc_rx_drop_cnt:       %d\r\n", stats->adc_rx_drop_cnt);
 }
 #endif
-
-#if CONFIG_SARADC_V1P2
-bk_err_t adc_calib_save_analog_context(struct sadc_calib_ana_context *ana_context)
-{
-    ana_context->ana_reg22_val = sys_ll_get_ana_reg22_value();
-
-    return BK_OK;
-}
-
-bk_err_t adc_calib_restore_analog_context(struct sadc_calib_ana_context *ana_context)
-{
-    sys_ll_get_ana_reg22_value(ana_context->ana_reg22_val);
-
-    return BK_OK;
-}
-
-bk_err_t bk_adc_enter_calib_mode(void)
-{
-    adc_config_t config = {0};
-    struct sadc_calib_ana_context ana_context;
-
-    uint16_t *adc_raw_data_buf = (uint16_t *)os_zalloc(ADC_CALIBRATION_DATA_NUM * sizeof(uint16_t));
-    if (NULL == adc_raw_data_buf) {
-        ADC_LOGE("adc_raw_data_buf malloc failed\r\n");
-        return BK_ERR_NO_MEM;
-    }
-
-    config.chan = 0;
-    config.adc_mode = ADC_CONTINUOUS_MODE;
-    config.src_clk = ADC_SCLK_XTAL;
-    config.clk = 2;
-    config.saturate_mode = 0;
-    config.steady_ctrl= 0;
-    config.adc_filter = 0;
-    config.sample_rate = 0;
-
-    os_memset(adc_raw_data_buf, 0, ADC_CALIBRATION_DATA_NUM * sizeof(uint16_t));
-
-    adc_calib_save_analog_context(&ana_context);
-    sys_drv_set_ana_pwd_gadc_buf(1);
-    bk_adc_cont_start(&config, config.chan, adc_raw_data_buf, ADC_CALIBRATION_DATA_NUM);
-    adc_hal_calib_init();
-    bk_adc_cont_get_raw(config.chan, adc_raw_data_buf, ADC_CALIBRATION_DATA_NUM);
-    adc_hal_stop_commom(NULL);
-    adc_hal_set_cwt_calib(adc_raw_data_buf, ADC_CALIBRATION_DATA_NUM);
-
-    if (adc_raw_data_buf) {
-        os_free(adc_raw_data_buf);
-        adc_raw_data_buf = NULL;
-    }
-    adc_calib_restore_analog_context(&ana_context);
-
-    return BK_OK;
-}
-#endif // CONFIG_SARADC_V1P2
 #endif
 // eof
 

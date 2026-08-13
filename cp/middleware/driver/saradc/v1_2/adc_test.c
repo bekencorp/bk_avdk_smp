@@ -585,10 +585,10 @@ static void cli_adc_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
         uint16_t saradc_val_high = 0;
 
         saradc_get_calibrate_val(&saradc_val_low, SARADC_CALIBRATE_LOW);
-        os_printf("calibrate low value:[%x]\r\n", saradc_val_low);
+        CLI_LOGI("calibrate low value:[%x]\r\n", saradc_val_low);
 
         saradc_get_calibrate_val(&saradc_val_high, SARADC_CALIBRATE_HIGH);
-        os_printf("calibrate high value:[%x]\r\n", saradc_val_high);
+        CLI_LOGI("calibrate high value:[%x]\r\n", saradc_val_high);
 
     }
     else if(0 == os_strcmp(argv[2], "use_sample_set_saradc_val"))
@@ -626,7 +626,7 @@ static void cli_adc_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
         }
         else
         {
-            os_printf("invalid parameter\r\n");
+            CLI_LOGI("invalid parameter\r\n");
             return;
         }
 
@@ -637,10 +637,10 @@ static void cli_adc_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
         ret = saradc_set_calibrate_val(&sample_value, saradc_cal_mode);
         if(ret == SARADC_FAILURE)
         {
-            os_printf("saradc_set_calibrate_val fail\r\n");
+            CLI_LOGI("saradc_set_calibrate_val fail\r\n");
         }
-        os_printf("saradc_set_calibrate_val success\r\n");
-        os_printf("mode:[%s] value:[%d]\r\n", (saradc_cal_mode ? "high" : "low"), sample_value);
+        CLI_LOGI("saradc_set_calibrate_val success\r\n");
+        CLI_LOGI("mode:[%s] value:[%d]\r\n", (saradc_cal_mode ? "high" : "low"), sample_value);
         //BK_LOG_ON_ERR(bk_adc_stop());
     }
     else if(os_strcmp(argv[2], "single_adc_example") == 0)

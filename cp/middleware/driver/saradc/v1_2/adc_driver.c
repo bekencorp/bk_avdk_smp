@@ -357,8 +357,8 @@ static bk_err_t adc_cli_register(void)
     #endif
 
     #if CONFIG_ADC_API_TEST
-    int bk_adc_api_register_cli_test_feature(void);
-    bk_adc_api_register_cli_test_feature();
+    //int bk_adc_api_register_cli_test_feature(void);
+    //bk_adc_api_register_cli_test_feature();
     #endif
 
     return BK_OK;

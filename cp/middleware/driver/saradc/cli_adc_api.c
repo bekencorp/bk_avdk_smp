@@ -116,7 +116,7 @@ static void cli_adc_api_channel_handler(void **argtable)
                 CLI_LOGI("adc_config.saturate_mode:0x%x\n", adc_config.saturate_mode);
                 CLI_LOGI("adc_config.vol_div:0x%x\n", adc_config.vol_div);
 
-                BK_LOG_ON_ERR(bk_adc_channel_init(&adc_config));
+                BK_LOG_ON_ERR(bk_adc_channel_init_test(&adc_config));
                 CLI_LOGI("ADC channel init succeeded\n");
             } else {
                 CLI_LOGE("Not enough configuration parameters provided for channel init.\n");
@@ -125,7 +125,7 @@ static void cli_adc_api_channel_handler(void **argtable)
         else if (strcmp(channel->sval[0], "deinit") == 0)
         {
             adc_chan_t channel_id = (adc_chan_t)os_strtoul(id->sval[0], NULL, 10);
-            BK_LOG_ON_ERR(bk_adc_channel_deinit(channel_id));
+            BK_LOG_ON_ERR(bk_adc_channel_deinit_test(channel_id));
             CLI_LOGI("ADC channel %d deinitialized successfully\r\n",channel_id);
         }
         else if (strcmp(channel->sval[0], "read") == 0)
@@ -134,7 +134,7 @@ static void cli_adc_api_channel_handler(void **argtable)
             adc_chan_t channel_id = (adc_chan_t)os_strtoul(id->sval[0], NULL, 10);
             uint16_t value = (uint16_t)data->ival[0];
             uint32_t channel_timeout = (uint32_t)os_strtoul(timeout->sval[0], NULL, 10);
-            BK_LOG_ON_ERR(bk_adc_channel_read(channel_id, &value, channel_timeout));
+            BK_LOG_ON_ERR(bk_adc_channel_read_test(channel_id, &value, channel_timeout));
             CLI_LOGI("ADC channel %d read over\r\n",channel_id);
         } 
         else if (strcmp(channel->sval[0], "raw_read") == 0)
@@ -144,7 +144,7 @@ static void cli_adc_api_channel_handler(void **argtable)
             channel_data = (uint16_t *)data->ival[0];
             uint32_t channel_timeout = (uint32_t)os_strtoul(timeout->sval[0], NULL, 10);
             uint32_t sample_cnt = (uint32_t)os_strtoul(cnt->sval[0], NULL, 10);
-            BK_LOG_ON_ERR(bk_adc_channel_raw_read(channel_id, channel_data, channel_timeout, sample_cnt));
+            BK_LOG_ON_ERR(bk_adc_channel_raw_read_test(channel_id, channel_data, sample_cnt, channel_timeout));
 
             CLI_LOGI("ADC channel %d raw read succeed\r\n",channel_id);
         }
@@ -198,10 +198,10 @@ static void cli_adc_api_register_handler(void **argtable)
     {
         if (strcmp(reg->sval[0], "register") == 0) {
             uint32_t reg_size = (uint32_t)os_strtoul(size->sval[0], NULL, 10);
-            BK_LOG_ON_ERR(bk_adc_register_isr_callback(cli_adc_register_cb, reg_size));
+            BK_LOG_ON_ERR(bk_adc_register_isr_callback_test(cli_adc_register_cb, reg_size));
             CLI_LOGI("ADC register isr callback over\n");
         } else if (strcmp(reg->sval[0], "unregister") == 0) {
-            BK_LOG_ON_ERR(bk_adc_unregister_isr_callback());
+            BK_LOG_ON_ERR(bk_adc_unregister_isr_callback_test());
             CLI_LOGI("ADC isr callback unregister over\n");
         } else {
             CLI_LOGE("Invalid parameter for register: %s\r\n", reg->sval[0]);
@@ -247,7 +247,7 @@ static void cli_adc_api_vol_handler(void **argtable)
         if (strcmp(vol->sval[0], "set") == 0) {
             adc_chan_t channel_id = (adc_chan_t)os_strtoul(id->sval[0], NULL, 10);
             adc_vol_div_t vol_div = (adc_vol_div_t)os_strtoul(div->sval[0], NULL, 10);
-            BK_LOG_ON_ERR(bk_adc_set_vol_div(channel_id, vol_div));
+            BK_LOG_ON_ERR(bk_adc_set_vol_div_test(channel_id, vol_div));
             CLI_LOGI("ADC channel %d set voltage div %d successfully\r\n",channel_id, vol_div);
         } else {
             CLI_LOGE("Invalid parameter for vol: %s\r\n", vol->sval[0]);
@@ -308,12 +308,12 @@ static void cli_adc_api_calculate_handler(void **argtable)
             {
                 config.chan = adc_chan_buff[i];
 
-                BK_LOG_ON_ERR(bk_adc_channel_init(&config));
-                BK_LOG_ON_ERR(bk_adc_channel_read(config.chan, &value, ADC_READ_SEMAPHORE_WAIT_TIME));
+                BK_LOG_ON_ERR(bk_adc_channel_init_test(&config));
+                BK_LOG_ON_ERR(bk_adc_channel_read_test(config.chan, &value, ADC_READ_SEMAPHORE_WAIT_TIME));
 
                 cali_value = bk_adc_data_calculate_test(value, config.chan);
                 CLI_LOGI("volt:%d mv,chan=%d\n",(uint32_t)(cali_value*1000),config.chan);
-                bk_adc_channel_deinit(config.chan);
+                bk_adc_channel_deinit_test(config.chan);
             }
             CLI_LOGI("ADC calculate voltage read successfully\r\n");
         } else {
@@ -364,4 +364,9 @@ int cli_adc_api_register_cli_test_feature(void)
 #else
     return 0;
 #endif
+}
+
+int bk_adc_api_register_cli_test_feature(void)
+{
+    return cli_adc_api_register_cli_test_feature();
 }
