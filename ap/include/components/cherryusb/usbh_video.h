@@ -37,11 +37,7 @@ struct usbh_video_resolution {
 };
 
 struct usbh_video_format {
-#if CONFIG_BK_USB_CHERRYUSB_V1_6
     struct usbh_video_resolution frame[CONFIG_USBHOST_VIDEO_MAX_FRAMES];
-#else
-    struct usbh_video_resolution frame[USBH_VIDEO_FRAME_MAX_NUM];
-#endif
     uint8_t format_type;
     uint8_t num_of_frames;
 };
@@ -52,9 +48,10 @@ struct usbh_videostreaming {
     void (*video_one_frame_callback)(struct usbh_videostreaming *stream);
 };
 
-#if CONFIG_BK_USB_CHERRYUSB_V1_6
-/* MUST stay byte-identical to CherryUSB_v1_6/class/video/usbh_video.h:
- * the v1.6 host driver creates these objects; external consumers read them. */
+/* MUST stay byte-identical to CherryUSB/class/video/usbh_video.h:
+ * the v1.6 host driver creates these objects; external consumers read them.
+ * The former v0.7 (pipe-based) and UVC_UAC_DEMO layouts were removed with the
+ * legacy stack. */
 struct usbh_video {
     struct usbh_hubport *hport;
     struct usb_endpoint_descriptor *isoin;  /* ISO IN endpoint */
@@ -76,46 +73,6 @@ struct usbh_video {
 
     void *user_data;
 };
-#elif CONFIG_UVC_UAC_DEMO
-struct usbh_video {
-    struct usbh_hubport *hport;
-
-    uint8_t ctrl_intf; /* interface number */
-    uint8_t data_intf; /* interface number */
-    uint8_t minor;
-    usbh_pipe_t isoin;  /* ISO IN endpoint */
-    usbh_pipe_t isoout; /* ISO OUT endpoint */
-    struct video_probe_and_commit_controls probe;
-    struct video_probe_and_commit_controls commit;
-    uint16_t isoin_mps;
-    uint16_t isoout_mps;
-    bool is_opened;
-    uint16_t bcdVDC;
-    uint8_t num_of_intf_altsettings;
-    uint8_t num_of_formats;
-    struct usbh_video_format format[USBH_VIDEO_FORMAT_MAX_NUM];
-    uint32_t idx_uvc;
-};
-#else
-struct usbh_video {
-    struct usbh_hubport *hport;
-
-    uint8_t ctrl_intf; /* interface number */
-    uint8_t data_intf; /* interface number */
-    uint8_t minor;
-    usbh_pipe_t isoin;  /* ISO IN endpoint */
-    usbh_pipe_t isoout; /* ISO OUT endpoint */
-    struct video_probe_and_commit_controls probe;
-    struct video_probe_and_commit_controls commit;
-    uint16_t isoin_mps;
-    uint16_t isoout_mps;
-    bool is_opened;
-    uint16_t bcdVDC;
-    uint8_t num_of_intf_altsettings;
-    uint8_t num_of_formats;
-    struct usbh_video_format format[USBH_VIDEO_FORMAT_MAX_NUM];
-};
-#endif
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -123,16 +80,10 @@ extern "C" {
 int usbh_video_get_cur(struct usbh_video *video_class, uint8_t intf, uint8_t entity_id, uint8_t cs, uint8_t *buf, uint16_t len);
 int usbh_video_set_cur(struct usbh_video *video_class, uint8_t intf, uint8_t entity_id, uint8_t cs, uint8_t *buf, uint16_t len);
 int usbh_videostreaming_get_cur_probe(struct usbh_video *video_class);
-#if CONFIG_BK_USB_CHERRYUSB_V1_6
 int usbh_videostreaming_set_cur_probe(struct usbh_video *video_class, uint8_t formatindex, uint8_t frameindex, uint32_t dwFrameInterval);
 int usbh_videostreaming_set_cur_commit(struct usbh_video *video_class, uint8_t formatindex, uint8_t frameindex);
 /* v1.6 host video open selects the format/frame by type+resolution internally. */
 int usbh_video_open(struct usbh_video *video_class, uint8_t format_type, uint16_t wWidth, uint16_t wHeight, uint8_t altsetting);
-#else
-int usbh_videostreaming_set_cur_probe(struct usbh_video *video_class, uint8_t formatindex, uint8_t frameindex, uint32_t dwMaxVideoFrameSize, uint32_t dwMaxPayloadTransferSize);
-int usbh_videostreaming_set_cur_commit(struct usbh_video *video_class, uint8_t formatindex, uint8_t frameindex, uint32_t dwMaxVideoFrameSize, uint32_t dwMaxPayloadTransferSize);
-int usbh_video_open(struct usbh_video *video_class, uint8_t altsetting);
-#endif
 int usbh_video_close(struct usbh_video *video_class);
 
 void usbh_video_list_info(struct usbh_video *video_class);

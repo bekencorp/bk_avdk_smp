@@ -9,10 +9,6 @@
 #include <common/bk_include.h>
 #include <os/mem.h>
 
-#if !CONFIG_BK_USB_CHERRYUSB_V1_6
-#define CHERRYUSB_VERSION 0x000700
-#endif
-
 /* ================ USB common Configuration ================ */
 
 #define CONFIG_USB_PRINTF(...) printf(__VA_ARGS__)
@@ -145,17 +141,14 @@
 
 /* ================ USB Device Port Configuration ================*/
 
-#if !CONFIG_BK_USB_CHERRYUSB_V1_6
-#define USBD_IRQHandler USBD_IRQHandler
-#define USB_BASE (SOC_USB_HS_BASE)
-#endif
 #define USB_NUM_BIDIR_ENDPOINTS 16
 
 /* ================ USB Host Port Configuration ==================*/
 
 #define CONFIG_USBHOST_PIPE_NUM 10
 
-#if CONFIG_BK_USB_CHERRYUSB_V1_6
+/* Host/device sizing overrides for the CherryUSB v1.6 stack (the only stack
+ * shipped now). */
 #undef CONFIG_USBHOST_MAX_INTERFACES
 /* UAC speaker+mic composite devices can expose 4+ interfaces. Keep enough
  * room for audio control, speaker streaming, mic streaming and companions. */
@@ -226,7 +219,6 @@
 #ifndef usb_ramaddr2phyaddr
 #define usb_ramaddr2phyaddr(addr) (addr)
 #endif
-#endif /* CONFIG_BK_USB_CHERRYUSB_V1_6 */
 
 /* ================ EHCI Configuration ================ */
 

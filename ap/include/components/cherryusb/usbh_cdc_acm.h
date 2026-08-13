@@ -20,8 +20,6 @@ enum {
 struct usbh_cdc_acm {
 	struct usbh_hubport *hport;
 
-//	struct usb_endpoint_descriptor *bulkin;  /* Bulk IN endpoint */
-//	struct usb_endpoint_descriptor *bulkout; /* Bulk OUT endpoint */
 	bool dtr;
 	bool rts;
 	usbh_pipe_t bulkin;  /* Bulk IN endpoint */
@@ -54,13 +52,7 @@ int usbh_cdc_acm_set_line_state(struct usbh_cdc_acm *cdc_acm_class, bool dtr, bo
 int usbh_cdc_acm_bulk_in_transfer(struct usbh_cdc_acm *cdc_acm_class, uint8_t *buffer, uint32_t buflen, uint32_t timeout);
 int usbh_cdc_acm_bulk_out_transfer(struct usbh_cdc_acm *cdc_acm_class, uint8_t *buffer, uint32_t buflen, uint32_t timeout);
 
-//void usbh_cdc_acm_run(struct usbh_cdc_acm *cdc_acm_class);
-//void usbh_cdc_acm_stop(struct usbh_cdc_acm *cdc_acm_class);
-
-void bk_usbh_cdc_sw_init(struct usbh_hubport *hport, uint8_t interface_num, uint8_t interface_sub_class);
-void bk_usbh_cdc_sw_deinit(struct usbh_hubport *hport, uint8_t interface_num, uint8_t interface_sub_class);
 int32_t bk_usbh_cdc_sw_activate_epx(struct usbh_hubport *hport, struct usbh_cdc_acm *cdc_acm_class, uint8_t intf);
-int32_t bk_usbh_cdc_sw_deactivate_epx(struct usbh_hubport *hport, struct usbh_cdc_acm *cdc_acm_class, uint8_t intf);
 
 #ifdef __cplusplus
 extern "C" {

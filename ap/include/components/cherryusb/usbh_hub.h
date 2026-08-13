@@ -1,34 +1,12 @@
 /*
- * Copyright (c) 2022, sakumisu
- *
- * SPDX-License-Identifier: Apache-2.0
+ * Slimmed public header: forwards to the CherryUSB v1.6 tree hub API (single
+ * source of truth). usbh_core.h is kept first because consumers expect the hub
+ * header to also provide the full struct usbh_hub (defined in usbh_core.h; the
+ * tree hub header only forward-declares it). The former Beken-only declarations
+ * (usbh_roothub_thread_*, usbh_hub_register/unregister, usbh_hub_class_register,
+ * hub_class_head, usbh_hub_event_*_mutex, USBH_HUB_MAX_PORTS, ...) are dropped:
+ * they had no consumers -- the hub-multiple-classes example locally #defines the
+ * event mutex macros as no-ops. See usb_list.h for the relative-path rationale.
  */
-#ifndef USBH_HUB_H
-#define USBH_HUB_H
-
 #include "usbh_core.h"
-#include "usb_hub.h"
-
-#define USBH_HUB_MAX_PORTS 4
-/* Maximum size of an interrupt IN transfer */
-#define USBH_HUB_INTIN_BUFSIZE ((USBH_HUB_MAX_PORTS + 8) >> 3)
-
-extern usb_slist_t hub_class_head;
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-void usbh_roothub_thread_wakeup(uint8_t port);
-void usbh_roothub_thread_send_queue(uint8_t port, void *callback);
-void usbh_hub_register(struct usbh_hub *hub);
-void usbh_hub_unregister(struct usbh_hub *hub);
-int usbh_hub_initialize(void);
-int usbh_hub_deinitialize(void);
-void usbh_hub_event_lock_mutex();
-void usbh_hub_event_unlock_mutex();
-void usbh_hub_class_register();
-#ifdef __cplusplus
-}
-#endif
-
-#endif /* USBH_HUB_H */
+#include "../../../components/bk_usb/CherryUSB/class/hub/usbh_hub.h"

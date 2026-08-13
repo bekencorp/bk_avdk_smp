@@ -46,10 +46,11 @@ struct usbh_iso_frame_packet {
  *
  * Structure containing the USB Urb configuration.
  */
-#if CONFIG_BK_USB_CHERRYUSB_V1_6
 /* CherryUSB v1.6 URB layout. The host stack (usb_hc_musb.c) creates/consumes
  * URBs with THIS layout, so external submitters (bk_uvc, uac streams) MUST match
- * it: set urb->hport + urb->ep (the endpoint descriptor) instead of urb->pipe. */
+ * it: set urb->hport + urb->ep (the endpoint descriptor) instead of urb->pipe.
+ * The former v0.7 (pipe-based) usbh_urb branch was removed with the legacy
+ * stack. */
 struct usbh_urb {
     void *list; /* usb_slist_t list; (internal v1.6 leads with this) - keep ABI aligned */
     void *hcpriv;
@@ -70,22 +71,6 @@ struct usbh_urb {
     void *arg;
     struct usbh_iso_frame_packet iso_packet[0];
 };
-#else
-struct usbh_urb {
-    usbh_pipe_t pipe;
-    struct usb_setup_packet *setup;
-    uint8_t *transfer_buffer;
-    uint32_t transfer_buffer_length;
-    int transfer_flags;
-    uint32_t actual_length;
-    uint32_t timeout;
-    int errorcode;
-    uint32_t num_of_iso_packets;
-    usbh_complete_callback_t complete;
-    void *arg;
-    struct usbh_iso_frame_packet iso_packet[0];
-};
-#endif
 
 /**
  * @brief usb host controller hardware init.

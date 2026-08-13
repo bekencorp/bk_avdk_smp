@@ -6,7 +6,10 @@
 #ifndef USB_MEM_H
 #define USB_MEM_H
 
-#define USB_MEM_ALIGNX //__attribute__((aligned(CONFIG_USB_ALIGN_SIZE)))
+/* USB_MEM_ALIGNX is provided by usb_util.h (the CherryUSB v1.6 tree copy,
+ * aligned(CONFIG_USB_ALIGN_SIZE)). It is intentionally NOT redefined here so
+ * the public and tree macro environments agree (single source of truth). Every
+ * user of USB_MEM_ALIGNX (usbh_core.h) already includes usb_util.h first. */
 
 #if (CONFIG_USB_ALIGN_SIZE > 4)
 static inline void *usb_iomalloc(size_t size)
