@@ -87,8 +87,8 @@ if (CONFIG_BLUETOOTH_AP)
 
 		if(CONFIG_ALI_MQTT)
 			list(APPEND incs
-				${components}/ali_mqtt/mqtt
-				${components}/ali_mqtt/mqtt/utils
+				${components}/app/ali_mqtt/mqtt
+				${components}/app/ali_mqtt/mqtt/utils
 			)
 		endif()#CONFIG_ALI_MQTT
 		set(bk_inc ../../include)
