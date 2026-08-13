@@ -172,12 +172,17 @@ int main(void)
 
     flash_map_init();
     dump_partition();
+    /* Force-A builds ignore the retained boot_param A/B record completely. */
+#if !defined(CONFIG_XIP_FORCE_SLOT_A)
     /* Compute preferred A/B slot from boot_param; fed to MCUboot via
      * boot_get_active_slot_hook(). MCUboot still validates and falls back on
      * a bad signature. */
     (void)boot_param_load();
     uint8_t ab_pref = boot_param_decide_slot();
     BOOT_LOG_INF("boot_param preferred slot: %d", ab_pref);
+#else
+    BOOT_LOG_INF("XIP force-A: skip boot_param slot selection");
+#endif
 
     plat_err = tfm_plat_otp_init();
     if (plat_err != TFM_PLAT_ERR_SUCCESS) {
@@ -214,9 +219,12 @@ int main(void)
         BOOT_LOG_ERR("Unable to find bootable image");
         FIH_PANIC;
     }
+    /* Force-A cannot reconcile or persist a fallback to the placeholder B. */
+#if !defined(CONFIG_XIP_FORCE_SLOT_A)
     /* If MCUboot fell back off our preferred slot (it failed validation), persist
      * the slot actually booted so the next reset goes straight to the good one. */
     boot_param_reconcile_booted(rsp.br_image_off);
+#endif
     do_boot(&rsp);
 
     BOOT_LOG_ERR("Never should get here");

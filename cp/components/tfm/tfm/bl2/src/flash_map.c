@@ -6,6 +6,7 @@
  */
 
 #include <stdbool.h>
+#include <string.h>
 /* BK7259: pull in security.h FIRST so CONFIG_DIRECT_XIP (from _ota.h,
  * strategy=XIP) is visible in flash_area_read() below, enabling the CBUS
  * (DBUS-decrypted) read path for the primary slot. Without it the DIRECT_XIP
@@ -127,6 +128,19 @@ void flash_area_close(const struct flash_area *area)
 int flash_area_read(const struct flash_area *area, uint32_t off, void *dst,
                     uint32_t len)
 {
+    /* Primary-only / placeholder secondary: never present a valid slot-B image
+     * (synthesized secondary geometry may alias primary). */
+    if (area->fa_id == 1 &&
+#if defined(CONFIG_XIP_FORCE_SLOT_A)
+        true) {
+#else
+        (!CONFIG_DIRECT_XIP ||
+         partition_get_phy_size(PARTITION_SECONDARY_ALL) == 0u)) {
+#endif
+        memset(dst, 0xFF, len);
+        return 0;
+    }
+
     /* Primary slot (fa_id 0): read via the CBUS XIP view so the flash HW
      * XTS-decrypts on the fly and MCUboot sees the plaintext image. A raw SPI
      * read would return ciphertext -> "Image not found". */

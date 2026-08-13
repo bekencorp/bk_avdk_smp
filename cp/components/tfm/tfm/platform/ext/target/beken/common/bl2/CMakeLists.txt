@@ -161,6 +161,9 @@ if(BL2)
 
 	
 	target_include_directories(platform_bl2 PUBLIC ${platform_bl2_inc})
+	# BEFORE: project partitions_gen.h must beat PROJECT_PARTITIONS_DIR / stub
+	# copies that share the same filename but different macros.
+	target_include_directories(platform_bl2 BEFORE PUBLIC ${PARTITION_HDR_DIR})
 	target_sources(platform_bl2 PRIVATE ${platform_bl2_src})
 endif()
 

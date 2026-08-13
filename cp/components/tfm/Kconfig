@@ -73,6 +73,14 @@ config XIP_NO_VERSION
     bool "XIP image without version header"
     default y
 
+config XIP_FORCE_SLOT_A
+    bool "Keep DIRECT_XIP secondary partitions but boot slot A only"
+    default n
+    help
+        Keep secondary partition entries as non-bootable placeholders. BL2 only
+        reads, validates and boots the primary slot. A validation failure is
+        fatal and never falls back to the secondary slot.
+
 config TFM_CRYPTO
     bool "Enable TF-M Crypto partition (PSA Crypto)"
     default y

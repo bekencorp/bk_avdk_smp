@@ -51,7 +51,7 @@
 #include "hal_hw_fih.h"
 #include "hal_sw_fih.h"
 #include "tfm_plat_otp.h"
-#include "efuse.h"
+#include "bk_efuse.h"
 
 #ifdef MCUBOOT_ENC_IMAGES
 #include "bootutil/enc_key.h"
@@ -96,6 +96,12 @@ extern bool is_validate_image;
 
 #define NO_ACTIVE_SLOT UINT32_MAX
 
+#if defined(CONFIG_XIP_FORCE_SLOT_A)
+#define BOOT_SLOT_SCAN_COUNT 1
+#else
+#define BOOT_SLOT_SCAN_COUNT BOOT_NUM_SLOTS
+#endif
+
 static int
 boot_read_image_headers(struct boot_loader_state *state, bool require_all,
         struct boot_status *bs)
@@ -103,7 +109,7 @@ boot_read_image_headers(struct boot_loader_state *state, bool require_all,
     int rc;
     int i;
 
-    for (i = 0; i < BOOT_NUM_SLOTS; i++) {
+    for (i = 0; i < BOOT_SLOT_SCAN_COUNT; i++) {
         rc = BOOT_HOOK_CALL(boot_read_image_header_hook, BOOT_HOOK_REGULAR,
                             BOOT_CURR_IMG(state), i, boot_img_hdr(state, i));
         if (rc == BOOT_HOOK_REGULAR)
@@ -2495,8 +2501,8 @@ boot_get_slot_usage(struct boot_loader_state *state)
             continue;
         }
 #endif
-        /* Open all the slots */
-        for (slot = 0; slot < BOOT_NUM_SLOTS; slot++) {
+        /* Force-A builds deliberately never open the placeholder B slot. */
+        for (slot = 0; slot < BOOT_SLOT_SCAN_COUNT; slot++) {
             fa_id = flash_area_id_from_multi_image_slot(
                                                 BOOT_CURR_IMG(state), slot);
             rc = flash_area_open(fa_id, &BOOT_IMG_AREA(state, slot));
@@ -2510,8 +2516,8 @@ boot_get_slot_usage(struct boot_loader_state *state)
             return rc;
         }
 
-        /* Check headers in all slots */
-        for (slot = 0; slot < BOOT_NUM_SLOTS; slot++) {
+        /* Check only slots that this build is allowed to boot. */
+        for (slot = 0; slot < BOOT_SLOT_SCAN_COUNT; slot++) {
             hdr = boot_img_hdr(state, slot);
 
             if (boot_is_header_valid(hdr, BOOT_IMG_AREA(state, slot))) {
@@ -2526,6 +2532,10 @@ boot_get_slot_usage(struct boot_loader_state *state)
             }
         }
 
+#if defined(CONFIG_XIP_FORCE_SLOT_A)
+        state->slot_usage[BOOT_CURR_IMG(state)].
+            slot_available[BOOT_SECONDARY_SLOT] = false;
+#endif
         state->slot_usage[BOOT_CURR_IMG(state)].active_slot = NO_ACTIVE_SLOT;
     }
 
@@ -2544,6 +2554,13 @@ boot_get_slot_usage(struct boot_loader_state *state)
 static uint32_t
 find_slot_with_highest_version(struct boot_loader_state *state)
 {
+#if defined(CONFIG_XIP_FORCE_SLOT_A)
+    uint32_t primary = state->slot_usage[BOOT_CURR_IMG(state)].
+        slot_available[BOOT_PRIMARY_SLOT] ? BOOT_PRIMARY_SLOT : NO_ACTIVE_SLOT;
+
+    BOOT_LOG_INF("%s: force-A candidate_slot:%d", __FUNCTION__, primary);
+    return primary;
+#else
     uint32_t slot;
     uint32_t candidate_slot = NO_ACTIVE_SLOT;
     int rc;
@@ -2589,6 +2606,7 @@ find_slot_with_highest_version(struct boot_loader_state *state)
     }
     BOOT_LOG_INF("%s: candidate_slot:%d", __FUNCTION__, candidate_slot);
     return candidate_slot;
+#endif
 }
 
 #ifdef MCUBOOT_HAVE_LOGGING

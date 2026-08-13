@@ -115,12 +115,33 @@ static void flash_area_set_partition(flash_map_e flash_map_id, uint32_t partitio
 static void flash_area_config_direct_xip(void)
 {
 	uint32_t primary_start = flash_map[FLASH_MAP_IMAGE_PRIMARY_ALL].fa_off;
-	uint32_t secondary_start = flash_map[FLASH_MAP_IMAGE_SECONDARY_ALL].fa_off;
+	uint32_t primary_size = flash_map[FLASH_MAP_IMAGE_PRIMARY_ALL].fa_size;
+	/* Use partition table size, not flash_map[] — single-slot init may
+	 * synthesize a non-zero secondary fa_size for MCUboot sector checks. */
+	uint32_t secondary_size = partition_get_phy_size(PARTITION_SECONDARY_ALL);
 
 	/* Clear stale slot-B remap before BL2 reads A/B images. */
 	flash_set_excute_enable(0);
-	flash_set_xip_offset(primary_start, secondary_start,flash_map[FLASH_MAP_IMAGE_PRIMARY_ALL].fa_size);
 
+	/* Single-slot layouts (e.g. secureboot_ai) have no secondary_all.
+	 * Do not program A/B XIP remap with secondary_start=0 — that corrupts
+	 * remap state. Keep primary window only and disable OTA remap. */
+#if defined(CONFIG_XIP_FORCE_SLOT_A)
+	(void)secondary_size;
+	flash_set_xip_offset(primary_start, primary_start, primary_size);
+	flash_set_ota_enable(false);
+	return;
+#else
+	if (secondary_size == 0u) {
+		flash_set_xip_offset(primary_start, primary_start, primary_size);
+		flash_set_ota_enable(false);
+		return;
+	}
+#endif
+
+	flash_set_xip_offset(primary_start,
+			     flash_map[FLASH_MAP_IMAGE_SECONDARY_ALL].fa_off,
+			     primary_size);
 	flash_set_ota_enable(true);
 }
 
@@ -145,6 +166,22 @@ int flash_map_init(void)
 		flash_area_set_partition(s_partition_map[i].flash_map_id,
 					 s_partition_map[i].partition_id);
 	}
+
+	/* MCUboot always opens both slots and compares sector layouts. When
+	 * secondary_all is absent, give the secondary flash_area the same
+	 * geometry as primary so sector checks pass; flash_area_read() returns
+	 * erased content for that slot so it never looks like a valid image. */
+	if ((!CONFIG_DIRECT_XIP ||
+	     partition_get_phy_size(PARTITION_SECONDARY_ALL) == 0u) &&
+	    flash_map[FLASH_MAP_IMAGE_PRIMARY_ALL].fa_size != 0u) {
+		flash_map[FLASH_MAP_IMAGE_SECONDARY_ALL].fa_off =
+			flash_map[FLASH_MAP_IMAGE_PRIMARY_ALL].fa_off;
+		flash_map[FLASH_MAP_IMAGE_SECONDARY_ALL].fa_size =
+			flash_map[FLASH_MAP_IMAGE_PRIMARY_ALL].fa_size;
+		flash_map[FLASH_MAP_IMAGE_SECONDARY_ALL].fa_phy_size =
+			flash_map[FLASH_MAP_IMAGE_PRIMARY_ALL].fa_phy_size;
+	}
+
 #if CONFIG_DIRECT_XIP
 	flash_area_config_direct_xip();
 #endif /* CONFIG_DIRECT_XIP */

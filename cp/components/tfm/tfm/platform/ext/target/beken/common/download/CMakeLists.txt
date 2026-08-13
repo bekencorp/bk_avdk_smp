@@ -69,6 +69,9 @@ if (BL2_DOWNLOAD)
 	target_compile_options(download PUBLIC ${BL2_COMPILER_CP_FLAG})
 	target_include_directories(download PUBLIC ${CMAKE_CURRENT_LIST_DIR}/include)
 	target_include_directories(download PRIVATE ${download_inc})
+	# BEFORE: project partitions_gen.h must beat PROJECT_PARTITIONS_DIR / stub
+	# copies that share the same filename but different macros.
+	target_include_directories(download BEFORE PRIVATE ${PARTITION_HDR_DIR})
 	target_link_libraries(platform_bl2 PUBLIC download)
 	link_directories(${CMAKE_CURRENT_BINARY_DIR})
 endif()

@@ -84,15 +84,39 @@ int bk_flash_dbus_isolation_init(void)
 	uint32_t ps_size = partition_get_phy_size(PARTITION_SYS_PS);
 	uint32_t primary_offset = partition_get_phy_offset(PARTITION_PRIMARY_ALL);
 	uint32_t secondary_offset = partition_get_phy_offset(PARTITION_SECONDARY_ALL);
+	uint32_t secondary_size = partition_get_phy_size(PARTITION_SECONDARY_ALL);
+	uint32_t region0_end;
+	uint32_t region1_start;
+	uint32_t region1_end;
 
 	bk_fih_set_src(FIH_DATA_DBUS, 0xbb);
 	bk_sw_fih_set_data(FIH_SW_INDEX11);
-	bk_flash_set_dbus_security_region(0, 0, ps_offset + ps_size - 1, true);
+
+	/* Region 0: boot + ITS/PS (and anything before PS end) stays Secure on DBUS. */
+	region0_end = ps_offset + ps_size - 1u;
+	bk_flash_set_dbus_security_region(0, 0, region0_end, true);
 	bk_sw_fih_set_data(FIH_SW_INDEX12);
 
-	uint32_t active_offset = flash_get_excute_enable() ? secondary_offset : primary_offset;
+	/*
+	 * Region 1: protect the active Secure image window.
+	 * Dual-slot A/B: slot size = secondary_offset - primary_offset.
+	 * Single-slot (secondary_all absent): that formula underflows to
+	 * 0xFFFFFFFF and marks nearly all flash Secure, so NS flash-controller
+	 * reads (e.g. sys_rf) BusFault. Fall back to primary_tfm_s only.
+	 */
+	if (!CONFIG_DIRECT_XIP ||
+#if defined(CONFIG_XIP_FORCE_SLOT_A)
+	    true ||
+#endif
+	    (secondary_offset == 0u) || (secondary_size == 0u)) {
+		region1_start = partition_get_phy_offset(PARTITION_PRIMARY_TFM_S);
+		region1_end = region1_start + partition_get_phy_size(PARTITION_PRIMARY_TFM_S) - 1u;
+	} else {
+		region1_start = flash_get_excute_enable() ? secondary_offset : primary_offset;
+		region1_end = region1_start + secondary_offset - primary_offset - 1u;
+	}
 
-	bk_flash_set_dbus_security_region(1, active_offset, (active_offset + secondary_offset - primary_offset -1), true);
+	bk_flash_set_dbus_security_region(1, region1_start, region1_end, true);
 
 	bk_sw_fih_set_data(FIH_SW_INDEX13);
 	bk_fih_set_dst(FIH_DATA_DBUS, 0xbb);
@@ -176,8 +200,13 @@ FIH_RET_TYPE(enum tfm_hal_status_t) tfm_hal_platform_init(void)
 
     tfm_deepsleep_fastboot_save_xip();
 
-    /* Confirm the verified TRIAL image after secure-world initialization. */
+    /* A/B trial confirm: reaching here means MCUboot verified the image and the
+     * secure world came up, so adopt a TRIAL slot as the new NORMAL exec_slot.
+     * flash + partition table are ready (partition_init ran earlier in
+     * tfm_core_init). Idempotent: no-op for a non-TRIAL / virgin record. */
+#if !defined(CONFIG_XIP_FORCE_SLOT_A)
     (void)boot_param_confirm();
+#endif
 
     FIH_RET(fih_int_encode(TFM_HAL_SUCCESS));
 }
@@ -236,10 +265,12 @@ void tfm_hal_dma_init(void)
 	*dma0_enable = 0;
 	*dma0_int_alloc = DMA0_INT_ALLOC_VALUE;
 
-	/* Soft reset DMA1 module */
+	/* Soft reset DMA1 module.
+	 * secure_attr=0 / privileged_attr=0 so NS AP can program channels after
+	 * PPHS marks DMA1 Non-Secure. (Post-PPHS re-init also uses NS alias.) */
 	*dma1_ctrl = 0;
 	*dma1_ctrl = 1;
-	*dma1_mask = 0xFFF;
+	*dma1_mask = 0;
 	*dma1_enable = 0;
 	*dma1_int_alloc = DMA1_INT_ALLOC_VALUE;
 }

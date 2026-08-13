@@ -1,5 +1,7 @@
 target_include_directories(platform_s PUBLIC .)
-target_include_directories(platform_s PRIVATE ${PARTITION_HDR_DIR})
+# BEFORE: project partitions_gen.h must beat PROJECT_PARTITIONS_DIR / stub
+# copies that share the same filename but different macros.
+target_include_directories(platform_s BEFORE PRIVATE ${PARTITION_HDR_DIR})
 # boot_param.h (A/B record layout + shared ping-pong algorithm) lives in bl2/;
 # the runtime confirm path reuses it. PRIVATE so bl2 headers are not re-exported
 # to platform_s dependents.

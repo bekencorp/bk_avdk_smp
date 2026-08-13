@@ -3,7 +3,7 @@
 #include <stdint.h>
 
 #define BK_PPC_CONFIG_WORD_COUNT  12
-#define BK_PPHS_CONFIG_WORD_COUNT 3
+#define BK_PPHS_CONFIG_WORD_COUNT 4
 
 /* PPRO aonp_sap sits at reg7: aon_gpio_nsec2 occupies reg6, which shifts the
  * peripheral nsec/ap bits to reg7. */
