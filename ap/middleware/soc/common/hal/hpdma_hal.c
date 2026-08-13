@@ -20,7 +20,9 @@ bk_err_t hpdma_hal_init(hpdma_hal_t *hal)
 {
     hal->hw = (hpdma_hw_t *)HPDMA_LL_REG_BASE(hal->id);
     hpdma_ll_init(hal->hw);
+#if CONFIG_SPE
     hpdma_ll_set_prio_mode_round_robin(hal->hw);
+#endif
     return BK_OK;
 }
 

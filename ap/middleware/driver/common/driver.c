@@ -300,10 +300,8 @@ int driver_init(void) {
 	bk_dma_driver_init();
 #endif
 
-#if CONFIG_SPE
 #if CONFIG_HIGH_PERFORMANCE_DMA
 	bk_hpdma_driver_init();
-#endif
 #endif
 
 #if (CONFIG_TASK_WDT)

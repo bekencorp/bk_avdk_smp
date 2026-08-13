@@ -191,8 +191,15 @@ static void hpdma_id_deinit_common(hpdma_id_t id)
 
 static void hpdma_id_enable_interrupt_common(hpdma_id_t id)
 {
-    //0:int route to M55 core 0
+    /*
+     * CONFIG_SPE=0 (NS after TF-M/PPHS): int_allocate is controller-wide;
+     * TF-M already set it to HPDMA_INT_0. NS RMW BusFaults — skip.
+     */
+#if CONFIG_SPE
     hpdma_hal_set_int_allocate(&s_hpdma.hal, id, HPDMA_INT_0);
+#else
+    (void)id;
+#endif
 #if CONFIG_SOC_SMP
 	sys_drv_set_int_en(CPU2_CORE_ID, INT_SRC_HPDMA, 1);
 #else
@@ -305,9 +312,11 @@ bk_err_t bk_hpdma_driver_init(void)
 		s_hpdma_chnl_pool.chnl_user[i] = -1;
 	}
 
-    // workaround: must uncomment it after mailbox problem fixed
-    // bk_pm_module_vote_power_ctrl(PM_POWER_SUB_MODULE_NAME_BAKP_DMA0, PM_POWER_MODULE_STATE_ON);
-    // bk_pm_module_vote_power_ctrl(PM_POWER_SUB_MODULE_NAME_BAKP_DMA1, PM_POWER_MODULE_STATE_ON);
+#if !CONFIG_SPE && CONFIG_PM_ENABLE
+    /* BAKP must be on before NS writes HPDMA channel regs. */
+    bk_pm_module_vote_power_ctrl(PM_POWER_SUB_MODULE_NAME_BAKP_DMA0, PM_POWER_MODULE_STATE_ON);
+    bk_pm_module_vote_power_ctrl(PM_POWER_SUB_MODULE_NAME_BAKP_DMA1, PM_POWER_MODULE_STATE_ON);
+#endif
 
     /* 1)intc_service_register
      * 2)init hpdma_finish_int handler, hpdma_half_finish_int handler

@@ -23,13 +23,10 @@
 /******************************************************************************/
 
 #include "common/bk_include.h"
+#include "soc/bk7259/reg_base.h"
 
-/* Register Base Address */
-#ifdef CONFIG_SPE
-#define ETH_BASE (0x48080000 + SOC_ADDR_OFFSET)
-#else
-#define ETH_BASE 0x48080000
-#endif // CONFIG_SPE
+/* Register Base Address: always apply SOC_ADDR_OFFSET (0 for SPE, 0x10000000 for NS). */
+#define ETH_BASE (0x48080000u + SOC_ADDR_OFFSET)
 #define ETH                 ((ETH_TypeDef *)ETH_BASE)
 
 

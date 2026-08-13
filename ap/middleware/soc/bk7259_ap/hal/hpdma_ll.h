@@ -31,12 +31,16 @@ static inline void hpdma_ll_init(hpdma_hw_t *hw)
 {
 	int hpdma_id;
 
+	/*
+	 * CONFIG_SPE=0 (NS after TF-M/PPHS): TF-M already programmed
+	 * controller-wide regs; NS writes BusFault — skip.
+	 */
+#if CONFIG_SPE
 	hw->prio_mode.v = 0;
 	hw->prio_mode.soft_reset = 1;	//reset it before anyother operations
-
 	hw->secure_attr.v = 0xF;
 	hw->privileged_attr.v = 0xF;
-
+#endif
 
 	for (hpdma_id = 0; hpdma_id < SOC_HPDMA_CHAN_NUM_PER_UNIT; hpdma_id++) {
 		hw->config_group[hpdma_id].ctrl.v = 0;
@@ -67,12 +71,16 @@ static inline uint32_t hpdma_ll_get_soft_reset_value(hpdma_hw_t *hw)
 
 static inline void hpdma_ll_init_without_channels(hpdma_hw_t *hw)
 {
+#if CONFIG_SPE
 	if(0 == hpdma_ll_get_soft_reset_value(hw)) {
 		hw->prio_mode.v = 0;
 		hw->prio_mode.soft_reset = 1;	//reset it before anyother operations
 		hw->secure_attr.v = 0xF;  // attr is 4-bit, so use 0xF instead of 0xFFF
 		hw->privileged_attr.v = 0xF;  // attr is 4-bit, so use 0xF instead of 0xFFF
 	}
+#else
+	(void)hw; /* NS: TF-M owns soft_reset / attr (see hpdma_ll_init). */
+#endif
 }
 
 //TODO: add other devices
@@ -465,11 +473,17 @@ static inline void hpdma_ll_set_privileged_attr(hpdma_hw_t *hw, hpdma_id_t id, h
  */
 static inline void hpdma_ll_set_int_allocate(hpdma_hw_t *hw, hpdma_id_t id, hpdma_int_id_t int_id)
 {
+#if CONFIG_SPE
 	uint32_t mask = 0x7UL << (id * 3);  // 3-bit mask for this channel
 	uint32_t value = ((uint32_t)int_id & 0x7UL) << (id * 3);
-	
+
 	// Clear the 3 bits for this channel and set new value
 	hw->int_allocate.v = (hw->int_allocate.v & ~mask) | value;
+#else
+	(void)hw;
+	(void)id;
+	(void)int_id;
+#endif
 }
 
 /**
