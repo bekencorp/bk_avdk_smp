@@ -8,20 +8,20 @@
 #include "bk_private/bk_init.h"
 #include <components/system.h>
 #include <os/os.h>
-
-#if CONFIG_TFM_AP_BOOT_NSC
-#include "tfm_ap_boot_nsc.h"
-#endif
+#include <modules/pm.h>
+#include <driver/pwr_clk.h>
 
 extern void rtos_set_user_app_entry(beken_thread_function_t entry);
 
 void user_app_main(void)
 {
-#if CONFIG_TFM_AP_BOOT_NSC
-	if (psa_ap_boot() != 0) {
-		BK_LOGE(NULL, "psa_ap_boot failed\r\n");
+	/* Start the AP through the common PM vote + multicore path. TF-M performs
+	 * only the Secure-privilege AP prepare via the psa_ap_secure_prepare NSC
+	 * inside multicore_hal_start(). */
+	if (bk_pm_module_vote_boot_ap_ctrl(PM_BOOT_AP_MODULE_NAME_APP,
+			PM_POWER_MODULE_STATE_ON) != BK_OK) {
+		BK_LOGE(NULL, "AP boot vote failed\r\n");
 	}
-#endif
 	BK_LOGI(NULL, "secureboot_xip: CP NS world reached (secure boot OK)\r\n");
 }
 
