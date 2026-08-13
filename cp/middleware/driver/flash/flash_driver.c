@@ -960,6 +960,7 @@ bk_err_t bk_flash_power_saving_enter(void)
 	g_pm_flash_saving_regs[1] =REG_READ(SOC_FLASH_REG_BASE+0x7*4);
 	g_pm_flash_saving_regs[2] =REG_READ(SOC_FLASH_REG_BASE+0x9*4);
 	g_pm_flash_saving_regs[3] =REG_READ(SOC_FLASH_REG_BASE+0xa*4);
+#if CONFIG_SPE
 	g_pm_flash_saving_regs[4] =REG_READ(SOC_FLASH_REG_BASE+0xd*4);
 	g_pm_flash_saving_regs[5] =REG_READ(SOC_FLASH_REG_BASE+0xe*4);
 	g_pm_flash_saving_regs[6] =REG_READ(SOC_FLASH_REG_BASE+0xf*4);
@@ -968,6 +969,7 @@ bk_err_t bk_flash_power_saving_enter(void)
 	g_pm_flash_saving_regs[9] =REG_READ(SOC_FLASH_REG_BASE+0x12*4);
 	g_pm_flash_saving_regs[10] =REG_READ(SOC_FLASH_REG_BASE+0x13*4);
 	g_pm_flash_saving_regs[11] =REG_READ(SOC_FLASH_REG_BASE+0x14*4);
+#endif
 	g_pm_flash_saving_regs[12] =REG_READ(SOC_FLASH_REG_BASE+0x15*4);
 	g_pm_flash_saving_regs[13] =REG_READ(SOC_FLASH_REG_BASE+0x16*4);
 	g_pm_flash_saving_regs[14] =REG_READ(SOC_FLASH_REG_BASE+0x17*4);
@@ -989,6 +991,7 @@ __attribute__((section(".iram"))) bk_err_t bk_flash_power_saving_exit(void)
 	REG_WRITE(SOC_FLASH_REG_BASE+0x7*4, g_pm_flash_saving_regs[1]);
 	REG_WRITE(SOC_FLASH_REG_BASE+0x9*4, g_pm_flash_saving_regs[2]);
 	REG_WRITE(SOC_FLASH_REG_BASE+0xa*4, g_pm_flash_saving_regs[3]);
+#if CONFIG_SPE
 	REG_WRITE(SOC_FLASH_REG_BASE+0xd*4, g_pm_flash_saving_regs[4]);
 	REG_WRITE(SOC_FLASH_REG_BASE+0xe*4, g_pm_flash_saving_regs[5]);
 	REG_WRITE(SOC_FLASH_REG_BASE+0xf*4, g_pm_flash_saving_regs[6]);
@@ -997,6 +1000,7 @@ __attribute__((section(".iram"))) bk_err_t bk_flash_power_saving_exit(void)
 	REG_WRITE(SOC_FLASH_REG_BASE+0x12*4, g_pm_flash_saving_regs[9]);
 	REG_WRITE(SOC_FLASH_REG_BASE+0x13*4, g_pm_flash_saving_regs[10]);
 	REG_WRITE(SOC_FLASH_REG_BASE+0x14*4, g_pm_flash_saving_regs[11]);
+#endif
 	REG_WRITE(SOC_FLASH_REG_BASE+0x15*4, g_pm_flash_saving_regs[12]);
 	REG_WRITE(SOC_FLASH_REG_BASE+0x16*4, g_pm_flash_saving_regs[13]);
 	REG_WRITE(SOC_FLASH_REG_BASE+0x17*4, g_pm_flash_saving_regs[14]);
