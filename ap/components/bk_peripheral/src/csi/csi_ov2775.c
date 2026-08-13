@@ -2770,6 +2770,37 @@ void *ov2775_get_sensor_cfg(bk_camera_sensor_ctlr_t *controller)
     return (void*)csi_sensor->sensor_config;
 }
 
+static avdk_err_t ov2775_ioctl(bk_camera_sensor_ctlr_t *controller, uint32_t cmd, void *arg)
+{
+    (void)controller;
+
+    switch (cmd)
+    {
+        case BK_CAMERA_SENSOR_IOCTL_GET_DEFAULT_CPROC:
+        {
+            bk_isp_cproc_attr_t *out = (bk_isp_cproc_attr_t *)arg;
+            const ISP_CPROC_ATTR_S *src;
+
+            AVDK_RETURN_ON_FALSE(out, AVDK_ERR_INVAL, TAG, "default cproc arg is NULL");
+            src = &OV2775_1080P_CalibParam.modules.cproc;
+            out->enable = src->enable ? 1 : 0;
+            out->op_type = src->opType;
+            out->manual.brightness = src->manualAttr.brightness;
+            out->manual.contrast = src->manualAttr.contrast;
+            out->manual.saturation = src->manualAttr.saturation;
+            out->manual.hue = src->manualAttr.hue;
+            os_memcpy(out->auto_attr.brightness, src->autoAttr.brightness, sizeof(out->auto_attr.brightness));
+            os_memcpy(out->auto_attr.contrast, src->autoAttr.contrast, sizeof(out->auto_attr.contrast));
+            os_memcpy(out->auto_attr.saturation, src->autoAttr.saturation, sizeof(out->auto_attr.saturation));
+            os_memcpy(out->auto_attr.hue, src->autoAttr.hue, sizeof(out->auto_attr.hue));
+            return AVDK_ERR_OK;
+        }
+
+        default:
+            return AVDK_ERR_UNSUPPORTED;
+    }
+}
+
 avdk_err_t ov2775_detect(bk_camera_sensor_handle_t *handle, bk_camera_sensor_config_t *config)
 {
     uint8_t hb_id = 0, lb_id;
@@ -2798,6 +2829,7 @@ avdk_err_t ov2775_detect(bk_camera_sensor_handle_t *handle, bk_camera_sensor_con
     csi_sensor->ops.set_vflip = ov2775_set_vflip;
     csi_sensor->ops.get_sensor_object = ov2775_get_sensor_object;
     csi_sensor->ops.get_sensor_cfg = ov2775_get_sensor_cfg;
+    csi_sensor->ops.ioctl = ov2775_ioctl;
 
     csi_sensor->isp_pub_attr = &ov2775_mipi_linear_attr;
     csi_sensor->sensor_config = &csi_sensor_ov2775;

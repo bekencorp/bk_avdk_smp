@@ -1742,6 +1742,37 @@ static avdk_err_t sc3336p_query_support_formats(bk_camera_sensor_ctlr_t *control
     return AVDK_ERR_OK;
 }
 
+static avdk_err_t sc3336p_ioctl(bk_camera_sensor_ctlr_t *controller, uint32_t cmd, void *arg)
+{
+    (void)controller;
+
+    switch (cmd)
+    {
+        case BK_CAMERA_SENSOR_IOCTL_GET_DEFAULT_CPROC:
+        {
+            bk_isp_cproc_attr_t *out = (bk_isp_cproc_attr_t *)arg;
+            const ISP_CPROC_ATTR_S *src;
+
+            AVDK_RETURN_ON_FALSE(out, AVDK_ERR_INVAL, TAG, "default cproc arg is NULL");
+            src = &SC3336P_2304x1296_CalibParam.modules.cproc;
+            out->enable = src->enable ? 1 : 0;
+            out->op_type = src->opType;
+            out->manual.brightness = src->manualAttr.brightness;
+            out->manual.contrast = src->manualAttr.contrast;
+            out->manual.saturation = src->manualAttr.saturation;
+            out->manual.hue = src->manualAttr.hue;
+            os_memcpy(out->auto_attr.brightness, src->autoAttr.brightness, sizeof(out->auto_attr.brightness));
+            os_memcpy(out->auto_attr.contrast, src->autoAttr.contrast, sizeof(out->auto_attr.contrast));
+            os_memcpy(out->auto_attr.saturation, src->autoAttr.saturation, sizeof(out->auto_attr.saturation));
+            os_memcpy(out->auto_attr.hue, src->autoAttr.hue, sizeof(out->auto_attr.hue));
+            return AVDK_ERR_OK;
+        }
+
+        default:
+            return AVDK_ERR_UNSUPPORTED;
+    }
+}
+
 
 avdk_err_t sc3336p_detect(bk_camera_sensor_handle_t *handle, bk_camera_sensor_config_t *config)
 {
@@ -1802,6 +1833,7 @@ avdk_err_t sc3336p_detect(bk_camera_sensor_handle_t *handle, bk_camera_sensor_co
     csi_sensor->ops.get_sensor_object = sc3336p_get_sensor_object;
     csi_sensor->ops.get_sensor_cfg = sc3336p_get_sensor_cfg;
     csi_sensor->ops.query_support_formats = sc3336p_query_support_formats;
+    csi_sensor->ops.ioctl = sc3336p_ioctl;
 
     csi_sensor->isp_pub_attr = &sc3336p_mipi_linear_attr;
     csi_sensor->sensor_config = NULL;
