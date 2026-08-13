@@ -753,6 +753,10 @@ static uint32_t current_sending_idx;
 
 static usb_osal_thread_t mtp_thread = NULL;
 static usb_osal_sem_t mtp_sem;
+/* Signalled by the worker right before it self-deletes so usb_mtp_deinit() can
+ * wait for the worker to stop touching the shared buffers/lists before tearing
+ * them down. */
+static usb_osal_sem_t mtp_exit_sem = NULL;
 static volatile uint8_t mtp_thread_op;
 static uint32_t mtp_parameter_backup[5];
 static uint32_t mtp_ep_recive_cnt;
@@ -3279,9 +3283,15 @@ static void usbd_mtp_thread(void *argument)
     }
     #endif
     clear_all_list();
-    usb_osal_sem_delete(mtp_sem);
-    mtp_sem = NULL;
     mtp_thread = NULL;
+    /* Hand semaphore/buffer teardown back to usb_mtp_deinit(): signal that this
+     * worker is done touching the shared state, then self-delete. deinit blocks
+     * on mtp_exit_sem before deleting mtp_sem / freeing the buffers, so nothing
+     * frees state from under a still-running worker. */
+    if (mtp_exit_sem)
+    {
+        usb_osal_sem_give(mtp_exit_sem);
+    }
     /* self-delete: v1.6 OSAL usb_osal_thread_delete(NULL) wraps to
      * rtos_delete_thread(&handle) with handle==NULL, which asserts in the
      * RTOS. Use rtos_delete_thread(NULL) for the proper self-delete path. */
@@ -3314,10 +3324,32 @@ struct usbd_interface *usbd_mtp_init_intf(struct usbd_interface *intf, const uin
         next_handle = 1;
         open_fd = -1;
         #endif
+        /* Clear any leftover command (e.g. MTP_THREAD_EXIT from the previous
+         * stop) BEFORE creating the worker. Since mtp_sem is created with an
+         * initial count of 1, the freshly created worker can immediately take
+         * it; if mtp_thread_op still held the stale MTP_THREAD_EXIT it would
+         * self-delete right away, leaving mtp_sem == NULL for the next stop and
+         * asserting in xQueueGenericSend. */
+        mtp_thread_op = MTP_THREAD_OP_NONE;
         mtp_sem = usb_osal_sem_create(1);
+        if (mtp_sem == NULL) {
+            USB_LOG_ERR("failed to create mtp_sem\r\n");
+            return NULL;
+        }
+        mtp_exit_sem = usb_osal_sem_create(0);
+        if (mtp_exit_sem == NULL) {
+            USB_LOG_ERR("failed to create mtp_exit_sem\r\n");
+            usb_osal_sem_delete(mtp_sem);
+            mtp_sem = NULL;
+            return NULL;
+        }
         mtp_thread = usb_osal_thread_create("usbd_mtp", 2048, BEKEN_DEFAULT_WORKER_PRIORITY, usbd_mtp_thread, NULL);
         if (mtp_thread == NULL) {
             USB_LOG_ERR("no enough memory to alloc mtp thread\r\n");
+            usb_osal_sem_delete(mtp_sem);
+            mtp_sem = NULL;
+            usb_osal_sem_delete(mtp_exit_sem);
+            mtp_exit_sem = NULL;
             return NULL;
         }
     }
@@ -3440,7 +3472,29 @@ int usb_mtp_deinit(void)
     if(!s_mtp_init) return BK_OK;
     int ret = BK_OK;
     mtp_thread_op = MTP_THREAD_EXIT;
-    usb_osal_sem_give(mtp_sem);
+    /* Wake the worker so it observes MTP_THREAD_EXIT. Guard the handle: a prior
+     * lifecycle race could already have torn the worker (and its sem) down. */
+    if (mtp_sem)
+    {
+        usb_osal_sem_give(mtp_sem);
+    }
+    /* Wait for the worker to finish its cleanup (it signals mtp_exit_sem right
+     * before self-deleting) before deleting the semaphores and freeing the
+     * buffers / endpoints it may still be using. */
+    if (mtp_exit_sem)
+    {
+        usb_osal_sem_take(mtp_exit_sem, 0xffffffff);
+    }
+    if (mtp_sem)
+    {
+        usb_osal_sem_delete(mtp_sem);
+        mtp_sem = NULL;
+    }
+    if (mtp_exit_sem)
+    {
+        usb_osal_sem_delete(mtp_exit_sem);
+        mtp_exit_sem = NULL;
+    }
     if((ret = usbd_deinitialize(MTP_BUSID)) != BK_OK)
     {
         pm_unlock(usb_pm);
