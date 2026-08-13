@@ -122,6 +122,10 @@ static void fatfs_operate(char *pcWriteBuffer, int xWriteBufferLen, int argc, ch
 			scan_file_system(drv_num);
 			BK_LOGD(NULL, "scan \r\n");
 			break;
+		case 'C':
+			test_fatfs_reclaim_lost(drv_num);
+			BK_LOGD(NULL, "reclaim_lost:%s\r\n", disk_name[drv_num % DISK_NUMBER_COUNT]);
+			break;
 		default:
 			break;
 		}
