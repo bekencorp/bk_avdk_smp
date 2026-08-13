@@ -430,6 +430,7 @@ static void cli_pm_power(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
 }
 static void cli_pm_freq(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
+	bk_err_t ret;
 	UINT32 pm_freq  = 0;
 	UINT32 pm_module_id  = 0;
 	pm_cpu_freq_e module_freq = 0;
@@ -442,19 +443,22 @@ static void cli_pm_freq(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
 
 	pm_module_id = os_strtoul(argv[1], NULL, 10);
 	pm_freq = os_strtoul(argv[2], NULL, 10);
-	if ((pm_freq > PM_CPU_FRQ_DEFAULT) || (pm_module_id > PM_DEV_ID_MAX))
+	if ((pm_freq > PM_CPU_FRQ_DEFAULT) || (pm_module_id >= PM_DEV_ID_MAX))
 	{
 		BK_LOGD(NULL, "set pm freq value invalid %d %d \r\n",pm_freq,pm_module_id);
 		return;
 	}
 
-	bk_pm_module_vote_cpu_freq(pm_module_id,pm_freq);
+	ret = bk_pm_module_vote_cpu_freq(pm_module_id,pm_freq);
+	if (ret != BK_OK)
+	{
+		BK_LOGD(NULL, "set pm freq failed: %d\r\n", ret);
+		return;
+	}
 
-	// module_freq =  bk_pm_module_current_cpu_freq_get(pm_module_id);
-
-	// current_max_freq = bk_pm_current_max_cpu_freq_get();
-
-	BK_LOGD(NULL, "pm cpu freq test id: %d; freq: %d; current max cpu freq: %d;\r\n",pm_module_id,module_freq,current_max_freq);
+	module_freq = bk_pm_module_current_cpu_freq_get(pm_module_id);
+	current_max_freq = bk_pm_current_max_cpu_freq_get();
+	BK_LOGD(NULL, "PM AP cpu freq test id: %d; freq: %d; current max cpu freq: %d;\r\n",pm_module_id,module_freq,current_max_freq);
 
 }
 static void cli_pm_lpo(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)

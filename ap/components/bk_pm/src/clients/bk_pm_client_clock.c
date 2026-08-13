@@ -18,9 +18,10 @@
 
 
 #define PM_HIGHEST_CPU_FREQ                     (CONFIG_PM_CPU_FRQ_HIGHEST)
+#define PM_CPU_FRQ_NONE                         (-1)
 
-static uint8_t s_pm_cpu_freq[PM_DEV_ID_MAX];
-static pm_cpu_freq_e s_pm_current_cpu_freq;
+static int8_t s_pm_cpu_freq[PM_DEV_ID_MAX] = {0};
+static pm_cpu_freq_e s_pm_current_cpu_freq = PM_CPU_FRQ_DEFAULT;
 
 /*=========================CLK/FREQ CTRL START========================*/
 
@@ -31,42 +32,54 @@ pm_cpu_freq_e bk_pm_current_max_cpu_freq_get()
 
 pm_cpu_freq_e bk_pm_module_current_cpu_freq_get(pm_dev_id_e module)
 {
+	if ((uint32_t)module >= PM_DEV_ID_MAX)
+	{
+		return PM_CPU_FRQ_DEFAULT;
+	}
+
 	return s_pm_cpu_freq[module];
 }
 
 bk_err_t bk_pm_module_vote_cpu_freq(pm_dev_id_e module, pm_cpu_freq_e cpu_freq)
 {
-	return BK_ERR_NOT_SUPPORT;//AP not support vote cpu freq
+	if (((uint32_t)module >= PM_DEV_ID_MAX) || ((uint32_t)cpu_freq > PM_CPU_FRQ_DEFAULT))
+	{
+		return BK_ERR_PARAM;
+	}
+
 	if (pm_debug_mode() & 0x2)
 	{
 		BK_LOGD(NULL, "current freq = %d,dev_id = %d vote freq = %d \r\n",s_pm_current_cpu_freq, module, cpu_freq);
 	}
 	bk_err_t ret            = BK_OK;
 	uint32_t i              = 0;
-	uint32_t freq_max       = 0;
-	uint32_t freq_max_index = 0;
+	int32_t freq_max        = 0;
+	int32_t freq_max_index  = 0;
 	bool bcpu_freq_highest  = false;
+	int32_t vote_freq       = cpu_freq;
+	int8_t previous_vote;
 
 	GLOBAL_INT_DECLARATION();
 	GLOBAL_INT_DISABLE();
+	previous_vote = s_pm_cpu_freq[module];
 
 	/*save the cpu freq first*/
-	if (PM_CPU_FRQ_DEFAULT == cpu_freq)
+	if (PM_CPU_FRQ_DEFAULT == vote_freq)
 	{
-		cpu_freq = PM_CPU_FRQ_XTAL; // it will use the PM_DEV_ID_DEFAULT vote cpu frequency
+		vote_freq = PM_CPU_FRQ_NONE; // it will use the PM_DEV_ID_DEFAULT vote cpu frequency
 	}
 
 	/*Appli do not need to be concerned with the specific CPU frequency*/
-	if(cpu_freq == PM_CPU_FRQ_HIGHEST)
+	if(vote_freq == PM_CPU_FRQ_HIGHEST)
 	{
-		cpu_freq = PM_HIGHEST_CPU_FREQ;
+		vote_freq = PM_HIGHEST_CPU_FREQ;
 		bcpu_freq_highest = true;
 	}
 	else
 	{
 		bcpu_freq_highest = false;
 	}
-	s_pm_cpu_freq[module] = (uint8_t)cpu_freq;
+	s_pm_cpu_freq[module] = vote_freq;
 
 	/*get the max cpu freq*/
 	freq_max = s_pm_cpu_freq[0];
@@ -80,13 +93,13 @@ bk_err_t bk_pm_module_vote_cpu_freq(pm_dev_id_e module, pm_cpu_freq_e cpu_freq)
 	}
 	if(bcpu_freq_highest == true)
 	{
-		s_pm_cpu_freq[module] = (uint8_t)PM_CPU_FRQ_HIGHEST;
+		s_pm_cpu_freq[module] = PM_CPU_FRQ_HIGHEST;
 	}
 
 	/*dpd need cpu freq 120M, when dpd calibration, it force dpd need cpu freq, if dpd cali finish, restore it*/
-	if((module == PM_DEV_ID_PHY_DPD_CALI)&&(cpu_freq != PM_CPU_FRQ_XTAL))
+	if((module == PM_DEV_ID_PHY_DPD_CALI)&&(vote_freq != PM_CPU_FRQ_NONE))
 	{
-		freq_max = cpu_freq;
+		freq_max = vote_freq;
 	}
 	else
 	{
@@ -104,7 +117,7 @@ bk_err_t bk_pm_module_vote_cpu_freq(pm_dev_id_e module, pm_cpu_freq_e cpu_freq)
 	}
 	else
 	{
-		ret = sys_drv_switch_cpu_bus_freq(freq_max);
+		ret = sys_drv_switch_cpu_bus_freq_unlocked(freq_max);
 	}
 	if (ret == BK_OK)
 	{
@@ -117,12 +130,16 @@ bk_err_t bk_pm_module_vote_cpu_freq(pm_dev_id_e module, pm_cpu_freq_e cpu_freq)
 			s_pm_current_cpu_freq = freq_max;
 		}
 	}
+	else
+	{
+		s_pm_cpu_freq[module] = previous_vote;
+	}
 
 	GLOBAL_INT_RESTORE();
 
 	if (ret != BK_OK)
 	{
-		LOGI("switch cpu freq error\r\n");
+		LOGI("switch cpu freq[%d] error\r\n", freq_max);
 		return ret;
 	}
 
