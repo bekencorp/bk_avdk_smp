@@ -295,6 +295,7 @@ SECTIONS
         *(.itcm_sec_code*)
         *(.interrupt)
         __itcm_end__ = .;
+#endif
 
 
         . = ALIGN(4);
@@ -303,13 +304,11 @@ SECTIONS
         *(.dtcm_section*)
         *(.dtcm_sec_data*)
         . = ALIGN(4);
-#endif
 
 
         __dtcm_end__ = .;
     } > DTCM AT > FLASH
 
-#if CONFIG_SPE
     /* NOLOAD DTCM region: scratch buffers that need no init value.
      * Not in copy.table (no flash copy) and not in zero.table, so it adds
      * nothing to boot-time b_data_copy_dtcm(). */
@@ -319,7 +318,6 @@ SECTIONS
         *(.dtcm_noinit*)
         . = ALIGN(4);
     } > DTCM
-#endif
 
     .iram :
     {
@@ -368,10 +366,6 @@ SECTIONS
         . = ALIGN(512);
 #endif
         KEEP(*(.vectors_iram))
-
-        *(.dtcm)
-        *(.dtcm_section*)
-        *(.dtcm_sec_data*)
 #endif
 
 #ifdef CONFIG_GCOV
@@ -414,9 +408,6 @@ SECTIONS
         *(".uninitialized.*")
         *(.noinit)
         *(.noinit*)
-#if !CONFIG_SPE
-        *(.dtcm_noinit*)
-#endif
         KEEP(*(.keep.uninitialized))
         . = ALIGN(32);
         __uninitialized_end = .;

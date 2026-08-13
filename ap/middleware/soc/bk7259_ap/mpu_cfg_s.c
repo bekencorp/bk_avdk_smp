@@ -86,7 +86,12 @@ ARM_MPU_Region_t mpu_regions[] = {
     { ARM_MPU_RBAR(0x40000000UL + NS_MEM_OFFSET, ARM_MPU_SH_INNER, 0, 1, 1),
       ARM_MPU_RLAR(0x4FFFFFE0UL + NS_MEM_OFFSET, 2) },
 
-    /* Non-secure QSPI window. */
+    /*
+     * Non-Secure QSPI memory-mapped window. secureboot_ai currently does not
+     * enable CONFIG_QSPI or access this window. If runtime QSPI programming is
+     * enabled later, make this region non-cacheable or provide Secure L2 cache
+     * maintenance before allowing the underlying device contents to change.
+     */
     { ARM_MPU_RBAR(0x68000000UL + NS_MEM_OFFSET, ARM_MPU_SH_NON, 0, 1, 1),
       ARM_MPU_RLAR(0x6FFFFFE0UL + NS_MEM_OFFSET, 3) },
 
