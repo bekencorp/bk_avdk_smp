@@ -38,6 +38,10 @@ bk_err_t bk_lp_vad_set_sleep_para_before_sleep(void)
 {
 	uint32_t reg2 = 0;
 
+	/* Use VAD as the wakeup source and ROSC as the low-power clock. */
+	aon_pmu_ll_set_r41_wakeup_ena(1U << WAKEUP_SOURCE_INT_VAD);
+	aon_pmu_hal_lpo_src_set(0x2);
+
 	/* VAD Config */
 	sys_hal_set_gadc_config(0x7CAA5241);
 	sys_hal_set_vad_config(0x40FE2A33);
@@ -49,7 +53,11 @@ bk_err_t bk_lp_vad_set_sleep_para_before_sleep(void)
 	sys_hal_set_ana_reg2_value(reg2);
 
 	/* Enable micbias (ana_reg20 bit5) */
-	//sys_hal_set_micbias_enable(1);
+	sys_hal_set_micbias_enable(1);
+
+	/* Set micbias output trim (ana_reg20 bits[10:9]) and SPI control (bit7). */
+	sys_ll_set_ana_reg20_micbias_trm(0x3);
+	sys_ll_set_ana_reg20_spi(1);
 
 	/* Enable mic2 mode (ana_reg27 bit28) */
 	sys_hal_set_mic2_enable(1);
@@ -58,14 +66,11 @@ bk_err_t bk_lp_vad_set_sleep_para_before_sleep(void)
 
 	sys_hal_set_vad_viniset(1);
 	bk_delay_us(10000);
+	sys_hal_set_vad_viniset(0);
 
 	sys_hal_set_vad_rstn(1);
 	__ISB();
 	__DSB();
-	bk_delay_us(1000);
-	__ISB();
-	__DSB();
-
 	return BK_OK;
 }
 
