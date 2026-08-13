@@ -218,14 +218,12 @@ void pm_touched_wakeup_low_voltage()
 
 bk_err_t pm_vad_wakeup_low_voltage(void)
 {
-	//return bk_lp_vad_set_sleep_para_before_sleep();
-	return BK_OK;
+	return bk_lp_vad_set_sleep_para_before_sleep();
 }
 
 bk_err_t pm_vad_wakeup_deep_sleep(void)
 {
-	//return bk_lp_vad_set_sleep_para_before_sleep();
-	return BK_OK;
+	return bk_lp_vad_set_sleep_para_before_sleep();
 }
 void pm_rtc_wakeup_deep_sleep()
 {
