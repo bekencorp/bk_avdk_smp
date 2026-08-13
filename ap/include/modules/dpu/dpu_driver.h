@@ -3,6 +3,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include "soc/bk7259/reg_base.h"
 
 #define FPGA_7259_A35       1
 #define FPGA_7259_CM55      2
@@ -10,7 +11,7 @@
 #define SOC_7259_CM55       4
 #define SFT_VERSION         SOC_7259_A35
 
-#define BK7259_DPU_REG_BASE_ADDR  0x4C2C0000
+#define BK7259_DPU_REG_BASE_ADDR  SOC_DPU_REG_BASE
 
 #define PSRAM_BUFFER_ENABLE 1 
 
