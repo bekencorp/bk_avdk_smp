@@ -665,12 +665,11 @@ function(armino_build_executable bin)
     set(armino_size_parse_map ${python} ${armino_tools_path}/build_tools/map_helper.py)
     add_custom_target(gen_project_binary DEPENDS "${bin_dir}/bin_tmp")
 
-    # Secure firmware post-build: when CONFIG_SECURITY_FIRMWARE=y, invoke the
-    # board wrapper secure pack path (signs/combines primary_all, copies TF-M
-    # bl2/tfm_s, generates all-app.bin / otp_efuse_config.json). Guarded by the
-    # config so non-secure builds are unaffected.
+    # Secure firmware post-build: direct CP builds pack here. Top-level SMP
+    # builds defer packing until both AP and CP have completed, otherwise the
+    # CP target can race the AP target before ap_app.bin exists.
     set(armino_secure_pack)
-    if(CONFIG_SECURITY_FIRMWARE)
+    if(CONFIG_SECURITY_FIRMWARE AND NOT "$ENV{ARMINO_DEFER_SECURE_PACK}" STREQUAL "1")
         set(armino_wrapper "${armino_path}/middleware/boards/${target}/${target}.wrapper")
         if(EXISTS "${armino_wrapper}")
             set(armino_secure_pack COMMAND ${python} ${armino_wrapper} pack)

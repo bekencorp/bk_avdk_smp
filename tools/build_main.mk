@@ -145,10 +145,10 @@ RUN_PYTHON3 = python3
 endif
 
 $(ARMINO_SOC)_ap: common build_prepare
-	@make $(ARMINO_SOC)_ap ARMINO_TOOLS_PATH=$(ARMINO_TOOLS_PATH) PROJECT_DIR=$(PROJECT_DIR) BUILD_DIR=$(PROJECT_BUILD_DIR) APP_NAME=$(APP_NAME) APP_VERSION=$(APP_VERSION) -C $(ARMINO_AP_DIR)
+	@ARMINO_DEFER_SECURE_PACK=1 make $(ARMINO_SOC)_ap ARMINO_TOOLS_PATH=$(ARMINO_TOOLS_PATH) PROJECT_DIR=$(PROJECT_DIR) BUILD_DIR=$(PROJECT_BUILD_DIR) APP_NAME=$(APP_NAME) APP_VERSION=$(APP_VERSION) -C $(ARMINO_AP_DIR)
 
 $(ARMINO_SOC)_cp: common build_prepare
-	@make $(ARMINO_SOC) ARMINO_TOOLS_PATH=$(ARMINO_TOOLS_PATH) PROJECT_DIR=$(PROJECT_DIR) BUILD_DIR=$(PROJECT_BUILD_DIR) APP_NAME=$(APP_NAME) APP_VERSION=$(APP_VERSION) -C $(ARMINO_CP_DIR)
+	@ARMINO_DEFER_SECURE_PACK=1 make $(ARMINO_SOC) ARMINO_TOOLS_PATH=$(ARMINO_TOOLS_PATH) PROJECT_DIR=$(PROJECT_DIR) BUILD_DIR=$(PROJECT_BUILD_DIR) APP_NAME=$(APP_NAME) APP_VERSION=$(APP_VERSION) -C $(ARMINO_CP_DIR)
 
 # Parallel AP+CP with fail-fast (see build_smp_parallel.sh). Windows keeps legacy make -j behavior.
 ifeq ($(WIN32),1)
@@ -159,6 +159,7 @@ build_smp_firmware: common build_prepare
 		PROJECT_DIR=$(PROJECT_DIR) BUILD_DIR=$(PROJECT_BUILD_DIR) \
 		APP_NAME=$(APP_NAME) APP_VERSION=$(APP_VERSION) \
 		ARMINO_AP_DIR=$(ARMINO_AP_DIR) ARMINO_CP_DIR=$(ARMINO_CP_DIR) \
+		ARMINO_DEFER_SECURE_PACK=1 \
 		PYTHONPATH=$(BK_PY_LIBS_PATH):$$PYTHONPATH \
 		bash $(BUILD_SMP_PARALLEL_SCRIPT)
 
@@ -227,6 +228,8 @@ build_summary := $(package_dir)/build_summary.txt
 SECURITY_CONFIG_FILE := $(PROJECT_DIR)/config/$(ARMINO_SOC_NAME)/config
 IS_SECURITY_FIRMWARE := $(shell test -f $(SECURITY_CONFIG_FILE) && grep -q '^CONFIG_SECURITY_FIRMWARE=y' $(SECURITY_CONFIG_FILE) && echo y)
 secure_install_dir := $(PROJECT_BUILD_DIR)/$(ARMINO_SOC)/install
+secure_build_dir := $(PROJECT_BUILD_DIR)/$(ARMINO_SOC)
+secure_wrapper := $(ARMINO_CP_DIR)/middleware/boards/$(ARMINO_SOC)/$(ARMINO_SOC).wrapper
 
 ifeq ($(WIN32),1)
 package: $(package_script) $(ARMINO_SOC)_cp $(ARMINO_SOC)_ap
@@ -234,6 +237,18 @@ else
 package: $(package_script) build_smp_firmware
 endif
 ifeq ($(IS_SECURITY_FIRMWARE),y)
+	@echo "Secure firmware: packing after AP/CP builds completed."
+	@if [ ! -f "$(secure_wrapper)" ]; then \
+		echo "ERROR: secure wrapper not found: $(secure_wrapper)"; \
+		exit 1; \
+	fi
+	@cd $(secure_build_dir) && \
+		ARMINO_PATH=$(ARMINO_CP_DIR) \
+		ARMINO_AVDK_DIR=$(ARMINO_AVDK_DIR) \
+		ARMINO_SOC=$(ARMINO_SOC) \
+		PROJECT=$(PROJECT) \
+		PROJECT_DIR=$(PROJECT_DIR) \
+		$(RUN_PYTHON3) $(secure_wrapper) pack
 	@echo "Secure firmware: staging $(secure_install_dir) -> $(package_dir) (generic SMP packager skipped)."
 	@if [ ! -d "$(secure_install_dir)" ]; then \
 		echo "ERROR: secure install dir not found: $(secure_install_dir)"; \
