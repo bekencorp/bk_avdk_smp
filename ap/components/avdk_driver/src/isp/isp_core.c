@@ -18,7 +18,9 @@
 #include <modules/private/veri_isp/mpi_isp.h>
 #include <modules/veri_isp/flexa_sync.h>
 #include "mpi_isp_wb.h"
+#include "mpi_isp_cproc.h"
 #include "vsi_comm_awb.h"
+#include <components/bk_isp_camera_types.h>
 #include "sys_hal.h"
 #include <driver/int.h>
 #include <driver/sys_pm.h>
@@ -1368,5 +1370,68 @@ bk_err_t bk_isp_get_exposure_luminance(isp_handle_t *handle, uint32_t *luminance
     }
 
     *luminance = exposure_info.meanLum;
+    return BK_OK;
+}
+
+bk_err_t bk_isp_get_cproc_attr(isp_handle_t *handle, void *cproc_attr)
+{
+    if (handle == NULL || *handle == NULL || cproc_attr == NULL)
+    {
+        LOGE("%s, invalid parameter\n", __func__);
+        return BK_FAIL;
+    }
+
+    isp_control_t *control = (isp_control_t *)*handle;
+    ISP_CPROC_ATTR_S attr = {0};
+    int ret = VSI_MPI_ISP_GetCprocAttr(control->port, &attr);
+    if (ret != VSI_SUCCESS)
+    {
+        LOGE("%s, get cproc attr failed: %d\n", __func__, ret);
+        return BK_FAIL;
+    }
+
+    bk_isp_cproc_attr_t *out = (bk_isp_cproc_attr_t *)cproc_attr;
+    out->enable = attr.enable ? 1 : 0;
+    out->op_type = attr.opType;
+    out->manual.brightness = attr.manualAttr.brightness;
+    out->manual.contrast = attr.manualAttr.contrast;
+    out->manual.saturation = attr.manualAttr.saturation;
+    out->manual.hue = attr.manualAttr.hue;
+    os_memcpy(out->auto_attr.brightness, attr.autoAttr.brightness, sizeof(out->auto_attr.brightness));
+    os_memcpy(out->auto_attr.contrast, attr.autoAttr.contrast, sizeof(out->auto_attr.contrast));
+    os_memcpy(out->auto_attr.saturation, attr.autoAttr.saturation, sizeof(out->auto_attr.saturation));
+    os_memcpy(out->auto_attr.hue, attr.autoAttr.hue, sizeof(out->auto_attr.hue));
+    return BK_OK;
+}
+
+bk_err_t bk_isp_set_cproc_attr(isp_handle_t *handle, void *cproc_attr)
+{
+    if (handle == NULL || *handle == NULL || cproc_attr == NULL)
+    {
+        LOGE("%s, invalid parameter\n", __func__);
+        return BK_FAIL;
+    }
+
+    const bk_isp_cproc_attr_t *in = (const bk_isp_cproc_attr_t *)cproc_attr;
+    ISP_CPROC_ATTR_S attr = {0};
+    attr.enable = in->enable ? 1 : 0;
+    attr.opType = in->op_type;
+    attr.manualAttr.brightness = in->manual.brightness;
+    attr.manualAttr.contrast = in->manual.contrast;
+    attr.manualAttr.saturation = in->manual.saturation;
+    attr.manualAttr.hue = in->manual.hue;
+    os_memcpy(attr.autoAttr.brightness, in->auto_attr.brightness, sizeof(attr.autoAttr.brightness));
+    os_memcpy(attr.autoAttr.contrast, in->auto_attr.contrast, sizeof(attr.autoAttr.contrast));
+    os_memcpy(attr.autoAttr.saturation, in->auto_attr.saturation, sizeof(attr.autoAttr.saturation));
+    os_memcpy(attr.autoAttr.hue, in->auto_attr.hue, sizeof(attr.autoAttr.hue));
+
+    isp_control_t *control = (isp_control_t *)*handle;
+    int ret = VSI_MPI_ISP_SetCprocAttr(control->port, &attr);
+    if (ret != VSI_SUCCESS)
+    {
+        LOGE("%s, set cproc attr failed: %d\n", __func__, ret);
+        return BK_FAIL;
+    }
+
     return BK_OK;
 }
