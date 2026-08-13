@@ -26,6 +26,7 @@
 #include "pm_sleep.h"
 #include <sys_sw_regs.h>
 #include "cache.h"
+#include <driver/aud_lp_vad.h>
 
 /*=====================DEFINE SECTION START=====================*/
 #define PM_WAKEUP_SOURCE_MARK                                (WAKEUP_SOURCE_MARK)
@@ -215,6 +216,15 @@ void pm_touched_wakeup_low_voltage()
 	sys_drv_touch_wakeup_enable(s_touch_wakeup_param.touch_channel);
 }
 
+bk_err_t pm_vad_wakeup_low_voltage(void)
+{
+	return bk_lp_vad_set_sleep_para_before_sleep();
+}
+
+bk_err_t pm_vad_wakeup_deep_sleep(void)
+{
+	return bk_lp_vad_set_sleep_para_before_sleep();
+}
 void pm_rtc_wakeup_deep_sleep()
 {
 	aon_pmu_drv_set_wakeup_source(WAKEUP_SOURCE_INT_RTC);

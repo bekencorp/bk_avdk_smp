@@ -81,6 +81,18 @@ pm_wakeup_source_e bk_pm_exit_low_vol_wakeup_source_get(void);
 void pm_touched_wakeup_low_voltage(void);
 
 /****************************************************************************
+ * Name: pm_vad_wakeup_low_voltage
+ *
+ * Description:
+ *   Configure VAD wakeup before entering low voltage mode.
+ *
+ * Returns:
+ *   BK_OK on success, otherwise an error code
+ *
+ ****************************************************************************/
+bk_err_t pm_vad_wakeup_low_voltage(void);
+
+/****************************************************************************
  * Name: pm_rtc_wakeup_deep_sleep
  *
  * Description:
@@ -93,6 +105,18 @@ void pm_touched_wakeup_low_voltage(void);
  *
  ****************************************************************************/
 void pm_rtc_wakeup_deep_sleep(void);
+
+/****************************************************************************
+ * Name: pm_vad_wakeup_deep_sleep
+ *
+ * Description:
+ *   Configure VAD wakeup before entering deep sleep mode.
+ *
+ * Returns:
+ *   BK_OK on success, otherwise an error code
+ *
+ ****************************************************************************/
+bk_err_t pm_vad_wakeup_deep_sleep(void);
 
 /****************************************************************************
  * Name: pm_touched_wakeup_deep_sleep

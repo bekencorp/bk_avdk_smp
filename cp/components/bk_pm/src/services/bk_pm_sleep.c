@@ -239,7 +239,7 @@ uint64_t pm_low_voltage_process()
 	// g_ret =bk_uart_write_bytes(UART_ID_0, "LV_OK\r\n", 7);
 	// BK_RAW_LOGI(NULL, "low voltage int open after\r\n");
 	// g_uart_id = bk_get_printf_port();
-
+	//bk_printf("wakeup source:%d\r\n", bk_pm_exit_low_vol_wakeup_source_get());
 	return sleep_tick;
 }
 
@@ -284,6 +284,15 @@ uint64_t pm_deep_sleep_process()
 	if (bk_pm_wakeup_source_get() & (0x1 << PM_WAKEUP_SOURCE_INT_TOUCHED))
 	{
 		pm_touched_wakeup_deep_sleep();
+	}
+
+	if (bk_pm_wakeup_source_get() & (0x1 << PM_WAKEUP_SOURCE_INT_VAD))
+	{
+		bk_err_t ret = pm_vad_wakeup_deep_sleep();
+		if(ret != BK_OK)
+		{
+			return -1;
+		}
 	}
 
 	/* Execute pre-sleep callbacks (after legacy callbacks) */
@@ -409,6 +418,15 @@ static int pm_low_voltage_resource_set()
 	if (bk_pm_wakeup_source_get() & (0x1 << PM_WAKEUP_SOURCE_INT_TOUCHED))
 	{
 		pm_touched_wakeup_low_voltage();
+	}
+
+	if (bk_pm_wakeup_source_get() & (0x1 << PM_WAKEUP_SOURCE_INT_VAD))
+	{
+		bk_err_t ret = pm_vad_wakeup_low_voltage();
+		if(ret != BK_OK)
+		{
+			return -1;
+		}
 	}
 
 #if CONFIG_BAKP_POWER_DOMAIN_PM_CONTROL

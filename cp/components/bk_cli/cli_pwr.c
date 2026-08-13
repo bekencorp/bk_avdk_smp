@@ -20,6 +20,7 @@
 #include <driver/rosc_ppm.h>
 #include "sys_pm_hal_debug.h"
 #include "pm_debug.h"
+#include <driver/aud_lp_vad.h>
 
 #if 1//CONFIG_SYSTEM_CTRL
 #define PM_MANUAL_LOW_VOL_VOTE_ENABLE          (0)
@@ -31,8 +32,6 @@ static UINT32 s_pm_vote2            = 0;
 static UINT32 s_pm_vote3            = 0;
 UINT32 s_pm_rtc_sleep_count  = 0;
 
-
-extern void stop_cpu1_core(void);
 #if CONFIG_AON_RTC
 static void cli_pm_rtc_callback(aon_rtc_id_t id, uint8_t *name_p, void *param)
 {
@@ -91,7 +90,26 @@ void cli_pm_gpio_callback(gpio_id_t gpio_id)
 	}
 	BK_LOGD(NULL,"cli_pm_gpio_callback[%d], gpio_id: %d.\r\n",bk_pm_exit_low_vol_wakeup_source_get(), gpio_id);
 }
-
+void cli_pm_vad_callback(void)
+{
+	if(s_cli_sleep_mode == PM_MODE_DEEP_SLEEP)//when wakeup from deep sleep, all thing initial
+	{
+		bk_pm_sleep_mode_set(PM_MODE_DEFAULT);
+	}
+	else if(s_cli_sleep_mode == PM_MODE_LOW_VOLTAGE)
+	{
+		bk_pm_sleep_mode_set(PM_MODE_DEFAULT);
+		bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_APP,0x0,0x0);
+	}
+	else
+	{
+		bk_pm_sleep_mode_set(PM_MODE_DEFAULT);
+		bk_pm_module_vote_sleep_ctrl(s_pm_vote1,0x0,0x0);
+		bk_pm_module_vote_sleep_ctrl(s_pm_vote2,0x0,0x0);
+		bk_pm_module_vote_sleep_ctrl(s_pm_vote3,0x0,0x0);
+	}
+	BK_LOGD(NULL,"cli_pm_vad_callback[%d]\r\n",bk_pm_exit_low_vol_wakeup_source_get());
+}
 #if (CONFIG_CPU_CNT > 1)
 extern int mb_ipc_cpu_is_power_off(u32 cpu_id);
 
@@ -307,7 +325,6 @@ static void cli_pm_boot_ap_stress(char *pcWriteBuffer, int xWriteBufferLen, int 
 #define PM_DEEPSLEEP_RTC_THRESHOLD       (500)
 #define PM_SHUTDOWN_RTC_THRESHOLD        (4)        //=500ms
 #define PM_OLD_TOUCH_WAKE_SOURCE         (4)
-extern void stop_cpu1_core(void);
 
 static void cli_pm_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
@@ -320,7 +337,6 @@ static void cli_pm_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char 
 	#if CONFIG_TOUCH
 	touch_wakeup_param_t    touch_wakeup_param       = {0};
 	#endif
-	usbplug_wakeup_param_t  usbplug_wakeup_param     = {0};
 
 	if (argc != 9) 
 	{
@@ -450,23 +466,26 @@ static void cli_pm_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char 
 		bk_pm_wakeup_source_set(PM_WAKEUP_SOURCE_INT_TOUCHED, &touch_wakeup_param);
 		#endif
 	}
-	else if(pm_wake_source == PM_WAKEUP_SOURCE_INT_USBPLUG)
+	else if(pm_wake_source == PM_WAKEUP_SOURCE_INT_VAD)
 	{
-		bk_pm_wakeup_source_set(PM_WAKEUP_SOURCE_INT_USBPLUG, &usbplug_wakeup_param);
+		bk_err_t ret = bk_lp_vad_register_isr(cli_pm_vad_callback);
+		if(ret != BK_OK)
+		{
+			BK_LOGD(NULL,"bk_lp_vad_register_isr failed\r\n");
+			return;
+		}
+		bk_pm_wakeup_source_set(PM_WAKEUP_SOURCE_INT_VAD, NULL);
 	}
 	else
 	{
 		;
 	}
-
 	/*vote*/
 	if(pm_sleep_mode == PM_MODE_DEEP_SLEEP || pm_sleep_mode == PM_MODE_SUPER_DEEP_SLEEP)
 	{
 		if(pm_vote3 == PM_POWER_MODULE_NAME_CPU1)
 		{
-			#if 1 && (CONFIG_CPU_CNT > 1)
-				stop_cpu1_core();
-			#endif
+
 		}
 
 	}
@@ -834,11 +853,11 @@ static bk_err_t cli_pm_vote_cpu_freq_once(UINT32 pm_module_id, pm_cpu_freq_e pm_
 	pm_cpu_freq_e module_freq = 0;
 	pm_cpu_freq_e current_max_freq = 0;
 
-	GPIO_UP(36);
-	GPIO_DOWN(36);
+	// GPIO_UP(36);
+	// GPIO_DOWN(36);
 	ret = bk_pm_module_vote_cpu_freq((pm_dev_id_e)pm_module_id, pm_freq);
-	GPIO_UP(36);
-	GPIO_DOWN(36);
+	// GPIO_UP(36);
+	// GPIO_DOWN(36);
 
 	module_freq = bk_pm_module_current_cpu_freq_get((pm_dev_id_e)pm_module_id);
 	current_max_freq = bk_pm_current_max_cpu_freq_get();
