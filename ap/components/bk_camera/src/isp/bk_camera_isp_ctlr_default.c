@@ -10,6 +10,7 @@
 #include <driver/io_matrix.h>
 
 #include <avdk_check.h>
+#include <modules/veri_isp/vsios_error.h>
 #include "isp_camera_ctlr.h"
 #include "isp_camera_utils.h"
 
@@ -48,6 +49,12 @@ static void isp_camera_ctlr_task_entry(void *param)
 
         VIDEO_BUF_S buf;
         ret = isp_control->pop_buf(config->channel, &buf, cam_control->read_timeout);
+        if (ret == VSI_ERR_NOT_READY)
+        {
+            /* StreamOff aborted DQBUF; exit cam_thread cleanly. */
+            cam_control->thread_enable = false;
+            break;
+        }
         if (ret != BK_OK)
         {
             continue;
@@ -191,20 +198,17 @@ static avdk_err_t isp_camera_ctlr_deinit(bk_isp_camera_ctlr_handle_t handle)
         return ret;
     }
 
-    // Stop cam_thread if running
-    if (control->thread_enable)
+    /* Stop cam_thread if still alive (may already have exited on StreamOff). */
+    control->thread_enable = false;
+    if (control->thread)
     {
-        control->thread_enable = false;
-
-        if (control->thread)
-        {
-            rtos_thread_join(&control->thread);
-            control->thread = NULL;
-        }
-        if (control->sem)
-        {
-            rtos_deinit_semaphore(&control->sem);
-        }
+        rtos_thread_join(&control->thread);
+        control->thread = NULL;
+    }
+    if (control->sem)
+    {
+        rtos_deinit_semaphore(&control->sem);
+        control->sem = NULL;
     }
 
     // Deinitialize ISP core resources (threads, buffers, semaphores, etc.)
