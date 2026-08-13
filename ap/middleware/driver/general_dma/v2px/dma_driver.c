@@ -372,10 +372,13 @@ bk_err_t bk_dma_init(dma_id_t id, const dma_config_t *config)
     DMA_RETURN_ON_INVALID_ADDR(config->dst.start_addr, config->dst.end_addr);
     DMA_LOG_ON_ID_IS_STARTED(dma_num,dma_channel);
 
-#if CONFIG_CACHE_MAINTENANCE
-    arch_dcache_flush_and_invd_range((void *)config->src.start_addr, config->src.end_addr - config->src.start_addr);
-    arch_dcache_flush_and_invd_range((void *)config->dst.start_addr, config->dst.end_addr - config->dst.start_addr);
-#endif
+    /* Directional cache maintenance for the transfer buffers.
+     * Source: producer -> clean (write-back) so the DMA reads fresh data.
+     * Destination: clean (write-back) dirty lines before the DMA overwrites
+     * memory; the CPU-visible invalidate happens after the transfer. No-op for
+     * non-cacheable buffers. */
+    bk_dcache_clean_for_producer((void *)config->src.start_addr, config->src.end_addr - config->src.start_addr);
+    bk_dcache_clean_for_producer((void *)config->dst.start_addr, config->dst.end_addr - config->dst.start_addr);
     __DSB();
 
     dma_id_init_common(id);
@@ -1169,9 +1172,10 @@ bk_err_t dma_memcpy(void *out, const void *in, uint32_t len)
 
     ret = dma_memcpy_by_chnl(out, in, len, cpy_chnl);
 
-#if CONFIG_CACHE_MAINTENANCE
-    flush_all_dcache();
-#endif
+    /* Consumer side -> invalidate (only) the destination so the CPU reads
+     * DMA-written data, instead of a whole-cache flush. No-op for non-cacheable
+     * buffers. */
+    bk_dcache_invalidate_for_consumer(out, len);
     __DMB();
     bk_dma_free(DMA_DEV_DTCM, cpy_chnl);
 
@@ -1199,9 +1203,11 @@ static void dma_isr_common(dma_unit_t dma_unit_id)
             }
         }
         if (dma_hal_is_finish_interrupt_triggered(hal, id)) {
-#if CONFIG_CACHE_MAINTENANCE
-            flush_all_dcache();
-#endif
+            /*
+             * No whole-cache flush in the finish ISR (millisecond-class stall).
+             * Per-buffer cache maintenance is the initiator's responsibility: it
+             * invalidates the specific destination it reads after completion.
+             */
             DMA_LOGV("dma_isr ALL FINISH TRIGGERED! id: %d\r\n", id);
             dma_hal_clear_finish_interrupt_status(hal, id);
             __DSB();

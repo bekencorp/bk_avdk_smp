@@ -14,6 +14,7 @@
 
 #pragma once
 
+#include <stdbool.h>
 #include <common/bk_typedef.h>
 
 #include "bk_arch.h"
@@ -308,6 +309,49 @@ static inline void flush_all_dcache(void)
 {
 	arch_dcache_flush_and_invd_all();
 }
+
+/*
+ * Cross-core / DMA D-cache coherency helpers.
+ *
+ * These are the single, direction-correct entry points for maintaining a
+ * shared buffer that another master (CP core, DMA, peripheral) will read or
+ * has written. They gate on CONFIG_CACHE_MAINTENANCE and on the buffer's
+ * cacheability (derived from the MPU layout in ram_regions.h), so they are a
+ * safe no-op for non-cacheable SRAM / non-cacheable PSRAM buffers.
+ *
+ * Rationale (see docs 8131 shared-PSRAM coherency guide):
+ *  - Producer (this core wrote, hand off to peer/DMA): clean-only + DSB.
+ *  - Consumer (peer/DMA wrote, this core will read): invalidate-only.
+ * Never use clean+invalidate (flush_dcache) on the consumer side: the clean
+ * phase can write a stale local line back over the producer's fresh data.
+ */
+
+/**
+ * @brief True if [addr, addr+len) intersects any D-cacheable MPU region.
+ *
+ * Derived from the generated ram_regions.h MPU table (attribute index != 1
+ * non-cacheable and != 2 device), so it tracks the partition/cache layout and
+ * covers os_malloc-from-PSRAM and PSRAM task stacks (both attr5 today).
+ */
+bool bk_dcache_addr_is_cacheable(const void *addr, size_t len);
+
+/**
+ * @brief Producer-side maintenance before handing a shared buffer to another
+ *        core or DMA: clean (write-back) only, followed by DSB.
+ *
+ * No-op when CONFIG_CACHE_MAINTENANCE is disabled or the range is not
+ * D-cacheable.
+ */
+void bk_dcache_clean_for_producer(void *addr, size_t len);
+
+/**
+ * @brief Consumer-side maintenance after another core/DMA produced data into a
+ *        shared buffer, before this core reads it: invalidate only.
+ *
+ * No-op when CONFIG_CACHE_MAINTENANCE is disabled or the range is not
+ * D-cacheable. Must NOT be replaced by clean+invalidate (docs 8131 §6.3).
+ */
+void bk_dcache_invalidate_for_consumer(void *addr, size_t len);
 
 #if CONFIG_SUPPORT_L1_CACHE
 void unified_cache_enable_icache(void);

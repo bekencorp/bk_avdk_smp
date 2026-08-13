@@ -28,9 +28,7 @@
 #include "interrupt.h"
 #include "cmsis_gcc.h"
 
-#if CONFIG_SUPPORT_CACHEABLE_SRAM
 #include "cache.h"
-#endif
 
 #include "bk_misc.h"
 
@@ -324,10 +322,14 @@ bk_err_t bk_dma_init(dma_id_t id, const dma_config_t *config)
 {
     dma_hal_init_without_channels(&s_dma.hal);	//TODO:special codes for DMA init after enter low voltage
 
-#if CONFIG_SUPPORT_CACHEABLE_SRAM
-    flush_dcache((void *)config->src.start_addr, config->src.end_addr - config->src.start_addr);
-    flush_dcache((void *)config->dst.start_addr, config->dst.end_addr - config->dst.start_addr);
-#endif
+    /* Directional cache maintenance for the transfer buffers (single-shot mode;
+     * link mode configures addresses via descriptors, not here).
+     * Source: producer -> clean (write-back) so the DMA reads fresh data.
+     * Destination: clean (write-back) dirty lines before the DMA overwrites
+     * memory; the CPU-visible invalidate happens after the transfer. No-op for
+     * non-cacheable buffers. */
+    bk_dcache_clean_for_producer((void *)config->src.start_addr, config->src.end_addr - config->src.start_addr);
+    bk_dcache_clean_for_producer((void *)config->dst.start_addr, config->dst.end_addr - config->dst.start_addr);
     __DSB();
 
     dma_id_init_common(id);
@@ -878,10 +880,10 @@ bk_err_t bk_dma_stateless_judgment_configuration(void *out, const void *in, uint
 
     /* init */
     s_dma.id_init_bits |= BIT(cpy_chnl);
-#if CONFIG_SUPPORT_CACHEABLE_SRAM
-    flush_dcache((void *)dma_config.src.start_addr, dma_config.src.end_addr - dma_config.src.start_addr);
-    flush_dcache((void *)dma_config.dst.start_addr, dma_config.dst.end_addr - dma_config.dst.start_addr);
-#endif
+    /* Producer -> clean src (the DMA reads it) and write-back dst before the
+     * DMA overwrites memory. No-op for non-cacheable buffers. */
+    bk_dcache_clean_for_producer((void *)dma_config.src.start_addr, dma_config.src.end_addr - dma_config.src.start_addr);
+    bk_dcache_clean_for_producer((void *)dma_config.dst.start_addr, dma_config.dst.end_addr - dma_config.dst.start_addr);
     __DSB();
     dma_hal_init_dma(&s_dma.hal, cpy_chnl, &dma_config);
 
@@ -944,10 +946,9 @@ bk_err_t dma_memcpy_by_chnl(void *out, const void *in, uint32_t len, dma_id_t cp
     // Wait for DMA transfer to complete
     BK_WHILE(dma_hal_get_enable_status(&s_dma.hal, cpy_chnl));
 
-#if CONFIG_SUPPORT_CACHEABLE_SRAM
-    // Invalidate destination cache to ensure CPU reads DMA-written data
-    flush_dcache((void *)out, len);
-#endif
+    /* Consumer side -> invalidate (only) the destination so the CPU reads
+     * DMA-written data. No-op for non-cacheable buffers. */
+    bk_dcache_invalidate_for_consumer((void *)out, len);
     __DMB();
 
     return BK_OK;
@@ -963,8 +964,8 @@ bk_err_t dma_memcpy(void *out, const void *in, uint32_t len)
     DMA_RETURN_ON_INVALID_ID(cpy_chnl);
 
     // Note: Cache operations are handled inside dma_memcpy_by_chnl:
-    //   - Before transfer: bk_dma_init() flushes source and destination cache
-    //   - After transfer: flush_dcache() invalidates destination cache
+    //   - Before transfer: bk_dma_init() cleans (writes back) source & destination
+    //   - After transfer: destination is invalidated for the CPU read
     ret = dma_memcpy_by_chnl(out, in, len, cpy_chnl);
 
     bk_dma_free(DMA_DEV_DTCM, cpy_chnl);
@@ -1061,10 +1062,9 @@ void *bk_dma_link_init(uint32_t link_cnt)
     last_desc->next_desc_addr = 0;
     DMA_LOGV("Desc[%d] addr=0x%x next_addr=0 (end of list)\r\n", link_cnt - 1, last_desc_addr);
     
-#if CONFIG_SUPPORT_CACHEABLE_SRAM
-    // Flush descriptor table to ensure DMA sees latest data after initialization
-    flush_dcache((void *)first_desc_addr, link_cnt * desc_size);
-#endif
+    /* Descriptor table is produced by the CPU and walked by the DMA engine ->
+     * clean (write-back). No-op for non-cacheable descriptor memory. */
+    bk_dcache_clean_for_producer((void *)first_desc_addr, link_cnt * desc_size);
     __DSB();
     
     return (void *)first_desc_addr;
@@ -1131,12 +1131,11 @@ bk_err_t bk_dma_link_set_desc(void *desc_table, uint32_t index,
                index, config->src_addr, config->dst_addr,
                config->ctrl.bits.length, config->ctrl.bits.int_finish_en, config->ctrl.bits.int_half_finish_en);
     
-#if CONFIG_SUPPORT_CACHEABLE_SRAM
-    // Flush descriptor to ensure DMA sees latest data
-    // Note: Source and destination addresses cache will be flushed in bk_dma_link_transfer
-    // using flush_all_dcache(), so no need to flush them here
-    flush_dcache((void *)desc, sizeof(dma_descriptor_t));
-#endif
+    /* Descriptor is produced by the CPU and read by the DMA engine -> clean
+     * (write-back). The source/destination data buffers are maintained by the
+     * transfer initiator (producer clean before, consumer invalidate after),
+     * not here. No-op for non-cacheable descriptor memory. */
+    bk_dcache_clean_for_producer((void *)desc, sizeof(dma_descriptor_t));
     __DSB();
     return BK_OK;
 }
@@ -1215,15 +1214,14 @@ bk_err_t bk_dma_link_transfer(dma_id_t id, void *desc_table)
     // Note: In linked list mode, src/dst addresses are in descriptors, not in dma_config
     bk_dma_init(id, &dma_config);
     
-#if CONFIG_SUPPORT_CACHEABLE_SRAM
-    // Flush all cache to ensure DMA sees all descriptors and data
-    // This is more efficient than traversing all descriptors when link_cnt is large
-    // flush_all_dcache() will flush:
-    // 1. Descriptor table (already flushed in bk_dma_link_init and bk_dma_link_set_desc, but flush again for safety)
-    // 2. All source addresses (CPU-written data)
-    // 3. All destination addresses (prepare for DMA write)
-    flush_all_dcache();
-#endif
+    /*
+     * No whole-cache flush here (the old flush_all_dcache() was a
+     * millisecond-class stall). Descriptors were already cleaned in
+     * bk_dma_link_init()/bk_dma_link_set_desc(); the source/destination data
+     * buffers are the transfer initiator's responsibility (producer-clean the
+     * source before this call, consumer-invalidate the destination after
+     * completion).
+     */
     __DSB();
 
 #if CONFIG_SPE
@@ -1262,9 +1260,11 @@ static void dma_isr_common(dma_unit_t dma_unit_id)
             }
         }
         if (dma_hal_is_finish_interrupt_triggered(hal, id)) {
-#if CONFIG_SUPPORT_CACHEABLE_SRAM
-            flush_all_dcache();
-#endif
+            /*
+             * No whole-cache flush in the finish ISR (millisecond-class stall).
+             * Per-buffer cache maintenance is the initiator's responsibility: it
+             * invalidates the specific destination it reads after completion.
+             */
             DMA_LOGV("dma_isr ALL FINISH TRIGGERED! id: %d\r\n", id);
             dma_hal_clear_finish_interrupt_status(hal, id);
             __DSB();

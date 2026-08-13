@@ -14,6 +14,7 @@
 
 #include <string.h>
 #include <common/bk_include.h>
+#include "ram_regions.h"   /* CONFIG_AP_PSRAM_NOCACHE_HEAP_* for the bounce buffer */
 #include <os/mem.h>
 #include <os/os.h>
 #include <driver/adc.h>
@@ -55,6 +56,83 @@ static uint32_t calc_crc32(uint32_t crc, const uint8_t *buf, int len)
     }
 
     return crc;
+}
+
+/*
+ * -----------------------------------------------------------------------------
+ * Cross-core payload safety (Redmine #8773, docs 8131 §13 option 3).
+ *
+ * Every SARADC request/response is a saradc_cmd_t on the caller's task stack.
+ * When the task stack is created in PSRAM (CONFIG_TASK_STACK_IN_PSRAM) or
+ * os_malloc routes to PSRAM (CONFIG_OS_HEAP_USE_PSRAM), that stack is
+ * L2-cacheable (MPU attr5). Handing such a cacheable pointer to the CP as a
+ * zero-copy mailbox payload makes the CP read a stale cache line, which shows
+ * up as wrong ADC values / CRC failures.
+ *
+ * Instead of maintaining the cache on a shared stack object (fragile: 8-byte
+ * heap alignment vs 32-byte cache line, and neighbouring locals sharing the
+ * line), every payload is bounced through a dedicated NON-CACHEABLE buffer.
+ * The stack saradc_cmd_t is only ever touched by this core; only the
+ * non-cacheable bounce buffer crosses the core boundary, so no cache
+ * maintenance is required.
+ *
+ * All wrappers run with saradc_mutex held, so the single shared bounce buffer
+ * and its lazy allocation need no extra locking.
+ * -----------------------------------------------------------------------------
+ */
+static saradc_cmd_t *s_saradc_io = NULL;   /* non-cacheable IPC bounce buffer */
+
+static saradc_cmd_t *saradc_cmd_buf_alloc(void)
+{
+#if defined(CONFIG_AP_PSRAM_NOCACHE_HEAP_ADDR) && (CONFIG_AP_PSRAM_NOCACHE_HEAP_SIZE > 0)
+	saradc_cmd_t *p = (saradc_cmd_t *)psram_nocache_malloc(sizeof(saradc_cmd_t));
+	if (p != NULL)
+		return p;
+#endif
+	/* Fallback: the system SRAM heap is non-cacheable too. */
+	return (saradc_cmd_t *)os_sram_malloc(sizeof(saradc_cmd_t));
+}
+
+static bk_err_t saradc_io_ensure(void)
+{
+	if (s_saradc_io == NULL)
+		s_saradc_io = saradc_cmd_buf_alloc();
+
+	return (s_saradc_io != NULL) ? BK_OK : BK_FAIL;
+}
+
+/* Same signature/semantics as mb_ipc_send(); copies the caller payload into the
+ * non-cacheable bounce buffer before it crosses to the CP. */
+static int saradc_ipc_send(u32 handle, u8 user_cmd, const u8 *payload, u32 len, u32 timeout)
+{
+	if (saradc_io_ensure() != BK_OK)
+		return -1;
+
+	if (len > sizeof(saradc_cmd_t))
+		return -1;
+
+	if ((payload != NULL) && (len != 0))
+		memcpy(s_saradc_io, payload, len);
+
+	return mb_ipc_send(handle, user_cmd, (u8 *)s_saradc_io, len, timeout);
+}
+
+/* Same signature/semantics as mb_ipc_recv(); receives into the non-cacheable
+ * bounce buffer, then copies the result back into the caller payload. */
+static int saradc_ipc_recv(u32 handle, u8 *user_cmd, u8 *payload, u32 len, u32 timeout)
+{
+	if (saradc_io_ensure() != BK_OK)
+		return -1;
+
+	if (len > sizeof(saradc_cmd_t))
+		return -1;
+
+	int ret = mb_ipc_recv(handle, user_cmd, (u8 *)s_saradc_io, len, timeout);
+
+	if ((ret == (int)len) && (payload != NULL) && (len != 0))
+		memcpy(payload, s_saradc_io, len);
+
+	return ret;
 }
 
 bk_err_t bk_saradc_driver_init(void)
@@ -135,6 +213,12 @@ bk_err_t bk_saradc_driver_deinit(void)
 	rtos_deinit_mutex(&saradc_mutex);
 	saradc_mutex = NULL;
 
+	if (s_saradc_io != NULL)
+	{
+		os_free(s_saradc_io);
+		s_saradc_io = NULL;
+	}
+
 	s_saradc_client_init = false;
 
 	return BK_OK;
@@ -154,7 +238,7 @@ bk_err_t bk_adc_acquire(void)
 
 	rtos_lock_mutex(&saradc_mutex);
 
-	int ret = mb_ipc_send(saradc_socket_handle, SARADC_CMD_ACQUIRE,
+	int ret = saradc_ipc_send(saradc_socket_handle, SARADC_CMD_ACQUIRE,
 		(u8 *)&cmd_buff, sizeof(cmd_buff), SARADC_OPERATE_TIMEOUT);
 
 	if(ret != 0)
@@ -167,7 +251,7 @@ bk_err_t bk_adc_acquire(void)
 
 	memset(&cmd_buff, 0, sizeof(cmd_buff));
 
-	ret = mb_ipc_recv(saradc_socket_handle, &user_cmd, (u8 *)&cmd_buff,
+	ret = saradc_ipc_recv(saradc_socket_handle, &user_cmd, (u8 *)&cmd_buff,
 		sizeof(cmd_buff), SARADC_OPERATE_TIMEOUT);
 
 	if(ret != sizeof(cmd_buff))
@@ -219,7 +303,7 @@ bk_err_t bk_adc_init(adc_chan_t adc_chan)
 
 	rtos_lock_mutex(&saradc_mutex);
 
-	int ret = mb_ipc_send(saradc_socket_handle, SARADC_CMD_INIT,
+	int ret = saradc_ipc_send(saradc_socket_handle, SARADC_CMD_INIT,
 		(u8 *)&cmd_buff, sizeof(cmd_buff), SARADC_OPERATE_TIMEOUT);
 
 	if(ret != 0)
@@ -232,7 +316,7 @@ bk_err_t bk_adc_init(adc_chan_t adc_chan)
 
 	memset(&cmd_buff, 0, sizeof(cmd_buff));
 
-	ret = mb_ipc_recv(saradc_socket_handle, &user_cmd, (u8 *)&cmd_buff,
+	ret = saradc_ipc_recv(saradc_socket_handle, &user_cmd, (u8 *)&cmd_buff,
 		sizeof(cmd_buff), SARADC_OPERATE_TIMEOUT);
 
 	if(ret != sizeof(cmd_buff))
@@ -283,7 +367,7 @@ bk_err_t bk_adc_enable_bypass_clalibration(void)
 
 	rtos_lock_mutex(&saradc_mutex);
 
-	int ret = mb_ipc_send(saradc_socket_handle, SARADC_CMD_ENABLE_BYPASS_CALIBRATION,
+	int ret = saradc_ipc_send(saradc_socket_handle, SARADC_CMD_ENABLE_BYPASS_CALIBRATION,
 		(u8 *)&cmd_buff, sizeof(cmd_buff), SARADC_OPERATE_TIMEOUT);
 
 	if(ret != 0)
@@ -296,7 +380,7 @@ bk_err_t bk_adc_enable_bypass_clalibration(void)
 
 	memset(&cmd_buff, 0, sizeof(cmd_buff));
 
-	ret = mb_ipc_recv(saradc_socket_handle, &user_cmd, (u8 *)&cmd_buff,
+	ret = saradc_ipc_recv(saradc_socket_handle, &user_cmd, (u8 *)&cmd_buff,
 		sizeof(cmd_buff), SARADC_OPERATE_TIMEOUT);
 
 	if(ret != sizeof(cmd_buff))
@@ -347,7 +431,7 @@ bk_err_t bk_adc_start(void)
 
 	rtos_lock_mutex(&saradc_mutex);
 
-	int ret = mb_ipc_send(saradc_socket_handle, SARADC_CMD_START,
+	int ret = saradc_ipc_send(saradc_socket_handle, SARADC_CMD_START,
 		(u8 *)&cmd_buff, sizeof(cmd_buff), SARADC_OPERATE_TIMEOUT);
 
 	if(ret != 0)
@@ -360,7 +444,7 @@ bk_err_t bk_adc_start(void)
 
 	memset(&cmd_buff, 0, sizeof(cmd_buff));
 
-	ret = mb_ipc_recv(saradc_socket_handle, &user_cmd, (u8 *)&cmd_buff,
+	ret = saradc_ipc_recv(saradc_socket_handle, &user_cmd, (u8 *)&cmd_buff,
 		sizeof(cmd_buff), SARADC_OPERATE_TIMEOUT);
 
 	if(ret != sizeof(cmd_buff))
@@ -413,7 +497,7 @@ static bk_err_t saradc_read_raw_internal(uint16_t* buf, uint32_t size, uint32_t 
 
 	rtos_lock_mutex(&saradc_mutex);
 
-	int ret = mb_ipc_send(saradc_socket_handle, SARADC_CMD_READ_RAW,
+	int ret = saradc_ipc_send(saradc_socket_handle, SARADC_CMD_READ_RAW,
 			(u8 *)&cmd_buff, sizeof(cmd_buff), SARADC_OPERATE_TIMEOUT);
 
 	if(ret != 0)
@@ -426,7 +510,7 @@ static bk_err_t saradc_read_raw_internal(uint16_t* buf, uint32_t size, uint32_t 
 
 	memset(&cmd_buff, 0, sizeof(cmd_buff));
 
-	ret = mb_ipc_recv(saradc_socket_handle, &user_cmd, (u8 *)&cmd_buff,
+	ret = saradc_ipc_recv(saradc_socket_handle, &user_cmd, (u8 *)&cmd_buff,
 			sizeof(cmd_buff), SARADC_OPERATE_TIMEOUT);
 
 	if(ret != sizeof(cmd_buff))
@@ -467,7 +551,7 @@ static bk_err_t saradc_read_raw_internal(uint16_t* buf, uint32_t size, uint32_t 
 		goto read_exit;
 	}
 
-	ret = mb_ipc_send(saradc_socket_handle, SARADC_CMD_READ_RAW_DONE,
+	ret = saradc_ipc_send(saradc_socket_handle, SARADC_CMD_READ_RAW_DONE,
 			(u8 *)&cmd_buff, sizeof(cmd_buff), SARADC_OPERATE_TIMEOUT);
 
 	if(ret != 0)
@@ -476,7 +560,7 @@ static bk_err_t saradc_read_raw_internal(uint16_t* buf, uint32_t size, uint32_t 
 		goto read_exit;
 	}
 
-	ret = mb_ipc_recv(saradc_socket_handle, &user_cmd, (u8 *)&cmd_buff,
+	ret = saradc_ipc_recv(saradc_socket_handle, &user_cmd, (u8 *)&cmd_buff,
 			sizeof(cmd_buff), SARADC_OPERATE_TIMEOUT);
 
 #if LOCAL_TRACE
@@ -537,7 +621,7 @@ bk_err_t bk_adc_stop(void)
 
 	rtos_lock_mutex(&saradc_mutex);
 
-	int ret = mb_ipc_send(saradc_socket_handle, SARADC_CMD_STOP,
+	int ret = saradc_ipc_send(saradc_socket_handle, SARADC_CMD_STOP,
 		(u8 *)&cmd_buff, sizeof(saradc_cmd_t), SARADC_OPERATE_TIMEOUT);
 
 	if(ret != 0)
@@ -550,7 +634,7 @@ bk_err_t bk_adc_stop(void)
 
 	memset(&cmd_buff, 0, sizeof(cmd_buff));
 
-	ret = mb_ipc_recv(saradc_socket_handle, &user_cmd, (u8 *)&cmd_buff,
+	ret = saradc_ipc_recv(saradc_socket_handle, &user_cmd, (u8 *)&cmd_buff,
 		sizeof(cmd_buff), SARADC_OPERATE_TIMEOUT);
 
 	if(ret != sizeof(cmd_buff))
@@ -602,7 +686,7 @@ bk_err_t bk_adc_deinit(adc_chan_t chan)
 
 	rtos_lock_mutex(&saradc_mutex);
 
-	int ret = mb_ipc_send(saradc_socket_handle, SARADC_CMD_DEINIT,
+	int ret = saradc_ipc_send(saradc_socket_handle, SARADC_CMD_DEINIT,
 		(u8 *)&cmd_buff, sizeof(cmd_buff), SARADC_OPERATE_TIMEOUT);
 
 	if(ret != 0)
@@ -615,7 +699,7 @@ bk_err_t bk_adc_deinit(adc_chan_t chan)
 
 	memset(&cmd_buff, 0, sizeof(cmd_buff));
 
-	ret = mb_ipc_recv(saradc_socket_handle, &user_cmd, (u8 *)&cmd_buff,
+	ret = saradc_ipc_recv(saradc_socket_handle, &user_cmd, (u8 *)&cmd_buff,
 		sizeof(cmd_buff), SARADC_OPERATE_TIMEOUT);
 
 	if(ret != sizeof(cmd_buff))
@@ -666,7 +750,7 @@ bk_err_t bk_adc_release(void)
 
 	rtos_lock_mutex(&saradc_mutex);
 
-	int ret = mb_ipc_send(saradc_socket_handle, SARADC_CMD_RELEASE,
+	int ret = saradc_ipc_send(saradc_socket_handle, SARADC_CMD_RELEASE,
 		(u8 *)&cmd_buff, sizeof(cmd_buff), SARADC_OPERATE_TIMEOUT);
 
 	if(ret != 0)
@@ -679,7 +763,7 @@ bk_err_t bk_adc_release(void)
 
 	memset(&cmd_buff, 0, sizeof(cmd_buff));
 
-	ret = mb_ipc_recv(saradc_socket_handle, &user_cmd, (u8 *)&cmd_buff,
+	ret = saradc_ipc_recv(saradc_socket_handle, &user_cmd, (u8 *)&cmd_buff,
 		sizeof(cmd_buff), SARADC_OPERATE_TIMEOUT);
 
 	if(ret != sizeof(cmd_buff))
@@ -734,7 +818,7 @@ bk_err_t bk_adc_set_config(adc_config_t *config)
 
 	rtos_lock_mutex(&saradc_mutex);
 
-	int ret = mb_ipc_send(saradc_socket_handle, SARADC_CMD_SET_CONFIG,
+	int ret = saradc_ipc_send(saradc_socket_handle, SARADC_CMD_SET_CONFIG,
 		(u8 *)&cmd_buff, sizeof(saradc_cmd_t), SARADC_OPERATE_TIMEOUT);
 
 	if(ret != 0)
@@ -747,7 +831,7 @@ bk_err_t bk_adc_set_config(adc_config_t *config)
 
 	memset(&cmd_buff, 0, sizeof(saradc_cmd_t));
 
-	ret = mb_ipc_recv(saradc_socket_handle, &user_cmd, (u8 *)&cmd_buff,
+	ret = saradc_ipc_recv(saradc_socket_handle, &user_cmd, (u8 *)&cmd_buff,
 		sizeof(saradc_cmd_t), SARADC_OPERATE_TIMEOUT);
 
 	if(ret != sizeof(saradc_cmd_t))
@@ -799,7 +883,7 @@ bk_err_t bk_adc_chan_init_gpio(adc_chan_t chan)
 
 	rtos_lock_mutex(&saradc_mutex);
 
-	int ret = mb_ipc_send(saradc_socket_handle, SARADC_CMD_INIT_GPIO,
+	int ret = saradc_ipc_send(saradc_socket_handle, SARADC_CMD_INIT_GPIO,
 		(u8 *)&cmd_buff, sizeof(cmd_buff), SARADC_OPERATE_TIMEOUT);
 
 	if(ret != 0)
@@ -812,7 +896,7 @@ bk_err_t bk_adc_chan_init_gpio(adc_chan_t chan)
 
 	memset(&cmd_buff, 0, sizeof(cmd_buff));
 
-	ret = mb_ipc_recv(saradc_socket_handle, &user_cmd, (u8 *)&cmd_buff,
+	ret = saradc_ipc_recv(saradc_socket_handle, &user_cmd, (u8 *)&cmd_buff,
 		sizeof(cmd_buff), SARADC_OPERATE_TIMEOUT);
 
 	if(ret != sizeof(cmd_buff))
@@ -864,7 +948,7 @@ bk_err_t bk_adc_chan_deinit_gpio(adc_chan_t chan)
 
 	rtos_lock_mutex(&saradc_mutex);
 
-	int ret = mb_ipc_send(saradc_socket_handle, SARADC_CMD_DEINIT_GPIO,
+	int ret = saradc_ipc_send(saradc_socket_handle, SARADC_CMD_DEINIT_GPIO,
 		(u8 *)&cmd_buff, sizeof(cmd_buff), SARADC_OPERATE_TIMEOUT);
 
 	if(ret != 0)
@@ -877,7 +961,7 @@ bk_err_t bk_adc_chan_deinit_gpio(adc_chan_t chan)
 
 	memset(&cmd_buff, 0, sizeof(cmd_buff));
 
-	ret = mb_ipc_recv(saradc_socket_handle, &user_cmd, (u8 *)&cmd_buff,
+	ret = saradc_ipc_recv(saradc_socket_handle, &user_cmd, (u8 *)&cmd_buff,
 		sizeof(cmd_buff), SARADC_OPERATE_TIMEOUT);
 
 	if(ret != sizeof(cmd_buff))
@@ -928,7 +1012,7 @@ bk_err_t bk_adc_en(void)
 
 	rtos_lock_mutex(&saradc_mutex);
 
-	int ret = mb_ipc_send(saradc_socket_handle, SARADC_CMD_EN,
+	int ret = saradc_ipc_send(saradc_socket_handle, SARADC_CMD_EN,
 		(u8 *)&cmd_buff, sizeof(cmd_buff), SARADC_OPERATE_TIMEOUT);
 
 	if(ret != 0)
@@ -941,7 +1025,7 @@ bk_err_t bk_adc_en(void)
 
 	memset(&cmd_buff, 0, sizeof(cmd_buff));
 
-	ret = mb_ipc_recv(saradc_socket_handle, &user_cmd, (u8 *)&cmd_buff,
+	ret = saradc_ipc_recv(saradc_socket_handle, &user_cmd, (u8 *)&cmd_buff,
 		sizeof(cmd_buff), SARADC_OPERATE_TIMEOUT);
 
 	if(ret != sizeof(cmd_buff))
@@ -993,7 +1077,7 @@ bk_err_t bk_adc_read(uint16_t* data, uint32_t timeout)
 
 	rtos_lock_mutex(&saradc_mutex);
 
-	int ret = mb_ipc_send(saradc_socket_handle, SARADC_CMD_READ,
+	int ret = saradc_ipc_send(saradc_socket_handle, SARADC_CMD_READ,
 		(u8 *)&cmd_buff, sizeof(cmd_buff), SARADC_OPERATE_TIMEOUT);
 
 	if(ret != 0)
@@ -1006,7 +1090,7 @@ bk_err_t bk_adc_read(uint16_t* data, uint32_t timeout)
 
 	memset(&cmd_buff, 0, sizeof(cmd_buff));
 
-	ret = mb_ipc_recv(saradc_socket_handle, &user_cmd, (u8 *)&cmd_buff,
+	ret = saradc_ipc_recv(saradc_socket_handle, &user_cmd, (u8 *)&cmd_buff,
 		sizeof(cmd_buff), SARADC_OPERATE_TIMEOUT);
 
 	if(ret != sizeof(cmd_buff))
@@ -1041,7 +1125,7 @@ bk_err_t bk_adc_read(uint16_t* data, uint32_t timeout)
 		goto read_exit;
 	}
 
-	ret = mb_ipc_send(saradc_socket_handle, SARADC_CMD_READ_DONE,
+	ret = saradc_ipc_send(saradc_socket_handle, SARADC_CMD_READ_DONE,
 			(u8 *)&cmd_buff, sizeof(cmd_buff), SARADC_OPERATE_TIMEOUT);
 
 	if(ret != 0)
@@ -1050,7 +1134,7 @@ bk_err_t bk_adc_read(uint16_t* data, uint32_t timeout)
 		goto read_exit;
 	}
 
-	ret = mb_ipc_recv(saradc_socket_handle, &user_cmd, (u8 *)&cmd_buff,
+	ret = saradc_ipc_recv(saradc_socket_handle, &user_cmd, (u8 *)&cmd_buff,
 			sizeof(cmd_buff), SARADC_OPERATE_TIMEOUT);  // it is just a handshake. every send cmd to server must have a recv.
 
 #if LOCAL_TRACE
@@ -1085,7 +1169,7 @@ bk_err_t bk_adc_single_read(uint16_t* data)
 
 	rtos_lock_mutex(&saradc_mutex);
 
-	int ret = mb_ipc_send(saradc_socket_handle, SARADC_CMD_SINGLE_READ,
+	int ret = saradc_ipc_send(saradc_socket_handle, SARADC_CMD_SINGLE_READ,
 		(u8 *)&cmd_buff, sizeof(cmd_buff), SARADC_OPERATE_TIMEOUT);
 
 	if(ret != 0)
@@ -1098,7 +1182,7 @@ bk_err_t bk_adc_single_read(uint16_t* data)
 
 	memset(&cmd_buff, 0, sizeof(cmd_buff));
 
-	ret = mb_ipc_recv(saradc_socket_handle, &user_cmd, (u8 *)&cmd_buff,
+	ret = saradc_ipc_recv(saradc_socket_handle, &user_cmd, (u8 *)&cmd_buff,
 		sizeof(cmd_buff), SARADC_OPERATE_TIMEOUT);
 
 	if(ret != sizeof(cmd_buff))
@@ -1151,7 +1235,7 @@ bk_err_t bk_adc_set_channel(adc_chan_t adc_chan)
 
 	rtos_lock_mutex(&saradc_mutex);
 
-	int ret = mb_ipc_send(saradc_socket_handle, SARADC_CMD_SET_CHANNEL,
+	int ret = saradc_ipc_send(saradc_socket_handle, SARADC_CMD_SET_CHANNEL,
 		(u8 *)&cmd_buff, sizeof(cmd_buff), SARADC_OPERATE_TIMEOUT);
 
 	if(ret != 0)
@@ -1164,7 +1248,7 @@ bk_err_t bk_adc_set_channel(adc_chan_t adc_chan)
 
 	memset(&cmd_buff, 0, sizeof(cmd_buff));
 
-	ret = mb_ipc_recv(saradc_socket_handle, &user_cmd, (u8 *)&cmd_buff,
+	ret = saradc_ipc_recv(saradc_socket_handle, &user_cmd, (u8 *)&cmd_buff,
 		sizeof(cmd_buff), SARADC_OPERATE_TIMEOUT);
 
 	if(ret != sizeof(cmd_buff))
@@ -1217,7 +1301,7 @@ bk_err_t bk_adc_set_mode(adc_mode_t adc_mode)
 
 	rtos_lock_mutex(&saradc_mutex);
 
-	int ret = mb_ipc_send(saradc_socket_handle, SARADC_CMD_SET_MODE,
+	int ret = saradc_ipc_send(saradc_socket_handle, SARADC_CMD_SET_MODE,
 		(u8 *)&cmd_buff, sizeof(cmd_buff), SARADC_OPERATE_TIMEOUT);
 
 	if(ret != 0)
@@ -1230,7 +1314,7 @@ bk_err_t bk_adc_set_mode(adc_mode_t adc_mode)
 
 	memset(&cmd_buff, 0, sizeof(cmd_buff));
 
-	ret = mb_ipc_recv(saradc_socket_handle, &user_cmd, (u8 *)&cmd_buff,
+	ret = saradc_ipc_recv(saradc_socket_handle, &user_cmd, (u8 *)&cmd_buff,
 		sizeof(cmd_buff), SARADC_OPERATE_TIMEOUT);
 
 	if(ret != sizeof(cmd_buff))
@@ -1281,7 +1365,7 @@ adc_mode_t bk_adc_get_mode(void)
 
 	rtos_lock_mutex(&saradc_mutex);
 
-	int ret = mb_ipc_send(saradc_socket_handle, SARADC_CMD_GET_MODE,
+	int ret = saradc_ipc_send(saradc_socket_handle, SARADC_CMD_GET_MODE,
 		(u8 *)&cmd_buff, sizeof(cmd_buff), SARADC_OPERATE_TIMEOUT);
 
 	if(ret != 0)
@@ -1294,7 +1378,7 @@ adc_mode_t bk_adc_get_mode(void)
 
 	memset(&cmd_buff, 0, sizeof(cmd_buff));
 
-	ret = mb_ipc_recv(saradc_socket_handle, &user_cmd, (u8 *)&cmd_buff,
+	ret = saradc_ipc_recv(saradc_socket_handle, &user_cmd, (u8 *)&cmd_buff,
 		sizeof(cmd_buff), SARADC_OPERATE_TIMEOUT);
 
 	if(ret != sizeof(cmd_buff))
@@ -1347,7 +1431,7 @@ bk_err_t bk_adc_set_clk(adc_src_clk_t src_clk, uint32_t adc_clk)
 
 	rtos_lock_mutex(&saradc_mutex);
 
-	int ret = mb_ipc_send(saradc_socket_handle, SARADC_CMD_SET_CLK,
+	int ret = saradc_ipc_send(saradc_socket_handle, SARADC_CMD_SET_CLK,
 		(u8 *)&cmd_buff, sizeof(cmd_buff), SARADC_OPERATE_TIMEOUT);
 
 	if(ret != 0)
@@ -1360,7 +1444,7 @@ bk_err_t bk_adc_set_clk(adc_src_clk_t src_clk, uint32_t adc_clk)
 
 	memset(&cmd_buff, 0, sizeof(cmd_buff));
 
-	ret = mb_ipc_recv(saradc_socket_handle, &user_cmd, (u8 *)&cmd_buff,
+	ret = saradc_ipc_recv(saradc_socket_handle, &user_cmd, (u8 *)&cmd_buff,
 		sizeof(cmd_buff), SARADC_OPERATE_TIMEOUT);
 
 	if(ret != sizeof(cmd_buff))
@@ -1412,7 +1496,7 @@ bk_err_t bk_adc_set_sample_rate(uint32_t sample_rate)
 
 	rtos_lock_mutex(&saradc_mutex);
 
-	int ret = mb_ipc_send(saradc_socket_handle, SARADC_CMD_SET_SAMPLE_RATE,
+	int ret = saradc_ipc_send(saradc_socket_handle, SARADC_CMD_SET_SAMPLE_RATE,
 		(u8 *)&cmd_buff, sizeof(cmd_buff), SARADC_OPERATE_TIMEOUT);
 
 	if(ret != 0)
@@ -1425,7 +1509,7 @@ bk_err_t bk_adc_set_sample_rate(uint32_t sample_rate)
 
 	memset(&cmd_buff, 0, sizeof(cmd_buff));
 
-	ret = mb_ipc_recv(saradc_socket_handle, &user_cmd, (u8 *)&cmd_buff,
+	ret = saradc_ipc_recv(saradc_socket_handle, &user_cmd, (u8 *)&cmd_buff,
 		sizeof(cmd_buff), SARADC_OPERATE_TIMEOUT);
 
 	if(ret != sizeof(cmd_buff))
@@ -1477,7 +1561,7 @@ bk_err_t bk_adc_set_filter(uint32_t adc_filter)
 
 	rtos_lock_mutex(&saradc_mutex);
 
-	int ret = mb_ipc_send(saradc_socket_handle, SARADC_CMD_SET_FILTER,
+	int ret = saradc_ipc_send(saradc_socket_handle, SARADC_CMD_SET_FILTER,
 		(u8 *)&cmd_buff, sizeof(cmd_buff), SARADC_OPERATE_TIMEOUT);
 
 	if(ret != 0)
@@ -1490,7 +1574,7 @@ bk_err_t bk_adc_set_filter(uint32_t adc_filter)
 
 	memset(&cmd_buff, 0, sizeof(cmd_buff));
 
-	ret = mb_ipc_recv(saradc_socket_handle, &user_cmd, (u8 *)&cmd_buff,
+	ret = saradc_ipc_recv(saradc_socket_handle, &user_cmd, (u8 *)&cmd_buff,
 		sizeof(cmd_buff), SARADC_OPERATE_TIMEOUT);
 
 	if(ret != sizeof(cmd_buff))
@@ -1542,7 +1626,7 @@ bk_err_t bk_adc_set_steady_time(uint32_t steady_ctrl)
 
 	rtos_lock_mutex(&saradc_mutex);
 
-	int ret = mb_ipc_send(saradc_socket_handle, SARADC_CMD_SET_STEADY_TIME,
+	int ret = saradc_ipc_send(saradc_socket_handle, SARADC_CMD_SET_STEADY_TIME,
 		(u8 *)&cmd_buff, sizeof(cmd_buff), SARADC_OPERATE_TIMEOUT);
 
 	if(ret != 0)
@@ -1555,7 +1639,7 @@ bk_err_t bk_adc_set_steady_time(uint32_t steady_ctrl)
 
 	memset(&cmd_buff, 0, sizeof(cmd_buff));
 
-	ret = mb_ipc_recv(saradc_socket_handle, &user_cmd, (u8 *)&cmd_buff,
+	ret = saradc_ipc_recv(saradc_socket_handle, &user_cmd, (u8 *)&cmd_buff,
 		sizeof(cmd_buff), SARADC_OPERATE_TIMEOUT);
 
 	if(ret != sizeof(cmd_buff))
@@ -1607,7 +1691,7 @@ bk_err_t bk_adc_set_sample_cnt(uint32_t sample_cnt)
 
 	rtos_lock_mutex(&saradc_mutex);
 
-	int ret = mb_ipc_send(saradc_socket_handle, SARADC_CMD_SET_SAMPLE_CNT,
+	int ret = saradc_ipc_send(saradc_socket_handle, SARADC_CMD_SET_SAMPLE_CNT,
 		(u8 *)&cmd_buff, sizeof(cmd_buff), SARADC_OPERATE_TIMEOUT);
 
 	if(ret != 0)
@@ -1620,7 +1704,7 @@ bk_err_t bk_adc_set_sample_cnt(uint32_t sample_cnt)
 
 	memset(&cmd_buff, 0, sizeof(cmd_buff));
 
-	ret = mb_ipc_recv(saradc_socket_handle, &user_cmd, (u8 *)&cmd_buff,
+	ret = saradc_ipc_recv(saradc_socket_handle, &user_cmd, (u8 *)&cmd_buff,
 		sizeof(cmd_buff), SARADC_OPERATE_TIMEOUT);
 
 	if(ret != sizeof(cmd_buff))
@@ -1672,7 +1756,7 @@ bk_err_t bk_adc_set_saturate_mode(adc_saturate_mode_t saturate_mode)
 
 	rtos_lock_mutex(&saradc_mutex);
 
-	int ret = mb_ipc_send(saradc_socket_handle, SARADC_CMD_SET_SATURATE_MODE,
+	int ret = saradc_ipc_send(saradc_socket_handle, SARADC_CMD_SET_SATURATE_MODE,
 		(u8 *)&cmd_buff, sizeof(cmd_buff), SARADC_OPERATE_TIMEOUT);
 
 	if(ret != 0)
@@ -1685,7 +1769,7 @@ bk_err_t bk_adc_set_saturate_mode(adc_saturate_mode_t saturate_mode)
 
 	memset(&cmd_buff, 0, sizeof(cmd_buff));
 
-	ret = mb_ipc_recv(saradc_socket_handle, &user_cmd, (u8 *)&cmd_buff,
+	ret = saradc_ipc_recv(saradc_socket_handle, &user_cmd, (u8 *)&cmd_buff,
 		sizeof(cmd_buff), SARADC_OPERATE_TIMEOUT);
 
 	if(ret != sizeof(cmd_buff))
@@ -1738,7 +1822,7 @@ bk_err_t bk_adc_register_isr(adc_isr_t adc_isr, uint32_t param)
 
 	rtos_lock_mutex(&saradc_mutex);
 
-	int ret = mb_ipc_send(saradc_socket_handle, SARADC_CMD_REGISTER_ISR,
+	int ret = saradc_ipc_send(saradc_socket_handle, SARADC_CMD_REGISTER_ISR,
 		(u8 *)&cmd_buff, sizeof(cmd_buff), SARADC_OPERATE_TIMEOUT);
 
 	if(ret != 0)
@@ -1751,7 +1835,7 @@ bk_err_t bk_adc_register_isr(adc_isr_t adc_isr, uint32_t param)
 
 	memset(&cmd_buff, 0, sizeof(cmd_buff));
 
-	ret = mb_ipc_recv(saradc_socket_handle, &user_cmd, (u8 *)&cmd_buff,
+	ret = saradc_ipc_recv(saradc_socket_handle, &user_cmd, (u8 *)&cmd_buff,
 		sizeof(cmd_buff), SARADC_OPERATE_TIMEOUT);
 
 	if(ret != sizeof(cmd_buff))
@@ -1806,7 +1890,7 @@ UINT16 bk_adc_data_calculate(UINT16 adc_val, UINT8 adc_chan)
 
 	rtos_lock_mutex(&saradc_mutex);
 
-	int ret = mb_ipc_send(saradc_socket_handle, SARADC_CMD_DATA_CALCULATE,
+	int ret = saradc_ipc_send(saradc_socket_handle, SARADC_CMD_DATA_CALCULATE,
 		(u8 *)&cmd_buff, sizeof(saradc_cmd_t), SARADC_OPERATE_TIMEOUT);
 
 	if(ret != 0)
@@ -1819,7 +1903,7 @@ UINT16 bk_adc_data_calculate(UINT16 adc_val, UINT8 adc_chan)
 
 	memset(&cmd_buff, 0, sizeof(cmd_buff));
 
-	ret = mb_ipc_recv(saradc_socket_handle, &user_cmd, (u8 *)&cmd_buff,
+	ret = saradc_ipc_recv(saradc_socket_handle, &user_cmd, (u8 *)&cmd_buff,
 		sizeof(saradc_cmd_t), SARADC_OPERATE_TIMEOUT);
 
 	if(ret != sizeof(cmd_buff))
@@ -1871,7 +1955,7 @@ bk_err_t bk_adc_key_sampler_start(adc_chan_t chan, uint32_t sample_period_ms)
 
 	rtos_lock_mutex(&saradc_mutex);
 
-	int ret = mb_ipc_send(saradc_socket_handle, SARADC_CMD_ADC_KEY_SAMPLER_START,
+	int ret = saradc_ipc_send(saradc_socket_handle, SARADC_CMD_ADC_KEY_SAMPLER_START,
 		(u8 *)&cmd_buff, sizeof(cmd_buff), SARADC_OPERATE_TIMEOUT);
 	if (ret != 0) {
 		line_num = __LINE__;
@@ -1880,7 +1964,7 @@ bk_err_t bk_adc_key_sampler_start(adc_chan_t chan, uint32_t sample_period_ms)
 
 	u8 user_cmd = INVALID_USER_CMD_ID;
 	memset(&cmd_buff, 0, sizeof(cmd_buff));
-	ret = mb_ipc_recv(saradc_socket_handle, &user_cmd, (u8 *)&cmd_buff,
+	ret = saradc_ipc_recv(saradc_socket_handle, &user_cmd, (u8 *)&cmd_buff,
 		sizeof(cmd_buff), SARADC_OPERATE_TIMEOUT);
 	if (ret != sizeof(cmd_buff)) {
 		line_num = __LINE__;
@@ -1924,7 +2008,7 @@ bk_err_t bk_adc_key_sampler_stop(void)
 
 	rtos_lock_mutex(&saradc_mutex);
 
-	int ret = mb_ipc_send(saradc_socket_handle, SARADC_CMD_ADC_KEY_SAMPLER_STOP,
+	int ret = saradc_ipc_send(saradc_socket_handle, SARADC_CMD_ADC_KEY_SAMPLER_STOP,
 		(u8 *)&cmd_buff, sizeof(cmd_buff), SARADC_OPERATE_TIMEOUT);
 	if (ret != 0) {
 		line_num = __LINE__;
@@ -1933,7 +2017,7 @@ bk_err_t bk_adc_key_sampler_stop(void)
 
 	u8 user_cmd = INVALID_USER_CMD_ID;
 	memset(&cmd_buff, 0, sizeof(cmd_buff));
-	ret = mb_ipc_recv(saradc_socket_handle, &user_cmd, (u8 *)&cmd_buff,
+	ret = saradc_ipc_recv(saradc_socket_handle, &user_cmd, (u8 *)&cmd_buff,
 		sizeof(cmd_buff), SARADC_OPERATE_TIMEOUT);
 	if (ret != sizeof(cmd_buff)) {
 		line_num = __LINE__;

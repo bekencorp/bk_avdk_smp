@@ -27,9 +27,7 @@
 #include <soc/soc.h>
 #include <soc/reg_base.h>
 
-#if CONFIG_SUPPORT_CACHEABLE_SRAM
 #include "cache.h"
-#endif
 
 #include "bk_misc.h"
 
@@ -593,32 +591,30 @@ bk_err_t bk_hpdma_init(hpdma_id_t id, const hpdma_config_t *config)
      *   global controller state.
      */
 
-#if CONFIG_SUPPORT_CACHEABLE_SRAM
-    // Calculate total transfer size for cache flush
-    // User input: ysize = 1 means 1 row, ysize = 2 means 2 rows, etc.
-    // Total size = xsize * ysize (user input)
+    /*
+     * Directional cache maintenance for the transfer buffers (single-shot mode;
+     * in link mode xsize is 0 here and the memcpy-link path maintains its own
+     * source/destination buffers).
+     *
+     * Total size = xsize * ysize (user input: ysize = 1 means 1 row).
+     *
+     * Address-alias note: the cache is indexed by the CPU-side 0x2Cxxxxxx alias,
+     * so this MUST use the original start_addr (0x2C) passed by the caller,
+     * never the 0x28 alias written to the hardware - otherwise it would touch
+     * the wrong cache lines and DMA would read stale data. Writing 0x28 to the
+     * register while maintaining 0x2C for the cache is intentional; do not
+     * "unify" them to a single alias in later maintenance.
+     */
     uint32_t src_total_size = config->src.xsize * config->src.ysize;
     uint32_t dst_total_size = config->dst.xsize * config->dst.ysize;
 
-    /*
-     * Address-alias note: the cache is indexed by the CPU-side 0x2Cxxxxxx
-     * alias, so this flush MUST use the original start_addr (0x2C) passed by
-     * the caller, never the 0x28 alias written to the hardware - otherwise it
-     * would flush the wrong cache lines and DMA would read stale data. Writing
-     * 0x28 to the register while flushing 0x2C for the cache is intentional;
-     * do not "unify" them to a single alias in later maintenance.
-     */
-    // Flush source cache to ensure DMA reads latest CPU-written data
-    if (src_total_size > 0) {
-        flush_dcache((void *)config->src.start_addr, src_total_size);
-    }
+    /* Source: producer -> clean (write-back) so the DMA reads fresh data. */
+    bk_dcache_clean_for_producer((void *)config->src.start_addr, src_total_size);
+    /* Destination: clean (write-back) dirty lines before the DMA overwrites
+     * memory; the CPU-visible invalidate happens after the transfer completes.
+     * No-op for non-cacheable buffers. */
+    bk_dcache_clean_for_producer((void *)config->dst.start_addr, dst_total_size);
 
-    // Flush destination cache to prepare for DMA write
-    // This ensures any dirty cache lines are written back before DMA overwrites memory
-    if (dst_total_size > 0) {
-        flush_dcache((void *)config->dst.start_addr, dst_total_size);
-    }
-#endif
     __DSB();
 
     // Create a modified config with ysize decremented by 1 for hardware
@@ -1728,6 +1724,12 @@ static bk_err_t hpdma_memcpy_link_by_chnl(void *out, const void *in, uint32_t le
         use_sem = false;   /* fall back to busy-wait if arming failed */
     }
 
+    /* Producer side -> clean (write-back) the whole source range so the DMA
+     * engine reads freshly produced data. Descriptors were already cleaned in
+     * bk_hpdma_link_set_desc(); the destination is invalidated after the
+     * transfer completes below. No-op for non-cacheable buffers. */
+    bk_dcache_clean_for_producer((void *)(uintptr_t)in, len);
+
     bk_err_t ret = bk_hpdma_link_transfer(chnl, table);
     if (ret != BK_OK) {
         hpdma_disarm_completion(chnl, &ctx);
@@ -1739,12 +1741,11 @@ static bk_err_t hpdma_memcpy_link_by_chnl(void *out, const void *in, uint32_t le
 
     hpdma_disarm_completion(chnl, &ctx);
 
-#if CONFIG_SUPPORT_CACHEABLE_SRAM
     if (ret == BK_OK) {
-        /* Invalidate destination cache so the CPU sees DMA-written data. */
-        flush_dcache((void *)out, len);
+        /* Consumer side -> invalidate (only) the destination so the CPU sees
+         * DMA-written data. No-op for non-cacheable buffers. */
+        bk_dcache_invalidate_for_consumer((void *)out, len);
     }
-#endif
     __DMB();
 
     bk_hpdma_link_deinit(table);
@@ -1866,12 +1867,11 @@ bk_err_t hpdma_memcpy_by_chnl(void *out, const void *in, uint32_t len, hpdma_id_
 
     hpdma_disarm_completion(cpy_chnl, &ctx);
 
-#if CONFIG_SUPPORT_CACHEABLE_SRAM
-    // Invalidate destination cache to ensure CPU reads DMA-written data
     if (ret == BK_OK) {
-        flush_dcache((void *)out, len);
+        /* Consumer side -> invalidate (only) the destination so the CPU reads
+         * DMA-written data. No-op for non-cacheable buffers. */
+        bk_dcache_invalidate_for_consumer((void *)out, len);
     }
-#endif
     __DMB();
 
     return ret;
@@ -1920,8 +1920,9 @@ bk_err_t bk_hpdma_memcpy(void *out, const void *in, uint32_t len)
      * len > 16-bit single-shot limit is split into a linked list of
      * <=HPDMA_SINGLE_MAX_XFER chunks; smaller copies keep the single-shot path.
      * Cache maintenance for both paths happens inside the callees:
-     *   - Before transfer: bk_hpdma_init() / bk_hpdma_link_transfer() flush src.
-     *   - After transfer: flush_dcache() invalidates the destination.
+     *   - Before transfer: producer-clean of src (single-shot: bk_hpdma_init();
+     *     link: hpdma_memcpy_link_by_chnl()) plus the descriptor clean.
+     *   - After transfer: consumer-invalidate of the destination.
      */
     if (len > HPDMA_SINGLE_MAX_XFER) {
         ret = hpdma_memcpy_link_by_chnl(out, in, len, cpy_chnl);
@@ -2182,11 +2183,10 @@ void *bk_hpdma_link_init(uint32_t link_cnt)
     last_desc->next_desc_addr = 0;
     HPDMA_LOGV("Desc[%d] addr=0x%x next_addr=0 (end of list)\r\n", link_cnt - 1, last_desc_addr);
 
-#if CONFIG_SUPPORT_CACHEABLE_SRAM
-    // Flush descriptor table to ensure DMA sees latest data after initialization
-    // This ensures next_desc_addr is visible to DMA
-    flush_dcache((void *)first_desc_addr, link_cnt * desc_aligned_size);
-#endif
+    /* Descriptor table is produced by the CPU and walked by the DMA engine ->
+     * clean (write-back) so next_desc_addr etc. are visible. No-op for
+     * non-cacheable descriptor memory. */
+    bk_dcache_clean_for_producer((void *)first_desc_addr, link_cnt * desc_aligned_size);
     __DSB();
 
     return (void *)first_desc_addr;
@@ -2266,13 +2266,12 @@ bk_err_t bk_hpdma_link_set_desc(void *desc_table, uint32_t index,
                config->dst_xsize, config->dst_ysize,
                config->src_step, config->dst_step);
 
-#if CONFIG_SUPPORT_CACHEABLE_SRAM
-    // Flush descriptor to ensure DMA sees latest data
-    // Note: Source and destination addresses cache will be flushed in bk_hpdma_link_transfer
-    // using flush_all_dcache(), so no need to flush them here
+    /* Descriptor is produced by the CPU and read by the DMA engine -> clean
+     * (write-back). The source/destination data buffers are maintained by the
+     * transfer path (producer clean before, consumer invalidate after), not
+     * here. No-op for non-cacheable descriptor memory. */
     const uint32_t desc_aligned_size = (sizeof(hpdma_descriptor_t) + 15) & ~15;  // 32 bytes
-    flush_dcache((void *)desc, desc_aligned_size);
-#endif
+    bk_dcache_clean_for_producer((void *)desc, desc_aligned_size);
     __DSB();
     return BK_OK;
 }
@@ -2354,16 +2353,16 @@ bk_err_t bk_hpdma_link_transfer(hpdma_id_t id, void *desc_table)
     bk_hpdma_set_dest_burst_len(id, HPDMA_BURST_LEN_INC16);
 #endif
 
-#if CONFIG_SUPPORT_CACHEABLE_SRAM
-    // Flush all cache to ensure DMA sees all descriptors and data
-    // This is more efficient than traversing all descriptors when link_cnt is large
-    // flush_all_dcache() will flush:
-    // 1. Descriptor table (already flushed in bk_hpdma_link_init and bk_hpdma_link_set_desc, but flush again for safety)
-    // 2. All source addresses (CPU-written data)
-    // 3. All destination addresses (prepare for DMA write)
-    flush_all_dcache();
-#endif
-
+    /*
+     * No whole-cache flush here: the old flush_all_dcache() was a
+     * millisecond-class stall. Descriptors were already cleaned in
+     * bk_hpdma_link_init()/bk_hpdma_link_set_desc(); the source/destination
+     * data buffers are the transfer initiator's responsibility (the internal
+     * memcpy-link path cleans its source before this call and invalidates the
+     * destination after completion). External callers that build their own
+     * descriptor chains must do the same directional maintenance on their
+     * buffers.
+     */
     bk_hpdma_start(id);
 
     HPDMA_LOGV("%s DMA started\r\n", __func__);

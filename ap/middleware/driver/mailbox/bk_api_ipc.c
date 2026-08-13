@@ -20,9 +20,7 @@
 
 #include <driver/pwr_clk.h>
 
-#if (CONFIG_SUPPORT_CACHEABLE_SRAM)
 #include "cache.h"
-#endif
 
 BK_SECTION_DEF(ipc_chan_reg, bk_ipc_chan_cfg_t);
 
@@ -131,8 +129,8 @@ bk_ipc_info_t *bk_ipc_info = NULL;
  *
  * The arena is drawn from os_malloc() at init on purpose: it keeps the exact
  * same memory characteristics (address range / cache attributes) as the old
- * per-call allocation, so the existing cross-core visibility handling
- * (flush_all_dcache()/__DMB() in the RX ISR) still applies unchanged.
+ * per-call allocation, so the cross-core visibility handling (producer clean
+ * on send / consumer invalidate + __DMB() in the RX ISR) applies unchanged.
  */
 static bk_ipc_data_t *s_ipc_data_pool = NULL;
 static uint8_t s_ipc_data_pool_inuse[IPC_DATA_POOL_NUM];
@@ -428,6 +426,10 @@ static int bk_ipc_send_async(bk_ipc_data_t *ipc_data)
 
     channel = MB_CHNL_MIPC_SYNC;
 
+    /* Producer side -> clean (write-back) the zero-copy object before the peer
+     * reads it via the mailbox pointer. No-op for non-cacheable objects. */
+    bk_dcache_clean_for_producer(ipc_data, sizeof(bk_ipc_data_t));
+
     ret = mb_chnl_write(channel, &mb_cmd);
 
     rtos_deinit_semaphore(&ipc_data->sem);
@@ -457,6 +459,10 @@ static inline int bk_ipc_send_original(bk_ipc_info_t *ipc_info, ipc_header_t *he
         LOGE("%s wait comm semaphore failed\n", __func__);
         return -1;
     }
+
+    /* Producer side -> clean (write-back) the zero-copy object before the peer
+     * reads it via the mailbox pointer. No-op for non-cacheable objects. */
+    bk_dcache_clean_for_producer(ipc_data, sizeof(bk_ipc_data_t));
 
     ret = mb_chnl_write(channel, &mb_cmd);
 
@@ -710,9 +716,10 @@ static void bk_ipc_mailbox_rx_isr(void *param, mb_chnl_cmd_t *cmd_buf)
     ipc_header_t header;
     bk_ipc_info_t *ipc_info = (bk_ipc_info_t *)param;
 
-#if (CONFIG_SUPPORT_CACHEABLE_SRAM)
-    flush_all_dcache();
-#endif
+    /* Consumer side -> invalidate (only) the received zero-copy object before
+     * reading it, so we see what the peer produced (never clean+invalidate).
+     * No-op for non-cacheable objects. Replaces the old full-cache flush. */
+    bk_dcache_invalidate_for_consumer(data, sizeof(bk_ipc_data_t));
     __DMB();
 
     LOGV("%s %d\n", __func__, __LINE__);

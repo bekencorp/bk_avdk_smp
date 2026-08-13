@@ -1736,16 +1736,12 @@ int mb_ipc_send_async(u32 handle, u8 user_cmd, u8 * data_buff, u32 data_len)
 	ipc_socket->tx_cmd.cmd_data_buff = data_buff;
 	ipc_socket->tx_cmd.cmd_data_crc8 = cal_crc8_0x31(data_buff, data_len);
 
-	#if CONFIG_SUPPORT_CACHEABLE_SRAM
 	/* Zero-copy cross-core payload: only a pointer is handed to the peer CPU.
-	 * Clean (write-back) this CPU's D-cache so the peer reads the freshly
-	 * produced data from SRAM rather than a stale line. Pairs with the
-	 * invalidate done on the receiver side in mb_ipc_recv_async(). */
-	if((data_buff != NULL) && (data_len != 0))
-	{
-		flush_dcache(data_buff, data_len);
-	}
-	#endif
+	 * Producer side -> clean (write-back) only, so the peer reads freshly
+	 * produced data rather than a stale line. No-op for non-cacheable payloads
+	 * (SRAM / nocache PSRAM). Pairs with the consumer-side invalidate in
+	 * mb_ipc_recv_async(). */
+	bk_dcache_clean_for_producer(data_buff, data_len);
 
 	int route_status = ipc_socket_tx_cmd(ipc_socket, &ipc_socket->tx_cmd, 0);
 	
@@ -1805,16 +1801,12 @@ re_send_onetime:
 	ipc_socket->tx_cmd.cmd_data_buff = data_buff;
 	ipc_socket->tx_cmd.cmd_data_crc8 = cal_crc8_0x31(data_buff, data_len);
 
-	#if CONFIG_SUPPORT_CACHEABLE_SRAM
 	/* Zero-copy cross-core payload: only a pointer is handed to the peer CPU.
-	 * Clean (write-back) this CPU's D-cache so the peer reads the freshly
-	 * produced data from SRAM rather than a stale line. Pairs with the
-	 * invalidate done on the receiver side in mb_ipc_recv_async(). */
-	if((data_buff != NULL) && (data_len != 0))
-	{
-		flush_dcache(data_buff, data_len);
-	}
-	#endif
+	 * Producer side -> clean (write-back) only, so the peer reads freshly
+	 * produced data rather than a stale line. No-op for non-cacheable payloads
+	 * (SRAM / nocache PSRAM). Pairs with the consumer-side invalidate in
+	 * mb_ipc_recv_async(). */
+	bk_dcache_clean_for_producer(data_buff, data_len);
 
 	u32   retry = 0;
 	int   ret_val = 0;
@@ -1989,12 +1981,6 @@ int mb_ipc_get_recv_event(u32 handle, u32 * event_flag)
 	return 0;
 }
 
-#if CONFIG_SUPPORT_CACHEABLE_SRAM
-#ifndef CONFIG_DCACHE_SIZE
-#define CONFIG_DCACHE_SIZE      0x8000   /* DCACHE SIZE 32KB. */
-#endif
-#endif
-
 int mb_ipc_recv_async(u32 handle, u8 * user_cmd, u8 * data_buff, u32 buff_len)
 {
 	mb_ipc_socket_t * ipc_socket = get_socket_from_handle(handle);
@@ -2054,12 +2040,11 @@ int mb_ipc_recv_async(u32 handle, u8 * user_cmd, u8 * data_buff, u32 buff_len)
 		u8  * src_buf = (u8 *)(ipc_socket->rx_cmd.cmd_data_buff) + ipc_socket->rx_read_offset;
 		u32   read_len = MIN((ipc_socket->rx_cmd.cmd_data_len - ipc_socket->rx_read_offset), buff_len);
 
-		#if CONFIG_SUPPORT_CACHEABLE_SRAM
-		if(ipc_socket->rx_cmd.cmd_data_len >= (CONFIG_DCACHE_SIZE / 2))
-			flush_all_dcache();
-		else
-			flush_dcache(ipc_socket->rx_cmd.cmd_data_buff, ipc_socket->rx_cmd.cmd_data_len);
-		#endif
+		/* Consumer side -> invalidate (only) so we read the payload the peer
+		 * produced from memory. Never clean+invalidate here: a clean could
+		 * write a stale local line back over the producer's data (8131 §6.3).
+		 * No-op for non-cacheable payloads (SRAM / nocache PSRAM). */
+		bk_dcache_invalidate_for_consumer(ipc_socket->rx_cmd.cmd_data_buff, ipc_socket->rx_cmd.cmd_data_len);
 		__DMB();
 
 		memcpy(data_buff, src_buf, read_len);
