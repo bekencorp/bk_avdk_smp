@@ -8,6 +8,9 @@
 
 #include "video_osi_wrapper.h"
 #include "avilib_adp.h"
+#if CONFIG_FRAME_BUFFER
+#include <components/bk_frame_buffer.h>
+#endif
 
 #include <setjmp.h>
 
@@ -226,6 +229,111 @@ static int f_unlink_wrapper(const char *path)
 #endif
 }
 
+static void *memset_wrapper(void *dst, int value, uint32_t n)
+{
+	return os_memset(dst, value, n);
+}
+
+static void *fb_malloc_wrapper(int heap, uint32_t size)
+{
+#if CONFIG_FRAME_BUFFER
+	frame_buffer_heap_type_t type = (heap == 0) ? MEM_SLAB_HEAP_UNCODED : MEM_SLAB_HEAP_CODED;
+	return bk_frame_buffer_malloc(type, size);
+#else
+	/* No frame-buffer component in this build (e.g. non-media projects that still
+	 * link media_service); the fb allocator is unused there. */
+	(void)heap;
+	(void)size;
+	return NULL;
+#endif
+}
+
+static void fb_free_wrapper(void *frame)
+{
+#if CONFIG_FRAME_BUFFER
+	bk_frame_buffer_free(frame);
+#else
+	(void)frame;
+#endif
+}
+
+static int mutex_init_wrapper(void **mutex)
+{
+	return rtos_init_mutex((beken_mutex_t *)mutex);
+}
+
+static int mutex_lock_wrapper(void **mutex)
+{
+	return rtos_lock_mutex((beken_mutex_t *)mutex);
+}
+
+static int mutex_unlock_wrapper(void **mutex)
+{
+	return rtos_unlock_mutex((beken_mutex_t *)mutex);
+}
+
+static int mutex_deinit_wrapper(void **mutex)
+{
+	return rtos_deinit_mutex((beken_mutex_t *)mutex);
+}
+
+static int sem_init_wrapper(void **sem, int max_count)
+{
+	return rtos_init_semaphore((beken_semaphore_t *)sem, max_count);
+}
+
+static int sem_get_wrapper(void **sem, uint32_t timeout_ms)
+{
+	return rtos_get_semaphore((beken_semaphore_t *)sem, timeout_ms);
+}
+
+static int sem_set_wrapper(void **sem)
+{
+	return rtos_set_semaphore((beken_semaphore_t *)sem);
+}
+
+static int sem_deinit_wrapper(void **sem)
+{
+	return rtos_deinit_semaphore((beken_semaphore_t *)sem);
+}
+
+static int queue_init_wrapper(void **queue, const char *name, uint32_t item_size, uint32_t item_count)
+{
+	return rtos_init_queue((beken_queue_t *)queue, name, item_size, item_count);
+}
+
+static int queue_push_wrapper(void **queue, void *item, uint32_t timeout_ms)
+{
+	return rtos_push_to_queue((beken_queue_t *)queue, item, timeout_ms);
+}
+
+static int queue_pop_wrapper(void **queue, void *item, uint32_t timeout_ms)
+{
+	return rtos_pop_from_queue((beken_queue_t *)queue, item, timeout_ms);
+}
+
+static int queue_deinit_wrapper(void **queue)
+{
+	return rtos_deinit_queue((beken_queue_t *)queue);
+}
+
+static int thread_create_wrapper(void **thread, uint8_t priority, const char *name,
+	void (*func)(void *), uint32_t stack_size, void *arg)
+{
+	return rtos_create_thread((beken_thread_t *)thread, priority, name,
+		(beken_thread_function_t)func, stack_size, (beken_thread_arg_t)arg);
+}
+
+static int thread_delete_wrapper(void **thread)
+{
+	return rtos_delete_thread((beken_thread_t *)thread);
+}
+
+static void delay_ms_wrapper(uint32_t ms)
+{
+	rtos_delay_milliseconds(ms);
+}
+
 static uint32_t get_avi_index_start_addr_wrapper(void)
 {
 	return AVI_INDEX_START_ADDR;
@@ -263,6 +371,29 @@ static bk_video_osi_funcs_t video_osi_funcs =
 
 	.get_avi_index_start_addr = get_avi_index_start_addr_wrapper,
 	.get_avi_index_count = get_avi_index_count_wrapper,
+
+	.memset = memset_wrapper,
+	.fb_malloc = fb_malloc_wrapper,
+	.fb_free = fb_free_wrapper,
+
+	.mutex_init = mutex_init_wrapper,
+	.mutex_lock = mutex_lock_wrapper,
+	.mutex_unlock = mutex_unlock_wrapper,
+	.mutex_deinit = mutex_deinit_wrapper,
+
+	.sem_init = sem_init_wrapper,
+	.sem_get = sem_get_wrapper,
+	.sem_set = sem_set_wrapper,
+	.sem_deinit = sem_deinit_wrapper,
+
+	.queue_init = queue_init_wrapper,
+	.queue_push = queue_push_wrapper,
+	.queue_pop = queue_pop_wrapper,
+	.queue_deinit = queue_deinit_wrapper,
+
+	.thread_create = thread_create_wrapper,
+	.thread_delete = thread_delete_wrapper,
+	.delay_ms = delay_ms_wrapper,
 };
 
 bk_err_t bk_video_osi_funcs_init(void)
