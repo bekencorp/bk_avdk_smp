@@ -71,6 +71,15 @@ typedef struct bk_camera_sensor_ctlr_t *bk_camera_sensor_handle_t;
 typedef struct bk_camera_sensor_ctlr_t bk_camera_sensor_ctlr_t;
 
 /**
+ * @brief Camera sensor IOCTL commands
+ */
+typedef enum
+{
+    BK_CAMERA_SENSOR_IOCTL_UNKNOWN = 0,
+    BK_CAMERA_SENSOR_IOCTL_GET_DEFAULT_CPROC, /**< Get default CPROC from calib; arg = bk_isp_cproc_attr_t * */
+} bk_camera_sensor_ioctl_cmd_t;
+
+/**
  * @brief Camera sensor controller operations structure
  */
 struct bk_camera_sensor_ctlr_t
@@ -84,6 +93,7 @@ struct bk_camera_sensor_ctlr_t
     void *(*get_sensor_object)(bk_camera_sensor_ctlr_t *controller);  /**< Get pointer to sensor object */
     void *(*get_sensor_cfg)(bk_camera_sensor_ctlr_t *controller);   /**< Get pointer to sensor configuration */
     avdk_err_t (*query_support_formats)(bk_camera_sensor_ctlr_t *controller, bk_camera_sensor_format_array_t *format_array);  /**< Query supported formats */
+    avdk_err_t (*ioctl)(bk_camera_sensor_ctlr_t *controller, uint32_t cmd, void *arg);  /**< Sensor specific IOCTL */
 } ;
 
 
@@ -158,6 +168,15 @@ avdk_err_t bk_camera_sensor_set_vflip(bk_camera_sensor_handle_t handle, bool ena
  * @return Error code
  */
 avdk_err_t bk_camera_sensor_query_support_formats(bk_camera_sensor_handle_t handle, bk_camera_sensor_format_array_t *format_array);
+
+/**
+ * @brief Issue a sensor-specific IOCTL command
+ * @param handle Sensor handle
+ * @param cmd Command code, see ::bk_camera_sensor_ioctl_cmd_t
+ * @param arg Command-specific argument
+ * @return Error code
+ */
+avdk_err_t bk_camera_sensor_ioctl(bk_camera_sensor_handle_t handle, uint32_t cmd, void *arg);
 
 /**
  * @brief Auto-detect the camera sensor

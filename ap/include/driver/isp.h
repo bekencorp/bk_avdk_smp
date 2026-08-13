@@ -57,6 +57,10 @@ bk_err_t bk_isp_soft_reset(isp_handle_t *handle);
 
 bk_err_t bk_isp_get_exposure_luminance(isp_handle_t *handle, uint32_t *luminance);
 
+bk_err_t bk_isp_get_cproc_attr(isp_handle_t *handle, void *cproc_attr);
+
+bk_err_t bk_isp_set_cproc_attr(isp_handle_t *handle, void *cproc_attr);
+
 #ifdef __cplusplus
 }
 #endif

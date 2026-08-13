@@ -18,6 +18,7 @@
 extern "C" {
 #endif
 
+#include <stdint.h>
 #include <avdk_error.h>
 #include <driver/hal/hal_yuv_buf_types.h>
 
@@ -77,6 +78,8 @@ typedef enum
     BK_CAM_IOCTL_SOFTRESET,  /**< Soft reset the ISP controller */
     BK_CAM_IOCTL_GET_EXPOSURE_LUMINANCE,  /**< Get weighted mean exposure luminance (0-255000) into a uint32_t */
     BK_CAM_IOCTL_SET_SKIP_FRAMES, /**< Set skip_frames for a channel before channel_open; arg = bk_isp_camera_skip_frames_config_t * */
+    BK_CAM_IOCTL_GET_CPROC, /**< Get CPROC attributes; arg = bk_isp_cproc_attr_t * */
+    BK_CAM_IOCTL_SET_CPROC, /**< Set CPROC attributes; arg = bk_isp_cproc_attr_t * */
 } bk_cam_interface_ioctl_t;
 
 /**
@@ -89,6 +92,42 @@ typedef struct
     uint8_t channel;   /**< ISP channel id (ISP_MP_CHN_ID / ISP_SP_CHN_ID) */
     uint8_t count;     /**< Drop first N frames after channel open (AE warmup), 0 = disabled */
 } bk_isp_camera_skip_frames_config_t;
+
+/** Number of strength nodes for CPROC auto attributes (matches ISP_AUTO_STRENGTH_NUN). */
+#define BK_ISP_CPROC_AUTO_STRENGTH_NUM 16
+
+/**
+ * @brief CPROC manual attributes (public mirror of ISP_CPROC_MANUAL_ATTR_S).
+ */
+typedef struct
+{
+    int8_t brightness;   /**< Range: [-127, 127] */
+    uint8_t contrast;    /**< Range: [0, 255] */
+    uint8_t saturation;  /**< Range: [0, 255] */
+    int8_t hue;          /**< Range: [-90, 90] */
+} bk_isp_cproc_manual_attr_t;
+
+/**
+ * @brief CPROC auto attributes (public mirror of ISP_CPROC_AUTO_ATTR_S).
+ */
+typedef struct
+{
+    int8_t brightness[BK_ISP_CPROC_AUTO_STRENGTH_NUM];
+    uint8_t contrast[BK_ISP_CPROC_AUTO_STRENGTH_NUM];
+    uint8_t saturation[BK_ISP_CPROC_AUTO_STRENGTH_NUM];
+    int8_t hue[BK_ISP_CPROC_AUTO_STRENGTH_NUM];
+} bk_isp_cproc_auto_attr_t;
+
+/**
+ * @brief CPROC attributes for BK_CAM_IOCTL_GET/SET_CPROC.
+ */
+typedef struct
+{
+    uint8_t enable;                      /**< 0: disable, 1: enable */
+    uint32_t op_type;                    /**< 0: auto, 1: manual */
+    bk_isp_cproc_manual_attr_t manual;   /**< Manual attributes */
+    bk_isp_cproc_auto_attr_t auto_attr;  /**< Auto attributes */
+} bk_isp_cproc_attr_t;
 
 /**
  * @brief Camera ISP instance configuration structure
