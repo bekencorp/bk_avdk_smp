@@ -2,6 +2,7 @@
 #include <components/system.h>
 #include <os/os.h>
 #include <components/shell_task.h>
+#include <media_service.h>
 #include <stdint.h>
 #if CONFIG_BK_NETWORK_PROVISIONING_BLE_EXAMPLE
 #include "bk_network_provisioning.h"
@@ -81,6 +82,7 @@ int32_t bk_sys_uart_write_string(uint32_t uart_id, const char *string);
 int main(void)
 {
     bk_init();
+    media_service_init();
 
 #if CONFIG_FREERTOS_SMP_TEST
     app_test_smp_core0();
@@ -104,7 +106,7 @@ extern int cli_network_provisioning_init(void);
 #endif
 
 #if CONFIG_ASR_SERVICE
-    BK_LOGI(NULL, "CONFIG_AUDIO...\r\n");
+    BK_LOGI(NULL, "asr_service_example init\r\n");
     extern int cli_asr_service_init(void);
     cli_asr_service_init();
 #endif
