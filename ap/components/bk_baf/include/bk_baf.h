@@ -18,10 +18,19 @@ extern "C" {
 
 typedef struct _bk_baf_decoder_t bk_baf_decoder_t;
 
-/* ---- Lifecycle ----
- * Open a player from a config (see bk_baf_config_t): backend, optional GPU
- * bring-up + shared handle, source, loop/free-run. Returns NULL on failure.
- * bk_baf_close() closes it and tears down any GPU that bk_baf itself created. */
+/* ---- Hardware setup (once) ----
+ * Select the render backend and, for the GPU backend, bring up / register the GPU
+ * (see bk_baf_hw_config_t). Call once before bk_baf_open(); the GPU stays up across
+ * many open/close cycles, so switching sources never re-inits it. bk_baf_deinit()
+ * tears down only a GPU that bk_baf_init() itself brought up. Returns AVDK_ERR_OK
+ * or an error. */
+avdk_err_t bk_baf_init(const bk_baf_hw_config_t * hw);
+void bk_baf_deinit(void);
+
+/* ---- Playback (per source) ----
+ * Open a player over an asset source (see bk_baf_config_t: source + loop/free-run);
+ * returns NULL on failure. bk_baf_close() closes just that player -- the GPU set up
+ * by bk_baf_init() is left running. Hardware must already be up (bk_baf_init()). */
 bk_baf_decoder_t * bk_baf_open(const bk_baf_config_t * cfg);
 void bk_baf_close(bk_baf_decoder_t * decoder);
 

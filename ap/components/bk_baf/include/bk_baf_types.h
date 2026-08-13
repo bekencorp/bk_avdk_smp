@@ -118,20 +118,27 @@ typedef struct {
     const void * data;                     /* const bk_baf_media_t * */
 } bk_baf_source_t;
 
-/* ---- One-shot setup config (for bk_baf_open) ----
- * Bundles the render-backend / GPU / decoder setup so a player can start from a
- * single call. Zero-initialise, then set at least .source. */
+/* ---- One-time hardware setup (for bk_baf_init) ----
+ * Render backend + GPU lifecycle. Set once and kept across many open/close
+ * cycles, so switching sources never re-inits the GPU. */
 typedef struct {
-    const bk_baf_source_t * source;      /* required: the asset to play */
     bk_baf_render_backend_t backend;     /* GPU (VG-Lite, default) or CPU (Helium) */
-    bool     init_gpu;                   /* true  = bk_baf creates the GPU here and
-                                          *         tears it down in bk_baf_close()
-                                          *         (RAW/standalone: creator destroys);
+    bool     init_gpu;                   /* true  = bk_baf brings the GPU up in
+                                          *         bk_baf_init() and tears it down in
+                                          *         bk_baf_deinit() (RAW/standalone:
+                                          *         creator destroys);
                                           * false = the GPU is already owned elsewhere
                                           *         (LVGL/flexa); bk_baf won't touch its
                                           *         lifetime. Ignored for the CPU backend. */
     void *   gpu_handle;                 /* shared bk_gpu_ctlr handle for compose
                                           * serialisation; NULL = no shared lock */
+} bk_baf_hw_config_t;
+
+/* ---- Per-source playback setup (for bk_baf_open) ----
+ * Zero-initialise, then set at least .source. Hardware must already be up via
+ * bk_baf_init(). */
+typedef struct {
+    const bk_baf_source_t * source;      /* required: the asset to play */
     int32_t  loop_count;                 /* 0 = infinite, 1 = once, >1 = N times */
     bool     free_run;                   /* true = max-speed (ignore durations) */
 } bk_baf_config_t;

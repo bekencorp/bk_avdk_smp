@@ -50,38 +50,46 @@ const bk_baf_decoder_ops_t bk_baf_decoder_ops = {
     .set_loop_count = baf_decoder_set_loop_count,
 };
 
-/* --- Render backend + shared GPU serialization (internal; driven by bk_baf_open) ---
+/* --- Render backend + shared GPU serialization (internal; set once by bk_baf_init) ---
  * s_backend picks the compositor (GPU=VG-Lite / CPU=Helium). For the GPU path the
- * product's bk_gpu_ctlr handle (bk_baf_config_t.gpu_handle) is registered here, and
+ * product's bk_gpu_ctlr handle (bk_baf_hw_config_t.gpu_handle) is registered here, and
  * bk_baf_compose() takes that controller's gpu_mutex (the one flexa/LVGL draws also
  * use) so BAF's GPU work serialises with every other VG-Lite user; no handle (single
  * GPU user) means it runs unlocked. s_gpu_owned records whether bk_baf itself brought
- * the GPU up (cfg->init_gpu) -- "creator destroys": only then does bk_baf tear it down.
- * File-local; set up by bk_baf_open(), torn down by bk_baf_close(). */
+ * the GPU up (hw->init_gpu) so bk_baf_deinit() only tears down what it owns.
+ * Hardware setup is ONE-SHOT (bk_baf_init / bk_baf_deinit); per-source open/close
+ * never touch it, so switching sources does not power-cycle the GPU. */
 static void * s_baf_gpu_handle = NULL;
 static bk_baf_render_backend_t s_backend = BK_BAF_RENDER_GPU;
 static bool s_gpu_owned = false;
 
-static avdk_err_t gpu_init(void)
+avdk_err_t bk_baf_init(const bk_baf_hw_config_t * hw)
 {
-    /* Bring the GPU up and take ownership so bk_baf_close() tears it back down.
-     * Guarded so a second open (or an already-registered external owner) is a no-op:
-     * bk_gpu_driver_init() is internally idempotent and vg_lite_init() returns
-     * success when the GPU is already initialised. */
-    if(s_gpu_owned) return AVDK_ERR_OK;
-    bk_gpu_driver_init();
-    if(vg_lite_init(0, 0) != VG_LITE_SUCCESS) return AVDK_ERR_GENERIC;
-    s_gpu_owned = true;
+    if(hw == NULL) return AVDK_ERR_INVAL;
+
+    s_backend = hw->backend;
+    if(hw->gpu_handle != NULL) s_baf_gpu_handle = hw->gpu_handle;
+
+    /* Bring up + own the GPU only when asked (RAW/standalone). When it is owned
+     * elsewhere (LVGL/flexa) init_gpu stays false and we just record backend/handle.
+     * Guarded so repeat calls are a no-op. */
+    if(hw->init_gpu && !s_gpu_owned) {
+        bk_gpu_driver_init();
+        if(vg_lite_init(0, 0) != VG_LITE_SUCCESS) return AVDK_ERR_GENERIC;
+        s_gpu_owned = true;
+    }
     return AVDK_ERR_OK;
 }
 
-static void gpu_deinit(void)
+void bk_baf_deinit(void)
 {
-    /* Creator destroys: only tear down a GPU that bk_baf itself brought up. */
-    if(!s_gpu_owned) return;
-    vg_lite_close();
-    bk_gpu_driver_deinit();
-    s_gpu_owned = false;
+    /* Creator destroys: only tear down a GPU that bk_baf_init() itself brought up. */
+    if(s_gpu_owned) {
+        vg_lite_close();
+        bk_gpu_driver_deinit();
+        s_gpu_owned = false;
+    }
+    s_baf_gpu_handle = NULL;
 }
 
 bk_baf_decoder_t * bk_baf_open(const bk_baf_config_t * cfg)
@@ -90,24 +98,15 @@ bk_baf_decoder_t * bk_baf_open(const bk_baf_config_t * cfg)
     const bk_baf_source_t * source = cfg->source;
     if(source->magic != BK_BAF_SOURCE_MAGIC || !ops_are_valid(source->ops)) return NULL;
 
-    /* Render backend + shared-handle registration. In RAW/standalone GPU use the
-     * caller sets init_gpu so bk_baf creates (and later destroys) the GPU; when the
-     * GPU is already owned elsewhere (LVGL/flexa) init_gpu stays false. */
-    if(cfg->gpu_handle != NULL) s_baf_gpu_handle = cfg->gpu_handle;
-    s_backend = cfg->backend;
-    if(cfg->init_gpu && gpu_init() != AVDK_ERR_OK) return NULL;
-
-    /* Allocate the decoder instance and open the backend context. */
+    /* Per-source only: allocate the decoder and open the backend context. The render
+     * backend + GPU must already be up via bk_baf_init(); switching sources is just a
+     * close()/open() and never re-inits the GPU. */
     bk_baf_decoder_t * decoder = os_malloc(sizeof(*decoder));
-    if(decoder == NULL) {
-        gpu_deinit();   /* roll back a GPU we just brought up */
-        return NULL;
-    }
+    if(decoder == NULL) return NULL;
     os_memset(decoder, 0, sizeof(*decoder));
     decoder->context = source->ops->open(source->data);
     if(decoder->context == NULL) {
         os_free(decoder);
-        gpu_deinit();   /* roll back a GPU we just brought up */
         return NULL;
     }
     decoder->ops = source->ops;
@@ -124,10 +123,10 @@ bk_baf_decoder_t * bk_baf_open(const bk_baf_config_t * cfg)
 
 void bk_baf_close(bk_baf_decoder_t * decoder)
 {
+    /* Per-source only: the GPU stays up (torn down by bk_baf_deinit()). */
     if(decoder == NULL) return;
     decoder->ops->close(decoder->context);
     os_free(decoder);
-    gpu_deinit();   /* creator destroys: no-op unless bk_baf_open() brought the GPU up */
 }
 
 bk_baf_decoder_result_t bk_baf_poll(bk_baf_decoder_t * decoder)
