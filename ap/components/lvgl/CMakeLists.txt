@@ -291,6 +291,7 @@ if(CONFIG_LVGL)
 			lvgl_v9/src/libs/fsdrv/lv_fs_memfs.c
 			lvgl_v9/src/libs/fsdrv/lv_fs_posix.c
 			lvgl_v9/src/libs/fsdrv/lv_fs_stdio.c
+			lvgl_v9/src/libs/baf/lv_baf.c
 			lvgl_v9/src/libs/gif/gifdec.c
 			lvgl_v9/src/libs/gif/lv_gif.c
 			lvgl_v9/src/libs/libjpeg_turbo/lv_libjpeg_turbo.c
@@ -515,8 +516,12 @@ if(CONFIG_LVGL)
 	endif()
 endif()
 
+# bk_baf is a PUBLIC requirement: the public header lv_baf.h (pulled in via
+# lvgl.h) includes <bk_baf_types.h>, so bk_baf's include/ dir must propagate to
+# every LVGL consumer. The other deps stay private (used only by lvgl sources).
 armino_component_register(SRCS "${srcs}"
 	INCLUDE_DIRS "${incs}"
+	REQUIRES bk_baf
 	PRIV_REQUIRES include bk_vfs avdk_driver bk_gpu
 	)
 

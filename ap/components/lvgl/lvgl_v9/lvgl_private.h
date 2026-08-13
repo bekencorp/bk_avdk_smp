@@ -31,6 +31,7 @@ extern "C" {
 #include "src/others/xml/lv_xml_private.h"
 #include "src/libs/qrcode/lv_qrcode_private.h"
 #include "src/libs/barcode/lv_barcode_private.h"
+#include "src/libs/baf/lv_baf_private.h"
 #include "src/libs/gif/lv_gif_private.h"
 #include "src/draw/lv_draw_triangle_private.h"
 #include "src/draw/lv_draw_private.h"

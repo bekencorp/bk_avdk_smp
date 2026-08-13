@@ -2955,6 +2955,15 @@
     #endif
 #endif
 
+/** BAF animation player */
+#ifndef LV_USE_BAF
+    #ifdef CONFIG_LV_USE_BAF
+        #define LV_USE_BAF CONFIG_LV_USE_BAF
+    #else
+        #define LV_USE_BAF 0
+    #endif
+#endif
+
 /** GIF decoder library */
 #ifndef LV_USE_GIF
     #ifdef CONFIG_LV_USE_GIF

@@ -782,6 +782,9 @@
  *  - Supports complete JPEG specifications and high-performance JPEG decoding. */
 #define LV_USE_LIBJPEG_TURBO 0
 
+/** BAF animation player */
+#define LV_USE_BAF 0
+
 /** GIF decoder library */
 #define LV_USE_GIF 0
 #if LV_USE_GIF

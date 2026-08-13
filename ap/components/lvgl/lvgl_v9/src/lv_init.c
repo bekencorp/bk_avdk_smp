@@ -25,6 +25,7 @@
 #include "libs/ffmpeg/lv_ffmpeg.h"
 #include "libs/freetype/lv_freetype.h"
 #include "libs/fsdrv/lv_fsdrv.h"
+#include "libs/baf/lv_baf.h"
 #include "libs/gif/lv_gif.h"
 #include "libs/tjpgd/lv_tjpgd.h"
 #include "libs/libjpeg_turbo/lv_libjpeg_turbo.h"
