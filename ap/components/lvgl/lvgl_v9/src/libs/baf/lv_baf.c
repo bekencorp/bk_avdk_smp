@@ -106,16 +106,19 @@ void lv_baf_set_src(lv_obj_t * obj, const bk_baf_source_t * src)
     close_decoder(obj);
     if(src == NULL) return;
 
-    /* One-call setup. Use the GPU compositor only if LVGL actually brought up the
+    /* Hardware setup: use the GPU compositor only if LVGL actually brought up the
      * GPU (read the vendor data off the default display); otherwise CPU (Helium).
-     * LVGL owns the GPU, so init_gpu stays false -- bk_baf must not create/destroy it. */
+     * LVGL owns the GPU, so init_gpu stays false -- bk_baf must not create/destroy it.
+     * bk_baf_init() is idempotent (no GPU work here), so calling it per set_src is fine. */
     lv_display_t * disp = lv_display_get_default();
     lv_vnd_data_t * vnd = (disp != NULL) ? (lv_vnd_data_t *)lv_display_get_user_data(disp) : NULL;
-    bk_baf_config_t cfg = {
-        .source  = src,
+    bk_baf_hw_config_t hw = {
         .backend = (vnd != NULL && vnd->gpu_inited) ? BK_BAF_RENDER_GPU
                                                     : BK_BAF_RENDER_CPU,
     };
+    (void)bk_baf_init(&hw);
+
+    bk_baf_config_t cfg = { .source = src };
     baf->decoder = bk_baf_open(&cfg);
     if(baf->decoder == NULL) {
         LV_LOG_WARN("Couldn't load the BAF source");
