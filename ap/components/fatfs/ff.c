@@ -4586,6 +4586,249 @@ FRESULT f_getfree (
 }
 
 
+#if !FF_FS_READONLY
+#define RECLAIM_MAX_DIR_DEPTH	16
+
+static void reclaim_mark_bit (BYTE *bm, DWORD clst)
+{
+	bm[clst / 8] |= (BYTE)(1u << (clst % 8));
+}
+
+static int reclaim_is_marked (const BYTE *bm, DWORD clst)
+{
+	return (bm[clst / 8] >> (clst % 8)) & 1;
+}
+
+static FRESULT reclaim_mark_chain (FFOBJID *obj, FATFS *fs, BYTE *bm, DWORD clst)
+{
+	DWORD nxt;
+
+	while (clst >= 2 && clst < fs->n_fatent) {
+		if (reclaim_is_marked(bm, clst)) {
+			break;
+		}
+		reclaim_mark_bit(bm, clst);
+		nxt = get_fat(obj, clst);
+		if (nxt == 0xFFFFFFFF) {
+			return FR_DISK_ERR;
+		}
+		if (nxt == 1) {
+			return FR_INT_ERR;
+		}
+		if (nxt == 0 || nxt >= fs->n_fatent) {
+			break;
+		}
+		clst = nxt;
+	}
+	return FR_OK;
+}
+
+static FRESULT reclaim_mark_dir (DIR *dp, BYTE *bm, UINT depth)
+{
+	FRESULT res;
+	FATFS *fs = dp->obj.fs;
+	DWORD dir_cl;
+
+	dir_cl = dp->obj.sclust;
+	if (dir_cl == 0 && fs->fs_type >= FS_FAT32) {
+		dir_cl = fs->dirbase;
+	}
+	if (dir_cl >= 2) {
+		res = reclaim_mark_chain(&dp->obj, fs, bm, dir_cl);
+		if (res != FR_OK) {
+			return res;
+		}
+	}
+
+	res = dir_sdi(dp, 0);
+	if (res != FR_OK) {
+		return res;
+	}
+
+	for (;;) {
+		res = dir_read(dp, 0);
+		if (res == FR_NO_FILE) {
+			return FR_OK;
+		}
+		if (res != FR_OK) {
+			return res;
+		}
+
+		if (dp->dir[DIR_Name] == DDEM) {
+			res = dir_next(dp, 0);
+			if (res == FR_NO_FILE) {
+				return FR_OK;
+			}
+			if (res != FR_OK) {
+				return res;
+			}
+			continue;
+		}
+		if (dp->dir[DIR_Name] == '.') {
+			res = dir_next(dp, 0);
+			if (res == FR_NO_FILE) {
+				return FR_OK;
+			}
+			if (res != FR_OK) {
+				return res;
+			}
+			continue;
+		}
+
+		{
+			BYTE attr = dp->dir[DIR_Attr] & AM_MASK;
+			DWORD scl;
+
+			if (attr == AM_LFN || attr == AM_VOL) {
+				res = dir_next(dp, 0);
+				if (res == FR_NO_FILE) {
+					return FR_OK;
+				}
+				if (res != FR_OK) {
+					return res;
+				}
+				continue;
+			}
+
+			scl = ld_clust(fs, dp->dir);
+			if (scl >= 2) {
+				res = reclaim_mark_chain(&dp->obj, fs, bm, scl);
+				if (res != FR_OK) {
+					return res;
+				}
+
+				if ((attr & AM_DIR) && depth < RECLAIM_MAX_DIR_DEPTH) {
+					DIR sub;
+
+					sub.obj.fs = fs;
+					sub.obj.id = fs->id;
+					sub.obj.sclust = scl;
+					sub.obj.objsize = 0;
+					sub.obj.stat = 0;
+					res = dir_sdi(&sub, 0);
+					if (res == FR_OK) {
+						res = reclaim_mark_dir(&sub, bm, depth + 1);
+					}
+					if (res != FR_OK) {
+						return res;
+					}
+				}
+			}
+		}
+
+		res = dir_next(dp, 0);
+		if (res == FR_NO_FILE) {
+			return FR_OK;
+		}
+		if (res != FR_OK) {
+			return res;
+		}
+	}
+}
+
+
+/*-----------------------------------------------------------------------*/
+/* Reclaim lost FAT clusters                                             */
+/*-----------------------------------------------------------------------*/
+
+FRESULT f_reclaim_lost (
+	const TCHAR* path,		/* Logical drive path */
+	DWORD* nclst			/* Number of reclaimed clusters (optional) */
+)
+{
+	FRESULT res;
+	FATFS *fs;
+	BYTE *bitmap = NULL;
+	DWORD bm_size, clst, reclaimed = 0;
+	FFOBJID obj;
+	DIR dp;
+	DEF_NAMBUF
+
+	if (nclst) {
+		*nclst = 0;
+	}
+
+	res = find_volume(&path, &fs, 0);
+	if (res != FR_OK) {
+		return res;
+	}
+
+#if FF_FS_EXFAT
+	if (fs->fs_type == FS_EXFAT) {
+		LEAVE_FF(fs, FR_NOT_ENABLED);
+	}
+#endif
+	if (fs->fs_type != FS_FAT12 && fs->fs_type != FS_FAT16 && fs->fs_type != FS_FAT32) {
+		LEAVE_FF(fs, FR_NO_FILESYSTEM);
+	}
+
+	bm_size = (fs->n_fatent + 7) / 8;
+	bitmap = ff_memalloc(bm_size);
+	if (!bitmap) {
+		LEAVE_FF(fs, FR_NOT_ENOUGH_CORE);
+	}
+	beken_mem_set(bitmap, 0, bm_size);
+
+	INIT_NAMBUF(fs);
+	obj.fs = fs;
+	obj.id = fs->id;
+
+	dp.obj.fs = fs;
+	dp.obj.id = fs->id;
+	dp.obj.sclust = 0;
+	dp.obj.objsize = 0;
+	dp.obj.stat = 0;
+
+	res = reclaim_mark_dir(&dp, bitmap, 0);
+	if (res == FR_OK) {
+		for (clst = 2; clst < fs->n_fatent; clst++) {
+			DWORD val;
+
+			if (reclaim_is_marked(bitmap, clst)) {
+				continue;
+			}
+			val = get_fat(&obj, clst);
+			if (val == 0xFFFFFFFF) {
+				res = FR_DISK_ERR;
+				break;
+			}
+			if (val == 1) {
+				res = FR_INT_ERR;
+				break;
+			}
+			if (val == 0) {
+				continue;
+			}
+
+			res = put_fat(fs, clst, 0);
+			if (res != FR_OK) {
+				break;
+			}
+			reclaimed++;
+			if (fs->free_clst < fs->n_fatent - 2) {
+				fs->free_clst++;
+				fs->fsi_flag |= 1;
+			}
+		}
+	}
+
+	if (res == FR_OK) {
+		fs->free_clst = fs->n_fatent;
+		res = sync_fs(fs);
+	}
+
+	FREE_NAMBUF();
+	ff_memfree(bitmap);
+
+	if (res == FR_OK && nclst) {
+		*nclst = reclaimed;
+	}
+
+	LEAVE_FF(fs, res);
+}
+#endif /* !FF_FS_READONLY */
+
+
 
 
 /*-----------------------------------------------------------------------*/

@@ -231,6 +231,58 @@ void test_getfree(DISK_NUMBER number)
     BK_LOGD(NULL, "----- test_getfree %d over  -----\r\n\r\n", number);
 }
 
+void test_fatfs_reclaim_lost(DISK_NUMBER number)
+{
+    FRESULT fr;
+    char cFileName[FF_MAX_LFN];
+    DWORD free_before = 0;
+    DWORD free_after = 0;
+    DWORD reclaimed = 0;
+    FATFS *pfs = NULL;
+    uint64_t cluster_bytes;
+
+    sprintf(cFileName, "%d:", number);
+
+    fr = f_getfree(cFileName, &free_before, &pfs);
+    if (fr != FR_OK || pfs == NULL)
+    {
+        BK_LOGD(NULL, "reclaim: f_getfree(before) failed:%d\r\n", fr);
+        return;
+    }
+
+    cluster_bytes = (uint64_t)pfs->csize * (uint64_t)pfs->ssize;
+    os_printf("----- reclaim_lost %d start -----\r\n", number);
+    os_printf("free before: %lu clusters (~%llu MB)\r\n",
+              (unsigned long)free_before,
+              (unsigned long long)free_before * cluster_bytes / (1024u * 1024u));
+
+    fr = f_reclaim_lost(cFileName, &reclaimed);
+    if (fr != FR_OK)
+    {
+        os_printf("f_reclaim_lost failed: %d\r\n", fr);
+        BK_LOGD(NULL, "----- reclaim_lost %d failed -----\r\n\r\n", number);
+        return;
+    }
+
+    os_printf("reclaimed: %lu clusters (~%llu MB)\r\n",
+              (unsigned long)reclaimed,
+              (unsigned long long)reclaimed * cluster_bytes / (1024u * 1024u));
+
+    fr = f_getfree(cFileName, &free_after, &pfs);
+    if (fr == FR_OK)
+    {
+        os_printf("free after: %lu clusters (~%llu MB)\r\n",
+                  (unsigned long)free_after,
+                  (unsigned long long)free_after * cluster_bytes / (1024u * 1024u));
+    }
+    else
+    {
+        os_printf("f_getfree(after) failed: %d\r\n", fr);
+    }
+
+    BK_LOGD(NULL, "----- reclaim_lost %d over -----\r\n\r\n", number);
+}
+
 void scan_file_system(DISK_NUMBER number)
 {
     FRESULT fr;

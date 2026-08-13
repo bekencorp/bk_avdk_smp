@@ -25,6 +25,7 @@ extern "C" {
 extern void test_mount(DISK_NUMBER number);
 extern void test_unmount(DISK_NUMBER number);
 extern void test_getfree(DISK_NUMBER number);
+extern void test_fatfs_reclaim_lost(DISK_NUMBER number);
 extern void scan_file_system(DISK_NUMBER number);
 extern void test_fatfs(DISK_NUMBER number);
 extern void test_fatfs_format(DISK_NUMBER number);

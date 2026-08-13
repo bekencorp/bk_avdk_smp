@@ -234,7 +234,7 @@ typedef struct {
 
 typedef struct 
 {
-	UINT	fcluster;	//Œƒº˛µƒ¥ÿ∫≈
+	UINT	fcluster;	//ù?ùù??ù
 	BYTE	fname[13];	/* Short file name (8.3 format) */
 	BYTE    extname[3];
 	BYTE   	fat_ok_flag;
@@ -314,6 +314,7 @@ FRESULT f_chdir (const TCHAR* path);								/* Change current directory */
 FRESULT f_chdrive (const TCHAR* path);								/* Change current drive */
 FRESULT f_getcwd (TCHAR* buff, UINT len);							/* Get current directory */
 FRESULT f_getfree (const TCHAR* path, DWORD* nclst, FATFS** fatfs);	/* Get number of free clusters on the drive */
+FRESULT f_reclaim_lost (const TCHAR* path, DWORD* nclst);			/* Reclaim FAT clusters not reachable from the directory tree */
 FRESULT f_getlabel (const TCHAR* path, TCHAR* label, DWORD* vsn);	/* Get volume label */
 FRESULT f_setlabel (const TCHAR* label);							/* Set volume label */
 FRESULT f_forward (FIL* fp, UINT(*func)(const BYTE*,UINT), UINT btf, UINT* bf);	/* Forward data to the stream */
