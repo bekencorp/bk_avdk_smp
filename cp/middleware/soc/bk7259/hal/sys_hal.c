@@ -113,6 +113,14 @@ static bk_err_t sys_hal_m55_clock_power_init();
 __IRAM_SEC int32 sys_hal_module_power_state_get(power_module_name_t module);
 bk_err_t sys_hal_ap_clock_power_ctrl(power_module_state_t power_state);
 
+#if CONFIG_TFM_AP_BOOT_NSC
+/* TF-M secure veneer: after CP NS powers the AP domain, the secure world applies
+ * the AP MPC/PPHS so the AP SYS/AHBP region becomes Non-secure and CP NS can
+ * program the AP SysCfg through the NS alias. Resolved from libtfm_s_veneers.a
+ * at NS link time. */
+int psa_ap_secure_sys_open(void);
+#endif
+
 bk_err_t sys_hal_init()
 {
 	s_sys_hal.hw = (sys_hw_t *)SOC_SYS_REG_BASE;
@@ -3478,11 +3486,22 @@ bk_err_t sys_hal_ap_clock_power_ctrl(power_module_state_t power_state)
 		REG_WRITE(SOC_AON_PMU_REG_BASE + 0x2*4, regData);
 
 #if CONFIG_SPE
-		/*"M55S Access Secure*/
+		/* Non-secure project: AP master accesses stay Secure. PPRO is a Secure
+		 * register; for the secure project the AP master security attribute is set
+		 * by the TF-M secure world before CP enters NS. */
 		regData  = REG_READ(SOC_PPRO_REG_BASE + 0xF*4);
 		regData &= ~((0x1<<3)|(0x1<<2));
 		regData |=  ((  0<<3)|(  0<<2));
 		REG_WRITE(SOC_PPRO_REG_BASE + 0xF*4, regData);
+#endif
+#if CONFIG_TFM_AP_BOOT_NSC
+		/* Secure project: the AP SYS/AHBP region is Secure until the AP-side PPHS
+		 * marks it Non-secure. Now that CP NS has powered the AP domain, ask the
+		 * secure world to apply the AP MPC/PPHS so the AP SysCfg accesses below
+		 * (EMA/clock/freq via the NS alias) do not fault. */
+		if (psa_ap_secure_sys_open() != 0) {
+			os_printf("ap secure sys open failed\r\n");
+		}
 #endif
 		/*PSRAM Enable*/
 		sys_ll_set_ana_reg14_enpsram(1);
@@ -3542,11 +3561,6 @@ static bk_err_t sys_hal_m55_clock_power_init()
 	sys_ll_set_ana_reg16_vcorehssel(0xA);//0.7+0.025*0xA=0.95v
 	//bk_delay_us(200);
 	sys_ll_set_ana_reg10_spi_latch1v(0);
-
-	/* AON_PMU AP power sequence + PPRO AP secure access are secure-only
-	 * registers. In the secure-boot flow TFM (ap_power_domain_on) owns the AP
-	 * power-up, so the Non-Secure world (CONFIG_SPE=0) must not touch them; app /
-	 * secure builds (CONFIG_SPE=1) still run the full sequence here. */
 #if CONFIG_SPE
 	regData = REG_READ(SOC_AON_PMU_REG_BASE + 0x2*4);
 	regData &= ~((0x1F<<21)|(0x1<<19));
@@ -3605,12 +3619,18 @@ static bk_err_t sys_hal_m55_clock_power_init()
 	regData |=  ((0<<16));
 	REG_WRITE(SOC_AON_PMU_REG_BASE + 0x2*4, regData);
 
+	/* PPRO is a Secure register. Only the non-secure project (CONFIG_SPE=1, no
+	 * TrustZone split) may set the AP master security attribute here; in the
+	 * secure project (CONFIG_SPE=0) the AP master attribute is owned by the TF-M
+	 * secure world, so the CP Non-Secure world must not touch PPRO or it faults. */
+
 	/*"M55S Access Secure*/
 	regData  = REG_READ(SOC_PPRO_REG_BASE + 0xF*4);
 	regData &= ~((0x1<<3)|(0x1<<2));
 	regData |=  ((  0<<3)|(  0<<2));
 	REG_WRITE(SOC_PPRO_REG_BASE + 0xF*4, regData);
 #endif
+
 	/*PSRAM Enable*/
 	sys_ll_set_ana_reg14_enpsram(1);
 	//bk_delay_us(10);
@@ -3710,13 +3730,7 @@ void sys_hal_early_init(void)
 	sys_hal_analog_set(ANALOG_REG2, 0x04248050); //wangjian20221110 xtal=0x50
 	sys_hal_analog_set(ANALOG_REG3, 0xC5F00B88); //ronghui20241226 <10>=1 for xtal
 	sys_hal_analog_set(ANALOG_REG4, 0x9FC9A7F0);
-#if CONFIG_SPE
-	/* ana_reg9 carries the AP HS-LDO power-down bit (pwd_hsldo). On NS
-	 * (CONFIG_SPE=0) TFM already brought the AP HS domain up; re-writing this
-	 * table value (pwd_hsldo=1) powers it down and breaks PSRAM/AHBP, so only
-	 * the app/secure monolithic build writes it. */
 	sys_hal_analog_set(ANALOG_REG9, 0x57E627E6); //shuguang20241226 <8:6>=7 for EVM
-#endif
 
 	//if ((chip_id & PM_CHIP_ID_MASK) == (PM_CHIP_ID_BK7259 & PM_CHIP_ID_MASK))
 	{
@@ -3727,11 +3741,7 @@ void sys_hal_early_init(void)
 		sys_hal_analog_set(ANALOG_REG14, 0x74E670EE);
 		sys_hal_analog_set(ANALOG_REG15, 0);
 
-#if CONFIG_SPE
-		/* ana_reg16 carries the AP HS power-switch enable (enhspw) + vcorehssel.
-		 * Same reason as ana_reg9: NS must not clobber TFM's HS-domain bring-up. */
 		sys_hal_analog_set(ANALOG_REG16, 0x9E436000);
-#endif
 		sys_hal_analog_set(ANALOG_REG19, 0xEE1D8033);//tenglong20251231 bit[24:22] = 0 for evm;siqing20260202 bit[13:9] = 0 for Reduce buck ripple
 	}
 
@@ -3740,10 +3750,14 @@ void sys_hal_early_init(void)
 	/*early init cpu flash time*/
 	sys_hal_dpll_cpu_flash_time_early_init(chip_id);
 
+#if CONFIG_SPE
 	/*M55: clock power init*/
 	#if !CONFIG_PM_ONLY_CP_ENABLE && !CONFIG_PM_AP_POWERDOWN_WHEN_LV
 	sys_hal_m55_clock_power_init();
 	#endif
+#else
+	sys_hal_m55_clock_power_init();
+#endif
 }
 void sys_hal_early_init_sleep(void)
 {
