@@ -92,9 +92,6 @@ void rtos_user_app_waiting_for_launch(void)
 		BK_LOGD(NULL, "get sema failed");
 	}
 
-#if CONFIG_SAVE_BOOT_TIME_POINT
-	save_mtime_point(CPU_APP_ENTRY_TIME);
-#endif
 }
 
 
@@ -344,10 +341,6 @@ static void user_app_thread( void *arg )
 		s_user_app_entry(0);
 	}
 
-#if CONFIG_SAVE_BOOT_TIME_POINT
-	save_mtime_point(CPU_APP_FINISH_TIME);
-#endif
-
 	rtos_deinit_semaphore(&user_app_sema);
 
 	rtos_delete_thread( NULL );
@@ -393,19 +386,10 @@ extern void rtos_init_base_time(void);
 static void app_main_thread(void *arg)
 {
     set_ap_startup_index(AP_ENTER_APP_MAIN_THREAD);
-#if CONFIG_SAVE_BOOT_TIME_POINT
-	save_mtime_point(CPU_MAIN_ENTRY_TIME);
-#endif
 
 #if CONFIG_CP_HANG_DUMP_BY_AP
 	extern bk_err_t bk_cp_hang_dump_by_ap_init(void);
 	bk_cp_hang_dump_by_ap_init();
-#endif
-
-#ifdef RTOS_FUNC_TEST
-	/*rtos thread func test, for bk7256 bringup.*/
-	rtos_thread_func_test();
-	//if nessary ,close the main() function.
 #endif
 
 	bk_pm_ap_thread_main();
@@ -424,9 +408,6 @@ static void app_main_thread(void *arg)
     //     BK_LOGD(NULL, "ATE enabled = 1\r\n");
     // }
 
-#if CONFIG_SAVE_BOOT_TIME_POINT
-	save_mtime_point(CPU_MIAN_FINISH_TIME);
-#endif
     set_ap_startup_index(AP_EXIT_APP_MAIN_THREAD);
 	rtos_delete_thread(NULL);
 }
@@ -442,9 +423,6 @@ void start_app_main_thread(void)
 
 void entry_main(void)
 {
-#if CONFIG_SAVE_BOOT_TIME_POINT
-	save_mtime_point(CPU_MAIN_ENTRY_TIME);
-#endif
     set_ap_startup_index(AP_ENTER_ENTRY_MAIN);
 #if CONFIG_HSPL
 	bk_hspl_driver_early_init();
@@ -470,20 +448,12 @@ void entry_main(void)
 	rtos_regist_plat_dump_hook(trace_addr, trace_size);
 #endif
 
-#if CONFIG_SAVE_BOOT_TIME_POINT
-	save_mtime_point(CPU_INIT_DRIVER_TIME);
-#endif
-
     bk_module_init();
 
 	start_app_main_thread();
 	// start_user_app_thread();
 
 	rtos_init_base_time();
-
-#if CONFIG_SAVE_BOOT_TIME_POINT
-	save_mtime_point(CPU_START_SCHE_TIME);
-#endif
 
     set_ap_startup_index(AP_ENTER_RTOS_START_SCHEDULER);
 #if CONFIG_SUPPORT_WWDT

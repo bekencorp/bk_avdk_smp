@@ -214,9 +214,6 @@ void b_prep_entry_main(void)
 	}
 #endif
 
-#if CONFIG_NULL_POINTER_EXCEPTION_DETECTION_DWT
-	z_arm_debug_enable_null_pointer_detection();
-#endif
 	arch_icache_invd_all();
 }
 

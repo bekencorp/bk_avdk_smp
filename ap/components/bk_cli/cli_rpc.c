@@ -344,10 +344,6 @@ static void debug_show_boot_time(char *pcWriteBuffer, int xWriteBufferLen, int a
 	BK_LOGD(TAG,"cur time: %ldms\r\n", (u32)(cur_time/26000));
 	BK_LOGD(TAG,"cur inst_cnt: %x:%08x\r\n", (u32)(cur_inst_cnt >> 32), (u32)(cur_inst_cnt & 0xFFFFFFFF));
 
-#if	CONFIG_SAVE_BOOT_TIME_POINT
-	show_saved_mtime_info();
-#endif
-
 }
 #endif
 

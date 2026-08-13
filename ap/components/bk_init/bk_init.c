@@ -303,12 +303,6 @@ int bk_init(void)
 #endif
 
 
-#if (CONFIG_FREERTOS)
-#if CONFIG_SEMI_HOSTED
-	semi_host_init();
-#endif
-#endif
-
 #if CONFIG_UDISK_MP3
 	um_init();
 #endif

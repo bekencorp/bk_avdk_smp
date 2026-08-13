@@ -299,10 +299,6 @@ int bk_init(void)
 #endif
 	app_usb_charge_init();
 
-#if CONFIG_SAVE_BOOT_TIME_POINT
-	save_mtime_point(CPU_START_WIFI_INIT_TIME);
-#endif
-
 #if CONFIG_ATE_TEST
 	/*not init the wifi, in order to save the boot time in ATE test after deepsleep(note:at the wifi ate test not enter power save)*/
 	/*it need first finish test the wifi, at the end test deepsleep, wait wakeup(deepsleep), then test low voltage */
@@ -342,10 +338,6 @@ int bk_init(void)
 	app_eth_init();
 #endif
 
-#if CONFIG_SAVE_BOOT_TIME_POINT
-	save_mtime_point(CPU_FINISH_WIFI_INIT_TIME);
-#endif
-
 #if (CONFIG_TEMP_DETECT || CONFIG_VOLT_DETECT)
 	bk_sensor_start();
 #endif
@@ -366,12 +358,6 @@ int bk_init(void)
 	extern int atsvr_app_init(void);
 	if(0 != atsvr_app_init())
 		return -1;
-#endif
-
-#if (CONFIG_FREERTOS)
-#if CONFIG_SEMI_HOSTED
-	semi_host_init();
-#endif
 #endif
 
 #if CONFIG_UDISK_MP3

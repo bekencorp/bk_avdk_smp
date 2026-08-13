@@ -233,8 +233,6 @@ __NO_RETURN ENTRY_SECTION void Reset_Handler(void)
 
   __set_MSPLIM((uint32_t)(&__STACK_LIMIT));
 
-  //__disable_irq();
-
   bk_wdt_force_feed();
   bk_enable_swd();
 
