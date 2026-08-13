@@ -1,9 +1,11 @@
 #ifndef _MIPI_DSI_HOST_REG_H_
 #define _MIPI_DSI_HOST_REG_H_
 
+#include "soc/bk7259/reg_base.h"
+
 #if CONFIG_DSI_DRIVER
 
-#define BK7259_MIPI_BASE_ADDR   0x4c220000
+#define BK7259_MIPI_BASE_ADDR   SOC_DSI_REG_BASE
 
 //====[MIPI CONTROLLER]============================================================================================
 #define reg_VERSION                         (*((volatile unsigned int*)(BK7259_MIPI_BASE_ADDR + 0x000)))

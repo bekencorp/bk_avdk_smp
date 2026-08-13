@@ -17,12 +17,13 @@
 
 #pragma once
 
+#include "soc/bk7259/reg_base.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#define BK7259_DPU_REG_BASE_ADDR  0x4C2C0000
+#define BK7259_DPU_REG_BASE_ADDR  SOC_DPU_REG_BASE
 
 //====[DPU CONTROLLER]============================================================================================
 #define dcreg_DPU_Beken_01               (*(volatile unsigned int*) (BK7259_DPU_REG_BASE_ADDR + 0x30004))

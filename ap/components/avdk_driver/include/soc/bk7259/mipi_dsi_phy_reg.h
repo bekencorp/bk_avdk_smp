@@ -1,9 +1,11 @@
 #ifndef _MIPI_DSI_PHY_REG_H_
 #define _MIPI_DSI_PHY_REG_H_
 
+#include "soc/bk7259/reg_base.h"
+
 #if CONFIG_DSI_DRIVER
 
-#define BK7259_NN_BASE_ADDR     0x4c240000
+#define BK7259_NN_BASE_ADDR     SOC_PERI_REG_BASE
 
 //====[NANNENG PHY]============================================================================================
 #define reg_NN_PHY_R00             (*((volatile unsigned int*) (BK7259_NN_BASE_ADDR + 0x00)))
@@ -55,7 +57,7 @@
 #define reg_NN_PHY_Rb8             (*((volatile unsigned int*) (BK7259_NN_BASE_ADDR + 0xb8)))
 #define reg_NN_PHY_Rbc             (*((volatile unsigned int*) (BK7259_NN_BASE_ADDR + 0xbc)))
 
-#define BK7259_EXDPHY_BASE_ADDR 0x4c230000
+#define BK7259_EXDPHY_BASE_ADDR SOC_DPHY_REG_BASE
 
 //====[SYNOPSYS PHY]============================================================================================
 #define reg_EXDPHY_REG0            (*((volatile unsigned int*)(BK7259_EXDPHY_BASE_ADDR + 0x0*4)))
