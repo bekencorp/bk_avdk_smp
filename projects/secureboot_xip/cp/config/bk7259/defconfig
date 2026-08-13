@@ -55,6 +55,7 @@ CONFIG_INITIAL_ATTESTATION=n
 # Secure PPRO master gate through the narrow psa_ap_secure_prepare NSC.
 CONFIG_SUPPORT_MULTICORE=y
 CONFIG_TFM_AP_BOOT_NSC=y
+CONFIG_TFM_SLEEP_RETENTION_NSC=y
 
 # --- AP power domain ownership ---
 # CP power-cycles the AP domain, so the PSRAM controller and AP SYS/AHBP live in
