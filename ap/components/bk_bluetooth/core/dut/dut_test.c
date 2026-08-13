@@ -11,6 +11,7 @@
 #define DUT_RSP_ERROR "DUT TEST RSP:ERROR\r\n"
 #define HCI_ENABLE_DEVICE_UNDER_TEST_MODE_OPCODE 0x1803U
 #define DUT_HCI_UART_INVALID 0xFFU
+#define DUT_AUTO_ENABLE_ON_INIT 0
 
 extern uint16_t hci_common_api_handler_no_params(uint16_t opcode);
 extern void bk_ble_dut_start(uint8_t uart_id);
@@ -171,6 +172,7 @@ void dut_test_init(void)
         BK_LOGE(TAG, "register GAP callback failed: %d\n", ret);
     }
 
+#if DUT_AUTO_ENABLE_ON_INIT
     ret = bt_dut_enable();
     if (ret != BK_OK)
     {
@@ -179,4 +181,7 @@ void dut_test_init(void)
     }
 
     BK_LOGI(TAG, "DUT test initialized and enabled\n");
+#else
+    BK_LOGI(TAG, "DUT test initialized\n");
+#endif
 }
