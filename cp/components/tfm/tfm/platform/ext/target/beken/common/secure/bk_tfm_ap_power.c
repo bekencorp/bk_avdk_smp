@@ -70,6 +70,15 @@ int bk_ap_sys_secure_open(void)
 		return -1;
 	}
 
+	/* Enable the AP AHBP peripheral clocks before touching the AP MPC/PPHS. The
+	 * AP MPC controllers and the PPHS live on the AP AHBP sub-bus, which is
+	 * unclocked right after the domain powers up; accessing them first raises a
+	 * bus fault. The AP SYS region is still Secure here (the PPHS runs below), so
+	 * the AHBP clock register is written through the Secure alias. */
+	*(volatile uint32_t *)(SOC_SYS_AHBP_REG_BASE + (0xAu << 2)) = 0xFFFFFFFFu;
+	__DSB();
+	__ISB();
+
 	/* Apply the AP MPC and the AP PPHS from the RAM-cached config (loaded at cold
 	 * boot while flash was Secure). The PPHS marks the AP SYS/AHBP region
 	 * Non-secure (ahbp_ahb_sys_nsec) so CP NS can program the AP SysCfg
