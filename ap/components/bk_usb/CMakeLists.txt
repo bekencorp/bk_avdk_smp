@@ -3,11 +3,10 @@ set(srcs)
 
 if (CONFIG_USB)
 
-	if (CONFIG_BK_USB_CHERRYUSB_V1_6)
-		set(BK_CHERRYUSB_DIR CherryUSB_v1_6)
-	else()
-		set(BK_CHERRYUSB_DIR CherryUSB_legacy)
-	endif()
+	# Only the CherryUSB v1.6.x stack ships now; the legacy tree
+	# (CherryUSB_legacy/) was removed. Keep using CONFIG_BK_USB_CHERRYUSB_V1_6
+	# (forced y in Kconfig) for the per-feature guards below.
+	set(BK_CHERRYUSB_DIR CherryUSB_v1_6)
 
 	list(APPEND incs
 		cherryusb_adapter/include
@@ -35,15 +34,10 @@ if (CONFIG_USB)
 		${BK_CHERRYUSB_DIR}/driver/usb_driver.c
 		${BK_CHERRYUSB_DIR}/osal/usb_osal_adaptor.c
 	)
-	if (CONFIG_BK_USB_CHERRYUSB_V1_6)
-		list(APPEND srcs
-			cherryusb_adapter/v1_6/bk_cherryusb_adapter_v1_6.c
-		)
-	else()
-		list(APPEND srcs
-			cherryusb_adapter/legacy/bk_cherryusb_adapter_legacy.c
-		)
-	endif()
+	# Only the v1.6 adapter remains (legacy stack + its adapter were removed).
+	list(APPEND srcs
+		cherryusb_adapter/v1_6/bk_cherryusb_adapter_v1_6.c
+	)
 	if (CONFIG_USB_DEVICE)
 		# BK7259 USB device controller (MUSB-MHDRC) lives on a HIGH-SPEED
 		# phy (SOC_USB_HS_BASE = 0x480A0000). The CherryUSB device port

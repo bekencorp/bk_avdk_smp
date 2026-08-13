@@ -575,8 +575,7 @@ static int usbh_video_ctrl_connect(struct usbh_hubport *hport, uint8_t intf)
     usbh_video_run(video_class);
 
 #if CONFIG_USB_HUB_MULTIPLE_DEVICES
-    /* Bridge into the BK hub-multiple-classes layer just like the legacy stack
-     * (CherryUSB_legacy/class/video/usbh_video.c) does. v1.6 only exposes the
+    /* Bridge into the BK hub-multiple-classes layer. v1.6 only exposes the
      * weak usbh_video_run() hook which BK leaves empty, so without this call the
      * connect_class_device_flag is never set, bk_usbh_hub_port_check_device()
      * never succeeds and the bk_uvc connect callback never fires. */
