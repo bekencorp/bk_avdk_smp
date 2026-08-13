@@ -17,16 +17,23 @@
 
 #define TAG "ns_agent_tz"
 
-/* Load the plaintext CP/AP ppc_config.bin words from the partition header
- * before BXNS. AP release remains deferred to psa_ap_boot() after bk_init(). */
+/* Apply the plaintext CP PPRO config before BXNS. The AP-side PPHS is deferred to
+ * psa_ap_secure_prepare(): the AP power domain is off here (CP NS powers it on the
+ * AP start request), and once CP PPRO marks AON/sys Non-Secure the secure world
+ * must not probe that region through the secure alias. */
 __used static void ns_init_hook(void)
 {
     BK_LOGI(TAG, "config ppc and NSPE is coming\r\n");
-    if (bk_ppc_apply_config_from_flash() != 0) {
-        /* Fail closed if either image is missing, erased, or unreadable. */
+    /* Cold boot: cache both CP/AP configs while flash is still Secure, so the
+     * later AP-side PPHS apply (from the secure-prepare NSC) reads from RAM and
+     * never touches the flash controller after CP marks flash Non-secure. */
+    if (bk_ppc_cache_load_from_flash() != 0 ||
+        bk_ppc_apply_cp_config_from_flash() != 0) {
+        /* Fail closed if the image is missing, erased, or unreadable. */
         while (1) {
         }
     }
+    bk_ppc_set_ap_master_nsec();
 }
 
 __naked void ns_agent_tz_main(uint32_t c_entry)

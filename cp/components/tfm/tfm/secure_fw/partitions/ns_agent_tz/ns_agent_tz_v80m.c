@@ -17,10 +17,15 @@
 
 __used static void ns_init_hook(void)
 {
-    if (bk_ppc_apply_config_from_flash() != 0) {
+    /* Cold boot: cache both CP/AP configs while flash is still Secure, so the
+     * later AP-side PPHS apply reads from RAM (no flash access after CP marks
+     * flash Non-secure). */
+    if (bk_ppc_cache_load_from_flash() != 0 ||
+        bk_ppc_apply_cp_config_from_flash() != 0) {
         while (1) {
         }
     }
+    bk_ppc_set_ap_master_nsec();
 }
 
 __naked void ns_agent_tz_main(uint32_t c_entry)

@@ -209,9 +209,9 @@ FIH_RET_TYPE(enum tfm_hal_status_t) tfm_hal_set_up_static_boundaries(uintptr_t *
 
     bk_sw_cmp_data();
 
-    /* Power on the AP power domain before configuring the AP AHBP MPC/PPHS. */
-    bk_ap_power_domain_on();
-
+    /* CP-domain MPC only. The AP power domain stays off during CP secure
+     * boundary setup; the AP MPC/PPHS are configured on demand by
+     * psa_ap_secure_prepare() after the CP NS world powers the AP up. */
     if (bk_mpc_cfg() != BK_OK) {
         FIH_RET(fih_int_encode(TFM_HAL_ERROR_GENERIC));
     }

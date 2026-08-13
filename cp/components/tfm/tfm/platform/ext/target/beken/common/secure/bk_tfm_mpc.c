@@ -228,11 +228,21 @@ static void cp_mpc_cfg(void)
 
 int bk_mpc_cfg(void)
 {
-	/* The AP power domain is powered on by bk_ap_power_domain_on() (called from
-	 * tfm_hal_set_up_static_boundaries before this), so the AP AHBP MPC
-	 * instances are accessible here. */
-	ap_mpc_cfg();
+	/* CP-domain MPC only. The AP AHBP MPC instances live in the AP power domain,
+	 * which is off during TF-M static-boundary setup; they are (re)programmed by
+	 * bk_mpc_ap_cfg() from psa_ap_secure_prepare() after CP NS powers the AP up. */
 	cp_mpc_cfg();
+
+	__DSB();
+	__ISB();
+
+	return BK_OK;
+}
+
+int bk_mpc_ap_cfg(void)
+{
+	/* AP-domain AHBP MPC. The AP power domain must already be up. */
+	ap_mpc_cfg();
 
 	__DSB();
 	__ISB();

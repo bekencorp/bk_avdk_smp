@@ -247,27 +247,34 @@ uint32_t tfm_hal_is_ignore_data_shared(void)
 
 void tfm_hal_dma_init(void)
 {
-	/* DMA secure attributes only are configured at the SPE mode */
+	/* DMA0 lives in the CP domain (always powered here) and is configured at the
+	 * SPE->NSPE transition. DMA1 (AP HPDMA) lives in the AP power domain, which is
+	 * off at this point; it is configured by tfm_hal_ap_dma_init() from the AP
+	 * secure-prepare path after CP NS powers the AP up. */
 	volatile uint32_t *dma0_ctrl = (volatile uint32_t *)(DMA0_BASE_ADDR + DMA_CTRL_REG_OFFSET * 4);
 	volatile uint32_t *dma0_enable = (volatile uint32_t *)(DMA0_BASE_ADDR + DMA_ENABLE_REG_OFFSET * 4);
 	volatile uint32_t *dma0_mask = (volatile uint32_t *)(DMA0_BASE_ADDR + DMA_MASK_REG_OFFSET * 4);
 	volatile uint32_t *dma0_int_alloc = (volatile uint32_t *)(DMA0_BASE_ADDR + DMA0_INT_ALLOC_REG_OFFSET * 4);
-	
-	volatile uint32_t *dma1_ctrl = (volatile uint32_t *)(DMA1_BASE_ADDR + DMA_CTRL_REG_OFFSET * 4);
-	volatile uint32_t *dma1_enable = (volatile uint32_t *)(DMA1_BASE_ADDR + DMA_ENABLE_REG_OFFSET * 4);
-	volatile uint32_t *dma1_mask = (volatile uint32_t *)(DMA1_BASE_ADDR + DMA_MASK_REG_OFFSET * 4);
-	volatile uint32_t *dma1_int_alloc = (volatile uint32_t *)(DMA1_BASE_ADDR + DMA1_INT_ALLOC_REG_OFFSET * 4);
-	
+
 	/* Soft reset DMA0 module */
 	*dma0_ctrl = 0;
 	*dma0_ctrl = 1;
 	*dma0_mask = 0xFFF;
 	*dma0_enable = 0;
 	*dma0_int_alloc = DMA0_INT_ALLOC_VALUE;
+}
 
-	/* Soft reset DMA1 module.
-	 * secure_attr=0 / privileged_attr=0 so NS AP can program channels after
-	 * PPHS marks DMA1 Non-Secure. (Post-PPHS re-init also uses NS alias.) */
+void tfm_hal_ap_dma_init(void)
+{
+	/* AP HPDMA (DMA1) controller-wide setup. The AP power domain must already be
+	 * up and clocked (driven by CP NS). The DMA1 control registers are Secure and
+	 * are written through the secure alias; the soft reset clears secure_attr to 0
+	 * so the NS AP can program the channels afterwards. */
+	volatile uint32_t *dma1_ctrl = (volatile uint32_t *)(DMA1_BASE_ADDR + DMA_CTRL_REG_OFFSET * 4);
+	volatile uint32_t *dma1_enable = (volatile uint32_t *)(DMA1_BASE_ADDR + DMA_ENABLE_REG_OFFSET * 4);
+	volatile uint32_t *dma1_mask = (volatile uint32_t *)(DMA1_BASE_ADDR + DMA_MASK_REG_OFFSET * 4);
+	volatile uint32_t *dma1_int_alloc = (volatile uint32_t *)(DMA1_BASE_ADDR + DMA1_INT_ALLOC_REG_OFFSET * 4);
+
 	*dma1_ctrl = 0;
 	*dma1_ctrl = 1;
 	*dma1_mask = 0;

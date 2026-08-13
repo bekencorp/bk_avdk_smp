@@ -18,3 +18,8 @@
 #include "tfm_flash_partition.h"
 
 int bk_mpc_cfg(void);
+
+/* Re-apply only the AP-domain AHBP MPC attributes. Used when the AP power domain
+ * is brought up again after a power-off, since the AP MPC state is lost with the
+ * domain. The AP power domain must already be on before calling. */
+int bk_mpc_ap_cfg(void);

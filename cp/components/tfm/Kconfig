@@ -108,14 +108,17 @@ config TFM_REG_ACCESS_NSC
         CONFIG_REG_ACCESS_NSC.
 
 config TFM_AP_BOOT_NSC
-    bool "Enable NSC AP boot release gateway (psa_ap_boot)"
+    bool "Enable NSC AP secure-prepare gateway (psa_ap_secure_prepare)"
     default n
     help
-        Defer AP core release from TF-M ns_agent to the NS cpu0_app. When set,
-        the secure world exports psa_ap_boot into libtfm_s_veneers.a; the NS app
-        calls it after bk_init() to install the boot shim and release the AP CPU.
-        AP power-on remains in TF-M isolation (bk_ap_power_domain_on). Forwarded
-        to the TF-M build as CONFIG_AP_BOOT_NSC.
+        Let the CP Non-Secure power manager own the AP start sequence while TF-M
+        performs only the Secure-privilege steps through a narrow NSC. When set,
+        the secure world exports psa_ap_secure_prepare / psa_ap_secure_cancel /
+        psa_ap_secure_boot_addr into libtfm_s_veneers.a. CP NS drives AON PMU,
+        analog high-voltage domain, AP power-on and the AP SYS/AHBP registers
+        (via the NS alias) and releases the AP core reset; the NSC only applies
+        the AP MPC/PPHS, installs the verified boot shim and opens the Secure
+        PPRO master gate. Forwarded to the TF-M build as CONFIG_AP_BOOT_NSC.
 
 endmenu # TF-M Options
 

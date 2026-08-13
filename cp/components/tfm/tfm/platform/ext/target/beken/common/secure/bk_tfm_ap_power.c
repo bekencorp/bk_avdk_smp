@@ -14,17 +14,24 @@
 
 #include "bk_tfm_ap_power.h"
 #include "bk_tfm_ap_shim.h"
+#include "bk_tfm_mpc.h"
+#include "bk_tfm_ppc.h"
 #include "cmsis.h"
 #include "aon_pmu_ll.h"
 #include "partitions_gen.h"
+#include "ram_regions.h"
 #include "sys_ahbp_ll.h"
-#include "sys_ll.h"
-#include "tfm_flash_partition.h"
+#include "common/bk_err.h"
 
-extern void bk_delay_us(uint32_t us);
+/* AP HPDMA (DMA1) controller-wide Secure setup, implemented in tfm_hal_platform.c.
+ * Runs in the AP power domain, so it is deferred to the AP secure-prepare path. */
+void tfm_hal_ap_dma_init(void);
 
-/* PPHS marks SYS Non-Secure before CP enters NS; post-PPHS Secure access to
- * AP SysCfg/AHBP must target the NS alias. */
+/* CP PPRO marks the CP AON/sys region Non-Secure (aon_ahb_sys_nsec) and AP PPHS
+ * marks the AP sys region Non-Secure (ahbp_ahb_sys_nsec) before/while CP runs NS.
+ * Once a region is Non-Secure the secure world must access it through the NS
+ * alias; using the secure alias raises a bus fault. */
+#define AON_PMU_NS_BASE   SOC_GET_NS_ADDR(SOC_AON_PMU_REG_BASE)
 #define SYS_AHBP_NS_BASE  SOC_GET_NS_ADDR(SOC_SYS_AHBP_REG_BASE)
 
 static inline volatile uint32_t *sys_ahbp_ns_reg(uint32_t idx)
@@ -32,113 +39,79 @@ static inline volatile uint32_t *sys_ahbp_ns_reg(uint32_t idx)
 	return (volatile uint32_t *)(SYS_AHBP_NS_BASE + (idx << 2));
 }
 
-void bk_ap_power_domain_on(void)
+bool bk_ap_domain_is_on(void)
 {
-	uint32_t reg_val;
-	uint32_t por_wait;
+	volatile aon_pmu_r2_t *r2 =
+		(volatile aon_pmu_r2_t *)(AON_PMU_NS_BASE + (0x2u << 2));
 
-	/* AP high-speed LDO / power switch bring-up (BL2 only loads the base analog
-	 * table, enhspw stays 0). */
-	sys_ll_set_ana_reg10_spi_latch1v(1);
-	sys_ll_set_ana_reg9_pwd_hsldo(1);
-	bk_delay_us(20);
-	sys_ll_set_ana_reg9_pwd_hsldo(0);
-	bk_delay_us(200);
-	sys_ll_set_ana_reg16_enhspw(1);
-	bk_delay_us(200);
-	sys_ll_set_ana_reg16_vcorehssel(0xA);
-	bk_delay_us(200);
-	sys_ll_set_ana_reg10_spi_latch1v(0);
-
-	if (aon_pmu_ll_get_r2_m55_auto_sel() == 1) {
-		aon_pmu_ll_set_r2_m55_mem_auto_set(0);
-	} else {
-		aon_pmu_ll_set_r2_m55_mem3_pwd(0);
-		bk_delay_us(1000);
-		aon_pmu_ll_set_r2_m55_mem4_pwd(0);
-		bk_delay_us(1000);
-		aon_pmu_ll_set_r2_m55_mem5_pwd(0);
-		bk_delay_us(1000);
-		aon_pmu_ll_set_r2_m55_mem6_pwd(0);
-		bk_delay_us(1000);
-		aon_pmu_ll_set_r2_m55_cpu2_cache_pwd(0);
-		bk_delay_us(1000);
-		aon_pmu_ll_set_r2_m55_cpu3_cache_pwd(0);
-		bk_delay_us(1000);
-	}
-
-	/* Wait for the AP high-speed power-on reset to de-assert. */
-	for (por_wait = 0; por_wait < 100000; por_wait++) {
-		if (aon_pmu_ll_get_r74_por_corehs_n() != 0x0) {
-			break;
-		}
-		bk_delay_us(10);
-	}
-
-	aon_pmu_ll_set_r2_m55_mem_ret(1);
-	aon_pmu_ll_set_r2_m55_iso_en(0);
-	aon_pmu_ll_set_r2_m55_clk_en(1);
-	aon_pmu_ll_set_r2_m55_rstn(1);
-
-	reg_val = sys_ahbp_ll_get_rega_value();
-	reg_val |= 0x3F0001;
-	sys_ahbp_ll_set_rega_value(reg_val);
-
-	/* Enable the PSRAM analog LDO; the NS PSRAM driver relies on it. */
-	sys_ll_set_ana_reg14_enpsram(1);
-
-	/* AP core clk select + AHBP bus_ls divider. The PSRAM controller sits on the
-	 * AHBP bus; its read-capture timing depends on this bus clock. */
-	sys_ahbp_ll_set_reg8_cksel_core(1);
-	sys_ahbp_ll_set_reg8_ckdiv_core(0);
-	sys_ahbp_ll_set_reg8_ckdiv_bus_ls(1);
-	bk_delay_us(20);
-
-	__DSB();
-	__ISB();
+	return (r2->m55_iso_en == 0u) && (r2->m55_clk_en == 1u) &&
+	       (r2->m55_rstn == 1u);
 }
 
-void bk_ap_release(void)
+int bk_ap_domain_and_reset_ready(void)
 {
-	/* The AP application is linked Non-Secure but the core resets Secure, so it
-	 * boots into the Secure shim (reserved Secure RAM block). The shim switches
-	 * the core to the Non-Secure state and branches to the AP Non-Secure vector.
-	 * The shim also serves core1 (released later by the AP), branching it to its
-	 * own Non-Secure vector selected by core id. */
-	uint32_t boot_addr = bk_ap_shim_install(AP_CORE1_NS_VECTOR);
 	sys_ahbp_reg4_t *reg4 = (sys_ahbp_reg4_t *)sys_ahbp_ns_reg(0x4u);
+	sys_ahbp_reg5_t *reg5 = (sys_ahbp_reg5_t *)sys_ahbp_ns_reg(0x5u);
 
-	reg4->cpu0_sw_rstn = 0;
-
-	/* Open AP master-access gate (PPRO reg0xF, Secure-only). */
-	{
-		volatile uint32_t *ppro_cfg = (volatile uint32_t *)0x44050000u;
-		ppro_cfg[0xF] &= ~((0x1u << 3) | (0x1u << 2));
+	if (!bk_ap_domain_is_on()) {
+		return -1;
+	}
+	if ((reg4->cpu0_sw_rstn != 0u) || (reg5->cpu1_sw_rstn != 0u)) {
+		return -1;
 	}
 
-	/* AP RAM high-speed EMA (key-protected reg50..53). */
-	{
-		const uint32_t spsp_cfg = ((0x441u) << 10) | 0x241u;
-		const uint32_t stp_cfg = 0x901u;
+	return 0;
+}
 
-		*sys_ahbp_ns_reg(0x50u) = (0x5Au << 24) | spsp_cfg;
-		*sys_ahbp_ns_reg(0x50u) = (0xA5u << 24) | spsp_cfg;
-		*sys_ahbp_ns_reg(0x51u) = (0x5Au << 24) | stp_cfg;
-		*sys_ahbp_ns_reg(0x51u) = (0xA5u << 24) | stp_cfg;
-		*sys_ahbp_ns_reg(0x52u) = (0x5Au << 24) | spsp_cfg;
-		*sys_ahbp_ns_reg(0x52u) = (0xA5u << 24) | spsp_cfg;
-		*sys_ahbp_ns_reg(0x53u) = (0x5Au << 24) | stp_cfg;
-		*sys_ahbp_ns_reg(0x53u) = (0xA5u << 24) | stp_cfg;
+int bk_ap_sys_secure_open(void)
+{
+	/* The AP power domain must already be up (CP NS drives the AON PMU). */
+	if (!bk_ap_domain_is_on()) {
+		return -1;
 	}
 
-	reg4->cpu0_offset = boot_addr >> 8;
-	reg4->cpu0_init_dtcm_en = 1;
+	/* Apply the AP MPC and the AP PPHS from the RAM-cached config (loaded at cold
+	 * boot while flash was Secure). The PPHS marks the AP SYS/AHBP region
+	 * Non-secure (ahbp_ahb_sys_nsec) so CP NS can program the AP SysCfg
+	 * (clock/EMA/freq) through the NS alias, and so the later secure AP prepare
+	 * can read AP SYS through the NS alias too. */
+	if (bk_mpc_ap_cfg() != BK_OK) {
+		return -1;
+	}
+	if (bk_pphs_apply_ap_config_from_flash() != BK_OK) {
+		return -1;
+	}
 
 	__DSB();
 	__ISB();
 
-	reg4->cpu0_sw_rstn = 1;
+	return 0;
+}
+
+int bk_ap_secure_resources_prepare(uint32_t *boot_addr)
+{
+	uint32_t addr;
+
+	/* The AP MPC/PPHS are applied earlier by bk_ap_sys_secure_open() (right after
+	 * CP NS powers the AP domain). By now the AP SYS clocks are up, so program the
+	 * AP HPDMA (DMA1) controller-wide Secure registers here: this lives in the AP
+	 * power domain and could not be set during TF-M init (domain off). The soft
+	 * reset clears secure_attr so the NS AP can program the DMA channels. */
+	tfm_hal_ap_dma_init();
+
+	/* Install the verified boot shim into the reserved Secure RAM block. The boot
+	 * target comes from compile-time partition info, never from the Non-Secure
+	 * caller. */
+	addr = bk_ap_shim_install(AP_CORE1_NS_VECTOR);
+	if (addr != (uint32_t)CONFIG_AP_SPE_RAM_ADDR) {
+		return -1;
+	}
 
 	__DSB();
 	__ISB();
+
+	/* The AP core stays in reset; CP NS programs the boot offset and releases
+	 * it, and owns the AP master security attribute (PPRO reg0xF). */
+	*boot_addr = addr;
+	return 0;
 }

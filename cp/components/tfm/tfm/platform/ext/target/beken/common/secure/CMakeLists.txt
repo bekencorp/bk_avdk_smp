@@ -32,7 +32,7 @@ if(CONFIG_REG_ACCESS_NSC)
 	target_compile_definitions(platform_s PUBLIC CONFIG_REG_ACCESS_NSC)
 endif()
 
-# NSC AP boot release gateway (see ap_boot_nsc.c).
+# NSC AP secure-prepare gateway (see ap_boot_nsc.c).
 if(CONFIG_AP_BOOT_NSC)
 	target_sources(platform_s PRIVATE ap_boot_nsc.c)
 	target_compile_definitions(platform_s PUBLIC CONFIG_AP_BOOT_NSC)
