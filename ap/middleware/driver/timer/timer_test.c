@@ -59,6 +59,13 @@ static void cli_timer_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, ch
         if (ret != BK_OK) {
             CLI_LOGW("[TIMER][START] start failed, error code:%x\n", ret);
         }
+    } else if (os_strcmp(argv[2], "start_us") == 0) {
+        uint64_t time_us = os_strtoul(argv[3], NULL, 10);
+        CLI_LOGD("[TIMER][START_US] channel:%d, time_us:%u\r\n", channel, (uint32_t)time_us);
+        ret = bk_timer_start_us(channel, time_us, cli_timer_isr);
+        if (ret != BK_OK) {
+            CLI_LOGW("[TIMER][START_US] start failed, error code:%x\n", ret);
+        }
     } else if (os_strcmp(argv[2], "stop") == 0) {
         CLI_LOGD("[TIMER][STOP] channel:%d\r\n", channel);
         bk_timer_stop(channel);
@@ -75,13 +82,13 @@ static void cli_timer_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, ch
         read_cnt = bk_timer_get_period(channel);
         CLI_LOGD("[TIMER][GET][PERIOD] period value:%x\r\n", read_cnt);
     } else {
-        CLI_LOGW("timer {chan} {start|stop|read|clk_src} [...]\r\n");
+        CLI_LOGW("timer {chan} {start|start_us|stop|read|enable|disable|get_period} [...]\r\n");
     }
 }
 
 #define TIMER_CMD_CNT (sizeof(s_timer_commands) / sizeof(struct cli_command))
 DRV_CLI_CMD_EXPORT static const struct cli_command s_timer_commands[] = {
-    {"timer", "timer {chan} {start|stop|read|clk_src} [...]", cli_timer_cmd},
+    {"timer", "timer {chan} {start|start_us|stop|read|enable|disable|get_period} [...]", cli_timer_cmd},
 };
 
 int bk_timer_register_cli_test_feature(void)
