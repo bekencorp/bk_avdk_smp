@@ -16,6 +16,7 @@
 
 #include <stdint.h>
 #include <common/bk_include.h>
+#include <soc/bk7259/reg_base.h>
 #include  "mshc_regs.h"
 
 #include <components/log.h>
@@ -132,8 +133,8 @@ struct cmd_param_t {
     struct cmd_param_s post_cmd; /*if valid, execute post-cmd after executing current cmd */
 };
 
-#define sdio_mshc_0_base     0x48040000
-#define sdio_mshc_1_base     0x48050000
+#define sdio_mshc_0_base     (SOC_SDIO0_REG_BASE - 0x700u)
+#define sdio_mshc_1_base     (SOC_SDIO1_REG_BASE - 0x700u)
 
 /* Compile-time *default* of the active controller for the v3p0 driver:
  *   0 = SDIO0 (host base 0x48040000, GPIO 2/3/4/5 + 10/11), production wiring.
