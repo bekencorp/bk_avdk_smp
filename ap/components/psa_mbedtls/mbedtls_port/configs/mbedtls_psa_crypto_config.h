@@ -2938,7 +2938,9 @@
  *
  * This module provides networking routines.
  */
+#if defined(CONFIG_LWIP) && CONFIG_LWIP
 #define MBEDTLS_NET_C
+#endif
 
 /**
  * \def MBEDTLS_OID_C
@@ -4209,7 +4211,9 @@ extern void tls_mbedtls_mem_free(void *ptr);
 #define MBEDTLS_SSL_TLS_C
 #define MBEDTLS_X509_USE_C
 #define MBEDTLS_X509_CRT_PARSE_C
+#if defined(CONFIG_LWIP) && CONFIG_LWIP
 #define MBEDTLS_NET_C
+#endif
 #define MBEDTLS_SSL_OUT_CONTENT_LEN             8192
 #define MBEDTLS_SSL_DTLS_MAX_BUFFERING          16384
 

@@ -25,8 +25,6 @@ list(APPEND srcs
 	${tfm_srcs}
 
 	mbedtls_port/src/tls_mem.c
-	mbedtls_port/src/tls_connect.c
-	mbedtls_port/mbedtls/library/net_sockets.c
 	mbedtls_port/mbedtls/library/platform.c
 	mbedtls_port/mbedtls/library/threading.c
 	mbedtls_port/mbedtls/programs/test/selftest.c
@@ -111,6 +109,13 @@ list(APPEND srcs
 	mbedtls/library/poly1305.c
 	mbedtls/library/cmac.c
 )
+
+if (CONFIG_LWIP)
+	list(APPEND srcs
+		mbedtls_port/src/tls_connect.c
+		mbedtls_port/mbedtls/library/net_sockets.c
+	)
+endif()
 
 # PSA Crypto server sources are not built in NS. When USE_PSA is enabled,
 # psa_* APIs come from the tfm component; keep client helpers only.
