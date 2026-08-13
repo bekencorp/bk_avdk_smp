@@ -15,6 +15,15 @@
 #include <common/bk_include.h>
 #include <modules/pm.h>
 
+/**
+ * Set the AP reset reason while AP is powered off.
+ *
+ * This lockless interface is only valid when the caller guarantees AP cannot
+ * access the shared register. The implementation flushes the updated cache
+ * line before AP startup.
+ */
+void pm_set_ap_reset_reason_without_lock(uint32_t reset_reason);
+
 /****************************************************************************
  * Name: bk_pm_wakeup_source_get
  *

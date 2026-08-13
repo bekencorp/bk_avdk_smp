@@ -313,6 +313,7 @@ static bk_err_t pm_message_handle(void)
 					 *otherwise the callback fired without sleeping and must not boot ap.*/
 					if((bk_pm_exit_low_vol_wakeup_source_get() != PM_WAKEUP_SOURCE_INT_NONE) && !bk_pm_ap_boot_success_get())
 					{
+						pm_set_ap_reset_reason_without_lock(RESET_SOURCE_SLEEP_RTC);
 						bk_pm_module_vote_boot_ap_ctrl(PM_BOOT_AP_MODULE_NAME_APP,PM_POWER_MODULE_STATE_ON);
 					}
 					bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_LV_WAKEUP,0x1,0x0);
@@ -325,6 +326,7 @@ static bk_err_t pm_message_handle(void)
 					 *otherwise the callback fired without sleeping and must not boot ap.*/
 					if((bk_pm_exit_low_vol_wakeup_source_get() != PM_WAKEUP_SOURCE_INT_NONE) && !bk_pm_ap_boot_success_get())
 					{
+						pm_set_ap_reset_reason_without_lock(RESET_SOURCE_SLEEP_GPIO);
 						bk_pm_module_vote_boot_ap_ctrl(PM_BOOT_AP_MODULE_NAME_APP,PM_POWER_MODULE_STATE_ON);
 					}
 					bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_LV_WAKEUP,0x1,0x0);

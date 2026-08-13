@@ -139,6 +139,12 @@ static char *misc_get_start_type_str(uint32_t start_type)
 	case RESET_SOURCE_FORCE_DEEPSLEEP:
 		return "enter deep sleep";
 
+	case RESET_SOURCE_SLEEP_GPIO:
+		return "sleep gpio";
+
+	case RESET_SOURCE_SLEEP_RTC:
+		return "sleep rtc";
+
 	case RESET_SOURCE_UNKNOWN:
 	default:
 		return "unknown";
@@ -151,7 +157,8 @@ static char *misc_get_start_type_str(uint32_t start_type)
 void show_reset_reason(void)
 {
 	BK_LOGD(TAG, "reason - %s\r\n", misc_get_start_type_str(s_start_type));
-	if(RESET_SOURCE_DEEPPS_GPIO == s_start_type)
+	if((RESET_SOURCE_DEEPPS_GPIO == s_start_type)
+		|| (RESET_SOURCE_SLEEP_GPIO == s_start_type))
 	{
 #if CONFIG_DEEP_PS
 		BK_LOGD(TAG, "by gpio - %d\r\n", bk_misc_wakeup_get_gpio_num());

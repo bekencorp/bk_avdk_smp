@@ -24,6 +24,8 @@
 #include <driver/aon_rtc.h>
 #include "pm_wakeup_source.h"
 #include "pm_sleep.h"
+#include <sys_sw_regs.h>
+#include "cache.h"
 
 /*=====================DEFINE SECTION START=====================*/
 #define PM_WAKEUP_SOURCE_MARK                                (WAKEUP_SOURCE_MARK)
@@ -47,6 +49,22 @@ static void pm_core_gpio_callback(gpio_id_t gpio_id);
 static bk_err_t pm_core_rtc_wakeup_config(const pm_ap_core_msg_t *msg);
 static bk_err_t pm_core_gpio_wakeup_config(const pm_ap_core_msg_t *msg);
 /*================FUNCTION DECLARATION SECTION END========*/
+
+void pm_set_ap_reset_reason_without_lock(uint32_t reset_reason)
+{
+	volatile sys_sw_regs_t *sw_regs = bk_sys_sw_regs_ptr();
+
+	/*
+	 * The caller must ensure AP is powered off. No other core can access the
+	 * AP reset-reason field then, so avoid HSPL and publish through cache.
+	 */
+	sw_regs->ap_reset_reason = reset_reason;
+	__DSB();
+	flush_dcache((void *)&sw_regs->ap_reset_reason,
+		sizeof(sw_regs->ap_reset_reason));
+	__DSB();
+}
+
 static void pm_core_rtc_callback(aon_rtc_id_t id, uint8_t *name_p, void *param)
 {
 	bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_LV_WAKEUP,0x0,0x0);
@@ -233,10 +251,14 @@ void pm_deep_sleep_wakeup_source_set()
 		{
 		case 0x1: // gpio
 			bk_misc_set_reset_reason(RESET_SOURCE_DEEPPS_GPIO);
+			bk_misc_set_ap_reset_reason(RESET_SOURCE_DEEPPS_GPIO);
+			pm_set_ap_reset_reason_without_lock(RESET_SOURCE_DEEPPS_GPIO);
 			s_pm_exit_deepsleep_wakeup_source = PM_WAKEUP_SOURCE_INT_GPIO;
 			break;
 		case 0x2: // rtc
 			bk_misc_set_reset_reason(RESET_SOURCE_DEEPPS_RTC);
+			bk_misc_set_ap_reset_reason(RESET_SOURCE_DEEPPS_RTC);
+			pm_set_ap_reset_reason_without_lock(RESET_SOURCE_DEEPPS_RTC);
 			s_pm_exit_deepsleep_wakeup_source = PM_WAKEUP_SOURCE_INT_RTC;
 			break;
 		case 0x10: // usbplug
