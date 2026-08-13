@@ -43,6 +43,8 @@ __attribute__((naked)) int BL2_DS_ENTRY bl2_deepsleep_fastboot(void)
 		"ldr r1, [r0]\n"
 		"orr r1, r1, #1\n"
 		"str r1, [r0]\n"
+		"dsb\n"
+		"isb\n"
 
 		/* R7B is the retained shadow of AON PMU R0. */
 		"ldr r0, =" BL2_DS_STRINGIFY(BL2_DS_PMU_SHADOW_ADDR) "\n"
