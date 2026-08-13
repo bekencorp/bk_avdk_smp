@@ -30,8 +30,6 @@
 #define CP_HANG_MONITOR_WAKE_JUMP_MS (CP_HANG_MONITOR_CHECK_MS * 3U)
 #define CP_HANG_TIMEOUT_MARGIN_MS 2000U
 #define CP_HANG_TIMEOUT_FALLBACK_MS 6000U
-#define CP_HANG_TIMEOUT_MIN_MS (CONFIG_CP_HANG_DUMP_BY_AP_PERIOD_MS + 500U)
-#define CP_HANG_TIMEOUT_MAX_MS (UINT16_MAX)
 #define CP_HANG_AON_WDT_PERIOD_MAX 0x00ffffffU
 #define CP_HANG_AON_WDT_KEY_1ST 0x5aU
 #define CP_HANG_AON_WDT_KEY_2ND 0xa5U
@@ -61,23 +59,9 @@ static void cp_hang_set_ap_dumping(uint32_t value)
 	bk_sys_sw_regs_set_ap_cp_hang_dumping(value);
 }
 
-static inline uint32_t cp_hang_effective_timeout_ms(void)
-{
-	uint32_t timeout_ms = s_cp_hang_state.timeout_ms;
-
-	if (timeout_ms < CP_HANG_TIMEOUT_MIN_MS) {
-		timeout_ms = CP_HANG_TIMEOUT_MIN_MS;
-	}
-	if (timeout_ms > CP_HANG_TIMEOUT_MAX_MS) {
-		timeout_ms = CP_HANG_TIMEOUT_MAX_MS;
-	}
-
-	return timeout_ms;
-}
-
 __attribute__((weak)) void bk_cp_hang_dump_by_ap_feed_aon_wdt(void)
 {
-	uint32_t period_ms = cp_hang_effective_timeout_ms() + CP_HANG_TIMEOUT_MARGIN_MS;
+	uint32_t period_ms = (uint32_t)s_cp_hang_state.timeout_ms + CP_HANG_TIMEOUT_MARGIN_MS;
 	uint32_t ctrl_val;
 
 	if (period_ms > CP_HANG_AON_WDT_PERIOD_MAX) {
@@ -147,7 +131,7 @@ static void cp_hang_ipi_callback(ipi_core_id_t core_id, uint32_t value,
 		return;
 	}
 
-	s_cp_hang_state.timeout_ms = payload ? payload : CP_HANG_TIMEOUT_FALLBACK_MS;
+	s_cp_hang_state.timeout_ms = (uint16_t)CP_HANG_TIMEOUT_FALLBACK_MS;
 	s_cp_hang_state.src_cpu = src_cpu;
 	s_cp_hang_state.last_tick = cp_hang_now();
 	s_cp_hang_state.seen = 1U;
@@ -173,7 +157,7 @@ static void cp_hang_dump_window(const char *name, uint32_t start, uint32_t size)
 static void cp_hang_dump_observer_context(uint32_t now)
 {
 	uint32_t last_tick = s_cp_hang_state.last_tick;
-	uint16_t timeout_ms = (uint16_t)cp_hang_effective_timeout_ms();
+	uint16_t timeout_ms = s_cp_hang_state.timeout_ms;
 	uint8_t src_cpu = s_cp_hang_state.src_cpu;
 
 	bk_coredump_write_prompt("***********************************************************************************************\r\n");
@@ -384,7 +368,7 @@ static void cp_hang_monitor_task(void *param)
 		}
 
 		last_tick = s_cp_hang_state.last_tick;
-		if (cp_hang_elapsed(now, last_tick) < cp_hang_effective_timeout_ms()) {
+		if (cp_hang_elapsed(now, last_tick) < s_cp_hang_state.timeout_ms) {
 			continue;
 		}
 
@@ -395,7 +379,7 @@ static void cp_hang_monitor_task(void *param)
 		 * the dump can go straight out the UART. */
 		cp_hang_set_ap_dumping(1U);
 		BK_LOGE(CP_HANG_TAG, "CP heartbeat timeout: last=%u now=%u timeout=%u src=%u\r\n",
-			last_tick, now, (unsigned)cp_hang_effective_timeout_ms(), s_cp_hang_state.src_cpu);
+			last_tick, now, s_cp_hang_state.timeout_ms, s_cp_hang_state.src_cpu);
 		cp_hang_dump_from_ap(now);
 	}
 }
