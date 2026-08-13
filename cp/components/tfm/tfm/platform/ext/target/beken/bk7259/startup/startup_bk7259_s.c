@@ -26,6 +26,9 @@
 #include "hal_jtag.h"
 #include "hal_hw_fih.h"
 #include "hal_sw_fih.h"
+#if CONFIG_SLEEP_RETENTION_NSC
+#include "sleep_fastboot_tfm.h"
+#endif
 
 #define ENTRY_SECTION  __attribute__((section(".fix.reset_entry")))
 #define SYSTEM_BASE_ADDR                 (0x44010000)
@@ -225,6 +228,10 @@ __NO_RETURN ENTRY_SECTION __attribute__((naked)) void Reset_Handler(void)
 
     /* CMSIS System Initialization */
     SystemInit();
+
+#if CONFIG_SLEEP_RETENTION_NSC
+    tfm_sleep_early_boot();
+#endif
 
     /* Enter PreMain (C library entry point) */
     Pre_Main();

@@ -82,4 +82,6 @@ uint32_t tfm_hal_get_ns_entry_point(void);
 uint32_t tfm_hal_get_ns_MSP(void);
 #endif /* TFM_PARTITION_NS_AGENT_TZ */
 
+void tfm_hal_dma_init(void);
+
 #endif /* __TFM_HAL_PLATFORM_H__ */

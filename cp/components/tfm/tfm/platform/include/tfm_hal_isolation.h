@@ -56,6 +56,8 @@ fih_int tfm_hal_verify_static_boundaries(void);
 FIH_RET_TYPE(enum tfm_hal_status_t) tfm_hal_set_up_static_boundaries(
                                                 uintptr_t *p_spm_boundary);
 
+int tfm_hal_secure_static_mpu_init(void);
+
 /**
  * \brief  Activate one Secure Partition boundary.
  *

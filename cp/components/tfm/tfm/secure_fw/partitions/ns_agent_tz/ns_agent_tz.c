@@ -14,6 +14,9 @@
 #include "tfm_arch.h"
 #include "tfm_hal_platform.h"
 #include "bk_tfm_ppc.h"
+#if CONFIG_SLEEP_RETENTION_NSC
+#include "tfm_sleep_context.h"
+#endif
 
 #define TAG "ns_agent_tz"
 
@@ -34,6 +37,9 @@ __used static void ns_init_hook(void)
         }
     }
     bk_ppc_set_ap_master_nsec();
+#if CONFIG_SLEEP_RETENTION_NSC
+    (void)tfm_sleep_context_refresh_ppro();
+#endif
 }
 
 __naked void ns_agent_tz_main(uint32_t c_entry)

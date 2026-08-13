@@ -169,5 +169,7 @@
 /* Fixed BL2/TF-M fastboot ABI: directly after the shared-data area. */
 #define BL2_DS_RETENTION_ADDR (BOOT_TFM_SHARED_DATA_LIMIT + 1)
 #define BL2_DS_RETENTION_SIZE (0x20)
+#define TFM_SLEEP_CONTEXT_ADDR (BL2_DS_RETENTION_ADDR + BL2_DS_RETENTION_SIZE)
+#define TFM_SLEEP_CONTEXT_MAX_SIZE (0x400)
 
 #define ENABLE_HEAP 1

@@ -38,6 +38,13 @@ if(CONFIG_AP_BOOT_NSC)
 	target_compile_definitions(platform_s PUBLIC CONFIG_AP_BOOT_NSC)
 endif()
 
+if(CONFIG_SLEEP_RETENTION_NSC)
+	target_sources(platform_s PRIVATE
+		tfm_sleep_context.c
+	)
+	target_compile_definitions(platform_s PUBLIC CONFIG_SLEEP_RETENTION_NSC)
+endif()
+
 target_compile_definitions(platform_s
 PUBLIC
 	$<$<BOOL:${HW_FIH}>:CONFIG_HW_FIH>

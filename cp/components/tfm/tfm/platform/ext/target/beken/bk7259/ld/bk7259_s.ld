@@ -351,6 +351,19 @@ SECTIONS
     ASSERT(SIZEOF(.bl2_fastboot_retention) == BL2_DS_RETENTION_SIZE,
            "BL2 fastboot retention record size mismatch")
 
+    .tfm_sleep_retention TFM_SLEEP_CONTEXT_ADDR (NOLOAD) :
+    {
+        __tfm_sleep_retention_start__ = .;
+        KEEP(*(.tfm_sleep_retention))
+        __tfm_sleep_retention_end__ = .;
+    } > RAM
+    ASSERT(ADDR(.tfm_sleep_retention) ==
+           (ADDR(.bl2_fastboot_retention) +
+            SIZEOF(.bl2_fastboot_retention)),
+           "TF-M sleep retention must follow BL2 retention")
+    ASSERT(SIZEOF(.tfm_sleep_retention) <= TFM_SLEEP_CONTEXT_MAX_SIZE,
+           "TF-M sleep retention exceeds reserved limit")
+
     .msp_stack ALIGN(TFM_LINKER_MSP_STACK_ALIGNMENT) :
     {
         . += __msp_stack_size__ - 0x8;

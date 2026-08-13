@@ -64,6 +64,24 @@ static void ppc_clear_bit(uint32_t reg, uint32_t bit)
     REG_WRITE((SOC_PPRO_REG_BASE + (reg << 2)), v);
 }       
 
+void bk_ppc_copy_cp_config_to_snapshot(uint32_t dest[BK_PPC_CONFIG_WORD_COUNT])
+{
+	if (dest == NULL) {
+		return;
+	}
+
+	if (bk_ppc_cache_load_from_flash() != BK_OK) {
+		for (uint32_t i = 0u; i < BK_PPC_CONFIG_WORD_COUNT; i++) {
+			dest[i] = 0u;
+		}
+		return;
+	}
+
+	for (uint32_t i = 0u; i < BK_PPC_CONFIG_WORD_COUNT; i++) {
+		dest[i] = s_cp_config[i];
+	}
+}
+
 void bk_ppc_set_ap_master_nsec(void)
 {
 #if CONFIG_AP_BOOT_NSC

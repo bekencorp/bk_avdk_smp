@@ -199,6 +199,57 @@ void disable_scb_dcache(void);
 void enable_scb_dcache(void);
 void tfm_hal_verify_configuration(void);
 
+int tfm_hal_secure_static_mpu_init(void)
+{
+#if CONFIG_TFM_MPU
+#ifdef CONFIG_TFM_ENABLE_MEMORY_PROTECT
+	struct mpu_armv8m_dev_t dev_mpu_s = {MPU_BASE};
+	struct mpu_armv8m_region_cfg_t localcfg;
+	int32_t i;
+
+	flush_all_dcache();
+	disable_scb_dcache();
+	mpu_armv8m_clean(&dev_mpu_s);
+
+#if TFM_ISOLATION_LEVEL == 3
+	if (ARRAY_SIZE(isolation_regions) >= MPU_REGION_NUM) {
+		return -1;
+	}
+	for (i = 0; i < ARRAY_SIZE(isolation_regions); i++) {
+		spm_memcpy(&localcfg, &isolation_regions[i], sizeof(localcfg));
+		localcfg.region_nr = i;
+		if (mpu_armv8m_region_enable(&dev_mpu_s, &localcfg) != MPU_ARMV8M_OK) {
+			return -1;
+		}
+	}
+	n_configured_regions = i;
+#else /* TFM_ISOLATION_LEVEL == 3 */
+	if (ARRAY_SIZE(region_cfg) > MPU_REGION_NUM) {
+		return -1;
+	}
+	for (i = 0; i < ARRAY_SIZE(region_cfg); i++) {
+		spm_memcpy(&localcfg, &region_cfg[i], sizeof(localcfg));
+		localcfg.region_nr = i;
+		if (mpu_armv8m_region_enable(&dev_mpu_s,
+		    (struct mpu_armv8m_region_cfg_t *)&localcfg)
+		    != MPU_ARMV8M_OK) {
+			return -1;
+		}
+	}
+	n_configured_regions = i;
+#endif /* TFM_ISOLATION_LEVEL == 3 */
+
+	if (mpu_armv8m_enable(&dev_mpu_s,
+			      PRIVILEGED_DEFAULT_ENABLE,
+			      HARDFAULT_NMI_ENABLE) != MPU_ARMV8M_OK) {
+		return -1;
+	}
+	enable_scb_dcache();
+#endif /* CONFIG_TFM_ENABLE_MEMORY_PROTECT */
+#endif /* CONFIG_TFM_MPU */
+	return 0;
+}
+
 FIH_RET_TYPE(enum tfm_hal_status_t) tfm_hal_set_up_static_boundaries(uintptr_t *p_spm_boundary)
 {
     bk_sw_fih_set_data(FIH_SW_INDEX3);
@@ -220,60 +271,11 @@ FIH_RET_TYPE(enum tfm_hal_status_t) tfm_hal_set_up_static_boundaries(uintptr_t *
         FIH_RET(fih_int_encode(TFM_HAL_ERROR_GENERIC));
     }
     bk_sw_fih_set_data(FIH_SW_INDEX9);
-    bk_fih_set_src(FIH_DATA_MPU, 0xee); 
-    /* Set up static isolation boundaries inside SPE */
+    bk_fih_set_src(FIH_DATA_MPU, 0xee);
 #if CONFIG_TFM_MPU
-#ifdef CONFIG_TFM_ENABLE_MEMORY_PROTECT
-    struct mpu_armv8m_region_cfg_t localcfg;
-    int32_t i;
-	
-	flush_all_dcache(); //Never failed
-	disable_scb_dcache(); //Never failed
-    mpu_armv8m_clean(&dev_mpu_s); //Never failed
-
-#if TFM_ISOLATION_LEVEL == 3
-    /*
-     * Update MPU region numbers. The numbers start from 0 and are continuous.
-     * Under isolation level3, at lease one MPU region is reserved for private
-     * data asset.
-     */
-    if (ARRAY_SIZE(isolation_regions) >= MPU_REGION_NUM) {
+    if (tfm_hal_secure_static_mpu_init() != 0) {
         FIH_RET(fih_int_encode(TFM_HAL_ERROR_GENERIC));
     }
-    for (i = 0; i < ARRAY_SIZE(isolation_regions); i++) {
-        spm_memcpy(&localcfg, &isolation_regions[i], sizeof(localcfg));
-        /* Update region number */
-        localcfg.region_nr = i;
-        /* Enable regions */
-        if (mpu_armv8m_region_enable(&dev_mpu_s, &localcfg) != MPU_ARMV8M_OK) {
-            FIH_RET(fih_int_encode(TFM_HAL_ERROR_GENERIC));
-        }
-    }
-    n_configured_regions = i;
-#else /* TFM_ISOLATION_LEVEL == 3 */
-    if (ARRAY_SIZE(region_cfg) > MPU_REGION_NUM) {
-        FIH_RET(fih_int_encode(TFM_HAL_ERROR_GENERIC));
-    }
-    for (i = 0; i < ARRAY_SIZE(region_cfg); i++) {
-        spm_memcpy(&localcfg, &region_cfg[i], sizeof(localcfg));
-        localcfg.region_nr = i;
-        if (mpu_armv8m_region_enable(&dev_mpu_s,
-            (struct mpu_armv8m_region_cfg_t *)&localcfg)
-            != MPU_ARMV8M_OK) {
-            FIH_RET(fih_int_encode(TFM_HAL_ERROR_GENERIC));
-        }
-    }
-    n_configured_regions = i;
-#endif /* TFM_ISOLATION_LEVEL == 3 */
-
-    /* Enable MPU */
-    if (mpu_armv8m_enable(&dev_mpu_s,
-                          PRIVILEGED_DEFAULT_ENABLE,
-                          HARDFAULT_NMI_ENABLE) != MPU_ARMV8M_OK) {
-        FIH_RET(fih_int_encode(TFM_HAL_ERROR_GENERIC));
-    }
-	enable_scb_dcache(); //Never failed
-#endif /* CONFIG_TFM_ENABLE_MEMORY_PROTECT */
 #endif /* CONFIG_TFM_MPU */
     bk_sw_fih_set_data(FIH_SW_INDEX10);
     bk_fih_set_dst(FIH_DATA_MPU, 0xee);

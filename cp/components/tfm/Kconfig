@@ -120,6 +120,16 @@ config TFM_AP_BOOT_NSC
         the AP MPC/PPHS, installs the verified boot shim and opens the Secure
         PPRO master gate. Forwarded to the TF-M build as CONFIG_AP_BOOT_NSC.
 
+config TFM_SLEEP_RETENTION_NSC
+    bool "Enable TF-M sleep secure context retention"
+    depends on SOC_BK7259
+    default n
+    help
+        Build a fixed TF-M security-boundary retention snapshot at cold boot
+        and restore it from tfm_s Reset_Handler on sleep fast-boot wake.
+        Sleep entry performs no register scan. Forwarded to the TF-M build as
+        CONFIG_SLEEP_RETENTION_NSC.
+
 endmenu # TF-M Options
 
 endmenu # TFM

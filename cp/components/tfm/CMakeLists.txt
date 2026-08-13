@@ -235,6 +235,7 @@ if (CONFIG_TFM AND tfm_present)
                 # secure build (consumed by common/secure/CMakeLists.txt).
                 -DCONFIG_REG_ACCESS_NSC=${CONFIG_TFM_REG_ACCESS_NSC}
                 -DCONFIG_AP_BOOT_NSC=${CONFIG_TFM_AP_BOOT_NSC}
+                -DCONFIG_SLEEP_RETENTION_NSC=${CONFIG_TFM_SLEEP_RETENTION_NSC}
             && cd ${tfm_build_dir} && ninja -- install
         BUILD_BYPRODUCTS ${tfm_build_dir}/secure_fw/libtfm_s_veneers.a
         BUILD_ALWAYS 1

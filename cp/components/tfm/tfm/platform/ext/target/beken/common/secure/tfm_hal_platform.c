@@ -25,6 +25,9 @@
 #include "driver/uart.h"
 #include "driver/gpio.h"
 #include "device_cfg.h"
+#if CONFIG_SLEEP_RETENTION_NSC
+#include "tfm_sleep_context.h"
+#endif
 
 /* Hardware register base addresses */
 #define DMA0_BASE_ADDR             0x45020000
@@ -180,6 +183,12 @@ FIH_RET_TYPE(enum tfm_hal_status_t) tfm_hal_platform_init(void)
     if (plat_err != TFM_PLAT_ERR_SUCCESS) {
         FIH_RET(fih_int_encode(TFM_HAL_ERROR_GENERIC));
     }
+
+#if CONFIG_SLEEP_RETENTION_NSC
+    if (tfm_sleep_context_build_snapshot() != 0) {
+        FIH_RET(fih_int_encode(TFM_HAL_ERROR_GENERIC));
+    }
+#endif
 
     /* Partition and flash map initialization - currently disabled
      * Enable when needed by uncommenting the code below

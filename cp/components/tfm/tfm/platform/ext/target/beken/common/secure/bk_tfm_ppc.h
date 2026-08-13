@@ -37,6 +37,7 @@ int bk_pphs_apply_ap_config_from_flash(void);
  * enters NS, letting CP NS reach the AP SYS/AHBP registers via the NS alias.
  * No-op unless CONFIG_AP_BOOT_NSC is enabled. */
 void bk_ppc_set_ap_master_nsec(void);
+void bk_ppc_copy_cp_config_to_snapshot(uint32_t dest[BK_PPC_CONFIG_WORD_COUNT]);
 uint32_t bk_ppc_lock_flash(void);
 void bk_ppc_unlock_flash(uint32_t flash_secure_flag);
 void bk_ppc_lock_sys(void);
