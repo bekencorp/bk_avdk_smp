@@ -47,4 +47,9 @@ menu "App"
 		bool "FTP use psram memory"
 		depends on PSRAM
 		default y
+
+	config ALI_MQTT
+		depends on LWIP
+		bool "Enable Ali Mqtt"
+		default y
 endmenu
