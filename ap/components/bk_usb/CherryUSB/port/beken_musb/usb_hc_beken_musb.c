@@ -1039,7 +1039,7 @@ void musb_intr_pipe_init(struct musb_pipe *pipe, uint8_t *buffer, uint32_t bufle
     musb_set_active_ep(old_ep_index);
 }
 
-/* Low-level helpers used by CherryUSB_v1_6/driver/usb_driver.c. */
+/* Low-level helpers used by CherryUSB/driver/usb_driver.c. */
 #define M55_CLK_EN_REG  (0x48000000 + 0x0A * 4)
 
 void usb_clk_config(uint8_t en)

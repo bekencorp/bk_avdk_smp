@@ -6,8 +6,7 @@
 #include <driver/gpio_types.h>
 #include "gpio_driver.h"
 #include <components/cherryusb/usbh_hub.h>
-#include <components/cherryusb/usbh_audio.h>
-#include <components/cherryusb/usbh_video.h>
+/* usbh_audio.h / usbh_video.h come in transitively via <components/usb_types.h>. */
 #include "usb_driver.h"
 
 #if (CONFIG_USB_CDC)

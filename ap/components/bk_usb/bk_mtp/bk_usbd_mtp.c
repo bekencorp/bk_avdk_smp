@@ -19,7 +19,7 @@
  * RISC-V CP (which earlier produced an ~8 s heartbeat-timeout coredump).
  *
  * bk_analog_layer_usb_sys_related_ops() is defined in
- * CherryUSB_v1_6/driver/usb_driver.c. usb_mode:
+ * CherryUSB/driver/usb_driver.c. usb_mode:
  * 0 = USB_HOST_MODE, 1 = USB_DEVICE_MODE. */
 extern void bk_analog_layer_usb_sys_related_ops(uint32_t usb_mode, bool ops);
 #define MTP_USB_DEVICE_MODE 1

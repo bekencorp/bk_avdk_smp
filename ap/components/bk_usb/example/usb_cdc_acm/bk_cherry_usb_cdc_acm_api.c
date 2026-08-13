@@ -4,7 +4,7 @@
 #include "usb_driver.h"
 #include "bk_cherry_usb_cdc_acm_api.h"
 #include <components/cherryusb/usbh_cdc_acm.h>
-#include <components/cherryusb/usbh_core.h>
+/* usbh_core.h arrives transitively via usb_driver.h -> usb_types.h. */
 #include <driver/gpio.h>
 #include <modules/pm.h>
 #include "mb_ipc_cmd.h"

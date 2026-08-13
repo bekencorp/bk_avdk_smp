@@ -5,7 +5,8 @@
 #include "bk_gpio.h"
 #include <driver/gpio.h>
 #include <driver/gpio_types.h>
-#include <components/cherryusb/usb_def.h>
+/* usb_def.h is already pulled in transitively via <components/usb_types.h>
+ * above; no direct <components/cherryusb/usb_def.h> needed. */
 #include "usb_errno.h"
 
 #ifndef _USB_DRIVER_H_

@@ -6,7 +6,7 @@ if (CONFIG_USB)
 	# Only the CherryUSB v1.6.x stack ships now; the legacy tree
 	# (CherryUSB_legacy/) was removed. Keep using CONFIG_BK_USB_CHERRYUSB_V1_6
 	# (forced y in Kconfig) for the per-feature guards below.
-	set(BK_CHERRYUSB_DIR CherryUSB_v1_6)
+	set(BK_CHERRYUSB_DIR CherryUSB)
 
 	list(APPEND incs
 		cherryusb_adapter/include

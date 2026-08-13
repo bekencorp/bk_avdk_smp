@@ -1,6 +1,6 @@
 #include <os/os.h>
 #include <os/mem.h>
-#include <components/cherryusb/usb_errno.h>
+#include <errno.h> /* -ETIMEDOUT / -EINVAL return codes (POSIX errno) */
 #include "usb_osal.h"
 
 typedef struct {

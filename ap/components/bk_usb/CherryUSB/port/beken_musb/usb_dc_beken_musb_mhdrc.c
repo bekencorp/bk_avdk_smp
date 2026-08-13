@@ -5,94 +5,32 @@
  */
 
 /*
- * v0.7 -> v1.6 device-controller ABI adaptation.
+ * BK7259 MUSB-MHDRC device controller port, native CherryUSB v1.6 (busid) API.
  *
- * This MUSB-MHDRC port was written against the legacy no-busid CherryUSB device
- * API (it pulls the v0.7 usb_dc.h shim via <components/cherryusb/usbd_core.h>),
- * but it is compiled into the v1.6 stack whose core (usbd_core.c) calls these
- * controller entry points WITH a leading busid, e.g. usbd_ep_open(busid, ep).
- * Linking by name only, the legacy no-busid definitions received garbage in the
- * busid register and MemFaulted (g_usbd_core[<garbage>]).
- *
- * Rename the legacy prototypes out of the way here so we can redefine the real
- * public symbols below with the exact v1.6 (busid, ...) signatures the core
- * calls. Everything else (v0.7 macros, struct usbd_endpoint_cfg, the EP flag
- * defines used by usbd_ep_open) stays available from the shim. The reverse
- * direction (this port calling the core's usbd_event_*_handler upcalls) is
- * handled by the busid-injection macros further down.
+ * The controller entry points (usb_dc_init / usbd_ep_open / ...) and the core
+ * upcalls (usbd_event_*_handler) all take a leading busid. This SoC is a single
+ * device bus, so bus 0 is used throughout. The SoC interrupt line
+ * (INT_SRC_USB_HS) drives a void() ISR, so it is bridged to USBD_IRQHandler(0)
+ * via USBD_IRQHandler_Compat() below -- mirroring the host-side
+ * USBH_IRQHandler_Compat in usb_hc_beken_musb.c.
  */
-#define usb_dc_init         usb_dc_init__legacy_decl
-#define usb_dc_deinit       usb_dc_deinit__legacy_decl
-#define usbd_set_address    usbd_set_address__legacy_decl
-#define usbd_ep_open        usbd_ep_open__legacy_decl
-#define usbd_ep_close       usbd_ep_close__legacy_decl
-#define usbd_ep_set_stall   usbd_ep_set_stall__legacy_decl
-#define usbd_ep_clear_stall usbd_ep_clear_stall__legacy_decl
-#define usbd_ep_is_stalled  usbd_ep_is_stalled__legacy_decl
-#define usbd_ep_start_write usbd_ep_start_write__legacy_decl
-#define usbd_ep_start_read  usbd_ep_start_read__legacy_decl
-
-#include <components/cherryusb/usbd_core.h>
+#include "usbd_core.h"
 #include "usb_beken_musb_reg.h"
 #include "sys_driver.h"
 #include <driver/int.h>
 #include "bk_misc.h"
 
-#include <components/usb.h>
+/* usb_mode selector for bk_analog_layer_usb_sys_related_ops(): 0 = host,
+ * 1 = device. Defined locally instead of pulling <components/usb.h>, which
+ * drags in the public cherryusb host chain (usb_types.h -> usbh_core.h ->
+ * usb_mem.h) and collides with the tree usb_util.h USB_MEM_ALIGNX definition.
+ * bk_mtp/bk_usbd_mtp.c uses the same local-constant approach. */
+#ifndef USB_DEVICE_MODE
+#define USB_DEVICE_MODE 1
+#endif
 
 #include "riscv_bridge/riscv_usb_bridge.h"
 #include "riscv_bridge/riscv_usb_probe_defs.h"
-
-/* Restore the real names so the definitions below export the true public
- * symbols with the v1.6 (busid, ...) signatures. */
-#undef usb_dc_init
-#undef usb_dc_deinit
-#undef usbd_set_address
-#undef usbd_ep_open
-#undef usbd_ep_close
-#undef usbd_ep_set_stall
-#undef usbd_ep_clear_stall
-#undef usbd_ep_is_stalled
-#undef usbd_ep_start_write
-#undef usbd_ep_start_read
-
-/*
- * v0.7 -> v1.6 device-event ABI shim (busid injection).
- *
- * This port is written against the legacy no-busid CherryUSB device API (it
- * includes the v0.7 usb_dc.h shim, which declares usbd_event_*_handler(void)),
- * but it is linked against the v1.6 core whose real symbols take a leading
- * busid: usbd_event_reset_handler(uint8_t busid), etc. Calling them without a
- * busid leaves the argument register garbage, so the core indexes
- * g_usbd_core[<garbage>] and MemFaults on the first RESET/SUSPEND.
- *
- * Route every core upcall through a function-pointer cast that forces busid 0
- * (single-bus device: MTP/MSC both use bus 0). The parenthesized identifier
- * inside each macro is followed by ')', not '(', so it does not re-expand. This
- * fixes both the M55 USBD_IRQHandler path and the RISC-V bridge poll path.
- */
-/* Launder the target through void* so GCC does not diagnose the deliberate
- * v0.7(void)->v1.6(busid) prototype mismatch as -Werror=cast-function-type /
- * "function called through a non-compatible type". Statement macros (do/while)
- * because every call site is a statement returning void. */
-#define usbd_event_reset_handler() \
-    do { void *bk_fp_ = (void *)usbd_event_reset_handler; \
-         ((void (*)(uint8_t))bk_fp_)(0); } while (0)
-#define usbd_event_resume_handler() \
-    do { void *bk_fp_ = (void *)usbd_event_resume_handler; \
-         ((void (*)(uint8_t))bk_fp_)(0); } while (0)
-#define usbd_event_suspend_handler() \
-    do { void *bk_fp_ = (void *)usbd_event_suspend_handler; \
-         ((void (*)(uint8_t))bk_fp_)(0); } while (0)
-#define usbd_event_ep0_setup_complete_handler(psetup) \
-    do { void *bk_fp_ = (void *)usbd_event_ep0_setup_complete_handler; \
-         ((void (*)(uint8_t, uint8_t *))bk_fp_)(0, (psetup)); } while (0)
-#define usbd_event_ep_in_complete_handler(ep, nbytes) \
-    do { void *bk_fp_ = (void *)usbd_event_ep_in_complete_handler; \
-         ((void (*)(uint8_t, uint8_t, uint32_t))bk_fp_)(0, (ep), (nbytes)); } while (0)
-#define usbd_event_ep_out_complete_handler(ep, nbytes) \
-    do { void *bk_fp_ = (void *)usbd_event_ep_out_complete_handler; \
-         ((void (*)(uint8_t, uint8_t, uint32_t))bk_fp_)(0, (ep), (nbytes)); } while (0)
 
 #define HWREG(x) \
     (*((volatile uint32_t *)(x)))
@@ -209,7 +147,9 @@ struct musb_udc {
     struct musb_ep_state out_ep[USB_NUM_BIDIR_ENDPOINTS]; /*!< OUT endpoint parameters */
 } g_musb_udc;
 
-void USBD_IRQHandler(void);
+void USBD_IRQHandler(uint8_t busid);
+/* SoC INT_SRC_USB_HS ISR entry (void signature) -> USBD_IRQHandler(0). */
+void USBD_IRQHandler_Compat(void);
 
 static volatile uint8_t usb_ep0_state = USB_EP0_STATE_SETUP;
 volatile bool zlp_flag = 0;
@@ -390,27 +330,27 @@ void usb_dc_riscv_poll_events(void)
         if (usbd_evt & RISCV_USBD_PEND_RESET) {
             memset(&g_musb_udc, 0, sizeof(struct musb_udc));
             g_musb_udc.fifo_size_offset = USB_CTRL_EP_MPS;
-            usbd_event_reset_handler();
+            usbd_event_reset_handler(0);
             usb_ep0_state = USB_EP0_STATE_SETUP;
         }
         if (usbd_evt & RISCV_USBD_PEND_RESUME) {
-            usbd_event_resume_handler();
+            usbd_event_resume_handler(0);
         }
         if (usbd_evt & RISCV_USBD_PEND_SUSPEND) {
-            usbd_event_suspend_handler();
+            usbd_event_suspend_handler(0);
         }
         if (setup_pending) {
-            usbd_event_ep0_setup_complete_handler((uint8_t *)&g_musb_udc.setup);
+            usbd_event_ep0_setup_complete_handler(0, (uint8_t *)&g_musb_udc.setup);
         }
         for (ep = 0U; ep < (uint32_t)RISCV_USB_PROBE_PIPE_NUM; ep++) {
             if (out_pending[ep]) {
-                usbd_event_ep_out_complete_handler((uint8_t)ep,
+                usbd_event_ep_out_complete_handler(0, (uint8_t)ep,
                                                    g_musb_udc.out_ep[ep].actual_xfer_len);
             }
         }
         for (ep = 0U; ep < (uint32_t)RISCV_USB_PROBE_PIPE_NUM; ep++) {
             if (in_pending[ep]) {
-                usbd_event_ep_in_complete_handler((uint8_t)(ep | 0x80U),
+                usbd_event_ep_in_complete_handler(0, (uint8_t)(ep | 0x80U),
                                                   g_musb_udc.in_ep[ep].actual_xfer_len);
             }
         }
@@ -496,11 +436,11 @@ __WEAK void usb_dc_low_level_init(void)
 #endif
 
     if (riscv_bridge_rc != 0) {
-        USB_LOG_INFO("[usb_dc_ll] register INT_SRC_USB_HS isr=%p\r\n", (void*)USBD_IRQHandler);
-        if (USBD_IRQHandler == NULL) {
+        USB_LOG_INFO("[usb_dc_ll] register INT_SRC_USB_HS isr=%p\r\n", (void*)USBD_IRQHandler_Compat);
+        if (USBD_IRQHandler_Compat == NULL) {
             USB_LOG_ERR("[usb_dc_ll] USBD_IRQHandler is NULL -- next USB IRQ will MemFault\r\n");
         }
-        bk_int_isr_register(INT_SRC_USB_HS, USBD_IRQHandler, NULL);
+        bk_int_isr_register(INT_SRC_USB_HS, USBD_IRQHandler_Compat, NULL);
         bk_int_set_priority(INT_SRC_USB_HS, 2);
 #if CONFIG_SOC_SMP
         USB_LOG_INFO("[usb_dc_ll] enable INT_SRC_USB_HS on CPU2 (SMP)\r\n");
@@ -513,7 +453,7 @@ __WEAK void usb_dc_low_level_init(void)
 #else  /* CONFIG_SOC_BK7259 */
     sys_drv_int_enable(USB_INTERRUPT_CTRL_BIT);
 
-    bk_int_isr_register(INT_SRC_USB, USBD_IRQHandler, NULL);
+    bk_int_isr_register(INT_SRC_USB, USBD_IRQHandler_Compat, NULL);
     bk_int_set_priority(INT_SRC_USB, 2);
 #endif /* CONFIG_SOC_BK7259 */
 
@@ -663,14 +603,16 @@ int usbd_set_address(uint8_t busid, const uint8_t addr)
 
 int usbd_ep_open(uint8_t busid, const struct usb_endpoint_descriptor *ep)
 {
-    /* Translate the v1.6 endpoint descriptor into the legacy ep_cfg this port
-     * body was written against, so the register logic below stays unchanged. */
-    struct usbd_endpoint_cfg ep_cfg_local = {
+    /* Translate the v1.6 endpoint descriptor into a local ep_cfg this port body
+     * was written against, so the register logic below stays unchanged. A local
+     * struct is used so the port no longer depends on the (v0.7-only)
+     * struct usbd_endpoint_cfg from the removed public shim header. */
+    struct { uint8_t ep_addr; uint8_t ep_type; uint16_t ep_mps; } ep_cfg_local = {
         .ep_addr = ep->bEndpointAddress,
         .ep_type = (uint8_t)(ep->bmAttributes & 0x03U),
         .ep_mps  = (uint16_t)(ep->wMaxPacketSize & 0x07FFU),
     };
-    const struct usbd_endpoint_cfg *ep_cfg = &ep_cfg_local;
+    const typeof(ep_cfg_local) *ep_cfg = &ep_cfg_local;
     (void)busid;
     uint16_t used = 0;
     uint16_t fifo_size = 0;
@@ -1019,7 +961,7 @@ static void handle_ep0(void)
                     HWREGB(USB_BASE + MUSB_IND_TXCSRL_OFFSET) = (USB_CSRL0_RXRDYC | USB_CSRL0_DATAEND);
                 }
 
-                usbd_event_ep0_setup_complete_handler((uint8_t *)&g_musb_udc.setup);
+                usbd_event_ep0_setup_complete_handler(0, (uint8_t *)&g_musb_udc.setup);
             }
             break;
 
@@ -1032,7 +974,7 @@ static void handle_ep0(void)
                 g_musb_udc.in_ep[0].xfer_len = 0;
             }
 
-            usbd_event_ep_in_complete_handler(0x80, g_musb_udc.in_ep[0].actual_xfer_len);
+            usbd_event_ep_in_complete_handler(0, 0x80, g_musb_udc.in_ep[0].actual_xfer_len);
 
             break;
         case USB_EP0_STATE_OUT_DATA:
@@ -1044,7 +986,7 @@ static void handle_ep0(void)
                 g_musb_udc.out_ep[0].actual_xfer_len += read_count;
 
                 if (read_count < g_musb_udc.out_ep[0].ep_mps) {
-                    usbd_event_ep_out_complete_handler(0x00, g_musb_udc.out_ep[0].actual_xfer_len);
+                    usbd_event_ep_out_complete_handler(0, 0x00, g_musb_udc.out_ep[0].actual_xfer_len);
                     HWREGB(USB_BASE + MUSB_IND_TXCSRL_OFFSET) = (USB_CSRL0_RXRDYC | USB_CSRL0_DATAEND);
                     usb_ep0_state = USB_EP0_STATE_IN_STATUS;
                 } else {
@@ -1055,7 +997,7 @@ static void handle_ep0(void)
         case USB_EP0_STATE_IN_STATUS:
         case USB_EP0_STATE_IN_ZLP:
             usb_ep0_state = USB_EP0_STATE_SETUP;
-            usbd_event_ep_in_complete_handler(0x80, 0);
+            usbd_event_ep_in_complete_handler(0, 0x80, 0);
             break;
     }
 }
@@ -1081,8 +1023,9 @@ volatile uint8_t  g_usbd_last_intrusb = 0;
 #define USBD_IRQ_DEBUG_PRINT_COUNT 8
 #endif
 
-void USBD_IRQHandler(void)
+void USBD_IRQHandler(uint8_t busid)
 {
+    (void)busid;
     uint32_t is;
     uint32_t txis;
     uint32_t rxis;
@@ -1137,7 +1080,7 @@ void USBD_IRQHandler(void)
     if (is & USB_IS_RESET) {
         memset(&g_musb_udc, 0, sizeof(struct musb_udc));
         g_musb_udc.fifo_size_offset = USB_CTRL_EP_MPS;
-        usbd_event_reset_handler();
+        usbd_event_reset_handler(0);
         HWREGH(USB_BASE + MUSB_INTRTXE_OFFSET) = USB_TXIE_EP0;
         HWREGH(USB_BASE + MUSB_INTRRXE_OFFSET) = 0;
 
@@ -1156,12 +1099,12 @@ void USBD_IRQHandler(void)
 
     if (is & USB_IS_RESUME) {
         USB_LOG_DBG("usbd resume int triggered\r\n");
-        usbd_event_resume_handler();
+        usbd_event_resume_handler(0);
     }
 
     if (is & USB_IS_SUSPEND) {
         USB_LOG_DBG("usbd suspend int triggered\r\n");
-        usbd_event_suspend_handler();
+        usbd_event_suspend_handler(0);
     }
 
     if (lpmris & USB_LPMRIS_ACK) {
@@ -1204,7 +1147,7 @@ void USBD_IRQHandler(void)
 
             if (g_musb_udc.in_ep[ep_idx].xfer_len == 0) {
                 HWREGH(USB_BASE + MUSB_INTRTXE_OFFSET) &= ~(1 << ep_idx);
-                usbd_event_ep_in_complete_handler(ep_idx | 0x80, g_musb_udc.in_ep[ep_idx].actual_xfer_len);
+                usbd_event_ep_in_complete_handler(0, ep_idx | 0x80, g_musb_udc.in_ep[ep_idx].actual_xfer_len);
             } else {
                 write_count = MIN(g_musb_udc.in_ep[ep_idx].xfer_len, g_musb_udc.in_ep[ep_idx].ep_mps);
 
@@ -1235,7 +1178,7 @@ void USBD_IRQHandler(void)
 
                 if ((read_count < g_musb_udc.out_ep[ep_idx].ep_mps) || (g_musb_udc.out_ep[ep_idx].xfer_len == 0)) {
                     HWREGH(USB_BASE + MUSB_INTRRXE_OFFSET) &= ~(1 << ep_idx);
-                    usbd_event_ep_out_complete_handler(ep_idx, g_musb_udc.out_ep[ep_idx].actual_xfer_len);
+                    usbd_event_ep_out_complete_handler(0, ep_idx, g_musb_udc.out_ep[ep_idx].actual_xfer_len);
                 } else {
                 }
             }
@@ -1246,4 +1189,12 @@ void USBD_IRQHandler(void)
     }
 
     musb_set_active_ep(old_ep_idx);
+}
+
+/* SoC interrupt entry. The BK7259 INT_SRC_USB_HS ISR slot expects a void()
+ * function; bridge it to the v1.6 busid device ISR (single device bus 0).
+ * Mirrors the host side USBH_IRQHandler_Compat in usb_hc_beken_musb.c. */
+void USBD_IRQHandler_Compat(void)
+{
+    USBD_IRQHandler(0);
 }

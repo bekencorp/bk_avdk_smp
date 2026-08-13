@@ -17,7 +17,7 @@
 #include <driver/uart_types.h>
 #include <components/usb.h>
 #include <components/usbh_simulate_uart_api.h>
-#include <components/cherryusb/usbh_core.h>
+/* usbh_core.h arrives transitively via <components/usb.h> -> usb_types.h. */
 #include <../components/bk_common/include/bk_fifo.h>
 
 #define USBH_TO_UART_TAG "usbh_t_uart"
