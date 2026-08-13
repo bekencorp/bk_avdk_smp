@@ -136,7 +136,10 @@ class Partition:
         return self.ota_type == 'OVERWRITE'
 
     def is_xip(self):
-        return self.ota_type == 'XIP'
+        return self.ota_type in ('XIP', 'XIP_FORCE_A')
+
+    def is_force_slot_a(self):
+        return self.ota_type == 'XIP_FORCE_A'
 
     def is_out_of_range(self, addr):
         if (addr >= SZ_16M):
@@ -271,6 +274,10 @@ class Partition:
         if (self.partition_name == 'ota'):
             return
 
+        # XIP_FORCE_A secondary entries reserve space but carry no image.
+        if self.is_secondary and self.is_force_slot_a():
+            return
+
         if self.is_data_partition():
             return
 
@@ -346,7 +353,7 @@ class Partition:
             logging.error(f'partition{self.idx} partition {self.partition_name} size=%x not FLASH sector aligned' %(self.partition_size))
             exit(1)
 
-        if self.is_secondary:
+        if self.is_secondary and not self.is_force_slot_a():
             if (self.partition_size != self.primary_partition.partition_size):
                 logging.error(f'Size of {self.partition_name} and {self.primary_partition.partition_name} not equal')
                 exit(1)
@@ -649,7 +656,10 @@ class Partitions:
         return self.ota_type == 'OVERWRITE'
 
     def is_xip(self):
-        return self.ota_type == 'XIP'
+        return self.ota_type in ('XIP', 'XIP_FORCE_A')
+
+    def is_force_slot_a(self):
+        return self.ota_type == 'XIP_FORCE_A'
 
     def is_1st_bin_verified_by_bl2(self, partition_name):
         if (self.primary_all_partitions_cnt > 0) and (self.primary_partitions_verified_by_bl2[0] == partition_name):
@@ -727,7 +737,8 @@ class Partitions:
         all_partition.Dbus_en = True
         all_partition.is_all_partition = True
 
-        if (partition_name == 'primary_all'):
+        if (partition_name == 'primary_all') or (
+                partition_name == 'secondary_all' and self.is_force_slot_a()):
             all_partition.partition_hdr_pad_size = partition_1st.phy_partition_offset - partition_1st.partition_offset
             all_partition.partition_tail_pad_size = (all_partition.partition_offset+all_partition.partition_size) - floor_align(all_partition.partition_offset+all_partition.partition_size, CRC_UNIT_TOTAL_SZ)
 
@@ -1188,7 +1199,8 @@ class Partitions:
 
     def gen_bins_for_bl2_signing(self):
         self.gen_bin_for_bl2_signing('primary_all', self.primary_partitions_verified_by_bl2)
-        self.gen_bin_for_bl2_signing('secondary_all', self.secondary_partitions_verified_by_bl2)
+        if not self.is_force_slot_a():
+            self.gen_bin_for_bl2_signing('secondary_all', self.secondary_partitions_verified_by_bl2)
 
     def gen_all_app_global_hdr(self, img_num, img_hdr_list, version, magic_val):
         magic = magic_val.encode()
@@ -1522,6 +1534,10 @@ class Partitions:
         return hdr 
 
     def gen_ota_bin(self, ota_aes_en, aes_key, security_counter):
+        if self.is_force_slot_a():
+            logging.debug('XIP_FORCE_A: skip ota.bin generation')
+            return
+
         idx_list = self.get_pack_idx_list('ota.bin')
         if len(idx_list) == 0:
             logging.debug(f'Skip ota.bin gen')

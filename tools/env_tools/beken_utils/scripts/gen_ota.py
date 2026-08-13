@@ -20,7 +20,7 @@ def gen_ota_config_file(ota_csv, outfile):
         f.write(line)
 
     macro_name = f'CONFIG_DIRECT_XIP'
-    if (ota.get_strategy().upper() == 'XIP'):
+    if (ota.get_strategy().upper() in ('XIP', 'XIP_FORCE_A')):
         line = f'#define %-45s %d\n' %(macro_name, 1)
         f.write(line)
         macro_name = f'XIP_SET'
