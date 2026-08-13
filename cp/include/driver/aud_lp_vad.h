@@ -46,6 +46,14 @@ bk_err_t bk_lp_vad_init(void);
 bk_err_t bk_lp_vad_deinit(void);
 
 /**
+ * @brief Configure LP VAD parameters before entering low-voltage sleep
+ *
+ * @return
+ *    - BK_OK: succeed
+ */
+bk_err_t bk_lp_vad_set_sleep_para_before_sleep(void);
+
+/**
  * @brief Configure low-power parameters and enter deepsleep with VAD wakeup
  *
  * Set LDO voltages, power down peripherals, configure wakeup source,
