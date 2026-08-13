@@ -131,7 +131,7 @@ void aon_pmu_hal_touch_int_en(uint32_t value)
 
 uint32_t aon_pmu_hal_get_touch_int_status(void)
 {
-	return aon_pmu_ll_get_r71_touch_state();
+	return aon_pmu_ll_get_r73_td_int_status();
 }
 
 uint32_t aon_pmu_hal_get_cap_cal(void)
