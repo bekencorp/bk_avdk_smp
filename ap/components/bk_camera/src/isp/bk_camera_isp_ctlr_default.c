@@ -523,6 +523,20 @@ static avdk_err_t isp_camera_ctlr_ioctl(bk_isp_camera_ctlr_handle_t handle, bk_c
             break;
         }
 
+        case BK_CAM_IOCTL_GET_CPROC:
+            AVDK_RETURN_ON_FALSE(arg, AVDK_ERR_INVAL, TAG, "cproc get arg is NULL");
+            AVDK_RETURN_ON_ERROR(
+                bk_isp_get_cproc_attr(&controller->isp_handle, arg),
+                TAG, "get cproc attr failed");
+            break;
+
+        case BK_CAM_IOCTL_SET_CPROC:
+            AVDK_RETURN_ON_FALSE(arg, AVDK_ERR_INVAL, TAG, "cproc set arg is NULL");
+            AVDK_RETURN_ON_ERROR(
+                bk_isp_set_cproc_attr(&controller->isp_handle, arg),
+                TAG, "set cproc attr failed");
+            break;
+
         default:
             return AVDK_ERR_INVAL;
     }

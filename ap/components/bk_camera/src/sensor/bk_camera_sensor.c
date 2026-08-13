@@ -70,6 +70,13 @@ avdk_err_t bk_camera_sensor_query_support_formats(bk_camera_sensor_handle_t hand
     return handle->query_support_formats(handle, format_array);
 }
 
+avdk_err_t bk_camera_sensor_ioctl(bk_camera_sensor_handle_t handle, uint32_t cmd, void *arg)
+{
+    AVDK_RETURN_ON_FALSE(handle, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
+    AVDK_RETURN_ON_FALSE(handle->ioctl, AVDK_ERR_UNSUPPORTED, TAG, AVDK_ERR_UNSUPPORTED_FUNCTION_TEXT);
+    return handle->ioctl(handle, cmd, arg);
+}
+
 bk_camera_sensor_handle_t bk_camera_sensor_auto_detect(bk_camera_sensor_config_t *config, bk_camera_port_t port)
 {
     avdk_err_t ret = AVDK_ERR_GENERIC;
