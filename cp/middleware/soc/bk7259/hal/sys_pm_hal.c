@@ -2404,11 +2404,13 @@ bk_err_t sys_hal_xtal_rx_tx_anabuf_ctrl(pm_xtal_rx_tx_anabuf_state_e sleep_mode)
 
 void sys_hal_enter_low_analog(void)
 {
+#if CONFIG_SYS_PM_ANA_VANALDO_STEP_CTRL
 	sys_ll_set_ana_reg10_spi_latch1v(1);
 	sys_ll_set_ana_reg9_t_vanaldosel(0);
 	sys_ll_set_ana_reg9_r_vanaldosel(0);
-	sys_ll_set_ana_reg9_alopowsel(1);
+	//sys_ll_set_ana_reg9_alopowsel(1);
 	sys_ll_set_ana_reg10_spi_latch1v(0);
+#endif
 	bk_pm_module_vote_xtal_rx_tx_anabuf_ctrl(PM_XTAL_RX_TX_ANABUF_MODULE_NAME_DSSS_ONLY, PM_XTAL_RX_TX_ANABUF_ENTER_SLEEP);
 }
 
@@ -2458,11 +2460,13 @@ static void sys_hal_ramp_up_ana_reg9_vanaldosel(uint32_t target_t_vanaldosel,
 
 void sys_hal_exit_low_analog(void)
 {
+#if CONFIG_SYS_PM_ANA_VANALDO_STEP_CTRL
 	sys_ll_set_ana_reg10_spi_latch1v(1);
 	/* Use step 2 experimentally to reduce delay; step 1 is the safer recommendation. */
 	sys_hal_ramp_up_ana_reg9_vanaldosel(4, 4, 1);
-	sys_ll_set_ana_reg9_alopowsel(0);
+	//sys_ll_set_ana_reg9_alopowsel(0);
 	sys_ll_set_ana_reg10_spi_latch1v(0);
+#endif
 
 	bk_pm_module_vote_xtal_rx_tx_anabuf_ctrl(PM_XTAL_RX_TX_ANABUF_MODULE_NAME_DSSS_ONLY, PM_XTAL_RX_TX_ANABUF_EXIT_SLEEP);
 }
