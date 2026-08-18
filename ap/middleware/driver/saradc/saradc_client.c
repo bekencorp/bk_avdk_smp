@@ -1995,6 +1995,139 @@ start_exit:
 	return ret_val;
 }
 
+bk_err_t bk_adc_key_sampler_start_multi(const adc_chan_t *channels,
+					uint8_t channel_count,
+					uint32_t sample_period_ms)
+{
+	int ret_val = BK_FAIL;
+	int line_num = 0;
+	int ret = BK_FAIL;
+	uint8_t user_cmd = INVALID_USER_CMD_ID;
+	saradc_cmd_t cmd_buff;
+
+	if ((channels == NULL) || (channel_count == 0U) ||
+	    (channel_count > ADC_KEY_SAMPLER_MAX_CHANNELS)) {
+		return BK_ERR_PARAM;
+	}
+
+	if (bk_saradc_driver_init() != BK_OK) {
+		return BK_FAIL;
+	}
+
+	memset(&cmd_buff, 0, sizeof(cmd_buff));
+	cmd_buff.sample_cnt = channel_count;
+	cmd_buff.timeout = sample_period_ms;
+	for (uint8_t i = 0; i < channel_count; i++) {
+		if (channels[i] >= ADC_MAX) {
+			return BK_ERR_PARAM;
+		}
+		for (uint8_t j = 0; j < i; j++) {
+			if (channels[j] == channels[i]) {
+				return BK_ERR_PARAM;
+			}
+		}
+		cmd_buff.buff[i] = (uint16_t)channels[i];
+	}
+
+	rtos_lock_mutex(&saradc_mutex);
+	ret = saradc_ipc_send(saradc_socket_handle,
+			      SARADC_CMD_ADC_KEY_SAMPLER_START_MULTI,
+			      (u8 *)&cmd_buff, sizeof(cmd_buff),
+			      SARADC_OPERATE_TIMEOUT);
+	if (ret != 0) {
+		line_num = __LINE__;
+		goto start_multi_exit;
+	}
+
+	memset(&cmd_buff, 0, sizeof(cmd_buff));
+	ret = saradc_ipc_recv(saradc_socket_handle, &user_cmd,
+			      (u8 *)&cmd_buff, sizeof(cmd_buff),
+			      SARADC_OPERATE_TIMEOUT);
+	if ((ret != sizeof(cmd_buff)) ||
+	    (user_cmd != SARADC_CMD_ADC_KEY_SAMPLER_START_MULTI) ||
+	    (cmd_buff.ret_status != BK_OK)) {
+		line_num = __LINE__;
+		goto start_multi_exit;
+	}
+
+	ret_val = BK_OK;
+
+start_multi_exit:
+	rtos_unlock_mutex(&saradc_mutex);
+
+#if LOCAL_TRACE
+	if (ret_val != BK_OK) {
+		SARADC_RATE_LIMITED_LOG(line_num, ret);
+	}
+#endif
+	return ret_val;
+}
+
+bk_err_t bk_adc_key_sampler_get_samples(adc_key_sampler_sample_t *samples,
+					uint8_t sample_capacity,
+					uint8_t *sample_count)
+{
+	int ret_val = BK_FAIL;
+	int line_num = 0;
+	int ret = BK_FAIL;
+	uint8_t user_cmd = INVALID_USER_CMD_ID;
+	saradc_cmd_t cmd_buff;
+
+	if ((samples == NULL) || (sample_count == NULL) ||
+	    (sample_capacity == 0U)) {
+		return BK_ERR_PARAM;
+	}
+	*sample_count = 0U;
+
+	if (bk_saradc_driver_init() != BK_OK) {
+		return BK_FAIL;
+	}
+
+	memset(&cmd_buff, 0, sizeof(cmd_buff));
+	cmd_buff.sample_cnt = sample_capacity;
+
+	rtos_lock_mutex(&saradc_mutex);
+	ret = saradc_ipc_send(saradc_socket_handle,
+			      SARADC_CMD_ADC_KEY_SAMPLER_GET_SAMPLES,
+			      (u8 *)&cmd_buff, sizeof(cmd_buff),
+			      SARADC_OPERATE_TIMEOUT);
+	if (ret != 0) {
+		line_num = __LINE__;
+		goto get_samples_exit;
+	}
+
+	memset(&cmd_buff, 0, sizeof(cmd_buff));
+	ret = saradc_ipc_recv(saradc_socket_handle, &user_cmd,
+			      (u8 *)&cmd_buff, sizeof(cmd_buff),
+			      SARADC_OPERATE_TIMEOUT);
+	if ((ret != sizeof(cmd_buff)) ||
+	    (user_cmd != SARADC_CMD_ADC_KEY_SAMPLER_GET_SAMPLES) ||
+	    (cmd_buff.ret_status != BK_OK)) {
+		line_num = __LINE__;
+		goto get_samples_exit;
+	}
+
+	if (cmd_buff.sample_cnt > sample_capacity) {
+		line_num = __LINE__;
+		goto get_samples_exit;
+	}
+
+	memcpy(samples, cmd_buff.buff,
+	       cmd_buff.sample_cnt * sizeof(adc_key_sampler_sample_t));
+	*sample_count = cmd_buff.sample_cnt;
+	ret_val = BK_OK;
+
+get_samples_exit:
+	rtos_unlock_mutex(&saradc_mutex);
+
+#if LOCAL_TRACE
+	if (ret_val != BK_OK) {
+		SARADC_RATE_LIMITED_LOG(line_num, ret);
+	}
+#endif
+	return ret_val;
+}
+
 bk_err_t bk_adc_key_sampler_stop(void)
 {
 	int ret_val = BK_FAIL;
