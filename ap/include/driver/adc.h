@@ -434,6 +434,50 @@ bk_err_t bk_adc_chan_deinit_gpio(adc_chan_t chan);
 bk_err_t bk_adc_key_sampler_start(adc_chan_t chan, uint32_t sample_period_ms);
 
 /**
+ * @brief Maximum channels supported by the CP ADC key sampler.
+ */
+#define ADC_KEY_SAMPLER_MAX_CHANNELS 4U
+
+/**
+ * @brief One channel sample returned by the CP ADC key sampler.
+ */
+typedef struct {
+	uint16_t raw;
+	uint16_t mv;
+	uint8_t channel;
+	uint8_t status;
+	uint16_t reserved;
+	uint32_t sample_tick;
+	uint32_t sequence;
+} adc_key_sampler_sample_t;
+
+/**
+ * @brief Start CP-side periodic ADC key sampling for multiple channels.
+ *
+ * @param channels ADC channels to sample.
+ * @param channel_count Number of entries in channels, 1..4.
+ * @param sample_period_ms Period of one complete multi-channel scan.
+ *
+ * @return BK_OK on success, otherwise an error code.
+ */
+bk_err_t bk_adc_key_sampler_start_multi(const adc_chan_t *channels,
+					uint8_t channel_count,
+					uint32_t sample_period_ms);
+
+/**
+ * @brief Get the latest CP-side ADC key sample snapshot.
+ *
+ * @param samples Output array.
+ * @param sample_capacity Number of entries available in samples.
+ * @param sample_count Number of valid entries returned.
+ *
+ * @return BK_OK on success, otherwise an error code.
+ */
+bk_err_t bk_adc_key_sampler_get_samples(adc_key_sampler_sample_t *samples,
+					uint8_t sample_capacity,
+					uint8_t *sample_count);
+
+/**
  * @brief Stop CP-side periodic ADC key sampler.
  *
  * @return
