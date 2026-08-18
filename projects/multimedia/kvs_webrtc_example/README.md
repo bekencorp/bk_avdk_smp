@@ -12,7 +12,8 @@ The project provides:
 
 - AP-side KVS WebRTC Master CLI: `ap_cmd kvs_wb master [channel]`
 - Default channel name: `kvs_doorbell_channel`
-- AWS credentials configured through environment variables in `ap/ap_main.c`
+- AWS credentials configurable two ways: compile-time default in
+  `ap/ap_main.c`, or the runtime CLI `ap_cmd kvs_wb cred <ak> <sk> [region]`
 - Verification with the AWS KVS WebRTC Test Page
 
 ## 2. Test Environment
@@ -57,6 +58,12 @@ AP serial console. The commands below are entered from the AP console.
 
 ### 5.1 Configure AWS Credentials
 
+Two methods are supported and can coexist: a **compile-time default** (edit the
+source, applied automatically at boot) and **runtime CLI input** (overrides at
+any time).
+
+#### Method A: Compile-time default (edit `ap_main.c`)
+
 Open `ap/ap_main.c` and replace the placeholders in
 `kvs_set_aws_credentials_env()` with the actual AWS Access Key and Secret Key:
 
@@ -69,6 +76,42 @@ setenv("AWS_SECRET_ACCESS_KEY", "YOUR_SECRET_ACCESS_KEY", 1);
 If the signaling channel is not in the default region, also enable and update
 `AWS_DEFAULT_REGION`. The IAM key needs Kinesis Video Streams and signaling
 channel permissions.
+
+> Note: this method stores the plaintext key in source; be careful not to leak
+> this file when committing code.
+
+#### Method B: Runtime CLI input (recommended, no secrets in source)
+
+No source change needed. Set the key from the AP serial console with the
+`kvs_wb cred` command (kept in RAM only, not persisted across reboot), then
+start the master:
+
+```text
+# Set AWS credentials (region optional)
+ap_cmd kvs_wb cred <access_key> <secret_key> [region]
+
+# Show current credentials (Secret shown as length only, not echoed)
+ap_cmd kvs_wb cred show
+
+# Clear credentials
+ap_cmd kvs_wb cred clear
+```
+
+Example:
+
+```text
+ap_cmd kvs_wb cred AWS_ACCESS_KEY_ID  AWS_SECRET_ACCESS_KEY  AWS_DEFAULT_REGION
+ap_cmd kvs_wb master
+```
+
+Notes:
+
+- The command uses `setenv`, so it **overrides** the Method A compile-time
+  default; use it to switch to another key on the fly.
+- The master thread reads the credentials when `ap_cmd kvs_wb master` starts, so
+  always run **`cred` before `master`**.
+- Since values live in RAM only, **re-run `ap_cmd kvs_wb cred ...` after a
+  reboot** (or rely on the Method A compile-time default).
 
 ### 5.2 Connect to the Router
 
@@ -144,7 +187,10 @@ depends on the permissions of the AWS key being used.
 ## 6. Diagnostics
 
 - `AWS_ACCESS_KEY_ID must be set` or `AWS_SECRET_ACCESS_KEY must be set`: check
-  that the placeholders in `ap/ap_main.c` were replaced, then rebuild and flash.
+  that the placeholders in `ap/ap_main.c` were replaced (then rebuild and flash),
+  or set them before starting the master with
+  `ap_cmd kvs_wb cred <ak> <sk> [region]`; use `ap_cmd kvs_wb cred show` to
+  confirm the current values.
 - Authentication failed or AWS request denied: check key, region, IAM
   permissions and RTC/NTP time.
 - Web Viewer cannot connect: make sure key, region and channel match exactly on
@@ -162,6 +208,13 @@ ap_cmd sta <ssid> <password>
 
 # Sync and print NTP/RTC time
 ap_cmd uptime
+
+# Set AWS credentials at runtime (optional, overrides compile-time default; region optional)
+ap_cmd kvs_wb cred <access_key> <secret_key> [region]
+
+# Show / clear the configured credentials
+ap_cmd kvs_wb cred show
+ap_cmd kvs_wb cred clear
 
 # Start KVS WebRTC Master with default channel
 ap_cmd kvs_wb master

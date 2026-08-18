@@ -12,7 +12,8 @@ AWS KVS WebRTC 信令通道提供给网页 Viewer 观看。
 
 - AP 侧 KVS WebRTC Master 启动命令：`ap_cmd kvs_wb master [channel]`
 - 默认信道名：`kvs_doorbell_channel`
-- AWS key 通过 `ap/ap_main.c` 中的环境变量配置
+- AWS key 支持两种配置方式：`ap/ap_main.c` 中的编译期默认，或运行时
+  CLI 命令 `ap_cmd kvs_wb cred <ak> <sk> [region]`
 - 通过 AWS 官方 KVS WebRTC Test Page 作为网页 Viewer 验证
 
 ## 2. 测试环境
@@ -56,6 +57,11 @@ make bk7259 PROJECT=multimedia/kvs_webrtc_example -j$(nproc)
 
 ### 5.1 配置 AWS key
 
+支持两种方式，二者可并存：**编译期默认**（改源码，开机自动生效）与
+**运行时命令输入**（CLI，随时覆盖）。
+
+#### 方式 A：编译期默认（改 `ap_main.c`）
+
 打开 `ap/ap_main.c`，将 `kvs_set_aws_credentials_env()` 中的占位符替换为
 实际 AWS Access Key 与 Secret Key：
 
@@ -68,6 +74,40 @@ setenv("AWS_SECRET_ACCESS_KEY", "YOUR_SECRET_ACCESS_KEY", 1);
 如使用的 KVS 信令通道不在默认区域，请同时打开并修改
 `AWS_DEFAULT_REGION`。该 IAM key 需要具备 Kinesis Video Streams 与
 Signaling Channel 相关权限。
+
+> 注意：此方式会把明文 key 写进源码，提交代码时请勿泄露该文件。
+
+#### 方式 B：运行时命令输入（推荐，源码零明文）
+
+无需改源码，直接在 AP 串口控制台用 `kvs_wb cred` 命令设置 key（仅存于内存，
+掉电不保存），设置后再启动 master 即可：
+
+```text
+# 设置 AWS 凭据（region 可选）
+ap_cmd kvs_wb cred <access_key> <secret_key> [region]
+
+# 查看当前凭据（Secret 只显示位数，不回显明文）
+ap_cmd kvs_wb cred show
+
+# 清除凭据
+ap_cmd kvs_wb cred clear
+```
+
+使用示例：
+
+```text
+ap_cmd kvs_wb cred AWS_ACCESS_KEY_ID  AWS_SECRET_ACCESS_KEY  AWS_DEFAULT_REGION
+ap_cmd kvs_wb master
+```
+
+说明：
+
+- 命令通过 `setenv` 设置环境变量，会**覆盖**方式 A 的编译期默认值，
+  因此可用命令临时切换到另一套 key。
+- master 线程在 `ap_cmd kvs_wb master` 启动时才读取凭据，务必
+  **先 `cred` 再 `master`**。
+- 因仅存于内存，**设备重启后需重新执行 `ap_cmd kvs_wb cred ...`**
+  （或依赖方式 A 的编译期默认）。
 
 ### 5.2 连接路由器
 
@@ -140,7 +180,9 @@ kvs_doorbell_channel
 ## 6. 常见问题与诊断
 
 - `AWS_ACCESS_KEY_ID must be set` 或 `AWS_SECRET_ACCESS_KEY must be set`：
-  检查 `ap/ap_main.c` 中 key 是否已替换，并重新编译烧录。
+  检查 `ap/ap_main.c` 中 key 是否已替换并重新编译烧录，或在启动 master 前
+  用 `ap_cmd kvs_wb cred <ak> <sk> [region]` 设置；可用
+  `ap_cmd kvs_wb cred show` 确认当前是否已设置。
 - 鉴权失败或请求被 AWS 拒绝：检查 key、region、IAM 权限和设备 RTC/NTP 时间。
 - 网页 Viewer 无法连接：确认网页端与设备端的 key、region、channel 完全一致。
 - ICE 连接失败：确认路由器可访问公网，网络没有阻断 UDP、STUN/TURN 或
@@ -156,6 +198,13 @@ ap_cmd sta <ssid> <password>
 
 # 获取并打印 NTP/RTC 时间
 ap_cmd uptime
+
+# 运行时设置 AWS 凭据（可选，覆盖编译期默认；region 可选）
+ap_cmd kvs_wb cred <access_key> <secret_key> [region]
+
+# 查看 / 清除已设置的凭据
+ap_cmd kvs_wb cred show
+ap_cmd kvs_wb cred clear
 
 # 使用默认信道启动 KVS WebRTC Master
 ap_cmd kvs_wb master

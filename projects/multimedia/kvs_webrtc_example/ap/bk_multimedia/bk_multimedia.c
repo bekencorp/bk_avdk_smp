@@ -55,8 +55,8 @@ static void start_camera_and_transfer(void)
 		memset(&ap, 0, sizeof(ap));
 		ap.aec = 1;
 		ap.uac = 0;
-		ap.rmt_recorder_sample_rate = DB_SAMPLE_RARE_16K;
-		ap.rmt_player_sample_rate = DB_SAMPLE_RARE_16K;
+		ap.rmt_recorder_sample_rate = DB_SAMPLE_RARE_8K;
+		ap.rmt_player_sample_rate = DB_SAMPLE_RARE_8K;
 		ap.rmt_recorder_fmt = CODEC_FORMAT_G711A;
 		ap.rmt_player_fmt = CODEC_FORMAT_G711A;
 		ret = doorbell_audio_turn_on(&ap);

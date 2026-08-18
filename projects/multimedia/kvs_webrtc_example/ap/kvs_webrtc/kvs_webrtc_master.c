@@ -47,7 +47,8 @@ INT32 kvs_webrtc_master_main(INT32 argc, CHAR *argv[])
 	pSampleConfiguration->audioCodec = audioCodec;
 	pSampleConfiguration->videoSource = NULL;
 	pSampleConfiguration->audioSource = NULL;
-	pSampleConfiguration->receiveAudioVideoSource = sampleReceiveAudioVideoFrame;
+	//pSampleConfiguration->receiveAudioVideoSource = sampleReceiveAudioVideoFrame;
+	pSampleConfiguration->receiveAudioVideoSource = NULL;
 #ifdef ENABLE_DATA_CHANNEL
 	pSampleConfiguration->onDataChannel = (RtcOnDataChannel)ntwk_kvs_on_data_channel;
 #endif

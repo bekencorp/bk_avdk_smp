@@ -4,6 +4,7 @@
 #include <os/os.h>
 #include <os/mem.h>
 #include <components/log.h>
+#include <stdlib.h>
 #include "kvs_common.h"
 
 extern INT32 kvs_webrtc_master_main(INT32 argc, CHAR *argv[]);
@@ -69,6 +70,48 @@ static bk_err_t kvs_webrtc_start_master_task(const char *channel)
 static void kvs_webrtc_cli_help(void)
 {
 	BK_LOG_RAW("kvs_wb master [channel_name]\r\n");
+	BK_LOG_RAW("kvs_wb cred <access_key> <secret_key> [region]\r\n");
+	BK_LOG_RAW("kvs_wb cred show | clear\r\n");
+}
+
+/* Runtime AWS credentials via CLI (RAM only, not persisted). Keeps secrets out
+ * of the source tree; set them before running "kvs_wb master". */
+static void kvs_webrtc_cred_cmd(int argc, char **argv)
+{
+	if (argc >= 3 && os_strcmp(argv[2], "show") == 0) {
+		char *ak = getenv("AWS_ACCESS_KEY_ID");
+		char *sk = getenv("AWS_SECRET_ACCESS_KEY");
+		char *rg = getenv("AWS_DEFAULT_REGION");
+
+		BK_LOG_RAW("AWS_ACCESS_KEY_ID: %s\r\n", (ak && ak[0]) ? ak : "(unset)");
+		if (sk && sk[0]) {
+			BK_LOG_RAW("AWS_SECRET_ACCESS_KEY: set (%d chars)\r\n", (int)os_strlen(sk));
+		} else {
+			BK_LOG_RAW("AWS_SECRET_ACCESS_KEY: (unset)\r\n");
+		}
+		BK_LOG_RAW("AWS_DEFAULT_REGION: %s\r\n", (rg && rg[0]) ? rg : "(unset)");
+		return;
+	}
+
+	if (argc >= 3 && os_strcmp(argv[2], "clear") == 0) {
+		setenv("AWS_ACCESS_KEY_ID", "", 1);
+		setenv("AWS_SECRET_ACCESS_KEY", "", 1);
+		setenv("AWS_DEFAULT_REGION", "", 1);
+		BK_LOG_RAW("AWS credentials cleared\r\n");
+		return;
+	}
+
+	if (argc < 4) {
+		BK_LOG_RAW("usage: kvs_wb cred <access_key> <secret_key> [region]\r\n");
+		return;
+	}
+
+	setenv("AWS_ACCESS_KEY_ID", argv[2], 1);
+	setenv("AWS_SECRET_ACCESS_KEY", argv[3], 1);
+	if (argc >= 5) {
+		setenv("AWS_DEFAULT_REGION", argv[4], 1);
+	}
+	BK_LOG_RAW("AWS credentials set (RAM). Now run: kvs_wb master\r\n");
 }
 
 static void kvs_webrtc_cli_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
@@ -81,6 +124,11 @@ static void kvs_webrtc_cli_cmd(char *pcWriteBuffer, int xWriteBufferLen, int arg
 
 	if (argc < 2) {
 		kvs_webrtc_cli_help();
+		return;
+	}
+
+	if (os_strcmp(argv[1], "cred") == 0) {
+		kvs_webrtc_cred_cmd(argc, argv);
 		return;
 	}
 
@@ -99,7 +147,7 @@ static void kvs_webrtc_cli_cmd(char *pcWriteBuffer, int xWriteBufferLen, int arg
 }
 
 static const struct cli_command s_cmds[] = {
-	{"kvs_wb", "kvs_wb master [channel] - AWS KVS master for kvs_webrtc", kvs_webrtc_cli_cmd},
+	{"kvs_wb", "kvs_wb master [channel] | cred <ak> <sk> [region] - AWS KVS for kvs_webrtc", kvs_webrtc_cli_cmd},
 };
 
 int kvs_webrtc_cli_init(void)

@@ -23,6 +23,12 @@
 #include <components/bk_asr_service_types.h>
 #endif
 
+#include "audio_param_hooks.h"
+
+#if CONFIG_VOICE_SERVICE_EQ
+#include <components/bk_audio/audio_algorithms/eq_algorithm.h>
+#endif
+
 #define TAG "db-aud-dev"
 
 #define LOGI(...) BK_LOGW(TAG, ##__VA_ARGS__)
@@ -36,6 +42,7 @@ extern const doorbell_service_interface_t *doorbell_current_service;
 
 db_audio_device_info_t *gl_db_audio_device_info = NULL;
 
+static audio_enc_type_t s_send_enc_type = AUDIO_ENC_TYPE_INVALID;
 
 int doorbell_voice_send_callback(unsigned char *data, unsigned int len, void *args)
 {
@@ -440,6 +447,10 @@ int doorbell_audio_turn_off(void)
         ntwk_trans_chan_stop(NTWK_TRANS_CHAN_AUDIO);
     }
 
+#if CONFIG_AUD_PARAM_CTRL
+    media_audio_param_unbind_voc_handle();
+#endif
+
     if (gl_db_audio_device_info->voice_read_handle)
     {
         bk_voice_read_stop(gl_db_audio_device_info->voice_read_handle);
@@ -585,6 +596,9 @@ int doorbell_audio_turn_on(audio_parameters_t *parameters)
             voice_cfg.spk_cfg.onboard_spk_cfg.sample_rate[AUD_DAC_SOURCE_A2DP] = spk_sample_rate;
             voice_cfg.spk_cfg.onboard_spk_cfg.frame_size[AUD_DAC_SOURCE_A2DP]  = spk_sample_rate * 2 * 20 / 1000; //one frame size(20ms)
         }
+
+        voice_cfg.spk_cfg.onboard_spk_cfg.dig_gain = -16.0f;
+        voice_cfg.spk_cfg.onboard_spk_cfg.ana_gain = 4;
         #else
         voice_cfg.spk_cfg.onboard_spk_cfg.sample_rate = spk_sample_rate;
         voice_cfg.spk_cfg.onboard_spk_cfg.frame_size  = spk_sample_rate * 2 * 20 / 1000; //one frame size(20ms)
@@ -602,6 +616,16 @@ int doorbell_audio_turn_on(audio_parameters_t *parameters)
         voice_cfg.mic_cfg.onboard_mic_cfg.adc_cfg.aec_en = parameters->aec;
         #endif
     }
+
+#if CONFIG_VOICE_SERVICE_EQ
+    voice_cfg.eq_en = true;
+    if (voice_cfg.eq_en)
+    {
+        eq_algorithm_cfg_t eq_cfg = DEFAULT_EQ_ALGORITHM_CONFIG();
+        eq_cfg.eq_mode = EQ_MODE_SOFTWARE;
+        voice_cfg.eq_cfg.eq_alg_cfg = eq_cfg;
+    }
+#endif
 
     if (parameters->aec == 1)
     {
@@ -707,7 +731,8 @@ int doorbell_audio_turn_on(audio_parameters_t *parameters)
     //voice_read_cfg.max_read_size = mic_sample_rate * 2 * 20 / 1000; //one frame size(20ms)
     voice_read_cfg.max_read_size = 1280;//mic_sample_rate * 2 * 20 * 10 / 1000; //one frame size(200ms)
     voice_read_cfg.voice_read_callback = doorbell_voice_send_callback;
-    voice_read_cfg.args = NULL;
+    s_send_enc_type = voice_cfg.enc_type;
+    voice_read_cfg.args = &s_send_enc_type;
     voice_read_cfg.task_stack = 1024 * 4;
     voice_read_cfg.mem_type = AUDIO_MEM_TYPE_PSRAM;
     gl_db_audio_device_info->voice_read_handle = bk_voice_read_init(&voice_read_cfg);
@@ -744,6 +769,11 @@ int doorbell_audio_turn_on(audio_parameters_t *parameters)
         LOGE("voice write start fail\n");
         goto error;
     }
+
+#if CONFIG_AUD_PARAM_CTRL
+    /* Bind only after the pipeline is fully started; EQ preset selected by spk rate */
+    media_audio_param_bind_voc_handle(gl_db_audio_device_info->voice_handle, spk_sample_rate);
+#endif
 
     gl_db_audio_device_info->audio_enable = BK_TRUE;
 
