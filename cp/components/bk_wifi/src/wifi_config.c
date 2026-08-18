@@ -10,9 +10,6 @@
  */
 #include <common/bk_include.h>
 //#include <os/mem.h>
-#if CONFIG_FLASH_ORIGIN_API
-#include "bk_flash.h"
-#endif
 #include "bk_wifi_types.h"
 #include "bk_phy.h"
 #include "bk_wifi.h"
