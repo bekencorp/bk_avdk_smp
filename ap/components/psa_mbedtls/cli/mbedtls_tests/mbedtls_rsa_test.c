@@ -116,9 +116,6 @@ int te200_rsa_self_test( int verbose )
 
     MBEDTLS_MPI_CHK( mbedtls_rsa_complete( &rsa ) );
 
-    if( verbose != 0 )
-        mbedtls_printf( "  RSA key validation: " );
-
     if( mbedtls_rsa_check_pubkey(  &rsa ) != 0 ||
         mbedtls_rsa_check_privkey( &rsa ) != 0 )
     {
@@ -130,7 +127,7 @@ int te200_rsa_self_test( int verbose )
     }
 
     if( verbose != 0 )
-        mbedtls_printf( "  RSA key validation: " );
+        mbedtls_printf( "RSA key validation\r\n" );
 
     // ret = mbedtls_rsa_gen_key(&rsa, myrand, NULL, 2048, 65537);
 
@@ -155,7 +152,7 @@ int te200_rsa_self_test( int verbose )
 	mbedtls_printf("rsa enc %d bytes, take time %llu us.\r\n", PT_LEN, tick_cnt);
 
     if( verbose != 0 )
-        mbedtls_printf( "passed\n  PKCS#1 decryption : " );
+        mbedtls_printf( "PKCS#1 decryption : " );
 
     before = bk_aon_rtc_get_us();
     if( mbedtls_rsa_pkcs1_decrypt( &rsa, myrand, NULL,
@@ -181,9 +178,6 @@ int te200_rsa_self_test( int verbose )
         goto cleanup;
     }
 
-    if( verbose != 0 )
-        mbedtls_printf( "passed\n" );
-
 #if defined(MBEDTLS_SHA1_C)
     if( verbose != 0 )
         mbedtls_printf( "  PKCS#1 data sign  : " );
@@ -193,7 +187,8 @@ int te200_rsa_self_test( int verbose )
         if( verbose != 0 )
             mbedtls_printf( "failed\n" );
 
-        return( 1 );
+        ret = 1;
+        goto cleanup;
     }
 
     before = bk_aon_rtc_get_us();
@@ -212,7 +207,7 @@ int te200_rsa_self_test( int verbose )
     mbedtls_printf("rsa1024 sign MBEDTLS_MD_SHA1, take time %llu us. sig: %.2f times/s\r\n", tick_cnt, (1.0*1e6)/tick_cnt);
 
     if( verbose != 0 ){
-        mbedtls_printf( "passed\n  PKCS#1 sig. verify: " );
+        mbedtls_printf( "PKCS#1 sig. verify: " );
     }
 
     before = bk_aon_rtc_get_us();
@@ -229,8 +224,6 @@ int te200_rsa_self_test( int verbose )
 	tick_cnt = after - before;
 	mbedtls_printf("rsa1024 verify MBEDTLS_MD_SHA1, take time %llu us. vrf: %.2f times/s\r\n", tick_cnt, (1.0*1e6)/tick_cnt);
 
-    if( verbose != 0 )
-        mbedtls_printf( "passed\n" );
 #endif /* MBEDTLS_SHA1_C */
 
     if( verbose != 0 )
