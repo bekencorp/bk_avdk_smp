@@ -950,6 +950,13 @@ static void gattc_notice_cb(ble_notice_t notice, void *param)
         os_memset(&s_ble_enc_key, 0 ,sizeof(s_ble_enc_key));
         break;
 
+    case BLE_5_PAIRING_SECURITY_REQ_EVENT:
+        BLEGATTC_LOGI("BLE_5_PAIRING_SECURITY_REQ_EVENT\r\n");
+        ble_smp_ind_t *s_ind = (ble_smp_ind_t *)param;
+        bk_ble_create_bond(s_ind->conn_idx, GAP_AUTH_REQ_NO_MITM_BOND, BK_BLE_GAP_IO_CAP_NO_INPUT_NO_OUTPUT,
+            GAP_SEC1_NOAUTH_PAIR_ENC, GAP_OOB_AUTH_DATA_NOT_PRESENT);
+        break;
+
     case BLE_5_GAP_CMD_CMP_EVENT:
     {
         ble_cmd_cmp_evt_t *event = (ble_cmd_cmp_evt_t *)param;

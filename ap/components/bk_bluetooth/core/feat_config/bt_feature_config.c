@@ -17,10 +17,19 @@ int bk_bt_feature_init(void)
 #if CONFIG_BLUETOOTH_BLE_DISCOVER_AUTO
     s_bt_feature_struct._is_gatt_discovery_auto = 1;
 #endif
+#if CONFIG_SUPPORT_BLE_RECONNECTION_STRATEGY
+    s_bt_feature_struct._support_reconnection_strategy = 1;
+#endif
+    s_bt_feature_struct._check_kernel_msg_queue_repeat = 1;
+    s_bt_feature_struct._auto_rsp_att_indicate_when_no_all_discover = 1;
+    s_bt_feature_struct._auto_rsp_write_req = 1;
+    s_bt_feature_struct._ignore_smp_already_pair = 1;
 
+    s_bt_feature_struct._ble_max_latency = CONFIG_BLE_MAX_LATENCY;
 #if CONFIG_BLUETOOTH_SUPPORT_LPO_ROSC
     s_bt_feature_struct._support_lpo_rosc = 1;
 #endif
+    s_bt_feature_struct._ble_coc_local_cid_monotonous_increase = 1;
     extern int bt_feature_adapter_init(void *arg);
 
     if (bt_feature_adapter_init((void *)&s_bt_feature_struct) != 0)
@@ -41,7 +50,6 @@ int bk_bt_feature_enable_fuzz(uint8_t enable)
         s_bt_feature_struct._send_peripheral_feature_req_auto = 1;
         s_bt_feature_struct._stop_smp_when_pair_err = 1;
         s_bt_feature_struct._is_gatt_discovery_auto = 0;
-        s_bt_feature_struct._enable_smp_sec_req_evt = 1;
     }
     else
     {
@@ -50,7 +58,6 @@ int bk_bt_feature_enable_fuzz(uint8_t enable)
         s_bt_feature_struct._ignore_smp_already_pair = 0;
         s_bt_feature_struct._send_peripheral_feature_req_auto = 0;
         s_bt_feature_struct._stop_smp_when_pair_err = 0;
-        s_bt_feature_struct._enable_smp_sec_req_evt = 0;
 #if CONFIG_BLUETOOTH_BLE_DISCOVER_AUTO
         s_bt_feature_struct._is_gatt_discovery_auto = 1;
 #endif

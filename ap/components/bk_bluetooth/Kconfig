@@ -97,6 +97,15 @@ menu "Bk_ble"
 		depends on BLUETOOTH_AP
         default y
 
+    config SUPPORT_BLE_RECONNECTION_STRATEGY
+        bool "automatically initialize ble reconnection due to connection establishment failed"
+        default y
+
+    config BLE_MAX_LATENCY
+        int "max latency."
+        default 20
+        range 0 499
+
     config BLUETOOTH_SUPPORT_AP_PWD_ALL
         bool "bluetooth support ap power down all"
 		depends on BLUETOOTH_SUPPORT_IPC

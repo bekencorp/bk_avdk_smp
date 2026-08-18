@@ -310,6 +310,7 @@ typedef enum
     BLE_CMD_NONE,
     /// ADV_CMD:FOR BLE 5.1
     BLE_CREATE_ADV,
+    BLE_MODIFY_ADV,
     BLE_SET_ADV_DATA,
     BLE_SET_RSP_DATA,
     BLE_START_ADV,
@@ -389,11 +390,16 @@ typedef enum
     BLE_5_CREATE_DB,
     /// tx complete event, param null
     BLE_5_TX_DONE,
-    ///smp report
+    /// as slave, peer requests pairing (Pairing Request), param ble_smp_ind_t; accept with
+    /// bk_ble_sec_send_auth_mode()/_ext() or reject with bk_ble_reject_pairing()
     BLE_5_PAIRING_REQ,
+    /// pairing succeed, param ble_smp_ind_t
     BLE_5_PAIRING_SUCCEED,
+    /// pairing failed, param ble_smp_ind_t (status = SMP fail reason code)
     BLE_5_PAIRING_FAILED,
+    ///discarded, replace with BLE_5_PARING_PASSKEY_INPUT_REQ and BLE_5_PARING_PASSKEY_DISPLAY_REQ
     BLE_5_PARING_PASSKEY_REQ,
+    /// link encrypted, param ble_smp_ind_t (status = auth level)
     BLE_5_ENCRYPT_EVENT,
 
     /// as master, recv connect event
@@ -429,13 +435,49 @@ typedef enum
 
     BLE_5_ADV_STOPPED_EVENT,
     BLE_5_READ_RSSI_CMPL_EVENT,
+    /// pairing distributed keys (bond info) reported to app, param bk_ble_key_t
     BLE_5_KEY_EVENT,
+    /// request app to provide the stored bond info, param bk_ble_bond_info_req_t
     BLE_5_BOND_INFO_REQ_EVENT,
     BLE_5_READ_BLOB_EVENT,
+    /// as master, peer(slave) sent a Security Request, param ble_smp_ind_t;
+    /// start pairing/encryption with bk_ble_create_bond()/_ext()
     BLE_5_PAIRING_SECURITY_REQ_EVENT,
+    /// LE SC numeric comparison request, param ble_smp_ind_t (num = 6-digit compare value);
+    /// reply with bk_ble_number_compare_send()
     BLE_5_PARING_NUMBER_COMPARE_REQ_EVENT,
-	
+
+    /// legacy OOB data request
+    BLE_5_OOB_REQ_EVENT,
+    /// LE Secure Connections OOB data request
+    BLE_5_SC_OOB_REQ_EVENT,
+    /// local LE Secure Connections OOB data indication (see ble_loc_oob_data_t)
+    BLE_5_SC_LOC_OOB_IND,
+
     BLE_5_SCAN_STOPPED_EVENT,
+
+    /// pairing passkey input request (local side should input the peer-displayed passkey)
+    BLE_5_PARING_PASSKEY_INPUT_REQ,
+    /// pairing passkey display request (local side should display the passkey to the user)
+    BLE_5_PARING_PASSKEY_DISPLAY_REQ,
+
+    /// COC PSM register complete (see coc_reg_evt)
+    BLE_5_COC_REG_COMPL_EVENT,
+    /// COC PSM unregister complete
+    BLE_5_COC_UNREG_COMPL_EVENT,
+    /// COC PSM config complete (see coc_config_evt)
+    BLE_5_COC_CONFIG_COMPL_EVENT,
+    /// COC channel connection complete (see coc_connection_compl_evt)
+    BLE_5_COC_CONNECTION_COMPL_EVENT,
+    /// COC channel disconnection complete (see coc_disconnect_compl_evt)
+    BLE_5_COC_DISCCONNECT_COMPL_EVENT,
+    /// COC data transmission done (see coc_send_compl_evt)
+    BLE_5_COC_TX_DONE,
+    /// COC data received (see coc_recv_evt)
+    BLE_5_COC_RX_IND,
+    /// incoming COC connection request (see coc_connect_req_evt)
+    BLE_5_COC_CONNECT_REQ_EVENT,
+
 } ble_notice_t;
 
 typedef enum
@@ -604,6 +646,7 @@ typedef struct
     uint16_t att_idx;     /**< The index of the attribute */
     uint8_t *value;       /**< The attribute value */
     uint16_t len;         /**< The length of the attribute value */
+    uint8_t is_cmd;       /**< 1: write command (no response); 0: write request (response expected) */
 } ble_write_req_t;
 
 typedef struct
@@ -749,6 +792,89 @@ typedef struct
     uint8_t cmd;
     ///Command operation status
     uint8_t status;
+
+    /// Event-specific payload, valid according to the reported "cmd"
+    union
+    {
+        /// BLE_5_COC_REG_COMPL_EVENT
+        struct
+        {
+            /// registered Protocol/Service Multiplexer value
+            uint16_t psm;
+        } coc_reg_evt;
+
+        /// BLE_5_COC_CONFIG_COMPL_EVENT
+        struct
+        {
+            /// configured Protocol/Service Multiplexer value
+            uint16_t psm;
+        } coc_config_evt;
+
+        /// BLE_5_COC_CONNECTION_COMPL_EVENT
+        struct
+        {
+            /// Protocol/Service Multiplexer value
+            uint16_t le_psm;
+            /// local Channel ID of the established channel
+            uint16_t local_cid;
+            /// peer's initial credits
+            uint16_t peer_credit;
+            /// peer's Maximum Transmission Unit size
+            uint16_t peer_mtu;
+            /// peer's Maximum PDU Payload Size
+            uint16_t peer_mps;
+        } coc_connection_compl_evt;
+
+        /// BLE_5_COC_DISCCONNECT_COMPL_EVENT
+        struct
+        {
+            /// local Channel ID of the disconnected channel
+            uint16_t local_cid;
+            /// disconnection reason
+            uint8_t reason;
+        } coc_disconnect_compl_evt;
+
+        /// BLE_5_COC_TX_DONE
+        struct
+        {
+            /// Channel ID
+            uint16_t cid;
+            /// remaining/returned credits
+            uint16_t credit;
+        } coc_send_compl_evt;
+
+        /// BLE_5_COC_RX_IND
+        struct
+        {
+            /// data offset within the SDU
+            uint16_t offset;
+            /// Channel ID
+            uint16_t cid;
+            /// remaining credits
+            uint16_t credit;
+            /// length of received data
+            uint16_t length;
+            /// pointer to the received data
+            const uint8_t *data;
+        } coc_recv_evt;
+
+        /// BLE_5_COC_CONNECT_REQ_EVENT
+        struct
+        {
+            /// Protocol/Service Multiplexer value
+            uint16_t le_psm;
+            /// peer's Channel ID
+            uint16_t peer_cid;
+            /// peer's Maximum Transmission Unit size
+            uint16_t peer_mtu;
+            /// peer's Maximum PDU Payload Size
+            uint16_t peer_mps;
+            /// peer's initial credits
+            uint16_t peer_credit;
+        } coc_connect_req_evt;
+    };
+
+
 } ble_cmd_cmp_evt_t;
 
 typedef struct
@@ -865,6 +991,19 @@ enum ble_own_addr_type
     OWN_ADDR_TYPE_RANDOM_ADDR,
 };
 
+enum initiating_filter_type_le
+{
+    /// Direct connection establishment, establish a connection with an indicated device
+    INIT_TYPE_LE_DIRECT_CONN_EST = 0,
+    /// Automatic connection establishment, establish a connection with all devices whose address is
+    /// present in the white list
+    INIT_TYPE_LE_AUTO_CONN_EST,
+    /// Name discovery, Establish a connection with an indicated device in order to read content of its
+    /// Device Name characteristic. Connection is closed once this operation is stopped.
+    INIT_TYPE_LE_NAME_DISC,
+};
+
+
 /// Scan type
 enum ble_scan_type
 {
@@ -943,6 +1082,9 @@ typedef struct
     uint8_t init_phys;
     /// The index of connection
     uint8_t conn_idx;
+    /// Initiating type: see enum \ref initiating_filter_type_le (e.g. INIT_TYPE_LE_DIRECT_CONN_EST connects the
+    /// indicated peer address, INIT_TYPE_LE_AUTO_CONN_EST connects devices in the white list)
+    uint8_t filter_policy;
 } ble_conn_param_t;
 
 
@@ -1033,6 +1175,8 @@ typedef struct
     uint8_t adv_idx;
     /// the stopped reason,0:adv is stopped by user stop or link establishment;1:adv is stopped by timeout
     uint8_t reason;
+    /// the index of connection established (valid when adv stopped due to link establishment)
+    uint8_t conn_idx;
 } ble_adv_stopped_ind_t;
 
 typedef struct
@@ -1112,6 +1256,19 @@ typedef struct
     /// connection index
     uint8_t conn_idx;
 } bk_ble_gatt_cmp_evt_t;
+
+/**
+ * @brief BLE_5_SC_LOC_OOB_IND data
+ */
+typedef struct
+{
+    /// The index of connection
+    uint8_t conn_idx;
+    ///Local OOB Data Confirmation/Commitment
+    uint8_t local_oob_c[16];
+    ///Local OOB Data Randomizer
+    uint8_t local_oob_r[16];
+} ble_loc_oob_data_t;
 
 /**
  * @brief for sync ble api call return
@@ -1249,6 +1406,40 @@ enum gap_key_distr
     BK_BLE_GAP_KDIST_LINKKEY = (1 << 3),
 
     BK_BLE_GAP_KDIST_LAST = (1 << 4),
+};
+
+/// COC channel information type, used as the "type" parameter of bk_ble_coc_get_current_info()
+enum coc_info
+{
+    /// Peer's current available credits
+    BK_BLE_COC_PEER_CURRENT_CREDIT,
+    /// Peer's maximum credits
+    BK_BLE_COC_PEER_MAX_CREDIT,
+    /// Peer's Maximum Transmission Unit size
+    BK_BLE_COC_PEER_MTU,
+    /// Peer's Maximum PDU Payload Size
+    BK_BLE_COC_PEER_MPS,
+    /// Local current available credits
+    BK_BLE_COC_LOCAL_CURRENT_CREDIT,
+    /// Local maximum credits
+    BK_BLE_COC_LOCAL_MAX_CREDIT,
+    /// Local Maximum Transmission Unit size
+    BK_BLE_COC_LOCAL_MTU,
+    /// Local Maximum PDU Payload Size
+    BK_BLE_COC_LOCAL_MPS,
+};
+
+/// COC channel required security level, used as the "sec_lvl" parameter of bk_ble_coc_config()
+enum coc_security
+{
+    /// No security
+    BK_BLE_COC_SEC_NONE,
+    /// Unauthenticated encryption
+    BK_BLE_COC_SEC_UNAUTH_ENCRYPT,
+    /// Authenticated encryption
+    BK_BLE_COC_SEC_AUTH_ENCRYPT,
+    /// LE Secure Connections
+    BK_BLE_COC_SEC_SECURE_CONNECTION,
 };
 /**
  * @}

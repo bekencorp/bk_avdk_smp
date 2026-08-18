@@ -16,9 +16,13 @@ typedef struct
     uint8_t _ignore_smp_already_pair;               //only valid when use single ble host.
     uint8_t _send_peripheral_feature_req_auto;
     uint8_t _stop_smp_when_pair_err;
-    uint8_t _enable_smp_sec_req_evt;
-
+    uint8_t _check_kernel_msg_queue_repeat;
+    uint8_t _auto_rsp_att_indicate_when_no_all_discover;
+    uint8_t _auto_rsp_write_req;
+    uint8_t _support_reconnection_strategy;
+    uint16_t _ble_max_latency;
     uint8_t _support_lpo_rosc;
+    uint8_t _ble_coc_local_cid_monotonous_increase;
     uint8_t _support_lowpower_sleep;
     uint8_t _rf_mode;
 } bt_feature_struct_t;

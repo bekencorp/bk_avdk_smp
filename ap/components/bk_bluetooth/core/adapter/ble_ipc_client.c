@@ -1096,6 +1096,8 @@ BLE_IPC_WEAK_STUB_ERR(bk_ble_create_bond, (uint8_t con_idx, uint8_t auth, uint8_
 BLE_IPC_WEAK_STUB_ERR(bk_ble_create_bond_ext, (uint8_t con_idx, uint8_t auth, uint8_t iocap, uint8_t sec_req, uint8_t oob, uint8_t initiator_key_distr, uint8_t responder_key_distr))
 BLE_IPC_WEAK_STUB_ERR(bk_ble_passkey_send, (uint8_t con_idx, uint8_t accept, uint32_t passkey))
 BLE_IPC_WEAK_STUB_ERR(bk_ble_number_compare_send, (uint8_t con_idx, uint8_t accept))
+BLE_IPC_WEAK_STUB_ERR(bk_ble_oob_req_reply, (uint8_t con_idx, uint8_t accept, uint8_t *tk, uint8_t len))
+BLE_IPC_WEAK_STUB_ERR(bk_ble_sc_oob_req_reply, (uint8_t con_idx, uint8_t accept, uint8_t conf[16], uint8_t rand[16]))
 BLE_IPC_WEAK_STUB_ERR(bk_ble_read_rssi, (uint8_t conn_idx))
 BLE_IPC_WEAK_STUB_ERR(bk_ble_config_local_appearance, (uint16_t appearance))
 BLE_IPC_WEAK_STUB_ERR(bk_ble_discover_primary_service, (uint8_t conn_id, uint16_t sh, uint16_t eh))

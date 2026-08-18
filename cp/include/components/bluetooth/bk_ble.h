@@ -224,6 +224,21 @@ uint8_t bk_ble_appm_set_dev_name(uint8_t len, uint8_t* name);
 ble_err_t bk_ble_create_advertising(uint8_t actv_idx, ble_adv_param_t *adv_param, ble_cmd_cb_t callback);
 
 /**
+ * @brief     modify a ble advertising activity
+ *
+ * @param
+ *    - actv_idx: the index of activity
+ *    - adv_param: the advertising parameter
+ *    - callback: register a callback for this action, ble_cmd_t: BLE_MODIFY_ADV
+ * @attention 1.you must wait callback status, 0 mean success. 2.This function only be called when adv created and not started.
+ *
+ * @return
+ *    - BK_ERR_BLE_SUCCESS: succeed
+ *    - others: other errors.
+ */
+ble_err_t bk_ble_modify_advertising(uint8_t actv_idx, ble_adv_param_t *adv_param, ble_cmd_cb_t callback);
+
+/**
  * @brief     Start a ble advertising
  *
  * @param
@@ -238,6 +253,23 @@ ble_err_t bk_ble_create_advertising(uint8_t actv_idx, ble_adv_param_t *adv_param
  *    - others: other errors.
  */
 ble_err_t bk_ble_start_advertising(uint8_t actv_idx, uint16 duration, ble_cmd_cb_t callback);
+
+/**
+ * @brief     Start a ble advertising with a maximum number of advertising events
+ *
+ * @param
+ *    - actv_idx: the index of activity
+ *    - duration: Advertising duration (in unit of 10ms). 0 means that advertising continues
+ *    - max_evt: maximum number of advertising events to send. 0 means no limit
+ *    - callback: register a callback for this action, ble_cmd_t: BLE_START_ADV
+ *
+ * @attention 1.you must wait callback status, 0 mean success.
+ * @attention 2.must used after bk_ble_create_advertising
+ * @return
+ *    - BK_ERR_BLE_SUCCESS: succeed
+ *    - others: other errors.
+ */
+ble_err_t bk_ble_start_advertising_ext(uint8_t actv_idx, uint16 duration, uint8_t max_evt, ble_cmd_cb_t callback);
 
 /**
  * @brief     Stop the advertising that has been started
@@ -422,7 +454,10 @@ ble_err_t bk_ble_update_param(uint8_t conn_idx, ble_conn_param_t *conn_param);
 ble_err_t bk_ble_disconnect(uint8_t conn_idx);
 
 /**
- * @brief     Exchange MTU
+ * @brief     Exchange MTU, negotiating with the local maximum MTU
+ *
+ * This API always requests the local maximum MTU. If you want to negotiate a
+ * specified MTU value, use bk_ble_gatt_mtu_change_ex() instead.
  *
  * @param
  *    - conn_idx: the index of connection
@@ -433,6 +468,23 @@ ble_err_t bk_ble_disconnect(uint8_t conn_idx);
  *    - others: other errors.
  */
 ble_err_t bk_ble_gatt_mtu_change(uint8_t conn_idx);
+
+/**
+ * @brief     Exchange MTU with a specified value
+ *
+ * @param
+ *    - conn_idx: the index of connection
+ *    - mtu: the MTU value the client requests. The finally negotiated MTU is
+ *           the minimum of this value, the peer's MTU and the local maximum MTU,
+ *           and is also clamped to the minimum legal ATT MTU. Passing 0 means
+ *           using the local maximum MTU (same as bk_ble_gatt_mtu_change).
+ * @attention 1.must used after connected
+ *
+ * @return
+ *    - BK_ERR_BLE_SUCCESS: succeed
+ *    - others: other errors.
+ */
+ble_err_t bk_ble_gatt_mtu_change_ex(uint8_t conn_idx, uint16_t mtu);
 
 /**
  * @brief     Set maximal Exchange MTU
@@ -545,7 +597,8 @@ ble_err_t bk_ble_delete_scaning(uint8_t actv_idx, ble_cmd_cb_t callback);
     conn_param.intv_max = 0x40; //interval
     conn_param.con_latency = 0;
     conn_param.sup_to = 0x200;//supervision timeout
-    conn_param.init_phys = 1;// 1M
+    conn_param.init_phys = INIT_PHY_TYPE_LE_1M;// 1M
+    conn_param.filter_policy = INIT_TYPE_LE_DIRECT_CONN_EST;// initiating type, see enum \ref initiating_filter_type_le (DIRECT: connect the indicated peer address; AUTO: connect devices in the white list)
     bk_ble_create_init(con_idx, &conn_param, ble_at_cmd);
  * @endcode
  *
@@ -940,14 +993,70 @@ ble_err_t bk_ble_gatt_write_value(uint8_t con_idx, uint16_t att_handle, uint16_t
 ble_err_t bk_ble_read_response_value(uint8_t con_idx, uint32_t len, uint8_t *buf, uint16_t prf_id, uint16_t att_idx);
 
 /**
- * @brief As master, configure attribute value
+ * @brief As slaver, send read response value with a return status
+ *
+ * Same as bk_ble_read_response_value(), but allows the application to report a
+ * specific ATT error status to the peer instead of always returning success.
+ *
+ * @param
+ *    - con_idx: the idx of app connections
+ *    - len: the length of attribute's value
+ *    - buf: attribute's value
+ *    - prf_id: The id of the profile
+ *    - att_idx: The index of the attribute
+ *    - ret_status: ATT return status (0 means success, non-zero means the ATT error code reported to peer)
+ *
+ * @return
+ * - BK_ERR_BLE_SUCCESS: succeed
+ * - others: fail
+ */
+ble_err_t bk_ble_read_response_value_ext(uint8_t con_idx, uint32_t len, uint8_t *buf, uint16_t prf_id, uint16_t att_idx, uint8_t ret_status);
+
+/**
+ * @brief As slaver, send write response (confirm a Write Request) to the peer
+ *
+ * Sends the ATT Write Response for a Write Request that was reported to the
+ * application via BLE_5_WRITE_EVENT, optionally carrying an ATT error code.
+ *
+ * @param
+ *    - con_idx: the idx of app connections
+ *    - prf_id: The id of the profile
+ *    - att_idx: The index of the attribute
+ *    - ret_status: ATT return status (0 means success, non-zero means the ATT error code reported to peer)
+ *
+ * @attention
+ * - This API MUST ONLY be called when the auto write-response feature (_auto_rsp_write_req)
+ *   is DISABLED. When _auto_rsp_write_req is enabled, the stack automatically confirms every
+ *   Write Request with a success status, so calling this API would send a duplicate
+ *   GATTC_WRITE_CFM and may cause a mismatched/incorrect write response. In that mode the
+ *   application should only process the data reported by BLE_5_WRITE_EVENT and MUST NOT call
+ *   this API.
+ * - When _auto_rsp_write_req is disabled, call this API after receiving BLE_5_WRITE_EVENT and
+ *   before the peer's request times out, to confirm the Write Request or return a specific
+ *   ATT error to the peer (e.g. invalid length, out-of-range value, insufficient authorization).
+ * - Only applies to a Write Request (ble_write_req_t.is_cmd == 0). Do NOT call it for a
+ *   Write Command (is_cmd == 1), which expects no response.
+ *
+ * @return
+ * - BK_ERR_BLE_SUCCESS: succeed
+ * - others: fail
+ */
+ble_err_t bk_ble_write_response(uint8_t con_idx, uint16_t prf_id, uint16_t att_idx, uint8_t ret_status);
+
+/**
+ * @brief As slave, accept a pairing request from peer with the specified security features
+ *
+ * Used by the SLAVE (pairing responder) inside the BLE_5_PAIRING_REQ event handler to accept
+ * the pairing initiated by the peer, replying the Pairing Response with the given features.
+ * To reject instead, use bk_ble_reject_pairing(). Not used by the master; the master sets its
+ * own features when it initiates pairing via bk_ble_create_bond()/bk_ble_create_bond_ext().
  *
  * @param
  *    - con_idx: the index of connection
- *    - mode: authentication features
- *    - iocap: IO Capability Values
- *    - sec_req: Security Defines
- *    - oob: OOB Data Present Flag Values
+ *    - mode: authentication features (see enum gap_auth)
+ *    - iocap: IO Capability Values (see enum bk_ble_gap_io_cap)
+ *    - sec_req: Security Defines (see enum gap_sec_req)
+ *    - oob: OOB Data Present Flag Values (see enum gap_oob)
  *
  * @return
  * - BK_ERR_BLE_SUCCESS: succeed
@@ -956,14 +1065,18 @@ ble_err_t bk_ble_read_response_value(uint8_t con_idx, uint32_t len, uint8_t *buf
 ble_err_t bk_ble_sec_send_auth_mode(uint8_t con_idx, uint8_t mode, uint8_t iocap, uint8_t sec_req, uint8_t oob);
 
 /**
- * @brief As master, configure auth mode param
+ * @brief As slave, accept a pairing request from peer with security features and key distribution
+ *
+ * Same as bk_ble_sec_send_auth_mode() but also specifies the initiator/responder key distribution.
+ * Used by the SLAVE (pairing responder) inside the BLE_5_PAIRING_REQ event handler to accept the
+ * pairing initiated by the peer. To reject instead, use bk_ble_reject_pairing().
  *
  * @param
  *    - con_idx: the index of connection
- *    - mode: authentication features
- *    - iocap: IO Capability Values
- *    - sec_req: Security Defines
- *    - oob: OOB Data Present Flag Values
+ *    - mode: authentication features (see enum gap_auth)
+ *    - iocap: IO Capability Values (see enum bk_ble_gap_io_cap)
+ *    - sec_req: Security Defines (see enum gap_sec_req)
+ *    - oob: OOB Data Present Flag Values (see enum gap_oob)
  *    - initiator_key_distr: init key distr, see gap_key_distr
  *    - responder_key_distr: resp key distr, see gap_key_distr
  *
@@ -974,13 +1087,14 @@ ble_err_t bk_ble_sec_send_auth_mode(uint8_t con_idx, uint8_t mode, uint8_t iocap
 ble_err_t bk_ble_sec_send_auth_mode_ext(uint8_t con_idx, uint8_t mode, uint8_t iocap, uint8_t sec_req, uint8_t oob, uint8_t initiator_key_distr, uint8_t responder_key_distr);
 
 /**
- * @brief As slaver, reject a pairing request from peer
+ * @brief As slave, reject a pairing request from peer
  *
  * @param
  *    - con_idx: the index of connection
  *
- * @attention used in the BLE_5_PAIRING_REQ event handler when the local side wants to reject
- *            the pairing request initiated by the peer.
+ * @attention Used by the SLAVE (pairing responder) in the BLE_5_PAIRING_REQ event handler when the
+ *            local side wants to reject the pairing request initiated by the peer. Only valid for
+ *            the slave role; to accept instead, use bk_ble_sec_send_auth_mode()/_ext().
  *
  * @return
  * - BK_ERR_BLE_SUCCESS: succeed
@@ -1046,7 +1160,11 @@ ble_err_t bk_ble_delete_service(struct bk_ble_db_cfg* ble_db_cfg);
 ble_err_t bk_ble_att_read(uint8_t con_idx, uint16_t att_handle);
 
 /**
- * @brief start authentication the link
+ * @brief Start the security procedure on the link (usable by both master and slave)
+ *
+ * - As MASTER: if the link is not bonded it starts pairing (sends a Pairing Request);
+ *              if already bonded it starts encryption using the stored LTK.
+ * - As SLAVE : it sends a Security Request asking the master to start pairing/encryption.
  *
  * @param
  *    - con_idx: the index of connection
@@ -1064,7 +1182,11 @@ ble_err_t bk_ble_att_read(uint8_t con_idx, uint16_t att_handle);
 ble_err_t bk_ble_create_bond(uint8_t con_idx, uint8_t auth, uint8_t iocap, uint8_t sec_req, uint8_t oob);
 
 /**
- * @brief create bond
+ * @brief Start the security procedure on the link with key distribution (usable by both master and slave)
+ *
+ * Same as bk_ble_create_bond() but also specifies the initiator/responder key distribution.
+ * - As MASTER: if not bonded it starts pairing; if already bonded it starts encryption.
+ * - As SLAVE : it sends a Security Request asking the master to start pairing/encryption.
  *
  * @param
  *    - con_idx: the index of connection
@@ -1084,11 +1206,15 @@ ble_err_t bk_ble_create_bond(uint8_t con_idx, uint8_t auth, uint8_t iocap, uint8
 ble_err_t bk_ble_create_bond_ext(uint8_t con_idx, uint8_t auth, uint8_t iocap, uint8_t sec_req, uint8_t oob, uint8_t initiator_key_distr, uint8_t responder_key_distr);
 
 /**
- * @brief send passkey when pairing
+ * @brief Reply the passkey during pairing (Passkey Entry model; usable by both master and slave)
+ *
+ * @attention Call this in response to the BLE_5_PARING_PASSKEY_INPUT_REQ event, when the local side
+ *            needs to input the passkey displayed on the peer. Applies to whichever role received
+ *            the request (master or slave).
  *
  * @param
  *    - con_idx: the index of connection
- *    - accept: accept pair
+ *    - accept: accept(true) / reject(false) the pairing
  *    - passkey: the num that peer need to input or local need to input
  *
  *
@@ -1099,11 +1225,16 @@ ble_err_t bk_ble_create_bond_ext(uint8_t con_idx, uint8_t auth, uint8_t iocap, u
 ble_err_t bk_ble_passkey_send(uint8_t con_idx, uint8_t accept, uint32_t passkey);
 
 /**
- * @brief send number compare accept when pairing
+ * @brief Reply the numeric comparison result during LE Secure Connections pairing
+ *        (Numeric Comparison model; usable by both master and slave)
+ *
+ * @attention Call this in response to the BLE_5_PARING_NUMBER_COMPARE_REQ_EVENT event after the user
+ *            confirms whether the two displayed 6-digit values match. Applies to whichever role
+ *            received the request (master or slave).
  *
  * @param
  *    - con_idx: the index of connection
- *    - accept: accept pair
+ *    - accept: accept(true) / reject(false) the pairing
  *
  *
  * @return
@@ -1347,6 +1478,228 @@ ble_err_t bk_ble_remove_devices_from_while_list(bd_addr_t *addr, uint8_t addr_ty
  * - others: fail
  */
 ble_err_t bk_ble_tx_power_set(float pwr_gain);
+
+/**
+ * @brief Provide the Legacy-OOB Temporary Key for SMP, in response to BLE_5_OOB_REQ_EVENT
+ *        (LE legacy pairing OOB; usable by both master and slave)
+ *
+ * @attention Applies to whichever role received the request. When accept is true, tk must be a
+ *            128-bit (GAP_KEY_LEN) random number; accept=false rejects the pairing.
+ *
+ * @param
+ *    - con_idx: the index of connection
+ *    - accept: Accept or Reject the OOB
+ *    - tk: Temporary Key value, the TK value shall be a 128-bit random number
+ *    - len: length of temporary key, should always be 128-bit
+ *
+ *
+ * @return
+ * - BK_ERR_BLE_SUCCESS: succeed
+ * - others: fail
+ */
+ble_err_t bk_ble_oob_req_reply(uint8_t con_idx, uint8_t accept, uint8_t *tk, uint8_t len);
+
+/**
+* @brief Provide the LE Secure Connections OOB data (conf/rand) for SMP, in response to
+*        BLE_5_SC_OOB_REQ_EVENT (LE Secure Connections OOB; usable by both master and slave)
+*
+* @attention Applies to whichever role received the request. The local OOB conf/rand to be
+*            transferred to the peer are delivered earlier via the BLE_5_SC_LOC_OOB_IND event.
+*            accept=false rejects the pairing.
+*
+* @param
+*    - con_idx: the index of connection
+*    - accept: Accept or Reject the OOB
+*    - conf: Confirmation value, it shall be a 128-bit random number
+*    - rand: Randomizer value, it should be a 128-bit random number
+*
+*
+* @return
+* - BK_ERR_BLE_SUCCESS: succeed
+* - others: fail
+*/
+ble_err_t bk_ble_sc_oob_req_reply(uint8_t con_idx, uint8_t accept, uint8_t conf[16], uint8_t rand[16]);
+
+/**
+ * @brief Register a Protocol/Service Multiplexer (PSM) for BLE COC
+ *
+ * Registers a PSM value to enable BLE Connection Oriented Channel (COC) services.
+ * PSM is used to identify different services or protocols over a single BLE connection.
+ *
+ * @param
+ *    - psm: Protocol/Service Multiplexer value to register
+ *
+ * @return
+ * - BK_ERR_BLE_SUCCESS: succeed
+ * - others: fail
+ */
+ble_err_t bk_ble_coc_reg(uint16_t psm);
+
+/**
+ * @brief Unregister a Protocol/Service Multiplexer (PSM) for BLE COC
+ *
+ * Unregisters a previously registered PSM value, disabling the associated
+ * COC service. All active connections on this PSM should be closed before unregistering.
+ *
+ * @param
+ *    - psm: Protocol/Service Multiplexer value to unregister
+ *
+ * @return
+ * - BK_ERR_BLE_SUCCESS: succeed
+ * - others: fail
+ */
+ble_err_t bk_ble_coc_unreg(uint16_t psm);
+
+/**
+ * @brief config the security level of a BLE COC channel
+ *
+ * Configures the security level required for a previously registered PSM.
+ * Incoming/outgoing connections on this PSM must satisfy the configured
+ * security level before the channel can be established.
+ *
+ * @param
+ *    - psm: Protocol/Service Multiplexer value to configure
+ *    - sec_lvl: required security level, of type enum coc_security:
+ *               - BK_BLE_COC_SEC_NONE: no security
+ *               - BK_BLE_COC_SEC_UNAUTH_ENCRYPT: unauthenticated encryption
+ *               - BK_BLE_COC_SEC_AUTH_ENCRYPT: authenticated encryption
+ *               - BK_BLE_COC_SEC_SECURE_CONNECTION: LE Secure Connections
+ * @return
+ * - BK_ERR_BLE_SUCCESS: succeed
+ * - others: fail
+ */
+ble_err_t bk_ble_coc_config(uint16_t psm, uint8_t sec_lvl);
+
+/**
+ * @brief Get current information of a BLE COC channel
+ *
+ * Retrieves the current information of a Connection Oriented Channel (COC)
+ * based on the specified information type. This function can be used to query
+ * various channel parameters such as current credits, maximum credits, MTU, MPS, etc.
+ *
+ * @param
+ *    - conn_idx: the index of BLE connection to the remote device
+ *    - cid: Channel ID of the COC connection to query
+ *    - type: Information type to retrieve, of type enum coc_info. Possible values:
+ *            - BK_BLE_COC_PEER_CURRENT_CREDIT: Peer's current available credits
+ *            - BK_BLE_COC_PEER_MAX_CREDIT: Peer's maximum credits
+ *            - BK_BLE_COC_PEER_MTU: Peer's Maximum Transmission Unit size
+ *            - BK_BLE_COC_PEER_MPS: Peer's Maximum PDU Payload Size
+ *            - BK_BLE_COC_LOCAL_CURRENT_CREDIT: Local current available credits
+ *            - BK_BLE_COC_LOCAL_MAX_CREDIT: Local maximum credits
+ *            - BK_BLE_COC_LOCAL_MTU: Local Maximum Transmission Unit size
+ *            - BK_BLE_COC_LOCAL_MPS: Local Maximum PDU Payload Size
+ *    - output: Pointer to a uint32_t variable to store the retrieved information.
+ *              The value will be written to this location upon successful retrieval.
+ *              Must not be NULL.
+ *
+ * @return
+ * - BK_ERR_BLE_SUCCESS: succeed, information retrieved and stored in output
+ * - BK_ERR_BLE_FAIL: fail, invalid parameters or channel not found
+ * - BK_ERR_BLE_UNKNOW_IDX: invalid connection index or channel ID
+ * - others: fail
+ *
+ * @note
+ * - The function must be called after the COC channel is established
+ * - The output parameter must point to a valid memory location
+ * - The meaning of the output value depends on the type parameter
+ */
+ble_err_t bk_ble_coc_get_current_info(uint8_t conn_idx, uint16_t cid, uint8_t type, uint32_t *output);
+
+/**
+ * @brief Request to establish a BLE COC connection
+ *
+ * Initiates a connection request to establish a Connection Oriented Channel
+ * with a remote device on the specified connection using the given PSM.
+ *
+ * @param
+ *    - conn_idx: the index of BLE connection to the remote device
+ *    - psm: Protocol/Service Multiplexer value to connect to
+ *    - mtu: max transmision unit size, use default value if 0
+ *    - mps: max pdu payload size, use default value if 0
+ *    - credit: init credit, use default value if 0
+ *
+ * @attention the connection result is reported in ble_notice_cb_t as BLE_5_COC_CONNECTION_COMPL_EVENT
+ *
+ * @return
+ * - BK_ERR_BLE_SUCCESS: succeed
+ * - others: fail
+ */
+ble_err_t bk_ble_coc_connection_req(uint8_t conn_idx, uint16_t psm, uint16_t mtu, uint16_t mps, uint16_t credit);
+
+/**
+ * @brief Request to disconnect a BLE COC channel
+ *
+ * Initiates a disconnection request to close an established Connection
+ * Oriented Channel identified by the channel ID.
+ *
+ * @param
+ *    - conn_idx: the index of BLE connection
+ *    - cid: Channel ID of the COC connection to disconnect
+ *
+ * @attention the disconnection result is reported in ble_notice_cb_t as BLE_5_COC_DISCCONNECT_COMPL_EVENT
+ *
+ * @return
+ * - BK_ERR_BLE_SUCCESS: succeed
+ * - others: fail
+ */
+ble_err_t bk_ble_coc_disconnection_req(uint8_t conn_idx, uint16_t cid);
+
+/**
+ * @brief Accept or reject a BLE COC connection request from a peer device
+ *
+ * Responds to an incoming Connection Oriented Channel (COC) connection request
+ * from a remote device. This function is typically called by the server side
+ * after receiving a connection request event. It allows the application to
+ * accept or reject the connection and specify the channel parameters.
+ *
+ * @param
+ *    - conn_idx: the index of BLE connection to the remote device
+ *    - accept: Flag to accept or reject the connection request.
+ *              - 0: Reject the connection request
+ *              - 1 (non-zero): Accept the connection request
+ *    - peer_cid: Peer's Channel ID from the connection request event
+ *    - mtu: Maximum Transmission Unit size for the channel.
+ *           Use default value if 0. This value will be negotiated with the peer.
+ *    - mps: Maximum PDU Payload Size for the channel.
+ *           Use default value if 0. This value will be negotiated with the peer.
+ *    - credit: Initial credit value for the channel.
+ *              Use default value if 0. Credits are used for flow control.
+ *
+ * @return
+ * - BK_ERR_BLE_SUCCESS: succeed, connection request accepted or rejected
+ * - BK_ERR_BLE_FAIL: fail, invalid parameters or connection request not found
+ * - BK_ERR_BLE_UNKNOW_IDX: invalid connection index or peer channel ID
+ * - others: fail
+ *
+ * @note
+ * - This function should be called in response to a COC connection request event (BLE_5_COC_CONNECT_REQ_EVENT); the result is reported as BLE_5_COC_CONNECTION_COMPL_EVENT
+ * - If accept is 0, the connection will be rejected and mtu/mps/credit parameters are ignored
+ * - If accept is non-zero, the connection will be accepted with the specified parameters
+ * - The actual MTU and MPS used will be the minimum of local and peer values after negotiation
+ * - The function must be called before the connection request timeout expires
+ */
+ble_err_t bk_ble_coc_accept_connect_req(uint8_t conn_idx, uint8_t accept, uint16_t peer_cid, uint16_t mtu, uint16_t mps, uint16_t credit);
+
+/**
+ * @brief Send data over a BLE COC channel
+ *
+ * Transmits data through an established Connection Oriented Channel.
+ * The data will be sent to the remote device on the specified channel.
+ *
+ * @param
+ *    - conn_idx: the index of BLE connection
+ *    - cid: Channel ID of the COC connection
+ *    - data: Pointer to the data buffer to send
+ *    - len: Length of data to send in bytes
+ *
+ * @attention the transmission completion is reported in ble_notice_cb_t as BLE_5_COC_TX_DONE
+ *
+ * @return
+ * - BK_ERR_BLE_SUCCESS: succeed
+ * - others: fail
+ */
+ble_err_t bk_ble_coc_send_req(uint8_t conn_idx, uint16_t cid, uint8_t *data, uint32_t len);
 
 /**
  * @brief  register hci callback for host only

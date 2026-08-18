@@ -1314,6 +1314,39 @@ static void ble_at_notice_cb(ble_notice_t notice, void *param)
             break;
         }
 
+        case BLE_5_OOB_REQ_EVENT:
+        {
+            ble_smp_ind_t *s_ind = (typeof(s_ind))param;
+
+            LOGI("BLE_5_OOB_REQ_EVENT\r\n");
+
+            uint8_t tk[16] = {1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16};
+            bk_ble_oob_req_reply(s_ind->conn_idx, 1, tk, 16);
+        }
+        break;
+
+        case BLE_5_SC_OOB_REQ_EVENT:
+        {
+            ble_smp_ind_t *s_ind = (typeof(s_ind))param;
+
+            LOGI("BLE_5_SC_OOB_REQ_EVENT, please provide OOB data received from peer!\r\n");
+        }
+        break;
+
+        case BLE_5_SC_LOC_OOB_IND:
+        {
+            ble_loc_oob_data_t *s_ind = (typeof(s_ind))param;
+
+            LOGI("BLE_5_SC_LOC_OOB_IND, please send following OOB data to peer!\r\n");
+            uint8_t *data =s_ind->local_oob_c;
+            LOGI("conf:%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x\r\n",data[0],data[1],data[2],data[3],data[4],data[5],data[6],data[7],
+                data[8],data[9],data[10],data[11],data[12],data[13],data[14],data[15]);
+            data =s_ind->local_oob_r;
+            LOGI("rand:%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x\r\n",data[0],data[1],data[2],data[3],data[4],data[5],data[6],data[7],
+                data[8],data[9],data[10],data[11],data[12],data[13],data[14],data[15]);
+        }
+        break;
+
         default:
             break;
     }
@@ -2873,7 +2906,7 @@ static void ble_gap_create_connection_timerout_timer_hdl(void *param)
 int ble_create_connect_handle(int sync, int argc, char **argv)
 {
     uint8_t actv_idx = 0;
-    ble_conn_param_t conn_param;
+    ble_conn_param_t conn_param ={0};
     uint8_t peer_addr_type = 0;
     bd_addr_t bdaddr;
     int err = kNoErr;
@@ -4907,7 +4940,7 @@ int ble_set_max_mtu_handle(int sync, int argc, char **argv)
         }
     }
 
-    att_max_mtu = os_strtoul(argv[0], NULL, 10) & 0xFF;
+    att_max_mtu = os_strtoul(argv[0], NULL, 10) & 0xFFFF;
 
     if(bk_ble_get_host_stack_type() != BK_BLE_HOST_STACK_TYPE_ETHERMIND)
     {
@@ -5102,7 +5135,7 @@ error:
 int ble_connect_by_name_handle(int sync, int argc, char **argv)
 {
     uint8_t actv_idx = 0;
-    ble_conn_param_t conn_param;
+    ble_conn_param_t conn_param ={0};
     int err = kNoErr;
     uint8_t central_count = 0;
 
@@ -7229,7 +7262,7 @@ void ble_stability_test_master_reconnect_timer_hdl(void *param, unsigned int ulp
     {
 
         int err = kNoErr;
-        ble_conn_param_t conn_param = {23, 23, 0, 500, 1};
+        ble_conn_param_t conn_param = {23, 23, 0, 500, 1, 0, 0};
 
         err = rtos_init_semaphore(&ble_at_cmd_sema, 1);
         if (err != kNoErr)
@@ -8972,6 +9005,50 @@ error:
     return err;
 }
 
+static int ble_set_oob_data_handle(int sync, int argc, char **argv)
+{
+    int err = kNoErr;
+
+    if(argc < 3)
+    {
+        err = -1;
+
+        LOGE("%s param err\n", __func__);
+        goto error;
+    }
+
+    if (bk_ble_get_host_stack_type() != BK_BLE_HOST_STACK_TYPE_ETHERMIND)
+    {
+        uint8 con_idx = os_strtoul(argv[0], NULL, 10) & 0xFF;
+        uint8_t conf[16] = {0};
+        uint8_t rand[16] = {0};
+
+        at_set_data_handle(conf, argv[1],  os_strlen(argv[1]));
+        at_set_data_handle(rand, argv[2],  os_strlen(argv[2]));
+
+        LOGI("receive OOB data:\r\n");
+        LOGI("conf:%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x\r\n",conf[0],conf[1],conf[2],conf[3],conf[4],conf[5],conf[6],conf[7],
+            conf[8],conf[9],conf[10],conf[11],conf[12],conf[13],conf[14],conf[15]);
+        LOGI("rand:%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x\r\n",rand[0],rand[1],rand[2],rand[3],rand[4],rand[5],rand[6],rand[7],
+            rand[8],rand[9],rand[10],rand[11],rand[12],rand[13],rand[14],rand[15]);
+
+        bk_ble_sc_oob_req_reply(con_idx, 1, conf, rand);
+    }
+    else
+    {
+        LOGE("do not support!!\n");
+        err = -1;
+        goto error;
+    }
+
+    atsvr_cmd_rsp_ok();
+    return 0;
+
+error:
+    atsvr_cmd_rsp_error();
+    return err;
+}
+
 const struct _atsvr_command ble_cmds_table[] =
 {
     //ATSVR_CMD_HADLER("AT+BLE_GETBLENAME", 1, "AT+BLE_GETBLENAME = return ble name", NULL,get_ble_name_handle,true,AT_SYNC_CMD_TIMEOUT_MS,0,NULL,false),
@@ -9127,6 +9204,8 @@ const struct _atsvr_command ble_cmds_table[] =
                      NULL, ble_cle_white_list_handle, true, 5000, true, NULL, false),
     ATSVR_CMD_HADLER("AT+BLEENABLEFUZZFEAT", "enable fuzz feature",
                      NULL, ble_enable_fuzz_feature_handle, true, 5000, true, NULL, false),
+    ATSVR_CMD_HADLER("AT+BLEOOBDATA", "provide oob data received from peer:AT+BLEOOBDATA",
+                     NULL, ble_set_oob_data_handle, true, AT_SYNC_CMD_TIMEOUT_MS, true, NULL, false),
 
     //#endif
 #else
