@@ -1,5 +1,6 @@
 Field,Value
 secureboot_en,TRUE
+sig_verify_en,TRUE
 flash_aes_type,FIXED
 flash_aes_mode,128
 single_bin,FALSE
