@@ -133,8 +133,16 @@ typedef struct
     uint8_t val4;
 } sc3336_again_val_t;
 
+typedef struct
+{
+    ISP_SNS_OBJ_S sensor_object;
+    uint16_t base_win_x;
+    uint16_t base_win_y;
+    uint32_t init_exposure;
+    bool init_exposure_valid;
+} sc3336_private_data_t;
+
 static sc3336_DEVICE_S *sc3336Dev[ISP_DEV_CNT][ISP_PORT_CNT] = {0};
-static uint16_t s_sc3336_width,s_sc3336_height;
 
 static ISP_CALIB_DATA_S * SC3336_2304x1296_CalibParam_dynamic = NULL;
 
@@ -1129,6 +1137,33 @@ static int sc3336_InitAeDefault(ISP_PORT IspPort)
             return BK_FAIL;
     }
 
+    sc3336_private_data_t *private_data =
+        (sc3336_private_data_t *)VSI_ISP_SnsGetUserData(IspPort);
+    if (private_data && private_data->init_exposure_valid) {
+        uint64_t min_exposure =
+            (uint64_t)pAeSnsDft->minIntLine *
+            pAeSnsDft->minAgain *
+            pAeSnsDft->minDgain / ISP_SNS_GAIN_ACCU;
+        uint64_t max_exposure =
+            (uint64_t)pAeSnsDft->maxIntLine *
+            pAeSnsDft->maxAgain *
+            pAeSnsDft->maxDgain / ISP_SNS_GAIN_ACCU;
+        uint32_t init_exposure = private_data->init_exposure;
+
+        if (init_exposure < min_exposure) {
+            init_exposure = (uint32_t)min_exposure;
+        } else if (init_exposure > max_exposure) {
+            init_exposure = (uint32_t)max_exposure;
+        }
+
+        pAeSnsDft->initExposure = init_exposure;
+        private_data->init_exposure_valid = false;
+        LOGI("restore initExposure=%u range=[%u,%u]\n",
+             (unsigned)init_exposure,
+             (unsigned)min_exposure,
+             (unsigned)max_exposure);
+    }
+
     return BK_OK;
 }
 
@@ -1524,35 +1559,40 @@ static avdk_err_t sc3336_init(bk_camera_sensor_ctlr_t *controller)
     return 0;
 }
 
-static bool s_sc3336_hmirror;
-static bool s_sc3336_vflip;
-static uint16_t s_sc3336_base_win_x;
-static uint16_t s_sc3336_base_win_y;
+static sc3336_private_data_t *sc3336_get_private(
+    bk_camera_csi_sensor_t *sensor)
+{
+    return (sc3336_private_data_t *)sensor->data.private_data;
+}
 
-static void sc3336_capture_window_base(bk_camera_bus_t *bus)
+static void sc3336_capture_window_base(bk_camera_csi_sensor_t *sensor)
 {
     uint8_t hb = 0;
     uint8_t lb = 0;
+    bk_camera_bus_t *bus = sensor->config.bus;
+    sc3336_private_data_t *private_data = sc3336_get_private(sensor);
 
     bus->read16(bus, 0x3210, &hb);
     bus->read16(bus, 0x3211, &lb);
-    s_sc3336_base_win_x = (uint16_t)((hb << 8) | lb);
+    private_data->base_win_x = (uint16_t)((hb << 8) | lb);
     bus->read16(bus, 0x3212, &hb);
     bus->read16(bus, 0x3213, &lb);
-    s_sc3336_base_win_y = (uint16_t)((hb << 8) | lb);
+    private_data->base_win_y = (uint16_t)((hb << 8) | lb);
 }
 
-static void sc3336_write_window_regs(bk_camera_bus_t *bus)
+static void sc3336_write_window_regs(bk_camera_csi_sensor_t *sensor)
 {
-    uint16_t win_x = s_sc3336_base_win_x;
-    uint16_t win_y = s_sc3336_base_win_y;
+    bk_camera_bus_t *bus = sensor->config.bus;
+    sc3336_private_data_t *private_data = sc3336_get_private(sensor);
+    uint16_t win_x = private_data->base_win_x;
+    uint16_t win_y = private_data->base_win_y;
 
     /* Toggle window start by 1 pixel to preserve BGGR Bayer phase. */
-    if (s_sc3336_hmirror)
+    if (sensor->data.hmirror)
     {
         win_x ^= 1;
     }
-    if (s_sc3336_vflip)
+    if (sensor->data.vflip)
     {
         win_y ^= 1;
     }
@@ -1563,30 +1603,31 @@ static void sc3336_write_window_regs(bk_camera_bus_t *bus)
     bus->write16(bus, 0x3213, UINT16_LB(win_y));
 }
 
-static void sc3336_apply_mirror_reg(bk_camera_bus_t *bus)
+static void sc3336_apply_mirror_reg(bk_camera_csi_sensor_t *sensor)
 {
     uint8_t tmp;
+    bk_camera_bus_t *bus = sensor->config.bus;
 
-    if (bus == NULL)
+    if (bus == NULL || sensor->data.private_data == NULL)
     {
         return;
     }
 
     tmp = 0;
-    if (s_sc3336_hmirror)
+    if (sensor->data.hmirror)
     {
         tmp |= SC3336_MIRROR_BITS;
     }
-    if (s_sc3336_vflip)
+    if (sensor->data.vflip)
     {
         tmp |= SC3336_VFLIP_BITS;
     }
     bus->write16(bus, SC3336_REG_MIRROR_FLIP, tmp);
 
-    if (s_sc3336_width == 1920
-        && s_sc3336_height == 1080)
+    if (sensor->data.width == 1920
+        && sensor->data.height == 1080)
     {
-        sc3336_write_window_regs(bus);
+        sc3336_write_window_regs(sensor);
     }
 }
 
@@ -1619,12 +1660,12 @@ static avdk_err_t sc3336_set_ppi(bk_camera_sensor_ctlr_t *controller, uint16_t w
 
     bk_mipi_csi_controller_init(width, height, 0x2b);
 
-    s_sc3336_width = width;
-    s_sc3336_height = height;
+    csi_sensor->data.width = width;
+    csi_sensor->data.height = height;
 
     if (width == 1920 && height == 1080)
     {
-        sc3336_capture_window_base(bus);
+        sc3336_capture_window_base(csi_sensor);
     }
 
     return 0;
@@ -1636,18 +1677,19 @@ static avdk_err_t sc3336_set_fps(bk_camera_sensor_ctlr_t *controller, uint16_t f
     AVDK_RETURN_ON_FALSE(csi_sensor, AVDK_ERR_INVAL, TAG, "csi sensor is NULL");
     bk_camera_bus_t *bus = csi_sensor->config.bus;
 
-    if (s_sc3336_width == 2304 && s_sc3336_height == 1296) {
+    if (csi_sensor->data.width == 2304 && csi_sensor->data.height == 1296) {
         uint32_t pclk = SC3336_PCLK;
         uint16_t vts = pclk / SC3336_HTS / fps;
         bus->write16(bus, sc3336_REG_VTS_L, (vts & 0xff));
         bus->write16(bus, sc3336_REG_VTS_H, (vts >> 8));
-    } else if (s_sc3336_width == 1920 && s_sc3336_height == 1080) {
+    } else if (csi_sensor->data.width == 1920 && csi_sensor->data.height == 1080) {
         uint32_t pclk = 2500 * 1360 * 30;
         uint16_t vts = pclk / 2500 / fps;
         bus->write16(bus, sc3336_REG_VTS_L, (vts & 0xff));
         bus->write16(bus, sc3336_REG_VTS_H, (vts >> 8));
     }
 
+    csi_sensor->data.fps = fps;
     return BK_OK;
 }
 
@@ -1656,8 +1698,8 @@ static avdk_err_t sc3336_set_hmirror(bk_camera_sensor_ctlr_t *controller, bool e
     bk_camera_csi_sensor_t *csi_sensor = __containerof(controller, bk_camera_csi_sensor_t, ops);
     AVDK_RETURN_ON_FALSE(csi_sensor, AVDK_ERR_INVAL, TAG, "csi sensor is NULL");
 
-    s_sc3336_hmirror = enable;
-    sc3336_apply_mirror_reg(csi_sensor->config.bus);
+    csi_sensor->data.hmirror = enable;
+    sc3336_apply_mirror_reg(csi_sensor);
     return AVDK_ERR_OK;
 }
 
@@ -1666,8 +1708,8 @@ static avdk_err_t sc3336_set_vflip(bk_camera_sensor_ctlr_t *controller, bool ena
     bk_camera_csi_sensor_t *csi_sensor = __containerof(controller, bk_camera_csi_sensor_t, ops);
     AVDK_RETURN_ON_FALSE(csi_sensor, AVDK_ERR_INVAL, TAG, "csi sensor is NULL");
 
-    s_sc3336_vflip = enable;
-    sc3336_apply_mirror_reg(csi_sensor->config.bus);
+    csi_sensor->data.vflip = enable;
+    sc3336_apply_mirror_reg(csi_sensor);
     return AVDK_ERR_OK;
 }
 
@@ -1676,11 +1718,11 @@ static avdk_err_t sc3336_set_format(bk_camera_sensor_ctlr_t *controller, bk_came
     bk_camera_csi_sensor_t *csi_sensor = __containerof(controller, bk_camera_csi_sensor_t, ops);
     AVDK_RETURN_ON_FALSE(csi_sensor, AVDK_ERR_INVAL, TAG, "csi sensor is NULL");
     AVDK_RETURN_ON_FALSE(format, AVDK_ERR_INVAL, TAG, "format is NULL");
-    sc3336_apply_mirror_reg(csi_sensor->config.bus);
+    sc3336_apply_mirror_reg(csi_sensor);
     sc3336_set_ppi(controller, format->width, format->height);
     sc3336_set_fps(controller, format->fps);
     bk_mipi_csi_controller_reset();
-    sc3336_apply_mirror_reg(csi_sensor->config.bus);
+    sc3336_apply_mirror_reg(csi_sensor);
     return AVDK_ERR_OK;
 }
 
@@ -1720,11 +1762,65 @@ static avdk_err_t sc3336_ctrl(bk_camera_sensor_ctlr_t *controller, uint8_t cmd, 
     return 0;
 }
 
+static avdk_err_t sc3336_ioctl(bk_camera_sensor_ctlr_t *controller,
+                               uint32_t cmd,
+                               void *arg)
+{
+    bk_camera_csi_sensor_t *csi_sensor =
+        __containerof(controller, bk_camera_csi_sensor_t, ops);
+    AVDK_RETURN_ON_FALSE(csi_sensor, AVDK_ERR_INVAL, TAG, "csi sensor is NULL");
+
+    sc3336_private_data_t *private_data = sc3336_get_private(csi_sensor);
+    AVDK_RETURN_ON_FALSE(private_data, AVDK_ERR_INVAL, TAG, "private data is NULL");
+
+    switch (cmd) {
+        case BK_CAMERA_SENSOR_IOCTL_SET_INIT_EXPOSURE:
+        {
+            bk_camera_sensor_init_exposure_t *config =
+                (bk_camera_sensor_init_exposure_t *)arg;
+            AVDK_RETURN_ON_FALSE(config && config->exposure,
+                                 AVDK_ERR_INVAL, TAG,
+                                 "init exposure is invalid");
+            private_data->init_exposure = config->exposure;
+            private_data->init_exposure_valid = true;
+            return AVDK_ERR_OK;
+        }
+        case BK_CAMERA_SENSOR_IOCTL_GET_DEFAULT_CPROC:
+        {
+            bk_isp_cproc_attr_t *out = (bk_isp_cproc_attr_t *)arg;
+            const ISP_CPROC_ATTR_S *src;
+
+            AVDK_RETURN_ON_FALSE(out, AVDK_ERR_INVAL, TAG,
+                                 "default cproc arg is NULL");
+            src = &SC3336_2304x1296_CalibParam.modules.cproc;
+            out->enable = src->enable ? 1 : 0;
+            out->op_type = src->opType;
+            out->manual.brightness = src->manualAttr.brightness;
+            out->manual.contrast = src->manualAttr.contrast;
+            out->manual.saturation = src->manualAttr.saturation;
+            out->manual.hue = src->manualAttr.hue;
+            os_memcpy(out->auto_attr.brightness, src->autoAttr.brightness,
+                      sizeof(out->auto_attr.brightness));
+            os_memcpy(out->auto_attr.contrast, src->autoAttr.contrast,
+                      sizeof(out->auto_attr.contrast));
+            os_memcpy(out->auto_attr.saturation, src->autoAttr.saturation,
+                      sizeof(out->auto_attr.saturation));
+            os_memcpy(out->auto_attr.hue, src->autoAttr.hue,
+                      sizeof(out->auto_attr.hue));
+            return AVDK_ERR_OK;
+        }
+        default:
+            return AVDK_ERR_UNSUPPORTED;
+    }
+}
+
 static void *sc3336_get_sensor_object(bk_camera_sensor_ctlr_t *controller)
 {
     bk_camera_csi_sensor_t *csi_sensor = __containerof(controller, bk_camera_csi_sensor_t, ops);
     AVDK_RETURN_ON_FALSE(csi_sensor, NULL, TAG, "csi sensor is NULL");
-    return (void*)&snssc3336Obj;
+    sc3336_private_data_t *private_data = sc3336_get_private(csi_sensor);
+    AVDK_RETURN_ON_FALSE(private_data, NULL, TAG, "private data is NULL");
+    return (void *)&private_data->sensor_object;
 }
 
 static void *sc3336_get_sensor_cfg(bk_camera_sensor_ctlr_t *controller)
@@ -1741,38 +1837,6 @@ static avdk_err_t sc3336_query_support_formats(bk_camera_sensor_ctlr_t *controll
     format_array->size = ARRAY_SIZE(sc3336_format_array);
     return AVDK_ERR_OK;
 }
-
-static avdk_err_t sc3336_ioctl(bk_camera_sensor_ctlr_t *controller, uint32_t cmd, void *arg)
-{
-    (void)controller;
-
-    switch (cmd)
-    {
-        case BK_CAMERA_SENSOR_IOCTL_GET_DEFAULT_CPROC:
-        {
-            bk_isp_cproc_attr_t *out = (bk_isp_cproc_attr_t *)arg;
-            const ISP_CPROC_ATTR_S *src;
-
-            AVDK_RETURN_ON_FALSE(out, AVDK_ERR_INVAL, TAG, "default cproc arg is NULL");
-            src = &SC3336_2304x1296_CalibParam.modules.cproc;
-            out->enable = src->enable ? 1 : 0;
-            out->op_type = src->opType;
-            out->manual.brightness = src->manualAttr.brightness;
-            out->manual.contrast = src->manualAttr.contrast;
-            out->manual.saturation = src->manualAttr.saturation;
-            out->manual.hue = src->manualAttr.hue;
-            os_memcpy(out->auto_attr.brightness, src->autoAttr.brightness, sizeof(out->auto_attr.brightness));
-            os_memcpy(out->auto_attr.contrast, src->autoAttr.contrast, sizeof(out->auto_attr.contrast));
-            os_memcpy(out->auto_attr.saturation, src->autoAttr.saturation, sizeof(out->auto_attr.saturation));
-            os_memcpy(out->auto_attr.hue, src->autoAttr.hue, sizeof(out->auto_attr.hue));
-            return AVDK_ERR_OK;
-        }
-
-        default:
-            return AVDK_ERR_UNSUPPORTED;
-    }
-}
-
 
 avdk_err_t sc3336_detect(bk_camera_sensor_handle_t *handle, bk_camera_sensor_config_t *config)
 {
@@ -1819,21 +1883,27 @@ avdk_err_t sc3336_detect(bk_camera_sensor_handle_t *handle, bk_camera_sensor_con
 
     LOGI("%s success id: 0x%02X%02X\n", __func__, hb_id, lb_id);
 
-    bk_camera_csi_sensor_t *csi_sensor = os_malloc(sizeof(bk_camera_csi_sensor_t));
+    size_t alloc_size = sizeof(bk_camera_csi_sensor_t) +
+                        sizeof(sc3336_private_data_t);
+    bk_camera_csi_sensor_t *csi_sensor = os_malloc(alloc_size);
     AVDK_RETURN_ON_FALSE(csi_sensor, AVDK_ERR_NOMEM, TAG, AVDK_ERR_NOMEM_TEXT);
-    os_memset(csi_sensor, 0, sizeof(bk_camera_csi_sensor_t));
+    os_memset(csi_sensor, 0, alloc_size);
+    csi_sensor->data.private_data = (void *)(csi_sensor + 1);
+    sc3336_private_data_t *private_data = sc3336_get_private(csi_sensor);
+    private_data->sensor_object = snssc3336Obj;
+    private_data->sensor_object.userData = private_data;
     config->bus->write_address = sc3336_WRITE_ADDRESS;
     os_memcpy(&csi_sensor->config, config, sizeof(bk_camera_sensor_config_t));
 
     csi_sensor->ops.init = sc3336_init;
     csi_sensor->ops.set_format = sc3336_set_format;
     csi_sensor->ops.reg_ctrl = sc3336_ctrl;
+    csi_sensor->ops.ioctl = sc3336_ioctl;
     csi_sensor->ops.set_hmirror = sc3336_set_hmirror;
     csi_sensor->ops.set_vflip = sc3336_set_vflip;
     csi_sensor->ops.get_sensor_object = sc3336_get_sensor_object;
     csi_sensor->ops.get_sensor_cfg = sc3336_get_sensor_cfg;
     csi_sensor->ops.query_support_formats = sc3336_query_support_formats;
-    csi_sensor->ops.ioctl = sc3336_ioctl;
 
     csi_sensor->isp_pub_attr = &sc3336_mipi_linear_attr;
     csi_sensor->sensor_config = NULL;
