@@ -612,23 +612,14 @@ class Partition:
 
             partition_hdr_pad_size = self.partition_hdr_pad_size
 
-            if self.is_xip() and self.is_primary:
-                all_bin_pack = self.crc_bin_name
-                with open(all_bin_pack,'rb+') as f:
-                    xip_status_phy_offset = ceil_align((self.partition_offset + self.partition_size - 4096), CRC_UNIT_TOTAL_SZ)
-                    print(f'xip_status_phy_offset {xip_status_phy_offset}')
-                    phy_bin_offset = xip_status_phy_offset - self.phy_partition_offset
-                    print(f'phy_bin_offset {phy_bin_offset}')
-                    f.seek(0, os.SEEK_END)  # set file pointer to the end of file.
-                    end_pos = f.tell()      # get postion of end of file
-                    offset = phy_bin_offset - end_pos
-                    print(f'offset {offset}, end pos {end_pos}')
-                    if offset < 0:
-                        raise RuntimeError(f"file {self.file_name_prefix} don't have enough space.")
-                    f.write(bytes([0xff]) * offset) # padding 0xff
-                    f.write(b'\xEF\xBE\xAD\xDE')
-                    f.seek(phy_bin_offset + 32)
-                    f.write(b'\xEF\xBE\xAD\xDE')
+            # NOTE: the legacy XIP "status magic" (0xDEADBEEF, written twice at the
+            # last 4KB of the primary_all slot) has been removed. It is dead on
+            # BK7259: A/B slot selection uses the boot_param partition (ABF1 record,
+            # boot_get_active_slot_hook -> boot_param_preferred_slot), and the only
+            # consumer of that magic was DIRECT_XIP_REVERT's boot_select_or_erase(),
+            # which is compiled out (MCUBOOT_DIRECT_XIP_REVERT=OFF). No source reads
+            # the XIP_SET macro. Dropping it also stops padding primary_all to the
+            # full slot in all_app.bin, shrinking the factory image.
 
         self.bin_size = os.path.getsize(self.crc_bin_name) + partition_hdr_pad_size
         logging.debug(f'{self.bin_name}: bin_size={self.bin_size}, pad_hdr_size={partition_hdr_pad_size} {self.partition_hdr_pad_size}')

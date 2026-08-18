@@ -5,6 +5,10 @@ from .ota import *
 from .gen_license import get_license
 from .common import *
 
+# Magic written to the ota_control confirm slot by the device receiver and read
+# by BL2 (bk_boot_read_ota_confirm). MUST equal OVERWRITE_CONFIRM in BL2.
+OTA_CONFIRM = 0xA16D8FB0
+
 def gen_ota_config_file(ota_csv, outfile):
     ota = OTA(ota_csv)
     f = open(outfile, 'w+')
@@ -14,6 +18,17 @@ def gen_ota_config_file(ota_csv, outfile):
     macro_name = f'CONFIG_OTA_OVERWRITE'
     if (ota.get_strategy().upper() == 'OVERWRITE'):
         line = f'#define %-45s %d\n' %(macro_name, 1)
+        f.write(line)
+
+        # Enable the BL2 confirm/anti-brick trigger (loader.c, bootutil_public.c)
+        # and expose the confirm magic. Device receiver arms an update by writing
+        # OVERWRITE_CONFIRM into ota_control; BL2 decompresses ota -> primary_all.
+        macro_name = f'CONFIG_OTA_CONFIRM_UPDATE'
+        line = f'#define %-45s %d\n' %(macro_name, 1)
+        f.write(line)
+
+        macro_name = f'OVERWRITE_CONFIRM'
+        line = f'#define %-45s 0x%x\n' %(macro_name, OTA_CONFIRM)
         f.write(line)
     else:
         line = f'#define %-45s %d\n' %(macro_name, 0)

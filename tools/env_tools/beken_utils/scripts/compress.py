@@ -5,7 +5,8 @@ import struct
 
 from .common import *
 
-COMPRESS_BLOCK_SZ = 0x8000
+# MUST match device-side COMPRESS_BLOCK_SIZE in BL2 decompress_bl2.c (64*1024).
+COMPRESS_BLOCK_SZ = 0x10000
 
 def compress_bin(infile, outfile):
     compress_size_list = []
@@ -13,8 +14,14 @@ def compress_bin(infile, outfile):
     compress_temp_out = 'temp_after_compress'
     file_size = os.path.getsize(infile)
     with open(infile,'rb') as src,open(outfile,'w+b') as dst:
-        offset = 2 * math.floor(file_size/COMPRESS_BLOCK_SZ) + 4 # 2 uint16_t for after and before block size
-        logging.debug(f'block num = {offset //2 - 1}')
+        # Number of full 64KB blocks. BL2 reads this as a leading little-endian
+        # uint32 (see decompress_bl2.c) to size block_list, instead of
+        # re-deriving it from partition geometry.
+        block_num = math.floor(file_size/COMPRESS_BLOCK_SZ)
+        # Layout: [uint32 block_num][uint16 block_list[block_num+2]]. The last two
+        # uint16 entries hold the final partial block's after/before sizes.
+        offset = 4 + 2 * (block_num + 2)
+        logging.debug(f'block num = {block_num}')
         dst.seek(offset)
         sum = 0
         file_in = open(compress_temp_in,"wb+")
@@ -47,7 +54,7 @@ def compress_bin(infile, outfile):
             sum += len(chunk)
         file_in.close()
         file_out.close()
-        offset = 0
-        dst.seek(offset)
+        dst.seek(0)
+        dst.write(struct.pack("<I", block_num))  # leading block count read by BL2
         for num in compress_size_list:
             dst.write(num)
