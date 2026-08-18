@@ -373,9 +373,6 @@ create_exit:
 static void adc_check(int argc, char **argv)
 {
 	UINT32 status, ret;
-#if CONFIG_FLASH_ORIGIN_API
-	DD_HANDLE flash_handle;
-#endif
 	DD_HANDLE saradc_handle;
 	saradc_cal_val_t p_ADC_cal;
 	float voltage = 0.0;
