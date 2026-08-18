@@ -85,7 +85,6 @@ typedef struct
     void *update_blit_buffer[BK_GPU_BLIT_SLOT_MAX];
     bk_gpu_blit_config_t update_blit_config[BK_GPU_BLIT_SLOT_MAX];
     beken_mutex_t blit_mutex;
-    beken_mutex_t gpu_mutex;
 
     bk_gpu_ctlr_config_t config;
     gpu_flex_data_t flex;

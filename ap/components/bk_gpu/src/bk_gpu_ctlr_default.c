@@ -1,5 +1,6 @@
 #include <os/os.h>
 #include <os/mem.h>
+#include <components/bk_gpu_types.h>
 #include <components/bk_gpu_ctlr.h>
 #include <components/bk_hardware_ram.h>
 #include "avdk_monitor.h"
@@ -273,7 +274,7 @@ static bool gpu_blit_rotate_degree_is_valid(uint16_t rotate_degree)
            rotate_degree == 180 || rotate_degree == 270;
 }
 
-static void gpu_flexa_event_ready_handle(uint32_t frame_seq, uint32_t line, gpu_vn_ctlr_t *gpu_vn_ctlr)
+static void gpu_flexa_lines_ready_update(uint32_t frame_seq, uint32_t line, gpu_vn_ctlr_t *gpu_vn_ctlr)
 {
     if (gpu_vn_ctlr == NULL) {
         return;
@@ -300,7 +301,7 @@ static void gpu_flexa_event_ready_handle(uint32_t frame_seq, uint32_t line, gpu_
     }
 }
 
-static void gpu_isp_line_done_handle(uint32_t line, void *arg)
+static void gpu_decoder_flexa_lines_ready_handle(uint32_t line, void *arg)
 {
     gpu_vn_ctlr_t *gpu_vn_ctlr = (gpu_vn_ctlr_t *)arg;
     uint32_t frame_seq;
@@ -313,7 +314,7 @@ static void gpu_isp_line_done_handle(uint32_t line, void *arg)
      * delivered synchronously in the decoder's flexa_done context, so in_stream->last_seq
      * identifies the exact decode frame these lines belong to. Aligning the GPU's per-frame
      * seq to the decoder lets the decoder later drop cross-frame reports. Fall back to the
-     * locally derived counter for sources that do not stamp last_seq (e.g. ISP). */
+     * locally derived counter for legacy sources that do not stamp last_seq. */
     uint32_t dec_seq = 0U;
     if (gpu_vn_ctlr->bond != NULL && gpu_vn_ctlr->bond->bond_config != NULL) {
         bk_flexa_bond_t *in_s = (bk_flexa_bond_t *)gpu_vn_ctlr->bond->bond_config->in_stream;
@@ -333,7 +334,7 @@ static void gpu_isp_line_done_handle(uint32_t line, void *arg)
         }
     }
 
-    gpu_flexa_event_ready_handle(frame_seq, line, gpu_vn_ctlr);
+    gpu_flexa_lines_ready_update(frame_seq, line, gpu_vn_ctlr);
 }
 
 /**
@@ -1065,7 +1066,7 @@ static inline bool gpu_flex_data_frame_done(gpu_flex_data_t *data, gpu_vn_ctlr_t
             /* osd_by_flexa composites in gpu_flex_process_line_block(); skip frame-end blit. */
             if (gpu_vn_ctlr->display_blit_buffer[slot] && !gpu_vn_ctlr->osd_by_flexa)
             {
-                rtos_lock_mutex(&gpu_vn_ctlr->gpu_mutex);
+                bk_gpu_global_lock();
                 OSD_SLOT_START();
                 gpu_flex_data_frame_done_blit(data,
                                               config,
@@ -1073,7 +1074,7 @@ static inline bool gpu_flex_data_frame_done(gpu_flex_data_t *data, gpu_vn_ctlr_t
                                               gpu_vn_ctlr->display_blit_buffer[slot],
                                               data->dpu_frame_buffers);
                 OSD_SLOT_END();
-                rtos_unlock_mutex(&gpu_vn_ctlr->gpu_mutex);
+                bk_gpu_global_unlock();
             }
         }
 
@@ -1347,13 +1348,13 @@ static bool gpu_flex_process_line_block(gpu_flex_data_t *data,
     /* Update transformation matrix for current line */
     gpu_flex_update_matrix(data, config);
 
-    rtos_lock_mutex(&gpu_vn_ctlr->gpu_mutex);
+    bk_gpu_global_lock();
 
     if (gpu_flex_frame_abort_needed(data, gpu_vn_ctlr, frame_seq))
     {
         gpu_flex_abort_current_frame(gpu_vn_ctlr);
         GPU_LINE_END();
-        rtos_unlock_mutex(&gpu_vn_ctlr->gpu_mutex);
+        bk_gpu_global_unlock();
         return false;
     }
 
@@ -1382,7 +1383,7 @@ static bool gpu_flex_process_line_block(gpu_flex_data_t *data,
     {
         gpu_flex_abort_current_frame(gpu_vn_ctlr);
         GPU_LINE_END();
-        rtos_unlock_mutex(&gpu_vn_ctlr->gpu_mutex);
+        bk_gpu_global_unlock();
         return false;
     }
 
@@ -1392,7 +1393,7 @@ static bool gpu_flex_process_line_block(gpu_flex_data_t *data,
     }
 
     GPU_LINE_END();
-    rtos_unlock_mutex(&gpu_vn_ctlr->gpu_mutex);
+    bk_gpu_global_unlock();
     HPDMA_LINE_START();
     /* Pull out processed line data */
     return gpu_flex_data_line_pull_out(data, gpu_vn_ctlr);
@@ -1564,31 +1565,26 @@ static avdk_err_t gpu_ctlr_init(bk_gpu_ctlr_handle_t handle)
     AVDK_RETURN_ON_FALSE(control, AVDK_ERR_INVAL, TAG, "control is NULL");
     avdk_err_t ret = AVDK_ERR_OK;
     vg_lite_error_t vg_ret = VG_LITE_SUCCESS;
+    bool driver_inited = false;
 
-    if (control->config.flexa) {
-        control->blit_enable = false;
-        os_memset(control->display_blit_buffer, 0, sizeof(control->display_blit_buffer));
-        os_memset(control->display_blit_config, 0, sizeof(control->display_blit_config));
-        os_memset(control->update_blit_buffer, 0, sizeof(control->update_blit_buffer));
-        os_memset(control->update_blit_config, 0, sizeof(control->update_blit_config));
-        ret = rtos_init_mutex(&control->blit_mutex);
-        if (ret != AVDK_ERR_OK) {
-            LOGE("%s, %d rtos_init_mutex failed\n", __func__, __LINE__);
-            return ret;
-        }
-        ret = rtos_init_mutex(&control->gpu_mutex);
-        if (ret != AVDK_ERR_OK) {
-            LOGE("%s, %d rtos_init_mutex gpu_mutex failed\n", __func__, __LINE__);
-            rtos_deinit_mutex(&control->blit_mutex);
-            control->blit_mutex = NULL;
-            return ret;
-        }
-    } else {
+    if (!control->config.flexa) {
         LOGE("%s %d flexa is not enabled\r\n", __func__, __LINE__);
         return AVDK_ERR_INVAL;
     }
 
+    control->blit_enable = false;
+    os_memset(control->display_blit_buffer, 0, sizeof(control->display_blit_buffer));
+    os_memset(control->display_blit_config, 0, sizeof(control->display_blit_config));
+    os_memset(control->update_blit_buffer, 0, sizeof(control->update_blit_buffer));
+    os_memset(control->update_blit_config, 0, sizeof(control->update_blit_config));
+    ret = rtos_init_mutex(&control->blit_mutex);
+    if (ret != AVDK_ERR_OK) {
+        LOGE("%s, %d rtos_init_mutex failed\n", __func__, __LINE__);
+        return ret;
+    }
+
     bk_gpu_driver_init();
+    driver_inited = true;
 
     control->gpu_contiguous_buffer = bk_get_gpu_flexa_buffer(CONFIG_VG_LITE_GPU_CONTIGUOUS_MEM_SZ);
     if (control->gpu_contiguous_buffer == NULL)
@@ -1613,13 +1609,12 @@ error:
         os_free(control->gpu_contiguous_buffer);
         control->gpu_contiguous_buffer = NULL;
     }
-    if (control->gpu_mutex) {
-        rtos_deinit_mutex(&control->gpu_mutex);
-        control->gpu_mutex = NULL;
-    }
     if (control->blit_mutex) {
         rtos_deinit_mutex(&control->blit_mutex);
         control->blit_mutex = NULL;
+    }
+    if (driver_inited) {
+        bk_gpu_driver_deinit();
     }
     return ret;
 }
@@ -1630,28 +1625,19 @@ static avdk_err_t gpu_ctlr_deinit(bk_gpu_ctlr_handle_t handle)
     AVDK_RETURN_ON_FALSE(control, AVDK_ERR_INVAL, TAG, "control is NULL");
     vg_lite_error_t vg_ret = VG_LITE_SUCCESS;
 
-    if (control->config.flexa) {
-        if (control->blit_mutex) {
-            avdk_err_t ret = rtos_deinit_mutex(&control->blit_mutex);
-            if (ret != AVDK_ERR_OK) {
-                LOGE("%s, %d rtos_deinit_mutex failed\n", __func__, __LINE__);
-                return ret;
-            }
-            control->blit_mutex = NULL;
-        }
-        if (control->gpu_mutex) {
-            avdk_err_t ret = rtos_deinit_mutex(&control->gpu_mutex);
-            if (ret != AVDK_ERR_OK) {
-                LOGE("%s, %d rtos_deinit_mutex gpu_mutex failed\n", __func__, __LINE__);
-                return ret;
-            }
-            control->gpu_mutex = NULL;
-        }
-    } else {
+    if (!control->config.flexa) {
         LOGE("%s %d flexa is not enabled\r\n", __func__, __LINE__);
         return AVDK_ERR_INVAL;
     }
 
+    if (control->blit_mutex) {
+        avdk_err_t ret = rtos_deinit_mutex(&control->blit_mutex);
+        if (ret != AVDK_ERR_OK) {
+            LOGE("%s, %d rtos_deinit_mutex failed\n", __func__, __LINE__);
+            return ret;
+        }
+        control->blit_mutex = NULL;
+    }
     vg_ret = vg_lite_close();
     if (vg_ret != VG_LITE_SUCCESS) {
         LOGE("%s, %d vg_lite_close failed %d\n", __func__, __LINE__, vg_ret);
@@ -1795,12 +1781,10 @@ static avdk_err_t gpu_ctlr_open(bk_gpu_ctlr_handle_t handle)
 open_fail:
         gpu_flex_resource_teardown(control);
         return ret;
-    } else {
-        LOGE("%s %d flexa is not enabled\r\n", __func__, __LINE__);
-        return AVDK_ERR_INVAL;
     }
 
-    return AVDK_ERR_OK;
+    LOGE("%s %d flexa is not enabled\r\n", __func__, __LINE__);
+    return AVDK_ERR_INVAL;
 }
 
 
@@ -1856,18 +1840,18 @@ static avdk_err_t gpu_ctlr_ioctl(bk_gpu_ctlr_handle_t handle, uint32_t cmd, void
 
     switch (cmd)
     {
-        case BK_GPU_IOCTL_SET_FLEXA_LINES_READY:
-            gpu_isp_line_done_handle((uint32_t)args, control);
+        case BK_GPU_IOCTL_DEC_FLEXA_READY:
+            gpu_decoder_flexa_lines_ready_handle((uint32_t)args, control);
             break;
 
-        case BK_GPU_IOCTL_SET_FLEXA_EVENT_READY:
+        case BK_GPU_IOCTL_ISP_FLEXA_READY:
         {
-            bk_gpu_flexa_event_t *event = (bk_gpu_flexa_event_t *)args;
+            bk_gpu_isp_flexa_event_t *event = (bk_gpu_isp_flexa_event_t *)args;
             if (event == NULL) {
                 LOGW("%s %d flexa event is NULL\r\n", __func__, __LINE__);
                 return AVDK_ERR_INVAL;
             }
-            gpu_flexa_event_ready_handle(event->frame_seq, event->line_cnt, control);
+            gpu_flexa_lines_ready_update(event->frame_seq, event->line_cnt, control);
         }
         break;
 
@@ -1923,19 +1907,17 @@ static avdk_err_t gpu_ctlr_ioctl(bk_gpu_ctlr_handle_t handle, uint32_t cmd, void
             break;
 
         case BK_GPU_IOCTL_LOCK:
-            if (control->gpu_mutex == NULL) {
-                LOGW("%s %d gpu_mutex is NULL\r\n", __func__, __LINE__);
-                return AVDK_ERR_INVAL;
+            if (bk_gpu_global_lock() != BK_OK) {
+                LOGW("%s %d gpu global lock failed\r\n", __func__, __LINE__);
+                return AVDK_ERR_GENERIC;
             }
-            rtos_lock_mutex(&control->gpu_mutex);
             break;
 
         case BK_GPU_IOCTL_UNLOCK:
-            if (control->gpu_mutex == NULL) {
-                LOGW("%s %d gpu_mutex is NULL\r\n", __func__, __LINE__);
-                return AVDK_ERR_INVAL;
+            if (bk_gpu_global_unlock() != BK_OK) {
+                LOGW("%s %d gpu global unlock failed\r\n", __func__, __LINE__);
+                return AVDK_ERR_GENERIC;
             }
-            rtos_unlock_mutex(&control->gpu_mutex);
             break;
 
         case BK_GPU_IOCTL_SET_OSD_BY_FLEXA:
