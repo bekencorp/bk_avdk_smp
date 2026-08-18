@@ -1,6 +1,6 @@
 #include "Driver_Flash.h"
 #include "tfm_flash_partition.h"
-#include <components/log.h>
+#include "bk_tfm_log.h"
 #include <stdlib.h>
 #include <string.h>
 

@@ -292,13 +292,24 @@ static void bk_printf_ext_internel(int block_mode, int level, char *tag, const c
 	return;
 }
 
+/* Route the SDK tagged-log backend into the unified TFM SPM-log sink instead of
+ * the C-library printf. In the secure runtime that printf is retargeted to the
+ * unprivileged-string SVC, which is not served here; funnelling through the SPM
+ * sink keeps SDK driver logs (MPC/timer/...) on the same UART path and under the
+ * same log-level control as the native BK_LOG* macros. */
+extern int bk_tfm_sdk_log_enabled(int sdk_level);
+extern void bk_tfm_log_vtag(const char *tag, const char *fmt, va_list ap);
+
 void bk_printf_ext(int level, char *tag, const char *fmt, ...)
 {
 	va_list args;
+
+	if (!bk_tfm_sdk_log_enabled(level)) {
+		return;
+	}
+
 	va_start(args, fmt);
-	printf("%s ", tag);
-	vprintf(fmt, args);
-	// bk_printf_ext_internel(LOG_COMMON_MODE, level, tag, fmt, args);
+	bk_tfm_log_vtag(tag, fmt, args);
 	va_end(args);
 }
 

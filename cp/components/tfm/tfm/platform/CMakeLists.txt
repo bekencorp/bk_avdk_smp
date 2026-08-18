@@ -202,6 +202,8 @@ if(BL2)
         PRIVATE
             # ext/common/boot_hal_bl2.c
             $<$<BOOL:${PLATFORM_DEFAULT_UART_STDOUT}>:${CMAKE_CURRENT_SOURCE_DIR}/ext/common/uart_stdout.c>
+            # Unified log sink for the bootloader (tfm_hal_output_spm_log -> UART).
+            ext/common/tfm_hal_spm_logdev_peripheral.c
             $<$<BOOL:${PLATFORM_DEFAULT_NV_COUNTERS}>:ext/common/template/nv_counters.c>
             $<$<BOOL:${PLATFORM_DEFAULT_ROTPK}>:ext/common/template/tfm_rotpk.c>
             $<$<OR:$<BOOL:${PLATFORM_DEFAULT_NV_COUNTERS}>,$<BOOL:${PLATFORM_DEFAULT_OTP}>>:ext/common/template/flash_otp_nv_counters_backend.c>
@@ -225,6 +227,7 @@ if(BL2)
     target_compile_definitions(platform_bl2
         PUBLIC
             BL2
+            BK_TFM_BL2_LOG=1
             MCUBOOT_${MCUBOOT_UPGRADE_STRATEGY}
             $<$<BOOL:${CONFIG_XIP_FORCE_SLOT_A}>:CONFIG_XIP_FORCE_SLOT_A=1>
             $<$<BOOL:${MCUBOOT_DIRECT_XIP_REVERT}>:MCUBOOT_DIRECT_XIP_REVERT>

@@ -26,34 +26,14 @@
  * boot_param_partition_base). This unit only holds the SPE confirm transition. */
 
 #include <string.h>
-#include <stdio.h>
-#include <stdarg.h>
 #include "boot_param.h"
-#include "uart_stdout.h"
+#include "bk_tfm_log.h"
 
-/* SPE debug print: BK_LOG (SDK log path) is unsafe here, and the plain printf
- * symbol may resolve to a semihosting stub (SVC -> "Unknown SPM SVC"). Format
- * locally and push straight to the secure UART via stdio_output_string() - the
- * same SVC-free path TF-M's own SPM log uses, and it is up by the time this
- * runs (stdio_init() in tfm_hal_platform_init). */
-static void bp_log(const char *fmt, ...)
-{
-	char buf[96];
-	va_list ap;
-	int len;
+#define TAG "bp_confirm"
 
-	va_start(ap, fmt);
-	len = vsnprintf(buf, sizeof(buf), fmt, ap);
-	va_end(ap);
-	if (len <= 0) {
-		return;
-	}
-	if (len > (int)sizeof(buf)) {
-		len = (int)sizeof(buf);
-	}
-	stdio_output_string((const unsigned char *)buf, (uint32_t)len);
-}
-#define BP_LOG(fmt, ...) bp_log("[bp_confirm] " fmt, ##__VA_ARGS__)
+/* Route to the unified SPM-sink log so this shares the secure UART path with the
+ * rest of the secure runtime and honours the CONFIG_TFM_LOG_LEVEL gate. */
+#define BP_LOG(fmt, ...) BK_LOGI(TAG, fmt, ##__VA_ARGS__)
 
 /* op_sw erase/PP are ignored while the flash is in QUAD continuous-read (the XIP
  * path leaves it there), so a commit must drop to TWO first and restore after.

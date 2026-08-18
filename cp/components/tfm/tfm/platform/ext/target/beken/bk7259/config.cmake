@@ -69,8 +69,27 @@ set(CONFIG_TFM_MPU                      OFF          CACHE BOOL       "BK7259 br
 # disabling ITS breaks the build. FORCE overrides the profile_medium cache value.
 set(TFM_PARTITION_PROTECTED_STORAGE        OFF   CACHE BOOL "BK7259 bring-up: disable PS partition" FORCE)
 
-# BK7259 bring-up: the build type is minsizerel, which forces
-# TFM_SPM_LOG_LEVEL=SILENCE (see config/build_type/minsizerel.cmake), so no TF-M
-# SPM log is emitted on UART1. Force DEBUG level so the TFM_EXCEPTION_INFO_DUMP
-# fault context (printed via SPMLOG_DBGMSG in exception_info.c) is visible.
-set(TFM_SPM_LOG_LEVEL    TFM_SPM_LOG_LEVEL_DEBUG    CACHE STRING "BK7259 bring-up: force TF-M SPM log to DEBUG" FORCE)
+# Secure runtime (SPE) log level is driven by CONFIG_TFM_LOG_LEVEL from the
+# project defconfig, independent from the bootloader level (CONFIG_TFM_BL2_LOG_LEVEL
+# -> MCUBOOT_LOG_LEVEL). The build type is minsizerel, which pre-sets
+# TFM_SPM_LOG_LEVEL=SILENCE (config/build_type/minsizerel.cmake), so FORCE the
+# mapped value here. The SPM level set has no WARNING tier: map it onto INFO.
+if(NOT DEFINED CONFIG_TFM_LOG_LEVEL OR CONFIG_TFM_LOG_LEVEL STREQUAL "")
+	set(CONFIG_TFM_LOG_LEVEL "INFO")
+endif()
+if(CONFIG_TFM_LOG_LEVEL STREQUAL "OFF")
+	set(_bk_spm_log_level TFM_SPM_LOG_LEVEL_SILENCE)
+elseif(CONFIG_TFM_LOG_LEVEL STREQUAL "ERROR")
+	set(_bk_spm_log_level TFM_SPM_LOG_LEVEL_ERROR)
+elseif(CONFIG_TFM_LOG_LEVEL STREQUAL "DEBUG")
+	set(_bk_spm_log_level TFM_SPM_LOG_LEVEL_DEBUG)
+else() # WARNING / INFO
+	set(_bk_spm_log_level TFM_SPM_LOG_LEVEL_INFO)
+endif()
+set(TFM_SPM_LOG_LEVEL    ${_bk_spm_log_level}    CACHE STRING "SPE SPM log level from CONFIG_TFM_LOG_LEVEL" FORCE)
+
+# Secure Partition (unprivileged) logging is kept SILENCE: the beken secure world
+# logs from privileged code through the SPM sink, so the partition raw-log path
+# (printf -> SVC OUTPUT_UNPRIV_STRING) is not needed. Forcing SILENCE keeps the
+# emitter and its SPM handler both out, so no partition SVC log traffic is issued.
+set(TFM_PARTITION_LOG_LEVEL    TFM_PARTITION_LOG_LEVEL_SILENCE    CACHE STRING "Secure Partition log level" FORCE)

@@ -20,6 +20,7 @@
 #include "driver/efuse.h"
 #include "driver/wdt.h"
 #include "hal_hw_fih.h"
+#include "bk_tfm_log.h"
 
 #define EFUSE_SECURBOOT_ADDR     0
 #define TAG "bl2_boot"
@@ -250,7 +251,7 @@ void boot_platform_quit(struct boot_arm_vector_table *vt)
 #endif /* FLASH_DEV_NAME_SCRATCH */
 
     vt_cpy = vt;
-    BK_LOGI(TAG, "Jump to tfm, msp=0x%x pc=0x%x\r\n", vt_cpy->msp, vt_cpy->reset);
+    BK_LOG_FORCE("[%s] Jump to tfm, msp=0x%x pc=0x%x\r\n", TAG, vt_cpy->msp, vt_cpy->reset);
 #if defined(__ARM_ARCH_8M_MAIN__) || defined(__ARM_ARCH_8M_BASE__) \
  || defined(__ARM_ARCH_8_1M_MAIN__)
     /* Restore the Main Stack Pointer Limit register's reset value

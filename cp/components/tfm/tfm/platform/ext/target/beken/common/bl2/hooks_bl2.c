@@ -12,19 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/* MODULE_DEBUG_LOG_ENABLE (before components/log.h) raises BK_LOG_LEVEL to DEBUG
- * and turns the dump_image_header() / offset diagnostics (BK_LOGD "hook ...")
- * back on. Gated behind CONFIG_BL2_TRACE so it is OFF by default (BL2 only prints
- * genuine errors, e.g. BL2_HOOK_LOGE "invalid img magic"). To re-enable the
- * bring-up dumps, build BL2 with -DCONFIG_BL2_TRACE (same switch as loader.c). */
-#define MODULE_DEBUG_LOG_ENABLE
+/* BL2 log verbosity (BL2_HOOK_LOGD dumps included) follows MCUBOOT_LOG_LEVEL,
+ * driven by CONFIG_TFM_BL2_LOG_LEVEL: the DEBUG diagnostics compile in only when
+ * the bootloader level is DEBUG, otherwise BL2 prints genuine errors only. */
 
 #include <assert.h>
 #include "bootutil/image.h"
 #include "bootutil/bootutil.h"
 #include "bootutil/fault_injection_hardening.h"
 #include "flash_map_backend/flash_map_backend.h"
-#include "components/log.h"
+#include "reg_base.h"
 #include "bk_tfm_log.h"
 
 #define TAG "hook"

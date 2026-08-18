@@ -12,17 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+/* BL2-only printf retarget. MCUboot core logs (MCUBOOT_LOG_*) call printf; route
+ * it to the secure UART sink so the bootloader output shares the same path as
+ * the rest of the unified log. In the secure runtime the beken code uses the
+ * SPM log helpers directly, so no printf override is compiled there. */
+
+#ifdef BK_TFM_BL2_LOG
+
 #include <stdio.h>
 #include <stdarg.h>
 #include "uart_stdout.h"
-#include "components/log.h"
-#include "driver/efuse.h"
-#include "bk_tfm_log.h"
-#include "sdkconfig.h"
+
+#define BK_BL2_PRINTF_BUF_SIZE 128
 
 int printf(const char *fmt, ...)
 {
-	char string[CONFIG_STDIO_PRINTF_BUF_SIZE] = {0};
+	char string[BK_BL2_PRINTF_BUF_SIZE] = {0};
 	va_list ap;
 	int len;
 
@@ -30,7 +35,10 @@ int printf(const char *fmt, ...)
 	len = vsnprintf(string, sizeof(string) - 1, fmt, ap);
 	va_end(ap);
 
-	string[CONFIG_STDIO_PRINTF_BUF_SIZE - 1] = 0;
+	string[BK_BL2_PRINTF_BUF_SIZE - 1] = 0;
+	if (len > BK_BL2_PRINTF_BUF_SIZE - 1) {
+		len = BK_BL2_PRINTF_BUF_SIZE - 1;
+	}
 
 	stdio_output_string((const unsigned char *)string, len);
 	return len;
@@ -38,78 +46,8 @@ int printf(const char *fmt, ...)
 
 int printf_dummy(const char *fmt, ...)
 {
+	(void)fmt;
 	return 0;
 }
 
-#define __is_print(ch) ((unsigned int)((ch) - ' ') < 127u - ' ')
-
-void printf_word_buf_hex(const uint8_t *ptr, size_t buflen)
-{
-	unsigned char *buf = (unsigned char*)ptr;
-	uint32_t *word_buf;
-	int i, j, unalign_cnt = ((uint32_t)buf & 0x3);
-
-	if (!efuse_is_info_log_enabled()) {
-		return;
-	}
-
-	for(i = 0; i < unalign_cnt; i ++)
-	{
-		printf("%08X: %02X", i, buf[i]);
-	}
-
-	word_buf = (uint32_t *)&buf[unalign_cnt];
-	buflen = (buflen - unalign_cnt) >> 2;
-
-	for (i = 0; i < buflen; i += 8)
-	{
-		printf("%08X: ", i);
-
-		for (j=0; j<8; j++)
-			if (i+j < buflen)
-				printf("%08X ", word_buf[i+j]);
-			else
-				printf("   ");
-		printf(" ");
-		printf("\n");
-	}
-}
-
-void printf_buf_hex(const uint8_t *ptr, size_t buflen)
-{
-	unsigned char *buf = (unsigned char*)ptr;
-	int i, j;
-
-	for (i=0; i<buflen; i+=16)
-	{
-		printf("%08X: ", i);
-
-		for (j=0; j<16; j++)
-			if (i+j < buflen)
-				printf("%02X ", buf[i+j]);
-			else
-				printf("   ");
-		printf(" ");
-
-		for (j=0; j<16; j++)
-			if (i+j < buflen)
-				printf("%c", __is_print(buf[i+j]) ? buf[i+j] : '.');
-		printf("\n");
-	}
-}
-
-void bk_tfm_dump_buf(const char *str, const uint8_t *buf, uint32_t len)
-{
-	if (!efuse_is_info_log_enabled()) {
-		return;
-	}
-
-	printf("%s\r\n", str);
-	for (int i = 0; i < len; i++) {
-		if (i && (i % 32) == 0) {
-			printf("\r\n");
-		}
-		printf("%02x ", buf[i]);
-	}
-	printf("\r\n");
-}
+#endif /* BK_TFM_BL2_LOG */

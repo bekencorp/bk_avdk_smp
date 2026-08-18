@@ -12,7 +12,7 @@
 #include "tfm_peripherals_def.h"
 //#include "ffm/interrupt.h"
 #include "load/interrupt_defs.h"
-#include <components/log.h>
+#include "bk_tfm_log.h"
 
 #define TAG "int"
 

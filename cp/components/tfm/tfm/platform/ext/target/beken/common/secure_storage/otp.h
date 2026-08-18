@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <components/log.h>
+#include "bk_tfm_log.h"
 #include "cmsis_compiler.h"
 #include <stddef.h>
 

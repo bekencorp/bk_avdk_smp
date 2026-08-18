@@ -25,7 +25,7 @@
 #include "boot_param.h"
 #include "tfm_flash_partition.h"
 #include "partitions.h"
-#include "components/log.h"	/* bk_err_t only */
+#include <common/bk_err.h>	/* bk_err_t only */
 
 extern bk_err_t bk_flash_read_bytes(uint32_t address, uint8_t *user_buf, uint32_t size);
 extern bk_err_t bk_flash_write_bytes(uint32_t address, const uint8_t *user_buf, uint32_t size);

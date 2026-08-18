@@ -36,7 +36,7 @@
 #include "boot_param.h"
 #include "tfm_flash_partition.h"
 #include "partitions.h"
-#include "components/log.h"
+#include "bk_tfm_log.h"
 
 #define TAG "boot_param"
 

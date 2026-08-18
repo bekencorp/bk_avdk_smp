@@ -18,7 +18,7 @@
 #include <string.h>
 #include "hal_sw_fih.h"
 #include "fih.h"
-#include "components/log.h"
+#include "bk_tfm_log.h"
 #include "partitions_gen.h"
 
 extern void tfm_core_panic(void);

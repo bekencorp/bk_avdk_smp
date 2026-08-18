@@ -14,11 +14,12 @@
 #include "tfm_arch.h"
 #include "tfm_hal_platform.h"
 #include "bk_tfm_ppc.h"
+#include "bk_tfm_log.h"
 #if CONFIG_SLEEP_RETENTION_NSC
 #include "tfm_sleep_context.h"
 #endif
 
-#define TAG "ns_agent_tz"
+#define TAG "TFM"
 
 /* Apply the plaintext CP PPRO config before BXNS. The AP-side PPHS is deferred to
  * psa_ap_secure_prepare(): the AP power domain is off here (CP NS powers it on the
@@ -26,7 +27,7 @@
  * must not probe that region through the secure alias. */
 __used static void ns_init_hook(void)
 {
-    BK_LOGI(TAG, "config ppc and NSPE is coming\r\n");
+    BK_LOG_FORCE("[%s] config ppc and NSPE is coming\r\n", TAG);
     /* Cold boot: cache both CP/AP configs while flash is still Secure, so the
      * later AP-side PPHS apply (from the secure-prepare NSC) reads from RAM and
      * never touches the flash controller after CP marks flash Non-secure. */

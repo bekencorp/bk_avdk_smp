@@ -15,6 +15,7 @@ set(src
 	bk_tfm_mpc.c
 	bk_tfm_ppc.c
 	bk_efuse.c
+	bk_tfm_spm_log.c
 	hal_hw_fih.c
 	bk_systick_monitor.c
 	hal_sw_fih.c
@@ -63,6 +64,8 @@ if (BL2)
 		PUBLIC
 			bk_tfm_ppc.c
 			bk_efuse.c
+			bk_tfm_spm_log.c
+			bk_tfm_log.c
 			hal_hw_fih.c
 			bk_systick_monitor.c
 			hal_sw_fih.c

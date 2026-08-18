@@ -13,7 +13,7 @@
 #include "psa/crypto.h"
 
 #include "_otp.h"
-#include "components/log.h"
+#include "bk_tfm_log.h"
 
 int mbedtls_set_otp_info_ex(int type, const uint8_t *data, size_t len, uint32_t offset);
 

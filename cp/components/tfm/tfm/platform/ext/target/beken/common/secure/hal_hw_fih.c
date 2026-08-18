@@ -15,7 +15,7 @@
 #include <stdint.h>
 #include "hal_hw_fih.h"
 #include "fih.h"
-#include <components/log.h>
+#include "bk_tfm_log.h"
 #include "partitions_gen.h"
 
 bool s_is_crypto_inited = false;

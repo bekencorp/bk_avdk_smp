@@ -17,7 +17,7 @@
 #include "cmsis.h"
 #include "boot_hal.h"
 #include <stdio.h>
-#include <components/log.h>
+#include "bk_tfm_log.h"
 
 #define TAG "int"
 
