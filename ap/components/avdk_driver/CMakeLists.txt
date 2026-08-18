@@ -37,7 +37,7 @@ if (CONFIG_DPU_DRIVER)
 	endif()
 endif()
 
-set(priv_req bk_common)
+set(priv_req bk_common driver)
 
 armino_component_register(INTERNAL_LIB SRCS "${srcs}" INCLUDE_DIRS "${incs}" PRIV_REQUIRES "${priv_req}" unity avdk_utils bk_libs)
 

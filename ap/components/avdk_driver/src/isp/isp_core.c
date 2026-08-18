@@ -53,6 +53,7 @@ enum {
 } isp_fsm_t;
 
 #define FLEXA_LINES 16
+#define ISP_HOT_OPEN_FRAME_BOUNDARY_WAIT_MS 50U
 #define ISP_FLEXA_STREAM_ID_Y 0x14
 #define ISP_FLEXA_STREAM_ID_CB 0x15
 #define ISP_FLEXA_STREAM_ID_CR 0x16
@@ -232,6 +233,46 @@ static bool isp_channel_skip_warmup_needed(isp_control_t *control, uint8_t chnl_
     }
 
     return true;
+}
+
+static void isp_wait_hot_open_frame_boundary(isp_control_t *control, uint8_t new_chnl_id)
+{
+    uint8_t i;
+    uint8_t active_chnl = ISP_CHN_CNT;
+    uint32_t seq = 0;
+
+    if (control == NULL || control->state != ISP_FSM_CHN_ENABLE)
+    {
+        return;
+    }
+
+    for (i = 0; i < ISP_CHN_CNT; i++)
+    {
+        if (i != new_chnl_id && control->chn[i].enable)
+        {
+            active_chnl = i;
+            seq = control->chn[i].sequence;
+            break;
+        }
+    }
+
+    if (active_chnl >= ISP_CHN_CNT)
+    {
+        return;
+    }
+
+    for (uint32_t wait_ms = 0; wait_ms < ISP_HOT_OPEN_FRAME_BOUNDARY_WAIT_MS; wait_ms++)
+    {
+        if (control->chn[active_chnl].sequence != seq ||
+            control->chn[active_chnl].line == 0)
+        {
+            return;
+        }
+        rtos_delay_milliseconds(1);
+    }
+
+    LOGW("%s, wait chnl %u frame boundary timeout, hot open chnl %u\n",
+         __func__, active_chnl, new_chnl_id);
 }
 
 static void isp_mi_isr_callback_handle(isp_control_t *control, uint8_t isr_type, uint8_t chnl_id, uint8_t ok)
@@ -544,8 +585,14 @@ static void isp_clock_enable(uint32_t clk)
 static bk_err_t bk_isp_complete_buffer_config(isp_control_t *control, uint8_t chnl, uint8_t buf_cnt)
 {
     bk_err_t ret = BK_FAIL;
+    uint8_t frame_cnt = buf_cnt;
 
-    for (int i = 0; i < ISP_FRAME_CNT_MAX; i++) {
+    if (frame_cnt == 0 || frame_cnt > ISP_FRAME_CNT_MAX)
+    {
+        frame_cnt = ISP_FRAME_CNT_MAX;
+    }
+
+    for (int i = 0; i < frame_cnt; i++) {
         VIDEO_BUF_S buf;
         uint32_t frame_size = 0;
         vsi_u8_t index;
@@ -882,7 +929,7 @@ bk_err_t bk_isp_deinit(isp_handle_t *handle)
         rtos_deinit_semaphore(&control->isp_sem);
     }
 
-    for (uint8_t i = 0; i < ISP_CHN_MAX; i++)
+    for (uint8_t i = 0; i < ISP_CHN_CNT; i++)
     {
         if (control->chn[i].malloc_flag == true)
         {
@@ -942,7 +989,7 @@ bk_err_t bk_isp_open(isp_handle_t *handle, isp_config_ext_t *config)
 
     isp_control_t *control = (isp_control_t *)*handle;
 
-    if (config->chnl_id >= ISP_CHN_MAX)
+    if (config->chnl_id >= ISP_CHN_CNT)
     {
         LOGE("%s, %d, chnl_id error\n", __func__, __LINE__);
         return ret;
@@ -952,6 +999,14 @@ bk_err_t bk_isp_open(isp_handle_t *handle, isp_config_ext_t *config)
     {
         LOGE("%s, %d, this chnl already enable\n", __func__, __LINE__);
         return ret;
+    }
+
+    if (control->state == ISP_FSM_CHN_ENABLE)
+    {
+        /* Hot-add the new channel without stopping active MP/SP streams.
+         * Do register updates close to a frame boundary to reduce the chance of
+         * disturbing the frame currently consumed by flexa/H264. */
+        isp_wait_hot_open_frame_boundary(control, config->chnl_id);
     }
 
     control->chn[config->chnl_id].channel.portId = config->port_id;
@@ -1057,6 +1112,7 @@ bk_err_t bk_isp_open(isp_handle_t *handle, isp_config_ext_t *config)
     {
         LOGE("%s, %d, enable chnl fail, ret=%d\n", __func__, __LINE__, ret);
         control->chn[config->chnl_id].enable = false;
+        return ret;
     }
 
     return ret;
@@ -1073,7 +1129,7 @@ bk_err_t bk_isp_close(isp_handle_t *handle, uint8_t chnl)
         return ret;
     }
 
-    if (chnl > ISP_CHN_MAX)
+    if (chnl >= ISP_CHN_CNT)
     {
         LOGE("%s, %d, chnl error\n", __func__, __LINE__);
         return ret;
@@ -1103,7 +1159,7 @@ bk_err_t bk_isp_close(isp_handle_t *handle, uint8_t chnl)
         chnl_config->enable = true;
     }
 
-    for (uint8_t i = 0; i < ISP_FRAME_CNT_MAX; i++)
+    for (uint8_t i = 0; i < ISP_CHN_CNT; i++)
     {
         if (control->chn[i].enable)
         {
@@ -1146,7 +1202,7 @@ bk_err_t bk_isp_flexa_sbi_config(isp_handle_t *handle, uint8_t chnl, uint8_t ena
         return ret;
     }
 
-    if (chnl >= ISP_CHN_MAX)
+    if (chnl >= ISP_CHN_CNT)
     {
         LOGE("%s, %d, chnl_id error\n", __func__, __LINE__);
         return ret;

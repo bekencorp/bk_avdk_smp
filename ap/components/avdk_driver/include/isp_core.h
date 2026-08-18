@@ -22,7 +22,6 @@
 #define BK_ERR_ISP_CHNL_ID_INVALID      (BK_OK - 2) /**< ISP chne id invalid */
 #define BK_ERR_ISP_CHNL_ID_INITED       (BK_OK - 3) /**< ISP chne id already init */
 
-#define ISP_CHN_MAX (2)
 #define ISP_ISR_MODULE_MAX (8)
 
 typedef void (*isp_isr_t)(uint32_t seqence, uint32_t line, uint8_t chnl, uint8_t error, void *param);

@@ -14,6 +14,7 @@
 
 #pragma once
 
+#include <common/bk_err.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -23,6 +24,11 @@ extern "C" {
 void bk_gpu_driver_init(void);
 
 void bk_gpu_driver_deinit(void);
+
+/* Global VG-Lite hardware lock shared by all GPU users. */
+bk_err_t bk_gpu_global_lock(void);
+
+bk_err_t bk_gpu_global_unlock(void);
 
 
 #ifdef __cplusplus
