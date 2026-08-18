@@ -46,6 +46,7 @@
  * afterwards. Kept here (not in flash_min.c) so the shared download/flash driver
  * behaviour is untouched. TEMPORARY: fold into the flash driver once the A/B OTA
  * write path is finalized. */
+extern void bk_flash_min_unprotect_once(void);
 extern void bk_flash_min_switch_line_mode_two(void);
 extern void bk_flash_min_restore_line_mode(void);
 
@@ -194,6 +195,10 @@ int boot_param_commit(const ab_flag_record_t *rec)
 		return -1;
 	}
 
+	/* BK7259SW-2937 defers unprotect out of flash init. Without this, sector
+	 * erase/PP are ignored under status protect and look like success (no
+	 * read-back), so TRIAL never settles to NORMAL across reboot. */
+	bk_flash_min_unprotect_once();
 	/* Drop out of QUAD continuous-read so the op_sw erase/PP below are accepted
 	 * (post-boot_go the flash is left in continuous-read by the XIP path). */
 	bk_flash_min_switch_line_mode_two();

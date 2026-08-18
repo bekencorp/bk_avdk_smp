@@ -38,6 +38,7 @@
 /* op_sw erase/PP are ignored while the flash is in QUAD continuous-read (the XIP
  * path leaves it there), so a commit must drop to TWO first and restore after.
  * Mirrors boot_param_commit() in BL2. */
+extern void bk_flash_min_unprotect_once(void);
 extern void bk_flash_min_switch_line_mode_two(void);
 extern void bk_flash_min_restore_line_mode(void);
 
@@ -84,9 +85,10 @@ int boot_param_confirm(void)
 	memset(rec.rsvd0, 0, sizeof(rec.rsvd0));
 	rec.dl_state    = AB_DL_IDLE;
 
-	/* op_sw erase/PP are ignored while the flash is in QUAD continuous-read (the
-	 * XIP path leaves it there after BL2 hands over), so drop to TWO around the
-	 * commit and restore after. XIP code fetch keeps working in TWO mode. */
+	/* BK7259SW-2937: unprotect first or erase/PP are no-ops under status
+	 * protect (same trap as ota_confirm). Then leave QUAD continuous-read so
+	 * op_sw is accepted; XIP fetch still works in TWO mode. */
+	bk_flash_min_unprotect_once();
 	bk_flash_min_switch_line_mode_two();
 	idx = ab_record_commit(base, &boot_param_ops, &rec);
 	bk_flash_min_restore_line_mode();

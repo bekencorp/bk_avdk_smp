@@ -149,6 +149,15 @@ if(BL2)
 			PUBLIC
 				CONFIG_LZMA1900=1
 		)
+
+		# Optional install erase/write verify (project CP defconfig /
+		# menuconfig: CONFIG_DEBUG_OTA_INSTALL=y). Default off.
+		if(CONFIG_DEBUG_OTA_INSTALL)
+			target_compile_definitions(platform_bl2
+				PUBLIC
+					CONFIG_DEBUG_OTA_INSTALL=1
+			)
+		endif()
 	endif()
 
 	if(CONFIG_XIP_NO_VERSION)

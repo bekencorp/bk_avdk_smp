@@ -69,6 +69,15 @@ config BL2_UPGRADE_STRATEGY
     string "MCUboot upgrade strategy"
     default "DIRECT_XIP"
 
+config DEBUG_OTA_INSTALL
+    bool "DEBUG: overwrite install erase/write read-back checks"
+    default n
+    help
+        Debug-only OVERWRITE_ONLY checks (default off):
+        erase 0xFF read-back + CBUS write round-trip compare.
+        Production relies on whole-image hash. Enable with:
+        CONFIG_DEBUG_OTA_INSTALL=y
+
 config XIP_NO_VERSION
     bool "XIP image without version header"
     default y

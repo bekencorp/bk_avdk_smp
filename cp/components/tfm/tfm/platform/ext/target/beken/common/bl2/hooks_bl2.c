@@ -39,11 +39,11 @@
 
 static void dump_image_header(struct image_header *hdr)
 {
-	BL2_HOOK_LOGD(TAG, "magic=%x\r\n", hdr->ih_magic);
+	BL2_HOOK_LOGI(TAG, "magic=%x\r\n", hdr->ih_magic);
 	BL2_HOOK_LOGD(TAG, "load_addr=%x\r\n", hdr->ih_load_addr);
 	BL2_HOOK_LOGD(TAG, "hdr_size=%x\r\n", hdr->ih_hdr_size);
 	BL2_HOOK_LOGD(TAG, "protect_tlv_size=%x\r\n", hdr->ih_protect_tlv_size);
-	BL2_HOOK_LOGD(TAG, "img_size=%x\r\n", hdr->ih_img_size);
+	BL2_HOOK_LOGI(TAG, "img_size=%x\r\n", hdr->ih_img_size);
 	BL2_HOOK_LOGD(TAG, "flags=%x\r\n", hdr->ih_flags);
 	BL2_HOOK_LOGD(TAG, "pad=%x\r\n", hdr->_pad1);
 }
@@ -154,12 +154,12 @@ int boot_read_image_header_hook(int img_index, int slot,
 	}
 
 	if (boot_is_header_valid(&hdr, fap) == false) {
-		BL2_HOOK_LOGE(TAG, "invalid image header\r\n");
-        }
-
-	BL2_HOOK_LOGD(TAG, "read image=%d, slot=%d hdr\r\n", img_index, slot);
-	dump_image_header(&hdr);
-	BL2_HOOK_LOGD(TAG, "tlv off=%x\r\n", boot_tlv_off(fap, &hdr));
+		BL2_HOOK_LOGE(TAG, "invalid image header, slot=%d\r\n", slot);
+	} else {
+		BL2_HOOK_LOGD(TAG, "read image=%d, slot=%d hdr\r\n", img_index, slot);
+		dump_image_header(&hdr);
+		BL2_HOOK_LOGD(TAG, "tlv off=%x\r\n", boot_tlv_off(fap, &hdr));
+	}
 	flash_area_close(fap);
 	return BOOT_HOOK_REGULAR;
 }

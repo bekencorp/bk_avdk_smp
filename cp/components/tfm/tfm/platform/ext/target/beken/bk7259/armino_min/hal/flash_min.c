@@ -12,6 +12,11 @@
 #include "flash_hal.h"
 #include "flash_ll.h"
 #include "flash_layout.h"
+#include "tfm_flash_partition.h"  /* SOC_FLASH_BASE_ADDR */
+#include "cmsis_gcc.h"
+
+/* L1/L2 D-cache maintenance (cache.c). */
+extern void flush_all_dcache(void);
 
 #define FLASH_MIN_BYTES_CNT     32
 #define FLASH_MIN_BUFFER_LEN    8
@@ -199,14 +204,62 @@ bk_err_t bk_flash_read_bytes(uint32_t address, uint8_t *user_buf, uint32_t size)
 extern void *memcpy(void *dest, const void *src, size_t n);
 __attribute__((section(".iram"))) void bk_flash_read_cbus(uint32_t address, void *user_buf, uint32_t size)
 {
-	/* Cacheable (XIP) view, XTS-decrypted on the fly. */
-	//memcpy(user_buf, (const void *)(SOC_FLASH_DATA_BASE + address), size);
-	const volatile uint8_t *src = (const volatile uint8_t *)(0x04000000 + address);
+	/* Cacheable (XIP) view; XTS-decrypts on read. */
+	const volatile uint8_t *src = (const volatile uint8_t *)(SOC_FLASH_BASE_ADDR + address);
 	uint8_t *dst = (uint8_t *)user_buf;
 	for (uint32_t i = 0; i < size; i++) {
 		dst[i] = src[i];
 	}
 }
+
+#if CONFIG_OTA_OVERWRITE
+/* Ordered volatile copy into the cpu_data_wr (encrypt-on-write) window.
+ * Word burst if aligned, else byte; volatile keeps store order into the XTS FIFO.
+ * .iram: no flash fetch while cpu_data_wr is enabled. */
+__attribute__((section(".iram")))
+static void flash_wt_copy(volatile uint8_t *dst8, const uint8_t *user_buf, uint32_t size)
+{
+	if (((((uintptr_t)dst8) | ((uintptr_t)user_buf)) & 3u) == 0u) {
+		volatile uint32_t *d32 = (volatile uint32_t *)dst8;
+		const uint32_t *s32 = (const uint32_t *)user_buf;
+		uint32_t words = size >> 2;
+		for (uint32_t i = 0; i < words; i++) {
+			d32[i] = s32[i];
+		}
+		for (uint32_t i = words << 2; i < size; i++) {
+			dst8[i] = user_buf[i];
+		}
+	} else {
+		for (uint32_t i = 0; i < size; i++) {
+			dst8[i] = user_buf[i];
+		}
+	}
+}
+
+/* CBUS encrypt-on-write via 0x04000000 (HW XTS-AES); XIP omits this path.
+ * Requires WT MPU on the window (else L2 reorders stores -> garbage); then
+ * D-cache clean+invalidate for readback. Caller must erase, dual-line, and
+ * unprotect first (decompress_bl2.c). */
+__attribute__((section(".iram"))) void bk_flash_write_cbus(uint32_t address, const uint8_t *user_buf, uint32_t size)
+{
+	volatile uint8_t *dst8 = (volatile uint8_t *)(SOC_FLASH_BASE_ADDR + address);
+
+	uint32_t primask = __get_PRIMASK();
+	__disable_irq();
+
+	flash_hal_enable_cpu_data_wr(&s_flash_hal);
+	flash_wt_copy(dst8, user_buf, size);
+	flash_hal_wait_op_done(&s_flash_hal);
+	flash_hal_disable_cpu_data_wr(&s_flash_hal);
+
+	/* Fresh ciphertext in flash; drop L1+L2 so readback/hash re-fetches. */
+	__DSB();
+	flush_all_dcache();
+	if (!primask) {
+		__enable_irq();
+	}
+}
+#endif /* CONFIG_OTA_OVERWRITE */
 
 /* protect helpers, ported from flash_driver.c. bk7259 table has no
  * protect_half, so FLASH_PROTECT_HALF folds into the protect_all default. */

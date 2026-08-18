@@ -39,6 +39,14 @@ void bk_flash_min_restore_line_mode(void);
  * Required before compressed-overwrite erase/program of primary_all. */
 void bk_flash_min_unprotect_once(void);
 
+#if CONFIG_OTA_OVERWRITE
+/* CBUS encrypt-on-write (0x04 + HW XTS-AES). Overwrite only; see flash_min.c. */
+void bk_flash_write_cbus(uint32_t address, const uint8_t *user_buf, uint32_t size);
+#endif
+
+/* CBUS read: XTS-decrypts on read (overwrite verify + SCA). */
+void bk_flash_read_cbus(uint32_t address, void *user_buf, uint32_t size);
+
 #ifdef __cplusplus
 }
 #endif

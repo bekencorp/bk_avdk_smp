@@ -185,9 +185,8 @@ static inline int ab_record_read_latest(uint32_t part_base,
 /* Power-loss-safe commit: caller fills the semantic fields of *new_record
  * (memset(0) first so reserved bytes stay 0); this stamps magic/ver/size/seq/crc
  * and writes the OPPOSITE sector, so a torn write leaves the current copy intact.
- * No read-back: the CRC is the commit marker and the reader (BL2/SPE) validates
- * at boot (a bad write fails CRC there and is ignored).
- * Returns the written sector index, or AB_FLAG_ERR_IO on an erase/write failure. */
+ * Read-back validates CRC/seq so a protect/line-mode no-op cannot look like success.
+ * Returns the written sector index, or AB_FLAG_ERR_IO on an erase/write/verify failure. */
 static inline int ab_record_commit(uint32_t part_base, const ab_flag_ops_t *ops,
 				   ab_flag_record_t *new_record)
 {
@@ -210,6 +209,20 @@ static inline int ab_record_commit(uint32_t part_base, const ab_flag_ops_t *ops,
 	if (ops->write(part_base + (uint32_t)write_idx * AB_FLAG_SECTOR,
 		       new_record, AB_FLAG_RECORD_SIZE) != 0) {
 		return AB_FLAG_ERR_IO;
+	}
+
+	/* Read-back: protect/line-mode no-ops return success without programming;
+	 * reject so callers do not log a false "commit ok" / "done". */
+	{
+		ab_flag_record_t check;
+
+		if (ops->read(part_base + (uint32_t)write_idx * AB_FLAG_SECTOR,
+			      &check, AB_FLAG_RECORD_SIZE) != 0 ||
+		    !ab_record_is_valid(&check, ops) ||
+		    check.seq != new_record->seq ||
+		    check.crc32 != new_record->crc32) {
+			return AB_FLAG_ERR_IO;
+		}
 	}
 	return write_idx;
 }

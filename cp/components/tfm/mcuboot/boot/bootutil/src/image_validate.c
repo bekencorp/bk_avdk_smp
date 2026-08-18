@@ -62,10 +62,20 @@
 #include "bk_boot_verify.h"
 /* DIRECT_XIP A/B: read PARTITION_PRIMARY_ALL/SECONDARY_ALL phy offsets so the
  * secondary slot can be hashed through the primary XIP execute window (remap). */
+#include "partitions_gen.h"   /* brings in CONFIG_OTA_OVERWRITE (security.h -> _ota.h) */
 #include "tfm_flash_partition.h"
 
 extern void flash_set_excute_enable(int enable);
 extern int flash_get_excute_enable(void);
+/* clean+invalidate L1+L2 before hashing through the 0x04 window: the window read goes
+ * through cache, so if the writer left stale lines (non-encrypted overwrite's
+ * bk_flash_write_bytes does not invalidate cache), or XIP A/B reuses the same VA and
+ * reads the previous slot's cache lines, the hash would see stale data. */
+extern void flush_all_dcache(void);
+#if CONFIG_OTA_OVERWRITE
+/* Feed the watchdog while raw-hashing the (large) compressed secondary slot. */
+extern void update_wdt(uint32_t val);
+#endif
 /* DIRECT_XIP A/B debug: remap delta getter (added in flash_min.c) to verify the
  * secondary read is actually redirected to B before trusting the data. */
 extern uint32_t flash_get_addr_offset(void);
@@ -125,6 +135,29 @@ bootutil_img_hash(struct enc_key_data *enc_state, int image_index,
      * flash). Secondary-slot remap onto the primary window is set in flash_map. */
     uint32_t fa_off = fap->fa_off;
     fa_off = FLASH_BASE_ADDRESS + FLASH_PHY2VIRTUAL(CEIL_ALIGN_34(fa_off));
+#if CONFIG_OTA_OVERWRITE
+    /* Overwrite secondary is plaintext compressed staging: XIP/0x04 would XTS-decrypt on
+     * read and scramble the hash if AES is fused. Hash via raw flash_area_read instead
+     * (same as decompress). Primary remains XTS ciphertext -> CBUS window hash below. */
+    if (fap->fa_off != partition_get_phy_offset(PARTITION_PRIMARY_ALL)) {
+        uint32_t hoff = 0;
+        while (hoff < size) {
+            uint32_t chunk = (size - hoff) > tmp_buf_sz ? tmp_buf_sz : (size - hoff);
+            if (flash_area_read(fap, hoff, tmp_buf, chunk) != 0) {
+                return -1;
+            }
+            bootutil_sha_update(&sha_ctx, tmp_buf, chunk);
+            hoff += chunk;
+            if ((hoff & 0xFFFu) == 0) {
+                update_wdt(0xFFFFu);   /* feed every ~4KB across the ~1.3MB read */
+            }
+        }
+        BOOT_LOG_INF("%s: secondary raw-hash size=0x%x", __FUNCTION__, size);
+        bootutil_sha_finish(&sha_ctx, hash_result);
+        bootutil_sha_drop(&sha_ctx);
+        return 0;
+    }
+#endif
 #if CONFIG_DIRECT_XIP
     uint32_t sec_addr = partition_get_phy_offset(PARTITION_SECONDARY_ALL);
 
@@ -146,6 +179,9 @@ bootutil_img_hash(struct enc_key_data *enc_state, int image_index,
     }
 #endif
     BOOT_LOG_INF("%s: fa_off:0x%x", __FUNCTION__, fa_off);
+    /* Flush before CBUS hash: drop stale 0x04 lines (non-AES overwrite / XIP A/B same VA).
+     * Encrypted overwrite already flushes in bk_flash_write_cbus. */
+    flush_all_dcache();
     bootutil_sha_update(&sha_ctx, (uint8_t *)fa_off, size);
 
 #if CONFIG_DIRECT_XIP

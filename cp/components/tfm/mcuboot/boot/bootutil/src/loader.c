@@ -1839,7 +1839,7 @@ context_boot_go(struct boot_loader_state *state, struct boot_rsp *rsp)
     IMAGES_ITER(BOOT_CURR_IMG(state)) {
         /* Set the previously determined swap type */
         bs.swap_type = BOOT_SWAP_TYPE(state);
-        BOOT_LOG_INF("bs.swap_type :%d \r\n ", bs.swap_type);
+        BOOT_LOG_DBG("bs.swap_type :%d \r\n ", bs.swap_type);
 
         switch (BOOT_SWAP_TYPE(state)) {
         case BOOT_SWAP_TYPE_NONE:

@@ -20,6 +20,7 @@
 #define EFUSE_INFO_DISABLED_BIT             (8)
 #define EFUSE_ERR_DISABLED_BIT              (9)
 #define EFUSE_SECURE_DOWNLOAD_DISABLED_BIT  (12)
+#define EFUSE_FLASH_AES_ENABLED_BIT         (27)
 
 #if CONFIG_SOC_BK7236N || CONFIG_SOC_BK7239N
 #define  EFUSE_OF_OTP_VAL                   *((volatile unsigned int *) (0x44890000 + 0x40 * 4))
@@ -82,6 +83,11 @@ bool efuse_is_secure_download_enabled(void)
 	return !(EFUSE_OF_OTP_VAL & BIT(EFUSE_SECURE_DOWNLOAD_DISABLED_BIT));
 }
 
+bool efuse_is_flash_aes_enabled(void)
+{
+	return !!(EFUSE_OF_OTP_VAL & BIT(EFUSE_FLASH_AES_ENABLED_BIT));
+}
+
 void dump_efuse(void)
 {
 	BK_LOGI(TAG, "efuse=%x\r\n", EFUSE_OF_OTP_VAL);
@@ -136,6 +142,11 @@ bool efuse_is_err_log_enabled(void)
 bool efuse_is_secure_download_enabled(void)
 {
 	return !(s_efuse_data & BIT(EFUSE_SECURE_DOWNLOAD_DISABLED_BIT));
+}
+
+bool efuse_is_flash_aes_enabled(void)
+{
+	return !!(s_efuse_data & BIT(EFUSE_FLASH_AES_ENABLED_BIT));
 }
 
 void dump_efuse(void)

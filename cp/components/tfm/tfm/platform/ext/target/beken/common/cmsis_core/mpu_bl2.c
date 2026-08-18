@@ -20,8 +20,8 @@
 #include "hal_hw_fih.h"
 #include "partitions.h"
 
-#define MPU_MAX_NUM_REGIONS     (8UL)                   /* 支持的最大区域数量 */
-#define MPU_MAX_NUM_ATTRS       (8UL)                   /* 支持的最大区域数量 */
+#define MPU_MAX_NUM_REGIONS     (8UL)                   /* max number of regions supported */
+#define MPU_MAX_NUM_ATTRS       (8UL)                   /* max number of memory attributes supported */
 
 /*
 * #define ARM_MPU_RBAR(BASE, SH, RO, NP, XN)
@@ -56,12 +56,22 @@ static const ARM_MPU_Region_t mpu_regions[] = {
     { ARM_MPU_RBAR(0x04000000UL, ARM_MPU_SH_NON, 1, 1, 0),
       ARM_MPU_RLAR((0x04000000UL + CONFIG_PRIMARY_ALL_PHY_PARTITION_OFFSET - 0x10), 4)},
 
-    /* region 1: Flash XIP-write window (secure 0x05xxxxxx), non-cacheable (attr 1),
+#if CONFIG_OTA_OVERWRITE
+    /* region 1 (CONFIG_OTA_OVERWRITE only; XIP omits): RW+X primary flash after BL2,
+     * attr 4 (WT-RA). Encrypted overwrite must use WT: bk_flash_write_cbus stores
+     * plaintext via 0x04, HW XTS encrypts on write, and WT keeps stores ordered into
+     * the cpu-data-write FIFO; WB lets L2 batch into out-of-order bursts so only the
+     * first few lines land correctly (see flash_min.c). */
+    { ARM_MPU_RBAR((0x04000000UL + CONFIG_PRIMARY_ALL_PHY_PARTITION_OFFSET), ARM_MPU_SH_NON, 0, 1, 0),
+      ARM_MPU_RLAR(0x04FFFFE0UL, 4) },
+#endif
+
+    /* region 2: Flash XIP-write window (secure 0x05xxxxxx), non-cacheable (attr 1),
      * execute-never - used by the packer/XIP-remap path. */
     { ARM_MPU_RBAR(0x05000000UL, ARM_MPU_SH_NON, 0, 1, 1),
       ARM_MPU_RLAR(0x05FFFFE0UL, 1) },
 
-    /* region 2: BL2 RAM (0x28000000..0x2807FFFF, TOTAL_RAM_SIZE=512KB per
+    /* region 3: BL2 RAM (0x28000000..0x2807FFFF, TOTAL_RAM_SIZE=512KB per
      * flash_layout.h / bk7259_bl2.ld). .data/.bss/.stack/.heap + IRAM copy
      * (0x28030000..0x28039FFF). RW + executable for IRAM.
      * [DIAG] attr 1 (non-cacheable), matching the known-good BK7234N BL2 map,
@@ -69,22 +79,22 @@ static const ARM_MPU_Region_t mpu_regions[] = {
     { ARM_MPU_RBAR(0x28000000UL, ARM_MPU_SH_INNER, 0, 1, 0),
       ARM_MPU_RLAR(0x2807FFE0UL, 1) },
 
-    /* region 3: peripherals / crypto engine (0x40000000..0x5FFFFFFF) - Dubhe
+    /* region 4: peripherals / crypto engine (0x40000000..0x5FFFFFFF) - Dubhe
      * TE200 @0x42110000, flash controller, UART1, SYS, AON-PMU, PPRO, OTP, etc.
      * Device memory (attr 2), execute-never. */
     { ARM_MPU_RBAR(0x40000000UL, ARM_MPU_SH_INNER, 0, 1, 1),
       ARM_MPU_RLAR(0x5FFFFFE0UL, 2) },
 
-    /* region 4: PSRAM0 (0x60000000..0x63FFFFFF), cacheable write-back (attr 3),
+    /* region 5: PSRAM0 (0x60000000..0x63FFFFFF), cacheable write-back (attr 3),
      * execute-never. */
     { ARM_MPU_RBAR(0x60000000UL, ARM_MPU_SH_NON, 0, 1, 1),
       ARM_MPU_RLAR(0x63FFFFE0UL, 3) },
 
-    /* region 5: PSRAM1 (0x64000000..0x67FFFFFF). */
+    /* region 6: PSRAM1 (0x64000000..0x67FFFFFF). */
     { ARM_MPU_RBAR(0x64000000UL, ARM_MPU_SH_NON, 0, 1, 1),
       ARM_MPU_RLAR(0x67FFFFE0UL, 3) },
 
-    /* region 6: QSPI XIP + high device/PPB (0x68000000..0xEFFFFFFF). Covers
+    /* region 7: QSPI XIP + high device/PPB (0x68000000..0xEFFFFFFF). Covers
      * SOC_QSPI0/1_DATA_BASE and the fixed PPB (NVIC/SCB/WWDT @0xE00xxxxx, no
      * S/NS alias). Device memory (attr 2), execute-never. */
     { ARM_MPU_RBAR(0x68000000UL, ARM_MPU_SH_NON, 0, 1, 1),

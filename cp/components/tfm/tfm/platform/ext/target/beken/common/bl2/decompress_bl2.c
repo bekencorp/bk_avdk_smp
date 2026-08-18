@@ -21,9 +21,11 @@
  *     and virtual flash offsets are IDENTITY. All the TOVIRTURE/TOPHY/
  *     CEIL_ALIGN_34 conversions are removed; a 64KB decompressed block maps to
  *     a 64KB physical span at primary_all + 64KB*index.
- *   - v1 is PLAINTEXT (flash_aes_type=NONE, ota.csv encrypt=FALSE), so the
- *     decompressed block is written with bk_flash_write_bytes() (direct/DBUS)
- *     instead of the HW-AES CBUS path (bk_flash_write_primary_cbus).
+ *   - The OTA payload is always PLAINTEXT-compressed (host does no encryption);
+ *     the write path is chosen at runtime by efuse bit27 (flash HW encryption
+ *     fused): set -> program primary_all through the CBUS window so the HW
+ *     XTS-AES engine encrypts on write (bk_flash_write_cbus); clear -> raw DBUS
+ *     write (bk_flash_write_bytes). See primary_all_write().
  *   - The 64KB input/output buffers are fixed static arrays (BL2 has a 512KB
  *     RAM window but only a 16KB heap, so os_malloc cannot serve 64KB); the
  *     LZMA probability table still comes from the compress component's own
@@ -52,6 +54,7 @@
 #include "tfm_flash_partition.h"
 #include "bl2_flash_map.h"
 #include "decompress.h"
+#include "bk_efuse.h"
 #include "bootutil/bootutil_log.h"
 #include "bootutil/image.h"
 #include "flash_map_backend/flash_map_backend.h"
@@ -66,6 +69,11 @@ extern void update_wdt(uint32_t val);
 #define OTA_CTRL_SECTOR_SIZE (4 * 1024)
 #define OTA_WDT_FEED_VAL 0xFFFFu
 
+/* Optional install erase/write read-back checks (debug). Off by default. */
+#ifndef CONFIG_DEBUG_OTA_INSTALL
+#define CONFIG_DEBUG_OTA_INSTALL 0
+#endif
+
 /* Only the pointer is used (copy is driven by flash_map indices), so a forward decl suffices. */
 struct boot_loader_state;
 
@@ -73,6 +81,34 @@ struct boot_loader_state;
  * 64KB os_malloc against the 16KB BL2 heap. */
 static uint8_t s_compressed_buf[COMPRESS_BLOCK_SIZE + 64];
 static uint8_t s_decompressed_buf[COMPRESS_BLOCK_SIZE + 64];
+
+/* Flash HW encryption is fused (efuse): primary_all must be XTS ciphertext, so the
+ * decompressed plaintext is written through the CBUS window (HW AES encrypts on write);
+ * otherwise write the raw data directly via DBUS. The OTA payload itself stays plaintext
+ * and compressed (no host-side encryption).
+ * Optional CONFIG_DEBUG_OTA_INSTALL: per-block decrypt-window compare after write. */
+static int primary_all_write(uint32_t phy_off, const uint8_t *buf, uint32_t size)
+{
+	if (!efuse_is_flash_aes_enabled()) {
+		bk_flash_write_bytes(phy_off, buf, size);
+		return 0;
+	}
+
+	bk_flash_write_cbus(phy_off, buf, size);
+
+#if CONFIG_DEBUG_OTA_INSTALL
+	update_wdt(OTA_WDT_FEED_VAL);
+	bk_flash_read_cbus(phy_off, s_compressed_buf, size);
+	for (uint32_t i = 0; i < size; i++) {
+		if (s_compressed_buf[i] != buf[i]) {
+			BOOT_LOG_ERR("CBUS verify mismatch phy=0x%x off=0x%x wr=0x%02x rd=0x%02x",
+				     phy_off, i, buf[i], s_compressed_buf[i]);
+			return -1;
+		}
+	}
+#endif
+	return 0;
+}
 
 typedef struct {
 	uint8_t crc;
@@ -174,6 +210,7 @@ static uint32_t idx_sum(uint16_t *buffer, size_t idx)
 #define ERASE_VERIFY_BUF_SIZE (4 * 1024)
 #define ERASE_RETRY_COUNT     3
 
+#if CONFIG_DEBUG_OTA_INSTALL
 /* Read the just-erased span back and confirm it is all 0xFF. Returns 0 on pass. */
 static int verify_erase(uint32_t offset, uint32_t size)
 {
@@ -201,12 +238,15 @@ static int verify_erase(uint32_t offset, uint32_t size)
 	}
 	return 0;
 }
+#endif /* CONFIG_DEBUG_OTA_INSTALL */
 
-/* Erase + readback-verify with retries; -1 on persistent failure (caller aborts,
- * bl2_main.c then re-arms OVERWRITE_CONFIRM to rerun the install). */
+/* Erase primary_all (or resume span) in 64KB chunks with WDT feed.
+ * Optional CONFIG_DEBUG_OTA_INSTALL: full 0xFF read-back + retries (debug). */
 static int flash_area_erase_fast_verify(uint32_t erase_off, uint32_t len)
 {
+#if CONFIG_DEBUG_OTA_INSTALL
 	for (int retry = 0; retry < ERASE_RETRY_COUNT; retry++) {
+#endif
 		/* Erase in 64KB chunks, feeding the WDT before each. A single multi-MB
 		 * flash_area_erase_fast() call never feeds the WDT internally, so erasing
 		 * primary_all (~3.5MB, several seconds) trips the ~1s WWDT mid-erase and
@@ -221,6 +261,7 @@ static int flash_area_erase_fast_verify(uint32_t erase_off, uint32_t len)
 			off += chunk;
 			remaining -= chunk;
 		}
+#if CONFIG_DEBUG_OTA_INSTALL
 		if (verify_erase(erase_off, len) == 0) {
 			if (retry > 0) {
 				BOOT_LOG_INF("erase ok after %d retries off=0x%x size=0x%x",retry, erase_off, len);
@@ -233,6 +274,9 @@ static int flash_area_erase_fast_verify(uint32_t erase_off, uint32_t len)
 	BOOT_LOG_ERR("erase failed after %d retries off=0x%x size=0x%x, abort OTA copy",
 		     ERASE_RETRY_COUNT, erase_off, len);
 	return -1;
+#else
+	return 0;
+#endif
 }
 
 /* Sanity-check the ota_control base before erasing: a bogus offset (0, or below
@@ -391,8 +435,11 @@ int boot_copy_region(struct boot_loader_state *state,
 			goto out;
 		}
 
-		bk_flash_write_bytes(primary_all_phy_offset + COMPRESS_BLOCK_SIZE * block_idx,
-				     s_decompressed_buf, COMPRESS_BLOCK_SIZE);
+		if (primary_all_write(primary_all_phy_offset + COMPRESS_BLOCK_SIZE * block_idx,
+				      s_decompressed_buf, COMPRESS_BLOCK_SIZE) != 0) {
+			BOOT_LOG_ERR("OTA write/verify failed at block %d", block_idx);
+			goto out;
+		}
 		/* Commit: record that block_idx is fully written. */
 		write_resume_block(block_idx, back_address);
 
@@ -418,7 +465,10 @@ int boot_copy_region(struct boot_loader_state *state,
 		}
 
 		uint16_t write_size = (last_block_before_size + 31) / 32 * 32;
-		bk_flash_write_bytes(primary_all_phy_offset + COMPRESS_BLOCK_SIZE * block_idx, s_decompressed_buf, write_size);
+		if (primary_all_write(primary_all_phy_offset + COMPRESS_BLOCK_SIZE * block_idx, s_decompressed_buf, write_size) != 0) {
+			BOOT_LOG_ERR("OTA write/verify failed at last block");
+			goto out;
+		}
 	}
 
 	/* Do NOT clear ota_control here. OVERWRITE_CONFIRM + the resume journal are

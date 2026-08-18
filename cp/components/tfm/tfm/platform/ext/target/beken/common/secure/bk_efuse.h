@@ -32,6 +32,9 @@ bool efuse_is_spe_debug_enabled(void);
 bool efuse_is_info_log_enabled(void);
 bool efuse_is_err_log_enabled(void);
 bool efuse_is_secure_download_enabled(void);
+/* Flash HW encryption is fused: primary_all is stored/executed as XTS ciphertext,
+ * so the compressed overwrite upgrade must write it through the CBUS path. */
+bool efuse_is_flash_aes_enabled(void);
 
 #ifdef __cplusplus
 }
