@@ -90,6 +90,7 @@ static const flash_config_t flash_config[] = {
 
 static flash_driver_t s_flash = {0};
 static bool s_flash_is_init = false;
+static flash_protect_type_t s_flash_runtime_protect_type = FLASH_PROTECT_ALL;
 
 extern bk_err_t    mb_flash_ipc_init(void);
 extern bk_err_t    mb_flash_op_prepare(void);
@@ -244,6 +245,16 @@ static void flash_write_status_reg(uint32_t status_reg_val)
 	flash_exit_critical(int_level);
 }
 
+/* Non-volatile status-register write: the value persists across power cycles. */
+static void flash_write_status_reg_nvol(uint32_t status_reg_val)
+{
+	uint32_t int_level = flash_enter_critical();
+	s_flash.flash_status_reg_val = status_reg_val;
+
+	flash_hal_write_status_reg_nvol(&s_flash.hal, s_flash.flash_cfg->status_reg_size, status_reg_val);
+	flash_exit_critical(int_level);
+}
+
 static uint32_t flash_get_id(void)
 {
 	uint32_t flash_id;
@@ -308,7 +319,7 @@ static bool flash_is_need_update_status_reg(uint32_t protect_cfg, uint32_t cmp_c
 	}
 }
 
-static flash_protect_type_t flash_get_protect_type(uint32_t sr_value)
+static __attribute__((unused)) flash_protect_type_t flash_get_protect_type(uint32_t sr_value)
 {
 	uint32_t type = 0;
 	uint16_t protect_value = 0;
@@ -332,7 +343,7 @@ static flash_protect_type_t flash_get_protect_type(uint32_t sr_value)
 	return type;
 }
 
-static void flash_set_protect_type(flash_protect_type_t type)
+static void flash_set_protect_type_ex(flash_protect_type_t type, bool nonvolatile)
 {
 	uint32_t protect_cfg;
 	uint32_t cmp_cfg;
@@ -345,17 +356,28 @@ static void flash_set_protect_type(flash_protect_type_t type)
 	status_reg = flash_read_status_reg();
 	#endif
 
-#if CONFIG_FLASH_WRITE_STATUS_VOLATILE
-	flash_hal_set_volatile_status_write(&s_flash.hal);
-#endif
-
 	if (flash_is_need_update_status_reg(protect_cfg, cmp_cfg, status_reg)) {
 		flash_set_protect_cfg(&status_reg, protect_cfg);
 		flash_set_cmp_cfg(&status_reg, cmp_cfg);
 
 		//FLASH_LOGV("write status reg:%x, status_reg_size:%d\r\n", status_reg, s_flash.flash_cfg->status_reg_size);
-		flash_write_status_reg(status_reg);
+		if (nonvolatile) {
+			flash_write_status_reg_nvol(status_reg);
+		} else {
+			flash_write_status_reg(status_reg);
+		}
 	}
+}
+
+static void flash_set_protect_type(flash_protect_type_t type)
+{
+	flash_set_protect_type_ex(type, false);
+}
+
+/* Persist the protection setting across power cycles (non-volatile SR write). */
+static void flash_set_protect_type_nvol(flash_protect_type_t type)
+{
+	flash_set_protect_type_ex(type, true);
 }
 
 static void flash_set_qe(void)
@@ -374,7 +396,8 @@ static void flash_set_qe(void)
 	else
 		status_reg &= ~(1 << s_flash.flash_cfg->quad_en_post);
 
-	flash_write_status_reg(status_reg);
+	/* QE must persist across reboot -> non-volatile write. */
+	flash_write_status_reg_nvol(status_reg);
 }
 
 static void flash_read_common(uint8_t *buffer, uint32_t address, uint32_t len)
@@ -599,6 +622,10 @@ bk_err_t bk_flash_driver_init(void)
 
 	s_flash.flash_status_reg_val = flash_read_status_reg();
 
+	/* Enable flash write-protect at boot and persist it across reboot. */
+	s_flash_runtime_protect_type = FLASH_PROTECT_ALL;
+	flash_set_protect_type_nvol(FLASH_PROTECT_ALL);
+
 	// Set flash line mode to the default line mode
 	flash_set_line_mode(s_flash.flash_cfg->line_mode);
 
@@ -651,28 +678,15 @@ static bk_err_t flash_erase_no_lock(uint32_t address, int cmd)
 
 	flash_line_mode_t old_line_mode = flash_set_line_mode(FLASH_LINE_MODE_TWO);
 
-#if CONFIG_FLASH_WRITE_STATUS_VOLATILE
-	uint32_t  status_reg = s_flash.flash_status_reg_val;
-	#if CONFIG_FLASH_SUPPORT_MULTI_PE
-	status_reg = flash_read_status_reg();
-	#endif
-
-    flash_protect_type_t partition_type = flash_get_protect_type(status_reg);
-#endif
-
 	if(bk_flash_partition_write_perm_check_by_addr(erase_addr, erase_size, FLASH_API_MAGIC_CODE) == BK_OK)
 	{
-#if CONFIG_FLASH_WRITE_STATUS_VOLATILE
-    	flash_set_protect_type(FLASH_PROTECT_NONE);
-#endif
+		flash_set_protect_type(FLASH_PROTECT_NONE);
 
 		if(bk_flash_partition_write_perm_check_by_addr(erase_addr, erase_size, FLASH_API_MAGIC_CODE) == BK_OK)
 			ret_val = flash_erase_block(address, cmd);
 	}
 
-#if CONFIG_FLASH_WRITE_STATUS_VOLATILE
-    flash_set_protect_type(partition_type);
-#endif
+	flash_set_protect_type(s_flash_runtime_protect_type);
 	flash_set_line_mode(old_line_mode);
 
 	return ret_val;
@@ -798,20 +812,9 @@ static bk_err_t flash_write_no_lock(uint32_t address, const uint8_t *user_buf, u
 
 	flash_line_mode_t old_line_mode = flash_set_line_mode(FLASH_LINE_MODE_TWO);
 
-#if CONFIG_FLASH_WRITE_STATUS_VOLATILE
-	uint32_t  status_reg = s_flash.flash_status_reg_val;
-	#if CONFIG_FLASH_SUPPORT_MULTI_PE
-	status_reg = flash_read_status_reg();
-	#endif
-
-    flash_protect_type_t partition_type = flash_get_protect_type(status_reg);
-#endif
-
 	if(bk_flash_partition_write_perm_check_by_addr(address, size, FLASH_API_MAGIC_CODE) == BK_OK)
 	{
-#if CONFIG_FLASH_WRITE_STATUS_VOLATILE
-    	flash_set_protect_type(FLASH_PROTECT_NONE);
-#endif
+		flash_set_protect_type(FLASH_PROTECT_NONE);
 
 		if(bk_flash_partition_write_perm_check_by_addr(address, size, FLASH_API_MAGIC_CODE) == BK_OK)
 		{
@@ -819,9 +822,7 @@ static bk_err_t flash_write_no_lock(uint32_t address, const uint8_t *user_buf, u
 		}
 	}
 
-#if CONFIG_FLASH_WRITE_STATUS_VOLATILE
-    flash_set_protect_type(partition_type);
-#endif
+	flash_set_protect_type(s_flash_runtime_protect_type);
 	flash_set_line_mode(old_line_mode);
 
 	return ret_val;
@@ -915,15 +916,22 @@ uint32_t bk_flash_get_crc_err_num(void)
 }
 #endif
 
-flash_protect_type_t bk_flash_get_protect_type(void)
+void test_flash_set_protect_type_none(void)
 {
-
-	return FLASH_PROTECT_ALL;
+	uint32_t int_level = flash_lock();
+	flash_line_mode_t old_line_mode = flash_set_line_mode(FLASH_LINE_MODE_TWO);
+	flash_set_protect_type(FLASH_PROTECT_NONE);
+	flash_set_line_mode(old_line_mode);
+	flash_unlock(int_level);
 }
 
-bk_err_t bk_flash_set_protect_type(flash_protect_type_t type)
+void test_flash_set_protect_type_all(void)
 {
-	return BK_OK;
+	uint32_t int_level = flash_lock();
+	flash_line_mode_t old_line_mode = flash_set_line_mode(FLASH_LINE_MODE_TWO);
+	flash_set_protect_type(FLASH_PROTECT_ALL);
+	flash_set_line_mode(old_line_mode);
+	flash_unlock(int_level);
 }
 
 bool bk_flash_is_driver_inited()

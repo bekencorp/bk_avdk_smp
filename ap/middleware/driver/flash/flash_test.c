@@ -75,12 +75,10 @@ static void cli_flash_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, ch
 	uint32_t len = os_strtoul(argv[3], NULL, 16);
 
 	if (os_strcmp(argv[1], "erase") == 0) {
-		bk_flash_set_protect_type(FLASH_PROTECT_NONE);
 		for (uint32_t addr = start_addr; addr < (start_addr + len); addr += FLASH_SECTOR_SIZE) {
 			flash_test_task_wdt_feed();
 			bk_flash_erase_sector(addr);
 		}
-		bk_flash_set_protect_type(FLASH_UNPROTECT_LAST_BLOCK);
 		msg = CLI_CMD_RSP_SUCCEED;
 	} else if (os_strcmp(argv[1], "read") == 0) {
 		uint8_t buf[FLASH_PAGE_SIZE] = {0};
@@ -105,22 +103,15 @@ static void cli_flash_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, ch
 		for (uint32_t i = 0; i < FLASH_PAGE_SIZE; i++) {
 			buf[i] = i;
 		}
-		bk_flash_set_protect_type(FLASH_PROTECT_NONE);
 		for (uint32_t addr = start_addr; addr < (start_addr + len); addr += FLASH_PAGE_SIZE) {
 			flash_test_task_wdt_feed();
 			bk_flash_write_bytes(addr, buf, FLASH_PAGE_SIZE);
 		}
-		bk_flash_set_protect_type(FLASH_UNPROTECT_LAST_BLOCK);
 		msg = CLI_CMD_RSP_SUCCEED;
 	} else if (os_strcmp(argv[1], "get_id") == 0) {
 		uint32_t flash_id = bk_flash_get_id();
 		CLI_LOGD("flash_id:%x\r\n", flash_id);
 		msg = CLI_CMD_RSP_SUCCEED;
-	// } else if (os_strcmp(argv[1], "mutex_test") == 0) {
-	// 	extern void flash_svr_test_task(void * param);
-	// 	int task_pri = os_strtoul(argv[2], NULL, 16);
-	// 	rtos_create_thread(NULL, task_pri, "flash_test", flash_svr_test_task, 2048, NULL);
-	// 	msg = CLI_CMD_RSP_SUCCEED;
 	} else {
 		cli_flash_help();
 		msg = CLI_CMD_RSP_ERROR;
@@ -437,7 +428,6 @@ static void flash_test_task1_worker(beken_thread_arg_t arg)
 		CLI_LOGD("flash_test_task1: Iteration %lu - Erase\n", iteration);
 
 		/* Step 1: Erase sector */
-		bk_flash_set_protect_type(FLASH_PROTECT_NONE);
 		uint32_t sector_addr = addr & ~(FLASH_SECTOR_SIZE - 1);
 		bk_err_t ret = bk_flash_erase_sector(sector_addr);
 		if (ret != BK_OK) {
@@ -475,8 +465,6 @@ static void flash_test_task1_worker(beken_thread_arg_t arg)
 				CLI_LOGD("flash_test_task1: Iteration %lu - Verify OK\n", iteration);
 			}
 		}
-
-		bk_flash_set_protect_type(FLASH_UNPROTECT_LAST_BLOCK);
 
 		/* Delay before next iteration */
 		rtos_delay_milliseconds(CONFIG_FLASH_TEST_TASK_INTERVAL_MS);
@@ -516,7 +504,6 @@ static void flash_test_task2_worker(beken_thread_arg_t arg)
 		CLI_LOGD("flash_test_task2: Iteration %lu - Erase\n", iteration);
 
 		/* Step 1: Erase sector */
-		bk_flash_set_protect_type(FLASH_PROTECT_NONE);
 		uint32_t sector_addr = addr & ~(FLASH_SECTOR_SIZE - 1);
 		bk_err_t ret = bk_flash_erase_sector(sector_addr);
 		if (ret != BK_OK) {
@@ -554,8 +541,6 @@ static void flash_test_task2_worker(beken_thread_arg_t arg)
 				CLI_LOGD("flash_test_task2: Iteration %lu - Verify OK\n", iteration);
 			}
 		}
-
-		bk_flash_set_protect_type(FLASH_UNPROTECT_LAST_BLOCK);
 
 		/* Delay before next iteration */
 		rtos_delay_milliseconds(CONFIG_FLASH_TEST_TASK_INTERVAL_MS);

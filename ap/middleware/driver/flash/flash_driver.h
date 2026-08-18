@@ -67,3 +67,7 @@ typedef struct {
 	uint8_t quad_en_val; /**< When the QE pin is set to quad_en_val(1 or 0), the Quad IO2 and IO3 pins are enabled */
 	uint8_t coutinuous_read_mode_bits_val;
 } flash_config_t;
+
+/* Test-only helpers to toggle flash protection for CLI/verify. */
+void test_flash_set_protect_type_none(void);
+void test_flash_set_protect_type_all(void);
