@@ -518,6 +518,30 @@ static avdk_err_t isp_camera_ctlr_ioctl(bk_isp_camera_ctlr_handle_t handle, bk_c
                 TAG, "get exposure luminance failed");
             break;
 
+        case BK_CAM_IOCTL_QUERY_EXPOSURE_INFO:
+            AVDK_RETURN_ON_FALSE(arg, AVDK_ERR_INVAL, TAG, "exposure info arg is NULL");
+            AVDK_RETURN_ON_ERROR(
+                bk_isp_query_exposure_info(
+                    &controller->isp_handle,
+                    (bk_isp_camera_exposure_info_t *)arg),
+                TAG, "query exposure info failed");
+            break;
+
+        case BK_CAM_IOCTL_SET_INITIAL_EXPOSURE:
+            AVDK_RETURN_ON_FALSE(arg, AVDK_ERR_INVAL, TAG, "initial exposure arg is NULL");
+            AVDK_RETURN_ON_ERROR(
+                bk_isp_set_initial_exposure(
+                    &controller->isp_handle,
+                    (const bk_isp_camera_exposure_info_t *)arg),
+                TAG, "set initial exposure failed");
+            break;
+
+        case BK_CAM_IOCTL_RESUME_AUTO_EXPOSURE:
+            AVDK_RETURN_ON_ERROR(
+                bk_isp_resume_auto_exposure(&controller->isp_handle),
+                TAG, "resume auto exposure failed");
+            break;
+
         case BK_CAM_IOCTL_SET_SKIP_FRAMES:
         {
             bk_isp_camera_skip_frames_config_t *cfg = (bk_isp_camera_skip_frames_config_t *)arg;
