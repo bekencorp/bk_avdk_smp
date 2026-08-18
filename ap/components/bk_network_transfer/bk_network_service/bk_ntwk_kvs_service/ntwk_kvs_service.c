@@ -39,6 +39,9 @@ static ntwk_kvs_rx_cb_t s_ctrl_rx;
 static ntwk_kvs_rx_cb_t s_video_rx;
 static ntwk_kvs_rx_cb_t s_audio_rx;
 
+static VOID ntwk_kvs_video_in(UINT64 customData, PFrame pFrame);
+static VOID ntwk_kvs_audio_in(UINT64 customData, PFrame pFrame);
+
 static bool ntwk_kvs_is_h264_key(const frame_buffer_t *fb)
 {
 	if (fb == NULL) {
@@ -62,6 +65,14 @@ void ntwk_kvs_bridge_attach_session(void *streaming_session, PRtcRtpTransceiver 
 	s_video_tx = video_transceiver;
 	s_audio_tx = audio_transceiver;
 	rtos_unlock_mutex(&s_kvs_mtx);
+
+	if (video_transceiver != NULL && s_video_rx != NULL) {
+		transceiverOnFrame(video_transceiver, 0, ntwk_kvs_video_in);
+	}
+	if (audio_transceiver != NULL && s_audio_rx != NULL) {
+		transceiverOnFrame(audio_transceiver, 0, ntwk_kvs_audio_in);
+	}
+
 	ntwk_msg_event_report(NTWK_TRANS_EVT_CONNECTED, 0, NTWK_TRANS_CHAN_CTRL);
 	ntwk_msg_event_report(NTWK_TRANS_EVT_CONNECTED, 0, NTWK_TRANS_CHAN_VIDEO);
 	ntwk_msg_event_report(NTWK_TRANS_EVT_CONNECTED, 0, NTWK_TRANS_CHAN_AUDIO);
@@ -267,13 +278,30 @@ bk_err_t ntwk_kvs_audio_chan_stop(void)
 	return BK_OK;
 }
 
+static UINT64 ntwk_kvs_audio_pts_delta(uint32_t length, audio_enc_type_t audio_type)
+{
+	switch (audio_type) {
+	case AUDIO_ENC_TYPE_G711A:
+	case AUDIO_ENC_TYPE_G711U:
+	case AUDIO_ENC_TYPE_G722:
+		return (UINT64)length * HUNDREDS_OF_NANOS_IN_A_SECOND / 8000;
+	case AUDIO_ENC_TYPE_PCM:
+		return (UINT64)(length / 2) * HUNDREDS_OF_NANOS_IN_A_SECOND / 8000;
+	case AUDIO_ENC_TYPE_OPUS:
+	case AUDIO_ENC_TYPE_AAC:
+	case AUDIO_ENC_TYPE_ADPCM:
+	case AUDIO_ENC_TYPE_LC3:
+	default:
+		return NTWK_KVS_AUDIO_FRAME_DURATION;
+	}
+}
+
 int ntwk_kvs_audio_send_packet(uint8_t *data, uint32_t length, audio_enc_type_t audio_type)
 {
 	STATUS st;
 	Frame frame;
 	PRtcRtpTransceiver audio_tx = NULL;
 
-	(void)audio_type;
 	if (data == NULL || length == 0) {
 		return -1;
 	}
@@ -292,7 +320,8 @@ int ntwk_kvs_audio_send_packet(uint8_t *data, uint32_t length, audio_enc_type_t 
 	frame.frameData = data;
 	frame.size = length;
 	frame.presentationTs = s_audio_pts;
-	s_audio_pts += NTWK_KVS_AUDIO_FRAME_DURATION;
+
+	s_audio_pts += ntwk_kvs_audio_pts_delta(length, audio_type);
 
 	st = writeFrame(audio_tx, &frame);
 	if (st == STATUS_SRTP_NOT_READY_YET) {
