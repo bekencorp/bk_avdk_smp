@@ -1,11 +1,13 @@
 #pragma once
 
+#include <soc/soc.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 #define COMPILE_ERROR_CODE 0
-#define REG_SYS_BASE_ADDR  0x48000000
+#define REG_SYS_BASE_ADDR  SOC_SYS_AHBP_REG_BASE
 
 #ifndef REG_WRITE
 #define REG_WRITE(_r, _v) ({\

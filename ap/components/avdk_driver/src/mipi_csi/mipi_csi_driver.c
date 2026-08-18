@@ -5,6 +5,7 @@
 #include <driver/mipi_csi.h>
 #include <driver/gpio.h>
 #include <driver/gpio_types.h>
+#include <soc/soc.h>
 #include "gpio_driver.h"
 #include "sys_driver.h"
 
@@ -15,8 +16,8 @@
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
 
-#define BASEADDR_CSI            0x4c050000
-#define BASEADDR_CSI_EXT        0x4c058000
+#define BASEADDR_CSI            SOC_CSI_HOST_REG_BASE
+#define BASEADDR_CSI_EXT        SOC_CSI_EXT_REG_BASE
 
 static void bk_csi_isr(void)
 {
