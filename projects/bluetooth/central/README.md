@@ -9,7 +9,8 @@ This project implements the BK7259 board as a Bluetooth A2DP audio source (Sourc
 - decode MP3 files from an SD card and push them to the speaker/headset over Bluetooth for playback;
 - control playback (play / pause / stop / track switching) over the serial console;
 - act as an AVRCP player (Target), responding to remote transport-control keys and reporting the current track, play position and playback status;
-- set the peer (speaker) absolute volume via AVRCP.
+- set the peer (speaker) absolute volume via AVRCP;
+- act as an **HFP AG (Audio Gateway, the "phone" side)** toward a Bluetooth headset (HF), establishing a Service Level Connection (SLC): simulate incoming/outgoing calls, two-way voice over SCO, negotiate the CVSD/mSBC voice codec, and handle the volume reported by the headset. HFP AG is gated by the Kconfig `BLUETOOTH_BTDM_COMPONENT_HFP_AG` (enabled by default in this project); HFP is set up automatically once a headset reconnects and finishes authentication.
 
 The abbreviations below appear throughout this document:
 
@@ -18,6 +19,7 @@ The abbreviations below appear throughout this document:
 | A2DP Source | Advanced Audio Distribution Profile (sender) | Encode local audio and push it to a Bluetooth speaker/headset |
 | AVRCP TG | Audio/Video Remote Control Profile (Target / player side) | Respond to remote transport control and report playback status/track/position |
 | AVRCP CT | Audio/Video Remote Control Profile (Controller) | Set the peer (speaker) absolute volume, receive peer volume changes |
+| HFP AG | Hands-Free Profile (Audio Gateway / the "phone" side) | Establish an SLC with a Bluetooth headset (HF): incoming/outgoing calls, two-way SCO voice, CVSD/mSBC negotiation, volume handling |
 
 > Note: this project demonstrates **Classic Bluetooth (BR/EDR)**, not BLE. The board is the **initiator**, connecting to A2DP Sink devices such as speakers/headsets.
 
@@ -27,7 +29,7 @@ Data flow (**one-way downlink**: board → speaker):
 MP3 file on SD card
     → MP3 decode (helix)                 # produce PCM
     → resample (if src rate != negotiated rate)  # e.g. 48k → 44.1k
-    → SBC / AAC-LC encode                # produce the A2DP bitstream
+    → SBC encode                         # produce the A2DP bitstream
     → A2DP Source send                   # over the Bluetooth link
     → Bluetooth speaker / headset (A2DP Sink) decodes and plays
 ```
@@ -95,7 +97,7 @@ ap_cmd a2dp_player disconnect XX:XX:XX:XX:XX:XX
 
 This project demonstrates Classic Bluetooth **A2DP audio source** capabilities on the Beken platform, mainly:
 
-- A2DP Source: read an MP3 from the SD card, decode → resample → SBC/AAC encode, and push it over Bluetooth to a speaker/headset
+- A2DP Source: read an MP3 from the SD card, decode → resample → SBC encode, and push it over Bluetooth to a speaker/headset
 - AVRCP Target (player): respond to remote play/pause/track passthrough keys, and report playback status, track change and play position
 - AVRCP Controller: set the peer absolute volume, receive peer volume/battery changes
 
@@ -122,13 +124,17 @@ The project uses an AP-CP dual-core structure. The AP side runs the business log
 ```text
 central/
 ├── ap/
-│   ├── ap_main.c                       # AP entry: bk_init → media_service_init → bt_manager_init → a2dp source demo → CLI
+│   ├── ap_main.c                       # AP entry: bk_init → media_service_init → bt_manager_init → a2dp source demo → hfp ag demo → CLI
 │   ├── a2dp_source/
 │   │   ├── a2dp_source_demo.c          # A2DP Source connection mgmt + music playback (MP3 decode task, feed PCM to the component)
 │   │   ├── a2dp_source_demo_cli.c      # `a2dp_player` CLI commands
 │   │   ├── a2dp_source_demo_avrcp.c    # AVRCP policy: passthrough handling, playback/track/position reporting, volume
 │   │   ├── a2dp_source_demo.h
 │   │   └── a2dp_source_demo_avrcp.h
+│   ├── hfp_ag/                          # gated by Kconfig BLUETOOTH_BTDM_COMPONENT_HFP_AG (default on)
+│   │   ├── hfp_ag_demo.c               # HFP AG policy: call state machine, AT answers (+CIND/+COPS/+CLCC…), auto-connect after auth
+│   │   ├── hfp_ag_demo_cli.c           # `hfp_ag` CLI commands
+│   │   └── hfp_ag_demo.h
 │   └── config/bk7259_ap/defconfig      # AP-side Kconfig overrides (audio / ADK / FATFS / BT)
 └── cp/
     └── config/bk7259/defconfig         # CP-side Kconfig overrides (BT controller, etc.)
@@ -139,9 +145,10 @@ The actual A2DP Source TX/encode pipeline and AVRCP logic live in **reusable com
 | Component | Role |
 | --- | --- |
 | `service/dm/a2dp/bk_a2dp_source_service` | A2DP Source connection state machine + TX pipeline (ring buffer, encode callback, AVDTP start/suspend) |
-| `service/dm/a2dp/bk_a2dp_source_pcm_service` | Standalone worker: resample + SBC/AAC encode |
+| `service/dm/a2dp/bk_a2dp_source_pcm_service` | Standalone worker: resample + SBC encode |
 | `service/dm/avrcp/bk_avrcp_tg_service` | AVRCP Target (player): passthrough, playback/track/position notifications |
 | `service/dm/avrcp/bk_avrcp_ct_service` | AVRCP Controller: absolute volume, peer volume/battery |
+| `service/dm/hfp/bk_hfp_ag_service` (+ `hfp_ag_audio`) | HFP AG: AG lifecycle (init/features/bt_manager registration), SLC/call/codec event plumbing to the app, and the SCO voice engine (audio_play/record, CVSD/mSBC) |
 | `service/dm/bt_manager` | Single GAP callback: name/COD/discoverability/pairing/link-key storage/role switch |
 
 ## Code walkthrough (for modifying / extending)
@@ -155,6 +162,10 @@ media_service_init();      // media service (audio playback framework)
 bt_manager_init(&cfg);     // Classic BT manager: name a2dp_source_XXYYZZ / COD_PHONE / role=master
 bt_a2dp_source_demo_init();// eager init of A2DP Source + AVRCP (accepts speaker-initiated connections)
 cli_a2dp_source_demo_init();// register the a2dp_player serial commands
+#if CONFIG_BLUETOOTH_BTDM_COMPONENT_HFP_AG
+hfp_ag_demo_init();        // eager init of HFP AG (accepts headset-initiated connections; auto-SLC after auth)
+cli_hfp_ag_demo_init();    // register the hfp_ag serial commands
+#endif
 ```
 
 Module responsibilities and key functions:
@@ -165,12 +176,12 @@ Module responsibilities and key functions:
 | Bluetooth manager (`bt_manager`) | `bt_manager_init(&cfg)` | Name, COD, page/scan discoverability, pairing IO cap, link-key storage, role switching |
 | A2DP Source (`a2dp_source/a2dp_source_demo.c`) | `bt_a2dp_source_demo_init` / `bt_a2dp_source_demo_music_play` | Connect/disconnect, start the MP3 decode task, start the AVDTP stream, feed PCM to the component |
 | AVRCP (`a2dp_source/a2dp_source_demo_avrcp.c`) | `bt_avrcp_demo_init` / `bt_avrcp_demo_report_playback` / `..._report_track_change` | Handle passthrough keys from the speaker; report playback status, track and position |
-| CLI (`a2dp_source_demo_cli.c`) | `cli_a2dp_source_demo_init` / `cmd_a2dp_player_demo` | Parse `a2dp_player xxx` subcommands and call the interfaces above |
+| HFP AG (`hfp_ag/hfp_ag_demo.c`) | `hfp_ag_demo_init` / `hfp_ag_demo_cb` / `hfp_ag_demo_gap_cb` | Call state machine, AT answers (+CIND/+COPS/+CLCC…); auto-establishes the SLC after authentication; SCO voice is carried by the `bk_hfp_ag_service` component |
+| CLI (`a2dp_source_demo_cli.c` / `hfp_ag/hfp_ag_demo_cli.c`) | `cli_a2dp_source_demo_init` / `cmd_a2dp_player_demo` / `cli_hfp_ag_demo_init` | Parse `a2dp_player` / `hfp_ag` subcommands and call the interfaces above |
 
 Common change points:
 
 - **Change name / discoverability / role**: `bt_manager_cfg_t` in `ap_main.c`.
-- **Enable AAC encoding**: SBC only by default. AAC-LC encoding is gated by the Kconfig `BLUETOOTH_BTDM_COMPONENT_BT_A2DP_SOURCE_AAC` (default off; enabling it links FDK-AAC, ~230KB of flash).
 - **Add a custom command**: add a branch in `cmd_a2dp_player_demo` in `a2dp_source_demo_cli.c`.
 
 ## 3. Features
@@ -180,10 +191,10 @@ Common change points:
 - Auto-init of Classic Bluetooth and media service at boot, with eager A2DP Source / AVRCP bring-up
 - Discover, connect, disconnect a speaker/headset (board-initiated or speaker-initiated)
 - Play MP3 from the SD card: decode → resample (as needed) → SBC encode → push and play
-- Optional AAC-LC encoding (Kconfig switch, default off)
 - Playback control: play / pause / resume / stop / prev / next
 - AVRCP player: respond to remote passthrough keys, report playback status / track change / play position
 - AVRCP absolute volume control
+- HFP AG (Audio Gateway): establish an SLC with a Bluetooth headset; simulate incoming/outgoing calls, two-way SCO voice; CVSD/mSBC codec negotiation; handle headset volume reports (Kconfig switch, default on)
 - Serial CLI for manual control
 
 ## 4. Build and run
@@ -212,11 +223,9 @@ CONFIG_FATFS=y
 CONFIG_FATFS_SDCARD=y
 CONFIG_SDCARD=y
 CONFIG_ADK_SBC_ENCODER=y      # SBC encoder (used by A2DP Source)
-CONFIG_ADK_AAC_DECODER=y
 CONFIG_BLUETOOTH_BTDM_COMPONENT_ENABLE=y
+CONFIG_BLUETOOTH_BTDM_COMPONENT_HFP_AG=y   # HFP AG (Audio Gateway) component
 ```
-
-A2DP Source AAC-LC encoding is **off** by default (`CONFIG_BLUETOOTH_BTDM_COMPONENT_BT_A2DP_SOURCE_AAC` defaults to n, to keep code size down). Validate with SBC first.
 
 #### 4.2.2 Serial CLI commands
 
@@ -250,13 +259,29 @@ The CLI runs on the AP side, so commands are forwarded via `ap_cmd`. `XX:XX:XX:X
 | --- | --- |
 | `ap_cmd a2dp_player abs_vol 60` | Set the peer (speaker) absolute volume, range 0~0x7f (0~127) |
 
+**HFP AG commands (Audio Gateway, interacting with a Bluetooth headset / HF)**
+
+> HFP AG needs no manual connect: the SLC is established automatically once a headset reconnects and finishes authentication; if the peer has no HFP HF, a connection failure is reported.
+
+| Command | Description |
+| --- | --- |
+| `ap_cmd hfp_ag incoming [number]` | Simulate an incoming call (optional caller number, default 10010); rings the headset |
+| `ap_cmd hfp_ag answer` | Answer the current incoming call |
+| `ap_cmd hfp_ag hangup` | Hang up the current call |
+| `ap_cmd hfp_ag dial <number>` | Simulate an outgoing call (dial) |
+| `ap_cmd hfp_ag audio on\|off` | Turn SCO voice on/off (AG mic ↔ HF two-way intercom) |
+| `ap_cmd hfp_ag codec cvsd\|msbc` | Choose the SCO voice codec (CVSD 8k / mSBC 16k) |
+| `ap_cmd hfp_ag battery <0-5>` | Report the AG battery level to the headset |
+| `ap_cmd hfp_ag vgs <0-15>` / `ap_cmd hfp_ag vgm <0-15>` | Set the headset speaker / mic volume |
+| `ap_cmd hfp_ag cmd <at-result-code>` | Send a custom AT result code |
+
 Commands return `CMDRSP:OK` on accept, `CMDRSP:ERROR` on failure.
 
 #### 4.2.3 How to tell success from failure
 
 `CMDRSP:OK` only means the CLI command was accepted; it does **not** mean the Bluetooth operation completed. Judge from the profile-state and audio-pipeline logs:
 
-- after `connect`, you should see A2DP / AVRCP connected and the negotiated codec (SBC/AAC) and sample rate;
+- after `connect`, you should see A2DP / AVRCP connected and the negotiated codec (SBC) and sample rate;
 - after `play`, the speaker should actually make sound, with MP3 decode / encode / send logs on the serial;
 - after `abs_vol`, the speaker volume should change (if it supports absolute volume).
 
@@ -270,8 +295,7 @@ A2DP Source operation requires an external Bluetooth speaker and MP3 files on th
 2. **An SD card with MP3 files is required**: `play` paths start with `1:/` (FATFS SD drive); make sure the card is inserted and the file exists.
 3. **Fixed MAC format**: MACs in the CLI must be `XX:XX:XX:XX:XX:XX`, otherwise parsing fails.
 4. **Device name**: defaults to the `a2dp_source` prefix, broadcasting as `a2dp_source_XXYYZZ` (suffix = last 3 bytes of the local BT MAC); change it in `ap_main.c`.
-5. **AAC encoding off by default**: only SBC is pushed by default; to use AAC-LC, enable the Kconfig `BLUETOOTH_BTDM_COMPONENT_BT_A2DP_SOURCE_AAC` (adds ~230KB flash) and make sure the speaker supports AAC.
-6. **prev / next have no real track management yet**: they currently replay the same file, only to exercise the AVRCP reporting path.
+5. **prev / next have no real track management yet**: they currently replay the same file, only to exercise the AVRCP reporting path.
 
 **FAQ**
 

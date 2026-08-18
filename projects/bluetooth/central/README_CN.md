@@ -9,7 +9,8 @@
 - 将 SD 卡中的 MP3 文件解码后，通过蓝牙推送给音箱/耳机播放；
 - 通过串口命令控制播放、暂停、停止、切曲；
 - 作为 AVRCP 播放器（Target），响应远端的播放控制按键，并上报当前曲目、播放进度与播放状态；
-- 设置对端（音箱）的绝对音量（AVRCP）。
+- 设置对端（音箱）的绝对音量（AVRCP）；
+- 作为 **HFP AG（Audio Gateway，音频网关 / “手机”侧）** 与蓝牙耳机（HF）建立服务级连接（SLC）：模拟来电/去电、通过 SCO 双向语音对讲、协商 CVSD/mSBC 语音编码、处理耳机上报的音量。HFP AG 由 Kconfig `BLUETOOTH_BTDM_COMPONENT_HFP_AG` 控制（本工程默认开启）；耳机主动回连并鉴权完成后会自动建立 HFP。
 
 本文档常用缩写如下：
 
@@ -18,6 +19,7 @@
 | A2DP Source | Advanced Audio Distribution Profile（发送端） | 把本地音频编码后推送给蓝牙音箱/耳机播放 |
 | AVRCP TG | Audio/Video Remote Control Profile（Target / 播放器侧） | 作为播放器响应远端的播放控制，并上报播放状态/曲目/进度 |
 | AVRCP CT | Audio/Video Remote Control Profile（Controller） | 设置对端（音箱）的绝对音量、接收对端音量变化 |
+| HFP AG | Hands-Free Profile（Audio Gateway / “手机”侧） | 与蓝牙耳机（HF）建立 SLC：来电/去电、SCO 双向语音、CVSD/mSBC 协商、音量处理 |
 
 > 说明：本工程基于**经典蓝牙（BR/EDR）**，非 BLE。开发板为**主动方**，连接蓝牙音箱/耳机等 A2DP Sink 设备。
 
@@ -27,7 +29,7 @@
 SD 卡 MP3 文件
     → MP3 解码 (helix)              # 解出 PCM
     → 重采样 (如源采样率≠协商采样率)  # 例如 48k → 44.1k
-    → SBC / AAC-LC 编码             # 编成 A2DP 码流
+    → SBC 编码                     # 编成 A2DP 码流
     → A2DP Source 发送             # 经蓝牙链路
     → 蓝牙音箱 / 耳机 (A2DP Sink) 解码播放
 ```
@@ -95,7 +97,7 @@ ap_cmd a2dp_player disconnect XX:XX:XX:XX:XX:XX
 
 本工程用于演示 Beken 平台上的经典蓝牙 **A2DP 音源（Source）** 类应用能力，主要包含：
 
-- A2DP Source：读取 SD 卡里的 MP3，解码 → 重采样 → SBC/AAC 编码，通过蓝牙推送给音箱/耳机播放
+- A2DP Source：读取 SD 卡里的 MP3，解码 → 重采样 → SBC 编码，通过蓝牙推送给音箱/耳机播放
 - AVRCP Target（播放器）：响应远端的播放/暂停/切歌按键（passthrough），并上报播放状态、曲目变化、播放进度
 - AVRCP Controller：设置对端绝对音量、接收对端音量/电量变化
 
@@ -122,13 +124,17 @@ ap_cmd a2dp_player disconnect XX:XX:XX:XX:XX:XX
 ```text
 central/
 ├── ap/
-│   ├── ap_main.c                       # AP 入口：bk_init → media_service_init → bt_manager_init → a2dp source demo → CLI
+│   ├── ap_main.c                       # AP 入口：bk_init → media_service_init → bt_manager_init → a2dp source demo → hfp ag demo → CLI
 │   ├── a2dp_source/
 │   │   ├── a2dp_source_demo.c          # A2DP Source 连接管理 + 音乐播放（启动 MP3 解码任务、向组件输送 PCM）
 │   │   ├── a2dp_source_demo_cli.c      # `a2dp_player` CLI 命令实现
 │   │   ├── a2dp_source_demo_avrcp.c    # AVRCP 策略：passthrough 按键处理、playback/track/position 上报、音量
 │   │   ├── a2dp_source_demo.h
 │   │   └── a2dp_source_demo_avrcp.h
+│   ├── hfp_ag/                          # 由 Kconfig BLUETOOTH_BTDM_COMPONENT_HFP_AG 控制（默认开）
+│   │   ├── hfp_ag_demo.c               # HFP AG 策略：通话状态机、AT 应答（+CIND/+COPS/+CLCC…）、鉴权后自动连
+│   │   ├── hfp_ag_demo_cli.c           # `hfp_ag` CLI 命令实现
+│   │   └── hfp_ag_demo.h
 │   └── config/bk7259_ap/defconfig      # AP 侧 Kconfig 默认覆盖（音频 / ADK / FATFS / BT）
 └── cp/
     └── config/bk7259/defconfig         # CP 侧 Kconfig 默认覆盖（BT controller 等）
@@ -139,9 +145,10 @@ A2DP Source 收发/编码流水线与 AVRCP 逻辑位于**可复用组件**（`a
 | 组件 | 作用 |
 | --- | --- |
 | `service/dm/a2dp/bk_a2dp_source_service` | A2DP Source 连接状态机 + 发送流水线（ring buffer、编码回调、AVDTP start/suspend） |
-| `service/dm/a2dp/bk_a2dp_source_pcm_service` | 独立 worker：重采样 + SBC/AAC 编码 |
+| `service/dm/a2dp/bk_a2dp_source_pcm_service` | 独立 worker：重采样 + SBC 编码 |
 | `service/dm/avrcp/bk_avrcp_tg_service` | AVRCP Target（播放器）：passthrough、playback/track/position 通知 |
 | `service/dm/avrcp/bk_avrcp_ct_service` | AVRCP Controller：绝对音量、对端音量/电量 |
+| `service/dm/hfp/bk_hfp_ag_service`（+ `hfp_ag_audio`） | HFP AG：AG 生命周期（init/features/bt_manager 注册）、SLC/通话/编码事件到 app 的通道、SCO 语音引擎（audio_play/record，CVSD/mSBC） |
 | `service/dm/bt_manager` | 单一 GAP 回调：设备名/COD/可发现性/配对/link key 存储/连接后切主 |
 
 ## 代码导读（修改 / 扩展代码参考）
@@ -155,6 +162,10 @@ media_service_init();      // 媒体服务（音频播放框架）
 bt_manager_init(&cfg);     // 经典蓝牙管理：设备名 a2dp_source_XXYYZZ / COD_PHONE / role=master
 bt_a2dp_source_demo_init();// 提前初始化 A2DP Source + AVRCP（eager，可接住音箱主动连接）
 cli_a2dp_source_demo_init();// 注册 a2dp_player 串口命令
+#if CONFIG_BLUETOOTH_BTDM_COMPONENT_HFP_AG
+hfp_ag_demo_init();        // 提前初始化 HFP AG（eager，可接住耳机主动连；鉴权后自动建 SLC）
+cli_hfp_ag_demo_init();    // 注册 hfp_ag 串口命令
+#endif
 ```
 
 各模块职责与关键函数：
@@ -165,12 +176,12 @@ cli_a2dp_source_demo_init();// 注册 a2dp_player 串口命令
 | 蓝牙管理（`bt_manager`） | `bt_manager_init(&cfg)` | 设备名、COD、page/scan 可发现性、配对 IO 能力、link key 存储、角色切换 |
 | A2DP Source（`a2dp_source/a2dp_source_demo.c`） | `bt_a2dp_source_demo_init` / `bt_a2dp_source_demo_music_play` | 连接/断开、启动 MP3 解码任务、启动 AVDTP 流、向组件输送 PCM |
 | AVRCP（`a2dp_source/a2dp_source_demo_avrcp.c`） | `bt_avrcp_demo_init` / `bt_avrcp_demo_report_playback` / `..._report_track_change` | 处理音箱下发的 passthrough 按键；播放状态、曲目、进度上报 |
-| CLI（`a2dp_source_demo_cli.c`） | `cli_a2dp_source_demo_init` / `cmd_a2dp_player_demo` | 解析 `a2dp_player xxx` 子命令并调用上面各接口 |
+| HFP AG（`hfp_ag/hfp_ag_demo.c`） | `hfp_ag_demo_init` / `hfp_ag_demo_cb` / `hfp_ag_demo_gap_cb` | 通话状态机、AT 应答（+CIND/+COPS/+CLCC…）；鉴权完成后自动建立 SLC；SCO 语音由组件 `bk_hfp_ag_service` 承载 |
+| CLI（`a2dp_source_demo_cli.c` / `hfp_ag/hfp_ag_demo_cli.c`） | `cli_a2dp_source_demo_init` / `cmd_a2dp_player_demo` / `cli_hfp_ag_demo_init` | 解析 `a2dp_player` / `hfp_ag` 子命令并调用上面各接口 |
 
 常见修改点：
 
 - **修改设备名 / 可发现性 / 角色**：`ap_main.c` 中的 `bt_manager_cfg_t`。
-- **启用 AAC 编码**：默认仅使用 SBC。AAC-LC 编码由 Kconfig `BLUETOOTH_BTDM_COMPONENT_BT_A2DP_SOURCE_AAC` 控制（默认关闭，开启后会额外链接 FDK-AAC，约 230KB flash）。
 - **新增自定义命令**：在 `a2dp_source_demo_cli.c` 的 `cmd_a2dp_player_demo` 中新增分支。
 
 ## 3. 功能说明
@@ -180,10 +191,10 @@ cli_a2dp_source_demo_init();// 注册 a2dp_player 串口命令
 - 开机自动初始化经典蓝牙与媒体服务，并提前拉起 A2DP Source / AVRCP
 - 搜索、连接、断开蓝牙音箱/耳机（支持开发板主动连，也支持音箱主动连）
 - 播放 SD 卡上的 MP3：解码 → 重采样（按需）→ SBC 编码 → 推送播放
-- 可选 AAC-LC 编码（Kconfig 开关，默认关）
 - 播放控制：play / pause / resume / stop / prev / next
 - AVRCP 播放器：响应远端 passthrough 按键，上报播放状态 / 曲目变化 / 播放进度
 - AVRCP 绝对音量控制
+- HFP AG（音频网关）：与蓝牙耳机建立 SLC；模拟来电/去电、SCO 双向语音对讲；CVSD/mSBC 编码协商；处理耳机音量上报（Kconfig 开关，默认开）
 - 串口 CLI 手动控制
 
 ## 4. 编译与运行
@@ -212,11 +223,9 @@ CONFIG_FATFS=y
 CONFIG_FATFS_SDCARD=y
 CONFIG_SDCARD=y
 CONFIG_ADK_SBC_ENCODER=y      # SBC 编码（A2DP Source 用）
-CONFIG_ADK_AAC_DECODER=y
 CONFIG_BLUETOOTH_BTDM_COMPONENT_ENABLE=y
+CONFIG_BLUETOOTH_BTDM_COMPONENT_HFP_AG=y   # HFP AG（音频网关）组件
 ```
-
-A2DP Source 的 AAC-LC 编码默认**关闭**（`CONFIG_BLUETOOTH_BTDM_COMPONENT_BT_A2DP_SOURCE_AAC` 默认 n，用于控制 code size）。默认验证时优先使用 SBC。
 
 #### 4.2.2 串口 CLI 命令
 
@@ -250,13 +259,29 @@ A2DP Source 的 AAC-LC 编码默认**关闭**（`CONFIG_BLUETOOTH_BTDM_COMPONENT
 | --- | --- |
 | `ap_cmd a2dp_player abs_vol 60` | 设置对端（音箱）绝对音量，取值 0~0x7f（0~127） |
 
+**HFP AG 命令（音频网关，与蓝牙耳机 HF 交互）**
+
+> HFP AG 无需手动 connect：耳机主动回连并鉴权完成后会自动建立 SLC；若对端不支持 HFP HF，会上报连接失败。
+
+| 命令 | 说明 |
+| --- | --- |
+| `ap_cmd hfp_ag incoming [number]` | 模拟来电（可带来电号码，默认 10010），触发耳机响铃 |
+| `ap_cmd hfp_ag answer` | 接听当前来电 |
+| `ap_cmd hfp_ag hangup` | 挂断当前通话 |
+| `ap_cmd hfp_ag dial <number>` | 模拟去电（拨号） |
+| `ap_cmd hfp_ag audio on\|off` | 打开/关闭 SCO 语音（AG mic ↔ HF 双向对讲） |
+| `ap_cmd hfp_ag codec cvsd\|msbc` | 选择 SCO 语音编码（CVSD 8k / mSBC 16k） |
+| `ap_cmd hfp_ag battery <0-5>` | 向耳机上报 AG 电量等级 |
+| `ap_cmd hfp_ag vgs <0-15>` / `ap_cmd hfp_ag vgm <0-15>` | 设置耳机扬声器 / 麦克风音量 |
+| `ap_cmd hfp_ag cmd <at-result-code>` | 发送自定义 AT 结果码 |
+
 命令提交成功时返回 `CMDRSP:OK`，失败时返回 `CMDRSP:ERROR`。
 
 #### 4.2.3 如何判断测试成功或失败
 
 `CMDRSP:OK` 仅表示 CLI 命令已被接受，**不代表蓝牙业务已经完成**。请结合蓝牙 profile 状态和音频链路日志判断：
 
-- `connect` 后应能看到 A2DP / AVRCP 连接成功、协商出的 codec（SBC/AAC）与采样率日志；
+- `connect` 后应能看到 A2DP / AVRCP 连接成功、协商出的 codec（SBC）与采样率日志；
 - `play` 后音箱应实际出声；串口应有 MP3 解码 / 编码 / 发送相关日志；
 - `abs_vol` 后音箱音量应随之变化（取决于音箱是否支持绝对音量）。
 
@@ -270,8 +295,7 @@ A2DP Source 业务需要配合外部蓝牙音箱与 SD 卡上的 MP3 文件，�
 2. **必须有 SD 卡与 MP3 文件**：`play` 的文件路径以 `1:/` 开头（FATFS SD 卡盘符），请确认卡已插好、文件存在。
 3. **MAC 地址格式固定**：CLI 中的 MAC 必须写成 `XX:XX:XX:XX:XX:XX`，否则命令会解析失败。
 4. **设备名**：默认前缀为 `a2dp_source`，广播名形如 `a2dp_source_XXYYZZ`（后缀为本机 BT MAC 末 3 字节），可在 `ap_main.c` 修改。
-5. **AAC 编码默认关闭**：默认只推 SBC；如需 AAC-LC，请打开 Kconfig `BLUETOOTH_BTDM_COMPONENT_BT_A2DP_SOURCE_AAC`（会增加约 230KB flash），并确认音箱支持 AAC。
-6. **prev / next 暂未实现真正的曲目管理**：当前会重播同一个文件，仅用于演示 AVRCP 上报链路。
+5. **prev / next 暂未实现真正的曲目管理**：当前会重播同一个文件，仅用于演示 AVRCP 上报链路。
 
 **常见问题（FAQ）**
 

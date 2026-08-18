@@ -8,6 +8,9 @@
 #include "bt_manager.h"
 #include "media_service.h"
 #include "a2dp_source_demo.h"
+#if CONFIG_BLUETOOTH_BTDM_COMPONENT_HFP_AG
+#include "hfp_ag_demo.h"
+#endif
 
 #define AUTO_ENABLE_BLUETOOTH_DEMO 1
 
@@ -48,6 +51,11 @@ int main(void)
     /* eager profile init so a peer (speaker) can initiate the connection */
     bt_a2dp_source_demo_init();
     cli_a2dp_source_demo_init();
+
+#if CONFIG_BLUETOOTH_BTDM_COMPONENT_HFP_AG
+    hfp_ag_demo_init();
+    cli_hfp_ag_demo_init();
+#endif
 #endif
 #if 0//CONFIG_BLE
     extern int cli_ble_gatt_demo_init(void);

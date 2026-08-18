@@ -55,6 +55,8 @@ typedef struct
     uint8_t conn_state;           /* mirrored from a2dp source service events */
     uint8_t start_status;         /* mirrored from STREAM_START/SUSPEND events */
     uint8_t read_cb_pause;        /* demo pause flag, drives play-status reporting */
+    uint8_t connect_issued;       /* an a2dp connect was already started this link (user or auto) */
+    beken2_timer_t autoconn_timer; /* grace timer to auto-connect A2DP if the peer stays idle */
 
     /* ---- file read + MP3 decode state (moved from file-scope globals) ---- */
     beken_thread_t decode_thread_handle;
@@ -117,6 +119,76 @@ static void on_source_service_evt(bk_a2dp_source_service_evt_t evt, void *arg, v
 
 
 static a2dp_source_player_ctx_t s_a2dp_source_player_ctx;
+
+/* Central is the A2DP source. On a fresh link, give the peer a short grace
+ * period to bring A2DP up itself; only if it stays idle do we initiate it, so
+ * we never race a peer-initiated stream (which would otherwise collide on
+ * SET_CONFIG -- see the AVDTP_CONNECT_IND handling in bt_ui.c). */
+#define A2DP_AUTOCONNECT_GRACE_MS   4000
+
+static void a2dp_source_autoconnect_timer_hdl(void *larg, void *rarg)
+{
+    uint8_t *dev;
+
+    (void)larg;
+    (void)rarg;
+
+    /* A2DP source (and bt_manager's peer tracking) is single-connection, so one
+     * timer is enough. On expiry serve whichever device is CURRENTLY connected,
+     * queried live from bt_manager -- this is what keeps things correct when
+     * several devices connect around the same time (no stale stored address). */
+    if (s_a2dp_source_player_ctx.connect_issued ||
+        s_a2dp_source_player_ctx.conn_state != BK_A2DP_CONNECTION_STATE_DISCONNECTED)
+    {
+        return; /* peer brought A2DP up, or we already started it for a device */
+    }
+
+    dev = bt_manager_get_connected_device();
+    if (!dev || 0 == (dev[0] | dev[1] | dev[2] | dev[3] | dev[4] | dev[5]))
+    {
+        return; /* no active device to serve */
+    }
+
+    LOGI("peer left A2DP idle, auto-connect source to %02x:%02x:%02x:%02x:%02x:%02x",
+         dev[5], dev[4], dev[3], dev[2], dev[1], dev[0]);
+    /* Non-blocking: this runs in the timer service thread; blocking here would
+     * stall the BT stack's software timers and wedge media-channel setup. */
+    s_a2dp_source_player_ctx.connect_issued = 1;
+    bk_a2dp_source_service_connect_async(dev);
+}
+
+static void a2dp_source_arm_autoconnect(void)
+{
+    if (!rtos_is_oneshot_timer_init(&s_a2dp_source_player_ctx.autoconn_timer))
+    {
+        if (rtos_init_oneshot_timer(&s_a2dp_source_player_ctx.autoconn_timer, A2DP_AUTOCONNECT_GRACE_MS,
+                                    (timer_2handler_t)a2dp_source_autoconnect_timer_hdl, NULL, NULL))
+        {
+            LOGE("a2dp autoconnect timer init fail");
+            return;
+        }
+    }
+
+    if (rtos_is_oneshot_timer_running(&s_a2dp_source_player_ctx.autoconn_timer))
+    {
+        rtos_stop_oneshot_timer(&s_a2dp_source_player_ctx.autoconn_timer);
+    }
+
+    rtos_start_oneshot_timer(&s_a2dp_source_player_ctx.autoconn_timer);
+}
+
+static void a2dp_source_cancel_autoconnect(void)
+{
+    if (rtos_is_oneshot_timer_init(&s_a2dp_source_player_ctx.autoconn_timer))
+    {
+        if (rtos_is_oneshot_timer_running(&s_a2dp_source_player_ctx.autoconn_timer))
+        {
+            rtos_stop_oneshot_timer(&s_a2dp_source_player_ctx.autoconn_timer);
+        }
+        /* pair the init() done in arm(); arm() re-inits on the next link */
+        rtos_deinit_oneshot_timer(&s_a2dp_source_player_ctx.autoconn_timer);
+    }
+}
 
 static void *mp3_private_alloc(size_t size)
 {
@@ -266,6 +338,27 @@ static void bt_api_event_cb(bk_gap_bt_cb_event_t event, bk_bt_gap_cb_param_t *pa
 
     break;
 
+    case BK_BT_GAP_AUTH_CMPL_EVT:
+    {
+        bk_bt_gap_cb_param_t *cb = (typeof(cb))param;
+
+        /* Central is the A2DP *source*; on link-ready (auth/encryption done)
+         * proactively bring up A2DP if it is still idle and nobody started it
+         * yet. Some peers reconnect and only set up HFP, never initiating A2DP
+         * themselves -- without this the source side would stay unconnected.
+         * Starting here (right after auth) usually makes us the AVDTP initiator;
+         * if the peer initiates first, the AVDTP_CONNECT_IND path in bt_ui.c
+         * yields to it, so the two do not collide. */
+        if (cb->auth_cmpl.stat == 0 &&
+            !s_a2dp_source_player_ctx.connect_issued &&
+            s_a2dp_source_player_ctx.conn_state == BK_A2DP_CONNECTION_STATE_DISCONNECTED)
+        {
+            LOGI("auth ok, arm A2DP source auto-connect in %d ms", A2DP_AUTOCONNECT_GRACE_MS);
+            a2dp_source_arm_autoconnect();
+        }
+    }
+    break;
+
     default:
         break;
     }
@@ -310,6 +403,8 @@ static void on_source_service_evt(bk_a2dp_source_service_evt_t evt, void *arg, v
     case BK_A2DP_SOURCE_SERVICE_EVT_DISCONNECTED:
         s_a2dp_source_player_ctx.conn_state = BK_A2DP_CONNECTION_STATE_DISCONNECTED;
         s_a2dp_source_player_ctx.start_status = 0;
+        s_a2dp_source_player_ctx.connect_issued = 0;
+        a2dp_source_cancel_autoconnect();
         LOGI("a2dp source disconnected");
         a2dp_source_demo_stop_mp3_decode_task();
         break;
@@ -369,6 +464,7 @@ int bt_a2dp_source_demo_connect(uint8_t *addr)
     }
 
     /* service owns profile init + a2dp connect + waiting for CONNECTED/AUDIO_CFG */
+    s_a2dp_source_player_ctx.connect_issued = 1;
     return bk_a2dp_source_service_connect(addr);
 }
 

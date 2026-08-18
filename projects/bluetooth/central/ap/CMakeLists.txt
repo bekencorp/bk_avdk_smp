@@ -33,6 +33,14 @@ if (CONFIG_BT)
         a2dp_source/a2dp_source_demo_cli.c
         a2dp_source/a2dp_source_demo_avrcp.c
     )
+
+    if (CONFIG_BLUETOOTH_BTDM_COMPONENT_HFP_AG)
+        list(APPEND incs hfp_ag)
+        list(APPEND srcs
+            hfp_ag/hfp_ag_demo.c
+            hfp_ag/hfp_ag_demo_cli.c
+        )
+    endif()
 endif()
 
 set(priv_req  bk_init media_service bk_cli audio_play audio_record lwip_intf_v2_1 fatfs bk_bluetooth)

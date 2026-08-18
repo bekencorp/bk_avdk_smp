@@ -171,6 +171,17 @@ if (CONFIG_BLUETOOTH_AP)
 					service/dm/hfp/hfp_hf_audio.c
 					)
 			endif()
+
+			if (CONFIG_BLUETOOTH_BTDM_COMPONENT_HFP_AG)
+				list(APPEND srcs
+					service/dm/hfp/bk_hfp_ag_service.c
+					)
+				if (CONFIG_AUDIO_PLAY)
+					list(APPEND srcs
+						service/dm/hfp/hfp_ag_audio.c
+						)
+				endif()
+			endif()
 		endif ()
 
 		# BLE public GATT framework (service/dm/ble/gatt, formerly bt_dm/ble/gatt).

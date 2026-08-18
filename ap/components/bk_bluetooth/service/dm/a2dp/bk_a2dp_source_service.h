@@ -57,6 +57,11 @@ int bk_a2dp_source_service_deinit(void);
 /** Connect A2DP source to the specified remote device. */
 int bk_a2dp_source_service_connect(const uint8_t bda[6]);
 
+/** Non-blocking variant: kicks off the connection and returns immediately
+ * (CONNECTED / AUDIO_CFG arrive via the event callback). Safe to call from a
+ * timer handler or other context that must not block. */
+int bk_a2dp_source_service_connect_async(const uint8_t bda[6]);
+
 /** Disconnect the current A2DP source link. */
 int bk_a2dp_source_service_disconnect(void);
 

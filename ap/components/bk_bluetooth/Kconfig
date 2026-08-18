@@ -299,5 +299,16 @@ menu "Bk_ble"
 				addition to SBC. This links the FDK-AAC encoder library which
 				adds roughly 230 KB of flash, so it is disabled by default to
 				keep code size down. When disabled, the A2DP source is SBC-only.
+
+		config BLUETOOTH_BTDM_COMPONENT_HFP_AG
+			bool "Enable HFP AG (Audio Gateway) role service"
+			default n
+			help
+				Build the componentized HFP AG service (bk_hfp_ag_service +
+				hfp_ag_audio) so the device can act as the Audio Gateway
+				(phone/gateway side) of a Hands-Free call. Needs the HFP AG
+				host support enabled too (CONFIG_HFP_AG). Disabled by default;
+				enable it in the project that needs the AG role (e.g.
+				bluetooth/central).
 	endmenu
 endmenu
