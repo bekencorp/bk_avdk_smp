@@ -261,8 +261,6 @@ static int secure_xip_init(f_ota_t *ota_ptr)
 	ota_ptr->received_total_size = 0;
 	ota_ptr->fd                  = -1;
 	ota_ptr->init_flag           = 1;
-	ota_ptr->protect_type        = bk_flash_get_protect_type();
-	bk_flash_set_protect_type(FLASH_PROTECT_NONE);
 
 	OTA_LOGI("secure xip: run slot %u -> stage slot %u @0x%x size 0x%x\r\n",
 			 running, s_secure_xip.update_slot,
@@ -372,7 +370,6 @@ static int secure_xip_deinit(f_ota_t *ota_ptr)
 	OTA_FREE(ota_ptr->wr_buf);
 	OTA_FREE(ota_ptr->wr_tmp_buf);
 	OTA_FREE(ota_ptr->rd_buf);
-	bk_flash_set_protect_type(ota_ptr->protect_type);
 	ota_ptr->init_flag = 0;
 	return BK_OK;
 }

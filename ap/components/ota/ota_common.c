@@ -101,20 +101,16 @@ static int ap_ab_record_read(ab_flag_record_t *latest)
 	return (ab_record_read_latest(base, &s_ap_ab_ops, latest) < 0) ? -1 : 0;
 }
 
-/* Commit a fully-populated (semantic fields set) record with flash protection
- * temporarily disabled. */
+/* Commit a fully-populated (semantic fields set) record. Flash protection is
+ * managed internally by the flash erase/write API. */
 static void ap_ab_record_commit(ab_flag_record_t *rec)
 {
 	uint32_t base = ap_flag_partition_base();
-	flash_protect_type_t protect_type;
 
 	if (base == 0) {
 		return;
 	}
-	protect_type = bk_flash_get_protect_type();
-	bk_flash_set_protect_type(FLASH_PROTECT_NONE);
 	(void)ab_record_commit(base, &s_ap_ab_ops, rec);
-	bk_flash_set_protect_type(protect_type);
 }
 
 /* Build a record from its semantic fields and commit it (magic/seq/crc are

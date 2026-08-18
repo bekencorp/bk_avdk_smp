@@ -89,7 +89,6 @@ int ota_boot_param_set_trial(uint8_t update_slot)
 {
 	ab_flag_record_t rec;
 	uint32_t base = ota_bp_partition_base();
-	flash_protect_type_t protect_type;
 	int latest_idx;
 	int write_idx;
 
@@ -120,10 +119,7 @@ int ota_boot_param_set_trial(uint8_t update_slot)
 	/* Reserved bytes are CRC-covered and must stay canonical zero. */
 	memset(rec.rsvd0, 0, sizeof(rec.rsvd0));
 
-	protect_type = bk_flash_get_protect_type();
-	bk_flash_set_protect_type(FLASH_PROTECT_NONE);
 	write_idx = ab_record_commit(base, &s_ota_bp_ops, &rec);
-	bk_flash_set_protect_type(protect_type);
 
 	if (write_idx < 0) {
 		OTA_LOGE("boot_param commit failed: %d\r\n", write_idx);
