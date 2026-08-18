@@ -104,24 +104,6 @@ bk_err_t bk_flash_write_enable(void);
 bk_err_t bk_flash_write_disable(void);
 
 /**
- * @brief     Set flash protect type
- *
- * @param type flash protect type
- *
- * @return
- *    - BK_OK: succeed
- *    - others: other errors.
- */
-bk_err_t bk_flash_set_protect_type(flash_protect_type_t type);
-
-/**
- * @brief     Get flash protect type
- *
- * @return the flash protect type
- */
-flash_protect_type_t bk_flash_get_protect_type(void);
-
-/**
  * @brief     Get flash status register value
  *
  * @return the flash status register value
