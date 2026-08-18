@@ -22,7 +22,7 @@
 //#include "arm_uart_drv.h"
 #include "fih.h"
 
-#define TFM_DRIVER_STDIO    Driver_USART1
+#define TFM_DRIVER_STDIO    Driver_USART0
 #define NS_DRIVER_STDIO     Driver_USART0
 
 /**

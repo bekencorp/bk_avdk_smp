@@ -38,6 +38,11 @@ __used static void ns_init_hook(void)
         }
     }
     bk_ppc_set_ap_master_nsec();
+    /* PPRO has now marked UART0 non-secure: retarget the shared console driver
+     * to the UART0 non-secure alias so the remaining secure output and the NSPE
+     * keep writing to the same physical UART through a valid attribute. */
+    extern void uart_min_switch_uart0_to_nsec(void);
+    uart_min_switch_uart0_to_nsec();
 #if CONFIG_SLEEP_RETENTION_NSC
     (void)tfm_sleep_context_refresh_ppro();
 #endif

@@ -160,6 +160,12 @@ int main(void)
         void legacy_boot_main(void);
         legacy_boot_main();
         flash_restore_line_mode();
+#if CONFIG_DOWNLOAD_LOG
+        /* The download transport shares UART0 with the console and tears down
+         * its TX path and clock on exit; re-initialise the console so the
+         * subsequent bootloader log is emitted. */
+        stdio_init();
+#endif
     }
 #endif
 

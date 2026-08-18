@@ -31,9 +31,22 @@
 #define FUNC_CODE_UART1_RXD_VAL   97
 #define FUNC_CODE_UART1_TXD_VAL   98
 
-#define UART0_REG_BASE        (0x44820000)
+#define UART0_REG_BASE_S      (0x44820000)   /* secure alias   */
+#define UART0_REG_BASE_NS     (0x54820000)   /* non-secure alias */
 #define UART1_REG_BASE        (0x45830000)
 #define UART2_REG_BASE        (0x45840000)
+
+/* UART0 is the shared debug console. During secure boot (BL2 + SPE) it is
+ * accessed through the secure alias; once PPRO marks UART0 non-secure at the
+ * secure-to-non-secure handoff, the base is switched to the non-secure alias so
+ * the remaining secure output and the non-secure world keep using the same
+ * physical UART. */
+static volatile uint32_t s_uart0_base = UART0_REG_BASE_S;
+
+void uart_min_switch_uart0_to_nsec(void)
+{
+	s_uart0_base = UART0_REG_BASE_NS;
+}
 #ifndef UART_CLOCK_FREQ_120M
 #define UART_CLOCK_FREQ_120M  (120000000)
 #endif
@@ -55,7 +68,7 @@ static uart_min_hw_t *uart_min_hw(uart_id_t id)
 {
 	switch (id) {
 	case UART_ID_0:
-		return (uart_min_hw_t *)UART0_REG_BASE;
+		return (uart_min_hw_t *)s_uart0_base;
 	case UART_ID_1:
 		return (uart_min_hw_t *)UART1_REG_BASE;
 	case UART_ID_2:

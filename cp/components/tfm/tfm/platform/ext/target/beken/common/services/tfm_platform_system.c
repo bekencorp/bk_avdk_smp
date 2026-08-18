@@ -13,6 +13,7 @@
 #include "prro_hal.h"
 #include "bk_tfm_ppc.h"
 #include "driver/wdt.h"
+#include "bk_tfm_log.h"
 
 void timer_clear_isr_status(void);
 
