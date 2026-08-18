@@ -9,6 +9,7 @@
 #include "sys_driver.h"
 #include "components/log.h"
 #include <os/os.h>
+#include <soc/soc.h>
 #include <driver/int_types.h>
 #include <driver/hal/hal_int_types.h>
 #include <driver/gpio.h>
@@ -1040,7 +1041,7 @@ void musb_intr_pipe_init(struct musb_pipe *pipe, uint8_t *buffer, uint32_t bufle
 }
 
 /* Low-level helpers used by CherryUSB/driver/usb_driver.c. */
-#define M55_CLK_EN_REG  (0x48000000 + 0x0A * 4)
+#define M55_CLK_EN_REG  (SOC_SYS_AHBP_REG_BASE + 0x0A * 4)
 
 void usb_clk_config(uint8_t en)
 {
@@ -1058,10 +1059,10 @@ void usb_clk_config(uint8_t en)
 
 void sys_ana_usb_phy_op(uint8_t en)
 {
-#define SYS_ANA_LATCH_REG (0x44010000 + 0x4a * 4)
-#define SYS_OP_STATUS     (0x44010000 + 0x3a * 4)
+#define SYS_ANA_LATCH_REG (SOC_SYS_REG_BASE + 0x4a * 4)
+#define SYS_OP_STATUS     (SOC_SYS_REG_BASE + 0x3a * 4)
 
-#define SYS_ANA4E_REG     (0x44010000 + 0x4e * 4)
+#define SYS_ANA4E_REG     (SOC_SYS_REG_BASE + 0x4e * 4)
     uint32_t reg_val = REG_READ(SYS_ANA4E_REG);
     if(en&0x01){
 
@@ -1093,7 +1094,7 @@ void sys_ana_usb_phy_op(uint8_t en)
 
 void spitrig_toggle(void)
 {
-#define SYS_ANA_SPI_TRIG_REG (0x44010000 + 0x40 * 4)
+#define SYS_ANA_SPI_TRIG_REG (SOC_SYS_REG_BASE + 0x40 * 4)
 
     uint32_t value = REG_READ(SYS_ANA_SPI_TRIG_REG);
     REG_WRITE(SYS_ANA_SPI_TRIG_REG, value | 0x01<<19);
