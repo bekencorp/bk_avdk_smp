@@ -60,16 +60,17 @@ audio_port_handle_t audio_port_init(audio_port_cfg_t *config)
     bool _success = ((config->tag ? audio_port_set_tag(port, config->tag) : audio_port_set_tag(port, "unknown_port")) == BK_OK);
     AUDIO_MEM_CHECK(TAG, _success, goto _port_init_failed);
 
-    port->open = config->open;
+    port->open  = config->open;
     port->close = config->close;
     port->destroy = config->destroy;
-    port->abort = config->abort;
-    port->reset = config->reset;
-    port->read = config->read;
-    port->write = config->write;
+    port->abort   = config->abort;
+    port->reset   = config->reset;
+    port->read    = config->read;
+    port->write   = config->write;
     port->write_done = config->write_done;
-    port->get_size = config->get_size;
+    port->get_size        = config->get_size;
     port->get_filled_size = config->get_filled_size;
+    port->get_free_size   = config->get_free_size;
 
 #if 0
     audio_port_set_malloc_timeout(port, portMAX_DELAY);

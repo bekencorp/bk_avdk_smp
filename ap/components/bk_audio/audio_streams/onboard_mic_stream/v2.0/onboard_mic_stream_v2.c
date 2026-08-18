@@ -35,8 +35,10 @@
 
 #define TAG  "OB_MIC"
 
-#define DMA_CARRY_MIC_FRAME_NUM                (2)
+#define DMA_CARRY_MIC_FRAME_NUM                (8)
 #define DMA_CARRY_MIC_RINGBUF_SAFE_INTERVAL    (32)
+
+#define ONBOARD_MIC_DROP_ON_BACKPRESSURE       1
 
 //#define ONBOARD_MIC_DEBUG   //GPIO debug
 
@@ -565,6 +567,11 @@ static void onboard_mic_apply_startup_shaping(onboard_mic_stream_t *m, int16_t *
     }
 }
 
+
+#if ONBOARD_MIC_DROP_ON_BACKPRESSURE
+static uint32_t s_onboard_mic_bp_drop = 0;   /* frames dropped due to downstream back-pressure */
+#endif
+
 static int _onboard_mic_process(audio_element_handle_t self, char *in_buffer, int in_len)
 {
     onboard_mic_stream_t *onboard_mic = (onboard_mic_stream_t *)audio_element_getdata(self);
@@ -617,7 +624,30 @@ static int _onboard_mic_process(audio_element_handle_t self, char *in_buffer, in
 
         //audio_element_multi_output(self, in_buffer, r_size, 0);
         AUD_ONBOARD_MIC_OUTPUT_START();
+#if ONBOARD_MIC_DROP_ON_BACKPRESSURE
+        {
+            audio_port_handle_t out_port = audio_element_get_output_port(self);
+            int out_free = (out_port != NULL) ? audio_port_get_free_size(out_port) : -1;
+
+            if (out_free >= r_size)
+            {
+                w_size = audio_element_output(self, in_buffer, r_size);
+            }
+            else
+            {
+                /* downstream full (uplink back-pressure) or free-size unavailable
+                 * -> drop this whole frame, NEVER block. */
+                w_size = r_size;
+                if ((++s_onboard_mic_bp_drop % 100u) == 1u)
+                {
+                    //BK_LOGW(TAG, "backpressure: drop mic frame #%u (out_free=%d frame=%d)\n",
+                    //        (unsigned)s_onboard_mic_bp_drop, out_free, r_size);
+                }
+            }
+        }
+#else
         w_size = audio_element_output(self, in_buffer, r_size);
+#endif
         AUD_ONBOARD_MIC_OUTPUT_END();
 
         ONBOARD_MIC_DATA_COUNT_ADD_SIZE(r_size);
