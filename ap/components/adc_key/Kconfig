@@ -5,6 +5,42 @@ menu "Adc_key"
 		bool "Enable Adc Key"
 		default n
 
+	config ADC_KEY_MAX_CHANNELS
+		int "Maximum active ADC key channels"
+		default 4
+		range 1 4
+		depends on ADC_KEY
+		help
+		  Maximum number of ADC channels scanned by the generic adc_key
+		  component. The CP sampler currently supports up to 4 channels.
+
+	config ADC_KEY_MAX_ITEMS
+		int "Maximum logical ADC keys"
+		default 16
+		range 1 16
+		depends on ADC_KEY
+		help
+		  Size of the static logical-key object pool. Each voltage window
+		  registered on an ADC channel consumes one item.
+
+	config ADC_KEY_MAX_ITEMS_PER_CHANNEL
+		int "Maximum logical keys per ADC channel"
+		default 8
+		range 1 8
+		depends on ADC_KEY
+		help
+		  Software limit for non-overlapping voltage windows on one ADC
+		  resistor ladder. Hardware designs should normally use no more
+		  than 4 keys per channel to preserve noise margin.
+
+	config ADC_KEY_SAMPLE_PERIOD_MS
+		int "ADC key scan period (ms)"
+		default 20
+		range 20 100
+		depends on ADC_KEY
+		help
+		  Period of one complete scan over all active ADC key channels.
+
 	config ADC_KEY_DUAL_CHANNEL
 		bool "Enable Dual ADC Channel Key (for next PCB revision)"
 		default n

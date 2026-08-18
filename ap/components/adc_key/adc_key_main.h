@@ -57,8 +57,7 @@ extern "C" {
  * state-machine bounce after this tuning, raise ADCKEY_DEBOUNCE_TICKS
  * to 2 or 3 (max 8 -- limited by debounce_cnt:uint8_t).
  */
-#define ADCKEY_TMR_DURATION      20
-#define ADCKEY_TICKS_INTERVAL    20	//ms, must equal ADCKEY_TMR_DURATION
+#define ADCKEY_TICKS_INTERVAL    CONFIG_ADC_KEY_SAMPLE_PERIOD_MS
 #define ADCKEY_DEBOUNCE_TICKS    1	//MAX 8 (1 tick = 20ms, vs GPIO 18ms)
 #define ADCKEY_SHORT_TICKS       (100 / ADCKEY_TICKS_INTERVAL)
 #define ADCKEY_LONG_TICKS        ((CONFIG_ADC_KEY_LONG_PRESS_MS + ADCKEY_TICKS_INTERVAL - 1) / ADCKEY_TICKS_INTERVAL)
@@ -110,6 +109,43 @@ typedef struct
 } adckey_configure_t;
 
 /*
+ * Generic multi-channel API.
+ *
+ * The legacy adckey_configure_t and bk_adc_key_* APIs remain unchanged.
+ * New users should use the versioned *_ex configuration so each logical key
+ * can select its ADC channel without introducing board-specific key names in
+ * the SDK component.
+ */
+#define ADC_KEY_CONFIG_VERSION       1U
+#define ADC_KEY_INVALID_ID           0xFFFFU
+
+typedef uint16_t adc_key_id_t;
+typedef void *adc_key_handle_t;
+
+typedef struct {
+	uint16_t size;
+	uint16_t version;
+	uint16_t sample_period_ms;
+	uint8_t max_channels;
+	uint8_t max_items;
+} adc_key_driver_config_t;
+
+typedef struct {
+	uint16_t size;
+	uint16_t version;
+	adc_key_id_t key_id;
+	gpio_id_t gpio_id;
+	adc_chan_t adc_chan;
+	uint16_t lowest_level;
+	uint16_t highest_level;
+	adc_key_callback short_press_cb;
+	adc_key_callback double_press_cb;
+	adc_key_callback long_press_cb;
+	adc_key_callback hold_press_cb;
+	void *user_data;
+} adc_key_item_config_ex_t;
+
+/*
  * GPIO key (KEY1) - can only detect any-press, not which button.
  * Reuses the same state machine as ADCKEY_S via the BUTTON_S framework.
  */
@@ -130,6 +166,13 @@ void bk_adc_key_init(gpio_id_t gpio_id, adc_chan_t adc_chan);
 void bk_adc_key_deinit(void);
 uint32_t bk_adckey_item_configure(adckey_configure_t *config);
 uint32_t bk_adckey_item_unconfigure(ADCKEY_INDEX user_data);
+
+/* Generic multi-channel API (preferred for new SDK and Solution code). */
+bk_err_t bk_adc_key_init_ex(const adc_key_driver_config_t *config);
+bk_err_t bk_adc_key_item_configure_ex(const adc_key_item_config_ex_t *config,
+				      adc_key_handle_t *handle);
+bk_err_t bk_adc_key_item_unconfigure_ex(adc_key_handle_t handle);
+bk_err_t bk_adc_key_deinit_ex(void);
 
 /* GPIO key API (KEY1) */
 void bk_gpio_key_init(gpio_id_t gpio_id, uint8_t active_level);

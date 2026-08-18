@@ -1,17 +1,17 @@
 #include <os/os.h>
 #include <os/mem.h>
+#include <string.h>
 #include "adc_key_main.h"
 #include "modules/pm.h"
 #include <key_main.h>
 #include <multi_button.h>
-#include "sys_sw_regs.h"
 
 
 #if CONFIG_ADC_KEY
 
-/* ======================== ADC Key (KEY2) ======================== */
+/* ======================== Generic multi-channel ADC key ======================== */
 
-#define ADCKEY_EVENT_CB(ev)   if(handle->cb[ev])handle->cb[ev]((ADCKEY_S*)handle)
+#define ADCKEY_EVENT_CB(ev)   adckey_event_notify(handle, (ev))
 
 beken_timer_t g_adckey_timer;
 beken_mutex_t g_adckey_mutex;
@@ -19,14 +19,45 @@ static ADCKEY_S *adckey_head_handle = NULL;
 static adc_chan_t s_adc_chan = ADC_MAX;
 static bool s_adckey_inited_flag = 0;
 
-#if CONFIG_ADC_KEY_DUAL_CHANNEL
-static adc_chan_t s_adc_chan2 = ADC_MAX;
-#endif
-
 #define ADCKEY_ERR_LOG_INTERVAL        500
 
+typedef struct {
+	ADCKEY_S button;
+	adc_chan_t adc_chan;
+	adc_key_id_t key_id;
+	void *callback_user_data;
+	uint16_t short_ticks;
+	uint16_t long_ticks;
+	bool allocated;
+	bool extended_api;
+} adc_key_item_node_t;
+
+static adc_key_item_node_t s_adc_key_item_pool[CONFIG_ADC_KEY_MAX_ITEMS];
+static adc_chan_t s_adc_key_channels[CONFIG_ADC_KEY_MAX_CHANNELS];
+static uint8_t s_adc_key_channel_count = 0U;
+static uint16_t s_adc_key_sample_period_ms = CONFIG_ADC_KEY_SAMPLE_PERIOD_MS;
+static uint8_t s_adc_key_max_channels = CONFIG_ADC_KEY_MAX_CHANNELS;
+static uint8_t s_adc_key_max_items = CONFIG_ADC_KEY_MAX_ITEMS;
+static bool s_legacy_default_channel = false;
 static bool s_use_cp_sampler = false;
 static uint32_t s_adc_err_count = 0;
+
+static adc_key_item_node_t *adckey_node_from_handle(ADCKEY_S *handle)
+{
+	return (adc_key_item_node_t *)handle;
+}
+
+static void adckey_event_notify(ADCKEY_S *handle, ADCKEY_PRESS_EVT event)
+{
+	adc_key_item_node_t *node = adckey_node_from_handle(handle);
+	adc_key_callback callback = handle->cb[event];
+
+	if (callback == NULL) {
+		return;
+	}
+
+	callback(node->extended_api ? node->callback_user_data : (void *)handle);
+}
 
 static bk_err_t adckey_sample_once(adc_chan_t chan, uint16_t *mv)
 {
@@ -89,11 +120,18 @@ uint32_t adc_key_get_gpio_voltage(adc_chan_t chan)
 	bk_err_t ret;
 
 	if (s_use_cp_sampler) {
-		adc_key_sample_info_t sample = {0};
-		if (bk_sys_sw_regs_get_adc_key_sample(&sample) &&
-		    sample.channel == (uint8_t)chan &&
-		    sample.status == 0) {
-			return sample.mv;
+		adc_key_sampler_sample_t samples[ADC_KEY_SAMPLER_MAX_CHANNELS];
+		uint8_t count = 0U;
+
+		ret = bk_adc_key_sampler_get_samples(
+			samples, ADC_KEY_SAMPLER_MAX_CHANNELS, &count);
+		if (ret == BK_OK) {
+			for (uint8_t i = 0; i < count; i++) {
+				if ((samples[i].channel == (uint8_t)chan) &&
+				    (samples[i].status == 0U)) {
+					return samples[i].mv;
+				}
+			}
 		}
 		return 9999;
 	}
@@ -124,9 +162,9 @@ static uint8_t adckey_in_range(uint32_t voltage, uint32_t lowest, uint32_t highe
 	return (voltage >= lowest && voltage <= highest) ? 1 : 0;
 }
 
-void adckey_button_handler(ADCKEY_S *handle)
+static void adckey_button_handler(ADCKEY_S *handle, uint32_t read_level)
 {
-	uint32_t read_level = adc_key_get_gpio_voltage(s_adc_chan);
+	adc_key_item_node_t *node = adckey_node_from_handle(handle);
 	uint32_t lowest = handle->lowest_active_level;
 	uint32_t highest = handle->highest_active_level;
 
@@ -152,9 +190,9 @@ void adckey_button_handler(ADCKEY_S *handle)
 	switch (handle->state) {
 	case 0:
 		if (pressed) {
-			ADC_KEY_LOGI("PRESS_DOWN: adc=%dmV range=[%d,%d] user=%d\r\n",
+			ADC_KEY_LOGI("PRESS_DOWN: adc=%dmV range=[%d,%d] key=%u\r\n",
 			             handle->adc_read_level, lowest, highest,
-			             (int)(uint32_t)handle->user_data);
+			             (unsigned)node->key_id);
 			handle->event = (uint8_t)ADCKEY_PRESS_DOWN;
 			ADCKEY_EVENT_CB(ADCKEY_PRESS_DOWN);
 			handle->ticks = 0;
@@ -170,7 +208,7 @@ void adckey_button_handler(ADCKEY_S *handle)
 			ADCKEY_EVENT_CB(ADCKEY_PRESS_UP);
 			handle->ticks = 0;
 			handle->state = 2;
-		} else if (handle->ticks > ADCKEY_LONG_TICKS) {
+		} else if (handle->ticks > node->long_ticks) {
 			handle->event = (uint8_t)ADCKEY_LONG_PRESS_START;
 			ADCKEY_EVENT_CB(ADCKEY_LONG_PRESS_START);
 			handle->state = 5;
@@ -188,7 +226,7 @@ void adckey_button_handler(ADCKEY_S *handle)
 			ADCKEY_EVENT_CB(ADCKEY_PRESS_REPEAT);
 			handle->ticks = 0;
 			handle->state = 3;
-		} else if (handle->ticks > ADCKEY_SHORT_TICKS) {
+		} else if (handle->ticks > node->short_ticks) {
 			if (handle->repeat == 1) {
 				handle->event = (uint8_t)ADCKEY_SINGLE_CLICK;
 				ADCKEY_EVENT_CB(ADCKEY_SINGLE_CLICK);
@@ -202,7 +240,7 @@ void adckey_button_handler(ADCKEY_S *handle)
 		if (!pressed) {
 			handle->event = (uint8_t)ADCKEY_PRESS_UP;
 			ADCKEY_EVENT_CB(ADCKEY_PRESS_UP);
-			if (handle->ticks < ADCKEY_SHORT_TICKS) {
+			if (handle->ticks < node->short_ticks) {
 				handle->ticks = 0;
 				handle->state = 2;
 			} else
@@ -223,75 +261,244 @@ void adckey_button_handler(ADCKEY_S *handle)
 	}
 }
 
-static void adc_key_ticks(void *param)
+static bool adc_key_channel_exists(const adc_chan_t *channels,
+				   uint8_t count, adc_chan_t chan)
+{
+	for (uint8_t i = 0; i < count; i++) {
+		if (channels[i] == chan) {
+			return true;
+		}
+	}
+	return false;
+}
+
+static bk_err_t adc_key_collect_channels_locked(void)
 {
 	ADCKEY_S *target;
+	uint8_t count = 0U;
+
+	if (s_legacy_default_channel && (s_adc_chan < ADC_MAX)) {
+		s_adc_key_channels[count++] = s_adc_chan;
+	}
+
+	for (target = adckey_head_handle; target; target = target->next) {
+		adc_key_item_node_t *node = adckey_node_from_handle(target);
+		if (adc_key_channel_exists(s_adc_key_channels, count,
+					   node->adc_chan)) {
+			continue;
+		}
+		if (count >= s_adc_key_max_channels) {
+			return BK_ERR_NO_MEM;
+		}
+		s_adc_key_channels[count++] = node->adc_chan;
+	}
+
+	s_adc_key_channel_count = count;
+	return BK_OK;
+}
+
+static bk_err_t adc_key_refresh_sampler_locked(void)
+{
+	bk_err_t ret = adc_key_collect_channels_locked();
+
+	if (ret != BK_OK) {
+		return ret;
+	}
+
+	if (s_use_cp_sampler) {
+		(void)bk_adc_key_sampler_stop();
+		s_use_cp_sampler = false;
+	}
+
+	if (s_adc_key_channel_count == 0U) {
+		return BK_OK;
+	}
+
+	ret = bk_adc_key_sampler_start_multi(s_adc_key_channels,
+					     s_adc_key_channel_count,
+					     s_adc_key_sample_period_ms);
+	if (ret == BK_OK) {
+		s_use_cp_sampler = true;
+		ADC_KEY_LOGI("use CP sampler: channels=%d period=%dms\r\n",
+			     s_adc_key_channel_count, s_adc_key_sample_period_ms);
+	} else {
+		ADC_KEY_LOGW("CP sampler unavailable, use AP one-shot ADC\r\n");
+	}
+
+	return BK_OK;
+}
+
+static uint32_t adc_key_find_sample(const adc_key_sampler_sample_t *samples,
+				    uint8_t count, adc_chan_t chan)
+{
+	for (uint8_t i = 0; i < count; i++) {
+		if ((samples[i].channel == (uint8_t)chan) &&
+		    (samples[i].status == 0U)) {
+			return samples[i].mv;
+		}
+	}
+	return 9999U;
+}
+
+static void adc_key_ticks(void *param)
+{
+	adc_key_sampler_sample_t samples[ADC_KEY_SAMPLER_MAX_CHANNELS] = {0};
+	adc_chan_t channels[ADC_KEY_SAMPLER_MAX_CHANNELS];
+	uint8_t channel_count;
+	uint8_t sample_count = 0U;
+	ADCKEY_S *target;
+	bk_err_t ret = BK_FAIL;
+
+	(void)param;
+
 	rtos_lock_mutex(&g_adckey_mutex);
-	for (target = adckey_head_handle; target; target = target->next)
-		adckey_button_handler(target);
+	channel_count = s_adc_key_channel_count;
+	memcpy(channels, s_adc_key_channels,
+	       channel_count * sizeof(adc_chan_t));
+	rtos_unlock_mutex(&g_adckey_mutex);
+
+	if (s_use_cp_sampler && (channel_count > 0U)) {
+		ret = bk_adc_key_sampler_get_samples(
+			samples, ADC_KEY_SAMPLER_MAX_CHANNELS, &sample_count);
+	}
+
+	if ((ret != BK_OK) && (channel_count > 0U)) {
+		sample_count = channel_count;
+		for (uint8_t i = 0; i < channel_count; i++) {
+			uint16_t mv = 0U;
+			ret = adckey_sample_once(channels[i], &mv);
+			samples[i].channel = (uint8_t)channels[i];
+			samples[i].status = (ret == BK_OK) ? 0U : (uint8_t)ret;
+			samples[i].mv = (ret == BK_OK) ? mv : 9999U;
+		}
+	}
+
+	rtos_lock_mutex(&g_adckey_mutex);
+	for (target = adckey_head_handle; target; target = target->next) {
+		adc_key_item_node_t *node = adckey_node_from_handle(target);
+		uint32_t voltage = adc_key_find_sample(
+			samples, sample_count, node->adc_chan);
+		adckey_button_handler(target, voltage);
+	}
 	rtos_unlock_mutex(&g_adckey_mutex);
 }
 
-static void adc_key_configure()
+static bk_err_t adc_key_configure(void)
 {
 	bk_err_t result;
 
 	result = rtos_init_mutex(&g_adckey_mutex);
 	if(kNoErr != result)
 	{
-		ADC_KEY_LOGD("rtos_init_mutex fail\r\n");
-		return;
+		ADC_KEY_LOGE("rtos_init_mutex fail\r\n");
+		return result;
 	}
 
 	result = rtos_init_timer(&g_adckey_timer,
-							 ADCKEY_TMR_DURATION,
+							 s_adc_key_sample_period_ms,
 							 adc_key_ticks,
 							 (void *)0);
 	if(kNoErr != result)
 	{
-		ADC_KEY_LOGD("rtos_init_timer fail\r\n");
-		return;
+		ADC_KEY_LOGE("rtos_init_timer fail\r\n");
+		(void)rtos_deinit_mutex(&g_adckey_mutex);
+		return result;
 	}
 
 	result = rtos_start_timer(&g_adckey_timer);
 	if(kNoErr != result)
 	{
-		ADC_KEY_LOGD("rtos_start_timer fail\r\n");
-		return;
+		ADC_KEY_LOGE("rtos_start_timer fail\r\n");
+		(void)rtos_deinit_timer(&g_adckey_timer);
+		(void)rtos_deinit_mutex(&g_adckey_mutex);
+		return result;
 	}
 
+	return BK_OK;
+}
+
+bk_err_t bk_adc_key_init_ex(const adc_key_driver_config_t *config)
+{
+	bk_err_t ret;
+
+	if (s_adckey_inited_flag) {
+		return BK_ERR_STATE;
+	}
+
+	s_adc_key_sample_period_ms = CONFIG_ADC_KEY_SAMPLE_PERIOD_MS;
+	s_adc_key_max_channels = CONFIG_ADC_KEY_MAX_CHANNELS;
+	s_adc_key_max_items = CONFIG_ADC_KEY_MAX_ITEMS;
+
+	if (config != NULL) {
+		if ((config->size != sizeof(adc_key_driver_config_t)) ||
+		    (config->version != ADC_KEY_CONFIG_VERSION) ||
+		    (config->sample_period_ms < 20U) ||
+		    (config->max_channels == 0U) ||
+		    (config->max_channels > CONFIG_ADC_KEY_MAX_CHANNELS) ||
+		    (config->max_channels > ADC_KEY_SAMPLER_MAX_CHANNELS) ||
+		    (config->max_items == 0U) ||
+		    (config->max_items > CONFIG_ADC_KEY_MAX_ITEMS)) {
+			return BK_ERR_PARAM;
+		}
+		s_adc_key_sample_period_ms = config->sample_period_ms;
+		s_adc_key_max_channels = config->max_channels;
+		s_adc_key_max_items = config->max_items;
+	}
+
+	memset(s_adc_key_item_pool, 0, sizeof(s_adc_key_item_pool));
+	memset(s_adc_key_channels, 0, sizeof(s_adc_key_channels));
+	adckey_head_handle = NULL;
+	s_adc_key_channel_count = 0U;
+	s_adc_chan = ADC_MAX;
+	s_legacy_default_channel = false;
+	s_use_cp_sampler = false;
+
+	ret = adc_key_configure();
+	if (ret != BK_OK) {
+		return ret;
+	}
+
+	s_adckey_inited_flag = 1;
+	ADC_KEY_LOGI("ADC key manager init: period=%dms channels=%d items=%d\r\n",
+		     s_adc_key_sample_period_ms, s_adc_key_max_channels,
+		     s_adc_key_max_items);
+	return BK_OK;
 }
 
 void bk_adc_key_init(gpio_id_t gpio_id, adc_chan_t adc_chan)
 {
-	if(s_adckey_inited_flag)
-		return;
+	bk_err_t ret;
 
-	s_adc_chan = adc_chan;
-	s_use_cp_sampler = (bk_adc_key_sampler_start(adc_chan, ADCKEY_TMR_DURATION) == BK_OK);
-	if (s_use_cp_sampler) {
-		ADC_KEY_LOGI("ADC key use CP sampler: chan=%d period=%dms\r\n", adc_chan, ADCKEY_TMR_DURATION);
-	} else {
-		ADC_KEY_LOGW("ADC key CP sampler unavailable, use AP one-shot ADC\r\n");
+	if (s_adckey_inited_flag) {
+		return;
+	}
+	if (adc_chan >= ADC_MAX) {
+		ADC_KEY_LOGE("invalid legacy ADC channel: %d\r\n", adc_chan);
+		return;
 	}
 
-	adc_key_configure();
+	ret = bk_adc_key_init_ex(NULL);
+	if (ret != BK_OK) {
+		ADC_KEY_LOGE("ADC key init failed: %d\r\n", ret);
+		return;
+	}
 
-	s_adckey_inited_flag = 1;
-	ADC_KEY_LOGI("ADC key init: gpio=%d chan=%d cp_sampler=%d\r\n",
-	             gpio_id, adc_chan, s_use_cp_sampler);
+	rtos_lock_mutex(&g_adckey_mutex);
+	s_adc_chan = adc_chan;
+	s_legacy_default_channel = true;
+	ret = adc_key_refresh_sampler_locked();
+	rtos_unlock_mutex(&g_adckey_mutex);
+	if (ret != BK_OK) {
+		ADC_KEY_LOGE("legacy sampler init failed: %d\r\n", ret);
+	}
+
+	ADC_KEY_LOGI("legacy ADC key init: gpio=%d chan=%d\r\n",
+		     gpio_id, adc_chan);
 }
 
 static void adckey_unconfig(void)
 {
 	bk_err_t ret;
-
-	ret = rtos_deinit_mutex(&g_adckey_mutex);
-	if(kNoErr != ret)
-	{
-		ADC_KEY_LOGD("rtos_deinit_mutex fail\r\n");
-		return;
-	}
 
 	if (rtos_is_timer_init(&g_adckey_timer)) {
 		if (rtos_is_timer_running(&g_adckey_timer)) {
@@ -310,126 +517,298 @@ static void adckey_unconfig(void)
 			return;
 		}
 	}
+
+	ret = rtos_deinit_mutex(&g_adckey_mutex);
+	if(kNoErr != ret)
+	{
+		ADC_KEY_LOGD("rtos_deinit_mutex fail\r\n");
+	}
+}
+
+bk_err_t bk_adc_key_deinit_ex(void)
+{
+	if (!s_adckey_inited_flag) {
+		return BK_ERR_NOT_INIT;
+	}
+
+	if (s_use_cp_sampler) {
+		(void)bk_adc_key_sampler_stop();
+		s_use_cp_sampler = false;
+	}
+
+	rtos_lock_mutex(&g_adckey_mutex);
+	adckey_head_handle = NULL;
+	memset(s_adc_key_item_pool, 0, sizeof(s_adc_key_item_pool));
+	s_adc_key_channel_count = 0U;
+	s_legacy_default_channel = false;
+	s_adc_chan = ADC_MAX;
+	rtos_unlock_mutex(&g_adckey_mutex);
+
+	s_adckey_inited_flag = 0;
+	adckey_unconfig();
+	return BK_OK;
 }
 
 void bk_adc_key_deinit(void)
 {
-	if(s_adckey_inited_flag)
-		s_adckey_inited_flag = 0;
-	else
-		return;
-
-	if (s_use_cp_sampler) {
-		bk_adc_key_sampler_stop();
-		s_use_cp_sampler = false;
-	}
-	adckey_unconfig();
+	(void)bk_adc_key_deinit_ex();
 }
 
-void adckey_button_init(ADCKEY_S *handle, adckey_configure_t *config)
+static adc_key_item_node_t *adc_key_item_alloc_locked(void)
 {
-	handle->event = (uint8_t)ADCKEY_NONE_PRESS;
-	handle->lowest_active_level = config->lowest_level;
-	handle->highest_active_level = config->highest_level;
-	handle->user_data = (void *)(config->user_index);
-}
-void adckey_button_attach(ADCKEY_S *handle, ADCKEY_PRESS_EVT event, adc_key_callback cb)
-{
-	handle->cb[event] = cb;
-}
-int adckey_button_start(ADCKEY_S *handle)
-{
-	ADCKEY_S *target;
-	rtos_lock_mutex(&g_adckey_mutex);
-	target = adckey_head_handle;
-	while (target) {
-		if (target == handle) {
-			rtos_unlock_mutex(&g_adckey_mutex);
-			return -1;
+	for (uint8_t i = 0; i < s_adc_key_max_items; i++) {
+		if (!s_adc_key_item_pool[i].allocated) {
+			memset(&s_adc_key_item_pool[i], 0,
+			       sizeof(s_adc_key_item_pool[i]));
+			s_adc_key_item_pool[i].allocated = true;
+			return &s_adc_key_item_pool[i];
 		}
-		target = target->next;
 	}
+	return NULL;
+}
+
+static void adc_key_item_free_locked(adc_key_item_node_t *node)
+{
+	memset(node, 0, sizeof(*node));
+}
+
+static void adc_key_item_attach(ADCKEY_S *handle,
+				ADCKEY_PRESS_EVT event,
+				adc_key_callback callback)
+{
+	handle->cb[event] = callback;
+}
+
+static void adc_key_item_insert_locked(adc_key_item_node_t *node)
+{
+	ADCKEY_S *handle = &node->button;
+
 	handle->next = adckey_head_handle;
 	adckey_head_handle = handle;
-	rtos_unlock_mutex(&g_adckey_mutex);
-	return 0;
+}
+
+static void adc_key_item_remove_locked(adc_key_item_node_t *node)
+{
+	ADCKEY_S **current = &adckey_head_handle;
+
+	while (*current != NULL) {
+		if (*current == &node->button) {
+			*current = node->button.next;
+			adc_key_item_free_locked(node);
+			return;
+		}
+		current = &(*current)->next;
+	}
+}
+
+static bool adc_key_ranges_overlap(uint16_t low_a, uint16_t high_a,
+				   uint16_t low_b, uint16_t high_b)
+{
+	return !((high_a < low_b) || (high_b < low_a));
+}
+
+static bk_err_t adc_key_validate_item_locked(
+	const adc_key_item_config_ex_t *config)
+{
+	ADCKEY_S *target;
+	uint8_t channel_items = 0U;
+
+	for (target = adckey_head_handle; target; target = target->next) {
+		adc_key_item_node_t *node = adckey_node_from_handle(target);
+
+		if (node->extended_api && (node->key_id == config->key_id)) {
+			return BK_ERR_IS_EXIST;
+		}
+		if (node->adc_chan != config->adc_chan) {
+			continue;
+		}
+		channel_items++;
+		if (adc_key_ranges_overlap(target->lowest_active_level,
+					   target->highest_active_level,
+					   config->lowest_level,
+					   config->highest_level)) {
+			return BK_ERR_PARAM;
+		}
+	}
+
+	if (channel_items >= CONFIG_ADC_KEY_MAX_ITEMS_PER_CHANNEL) {
+		return BK_ERR_NO_MEM;
+	}
+	return BK_OK;
+}
+
+static void adc_key_item_init_callbacks(
+	ADCKEY_S *handle,
+	adc_key_callback short_press_cb,
+	adc_key_callback double_press_cb,
+	adc_key_callback long_press_cb,
+	adc_key_callback hold_press_cb)
+{
+	adc_key_item_attach(handle, ADCKEY_SINGLE_CLICK, short_press_cb);
+	adc_key_item_attach(handle, ADCKEY_DOUBLE_CLICK, double_press_cb);
+	adc_key_item_attach(handle, ADCKEY_LONG_PRESS_START, long_press_cb);
+	adc_key_item_attach(handle, ADCKEY_LONG_PRESS_HOLD, hold_press_cb);
 }
 
 uint32_t bk_adckey_item_configure(adckey_configure_t *config)
 {
-	if(!s_adckey_inited_flag)
+	adc_key_item_node_t *node;
+	bk_err_t ret;
+
+	if (!s_adckey_inited_flag || (config == NULL) ||
+	    (config->lowest_level > config->highest_level) ||
+	    (s_adc_chan >= ADC_MAX)) {
 		return kGeneralErr;
+	}
 
-	ADCKEY_S *handle;
-	int result = 0;
-
-	handle = os_malloc(sizeof(ADCKEY_S));
-	if (NULL == handle)
+	rtos_lock_mutex(&g_adckey_mutex);
+	node = adc_key_item_alloc_locked();
+	if (node == NULL) {
+		rtos_unlock_mutex(&g_adckey_mutex);
 		return kNoMemoryErr;
-	os_memset(handle, 0, sizeof(ADCKEY_S));
-	rtos_lock_mutex(&g_adckey_mutex);
+	}
 
-	adckey_button_init(handle, config);
-	adckey_button_attach(handle, ADCKEY_SINGLE_CLICK, (adc_key_callback)config->short_press_cb);
-	adckey_button_attach(handle, ADCKEY_DOUBLE_CLICK, (adc_key_callback)config->double_press_cb);
-	adckey_button_attach(handle, ADCKEY_LONG_PRESS_START,	(adc_key_callback)config->long_press_cb);
-	adckey_button_attach(handle, ADCKEY_LONG_PRESS_HOLD, (adc_key_callback)config->hold_press_cb);
+	node->adc_chan = s_adc_chan;
+	node->key_id = (adc_key_id_t)config->user_index;
+	node->callback_user_data = &node->button;
+	node->short_ticks = (100U + s_adc_key_sample_period_ms - 1U) /
+		s_adc_key_sample_period_ms;
+	node->long_ticks = (CONFIG_ADC_KEY_LONG_PRESS_MS +
+		s_adc_key_sample_period_ms - 1U) / s_adc_key_sample_period_ms;
+	node->extended_api = false;
+	node->button.event = (uint8_t)ADCKEY_NONE_PRESS;
+	node->button.lowest_active_level = config->lowest_level;
+	node->button.highest_active_level = config->highest_level;
+	node->button.user_data = (void *)(uintptr_t)config->user_index;
+	adc_key_item_init_callbacks(
+		&node->button, config->short_press_cb, config->double_press_cb,
+		config->long_press_cb, config->hold_press_cb);
+	adc_key_item_insert_locked(node);
 
-	rtos_unlock_mutex(&g_adckey_mutex);
-	result = adckey_button_start(handle);
-	if (result < 0) {
-		ADC_KEY_LOGD("button_start failed\n");
-		os_free(handle);
+	ret = adc_key_refresh_sampler_locked();
+	if (ret != BK_OK) {
+		adc_key_item_remove_locked(node);
+		(void)adc_key_refresh_sampler_locked();
+		rtos_unlock_mutex(&g_adckey_mutex);
 		return kGeneralErr;
 	}
-
+	rtos_unlock_mutex(&g_adckey_mutex);
 	return kNoErr;
-}
-
-ADCKEY_S *adckey_button_find_with_user_data(void *user_data)
-{
-	ADCKEY_S *entry = NULL;
-
-	rtos_lock_mutex(&g_adckey_mutex);
-	for (entry = adckey_head_handle; entry; entry = entry->next) {
-		if (entry->user_data == user_data)
-			break;
-	}
-	rtos_unlock_mutex(&g_adckey_mutex);
-
-	return entry;
-}
-
-void adckey_button_stop(ADCKEY_S *handle)
-{
-	ADCKEY_S **curr;
-
-	rtos_lock_mutex(&g_adckey_mutex);
-	for (curr = &adckey_head_handle; *curr;) {
-		ADCKEY_S *entry = *curr;
-		if (entry == handle)
-			*curr = entry->next;
-		else
-			curr = &entry->next;
-	}
-	rtos_unlock_mutex(&g_adckey_mutex);
 }
 
 uint32_t bk_adckey_item_unconfigure(ADCKEY_INDEX user_data)
 {
-	if(!s_adckey_inited_flag)
-		return kGeneralErr;
+	ADCKEY_S *target;
 
-	ADCKEY_S *handle = NULL;
-	while (1) {
-		handle = adckey_button_find_with_user_data((void *)user_data);
-		if (NULL == handle)
-			break;
-		adckey_button_stop(handle);
-		os_free(handle);
+	if (!s_adckey_inited_flag) {
+		return kGeneralErr;
 	}
 
+	rtos_lock_mutex(&g_adckey_mutex);
+	target = adckey_head_handle;
+	while (target != NULL) {
+		ADCKEY_S *next = target->next;
+		adc_key_item_node_t *node = adckey_node_from_handle(target);
+		if (!node->extended_api &&
+		    (target->user_data == (void *)(uintptr_t)user_data)) {
+			adc_key_item_remove_locked(node);
+		}
+		target = next;
+	}
+	(void)adc_key_refresh_sampler_locked();
+	rtos_unlock_mutex(&g_adckey_mutex);
+
 	return kNoErr;
+}
+
+bk_err_t bk_adc_key_item_configure_ex(
+	const adc_key_item_config_ex_t *config, adc_key_handle_t *handle)
+{
+	adc_key_item_node_t *node;
+	bk_err_t ret;
+
+	if (!s_adckey_inited_flag) {
+		return BK_ERR_NOT_INIT;
+	}
+	if ((config == NULL) ||
+	    (config->size != sizeof(adc_key_item_config_ex_t)) ||
+	    (config->version != ADC_KEY_CONFIG_VERSION) ||
+	    (config->key_id == ADC_KEY_INVALID_ID) ||
+	    (config->adc_chan >= ADC_MAX) ||
+	    (config->lowest_level > config->highest_level)) {
+		return BK_ERR_PARAM;
+	}
+
+	rtos_lock_mutex(&g_adckey_mutex);
+	ret = adc_key_validate_item_locked(config);
+	if (ret != BK_OK) {
+		rtos_unlock_mutex(&g_adckey_mutex);
+		return ret;
+	}
+
+	node = adc_key_item_alloc_locked();
+	if (node == NULL) {
+		rtos_unlock_mutex(&g_adckey_mutex);
+		return BK_ERR_NO_MEM;
+	}
+
+	node->adc_chan = config->adc_chan;
+	node->key_id = config->key_id;
+	node->callback_user_data = config->user_data;
+	node->short_ticks = (100U + s_adc_key_sample_period_ms - 1U) /
+		s_adc_key_sample_period_ms;
+	node->long_ticks = (CONFIG_ADC_KEY_LONG_PRESS_MS +
+		s_adc_key_sample_period_ms - 1U) / s_adc_key_sample_period_ms;
+	node->extended_api = true;
+	node->button.event = (uint8_t)ADCKEY_NONE_PRESS;
+	node->button.lowest_active_level = config->lowest_level;
+	node->button.highest_active_level = config->highest_level;
+	node->button.user_data = config->user_data;
+	adc_key_item_init_callbacks(
+		&node->button, config->short_press_cb, config->double_press_cb,
+		config->long_press_cb, config->hold_press_cb);
+	adc_key_item_insert_locked(node);
+
+	ret = adc_key_refresh_sampler_locked();
+	if (ret != BK_OK) {
+		adc_key_item_remove_locked(node);
+		(void)adc_key_refresh_sampler_locked();
+		rtos_unlock_mutex(&g_adckey_mutex);
+		return ret;
+	}
+
+	if (handle != NULL) {
+		*handle = (adc_key_handle_t)node;
+	}
+	rtos_unlock_mutex(&g_adckey_mutex);
+	return BK_OK;
+}
+
+bk_err_t bk_adc_key_item_unconfigure_ex(adc_key_handle_t handle)
+{
+	adc_key_item_node_t *node = (adc_key_item_node_t *)handle;
+	uintptr_t node_addr = (uintptr_t)node;
+	uintptr_t pool_start = (uintptr_t)&s_adc_key_item_pool[0];
+	uintptr_t pool_end = (uintptr_t)&s_adc_key_item_pool[
+		CONFIG_ADC_KEY_MAX_ITEMS];
+
+	if (!s_adckey_inited_flag) {
+		return BK_ERR_NOT_INIT;
+	}
+	if ((node == NULL) || (node_addr < pool_start) || (node_addr >= pool_end) ||
+	    (((node_addr - pool_start) % sizeof(adc_key_item_node_t)) != 0U)) {
+		return BK_ERR_PARAM;
+	}
+
+	rtos_lock_mutex(&g_adckey_mutex);
+	if (!node->allocated || !node->extended_api) {
+		rtos_unlock_mutex(&g_adckey_mutex);
+		return BK_ERR_NOT_FOUND;
+	}
+	adc_key_item_remove_locked(node);
+	(void)adc_key_refresh_sampler_locked();
+	rtos_unlock_mutex(&g_adckey_mutex);
+	return BK_OK;
 }
 
 /* ======================== GPIO Key (KEY1) ======================== */
@@ -536,18 +915,16 @@ uint32_t bk_gpio_key_configure(gpio_key_configure_t *config)
 
 void bk_adc_key_dual_init(void)
 {
-	bk_adc_key_init(ADC_KEY2_GPIO_ID, ADC_KEY2_SADC_CHAN_ID);
+	bk_err_t ret = bk_adc_key_init_ex(NULL);
 
-	s_adc_chan2 = ADC_KEY1_SADC_CHAN_ID;
-	ADC_KEY_LOGI("Dual ADC key init: ch1_gpio=%d ch1_adc=%d, ch2_gpio=%d ch2_adc=%d\r\n",
-	             ADC_KEY1_GPIO_ID, ADC_KEY1_SADC_CHAN_ID,
-	             ADC_KEY2_GPIO_ID, ADC_KEY2_SADC_CHAN_ID);
+	if ((ret != BK_OK) && (ret != BK_ERR_STATE)) {
+		ADC_KEY_LOGE("dual ADC key manager init failed: %d\r\n", ret);
+	}
 }
 
 void bk_adc_key_dual_deinit(void)
 {
-	bk_adc_key_deinit();
-	s_adc_chan2 = ADC_MAX;
+	(void)bk_adc_key_deinit_ex();
 }
 
 #endif /* CONFIG_ADC_KEY_DUAL_CHANNEL */
