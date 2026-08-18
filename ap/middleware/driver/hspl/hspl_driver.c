@@ -174,8 +174,6 @@ static uint32_t hspl_get_bus_clock_hz(pm_cpu_freq_e cpu_freq)
 	switch (cpu_freq) {
 	case PM_CPU_FRQ_XTAL:
 		return CONFIG_XTAL_FREQ;
-	case PM_CPU_FRQ_60M:
-		return 60000000U;
 	case PM_CPU_FRQ_80M:
 		return 80000000U;
 	case PM_CPU_FRQ_120M:

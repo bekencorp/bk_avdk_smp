@@ -8,9 +8,6 @@ menu "PWR_CLK"
 	config CP1_AUTO_POWER_DISABLE
 		bool "cp1 auto power disable"
 		default n
-	config CPU_DEFAULT_FREQ_60M
-		bool "set cpu default frequency 60M"
-		default n
 	config RESERVE_1K_SRAM_UNINITIAL
 		bool "reserve 1k sram uninitialized"
 		default n

@@ -3856,19 +3856,19 @@ bk_err_t sys_hal_ap_cpu_freq_dump()
 
 	switch (cksel_core) {
 	case AP_CLKSEL_CORE_160M:
-		os_printf("Cur freq: AP:(160/%d)M，VDDDIG:%fV\r\n", ap_div,
+		os_printf("Cur freq: AP:(160/%d)M,VDDDIG:%fV\r\n", ap_div,
 			PM_AP_VDDDIG_REG_VALUE_TO_VOLT(sys_ll_get_ana_reg16_vcorehssel()));
 		break;
 	case AP_CLKSEL_CORE_480M:
-		os_printf("Cur freq: AP:(480/%d)M，VDDDIG:%fV\r\n", ap_div,
+		os_printf("Cur freq: AP:(480/%d)M,VDDDIG:%fV\r\n", ap_div,
 			PM_AP_VDDDIG_REG_VALUE_TO_VOLT(sys_ll_get_ana_reg16_vcorehssel()));
 		break;
 	case AP_CLKSEL_CORE_640M:
-		os_printf("Cur freq: AP:(640/%d)M，VDDDIG:%fV\r\n", ap_div,
+		os_printf("Cur freq: AP:(640/%d)M,VDDDIG:%fV\r\n", ap_div,
 			PM_AP_VDDDIG_REG_VALUE_TO_VOLT(sys_ll_get_ana_reg16_vcorehssel()));
 		break;
 	case AP_CLKSEL_CORE_DCO:
-		os_printf("Cur freq: AP:(240/%d)M，VDDDIG:%fV\r\n", ap_div,
+		os_printf("Cur freq: AP:(240/%d)M,VDDDIG:%fV\r\n", ap_div,
 			PM_AP_VDDDIG_REG_VALUE_TO_VOLT(sys_ll_get_ana_reg16_vcorehssel()));
 		break;
 	default:
@@ -3888,19 +3888,19 @@ bk_err_t sys_hal_cpu_freq_dump()
 
 	switch (cksel_core) {
 	case PM_CLKSEL_CORE_26M:
-		os_printf("Cur freq: CP:(26/%d)M，VDDDIG:%fV\r\n", cp0_div,
+		os_printf("Cur freq: CP:(26/%d)M,VDDDIG:%fV\r\n", cp0_div,
 			PM_VDDDIG_REG_VALUE_TO_VOLT(sys_ll_get_ana_reg10_vcorehsel()));
 		break;
 	case PM_CLKSEL_CORE_DCO:
-		os_printf("Cur freq: CP:(240/%d)M，VDDDIG:%fV\r\n", cp0_div,
+		os_printf("Cur freq: CP:(240/%d)M,VDDDIG:%fV\r\n", cp0_div,
 			PM_VDDDIG_REG_VALUE_TO_VOLT(sys_ll_get_ana_reg10_vcorehsel()));
 		break;
 	case PM_CLKSEL_CORE_320M:
-		os_printf("Cur freq: CP:(320/%d)M，VDDDIG:%fV\r\n", cp0_div,
+		os_printf("Cur freq: CP:(320/%d)M,VDDDIG:%fV\r\n", cp0_div,
 			PM_VDDDIG_REG_VALUE_TO_VOLT(sys_ll_get_ana_reg10_vcorehsel()));
 		break;
 	case PM_CLKSEL_CORE_480M:
-		os_printf("Cur freq: CP:(480/%d)M，VDDDIG:%fV\r\n", cp0_div,
+		os_printf("Cur freq: CP:(480/%d)M,VDDDIG:%fV\r\n", cp0_div,
 			PM_VDDDIG_REG_VALUE_TO_VOLT(sys_ll_get_ana_reg10_vcorehsel()));
 		break;
 	default:

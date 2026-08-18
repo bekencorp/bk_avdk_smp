@@ -212,7 +212,7 @@ void _soc_start(void)
 
     core_init();
     // bk_sys_uart_write_string(0,"M55 ==> core_init\r\n");
-
+    pm_hardware_init();
     #if CONFIG_CM_BACKTRACE
         cm_backtrace_init(FIREWARE_NAME, HARDWARE_VERSION, SOFTWARE_VERSION);
     #endif

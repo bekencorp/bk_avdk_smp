@@ -33,8 +33,6 @@ static UINT32 s_pm_vote1       = 0;
 static UINT32 s_pm_vote2       = 0;
 static UINT32 s_pm_vote3       = 0;
 
-extern void stop_cpu1_core(void);
-
 #if CONFIG_TOUCH
 void cli_pm_touch_callback(void *param)
 {
@@ -97,7 +95,6 @@ static bk_err_t cli_pm_rtc_sleep_wakeup_callback(pm_sleep_mode_e sleep_mode,pm_w
 #define PM_DEEPSLEEP_RTC_THRESHOLD       (500)
 #define PM_SHUTDOWN_RTC_THRESHOLD        (4)        //=500ms
 #define PM_OLD_TOUCH_WAKE_SOURCE         (4)
-extern void stop_cpu1_core(void);
 
 static void cli_pm_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
@@ -249,11 +246,8 @@ static void cli_pm_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char 
 	{
 		if(pm_vote3 == PM_POWER_MODULE_NAME_CPU1)
 		{
-			#if 1 && (CONFIG_CPU_CNT > 1)
-				stop_cpu1_core();
-			#endif
-		}
 
+		}
 	}
 	else if(pm_sleep_mode == PM_MODE_LOW_VOLTAGE)
 	{
@@ -460,6 +454,62 @@ static void cli_pm_freq(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
 	current_max_freq = bk_pm_current_max_cpu_freq_get();
 	BK_LOGD(NULL, "PM AP cpu freq test id: %d; freq: %d; current max cpu freq: %d;\r\n",pm_module_id,module_freq,current_max_freq);
 
+}
+static const char *cli_pm_cp_cpu_freq_str(pm_cp_cpu_freq_e pm_freq)
+{
+	switch (pm_freq)
+	{
+		case PM_CP_CPU_FRQ_XTAL:
+			return "XTAL (40M/26M)";
+		case PM_CP_CPU_FRQ_60M:
+			return "60M";
+		case PM_CP_CPU_FRQ_80M:
+			return "80M";
+		case PM_CP_CPU_FRQ_120M:
+			return "120M";
+		case PM_CP_CPU_FRQ_160M:
+			return "160M";
+		case PM_CP_CPU_FRQ_240M:
+			return "240M";
+		case PM_CP_CPU_FRQ_HIGHEST:
+			return "HIGHEST";
+		case PM_CP_CPU_FRQ_DEFAULT:
+			return "DEFAULT";
+		default:
+			return "UNKNOWN";
+	}
+}
+static void cli_pm_cp_freq(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
+{
+	bk_err_t ret;
+	UINT32 pm_freq = 0;
+	UINT32 pm_module_id = 0;
+
+	if (argc != 3)
+	{
+		BK_LOGD(NULL, "set CP pm freq parameter invalid %d\r\n", argc);
+		return;
+	}
+
+	pm_module_id = os_strtoul(argv[1], NULL, 10);
+	pm_freq = os_strtoul(argv[2], NULL, 10);
+	if ((pm_freq > PM_CP_CPU_FRQ_DEFAULT) || (pm_module_id >= PM_CP_DEV_ID_MAX))
+	{
+		BK_LOGD(NULL, "set CP pm freq value invalid %d %d\r\n", pm_freq, pm_module_id);
+		return;
+	}
+
+	BK_LOGD(NULL, "PM CP module id: %d; pm_freq: %d; CPU freq: %s\r\n",
+		pm_module_id, pm_freq, cli_pm_cp_cpu_freq_str((pm_cp_cpu_freq_e)pm_freq));
+
+	ret = bk_pm_module_vote_cp_cpu_freq((pm_cp_dev_id_e)pm_module_id, (pm_cp_cpu_freq_e)pm_freq);
+	if (ret != BK_OK)
+	{
+		BK_LOGD(NULL, "set CP pm freq failed: %d\r\n", ret);
+		return;
+	}
+
+	BK_LOGD(NULL, "PM CP cpu freq test id: %d; freq: %d\r\n", pm_module_id, pm_freq);
 }
 static void cli_pm_lpo(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
@@ -902,6 +952,7 @@ static const struct cli_command s_pwr_commands[] = {
 	{"pm_clk", "pm_clk [module_name][clk_state]", cli_pm_clk},
 	{"pm_power", "pm_power [module_name][ power state]", cli_pm_power},
 	{"pm_freq", "pm_freq [module_name][ frequency]", cli_pm_freq},
+	{"pm_cp_freq", "pm_cp_freq [module_name][frequency]", cli_pm_cp_freq},
 	{"pm_ctrl", "pm_ctrl [ctrl_value]", cli_pm_ctrl},
 	{"pm_pwr_state", "pm_pwr_state [pwr_state]", cli_pm_pwr_state},
 	{"pm_auto_vote", "pm_auto_vote [auto_vote_value]", cli_pm_auto_vote},

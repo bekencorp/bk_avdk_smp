@@ -448,6 +448,11 @@ bk_err_t bk_pm_module_vote_ctrl_external_ldo(gpio_ctrl_ldo_module_e module,gpio_
 	return BK_OK;
 }
 
+void pm_hardware_init(void)
+{
+	sys_drv_low_power_hardware_init();
+}
+
 #if CONFIG_MAILBOX
 uint64_t pm_cp1_aon_rtc_counter_get()
 {

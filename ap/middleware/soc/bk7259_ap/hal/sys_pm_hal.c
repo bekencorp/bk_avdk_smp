@@ -1425,54 +1425,17 @@ uint32_t sys_hal_auxldo_out_get(auxldo_sel_t auxldo_sel)
 
 static int sys_hal_power_config_default()
 {
-    return 0;
+#if CONFIG_PM_AP_SUBPOWER_DOMAIN_DEFAULT_DISABLE
+	sys_hal_module_power_ctrl(POWER_DOMAIN_NAME_VIDEO_POST, POWER_MODULE_STATE_OFF);
+	sys_hal_module_power_ctrl(POWER_DOMAIN_NAME_H26E, POWER_MODULE_STATE_OFF);
+	sys_hal_module_power_ctrl(POWER_DOMAIN_NAME_ISP, POWER_MODULE_STATE_OFF);
+	sys_hal_module_power_ctrl(POWER_DOMAIN_NAME_NPU, POWER_MODULE_STATE_OFF);
+#endif
+
+	return BK_OK;
 }
 void sys_hal_low_power_hardware_init()
 {
-	#if !CONFIG_AON_PMU_REG0_REFACTOR_DEV
-	/*recover aon pmu reg0*/
-	uint32_t reg = aon_pmu_ll_get_r7b();
-	aon_pmu_ll_set_r0(reg);
-	#endif
-
-#if CONFIG_GPIO_RETENTION_SUPPORT
-	// must before gpio state unlock
-	gpio_retention_sync(true);
-#endif
-
-	/*gpio state unlock for shutdown wakeup*/
-#if CONFIG_AON_PMU_REG0_REFACTOR_DEV
-	aon_pmu_hal_set_gpio_sleep(0, true);
-#else
-	sys_hal_gpio_state_switch(false);
-#endif
-
-	/*set memery bypass*/
-	aon_pmu_ll_set_r0_memchk_bps(1);
-	aon_pmu_ll_set_r0_fast_boot(1);
-
-	/*set wakeup source*/
-	aon_pmu_ll_set_r41_wakeup_ena(0x23);//enable wakeup source: int_touched,int_rtc,int_gpio,wifi wake(bt or wifi wakeup source enable when bt or wifi sleep)
-
-	/*enable the buck*/
-	#if CONFIG_BUCK_ENABLE
-	uint32_t chip_id = aon_pmu_hal_get_chipid();
-	if ((chip_id & PM_CHIP_ID_MASK) != (PM_CHIP_ID_MP_A & PM_CHIP_ID_MASK)){
-		sys_hal_enable_buck();
-	}
-	#endif
-	/*select lowpower lpo clk source*/
-	sys_hal_config_32k_source_default();
-
-	/*default to config the power */
+	/*default to config the AP power */
 	sys_hal_power_config_default();
-
-	/*set the lp voltage*/
-	sys_hal_lp_vol_set(CONFIG_LP_VOL);
-
-	/*set rosc calib trig once*/
-	sys_hal_rosc_calibration(3, 0);
-
-	/*dco cali*/
-	sys_hal_dco_cali(DCO_CALIB_SPEED_240M);
 }

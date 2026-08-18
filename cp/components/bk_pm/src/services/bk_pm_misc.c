@@ -162,7 +162,7 @@ const char *pm_sleep_module_name_to_string(pm_sleep_module_name_e module)
 		"WDG",        // PM_SLEEP_MODULE_NAME_WDG
 		"AUDIO_ASR",  // PM_SLEEP_MODULE_NAME_AUDIO_ASR
 		"APP1",       // PM_SLEEP_MODULE_NAME_APP1
-		"CPU1",       // PM_SLEEP_MODULE_NAME_CPU1
+		"AP",       // PM_SLEEP_MODULE_NAME_CPU1
 		"ROSC_PROG",  // PM_SLEEP_MODULE_NAME_ROSC_PROG
 		"ROSC",       // PM_SLEEP_MODULE_NAME_ROSC
 		"FLASH_OP",   // PM_SLEEP_MODULE_NAME_FLASH_OP

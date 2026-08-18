@@ -497,10 +497,10 @@ void pm_core_dump(void)
 	if ((not_sleeped_buf != NULL) && (extra_sleeped_buf != NULL)) {
 		pm_sleep_modules_mask_to_string(not_sleeped_buf, PM_SLEEP_MODULES_DIFF_BUF_SIZE, not_sleeped_modules);
 		pm_sleep_modules_mask_to_string(extra_sleeped_buf, PM_SLEEP_MODULES_DIFF_BUF_SIZE, extra_sleeped_modules);
-		LOGI("pm low vol[module:0x%llx][need module:0x%llx][not_sleeped:%s][extra_sleeped:%s]\r\n",
+		LOGI("pm sleep[module:0x%llx][need module:0x%llx][not_sleeped:%s][extra_sleeped:%s]\r\n",
 			s_pm_sleeped_modules, s_pm_enter_low_vol_modules, not_sleeped_buf, extra_sleeped_buf);
 	} else {
-		LOGI("pm low vol[module:0x%llx][need module:0x%llx][not_sleeped:malloc_fail][extra_sleeped:malloc_fail]\r\n",
+		LOGI("pm sleep[module:0x%llx][need module:0x%llx][not_sleeped:malloc_fail][extra_sleeped:malloc_fail]\r\n",
 			s_pm_sleeped_modules, s_pm_enter_low_vol_modules);
 	}
 

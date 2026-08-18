@@ -689,6 +689,31 @@ static const pm_cpu_freq_e s_cli_pm_cpu_freq_test_list[] = {
 	PM_CPU_FRQ_240M,
 };
 
+static const char *cli_pm_cpu_freq_str(pm_cpu_freq_e pm_freq)
+{
+	switch (pm_freq)
+	{
+		case PM_CPU_FRQ_XTAL:
+			return "XTAL (40M/26M)";
+		case PM_CPU_FRQ_60M:
+			return "60M";
+		case PM_CPU_FRQ_80M:
+			return "80M";
+		case PM_CPU_FRQ_120M:
+			return "120M";
+		case PM_CPU_FRQ_160M:
+			return "160M";
+		case PM_CPU_FRQ_240M:
+			return "240M";
+		case PM_CPU_FRQ_HIGHEST:
+			return "HIGHEST";
+		case PM_CPU_FRQ_DEFAULT:
+			return "DEFAULT";
+		default:
+			return "UNKNOWN";
+	}
+}
+
 static uint32_t s_cli_pm_freq_rand_seed = 0x12345678;
 
 static uint32_t cli_pm_freq_soft_rand(void)
@@ -1140,6 +1165,9 @@ static void cli_pm_freq(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
 		BK_LOGD(NULL,"set pm freq value invalid %d %d \r\n",pm_freq,pm_module_id);
 		return;
 	}
+
+	BK_LOGD(NULL,"PM CP module id: %d; pm_freq: %d; CPU freq: %s\r\n",
+		pm_module_id, pm_freq, cli_pm_cpu_freq_str((pm_cpu_freq_e)pm_freq));
 
 	ret = cli_pm_vote_cpu_freq_once(pm_module_id, (pm_cpu_freq_e)pm_freq);
 	cli_pm_freq_test_stat_update(&stat, ret);

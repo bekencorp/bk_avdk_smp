@@ -356,5 +356,9 @@ int bk_init(void)
 	BK_LOGD(TAG, "First Boot: %d\r\n", bk_pm_ap_first_boot_get());
     set_ap_startup_index(AP_EXIT_BK_INIT);
 
+#if CONFIG_PM_AP_CPU_FRQ_DEFAUL
+	bk_pm_module_vote_cpu_freq(PM_DEV_ID_DEFAULT,CONFIG_PM_CPU_FRQ_DEFAULT);
+#endif
+
 	return 0;
 }

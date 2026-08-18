@@ -61,13 +61,11 @@ typedef struct {
 static const sys_hal_cpu_bus_freq_cfg_t s_cpu_bus_freq_cfg[] = {
 #if CONFIG_DCO_CLK_ENABLE
 	{PM_CPU_FRQ_XTAL, 0x3, 0x0, 0x0, 0x0, 0x0, PM_VDDDIG_H_VOL_0V95},
-	{PM_CPU_FRQ_60M,  0x3, 0x3, 0x0, 0x0, 0x0, PM_VDDDIG_H_VOL_0V95},
 	{PM_CPU_FRQ_80M,  0x3, 0x2, 0x0, 0x0, 0x0, PM_VDDDIG_H_VOL_0V95},
 	{PM_CPU_FRQ_120M, 0x3, 0x1, 0x0, 0x0, 0x0, PM_VDDDIG_H_VOL_0V95},
 #else
 	{PM_CPU_FRQ_XTAL, 0x3, 0x0, 0x0, 0x0, 0x0, PM_VDDDIG_H_VOL_0V95},
-	{PM_CPU_FRQ_60M,  0x1, 0x7, 0x0, 0x0, 0x0, PM_VDDDIG_H_VOL_0V95},
-	{PM_CPU_FRQ_80M,  0x1, 0x5, 0x0, 0x0, 0x0, PM_VDDDIG_H_VOL_0V95},
+	{PM_CPU_FRQ_80M,  0x0, 0x1, 0x0, 0x0, 0x0, PM_VDDDIG_H_VOL_0V95},
 	{PM_CPU_FRQ_120M, 0x1, 0x3, 0x0, 0x0, 0x0, PM_VDDDIG_H_VOL_0V95},
 #endif
 	{PM_CPU_FRQ_160M, 0x1, 0x2, 0x0, 0x0, 0x0, PM_VDDDIG_H_VOL_0V95},
@@ -504,13 +502,8 @@ static const sys_hal_cpu_bus_freq_cfg_t *sys_hal_get_cpu_bus_freq_cfg(pm_cpu_fre
 		return NULL;
 	}
 
-	#if CONFIG_DCO_CLK_ENABLE
 	if(cpu_bus_freq == PM_CPU_FRQ_XTAL)
 		return NULL;
-	#else
-	if(cpu_bus_freq == PM_CPU_FRQ_60M)
-		return NULL;
-	#endif
 
 	return &s_cpu_bus_freq_cfg[cpu_bus_freq];
 }
@@ -518,8 +511,8 @@ static const sys_hal_cpu_bus_freq_cfg_t *sys_hal_get_cpu_bus_freq_cfg(pm_cpu_fre
 static uint32_t sys_hal_cpu_freq_to_hz(pm_cpu_freq_e cpu_bus_freq)
 {
 	static const uint32_t cpu_clock_hz[] = {
-		CONFIG_XTAL_FREQ, 60000000, 80000000, 120000000,
-		160000000, 240000000, 320000000, 480000000,
+		CONFIG_XTAL_FREQ, 80000000, 120000000, 160000000,
+		240000000, 320000000, 480000000,
 	};
 
 	return cpu_clock_hz[cpu_bus_freq];

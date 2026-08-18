@@ -12,13 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 #include <modules/pm.h>
+#include <driver/pwr_clk.h>
 #include "pm_debug.h"
+#include "bk_pm_internal_api.h"
 #include "sys_driver.h"
 #include "aon_pmu_driver.h"
 
 
 #define PM_HIGHEST_CPU_FREQ                     (CONFIG_PM_CPU_FRQ_HIGHEST)
 #define PM_CPU_FRQ_NONE                         (-1)
+#define PM_SEND_CMD_CP0_RESPONSE_TIME_OUT        (100) //100ms
 
 static int8_t s_pm_cpu_freq[PM_DEV_ID_MAX] = {0};
 static pm_cpu_freq_e s_pm_current_cpu_freq = PM_CPU_FRQ_DEFAULT;
@@ -158,5 +161,41 @@ bk_err_t bk_pm_clock_ctrl(pm_dev_clk_e module, pm_dev_clk_pwr_e clock_state)
 	GLOBAL_INT_RESTORE();
 	return BK_OK;
 }
+bk_err_t bk_pm_module_vote_cp_cpu_freq(pm_cp_dev_id_e module, pm_cp_cpu_freq_e cpu_freq)
+{
+#if CONFIG_MAILBOX
+	uint64_t previous_tick  = 0;
+	uint64_t current_tick   = 0;
+    int  ret                = 0;
+	bk_pm_cp1_cpu_freq_ctrl_state_set(PM_MAILBOX_COMMUNICATION_INIT);
+    ret = pm_cp1_mailbox_send_data(PM_CPU_FREQ_CTRL_CMD, module,cpu_freq,0);
+    if(ret != BK_OK)
+    {
+        return BK_FAIL;
+    }
 
+	previous_tick = pm_cp1_aon_rtc_counter_get();
+	current_tick = previous_tick;
+	//BK_LOGD(NULL, "cp1 vote freq begin [%lld]\r\n",previous_tick);
+	while((current_tick - previous_tick) < (PM_SEND_CMD_CP0_RESPONSE_TIME_OUT*PM_AON_RTC_DEFAULT_TICK_COUNT))
+	{
+	    if (bk_pm_cp1_cpu_freq_ctrl_state_get()) // wait the cp0 response
+	    {
+			break;
+	    }
+	    current_tick = pm_cp1_aon_rtc_counter_get();
+	}
+
+	if(!bk_pm_cp1_cpu_freq_ctrl_state_get())
+	{
+	    BK_LOGD(NULL, "cp1 vote freq[%d]time out\r\n",module);
+	}
+	//BK_LOGD(NULL, "cp1 vote freq end [%lld]\r\n",current_tick);
+
+	if(pm_debug_mode() & 0x2)
+		BK_LOGD(NULL, "cpu1 vote cpu freq\r\n");
+#endif
+	return BK_OK;
+
+}
 /*=========================CLK/FREQ CTRL END========================*/

@@ -35,15 +35,22 @@ menu "PM"
 
 	config PM_CPU_FRQ_HIGHEST
 		int "config highest cpu frequency"
-		default 4
+		default 3
 		help
-		   config highest cpu frequency(0:xtal;1:60M;2:80M;3:120M;4:160M;5:240M;)
+		   config highest cpu frequency(0:xtal;1:80M;2:120M;3:160M;4:240M;5:320M;6:480M;)
 
 	config PM_CPU_FRQ_DEFAULT
 		int "config default cpu frequency"
-		default 3
+		default 2
 		help
-		   config default cpu frequency(0:xtal;1:60M;2:80M;3:120M;4:160M;5:240M;)
+		   config default cpu frequency(0:xtal;1:80M;2:120M;3:160M;4:240M;5:320M;6:480M;)
+
+	config PM_AP_CPU_FRQ_DEFAUL
+		bool "Vote default cpu frequency during AP init"
+		default n
+		help
+			When enabled, AP bk_init votes CONFIG_PM_CPU_FRQ_DEFAULT
+			via bk_pm_module_vote_cpu_freq() at the end of initialization.
 
 	config PM_PROTECT_TIME_CHECK
 		bool "Primarily protect time check"
@@ -74,6 +81,13 @@ menu "PM"
 	config PM_AP_POWERDOWN_WHEN_LV
 		bool "Power down ap when sleep"
 		default n
+
+	config PM_AP_SUBPOWER_DOMAIN_DEFAULT_DISABLE
+		bool "Disable AP sub-power domains by default"
+		default n
+		help
+			Power off the VIDEO_POST, H26E, ISP and NPU power domains
+			during AP power-management hardware initialization.
 
 	config PM_AP_FAST_BOOT_ENABLE
 		bool "Restore AP FreeRTOS execution point after AP power cycle"

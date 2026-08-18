@@ -363,7 +363,7 @@ typedef enum
 	PM_SLEEP_MODULE_NAME_WDG,      // 27
 	PM_SLEEP_MODULE_NAME_AUDIO_ASR,// 28
 	PM_SLEEP_MODULE_NAME_APP1,     // 29
-	PM_SLEEP_MODULE_NAME_CPU1,     // 30
+	PM_SLEEP_MODULE_NAME_AP,       // 30
 	PM_SLEEP_MODULE_NAME_ROSC_PROG,// 31
 	PM_SLEEP_MODULE_NAME_ROSC,     // 32
 	PM_SLEEP_MODULE_NAME_FLASH_OP, // 33
@@ -468,16 +468,92 @@ typedef enum
 typedef enum
 {
 	PM_CPU_FRQ_XTAL = 0, // 0:CPU:XTAL,BUS:XTAL(eg:XTAL:40M/26M)
-	PM_CPU_FRQ_60M,      // 1:CPU:60M,BUS:60M
-	PM_CPU_FRQ_80M,      // 2:CPU:80M,BUS:80M
-	PM_CPU_FRQ_120M,     // 3:CPU:120M,BUS:120M
-	PM_CPU_FRQ_160M,     // 4:CPU:160M,BUS:160M
-	PM_CPU_FRQ_240M,     // 5:CPU:240M,BUS:120M
-	PM_CPU_FRQ_320M,     // 6:CPU:320M,BUS:160M
-	PM_CPU_FRQ_480M,     // 7:CPU:480M,BUS:240M
-	PM_CPU_FRQ_HIGHEST,  // 8:(Appli do not need to be concerned with the specific CPU frequency)
+	PM_CPU_FRQ_80M,      // 1:CPU:80M,BUS:80M
+	PM_CPU_FRQ_120M,     // 2:CPU:120M,BUS:120M
+	PM_CPU_FRQ_160M,     // 3:CPU:160M,BUS:160M
+	PM_CPU_FRQ_240M,     // 4:CPU:240M,BUS:120M
+	PM_CPU_FRQ_320M,     // 5:CPU:320M,BUS:160M
+	PM_CPU_FRQ_480M,     // 6:CPU:480M,BUS:240M
+	PM_CPU_FRQ_HIGHEST,  // 7:(Appli do not need to be concerned with the specific CPU frequency)
 	PM_CPU_FRQ_DEFAULT   // default cpu frequency which control by pm module
 }pm_cpu_freq_e;
+
+typedef enum
+{
+	PM_CP_DEV_ID_TIMER_0,  // 0
+	PM_CP_DEV_ID_I2C1,     // 1
+	PM_CP_DEV_ID_SPI_1,    // 2
+	PM_CP_DEV_ID_UART1,    // 3
+	PM_CP_DEV_ID_AIRPLAY,  // 4
+	PM_CP_DEV_ID_TIMER_1,  // 5
+	PM_CP_DEV_ID_SARADC,   // 6
+	PM_CP_DEV_ID_IRDA,     // 7
+	PM_CP_DEV_ID_EFUSE,    // 8
+	PM_CP_DEV_ID_I2C2,     // 9
+	PM_CP_DEV_ID_SPI_2,    //10
+	PM_CP_DEV_ID_UART2,    // 11
+	PM_CP_DEV_ID_UART3,    // 12
+	PM_CP_DEV_ID_PWM_2,    // 13
+	PM_CP_DEV_ID_TIMER_2,  // 14
+	PM_CP_DEV_ID_TIMER_3,  // 15
+	PM_CP_DEV_ID_TOUCH,    // 16
+	PM_CP_DEV_ID_I2S_1,    // 17
+	PM_CP_DEV_ID_USB_1,    // 18
+	PM_CP_DEV_ID_CAN,      // 19
+	PM_CP_DEV_ID_PSRAM,    // 20
+	PM_CP_DEV_ID_QSPI_1,   // 21
+	PM_CP_DEV_ID_QSPI_2,   // 22
+	PM_CP_DEV_ID_SDIO,     // 23
+	PM_CP_DEV_ID_AUXS,     // 24
+	PM_CP_DEV_ID_BTDM,     // 25
+	PM_CP_DEV_ID_WPAS,     // 26
+	PM_CP_DEV_ID_MAC,      // 27
+	PM_CP_DEV_ID_PHY,      // 28
+	PM_CP_DEV_ID_JPEG,     // 29
+	PM_CP_DEV_ID_DISP,     // 30
+	PM_CP_DEV_ID_AUDIO,    // 31
+	PM_CP_DEV_ID_RTC,      // 32
+	PM_CP_DEV_ID_GPIO,     // 33
+	PM_CP_DEV_ID_DECODER,  // 34
+	PM_CP_DEV_ID_LIN,      // 35
+	PM_CP_DEV_ID_PWM_1,    // 36
+	PM_CP_DEV_ID_SECURE_WORLD,// 37
+	PM_CP_DEV_ID_UART4,       // 38
+	PM_CP_DEV_ID_TRNG,        // 39
+	PM_CP_DEV_ID_AP,          // 40
+	PM_CP_DEV_ID_PHY_DPD_CALI, //41
+	PM_CP_DEV_ID_KEY,          //42
+	PM_CP_DEV_ID_CIF,          //43
+	PM_CP_DEV_ID_MAILBOX,      //44
+	/*
+	 * S2 (HPDMA review):
+	 *   Keep CP-side PM device id table in lock-step with the AP side.
+	 *   PM_DEV_ID_HPDMA is consumed only by the AP HPDMA driver (CP has
+	 *   no HPDMA presence today), but the enum is part of the cross-
+	 *   core PM ABI: shifting PM_DEV_ID_DEFAULT to a different ordinal
+	 *   on one core would silently misalign any cross-core PM tables.
+	 */
+	PM_CP_DEV_ID_HPDMA,        //45
+
+	PM_CP_DEV_ID_DEFAULT,      //46  it is used by pm module set default cpu frequency
+
+	PM_CP_DEV_ID_MAX
+}pm_cp_dev_id_e;
+
+typedef enum
+{
+	PM_CP_CPU_FRQ_XTAL = 0, // 0:CPU:XTAL,BUS:XTAL(eg:XTAL:40M/26M)
+	PM_CP_CPU_FRQ_60M,      // 1:CPU0:60M,BUS:60M
+	PM_CP_CPU_FRQ_80M,      // 2:CPU0:80M,BUS:80M
+	PM_CP_CPU_FRQ_120M,     // 3:CPU0:120M,BUS:120M
+	PM_CP_CPU_FRQ_160M,     // 4:CPU0:160M,BUS:160M
+	PM_CP_CPU_FRQ_240M,     // 5:CPU0:240M,BUS:240M
+
+	PM_CP_CPU_FRQ_HIGHEST,  // 6:(Appli do not need to be concerned with the specific CPU frequency)
+	PM_CP_CPU_FRQ_DEFAULT   // default cpu frequency which control by pm module
+}pm_cp_cpu_freq_e;
+
+
 typedef enum
 {
 	PM_ROSC_CALI_AUTO = 0,  // 0:auto calibration
@@ -585,7 +661,7 @@ typedef enum
 	PM_SLEEP_MODULE_NAME_WDG,\
 	PM_SLEEP_MODULE_NAME_AUDIO_ASR,\
 	PM_SLEEP_MODULE_NAME_APP1,\
-	PM_SLEEP_MODULE_NAME_CPU1,\
+	PM_SLEEP_MODULE_NAME_AP,\
 	PM_SLEEP_MODULE_NAME_ROSC_PROG,\
 	PM_SLEEP_MODULE_NAME_ROSC,\
 	PM_SLEEP_MODULE_NAME_FLASH_OP, \
@@ -627,7 +703,7 @@ typedef enum
 	PM_SLEEP_MODULE_NAME_WDG,\
 	PM_SLEEP_MODULE_NAME_AUDIO_ASR,\
 	PM_SLEEP_MODULE_NAME_APP1,\
-	PM_SLEEP_MODULE_NAME_CPU1,\
+	PM_SLEEP_MODULE_NAME_AP,\
 	PM_SLEEP_MODULE_NAME_ROSC_PROG,\
 	PM_SLEEP_MODULE_NAME_ROSC,\
 	PM_SLEEP_MODULE_NAME_FLASH_OP,\
@@ -1382,6 +1458,18 @@ pm_cpu_freq_e bk_pm_current_max_cpu_freq_get(void);
  *  - others: other errors.
  */
 bk_err_t bk_pm_module_vote_cpu_freq(pm_dev_id_e module,pm_cpu_freq_e cpu_freq);
+/**
+ * @brief vote CP cpu frequency
+ *
+ * Send a frequency vote to the CP power management service.
+ *
+ * @param
+ * -module:module id;cpu_freq:CP cpu frequency
+ * @return
+ *  - BK_OK: succeed
+ *  - others: other errors.
+ */
+bk_err_t bk_pm_module_vote_cp_cpu_freq(pm_cp_dev_id_e module,pm_cp_cpu_freq_e cpu_freq);
 /**
  * @brief clock ctrl
  *

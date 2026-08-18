@@ -257,7 +257,6 @@ static bool sys_drv_is_valid_cpu_bus_freq(pm_cpu_freq_e cpu_bus_freq)
 		case PM_CPU_FRQ_160M:
 		case PM_CPU_FRQ_120M:
 		case PM_CPU_FRQ_80M:
-		case PM_CPU_FRQ_60M:
 			return true;
 		default:
 			return false;
