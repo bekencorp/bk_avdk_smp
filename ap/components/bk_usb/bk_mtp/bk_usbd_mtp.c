@@ -752,15 +752,37 @@ static uint32_t current_sending_total_size;
 static uint32_t current_sending_idx;
 
 static usb_osal_thread_t mtp_thread = NULL;
-static usb_osal_sem_t mtp_sem;
-/* Signalled by the worker right before it self-deletes so usb_mtp_deinit() can
- * wait for the worker to stop touching the shared buffers/lists before tearing
- * them down. */
+/* Join handshake: the worker gives this as its last act before self-deleting so
+ * usb_mtp_deinit() can block until the worker has truly exited, then own the
+ * sem/thread teardown itself. Previously the worker freed its wakeup object
+ * asynchronously while a later start/stop reused the handle -> xQueueGenericSend
+ * assert on a poisoned (0x55aa55aa) handle. */
 static usb_osal_sem_t mtp_exit_sem = NULL;
 static volatile uint8_t mtp_thread_op;
+/* Authoritative exit request for the worker. Separate from mtp_thread_op because
+ * a late USB SUSPEND/RESET event (mtp_notify_handler) can overwrite mtp_thread_op
+ * after usb_mtp_deinit() asked the worker to quit; the worker must still break
+ * out, otherwise the deinit join on mtp_exit_sem would block forever. */
+static volatile uint8_t mtp_should_exit;
+/* SMP-safe ISR->worker handoff. The old design signalled the worker with a
+ * counting semaphore (max 1) + the shared mtp_thread_op var; under load the
+ * cross-core give/wakeup intermittently failed and the worker stalled (host
+ * spun on empty window). A FreeRTOS queue (depth 8) carries each request
+ * atomically: usb_osal_mq_send uses xQueueSendToBackFromISR from the USB ISR
+ * and the worker blocks on usb_osal_mq_recv, which is the platform's supported
+ * ISR->task wakeup path. */
+static usb_osal_mq_t mtp_op_q = NULL;
 static uint32_t mtp_parameter_backup[5];
 static uint32_t mtp_ep_recive_cnt;
 static uint32_t mtp_ep_recive_total_size;
+
+/* Post the current op to the worker queue. mtp_thread_op is already set by the
+ * caller (kept for the live in-flight CANCEL check the worker does). */
+static void mtp_wake_worker(void)
+{
+    if (mtp_op_q)
+        (void)usb_osal_mq_send(mtp_op_q, (uintptr_t)mtp_thread_op);
+}
 
 const uint8_t mtp_descriptor[] = {
     USB_DEVICE_DESCRIPTOR_INIT(USB_2_1, 0x00, 0x00, 0x00, USBD_VID, USBD_PID, 0x0200, 0x01),
@@ -1227,7 +1249,7 @@ static void mtp_command_packet_handle(mtp_packet_t *pack)
                     break;
                 }
                 mtp_thread_op = MTP_THREAD_OP_GET_STORAGE_INFO;
-                usb_osal_sem_give(mtp_sem);
+                mtp_wake_worker();
                 #else
                 mtp_send_respond(pack->transaction_id,MTP_RSP_INVALID_STORAGE_ID);
                 #endif
@@ -1245,7 +1267,7 @@ static void mtp_command_packet_handle(mtp_packet_t *pack)
                     }
                 }
                 mtp_thread_op = MTP_THREAD_OP_GET_OBJECT_NUM;
-                usb_osal_sem_give(mtp_sem);
+                mtp_wake_worker();
                 #else
                 mtp_send_respond(pack->transaction_id,MTP_RSP_INVALID_STORAGE_ID);
                 #endif
@@ -1263,7 +1285,7 @@ static void mtp_command_packet_handle(mtp_packet_t *pack)
                     }
                 }
                 mtp_thread_op = MTP_THREAD_OP_GET_OBJECT_HANDLES;
-                usb_osal_sem_give(mtp_sem);
+                mtp_wake_worker();
                 #else
                 mtp_send_respond(pack->transaction_id,MTP_RSP_INVALID_STORAGE_ID);
                 #endif
@@ -1273,7 +1295,7 @@ static void mtp_command_packet_handle(mtp_packet_t *pack)
             {
                 #if CONFIG_VFS
                 mtp_thread_op = MTP_THREAD_OP_GET_OBJECT_INFO;
-                usb_osal_sem_give(mtp_sem);
+                mtp_wake_worker();
                 #else
                 mtp_send_respond(pack->transaction_id,MTP_RSP_INVALID_OBJECT_HANDLE);
                 #endif
@@ -1283,7 +1305,7 @@ static void mtp_command_packet_handle(mtp_packet_t *pack)
             {
                 #if CONFIG_VFS
                 mtp_thread_op = MTP_THREAD_OP_GET_OBJECT;
-                usb_osal_sem_give(mtp_sem);
+                mtp_wake_worker();
                 #else
                 mtp_send_respond(pack->transaction_id,MTP_RSP_INVALID_OBJECT_HANDLE);
                 #endif
@@ -1298,7 +1320,7 @@ static void mtp_command_packet_handle(mtp_packet_t *pack)
                     break;
                 }
                 mtp_thread_op = MTP_THREAD_OP_DELETE_OBJECT;
-                usb_osal_sem_give(mtp_sem);
+                mtp_wake_worker();
                 #else
                 mtp_send_respond(pack->transaction_id,MTP_RSP_INVALID_OBJECT_HANDLE);
                 #endif
@@ -1346,7 +1368,7 @@ static void mtp_command_packet_handle(mtp_packet_t *pack)
                     }
                 }
                 mtp_thread_op = MTP_THREAD_OP_FORMAT_STORAGE;
-                usb_osal_sem_give(mtp_sem);
+                mtp_wake_worker();
                 #else
                 mtp_send_respond(pack->transaction_id,MTP_RSP_INVALID_STORAGE_ID);
                 #endif
@@ -1462,7 +1484,7 @@ static void mtp_command_packet_handle(mtp_packet_t *pack)
                     break;
                 }
                 mtp_thread_op = MTP_THREAD_OP_MOVE_OBJECT;
-                usb_osal_sem_give(mtp_sem);
+                mtp_wake_worker();
                 #else
                 mtp_send_respond(pack->transaction_id,MTP_RSP_DEVICE_BUSY);
                 #endif
@@ -1477,7 +1499,7 @@ static void mtp_command_packet_handle(mtp_packet_t *pack)
                     break;
                 }
                 mtp_thread_op = MTP_THREAD_OP_COPY_OBJECT;
-                usb_osal_sem_give(mtp_sem);
+                mtp_wake_worker();
                 #else
                 mtp_send_respond(pack->transaction_id,MTP_RSP_DEVICE_BUSY);
                 #endif
@@ -1487,7 +1509,7 @@ static void mtp_command_packet_handle(mtp_packet_t *pack)
             {
                 #if CONFIG_VFS
                 mtp_thread_op = MTP_THREAD_OP_GET_OBJECT;
-                usb_osal_sem_give(mtp_sem);
+                mtp_wake_worker();
                 #else
                 mtp_send_respond(pack->transaction_id,MTP_RSP_INVALID_OBJECT_HANDLE);
                 #endif
@@ -1732,7 +1754,7 @@ static void mtp_command_packet_handle(mtp_packet_t *pack)
                 {
                     #if CONFIG_VFS
                     mtp_thread_op = MTP_THREAD_OP_GET_OBJECT_SIZE;
-                    usb_osal_sem_give(mtp_sem);
+                    mtp_wake_worker();
                     #else
                     mtp_send_respond(pack->transaction_id,MTP_RSP_INVALID_OBJECT_PROP_CODE);
                     #endif
@@ -1761,7 +1783,7 @@ static void mtp_command_packet_handle(mtp_packet_t *pack)
                 {
                     #if CONFIG_VFS
                     mtp_thread_op = MTP_THREAD_OP_GET_OBJECT_FILE_NAME;
-                    usb_osal_sem_give(mtp_sem);
+                    mtp_wake_worker();
                     #else
                     mtp_send_respond(pack->transaction_id,MTP_RSP_INVALID_OBJECT_PROP_CODE);
                     #endif
@@ -1840,7 +1862,7 @@ static void mtp_command_packet_handle(mtp_packet_t *pack)
                 break;
             }
             mtp_thread_op = MTP_THREAD_OP_GET_OBJECT_PROPLIST;
-            usb_osal_sem_give(mtp_sem);
+            mtp_wake_worker();
             #else
             mtp_send_respond(pack->transaction_id,MTP_RSP_INVALID_OBJECT_PROP_CODE);
             #endif
@@ -1867,7 +1889,7 @@ static void mtp_data_packet_handle(mtp_packet_t *pack)
         {
             #if CONFIG_VFS
             mtp_thread_op = MTP_THREAD_OP_SET_OBJECT_PROP_VALUE;
-            usb_osal_sem_give(mtp_sem);
+            mtp_wake_worker();
             #endif
         }
         break;
@@ -1875,7 +1897,7 @@ static void mtp_data_packet_handle(mtp_packet_t *pack)
         {
             #if CONFIG_VFS
             mtp_thread_op = MTP_THREAD_OP_SEND_OBJECT_INFO;
-            usb_osal_sem_give(mtp_sem);
+            mtp_wake_worker();
             #endif
         }
         break;
@@ -1893,13 +1915,13 @@ static int mtp_class_interface_request_handler(uint8_t busid, struct usb_setup_p
     switch (setup->bRequest) {
         case MTP_REQUEST_CANCEL:
             mtp_thread_op = MTP_THREAD_OP_CANCEL_REQUEST;
-            usb_osal_sem_give(mtp_sem);
+            mtp_wake_worker();
             break;
         case MTP_REQUEST_GET_EXT_EVENT_DATA:
             break;
         case MTP_REQUEST_RESET:
             mtp_thread_op = MTP_THREAD_OP_RESET;
-            usb_osal_sem_give(mtp_sem);
+            mtp_wake_worker();
             break;
         case MTP_REQUEST_GET_DEVICE_STATUS:
             {
@@ -1949,7 +1971,7 @@ static void mtp_notify_handler(uint8_t busid, uint8_t event, void *arg)
             break;
         case USBD_EVENT_SUSPEND:
             mtp_thread_op = MTP_THREAD_OP_RESET;
-            usb_osal_sem_give(mtp_sem);
+            mtp_wake_worker();
             USB_LOG_DBG("%s ,line:%d,USBD_EVENT_SUSPEND\r\n",__FILE__,__LINE__);
             break;
         case USBD_EVENT_RESUME:
@@ -1992,7 +2014,7 @@ static void mtp_bulk_in(uint8_t busid, uint8_t ep, uint32_t nbytes)
         else
         {
             mtp_thread_op = MTP_THREAD_OP_GET_OBJECT;
-            usb_osal_sem_give(mtp_sem);
+            mtp_wake_worker();
         }
     }
 }
@@ -2025,7 +2047,7 @@ static void mtp_bulk_out(uint8_t busid, uint8_t ep, uint32_t nbytes)
                     mtp_parameter_backup[3] = 0;
                 }
                 mtp_thread_op = MTP_THREAD_OP_SEND_OBJECT;
-                usb_osal_sem_give(mtp_sem);
+                mtp_wake_worker();
             }
             else
             {
@@ -2049,7 +2071,7 @@ static void mtp_bulk_out(uint8_t busid, uint8_t ep, uint32_t nbytes)
             mtp_parameter_backup[3] = 0;
         }
         mtp_thread_op = MTP_THREAD_OP_SEND_OBJECT;
-        usb_osal_sem_give(mtp_sem);
+        mtp_wake_worker();
         return;
     }
     else if(mtp_ep_recive_total_size > MAX_PACKET_SIZE)
@@ -2098,9 +2120,15 @@ static void mtp_int_in(uint8_t busid, uint8_t ep, uint32_t nbytes)
 static void usbd_mtp_thread(void *argument)
 {
     while (1) {
-        usb_osal_sem_take(mtp_sem, 0xffffffff);
-        if(mtp_thread_op == MTP_THREAD_EXIT)
+        uintptr_t _mqmsg = 0;
+        /* Finite timeout so the worker periodically re-checks the exit request
+         * even if a wakeup is ever missed; a genuine request arrives as a queue
+         * message. */
+        int _rq = usb_osal_mq_recv(mtp_op_q, &_mqmsg, 200);
+        if(mtp_should_exit || mtp_thread_op == MTP_THREAD_EXIT)
             break;
+        if(_rq != 0)
+            continue; /* timeout, nothing queued */
         #if CONFIG_VFS
         switch(mtp_thread_op)
         {
@@ -3283,15 +3311,12 @@ static void usbd_mtp_thread(void *argument)
     }
     #endif
     clear_all_list();
-    mtp_thread = NULL;
-    /* Hand semaphore/buffer teardown back to usb_mtp_deinit(): signal that this
-     * worker is done touching the shared state, then self-delete. deinit blocks
-     * on mtp_exit_sem before deleting mtp_sem / freeing the buffers, so nothing
-     * frees state from under a still-running worker. */
+    /* Hand the queue/thread teardown back to usb_mtp_deinit(): it is blocked on
+     * mtp_exit_sem and will delete mtp_op_q + clear the handles only after we
+     * signal here. Do NOT touch mtp_op_q/mtp_thread from this context anymore --
+     * that async free was the source of the repeated start/stop crash. */
     if (mtp_exit_sem)
-    {
         usb_osal_sem_give(mtp_exit_sem);
-    }
     /* self-delete: v1.6 OSAL usb_osal_thread_delete(NULL) wraps to
      * rtos_delete_thread(&handle) with handle==NULL, which asserts in the
      * RTOS. Use rtos_delete_thread(NULL) for the proper self-delete path. */
@@ -3324,32 +3349,12 @@ struct usbd_interface *usbd_mtp_init_intf(struct usbd_interface *intf, const uin
         next_handle = 1;
         open_fd = -1;
         #endif
-        /* Clear any leftover command (e.g. MTP_THREAD_EXIT from the previous
-         * stop) BEFORE creating the worker. Since mtp_sem is created with an
-         * initial count of 1, the freshly created worker can immediately take
-         * it; if mtp_thread_op still held the stale MTP_THREAD_EXIT it would
-         * self-delete right away, leaving mtp_sem == NULL for the next stop and
-         * asserting in xQueueGenericSend. */
-        mtp_thread_op = MTP_THREAD_OP_NONE;
-        mtp_sem = usb_osal_sem_create(1);
-        if (mtp_sem == NULL) {
-            USB_LOG_ERR("failed to create mtp_sem\r\n");
-            return NULL;
-        }
+        mtp_should_exit = 0;
         mtp_exit_sem = usb_osal_sem_create(0);
-        if (mtp_exit_sem == NULL) {
-            USB_LOG_ERR("failed to create mtp_exit_sem\r\n");
-            usb_osal_sem_delete(mtp_sem);
-            mtp_sem = NULL;
-            return NULL;
-        }
+        mtp_op_q = usb_osal_mq_create(8);
         mtp_thread = usb_osal_thread_create("usbd_mtp", 2048, BEKEN_DEFAULT_WORKER_PRIORITY, usbd_mtp_thread, NULL);
         if (mtp_thread == NULL) {
             USB_LOG_ERR("no enough memory to alloc mtp thread\r\n");
-            usb_osal_sem_delete(mtp_sem);
-            mtp_sem = NULL;
-            usb_osal_sem_delete(mtp_exit_sem);
-            mtp_exit_sem = NULL;
             return NULL;
         }
     }
@@ -3471,35 +3476,43 @@ int usb_mtp_deinit(void)
 {
     if(!s_mtp_init) return BK_OK;
     int ret = BK_OK;
-    mtp_thread_op = MTP_THREAD_EXIT;
-    /* Wake the worker so it observes MTP_THREAD_EXIT. Guard the handle: a prior
-     * lifecycle race could already have torn the worker (and its sem) down. */
-    if (mtp_sem)
+
+    /* 1. Retire the worker thread SYNCHRONOUSLY. Signal EXIT, wake it, then block
+     *    on mtp_exit_sem until it has actually returned. The USB device is still
+     *    live here, so a worker that is mid-transfer finishes cleanly before it
+     *    checks mtp_thread_op and breaks. */
+    if(mtp_thread)
     {
-        usb_osal_sem_give(mtp_sem);
+        mtp_should_exit = 1;
+        mtp_thread_op = MTP_THREAD_EXIT;
+        mtp_wake_worker();
+        if(mtp_exit_sem)
+            usb_osal_sem_take(mtp_exit_sem, USB_OSAL_WAITING_FOREVER);
     }
-    /* Wait for the worker to finish its cleanup (it signals mtp_exit_sem right
-     * before self-deleting) before deleting the semaphores and freeing the
-     * buffers / endpoints it may still be using. */
-    if (mtp_exit_sem)
-    {
-        usb_osal_sem_take(mtp_exit_sem, 0xffffffff);
-    }
-    if (mtp_sem)
-    {
-        usb_osal_sem_delete(mtp_sem);
-        mtp_sem = NULL;
-    }
-    if (mtp_exit_sem)
-    {
-        usb_osal_sem_delete(mtp_exit_sem);
-        mtp_exit_sem = NULL;
-    }
+
+    /* 2. Tear the USB device controller down. After usbd_deinitialize() the USB
+     *    HS ISR is unregistered, so nothing can post to the worker queue behind
+     *    our back once we start deleting the handles below. */
     if((ret = usbd_deinitialize(MTP_BUSID)) != BK_OK)
     {
         pm_unlock(usb_pm);
         return ret;
     }
+
+    /* 3. Worker is gone and USB is quiesced: safe to delete the queue/sem and
+     *    clear every handle. Next usb_mtp_init() will recreate a fresh set. */
+    if(mtp_exit_sem)
+    {
+        usb_osal_sem_delete(mtp_exit_sem);
+        mtp_exit_sem = NULL;
+    }
+    if(mtp_op_q)
+    {
+        usb_osal_mq_delete(mtp_op_q);
+        mtp_op_q = NULL;
+    }
+    mtp_thread = NULL;
+
     os_free(ep_out_buffer);
     os_free(ep_in_buffer);
     os_free(mtp_buffer);

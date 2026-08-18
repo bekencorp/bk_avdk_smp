@@ -457,6 +457,20 @@ __WEAK void usb_dc_low_level_init(void)
     bk_int_set_priority(INT_SRC_USB, 2);
 #endif /* CONFIG_SOC_BK7259 */
 
+    /* Re-attach fix: the wrapper register at 0x710 (PHY digital control: pll_en
+     * bit6, reset bit7, cfg_rstn bit1) keeps its previous value across an MTP
+     * stop/start because the deinit path only powers the analog PHY LDO down, it
+     * does not reset this digital register. A bare |= therefore produces NO
+     * 0->1 edge on the second bring-up, and Naneng PHY spec 8.2 requires a rising
+     * edge of PLL_EN (and a reset pulse) for the delay/clock cell to lock. Drive
+     * the edge-sensitive controls low first so the sequence below re-creates the
+     * required rising edges; the first-ever attach is unaffected. */
+    REG_USB_USR_710 &= ~((0x1u<<6) | (0x1u<<7) | (0x1u<<1));
+    {
+        extern void delay(int num);
+        delay(100);
+    }
+
     REG_USB_USR_710 |= (0x1<<15);
     REG_USB_USR_710 |= (0x1<<14);
     REG_USB_USR_710 |= (0x1<<16);
@@ -586,6 +600,20 @@ int usb_dc_init(uint8_t busid)
 int usb_dc_deinit(uint8_t busid)
 {
     (void)busid;
+
+    /* Present a clean disconnect to the host and quiesce the controller BEFORE
+     * powering the PHY/clock down (the PHY is still live at this point). Dropping
+     * SOFTCONN removes the D+ pull-up so the host sees a real detach; clearing
+     * the interrupt-enables and the OTG SESSION bit leaves the MUSB core in the
+     * same state a fresh usb_dc_init() expects. Without this, a stop->start cycle
+     * left stale SESSION/IE state and the host would not re-enumerate the gadget
+     * on the second start (no RESET/CONFIGURED). Mirrors usb_hc_deinit(). */
+    HWREGB(USB_BASE + MUSB_POWER_OFFSET)   &= ~USB_POWER_SOFTCONN;
+    HWREGB(USB_BASE + MUSB_INTRUSBE_OFFSET) = 0;
+    HWREGH(USB_BASE + MUSB_INTRTXE_OFFSET)  = 0;
+    HWREGH(USB_BASE + MUSB_INTRRXE_OFFSET)  = 0;
+    HWREGB(USB_BASE + MUSB_DEVCTL_OFFSET)  &= ~USB_DEVCTL_SESSION;
+
     usb_dc_low_level_deinit();
     return 0;
 }
