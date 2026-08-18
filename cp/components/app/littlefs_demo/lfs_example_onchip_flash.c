@@ -25,12 +25,7 @@ int user_provided_block_device_read(const struct lfs_config *c, lfs_block_t bloc
 int user_provided_block_device_prog(const struct lfs_config *c, lfs_block_t block,
         lfs_off_t off, const void *buffer, lfs_size_t size)
 {
-	flash_protect_type_t type = bk_flash_get_protect_type();
-
-	bk_flash_set_protect_type(FLASH_PROTECT_NONE);
 	bk_flash_write_bytes(c->block_size*block+off+LITTLEFS_FLASH_ADDR,buffer,size);
-
-	bk_flash_set_protect_type(type);
 
 	return 0;
 }   
@@ -41,12 +36,7 @@ int user_provided_block_device_prog(const struct lfs_config *c, lfs_block_t bloc
 // May return LFS_ERR_CORRUPT if the block should be considered bad.
 int user_provided_block_device_erase(const struct lfs_config *c, lfs_block_t block)
 {
-	flash_protect_type_t type = bk_flash_get_protect_type();
-
-	bk_flash_set_protect_type(FLASH_PROTECT_NONE);
 	bk_flash_erase_sector(c->block_size*block+LITTLEFS_FLASH_ADDR);
-
-	bk_flash_set_protect_type(type);
 
 	return 0;
 }	
