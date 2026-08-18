@@ -57,6 +57,10 @@ int ota_do_init_operation(void)
 #if CONFIG_SECURE_OTA_XIP
 	/* Route every transport through the secure DIRECT_XIP A/B back-end. */
 	f_ota_fun_ptr = bk_ota_secure_xip_backend();
+#elif CONFIG_SECURE_OTA_OVERWRITE
+	/* Route every transport through the compressed-overwrite back-end: stage
+	 * into `ota`, arm OVERWRITE_CONFIRM, reboot -> BL2 decompress-overwrite. */
+	f_ota_fun_ptr = bk_ota_secure_overwrite_backend();
 #endif
 	ret = f_ota_fun_ptr->init(&ota_info->fota_dl_info); 	//do init
 	ota_info->fota_dl_info.ota_type = OTA_TYPE_WIFI;

@@ -105,6 +105,13 @@ void bk_ota_finish_and_reboot(void);
  * ota_do_init_operation() in place of the default non-secure back-end. */
 const f_ota_func_t *bk_ota_secure_xip_backend(void);
 #endif
+#if CONFIG_SECURE_OTA_OVERWRITE
+/* Compressed-overwrite OTA back-end (ota_secure_overwrite.c), selected in
+ * ota_do_init_operation() in place of the default non-secure back-end: stages
+ * the compressed+signed image into the `ota` partition and arms
+ * OVERWRITE_CONFIRM for BL2 to decompress-overwrite primary_all. */
+const f_ota_func_t *bk_ota_secure_overwrite_backend(void);
+#endif
 int ota_do_open_sysfile(void);
 void ota_do_umount_sysfile(void);
 ota_wr_destination_t ota_get_dest_id(void);

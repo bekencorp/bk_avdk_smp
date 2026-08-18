@@ -32,7 +32,13 @@ if (CONFIG_SECURE_OTA_XIP)
 		ota_secure_xip/ota_secure_xip.c)
 endif()
 
-if (CONFIG_CLI AND (CONFIG_OTA_HTTP OR CONFIG_OTA_HTTPS OR CONFIG_HTTP_AB_PARTITION OR CONFIG_SECURE_OTA_XIP))
+# Compressed-overwrite OTA back-end, layered on the non-secure OTA framework.
+if (CONFIG_SECURE_OTA_OVERWRITE)
+	list(APPEND srcs
+		ota_secure_overwrite/ota_secure_overwrite.c)
+endif()
+
+if (CONFIG_CLI AND (CONFIG_OTA_HTTP OR CONFIG_OTA_HTTPS OR CONFIG_HTTP_AB_PARTITION OR CONFIG_SECURE_OTA_XIP OR CONFIG_SECURE_OTA_OVERWRITE))
 	list(APPEND srcs ota_test.c)
 endif()
 endif()
