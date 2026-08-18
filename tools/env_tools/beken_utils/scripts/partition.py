@@ -1182,6 +1182,27 @@ class Partitions:
         with open(p.bin_name, 'wb+') as f:
             f.write(content)
 
+    def process_ota_control(self, aes_type):
+        # Pre-provision the OVERWRITE ota_control partition as virgin flash
+        # (all 0xFF). The resume journal grows from the start and the
+        # OVERWRITE_CONFIRM record lives in the last sector (ota_confirm.h);
+        # both stay empty until the device receiver arms an update. Packs into
+        # all-app.bin via pack.json, mirroring XIP process_boot_param.
+        p = self.find_partition_by_name('ota_control')
+        if p == None:
+            return
+
+        size = p.partition_size
+        if size < 0x1000:
+            raise RuntimeError(
+                f'ota_control size 0x{size:x} < 4K, need room for resume/confirm')
+
+        content = bytes([0xFF]) * size
+        p.bin_name = 'ota_control.bin'
+        logging.debug(f'create new {p.bin_name}: virgin 0xFF, size=0x{size:x}')
+        with open(p.bin_name, 'wb+') as f:
+            f.write(content)
+
     def process_aes_crc(self, aes_type, aes_key):
         for p in self.partitions:
             if (p.partition_name in self.primary_partitions_verified_by_bl2) or (p.partition_name in self.secondary_partitions_verified_by_bl2) or p.partition_name == "secondary_all":
@@ -1657,6 +1678,7 @@ class Partitions:
         self.parse_and_validate_pack_json(pack_json)
         self.process_boot_flag(aes_type)
         self.process_boot_param(aes_type)
+        self.process_ota_control(aes_type)
         self.process_bl1_control(aes_type, boot_ota)
         self.create_partition_partition(aes_type, aes_key)
         self.process_aes_crc(aes_type, aes_key)
