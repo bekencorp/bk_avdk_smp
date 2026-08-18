@@ -994,7 +994,7 @@ avdk_err_t bk_video_player_container_parse_init(private_video_player_ctlr_t *con
         LOGE("%s: Failed to create audio parse thread, ret=%d\n", __func__, ret);
         controller->video_parse_thread_exit = true;
         rtos_set_semaphore(&controller->video_parse_sem);
-        rtos_thread_join(controller->video_parse_thread);
+        rtos_thread_join(&controller->video_parse_thread);
         controller->video_parse_thread = NULL;
         rtos_deinit_semaphore(&controller->video_parse_quiesced_sem);
         rtos_deinit_semaphore(&controller->video_parse_sem);
@@ -1019,7 +1019,7 @@ void bk_video_player_container_parse_deinit(private_video_player_ctlr_t *control
         controller->video_parse_thread_exit = true;
         controller->video_parse_thread_running = false;
         rtos_set_semaphore(&controller->video_parse_sem);
-        rtos_thread_join(controller->video_parse_thread);
+        rtos_thread_join(&controller->video_parse_thread);
         controller->video_parse_thread = NULL;
     }
 
@@ -1028,7 +1028,7 @@ void bk_video_player_container_parse_deinit(private_video_player_ctlr_t *control
         controller->audio_parse_thread_exit = true;
         controller->audio_parse_thread_running = false;
         rtos_set_semaphore(&controller->audio_parse_sem);
-        rtos_thread_join(controller->audio_parse_thread);
+        rtos_thread_join(&controller->audio_parse_thread);
         controller->audio_parse_thread = NULL;
     }
 

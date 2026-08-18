@@ -144,11 +144,11 @@ typedef struct private_video_player_ctlr_s
 
     // Thread management
     // Container parse threads (pipeline stage 1)
-    beken_thread_t *video_parse_thread;  // Video parse thread (read video packets from container)
-    beken_thread_t *audio_parse_thread;  // Audio parse thread (read audio packets from container)
+    beken_thread_t video_parse_thread;  // Video parse thread (read video packets from container)
+    beken_thread_t audio_parse_thread;  // Audio parse thread (read audio packets from container)
     // Decode threads (pipeline stage 2)
-    beken_thread_t *video_decode_thread;        // Video decode thread
-    beken_thread_t *audio_decode_thread;       // Audio decode thread
+    beken_thread_t video_decode_thread;        // Video decode thread
+    beken_thread_t audio_decode_thread;        // Audio decode thread
     
     beken_semaphore_t video_parse_sem;
     beken_semaphore_t audio_parse_sem;
