@@ -24,7 +24,7 @@
 /* GPIO debug master switch.
  * 0 (default): GPIO_UP/GPIO_DOWN/GPIO_UP_DOWN compile to no-ops.
  * Set to 1 manually to physically drive the debug GPIOs. */
-#define CONFIG_GPIO_DEBUG_ENABLE 1
+#define CONFIG_GPIO_DEBUG_ENABLE 0
 
 #if CONFIG_GPIO_DEBUG_ENABLE
 #define GPIO_UP(id) *(volatile uint32_t*) (SOC_AON_GPIO_REG_BASE + ((id) << 2)) = 0x2000002
