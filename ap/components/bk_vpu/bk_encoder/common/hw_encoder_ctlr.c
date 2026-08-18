@@ -17,6 +17,7 @@
 #include <components/log.h>
 #include <components/avdk_utils/avdk_error.h>
 #include <components/bk_frame_buffer.h>
+#include <soc/soc.h>
 
 #include "driver/int.h"
 #include "driver/sys_pm.h"
@@ -65,7 +66,7 @@ typedef struct {
 } hw_encoder_ctlr_t;
 
 // TODO FIX
-#define REG_SYS_BASE_ADDR  0x48000000
+#define REG_SYS_BASE_ADDR  SOC_SYS_AHBP_REG_BASE
 
 static hw_encoder_ctlr_t *g_hw_encoder_ctlr = NULL;
 
