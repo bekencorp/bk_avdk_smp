@@ -1435,3 +1435,104 @@ bk_err_t bk_isp_set_cproc_attr(isp_handle_t *handle, void *cproc_attr)
 
     return BK_OK;
 }
+
+bk_err_t bk_isp_query_exposure_info(isp_handle_t *handle,
+                                    bk_isp_exposure_info_t *info)
+{
+    ISP_EXPOSURE_INFO_S isp_info = {0};
+
+    if (handle == NULL || *handle == NULL || info == NULL)
+    {
+        return BK_ERR_PARAM;
+    }
+
+    isp_control_t *control = (isp_control_t *)*handle;
+    int ret = VSI_MPI_ISP_QueryExposureInfo(control->port, &isp_info);
+    if (ret != VSI_SUCCESS || isp_info.expTime[0] == 0 ||
+        isp_info.again[0] == 0 || isp_info.dgain[0] == 0)
+    {
+        LOGE("%s, exposure info not ready: %d\n", __func__, ret);
+        return BK_ERR_STATE;
+    }
+
+    info->exposure_time_us = isp_info.expTime[0];
+    info->analog_gain = isp_info.again[0];
+    info->digital_gain = isp_info.dgain[0];
+    info->composite_exposure = isp_info.exposure[0];
+    info->iso = isp_info.iso;
+    info->mean_luminance = isp_info.meanLum;
+    return BK_OK;
+}
+
+bk_err_t bk_isp_set_initial_exposure(
+    isp_handle_t *handle, const bk_isp_exposure_info_t *info)
+{
+    ISP_EXPOSURE_ATTR_S attr;
+
+    if (handle == NULL || *handle == NULL || info == NULL ||
+        info->exposure_time_us == 0 || info->analog_gain == 0 ||
+        info->digital_gain == 0)
+    {
+        return BK_ERR_PARAM;
+    }
+
+    isp_control_t *control = (isp_control_t *)*handle;
+    if (VSI_MPI_ISP_SnsStreamStatus(control->port))
+    {
+        LOGE("%s, sensor already streaming\n", __func__);
+        return BK_ERR_STATE;
+    }
+
+    int ret = VSI_MPI_ISP_GetExposureAttr(control->port, &attr);
+    if (ret != VSI_SUCCESS)
+    {
+        return BK_FAIL;
+    }
+
+    attr.opType = OP_TYPE_MANUAL;
+    attr.manualAttr.intTime = info->exposure_time_us;
+    attr.manualAttr.again = info->analog_gain;
+    attr.manualAttr.dgain = info->digital_gain;
+    ret = VSI_MPI_ISP_SetExposureAttr(control->port, &attr);
+    if (ret != VSI_SUCCESS)
+    {
+        LOGE("%s, set manual exposure failed: %d\n", __func__, ret);
+        return BK_FAIL;
+    }
+
+    ret = VSI_MPI_ISP_CommitExposureAttr(control->port);
+    if (ret != VSI_SUCCESS)
+    {
+        LOGE("%s, flush sensor exposure failed: %d\n", __func__, ret);
+        return BK_FAIL;
+    }
+
+    return BK_OK;
+}
+
+bk_err_t bk_isp_resume_auto_exposure(isp_handle_t *handle)
+{
+    ISP_EXPOSURE_ATTR_S attr;
+
+    if (handle == NULL || *handle == NULL)
+    {
+        return BK_ERR_PARAM;
+    }
+
+    isp_control_t *control = (isp_control_t *)*handle;
+    int ret = VSI_MPI_ISP_GetExposureAttr(control->port, &attr);
+    if (ret != VSI_SUCCESS)
+    {
+        return BK_FAIL;
+    }
+
+    attr.opType = OP_TYPE_AUTO;
+    ret = VSI_MPI_ISP_SetExposureAttr(control->port, &attr);
+    if (ret != VSI_SUCCESS)
+    {
+        LOGE("%s, resume auto exposure failed: %d\n", __func__, ret);
+        return BK_FAIL;
+    }
+
+    return BK_OK;
+}
