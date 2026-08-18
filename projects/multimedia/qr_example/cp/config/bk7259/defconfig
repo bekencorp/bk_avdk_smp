@@ -14,3 +14,5 @@ CONFIG_USE_CONV_UTF8=n
 CONFIG_IPERF_TEST=n
 CONFIG_CONTROLLER_AP_BUFFER_COPY=y
 CONFIG_WIFI_VNET_CONTROLLER=y
+# qr_example is a size-critical multimedia demo and does not need the flash test CLI.
+# CONFIG_FLASH_TEST is not set
