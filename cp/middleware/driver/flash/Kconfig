@@ -16,16 +16,6 @@ menu "FLASH"
 		bool "Enable flash source clock 60M,used in property document.If not set, the flash clock will be configured by CONFIG_FLASH_CLK"
 		default n
 
-	config FLASH_ORIGIN_API
-		bool "Enable flash old api"
-		default n
-
-	config FLASH_MB
-		bool "Enable flash mailbox channel"
-		depends on MAILBOX
-		depends on !SOC_SMP
-		default n
-
 	config FLASH_TEST
 		depends on FLASH
 		bool "Enable flash test"
@@ -44,10 +34,6 @@ menu "FLASH"
 	config FLASH_CLEAR_RD_RESIDUAL
 		depends on FLASH
 		bool "Enable The Feature of Clearing Read Residual Data"
-		default n
-
-	config FLASH_WRITE_STATUS_VOLATILE
-		bool "Enable write volatile status register"
 		default n
 
 	config FLASH_PARTITION_CHECK_VALID

@@ -26,6 +26,10 @@ extern "C" {
 #define CMD_WRSR_S8_S15      (0x31)
 #define CMD_WRSR_S16_S24     (0x11)
 
+/* Status register protect (SRP) bit positions in the 16-bit status register */
+#define FLASH_STATUS_REG_SRP0_BIT    (7)  /* SRP0: status byte1 bit7 */
+#define FLASH_STATUS_REG_SRP1_BIT    (8)  /* SRP1: status byte2 S8 (bit8 of 16b SR) */
+
 #ifdef __cplusplus
 }
 #endif
