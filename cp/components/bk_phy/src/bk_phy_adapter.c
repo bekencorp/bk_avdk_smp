@@ -328,7 +328,8 @@ static bk_err_t bk_flash_set_protect_type_protect_none(void)
 #if (CONFIG_OTP && CONFIG_PHY_RFCALI_TO_OTP)
     return BK_ERR_NOT_SUPPORT;
 #else
-    return bk_flash_set_protect_type(FLASH_PROTECT_NONE);
+    /* Flash protection is now managed internally by the flash erase/write API. */
+    return BK_OK;
 #endif
 }
 
@@ -337,7 +338,8 @@ static bk_err_t bk_flash_set_protect_type_unprotect_last_block(void)
 #if (CONFIG_OTP && CONFIG_PHY_RFCALI_TO_OTP)
     return BK_ERR_NOT_SUPPORT;
 #else
-    return bk_flash_set_protect_type(FLASH_UNPROTECT_LAST_BLOCK);
+    /* Flash protection is now managed internally by the flash erase/write API. */
+    return BK_OK;
 #endif
 }
 
@@ -856,9 +858,6 @@ const phy_os_variable_t g_phy_os_variable = {
 #endif
     ._dd_dev_type_sctrl      = DD_DEV_TYPE_SCTRL,
     ._dd_dev_type_icu        = DD_DEV_TYPE_ICU,
-#if CONFIG_FLASH_ORIGIN_API
-    ._dd_dev_type_flash      = DD_DEV_TYPE_FLASH,
-#endif
     ._chip_version_a         = CHIP_VERSION_A,
     ._chip_version_b         = CHIP_VERSION_B,
     ._chip_version_c         = CHIP_VERSION_C,
