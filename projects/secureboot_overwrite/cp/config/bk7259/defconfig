@@ -44,6 +44,8 @@ CONFIG_TFM_BL2_LOG_LEVEL="INFO"
 # are NOT set here; gen_ota.py derives them from partitions/bk7259/ota.csv.
 CONFIG_BL2_UPGRADE_STRATEGY="OVERWRITE_ONLY"
 CONFIG_XIP_NO_VERSION=y
+# Optional DEBUG: overwrite install erase/write read-back (default off for mass production).
+CONFIG_DEBUG_OTA_INSTALL=y
 
 # --- SPE heap ---
 CONFIG_TFM_HEAP_SIZE=0x6000
