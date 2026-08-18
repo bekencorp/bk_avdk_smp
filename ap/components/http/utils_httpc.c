@@ -11,11 +11,7 @@
 #include <os/mem.h>
 #include <os/str.h>
 #if HTTP_WR_TO_FLASH
-#if CONFIG_FLASH_ORIGIN_API
-#include "bk_flash.h"
-#else
 #include "driver/flash.h"
-#endif
 #endif
 #include "bk_private/bk_ota_private.h"
 
@@ -34,9 +30,6 @@
 
 #define HTTP_RETRIEVE_MORE_DATA   (1)            /**< More data needs to be retrieved. */
 
-#if CONFIG_FLASH_ORIGIN_API
-extern void flash_protection_op(UINT8 mode, PROTECT_TYPE type);
-#endif
 #if CONFIG_OTA_TFTP
 #define HTTP_FLASH_WR_BUF_MAX WR_BUF_MAX
 #else
@@ -466,9 +459,6 @@ int httpclient_recv(httpclient_t *client, char *buf, int min_len, int max_len, i
 
 void http_flash_init(void)
 {
-#if CONFIG_FLASH_ORIGIN_API
-	UINT32 status;
-#endif
 	bk_http_ptr->wr_buf = NULL;
 	bk_http_ptr->wr_tmp_buf = NULL;
 
@@ -498,13 +488,6 @@ void http_flash_deinit(void)
 	os_memset(bk_http_ptr, 0, sizeof(HTTP_DATA_ST));
 
 	ota_wr_block = 0;
-#if CONFIG_FLASH_ORIGIN_API
-	ddev_close(bk_http_ptr->flash_hdl);
-
-	bk_flash_enable_security(FLASH_UNPROTECT_LAST_BLOCK);
-#else
-	//bk_flash_set_protect_type(FLASH_UNPROTECT_LAST_BLOCK);
-#endif
 	BK_LOGD(NULL, "write over\r\n");
 }
 #endif
