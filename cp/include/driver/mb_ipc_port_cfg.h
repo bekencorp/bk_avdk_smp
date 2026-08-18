@@ -35,7 +35,7 @@ typedef enum
 {
 	//   servers resided in cpu0.
 	CPU0_SERVER_ID_START = IPC_SVR_ID_START(0),
-	FLASH_SERVER,
+	FLASH_SERVER_RESERVED,	/* mb_ipc flash RPC removed; slot kept to preserve port ids. */
 	SARADC_SERVER,
 	PHY_SERVER,
 
