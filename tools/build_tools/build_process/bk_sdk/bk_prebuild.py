@@ -83,6 +83,10 @@ def gpio_dev_to_ppc_device(gpio_dev: str, app_name: str) -> Optional[str]:
         return None
 
     is_ap = app_name.endswith("_ap")
+    if re.fullmatch(r"GPIO_DEV_PWM(?:[0-9]|1[01])", gpio_dev):
+        # BK7259 exposes one 12-channel PWM unit through the PWM0 PPC device.
+        return "PWM0"
+
     prefix_map = (
         ("GPIO_DEV_SDIO", "SDIO"),
         ("GPIO_DEV_QSPI0_", "QSPI0"),
@@ -90,8 +94,13 @@ def gpio_dev_to_ppc_device(gpio_dev: str, app_name: str) -> Optional[str]:
         ("GPIO_DEV_USB", "USB"),
         ("GPIO_DEV_LCD_", "VIDP" if is_ap else "DISP"),
         ("GPIO_DEV_JPEG_", "ISP" if is_ap else "JPGD"),
+        ("GPIO_DEV_CLK_AUXS_CIS", "ISP" if is_ap else "JPGD"),
+        ("GPIO_DEV_DMIC", "AUD"),
         ("GPIO_DEV_I2S0_", "I2S0"),
+        ("GPIO_DEV_I2S1_", "I2S1"),
+        ("GPIO_DEV_I2S2_", "I2S2"),
         ("GPIO_DEV_UART0_", "UART0"),
+        ("GPIO_DEV_UART1_", "UART1"),
         ("GPIO_DEV_UART5_", "UART5"),
     )
     for prefix, device in prefix_map:
@@ -194,10 +203,9 @@ def prebuild():
     install_configs(project_partitions_root / "common", cmake_partition_bin_dir)
     if app_name != cpu0_armino_soc:
         install_configs(project_partitions_root / app_name, cmake_partition_bin_dir)
-    # The project-derived GPIO security map is currently validated only for
-    # secureboot_xip. Other projects keep the board gpio_dev.csv fallback so
-    # their prebuild behavior and accepted GPIO_DEV_* set remain unchanged.
-    if curr_project.project_path.name == "secureboot_xip":
+    # Secure-boot projects derive the GPIO security map from their actual
+    # AP/CP pinmux instead of relying on the board's legacy gpio_dev.csv.
+    if curr_project.project_path.name in {"secureboot_xip", "secureboot_ai"}:
         generate_gpio_dev_csv(
             curr_project,
             app_name,
