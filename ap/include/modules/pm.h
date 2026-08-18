@@ -434,7 +434,7 @@ typedef enum
 	PM_DEV_ID_AUDIO,    // 31
 	PM_DEV_ID_RTC,      // 32
 	PM_DEV_ID_GPIO,     // 33
-	PM_DEV_ID_VPU,      // 34
+	PM_DEV_ID_VPU_DEC,  // 34
 	PM_DEV_ID_LIN,      // 35
 	PM_DEV_ID_PWM_1,    // 36
 	PM_DEV_ID_SECURE_WORLD,// 37
@@ -464,8 +464,9 @@ typedef enum
 	PM_DEV_ID_ISP,          //47
 	PM_DEV_ID_NPU,          //48
 	PM_DEV_ID_LVGL,         //49
+	PM_DEV_ID_VPU_ENC,      // 50
 
-	PM_DEV_ID_DEFAULT,      //50  it is used by pm module set default cpu frequency
+	PM_DEV_ID_DEFAULT,      //51  it is used by pm module set default cpu frequency
 
 	PM_DEV_ID_MAX       //attention:max 63
 }pm_dev_id_e;

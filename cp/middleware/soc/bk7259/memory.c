@@ -201,8 +201,13 @@ const bk_dump_mem_info_t bk7259_peri_reg_info[] = {
      * gated or in reset at hang time.  0x60*4 = 384B covers all known
      * regs up to 0x53. */
     {"SYS_AHBP", (uint32_t)SOC_SYS_AHBP_REG_BASE,       (0x60*4)},
-    // flash regs warning!!!
+#if CONFIG_SPE
     {"FLASH", (uint32_t)SOC_FLASH_REG_BASE, (0x20*4)},
+#else
+    /* FLASH registers 0xD..0x14 are Secure-only. */
+    {"FLASH", (uint32_t)SOC_FLASH_REG_BASE, (0x0d*4)},
+    {"FLASH", (uint32_t)SOC_FLASH_REG_BASE + (0x15*4), (0x0b*4)},
+#endif
     {"HSPL0_CFG", (uint32_t)SOC_HSPL0_REG_BASE, (0x10*4)},
     {"HSPL0_STA", (uint32_t)SOC_HSPL0_REG_BASE + (0x20*4), (0x10*4)},
     {"HSPL1_CFG", (uint32_t)SOC_HSPL1_REG_BASE, (0x10*4)},
@@ -260,8 +265,10 @@ const bk_dump_mem_info_t bk7259_peri_reg_info[] = {
      *
      * Capturing these gives a 1-shot read of who is allowed to talk to
      * whom and whether bus-error response is enabled at hang time. */
+#if CONFIG_SPE
     {"PPHS",   (uint32_t)SOC_PPHS_REG_BASE,             (0x10*4)},
     {"PPRO",   (uint32_t)SOC_PPRO_REG_BASE,             (0x24*4)},
+#endif
 
 };
 

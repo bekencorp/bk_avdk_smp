@@ -4,6 +4,7 @@
 #include <driver/ipi_driver.h>
 #include <modules/pm.h>
 #include <os/os.h>
+#include "sys_sw_regs.h"
 
 #define CP_HANG_TAG "cp_hang"
 #define CP_HANG_HEARTBEAT_EVENT 1U
@@ -113,6 +114,7 @@ static void cp_hang_debug_heartbeat_task(void *param)
 		if (s_cp_hang_ap_power_off != 0U) {
 			continue;
 		}
+		bk_sys_sw_regs_bump_cp_heartbeat_bumped();
 		cp_hang_send_ap_event(CP_HANG_HEARTBEAT_EVENT);
 	}
 }

@@ -39,6 +39,7 @@
 #define PM_VDDDIG_H_VOL_0V85                (0x6) //0.7+0.025*0x6=0.85v
 #define PM_VDDDIG_H_VOL_0v9                 (0x8) //0.7+0.025*0x8=0.9v
 #define PM_VDDDIG_H_VOL_0V95                (0xA) //0.7+0.025*0xA=0.95v
+#define PM_AP_VDDDIG_REG_VALUE_TO_VOLT(value) ((value) * 0.025f + 0.7f)
 #define PM_CLKDV_CPU1_1                     (0x1)
 #define PM_CLKDV_CPU0_0                     (0x0)
 #define SYS_SWITCH_VDDDIG_VOL_DELAY_TIME    (2600)
@@ -2614,6 +2615,47 @@ void sys_hal_set_cpu_power_sleep_wakeup_ticktimer_32k_enable(uint32_t value)
 
 bk_err_t sys_hal_cpu_freq_dump()
 {
+	enum {
+		AP_CLKSEL_CORE_160M = 0,
+		AP_CLKSEL_CORE_480M,
+		AP_CLKSEL_CORE_640M,
+		AP_CLKSEL_CORE_DCO,
+	};
+	uint32_t value_8;
+	uint32_t cksel_core;
+	uint32_t ap_div;
+
+	value_8 = REG_READ(SOC_SYS_AHBP_REG_BASE + (0x8 << 2));
+	cksel_core = value_8 & 0x3;
+	ap_div = ((value_8 >> 2) & 0x3) + 1;
+
+	switch (cksel_core) {
+	case AP_CLKSEL_CORE_160M:
+		os_printf("Cur freq: AP:(160/%d)M,VDDDIG:%fV\r\n", ap_div,
+			PM_AP_VDDDIG_REG_VALUE_TO_VOLT(sys_ll_get_ana_reg16_vcorehssel()));
+		break;
+	case AP_CLKSEL_CORE_480M:
+		os_printf("Cur freq: AP:(480/%d)M,VDDDIG:%fV\r\n", ap_div,
+			PM_AP_VDDDIG_REG_VALUE_TO_VOLT(sys_ll_get_ana_reg16_vcorehssel()));
+		break;
+	case AP_CLKSEL_CORE_640M:
+		os_printf("Cur freq: AP:(640/%d)M,VDDDIG:%fV\r\n", ap_div,
+			PM_AP_VDDDIG_REG_VALUE_TO_VOLT(sys_ll_get_ana_reg16_vcorehssel()));
+		break;
+	case AP_CLKSEL_CORE_DCO:
+		os_printf("Cur freq: AP:(240/%d)M,VDDDIG:%fV\r\n", ap_div,
+			PM_AP_VDDDIG_REG_VALUE_TO_VOLT(sys_ll_get_ana_reg16_vcorehssel()));
+		break;
+	default:
+		break;
+	}
+	os_printf("AP_Freq_reg:0x%x\r\n", value_8);
+	os_printf("AP power: VIDEO_POST:%s, H26E:%s, ISP:%s, NPU:%s\r\n",
+		sys_ahbp_ll_get_rege_pwd_video_post() ? "OFF" : "ON",
+		sys_ahbp_ll_get_rege_pwd_h26e() ? "OFF" : "ON",
+		sys_ahbp_ll_get_rege_pwd_isp() ? "OFF" : "ON",
+		sys_ahbp_ll_get_rege_pwd_npu() ? "OFF" : "ON");
+
 	return BK_OK;
 }
 

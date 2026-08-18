@@ -49,6 +49,7 @@ typedef struct {
 	volatile uint16_t timeout_ms;
 	volatile uint32_t last_tick;
 	volatile uint32_t timeout_tick;
+	volatile uint32_t last_hb_bumped;
 } cp_hang_watch_state_t;
 
 static cp_hang_watch_state_t s_cp_hang_state;
@@ -344,6 +345,7 @@ static void cp_hang_monitor_task(void *param)
 		uint32_t now;
 		uint32_t last_tick;
 		uint32_t loop_gap;
+		uint32_t last_hb_bumped;
 
 		rtos_delay_milliseconds(CP_HANG_MONITOR_CHECK_MS);
 
@@ -364,6 +366,15 @@ static void cp_hang_monitor_task(void *param)
 		if ((s_cp_hang_state.seen == 0U) ||
 			(s_cp_hang_state.dumping != 0U) ||
 			(s_cp_hang_state.paused != 0U)) {
+			continue;
+		}
+
+		last_hb_bumped = bk_sys_sw_regs_get_cp_heartbeat_bumped();
+		if (s_cp_hang_state.last_hb_bumped != last_hb_bumped) {
+			s_cp_hang_state.last_hb_bumped = last_hb_bumped;
+			s_cp_hang_state.last_tick = now;
+			BK_LOGV(CP_HANG_TAG, "CP heartbeat dumped=%u now tick=%u\r\n",
+				last_hb_bumped, now);
 			continue;
 		}
 

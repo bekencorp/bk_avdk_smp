@@ -452,10 +452,59 @@ bk_err_t bk_pm_auxldo_ctrl_vote(const pm_auxldo_ctrl_cfg_t *auxldo_cfg)
 /*=========================SPECIFIC API END========================*/
 
 /*=========================DEBUG/TEST CTRL START========================*/
+// static const char *s_pm_hssub_power_module_names[] = {
+// 	"SYSCFG", "MEMCHK", "QSPI0", "QSPI1", "SDIO0", "SDIO1",
+// 	"PSRAM0", "PSRAM1", "ENET0", "USB_FS", "USB_HS", "HSPL",
+// 	"PPHS", "WWDT", "UART5", "TIMER4", "TIMER5"
+// };
+
+// static const char *s_pm_ap_cpu_module_names[] = {
+// 	"AP_CPU"
+// };
+
+static const char *s_pm_video_post_module_names[] = {
+	"DPU", "H26D", "MIPI_DSI", "DPHY", "PERI", "GPU"
+};
+
+static const char *s_pm_isp_module_names[] = {
+	"ISP", "MIPI_CSI"
+};
+
+static const char *s_pm_npu_module_names[] = {
+	"NPU"
+};
+
+static const char *s_pm_h26e_module_names[] = {
+	"H26E"
+};
+
+static void pm_debug_power_domain_state(const char *domain_name, uint32_t state,
+	const char *module_names[], uint32_t module_count)
+{
+	uint32_t bit;
+
+	if (state == 0) {
+		return;
+	}
+
+	LOGD("%s not PD[state:0x%x]\r\n", domain_name, state);
+	for (bit = 0; bit < PM_MODULE_SUB_POWER_DOMAIN_MAX; bit++) {
+		if (state & (0x1UL << bit)) {
+			if (bit < module_count) {
+				LOGD("  module[%u]: %s\r\n", bit, module_names[bit]);
+			} else {
+				LOGD("  module[%u]: UNKNOWN\r\n", bit);
+			}
+		}
+	}
+}
+
 void pm_power_dump(void)
 {
-	LOGD("pm video,audio:0x%x 0x%x \r\n",s_pm_video_pm_state,s_pm_audio_pm_state);
-	LOGD("pm ahpb,bakp:0x%x 0x%x\r\n",s_pm_ahpb_pm_state,s_pm_bakp_pm_state);
+	// LOGD("pm hssub,ap_cpu:0x%x 0x%x\r\n",
+	// 	s_pm_hssub_power_state, s_pm_ap_cpu_state);
+	LOGD("pm video_post,h26e,isp,npu:0x%x 0x%x 0x%x 0x%x\r\n",
+		s_pm_video_post_state, s_pm_h26e_state, s_pm_isp_state, s_pm_npu_state);
 }
 
 void pm_power_modules_dump_with_sleep_mode(pm_sleep_mode_e sleep_mode)
@@ -464,43 +513,28 @@ void pm_power_modules_dump_with_sleep_mode(pm_sleep_mode_e sleep_mode)
 		s_pm_ahpb_pm_state, s_pm_video_pm_state, s_pm_audio_pm_state, s_pm_bakp_pm_state);
 }
 
-// TODO: rename or remove
+
 bk_err_t pm_debug_module_state(void)
 {
 	#if CONFIG_PSRAM && CONFIG_PSRAM_AS_SYS_MEMORY
-	pm_cp1_psram_malloc_state_get();
+	//pm_cp1_psram_malloc_state_get();
 	#endif
-
-	if(s_pm_ahpb_pm_state > 0)
-	{
-		LOGD("Ahbp not PD[module:0x%x]\r\n",s_pm_ahpb_pm_state);
-	}
-	if(s_pm_bakp_pm_state > 0)
-	{
-		LOGI("Bakp not PD[module:0x%x]\r\n",s_pm_bakp_pm_state);
-	}
-	if(s_pm_video_pm_state > 0)
-	{
-		LOGD("Video not PD[modulue:0x%x]\r\n",s_pm_video_pm_state);
-	}
-	if(s_pm_audio_pm_state > 0)
-	{
-		LOGD("Audio not PD[modulue:0x%x]\r\n",s_pm_audio_pm_state);
-	}
-
-	if(!bk_pm_module_power_state_get(PM_POWER_MODULE_NAME_CPU1))
-	{
-		LOGD("Cp1 not PD[state:0x%x]\r\n",bk_pm_module_power_state_get(PM_POWER_MODULE_NAME_CPU1));
-	}
-
-	// TODO: why not using bk_pm_module_power_state_get(PM_POWER_MODULE_NAME_CPU2) ?
-	// if(!(REG_READ(PM_DEBUG_SYS_REG_BASE+0x6*4)&0x2))
-	// {
-	// 	BK_LOGD(NULL, "Cp2 not PD[state:0x%x]\r\n",REG_READ(PM_DEBUG_SYS_REG_BASE+0x6*4));
-	// }
+	pm_power_dump();
+	// pm_debug_power_domain_state("Hssub", s_pm_hssub_power_state,
+	// 	s_pm_hssub_power_module_names, sizeof(s_pm_hssub_power_module_names) / sizeof(s_pm_hssub_power_module_names[0]));
+	// pm_debug_power_domain_state("Ap cpu", s_pm_ap_cpu_state,
+	// 	s_pm_ap_cpu_module_names, sizeof(s_pm_ap_cpu_module_names) / sizeof(s_pm_ap_cpu_module_names[0]));
+	pm_debug_power_domain_state("Video post", s_pm_video_post_state,
+		s_pm_video_post_module_names, sizeof(s_pm_video_post_module_names) / sizeof(s_pm_video_post_module_names[0]));
+	pm_debug_power_domain_state("Isp", s_pm_isp_state,
+		s_pm_isp_module_names, sizeof(s_pm_isp_module_names) / sizeof(s_pm_isp_module_names[0]));
+	pm_debug_power_domain_state("Npu", s_pm_npu_state,
+		s_pm_npu_module_names, sizeof(s_pm_npu_module_names) / sizeof(s_pm_npu_module_names[0]));
+	pm_debug_power_domain_state("H26e", s_pm_h26e_state,
+		s_pm_h26e_module_names, sizeof(s_pm_h26e_module_names) / sizeof(s_pm_h26e_module_names[0]));
 
 	#if CONFIG_PSRAM && CONFIG_PSRAM_AS_SYS_MEMORY
-	pm_debug_psram();
+	//pm_debug_psram();
 	#endif
 
 	return BK_OK;

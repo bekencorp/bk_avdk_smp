@@ -381,6 +381,27 @@ void bk_sys_sw_regs_set_ap_cp_hang_dumping(uint32_t value)
 #endif
 }
 
+uint32_t bk_sys_sw_regs_get_cp_heartbeat_bumped(void)
+{
+#if CONFIG_SUPPORT_CACHEABLE_SRAM
+    __asm volatile ("dsb" ::: "memory");
+    arch_dcache_invd_range((void *)&s_sys_sw_regs.cp_heartbeat_bumped, sizeof(s_sys_sw_regs.cp_heartbeat_bumped));
+    __asm volatile ("dsb" ::: "memory");
+#endif
+
+    return s_sys_sw_regs.cp_heartbeat_bumped;
+}
+
+void bk_sys_sw_regs_bump_cp_heartbeat_bumped(void)
+{
+    s_sys_sw_regs.cp_heartbeat_bumped++;
+    __asm volatile ("dsb" ::: "memory");
+#if CONFIG_SUPPORT_CACHEABLE_SRAM
+    flush_dcache((void *)&s_sys_sw_regs.cp_heartbeat_bumped, sizeof(s_sys_sw_regs.cp_heartbeat_bumped));
+    __asm volatile ("dsb" ::: "memory");
+#endif
+}
+
 void bk_sys_sw_regs_set_cp_heap_free_ptr(uint32_t addr)
 {
     /*

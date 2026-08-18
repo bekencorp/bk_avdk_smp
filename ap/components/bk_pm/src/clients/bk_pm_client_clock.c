@@ -26,6 +26,40 @@
 static int8_t s_pm_cpu_freq[PM_DEV_ID_MAX] = {0};
 static pm_cpu_freq_e s_pm_current_cpu_freq = PM_CPU_FRQ_DEFAULT;
 
+static const char *pm_dev_id_to_string(uint32_t dev_id)
+{
+	static const char *dev_id_strings[] = {
+		"TIMER_0", "I2C1", "SPI_1", "UART1", "AIRPLAY", "TIMER_1", "SARADC", "IRDA",
+		"EFUSE", "I2C2", "SPI_2", "UART2", "UART3", "PWM_2", "TIMER_2", "TIMER_3",
+		"TOUCH", "I2S_1", "USB_1", "CAN", "PSRAM", "QSPI_1", "QSPI_2", "SDIO",
+		"AUXS", "BTDM", "WPAS", "MAC", "PHY", "JPEG", "DISP", "AUDIO", "RTC",
+		"GPIO", "VPU", "LIN", "PWM_1", "SECURE_WORLD", "UART4", "TRNG", "CPU1",
+		"PHY_DPD_CALI", "KEY", "CIF", "MAILBOX", "HPDMA", "GPU", "ISP", "NPU",
+		"LVGL", "DEFAULT",
+	};
+
+	if (dev_id >= PM_DEV_ID_MAX ||
+		dev_id >= (sizeof(dev_id_strings) / sizeof(dev_id_strings[0]))) {
+		return "UNKNOWN";
+	}
+
+	return dev_id_strings[dev_id];
+}
+
+static const char *pm_cpu_freq_to_string(uint32_t cpu_freq)
+{
+	static const char *cpu_freq_strings[] = {
+		"XTAL", "80M", "120M", "160M", "240M", "320M", "480M",
+		"HIGHEST", "DEFAULT",
+	};
+
+	if (cpu_freq > PM_CPU_FRQ_DEFAULT) {
+		return "UNKNOWN";
+	}
+
+	return cpu_freq_strings[cpu_freq];
+}
+
 /*=========================CLK/FREQ CTRL START========================*/
 
 pm_cpu_freq_e bk_pm_current_max_cpu_freq_get()
@@ -150,6 +184,27 @@ bk_err_t bk_pm_module_vote_cpu_freq(pm_dev_id_e module, pm_cpu_freq_e cpu_freq)
 	{
 		LOGI("Switch cpu freq %d %d\r\n", freq_max, freq_max_index);
 	}
+	return BK_OK;
+}
+
+bk_err_t bk_pm_cpu_freq_dump(void)
+{
+	uint32_t i = 0;
+	int32_t freq_max = s_pm_cpu_freq[0];
+	int32_t freq_max_index = 0;
+
+	for (i = 1; i < PM_DEV_ID_MAX; i++)
+	{
+		if (freq_max < s_pm_cpu_freq[i])
+		{
+			freq_max = s_pm_cpu_freq[i];
+			freq_max_index = i;
+		}
+	}
+
+	LOGI("pm vote freq:%d(%s),%d(%s)\r\n", freq_max_index,
+		pm_dev_id_to_string(freq_max_index), freq_max, pm_cpu_freq_to_string(freq_max));
+	sys_hal_cpu_freq_dump();
 	return BK_OK;
 }
 

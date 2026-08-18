@@ -309,8 +309,8 @@ static void cli_pm_debug(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
 	{
 		//pm_debug_pwr_clk_state();
 		//pm_debug_lv_state();
-		// BK_LOGD(NULL, "Deepsleep wakeup source[%d]\r\n",bk_pm_deep_sleep_wakeup_source_get());
-		// BK_LOGD(NULL, "Low vol wakeup source[%d]\r\n",bk_pm_exit_low_vol_wakeup_source_get());
+		pm_debug_module_state();
+		bk_pm_cpu_freq_dump();
 	}
 	/*for temp debug*/
 	if(pm_debug == 16)
