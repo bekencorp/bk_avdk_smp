@@ -7,9 +7,12 @@ if (CONFIG_FLASH)
 	)
 
 	list(APPEND srcs flash/flash_driver.c flash/flash_driver_ext.c)
+	if ((CONFIG_CPU_CNT GREATER 1))
+		list(APPEND srcs flash/flash_server.c)
+	endif()
 
 	if (CONFIG_CLI AND CONFIG_FLASH_TEST)
-		list(APPEND srcs flash/flash_test.c flash/flash_wr_test.c)
+		list(APPEND srcs flash/flash_test.c flash/flash_wr_test.c flash/flash_svr_test.c)
 	endif()
 
 	if(CONFIG_CLI AND CONFIG_FLASH_API_TEST)

@@ -131,7 +131,14 @@ static bool memory_fault_recoverable(struct arch_esf *esf, bool synchronous)
 		uint32_t start = (uint32_t)exceptions[i].start & ~0x1U;
 		uint32_t end = (uint32_t)exceptions[i].end & ~0x1U;
 
+#if defined(CONFIG_NULL_POINTER_EXCEPTION_DETECTION_DWT)
+		/* Non-synchronous exceptions (e.g. DebugMonitor) may have
+		 * allowed PC to continue to the next instruction.
+		 */
+		end += (synchronous) ? 0x0 : 0x4;
+#else
 		ARG_UNUSED(synchronous);
+#endif
 		if (esf->basic.pc >= start && esf->basic.pc < end) {
 			esf->basic.pc = (uint32_t)(exceptions[i].fixup);
 			return true;
@@ -588,6 +595,19 @@ static void debug_monitor(struct arch_esf *esf, bool *recoverable)
 
 	PR_FAULT_INFO("***** Debug monitor exception *****");
 
+#if defined(CONFIG_NULL_POINTER_EXCEPTION_DETECTION_DWT)
+	if (!b_arm_debug_monitor_event_error_check()) {
+		/* By default, all debug monitor exceptions that are not
+		 * treated as errors by b_arm_debug_event_error_check(),
+		 * they are considered as recoverable errors.
+		 */
+		*recoverable = true;
+	} else {
+
+		*recoverable = memory_fault_recoverable(esf, false);
+	}
+
+#endif
 }
 
 #else

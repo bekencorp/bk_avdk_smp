@@ -313,6 +313,10 @@ int driver_init(void) {
 	bk_sys_sw_regs_set_flash_init_done(BK_SYS_SW_REGS_FLASH_INIT_DONE);
 #else
 	bk_flash_driver_init();
+// #if CONFIG_FLASH_ORIGIN_API
+// 	extern int hal_flash_init();
+// 	hal_flash_init();
+// #endif
 #endif
 #endif
 

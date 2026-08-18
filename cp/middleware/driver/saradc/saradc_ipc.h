@@ -39,8 +39,6 @@ enum
 	MB_SARADC_CMD_DEINIT_GPIO,
 	MB_SARADC_CMD_ADC_KEY_SAMPLER_START,
 	MB_SARADC_CMD_ADC_KEY_SAMPLER_STOP,
-	MB_SARADC_CMD_ADC_KEY_SAMPLER_START_MULTI,
-	MB_SARADC_CMD_ADC_KEY_SAMPLER_GET_SAMPLES,
 };
 
 typedef struct
@@ -57,11 +55,6 @@ typedef struct
     void                         *callback;
     void                         *context;
 } saradc_cmd_t;
-
-typedef char adc_key_sampler_samples_fit_ipc[
-	((ADC_KEY_SAMPLER_MAX_CHANNELS *
-	  sizeof(adc_key_sampler_sample_t)) <=
-	 sizeof(((saradc_cmd_t *)0)->buff)) ? 1 : -1];
 
 #define SARADC_IPC_READ_SIZE     0x400
 #define SARADC_IPC_WRITE_SIZE    0x400

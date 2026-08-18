@@ -35,7 +35,6 @@ typedef struct {
 #define flash_hal_get_dev_version(hal) flash_ll_get_dev_version((hal)->hw)
 #define flash_hal_read_status_reg(hal, sr_width) flash_ll_read_status_reg((hal)->hw, sr_width)
 #define flash_hal_write_status_reg(hal, sr_width, sr_data) flash_ll_write_status_reg((hal)->hw, sr_width, sr_data)
-#define flash_hal_write_status_reg_nvol(hal, sr_width, sr_data) flash_ll_write_status_reg_nvol((hal)->hw, sr_width, sr_data)
 #define flash_hal_get_crc_err_num(hal) flash_ll_get_crc_err_num((hal)->hw)
 #define flash_hal_enable_cpu_data_wr(hal) flash_ll_enable_cpu_data_wr((hal)->hw)
 #define flash_hal_disable_cpu_data_wr(hal) flash_ll_disable_cpu_data_wr((hal)->hw)

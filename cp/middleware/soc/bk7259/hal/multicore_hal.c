@@ -31,18 +31,6 @@
 #include <modules/pm.h>
 #endif
 
-#if CONFIG_TFM_AP_BOOT_NSC
-/* Secure project: the AP application runs in the Non-secure world. AP start needs
- * the Secure-privilege steps (AP MPC/PPHS, verified boot shim) that only TF-M can
- * perform, exposed through the NSC below; the rest stays in CP NS. The veneers
- * are declared locally so the common CP NS driver does not pull in a TF-M
- * interface header, and are resolved from libtfm_s_veneers.a at NS link time. */
-#define TFM_AP_BOOT_REASON_COLD 0u
-int psa_ap_secure_prepare(uint32_t boot_reason);
-int psa_ap_secure_cancel(void);
-uint32_t psa_ap_secure_boot_addr(void);
-#endif
-
 #if CONFIG_SOC_SMP
 extern uint32_t __vector_core1_table;
 #endif
@@ -109,9 +97,7 @@ static bool multicore_hal_m55_sram_is_powered(void)
 static void multicore_hal_m55_core_init_common(bool reuse_retained_sram)
 {
 	uint32_t reg_val = 0;
-#if CONFIG_SPE
-	volatile uint32_t *ppro_cfg = (volatile uint32_t *)SOC_PPRO_REG_BASE;
-#endif
+	volatile uint32_t *ppro_cfg = (volatile uint32_t *)0x44050000;
 
 	/*
 	 * AP fast resume keeps M55 SRAM/cache SRAM powered. Avoid six fixed 1 ms
@@ -145,17 +131,11 @@ static void multicore_hal_m55_core_init_common(bool reuse_retained_sram)
 	reg_val |= 0x3F0001; // open cpu clk
 	sys_ahbp_ll_set_rega_value(reg_val);
 
-#if CONFIG_SPE
-	/*
-	 * Non-secure project: CP and AP both run in the Secure world; clear the AP
-	 * master access security bits (PPRO reg0xF[3:2]) so AP accesses stay Secure.
-	 * PPRO is a Secure register, so for the secure project (CONFIG_SPE=0) the AP
-	 * master security attribute is set by the TF-M secure world instead.
-	 */
+	/* M55S Access Secure - configure PPRO register */
 	reg_val = ppro_cfg[0xF];
 	reg_val &= ~((0x1 << 3) | (0x1 << 2));
+	reg_val |= ((0 << 3) | (0 << 2));
 	ppro_cfg[0xF] = reg_val;
-#endif
 
 	/* PSRAM Enable */
 	sys_ll_set_ana_reg14_enpsram(1);
@@ -317,34 +297,6 @@ __IRAM_SEC bk_err_t multicore_hal_start(uint32_t id)
 			false
 #endif
 		);
-#if CONFIG_TFM_AP_BOOT_NSC
-		/*
-		 * Secure boot: AP runs XIP through the Secure shim. Keep the AP core in
-		 * reset, let TF-M apply the Secure AP resources (AP MPC/PPHS, verified
-		 * shim) via the NSC, then program the shim boot offset and release the
-		 * core. No Flash->RAM copy. AP SYS/AHBP registers resolve to the NS alias
-		 * implicitly (SOC_ADDR_OFFSET in the CP NS build).
-		 */
-		sys_ahbp_ll_set_reg4_cpu0_sw_rstn(0);
-		if (psa_ap_secure_prepare(TFM_AP_BOOT_REASON_COLD) != 0) {
-			SOC_LOGE("AP secure prepare failed, keep cpu0 in reset\r\n");
-			(void)psa_ap_secure_cancel();
-			return BK_FAIL;
-		}
-		boot_addr = psa_ap_secure_boot_addr();
-		if (boot_addr == 0U) {
-			SOC_LOGE("AP secure boot addr invalid, keep cpu0 in reset\r\n");
-			(void)psa_ap_secure_cancel();
-			return BK_FAIL;
-		}
-		sys_ahbp_ll_set_reg4_cpu0_offset((boot_addr) >> 8);
-		sys_ahbp_ll_set_reg4_cpu0_init_dtcm_en(1);
-		__DSB();
-		__ISB();
-		sys_ahbp_ll_set_reg4_cpu0_sw_rstn(1);
-		__DSB();
-		__ISB();
-#else
 		boot_addr = SOC_FLASH_DATA_BASE + CONFIG_AP_VIRTUAL_PARTITION_OFFSET;
 		/*
 		 * Keep AP in reset while CP patches the image into AP-visible memories.
@@ -363,7 +315,6 @@ __IRAM_SEC bk_err_t multicore_hal_start(uint32_t id)
 		}
 		}
 		sys_ahbp_ll_set_reg4_cpu0_sw_rstn(1);
-#endif /* CONFIG_TFM_AP_BOOT_NSC */
 
 		// sys_ahbp_ll_set_reg4_cpu0_wait(1); // wait for AP to finish init
 		// sys_ahbp_ll_set_reg4_cpu0_init_dtcm_en(1);

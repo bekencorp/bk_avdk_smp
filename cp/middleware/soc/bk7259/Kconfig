@@ -30,16 +30,6 @@
 			Use this only when the project explicitly needs PM HAL control
 			debug or validation.
 
-	config SYS_PM_ANA_VANALDO_STEP_CTRL
-		bool "Enable analog LDO voltage step control on low-power enter/exit"
-		default n
-		help
-			When enabled, sys_hal_enter_low_analog() will step down the analog
-			LDO (t/r_vanaldosel) to 0 and sys_hal_exit_low_analog() will ramp
-			it back up in small increments with a 10us settling delay between
-			each step. Disable this if the hardware does not require the stepped
-			voltage transition.
-
 	config TZ
 		bool "Supported TrustZone"
 		default y

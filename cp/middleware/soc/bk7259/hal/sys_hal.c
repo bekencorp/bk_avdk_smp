@@ -46,9 +46,7 @@
 #define PM_VDDDIG_H_VOL_0V825               (0x9)
 #define PM_VDDDIG_H_VOL_0V85                (0xA)
 #define PM_VDDDIG_H_VOL_0v9                 (0xC)
-#define PM_VDDDIG_H_VOL_0V95                (0xE)//0.6+0.025*0xE=0.95v
-#define PM_VDDDIG_REG_VALUE_TO_VOLT(value)  ((value) * 0.025f + 0.6f)
-#define PM_AP_VDDDIG_REG_VALUE_TO_VOLT(value) ((value) * 0.025f + 0.7f)
+#define PM_VDDDIG_H_VOL_0V95                (0xE)
 #define PM_CLKDV_CPU1_1                     (0x1)
 #define PM_CLKDV_CPU0_0                     (0x0)
 #define SYS_SWITCH_VDDDIG_VOL_DELAY_TIME    (2600)
@@ -114,14 +112,6 @@ static bk_err_t sys_hal_m55_clock_power_init();
 static bk_err_t sys_hal_m55_clock_power_init();
 __IRAM_SEC int32 sys_hal_module_power_state_get(power_module_name_t module);
 bk_err_t sys_hal_ap_clock_power_ctrl(power_module_state_t power_state);
-
-#if CONFIG_TFM_AP_BOOT_NSC
-/* TF-M secure veneer: after CP NS powers the AP domain, the secure world applies
- * the AP MPC/PPHS so the AP SYS/AHBP region becomes Non-secure and CP NS can
- * program the AP SysCfg through the NS alias. Resolved from libtfm_s_veneers.a
- * at NS link time. */
-int psa_ap_secure_sys_open(void);
-#endif
 
 bk_err_t sys_hal_init()
 {
@@ -3488,22 +3478,11 @@ bk_err_t sys_hal_ap_clock_power_ctrl(power_module_state_t power_state)
 		REG_WRITE(SOC_AON_PMU_REG_BASE + 0x2*4, regData);
 
 #if CONFIG_SPE
-		/* Non-secure project: AP master accesses stay Secure. PPRO is a Secure
-		 * register; for the secure project the AP master security attribute is set
-		 * by the TF-M secure world before CP enters NS. */
+		/*"M55S Access Secure*/
 		regData  = REG_READ(SOC_PPRO_REG_BASE + 0xF*4);
 		regData &= ~((0x1<<3)|(0x1<<2));
 		regData |=  ((  0<<3)|(  0<<2));
 		REG_WRITE(SOC_PPRO_REG_BASE + 0xF*4, regData);
-#endif
-#if CONFIG_TFM_AP_BOOT_NSC
-		/* Secure project: the AP SYS/AHBP region is Secure until the AP-side PPHS
-		 * marks it Non-secure. Now that CP NS has powered the AP domain, ask the
-		 * secure world to apply the AP MPC/PPHS so the AP SysCfg accesses below
-		 * (EMA/clock/freq via the NS alias) do not fault. */
-		if (psa_ap_secure_sys_open() != 0) {
-			os_printf("ap secure sys open failed\r\n");
-		}
 #endif
 		/*PSRAM Enable*/
 		sys_ll_set_ana_reg14_enpsram(1);
@@ -3563,6 +3542,11 @@ static bk_err_t sys_hal_m55_clock_power_init()
 	sys_ll_set_ana_reg16_vcorehssel(0xA);//0.7+0.025*0xA=0.95v
 	//bk_delay_us(200);
 	sys_ll_set_ana_reg10_spi_latch1v(0);
+
+	/* AON_PMU AP power sequence + PPRO AP secure access are secure-only
+	 * registers. In the secure-boot flow TFM (ap_power_domain_on) owns the AP
+	 * power-up, so the Non-Secure world (CONFIG_SPE=0) must not touch them; app /
+	 * secure builds (CONFIG_SPE=1) still run the full sequence here. */
 #if CONFIG_SPE
 	regData = REG_READ(SOC_AON_PMU_REG_BASE + 0x2*4);
 	regData &= ~((0x1F<<21)|(0x1<<19));
@@ -3621,18 +3605,12 @@ static bk_err_t sys_hal_m55_clock_power_init()
 	regData |=  ((0<<16));
 	REG_WRITE(SOC_AON_PMU_REG_BASE + 0x2*4, regData);
 
-	/* PPRO is a Secure register. Only the non-secure project (CONFIG_SPE=1, no
-	 * TrustZone split) may set the AP master security attribute here; in the
-	 * secure project (CONFIG_SPE=0) the AP master attribute is owned by the TF-M
-	 * secure world, so the CP Non-Secure world must not touch PPRO or it faults. */
-
 	/*"M55S Access Secure*/
 	regData  = REG_READ(SOC_PPRO_REG_BASE + 0xF*4);
 	regData &= ~((0x1<<3)|(0x1<<2));
 	regData |=  ((  0<<3)|(  0<<2));
 	REG_WRITE(SOC_PPRO_REG_BASE + 0xF*4, regData);
 #endif
-
 	/*PSRAM Enable*/
 	sys_ll_set_ana_reg14_enpsram(1);
 	//bk_delay_us(10);
@@ -3732,7 +3710,13 @@ void sys_hal_early_init(void)
 	sys_hal_analog_set(ANALOG_REG2, 0x04248050); //wangjian20221110 xtal=0x50
 	sys_hal_analog_set(ANALOG_REG3, 0xC5F00B88); //ronghui20241226 <10>=1 for xtal
 	sys_hal_analog_set(ANALOG_REG4, 0x9FC9A7F0);
+#if CONFIG_SPE
+	/* ana_reg9 carries the AP HS-LDO power-down bit (pwd_hsldo). On NS
+	 * (CONFIG_SPE=0) TFM already brought the AP HS domain up; re-writing this
+	 * table value (pwd_hsldo=1) powers it down and breaks PSRAM/AHBP, so only
+	 * the app/secure monolithic build writes it. */
 	sys_hal_analog_set(ANALOG_REG9, 0x57E627E6); //shuguang20241226 <8:6>=7 for EVM
+#endif
 
 	//if ((chip_id & PM_CHIP_ID_MASK) == (PM_CHIP_ID_BK7259 & PM_CHIP_ID_MASK))
 	{
@@ -3743,7 +3727,11 @@ void sys_hal_early_init(void)
 		sys_hal_analog_set(ANALOG_REG14, 0x74E670EE);
 		sys_hal_analog_set(ANALOG_REG15, 0);
 
+#if CONFIG_SPE
+		/* ana_reg16 carries the AP HS power-switch enable (enhspw) + vcorehssel.
+		 * Same reason as ana_reg9: NS must not clobber TFM's HS-domain bring-up. */
 		sys_hal_analog_set(ANALOG_REG16, 0x9E436000);
+#endif
 		sys_hal_analog_set(ANALOG_REG19, 0xEE1D8033);//tenglong20251231 bit[24:22] = 0 for evm;siqing20260202 bit[13:9] = 0 for Reduce buck ripple
 	}
 
@@ -3752,14 +3740,10 @@ void sys_hal_early_init(void)
 	/*early init cpu flash time*/
 	sys_hal_dpll_cpu_flash_time_early_init(chip_id);
 
-#if CONFIG_SPE
 	/*M55: clock power init*/
 	#if !CONFIG_PM_ONLY_CP_ENABLE && !CONFIG_PM_AP_POWERDOWN_WHEN_LV
 	sys_hal_m55_clock_power_init();
 	#endif
-#else
-	sys_hal_m55_clock_power_init();
-#endif
 }
 void sys_hal_early_init_sleep(void)
 {
@@ -3833,52 +3817,6 @@ void sys_hal_set_cpu_power_sleep_wakeup_ticktimer_32k_enable(uint32_t value)
 	return sys_ll_set_cpu_power_sleep_wakeup_cpu0_ticktimer_32k_enable(value);
 }
 
-bk_err_t sys_hal_ap_cpu_freq_dump()
-{
-	enum {
-		AP_CLKSEL_CORE_160M = 0,
-		AP_CLKSEL_CORE_480M,
-		AP_CLKSEL_CORE_640M,
-		AP_CLKSEL_CORE_DCO,
-	};
-	uint32_t value_8;
-	uint32_t cksel_core;
-	uint32_t ap_div;
-
-	if (!bk_pm_ap_boot_success_get()) {
-		return BK_OK;
-	}
-
-	/* AP(M55) clock is configured by SYS_AHBP reg8, not CP SYS reg8. */
-	value_8 = REG_READ(SOC_SYS_AHBP_REG_BASE + (0x8 << 2));
-	cksel_core = value_8 & 0x3;
-	ap_div = ((value_8 >> 2) & 0x3) + 1;
-
-	switch (cksel_core) {
-	case AP_CLKSEL_CORE_160M:
-		os_printf("Cur freq: AP:(160/%d)M,VDDDIG:%fV\r\n", ap_div,
-			PM_AP_VDDDIG_REG_VALUE_TO_VOLT(sys_ll_get_ana_reg16_vcorehssel()));
-		break;
-	case AP_CLKSEL_CORE_480M:
-		os_printf("Cur freq: AP:(480/%d)M,VDDDIG:%fV\r\n", ap_div,
-			PM_AP_VDDDIG_REG_VALUE_TO_VOLT(sys_ll_get_ana_reg16_vcorehssel()));
-		break;
-	case AP_CLKSEL_CORE_640M:
-		os_printf("Cur freq: AP:(640/%d)M,VDDDIG:%fV\r\n", ap_div,
-			PM_AP_VDDDIG_REG_VALUE_TO_VOLT(sys_ll_get_ana_reg16_vcorehssel()));
-		break;
-	case AP_CLKSEL_CORE_DCO:
-		os_printf("Cur freq: AP:(240/%d)M,VDDDIG:%fV\r\n", ap_div,
-			PM_AP_VDDDIG_REG_VALUE_TO_VOLT(sys_ll_get_ana_reg16_vcorehssel()));
-		break;
-	default:
-		break;
-	}
-	os_printf("AP_Freq_reg:0x%x\r\n", value_8);
-
-	return BK_OK;
-}
-
 bk_err_t sys_hal_cpu_freq_dump()
 {
 	uint32_t value_8 = REG_READ(PM_SYS_REG_0x8);
@@ -3888,26 +3826,21 @@ bk_err_t sys_hal_cpu_freq_dump()
 
 	switch (cksel_core) {
 	case PM_CLKSEL_CORE_26M:
-		os_printf("Cur freq: CP:(26/%d)M,VDDDIG:%fV\r\n", cp0_div,
-			PM_VDDDIG_REG_VALUE_TO_VOLT(sys_ll_get_ana_reg10_vcorehsel()));
+		os_printf("Cur freq: CP:(26/%d)M\r\n", cp0_div);
 		break;
 	case PM_CLKSEL_CORE_DCO:
-		os_printf("Cur freq: CP:(240/%d)M,VDDDIG:%fV\r\n", cp0_div,
-			PM_VDDDIG_REG_VALUE_TO_VOLT(sys_ll_get_ana_reg10_vcorehsel()));
+		os_printf("Cur freq: CP:(240/%d)M\r\n", cp0_div);
 		break;
 	case PM_CLKSEL_CORE_320M:
-		os_printf("Cur freq: CP:(320/%d)M,VDDDIG:%fV\r\n", cp0_div,
-			PM_VDDDIG_REG_VALUE_TO_VOLT(sys_ll_get_ana_reg10_vcorehsel()));
+		os_printf("Cur freq: CP:(320/%d)M\r\n", cp0_div);
 		break;
 	case PM_CLKSEL_CORE_480M:
-		os_printf("Cur freq: CP:(480/%d)M,VDDDIG:%fV\r\n", cp0_div,
-			PM_VDDDIG_REG_VALUE_TO_VOLT(sys_ll_get_ana_reg10_vcorehsel()));
+		os_printf("Cur freq: CP:(480/%d)M\r\n", cp0_div);
 		break;
 	default:
 		break;
 	}
 	os_printf("Freq_reg:0x%x\r\n", value_8);
-	sys_hal_ap_cpu_freq_dump();
 
 	return BK_OK;
 }

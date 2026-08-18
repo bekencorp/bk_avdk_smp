@@ -54,6 +54,16 @@
 #define FLASH_ADDR_OFFSET             (0x18)
 #define FLASH_OFFSET_ENABLE           (0x19)
 
+#if CONFIG_FLASH_ORIGIN_API
+#define PAR_OPT_READ_POS      (0)
+#define PAR_OPT_WRITE_POS     (1)
+
+#define PAR_OPT_READ_DIS      (0x0u << PAR_OPT_READ_POS)
+#define PAR_OPT_READ_EN       (0x1u << PAR_OPT_READ_POS)
+#define PAR_OPT_WRITE_DIS     (0x0u << PAR_OPT_WRITE_POS)
+#define PAR_OPT_WRITE_EN      (0x1u << PAR_OPT_WRITE_POS)
+#endif
+
 #define PARTITION_IRAM         __attribute__((section(".iram")))
 
 /* Logic partition on flash devices */
@@ -414,9 +424,12 @@ bk_err_t bk_flash_partition_write_cbus(bk_partition_t partition, const uint8_t *
 
 	GLOBAL_INT_DISABLE();
 
+	flash_protect_type_t  partition_type = bk_flash_get_protect_type();
+	bk_flash_set_protect_type(FLASH_PROTECT_NONE);
 	if((offset + buffer_len) <= partition_info->partition_length) {
 		bk_memcpy_4w((void *)wr_ptr, buffer, buffer_len);
 	}
+	bk_flash_set_protect_type(partition_type);
 
 	GLOBAL_INT_RESTORE();
 

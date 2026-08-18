@@ -108,21 +108,32 @@ static void cli_flash_api_cmd_handler(void **argtable)
 
     if (arg_protect_type->count > 0)
     {
+        flash_protect_type_t protect_mode;
+
         if (strcmp(arg_protect_type->sval[0], "get") == 0) {
-            CLI_LOGD("Flash protect type is managed internally by flash driver\r\n");
+            flash_protect_type_t current_protect_type = bk_flash_get_protect_type();
+            CLI_LOGD("Current flash protect type: %d\r\n", current_protect_type);
         } else if (strcmp(arg_protect_type->sval[0], "set") == 0) {
             const char *protect_mode_str = arg_protect_type_mode->sval[0];
 
-            if (strcmp(protect_mode_str, "none") == 0 ||
-                strcmp(protect_mode_str, "unprotect") == 0) {
-                test_flash_set_protect_type_none();
-                CLI_LOGD("Flash protect type mode is %s succeeded\r\n", protect_mode_str);
+            if (strcmp(protect_mode_str, "none") == 0) {
+                protect_mode = FLASH_PROTECT_NONE;
             } else if (strcmp(protect_mode_str, "all") == 0) {
-                test_flash_set_protect_type_all();
-                CLI_LOGD("Flash protect type mode is %s succeeded\r\n", protect_mode_str);
+                protect_mode = FLASH_PROTECT_ALL;
+            } else if (strcmp(protect_mode_str, "half") == 0) {
+                protect_mode = FLASH_PROTECT_HALF;
+            } else if (strcmp(protect_mode_str, "unprotect") == 0) {
+                protect_mode = FLASH_UNPROTECT_LAST_BLOCK;
             } else {
                 CLI_LOGE("Invalid protect mode: %s\r\n", protect_mode_str);
                 return;
+            }
+
+            err = bk_flash_set_protect_type(protect_mode);
+            if (err == BK_OK) {
+                CLI_LOGD("Flash protect type mode is %s succeeded\r\n", protect_mode_str);
+            } else {
+                CLI_LOGE("Flash protect type mode is %s failed, err = %x\r\n", protect_mode_str, err);
             }
         } else {
             CLI_LOGE("Invalid parameter for protect type: %s\r\n", arg_protect_type->sval[0]);
@@ -170,6 +181,7 @@ static void cli_flash_api_cmd_handler(void **argtable)
     if (erase->count > 0)
     {
         // Erase operation
+        bk_flash_set_protect_type(FLASH_PROTECT_NONE);
         for (uint32_t addr = start_addr; addr < (start_addr + len); addr += FLASH_SECTOR_SIZE) {
             err = bk_flash_erase_sector(addr);
             if (err != BK_OK) {
@@ -177,6 +189,7 @@ static void cli_flash_api_cmd_handler(void **argtable)
                 break;
             }
         }
+        bk_flash_set_protect_type(FLASH_UNPROTECT_LAST_BLOCK);
         CLI_LOGD(err ? "Erase flash failed, err = %x\r\n" : "Erase flash succeeded\r\n", err);
     }
     else if (read->count > 0)
@@ -232,6 +245,7 @@ static void cli_flash_api_cmd_handler(void **argtable)
             buf[i] = i;
         }
 
+        bk_flash_set_protect_type(FLASH_PROTECT_NONE);
         for (uint32_t i = 0; i < len; i += FLASH_PAGE_SIZE) {
             err = bk_flash_write_bytes(start_addr, buf, FLASH_PAGE_SIZE);
             if (err != BK_OK) {
@@ -239,6 +253,7 @@ static void cli_flash_api_cmd_handler(void **argtable)
                 break;
             }
         }
+        bk_flash_set_protect_type(FLASH_UNPROTECT_LAST_BLOCK);
         CLI_LOGD(err ? "Write flash failed, err = %x\r\n" : "Write flash succeeded\r\n", err);
     }
     else if (arg_register_callback->count > 0)

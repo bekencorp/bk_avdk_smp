@@ -227,6 +227,12 @@ endif()
 		#"audio/uac_driver.c"
 		)
 
+if (CONFIG_LPVAD)
+	list(APPEND srcs
+		"lpvad/aud_lp_vad.c"
+		)
+endif()
+
 if (CONFIG_AUDIO_ADC)
 if (CONFIG_SOC_BK7259)
 	list(APPEND srcs
@@ -264,12 +270,6 @@ else()
 endif()
 endif()
 endif() #if (CONFIG_AUDIO)
-
-if (CONFIG_LPVAD)
-	list(APPEND srcs
-		"lpvad/aud_lp_vad.c"
-		)
-endif()
 
 if (CONFIG_AUDIO_RING_BUFF)
 	list(APPEND srcs
