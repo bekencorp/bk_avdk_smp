@@ -3907,7 +3907,7 @@ bk_err_t sys_hal_cpu_freq_dump()
 		break;
 	}
 	os_printf("Freq_reg:0x%x\r\n", value_8);
-	sys_hal_ap_cpu_freq_dump();
+	//sys_hal_ap_cpu_freq_dump();
 
 	return BK_OK;
 }

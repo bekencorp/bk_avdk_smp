@@ -34,6 +34,23 @@ uint32_t pm_wake_int_flag2;
 
 static void pm_pmu_dump(void);
 
+static const char *pm_power_state_to_string(uint32_t pd, uint32_t bit)
+{
+	return (pd & (1U << bit)) ? "OFF" : "ON";
+}
+
+static const char *pm_lpo_src_to_string(uint32_t lpo)
+{
+	switch (lpo & 0x3U) {
+	case 0:
+		return "clk_DIVD";
+	case 1:
+		return "clk_X32K";
+	default:
+		return "clk_ROSC";
+	}
+}
+
 
 /*=========================DEBUG/TEST CTRL START========================*/
 void pm_debug_dump()
@@ -66,9 +83,16 @@ static void pm_pmu_dump(void)
 	uint32_t lpo = REG_READ(PM_DEBUG_PMU_REG_BASE+0x41*4);
 	pm_wakeup_source_e wkup_src = bk_pm_exit_low_vol_wakeup_source_get();
 
-	LOGI("pm power,pmu[0x%x][0x%x][%d],[0x%x][0x%x][0x%x],[0x%x][0x%x][0x%x]\r\n", pd, lpo, wkup_src,
-											s_before_low_vol_pd, s_before_low_vol_lpo, s_before_low_vol_psram,
-											s_after_low_vol_pd, s_after_low_vol_lpo, s_after_low_vol_psram);
+	LOGI("pm power,pmu[0x%x(pwd_cpu1:%s,pwd_vehp:%s,pwd_wrls:%s,rom_pgen:%s)]"
+		"[0x%x(lpo_src:%s)][%d],[0x%x][0x%x][0x%x],[0x%x][0x%x][0x%x]\r\n",
+		pd,
+		pm_power_state_to_string(pd, 0),
+		pm_power_state_to_string(pd, 1),
+		pm_power_state_to_string(pd, 2),
+		pm_power_state_to_string(pd, 3),
+		lpo, pm_lpo_src_to_string(lpo), wkup_src,
+		s_before_low_vol_pd, s_before_low_vol_lpo, s_before_low_vol_psram,
+		s_after_low_vol_pd, s_after_low_vol_lpo, s_after_low_vol_psram);
 }
 /*=========================DEBUG/TEST CTRL END========================*/
 

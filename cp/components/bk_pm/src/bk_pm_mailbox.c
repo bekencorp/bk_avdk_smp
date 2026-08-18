@@ -629,7 +629,7 @@ bk_err_t pm_debug_pwr_clk_state()
 #if CONFIG_PSRAM
     pm_debug_psram_state();
 #endif
-	BK_LOGD(NULL, "pm_cp1_boot_ready:0x%x 0x%x\r\n",s_pm_cp1_boot_ready,s_pm_cp1_module_recovery_state);
+	BK_LOGD(NULL, "pm_ap_boot_ready:0x%x 0x%x\r\n",s_pm_cp1_boot_ready,s_pm_cp1_module_recovery_state);
 
 	return BK_OK;
 }

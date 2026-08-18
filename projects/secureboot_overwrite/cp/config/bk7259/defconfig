@@ -10,7 +10,6 @@ CONFIG_SMP_CORE_CNT=2
 # CONFIG_FREERTOS_V10 is not set
 CONFIG_FREERTOS_SMP=n
 CONFIG_SLAVE_HEART_BEAT=n
-CONFIG_PM_ONLY_CP_ENABLE=y
 CONFIG_FREERTOS_ALLOW_OS_API_IN_IRQ_DISABLED=y
 CONFIG_SPINLOCK=y
 CONFIG_SUPPORT_WWDT=n
@@ -64,13 +63,6 @@ CONFIG_SUPPORT_MULTICORE=y
 CONFIG_TFM_AP_BOOT_NSC=y
 CONFIG_TFM_SLEEP_RETENTION_NSC=y
 
-# --- AP power domain ownership ---
-# CP power-cycles the AP domain, so the PSRAM controller and AP SYS/AHBP live in
-# a domain that is off/reset until CP powers the AP up. Defer PSRAM init out of
-# driver_init to the post-power-on PM vote so the controller is programmed after
-# the AP domain is up (otherwise the early init is wiped by the power-on reset).
-CONFIG_PM_AP_POWERDOWN_WHEN_LV=y
-
 # --- NSC (CMSE non-secure-callable) register access gateway ---
 # NS cpu0_app reaches registers through the secure world via SG veneers
 # (reg_nsc.c -> libtfm_s_veneers.a). Enables the NS `regshow_s` CLI too.
@@ -96,20 +88,20 @@ CONFIG_PSRAM=y
 # --- Heap debug: disabled ---
 # CONFIG_MEM_DEBUG is not set
 
+#Platform
 CONFIG_AT_CMD=y
-CONFIG_BTDM_CONTROLLER_ONLY=y
+CONFIG_PSRAM=y
+#PSRAM CONTROLLER at AP,when sleep alive not enable AP, so CP can not use PSRAM when sleep alive
+CONFIG_PSRAM_AS_SYS_MEMORY=n
 
-# --- Low-power (AP power-down when LV) feature set ---
-# Tickless idle + Deep-LV lets the CP enter low-voltage retention while the AP
-# domain is powered down; AON RTC / GPIO / touch provide the wakeup sources and
-# the AON LDO / ROSC tuning reduces standby current.
+#PM
 CONFIG_FREERTOS_USE_TICKLESS_IDLE=2
-CONFIG_BLUETOOTH=y
-CONFIG_BLUETOOTH_SUPPORT_LPO_ROSC=y
-CONFIG_BLE_LV_SUPPORT=y
+CONFIG_PM_AP_POWERDOWN_WHEN_LV=y
+CONFIG_PM_ONLY_CP_ENABLE=y
+
 CONFIG_DEEP_LV=y
-CONFIG_DEEP_LV_DEBUG_GPIO=y
-# CONFIG_DEEP_LV_DEBUG_LOG is not set
+CONFIG_DEEP_LV_DEBUG_GPIO=n
+CONFIG_DEEP_LV_DEBUG_LOG=n
 CONFIG_AON_RTC=y
 CONFIG_GPIO_WAKEUP_SUPPORT=y
 CONFIG_GPIO_DYNAMIC_WAKEUP_SUPPORT=y
@@ -120,3 +112,20 @@ CONFIG_PM_CLOCK_VOTE_RECORD=y
 CONFIG_CKMN_TEST=y
 CONFIG_OPTIMIZE_AON_CURRENT=y
 CONFIG_AON_LDO_SEL=2
+CONFIG_DEBUG_VERSION=n
+CONFIG_PM_CURRENT_OPTIMIZE_XTAL_RX_TX_ANABUF=n
+CONFIG_CPU_DEFAULT_FREQ_60M=n
+CONFIG_PM_CP_PERI_CLK_DEFAULT_OFF=n
+CONFIG_PM_XTAL_RX_TX_ANABUF_DEFAULT_OFF=n
+
+#WIFI
+CONFIG_STA_PS=y
+
+#BLE
+CONFIG_BLUETOOTH=y
+CONFIG_BLUETOOTH_BLE_SLAVE_ONLY=y
+CONFIG_BLUETOOTH_SUPPORT_LPO_ROSC=y
+CONFIG_BLE_LV_SUPPORT=y
+#CONFIG_BTDM_CONTROLLER_ONLY=y
+CONFIG_BTDM_CONTROLLER_ONLY=n
+CONFIG_BLUETOOTH_SUPPORT_AP_PWD_ALL=y
