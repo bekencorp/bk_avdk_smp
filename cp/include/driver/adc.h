@@ -420,6 +420,20 @@ bk_err_t bk_adc_chan_init_gpio(adc_chan_t chan);
  * @return
  */
 bk_err_t bk_adc_chan_deinit_gpio(adc_chan_t chan);
+
+/* Shared AP/CP ADC key sampler ABI. */
+#define ADC_KEY_SAMPLER_MAX_CHANNELS 4U
+
+typedef struct {
+	uint16_t raw;
+	uint16_t mv;
+	uint8_t channel;
+	uint8_t status;
+	uint16_t reserved;
+	uint32_t sample_tick;
+	uint32_t sequence;
+} adc_key_sampler_sample_t;
+
 /**
  * @brief     only use for saradc
  */
