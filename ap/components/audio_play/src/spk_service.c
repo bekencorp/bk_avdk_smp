@@ -130,6 +130,8 @@ static spk_service_ctx_t s_spk_service = {0};
 static beken_mutex_t  s_spk_lock;
 static beken2_timer_t s_idle_timer;
 static bool           s_spk_module_ready;   /* lock (+timer) created */
+/* App-selected A2DP 44.1k policy; kept outside ctx so init memset cannot wipe it. */
+static aud_dac_a2dp_rate_policy_t s_a2dp_rate_policy = AUD_DAC_A2DP_RATE_NATIVE;
 
 /* internal, lock-held cores (public wrappers take s_spk_lock) */
 static bk_err_t spk_service_attach_locked(const spk_source_cfg_t *cfg);
@@ -279,18 +281,11 @@ static uint8_t spk_service_aux_priority(spk_service_src_t src)
 
 /* Re-lock the shared DAC APLL to the main (music) source's clock family.
  *
- * The DAC has a single APLL: 44.1k music lives in the 90.3168MHz family while
- * the 16k/8k CALL/HINT aux sources live in the 98.304MHz family. Every
- * bk_aud_dac_set_sample_rate() call (done on aux attach/detach) reprograms that
- * shared APLL, so bringing a prompt/call up or down would otherwise flip the
- * clock and detune a concurrently playing 44.1k music stream (audible wobble).
- *
- * We refuse to SW-resample the music (too costly), so instead: whenever the main
- * source is active, re-assert its sample rate here to pull the APLL back to the
- * music family. The short prompt/call then plays under the music clock (a small,
- * unnoticeable rate offset) rather than making the music wobble. When no music
- * is playing (pure prompt, or call while A2DP is suspended) there is nothing to
- * re-lock and the aux source keeps its own exact clock. */
+ * The DAC has a single APLL. Aux CALL/HINT (8k/16k) prefer the 98.304MHz family;
+ * 44.1k A2DP prefers 90.3168MHz unless the app selects AUD_DAC_A2DP_RATE_HW_TO_48K
+ * (HW resample into the 48k / 98.304MHz domain). Re-assert the main rate after
+ * aux attach/detach so the shared clock stays consistent with the chosen policy.
+ * When no music is attached, fall back to 48k. */
 static void spk_service_relock_main_clock(spk_service_ctx_t *ctx)
 {
     if (!ctx->speaker)
@@ -512,6 +507,12 @@ bk_err_t spk_service_init(void)
     {
         LOGE("%s pipeline run fail %d\n", __func__, ret);
         goto fail;
+    }
+
+    /* Apply app-selected A2DP 44.1k policy (default NATIVE until set). */
+    if (BK_OK != bk_aud_dac_set_a2dp_rate_policy(s_a2dp_rate_policy))
+    {
+        LOGW("%s apply A2DP rate policy %d fail\n", __func__, s_a2dp_rate_policy);
     }
 
     ctx->inited = true;
@@ -928,6 +929,33 @@ bool spk_service_is_running(void)
     return s_spk_service.inited;
 }
 
+bk_err_t spk_service_set_a2dp_rate_policy(aud_dac_a2dp_rate_policy_t policy)
+{
+    if (policy > AUD_DAC_A2DP_RATE_HW_TO_48K)
+    {
+        return BK_ERR_PARAM;
+    }
+
+    s_a2dp_rate_policy = policy;
+
+    /* If DAC is already up, apply immediately; else wait for next init. */
+    if (s_spk_service.inited)
+    {
+        return bk_aud_dac_set_a2dp_rate_policy(policy);
+    }
+    return BK_OK;
+}
+
+bk_err_t spk_service_get_a2dp_rate_policy(aud_dac_a2dp_rate_policy_t *policy)
+{
+    if (!policy)
+    {
+        return BK_ERR_NULL_PARAM;
+    }
+    *policy = s_a2dp_rate_policy;
+    return BK_OK;
+}
+
 #else /* feature disabled: provide safe stubs so callers still link */
 
 bk_err_t spk_service_init(void)                          { return BK_ERR_NOT_SUPPORT; }
@@ -946,5 +974,13 @@ bk_err_t spk_service_set_volume(float gain_db)           { (void)gain_db; return
 bk_err_t spk_service_set_mute(uint8_t mute)              { (void)mute; return BK_ERR_NOT_SUPPORT; }
 bk_err_t spk_service_set_src_mute(spk_service_src_t src, uint8_t mute) { (void)src; (void)mute; return BK_ERR_NOT_SUPPORT; }
 bool     spk_service_is_running(void)                    { return false; }
+bk_err_t spk_service_set_a2dp_rate_policy(aud_dac_a2dp_rate_policy_t policy)
+{
+    (void)policy; return BK_ERR_NOT_SUPPORT;
+}
+bk_err_t spk_service_get_a2dp_rate_policy(aud_dac_a2dp_rate_policy_t *policy)
+{
+    (void)policy; return BK_ERR_NOT_SUPPORT;
+}
 
 #endif

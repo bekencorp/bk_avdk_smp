@@ -161,6 +161,16 @@ typedef enum {
 	AUD_DAC_SOURCE_MAX,
 } aud_dac_source_t;
 
+/**
+ * A2DP sample-rate clock-domain policy.
+ * NATIVE: 44.1k uses 90.3168MHz APLL and bypasses HW resample (default, compatible).
+ * HW_TO_48K: 44.1k keeps input rate but enables HW resample to 48k domain (98.304MHz APLL).
+ */
+typedef enum {
+	AUD_DAC_A2DP_RATE_NATIVE = 0,
+	AUD_DAC_A2DP_RATE_HW_TO_48K,
+} aud_dac_a2dp_rate_policy_t;
+
 typedef enum {
 	AUD_DAC_SPK0_A2DP_FIFO_ALMOST_EMPTY_MASK = 1,
 	AUD_DAC_SPK0_CALL_FIFO_ALMOST_EMPTY_MASK = 1 << 1,
@@ -191,6 +201,7 @@ typedef struct {
 	int32_t ana_gain;                       /**< AUD dac analog gain in dB, range: [0, 7], 1dB/step */
 	aud_dac_clk_invert_t dac_clk_invert;    /**< AUD dac output clock edge select */
 	aud_clk_t clk_src;
+	aud_dac_a2dp_rate_policy_t a2dp_rate_policy; /**< A2DP 44.1k clock/resample policy */
 } aud_dac_config_t;
 
 #define DEFAULT_AUD_DAC_CONFIG() {                      \
@@ -202,6 +213,7 @@ typedef struct {
     .ana_gain  = 4,                                     \
     .dac_clk_invert = AUD_DAC_CLK_INVERT_RISING,        \
     .clk_src        = AUD_CLK_APLL,                     \
+    .a2dp_rate_policy = AUD_DAC_A2DP_RATE_NATIVE,       \
 }
 #endif
 

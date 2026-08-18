@@ -76,6 +76,19 @@ bk_err_t bk_aud_dac_deinit(void);
 bk_err_t bk_aud_dac_set_samp_rate(uint32_t samp_rate);
 #elif CONFIG_AUD_DRIVER_V2
 bk_err_t bk_aud_dac_set_sample_rate(aud_dac_source_t source, uint32_t sample_rate);
+
+/**
+ * @brief Set A2DP 44.1k rate policy (native clock vs HW resample to 48k domain).
+ *
+ * Does not change @ref bk_aud_dac_set_sample_rate signature. Takes effect on the
+ * next @ref bk_aud_dac_set_sample_rate for A2DP 44100.
+ */
+bk_err_t bk_aud_dac_set_a2dp_rate_policy(aud_dac_a2dp_rate_policy_t policy);
+
+/**
+ * @brief Get current A2DP 44.1k rate policy.
+ */
+bk_err_t bk_aud_dac_get_a2dp_rate_policy(aud_dac_a2dp_rate_policy_t *policy);
 #endif
 
 /**

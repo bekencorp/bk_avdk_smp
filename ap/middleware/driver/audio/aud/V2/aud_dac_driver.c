@@ -56,6 +56,24 @@ extern void delay(int num);
 bk_err_t bk_aud_dac_dacl_disable_int(void);
 bk_err_t bk_aud_dac_dacr_disable_int(void);
 
+static aud_dac_a2dp_rate_policy_t s_a2dp_rate_policy = AUD_DAC_A2DP_RATE_NATIVE;
+
+bk_err_t bk_aud_dac_set_a2dp_rate_policy(aud_dac_a2dp_rate_policy_t policy)
+{
+	if (policy > AUD_DAC_A2DP_RATE_HW_TO_48K) {
+		return BK_ERR_PARAM;
+	}
+	s_a2dp_rate_policy = policy;
+	return BK_OK;
+}
+
+bk_err_t bk_aud_dac_get_a2dp_rate_policy(aud_dac_a2dp_rate_policy_t *policy)
+{
+	BK_RETURN_ON_NULL(policy);
+	*policy = s_a2dp_rate_policy;
+	return BK_OK;
+}
+
 bk_err_t bk_aud_dac_init(aud_dac_config_t *dac_config)
 {
 	bk_err_t ret = BK_OK;
@@ -66,6 +84,7 @@ bk_err_t bk_aud_dac_init(aud_dac_config_t *dac_config)
 		return BK_OK;
 	}
 	bk_aud_set_module_init_sta(AUD_MODULE_DAC, true);
+	s_a2dp_rate_policy = dac_config->a2dp_rate_policy;
 	/* audio common driver init */
 	if (BK_OK != bk_aud_driver_init()) {
 		LOGE("%s, audio driver init fail, line: %d \n", __func__, __LINE__);
@@ -215,6 +234,7 @@ bk_err_t bk_aud_dac_deinit(void)
 	//bk_aud_dac_set_sample_rate(8000);
 	/* reset */
 	//TODO
+	s_a2dp_rate_policy = AUD_DAC_A2DP_RATE_NATIVE;
 	bk_err_t ret = bk_aud_set_module_init_sta(AUD_MODULE_DAC, false);
 	bk_aud_driver_deinit();
 	return ret;
@@ -229,8 +249,8 @@ bk_err_t bk_aud_dac_set_sample_rate(aud_dac_source_t source, uint32_t sample_rat
     uint32_t lpf_bps3  = 0;
     uint32_t resample_bypass = 1;
     uint32_t spl_sel  = 0;
-
     uint32_t srindex  = 0;
+    bool use_441_apll = (sample_rate / 44100 * 44100 == sample_rate);
 
     switch (source)
     {
@@ -251,7 +271,13 @@ bk_err_t bk_aud_dac_set_sample_rate(aud_dac_source_t source, uint32_t sample_rat
                 case 48000:
                     break;
                 case 44100:
-                    resample_bypass = 1;
+                    if (s_a2dp_rate_policy == AUD_DAC_A2DP_RATE_HW_TO_48K) {
+                        /* Keep 44.1k input, enable HW resample into 48k clock domain */
+                        resample_bypass = 0;
+                        use_441_apll = false;
+                    } else {
+                        resample_bypass = 1;
+                    }
                     break;
                 default:
                     LOGW("%s, %d, music a2dp channel not support sample_rate: %d, use default 48000\n", __func__, __LINE__, sample_rate);
@@ -293,7 +319,7 @@ bk_err_t bk_aud_dac_set_sample_rate(aud_dac_source_t source, uint32_t sample_rat
     }
 
     /* config apll frequency */
-    bk_aud_apll_config((sample_rate / 44100 * 44100 == sample_rate) ? AUD_APLL_FREQ_90P3168_MHZ : AUD_APLL_FREQ_98P3040_MHZ);
+    bk_aud_apll_config(use_441_apll ? AUD_APLL_FREQ_90P3168_MHZ : AUD_APLL_FREQ_98P3040_MHZ);
 
     return BK_OK;
 }

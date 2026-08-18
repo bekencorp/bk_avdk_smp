@@ -17,6 +17,7 @@
 #include "bt_manager.h"
 #include "a2dp_sink_demo.h"
 #include "components/bluetooth/bk_dm_avrcp.h"
+#include "spk_service.h"
 #define TAG "a2dp_sink_demo"
 
 #define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
@@ -589,6 +590,13 @@ int a2dp_sink_demo_init(uint8_t aac_supported, uint8_t auto_accept_conn)
 
     LOGI("%s\n", __func__);
 
+#if 0
+    /* Keep 44.1k A2DP in 48k APLL domain so it can mix with CALL/HINT. */
+    if (BK_OK != spk_service_set_a2dp_rate_policy(AUD_DAC_A2DP_RATE_HW_TO_48K))
+    {
+        LOGW("%s set A2DP rate policy HW_TO_48K fail\n", __func__);
+    }
+#endif
     if (aac_supported)
     {
 #if (!CONFIG_ADK_AAC_DECODER)
