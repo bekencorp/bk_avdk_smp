@@ -144,6 +144,10 @@ bk_err_t bk_flash_driver_init(void)
 	/* Restore QUAD continuous-read so the rest of TF-M and the NS app run XIP at
 	 * full speed, matching the state BL2 handed over. */
 	bk_flash_set_line_mode(s_flash_cfg->line_mode);
+	/* Do NOT unprotect here: the secure-boot verify path (this init + reads) must
+	 * keep the persistent flash write protection. Flash is unprotected only when a
+	 * serial-download session starts, via bk_flash_min_unprotect_once() called from
+	 * the download handshake (flash_op_enable_ctrl -> download_flash_adapter.c). */
 	return BK_OK;
 }
 
@@ -290,26 +294,29 @@ static void flash_set_qe(void)
 	flash_ll_write_status_reg(s_flash_hal.hw, cfg->status_reg_size, status_reg);
 }
 
-flash_protect_type_t bk_flash_get_protect_type(void)
+/* Unprotect the whole device once, on the first serial-download handshake, so
+ * download/BL2 erase/program can write any sector. Deferred out of
+ * bk_flash_driver_init() so the read-only secure-boot verify path keeps the
+ * persistent write protection; normal (DIRECT_XIP, no-swap) boot never writes
+ * flash and stays protected.
+ *
+ * WRSR is an op_sw command: it MUST be issued in two-line mode - while the
+ * device is in QUAD continuous-read it ignores op_sw and the busy poll never
+ * clears, hanging the CPU. So bracket the status-register write: switch to
+ * two-line, write, then restore the original (configured) line mode. The caller
+ * (flash_op_enable_ctrl in download_flash_adapter.c) invokes this while flash is
+ * still in the configured line mode, before switching the session to two-line.
+ * Idempotent: guarded so repeated download commands only issue the WRSR once. */
+void bk_flash_min_unprotect_once(void)
 {
-	/* Read-back path is disabled in flash_driver.c too; just report NONE. */
-	return FLASH_PROTECT_NONE;
-}
-
-bk_err_t bk_flash_set_protect_type(flash_protect_type_t type)
-{
-	/* Unprotect the whole device once so download erase/program can write any
-	 * sector. Runs in two-line mode (status-reg writes are op_sw commands). */
 	static uint8_t s_flash_is_unlocked;
 
-	(void)type;
 	if (!s_flash_is_unlocked) {
 		bk_flash_set_line_mode(FLASH_LINE_MODE_TWO);
 		flash_set_protect_type(FLASH_PROTECT_NONE);
 		s_flash_is_unlocked = 1;
 		bk_flash_set_line_mode(flash_min_cfg()->line_mode);
 	}
-	return BK_OK;
 }
 
 flash_line_mode_t bk_flash_get_line_mode(void)

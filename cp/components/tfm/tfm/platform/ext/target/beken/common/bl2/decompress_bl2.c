@@ -180,9 +180,6 @@ boot_copy_region(struct boot_loader_state *state,
 	uint8_t* buf;
 	uint8_t* decode_buf;
 
-	flash_protect_type_t protect = bk_flash_get_protect_type();
-	bk_flash_set_protect_type(FLASH_PROTECT_NONE);
-
 	uint8_t restart_block_idx;
 	restart_block_idx = resume_flash(block_num);
 
@@ -244,8 +241,6 @@ boot_copy_region(struct boot_loader_state *state,
 	uint32_t ota_phy_offset = get_flash_map_offset(1);
 	flash_area_erase_fast(get_resume_base_address(), 4096);
 	flash_area_erase_fast(ota_phy_offset, ota_phy_size);
-
-	bk_flash_set_protect_type(protect);
 
 	return 0;
 }

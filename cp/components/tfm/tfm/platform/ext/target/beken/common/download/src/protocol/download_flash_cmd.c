@@ -283,6 +283,9 @@ static u32 flash_cmd_reg_read_handler(u8 *cmd_param, u16 param_len)
 	if (param_len < 1)
 		return 1;
 
+	/* Flash was already unprotected at the download handshake
+	 * (flash_op_enable_ctrl -> bk_flash_min_unprotect_once). This is a pure
+	 * read-back of the status register, so it does not toggle protection. */
 	cmd_param[1] = flash_read_sr(1);
 
 	tx_rsp_for_flash_cmd(FLASH_CMD_REG_READ, ret_val, cmd_param, 2);

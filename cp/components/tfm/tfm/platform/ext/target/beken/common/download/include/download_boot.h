@@ -160,14 +160,12 @@ extern bk_err_t bk_flash_write_bytes(uint32_t address, const uint8_t *user_buf, 
 extern bk_err_t bk_flash_erase_cmd(uint32_t address, int type);
 extern uint16_t bk_flash_read_sr(unsigned char byte);
 extern bk_err_t bk_flash_write_sr(unsigned char bytes,  uint16_t status_reg_data);
-extern bk_err_t bk_flash_set_protect_type(flash_protect_type_t type);
 
 #define   flash_read_data(user_buf, address, size)    bk_flash_read_bytes(address,user_buf,size)
 #define   flash_write_data(user_buf, address, size)   bk_flash_write_bytes(address,user_buf,size)
 #define   flash_erase_cmd(address, cmd)                 bk_flash_erase_cmd(address,cmd)
 #define   flash_read_sr(byte)                                   bk_flash_read_sr(byte)
 #define   flash_write_sr(bytes,  status_reg_data)     bk_flash_write_sr(bytes,  status_reg_data)
-#define   flash_set_protect_type(type)                    bk_flash_set_protect_type(type)
 
 uint8_t bl_get_boot_flag_value(void);
 uint8_t bl_set_boot_flag_value(void);

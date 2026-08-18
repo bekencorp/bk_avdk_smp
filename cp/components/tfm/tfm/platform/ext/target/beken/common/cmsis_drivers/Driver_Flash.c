@@ -198,7 +198,10 @@ static int32_t Flash_Initialize(ARM_Flash_SignalEvent_t cb_event)
 
     ppc_flash_ns_flag = bk_ppc_lock_flash();
     BK_LOG_ON_ERR(bk_flash_driver_init());
-    bk_flash_set_protect_type(FLASH_PROTECT_NONE); //TODO wangzhilei double check
+    /* Do not unprotect here. The secure-boot/verify path is read-only and keeps
+     * the persistent flash write protection. Flash is unprotected only when a
+     * serial-download session starts (flash_op_enable_ctrl ->
+     * bk_flash_min_unprotect_once); normal DIRECT_XIP boot never writes flash. */
 
     flash_size = bk_flash_get_current_total_size();
     /* Optimze it if we support more than one flash */
@@ -307,11 +310,8 @@ static int32_t Flash_ProgramData(uint32_t addr, const void *data,
         memcpy((uint8_t*)(FLASH0_DEV->memory_base + addr), (uint8_t*)data, cnt);
     } else {
         ppc_flash_ns_flag = bk_ppc_lock_flash();
-        uint32_t protect_type = bk_flash_get_protect_type();
-        bk_flash_set_protect_type(FLASH_PROTECT_NONE);
         rc = is_flash_ready_to_write((const uint8_t*)addr, cnt);
         BK_LOG_ON_ERR(bk_flash_write_bytes(addr, data, cnt));
-        bk_flash_set_protect_type(protect_type);
         bk_ppc_unlock_flash(ppc_flash_ns_flag);
     }
 
@@ -336,10 +336,7 @@ static int32_t Flash_EraseSector(uint32_t addr)
     }
 
     ppc_flash_ns_flag = bk_ppc_lock_flash();
-    uint32_t protect_type = bk_flash_get_protect_type();
-    bk_flash_set_protect_type(FLASH_PROTECT_NONE);
     BK_LOG_ON_ERR(bk_flash_erase_sector(offset));
-    bk_flash_set_protect_type(protect_type);
     bk_ppc_unlock_flash(ppc_flash_ns_flag);
 
     return ARM_DRIVER_OK;
@@ -355,8 +352,6 @@ static int32_t Flash_EraseChip(void)
     uint32_t ppc_flash_ns_flag;
     /* Check driver capability erase_chip bit */
     ppc_flash_ns_flag = bk_ppc_lock_flash();
-    uint32_t protect_type = bk_flash_get_protect_type();
-    bk_flash_set_protect_type(FLASH_PROTECT_NONE);
 
     if (DriverCapabilities.erase_chip == 1) {
         for (i = 0; i < flash_sector_count(); i++) {
@@ -368,7 +363,6 @@ static int32_t Flash_EraseChip(void)
         }
     }
 
-    bk_flash_set_protect_type(protect_type);
     bk_ppc_unlock_flash(ppc_flash_ns_flag);
 
     return rc;

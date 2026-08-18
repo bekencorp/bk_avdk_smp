@@ -24,6 +24,7 @@ extern void     bk_flash_min_erase(uint32_t address, int type);
 extern uint16_t bk_flash_min_read_sr(uint8_t sr_width);
 extern void     bk_flash_min_write_sr(uint8_t sr_width, uint16_t sr_data);
 extern uint32_t bk_flash_min_get_id(void);
+extern void     bk_flash_min_unprotect_once(void);
 
 /* Read directly by the flash-id command handler. Filled on first enable. */
 unsigned int flash_id = 0;
@@ -35,6 +36,13 @@ int flash_op_enable_ctrl(uint32_t module, uint32_t enable)
 {
 	(void)module;
 	if (enable) {
+		/* Download-session handshake: drop the flash write protection once so the
+		 * subsequent erase/program/SR commands can write any sector. Read-only
+		 * secure boot never reaches here, so its protection stays asserted. Call
+		 * it while still in the configured line mode - it self-brackets the WRSR
+		 * (switch to two-line, write, restore) - then switch the session to
+		 * two-line for the following flash ops. */
+		bk_flash_min_unprotect_once();
 		bk_flash_min_switch_line_mode_two();
 		flash_id = bk_flash_min_get_id();
 	} else {
