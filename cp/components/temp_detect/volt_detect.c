@@ -38,10 +38,6 @@
 
 #include "sys_driver.h"
 
-#if CONFIG_FLASH_ORIGIN_API
-#include "flash.h"
-#endif
-
 #include <modules/pm.h>
 #include "components/sensor.h"
 
