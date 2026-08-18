@@ -58,13 +58,7 @@ static int write(long offset, const uint8_t *buf, size_t size)
 
 static int _erase(uint32_t addr, size_t size)
 {
-    flash_protect_type_t protect_type;
     unsigned int _size = size;
-
-    protect_type = bk_flash_get_protect_type();
-    if (FLASH_PROTECT_NONE != protect_type) {
-        bk_flash_set_protect_type(FLASH_PROTECT_NONE);
-    }
 
     /* Calculate the start address of the flash sector(4kbytes) */
     addr = addr & 0x00FFF000;
@@ -79,10 +73,6 @@ static int _erase(uint32_t addr, size_t size)
             _size -= 4096;
 
     } while (_size);
-
-    if (FLASH_PROTECT_NONE != protect_type) {
-        bk_flash_set_protect_type(protect_type);
-    }
 
     return size; // return true erase size
 }
