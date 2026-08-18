@@ -66,9 +66,6 @@ typedef enum _dd_device_type_
 #if CONFIG_UART2
     DD_DEV_TYPE_UART2,
 #endif
-#if CONFIG_FLASH_ORIGIN_API
-    DD_DEV_TYPE_FLASH,
-#endif
 #if CONFIG_HSLAVE_SPI
     DD_DEV_TYPE_SPIDMA,
 #endif

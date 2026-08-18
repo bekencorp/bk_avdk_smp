@@ -53,8 +53,14 @@ static u16 saradc_buff[32];
 static beken_timer_t s_adc_key_sample_timer;
 static bool s_adc_key_sampler_running = false;
 static bool s_adc_key_timer_inited = false;
+static bool s_adc_key_sample_mutex_inited = false;
+static beken_mutex_t s_adc_key_sample_mutex;
 static uint32_t s_adc_key_sample_period_ms = ADC_KEY_SAMPLER_PERIOD_MS_DEFAULT;
-static adc_chan_t s_adc_key_sample_chan = ADC_4;
+static adc_chan_t s_adc_key_sample_channels[ADC_KEY_SAMPLER_MAX_CHANNELS] = {ADC_4};
+static adc_key_sampler_sample_t s_adc_key_samples[ADC_KEY_SAMPLER_MAX_CHANNELS];
+static uint8_t s_adc_key_sample_channel_count = 1U;
+static uint32_t s_adc_key_sample_sequence = 0U;
+static uint32_t s_adc_key_config_sequence = 0U;
 
 static uint32_t calc_crc32(uint32_t crc, const uint8_t *buf, int len)
 {
@@ -80,11 +86,11 @@ static uint16_t saradc_raw_to_mv(uint16_t raw)
     return (uint16_t)(cali_value * 1000.0f);
 }
 
-static bk_err_t saradc_adc_key_sample_once(uint16_t *raw)
+static bk_err_t saradc_adc_key_sample_once(adc_chan_t chan, uint16_t *raw,
+                                           uint32_t timeout_ms)
 {
     bk_err_t ret;
     adc_config_t config = {0};
-    adc_chan_t chan = s_adc_key_sample_chan;
 
     ret = bk_adc_acquire();
     if (ret != BK_OK) {
@@ -120,7 +126,7 @@ static bk_err_t saradc_adc_key_sample_once(uint16_t *raw)
         goto adc_exit;
     }
 
-    ret = bk_adc_read(raw, ADC_KEY_READ_TIMEOUT_MS);
+    ret = bk_adc_read(raw, timeout_ms);
     if (ret != BK_OK) {
         goto adc_exit;
     }
@@ -134,8 +140,13 @@ adc_exit:
 
 static void saradc_adc_key_sample_timer_cb(void *param)
 {
-    uint16_t raw = 0;
-    bk_err_t ret;
+    adc_key_sampler_sample_t samples[ADC_KEY_SAMPLER_MAX_CHANNELS] = {0};
+    adc_chan_t channels[ADC_KEY_SAMPLER_MAX_CHANNELS];
+    uint32_t sequence;
+    uint32_t config_sequence;
+    uint32_t read_timeout_ms;
+    uint8_t channel_count;
+    bool publish = false;
 
     (void)param;
 
@@ -143,28 +154,116 @@ static void saradc_adc_key_sample_timer_cb(void *param)
         return;
     }
 
-    ret = saradc_adc_key_sample_once(&raw);
-    if (ret != BK_OK) {
-        bk_sys_sw_regs_set_adc_key_sample(0, 9999, (uint8_t)ret, (uint8_t)s_adc_key_sample_chan,
-                                          s_adc_key_sample_period_ms, rtos_get_time());
+    sequence = ++s_adc_key_sample_sequence;
+    rtos_lock_mutex(&s_adc_key_sample_mutex);
+    channel_count = s_adc_key_sample_channel_count;
+    config_sequence = s_adc_key_config_sequence;
+    memcpy(channels, s_adc_key_sample_channels,
+           channel_count * sizeof(adc_chan_t));
+    rtos_unlock_mutex(&s_adc_key_sample_mutex);
+
+    /*
+     * Keep the legacy single-channel timeout unchanged. For multi-channel
+     * scans, reserve one share of the period for setup/IPC overhead and
+     * divide the remaining budget evenly across channel reads.
+     */
+    read_timeout_ms = ADC_KEY_READ_TIMEOUT_MS;
+    if (channel_count > 1U) {
+        read_timeout_ms = s_adc_key_sample_period_ms /
+            ((uint32_t)channel_count + 1U);
+        if (read_timeout_ms == 0U) {
+            read_timeout_ms = 1U;
+        }
+    }
+
+    for (uint8_t i = 0; i < channel_count; i++) {
+        adc_key_sampler_sample_t *sample = &samples[i];
+        adc_chan_t chan = channels[i];
+        bk_err_t ret = saradc_adc_key_sample_once(
+            chan, &sample->raw, read_timeout_ms);
+
+        sample->channel = (uint8_t)chan;
+        sample->status = (ret == BK_OK) ? 0U : (uint8_t)ret;
+        sample->mv = (ret == BK_OK) ? saradc_raw_to_mv(sample->raw) : 9999U;
+        sample->sample_tick = rtos_get_time();
+        sample->sequence = sequence;
+    }
+
+    rtos_lock_mutex(&s_adc_key_sample_mutex);
+    if (s_adc_key_sampler_running &&
+        (config_sequence == s_adc_key_config_sequence)) {
+        memcpy(s_adc_key_samples, samples,
+               channel_count * sizeof(adc_key_sampler_sample_t));
+        publish = true;
+    }
+    rtos_unlock_mutex(&s_adc_key_sample_mutex);
+
+    if (!publish) {
         return;
     }
 
-    bk_sys_sw_regs_set_adc_key_sample(raw, saradc_raw_to_mv(raw), 0, (uint8_t)s_adc_key_sample_chan,
-                                      s_adc_key_sample_period_ms, rtos_get_time());
+    for (uint8_t i = 0; i < channel_count; i++) {
+        /*
+         * Preserve the legacy one-slot snapshot. Legacy users configure one
+         * channel, while multi-channel users read the IPC snapshot array.
+         */
+        bk_sys_sw_regs_set_adc_key_sample(samples[i].raw, samples[i].mv,
+                                          samples[i].status,
+                                          samples[i].channel,
+                                          s_adc_key_sample_period_ms,
+                                          samples[i].sample_tick);
+    }
 }
 
-static bk_err_t saradc_adc_key_sampler_start(adc_chan_t chan, uint32_t sample_period_ms)
+static bk_err_t saradc_adc_key_sampler_start_multi(const adc_chan_t *channels,
+                                                   uint8_t channel_count,
+                                                   uint32_t sample_period_ms)
 {
+    if ((channels == NULL) || (channel_count == 0U) ||
+        (channel_count > ADC_KEY_SAMPLER_MAX_CHANNELS)) {
+        return BK_ERR_PARAM;
+    }
+    for (uint8_t i = 0; i < channel_count; i++) {
+        if (channels[i] >= ADC_MAX) {
+            return BK_ERR_PARAM;
+        }
+        for (uint8_t j = 0; j < i; j++) {
+            if (channels[j] == channels[i]) {
+                return BK_ERR_PARAM;
+            }
+        }
+    }
+
     if (sample_period_ms < ADC_KEY_SAMPLER_PERIOD_MS_MIN) {
         sample_period_ms = ADC_KEY_SAMPLER_PERIOD_MS_MIN;
     }
 
-    if (s_adc_key_sampler_running) {
-        return BK_OK;
+    if (!s_adc_key_sample_mutex_inited) {
+        if (rtos_init_mutex(&s_adc_key_sample_mutex) != kNoErr) {
+            return BK_FAIL;
+        }
+        s_adc_key_sample_mutex_inited = true;
     }
 
-    s_adc_key_sample_chan = chan;
+    if (s_adc_key_sampler_running && s_adc_key_timer_inited &&
+        rtos_is_timer_running(&s_adc_key_sample_timer)) {
+        rtos_stop_timer(&s_adc_key_sample_timer);
+        s_adc_key_sampler_running = false;
+    }
+
+    rtos_lock_mutex(&s_adc_key_sample_mutex);
+    memset(s_adc_key_samples, 0, sizeof(s_adc_key_samples));
+    for (uint8_t i = 0; i < channel_count; i++) {
+        s_adc_key_sample_channels[i] = channels[i];
+        s_adc_key_samples[i].channel = (uint8_t)channels[i];
+        s_adc_key_samples[i].mv = 9999U;
+        s_adc_key_samples[i].status = (uint8_t)BK_FAIL;
+        s_adc_key_samples[i].sequence = s_adc_key_sample_sequence;
+    }
+    s_adc_key_sample_channel_count = channel_count;
+    s_adc_key_config_sequence++;
+    rtos_unlock_mutex(&s_adc_key_sample_mutex);
+
     s_adc_key_sample_period_ms = sample_period_ms;
 
     if (!s_adc_key_timer_inited) {
@@ -181,9 +280,43 @@ static bk_err_t saradc_adc_key_sampler_start(adc_chan_t chan, uint32_t sample_pe
         return BK_FAIL;
     }
 
+    rtos_lock_mutex(&s_adc_key_sample_mutex);
     s_adc_key_sampler_running = true;
-    bk_sys_sw_regs_set_adc_key_sample(0, 9999, 0, (uint8_t)s_adc_key_sample_chan,
+    rtos_unlock_mutex(&s_adc_key_sample_mutex);
+    bk_sys_sw_regs_set_adc_key_sample(0, 9999, 0,
+                                      (uint8_t)s_adc_key_sample_channels[0],
                                       s_adc_key_sample_period_ms, rtos_get_time());
+    return BK_OK;
+}
+
+static bk_err_t saradc_adc_key_sampler_start(adc_chan_t chan,
+                                             uint32_t sample_period_ms)
+{
+    return saradc_adc_key_sampler_start_multi(&chan, 1U, sample_period_ms);
+}
+
+static bk_err_t saradc_adc_key_sampler_get_samples(
+    adc_key_sampler_sample_t *samples, uint8_t capacity, uint8_t *sample_count)
+{
+    uint8_t count;
+
+    if ((samples == NULL) || (sample_count == NULL) || (capacity == 0U) ||
+        !s_adc_key_sample_mutex_inited) {
+        return BK_ERR_PARAM;
+    }
+
+    rtos_lock_mutex(&s_adc_key_sample_mutex);
+    if (!s_adc_key_sampler_running) {
+        rtos_unlock_mutex(&s_adc_key_sample_mutex);
+        return BK_ERR_STATE;
+    }
+    count = (s_adc_key_sample_channel_count < capacity) ?
+        s_adc_key_sample_channel_count : capacity;
+    memcpy(samples, s_adc_key_samples,
+           count * sizeof(adc_key_sampler_sample_t));
+    rtos_unlock_mutex(&s_adc_key_sample_mutex);
+
+    *sample_count = count;
     return BK_OK;
 }
 
@@ -193,12 +326,20 @@ static bk_err_t saradc_adc_key_sampler_stop(void)
         return BK_OK;
     }
 
-    s_adc_key_sampler_running = false;
+    if (s_adc_key_sample_mutex_inited) {
+        rtos_lock_mutex(&s_adc_key_sample_mutex);
+        s_adc_key_sampler_running = false;
+        s_adc_key_config_sequence++;
+        rtos_unlock_mutex(&s_adc_key_sample_mutex);
+    } else {
+        s_adc_key_sampler_running = false;
+    }
     if (s_adc_key_timer_inited && rtos_is_timer_running(&s_adc_key_sample_timer)) {
         rtos_stop_timer(&s_adc_key_sample_timer);
     }
 
-    bk_sys_sw_regs_set_adc_key_sample(0, 9999, 1, (uint8_t)s_adc_key_sample_chan,
+    bk_sys_sw_regs_set_adc_key_sample(0, 9999, 1,
+                                      (uint8_t)s_adc_key_sample_channels[0],
                                       s_adc_key_sample_period_ms, rtos_get_time());
     return BK_OK;
 }
@@ -453,6 +594,62 @@ static void saradc_adc_key_sampler_stop_handler(u32 handle, saradc_cmd_t *cmd_bu
 		TRACE_I(TAG, "0x%x, adc_key_sampler_stop: %d, %d.\r\n", handle, cmd_buff->ret_status, ret_val);
 }
 
+static void saradc_adc_key_sampler_start_multi_handler(u32 handle,
+                                                        saradc_cmd_t *cmd_buff)
+{
+	adc_chan_t channels[ADC_KEY_SAMPLER_MAX_CHANNELS];
+	uint8_t count = cmd_buff->sample_cnt;
+
+	if ((count == 0U) || (count > ADC_KEY_SAMPLER_MAX_CHANNELS)) {
+		cmd_buff->ret_status = BK_ERR_PARAM;
+	} else {
+		for (uint8_t i = 0; i < count; i++) {
+			channels[i] = (adc_chan_t)cmd_buff->buff[i];
+		}
+		cmd_buff->ret_status = saradc_adc_key_sampler_start_multi(
+			channels, count, cmd_buff->timeout);
+	}
+
+	int ret_val = mb_ipc_send(handle,
+		MB_SARADC_CMD_ADC_KEY_SAMPLER_START_MULTI,
+		(u8 *)cmd_buff, sizeof(saradc_cmd_t), SARADC_SVR_WAIT_TIME);
+	if (ret_val != 0) {
+		TRACE_I(TAG, "0x%x, adc_key_sampler_start_multi: %d, %d.\r\n",
+			handle, cmd_buff->ret_status, ret_val);
+	}
+}
+
+static void saradc_adc_key_sampler_get_samples_handler(u32 handle,
+                                                        saradc_cmd_t *cmd_buff)
+{
+	adc_key_sampler_sample_t samples[ADC_KEY_SAMPLER_MAX_CHANNELS];
+	uint8_t count = 0U;
+	uint8_t capacity = cmd_buff->sample_cnt;
+
+	if (capacity > ADC_KEY_SAMPLER_MAX_CHANNELS) {
+		capacity = ADC_KEY_SAMPLER_MAX_CHANNELS;
+	}
+
+	cmd_buff->ret_status = saradc_adc_key_sampler_get_samples(
+		samples, capacity, &count);
+	memset(cmd_buff->buff, 0, sizeof(cmd_buff->buff));
+	if (cmd_buff->ret_status == BK_OK) {
+		memcpy(cmd_buff->buff, samples,
+			count * sizeof(adc_key_sampler_sample_t));
+		cmd_buff->sample_cnt = count;
+	} else {
+		cmd_buff->sample_cnt = 0U;
+	}
+
+	int ret_val = mb_ipc_send(handle,
+		MB_SARADC_CMD_ADC_KEY_SAMPLER_GET_SAMPLES,
+		(u8 *)cmd_buff, sizeof(saradc_cmd_t), SARADC_SVR_WAIT_TIME);
+	if (ret_val != 0) {
+		TRACE_I(TAG, "0x%x, adc_key_sampler_get_samples: %d, %d.\r\n",
+			handle, cmd_buff->ret_status, ret_val);
+	}
+}
+
 static void saradc_cmd_handler(u32 handle, u8 connect_id)
 {
 	saradc_cmd_t cmd_buff;
@@ -557,6 +754,14 @@ static void saradc_cmd_handler(u32 handle, u8 connect_id)
 
 		case MB_SARADC_CMD_ADC_KEY_SAMPLER_STOP:
 			saradc_adc_key_sampler_stop_handler(handle, &cmd_buff);
+			break;
+
+		case MB_SARADC_CMD_ADC_KEY_SAMPLER_START_MULTI:
+			saradc_adc_key_sampler_start_multi_handler(handle, &cmd_buff);
+			break;
+
+		case MB_SARADC_CMD_ADC_KEY_SAMPLER_GET_SAMPLES:
+			saradc_adc_key_sampler_get_samples_handler(handle, &cmd_buff);
 			break;
 
 		default:

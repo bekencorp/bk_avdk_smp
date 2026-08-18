@@ -33,8 +33,8 @@
 #if CONFIG_USR_GPIO_CFG_EN
 #include "gpio_driver.h"
 #include "usr_gpio_cfg.h"
-#ifndef GPIO_AP_OWNED_INTERRUPT_MASK
-#define GPIO_AP_OWNED_INTERRUPT_MASK              (0)
+#ifndef GPIO_IS_AP_OWNED_INTERRUPT
+#define GPIO_IS_AP_OWNED_INTERRUPT(gpio_id)       (false)
 #endif
 #endif
 
@@ -457,7 +457,7 @@ static void gpio_isr(void)
 				/* AP-owned GPIO interrupts share the GPIO controller with CP.
 				 * Leave their enable and pending state untouched so the AP ISR
 				 * can service and clear them. */
-				if (GPIO_AP_OWNED_INTERRUPT_MASK & BIT64(gpio_id)) {
+				if (GPIO_IS_AP_OWNED_INTERRUPT(gpio_id)) {
 					continue;
 				}
 
