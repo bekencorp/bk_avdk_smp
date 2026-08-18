@@ -816,6 +816,15 @@ bool lv_camera_blend_async_is_active(lv_camera_blend_async_handle_t handle)
     return handle != NULL && handle->active && !handle->stopping;
 }
 
+uint32_t lv_camera_blend_async_get_bg_sequence(lv_camera_blend_async_handle_t handle)
+{
+    if (!lv_camera_blend_async_is_active(handle) || handle->blend == NULL) {
+        return 0;
+    }
+
+    return lv_camera_blend_get_bg_sequence(handle->blend);
+}
+
 bk_err_t lv_camera_blend_async_push_camera_frame(lv_camera_blend_async_handle_t handle,
                                                  const lv_camera_blend_camera_frame_t *camera,
                                                  uint32_t frame_size,

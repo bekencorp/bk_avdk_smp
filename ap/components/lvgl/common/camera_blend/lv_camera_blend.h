@@ -91,6 +91,7 @@ bk_err_t lv_camera_blend_async_start(lv_camera_blend_async_handle_t *handle,
                                      const lv_camera_blend_async_config_t *config);
 void lv_camera_blend_async_stop(lv_camera_blend_async_handle_t handle);
 bool lv_camera_blend_async_is_active(lv_camera_blend_async_handle_t handle);
+uint32_t lv_camera_blend_async_get_bg_sequence(lv_camera_blend_async_handle_t handle);
 bk_err_t lv_camera_blend_async_push_camera_frame(lv_camera_blend_async_handle_t handle,
                                                  const lv_camera_blend_camera_frame_t *camera,
                                                  uint32_t frame_size,
