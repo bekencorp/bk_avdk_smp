@@ -230,10 +230,12 @@ const VECTOR_TABLE_Type __VECTOR_IRAM[] __VECTOR_IRAM_ATTRIBUTE = {
 __NO_RETURN ENTRY_SECTION __attribute__((naked)) void Reset_Handler(void)
 {
     __asm volatile(
-#if CONFIG_DIRECT_XIP
+#if CONFIG_DIRECT_XIP || CONFIG_OTA_OVERWRITE
         /*
          * This call and the fastboot probe are stackless. If the probe
          * returns, install the BL2 stack and continue with a normal boot.
+         * XIP restores A/B remap from the retention record; OVERWRITE just
+         * jumps to TF-M (single execute slot).
          */
         "bl bl2_deepsleep_fastboot\n"
 #endif

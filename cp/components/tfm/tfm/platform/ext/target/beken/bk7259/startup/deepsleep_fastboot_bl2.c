@@ -13,17 +13,24 @@
  * This path runs before BL2 installs its stack and before SystemInit().
  * It must remain one naked assembly function: no C call, local variable,
  * writable static state, libc access or initialized driver is allowed.
+ *
+ * CONFIG_DIRECT_XIP:
+ *   Validate the TF-M retention record, restore A/B flash remap, then jump.
+ * CONFIG_OTA_OVERWRITE:
+ *   Single execute slot — on deepsleep fast_boot just jump to TF-M. No
+ *   retention record, no remap programming, no error logging.
  */
 #define BL2_DS_ENTRY       __attribute__((section(".fix.reset_entry")))
 #define BL2_DS_STRINGIFY_(x) #x
 #define BL2_DS_STRINGIFY(x)  BL2_DS_STRINGIFY_(x)
 
-#if CONFIG_DIRECT_XIP
-#define BL2_DS_RETENTION_MAGIC     (0x46584252) /* Little-endian "RBXF": Retention Boot XIP Flash record. */ 
-#define BL2_DS_RETENTION_MAGIC_INV (0xB9A7BDAD) 
-
 #define BL2_DS_ANA_REG14_ADDR      (SOC_SYS_REG_BASE + (0x4E * 4))
 #define BL2_DS_PMU_SHADOW_ADDR     (SOC_AON_PMU_REG_BASE + (0x7B * 4))
+
+#if CONFIG_DIRECT_XIP
+#define BL2_DS_RETENTION_MAGIC     (0x46584252) /* Little-endian "RBXF": Retention Boot XIP Flash record. */
+#define BL2_DS_RETENTION_MAGIC_INV (0xB9A7BDAD)
+
 #define BL2_DS_FLASH_PS_CTRL_ADDR  (SOC_FLASH_REG_BASE + (0x0B * 4))
 #define BL2_DS_FLASH_OFFSET_ADDR   (SOC_FLASH_REG_BASE + (0x18 * 4))
 #define BL2_DS_FLASH_CTRL_ADDR     (SOC_FLASH_REG_BASE + (0x19 * 4))
@@ -39,6 +46,7 @@
  */
 __attribute__((naked)) int BL2_DS_ENTRY bl2_deepsleep_fastboot(void)
 {
+#if CONFIG_DIRECT_XIP
 	__asm volatile(
 		/* Restore the ALO-to-core power switch before reading AON state. */
 		"ldr r0, =" BL2_DS_STRINGIFY(BL2_DS_ANA_REG14_ADDR) "\n"
@@ -183,4 +191,86 @@ __attribute__((naked)) int BL2_DS_ENTRY bl2_deepsleep_fastboot(void)
 		"movs r0, #0\n"
 		"bx lr\n"
 	);
+#elif CONFIG_OTA_OVERWRITE
+	/*
+	 * Compressed-overwrite: one execute slot (primary_all). On deepsleep
+	 * fast_boot, skip BL2 image selection / decompress and jump straight
+	 * to TF-M. Failures fall through silently to the normal BL2 path.
+	 */
+	__asm volatile(
+		/* Restore the ALO-to-core power switch before reading AON state. */
+		"ldr r0, =" BL2_DS_STRINGIFY(BL2_DS_ANA_REG14_ADDR) "\n"
+		"ldr r1, [r0]\n"
+		"orr r1, r1, #1\n"
+		"str r1, [r0]\n"
+		"dsb\n"
+		"isb\n"
+
+		/* R7B is the retained shadow of AON PMU R0. */
+		"ldr r0, =" BL2_DS_STRINGIFY(BL2_DS_PMU_SHADOW_ADDR) "\n"
+		"ldr r1, [r0]\n"
+		"tst r1, #0x2\n"             /* fast_boot */
+		"beq 9f\n"
+
+		/* Validate the TF-M secure vector without touching RAM. */
+		"ldr r0, =" BL2_DS_STRINGIFY(S_CODE_START) "\n"
+		"ldr r1, [r0]\n"             /* target MSP */
+		"ldr r2, [r0, #4]\n"         /* target Reset_Handler */
+		"cmp r1, #0\n"
+		"beq 9f\n"
+		"tst r1, #7\n"
+		"bne 9f\n"
+		"ldr r3, =" BL2_DS_STRINGIFY(S_DATA_START) "\n"
+		"cmp r1, r3\n"
+		"bls 9f\n"
+		"ldr r3, =" BL2_DS_STRINGIFY(S_DATA_LIMIT + 1) "\n"
+		"cmp r1, r3\n"
+		"bhi 9f\n"
+		"tst r2, #1\n"
+		"beq 9f\n"
+		"bic r3, r2, #1\n"
+		"ldr r4, =" BL2_DS_STRINGIFY(S_CODE_START) "\n"
+		"cmp r3, r4\n"
+		"blo 9f\n"
+		"ldr r4, =" BL2_DS_STRINGIFY(S_CODE_LIMIT) "\n"
+		"cmp r3, r4\n"
+		"bhi 9f\n"
+
+		/* Switch stacks only at the final branch; no instruction pushes. */
+		"cpsid i\n"
+		"ldr r3, =0xE000ED08\n"      /* SCB->VTOR */
+		"str r0, [r3]\n"
+		"mov r7, r2\n"
+		"movs r2, #0\n"
+		"msr msplim, r2\n"
+		"msr psplim, r2\n"
+		"msr msp, r1\n"
+		"mov r0, r2\n"
+		"mov r1, r2\n"
+		"mov r3, r2\n"
+		"mov r4, r2\n"
+		"mov r5, r2\n"
+		"mov r6, r2\n"
+		"mov r8, r2\n"
+		"mov r9, r2\n"
+		"mov r10, r2\n"
+		"mov r11, r2\n"
+		"mov r12, r2\n"
+		"mov lr, r2\n"
+		"dsb\n"
+		"isb\n"
+		"cpsie i\n"
+		"bx r7\n"
+
+		/* Normal BL2 path: return without ever reading or writing the stack. */
+		"9:\n"
+		"movs r0, #0\n"
+		"bx lr\n"
+	);
+#else
+	__asm volatile(
+		"movs r0, #0\n"
+		"bx lr\n"
+	);
+#endif
 }
