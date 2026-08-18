@@ -67,11 +67,11 @@ static void isp_gpu_bond_isp_flexa_done(uint32_t wr_ptr, void *args)
 	in_stream->last_lines = wr_ptr;
 	bk_gpu_ctlr_handle_t gpuh = (bk_gpu_ctlr_handle_t)out_stream->handle;
 	if (gpuh != NULL) {
-		bk_gpu_flexa_event_t event = {
+		bk_gpu_isp_flexa_event_t event = {
 			.frame_seq = in_stream->last_seq,
 			.line_cnt = wr_ptr,
 		};
-		bk_gpu_ioctl(gpuh, BK_GPU_IOCTL_SET_FLEXA_EVENT_READY, &event);
+		bk_gpu_ioctl(gpuh, BK_GPU_IOCTL_ISP_FLEXA_READY, &event);
 	}
 }
 

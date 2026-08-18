@@ -50,7 +50,7 @@ static void gpu_bond_mjpegd_flexa_done(uint32_t wr_ptr, void *args)
 	in_stream->last_lines = wr_ptr;
 	bk_gpu_ctlr_handle_t gpu = (bk_gpu_ctlr_handle_t)out_stream->handle;
 	if (gpu != NULL) {
-		bk_gpu_ioctl(gpu, BK_GPU_IOCTL_SET_FLEXA_LINES_READY, (void *)wr_ptr);
+		bk_gpu_ioctl(gpu, BK_GPU_IOCTL_DEC_FLEXA_READY, (void *)wr_ptr);
 	}
 }
 
