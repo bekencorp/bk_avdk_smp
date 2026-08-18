@@ -21,6 +21,7 @@ extern "C" {
 #include <stdint.h>
 #include <avdk_error.h>
 #include <driver/hal/hal_yuv_buf_types.h>
+#include <driver/isp_types.h>
 
 
 typedef enum
@@ -80,6 +81,9 @@ typedef enum
     BK_CAM_IOCTL_SET_SKIP_FRAMES, /**< Set skip_frames for a channel before channel_open; arg = bk_isp_camera_skip_frames_config_t * */
     BK_CAM_IOCTL_GET_CPROC, /**< Get CPROC attributes; arg = bk_isp_cproc_attr_t * */
     BK_CAM_IOCTL_SET_CPROC, /**< Set CPROC attributes; arg = bk_isp_cproc_attr_t * */
+    BK_CAM_IOCTL_QUERY_EXPOSURE_INFO, /**< Query current AE result; arg = bk_isp_camera_exposure_info_t * */
+    BK_CAM_IOCTL_SET_INITIAL_EXPOSURE, /**< Seed manual exposure before channel open; arg = bk_isp_camera_exposure_info_t * */
+    BK_CAM_IOCTL_RESUME_AUTO_EXPOSURE, /**< Resume auto AE after the initial frame; arg = NULL */
 } bk_cam_interface_ioctl_t;
 
 /**
@@ -128,6 +132,11 @@ typedef struct
     bk_isp_cproc_manual_attr_t manual;   /**< Manual attributes */
     bk_isp_cproc_auto_attr_t auto_attr;  /**< Auto attributes */
 } bk_isp_cproc_attr_t;
+
+/**
+ * @brief Current or initial exposure information for camera AE IOCTLs.
+ */
+typedef bk_isp_exposure_info_t bk_isp_camera_exposure_info_t;
 
 /**
  * @brief Camera ISP instance configuration structure

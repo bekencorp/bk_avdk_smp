@@ -190,7 +190,10 @@ typedef struct vsiAE_SNS_FUNC_S {
 typedef struct vsiISP_SNS_OBJ_S {
     int (*pfnInitIspSnsFunc) (ISP_SNS_FUNC_S *pIspSnsFunc);  /**< \brief Pointer to the function of initializing the sensor functions. */
     int (*pfnInitAeSnsFunc)  (AE_SNS_FUNC_S *pAeSnsFunc);    /**< \brief Pointer to the function of initializing functions used by the AE to control the sensor. */
+    void *userData;                                           /**< \brief Per-instance Sensor private context. */
 } ISP_SNS_OBJ_S;
+
+void *VSI_ISP_SnsGetUserData(ISP_PORT IspPort);
 
 /* @} vsi_comm_sns */
 

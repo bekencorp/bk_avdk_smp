@@ -61,6 +61,14 @@ bk_err_t bk_isp_get_cproc_attr(isp_handle_t *handle, void *cproc_attr);
 
 bk_err_t bk_isp_set_cproc_attr(isp_handle_t *handle, void *cproc_attr);
 
+bk_err_t bk_isp_query_exposure_info(isp_handle_t *handle,
+                                    bk_isp_exposure_info_t *info);
+
+bk_err_t bk_isp_set_initial_exposure(
+    isp_handle_t *handle, const bk_isp_exposure_info_t *info);
+
+bk_err_t bk_isp_resume_auto_exposure(isp_handle_t *handle);
+
 #ifdef __cplusplus
 }
 #endif

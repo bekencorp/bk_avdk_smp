@@ -118,6 +118,15 @@ typedef struct {
     int (*free_buf) (ISP_CHN chn, VIDEO_BUF_S *pBuf);
 } isp_control_t;
 
+typedef struct {
+    uint32_t exposure_time_us;
+    uint32_t analog_gain;
+    uint32_t digital_gain;
+    uint32_t composite_exposure;
+    uint32_t iso;
+    uint32_t mean_luminance;
+} bk_isp_exposure_info_t;
+
 typedef void *isp_handle_t;
 
 

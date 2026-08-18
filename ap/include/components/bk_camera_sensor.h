@@ -70,6 +70,11 @@ typedef struct
 typedef struct bk_camera_sensor_ctlr_t *bk_camera_sensor_handle_t;
 typedef struct bk_camera_sensor_ctlr_t bk_camera_sensor_ctlr_t;
 
+typedef struct
+{
+    uint32_t exposure; /**< Composite AE exposure: intLine * again * dgain / ISP_SNS_GAIN_ACCU */
+} bk_camera_sensor_init_exposure_t;
+
 /**
  * @brief Camera sensor IOCTL commands
  */
@@ -77,6 +82,7 @@ typedef enum
 {
     BK_CAMERA_SENSOR_IOCTL_UNKNOWN = 0,
     BK_CAMERA_SENSOR_IOCTL_GET_DEFAULT_CPROC, /**< Get default CPROC from calib; arg = bk_isp_cproc_attr_t * */
+    BK_CAMERA_SENSOR_IOCTL_SET_INIT_EXPOSURE, /**< Set initial Sensor exposure; arg = bk_camera_sensor_init_exposure_t * */
 } bk_camera_sensor_ioctl_cmd_t;
 
 /**
@@ -96,6 +102,15 @@ struct bk_camera_sensor_ctlr_t
     avdk_err_t (*ioctl)(bk_camera_sensor_ctlr_t *controller, uint32_t cmd, void *arg);  /**< Sensor specific IOCTL */
 } ;
 
+typedef struct
+{
+    uint16_t width;
+    uint16_t height;
+    uint16_t fps;
+    bool hmirror;
+    bool vflip;
+    void *private_data; /**< Sensor-specific runtime context owned by this wrapper */
+} bk_camera_csi_sensor_data_t;
 
 /**
  * @brief CSI camera sensor structure
@@ -106,6 +121,7 @@ typedef struct
     const void *sensor_config;         /**< Pointer to sensor-specific configuration */
     bk_camera_sensor_config_t config; /**< Sensor configuration */
     bk_camera_sensor_ctlr_t ops;       /**< Sensor controller operations */
+    bk_camera_csi_sensor_data_t data;  /**< Sensor data */
 } bk_camera_csi_sensor_t;
 
 /**

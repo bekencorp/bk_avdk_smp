@@ -132,6 +132,19 @@ int VSI_MPI_ISP_GetHdrExposureAttr(ISP_PORT IspPort, ISP_HDR_EXPOSURE_ATTR_S *pH
  *****************************************************************************/
 int VSI_MPI_ISP_QueryExposureInfo(ISP_PORT IspPort,  ISP_EXPOSURE_INFO_S *pExpInfo);
 
+/*****************************************************************************/
+/**
+ * @brief   Commits staged exposure/gain values to Sensor registers. Values
+ *          are written immediately while stream-off; stream-on uses the
+ *          Sensor delay-frame synchronization path.
+ *
+ * @param   IspPort             Port ID
+ *
+ * @retval  VSI_SUCCESS         Operation succeeded
+ *
+ *****************************************************************************/
+int VSI_MPI_ISP_CommitExposureAttr(ISP_PORT IspPort);
+
 
 /*****************************************************************************/
 /**
