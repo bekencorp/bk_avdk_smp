@@ -1,1 +1,2 @@
-./dbuild.sh make bk7259 PROJECT=secureboot_xip
+./dbuild.sh make bk7259 PROJECT=secureboot_overwrite
+
