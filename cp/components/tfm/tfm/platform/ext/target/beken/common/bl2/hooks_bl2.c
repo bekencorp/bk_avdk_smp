@@ -17,12 +17,16 @@
  * the bootloader level is DEBUG, otherwise BL2 prints genuine errors only. */
 
 #include <assert.h>
+#include <string.h>
 #include "bootutil/image.h"
 #include "bootutil/bootutil.h"
 #include "bootutil/fault_injection_hardening.h"
 #include "flash_map_backend/flash_map_backend.h"
 #include "reg_base.h"
 #include "bk_tfm_log.h"
+#include "driver/flash.h"
+#include "bk_efuse.h"
+#include "bk_boot_verify.h"
 
 #define TAG "hook"
 #define BL2_HOOK_LOGD BK_LOGD
@@ -230,4 +234,40 @@ int flash_area_read_post_hook(const struct flash_area *area, uint32_t off, void 
 #endif
 
 	return 0;
+}
+
+/* BootROM / BL2 signature-verify magic at flash 0x100 (plaintext, after AES):
+ *   "BK.SB\n" (42 4B 2E 53 42 0A) -> require signature
+ *   anything else (e.g. "BEKEN\n") -> skip signature (BL2 still checks hash)
+ * Kept in sync with tools/env_tools/beken_utils/scripts/partition.py
+ * add_magic_code(), which selects it from security.csv sig_verify_en. */
+static const uint8_t BK_BOOT_VERIFY_MAGIC[6] = {0x42, 0x4B, 0x2E, 0x53, 0x42, 0x0A};
+#define BK_BOOT_VERIFY_MAGIC_OFFSET  (0x100)
+
+bool bk_boot_flash_sig_magic_enabled(void)
+{
+	uint8_t magic[sizeof(BK_BOOT_VERIFY_MAGIC)] = {0};
+
+	if (bk_flash_read_bytes(BK_BOOT_VERIFY_MAGIC_OFFSET, magic, sizeof(magic)) != BK_OK) {
+		/* Fail safe: treat unread magic as "signature required". */
+		return true;
+	}
+
+	return (memcmp(magic, BK_BOOT_VERIFY_MAGIC, sizeof(BK_BOOT_VERIFY_MAGIC)) == 0);
+}
+
+bool bk_boot_verify_required(void)
+{
+	/* efuse bit3 (secure_boot_supported) forces signature verification once
+	 * burned and outranks the flash magic. When BL2_VALIDATE_ENABLED_BY_EFUSE
+	 * is off this returns true unconditionally, preserving the always-verify
+	 * behaviour. Image hash is always validated regardless of this return. */
+	if (efuse_is_secureboot_enabled()) {
+		return true;
+	}
+
+	/* Not locked by efuse: fall back to the 0x100 magic. The magic is
+	 * plaintext even in encrypted (FIXED) images, so the compare holds for
+	 * both NONE and FIXED builds. */
+	return bk_boot_flash_sig_magic_enabled();
 }

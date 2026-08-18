@@ -56,7 +56,6 @@
 #include "hal_hw_fih.h"
 #include "hal_sw_fih.h"
 #include "tfm_plat_otp.h"
-#include "bk_efuse.h"
 
 #ifdef MCUBOOT_ENC_IMAGES
 #include "bootutil/enc_key.h"
@@ -1194,19 +1193,15 @@ boot_validated_swap_type(struct boot_loader_state *state,
     }
     if (BOOT_IS_UPGRADE(swap_type)) {
         /* Boot loader wants to switch to the secondary slot.
-         * Ensure image is valid.
+         * Always validate (hash at minimum; signature when policy requires).
          */
-    
-        //if (efuse_is_secureboot_enabled()) {
-        if(1){ //for test
-            FIH_CALL(boot_validate_slot, fih_rc, state, BOOT_SECONDARY_SLOT, bs);
-            if (FIH_NOT_EQ(fih_rc, FIH_SUCCESS)) {
-                BOOT_LOG_ERR("validate encrypted image error");
-                if (FIH_EQ(fih_rc, FIH_NO_BOOTABLE_IMAGE)) {
-                    swap_type = BOOT_SWAP_TYPE_NONE;
-                } else {
-                    swap_type = BOOT_SWAP_TYPE_FAIL;
-                }
+        FIH_CALL(boot_validate_slot, fih_rc, state, BOOT_SECONDARY_SLOT, bs);
+        if (FIH_NOT_EQ(fih_rc, FIH_SUCCESS)) {
+            BOOT_LOG_ERR("validate encrypted image error");
+            if (FIH_EQ(fih_rc, FIH_NO_BOOTABLE_IMAGE)) {
+                swap_type = BOOT_SWAP_TYPE_NONE;
+            } else {
+                swap_type = BOOT_SWAP_TYPE_FAIL;
             }
         }
     }
@@ -1896,22 +1891,21 @@ context_boot_go(struct boot_loader_state *state, struct boot_rsp *rsp)
              * the primary slot. */
         }
 
-        //if (efuse_is_secureboot_enabled()) {
-        if(1){ // for test
-            FIH_CALL(boot_validate_slot, fih_rc, state, BOOT_PRIMARY_SLOT, NULL);
-	        /* Check for all possible values is redundant in normal operation it
-	         * is meant to prevent FI attack.
-	         */
-	        if (FIH_NOT_EQ(fih_rc, FIH_SUCCESS) ||
-	            FIH_EQ(fih_rc, FIH_FAILURE) ||
-	            FIH_EQ(fih_rc, FIH_NO_BOOTABLE_IMAGE)) {
-	            FIH_SET(fih_rc, FIH_FAILURE);
-                BOOT_LOG_ERR("Validate primary image fail");
-	            goto out;
-			}
-        } else {
-            BOOT_LOG_INF("Overwrite update success");
+        /* Always re-validate primary after overwrite: hash is mandatory;
+         * signature is enforced inside bootutil_img_validate when policy
+         * (efuse / flash magic) requires it. */
+        FIH_CALL(boot_validate_slot, fih_rc, state, BOOT_PRIMARY_SLOT, NULL);
+        /* Check for all possible values is redundant in normal operation it
+         * is meant to prevent FI attack.
+         */
+        if (FIH_NOT_EQ(fih_rc, FIH_SUCCESS) ||
+            FIH_EQ(fih_rc, FIH_FAILURE) ||
+            FIH_EQ(fih_rc, FIH_NO_BOOTABLE_IMAGE)) {
+            FIH_SET(fih_rc, FIH_FAILURE);
+            BOOT_LOG_ERR("Validate primary image fail");
+            goto out;
         }
+        BOOT_LOG_INF("Overwrite update success");
 
         rc = boot_update_hw_rollback_protection(state);
         if (rc != 0) {

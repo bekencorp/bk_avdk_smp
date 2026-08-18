@@ -59,6 +59,7 @@
 #include "hal_hw_fih.h"
 #include "hal_sw_fih.h"
 #include "bk_sca_defense.h"
+#include "bk_boot_verify.h"
 /* DIRECT_XIP A/B: read PARTITION_PRIMARY_ALL/SECONDARY_ALL phy offsets so the
  * secondary slot can be hashed through the primary XIP execute window (remap). */
 #include "tfm_flash_partition.h"
@@ -395,6 +396,8 @@ bootutil_img_validate(struct enc_key_data *enc_state, int image_index,
     uint16_t len;
     uint16_t type;
     int image_hash_valid = 0;
+    /* false: hash-only (skip key/sig/sec_cnt); true: full verify. */
+    bool sig_required = bk_boot_verify_required();
 #ifdef EXPECTED_SIG_TLV
     FIH_DECLARE(valid_signature, FIH_FAILURE);
     FIH_DECLARE(valid_signature1, FIH_FAILURE);
@@ -496,6 +499,7 @@ bootutil_img_validate(struct enc_key_data *enc_state, int image_index,
             bk_fih_set_src(FIH_DATA_IMG_HASH, *(uint32_t*)hash);
             FIH_CALL(boot_fih_memequal, fih_rc, hash, buf, sizeof(hash));
             if (FIH_NOT_EQ(fih_rc, FIH_SUCCESS)) {
+                BOOT_LOG_ERR("hash verify failed");
                 FIH_SET(fih_rc, FIH_FAILURE);
                 goto out;
             }
@@ -503,6 +507,9 @@ bootutil_img_validate(struct enc_key_data *enc_state, int image_index,
             bk_sw_fih_set_data(FIH_SW_INDEX14);
 
             image_hash_valid = 1;
+        } else if (!sig_required) {
+            /* Hash-only policy: skip key / signature / sec_cnt / other TLVs. */
+            continue;
 #ifdef EXPECTED_KEY_TLV
         } else if (type == EXPECTED_KEY_TLV) {
             bk_sw_fih_set_data(FIH_SW_INDEX15);
@@ -603,15 +610,26 @@ bootutil_img_validate(struct enc_key_data *enc_state, int image_index,
     if (rc) {
         goto out;
     }
+    if (!sig_required) {
+        BOOT_LOG_INF("hash-only OK, skipped verifying");
+        FIH_SET(fih_rc, FIH_SUCCESS);
+    } else {
 #ifdef EXPECTED_SIG_TLV
-    FIH_SET(fih_rc, valid_signature);
+        /* Take ECDSA result; may be SUCCESS or FAILURE. */
+        FIH_SET(fih_rc, valid_signature);
+        if (FIH_EQ(fih_rc, FIH_SUCCESS)) {
+            BOOT_LOG_INF("signature verify OK");
+        } else {
+            BOOT_LOG_ERR("signature verify fail");
+        }
 #endif
 #ifdef MCUBOOT_HW_ROLLBACK_PROT
-    if (FIH_NOT_EQ(security_counter_valid, FIH_SUCCESS)) {
-        rc = -1;
-        goto out;
-    }
+        if (FIH_NOT_EQ(security_counter_valid, FIH_SUCCESS)) {
+            rc = -1;
+            goto out;
+        }
 #endif
+    }
 
 out:
     if (rc) {
