@@ -21,17 +21,46 @@
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
 
+#define ISP_CAMERA_READ_IDLE_TIMEOUT_MS 100
+
 static void isp_camera_ctlr_task_entry(void *param)
 {
-    // only support sp
     int ret = BK_FAIL;
-    bk_camera_isp_ctlr_t *cam_control = (bk_camera_isp_ctlr_t *)param;
-    isp_control_t *isp_control = (isp_control_t *)cam_control->isp_handle;
-    cam_control->chnl = 0;
+    isp_channel_read_ctx_t *read_ctx = (isp_channel_read_ctx_t *)param;
+    bk_camera_isp_ctlr_t *cam_control = NULL;
+    isp_control_t *isp_control = NULL;
     isp_channel_config_t *config = NULL;
-    while (cam_control->thread_enable)
+
+    if (read_ctx == NULL || read_ctx->controller == NULL)
     {
-        uint8_t chnl_id = cam_control->chnl;
+        LOGE("%s, invalid read context\n", __func__);
+        rtos_delete_thread(NULL);
+        return;
+    }
+
+    cam_control = (bk_camera_isp_ctlr_t *)read_ctx->controller;
+    isp_control = (isp_control_t *)cam_control->isp_handle;
+    if (isp_control == NULL)
+    {
+        LOGE("%s, isp_control is NULL\n", __func__);
+        rtos_delete_thread(NULL);
+        return;
+    }
+
+    while (read_ctx->thread_enable)
+    {
+        ret = rtos_get_semaphore(&read_ctx->req_sem, BEKEN_WAIT_FOREVER);
+        if (ret != BK_OK)
+        {
+            continue;
+        }
+
+        if (read_ctx->thread_enable == false)
+        {
+            break;
+        }
+
+        uint8_t chnl_id = read_ctx->channel;
         config = &isp_control->chn[chnl_id];
         if (config == NULL || config->enable == false)
         {
@@ -47,20 +76,26 @@ static void isp_camera_ctlr_task_entry(void *param)
             continue;
         }
 
-        VIDEO_BUF_S buf;
-        ret = isp_control->pop_buf(config->channel, &buf, cam_control->read_timeout);
-        if (ret == VSI_ERR_NOT_READY)
-        {
-            /* StreamOff aborted DQBUF; exit cam_thread cleanly. */
-            cam_control->thread_enable = false;
-            break;
-        }
-        if (ret != BK_OK)
+        if (read_ctx->read_enable == false || read_ctx->frame == NULL)
         {
             continue;
         }
 
-        if (cam_control->read_register && cam_control->read_enable && cam_control->frame)
+        VIDEO_BUF_S buf;
+        ret = isp_control->pop_buf(config->channel, &buf, read_ctx->read_timeout);
+        if (ret == VSI_ERR_NOT_READY)
+        {
+            /* StreamOff aborted DQBUF; exit cam_thread cleanly. */
+            read_ctx->thread_enable = false;
+            break;
+        }
+        if (ret != BK_OK)
+        {
+            LOGW("%s, channel %d pop_buf timeout %dms ret=%d\n", __func__, chnl_id, read_ctx->read_timeout, ret);
+            continue;
+        }
+
+        if (read_ctx->read_enable && read_ctx->frame)
         {
             uint32_t copied = 0;
             uint8_t plane_cnt = buf.numPlanes ? buf.numPlanes : 1;
@@ -85,27 +120,27 @@ static void isp_camera_ctlr_task_entry(void *param)
                     continue;
                 }
 
-                if (copied + plen > cam_control->size)
+                if (copied + plen > read_ctx->size)
                 {
                     LOGE("%s, frame size overflow, %u + %u > %u\n",
-                         __func__, copied, plen, cam_control->size);
+                         __func__, copied, plen, read_ctx->size);
                     copied = 0;
                     break;
                 }
 
                 arch_dcache_flush_and_invd_range(src, plen);
-                os_memcpy(cam_control->frame + copied, src, plen);
+                os_memcpy(read_ctx->frame + copied, src, plen);
                 copied += plen;
             }
 
             if (copied == 0)
             {
                 LOGE("%s, no plane data copied\n", __func__);
-                cam_control->size = 0;
+                read_ctx->size = 0;
             }
 
-            cam_control->read_enable = false;
-            rtos_set_semaphore(&cam_control->sem);
+            read_ctx->read_enable = false;
+            rtos_set_semaphore(&read_ctx->sem);
         }
 
         isp_control->free_buf(config->channel, &buf);
@@ -118,6 +153,124 @@ static void isp_camera_ctlr_task_entry(void *param)
 static void camera_frame_complete_callback(uint32_t seqence, uint32_t line, uint8_t chnl, uint8_t ok, void *param)
 {
 
+}
+
+static avdk_err_t isp_camera_ctlr_start_channel_reader(bk_camera_isp_ctlr_t *control, uint8_t channel)
+{
+    avdk_err_t ret = AVDK_ERR_GENERIC;
+    isp_channel_read_ctx_t *read_ctx = NULL;
+
+    AVDK_RETURN_ON_FALSE(control, AVDK_ERR_INVAL, TAG, "control is NULL");
+    AVDK_RETURN_ON_FALSE(channel < ISP_CHANNEL_INSTANCE_MAX, AVDK_ERR_INVAL, TAG, "channel out of range");
+
+    read_ctx = &control->read_ctx[channel];
+    if (read_ctx->thread_enable)
+    {
+        return AVDK_ERR_OK;
+    }
+
+    read_ctx->channel = channel;
+    read_ctx->controller = control;
+    read_ctx->read_timeout = ISP_CAMERA_READ_IDLE_TIMEOUT_MS;
+    read_ctx->read_enable = false;
+    read_ctx->frame = NULL;
+    read_ctx->size = 0;
+
+    ret = rtos_init_semaphore(&read_ctx->req_sem, 1);
+    if (ret != BK_OK)
+    {
+        LOGE("%s, %d channel %d req sem init error\n", __func__, __LINE__, channel);
+        return ret;
+    }
+
+    ret = rtos_init_semaphore(&read_ctx->sem, 1);
+    if (ret != BK_OK)
+    {
+        LOGE("%s, %d channel %d sem init error\n", __func__, __LINE__, channel);
+        rtos_deinit_semaphore(&read_ctx->req_sem);
+        read_ctx->req_sem = NULL;
+        return ret;
+    }
+
+    read_ctx->thread_enable = true;
+    ret = rtos_create_hsram_thread(&read_ctx->thread,
+                            BEKEN_DEFAULT_WORKER_PRIORITY,
+                            "cam_reader",
+                            (beken_thread_function_t)isp_camera_ctlr_task_entry,
+                            1024 * 2,
+                            (beken_thread_arg_t)read_ctx);
+    if (ret != BK_OK)
+    {
+        LOGE("%s, %d channel %d cam task create fail\n", __func__, __LINE__, channel);
+        read_ctx->thread_enable = false;
+        if (read_ctx->sem)
+        {
+            rtos_deinit_semaphore(&read_ctx->sem);
+            read_ctx->sem = NULL;
+        }
+        if (read_ctx->req_sem)
+        {
+            rtos_deinit_semaphore(&read_ctx->req_sem);
+            read_ctx->req_sem = NULL;
+        }
+        return ret;
+    }
+
+    LOGI("%s, channel %d reader started\n", __func__, channel);
+    return AVDK_ERR_OK;
+}
+
+static void isp_camera_ctlr_stop_channel_reader(bk_camera_isp_ctlr_t *control, uint8_t channel)
+{
+    isp_channel_read_ctx_t *read_ctx = NULL;
+
+    if (control == NULL || channel >= ISP_CHANNEL_INSTANCE_MAX)
+    {
+        return;
+    }
+
+    read_ctx = &control->read_ctx[channel];
+    /* May already have exited on StreamOff NOT_READY; still join by handle. */
+    read_ctx->thread_enable = false;
+    if (read_ctx->req_sem)
+    {
+        rtos_set_semaphore(&read_ctx->req_sem);
+    }
+    if (read_ctx->thread)
+    {
+        rtos_thread_join(&read_ctx->thread);
+        read_ctx->thread = NULL;
+    }
+
+    if (read_ctx->sem)
+    {
+        rtos_deinit_semaphore(&read_ctx->sem);
+        read_ctx->sem = NULL;
+    }
+
+    if (read_ctx->req_sem)
+    {
+        rtos_deinit_semaphore(&read_ctx->req_sem);
+        read_ctx->req_sem = NULL;
+    }
+
+    read_ctx->read_enable = false;
+    read_ctx->frame = NULL;
+    read_ctx->size = 0;
+    read_ctx->read_timeout = 0;
+}
+
+static void isp_camera_ctlr_stop_all_readers(bk_camera_isp_ctlr_t *control)
+{
+    if (control == NULL)
+    {
+        return;
+    }
+
+    for (uint8_t channel = 0; channel < ISP_CHANNEL_INSTANCE_MAX; channel++)
+    {
+        isp_camera_ctlr_stop_channel_reader(control, channel);
+    }
 }
 
 static bk_err_t isp_camera_ctlr_dev_init(bk_isp_camera_ctlr_handle_t handle)
@@ -198,18 +351,8 @@ static avdk_err_t isp_camera_ctlr_deinit(bk_isp_camera_ctlr_handle_t handle)
         return ret;
     }
 
-    /* Stop cam_thread if still alive (may already have exited on StreamOff). */
-    control->thread_enable = false;
-    if (control->thread)
-    {
-        rtos_thread_join(&control->thread);
-        control->thread = NULL;
-    }
-    if (control->sem)
-    {
-        rtos_deinit_semaphore(&control->sem);
-        control->sem = NULL;
-    }
+    /* Stop per-channel readers if still alive (may already have exited on StreamOff). */
+    isp_camera_ctlr_stop_all_readers(control);
 
     // Deinitialize ISP core resources (threads, buffers, semaphores, etc.)
     if (control->isp_handle)
@@ -229,53 +372,18 @@ static avdk_err_t isp_camera_ctlr_deinit(bk_isp_camera_ctlr_handle_t handle)
 
 static avdk_err_t isp_camera_csi_sensor_open(bk_camera_isp_ctlr_t *control, void *is_handler)
 {
-    avdk_err_t ret = AVDK_ERR_GENERIC;
-
     if (control->state != CAM_FSM_INIT)
     {
         LOGE("%s, %d camera not init\n", __func__, __LINE__);
-        return ret;
-    }
-
-    ret = rtos_init_semaphore(&control->sem, 1);
-    if (ret != BK_OK)
-    {
-        LOGE("%s, %d sem init error\n", __func__, __LINE__);
-        return ret;
+        return AVDK_ERR_GENERIC;
     }
 
     control->isp_handle = is_handler;
-    control->thread_enable = true;
-    ret = rtos_create_hsram_thread(&control->thread,
-                            BEKEN_DEFAULT_WORKER_PRIORITY,
-                            "cam_thread",
-                            (beken_thread_function_t)isp_camera_ctlr_task_entry,
-                            1024 * 2,
-                            (beken_thread_arg_t)control);
-    if (ret != BK_OK)
-    {
-        LOGE("%s, %d cam task create fail\n", __func__, __LINE__);
-        control->thread_enable = false;
-        if (control->sem)
-        {
-            rtos_deinit_semaphore(&control->sem);
-        }
-        return ret;
-    }
-
-    if (ret != BK_OK)
-    {
-        LOGE("%s, %d cannot find camera sensor\n", __func__, __LINE__);
-        return ret;
-    }
+    control->state = CAM_FSM_ENABLE;
 
     LOGI("%s, %d\n", __func__, __LINE__);
 
-    control->state = CAM_FSM_ENABLE;
-
-    ret = BK_OK;
-
-    return ret;
+    return AVDK_ERR_OK;
 }
 
 static avdk_err_t isp_camera_ctlr_read(bk_isp_camera_ctlr_handle_t handle, uint16_t id, uint8_t *frame, uint32_t size, uint32_t timeout)
@@ -284,10 +392,13 @@ static avdk_err_t isp_camera_ctlr_read(bk_isp_camera_ctlr_handle_t handle, uint1
 
     bk_camera_isp_ctlr_t *control = __containerof(handle, bk_camera_isp_ctlr_t, ops);
     AVDK_RETURN_ON_FALSE(control != NULL, ret, TAG, "control is NULL");
+    AVDK_RETURN_ON_FALSE(id < ISP_CHANNEL_INSTANCE_MAX, AVDK_ERR_INVAL, TAG, "channel out of range");
 
-    if (control->state != CAM_FSM_ENABLE || control->thread_enable == false)
+    isp_channel_read_ctx_t *read_ctx = &control->read_ctx[id];
+
+    if (control->state != CAM_FSM_ENABLE || read_ctx->thread_enable == false)
     {
-        LOGE("%s, %d camera not enable\n", __func__, __LINE__);
+        LOGE("%s, %d camera channel %d not enable\n", __func__, __LINE__, id);
         return ret;
     }
 
@@ -302,33 +413,35 @@ static avdk_err_t isp_camera_ctlr_read(bk_isp_camera_ctlr_handle_t handle, uint1
         control->read_register = true;
     }
 
-    if (control->read_enable)
+    if (read_ctx->read_enable)
     {
-        LOGW("%s, %d state error!\n", __func__, __LINE__);
+        LOGW("%s, %d channel %d state error!\n", __func__, __LINE__, id);
         return ret;
     }
 
-    control->frame = frame;
-    control->chnl = id;
-    control->size = size;
-    control->read_enable = true;
-    control->read_timeout = timeout;
+    read_ctx->frame = frame;
+    read_ctx->size = size;
+    read_ctx->read_enable = true;
+    uint32_t wait_timeout = timeout ? timeout : ISP_CAMERA_READ_IDLE_TIMEOUT_MS;
+    read_ctx->read_timeout = wait_timeout;
 
-    ret = rtos_get_semaphore(&control->sem, timeout);
+    rtos_set_semaphore(&read_ctx->req_sem);
+    ret = rtos_get_semaphore(&read_ctx->sem, wait_timeout);
     if (ret != BK_OK)
     {
-        LOGW("%s, %d read timeout %dms\n", __func__, __LINE__, timeout);
+        LOGW("%s, %d channel %d read timeout %dms\n", __func__, __LINE__, id, wait_timeout);
+        read_ctx->read_enable = false;
     }
 
-    if (control->size == 0)
+    if (read_ctx->size == 0)
     {
         LOGW("%s, %d, frame size is 0\n", __func__, __LINE__);
         ret = AVDK_ERR_GENERIC;
     }
 
-    control->size = 0;
-    control->read_enable = false;
-    control->frame = NULL;
+    read_ctx->size = 0;
+    read_ctx->read_enable = false;
+    read_ctx->frame = NULL;
 
     return ret;
 }
@@ -338,8 +451,6 @@ static avdk_err_t isp_camera_ctlr_delete(bk_isp_camera_ctlr_handle_t handle)
     bk_camera_isp_ctlr_t *control = __containerof(handle, bk_camera_isp_ctlr_t, ops);
     AVDK_RETURN_ON_FALSE(control, AVDK_ERR_INVAL, TAG, "control is NULL");
 
-    //TODO
-
     os_free(control);
 
     return AVDK_ERR_OK;
@@ -348,6 +459,8 @@ static avdk_err_t isp_camera_ctlr_delete(bk_isp_camera_ctlr_handle_t handle)
 
 static avdk_err_t isp_camera_ctlr_channel_open(bk_isp_camera_ctlr_handle_t handle, uint8_t channel, bk_isp_camera_channel_config_t *config)
 {
+    avdk_err_t ret = AVDK_ERR_OK;
+
     AVDK_RETURN_ON_FALSE(handle, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
     AVDK_RETURN_ON_FALSE(config, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
     AVDK_RETURN_ON_FALSE(channel < 2, AVDK_ERR_INVAL, TAG, "channel out of range");
@@ -395,11 +508,29 @@ static avdk_err_t isp_camera_ctlr_channel_open(bk_isp_camera_ctlr_handle_t handl
     );
 
     AVDK_RETURN_ON_ERROR(bk_isp_open(&controller->isp_handle, &isp_config), TAG, "exe fail");
+    controller->chnl = channel;
 
-    if (controller->sensor_ctlr == 0 && isp_config.work_mode == 0)
+    if (isp_config.work_mode == 0)
     {
-        AVDK_RETURN_ON_ERROR(isp_camera_csi_sensor_open(controller, controller->isp_handle), TAG, "exe fail");
-        controller->sensor_ctlr++;
+        if (controller->sensor_ctlr == 0)
+        {
+            ret = isp_camera_csi_sensor_open(controller, controller->isp_handle);
+            if (ret != AVDK_ERR_OK)
+            {
+                (void)bk_isp_close(&controller->isp_handle, channel);
+                controller->channel_state[channel] = ISP_CHANNEL_STATE_TURN_OFF;
+                return ret;
+            }
+            controller->sensor_ctlr++;
+        }
+
+        ret = isp_camera_ctlr_start_channel_reader(controller, channel);
+        if (ret != AVDK_ERR_OK)
+        {
+            (void)bk_isp_close(&controller->isp_handle, channel);
+            controller->channel_state[channel] = ISP_CHANNEL_STATE_TURN_OFF;
+            return ret;
+        }
     }
 
     controller->channel_state[channel] = ISP_CHANNEL_STATE_TURN_ON;
@@ -422,6 +553,8 @@ static avdk_err_t isp_camera_ctlr_channel_close(bk_isp_camera_ctlr_handle_t hand
 
     controller->channel_state[channel] = ISP_CHANNEL_STATE_TURNING_OFF;
 
+    isp_camera_ctlr_stop_channel_reader(controller, channel);
+
     // Close ISP channel
     uint8_t chnl_id = channel;
     bk_err_t ret = bk_isp_close(&controller->isp_handle, chnl_id);
@@ -441,6 +574,7 @@ static avdk_err_t isp_camera_ctlr_channel_close(bk_isp_camera_ctlr_handle_t hand
         && controller->state == CAM_FSM_ENABLE)
     {
         controller->state = CAM_FSM_INIT;
+        controller->sensor_ctlr = 0;
         LOGI("%s, %d, all channels closed, state changed to INIT\n", __func__, __LINE__);
     }
 
