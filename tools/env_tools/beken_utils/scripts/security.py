@@ -9,6 +9,7 @@ from .parse_csv import *
 
 security_keys = [
     'secureboot_en',
+    'sig_verify_en',
     'flash_aes_type',
     'flash_aes_mode',
     'crc_en',
@@ -48,6 +49,16 @@ class Security(dict):
 
     def parse_csv(self):
         self.secureboot_en = parse_bool(self.csv.dic['secureboot_en'])
+
+        # sig_verify_en controls the BootROM/BL2 magic written at flash 0x100:
+        #   TRUE  -> "BK.SB" (require signature; BootROM + BL2)
+        #   FALSE -> "BEKEN" (skip signature; BL2 still verifies image hash)
+        # It is independent of secureboot_en (which decides whether the
+        # secureboot partition layout / signing is built at all). Optional and
+        # defaults to FALSE so existing security.csv files (and the R&D/customer
+        # default of a non-verifying, plaintext image) keep working unchanged.
+        self.sig_verify_en = parse_bool(self.csv.dic.get('sig_verify_en', 'FALSE'))
+
         self.flash_aes_type = self.csv.dic['flash_aes_type'].upper()
         self.flash_aes_mode = self.csv.dic.get('flash_aes_mode', 'AUTO').upper()
 

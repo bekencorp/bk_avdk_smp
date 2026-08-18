@@ -37,7 +37,7 @@ def pack_all(config_dir, aes_key):
 
     boot_ota = o.get_boot_ota()
 
-    p = Partitions('partitions.csv', ota_type, boot_ota, s.secureboot_en, s.crc_en)
+    p = Partitions('partitions.csv', ota_type, boot_ota, s.secureboot_en, s.crc_en, s.sig_verify_en)
 
     p.gen_bins_for_bl2_signing()
 

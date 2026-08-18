@@ -568,9 +568,20 @@ class Partition:
         return self.partitions.is_last_bin_verified_by_bl2(self.partition_name)
 
     def add_magic_code(self, bin_file):
-        print(f'Add magic code BK.SB to {bin_file}')
-        # 42 4B 2E 53 42 0A => "BK.SB" + 0x0A
-        binary_magic = bytes([0x42, 0x4B, 0x2E, 0x53, 0x42, 0x0A])
+        # BootROM/BL2 magic at flash 0x100 selects signature policy.
+        # Controlled by security.csv sig_verify_en:
+        #   TRUE  -> "BK.SB" (42 4B 2E 53 42 0A) : require signature
+        #   FALSE -> "BEKEN" (42 45 4B 45 4E 0A) : skip signature (BL2 still
+        #            verifies image hash for OTA / boot integrity)
+        # The magic is written in plaintext at 0x100 (after AES), so it is valid
+        # for both NONE and FIXED (encrypted) builds.
+        if self.partitions.sig_verify_en:
+            magic_name = 'BK.SB'
+            binary_magic = bytes([0x42, 0x4B, 0x2E, 0x53, 0x42, 0x0A])
+        else:
+            magic_name = 'BEKEN'
+            binary_magic = bytes([0x42, 0x45, 0x4B, 0x45, 0x4E, 0x0A])
+        print(f'Add magic code {magic_name} to {bin_file}')
         with open(bin_file, 'r+b') as f:
             f.seek(0x100)
             f.write(binary_magic)
@@ -1031,12 +1042,15 @@ class Partitions:
             for row in rows:
                 print(row)
 
-    def __init__(self, partition_csv, ota_type, boot_ota, bl1_secureboot_en, crc_en):
+    def __init__(self, partition_csv, ota_type, boot_ota, bl1_secureboot_en, crc_en, sig_verify_en=False):
         self.bl1_secureboot_en = bl1_secureboot_en
         self.partition_csv = partition_csv
         self.ota_type = ota_type
         self.boot_ota = boot_ota
         self.crc_en = crc_en
+        # sig_verify_en selects the BootROM/BL2 magic at flash 0x100:
+        # TRUE -> "BK.SB" (require signature), FALSE -> "BEKEN" (hash only in BL2).
+        self.sig_verify_en = sig_verify_en
 
         self.secondary_all_partitions_cnt = 0
         self.csv = Csv(partition_csv, True, partition_keys_v2, partition_keys_v1)
