@@ -339,6 +339,7 @@ SECTIONS
         . += BOOT_TFM_SHARED_DATA_SIZE;
     } > RAM
 
+#if CONFIG_DIRECT_XIP
     .bl2_fastboot_retention BL2_DS_RETENTION_ADDR (NOLOAD) :
     {
         __bl2_fastboot_retention_start__ = .;
@@ -350,6 +351,7 @@ SECTIONS
            "BL2 fastboot retention must follow shared data")
     ASSERT(SIZEOF(.bl2_fastboot_retention) == BL2_DS_RETENTION_SIZE,
            "BL2 fastboot retention record size mismatch")
+#endif /* CONFIG_DIRECT_XIP */
 
     .tfm_sleep_retention TFM_SLEEP_CONTEXT_ADDR (NOLOAD) :
     {
@@ -357,10 +359,18 @@ SECTIONS
         KEEP(*(.tfm_sleep_retention))
         __tfm_sleep_retention_end__ = .;
     } > RAM
+#if CONFIG_DIRECT_XIP
     ASSERT(ADDR(.tfm_sleep_retention) ==
            (ADDR(.bl2_fastboot_retention) +
             SIZEOF(.bl2_fastboot_retention)),
            "TF-M sleep retention must follow BL2 retention")
+#else
+    /* CONFIG_OTA_OVERWRITE (DIRECT_XIP=0): no .bl2_fastboot_retention section
+     * exists, so sleep retention follows the shared-data area directly. */
+    ASSERT(ADDR(.tfm_sleep_retention) ==
+           (ADDR(.tfm_bl2_shared_data) + SIZEOF(.tfm_bl2_shared_data)),
+           "TF-M sleep retention must follow shared data")
+#endif
     ASSERT(SIZEOF(.tfm_sleep_retention) <= TFM_SLEEP_CONTEXT_MAX_SIZE,
            "TF-M sleep retention exceeds reserved limit")
 

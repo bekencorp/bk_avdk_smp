@@ -166,9 +166,18 @@
 #define BOOT_TFM_SHARED_DATA_LIMIT (BOOT_TFM_SHARED_DATA_BASE + \
                                     BOOT_TFM_SHARED_DATA_SIZE - 1)
 
-/* Fixed BL2/TF-M fastboot ABI: directly after the shared-data area. */
+/* Fixed BL2/TF-M fastboot ABI: directly after the shared-data area.
+ * The 32-byte retention record only exists for direct-XIP boot
+ * (deepsleep_fastboot_retention.c is compiled under CONFIG_DIRECT_XIP). The
+ * compressed-overwrite project (CONFIG_OTA_OVERWRITE, DIRECT_XIP=0) has no such
+ * record, so the .bl2_fastboot_retention section is empty and its linker-script
+ * size ASSERT must expect 0. */
 #define BL2_DS_RETENTION_ADDR (BOOT_TFM_SHARED_DATA_LIMIT + 1)
+#if CONFIG_DIRECT_XIP
 #define BL2_DS_RETENTION_SIZE (0x20)
+#else
+#define BL2_DS_RETENTION_SIZE (0x0)
+#endif
 #define TFM_SLEEP_CONTEXT_ADDR (BL2_DS_RETENTION_ADDR + BL2_DS_RETENTION_SIZE)
 #define TFM_SLEEP_CONTEXT_MAX_SIZE (0x400)
 

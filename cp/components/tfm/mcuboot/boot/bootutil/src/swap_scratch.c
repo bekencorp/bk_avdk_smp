@@ -27,6 +27,10 @@
 #include "bootutil/bootutil_log.h"
 
 #include "mcuboot_config/mcuboot_config.h"
+/* Brings CONFIG_OTA_OVERWRITE (partitions_gen.h -> security.h -> _ota.h) so the
+ * compressed-overwrite short-circuit in boot_slots_compatible() below is enabled
+ * only for the secureboot_overwrite project. Mirrors loader.c's include. */
+#include "partitions_gen.h"
 
 BOOT_LOG_MODULE_DECLARE(mcuboot);
 
@@ -170,6 +174,17 @@ boot_status_internal_off(const struct boot_status *bs, int elem_sz)
 int
 boot_slots_compatible(struct boot_loader_state *state)
 {
+#if CONFIG_OTA_OVERWRITE
+    /* Compressed-overwrite OTA: the ota staging partition (compressed image,
+     * padded to partition size) and primary_all (decompressed) intentionally
+     * differ in size / sector layout, so the generic sector-compatibility check
+     * would fail ("slots have non-compatible sectors") and force
+     * BOOT_SWAP_TYPE_NONE, blocking the OVERWRITE_CONFIRM trigger in
+     * boot_validated_swap_type(). Decompression handles the size mismatch, so
+     * always report compatible here (matches BK7234). */
+    (void)state;
+    return 1;
+#else
     size_t num_sectors_primary;
     size_t num_sectors_secondary;
     size_t sz0, sz1;
@@ -255,6 +270,7 @@ boot_slots_compatible(struct boot_loader_state *state)
     }
 
     return 1;
+#endif /* CONFIG_OTA_OVERWRITE */
 }
 
 #define BOOT_LOG_SWAP_STATE(area, state)                            \

@@ -12,9 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/* Define MODULE_DEBUG_LOG_ENABLE (before components/log.h) to raise BK_LOG_LEVEL
- * to DEBUG and turn the dump_image_header() / offset diagnostics (BK_LOGD) back
- * on. Left off by default so BL2 only prints genuine errors. */
+/* MODULE_DEBUG_LOG_ENABLE (before components/log.h) raises BK_LOG_LEVEL to DEBUG
+ * and turns the dump_image_header() / offset diagnostics (BK_LOGD "hook ...")
+ * back on. Gated behind CONFIG_BL2_TRACE so it is OFF by default (BL2 only prints
+ * genuine errors, e.g. BL2_HOOK_LOGE "invalid img magic"). To re-enable the
+ * bring-up dumps, build BL2 with -DCONFIG_BL2_TRACE (same switch as loader.c). */
 #define MODULE_DEBUG_LOG_ENABLE
 
 #include <assert.h>

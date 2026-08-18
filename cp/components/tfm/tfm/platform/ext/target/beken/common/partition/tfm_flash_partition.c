@@ -34,6 +34,10 @@ const char *s_partition_name[PARTITION_CNT] = {
 	"primary_tfm_s",     /* PARTITION_PRIMARY_TFM_S    */
 	"primary_cpu0_app",  /* PARTITION_PRIMARY_CPU0_APP */
 	"boot_param",        /* PARTITION_BOOT_PARAM       */
+#if CONFIG_OTA_OVERWRITE
+	"ota",               /* PARTITION_OTA              */
+	"ota_control",       /* PARTITION_OTA_CONTROL      */
+#endif
 };
 
 static const partition_expected_t s_partition_expected[PARTITION_CNT] = {
@@ -77,6 +81,16 @@ static const partition_expected_t s_partition_expected[PARTITION_CNT] = {
 		CONFIG_BOOT_PARAM_PHY_PARTITION_OFFSET,
 		CONFIG_BOOT_PARAM_PHY_PARTITION_SIZE,
 	},
+#if CONFIG_OTA_OVERWRITE
+	[PARTITION_OTA] = {
+		CONFIG_OTA_PHY_PARTITION_OFFSET,
+		CONFIG_OTA_PHY_PARTITION_SIZE,
+	},
+	[PARTITION_OTA_CONTROL] = {
+		CONFIG_OTA_CONTROL_PHY_PARTITION_OFFSET,
+		CONFIG_OTA_CONTROL_PHY_PARTITION_SIZE,
+	},
+#endif
 };
 
 static int is_alpha(char c)

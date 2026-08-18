@@ -29,6 +29,8 @@ if(BL2)
 				${CMAKE_CURRENT_SOURCE_DIR}/flash_map.c
 				${CMAKE_CURRENT_SOURCE_DIR}/boot_param.c
 				${CMAKE_CURRENT_SOURCE_DIR}/boot_param_ops.c
+				# compressed-overwrite confirm flag: one copy for BL2 and SPE
+				${CMAKE_CURRENT_SOURCE_DIR}/ota_confirm.c
 				# ${TFM_BEKEN}/partition/flash_partition.c
 				# ${TFM_BEKEN}/nv_otp/rotpk.c
 				# ${TFM_BEKEN}/nv_otp/otp_flash.c
@@ -122,21 +124,32 @@ if(BL2)
 		)
 	endif()
 
-	# if(MCUBOOT_UPGRADE_STRATEGY STREQUAL OVERWRITE_ONLY)
-	# 	list(APPEND platform_bl2_src
-	# 		${TFM_BEKEN}/bl2/decompress_bl2.c
-	# 		${ARMINO_SDK_PATH}/components/compress/decompress.c
-	# 		${ARMINO_SDK_PATH}/components/compress/lzma.c
-	# 		${ARMINO_SDK_PATH}/components/compress/lzma1900/LzmaDec.c
-	# 		${TFM_BEKEN}/armino/driver/flash/flash_driver.c
-	# 	)
+	# Compressed-overwrite OTA (secureboot_overwrite). Driven by
+	# CONFIG_BL2_UPGRADE_STRATEGY="OVERWRITE_ONLY" (cp/config/bk7259/defconfig ->
+	# -DMCUBOOT_UPGRADE_STRATEGY). BL2 links the BK7259 identity-mapping
+	# decompressor (common/bl2/decompress_bl2.c, guarded internally by
+	# CONFIG_OTA_OVERWRITE) plus the LZMA decode backend from the compress
+	# component. Plaintext v1: no flash_driver AES path is pulled in; the
+	# decompressor writes primary_all with bk_flash_write_bytes (armino_min).
+	if(MCUBOOT_UPGRADE_STRATEGY STREQUAL "OVERWRITE_ONLY")
+		list(APPEND platform_bl2_src
+			${CMAKE_CURRENT_SOURCE_DIR}/decompress_bl2.c
+			${ARMINO_SDK_PATH}/components/compress/decompress.c
+			${ARMINO_SDK_PATH}/components/compress/lzma.c
+			${ARMINO_SDK_PATH}/components/compress/lzma1900/LzmaDec.c
+		)
 
-	# 	list(APPEND platform_bl2_inc
-	# 		${ARMINO_SDK_PATH}/components/compress/include
-	# 		${ARMINO_SDK_PATH}/components/compress/lzma1900
-	# 		${TFM_BEKEN}/armino/driver/flash
-	# 	)
-	# endif()
+		list(APPEND platform_bl2_inc
+			${ARMINO_SDK_PATH}/components/compress/include
+			${ARMINO_SDK_PATH}/components/compress/lzma1900
+		)
+
+		# LZMA1900 backend selection for the compress component sources.
+		target_compile_definitions(platform_bl2
+			PUBLIC
+				CONFIG_LZMA1900=1
+		)
+	endif()
 
 	if(CONFIG_XIP_NO_VERSION)
 		target_compile_definitions(platform_bl2
@@ -164,6 +177,20 @@ if(BL2)
 	# BEFORE: project partitions_gen.h must beat PROJECT_PARTITIONS_DIR / stub
 	# copies that share the same filename but different macros.
 	target_include_directories(platform_bl2 BEFORE PUBLIC ${PARTITION_HDR_DIR})
+
+	# Compressed-overwrite: bootutil (loader.c) must also see the generated
+	# partition headers so CONFIG_OTA_* / OVERWRITE_CONFIRM and the
+	# PARTITION_OTA_CONTROL enum + partition_get_phy_offset() prototype resolve,
+	# plus common/bl2 for ota_confirm.h (the confirm-flag API loader.c calls) and
+	# bl2_flash_map.h.
+	if(MCUBOOT_UPGRADE_STRATEGY STREQUAL "OVERWRITE_ONLY")
+		target_include_directories(bootutil BEFORE PUBLIC
+			${PARTITION_HDR_DIR}
+			${TFM_BEKEN}/common/partition
+			${TFM_BEKEN}/common/bl2
+		)
+	endif()
+
 	target_sources(platform_bl2 PRIVATE ${platform_bl2_src})
 endif()
 

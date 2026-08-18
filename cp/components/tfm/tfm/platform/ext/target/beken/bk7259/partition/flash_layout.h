@@ -86,6 +86,13 @@
 #define FLASH_AREA_PRIMARY_CPU0_APP_ID     (FLASH_AREA_PRIMARY_TFM_S_ID + 1)
 #define FLASH_AREA_BOOT_PARAM_ID           (FLASH_AREA_PRIMARY_CPU0_APP_ID + 1)
 
+/* Compressed-overwrite OTA (secureboot_overwrite): staging area for the
+ * received compressed image (ota) and the resume/confirm journal (ota_control).
+ * IDs are always defined (harmless for other projects); the flash_map[] and
+ * partition enum entries that use them are guarded by CONFIG_OTA_OVERWRITE. */
+#define FLASH_AREA_OTA_ID                  (FLASH_AREA_BOOT_PARAM_ID + 1)
+#define FLASH_AREA_OTA_CONTROL_ID          (FLASH_AREA_OTA_ID + 1)
+
 /*ota area end*/
 
 /* The maximum number of status entries supported by the bootloader. */

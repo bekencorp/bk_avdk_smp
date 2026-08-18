@@ -24,6 +24,7 @@
 #include "bootutil/bootutil_log.h"
 #include "bootutil/image.h"
 #include "bootutil/bootutil.h"
+#include "bootutil/bootutil_public.h"
 #include "bootutil/boot_record.h"
 #include "bootutil/fault_injection_hardening.h"
 #include "flash_map_backend/flash_map_backend.h"
@@ -54,6 +55,7 @@
 #include "boot_param.h"
 #include "bk_wdt.h"
 #include "bl2_flash_map.h"
+#include "ota_confirm.h"    /* bk_boot_rearm_ota_confirm_if_valid */
 
 #ifdef TEST_BL2
 #include "mcuboot_suites.h"
@@ -172,6 +174,8 @@ int main(void)
 
     flash_map_init();
     dump_partition();
+
+#if CONFIG_DIRECT_XIP
     /* Force-A builds ignore the retained boot_param A/B record completely. */
 #if !defined(CONFIG_XIP_FORCE_SLOT_A)
     /* Compute preferred A/B slot from boot_param; fed to MCUboot via
@@ -182,6 +186,7 @@ int main(void)
     BOOT_LOG_INF("boot_param preferred slot: %d", ab_pref);
 #else
     BOOT_LOG_INF("XIP force-A: skip boot_param slot selection");
+#endif
 #endif
 
     plat_err = tfm_plat_otp_init();
@@ -217,13 +222,21 @@ int main(void)
     FIH_CALL(boot_go, fih_rc, &rsp);
     if (FIH_NOT_EQ(fih_rc, FIH_SUCCESS)) {
         BOOT_LOG_ERR("Unable to find bootable image");
+#if CONFIG_OTA_CONFIRM_UPDATE
+        /* Anti-brick: re-arm the compressed-overwrite install if the ota staging
+         * slot still holds a valid image (see bootutil_public.c). */
+        bk_boot_rearm_ota_confirm_if_valid();
+#endif
         FIH_PANIC;
     }
+
+#if CONFIG_DIRECT_XIP
     /* Force-A cannot reconcile or persist a fallback to the placeholder B. */
 #if !defined(CONFIG_XIP_FORCE_SLOT_A)
     /* If MCUboot fell back off our preferred slot (it failed validation), persist
      * the slot actually booted so the next reset goes straight to the good one. */
     boot_param_reconcile_booted(rsp.br_image_off);
+#endif
 #endif
     do_boot(&rsp);
 

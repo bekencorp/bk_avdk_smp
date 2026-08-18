@@ -23,6 +23,7 @@
 #include "bk_tfm_log.h"
 #include "bk_tfm_ppc.h"
 #include "sys_driver.h"
+#include "flash_layout.h"
 
 #define TAG "cmsis_flash"
 
@@ -403,11 +404,20 @@ static inline bool is_32k_aligned(uint32_t addr)
     return ((addr & (KB(32) - 1)) == 0);
 }
 
+static inline bool flash_min_erase_protected(uint32_t aligned_addr)
+{
+    return aligned_addr < CONFIG_PRIMARY_ALL_PHY_PARTITION_OFFSET;
+}
+
 int flash_area_erase_fast(uint32_t erase_off, uint32_t len)
 {
     uint32_t erase_size = 0;
     int erase_remain = len;
 
+    if (flash_min_erase_protected(erase_off)) {
+        BK_TFM_FLASH_LOGE(TAG, "erase off=%x is protected\r\n", erase_off);
+        return ARM_DRIVER_ERROR_PARAMETER;
+    }
     uint32_t ppc_flash_ns_flag;
     ppc_flash_ns_flag = bk_ppc_lock_flash();
     while (erase_remain > 0) {

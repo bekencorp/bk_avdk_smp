@@ -393,6 +393,24 @@ bk_err_t bk_flash_erase_sector(uint32_t address)
 	return BK_OK;
 }
 
+/* 32KB / 64KB block erase. Needed by flash_area_erase_fast() (Driver_Flash.c),
+ * which the compressed-overwrite BL2 install (decompress_bl2.c / the ota_control
+ * confirm journal) uses to wipe primary_all and ota_control efficiently. The
+ * plain XIP BL2 never referenced flash_area_erase_fast, so these were absent
+ * from armino_min until now. Same opcodes as the full flash_driver.c
+ * (BE1=32K, BE2=64K); caller must be out of QUAD continuous-read. */
+bk_err_t bk_flash_erase_block_32k(uint32_t address)
+{
+	flash_hal_erase_block(&s_flash_hal, address & (~0x7fffu), FLASH_OP_CMD_BE1);
+	return BK_OK;
+}
+
+bk_err_t bk_flash_erase_block_64k(uint32_t address)
+{
+	flash_hal_erase_block(&s_flash_hal, address & (~0xffffu), FLASH_OP_CMD_BE2);
+	return BK_OK;
+}
+
 /* BL2 serial-download backend helpers. The download CMake target lacks the SDK
  * soc/hal include paths, so the HAL-touching code lives here and
  * common/download/src/flash/download_flash_adapter.c just forwards to these. */

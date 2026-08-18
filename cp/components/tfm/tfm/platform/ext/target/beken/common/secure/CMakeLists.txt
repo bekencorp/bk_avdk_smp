@@ -22,6 +22,8 @@ set(src
 	boot_param_confirm.c
 	# shared A/B back-end (flash ops + CRC32), one copy for BL2 and SPE
 	${CMAKE_CURRENT_LIST_DIR}/../bl2/boot_param_ops.c
+	# shared compressed-overwrite confirm flag, one copy for BL2 and SPE
+	${CMAKE_CURRENT_LIST_DIR}/../bl2/ota_confirm.c
 )
 
 target_sources(platform_s PRIVATE ${src})

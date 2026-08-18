@@ -17,6 +17,13 @@ typedef enum {
 	PARTITION_PRIMARY_TFM_S,
 	PARTITION_PRIMARY_CPU0_APP,	
 	PARTITION_BOOT_PARAM,
+#if CONFIG_OTA_OVERWRITE
+	/* Compressed-overwrite OTA: staging area for the received compressed
+	 * image (ota) and the resume/confirm journal (ota_control). Only present
+	 * for the secureboot_overwrite project (ota.csv strategy=OVERWRITE). */
+	PARTITION_OTA,
+	PARTITION_OTA_CONTROL,
+#endif
 	PARTITION_CNT,
 } partition_id_e;
 

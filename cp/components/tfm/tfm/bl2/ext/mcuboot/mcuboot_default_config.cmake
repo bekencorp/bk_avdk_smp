@@ -21,8 +21,8 @@ set(MCUBOOT_LOG_LEVEL                   "OFF"      CACHE STRING    "Level of log
 set(MCUBOOT_HW_KEY                      ON          CACHE BOOL      "Whether to embed the entire public key in the image metadata instead of the hash only")
 set(MCUBOOT_BUILTIN_KEY                 OFF         CACHE BOOL      "Use builtin key(s) for validation, no public key data is embedded into the image metadata")
 set(MCUBOOT_UPGRADE_STRATEGY            "OVERWRITE_ONLY" CACHE STRING "Upgrade strategy for images")
-set(BL2_HEADER_SIZE                     0x400       CACHE STRING    "Header size")
-set(BL2_TRAILER_SIZE                    0x400       CACHE STRING    "Trailer size")
+set(BL2_HEADER_SIZE                     0x1000      CACHE STRING    "Header size")
+set(BL2_TRAILER_SIZE                    0x1000       CACHE STRING    "Trailer size")
 set(MCUBOOT_ALIGN_VAL                   1           CACHE STRING    "align option for mcuboot and build image with imgtool [1, 2, 4, 8, 16, 32]")
 set(MCUBOOT_CONFIRM_IMAGE               OFF         CACHE BOOL      "Whether to confirm the image if REVERT is supported in MCUboot")
 

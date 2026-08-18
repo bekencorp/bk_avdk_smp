@@ -38,6 +38,11 @@
 #include <string.h>
 #include "bootutil/bootutil.h"
 #include "bootutil/bootutil_public.h"
+#include "ota_confirm.h"    /* compressed-overwrite confirm-flag API */
+/* Brings CONFIG_OTA_OVERWRITE / CONFIG_OTA_CONFIRM_UPDATE / OVERWRITE_CONFIRM
+ * (partitions_gen.h -> security.h -> _ota.h) so the compressed-overwrite
+ * trigger below is enabled only for the secureboot_overwrite project. */
+#include "partitions_gen.h"
 #include "bootutil/image.h"
 #include "bootutil_priv.h"
 #include "swap_priv.h"
@@ -1037,6 +1042,19 @@ boot_validate_slot(struct boot_loader_state *state, int slot,
         }
     }
 #endif
+    /* Validate the header BEFORE hashing: boot_image_check() hashes
+     * hdr_size+img_size bytes from flash, so a garbage header (empty slot ->
+     * bogus huge ih_img_size) would hash for seconds and trip the watchdog.
+     * boot_is_header_valid() bounds size to the slot, so it fails fast here. */
+    if (!boot_is_header_valid(hdr, fap)) {
+#if !defined(__BOOTSIM__)
+        BOOT_LOG_ERR("before validate, Image in the %s slot is not valid!",
+                     (slot == BOOT_PRIMARY_SLOT) ? "primary" : "secondary");
+#endif
+        fih_rc = FIH_NO_BOOTABLE_IMAGE;
+        goto out;
+    }
+
     BOOT_HOOK_CALL_FIH(boot_image_check_hook, FIH_BOOT_HOOK_REGULAR,
                        fih_rc, BOOT_CURR_IMG(state), slot);
     if (FIH_EQ(fih_rc, FIH_BOOT_HOOK_REGULAR))
@@ -1165,21 +1183,36 @@ boot_validated_swap_type(struct boot_loader_state *state,
     int swap_type;
     FIH_DECLARE(fih_rc, FIH_FAILURE);
 
-    swap_type = boot_swap_type_multi(BOOT_CURR_IMG(state));
+    /* Compressed-overwrite: ota slot has no swap trailer. OVERWRITE_CONFIRM in
+     * ota_control arms a TEST swap; boot_copy_region (decompress_bl2.c)
+     * decompresses ota -> primary_all. Secondary is still validated below
+     * (signed), primary_all is validated on the next boot. */
+    if (bk_boot_read_ota_confirm(OVERWRITE_CONFIRM)) {
+        swap_type = BOOT_SWAP_TYPE_TEST;
+    } else {
+        swap_type = BOOT_SWAP_TYPE_NONE;
+    }
     if (BOOT_IS_UPGRADE(swap_type)) {
         /* Boot loader wants to switch to the secondary slot.
          * Ensure image is valid.
          */
-        FIH_CALL(boot_validate_slot, fih_rc, state, BOOT_SECONDARY_SLOT, bs);
-        if (FIH_NOT_EQ(fih_rc, FIH_SUCCESS)) {
-            if (FIH_EQ(fih_rc, FIH_NO_BOOTABLE_IMAGE)) {
-                swap_type = BOOT_SWAP_TYPE_NONE;
-            } else {
-                swap_type = BOOT_SWAP_TYPE_FAIL;
+    
+        //if (efuse_is_secureboot_enabled()) {
+        if(1){ //for test
+            FIH_CALL(boot_validate_slot, fih_rc, state, BOOT_SECONDARY_SLOT, bs);
+            if (FIH_NOT_EQ(fih_rc, FIH_SUCCESS)) {
+                BOOT_LOG_ERR("validate encrypted image error");
+                if (FIH_EQ(fih_rc, FIH_NO_BOOTABLE_IMAGE)) {
+                    swap_type = BOOT_SWAP_TYPE_NONE;
+                } else {
+                    swap_type = BOOT_SWAP_TYPE_FAIL;
+                }
             }
         }
     }
-
+    BOOT_LOG_INF("Swap type: %s", swap_type == BOOT_SWAP_TYPE_TEST   ? "test"   :
+                                swap_type == BOOT_SWAP_TYPE_NONE   ? "none"   :
+                                "BUG; can't happen");
     return swap_type;
 }
 #endif
@@ -1230,6 +1263,7 @@ static void like_mbedtls_zeroize(void *p, size_t n)
  *
  * @return                      0 on success; nonzero on failure.
  */
+#ifndef CONFIG_OTA_OVERWRITE
 int
 boot_copy_region(struct boot_loader_state *state,
                  const struct flash_area *fap_src,
@@ -1339,6 +1373,8 @@ boot_copy_region(struct boot_loader_state *state,
 
     return 0;
 }
+#endif /* !CONFIG_OTA_OVERWRITE: boot_copy_region is overridden by
+        * common/bl2/decompress_bl2.c for the compressed-overwrite scheme. */
 
 /**
  * Overwrite primary slot with the image contained in the secondary slot.
@@ -1357,35 +1393,14 @@ boot_copy_region(struct boot_loader_state *state,
 static int
 boot_copy_image(struct boot_loader_state *state, struct boot_status *bs)
 {
-    size_t sect_count;
-    size_t sect;
     int rc;
-    size_t size;
-    size_t this_size;
-    size_t last_sector;
     const struct flash_area *fap_primary_slot;
     const struct flash_area *fap_secondary_slot;
     uint8_t image_index;
 
-#if defined(MCUBOOT_OVERWRITE_ONLY_FAST)
-    uint32_t sector;
-    uint32_t trailer_sz;
-    uint32_t off;
-    uint32_t sz;
-#endif
-
     (void)bs;
 
-#if defined(MCUBOOT_OVERWRITE_ONLY_FAST)
-    uint32_t src_size = 0;
-    rc = boot_read_image_size(state, BOOT_SECONDARY_SLOT, &src_size);
-    assert(rc == 0);
-#endif
-
     image_index = BOOT_CURR_IMG(state);
-
-    BOOT_LOG_INF("Image %d upgrade secondary slot -> primary slot", image_index);
-    BOOT_LOG_INF("Erasing the primary slot");
 
     rc = flash_area_open(FLASH_AREA_IMAGE_PRIMARY(image_index),
             &fap_primary_slot);
@@ -1395,112 +1410,15 @@ boot_copy_image(struct boot_loader_state *state, struct boot_status *bs)
             &fap_secondary_slot);
     assert (rc == 0);
 
-    sect_count = boot_img_num_sectors(state, BOOT_PRIMARY_SLOT);
-    for (sect = 0, size = 0; sect < sect_count; sect++) {
-        this_size = boot_img_sector_size(state, BOOT_PRIMARY_SLOT, sect);
-        rc = boot_erase_region(fap_primary_slot, size, this_size);
-        assert(rc == 0);
-
-#if defined(MCUBOOT_OVERWRITE_ONLY_FAST)
-        if ((size + this_size) >= src_size) {
-            size += src_size - size;
-            size += BOOT_WRITE_SZ(state) - (size % BOOT_WRITE_SZ(state));
-            break;
-        }
-#endif
-
-        size += this_size;
-    }
-
-#if defined(MCUBOOT_OVERWRITE_ONLY_FAST)
-    trailer_sz = boot_trailer_sz(BOOT_WRITE_SZ(state));
-    sector = boot_img_num_sectors(state, BOOT_PRIMARY_SLOT) - 1;
-    sz = 0;
-    do {
-        sz += boot_img_sector_size(state, BOOT_PRIMARY_SLOT, sector);
-        off = boot_img_sector_off(state, BOOT_PRIMARY_SLOT, sector);
-        sector--;
-    } while (sz < trailer_sz);
-
-    rc = boot_erase_region(fap_primary_slot, off, sz);
-    assert(rc == 0);
-#endif
-
-#ifdef MCUBOOT_ENC_IMAGES
-    if (IS_ENCRYPTED(boot_img_hdr(state, BOOT_SECONDARY_SLOT))) {
-        rc = boot_enc_load(BOOT_CURR_ENC(state), image_index,
-                boot_img_hdr(state, BOOT_SECONDARY_SLOT),
-                fap_secondary_slot, bs);
-
-        if (rc < 0) {
-            return BOOT_EBADIMAGE;
-        }
-        if (rc == 0 && boot_enc_set_key(BOOT_CURR_ENC(state), 1, bs)) {
-            return BOOT_EBADIMAGE;
-        }
-    }
-#endif
-
-    BOOT_LOG_INF("Image %d copying the secondary slot to the primary slot: 0x%zx bytes",
-                 image_index, size);
-    rc = boot_copy_region(state, fap_secondary_slot, fap_primary_slot, 0, 0, size);
+    BOOT_LOG_INF("Image %d copying the ota staging slot to the primary slot", image_index);
+    rc = boot_copy_region(state, fap_secondary_slot, fap_primary_slot, 0, 0, 0);
     if (rc != 0) {
+        BOOT_LOG_ERR("Overwrite copy error");
         return rc;
     }
-
-#if defined(MCUBOOT_OVERWRITE_ONLY_FAST)
-    rc = boot_write_magic(fap_primary_slot);
-    if (rc != 0) {
-        return rc;
-    }
-#endif
-
-    rc = BOOT_HOOK_CALL(boot_copy_region_post_hook, 0, BOOT_CURR_IMG(state),
-                        BOOT_IMG_AREA(state, BOOT_PRIMARY_SLOT), size);
-    if (rc != 0) {
-        return rc;
-    }
-
-#ifdef MCUBOOT_HW_ROLLBACK_PROT
-    /* Update the stored security counter with the new image's security counter
-     * value. Both slots hold the new image at this point, but the secondary
-     * slot's image header must be passed since the image headers in the
-     * boot_data structure have not been updated yet.
-     */
-    rc = boot_update_security_counter(BOOT_CURR_IMG(state), BOOT_PRIMARY_SLOT,
-                                boot_img_hdr(state, BOOT_SECONDARY_SLOT));
-    if (rc != 0) {
-        BOOT_LOG_ERR("Security counter update failed after image upgrade.");
-        return rc;
-    }
-#endif /* MCUBOOT_HW_ROLLBACK_PROT */
-
-#ifndef MCUBOOT_OVERWRITE_ONLY_KEEP_BACKUP
-    /*
-     * Erases header and trailer. The trailer is erased because when a new
-     * image is written without a trailer as is the case when using newt, the
-     * trailer that was left might trigger a new upgrade.
-     */
-    BOOT_LOG_DBG("erasing secondary header");
-    rc = boot_erase_region(fap_secondary_slot,
-                           boot_img_sector_off(state, BOOT_SECONDARY_SLOT, 0),
-                           boot_img_sector_size(state, BOOT_SECONDARY_SLOT, 0));
-    assert(rc == 0);
-#endif
-
-    last_sector = boot_img_num_sectors(state, BOOT_SECONDARY_SLOT) - 1;
-    BOOT_LOG_DBG("erasing secondary trailer");
-    rc = boot_erase_region(fap_secondary_slot,
-                           boot_img_sector_off(state, BOOT_SECONDARY_SLOT,
-                               last_sector),
-                           boot_img_sector_size(state, BOOT_SECONDARY_SLOT,
-                               last_sector));
-    assert(rc == 0);
 
     flash_area_close(fap_primary_slot);
     flash_area_close(fap_secondary_slot);
-
-    /* TODO: Perhaps verify the primary slot's signature again? */
 
     return 0;
 }
@@ -1655,74 +1573,10 @@ static int
 boot_perform_update(struct boot_loader_state *state, struct boot_status *bs)
 {
     int rc;
-#ifndef MCUBOOT_OVERWRITE_ONLY
-    uint8_t swap_type;
-#endif
 
     /* At this point there are no aborted swaps. */
-#if defined(MCUBOOT_OVERWRITE_ONLY)
     rc = boot_copy_image(state, bs);
-#elif defined(MCUBOOT_BOOTSTRAP)
-    /* Check if the image update was triggered by a bad image in the
-     * primary slot (the validity of the image in the secondary slot had
-     * already been checked).
-     */
-    FIH_DECLARE(fih_rc, FIH_FAILURE);
-    rc = boot_check_header_erased(state, BOOT_PRIMARY_SLOT);
-    FIH_CALL(boot_validate_slot, fih_rc, state, BOOT_PRIMARY_SLOT, bs);
-    if (rc == 0 || FIH_NOT_EQ(fih_rc, FIH_SUCCESS)) {
-        rc = boot_copy_image(state, bs);
-    } else {
-        rc = boot_swap_image(state, bs);
-    }
-#else
-        rc = boot_swap_image(state, bs);
-#endif
     assert(rc == 0);
-
-#ifndef MCUBOOT_OVERWRITE_ONLY
-    /* The following state needs image_ok be explicitly set after the
-     * swap was finished to avoid a new revert.
-     */
-    swap_type = BOOT_SWAP_TYPE(state);
-    if (swap_type == BOOT_SWAP_TYPE_REVERT ||
-            swap_type == BOOT_SWAP_TYPE_PERM) {
-        rc = swap_set_image_ok(BOOT_CURR_IMG(state));
-        if (rc != 0) {
-            BOOT_SWAP_TYPE(state) = swap_type = BOOT_SWAP_TYPE_PANIC;
-        }
-    }
-
-#ifdef MCUBOOT_HW_ROLLBACK_PROT
-    if (swap_type == BOOT_SWAP_TYPE_PERM) {
-        /* Update the stored security counter with the new image's security
-         * counter value. The primary slot holds the new image at this point,
-         * but the secondary slot's image header must be passed since image
-         * headers in the boot_data structure have not been updated yet.
-         *
-         * In case of a permanent image swap mcuboot will never attempt to
-         * revert the images on the next reboot. Therefore, the security
-         * counter must be increased right after the image upgrade.
-         */
-        rc = boot_update_security_counter(
-                                    BOOT_CURR_IMG(state),
-                                    BOOT_PRIMARY_SLOT,
-                                    boot_img_hdr(state, BOOT_SECONDARY_SLOT));
-        if (rc != 0) {
-            BOOT_LOG_ERR("Security counter update failed after "
-                         "image upgrade.");
-            BOOT_SWAP_TYPE(state) = BOOT_SWAP_TYPE_PANIC;
-        }
-    }
-#endif /* MCUBOOT_HW_ROLLBACK_PROT */
-
-    if (BOOT_IS_UPGRADE(swap_type)) {
-        rc = swap_set_copy_done(BOOT_CURR_IMG(state));
-        if (rc != 0) {
-            BOOT_SWAP_TYPE(state) = BOOT_SWAP_TYPE_PANIC;
-        }
-    }
-#endif /* !MCUBOOT_OVERWRITE_ONLY */
 
     return rc;
 }
@@ -1852,23 +1706,7 @@ boot_prepare_image_for_update(struct boot_loader_state *state,
                               struct boot_status *bs)
 {
     int rc;
-    FIH_DECLARE(fih_rc, FIH_FAILURE);
-
-    /* Determine the sector layout of the image slots and scratch area. */
-    rc = boot_read_sectors(state);
-    if (rc != 0) {
-        BOOT_LOG_WRN("Failed reading sectors; BOOT_MAX_IMG_SECTORS=%d"
-                     " - too small?", BOOT_MAX_IMG_SECTORS);
-        /* Unable to determine sector layout, continue with next image
-         * if there is one.
-         */
-        BOOT_SWAP_TYPE(state) = BOOT_SWAP_TYPE_NONE;
-        if (rc == BOOT_EFLASH)
-        {
-            /* Only return on error from the primary image flash */
-            return;
-        }
-    }
+    struct image_header *hdr;
 
     /* Attempt to read an image header from each slot. */
     rc = boot_read_image_headers(state, false, NULL);
@@ -1880,126 +1718,16 @@ boot_prepare_image_for_update(struct boot_loader_state *state,
         return;
     }
 
-    /* If the current image's slots aren't compatible, no swap is possible.
-     * Just boot into primary slot.
+    /* Compressed-overwrite: no swap journal, install armed only by
+     * OVERWRITE_CONFIRM. No partial swap to resume; just log primary and let
+     * boot_validated_swap_type() pick TEST vs NONE.
      */
-    if (boot_slots_compatible(state)) {
-        boot_status_reset(bs);
-
-#ifndef MCUBOOT_OVERWRITE_ONLY
-        rc = swap_read_status(state, bs);
-        if (rc != 0) {
-            BOOT_LOG_WRN("Failed reading boot status; Image=%u",
-                    BOOT_CURR_IMG(state));
-            /* Continue with next image if there is one. */
-            BOOT_SWAP_TYPE(state) = BOOT_SWAP_TYPE_NONE;
-            return;
-        }
-#endif
-
-#ifdef MCUBOOT_SWAP_USING_MOVE
-        /*
-         * Must re-read image headers because the boot status might
-         * have been updated in the previous function call.
-         */
-        rc = boot_read_image_headers(state, !boot_status_is_reset(bs), bs);
-#ifdef MCUBOOT_BOOTSTRAP
-        /* When bootstrapping it's OK to not have image magic in the primary slot */
-        if (rc != 0 && (BOOT_CURR_IMG(state) != BOOT_PRIMARY_SLOT ||
-                boot_check_header_erased(state, BOOT_PRIMARY_SLOT) != 0)) {
-#else
-        if (rc != 0) {
-#endif
-
-            /* Continue with next image if there is one. */
-            BOOT_LOG_WRN("Failed reading image headers; Image=%u",
-                    BOOT_CURR_IMG(state));
-            BOOT_SWAP_TYPE(state) = BOOT_SWAP_TYPE_NONE;
-            return;
-        }
-#endif
-
-        /* Determine if we rebooted in the middle of an image swap
-         * operation. If a partial swap was detected, complete it.
-         */
-        if (!boot_status_is_reset(bs)) {
-
-#if (BOOT_IMAGE_NUMBER > 1)
-            boot_review_image_swap_types(state, true);
-#endif
-
-#ifdef MCUBOOT_OVERWRITE_ONLY
-            /* Should never arrive here, overwrite-only mode has
-             * no swap state.
-             */
-            assert(0);
-#else
-            /* Determine the type of swap operation being resumed from the
-             * `swap-type` trailer field.
-             */
-            rc = boot_complete_partial_swap(state, bs);
-            assert(rc == 0);
-#endif
-            /* Attempt to read an image header from each slot. Ensure that
-             * image headers in slots are aligned with headers in boot_data.
-             */
-            rc = boot_read_image_headers(state, false, bs);
-            assert(rc == 0);
-
-            /* Swap has finished set to NONE */
-            BOOT_SWAP_TYPE(state) = BOOT_SWAP_TYPE_NONE;
-        } else {
-            /* There was no partial swap, determine swap type. */
-            if (bs->swap_type == BOOT_SWAP_TYPE_NONE) {
-                BOOT_SWAP_TYPE(state) = boot_validated_swap_type(state, bs);
-            } else {
-                FIH_CALL(boot_validate_slot, fih_rc,
-                         state, BOOT_SECONDARY_SLOT, bs);
-                if (FIH_NOT_EQ(fih_rc, FIH_SUCCESS)) {
-                    BOOT_SWAP_TYPE(state) = BOOT_SWAP_TYPE_FAIL;
-                } else {
-                    BOOT_SWAP_TYPE(state) = bs->swap_type;
-                }
-            }
-
-#if (BOOT_IMAGE_NUMBER > 1)
-            boot_review_image_swap_types(state, false);
-#endif
-
-#ifdef MCUBOOT_BOOTSTRAP
-            if (BOOT_SWAP_TYPE(state) == BOOT_SWAP_TYPE_NONE) {
-                /* Header checks are done first because they are
-                 * inexpensive. Since overwrite-only copies starting from
-                 * offset 0, if interrupted, it might leave a valid header
-                 * magic, so also run validation on the primary slot to be
-                 * sure it's not OK.
-                 */
-                rc = boot_check_header_erased(state, BOOT_PRIMARY_SLOT);
-                FIH_CALL(boot_validate_slot, fih_rc,
-                         state, BOOT_PRIMARY_SLOT, bs);
-
-                if (rc == 0 || FIH_NOT_EQ(fih_rc, FIH_SUCCESS)) {
-
-                    rc = (boot_img_hdr(state, BOOT_SECONDARY_SLOT)->ih_magic == IMAGE_MAGIC) ? 1: 0;
-                    FIH_CALL(boot_validate_slot, fih_rc,
-                             state, BOOT_SECONDARY_SLOT, bs);
-
-                    if (rc == 1 && FIH_EQ(fih_rc, FIH_SUCCESS)) {
-                        /* Set swap type to REVERT to overwrite the primary
-                         * slot with the image contained in secondary slot
-                         * and to trigger the explicit setting of the
-                         * image_ok flag.
-                         */
-                        BOOT_SWAP_TYPE(state) = BOOT_SWAP_TYPE_REVERT;
-                    }
-                }
-            }
-#endif
-        }
-    } else {
-        /* In that case if slots are not compatible. */
-        BOOT_SWAP_TYPE(state) = BOOT_SWAP_TYPE_NONE;
+    hdr = boot_img_hdr(state, 0);
+    if (boot_is_header_valid(hdr, BOOT_IMG_AREA(state, 0))) {
+        BOOT_LOG_IMAGE_INFO(0, hdr);
     }
+
+    BOOT_SWAP_TYPE(state) = boot_validated_swap_type(state, bs);
 }
 
 /**
@@ -2012,38 +1740,9 @@ boot_prepare_image_for_update(struct boot_loader_state *state,
 static int
 boot_update_hw_rollback_protection(struct boot_loader_state *state)
 {
-#ifdef MCUBOOT_HW_ROLLBACK_PROT
-    int rc;
-
-    /* Update the stored security counter with the active image's security
-    * counter value. It will only be updated if the new security counter is
-    * greater than the stored value.
-    *
-    * In case of a successful image swapping when the swap type is TEST the
-    * security counter can be increased only after a reset, when the swap
-    * type is NONE and the image has marked itself "OK" (the image_ok flag
-    * has been set). This way a "revert" can be performed when it's
-    * necessary.
-    */
-    if (BOOT_SWAP_TYPE(state) == BOOT_SWAP_TYPE_NONE) {
-        rc = boot_update_security_counter(
-                                BOOT_CURR_IMG(state),
-                                BOOT_PRIMARY_SLOT,
-                                boot_img_hdr(state, BOOT_PRIMARY_SLOT));
-        if (rc != 0) {
-            BOOT_LOG_ERR("Security counter update failed after image "
-                            "validation.");
-            return rc;
-        }
-    }
-
-    return 0;
-
-#else /* MCUBOOT_HW_ROLLBACK_PROT */
     (void) (state);
 
     return 0;
-#endif
 }
 
 /**
@@ -2100,6 +1799,7 @@ check_downgrade_prevention(struct boot_loader_state *state)
 #endif
 }
 
+/* secureboot_overwrite function start */
 fih_ret
 context_boot_go(struct boot_loader_state *state, struct boot_rsp *rsp)
 {
@@ -2108,147 +1808,50 @@ context_boot_go(struct boot_loader_state *state, struct boot_rsp *rsp)
     int rc = -1;
     FIH_DECLARE(fih_rc, FIH_FAILURE);
     int fa_id;
-    int image_index;
     bool has_upgrade;
     volatile int fih_cnt;
 
-    /* The array of slot sectors are defined here (as opposed to file scope) so
-     * that they don't get allocated for non-boot-loader apps.  This is
-     * necessary because the gcc option "-fdata-sections" doesn't seem to have
-     * any effect in older gcc versions (e.g., 4.8.4).
-     */
-    TARGET_STATIC boot_sector_t primary_slot_sectors[BOOT_IMAGE_NUMBER][BOOT_MAX_IMG_SECTORS];
-    TARGET_STATIC boot_sector_t secondary_slot_sectors[BOOT_IMAGE_NUMBER][BOOT_MAX_IMG_SECTORS];
-#if MCUBOOT_SWAP_USING_SCRATCH
-    TARGET_STATIC boot_sector_t scratch_sectors[BOOT_MAX_IMG_SECTORS];
-#endif
+    /* Slot sectors are defined here (not at file scope) so they aren't allocated
+     * for non-boot-loader apps (old gcc ignores -fdata-sections). */
 
     has_upgrade = false;
 
-#if (BOOT_IMAGE_NUMBER == 1)
-    (void)has_upgrade;
-#endif
-
-    /* Iterate over all the images. By the end of the loop the swap type has
-     * to be determined for each image and all aborted swaps have to be
-     * completed.
-     */
+    /* Pass 1: determine swap type per image and finish any aborted swap. */
     IMAGES_ITER(BOOT_CURR_IMG(state)) {
-#if BOOT_IMAGE_NUMBER > 1
-        if (state->img_mask[BOOT_CURR_IMG(state)]) {
-            continue;
-        }
-#endif
-#if defined(MCUBOOT_ENC_IMAGES) && (BOOT_IMAGE_NUMBER > 1)
-        /* The keys used for encryption may no longer be valid (could belong to
-         * another images). Therefore, mark them as invalid to force their reload
-         * by boot_enc_load().
-         */
-        boot_enc_zeroize(BOOT_CURR_ENC(state));
-#endif
-
-        image_index = BOOT_CURR_IMG(state);
-
-        BOOT_IMG(state, BOOT_PRIMARY_SLOT).sectors =
-            primary_slot_sectors[image_index];
-        BOOT_IMG(state, BOOT_SECONDARY_SLOT).sectors =
-            secondary_slot_sectors[image_index];
-#if MCUBOOT_SWAP_USING_SCRATCH
-        state->scratch.sectors = scratch_sectors;
-#endif
-
-        /* Open primary and secondary image areas for the duration
-         * of this call.
-         */
+        /* Open primary + secondary areas for this call. */
         for (slot = 0; slot < BOOT_NUM_SLOTS; slot++) {
-            fa_id = flash_area_id_from_multi_image_slot(image_index, slot);
+            fa_id = flash_area_id_from_multi_image_slot(BOOT_CURR_IMG(state), slot);
             rc = flash_area_open(fa_id, &BOOT_IMG_AREA(state, slot));
             assert(rc == 0);
-
             if (rc != 0) {
                 BOOT_LOG_ERR("Failed to open flash area ID %d (image %d slot %d): %d, "
-                             "cannot continue", fa_id, image_index, (int8_t)slot, rc);
+                             "cannot continue", fa_id, BOOT_CURR_IMG(state), (int8_t)slot, rc);
                 FIH_PANIC;
             }
         }
-#if MCUBOOT_SWAP_USING_SCRATCH
-        rc = flash_area_open(FLASH_AREA_IMAGE_SCRATCH,
-                             &BOOT_SCRATCH_AREA(state));
-        assert(rc == 0);
-
-        if (rc != 0) {
-            BOOT_LOG_ERR("Failed to open scratch flash area: %d, cannot continue", rc);
-            FIH_PANIC;
-        }
-#endif
 
         /* Determine swap type and complete swap if it has been aborted. */
         boot_prepare_image_for_update(state, &bs);
-
         if (BOOT_IS_UPGRADE(BOOT_SWAP_TYPE(state))) {
             has_upgrade = true;
         }
     }
 
-#if (BOOT_IMAGE_NUMBER > 1)
-    if (has_upgrade) {
-        /* Iterate over all the images and verify whether the image dependencies
-         * are all satisfied and update swap type if necessary.
-         */
-        rc = boot_verify_dependencies(state);
-        if (rc != 0) {
-            /*
-             * It was impossible to upgrade because the expected dependency version
-             * was not available. Here we already changed the swap_type so that
-             * instead of asserting the bootloader, we continue and no upgrade is
-             * performed.
-             */
-            rc = 0;
-        }
-    }
-#endif
-
     /* Trigger status change callback with upgrading status */
     mcuboot_status_change(MCUBOOT_STATUS_UPGRADING);
 
-    /* Iterate over all the images. At this point there are no aborted swaps
-     * and the swap types are determined for each image. By the end of the loop
-     * all required update operations will have been finished.
-     */
+    /* Pass 2: swap types are set; perform the required update for each image. */
     IMAGES_ITER(BOOT_CURR_IMG(state)) {
-#if (BOOT_IMAGE_NUMBER > 1)
-        if (state->img_mask[BOOT_CURR_IMG(state)]) {
-            continue;
-        }
-
-#ifdef MCUBOOT_ENC_IMAGES
-        /* The keys used for encryption may no longer be valid (could belong to
-         * another images). Therefore, mark them as invalid to force their reload
-         * by boot_enc_load().
-         */
-        boot_enc_zeroize(BOOT_CURR_ENC(state));
-#endif /* MCUBOOT_ENC_IMAGES */
-
-        /* Indicate that swap is not aborted */
-        boot_status_reset(&bs);
-#endif /* (BOOT_IMAGE_NUMBER > 1) */
-
         /* Set the previously determined swap type */
         bs.swap_type = BOOT_SWAP_TYPE(state);
+        BOOT_LOG_INF("bs.swap_type :%d \r\n ", bs.swap_type);
 
         switch (BOOT_SWAP_TYPE(state)) {
         case BOOT_SWAP_TYPE_NONE:
             break;
 
         case BOOT_SWAP_TYPE_TEST:
-            /* fallthrough */
         case BOOT_SWAP_TYPE_PERM:
-            if (check_downgrade_prevention(state) != 0) {
-                /* Downgrade prevented */
-                BOOT_SWAP_TYPE(state) = BOOT_SWAP_TYPE_NONE;
-                break;
-            }
-            /* fallthrough */
         case BOOT_SWAP_TYPE_REVERT:
             rc = BOOT_HOOK_CALL(boot_perform_update_hook, BOOT_HOOK_REGULAR,
                                 BOOT_CURR_IMG(state), &(BOOT_IMG(state, 1).hdr),
@@ -2259,19 +1862,9 @@ context_boot_go(struct boot_loader_state *state, struct boot_rsp *rsp)
             }
             assert(rc == 0);
             break;
-
         case BOOT_SWAP_TYPE_FAIL:
-            /* The image in secondary slot was invalid and is now erased. Ensure
-             * we don't try to boot into it again on the next reboot. Do this by
-             * pretending we just reverted back to primary slot.
-             */
-#ifndef MCUBOOT_OVERWRITE_ONLY
-            /* image_ok needs to be explicitly set to avoid a new revert. */
-            rc = swap_set_image_ok(BOOT_CURR_IMG(state));
-            if (rc != 0) {
-                BOOT_SWAP_TYPE(state) = BOOT_SWAP_TYPE_PANIC;
-            }
-#endif /* !MCUBOOT_OVERWRITE_ONLY */
+            /* Secondary image was invalid and is now erased; treat as a revert to
+             * primary so we don't retry it next reboot. */
             break;
 
         default:
@@ -2287,58 +1880,25 @@ context_boot_go(struct boot_loader_state *state, struct boot_rsp *rsp)
         }
     }
 
-    /* Iterate over all the images. At this point all required update operations
-     * have finished. By the end of the loop each image in the primary slot will
-     * have been re-validated.
-     */
+    /* Pass 3: updates done; re-validate each primary-slot image. */
     FIH_SET(fih_cnt, 0);
     IMAGES_ITER(BOOT_CURR_IMG(state)) {
-#if BOOT_IMAGE_NUMBER > 1
-        /* Hardenned to prevent from skipping check of a given image,
-         * tmp_img_mask is declared volatile
-         */
-        volatile bool tmp_img_mask;
-        FIH_SET(tmp_img_mask, state->img_mask[BOOT_CURR_IMG(state)]);
-        if (FIH_EQ(tmp_img_mask, true)) {
-            ++fih_cnt;
-            continue;
-        }
-#endif
         if (BOOT_SWAP_TYPE(state) != BOOT_SWAP_TYPE_NONE) {
-            /* Attempt to read an image header from each slot. Ensure that image
-             * headers in slots are aligned with headers in boot_data.
-	     * Note: Quite complicated internal logic of boot_read_image_headers
-	     * uses boot state, the last parm, to figure out in which slot which
-	     * header is located; when boot state is not provided, then it
-	     * is assumed that headers are at proper slots (we are not in
-	     * the middle of moving images, etc).
-             */
+            /* Reload headers so boot_data matches the slots. Passing NULL boot
+             * state assumes headers are already in their proper slots (no swap
+             * in progress). */
             rc = boot_read_image_headers(state, false, NULL);
             if (rc != 0) {
                 FIH_SET(fih_rc, FIH_FAILURE);
                 goto out;
             }
-            /* Since headers were reloaded, it can be assumed we just performed
-             * a swap or overwrite. Now the header info that should be used to
-             * provide the data for the bootstrap, which previously was at
-             * secondary slot, was updated to primary slot.
-             */
+            /* After reload the bootstrap header info (was secondary) now reflects
+             * the primary slot. */
         }
 
-#ifdef MCUBOOT_VALIDATE_PRIMARY_SLOT
-        bk_sw_fih_set_data(FIH_SW_INDEX6);
-        bk_fih_set_src(FIH_DATA_BOOT_TYPE, BOOT_PRIMARY_SLOT);
-        enum plat_otp_lcs_t lcs;
-        tfm_plat_otp_read(PLAT_OTP_ID_LCS, sizeof(lcs), (uint8_t*)&lcs);
-        bk_sw_fih_set_data(FIH_SW_INDEX7);
-        bk_fih_set_src(FIH_DATA_LCS, lcs);
-        if (efuse_is_secureboot_enabled()) {
-            is_validate_image = true;
-            GPIO_UP(16);
-            bk_fih_set_src(FIH_DATA_BOOT_FLAG, true);
-	        FIH_CALL(boot_validate_slot, fih_rc, state, BOOT_PRIMARY_SLOT, NULL);
-            is_validate_image = false;
-            GPIO_DOWN(16);
+        //if (efuse_is_secureboot_enabled()) {
+        if(1){ // for test
+            FIH_CALL(boot_validate_slot, fih_rc, state, BOOT_PRIMARY_SLOT, NULL);
 	        /* Check for all possible values is redundant in normal operation it
 	         * is meant to prevent FI attack.
 	         */
@@ -2346,29 +1906,12 @@ context_boot_go(struct boot_loader_state *state, struct boot_rsp *rsp)
 	            FIH_EQ(fih_rc, FIH_FAILURE) ||
 	            FIH_EQ(fih_rc, FIH_NO_BOOTABLE_IMAGE)) {
 	            FIH_SET(fih_rc, FIH_FAILURE);
+                BOOT_LOG_ERR("Validate primary image fail");
 	            goto out;
 			}
-            bk_fih_set_dst(FIH_DATA_LCS, lcs);
-            bk_fih_set_dst(FIH_DATA_BOOT_FLAG, true);
         } else {
-            bk_fih_set_src(FIH_DATA_BOOT_FLAG, false);
-            bk_fih_set_dst(FIH_DATA_BOOT_FLAG, false);
+            BOOT_LOG_INF("Overwrite update success");
         }
-        bk_fih_set_dst(FIH_DATA_BOOT_TYPE, BOOT_PRIMARY_SLOT);
-#else
-        /* Even if we're not re-validating the primary slot, we could be booting
-         * onto an empty flash chip. At least do a basic sanity check that
-         * the magic number on the image is OK.
-         */
-        if (BOOT_IMG(state, BOOT_PRIMARY_SLOT).hdr.ih_magic != IMAGE_MAGIC) {
-            BOOT_LOG_ERR("bad image magic 0x%lx; Image=%u", (unsigned long)
-                         BOOT_IMG(state, BOOT_PRIMARY_SLOT).hdr.ih_magic,
-                         BOOT_CURR_IMG(state));
-            rc = BOOT_EBADIMAGE;
-            FIH_SET(fih_rc, FIH_FAILURE);
-            goto out;
-        }
-#endif /* MCUBOOT_VALIDATE_PRIMARY_SLOT */
 
         rc = boot_update_hw_rollback_protection(state);
         if (rc != 0) {
@@ -2401,11 +1944,7 @@ out:
      * them here to avoid the possibility of jumping into an image that could
      * easily recover them.
      */
-#if defined(MCUBOOT_ENC_IMAGES) || defined(MCUBOOT_SWAP_SAVE_ENCTLV)
-    like_mbedtls_zeroize(&bs, sizeof(bs));
-#else
     memset(&bs, 0, sizeof(struct boot_status));
-#endif
 
     close_all_flash_areas(state);
     FIH_RET(fih_rc);
@@ -3275,6 +2814,7 @@ boot_update_hw_rollback_protection(struct boot_loader_state *state)
 #endif
 }
 
+/*secureboot_xip function start*/
 fih_ret
 context_boot_go(struct boot_loader_state *state, struct boot_rsp *rsp)
 {

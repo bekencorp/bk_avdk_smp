@@ -16,6 +16,7 @@
 #include "security.h"
 #include "prro.h"
 #include "tfm_flash_partition.h"
+#include "ota_confirm.h"    /* bk_ota_confirm_clear_if_armed (compressed-overwrite) */
 #include "tfm_hal_ppc.h"
 #include "tfm_builtin_key_loader.h"
 #include "hal_hw_fih.h"
@@ -54,16 +55,16 @@
 #define PPRO_CONFIG_REG14_OFFSET  0x0E
 #define PPRO_CONFIG_REG15_OFFSET  0x0F
 
+
 #define TAG "platform"
 
 extern uint32_t sys_is_enable_fast_boot(void);
 extern uint32_t sys_is_running_from_deep_sleep(void);
 extern void tfm_deepsleep_fastboot_save_xip(void);
-int bk_flash_set_dbus_security_region(uint32_t id, uint32_t start, uint32_t end, bool secure);
-/* A/B trial confirm (boot_param_confirm.c): settle a TRIAL boot record to NORMAL
- * once the image has proven it can bring up the secure world. */
 extern int boot_param_confirm(void);
 extern uint32_t flash_get_excute_enable(void);
+
+int bk_flash_set_dbus_security_region(uint32_t id, uint32_t start, uint32_t end, bool secure);
 
 extern const struct memory_region_limits memory_regions;
 /*
@@ -86,8 +87,11 @@ int bk_flash_dbus_isolation_init(void)
 	uint32_t ps_offset = partition_get_phy_offset(PARTITION_SYS_PS);
 	uint32_t ps_size = partition_get_phy_size(PARTITION_SYS_PS);
 	uint32_t primary_offset = partition_get_phy_offset(PARTITION_PRIMARY_ALL);
+	uint32_t primary_size = partition_get_phy_size(PARTITION_PRIMARY_ALL);
+#if CONFIG_DIRECT_XIP
 	uint32_t secondary_offset = partition_get_phy_offset(PARTITION_SECONDARY_ALL);
 	uint32_t secondary_size = partition_get_phy_size(PARTITION_SECONDARY_ALL);
+#endif
 	uint32_t region0_end;
 	uint32_t region1_start;
 	uint32_t region1_end;
@@ -100,6 +104,7 @@ int bk_flash_dbus_isolation_init(void)
 	bk_flash_set_dbus_security_region(0, 0, region0_end, true);
 	bk_sw_fih_set_data(FIH_SW_INDEX12);
 
+#if CONFIG_DIRECT_XIP
 	/*
 	 * Region 1: protect the active Secure image window.
 	 * Dual-slot A/B: slot size = secondary_offset - primary_offset.
@@ -118,7 +123,10 @@ int bk_flash_dbus_isolation_init(void)
 		region1_start = flash_get_excute_enable() ? secondary_offset : primary_offset;
 		region1_end = region1_start + secondary_offset - primary_offset - 1u;
 	}
-
+#else
+	region1_start = primary_offset;
+	region1_end = region1_start + primary_size - 1u;	
+#endif
 	bk_flash_set_dbus_security_region(1, region1_start, region1_end, true);
 
 	bk_sw_fih_set_data(FIH_SW_INDEX13);
@@ -207,14 +215,23 @@ FIH_RET_TYPE(enum tfm_hal_status_t) tfm_hal_platform_init(void)
     tfm_builtin_key_loader_init();
 #endif
 
+#if CONFIG_DIRECT_XIP
     tfm_deepsleep_fastboot_save_xip();
+#endif
 
-    /* A/B trial confirm: reaching here means MCUboot verified the image and the
-     * secure world came up, so adopt a TRIAL slot as the new NORMAL exec_slot.
-     * flash + partition table are ready (partition_init ran earlier in
-     * tfm_core_init). Idempotent: no-op for a non-TRIAL / virgin record. */
+#if CONFIG_DIRECT_XIP
+    /* A/B trial confirm: image verified + secure world up, so adopt a TRIAL slot
+     * as the new NORMAL exec_slot. Idempotent: no-op for non-TRIAL/virgin. */
 #if !defined(CONFIG_XIP_FORCE_SLOT_A)
     (void)boot_param_confirm();
+#endif
+#endif /* CONFIG_DIRECT_XIP */
+
+#if CONFIG_OTA_OVERWRITE
+    /* Confirm-on-successful-boot: clear the compressed-overwrite confirm flag
+     * only now that the installed image has reached the secure world, and only
+     * if it is actually armed. Mirrors the XIP boot_param_confirm() above. */
+    bk_ota_confirm_clear_if_armed();
 #endif
 
     FIH_RET(fih_int_encode(TFM_HAL_SUCCESS));

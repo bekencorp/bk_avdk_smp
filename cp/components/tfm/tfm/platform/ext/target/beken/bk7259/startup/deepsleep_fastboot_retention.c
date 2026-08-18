@@ -1,10 +1,17 @@
 // Copyright 2023-2028 Beken
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
-
 #include <stdint.h>
 #include <soc/soc.h>
+/* partitions.h -> partitions_gen.h -> security.h -> _ota.h defines
+ * CONFIG_DIRECT_XIP, so it MUST be included before the guard below. The XIP
+ * fastboot retention record only exists for direct-XIP boot; the compressed-
+ * overwrite project (CONFIG_DIRECT_XIP=0) compiles this file to empty and its
+ * .bl2_fastboot_retention section stays zero-sized (see region_defs.h /
+ * bk7259_s.ld ASSERT). */
 #include "partitions.h"
+
+#if CONFIG_DIRECT_XIP
 
 #define BL2_DS_RETENTION_MAGIC      (0x46584252u) /* Little-endian "RBXF": Retention Boot XIP Flash record. */
 #define BL2_DS_RETENTION_WORDS      (8u)
@@ -76,3 +83,4 @@ void tfm_deepsleep_fastboot_save_xip(void)
 	record->magic = BL2_DS_RETENTION_MAGIC;
 	__asm volatile("dsb" ::: "memory");
 }
+#endif

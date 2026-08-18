@@ -147,8 +147,9 @@ bootutil_img_hash(struct enc_key_data *enc_state, int image_index,
     BOOT_LOG_INF("%s: fa_off:0x%x", __FUNCTION__, fa_off);
     bootutil_sha_update(&sha_ctx, (uint8_t *)fa_off, size);
 
+#if CONFIG_DIRECT_XIP
     flash_set_excute_enable(0);
-
+#endif
 
 #endif /* MCUBOOT_RAM_LOAD */
     bootutil_sha_finish(&sha_ctx, hash_result);
