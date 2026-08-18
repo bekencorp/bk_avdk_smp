@@ -546,6 +546,13 @@ static avdk_err_t h264_encode_ctlr_set_rate_ctrl(private_h264_encode_frame_ctlr_
         vcenc_rc.qp_max_pb = qp_p;
         vcenc_rc.qp_hdr = (int)qp_i;
         vcenc_rc.picture_rc = 0;
+        vcenc_rc.vbr = 0;
+        vcenc_rc.ctb_rc = H264_ENCODE_CTB_RC_DISABLE;
+        vcenc_rc.block_rc_size = 0;
+        vcenc_rc.cpb_max_rate = 0;
+        vcenc_rc.filler_data = 0;
+        vcenc_rc.hrd = 0;
+        vcenc_rc.hrd_cpb_size = 0;
         vcenc_rc.bit_per_second = 0;
     } else {
         vcenc_rc.qp_min_i = rate_ctrl->qp_min_i;
@@ -560,7 +567,16 @@ static avdk_err_t h264_encode_ctlr_set_rate_ctrl(private_h264_encode_frame_ctlr_
             return AVDK_ERR_INVAL;
         }
         vcenc_rc.qp_hdr = -1;
+        vcenc_rc.intra_qp_delta = H264_ENCODE_VBR_INTRA_QP_DELTA;
         vcenc_rc.picture_rc = 1;
+        vcenc_rc.vbr = 1;
+        vcenc_rc.ctb_rc = H264_ENCODE_CTB_RC_SUBJECTIVE;
+        vcenc_rc.block_rc_size = 0;
+        vcenc_rc.cpb_max_rate = 0;
+        vcenc_rc.filler_data = 0;
+        vcenc_rc.hrd = 0;
+        vcenc_rc.hrd_cpb_size = 0;
+        vcenc_rc.bitrate_window = h264_encode_vbr_bitrate_window_frames(&vcenc_rc);
         vcenc_rc.bit_per_second = rate_ctrl->bitrate;
     }
 

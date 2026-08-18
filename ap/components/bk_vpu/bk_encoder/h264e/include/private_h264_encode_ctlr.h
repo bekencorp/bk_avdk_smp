@@ -112,6 +112,30 @@ static inline void h264_encode_debug_update_qp(h264_encode_debug_info_t *info, u
  */
 #define H264_ENCODE_DEFAULT_OPEN_QP_I 23U
 #define H264_ENCODE_DEFAULT_OPEN_QP_P 26U
+#define H264_ENCODE_CTB_RC_DISABLE 0U
+#define H264_ENCODE_CTB_RC_SUBJECTIVE 1U
+#define H264_ENCODE_VBR_INTRA_QP_DELTA (-3)
+#define H264_ENCODE_VBR_BITRATE_WINDOW_SECONDS 2U
+#define H264_ENCODE_VBR_BITRATE_WINDOW_FALLBACK_FRAMES 50U
+#define H264_ENCODE_VBR_BITRATE_WINDOW_MAX_FRAMES 90U
+
+static inline uint32_t h264_encode_vbr_bitrate_window_frames(const vcenc_rate_ctrl_t *rc)
+{
+	uint32_t frames;
+
+	if (rc == NULL || rc->frame_rate_num == 0U || rc->frame_rate_denom == 0U) {
+		return H264_ENCODE_VBR_BITRATE_WINDOW_FALLBACK_FRAMES;
+	}
+
+	frames = rc->frame_rate_num * H264_ENCODE_VBR_BITRATE_WINDOW_SECONDS / rc->frame_rate_denom;
+	if (frames == 0U) {
+		frames = 1U;
+	}
+	if (frames > H264_ENCODE_VBR_BITRATE_WINDOW_MAX_FRAMES) {
+		frames = H264_ENCODE_VBR_BITRATE_WINDOW_MAX_FRAMES;
+	}
+	return frames;
+}
 
 typedef struct
 {
