@@ -18,12 +18,7 @@
 #include <components/log.h>
 #include "bk_mcu_ps.h"
 #include <os/str.h>
-#if CONFIG_FLASH_ORIGIN_API
-#include "BkDriverFlash.h"
-#include "bk_flash.h"
-#else
 #include "driver/flash.h"
-#endif
 #include <os/os.h>
 #include <components/system.h>
 #include "modules/wifi_types.h"
@@ -62,12 +57,6 @@ void write_cal_result_to_flash_secure_op1(void)
 {
         #if CONFIG_ALIOS
         hal_flash_dis_secure(0, 0, 0);
-        #else
-#if CONFIG_FLASH_ORIGIN_API
-        bk_flash_enable_security(FLASH_PROTECT_NONE);
-#else
-        bk_flash_set_protect_type(FLASH_PROTECT_NONE);
-#endif
         #endif
 }
 
@@ -76,12 +65,6 @@ void write_cal_result_to_flash_secure_op2(void)
 {
         #if CONFIG_ALIOS
         hal_flash_enable_secure(0, 0, 0);
-        #else
-#if CONFIG_FLASH_ORIGIN_API
-        bk_flash_enable_security(FLASH_UNPROTECT_LAST_BLOCK);
-#else
-        bk_flash_set_protect_type(FLASH_UNPROTECT_LAST_BLOCK);
-#endif
         #endif
 }
 

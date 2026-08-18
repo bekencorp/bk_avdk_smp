@@ -46,15 +46,15 @@ int bkreg_tx_get_uart_port(void)
 }
 
 //Called by write_cal_result_to_flash() only
+//Flash protection is now managed internally by the flash erase/write API.
 void write_cal_result_to_flash_secure_op1(void)
 {
-        bk_flash_set_protect_type(FLASH_PROTECT_NONE);
 }
 
 //Called by write_cal_result_to_flash() only
+//Flash protection is now managed internally by the flash erase/write API.
 void write_cal_result_to_flash_secure_op2(void)
 {
-        bk_flash_set_protect_type(FLASH_UNPROTECT_LAST_BLOCK);
 }
 
 void connection_fail_cb(wifi_linkstate_reason_t info)
