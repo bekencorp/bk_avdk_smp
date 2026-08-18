@@ -1,0 +1,120 @@
+#
+# secureboot_overwrite CP defconfig (diff vs board defconfig)
+# CP secure boot with TF-M 2.1.0 + MCUboot 2.1.0, OVERWRITE upgrade strategy.
+#
+
+# --- SMP base (CP = 2 cores) ---
+CONFIG_SOC_SMP=n
+CONFIG_CPU_ID_OFFSET=0
+CONFIG_SMP_CORE_CNT=2
+# CONFIG_FREERTOS_V10 is not set
+CONFIG_FREERTOS_SMP=n
+CONFIG_SLAVE_HEART_BEAT=n
+CONFIG_PM_ONLY_CP_ENABLE=y
+CONFIG_FREERTOS_ALLOW_OS_API_IN_IRQ_DISABLED=y
+CONFIG_SPINLOCK=y
+CONFIG_SUPPORT_WWDT=n
+CONFIG_SECURITY_FIRMWARE=y
+# flash controller MMIO (0x54030000) is secure-only; NS easyflash direct
+# access faults. Disable easyflash until NS flash goes through a secure gateway.
+CONFIG_EASY_FLASH=n
+
+CONFIG_SPE=0
+CONFIG_SRAM_DIRECT_ADDR=y
+
+# --- TF-M (built as ExternalProject under components/tfm) ---
+CONFIG_TFM=y
+CONFIG_TFM_PROFILE="profile_medium"
+CONFIG_TFM_BUILD_TYPE="minsizerel"
+CONFIG_TFM_BL2="ON"
+CONFIG_TFM_ISOLATION_LEVEL=2
+CONFIG_TFM_TEST_S="OFF"
+CONFIG_TFM_TEST_NS="OFF"
+CONFIG_TFM_FPGA="OFF"
+# Enable secure-world + BL2 logs so the secure boot flow is observable on UART1
+# (TFM_DRIVER_STDIO). Lower to OFF/ERROR for production.
+CONFIG_TFM_LOG_LEVEL="INFO"
+CONFIG_TFM_BL2_LOG_LEVEL="INFO"
+
+# --- MCUboot upgrade strategy (OVERWRITE_ONLY) ---
+# Drives -DMCUBOOT_UPGRADE_STRATEGY (cp/components/tfm/CMakeLists.txt) so BL2 is
+# built with MCUBOOT_OVERWRITE_ONLY: one execution slot (primary_all) is
+# overwritten in place from the `ota` staging area after LZMA decompression.
+# The strategy macros CONFIG_OTA_OVERWRITE / CONFIG_DIRECT_XIP / CONFIG_OTA_ENCRYPTED
+# are NOT set here; gen_ota.py derives them from partitions/bk7259/ota.csv.
+CONFIG_BL2_UPGRADE_STRATEGY="OVERWRITE_ONLY"
+CONFIG_XIP_NO_VERSION=y
+
+# --- SPE heap ---
+CONFIG_TFM_HEAP_SIZE=0x6000
+
+# --- TF-M secure services (Crypto only) ---
+CONFIG_TFM_CRYPTO=y
+# CONFIG_TFM_PS is not set
+# CONFIG_TFM_FWU is not set
+CONFIG_INITIAL_ATTESTATION=n
+
+# --- AP start: CP NS PM vote + multicore, secure-prepare via NSC ---
+# CP NS owns the AP start sequence (AON PMU / analog / AP power-on / AP SYS via
+# NS alias / reset release); TF-M only performs AP MPC/PPHS, shim install and the
+# Secure PPRO master gate through the narrow psa_ap_secure_prepare NSC.
+CONFIG_SUPPORT_MULTICORE=y
+CONFIG_TFM_AP_BOOT_NSC=y
+CONFIG_TFM_SLEEP_RETENTION_NSC=y
+
+# --- AP power domain ownership ---
+# CP power-cycles the AP domain, so the PSRAM controller and AP SYS/AHBP live in
+# a domain that is off/reset until CP powers the AP up. Defer PSRAM init out of
+# driver_init to the post-power-on PM vote so the controller is programmed after
+# the AP domain is up (otherwise the early init is wiped by the power-on reset).
+CONFIG_PM_AP_POWERDOWN_WHEN_LV=y
+
+# --- NSC (CMSE non-secure-callable) register access gateway ---
+# NS cpu0_app reaches registers through the secure world via SG veneers
+# (reg_nsc.c -> libtfm_s_veneers.a). Enables the NS `regshow_s` CLI too.
+CONFIG_TFM_REG_ACCESS_NSC=y
+
+# --- Crypto backend ---
+# NS classic mbedtls: TRUSTENGINE (Normal window). NS PSA/TLS-via-PSA: TF-M Crypto.
+CONFIG_PSA_MBEDTLS=y
+CONFIG_MBEDTLS_USE_PSA_CRYPTO=y
+CONFIG_PSA_MBEDTLS_TEST=y
+CONFIG_CLASSIC_MBEDTLS_TEST=y
+CONFIG_TRUSTENGINE=y
+# CONFIG_SW_CRYPTO is not set
+
+# --- PSRAM: CP does not use PSRAM, keep it disabled on CP ---
+CONFIG_PSRAM=y
+# CONFIG_PSRAM_AS_SYS_MEMORY is not set
+# CONFIG_PSRAM_WRITE_THROUGH is not set
+# CONFIG_PSRAM_CALIBRATE is not set
+# CONFIG_PSRAM_TEST is not set
+# CONFIG_USE_PSRAM_HEAP_AT_SRAM_OOM is not set
+
+# --- Heap debug: disabled ---
+# CONFIG_MEM_DEBUG is not set
+
+CONFIG_AT_CMD=y
+CONFIG_BTDM_CONTROLLER_ONLY=y
+
+# --- Low-power (AP power-down when LV) feature set ---
+# Tickless idle + Deep-LV lets the CP enter low-voltage retention while the AP
+# domain is powered down; AON RTC / GPIO / touch provide the wakeup sources and
+# the AON LDO / ROSC tuning reduces standby current.
+CONFIG_FREERTOS_USE_TICKLESS_IDLE=2
+CONFIG_BLUETOOTH=y
+CONFIG_BLUETOOTH_SUPPORT_LPO_ROSC=y
+CONFIG_BLE_LV_SUPPORT=y
+CONFIG_DEEP_LV=y
+CONFIG_DEEP_LV_DEBUG_GPIO=y
+# CONFIG_DEEP_LV_DEBUG_LOG is not set
+CONFIG_AON_RTC=y
+CONFIG_GPIO_WAKEUP_SUPPORT=y
+CONFIG_GPIO_DYNAMIC_WAKEUP_SUPPORT=y
+CONFIG_TOUCH=y
+CONFIG_TOUCH_TEST=y
+CONFIG_PM_POWER_VOTE_RECORD=y
+CONFIG_PM_CLOCK_VOTE_RECORD=y
+CONFIG_CKMN_TEST=y
+CONFIG_OPTIMIZE_AON_CURRENT=y
+CONFIG_AON_LDO_SEL=2

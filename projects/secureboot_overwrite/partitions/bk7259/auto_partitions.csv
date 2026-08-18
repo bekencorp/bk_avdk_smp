@@ -1,0 +1,59 @@
+# BK7259 secureboot_overwrite partition table (8MB) - single-slot OVERWRITE.
+#
+# Unlike secureboot_xip (which keeps twin primary_*/secondary_* A/B slots), the
+# OVERWRITE strategy runs from ONE execution slot (primary_all) plus a dedicated
+# `ota` staging area. Upgrade flow:
+#   1. Device receives the compressed+signed ota.bin and writes it verbatim into
+#      the `ota` staging partition (plaintext in v1, no flash encryption).
+#   2. On reset BL2 (MCUboot OVERWRITE_ONLY) reads `ota` block-by-block, LZMA-
+#      decompresses, verifies the EC-P256 signature, and overwrites primary_all.
+#   3. `ota_control` holds the power-fail resume / anti-brick journal.
+#
+# Packer naming contract (beken_utils/partition.py):
+#   - bl2                : BL2 (MCUboot) image, verified by BootROM (bl1).
+#   - bl1_control        : secureboot metadata (reserved name).
+#   - primary_manifest   : secureboot manifest (reserved name).
+#   - partition          : partition table image.
+#   - primary_tfm_s      -> tfm_s.bin   (CP TF-M Secure; PartyA, secure world).
+#   - primary_cpu0_app   -> cpu0_app.bin(CP non-secure app; downstream).
+#   - primary_ap_app     -> ap_app.bin  (AP firmware).
+#   - primary_*          : folded by the packer into virtual `primary_all`, signed
+#                          once by BL2 (EC-P256). This is the single execution slot.
+#   - ota                : staging area for the received compressed image. Name
+#                          MUST be exactly `ota` (find_partition_by_name('ota')).
+#                          NO bin is packed into it; it is filled at runtime.
+#   - ota_control        : resume/anti-brick journal (>=4K).
+#   - sys_its/sys_ps     : required by TF-M (ITS/PS backends).
+#   - sys_net/sys_rf     : required by primary_cpu0_app.
+#
+# Constraints honored:
+#   - primary_* code partitions are placed AFTER bl2 (verified by BL2).
+#   - end(primary_tfm_s)=0x70000 is 64K-aligned (TF-M S/NS boundary).
+#   - end(primary_ap_app)=0x370000 is 64K-aligned: the packer's check_68K_boundary
+#     requires the partition immediately before `ota` to end on a 64K boundary
+#     (BK7259 disables flash CRC -> 64K, not 68K; security.csv crc_en=FALSE).
+#   - primary_all = 320K+1644K+1428K = 3392K = 53 x 64K (whole compression blocks).
+#   - NO secondary_* partitions (OVERWRITE runs a single slot).
+FLASH_CAPACITY=8M
+#Name,Offset,Size,Type,Read,Write
+# bl1_control must be a CODE partition so the secure packer AES-encrypts it and
+# writes the BootROM 'BK.SB' magic at offset 0x100 (which selects secure boot).
+# Kept out of the application numbering by bk_flash_partition._part_adapter.
+bl1_control,0x0,4k,code,TRUE,FALSE
+boot_flag,0x1000,4k,data,TRUE,FALSE
+partition,0x2000,4k,data,TRUE,FALSE
+primary_manifest,0x3000,4k,data,TRUE,FALSE
+bl2,0x4000,96k,code,TRUE,FALSE
+sys_its,0x1C000,8k,data,TRUE,TRUE
+sys_ps,0x1E000,8k,data,TRUE,TRUE
+primary_tfm_s,0x20000,320k,code,TRUE,TRUE
+primary_cpu0_app,0x70000,1644k,code,TRUE,TRUE
+primary_ap_app,0x20B000,1428k,code,TRUE,TRUE
+ota,0x370000,3072k,data,TRUE,TRUE
+ota_control,0x670000,8k,data,TRUE,TRUE
+usr_config,0x6B8000,60k,data,TRUE,TRUE
+easyflash,0x6C7000,8k,data,TRUE,TRUE
+easyflash_ap,0x6C9000,8k,data,TRUE,TRUE
+boot_param,0x6CB000,8k,data,TRUE,TRUE
+sys_rf,0x7FE000,4k,data,TRUE,TRUE
+sys_net,0x7FF000,4k,data,TRUE,TRUE
