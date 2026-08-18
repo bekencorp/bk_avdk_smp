@@ -28,7 +28,7 @@ extern "C" {
 
 typedef enum
 {
-    BK_GPU_IOCTL_SET_FLEXA_LINES_READY,
+    BK_GPU_IOCTL_DEC_FLEXA_READY,
     BK_GPU_IOCTL_SET_NOTIFY,
     BK_GPU_IOCTL_REGISTER_BOND,
     BK_GPU_IOCTL_UNREGISTER_BOND,
@@ -36,7 +36,7 @@ typedef enum
     BK_GPU_IOCTL_FLEXA_ADDR_UNMAPPING,
     BK_GPU_IOCTL_LOCK,
     BK_GPU_IOCTL_UNLOCK,
-    BK_GPU_IOCTL_SET_FLEXA_EVENT_READY,
+    BK_GPU_IOCTL_ISP_FLEXA_READY,
     /* args = bool*: false = frame-end OSD blit; true = per flexa block. */
     BK_GPU_IOCTL_SET_OSD_BY_FLEXA,
 } bk_gpu_ioctl_cmd_t;
@@ -45,7 +45,7 @@ typedef struct
 {
     uint32_t frame_seq;
     uint32_t line_cnt;
-} bk_gpu_flexa_event_t;
+} bk_gpu_isp_flexa_event_t;
 
 typedef struct
 {
