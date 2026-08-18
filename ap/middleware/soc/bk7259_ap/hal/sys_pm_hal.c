@@ -39,12 +39,20 @@
 #endif
 #include "sys_ahbp_ll.h"
 #include "multicore_driver.h"
+#if CONFIG_GENERAL_DMA
 #include <driver/dma.h>
+#endif
 #if CONFIG_TASK_WDT
 #include "bk_private/bk_wdt.h"
 #endif
 
 extern uint64_t check_IRQ_pending(void);
+
+#if CONFIG_GENERAL_DMA
+#define SYS_PM_DMA_CHN_BUSY() bk_dma_check_chn_status()
+#else
+#define SYS_PM_DMA_CHN_BUSY() (0U)
+#endif
 
 #define portNVIC_SYSTICK_CTRL_REG             ( *( ( volatile uint32_t * ) 0xe000e010 ) )
 #define portNVIC_SYSTICK_LOAD_REG             ( *( ( volatile uint32_t * ) 0xe000e014 ) )
@@ -551,7 +559,7 @@ void sys_hal_enter_cpu_wfi()
 			__asm volatile( "nop" );
 			__asm volatile( "nop" );
 
-			if(check_IRQ_pending()||bk_dma_check_chn_status()||(sys_ahbp_ll_get_reg18_value()||(sys_ahbp_ll_get_reg19_value()))||(portNVIC_INT_CTRL_REG&portNVIC_SYSTICKSET_BIT))
+			if(check_IRQ_pending()||SYS_PM_DMA_CHN_BUSY()||(sys_ahbp_ll_get_reg18_value()||(sys_ahbp_ll_get_reg19_value()))||(portNVIC_INT_CTRL_REG&portNVIC_SYSTICKSET_BIT))
 			{
 				sys_ahbp_ll_set_reg10_value(int_state0_31);
 				sys_ahbp_ll_set_reg11_value(int_state32_63);
@@ -751,7 +759,7 @@ void sys_hal_enter_normal_sleep(uint32_t peri_clk)
 			__asm volatile( "nop" );
 			__asm volatile( "nop" );
 			__asm volatile( "nop" );
-			if(check_IRQ_pending()||bk_dma_check_chn_status()||(sys_ll_get_cpu1_int_0_31_status_value()||(sys_ll_get_cpu1_int_32_63_status_value()))||(portNVIC_INT_CTRL_REG&portNVIC_SYSTICKSET_BIT))
+			if(check_IRQ_pending()||SYS_PM_DMA_CHN_BUSY()||(sys_ll_get_cpu1_int_0_31_status_value()||(sys_ll_get_cpu1_int_32_63_status_value()))||(portNVIC_INT_CTRL_REG&portNVIC_SYSTICKSET_BIT))
 			{
 				sys_ll_set_cpu1_int_0_31_en_value(int_state1);
 				sys_ll_set_cpu1_int_32_63_en_value(int_state2);
@@ -816,7 +824,7 @@ void sys_hal_enter_normal_sleep(uint32_t peri_clk)
 			__asm volatile( "nop" );
 			__asm volatile( "nop" );
 			__asm volatile( "nop" );
-			if(check_IRQ_pending()||bk_dma_check_chn_status()||(sys_ll_get_cpu2_int_0_31_status_value()||(sys_ll_get_cpu2_int_32_63_status_value()))||(portNVIC_INT_CTRL_REG&portNVIC_SYSTICKSET_BIT))
+			if(check_IRQ_pending()||SYS_PM_DMA_CHN_BUSY()||(sys_ll_get_cpu2_int_0_31_status_value()||(sys_ll_get_cpu2_int_32_63_status_value()))||(portNVIC_INT_CTRL_REG&portNVIC_SYSTICKSET_BIT))
 			{
 				sys_ll_set_cpu2_int_0_31_en_value(int1_state1);
 				sys_ll_set_cpu2_int_32_63_en_value(int1_state2);
