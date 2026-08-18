@@ -25,6 +25,7 @@
 #   - ota_control        : resume/anti-brick journal (>=4K).
 #   - sys_its/sys_ps     : required by TF-M (ITS/PS backends).
 #   - sys_net/sys_rf     : required by primary_cpu0_app.
+#   - NO boot_param      : A/B ping-pong is XIP-only; OVERWRITE uses ota_control.
 #
 # Constraints honored:
 #   - primary_* code partitions are placed AFTER bl2 (verified by BL2).
@@ -54,6 +55,5 @@ ota_control,0x670000,8k,data,TRUE,TRUE
 usr_config,0x6B8000,60k,data,TRUE,TRUE
 easyflash,0x6C7000,8k,data,TRUE,TRUE
 easyflash_ap,0x6C9000,8k,data,TRUE,TRUE
-boot_param,0x6CB000,8k,data,TRUE,TRUE
 sys_rf,0x7FE000,4k,data,TRUE,TRUE
 sys_net,0x7FF000,4k,data,TRUE,TRUE
