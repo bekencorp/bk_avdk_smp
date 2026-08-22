@@ -22,6 +22,7 @@
 #include "modules/vcdec/vcdec_common.h"
 #include "driver/int.h"
 #include "driver/int_types.h"
+#include "modules/pm.h"
 #include "sys_driver.h"
 
 #include "hw_decoder_ctlr.h"
@@ -96,6 +97,7 @@ static avdk_err_t hw_decoder_hw_init(void)
 	LOGI("Hardware decoder init\r\n");
 	decoder_int_register();
 	bk_pm_module_vote_power_ctrl(PM_POWER_SUB_DOMAIN_H26D, PM_POWER_MODULE_STATE_ON);
+	bk_pm_module_vote_cpu_freq(PM_DEV_ID_VPU_DEC, PM_CPU_FRQ_480M);
 	return AVDK_ERR_OK;
 }
 
@@ -103,6 +105,7 @@ static avdk_err_t hw_decoder_hw_deinit(void)
 {
 	LOGI("Hardware decoder deinit\r\n");
 	decoder_int_deregister();
+	bk_pm_module_vote_cpu_freq(PM_DEV_ID_VPU_DEC, PM_CPU_FRQ_DEFAULT);
 	bk_pm_module_vote_power_ctrl(PM_POWER_SUB_DOMAIN_H26D, PM_POWER_MODULE_STATE_OFF);
 	return AVDK_ERR_OK;
 }
