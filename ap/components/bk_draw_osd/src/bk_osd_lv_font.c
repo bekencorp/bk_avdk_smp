@@ -150,6 +150,19 @@ void osd_lv_font_text_extent(const lv_font_t *font, const char *utf8, uint8_t sc
     if (out_h) *out_h = (uint16_t)(h ? h + 2u : 0u);
 }
 
+/*
+ * Premultiply a straight-alpha color by its coverage. The sprite is later
+ * composited with a premultiplied SRC_OVER blend, so writing straight-alpha
+ * edges here would over-brighten anti-aliased pixels into a white fringe.
+ */
+static inline uint32_t osd_lv_font_premul_argb(uint8_t a, uint32_t rgb)
+{
+    uint32_t r = (((rgb >> 16) & 0xFFU) * a + 127U) / 255U;
+    uint32_t g = (((rgb >> 8) & 0xFFU) * a + 127U) / 255U;
+    uint32_t b = ((rgb & 0xFFU) * a + 127U) / 255U;
+    return ((uint32_t)a << 24) | (r << 16) | (g << 8) | b;
+}
+
 uint16_t osd_lv_font_blit(uint32_t *dst, uint16_t dst_w, uint16_t dst_h,
                           const lv_font_t *font, const char *utf8,
                           uint16_t x, uint16_t y, uint32_t argb, uint8_t scale,
@@ -200,7 +213,7 @@ uint16_t osd_lv_font_blit(uint32_t *dst, uint16_t dst_w, uint16_t dst_h,
             for (uint16_t gx = 0; gx < g.box_w; gx++) {
                 uint8_t a = osd_lv_font_glyph_a8(&g, gx, gy);
                 if (a == 0) continue;
-                uint32_t pix = ((uint32_t)a << 24) | rgb;
+                uint32_t pix = osd_lv_font_premul_argb(a, rgb);
                 for (uint8_t sy = 0; sy < scale; sy++) {
                     int dy = glyph_top + gy * scale + sy;
                     if (dy < 0 || dy >= (int)dst_h) continue;

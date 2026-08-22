@@ -28,8 +28,7 @@ typedef struct {
     uint32_t             assets_size;
     dynamic_array_t      dyn;            /* runtime display list */
     beken_mutex_t        lock;
-    uint8_t              next_slot;      /* next free GPU slot for one-shot element/text;
-                                          * after array render, points past used clusters; clear resets to 0 */
+    uint8_t              next_slot;      /* next engine-local layer ordinal */
     /* Dirty tracking for incremental array render: dirty[i] marks dyn.entry[i] as changed since the
      * last successful array render, so array() re-composites only the changed slot(s) (e.g. a 1s
      * clock) and leaves the static ones on the GPU. layout_dirty forces a full render whenever the
@@ -278,12 +277,13 @@ static avdk_err_t osd_draw_element(bk_draw_osd_ctlr_handle_t handle, const blend
     }
 
     rtos_lock_mutex(&p->lock);
-    if (p->next_slot >= BK_GPU_BLIT_SLOT_MAX) {
+    uint8_t slot = p->next_slot;
+    if (slot >= osd_engine_layer_capacity(p->engine)) {
         LOGW("draw_element: no free slot (%u used)\n", p->next_slot);
         rtos_unlock_mutex(&p->lock);
         return AVDK_ERR_NOMEM;
     }
-    osd_engine_set_slot(p->engine, p->next_slot);
+    osd_engine_set_slot(p->engine, slot);
     avdk_err_t ret = osd_engine_begin(p->engine, w, h, b->xpos, b->ypos);
     if (ret != AVDK_ERR_OK) {
         rtos_unlock_mutex(&p->lock);
@@ -319,12 +319,13 @@ static avdk_err_t osd_draw_text(bk_draw_osd_ctlr_handle_t handle, osd_font_kind_
     }
 
     rtos_lock_mutex(&p->lock);
-    if (p->next_slot >= BK_GPU_BLIT_SLOT_MAX) {
+    uint8_t slot = p->next_slot;
+    if (slot >= osd_engine_layer_capacity(p->engine)) {
         LOGW("draw_text: no free slot (%u used)\n", p->next_slot);
         rtos_unlock_mutex(&p->lock);
         return AVDK_ERR_NOMEM;
     }
-    osd_engine_set_slot(p->engine, p->next_slot);
+    osd_engine_set_slot(p->engine, slot);
     avdk_err_t ret = osd_engine_begin(p->engine, w, h, x, y);
     if (ret != AVDK_ERR_OK) {
         rtos_unlock_mutex(&p->lock);
@@ -412,9 +413,15 @@ static avdk_err_t osd_draw_osd_array(bk_draw_osd_ctlr_handle_t handle, const ble
     for (int i = 0; i < n; i++) { cid[i] = i; cbox[i] = rect[i]; active[i] = true; }
     int nclusters = n;
 
-    /* 3) Agglomerative merge to <= BK_GPU_BLIT_SLOT_MAX: pick pair with smallest added blank area
+    uint8_t available_slots = osd_engine_layer_capacity(p->engine);
+    if (available_slots == 0U) {
+        rtos_unlock_mutex(&p->lock);
+        return AVDK_ERR_NOMEM;
+    }
+
+    /* 3) Agglomerative merge to the available physical slot count: pick pair with smallest added blank area
      *    (cost = merged bbox area - sum of cluster areas) */
-    while (nclusters > BK_GPU_BLIT_SLOT_MAX) {
+    while (nclusters > available_slots) {
         int ba = -1, bb = -1;
         int64_t best = 0; bool have = false;
         for (int a = 0; a < n; a++) {
@@ -443,11 +450,24 @@ static avdk_err_t osd_draw_osd_array(bk_draw_osd_ctlr_handle_t handle, const ble
      * cluster<->slot mapping is no longer guaranteed stable across calls and skipping is unsafe. */
     bool full = p->layout_dirty || (list != NULL) || (p->dirty == NULL) || (nclusters < n);
 
-    /* 4) Per cluster: compact to slots 0..nclusters-1, composite tight sprite, commit */
+    if (full) {
+        avdk_err_t clear_ret = osd_engine_clear(p->engine);
+        if (clear_ret != AVDK_ERR_OK) {
+            rtos_unlock_mutex(&p->lock);
+            return clear_ret;
+        }
+    }
+
+    /* 4) Per cluster: use an engine-local layer ordinal. bk_gpu owns physical allocation. */
     avdk_err_t ret = AVDK_ERR_OK;
-    uint8_t slot = 0;
+    uint8_t slot_ordinal = 0;
     for (int c = 0; c < n; c++) {
+        uint8_t slot = slot_ordinal;
         if (!active[c]) continue;
+        if (slot >= available_slots) {
+            ret = AVDK_ERR_NOMEM;
+            break;
+        }
 
         /* Skip an unchanged cluster: advance the slot cursor so the surviving slot number stays
          * identical to when it was first laid out (the GPU keeps its existing blit for that slot). */
@@ -458,7 +478,7 @@ static avdk_err_t osd_draw_osd_array(bk_draw_osd_ctlr_handle_t handle, const ble
                 size_t di = (size_t)(elem[i] - arr);   /* arr == dyn.entry on this path */
                 if (di < p->dirty_cap && p->dirty[di]) cl_dirty = true;
             }
-            if (!cl_dirty) { slot++; continue; }
+            if (!cl_dirty) { slot_ordinal++; continue; }
         }
 
         osd_rect_t *bx = &cbox[c];
@@ -486,10 +506,10 @@ static avdk_err_t osd_draw_osd_array(bk_draw_osd_ctlr_handle_t handle, const ble
         }
         ret = osd_engine_commit(p->engine);
         if (ret != AVDK_ERR_OK) break;
-        slot++;
+        slot_ordinal++;
     }
 
-    p->next_slot = slot;   /* cursor past used clusters for follow-up element/text */
+    p->next_slot = slot_ordinal;
 
     /* On a clean render the GPU now matches the list: drop dirty flags and the layout-changed
      * marker. On mid-way failure we keep them so the next call retries the unpainted slots. */
@@ -620,20 +640,26 @@ static avdk_err_t osd_delete(bk_draw_osd_ctlr_handle_t handle)
 avdk_err_t osd_ctlr_new(bk_draw_osd_ctlr_handle_t *handle, osd_ctlr_config_t *config)
 {
     AVDK_RETURN_ON_FALSE(handle && config, AVDK_ERR_INVAL, TAG, "handle/config NULL");
-    AVDK_RETURN_ON_FALSE(config->gpu, AVDK_ERR_INVAL, TAG, "config->gpu NULL");
+    AVDK_RETURN_ON_FALSE(config->gpu, AVDK_ERR_INVAL, TAG,
+                         "config->gpu NULL");
+
+    /* OSD and PIP on the same controller share one overlay; fetch (or lazily
+     * create) it here so the client only supplies a GPU controller handle. */
+    bk_gpu_overlay_handle_t overlay = NULL;
+    avdk_err_t ret = bk_gpu_get_overlay(config->gpu, &overlay);
+    AVDK_RETURN_ON_FALSE(ret == AVDK_ERR_OK, ret, TAG,
+                         "bk_gpu_get_overlay failed");
 
     private_osd_ctlr_t *p = os_malloc(sizeof(private_osd_ctlr_t));
     AVDK_RETURN_ON_FALSE(p, AVDK_ERR_NOMEM, TAG, "malloc failed");
     os_memset(p, 0, sizeof(*p));
 
-    avdk_err_t ret;
     p->panel_w     = config->panel_w;
     p->panel_h     = config->panel_h;
     p->assets      = config->blend_assets;
     p->assets_size = config->blend_assets ? (uint32_t)array_length(config->blend_assets) : 0;
-
     osd_engine_config_t ecfg = {
-        .gpu           = config->gpu,
+        .overlay       = overlay,
         .panel_w       = config->panel_w,
         .panel_h       = config->panel_h,
         .rotate_degree = config->osd_rotate_degree,

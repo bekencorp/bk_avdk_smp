@@ -2,7 +2,7 @@
  * osd_engine — reusable OSD compositor (per-instance, no module statics).
  *
  * Composites icons (ARGB8888) and text (LVGL or bk_font) into a transparent ARGB8888
- * sprite, then registers it with an external pipeline GPU (bk_gpu_blit_set, SRC_OVER).
+ * sprite, then updates a leased external GPU overlay layer (SRC_OVER).
  * Each instance owns its sprite and free-callback closure; MIPI/UVC can run concurrently.
  *
  * Usage: osd_engine_begin() -> osd_engine_put_icon()/put_text() -> osd_engine_commit().
@@ -13,7 +13,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <components/avdk_utils/avdk_error.h>
-#include <components/bk_gpu.h>
+#include "bk_gpu_overlay.h"
 #include <common/avdk_pixel_types.h>
 #include "components/bk_draw_osd_types.h"   /* bk_blend_t, osd_font_kind_t */
 #include "bk_osd_lv_font.h"                    /* lv_font_t; gui_font_digit_struct via modules/lcd_font.h */
@@ -25,7 +25,7 @@ extern "C" {
 typedef struct osd_engine *osd_engine_handle_t;
 
 typedef struct {
-    bk_gpu_ctlr_handle_t gpu;        /**< Bound external pipeline GPU (required) */
+    bk_gpu_overlay_handle_t overlay; /**< Bound overlay compositor (required) */
     uint16_t panel_w;                /**< Target display (panel buffer) width */
     uint16_t panel_h;                /**< Target display (panel buffer) height */
     /* OSD content rotation (0/90/270). 0: dst_x/dst_y passed to begin() are panel-buffer coords
@@ -48,8 +48,8 @@ uint16_t osd_engine_sprite_w(osd_engine_handle_t eng);
 uint16_t osd_engine_sprite_h(osd_engine_handle_t eng);
 
 /**
- * @brief Set GPU blit slot for the next commit (default 0).
- *        Repeated begin/commit to different slots enables multi-corner OSD on one screen.
+ * @brief Select the engine-local layer ordinal for the next commit (default 0).
+ *        bk_gpu assigns physical slots through opaque leases.
  */
 void osd_engine_set_slot(osd_engine_handle_t eng, uint8_t slot);
 
@@ -80,6 +80,9 @@ avdk_err_t osd_engine_commit(osd_engine_handle_t eng);
 
 /** @brief Clear registered OSD blits on bound GPU (GPU frees old sprites via free callback) */
 avdk_err_t osd_engine_clear(osd_engine_handle_t eng);
+avdk_err_t osd_engine_clear_slot(osd_engine_handle_t eng, uint8_t slot);
+avdk_err_t osd_engine_clear_slots(osd_engine_handle_t eng, uint32_t slot_mask);
+uint8_t osd_engine_layer_capacity(osd_engine_handle_t eng);
 
 #ifdef __cplusplus
 }

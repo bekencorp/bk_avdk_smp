@@ -72,6 +72,19 @@ void osd_emwin_font_text_extent(const gui_font_digit_struct *tbl, const char *ut
     if (out_h) *out_h = (uint16_t)(h ? h + 2U : 0U);
 }
 
+/*
+ * Premultiply a straight-alpha color by its coverage. The sprite is later
+ * composited with a premultiplied SRC_OVER blend, so writing straight-alpha
+ * edges here would over-brighten anti-aliased pixels into a white fringe.
+ */
+static inline uint32_t osd_emwin_premul_argb(uint8_t a, uint32_t rgb)
+{
+    uint32_t r = (((rgb >> 16) & 0xFFU) * a + 127U) / 255U;
+    uint32_t g = (((rgb >> 8) & 0xFFU) * a + 127U) / 255U;
+    uint32_t b = ((rgb & 0xFFU) * a + 127U) / 255U;
+    return ((uint32_t)a << 24) | (r << 16) | (g << 8) | b;
+}
+
 uint16_t osd_emwin_font_blit(uint32_t *dst, uint16_t dst_w, uint16_t dst_h,
                              const gui_font_digit_struct *tbl, const char *utf8,
                              uint16_t x, uint16_t y, uint32_t argb,
@@ -136,7 +149,7 @@ uint16_t osd_emwin_font_blit(uint32_t *dst, uint16_t dst_w, uint16_t dst_h,
                 for (int gx = cgx0; gx < cgx1; gx++) {
                     uint8_t byte = grow[(uint32_t)gx >> 1];
                     uint8_t nib  = (gx & 1) ? (uint8_t)(byte & 0x0FU) : (uint8_t)((byte >> 4) & 0x0FU);
-                    if (nib) drow[gx] = ((uint32_t)(nib * 17U) << 24) | rgb;
+                    if (nib) drow[gx] = osd_emwin_premul_argb((uint8_t)(nib * 17U), rgb);
                 }
             } else if (bp == 1) {
                 for (int gx = cgx0; gx < cgx1; gx++) {
@@ -146,7 +159,7 @@ uint16_t osd_emwin_font_blit(uint32_t *dst, uint16_t dst_w, uint16_t dst_h,
             } else if (bp == 2) {
                 for (int gx = cgx0; gx < cgx1; gx++) {
                     uint8_t q = (uint8_t)((grow[(uint32_t)gx >> 2] >> (6U - 2U * (gx & 3))) & 0x03U);
-                    if (q) drow[gx] = ((uint32_t)(q * 85U) << 24) | rgb;
+                    if (q) drow[gx] = osd_emwin_premul_argb((uint8_t)(q * 85U), rgb);
                 }
             }
         }
