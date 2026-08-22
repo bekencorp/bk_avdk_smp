@@ -155,6 +155,18 @@ bk_err_t bk_alarm_register(aon_rtc_id_t id, alarm_info_t *alarm_info_p);
  */
 bk_err_t bk_alarm_unregister(aon_rtc_id_t id, uint8_t *name_p);
 
+/**
+ * @brief     Check whether an alarm with the given name is still registered
+ *
+ * @param id: aon_rtc id
+ * @param name_p: alarm name to look up
+ *
+ * @return
+ *    - true: the named alarm is present in the AON RTC alarm list
+ *    - false: not registered / invalid args
+ */
+bool bk_alarm_is_registered(aon_rtc_id_t id, const uint8_t *name_p);
+
 #if (CONFIG_AON_RTC && (!CONFIG_AON_RTC_MANY_USERS))
 /**
  * @brief     Register the rtc tick init

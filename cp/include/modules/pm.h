@@ -1829,6 +1829,15 @@ void bk_pm_wifi_rtc_set(uint32_t tick, void *callback);
  */
 void bk_pm_wifi_rtc_clear(void);
 /**
+ * @brief check whether wifi rtc alarm ("bk_wifi") is still registered
+ *
+ * @return
+ * - true: registered
+ * - false: not registered
+ *
+ */
+bool bk_pm_wifi_rtc_is_registered(void);
+/**
  * @brief pm hardware init
  *
  * @param
