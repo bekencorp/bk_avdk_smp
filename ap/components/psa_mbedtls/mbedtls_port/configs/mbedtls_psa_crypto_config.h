@@ -4206,7 +4206,14 @@ extern void tls_mbedtls_mem_free(void *ptr);
 #define MBEDTLS_RSA_C
 #define MBEDTLS_SHA1_C
 #define MBEDTLS_SHA256_C
-//#define MBEDTLS_SHA512_C
+/* SHA-384/512 are needed to parse & verify standard web-server TLS certs:
+ * ZeroSSL / most CAs sign with sha384WithRSAEncryption, whose OID is only
+ * registered when the SHA-512 module (SHA-384 is a truncated SHA-512) is built.
+ * Without these, mbedtls_x509_crt_parse fails with -0x262E
+ * (MBEDTLS_ERR_X509_UNKNOWN_SIG_ALG + MBEDTLS_ERR_OID_NOT_FOUND), which breaks
+ * HTTPS OTA against e.g. dl.bekencorp.com. */
+#define MBEDTLS_SHA384_C
+#define MBEDTLS_SHA512_C
 #define MBEDTLS_SSL_CLI_C
 #define MBEDTLS_SSL_TLS_C
 #define MBEDTLS_X509_USE_C
