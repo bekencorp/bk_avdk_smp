@@ -39,10 +39,29 @@ copy_libs()
 	# repo manifest -r -o ${s_bk_libs_dir}/${s_soc}/hash/libs_version_manifest.xml > /dev/null
 }
 
+is_security_firmware()
+{
+	local sdk_root="$(dirname "${s_armino_dir}")"
+	local cp_soc="${s_soc%%_ap}"
+	local cp_config_dir="${sdk_root}/projects/${s_project}/cp/config/${cp_soc}"
+
+	if [ ! -d "${cp_config_dir}" ]; then
+		return 1
+	fi
+
+	python3 "${s_armino_tools_dir}/build_tools/check_security_firmware.py" "${cp_config_dir}" >/dev/null 2>&1
+}
+
 copy_bootloader()
 {
 	normal_bl_build_path=${s_armino_dir}/properties/modules/bootloader/aboot/arm_bootloader/output/bootloader.bin
 	normal_bl_archive_path=${s_bk_libs_dir}/${s_soc}/bootloader/normal_bootloader/bootloader.bin
+
+	if [ ! -f "${normal_bl_build_path}" ]; then
+		echo "Skip bootloader copy: ${normal_bl_build_path} not found"
+		return 0
+	fi
+
 	cp ${normal_bl_build_path} ${normal_bl_archive_path}
 }
 
@@ -61,5 +80,9 @@ s_bk_libs_dir="${s_armino_dir}/components/bk_libs"
 
 init_bk_libs_dir
 copy_libs
-copy_bootloader
-copy_sdkconfig 
+if is_security_firmware; then
+	echo "Secure firmware (${s_project}): skip aboot bootloader copy"
+else
+	copy_bootloader
+fi
+copy_sdkconfig

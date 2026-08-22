@@ -203,14 +203,23 @@ $(ram_regions_out): $(RAM_REGIONS_DIR) $(RAM_REGIONS_TABLE) $(RAM_REGIONS_MPU_PO
 	@mkdir -p $(PARTITIONS_DIR)
 	@$(RUN_PYTHON3) $(ram_partition_script)
 
+# Secure firmware detection: when the project enables CONFIG_SECURITY_FIRMWARE,
+# BL2 is built by TF-M/MCUBoot; the non-secure aboot arm_bootloader is unused.
+SECURITY_CONFIG_FILE := $(PROJECT_DIR)/config/$(ARMINO_SOC_NAME)/config
+IS_SECURITY_FIRMWARE := $(shell test -f $(SECURITY_CONFIG_FILE) && grep -q '^CONFIG_SECURITY_FIRMWARE=y' $(SECURITY_CONFIG_FILE) && echo y)
+
 # Clean bootloader once before the AP/CP build to ensure a full rebuild.
 NORMAL_BOOTLOADER_DIR := $(ARMINO_CP_DIR)/properties/modules/bootloader/aboot/arm_bootloader
 .PHONY: bootloader_fullclean
 bootloader_fullclean:
+ifeq ($(IS_SECURITY_FIRMWARE),y)
+	@echo "[full-build] secure firmware: skip aboot bootloader clean (BL2 from TF-M/MCUBoot)"
+else
 	@echo "[full-build] clean bootloader once for a reproducible full build"
 	@if [ -d "$(NORMAL_BOOTLOADER_DIR)" ]; then \
 		$(MAKE) -C $(NORMAL_BOOTLOADER_DIR) SOC_TYPE=$(ARMINO_SOC) clean; \
 	fi
+endif
 
 build_prepare: $(auto_partition_out) print_partitions $(ram_regions_out) bootloader_fullclean
 
@@ -219,14 +228,7 @@ package_dir := $(PROJECT_BUILD_DIR)/package
 package_json := $(PARTITIONS_DIR)/bk_package.json
 build_summary := $(package_dir)/build_summary.txt
 
-# Secure firmware detection: when the project enables CONFIG_SECURITY_FIRMWARE,
-# the per-subsystem secure pack (board wrapper -> beken_utils) already produces
-# the signed/encrypted all-app.bin + bootloader.bin during build_smp_firmware.
-# The generic SMP packager (bk_build_package.py) would re-combine raw
-# per-partition bins (primary_tfm_s.bin ...) and is incompatible with the
-# secure flow, so skip it for secure builds.
-SECURITY_CONFIG_FILE := $(PROJECT_DIR)/config/$(ARMINO_SOC_NAME)/config
-IS_SECURITY_FIRMWARE := $(shell test -f $(SECURITY_CONFIG_FILE) && grep -q '^CONFIG_SECURITY_FIRMWARE=y' $(SECURITY_CONFIG_FILE) && echo y)
+# Secure pack uses the board wrapper (TF-M/MCUBoot BL2); skip generic SMP packager.
 secure_install_dir := $(PROJECT_BUILD_DIR)/$(ARMINO_SOC)/install
 secure_build_dir := $(PROJECT_BUILD_DIR)/$(ARMINO_SOC)
 secure_wrapper := $(ARMINO_CP_DIR)/middleware/boards/$(ARMINO_SOC)/$(ARMINO_SOC).wrapper
@@ -306,8 +308,12 @@ clean:
 	@rm -rf ./build
 	@rm -rf $(ARMINO_AP_DIR)/build
 	@rm -rf $(ARMINO_CP_DIR)/build
+ifeq ($(IS_SECURITY_FIRMWARE),y)
+	@echo "secure firmware: skip aboot bootloader clean"
+else
 	@echo "clean bootloader output"
 	@if [ -d "$(NORMAL_BOOTLOADER_DIR)" ]; then \
 		$(MAKE) -C $(NORMAL_BOOTLOADER_DIR) SOC_TYPE=$(ARMINO_SOC) clean; \
 	fi
+endif
 
