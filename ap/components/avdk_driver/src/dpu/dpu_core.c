@@ -16,6 +16,7 @@
 #include <int_types_impl.h>
 #include "avdk_monitor.h"
 #include "driver/sys_pm.h"
+#include <modules/pm.h>
 #define TAG "dpu_core"
 
 #define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
@@ -411,6 +412,7 @@ bk_err_t dpu_core_init(dpu_config_t * dpu_config, dpu_handle_t *handle)
     LOGI("%s clk_src: %s, pixel_clock_hz: %u\n", __func__,
          (dpu_config->dpu_clk_src == DPU_CLK_SRC_DPHY_DPLL) ? "DPU_CLK_SRC_DPHY_DPLL" : "DPU_CLK_SRC_SYSCLK",
          (unsigned)dpu_config->pixel_clock_hz);
+    bk_pm_module_vote_cpu_freq(PM_DEV_ID_DISP, PM_CPU_FRQ_480M);
     dpu_clk_set(dpu_config->dpu_clk_src, dpu_config->pixel_clock_hz);
     uint32_t viv_dc_get_dc_core_len(void);
     uint32_t dpu_buffer_len = viv_dc_get_dc_core_len();
@@ -484,6 +486,7 @@ bk_err_t dpu_core_init(dpu_config_t * dpu_config, dpu_handle_t *handle)
 
 err:   
     LOGI("%s, %d ERROR ",__func__, __LINE__);
+    bk_pm_module_vote_cpu_freq(PM_DEV_ID_DISP, PM_CPU_FRQ_DEFAULT);
     if (context)
     {
         os_free(context);
@@ -631,6 +634,7 @@ bk_err_t dpu_core_deinit(dpu_handle_t *handle)
 #endif
 
     //dpu_syc_clk_deinit();
+    bk_pm_module_vote_cpu_freq(PM_DEV_ID_DISP, PM_CPU_FRQ_DEFAULT);
 
     if (context->dpu_event_handle)
     {

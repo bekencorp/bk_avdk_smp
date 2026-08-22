@@ -5,6 +5,7 @@
 #include <common/bk_include.h>
 #include <components/log.h>
 #include <driver/sys_pm.h>
+#include <modules/pm.h>
 #include "sys_driver.h"
 #include "spinlock.h"
 #include <modules/vg_lite_gpu/vg_lite_platform.h>
@@ -93,6 +94,7 @@ void bk_gpu_driver_init(void)
     }
 
     bk_pm_module_vote_power_ctrl(PM_POWER_SUB_DOMAIN_GPU, PM_POWER_MODULE_STATE_ON);
+    bk_pm_module_vote_cpu_freq(PM_DEV_ID_GPU, PM_CPU_FRQ_480M);
 
     sys_drv_gpu_cksel_clkdiv_set(CKSEL_GPU_480M, 0);
 
@@ -151,6 +153,7 @@ void bk_gpu_driver_deinit(void)
 
     bk_pm_clock_ctrl(PM_CLK_ID_GPU, PM_CLK_CTRL_PWR_DOWN);
 
+    bk_pm_module_vote_cpu_freq(PM_DEV_ID_GPU, PM_CPU_FRQ_DEFAULT);
     bk_pm_module_vote_power_ctrl(PM_POWER_SUB_DOMAIN_GPU, PM_POWER_MODULE_STATE_OFF);
 
     if (s_gpu_global_lock)

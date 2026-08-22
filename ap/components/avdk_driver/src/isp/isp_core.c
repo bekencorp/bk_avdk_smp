@@ -24,6 +24,7 @@
 #include "sys_hal.h"
 #include <driver/int.h>
 #include <driver/sys_pm.h>
+#include <modules/pm.h>
 #include "sys_driver.h"
 // #include "media_reg.h"
 
@@ -864,6 +865,7 @@ bk_err_t bk_isp_dev_init(isp_handle_t *handle)
     }
 
     // step 1: init isp clk
+    bk_pm_module_vote_cpu_freq(PM_DEV_ID_ISP, PM_CPU_FRQ_480M);
     isp_clock_enable(60000000);
     // step 2: init isp driver and input data config
     ret = bk_isp_device_config(isp_control);
@@ -904,6 +906,7 @@ bk_err_t bk_isp_dev_init(isp_handle_t *handle)
 error:
 
     bk_isp_deinit((isp_handle_t)&isp_control);
+    bk_pm_module_vote_cpu_freq(PM_DEV_ID_ISP, PM_CPU_FRQ_DEFAULT);
     return ret;
 }
 
@@ -965,6 +968,8 @@ bk_err_t bk_isp_deinit(isp_handle_t *handle)
 
     // release shared CISP clock vote
     bk_isp_clock_enable(false);
+
+    bk_pm_module_vote_cpu_freq(PM_DEV_ID_ISP, PM_CPU_FRQ_DEFAULT);
 
     // disable isp pwd
     bk_pm_module_vote_power_ctrl(PM_POWER_SUB_DOMAIN_ISP, PM_POWER_MODULE_STATE_OFF);
