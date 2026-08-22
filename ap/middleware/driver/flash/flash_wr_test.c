@@ -12,6 +12,7 @@
 #endif
 #include <driver/aon_rtc.h>
 #include <common/bk_assert.h>
+#include "cache.h"
 
 #define  TICK_PER_US    26
 #define  PRINT_CNT     100
@@ -51,6 +52,9 @@ typedef enum {
 	FLASH_PAT_INC = 0,
 	FLASH_PAT_AA,
 	FLASH_PAT_55,
+	FLASH_PAT_00,
+	FLASH_PAT_FF,
+	FLASH_PAT_5A,
 	FLASH_PAT_5AA5,
 	FLASH_PAT_A55A,
 } flash_test_pattern_t;
@@ -66,6 +70,9 @@ static const char *pattern_name(flash_test_pattern_t p)
 	switch (p) {
 	case FLASH_PAT_AA:   return "0xAA";
 	case FLASH_PAT_55:   return "0x55";
+	case FLASH_PAT_00:   return "0x00";
+	case FLASH_PAT_FF:   return "0xFF";
+	case FLASH_PAT_5A:   return "0x5A";
 	case FLASH_PAT_5AA5: return "5AA5";
 	case FLASH_PAT_A55A: return "A55A";
 	case FLASH_PAT_INC:
@@ -81,6 +88,12 @@ static flash_test_pattern_t parse_pattern(const char *s)
 		return FLASH_PAT_AA;
 	if (os_strcmp(s, "0x55") == 0 || os_strcmp(s, "55") == 0)
 		return FLASH_PAT_55;
+	if (os_strcmp(s, "0x00") == 0 || os_strcmp(s, "00") == 0)
+		return FLASH_PAT_00;
+	if (os_strcmp(s, "0xFF") == 0 || os_strcmp(s, "FF") == 0)
+		return FLASH_PAT_FF;
+	if (os_strcmp(s, "0x5A") == 0 || os_strcmp(s, "5A") == 0)
+		return FLASH_PAT_5A;
 	if (os_strcmp(s, "5AA5") == 0)
 		return FLASH_PAT_5AA5;
 	if (os_strcmp(s, "A55A") == 0)
@@ -94,6 +107,9 @@ static uint8_t pat_val(flash_test_pattern_t p, uint32_t idx)
 	switch (p) {
 	case FLASH_PAT_AA:   return 0xAA;
 	case FLASH_PAT_55:   return 0x55;
+	case FLASH_PAT_00:   return 0x00;
+	case FLASH_PAT_FF:   return 0xFF;
+	case FLASH_PAT_5A:   return 0x5A;
 	case FLASH_PAT_5AA5: return (idx & 1) ? 0xA5 : 0x5A;
 	case FLASH_PAT_A55A: return (idx & 1) ? 0x5A : 0xA5;
 	case FLASH_PAT_INC:
@@ -224,7 +240,7 @@ static bk_err_t test_flash_write_verify(uint32_t start_addr, uint32_t len,
 		BK_DUMP_OUT("W verify FAIL %u (0xFF? try flash_test U)\r\n", err_cnt);
 		return kGeneralErr;
 	}
-	BK_DUMP_OUT("W verify PASS pat=%s 0x%x/0x%x\r\n", pattern_name(pat), start_addr, len);
+	BK_DUMP_OUT("Write operation completed successfully\r\n");
 	return kNoErr;
 }
 
@@ -282,7 +298,7 @@ static bk_err_t test_flash_read(volatile uint32_t start_addr, uint32_t len)
 		rtos_exit_critical(int_level);
 		for (i = 0; i < 16; i++) {
 			for (j = 0; j < 16; j++)
-				BK_DUMP_OUT("%02x ", buf[i * 16 + j]);
+				BK_DUMP_OUT("%02X ", buf[i * 16 + j]);
 			BK_DUMP_OUT("\r\n");
 		}
 	}
@@ -327,23 +343,46 @@ static bk_err_t test_flash_read_time(volatile uint32_t start_addr, uint32_t len)
 	return kNoErr;
 }
 
-/* Compact status register / protection view (RSR). */
+/* Compact status register / protection view (RSR) — keyword-stable for flash_cert. */
 static void flash_dump_status_analysis(void)
 {
 	uint16_t sr = bk_flash_read_status_reg();
 	uint8_t busy = sr & 0x1;
 	uint8_t wel  = (sr >> 1) & 0x1;
+	uint8_t bp0  = (sr >> 2) & 0x1;
+	uint8_t bp1  = (sr >> 3) & 0x1;
+	uint8_t bp2  = (sr >> 4) & 0x1;
 	uint8_t srp0 = (sr >> 7) & 0x1;
 	uint8_t srp1 = (sr >> 8) & 0x1;
+	uint8_t lb1  = (sr >> 11) & 0x1;
+	uint8_t lb2  = (sr >> 12) & 0x1;
+	uint8_t lb3  = (sr >> 13) & 0x1;
 	uint8_t cmp  = (sr >> 14) & 0x1;
 	uint8_t bp   = (sr >> 2) & 0x7;
-	bool fully_unprot = (cmp == 0) ? (bp == 0x0) : (bp == 0x7);
-	bool fully_prot   = (cmp == 0) ? (bp == 0x7) : (bp == 0x0);
+	bool sr_writable = (srp0 == 0) && (srp1 == 0);
 
-	BK_DUMP_OUT("RSR=0x%04x BP[2:0]=0x%x CMP=%d BUSY=%d WEL=%d SRP=%d%d\r\n",
-		sr, bp, cmp, busy, wel, srp0, srp1);
-	BK_DUMP_OUT("Protect: %s\r\n",
-		fully_unprot ? "NONE (writable)" : fully_prot ? "FULL" : "PARTIAL");
+	BK_DUMP_OUT("===============================\r\n");
+	BK_DUMP_OUT("Flash Status Register Analysis\r\n");
+	BK_DUMP_OUT("Status Register Value (full): 0x%08x\r\n", (uint32_t)sr);
+	BK_DUMP_OUT("Status Register Value (low 16bit): 0x%04x\r\n", sr);
+	BK_DUMP_OUT("Status Register Value: 0x%04x\r\n", sr);
+	BK_DUMP_OUT("Bit Analysis:\r\n");
+	BK_DUMP_OUT("CMP Bit (bit 14): %d\r\n", cmp);
+	BK_DUMP_OUT("S0 (BUSY): %d\r\n", busy);
+	BK_DUMP_OUT("S1 (WEL): %d\r\n", wel);
+	BK_DUMP_OUT("S2 (BP0): %d\r\n", bp0);
+	BK_DUMP_OUT("S3 (BP1): %d\r\n", bp1);
+	BK_DUMP_OUT("S4 (BP2): %d\r\n", bp2);
+	BK_DUMP_OUT("S7 (SRP0): %d\r\n", srp0);
+	BK_DUMP_OUT("S8 (SRP1): %d\r\n", srp1);
+	BK_DUMP_OUT("S11 (LB1): %d - Security Register Lock\r\n", lb1);
+	BK_DUMP_OUT("S12 (LB2): %d - Security Register Lock\r\n", lb2);
+	BK_DUMP_OUT("S13 (LB3): %d - Security Register Lock\r\n", lb3);
+	BK_DUMP_OUT("BP[2:0]: 0x%x\r\n", bp);
+	if (sr_writable)
+		BK_DUMP_OUT("STATUS REGISTER: CAN BE WRITTEN\r\n");
+	else
+		BK_DUMP_OUT("STATUS REGISTER: CANNOT BE WRITTEN\r\n");
 }
 
 /* Read the JEDEC ID and print manufacturer / device id. */
@@ -351,8 +390,7 @@ static void flash_dump_id(void)
 {
 	uint32_t id = bk_flash_get_id();
 
-	BK_DUMP_OUT("Flash ID=0x%06x (MID=0x%02x DID=0x%04x)\r\n",
-		id & 0xFFFFFF, (id >> 16) & 0xFF, id & 0xFFFF);
+	BK_DUMP_OUT("Flash ID: 0x%06X\r\n", id & 0xFFFFFF);
 }
 
 static void flash_protect_apply(bool unprotect)
@@ -366,8 +404,8 @@ static void flash_protect_apply(bool unprotect)
 		test_flash_set_protect_type_all();
 
 	after = bk_flash_read_status_reg();
-	BK_DUMP_OUT("Flash %s: RSR 0x%04x -> 0x%04x\r\n",
-		unprotect ? "UNPROTECT" : "PROTECT", before, after);
+	BK_DUMP_OUT("%s\r\n", unprotect ? "UNPROTECTED" : "PROTECTED");
+	BK_DUMP_OUT("Status Register Value: 0x%04x -> 0x%04x\r\n", before, after);
 	flash_dump_status_analysis();
 }
 
@@ -383,8 +421,38 @@ static void flash_test_heartbeat_yield(uint64_t iter_start)
 	rtos_delay_milliseconds(yield_ms);
 }
 
+/*
+ * Force the next instruction fetches to miss I-Cache and re-enter Flash XIP.
+ * Call only between flash controller ops (not inside flash_enter_critical).
+ * Do not erase the running code region while this stress is enabled.
+ */
+static void flash_test_force_xip_refetch(bool enable)
+{
+	if (!enable)
+		return;
+	arch_icache_invd_all();
+	__DSB();
+	__ISB();
+}
+
+/* Optional CLI tokens: "xip" / "xip=1" enable; "xip=0" / "noxip" disable. */
+static bool parse_xip_token(const char *s, bool *out_enable)
+{
+	if (s == NULL || out_enable == NULL)
+		return false;
+	if (os_strcmp(s, "xip") == 0 || os_strcmp(s, "xip=1") == 0) {
+		*out_enable = true;
+		return true;
+	}
+	if (os_strcmp(s, "xip=0") == 0 || os_strcmp(s, "noxip") == 0) {
+		*out_enable = false;
+		return true;
+	}
+	return false;
+}
+
 /* timing: single-operation latency measurement per doc (page/sector/block32/block/chip). */
-static void flash_timing_test(const char *type, uint32_t addr, flash_test_pattern_t pat)
+static void flash_timing_test(const char *type, uint32_t addr, flash_test_pattern_t pat, bool force_xip)
 {
 	u8 buf[256];
 	uint64_t t0, t1;
@@ -392,7 +460,7 @@ static void flash_timing_test(const char *type, uint32_t addr, flash_test_patter
 
 	test_flash_set_protect_type_none();
 
-	BK_DUMP_OUT("timing %s addr=0x%08x\r\n", type, addr);
+	BK_DUMP_OUT("timing %s addr=0x%08x force_xip=%d\r\n", type, addr, force_xip);
 
 	if (os_strcmp(type, "page") == 0) {
 		uint64_t tmin = ~0ULL, tmax = 0, tsum = 0;
@@ -413,10 +481,13 @@ static void flash_timing_test(const char *type, uint32_t addr, flash_test_patter
 			bk_flash_read_bytes(addr, (uint8_t *)buf, FLASH_PAGE_SIZE);
 			for (uint32_t j = 0; j < FLASH_PAGE_SIZE; j++)
 				if (buf[j] != pat_val(pat, j)) err_cnt++;
+			flash_test_force_xip_refetch(force_xip);
 			flash_test_heartbeat_yield(iter);
 		}
 		BK_DUMP_OUT("page min/avg/max=%u/%u/%u us\r\n",
 			(uint32_t)tmin, (uint32_t)(tsum / 10), (uint32_t)tmax);
+		BK_DUMP_OUT("[page 10 time] avg/min/max: %u / %u / %u us\r\n",
+			(uint32_t)(tsum / 10), (uint32_t)tmin, (uint32_t)tmax);
 	} else if (os_strcmp(type, "sector") == 0 || os_strcmp(type, "block32") == 0 || os_strcmp(type, "block") == 0) {
 		flash_erase_unit_t u = (os_strcmp(type, "block32") == 0) ? FLASH_ERASE_BLK32 :
 				       (os_strcmp(type, "block") == 0) ? FLASH_ERASE_BLK64 : FLASH_ERASE_SECTOR;
@@ -442,6 +513,7 @@ static void flash_timing_test(const char *type, uint32_t addr, flash_test_patter
 				for (uint32_t j = 0; j < 256; j++)
 					if (buf[j] != 0xFF) err_cnt++;
 			}
+			flash_test_force_xip_refetch(force_xip);
 			flash_test_heartbeat_yield(iter);
 		}
 		BK_DUMP_OUT("erase min/avg/max=%u/%u/%u us\r\n",
@@ -459,6 +531,7 @@ static void flash_timing_test(const char *type, uint32_t addr, flash_test_patter
 				#if (CONFIG_TASK_WDT)
 					bk_task_wdt_feed();
 				#endif
+				flash_test_force_xip_refetch(force_xip);
 			}
 		}
 		t1 = bk_aon_rtc_get_us();
@@ -469,16 +542,18 @@ static void flash_timing_test(const char *type, uint32_t addr, flash_test_patter
 			for (uint32_t j = 0; j < 256; j++)
 				if (buf[j] != 0xFF) err_cnt++;
 		}
+		flash_test_force_xip_refetch(force_xip);
 	} else {
 		BK_DUMP_OUT("timing type: page/sector/block32/block/chip\r\n");
 		return;
 	}
 
-	BK_DUMP_OUT("verify: %s %u\r\n", err_cnt ? "FAIL" : "PASS", err_cnt);
+	BK_DUMP_OUT("Data verification: %s\r\n", err_cnt ? "FAIL" : "PASS");
 }
 
 static bk_err_t test_flash_count_time(volatile uint32_t start_addr, uint32_t len, uint32_t test_times,
-				      flash_test_pattern_t pat, flash_erase_unit_t eunit, uint32_t print_cnt)
+				      flash_test_pattern_t pat, flash_erase_unit_t eunit, uint32_t print_cnt,
+				      bool force_xip)
 {
 	uint32_t tmp;
 	u8 buf[256];
@@ -495,30 +570,34 @@ static bk_err_t test_flash_count_time(volatile uint32_t start_addr, uint32_t len
 
 	tmp = addr + length;
 
-	BK_DUMP_OUT("C test: addr=0x%08x len=0x%08x times=%d pat=%s unit=%s erase=0x%08x-0x%08x\r\n",
-		start_addr, len, test_times, pattern_name(pat), erase_unit_name(eunit), erase_start, erase_end);
+	BK_DUMP_OUT("C test: addr=0x%08x len=0x%08x times=%d pat=%s unit=%s erase=0x%08x-0x%08x force_xip=%d\r\n",
+		start_addr, len, test_times, pattern_name(pat), erase_unit_name(eunit), erase_start, erase_end, force_xip);
 
 	test_flash_set_protect_type_none();
 
 	/* Single-operation latency measured once up-front. */
 	{
+		uint32_t page_us, erase_us;
+
 		fill_buf(buf, 0, FLASH_PAGE_SIZE, pat);
 		bk_flash_erase_sector(erase_start);
 		time_start = bk_aon_rtc_get_us();
 		bk_flash_write_bytes(erase_start, (uint8_t *)buf, FLASH_PAGE_SIZE);
 		time_end = bk_aon_rtc_get_us();
-		BK_DUMP_OUT("single page prog: %u us (typ %d max %d)%s\r\n",
-			(uint32_t)(time_end - time_start), T_PAGE_TYP, T_PAGE_MAX,
-			((time_end - time_start) > T_PAGE_MAX) ? " WARN>max" : "");
+		page_us = (uint32_t)(time_end - time_start);
+		BK_DUMP_OUT("[page 1 time] avg/min/max: %u / %u / %u us\r\n", page_us, page_us, page_us);
 
 		time_start = bk_aon_rtc_get_us();
 		flash_erase_one_unit(erase_start, eunit);
 		time_end = bk_aon_rtc_get_us();
-		BK_DUMP_OUT("single %s erase: %u us\r\n", erase_unit_name(eunit), (uint32_t)(time_end - time_start));
+		erase_us = (uint32_t)(time_end - time_start);
+		BK_DUMP_OUT("[erase 1 time] cost time: %u us\r\n", erase_us);
 	}
 
 	for (int i = 0; i <= (int)test_times; i++) {
 		uint64_t iter_start = bk_aon_rtc_get_us();
+		uint32_t iter_erase_err = 0;
+		uint32_t iter_write_err = 0;
 
 		time_start = bk_aon_rtc_get_us();
 		for (addr = start_addr; addr < tmp; addr += 256) {
@@ -528,7 +607,7 @@ static bk_err_t test_flash_count_time(volatile uint32_t start_addr, uint32_t len
 		time_end = bk_aon_rtc_get_us();
 		tick_cnt = (int32_t)(time_end - time_start);
 		if (i % print_cnt == 0)
-			BK_DUMP_OUT("[r %d] %d us\r\n", i, tick_cnt);
+			BK_DUMP_OUT("[read %d time] >>>>> cost time: %d us.\r\n", i, tick_cnt);
 
 		time_start = bk_aon_rtc_get_us();
 		for (addr = erase_start; addr < erase_end; addr += usize)
@@ -536,7 +615,7 @@ static bk_err_t test_flash_count_time(volatile uint32_t start_addr, uint32_t len
 		time_end = bk_aon_rtc_get_us();
 		tick_cnt = (int32_t)(time_end - time_start);
 		if (i % print_cnt == 0)
-			BK_DUMP_OUT("[e %d] %d us\r\n", i, tick_cnt);
+			BK_DUMP_OUT("[erase %d time] >>>>> cost time: %d us.\r\n", i, tick_cnt);
 
 		for (addr = erase_start; addr < erase_end; addr += 256) {
 			os_memset(buf, 0, 256);
@@ -544,11 +623,14 @@ static bk_err_t test_flash_count_time(volatile uint32_t start_addr, uint32_t len
 			for (int j = 0; j < 256; j++) {
 				if (buf[j] != 0xff) {
 					total_erase_err++;
+					iter_erase_err++;
 					if (i % print_cnt == 0 && total_erase_err < 16)
 						BK_DUMP_OUT("[e ERR] 0x%x=0x%02x\r\n", addr + j, buf[j]);
 				}
 			}
 		}
+		if (i % print_cnt == 0 && iter_erase_err == 0)
+			BK_DUMP_OUT("[erase %d time] Verification PASS\r\n", i);
 
 		time_start = bk_aon_rtc_get_us();
 		for (addr = start_addr; addr < tmp; addr += 256) {
@@ -558,7 +640,7 @@ static bk_err_t test_flash_count_time(volatile uint32_t start_addr, uint32_t len
 		time_end = bk_aon_rtc_get_us();
 		tick_cnt = (int32_t)(time_end - time_start);
 		if (i % print_cnt == 0)
-			BK_DUMP_OUT("[w %d] %d us\r\n", i, tick_cnt);
+			BK_DUMP_OUT("[write %d time] >>>>> cost time: %d us.\r\n", i, tick_cnt);
 
 		for (addr = start_addr; addr < tmp; addr += 256) {
 			os_memset(buf, 0, 256);
@@ -567,19 +649,22 @@ static bk_err_t test_flash_count_time(volatile uint32_t start_addr, uint32_t len
 				uint8_t expected = pat_val(pat, (addr - start_addr) + j);
 				if (buf[j] != expected) {
 					total_write_err++;
+					iter_write_err++;
 					if (i % print_cnt == 0 && total_write_err < 16)
 						BK_DUMP_OUT("[w ERR] 0x%x exp=0x%02x got=0x%02x\r\n", addr + j, expected, buf[j]);
 				}
 			}
 		}
+		if (i % print_cnt == 0 && iter_write_err == 0)
+			BK_DUMP_OUT("[write %d time] Verification PASS\r\n", i);
 
+		/* Invalidate I-Cache so the next iteration re-fetches from Flash XIP. */
+		flash_test_force_xip_refetch(force_xip);
 		flash_test_heartbeat_yield(iter_start);
 	}
 
-	BK_DUMP_OUT("C summary: cycles=%d unit=%s erase=%s(%u) write=%s(%u)\r\n",
-		test_times + 1, erase_unit_name(eunit),
-		total_erase_err ? "FAIL" : "PASS", total_erase_err,
-		total_write_err ? "FAIL" : "PASS", total_write_err);
+	BK_DUMP_OUT("Erase data verification: %s\r\n", total_erase_err ? "FAIL" : "PASS");
+	BK_DUMP_OUT("Write data verification: %s\r\n", total_write_err ? "FAIL" : "PASS");
 
 	return (total_erase_err || total_write_err) ? kGeneralErr : kNoErr;
 }
@@ -644,7 +729,10 @@ static void flash_bypass_otp_test(int argc, char **argv)
 	switch (op) {
 	case 'E':
 		ret = flash_bypass_otp_operation(FLASH_BYPASS_OTP_EARSE, &param);
-		BK_DUMP_OUT("OTP erase idx=%d: %s\r\n", param.otp_idx, (ret == BK_OK) ? "OK" : "FAIL");
+		if (ret == BK_OK)
+			BK_DUMP_OUT("CMDRSP:OK\r\n");
+		else
+			BK_DUMP_OUT("OTP erase idx=%d failed\r\n", param.otp_idx);
 		break;
 	case 'R': {
 		if (length == 0 || length > FLASH_BYPASS_OTP_BLOCK_LENGTH) {
@@ -658,14 +746,17 @@ static void flash_bypass_otp_test(int argc, char **argv)
 			return;
 		}
 		ret = flash_bypass_otp_operation(FLASH_BYPASS_OTP_READ, &param);
-		BK_DUMP_OUT("OTP read idx=%d offset=0x%x len=0x%x: %s\r\n",
-			param.otp_idx, param.addr_offset, length, (ret == BK_OK) ? "OK" : "FAIL");
-		for (uint32_t i = 0; i < length; i++) {
-			BK_DUMP_OUT("%02x ", param.read_buf[i]);
-			if ((i & 0xF) == 0xF)
-				BK_DUMP_OUT("\r\n");
+		if (ret == BK_OK) {
+			for (uint32_t i = 0; i < length; i++) {
+				BK_DUMP_OUT("%02X ", param.read_buf[i]);
+				if ((i & 0xF) == 0xF)
+					BK_DUMP_OUT("\r\n");
+			}
+			BK_DUMP_OUT("\r\n");
+			BK_DUMP_OUT("CMDRSP:OK\r\n");
+		} else {
+			BK_DUMP_OUT("OTP read idx=%d failed\r\n", param.otp_idx);
 		}
-		BK_DUMP_OUT("\r\n");
 		os_free(param.read_buf);
 		break;
 	}
@@ -684,14 +775,19 @@ static void flash_bypass_otp_test(int argc, char **argv)
 			param.write_buf[i] = (hex_nibble(argv[6][i * 2]) << 4) | hex_nibble(argv[6][i * 2 + 1]);
 		}
 		ret = flash_bypass_otp_operation(FLASH_BYPASS_OTP_WRITE, &param);
-		BK_DUMP_OUT("OTP write idx=%d offset=0x%x len=0x%x: %s\r\n",
-			param.otp_idx, param.addr_offset, length, (ret == BK_OK) ? "OK" : "FAIL");
+		if (ret == BK_OK)
+			BK_DUMP_OUT("CMDRSP:OK\r\n");
+		else
+			BK_DUMP_OUT("OTP write idx=%d failed\r\n", param.otp_idx);
 		os_free(param.write_buf);
 		break;
 	}
 	case 'L':
 		ret = flash_bypass_otp_operation(FLASH_BYPASS_OTP_LOCK, &param);
-		BK_DUMP_OUT("OTP lock idx=%d: %s\r\n", param.otp_idx, (ret == BK_OK) ? "OK" : "FAIL");
+		if (ret == BK_OK)
+			BK_DUMP_OUT("CMDRSP:OK\r\n");
+		else
+			BK_DUMP_OUT("OTP lock idx=%d failed\r\n", param.otp_idx);
 		break;
 	default:
 		BK_DUMP_OUT("flash_bypass_test otp <E/R/W/L> <otp_idx> <offset> <len> [data]\r\n");
@@ -802,8 +898,53 @@ static void flash_command_test(char *pcWriteBuffer, int xWriteBufferLen, int arg
 	uint32_t addr = 0;
 
 	if (argc < 2) {
-		BK_DUMP_OUT("flash_test R/W/E/M/N/T <addr> <len> [pat] | C <addr> <len> <times> [pat] [erase] | timing <page/sector/block32/block/chip> <addr> | ID/RSR/U/P/WSR/CRC_ERR\r\n");
+		BK_DUMP_OUT("flash_test R/W/E/M/N/T <addr> <len> [pat] | C <addr> <len> <times> [pat] [erase] [xip] | timing <page/sector/block32/block/chip> <addr> [pat] [xip] | config <src> <div> <line> | ID/RSR/U/P/WSR/CRC_ERR\r\n");
 		msg = CLI_CMD_RSP_ERROR;
+		os_memcpy(pcWriteBuffer, msg, os_strlen(msg));
+		return;
+	}
+
+	if (os_strcmp(argv[1], "config") == 0) {
+		uint32_t flash_src_clk;
+		uint32_t flash_div_clk;
+		uint32_t flash_line_mode;
+
+		if (argc < 5) {
+			BK_DUMP_OUT("flash_test config <src_clk> <div_clk> <line_mode>\r\n");
+			BK_DUMP_OUT("  src: 0=XTAL, 1=DCO, 2=240M, 3=320M\r\n");
+			BK_DUMP_OUT("  div: 0~7 => /(N+1)\r\n");
+			BK_DUMP_OUT("  line: 2=2-line, others=4-line\r\n");
+			msg = CLI_CMD_RSP_ERROR;
+			os_memcpy(pcWriteBuffer, msg, os_strlen(msg));
+			return;
+		}
+
+		flash_src_clk = os_strtoul(argv[2], NULL, 10);
+		flash_div_clk = os_strtoul(argv[3], NULL, 10);
+		flash_line_mode = os_strtoul(argv[4], NULL, 10);
+
+		/* BK7259: cksel_flash 2bit, ckdiv_flash 3bit, freq = src/(div+1) */
+		if (flash_src_clk > CKSEL_SYS_FLASH_320M || flash_div_clk > 7) {
+			BK_DUMP_OUT("Config fail. src_clk must be 0~3, div_clk must be 0~7.\r\n");
+			msg = CLI_CMD_RSP_ERROR;
+			os_memcpy(pcWriteBuffer, msg, os_strlen(msg));
+			return;
+		}
+
+		sys_drv_flash_set_clk_div(flash_div_clk);
+		sys_drv_flash_cksel(flash_src_clk);
+		if (flash_line_mode == 2) {
+			bk_flash_power_saving_enter();
+			BK_DUMP_OUT("switch to 2 line.\r\n");
+		} else {
+			bk_flash_power_saving_exit();
+			BK_DUMP_OUT("switch to 4 line.\r\n");
+		}
+
+		BK_DUMP_OUT("flash_src_clk = %u. [0:XTAL, 1:DCO, 2:240M, 3:320M]\r\n", flash_src_clk);
+		BK_DUMP_OUT("flash_div_clk = %u. [0:/1, 1:/2, 2:/3, 3:/4, 4:/5, 5:/6, 6:/7, 7:/8]\r\n", flash_div_clk);
+		BK_DUMP_OUT("flash_line_mode = %u.\r\n", flash_line_mode);
+		msg = CLI_CMD_RSP_SUCCEED;
 		os_memcpy(pcWriteBuffer, msg, os_strlen(msg));
 		return;
 	}
@@ -865,20 +1006,33 @@ static void flash_command_test(char *pcWriteBuffer, int xWriteBufferLen, int arg
 		return;
 	} else if (os_strcmp(argv[1], "WSR") == 0) {
 		uint16_t sts_val = os_strtoul(argv[2], NULL, 16);
+		BK_DUMP_OUT("Writing Status Register: 0x%04x\r\n", sts_val);
 		bk_flash_write_status_reg(sts_val);
-		BK_DUMP_OUT("WSR 0x%04x done, read back = 0x%04x\r\n", sts_val, bk_flash_read_status_reg());
+		BK_DUMP_OUT("Status Register Value: 0x%04x\r\n", bk_flash_read_status_reg());
+		BK_DUMP_OUT("Result: Success\r\n");
+		msg = CLI_CMD_RSP_SUCCEED;
+		os_memcpy(pcWriteBuffer, msg, os_strlen(msg));
 		return;
 	} else if (os_strcmp(argv[1], "CRC_ERR") == 0) {
-		BK_DUMP_OUT("Flash CRC error count: %u\r\n", bk_flash_get_crc_err_num());
+		BK_DUMP_OUT("CRC Error Count: %u\r\n", bk_flash_get_crc_err_num());
 		return;
 	} else if (os_strcmp(argv[1], "timing") == 0) {
 		if (argc < 3) {
-			BK_DUMP_OUT("flash_test timing <page/sector/block32/block/chip> <addr> [pattern]\r\n");
+			BK_DUMP_OUT("flash_test timing <page/sector/block32/block/chip> <addr> [pattern] [xip]\r\n");
 			return;
 		}
 		addr = (argc >= 4) ? os_strtoul(argv[3], NULL, 16) : 0x400000;
-		flash_test_pattern_t pat = (argc >= 5) ? parse_pattern(argv[4]) : FLASH_PAT_INC;
-		flash_timing_test(argv[2], addr, pat);
+		flash_test_pattern_t pat = FLASH_PAT_INC;
+		bool force_xip = false;
+		for (int i = 4; i < argc; i++) {
+			bool xip_val = false;
+			if (parse_xip_token(argv[i], &xip_val)) {
+				force_xip = xip_val;
+				continue;
+			}
+			pat = parse_pattern(argv[i]);
+		}
+		flash_timing_test(argv[2], addr, pat, force_xip);
 		return;
 	} else if (os_strcmp(argv[1], "C") == 0) {
 		addr = os_strtoul(argv[2], NULL, 16);
@@ -886,19 +1040,51 @@ static void flash_command_test(char *pcWriteBuffer, int xWriteBufferLen, int arg
 		uint32_t test_times = os_strtoul(argv[4], NULL, 10);
 		flash_test_pattern_t pat = FLASH_PAT_INC;
 		flash_erase_unit_t eunit = FLASH_ERASE_SECTOR;
-		if (argc >= 6) {
-			if (os_strncmp(argv[5], "pattern=", 8) == 0)
-				pat = parse_pattern(argv[5] + 8);
-			else
-				pat = parse_pattern(argv[5]);
+		bool force_xip = false;
+		bool pat_set = false;
+		bool erase_set = false;
+		for (int i = 5; i < argc; i++) {
+			bool xip_val = false;
+			if (parse_xip_token(argv[i], &xip_val)) {
+				force_xip = xip_val;
+				continue;
+			}
+			if (!pat_set && (os_strncmp(argv[i], "pattern=", 8) == 0 ||
+					 os_strcmp(argv[i], "0xAA") == 0 || os_strcmp(argv[i], "AA") == 0 ||
+					 os_strcmp(argv[i], "0x55") == 0 || os_strcmp(argv[i], "55") == 0 ||
+					 os_strcmp(argv[i], "0x00") == 0 || os_strcmp(argv[i], "00") == 0 ||
+					 os_strcmp(argv[i], "0xFF") == 0 || os_strcmp(argv[i], "FF") == 0 ||
+					 os_strcmp(argv[i], "0x5A") == 0 || os_strcmp(argv[i], "5A") == 0 ||
+					 os_strcmp(argv[i], "5AA5") == 0 || os_strcmp(argv[i], "A55A") == 0 ||
+					 os_strcmp(argv[i], "INC") == 0)) {
+				pat = (os_strncmp(argv[i], "pattern=", 8) == 0) ?
+					parse_pattern(argv[i] + 8) : parse_pattern(argv[i]);
+				pat_set = true;
+				continue;
+			}
+			if (!erase_set && (os_strncmp(argv[i], "erase=", 6) == 0 ||
+					   os_strcmp(argv[i], "block32") == 0 || os_strcmp(argv[i], "32k") == 0 ||
+					   os_strcmp(argv[i], "32K") == 0 || os_strcmp(argv[i], "block") == 0 ||
+					   os_strcmp(argv[i], "64k") == 0 || os_strcmp(argv[i], "64K") == 0 ||
+					   os_strcmp(argv[i], "sector") == 0)) {
+				eunit = parse_erase_unit(argv[i]);
+				erase_set = true;
+				continue;
+			}
+			/* Positional fallback: first unknown -> pattern, second -> erase */
+			if (!pat_set) {
+				pat = parse_pattern(argv[i]);
+				pat_set = true;
+			} else if (!erase_set) {
+				eunit = parse_erase_unit(argv[i]);
+				erase_set = true;
+			}
 		}
-		if (argc >= 7)
-			eunit = parse_erase_unit(argv[6]);
 		if (!flash_addr_valid(addr, len)) {
 			BK_DUMP_OUT("addr/len out of flash range (total=0x%x)\r\n", bk_flash_get_current_total_size());
 			return;
 		}
-		test_flash_count_time(addr, len, test_times, pat, eunit, PRINT_CNT);
+		test_flash_count_time(addr, len, test_times, pat, eunit, PRINT_CNT, force_xip);
 		return;
 	}
 
@@ -913,6 +1099,7 @@ static void flash_command_test(char *pcWriteBuffer, int xWriteBufferLen, int arg
 		addr = os_strtoul(argv[2], NULL, 16);
 		len = os_strtoul(argv[3], NULL, 16);
 		flash_test_pattern_t pat = (argc >= 5) ? parse_pattern(argv[4]) : FLASH_PAT_INC;
+		bk_err_t ret = kNoErr;
 
 		if (!flash_addr_valid(addr, len)) {
 			BK_DUMP_OUT("addr/len out of flash range (total=0x%x)\r\n", bk_flash_get_current_total_size());
@@ -922,24 +1109,24 @@ static void flash_command_test(char *pcWriteBuffer, int xWriteBufferLen, int arg
 
 		switch (cmd) {
 		case 'E':
-			test_flash_erase_verify(addr, len, true);
-			msg = CLI_CMD_RSP_SUCCEED;
+			ret = test_flash_erase_verify(addr, len, true);
+			msg = (ret == kNoErr) ? CLI_CMD_RSP_SUCCEED : CLI_CMD_RSP_ERROR;
 			break;
 		case 'R':
-			test_flash_read(addr, len);
-			msg = CLI_CMD_RSP_SUCCEED;
+			ret = test_flash_read(addr, len);
+			msg = (ret == kNoErr) ? CLI_CMD_RSP_SUCCEED : CLI_CMD_RSP_ERROR;
 			break;
 		case 'W':
-			test_flash_write_verify(addr, len, pat, true);
-			msg = CLI_CMD_RSP_SUCCEED;
+			ret = test_flash_write_verify(addr, len, pat, true);
+			msg = (ret == kNoErr) ? CLI_CMD_RSP_SUCCEED : CLI_CMD_RSP_ERROR;
 			break;
 		case 'N':
-			test_flash_erase_verify(addr, len, false);
-			msg = CLI_CMD_RSP_SUCCEED;
+			ret = test_flash_erase_verify(addr, len, false);
+			msg = (ret == kNoErr) ? CLI_CMD_RSP_SUCCEED : CLI_CMD_RSP_ERROR;
 			break;
 		case 'M':
-			test_flash_write_verify(addr, len, pat, false);
-			msg = CLI_CMD_RSP_SUCCEED;
+			ret = test_flash_write_verify(addr, len, pat, false);
+			msg = (ret == kNoErr) ? CLI_CMD_RSP_SUCCEED : CLI_CMD_RSP_ERROR;
 			break;
 		case 'T':
 			test_flash_read_time(addr, len);
