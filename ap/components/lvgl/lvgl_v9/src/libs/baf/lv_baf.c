@@ -245,7 +245,7 @@ static void next_frame_task_cb(lv_timer_t * timer)
                 .width = cw, .height = ch, .stride = (uint32_t)cw * 4U,
             };
             bk_baf_compose(&dst_desc, &canvas_desc,
-                           alpha_desc.data ? &alpha_desc : NULL, 0x00000000U);
+                           alpha_desc.data ? &alpha_desc : NULL, 0x00000000U, false);
 
             lv_image_cache_drop(lv_image_get_src(obj));
             lv_obj_invalidate(obj);
