@@ -91,6 +91,8 @@ uint32_t sys_hal_get_sdio_clk_sel();
 void sys_hal_enter_deep_sleep(void *param);
 void sys_hal_enter_normal_sleep();
 void sys_hal_enter_normal_wakeup();
+void sys_hal_wifi_enter_sleep_status_set(uint32_t status);
+uint32_t sys_hal_wifi_enter_sleep_status_get(void);
 void sys_hal_enter_low_voltage(void);
 bk_err_t sys_hal_set_alo2core_power_switch(uint32_t value);
 #if CONFIG_DEEP_LV_DEBUG_LOG

@@ -221,6 +221,7 @@ typedef struct
 uint64_t low_voltage_exit_tick = 0;
 uint64_t low_voltage_sleep_duration_us = 0;
 uint64_t low_voltage_wakeup_time_us = 0;
+static volatile uint32_t s_wifi_enter_sleep_status = 0;
 
 extern uint64_t check_IRQ_pending(void);
 extern void sys_hal_analog_set(analog_reg_t reg, uint32_t value);
@@ -1576,6 +1577,16 @@ __IRAM_PM void sys_hal_regs_analog_restore(void)
 }
 #endif
 
+__IRAM_PM void sys_hal_wifi_enter_sleep_status_set(uint32_t status)
+{
+	s_wifi_enter_sleep_status = status;
+}
+
+__IRAM_PM uint32_t sys_hal_wifi_enter_sleep_status_get(void)
+{
+	return s_wifi_enter_sleep_status;
+}
+
 __IRAM_PM void sys_hal_enter_low_voltage(void)
 {
 	volatile uint32_t int_state1, int_state2, int_state3;
@@ -1617,7 +1628,7 @@ __IRAM_PM void sys_hal_enter_low_voltage(void)
 	sys_ll_set_cpu0_int_0_31_en_value(0x0);
 	sys_ll_set_cpu0_int_32_63_en_value(0x0);
 	sys_ll_set_cpu0_int_64_95_en_value(0x0);
-	if(check_IRQ_pending()||(sys_ll_get_cpu0_int_0_31_status_value()||(sys_ll_get_cpu0_int_32_63_status_value()) || (sys_ll_get_cpu0_int_64_95_status_value()))||(portNVIC_INT_CTRL_REG&portNVIC_SYSTICKSET_BIT))
+	if(check_IRQ_pending()||(sys_ll_get_cpu0_int_0_31_status_value()||(sys_ll_get_cpu0_int_32_63_status_value()) || (sys_ll_get_cpu0_int_64_95_status_value()))||(portNVIC_INT_CTRL_REG&portNVIC_SYSTICKSET_BIT) ||(sys_hal_wifi_enter_sleep_status_get()))
 	{
 		sys_ll_set_cpu0_int_0_31_en_value(int_state1);
 		sys_ll_set_cpu0_int_32_63_en_value(int_state2);
