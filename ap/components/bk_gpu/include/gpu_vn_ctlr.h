@@ -126,6 +126,12 @@ typedef struct
     volatile bool flexa_stop;
     bool flexa_frame_active;
     bool flexa_abort_notified;
+    /* Cross-core hand-off for a FLEXA restart request. BK_GPU_IOCTL_SET_NOTIFY arrives on the
+     * bond ISR (ap1), while the FLEXA read state (flexa_index / read_lines / line_err_flag) is
+     * owned by the GPU worker (ap0), which may be inside vg_lite_blit/finish under gpu_mutex.
+     * The ISR only sets this flag and wakes the worker; the worker consumes it and runs
+     * gpu_flex_restart() from its own context, so all read-state mutation stays on one thread. */
+    volatile bool flexa_notify_pending;
     uint8_t *gpu_contiguous_buffer;
 
     bk_gpu_ctlr_config_t config;

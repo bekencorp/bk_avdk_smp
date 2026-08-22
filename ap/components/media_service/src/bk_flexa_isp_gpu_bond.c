@@ -78,8 +78,23 @@ static void isp_gpu_bond_isp_flexa_done(uint32_t wr_ptr, void *args)
 static void isp_gpu_bond_isp_stream_error(uint32_t reason, void *args)
 {
 	(void)reason;
+	/* ISP signalled an incomplete MP flexa frame (ok=false) -- either a line-count anomaly or
+	 * a force-drop straddling an SP arm/disarm. Forward it to the GPU via BK_GPU_IOCTL_SET_NOTIFY
+	 * so the current frame is discarded and never reaches the LCD. Runs in the same ISR context
+	 * as the SET_FLEXA_EVENT_READY path; the GPU only flags flexa_notify_pending here and does the
+	 * actual restart on its worker thread, keeping all vg_lite state changes on one core. */
 	bk_flexa_bond_t *in_stream = (bk_flexa_bond_t *)args;
-	(void)in_stream;
+	if (in_stream == NULL || in_stream->bond_config == NULL) {
+		return;
+	}
+	bk_flexa_bond_t *out_stream = (bk_flexa_bond_t *)in_stream->bond_config->out_stream;
+	if (out_stream == NULL) {
+		return;
+	}
+	bk_gpu_ctlr_handle_t gpuh = (bk_gpu_ctlr_handle_t)out_stream->handle;
+	if (gpuh != NULL) {
+		bk_gpu_ioctl(gpuh, BK_GPU_IOCTL_SET_NOTIFY, NULL);
+	}
 }
 
 avdk_err_t bk_flexa_isp_gpu_bond_start(void **bond, void *isp, bk_gpu_ctlr_handle_t gpu)
