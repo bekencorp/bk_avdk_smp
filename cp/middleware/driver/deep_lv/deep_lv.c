@@ -94,6 +94,7 @@
 #endif
 
 #define portNVIC_SHPR3_REG                    ( *( ( volatile uint32_t * ) 0xe000ed20 ) )
+#define DLV_NVIC_VALID_IRQS_64_81_MASK         (0x0003FFFFUL)
 
 static __used DLV_SEC dlv_context_t s_dlv_context = {0};
 static __used volatile dlv_stack_frame_t *s_current_stack_frame = &(s_dlv_context.stk_frame);
@@ -592,6 +593,30 @@ __IRAM_PM void dlv_trigger_restore_context(void)
 	);
 }
 
+__IRAM_PM static void dlv_clear_stale_pending_irq(void)
+{
+	const uint32_t wakeup_irq_allow[3] = {
+		0,
+		(1UL << (INT_SRC_GPIO_NS - 32)) |
+		(1UL << (INT_SRC_TOUCHED - 32)) |
+		(1UL << (INT_SRC_RTC - 32)) |
+		(1UL << (INT_SRC_GPIO - 32)),
+		(1UL << (INT_SRC_VAD - 64)),
+	};
+
+	/*
+	 * During Deep-LV wakeup only GPIO (secure/non-secure), RTC, touch and
+	 * VAD are valid. Other peripherals are still powered off, so discard
+	 * their retained NVIC pending state without accessing peripheral
+	 * registers.
+	 */
+	NVIC->ICPR[0] = ~wakeup_irq_allow[0];
+	NVIC->ICPR[1] = ~wakeup_irq_allow[1];
+	NVIC->ICPR[2] = DLV_NVIC_VALID_IRQS_64_81_MASK & ~wakeup_irq_allow[2];
+	__DSB();
+	__ISB();
+}
+
 __IRAM_PM __attribute__((noinline)) void dlv_restore_post_core_prepare(void)
 {
 	dlv_context_t *dlv = &s_dlv_context;
@@ -600,6 +625,7 @@ __IRAM_PM __attribute__((noinline)) void dlv_restore_post_core_prepare(void)
 	arch_int_set_default_priority();
 	dlv_nvic_restore(dlv);
 	portNVIC_SHPR3_REG = scb_info->shpr3_val;
+	dlv_clear_stale_pending_irq();
 	#if CONFIG_DEEP_LV_DEBUG_GPIO
 	PM_GPIO_UP(37);//3
 	PM_GPIO_DOWN(37);
