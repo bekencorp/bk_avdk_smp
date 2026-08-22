@@ -75,7 +75,7 @@ static fih_int tfm_core_init(void)
 #ifdef SW_VERSION
     SPMLOG_INFMSG("\033[1;34mSoftware version: " SW_VERSION "\033[0m\r\n");
 #endif
-    SPMLOG_INFMSG("\033[1;34mBooting TF-M "VERSION_FULLSTR"\033[0m\r\n");
+    SPMLOG_INFMSG("Booting TF-M "VERSION_FULLSTR"\r\n");
 
     bk_sw_fih_set_data(FIH_SW_INDEX14);
     plat_err = TFM_PLAT_ERR_SYSTEM_ERR;
@@ -93,7 +93,7 @@ static fih_int tfm_core_init(void)
     /* Configures architecture */
     tfm_arch_config_extensions();
 
-    SPMLOG_INFMSG("\033[1;34m[Sec Thread] Secure image initializing!\033[0m\r\n");
+    SPMLOG_INFMSG("[Sec Thread] Secure image initializing!\r\n");
 
     SPMLOG_DBGMSGVAL("TF-M isolation level is: ", TFM_ISOLATION_LEVEL);
 
@@ -116,25 +116,14 @@ int main(void)
 #ifdef CONFIG_TFM_ENABLE_PROFILING
     PROFILING_INIT();
 #endif
-    /* BK7259 bring-up: drop the psa_level3 secure-hardening and non-secure
-     * peripheral bring-up that ran before tfm_core_init() and hung the secure
-     * image before TF-M logging was initialized. Per the bring-up decision
-     * (drop FIH/anti-tamper, do NOT reuse
-     * the non-secure driver stack), remove:
-     *   - bk_sca_random_freq_init / bk_anti_tamper_enable / bk_ckmn_start
-     *     (SCA / anti-tamper / clock-monitor hardening)
-     *   - bk_adc_driver_init / temp_detect_init / volt_detect_set_config /
-     *     temp_sensor_enable (ADC + temp/volt detect -- non-secure peripheral
-     *     drivers, not needed to bring TF-M up and a likely early hang source)
-     *   - bk_sw_fih_set_data markers
-     * Keep only what TF-M core needs: systick, MSP limit, and tfm_core_init. */
+
     fih_int fih_rc = FIH_FAILURE;
 
     extern void systick_init(void);
     systick_init();
     tfm_arch_set_msplim(SPM_BOOT_STACK_TOP);
 
-    FIH_LOOP4(fih_delay_init());
+    fih_delay_init();
 
     FIH_CALL(tfm_core_init, fih_rc);
     if (fih_not_eq(fih_rc, fih_int_encode(SPM_SUCCESS))) {

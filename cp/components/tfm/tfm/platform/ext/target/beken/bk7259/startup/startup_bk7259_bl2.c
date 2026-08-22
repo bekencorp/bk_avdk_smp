@@ -268,12 +268,6 @@ __NO_RETURN ENTRY_SECTION void Reset_Handler_C(void)
     Pre_Main();
 }
 
-/* BK7259 BL2 bring-up fault diagnostics: dump the fault type and the key Cortex
- * fault status registers (CFSR/HFSR/SFSR) plus the faulting addresses
- * (BFAR/MMFAR/SFAR) and the stacked return PC over UART1 (secure log,
- * 0x45830000). This pins down where/why BL2 faults instead of silently
- * spinning (which previously looked like a watchdog reset loop). Pure MMIO,
- * no deps. Remove once the secure boot chain is fully validated. */
 static void flt_putc(char c)
 {
 	volatile unsigned int  *u1  = (volatile unsigned int  *)0x45830000;

@@ -184,14 +184,6 @@ int32_t boot_platform_init(void)
 
 int32_t boot_platform_post_init(void)
 {
-    /* BK7259 bring-up: re-disable the AON watchdog right before the crypto
-     * (dubhe TE200) init. The bootrom arms the AON WDT (~1.024s) and the dubhe
-     * driver init (ACA/HASH/SCA/TRNG/OTP self-tests, plus the bring-up UART
-     * markers) can run long enough to trip it, which looked like a "crash" mid
-     * dubhe init (the reset point jittered between D2 and A0). Keep the WDT off
-     * here so the boot chain isn't reset under us. */
-    close_wdt();
-
 #ifdef CRYPTO_HW_ACCELERATOR
     int32_t result;
 
@@ -200,7 +192,7 @@ int32_t boot_platform_post_init(void)
         return 1;
     }
 
-    FIH_LOOP4(fih_delay_init());
+    fih_delay_init();
 #else
     dubhe_driver_init(0x42110000);
 #endif /* CRYPTO_HW_ACCELERATOR */

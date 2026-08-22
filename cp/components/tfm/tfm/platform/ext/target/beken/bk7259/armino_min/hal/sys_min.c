@@ -47,14 +47,6 @@ void sys_drv_set_base_addr(uint32_t addr)
 	(void)addr;
 }
 
-/* ---- Self-contained shims for symbols the kept SDK sys_hal.c drags in ----
- * The SDK sys_hal.c is reused for the (silicon-validated) clock/voltage
- * bring-up, but it references RTOS critical sections (aspl), a busy-wait delay,
- * and runtime PM/PHY-calibration helpers. None of those subsystems exist in the
- * secure world; the secure-boot path only uses the clock-setup code. Provide a
- * minimal interrupt-based critical section, a cycle busy-wait delay, and weak
- * no-op PM/PHY stubs (overridable by a real driver later). */
-
 uint32_t bk_aspl_driver_enter_critical(void)
 {
 	uint32_t primask = __get_PRIMASK();

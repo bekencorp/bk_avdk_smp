@@ -78,12 +78,6 @@ static uart_min_hw_t *uart_min_hw(uart_id_t id)
 	}
 }
 
-/* Per-UART low-level bring-up: power the UART clock, select the XTAL-26M source
- * (matches the bk7259 bringup secure log), and route the TX/RX GPIO pads via
- * the IO-matrix. UART0 is already brought up by the bootrom (non-secure log);
- * UART1 (secure log on GPIO0/GPIO1) is fully set up here. Pad routing uses the
- * pure inline gpio_ll (gpio_ll_set_cfg_gpio_fun_sel) so no SDK gpio driver is
- * pulled into the secure world. */
 static void uart_min_bringup(uart_id_t id)
 {
 	switch (id) {

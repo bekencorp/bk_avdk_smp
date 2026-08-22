@@ -105,30 +105,22 @@ void bk_fih_validate(void);
 
 void dump_prro_regs(void);
 
-/* BK7259 bring-up: software fault-injection hardening removed.
- *
- * FIH_LOOP*(op) used to execute 'op' N times (redundant execution to resist
- * glitch attacks) and FIH_ASSERT*(condition) used to re-check 'condition' N
- * times and, on mismatch, re-arm the watchdog (update_wdt(0xa)) to force a
- * reset. Per the bring-up decision to drop FIH, FIH_LOOP* now runs the
- * operation exactly once and FIH_ASSERT* is a no-op (it no longer touches the
- * watchdog, which was a source of spurious resets in the secure image). */
 #define FIH_LOOP1(op) op;
-#define FIH_LOOP2(op) FIH_LOOP1(op)
-#define FIH_LOOP4(op) FIH_LOOP1(op)
-#define FIH_LOOP8(op) FIH_LOOP1(op)
-#define FIH_LOOP16(op) FIH_LOOP1(op)
-#define FIH_LOOP32(op) FIH_LOOP1(op)
-#define FIH_LOOP64(op) FIH_LOOP1(op)
-#define FIH_LOOP128(op) FIH_LOOP1(op)
-#define FIH_LOOP256(op) FIH_LOOP1(op)
+#define FIH_LOOP2(op) FIH_LOOP1(op); FIH_LOOP1(op);
+#define FIH_LOOP4(op) FIH_LOOP2(op); FIH_LOOP2(op);
+#define FIH_LOOP8(op) FIH_LOOP4(op); FIH_LOOP4(op);
+#define FIH_LOOP16(op) FIH_LOOP8(op); FIH_LOOP8(op);
+#define FIH_LOOP32(op) FIH_LOOP16(op); FIH_LOOP16(op);
+#define FIH_LOOP64(op) FIH_LOOP32(op); FIH_LOOP32(op);
+#define FIH_LOOP128(op) FIH_LOOP64(op); FIH_LOOP64(op);
+#define FIH_LOOP256(op) FIH_LOOP128(op); FIH_LOOP128(op);
 
-#define FIH_ASSERT1(condition) ((void)0)
-#define FIH_ASSERT2(condition) ((void)0)
-#define FIH_ASSERT4(condition) ((void)0)
-#define FIH_ASSERT8(condition) ((void)0)
-#define FIH_ASSERT16(condition) ((void)0)
-#define FIH_ASSERT32(condition) ((void)0)
-#define FIH_ASSERT64(condition) ((void)0)
-#define FIH_ASSERT128(condition) ((void)0)
-#define FIH_ASSERT256(condition) ((void)0)
+#define FIH_ASSERT1(condition) if (!(condition)) {update_wdt(0xa); update_aon_wdt(0xa);}
+#define FIH_ASSERT2(condition) FIH_ASSERT1(condition); FIH_ASSERT1(condition);
+#define FIH_ASSERT4(condition) FIH_ASSERT2(condition); FIH_ASSERT2(condition);
+#define FIH_ASSERT8(condition) FIH_ASSERT4(condition); FIH_ASSERT4(condition);
+#define FIH_ASSERT16(condition) FIH_ASSERT8(condition); FIH_ASSERT8(condition);
+#define FIH_ASSERT32(condition) FIH_ASSERT16(condition); FIH_ASSERT16(condition);
+#define FIH_ASSERT64(condition) FIH_ASSERT32(condition); FIH_ASSERT32(condition);
+#define FIH_ASSERT128(condition) FIH_ASSERT64(condition); FIH_ASSERT64(condition);
+#define FIH_ASSERT256(condition) FIH_ASSERT128(condition); FIH_ASSERT128(condition);

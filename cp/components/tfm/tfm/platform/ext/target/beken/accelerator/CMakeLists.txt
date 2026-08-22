@@ -293,12 +293,6 @@ target_compile_definitions(crypto_service_crypto_hw
         ARM_CE_DUBHE_ACA
         # TF-M 2.1.0 provides psa_wait(); drop the Beken spe/misc.c shim.
         CONFIG_TFM_2_1_0_PSA_API
-        # BK7259 bring-up: route mbedtls_hardware_poll() (entropy source used by
-        # psa_crypto_init) through the Dubhe TE200 TRNG (arm_ce_seed_read) instead
-        # of bk_puf_get_random_number(). The PUF fallback in dubhe_lib/ctr_drbg.c
-        # busy-waits on a hard-coded BK7234 register (0x4B1002C4) that does not
-        # exist on BK7259, so the read never returns / faults. The Dubhe engine is
-        # already initialised by crypto_hw_accelerator_init() before psa_crypto_init.
         CONFIG_TE200_ENTROPY=1
         $<$<BOOL:${SCA_DEFENSE}>:CONFIG_SCA_DEFENSE>
 )

@@ -45,12 +45,6 @@ enum tfm_plat_err_t tfm_plat_init_nv_counter(void)
 
     return init_otp_nv_counters_flash();
 #else
-    /* BK7259 bring-up: in BL2, skip the flash-backed OTP-NV-counter init. The
-     * dedicated flash NV-counter region is not provisioned here (no sys_otp_nv
-     * partition), so init_otp_nv_counters_flash() faulted BL2 right after OTP
-     * init (observed: stops after "BB2"). The bk7259 bringup BL2 uses the
-     * nv_otp backend whose init is a no-op; mirror that. BL2 reads its
-     * anti-rollback counter (PLAT_NV_COUNTER_BL2_0) from OTP on demand. */
     return TFM_PLAT_ERR_SUCCESS;
 #endif
 }

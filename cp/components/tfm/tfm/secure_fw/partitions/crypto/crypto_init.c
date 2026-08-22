@@ -292,17 +292,6 @@ static psa_status_t tfm_crypto_engine_init(void)
     }
     LOG_INFFMT("[INF][Crypto] Init HW accelerator... \033[0;32mcomplete\033[0m.\r\n");
 #elif defined(CRYPTO_HW_ACCELERATOR)
-    /*
-     * BK7259 bring-up: with the PSA Unified Driver interface (LEGACY_DRIVER_API
-     * disabled), TF-M expects psa_crypto_init() to bring up the accelerator.
-     * However the Dubhe (TE200) PSA transparent driver has no init entry that
-     * powers/clocks the engine, so psa_crypto_init() -> entropy init ->
-     * mbedtls_hardware_poll -> arm_ce_seed_read touches the Dubhe TRNG MMIO
-     * (0x42110000) while the engine clock/reset is still un-initialised, which
-     * surfaces as an imprecise BusFault. BL2 avoids this because it explicitly
-     * calls crypto_hw_accelerator_init() (-> dubhe_driver_init) in
-     * boot_platform_post_init(). Do the same here before psa_crypto_init().
-     */
     if (crypto_hw_accelerator_init() != 0) {
         return PSA_ERROR_HARDWARE_FAILURE;
     }

@@ -34,16 +34,6 @@ set_property(CACHE MCUBOOT_UPGRADE_STRATEGY PROPERTY STRINGS "OVERWRITE_ONLY;SWA
 # Specifying a scope of the accepted values of MCUBOOT_ALIGN_VAL for
 # platforms requiring specific flash alignmnent
 set_property(CACHE MCUBOOT_ALIGN_VAL PROPERTY STRINGS "1;2;4;8;16;32")
-
-# BK7259 bring-up: align with the bk7259 bringup mcuboot config.
-# - DIRECT_XIP_REVERT OFF: the revert path's boot_select_or_erase() requires a
-#   standard MCUboot swap trailer (BOOT_MAGIC_GOOD + image_ok) in the slot. Our
-#   single-slot DIRECT_XIP image is packed by the SDK packer (XIP status magic
-#   0xDEADBEEF), which is NOT that trailer, so boot_select_or_erase() treated the
-#   primary slot as unconfirmed, erased it and returned -1 -> "No slot to load"
-#   even though the image header/version were read fine. bringup keeps this OFF.
-# - HW_ROLLBACK_PROT OFF: matches bringup and the bring-up decision to drop the
-#   anti-rollback NV-counter checks for now (we stubbed tfm_plat_init_nv_counter).
 set(MCUBOOT_DIRECT_XIP_REVERT           OFF         CACHE BOOL      "Enable the revert mechanism in direct-xip mode")
 set(MCUBOOT_HW_ROLLBACK_PROT            OFF         CACHE BOOL      "Enable security counter validation against non-volatile HW counters")
 set(MCUBOOT_ENC_IMAGES                  OFF         CACHE BOOL      "Enable encrypted image upgrade support")
