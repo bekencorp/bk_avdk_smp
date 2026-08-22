@@ -18,6 +18,7 @@
 #include <avdk_check.h>
 #include <components/log.h>
 #include <components/bk_display.h>
+#include <modules/pm.h>
 #include "display_spi_vn_ctlr.h"
 #if CONFIG_LCD_SPI
 #include <driver/lcd_spi.h>
@@ -220,6 +221,7 @@ static avdk_err_t spi_ctlr_init(bk_display_ctlr_handle_t handle)
     control->state = SPI_DISP_STATE_INITING;
     spi_ctlr_unlock(control);
 
+    bk_pm_module_vote_cpu_freq(PM_DEV_ID_DISP, PM_CPU_FRQ_480M);
     bk_lcd_spi_init(control->config.spi_id,
                     control->config.lcd_panel,
                     control->config.reset_pin,
@@ -229,6 +231,7 @@ static avdk_err_t spi_ctlr_init(bk_display_ctlr_handle_t handle)
         bk_lcd_spi_deinit(control->config.spi_id,
                           control->config.reset_pin,
                           control->config.dc_pin);
+        bk_pm_module_vote_cpu_freq(PM_DEV_ID_DISP, PM_CPU_FRQ_DEFAULT);
         return AVDK_ERR_GENERIC;
     }
     if (control->state != SPI_DISP_STATE_INITING) {
@@ -237,6 +240,7 @@ static avdk_err_t spi_ctlr_init(bk_display_ctlr_handle_t handle)
         bk_lcd_spi_deinit(control->config.spi_id,
                           control->config.reset_pin,
                           control->config.dc_pin);
+        bk_pm_module_vote_cpu_freq(PM_DEV_ID_DISP, PM_CPU_FRQ_DEFAULT);
         LOGE("%s invalid display state after lcd spi init: %d\n", __func__, state);
         return AVDK_ERR_GENERIC;
     }
@@ -417,6 +421,7 @@ static avdk_err_t spi_ctlr_deinit(bk_display_ctlr_handle_t handle)
     bk_lcd_spi_deinit(control->config.spi_id,
                       control->config.reset_pin,
                       control->config.dc_pin);
+    bk_pm_module_vote_cpu_freq(PM_DEV_ID_DISP, PM_CPU_FRQ_DEFAULT);
 
     if (spi_ctlr_lock(control) != AVDK_ERR_OK) {
         return AVDK_ERR_GENERIC;
