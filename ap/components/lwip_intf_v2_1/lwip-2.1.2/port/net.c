@@ -233,7 +233,7 @@ extern int net_configure_address(struct ipv4_config *addr, void *intrfc_handle);
 extern int dhcp_server_start(void *intrfc_handle);
 extern void dhcp_server_stop(void);
 extern void dhcp_server_stop_iface(void *intrfc_handle);
-extern void net_configure_dns(struct iface *, struct wlan_ip_config *ip);
+extern void net_configure_dns(struct iface *, struct ipv4_config *ip);
 bk_err_t bk_wifi_get_ip_status(IPStatusTypedef *outNetpara, WiFi_Interface inInterface);
 #if CONFIG_NET_PAN
 int net_pan_add_netif(uint8_t *mac);
@@ -744,6 +744,7 @@ void sta_ip_apply_static_binary(uint32_t ip, uint32_t mk, uint32_t gw, uint32_t 
 	    ip_addr_get_ip4_u32(&n->ip_addr) == ip &&
 	    ip_addr_get_ip4_u32(&n->netmask) == mk &&
 	    ip_addr_get_ip4_u32(&n->gw) == gw) {
+		net_configure_dns(&g_mlan, &sta_ip_settings);
 		return;
 	}
 
@@ -1390,18 +1391,18 @@ int net_configure_address(struct ipv4_config *addr, void *intrfc_handle)
 		if (if_handle == &g_mlan) {
 			netif_set_status_callback(&if_handle->netif, wm_netif_status_static_callback);
 			netifapi_netif_set_up(&if_handle->netif);
-			net_configure_dns(if_handle, (struct wlan_ip_config *)addr);
+			net_configure_dns(if_handle, addr);
 #ifdef CONFIG_ETH
 		} else if (if_handle == &g_eth) {
 			netif_set_status_callback(&if_handle->netif, wm_netif_status_static_callback);
 			netifapi_netif_set_up(&if_handle->netif);
-			net_configure_dns(if_handle, (struct wlan_ip_config *)addr);
+			net_configure_dns(if_handle, addr);
 #endif
 #if CONFIG_BK_MODEM
 		} else if (if_handle == &g_modem) {
 			netif_set_status_callback(&if_handle->netif, wm_netif_status_static_callback);
 			netifapi_netif_set_up(&if_handle->netif);
-			net_configure_dns(if_handle, (struct wlan_ip_config *)addr);
+			net_configure_dns(if_handle, addr);
 #endif
 #if CONFIG_BRIDGE
 		} else if (if_handle == &g_br) {
@@ -1411,7 +1412,7 @@ int net_configure_address(struct ipv4_config *addr, void *intrfc_handle)
 		} else if (if_handle == &g_p2p_gc) {
 			netif_set_status_callback(&if_handle->netif, wm_netif_status_static_callback);
 			netifapi_netif_set_up(&if_handle->netif);
-			net_configure_dns(if_handle, (struct wlan_ip_config *)addr);
+			net_configure_dns(if_handle, addr);
 #endif
 		} else {
 			/*AP never configure DNS server address!!!*/
@@ -1681,22 +1682,21 @@ int net_get_if_ip_mask(uint32_t *nm, void *intrfc_handle)
 	return 0;
 }
 
-void net_configure_dns(struct iface *if_handle, struct wlan_ip_config *ip)
+void net_configure_dns(struct iface *if_handle, struct ipv4_config *ip)
 {
 	ip_addr_t tmp;
 
-	if (ip->ipv4.addr_type == ADDR_TYPE_STATIC) {
+	(void)if_handle;
 
-		if (ip->ipv4.dns1 == 0)
-			ip->ipv4.dns1 = ip->ipv4.gw;
-		if (ip->ipv4.dns2 == 0)
-			ip->ipv4.dns2 = ip->ipv4.dns1;
+	if (ip->dns1 == 0)
+		ip->dns1 = ip->gw;
+	if (ip->dns2 == 0)
+		ip->dns2 = ip->dns1;
 
-		ip_addr_set_ip4_u32(&tmp, ip->ipv4.dns1);
-		dns_setserver(0, &tmp);
-		ip_addr_set_ip4_u32(&tmp, ip->ipv4.dns2);
-		dns_setserver(1, &tmp);
-	}
+	ip_addr_set_ip4_u32(&tmp, ip->dns1);
+	dns_setserver(0, &tmp);
+	ip_addr_set_ip4_u32(&tmp, ip->dns2);
+	dns_setserver(1, &tmp);
 
 	/* DNS MAX Retries should be configured in lwip/dns.c to 3/4 */
 	/* DNS Cache size of about 4 is sufficient */

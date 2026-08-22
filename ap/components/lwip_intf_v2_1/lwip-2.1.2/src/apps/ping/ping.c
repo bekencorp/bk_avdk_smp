@@ -357,6 +357,7 @@ int ping(char* target_name, uint32_t times, size_t size)
     }
 	LWIP_DEBUGF( PING_DEBUG, ("ping: size:%u times:%u\n", size, times));
     memset(&hint, 0, sizeof(hint));
+    hint.ai_family = AF_INET;
     /* convert URL to IP */
     if (lwip_getaddrinfo(target_name, NULL, &hint, &res) != 0)
     {
