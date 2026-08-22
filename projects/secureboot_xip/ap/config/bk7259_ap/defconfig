@@ -31,6 +31,21 @@ CONFIG_SUPPORT_WWDT=n
 
 CONFIG_SECURE_OTA_XIP=y
 
+# HTTPS OTA transport for secure XIP A/B: CLI `https_ota <url>` downloads
+# package/ota.bin over TLS; ota_do_init_operation() routes writes into
+# ota_secure_xip backend (inactive slot + boot_param TRIAL). Needs CONFIG_HTTPS
+# (bk_https) + CONFIG_PSA_MBEDTLS (TLS). Keep OTA_HTTP for plain-HTTP bring-up.
+CONFIG_OTA_FUNCTION=y
+CONFIG_HTTPS=y
+CONFIG_OTA_HTTPS=y
+CONFIG_PSA_MBEDTLS=y
+
+# NTP sync so the RTC has real UTC for the HTTPS cert validity check (without it
+# the clock defaults to ~2021 and TLS fails). Depends on CONFIG_AON_RTC.
+CONFIG_NTP_SYNC_RTC=y
+# 0 = store UTC in RTC (correct for x509 checks); use 8 for local UTC+8.
+CONFIG_RTC_NTP_TIMEZONE=0
+
 # A/B slots are writable; keep partition validation enabled.
 CONFIG_FLASH_PARTITION_CHECK_VALID=y
 
