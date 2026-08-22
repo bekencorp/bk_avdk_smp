@@ -38,7 +38,10 @@ void bk_dump_all_sram(void)
             sram_info_list[i].start_addr + sram_info_list[i].size
         );
     }
-    bk_coredump_write_memory("MEM_CHECK", (uint32_t)SOC_MEM_CHECK_REG_BASE, (uint32_t)(SOC_MEM_CHECK_REG_BASE + 0x81 * 4));
+#if CONFIG_SPE
+    bk_coredump_write_memory("MEM_CHECK", (uint32_t)SOC_MEM_CHECK_REG_BASE,
+        (uint32_t)(SOC_MEM_CHECK_REG_BASE + 0x81 * 4));
+#endif
 }
 
 void bk_dump_extra_mem(void)
