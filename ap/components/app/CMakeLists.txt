@@ -64,9 +64,70 @@ if (CONFIG_ALI_MQTT)
 	armino_build_set_property(C_COMPILE_OPTIONS "${ali_mqtt_c_compile_options}" APPEND)
 endif()
 
+if (CONFIG_PAHO_MQTT)
+	list(APPEND incs
+		paho-mqtt/client
+		paho-mqtt/client/src
+		paho-mqtt/mqtt_ui
+		paho-mqtt/mqtt_ui/tcp_mqtt
+		paho-mqtt/mqtt_ui/ssl_mqtt
+	)
+	list(APPEND srcs
+		paho-mqtt/client/paho_mqtt_udp.c
+		paho-mqtt/mqtt_ui/mqtt_client_core.c
+		paho-mqtt/mqtt_ui/mqtt_client_com_port.c
+		paho-mqtt/mqtt_ui/tcp_mqtt/tcp_mqtt_client_port.c
+		paho-mqtt/paho_mqtt_test.c
+	)
+	# MQTTClient.c exports mqtt_subscribe/mqtt_publish, which ali_mqtt also defines.
+	if (NOT CONFIG_ALI_MQTT)
+		list(APPEND srcs
+			paho-mqtt/client/src/MQTTClient.c
+			paho-mqtt/client/src/MQTTFreeRTOS.c
+		)
+	endif()
+	# MQTTPacket sources overlap with ali_mqtt; link one copy when both enabled.
+	if (CONFIG_ALI_MQTT)
+		list(APPEND incs ali_mqtt/mqtt/MQTTPacket)
+	else()
+		list(APPEND incs paho-mqtt/packet/src)
+		list(APPEND srcs
+			paho-mqtt/packet/src/MQTTConnectClient.c
+			paho-mqtt/packet/src/MQTTDeserializePublish.c
+			paho-mqtt/packet/src/MQTTPacket.c
+			paho-mqtt/packet/src/MQTTSerializePublish.c
+			paho-mqtt/packet/src/MQTTSubscribeClient.c
+			paho-mqtt/packet/src/MQTTUnsubscribeClient.c
+			paho-mqtt/packet/src/MQTTFormat.c
+		)
+	endif()
+	set(paho_mqtt_c_compile_options
+		"-DMQTT_COMM_ENABLED"
+		"-DMQTT_DIRECT"
+		"-DIOTX_WITHOUT_TLS"
+		"-DOTA_SIGNAL_CHANNEL=1"
+		"-DMAX_PACKET_ID=65535"
+		"-DPAHOMQTT_PIPE_MODE"
+	)
+	if (CONFIG_PAHO_MQTT_TLS)
+		list(APPEND srcs
+			paho-mqtt/mqtt_ui/ssl_mqtt/ssl_mqtt_client_port.c
+			paho-mqtt/mqtt_ui/ssl_mqtt/sl_tls.c
+		)
+		list(APPEND paho_mqtt_c_compile_options "-DMQTT_USING_TLS")
+	endif()
+	armino_build_set_property(C_COMPILE_OPTIONS "${paho_mqtt_c_compile_options}" APPEND)
+endif()
+
 set(priv_requires bk_common littlefs lwip_intf_v2_1 bk_vfs)
 if (CONFIG_ALI_MQTT)
 	list(APPEND priv_requires http)
+endif()
+if (CONFIG_PAHO_MQTT)
+	list(APPEND priv_requires http)
+endif()
+if (CONFIG_PAHO_MQTT_TLS)
+	list(APPEND priv_requires psa_mbedtls)
 endif()
 
 #TODO fix main

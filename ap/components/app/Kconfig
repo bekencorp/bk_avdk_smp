@@ -51,5 +51,19 @@ menu "App"
 	config ALI_MQTT
 		depends on LWIP
 		bool "Enable Ali Mqtt"
-		default y
+		default n
+
+	config PAHO_MQTT
+		depends on LWIP
+		bool "Enable Paho MQTT Client"
+		default n
+		help
+			Enable Eclipse Paho MQTT client library for IoT communication
+
+	config PAHO_MQTT_TLS
+		depends on PAHO_MQTT && PSA_MBEDTLS
+		bool "Enable Paho MQTT TLS Support"
+		default n
+		help
+			Enable TLS/SSL encryption support for Paho MQTT client
 endmenu
