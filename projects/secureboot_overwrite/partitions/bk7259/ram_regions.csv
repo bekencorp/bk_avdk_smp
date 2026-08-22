@@ -2,13 +2,15 @@
 # SRAM base addr is 0x28000000, capacity is 1280K. PSRAM base addr is 0x60000000.
 # Secure regions are emitted as generated macros and do not affect the
 # sequential SRAM/PSRAM region offsets.
+# LOWPOWER (1K): retained SRAM for low-power fastboot wake/resume context.
 SINGLE_PSRAM_CAPCAITY_SIZE=16M
 # AP_HSRAM_HEAP starts after AP_SPE_RAM and remains in the Non-Secure alias.
 #Name,                   Type,     Offset,     Size
 CP_SPE_RAM,              SECURE, 0x28000000, 0x014000
 AP_SPE_RAM,              SECURE, 0x28100000, 0x001000
-CP_RAM,                  SRAM, 0x28000000, 0x05F000
+CP_RAM,                  SRAM, 0x28000000, 0x05EB00
 SWAP,                    SRAM,           , 0x001000
+LOWPOWER,                SRAM, 0x2805FB00, 0x000400
 AP_HSRAM_HEAP,           SRAM, 0x38101000, 0x07F000
 AP_RAM,                  SRAM,           , 0x060000
 PSRAM_MEM_SLAB_UNCODED, PSRAM, 0x60000000, 0x1000000
