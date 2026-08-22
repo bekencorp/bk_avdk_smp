@@ -33,6 +33,14 @@
 //#define CONFIG_BK_TLS_PSK_VERIFICATION
 
 /*not support http for now, only https connection*/
+/* bk_err.h reserves BK_ERR_HTTP_BASE (-0x4D00) as a module namespace slot but
+ * never derives specific codes from it. This component (ported from
+ * esp_http_client) keeps its own 0x7000-based HTTP-client error range, used only
+ * inside bk_https.c. Undef the core value first so enabling CONFIG_HTTPS does not
+ * trip the -Werror redefinition when both headers land in the same TU. */
+#ifdef BK_ERR_HTTP_BASE
+#undef BK_ERR_HTTP_BASE
+#endif
 #define BK_ERR_HTTP_BASE			   (0x7000) 				   /*!< Starting number of HTTP error codes */
 #define BK_ERR_HTTP_MAX_REDIRECT	   (BK_ERR_HTTP_BASE + 1)	  /*!< The error exceeds the number of HTTP redirects */
 #define BK_ERR_HTTP_CONNECT 		   (BK_ERR_HTTP_BASE + 2)	  /*!< Error open the HTTP connection */

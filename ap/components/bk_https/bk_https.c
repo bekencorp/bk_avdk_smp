@@ -1588,17 +1588,33 @@ bk_err_t bk_http_client_perform(bk_http_client_handle_t client)
 						return -1;
 					}
 				}
-				while (client->response->data_process < client->response->content_length) {
-					BK_LOGV(TAG, "begin get data\r\n");
-					if (bk_http_client_get_data(client) <= 0) {
-						if (client->is_async && errno == EAGAIN) {
-							return BK_ERR_HTTP_EAGAIN;
+				{
+					/* Retry transient mid-download RX timeouts (recv EAGAIN, surfaced
+					 * by mbedtls as -0x004C) instead of aborting on the first one; the
+					 * TLS session survives the timeout. A real close/reset (errno !=
+					 * EAGAIN) still fails immediately. */
+					int rx_timeout_retries = 0;
+					const int max_rx_timeout_retries = 10;
+					while (client->response->data_process < client->response->content_length) {
+						BK_LOGV(TAG, "begin get data\r\n");
+						if (bk_http_client_get_data(client) <= 0) {
+							if (client->is_async && errno == EAGAIN) {
+								return BK_ERR_HTTP_EAGAIN;
+							}
+							if (errno == EAGAIN && rx_timeout_retries < max_rx_timeout_retries) {
+								rx_timeout_retries++;
+								BK_LOGW(TAG, "RX timeout mid-download (%d/%d), retrying (%d/%d bytes)\r\n",
+										rx_timeout_retries, max_rx_timeout_retries,
+										client->response->data_process, client->response->content_length);
+								continue;
+							}
+							BK_LOGE(TAG, "Read finish or server requests close, err:%d\r\n", errno);
+							http_dispatch_event(client, HTTP_EVENT_ERROR, NULL, 0);
+							return -1;
 						}
-						BK_LOGE(TAG, "Read finish or server requests close, err:%d\r\n", errno);
-						http_dispatch_event(client, HTTP_EVENT_ERROR, NULL, 0);
-						return -1;
+						rx_timeout_retries = 0;
+						//bk_hex_dump(client->response->data, 10);
 					}
-					//bk_hex_dump(client->response->data, 10);
 				}
 				BK_LOGD(TAG, "---------RECEIVED ALL DATA OVER---------\r\n");
 				http_dispatch_event(client, HTTP_EVENT_ON_FINISH, NULL, 0);
