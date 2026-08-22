@@ -1436,7 +1436,10 @@ int bk_cli_init(void)
 
 #if CONFIG_CLI
 	if(pCli != NULL) {
-		// already initialized
+		/* driver_init may have triggered bk_cli_init before bk_event_init */
+#if (CLI_CFG_WIFI == 1)
+		BK_LOG_ON_ERR(cli_wifi_register_event_cbs());
+#endif
 		return kNoErr;
 	}
 

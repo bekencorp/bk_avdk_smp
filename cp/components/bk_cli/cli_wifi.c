@@ -2711,10 +2711,32 @@ static const struct cli_command s_wifi_commands[] = {
 	#endif
 };
 
+static bool s_cli_wifi_event_cbs_registered;
+
+bk_err_t cli_wifi_register_event_cbs(void)
+{
+	bk_err_t ret;
+
+	if (s_cli_wifi_event_cbs_registered)
+		return BK_OK;
+
+	ret = bk_event_register_cb(EVENT_MOD_WIFI, EVENT_ID_ALL, cli_wifi_event_cb, NULL);
+	if (ret != BK_OK)
+		return ret;
+
+	ret = bk_event_register_cb(EVENT_MOD_NETIF, EVENT_ID_ALL, cli_netif_event_cb, NULL);
+	if (ret != BK_OK)
+		return ret;
+
+	s_cli_wifi_event_cbs_registered = true;
+	return BK_OK;
+}
+
 int cli_wifi_init(void)
 {
-	BK_LOG_ON_ERR(bk_event_register_cb(EVENT_MOD_WIFI, EVENT_ID_ALL, cli_wifi_event_cb, NULL));
-	BK_LOG_ON_ERR(bk_event_register_cb(EVENT_MOD_NETIF, EVENT_ID_ALL, cli_netif_event_cb, NULL));
+	bk_err_t ret = cli_wifi_register_event_cbs();
+	if (ret != BK_OK && ret != BK_ERR_EVENT_NOT_INIT)
+		BK_LOG_ON_ERR(ret);
 	return cli_register_commands(s_wifi_commands, WIFI_CMD_CNT);
 }
 
