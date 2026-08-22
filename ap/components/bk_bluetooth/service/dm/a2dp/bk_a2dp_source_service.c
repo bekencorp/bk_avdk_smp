@@ -239,6 +239,49 @@ static int32_t source_encode_cb(uint8_t type, uint8_t *in_addr, uint32_t *in_len
     bt_audio_encode_req_t req = {0};
     int ret = 0;
 
+    /* [SEQDBG][PCM] throughput of PCM fed to the encoder, reported every 5 s and
+     * compared with what the negotiated sample rate implies (rate * ch * 2). */
+    {
+        static uint32_t s_dbg_pcm_acc = 0;
+        static uint64_t s_dbg_pcm_total = 0;
+        static uint32_t s_dbg_pcm_last_ms = 0;
+        static uint32_t s_dbg_pcm_start_ms = 0;
+        uint32_t now_ms = (uint32_t)rtos_get_time();
+        uint32_t rate = (type == BK_A2DP_CODEC_TYPE_AAC) ?
+                        s_a2dp_source_service_ctx.sbc_cap.cie.aac_codec.sample_rate :
+                        s_a2dp_source_service_ctx.sbc_cap.cie.sbc_codec.sample_rate;
+        uint32_t ch = (type == BK_A2DP_CODEC_TYPE_AAC) ?
+                      s_a2dp_source_service_ctx.sbc_cap.cie.aac_codec.channels :
+                      s_a2dp_source_service_ctx.sbc_cap.cie.sbc_codec.channels;
+
+        s_dbg_pcm_acc += (in_len ? *in_len : 0);
+
+        if (s_dbg_pcm_last_ms == 0)
+        {
+            s_dbg_pcm_last_ms = now_ms;
+            s_dbg_pcm_start_ms = now_ms;
+        }
+        else if ((uint32_t)(now_ms - s_dbg_pcm_last_ms) >= 5000U && rate)
+        {
+            uint32_t elapsed = now_ms - s_dbg_pcm_last_ms;
+            uint32_t total_ms = now_ms - s_dbg_pcm_start_ms;
+            uint32_t actual_bps = (uint32_t)((uint64_t)s_dbg_pcm_acc * 1000U / elapsed);
+            uint32_t expect_bps = rate * ch * (uint32_t)sizeof(uint16_t);
+            uint32_t avg_bps;
+
+            s_dbg_pcm_total += s_dbg_pcm_acc;
+            avg_bps = total_ms ? (uint32_t)(s_dbg_pcm_total * 1000U / total_ms) : 0;
+
+            LOGI("[SEQDBG][PCM] fed=%u B in %u ms => %u B/s, avg=%u B/s over %u ms, expect=%u B/s (rate=%u ch=%u 16bit)%s",
+                 s_dbg_pcm_acc, elapsed, actual_bps, avg_bps, total_ms, expect_bps, rate, ch,
+                 (expect_bps && (actual_bps < expect_bps - expect_bps / 10 ||
+                                 actual_bps > expect_bps + expect_bps / 10)) ? " <-- MISMATCH" : "");
+
+            s_dbg_pcm_acc = 0;
+            s_dbg_pcm_last_ms = now_ms;
+        }
+    }
+
     req.in_addr = in_addr;
     req.type = type;
     req.out_len_ptr = (typeof(req.out_len_ptr))&encode_len;
