@@ -323,6 +323,11 @@ void __attribute__((weak)) bk_pm_wifi_rtc_clear(void)
 	/* Empty implementation */
 }
 
+bool __attribute__((weak)) bk_pm_wifi_rtc_is_registered(void)
+{
+	return false;
+}
+
 /* 15. Deep-sleep module configuration */
 bk_err_t __attribute__((weak)) bk_pm_clear_deep_sleep_modules_config(pm_power_module_name_e module_name)
 {

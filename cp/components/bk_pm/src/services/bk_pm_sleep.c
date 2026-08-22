@@ -837,6 +837,11 @@ void bk_pm_wifi_rtc_clear(void)
 {
 	bk_alarm_unregister(AON_RTC_ID_1, (uint8_t *)PM_WIFI_RTC_ALARM_NAME);
 }
+
+bool bk_pm_wifi_rtc_is_registered(void)
+{
+	return bk_alarm_is_registered(AON_RTC_ID_1, (const uint8_t *)PM_WIFI_RTC_ALARM_NAME);
+}
 /*=========================WIFI ALARM END========================*/
 
 /*=========================ENTER SLEEP FUNCTION START========================*/
