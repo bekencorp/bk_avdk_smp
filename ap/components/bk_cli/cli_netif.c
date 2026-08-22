@@ -378,6 +378,56 @@ void cli_ali_mqtt_send_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, c
 }
 #endif
 
+#if CONFIG_PAHO_MQTT
+extern void test_paho_mqtt_start(const char *host_name, const char *username,
+				 const char *password, const char *topic);
+
+void cli_paho_mqtt_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
+{
+	char *msg = NULL;
+	int ret = 0;
+
+	BK_LOGD(NULL, "start paho mqtt...\n");
+	if (argc == 4) {
+		test_paho_mqtt_start(argv[1], argv[2], argv[3], NULL);
+	} else if (argc == 5) {
+		test_paho_mqtt_start(argv[1], argv[2], argv[3], argv[4]);
+	} else {
+		// mqttpaho 222.71.10.2 aclsemi ****** /aclsemi/bk7256/cmd/changyun
+		CLI_LOGE("usage: mqttpaho [host name|ip] [username] [password] [topic]\n");
+		goto error;
+	}
+
+	if (!ret) {
+		msg = WIFI_CMD_RSP_SUCCEED;
+		os_memcpy(pcWriteBuffer, msg, os_strlen(msg));
+		return;
+	}
+
+error:
+	msg = WIFI_CMD_RSP_ERROR;
+	os_memcpy(pcWriteBuffer, msg, os_strlen(msg));
+	return;
+}
+
+int paho_mqtt_cmd_msg_send(char *topic, char *msg);
+
+void cli_paho_mqtt_send_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
+{
+	int ret = 0;
+
+	if (argc == 3) {
+		ret = paho_mqtt_cmd_msg_send(argv[1], argv[2]);
+	} else {
+		// mqttpub /aclsemi/bk7256/cmd/changyun hello
+		CLI_LOGE("usage: mqttpub [topic] [msg]\n");
+		return;
+	}
+
+	BK_LOGD(NULL, "send paho mqtt topic...%d.\n", ret);
+}
+#endif
+
 #if CONFIG_HTTP
 extern void LITE_openlog(const char *ident);
 extern void LITE_closelog(void);
@@ -626,6 +676,10 @@ static const struct cli_command s_netif_commands[] = {
 #if CONFIG_ALI_MQTT
 	{"mqttali", "ali mqtt test", cli_ali_mqtt_cmd},
 	{"mqttsend", "mqttsend [topic] [msg]", cli_ali_mqtt_send_cmd},	
+#endif
+#if CONFIG_PAHO_MQTT
+	{"mqttpaho", "paho mqtt test", cli_paho_mqtt_cmd},
+	{"mqttpub", "mqttpub [topic] [msg]", cli_paho_mqtt_send_cmd},
 #endif
 #if CONFIG_OTA_HTTP
 	{"httplog", "httplog [1|0].", cli_http_debug_cmd},
