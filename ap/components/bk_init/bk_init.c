@@ -17,6 +17,9 @@
 #include <modules/wifi.h>
 #include <components/netif.h>
 #include <components/event.h>
+#if (CONFIG_CLI)
+#include "cli.h"
+#endif
 #include <driver/uart.h>
 #include <string.h>
 #include <modules/pm.h>
@@ -126,6 +129,13 @@ static int app_wifi_init(void)
 #if CONFIG_WIFI_VNET_CONTROLLER
 	//wifi_init_config_t wifi_config = WIFI_DEFAULT_INIT_CONFIG();
 	BK_LOG_ON_ERR(bk_event_init());
+#if (CONFIG_CLI) && (CLI_CFG_WIFI == 1)
+	BK_LOG_ON_ERR(cli_wifi_register_event_cbs());
+#if CONFIG_WIFI_CLI_DEBUG
+	extern bk_err_t cli_wifi_debug_register_event_cbs(void);
+	BK_LOG_ON_ERR(cli_wifi_debug_register_event_cbs());
+#endif
+#endif
 	BK_LOG_ON_ERR(bk_netif_init());
 	BK_LOG_ON_ERR(bk_wifi_init());
 #endif
