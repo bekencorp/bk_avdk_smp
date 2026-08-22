@@ -1386,14 +1386,28 @@ __IRAM_PM static void _deep_lv_enter_(void)
 	__asm volatile
 	(
 		" .syntax unified           \n"
+		#if !CONFIG_SPE
+		" mrs r0, basepri           \n" /* Preserve the FreeRTOS critical-section mask. */
+		" movs r1, #0               \n"
+		" msr basepri, r1           \n" /* Allow the Non-secure SVC to activate when AIRCR.PRIS=1. */
+		#endif
 		" cpsie i                   \n" /* Globally enable interrupts. */
 		" cpsie f                   \n"
 		" dsb                       \n"
 		" isb                       \n"
 		" svc %0                    \n"
+		#if !CONFIG_SPE
+		" msr basepri, r0           \n" /* Restore the caller's interrupt mask after SVC return. */
+		" dsb                       \n"
+		" isb                       \n"
+		#endif
 		" nop                       \n"
 		"                           \n"
-		::"i"(portSVC_DEEP_LV_ENTER):"memory"
+		::"i"(portSVC_DEEP_LV_ENTER):
+		#if !CONFIG_SPE
+		"r0", "r1",
+		#endif
+		"memory"
 	);
 }
 
@@ -1603,7 +1617,6 @@ __IRAM_PM void sys_hal_enter_low_voltage(void)
 	sys_ll_set_cpu0_int_0_31_en_value(0x0);
 	sys_ll_set_cpu0_int_32_63_en_value(0x0);
 	sys_ll_set_cpu0_int_64_95_en_value(0x0);
-
 	if(check_IRQ_pending()||(sys_ll_get_cpu0_int_0_31_status_value()||(sys_ll_get_cpu0_int_32_63_status_value()) || (sys_ll_get_cpu0_int_64_95_status_value()))||(portNVIC_INT_CTRL_REG&portNVIC_SYSTICKSET_BIT))
 	{
 		sys_ll_set_cpu0_int_0_31_en_value(int_state1);
@@ -1617,13 +1630,11 @@ __IRAM_PM void sys_hal_enter_low_voltage(void)
 
 // PM_GPIO_UP(36);//1
 // PM_GPIO_DOWN(36);
-
 	sys_hal_mask_cpu0_int();
 #if CONFIG_GPIO_WAKEUP_SUPPORT
 	extern bk_err_t gpio_enable_interrupt_mult_for_wake(void);
 	gpio_enable_interrupt_mult_for_wake();
 #endif
-
 	bk_pm_module_lv_sleep_state_set();
 	bk_pm_sleep_wakeup_reason_clear();
 
@@ -1837,7 +1848,6 @@ __IRAM_PM void sys_hal_enter_low_voltage(void)
 	{
 		sys_hal_power_down_m55_core();
 	}
-
 	// PM_GPIO_UP(36);//8
 	// PM_GPIO_DOWN(36);
 	sys_hal_deep_lv_enter();
@@ -2636,8 +2646,10 @@ void sys_hal_low_power_hardware_init()
 
 #if !CONFIG_AON_PMU_REG0_REFACTOR_DEV
 	/*recover aon pmu reg0*/
+	#if CONFIG_SPE
 	uint32_t reg = aon_pmu_ll_get_r7b();
 	aon_pmu_ll_set_r0(reg);
+	#endif
 #endif
 
 #if CONFIG_GPIO_RETENTION_SUPPORT
