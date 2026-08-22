@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
-to_baf.py — one-click converter to the .baf (Beken Animation Format) format.
+to_baf.py - one-click converter to the .baf (Beken Animation Format) format.
 
 Input (auto-detected):  APNG / animated PNG, animated WebP, GIF, MP4 / MOV / MKV / WEBM
 Output (both):
@@ -52,11 +53,29 @@ from PIL import Image, ImageSequence
 # Reuse the proven Annex-B / AU-split / AUD-strip / C-asset packing helpers.
 import mp4_to_bk_baf_asset as bk_baf
 
+try:
+    from imageio_ffmpeg import get_ffmpeg_exe
+    FFMPEG_BIN = get_ffmpeg_exe()
+except ImportError:
+    FFMPEG_BIN = "ffmpeg"
+
+bk_baf.FFMPEG_BIN = FFMPEG_BIN
+
 
 # ------------------------------- config ------------------------------------
 DEFAULT_DURATION_MS = 40
 # H.264 encode: intra-friendly for the HW decoder (no B-frames, single ref).
 CRF = 24
+# Alpha is a mask that must round-trip cleanly: an "opaque" pixel has to stay 255
+# so a stacked layer fully occludes the ones below (see clean_alpha_frames). Use
+# a high-quality (low-CRF) alpha encode so the snapped-flat 0/255 regions survive
+# the codec. Still a normal 4:2:0/monochrome profile (NOT lossless -crf 0, which
+# switches to High 4:4:4 that the HW decoder can't handle).
+ALPHA_CRF = 12
+# Alpha values >= HI snap to 255 (fully opaque), <= LO snap to 0 (fully
+# transparent); the mid-range is kept for smooth anti-aliased edges.
+ALPHA_SNAP_HI = 248
+ALPHA_SNAP_LO = 7
 PRESET = "veryfast"
 GOP = 30
 REFS = 1
@@ -115,19 +134,25 @@ def extract_frames_ffmpeg(src: Path, rgb_dir: Path, alpha_dir: Path):
     has_alpha = "a" in (info.get("pix_fmt") or "")  # rgba/yuva... contain 'a'
 
     subprocess.run([
-        "ffmpeg", "-y", "-loglevel", "error", "-i", str(src),
+        FFMPEG_BIN, "-y", "-loglevel", "error", "-i", str(src),
         "-vf", "format=rgb24", str(rgb_dir / "rgb_%04d.png"),
     ], check=True)
     if has_alpha:
         subprocess.run([
-            "ffmpeg", "-y", "-loglevel", "error", "-i", str(src),
+            FFMPEG_BIN, "-y", "-loglevel", "error", "-i", str(src),
             "-vf", "alphaextract,format=gray", str(alpha_dir / "alpha_%04d.png"),
         ], check=True)
 
     n = len(list(rgb_dir.glob("rgb_*.png")))
     if n == 0:
         raise RuntimeError(f"ffmpeg extracted no frames from {src}")
-    durations = [int(round(1000.0 / fps))] * n
+    # Distribute integer-millisecond durations without accumulating rounding
+    # error (for example, 24 FPS alternates 42/41 ms instead of using 42 ms
+    # for every frame and slowing playback to 23.81 FPS).
+    durations = [
+        int(round((index + 1) * 1000.0 / fps) - round(index * 1000.0 / fps))
+        for index in range(n)
+    ]
     return width, height, durations, has_alpha
 
 
@@ -145,13 +170,26 @@ def extract_frames(src: Path, rgb_dir: Path, alpha_dir: Path):
 
 
 # ------------------------------- encoding ----------------------------------
-def encode_h264(frame_dir: Path, pattern: str, out_mp4: Path, fps: float) -> None:
+def clean_alpha_frames(alpha_dir: Path) -> None:
+    """Snap near-extreme alpha to exactly 0/255 so flat opaque/transparent regions
+    are constant and survive the lossy H.264 alpha stream: an opaque pixel stays
+    255, so a stacked layer fully occludes the ones below (no faint bleed-through)
+    and transparent regions stay clean (no halo). Mid-range edge alpha is left
+    untouched for smooth anti-aliasing."""
+    lut = bytes(0 if v <= ALPHA_SNAP_LO else 255 if v >= ALPHA_SNAP_HI else v
+                for v in range(256))
+    for png in sorted(alpha_dir.glob("alpha_*.png")):
+        Image.open(png).convert("L").point(lut).save(png)
+
+
+def encode_h264(frame_dir: Path, pattern: str, out_mp4: Path, fps: float,
+                pixel_format: str = "yuv420p", crf: int = CRF) -> None:
     subprocess.run([
-        "ffmpeg", "-y", "-loglevel", "error",
+        FFMPEG_BIN, "-y", "-loglevel", "error",
         "-framerate", f"{fps:.6f}",
         "-i", str(frame_dir / pattern),
-        "-an", "-c:v", "libx264", "-preset", PRESET, "-crf", str(CRF),
-        "-pix_fmt", "yuv420p", "-bf", "0", "-x264-params", "bframes=0",
+        "-an", "-c:v", "libx264", "-preset", PRESET, "-crf", str(crf),
+        "-pix_fmt", pixel_format, "-bf", "0", "-x264-params", "bframes=0",
         "-refs", str(REFS), "-g", str(GOP), "-movflags", "+faststart",
         str(out_mp4),
     ], check=True)
@@ -207,6 +245,9 @@ def main() -> None:
                     help="C symbol name (default: <name>_baf_source).")
     ap.add_argument("--no-c", action="store_true", help="Skip the C asset output.")
     ap.add_argument("--no-baf", action="store_true", help="Skip the .baf binary output.")
+    ap.add_argument("--force-opaque-alpha", action="store_true",
+                    help="Generate a full-resolution all-opaque alpha stream "
+                         "when the input has no alpha channel.")
     args = ap.parse_args()
 
     src = args.input
@@ -225,6 +266,11 @@ def main() -> None:
         width, height, durations, has_alpha = extract_frames(src, rgb_dir, alpha_dir)
         frame_count = len(durations)
         fps = 1000.0 / (sum(durations) / frame_count)
+        if args.force_opaque_alpha and not has_alpha:
+            opaque_alpha = Image.new("L", (width, height), 255)
+            for index in range(frame_count):
+                opaque_alpha.save(alpha_dir / f"alpha_{index:04d}.png")
+            has_alpha = True
 
         rgb_mp4 = tmp_dir / "rgb.mp4"
         encode_h264(rgb_dir, "rgb_%04d.png", rgb_mp4, fps)
@@ -232,8 +278,9 @@ def main() -> None:
 
         alpha_data = alpha_aus = None
         if has_alpha:
+            clean_alpha_frames(alpha_dir)   # snap extremes so opaque stays 255
             alpha_mp4 = tmp_dir / "alpha.mp4"
-            encode_h264(alpha_dir, "alpha_%04d.png", alpha_mp4, fps)
+            encode_h264(alpha_dir, "alpha_%04d.png", alpha_mp4, fps, "gray", ALPHA_CRF)
             alpha_data, alpha_aus = mp4_to_annexb_aus(alpha_mp4, tmp_dir, "alpha")
 
         # sanity: one AU per frame

@@ -43,15 +43,24 @@ void bk_baf_close(bk_baf_decoder_t * decoder);
  *   <0    - error (see bk_baf_result_is_error()). */
 bk_baf_decoder_result_t bk_baf_poll(bk_baf_decoder_t * decoder);
 
-/* Composite @p canvas (XRGB8888) modulated by @p alpha (A8; NULL = opaque) over
- * @p clear_argb into @p dst (ARGB8888): dst.RGB = canvas*a + clear*(1-a), dst.A = a.
- * clear_argb = 0 for a transparent frame (frontend blends), or opaque for direct
- * scanout. Runs on the backend chosen in bk_baf_open() (GPU = VG-Lite, CPU =
- * Helium); the GPU path serialises against bk_baf_config_t.gpu_handle. */
+/* Composite @p canvas (XRGB8888) modulated by @p alpha (A8; NULL = opaque) into
+ * @p dst (ARGB8888) via the backend chosen in bk_baf_open() (GPU = VG-Lite, CPU =
+ * Helium); the GPU path serialises against bk_baf_config_t.gpu_handle.
+ *   @p is_new_layer == false : base layer -- clear @p dst to @p clear_argb, then
+ *                              dst = canvas*a + clear*(1-a), dst.A = a. Use
+ *                              clear_argb = 0 for a transparent frame the frontend
+ *                              blends, or an opaque colour for direct scanout.
+ *   @p is_new_layer == true  : an additional layer stacked on top -- src-over blend
+ *                              it onto @p dst's existing pixels, dst = canvas*a +
+ *                              dst*(1-a); @p dst is NOT cleared and @p clear_argb is
+ *                              ignored.
+ * Call once with is_new_layer=false for the base, then is_new_layer=true for each
+ * further layer stacked on top. */
 avdk_err_t bk_baf_compose(const bk_baf_frame_desc_t * dst,
                           const bk_baf_frame_desc_t * canvas,
                           const bk_baf_frame_desc_t * alpha,
-                          uint32_t clear_argb);
+                          uint32_t clear_argb,
+                          bool is_new_layer);
 
 /* ---- Playback control ----
  * Issue a control command (bk_baf_ioctl_cmd_t). @p arg per cmd, NULL if none.

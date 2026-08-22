@@ -240,16 +240,16 @@ void bk_baf_set_loop_count(bk_baf_decoder_t * decoder, int32_t count)
 avdk_err_t bk_baf_compose(const bk_baf_frame_desc_t * dst,
                           const bk_baf_frame_desc_t * canvas,
                           const bk_baf_frame_desc_t * alpha,
-                          uint32_t clear_argb)
+                          uint32_t clear_argb, bool is_new_layer)
 {
     if(s_backend == BK_BAF_RENDER_CPU) {
-        return baf_cpu_compose_frame(dst, canvas, alpha, clear_argb);
+        return baf_cpu_compose_frame(dst, canvas, alpha, clear_argb, is_new_layer);
     }
 
     bk_gpu_ctlr_handle_t handle = (bk_gpu_ctlr_handle_t)s_baf_gpu_handle;
     bool locked = (handle != NULL) &&
                   (bk_gpu_ioctl(handle, BK_GPU_IOCTL_LOCK, NULL) == AVDK_ERR_OK);
-    avdk_err_t err = baf_gpu_compose_frame(dst, canvas, alpha, clear_argb);
+    avdk_err_t err = baf_gpu_compose_frame(dst, canvas, alpha, clear_argb, is_new_layer);
     if(locked) {
         (void)bk_gpu_ioctl(handle, BK_GPU_IOCTL_UNLOCK, NULL);
     }
