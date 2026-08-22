@@ -2379,6 +2379,10 @@ bk_err_t bk_wifi_sta_start(void)
 	if (bk_feature_fast_connect_enable()) {
 		int ssid_len, req_ssid_len;
 
+		/* Do not reuse fast-connect state from a previous STA configuration. */
+		g_sta_param_ptr->fast_connect_set = 0;
+		g_sta_param_ptr->fast_connect.chann = 0;
+
 		os_memset(&fci, 0, sizeof(fci));
 		wlan_read_fast_connect_info(&fci);
 
