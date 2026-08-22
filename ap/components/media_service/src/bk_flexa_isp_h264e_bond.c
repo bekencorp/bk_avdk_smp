@@ -129,6 +129,35 @@ static void isp_h264e_enc_frame_done(uint32_t status, void *args)
 	}
 }
 
+static void isp_h264e_sbi_close_cb(uint32_t seq, uint32_t line, uint8_t chnl, uint8_t error, void *arg)
+{
+	bk_flexa_bond_t *in_stream = (bk_flexa_bond_t *)arg;
+	bk_flexa_bond_t *out_stream;
+	bk_h264_encode_ctlr_handle_t enc;
+	isp_h264e_bond_priv_t *priv;
+
+	(void)seq;
+
+	if (in_stream == NULL || in_stream->bond_config == NULL || chnl != ISP_MP_CHN_ID) {
+		return;
+	}
+
+	out_stream = (bk_flexa_bond_t *)in_stream->bond_config->out_stream;
+	if (out_stream == NULL || out_stream->handle == NULL) {
+		return;
+	}
+	enc = (bk_h264_encode_ctlr_handle_t)out_stream->handle;
+
+	(void)bk_h264_encode_ioctl(enc, BK_H264_ENCODE_IOCTL_STOP_ENCODE, NULL);
+	(void)bk_h264_encode_force_idr(enc);
+
+	priv = isp_h264e_bond_priv(in_stream->bond_config);
+	if (priv != NULL) {
+		priv->flexa_sbi = 1;
+		priv->set_sbi_flag = 1;
+	}
+}
+
 static void isp_h264e_bond_isp_stream_error(uint32_t reason, void *args)
 {
 	(void)reason;
@@ -228,12 +257,20 @@ avdk_err_t bk_flexa_isp_h264e_bond_start(void **bond, void *isp, bk_h264_encode_
 		goto error;
 	}
 
+	br = bk_isp_register_isr_callback(&isp_h, ISP_SBI_CLOSE, isp_h264e_sbi_close_cb, in_stream);
+	if (br != BK_OK) {
+		LOGE("%s ISP_SBI_CLOSE register failed %d\r\n", __func__, br);
+		ret = AVDK_ERR_GENERIC;
+		goto error;
+	}
+
 	*bond = bond_new;
 	LOGI("%s bond started\r\n", __func__);
 	return ret;
 
 error:
 	if (isp_h != NULL && in_stream != NULL) {
+		(void)bk_isp_deregister_isr_callback(&isp_h, ISP_SBI_CLOSE, in_stream);
 		(void)bk_isp_deregister_isr_callback(&isp_h, ISP_FRAME_END_DONE, in_stream);
 	}
 	if (h264_registered && out_stream != NULL) {
@@ -270,6 +307,7 @@ void bk_flexa_isp_h264e_bond_stop(void *bond)
 	bk_flexa_bond_t *in_stream = bond_p->in_stream;
 	if (in_stream != NULL && in_stream->handle != NULL) {
 		isp_handle_t isp_h = (isp_handle_t)in_stream->handle;
+		(void)bk_isp_deregister_isr_callback(&isp_h, ISP_SBI_CLOSE, in_stream);
 		(void)bk_isp_deregister_isr_callback(&isp_h, ISP_FRAME_END_DONE, in_stream);
 	}
 	bk_flexa_bond_t *out_stream = bond_p->out_stream;
