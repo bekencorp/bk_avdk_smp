@@ -31,6 +31,7 @@
 #include <os/os.h>
 #include "bk_arch.h"
 #include <components/system.h>
+#include <driver/sys_pm.h>
 
 #include "sys_driver.h"
 #include <modules/pm.h>
@@ -516,15 +517,9 @@ static void uart_init_gpio(uart_id_t id)
 
 	if (uart_cfg_rx_pin(id) >= GPIO_64 && uart_cfg_rx_pin(id) <= GPIO_71)
 	{
-		// Configure GPIO64~71 power supply to 3.3V via J16
-		// Set sys_ana reg69[28] = 1 to output 3.3V on J16
-		// Address: 0x44010000 + 0x69 * 4 = 0x440101A4
-		// Bit 28 controls J16 voltage selection (1 = 3.3V, 0 = 1.8V)
-		// Note: This must be configured before using GPIO64~71 or UART5
-		uint32_t reg69_addr = 0x44010000 + (0x69 << 2);
-		uint32_t reg69_value = REG_READ(reg69_addr);
-		reg69_value |= (1 << 28);
-		REG_WRITE(reg69_addr, reg69_value);
+		/* Enable the 3 V auxiliary LDO before using GPIO64~71. The system
+		 * driver resolves the correct Secure/Non-secure register alias. */
+		(void)sys_drv_auxldo_enable(AUXLDOS_SEL_3V, 1);
 	}
 }
 
