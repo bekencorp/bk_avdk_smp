@@ -1072,6 +1072,45 @@ bk_err_t bk_alarm_register(aon_rtc_id_t id, alarm_info_t *alarm_info_p)
 }
 
 
+bool bk_alarm_is_registered(aon_rtc_id_t id, const uint8_t *name_p)
+{
+	alarm_node_t *cur_p = NULL;
+	uint32_t int_level = 0;
+	uint32_t node_cnt = 0;
+	bool found = false;
+	bool list_corrupt = false;
+
+	if ((id >= AON_RTC_ID_MAX) || (name_p == NULL)) {
+		return false;
+	}
+
+	int_level = rtc_enter_critical();
+	cur_p = s_aon_rtc[id].alarm_head_p;
+	while (cur_p) {
+		node_cnt++;
+		/* Bound walk under critical: a corrupted/circular list must not
+		 * starve INT_WDT/AON_WDT (no feed while ints are masked). */
+		if (node_cnt > AON_RTC_MAX_ALARM_CNT) {
+			list_corrupt = true;
+			found = false;
+			break;
+		}
+		if (strncmp((const char *)cur_p->name, (const char *)name_p, ALARM_NAME_MAX_LEN) == 0) {
+			found = true;
+			break;
+		}
+		cur_p = cur_p->next;
+	}
+	rtc_exit_critical(int_level);
+
+	if (list_corrupt) {
+		AON_RTC_LOGW("%s: alarm list corrupt or too long (>%d), name=%s\r\n",
+			__func__, AON_RTC_MAX_ALARM_CNT, name_p);
+	}
+
+	return found;
+}
+
 //the timer isn't expired, but app un-register it.
 bk_err_t bk_alarm_unregister(aon_rtc_id_t id, uint8_t *name_p)
 {
