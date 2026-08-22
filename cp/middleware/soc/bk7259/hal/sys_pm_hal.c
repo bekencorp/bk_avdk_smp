@@ -709,11 +709,11 @@ static inline uint32_t sys_hal_disable_hf_clock(void)
 	if (is_lpo_src_ext32k()) {
 	val |= EN_XTAL;
 	}
-	PM_GPIO_UP(36);//10
-	PM_GPIO_DOWN(36);
+	// PM_GPIO_UP(36);//10
+	// PM_GPIO_DOWN(36);
 	sys_ll_set_ana_reg5_value(val);
-	PM_GPIO_UP(36);//11
-	PM_GPIO_DOWN(36);
+	// PM_GPIO_UP(36);//11
+	// PM_GPIO_DOWN(36);
 	return ret_val;
 }
 
@@ -1063,7 +1063,7 @@ static inline void sys_hal_set_low_voltage(pm_sleep_mode_e sleep_mode, volatile 
 		sys_ll_set_ana_reg9_aldohp(0);//bit10
 		timer_hal_early_delay_us_iram(10);
 		//sys_ll_set_ana_reg9_aloldohp(0);//bit21
-		sys_ll_set_ana_reg9_dldohp(0);//bit2bk
+		sys_ll_set_ana_reg9_dldohp(1);//bit2  //for cpu off bootrom read otp
 		timer_hal_early_delay_us_iram(10);
 		sys_ll_set_ana_reg9_hsldo_hp(0);//bit12
 		timer_hal_early_delay_us_iram(10);
