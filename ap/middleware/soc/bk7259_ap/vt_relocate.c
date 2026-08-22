@@ -17,6 +17,10 @@
 
 #include "bk_arch.h"
 
+#define AP_SEC_DUMP_ABI_INFO 0x53440130U
+extern void bk_coredump_secure_fault_callback(void *context);
+extern const uintptr_t g_ap_secure_fault_context_address;
+
 typedef void(*VECTOR_ENTRY_TYPE)(void);
 /*----------------------------------------------------------------------------
   External References
@@ -71,9 +75,9 @@ const VECTOR_ENTRY_TYPE __SOC_VECTOR_TABLE[VECTOR_SYS_ENTRY_CNT + __INT_NUMBER_M
     soc_busfault_handler,                         /* -11 Bus Fault Handler */
     soc_usagefault_handler,                       /* -10 Usage Fault Handler */
     soc_securefault_handler,                      /*  -9 Secure Fault Handler */
-    0,                                        /*     Reserved */
-    0,                                        /*     Reserved */
-    0,                                        /*     Reserved */
+    (VECTOR_ENTRY_TYPE)bk_coredump_secure_fault_callback,       /* Reserved: Secure dump callback */
+    (VECTOR_ENTRY_TYPE)&g_ap_secure_fault_context_address,       /* Reserved: Secure dump context pointer */
+    (VECTOR_ENTRY_TYPE)AP_SEC_DUMP_ABI_INFO,                     /* Reserved: Secure dump ABI */
     soc_svc_handler,                              /*  -5 SVCall Handler */
     soc_debugmon_handler,                         /*  -4 Debug Monitor Handler */
     0,                                            /*     Reserved */
