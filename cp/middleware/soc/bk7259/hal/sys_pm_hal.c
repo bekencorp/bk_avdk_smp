@@ -2462,8 +2462,8 @@ void sys_hal_exit_low_analog(void)
 {
 #if CONFIG_SYS_PM_ANA_VANALDO_STEP_CTRL
 	sys_ll_set_ana_reg10_spi_latch1v(1);
-	/* Use step 2 experimentally to reduce delay; step 1 is the safer recommendation. */
-	sys_hal_ramp_up_ana_reg9_vanaldosel(4, 4, 1);
+	/* Use step 2 (100mV) to reduce delay; step 1 is the safer recommendation. */
+	sys_hal_ramp_up_ana_reg9_vanaldosel(4, 4, 2);
 	//sys_ll_set_ana_reg9_alopowsel(0);
 	sys_ll_set_ana_reg10_spi_latch1v(0);
 #endif
