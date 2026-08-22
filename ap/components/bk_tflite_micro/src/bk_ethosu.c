@@ -165,6 +165,7 @@ int bk_ethosu_init(void *fast_memory, uint32_t fast_memory_size)
 
     // Disable NPU power down (if needed)
     bk_pm_module_vote_power_ctrl(PM_POWER_SUB_DOMAIN_NPU, PM_POWER_MODULE_STATE_ON);
+    bk_pm_module_vote_cpu_freq(PM_DEV_ID_NPU, PM_CPU_FRQ_480M);
 
     // Enable NPU clock
     bk_pm_clock_ctrl(PM_CLK_ID_NPU, CLK_PWR_CTRL_PWR_UP);
@@ -188,6 +189,7 @@ int bk_ethosu_init(void *fast_memory, uint32_t fast_memory_size)
         LOGE("Ethos-U driver init failed, ret=%d\r\n", ret);
         bk_int_isr_unregister(INT_SRC_NPU);
         bk_pm_clock_ctrl(PM_CLK_ID_NPU, CLK_PWR_CTRL_PWR_DOWN);
+        bk_pm_module_vote_cpu_freq(PM_DEV_ID_NPU, PM_CPU_FRQ_DEFAULT);
         bk_pm_module_vote_power_ctrl(PM_POWER_SUB_DOMAIN_NPU, PM_POWER_MODULE_STATE_OFF);
         return ret;
     }
@@ -206,6 +208,7 @@ void bk_ethosu_deinit(void)
 
     ethosu_deinit(&ethosu0_driver);
     bk_pm_clock_ctrl(PM_CLK_ID_NPU, CLK_PWR_CTRL_PWR_DOWN);
+    bk_pm_module_vote_cpu_freq(PM_DEV_ID_NPU, PM_CPU_FRQ_DEFAULT);
     bk_pm_module_vote_power_ctrl(PM_POWER_SUB_DOMAIN_NPU, PM_POWER_MODULE_STATE_OFF);
 }
 
