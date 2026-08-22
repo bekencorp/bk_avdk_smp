@@ -413,6 +413,36 @@ static void remove_object_recursive_by_handle(uint32_t handle)
     }
 }
 
+/* Recursively delete a directory (and its contents) from the filesystem.
+ * f_unlink/rmdir only removes an EMPTY dir, so the children must be removed
+ * first; otherwise deleting a non-empty folder over MTP silently fails. Child
+ * paths are heap-allocated (not stack) to stay safe on the small worker stack.
+ * Returns 0 on success. */
+static int mtp_rmdir_recursive(const char *path)
+{
+    DIR *dir = opendir(path);
+    if(dir)
+    {
+        struct dirent *de;
+        while((de = readdir(dir)) != NULL)
+        {
+            if(strcmp(de->d_name,".") == 0 || strcmp(de->d_name,"..") == 0)
+                continue;
+            char *child = psram_malloc(strlen(path) + strlen(de->d_name) + 2);
+            if(child == NULL)
+                continue;
+            sprintf(child,"%s/%s",path,de->d_name);
+            if(de->d_type & DT_DIR)
+                mtp_rmdir_recursive(child);
+            else
+                unlink(child);
+            psram_free(child);
+        }
+        closedir(dir);
+    }
+    return unlink(path); /* now empty -> f_unlink removes the directory itself */
+}
+
 static uint32_t map_add_item(uint32_t parent_handle,const char *path,const char* name,uint8_t is_dir,uint8_t storage_id)
 {
     if(path == NULL || name == NULL) return 0;
@@ -2687,11 +2717,16 @@ static void usbd_mtp_thread(void *argument)
             {
                 mtp_packet_t *pack = (mtp_packet_t*)ep_out_buffer;
                 handle_map_item_t *item = get_list_item_by_handle(pack->parameter[0]);
+                if(item == NULL)
+                {
+                    mtp_send_respond(pack->transaction_id,MTP_RSP_INVALID_OBJECT_HANDLE);
+                    break;
+                }
                 if(item->is_dir)
                 {
-                    unlink(item->str);
+                    int ret = mtp_rmdir_recursive(item->str);
                     remove_object_recursive_by_handle(item->handle);
-                    mtp_send_respond(pack->transaction_id,MTP_RSP_OK);
+                    mtp_send_respond(pack->transaction_id, ret == 0 ? MTP_RSP_OK : MTP_RSP_ACCESS_DENIED);
                 }
                 else
                 {
