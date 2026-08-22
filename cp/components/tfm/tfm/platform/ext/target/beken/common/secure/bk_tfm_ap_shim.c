@@ -63,32 +63,49 @@
  *   3. programs the SAU so the whole Non-Secure alias window is Non-Secure;
  *   4. routes all interrupts to the Non-Secure state;
  *   5. targets BusFault/HardFault/NMI to Non-Secure (AIRCR.BFHFNMINS) and
- *      prioritizes Secure (AIRCR.PRIS); ordinary Non-Secure faults still reach
- *      the Non-Secure vector table;
+ *      prioritizes Secure (AIRCR.PRIS); ordinary Non-Secure faults must reach
+ *      the Non-Secure vector table (AP NS coredump);
  *   6. grants the Non-Secure state access to the FPU;
- *   7. installs a minimal resident Secure fault handler for AP-local security
- *      violations and Secure fault escalations;
+ *   7. installs a minimal AP Secure world: points the Secure VTOR at a
+ *      resident Secure vector table and enables SecureFault (SHCSR). AP
+ *      core-local security violations (SecureFault) and Secure fault
+ *      escalations (Secure HardFault/MemManage/BusFault/UsageFault/NMI) are
+ *      then trapped in Secure state and dumped over UART0 by the resident
+ *      handler, instead of being lost. UART0 is used (not the secure UART1)
+ *      because the AP is forced Non-Secure as a bus master and cannot reach
+ *      the CP-owned secure UART1. This is the only Secure
+ *      runtime left on the AP core after the branch;
  *   8. selects the per-core Non-Secure vector table by core id;
  *   9. loads VTOR_NS / MSP_NS and branches to the Non-Secure reset handler.
  * SYS Non-Secure attribute is applied earlier by CP PPHS config.
  *
  * The blob is fully position independent: the vector head, the two vector
- * parameter words, code, Secure vector table and fault handler are copied
- * verbatim to AP_SHIM_BASE. The secure world patches the core1 vector word
- * after the copy.
+ * parameter words, the code, the Secure vector table and the Secure fault
+ * handler are copied verbatim to AP_SHIM_BASE. The secure world patches the
+ * core1 vector word after the copy. The Secure vector table entries and the
+ * boot entry encode absolute addresses using the compile-time AP_SHIM_BASE
+ * (CONFIG_AP_SPE_RAM_ADDR), and the handler is self-contained (pure MMIO, no
+ * external calls) so it keeps working from the copied location.
+ *
+ * The image is authored as two assembly modules for readability: this boot
+ * shim (ap_shim_blob/ap_shim_code) and the AP Secure fault dump unit
+ * (ap_sec_dump, defined just below). Both share the .rodata.ap_shim section and
+ * are laid out contiguously, so they are still copied as one image and
+ * ap_shim_blob_end still bounds the whole thing.
  *
  * Blob layout at AP_SHIM_BASE:
- *   +0x00  initial MSP (top of shim and Secure fault stack)
+ *   +0x00  initial MSP (top of shim stack, also the Secure fault stack)
  *   +0x04  shim entry (thumb)
  *   +0x08  ns_vec0 : core0 Non-Secure vector table
  *   +0x0C  ns_vec1 : core1 Non-Secure vector table (patched by secure world)
  *   +0x10  code
  *   ...    ap_sec_vtable : Secure vector table (128-byte aligned)
- *   ...    ap_sec_fault  : resident fault handler and UART0 dump helpers
+ *   ...    ap_sec_fault  : resident Secure fault handler + UART0 dump helpers
  */
 __asm__(
 "    .section .rodata.ap_shim,\"a\"\n"
-"    .balign 128\n"                 /* preserve copied Secure VTOR alignment */
+"    .balign 128\n"                  /* blob base 128-aligned so ap_sec_vtable
+                                        lands 128-aligned after copy (VTOR) */
 "    .global ap_shim_blob\n"
 "    .global ap_shim_blob_end\n"
 "ap_shim_blob:\n"
@@ -190,9 +207,11 @@ __asm__(
 "    ldr  r1, [r0]\n"
 "    orr  r1, r1, #0xC00\n"
 "    str  r1, [r0]\n"
-     /* Install the minimal AP Secure world: point the Secure VTOR at the
-      * resident ap_sec_vtable and enable SecureFault. BFHFNMINS stays set so
-      * ordinary Non-Secure faults still reach the AP Non-Secure coredump. */
+     /* install the minimal AP Secure world: point the Secure VTOR at the
+      * resident ap_sec_vtable (absolute addr = offset + AP_SHIM_BASE) and
+      * enable SecureFault so AP core-local security violations trap Secure and
+      * are dumped over UART0 (Secure HardFault also vectors here). BFHFNMINS
+      * stays 1 so ordinary NS faults still reach the AP NS coredump. */
 "    ldr  r0, =0xE000ED08\n"       /* SCB_S->VTOR (Secure) */
 "    adr  r1, ap_sec_vtable\n"     /* PC-relative -> absolute addr in copy */
 "    str  r1, [r0]\n"
@@ -263,18 +282,18 @@ __asm__(
 "    .thumb_func\n"
 "ap_sec_fault:\n"
 "    mov  r7, lr\n"                /* preserve EXC_RETURN before any BL */
-"    push {r4-r11}\n"              /* capture callee-saved live (faulting values) */
+"    push {r4-r11}\n"              /* safe fallback snapshot; DCRS=0 uses stacked values */
 "    mov  r8, sp\n"                /* r8 -> saved {r4..r11}: [r8,#0]=r4 ... [#28]=r11 */
      /* pick the faulting exception frame SP (banked S/NS, MSP/PSP) */
 "    tst  r7, #0x40\n"             /* EXC_RETURN.S (bit6): 1 = came from Secure */
 "    beq  30f\n"
-     /* from Secure: select the S banked SP via EXC_RETURN.SPSEL */
+     /* From Secure, select the S banked SP via EXC_RETURN.SPSEL. For MSP the
+      * handler's push above has moved SP by 0x20, so recover the hardware-frame
+      * base from the saved snapshot pointer instead of reading current MSP. */
 "    tst  r7, #0x04\n"             /* SPSEL (bit2) */
-"    bne  34f\n"
-"    mrs  r6, msp\n"
-"    adds r6, r6, #32\n"           /* skip handler's saved {r4..r11} */
-"    b    31f\n"
-"34: mrs  r6, psp\n"
+"    ite  eq\n"
+"    addeq r6, r8, #0x20\n"
+"    mrsne r6, psp\n"
 "    b    31f\n"
      /* from Non-Secure: EXC_RETURN.SPSEL is unreliable across the NS->S
       * transition (it can report MSP while the NS thread actually ran on PSP),
@@ -292,8 +311,17 @@ __asm__(
      /* EXC_RETURN.FType (bit4): 0 means an extended FP frame precedes the
       * basic R0-R3/R12/LR/PC/xPSR frame. Point r6 at that basic frame. */
 "    tst  r7, #0x10\n"
-"    bne  35f\n"
+"    bne  34f\n"
 "    adds r6, r6, #0x48\n"
+"34:\n"
+     /* EXC_RETURN.DCRS=0 means the hardware stacked an Additional State
+      * Context before the basic frame:
+      *   signature, reserved, R4-R11, R0-R3, R12, LR, PC, xPSR.
+      * Advance r6 by 10 words so the fixed offsets below address R0..xPSR.
+      * Keep r8 on the handler's safe software snapshot until r6 is validated. */
+"    tst  r7, #0x20\n"             /* DCRS (bit5): 0 = additional context present */
+"    bne  35f\n"
+"    adds r6, r6, #0x28\n"
 "35:\n"
      /* header + fault status registers */
 "    adr  r0, 90f\n"
@@ -378,6 +406,12 @@ __asm__(
 "    bl   ap_sec_puts\n"
 "    b    ap_sec_spin\n"
 "40:\n"
+     /* With an Additional State Context, print the hardware-stacked faulting
+      * R4-R11 instead of the handler-entry values. Their base is 0x20 bytes
+      * before the adjusted basic-frame pointer in r6. */
+"    tst  r7, #0x20\n"
+"    it   eq\n"
+"    subeq r8, r6, #0x20\n"
 "    ldr  r1, [r6, #0x00]\n"       /* stacked R0 */
 "    adr  r0, 103f\n"
 "    bl   ap_sec_kv\n"
@@ -390,7 +424,7 @@ __asm__(
 "    ldr  r1, [r6, #0x0C]\n"       /* stacked R3 */
 "    adr  r0, 106f\n"
 "    bl   ap_sec_kv\n"
-     /* live callee-saved R4-R11 here so the dump reads R0..R11 ascending */
+     /* faulting callee-saved R4-R11 here so the dump reads R0..R11 ascending */
 "    bl   ap_sec_pr_r4r11\n"
 "    ldr  r1, [r6, #0x10]\n"       /* stacked R12 */
 "    adr  r0, 107f\n"
@@ -404,16 +438,231 @@ __asm__(
 "    ldr  r1, [r6, #0x1C]\n"       /* stacked xPSR */
 "    adr  r0, 102f\n"
 "    bl   ap_sec_kv\n"
-     /* dump finished: force a reboot so the AP recovers instead of hanging (the
-      * full dump is already flushed to UART0). The AP core's SYSRESETREQ and the
-      * CPU-local WWDT do NOT drive the SoC reset controller, so mirror the real
-      * platform reboot path bk_reboot_ex(): kick the always-on watchdog (AON_WDT
-      * config reg). AON_WDT sits in the AON block at physical 0x44000600; the AP
-      * is a forced-NS master so use its Non-Secure alias 0x54000600 (= base +
-      * SOC_S_NS_ADDR_DIFF 0x10000000), exactly what the NS reboot code writes.
-      * Two keyed writes with the minimum period (0xA) -> watchdog fires almost
-      * immediately and resets the AP. */
+"    b    ap_sec_handoff\n"
+     /* Publish the captured Secure-fault context to the callback/context
+      * addresses carried in NS vector reserved slots 8..10, then call the NS
+      * callback with BLXNS. The callback enters the existing AP coredump path. */
+"ap_sec_handoff:\n"
+"    bl   ap_sec_set_reboot_reason\n"
+"    ldr  r0, =0xE002ED08\n"       /* SCB_NS->VTOR */
+"    ldr  r0, [r0]\n"
+"    ldr  r4, [r0, #" STRINGIFY_VALUE(AP_SEC_DUMP_VECTOR_CALLBACK_OFFSET) "]\n"
+"    ldr  r5, [r0, #" STRINGIFY_VALUE(AP_SEC_DUMP_VECTOR_CONTEXT_OFFSET) "]\n"
+"    ldr  r1, [r0, #" STRINGIFY_VALUE(AP_SEC_DUMP_VECTOR_ABI_OFFSET) "]\n"
+"    ldr  r0, =" STRINGIFY_VALUE(AP_SEC_DUMP_ABI_INFO) "\n"
+"    cmp  r1, r0\n"
+"    bne  ap_sec_spin\n"
+     /* Slot 9 points at a const NS word containing the context-array address.
+      * Validate the carrier before dereferencing an NS-controlled vector word. */
+"    ldr  r0, =0x10000000\n"
+"    cmp  r5, r0\n"
+"    blo  ap_sec_spin\n"
+"    ldr  r0, =0xE0000000\n"
+"    cmp  r5, r0\n"
+"    bhs  ap_sec_spin\n"
+"    ldr  r5, [r5]\n"
+     /* callback must be in the SAU Non-Secure window */
+"    bic  r4, r4, #1\n"
+"    ldr  r0, =0x10000000\n"
+"    cmp  r4, r0\n"
+"    blo  ap_sec_spin\n"
+"    ldr  r0, =0xE0000000\n"
+"    cmp  r4, r0\n"
+"    bhs  ap_sec_spin\n"
+     /* Select per-core context (AP core0 id=2, core1 id=3). */
+"    ldr  r0, =" STRINGIFY_VALUE(AP_CORE_ID_ADDR) "\n"
+"    ldr  r3, [r0]\n"
+"    and  r3, r3, #0xF\n"
+"    cmp  r3, #3\n"
+"    it   eq\n"
+"    addeq r5, r5, #" STRINGIFY_VALUE(AP_SEC_DUMP_CONTEXT_SIZE) "\n"
+     /* context must be writable NS SMEM or DTCM */
+"    ldr  r0, =0x38000000\n"
+"    subs r1, r5, r0\n"
+"    ldr  r0, =0x00200000\n"
+"    cmp  r1, r0\n"
+"    blo  70f\n"
+"    ldr  r0, =0x3C000000\n"
+"    subs r1, r5, r0\n"
+"    ldr  r0, =0x00200000\n"
+"    cmp  r1, r0\n"
+"    blo  70f\n"
+"    ldr  r0, =0x30000000\n"
+"    subs r1, r5, r0\n"
+"    ldr  r0, =0x00080000\n"
+"    cmp  r1, r0\n"
+"    bhs  ap_sec_spin\n"
+"70:\n"
+     /* Clear commit first, then fill the fixed 48-word ABI. */
+"    movs r0, #0\n"
+"    str  r0, [r5, #" STRINGIFY_VALUE(AP_SEC_CTX_MAGIC) "]\n"
+"    movs r0, #" STRINGIFY_VALUE(AP_SEC_DUMP_CONTEXT_VERSION) "\n"
+"    str  r0, [r5, #" STRINGIFY_VALUE(AP_SEC_CTX_VERSION) "]\n"
+"    movs r0, #" STRINGIFY_VALUE(AP_SEC_DUMP_CONTEXT_SIZE) "\n"
+"    str  r0, [r5, #" STRINGIFY_VALUE(AP_SEC_CTX_SIZE) "]\n"
+"    str  r3, [r5, #" STRINGIFY_VALUE(AP_SEC_CTX_CORE_ID) "]\n"
+     /* source flags from EXC_RETURN */
+"    movs r0, #0\n"
+"    tst  r7, #0x40\n"
+"    it   ne\n"
+"    orrne r0, r0, #" STRINGIFY_VALUE(AP_SEC_CTX_FLAG_SOURCE_SECURE) "\n"
+"    tst  r7, #0x08\n"
+"    it   ne\n"
+"    orrne r0, r0, #" STRINGIFY_VALUE(AP_SEC_CTX_FLAG_SOURCE_THREAD) "\n"
+"    tst  r7, #0x40\n"             /* Secure source: EXC_RETURN.SPSEL is authoritative */
+"    beq  71f\n"
+"    tst  r7, #0x04\n"
+"    bne  72f\n"
+"    b    73f\n"
+"71: tst  r7, #0x08\n"             /* NS handler source always used MSP_NS */
+"    beq  73f\n"
+"    mrs  r1, control_ns\n"        /* NS thread source follows CONTROL_NS.SPSEL */
+"    tst  r1, #0x02\n"
+"    beq  73f\n"
+"72: orr  r0, r0, #" STRINGIFY_VALUE(AP_SEC_CTX_FLAG_SOURCE_PSP) "\n"
+"73:\n"
+"    tst  r7, #0x20\n"
+"    it   eq\n"
+"    orreq r0, r0, #" STRINGIFY_VALUE(AP_SEC_CTX_FLAG_DCRS_STACKED) "\n"
+"    tst  r7, #0x10\n"
+"    it   eq\n"
+"    orreq r0, r0, #" STRINGIFY_VALUE(AP_SEC_CTX_FLAG_FP_STACKED) "\n"
+"    str  r0, [r5, #" STRINGIFY_VALUE(AP_SEC_CTX_FLAGS) "]\n"
+"    str  r7, [r5, #" STRINGIFY_VALUE(AP_SEC_CTX_EXC_RETURN) "]\n"
+"    str  r6, [r5, #" STRINGIFY_VALUE(AP_SEC_CTX_FRAME_SP) "]\n"
+"    movs r0, #1\n"
+"    str  r0, [r5, #" STRINGIFY_VALUE(AP_SEC_CTX_FRAME_VALID) "]\n"
+     /* R0-R3 and R12 from the hardware basic frame. */
+"    ldr  r0, [r6, #0x00]\n"
+"    str  r0, [r5, #" STRINGIFY_VALUE(AP_SEC_CTX_R0) " + 0x00]\n"
+"    ldr  r0, [r6, #0x04]\n"
+"    str  r0, [r5, #" STRINGIFY_VALUE(AP_SEC_CTX_R0) " + 0x04]\n"
+"    ldr  r0, [r6, #0x08]\n"
+"    str  r0, [r5, #" STRINGIFY_VALUE(AP_SEC_CTX_R0) " + 0x08]\n"
+"    ldr  r0, [r6, #0x0C]\n"
+"    str  r0, [r5, #" STRINGIFY_VALUE(AP_SEC_CTX_R0) " + 0x0C]\n"
+     /* R4-R11 from the selected live/additional-context snapshot. */
+"    ldr  r0, [r8, #0x00]\n"
+"    str  r0, [r5, #" STRINGIFY_VALUE(AP_SEC_CTX_R0) " + 0x10]\n"
+"    ldr  r0, [r8, #0x04]\n"
+"    str  r0, [r5, #" STRINGIFY_VALUE(AP_SEC_CTX_R0) " + 0x14]\n"
+"    ldr  r0, [r8, #0x08]\n"
+"    str  r0, [r5, #" STRINGIFY_VALUE(AP_SEC_CTX_R0) " + 0x18]\n"
+"    ldr  r0, [r8, #0x0C]\n"
+"    str  r0, [r5, #" STRINGIFY_VALUE(AP_SEC_CTX_R0) " + 0x1C]\n"
+"    ldr  r0, [r8, #0x10]\n"
+"    str  r0, [r5, #" STRINGIFY_VALUE(AP_SEC_CTX_R0) " + 0x20]\n"
+"    ldr  r0, [r8, #0x14]\n"
+"    str  r0, [r5, #" STRINGIFY_VALUE(AP_SEC_CTX_R0) " + 0x24]\n"
+"    ldr  r0, [r8, #0x18]\n"
+"    str  r0, [r5, #" STRINGIFY_VALUE(AP_SEC_CTX_R0) " + 0x28]\n"
+"    ldr  r0, [r8, #0x1C]\n"
+"    str  r0, [r5, #" STRINGIFY_VALUE(AP_SEC_CTX_R0) " + 0x2C]\n"
+"    ldr  r0, [r6, #0x10]\n"
+"    str  r0, [r5, #" STRINGIFY_VALUE(AP_SEC_CTX_R0) " + 0x30]\n"
+     /* LR/PC/xPSR and the restored source SP. */
+"    ldr  r0, [r6, #0x14]\n"
+"    str  r0, [r5, #" STRINGIFY_VALUE(AP_SEC_CTX_LR) "]\n"
+"    ldr  r0, [r6, #0x18]\n"
+"    str  r0, [r5, #" STRINGIFY_VALUE(AP_SEC_CTX_PC) "]\n"
+"    ldr  r0, [r6, #0x1C]\n"
+"    str  r0, [r5, #" STRINGIFY_VALUE(AP_SEC_CTX_XPSR) "]\n"
+"    add  r1, r6, #0x20\n"
+"    tst  r0, #0x200\n"
+"    it   ne\n"
+"    addne r1, r1, #4\n"
+"    str  r1, [r5, #" STRINGIFY_VALUE(AP_SEC_CTX_SP) "]\n"
+     /* Banked stack/control state and Secure fault status. */
+"    mrs  r0, msp\n"
+"    add  r0, r0, #0x20\n"         /* undo handler's saved {r4..r11} */
+"    str  r0, [r5, #" STRINGIFY_VALUE(AP_SEC_CTX_MSP_S) "]\n"
+"    mrs  r0, psp\n"
+"    str  r0, [r5, #" STRINGIFY_VALUE(AP_SEC_CTX_PSP_S) "]\n"
+"    mrs  r0, msp_ns\n"
+"    str  r0, [r5, #" STRINGIFY_VALUE(AP_SEC_CTX_MSP_NS) "]\n"
+"    mrs  r0, psp_ns\n"
+"    str  r0, [r5, #" STRINGIFY_VALUE(AP_SEC_CTX_PSP_NS) "]\n"
+"    mrs  r0, control\n"
+"    str  r0, [r5, #" STRINGIFY_VALUE(AP_SEC_CTX_CONTROL_S) "]\n"
+"    mrs  r0, control_ns\n"
+"    str  r0, [r5, #" STRINGIFY_VALUE(AP_SEC_CTX_CONTROL_NS) "]\n"
+"    ldr  r0, =0xE000EDE4\n"
+"    ldr  r0, [r0]\n"
+"    str  r0, [r5, #" STRINGIFY_VALUE(AP_SEC_CTX_SFSR) "]\n"
+"    ldr  r0, =0xE000EDE8\n"
+"    ldr  r0, [r0]\n"
+"    str  r0, [r5, #" STRINGIFY_VALUE(AP_SEC_CTX_SFAR) "]\n"
+"    ldr  r0, =0xE000ED28\n"
+"    ldr  r0, [r0]\n"
+"    str  r0, [r5, #" STRINGIFY_VALUE(AP_SEC_CTX_CFSR_S) "]\n"
+"    ldr  r0, =0xE000ED2C\n"
+"    ldr  r0, [r0]\n"
+"    str  r0, [r5, #" STRINGIFY_VALUE(AP_SEC_CTX_HFSR_S) "]\n"
+"    ldr  r0, =0xE000ED38\n"
+"    ldr  r0, [r0]\n"
+"    str  r0, [r5, #" STRINGIFY_VALUE(AP_SEC_CTX_BFAR_S) "]\n"
+"    ldr  r0, =0xE000ED34\n"
+"    ldr  r0, [r0]\n"
+"    str  r0, [r5, #" STRINGIFY_VALUE(AP_SEC_CTX_MMFAR_S) "]\n"
+"    mrs  r0, ipsr\n"
+"    str  r0, [r5, #" STRINGIFY_VALUE(AP_SEC_CTX_IPSR) "]\n"
+"    mrs  r0, primask\n"
+"    str  r0, [r5, #" STRINGIFY_VALUE(AP_SEC_CTX_PRIMASK_S) "]\n"
+"    mrs  r0, basepri\n"
+"    str  r0, [r5, #" STRINGIFY_VALUE(AP_SEC_CTX_BASEPRI_S) "]\n"
+"    mrs  r0, faultmask\n"
+"    str  r0, [r5, #" STRINGIFY_VALUE(AP_SEC_CTX_FAULTMASK_S) "]\n"
+"    movs r0, #0\n"                /* FPSCR capture can itself fault if FP is unavailable */
+"    str  r0, [r5, #" STRINGIFY_VALUE(AP_SEC_CTX_FPSCR_S) "]\n"
+"    mrs  r0, primask_ns\n"
+"    str  r0, [r5, #" STRINGIFY_VALUE(AP_SEC_CTX_PRIMASK_NS) "]\n"
+"    mrs  r0, basepri_ns\n"
+"    str  r0, [r5, #" STRINGIFY_VALUE(AP_SEC_CTX_BASEPRI_NS) "]\n"
+"    mrs  r0, faultmask_ns\n"
+"    str  r0, [r5, #" STRINGIFY_VALUE(AP_SEC_CTX_FAULTMASK_NS) "]\n"
+"    dsb\n"
+"    ldr  r0, =" STRINGIFY_VALUE(AP_SEC_DUMP_CONTEXT_MAGIC) "\n"
+"    str  r0, [r5, #" STRINGIFY_VALUE(AP_SEC_CTX_MAGIC) "]\n"
+"    dsb\n"
+"    isb\n"
+     /* r0 carries the sole intentional cross-domain argument. */
+"    mov  r0, r5\n"
+"    movs r1, #0\n"
+"    mov  r2, r1\n"
+"    mov  r3, r1\n"
+"    mov  r5, r1\n"
+"    mov  r6, r1\n"
+"    mov  r7, r1\n"
+"    mov  r8, r1\n"
+"    mov  r9, r1\n"
+"    mov  r10, r1\n"
+"    mov  r11, r1\n"
+"    mov  r12, r4\n"
+"    mov  r4, r1\n"
+"    blxns r12\n"
+     /* A correctly functioning coredump callback never returns. */
+"    b    ap_sec_spin\n"
+     /* Persist AP SecureFault reason before either NS handoff or watchdog. */
+"    .thumb_func\n"
+"ap_sec_set_reboot_reason:\n"
+"    ldr  r0, =0x54000000\n"       /* AON PMU R0, AP NS alias */
+"    ldr  r1, [r0]\n"
+"    ldr  r2, =0x7F000000\n"
+"    bics r1, r1, r2\n"
+"    ldr  r2, =0x15000000\n"       /* RESET_SOURCE_SECURE_FAULT */
+"    orrs r1, r1, r2\n"
+"    str  r1, [r0]\n"
+"    ldr  r0, =0x54000094\n"       /* AON PMU R25 latch */
+"    ldr  r1, =0x424B55AA\n"
+"    str  r1, [r0]\n"
+"    ldr  r1, =0xBDB4AA55\n"
+"    str  r1, [r0]\n"
+"    dsb\n"
+"    bx   lr\n"
+     /* Fall back to an immediate AON watchdog reset if the NS callback cannot
+      * be validated or unexpectedly returns. */
 "ap_sec_spin:\n"
+"    bl   ap_sec_set_reboot_reason\n"
 "    dsb\n"
 "    ldr  r0, =0x54000600\n"       /* AON_WDT config (NS alias of 0x44000600) */
 "    ldr  r1, =0x005A000A\n"       /* KEY_1ST(0x5A)<<16 | PERIOD_MIN(0xA) */
@@ -422,11 +671,11 @@ __asm__(
 "    str  r1, [r0]\n"
 "    dsb\n"
 "60: b    60b\n"                   /* wait for the watchdog reset to fire */
-     /* dump the live callee-saved snapshot R4-R11 taken at handler entry (r8 ->
-      * pushed {r4..r11}). Kept as a subroutine so both the valid- and
-      * invalid-frame paths emit it, and so R4-R11 can be placed between the
-      * stacked R3 and R12 for a natural R0..R11 ascending dump. ap_sec_kv leaves
-      * r6/r8 untouched, so the caller's frame SP and snapshot pointer survive. */
+     /* Dump R4-R11 through r8. The valid DCRS=0 path redirects r8 to the
+      * hardware Additional State Context; other paths use the safe snapshot
+      * taken at handler entry. Kept as a subroutine so R4-R11 can be placed
+      * between stacked R3 and R12 for a natural R0..R11 ascending dump.
+      * ap_sec_kv leaves r6/r8 untouched. */
 "    .thumb_func\n"
 "ap_sec_pr_r4r11:\n"
 "    push {lr}\n"
