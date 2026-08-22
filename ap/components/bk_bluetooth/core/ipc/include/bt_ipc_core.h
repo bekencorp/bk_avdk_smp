@@ -60,7 +60,7 @@ typedef struct __attribute__((packed))
 typedef struct __attribute__((packed))
 {
     mb_chnl_hdr_t hdr;
-    uint8_t pkt_type;
+    uint32_t pkt_type;
 #if 0
     union
     {
