@@ -32,6 +32,8 @@ static void cli_gpio_help(void)
 	CLI_LOGD("gpio_map    [devs/jtag_map]     [mode]\r\n");
 	CLI_LOGD("gpio_int    [index]    [inttype/start/stop]    [low/high_level/rising/falling edge]\r\n");
 	CLI_LOGD("gpio_mulcore_isr", "gpio_mulcore_isr [cpu0_output_gpio_id]   [iterations]\r\n");
+	CLI_LOGD("gpio_loopback    [out_id] [in_id] [iterations]    short out_id&in_id, auto check level loopback\r\n");
+	CLI_LOGD("gpio_int_loopback    [out_id] [in_id] [rising/falling] [iterations]    short out_id&in_id, auto check edge irq\r\n");
 	CLI_LOGD("gpio_clk    [32k/26m]\r\n");
 	CLI_LOGD("gpio_default_map    diff before/after gpio_default_map_init()\r\n");
 #if CONFIG_GPIO_DYNAMIC_WAKEUP_SUPPORT
@@ -562,6 +564,146 @@ static void cli_gpio_dump_default_map_cmd(char *pcWriteBuffer, int xWriteBufferL
 }
 #endif
 
+/*
+ * Automatic GPIO loopback self-test.
+ * Hardware setup: short out_id and in_id together with a jumper wire before running.
+ */
+static volatile uint32_t s_gpio_loopback_isr_count = 0;
+
+static void gpio_loopback_isr(gpio_id_t id)
+{
+	s_gpio_loopback_isr_count++;
+}
+
+static void cli_gpio_loopback_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
+{
+	if (argc < 3) {
+		CLI_LOGD("gpio_loopback [out_id] [in_id] [iterations]\r\n");
+		return;
+	}
+
+	gpio_id_t out_id = os_strtoul(argv[1], NULL, 10);
+	gpio_id_t in_id = os_strtoul(argv[2], NULL, 10);
+	uint32_t iterations = (argc > 3) ? os_strtoul(argv[3], NULL, 10) : 1;
+	uint32_t fail_cnt = 0;
+
+	if (iterations == 0)
+		iterations = 1;
+
+	/* out_id: push-pull output, no pull */
+	BK_LOG_ON_ERR(bk_gpio_disable_input(out_id));
+	BK_LOG_ON_ERR(bk_gpio_enable_output(out_id));
+	BK_LOG_ON_ERR(bk_gpio_disable_pull(out_id));
+
+	/* in_id: input, no pull (level is driven by the shorted out_id) */
+	BK_LOG_ON_ERR(bk_gpio_disable_output(in_id));
+	BK_LOG_ON_ERR(bk_gpio_enable_input(in_id));
+	BK_LOG_ON_ERR(bk_gpio_disable_pull(in_id));
+
+	for (uint32_t i = 0; i < iterations; i++) {
+		uint8_t rd;
+
+		BK_LOG_ON_ERR(bk_gpio_set_output_low(out_id));
+		rtos_delay_milliseconds(2);
+		rd = bk_gpio_get_input(in_id);
+		if (rd != 0) {
+			fail_cnt++;
+			CLI_LOGD("loop[%u] drive 0 but read %d\r\n", i, rd);
+		}
+
+		BK_LOG_ON_ERR(bk_gpio_set_output_high(out_id));
+		rtos_delay_milliseconds(2);
+		rd = bk_gpio_get_input(in_id);
+		if (rd != 1) {
+			fail_cnt++;
+			CLI_LOGD("loop[%u] drive 1 but read %d\r\n", i, rd);
+		}
+	}
+
+	if (fail_cnt == 0)
+		CLI_LOGI("gpio_loopback out:%d in:%d %u loops test passed\r\n", out_id, in_id, iterations);
+	else
+		CLI_LOGI("gpio_loopback out:%d in:%d test failed, %u mismatch\r\n", out_id, in_id, fail_cnt);
+}
+
+static void cli_gpio_int_loopback_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
+{
+	if (argc < 5) {
+		CLI_LOGD("gpio_int_loopback [out_id] [in_id] [rising/falling] [iterations]\r\n");
+		return;
+	}
+
+	gpio_id_t out_id = os_strtoul(argv[1], NULL, 10);
+	gpio_id_t in_id = os_strtoul(argv[2], NULL, 10);
+	uint32_t iterations = os_strtoul(argv[4], NULL, 10);
+	gpio_int_type_t int_type;
+	uint8_t idle_level, active_level;
+	gpio_config_t cfg = {0};
+
+	if (iterations == 0)
+		iterations = 1;
+
+	if (os_strcmp(argv[3], "rising") == 0) {
+		int_type = GPIO_INT_TYPE_RISING_EDGE;
+		idle_level = 0;
+		active_level = 1;
+	} else if (os_strcmp(argv[3], "falling") == 0) {
+		int_type = GPIO_INT_TYPE_FALLING_EDGE;
+		idle_level = 1;
+		active_level = 0;
+	} else {
+		CLI_LOGD("edge must be rising or falling\r\n");
+		return;
+	}
+
+	/* out_id: push-pull output, start at idle level so it won't trigger immediately */
+	BK_LOG_ON_ERR(bk_gpio_disable_input(out_id));
+	BK_LOG_ON_ERR(bk_gpio_enable_output(out_id));
+	BK_LOG_ON_ERR(bk_gpio_disable_pull(out_id));
+	if (idle_level)
+		BK_LOG_ON_ERR(bk_gpio_set_output_high(out_id));
+	else
+		BK_LOG_ON_ERR(bk_gpio_set_output_low(out_id));
+	rtos_delay_milliseconds(2);
+
+	/* in_id: input + edge interrupt */
+	cfg.io_mode = GPIO_INPUT_ENABLE;
+	cfg.pull_mode = GPIO_PULL_DISABLE;
+	cfg.func_mode = GPIO_SECOND_FUNC_DISABLE;
+	BK_LOG_ON_ERR(bk_gpio_set_config(in_id, &cfg));
+
+	s_gpio_loopback_isr_count = 0;
+	BK_LOG_ON_ERR(bk_gpio_register_isr(in_id, gpio_loopback_isr));
+	BK_LOG_ON_ERR(bk_gpio_set_interrupt_type(in_id, int_type));
+	BK_LOG_ON_ERR(bk_gpio_enable_interrupt(in_id));
+
+	for (uint32_t i = 0; i < iterations; i++) {
+		/* generate one active edge */
+		if (active_level)
+			BK_LOG_ON_ERR(bk_gpio_set_output_high(out_id));
+		else
+			BK_LOG_ON_ERR(bk_gpio_set_output_low(out_id));
+		rtos_delay_milliseconds(4);
+
+		/* return to idle for the next edge */
+		if (idle_level)
+			BK_LOG_ON_ERR(bk_gpio_set_output_high(out_id));
+		else
+			BK_LOG_ON_ERR(bk_gpio_set_output_low(out_id));
+		rtos_delay_milliseconds(4);
+	}
+
+	BK_LOG_ON_ERR(bk_gpio_disable_interrupt(in_id));
+
+	CLI_LOGI("gpio_int_loopback out:%d in:%d %s expect:%u got:%u\r\n",
+		out_id, in_id, argv[3], iterations, s_gpio_loopback_isr_count);
+
+	if (s_gpio_loopback_isr_count == iterations)
+		CLI_LOGI("gpio_int_loopback test passed\r\n");
+	else
+		CLI_LOGI("gpio_int_loopback test failed\r\n");
+}
+
 #define GPIO_CMD_CNT (sizeof(s_gpio_commands) / sizeof(struct cli_command))
 DRV_CLI_CMD_EXPORT static const struct cli_command s_gpio_commands[] = {
 	{"gpio_int", "gpio_int    [index]     [inttype/start/stop]     [low_level/high_level/rising_edge/falling_edge]", cli_gpio_int_cmd},
@@ -569,6 +711,8 @@ DRV_CLI_CMD_EXPORT static const struct cli_command s_gpio_commands[] = {
 	{"gpio_driver", "gpio_driver    [init/deinit]}", cli_gpio_driver_cmd},
 	{"gpio_map", "gpio_map     [devs/jtag_map] [id] [tck/tms/tdi/tdo]",cli_gpio_map_cmd},
 	{"gpio_mulcore_isr", "gpio_mulcore_isr [cpu0_output_gpio_id]   [iterations]",cli_gpio_mulcore_isr_cmd},
+	{"gpio_loopback", "gpio_loopback [out_id] [in_id] [iterations]", cli_gpio_loopback_cmd},
+	{"gpio_int_loopback", "gpio_int_loopback [out_id] [in_id] [rising/falling] [iterations]", cli_gpio_int_loopback_cmd},
 #if CONFIG_GPIO_DYNAMIC_WAKEUP_SUPPORT
 	{"gpio_wake", "gpio_wake [index][low/high_level/rising/falling edge][enable/disable wakeup]", cli_gpio_set_wake_source_cmd},
 	{"gpio_low_power", "gpio_low_power [simulate][param]", cli_gpio_simulate_low_power_cmd},
