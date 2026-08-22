@@ -199,6 +199,7 @@ typedef struct
 	uint32_t pending_out_buf;
 	uint32_t pending_out_size;
 	bool pending_valid;
+	bool aborting;
 	/*
 	 * Last sync error from vcenc_h264_encode_frame; published in the
 	 * worker dispatch callback so the encoder thread can decide whether to

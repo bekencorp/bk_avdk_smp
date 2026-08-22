@@ -188,7 +188,12 @@ static avdk_err_t h264_encode_msg_callback(void *param)
     h264_encode_osd_finish_frame(ctrl->osd_slots);
     ctrl->enc_param.update_flag = 0;
     if (venc_ret != VCENC_FRAME_READY && venc_ret != VCENC_OK) {
-        LOGE("vcenc_h264_encode_frame failed: %d\r\n", venc_ret);
+        bool expected_abort = ctrl->aborting &&
+                              (venc_ret == VCENC_ERROR || venc_ret == VCENC_HW_RESET);
+        ctrl->aborting = false;
+        if (!expected_abort) {
+            LOGE("vcenc_h264_encode_frame failed: %d\r\n", venc_ret);
+        }
         ctrl->encode_result = (uint32_t)BK_FAIL;
         ENCODE_FRAME_END;
         /*
@@ -197,9 +202,13 @@ static avdk_err_t h264_encode_msg_callback(void *param)
          * the legacy h264e_driver-backed behaviour.
          */
         rtos_get_semaphore(&ctrl->enc_start_sem, BEKEN_NO_WAIT);
+        if (expected_abort) {
+            return AVDK_ERR_OK;
+        }
         return AVDK_ERR_GENERIC;
     }
     ENCODE_FRAME_END;
+    ctrl->aborting = false;
     ctrl->encode_result = BK_OK;
     return AVDK_ERR_OK;
 }
@@ -737,10 +746,21 @@ static avdk_err_t h264_encode_ctlr_ioctl(bk_h264_encode_ctlr_handle_t handle, ui
                 return AVDK_ERR_INVAL;
             }
             if (control->bond == bond) {
+                if (control->encoder_inited) {
+                    control->aborting = true;
+                    (void)vcenc_h264_abort(&control->enc_param);
+                }
                 control->bond = NULL;
             } else {
                 LOGW("%s %d bond is not registered\r\n", __func__, __LINE__);
                 return AVDK_ERR_INVAL;
+            }
+            break;
+        }
+        case BK_H264_ENCODE_IOCTL_STOP_ENCODE: {
+            if (control->encoder_inited) {
+                control->aborting = true;
+                (void)vcenc_h264_abort(&control->enc_param);
             }
             break;
         }
