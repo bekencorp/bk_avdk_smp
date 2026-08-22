@@ -15,6 +15,7 @@
 #pragma once
 
 #include <components/bk_gpu_types.h>
+#include "bk_gpu_overlay_types.h" /* bk_gpu_flexa_block_t (internal) */
 
 #include <bk_list.h>
 
@@ -26,6 +27,59 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+/*
+ * Internal control plane for the single-layer blit path (bk_gpu_blit_set/clear).
+ * Not part of the public API: these ioctl commands and the composer hook live
+ * here so bk_gpu_types.h stays free of anything applications do not call.
+ * Command values start above the public bk_gpu_ioctl_cmd_t range so they never
+ * collide with it.
+ */
+#define BK_GPU_IOCTL_CLAIM_COMPOSITOR   0x100u /* arbitrate frame compositor owner (bk_gpu_compositor_owner_t *) */
+#define BK_GPU_IOCTL_SET_FRAME_COMPOSER 0x101u /* register/clear frame-done composer (bk_gpu_frame_composer_t * or NULL) */
+#define BK_GPU_IOCTL_GET_FRAME_COMPOSER 0x102u /* read the current composer (bk_gpu_frame_composer_t *) */
+#define BK_GPU_IOCTL_GET_FLEXA_BLOCK    0x103u /* fetch the block being processed (bk_gpu_flexa_block_t *); valid only inside the controller's flexa callback */
+
+/*
+ * Single frame compositor per controller. The blit shim claims LEGACY; the
+ * bk_gpu_overlay_* API claims OVERLAY. The second claimant loses with
+ * AVDK_ERR_BUSY so one output frame is never composed by two owners.
+ */
+typedef enum
+{
+    BK_GPU_COMPOSITOR_OWNER_NONE = 0,
+    BK_GPU_COMPOSITOR_OWNER_LEGACY,
+    BK_GPU_COMPOSITOR_OWNER_OVERLAY,
+} bk_gpu_compositor_owner_t;
+
+/*
+ * Compose callback bundle the controller drives so the shared overlay is
+ * composited without the application touching the overlay API.
+ *
+ * The controller picks the hook by its current compose timing (see
+ * osd_render_per_flexa_block):
+ *   - AT_FRAME_DONE : compose_frame() runs once on the finished output frame,
+ *     just before the client frame_done callback.
+ *   - PER_FLEXA_BLOCK : compose_flexa_block() runs for every FLEXA block as the
+ *     main picture streams out, then commit_flexa_frame() runs once at frame
+ *     end to publish/backing-commit the frame.
+ * destroy is invoked from gpu_ctlr_delete so the hidden overlay is torn down
+ * with the controller. The controller only stores and calls these opaque
+ * pointers; it never interprets ctx.
+ */
+typedef struct
+{
+    void *ctx;
+    void (*compose_frame)(void *ctx, void *dst_frame, uint32_t frame_size);
+    void (*compose_flexa_block)(void *ctx, const bk_gpu_flexa_block_t *block);
+    void (*commit_flexa_frame)(void *ctx);
+    /*
+     * Re-compose dirty layers onto an application-supplied background during a
+     * stall (no new GPU output frames). Driven by BK_GPU_IOCTL_REFRESH_DIRTY.
+     */
+    avdk_err_t (*refresh_dirty)(void *ctx, void *bg_frame);
+    void (*destroy)(void *ctx);
+} bk_gpu_frame_composer_t;
 
 typedef struct {
     vg_lite_buffer_t src_buf;
@@ -74,19 +128,26 @@ typedef struct
     bool flexa_abort_notified;
     uint8_t *gpu_contiguous_buffer;
 
-    /* Per-instance OSD blend timing (BK_GPU_IOCTL_SET_OSD_BY_FLEXA):
-     * false = single SRC_OVER at frame end; true = per flexa block. */
-    bool osd_by_flexa;
-
-    /* Multi-slot OSD sprites (update -> display double buffer). */
-    bool blit_enable;
-    void *display_blit_buffer[BK_GPU_BLIT_SLOT_MAX];
-    bk_gpu_blit_config_t display_blit_config[BK_GPU_BLIT_SLOT_MAX];
-    void *update_blit_buffer[BK_GPU_BLIT_SLOT_MAX];
-    bk_gpu_blit_config_t update_blit_config[BK_GPU_BLIT_SLOT_MAX];
-    beken_mutex_t blit_mutex;
-
     bk_gpu_ctlr_config_t config;
+    /*
+     * false (default): fire flexa_line_done only at frame end path;
+     * true: fire the per-FLEXA-block hook so a client can compose mid-frame.
+     * Toggled via BK_GPU_IOCTL_SET_OSD_BY_FLEXA.
+     */
+    bool osd_render_per_flexa_block;
+    /*
+     * Block currently being handed to flexa_line_done(); set just before the
+     * callback and cleared right after, so a client can fetch it via
+     * BK_GPU_IOCTL_GET_FLEXA_BLOCK only while the callback runs. NULL otherwise.
+     */
+    const bk_gpu_flexa_block_t *current_flexa_block;
+    /*
+     * Frame-compositor arbitration + hook for the legacy bk_gpu_blit_set path.
+     * compositor_owner holds a bk_gpu_compositor_owner_t; frame_composer, when
+     * registered, is driven once per finished frame before frame_done().
+     */
+    uint8_t compositor_owner;
+    bk_gpu_frame_composer_t frame_composer;
     gpu_flex_data_t flex;
     bk_gpu_ctlr_t ops;
 
