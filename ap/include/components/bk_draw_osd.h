@@ -27,8 +27,12 @@ extern "C" {
  *
  * One instance binds one external pipeline GPU; the component registers
  * composited sprites that the GPU SRC_OVER blends onto video each frame.
- * Slot/begin/commit is internal. Three render entries:
- *   - bk_draw_osd_array(h, list)  — batch blend_info[] (NULL = default list), auto cluster/slot
+ *
+ * Vocabulary: the client works with elements that auto-cluster into logical
+ * "overlay layers" (leased from bk_gpu_overlay). "slot" is only the engine's
+ * internal array ordinal for a layer and is not a client-facing concept.
+ * begin/commit are also internal. Three render entries:
+ *   - bk_draw_osd_array(h, list)  — batch blend_info[] (NULL = default list), auto cluster into layers
  *   - bk_draw_osd_element(h, &info) — one-shot single element (image or text)
  *   - bk_draw_osd_text(h, ...)     — one-shot raw font text (no blend_info)
  * Runtime refresh: add_or_update()/remove() then array(NULL).
@@ -36,17 +40,18 @@ extern "C" {
  *******************************************************************/
 
 /**
- * @brief Create an OSD controller instance (binds config->gpu).
+ * @brief Create an OSD controller instance (binds config->gpu; OSD shares the
+ *        controller's overlay with PIP and other layers).
  */
 avdk_err_t bk_draw_osd_new(bk_draw_osd_ctlr_handle_t *handle, osd_ctlr_config_t *config);
 
 /**
- * @brief Delete an OSD controller instance (clears registered GPU blits and frees sprites).
+ * @brief Delete an OSD controller instance (clears the overlay layers it owns and frees sprites).
  */
 avdk_err_t bk_draw_osd_delete(bk_draw_osd_ctlr_handle_t handle);
 
 /**
- * @brief One-shot render of a single element (image or text) into the next free GPU slot.
+ * @brief One-shot render of a single element (image or text) into the next free overlay layer.
  *        - Image: copies info->addr->image.data;
  *        - Font: uses info->addr->font + .color; text from info->content (or name if empty).
  *        Assets may be passed inline, e.g. &(blend_info_t){.addr=&font_text1, .content="12:35"}.
@@ -54,7 +59,7 @@ avdk_err_t bk_draw_osd_delete(bk_draw_osd_ctlr_handle_t handle);
 avdk_err_t bk_draw_osd_element(bk_draw_osd_ctlr_handle_t handle, const blend_info_t *info);
 
 /**
- * @brief One-shot render of raw UTF-8 font text (no blend_info, e.g. LVGL fonts) into the next free slot.
+ * @brief One-shot render of raw UTF-8 font text (no blend_info, e.g. LVGL fonts) into the next free overlay layer.
  * @param kind  OSD_FONT_LVGL (font = const lv_font_t*, integer scale)
  *              OSD_FONT_BKFONT (font = const gui_font_digit_struct*, scale ignored)
  * @param x,y   Position in panel coordinates
@@ -66,21 +71,27 @@ avdk_err_t bk_draw_osd_text(bk_draw_osd_ctlr_handle_t handle, osd_font_kind_t ki
 
 /**
  * @brief Array render entry (recommended): render blend_info[] (NULL = default dynamic list).
- *        Elements auto-cluster by spatial proximity into GPU slots (one tight sprite per cluster,
- *        total <= BK_GPU_BLIT_SLOT_MAX); when count exceeds the limit, merge by least wasted area
- *        (no elements dropped). Slot cursor stops after used clusters; clear() resets it.
+ *        Elements auto-cluster by spatial proximity into leased GPU layers (one tight sprite per
+ *        cluster); when count exceeds current hardware capacity, merge by least wasted area
+ *        (no elements dropped). The layer cursor stops after used clusters; clear() resets it.
  *
  *        Incremental by default on the dynamic list (list == NULL): only elements changed via
- *        add_or_update() are re-composited; unchanged slots keep being blitted. An explicit list,
+ *        add_or_update() are re-composited; unchanged layers keep being blitted. An explicit list,
  *        an add/remove/clear, or a merged layout triggers a full repaint.
  * @param list  Display list (NULL = default dynamic list); terminated by {.addr=NULL}
  */
 avdk_err_t bk_draw_osd_array(bk_draw_osd_ctlr_handle_t handle, const blend_info_t *list);
 
 /**
- * @brief Clear registered OSD blits on the bound GPU and reset internal slot cursor (next draw from slot 0).
+ * @brief Clear layers owned by this OSD instance without disturbing other users.
  */
 avdk_err_t bk_draw_osd_clear(bk_draw_osd_ctlr_handle_t handle);
+
+/**
+ * @brief Render the dynamic-list cluster containing one named element.
+ */
+avdk_err_t bk_draw_osd_render_element(bk_draw_osd_ctlr_handle_t handle,
+                                      const char *name);
 
 /**
  * @brief Add or update a display-list element at runtime (by asset name; content optional).

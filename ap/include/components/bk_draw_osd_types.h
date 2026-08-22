@@ -21,7 +21,7 @@
 #include <components/avdk_utils/avdk_check.h>
 #include <components/avdk_utils/avdk_error.h>
 #include <common/avdk_pixel_types.h>   /* bk7259: frame_buffer_t + pixel_format_t (no multimedia/frame_buffer.h) */
-#include <components/bk_gpu_types.h>   /* bk_gpu_ctlr_handle_t + bk_pixel_format_t (external GPU for pipeline submit model) */
+#include <components/bk_gpu_types.h>
 #include "modules/lcd_font.h"
 
 #ifdef __cplusplus
@@ -112,9 +112,10 @@ typedef struct{
 
 
 typedef struct {
-    /* OSD registers composited sprites with this external GPU (SRC_OVER each frame).
-     * MIPI and UVC each hold a separate instance bound to their own GPU handle. */
-    bk_gpu_ctlr_handle_t gpu;            /**< bound external pipeline GPU handle (required) */
+    /* OSD binds this GPU controller and submits composited sprites through the
+     * controller's shared overlay (fetched internally). OSD and PIP on the same
+     * controller therefore land on the same output frame. */
+    bk_gpu_ctlr_handle_t gpu;            /**< bound GPU controller (required) */
     uint16_t panel_w;                    /**< target display width (rotated buffer width) */
     uint16_t panel_h;                    /**< target display height */
     /* OSD content rotation at composite/blit, matching the video display rotation; must equal
@@ -141,17 +142,17 @@ typedef struct bk_draw_osd_ctlr *bk_draw_osd_ctlr_handle_t;
 
 typedef struct bk_draw_osd_ctlr
 {
-    /* All render entry points are one-shot/self-contained (internal sprite/slot/GPU submit). */
-    /* One-shot single element (image or font); takes next free slot */
+    /* All render entry points are self-contained sprite/overlay submissions. */
+    /* One-shot single element (image or font); takes the next free layer */
     avdk_err_t (*draw_element)(bk_draw_osd_ctlr_handle_t controller, const blend_info_t *info);
-    /* One-shot raw font text (LVGL/bkfont); takes next free slot */
+    /* One-shot raw font text (LVGL/bkfont); takes the next free layer */
     avdk_err_t (*draw_text)(bk_draw_osd_ctlr_handle_t controller, osd_font_kind_t kind, const void *font,
                             const char *utf8, uint16_t x, uint16_t y, uint32_t argb, uint8_t scale);
-    /* Array render: auto-cluster into GPU slots (<= BK_GPU_BLIT_SLOT_MAX), one tight sprite per cluster.
+    /* Array render: auto-cluster into overlay layers, one tight sprite per cluster.
      * Incremental by default on the dynamic list (list == NULL): only changed clusters re-composited;
      * an explicit list, an add/remove/clear, or a merged layout forces a full repaint. */
     avdk_err_t (*draw_osd_array)(bk_draw_osd_ctlr_handle_t controller, const blend_info_t *list);
-    /* Clear registered blits and reset slot cursor */
+    /* Clear this controller's leased layers and reset its local cursor. */
     avdk_err_t (*clear)(bk_draw_osd_ctlr_handle_t controller);
     avdk_err_t (*add_or_update)(bk_draw_osd_ctlr_handle_t controller, const char *name, const char* content);
     avdk_err_t (*remove)(bk_draw_osd_ctlr_handle_t controller, const char *name);
