@@ -100,6 +100,32 @@ extern ISP_AWB_FUNC_S vsiAwbAlgo;
 void bk_mipi_csi_ext_set_enable(uint8_t mode);
 int VSI_MPI_ISP_SetScaleAttr(ISP_CHN IspChn, ISP_CHN_ATTR_S *pChnAttr);
 
+static void isp_invoke_isr_callbacks(isp_control_t *control, isp_isr_type_t type,
+				   uint8_t chnl_id, uint8_t error)
+{
+	uint8_t i;
+
+	if (control == NULL || type >= ISP_ISR_MAX || chnl_id >= ISP_CHN_CNT)
+	{
+		return;
+	}
+
+	for (i = 0; i < ISP_ISR_MODULE_MAX; i++)
+	{
+		if (isp_isr_handler[type][i].reg_en
+		    && isp_isr_handler[type][i].isr_handler != NULL)
+		{
+			uint32_t line = (type == ISP_SBI_CLOSE)
+				? control->chn[chnl_id].skip_frames_remaining
+				: control->chn[chnl_id].line;
+
+			isp_isr_handler[type][i].isr_handler(control->chn[chnl_id].sequence,
+							     line, chnl_id, error,
+							     isp_isr_handler[type][i].param);
+		}
+	}
+}
+
 static void isp_unregister_sensor_callbacks(isp_control_t *control)
 {
     uint8_t i;
@@ -183,7 +209,7 @@ int isp_set_port_attribute(ISP_PORT IspPort, ISP_PUB_ATTR_S *pPubAttr)
     return VSI_SUCCESS;
 }
 
-
+//state :2 : ISP_MP_FRAME_END_STATE, 64 : ISP_MP_MB_LINE_STATE
 static void isp_isr_callback(uint32_t state, void *args)
 {
     isp_control_t *control = (isp_control_t *)args;
@@ -197,6 +223,21 @@ static void isp_isr_callback(uint32_t state, void *args)
             if (error_count > 1000) {
                 LOGW("%s, %d, error state: %d\n", __func__, __LINE__, state);
                 error_count = 0;
+            }
+            if (control->close_sbi == 0)
+            {
+                bk_isp_flexa_sbi_config((isp_handle_t *)&control, ISP_MP_CHN_ID, 0);
+                if (control->chn[ISP_MP_CHN_ID].skip_frames_remaining == 0)
+                {
+                    control->chn[ISP_MP_CHN_ID].skip_frames_remaining += 1;
+                }
+                else
+                {
+                    control->chn[ISP_MP_CHN_ID].skip_frames_remaining++;
+                }
+                control->close_sbi = 1;
+                isp_invoke_isr_callbacks(control, ISP_SBI_CLOSE, ISP_MP_CHN_ID,
+                                         (uint8_t)state);
             }
         }
     }
@@ -298,7 +339,6 @@ static void isp_mi_isr_callback_handle(isp_control_t *control, uint8_t isr_type,
         }
         return;
     }
-
     if (isr_type == ISP_MB_LINE_DONE)
     {
         for (i = 0; i < ISP_ISR_MODULE_MAX; i++)
@@ -326,6 +366,10 @@ static void isp_mi_isr_callback_handle(isp_control_t *control, uint8_t isr_type,
     }
     else
     {
+        if(control->close_sbi)
+        {
+            control->close_sbi = 0;
+        }
         for (i = 0; i < ISP_ISR_MODULE_MAX; i++)
         {
             if (isp_isr_handler[isr_type][i].reg_en)
@@ -352,13 +396,12 @@ static void isp_mi_isr_callback(uint32_t state, void *args)
     {
         if (state & ISP_MP_MB_LINE_STATE)
         {
-
             if (control->chn[ISP_MP_CHN_ID].line == 0)
             {
                 ISP_MP_FRAME_START();
-                control->chn[ISP_MP_CHN_ID].skip_active =
-                    isp_channel_skip_warmup_needed(control, ISP_MP_CHN_ID) ? 1 : 0;
             }
+            control->chn[ISP_MP_CHN_ID].skip_active =
+                isp_channel_skip_warmup_needed(control, ISP_MP_CHN_ID) ? 1 : 0;
 
             ISP_MP_LINE_START();
 
@@ -392,6 +435,9 @@ static void isp_mi_isr_callback(uint32_t state, void *args)
             ISP_MP_LINE_START();
             control->chn[ISP_MP_CHN_ID].line++;
             AVDK_MONITOR_MP_FRAME_PLUS();
+
+            control->chn[ISP_MP_CHN_ID].skip_active =
+            isp_channel_skip_warmup_needed(control, ISP_MP_CHN_ID) ? 1 : 0;
 
             if (control->chn[ISP_MP_CHN_ID].enable_flexa)
             {
@@ -1254,6 +1300,19 @@ bk_err_t bk_isp_flexa_sbi_config(isp_handle_t *handle, uint8_t chnl, uint8_t ena
         }
 
         isp_sbi_config->onLine = 0;
+        isp_sbi_config->streamAttr[0].streamEnable = 0;
+        isp_sbi_config->streamAttr[1].streamEnable = 0;
+
+        ret = VSI_MPI_ISP_SetSbiProducer(control->chn[chnl].channel, isp_sbi_config);
+        if (ret != BK_OK)
+        {
+            LOGE("%s, %d, set sbi producer fail, %d\n", __func__, __LINE__, ret);
+        }
+
+        os_memset(&flexa_sync, 0, sizeof(flexa_sync));
+        VSI_FLEXA_SetSyncAttr(control->chn[chnl].channel, &flexa_sync);
+
+        return ret;
     }
 
     flexa_sync.streamNum = isp_sbi_config->streamNum;
@@ -1263,13 +1322,19 @@ bk_err_t bk_isp_flexa_sbi_config(isp_handle_t *handle, uint8_t chnl, uint8_t ena
     flexa_sync.streamAttr[1].entryCnt = isp_sbi_config->streamAttr[1].entrySize;
     flexa_sync.streamAttr[2].streamId = ISP_FLEXA_STREAM_ID_CR;
     flexa_sync.streamAttr[2].entryCnt = isp_sbi_config->streamAttr[2].entrySize;
+
     VSI_FLEXA_SetSyncAttr(control->chn[chnl].channel, &flexa_sync);
     ret = VSI_MPI_ISP_SetSbiProducer(control->chn[chnl].channel, isp_sbi_config);
     if (ret != BK_OK)
     {
         LOGE("%s, %d, set sbi producer fail, %d\n", __func__, __LINE__, ret);
     }
-
+    ret = VSI_FLEXA_ClearSyncStreamStatus(control->chn[chnl].channel, &flexa_sync);
+    if (ret != BK_OK)
+    {
+        LOGE("%s, %d, clear flexa sync status fail, %d\n", __func__, __LINE__, ret);
+        return ret;
+    }
     return ret;
 }
 

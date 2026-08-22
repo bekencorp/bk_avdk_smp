@@ -30,6 +30,7 @@ typedef enum
 {
     ISP_MB_LINE_DONE = 0, /*isp mp & sp marco block line int*/
     ISP_FRAME_END_DONE, /*isp mp & sp frame end int*/
+    ISP_SBI_CLOSE,      /*flexa SBI closed due to ISP DATALOSS/SIZE_ERR; error=ISP_MIS bits, line=skip_frames_remaining*/
     ISP_ISR_MAX,
 } isp_isr_type_t;
 
