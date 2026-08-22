@@ -325,6 +325,8 @@ typedef struct {
 	void (*_rwnx_rc_phyclkrst_cntl_unpack)(uint8_t *rfadcclkinv, uint8_t *rfdacclkinv, uint8_t *fedacclkfreqsel, uint8_t *feclkfreqsel, uint8_t *dacclkfreqsel, uint8_t *adcclkfreqsel);
 	int (*_bk_feature_wifi_dsss_only_enable)(void);
 	bk_err_t (*_bk_pm_clock_ctrl)(uint32_t module, uint32_t clock_state);
+	bool (*_bk_pm_wifi_rtc_is_registered)(void);
+	void (*_sys_hal_wifi_enter_sleep_status_set)(uint32_t status);
 } wifi_os_funcs_t;
 extern wifi_os_funcs_t g_wifi_os_funcs;
 

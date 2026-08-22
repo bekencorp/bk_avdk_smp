@@ -485,6 +485,25 @@ static void bk_pm_wifi_rtc_clear_wrapper(void)
     bk_pm_wifi_rtc_clear();
 #endif
 }
+
+static bool bk_pm_wifi_rtc_is_registered_wrapper(void)
+{
+#if CONFIG_ANA_RTC || CONFIG_AON_RTC
+	return bk_pm_wifi_rtc_is_registered();
+#else
+	return false;
+#endif
+}
+
+static void sys_hal_wifi_enter_sleep_status_set_wrapper(uint32_t status)
+{
+#if (CONFIG_SOC_BK7259)
+	sys_hal_wifi_enter_sleep_status_set(status);
+#else
+	(void)status;
+#endif
+}
+
 static void wifi_vote_rf_ctrl_wrapper(uint8_t cmd)
 {
     if (cmd == RF_OPEN)
@@ -1694,6 +1713,8 @@ __attribute__((section(".dtcm_sec_data "))) wifi_os_funcs_t g_wifi_os_funcs = {
 	._rwnx_rc_phyclkrst_cntl_unpack = rwnx_rc_phyclkrst_cntl_unpack,
 	._bk_feature_wifi_dsss_only_enable = bk_feature_wifi_dsss_only_wrapper,
 	._bk_pm_clock_ctrl = bk_pm_clock_ctrl_wrapper,
+	._bk_pm_wifi_rtc_is_registered = bk_pm_wifi_rtc_is_registered_wrapper,
+	._sys_hal_wifi_enter_sleep_status_set = sys_hal_wifi_enter_sleep_status_set_wrapper,
 };
 
 __attribute__((section(".dtcm_sec_data "))) wifi_os_variable_t g_wifi_os_variable = {
