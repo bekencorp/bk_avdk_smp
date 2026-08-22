@@ -129,7 +129,7 @@ static void pm_ap_powerdown_proof_log(const char *stage)
 		shared_info.pm_cp0_sleep_state,
 		shared_info.pm_ap0_sleep_state,
 		bk_pm_ap_boot_success_get(),
-		mb_ipc_cpu_is_power_off(1),
+		mb_ipc_cpu_is_power_off(CONFIG_AP_SYS_MASTER_CPU_ID),
 		s_pm_cp1_ctrl_state,
 		s_pm_cp1_closing);
 }
@@ -433,7 +433,7 @@ boot_ap:
 		}
 		#endif
 		/* Keep mailbox heartbeat state machine aligned with every AP power-on. */
-		mb_ipc_reset_notify(1, 1);
+		mb_ipc_reset_notify(CONFIG_AP_SYS_MASTER_CPU_ID, 1);
 		LOGI("Ap_power_on: vote_on + context_restore + reset_notify(on)\r\n");
 #else
 		#if CONFIG_DEEP_LV
@@ -442,7 +442,7 @@ boot_ap:
 			extern void sys_hal_mailbox_regs_restore(void);
 			sys_hal_mailbox_regs_restore();
 			sys_hal_mailbox_saved_regs_dump();
-			mb_ipc_reset_notify(1, 1);
+			mb_ipc_reset_notify(CONFIG_AP_SYS_MASTER_CPU_ID, 1);
 			g_enter_sleep = 0x0;
 		}
 		#endif
@@ -620,11 +620,9 @@ static void pm_module_shutdown_cpu1(pm_power_module_name_e module)
 			#endif
 
 			bk_pm_module_vote_power_ctrl(POWER_SUB_DOMAIN_NAME_AP_CPU, PM_POWER_MODULE_STATE_OFF);
-#if CONFIG_PM_AP_FAST_BOOT_ENABLE
 			/* AP power is cut, force heartbeat state to OFF immediately. */
-			mb_ipc_reset_notify(1, 0);
+			mb_ipc_reset_notify(CONFIG_AP_SYS_MASTER_CPU_ID, 0);
 			LOGI("pm_dbg ap_power_off: vote_off + reset_notify(off)\r\n");
-#endif
 			pm_ap_powerdown_proof_log("after_power_vote_off");
 			//bk_pm_module_vote_cpu_freq(PM_DEV_ID_CPU1,PM_CPU_FRQ_DEFAULT);
 
