@@ -1213,9 +1213,12 @@ bk_err_t bk_spi_dma_duplex_xfer(spi_id_t id, const void *tx_data, uint32_t tx_si
 		spi_hal_disable_tx(&s_spi[id].hal);
 		spi_hal_disable_tx_fifo_int(&s_spi[id].hal);
 		spi_hal_disable_rx_fifo_int(&s_spi[id].hal);
-		extern uint32_t dma_wait_to_idle(dma_id_t id);
-		dma_wait_to_idle(s_spi[id].spi_tx_dma_chan);
-		dma_wait_to_idle(s_spi[id].spi_rx_dma_chan);
+		/* Transfer is already complete here (tx/rx semaphores taken). Stop the DMA
+		 * channels directly instead of dma_wait_to_idle(): in duplex mode the enable
+		 * bit does not auto-clear after the burst, so waiting would always spin to
+		 * DMA_MAX_BUSY_TIME and spam "chN busy,remain len=0". */
+		bk_dma_stop(s_spi[id].spi_tx_dma_chan);
+		bk_dma_stop(s_spi[id].spi_rx_dma_chan);
 		spi_exit_critical(int_level);
 
 		len -= chunk_size;

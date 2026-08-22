@@ -50,6 +50,29 @@
 #define CMD_WRITE_DISABLE         0x04
 #define SFLASH_SPI_BAUD_RATE      13000000
 
+/* 4-byte (32-bit) address mode: flashes larger than 16MB (>128Mbit) cannot be
+ * addressed with the standard 3-byte address, so the chip must be switched to
+ * 4-byte address mode (0xB7) and every command that carries an address must
+ * send 4 address bytes instead of 3. */
+#define CMD_ENTER_4BYTE_MODE      0xB7
+#define CMD_EXIT_4BYTE_MODE       0xE9
+
+/* JEDEC ID 3rd byte is the density code (log2 of the capacity in bytes for the
+ * common vendors: Winbond/GigaDevice/ISSI/Macronix/Puya/XMC).
+ *   0x18 = 2^24 = 16MB (128Mbit), 0x19 = 2^25 = 32MB (256Mbit), ... */
+#define FLASH_DENSITY_16MB        0x18
+#define FLASH_ADDR_BYTES_3        3
+#define FLASH_ADDR_BYTES_4        4
+
+/* Longest command layout is a page program: cmd(1) + addr(4) + one page data. */
+#define FLASH_CMD_ADDR_MAX_LEN    (1 + FLASH_ADDR_BYTES_4)
+
+/* Per-SPI-id address width (3 or 4 bytes), decided from the JEDEC density at
+ * bk_spi_flash_init(). Defaults to 3 bytes for backward compatibility. */
+static uint8_t s_flash_addr_bytes[SOC_SPI_UNIT_NUM];
+
+static void spi_flash_send_command(spi_id_t id, uint8_t cmd);
+
 struct spi_message
 {
     uint8_t*send_buf;
@@ -145,10 +168,27 @@ static uint32_t spi_flash_is_busy(spi_id_t id)
     return (ustatus_buf[0] & FLASH_STATUS_WIP_BIT);
 }
 
+/* Fill ucmd[] with the opcode followed by the flash address, using 3 or 4
+ * address bytes according to the detected address width for this SPI id.
+ * Returns the total command length (1 + address bytes). */
+static uint32_t spi_flash_fill_cmd_addr(spi_id_t id, uint8_t *ucmd, uint8_t cmd, uint32_t base_addr)
+{
+    uint32_t n = 0;
+
+    ucmd[n++] = cmd;
+    if (s_flash_addr_bytes[id] == FLASH_ADDR_BYTES_4)
+        ucmd[n++] = ((base_addr >> 24) & 0xff);
+    ucmd[n++] = ((base_addr >> 16) & 0xff);
+    ucmd[n++] = ((base_addr >> 8) & 0xff);
+    ucmd[n++] = (base_addr & 0xff);
+
+    return n;
+}
+
 static int spi_flash_read_page(spi_id_t id, uint32_t base_addr, uint32_t size, uint8_t *dst_data)
 {
     struct spi_message msg;
-    uint8_t ucmd[] = {CMD_READ_DATA, 0x00, 0x00, 0x00};
+    uint8_t ucmd[FLASH_CMD_ADDR_MAX_LEN] = {0};
 
     if(dst_data == NULL)
         return 1;
@@ -160,12 +200,9 @@ static int spi_flash_read_page(spi_id_t id, uint32_t base_addr, uint32_t size, u
         return 0;
 
     os_memset(&msg, 0, sizeof(struct spi_message));
-    ucmd[1] = ((base_addr >> 16) & 0xff);
-    ucmd[2] = ((base_addr >> 8) & 0xff);
-    ucmd[3] = (base_addr & 0xff);
 
     msg.send_buf = ucmd;
-    msg.send_len = sizeof(ucmd);
+    msg.send_len = spi_flash_fill_cmd_addr(id, ucmd, CMD_READ_DATA, base_addr);
     msg.recv_buf = dst_data;
     msg.recv_len = size;
 
@@ -207,14 +244,46 @@ bk_err_t bk_spi_flash_init(spi_id_t id)
         SPI_LOGE("[%s] bk_spi_init fail[ret=%d]!\r\n", __func__, ret);
         return ret;
     }
- 
+
+    /* Default to 3-byte addressing; switch to 4-byte for flashes > 16MB so a
+     * 32MB (256Mbit) or larger chip is fully accessible. */
+    s_flash_addr_bytes[id] = FLASH_ADDR_BYTES_3;
+
+    uint32_t flash_id = bk_spi_flash_read_id(id);
+    uint8_t density = (uint8_t)(flash_id & 0xff);
+    if ((flash_id != 0) && (density > FLASH_DENSITY_16MB))
+    {
+        s_flash_addr_bytes[id] = FLASH_ADDR_BYTES_4;
+
+        while(spi_flash_is_busy(id))
+        {
+            rtos_delay_milliseconds(DELAY_WHEN_BUSY_MS);
+        }
+        spi_flash_send_command(id, CMD_WRITE_ENABLE);
+        spi_flash_send_command(id, CMD_ENTER_4BYTE_MODE);
+
+        SPI_LOGI("spi flash id:%08x density:%02x, enable 4-byte address mode\r\n",
+                 flash_id, density);
+    }
+
     return ret;
 }
 
 bk_err_t bk_spi_flash_deinit(spi_id_t id)
 {
     bk_err_t ret = BK_OK;
- 
+
+    /* Restore the chip to the default 3-byte address mode before releasing it. */
+    if (s_flash_addr_bytes[id] == FLASH_ADDR_BYTES_4)
+    {
+        while(spi_flash_is_busy(id))
+        {
+            rtos_delay_milliseconds(DELAY_WHEN_BUSY_MS);
+        }
+        spi_flash_send_command(id, CMD_EXIT_4BYTE_MODE);
+        s_flash_addr_bytes[id] = FLASH_ADDR_BYTES_3;
+    }
+
     ret = bk_spi_deinit(id);
     if (BK_OK != ret)
     {
@@ -283,7 +352,7 @@ static void spi_flash_send_command(spi_id_t id, uint8_t cmd)
 static void spi_flash_earse(spi_id_t id, uint32_t base_addr, uint32_t mode)
 {
     struct spi_message msg;
-    uint8_t ucmd[] = {0x00, 0x00, 0x00, 0x00};
+    uint8_t ucmd[FLASH_CMD_ADDR_MAX_LEN] = {0};
     uint32_t send_len;
 
     os_memset(&msg, 0, sizeof(struct spi_message));
@@ -295,17 +364,19 @@ static void spi_flash_earse(spi_id_t id, uint32_t base_addr, uint32_t mode)
     }
     else
     {
+        uint8_t erase_cmd;
+
         if(mode == ERASE_MODE_BLOCK_64K)
         {
-            ucmd[0] = CMD_ERASE_BLK_64K;
+            erase_cmd = CMD_ERASE_BLK_64K;
         }
         else if(mode == ERASE_MODE_BLOCK_32K)
         {
-            ucmd[0] = CMD_ERASE_BLK_32K;
+            erase_cmd = CMD_ERASE_BLK_32K;
         }
         else if(mode == ERASE_MODE_SECTOR)
         {
-            ucmd[0] = CMD_ERASE_SECTOR;
+            erase_cmd = CMD_ERASE_SECTOR;
         }
         else
         {
@@ -313,10 +384,7 @@ static void spi_flash_earse(spi_id_t id, uint32_t base_addr, uint32_t mode)
             return;
         }
 
-        ucmd[1] = ((base_addr >> 16) & 0xff);
-        ucmd[2] = ((base_addr >> 8) & 0xff);
-        ucmd[3] = (base_addr & 0xff);
-        send_len = 4;
+        send_len = spi_flash_fill_cmd_addr(id, ucmd, erase_cmd, base_addr);
     }
 
     msg.send_buf = ucmd;
@@ -392,6 +460,7 @@ static int spi_flash_program_page(spi_id_t id, uint32_t base_addr, uint32_t size
 {
     struct spi_message msg;
     uint8_t *ucmd;
+    uint32_t cmd_len;
 
     if(src_data == NULL)
         return 1;
@@ -402,21 +471,18 @@ static int spi_flash_program_page(spi_id_t id, uint32_t base_addr, uint32_t size
     if(size == 0)
         return 0;
 
-    ucmd = os_malloc(size + 4);
+    ucmd = os_malloc(size + FLASH_CMD_ADDR_MAX_LEN);
     if(!ucmd)
         return 1;
 
     os_memset(&msg, 0, sizeof(struct spi_message));
-    os_memset(ucmd, 0, size + 4);
+    os_memset(ucmd, 0, size + FLASH_CMD_ADDR_MAX_LEN);
 
-    ucmd[0] = CMD_PAGE_PROG;
-    ucmd[1] = ((base_addr >> 16) & 0xff);
-    ucmd[2] = ((base_addr >> 8) & 0xff);
-    ucmd[3] = (base_addr & 0xff);
-    os_memcpy(&ucmd[4], src_data, size);
+    cmd_len = spi_flash_fill_cmd_addr(id, ucmd, CMD_PAGE_PROG, base_addr);
+    os_memcpy(&ucmd[cmd_len], src_data, size);
 
     msg.send_buf = ucmd;
-    msg.send_len = size + 4;
+    msg.send_len = cmd_len + size;
     msg.recv_buf = NULL;
     msg.recv_len = 0;
 

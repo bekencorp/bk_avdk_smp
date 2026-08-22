@@ -33,7 +33,7 @@ static void cli_spi_help(void)
 	CLI_LOGD("spi_peer {master|slave} {id} {baud} {rounds} {data_len} [gap_ms] [dma|fifo]  -- dual board peer\r\n");
 	CLI_LOGD("spi_peer stop\r\n");
 	CLI_LOGD("spi_api_test {id}                            -- negative / API validation test\r\n");
-	CLI_LOGD("spi_flash {id} {readid|erase|read|write} {addr} {len}  -- compat/debug, needs CONFIG_SPI_MST_FLASH\r\n");
+	CLI_LOGD("spi_flash {id} {init|deinit|readid|erase|read|write} {addr} {len}  -- init enables 4-byte addr for >16MB, needs CONFIG_SPI_MST_FLASH\r\n");
 }
 
 static void cli_spi_rx_isr(spi_id_t id, void *param)
@@ -943,10 +943,24 @@ static void cli_spi_flash_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc
 	CLI_LOGD("spi_id:%08x\r\n",spi_id);
 
 #if CONFIG_SPI_MST_FLASH
+	extern bk_err_t bk_spi_flash_init(spi_id_t id);
+	extern bk_err_t bk_spi_flash_deinit(spi_id_t id);
 	extern uint32_t bk_spi_flash_read_id(spi_id_t id);
 	extern int bk_spi_flash_read(spi_id_t id, uint32_t base_addr, uint8_t *dst_data, uint32_t size);
 	extern int bk_spi_flash_write(spi_id_t id, uint32_t base_addr, const void *data, uint32_t size);
 	extern int bk_spi_flash_erase(spi_id_t id, uint32_t base_addr, uint32_t size);
+	if (os_strcmp(argv[2], "init") == 0) {
+		/* Also detects flash capacity via JEDEC id and enables 4-byte address
+		 * mode for chips > 16MB, which is required to reach the 16M~32M range. */
+		bk_err_t ret = bk_spi_flash_init(spi_id);
+		CLI_LOGI("spi_flash %u init ret=%d\r\n", spi_id, ret);
+		return;
+	}
+	if (os_strcmp(argv[2], "deinit") == 0) {
+		bk_err_t ret = bk_spi_flash_deinit(spi_id);
+		CLI_LOGI("spi_flash %u deinit ret=%d\r\n", spi_id, ret);
+		return;
+	}
 	if (os_strcmp(argv[2], "readid") == 0) {
 		bk_spi_flash_read_id(spi_id);
 		return;
@@ -1020,7 +1034,7 @@ DRV_CLI_CMD_EXPORT static const struct cli_command s_spi_commands[] = {
 	{"spi_lb", "spi_lb {id} [quick|full]", cli_spi_lb_cmd},
 	{"spi_peer", "spi_peer {master|slave} {id} {baud} {rounds} {data_len} [gap_ms] [dma|fifo] | spi_peer stop", cli_spi_peer_cmd},
 	{"spi_api_test", "spi_api_test {id}", cli_spi_api_test_cmd},
-	{"spi_flash", "spi_flash {id} {readid|read|write|erase} {addr} {len}[...]", cli_spi_flash_cmd},
+	{"spi_flash", "spi_flash {id} {init|deinit|readid|read|write|erase} {addr} {len}[...]", cli_spi_flash_cmd},
 };
 
 int bk_spi_register_cli_test_feature(void)
