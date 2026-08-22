@@ -205,7 +205,10 @@ static void secure_xip_log_progress(void)
 		return;
 	}
 	pct = (int)(((uint64_t)s_secure_xip.payload_written * 100) / s_secure_xip.payload_total);
-	if ((pct - s_secure_xip.last_log_pct) >= 10 || pct == 100) {
+	/* Coarse 10% steps for the bulk of the download; switch to fine 1% steps from
+	 * 95% onward so testers get frequent feedback near the end (95/96/.../100). */
+	int step = (pct >= 95) ? 1 : 10;
+	if ((pct - s_secure_xip.last_log_pct) >= step || pct == 100) {
 		OTA_LOGI("secure xip: staged %d%%\r\n", pct);
 		s_secure_xip.last_log_pct = pct;
 	}

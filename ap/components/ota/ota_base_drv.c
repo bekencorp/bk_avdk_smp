@@ -37,8 +37,9 @@ extern int ble_callback_deal_handler(uint32_t deal_flash_time);
  */
 static void ota_log_progress_throttled(f_ota_t *ota_ptr)
 {
-    static int last_pct = -5;
+    static int last_pct = -10;
     int cur_pct;
+    int step;
 
     if (ota_ptr == NULL || ota_ptr->image_size == 0) {
         return;
@@ -48,9 +49,15 @@ static void ota_log_progress_throttled(f_ota_t *ota_ptr)
                      / ota_ptr->image_size) * 100);
 
     if (cur_pct < last_pct) {
-        last_pct = -5;
+        last_pct = -10;
     }
-    if ((cur_pct - last_pct) >= 5 || cur_pct == 100) {
+    /* Kept consistent with the secure world (ota_secure_xip/ota_secure_overwrite):
+     * coarse 10% steps for the bulk of the download, then fine 1% steps from 95%
+     * onward so testers get frequent feedback near the end (95/96/.../100).
+     * Covers both the AB-partition and compressed non-secure paths (both call
+     * this from ota_base_drv data_process). */
+    step = (cur_pct >= 95) ? 1 : 10;
+    if ((cur_pct - last_pct) >= step || cur_pct == 100) {
         OTA_LOGI("cyg_recvlen_per:(%d%%)\r\n", cur_pct);
         last_pct = cur_pct;
     }
