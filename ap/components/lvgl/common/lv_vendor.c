@@ -9,6 +9,7 @@
 #include "lv_vendor.h"
 #include "gpu_rotate/lv_gpu_rotate.h"
 #include "gpu_core.h"
+#include <modules/pm.h>
 #include <modules/vg_lite_gpu/vg_lite.h>
 
 #define TAG "lvgl"
@@ -271,6 +272,7 @@ bk_err_t lv_vendor_init(lv_vnd_config_t *config)
     }
 
     vnd_data->lv_new_frame_flag = true;
+    bk_pm_module_vote_cpu_freq(PM_DEV_ID_LVGL, PM_CPU_FRQ_480M);
 
 #if defined(LV_USE_DRAW_VG_LITE) && LV_USE_DRAW_VG_LITE
     lv_gpu_init(vnd_data->config.width / 4, vnd_data->config.height / 4);
@@ -424,6 +426,7 @@ fail:
     }
 
     lv_vendor_initialized = false;
+    bk_pm_module_vote_cpu_freq(PM_DEV_ID_LVGL, PM_CPU_FRQ_DEFAULT);
 
     return BK_FAIL;
 }
@@ -512,6 +515,8 @@ void lv_vendor_deinit(void)
         LOGD("%s already deinit\n", __func__);
         return;
     }
+
+    bk_pm_module_vote_cpu_freq(PM_DEV_ID_LVGL, PM_CPU_FRQ_DEFAULT);
 
 #if CONFIG_LVGL_V8
     lv_disp_t *disp = lv_disp_get_default();
