@@ -63,6 +63,7 @@ void video_play_display_worker_deinit(void);
 void video_play_lcd_runtime_format_reset(void);
 void video_play_lcd_runtime_format_mark(video_play_lcd_video_fmt_t fmt);
 void video_play_video_set_rotate_mode(video_play_rotate_mode_t mode);
+void video_play_video_set_h264_argb8888_compressed(bool compressed);
 video_play_rotate_mode_t video_play_video_get_rotate_mode(void);
 uint32_t video_play_video_get_rotate_degree(void);
 

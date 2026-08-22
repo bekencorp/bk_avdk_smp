@@ -86,12 +86,15 @@ static const char *video_play_engine_h264_decoder_mode_name(video_play_engine_h2
 }
 
 static video_play_lcd_video_fmt_t video_play_engine_lcd_format_for_h264_decoder(
-    video_play_engine_h264_decoder_mode_t mode)
+    video_play_engine_h264_decoder_mode_t mode,
+    video_play_rotate_mode_t rotate_mode)
 {
     if (mode == VIDEO_PLAY_ENGINE_H264_DECODER_FRAME)
     {
-#if VIDEO_PLAY_H264_FRAME_RGB888_ENABLE
-        return VIDEO_PLAY_LCD_VIDEO_FMT_RGB888_RAW;
+#if VIDEO_PLAY_H264_FRAME_ARGB8888_ENABLE
+        return (rotate_mode == VIDEO_PLAY_ROTATE_NONE)
+            ? VIDEO_PLAY_LCD_VIDEO_FMT_ARGB8888_RAW
+            : VIDEO_PLAY_LCD_VIDEO_FMT_ARGB8888_COMPRESSED;
 #else
         return VIDEO_PLAY_LCD_VIDEO_FMT_NV12_RAW;
 #endif
@@ -741,6 +744,9 @@ void cli_video_play_engine_cmd(char *pcWriteBuffer, int xWriteBufferLen, int arg
         {
             video_play_video_set_rotate_mode(requested_rotate_mode);
         }
+        video_play_video_set_h264_argb8888_compressed(
+            requested_h264_decoder_mode == VIDEO_PLAY_ENGINE_H264_DECODER_FLEXA_GPU &&
+            !VIDEO_PLAY_H264_FLEXA_RAW_ARGB8888_ENABLE);
 
         /*
          * Allow re-play after EOF without re-creating the whole engine.
@@ -777,7 +783,8 @@ void cli_video_play_engine_cmd(char *pcWriteBuffer, int xWriteBufferLen, int arg
         {
             ret = video_play_lcd_open_with_format(
                 &s_lcd_display_handle,
-                video_play_engine_lcd_format_for_h264_decoder(requested_h264_decoder_mode));
+                video_play_engine_lcd_format_for_h264_decoder(requested_h264_decoder_mode,
+                                                              requested_rotate_mode));
             if (ret != AVDK_ERR_OK)
             {
                 LOGE("%s: video_play_lcd_open failed, ret:%d\n", __func__, ret);
@@ -828,25 +835,38 @@ void cli_video_play_engine_cmd(char *pcWriteBuffer, int xWriteBufferLen, int arg
         cfg.audio.decode_complete_cb = video_play_audio_decode_complete_cb;
         cfg.video.decode_complete_cb = video_play_video_decode_complete_cb;
 
-        /* Frame defaults to NV12. Flexa follows H264_FLEXA_RAW_ARGB8888_ENABLE
-         * so GPU output and DPU decompress setting stay in lockstep. */
+        /* Frame mode emits raw ARGB8888 directly when no rotation is requested.
+         * Rotated frame output stays NV12 and uses the display-worker GPU
+         * post-process path, which produces compressed ARGB8888. */
         cfg.video.output_format = PIXEL_FMT_NV12;
-#if VIDEO_PLAY_H264_FRAME_RGB888_ENABLE
-        if (requested_h264_decoder_mode == VIDEO_PLAY_ENGINE_H264_DECODER_FRAME)
+#if VIDEO_PLAY_H264_FRAME_ARGB8888_ENABLE
+        if (requested_h264_decoder_mode == VIDEO_PLAY_ENGINE_H264_DECODER_FRAME &&
+            requested_rotate_mode == VIDEO_PLAY_ROTATE_NONE)
         {
-            cfg.video.output_format = PIXEL_FMT_RGB888;
+            cfg.video.output_format = PIXEL_FMT_ARGB8888;
         }
 #endif
         cfg.video.rotate_degree = video_play_video_get_rotate_degree();
-        uint16_t display_w = 0U;
-        uint16_t display_h = 0U;
-        if (video_play_lcd_get_size(&display_w, &display_h))
+        /* Frame mode: do NOT force LCD panel size as decode/PP scale target.
+         * PP upscale (e.g. 320x360 -> 1080x1920) is slow and can hang; keep
+         * source/crop size and let the app match display size to the frame.
+         * Flexa may still use panel size as the GPU compose target. */
+        if (requested_h264_decoder_mode != VIDEO_PLAY_ENGINE_H264_DECODER_FRAME &&
+            requested_h264_decoder_mode != VIDEO_PLAY_ENGINE_H264_DECODER_FRAME_ZEROCOPY)
         {
-            cfg.video.display_width = display_w;
-            cfg.video.display_height = display_h;
-            LOGI("%s: video display target %ux%u\n",
-                 __func__, (unsigned)display_w, (unsigned)display_h);
+            uint16_t display_w = 0U;
+            uint16_t display_h = 0U;
+            if (video_play_lcd_get_size(&display_w, &display_h))
+            {
+                cfg.video.display_width = display_w;
+                cfg.video.display_height = display_h;
+            }
         }
+        LOGI("%s: video decode target %ux%u (h264_decoder=%s)\n",
+             __func__,
+             (unsigned)cfg.video.display_width,
+             (unsigned)cfg.video.display_height,
+             video_play_engine_h264_decoder_mode_name(requested_h264_decoder_mode));
         s_play_user_ctx.lcd_handle = s_lcd_display_handle;
         // Audio output may be opened later after probing media info.
         s_play_user_ctx.audio_player_handle = NULL;

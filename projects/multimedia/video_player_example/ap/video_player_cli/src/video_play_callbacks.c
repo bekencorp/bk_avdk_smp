@@ -29,6 +29,7 @@
 static video_play_lcd_video_fmt_t s_runtime_lcd_fmt = VIDEO_PLAY_LCD_VIDEO_FMT_NV12_RAW;
 static bool s_runtime_lcd_fmt_valid = false;
 static video_play_rotate_mode_t s_video_rotate_mode = VIDEO_PLAY_ROTATE_NONE;
+static bool s_h264_argb8888_compressed = true;
 
 static void video_play_lcd_sync_format_for_output_frame(bk_display_ctlr_handle_t handle,
                                                         uint32_t display_pixel_fmt,
@@ -99,6 +100,11 @@ void video_play_video_set_rotate_mode(video_play_rotate_mode_t mode)
 {
     s_video_rotate_mode = mode;
     video_play_lcd_runtime_format_reset();
+}
+
+void video_play_video_set_h264_argb8888_compressed(bool compressed)
+{
+    s_h264_argb8888_compressed = compressed;
 }
 
 video_play_rotate_mode_t video_play_video_get_rotate_mode(void)
@@ -399,6 +405,7 @@ typedef struct
     uint16_t width;
     uint16_t height;
     video_play_rotate_mode_t rotate_mode;   /* snapshot at enqueue time */
+    bool h264_argb8888_compressed;
     bk_display_ctlr_handle_t lcd_handle;
 } video_play_display_node_t;
 
@@ -472,11 +479,10 @@ static void video_play_display_process_node(const video_play_display_node_t *nod
     bool display_argb8888_compressed = false;
     if (display_pixel_fmt == PIXEL_FMT_ARGB8888)
     {
-#if VIDEO_PLAY_H264_FLEXA_RAW_ARGB8888_ENABLE
-        display_argb8888_compressed = gpu_post_frame;
-#else
-        display_argb8888_compressed = true;
-#endif
+        display_argb8888_compressed =
+            gpu_post_frame ||
+            (node->video_format == VIDEO_PLAYER_VIDEO_FORMAT_H264 &&
+             node->h264_argb8888_compressed);
     }
 
     video_play_lcd_sync_format_for_output_frame(node->lcd_handle,
@@ -662,6 +668,7 @@ void video_play_video_decode_complete_cb(void *user_data, const video_player_vid
     node.width            = (meta != NULL) ? (uint16_t)meta->video.width : 0U;
     node.height           = (meta != NULL) ? (uint16_t)meta->video.height : 0U;
     node.rotate_mode      = rotate_mode;
+    node.h264_argb8888_compressed = s_h264_argb8888_compressed;
     node.lcd_handle       = ctx->lcd_handle;
 
     /* Drop-oldest on full so the newest frame always wins. Single producer means
