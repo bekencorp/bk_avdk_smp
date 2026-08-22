@@ -137,10 +137,6 @@ static void bk_coredump_log_ahb_arb_mux_sweep(const char *region_name)
     (void)ahbp[0x23U];
 }
 
-/* VC8000 H264D / MJPEG decoder base. The CP reg_base.h does not export it, so
- * define it locally for the forensic register snapshot. */
-#define BK_COREDUMP_H26D_REG_BASE   0x4C210000U
-
 /*
  * The coredump prompt buffer is char[128] (bk_coredump_uart.c), so a single
  * prompt longer than ~118 visible chars is silently truncated by vsnprintf.
@@ -166,7 +162,7 @@ static void bk_coredump_log_ahb_state_before_sram(const char *region_name)
     volatile uint32_t *ahbp  = (volatile uint32_t *)((uintptr_t)SOC_SYS_AHBP_REG_BASE);
     volatile uint32_t *hpdma = (volatile uint32_t *)((uintptr_t)SOC_HPDMA_REG_BASE);
     volatile uint32_t *h26e  = (volatile uint32_t *)((uintptr_t)SOC_H26E_REG_BASE);
-    volatile uint32_t *h26d  = (volatile uint32_t *)((uintptr_t)BK_COREDUMP_H26D_REG_BASE);
+    volatile uint32_t *h26d  = (volatile uint32_t *)((uintptr_t)SOC_H26D_REG_BASE);
     volatile uint32_t *gpu   = (volatile uint32_t *)((uintptr_t)SOC_GPU_REG_BASE);
     volatile uint32_t *dpu   = (volatile uint32_t *)((uintptr_t)SOC_DPU_REG_BASE);
 
@@ -262,7 +258,6 @@ static void bk_coredump_probe_sweep_sram(const char *region_name,
 
 typedef void (*bk_dump_mem_getter_t)(bk_dump_mem_info_t *info);
 
-#define COREDUMP_PSRAM0_PROBE_ADDR        (0x60000000U)
 #define COREDUMP_PSRAM0_PROBE_PRE_SIZE    (0x100U)
 #define COREDUMP_PSRAM0_PROBE_POST_SIZE   (0x10U)
 #define COREDUMP_PSRAM0_PROBE_PATTERN     (0x12345678U)
@@ -270,27 +265,28 @@ typedef void (*bk_dump_mem_getter_t)(bk_dump_mem_info_t *info);
 #define COREDUMP_AP_DTCM_PROBE_SIZE       (0x20U)
 #define COREDUMP_AP_SRAM_PROBE_PATTERN    (0x5a5a1234U)
 #define COREDUMP_AP_DTCM_PROBE_PATTERN    (0xa5a54321U)
-#define COREDUMP_AP_SRAM0_PROBE_ADDR      (0x28100000U)
-#define COREDUMP_AP_SRAM1_PROBE_ADDR      (0x28180000U)
-#define COREDUMP_AP_DTCM_PROBE_ADDR       (0x28200000U)
 
 static void bk_dump_psram0_base_write_probe(void)
 {
-    volatile uint32_t *probe = (volatile uint32_t *)COREDUMP_PSRAM0_PROBE_ADDR;
+    uint32_t probe_addr = (uint32_t)SOC_GET_NS_ADDR(SOC_PSRAM0_DATA_BASE);
+    volatile uint32_t *probe = (volatile uint32_t *)(uintptr_t)probe_addr;
     uint32_t before = probe[0];
 
-    bk_coredump_write_memory("PSRAM0_BASE_PRE", COREDUMP_PSRAM0_PROBE_ADDR,
-        COREDUMP_PSRAM0_PROBE_ADDR + COREDUMP_PSRAM0_PROBE_PRE_SIZE);
+    bk_coredump_write_memory("PSRAM0_BASE_PRE", probe_addr,
+        probe_addr + COREDUMP_PSRAM0_PROBE_PRE_SIZE);
 
     probe[0] = COREDUMP_PSRAM0_PROBE_PATTERN;
     __DSB();
 
     bk_coredump_write_prompt(
         "PSRAM0_BASE_WRITE_PROBE addr=0x%08lx before=0x%08lx write=0x%08lx after=0x%08lx\r\n",
-        COREDUMP_PSRAM0_PROBE_ADDR, before, COREDUMP_PSRAM0_PROBE_PATTERN, probe[0]);
+        probe_addr, before, COREDUMP_PSRAM0_PROBE_PATTERN, probe[0]);
 
-    bk_coredump_write_memory("PSRAM0_BASE_POST", COREDUMP_PSRAM0_PROBE_ADDR,
-        COREDUMP_PSRAM0_PROBE_ADDR + COREDUMP_PSRAM0_PROBE_POST_SIZE);
+    bk_coredump_write_memory("PSRAM0_BASE_POST", probe_addr,
+        probe_addr + COREDUMP_PSRAM0_PROBE_POST_SIZE);
+
+    probe[0] = before;
+    __DSB();
 }
 
 static void bk_dump_fixed_write_probe(const char *write_name, const char *pre_name, const char *post_name,
@@ -309,24 +305,53 @@ static void bk_dump_fixed_write_probe(const char *write_name, const char *pre_na
         write_name, addr, before, pattern, probe[0]);
 
     bk_coredump_write_memory(post_name, addr, addr + size);
+
+    /* Preserve the captured fault scene after the diagnostic write test. */
+    probe[0] = before;
+    __DSB();
+}
+
+static const bk_dump_mem_info_t *bk_coredump_find_sram_info(char bank)
+{
+    uint32_t count = bk_get_sram_info_count();
+    const bk_dump_mem_info_t *list = bk_get_sram_info_list();
+
+    for (uint32_t i = 0; i < count; i++) {
+        const char *name = list[i].name;
+        if (name != NULL &&
+            name[0] == 'S' && name[1] == 'R' && name[2] == 'A' &&
+            name[3] == 'M' && name[4] == bank && name[5] == '\0') {
+            return &list[i];
+        }
+    }
+    return NULL;
 }
 
 static void bk_dump_ap_sram_dtcm_write_probes(void)
 {
-    bk_dump_fixed_write_probe("AP_SRAM_28180000_WRITE_PROBE",
-        "AP_SRAM_28180000_PRE", "AP_SRAM_28180000_POST",
-        COREDUMP_AP_SRAM1_PROBE_ADDR,
-        COREDUMP_AP_SRAM_PROBE_SIZE, COREDUMP_AP_SRAM_PROBE_PATTERN);
+    const bk_dump_mem_info_t *sram5 = bk_coredump_find_sram_info('5');
+    const bk_dump_mem_info_t *sram3 = bk_coredump_find_sram_info('3');
+    bk_dump_mem_info_t dtcm = {0};
 
-    bk_dump_fixed_write_probe("AP_SRAM_28100000_WRITE_PROBE",
-        "AP_SRAM_28100000_PRE", "AP_SRAM_28100000_POST",
-        COREDUMP_AP_SRAM0_PROBE_ADDR,
-        COREDUMP_AP_SRAM_PROBE_SIZE, COREDUMP_AP_SRAM_PROBE_PATTERN);
+    if (sram5 != NULL && sram5->size >= COREDUMP_AP_SRAM_PROBE_SIZE) {
+        bk_dump_fixed_write_probe("AP_SRAM5_WRITE_PROBE",
+            "AP_SRAM5_PRE", "AP_SRAM5_POST", sram5->start_addr,
+            COREDUMP_AP_SRAM_PROBE_SIZE, COREDUMP_AP_SRAM_PROBE_PATTERN);
+    }
 
-    bk_dump_fixed_write_probe("AP_DTCM_28200000_WRITE_PROBE",
-        "AP_DTCM_28200000_PRE", "AP_DTCM_28200000_POST",
-        COREDUMP_AP_DTCM_PROBE_ADDR,
-        COREDUMP_AP_DTCM_PROBE_SIZE, COREDUMP_AP_DTCM_PROBE_PATTERN);
+    if (sram3 != NULL && sram3->size >= COREDUMP_AP_SRAM_PROBE_SIZE) {
+        /* start_addr is SRAM3_DUMP_BASE, after the AP Secure shim window. */
+        bk_dump_fixed_write_probe("AP_SRAM3_WRITE_PROBE",
+            "AP_SRAM3_PRE", "AP_SRAM3_POST", sram3->start_addr,
+            COREDUMP_AP_SRAM_PROBE_SIZE, COREDUMP_AP_SRAM_PROBE_PATTERN);
+    }
+
+    bk_get_ap_dtcm_info(&dtcm);
+    if (dtcm.start_addr != 0U && dtcm.size >= COREDUMP_AP_DTCM_PROBE_SIZE) {
+        bk_dump_fixed_write_probe("AP_DTCM_WRITE_PROBE",
+            "AP_DTCM_PRE", "AP_DTCM_POST", dtcm.start_addr,
+            COREDUMP_AP_DTCM_PROBE_SIZE, COREDUMP_AP_DTCM_PROBE_PATTERN);
+    }
 }
 
 static void bk_dump_ap_window(const char *name, bk_dump_mem_getter_t getter)
@@ -373,8 +398,10 @@ static void bk_dump_ap_all_sram(void)
             sram_info_list[i].start_addr + sram_info_list[i].size);
     }
 
+#if CONFIG_SPE
     bk_coredump_write_memory("MEM_CHECK", (uint32_t)SOC_MEM_CHECK_REG_BASE,
         (uint32_t)(SOC_MEM_CHECK_REG_BASE + 0x81 * 4));
+#endif
 }
 
 static void bk_dump_ap_extra_mem(void)
@@ -540,7 +567,10 @@ void bk_dump_all_sram(void)
             sram_info_list[i].start_addr + sram_info_list[i].size
         );
     }
-    bk_coredump_write_memory("MEM_CHECK", (uint32_t)SOC_MEM_CHECK_REG_BASE, (uint32_t)(SOC_MEM_CHECK_REG_BASE + 0x81 * 4));
+#if CONFIG_SPE
+    bk_coredump_write_memory("MEM_CHECK", (uint32_t)SOC_MEM_CHECK_REG_BASE,
+        (uint32_t)(SOC_MEM_CHECK_REG_BASE + 0x81 * 4));
+#endif
 }
 
 void bk_dump_extra_mem(void)
