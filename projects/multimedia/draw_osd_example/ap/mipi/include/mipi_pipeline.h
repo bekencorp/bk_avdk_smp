@@ -16,8 +16,8 @@ extern "C" {
  *   GC2053 CSI --> ISP MP(NV12 flexa) --> bk_flexa_isp_gpu_bond
  *       --> GPU(rotate90 + NV12->ARGB8888 + HV compress) --> DPU/MIPI LCD(hx8399c 1080x1920)
  *
- * OSD cases compose icons/text into sprites, get GPU via mipi_pipeline_get_gpu_handle(),
- * and SRC_OVER onto live video each frame with bk_gpu_blit_set(alpha_blend=1).
+ * OSD cases compose icons/text into sprites and get the GPU controller via
+ * mipi_pipeline_get_gpu_handle(); the controller composites the shared overlay.
  *
  * Mutually exclusive with UVC path: both own the same GPU + MIPI display; do not open both.
  *

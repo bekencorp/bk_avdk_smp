@@ -4,7 +4,7 @@
 
 ## 1. 项目概述
 
-本项目演示 Beken BK7259 平台上的 **GPU OSD（On-Screen Display）** 叠加：基于 `bk_draw_osd` 组件，将图标（ARGB8888）和字库文字合成到 sprite，注册给视频 pipeline 的 GPU，每帧 `SRC_OVER` 融合到 MIPI / UVC 实时画面上。
+本项目演示 Beken BK7259 平台上的 **GPU OSD（On-Screen Display）** 叠加：MIPI/UVC pipeline 在 GPU open 后创建独立 `bk_gpu_overlay`，`bk_draw_osd` 绑定 overlay，将图标和文字 sprite 作为租约图层提交并按序 `SRC_OVER` 到实时画面；关闭时先删除 OSD/overlay，再关闭 GPU。
 
 当前工程提供：
 

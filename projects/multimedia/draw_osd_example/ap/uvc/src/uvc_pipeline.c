@@ -23,6 +23,7 @@
 #include <components/bk_flexa_bond.h>
 
 #include "display.h"
+#include "osd_uvc.h"
 #include "uvc_pipeline.h"
 
 #define TAG "uvc_pipe"
@@ -944,7 +945,14 @@ err_bond:
     bk_flexa_mjpegd_gpu_bond_stop(s_mjpegd_gpu_bond);
     s_mjpegd_gpu_bond = NULL;
 err_display:
-    display_close();
+    {
+        avdk_err_t close_ret = display_close();
+        if (close_ret != AVDK_ERR_OK) {
+            LOGE("display close failed %d; decode resources retained\n",
+                 close_ret);
+            return close_ret;
+        }
+    }
 err_decode:
     decode_close();
     return ret;
@@ -952,6 +960,10 @@ err_decode:
 
 avdk_err_t uvc_pipeline_close(void)
 {
+    avdk_err_t ret;
+
+    /* Raw pipeline close is safe even when callers bypass osd_uvc_close(). */
+    (void)osd_uvc_clear();
     if (s_pipeline_uvc_handle != NULL) {
         (void)uvc_camera_turn_off(s_pipeline_uvc_handle);
         s_pipeline_uvc_handle = NULL;
@@ -962,7 +974,11 @@ avdk_err_t uvc_pipeline_close(void)
         s_mjpegd_gpu_bond = NULL;
     }
 
-    (void)display_close();
+    ret = display_close();
+    if (ret != AVDK_ERR_OK) {
+        LOGE("display close failed %d; decode resources retained\n", ret);
+        return ret;
+    }
     (void)decode_close();
 
     LOGI("uvc pipeline close ok\n");

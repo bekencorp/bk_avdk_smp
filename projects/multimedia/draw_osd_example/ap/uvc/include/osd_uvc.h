@@ -15,7 +15,8 @@ extern "C" {
  *
  * Like MIPI, the UVC pipeline GPU is already in use (NV12->ARGB8888 scale/rotate/compress);
  * a second VG-Lite context is not allowed. blend_info[] elements are composited on CPU into
- * transparent sprites (PSRAM, src_format=ABGR8888 matching BGRA backdrop), then SRC_OVER via bk_gpu_blit_set.
+ * transparent sprites (PSRAM, src_format=ABGR8888 matching BGRA backdrop),
+ * then updates a logical bk_gpu_overlay layer for SRC_OVER composition.
  *
  * Pipeline must be open before use (osd_uvc_show auto-starts it).
  */

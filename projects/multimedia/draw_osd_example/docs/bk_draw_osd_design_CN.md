@@ -39,7 +39,7 @@
  │ (ARGB8888,    │   │     CPU 取字/取图 → A8/ARGB → PSRAM sprite       │
  │  uvc GPU)     │   │     bk_osd_lv_font.c(LVGL 解码) / bkfont(emWin 解码)│
  └───────────────┘   └──────────────────┬────────────────────────────┘
-                                         │ bk_gpu_blit_set(alpha_blend=1)
+                                         │ bk_gpu_blit_set(enable_alpha_blend=1)
                                          ▼
                           外部 pipeline GPU（每帧 SRC_OVER 叠到视频）
 ```
@@ -49,7 +49,7 @@
 VG-Lite 在本 SDK 里是**单例全局上下文**，归各自 pipeline 的 `bk_gpu` 控制器所有。OSD **不再**自建 VG-Lite 上下文，统一走 pipeline 提交模型：
 
 - 每个 `bk_draw_osd_new(config)` 绑定一个外部 `config->gpu`（pipeline GPU handle），返回**独立实例**；
-- 合成完调用 `commit`：`bk_gpu_blit_set(gpu, sprite, {alpha_blend=1, src_format, dst_x/y})` 把 sprite 注册给该 GPU，GPU 每帧对视频做一次 SRC_OVER；
+- 合成完调用 `commit`：`bk_gpu_blit_set(gpu, sprite, {enable_alpha_blend=1, src_format, dst_x/y})` 把 sprite 注册给该 GPU，GPU 每帧对视频做一次 SRC_OVER；
 - MIPI overlay 与 UVC overlay 各 `new` 一个实例（分别绑定 `mipi_pipeline_get_gpu_handle()` / `display_get_gpu_handle()`），**零模块级 static**，可并发、互不干扰；
 - sprite 内存所有权在 `commit` 后转交 GPU，由引擎注册的 `free` 回调释放。
 
@@ -75,7 +75,7 @@ VG-Lite 在本 SDK 里是**单例全局上下文**，归各自 pipeline 的 `bk_
 
 1. **begin**：`osd_engine_begin(w, h, dst_x, dst_y)` 从 PSRAM（`MEM_SLAB_HEAP_UNCODED`，`0x6000_0000`）分配一张 w×h 透明 ARGB8888 sprite（GPU 可直接访问）；内存紧张时按 `OSD_ENGINE_SHRINK_UNIT` 缩高重试（alloc-fit，即 P1-3 包围盒裁剪）；
 2. **put_icon / put_text**：CPU 把图标像素/字模 A8 着色写进 sprite 的 (x,y)（越界裁剪）。字体两条路见 §5；
-3. **commit**：`bk_gpu_blit_set(gpu, sprite, {src_format, dst_x/y, alpha_blend=1, free=cb, args=engine})` 一次性注册给绑定 GPU；成功后引擎放弃 sprite 所有权（转交 GPU，由 `free` 回调释放），失败则兜底释放；
+3. **commit**：`bk_gpu_blit_set(gpu, sprite, {src_format, dst_x/y, enable_alpha_blend=1, free=cb, args=engine})` 一次性注册给绑定 GPU；成功后引擎放弃 sprite 所有权（转交 GPU，由 `free` 回调释放），失败则兜底释放；
 4. **clear**：`osd_engine_clear()` → `bk_gpu_blit_clear(gpu)` 移除已注册 OSD，GPU 通过 `free` 回调释放旧 sprite。
 
 > GPU 每帧只对 OSD 覆盖区域做 SRC_OVER（`blit` 只碰相交 tile），成本 ∝ OSD 面积，与整帧大小无关；且 **N 个元素合成到一张 sprite、只提交 1 次**（P0-2）。
@@ -149,9 +149,9 @@ overlay 只是**薄封装**：持一个 `bk_draw_osd` 实例，把测试用的�
 
 ### 8.2 per-block 逐块融合（可选模式，已实现）
 
-除整帧末单次 blit 外，现已实现 **flexa 逐块融合**作为运行时可选模式（每实例属性 `gpu_vn_ctlr_t::osd_by_flexa`，CLI `ap_cmd osd <mipi|uvc> flexa`，经 `bk_gpu_ioctl(handle, BK_GPU_IOCTL_SET_OSD_BY_FLEXA, &en)` 设置，见 `bk_gpu_ctlr_default.c`）。开启后，OSD 在 `gpu_flex_process_line_block()` 里对**每个与 OSD 相交的 flexa block** 各做一次 `blit_rect`（`gpu_flex_osd_block_blit`：把整帧坐标平移到当前 block 的 `dst_buf` 局部坐标，vg_lite 自动裁到 block 范围），而不是等到 `frame_done` 才一次性叠整帧。
+除整帧末单次 blit 外，现已实现 **flexa 逐块融合**运行模式。开启后，Controller通过 `flexa_line_done` 同步传递当前block目标视图；Overlay负责相交判断、backing捕获和整帧到block局部坐标转换，再通过 `bk_gpu_blit_to_flexa_block()` 提交硬件blit。回调返回后Controller才通过HPDMA搬出当前块。
 
-> **相交早退优化**：逐块路径按视频 `rotate_degree` 在切片轴上算出「本 block 区间 `[blk_lo, blk_hi)`」与「OSD 裁剪后 `dst_*/src_*` 覆盖区间」，`gpu_flex_osd_slot_hits_block()` 只用整型比较判是否相交。**不相交的 block 直接跳过**，连 `vg_lite_blit_rect`/`vg_lite_finish` 和 GPIO16 打点都不发——这样示波器上只有真正含 OSD 像素的那几个 block 才有 GPU 融合波形（早期未做此判断时每个 block 都会空跑一次 blit，波形看起来"每个 flexa 都有 OSD"）。判断在外层遍历（打点前置）和内层函数各有一处，共用同一 helper。
+> **相交早退优化**：`bk_gpu_overlay.c`使用目标视图中的整帧矩形与图层footprint求交。**不相交的block直接跳过**，Controller不执行 `vg_lite_blit_rect` / `vg_lite_finish`。
 
 代价（下面几点仍然成立，是这条路的固有开销）：
 

@@ -4,7 +4,7 @@
 
 ## 1. Overview
 
-This project demonstrates software OSD (On-Screen Display) overlay on the Beken BK7259 platform. Based on the `bk_draw_osd` component, it blends icons (ARGB8888) and font text onto a background frame, then shows the result on a MIPI DSI panel. Blending is done in software via `image_scale` (`argb8888_to_*_blend` / `*_convert`), no GPU required.
+This project demonstrates GPU OSD overlay on Beken BK7259 MIPI and UVC video pipelines. Each pipeline creates an independent `bk_gpu_overlay` after opening its GPU; `bk_draw_osd` binds that overlay and submits leased sprite layers for ordered `SRC_OVER` composition. Teardown deletes OSD and the overlay before closing the GPU.
 
 The project provides:
 

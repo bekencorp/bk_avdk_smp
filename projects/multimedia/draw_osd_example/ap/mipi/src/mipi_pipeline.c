@@ -39,6 +39,7 @@
 #include <sys_types.h>           /* __containerof */
 
 #include "mipi_pipeline.h"
+#include "osd_mipi.h"
 #include "display.h"    /* shared LCD/DPU: display_open / _get_dpu_handle / _close */
 
 #define TAG "mipi_pipe"
@@ -297,6 +298,8 @@ static void mipi_frame_done(void *frame, uint32_t frame_size, void *args)
 {
     (void)frame_size;
     (void)args;
+    /* The GPU controller composites the shared overlay (OSD) onto the frame
+     * itself before this callback, so just flush it to the DPU. */
     void *dpu = display_get_dpu_handle();
     if (dpu == NULL) {
         mipi_frame_free(frame);
@@ -371,6 +374,10 @@ avdk_err_t mipi_pipeline_open(uint16_t width, uint16_t height, uint8_t fps)
         LOGW("mipi pipeline already open\n");
         return AVDK_ERR_OK;
     }
+    if (s_mipi_gpu != NULL) {
+        LOGE("previous GPU close failed; retry pipeline close first\n");
+        return AVDK_ERR_GENERIC;
+    }
 
     /* 1) LCD + DPU (display_open enables panel VDDIO; GPU owned by this module) */
     ret = display_open();
@@ -408,7 +415,14 @@ avdk_err_t mipi_pipeline_open(uint16_t width, uint16_t height, uint8_t fps)
     return AVDK_ERR_OK;
 
 err_gpu:
-    (void)bk_gpu_close(s_mipi_gpu);
+    {
+        avdk_err_t close_ret = bk_gpu_close(s_mipi_gpu);
+        if (close_ret != AVDK_ERR_OK) {
+            LOGE("gpu close failed %d; pipeline resources retained\n",
+                 close_ret);
+            return close_ret;
+        }
+    }
     (void)bk_gpu_deinit(s_mipi_gpu);
     (void)bk_gpu_delete(s_mipi_gpu);
     s_mipi_gpu = NULL;
@@ -421,12 +435,19 @@ err_disp:
 
 avdk_err_t mipi_pipeline_close(void)
 {
+    /* Raw pipeline close is safe even when callers bypass osd_mipi_close(). */
+    (void)osd_mipi_clear();
     if (s_isp_gpu_bond != NULL) {
         bk_flexa_isp_gpu_bond_stop(s_isp_gpu_bond);
         s_isp_gpu_bond = NULL;
     }
     if (s_mipi_gpu != NULL) {
-        (void)bk_gpu_close(s_mipi_gpu);
+        avdk_err_t close_ret = bk_gpu_close(s_mipi_gpu);
+        if (close_ret != AVDK_ERR_OK) {
+            LOGE("gpu close failed %d; pipeline resources retained\n",
+                 close_ret);
+            return close_ret;
+        }
         (void)bk_gpu_deinit(s_mipi_gpu);
         (void)bk_gpu_delete(s_mipi_gpu);
         s_mipi_gpu = NULL;

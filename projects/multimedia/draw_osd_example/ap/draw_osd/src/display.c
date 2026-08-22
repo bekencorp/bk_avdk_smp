@@ -153,12 +153,20 @@ static avdk_err_t display_turn_off(void)
     }
 
     /* Teardown reverse of open; GPU frames feed DPU — stop GPU before display:
-     *   GPU : bk_gpu_close -> bk_gpu_deinit -> bk_gpu_delete
+     *   GPU : close/join -> overlay delete -> deinit -> controller delete
      *   DPU : bk_display_close -> bk_display_deinit -> bk_display_delete
      *   panel/bus : bk_lcd_panel_delete -> bk_display_bus_delete
      * See mipi_lcd_example/lcd_example_mipi.c lcd_example_dsi_close(). */
     if (display_config->gpu_handle != NULL) {
-        bk_gpu_close(display_config->gpu_handle);
+        /* Join the FLEXA worker before freeing the controller-owned overlay. */
+        avdk_err_t close_ret = bk_gpu_close(display_config->gpu_handle);
+        if (close_ret != AVDK_ERR_OK) {
+            LOGE("gpu close failed %d; display resources retained\n",
+                 close_ret);
+            return close_ret;
+        }
+        /* The controller owns and composites the shared overlay; it is torn
+         * down by bk_gpu_delete below. */
         bk_gpu_deinit(display_config->gpu_handle);
         bk_gpu_delete(display_config->gpu_handle);
         display_config->gpu_handle = NULL;
@@ -231,6 +239,8 @@ static void display_frame_display(void *frame, uint32_t frame_size, void *args)
         return;
     }
 
+    /* The GPU controller composites the shared overlay (OSD) onto the frame
+     * itself before this callback, so just flush it to the DPU. */
     avdk_err_t ret = bk_display_flush(display_config->dpu_ctlr_handle, frame, display_frame_free);
     if (ret != AVDK_ERR_OK)
     {
@@ -297,6 +307,7 @@ static bk_err_t display_enable_gpu(bool use_flexa, uint8_t *src_buffer, uint8_t 
 
     if (ret != AVDK_ERR_OK) {
         LOGW("%s, %d\n", __func__, __LINE__);
+        return ret;
     }
 
     return ret;

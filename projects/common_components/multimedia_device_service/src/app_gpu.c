@@ -181,6 +181,8 @@ avdk_err_t app_gpu_turn_off(bk_gpu_ctlr_handle_t ctlr)
 
 static void flexa_line_done_cb(uint32_t done_lines, void *arg)
 {
+    (void)done_lines;
+    (void)arg;
 }
 
 avdk_err_t app_gpu_v2_turn_on(uint16_t width, uint16_t height)
