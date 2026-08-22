@@ -39,11 +39,17 @@ extern "C" {
 #define HPDMA_LINE_START() do {GPIO_UP(20); } while (0);
 #define HPDMA_LINE_END() do { GPIO_DOWN(20); } while (0);
 #ifdef OSD_LOGIC_DEBUG
-/* OSD SRC_OVER profiling on scope (GPIO15=total, GPIO16=per slot). */
+/* Overlay profiling on scope: GPIO15=one complete composition, GPIO16=one
+ * logical layer blit. Layers include PIP and product OSD (time/WiFi). */
 #define OSD_BLIT_START() do { GPIO_UP(15); } while (0);
 #define OSD_BLIT_END() do { GPIO_DOWN(15); } while (0);
 #define OSD_SLOT_START() do { GPIO_UP(16); } while (0);
 #define OSD_SLOT_END() do { GPIO_DOWN(16); } while (0);
+#else
+#define OSD_BLIT_START()
+#define OSD_BLIT_END()
+#define OSD_SLOT_START()
+#define OSD_SLOT_END()
 #endif
 #else
 #define GPU_FRAME_START()
