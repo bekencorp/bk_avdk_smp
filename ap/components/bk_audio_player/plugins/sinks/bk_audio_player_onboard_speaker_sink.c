@@ -19,6 +19,7 @@
 #include <unistd.h>
 #include <common/bk_include.h>
 #include <os/os.h>
+#include <modules/pm.h>
 #include "FreeRTOS.h"
 #include "task.h"
 #include <components/bk_audio/audio_pipeline/audio_pipeline.h>
@@ -355,6 +356,8 @@ static int device_sink_open(audio_sink_type_t sink_type, void *param, bk_audio_p
 
     sink->info.volume = player->spk_gain;
 
+    bk_pm_module_vote_cpu_freq(PM_DEV_ID_AUDIO, PM_CPU_FRQ_480M);
+
     ret = play_pipeline_open(info->sample_rate, info->sample_bits, info->channel_number, player->spk_gain);
     if (ret != BK_OK)
     {
@@ -405,6 +408,8 @@ static int device_sink_close(bk_audio_player_sink_t *sink)
     {
         BK_LOGE(AUDIO_PLAYER_TAG, "%s, play pipeline close fail, ret: %d, %d \n", __func__, ret, __LINE__);
     }
+
+    bk_pm_module_vote_cpu_freq(PM_DEV_ID_AUDIO, PM_CPU_FRQ_DEFAULT);
 
     BK_LOGI(AUDIO_PLAYER_TAG, "device_sink_close \n");
     return AUDIO_PLAYER_OK;

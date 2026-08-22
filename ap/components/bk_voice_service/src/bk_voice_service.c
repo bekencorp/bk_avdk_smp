@@ -1396,7 +1396,7 @@ voice_handle_t bk_voice_init(voice_cfg_t *cfg)
     voice_handle->event_handle = cfg->event_handle;
     voice_handle->args = cfg->args;
 
-    //bk_pm_module_vote_cpu_freq(PM_DEV_ID_AUDIO, PM_CPU_FRQ_480M);
+    bk_pm_module_vote_cpu_freq(PM_DEV_ID_AUDIO, PM_CPU_FRQ_480M);
     //bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_AUDP, 0, 0);
 
     if (BK_OK != record_pipeline_init(voice_handle, cfg))
@@ -1474,7 +1474,7 @@ voice_handle_t bk_voice_init(voice_cfg_t *cfg)
 
 fail:
 
-    //bk_pm_module_vote_cpu_freq(PM_DEV_ID_AUDIO, PM_CPU_FRQ_DEFAULT);
+    bk_pm_module_vote_cpu_freq(PM_DEV_ID_AUDIO, PM_CPU_FRQ_DEFAULT);
 
     record_pipeline_deinit(voice_handle);
 
@@ -1519,7 +1519,7 @@ bk_err_t bk_voice_deinit(voice_handle_t voice_handle)
     play_pipeline_deinit(voice_handle);
     BK_LOGD(TAG, "%s, play_pipeline deinit complete\n", __func__);
 
-    //bk_pm_module_vote_cpu_freq(PM_DEV_ID_AUDIO, PM_CPU_FRQ_DEFAULT);
+    bk_pm_module_vote_cpu_freq(PM_DEV_ID_AUDIO, PM_CPU_FRQ_DEFAULT);
 
     if (voice_handle->aec_alg_ref_rb)
     {

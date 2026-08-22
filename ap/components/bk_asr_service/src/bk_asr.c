@@ -865,7 +865,7 @@ bk_err_t bk_asr_init_with_mic(asr_cfg_t *cfg, asr_handle_t asr_handle)
     asr_handle->mic_type     = cfg->mic_type;
     asr_handle->event_handle = cfg->event_handle;
 
-    //bk_pm_module_vote_cpu_freq(PM_DEV_ID_AUDIO, PM_CPU_FRQ_480M);
+    bk_pm_module_vote_cpu_freq(PM_DEV_ID_AUDIO, PM_CPU_FRQ_480M);
     //bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_AUDP, 0, 0);
 
     //if (cfg->asr_rsp_en)
@@ -908,7 +908,7 @@ bk_err_t bk_asr_init_with_mic(asr_cfg_t *cfg, asr_handle_t asr_handle)
 
 fail:
 
-    //bk_pm_module_vote_cpu_freq(PM_DEV_ID_AUDIO, PM_CPU_FRQ_DEFAULT);
+    bk_pm_module_vote_cpu_freq(PM_DEV_ID_AUDIO, PM_CPU_FRQ_DEFAULT);
 
     asr_listener_deinit(asr_handle);
     asr_pipeline_deinit_with_mic(asr_handle);
@@ -1060,12 +1060,12 @@ bk_err_t bk_asr_deinit(asr_handle_t asr_handle)
     asr_listener_deinit(asr_handle);
 #if (CONFIG_ASR_SERVICE_WITH_MIC)
     asr_pipeline_deinit_with_mic(asr_handle);
+    bk_pm_module_vote_cpu_freq(PM_DEV_ID_AUDIO, PM_CPU_FRQ_DEFAULT);
 #else
     asr_pipeline_deinit(asr_handle);
 #endif
     BK_LOGD(TAG, "%s, asr_pipeline deinit complete\n", __func__);
 
-    //bk_pm_module_vote_cpu_freq(PM_DEV_ID_AUDIO, PM_CPU_FRQ_DEFAULT);
 
     if (asr_handle->asr_raw_read)
     {

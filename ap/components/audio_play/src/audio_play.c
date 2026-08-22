@@ -33,6 +33,7 @@
 #include <components/bk_audio/audio_algorithms/eq_algorithm.h>
 #endif
 #include <driver/aud_dac.h>
+#include <modules/pm.h>
 #include "audio_play.h"
 #if CONFIG_ADK_ONBOARD_SPEAKER_STREAM_SUPPORT_MULTIPLE_SOURCE
 #include "spk_service.h"
@@ -213,8 +214,11 @@ bk_err_t audio_play_open(audio_play_t *play)
         return BK_OK;
     }
 
+    bk_pm_module_vote_cpu_freq(PM_DEV_ID_AUDIO, PM_CPU_FRQ_480M);
+
     audio_play_ctx_t *ctx = os_malloc(sizeof(audio_play_ctx_t));
     if (!ctx) {
+        bk_pm_module_vote_cpu_freq(PM_DEV_ID_AUDIO, PM_CPU_FRQ_DEFAULT);
         return BK_FAIL;
     }
     os_memset(ctx, 0x00, sizeof(audio_play_ctx_t));
@@ -414,6 +418,7 @@ fail:
         }
         os_free(ctx);
     }
+    bk_pm_module_vote_cpu_freq(PM_DEV_ID_AUDIO, PM_CPU_FRQ_DEFAULT);
     return BK_FAIL;
 }
 
@@ -500,6 +505,7 @@ bk_err_t audio_play_close(audio_play_t *play)
 
     os_free(ctx);
     play->play_ctx = NULL;
+    bk_pm_module_vote_cpu_freq(PM_DEV_ID_AUDIO, PM_CPU_FRQ_DEFAULT);
     return BK_OK;
 }
 
