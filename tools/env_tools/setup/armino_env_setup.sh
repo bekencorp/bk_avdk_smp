@@ -132,6 +132,7 @@ function centos7_python_env_patch(){
 
 function install_python_env(){
     python_install_options="$(get_pip_options)"
+    pip3 install numpy $python_install_options
     pip3 install pycryptodome click future click_option_group cryptography jinja2 PyYAML cbor2 intelhex $python_install_options
     pip3 install Sphinx sphinx-rtd-theme breathe blockdiag \
          sphinxcontrib-blockdiag sphinxcontrib-seqdiag sphinxcontrib-actdiag \
