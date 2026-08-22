@@ -21,8 +21,6 @@
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
 #define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
-#define JPEG_FRAME_SIZE (100 * 1024)
-
 bk_err_t bk_tcp_trans_service_init(char *service_name)
 {
     int payload_size = 0;
@@ -159,7 +157,7 @@ bk_err_t bk_tcp_trans_service_init(char *service_name)
 
         payload_size = NTWK_TRANS_TCP_DATA_MAX_SIZE - ntwk_pack_get_header_size() - ntwk_fragm_get_header_size();
         ntwk_fragment_start(ctxt->video_chan->type, payload_size, NULL);
-        ntwk_unfragment_start(ctxt->video_chan->type, JPEG_FRAME_SIZE, NULL);
+        ntwk_unfragment_start(ctxt->video_chan->type, NTWK_UNFRAGMENT_FRAME_SIZE, NULL);
         ntwk_tcp_video_register_receive_cb(ntwk_trans_video_recv_handler);
 #else
         // Client mode
@@ -173,7 +171,7 @@ bk_err_t bk_tcp_trans_service_init(char *service_name)
 
         payload_size = NTWK_TRANS_TCP_DATA_MAX_SIZE - ntwk_pack_get_header_size() - ntwk_fragm_get_header_size();
         ntwk_fragment_start(ctxt->video_chan->type, payload_size, NULL);
-        ntwk_unfragment_start(ctxt->video_chan->type, JPEG_FRAME_SIZE, NULL);
+        ntwk_unfragment_start(ctxt->video_chan->type, NTWK_UNFRAGMENT_FRAME_SIZE, NULL);
         ntwk_tcp_video_client_register_receive_cb(ntwk_trans_video_recv_handler);
 #endif // CONFIG_NTWK_CLIENT_SERVICE_ENABLE
     }

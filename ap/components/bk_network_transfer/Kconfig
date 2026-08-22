@@ -38,6 +38,16 @@ menu "Bk Network Transfer"
 		help
 			Video pool length in bytes (default: 1472 * 35 = 51520)
 
+	config NTWK_UNFRAGMENT_FRAME_SIZE
+		int "Video RX unfragment frame buffer size"
+		depends on BK_NTWK_TRANSFER
+		default 102400
+		help
+			Buffer size in bytes allocated to reassemble one complete
+			received video frame (default: 100 * 1024 = 102400).
+			Independent of codec type (JPEG/H264/etc). Projects can
+			override this via menuconfig or defconfig.
+
 	config NTWK_USE_PSARM_MEM
 		bool "Use PSRAM for Network Transfer Memory Allocation"
 		depends on PSRAM
