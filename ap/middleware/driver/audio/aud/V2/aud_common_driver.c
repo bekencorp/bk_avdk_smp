@@ -442,6 +442,7 @@ bk_err_t bk_aud_driver_init(void)
 	sys_drv_aud_select_clock(0);
 	sys_drv_apll_en(1);
 	//bk_pm_clock_ctrl(PM_CLK_ID_AUDIO, CLK_PWR_CTRL_PWR_UP);
+	bk_pm_module_vote_cp_cpu_freq(PM_CP_DEV_ID_AUDIO, PM_CPU_FRQ_240M);
 
 #if CONFIG_SOC_BK7259
 
@@ -535,7 +536,7 @@ bk_err_t bk_aud_driver_deinit(void)
 
 	//bk_pm_clock_ctrl(PM_CLK_ID_AUDIO, CLK_PWR_CTRL_PWR_DOWN);
 	//bk_pm_module_vote_power_ctrl(PM_POWER_SUB_MODULE_NAME_AUDP_AUDIO, PM_POWER_MODULE_STATE_OFF);
-
+	bk_pm_module_vote_cp_cpu_freq(PM_CP_DEV_ID_AUDIO, PM_CPU_FRQ_DEFAULT);
 	s_aud_driver_is_init = false;
 	return BK_OK;
 }
