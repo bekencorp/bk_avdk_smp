@@ -321,6 +321,8 @@ uart_flow_thresh1_01,ap_cmd arguart -i 2 -s hw_flow -l 1,1,UART id 2 set rx_thre
 uart_flow_thresh16_01,ap_cmd arguart -i 2 -s hw_flow -l 16,1,UART id 2 set rx_threshold 16 successfully,
 uart_flow_thresh32_01,ap_cmd arguart -i 2 -s hw_flow -l 32,1,UART id 2 set rx_threshold 32 successfully,
 uart_flow_thresh128_01,ap_cmd arguart -i 2 -s hw_flow -l 128,1,UART id 2 set rx_threshold 128 successfully,
+uart_lb_api_01,ap_cmd uart_lb_api 2,1,UART_LB_API: ALL PASS,30
+uart_lb_quick_01,ap_cmd uart_lb 2 quick,1,UART_LB: ALL PASS,60
 i2c_driver_init_01,ap_cmd i2c_driver init,1,i2c driver init,
 i2c_driver_deinit_01,ap_cmd i2c_driver deinit,1,i2c driver deinit,
 i2c_init_01,ap_cmd i2c 1 init,1,bk_i2c[1]_init success,

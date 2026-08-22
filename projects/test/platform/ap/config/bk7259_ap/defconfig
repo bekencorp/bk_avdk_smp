@@ -2,43 +2,31 @@
 # Automatically generated project default config. You can update it with menuconfig [D] option.
 # This file contains only differences compared to board defconfig.
 #
+# Keep board AP defaults for boot-critical options (SOC_SMP / FREERTOS_SMP /
+# PSRAM / L2_CACHE / DMA channel range). Do NOT steal CP DMA ch0-3
+# (board uses DMA_LOGIC_CHAN_ID_MIN=4). Avoid AP-side TRUSTENGINE/PSA_MBEDTLS
+# at boot — those are CP/security-test concerns and can block AP bring-up.
+#
 
-# CONFIG_SOC_SMP is not set
 # CONFIG_LWIP is not set
 # CONFIG_BK_NETIF is not set
-CONFIG_FREERTOS_V10=y
-# CONFIG_FREERTOS_SMP is not set
 # CONFIG_WIFI_CLI_DEBUG is not set
 # CONFIG_WIFI_VNET_CONTROLLER is not set
-# CONFIG_DCACHE is not set
 
-
-# CONFIG_L2_CACHE_ENABLE is not set
 CONFIG_SPI=y
 CONFIG_SOC_SPI_UNIT_NUM=4
 CONFIG_SPI_TEST=y
 CONFIG_SPI_API_TEST=y
 CONFIG_SPI_DMA=y
 CONFIG_GENERAL_DMA=y
-CONFIG_DMA_LOGIC_CHAN_CNT=16
-CONFIG_DMA_LOGIC_CHAN_ID_MIN=0
-# CONFIG_PSRAM is not set
 CONFIG_XTAL_FREQ=26000000
-
-CONFIG_PSA_MBEDTLS=y
-CONFIG_CLASSIC_MBEDTLS_TEST=y
-# CONFIG_PSA_MBEDTLS_TEST is not set
-CONFIG_FULL_MBEDTLS=y
-CONFIG_MBEDTLS_LOG_LEVEL="OFF"
-# CONFIG_SW_CRYPTO is not set
-# CONFIG_MBEDTLS_USE_PSA_CRYPTO is not set
-CONFIG_TRUSTENGINE=y
-CONFIG_TE200_ENTROPY=y
 
 # --- driver test/api-test CLI switches (align with test/platform .it.csv, AP side) ---
 CONFIG_PWM=y
 CONFIG_PWM_TEST=y
 CONFIG_PWM_API_TEST=y
+CONFIG_UART2=y
+CONFIG_UART_TEST=y
 CONFIG_UART_API_TEST=y
 CONFIG_I2C_API_TEST=y
 CONFIG_FLASH_API_TEST=y
