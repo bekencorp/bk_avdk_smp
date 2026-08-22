@@ -41,18 +41,25 @@ int32_t baf_decoder_get_loop_count(const void * context);
 void baf_decoder_set_loop_count(void * context, int32_t count);
 
 /* Closed-core compositors. Composite @p canvas (XRGB8888) modulated by @p alpha
- * (A8; NULL = fully opaque) over the @p clear_argb background into @p dst
- * (ARGB8888): dst.RGB = canvas.RGB*a + clear.RGB*(1-a), dst.A = a. Two backends
- * with identical output: _gpu_ uses VG-Lite, _cpu_ uses Helium/MVE. The adapter
- * re-exports these behind bk_baf_compose(). Return AVDK_ERR_OK on success. */
+ * (A8; NULL = fully opaque) into @p dst (ARGB8888). Two modes:
+ *   @p is_new_layer = false : base -- clear @p dst to @p clear_argb, then write
+ *                             dst.RGB = canvas.RGB*a + clear.RGB*(1-a), dst.A = a.
+ *   @p is_new_layer = true  : stacked layer -- src-over onto @p dst's existing
+ *                             pixels, dst.RGB = canvas.RGB*a + dst.RGB*(1-a)
+ *                             (@p clear_argb ignored). Stacks layers front over back.
+ * Two backends with identical output: _gpu_ uses VG-Lite, _cpu_ uses Helium/MVE.
+ * The adapter re-exports these behind bk_baf_compose(..., is_new_layer).
+ * Return AVDK_ERR_OK on success. */
 avdk_err_t baf_gpu_compose_frame(const bk_baf_frame_desc_t * dst,
                                  const bk_baf_frame_desc_t * canvas,
                                  const bk_baf_frame_desc_t * alpha,
-                                 uint32_t clear_argb);
+                                 uint32_t clear_argb,
+                                 bool is_new_layer);
 avdk_err_t baf_cpu_compose_frame(const bk_baf_frame_desc_t * dst,
                                  const bk_baf_frame_desc_t * canvas,
                                  const bk_baf_frame_desc_t * alpha,
-                                 uint32_t clear_argb);
+                                 uint32_t clear_argb,
+                                 bool is_new_layer);
 
 #ifdef __cplusplus
 } /* extern "C" */
