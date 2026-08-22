@@ -31,6 +31,9 @@ static char TAG[] = "ethosu";
 
 #define BK_ETHOSU_SEMAPHORE_MAX_COUNT 1
 
+#define BK_ETHOSU_SECURE_ENABLE     CONFIG_SPE
+#define BK_ETHOSU_PRIVILEGED_ENABLE 1
+
 static uint32_t bk_ethosu_timeout_to_ms(uint64_t timeout)
 {
     if (timeout == ETHOSU_SEMAPHORE_WAIT_FOREVER)
@@ -183,7 +186,12 @@ int bk_ethosu_init(void *fast_memory, uint32_t fast_memory_size)
     bk_ethosu_int_enable(0);
     bk_int_isr_register(INT_SRC_NPU, (int_group_isr_t)&bk_npu_int_isr, NULL);
 
-    ret = ethosu_init(&ethosu0_driver, (void *)SOC_NPU_REG_BASE, fast_memory, fast_memory_size, 1, 1);
+    ret = ethosu_init(&ethosu0_driver,
+                      (void *)SOC_NPU_REG_BASE,
+                      fast_memory,
+                      fast_memory_size,
+                      BK_ETHOSU_SECURE_ENABLE,
+                      BK_ETHOSU_PRIVILEGED_ENABLE);
     if (ret != 0)
     {
         LOGE("Ethos-U driver init failed, ret=%d\r\n", ret);
