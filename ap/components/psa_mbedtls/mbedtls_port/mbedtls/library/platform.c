@@ -434,8 +434,14 @@ int bk_rng_get(unsigned char *output, size_t len)
         output[i] = (rand_num >> (8 * (i % 4))) & 0xff;
     }
 #else
+    /*
+     * __real_rand() is the genuine libc rand(); the whole image is built
+     * with -Wl,--wrap=rand, so calling rand() here would recurse back into
+     * __wrap_rand() -> bk_rand() -> bk_rng_get().
+     */
+    extern int __real_rand(void);
     for (size_t i = 0; i < len; i++) {
-        output[i] = ((rand()) & 0xff);
+        output[i] = ((__real_rand()) & 0xff);
     }
 #endif
 

@@ -26,4 +26,5 @@ set(OVERRIDE_LINK_OPTIONS
     "-Wl,--wrap=sprintf"
     "-Wl,--wrap=puts"
     "-Wl,--wrap=__assert_func"
+    "-Wl,--wrap=rand"
 )

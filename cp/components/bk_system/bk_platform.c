@@ -19,12 +19,19 @@
 #include <components/bk_platform.h>
 
 /*
+ * Real libc rand(), exposed by the linker option -Wl,--wrap=rand.
+ * Used only by the software fallback paths below so that they never
+ * recurse back into __wrap_rand() -> bk_rand().
+ */
+extern int __real_rand(void);
+
+/*
  * Default software RNG. Overridden by strong symbols in psa_mbedtls
  * platform.c when CONFIG_PSA_MBEDTLS is enabled (TE200 via bk_rng_get).
  */
 __attribute__((weak)) int bk_rand(void)
 {
-	return (rand() & RAND_MAX);
+	return (__real_rand() & RAND_MAX);
 }
 
 __attribute__((weak)) int bk_fill_rand(void *buff, size_t len)
@@ -36,8 +43,19 @@ __attribute__((weak)) int bk_fill_rand(void *buff, size_t len)
 	}
 
 	for (size_t i = 0; i < len; i++) {
-		p[i] = (rand() & 0xff);
+		p[i] = (__real_rand() & 0xff);
 	}
 
 	return 0;
+}
+
+/*
+ * Wrapper installed via -Wl,--wrap=rand: every rand() reference in the
+ * whole image (Wi-Fi supplicant, mbedtls entropy poll, prebuilt BT host
+ * library, ...) is redirected here and served by the secure RNG so that
+ * pairing keys / nonces / session keys are no longer predictable.
+ */
+int __wrap_rand(void)
+{
+	return bk_rand();
 }
