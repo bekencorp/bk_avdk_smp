@@ -114,6 +114,7 @@ typedef struct {
     beken_semaphore_t isp_sem;
     void *pub_attr[ISP_PORT_CNT];
     isp_channel_config_t chn[ISP_CHN_CNT];
+    uint8_t close_sbi;
     int (*pop_buf) (ISP_CHN chn, VIDEO_BUF_S *pBuf, uint32_t timeMs);
     int (*free_buf) (ISP_CHN chn, VIDEO_BUF_S *pBuf);
 } isp_control_t;

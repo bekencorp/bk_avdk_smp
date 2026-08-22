@@ -97,6 +97,18 @@ int VSI_FLEXA_SetSyncAttr(ISP_CHN IspChn, VSI_FLEXA_SYNC_ATTR_S *pSyncAttr);
 
 /*****************************************************************************/
 /**
+ * @brief   Clears FLEXA Synchronizer stream status before hardware SBI is enabled.
+ *
+ * \param   IspChn           ISP information, include device ID, port ID, channel ID.
+ * \param   pSyncAttr        Pointer to the FLEXA Synchronizer attributes to clear.
+ *
+ * @retval  VSI_SUCCESS      The operation is successful.
+ *
+ *****************************************************************************/
+int VSI_FLEXA_ClearSyncStreamStatus(ISP_CHN IspChn, VSI_FLEXA_SYNC_ATTR_S *pSyncAttr);
+
+/*****************************************************************************/
+/**
  * @brief   Gets FLEXA Synchronizer stream status.
  *
  * \param   IspChn           ISP information, include device ID, port ID, channel ID.
