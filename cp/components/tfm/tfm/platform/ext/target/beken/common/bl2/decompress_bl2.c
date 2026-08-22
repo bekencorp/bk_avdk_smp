@@ -304,7 +304,7 @@ static int resume_flash(uint32_t block_num)
 	uint32_t primary_magic = 0xffffffffu;
 
 	uint8_t restart_block_idx = read_resume_block(back_address);
-	BOOT_LOG_INF("total block=%u, resume block=%u", block_num, restart_block_idx);
+	BOOT_LOG_FORCE("total block=%u, resume block=%u", block_num, restart_block_idx);
 
 	/* Stale-journal guard: a crash after primary erase but before journal clear
 	 * (or a protect-era half install) can leave primary_all=0xFF while the
@@ -322,7 +322,7 @@ static int resume_flash(uint32_t block_num)
 
 	if ((restart_block_idx == 0) || (restart_block_idx == 0xffu) ||
 	    (restart_block_idx > block_num)) {
-		BOOT_LOG_INF("Erasing primary and resume journal");
+		BOOT_LOG_FORCE("Erase primary+journal");
 		/* Clear journal FIRST. If we erase primary then lose power before
 		 * clearing the journal, the next boot resumes mid-image against an
 		 * empty primary (see stale-journal guard above). Journal-first means
@@ -353,12 +353,9 @@ static void clean_buf(void)
 	memset(s_compressed_buf, 0, COMPRESS_BLOCK_SIZE);
 }
 
-/* ota slot layout: [hdr(ih_hdr_size)][u32 block_num][u16 block_list[block_num+2]][blocks...]
- * block_list: [0..block_num-1] = compressed size of each full 64KB block;
- * [block_num]/[block_num+1] = compressed/decompressed size of the last partial block.
- * block_num is in the signed payload (host = floor(signed_size/64KB)), so it's covered
- * by boot_validate_slot(). It's read via the image's own ih_hdr_size (offset 8), with
- * BL2_HEADER_SIZE only as fallback when that field is blank/erased. */
+/* OTA layout: [hdr][u32 block_num][u16 block_list[n+2]][blocks...]
+ * block_list[0..n-1]: full 64KB compressed sizes; [n]/[n+1]: last partial sizes.
+ * block_num is signed (offset = ih_hdr_size, else BL2_HEADER_SIZE). */
 int boot_copy_region(struct boot_loader_state *state,
 		 const struct flash_area *fap_src,
 		 const struct flash_area *fap_dst,
@@ -396,13 +393,8 @@ int boot_copy_region(struct boot_loader_state *state,
 	uint32_t bytes_copied  = 0;
 	uint8_t block_idx = 0;
 
-	/* BK7259SW-2937 defers unprotect out of flash init so the read-only
-	 * secure-boot path stays protected. That is correct for DIRECT_XIP (BL2
-	 * never erases/programs), but compressed-overwrite MUST write primary_all
-	 * here. Without unprotect, erase is a no-op (status protect) and
-	 * erase-verify still sees IMAGE_MAGIC byte 0x3d at primary_all. Mirror
-	 * the serial-download handshake: unprotect once, then stay in two-line
-	 * for the erase/program session. */
+	/* Overwrite must program primary_all; unprotect once then two-line
+	 * (BK7259SW-2937 keeps flash protected after init for XIP). */
 	update_wdt(OTA_WDT_FEED_VAL);
 	bk_flash_min_unprotect_once();
 	bk_flash_min_switch_line_mode_two();
@@ -413,7 +405,7 @@ int boot_copy_region(struct boot_loader_state *state,
 		goto out;
 	}
 
-	BOOT_LOG_INF("OTA copy: resume_flash done, restart_block=%u", restart_block_idx);
+	BOOT_LOG_FORCE("OTA resume done, block=%u", restart_block_idx);
 	int rate_process = (block_num >= 5) ? (int)(block_num / 5) : 1;
 
 	/* Skip [header][uint32 block_num], then read the block_list. */
@@ -445,7 +437,7 @@ int boot_copy_region(struct boot_loader_state *state,
 
 		bytes_copied += block_list[block_idx];
 		if (((block_idx + 1) % rate_process) == 0) {
-			BOOT_LOG_INF("OTA %d%%", (block_idx / rate_process + 1) * 20);
+			BOOT_LOG_FORCE("OTA %d%%", (block_idx / rate_process + 1) * 20);
 		}
 	}
 

@@ -33,17 +33,19 @@
 #define BL2_HOOK_LOGI BK_LOGI
 #define BL2_HOOK_LOGW BK_LOGW
 #define BL2_HOOK_LOGE BK_LOGE
+/* Force: always emitted regardless of the BL2 log level. */
+#define BL2_HOOK_LOGF(fmt, ...) BK_LOG_FORCE(TAG ": " fmt, ##__VA_ARGS__)
 #define BL2_HOOK_DEBUG 0
 
 #define BL2_HOOK_IMG_READ_DEBUG_LEN 0x100
 
 static void dump_image_header(struct image_header *hdr)
 {
-	BL2_HOOK_LOGI(TAG, "magic=%x\r\n", hdr->ih_magic);
+	BL2_HOOK_LOGF("magic=%x\r\n", hdr->ih_magic);
 	BL2_HOOK_LOGD(TAG, "load_addr=%x\r\n", hdr->ih_load_addr);
 	BL2_HOOK_LOGD(TAG, "hdr_size=%x\r\n", hdr->ih_hdr_size);
 	BL2_HOOK_LOGD(TAG, "protect_tlv_size=%x\r\n", hdr->ih_protect_tlv_size);
-	BL2_HOOK_LOGI(TAG, "img_size=%x\r\n", hdr->ih_img_size);
+	BL2_HOOK_LOGF("img_size=%x\r\n", hdr->ih_img_size);
 	BL2_HOOK_LOGD(TAG, "flags=%x\r\n", hdr->ih_flags);
 	BL2_HOOK_LOGD(TAG, "pad=%x\r\n", hdr->_pad1);
 }

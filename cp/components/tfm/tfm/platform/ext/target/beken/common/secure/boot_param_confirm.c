@@ -31,9 +31,9 @@
 
 #define TAG "bp_confirm"
 
-/* Route to the unified SPM-sink log so this shares the secure UART path with the
- * rest of the secure runtime and honours the CONFIG_TFM_LOG_LEVEL gate. */
-#define BP_LOG(fmt, ...) BK_LOGI(TAG, fmt, ##__VA_ARGS__)
+/* Route to the unified SPM-sink log. Force: the A/B confirm trace is always
+ * emitted, even with CONFIG_TFM_LOG_LEVEL lowered for production. */
+#define BP_LOG(fmt, ...) BK_LOG_FORCE(TAG ": " fmt, ##__VA_ARGS__)
 
 /* op_sw erase/PP are ignored while the flash is in QUAD continuous-read (the XIP
  * path leaves it there), so a commit must drop to TWO first and restore after.
@@ -68,11 +68,11 @@ int boot_param_confirm(void)
 	}
 
 	if (rec.boot_state != AB_STATE_TRIAL) {
-		BP_LOG("state=%x not TRIAL, nothing to do\r\n", rec.boot_state);
+		BP_LOG("state=%x not TRIAL, skip\r\n", rec.boot_state);
 		return 0;
 	}
 
-	BP_LOG("TRIAL running=%d exec=%d update=%d -> NORMAL\r\n",
+	BP_LOG("TRIAL run=%d exec=%d upd=%d -> NORMAL\r\n",
 		running, rec.exec_slot, rec.update_slot);
 
 	/* Adopt the slot that actually brought up the secure world; drop the pending
@@ -94,7 +94,7 @@ int boot_param_confirm(void)
 	bk_flash_min_restore_line_mode();
 
 	if (idx < 0) {
-		BP_LOG("commit failed %d\r\n", idx);
+		BK_LOGE(TAG, "commit failed %d\r\n", idx);
 		return -1;
 	}
 

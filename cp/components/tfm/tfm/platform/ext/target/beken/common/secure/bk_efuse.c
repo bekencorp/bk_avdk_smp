@@ -14,6 +14,7 @@
 
 #include "driver/efuse.h"
 #include "bk_efuse.h"
+#include "bk_tfm_log.h"
 
 #define EFUSE_SECUREBOOT_ENABLED_BIT        (3)
 #define EFUSE_SPE_DEBUG_DISABLED_BIT        (31)
@@ -151,7 +152,7 @@ bool efuse_is_flash_aes_enabled(void)
 
 void dump_efuse(void)
 {
-	printf("efuse=%x\r\n", s_efuse_data);
+	BK_LOG_FORCE("efuse=%x\r\n", s_efuse_data);
 }
 
 uint32_t efuse_get_value(void)

@@ -48,9 +48,11 @@ extern void bk_flash_min_restore_line_mode(void);
 #include "bootutil/bootutil_log.h"
 #define OTA_CONFIRM_INF(...) BOOT_LOG_INF(__VA_ARGS__)
 #define OTA_CONFIRM_ERR(...) BOOT_LOG_ERR(__VA_ARGS__)
+#define OTA_CONFIRM_FORCE(...) BOOT_LOG_FORCE(__VA_ARGS__)
 #else
 #define OTA_CONFIRM_INF(...) ((void)0)
 #define OTA_CONFIRM_ERR(...) ((void)0)
+#define OTA_CONFIRM_FORCE(...) ((void)0)
 #endif
 
 #define OTA_CTRL_SECTOR_SIZE    0x1000u       /* one 4KB flash sector */
@@ -96,7 +98,7 @@ bool bk_boot_read_ota_confirm(uint32_t value)
     struct ota_confirm_rec rec = {0};
 
     if (phy_off == 0) {
-        OTA_CONFIRM_INF("no valid ota confirm, skip");
+        OTA_CONFIRM_ERR("no valid ota confirm, skip");
         return false;
     }
     bk_flash_read_bytes(phy_off, (uint8_t *)&rec, sizeof(rec));
@@ -105,7 +107,7 @@ bool bk_boot_read_ota_confirm(uint32_t value)
         OTA_CONFIRM_ERR("no valid ota confirm record (magic=%#x)", rec.magic);
         return false;
     }
-    OTA_CONFIRM_INF("get ota confirm=%#x", rec.confirm);
+    OTA_CONFIRM_FORCE("get ota confirm=%#x", rec.confirm);
     return (rec.confirm == value);
 }
 

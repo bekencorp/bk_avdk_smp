@@ -152,7 +152,7 @@ bootutil_img_hash(struct enc_key_data *enc_state, int image_index,
                 update_wdt(0xFFFFu);   /* feed every ~4KB across the ~1.3MB read */
             }
         }
-        BOOT_LOG_INF("%s: secondary raw-hash size=0x%x", __FUNCTION__, size);
+        BOOT_LOG_FORCE("secondary raw-hash size=0x%x", size);
         bootutil_sha_finish(&sha_ctx, hash_result);
         bootutil_sha_drop(&sha_ctx);
         return 0;
@@ -171,14 +171,14 @@ bootutil_img_hash(struct enc_key_data *enc_state, int image_index,
          * tell "remap not effective" apart from a genuine bad image. */
         uint32_t remap_en = flash_get_excute_enable();
         uint32_t addr_off = flash_get_addr_offset();
-        BOOT_LOG_INF("%s: SECONDARY remap_en=%u addr_offset=0x%x", __FUNCTION__, remap_en, addr_off);
+        BOOT_LOG_FORCE("SECONDARY remap=%u off=0x%x", remap_en, addr_off);
         if (remap_en != 1 || addr_off == 0) {
             BOOT_LOG_ERR("%s: SECONDARY remap NOT effective (remap_en=%u addr_offset=0x%x) -> read aliases to primary!",
                          __FUNCTION__, remap_en, addr_off);
         }
     }
 #endif
-    BOOT_LOG_INF("%s: fa_off:0x%x", __FUNCTION__, fa_off);
+    BOOT_LOG_FORCE("hash fa_off=0x%x", fa_off);
     /* Flush before CBUS hash: drop stale 0x04 lines (non-AES overwrite / XIP A/B same VA).
      * Encrypted overwrite already flushes in bk_flash_write_cbus. */
     flush_all_dcache();
@@ -647,14 +647,14 @@ bootutil_img_validate(struct enc_key_data *enc_state, int image_index,
         goto out;
     }
     if (!sig_required) {
-        BOOT_LOG_INF("hash-only OK, skipped verifying");
+        BOOT_LOG_FORCE("hash-only OK");
         FIH_SET(fih_rc, FIH_SUCCESS);
     } else {
 #ifdef EXPECTED_SIG_TLV
         /* Take ECDSA result; may be SUCCESS or FAILURE. */
         FIH_SET(fih_rc, valid_signature);
         if (FIH_EQ(fih_rc, FIH_SUCCESS)) {
-            BOOT_LOG_INF("signature verify OK");
+            BOOT_LOG_FORCE("signature verify OK");
         } else {
             BOOT_LOG_ERR("signature verify fail");
         }

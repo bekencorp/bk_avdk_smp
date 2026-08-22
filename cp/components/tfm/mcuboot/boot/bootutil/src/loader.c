@@ -1205,7 +1205,7 @@ boot_validated_swap_type(struct boot_loader_state *state,
             }
         }
     }
-    BOOT_LOG_INF("Swap type: %s", swap_type == BOOT_SWAP_TYPE_TEST   ? "test"   :
+    BOOT_LOG_FORCE("Swap type: %s", swap_type == BOOT_SWAP_TYPE_TEST   ? "test"   :
                                 swap_type == BOOT_SWAP_TYPE_NONE   ? "none"   :
                                 "BUG; can't happen");
     return swap_type;
@@ -1405,7 +1405,7 @@ boot_copy_image(struct boot_loader_state *state, struct boot_status *bs)
             &fap_secondary_slot);
     assert (rc == 0);
 
-    BOOT_LOG_INF("Image %d copying the ota staging slot to the primary slot", image_index);
+    BOOT_LOG_FORCE("Image %d: ota->primary copy", image_index);
     rc = boot_copy_region(state, fap_secondary_slot, fap_primary_slot, 0, 0, 0);
     if (rc != 0) {
         BOOT_LOG_ERR("Overwrite copy error");
@@ -1905,7 +1905,10 @@ context_boot_go(struct boot_loader_state *state, struct boot_rsp *rsp)
             BOOT_LOG_ERR("Validate primary image fail");
             goto out;
         }
-        BOOT_LOG_INF("Overwrite update success");
+        /* Pass 3 always re-validates primary; only log success after a real upgrade. */
+        if (BOOT_SWAP_TYPE(state) != BOOT_SWAP_TYPE_NONE) {
+            BOOT_LOG_FORCE("Overwrite update success");
+        }
 
         rc = boot_update_hw_rollback_protection(state);
         if (rc != 0) {
@@ -2058,7 +2061,7 @@ boot_get_slot_usage(struct boot_loader_state *state)
                 BOOT_LOG_IMAGE_INFO(slot, hdr);
             } else {
                 state->slot_usage[BOOT_CURR_IMG(state)].slot_available[slot] = false;
-                BOOT_LOG_INF("Image %d %s slot: Image not found",
+                BOOT_LOG_FORCE("Image %d %s: not found",
                              BOOT_CURR_IMG(state),
                              (slot == BOOT_PRIMARY_SLOT)
                              ? "Primary" : "Secondary");
@@ -2091,7 +2094,7 @@ find_slot_with_highest_version(struct boot_loader_state *state)
     uint32_t primary = state->slot_usage[BOOT_CURR_IMG(state)].
         slot_available[BOOT_PRIMARY_SLOT] ? BOOT_PRIMARY_SLOT : NO_ACTIVE_SLOT;
 
-    BOOT_LOG_INF("%s: force-A candidate_slot:%d", __FUNCTION__, primary);
+    BOOT_LOG_FORCE("force-A candidate slot=%d", primary);
     return primary;
 #else
     uint32_t slot;
@@ -2132,12 +2135,12 @@ find_slot_with_highest_version(struct boot_loader_state *state)
             state->slot_usage[BOOT_CURR_IMG(state)].slot_available[pref];
 
         if (hook_decided && pref_differs && pref_usable) {
-            BOOT_LOG_INF("%s:boot_param: image %d slot %u -> %u (override)",
-                         __FUNCTION__, BOOT_CURR_IMG(state), candidate_slot, pref);
+            BOOT_LOG_FORCE("boot_param override: img %d slot %u->%u",
+                         BOOT_CURR_IMG(state), candidate_slot, pref);
             candidate_slot = pref;
         }
     }
-    BOOT_LOG_INF("%s: candidate_slot:%d", __FUNCTION__, candidate_slot);
+    BOOT_LOG_FORCE("candidate slot=%d", candidate_slot);
     return candidate_slot;
 #endif
 }
@@ -2163,7 +2166,7 @@ print_loaded_images(struct boot_loader_state *state)
 #endif
         active_slot = state->slot_usage[BOOT_CURR_IMG(state)].active_slot;
 
-        BOOT_LOG_INF("Image %d loaded from the %s slot",
+        BOOT_LOG_FORCE("Image %d boot from %s slot",
                      BOOT_CURR_IMG(state),
                      (active_slot == BOOT_PRIMARY_SLOT) ?
                      "primary" : "secondary");
@@ -2748,13 +2751,13 @@ boot_load_and_validate_images(struct boot_loader_state *state)
 
                 state->slot_usage[BOOT_CURR_IMG(state)].slot_available[active_slot] = false;
                 state->slot_usage[BOOT_CURR_IMG(state)].active_slot = NO_ACTIVE_SLOT;
-                BOOT_LOG_INF("%s: slot[%d] is invalid, will reselect (other slot=%d if available)",
-                     __FUNCTION__, active_slot, active_slot^1);
+                BOOT_LOG_FORCE("slot[%d] invalid, reselect %d",
+                     active_slot, active_slot^1);
                 continue;
             } else {
                 /* Validated -> final A/B slot to boot (0=A/1=B, after boot_param
                  * preference + fallback). */
-                BOOT_LOG_INF("%s: slot[%d] is valid, break the loop", __FUNCTION__, active_slot);
+                BOOT_LOG_FORCE("slot[%d] valid", active_slot);
             }
 
             /* Valid image loaded from a slot, go to next image. */

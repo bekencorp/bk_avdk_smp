@@ -70,6 +70,10 @@ extern "C" {
 #define MCUBOOT_LOG_DBG(...) IGNORE(__VA_ARGS__)
 #endif
 
+/* Always emit; ignores MCUBOOT_LOG_LEVEL (BL2 printf is UART-retargeted). */
+#define MCUBOOT_LOG_FORCE(_fmt, ...)                \
+    printf("[FCE] " _fmt "\r\n", ##__VA_ARGS__)
+
 #ifdef __cplusplus
 }
 #endif

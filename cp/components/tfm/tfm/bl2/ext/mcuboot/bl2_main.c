@@ -169,7 +169,7 @@ int main(void)
     }
 #endif
 
-    BOOT_LOG_INF("Starting bootloader");
+    BOOT_LOG_DBG("Starting bootloader");
     dump_efuse();
     int part_rc = -1;
     part_rc = partition_init();
@@ -189,9 +189,9 @@ int main(void)
      * a bad signature. */
     (void)boot_param_load();
     uint8_t ab_pref = boot_param_decide_slot();
-    BOOT_LOG_INF("boot_param preferred slot: %d", ab_pref);
+    BOOT_LOG_FORCE("boot_param preferred slot: %d", ab_pref);
 #else
-    BOOT_LOG_INF("XIP force-A: skip boot_param slot selection");
+    BOOT_LOG_FORCE("XIP force-A slot");
 #endif
 #endif
 

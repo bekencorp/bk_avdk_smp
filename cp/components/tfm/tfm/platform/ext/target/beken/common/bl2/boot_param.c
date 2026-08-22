@@ -40,6 +40,9 @@
 
 #define TAG "boot_param"
 
+/* Force: A/B decision trace always emitted, even with BL2 log level lowered. */
+#define BP_FORCE(fmt, ...) BK_LOG_FORCE(TAG ": " fmt, ##__VA_ARGS__)
+
 /* Line-mode bracket for post-boot_go commits. The low-level op_sw erase/PP are
  * ignored while the device is in QUAD continuous-read (the XIP path leaves it in
  * that state after boot_go), so a commit must drop to TWO first and restore QUAD
@@ -91,7 +94,7 @@ int boot_param_load(void)
 		return -1;
 	}
 
-	BK_LOGI(TAG, "active idx=%d seq=%u exec=%d update=%d state=%x dl=%x try(pmu)=%u/%u\r\n",
+	BP_FORCE("idx=%d seq=%u exec=%d upd=%d st=%x dl=%x try=%u/%u\r\n",
 		s_ab.latest_sector_idx, s_ab.latest_record.seq, s_ab.latest_record.exec_slot,
 		s_ab.latest_record.update_slot, s_ab.latest_record.boot_state, s_ab.latest_record.dl_state,
 		boot_param_pmu_try_get(), s_ab.latest_record.try_max);
@@ -108,7 +111,7 @@ uint8_t boot_param_decide_slot(void)
 	/* Virgin / invalid record -> deterministic fallback to slot A. */
 	if (s_ab.latest_sector_idx < 0) {
 		s_ab.preferred_slot = AB_SLOT_A;
-		BK_LOGW(TAG, "decide: virgin -> slot A\r\n");
+		BP_FORCE("decide: virgin -> slot A\r\n");
 		return s_ab.preferred_slot;
 	}
 
@@ -133,7 +136,7 @@ uint8_t boot_param_decide_slot(void)
 
 		if (try_cnt < try_max) {
 			preferred = rec.update_slot;
-			BK_LOGI(TAG, "decide: TRIAL try=%u/%u -> update_slot %d\r\n",
+			BP_FORCE("decide: TRIAL %u/%u -> slot %d\r\n",
 				try_cnt, try_max, preferred);
 		} else {
 			/* Exhausted: roll back to exec_slot, settle to NORMAL (one commit)
@@ -143,7 +146,7 @@ uint8_t boot_param_decide_slot(void)
 			rec.update_slot = rec.exec_slot;
 			memset(rec.rsvd0, 0, sizeof(rec.rsvd0));
 			need_commit = true;
-			BK_LOGW(TAG, "decide: TRIAL exhausted (%u/%u) -> rollback exec_slot %d, state=NORMAL\r\n",
+			BP_FORCE("decide: TRIAL done %u/%u -> rollback slot %d\r\n",
 				try_cnt, try_max, preferred);
 		}
 		break;
@@ -153,12 +156,12 @@ uint8_t boot_param_decide_slot(void)
 	default:
 		/* Stable boot: touch neither flash nor PMU (counter already 0). */
 		preferred = rec.exec_slot;
-		BK_LOGI(TAG, "decide: NORMAL -> exec_slot %d\r\n", preferred);
+		BP_FORCE("decide: NORMAL -> slot %d\r\n", preferred);
 		break;
 	}
 
 	if (preferred != AB_SLOT_A && preferred != AB_SLOT_B) {
-		BK_LOGW(TAG, "decide: bad slot %d -> force A\r\n", preferred);
+		BP_FORCE("decide: bad slot %d -> force A\r\n", preferred);
 		preferred = AB_SLOT_A;
 	}
 
@@ -295,6 +298,6 @@ void boot_param_reconcile_booted(uint32_t image_off)
 	}
 	s_ab.preferred_slot = booted;
 
-	BK_LOGW(TAG, "reconcile: preferred slot[%d] failed, booted slot[%d] -> commit NORMAL\r\n",
+	BP_FORCE("reconcile: pref[%d] failed, booted[%d] -> NORMAL\r\n",
 		preferred, booted);
 }

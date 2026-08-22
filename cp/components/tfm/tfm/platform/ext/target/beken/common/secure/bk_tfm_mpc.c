@@ -144,9 +144,9 @@ static void flash_mpc_cfg(void)
 
 	/* The Non-Secure world is the CPU0 application; mark its flash region
 	 * Non-Secure so the SPM can read the NS MSP/VTOR from that alias. */
-	BK_LOGI(TAG, "flash NS carve start phy=%x\r\n", nspe_phy_offset);
+	BK_LOGD(TAG, "NS carve phy=%x\r\n", nspe_phy_offset);
 	if (nspe_phy_offset == 0) {
-		BK_LOGI(TAG, "no NS image, skip flash NS carve (flash stays secure)\r\n");
+		BK_LOGE(TAG, "no NS image, skip flash NS carve (flash stays secure)\r\n");
 		return;
 	}
 	/* Carve Non-Secure from the first partition after the TF-M image to the end
@@ -156,7 +156,7 @@ static void flash_mpc_cfg(void)
 		uint32_t ns_vir = FLASH_PHY2VIRTUAL(nspe_phy_offset);
 		uint32_t start_blk = ns_vir / block_sz;
 		uint32_t ns_blk = (start_blk < max_block_num) ? (max_block_num - start_blk) : 0;
-		BK_LOGI(TAG, "flash NS: vir=%x start_blk=%x ns_blk=%x max=%x\r\n", ns_vir, start_blk, ns_blk, max_block_num);
+		BK_LOGD(TAG, "NS vir=%x blk=%x/%x max=%x\r\n", ns_vir, start_blk, ns_blk, max_block_num);
 		if (ns_blk > 0 && ns_blk <= max_block_num) {
 			BK_LOG_ON_ERR(bk_mpc_set_secure_attribute(MPC_DEV_FLASH, ns_vir, ns_blk, MPC_BLOCK_NON_SECURE));
 		}
