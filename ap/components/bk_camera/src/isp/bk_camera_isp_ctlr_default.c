@@ -5,6 +5,7 @@
 #include <common/avdk_pixel_types.h>
 #include <components/bk_isp_camera.h>
 #include <components/bk_camera_isp_ctlr.h>
+#include <components/bk_frame_buffer.h>
 #include <driver/isp.h>
 #include <driver/i2c.h>
 #include <driver/io_matrix.h>
@@ -85,7 +86,8 @@ static void isp_camera_ctlr_task_entry(void *param)
         ret = isp_control->pop_buf(config->channel, &buf, read_ctx->read_timeout);
         if (ret == VSI_ERR_NOT_READY)
         {
-            /* StreamOff aborted DQBUF; exit cam_thread cleanly. */
+            /* StreamOff aborted DQBUF; exit cam_thread cleanly. The per-channel reader is
+             * recreated on the next channel open (isp_camera_ctlr_start_channel_reader). */
             read_ctx->thread_enable = false;
             break;
         }
@@ -457,6 +459,98 @@ static avdk_err_t isp_camera_ctlr_delete(bk_isp_camera_ctlr_handle_t handle)
 }
 
 
+/* Validate a live SP stream before open returns, and re-arm a HW metastable "dead-arm" in
+ * place, so a plain channel_open() hands back an already-streaming channel and the caller
+ * needs no probe/retry of its own.
+ *
+ * A frame-mode (non-flexa) channel such as SP can arm into a metastable state when brought up
+ * while the MP flexa path is free-running: it emits the FIRST frame, then stalls mid-frame
+ * (no further frame-end). A single-frame check would pass such a channel, yet the caller then
+ * reads 0 frames for the rest of the session. So read ISP_CAM_ARM_PROBE_FRAMES consecutive
+ * frames to confirm the stream; if that fails, close+reopen (which pulses the SP-only SRSZ
+ * soft-reset) and retry. Everything runs in the caller's task context -- never the ISR, never
+ * touching frame-shared units -- so the concurrent MP flexa display is left undisturbed. */
+#define ISP_CAM_ARM_PROBE_FRAMES  3
+#define ISP_CAM_ARM_RETRY         24
+#define ISP_CAM_ARM_BACKOFF_MS    20
+#define ISP_CAM_ARM_PROBE_TMO_MS  1000
+
+static avdk_err_t isp_camera_ctlr_arm_probe_sustain(bk_camera_isp_ctlr_t *control, uint8_t channel,
+                                                    isp_config_ext_t *isp_config,
+                                                    bk_isp_camera_channel_config_t *cfg)
+{
+    uint32_t fsize;
+
+    if (cfg->format == BK_PIXEL_FORMAT_RGB888 || cfg->format == BK_PIXEL_FORMAT_BGR888)
+    {
+        /* ISP outputs RGB888/BGR888 as RGBX (4 bytes/pixel). */
+        fsize = (uint32_t)cfg->width * cfg->height * 4U;
+    }
+    else
+    {
+        fsize = bk_image_size_get(cfg->width, cfg->height, (bk_pixel_format_t)cfg->format);
+    }
+    if (fsize == 0U)
+    {
+        return AVDK_ERR_INVAL;
+    }
+
+    uint8_t *probe = (uint8_t *)bk_frame_buffer_malloc(MEM_SLAB_HEAP_UNCODED, fsize);
+    if (probe == NULL)
+    {
+        LOGE("%s, %d probe malloc %u failed\n", __func__, __LINE__, fsize);
+        return AVDK_ERR_NO_RESOURCE;
+    }
+
+    avdk_err_t ret = AVDK_ERR_GENERIC;
+    for (int att = 1; att <= ISP_CAM_ARM_RETRY; att++)
+    {
+        int got = 0;
+        for (; got < ISP_CAM_ARM_PROBE_FRAMES; got++)
+        {
+            ret = isp_camera_ctlr_read(&control->ops, channel, probe, fsize, ISP_CAM_ARM_PROBE_TMO_MS);
+            if (ret != AVDK_ERR_OK)
+            {
+                break;
+            }
+        }
+        if (got >= ISP_CAM_ARM_PROBE_FRAMES)
+        {
+            if (att > 1)
+            {
+                LOGW("%s, ch%d arm ok after att=%d\n", __func__, channel, att);
+            }
+            bk_frame_buffer_free(probe);
+            return AVDK_ERR_OK;
+        }
+
+        /* got<N: the stream stalled. A full stream off/on drives the SDK SRSZ soft-reset that
+         * re-arms the SP self-path, then reopen (task context, so MP flexa is undisturbed).
+         * Under the per-channel reader model, stream-off makes the reader thread self-exit and
+         * bk_isp_open does not recreate it, so stop it explicitly first and restart it after
+         * reopen -- mirroring the channel_open/channel_close pairing -- so the next probe read
+         * has a live consumer. */
+        LOGW("%s, ch%d arm att=%d probe got=%d/%d, reopen\n",
+             __func__, channel, att, got, ISP_CAM_ARM_PROBE_FRAMES);
+        isp_camera_ctlr_stop_channel_reader(control, channel);
+        bk_isp_close(&control->isp_handle, channel);
+        rtos_delay_milliseconds(ISP_CAM_ARM_BACKOFF_MS + (att & 0x7));
+        if (bk_isp_open(&control->isp_handle, isp_config) != BK_OK)
+        {
+            LOGW("%s, ch%d reopen failed att=%d\n", __func__, channel, att);
+            continue;
+        }
+        if (isp_camera_ctlr_start_channel_reader(control, channel) != AVDK_ERR_OK)
+        {
+            LOGW("%s, ch%d reader restart failed att=%d\n", __func__, channel, att);
+            continue;
+        }
+    }
+
+    bk_frame_buffer_free(probe);
+    return ret;
+}
+
 static avdk_err_t isp_camera_ctlr_channel_open(bk_isp_camera_ctlr_handle_t handle, uint8_t channel, bk_isp_camera_channel_config_t *config)
 {
     avdk_err_t ret = AVDK_ERR_OK;
@@ -530,6 +624,20 @@ static avdk_err_t isp_camera_ctlr_channel_open(bk_isp_camera_ctlr_handle_t handl
             (void)bk_isp_close(&controller->isp_handle, channel);
             controller->channel_state[channel] = ISP_CHANNEL_STATE_TURN_OFF;
             return ret;
+        }
+    }
+
+    /* Frame-mode (non-flexa) channel (SP): confirm a live stream and re-arm a metastable
+     * dead-arm internally, so the caller never sees a half-dead (0-frame) session. */
+    if (isp_config.enable_flexa == 0 && isp_config.work_mode == 0)
+    {
+        if (isp_camera_ctlr_arm_probe_sustain(controller, channel, &isp_config, config) != AVDK_ERR_OK)
+        {
+            LOGE("%s, %d, channel %d failed to arm (dead-arm) after %d attempts\n",
+                 __func__, __LINE__, channel, ISP_CAM_ARM_RETRY);
+            bk_isp_close(&controller->isp_handle, channel);
+            controller->channel_state[channel] = ISP_CHANNEL_STATE_TURN_OFF;
+            return AVDK_ERR_GENERIC;
         }
     }
 

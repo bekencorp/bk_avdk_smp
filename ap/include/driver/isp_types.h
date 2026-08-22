@@ -96,6 +96,13 @@ typedef struct {
     uint32_t u_addr;
     uint32_t v_addr;
     uint32_t sequence;
+    /* Number of upcoming MP-flexa frames to force-drop (report ok=0) so the GPU bond discards
+     * the frames straddling a peer (SP) stream on/off. Arming or disarming SP pulses the global
+     * MI_CFG_UPD latch, which reloads the live MP flexa shadow regs mid-frame and corrupts a few
+     * MP pixel lines with no line-count anomaly -- so neither the ISP integrity check nor the
+     * GPU overrun check catches them. Loaded with ISP_MP_FLICKER_FORCE_DROP_FRAMES at SP
+     * arm/disarm and decremented in the MP frame-end ISR. */
+    uint8_t force_drop_pending;
     uint8_t skip_frames_remaining; /**< Frames left to drop (AE warmup); no ISR callback to upper layer. */
     uint8_t skip_active;           /**< Current frame is being dropped. */
     uint8_t warmup_done;           /**< Latched 1 only after this channel finished a configured (>0) skip countdown, or inherited an already-warmed peer at open. A skip=0 channel is NOT a warmup authority. */
