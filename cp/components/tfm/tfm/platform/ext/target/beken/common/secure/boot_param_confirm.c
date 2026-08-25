@@ -29,7 +29,7 @@
 #include "boot_param.h"
 #include "bk_tfm_log.h"
 
-#define TAG "bp_confirm"
+#define TAG "bp_cfm"
 
 /* Route to the unified SPM-sink log. Force: the A/B confirm trace is always
  * emitted, even with CONFIG_TFM_LOG_LEVEL lowered for production. */

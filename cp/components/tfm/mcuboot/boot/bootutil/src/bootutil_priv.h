@@ -176,9 +176,10 @@ _Static_assert(sizeof(boot_img_magic) == BOOT_MAGIC_SZ, "Invalid size for image 
 
 #define BOOT_MAX_IMG_SECTORS       MCUBOOT_MAX_IMG_SECTORS
 
+/* Compact A/B scan line: e.g. "s0 v0.0.1+0" / handled by "s1 none" below. */
 #define BOOT_LOG_IMAGE_INFO(slot, hdr)                                    \
-    BOOT_LOG_FORCE("%-9s slot: version=%u.%u.%u+%u",                      \
-                 ((slot) == BOOT_PRIMARY_SLOT) ? "Primary" : "Secondary", \
+    BOOT_LOG_FORCE("s%d v%u.%u.%u+%u",                                     \
+                 (slot),                                                  \
                  (hdr)->ih_ver.iv_major,                                  \
                  (hdr)->ih_ver.iv_minor,                                  \
                  (hdr)->ih_ver.iv_revision,                               \

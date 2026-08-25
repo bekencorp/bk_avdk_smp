@@ -189,7 +189,7 @@ int main(void)
      * a bad signature. */
     (void)boot_param_load();
     uint8_t ab_pref = boot_param_decide_slot();
-    BOOT_LOG_FORCE("boot_param preferred slot: %d", ab_pref);
+    BOOT_LOG_FORCE("bp preferred slot: %d", ab_pref);
 #else
     BOOT_LOG_FORCE("XIP force-A slot");
 #endif

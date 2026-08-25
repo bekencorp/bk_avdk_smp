@@ -38,7 +38,7 @@
 #include "partitions.h"
 #include "bk_tfm_log.h"
 
-#define TAG "boot_param"
+#define TAG "bp"
 
 /* Force: A/B decision trace always emitted, even with BL2 log level lowered. */
 #define BP_FORCE(fmt, ...) BK_LOG_FORCE(TAG ": " fmt, ##__VA_ARGS__)

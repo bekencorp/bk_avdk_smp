@@ -2061,10 +2061,7 @@ boot_get_slot_usage(struct boot_loader_state *state)
                 BOOT_LOG_IMAGE_INFO(slot, hdr);
             } else {
                 state->slot_usage[BOOT_CURR_IMG(state)].slot_available[slot] = false;
-                BOOT_LOG_FORCE("Image %d %s: not found",
-                             BOOT_CURR_IMG(state),
-                             (slot == BOOT_PRIMARY_SLOT)
-                             ? "Primary" : "Secondary");
+                BOOT_LOG_FORCE("s%d none", slot);
             }
         }
 
@@ -2135,7 +2132,7 @@ find_slot_with_highest_version(struct boot_loader_state *state)
             state->slot_usage[BOOT_CURR_IMG(state)].slot_available[pref];
 
         if (hook_decided && pref_differs && pref_usable) {
-            BOOT_LOG_FORCE("boot_param override: img %d slot %u->%u",
+            BOOT_LOG_FORCE("bp override: img %d slot %u->%u",
                          BOOT_CURR_IMG(state), candidate_slot, pref);
             candidate_slot = pref;
         }
@@ -2166,10 +2163,7 @@ print_loaded_images(struct boot_loader_state *state)
 #endif
         active_slot = state->slot_usage[BOOT_CURR_IMG(state)].active_slot;
 
-        BOOT_LOG_FORCE("Image %d boot from %s slot",
-                     BOOT_CURR_IMG(state),
-                     (active_slot == BOOT_PRIMARY_SLOT) ?
-                     "primary" : "secondary");
+        BOOT_LOG_FORCE("boot s%d", active_slot);
     }
 }
 #endif

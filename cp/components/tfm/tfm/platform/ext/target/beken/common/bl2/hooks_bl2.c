@@ -28,7 +28,7 @@
 #include "bk_efuse.h"
 #include "bk_boot_verify.h"
 
-#define TAG "hook"
+#define TAG "hk"
 #define BL2_HOOK_LOGD BK_LOGD
 #define BL2_HOOK_LOGI BK_LOGI
 #define BL2_HOOK_LOGW BK_LOGW
@@ -45,7 +45,7 @@ static void dump_image_header(struct image_header *hdr)
 	BL2_HOOK_LOGD(TAG, "load_addr=%x\r\n", hdr->ih_load_addr);
 	BL2_HOOK_LOGD(TAG, "hdr_size=%x\r\n", hdr->ih_hdr_size);
 	BL2_HOOK_LOGD(TAG, "protect_tlv_size=%x\r\n", hdr->ih_protect_tlv_size);
-	BL2_HOOK_LOGF("img_size=%x\r\n", hdr->ih_img_size);
+	BL2_HOOK_LOGD(TAG, "img_size=%x\r\n", hdr->ih_img_size);
 	BL2_HOOK_LOGD(TAG, "flags=%x\r\n", hdr->ih_flags);
 	BL2_HOOK_LOGD(TAG, "pad=%x\r\n", hdr->_pad1);
 }
@@ -66,7 +66,7 @@ boot_is_header_valid(const struct image_header *hdr, const struct flash_area *fa
     uint32_t size;
 
     if (hdr->ih_magic != IMAGE_MAGIC) {
-        BL2_HOOK_LOGE(TAG, "invalid img magic: %x\r\n", hdr->ih_magic);
+        BL2_HOOK_LOGE(TAG, "bad magic: %x\r\n", hdr->ih_magic);
         return false;
     }   
 
@@ -156,7 +156,7 @@ int boot_read_image_header_hook(int img_index, int slot,
 	}
 
 	if (boot_is_header_valid(&hdr, fap) == false) {
-		BL2_HOOK_LOGE(TAG, "invalid image header, slot=%d\r\n", slot);
+		BL2_HOOK_LOGE(TAG, "bad hdr s=%d\r\n", slot);
 	} else {
 		BL2_HOOK_LOGD(TAG, "read image=%d, slot=%d hdr\r\n", img_index, slot);
 		dump_image_header(&hdr);

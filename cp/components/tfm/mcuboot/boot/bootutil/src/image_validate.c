@@ -171,14 +171,14 @@ bootutil_img_hash(struct enc_key_data *enc_state, int image_index,
          * tell "remap not effective" apart from a genuine bad image. */
         uint32_t remap_en = flash_get_excute_enable();
         uint32_t addr_off = flash_get_addr_offset();
-        BOOT_LOG_FORCE("SECONDARY remap=%u off=0x%x", remap_en, addr_off);
+        BOOT_LOG_DBG("SECONDARY remap=%u off=0x%x", remap_en, addr_off);
         if (remap_en != 1 || addr_off == 0) {
             BOOT_LOG_ERR("%s: SECONDARY remap NOT effective (remap_en=%u addr_offset=0x%x) -> read aliases to primary!",
                          __FUNCTION__, remap_en, addr_off);
         }
     }
 #endif
-    BOOT_LOG_FORCE("hash fa_off=0x%x", fa_off);
+    BOOT_LOG_DBG("hash fa_off=0x%x", fa_off);
     /* Flush before CBUS hash: drop stale 0x04 lines (non-AES overwrite / XIP A/B same VA).
      * Encrypted overwrite already flushes in bk_flash_write_cbus. */
     flush_all_dcache();
@@ -654,9 +654,9 @@ bootutil_img_validate(struct enc_key_data *enc_state, int image_index,
         /* Take ECDSA result; may be SUCCESS or FAILURE. */
         FIH_SET(fih_rc, valid_signature);
         if (FIH_EQ(fih_rc, FIH_SUCCESS)) {
-            BOOT_LOG_FORCE("signature verify OK");
+            BOOT_LOG_FORCE("verify OK");
         } else {
-            BOOT_LOG_ERR("signature verify fail");
+            BOOT_LOG_ERR("verify fail");
         }
 #endif
 #ifdef MCUBOOT_HW_ROLLBACK_PROT
