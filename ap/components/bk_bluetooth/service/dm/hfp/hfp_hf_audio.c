@@ -86,6 +86,9 @@ void hfp_hf_audio_set_pa_ctrl(const onboard_speaker_pa_ctrl_t *pa)
         onboard_speaker_pa_ctrl_t off = DEFAULT_ONBOARD_SPEAKER_PA_CTRL();
         s_hfp_pa_ctrl = off;
     }
+#if CONFIG_ADK_ONBOARD_SPEAKER_STREAM_SUPPORT_MULTIPLE_SOURCE
+    spk_service_set_pa_ctrl(pa);
+#endif
 }
 
 #if CONFIG_ADK_ONBOARD_SPEAKER_STREAM_SUPPORT_MULTIPLE_SOURCE
@@ -200,6 +203,7 @@ void hfp_hf_audio_start(uint8_t codec, const uint8_t *peer_addr)
 #endif
 
 #if CONFIG_ADK_ONBOARD_SPEAKER_STREAM_SUPPORT_MULTIPLE_SOURCE
+    spk_service_set_pa_ctrl(&s_hfp_pa_ctrl);
     if (BK_OK != spk_service_init())
     {
         LOGE("%s spk_service init err\n", __func__);

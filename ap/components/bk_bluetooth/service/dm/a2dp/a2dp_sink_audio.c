@@ -288,6 +288,7 @@ static bk_a2dp_audio_player_open_result_t a2dp_sink_audio_player_open(uint8_t op
 #endif
 
 #if CONFIG_ADK_ONBOARD_SPEAKER_STREAM_SUPPORT_MULTIPLE_SOURCE
+    spk_service_set_pa_ctrl(&s_a2dp_audio.pa_ctrl);
     if (BK_OK != spk_service_init())
     {
         LOGE("%s spk_service init err\n", __func__);
@@ -502,6 +503,9 @@ void a2dp_sink_audio_set_pa_ctrl(const onboard_speaker_pa_ctrl_t *pa)
         onboard_speaker_pa_ctrl_t off = DEFAULT_ONBOARD_SPEAKER_PA_CTRL();
         s_a2dp_audio.pa_ctrl = off;
     }
+#if CONFIG_ADK_ONBOARD_SPEAKER_STREAM_SUPPORT_MULTIPLE_SOURCE
+    spk_service_set_pa_ctrl(pa);
+#endif
 }
 
 static bk_err_t a2dp_sink_audio_prepare(const bk_a2dp_mcc_t *codec)

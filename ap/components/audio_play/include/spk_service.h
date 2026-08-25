@@ -186,6 +186,18 @@ bk_err_t spk_service_set_a2dp_rate_policy(aud_dac_a2dp_rate_policy_t policy);
  */
 bk_err_t spk_service_get_a2dp_rate_policy(aud_dac_a2dp_rate_policy_t *policy);
 
+/**
+ * @brief  Provide external-amp PA control for the persistent speaker.
+ *
+ * Must be called before the first spk_service_init() that actually builds the
+ * DAC (idempotent re-init keeps the original PA config). pa==NULL or
+ * pa_ctrl_en=false leaves PA GPIO undriven.
+ *
+ * With MULTI_SOURCE enabled, A2DP/HFP open the DAC via spk_service rather than
+ * audio_play's own speaker, so product PA settings must land here.
+ */
+void spk_service_set_pa_ctrl(const aud_pa_ctrl_t *pa);
+
 #ifdef __cplusplus
 }
 #endif

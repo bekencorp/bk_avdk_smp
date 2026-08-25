@@ -122,6 +122,8 @@ typedef struct
 
 static spk_service_ctx_t s_spk_service = {0};
 
+static aud_pa_ctrl_t s_spk_pa_ctrl = DEFAULT_AUD_PA_CTRL();
+
 /* Module-scope synchronisation primitives, created once on the first
  * spk_service_init() and kept alive for the whole process lifetime (they are
  * intentionally NOT stored in s_spk_service, which gets memset on every
@@ -477,6 +479,11 @@ bk_err_t spk_service_init(void)
     spk_cfg.frame_size[AUD_DAC_SOURCE_A2DP]  = SPK_SERVICE_FRAME_BYTES(DEFAULT_AUD_DAC_SAMPLE_RATE);
     spk_cfg.frame_size[AUD_DAC_SOURCE_CALL]  = SPK_SERVICE_FRAME_BYTES(SPK_SERVICE_AUX_MAX_RATE);
     spk_cfg.frame_size[AUD_DAC_SOURCE_HINT]  = SPK_SERVICE_FRAME_BYTES(SPK_SERVICE_AUX_MAX_RATE);
+    spk_cfg.pa_ctrl_en   = s_spk_pa_ctrl.pa_ctrl_en;
+    spk_cfg.pa_ctrl_gpio = s_spk_pa_ctrl.pa_ctrl_gpio;
+    spk_cfg.pa_on_level  = s_spk_pa_ctrl.pa_on_level;
+    spk_cfg.pa_on_delay  = s_spk_pa_ctrl.pa_on_delay;
+    spk_cfg.pa_off_delay = s_spk_pa_ctrl.pa_off_delay;
 
     ctx->speaker = onboard_speaker_stream_init(&spk_cfg);
     if (!ctx->speaker)
@@ -956,6 +963,23 @@ bk_err_t spk_service_get_a2dp_rate_policy(aud_dac_a2dp_rate_policy_t *policy)
     return BK_OK;
 }
 
+void spk_service_set_pa_ctrl(const aud_pa_ctrl_t *pa)
+{
+    if (pa)
+    {
+        s_spk_pa_ctrl = *pa;
+    }
+    else
+    {
+        aud_pa_ctrl_t off = DEFAULT_AUD_PA_CTRL();
+        s_spk_pa_ctrl = off;
+    }
+    LOGI("%s en=%d gpio=%u on_level=%u\n", __func__,
+         (int)s_spk_pa_ctrl.pa_ctrl_en,
+         (unsigned)s_spk_pa_ctrl.pa_ctrl_gpio,
+         (unsigned)s_spk_pa_ctrl.pa_on_level);
+}
+
 #else /* feature disabled: provide safe stubs so callers still link */
 
 bk_err_t spk_service_init(void)                          { return BK_ERR_NOT_SUPPORT; }
@@ -982,5 +1006,6 @@ bk_err_t spk_service_get_a2dp_rate_policy(aud_dac_a2dp_rate_policy_t *policy)
 {
     (void)policy; return BK_ERR_NOT_SUPPORT;
 }
+void spk_service_set_pa_ctrl(const aud_pa_ctrl_t *pa) { (void)pa; }
 
 #endif
