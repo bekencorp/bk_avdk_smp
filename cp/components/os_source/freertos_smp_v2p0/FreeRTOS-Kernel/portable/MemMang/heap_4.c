@@ -287,6 +287,13 @@ static size_t psram_xMinimumEverFreeBytesRemaining = 0U;
 
 static volatile uint32_t s_psram_used_count = 0;
 
+/* High-water mark of the PSRAM heap: the largest byte offset from the heap
+ * base (PSRAM_START_ADDRESS) that has ever been allocated. Recorded on every
+ * allocation so the coredump path can dump only the used part of the heap
+ * ("用了多少 dump 多少") instead of the whole configured size. Stored as an
+ * offset from base so it is independent of any cached/uncached address alias. */
+static volatile uint32_t s_psram_heap_max_used = 0;
+
 void rtos_regist_plat_dump_hook(uint32_t reg_base_addr, uint32_t reg_size);
 
 #if (CONFIG_PSRAM_AS_SYS_MEMORY)
@@ -548,6 +555,20 @@ void *pvReturn = NULL;
 					else
 					{
 						mtCOVERAGE_TEST_MARKER();
+					}
+
+					/* Track the PSRAM heap high-water mark (offset from base) so
+					the coredump only dumps the used range. pxBlock->xBlockSize
+					still holds the plain block size here (the allocated bit is
+					set below), and this runs under the psram heap lock. */
+					{
+						uint32_t psram_used_end =
+							( ( uint32_t ) pxBlock + pxBlock->xBlockSize )
+							- ( uint32_t ) PSRAM_START_ADDRESS;
+						if( psram_used_end > s_psram_heap_max_used )
+						{
+							s_psram_heap_max_used = psram_used_end;
+						}
 					}
 
 					/* The block is being returned - it is allocated and owned
@@ -1363,6 +1384,18 @@ void mem_overflow_check_all(void)
 uint32_t bk_psram_heap_get_used_count(void) {
 #if CONFIG_PSRAM_AS_SYS_MEMORY
 	return s_psram_used_count;
+#else
+	return 0;
+#endif
+}
+
+uint32_t bk_psram_heap_get_used_size(void) {
+#if CONFIG_PSRAM_AS_SYS_MEMORY
+	uint32_t used = s_psram_heap_max_used;
+	if (used > (uint32_t)PSRAM_HEAP_SIZE) {
+		used = (uint32_t)PSRAM_HEAP_SIZE;
+	}
+	return used;
 #else
 	return 0;
 #endif
