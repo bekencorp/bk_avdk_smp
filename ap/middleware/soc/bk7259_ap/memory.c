@@ -19,6 +19,7 @@
 #include "sdkconfig.h"
 #include "stack_base.h"
 #include "reg_base.h"
+#include "sys_sw_regs.h"
 #include "memory.h"
 
 extern unsigned char _data_ram_begin;
@@ -246,13 +247,23 @@ uint32_t bk_get_peri_reg_info_count(void)
 void bk_get_psram_heap_info(bk_dump_mem_info_t *info)
 {
     info->name = "PSRAM_HEAP";
-#if CONFIG_PSRAM_AS_SYS_MEMORY
-    if (bk_psram_heap_get_used_count() == 0) {
+#if defined(CONFIG_AP_PSRAM_HEAP_ADDR)
+    /*
+     * Dump only the used part of the PSRAM heap ("用了多少 dump 多少"): the heap
+     * allocator records the high-water mark (pool_base .. max_alloc_end) into
+     * the shared sys_sw_regs on every allocation, so we dump [pool_base,
+     * max_alloc_end) instead of the whole PSRAM_HEAP_SIZE. This is the same
+     * window the CP reads when it dumps AP memory, so the AP self-dump and the
+     * CP-initiated AP dump stay consistent.
+     */
+    ap_heap_dump_info_t heap_info = {0};
+    if (!bk_sys_sw_regs_get_ap_heap_dump(BK_SYS_SW_REGS_AP_HEAP_PSRAM, &heap_info) ||
+        (heap_info.max_alloc_end <= heap_info.pool_base)) {
         info->start_addr = 0;
         info->size = 0;
     } else {
-        info->start_addr = PSRAM_HEAP_ADDR;
-        info->size = PSRAM_HEAP_SIZE;
+        info->start_addr = heap_info.pool_base;
+        info->size = heap_info.max_alloc_end - heap_info.pool_base;
     }
 #else
     info->start_addr = 0;
