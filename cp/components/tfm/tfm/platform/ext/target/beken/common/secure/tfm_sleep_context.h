@@ -12,6 +12,9 @@ extern "C" {
 
 int tfm_sleep_context_restore(void);
 
+/* Apply retained CP PPRO immediately before BXNS (same timing as ns_init_hook). */
+int tfm_sleep_context_apply_ppc(void);
+
 bool tfm_sleep_context_is_valid(void);
 int tfm_sleep_context_build_snapshot(void);
 int tfm_sleep_context_refresh_ppro(void);

@@ -26,9 +26,9 @@ static bool tfm_sleep_warm_boot_applicable(void)
 		return false;
 	}
 
-	if (sys_is_enable_fast_boot() == 0u) {
-		return false;
-	}
+	// if (sys_is_enable_fast_boot() == 0u) {
+	// 	return false;
+	// }
 
 	if ((REG_READ(SOC_AON_PMU_REG_BASE + (0x7bu << 2)) &
 	     TFM_SLEEP_AON_FAST_BOOT) == 0u) {
@@ -47,6 +47,11 @@ static void tfm_sleep_secure_hw_init(void)
 	sau_and_idau_cfg();
 	(void)tfm_hal_secure_static_mpu_init();
 	tfm_hal_dma_init();
+
+	/* Restore interrupt routing: deep sleep resets NVIC->ITNS to secure and
+	 * ITNS is inaccessible from the non-secure side, so it must be redone
+	 * here before returning to NSPE. */
+	(void)nvic_interrupt_target_state_cfg();
 }
 
 __attribute__((naked)) __attribute__((noreturn))
@@ -63,9 +68,14 @@ __attribute__((noreturn))
 static void tfm_sleep_jump_to_ns(void)
 {
 	uint32_t ns_vtor = NS_CODE_START;
+	uint32_t reg_val;
 	uint32_t ns_msp = *((uint32_t *)ns_vtor);
 	uint32_t ns_ep = *((uint32_t *)(ns_vtor + 4u));
-	uint32_t reg_val;
+
+	if (tfm_sleep_context_apply_ppc() != 0) {
+		while (1) {
+		}
+	}
 
 	SCB_NS->VTOR = ns_vtor;
 	__TZ_set_MSP_NS(ns_msp);

@@ -19,7 +19,7 @@
 #define TFM_SLEEP_PPRO_FIRST_REG         (0x04u)
 #define TFM_SLEEP_PPRO_REG_COUNT         (12u)
 #define TFM_SLEEP_DBUS_REG_COUNT         (4u)
-#define TFM_SLEEP_MPC_COUNT              (4u)
+#define TFM_SLEEP_MPC_COUNT              (5u)
 #define TFM_SLEEP_MPC_MAX_LUT_WORDS      (256u)
 #define TFM_SLEEP_MPC_MAX_RUNS           (16u)
 
@@ -65,6 +65,7 @@ static const uintptr_t s_tfm_sleep_mpc_base[TFM_SLEEP_MPC_COUNT] = {
 	SOC_MPC_SMEM0_REG_BASE,
 	SOC_MPC_SMEM1_REG_BASE,
 	SOC_MPC_SMEM2_REG_BASE,
+	SOC_MPC_OTP2_REG_BASE,
 };
 
 extern void flush_all_dcache(void);
@@ -315,6 +316,7 @@ int tfm_sleep_context_restore(void)
 	const tfm_sleep_context_t *saved =
 		(const tfm_sleep_context_t *)&s_tfm_sleep_context;
 
+	/* Consume magic; MPC/DBUS/PPRO payload remains for apply_ppc(). */
 	tfm_sleep_context_invalidate();
 
 	for (uint32_t dev = 0u; dev < TFM_SLEEP_MPC_COUNT; dev++) {
@@ -324,20 +326,7 @@ int tfm_sleep_context_restore(void)
 		}
 	}
 
-	REG_WRITE(SOC_PPRO_REG_BASE + (0x02u << 2), saved->ppro_reg2);
-
-	if (bk_ppc_init() != 0) {
-		return -1;
-	}
-
-	for (uint32_t index = 0u; index < TFM_SLEEP_PPRO_REG_COUNT; index++) {
-		REG_WRITE(SOC_PPRO_REG_BASE +
-			  ((TFM_SLEEP_PPRO_FIRST_REG + index) << 2),
-			  saved->ppro[index]);
-	}
-
-	bk_ppc_set_ap_master_nsec();
-
+	/* Flash DBUS before any PPRO word that marks Flash NS. */
 	for (uint32_t index = 0u; index < TFM_SLEEP_DBUS_REG_COUNT; index++) {
 		REG_WRITE(SOC_FLASH_REG_BASE + ((0x0du + index) << 2),
 			  saved->flash_dbus[index]);
@@ -345,13 +334,6 @@ int tfm_sleep_context_restore(void)
 	__DSB();
 	__ISB();
 
-	for (uint32_t index = 0u; index < TFM_SLEEP_PPRO_REG_COUNT; index++) {
-		if (REG_READ(SOC_PPRO_REG_BASE +
-			     ((TFM_SLEEP_PPRO_FIRST_REG + index) << 2)) !=
-		    saved->ppro[index]) {
-			return -1;
-		}
-	}
 	for (uint32_t index = 0u; index < TFM_SLEEP_DBUS_REG_COUNT; index++) {
 		if (REG_READ(SOC_FLASH_REG_BASE + ((0x0du + index) << 2)) !=
 		    saved->flash_dbus[index]) {
@@ -359,5 +341,28 @@ int tfm_sleep_context_restore(void)
 		}
 	}
 
+	return 0;
+}
+
+int tfm_sleep_context_apply_ppc(void)
+{
+	const tfm_sleep_context_t *saved =
+		(const tfm_sleep_context_t *)&s_tfm_sleep_context;
+
+	_Static_assert(TFM_SLEEP_PPRO_REG_COUNT == BK_PPC_CONFIG_WORD_COUNT,
+		       "sleep PPRO snapshot size must match CP PPC config");
+
+	if (bk_ppc_init() != 0) {
+		return -1;
+	}
+
+	/* Same as ns_init_hook: full retained CP PPRO, then AP master nsec. */
+	if (bk_ppc_apply_config(saved->ppro) != 0) {
+		return -1;
+	}
+
+	bk_ppc_set_ap_master_nsec();
+	__DSB();
+	__ISB();
 	return 0;
 }

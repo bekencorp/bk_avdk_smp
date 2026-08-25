@@ -30,9 +30,9 @@
 #define RUNNING_IS_FROM_DEEP_SLEEP      ((BK7236_PMU_RESET_REASON_GET & DEEP_SLEEP_RESTART_BIT ) != 0)
 #define RUNNING_IS_FROM_OTA              ((BK7236_PMU_RESET_REASON_GET & OTA_FINISH_RESTART_BIT ) != 0)
 
-#define EFUSE_REG2_MODULE        *((volatile unsigned long *) (0x44880000 + 0x2*4))
-#define EFUSE_REG4_CTRL          *((volatile unsigned long *) (0x44880000 + 0x4*4))
-#define EFUSE_REG5_DATA          *((volatile unsigned long *) (0x44880000 + 0x5*4))
+#define EFUSE_REG2_MODULE        *((volatile unsigned long *) (0x44850000 + 0x2*4))
+#define EFUSE_REG4_CTRL          *((volatile unsigned long *) (0x44850000 + 0x4*4))
+#define EFUSE_REG5_DATA          *((volatile unsigned long *) (0x44850000 + 0x5*4))
 #define EFUSE_READ_IS_VALID       ((EFUSE_REG5_DATA & 0x100) >> 8)
 #define EFUSE_FAST_BOOT_DISABLE_BIT         (1<<2)
 

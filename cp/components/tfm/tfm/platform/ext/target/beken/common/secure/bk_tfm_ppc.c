@@ -213,11 +213,19 @@ int bk_pphs_apply_ap_config_from_flash(void)
 
 int bk_ppc_init(void)
 {
-    *((volatile uint32_t *)(SOC_PPRO_REG_BASE + 2 * 4)) = 1;
-    *((volatile uint32_t *)(SOC_PPRO_REG_BASE + 8 * 4)) = BIT(16);
-    *((volatile uint32_t *)(SOC_PPRO_REG_BASE + 5 * 4)) = 0;
-    *((volatile uint32_t *)(SOC_PPRO_REG_BASE + 11 * 4)) = 0;
-    return 0;
+	volatile uint32_t *ppro_reg2 =
+		(volatile uint32_t *)(SOC_PPRO_REG_BASE + 2u * 4u);
+
+	/* Pulse SOFT_RESET then release; leaving bit0 set hangs reg4+ R/W. */
+	*ppro_reg2 = 1u;
+	__DSB();
+	*ppro_reg2 = 0u;
+	__DSB();
+
+	*((volatile uint32_t *)(SOC_PPRO_REG_BASE + 8u * 4u)) = BIT(16);
+	*((volatile uint32_t *)(SOC_PPRO_REG_BASE + 5u * 4u)) = 0u;
+	*((volatile uint32_t *)(SOC_PPRO_REG_BASE + 11u * 4u)) = 0u;
+	return 0;
 }
 
 uint32_t bk_ppc_lock_flash(void)
