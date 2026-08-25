@@ -7,6 +7,19 @@
 #include <stdint.h>
 #include "sys_sw_regs.h"
 
+/*
+ * Cross-core dump owner/follower orchestration relies on the sys_sw_regs
+ * dump-test state machine, which is not present in this build tree. Compile the
+ * orchestration commands out; direct fault injection is unaffected.
+ */
+#ifndef APP_DUMP_ORCH_SUPPORTED
+#define APP_DUMP_ORCH_SUPPORTED 0
+#endif
+/* bk_cp_hang_debug_heartbeat_pause() is not provided in this build tree. */
+#ifndef APP_DUMP_CP_HANG_HB_SUPPORTED
+#define APP_DUMP_CP_HANG_HB_SUPPORTED 0
+#endif
+
 #define APP_DUMP_CASE_ID_MAX_LEN 31U
 #define APP_DUMP_TASK_STACK_SIZE 2048U
 #define APP_DUMP_TIMER_DELAY_MS  10U
@@ -39,16 +52,20 @@ typedef struct {
 	const app_dump_mode_t *mode;
 } app_dump_request_t;
 
+#if APP_DUMP_ORCH_SUPPORTED
 typedef struct {
 	char case_id[APP_DUMP_CASE_ID_MAX_LEN + 1U];
 	const app_dump_mode_t *mode;
 } app_dump_follow_request_t;
+#endif /* APP_DUMP_ORCH_SUPPORTED */
 
 static app_dump_request_t s_request;
 static volatile bool s_busy;
 static volatile bool s_timer_fired;
+#if APP_DUMP_ORCH_SUPPORTED
 static app_dump_follow_request_t s_follow_request;
 static volatile bool s_follow_busy;
+#endif /* APP_DUMP_ORCH_SUPPORTED */
 
 static const app_dump_mode_t s_app_dump_modes[] = {
 	{"task_assert", APP_DUMP_CONTEXT_TASK, APP_DUMP_FAULT_ASSERT},
@@ -257,6 +274,7 @@ exit_task:
 	rtos_delete_thread(NULL);
 }
 
+#if APP_DUMP_ORCH_SUPPORTED
 static void app_dump_follow_release(void)
 {
 	uint32_t flags = rtos_enter_critical();
@@ -389,6 +407,7 @@ static void app_dump_orch_reset_command(char *pc_write_buffer,
 	bk_sys_sw_regs_dump_test_reset();
 	os_printf("DUMP_ORCH_RESET raw=0x00000000\r\n");
 }
+#endif /* APP_DUMP_ORCH_SUPPORTED */
 
 static void app_dump_test_command(char *pc_write_buffer, int write_buffer_len,
 	int argc, char **argv)
@@ -431,7 +450,8 @@ static void app_dump_test_command(char *pc_write_buffer, int write_buffer_len,
 	s_request.mode = mode;
 	rtos_exit_critical(flags);
 
-	ret = rtos_core0_create_thread(NULL, BEKEN_APPLICATION_PRIORITY,
+	/* Single-core CP: no core-affinity variant, use the plain create. */
+	ret = rtos_create_thread(NULL, BEKEN_APPLICATION_PRIORITY,
 		"dump_cp", app_dump_task, APP_DUMP_TASK_STACK_SIZE, &s_request);
 	if (ret != BK_OK) {
 		app_dump_print_reject_ret(s_request.case_id,
@@ -440,7 +460,7 @@ static void app_dump_test_command(char *pc_write_buffer, int write_buffer_len,
 	}
 }
 
-#if CONFIG_CP_HANG_DUMP_BY_AP
+#if APP_DUMP_CP_HANG_HB_SUPPORTED && CONFIG_CP_HANG_DUMP_BY_AP
 static void cp_hang_hb_test_command(char *pc_write_buffer,
 	int write_buffer_len, int argc, char **argv)
 {
@@ -469,13 +489,15 @@ COMPONENTS_CLI_CMD_EXPORT
 static const struct cli_command s_app_dump_test_commands[] = {
 	{"cp_dump_test", "cp_dump_test <case_id> <mode>",
 		app_dump_test_command},
+#if APP_DUMP_ORCH_SUPPORTED
 	{"cp_dump_follow", "cp_dump_follow <case_id> ap_cp <task_mode>",
 		app_dump_follow_command},
 	{"cp_dump_orch_status", "cp_dump_orch_status",
 		app_dump_orch_status_command},
 	{"cp_dump_orch_reset", "cp_dump_orch_reset",
 		app_dump_orch_reset_command},
-#if CONFIG_CP_HANG_DUMP_BY_AP
+#endif /* APP_DUMP_ORCH_SUPPORTED */
+#if APP_DUMP_CP_HANG_HB_SUPPORTED && CONFIG_CP_HANG_DUMP_BY_AP
 	{"cp_hang_hb_test", "cp_hang_hb_test <stop|start>",
 		cp_hang_hb_test_command},
 #endif
