@@ -22,27 +22,32 @@
 /** Maximum number of BT link key or BLE bond records saved by this module. */
 #define BT_LINKKEY_MAX_SAVE_COUNT 3
 
-/** Per-device BT link key and profile volume record. */
+/**
+ * Per-device record. BR/EDR link-key info and (for a dual-mode device) the BLE
+ * bond now share ONE slot, keyed by address, instead of two parallel arrays.
+ */
 typedef struct __attribute__((packed))
 {
     //    char addr[6 * 2 + 5 + 1];
     //    char link_key[16 * 2 + 1];
-    uint8_t addr[6];      /**< Remote Bluetooth device address. */
-    uint8_t link_key[16]; /**< BT link key. */
+    uint8_t addr[6];      /**< Device address (BR/EDR BD_ADDR; also the BLE address when they match). */
+    uint8_t link_key[16]; /**< BR/EDR link key (all-zero for a BLE-only record). */
     uint8_t a2dp_volume;  /**< Saved A2DP volume. */
     uint32_t hash;        /**< Address hash used for compact lookup. */
     uint8_t hfp_mic_vol;  /**< Saved HFP microphone volume. */
     uint8_t hfp_spk_vol;  /**< Saved HFP speaker volume. */
-} bt_user_storage_elem_linkkey_t;
+#if CONFIG_BLE
+    bk_ble_bond_dev_t ble_key; /**< BLE bond for this device (bd_addr all-zero when none). */
+#endif
+} bt_user_storage_elem_t;
 
 
 /** Bluetooth user storage data persisted by the service layer. */
 typedef struct __attribute__((packed))
 {
-    bt_user_storage_elem_linkkey_t linkkey[BT_LINKKEY_MAX_SAVE_COUNT]; /**< Saved BT link key records. */
+    bt_user_storage_elem_t dev[BT_LINKKEY_MAX_SAVE_COUNT]; /**< Per-device BR/EDR + BLE records. */
 #if CONFIG_BLE
-    bk_ble_bond_dev_t ble_key[BT_LINKKEY_MAX_SAVE_COUNT]; /**< Saved BLE bond records. */
-    bk_ble_local_keys_t local_keys; /**< Saved local BLE keys. */
+    bk_ble_local_keys_t local_keys; /**< Saved local BLE keys (global, not per-device). */
 #endif
 } bt_user_storage_t;
 
