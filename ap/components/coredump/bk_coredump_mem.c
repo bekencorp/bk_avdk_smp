@@ -2,6 +2,7 @@
 #include "bk_arch.h"
 #include "os/mem.h"
 #include "bk_coredump.h"
+#include "bk_dump_manifest.h"
 #include "memory.h"
 
 void bk_dump_peri_regs(void)
@@ -100,4 +101,26 @@ void bk_dump_psram_mem(void)
     if (mem_info.start_addr != 0 && mem_info.size != 0) {
         bk_coredump_write_memory(mem_info.name, mem_info.start_addr, mem_info.start_addr + mem_info.size);
     }
+}
+
+/*
+ * P0-1 path 4: AP-local full-memory dump used when the CP handoff fails.
+ *
+ * Composed from the same safe primitives that back manifest(AP): current-context
+ * stacks first, then peripheral register banks, DTCM, SRAM (with the SRAM3
+ * secure carve-out skip applied in bk_dump_all_sram), registered extra memory
+ * and PSRAM. The set equals manifest(AP) by construction (FI-2b) while keeping
+ * the secure-skip / validity guards that a raw manifest address walk would drop
+ * (a raw SRAM3-from-base read would SecureFault / stall the bus). Intentionally
+ * omits the destructive peri probes, which stay Debug-only (P2-2).
+ */
+void bk_coredump_self_full_memory(void)
+{
+    bk_dump_mstack();
+    bk_dump_pstack();
+    bk_dump_peri_regs();
+    bk_dump_dtcm();
+    bk_dump_all_sram();
+    bk_dump_extra_mem();
+    bk_dump_psram_mem();
 }

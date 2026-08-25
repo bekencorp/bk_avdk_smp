@@ -16,14 +16,30 @@ menu "Coredump"
 			help
 				Dump all memory when exception happen
 
-	config CP_HANG_DUMP_BY_AP
-			bool "Enable AP-side CP hang dump debug feature"
-			depends on IPI && (DEBUG_VERSION || DUMP_ENABLE)
-			default n
+	config AP_HANDOFF_CP_REBOOT_BUDGET_MS
+			int "AP wait budget for CP reboot after dump handoff (ms)"
+			depends on DEBUG_VERSION || DUMP_ENABLE
+			range 500 7500
+			default 6000
 			help
-				Debug-only feature. CP sends a private IPI heartbeat to AP.
-				If AP observes CP heartbeat timeout, AP dumps CP-visible
-				context and reboots the board without relying on CP.
+				After the AP hands its trap dump to the CP, it waits this long
+				for the CP to dump AP memory and reset the board. If the CP does
+				not reset within the budget the AP self-dumps its own memory and
+				resets (P0-1 fallback). Board-tuned (FI-2): must exceed the
+				worst-case healthy CP dump time yet stay below the AON-WDT period
+				(8000ms) so the fallback runs before the AON-WDT fires.
+
+	config CP_HANG_DUMP_BY_AP
+			bool "Enable AP-side CP hang dump feature"
+			depends on IPI && (DEBUG_VERSION || DUMP_ENABLE)
+			default y
+			help
+				Production reliability feature (requires dump to be enabled).
+				CP sends a private IPI heartbeat to AP. If AP observes CP
+				heartbeat timeout, AP dumps CP-visible context (from the
+				unified manifest) and reboots the board without relying on the
+				CP - covering the "CP wedged and not answering mailbox" case
+				that the AP->CP handoff fallback (P0-1) cannot self-heal.
 
 	config CP_HANG_DUMP_BY_AP_PERIOD_MS
 			int "CP to AP debug heartbeat period(ms)"

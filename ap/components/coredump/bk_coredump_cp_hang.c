@@ -9,6 +9,7 @@
 #include <soc/soc.h>
 #include "bk_arch.h"
 #include "bk_coredump.h"
+#include "bk_dump_manifest.h"
 #include "multicore_driver.h"
 #include "reg_base.h"
 #include "sys_sw_regs.h"
@@ -174,47 +175,30 @@ static void cp_hang_dump_observer_context(uint32_t now)
 		(unsigned long)bk_ipi_get_device_status());
 }
 
-static void cp_hang_dump_peripheral_context(void)
+/*
+ * Dump the CP context the AP can observe, sourced from the unified manifest
+ * (Topic A) instead of hand-coded magic-size windows. Peripheral windows are
+ * cross_read_safe (CP-local AHBP path); CP RAM/PSRAM windows are only
+ * cross_read_safe once verified on the target board (gated by
+ * CONFIG_CP_HANG_DUMP_BY_AP_MEMDUMP). Unsafe entries emit an explicit skip
+ * marker so the offline parser sees the gap.
+ */
+static void cp_hang_dump_manifest_context(void)
 {
-#if defined(SOC_SYS_REG_BASE)
-	cp_hang_dump_window("CP_HANG_SYS", (uint32_t)SOC_SYS_REG_BASE, 0x5cU * 4U);
-#endif
-#if defined(SOC_SYS_AHBP_REG_BASE)
-	cp_hang_dump_window("CP_HANG_SYS_AHBP", (uint32_t)SOC_SYS_AHBP_REG_BASE, 0x60U * 4U);
-#endif
-#if defined(SOC_AON_PMU_REG_BASE)
-	cp_hang_dump_window("CP_HANG_AON_PMU", (uint32_t)SOC_AON_PMU_REG_BASE, 0x7fU * 4U);
-#endif
-#if defined(SOC_AON_RTC_REG_BASE)
-	cp_hang_dump_window("CP_HANG_AON_RTC", (uint32_t)SOC_AON_RTC_REG_BASE, 0x0aU * 4U);
-#endif
-#if defined(SOC_MBOX0_REG_BASE)
-	cp_hang_dump_window("CP_HANG_MBOX0", (uint32_t)SOC_MBOX0_REG_BASE, 0x38U * 4U);
-#endif
-#if defined(SOC_WDT_REG_BASE)
-	cp_hang_dump_window("CP_HANG_WDT", (uint32_t)SOC_WDT_REG_BASE, 0x20U * 4U);
-#endif
-#if defined(SOC_PPHS_REG_BASE)
-	cp_hang_dump_window("CP_HANG_PPHS", (uint32_t)SOC_PPHS_REG_BASE, 0x10U * 4U);
-#endif
-#if defined(SOC_PPRO_REG_BASE)
-	cp_hang_dump_window("CP_HANG_PPRO", (uint32_t)SOC_PPRO_REG_BASE, 0x24U * 4U);
-#endif
-}
+	uint32_t count = 0U;
+	const dump_region_t *manifest = bk_dump_manifest_get(DUMP_DOMAIN_CP, &count);
 
-static void cp_hang_dump_memory_context(void)
-{
-#if CONFIG_CP_HANG_DUMP_BY_AP_MEMDUMP
-#if defined(CONFIG_CP_RAM_ADDR) && defined(CONFIG_CP_RAM_SIZE) && CONFIG_CP_RAM_SIZE
-	cp_hang_dump_window("CP_RAM", (uint32_t)CONFIG_CP_RAM_ADDR, (uint32_t)CONFIG_CP_RAM_SIZE);
-#endif
-#if defined(CONFIG_CP_PSRAM_HEAP_ADDR) && defined(CONFIG_CP_PSRAM_HEAP_SIZE) && CONFIG_CP_PSRAM_HEAP_SIZE
-	cp_hang_dump_window("CP_PSRAM_HEAP", (uint32_t)CONFIG_CP_PSRAM_HEAP_ADDR,
-		(uint32_t)CONFIG_CP_PSRAM_HEAP_SIZE);
-#endif
-#else
-	bk_coredump_write_prompt("CP memory dump skipped: CONFIG_CP_HANG_DUMP_BY_AP_MEMDUMP=0\r\n");
-#endif
+	for (uint32_t i = 0U; i < count; i++) {
+		const dump_region_t *r = &manifest[i];
+		const char *name = (r->name != NULL) ? r->name : "CP_REGION";
+
+		if (r->cross_read_safe) {
+			cp_hang_dump_window(name, r->start_addr, r->size);
+		} else {
+			bk_coredump_write_prompt(
+				"%s skipped: cross_read_safe=0 (unverified on board)\r\n", name);
+		}
+	}
 }
 
 static void cp_hang_dump_prompt_prologue(void)
@@ -319,11 +303,11 @@ static void cp_hang_dump_from_ap(uint32_t now)
 	cp_hang_dump_current_context();
 	cp_hang_dump_prompt_prologue();
 
+	bk_coredump_write_prompt("@dump_format_version: %u\r\n", (unsigned)BK_DUMP_FORMAT_VERSION);
 	bk_coredump_write_prompt("***********************************************************************************************\r\n");
 	bk_coredump_write_prompt("*************************************CP memory dump begin**************************************\r\n");
 	bk_coredump_write_prompt("***********************************************************************************************\r\n");
-	cp_hang_dump_peripheral_context();
-	cp_hang_dump_memory_context();
+	cp_hang_dump_manifest_context();
 	bk_coredump_write_prompt("***********************************************************************************************\r\n");
 	bk_coredump_write_prompt("**************************************CP memory dump end***************************************\r\n");
 	bk_coredump_write_prompt("***********************************************************************************************\r\n");
