@@ -33,6 +33,15 @@ menu "UART"
 		help
 		Default 0 mean use UART0
 
+	config UART_UNSAFE_WRITE_TIMEOUT_MS
+		int "Unsafe UART byte write timeout in milliseconds"
+		range 100 10000
+		default 2000
+		help
+			Bounds polling when the UART TX FIFO cannot accept another byte in
+			the coredump (unsafe) write path, so a stuck UART can be recovered
+			and the current block retransmitted instead of hanging forever.
+
 	config PRINTF_BUF_SIZE
 		int "Print Buffer Size"
 		range 1 4096

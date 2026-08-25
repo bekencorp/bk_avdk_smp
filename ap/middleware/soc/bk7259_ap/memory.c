@@ -271,12 +271,20 @@ void bk_get_psram_heap_info(bk_dump_mem_info_t *info)
 #endif
 }
 
+/*
+ * name<->range are kept self-consistent: PSRAM_BSS returns the .psram.bss
+ * range and PSRAM_DATA returns the .psram.data range. Historically these two
+ * were swapped; the swap cancelled out only on the CP-initiated AP dump path
+ * (coredump_publish_ap_psram_windows() -> CP slot naming) but mislabelled the
+ * AP-local psram dump. The publisher was updated to match, so both paths now
+ * emit correct offline field names (dump_format_version bumped).
+ */
 void bk_get_psram_bss_info(bk_dump_mem_info_t *info)
 {
     info->name = "PSRAM_BSS";
 #if CONFIG_AP_PSRAM_SECTION_ADDR
-    info->start_addr = PSRAM_DATA_START_ADDRESS;
-    info->size = PSRAM_DATA_END_ADDRESS - PSRAM_DATA_START_ADDRESS;
+    info->start_addr = PSRAM_BSS_START_ADDRESS;
+    info->size = PSRAM_BSS_END_ADDRESS - PSRAM_BSS_START_ADDRESS;
 #else
     info->start_addr = 0;
     info->size = 0;
@@ -287,8 +295,8 @@ void bk_get_psram_data_info(bk_dump_mem_info_t *info)
 {
     info->name = "PSRAM_DATA";
 #if CONFIG_AP_PSRAM_SECTION_ADDR
-    info->start_addr = PSRAM_BSS_START_ADDRESS;
-    info->size = PSRAM_BSS_END_ADDRESS - PSRAM_BSS_START_ADDRESS;
+    info->start_addr = PSRAM_DATA_START_ADDRESS;
+    info->size = PSRAM_DATA_END_ADDRESS - PSRAM_DATA_START_ADDRESS;
 #else
     info->start_addr = 0;
     info->size = 0;
