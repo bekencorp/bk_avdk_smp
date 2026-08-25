@@ -172,7 +172,14 @@ bk_err_t bk_aud_dac_init(aud_dac_config_t *dac_config)
 	}
 
 	bk_aud_dac_set_dig_gain_db(dac_config->dig_gain);
-    bk_aud_dac_set_ana_gain_db(dac_config->ana_gain);
+	bk_aud_dac_set_ana_gain_db(dac_config->ana_gain);
+
+	bk_aud_dac_spk0_set_source_gain_db(AUD_DAC_SOURCE_A2DP, 0.0f);
+	bk_aud_dac_spk1_set_source_gain_db(AUD_DAC_SOURCE_A2DP, 0.0f);
+	bk_aud_dac_spk0_set_source_gain_db(AUD_DAC_SOURCE_CALL, 0.0f);
+	bk_aud_dac_spk1_set_source_gain_db(AUD_DAC_SOURCE_CALL, 0.0f);
+	bk_aud_dac_spk0_set_source_gain_db(AUD_DAC_SOURCE_HINT, 0.0f);
+	bk_aud_dac_spk1_set_source_gain_db(AUD_DAC_SOURCE_HINT, 0.0f);
 
 	audio_reg_hal_set_dac_cfg_clk_dac_inv(dac_config->dac_clk_invert);
 
