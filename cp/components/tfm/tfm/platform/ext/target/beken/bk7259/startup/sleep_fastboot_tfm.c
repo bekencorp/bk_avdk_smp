@@ -57,8 +57,36 @@ static void tfm_sleep_secure_hw_init(void)
 __attribute__((naked)) __attribute__((noreturn))
 static void tfm_sleep_bxns_entry(uint32_t ns_ep)
 {
+	/*
+	 * Two SECURE-banked processor states must be sane before BXNS, or the
+	 * first NS exception (the deep-LV EXIT 'svc') never runs and the core
+	 * appears hung. The NS side can only clear its own banked copies, so we
+	 * must fix the SECURE ones here, in the last instructions before BXNS:
+	 *
+	 * 1) CONTROL.FPCA (secure): if left set, NS exception entry lazily stacks
+	 *    SECURE FP context -> SecureFault routed to secure -> silent hang.
+	 *
+	 * 2) PRIMASK/FAULTMASK/BASEPRI (secure): tfm_sleep_jump_to_ns() runs
+	 *    __disable_irq() (PRIMASK_S=1) right before this. PRIMASK is banked,
+	 *    so the NS 'cpsie i' cannot clear PRIMASK_S. With PRIMASK_S=1 the
+	 *    execution priority is boosted to 0, so the NS SVCall (a configurable
+	 *    priority exception) cannot be taken and ESCALATES TO HARDFAULT
+	 *    (observed: CFSR=0, HFSR.FORCED=1). Clear the secure masks so the NS
+	 *    SVCall is takeable. This is the actual deep-LV warm-boot hang fix.
+	 *
+	 * clrm below clears r1-r12,r14,apsr (not r0/PRIMASK), so it is safe to use
+	 * r1 before it and to clear the masks after it.
+	 */
 	__asm volatile(
+		"mrs r1, control\n"
+		"bic r1, r1, #4\n"      /* clear CONTROL.FPCA (secure) */
+		"msr control, r1\n"
+		"isb\n"
 		"clrm {r1-r12, r14, apsr}\n"
+		"msr basepri, r1\n"     /* r1==0 after clrm -> BASEPRI_S = 0 */
+		"cpsie i\n"             /* clear PRIMASK_S: NS SVCall must be takeable */
+		"cpsie f\n"             /* clear FAULTMASK_S */
+		"isb\n"
 		"bic r0, r0, #1\n"
 		"bxns r0\n"
 	);
@@ -83,7 +111,12 @@ static void tfm_sleep_jump_to_ns(void)
 	reg_val = SCB->AIRCR;
 	reg_val &= (~(uint32_t)SCB_AIRCR_VECTKEYSTAT_Msk);
 	reg_val |= (uint32_t)((0x5FAUL << SCB_AIRCR_VECTKEY_Pos) |
-			      SCB_AIRCR_PRIS_Msk);
+			      SCB_AIRCR_PRIS_Msk |
+			      /* DIAGNOSTIC: route HardFault/BusFault/NMI to the
+			       * Non-secure world so an escalated NS fault becomes
+			       * visible in the NS handlers (GPIO27) instead of
+			       * vanishing into the secure HardFault handler. */
+			      SCB_AIRCR_BFHFNMINS_Msk);
 	SCB->AIRCR = reg_val;
 
 	SCB->NSACR |= SCB_NSACR_CP10_Msk | SCB_NSACR_CP11_Msk;

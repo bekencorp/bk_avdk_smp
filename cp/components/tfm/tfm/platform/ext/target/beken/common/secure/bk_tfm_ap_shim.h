@@ -22,8 +22,9 @@ extern "C" {
 
 /* core1 Non-Secure vector table (AP __vector_core1_table, RAM NS alias). It is
  * fixed by the AP link layout; the AP linker asserts this value so a layout
- * shift is caught at build time. */
-#define AP_CORE1_NS_VECTOR   0x3C181000u
+ * shift is caught at build time. The core0 IRAM/ITCM window ahead of it is 8KB
+ * (0x2000), so the vector sits at ORIGIN(RAM)+0x2000. */
+#define AP_CORE1_NS_VECTOR   0x3C182000u
 
 /* AP Non-Secure vector reserved slots used to publish the Secure-fault dump
  * callback ABI. Keep these values in sync with ap/components/coredump. */
