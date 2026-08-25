@@ -286,14 +286,24 @@ static void bk_exception_dump_main(bk_exception_t *self)
     bk_coredump_feed_watchdogs();
     bk_coredump_writer_init();
 
+    /* Header - ALWAYS emitted (Debug and Release): CPU registers, system info
+     * (fault type / build / core) and the reboot reason. In a Release build
+     * (CONFIG_DUMP_ENABLE=n and no CONFIG_DEBUG_VERSION) this header is the
+     * ENTIRE dump: no memory image, no peripheral banks - then reboot. */
     bk_coredump_meta_info();
     bk_coredump_write_prompt("@dump_format_version: %u\r\n", (unsigned)BK_DUMP_FORMAT_VERSION);
     bk_coredump_dump_time(self->exception_time_us);
+    bk_coredump_write_prompt("@reset-reason: 0x%x\r\n", self->reset_reason);
 
     bk_coredump_registers(self);
 
     coredump_prompt_prologue();
 
+#if CONFIG_DEBUG_VERSION || CONFIG_DUMP_ENABLE
+    /* Memory image + peripheral banks + task-list/backtrace + hang-prone probes:
+     * Debug only (or where the self-exception dump is explicitly enabled). A
+     * Release build skips ALL of this - registers + system info + reboot reason
+     * are the whole dump (see header above). */
     bk_coredump_feed_watchdogs();
     bk_coredump_memory_essential();
 
@@ -318,15 +328,18 @@ static void bk_exception_dump_main(bk_exception_t *self)
         cm_backtrace_fault(self->lr, self->sp);
     }
 #endif
+#endif /* CONFIG_DEBUG_VERSION || CONFIG_DUMP_ENABLE */
 
     coredump_prompt_epilogue();
 
+#if CONFIG_DEBUG_VERSION || CONFIG_DUMP_ENABLE
     /* Hang-prone AP/PSRAM diagnostic probes run LAST - after the epilogue but
      * still inside the UART lock (writer_deinit releases it). The wedge sweep
      * can stall on a wedged AP bus and trip the (never-stopped) AON WDT reset;
      * by running it here, the essential dump and epilogue are already out. */
     bk_coredump_feed_watchdogs();
     bk_dump_peri_probes();
+#endif
 
     bk_coredump_writer_deinit();
 }
@@ -400,9 +413,11 @@ void bk_exception_handler(uint32_t reset_reason, uint32_t lr, uint32_t sp)
         .exception_time_us = exception_time_us,
     };
     bk_exception_preprocess(&exception);
-#if CONFIG_DEBUG_VERSION || CONFIG_DUMP_ENABLE
+    /* Always run: the dump header (registers + system info + reboot reason) is
+     * emitted in EVERY build; the memory image inside bk_exception_dump_main is
+     * itself gated by CONFIG_DEBUG_VERSION || CONFIG_DUMP_ENABLE so a Release
+     * build only produces the minimal header then reboots. */
     bk_exception_dump_main(&exception);
-#endif
     bk_exception_postprocess(&exception);
 }
 

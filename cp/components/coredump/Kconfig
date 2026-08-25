@@ -12,16 +12,26 @@ menu "Coredump"
 
 	config MEMDUMP_ALL
 			bool "Enable Memdump All"
-			default n
+			default DEBUG_VERSION
 			help
-				Dump all memory when exception happen
+				Dump all memory when exception happen.
+				Build-version driven: a Debug build dumps the full memory set,
+				a Release build dumps only the minimal set. The full-vs-minimal
+				selection also honors CONFIG_DEBUG_VERSION at compile time (see
+				memdump_strategies/), so the developer environment gets full
+				dumps even under BUILD_DEFAULT_VERSION while the released SDK
+				(CONFIG_RELEASE_VERSION) stays minimal.
 
 	config CP_HANG_DUMP_BY_AP
 			bool "Enable AP-side CP hang dump feature"
-			depends on IPI && (DEBUG_VERSION || DUMP_ENABLE)
+			depends on IPI
 			default y
 			help
-				Production reliability feature (requires dump to be enabled).
+				Production reliability feature. Intentionally independent of
+				DUMP_ENABLE so it stays ON in a Release build (DUMP_ENABLE=n):
+				the cross-core hang watchdog only uses the always-compiled
+				coredump writer primitives (bk_coredump_uart/manifest), not the
+				DUMP_ENABLE-gated self-exception dump path.
 				CP sends a private IPI heartbeat to AP. If AP observes CP
 				heartbeat timeout, AP dumps CP-visible context and reboots the
 				board without relying on the CP - covering the "CP wedged and
