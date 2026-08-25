@@ -85,10 +85,10 @@ static fih_int tfm_core_init(void)
     }
     bk_sw_fih_set_data(FIH_SW_INDEX15);
 
-    enum plat_otp_lcs_t lcs;
-    plat_err = tfm_plat_otp_read(PLAT_OTP_ID_LCS, sizeof(lcs), (uint8_t*)&lcs);
-    bk_fih_set_src(FIH_DATA_LCS, lcs);
-    bk_fih_set_dst(FIH_DATA_LCS, lcs);
+    // enum plat_otp_lcs_t lcs;
+    // plat_err = tfm_plat_otp_read(PLAT_OTP_ID_LCS, sizeof(lcs), (uint8_t*)&lcs);
+    // bk_fih_set_src(FIH_DATA_LCS, lcs);
+    // bk_fih_set_dst(FIH_DATA_LCS, lcs);
 
     /* Configures architecture */
     tfm_arch_config_extensions();
