@@ -35,10 +35,10 @@ RAW_TIMESTAMP_RE = re.compile(
     r"^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}(?:\.\d+)?\s+(.*)$"
 )
 BEGIN_RE = re.compile(
-    r"^>{4}stack mem dump begin,\s*region:\s*(.+?),\s*stack_top=(?:0x)?([0-9a-fA-F]+),\s*stack end=(?:0x)?([0-9a-fA-F]+)\s*$"
+    r"^[^>]*>{4}stack mem dump begin,\s*region:\s*(.+?)(?:,\s*encoding=[^,\s]+)?,\s*stack_top=(?:0x)?([0-9a-fA-F]+),\s*stack end=(?:0x)?([0-9a-fA-F]+)\s*$"
 )
 END_RE = re.compile(
-    r"^<{4}stack mem dump end\.\s*region:\s*(.+?),\s*stack_top=(?:0x)?([0-9a-fA-F]+),\s*stack end=(?:0x)?([0-9a-fA-F]+)\s*$"
+    r"^[^<]*<{4}stack mem dump end\.\s*region:\s*(.+?),\s*stack_top=(?:0x)?([0-9a-fA-F]+),\s*stack end=(?:0x)?([0-9a-fA-F]+)\s*$"
 )
 META_RE = re.compile(r"DUMP_TEST_BEGIN\s+case_id=(\S+)\s+target=(AP|CP)\s+core=(\d+)\s+mode=(\S+)")
 REJECT_RE = re.compile(r"DUMP_TEST_REJECT\s+case_id=(\S+)\s+reason=(\S+)")
