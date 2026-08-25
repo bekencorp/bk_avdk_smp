@@ -139,6 +139,23 @@ static struct uart_util gl_ob_spk_uart_util = {0};
 
 #define DMA_CARRY_SPK_RINGBUF_SAFE_INTERVAL    (32)
 
+/* Underrun anti-pop (PCM domain).
+ * - Enter silence: first FILL_SILENCE frame fades last_pcm -> 0; later frames = 0.
+ * - Leave silence: first recovered frame fades 0 -> PCM (smoothstep g=3r^2-2r^3).
+ * Override ONBOARD_SPK_UNDERRUN_FADE_MODE to OFF for hard-zero A/B.
+ */
+#define ONBOARD_SPK_UNDERRUN_FADE_MODE_OFF         0
+#define ONBOARD_SPK_UNDERRUN_FADE_MODE_SMOOTHSTEP  1
+
+#ifndef ONBOARD_SPK_UNDERRUN_FADE_MODE
+#define ONBOARD_SPK_UNDERRUN_FADE_MODE             ONBOARD_SPK_UNDERRUN_FADE_MODE_SMOOTHSTEP
+#endif
+
+#ifndef CONFIG_ONBOARD_SPK_UNDERRUN_FADE_MS
+#define CONFIG_ONBOARD_SPK_UNDERRUN_FADE_MS        (10)
+#endif
+#define ONBOARD_SPK_UNDERRUN_FADE_MS               (CONFIG_ONBOARD_SPK_UNDERRUN_FADE_MS)
+
 //#define SPK_DATA_DEBUG
 
 #ifdef SPK_DATA_DEBUG
@@ -202,6 +219,8 @@ typedef struct onboard_speaker_stream
     onboard_speaker_status_cb_t     status_cb;              /**< status report callback */
     void                            *status_cb_user_data;   /**< callback private data */
     beken_mutex_t                   cfg_lock;
+    uint8_t                         underrun_silencing[AUD_DAC_SOURCE_MAX]; /**< 1 while filling silence */
+    int16_t                         last_pcm[AUD_DAC_SOURCE_MAX][2];        /**< edge sample before silence */
 } onboard_speaker_stream_t;
 
 /* 16bit interleaved L,R -> 32bit word: LSB=left, MSB=right (DAC stereo_en HW split) */
@@ -444,6 +463,193 @@ static void onboard_spk_multi_output_pcm(audio_element_handle_t self, onboard_sp
     }
 
     audio_element_multi_output(self, out_buf, out_bytes, 0);
+}
+
+#if (ONBOARD_SPK_UNDERRUN_FADE_MODE != ONBOARD_SPK_UNDERRUN_FADE_MODE_OFF)
+
+static inline uint32_t onboard_spk_underrun_ch(const onboard_speaker_stream_t *onboard_spk)
+{
+    uint32_t ch = onboard_spk->chl_num ? onboard_spk->chl_num : 1u;
+
+    return (ch > 2u) ? 2u : ch;
+}
+
+static uint32_t onboard_spk_underrun_fade_pairs(const onboard_speaker_stream_t *onboard_spk,
+                                                uint32_t src_idx,
+                                                uint32_t interleaved_bytes)
+{
+    uint32_t ch = onboard_spk_underrun_ch(onboard_spk);
+    uint32_t rate = onboard_spk->rsp_handler[src_idx]
+                    ? DEFAULT_AUD_DAC_SAMPLE_RATE
+                    : onboard_spk->sample_rate[src_idx];
+    uint32_t frame_pairs = interleaved_bytes / (sizeof(int16_t) * ch);
+    uint32_t fade_pairs;
+
+    if (rate == 0)
+    {
+        rate = DEFAULT_AUD_DAC_SAMPLE_RATE;
+    }
+
+    fade_pairs = rate * ONBOARD_SPK_UNDERRUN_FADE_MS / 1000u;
+    if (fade_pairs > frame_pairs)
+    {
+        fade_pairs = frame_pairs;
+    }
+    if (fade_pairs < 1u && frame_pairs > 0u)
+    {
+        fade_pairs = 1u;
+    }
+    return fade_pairs;
+}
+
+/* Q15 smoothstep gain for index i in [0, fade_pairs). fade_in: 0->1, else 1->0. */
+static inline int32_t onboard_spk_underrun_fade_gain_q15(uint32_t i, uint32_t fade_pairs, bool fade_in)
+{
+    int32_t r;
+    int32_t r2;
+    int32_t r3;
+
+    if (fade_pairs == 0)
+    {
+        return fade_in ? (1 << 15) : 0;
+    }
+
+    if (fade_in)
+    {
+        r = (int32_t)(((int64_t)(i + 1u) << 15) / (int32_t)fade_pairs);
+    }
+    else
+    {
+        r = (int32_t)(((int64_t)(fade_pairs - i) << 15) / (int32_t)fade_pairs);
+    }
+    if (r < 0)
+    {
+        r = 0;
+    }
+    else if (r > (1 << 15))
+    {
+        r = (1 << 15);
+    }
+
+    /* g = 3r^2 - 2r^3 (same as onboard_mic startup fade) */
+    r2 = (int32_t)(((int64_t)r * r) >> 15);
+    r3 = (int32_t)(((int64_t)r2 * r) >> 15);
+    return 3 * r2 - 2 * r3;
+}
+
+static void onboard_spk_store_edge_pcm(onboard_speaker_stream_t *onboard_spk,
+                                       uint32_t src_idx,
+                                       const int16_t *pcm,
+                                       uint32_t interleaved_bytes)
+{
+    uint32_t ch = onboard_spk_underrun_ch(onboard_spk);
+    uint32_t nsamp = interleaved_bytes / sizeof(int16_t);
+
+    if (!pcm || nsamp < ch)
+    {
+        return;
+    }
+
+    for (uint32_t c = 0; c < ch; c++)
+    {
+        onboard_spk->last_pcm[src_idx][c] = pcm[nsamp - ch + c];
+    }
+}
+
+static void onboard_spk_fade_out_to_silence(onboard_speaker_stream_t *onboard_spk,
+                                            uint32_t src_idx,
+                                            int16_t *dst,
+                                            uint32_t interleaved_bytes)
+{
+    uint32_t ch = onboard_spk_underrun_ch(onboard_spk);
+    uint32_t fade_pairs = onboard_spk_underrun_fade_pairs(onboard_spk, src_idx, interleaved_bytes);
+
+    for (uint32_t i = 0; i < fade_pairs; i++)
+    {
+        int32_t g = onboard_spk_underrun_fade_gain_q15(i, fade_pairs, false);
+
+        for (uint32_t c = 0; c < ch; c++)
+        {
+            int32_t s = (int32_t)onboard_spk->last_pcm[src_idx][c];
+            dst[i * ch + c] = (int16_t)((s * g) >> 15);
+        }
+    }
+}
+
+static void onboard_spk_fade_in_from_silence(onboard_speaker_stream_t *onboard_spk,
+                                             uint32_t src_idx,
+                                             int16_t *pcm,
+                                             uint32_t interleaved_bytes)
+{
+    uint32_t ch;
+    uint32_t fade_pairs;
+
+    if (!pcm || interleaved_bytes == 0)
+    {
+        return;
+    }
+
+    ch = onboard_spk_underrun_ch(onboard_spk);
+    fade_pairs = onboard_spk_underrun_fade_pairs(onboard_spk, src_idx, interleaved_bytes);
+    for (uint32_t i = 0; i < fade_pairs; i++)
+    {
+        int32_t g = onboard_spk_underrun_fade_gain_q15(i, fade_pairs, true);
+
+        for (uint32_t c = 0; c < ch; c++)
+        {
+            int32_t s = (int32_t)pcm[i * ch + c];
+            pcm[i * ch + c] = (int16_t)((s * g) >> 15);
+        }
+    }
+}
+
+#endif /* UNDERRUN_FADE_MODE != OFF */
+
+/* Write silence into temp_buff (with fade-out on first underrun frame). */
+static void onboard_spk_fill_silence_frame(onboard_speaker_stream_t *onboard_spk,
+                                          uint32_t src_idx,
+                                          uint32_t interleaved_bytes)
+{
+    int16_t *dst = (int16_t *)onboard_spk->temp_buff;
+
+    os_memset(dst, 0x00, interleaved_bytes);
+
+#if (ONBOARD_SPK_UNDERRUN_FADE_MODE != ONBOARD_SPK_UNDERRUN_FADE_MODE_OFF)
+    if (!onboard_spk->underrun_silencing[src_idx])
+    {
+        onboard_spk_fade_out_to_silence(onboard_spk, src_idx, dst, interleaved_bytes);
+    }
+#else
+    (void)src_idx;
+#endif
+}
+
+/* Call when a real PCM frame is about to be written to the DAC ring. */
+static void onboard_spk_commit_play_pcm(onboard_speaker_stream_t *onboard_spk,
+                                        uint32_t src_idx,
+                                        int16_t *pcm,
+                                        uint32_t interleaved_bytes)
+{
+#if (ONBOARD_SPK_UNDERRUN_FADE_MODE != ONBOARD_SPK_UNDERRUN_FADE_MODE_OFF)
+    if (onboard_spk->underrun_silencing[src_idx])
+    {
+        onboard_spk_fade_in_from_silence(onboard_spk, src_idx, pcm, interleaved_bytes);
+    }
+    onboard_spk_store_edge_pcm(onboard_spk, src_idx, pcm, interleaved_bytes);
+#else
+    (void)pcm;
+    (void)interleaved_bytes;
+#endif
+    onboard_spk->underrun_silencing[src_idx] = 0;
+}
+
+/* Call when filling a silence frame into temp_buff for the DAC ring. */
+static void onboard_spk_commit_silence_frame(onboard_speaker_stream_t *onboard_spk,
+                                             uint32_t src_idx,
+                                             uint32_t interleaved_bytes)
+{
+    onboard_spk_fill_silence_frame(onboard_spk, src_idx, interleaved_bytes);
+    onboard_spk->underrun_silencing[src_idx] = 1;
 }
 
 /* Interleaved PCM in; returns buffer/length for single DAC DMA ring write */
@@ -1402,7 +1608,7 @@ static int _onboard_speaker_process(audio_element_handle_t self, char *in_buffer
                             play_pcm_bytes = rsp_out_len * sizeof(int16_t);
                         }
                     }
-
+                    onboard_spk_commit_play_pcm(onboard_spk, i, (int16_t *)play_pcm, play_pcm_bytes);
                     write_addr = onboard_spk_prepare_dac_write_buf(onboard_spk, play_pcm, play_pcm_bytes, &write_size);
 #ifdef AEC_MIC_DELAY_POINTS_DEBUG
                     aec_mic_delay_debug((int16_t *)write_addr, write_size);
@@ -1431,8 +1637,7 @@ static int _onboard_speaker_process(audio_element_handle_t self, char *in_buffer
                     {
                         interleaved_bytes = onboard_spk->frame_size[i];
                     }
-
-                    os_memset(onboard_spk->temp_buff, 0x00, interleaved_bytes);
+                    onboard_spk_commit_silence_frame(onboard_spk, i, interleaved_bytes);
 #ifdef AEC_MIC_DELAY_POINTS_DEBUG
                     aec_mic_delay_debug((int16_t *)onboard_spk->temp_buff, interleaved_bytes);
 #endif
@@ -1556,6 +1761,8 @@ static int _onboard_speaker_process(audio_element_handle_t self, char *in_buffer
                 }
             }
 
+            onboard_spk_commit_play_pcm(onboard_spk, main_src, (int16_t *)play_pcm, play_pcm_bytes);
+
             write_addr = onboard_spk_prepare_dac_write_buf(onboard_spk, play_pcm, play_pcm_bytes, &write_size);
 #ifdef AEC_MIC_DELAY_POINTS_DEBUG
             aec_mic_delay_debug((int16_t *)write_addr, write_size);
@@ -1577,7 +1784,7 @@ static int _onboard_speaker_process(audio_element_handle_t self, char *in_buffer
             uint32_t interleaved_bytes = onboard_spk->rsp_handler[main_src]
                 ? onboard_spk->dma_frame_size : onboard_spk->frame_size[main_src];
 
-            os_memset(onboard_spk->temp_buff, 0x00, interleaved_bytes);
+            onboard_spk_commit_silence_frame(onboard_spk, main_src, interleaved_bytes);
 #ifdef AEC_MIC_DELAY_POINTS_DEBUG
             aec_mic_delay_debug((int16_t *)onboard_spk->temp_buff, interleaved_bytes);
 #endif
@@ -1703,6 +1910,9 @@ static bk_err_t _onboard_speaker_close(audio_element_handle_t self)
     for(i = 0; i < AUD_DAC_SOURCE_MAX; i++)
     {
         onboard_spk->wr_spk_rb_done[i] = false;
+        onboard_spk->underrun_silencing[i] = 0;
+        onboard_spk->last_pcm[i][0] = 0;
+        onboard_spk->last_pcm[i][1] = 0;
     }
     onboard_spk->valid_frame_count_in_spk_rb = 0;
     onboard_spk_update_status(self, onboard_spk, false, 0, true);
@@ -2131,6 +2341,8 @@ audio_element_handle_t onboard_speaker_stream_init(onboard_speaker_stream_cfg_t 
 
         /* config gpio to output */
         bk_gpio_enable_output(gl_onboard_speaker->pa_ctrl_gpio);
+        _pa_gpio_ctrl(gl_onboard_speaker->pa_ctrl_gpio, gl_onboard_speaker->pa_on_level, false);
+        gl_onboard_speaker->pa_state = false;
     }
 
     spk_dma_finish_bitmap = 0;
