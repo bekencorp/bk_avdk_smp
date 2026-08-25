@@ -81,6 +81,33 @@ int bk_audio_player_set_volume(bk_audio_player_handle_t handle, int volume);
 int bk_audio_player_get_volume(bk_audio_player_handle_t handle);
 
 /**
+ * @brief      Set onboard speaker PA GPIO control (board-specific).
+ *
+ * Must be called before playback starts (before start/jumpto opens the sink).
+ * When pa_ctrl_en is false, the sink does not drive any PA GPIO.
+ *
+ * @param[in]      handle  Instance handle.
+ * @param[in]      pa      PA control parameters; must not be NULL.
+ *
+ * @return         Error code.
+ *                 - AUDIO_PLAYER_OK: Success.
+ *                 - AUDIO_PLAYER_INVALID: Invalid parameter.
+ */
+int bk_audio_player_set_pa_ctrl(bk_audio_player_handle_t handle, const bk_audio_player_pa_ctrl_t *pa);
+
+/**
+ * @brief      Get current onboard speaker PA GPIO control settings.
+ *
+ * @param[in]      handle  Instance handle.
+ * @param[out]     pa      Receives current PA control parameters; must not be NULL.
+ *
+ * @return         Error code.
+ *                 - AUDIO_PLAYER_OK: Success.
+ *                 - AUDIO_PLAYER_INVALID: Invalid parameter.
+ */
+int bk_audio_player_get_pa_ctrl(bk_audio_player_handle_t handle, bk_audio_player_pa_ctrl_t *pa);
+
+/**
  * @brief      Clear music list.
  *
  * @param[in]      handle  Instance handle.

@@ -49,6 +49,17 @@ typedef void (*onboard_speaker_status_cb_t)(audio_element_handle_t onboard_speak
                                             void *user_data);
 
 /**
+ * @brief   External-amp PA control parameters (alias of the canonical
+ *          aud_pa_ctrl_t defined in driver/aud_dac_types.h).
+ *
+ * Lets upper layers (local music, A2DP, HFP) pass PA config as one unit.
+ * GPIO id / polarity are board-specific and owned by the product layer.
+ */
+typedef aud_pa_ctrl_t onboard_speaker_pa_ctrl_t;
+
+#define DEFAULT_ONBOARD_SPEAKER_PA_CTRL() DEFAULT_AUD_PA_CTRL()
+
+/**
  * @brief   Onboard Speaker Stream configurations, if any entry is zero then the configuration will be set to default values
  */
 typedef struct
@@ -83,7 +94,7 @@ typedef struct
     void                    *status_cb_user_data;/*!< user data of status callback */
 } onboard_speaker_stream_cfg_t;
 
-#define ONBOARD_SPEAKER_STREAM_TASK_STACK          (1536)
+#define ONBOARD_SPEAKER_STREAM_TASK_STACK          (2048)
 #define ONBOARD_SPEAKER_STREAM_TASK_CORE           (1)
 #define ONBOARD_SPEAKER_STREAM_TASK_PRIO           (3)
 

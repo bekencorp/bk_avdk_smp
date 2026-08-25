@@ -100,6 +100,11 @@ typedef struct
     eq_algorithm_cfg_t      eq_cfg;             /*!< EQ node config, only used when eq_enable is set */
     audio_play_pcm_sink_t   pcm_sink;           /*!< non-NULL: external-sink mode, no onboard speaker is created */
     void                    *pcm_sink_user;     /*!< user pointer passed back to pcm_sink */
+    bool                    pa_ctrl_en;         /*!< drive external amp GPIO around dac open/close */
+    uint16_t                pa_ctrl_gpio;       /*!< PA enable GPIO id */
+    uint8_t                 pa_on_level;        /*!< 0: low turns PA on, 1: high turns PA on */
+    uint32_t                pa_on_delay;        /*!< ms after dac enable before PA on */
+    uint32_t                pa_off_delay;       /*!< ms after PA off before dac deinit */
 } audio_play_cfg_t;
 
 #define DEFAULT_AUDIO_PLAY_CONFIG() {       \
@@ -115,6 +120,11 @@ typedef struct
     .main_dac_source   = DEFAULT_DAC_SOURCE,               \
     .decoder_type = AUDIO_PLAY_DECODER_PCM, \
     .eq_enable = 0,                         \
+    .pa_ctrl_en = false,                    \
+    .pa_ctrl_gpio = 0,                      \
+    .pa_on_level = 0,                       \
+    .pa_on_delay = 0,                       \
+    .pa_off_delay = 0,                      \
 }
 
 typedef struct audio_play audio_play_t;

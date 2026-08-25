@@ -14,6 +14,7 @@
 //
 #pragma once
 
+#include <stdbool.h>
 #include <driver/int_types.h>
 #include <common/bk_include.h>
 #include <driver/hal/hal_aud_types.h>
@@ -23,6 +24,25 @@
 extern "C" {
 #endif
 
+/**
+ * @brief External-amp PA control parameters.
+ */
+typedef struct
+{
+    bool     pa_ctrl_en;     /*!< true: drive PA GPIO around dac open/close */
+    uint16_t pa_ctrl_gpio;   /*!< GPIO id controlling PA enable / unmute */
+    uint8_t  pa_on_level;    /*!< level that turns PA on: 0=low, 1=high */
+    uint32_t pa_on_delay;    /*!< ms after dac enable before PA on */
+    uint32_t pa_off_delay;   /*!< ms after PA off before dac deinit */
+} aud_pa_ctrl_t;
+
+#define DEFAULT_AUD_PA_CTRL() { \
+    .pa_ctrl_en = false,        \
+    .pa_ctrl_gpio = 0,          \
+    .pa_on_level = 0,           \
+    .pa_on_delay = 0,           \
+    .pa_off_delay = 0,          \
+}
 
 /**
  * @brief audio dac defines

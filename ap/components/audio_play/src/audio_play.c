@@ -135,7 +135,11 @@ static void audio_play_build_spk_cfg(const audio_play_cfg_t *cfg, onboard_speake
     spk_cfg->frame_size[1] = cfg->frame_size;
     spk_cfg->frame_size[2] = cfg->frame_size;
     spk_cfg->pool_length = cfg->pool_size;
-    spk_cfg->pa_ctrl_en = false;
+    spk_cfg->pa_ctrl_en   = cfg->pa_ctrl_en;
+    spk_cfg->pa_ctrl_gpio = cfg->pa_ctrl_gpio;
+    spk_cfg->pa_on_level  = cfg->pa_on_level;
+    spk_cfg->pa_on_delay  = cfg->pa_on_delay;
+    spk_cfg->pa_off_delay = cfg->pa_off_delay;
     spk_cfg->dac_source_bitmap = cfg->dac_source_bitmap;
     spk_cfg->main_dac_source   = cfg->main_dac_source;
 }

@@ -15,6 +15,8 @@
 #pragma once
 
 #include <stdint.h>
+#include <stdbool.h>
+#include <driver/aud_dac_types.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -261,6 +263,22 @@ typedef struct
  * Each instance has its own plugin lists and state; multiple instances can coexist.
  */
 typedef struct bk_audio_player *bk_audio_player_handle_t;
+
+/**
+ * @brief Onboard speaker PA (external amp) GPIO control
+ *
+ * Alias of the canonical aud_pa_ctrl_t (driver/aud_dac_types.h) so local music,
+ * A2DP and HFP share one PA config type. Board-specific: GPIO id / polarity
+ * differ per schematic. App should set this via bk_audio_player_set_pa_ctrl()
+ * before start/jumpto. Default is disabled. Applied when the onboard speaker
+ * sink opens the play pipeline.
+ */
+typedef aud_pa_ctrl_t bk_audio_player_pa_ctrl_t;
+
+/**
+ * @brief Default PA control: disabled (no GPIO drive from player sink)
+ */
+#define DEFAULT_AUDIO_PLAYER_PA_CTRL() DEFAULT_AUD_PA_CTRL()
 
 /**
  * @brief Audio player configuration structure
