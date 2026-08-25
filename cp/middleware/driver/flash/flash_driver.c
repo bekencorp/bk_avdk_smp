@@ -984,7 +984,9 @@ bk_err_t bk_flash_power_saving_enter(void)
 __attribute__((section(".iram"))) bk_err_t bk_flash_power_saving_exit(void)
 {
 #if CONFIG_DEEP_LV
+#if CONFIG_SPE
 	REG_WRITE(SOC_FLASH_REG_BASE+0x4*4, g_pm_flash_saving_regs[0]);
+#endif
 	REG_WRITE(SOC_FLASH_REG_BASE+0x7*4, g_pm_flash_saving_regs[1]);
 	REG_WRITE(SOC_FLASH_REG_BASE+0x9*4, g_pm_flash_saving_regs[2]);
 	REG_WRITE(SOC_FLASH_REG_BASE+0xa*4, g_pm_flash_saving_regs[3]);
