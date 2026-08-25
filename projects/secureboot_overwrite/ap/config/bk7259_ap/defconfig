@@ -31,11 +31,9 @@ CONFIG_PSRAM_AS_SYS_MEMORY=y
 # Use the CPU-direct SRAM alias for AP memory access.
 CONFIG_SRAM_DIRECT_ADDR=y
 
-CONFIG_SLAVE_HEART_BEAT=n
+CONFIG_SLAVE_HEART_BEAT=y
 
-# Bring-up: disable AP window watchdog. HW period is 16-bit (timeout_ms*32); values
-# above ~2047ms wrap and fire in ~1.3s. Heartbeat tasks feed task_wdt explicitly.
-# CONFIG_SUPPORT_WWDT is not set
+CONFIG_SUPPORT_WWDT=y
 
 # OVERWRITE strategy: use the compressed-overwrite receive backend, NOT the XIP
 # A/B one. CONFIG_SECURE_OTA_OVERWRITE selects ota_secure_overwrite.c, which
@@ -91,3 +89,6 @@ CONFIG_PM_AP_CPU_FRQ_DEFAUL=y
 #BLE
 CONFIG_BLUETOOTH_HOST_ONLY=n
 CONFIG_BLUETOOTH_SUPPORT_AP_PWD_ALL=y
+
+#easy flash
+CONFIG_EASY_FLASH_V4=y
