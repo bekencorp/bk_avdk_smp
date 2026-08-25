@@ -10,6 +10,15 @@
 #include <stdint.h>
 #include "sys_sw_regs.h"
 
+/*
+ * Cross-core dump owner/follower/race orchestration relies on the sys_sw_regs
+ * dump-test state machine, which is not present in this build tree. Compile the
+ * orchestration commands out; direct fault injection is unaffected.
+ */
+#ifndef APP_DUMP_ORCH_SUPPORTED
+#define APP_DUMP_ORCH_SUPPORTED 0
+#endif
+
 #define APP_DUMP_CASE_ID_MAX_LEN 31U
 #define APP_DUMP_TASK_STACK_SIZE 2048U
 #define APP_DUMP_TIMER_DELAY_MS  10U
@@ -57,6 +66,7 @@ typedef struct {
 	uint32_t length;
 } app_dump_flash_request_t;
 
+#if APP_DUMP_ORCH_SUPPORTED
 typedef struct {
 	char case_id[APP_DUMP_CASE_ID_MAX_LEN + 1U];
 	const app_dump_mode_t *mode;
@@ -70,6 +80,7 @@ typedef struct {
 	uint8_t preferred_core;
 	uint8_t scenario;
 } app_dump_race_request_t;
+#endif /* APP_DUMP_ORCH_SUPPORTED */
 
 typedef enum {
 	APP_DUMP_IPI_WAITING = 0,
@@ -88,12 +99,14 @@ static app_dump_flash_request_t s_flash_request;
 static volatile bool s_flash_busy;
 static uint8_t s_flash_write_buffer[APP_DUMP_FLASH_PAGE_SIZE];
 static uint8_t s_flash_read_buffer[APP_DUMP_FLASH_PAGE_SIZE];
+#if APP_DUMP_ORCH_SUPPORTED
 static app_dump_follow_request_t s_follow_request;
 static app_dump_race_request_t s_race_request;
 static volatile bool s_orch_busy;
 static volatile uint32_t s_race_ready;
 static volatile bool s_race_start;
 static volatile bool s_race_abort;
+#endif /* APP_DUMP_ORCH_SUPPORTED */
 
 static const app_dump_mode_t s_app_dump_modes[] = {
 	{"task_assert", APP_DUMP_CONTEXT_TASK, APP_DUMP_FAULT_ASSERT},
@@ -140,6 +153,7 @@ static const app_dump_mode_t *app_dump_parse_mode(const char *name)
 	return NULL;
 }
 
+#if APP_DUMP_ORCH_SUPPORTED
 static uint32_t app_dump_parse_follow_scenario(const char *name,
 	uint8_t core)
 {
@@ -161,6 +175,7 @@ static uint32_t app_dump_ap_test_core(uint8_t core)
 	return (core == 0U) ? BK_SYS_SW_REGS_DUMP_TEST_CORE_AP0 :
 		BK_SYS_SW_REGS_DUMP_TEST_CORE_AP1;
 }
+#endif /* APP_DUMP_ORCH_SUPPORTED */
 
 static void app_dump_print_begin(const app_dump_request_t *request)
 {
@@ -458,6 +473,7 @@ exit_task:
 	rtos_delete_thread(NULL);
 }
 
+#if APP_DUMP_ORCH_SUPPORTED
 static void app_dump_orch_release(void)
 {
 	uint32_t flags = rtos_enter_critical();
@@ -754,6 +770,7 @@ static void app_dump_orch_reset_command(char *pc_write_buffer,
 	bk_sys_sw_regs_dump_test_reset();
 	os_printf("DUMP_ORCH_RESET raw=0x00000000\r\n");
 }
+#endif /* APP_DUMP_ORCH_SUPPORTED */
 
 static void app_dump_flash_release(void)
 {
@@ -955,6 +972,7 @@ static const struct cli_command s_app_dump_test_commands[] = {
 	{"ap_dump_flash_load",
 		"ap_dump_flash_load <case_id> <safe_addr> <length>",
 		app_dump_flash_load_command},
+#if APP_DUMP_ORCH_SUPPORTED
 	{"ap_dump_follow",
 		"ap_dump_follow <case_id> <cp_ap|ap0_ap1|ap1_ap0> <task_mode> <core>",
 		app_dump_follow_command},
@@ -964,4 +982,5 @@ static const struct cli_command s_app_dump_test_commands[] = {
 		app_dump_orch_status_command},
 	{"ap_dump_orch_reset", "ap_dump_orch_reset",
 		app_dump_orch_reset_command},
+#endif /* APP_DUMP_ORCH_SUPPORTED */
 };
