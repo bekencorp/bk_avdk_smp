@@ -300,6 +300,10 @@ int bk_init(void)
 		return -1;
 	extern void wifi_at_cmd_init(void);
 	wifi_at_cmd_init();
+#if CONFIG_COREMQTT
+	extern void core_mqtt_at_cmd_init(void);
+	core_mqtt_at_cmd_init();
+#endif
     set_ap_startup_index(AP_EXIT_AT_SERVER);
 #endif
 
