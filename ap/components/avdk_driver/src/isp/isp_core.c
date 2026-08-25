@@ -1549,7 +1549,7 @@ bk_err_t bk_isp_get_exposure_luminance(isp_handle_t *handle, uint32_t *luminance
         return BK_FAIL;
     }
 
-    *luminance = exposure_info.meanLum;
+    *luminance = (exposure_info.meanLum * 1000 * 1000) / (exposure_info.exposure[0] * 39);
     return BK_OK;
 }
 
