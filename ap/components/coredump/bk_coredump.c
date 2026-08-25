@@ -421,10 +421,16 @@ static void ap_wait_cp_reboot(uint32_t budget_ms)
 
 static void bk_exception_dump_main(bk_exception_t *self)
 {
+#if CONFIG_DEBUG_VERSION || CONFIG_DUMP_ENABLE
     bk_err_t handoff;
+#endif
 
     bk_coredump_writer_init();
 
+    /* Header - ALWAYS emitted (Debug and Release): CPU registers, system info
+     * (fault type / build / core) and the reboot reason. In a Release build
+     * (CONFIG_DUMP_ENABLE=n and no CONFIG_DEBUG_VERSION) this header is the
+     * ENTIRE dump: no memory image, no CP handoff - then reboot. */
     if (self->secure_context != NULL &&
         self->reset_reason != RESET_SOURCE_CRASH_ASSERT) {
         bk_coredump_write_meta_info(COREDUMP_EXCEPTION_INFO, (void *)"SecureFault");
@@ -438,6 +444,7 @@ static void bk_exception_dump_main(bk_exception_t *self)
     }
     bk_coredump_write_prompt("@dump_format_version: %u\r\n", (unsigned)BK_DUMP_FORMAT_VERSION);
     bk_coredump_dump_time(self->exception_time_us);
+    bk_coredump_write_prompt("@reset-reason: 0x%x\r\n", self->reset_reason);
 
     if (self->secure_context != NULL) {
         bk_coredump_secure_registers(self->secure_context);
@@ -445,6 +452,9 @@ static void bk_exception_dump_main(bk_exception_t *self)
         bk_coredump_registers(self);
     }
 
+#if CONFIG_DEBUG_VERSION || CONFIG_DUMP_ENABLE
+    /* Full AP memory image + CP handoff: Debug only (or where the
+     * self-exception dump is explicitly enabled). */
     coredump_publish_ap_psram_windows();
 #if CONFIG_DEBUG_VERSION
     /* PSRAM code compare is an engineering forensic probe: Debug builds only. */
@@ -482,28 +492,38 @@ static void bk_exception_dump_main(bk_exception_t *self)
     bk_coredump_writer_deinit();
     coredump_feed_watchdogs();
     bk_reboot_ex(self->reset_reason);      /* AP is the sole reset issuer here */
+#else
+    /* Release (CONFIG_DUMP_ENABLE=n): header only, no memory image, no CP
+     * handoff. Bracket the (empty) body with the standard prologue/epilogue
+     * markers so the offline parser still sees a complete record, then fall
+     * through to bk_exception_postprocess() which issues the reboot. */
+    coredump_prompt_prologue();
+    coredump_prompt_epilogue();
+    bk_coredump_writer_deinit();
+#endif /* CONFIG_DEBUG_VERSION || CONFIG_DUMP_ENABLE */
 }
 
 static void bk_exception_postprocess(bk_exception_t *self)
 {
-#if CONFIG_DEBUG_VERSION || CONFIG_DUMP_ENABLE
-#if CONFIG_SUPPORT_WWDT
-    bk_wwdt_driver_deinit();
-#endif
-#else
+    /* The Debug / DUMP_ENABLE path reboots inside bk_exception_dump_main (CP
+     * handoff or AP self-dump), so it normally never returns here. The Release
+     * path returns after the minimal header dump, so this is where that build
+     * issues the reboot. Keep it as an unconditional fallback reboot for both. */
     if (self->reset_reason != RESET_SOURCE_CRASH_ASSERT) {
         BK_LOG_FLUSH();
     }
     bk_reboot_ex(self->reset_reason);
-#endif
 }
 
 static void bk_exception_handler_common(bk_exception_t *exception)
 {
     bk_exception_preprocess(exception);
-#if CONFIG_DEBUG_VERSION || CONFIG_DUMP_ENABLE
+    /* Always run: the dump header (registers + system info + reboot reason) is
+     * emitted in EVERY build; the memory image + CP handoff inside
+     * bk_exception_dump_main are gated by CONFIG_DEBUG_VERSION ||
+     * CONFIG_DUMP_ENABLE, so a Release build only produces the minimal header,
+     * then bk_exception_postprocess() reboots. */
     bk_exception_dump_main(exception);
-#endif
     bk_exception_postprocess(exception);
 }
 

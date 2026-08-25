@@ -145,6 +145,7 @@ static void cp_hang_ipi_callback(ipi_core_id_t core_id, uint32_t value,
 	}
 }
 
+#if CONFIG_DEBUG_VERSION || CONFIG_DUMP_ENABLE
 static void cp_hang_dump_window(const char *name, uint32_t start, uint32_t size)
 {
 	if ((start == 0U) || (size == 0U)) {
@@ -155,6 +156,7 @@ static void cp_hang_dump_window(const char *name, uint32_t start, uint32_t size)
 	bk_coredump_write_memory(name, start, start + size);
 	cp_hang_feed_watchdog();
 }
+#endif /* CONFIG_DEBUG_VERSION || CONFIG_DUMP_ENABLE */
 
 static void cp_hang_dump_observer_context(uint32_t now)
 {
@@ -183,6 +185,7 @@ static void cp_hang_dump_observer_context(uint32_t now)
  * CONFIG_CP_HANG_DUMP_BY_AP_MEMDUMP). Unsafe entries emit an explicit skip
  * marker so the offline parser sees the gap.
  */
+#if CONFIG_DEBUG_VERSION || CONFIG_DUMP_ENABLE
 static void cp_hang_dump_manifest_context(void)
 {
 	uint32_t count = 0U;
@@ -200,6 +203,7 @@ static void cp_hang_dump_manifest_context(void)
 		}
 	}
 }
+#endif /* CONFIG_DEBUG_VERSION || CONFIG_DUMP_ENABLE */
 
 static void cp_hang_dump_prompt_prologue(void)
 {
@@ -299,11 +303,19 @@ static void cp_hang_dump_from_ap(uint32_t now)
 #if CONFIG_SOC_SMP
 	bk_coredump_write_meta_info(COREDUMP_CORE_INFO, (void *)(rtos_get_core_id() & 0x1));
 #endif
+	/* Reboot reason: the AP resets the board with RESET_SOURCE_CRASH_ASSERT on a
+	 * CP heartbeat timeout (see cp_hang_reboot()). */
+	bk_coredump_write_prompt("@reset-reason: 0x%x\r\n", RESET_SOURCE_CRASH_ASSERT);
 	cp_hang_dump_observer_context(now);
 	cp_hang_dump_current_context();
 	cp_hang_dump_prompt_prologue();
 
 	bk_coredump_write_prompt("@dump_format_version: %u\r\n", (unsigned)BK_DUMP_FORMAT_VERSION);
+#if CONFIG_DEBUG_VERSION || CONFIG_DUMP_ENABLE
+	/* CP memory windows (peripheral banks + CP RAM/PSRAM from the unified
+	 * manifest): Debug only. In a Release build (CONFIG_DUMP_ENABLE=n) the
+	 * CP-hang dump is registers + system info + reboot reason ONLY - no CP
+	 * memory over the UART - even when CONFIG_CP_HANG_DUMP_BY_AP_MEMDUMP=y. */
 	bk_coredump_write_prompt("***********************************************************************************************\r\n");
 	bk_coredump_write_prompt("*************************************CP memory dump begin**************************************\r\n");
 	bk_coredump_write_prompt("***********************************************************************************************\r\n");
@@ -311,6 +323,7 @@ static void cp_hang_dump_from_ap(uint32_t now)
 	bk_coredump_write_prompt("***********************************************************************************************\r\n");
 	bk_coredump_write_prompt("**************************************CP memory dump end***************************************\r\n");
 	bk_coredump_write_prompt("***********************************************************************************************\r\n");
+#endif /* CONFIG_DEBUG_VERSION || CONFIG_DUMP_ENABLE */
 	cp_hang_feed_watchdog();
 	bk_coredump_writer_deinit();
 	cp_hang_set_ap_dumping(0U);

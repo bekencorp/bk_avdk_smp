@@ -13,6 +13,7 @@
 #include "common/bk_crc.h"
 #include "base_64.h"
 #include "hspl/hspl_res_lock.h"
+#include "sys_sw_regs.h"
 #include <components/system.h>
 
 #if CONFIG_SUPPORT_WWDT
@@ -54,16 +55,44 @@ static inline void coredump_feed_watchdogs(void)
 
 static bool bk_coredump_uart_lock(void)
 {
-    if (s_coredump_uart_locked == 0U) {
-        if (bk_hspl_res_must_lock(BK_HSPL_RES_UART_LOG) != BK_OK) {
-            s_coredump_uart_force_write = 1U;
-            s_coredump_uart_locked = 1U;
-            return true;
-        }
-        s_coredump_uart_force_write = 0U;
-        s_coredump_uart_locked = 1U;
+    if (s_coredump_uart_locked != 0U) {
+        return true;
     }
 
+#if CONFIG_CP_HANG_DUMP_BY_AP
+    /* When THIS AP is dumping a hung CP, the CP is dead and may hold the UART
+     * HSPL forever, so we CANNOT block. Try once; if the lock is stuck, take the
+     * UART over (force write) - the AP owns it for the whole cp-hang dump. */
+    if (bk_sys_sw_regs_get_ap_cp_hang_dumping() != 0U) {
+        if (bk_hspl_res_try_lock(BK_HSPL_RES_UART_LOG) != BK_OK) {
+            s_coredump_uart_force_write = 1U;
+        } else {
+            s_coredump_uart_force_write = 0U;
+        }
+        s_coredump_uart_locked = 1U;
+        return true;
+    }
+#endif
+
+    /* Req 3/4/5: normal AP exception - the CP/peer is alive, so acquire the
+     * shared CP/AP UART HSPL by BLOCKING (never time out, never force-write).
+     * The CP may be printing normally or dumping its own exception; we must wait
+     * for it to release the UART instead of driving the hardware concurrently
+     * (which can wedge the UART). We already hold the lock before stopping the
+     * peer AP core (bk_exception_preprocess), so no stopped core can strand it.
+     *
+     * Fallback: keep feeding the AP window watchdog (WWDT) so a legitimately long
+     * wait (the CP peer dumping) survives. Do NOT re-arm the AON WDT here: a peer
+     * that is truly wedged while holding the UART trips its OWN independent
+     * watchdog and reboots the board, which resets us here - so this never hangs
+     * forever. */
+    while (bk_hspl_res_try_lock(BK_HSPL_RES_UART_LOG) != BK_OK) {
+#if CONFIG_SUPPORT_WWDT
+        bk_wwdt_force_feed();
+#endif
+    }
+    s_coredump_uart_force_write = 0U;
+    s_coredump_uart_locked = 1U;
     return true;
 }
 
