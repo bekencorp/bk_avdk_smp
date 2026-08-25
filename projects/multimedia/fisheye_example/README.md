@@ -4,11 +4,11 @@
 
 ## 1. Project Overview
 
-This project demonstrates **dense fisheye remap table generation** on the Beken platform: given sparse grid points and TV contour points, it computes `map_x` / `map_y` (`int16` nearest-neighbor indices into the source) for a fixed **1920×1080** input and a configurable output size. A serial CLI measures **`fisheye_calibration()`** time and can hex-dump the full table for offline conversion to a binary map.
+This project demonstrates **dense fisheye remap table generation** on the Beken platform: given fixed OpenCV fisheye camera intrinsics (`K/D`) and seven TV contour points, it computes `map_x` / `map_y` (`int16` nearest-neighbor indices into the source) for a fixed **1920×1080** input and a configurable output size. A serial CLI measures **`fisheye_calibration()`** time and can hex-dump the full table for offline conversion to a binary map.
 
 * Data structures and API:
 
-  - [`fisheye_calibration.h`](../../../ap/properties/modules/video_codec/fisheye/fisheye_calibration.h) (`ap/properties/modules/video_codec/fisheye/`)
+  - [`fisheye_calibration.h`](../../../ap/include/modules/fisheye_calibration.h)
 
 ### 1.1 Test Environment
 
@@ -21,7 +21,7 @@ This project demonstrates **dense fisheye remap table generation** on the Beken 
 
 .. warning::
 
-    Use reference hardware while learning the demo. If the lens, mounting, or resolution differs from the calibration data, update grid points, contour points, and input size in source and re-validate.
+    Use reference hardware while learning the demo. If the lens, mounting, or resolution differs from the calibration data, update camera intrinsics, contour points, and input size in source and re-validate.
 
 ## 2. Directory Structure
 
@@ -47,17 +47,18 @@ fisheye_example/
 ### 3.1 Main Features
 
 - Calls **`fisheye_calibration()`** to build dense `map_x` / `map_y`
-- Calibration arrays in `fisheye_cli.c`: **`k_fisheye_grid_points[]`**, **`k_tv_points_001[]`** (`FISHEYE_MAP_POINTS`)
+- Calibration data in `fisheye_cli.c`: **`k_demo_camera_params`** from `my_camera_new.json` and **`k_tv_points_001[]`** from `tv_corners.txt` (`FISHEYE_MAP_POINTS`)
 - Buffer from frame-buffer heap: `bk_frame_buffer_malloc` / `bk_frame_buffer_free`
 - Logs **`fisheye calibration execute time`**; with **dump=1**, hex-dumps the buffer (slow; throttled for UART) and logs **`fisheye calibration dump execute time`**
 
 ### 3.2 Flow
 
 1. `bk_init()` → `media_service_init()` → `bk_auxldo_enable()` → `bk_frame_buffer_init()` → **`fisheye_cli_init()`**
-2. User runs **`ap_cmd fisheye cal …`**
-3. Allocate buffer, run **`fisheye_calibration()`**
-4. Print timing; if dump, print dump timing
-5. Free buffer
+2. A low-priority `fisheye_boot` task starts automatically, waits 2 seconds, then runs the default **320×180 / dump=0** calibration.
+3. User can also run **`ap_cmd fisheye cal …`** manually from the CLI.
+4. Allocate buffer, run **`fisheye_calibration()`**
+5. Print result info; if dump is enabled, print the raw map buffer.
+6. Free buffer
 
 ## 4. Build and Run
 
@@ -65,7 +66,7 @@ fisheye_example/
 
 From the SDK root:
 
-```
+```bash
 make bk7259 PROJECT=multimedia/fisheye_example
 ```
 
@@ -80,6 +81,13 @@ Prefix every CLI line with **`ap_cmd`** so the shell forwards the command to the
 
 ```
 ap_cmd fisheye cal <dump> <width> <height>
+```
+
+Common debug commands:
+
+```bash
+ap_cmd fisheye cal 0 320 180
+ap_cmd fisheye cal 1 320 180
 ```
 
 .. list-table::
@@ -102,18 +110,18 @@ If width/height are missing, zero, or out of range for 1920×1080 input, they fa
 
 ### 4.4 Expected log (ap_cmd fisheye cal 0)
 
-For **`ap_cmd fisheye cal 0`** (default **320×180** output, **no** hex dump), the **CP log UART** may show something like below. The timestamp and duration vary; **245 ms** matches the reference table below.
+For **`ap_cmd fisheye cal 0`** (default **320×180** output, **no** hex dump), the **CP log UART** may show something like below. The timestamp, duration, fallback flag, residual, and coverage vary with input data and board performance.
 
 ```
-$ap0:fisheye:I(437615):fisheye calibration, dump: 0, output_width: 320, output_height: 180
-fisheye calibration execute time: 245 ms
+$ap0:fisheye:I(437615):fisheye calibration v19, dump: 0, output_width: 320, output_height: 180
+fisheye calibration execute time: <duration_ms> ms, fallback: 0, max_error: 1.234, coverage: 0.995469
 ```
 
 The `dump:` field matches the second CLI argument (`cal 0` → `dump: 0`). The line `fisheye calibration execute time` is printed via `bk_printf_raw` and may appear without the `$ap0:` prefix.
 
 ### 4.5 Extract map from UART dump (hexlog_to_bin.py)
 
-Save the serial log from a **`dump=1`** run (lines that are pure hex are decoded; other log lines are skipped). Convert to a raw binary file whose size matches **2×W×H×2** bytes for `int16` `map_x` then `map_y`:
+Save the serial log from a **`dump=1`** run. The dump lines contain `0xNN` byte tokens; `hexlog_to_bin.py` decodes only those tokens and skips other log text. Convert to a raw binary file whose size matches **2×W×H×2** bytes for `int16` `map_x` then `map_y`:
 
 ```bash
 python3 hexlog_to_bin.py fisheye-320-180.log fisheye-320-180.bin
@@ -129,39 +137,21 @@ cd projects/multimedia/fisheye_example
 python3 hexlog_to_bin.py fisheye-320-180.log fisheye-320-180.bin
 ```
 
-## 5. Resolution vs. Time (reference)
+## 5. Configuration (fisheye_calibration)
 
-Measured on a fixed board and UART settings: **`fisheye_calibration()`** time (**correct_time**) vs. full hex **dump** time (**dump_time**, includes UART print and throttling delays). Values will vary with board, CPU frequency, and baud rate; use this table for relative comparison only.
-
-.. list-table::
-   :header-rows: 1
-
-   * - Resolution
-     - correct_time
-     - dump_time
-   * - 320×180
-     - 245 ms
-     - 18245 ms
-   * - 640×480
-     - 1199 ms
-     - 97200 ms
-   * - 1920×1080
-     - 7850 ms
-     - 655850 ms
-
-## 6. Configuration (fisheye_calibration)
-
-- `gp` / `gpoints`: sparse grid  
-- `std_map_points` / `user_map_points`: seven TV contour points each (this demo uses `k_tv_points_001` for both)  
+- `camera`: fixed OpenCV fisheye K/D parameters (`k_demo_camera_params` in this demo)  
+- `tv_points`: seven TV contour points in this installation (`k_tv_points_001` in this demo)  
 - `input_width` / `input_height`: **1920** / **1080**  
 - `output_width` / `output_height`: from CLI  
 - `output`: **2×output_width×output_height** `int16_t` values  
 
-The AP component **`fisheye`** is added via `EXTRA_COMPONENTS_DIRS` → `ap/properties/modules/video_codec/fisheye`.
+The demo camera intrinsics are calibrated for **1920×1080** input frames. `DEFAULT_INPUT_WIDTH` / `DEFAULT_INPUT_HEIGHT` must match the camera JSON `calib_dimension` / `orig_dimension`. If the input frame size changes, update the input-size macros, scale or recalibrate the camera matrix (`fx`, `fy`, `cx`, `cy`), and regenerate TV contour points for the new coordinate system.
 
-## 7. Notes
+The output layout remains compatible with previous dump tooling: first `map_x`, then `map_y`, both row-major `int16_t`.
 
-1. Calibration data is tied to **1920×1080** input; change sensor or resolution → update grids and points.  
-2. **Dump** is for debug or offline extraction only; large resolutions can take minutes to dump.  
+## 6. Notes
+
+1. Calibration data is tied to **1920×1080** input; change sensor, lens, or input resolution → update camera intrinsics, `DEFAULT_INPUT_WIDTH` / `DEFAULT_INPUT_HEIGHT`, and TV points.  
+2. **Dump** is for debug or offline extraction only; large resolutions produce large logs.  
 3. **Logs are printed on the CP core**; use the CP UART to view output.  
 4. Prefix commands with **`ap_cmd`**, e.g. `ap_cmd fisheye cal 0`.

@@ -1,25 +1,20 @@
 #!/usr/bin/env python3
-"""Extract raw bytes from UART-style hex dumps.
-
-Only lines that contain nothing but hex digits and whitespace are decoded
-(fisheye/$, timestamps, etc. are skipped). Glued pairs like ``d2d0`` (missing
-space) are handled by concatenating the line and splitting into byte pairs.
-"""
+"""Extract raw bytes from UART-style 0xNN hex dumps."""
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 
 
+TOKEN_RE = re.compile(r"0x([0-9a-fA-F]{2})\b")
+
+
 def line_to_bytes(line: str):
-    s = "".join(line.split())
-    if not s:
+    tokens = TOKEN_RE.findall(line)
+    if not tokens:
         return None
-    if not all(c in "0123456789abcdefABCDEF" for c in s):
-        return None
-    if len(s) % 2:
-        return None
-    return bytes(int(s[i : i + 2], 16) for i in range(0, len(s), 2))
+    return bytes(int(token, 16) for token in tokens)
 
 
 def extract_bytes_from_log(path: Path) -> bytes:
