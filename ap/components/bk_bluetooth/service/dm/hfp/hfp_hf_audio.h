@@ -2,6 +2,8 @@
 
 #include <components/system.h>
 #include <stdint.h>
+#include <stdbool.h>
+#include <components/bk_audio/audio_streams/onboard_speaker_stream_v2.h>
 
 #ifdef __cplusplus
 extern "C"
@@ -22,6 +24,11 @@ void hfp_hf_audio_handle_data(const uint8_t *data, uint16_t len);
 
 /* Map an HFP speaker volume step to a DAC gain and apply it. Returns the gain in dB. */
 float hfp_hf_audio_set_gain(uint8_t hfp_vol);
+
+/* Provide external-amp PA control from the product/board layer. The GPIO stays
+ * owned by the caller; this module just forwards it into audio_play_cfg at open.
+ * pa==NULL or pa_ctrl_en=false leaves PA control off. Call once before a call. */
+void hfp_hf_audio_set_pa_ctrl(const onboard_speaker_pa_ctrl_t *pa);
 
 /* Block until the speaker/mic tasks have fully exited. */
 int32_t hfp_hf_audio_wait_player_end(void);

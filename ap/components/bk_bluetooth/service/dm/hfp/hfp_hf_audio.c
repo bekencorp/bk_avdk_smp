@@ -73,6 +73,21 @@ static uint16_t s_hf_spk_residual = 0;
  * up, so cache it here and re-apply once the CALL source is attached. 0xFF: none. */
 static uint8_t s_pending_hfp_vol = 0xFF;
 
+static onboard_speaker_pa_ctrl_t s_hfp_pa_ctrl = DEFAULT_ONBOARD_SPEAKER_PA_CTRL();
+
+void hfp_hf_audio_set_pa_ctrl(const onboard_speaker_pa_ctrl_t *pa)
+{
+    if (pa)
+    {
+        s_hfp_pa_ctrl = *pa;
+    }
+    else
+    {
+        onboard_speaker_pa_ctrl_t off = DEFAULT_ONBOARD_SPEAKER_PA_CTRL();
+        s_hfp_pa_ctrl = off;
+    }
+}
+
 #if CONFIG_ADK_ONBOARD_SPEAKER_STREAM_SUPPORT_MULTIPLE_SOURCE
 static int hfp_hf_pcm_to_spk(void *user, void *pcm, uint32_t len)
 {
@@ -163,6 +178,11 @@ void hfp_hf_audio_start(uint8_t codec, const uint8_t *peer_addr)
     cfg.decoder_type = (CODEC_VOICE_MSBC == bt_audio_hfp_hf_codec) ? AUDIO_PLAY_DECODER_MSBC : AUDIO_PLAY_DECODER_PCM;
     cfg.dac_source_bitmap = ONBOARD_SPEAKER_STREAM_DAC_SOURCE_CALL_BIT;
     cfg.main_dac_source   = AUD_DAC_SOURCE_CALL;
+    cfg.pa_ctrl_en   = s_hfp_pa_ctrl.pa_ctrl_en;
+    cfg.pa_ctrl_gpio = s_hfp_pa_ctrl.pa_ctrl_gpio;
+    cfg.pa_on_level  = s_hfp_pa_ctrl.pa_on_level;
+    cfg.pa_on_delay  = s_hfp_pa_ctrl.pa_on_delay;
+    cfg.pa_off_delay = s_hfp_pa_ctrl.pa_off_delay;
 
 #if HFP_DL_EQ_ENABLE && CONFIG_ADK_EQ_ALGORITHM
     {

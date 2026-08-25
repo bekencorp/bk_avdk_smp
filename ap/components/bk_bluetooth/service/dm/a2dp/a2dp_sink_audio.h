@@ -2,6 +2,8 @@
 
 #include <components/system.h>
 #include <stdint.h>
+#include <stdbool.h>
+#include <components/bk_audio/audio_streams/onboard_speaker_stream_v2.h>
 
 #include "bk_a2dp_sink_service.h"
 
@@ -19,6 +21,10 @@ typedef enum
 } bk_a2dp_audio_open_vote_t;
 
 void a2dp_sink_audio_set_config(const bk_a2dp_mcc_t *codec);
+/* Provide external-amp PA control from the product/board layer. The GPIO stays
+ * owned by the caller; this module just forwards it into audio_play_cfg at open.
+ * pa==NULL or pa_ctrl_en=false leaves PA control off. Call once before playback. */
+void a2dp_sink_audio_set_pa_ctrl(const onboard_speaker_pa_ctrl_t *pa);
 bk_err_t a2dp_sink_audio_start(const bk_a2dp_mcc_t *codec,
                                uint32_t open_vote,
                                uint8_t mix_multi_channel,
