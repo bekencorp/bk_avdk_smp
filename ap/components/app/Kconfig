@@ -53,6 +53,47 @@ menu "App"
 		bool "Enable Ali Mqtt"
 		default n
 
+	config COREMQTT
+		depends on LWIP
+		bool "Enable coreMQTT Client (MQTT 5.0)"
+		default n
+		help
+			Enable Amazon coreMQTT v5 library with lightweight FreeRTOS port.
+			Do not enable together with Paho MQTT.
+
+	config COREMQTT_THREAD_STACK_SIZE
+		depends on COREMQTT
+		int "coreMQTT worker thread stack size (bytes)"
+		default 6144 if COREMQTT_TLS
+		default 4096
+		range 2048 8192
+
+	config COREMQTT_NETWORK_BUFFER_SIZE
+		depends on COREMQTT
+		int "coreMQTT network buffer size (bytes)"
+		default 1024
+		range 512 4096
+
+	config COREMQTT_MAX_INFLIGHT
+		depends on COREMQTT
+		int "Max in-flight QoS1/2 messages"
+		default 5
+		range 1 10
+
+	config COREMQTT_TLS
+		depends on COREMQTT && PSA_MBEDTLS
+		bool "Enable coreMQTT MQTTS (TLS)"
+		default y
+		help
+			Enable TLS transport for coreMQTT (mqtts:// or port 8883).
+
+	config COREMQTT_TLS_VERIFY_SERVER
+		depends on COREMQTT_TLS
+		bool "Verify MQTTS server certificate"
+		default n
+		help
+			When disabled, broker certificate is not verified (dev only).
+
 	config PAHO_MQTT
 		depends on LWIP
 		bool "Enable Paho MQTT Client"

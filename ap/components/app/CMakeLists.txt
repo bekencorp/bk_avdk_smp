@@ -64,6 +64,35 @@ if (CONFIG_ALI_MQTT)
 	armino_build_set_property(C_COMPILE_OPTIONS "${ali_mqtt_c_compile_options}" APPEND)
 endif()
 
+if (CONFIG_COREMQTT)
+	list(APPEND incs
+		core-mqtt
+		core-mqtt/port
+		core-mqtt/source/include
+		core-mqtt/source/interface
+	)
+	list(APPEND srcs
+		core-mqtt/core_mqtt_test.c
+		core-mqtt/port/core_mqtt_transport.c
+		core-mqtt/source/core_mqtt.c
+		core-mqtt/source/core_mqtt_state.c
+		core-mqtt/source/core_mqtt_serializer.c
+		core-mqtt/source/core_mqtt_prop_serializer.c
+		core-mqtt/source/core_mqtt_prop_deserializer.c
+		core-mqtt/source/core_mqtt_serializer_private.c
+	)
+	if (CONFIG_COREMQTT_TLS)
+		list(APPEND srcs
+			core-mqtt/port/core_mqtt_tls.c
+		)
+		list(APPEND incs
+			"${CMAKE_CURRENT_LIST_DIR}/../psa_mbedtls/mbedtls_port/inc"
+			"${CMAKE_CURRENT_LIST_DIR}/../psa_mbedtls/mbedtls/include"
+			"${CMAKE_CURRENT_LIST_DIR}/../psa_mbedtls/mbedtls_port/configs"
+		)
+	endif()
+endif()
+
 if (CONFIG_PAHO_MQTT)
 	list(APPEND incs
 		paho-mqtt/client
@@ -120,8 +149,21 @@ if (CONFIG_PAHO_MQTT)
 endif()
 
 set(priv_requires bk_common littlefs lwip_intf_v2_1 bk_vfs)
+set(requires bk_wifi bk_cli)
 if (CONFIG_ALI_MQTT)
 	list(APPEND priv_requires http)
+endif()
+if (CONFIG_COREMQTT AND CONFIG_AT)
+	list(APPEND srcs
+		core-mqtt/core_mqtt_at.c
+	)
+	list(APPEND priv_requires at_server)
+endif()
+if (CONFIG_COREMQTT)
+	list(APPEND priv_requires bk_rtos)
+endif()
+if (CONFIG_COREMQTT_TLS)
+	list(APPEND requires psa_mbedtls)
 endif()
 if (CONFIG_PAHO_MQTT)
 	list(APPEND priv_requires http)
@@ -133,6 +175,6 @@ endif()
 #TODO fix main
 armino_component_register(SRCS "${srcs}"
 	INCLUDE_DIRS "${incs}"
-	REQUIRES bk_wifi bk_cli
+	REQUIRES ${requires}
 	PRIV_REQUIRES ${priv_requires}
 	)
