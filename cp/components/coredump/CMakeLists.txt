@@ -18,6 +18,7 @@ list(APPEND srcs
 	bk_coredump_arm.c
 	bk_coredump_uart.c
 	bk_coredump_mem.c
+	bk_dump_manifest.c
 	trap_test.c
 	bk_traceback.c
 	memdump_strategies/memdump_minimal.c

@@ -214,7 +214,7 @@ static bool coredump_uart_write_memory_base64(const char *name, uint32_t sp, uin
     int base64_len = 0;
 
     if (!coredump_uart_write_checked(
-            ">>>>stack mem dump begin, region: %s, stack_top=%08x, stack end=%08x\r\n",
+            ">>>>stack mem dump begin, region: %s, encoding=base64, stack_top=%08x, stack end=%08x\r\n",
             name, sp, fp) ||
         !coredump_uart_write_data_checked((const uint8_t *)"\r\n", 2U)) {
         return false;
@@ -259,7 +259,7 @@ static bool coredump_uart_write_memory_ascii(const char *name, uint32_t sp, uint
     uint32_t cnt = 0;
 
     if (!coredump_uart_write_checked(
-            ">>>>stack mem dump begin, region: %s, stack_top=%08x, stack end=%08x\r\n",
+            ">>>>stack mem dump begin, region: %s, encoding=ascii, stack_top=%08x, stack end=%08x\r\n",
             name, sp, fp)) {
         return false;
     }

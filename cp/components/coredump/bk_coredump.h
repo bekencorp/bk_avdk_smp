@@ -1,6 +1,7 @@
 #pragma once
 #include <stdint.h>
 #include <stddef.h>
+#include <stdbool.h>
 #include "os/mem.h"
 
 typedef struct bk_assert_info
@@ -64,6 +65,15 @@ void bk_coredump_memory_essential(void);
 void bk_coredump_memory_extended(void);
 void bk_coredump_memory_peripherals(void);
 void bk_coredump_ap_memory(void);
+/* P1-3/P2-2 split: RAM image + safe peripheral registers, and the (Debug-only)
+ * destructive probes, so the trap path can emit the end marker between them. */
+void bk_coredump_ap_dump_ram_and_regs(void);
+void bk_coredump_ap_dump_regs(void);
+void bk_coredump_ap_dump_probes(void);
+
+/* P1-2: true when a stopped AP core could not be confirmed in reset, so the CP
+ * must downgrade AP cross-reads to safe register-only reads. */
+bool bk_coredump_ap_stop_unconfirmed(void);
 void bk_coredump_dump_ap_memory_for_trap(void);
 
 bk_mem_addr_t *bk_get_dump_sys_mem_info(void);

@@ -481,15 +481,36 @@ static void bk_coredump_ap_dump_ram(void)
     bk_dump_ap_psram_mem();
 }
 
-/* Phase 2 - peripheral register banks + diagnostic probes. The live write
- * probes and the SRAM sub-bank read sweep can themselves stall on a wedged
- * bus, so the (intentionally hang-prone) sub-bank sweep is run last. */
-static void bk_coredump_ap_dump_regs_and_probes(void)
+/* AP peripheral register banks only (safe AHBP reads). Used as the P1-2
+ * downgrade target when the AP cores' stop could not be confirmed and cross-
+ * reading AP RAM would risk a bus stall. */
+void bk_coredump_ap_dump_regs(void)
 {
     bk_dump_ap_peri_regs();
+}
+
+/* Phase 1 RAM image + Phase 2a peripheral register banks (both safe: the RAM
+ * reads are power-gated and the register reads go through the CP-local AHBP
+ * path). No destructive probes - callers emit the end marker after this and run
+ * the hang-prone probes afterwards (P1-3). */
+void bk_coredump_ap_dump_ram_and_regs(void)
+{
+    bk_coredump_ap_dump_ram();
+    bk_dump_ap_peri_regs();
+}
+
+/* Phase 2b - destructive AP diagnostic probes (live write probes + hang-prone
+ * SRAM sub-bank read sweep). Engineering-only: compiled out of Release builds
+ * (P2-2), and callers run this only AFTER the end marker (P1-3). */
+void bk_coredump_ap_dump_probes(void)
+{
+#if CONFIG_DEBUG_VERSION
     bk_dump_psram0_base_write_probe();
     bk_dump_ap_sram_dtcm_write_probes();
     bk_coredump_probe_wedge_sram_banks();
+#else
+    bk_coredump_write_prompt(">>>>skip ap diagnostic probes (release build)\r\n");
+#endif
 }
 
 void bk_coredump_ap_memory(void)
@@ -497,18 +518,15 @@ void bk_coredump_ap_memory(void)
     /*
      * Dump-order policy (integrity first):
      *   Phase 1  RAM image  : DTCM / SRAM / PSRAM / extra system memory.
-     *   Phase 2  forensics  : peripheral register banks + diagnostic probes
-     *                         (AHB debug snapshot, live write probes, SRAM
-     *                          sub-bank read sweep) that may stall on a
-     *                          wedged bus.
+     *   Phase 2a register banks (safe AHBP reads).
+     *   Phase 2b destructive probes (AHB debug snapshot, live write probes,
+     *            SRAM sub-bank read sweep) that may stall on a wedged bus -
+     *            Debug-only and run last.
      *
      * Phase 1 runs first so the RAM image is never lost to a phase-2 stall.
-     * If a failure mode instead wedges on SRAM/PSRAM itself, swap the two
-     * calls below so the register/probe forensics are captured before the
-     * RAM dump is attempted.
      */
-    bk_coredump_ap_dump_ram();
-    bk_coredump_ap_dump_regs_and_probes();
+    bk_coredump_ap_dump_ram_and_regs();
+    bk_coredump_ap_dump_probes();
 }
 
 void bk_dump_peri_regs(void)
@@ -537,6 +555,8 @@ void bk_dump_peri_regs(void)
  * the epilogue) so a stall here cannot cost us the essential dump. */
 void bk_dump_peri_probes(void)
 {
+#if CONFIG_DEBUG_VERSION
+    /* P2-2: destructive AP/PSRAM probes are engineering-only. */
     if (bk_pm_ap_boot_success_get()) {
         bk_dump_psram0_base_write_probe();
         bk_dump_ap_sram_dtcm_write_probes();
@@ -544,6 +564,9 @@ void bk_dump_peri_probes(void)
     } else {
         bk_coredump_write_prompt(">>>>skip ap/psram diagnostic probes (ap powered down)\r\n");
     }
+#else
+    bk_coredump_write_prompt(">>>>skip ap/psram diagnostic probes (release build)\r\n");
+#endif
 }
 
 extern void bk_get_dtcm_info(bk_mem_addr_t *info);

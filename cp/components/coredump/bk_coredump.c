@@ -3,6 +3,7 @@
 #include <stddef.h>
 #include <string.h>
 #include "bk_coredump.h"
+#include "bk_dump_manifest.h"
 #include "bk_arch.h"
 #include "wdt_driver.h"
 #include "os/mem.h"
@@ -15,6 +16,16 @@
 #include "multicore_driver.h"
 #endif
 #include "multicore_hal.h"
+#include "sys_ll.h"
+#include "sys_ahbp_ll.h"
+
+/* P1-2: bounded wait for the peer-core stop to be confirmed via reset-status
+ * readback before trusting cross-core/cross-domain reads. Fixed behaviour (no
+ * feature Kconfig); the timeout is a board-tuned constant (readback settle time
+ * must be measured on the target, FI-11/FI-12). */
+#ifndef COREDUMP_STOP_READBACK_TIMEOUT_US
+#define COREDUMP_STOP_READBACK_TIMEOUT_US 2000U
+#endif
 
 #if CONFIG_SUPPORT_WWDT
 #include <driver/wwdt.h>
@@ -79,6 +90,44 @@ static inline void coredump_stop_riscv(void)
     __DSB();
 }
 
+/* Reset-status readback (M0-confirmed registers). NOTE the differing polarity:
+ * CPU1 sw_rst is active-HIGH (1 = in reset); the AP cores' sw_rstn are
+ * active-LOW (0 = in reset). */
+static inline bool cp_peer_cpu1_is_reset(void)
+{
+    return sys_ll_get_cpu1_int_halt_clk_op_cpu1_sw_rst() == 1U;   /* active-high */
+}
+static inline bool ap_cpu2_is_reset(void)
+{
+    return sys_ahbp_ll_get_reg4_cpu0_sw_rstn() == 0U;             /* active-low */
+}
+static inline bool ap_cpu3_is_reset(void)
+{
+    return sys_ahbp_ll_get_reg5_cpu1_sw_rstn() == 0U;             /* active-low */
+}
+
+/* Set when a stopped AP core could not be confirmed in reset: cross-domain AP
+ * reads are then downgraded to safe register-only reads to avoid a bus stall. */
+static volatile bool s_coredump_ap_stop_unconfirmed = false;
+
+bool bk_coredump_ap_stop_unconfirmed(void)
+{
+    return s_coredump_ap_stop_unconfirmed;
+}
+
+static bool coredump_wait_reset_confirmed(bool (*is_reset)(void))
+{
+    uint64_t start_us = bk_aon_rtc_get_us();
+
+    while (!is_reset()) {
+        if ((bk_aon_rtc_get_us() - start_us) >= COREDUMP_STOP_READBACK_TIMEOUT_US) {
+            return is_reset();
+        }
+        bk_coredump_feed_watchdogs();
+    }
+    return true;
+}
+
 static inline void coredump_stop_other_cores(void)
 {
     // smp needs stop other cores
@@ -87,8 +136,15 @@ static inline void coredump_stop_other_cores(void)
 
     if (core_id == CPU0_CORE_ID) {
         bk_multicore_stop(CPU1_CORE_ID);
+        /* P1-2: confirm the CP peer actually entered reset. */
+        if (coredump_wait_reset_confirmed(cp_peer_cpu1_is_reset)) {
+            BK_DUMP_OUT("@STOP_CONFIRMED core=CPU1\r\n");
+        } else {
+            BK_DUMP_OUT("@STOP_UNCONFIRMED core=CPU1\r\n");
+        }
     } else if (core_id == CPU1_CORE_ID) {
         bk_multicore_stop(CPU0_CORE_ID);
+        /* CPU0 exposes no sw_rst readback; best-effort stop only. */
     } else {
         BK_DUMP_OUT("warning: unexpected CP core id %u, cannot stop peer core\r\n", core_id);
     }
@@ -97,6 +153,22 @@ static inline void coredump_stop_other_cores(void)
     coredump_stop_riscv();
     multicore_hal_stop(CPU2_CORE_ID);
     multicore_hal_stop(CPU3_CORE_ID);
+
+    /* P1-2: confirm the AP cores stopped before the CP cross-reads AP memory.
+     * Only meaningful when the AP domain is powered (otherwise the readback
+     * itself would target a powered-down domain). */
+    if (bk_pm_ap_boot_success_get()) {
+        bool ap2 = coredump_wait_reset_confirmed(ap_cpu2_is_reset);
+        bool ap3 = coredump_wait_reset_confirmed(ap_cpu3_is_reset);
+
+        if (ap2 && ap3) {
+            BK_DUMP_OUT("@STOP_CONFIRMED ap_cores (cpu2,cpu3)\r\n");
+        } else {
+            s_coredump_ap_stop_unconfirmed = true;
+            BK_DUMP_OUT("@STOP_UNCONFIRMED ap_cores cpu2=%d cpu3=%d, downgrade AP cross-read to registers only\r\n",
+                        (int)ap2, (int)ap3);
+        }
+    }
 }
 
 
@@ -215,6 +287,7 @@ static void bk_exception_dump_main(bk_exception_t *self)
     bk_coredump_writer_init();
 
     bk_coredump_meta_info();
+    bk_coredump_write_prompt("@dump_format_version: %u\r\n", (unsigned)BK_DUMP_FORMAT_VERSION);
     bk_coredump_dump_time(self->exception_time_us);
 
     bk_coredump_registers(self);
@@ -224,7 +297,9 @@ static void bk_exception_dump_main(bk_exception_t *self)
     bk_coredump_feed_watchdogs();
     bk_coredump_memory_essential();
 
-#if CONFIG_MEMDUMP_ALL
+    /* P0-4/P2-1: the wifi/ble forensic hooks are an engineering feature and are
+     * gated by build version, not by the dump *level* (MEMDUMP_ALL). */
+#if CONFIG_DEBUG_VERSION
     coredump_execute_hook_function();
 #endif
 
@@ -265,18 +340,33 @@ void bk_coredump_dump_ap_memory_for_trap(void)
 #endif
     bk_coredump_feed_watchdogs();
     bk_coredump_writer_init();
+    bk_coredump_write_prompt("@dump_format_version: %u\r\n", (unsigned)BK_DUMP_FORMAT_VERSION);
     bk_coredump_dump_time(dump_time_us);
     bk_coredump_write_prompt("***********************************************************************************************\r\n");
     bk_coredump_write_prompt("*************************************AP memory dump begin**************************************\r\n");
     bk_coredump_write_prompt("***********************************************************************************************\r\n");
     bk_coredump_feed_watchdogs();
-    bk_coredump_ap_memory();
+    /* Integrity-first: RAM image + safe peripheral registers only. P1-2: if the
+     * AP cores' stop was not confirmed, cross-reading AP RAM can stall the CP
+     * bus, so downgrade to safe register reads only. */
+    if (bk_coredump_ap_stop_unconfirmed()) {
+        bk_coredump_write_prompt(">>>>AP cores stop unconfirmed: skip AP RAM cross-read, dump registers only\r\n");
+        bk_coredump_ap_dump_regs();
+    } else {
+        bk_coredump_ap_dump_ram_and_regs();
+    }
     bk_coredump_write_prompt("***********************************************************************************************\r\n");
     bk_coredump_write_prompt("**************************************AP memory dump end***************************************\r\n");
     bk_coredump_write_prompt("***********************************************************************************************\r\n");
-    bk_coredump_writer_deinit();
-    
+    /* P1-3: emit the end marker while the UART lock is still held (previously it
+     * was written after writer_deinit and silently dropped), BEFORE the
+     * hang-prone probes, so the offline parser always sees a complete record. */
     coredump_prompt_epilogue();
+    /* P2-2: destructive AP probes are Debug-only (no-op banner in Release) and
+     * run last so a bus stall here cannot cost us the RAM image or end marker. */
+    bk_coredump_feed_watchdogs();
+    bk_coredump_ap_dump_probes();
+    bk_coredump_writer_deinit();
 }
 
 static void bk_exception_postprocess(bk_exception_t *self)
@@ -354,10 +444,14 @@ uint32_t bk_get_dump_sys_mem_count(void)
 {
     for (int i = 0; i < MAX_DUMP_SYS_MEM_COUNT; i++) {
         if (s_dump_sys_mem_info[i].start_addr == 0 && s_dump_sys_mem_info[i].size == 0) {
-            return i + 1;
+            /* i is the first empty slot, i.e. the number of registered
+             * regions [0..i-1]. Returning i+1 used to dump one extra empty
+             * region (0-length EXTRA_MEM). */
+            return i;
         }
     }
-    return 0;
+    /* Table is full: every slot holds a registered region. */
+    return MAX_DUMP_SYS_MEM_COUNT;
 }
 
 bk_mem_addr_t *bk_get_dump_sys_mem_info(void)

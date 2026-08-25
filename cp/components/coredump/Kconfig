@@ -17,13 +17,15 @@ menu "Coredump"
 				Dump all memory when exception happen
 
 	config CP_HANG_DUMP_BY_AP
-			bool "Enable AP-side CP hang dump debug feature"
+			bool "Enable AP-side CP hang dump feature"
 			depends on IPI && (DEBUG_VERSION || DUMP_ENABLE)
-			default n
+			default y
 			help
-				Debug-only feature. CP sends a private IPI heartbeat to AP.
-				If AP observes CP heartbeat timeout, AP dumps CP-visible
-				context and reboots the board without relying on CP.
+				Production reliability feature (requires dump to be enabled).
+				CP sends a private IPI heartbeat to AP. If AP observes CP
+				heartbeat timeout, AP dumps CP-visible context and reboots the
+				board without relying on the CP - covering the "CP wedged and
+				not answering mailbox" case.
 
 	config CP_HANG_DUMP_BY_AP_PERIOD_MS
 			int "CP to AP debug heartbeat period(ms)"
