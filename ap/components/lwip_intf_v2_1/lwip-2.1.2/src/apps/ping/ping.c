@@ -31,6 +31,7 @@
 #include <lwip/inet.h>
 #include <lwip/inet_chksum.h>
 #include <lwip/ip.h>
+#include <lwip/ip6.h>
 #include <lwip/netdb.h>
 #include <lwip/sockets.h>
 #include <lwip/ping.h>
@@ -89,6 +90,7 @@ typedef struct {
 	char *ip;
 	uint32_t time;
 	uint32_t size;
+	int addr_family;
 } ping_param_t;
 
 static ping_param_t p_param;
@@ -305,7 +307,7 @@ void ping_stop(void)
 }
 
 
-void ping_start(char* target_name, uint32_t times, size_t size)
+static void ping_start_with_family(char* target_name, uint32_t times, size_t size, int addr_family)
 {
 	if (p_param.state == PING_STATE_STOPPED) {
 	    if (p_param.ip) {
@@ -317,6 +319,7 @@ void ping_start(char* target_name, uint32_t times, size_t size)
 			p_param.ip = os_strdup(target_name);
 			p_param.time = times;
 			p_param.size = size;
+			p_param.addr_family = addr_family;
 
 			rtos_create_thread(NULL, ping_priority, "ping",
 							   ping_thread, THREAD_SIZE,
@@ -331,6 +334,16 @@ void ping_start(char* target_name, uint32_t times, size_t size)
 		LWIP_DEBUGF( PING_DEBUG, ("ping: ping is stopping, try again later!\n"));
 	else
 		LWIP_DEBUGF( PING_DEBUG, ("ping: ping is running, stop first!\n"));
+}
+
+void ping_start(char* target_name, uint32_t times, size_t size)
+{
+	ping_start_with_family(target_name, times, size, AF_UNSPEC);
+}
+
+void ping6_start(char* target_name, uint32_t times, size_t size)
+{
+	ping_start_with_family(target_name, times, size, AF_INET6);
 }
 
 int ping(char* target_name, uint32_t times, size_t size)
@@ -357,7 +370,7 @@ int ping(char* target_name, uint32_t times, size_t size)
     }
 	LWIP_DEBUGF( PING_DEBUG, ("ping: size:%u times:%u\n", size, times));
     memset(&hint, 0, sizeof(hint));
-    hint.ai_family = AF_INET;
+    hint.ai_family = (p_param.addr_family == AF_UNSPEC) ? AF_INET : p_param.addr_family;
     /* convert URL to IP */
     if (lwip_getaddrinfo(target_name, NULL, &hint, &res) != 0)
     {
@@ -377,15 +390,13 @@ int ping(char* target_name, uint32_t times, size_t size)
             proto = IP6_NEXTH_ICMP6;
             h6 = (struct sockaddr_in6 *)res->ai_addr;
             netif = (struct netif *)net_get_sta_handle();
-            if(ip6_addr_isvalid(netif_ip6_addr_state(netif,0)))
-                src_addr = &(netif->ip6_addr[0]);
-            else
-            {
+            inet6_addr_to_ip6addr(ip_2_ip6(&target_addr),&h6->sin6_addr);
+            IP_SET_TYPE(&target_addr,IPADDR_TYPE_V6);
+            src_addr = (ip_addr_t *)ip6_select_source_address(netif, ip_2_ip6(&target_addr));
+            if (!src_addr) {
                 LWIP_DEBUGF( PING_DEBUG, ("ping: netif addr_ipv6 err\n"));
                 return -1;
             }
-            inet6_addr_to_ip6addr(ip_2_ip6(&target_addr),&h6->sin6_addr);
-            IP_SET_TYPE(&target_addr,IPADDR_TYPE_V6);
             ip6_addr_set_zone(ip_2_ip6(&target_addr),ip6_addr_zone(ip_2_ip6(src_addr)));
         }
 #endif        
