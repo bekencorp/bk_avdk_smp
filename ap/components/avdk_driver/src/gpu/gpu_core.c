@@ -7,7 +7,6 @@
 #include <driver/sys_pm.h>
 #include <modules/pm.h>
 #include "sys_driver.h"
-#include "spinlock.h"
 #include <modules/vg_lite_gpu/vg_lite_platform.h>
 
 #define TAG "gpu_core"
@@ -17,78 +16,78 @@
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
 
-typedef enum
-{
-    GPU_DRIVER_STATE_DEINIT = 0,
-    GPU_DRIVER_STATE_INITING,
-    GPU_DRIVER_STATE_INITED,
-    GPU_DRIVER_STATE_DEINITING,
-} gpu_driver_state_t;
-
-typedef struct
-{
-    gpu_driver_state_t state;
-    uint32_t ref_cnt;
-} gpu_driver_state_ctx_t;
-
-static gpu_driver_state_ctx_t s_gpu_driver_state = {
-    .state = GPU_DRIVER_STATE_DEINIT,
-    .ref_cnt = 0,
-};
+static uint32_t s_gpu_driver_ref_cnt = 0;
+static beken_mutex_t s_gpu_driver_lock = NULL;
 static beken_mutex_t s_gpu_global_lock = NULL;
-#if CONFIG_SOC_SMP
-static SPINLOCK_SECTION volatile spinlock_t s_gpu_driver_state_lock = SPIN_LOCK_INIT;
-#endif
 
-static inline uint32_t gpu_driver_state_lock(void)
+static bk_err_t gpu_driver_lock_init(void)
 {
-    uint32_t irq_flags;
-#if CONFIG_SOC_SMP
-    spin_lock_irqsave(&s_gpu_driver_state_lock, irq_flags);
-#else
-    irq_flags = rtos_disable_int();
-#endif
-    return irq_flags;
+    beken_mutex_t lock = NULL;
+    GLOBAL_INT_DECLARATION();
+
+    if (s_gpu_driver_lock != NULL)
+    {
+        return BK_OK;
+    }
+
+    if (rtos_init_mutex(&lock) != BK_OK)
+    {
+        return BK_FAIL;
+    }
+
+    GLOBAL_INT_DISABLE();
+    if (s_gpu_driver_lock == NULL)
+    {
+        s_gpu_driver_lock = lock;
+        lock = NULL;
+    }
+    GLOBAL_INT_RESTORE();
+
+    if (lock != NULL)
+    {
+        rtos_deinit_mutex(&lock);
+    }
+
+    return BK_OK;
 }
 
-static inline void gpu_driver_state_unlock(uint32_t irq_flags)
+static bk_err_t gpu_driver_lock(void)
 {
-#if CONFIG_SOC_SMP
-    spin_unlock_irqrestore(&s_gpu_driver_state_lock, irq_flags);
-#else
-    rtos_enable_int(irq_flags);
-#endif
+    if (rtos_is_in_interrupt_context())
+    {
+        return BK_FAIL;
+    }
+
+    if (gpu_driver_lock_init() != BK_OK)
+    {
+        return BK_FAIL;
+    }
+
+    return rtos_lock_mutex(&s_gpu_driver_lock);
 }
 
 void bk_gpu_driver_init(void)
 {
-    while (1)
+    if (gpu_driver_lock() != BK_OK)
     {
-        uint32_t irq_flags = gpu_driver_state_lock();
-        if (s_gpu_driver_state.state == GPU_DRIVER_STATE_INITED)
+        if (!rtos_is_in_interrupt_context())
         {
-            s_gpu_driver_state.ref_cnt++;
-            gpu_driver_state_unlock(irq_flags);
-            return;
+            LOGE("%s gpu driver lock failed\r\n", __func__);
         }
+        return;
+    }
 
-        if (s_gpu_driver_state.state == GPU_DRIVER_STATE_DEINIT)
-        {
-            s_gpu_driver_state.state = GPU_DRIVER_STATE_INITING;
-            gpu_driver_state_unlock(irq_flags);
-            break;
-        }
-
-        gpu_driver_state_unlock(irq_flags);
-        rtos_delay_milliseconds(1);
+    if (s_gpu_driver_ref_cnt > 0)
+    {
+        s_gpu_driver_ref_cnt++;
+        LOGD("%s ref_cnt=%u\r\n", __func__, s_gpu_driver_ref_cnt);
+        rtos_unlock_mutex(&s_gpu_driver_lock);
+        return;
     }
 
     if ((s_gpu_global_lock == NULL) && (rtos_init_mutex(&s_gpu_global_lock) != BK_OK))
     {
-        uint32_t irq_flags = gpu_driver_state_lock();
-        s_gpu_driver_state.state = GPU_DRIVER_STATE_DEINIT;
-        s_gpu_driver_state.ref_cnt = 0;
-        gpu_driver_state_unlock(irq_flags);
+        rtos_unlock_mutex(&s_gpu_driver_lock);
         LOGE("%s gpu global lock init failed\r\n", __func__);
         return;
     }
@@ -108,40 +107,35 @@ void bk_gpu_driver_init(void)
     sys_drv_set_int_en(rtos_get_core_id(), INT_SRC_GPU, 1);
 #endif
 
-    uint32_t irq_flags = gpu_driver_state_lock();
-    s_gpu_driver_state.state = GPU_DRIVER_STATE_INITED;
-    s_gpu_driver_state.ref_cnt = 1;
-    gpu_driver_state_unlock(irq_flags);
+    s_gpu_driver_ref_cnt = 1;
+    LOGI("%s done, ref_cnt=%u\r\n", __func__, s_gpu_driver_ref_cnt);
+    rtos_unlock_mutex(&s_gpu_driver_lock);
 }
 
 void bk_gpu_driver_deinit(void)
 {
-    while (1)
+    if (gpu_driver_lock() != BK_OK)
     {
-        uint32_t irq_flags = gpu_driver_state_lock();
-        if (s_gpu_driver_state.state == GPU_DRIVER_STATE_DEINIT)
+        if (!rtos_is_in_interrupt_context())
         {
-            gpu_driver_state_unlock(irq_flags);
-            LOGW("%s has deinit\r\n", __func__);
-            return;
+            LOGE("%s gpu driver lock failed\r\n", __func__);
         }
+        return;
+    }
 
-        if (s_gpu_driver_state.state == GPU_DRIVER_STATE_INITED)
-        {
-            if (s_gpu_driver_state.ref_cnt > 1)
-            {
-                s_gpu_driver_state.ref_cnt--;
-                gpu_driver_state_unlock(irq_flags);
-                return;
-            }
+    if (s_gpu_driver_ref_cnt == 0)
+    {
+        rtos_unlock_mutex(&s_gpu_driver_lock);
+        LOGW("%s has deinit\r\n", __func__);
+        return;
+    }
 
-            s_gpu_driver_state.state = GPU_DRIVER_STATE_DEINITING;
-            gpu_driver_state_unlock(irq_flags);
-            break;
-        }
-
-        gpu_driver_state_unlock(irq_flags);
-        rtos_delay_milliseconds(1);
+    if (s_gpu_driver_ref_cnt > 1)
+    {
+        s_gpu_driver_ref_cnt--;
+        LOGD("%s ref_cnt=%u\r\n", __func__, s_gpu_driver_ref_cnt);
+        rtos_unlock_mutex(&s_gpu_driver_lock);
+        return;
     }
 
 #if CONFIG_SOC_SMP
@@ -162,10 +156,9 @@ void bk_gpu_driver_deinit(void)
         s_gpu_global_lock = NULL;
     }
 
-    uint32_t irq_flags = gpu_driver_state_lock();
-    s_gpu_driver_state.state = GPU_DRIVER_STATE_DEINIT;
-    s_gpu_driver_state.ref_cnt = 0;
-    gpu_driver_state_unlock(irq_flags);
+    s_gpu_driver_ref_cnt = 0;
+    LOGI("%s done, ref_cnt=%u\r\n", __func__, s_gpu_driver_ref_cnt);
+    rtos_unlock_mutex(&s_gpu_driver_lock);
 }
 
 bk_err_t bk_gpu_global_lock(void)
