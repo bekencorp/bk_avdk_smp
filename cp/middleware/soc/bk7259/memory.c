@@ -378,12 +378,14 @@ bool bk_check_addr_in_ap_dump_range(uint32_t addr, uint32_t size)
            addr_range_is_inside_peri_regs(addr, size);
 }
 
+/* name<->range kept self-consistent (was previously swapped, mislabelling the
+ * CP self psram dump). See AP memory.c for the rationale and dump_format_version. */
 void bk_get_psram_bss_info(bk_dump_mem_info_t *info)
 {
 	info->name = "PSRAM_BSS";
 #if CONFIG_CP_PSRAM_SECTION_ADDR
-	info->start_addr = PSRAM_DATA_START_ADDRESS;
-	info->size = PSRAM_DATA_END_ADDRESS - PSRAM_DATA_START_ADDRESS;
+	info->start_addr = PSRAM_BSS_START_ADDRESS;
+	info->size = PSRAM_BSS_END_ADDRESS - PSRAM_BSS_START_ADDRESS;
 #else
 	info->start_addr = 0;
 	info->size = 0;
@@ -394,8 +396,8 @@ void bk_get_psram_data_info(bk_dump_mem_info_t *info)
 {
 	info->name = "PSRAM_DATA";
 #if CONFIG_CP_PSRAM_SECTION_ADDR
-	info->start_addr = PSRAM_BSS_START_ADDRESS;
-	info->size = PSRAM_BSS_END_ADDRESS - PSRAM_BSS_START_ADDRESS;
+	info->start_addr = PSRAM_DATA_START_ADDRESS;
+	info->size = PSRAM_DATA_END_ADDRESS - PSRAM_DATA_START_ADDRESS;
 #else
 	info->start_addr = 0;
 	info->size = 0;

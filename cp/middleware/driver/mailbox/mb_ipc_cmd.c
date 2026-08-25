@@ -517,6 +517,17 @@ typedef struct
 
 extern  volatile uint32_t g_ap_dump_flag;
 
+/* P0-2: strong definition lives in mb_ipc_heartbeat.c and offloads the AP trap
+ * dump to the (highest-priority) heartbeat task. This weak fallback keeps the
+ * legacy synchronous behaviour when the master heartbeat task is not built. */
+ __attribute__ ((weak)) void mb_ipc_ap_dump_notify(u32 cpu_id)
+{
+	bk_coredump_dump_ap_memory_for_trap();
+	g_ap_dump_flag = 0;
+	mb_ipc_dump_notify(cpu_id, 0);
+	bk_wdt_force_reboot();
+}
+
 static u32 ipc_cmd_handler(ipc_chnl_cb_t *chnl_cb, mb_chnl_ack_t *ack_buf)
 {
 	/* must NOT change ack_buf->hdr. */
@@ -729,10 +740,11 @@ static u32 ipc_cmd_handler(ipc_chnl_cb_t *chnl_cb, mb_chnl_ack_t *ack_buf)
 				}
 				#endif
 
-				bk_coredump_dump_ap_memory_for_trap();
-				g_ap_dump_flag = 0;
-				mb_ipc_dump_notify(dump_cpu_id, 0);
-				bk_wdt_force_reboot();
+				/* P0-2: offload the multi-second AP-memory dump to the
+				 * heartbeat task so this RX handler ACKs promptly. The AP's
+				 * handoff wait (P0-1) relies on this fast ACK; the dump +
+				 * reboot then run in task context. */
+				mb_ipc_ap_dump_notify(dump_cpu_id);
 
 			}
 			break;

@@ -18,9 +18,19 @@
 #include <os/os.h>
 #include "mb_ipc_cmd.h"
 #include <modules/pm.h>
+#include "bk_wdt.h"
+#include <wdt_driver.h>
 #if CONFIG_SLAVE_HEART_BEAT_USE_IPI
 #include <driver/ipi_driver.h>
 #endif
+
+/* P0-2: the AP-memory trap dump is offloaded from the mailbox RX callback to
+ * this (highest-priority) task so the IPC ACK returns promptly. */
+extern void bk_coredump_dump_ap_memory_for_trap(void);
+extern volatile uint32_t g_ap_dump_flag;
+/* Defined later in this file; the strong override of the weak stub in
+ * mb_ipc_cmd.c. Forward-declared for the mb_ipc_task() call site below. */
+void mb_ipc_dump_notify(u32 cpu_id, u32 dump);
 
 #define MOD_TAG		"hrt"
 #define BEKEN_HEARTBEAT_PRIORITY 0
@@ -59,8 +69,9 @@ int mb_ipc_cpu_is_power_off(u32 cpu_id)
 #define MB_IPC_STOP_CORE_FLAG		0x02
 #define MB_IPC_POWER_UP_FLAG		0x04
 #define MB_IPC_HEARTBEAT_FLAG		0x08
+#define MB_IPC_AP_DUMP_FLAG			0x10
 
-#define MB_IPC_ALL_FLAGS			(MB_IPC_START_CORE_FLAG | MB_IPC_STOP_CORE_FLAG | MB_IPC_POWER_UP_FLAG | MB_IPC_HEARTBEAT_FLAG)
+#define MB_IPC_ALL_FLAGS			(MB_IPC_START_CORE_FLAG | MB_IPC_STOP_CORE_FLAG | MB_IPC_POWER_UP_FLAG | MB_IPC_HEARTBEAT_FLAG | MB_IPC_AP_DUMP_FLAG)
 
 #define MB_IPC_HEARTBEAT_TIME       2000   /* slave sends heartbeat every 2s */
 #define MB_IPC_HEARTBEAT_IPI_EVENT_POWER_UP     1
@@ -89,6 +100,7 @@ static u32                          cpu_x_heartbeat_timestamp = 0;
 static volatile u8                  cpu_x_state = CORE_POWER_OFF;
 static volatile u8                  cpu_x_id = 0xFF;   /* invalid ID, */
 static volatile u8                  cpu_x_dump = 0;
+static volatile u8                  cpu_x_dump_pending_id = 0xFF;
 static volatile u8                  cpu_x_heartbeat_timeout = 0;
 static volatile mb_ipc_work_state_e s_mb_ipc_work_state = MB_IPC_WORKING;
 
@@ -292,6 +304,19 @@ static void mb_ipc_task( void *para )
 			events = MB_IPC_HEARTBEAT_FLAG;
 		}
 
+		if(events & MB_IPC_AP_DUMP_FLAG)
+		{
+			/* P0-2: run the multi-second AP-memory trap dump here (highest
+			 * priority task) instead of in the mailbox RX callback, so the IPC
+			 * ACK returned promptly and the AP's bounded handoff wait sees a
+			 * healthy CP. The board is reset when the dump completes; this does
+			 * not return. */
+			bk_coredump_dump_ap_memory_for_trap();
+			g_ap_dump_flag = 0;
+			mb_ipc_dump_notify(cpu_x_dump_pending_id, 0);
+			bk_wdt_force_reboot();
+		}
+
 		if(events & MB_IPC_STOP_CORE_FLAG)  // process this event at first!!!!
 		{
 			if(cpu_x_state == CORE_POWER_OFF)
@@ -426,6 +451,20 @@ void mb_ipc_dump_notify(u32 cpu_id, u32 dump)
 	}
 	
 	cpu_x_dump = (dump != 0);
+}
+
+/* P0-2: called from the mailbox RX handler (IPC_AP_TRAP_HANDLE_END). Instead of
+ * dumping AP memory synchronously in the RX callback (which delayed the IPC ACK
+ * by multiple seconds), just wake this task to perform the dump + reboot. */
+void mb_ipc_ap_dump_notify(u32 cpu_id)
+{
+	if(check_cpu_id_ok(cpu_id) == 0)
+	{
+		return;
+	}
+
+	cpu_x_dump_pending_id = (u8)cpu_id;
+	rtos_set_event_ex(&mb_ipc_heart_event, MB_IPC_AP_DUMP_FLAG);
 }
 
 int mb_ipc_cpu_is_power_on(u32 cpu_id)
