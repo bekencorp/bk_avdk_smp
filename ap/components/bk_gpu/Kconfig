@@ -20,4 +20,15 @@ menu "BK_GPU"
 		depends on VG_LITE_GPU
 		hex "vg-lite gpu command buffer size, Default 16KB."
 		default 0x2000
+
+	config VG_LITE_GPU_TESS_WIDTH
+		depends on VG_LITE_GPU
+		int "vg-lite default tessellation width"
+		default 0
+
+	config VG_LITE_GPU_TESS_HEIGHT
+		depends on VG_LITE_GPU
+		int "vg-lite default tessellation height"
+		default 0
+
 endmenu

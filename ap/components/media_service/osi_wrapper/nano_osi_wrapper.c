@@ -453,6 +453,18 @@ static void nano_module_exit_critical_wrapper(bk_nano_module_t module, uint32_t 
 #define GPU_VG_LITE_COMMAND_BUFFER_SIZE 0
 #endif
 
+#ifdef CONFIG_VG_LITE_GPU_TESS_WIDTH
+#define GPU_VG_LITE_TESS_WIDTH CONFIG_VG_LITE_GPU_TESS_WIDTH
+#else
+#define GPU_VG_LITE_TESS_WIDTH 0
+#endif
+
+#ifdef CONFIG_VG_LITE_GPU_TESS_HEIGHT
+#define GPU_VG_LITE_TESS_HEIGHT CONFIG_VG_LITE_GPU_TESS_HEIGHT
+#else
+#define GPU_VG_LITE_TESS_HEIGHT 0
+#endif
+
 
 static uint32_t nano_sram_peri_addr_wrapper(uint32_t addr)
 {
@@ -464,6 +476,8 @@ static bk_nano_osi_funcs_t s_nano_osi_funcs =
     .gpu_base_addr = GPU_BASE_ADDR,
     .gpu_vg_lite_contiguous_mem_sz = GPU_VG_LITE_CONTIGUOUS_MEM_SZ,
     .gpu_vg_lite_command_buffer_size = GPU_VG_LITE_COMMAND_BUFFER_SIZE,
+    .gpu_vg_lite_tess_width = GPU_VG_LITE_TESS_WIDTH,
+    .gpu_vg_lite_tess_height = GPU_VG_LITE_TESS_HEIGHT,
 
     .sram_peri_addr = nano_sram_peri_addr_wrapper,
 
