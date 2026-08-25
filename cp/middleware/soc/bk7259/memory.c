@@ -286,12 +286,17 @@ void bk_get_psram_heap_info(bk_dump_mem_info_t *info)
 {
 	info->name = "PSRAM_HEAP";
 #if CONFIG_PSRAM_AS_SYS_MEMORY
-    if (bk_psram_heap_get_used_count() == 0) {
+    /* Dump only the used part of the PSRAM heap ("用了多少 dump 多少"): the heap
+     * allocator records the high-water mark (max used bytes from base) on every
+     * allocation, so we emit [PSRAM_HEAP_ADDR, used) instead of the whole
+     * PSRAM_HEAP_SIZE. */
+    uint32_t used = bk_psram_heap_get_used_size();
+    if (used == 0) {
         info->start_addr = 0;
         info->size = 0;
     } else {
         info->start_addr = PSRAM_HEAP_ADDR;
-        info->size = PSRAM_HEAP_SIZE;
+        info->size = used;
     }
 #else
 	info->start_addr = 0;
