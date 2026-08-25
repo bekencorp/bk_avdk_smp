@@ -349,7 +349,7 @@ SECTIONS
 #if CONFIG_SPE
     .data :
 #else
-    .data (ORIGIN(RAM) + 0x1000) :
+    .data (ORIGIN(RAM) + 0x2000) :
 #endif
     {
         PROVIDE(__etext = LOADADDR(.data));
@@ -590,12 +590,14 @@ SECTIONS
 
     #if (CONFIG_SOC_SMP && !CONFIG_SPE)
         /* The secure boot shim branches core1 to this fixed Non-Secure vector; keep
-        * it in sync with AP_CORE1_NS_VECTOR in the secure world. */
-        ASSERT((__iram_end__ <= ORIGIN(RAM) + 0x1000), "AP IRAM overlaps core1 vector")
+        * it in sync with AP_CORE1_NS_VECTOR in the secure world.
+        * Window reserved for core0 IRAM/ITCM is 8KB (0x2000); core1 vector sits
+        * right after it at ORIGIN(RAM)+0x2000. */
+        ASSERT((__iram_end__ <= ORIGIN(RAM) + 0x2000), "AP IRAM overlaps core1 vector")
     #if CONFIG_SRAM_DIRECT_ADDR
-        ASSERT((__vector_core1_table == 0x3C181000), "AP core1 NS vector moved: update AP_CORE1_NS_VECTOR")
+        ASSERT((__vector_core1_table == 0x3C182000), "AP core1 NS vector moved: update AP_CORE1_NS_VECTOR")
     #else
-        ASSERT((__vector_core1_table == 0x38181000), "AP core1 NS vector moved: update AP_CORE1_NS_VECTOR")
+        ASSERT((__vector_core1_table == 0x38182000), "AP core1 NS vector moved: update AP_CORE1_NS_VECTOR")
     #endif
     #endif
 
