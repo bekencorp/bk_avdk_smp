@@ -30,6 +30,11 @@ typedef struct {
 } riscv_boot_param_t;
 
 static uint32_t s_host_started = 0U;
+/* Tracks which role the currently-running RISC-V firmware was cold-booted for:
+ * -1 = none, 0 = host, 1 = device. A role switch (host<->device) must stop the
+ * running firmware and cold-restart it in the new role; reusing a firmware that
+ * was booted for the other role deadlocks the device bring-up (task WDT). */
+static int s_running_is_device = -1;
 
 static volatile riscv_usb_probe_t s_riscv_probe = {0};
 
@@ -91,6 +96,7 @@ void usb_hc_riscv_stop_firmware(void)
     bk_uart_deinit(RISCV_USB_LOG_UART_ID);
 #endif
     s_host_started = 0U;
+    s_running_is_device = -1;
 }
 
 /* Device-side bridge entry: start the dual-role RISC-V firmware so it owns the
@@ -128,7 +134,12 @@ int usb_dc_riscv_device_prepare(void)
 #endif
 
     if (s_host_started != 0U) {
-        return 0;
+        if (s_running_is_device == 1) {
+            return 0;
+        }
+        /* Firmware is running in host role; stop it so we can cold-restart in
+         * device role (mirrors the proven device-first cold-boot path). */
+        usb_hc_riscv_stop_firmware();
     }
 
     if ((fw == NULL) || (fw_len == 0U)) {
@@ -140,6 +151,7 @@ int usb_dc_riscv_device_prepare(void)
     }
 
     s_host_started = 1U;
+    s_running_is_device = 1;
     return 0;
 }
 
@@ -162,7 +174,12 @@ int usb_hc_riscv_host_prepare(void)
 #endif
 
     if (s_host_started != 0U) {
-        return 0;
+        if (s_running_is_device == 0) {
+            return 0;
+        }
+        /* Firmware is running in device role; stop it so we can cold-restart in
+         * host role. */
+        usb_hc_riscv_stop_firmware();
     }
 
     if ((fw == NULL) || (fw_len == 0U)) {
@@ -174,5 +191,6 @@ int usb_hc_riscv_host_prepare(void)
     }
 
     s_host_started = 1U;
+    s_running_is_device = 0;
     return 0;
 }

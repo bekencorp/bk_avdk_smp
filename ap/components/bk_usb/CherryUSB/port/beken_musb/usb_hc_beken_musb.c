@@ -177,31 +177,20 @@ struct musb_pipe;
 static inline void musb_pipe_waitup(struct musb_pipe *pipe);
 void usb_hc_riscv_poll_events(void);
 
-#ifndef BK_LEGACY_MAX_ISO_PACKETS
-#define BK_LEGACY_MAX_ISO_PACKETS 8
+#ifndef BK_URB_MAX_ISO_PACKETS
+#define BK_URB_MAX_ISO_PACKETS 8
 #endif
 
+/* SRAM staging copy for the RISC-V bridge. The firmware reads/writes this
+ * object in place across the SRAM peripheral alias, so it must live in the
+ * coherent SRAM .bss (not the PSRAM where the real class-driver urb may be
+ * allocated, which the RISC-V core cannot see coherently). It IS a v1.6
+ * struct usbh_urb (no separate legacy layout); the trailing array only
+ * provides backing storage for the flexible iso_packet[] member. */
 typedef struct {
-    uint8_t *transfer_buffer;
-    uint32_t transfer_buffer_length;
-    uint32_t actual_length;
-    int errorcode;
-} bk_legacy_iso_t;
-
-typedef struct {
-    usbh_pipe_t pipe;
-    struct usb_setup_packet *setup;
-    uint8_t *transfer_buffer;
-    uint32_t transfer_buffer_length;
-    int transfer_flags;
-    uint32_t actual_length;
-    uint32_t timeout;
-    int errorcode;
-    uint32_t num_of_iso_packets;
-    usbh_complete_callback_t complete;
-    void *arg;
-    bk_legacy_iso_t iso_packet[BK_LEGACY_MAX_ISO_PACKETS];
-} bk_legacy_urb_t;
+    struct usbh_urb urb;
+    struct usbh_iso_frame_packet iso_backing[BK_URB_MAX_ISO_PACKETS];
+} bk_urb_t;
 
 #ifndef USB_BASE
 #define USB_BASE (SOC_USB_HS_BASE)
@@ -377,7 +366,7 @@ struct musb_hcd {
     struct musb_pipe pipe_pool[CONFIG_USBHOST_PIPE_NUM][2]; /* Support Bidirectional ep */
 } g_musb_hcd;
 
-static bk_legacy_urb_t s_legacy_urb[CONFIG_USBHOST_PIPE_NUM][2];
+static bk_urb_t s_bk_urb[CONFIG_USBHOST_PIPE_NUM][2];
 static struct usbh_urb *s_v16_urb[CONFIG_USBHOST_PIPE_NUM][2];
 
 typedef struct {
@@ -444,38 +433,38 @@ static uint8_t bk_pipe_dir(const struct musb_pipe *pipe)
     return (pipe->ep_addr & 0x80) ? 1 : 0;
 }
 
-static void bk_legacy_urb_sync_to_v16(struct usbh_urb *v16, const bk_legacy_urb_t *legacy)
+static void bk_urb_sync_to_urb(struct usbh_urb *urb, const struct usbh_urb *bk_urb)
 {
     uint32_t npk;
 
-    if (!v16 || !legacy) {
+    if (!urb || !bk_urb) {
         return;
     }
 
-    v16->transfer_buffer = legacy->transfer_buffer;
-    v16->transfer_buffer_length = legacy->transfer_buffer_length;
-    v16->actual_length = legacy->actual_length;
-    v16->errorcode = legacy->errorcode;
+    urb->transfer_buffer = bk_urb->transfer_buffer;
+    urb->transfer_buffer_length = bk_urb->transfer_buffer_length;
+    urb->actual_length = bk_urb->actual_length;
+    urb->errorcode = bk_urb->errorcode;
 
-    npk = legacy->num_of_iso_packets;
-    if (npk > v16->num_of_iso_packets) {
-        npk = v16->num_of_iso_packets;
+    npk = bk_urb->num_of_iso_packets;
+    if (npk > urb->num_of_iso_packets) {
+        npk = urb->num_of_iso_packets;
     }
-    if (npk > BK_LEGACY_MAX_ISO_PACKETS) {
-        npk = BK_LEGACY_MAX_ISO_PACKETS;
+    if (npk > BK_URB_MAX_ISO_PACKETS) {
+        npk = BK_URB_MAX_ISO_PACKETS;
     }
     for (uint32_t i = 0; i < npk; i++) {
-        v16->iso_packet[i].actual_length = legacy->iso_packet[i].actual_length;
-        v16->iso_packet[i].errorcode = legacy->iso_packet[i].errorcode;
+        urb->iso_packet[i].actual_length = bk_urb->iso_packet[i].actual_length;
+        urb->iso_packet[i].errorcode = bk_urb->iso_packet[i].errorcode;
     }
 }
 
-static void bk_legacy_urb_bind(struct musb_pipe *pipe, struct usbh_urb *v16)
+static void bk_urb_bind(struct musb_pipe *pipe, struct usbh_urb *v16)
 {
     uint8_t slot;
     uint8_t dir;
     uint32_t npk;
-    bk_legacy_urb_t *legacy;
+    struct usbh_urb *bk_urb;
 
     if (!pipe || !v16) {
         return;
@@ -487,34 +476,33 @@ static void bk_legacy_urb_bind(struct musb_pipe *pipe, struct usbh_urb *v16)
         return;
     }
 
-    legacy = &s_legacy_urb[slot][dir];
-    memset(legacy, 0, sizeof(*legacy));
-    legacy->pipe = (usbh_pipe_t)pipe;
-    legacy->setup = v16->setup;
-    legacy->transfer_buffer = v16->transfer_buffer;
-    legacy->transfer_buffer_length = v16->transfer_buffer_length;
-    legacy->transfer_flags = v16->transfer_flags;
-    legacy->actual_length = 0;
-    legacy->timeout = v16->timeout;
-    legacy->errorcode = -EBUSY;
-    legacy->num_of_iso_packets = v16->num_of_iso_packets;
-    legacy->complete = v16->complete;
-    legacy->arg = v16->arg;
+    bk_urb = &s_bk_urb[slot][dir].urb;
+    memset(&s_bk_urb[slot][dir], 0, sizeof(s_bk_urb[slot][dir]));
+    bk_urb->setup = v16->setup;
+    bk_urb->transfer_buffer = v16->transfer_buffer;
+    bk_urb->transfer_buffer_length = v16->transfer_buffer_length;
+    bk_urb->transfer_flags = v16->transfer_flags;
+    bk_urb->actual_length = 0;
+    bk_urb->timeout = v16->timeout;
+    bk_urb->errorcode = -EBUSY;
+    bk_urb->num_of_iso_packets = v16->num_of_iso_packets;
+    bk_urb->complete = v16->complete;
+    bk_urb->arg = v16->arg;
 
     npk = v16->num_of_iso_packets;
-    if (npk > BK_LEGACY_MAX_ISO_PACKETS) {
-        npk = BK_LEGACY_MAX_ISO_PACKETS;
-        legacy->num_of_iso_packets = npk;
+    if (npk > BK_URB_MAX_ISO_PACKETS) {
+        npk = BK_URB_MAX_ISO_PACKETS;
+        bk_urb->num_of_iso_packets = npk;
     }
     for (uint32_t i = 0; i < npk; i++) {
-        legacy->iso_packet[i].transfer_buffer = v16->iso_packet[i].transfer_buffer;
-        legacy->iso_packet[i].transfer_buffer_length = v16->iso_packet[i].transfer_buffer_length;
-        legacy->iso_packet[i].actual_length = 0;
-        legacy->iso_packet[i].errorcode = 0;
+        bk_urb->iso_packet[i].transfer_buffer = v16->iso_packet[i].transfer_buffer;
+        bk_urb->iso_packet[i].transfer_buffer_length = v16->iso_packet[i].transfer_buffer_length;
+        bk_urb->iso_packet[i].actual_length = 0;
+        bk_urb->iso_packet[i].errorcode = 0;
     }
 
     s_v16_urb[slot][dir] = v16;
-    pipe->urb = (struct usbh_urb *)legacy;
+    pipe->urb = bk_urb;
 }
 
 static void usb_hc_route_irq_to_ap(void)
@@ -598,7 +586,7 @@ static void usb_hc_riscv_complete_pipe(uint32_t event, uint32_t event_data)
             if (tran_type == USB_TXTYPE1_PROTO_ISOC)
             {
                 if(urb && urb->transfer_buffer_length > 0) {
-                    bk_legacy_urb_bind(pipe, urb);
+                    bk_urb_bind(pipe, urb);
                     if(urb->transfer_buffer) {
                         musb_write_packet(event_data, urb->transfer_buffer, pipe->ep_mps);
                     }
@@ -616,7 +604,7 @@ static void usb_hc_riscv_complete_pipe(uint32_t event, uint32_t event_data)
             if (urb && urb->num_of_iso_packets <= 1)
             {
                 if(urb->transfer_buffer_length > 0) {
-                    bk_legacy_urb_bind(pipe, urb);
+                    bk_urb_bind(pipe, urb);
                     HWREGB(USB_BASE + MUSB_IND_RXCSRL_OFFSET) |= USB_RXCSRL1_REQPKT;
                 }
             }
@@ -1188,7 +1176,7 @@ __WEAK void usb_hc_low_level_init(struct usbh_bus *bus)
         usb_hc_riscv_watchdog_start();
 #endif
         get_riscv_usb_probe()->owner = RISCV_USB_PROBE_OWNER_RISCV;
-        USB_LOG_INFO("%s use riscv probe path\r\n", __func__);
+        USB_LOG_INFO("%s use riscv probe path [BUILD_TAG=0817-urb-v16]\r\n", __func__);
         return;
     }
 #endif
@@ -1303,7 +1291,7 @@ int usb_hc_init(struct usbh_bus *bus)
     memset(&g_musb_hcd, 0, sizeof(struct musb_hcd));
     bk_ep_pipe_map_clear();
     memset(s_v16_urb, 0, sizeof(s_v16_urb));
-    memset(s_legacy_urb, 0, sizeof(s_legacy_urb));
+    memset(s_bk_urb, 0, sizeof(s_bk_urb));
 
     for (uint8_t i = 0; i < CONFIG_USBHOST_PIPE_NUM; i++) {
         g_musb_hcd.pipe_pool[i][0].waitsem = usb_osal_sem_create(0);
@@ -2003,7 +1991,7 @@ int usbh_submit_urb(struct usbh_urb *urb)
 
     pipe->waiter = false;
     pipe->xfrd = 0;
-    bk_legacy_urb_bind(pipe, urb);
+    bk_urb_bind(pipe, urb);
     urb->errorcode = -EBUSY;
     urb->actual_length = 0;
 
@@ -2082,7 +2070,7 @@ int usbh_kill_urb(struct usbh_urb *urb)
 static inline void musb_pipe_waitup(struct musb_pipe *pipe)
 {
     struct usbh_urb *urb;
-    bk_legacy_urb_t *legacy;
+    struct usbh_urb *bk_urb;
     uint8_t slot;
     uint8_t dir;
 
@@ -2098,8 +2086,8 @@ static inline void musb_pipe_waitup(struct musb_pipe *pipe)
     } else {
         urb = NULL;
     }
-    legacy = (bk_legacy_urb_t *)pipe->urb;
-    bk_legacy_urb_sync_to_v16(urb, legacy);
+    bk_urb = pipe->urb;
+    bk_urb_sync_to_urb(urb, bk_urb);
     pipe->urb = NULL;
 
     if (pipe->waiter) {
@@ -2124,6 +2112,8 @@ void handle_ep0(void)
 {
     uint8_t ep0_status;
     struct musb_pipe *pipe;
+    /* pipe->urb points at the SRAM staging struct usbh_urb bound in
+     * bk_urb_bind(); the firmware fills it in place across the alias. */
     struct usbh_urb *urb;
     uint32_t size;
     uint8_t old_ep_idx;
@@ -2260,7 +2250,7 @@ void usbh_musb_disconnect_set_status()
             struct usbh_urb *urb = s_v16_urb[index][j];
 
             s_v16_urb[index][j] = NULL;
-            memset(&s_legacy_urb[index][j], 0, sizeof(s_legacy_urb[index][j]));
+            memset(&s_bk_urb[index][j], 0, sizeof(s_bk_urb[index][j]));
             pipe->urb = NULL;
             pipe->xfrd = 0;
             pipe->iso_frame_idx = 0;
@@ -2363,7 +2353,7 @@ static void usbh_rx_irq_handler(uint8_t ep_idx, struct musb_pipe *pipe, struct u
                             urb->errorcode = 0;
                             musb_pipe_waitup(pipe);
                             if(urb->transfer_buffer_length > 0) {
-                                pipe->urb = urb;
+                                pipe->urb = (struct usbh_urb *)urb;
                                 HWREGB(USB_BASE + MUSB_IND_RXCSRL_OFFSET) |= USB_RXCSRL1_REQPKT;
                             }
                         } else {
@@ -2403,7 +2393,7 @@ static void usbh_tx_irq_handler(    uint8_t ep_idx, struct musb_pipe *pipe, stru
                 urb->errorcode = 0;
                 musb_pipe_waitup(pipe);
                 if(urb->transfer_buffer_length > 0) {
-                   pipe->urb = urb;
+                   pipe->urb = (struct usbh_urb *)urb;
                    if(urb->transfer_buffer) {
                        musb_write_packet(ep_idx, urb->transfer_buffer, pipe->ep_mps);
                    }
@@ -2488,7 +2478,7 @@ static void usbh_dma_rx_irq_handler(    uint8_t chn_idx, struct musb_pipe *pipe,
             urb->errorcode = 0;
             musb_pipe_waitup(pipe);
             if(urb->transfer_buffer_length > 0) {
-                pipe->urb = urb;
+                pipe->urb = (struct usbh_urb *)urb;
                 HWREGB(USB_BASE + MUSB_IND_RXCSRL_OFFSET) |= USB_RXCSRL1_REQPKT;
             }
         } else {
@@ -2519,6 +2509,7 @@ void USBH_IRQHandler(uint8_t busid)
     uint8_t ep_csrl_status;
     // uint8_t ep_csrh_status;
     struct musb_pipe *pipe;
+    /* pipe->urb holds the struct usbh_urb bk_urb (see bk_urb_bind). */
     struct usbh_urb *urb;
     uint8_t ep_idx;
     uint8_t old_ep_idx;
@@ -2578,11 +2569,11 @@ void USBH_IRQHandler(uint8_t busid)
                musb_set_active_ep(dma_ep_idx);
               if(HWREG(MUSB_DMA_CNTL_BASE(dma_ep_idx)) & USB_DMACTL_DIR) {
                   pipe = &g_musb_hcd.pipe_pool[dma_ep_idx][0];
-                  urb = pipe->urb;
+                  urb = (struct usbh_urb *)pipe->urb;
                   usbh_dma_tx_irq_handler(dma_ep_idx, pipe, urb);
               } else {
                   pipe = &g_musb_hcd.pipe_pool[dma_ep_idx][1];
-                  urb = pipe->urb;
+                  urb = (struct usbh_urb *)pipe->urb;
                   usbh_dma_rx_irq_handler(dma_ep_idx, pipe, urb);
               }
             }
@@ -2603,7 +2594,7 @@ void USBH_IRQHandler(uint8_t busid)
             if (txis & (1 << ep_idx)) {
                 HWREGH(USB_BASE + MUSB_TXIS_OFFSET) = (1 << ep_idx);
                 pipe = &g_musb_hcd.pipe_pool[ep_idx][0];
-                urb = pipe->urb;
+                urb = (struct usbh_urb *)pipe->urb;
                 if(urb == NULL)
                     continue;
                 musb_set_active_ep(ep_idx);
@@ -2644,7 +2635,7 @@ void USBH_IRQHandler(uint8_t busid)
 // #endif
                HWREGH(USB_BASE + MUSB_RXIS_OFFSET) = (1 << ep_idx); // clear isr flag
                pipe = &g_musb_hcd.pipe_pool[ep_idx][1];
-               urb = pipe->urb;
+               urb = (struct usbh_urb *)pipe->urb;
                if(urb == NULL) continue;
                musb_set_active_ep(ep_idx);
 
