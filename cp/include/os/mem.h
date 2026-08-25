@@ -284,6 +284,15 @@ void *os_sram_zalloc(size_t size);
   */
 uint32_t bk_psram_heap_get_used_count(void);
 
+/** @brief   get the PSRAM heap high-water mark (max used bytes from base)
+  *
+  * @return  the largest offset (in bytes) from the PSRAM heap base that has
+  *          ever been allocated. Used by the coredump path to dump only the
+  *          used part of the heap instead of its whole configured size.
+  *          Returns 0 when the PSRAM heap is disabled or was never used.
+  */
+uint32_t bk_psram_heap_get_used_size(void);
+
 /** @brief   get detailed information about the current psram in use
   *
   *
