@@ -67,7 +67,8 @@ static struct uart_util gl_ob_spk_dev_uart_util = {0};
 #endif
 
 
-static bk_err_t play_pipeline_open(uint32_t samp_rate, uint8_t bits, uint8_t chl_num, int gain_db)
+static bk_err_t play_pipeline_open(uint32_t samp_rate, uint8_t bits, uint8_t chl_num, int gain_db,
+                                   const bk_audio_player_pa_ctrl_t *pa_ctrl)
 {
     BK_LOGI(AUDIO_PLAYER_TAG, "%s, sample_rate: %d, chl_num: %d, gain_db: %d \n", __func__, samp_rate, chl_num, gain_db);
     BK_LOGI(AUDIO_PLAYER_TAG, "step1: play pipeline init \n");
@@ -85,13 +86,16 @@ static bk_err_t play_pipeline_open(uint32_t samp_rate, uint8_t bits, uint8_t chl
     onboard_spk_cfg.frame_size[onboard_spk_cfg.main_dac_source]  = samp_rate * chl_num * 2 * 20 / 1000;
     onboard_spk_cfg.bits        = bits;
     onboard_spk_cfg.dig_gain    = gain_db;   /* apply initial digital gain (dB) at init */
-    onboard_spk_cfg.task_stack  = 1024;
-    /* PA config */
-    //onboard_spk_cfg.pa_ctrl_en = true;
-    //onboard_spk_cfg.pa_ctrl_gpio = 33;
-    //onboard_spk_cfg.pa_on_level = 1;
-    //onboard_spk_cfg.pa_on_delay = 0;
-    //onboard_spk_cfg.pa_off_delay = 0;
+
+    /* PA GPIO: board-specific, filled by app via bk_audio_player_set_pa_ctrl() */
+    if (pa_ctrl != NULL)
+    {
+        onboard_spk_cfg.pa_ctrl_en   = pa_ctrl->pa_ctrl_en;
+        onboard_spk_cfg.pa_ctrl_gpio = pa_ctrl->pa_ctrl_gpio;
+        onboard_spk_cfg.pa_on_level  = pa_ctrl->pa_on_level;
+        onboard_spk_cfg.pa_on_delay  = pa_ctrl->pa_on_delay;
+        onboard_spk_cfg.pa_off_delay = pa_ctrl->pa_off_delay;
+    }
 
     os_printf("[+]%s, 0x%x, %d, %d\r\n", __func__, onboard_spk_cfg.dac_source_bitmap, onboard_spk_cfg.main_dac_source, 
                     onboard_spk_cfg.frame_size[onboard_spk_cfg.main_dac_source]);
@@ -358,7 +362,8 @@ static int device_sink_open(audio_sink_type_t sink_type, void *param, bk_audio_p
 
     bk_pm_module_vote_cpu_freq(PM_DEV_ID_AUDIO, PM_CPU_FRQ_480M);
 
-    ret = play_pipeline_open(info->sample_rate, info->sample_bits, info->channel_number, player->spk_gain);
+    ret = play_pipeline_open(info->sample_rate, info->sample_bits, info->channel_number,
+                             player->spk_gain, &player->pa_ctrl);
     if (ret != BK_OK)
     {
         BK_LOGE(AUDIO_PLAYER_TAG, "%s, play pipeline open fail, ret:%d, %d \n", __func__, ret, __LINE__);

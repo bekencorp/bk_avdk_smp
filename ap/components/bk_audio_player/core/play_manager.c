@@ -555,6 +555,7 @@ int bk_audio_player_new(bk_audio_player_handle_t *handle, bk_audio_player_cfg_t 
     player->output_file = NULL;
 
     player->spk_gain = AUDIO_PLAYER_VOLUME_DB_DEFAULT;
+    player->pa_ctrl = (bk_audio_player_pa_ctrl_t)DEFAULT_AUDIO_PLAYER_PA_CTRL();
 
     player->seek_position = -1;
     player->seek_in_progress = 0;
@@ -693,6 +694,39 @@ int bk_audio_player_get_volume(bk_audio_player_handle_t handle)
 
     CHECK_HANDLE(handle);
     return player->spk_gain;
+}
+
+int bk_audio_player_set_pa_ctrl(bk_audio_player_handle_t handle, const bk_audio_player_pa_ctrl_t *pa)
+{
+    bk_audio_player_handle_t player = (bk_audio_player_handle_t)handle;
+
+    CHECK_HANDLE(handle);
+    if (!pa)
+    {
+        return AUDIO_PLAYER_INVALID;
+    }
+
+    player->pa_ctrl = *pa;
+    BK_LOGI(AUDIO_PLAYER_TAG,
+            "set pa_ctrl: en=%d gpio=%u on_level=%u on_delay=%u off_delay=%u\n",
+            (int)pa->pa_ctrl_en, (unsigned)pa->pa_ctrl_gpio, (unsigned)pa->pa_on_level,
+            (unsigned)pa->pa_on_delay, (unsigned)pa->pa_off_delay);
+
+    return AUDIO_PLAYER_OK;
+}
+
+int bk_audio_player_get_pa_ctrl(bk_audio_player_handle_t handle, bk_audio_player_pa_ctrl_t *pa)
+{
+    bk_audio_player_handle_t player = (bk_audio_player_handle_t)handle;
+
+    CHECK_HANDLE(handle);
+    if (!pa)
+    {
+        return AUDIO_PLAYER_INVALID;
+    }
+
+    *pa = player->pa_ctrl;
+    return AUDIO_PLAYER_OK;
 }
 
 double bk_audio_player_get_duration(bk_audio_player_handle_t handle)

@@ -82,6 +82,7 @@ struct bk_audio_player
 
     uint32_t task_stack;  /* Stack size for internal player task (from cfg) */
     int task_prio;        /* Priority for internal player task (from cfg) */
+    bk_audio_player_pa_ctrl_t pa_ctrl;  /* onboard PA GPIO; set by app before play */
 };
 
 enum PLAYER_COMMAND
