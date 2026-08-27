@@ -19,8 +19,12 @@
 #include <components/netif_types.h>
 #include "common/bk_err.h"
 #include "bk_modem_dte.h"
+#include "os/os.h"
 
 #if CONFIG_LWIP_PPP_SUPPORT
+#define PPP_TX_WAIT_TIMEOUT_MS          1000
+#define PPP_TX_RETRY_DELAY_MS           5
+
 #if PPP_SUPPORT && PPP_AUTH_SUPPORT
 typedef struct {
     struct tcpip_api_call_data call;
@@ -172,9 +176,19 @@ static void on_ppp_notify_phase(ppp_pcb *pcb, u8_t phase, void *ctx)
  */
 static uint32_t pppos_low_level_output(ppp_pcb *pcb, uint8_t *data, uint32_t len, void *netif)
 {
-    bk_modem_dte_send_data(len, data, PPP_DATA_MODE);
-    //TODO need to return bk_modem_dte_send_data 
-    return len;
+    uint32_t ret;
+    uint32_t start_ms = rtos_get_time();
+
+    do {
+        ret = bk_modem_dte_send_data(len, data, PPP_DATA_MODE);
+        if (ret == len) {
+            return ret;
+        }
+
+        rtos_delay_milliseconds(PPP_TX_RETRY_DELAY_MS);
+    } while ((rtos_get_time() - start_ms) < PPP_TX_WAIT_TIMEOUT_MS);
+
+    return 0;
 }
 
 bk_err_t bk_modem_netif_ppp_set_auth(uint8_t authtype, const char *user, const char *passwd)
