@@ -1186,6 +1186,10 @@ enum mm_msg_tag
     MM_SET_DEFAULT_AC_REQ,
     ///set default AC Confirmation.  msgid:135
     MM_SET_DEFAULT_AC_CFM,
+    /// Enable/disable host P2P GO NoA enable state.  msgid:136
+    MM_SET_P2P_GO_NOA_ENABLE_REQ,
+    /// Confirmation.  msgid:137
+    MM_SET_P2P_GO_NOA_ENABLE_CFM,
     #endif
 
     /*
@@ -2005,6 +2009,20 @@ struct mm_set_p2p_noa_cfm
 
 /// Structure containing the parameters of the @ref MM_SET_P2P_OPPPS_CFM message.
 struct mm_set_p2p_oppps_cfm
+{
+    /// Request status
+    uint8_t status;
+};
+
+/// Structure containing the parameters of the @ref MM_SET_P2P_GO_NOA_ENABLE_REQ message.
+struct mm_set_p2p_go_noa_enable_req
+{
+    /// 0: disable, non-zero: enable
+    uint8_t enabled;
+};
+
+/// Structure containing the parameters of the @ref MM_SET_P2P_GO_NOA_ENABLE_CFM message.
+struct mm_set_p2p_go_noa_enable_cfm
 {
     /// Request status
     uint8_t status;

@@ -2811,6 +2811,14 @@ bk_err_t bk_wifi_p2p_find(void)
     return wifi_send_com_api_cmd(P2P_FIND, 0);
 }
 
+bk_err_t bk_wifi_p2p_go_noa_set_enabled(uint8_t enabled)
+{
+    if (enabled > 1)
+        return BK_ERR_PARAM;
+
+    return wifi_send_com_api_cmd(P2P_SET_GO_NOA, 1, enabled);
+}
+
 bk_err_t bk_wifi_p2p_listen(void)
 {
     return wifi_send_com_api_cmd(P2P_LISTEN, 0);

@@ -169,6 +169,7 @@ void cli_wifi_p2p_help(void)
 	CLI_RAW_LOGI("  -find: start peer discovery. \n");
 	CLI_RAW_LOGI("  -listen: enter listen state. \n");
 	CLI_RAW_LOGI("  -stop_find: stop peer discovery. \n");
+	CLI_RAW_LOGI("  -noa <0|1>: disable or enable host P2P GO NoA (MCC concurrent NoA unaffected). \n");
 	CLI_RAW_LOGI("  -connect <mac> <method> <intent>: connect to peer; mac is 12 hex digits (':' optional, same as sta bssid). \n");
 	CLI_RAW_LOGI("  -cancel: cancel ongoing P2P connection. \n");
 	CLI_RAW_LOGI("  -disable: disable P2P. \n");
@@ -1249,6 +1250,26 @@ void cli_wifi_p2p_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char *
 		ret = bk_wifi_p2p_stop_find();
 		if (ret != BK_OK) {
 			CLI_LOGE("p2p stop_find failed, err=%d\n", ret);
+			goto error;
+		}
+	} else if (!os_strcmp(argv[1], "noa")) {
+		uint8_t enabled;
+
+		if (argc < 3) {
+			CLI_LOGW("invalid parameters for noa\n");
+			cli_wifi_p2p_help();
+			goto error;
+		}
+
+		enabled = (uint8_t)os_strtoul(argv[2], NULL, 10);
+		if (enabled > 1) {
+			CLI_LOGE("invalid noa value (must be 0 or 1)\n");
+			goto error;
+		}
+
+		ret = bk_wifi_p2p_go_noa_set_enabled(enabled);
+		if (ret != BK_OK) {
+			CLI_LOGE("p2p noa failed, err=%d\n", ret);
 			goto error;
 		}
 	} else if (!os_strcmp(argv[1], "connect")) {

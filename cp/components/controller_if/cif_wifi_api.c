@@ -908,6 +908,17 @@ bk_err_t cif_handle_wifi_api_cmd(struct bk_msg_hdr *msg)
             ret = wlan_p2p_enable_with_intent((char *)arg_info->args[0], (int)arg_info->args[1]);
             break;
         }
+        case P2P_SET_GO_NOA:
+        {
+            uint8_t enabled = (uint8_t)arg_info->args[0];
+            if (enabled > 1) {
+                ret = BK_ERR_PARAM;
+                break;
+            }
+            wlan_p2p_go_noa_set_enabled(enabled);
+            ret = BK_OK;
+            break;
+        }
         case P2P_FIND:
         {
             ret = wlan_p2p_find();
@@ -949,6 +960,7 @@ bk_err_t cif_handle_wifi_api_cmd(struct bk_msg_hdr *msg)
 #else
         case P2P_ENABLE:
         case P2P_ENABLE_WITH_INTENT:
+        case P2P_SET_GO_NOA:
         case P2P_FIND:
         case P2P_LISTEN:
         case P2P_STOP_FIND:
