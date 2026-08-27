@@ -132,6 +132,8 @@ bk_err_t bk_aud_dac_init(aud_dac_config_t *dac_config)
 		goto fail;
 	}
 
+	sys_drv_rf_rx_vol_set(5);
+
 	return ret;
 
 fail:

@@ -80,7 +80,7 @@
 #define SYS_ANA_REG20_OSCDAC_DEFAULT_VAL                       (0x00)
 #define SYS_ANA_REG20_OCENDAC_DEFAULT_VAL                      (0x00)
 #define SYS_ANA_REG20_VCMSEL_DEFAULT_VAL                       (0x01)
-#define SYS_ANA_REG20_ADJDACREF_DEFAULT_VAL                    (0x10)
+#define SYS_ANA_REG20_ADJDACREF_DEFAULT_VAL                    (0x0A)
 #define SYS_ANA_REG20_DCOCHG_DEFAULT_VAL                       (0x00)
 #define SYS_ANA_REG20_DIFFEN_DEFAULT_VAL                       (0x01)
 #define SYS_ANA_REG20_ENDACCAL_DEFAULT_VAL                     (0x00)
@@ -111,7 +111,7 @@
 #define SYS_ANA_REG21_LOOPRST0V9_DEFAULT_VAL                   (0x00)
 #define SYS_ANA_REG21_OCT0V9_DEFAULT_VAL                       (0x00)
 #define SYS_ANA_REG21_SOUT0V9_DEFAULT_VAL                      (0x00)
-#define SYS_ANA_REG21_HC0V9_DEFAULT_VAL                        (0x00)
+#define SYS_ANA_REG21_HC0V9_DEFAULT_VAL                        (0x03)
 
 #define SYS_ANA_REG27_ISEL_DEFAULT_VAL                         (0x02)
 #define SYS_ANA_REG27_MICIRSEL1_DEFAULT_VAL                    (0x01)
