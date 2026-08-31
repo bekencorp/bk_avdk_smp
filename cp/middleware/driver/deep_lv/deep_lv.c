@@ -98,6 +98,7 @@
 
 static __used DLV_SEC dlv_context_t s_dlv_context = {0};
 static __used volatile dlv_stack_frame_t *s_current_stack_frame = &(s_dlv_context.stk_frame);
+static __used DLV_SEC volatile uint32_t s_dlv_irq_restore_pending = 0;
 
 extern void flush_all_dcache(void);
 
@@ -365,18 +366,31 @@ __IRAM_PM DLV_STATIC void dlv_scb_restore(dlv_context_t *dlv)
 	}
 }
 
-__IRAM_PM DLV_STATIC void dlv_nvic_restore(dlv_context_t *dlv)
+__IRAM_PM DLV_STATIC void dlv_nvic_restore_config(dlv_context_t *dlv)
 {
 	dlv_nvic_t *nvic_info = &(dlv->nvic);
 
-	NVIC->ISER[0] = nvic_info->iser_val[0];
-	NVIC->ISER[1] = nvic_info->iser_val[1];
-	NVIC->ISER[2] = nvic_info->iser_val[2];
 	NVIC->ITNS[0] = nvic_info->itns_val[0];
 	NVIC->ITNS[1] = nvic_info->itns_val[1];
 	for (uint32_t i = 0; i < 64; i++) {
 		NVIC->IPR[i] = nvic_info->ipr_val[i];
 	}
+}
+
+__IRAM_PM DLV_STATIC void dlv_nvic_restore_enable(dlv_context_t *dlv)
+{
+	dlv_nvic_t *nvic_info = &(dlv->nvic);
+
+	/*
+	 * This is called from the Deep-LV exit SVC after PRIMASK has been set.
+	 * Pending wakeup IRQs remain blocked until pm_low_voltage_process()
+	 * performs its matching GLOBAL_INT_RESTORE().
+	 */
+	NVIC->ISER[0] = nvic_info->iser_val[0];
+	NVIC->ISER[1] = nvic_info->iser_val[1];
+	NVIC->ISER[2] = nvic_info->iser_val[2];
+	__DSB();
+	__ISB();
 }
 
 __IRAM_PM DLV_STATIC void dlv_systick_restore(dlv_context_t *dlv)
@@ -489,12 +503,14 @@ __IRAM_PM DLV_STATIC void dlv_core_restore(dlv_context_t *dlv)
 	__set_PSP(core_info->psp_val);
 #endif
 
-	__TZ_set_BASEPRI_NS(core_info->basepri_ns_val);
-	__TZ_set_PRIMASK_NS(core_info->primask_ns_val);
-	__TZ_set_FAULTMASK_NS(core_info->fault_mask_ns_val);
-	__set_PRIMASK(core_info->primask_s_val);
-	__set_FAULTMASK(core_info->fault_mask_s_val);
-	__set_BASEPRI(core_info->basepri_s_val);
+	/*
+	 * Do not restore interrupt masks here. Reset_Handler entered the Deep-LV
+	 * wake path with PRIMASK=1, and pm_low_voltage_process() still owns the
+	 * interrupt lock taken before sleep. Restoring the saved PRIMASK/BASEPRI
+	 * at this point lets a pending RTC IRQ run before resources and the task
+	 * context have been fully restored. GLOBAL_INT_RESTORE() releases the
+	 * original lock at the end of the wakeup path.
+	 */
 #if CONFIG_DUMMY_
 	/*FIXME: it effects system stack:msp or psp*/
 	__TZ_set_CONTROL_NS(core_info->control_ns_val);
@@ -623,7 +639,12 @@ __IRAM_PM __attribute__((noinline)) void dlv_restore_post_core_prepare(void)
 	dlv_scb_t *scb_info = &(dlv->sys_ctrl);
 
 	arch_int_set_default_priority();
-	dlv_nvic_restore(dlv);
+	/*
+	 * Restore routing and priorities, but leave all external IRQ enables
+	 * cleared. PRIMASK must be briefly cleared to enter the restore SVC; with
+	 * ISER still clear no RTC/GPIO wake IRQ can preempt that transition.
+	 */
+	dlv_nvic_restore_config(dlv);
 	portNVIC_SHPR3_REG = scb_info->shpr3_val;
 	dlv_clear_stale_pending_irq();
 	#if CONFIG_DEEP_LV_DEBUG_GPIO
@@ -660,6 +681,7 @@ __IRAM_PM __attribute__((naked, noreturn)) static void dlv_restore_post_core_fin
 __IRAM_PM void dlv_context_restore(void)
 {
 	dlv_context_t *dlv = &s_dlv_context;
+	s_dlv_irq_restore_pending = 1;
 #if CONFIG_DEEP_LV_DEBUG_GPIO
 	PM_GPIO_UP(37);//2
 	PM_GPIO_DOWN(37);
@@ -673,8 +695,43 @@ __IRAM_PM void dlv_context_restore(void)
 	dlv_restore_post_core_finish();
 }
 
+__IRAM_PM void dlv_restore_saved_irq_masks(void)
+{
+	if (!s_dlv_irq_restore_pending) {
+		return;
+	}
+
+	/*
+	 * GLOBAL_INT_RESTORE() restores the BASEPRI value saved by the sleep
+	 * critical section. Restore the masks that survive normal critical
+	 * sections only after all low-voltage resources have been recovered.
+	 * Clear the pending flag before PRIMASK is lowered because a retained
+	 * wakeup IRQ may run immediately afterwards.
+	 */
+	uint32_t primask_s = s_dlv_context.core.primask_s_val;
+	uint32_t primask_ns = s_dlv_context.core.primask_ns_val;
+	uint32_t faultmask_s = s_dlv_context.core.fault_mask_s_val;
+	uint32_t faultmask_ns = s_dlv_context.core.fault_mask_ns_val;
+
+	s_dlv_irq_restore_pending = 0;
+	__TZ_set_FAULTMASK_NS(faultmask_ns);
+	__set_FAULTMASK(faultmask_s);
+	__TZ_set_PRIMASK_NS(primask_ns);
+	__DSB();
+	__ISB();
+	__set_PRIMASK(primask_s);
+}
+
 __IRAM_PM __attribute__((noinline)) void dlv_deep_lv_exit_prepare(void)
 {
+	/*
+	 * The restore SVC required PRIMASK to be cleared. Mask interrupts again
+	 * before restoring NVIC enables, so retained RTC pending state cannot run
+	 * until pm_low_voltage_process() finishes resource restoration.
+	 */
+	__disable_irq();
+	dlv_nvic_restore_enable(&s_dlv_context);
+
 	if (aon_pmu_ll_get_r7b_dlv_startup()) {
 		uint32_t dlv_startup = aon_pmu_hal_get_dlv_startup_iram();
 		if (dlv_startup) {

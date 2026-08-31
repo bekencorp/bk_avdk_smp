@@ -32,6 +32,9 @@
 #include "pm_wakeup_source.h"
 #include "pm_interface.h"
 #include "sys_pm_hal_debug.h"
+#if CONFIG_DEEP_LV
+#include "deep_lv/deep_lv.h"
+#endif
 #include <driver/uart.h>
 #include <driver/hal/hal_uart_types.h>
 #include <components/system.h>
@@ -230,6 +233,14 @@ uint64_t pm_low_voltage_process()
 	//PM_GPIO_UP(38);//1
 	#endif
 	GLOBAL_INT_RESTORE();
+#if CONFIG_DEEP_LV
+	/*
+	 * Deep-LV wakeup enters Reset_Handler with PRIMASK=1. BASEPRI is restored
+	 * above by the sleep critical section; release the retained PRIMASK only
+	 * after all low-voltage resources and accounting have been restored.
+	 */
+	dlv_restore_saved_irq_masks();
+#endif
 	//pm_enable_int(irq_level);
 	/* Execute post-sleep (wakeup) callbacks */
 	//bk_pm_post_sleep_callback_execute();

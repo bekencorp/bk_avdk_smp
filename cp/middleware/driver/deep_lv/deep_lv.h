@@ -169,5 +169,6 @@ void dlv_startup(void);
 void dlv_stack_frame_save_and_dlv(uint32_t exc_return);
 void deep_lv_enter(void);
 void deep_lv_exit(void);
+void dlv_restore_saved_irq_masks(void);
 // eof
 
