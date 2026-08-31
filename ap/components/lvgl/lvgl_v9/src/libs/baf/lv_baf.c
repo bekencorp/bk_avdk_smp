@@ -6,12 +6,15 @@
 
 #if LV_USE_BAF
 
-#include "../../core/lv_obj_class_private.h"
+#include "../../core/lv_obj_class_private.h"      /* full lv_obj_class_t for lv_baf_class definition */
 #include "../../misc/cache/lv_cache.h"
 #include "../../misc/lv_timer_private.h"
 #include "../../misc/lv_event.h"
+#include "../../misc/lv_fs.h"                    /* lv_fs_open/read for the path form of lv_baf_set_src */
 #include <bk_baf.h>                             /* bk_baf decode + compose API */
+#include <bk_baf_container.h>                   /* BAF_MAGIC / BAF_HEADER_SIZE / baf_file_header_t (sniff) */
 #include <components/bk_frame_buffer.h>         /* bk_frame_buffer_malloc / _free */
+#include <os/mem.h>                             /* psram_malloc / psram_free */
 #include "lv_vendor.h"                          /* lv_vnd_data_t (GPU-init backend select) */
 
 #define MY_CLASS (&lv_baf_class)
@@ -34,17 +37,23 @@ static void close_decoder(lv_obj_t * obj)
     lv_baf_t * baf = (lv_baf_t *)obj;
 
     lv_timer_pause(baf->timer);
-    if(baf->decoder == NULL) return;
-
-    const void * src = lv_image_get_src(obj);
-    if(src != NULL) lv_image_cache_drop(src);
-    bk_baf_close(baf->decoder);
-    baf->decoder = NULL;
-    baf->imgdsc.data = NULL;
-
+    if(baf->decoder != NULL) {
+        const void * src = lv_image_get_src(obj);
+        if(src != NULL) lv_image_cache_drop(src);
+        bk_baf_close(baf->decoder);       /* frees the internally-parsed view (cfg.data path) */
+        baf->decoder = NULL;
+        baf->imgdsc.data = NULL;
+    }
     if(baf->frame_buf != NULL) {
         bk_frame_buffer_free(baf->frame_buf);
         baf->frame_buf = NULL;
+    }
+    /* The container buffer we loaded for the path form of lv_baf_set_src() (bk_baf
+     * only aliases it, so we own it). Freed AFTER bk_baf_close() since media aliases
+     * into it. */
+    if(baf->file_buf != NULL) {
+        psram_free(baf->file_buf);
+        baf->file_buf = NULL;
     }
 }
 
@@ -98,18 +107,15 @@ lv_obj_t * lv_baf_create(lv_obj_t * parent)
     return obj;
 }
 
-void lv_baf_set_src(lv_obj_t * obj, const bk_baf_source_t * src)
+/* Bring the compositor up and open the decoder from @p cfg (either .source or
+ * .data). Returns true on success (image prepared + playback timer started). */
+static bool baf_open_common(lv_obj_t * obj, const bk_baf_config_t * cfg)
 {
-    LV_ASSERT_OBJ(obj, MY_CLASS);
     lv_baf_t * baf = (lv_baf_t *)obj;
 
-    close_decoder(obj);
-    if(src == NULL) return;
-
-    /* Hardware setup: use the GPU compositor only if LVGL actually brought up the
-     * GPU (read the vendor data off the default display); otherwise CPU (Helium).
-     * LVGL owns the GPU, so init_gpu stays false -- bk_baf must not create/destroy it.
-     * bk_baf_init() is idempotent (no GPU work here), so calling it per set_src is fine. */
+    /* Use the GPU compositor only if LVGL actually brought up the GPU (read the
+     * vendor data off the default display); otherwise CPU (Helium). LVGL owns the
+     * GPU, so init_gpu stays false. bk_baf_init() is idempotent, so per-open is fine. */
     lv_display_t * disp = lv_display_get_default();
     lv_vnd_data_t * vnd = (disp != NULL) ? (lv_vnd_data_t *)lv_display_get_user_data(disp) : NULL;
     bk_baf_hw_config_t hw = {
@@ -118,21 +124,102 @@ void lv_baf_set_src(lv_obj_t * obj, const bk_baf_source_t * src)
     };
     (void)bk_baf_init(&hw);
 
-    bk_baf_config_t cfg = { .source = src };
-    baf->decoder = bk_baf_open(&cfg);
+    baf->decoder = bk_baf_open(cfg);
     if(baf->decoder == NULL) {
         LV_LOG_WARN("Couldn't load the BAF source");
-        return;
+        return false;
     }
     if(!prepare_image(obj)) {
         LV_LOG_WARN("Invalid BAF output canvas");
         close_decoder(obj);
-        return;
+        return false;
     }
-
     lv_timer_resume(baf->timer);
     lv_timer_reset(baf->timer);
     next_frame_task_cb(baf->timer);
+    return true;
+}
+
+/* True if @p src points at an in-memory BAF v1 container (starts with the magic).
+ * Byte-by-byte with early-out, so a shorter path string is never over-read. */
+static bool src_is_container(const void * src)
+{
+    const char * s = (const char *)src;
+    for(int i = 0; i < 8; i++) {
+        if(s[i] != BAF_MAGIC[i]) return false;
+    }
+    return true;
+}
+
+/* Load a whole .baf off lv_fs into a widget-owned PSRAM buffer, then open it.
+ * Assumes close_decoder() has already run (so file_buf is free to overwrite). */
+static void baf_load_file(lv_obj_t * obj, const char * path)
+{
+    lv_baf_t * baf = (lv_baf_t *)obj;
+
+    lv_fs_file_t f;
+    if(lv_fs_open(&f, path, LV_FS_MODE_RD) != LV_FS_RES_OK) {
+        LV_LOG_WARN("BAF: cannot open file");
+        return;
+    }
+    uint32_t size = 0;
+    lv_fs_seek(&f, 0, LV_FS_SEEK_END);
+    lv_fs_tell(&f, &size);
+    lv_fs_seek(&f, 0, LV_FS_SEEK_SET);
+    if(size < BAF_HEADER_SIZE) {
+        LV_LOG_WARN("BAF: file too small");
+        lv_fs_close(&f);
+        return;
+    }
+
+    uint8_t * buf = (uint8_t *)psram_malloc(size);
+    if(buf == NULL) {
+        LV_LOG_WARN("BAF: cannot allocate file buffer");
+        lv_fs_close(&f);
+        return;
+    }
+    /* Chunked read: a single huge read can trip some FATFS/SD stacks. */
+    uint32_t done = 0;
+    while(done < size) {
+        uint32_t want = size - done;
+        if(want > 32768U) want = 32768U;
+        uint32_t rn = 0;
+        if(lv_fs_read(&f, buf + done, want, &rn) != LV_FS_RES_OK || rn == 0U) {
+            LV_LOG_WARN("BAF: file read failed");
+            lv_fs_close(&f);
+            psram_free(buf);
+            return;
+        }
+        done += rn;
+    }
+    lv_fs_close(&f);
+
+    /* We own the buffer; bk_baf (via cfg.data) parses & aliases it. Record it so
+     * close_decoder() frees it after bk_baf_close(). */
+    baf->file_buf = buf;
+    bk_baf_config_t cfg = { .data = buf, .data_len = size };
+    if(!baf_open_common(obj, &cfg)) {
+        close_decoder(obj);             /* frees file_buf */
+    }
+}
+
+void lv_baf_set_src(lv_obj_t * obj, const void * src)
+{
+    LV_ASSERT_OBJ(obj, MY_CLASS);
+    close_decoder(obj);                 /* stops playback + frees any previous file_buf */
+    if(src == NULL) return;
+
+    if(src_is_container(src)) {
+        /* In-memory container (e.g. a compiled-in C array). Length comes from the
+         * header; the caller owns the bytes (bk_baf only aliases them). */
+        const baf_file_header_t * h = (const baf_file_header_t *)src;
+        bk_baf_config_t cfg = { .data = (const uint8_t *)src, .data_len = h->file_size };
+        (void)baf_open_common(obj, &cfg);
+    }
+    else {
+        /* Otherwise a filesystem path via lv_fs. */
+        baf_load_file(obj, (const char *)src);
+    }
 }
 
 void lv_baf_restart(lv_obj_t * obj)
@@ -193,6 +280,7 @@ static void lv_baf_constructor(const lv_obj_class_t * class_p, lv_obj_t * obj)
 
     baf->decoder = NULL;
     baf->frame_buf = NULL;
+    baf->file_buf = NULL;
     baf->timer = lv_timer_create(next_frame_task_cb, BAF_TIMER_PERIOD_MS, obj);
     lv_timer_pause(baf->timer);
 }
