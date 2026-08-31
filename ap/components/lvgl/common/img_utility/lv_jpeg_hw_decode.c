@@ -18,19 +18,6 @@
 
 #if CONFIG_BK_DECODER && CONFIG_FRAME_BUFFER
 
-static uint8_t lv_jpeg_clip_u8(int value)
-{
-    if (value < 0) {
-        return 0;
-    }
-
-    if (value > 255) {
-        return 255;
-    }
-
-    return (uint8_t)value;
-}
-
 static inline uint16_t bswap16_self(uint16_t x)
 {
     uint32_t result;
@@ -44,43 +31,16 @@ static inline uint16_t bswap16_self(uint16_t x)
     return (uint16_t)(result >> 16);
 }
 
-static bk_err_t lv_jpeg_nv12_to_rgb565(const uint8_t *src_nv12,
-                                       uint32_t width,
-                                       uint32_t height,
-                                       uint8_t *dst_rgb565,
-                                       bool byte_swap)
+static void lv_jpeg_rgb565_byte_swap(uint8_t *data, uint32_t data_size)
 {
-    if (src_nv12 == NULL || dst_rgb565 == NULL || (width & 1U) || (height & 1U)) {
-        return BK_FAIL;
+    if (data == NULL) {
+        return;
     }
 
-    const uint8_t *y_plane = src_nv12;
-    const uint8_t *uv_plane = src_nv12 + width * height;
-    uint16_t *dst = (uint16_t *)dst_rgb565;
-
-    for (uint32_t y = 0; y < height; y++) {
-        const uint8_t *y_row = y_plane + y * width;
-        const uint8_t *uv_row = uv_plane + (y >> 1) * width;
-
-        for (uint32_t x = 0; x < width; x++) {
-            const uint32_t uv_idx = x & ~1U;
-            const int u = (int)uv_row[uv_idx] - 128;
-            const int v = (int)uv_row[uv_idx + 1U] - 128;
-            int c = (int)y_row[x] - 16;
-            c = (c < 0) ? 0 : c;
-
-            const uint8_t r = lv_jpeg_clip_u8((298 * c + 409 * v + 128) >> 8);
-            const uint8_t g = lv_jpeg_clip_u8((298 * c - 100 * u - 208 * v + 128) >> 8);
-            const uint8_t b = lv_jpeg_clip_u8((298 * c + 516 * u + 128) >> 8);
-            uint16_t rgb565 = (uint16_t)(((uint16_t)(r >> 3) << 11) |
-                                         ((uint16_t)(g >> 2) << 5) |
-                                         (uint16_t)(b >> 3));
-
-            dst[y * width + x] = byte_swap ? bswap16_self(rgb565) : rgb565;
-        }
+    for (uint32_t i = 0; i + 1U < data_size; i += 2) {
+        uint16_t *p = (uint16_t *)&data[i];
+        *p = bswap16_self(*p);
     }
-
-    return BK_OK;
 }
 
 static void lv_jpeg_set_rgb565_header(lv_img_dsc_t *img_dst, uint32_t width, uint32_t height)
@@ -134,7 +94,7 @@ static bk_err_t lv_jpeg_hw_create_decoder(bk_jpeg_decode_ctlr_handle_t *decoder,
     bk_jpeg_decode_frame_config_t config = DEFAULT_JPEG_DECODE_FRAME_CONFIG;
     config.out_width = img_info->width;
     config.out_height = img_info->height;
-    config.out_format = BK_PIXEL_FORMAT_NV12;
+    config.out_format = BK_PIXEL_FORMAT_RGB565;
 
     bk_err_t ret = bk_jpeg_decode_frame_ctlr_new(decoder, &config);
     if (ret != BK_OK) {
@@ -158,7 +118,6 @@ static bk_err_t lv_jpeg_hw_create_decoder(bk_jpeg_decode_ctlr_handle_t *decoder,
 bk_err_t lv_jpeg_hw_decode_start(uint8_t *jpeg_data, uint32_t jpeg_size, lv_img_dsc_t *img_dst, bool byte_swap)
 {
     bk_err_t ret = BK_FAIL;
-    uint8_t *nv12_data = NULL;
     bk_jpeg_decode_ctlr_handle_t decoder = NULL;
     bk_jpeg_decode_img_info_t img_info = {0};
 
@@ -174,22 +133,15 @@ bk_err_t lv_jpeg_hw_decode_start(uint8_t *jpeg_data, uint32_t jpeg_size, lv_img_
 
     lv_jpeg_set_rgb565_header(img_dst, img_info.width, img_info.height);
     img_dst->data_size = img_info.width * img_info.height * 2;
-    img_dst->data = psram_malloc(img_dst->data_size);
+    const uint32_t hw_output_size = img_info.width * ((img_info.height + 1U) & ~1U) * 2U;
+    img_dst->data = psram_malloc(hw_output_size);
     if (!img_dst->data) {
-        LOGE("[%s][%d] malloc psram size %d fail\r\n", __func__, __LINE__, img_dst->data_size);
+        LOGE("[%s][%d] malloc psram size %d fail\r\n", __func__, __LINE__, hw_output_size);
         ret = BK_ERR_NO_MEM;
         return ret;
     }
 
     do {
-        const uint32_t nv12_size = bk_image_size_get(img_info.width, img_info.height, BK_PIXEL_FORMAT_NV12);
-        nv12_data = bk_frame_buffer_malloc(MEM_SLAB_HEAP_UNCODED, nv12_size);
-        if (nv12_data == NULL) {
-            LOGE("[%s][%d] malloc nv12 size %d fail\r\n", __func__, __LINE__, nv12_size);
-            ret = BK_ERR_NO_MEM;
-            break;
-        }
-
         ret = lv_jpeg_hw_create_decoder(&decoder, &img_info);
         if (ret != BK_OK) {
             LOGE("%s create decoder fail %d\n", __func__, ret);
@@ -199,8 +151,8 @@ bk_err_t lv_jpeg_hw_decode_start(uint8_t *jpeg_data, uint32_t jpeg_size, lv_img_
         bk_jpeg_decode_input_t input = {0};
         input.stream = jpeg_data;
         input.stream_len = jpeg_size;
-        input.out_buffer = nv12_data;
-        input.out_buffer_size = nv12_size;
+        input.out_buffer = (uint8_t *)img_dst->data;
+        input.out_buffer_size = hw_output_size;
 
         ret = bk_jpeg_decode_frame(decoder, &input);
         if (ret != BK_OK) {
@@ -208,13 +160,12 @@ bk_err_t lv_jpeg_hw_decode_start(uint8_t *jpeg_data, uint32_t jpeg_size, lv_img_
             break;
         }
 
-        ret = lv_jpeg_nv12_to_rgb565(nv12_data, img_info.width, img_info.height, (uint8_t *)img_dst->data, byte_swap);
+        if (byte_swap) {
+            lv_jpeg_rgb565_byte_swap((uint8_t *)img_dst->data, img_dst->data_size);
+        }
     } while(0);
 
     lv_jpeg_hw_destroy_decoder(&decoder);
-    if (nv12_data != NULL) {
-        bk_frame_buffer_free(nv12_data);
-    }
     if (ret != BK_OK && img_dst->data != NULL) {
         psram_free((void *)img_dst->data);
         img_dst->data = NULL;

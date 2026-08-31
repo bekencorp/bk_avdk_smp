@@ -78,7 +78,7 @@ static bk_err_t lv_img_read_file_to_mem(char *filename, uint8_t *data)
     } while(0);
 
     if (sram_addr) {
-        os_free(sram_addr);
+        lv_vendor_free(sram_addr);
         sram_addr = NULL;
     }
 
@@ -326,6 +326,7 @@ bk_err_t lv_png_img_load(char *filename, lv_img_dsc_t *img_dst)
     }
 
     memcpy(&img_dst->header, &img_decoder_dsc.decoded->header, sizeof(lv_image_header_t));
+    img_dst->header.flags = 0;
     data_size = img_decoder_dsc.decoded->data_size;
 #endif
 
@@ -359,6 +360,8 @@ void lv_img_decode_unload(lv_img_dsc_t *img_dst)
             psram_free((void *)img_dst->data);
             img_dst->data = NULL;
         }
+        img_dst->data_size = 0;
+        os_memset(&img_dst->header, 0, sizeof(img_dst->header));
     }
 }
 
