@@ -1806,6 +1806,20 @@ bk_err_t bk_wifi_p2p_disable(void);
  *    - others: other errors
  */
 bk_err_t bk_wifi_p2p_enable_with_intent(const char *ssid, int intent);
+/**
+ * @brief    Enable or disable P2P GO NoA (GO-only scenario)
+ *
+ * In GO-only (single P2P GO, no coexisting SoftAP/AP on another vif), stops
+ * host/normal NoA and the auto PS NoA started by LMAC. SoftAP+GO and real
+ * multi-channel MCC concurrent NoA are not affected.
+ *
+ * @param enabled 0: disable, 1: enable
+ * @return
+ *    - BK_OK: succeed
+ *    - BK_ERR_PARAM: invalid parameter
+ *    - others: other errors
+ */
+bk_err_t bk_wifi_p2p_go_noa_set_enabled(uint8_t enabled);
 #endif
 
 #ifdef __cplusplus

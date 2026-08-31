@@ -1931,6 +1931,20 @@ int rw_msg_send_cancel_roc(u8 vif_index)
 	return rw_msg_send(req, 1, MM_REMAIN_ON_CHANNEL_CFM, NULL);
 }
 
+int rw_msg_send_p2p_go_noa_set_enabled(uint8_t enabled)
+{
+	struct mm_set_p2p_go_noa_enable_req *req;
+
+	req = ke_msg_alloc(MM_SET_P2P_GO_NOA_ENABLE_REQ, TASK_MM, TASK_API,
+			   sizeof(struct mm_set_p2p_go_noa_enable_req));
+	if (!req)
+		return BK_ERR_NO_MEM;
+
+	req->enabled = enabled;
+
+	return rw_msg_send(req, 1, MM_SET_P2P_GO_NOA_ENABLE_CFM, NULL);
+}
+
 #endif // CONFIG_P2P
 
 int rw_msg_send_arp_msg(u8 vif_idx)

@@ -155,6 +155,7 @@ enum BK_WIFI_API_CMD_TYPE
     P2P_GET_GC_NETIF_IP4_CONFIG         = 0x3D9,
     P2P_GET_GO_NETIF_IP4_CONFIG         = 0x3DA,
     P2P_GET_GROUP_CHANNEL               = 0x3DB,
+    P2P_SET_GO_NOA                      = 0x3DC,
 
     // RLK command section
     RLK_REGISTER_SEND_CB                = 0x400,

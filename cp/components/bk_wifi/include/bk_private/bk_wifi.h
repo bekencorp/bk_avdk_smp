@@ -642,6 +642,10 @@ int wlan_p2p_get_saved_intent(void);  // Get saved P2P intent for wpa_supplicant
 char *wlan_p2p_get_saved_ssid(void);
 int wlan_p2p_disable(void);
 int wlan_p2p_cancel(void);
+void p2p_go_noa_set_enabled(uint8_t enabled);
+uint8_t p2p_go_noa_is_enabled(void);
+void wlan_p2p_go_noa_set_enabled(uint8_t enabled);
+uint8_t wlan_p2p_go_noa_is_enabled(void);
 #endif
 void bk_wifi_prepare_deepsleep(void);
 void bk_trigger_mqttping(void);

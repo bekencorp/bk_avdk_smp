@@ -60,6 +60,18 @@
 
 #define TAG "wifi_adapter"
 
+#if CONFIG_P2P
+void wlan_p2p_go_noa_set_enabled(uint8_t enabled)
+{
+	rw_msg_send_p2p_go_noa_set_enabled(enabled);
+}
+
+uint8_t wlan_p2p_go_noa_is_enabled(void)
+{
+	return p2p_go_noa_is_enabled();
+}
+#endif
+
 void *
 bk_pbuf_alloc_wrapper(int layer, uint16_t length, int type)
 {

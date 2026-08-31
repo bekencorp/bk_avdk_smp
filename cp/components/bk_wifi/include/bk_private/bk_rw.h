@@ -377,6 +377,9 @@ int rw_msg_send_csi_start_req(uint8_t work_type,uint8_t mode,uint8_t identity,ui
 int rw_msg_send_csi_stop_req(uint8_t vif_idx);
 int rw_msg_send_csi_static_param_reset_req(uint8_t update_cali_mode,uint32_t cali_cnt);
 #endif
+#if CONFIG_P2P
+extern int rw_msg_send_p2p_go_noa_set_enabled(uint8_t enabled);
+#endif
 extern int rwnx_handle_dynparams();
 
 VIF_INF_PTR rwm_mgmt_vif_idx2ptr(UINT8 vif_idx);
