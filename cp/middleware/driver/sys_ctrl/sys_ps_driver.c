@@ -13,10 +13,60 @@
 // limitations under the License.
 
 #include <driver/sys_pm_types.h>
+#include <driver/flash.h>
+#include <driver/flash_partition.h>
 #include "sys_hal.h"
 #include "sys_ll.h"
 #include "sys_driver.h"
 #include "sys_driver_common.h"
+
+#define SYS_DRV_CPU_FREQ_FLASH_READ_FALLBACK_ADDR 0x700000U
+#define SYS_DRV_CPU_FREQ_FLASH_READ_SIZE 32U
+
+static uint32_t s_sys_drv_cpu_freq_flash_read_addr;
+
+static uint32_t sys_drv_get_cpu_freq_flash_read_addr(void)
+{
+	bk_logic_partition_t *partition = NULL;
+
+	if (s_sys_drv_cpu_freq_flash_read_addr != 0) {
+		return s_sys_drv_cpu_freq_flash_read_addr;
+	}
+
+	partition = bk_flash_partition_get_info(BK_PARTITION_EASYFLASH);
+	if ((partition == NULL) ||
+		(partition->partition_length < SYS_DRV_CPU_FREQ_FLASH_READ_SIZE)) {
+		return SYS_DRV_CPU_FREQ_FLASH_READ_FALLBACK_ADDR;
+	}
+
+	s_sys_drv_cpu_freq_flash_read_addr = partition->partition_start_addr;
+	return s_sys_drv_cpu_freq_flash_read_addr;
+}
+
+__IRAM_SEC static bk_err_t sys_drv_switch_cpu_bus_freq_with_flash_read(pm_cpu_freq_e cpu_bus_freq)
+{
+#if CONFIG_SPE
+	return sys_hal_switch_cpu_bus_freq(cpu_bus_freq);
+#else
+	uint8_t read_buf[SYS_DRV_CPU_FREQ_FLASH_READ_SIZE];
+	uint32_t read_addr;
+	bk_err_t ret;
+
+	if (!bk_flash_is_driver_inited()) {
+		return sys_hal_switch_cpu_bus_freq(cpu_bus_freq);
+	}
+
+	read_addr = sys_drv_get_cpu_freq_flash_read_addr();
+	ret = bk_flash_read_bytes_with_freq(read_addr, read_buf,
+		sizeof(read_buf), &cpu_bus_freq);
+
+	if (ret != BK_OK) {
+		return sys_hal_switch_cpu_bus_freq(cpu_bus_freq);
+	}
+
+	return ret;
+#endif
+}
 
 void sys_drv_enter_deep_sleep(void *param)
 {
@@ -272,7 +322,7 @@ uint32_t sys_drv_bandgap_cali_get()
 	return sys_hal_bandgap_cali_get();
 }
 
-static bool sys_drv_is_valid_cpu_bus_freq(pm_cpu_freq_e cpu_bus_freq)
+__IRAM_SEC static bool sys_drv_is_valid_cpu_bus_freq(pm_cpu_freq_e cpu_bus_freq)
 {
 	switch(cpu_bus_freq)
 	{
@@ -289,7 +339,7 @@ static bool sys_drv_is_valid_cpu_bus_freq(pm_cpu_freq_e cpu_bus_freq)
 	}
 }
 
-bk_err_t sys_drv_switch_cpu_bus_freq(pm_cpu_freq_e cpu_bus_freq)
+__IRAM_SEC bk_err_t sys_drv_switch_cpu_bus_freq(pm_cpu_freq_e cpu_bus_freq)
 {
 	bk_err_t ret;
 
@@ -298,22 +348,22 @@ bk_err_t sys_drv_switch_cpu_bus_freq(pm_cpu_freq_e cpu_bus_freq)
 
 	uint32_t int_level = sys_drv_enter_critical();
 
-	ret = sys_hal_switch_cpu_bus_freq(cpu_bus_freq);
+	ret = sys_drv_switch_cpu_bus_freq_with_flash_read(cpu_bus_freq);
 
 	sys_drv_exit_critical(int_level);
 
 	return ret;
 }
 
-bk_err_t sys_drv_switch_cpu_bus_freq_unlocked(pm_cpu_freq_e cpu_bus_freq)
+__IRAM_SEC bk_err_t sys_drv_switch_cpu_bus_freq_unlocked(pm_cpu_freq_e cpu_bus_freq)
 {
 	if(!sys_drv_is_valid_cpu_bus_freq(cpu_bus_freq))
 		return BK_FAIL;
 
-	return sys_hal_switch_cpu_bus_freq(cpu_bus_freq);
+	return sys_drv_switch_cpu_bus_freq_with_flash_read(cpu_bus_freq);
 }
 
-bk_err_t sys_drv_core_bus_clock_ctrl(uint32_t cksel_core, uint32_t ckdiv_core,uint32_t ckdiv_bus, uint32_t ckdiv_cpu0,uint32_t ckdiv_cpu1)
+__IRAM_SEC bk_err_t sys_drv_core_bus_clock_ctrl(uint32_t cksel_core, uint32_t ckdiv_core,uint32_t ckdiv_bus, uint32_t ckdiv_cpu0,uint32_t ckdiv_cpu1)
 {
     return sys_hal_core_bus_clock_ctrl(cksel_core, ckdiv_core,ckdiv_bus, ckdiv_cpu0,ckdiv_cpu1);
 }

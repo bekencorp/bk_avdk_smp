@@ -146,15 +146,15 @@ int32 sys_hal_rosc_calibration(uint32_t rosc_cali_mode, uint32_t cali_interval);
 int sys_hal_rosc_test_mode(bool enabled);
 int32 sys_hal_bandgap_cali_set(uint32_t value);//increase or decrease the dvdddig voltage
 uint32_t sys_hal_bandgap_cali_get();
-bk_err_t sys_hal_switch_cpu_bus_freq(pm_cpu_freq_e cpu_bus_freq);
-bk_err_t sys_hal_core_bus_clock_ctrl(uint32_t cksel_core, uint32_t ckdiv_core,uint32_t ckdiv_bus, uint32_t ckdiv_cpu0,uint32_t ckdiv_cpu1);
+__IRAM_SEC bk_err_t sys_hal_switch_cpu_bus_freq(pm_cpu_freq_e cpu_bus_freq);
+__IRAM_SEC bk_err_t sys_hal_core_bus_clock_ctrl(uint32_t cksel_core, uint32_t ckdiv_core,uint32_t ckdiv_bus, uint32_t ckdiv_cpu0,uint32_t ckdiv_cpu1);
 bk_err_t sys_hal_ap_cpu_freq_dump();
 bk_err_t sys_hal_cpu_freq_dump();
 void sys_hal_set_cpu0_rxevt_sel(uint32_t param);
 void sys_hal_set_cpu1_rxevt_sel(uint32_t param);
 void sys_hal_set_cpu2_rxevt_sel(uint32_t param);
-bk_err_t sys_hal_switch_cpu_bus_freq_high_to_low(pm_cpu_freq_e cpu_bus_freq);
-bk_err_t sys_hal_switch_cpu_bus_freq_low_to_high(pm_cpu_freq_e cpu_bus_freq);
+__IRAM_SEC bk_err_t sys_hal_switch_cpu_bus_freq_high_to_low(pm_cpu_freq_e cpu_bus_freq);
+__IRAM_SEC bk_err_t sys_hal_switch_cpu_bus_freq_low_to_high(pm_cpu_freq_e cpu_bus_freq);
 
 /*low power feature end*/
 uint32 sys_hal_get_chip_id(void);
@@ -771,7 +771,7 @@ void sys_hal_set_ram_tph_cfg(uint32_t value);
 void sys_hal_set_ram_spl_cfg(uint32_t value);
 void sys_hal_set_ram_tpl_cfg(uint32_t value);
 void sys_hal_set_ram_high_speed(void);
-void sys_hal_set_ram_low_speed(void);
+__IRAM_SEC void sys_hal_set_ram_low_speed(void);
 void sys_hal_early_init(void);
 void sys_hal_set_rott_int_en(uint32_t core_index, uint32_t value);
 void sys_hal_enter_low_analog(void);

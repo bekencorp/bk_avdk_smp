@@ -1044,3 +1044,78 @@ bk_err_t bk_flash_dump_write(uint32_t address, const uint8_t *user_buf, uint32_t
 	return flash_write_no_lock(address, user_buf, size);
 }
 
+#if !CONFIG_SPE
+/*
+ * Keep the DBUS window helper after the legacy flash init/line-mode IRAM code.
+ * The boot path is sensitive to IRAM layout changes around flash_set_line_mode().
+ */
+__attribute__((section(".iram")))
+static void flash_wait_op_done_with_freq(void *freq_arg)
+{
+	while (flash_hal_is_busy(&s_flash.hal)) {
+		if (freq_arg) {
+			sys_hal_switch_cpu_bus_freq(*(pm_cpu_freq_e *)freq_arg);
+		}
+	}
+}
+
+__attribute__((section(".iram")))
+static void flash_set_op_cmd_read_with_freq(uint32_t read_addr, void *freq_arg)
+{
+	flash_hw_t *hw = s_flash.hal.hw;
+
+	hw->op_cmd.addr_sw_reg = read_addr;
+	hw->op_cmd.op_type_sw = FLASH_OP_CMD_READ;
+	hw->op_ctrl.op_sw = 1;
+	flash_wait_op_done_with_freq(freq_arg);
+}
+
+__attribute__((section(".iram")))
+static void flash_read_common_with_freq(uint8_t *buffer, uint32_t address,
+					uint32_t len, void *freq_arg)
+{
+	uint32_t addr = address & (~FLASH_ADDRESS_MASK);
+	uint32_t buf[FLASH_BUFFER_LEN] = {0};
+	uint8_t *pb = (uint8_t *)&buf[0];
+
+	if (len == 0) {
+		return;
+	}
+
+	while (len) {
+		uint32_t int_level = flash_enter_critical();
+
+		flash_set_op_cmd_read_with_freq(addr, freq_arg);
+		addr += FLASH_BYTES_CNT;
+		for (uint32_t i = 0; i < FLASH_BUFFER_LEN; i++) {
+			buf[i] = flash_hal_read_data(&s_flash.hal);
+		}
+		flash_exit_critical(int_level);
+
+		for (uint32_t i = address % FLASH_BYTES_CNT; i < FLASH_BYTES_CNT; i++) {
+			*buffer++ = pb[i];
+			address++;
+			len--;
+			if (len == 0) {
+				break;
+			}
+		}
+	}
+}
+
+__attribute__((section(".iram")))
+bk_err_t bk_flash_read_bytes_with_freq(uint32_t address, uint8_t *user_buf,
+				       uint32_t size, void *freq_arg)
+{
+	FLASH_RETURN_ON_DRIVER_NOT_INIT();
+
+	if (address >= s_flash.flash_cfg->flash_size) {
+		return BK_ERR_FLASH_ADDR_OUT_OF_RANGE;
+	}
+
+	flash_read_common_with_freq(user_buf, address, size, freq_arg);
+
+	return BK_OK;
+}
+#endif
+

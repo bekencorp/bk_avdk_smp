@@ -167,9 +167,9 @@ int32 sys_drv_rosc_calibration(uint32_t rosc_cali_mode, uint32_t cali_interval);
 int32 sys_drv_bandgap_cali_set(uint32_t value);//increase or decrease the dvdddig voltage
 int sys_drv_rosc_test_mode(bool enabled);
 uint32_t sys_drv_bandgap_cali_get();
-bk_err_t sys_drv_switch_cpu_bus_freq(pm_cpu_freq_e cpu_bus_freq);
-bk_err_t sys_drv_switch_cpu_bus_freq_unlocked(pm_cpu_freq_e cpu_bus_freq);
-bk_err_t sys_drv_core_bus_clock_ctrl(uint32_t cksel_core, uint32_t ckdiv_core,uint32_t ckdiv_bus, uint32_t ckdiv_cpu0,uint32_t ckdiv_cpu1);
+__IRAM_SEC bk_err_t sys_drv_switch_cpu_bus_freq(pm_cpu_freq_e cpu_bus_freq);
+__IRAM_SEC bk_err_t sys_drv_switch_cpu_bus_freq_unlocked(pm_cpu_freq_e cpu_bus_freq);
+__IRAM_SEC bk_err_t sys_drv_core_bus_clock_ctrl(uint32_t cksel_core, uint32_t ckdiv_core,uint32_t ckdiv_bus, uint32_t ckdiv_cpu0,uint32_t ckdiv_cpu1);
 
 /*for  low power  function end*/
 uint32 sys_drv_get_device_id(void); // CMD_GET_DEVICE_ID
