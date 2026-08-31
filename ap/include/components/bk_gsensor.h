@@ -49,7 +49,21 @@ typedef struct
 
 typedef struct
 {
+    short x;
+    short y;
+    short z;
+}gsensor_gyro_xyz_t;
+
+/*
+ * count: number of accel samples in xyz[]
+ * gyro:  latest gyro sample (0 if device has no gyro)
+ * xyz:   flexible accel samples
+ * Note: only one flexible array is allowed; gyro is a fixed field before xyz[].
+ */
+typedef struct
+{
     unsigned int count;
+    gsensor_gyro_xyz_t gyro;
     gsensor_xyz_t xyz[0];
 }gsensor_data_t;
 
