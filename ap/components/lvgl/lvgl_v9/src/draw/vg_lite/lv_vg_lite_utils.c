@@ -155,7 +155,12 @@ const char * lv_vg_lite_error_string(vg_lite_error_t error)
             VG_LITE_ENUM_TO_STRING(ALREADY_EXISTS);
             VG_LITE_ENUM_TO_STRING(NOT_ALIGNED);
             VG_LITE_ENUM_TO_STRING(FLEXA_TIME_OUT);
+#if LV_USE_VG_LITE_THORVG
             VG_LITE_ENUM_TO_STRING(FLEXA_HANDSHAKE_FAIL);
+#else
+            VG_LITE_ENUM_TO_STRING(FLEXA_OUTOFSYNC);
+            VG_LITE_ENUM_TO_STRING(FAIL);
+#endif
         default:
             break;
     }
@@ -241,10 +246,12 @@ const char * lv_vg_lite_buffer_format_string(vg_lite_buffer_format_t format)
             VG_LITE_ENUM_TO_STRING(YV24);
             VG_LITE_ENUM_TO_STRING(YV16);
             VG_LITE_ENUM_TO_STRING(NV16);
+#if LV_USE_VG_LITE_THORVG
             VG_LITE_ENUM_TO_STRING(YUY2_TILED);
             VG_LITE_ENUM_TO_STRING(NV12_TILED);
             VG_LITE_ENUM_TO_STRING(ANV12_TILED);
             VG_LITE_ENUM_TO_STRING(AYUY2_TILED);
+#endif
             VG_LITE_ENUM_TO_STRING(INDEX_1);
             VG_LITE_ENUM_TO_STRING(INDEX_2);
             VG_LITE_ENUM_TO_STRING(INDEX_4);
@@ -634,10 +641,14 @@ void lv_vg_lite_buffer_format_bytes(
         case VG_LITE_BGR565:
         case VG_LITE_YUYV:
         case VG_LITE_YUY2:
+#if LV_USE_VG_LITE_THORVG
         case VG_LITE_YUY2_TILED:
+#endif
         /* AYUY2 buffer memory = YUY2 + alpha. */
         case VG_LITE_AYUY2:
+#if LV_USE_VG_LITE_THORVG
         case VG_LITE_AYUY2_TILED:
+#endif
             *mul = 2;
             break;
         case VG_LITE_RGBA8888:
@@ -652,11 +663,15 @@ void lv_vg_lite_buffer_format_bytes(
             *mul = 4;
             break;
         case VG_LITE_NV12:
+#if LV_USE_VG_LITE_THORVG
         case VG_LITE_NV12_TILED:
+#endif
             *mul = 1;
             break;
         case VG_LITE_ANV12:
+#if LV_USE_VG_LITE_THORVG
         case VG_LITE_ANV12_TILED:
+#endif
             *mul = 4;
             break;
         case VG_LITE_INDEX_1:
