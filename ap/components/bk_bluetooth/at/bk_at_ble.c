@@ -4761,19 +4761,9 @@ static void ble_performance_tx_timer_hdl(void *param)
     s_performance_tx_bytes = 0;
 
     LOGD("%s current tx %d bytes/sec\n", __func__, tmp);
-    LOGD("notify lose_event:%d total_event:%d per second\n",
-         s_performance_notify_lose_events, s_performance_notify_total_events);
-    LOGD("write lose_event:%d total_event:%d per second\n",
-         s_performance_write_lose_events, s_performance_write_total_events);
-    LOGD("read lose_event:%d total_event:%d per second\n",
-         s_performance_read_lose_events, s_performance_read_total_events);
-
-    s_performance_notify_total_events = 0;
-    s_performance_notify_lose_events = 0;
-    s_performance_write_total_events = 0;
-    s_performance_write_lose_events = 0;
-    s_performance_read_total_events = 0;
-    s_performance_read_lose_events = 0;
+    LOGD("notify lose_event:%d total_event:%d, lose_rate:%d%%\n", s_performance_notify_lose_events, s_performance_notify_total_events, s_performance_notify_total_events > 0 ? s_performance_notify_lose_events * 100 / s_performance_notify_total_events : 0);
+    LOGD("write lose_event:%d total_event:%d, lose_rate:%d%%\n", s_performance_write_lose_events, s_performance_write_total_events, s_performance_write_total_events > 0 ? s_performance_write_lose_events * 100 / s_performance_write_total_events : 0);
+    LOGD("read lose_event:%d total_event:%d, lose_rate:%d%%\n", s_performance_read_lose_events, s_performance_read_total_events, s_performance_read_total_events > 0 ? s_performance_read_lose_events * 100 / s_performance_read_total_events : 0);
 }
 
 static void ble_performance_rx_timer_hdl(void *param)
