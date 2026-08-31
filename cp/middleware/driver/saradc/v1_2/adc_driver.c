@@ -78,11 +78,8 @@ static bool adc_try_load_otp_cwt(uint32_t *otp_cwt_buf)
     uint8_t *data = NULL;
     bk_err_t result = BK_FAIL;
     uint32_t required_size = ADC_CWT_COEF_NUM * sizeof(uint32_t);
-#if CONFIG_SOC_BK7259
-    otp_data_size = 0;//junpeng_bringup//otp_map_2[OTP_GADC_CALIBRATION].allocated_size;
-#else
+
     otp_data_size = otp_map_2[OTP_GADC_CALIBRATION].allocated_size;
-#endif
 
     // Check if OTP data size is sufficient for CWT coefficients
     // For bk7236/bk7236n, otp_data_size is too small (4/8 bytes), so this will return false
@@ -96,11 +93,8 @@ static bool adc_try_load_otp_cwt(uint32_t *otp_cwt_buf)
         return false;
     }
 
-#if CONFIG_SOC_BK7259
-    result = BK_FAIL;//junpeng_bringup//bk_otp_ahb_read(OTP_GADC_CALIBRATION, data, otp_data_size);
-#else
     result = bk_otp_ahb_read(OTP_GADC_CALIBRATION, data, otp_data_size);
-#endif
+
     if (result != BK_OK) {
         ADC_LOGW("read otp gadc calib failed:%d\r\n", result);
         os_free(data);
