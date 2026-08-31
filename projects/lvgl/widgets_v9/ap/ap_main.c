@@ -7,7 +7,7 @@
 #if CONFIG_LVGL
 #include "lvgl.h"
 #include "lv_vendor.h"
-#include "lv_demo_widgets.h"
+#include "demos/widgets/lv_demo_widgets.h"
 #endif
 #include "driver/drv_tp.h"
 #include "media_service.h"

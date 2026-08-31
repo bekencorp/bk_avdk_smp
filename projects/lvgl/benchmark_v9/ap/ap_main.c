@@ -7,7 +7,7 @@
 #if CONFIG_LVGL
 #include "lvgl.h"
 #include "lv_vendor.h"
-#include "lv_demo_benchmark.h"
+#include "demos/benchmark/lv_demo_benchmark.h"
 #endif
 #include "driver/drv_tp.h"
 #include "media_service.h"
@@ -19,7 +19,7 @@
 #include "gpio_driver.h"
 
 
-#define TAG "widgets"
+#define TAG "benchmark"
 
 #define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
 #define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
@@ -52,12 +52,12 @@ typedef struct
 
 static display_ctx_t *g_disp_ctx = NULL;
 
-static void bk_widgets_flush_cb(void *args, void *frame_buffer, int (*cb)(void *args))
+static void bk_benchmark_flush_cb(void *args, void *frame_buffer, int (*cb)(void *args))
 {
     bk_display_flush(args, frame_buffer, cb);
 }
 
-bk_err_t lvgl_app_widgets_init(void)
+bk_err_t lvgl_app_benchmark_init(void)
 {
     bk_err_t ret = BK_OK;
     lv_vnd_config_t lv_vnd_config = {0};
@@ -138,7 +138,7 @@ bk_err_t lvgl_app_widgets_init(void)
         }
     }
     lv_vnd_config.args = g_disp_ctx->dpu_ctlr_handle;
-    lv_vnd_config.flush_cb = bk_widgets_flush_cb;
+    lv_vnd_config.flush_cb = bk_benchmark_flush_cb;
 
     lv_vendor_init(&lv_vnd_config);
 
@@ -180,21 +180,21 @@ err:
     return ret;
 }
 
-#define CMDS_COUNT  (sizeof(s_widgets_commands) / sizeof(struct cli_command))
+#define CMDS_COUNT  (sizeof(s_benchmark_commands) / sizeof(struct cli_command))
 
-void cli_widgets_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
+void cli_benchmark_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
     LOGD("%s %d\r\n", __func__, __LINE__);
 }
 
-static const struct cli_command s_widgets_commands[] =
+static const struct cli_command s_benchmark_commands[] =
 {
-    {"widgets", "widgets", cli_widgets_cmd},
+    {"benchmark", "benchmark", cli_benchmark_cmd},
 };
 
-int cli_widgets_init(void)
+int cli_benchmark_init(void)
 {
-    return cli_register_commands(s_widgets_commands, CMDS_COUNT);
+    return cli_register_commands(s_benchmark_commands, CMDS_COUNT);
 }
 
 int main(void)
@@ -207,9 +207,9 @@ int main(void)
 
     bk_frame_buffer_init();
 
-    cli_widgets_init();
+    cli_benchmark_init();
 
-    lvgl_app_widgets_init();
+    lvgl_app_benchmark_init();
 
     return 0;
 }

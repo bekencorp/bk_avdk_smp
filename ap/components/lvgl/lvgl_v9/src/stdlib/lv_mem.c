@@ -10,7 +10,6 @@
 #include "../misc/lv_assert.h"
 #include "../misc/lv_log.h"
 #include "../core/lv_global.h"
-#include <os/mem.h>
 
 #if LV_USE_OS == LV_OS_PTHREAD
     #include <pthread.h>

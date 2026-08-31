@@ -12,7 +12,7 @@
 /*********************
  *      INCLUDES
  *********************/
-#include "lv_os.h"
+#include "lv_os_private.h"
 #if LV_USE_OS == LV_OS_FREERTOS
 
 #include "atomic.h"
@@ -59,19 +59,13 @@ static void prvTestAndDecrement(lv_thread_sync_t * pxCond,
  *  STATIC VARIABLES
  **********************/
 
-// Store critical section state for non-ISR version
-// Note: This implementation doesn't support nested critical sections
-// as the original code didn't save the return value
+/* Store critical section state for the Beken RTOS wrappers. */
 static uint32_t s_crit_state = 0;
 
 /**********************
  *      MACROS
  **********************/
 
-// Use rtos_enter_critical/rtos_exit_critical from rtos_pub_smp.c
-// These functions return/save interrupt state for proper nesting support
-// Note: The original implementation didn't save return value, so we use a static variable
-// to store the state. This may not support nested calls properly.
 #define _enter_critical()   do { \
     s_crit_state = rtos_enter_critical(); \
 } while(0)
@@ -430,6 +424,11 @@ uint32_t lv_os_get_idle_percent(void)
     globals->freertos_idle_time_sum = 0;
 
     return pct;
+}
+
+void lv_sleep_ms(uint32_t ms)
+{
+    vTaskDelay(ms / portTICK_PERIOD_MS);
 }
 
 /**********************
