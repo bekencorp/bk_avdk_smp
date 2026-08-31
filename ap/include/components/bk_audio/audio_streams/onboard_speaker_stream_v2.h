@@ -69,6 +69,13 @@ typedef struct
     uint32_t                sample_rate[AUD_DAC_SOURCE_MAX];/*!< speaker sample rate */
     float                   dig_gain;           /*!< audio dac digital gain in dB */
     int32_t                 ana_gain;           /*!< audio dac analog gain in dB (integer step) */
+    /**
+     * A2DP-path HW DRC. When a2dp_drc_en!=0, a2dp_drc (Preset/L2/raw) is
+     * applied at DAC init; otherwise HW DRC is bypassed.
+     * CALL/HINT do not go through HW DRC.
+     */
+    uint8_t                 a2dp_drc_en;
+    aud_dac_drc_param_cfg_t   a2dp_drc;
     aud_dac_work_mode_t     work_mode;          /*!< audio dac mode: signal_ended/differen */
     uint8_t                 bits;               /*!< Bit wide (8, 16, 24, 32 bits) */
     aud_clk_t               clk_src;            /*!< audio clock: XTAL(26MHz)/APLL */
@@ -123,6 +130,8 @@ typedef struct
         .sample_rate[2] = 16000,                               \
         .dig_gain = -7.0f,                                     \
         .ana_gain = 4,                                         \
+        .a2dp_drc_en = 0,                                      \
+        .a2dp_drc = AUD_DAC_DRC_PARAM_CFG_OFF(),                 \
         .work_mode = AUD_DAC_WORK_MODE_DIFFEN,                 \
         .bits = 16,                                            \
         .clk_src = AUD_CLK_APLL,                               \

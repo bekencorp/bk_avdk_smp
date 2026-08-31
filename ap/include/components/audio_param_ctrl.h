@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <common/bk_err.h>
+#include <driver/aud_dac_drc_types.h>
 
 #define EQ_ID_DL_VOICE     0
 #define EQ_ID_UL_VOICE     1
@@ -132,6 +133,17 @@ typedef struct _app_aud_aec_v3_config_t
 	uint8_t rsvd[2];
 }app_aud_aec_v3_config_t;
 
+/**
+ * DAC A2DP-path HW DRC for audio_param / debug tool (not AEC drc_gain).
+ * app_drc_en gates apply on service bind; param is the driver parameter block.
+ */
+typedef struct _app_aud_drc_config_t
+{
+	uint8_t app_drc_en;            /**< apply on service bind when non-zero */
+	uint8_t rsvd[3];
+	aud_dac_drc_param_cfg_t param; /**< Preset / L2 / raw 8-seg */
+} app_aud_drc_config_t;
+
 typedef enum
 {
 	AUD_SERVICE_DOORBELL_VOC = 0,
@@ -164,6 +176,7 @@ typedef struct _app_aud_para_t
 	app_aud_eq_config_t eq_ul_config;
 
 	app_aud_aec_v3_config_t aec_v3_config;
+	app_aud_drc_config_t drc_config;
 }app_aud_para_t;
 
 void bk_aud_debug_get_audpara(app_aud_para_t * aud_para_ptr, app_aud_service_type_t service_type);
@@ -222,6 +235,10 @@ void bk_app_load_aud_eq_config(app_eq_load_t *eq_load, app_aud_service_type_t se
 void bk_app_update_aud_aec_v3_config(app_aud_aec_v3_config_t *aec_config, app_aud_service_type_t service_type);
 
 void bk_app_load_aud_aec_v3_config(app_aud_aec_v3_config_t *aec_config, app_aud_service_type_t service_type);
+
+void bk_app_update_aud_drc_config(app_aud_drc_config_t *drc_config, app_aud_service_type_t service_type);
+
+void bk_app_load_aud_drc_config(app_aud_drc_config_t *drc_config, app_aud_service_type_t service_type);
 
 #endif /* __AUDIO_PARAM_CONTROL_H__ */
 

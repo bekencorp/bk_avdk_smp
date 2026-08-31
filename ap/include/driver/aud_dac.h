@@ -16,6 +16,9 @@
 #include <common/bk_include.h>
 #include <driver/dma.h>
 #include <driver/aud_dac_types.h>
+#if CONFIG_AUD_DRIVER_V2
+#include <driver/aud_dac_drc.h>
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -31,6 +34,8 @@ extern "C" {
  *
  * This API init the dac module:
  *  - Configure the dac parameters to enable dac function.
+ *  - V2: when a2dp_drc_en != 0 apply dac_config->a2dp_drc (Preset/L2/raw);
+ *    otherwise bypass HW DRC. CALL/HINT do not pass through DRC.
  *
  * @param
  *    - dac_config: dac parameters configure

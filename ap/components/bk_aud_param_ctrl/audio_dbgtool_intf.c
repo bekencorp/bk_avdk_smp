@@ -12,7 +12,7 @@ extern void bk_set_printf_sync(uint8_t enable);
 extern int bk_get_printf_sync(void);
 extern uint32_t sys_drv_get_chip_id(void);
 
-#define APP_AUD_PARAS_TX_TMP_LEN   (0x20)
+#define APP_AUD_PARAS_TX_TMP_LEN   (0x40)
 
 #define APP_GET_AUD_DBG_INFO        (0xF8)
 #define APP_AUD_DBG_INFO_TX_TOTALLEN  (0x1A)
@@ -29,6 +29,16 @@ extern uint32_t sys_drv_get_chip_id(void);
 #define APP_LOAD_EQ_PARAMS  (0xF0)
 #define APP_LOAD_SYS_PARAMS (0xF1)
 #define APP_LOAD_AEC_PARAMS (0xF2)
+#define APP_LOAD_DRC_PARAMS (0xF3)
+#define APP_UPDATE_DRC_PARAMS (0xF4)
+
+#define APP_DRC_PARA_TX_TOTALLEN  (0x0E)
+#define APP_DRC_PARA_TX_HEADERLEN (0x4)
+#define APP_DRC_PARA_RX_DATALEN   (0x8)
+/* mode==2 raw 8-seg: preset+mode + k[8]*2 + p_reg[7] + st[8]*3 = 49 bytes payload */
+#define APP_DRC_PARA_RAW_DATALEN  (0x31)
+/* raw load reply total: 6 header(01 e0 fc len b5 f4) + 49 payload = 55 bytes */
+#define APP_DRC_PARA_RAW_TX_TOTALLEN (0x37)
 
 static app_aud_eq_config_t *eq_dbg_eq_para = NULL;
 static app_aud_sys_config_t *sys_dbg_sys_para = NULL;
@@ -219,6 +229,73 @@ static void app_load_aec_v3_params(void)
 //	bk_set_printf_sync(log_level);
 }
 
+static void app_load_drc_params(void)
+{
+	app_aud_drc_config_t drc_config = {0};
+	aud_dac_drc_param_cfg_t *p = &drc_config.param;
+
+	if (p_aud_para[g_service_type]->drc_config.app_drc_en ||
+	    p_aud_para[g_service_type]->drc_config.param.preset ||
+	    p_aud_para[g_service_type]->drc_config.param.mode) {
+		os_memcpy(&drc_config, &p_aud_para[g_service_type]->drc_config, sizeof(drc_config));
+	} else {
+		bk_app_load_aud_drc_config(&drc_config, g_service_type);
+		os_memcpy(&drc_config, &p_aud_para[g_service_type]->drc_config, sizeof(drc_config));
+	}
+
+	if (p->mode == 2) {
+		/* raw 8-seg: 01 e0 fc 33 b5 f4 + preset+mode+k/p/st (49B) */
+		uint32_t tx_len = APP_DRC_PARA_RAW_TX_TOTALLEN;
+		uint8_t tmp[APP_AUD_PARAS_TX_TMP_LEN] = {0};
+		uint32_t idx = 8;
+
+		tmp[0] = 0x01; tmp[1] = 0xe0; tmp[2] = 0xfc;
+		tmp[3] = APP_DRC_PARA_RAW_TX_TOTALLEN - APP_DRC_PARA_TX_HEADERLEN;
+		tmp[4] = 0xb5; tmp[5] = APP_UPDATE_DRC_PARAMS;
+		tmp[6] = p->preset;
+		tmp[7] = p->mode;
+		for (int i = 0; i < 8; i++) {
+			tmp[idx++] = (uint8_t)(p->k_val[i] & 0xFF);
+			tmp[idx++] = (uint8_t)((p->k_val[i] >> 8) & 0xFF);
+		}
+		for (int i = 0; i < 7; i++) {
+			tmp[idx++] = p->p_reg[i];
+		}
+		for (int i = 0; i < 8; i++) {
+			int32_t v = p->st_val[i];
+			tmp[idx++] = (uint8_t)(v & 0xFF);
+			tmp[idx++] = (uint8_t)((v >> 8) & 0xFF);
+			tmp[idx++] = (uint8_t)((v >> 16) & 0xFF);
+		}
+
+		for (uint32_t n = 0; n < tx_len; n++) {
+			BK_LOG_RAW("%02x", tmp[n]);
+		}
+		BK_LOG_RAW("\n");
+		return;
+	}
+
+	uint32_t tx_len = APP_DRC_PARA_TX_TOTALLEN;
+	uint8_t tmp[APP_AUD_PARAS_TX_TMP_LEN] = {0};
+
+	tmp[0] = 0x01; tmp[1] = 0xe0; tmp[2] = 0xfc;
+	tmp[3] = APP_DRC_PARA_TX_TOTALLEN - APP_DRC_PARA_TX_HEADERLEN;
+	tmp[4] = 0xb5; tmp[5] = APP_UPDATE_DRC_PARAMS;
+	tmp[6] = p->preset;
+	tmp[7] = p->mode;
+	tmp[8] = (uint8_t)(p->low_boost_db_x10 & 0xFF);
+	tmp[9] = (uint8_t)((p->low_boost_db_x10 >> 8) & 0xFF);
+	tmp[10] = (uint8_t)(p->threshold_dbfs_x10 & 0xFF);
+	tmp[11] = (uint8_t)((p->threshold_dbfs_x10 >> 8) & 0xFF);
+	tmp[12] = (uint8_t)(p->compress_strength_x100 & 0xFF);
+	tmp[13] = (uint8_t)((p->compress_strength_x100 >> 8) & 0xFF);
+
+	for (uint32_t i = 0; i < tx_len; i++) {
+		BK_LOG_RAW("%02x", tmp[i]);
+	}
+	BK_LOG_RAW("\n");
+}
+
 /*
  * Device-info handshake response (cmd 0xB1 / subcmd 0xF8).
  *
@@ -289,6 +366,74 @@ void app_dbg_audparam(uint8_t * params, int len)
 			break;
 		case APP_LOAD_AEC_PARAMS:
 			app_load_aec_v3_params();
+			break;
+		case APP_LOAD_DRC_PARAMS:
+			app_load_drc_params();
+			break;
+		case APP_UPDATE_DRC_PARAMS:
+		{
+			app_aud_drc_config_t drc_cfg = {0};
+			aud_dac_drc_param_cfg_t *p = &drc_cfg.param;
+
+			/* need at least subcmd + preset + mode */
+			if (len < 3) {
+				BK_LOGE(NULL, "%s drc update len %d too short\r\n", __func__, len);
+				break;
+			}
+
+			drc_cfg.app_drc_en = 1;
+			p->preset = params[1];
+			p->mode = params[2];
+
+			if (params[2] == 2) {
+				/* raw 8-seg: k[8] LE16, p_reg[7], st[8] LE24 */
+				if (len < (APP_DRC_PARA_RAW_DATALEN + 1)) {
+					BK_LOGE(NULL, "%s drc raw len %d too short\r\n", __func__, len);
+					break;
+				}
+				uint32_t idx = 3;
+				for (int i = 0; i < 8; i++) {
+					p->k_val[i] = (uint16_t)(params[idx] | (params[idx + 1] << 8));
+					idx += 2;
+				}
+				for (int i = 0; i < 7; i++) {
+					p->p_reg[i] = params[idx++];
+				}
+				for (int i = 0; i < 8; i++) {
+					int32_t v = (int32_t)(params[idx] | (params[idx + 1] << 8) | (params[idx + 2] << 16));
+					if (v & 0x800000) {
+						v -= 0x1000000; /* sign-extend 24-bit */
+					}
+					p->st_val[i] = v;
+					idx += 3;
+				}
+				/* raw frame has no L2 fields; keep previous for define/load UI */
+				p->low_boost_db_x10       = p_aud_para[g_service_type]->drc_config.param.low_boost_db_x10;
+				p->threshold_dbfs_x10     = p_aud_para[g_service_type]->drc_config.param.threshold_dbfs_x10;
+				p->compress_strength_x100 = p_aud_para[g_service_type]->drc_config.param.compress_strength_x100;
+			} else {
+				if (len < (APP_DRC_PARA_RX_DATALEN + 1)) {
+					BK_LOGE(NULL, "%s drc update len %d too short\r\n", __func__, len);
+					break;
+				}
+				p->low_boost_db_x10       = (int16_t)(params[3] | (params[4] << 8));
+				p->threshold_dbfs_x10     = (int16_t)(params[5] | (params[6] << 8));
+				p->compress_strength_x100 = (uint16_t)(params[7] | (params[8] << 8));
+			}
+
+			os_memcpy(&p_aud_para[g_service_type]->drc_config, &drc_cfg, sizeof(drc_cfg));
+
+			{
+				uint32_t dbg_n = (params[2] == 2) ? (APP_DRC_PARA_RAW_DATALEN + 1) : (APP_DRC_PARA_RX_DATALEN + 1);
+				BK_LOG_RAW("rcv dac_drc_params: ");
+				for (uint32_t i = 1; i < dbg_n; i++) {
+					BK_LOG_RAW("%02x ", params[i]);
+				}
+				BK_LOG_RAW("\n");
+			}
+
+			bk_app_update_aud_drc_config(&drc_cfg, g_service_type);
+		}
 			break;
 		case 0xF9:
 		{
