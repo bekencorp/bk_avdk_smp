@@ -69,18 +69,18 @@ static inline void flash_ll_set_op_cmd(flash_hw_t *hw, flash_op_cmd_t cmd)
 
 static inline uint32_t flash_ll_get_id(flash_hw_t *hw)
 {
-	while (flash_ll_is_busy(hw));
+	flash_ll_wait_op_done(hw);
 	flash_ll_set_op_cmd(hw, FLASH_OP_CMD_RDID);
-	while (flash_ll_is_busy(hw));
+	flash_ll_wait_op_done(hw);
 	return flash_ll_read_flash_id(hw) >> 0x8;
 }
 
 static inline uint32_t flash_ll_get_mid(flash_hw_t *hw)
 {
-	while (flash_ll_is_busy(hw));
+	flash_ll_wait_op_done(hw);
 	hw->op_cmd.op_type_sw = FLASH_OP_CMD_RDID;
 	hw->op_ctrl.op_sw = 1;
-	while (flash_ll_is_busy(hw));
+	flash_ll_wait_op_done(hw);
 	return flash_ll_read_flash_id(hw);
 }
 
@@ -135,7 +135,7 @@ static inline void flash_ll_write_status_reg_common(flash_hw_t *hw, uint8_t sr_w
 	v |= (1u << FLASH_STATUS_REG_SRP0_BIT);
 	v &= ~(1u << FLASH_STATUS_REG_SRP1_BIT);
 
-	while (flash_ll_is_busy(hw));
+	flash_ll_wait_op_done(hw);
 	hw->cmd_cfg.v = 0;
 	hw->config.wrsr_data = v;
 	hw->op_ctrl.wp_value = 1;
@@ -146,12 +146,12 @@ static inline void flash_ll_write_status_reg_common(flash_hw_t *hw, uint8_t sr_w
 	} else {
 		if(FLASH_ID_GD25Q32C == flash_ll_get_id(hw) || FLASH_ID_TH25Q64 == flash_ll_get_id(hw)) {
 			flash_ll_set_op_cmd(hw, FLASH_OP_CMD_WRSR);
-			while (flash_ll_is_busy(hw));
+			flash_ll_wait_op_done(hw);
 			hw->config.wrsr_data = (v >> LEN_WRSR_S0_S7);
 			flash_ll_init_wrsr_cmd(hw, CMD_WRSR_S8_S15);
 			flash_ll_set_op_cmd(hw, FLASH_OP_CMD_WRSR);
 
-			while (flash_ll_is_busy(hw));
+			flash_ll_wait_op_done(hw);
 
 			hw->cmd_cfg.v = 0;
 		} else {
@@ -159,7 +159,7 @@ static inline void flash_ll_write_status_reg_common(flash_hw_t *hw, uint8_t sr_w
 		}
 	}
 
-	while (flash_ll_is_busy(hw));
+	flash_ll_wait_op_done(hw);
 	hw->op_ctrl.wp_value = 0;
 }
 
@@ -189,10 +189,10 @@ static inline uint32_t flash_ll_read_status_reg(flash_hw_t *hw, uint8_t sr_width
 {
 	uint32_t state_reg_data = 0;
 
-	while (flash_ll_is_busy(hw));
+	flash_ll_wait_op_done(hw);
 	hw->cmd_cfg.v = 0;
 	flash_ll_set_op_cmd(hw, FLASH_OP_CMD_RDSR);
-	while (flash_ll_is_busy(hw));
+	flash_ll_wait_op_done(hw);
 	state_reg_data = hw->state.status_reg;
 
 	if (sr_width ==1)
@@ -201,7 +201,7 @@ static inline uint32_t flash_ll_read_status_reg(flash_hw_t *hw, uint8_t sr_width
 	}
 
 	flash_ll_set_op_cmd(hw, FLASH_OP_CMD_RDSR2);
-	while (flash_ll_is_busy(hw));
+	flash_ll_wait_op_done(hw);
 	state_reg_data |= hw->state.status_reg << 8;
 
 	if (sr_width ==2)
@@ -212,7 +212,7 @@ static inline uint32_t flash_ll_read_status_reg(flash_hw_t *hw, uint8_t sr_width
 	hw->cmd_cfg.rdsr_cmd_reg = 0x15;
 	hw->cmd_cfg.rdsr_cmd_sel = 1;
 	flash_ll_set_op_cmd(hw, FLASH_OP_CMD_RDSR);
-	while (flash_ll_is_busy(hw));
+	flash_ll_wait_op_done(hw);
 	state_reg_data |= hw->state.status_reg << 16;
 	hw->cmd_cfg.v = 0;
 
@@ -239,7 +239,7 @@ static inline void flash_ll_clear_qwfr(flash_hw_t *hw)
 	hw->config.mode_sel = 0;
 	hw->op_cmd.addr_sw_reg = 0;
 	flash_ll_set_op_cmd(hw, FLASH_OP_CMD_CRMR);
-	while (flash_ll_is_busy(hw));
+	flash_ll_wait_op_done(hw);
 }
 
 static inline void flash_ll_set_mode(flash_hw_t *hw, uint8_t mode_sel)
@@ -264,11 +264,11 @@ static inline uint32_t flash_ll_read_data_sw_flash_sel(flash_hw_t *hw)
 
 static inline void flash_ll_erase_block(flash_hw_t *hw, uint32_t erase_addr, int type)
 {
-	while (flash_ll_is_busy(hw));
+	flash_ll_wait_op_done(hw);
 	hw->op_cmd.addr_sw_reg = erase_addr;
 	hw->op_cmd.op_type_sw = type;
 	hw->op_ctrl.op_sw = 1;
-	while (flash_ll_is_busy(hw));
+	flash_ll_wait_op_done(hw);
 }
 
 static inline void flash_ll_set_op_cmd_read(flash_hw_t *hw, uint32_t read_addr)
@@ -276,7 +276,7 @@ static inline void flash_ll_set_op_cmd_read(flash_hw_t *hw, uint32_t read_addr)
 	hw->op_cmd.addr_sw_reg = read_addr;
 	hw->op_cmd.op_type_sw = FLASH_OP_CMD_READ;
 	hw->op_ctrl.op_sw = 1;
-	while (flash_ll_is_busy(hw));
+	flash_ll_wait_op_done(hw);
 }
 
 static inline uint32_t flash_ll_read_data(flash_hw_t *hw)
@@ -289,7 +289,7 @@ static inline void flash_ll_set_op_cmd_write(flash_hw_t *hw, uint32_t write_addr
 	hw->op_cmd.addr_sw_reg = write_addr;
 	hw->op_cmd.op_type_sw = FLASH_OP_CMD_PP;
 	hw->op_ctrl.op_sw = 1;
-	while (flash_ll_is_busy(hw));
+	flash_ll_wait_op_done(hw);
 }
 
 static inline void flash_ll_write_data(flash_hw_t *hw, uint32_t data)
@@ -328,13 +328,13 @@ static inline void flash_ll_set_clk_dco(flash_hw_t *hw, bool ate_enabled)
 static inline void flash_ll_write_enable(flash_hw_t *hw)
 {
 	flash_ll_set_op_cmd(hw, FLASH_OP_CMD_WREN);
-	while (flash_ll_is_busy(hw));
+	flash_ll_wait_op_done(hw);
 }
 
 static inline void flash_ll_write_disable(flash_hw_t *hw)
 {
 	flash_ll_set_op_cmd(hw, FLASH_OP_CMD_WRDI);
-	while (flash_ll_is_busy(hw));
+	flash_ll_wait_op_done(hw);
 }
 
 static inline void flash_ll_set_ota_enable(flash_hw_t *hw, bool enable)
