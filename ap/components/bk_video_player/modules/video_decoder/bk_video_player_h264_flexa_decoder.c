@@ -1012,7 +1012,7 @@ static avdk_err_t hw_h264_decoder_setup_pipeline(hw_h264_decoder_ctx_t *ctx)
     const bool horizontal_mirror = false;
     ctx->out_w = panel_w;
     ctx->out_h = panel_h;
-    ctx->scale_enable = (dst_w != ctx->mb_w || dst_h != ctx->mb_h);
+    ctx->scale_enable = (dst_w != ctx->src_w || dst_h != ctx->src_h);
     const bool gpu_compress = false;
     const bool gpu_scale = ctx->scale_enable;
 #else
