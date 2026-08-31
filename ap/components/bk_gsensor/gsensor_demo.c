@@ -102,6 +102,11 @@ static void gsensor_callback(void *handle,gsensor_data_t *data)
     if(data->count != 0)
     {
         gsensor_notify_data_ctx_t *ctx = data;
+#if CONFIG_GSENSOR_ICM42670P_ENABLE
+        GSENSOR_D_LOGI("acc:%d,%d,%d gyro:%d,%d,%d\r\n",
+                       data->xyz[0].x, data->xyz[0].y, data->xyz[0].z,
+                       data->gyro.x, data->gyro.y, data->gyro.z);
+#endif
         gsensor_data_send_to_arithemtic_module(ctx);
     }
     else
@@ -135,7 +140,11 @@ static int gsensor_demo_msg(gsensor_module_opcode_t op_code)
     {
         case GSENSOR_OPCODE_INIT:
         {
+#if CONFIG_GSENSOR_ICM42670P_ENABLE
+            gsensor_handle = bk_gsensor_init("icm42670p");
+#else
             gsensor_handle = bk_gsensor_init("sc7a20");
+#endif
             if(gsensor_handle != NULL)
             {
                 bk_gsensor_setMode(gsensor_handle,GSENSOR_MODE_NOMAL);

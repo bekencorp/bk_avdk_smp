@@ -22,7 +22,12 @@ menu "bk_gsensor"
 
 	config GSENSOR_SC7A20_ENABLE
 		depends on GSENSOR_ENABLE
-		bool "Enable gsensor IP"
+		bool "Enable gsensor SC7A20"
 		default n
-		
+
+	config GSENSOR_ICM42670P_ENABLE
+		depends on GSENSOR_ENABLE
+		bool "Enable gsensor ICM-42670-P"
+		default n
+
 endmenu

@@ -17,6 +17,12 @@ if (CONFIG_GSENSOR_SC7A20_ENABLE)
 	)
 endif()
 
+if (CONFIG_GSENSOR_ICM42670P_ENABLE)
+	list(APPEND srcs
+		gsensor_icm42670p.c
+	)
+endif()
+
 if (CONFIG_GSENSOR_DEMO_EN)
 	list(APPEND srcs
 		gsensor_demo.c

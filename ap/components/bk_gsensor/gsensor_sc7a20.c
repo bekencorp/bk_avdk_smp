@@ -206,6 +206,7 @@ static void gsensor_sc7a20_event_handler(gsensor_mode_t t_runmode)
             return;
         }
         dat->count = fifodepth;
+        os_memset(&dat->gyro, 0, sizeof(dat->gyro));
         for(int i=0;i<fifodepth;i++)
         {
             sc7a20_i2c_read(SL_SC7A20_DATA_OUT,6, &sc7a20_data[0]);
@@ -221,7 +222,7 @@ static void gsensor_sc7a20_event_handler(gsensor_mode_t t_runmode)
     else if(t_runmode == GSENSOR_MODE_WAKEUP)
     {
         gsensor_data_t nulld;
-        nulld.count = 0;
+        os_memset(&nulld, 0, sizeof(nulld));
         if(datacb)
             datacb((void*)&gs_sc7a20,&nulld);
     }

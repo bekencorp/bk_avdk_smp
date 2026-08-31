@@ -1,10 +1,21 @@
 #include <string.h>
 #include <components/bk_gsensor.h>
 
+#if CONFIG_GSENSOR_SC7A20_ENABLE
 extern const gsensor_device_t gs_sc7a20;
+#endif
+#if CONFIG_GSENSOR_ICM42670P_ENABLE
+extern const gsensor_device_t gs_icm42670p;
+#endif
+
 static const gsensor_device_t * const gsensor_devices[] = {
-    &gs_sc7a20,
-    NULL
+#if CONFIG_GSENSOR_SC7A20_ENABLE
+	&gs_sc7a20,
+#endif
+#if CONFIG_GSENSOR_ICM42670P_ENABLE
+	&gs_icm42670p,
+#endif
+	NULL
 };
 void* bk_gsensor_init(const char *devname) {
     if (devname == NULL) {
