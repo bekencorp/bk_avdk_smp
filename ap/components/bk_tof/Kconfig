@@ -1,0 +1,37 @@
+# KCONFIG_GROUP: Device Drivers::Sensors
+menu "bk_tof"
+
+	config TOF_ENABLE
+		bool "Enable ToF"
+		default n
+
+	config TOF_I2C_ID
+		depends on TOF_ENABLE
+		int "I2C controller ID"
+		range 0 2
+		default 1
+
+	config TOF_VI5302_ENABLE
+		depends on TOF_ENABLE
+		bool "Enable Visionics VI5302 "
+		default n
+
+	config TOF_VI5302_HW_IRQ
+		depends on TOF_VI5302_ENABLE
+		bool "Use GPIO hardware interrupt (else poll IntrStat)"
+		default n
+
+	config TOF_XSHUT_PIN
+		depends on TOF_ENABLE
+		int "XSHUT GPIO pin number"
+		range 0 255
+		default 255
+
+	config TOF_INT_PIN
+		depends on TOF_ENABLE
+		int "INT GPIO pin number"
+		range 0 255
+		default 255
+
+
+endmenu
