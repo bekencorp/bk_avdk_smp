@@ -4,8 +4,7 @@
 #
 # Keep board AP defaults for boot-critical options (SOC_SMP / FREERTOS_SMP /
 # PSRAM / L2_CACHE / DMA channel range). Do NOT steal CP DMA ch0-3
-# (board uses DMA_LOGIC_CHAN_ID_MIN=4). Avoid AP-side TRUSTENGINE/PSA_MBEDTLS
-# at boot — those are CP/security-test concerns and can block AP bring-up.
+# (board uses DMA_LOGIC_CHAN_ID_MIN=4).
 #
 
 # CONFIG_LWIP is not set
@@ -20,6 +19,17 @@ CONFIG_SPI_API_TEST=y
 CONFIG_SPI_DMA=y
 CONFIG_GENERAL_DMA=y
 CONFIG_XTAL_FREQ=26000000
+
+# --- Crypto / TE200 (classic mbedtls, non-TFM) ---
+CONFIG_PSA_MBEDTLS=y
+CONFIG_CLASSIC_MBEDTLS_TEST=y
+# CONFIG_PSA_MBEDTLS_TEST is not set
+CONFIG_FULL_MBEDTLS=y
+CONFIG_MBEDTLS_LOG_LEVEL="OFF"
+# CONFIG_SW_CRYPTO is not set
+# CONFIG_MBEDTLS_USE_PSA_CRYPTO is not set
+CONFIG_TRUSTENGINE=y
+CONFIG_TE200_ENTROPY=y
 
 # --- driver test/api-test CLI switches (align with test/platform .it.csv, AP side) ---
 CONFIG_PWM=y
