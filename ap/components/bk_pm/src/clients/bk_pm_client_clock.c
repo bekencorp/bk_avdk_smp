@@ -81,6 +81,7 @@ bk_err_t bk_pm_module_vote_cpu_freq(pm_dev_id_e module, pm_cpu_freq_e cpu_freq)
 {
 	if (((uint32_t)module >= PM_DEV_ID_MAX) || ((uint32_t)cpu_freq > PM_CPU_FRQ_DEFAULT))
 	{
+		LOGE("AP vote cpu freq param error: module = %d, cpu_freq = %d\r\n", module, cpu_freq);
 		return BK_ERR_PARAM;
 	}
 
@@ -218,6 +219,13 @@ bk_err_t bk_pm_clock_ctrl(pm_dev_clk_e module, pm_dev_clk_pwr_e clock_state)
 }
 bk_err_t bk_pm_module_vote_cp_cpu_freq(pm_cp_dev_id_e module, pm_cp_cpu_freq_e cpu_freq)
 {
+	if (((uint32_t)module >= PM_CP_DEV_ID_MAX) ||
+		((uint32_t)cpu_freq > PM_CP_CPU_FRQ_DEFAULT))
+	{
+		LOGE("AP vote cp cpu freq param error: module = %d, cpu_freq = %d\r\n", module, cpu_freq);
+		return BK_ERR_PARAM;
+	}
+
 #if CONFIG_MAILBOX
 	uint64_t previous_tick  = 0;
 	uint64_t current_tick   = 0;

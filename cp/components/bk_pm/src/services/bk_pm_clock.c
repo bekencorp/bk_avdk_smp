@@ -96,9 +96,10 @@ pm_cpu_freq_e bk_pm_module_current_cpu_freq_get(pm_dev_id_e module)
 
 __IRAM_SEC bk_err_t bk_pm_module_vote_cpu_freq(pm_dev_id_e module, pm_cpu_freq_e cpu_freq)
 {
-
-	if (module >= PM_DEV_ID_MAX)
+	if (((uint32_t)module >= PM_DEV_ID_MAX) ||
+		((uint32_t)cpu_freq > PM_CPU_FRQ_DEFAULT))
 	{
+		LOGE("CP vote cpu freq param error: module = %d, cpu_freq = %d\r\n", module, cpu_freq);
 		return BK_ERR_PARAM;
 	}
 
