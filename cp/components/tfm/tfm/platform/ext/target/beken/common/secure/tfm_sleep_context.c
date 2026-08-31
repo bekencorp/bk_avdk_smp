@@ -316,12 +316,10 @@ int tfm_sleep_context_restore(void)
 	const tfm_sleep_context_t *saved =
 		(const tfm_sleep_context_t *)&s_tfm_sleep_context;
 
-	/* Consume magic; MPC/DBUS/PPRO payload remains for apply_ppc(). */
-	tfm_sleep_context_invalidate();
-
 	for (uint32_t dev = 0u; dev < TFM_SLEEP_MPC_COUNT; dev++) {
 		if (tfm_sleep_mpc_restore(s_tfm_sleep_mpc_base[dev],
 					  &saved->mpc[dev]) != 0) {
+			tfm_sleep_context_invalidate();
 			return -1;
 		}
 	}
@@ -337,6 +335,7 @@ int tfm_sleep_context_restore(void)
 	for (uint32_t index = 0u; index < TFM_SLEEP_DBUS_REG_COUNT; index++) {
 		if (REG_READ(SOC_FLASH_REG_BASE + ((0x0du + index) << 2)) !=
 		    saved->flash_dbus[index]) {
+			tfm_sleep_context_invalidate();
 			return -1;
 		}
 	}

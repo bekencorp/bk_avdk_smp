@@ -24,10 +24,15 @@
 #define  PERIPHERAL_CLOCK CONFIG_XTAL_FREQ
 
 #define BK7236_PMU_BASE_ADDR         0x44000000
-#define DEEP_SLEEP_RESTART_BIT		(0x1 << 1)
 #define OTA_FINISH_RESTART_BIT		(0x1 << 2)
 #define BK7236_PMU_RESET_REASON_GET (*((volatile unsigned int *)(BK7236_PMU_BASE_ADDR + 0x0*4)))
-#define RUNNING_IS_FROM_DEEP_SLEEP      ((BK7236_PMU_RESET_REASON_GET & DEEP_SLEEP_RESTART_BIT ) != 0)
+/* Deep-sleep (Deep-LV) startup is r0.dlv_startup (bit 23), read from its
+ * retained shadow r7b (offset 0x7b) that survives deep sleep. r0 bit 1 is
+ * fast_boot, not a deep-sleep marker, so the old r0/bit1 read was wrong.
+ * Mirrors aon_pmu_hal_get_dlv_startup(). */
+#define DLV_STARTUP_BIT             (0x1u << 23)
+#define BK7236_PMU_R7B_GET          (*((volatile unsigned int *)(BK7236_PMU_BASE_ADDR + 0x7b*4)))
+#define RUNNING_IS_FROM_DEEP_SLEEP      ((BK7236_PMU_R7B_GET & DLV_STARTUP_BIT) != 0)
 #define RUNNING_IS_FROM_OTA              ((BK7236_PMU_RESET_REASON_GET & OTA_FINISH_RESTART_BIT ) != 0)
 
 #define EFUSE_REG2_MODULE        *((volatile unsigned long *) (0x44850000 + 0x2*4))

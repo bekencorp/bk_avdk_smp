@@ -25,7 +25,13 @@
 #define BL2_DS_STRINGIFY(x)  BL2_DS_STRINGIFY_(x)
 
 #define BL2_DS_ANA_REG14_ADDR      (SOC_SYS_REG_BASE + (0x4E * 4))
+#define BL2_DS_PMU_R0_ADDR         (SOC_AON_PMU_REG_BASE + (0x0 * 4))
+#define BL2_DS_PMU_R25_ADDR        (SOC_AON_PMU_REG_BASE + (0x25 * 4))
 #define BL2_DS_PMU_SHADOW_ADDR     (SOC_AON_PMU_REG_BASE + (0x7B * 4))
+#define BL2_DS_FAST_BOOT_BIT       (0x2) /* AON PMU R0.fast_boot */
+/* Same unlock sequence as aon_pmu_hal_r0_latch_to_r7b(). */
+#define BL2_DS_PMU_LATCH_KEY1      (0x424B55AA)
+#define BL2_DS_PMU_LATCH_KEY2      (0xBDB4AA55)
 
 #if CONFIG_DIRECT_XIP
 #define BL2_DS_RETENTION_MAGIC     (0x46584252) /* Little-endian "RBXF": Retention Boot XIP Flash record. */
@@ -59,7 +65,7 @@ __attribute__((naked)) int BL2_DS_ENTRY bl2_deepsleep_fastboot(void)
 		/* R7B is the retained shadow of AON PMU R0. */
 		"ldr r0, =" BL2_DS_STRINGIFY(BL2_DS_PMU_SHADOW_ADDR) "\n"
 		"ldr r1, [r0]\n"
-		"tst r1, #0x2\n"             /* fast_boot */
+		"tst r1, #" BL2_DS_STRINGIFY(BL2_DS_FAST_BOOT_BIT) "\n" /* fast_boot */
 		"beq 9f\n"
 
 		/*
@@ -186,8 +192,22 @@ __attribute__((naked)) int BL2_DS_ENTRY bl2_deepsleep_fastboot(void)
 		"cpsie i\n"
 		"bx r7\n"
 
-		/* Normal BL2 path: return without ever reading or writing the stack. */
+		/*
+		 * Fastboot aborted: clear R0.fast_boot, then R25-latch into R7B
+		 * (aon_pmu_hal_r0_latch_to_r7b). Still no stack use.
+		 */
 		"9:\n"
+		"ldr r0, =" BL2_DS_STRINGIFY(BL2_DS_PMU_R0_ADDR) "\n"
+		"ldr r1, [r0]\n"
+		"bic r1, r1, #" BL2_DS_STRINGIFY(BL2_DS_FAST_BOOT_BIT) "\n"
+		"str r1, [r0]\n"
+		"dsb\n"
+		"ldr r2, =" BL2_DS_STRINGIFY(BL2_DS_PMU_R25_ADDR) "\n"
+		"ldr r3, =" BL2_DS_STRINGIFY(BL2_DS_PMU_LATCH_KEY1) "\n"
+		"str r3, [r2]\n"
+		"ldr r3, =" BL2_DS_STRINGIFY(BL2_DS_PMU_LATCH_KEY2) "\n"
+		"str r3, [r2]\n"
+		"dsb\n"
 		"movs r0, #0\n"
 		"bx lr\n"
 	);
@@ -209,7 +229,7 @@ __attribute__((naked)) int BL2_DS_ENTRY bl2_deepsleep_fastboot(void)
 		/* R7B is the retained shadow of AON PMU R0. */
 		"ldr r0, =" BL2_DS_STRINGIFY(BL2_DS_PMU_SHADOW_ADDR) "\n"
 		"ldr r1, [r0]\n"
-		"tst r1, #0x2\n"             /* fast_boot */
+		"tst r1, #" BL2_DS_STRINGIFY(BL2_DS_FAST_BOOT_BIT) "\n"
 		"beq 9f\n"
 
 		/* Validate the TF-M secure vector without touching RAM. */
@@ -262,8 +282,19 @@ __attribute__((naked)) int BL2_DS_ENTRY bl2_deepsleep_fastboot(void)
 		"cpsie i\n"
 		"bx r7\n"
 
-		/* Normal BL2 path: return without ever reading or writing the stack. */
+		/* Same as DIRECT_XIP: clear R0.fast_boot then R25 latch. */
 		"9:\n"
+		"ldr r0, =" BL2_DS_STRINGIFY(BL2_DS_PMU_R0_ADDR) "\n"
+		"ldr r1, [r0]\n"
+		"bic r1, r1, #" BL2_DS_STRINGIFY(BL2_DS_FAST_BOOT_BIT) "\n"
+		"str r1, [r0]\n"
+		"dsb\n"
+		"ldr r2, =" BL2_DS_STRINGIFY(BL2_DS_PMU_R25_ADDR) "\n"
+		"ldr r3, =" BL2_DS_STRINGIFY(BL2_DS_PMU_LATCH_KEY1) "\n"
+		"str r3, [r2]\n"
+		"ldr r3, =" BL2_DS_STRINGIFY(BL2_DS_PMU_LATCH_KEY2) "\n"
+		"str r3, [r2]\n"
+		"dsb\n"
 		"movs r0, #0\n"
 		"bx lr\n"
 	);

@@ -13,12 +13,22 @@
 #include "tfm_hal_isolation.h"
 #include "tfm_hal_platform.h"
 #include "tfm_sleep_context.h"
+#include "aon_pmu_hal.h"
+#include "aon_pmu_ll.h"
 
-#define TFM_SLEEP_AON_FAST_BOOT       (1u << 1)
-
-extern uint32_t sys_is_enable_fast_boot(void);
 extern uint32_t sys_is_running_from_deep_sleep(void);
 extern void tcm_spe(void);
+
+/* Same clear sequence as sys_pm_hal deep-LV restore:
+ * clear R0.fast_boot / R0.dlv_startup, then R25-latch into R7B.
+ * (TFM S may not define CONFIG_DEEP_LV, so do not call aon_pmu_hal_set_dlv_startup.)
+ */
+static void tfm_sleep_clear_aon_fastboot_flags(void)
+{
+	aon_pmu_ll_set_r0_fast_boot(0);
+	aon_pmu_ll_set_r0_dlv_startup(0);
+	aon_pmu_hal_r0_latch_to_r7b();
+}
 
 static bool tfm_sleep_warm_boot_applicable(void)
 {
@@ -26,12 +36,7 @@ static bool tfm_sleep_warm_boot_applicable(void)
 		return false;
 	}
 
-	// if (sys_is_enable_fast_boot() == 0u) {
-	// 	return false;
-	// }
-
-	if ((REG_READ(SOC_AON_PMU_REG_BASE + (0x7bu << 2)) &
-	     TFM_SLEEP_AON_FAST_BOOT) == 0u) {
+	if (aon_pmu_ll_get_r7b_fast_boot() == 0u) {
 		return false;
 	}
 
@@ -112,10 +117,6 @@ static void tfm_sleep_jump_to_ns(void)
 	reg_val &= (~(uint32_t)SCB_AIRCR_VECTKEYSTAT_Msk);
 	reg_val |= (uint32_t)((0x5FAUL << SCB_AIRCR_VECTKEY_Pos) |
 			      SCB_AIRCR_PRIS_Msk |
-			      /* DIAGNOSTIC: route HardFault/BusFault/NMI to the
-			       * Non-secure world so an escalated NS fault becomes
-			       * visible in the NS handlers (GPIO27) instead of
-			       * vanishing into the secure HardFault handler. */
 			      SCB_AIRCR_BFHFNMINS_Msk);
 	SCB->AIRCR = reg_val;
 
@@ -132,10 +133,13 @@ static void tfm_sleep_jump_to_ns(void)
 void tfm_sleep_early_boot(void)
 {
 	if (!tfm_sleep_warm_boot_applicable()) {
+		/* Drop stale deepsleep markers before falling through to cold TF-M. */
+		tfm_sleep_clear_aon_fastboot_flags();
 		return;
 	}
 
 	if (tfm_sleep_context_restore() != 0) {
+		tfm_sleep_clear_aon_fastboot_flags();
 		return;
 	}
 
