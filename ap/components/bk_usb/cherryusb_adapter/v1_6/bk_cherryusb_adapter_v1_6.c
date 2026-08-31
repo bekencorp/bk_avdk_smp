@@ -75,6 +75,32 @@ bk_err_t bk_cherryusb_device_close(void)
 #endif
 }
 
+#if CONFIG_USB_DEVICE
+/* BK-specific DCD primitive: toggle the MUSB soft-connect (D+ pull-up).
+ * Implemented by the beken_musb device port (usb_dc_beken_musb_mhdrc.c). */
+extern void usbd_soft_connect(uint8_t busid, uint8_t connect);
+#endif
+
+bk_err_t bk_cherryusb_device_connect(void)
+{
+#if CONFIG_USB_DEVICE
+	usbd_soft_connect(BK_CHERRYUSB_BUS_ID, 1u);
+	return BK_OK;
+#else
+	return BK_FAIL;
+#endif
+}
+
+bk_err_t bk_cherryusb_device_disconnect(void)
+{
+#if CONFIG_USB_DEVICE
+	usbd_soft_connect(BK_CHERRYUSB_BUS_ID, 0u);
+	return BK_OK;
+#else
+	return BK_FAIL;
+#endif
+}
+
 #if CONFIG_USB_HOST && CONFIG_USBH_MSC
 void usbh_msc_run(struct usbh_msc *msc_class)
 {

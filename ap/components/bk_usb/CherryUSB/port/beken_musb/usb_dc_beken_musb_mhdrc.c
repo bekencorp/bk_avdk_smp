@@ -618,6 +618,21 @@ int usb_dc_deinit(uint8_t busid)
     return 0;
 }
 
+/* Toggle only the D+ pull-up (MUSB POWER.SOFTCONN) on the already-initialised
+ * controller, without touching the PHY/clock/power bring-up. Setting SOFTCONN
+ * presents the gadget to the host (a "plug in"); clearing it removes the pull-up
+ * (an "unplug"), so the host re-enumerates the same gadget without a full
+ * usb_dc_deinit()/usb_dc_init() cycle. */
+void usbd_soft_connect(uint8_t busid, uint8_t connect)
+{
+    (void)busid;
+    if (connect) {
+        HWREGB(USB_BASE + MUSB_POWER_OFFSET) |= USB_POWER_SOFTCONN;
+    } else {
+        HWREGB(USB_BASE + MUSB_POWER_OFFSET) &= ~USB_POWER_SOFTCONN;
+    }
+}
+
 int usbd_set_address(uint8_t busid, const uint8_t addr)
 {
     (void)busid;
