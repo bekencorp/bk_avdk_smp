@@ -555,6 +555,7 @@ __ITCM_N int rwnx_start_xmit(uint8_t vif_idx, struct pbuf *p, BUS_MSG_T *msg)
 	int ret = 0;
 	bool more_pbuf = !!(rwnx_hw_mm_features() & (1ULL << MM_FEAT_MORE_TBD_BIT));
 	uint32_t p_cnt = 0;
+	uint32_t txdesc_size;
 	int max_sg_size = macif_max_sg_size();
 	// TBD: dynamic alloc array in stack
     uint32_t seg_addr[max_sg_size];
@@ -647,12 +648,14 @@ __ITCM_N int rwnx_start_xmit(uint8_t vif_idx, struct pbuf *p, BUS_MSG_T *msg)
 
 	// alloc tx desc
 	fhost_txdesc = (struct fhost_tx_desc_tag *)((uint8_t *)skb + (sizeof(struct sk_buff)));
-	if((sizeof(struct fhost_tx_desc_tag) + fhost_txdesc_extra_size() + p_cnt * sizeof(struct tx_pbd) + (sizeof(struct sk_buff))) > CONFIG_MSDU_RESV_DESC_LENGTH)
+	txdesc_size = sizeof(struct fhost_tx_desc_tag) + fhost_txdesc_extra_size()
+		+ p_cnt * sizeof(struct tx_pbd);
+	if((txdesc_size + sizeof(struct sk_buff)) > CONFIG_MSDU_RESV_DESC_LENGTH)
 	{
 		RWNX_LOGI("rwnx_start_xmit overflow mem \r\n");
 		BK_ASSERT(0);
 	}
-	memset(fhost_txdesc, 0, sizeof(struct fhost_tx_desc_tag));
+	memset(fhost_txdesc, 0, txdesc_size);
 
 	if (!fhost_txdesc)
 		goto exit;
