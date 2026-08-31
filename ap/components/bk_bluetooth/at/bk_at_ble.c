@@ -117,7 +117,16 @@ static uint8_t s_device_name_hdl = 0;
 
 static uint32_t s_performance_tx_bytes = 0;
 static uint32_t s_performance_rx_bytes = 0;
+static uint32_t s_performance_notify_total_events = 0;
+static uint32_t s_performance_notify_lose_events = 0;
+static uint32_t s_performance_write_total_events = 0;
+static uint32_t s_performance_write_lose_events = 0;
+static uint32_t s_performance_read_total_events = 0;
+static uint32_t s_performance_read_lose_events = 0;
 static uint8_t s_performance_tx_enable = 0;
+static uint8_t s_performance_tx_is_write_nr = 0;
+static uint8_t s_performance_tx_conn_idx = 0xFF;
+static uint16_t s_performance_write_handle = 0;
 
 
 
@@ -130,6 +139,10 @@ static uint8_t s_ethermind_nordic_used[8] = {0};
 const uint8_t nus_tx_uuid[] = {0x9e, 0xca, 0xdc, 0x24, 0x0e, 0xe5, 0xa9, 0xe0, 0x93, 0xf3, 0xa3, 0xb5, 0x03, 0x00, 0x40, 0x6e};
 const uint8_t nus_rx_uuid[] = {0x9e, 0xca, 0xdc, 0x24, 0x0e, 0xe5, 0xa9, 0xe0, 0x93, 0xf3, 0xa3, 0xb5, 0x02, 0x00, 0x40, 0x6e};
 const uint8_t device_name_uuid[] = {0x00, 0x2A, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+static const uint8_t s_write_test_uuid[] = {0xf0, 0x12, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+
+#define WRITE_TEST_UUID_16 0x12F0
 
 static uint16_t plc_ccc_handle[10] = {0};
 static uint16_t plc_rx_handle[10] = {0};
@@ -172,6 +185,7 @@ int get_addr_from_param(bd_addr_t *bdaddr, char *input_param);
 
 static int ble_convert_128b_2_16b_uuid(uint8_t *uuid128, uint16_t *uuid16);
 static void ble_att_sdp_charac_callback(CHAR_TYPE type, uint8 conidx, uint16_t hdl, uint16_t len, uint8 *data);
+static ble_err_t ble_test_write_nr_hdl(uint8_t con_idx);
 
 static int ble_at_findcmd_is_sync(char *name);
 
@@ -600,8 +614,11 @@ static void ble_at_notice_cb(ble_notice_t notice, void *param)
         case BLE_5_WRITE_EVENT:
         {
             ble_write_req_t *w_req = (ble_write_req_t *)param;
-            LOGD("write_cb:conn_idx:%d, prf_id:%d, att_idx:%d, len:%d, data[0]:0x%02x\r\n",
-                 w_req->conn_idx, w_req->prf_id, w_req->att_idx, w_req->len, w_req->value[0]);
+            if (w_req->att_idx != TEST_IDX_CHAR_WRITE_TEST_VALUE || !rtos_is_timer_init(&ble_performance_rx_statistics_tmr))
+            {
+                LOGD("write_cb:conn_idx:%d, prf_id:%d, att_idx:%d, len:%d, data[0]:0x%02x\r\n",
+                     w_req->conn_idx, w_req->prf_id, w_req->att_idx, w_req->len, w_req->value[0]);
+            }
             //#if (CONFIG_BTDM_5_2)
             if (BK_BLE_HOST_STACK_TYPE_RW_5_2 == bk_ble_get_host_stack_type()
                 && w_req->prf_id == g_test_prf_task_id)
@@ -630,7 +647,14 @@ static void ble_at_notice_cb(ble_notice_t notice, void *param)
                         break;
 
                     case TEST_IDX_CHAR_WRITE_TEST_VALUE:
-                        ble_stability_show_recv_info(w_req->value, w_req->len, w_req->conn_idx);
+                        if (rtos_is_timer_init(&ble_performance_rx_statistics_tmr))
+                        {
+                            s_performance_rx_bytes += w_req->len;
+                        }
+                        else
+                        {
+                            ble_stability_show_recv_info(w_req->value, w_req->len, w_req->conn_idx);
+                        }
                         break;
 
                     case TEST_IDX_CHAR_WRITE_TEST_DESC:
@@ -788,6 +812,13 @@ static void ble_at_notice_cb(ble_notice_t notice, void *param)
             ble_discon_ind_t *d_ind = (ble_discon_ind_t *)param;
             LOGD("d_ind:conn_idx:%d,reason:%d\r\n", d_ind->conn_idx, d_ind->reason);
             s_test_conn_ind = ~0;
+            if (s_performance_tx_conn_idx == d_ind->conn_idx)
+            {
+                s_performance_write_handle = 0;
+                s_performance_tx_enable = 0;
+                s_performance_tx_is_write_nr = 0;
+                s_performance_tx_conn_idx = 0xFF;
+            }
 
             if (stability_test_s_enabled)
             {
@@ -867,6 +898,13 @@ static void ble_at_notice_cb(ble_notice_t notice, void *param)
         {
             ble_discon_ind_t *d_ind = (ble_discon_ind_t *)param;
             LOGD("BLE_5_INIT_DISCONNECT_EVENT:conn_idx:%d,reason:%d\r\n", d_ind->conn_idx, d_ind->reason);
+            if (s_performance_tx_conn_idx == d_ind->conn_idx)
+            {
+                s_performance_write_handle = 0;
+                s_performance_tx_enable = 0;
+                s_performance_tx_is_write_nr = 0;
+                s_performance_tx_conn_idx = 0xFF;
+            }
 
             if (stability_test_m_enabled)
             {
@@ -913,8 +951,13 @@ static void ble_at_notice_cb(ble_notice_t notice, void *param)
         {
             bk_ble_gatt_cmp_evt_t *evt = (bk_ble_gatt_cmp_evt_t *)param;
             uint8_t conn_idx = evt->conn_idx;
-            if (s_service_type && s_performance_tx_enable == 1)
+            if (s_service_type && s_performance_tx_enable == 1 && !s_performance_tx_is_write_nr)
             {
+                s_performance_notify_total_events++;
+                if (evt->status)
+                {
+                    s_performance_notify_lose_events++;
+                }
                 s_performance_tx_bytes += s_test_data_len;
                 ble_test_noti_hdl((void *)((uint32)conn_idx));
             }
@@ -2766,6 +2809,11 @@ static void ble_connect_sdp_comm_callback(MASTER_COMMON_TYPE type, uint8 conidx,
         {
             s_device_name_hdl = char_inf->val_hdl;
         }
+        if (conidx < AT_BLE_MAX_CONN && !os_memcmp(char_inf->uuid, s_write_test_uuid, char_inf->uuid_len))
+        {
+            s_performance_tx_conn_idx = conidx;
+            s_performance_write_handle = char_inf->val_hdl;
+        }
         LOGD("Charac UUID: 0x%02x%02x, val_hdl: %d\r\n", char_inf->uuid[1], char_inf->uuid[0], char_inf->val_hdl);
     }
 
@@ -2805,6 +2853,12 @@ static void ble_connect_sdp_comm_callback(MASTER_COMMON_TYPE type, uint8 conidx,
             else
             {
                 os_memcpy(&uuid, char_inf->uuid, sizeof(uuid));
+            }
+
+            if (uuid == WRITE_TEST_UUID_16 && conidx < AT_BLE_MAX_CONN)
+            {
+                s_performance_tx_conn_idx = conidx;
+                s_performance_write_handle = char_inf->val_hdl;
             }
 
             LOGD("char rsp uuid 0x%04x decl handle 0x%04x value handle 0x%04x prop 0x%x len %d\n", uuid, char_inf->char_hdl, char_inf->val_hdl, char_inf->prop, char_inf->uuid_len);
@@ -3839,6 +3893,7 @@ int ble_tx_test_enable_handle(int sync, int argc, char **argv)
     int err = kNoErr;
     uint8_t enable = 0;
     uint8 con_idx = 0;
+    uint8_t write_nr = 0;
 
     if (BK_BLE_HOST_STACK_TYPE_RW_5_2 != bk_ble_get_host_stack_type())
     {
@@ -3860,7 +3915,21 @@ int ble_tx_test_enable_handle(int sync, int argc, char **argv)
         con_idx = os_strtoul(argv[1], NULL, 10) & 0xFF;
     }
 
-    LOGI("%s enable %d, con_idx %d\n", __func__, enable, con_idx);
+    if (argc >= 3)
+    {
+        if (!os_strcmp(argv[2], "write_no_rsp") || !os_strcmp(argv[2], "1"))
+        {
+            write_nr = 1;
+        }
+        else if (os_strcmp(argv[2], "notify") && os_strcmp(argv[2], "0"))
+        {
+            LOGW("%s invalid tx mode %s\n", __func__, argv[2]);
+            err = kParamErr;
+            goto error;
+        }
+    }
+
+    LOGI("%s enable %d, con_idx %d, write_nr %d\n", __func__, enable, con_idx, write_nr);
 
     if (bk_ble_get_host_stack_type() != BK_BLE_HOST_STACK_TYPE_ETHERMIND)
     {
@@ -3871,10 +3940,39 @@ int ble_tx_test_enable_handle(int sync, int argc, char **argv)
             goto error;
         }
 
-        ble_test_service_write_handle(enable, con_idx);
+        if (enable && write_nr)
+        {
+            if (con_idx >= AT_BLE_MAX_CONN || con_idx != s_performance_tx_conn_idx || !s_performance_write_handle)
+            {
+                LOGE("%s write handle not found, con_idx %d\n", __func__, con_idx);
+                err = kParamErr;
+                goto error;
+            }
+
+            s_performance_tx_is_write_nr = 1;
+            s_performance_tx_conn_idx = con_idx;
+            s_performance_tx_enable = 1;
+            err = ble_test_write_nr_hdl(con_idx);
+        }
+        else if (!enable && s_performance_tx_is_write_nr)
+        {
+            s_performance_tx_enable = 0;
+            s_performance_tx_is_write_nr = 0;
+        }
+        else
+        {
+            s_performance_tx_is_write_nr = 0;
+            ble_test_service_write_handle(enable, con_idx);
+        }
     }
     else
     {
+        if (write_nr)
+        {
+            LOGE("%s write_no_rsp is not implemented for ethermind\n", __func__);
+            err = kParamErr;
+            goto error;
+        }
         bk_performance_test_profile_enable_tx(enable);
     }
 
@@ -3911,8 +4009,28 @@ error:
 
 static void ble_sdp_charac_callback(CHAR_TYPE type, uint8 conidx, uint16_t hdl, uint16_t len, uint8 *data)
 {
-    //LOGD("%s recv type %d len %d data[0] 0x%02X\n", __func__, type, len, data[0]);
-    s_performance_rx_bytes += len;
+    if (CHARAC_NOTIFY == type || CHARAC_INDICATE == type)
+    {
+        s_performance_rx_bytes += len;
+    }
+
+    if (CHARAC_WRITE_DONE == type && s_performance_tx_enable && s_performance_tx_is_write_nr && conidx == s_performance_tx_conn_idx)
+    {
+        struct ble_attc_wr_rd_op *op = (struct ble_attc_wr_rd_op *)data;
+
+        s_performance_write_total_events++;
+        if (op && !op->status)
+        {
+            s_performance_tx_bytes += s_test_data_len;
+            ble_test_write_nr_hdl(conidx);
+        }
+        else
+        {
+            s_performance_write_lose_events++;
+            LOGW("%s write nr failed\n", __func__);
+            s_performance_tx_enable = 0;
+        }
+    }
 }
 
 int ble_register_noti_service_handle(int sync, int argc, char **argv)
@@ -3991,6 +4109,12 @@ int ble_enable_performance_statistic_handle(int sync, int argc, char **argv)
                 if (!rtos_is_timer_init(&ble_performance_tx_statistics_tmr))
                 {
                     s_performance_tx_bytes = 0;
+                    s_performance_notify_total_events = 0;
+                    s_performance_notify_lose_events = 0;
+                    s_performance_write_total_events = 0;
+                    s_performance_write_lose_events = 0;
+                    s_performance_read_total_events = 0;
+                    s_performance_read_lose_events = 0;
 
                     rtos_init_timer(&ble_performance_tx_statistics_tmr, 1000, ble_performance_tx_timer_hdl, (void *)0);
                     rtos_start_timer(&ble_performance_tx_statistics_tmr);
@@ -4579,10 +4703,56 @@ void ble_test_noti_hdl(void *param)
     ret = bk_ble_send_noti_value(con_idx, s_test_data_len, write_buffer, g_test_prf_task_id, TEST_IDX_CHAR_VALUE);
     if (ret != BK_ERR_BLE_SUCCESS)
     {
+        if (rtos_is_timer_init(&ble_performance_tx_statistics_tmr))
+        {
+            s_performance_notify_total_events++;
+            s_performance_notify_lose_events++;
+        }
         LOGW("%s ret err %d\n", __func__, ret);
     }
 
     os_free(write_buffer);
+}
+
+static ble_err_t ble_test_write_nr_hdl(uint8_t con_idx)
+{
+    uint8_t *write_buffer = NULL;
+    ble_err_t ret = BK_ERR_BLE_SUCCESS;
+
+    if (!s_performance_tx_enable || !s_performance_tx_is_write_nr ||
+        con_idx >= AT_BLE_MAX_CONN || con_idx != s_performance_tx_conn_idx ||
+        !s_performance_write_handle)
+    {
+        return BK_ERR_BLE_FAIL;
+    }
+
+    write_buffer = os_malloc(s_test_data_len);
+    if (!write_buffer)
+    {
+        LOGW("%s alloc err\n", __func__);
+        s_performance_tx_enable = 0;
+        return BK_ERR_NO_MEM;
+    }
+
+    os_memset(write_buffer, 0, s_test_data_len);
+    os_memcpy(write_buffer, &s_test_noti_count, sizeof(s_test_noti_count));
+    s_test_noti_count++;
+
+    ret = bk_ble_gattc_write(con_idx, s_performance_write_handle, write_buffer, s_test_data_len, 1);
+    os_free(write_buffer);
+
+    if (ret != BK_ERR_BLE_SUCCESS)
+    {
+        if (rtos_is_timer_init(&ble_performance_tx_statistics_tmr))
+        {
+            s_performance_write_total_events++;
+            s_performance_write_lose_events++;
+        }
+        LOGW("%s ret err %d\n", __func__, ret);
+        s_performance_tx_enable = 0;
+    }
+
+    return ret;
 }
 
 static void ble_performance_tx_timer_hdl(void *param)
@@ -4591,6 +4761,19 @@ static void ble_performance_tx_timer_hdl(void *param)
     s_performance_tx_bytes = 0;
 
     LOGD("%s current tx %d bytes/sec\n", __func__, tmp);
+    LOGD("notify lose_event:%d total_event:%d per second\n",
+         s_performance_notify_lose_events, s_performance_notify_total_events);
+    LOGD("write lose_event:%d total_event:%d per second\n",
+         s_performance_write_lose_events, s_performance_write_total_events);
+    LOGD("read lose_event:%d total_event:%d per second\n",
+         s_performance_read_lose_events, s_performance_read_total_events);
+
+    s_performance_notify_total_events = 0;
+    s_performance_notify_lose_events = 0;
+    s_performance_write_total_events = 0;
+    s_performance_write_lose_events = 0;
+    s_performance_read_total_events = 0;
+    s_performance_read_lose_events = 0;
 }
 
 static void ble_performance_rx_timer_hdl(void *param)
@@ -5943,6 +6126,19 @@ static void ble_att_sdp_charac_callback(CHAR_TYPE type, uint8 conidx, uint16_t h
             }
         }
     }
+    else if (CHARAC_READ_DONE == type)
+    {
+        struct ble_attc_wr_rd_op *op = (struct ble_attc_wr_rd_op *)data;
+
+        if (rtos_is_timer_init(&ble_performance_tx_statistics_tmr))
+        {
+            s_performance_read_total_events++;
+            if (!op || op->status)
+            {
+                s_performance_read_lose_events++;
+            }
+        }
+    }
 }
 
 static int ble_att_read_handle(int sync, int argc, char **argv)
@@ -5975,6 +6171,11 @@ static int ble_att_read_handle(int sync, int argc, char **argv)
         bk_ble_set_notice_cb(ble_at_notice_cb);
         bk_ble_register_app_sdp_charac_callback(ble_att_sdp_charac_callback);
         err = bk_ble_gattc_read((uint8_t)conn_handle, s_read_tmp_attr_handle, 0);
+        if (err != BK_ERR_BLE_SUCCESS && rtos_is_timer_init(&ble_performance_tx_statistics_tmr))
+        {
+            s_performance_read_total_events++;
+            s_performance_read_lose_events++;
+        }
     }
     else
     {
@@ -6897,8 +7098,6 @@ static beken_timer_t stability_test_tmr;
 static uint32 stability_test_sent_count = 0;
 static uint32 stability_test_slave_recv_count = 0;
 
-const uint8_t stability_wt_uuid[] = {0xf0, 0x12, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
-
 void show_stability_test_result(void)
 {
     uint32 m_sent_total = 0;
@@ -6968,7 +7167,7 @@ static void ble_stability_sdp_comm_callback(MASTER_COMMON_TYPE type, uint8 conid
     {
         struct ble_sdp_char_inf *char_inf = (struct ble_sdp_char_inf *)param;
 
-        if ((!os_memcmp(char_inf->uuid, stability_wt_uuid, char_inf->uuid_len)) && (conidx < AT_BLE_MAX_CONN))
+        if ((!os_memcmp(char_inf->uuid, s_write_test_uuid, char_inf->uuid_len)) && (conidx < AT_BLE_MAX_CONN))
         {
             ble_st_conn_env[conidx].stability_wt_handle = char_inf->val_hdl;
         }
@@ -9088,7 +9287,7 @@ const struct _atsvr_command ble_cmds_table[] =
                      NULL, ble_register_performance_service_handle, true, AT_SYNC_CMD_TIMEOUT_MS, true, NULL, false),
     ATSVR_CMD_HADLER("AT+BLETXTESTPARAM", "set tx test param: <data_len> <interv>:AT+BLETXTESTPARAM=<param1>,<param2>",
                      NULL, ble_tx_test_param_handle, false, 0, 0, NULL, false),
-    ATSVR_CMD_HADLER("AT+BLETXTESTENABLE", "enable tx test: <1|0>:AT+BLETXTESTENABLE=<param1>",
+    ATSVR_CMD_HADLER("AT+BLETXTESTENABLE", "enable tx test: <1|0>[,<conn_idx>[,<notify|write_no_rsp>]]:AT+BLETXTESTENABLE=<param1>[,<param2>[,<param3>]]",
                      NULL, ble_tx_test_enable_handle, false, 0, true, NULL, false),
     ATSVR_CMD_HADLER("AT+BLEUPDATEMTU2MAX", "update mtu 2 max: <addr>:AT+BLEUPDATEMTU2MAX=<param1>",
                      NULL, ble_update_mtu_2_max_handle, true, AT_SYNC_CMD_TIMEOUT_MS, true, NULL, false),
@@ -9171,7 +9370,7 @@ const struct _atsvr_command ble_cmds_table[] =
     //              NULL,ble_set_phy_handle,true,AT_SYNC_CMD_TIMEOUT_MS,true,NULL,false),
     ATSVR_CMD_HADLER("AT+BLETXTESTPARAM", "set tx test param: <data_len> <interv>:AT+BLETXTESTPARAM=<param1>,<param2>",
                      NULL, ble_tx_test_param_handle, false, 0, 0, NULL, false),
-    ATSVR_CMD_HADLER("AT+BLETXTESTENABLE", "enable tx test: <1|0>:AT+BLETXTESTENABLE=<param1>",
+    ATSVR_CMD_HADLER("AT+BLETXTESTENABLE", "enable tx test: <1|0>[,<conn_idx>[,<notify|write_no_rsp>]]:AT+BLETXTESTENABLE=<param1>[,<param2>[,<param3>]]",
                      NULL, ble_tx_test_enable_handle, false, 1000, true, NULL, false), //use timer
     ATSVR_CMD_HADLER("AT+BLEMTU2MAX", "update mtu 2 max: <addr>:AT+BLEMTU2MAX=<param1>",
                      NULL, ble_update_mtu_2_max_handle, true, AT_SYNC_CMD_TIMEOUT_MS, true, NULL, false),
