@@ -68,7 +68,7 @@ static const char *pm_cpu_freq_to_string(uint32_t cpu_freq)
 }
 
 /*=========================CLK/FREQ CTRL START========================*/
-bk_err_t pm_core_bus_clock_ctrl(uint32_t cksel_core, uint32_t ckdiv_core, uint32_t ckdiv_bus, uint32_t ckdiv_cpu0, uint32_t ckdiv_cpu1)
+__IRAM_SEC bk_err_t pm_core_bus_clock_ctrl(uint32_t cksel_core, uint32_t ckdiv_core, uint32_t ckdiv_bus, uint32_t ckdiv_cpu0, uint32_t ckdiv_cpu1)
 {
 	GLOBAL_INT_DECLARATION();
 
@@ -94,7 +94,7 @@ pm_cpu_freq_e bk_pm_module_current_cpu_freq_get(pm_dev_id_e module)
 	return s_pm_cpu_freq[module];
 }
 
-bk_err_t bk_pm_module_vote_cpu_freq(pm_dev_id_e module, pm_cpu_freq_e cpu_freq)
+__IRAM_SEC bk_err_t bk_pm_module_vote_cpu_freq(pm_dev_id_e module, pm_cpu_freq_e cpu_freq)
 {
 
 	if (module >= PM_DEV_ID_MAX)
