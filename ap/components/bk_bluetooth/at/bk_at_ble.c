@@ -603,7 +603,7 @@ static void ble_at_notice_cb(ble_notice_t notice, void *param)
             LOGD("write_cb:conn_idx:%d, prf_id:%d, att_idx:%d, len:%d, data[0]:0x%02x\r\n",
                  w_req->conn_idx, w_req->prf_id, w_req->att_idx, w_req->len, w_req->value[0]);
             //#if (CONFIG_BTDM_5_2)
-            if (bk_ble_get_controller_stack_type() == BK_BLE_CONTROLLER_STACK_TYPE_BTDM_5_2
+            if (BK_BLE_HOST_STACK_TYPE_RW_5_2 == bk_ble_get_host_stack_type()
                 && w_req->prf_id == g_test_prf_task_id)
             {
                 switch (w_req->att_idx)
@@ -826,7 +826,7 @@ static void ble_at_notice_cb(ble_notice_t notice, void *param)
         {
 
             //#if (CONFIG_BTDM_5_2)
-            if (bk_ble_get_controller_stack_type() == BK_BLE_CONTROLLER_STACK_TYPE_BTDM_5_2)
+            if (BK_BLE_HOST_STACK_TYPE_RW_5_2 == bk_ble_get_host_stack_type())
             {
                 ble_create_db_t *cd_ind = (ble_create_db_t *)param;
                 LOGD("cd_ind:prf_id:%d, status:%d sh %d\r\n", cd_ind->prf_id, cd_ind->status, cd_ind->start_hdl);
@@ -1223,7 +1223,7 @@ static void ble_at_notice_cb(ble_notice_t notice, void *param)
 
         case BLE_5_DELETE_SERVICE_DONE:
         {
-            if (bk_ble_get_controller_stack_type() == BK_BLE_CONTROLLER_STACK_TYPE_BTDM_5_2)
+            if (BK_BLE_HOST_STACK_TYPE_RW_5_2 == bk_ble_get_host_stack_type())
             {
                 ble_create_db_t *cd_ind = (ble_create_db_t *)param;
                 LOGD("delete dervice done, prf_id:%d, status:%d\r\n", cd_ind->prf_id, cd_ind->status);
@@ -3752,7 +3752,7 @@ int ble_tx_test_param_handle(int sync, int argc, char **argv)
     uint16_t len = 0;
     uint32_t inter = 0;
 
-    if (bk_ble_get_controller_stack_type() != BK_BLE_CONTROLLER_STACK_TYPE_BTDM_5_2)
+    if (BK_BLE_HOST_STACK_TYPE_RW_5_2 != bk_ble_get_host_stack_type())
     {
         err = kParamErr;
         goto error;
@@ -3840,7 +3840,7 @@ int ble_tx_test_enable_handle(int sync, int argc, char **argv)
     uint8_t enable = 0;
     uint8 con_idx = 0;
 
-    if (bk_ble_get_controller_stack_type() != BK_BLE_CONTROLLER_STACK_TYPE_BTDM_5_2)
+    if (BK_BLE_HOST_STACK_TYPE_RW_5_2 != bk_ble_get_host_stack_type())
     {
         err = kParamErr;
         goto error;
@@ -3937,7 +3937,7 @@ int ble_enable_performance_statistic_handle(int sync, int argc, char **argv)
     uint8_t enable = 0;
     uint8_t type = 0;
 
-    if (bk_ble_get_controller_stack_type() != BK_BLE_CONTROLLER_STACK_TYPE_BTDM_5_2)
+    if (BK_BLE_HOST_STACK_TYPE_RW_5_2 != bk_ble_get_host_stack_type())
     {
         err = kParamErr;
         goto error;
@@ -4379,7 +4379,7 @@ static int ble_register_service_handle(int sync, int argc, char **argv)
     struct bk_ble_db_cfg ble_db_cfg;
     uint8 cur_test_prf_task_id = 0;
 
-    if (bk_ble_get_controller_stack_type() != BK_BLE_CONTROLLER_STACK_TYPE_BTDM_5_2)
+    if (BK_BLE_HOST_STACK_TYPE_RW_5_2 != bk_ble_get_host_stack_type())
     {
         err = kParamErr;
         goto error;
@@ -4642,7 +4642,7 @@ int ble_read_phy_handle(int sync, int argc, char **argv)
     uint8_t conn_idx = 0;
     uint8_t addr_type = 1;
 
-    if (bk_ble_get_controller_stack_type() != BK_BLE_CONTROLLER_STACK_TYPE_BTDM_5_2)
+    if (BK_BLE_HOST_STACK_TYPE_RW_5_2 != bk_ble_get_host_stack_type())
     {
         err = kParamErr;
         goto error;
@@ -4763,7 +4763,7 @@ int ble_set_phy_handle(int sync, int argc, char **argv)
     ble_set_phy_t le_set_phy;
     uint8_t addr_type = 1;
 
-    if (bk_ble_get_controller_stack_type() != BK_BLE_CONTROLLER_STACK_TYPE_BTDM_5_2)
+    if (BK_BLE_HOST_STACK_TYPE_RW_5_2 != bk_ble_get_host_stack_type())
     {
         err = kParamErr;
         goto error;
@@ -4918,7 +4918,7 @@ int ble_set_max_mtu_handle(int sync, int argc, char **argv)
     int err = kNoErr;
     uint16_t att_max_mtu = 0;
 
-    if (bk_ble_get_controller_stack_type() != BK_BLE_CONTROLLER_STACK_TYPE_BTDM_5_2)
+    if (BK_BLE_HOST_STACK_TYPE_RW_5_2 != bk_ble_get_host_stack_type())
     {
         err = kParamErr;
         goto error;
@@ -5789,7 +5789,7 @@ int ble_update_param_reply_handle(char *pcWriteBuffer, int xWriteBufferLen, int 
     uint8_t con_idx = 0;
     uint8_t accept = 0;
 
-    if (bk_ble_get_controller_stack_type() != BK_BLE_CONTROLLER_STACK_TYPE_BTDM_5_2)
+    if (BK_BLE_HOST_STACK_TYPE_RW_5_2 != bk_ble_get_host_stack_type())
     {
         err = kParamErr;
         goto error;
@@ -6077,7 +6077,7 @@ int ble_enable_packet_loss_ratio_test_handle(int sync, int argc, char **argv)
     int err = kNoErr;
     uint8_t cmd = 0;
 
-    if (bk_ble_get_controller_stack_type() != BK_BLE_CONTROLLER_STACK_TYPE_BTDM_5_2)
+    if (BK_BLE_HOST_STACK_TYPE_RW_5_2 != bk_ble_get_host_stack_type())
     {
         err = kParamErr;
         goto error;
@@ -7114,7 +7114,7 @@ int ble_stability_test_handle(int sync, int argc, char **argv)
     int err = kNoErr;
     uint8_t cmd = 0;
 
-    if (bk_ble_get_controller_stack_type() != BK_BLE_CONTROLLER_STACK_TYPE_BTDM_5_2)
+    if (BK_BLE_HOST_STACK_TYPE_RW_5_2 != bk_ble_get_host_stack_type())
     {
         err = kParamErr;
         goto error;
@@ -7344,7 +7344,7 @@ int ble_unregister_service_handle(int sync, int argc, char **argv)
     uint16 my_service_uuid = 0;
     struct bk_ble_db_cfg ble_db_cfg;
 
-    if (bk_ble_get_controller_stack_type() != BK_BLE_CONTROLLER_STACK_TYPE_BTDM_5_2)
+    if (BK_BLE_HOST_STACK_TYPE_RW_5_2 != bk_ble_get_host_stack_type())
     {
         err = kParamErr;
         goto error;

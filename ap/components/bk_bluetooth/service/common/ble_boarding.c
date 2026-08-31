@@ -248,7 +248,7 @@ static void ble_at_legacy_notice_cb(ble_notice_t notice, void *param)
                       (w_req->len > 0 && w_req->value) ? w_req->value[0] : 0x00);
             //#if (CONFIG_BTDM_5_2)
 
-            if (bk_ble_get_controller_stack_type() == BK_BLE_CONTROLLER_STACK_TYPE_BTDM_5_2
+            if (BK_BLE_HOST_STACK_TYPE_RW_5_2 == bk_ble_get_host_stack_type()
                 && w_req->prf_id == PRF_TASK_ID_BOARDING)
             {
                 switch (w_req->att_idx)
