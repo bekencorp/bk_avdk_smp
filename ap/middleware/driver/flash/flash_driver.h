@@ -68,6 +68,9 @@ typedef struct {
 	uint8_t coutinuous_read_mode_bits_val;
 } flash_config_t;
 
+/* Called while flash erase/write is busy-waiting; keep callbacks in ITCM. */
+void flash_waiting_cb(void);
+
 /* Test-only helpers to toggle flash protection for CLI/verify. */
 void test_flash_set_protect_type_none(void);
 void test_flash_set_protect_type_all(void);

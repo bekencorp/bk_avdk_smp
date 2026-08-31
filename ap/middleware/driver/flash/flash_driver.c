@@ -92,6 +92,9 @@ static flash_driver_t s_flash = {0};
 static bool s_flash_is_init = false;
 static flash_protect_type_t s_flash_runtime_protect_type = FLASH_PROTECT_ALL;
 
+#define FLASH_MAX_WAIT_CB_CNT (4)
+static flash_wait_callback_t s_flash_wait_cb[FLASH_MAX_WAIT_CB_CNT] = {NULL};
+
 extern bk_err_t    mb_flash_ipc_init(void);
 extern bk_err_t    mb_flash_op_prepare(void);
 extern bk_err_t    mb_flash_op_finish(void);
@@ -488,7 +491,7 @@ static bk_err_t flash_write_common(const uint8_t *buffer, uint32_t address, uint
 		}
 
 		uint32_t int_level = flash_enter_critical();
-		flash_hal_wait_op_done(&s_flash.hal);
+		flash_hal_wait_op_done_cb(&s_flash.hal);
 
 		for (uint32_t i = 0; i < FLASH_BUFFER_LEN; i++) {
 			flash_hal_write_data(&s_flash.hal, buf[i]);
@@ -942,6 +945,55 @@ bool bk_flash_is_driver_inited()
 uint32_t bk_flash_get_current_total_size(void)
 {
 	return s_flash.flash_cfg->flash_size;
+}
+
+bk_err_t bk_flash_register_wait_cb(flash_wait_callback_t wait_cb)
+{
+	uint32_t i = 0;
+
+	for (i = 0; i < FLASH_MAX_WAIT_CB_CNT; i++) {
+		if (s_flash_wait_cb[i] == NULL) {
+			s_flash_wait_cb[i] = wait_cb;
+			break;
+		}
+	}
+
+	if (i == FLASH_MAX_WAIT_CB_CNT) {
+		FLASH_LOGE("cb is full\r\n");
+		return BK_ERR_FLASH_WAIT_CB_FULL;
+	}
+
+	return BK_OK;
+}
+
+bk_err_t bk_flash_unregister_wait_cb(flash_wait_callback_t wait_cb)
+{
+	uint32_t i = 0;
+
+	for (i = 0; i < FLASH_MAX_WAIT_CB_CNT; i++) {
+		if (s_flash_wait_cb[i] == wait_cb) {
+			s_flash_wait_cb[i] = NULL;
+			break;
+		}
+	}
+
+	if (i == FLASH_MAX_WAIT_CB_CNT) {
+		FLASH_LOGE("cb isn't registered\r\n");
+		return BK_ERR_FLASH_WAIT_CB_NOT_REGISTER;
+	}
+
+	return BK_OK;
+}
+
+__attribute__((section(".itcm_sec_code"))) void flash_waiting_cb(void)
+{
+	uint32_t i = 0;
+
+	for (i = 0; i < FLASH_MAX_WAIT_CB_CNT; i++) {
+		if (s_flash_wait_cb[i]) {
+			s_flash_wait_cb[i]();
+		}
+	}
 }
 
 bk_err_t bk_flash_register_ps_suspend_callback(flash_ps_callback_t ps_suspend_cb)
