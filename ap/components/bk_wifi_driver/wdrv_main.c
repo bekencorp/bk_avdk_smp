@@ -43,6 +43,11 @@ void wdrv_print_debug_info()
     WDRV_LOGD("wdrv tx_list_num:%d,first:0x%x,last:0x%x\n", 
         wdrv_stats_ptr->tx_list_num,wdrv_ipc_env[IPC_DATA].tx_list.first,wdrv_ipc_env[IPC_DATA].tx_list.last);
 
+#if CONFIG_CONTROLLER_AP_BUFFER_COPY
+    WDRV_LOGD("wdrv tx pending cnt:%d, drop cnt:%d\n",
+        wdrv_env.tx_pending_count, wdrv_stats_ptr->tx_pending_drop_cnt);
+#endif
+
     WDRV_LOGD("wdrv rx cpy fail:%d,   wdrv tx snder fail:%d,   wdrv msg snder fail:%d \n", 
     wdrv_stats_ptr->wdrv_rx_cpy_fail,
     wdrv_stats_ptr->wdrv_tx_snder_fail,
@@ -334,21 +339,25 @@ void wdrv_main(void *arg)
             case WDRV_TASK_MSG_TXDATA:
                 wdrv_txdata_pre_process(TX_MSDU_DATA,(void*)msg.arg,msg.retry_flag);
                 break;
+#if CONFIG_CONTROLLER_AP_BUFFER_COPY
+            case WDRV_TASK_MSG_TX_PENDING:
+                wdrv_tx_pending_process();
+                break;
+#endif
             case WDRV_TASK_MSG_RXDATA:
                 wdrv_rxdata_process((struct pbuf *)msg.arg);
                 break;
             default:
                 break;
         }
-        #if CONFIG_CONTROLLER_AP_BUFFER_COPY
-        if(wdrv_env.is_controlled)
-        {
-            if(wdrv_cp_mem_tx_allowed())
-            {
-                wdrv_msg_sender(0,WDRV_TASK_MSG_TXDATA,1);
-            }
-        }
-        #endif
+#if CONFIG_CONTROLLER_AP_BUFFER_COPY
+        /*
+         * Any worker activity gives AP an earlier opportunity to observe CP
+         * memory recovery instead of waiting for FLOW_RESUME_IND.
+         */
+        if(wdrv_tx_flow_is_controlled())
+            (void)wdrv_cp_mem_tx_allowed();
+#endif
         if(wdrv_env.is_init)
             wdrv_attach_rx_buffer();
     }
@@ -372,6 +381,10 @@ bk_err_t wdrv_init()
 
     //IPC interface init
     wdrv_ipc_init();
+#if CONFIG_CONTROLLER_AP_BUFFER_COPY
+    co_list_init(&wdrv_env.tx_pending_list);
+    wdrv_env.tx_pending_count = 0;
+#endif
     //Init event buffer(for CP->AP use)
     wdrv_tx_cmd_buffer_init();
     
@@ -382,6 +395,14 @@ bk_err_t wdrv_init()
         WDRV_LOGE("wdrv_init init queue failed:%d\n", ret);
         goto wdrv_init_failed;
     }
+#if CONFIG_CONTROLLER_AP_BUFFER_COPY
+    ret = wdrv_tx_pending_timer_init();
+    if(ret != BK_OK)
+    {
+        WDRV_LOGE("wdrv_init init pending timer failed:%d\n", ret);
+        goto wdrv_init_failed;
+    }
+#endif
 #if (CONFIG_SOC_SMP)
     ret = rtos_smp_create_thread(&wdrv_env.handle,
                                 WDRV_TASK_PRIO,
@@ -423,11 +444,20 @@ wdrv_init_failed:
 bk_err_t wdrv_deinit()
 {
     WDRV_LOGE("ctrl_if_deinit\n");
+    wdrv_env.is_init = 0;
+
+#if CONFIG_CONTROLLER_AP_BUFFER_COPY
+    wdrv_tx_pending_timer_deinit();
+#endif
 
     if (wdrv_env.handle) {
         rtos_delete_thread(&wdrv_env.handle);
         wdrv_env.handle = NULL;
     }
+
+#if CONFIG_CONTROLLER_AP_BUFFER_COPY
+    wdrv_tx_pending_flush();
+#endif
 
     if (wdrv_env.io_queue) {
         rtos_deinit_queue(&wdrv_env.io_queue);

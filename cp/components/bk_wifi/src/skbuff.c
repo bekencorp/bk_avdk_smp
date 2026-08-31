@@ -179,6 +179,10 @@ __IRAM2 void kfree_skb(struct sk_buff *skb)
 #if (CONFIG_WIFI_VNET_CONTROLLER && (!CONFIG_CONTROLLER_AP_BUFFER_COPY))
 	bool is_ap_buf = (txdesc->host.flags & TXU_CTRL_IF_DATA) != 0;
 #endif
+#if (CONFIG_WIFI_VNET_CONTROLLER && CONFIG_CONTROLLER_AP_BUFFER_COPY)
+	bool check_flow_resume = ((txdesc->host.flags & TXU_CTRL_IF_DATA) != 0) &&
+		((txdesc->host.flags & TXU_CNTRL_MGMT) == 0) && (skb->p != NULL);
+#endif
 	if(txdesc->host.flags & TXU_CNTRL_MGMT){
 		if (skb->ftxdesc) {
 			os_free(skb->ftxdesc);
@@ -210,6 +214,10 @@ __IRAM2 void kfree_skb(struct sk_buff *skb)
 		}
 	}
 	skb_dec_pending_cnt();
+#if (CONFIG_WIFI_VNET_CONTROLLER && CONFIG_CONTROLLER_AP_BUFFER_COPY)
+	if (check_flow_resume)
+		cif_tx_flow_check_after_free();
+#endif
 }
 
 void dev_kfree_skb_any(struct sk_buff *skb)

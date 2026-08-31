@@ -506,6 +506,7 @@ bk_err_t wdrv_cntrl_get_cp_lwip_mem_addr()
         g_cp_mem_addr_info.magic = 0;
     }
 
+    wdrv_tx_flow_reset();
     return ret;
 }
 #endif
@@ -746,6 +747,26 @@ void wdrv_rx_handle_wifi_cntrl_event(wdrv_rx_msg *msg)
         case BK_EVT_WIFI_EVENT_IND:
             wdrv_handle_wifi_event_ind((cif_wifi_event_ind_t *)msg->param);
             break;
+#endif
+#if CONFIG_CONTROLLER_AP_BUFFER_COPY
+        case BK_EVT_TX_FLOW_RESUME_IND:
+        {
+            wdrv_tx_flow_resume_ind_t *ind;
+
+            if(!msg->param || (msg->param_len < sizeof(wdrv_tx_flow_resume_ind_t)))
+            {
+                WDRV_LOGE(TAG, "invalid tx flow resume ind, len=%u\n", msg->param_len);
+                break;
+            }
+
+            ind = (wdrv_tx_flow_resume_ind_t *)msg->param;
+            /*
+             * wdrv_cp_mem_tx_allowed() posts TX_PENDING when resume changes
+             * the state from controlled to allowed; do not post it twice here.
+             */
+            (void)wdrv_tx_flow_resume(ind->flow_cnt);
+            break;
+        }
 #endif
 #if CONFIG_P2P
         case BK_EVT_MODEXP_REQ:

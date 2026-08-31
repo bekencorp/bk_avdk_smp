@@ -79,6 +79,17 @@ void cif_stats_exit_critical(uint32_t flags);
 #if CONFIG_CONTROLLER_AP_BUFFER_COPY
 #define CP_MEM_SNAPSHOT_MAGIC          0x43504D53U /* CPMS */
 #define CP_MEM_SNAPSHOT_VERSION        1U
+#define AP_TX_FLOW_CONTROLLED_MASK     0x1U
+#define AP_TX_FLOW_CNT_SHIFT           1U
+
+typedef struct ap_tx_flow_state {
+    volatile uint32_t value;
+} ap_tx_flow_state_t;
+
+#define AP_TX_FLOW_STATE_VALUE(flow_cnt, controlled) \
+    (((flow_cnt) << AP_TX_FLOW_CNT_SHIFT) | ((controlled) ? AP_TX_FLOW_CONTROLLED_MASK : 0U))
+#define AP_TX_FLOW_STATE_CONTROLLED(value) (((value) & AP_TX_FLOW_CONTROLLED_MASK) != 0U)
+#define AP_TX_FLOW_STATE_CNT(value)        ((value) >> AP_TX_FLOW_CNT_SHIFT)
 
 typedef struct cp_mem_addr_info {
     uint32_t magic;
@@ -171,6 +182,7 @@ enum BK_EVENT_TYPE
     BK_EVT_P2P_GO_START_IND     = 0x8,
     BK_EVT_P2P_GO_STOP_IND      = 0x9,
     BK_EVT_WIFI_EVENT_IND       = 0xA,
+    BK_EVT_TX_FLOW_RESUME_IND   = 0xB,
 
     BK_EVT_CONTROLLER_AT_IND    = 0x201,
     BK_EVT_CUSTOMER_IND         = 0x202,
@@ -180,6 +192,10 @@ enum BK_EVENT_TYPE
 
     BK_EVT_BUTT                 = BK_MAX_MSG_CNT - 1
 };
+
+typedef struct {
+    uint32_t flow_cnt;
+} cif_tx_flow_resume_ind_t;
 /* cmd-table from app to netdrv */
 enum BK_PRIVATE_CMD_TYPE
 {
@@ -489,6 +505,9 @@ __IRAM2 bk_err_t cif_rxdata_pre_process(uint8_t channel,void* head,uint8_t need_
 __IRAM2 void cif_rx_data_complete(void *param, void *ack_buf);
 __IRAM2 void cif_rx_evt_complete(void *param, void *ack_buf);
 __IRAM2 bk_err_t cif_msg_sender(void* head,enum cif_task_msg_evt type,uint8_t retry);
+#if CONFIG_CONTROLLER_AP_BUFFER_COPY
+__IRAM2 void cif_tx_flow_check_after_free(void);
+#endif
 
 void cif_print_debug_info();
 #ifdef __cplusplus

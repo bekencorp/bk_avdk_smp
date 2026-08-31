@@ -15,6 +15,9 @@
 #include "lwip/stats.h"
 #if CONFIG_CONTROLLER_AP_BUFFER_COPY
 #include <sys_sw_regs.h>
+#if CONFIG_SUPPORT_CACHEABLE_SRAM
+#include "cache.h"
+#endif
 #endif
 #ifdef CONFIG_IPV6
 #include "lwip/netif.h"
@@ -101,7 +104,6 @@ bk_err_t cif_bk_send_event(uint16_t event_id, uint8_t *event_data, uint16_t even
     uint32_t buf_len = sizeof(struct cpdu_t) + sizeof(struct bk_rx_msg_hdr) + event_len;
     struct ctrl_cmd_hdr * buf = NULL;
     bk_err_t ret = BK_OK;
-    CTRL_IF_CMD("%s\n",__func__);
 
     if (!cif_env.host_powerup)
     {
@@ -651,9 +653,118 @@ bk_err_t cif_handle_bk_cmd_interface_debug(struct bk_msg_hdr *msg)
  * published separately by the heap itself (cp_heap_size_ptr) to keep the OS
  * heap internals decoupled from the controller. */
 static cp_mem_addr_info_t s_cp_mem_addr_info = {0};
+static bool s_tx_flow_resume_pending;
+static uint32_t s_tx_flow_last_notified_cnt;
+
+static __IRAM2 uint32_t cif_tx_flow_state_get(void)
+{
+    volatile sys_sw_regs_t *regs = bk_sys_sw_regs_ptr();
+    uint32_t addr;
+
+#if CONFIG_SUPPORT_CACHEABLE_SRAM
+    cache_data_invd_range(
+        (void *)&regs->ap_tx_flow_state_ptr,
+        sizeof(regs->ap_tx_flow_state_ptr));
+#endif
+    addr = regs->ap_tx_flow_state_ptr;
+    if(addr == 0)
+        return 0;
+
+#if CONFIG_SUPPORT_CACHEABLE_SRAM
+    cache_data_invd_range((void *)addr, sizeof(ap_tx_flow_state_t));
+#endif
+    return ((volatile ap_tx_flow_state_t *)addr)->value;
+}
+
+static __IRAM2 bool cif_tx_flow_mem_recovered(void)
+{
+#if MEM_STATS
+    uint32_t tx_used;
+    uint32_t tx_avail;
+    uint32_t mem_used;
+    uint32_t mem_avail;
+    uint32_t tx_pct;
+    uint32_t mem_pct;
+    size_t heap_free;
+    uint32_t heap_min_rsv;
+
+#if MEM_TRX_DYNAMIC_EN
+    tx_used = lwip_stats.mem.tx_used;
+    tx_avail = lwip_stats.mem.tx_avail;
+#else
+    tx_used = lwip_stats.mem.used;
+    tx_avail = lwip_stats.mem.avail;
+#endif
+    mem_used = lwip_stats.mem.used;
+    mem_avail = lwip_stats.mem.avail;
+    if((tx_avail == 0) || (mem_avail == 0))
+        return false;
+
+    tx_pct = 100 * tx_used / tx_avail;
+    mem_pct = 100 * mem_used / mem_avail;
+    heap_free = rtos_get_free_heap_size();
+    heap_min_rsv = g_wifi_mac_config.min_rsv_mem;
+
+    return ((tx_pct < 75) &&
+            (mem_pct <= 80) &&
+            (heap_free > (heap_min_rsv + heap_min_rsv / 4)));
+#else
+    return false;
+#endif
+}
+
+__IRAM2 void cif_tx_flow_check_after_free(void)
+{
+    uint32_t value;
+    uint32_t flow_cnt;
+    uint32_t int_level;
+    cif_tx_flow_resume_ind_t ind;
+    bk_err_t ret;
+
+    value = cif_tx_flow_state_get();
+    if(!AP_TX_FLOW_STATE_CONTROLLED(value))
+        return;
+
+    flow_cnt = AP_TX_FLOW_STATE_CNT(value);
+    int_level = cif_stats_enter_critical();
+    if(s_tx_flow_resume_pending || (s_tx_flow_last_notified_cnt == flow_cnt))
+    {
+        cif_stats_exit_critical(int_level);
+        return;
+    }
+    cif_stats_exit_critical(int_level);
+
+    if(!cif_tx_flow_mem_recovered())
+        return;
+
+    int_level = cif_stats_enter_critical();
+    value = cif_tx_flow_state_get();
+    if(!AP_TX_FLOW_STATE_CONTROLLED(value) ||
+       (AP_TX_FLOW_STATE_CNT(value) != flow_cnt) ||
+       s_tx_flow_resume_pending ||
+       (s_tx_flow_last_notified_cnt == flow_cnt))
+    {
+        cif_stats_exit_critical(int_level);
+        return;
+    }
+    s_tx_flow_resume_pending = true;
+    cif_stats_exit_critical(int_level);
+
+    ind.flow_cnt = flow_cnt;
+    ret = cif_bk_send_event(BK_EVT_TX_FLOW_RESUME_IND,
+                            (uint8_t *)&ind, sizeof(ind));
+
+    int_level = cif_stats_enter_critical();
+    if(ret == BK_OK)
+        s_tx_flow_last_notified_cnt = flow_cnt;
+    s_tx_flow_resume_pending = false;
+    cif_stats_exit_critical(int_level);
+}
 
 void cif_publish_mem_addr(void)
 {
+    s_tx_flow_resume_pending = false;
+    s_tx_flow_last_notified_cnt = 0;
     s_cp_mem_addr_info.magic = CP_MEM_SNAPSHOT_MAGIC;
     s_cp_mem_addr_info.version = CP_MEM_SNAPSHOT_VERSION;
     s_cp_mem_addr_info.size = sizeof(cp_mem_addr_info_t);

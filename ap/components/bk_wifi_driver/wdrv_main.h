@@ -40,6 +40,8 @@ Please enable 'CONFIG_CONTROLLER_AP_BUFFER_COPY'."
 
 #define WDRV_QUEUE_LEN                          192
 #define WDRV_TASK_PRIO                          2
+#define WDRV_TX_PENDING_MAX                     10
+#define WDRV_TX_PENDING_RETRY_MS                20
 
 #define CPDU_LENGTH sizeof(struct cpdu_t)
 #define MAX_MSDU_LENGTH 1500+14//(MTU + Ethernet header)
@@ -112,6 +114,7 @@ enum wdrv_task_msg_evt
     WDRV_TASK_MSG_EVENT = 1,
     WDRV_TASK_MSG_TXDATA = 2,
     WDRV_TASK_MSG_RXDATA = 3,
+    WDRV_TASK_MSG_TX_PENDING = 4,
 };
 
 struct wdrv_msg {
@@ -236,6 +239,9 @@ typedef struct wdrv_stats
     uint32_t wdrv_rx_cpy_fail;
     uint32_t wdrv_tx_snder_fail;
     uint32_t wdrv_msg_snder_fail;
+#if CONFIG_CONTROLLER_AP_BUFFER_COPY
+    uint32_t tx_pending_drop_cnt;
+#endif
 
     uint32_t ipc_tx_cnt;
     uint32_t ipc_txc_cnt;
@@ -256,7 +262,10 @@ struct wdrv_env_t
     uint32_t cmd_bank[MAX_NUM_CMD_RX_BANK];
     uint32_t cmd_bank_idx;
 #ifdef CONFIG_CONTROLLER_AP_BUFFER_COPY
-    bool is_controlled;
+    volatile uint32_t is_controlled;
+    struct co_list tx_pending_list;
+    uint16_t tx_pending_count;
+    beken2_timer_t tx_pending_timer;
 #endif
 
 };

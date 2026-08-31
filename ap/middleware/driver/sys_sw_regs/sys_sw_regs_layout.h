@@ -97,8 +97,9 @@ typedef union {
         volatile uint8_t hspl_owner_core[32]; /**< HSPL owner core shadow */
         volatile uint32_t cp_heap_size_ptr; /**< Addr of CP system heap xFreeBytesRemaining (size_t); 0 = not published */
         volatile uint32_t cp_lwip_mem_info_ptr; /**< Addr of CP cp_mem_addr_info_t snapshot (lwIP/heap addrs); 0 = not published */
+        volatile uint32_t ap_tx_flow_state_ptr; /**< Addr of AP TX flow state; 0 = not published */
         volatile uint32_t cp_uid_ptr; /**< Addr of CP bk_uid_snapshot_t (chip UID); 0 = not published */
-        volatile uint32_t reserved1[2]; /**< Free slack; pads named layout to the 1024B window. Consume these before growing the region. */
+        volatile uint32_t reserved1[1]; /**< Free slack; pads named layout to the 1024B window. Consume these before growing the region. */
     };
     volatile uint32_t reserved[256]; /**< Reserved for future use */
 } sys_sw_regs_t;

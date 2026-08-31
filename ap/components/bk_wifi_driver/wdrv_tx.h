@@ -16,6 +16,15 @@ int wdrv_tx_msg(uint8_t *msg, uint16_t msg_len, wdrv_cmd_cfm *cfm, uint8_t *resu
 void wdrv_txdata_pre_process(uint8_t channel, void* head,uint8_t need_retry);
 void wdrv_tx_complete(void *param, mb_chnl_ack_t *ack_buf);
 void wdrv_tx_msg_complete(void *param, mb_chnl_ack_t *ack_buf);
+#if CONFIG_CONTROLLER_AP_BUFFER_COPY
+bool wdrv_tx_flow_is_controlled(void);
+bool wdrv_tx_flow_resume(uint32_t flow_cnt);
+void wdrv_tx_flow_reset(void);
+void wdrv_tx_pending_process(void);
+void wdrv_tx_pending_flush(void);
+bk_err_t wdrv_tx_pending_timer_init(void);
+void wdrv_tx_pending_timer_deinit(void);
+#endif
 
 #ifdef __cplusplus
 }

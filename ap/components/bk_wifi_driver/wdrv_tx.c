@@ -2,10 +2,11 @@
 #include "wdrv_ipc.h"
 #include "wdrv_main.h"
 #include "wdrv_cntrl.h"
-#if CONFIG_CACHE_MAINTENANCE
+#if CONFIG_CACHE_MAINTENANCE || CONFIG_SUPPORT_CACHEABLE_SRAM
 #include "cache.h"
 #endif
 #if CONFIG_CONTROLLER_AP_BUFFER_COPY
+#include <sys_sw_regs.h>
 cp_mem_addr_info_t g_cp_mem_addr_info = {0};
 #endif
 void __asm_flush_dcache_range(void* begin, void* end);
@@ -94,6 +95,10 @@ static uint32_t wdrv_cp_read_u32_addr(uint32_t addr, uint32_t size)
         return 0;
     }
 
+#if CONFIG_SUPPORT_CACHEABLE_SRAM
+    cache_data_invd_range((void *)addr, size);
+#endif
+
     if (size == sizeof(uint16_t)) {
         return *(volatile uint16_t *)addr;
     }
@@ -107,6 +112,122 @@ static bool wdrv_cp_mem_addr_ready(void)
             (g_cp_mem_addr_info.size == sizeof(cp_mem_addr_info_t)));
 }
 
+static void wdrv_tx_flow_publish(bool controlled)
+{
+    uint32_t flow_cnt = AP_TX_FLOW_STATE_CNT(wdrv_env.is_controlled);
+
+    if(controlled)
+    {
+        flow_cnt = (flow_cnt + 1) & 0x7FFFFFFFU;
+        if(flow_cnt == 0)
+            flow_cnt = 1;
+    }
+
+    wdrv_env.is_controlled = AP_TX_FLOW_STATE_VALUE(flow_cnt, controlled);
+#if CONFIG_SUPPORT_CACHEABLE_SRAM
+    flush_dcache((void *)&wdrv_env.is_controlled,
+                 sizeof(wdrv_env.is_controlled));
+#endif
+}
+
+static void wdrv_tx_flow_register(bool enable)
+{
+    volatile uint32_t *addr_reg =
+        &bk_sys_sw_regs_ptr()->ap_tx_flow_state_ptr;
+
+    *addr_reg = enable ? PTR_TO_U32(&wdrv_env.is_controlled) : 0;
+#if CONFIG_SUPPORT_CACHEABLE_SRAM
+    flush_dcache((void *)addr_reg, sizeof(*addr_reg));
+#endif
+}
+
+void wdrv_tx_flow_reset(void)
+{
+    uint32_t int_level;
+
+    WDRV_IPC_LOCK(&wdrv_ipc_env[IPC_DATA], int_level);
+    wdrv_env.is_controlled = false;
+    wdrv_tx_flow_publish(false);
+    wdrv_tx_flow_register(true);
+    WDRV_IPC_UNLOCK(&wdrv_ipc_env[IPC_DATA], int_level);
+}
+
+bool wdrv_tx_flow_is_controlled(void)
+{
+    uint32_t int_level;
+    bool controlled;
+
+    WDRV_IPC_LOCK(&wdrv_ipc_env[IPC_DATA], int_level);
+    controlled = AP_TX_FLOW_STATE_CONTROLLED(wdrv_env.is_controlled);
+    WDRV_IPC_UNLOCK(&wdrv_ipc_env[IPC_DATA], int_level);
+    return controlled;
+}
+
+static void wdrv_tx_pending_timer_start(void)
+{
+    uint32_t int_level;
+    bool has_pending;
+    bk_err_t ret;
+
+    if(!wdrv_env.is_init ||
+       !rtos_is_oneshot_timer_init(&wdrv_env.tx_pending_timer) ||
+       rtos_is_oneshot_timer_running(&wdrv_env.tx_pending_timer) ||
+       !wdrv_tx_flow_is_controlled())
+        return;
+
+    WDRV_ENTER_TXMSG_CRITICAL(int_level);
+    has_pending = (wdrv_env.tx_pending_count != 0);
+    WDRV_EXIT_TXMSG_CRITICAL(int_level);
+    if(!has_pending)
+        return;
+
+    ret = rtos_start_oneshot_timer(&wdrv_env.tx_pending_timer);
+    if((ret != BK_OK) &&
+       !rtos_is_oneshot_timer_running(&wdrv_env.tx_pending_timer))
+        WDRV_LOGE("%s failed, ret=%d\r\n", __func__, ret);
+}
+
+static void wdrv_tx_pending_timer_cb(void *left, void *right)
+{
+    uint32_t int_level;
+    bool has_pending;
+
+    (void)left;
+    (void)right;
+
+    if(!wdrv_env.is_init)
+        return;
+
+    WDRV_ENTER_TXMSG_CRITICAL(int_level);
+    has_pending = (wdrv_env.tx_pending_count != 0);
+    WDRV_EXIT_TXMSG_CRITICAL(int_level);
+    if(!has_pending)
+        return;
+
+    (void)wdrv_msg_sender(0, WDRV_TASK_MSG_TX_PENDING, 0);
+    if(wdrv_env.is_init &&
+       rtos_is_oneshot_timer_init(&wdrv_env.tx_pending_timer))
+        (void)rtos_oneshot_reload_timer(&wdrv_env.tx_pending_timer);
+}
+
+bk_err_t wdrv_tx_pending_timer_init(void)
+{
+    return rtos_init_oneshot_timer(&wdrv_env.tx_pending_timer,
+                                   WDRV_TX_PENDING_RETRY_MS,
+                                   wdrv_tx_pending_timer_cb,
+                                   NULL, NULL);
+}
+
+void wdrv_tx_pending_timer_deinit(void)
+{
+    if(!rtos_is_oneshot_timer_init(&wdrv_env.tx_pending_timer))
+        return;
+
+    if(rtos_is_oneshot_timer_running(&wdrv_env.tx_pending_timer))
+        (void)rtos_stop_oneshot_timer(&wdrv_env.tx_pending_timer);
+    (void)rtos_deinit_oneshot_timer(&wdrv_env.tx_pending_timer);
+}
+
 bool wdrv_cp_mem_tx_allowed(void)
 {
     uint32_t tx_used, tx_avail, mem_used, mem_avail;
@@ -114,9 +235,13 @@ bool wdrv_cp_mem_tx_allowed(void)
     uint32_t tx_pct = 0, mem_pct = 0;
     bool lwip_avail, heap_low, heap_ok;
     bool mem_tight, mem_eased;
+    bool was_controlled;
+    bool is_controlled;
+    bool allowed;
+    uint32_t int_level;
 
     if (!wdrv_cp_mem_addr_ready()) {
-        return !wdrv_env.is_controlled;
+        return !wdrv_tx_flow_is_controlled();
     }
 
     tx_avail     = wdrv_cp_read_u32_addr(g_cp_mem_addr_info.lwip_tx_avail_addr,
@@ -153,19 +278,57 @@ bool wdrv_cp_mem_tx_allowed(void)
     mem_tight = (lwip_avail && ((tx_pct >= 75) || (mem_pct > 80))) || heap_low;
     /* memory has eased only when BOTH lwIP metrics are below the low water mark
      * AND the CP OS heap is comfortably above its reserve */
-    mem_eased = (((tx_pct < 60) && (mem_pct < 70)) && heap_ok);
+    mem_eased = (((tx_pct < 75) && (mem_pct <= 80)) && heap_ok);
 
-    if (wdrv_env.is_controlled) {
+    WDRV_IPC_LOCK(&wdrv_ipc_env[IPC_DATA], int_level);
+    was_controlled = AP_TX_FLOW_STATE_CONTROLLED(wdrv_env.is_controlled);
+    is_controlled = was_controlled;
+    if (is_controlled) {
         if (mem_eased) {
-            wdrv_env.is_controlled = 0;
+            is_controlled = false;
         }
     } else {
         if (mem_tight) {
-            wdrv_env.is_controlled = 1;
+            is_controlled = true;
         }
     }
 
-    return !wdrv_env.is_controlled;
+    if (was_controlled != is_controlled)
+        wdrv_tx_flow_publish(is_controlled);
+
+    allowed = !is_controlled;
+    WDRV_IPC_UNLOCK(&wdrv_ipc_env[IPC_DATA], int_level);
+
+    if(!was_controlled && is_controlled)
+        wdrv_tx_pending_timer_start();
+
+    /* Wake pending after AP detects memory recovery. If pending is full, no new
+     * TX_PENDING can be sent, and the later CP resume indication is ignored. */
+    if(was_controlled && allowed)
+        wdrv_msg_sender(0, WDRV_TASK_MSG_TX_PENDING, 0);
+
+    return allowed;
+}
+
+bool wdrv_tx_flow_resume(uint32_t flow_cnt)
+{
+    uint32_t value;
+    uint32_t int_level;
+
+    if (!wdrv_cp_mem_addr_ready()) {
+        return false;
+    }
+
+    WDRV_IPC_LOCK(&wdrv_ipc_env[IPC_DATA], int_level);
+    value = wdrv_env.is_controlled;
+    if (!AP_TX_FLOW_STATE_CONTROLLED(value) ||
+        (AP_TX_FLOW_STATE_CNT(value) != flow_cnt)) {
+        WDRV_IPC_UNLOCK(&wdrv_ipc_env[IPC_DATA], int_level);
+        return false;
+    }
+    WDRV_IPC_UNLOCK(&wdrv_ipc_env[IPC_DATA], int_level);
+
+    return wdrv_cp_mem_tx_allowed();
 }
 #endif
 
@@ -211,22 +374,18 @@ int wdrv_txdata_sender(struct pbuf *p, uint32_t vif_idx)
 	bk_err_t ret;
 	struct wdrv_msg msg;
 	struct cpdu_t * cpdu = (struct cpdu_t *)(p + 1);
+#if CONFIG_CONTROLLER_AP_BUFFER_COPY
+    uint32_t int_level;
+    bool pending_reserved = false;
+#endif
+
+    if(!wdrv_env.is_init)
+        return BK_FAIL;
 	
 //    if(((void*)cpdu< (void*)&__wifi_start) || ((void*)cpdu> (void*)&__wifi_end))
 //    {
 //        BK_ASSERT(0);
 //    }
-#if CONFIG_CONTROLLER_AP_BUFFER_COPY
-    // Only perform flow-control checks for buffers that do NOT require free
-    if(!cpdu->co_hdr.need_free)
-    {
-        /* Single decision over lwIP + CP OS heap (updates is_controlled). */
-        if(!wdrv_cp_mem_tx_allowed())
-        {
-            return BK_ERR_NO_MEM;
-        }
-    }
-#endif
     WDRV_LOGV("%s p:%x next:%x payload%x sizeof:%d\r\n",__func__, p, p->next, p->payload, sizeof(struct pbuf));
 	msg.type = WDRV_TASK_MSG_TXDATA;
 	msg.arg = (uint32_t)cpdu;
@@ -235,6 +394,27 @@ int wdrv_txdata_sender(struct pbuf *p, uint32_t vif_idx)
 	cpdu->co_hdr.vif_idx = vif_idx;
 	cpdu->co_hdr.type = TX_MSDU_DATA;
 	cpdu->next = NULL;
+    if(!cpdu->co_hdr.need_free)
+        cpdu->co_hdr.special_type = 0;
+#if CONFIG_CONTROLLER_AP_BUFFER_COPY
+    if(!cpdu->co_hdr.need_free)
+    {
+        /* Refresh the AP-side state on every new packet. A blocked packet is
+         * retained locally instead of being rejected immediately. */
+        (void)wdrv_cp_mem_tx_allowed();
+
+        WDRV_ENTER_TXMSG_CRITICAL(int_level);
+        if(wdrv_env.tx_pending_count >= WDRV_TX_PENDING_MAX)
+        {
+            WDRV_EXIT_TXMSG_CRITICAL(int_level);
+            WDRV_STATS_INC(tx_pending_drop_cnt,1);
+            return BK_ERR_NO_MEM;
+        }
+        wdrv_env.tx_pending_count++;
+        pending_reserved = true;
+        WDRV_EXIT_TXMSG_CRITICAL(int_level);
+    }
+#endif
 #if CONFIG_CONTROLLER_DEBUG
     if(!cpdu->co_hdr.need_free)
         TRACK_PBUF_ALLOC(p);
@@ -249,6 +429,43 @@ int wdrv_txdata_sender(struct pbuf *p, uint32_t vif_idx)
         WDRV_STATS_INC(wdrv_rxc_cnt,1);
     }
 	pbuf_ref(p);
+#if CONFIG_CONTROLLER_AP_BUFFER_COPY
+    if(pending_reserved)
+    {
+        msg.type = WDRV_TASK_MSG_TX_PENDING;
+        msg.arg = 0;
+
+        WDRV_ENTER_TXMSG_CRITICAL(int_level);
+        ret = rtos_push_to_queue(&wdrv_env.io_queue, &msg, BEKEN_NO_WAIT);
+        if(ret == BK_OK)
+        {
+            co_list_push_back(&wdrv_env.tx_pending_list,
+                              (struct co_list_hdr *)cpdu);
+        }
+        else if(wdrv_env.tx_pending_count > 0)
+        {
+            wdrv_env.tx_pending_count--;
+        }
+        WDRV_EXIT_TXMSG_CRITICAL(int_level);
+
+        if(ret != BK_OK)
+        {
+            WDRV_LOGE("%s failed, ret=%d\r\n",__func__, ret);
+            WDRV_STATS_INC(wdrv_tx_snder_fail,1);
+            pbuf_free(p);
+            WDRV_STATS_DEC(tx_alloc_num);
+#if CONFIG_CONTROLLER_DEBUG
+            TRACK_PBUF_FREE(p);
+#endif
+        }
+        else
+        {
+            WDRV_STATS_INC(wdrv_tx_process_cnt,1);
+            wdrv_tx_pending_timer_start();
+        }
+        return ret;
+    }
+#endif
 	ret = rtos_push_to_queue(&wdrv_env.io_queue, &msg, 1 * SECONDS);
 	if (kNoErr != ret) {
 		WDRV_LOGE("%s failed, ret=%d\r\n",__func__, ret);
@@ -332,29 +549,22 @@ void wdrv_txdata_pre_process(uint8_t channel, void* head,uint8_t need_retry)
 {
     bk_err_t ret = BK_OK;
     uint32_t int_level;
-    
-    
     void* first = head;
     void* last = head;
     uint8_t num = 1;
-    
     uint8_t ipc_chnl = wdrv_map_to_ipc_chnl(channel);
 
     if(!need_retry)
     {
-        //BK_LOGD(NULL, "%s,%d,p:0x%x\n",__func__,__LINE__,(struct pbuf*)head-1);
-        //add to tx pending list tail
-
         if(channel == TX_MSDU_DATA)
-        {
             WDRV_STATS_INC(wdrv_tx_process_cnt,1);
 
+        if(channel == TX_MSDU_DATA)
             WDRV_STATS_INC(tx_list_num,1);
-        }
-        //bk_mem_dump("process",PTR_TO_U32(head),50);
 
         WDRV_IPC_LOCK(&wdrv_ipc_env[ipc_chnl], int_level);
-        co_list_push_back((struct co_list *)&wdrv_ipc_env[ipc_chnl].tx_list,(struct co_list_hdr *)head);
+        co_list_push_back((struct co_list *)&wdrv_ipc_env[ipc_chnl].tx_list,
+                          (struct co_list_hdr *)head);
         WDRV_IPC_UNLOCK(&wdrv_ipc_env[ipc_chnl], int_level);
     }
 
@@ -406,6 +616,61 @@ ERR_EXIT:
         BK_LOGD(NULL, "%s,%d,set_sema fail\n",__func__,__LINE__);
     }
 }
+
+#if CONFIG_CONTROLLER_AP_BUFFER_COPY
+void wdrv_tx_pending_process(void)
+{
+    uint32_t int_level;
+    struct co_list_hdr *node;
+
+    while(wdrv_cp_mem_tx_allowed())
+    {
+        WDRV_ENTER_TXMSG_CRITICAL(int_level);
+        node = co_list_pop_front(&wdrv_env.tx_pending_list);
+        if(node && (wdrv_env.tx_pending_count > 0))
+            wdrv_env.tx_pending_count--;
+        WDRV_EXIT_TXMSG_CRITICAL(int_level);
+
+        if(node == NULL)
+            break;
+
+        wdrv_txdata_pre_process(TX_MSDU_DATA, node, 0);
+    }
+
+    wdrv_txdata_pre_process(TX_MSDU_DATA, NULL, 1);
+    wdrv_tx_pending_timer_start();
+}
+
+void wdrv_tx_pending_flush(void)
+{
+    uint32_t int_level;
+    struct co_list_hdr *node;
+
+    while(1)
+    {
+        WDRV_ENTER_TXMSG_CRITICAL(int_level);
+        node = co_list_pop_front(&wdrv_env.tx_pending_list);
+        if(node && (wdrv_env.tx_pending_count > 0))
+            wdrv_env.tx_pending_count--;
+        WDRV_EXIT_TXMSG_CRITICAL(int_level);
+
+        if(node == NULL)
+            break;
+
+        {
+            struct pbuf *p = ((struct pbuf *)(cpdu_t *)node) - 1;
+#if CONFIG_CONTROLLER_DEBUG
+            TRACK_PBUF_FREE(p);
+#endif
+            pbuf_free(p);
+            WDRV_STATS_DEC(tx_alloc_num);
+        }
+    }
+
+    wdrv_tx_flow_reset();
+    wdrv_tx_flow_register(false);
+}
+#endif
 
 void wdrv_tx_complete(void *param, mb_chnl_ack_t *ack_buf)
 {
