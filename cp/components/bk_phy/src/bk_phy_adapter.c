@@ -287,7 +287,7 @@ static void phy_sys_drv_modem_clk_ctrl_on(void)
 
 static int bk_flash_read_bytes_wrapper(uint32_t address, uint8_t *user_buf, uint32_t size)
 {
-#if (CONFIG_OTP && CONFIG_PHY_RFCALI_TO_OTP)
+#if (CONFIG_OTP_V1 && CONFIG_PHY_RFCALI_TO_OTP)
     return BK_ERR_NOT_SUPPORT;
 #else
     return bk_flash_read_bytes(address, user_buf, size);
@@ -296,7 +296,7 @@ static int bk_flash_read_bytes_wrapper(uint32_t address, uint8_t *user_buf, uint
 
 static int bk_flash_erase_sector_wrapper(uint32_t address)
 {
-#if (CONFIG_OTP && CONFIG_PHY_RFCALI_TO_OTP)
+#if (CONFIG_OTP_V1 && CONFIG_PHY_RFCALI_TO_OTP)
     return BK_ERR_NOT_SUPPORT;
 #else
     return bk_flash_erase_sector(address);
@@ -305,7 +305,7 @@ static int bk_flash_erase_sector_wrapper(uint32_t address)
 
 static int bk_flash_write_bytes_wrapper(uint32_t address, const uint8_t *user_buf, uint32_t size)
 {
-#if (CONFIG_OTP && CONFIG_PHY_RFCALI_TO_OTP)
+#if (CONFIG_OTP_V1 && CONFIG_PHY_RFCALI_TO_OTP)
     return BK_ERR_NOT_SUPPORT;
 #else
     return bk_flash_write_bytes(address, user_buf, size);
@@ -314,7 +314,7 @@ static int bk_flash_write_bytes_wrapper(uint32_t address, const uint8_t *user_bu
 
 static uint32_t bk_flash_partition_get_rf_firmware_info(void)
 {
-#if (CONFIG_OTP && CONFIG_PHY_RFCALI_TO_OTP)
+#if (CONFIG_OTP_V1 && CONFIG_PHY_RFCALI_TO_OTP)
     return 0;
 #else
     bk_logic_partition_t * pt = NULL;

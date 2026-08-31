@@ -1,6 +1,6 @@
 #include <common/bk_include.h>
 #include <common/bk_err.h>
-#if CONFIG_OTP
+#if CONFIG_OTP_V1
 #include <driver/otp.h>
 #endif
 #include <os/os.h>
@@ -117,20 +117,30 @@ tempd_exit:
 
 #endif
 
-#if CONFIG_OTP
+#if CONFIG_OTP_V1
+/* GADC OTP: CWT coeffs occupy [0,64), then low/high/ext_low as 3x uint16 */
+#define GADC_VOL_CALI_OTP_OFFSET    64
+
 static bk_err_t bk_sensor_load_adc_cali_value(void)
 {
     bk_err_t result;
 
-    uint16_t vol_values[2];
-    uint16_t temp_values[1];
-    result = bk_otp_ahb_read(OTP_GADC_CALIBRATION, (uint8_t *)&vol_values[0], sizeof(vol_values));
+    uint16_t vol_values[3];
+    uint16_t temp_values[4];
+    uint8_t data[GADC_VOL_CALI_OTP_OFFSET + sizeof(vol_values)];
 
-    if ((result != BK_OK) || (vol_values[0] == 0) || (vol_values[1] == 0))
-    {
-        BK_LOGW(TAG, "uncali saradc value:[%x %x]\r\n", vol_values[0], vol_values[1]);
+    result = bk_otp_ahb_read(OTP_GADC_CALIBRATION, data, sizeof(data));
+    if (result != BK_OK) {
+        BK_LOGW(TAG, "read otp calibration data failed\r\n");
         goto LOAD_SDMADC;
     }
+    memcpy(vol_values, &data[GADC_VOL_CALI_OTP_OFFSET], sizeof(vol_values));
+    if (vol_values[2] == 0) {
+        BK_LOGW(TAG, "uncali saradc_ext_low value:[%x]\r\n", vol_values[2]);
+        goto LOAD_SDMADC;
+    }
+    BK_LOGI(TAG, "saradc ext_low value:[%x]\r\n", vol_values[2]);
+    saradc_set_calibrate_val(&vol_values[2], SARADC_CALIBRATE_EXT_LOW);
 
     BK_LOGI(TAG, "saradc low value:[%x]\r\n", vol_values[0]);
     BK_LOGI(TAG, "saradc high value:[%x]\r\n", vol_values[1]);
@@ -139,7 +149,7 @@ static bk_err_t bk_sensor_load_adc_cali_value(void)
 
 LOAD_SDMADC:
 #if CONFIG_SDMADC
-    result = bk_otp_apb_read(OTP_SDMADC_CALIBRATION, (uint8_t *)&vol_values[0], sizeof(vol_values));
+    result = bk_otp_ahb_read(OTP_SDMADC_CALIBRATION, (uint8_t *)&vol_values[0], sizeof(vol_values));
     if ((result != BK_OK) || (vol_values[0] == 0) || (vol_values[1] == 0))
     {
         BK_LOGW(TAG, "uncali sdmadc value:[%x %x]\r\n", vol_values[0], vol_values[1]);
@@ -153,8 +163,8 @@ LOAD_SDMADC:
 
 LOAD_TEMP:
 #endif
-    result = bk_otp_apb_read(OTP_GADC_TEMPERATURE, (uint8_t *)&temp_values, sizeof(temp_values));
-    if ((result != BK_OK) || (temp_values[0] == 0) || (0xFFFF == temp_values[0]))
+    result = bk_otp_ahb_read(OTP_GADC_TEMPERATURE, (uint8_t *)&temp_values, sizeof(temp_values));
+    if ((result != BK_OK) || (temp_values[0] == 0) || (0xFFFF == temp_values[0]) || (temp_values[1] == 0) || (0xFFFF == temp_values[1]))
     {
 
         BK_LOGW(TAG, "uncali temp value:[%x]\r\n", temp_values[0]);
