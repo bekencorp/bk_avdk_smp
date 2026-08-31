@@ -60,6 +60,10 @@ struct _bk_baf_decoder_t {
     const bk_baf_decoder_ops_t * ops;
     void * context;
     bk_baf_pacer_t pacer;
+    /* When opened from bk_baf_config_t.data, this holds the internally-parsed
+     * baf_view_t (opaque here to avoid a container-header dependency); freed in
+     * bk_baf_close(). NULL when opened from a caller-owned .source. */
+    void * owned_view;
 };
 
 #ifdef __cplusplus

@@ -1,43 +1,35 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-to_baf.py - one-click converter to the .baf (Beken Animation Format) format.
+to_baf.py - convert common animations to the BAF v1 container (see BAF_SPEC_CN.md).
 
 Input (auto-detected):  APNG / animated PNG, animated WebP, GIF, MP4 / MOV / MKV / WEBM
-Output (both):
-  1. <name>.baf         self-contained binary container (ship on filesystem/flash)
-  2. <name>_baf_asset.c LVGL/BAF C asset (bk_baf_source_t) to compile into firmware
+Output (user-selectable via --emit, byte-identical container image):
+  1. <name>.baf     binary container file (ship on filesystem/flash), OR
+  2. <name>_baf.c   the SAME bytes as a C array (const unsigned char <name>_baf[]),
+                    compiled into firmware.
+Both forms are the same container image; the device parses either with the same
+baf_parse_inplace() (see bk_baf/include/bk_baf_container.h).
 
 Pipeline:
   source
     -> extract per-frame RGB + Alpha (grayscale) + durations
     -> H.264 encode RGB (no B-frames, refs=1)  +  H.264 encode Alpha as gray (optional)
     -> Annex-B + per-frame access-unit (AU) split + AUD strip
-    -> pack into .baf (binary) and _baf_asset.c (C array)
-
-The alpha is encoded as a grayscale stream, matching the BK7259 BAF device
-decoder.
+    -> pack into the BAF v1 container
 
 --------------------------------------------------------------------------------
-.baf binary layout (little-endian). All offsets/sizes in bytes.
+BAF v1 container layout (little-endian). See BAF_SPEC_CN.md for the normative spec.
 
-  magic        char[8]  "BAFANIM1"
-  version      u32      = 1
-  width        u16      RGB width
-  height       u16      RGB height
-  alpha_width  u16      0 => same as width (full-res alpha)
-  alpha_height u16      0 => same as height
-  frame_count  u32
-  flags        u32      bit0 = HAS_ALPHA
-  rgb_size     u32      bytes of RGB Annex-B blob
-  alpha_size   u32      bytes of Alpha Annex-B blob (0 if no alpha)
-  reserved     u32[4]   = 0
-  --- variable sections, in this order ---
-  durations    u32[frame_count]                       per-frame duration (ms)
-  rgb_aus      (u32 offset, u32 size)[frame_count]     AU table into rgb blob
-  alpha_aus    (u32 offset, u32 size)[frame_count]     only if HAS_ALPHA
-  rgb_data     u8[rgb_size]                            RGB H.264 Annex-B
-  alpha_data   u8[alpha_size]                          Alpha H.264 Annex-B (if any)
+  FileHeader (64 bytes):
+    magic char[8] "BAFANIM1"; u16 ver_major=1, ver_minor=0; u32 flags=0;
+    u32 file_size; u32 dir_offset; u16 dir_count; u8 has_alpha; u8 reserved0;
+    u32 frame_count; u16 width,height,alpha_width,alpha_height;
+    u32 rgb_idx, rgb_data, alpha_idx, alpha_data, dur;   (directory indices)
+    u32 header_crc32   (CRC32 of the first 60 bytes)
+  ChunkDirectory (16 bytes/entry): u32 type(FourCC), offset, size, crc32
+  Chunks (each 64B aligned): 'IDX ' (u32 offset,size per frame) / 'DUR ' (u32 ms
+    per frame) / 'DATA' (H.264 Annex-B). alpha_idx/alpha_data = 0xFFFFFFFF if none.
 --------------------------------------------------------------------------------
 """
 
@@ -46,6 +38,7 @@ import json
 import struct
 import subprocess
 import tempfile
+import zlib
 from pathlib import Path
 
 from PIL import Image, ImageSequence
@@ -85,8 +78,19 @@ PIL_EXTS = {".png", ".apng", ".gif", ".webp"}
 FFMPEG_EXTS = {".mp4", ".mov", ".mkv", ".webm", ".m4v", ".avi"}
 
 BAF_MAGIC = b"BAFANIM1"
-BAF_VERSION = 1
-BAF_FLAG_HAS_ALPHA = 1 << 0
+BAF_VER_MAJOR = 1
+BAF_VER_MINOR = 0
+BAF_HEADER_SIZE = 64
+BAF_IDX_NONE = 0xFFFFFFFF
+
+# FourCC as little-endian u32 (matches bk_baf_container.h / spec appendix A).
+def _cc(s: str) -> int:
+    b = s.encode("ascii")
+    return b[0] | (b[1] << 8) | (b[2] << 16) | (b[3] << 24)
+
+CC_IDX = _cc("IDX ")
+CC_DUR = _cc("DUR ")
+CC_DATA = _cc("DATA")
 
 
 # --------------------------- frame extraction ------------------------------
@@ -182,6 +186,22 @@ def clean_alpha_frames(alpha_dir: Path) -> None:
         Image.open(png).convert("L").point(lut).save(png)
 
 
+def _align16(n: int) -> int:
+    return (n + 15) & ~15
+
+
+def pad_frames_to(frame_dir: Path, glob: str, pw: int, ph: int, mode: str, fill) -> None:
+    """Pad each extracted frame onto a pw x ph canvas (top-left), so width/height
+    are multiples of 16 as the VPU requires. No-op for frames already that size."""
+    for png in sorted(frame_dir.glob(glob)):
+        im = Image.open(png).convert(mode)
+        if im.size == (pw, ph):
+            continue
+        canvas = Image.new(mode, (pw, ph), fill)
+        canvas.paste(im, (0, 0))
+        canvas.save(png)
+
+
 def encode_h264(frame_dir: Path, pattern: str, out_mp4: Path, fps: float,
                 pixel_format: str = "yuv420p", crf: int = CRF) -> None:
     subprocess.run([
@@ -204,47 +224,89 @@ def mp4_to_annexb_aus(mp4: Path, tmp_dir: Path, tag: str):
     return bk_baf.remove_aud_nals(data, aus)  # -> (clean_data, clean_aus)
 
 
-# ------------------------------- .baf pack ---------------------------------
-def write_baf(path: Path, width, height, alpha_width, alpha_height,
-              durations, rgb_data, rgb_aus, alpha_data, alpha_aus):
+# ---------------------- BAF v1 container packing ---------------------------
+def _align64(n: int) -> int:
+    return (n + 63) & ~63
+
+
+def pack_baf_container(width, height, alpha_width, alpha_height,
+                       durations, rgb_data, rgb_aus, alpha_data, alpha_aus) -> bytes:
+    """Pack the BAF v1 container image (bytes). Same image is emitted as .baf file
+    and/or C array. Layout: 64B FileHeader + ChunkDirectory + 64B-aligned chunks."""
     has_alpha = alpha_data is not None
-    flags = BAF_FLAG_HAS_ALPHA if has_alpha else 0
     frame_count = len(durations)
 
-    header = struct.pack(
-        "<8sIHHHHIIII16x",
-        BAF_MAGIC, BAF_VERSION,
-        width, height, alpha_width, alpha_height,
-        frame_count, flags,
-        len(rgb_data), len(alpha_data) if has_alpha else 0,
+    idx_rgb = b"".join(struct.pack("<II", off, size) for off, size in rgb_aus)
+    dur_blob = b"".join(struct.pack("<I", d) for d in durations)
+
+    # entries: (fourcc, blob); their positions become the header directory indices.
+    entries = [(CC_IDX, idx_rgb), (CC_DUR, dur_blob), (CC_DATA, rgb_data)]
+    rgb_idx_i, dur_i, rgb_data_i = 0, 1, 2
+    alpha_idx_i = alpha_data_i = BAF_IDX_NONE
+    if has_alpha:
+        idx_alpha = b"".join(struct.pack("<II", off, size) for off, size in alpha_aus)
+        alpha_idx_i = len(entries); entries.append((CC_IDX, idx_alpha))
+        alpha_data_i = len(entries); entries.append((CC_DATA, alpha_data))
+
+    dir_count = len(entries)
+    dir_size = dir_count * 16
+
+    # Reserve header + directory, then append each blob 64B-aligned.
+    buf = bytearray(BAF_HEADER_SIZE + dir_size)
+    dir_records = []
+    for cc, blob in entries:
+        if len(buf) % 64:
+            buf += b"\x00" * (64 - len(buf) % 64)
+        off = len(buf)
+        dir_records.append((cc, off, len(blob), zlib.crc32(blob) & 0xFFFFFFFF))
+        buf += blob
+    file_size = len(buf)
+
+    # Write the directory at dir_offset (== header size).
+    dir_bytes = b"".join(struct.pack("<IIII", cc, off, sz, crc)
+                         for cc, off, sz, crc in dir_records)
+    buf[BAF_HEADER_SIZE:BAF_HEADER_SIZE + dir_size] = dir_bytes
+
+    # Header: pack first 60 bytes, CRC them, then append header_crc32.
+    hdr = struct.pack(
+        "<8sHHIIIHBBIHHHHIIIII",
+        BAF_MAGIC, BAF_VER_MAJOR, BAF_VER_MINOR, 0,
+        file_size, BAF_HEADER_SIZE, dir_count, 1 if has_alpha else 0, 0,
+        frame_count, width, height, alpha_width, alpha_height,
+        rgb_idx_i, rgb_data_i, alpha_idx_i, alpha_data_i, dur_i,
     )
-    body = bytearray()
-    for d in durations:
-        body += struct.pack("<I", d)
-    for off, size in rgb_aus:
-        body += struct.pack("<II", off, size)
-    if has_alpha:
-        for off, size in alpha_aus:
-            body += struct.pack("<II", off, size)
-    body += rgb_data
-    if has_alpha:
-        body += alpha_data
-    path.write_bytes(header + bytes(body))
+    assert len(hdr) == BAF_HEADER_SIZE - 4, len(hdr)
+    buf[0:BAF_HEADER_SIZE - 4] = hdr
+    buf[BAF_HEADER_SIZE - 4:BAF_HEADER_SIZE] = struct.pack("<I", zlib.crc32(hdr) & 0xFFFFFFFF)
+    return bytes(buf)
+
+
+def write_carray(path: Path, symbol: str, data: bytes) -> None:
+    """Emit the container bytes as a C array (identical to the .baf file bytes)."""
+    lines = ["#include <stdint.h>\n\n",
+             f"const unsigned char {symbol}[] = {{\n"]
+    for i in range(0, len(data), 12):
+        row = ", ".join(f"0x{b:02x}" for b in data[i:i + 12])
+        lines.append(f"    {row},\n")
+    lines.append("};\n")
+    lines.append(f"const unsigned int {symbol}_size = sizeof({symbol});\n")
+    path.write_text("".join(lines), encoding="utf-8")
 
 
 # --------------------------------- main ------------------------------------
 def main() -> None:
     ap = argparse.ArgumentParser(
-        description="One-click convert APNG/WebP/GIF/MP4/MOV to .baf (+ C asset).")
+        description="Convert APNG/WebP/GIF/MP4/MOV to a BAF v1 container (file and/or C array).")
     ap.add_argument("--input", type=Path, required=True)
     ap.add_argument("--outdir", type=Path, default=None,
                     help="Output directory (default: input's directory).")
     ap.add_argument("--name", default=None,
                     help="Base name for outputs (default: input stem).")
+    ap.add_argument("--emit", choices=("file", "array", "both"), default="both",
+                    help="Output form: .baf file / C array / both (default: both). "
+                         "Both are byte-identical container images.")
     ap.add_argument("--symbol", default=None,
-                    help="C symbol name (default: <name>_baf_source).")
-    ap.add_argument("--no-c", action="store_true", help="Skip the C asset output.")
-    ap.add_argument("--no-baf", action="store_true", help="Skip the .baf binary output.")
+                    help="C array symbol name (default: <name>_baf).")
     ap.add_argument("--force-opaque-alpha", action="store_true",
                     help="Generate a full-resolution all-opaque alpha stream "
                          "when the input has no alpha channel.")
@@ -254,9 +316,9 @@ def main() -> None:
     outdir = args.outdir or src.parent
     outdir.mkdir(parents=True, exist_ok=True)
     name = args.name or src.stem
-    symbol = args.symbol or f"{name}_baf_source"
+    symbol = args.symbol or f"{name}_baf"
     baf_path = outdir / f"{name}.baf"
-    c_path = outdir / f"{name}_baf_asset.c"
+    c_path = outdir / f"{name}_baf.c"
 
     with tempfile.TemporaryDirectory(prefix="to_baf_", dir=outdir) as tmp:
         tmp_dir = Path(tmp)
@@ -266,12 +328,17 @@ def main() -> None:
         width, height, durations, has_alpha = extract_frames(src, rgb_dir, alpha_dir)
         frame_count = len(durations)
         fps = 1000.0 / (sum(durations) / frame_count)
+
+        # VPU decodes 16x16 macroblocks -> width/height must be multiples of 16.
+        pw, ph = _align16(width), _align16(height)
+
         if args.force_opaque_alpha and not has_alpha:
-            opaque_alpha = Image.new("L", (width, height), 255)
+            opaque_alpha = Image.new("L", (pw, ph), 255)
             for index in range(frame_count):
                 opaque_alpha.save(alpha_dir / f"alpha_{index:04d}.png")
             has_alpha = True
 
+        pad_frames_to(rgb_dir, "rgb_*.png", pw, ph, "RGB", (0, 0, 0))
         rgb_mp4 = tmp_dir / "rgb.mp4"
         encode_h264(rgb_dir, "rgb_%04d.png", rgb_mp4, fps)
         rgb_data, rgb_aus = mp4_to_annexb_aus(rgb_mp4, tmp_dir, "rgb")
@@ -279,6 +346,7 @@ def main() -> None:
         alpha_data = alpha_aus = None
         if has_alpha:
             clean_alpha_frames(alpha_dir)   # snap extremes so opaque stays 255
+            pad_frames_to(alpha_dir, "alpha_*.png", pw, ph, "L", 0)
             alpha_mp4 = tmp_dir / "alpha.mp4"
             encode_h264(alpha_dir, "alpha_%04d.png", alpha_mp4, fps, "gray", ALPHA_CRF)
             alpha_data, alpha_aus = mp4_to_annexb_aus(alpha_mp4, tmp_dir, "alpha")
@@ -289,26 +357,26 @@ def main() -> None:
                 f"Frame/AU mismatch: frames={frame_count} rgb_aus={len(rgb_aus)} "
                 f"alpha_aus={len(alpha_aus) if alpha_aus is not None else 0}")
 
-        # alpha is full-res here (0 => same as RGB in both .baf and C asset)
-        alpha_w = alpha_h = 0
+        width, height = pw, ph          # container carries the padded (16-aligned) size
+        alpha_w = alpha_h = 0           # alpha full-res (0 => same as RGB)
+        container = pack_baf_container(width, height, alpha_w, alpha_h,
+                                       durations, rgb_data, rgb_aus, alpha_data, alpha_aus)
 
-        if not args.no_baf:
-            write_baf(baf_path, width, height, alpha_w, alpha_h,
-                      durations, rgb_data, rgb_aus, alpha_data, alpha_aus)
-        if not args.no_c:
-            bk_baf.write_asset(c_path, symbol, width, height,
-                             rgb_data, alpha_data, rgb_aus, alpha_aus,
-                             durations, alpha_w, alpha_h)
+    if args.emit in ("file", "both"):
+        baf_path.write_bytes(container)
+    if args.emit in ("array", "both"):
+        write_carray(c_path, symbol, container)
 
     print(f"input:       {src}")
     print(f"size:        {width}x{height}  frames: {frame_count}  fps: {fps:.2f}  alpha: {has_alpha}")
     print(f"rgb annexb:  {len(rgb_data)} bytes")
     if has_alpha:
         print(f"alpha annexb:{len(alpha_data)} bytes")
-    if not args.no_baf:
-        print(f"baf:         {baf_path}  ({baf_path.stat().st_size} bytes)")
-    if not args.no_c:
-        print(f"c asset:     {c_path}  (symbol: {symbol})")
+    print(f"container:   {len(container)} bytes")
+    if args.emit in ("file", "both"):
+        print(f"baf file:    {baf_path}")
+    if args.emit in ("array", "both"):
+        print(f"c array:     {c_path}  (symbol: {symbol})")
 
 
 if __name__ == "__main__":

@@ -11,6 +11,7 @@
 set(srcs
     src/bk_baf_adapter.c
     src/bk_baf_pacer.c
+    src/bk_baf_container.c
 )
 
 # The adapter binds the closed core's baf_decoder_* exports into its vtable via

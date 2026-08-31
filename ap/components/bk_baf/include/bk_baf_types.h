@@ -20,8 +20,6 @@ extern "C" {
 
 /* Marks a valid bk_baf_source_t ("BAF"). */
 #define BK_BAF_SOURCE_MAGIC 0x424B4146UL
-/* In-memory struct-layout version, checked when a source is opened. */
-#define BK_BAF_VERSION      1U
 
 /* ---- Decode result ---- */
 
@@ -135,10 +133,16 @@ typedef struct {
 } bk_baf_hw_config_t;
 
 /* ---- Per-source playback setup (for bk_baf_open) ----
- * Zero-initialise, then set at least .source. Hardware must already be up via
+ * Zero-initialise, then set EITHER .source (a pre-parsed asset) OR .data+.data_len
+ * (a BAF v1 container image, parsed internally). Hardware must already be up via
  * bk_baf_init(). */
 typedef struct {
-    const bk_baf_source_t * source;      /* required: the asset to play */
+    const bk_baf_source_t * source;      /* option 1: a pre-parsed asset to play */
+    const uint8_t *         data;        /* option 2: a BAF v1 container image (loaded .baf
+                                          * bytes or a compiled-in C array). Parsed in place;
+                                          * the decoder owns the parse and ALIASES these
+                                          * bytes -- keep them alive until bk_baf_close(). */
+    uint32_t                data_len;    /* byte length of .data (used only when .source == NULL) */
     int32_t  loop_count;                 /* 0 = infinite, 1 = once, >1 = N times */
     bool     free_run;                   /* true = max-speed (ignore durations) */
 } bk_baf_config_t;

@@ -28,9 +28,12 @@ avdk_err_t bk_baf_init(const bk_baf_hw_config_t * hw);
 void bk_baf_deinit(void);
 
 /* ---- Playback (per source) ----
- * Open a player over an asset source (see bk_baf_config_t: source + loop/free-run);
- * returns NULL on failure. bk_baf_close() closes just that player -- the GPU set up
- * by bk_baf_init() is left running. Hardware must already be up (bk_baf_init()). */
+ * Open a player over either a pre-parsed asset source OR a raw BAF v1 container image
+ * (see bk_baf_config_t: source XOR data+data_len, plus loop/free-run); returns NULL on
+ * failure. When opened from .data the decoder parses & owns the container view (and
+ * aliases the bytes -- keep .data alive until close). bk_baf_close() closes just that
+ * player -- the GPU set up by bk_baf_init() is left running. Hardware must already be
+ * up (bk_baf_init()). */
 bk_baf_decoder_t * bk_baf_open(const bk_baf_config_t * cfg);
 void bk_baf_close(bk_baf_decoder_t * decoder);
 

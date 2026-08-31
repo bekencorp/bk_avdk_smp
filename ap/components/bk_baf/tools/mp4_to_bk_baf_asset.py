@@ -6,10 +6,13 @@ import tempfile
 from pathlib import Path
 
 
+FFMPEG_BIN = "ffmpeg"
+
+
 def run_ffmpeg_annexb(src: Path, dst: Path) -> None:
     subprocess.run(
         [
-            "ffmpeg", "-y", "-loglevel", "error", "-i", str(src),
+            FFMPEG_BIN, "-y", "-loglevel", "error", "-i", str(src),
             "-map", "0:v:0", "-an", "-c:v", "copy",
             "-bsf:v", "h264_mp4toannexb,h264_metadata=aud=insert",
             "-f", "h264", str(dst),

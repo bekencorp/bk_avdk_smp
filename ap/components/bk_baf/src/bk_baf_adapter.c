@@ -11,11 +11,11 @@
 
 #include "bk_baf.h"
 #include "bk_baf_internal.h"            /* struct bk_baf_decoder_ops / _bk_baf_decoder_t */
+#include "bk_baf_container.h"           /* baf_view_t + baf_parse_inplace (cfg.data path) */
 #include <modules/baf_decoder.h>
 
 #include <os/mem.h>
 #include <os/os.h>                         /* rtos_get_time (pacing clock) */
-#include <common/bk_include.h>
 #include <components/bk_gpu.h>              /* bk_gpu_ioctl */
 #include <components/bk_gpu_types.h>        /* BK_GPU_IOCTL_LOCK / _UNLOCK, handle */
 #include <components/avdk_utils/avdk_error.h>
@@ -94,22 +94,43 @@ void bk_baf_deinit(void)
 
 bk_baf_decoder_t * bk_baf_open(const bk_baf_config_t * cfg)
 {
-    if(cfg == NULL || cfg->source == NULL) return NULL;
+    if(cfg == NULL) return NULL;
+
+    /* Two ways to supply the asset: a pre-parsed .source, or a raw BAF v1 container
+     * in .data (parsed here; the decoder then owns the parsed view). */
     const bk_baf_source_t * source = cfg->source;
-    if(source->magic != BK_BAF_SOURCE_MAGIC || !ops_are_valid(source->ops)) return NULL;
+    baf_view_t * owned = NULL;
+    if(source == NULL) {
+        if(cfg->data == NULL) return NULL;
+        owned = os_malloc(sizeof(*owned));
+        if(owned == NULL) return NULL;
+        if(baf_parse_inplace(cfg->data, cfg->data_len, owned) != AVDK_ERR_OK) {
+            os_free(owned);
+            return NULL;
+        }
+        source = &owned->source;
+    }
+    if(source->magic != BK_BAF_SOURCE_MAGIC || !ops_are_valid(source->ops)) {
+        os_free(owned);   /* os_free(NULL) is a no-op */
+        return NULL;
+    }
 
     /* Per-source only: allocate the decoder and open the backend context. The render
      * backend + GPU must already be up via bk_baf_init(); switching sources is just a
      * close()/open() and never re-inits the GPU. */
-    bk_baf_decoder_t * decoder = os_malloc(sizeof(*decoder));
-    if(decoder == NULL) return NULL;
-    os_memset(decoder, 0, sizeof(*decoder));
+    bk_baf_decoder_t * decoder = os_zalloc(sizeof(*decoder));
+    if(decoder == NULL) {
+        os_free(owned);
+        return NULL;
+    }
     decoder->context = source->ops->open(source->data);
     if(decoder->context == NULL) {
         os_free(decoder);
+        os_free(owned);
         return NULL;
     }
     decoder->ops = source->ops;
+    decoder->owned_view = owned;   /* freed in bk_baf_close(); NULL for .source path */
     bk_baf_pacer_reset(&decoder->pacer);
 
     /* Playback options. */
@@ -126,6 +147,7 @@ void bk_baf_close(bk_baf_decoder_t * decoder)
     /* Per-source only: the GPU stays up (torn down by bk_baf_deinit()). */
     if(decoder == NULL) return;
     decoder->ops->close(decoder->context);
+    os_free(decoder->owned_view);   /* parsed from cfg.data; os_free(NULL) is a no-op */
     os_free(decoder);
 }
 
@@ -235,7 +257,7 @@ void bk_baf_set_loop_count(bk_baf_decoder_t * decoder, int32_t count)
 
 /* Public compositor: composites via the selected backend. CPU (Helium) is
  * lock-free; GPU (VG-Lite) serialises against the registered handle (if any). The
- * GPU must already be up -- brought up by bk_baf_open() when init_gpu was set, or
+ * GPU must already be up -- brought up by bk_baf_init() when init_gpu was set, or
  * owned externally (LVGL/flexa). */
 avdk_err_t bk_baf_compose(const bk_baf_frame_desc_t * dst,
                           const bk_baf_frame_desc_t * canvas,

@@ -1,92 +1,110 @@
-# Animation → .baf Converter (BAF asset tools)
+# Animation → BAF v1 container converter
 
 *English | [中文](README_CN.md)*
 
-Convert **APNG / animated WebP / GIF / MP4 / MOV** in one step into **`.baf`**
-(Beken Animation Format) — a dual H.264 stream (RGB + grayscale Alpha) animation
-format with real alpha, consumed by the BK7259 BAF (`lv_baf`) widget.
+Convert **APNG / animated WebP / GIF / MP4 / MOV / MKV / WEBM** into a **BAF v1
+container** (Beken Animation Format; normative spec `BAF_SPEC_CN.md` at the repo
+root, on-device layout in `bk_baf/include/bk_baf_container.h`). The container holds
+one H.264 stream (RGB) plus an optional **grayscale H.264 alpha stream**, forced to
+`bframes=0 refs=1`, non-4:4:4 — aligned with the BK7259 VPU's hardware decode.
 
-## One-click usage
+## Quick start
 
 ```bash
-python3 to_baf.py --input <animation-file>
+python3 to_baf.py --input <animation>
 ```
 
-Auto-detects the input type and produces two outputs (in the input directory by default):
+Auto-detects the input and, by default, emits **two byte-identical** forms of the
+same container image (into the input's directory):
 
-| Output | Description |
+| Output | Purpose |
 |---|---|
-| `<name>.baf` | **Self-contained binary container** (header + RGB H.264 + Alpha H.264 + AU tables + per-frame durations); ship on filesystem/flash |
-| `<name>_baf_asset.c` | **C asset** (`bk_baf_source_t`), compiled into firmware; usable on-device today |
+| `<name>.baf` | Binary container file — ship on filesystem/flash, load at runtime |
+| `<name>_baf.c` | The **same bytes** as a C array: `const unsigned char <name>_baf[]` + `const unsigned int <name>_baf_size`, compiled into firmware |
 
-Common options:
+Both are the same container image; the device parses either one with the **same**
+`baf_parse_inplace()` (see `bk_baf_container.h`) — no conversion needed.
+
+### Arguments
+
+| Argument | Default | Meaning |
+|---|---|---|
+| `--input <path>` | (required) | Source animation (APNG/WebP/GIF/MP4/MOV/MKV/WEBM…) |
+| `--outdir <dir>` | input's dir | Output directory |
+| `--name <name>` | input stem | Output base name → `<name>.baf` / `<name>_baf.c` |
+| `--emit {file,array,both}` | `both` | `.baf` only / C array only / both |
+| `--symbol <sym>` | `<name>_baf` | C array symbol name |
+| `--force-opaque-alpha` | off | Emit a full-resolution all-opaque alpha stream when the input has no alpha |
+
 ```bash
-python3 to_baf.py --input my_anim.apng \
-    --outdir out --name my_anim \
-    --symbol my_anim_bk_baf_source   # C symbol name in the asset
-    # --no-c    only emit .baf
-    # --no-baf  only emit the C asset
+# .baf file only
+python3 to_baf.py --input clip.mp4 --emit file --outdir out --name hello
+# C array only, custom symbol
+python3 to_baf.py --input hello.gif --emit array --symbol hello_baf
 ```
 
-### Using the C asset in a project
+## Consuming it (both parsed inside bk_baf)
+
+**① Compiled-in C array:**
 
 ```c
-extern const bk_baf_source_t my_anim_bk_baf_source;   /* from <name>_baf_asset.c */
+extern const unsigned char hello_baf[];        /* from <name>_baf.c */
+extern const unsigned int  hello_baf_size;
 
-lv_obj_t *anim = lv_baf_create(scr);
-lv_baf_set_gpu_overlay(anim, true);              /* optional: GPU overlay */
-lv_baf_set_src(anim, &my_anim_bk_baf_source);
+/* LVGL widget */
+lv_baf_set_src_data(anim, hello_baf, hello_baf_size);
+
+/* or the bk_baf player directly */
+bk_baf_decoder_t *d = bk_baf_open(&(bk_baf_config_t){
+    .data = hello_baf, .data_len = hello_baf_size });
 ```
-Add `<name>_baf_asset.c` to your project `CMakeLists.txt` srcs.
 
-> Note: the device currently consumes the **C asset** (compiled-in). The `.baf`
-> binary container is also produced, but a **device-side runtime `.baf` loader is
-> not yet implemented** (can be added later to load from filesystem/flash without
-> rebuilding firmware).
+Add `<name>_baf.c` to your project's `CMakeLists.txt` srcs.
+
+**② `.baf` file on filesystem/flash:**
+
+```c
+lv_baf_set_src_file(anim, "S:/baf/hello.baf");   /* read via lv_fs, parsed by bk_baf */
+```
+
+> Note: `bk_baf` **aliases the container bytes in place** (zero-copy) while parsing,
+> so the array/buffer you pass must stay valid for the whole playback (a `const`
+> flash array always does; for the file path `lv_baf` owns the buffer and frees it
+> on close).
 
 ## Supported inputs
 
-- **PIL path** (per-frame + per-frame duration + alpha channel): `.png/.apng`, `.gif`, `.webp`
+- **PIL path** (per-frame + duration + alpha): `.png/.apng`, `.gif`, `.webp`
 - **ffmpeg path** (video containers): `.mp4/.mov/.mkv/.webm/.m4v/.avi`; if the pixel
-  format carries alpha (e.g. rgba/yuva) it is extracted via `alphaextract`, otherwise
+  format carries alpha (rgba/yuva) it is `alphaextract`-ed automatically, otherwise
   treated as opaque
-- Dependencies: `python3 + Pillow`, `ffmpeg/ffprobe`
+- Requires: `python3 + Pillow`, `ffmpeg / ffprobe`
 
 ## Pipeline
 
 ```
-source → extract per-frame RGB + Alpha(gray) + durations
-       → H.264 encode RGB (no B-frames, refs=1) + H.264 encode Alpha as gray (optional)
-       → Annex-B + per-frame AU split + AUD strip
-       → pack .baf (binary) and _baf_asset.c (C array)
+source -> extract per-frame RGB + Alpha(grayscale) + durations(ms)
+       -> pad geometry to multiples of 16 (VPU macroblock requirement)
+       -> H.264 encode RGB (no B-frames, refs=1) + H.264 encode Alpha as gray (optional)
+       -> Annex-B + per-frame access-unit (AU) split + AUD strip
+       -> pack into a BAF v1 container (64B FileHeader + ChunkDirectory + 64B-aligned IDX/DUR/DATA)
 ```
-Alpha is a grayscale stream, matching the BK7259 BAF device decoder.
 
-## .baf binary format (little-endian)
+Alpha is grayscale-encoded (its Y plane is the A8 mask), matching the BK7259 BAF
+device-side decode.
 
-```
-magic        char[8]  "BAFANIM1"
-version      u32      = 1
-width        u16      RGB width
-height       u16      RGB height
-alpha_width  u16      0 => same as width (full-res alpha)
-alpha_height u16      0 => same as height
-frame_count  u32
-flags        u32      bit0 = HAS_ALPHA
-rgb_size     u32
-alpha_size   u32      0 if no alpha
-reserved     u32[4]   = 0
---- variable sections ---
-durations    u32[frame_count]                    per-frame duration (ms)
-rgb_aus      (u32 offset,u32 size)[frame_count]  AU table into the rgb blob
-alpha_aus    (u32 offset,u32 size)[frame_count]  only if HAS_ALPHA
-rgb_data     u8[rgb_size]                         RGB H.264 Annex-B
-alpha_data   u8[alpha_size]                       Alpha H.264 Annex-B (if any)
-```
+## Container format
+
+Normative reference is **`BAF_SPEC_CN.md`** (repo root); the on-device C structs are
+in **`bk_baf/include/bk_baf_container.h`**. In short: a 64-byte fixed `FileHeader`
+(magic `"BAFANIM1"`, geometry, frame count, per-chunk directory indices,
+`header_crc32`) + a flat `ChunkDirectory` (16B/entry `{type, offset, size, crc32}`) +
+64B-aligned `'IDX '` (per-frame AU offset/size) / `'DUR '` (per-frame ms) / `'DATA'`
+(H.264 Annex-B).
 
 ## Scripts here
 
 | Script | Role |
 |---|---|
-| **`to_baf.py`** | ⭐ One-click entry (APNG/WebP/GIF/MP4/MOV → .baf + C asset) |
-| `mp4_to_bk_baf_asset.py` | Packing core (Annex-B / AU split / AUD strip / C-asset generation), reused by `to_baf.py`; can also pack directly from RGB/Alpha mp4 files |
+| **`to_baf.py`** | Converter entry point (APNG/WebP/GIF/MP4/MOV… → BAF v1 `.baf` + `_baf.c`) |
+| `mp4_to_bk_baf_asset.py` | Packing core (ffmpeg calls / Annex-B / AU split / AUD strip), reused by `to_baf.py` |
