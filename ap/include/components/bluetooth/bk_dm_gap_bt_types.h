@@ -124,8 +124,9 @@ typedef enum{
 typedef uint8_t bk_bt_pin_code_t[BK_BT_PIN_CODE_LEN]; /*!< Pin Code (upto 128 bits) MSB is 0 */
 
 typedef enum {
-    BK_BT_SP_IOCAP_MODE = 0,                            /*!< Set IO mode */
-    //BK_BT_SP_OOB_DATA, //TODO                         /*!< Set OOB data */
+    BK_BT_SP_IOCAP_MODE = 0,                            /*!< Set IO capability. value[0]: bk_bt_io_cap_t (0x00~0x03) */
+    BK_BT_SP_AUTHREQ_MODE,                              /*!< Set local SSP AuthReq. value[0]: authentication requirements (0x00~0x05) */
+    BK_BT_SP_OOB_DATA,                                  /*!< Set remote OOB data. value: [bd_addr(6)][ssp_c(16)][ssp_r(16)] */
 } bk_bt_sp_param_t;
 
 /** IO Capability Constants */
@@ -134,6 +135,14 @@ typedef enum {
 #define BK_BT_IO_CAP_IN                       2        /*!< KeyboardOnly */
 #define BK_BT_IO_CAP_NONE                     3        /*!< NoInputNoOutput */
 typedef uint8_t bk_bt_io_cap_t;                        /*!< Combination of the IO Capability */
+
+/** SSP Authentication Requirements */
+#define BK_BT_AUTH_REQ_NO_BONDING                  0x00 /*!< No MITM protection, no bonding */
+#define BK_BT_AUTH_REQ_NO_BONDING_MITM             0x01 /*!< MITM protection, no bonding */
+#define BK_BT_AUTH_REQ_DEDICATED_BONDING            0x02 /*!< No MITM protection, dedicated bonding */
+#define BK_BT_AUTH_REQ_DEDICATED_BONDING_MITM       0x03 /*!< MITM protection, dedicated bonding */
+#define BK_BT_AUTH_REQ_GENERAL_BONDING              0x04 /*!< No MITM protection, general bonding */
+#define BK_BT_AUTH_REQ_GENERAL_BONDING_MITM         0x05 /*!< MITM protection, general bonding */
 
 
 /* BTM Power manager modes */
@@ -219,6 +228,7 @@ typedef enum {
     BK_BT_GAP_SET_AUTO_SNIFF_CMPL_EVT,             /// set auto entry sniff req completed event
     BK_BT_GAP_ROLE_CHG_EVT,                         /*!< role change event */
 	BK_BT_GAP_CONNECTION_REQ_EVT,
+    BK_BT_GAP_ENCRYPTION_CHANGE_EVT,                /*!< BR/EDR encryption change event */
     BK_BT_GAP_EVT_MAX,
 } bk_gap_bt_cb_event_t;
 
@@ -339,6 +349,15 @@ typedef union {
         bk_bd_addr_t bda;                     /*!< remote bluetooth device address*/
         bk_bt_status_t stat;                  /*!< authentication complete status */
     } auth_cmpl;                               /*!< authentication complete parameter struct */
+
+    /**
+     * @brief BK_BT_GAP_ENCRYPTION_CHANGE_EVT
+     */
+    struct encryption_change_param {
+        bk_bd_addr_t bda;                     /*!< remote bluetooth device address */
+        bk_bt_status_t status;                /*!< HCI encryption change status */
+        uint8_t encrypted;                    /*!< 0: encryption off, nonzero: encryption on */
+    } encryption_change;
 
     /**
      * @brief BK_BT_GAP_PIN_REQ_EVT

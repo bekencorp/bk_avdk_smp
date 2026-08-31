@@ -38,6 +38,12 @@ typedef uint8_t bk_ble_key_type_t;
 /// see bk_le_key_enum_t
 typedef uint8_t bk_ble_key_mask_t;
 
+/** Transport on which the key-generation procedure originated. */
+#define BK_BLE_KEY_TRANSPORT_NONE              0x00
+#define BK_BLE_KEY_TRANSPORT_BR_EDR            0x01
+#define BK_BLE_KEY_TRANSPORT_LE                0x02
+typedef uint8_t bk_ble_key_transport_t;
+
 typedef enum
 {
     BK_LE_AUTH_NO_BOND                = 0x00,        /*!< 0  no bondingv*/
@@ -170,6 +176,8 @@ typedef enum
     BK_BLE_GAP_SET_PAST_PARAMS_COMPLETE_EVT,                    /*!< when set periodic advertising sync transfer params complete, the event comes */
     BK_BLE_GAP_PERIODIC_ADV_SYNC_TRANS_RECV_EVT,                /*!< when periodic advertising sync transfer received, the event comes */
 #endif
+
+    BK_BLE_GAP_ENCRYPTION_CHANGE_EVT,                           /*!< when encryption change complete, the event comes */
 
     BK_BLE_GAP_EVT_MAX,                                         /*!< when maximum advertising event complete, the event comes */
 } bk_ble_gap_cb_event_t;
@@ -1061,6 +1069,7 @@ typedef union
     struct ble_bond_dev_key_evt_param
     {
         bk_ble_bond_dev_t bond_dev;               /*!< bond device Structure */
+        bk_ble_key_transport_t transport;           /*!< Originating transport of the key-generation procedure */
     } bond_dev_key_generate_evt;                            /*!< Event parameter of BK_BLE_GAP_BOND_KEY_GENERATE_EVT */
 
     /**
@@ -1433,6 +1442,16 @@ typedef union
         bk_bd_addr_t             addr;
         bk_ble_addr_type_t       addr_type;
     } generate_rpa_cmpl;                /*!< Event parameter of BK_BLE_GAP_GENERATE_RPA_COMPLETE_EVT */
+
+    /**
+     * @brief BK_BLE_GAP_ENCRYPTION_CHANGE_EVT
+     */
+    struct ble_encryption_change_param
+    {
+        bk_bt_status_t status;
+        uint16_t conn_handle;
+        uint8_t encrypted;
+    } encryption_change;                          /*!< Event parameter of BK_BLE_GAP_ENCRYPTION_CHANGE_EVT */
 
 #endif // #if (BLE_50_FEATURE_SUPPORT == TRUE)
 } bk_ble_gap_cb_param_t;

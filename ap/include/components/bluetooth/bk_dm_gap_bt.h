@@ -232,6 +232,9 @@ bk_err_t bk_bt_gap_pin_reply(bk_bd_addr_t bd_addr, bool accept, uint8_t pin_code
 * @brief            Set a GAP security parameter value. Overrides the default value.
 *
 * @param[in]        param_type : the type of the param which is to be set
+*                     - BK_BT_SP_IOCAP_MODE  : value[0] = bk_bt_io_cap_t (0x00~0x03), len = 1
+*                     - BK_BT_SP_AUTHREQ_MODE: value[0] = authentication requirements (0x00~0x05), len = 1
+*                     - BK_BT_SP_OOB_DATA    : value = [bd_addr(6)][ssp_c(16)][ssp_r(16)], len = 38
 *
 * @param[in]        value  : the param value
 *
@@ -487,6 +490,33 @@ bt_err_t bk_bt_gap_switch_role(uint8_t *addr, uint8_t new_role);
  *                 - others: fail
  */
 bt_err_t bk_bt_gap_set_local_name(uint8_t *name, uint8_t len);
+
+/**
+ * @brief           Start SMP authentication over an existing BR/EDR link for CTKD
+ *
+ * @attention       The BR/EDR ACL link and its Link Key must already exist.
+ *
+ * @param[in]       addr: remote BR/EDR device address
+ *
+ * @return
+ *                  - BK_ERR_BT_SUCCESS: request successfully posted
+ *                  - others: fail
+ */
+bt_err_t bk_bt_gap_bredr_smp_authenticate(uint8_t *addr);
+
+/**
+ * @brief           Enable or disable BR/EDR Secure Connections Host Support.
+ *
+ * @attention       Must be called before page scan is enabled and before any ACL
+ *                  connection exists (HCI 0x0C7A requirement).
+ *
+ * @param[in]       enable: 1 to enable, 0 to disable
+ *
+ * @return
+ *                  - BK_ERR_BT_SUCCESS: request successfully posted
+ *                  - others: fail
+ */
+bt_err_t bk_bt_gap_enable_secure_connections_host_support(uint8_t enable);
 
 /**
  * @brief           send linkkey when peer need authentication
