@@ -110,6 +110,23 @@ static int primary_all_write(uint32_t phy_off, const uint8_t *buf, uint32_t size
 	return 0;
 }
 
+/* Read primary_all header magic with the SAME view used by primary_all_write():
+ *   - flash AES off  -> raw DBUS bytes (plaintext on flash)
+ *   - flash AES on   -> CBUS window (XTS decrypt on read)
+ * Using raw read under AES returns ciphertext and breaks the stale-journal
+ * guard (ciphertext != IMAGE_MAGIC even after a valid partial install). */
+static uint32_t primary_all_read_magic(uint32_t phy_off)
+{
+	uint32_t magic = 0xffffffffu;
+
+	if (!efuse_is_flash_aes_enabled()) {
+		bk_flash_read_bytes(phy_off, (uint8_t *)&magic, sizeof(magic));
+	} else {
+		bk_flash_read_cbus(phy_off, &magic, sizeof(magic));
+	}
+	return magic;
+}
+
 typedef struct {
 	uint8_t crc;
 } CRC8_Context;
@@ -307,16 +324,19 @@ static int resume_flash(uint32_t block_num)
 	BOOT_LOG_FORCE("total block=%u, resume block=%u", block_num, restart_block_idx);
 
 	/* Stale-journal guard: a crash after primary erase but before journal clear
-	 * (or a protect-era half install) can leave primary_all=0xFF while the
-	 * journal still claims resume==block_num. That skips every full block
-	 * (for-loop is empty) and bricks in a re-arm loop. If primary has no
-	 * IMAGE_MAGIC, discard the journal and force a full redo. */
-	bk_flash_read_bytes(primary_all_phy_offset, (uint8_t *)&primary_magic,
-			    sizeof(primary_magic));
+	 * (or a protect-era half install) can leave primary_all erased while the
+	 * journal still claims resume==N. That skips every full block (for-loop
+	 * empty) and bricks in a re-arm loop.
+	 *
+	 * Must use primary_all_read_magic() (AES-aware). A raw DBUS read under
+	 * flash AES sees ciphertext (e.g. 0xf76ba641), not IMAGE_MAGIC, so a
+	 * valid mid-install resume would be discarded and always restart at 0. */
+	primary_magic = primary_all_read_magic(primary_all_phy_offset);
 	if (primary_magic != IMAGE_MAGIC &&
 	    restart_block_idx != 0 && restart_block_idx != 0xffu) {
-		BOOT_LOG_ERR("primary magic=0x%x but resume=%u, discard stale journal",
-			     primary_magic, restart_block_idx);
+		BOOT_LOG_ERR("primary magic=0x%x (aes=%u) but resume=%u, discard stale journal",
+			     primary_magic, efuse_is_flash_aes_enabled() ? 1u : 0u,
+			     restart_block_idx);
 		restart_block_idx = 0;
 	}
 
