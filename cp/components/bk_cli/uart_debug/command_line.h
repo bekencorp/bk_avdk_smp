@@ -286,6 +286,7 @@ enum {
 	BEKEN_SET_EQ_CONFIG_VOICE_PARA              =0xB2,
 	BEKEN_SET_SYS_CONFIG_VOICE_PARA             =0xB3,
 	BEKEN_SET_AEC_CONFIG_VOICE_PARA             =0xB4,
+	BEKEN_SET_DRC_CONFIG_VOICE_PARA             =0xB5,
 };
 
 

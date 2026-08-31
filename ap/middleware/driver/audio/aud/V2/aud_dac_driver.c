@@ -28,6 +28,7 @@
 #include <driver/int.h>
 #include <driver/aud_dac_types.h>
 #include <driver/aud_dac.h>
+#include <driver/aud_dac_drc.h>
 #include <timer/timer_driver.h>
 
 //#include <modules/pm.h>
@@ -129,7 +130,24 @@ bk_err_t bk_aud_dac_init(aud_dac_config_t *dac_config)
 			audio_reg_hal_set_dac_cfg_stereo_en(0x0);
 		}
 	}
+#if CONFIG_AUD_DAC_DRC
+	/* Single path: enable → apply a2dp_drc; disable → bypass. */
+	if (dac_config->a2dp_drc_en) {
+		ret = bk_aud_dac_drc_apply_param_cfg(&dac_config->a2dp_drc);
+		if (ret != BK_OK) {
+			LOGE("%s, apply a2dp_drc fail, %d\n", __func__, ret);
+			goto fail;
+		}
+	} else {
+		ret = bk_aud_dac_drc_disable();
+		if (ret != BK_OK) {
+			LOGE("%s, disable a2dp_drc fail, %d\n", __func__, ret);
+			goto fail;
+		}
+	}
+#else
 	audio_reg_hal_set_dac_cfg_drc_bypass(1);
+#endif
 
 	//enable dacl and dacr
 #if 0

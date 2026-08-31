@@ -235,16 +235,34 @@
     .spk0_analog_gain  = 4,                                              \
 }
 
+/* HW DRC. Preset=OFF, mode=2 */
+#define CUST_DRC_CONFIG_SPK()                                                                      \
+{                                                                                                  \
+    .app_drc_en             = 1,                                                                   \
+    .param = {                                                                                     \
+        .preset                 = 0,                                                               \
+        .mode                   = 2,                                                               \
+        .low_boost_db_x10       = 80,                                                              \
+        .threshold_dbfs_x10     = -200,                                                            \
+        .compress_strength_x100 = 85,                                                              \
+    .k_val                  = { 0x493, 0x2B1, 0x1B4, 0x152, 0xD9, 0xD0, 0x7F, 0xE3 },              \
+    .p_reg                  = { 0x1, 0x4, 0xF, 0x26, 0x39, 0x4E, 0x6A },                           \
+    .st_val                 = { -218, 123477, 380602, 755047, 1936952, 2064113, 3678449, 950272 }, \
+    },                                                                                             \
+}
+
 app_aud_para_t app_aud_cust_voice_para = {
     .service_type   = AUD_SERVICE_DOORBELL_VOC,
     .sys_config     = CUST_SYS_CONFIG_VOICE(),
     .aec_v3_config  = CUST_AEC_CONFIG_VOICE(),
     .eq_dl_config   = CUST_EQ_PARA_DL_VOICE(),
+    .drc_config     = CUST_DRC_CONFIG_SPK(),
 };
 
 app_aud_para_t app_aud_cust_single_spk_para = {
     .service_type    = AUD_SERVICE_SINGLE_SPK,
     .sys_config      = CUST_SYS_CONFIG_VOICE(),
+    .drc_config      = CUST_DRC_CONFIG_SPK(),
 };
 
 

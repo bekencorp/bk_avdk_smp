@@ -740,7 +740,8 @@ static int bkreg_run_command_implement(const char *content, int cnt)
 	case BEKEN_GET_AUD_DBG_INFO:
 	case BEKEN_SET_EQ_CONFIG_VOICE_PARA:
 	case BEKEN_SET_AEC_CONFIG_VOICE_PARA:
-	case BEKEN_SET_SYS_CONFIG_VOICE_PARA: {
+	case BEKEN_SET_SYS_CONFIG_VOICE_PARA:
+	case BEKEN_SET_DRC_CONFIG_VOICE_PARA: {
 		shell_cmd_forward((char *)&pHCIrxBuf->param[0], pHCIrxBuf->total);
 		found = 0;
 	}

@@ -28,6 +28,17 @@ menu "AUDIO"
 		bool "Enable audio dac driver"
 		default n
 
+	config AUD_DAC_DRC
+		depends on AUDIO_DAC && AUD_DRIVER_V2
+		bool "Enable DAC A2DP-path hardware DRC"
+		default n
+		help
+			Compile DAC hardware DRC support (k/p/st register programming).
+			HW DRC applies only to the A2DP source path
+			(Resample → EQ → DRC); CALL/HINT bypass DRC and mix later.
+			Init preset is selected by aud_dac_config_t.a2dp_drc_preset,
+			not by Kconfig. Runtime switch: bk_aud_dac_drc_apply_preset().
+
 	config AUDIO_DMIC
 		depends on AUD_DRIVER_V1
 		bool "Enable audio dmic driver"
