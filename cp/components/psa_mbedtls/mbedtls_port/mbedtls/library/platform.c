@@ -408,7 +408,7 @@ void mbedtls_platform_teardown(mbedtls_platform_context *ctx)
 /*
  * Hardware entropy entry for mbedtls and system RNG (strong override of
  * weak bk_rand/bk_fill_rand in bk_platform.c).
- * Backend: non-TFM TRUSTENGINE > OTP > software.
+ * Backend: non-TFM TRUSTENGINE (after dubhe_driver_init) > OTP > software.
  * TFM NS skips Normal-channel TRNG (SPE owns pool fill).
  */
 int bk_rng_get(unsigned char *output, size_t len)
@@ -418,32 +418,52 @@ int bk_rng_get(unsigned char *output, size_t len)
     }
 
 #if CONFIG_TRUSTENGINE && defined(DUBHE_SECURE)
-    extern int arm_ce_seed_read(unsigned char *buf, size_t buf_len);
-    if (arm_ce_seed_read(output, len) == 0) {
-        return 0;
+    /*
+     * TE200 is powered/configured only after dubhe_driver_init().
+     * Early boot (random_init / stack guard) may call rand() via
+     * --wrap before that; accessing TRNG regs then can hang/BusFault.
+     */
+    extern _Bool dubhe_inited;
+    if (dubhe_inited) {
+        extern int arm_ce_seed_read(unsigned char *buf, size_t buf_len);
+        if (arm_ce_seed_read(output, len) == 0) {
+            return 0;
+        }
     }
 #endif
 
 #if CONFIG_OTP_V1
-    bk_err_t bk_otp_read_random_number(uint32_t *value, uint32_t size);
-    uint32_t rand_num = 0;
-    for (size_t i = 0; i < len; i++) {
-        if ((i % 4) == 0) {
-            bk_otp_read_random_number(&rand_num, 1);
+    {
+        bk_err_t bk_otp_read_random_number(uint32_t *value, uint32_t size);
+        uint32_t rand_num = 0;
+        bk_err_t ret = 0;
+        size_t i;
+
+        for (i = 0; i < len; i++) {
+            if ((i % 4) == 0) {
+                ret = bk_otp_read_random_number(&rand_num, 1);
+                if (ret != 0) {
+                    break;
+                }
+            }
+            output[i] = (rand_num >> (8 * (i % 4))) & 0xff;
         }
-        output[i] = (rand_num >> (8 * (i % 4))) & 0xff;
-    }
-#else
-    /*
-     * __real_rand() is the genuine libc rand(); the whole image is built
-     * with -Wl,--wrap=rand, so calling rand() here would recurse back into
-     * __wrap_rand() -> bk_rand() -> bk_rng_get().
-     */
-    extern int __real_rand(void);
-    for (size_t i = 0; i < len; i++) {
-        output[i] = ((__real_rand()) & 0xff);
+        if (ret == 0 && i == len) {
+            return 0;
+        }
     }
 #endif
+
+    /*
+     * Soft fallback: libc rand via --wrap's __real_rand (never call
+     * rand() here — that recurses into __wrap_rand -> bk_rng_get).
+     */
+    {
+        extern int __real_rand(void);
+        for (size_t i = 0; i < len; i++) {
+            output[i] = ((__real_rand()) & 0xff);
+        }
+    }
 
     return 0;
 }
