@@ -102,6 +102,7 @@ static void bk_modem_dte_ec_check_hs_data(uint32_t data_length, uint8_t *data)
  *        This function sends data through the configured interface (USB) based on the
  *        current PPP mode setting. It performs input validation and logs errors for invalid parameters.
  */
+#if CONFIG_LWIP_PPP_SUPPORT
 void bk_modem_dte_send_data(uint32_t data_length, uint8_t *data, enum bk_modem_ppp_mode_e ppp_mode)
 {
     if ((data_length == 0) || (data == NULL))
@@ -118,6 +119,7 @@ void bk_modem_dte_send_data(uint32_t data_length, uint8_t *data, enum bk_modem_p
         BK_MODEM_LOGE("%s: different ppp mode. %d %d\r\n",__func__, bk_modem_env.bk_modem_ppp_mode, ppp_mode);
 
 }
+#endif
 
 /**
  * @brief Send data through UART interface
@@ -145,6 +147,7 @@ void bk_modem_dte_send_data_uart(uint32_t data_length, uint8_t *data, enum bk_mo
  *        This function handles data received from the modem and routes it to the appropriate
  *        handler based on the current PPP mode (AT command processing or PPP network stack).
  */
+#if CONFIG_LWIP_PPP_SUPPORT
 void bk_modem_dte_recv_data(uint32_t data_length, uint8_t *data)
 {
     if ((data_length == 0) || (data == NULL))
@@ -166,6 +169,7 @@ void bk_modem_dte_recv_data(uint32_t data_length, uint8_t *data)
         BK_MODEM_LOGE("%s:invalid ppp mode %d\r\n",__func__, bk_modem_env.bk_modem_ppp_mode);
     }
 }
+#endif
 
 /**
  * @brief Receive and process data from UART interface
@@ -238,7 +242,9 @@ void bk_modem_dte_handle_conn_ind(BUS_MSG_T *msg)
     {
         bk_modem_set_state(MODEM_CHECK);
         bk_modem_send_msg(MSG_MODEM_CHECK, 0,0,0);
+#if CONFIG_LWIP_PPP_SUPPORT
         bk_modem_env.bk_modem_ppp_mode = PPP_INIT_MODE;
+#endif
     }
 }
 
@@ -266,10 +272,12 @@ void bk_modem_dte_handle_modem_check(void)
             return;
         }
 
+#if CONFIG_LWIP_PPP_SUPPORT
         if (bk_modem_env.comm_proto == PPP_MODE)
         {
             bk_modem_env.bk_modem_ppp_mode = PPP_CMD_MODE;
         }
+#endif
         
         // Sequence of modem health checks
         if (!bk_modem_dce_send_at())
@@ -318,11 +326,13 @@ void bk_modem_dte_handle_modem_check(void)
         
         // All checks passed, transition to appropriate mode
         sim_check_cnt = 0;
+#if CONFIG_LWIP_PPP_SUPPORT
         if (bk_modem_env.comm_proto == PPP_MODE)
         {
             bk_modem_set_state(PPP_START);
             bk_modem_send_msg(MSG_PPP_START, 0,0,0);
         }
+#endif
         BK_MODEM_LOGI("%s: modem check pass\r\n", __func__);
         return;
         
@@ -384,6 +394,7 @@ retry:
  *        - Transitioning to data mode
  *        It includes error handling and recovery procedures for connection failures.
  */
+#if CONFIG_LWIP_PPP_SUPPORT
 void bk_modem_dte_handle_ppp_start(void)
 {
     uint8_t temp_flag = 0xff;
@@ -611,6 +622,7 @@ fail:
     bk_modem_env.bk_modem_ppp_mode = PPP_INIT_MODE;
     bk_modem_set_state(MODEM_CHECK);
 }
+#endif
 
 /**
  * @brief Handle modem disconnection indication
@@ -620,12 +632,14 @@ fail:
 void bk_modem_dte_handle_disc_ind(void)
 {
     BK_MODEM_LOGI("%s: disc %d\r\n", __func__, bk_modem_get_state());
+#if CONFIG_LWIP_PPP_SUPPORT
     if (bk_modem_get_state() == PPP_START)
     {
         bk_modem_set_state(PPP_STOP);
         bk_modem_send_msg(MSG_PPP_STOP, DSIC_STOP,0,0); 
     }
     else
+#endif
     {
         bk_modem_set_state(WAIT_MODEM_CONN);
     }

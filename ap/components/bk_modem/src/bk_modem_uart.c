@@ -386,6 +386,7 @@ bk_err_t bk_modem_uart_tx_send_msg(int type, uint32_t arg, uint32_t len, void *p
     /* Allocate different size buffers according to communication protocol type */
     if (len)
     {
+#if CONFIG_LWIP_PPP_SUPPORT
         if (bk_modem_env.comm_proto == PPP_MODE)
         {
             msg.param = os_malloc(len);
@@ -400,7 +401,9 @@ bk_err_t bk_modem_uart_tx_send_msg(int type, uint32_t arg, uint32_t len, void *p
                 return BK_FAIL;
             }
         }
-        else if (bk_modem_env.comm_proto == UART_NIC_MODE)
+        else
+#endif
+        if (bk_modem_env.comm_proto == UART_NIC_MODE)
         {
             bk_modem_uart_sleep_check();
             msg.param = os_malloc(len+UART_NIC_HD_SIZE);
@@ -650,11 +653,13 @@ fail:
  */
 void bk_modem_uart_data_send(uint32_t data_length, uint8_t *data, enum bk_modem_uart_trx_mode_e uart_trx_mode)
 {
+#if CONFIG_LWIP_PPP_SUPPORT
     if (bk_modem_env.comm_proto == PPP_MODE)
     {
         bk_modem_uart_tx_send_msg(MSG_MODEM_UART_TX,uart_trx_mode,data_length,data);
     }
     else
+#endif
     {
         if ((bk_modem_ec_hs > 0) || (uart_trx_mode == AT_CMD_MODE))
         {

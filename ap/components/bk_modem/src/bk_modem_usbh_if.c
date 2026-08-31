@@ -53,7 +53,13 @@ void bk_modem_usbh_bulkout_ind(char *p_tx, uint32_t l_tx)
 
 void bk_modem_usbh_bulkin_ind(uint8_t *p_rx, uint32_t l_rx)
 {
+#if CONFIG_LWIP_PPP_SUPPORT
 	bk_modem_dte_recv_data(l_rx, (uint8_t *)p_rx);
+#else
+	(void)p_rx;
+	(void)l_rx;
+	BK_MODEM_LOGW("%s: drop USB data because PPP is disabled\r\n", __func__);
+#endif
 }
 
 

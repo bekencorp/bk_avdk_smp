@@ -5,6 +5,16 @@ menu "Mcu_4g_modem"
 	bool "Enable Beken Modem"
 	default n
 
+	config BK_MODEM_UART_ID
+		int "UART ID used by bk_modem (UART_ID_n)"
+		depends on BK_MODEM
+		default 1
+		range 0 5
+		help
+		  Select which UART controller bk_modem uses.
+		  1 = UART1 (e.g. AI / beken_robot NT26 on P42/P43),
+		  2 = UART2 (e.g. dashboard NT26 on P53/P54).
+
 	config UART_NIC_MASTER_READY_GPIO
 		int  "the gpio used to nodify 4G module, bk7258 ready to send data"
 		depends on BK_MODEM

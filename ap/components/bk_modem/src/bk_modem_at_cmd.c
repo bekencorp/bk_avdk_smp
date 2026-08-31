@@ -197,6 +197,14 @@ bk_err_t bk_modem_at_cmd_send(const char *cmd, uint8_t max_retry, uint32_t timeo
 
 	BK_MODEM_LOGI("at cmd send: len=%d, cmd=%s\r\n", len, at_cmd_buf);
 
+#if !CONFIG_LWIP_PPP_SUPPORT
+	if (bk_modem_env.comm_if == USB_IF)
+	{
+		BK_MODEM_LOGE("%s: USB AT command requires CONFIG_LWIP_PPP_SUPPORT\r\n", __func__);
+		return BK_FAIL;
+	}
+#endif
+
 	while (retry--)
 	{
 		BK_MODEM_LOGI("modem_device_write: %d, %d\r\n", retry, bk_modem_env.comm_if);
@@ -210,7 +218,9 @@ bk_err_t bk_modem_at_cmd_send(const char *cmd, uint8_t max_retry, uint32_t timeo
 		//:send at cmd to uart or usb
 		if (bk_modem_env.comm_if == USB_IF)
 		{
+#if CONFIG_LWIP_PPP_SUPPORT
 			bk_modem_dte_send_data(len, at_cmd_buf, PPP_CMD_MODE);
+#endif
 		}
 		else if (bk_modem_env.comm_if == UART_IF)
 		{

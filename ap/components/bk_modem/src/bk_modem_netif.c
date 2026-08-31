@@ -8,8 +8,10 @@
  ****************************************************************************************
  */
 #include "lwip/dns.h"
+#if CONFIG_LWIP_PPP_SUPPORT
 #include "netif/ppp/pppapi.h"
 #include "netif/ppp/pppos.h"
+#endif
 #include <../../lwip_intf_v2_1/lwip-2.1.2/port/net.h>
 #include <string.h>
 #include "lwip/ip6_addr.h"

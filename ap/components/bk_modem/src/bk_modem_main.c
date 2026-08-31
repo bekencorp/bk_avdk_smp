@@ -65,6 +65,7 @@ static void bk_modem_thread_main(void *args)
                 break;
             }
 
+#if CONFIG_LWIP_PPP_SUPPORT
             case MSG_PPP_START:
             {
                 // Handle PPP connection start request
@@ -92,6 +93,7 @@ static void bk_modem_thread_main(void *args)
                 bk_modem_dte_handle_ppp_stop(&msg);
                 break;
             }
+#endif
 
             case MSG_MODEM_DISC_IND:
             {
@@ -199,6 +201,7 @@ bk_err_t bk_modem_deinit(void)
 
     if (bk_modem_status == 1)
     {
+#if CONFIG_LWIP_PPP_SUPPORT
         if (bk_modem_env.comm_proto == PPP_MODE)
         {
             // Set state to PPP_STOP and send stop message
@@ -212,7 +215,9 @@ bk_err_t bk_modem_deinit(void)
             msg.param = NULL;
             bk_modem_dte_handle_ppp_stop(&msg);
         }
-        else if (bk_modem_env.comm_proto == UART_NIC_MODE)
+        else
+#endif
+        if (bk_modem_env.comm_proto == UART_NIC_MODE)
         {
             modem_ip_down();
             net_modem_remove_netif();
@@ -282,6 +287,7 @@ bk_err_t bk_modem_init(bk_modem_comm_proto comm_proto, bk_modem_comm_if comm_if)
     bk_modem_env.entered_sleep = false;
     if (comm_proto == PPP_MODE)
     {
+#if CONFIG_LWIP_PPP_SUPPORT
         if (comm_if == USB_IF)
         {
             bk_modem_send_msg(MSG_MODEM_USBH_POWER_ON, 0, 0, 0);
@@ -289,6 +295,10 @@ bk_err_t bk_modem_init(bk_modem_comm_proto comm_proto, bk_modem_comm_if comm_if)
         else  
             // PPP over UART not supported yet
             goto init_fail;
+#else
+        BK_MODEM_LOGE("%s: PPP requires CONFIG_LWIP_PPP_SUPPORT\r\n", __func__);
+        goto init_fail;
+#endif
     }
     else if (comm_proto == UART_NIC_MODE)
     {

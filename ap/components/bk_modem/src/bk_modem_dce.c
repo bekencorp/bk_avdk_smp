@@ -115,20 +115,24 @@ bool bk_modem_dce_cereg_enable_with_loc(void)
     return (BK_OK == bk_modem_at_cereg_enable_with_loc());
 }
 
+#if CONFIG_LWIP_PPP_SUPPORT
 bool bk_modem_dce_start_ppp(void)
 {
     return (BK_OK == bk_modem_at_ppp_connect());
 }
+#endif
 
 bool bk_modem_dce_enter_cmd_mode(void)
 {
     return (BK_OK == bk_modem_at_enter_cmd_mode());
 }
 
+#if CONFIG_LWIP_PPP_SUPPORT
 bool bk_modem_dce_stop_ppp(void)
 {
     return (BK_OK == bk_modem_at_disconnect());
 }
+#endif
 
 bool bk_modem_dce_enter_flight_mode(void)
 {
