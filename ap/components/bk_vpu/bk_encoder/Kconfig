@@ -78,6 +78,17 @@ menu "BEKEN CODEC ENCODER"
 			decreasing the number) above the network/WiFi tasks reduces the
 			encode-start scheduling latency that can starve the ISP flexa FIFO."
 
+	config BK_ENCODER_H264_FRAME_TASK_PRIORITY
+		int "H.264 frame encode task priority (smaller = higher)"
+		default 6
+		range 0 9
+		depends on BK_ENCODER
+		help
+			"Priority of the H.264 whole-frame control task (h264e_encoder,
+			created in bk_h264_encode_frame_ctlr.c). BEKEN convention: a
+			SMALLER number means HIGHER scheduling priority. Default 6 preserves
+			the historical BEKEN_DEFAULT_WORKER_PRIORITY behavior."
+
 	config BK_ENCODER_H264_HW_FLEXA_TASK_PRIORITY
 		int "H.264 hardware-flexa encode task priority (smaller = higher)"
 		default 2

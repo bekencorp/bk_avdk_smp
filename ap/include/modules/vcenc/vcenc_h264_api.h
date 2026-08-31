@@ -61,6 +61,15 @@ uint32_t vcenc_h264_get_encoded_lines(void);
 
 uint32_t vcenc_h264_get_current_qp(h264_enc_param_t *enc_param);
 
+/**
+ * Read the last-encoded-frame stream statistics of this instance.
+ * @param enc_param   encoder param block
+ * @param intra_cu8_num  out: number of intra 8x8 CUs (may be NULL)
+ * @param rd_cost        out: aggregate RD cost (may be NULL)
+ */
+vcenc_ret_e vcenc_h264_get_stream_info(h264_enc_param_t *enc_param,
+				       uint32_t *intra_cu8_num, uint32_t *rd_cost);
+
 #ifdef __cplusplus
 }
 #endif

@@ -41,7 +41,33 @@ typedef enum {
     BK_H264_ENCODE_IOCTL_SET_RATE_CTRL,      // arg: bk_h264_encode_rate_ctrl_t*
     BK_H264_ENCODE_IOCTL_GET_RATE_CTRL,      // arg: bk_h264_encode_rate_ctrl_t*
     BK_H264_ENCODE_IOCTL_SET_OSD,            // arg: bk_h264_encode_osd_t*
+    BK_H264_ENCODE_IOCTL_SET_INPUT_BUF,      // frame mode: set next-frame input buffer, arg: bk_h264_encode_input_t*
+    BK_H264_ENCODE_IOCTL_GET_STREAM_INFO,    // frame mode: read last-frame stream stats, arg: bk_h264_encode_stream_info_t*
 } bk_h264_encode_ioctl_cmd_t;
+
+/**
+ * @brief Per-frame input descriptor for frame-mode zero-copy encoding.
+ *
+ * Used with BK_H264_ENCODE_IOCTL_SET_INPUT_BUF.
+ * The input must be contiguous NV12; the encoder derives the chroma-plane
+ * address from the luma address and configured frame dimensions.
+ */
+typedef struct
+{
+    uint32_t input_buf;         /**< Luma (Y) plane base address of the frame to encode. */
+    uint32_t input_size;        /**< Input frame size in bytes (or line count, per controller). */
+} bk_h264_encode_input_t;
+
+/**
+ * @brief Per-frame encoder statistics used by adaptive pre-processing (e.g. NDR).
+ *
+ * Filled by BK_H264_ENCODE_IOCTL_GET_STREAM_INFO.
+ */
+typedef struct
+{
+    uint32_t intra_cu8_num;     /**< Number of intra-coded 8x8 CUs in the last frame (motion proxy). */
+    uint32_t rd_cost;           /**< Aggregate rate-distortion cost of the last frame. */
+} bk_h264_encode_stream_info_t;
 
 typedef enum
 {

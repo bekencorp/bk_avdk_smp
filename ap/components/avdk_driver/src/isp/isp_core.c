@@ -229,7 +229,7 @@ static void isp_isr_callback(uint32_t state, void *args)
                 LOGW("%s, %d, error state: %d\n", __func__, __LINE__, state);
                 error_count = 0;
             }
-            if (control->close_sbi == 0)
+            if (control->chn[ISP_MP_CHN_ID].enable_flexa && control->close_sbi == 0)
             {
                 bk_isp_flexa_sbi_config((isp_handle_t *)&control, ISP_MP_CHN_ID, 0);
                 if (control->chn[ISP_MP_CHN_ID].skip_frames_remaining == 0)

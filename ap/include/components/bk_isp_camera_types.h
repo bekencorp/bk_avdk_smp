@@ -87,6 +87,10 @@ typedef enum
     BK_CAM_IOCTL_QUERY_EXPOSURE_INFO, /**< Query current AE result; arg = bk_isp_camera_exposure_info_t * */
     BK_CAM_IOCTL_SET_INITIAL_EXPOSURE, /**< Seed manual exposure before channel open; arg = bk_isp_camera_exposure_info_t * */
     BK_CAM_IOCTL_RESUME_AUTO_EXPOSURE, /**< Resume auto AE after the initial frame; arg = NULL */
+    BK_CAM_IOCTL_CHANNEL_ACQUIRE, /**< Hand a channel to an external consumer; arg = uint8_t * */
+    BK_CAM_IOCTL_CHANNEL_RELEASE, /**< Return a channel to the camera thread; arg = uint8_t * */
+    BK_CAM_IOCTL_FRAME_POP, /**< Dequeue a zero-copy frame; arg = bk_isp_camera_frame_info_t * */
+    BK_CAM_IOCTL_FRAME_QBUF, /**< Re-queue a zero-copy frame; arg = bk_isp_camera_frame_info_t * */
 } bk_cam_interface_ioctl_t;
 
 /**
@@ -155,6 +159,25 @@ typedef struct
     uint16_t format;        /**< Pixel format */
 } bk_isp_camera_channel_config_t;
 
+
+/**
+ * @brief Zero-copy frame descriptor handed out by the ISP camera controller.
+ *
+ * Describes one ISP output frame still living in the ISP frame pool (no copy).
+ * Pass it to BK_CAM_IOCTL_FRAME_POP with @ref channel and @ref timeout set.
+ * On success the caller owns the buffer until it passes the same @ref channel
+ * and @ref index to BK_CAM_IOCTL_FRAME_QBUF. Y plane starts at @ref frame_addr;
+ * for semi-planar NV12 the chroma plane is contiguous at frame_addr +
+ * width*height.
+ */
+typedef struct
+{
+    uint32_t frame_addr;   /**< Physical/user address of the frame (Y plane base), zero-copy. */
+    uint32_t frame_size;   /**< Total frame size in bytes (all planes). */
+    uint32_t timeout;      /**< FRAME_POP timeout in milliseconds; ignored by FRAME_QBUF. */
+    uint8_t  channel;      /**< ISP channel id (ISP_MP_CHN_ID / ISP_SP_CHN_ID). */
+    uint8_t  index;        /**< Frame-pool buffer index; pass back to BK_CAM_IOCTL_FRAME_QBUF. */
+} bk_isp_camera_frame_info_t;
 
 /**
  * @brief Camera controller handle type definition

@@ -663,7 +663,11 @@
              .autoAttr = {
                  .expTimeRange = {
                      .min =  10,
+#if CONFIG_PT_MP_H264_FRAME_MODE
+                     .max =  59000,
+#else
                      .max =  100000,
+#endif
                  },
                  .againRange = {
                     .min = 64,

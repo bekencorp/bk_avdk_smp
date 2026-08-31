@@ -24,6 +24,18 @@
 
 #define ISP_CAMERA_READ_IDLE_TIMEOUT_MS 100
 
+typedef struct
+{
+    bk_camera_isp_ctlr_t controller;
+    /* 1 = channel owned by an external zero-copy consumer; 0 = camera reader. */
+    uint8_t bond_owned[ISP_CHANNEL_INSTANCE_MAX];
+} isp_camera_ctlr_private_t;
+
+static isp_camera_ctlr_private_t *isp_camera_ctlr_get_private(bk_camera_isp_ctlr_t *control)
+{
+    return __containerof(control, isp_camera_ctlr_private_t, controller);
+}
+
 static void isp_camera_ctlr_task_entry(void *param)
 {
     int ret = BK_FAIL;
@@ -67,6 +79,13 @@ static void isp_camera_ctlr_task_entry(void *param)
         {
             //LOGD("%s, %d config error:%p\n", __func__, __LINE__, config);
             rtos_delay_milliseconds(10);
+            continue;
+        }
+
+        if (chnl_id < ISP_CHANNEL_INSTANCE_MAX &&
+            isp_camera_ctlr_get_private(cam_control)->bond_owned[chnl_id])
+        {
+            /* The channel queue is owned by an external zero-copy consumer. */
             continue;
         }
 
@@ -395,6 +414,9 @@ static avdk_err_t isp_camera_ctlr_read(bk_isp_camera_ctlr_handle_t handle, uint1
     bk_camera_isp_ctlr_t *control = __containerof(handle, bk_camera_isp_ctlr_t, ops);
     AVDK_RETURN_ON_FALSE(control != NULL, ret, TAG, "control is NULL");
     AVDK_RETURN_ON_FALSE(id < ISP_CHANNEL_INSTANCE_MAX, AVDK_ERR_INVAL, TAG, "channel out of range");
+    AVDK_RETURN_ON_FALSE(isp_camera_ctlr_get_private(control)->bond_owned[id] == 0,
+                         AVDK_ERR_BUSY, TAG,
+                         "channel is owned by an external consumer");
 
     isp_channel_read_ctx_t *read_ctx = &control->read_ctx[id];
 
@@ -453,7 +475,7 @@ static avdk_err_t isp_camera_ctlr_delete(bk_isp_camera_ctlr_handle_t handle)
     bk_camera_isp_ctlr_t *control = __containerof(handle, bk_camera_isp_ctlr_t, ops);
     AVDK_RETURN_ON_FALSE(control, AVDK_ERR_INVAL, TAG, "control is NULL");
 
-    os_free(control);
+    os_free(isp_camera_ctlr_get_private(control));
 
     return AVDK_ERR_OK;
 }
@@ -629,7 +651,7 @@ static avdk_err_t isp_camera_ctlr_channel_open(bk_isp_camera_ctlr_handle_t handl
 
     /* Frame-mode (non-flexa) channel (SP): confirm a live stream and re-arm a metastable
      * dead-arm internally, so the caller never sees a half-dead (0-frame) session. */
-    if (isp_config.enable_flexa == 0 && isp_config.work_mode == 0)
+    if (isp_config.enable_flexa == 0 && isp_config.work_mode == 0 && channel != ISP_MP_CHN_ID)
     {
         if (isp_camera_ctlr_arm_probe_sustain(controller, channel, &isp_config, config) != AVDK_ERR_OK)
         {
@@ -741,6 +763,13 @@ static avdk_err_t isp_camera_ctlr_deregister_isr_callback(bk_isp_camera_ctlr_han
     return AVDK_ERR_OK;
 }
 
+static avdk_err_t isp_camera_ctlr_channel_acquire(bk_isp_camera_ctlr_handle_t handle, uint8_t channel);
+static avdk_err_t isp_camera_ctlr_channel_release(bk_isp_camera_ctlr_handle_t handle, uint8_t channel);
+static avdk_err_t isp_camera_ctlr_frame_pop(bk_isp_camera_ctlr_handle_t handle, uint8_t channel,
+                                            bk_isp_camera_frame_info_t *info, uint32_t timeout);
+static avdk_err_t isp_camera_ctlr_frame_qbuf(bk_isp_camera_ctlr_handle_t handle, uint8_t channel,
+                                             uint8_t index);
+
 static avdk_err_t isp_camera_ctlr_ioctl(bk_isp_camera_ctlr_handle_t handle, bk_cam_interface_ioctl_t ioctl, void *arg)
 {
     bk_camera_isp_ctlr_t *controller = __containerof(handle, bk_camera_isp_ctlr_t, ops);
@@ -807,17 +836,161 @@ static avdk_err_t isp_camera_ctlr_ioctl(bk_isp_camera_ctlr_handle_t handle, bk_c
                 TAG, "set cproc attr failed");
             break;
 
+        case BK_CAM_IOCTL_CHANNEL_ACQUIRE:
+            AVDK_RETURN_ON_FALSE(arg, AVDK_ERR_INVAL, TAG, "channel acquire arg is NULL");
+            return isp_camera_ctlr_channel_acquire(handle, *(uint8_t *)arg);
+
+        case BK_CAM_IOCTL_CHANNEL_RELEASE:
+            AVDK_RETURN_ON_FALSE(arg, AVDK_ERR_INVAL, TAG, "channel release arg is NULL");
+            return isp_camera_ctlr_channel_release(handle, *(uint8_t *)arg);
+
+        case BK_CAM_IOCTL_FRAME_POP:
+        {
+            bk_isp_camera_frame_info_t *info = (bk_isp_camera_frame_info_t *)arg;
+            AVDK_RETURN_ON_FALSE(info, AVDK_ERR_INVAL, TAG, "frame pop arg is NULL");
+            return isp_camera_ctlr_frame_pop(handle, info->channel, info, info->timeout);
+        }
+
+        case BK_CAM_IOCTL_FRAME_QBUF:
+        {
+            bk_isp_camera_frame_info_t *info = (bk_isp_camera_frame_info_t *)arg;
+            AVDK_RETURN_ON_FALSE(info, AVDK_ERR_INVAL, TAG, "frame qbuf arg is NULL");
+            return isp_camera_ctlr_frame_qbuf(handle, info->channel, info->index);
+        }
+
         default:
             return AVDK_ERR_INVAL;
     }
     return AVDK_ERR_OK;
 }
 
+/* Rebuild a VIDEO_BUF_S for a given frame-pool index so it can be re-queued
+ * (QBUF) to the ISP. Mirrors bk_isp_complete_buffer_config's per-buffer layout:
+ * plane[0] at frame_buffer[index], subsequent planes contiguous. */
+static bk_err_t isp_camera_build_video_buf(isp_control_t *isp_control, uint8_t chnl,
+                                           uint8_t index, VIDEO_BUF_S *buf)
+{
+    if (isp_control == NULL || buf == NULL || index >= ISP_FRAME_CNT_MAX ||
+        isp_control->chn[chnl].frame_buffer[index] == NULL)
+    {
+        return BK_FAIL;
+    }
+
+    os_memset(buf, 0, sizeof(*buf));
+    buf->index = index;
+    buf->numPlanes = isp_control->chn[chnl].chn_attr.chnFormat.numPlanes;
+    if (buf->numPlanes == 0 || buf->numPlanes > VIDEO_MAX_PLANES)
+    {
+        buf->numPlanes = 1;
+    }
+
+    for (vsi_u8_t p = 0; p < buf->numPlanes; p++)
+    {
+        buf->planes[p].size = isp_control->chn[chnl].chn_attr.chnFormat.planeFmt[p].size;
+    }
+    buf->planes[0].dmaPhyAddr = (vsi_dma_t)(uintptr_t)isp_control->chn[chnl].frame_buffer[index];
+    for (vsi_u8_t p = 1; p < buf->numPlanes; p++)
+    {
+        buf->planes[p].dmaPhyAddr = buf->planes[p - 1].dmaPhyAddr + buf->planes[p - 1].size;
+    }
+
+    return BK_OK;
+}
+
+static avdk_err_t isp_camera_ctlr_channel_acquire(bk_isp_camera_ctlr_handle_t handle, uint8_t channel)
+{
+    bk_camera_isp_ctlr_t *control = __containerof(handle, bk_camera_isp_ctlr_t, ops);
+    AVDK_RETURN_ON_FALSE(control, AVDK_ERR_INVAL, TAG, "control is NULL");
+    AVDK_RETURN_ON_FALSE(channel < ISP_CHANNEL_INSTANCE_MAX, AVDK_ERR_INVAL, TAG, "channel out of range");
+
+    isp_camera_ctlr_get_private(control)->bond_owned[channel] = 1;
+    LOGI("%s, channel %d acquired by external consumer\n", __func__, channel);
+    return AVDK_ERR_OK;
+}
+
+static avdk_err_t isp_camera_ctlr_channel_release(bk_isp_camera_ctlr_handle_t handle, uint8_t channel)
+{
+    bk_camera_isp_ctlr_t *control = __containerof(handle, bk_camera_isp_ctlr_t, ops);
+    AVDK_RETURN_ON_FALSE(control, AVDK_ERR_INVAL, TAG, "control is NULL");
+    AVDK_RETURN_ON_FALSE(channel < ISP_CHANNEL_INSTANCE_MAX, AVDK_ERR_INVAL, TAG, "channel out of range");
+
+    isp_camera_ctlr_get_private(control)->bond_owned[channel] = 0;
+    LOGI("%s, channel %d released back to cam_thread\n", __func__, channel);
+    return AVDK_ERR_OK;
+}
+
+static avdk_err_t isp_camera_ctlr_frame_pop(bk_isp_camera_ctlr_handle_t handle, uint8_t channel,
+                                            bk_isp_camera_frame_info_t *info, uint32_t timeout)
+{
+    bk_camera_isp_ctlr_t *control = __containerof(handle, bk_camera_isp_ctlr_t, ops);
+    AVDK_RETURN_ON_FALSE(control, AVDK_ERR_INVAL, TAG, "control is NULL");
+    AVDK_RETURN_ON_FALSE(info, AVDK_ERR_INVAL, TAG, "info is NULL");
+    AVDK_RETURN_ON_FALSE(channel < ISP_CHANNEL_INSTANCE_MAX, AVDK_ERR_INVAL, TAG, "channel out of range");
+
+    isp_control_t *isp_control = (isp_control_t *)control->isp_handle;
+    AVDK_RETURN_ON_FALSE(isp_control && isp_control->pop_buf, AVDK_ERR_INVAL, TAG, "isp pop_buf NULL");
+
+    VIDEO_BUF_S buf;
+    os_memset(&buf, 0, sizeof(buf));
+    int ret = isp_control->pop_buf(isp_control->chn[channel].channel, &buf, timeout);
+    if (ret != BK_OK)
+    {
+        return AVDK_ERR_GENERIC;
+    }
+
+    uint32_t addr = (uint32_t)(uintptr_t)buf.planes[0].dmaPhyAddr;
+    if (buf.planes[0].pUserAddr != NULL)
+    {
+        addr = (uint32_t)(uintptr_t)buf.planes[0].pUserAddr;
+    }
+
+    uint32_t frame_size = buf.imageSize;
+    if (frame_size == 0)
+    {
+        uint8_t plane_cnt = buf.numPlanes ? buf.numPlanes : 1;
+        if (plane_cnt > VIDEO_MAX_PLANES)
+        {
+            plane_cnt = VIDEO_MAX_PLANES;
+        }
+        for (uint8_t p = 0; p < plane_cnt; p++)
+        {
+            frame_size += buf.planes[p].size;
+        }
+    }
+
+    info->frame_addr = addr;
+    info->frame_size = frame_size;
+    info->channel = channel;
+    info->index = (uint8_t)buf.index;
+    return AVDK_ERR_OK;
+}
+
+static avdk_err_t isp_camera_ctlr_frame_qbuf(bk_isp_camera_ctlr_handle_t handle, uint8_t channel, uint8_t index)
+{
+    bk_camera_isp_ctlr_t *control = __containerof(handle, bk_camera_isp_ctlr_t, ops);
+    AVDK_RETURN_ON_FALSE(control, AVDK_ERR_INVAL, TAG, "control is NULL");
+    AVDK_RETURN_ON_FALSE(channel < ISP_CHANNEL_INSTANCE_MAX, AVDK_ERR_INVAL, TAG, "channel out of range");
+
+    isp_control_t *isp_control = (isp_control_t *)control->isp_handle;
+    AVDK_RETURN_ON_FALSE(isp_control && isp_control->free_buf, AVDK_ERR_INVAL, TAG, "isp free_buf NULL");
+
+    VIDEO_BUF_S buf;
+    if (isp_camera_build_video_buf(isp_control, channel, index, &buf) != BK_OK)
+    {
+        LOGE("%s, build video buf failed, chnl %d index %d\n", __func__, channel, index);
+        return AVDK_ERR_INVAL;
+    }
+
+    int ret = isp_control->free_buf(isp_control->chn[channel].channel, &buf);
+    return (ret == BK_OK) ? AVDK_ERR_OK : AVDK_ERR_GENERIC;
+}
+
 avdk_err_t bk_camera_isp_ctlr_new(bk_isp_camera_ctlr_handle_t *handle)
 {
-    bk_camera_isp_ctlr_t *controller = os_malloc(sizeof(bk_camera_isp_ctlr_t));
-    AVDK_RETURN_ON_FALSE(controller, AVDK_ERR_NOMEM, TAG, AVDK_ERR_NOMEM_TEXT);
-    os_memset(controller, 0, sizeof(bk_camera_isp_ctlr_t));
+    isp_camera_ctlr_private_t *private = os_malloc(sizeof(isp_camera_ctlr_private_t));
+    AVDK_RETURN_ON_FALSE(private, AVDK_ERR_NOMEM, TAG, AVDK_ERR_NOMEM_TEXT);
+    os_memset(private, 0, sizeof(isp_camera_ctlr_private_t));
+    bk_camera_isp_ctlr_t *controller = &private->controller;
 
     // os_memcpy(&controller->config, config, sizeof(bk_isp_camera_ctlr_config_t));
     controller->ops.dev_init = isp_camera_ctlr_dev_init;
