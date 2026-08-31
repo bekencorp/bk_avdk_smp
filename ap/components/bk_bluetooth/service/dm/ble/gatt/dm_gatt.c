@@ -14,6 +14,9 @@
 #include "components/bluetooth/bk_dm_gap_ble.h"
 #include "components/bluetooth/bk_dm_gatt_common.h"
 #include "dm_gatt.h"
+#if CONFIG_BT && CONFIG_BLUETOOTH_BTDM_COMPONENT_ENABLE
+#include "bt_manager.h"
+#endif
 #if CONFIG_BLUETOOTH_BTDM_COMPONENT_BLE_USE_STORAGE
 #include "bluetooth_storage.h"
 #endif
@@ -857,25 +860,52 @@ static int32_t dm_ble_gap_common_cb(bk_ble_gap_cb_event_t event, bk_ble_gap_cb_p
 
         os_memcpy(dm_bond_dev_p, &pm->bond_dev, sizeof(*dm_bond_dev_p));
 
-#if 0//CONFIG_BT
-
-        if ((pm->bond_dev.bond_key.key_mask & (BK_LE_KEY_LENC | BK_LE_KEY_LLK)) == (BK_LE_KEY_LENC | BK_LE_KEY_LLK) &&
-                pm->bond_dev.bond_key.lenc_key.sec_level == BK_BLE_SECURITY_LEVEL_4)
+#if CONFIG_BLUETOOTH_CTKD_BLE_TO_BT || CONFIG_BLUETOOTH_CTKD_BT_TO_BLE
+        if (BK_BLE_KEY_TRANSPORT_BR_EDR == pm->transport)
         {
-#if CONFIG_A2DP_SOURCE_DEMO
-            extern int32_t bt_a2dp_source_demo_set_linkkey(uint8_t *addr, uint8_t *linkkey);
-            bt_a2dp_source_demo_set_linkkey(pm->bond_dev.bond_key.pid_key.static_addr, pm->bond_dev.bond_key.llink_key.key);
-#elif CONFIG_A2DP_SINK_DEMO
-            extern void bt_manager_set_tmp_linkkey(uint8_t *addr, uint8_t *linkkey);
-            bt_manager_set_tmp_linkkey(pm->bond_dev.bond_key.pid_key.static_addr, pm->bond_dev.bond_key.llink_key.key);
+#if CONFIG_BLUETOOTH_CTKD_BT_TO_BLE
+            if ((pm->bond_dev.bond_key.key_mask & (BK_LE_KEY_LENC | BK_LE_KEY_PID)) ==
+                    (BK_LE_KEY_LENC | BK_LE_KEY_PID))
+            {
+                /*
+                 * BR/EDR -> LE CTKD: register the derived LE identity and IRK
+                 * in the controller Resolving List.
+                 */
+                if (bk_ble_gap_bond_dev_list_operation(BK_GAP_BOND_DEV_LIST_OPERATION_ADD,
+                                                       dm_bond_dev_p))
+                {
+                    gatt_loge("add BR/EDR CTKD bond to resolving list failed");
+                }
+            }
 #endif
         }
-
+        else if (BK_BLE_KEY_TRANSPORT_LE == pm->transport)
+        {
+#if CONFIG_BLUETOOTH_CTKD_BLE_TO_BT
+            if (pm->bond_dev.bond_key.key_mask & BK_LE_KEY_LLK)
+            {
+                /*
+                 * LE -> BR/EDR CTKD: save the link key derived by LE pairing
+                 * into the BR/EDR bond database.
+                 */
+                if (bt_manager_save_ctkd_linkkey(
+                        (pm->bond_dev.bond_key.key_mask & BK_LE_KEY_PID) ?
+                        pm->bond_dev.bond_key.pid_key.static_addr : pm->bond_dev.bd_addr,
+                                                 pm->bond_dev.bond_key.llink_key.key) < 0)
+                {
+                    gatt_loge("save CTKD linkkey failed");
+                }
+            }
+#endif
+        }
 #endif
 
 #if BLE_USE_STORAGE
         bluetooth_storage_save_ble_key_info(s_dm_gatt_bond_dev_list, sizeof(s_dm_gatt_bond_dev_list) / sizeof(s_dm_gatt_bond_dev_list[0]));
-        bluetooth_storage_sync_to_flash();
+        if (bluetooth_storage_sync_to_flash() != 0)
+        {
+            gatt_loge("sync bond information to flash failed");
+        }
 #endif
     }
     break;
@@ -1192,6 +1222,13 @@ static int32_t dm_ble_gap_common_cb(bk_ble_gap_cb_event_t event, bk_ble_gap_cb_p
         s_dm_scan_enable = 0;
         break;
 
+    case BK_BLE_GAP_ENCRYPTION_CHANGE_EVT:
+    {
+        struct ble_encryption_change_param *pm = (typeof(pm))param;
+        gatt_logw("BK_BLE_GAP_ENCRYPTION_CHANGE_EVT conn_handle 0x%04x encrypted %d status %d", pm->conn_handle, pm->encrypted, pm->status);
+    }
+    break;
+
     default:
         ret = DM_BLE_GAP_APP_CB_RET_NO_INTERESTING;
         break;
@@ -1358,6 +1395,7 @@ int bk_dm_prf_gap_set_security_method(uint8_t iocap, uint8_t auth_req, uint8_t k
     s_dm_gatt_iocap = iocap;
     s_dm_gatt_auth_req = auth_req;
     s_dm_gatt_rsp_key_distr = s_dm_gatt_init_key_distr = key_distr;
+    s_dm_gatt_local_remote_key_distr = key_distr;
     return dm_gatt_set_security_method_private();
 }
 

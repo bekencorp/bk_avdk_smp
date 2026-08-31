@@ -97,6 +97,7 @@ typedef struct
     uint32_t reconnect_interval_ms;    /**< Reconnect interval in ms. If 0, the component default is used. */
     uint8_t max_reconnect_count;       /**< Max reconnect attempts. If 0, the component default is used. */
     uint8_t io_capability;             /**< GAP IO capability. If 0xff, the component default is used. */
+    uint8_t authreq_mode;              /**< SSP authentication requirements (0x01~0x05). If 0, the component default is used. */
     uint8_t role;                      /**< Link role applied after ACL is up: 0 = keep stack role (slave for headset/sink, default), 1 = master (A2DP source), 2 = slave. */
 } bt_manager_cfg_t;
 
@@ -179,6 +180,19 @@ void bk_bt_enter_pairing_mode(uint8_t is_visible);
  */
 void bt_manager_clean_bond(void);
 
+/**
+ * @brief Save the CTKD linkkey.
+ * @param addr Pointer to the address of the device.
+ * @param linkkey Pointer to the linkkey.
+ * @return 0 on success, otherwise error code.
+ */
+int bt_manager_save_ctkd_linkkey(uint8_t *addr, uint8_t *linkkey);
+
+/**
+ * @brief Set the auto accept connection.
+ * @param type The type of the connection.
+ * @param accept The accept state.
+ */
 void bt_manager_set_auto_accept_connection(uint8_t type, uint8_t accept); // type see BT_MNG_AUTO_ACCEPT_CONNECTION_ACL
 
 /**

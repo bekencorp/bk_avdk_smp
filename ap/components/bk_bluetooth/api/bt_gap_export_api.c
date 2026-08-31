@@ -222,10 +222,16 @@ bk_err_t bk_bt_gap_set_security_param(bk_bt_sp_param_t param_type,
 {
     ble_err_t ret = BK_OK;
     set_security_param_t param = {0};
+
+    if ((NULL == value) || (len > sizeof(param.value)))
+    {
+        return BK_ERR_PARAM;
+    }
+
     os_memcpy(param.value, value, len);
     param.param_type = param_type;
     param.len = len;
-    ret = bt_ethermind_post_msg(BT_ETHERMIND_MSG_GAP_API_REQ, BT_ETHERMIND_GAP_API_REQ_SUBMSG_SET_SECURITY_PARAM, &param, sizeof(ssp_passkey_reply_t), NULL);
+    ret = bt_ethermind_post_msg(BT_ETHERMIND_MSG_GAP_API_REQ, BT_ETHERMIND_GAP_API_REQ_SUBMSG_SET_SECURITY_PARAM, &param, sizeof(param), NULL);
     return ret;
 }
 
@@ -406,6 +412,39 @@ bt_err_t bk_bt_gap_set_local_name(uint8_t *name, uint8_t len)
     os_memcpy(msg.name, name, len);
     msg.len = len;
     return bt_ethermind_post_msg(BT_ETHERMIND_MSG_GAP_API_REQ, BT_ETHERMIND_GAP_API_REQ_SUBMSG_SET_LOCAL_NAME, &msg, sizeof(msg), NULL);
+}
+
+bt_err_t bk_bt_gap_bredr_smp_authenticate(uint8_t *addr)
+{
+    bk_bt_gap_bredr_smp_authenticate_msg_t msg = {0};
+
+    if (NULL == addr)
+    {
+        return BK_ERR_BT_FAIL;
+    }
+
+    os_memcpy(msg.addr, addr, sizeof(msg.addr));
+
+    return bt_ethermind_post_msg
+           (
+               BT_ETHERMIND_MSG_GAP_API_REQ,
+               BT_ETHERMIND_GAP_API_REQ_SUBMSG_BREDR_SMP_AUTHENTICATE,
+               &msg,
+               sizeof(msg),
+               NULL
+           );
+}
+
+bt_err_t bk_bt_gap_enable_secure_connections_host_support(uint8_t enable)
+{
+    return bt_ethermind_post_msg
+           (
+               BT_ETHERMIND_MSG_GAP_API_REQ,
+               BT_ETHERMIND_GAP_API_REQ_SUBMSG_WRITE_SECURE_CONNECTIONS_HOST_SUPPORT,
+               &enable,
+               sizeof(enable),
+               NULL
+           );
 }
 
 bt_err_t bk_bt_gap_linkkey_reply(uint8_t is_exist, bk_bt_linkkey_storage_t *key)

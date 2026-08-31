@@ -37,6 +37,8 @@ enum
     BT_ETHERMIND_GAP_API_REQ_SUBMSG_LINKKEY_REPLY,
     BT_ETHERMIND_GAP_API_REQ_SUBMSG_SET_EIR,
     BT_ETHERMIND_GAP_API_REQ_SUBMSG_SET_LOCAL_NAME,
+    BT_ETHERMIND_GAP_API_REQ_SUBMSG_BREDR_SMP_AUTHENTICATE,
+    BT_ETHERMIND_GAP_API_REQ_SUBMSG_WRITE_SECURE_CONNECTIONS_HOST_SUPPORT,
 };
 
 
@@ -84,7 +86,7 @@ typedef struct
 typedef struct
 {
     bk_bt_sp_param_t param_type;
-    uint8_t value[16];
+    uint8_t value[40];
     uint8_t len;
 } set_security_param_t;
 
@@ -161,6 +163,11 @@ typedef struct
     uint8_t name[0xff];
     uint8_t len;
 } bk_bt_gap_set_local_name_msg_t;
+
+typedef struct
+{
+    uint8_t addr[BK_BT_ADDR_LEN];
+} bk_bt_gap_bredr_smp_authenticate_msg_t;
 
 void bk_bt_call_callback(bk_gap_bt_cb_event_t event, bk_bt_gap_cb_param_t *param);
 bk_bt_gap_cb_t bk_bt_gap_get_callback(void);

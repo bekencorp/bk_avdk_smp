@@ -559,7 +559,37 @@ int32_t bluetooth_storage_linkkey_debug(void)
 
         LOGI("%s", tmp_buff);
     }
+#if CONFIG_BLE
+    for (int i = 0; i < sizeof(s_bt_user_storage->dev) / sizeof(s_bt_user_storage->dev[0]); ++i)
+    {
+        bk_ble_bond_dev_t *bond = &s_bt_user_storage->dev[i].ble_key;
 
+        memset(tmp_buff, 0, sizeof(tmp_buff));
+        index = sprintf(tmp_buff, "%02X:%02X:%02X:%02X:%02X:%02X llink_key: ", bond->bd_addr[5],
+                        bond->bd_addr[4],
+                        bond->bd_addr[3],
+                        bond->bd_addr[2],
+                        bond->bd_addr[1],
+                        bond->bd_addr[0]);
+        for (int j = 0; j < sizeof(bond->bond_key.llink_key.key); ++j)
+        {
+            index += sprintf(tmp_buff + index, "%02X", bond->bond_key.llink_key.key[j]);
+        }
+        os_printf("%s %s\n", __func__, tmp_buff);
+        memset(tmp_buff, 0, sizeof(tmp_buff));
+        index = sprintf(tmp_buff, "%02X:%02X:%02X:%02X:%02X:%02X ltk: ", bond->bd_addr[5],
+                        bond->bd_addr[4],
+                        bond->bd_addr[3],
+                        bond->bd_addr[2],
+                        bond->bd_addr[1],
+                        bond->bd_addr[0]);
+        for (int j = 0; j < sizeof(bond->bond_key.lenc_key.ltk); ++j)
+        {
+            index += sprintf(tmp_buff + index, "%02X", bond->bond_key.lenc_key.ltk[j]);
+        }
+        os_printf("%s %s\n", __func__, tmp_buff);
+    }
+#endif
     return 0;
 }
 
@@ -653,6 +683,51 @@ int32_t bluetooth_storage_read_ble_key_info(bk_ble_bond_dev_t *list, uint32_t *c
     *count = out;
 
     return 0;
+}
+
+int32_t bluetooth_storage_find_ble_key_info_index(uint8_t *addr)
+{
+    if (!s_bt_user_storage)
+    {
+        os_printf("%s not init\n", __func__);
+        return -1;
+    }
+
+    for (int i = 0; i < (int)(sizeof(s_bt_user_storage->dev) / sizeof(s_bt_user_storage->dev[0])); ++i)
+    {
+        bk_ble_bond_dev_t *bond = &s_bt_user_storage->dev[i].ble_key;
+
+        if (memcmp(s_bt_empty_addr, bond->bd_addr, sizeof(bond->bd_addr)) == 0 ||
+            memcmp(s_bt_invaild_addr, bond->bd_addr, sizeof(bond->bd_addr)) == 0)
+        {
+            continue;
+        }
+
+        if (!memcmp(addr, bond->bd_addr, sizeof(bond->bd_addr)))
+        {
+            return i;
+        }
+
+        if ((bond->bond_key.key_mask & BK_LE_KEY_PID) &&
+            !memcmp(addr, bond->bond_key.pid_key.static_addr, sizeof(bond->bond_key.pid_key.static_addr)))
+        {
+            return i;
+        }
+    }
+
+    return -1;
+}
+
+int32_t bluetooth_storage_has_ble_ltk_for_addr(uint8_t *addr)
+{
+    int32_t index = bluetooth_storage_find_ble_key_info_index(addr);
+
+    if (index < 0)
+    {
+        return 0;
+    }
+
+    return ((s_bt_user_storage->dev[index].ble_key.bond_key.key_mask & BK_LE_KEY_LENC) != 0) ? 1 : 0;
 }
 
 int32_t bluetooth_storage_save_local_key(bk_ble_local_keys_t *key)

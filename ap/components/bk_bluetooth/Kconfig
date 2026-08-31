@@ -311,4 +311,24 @@ menu "Bk_ble"
 				enable it in the project that needs the AG role (e.g.
 				bluetooth/central).
 	endmenu
+
+	menu "bluetooth CTKD Modules"
+		depends on BLUETOOTH_BTDM_COMPONENT_ENABLE
+		depends on BLE && BT
+
+		config BLUETOOTH_CTKD_BLE_TO_BT
+			bool "Enable BLE to BR/EDR CTKD"
+			default n
+			help
+				Enable Cross-Transport Key Derivation from a BLE LTK key
+				to a BR/EDR link key.
+
+		config BLUETOOTH_CTKD_BT_TO_BLE
+			bool "Enable BR/EDR to BLE CTKD"
+			depends on !BLUETOOTH_MULTI_CONTROLLER
+			default n
+			help
+				Enable Cross-Transport Key Derivation from a BR/EDR link
+				key to a BLE LTK key.
+	endmenu
 endmenu

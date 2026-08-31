@@ -206,6 +206,24 @@ int32_t bluetooth_storage_clean_ble_key_info(void);
 int32_t bluetooth_storage_read_ble_key_info(bk_ble_bond_dev_t *list, uint32_t *count);
 
 /**
+ * @brief Find a BLE bond record by nominal or identity address.
+ *
+ * @param addr Remote Bluetooth device address.
+ *
+ * @return Record index on success, otherwise negative error code.
+ */
+int32_t bluetooth_storage_find_ble_key_info_index(uint8_t *addr);
+
+/**
+ * @brief Check whether a BLE LTK already exists for a remote device.
+ *
+ * @param addr Remote Bluetooth device address.
+ *
+ * @return 1 if an LTK bond exists, otherwise 0.
+ */
+int32_t bluetooth_storage_has_ble_ltk_for_addr(uint8_t *addr);
+
+/**
  * @brief Save local BLE keys.
  *
  * @param key Local BLE key data.

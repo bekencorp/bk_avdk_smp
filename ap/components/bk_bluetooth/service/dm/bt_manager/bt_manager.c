@@ -29,6 +29,7 @@
 #define BT_MANAGER_DEFAULT_RECONN_INTERVAL  2000
 #define BT_MANAGER_DEFAULT_MAX_RECONN_COUNT 3
 #define BT_MANAGER_IO_CAP_DEFAULT_MARKER    0xFF
+#define BT_MANAGER_DEFAULT_AUTHREQ_MODE     BK_BT_AUTH_REQ_GENERAL_BONDING
 #define MAX_PROFILE_NUM 10
 
 typedef struct
@@ -46,13 +47,13 @@ typedef struct
     uint32_t reconnect_interval_ms;
     uint8_t max_reconnect_count;
     uint8_t io_capability;
+    uint8_t authreq_mode;
     uint8_t role;
     uint8_t discovery_status;   /* BK_BT_GAP_DISCOVERY_* inquiry state */
     beken2_timer_t recon_tmr;
     uint8_t recon_count;
     uint8_t peer_addr[6];
     uint8_t recon_addr[6];
-    uint8_t tmp_link_key[16];//BT_LINK_KEY_SIZE];
 #if CONFIG_WIFI_COEX_SCHEME
     beken_queue_t msg_queue;
     beken_thread_t thread;
@@ -98,6 +99,10 @@ static void bt_manager_load_config(const bt_manager_cfg_t *cfg)
     btm_env.io_capability = (cfg && cfg->io_capability != BT_MANAGER_IO_CAP_DEFAULT_MARKER) ?
                             cfg->io_capability :
                             BK_BT_IO_CAP_NONE;
+    btm_env.authreq_mode = (cfg && cfg->authreq_mode >= BK_BT_AUTH_REQ_NO_BONDING &&
+                            cfg->authreq_mode <= BK_BT_AUTH_REQ_GENERAL_BONDING) ?
+                           cfg->authreq_mode :
+                           BT_MANAGER_DEFAULT_AUTHREQ_MODE;
     btm_env.role = (cfg) ? cfg->role : 0;
 }
 
@@ -694,15 +699,11 @@ void gap_event_cb(bk_gap_bt_cb_event_t event, bk_bt_gap_cb_param_t *param)
         uint8_t *addr = param->link_key_req.bda;
         bk_bt_linkkey_storage_t tmp;
         int ret = 0;
-        uint8_t zero_linkkey[16] = {0};
-        uint8_t ff_linkkey[16] = {0};
         uint8_t found_key = 0;
         uint8_t log_buff[16 * 2 + 10] = {0};
 
         memset(&tmp, 0, sizeof(tmp));
         memcpy(tmp.addr, addr, sizeof(tmp.addr));
-
-        os_memset(ff_linkkey, 0xff, sizeof(ff_linkkey));
 
         ret = bluetooth_storage_find_linkkey_info_index(addr, tmp.link_key);
 
@@ -715,22 +716,6 @@ void gap_event_cb(bk_gap_bt_cb_event_t event, bk_bt_gap_cb_param_t *param)
                       addr[2],
                       addr[1],
                       addr[0]);
-
-            for (int i = 0; i < sizeof(tmp.link_key); ++i)
-            {
-                sprintf((char *)(log_buff + i * 2), "%02X", tmp.link_key[i]);
-            }
-
-            LOGW("%s %s\n", __func__, log_buff);
-
-            found_key = 1;
-        }
-        else if(os_memcmp(btm_env.tmp_link_key, zero_linkkey, sizeof(btm_env.tmp_link_key)) &&
-                        os_memcmp(btm_env.tmp_link_key, ff_linkkey, sizeof(btm_env.tmp_link_key)))
-        {
-            LOGI("%s use tmp linkkey\n", __func__);
-
-            os_memcpy(tmp.link_key, btm_env.tmp_link_key, sizeof(btm_env.tmp_link_key));
 
             for (int i = 0; i < sizeof(tmp.link_key); ++i)
             {
@@ -762,7 +747,6 @@ void gap_event_cb(bk_gap_bt_cb_event_t event, bk_bt_gap_cb_param_t *param)
         }
     }
     break;
-
     case BK_BT_GAP_CONNECTION_REQ_EVT:
     {
         struct connection_req_param *pm = (typeof(pm))param;
@@ -817,7 +801,32 @@ void gap_event_cb(bk_gap_bt_cb_event_t event, bk_bt_gap_cb_param_t *param)
              __func__, pm->type, pm->accept, pm->reject_reason, btm_env.connect_state);
     }
     break;
-
+    case BK_BT_GAP_ENCRYPTION_CHANGE_EVT:
+    {
+        uint8_t *addr = param->encryption_change.bda;
+        LOGI("%s encryption change to %d %02x:%02x:%02x:%02x:%02x:%02x\n", __func__, param->encryption_change.status,
+                      addr[5],
+                      addr[4],
+                      addr[3],
+                      addr[2],
+                      addr[1],
+                      addr[0]);
+#if CONFIG_BLUETOOTH_CTKD_BT_TO_BLE
+        if ((BK_BT_STATUS_SUCCESS == param->encryption_change.status) &&
+            (0 != param->encryption_change.encrypted))
+        {
+            if (bluetooth_storage_has_ble_ltk_for_addr(addr))
+            {
+                LOGI("%s BLE bond already exists, skip BR/EDR SMP authenticate\n", __func__);
+            }
+            else
+            {
+                bk_bt_gap_bredr_smp_authenticate(addr);
+            }
+        }
+#endif
+    }
+    break;
     default:
         break;
     }
@@ -891,14 +900,35 @@ int bt_manager_init(const bt_manager_cfg_t *cfg)
         {BK_BT_EIR_TYPE_CMPL_LOCAL_NAME, (uint8_t *)btm_env.local_name, os_strlen(btm_env.local_name)},
     };
     bk_bt_gap_set_eir_raw_data_elem(eir_data, sizeof(eir_data) / sizeof(eir_data[0]));
+
+#if CONFIG_BLUETOOTH_CTKD_BT_TO_BLE
+    /*
+     * Enable BR/EDR Secure Connections Host Support before page scan / ACL.
+     * Required for P-256 Link Key generation (CTKD prerequisite).
+     */
+    if (bk_bt_gap_enable_secure_connections_host_support(1))
+    {
+        LOGE("%s enable SC host support err\n", __func__);
+    }
+#endif
+
     bt_manager_set_mode(BT_MNG_MODE_PAIRING);
 
     bk_bt_gap_set_page_timeout(btm_env.page_timeout);
     bk_bt_gap_set_page_scan_activity(btm_env.page_scan_interval, btm_env.page_scan_window);
 
+    uint8_t authreq_mode = btm_env.authreq_mode;
+    uint8_t io_capability = btm_env.io_capability;
     if(bk_bt_gap_set_security_param(BK_BT_SP_IOCAP_MODE,
-                                    &btm_env.io_capability,
-                                    sizeof(btm_env.io_capability)))
+                                    &io_capability,
+                                    sizeof(io_capability)))
+    {
+        LOGE("%s set security param err\n");
+    }
+    
+    if(bk_bt_gap_set_security_param(BK_BT_SP_AUTHREQ_MODE,
+                                    &authreq_mode,
+                                    sizeof(authreq_mode)))
     {
         LOGE("%s set security param err\n");
     }
@@ -1006,10 +1036,23 @@ void bt_manager_clean_bond(void)
     bluetooth_storage_sync_to_flash();
 }
 
-void bt_manager_set_tmp_linkkey(uint8_t *addr, uint8_t *linkkey)
+int bt_manager_save_ctkd_linkkey(uint8_t *addr, uint8_t *linkkey)
 {
-    LOGI("%s set tmp linkkey\n", __func__);
-    os_memcpy(btm_env.tmp_link_key, linkkey, sizeof(btm_env.tmp_link_key));
+    if (!addr || !linkkey)
+    {
+        LOGE("%s invalid parameter\n", __func__);
+        return -1;
+    }
+
+    LOGI("%s save CTKD linkkey for %02X:%02X:%02X:%02X:%02X:%02X\n", __func__,
+                      addr[5],
+                      addr[4],
+                      addr[3],
+                      addr[2],
+                      addr[1],
+                      addr[0]);
+
+    return bluetooth_storage_save_linkkey_info(addr, linkkey);
 }
 
 int bt_manager_discover_bt(uint32_t sec, uint32_t num_report)
