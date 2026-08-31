@@ -436,6 +436,7 @@ static inline void uart_ll_reset_wake_config_to_default(uart_hw_t *hw, uart_id_t
 
 #if CONFIG_UART_PM_CB_SUPPORT
 #define UART_PM_BACKUP_REG_NUM    (6)
+#define UART_GLB_SOFT_RESET_BIT   (1U << 0)
 
 static inline void uart_ll_backup(uart_hw_t *hw, uint32_t *pm_backup)
 {
@@ -445,6 +446,9 @@ static inline void uart_ll_backup(uart_hw_t *hw, uint32_t *pm_backup)
 	pm_backup[3] = hw->flow_ctrl_config.v;
 	pm_backup[4] = hw->wake_config.v;
 	pm_backup[5] = hw->global_ctrl.v;
+
+	/* Keep the saved state, but avoid restoring soft_reset from 1 to 1. */
+	hw->global_ctrl.v = pm_backup[5] & ~UART_GLB_SOFT_RESET_BIT;
 }
 
 static inline void uart_ll_restore(uart_hw_t *hw, uint32_t *pm_backup)
