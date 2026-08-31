@@ -1166,7 +1166,6 @@ static bk_err_t _onboard_speaker_open(audio_element_handle_t self)
     else
     {
         bk_aud_dac_mute();
-        BK_LOGV(TAG, "%s, line: %d, audio dac mute\n", __func__, __LINE__);
     }
 
     ret = bk_aud_dac_start(onboard_spk->dac_chl);
@@ -1191,7 +1190,6 @@ static bk_err_t _onboard_speaker_open(audio_element_handle_t self)
         {
             rtos_delay_milliseconds(4);
             bk_aud_dac_unmute();
-            BK_LOGD(TAG, "%s, line: %d, audio dac unmute\n", __func__, __LINE__);
         }
     }
     open_cnt++;
@@ -2073,7 +2071,6 @@ audio_element_handle_t onboard_speaker_stream_init(onboard_speaker_stream_cfg_t 
         }
         gl_onboard_speaker->dma_frame_size = config->frame_size[dma_frame_ref_src];
     }
-    BK_LOGD(TAG, "%s, %d, gl_onboard_speaker->dma_frame_size:%d \n", __func__, __LINE__, gl_onboard_speaker->dma_frame_size);
 
     gl_onboard_speaker->dig_gain  = config->dig_gain;
     gl_onboard_speaker->ana_gain  = config->ana_gain;
@@ -2163,12 +2160,16 @@ audio_element_handle_t onboard_speaker_stream_init(onboard_speaker_stream_cfg_t 
     aud_dac_cfg.clk_src   = config->clk_src;
     aud_dac_cfg.dig_gain  = config->dig_gain;
     aud_dac_cfg.ana_gain  = config->ana_gain;
-    BK_LOGD(TAG, "dac_cfg pcm_chl_num:%d, dac_chl:%d, dig_gain_db:%.2f, clk_src:%s, dac_mode:%s \n",
+    aud_dac_cfg.a2dp_drc_en = config->a2dp_drc_en;
+    aud_dac_cfg.a2dp_drc    = config->a2dp_drc;
+    BK_LOGD(TAG, "dac_cfg pcm_chl_num:%d, dac_chl:%d, dig_gain_db:%.2f, clk_src:%s, dac_mode:%s, drc_en:%d mode:%d\n",
             config->chl_num,
             aud_dac_cfg.dac_chl,
             aud_dac_cfg.dig_gain,
             aud_dac_cfg.clk_src == 1 ? "APLL" : "XTAL",
-            aud_dac_cfg.work_mode == 1 ? "AUD_DAC_WORK_MODE_SIGNAL_END" : "AUD_DAC_WORK_MODE_DIFFEN");
+            aud_dac_cfg.work_mode == 1 ? "AUD_DAC_WORK_MODE_SIGNAL_END" : "AUD_DAC_WORK_MODE_DIFFEN",
+            (int)aud_dac_cfg.a2dp_drc_en,
+            (int)aud_dac_cfg.a2dp_drc.mode);
 
     bk_aud_hardware_reset();
     ret = bk_aud_dac_init(&aud_dac_cfg);
