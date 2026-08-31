@@ -165,12 +165,12 @@ __IRAM_PM DLV_STATIC void dlv_scb_save(dlv_context_t *dlv)
 __IRAM_PM DLV_STATIC void dlv_nvic_save(dlv_context_t *dlv)
 {
 	dlv_nvic_t *nvic_info = &(dlv->nvic);
-	nvic_info->iser_val[0] = NVIC->ISER[0];
-	nvic_info->iser_val[1] = NVIC->ISER[1];
-	nvic_info->iser_val[2] = NVIC->ISER[2];
-	nvic_info->itns_val[0] = NVIC->ITNS[0];
-	nvic_info->itns_val[1] = NVIC->ITNS[1];
-	for (uint32_t i = 0; i < 64; i++) {
+
+	for (uint32_t i = 0; i < DLV_NVIC_IRQ_WORD_COUNT; i++) {
+		nvic_info->iser_val[i] = NVIC->ISER[i];
+		nvic_info->itns_val[i] = NVIC->ITNS[i];
+	}
+	for (uint32_t i = 0; i < DLV_NVIC_IRQ_COUNT; i++) {
 		nvic_info->ipr_val[i] = NVIC->IPR[i];
 	}
 }
@@ -370,9 +370,10 @@ __IRAM_PM DLV_STATIC void dlv_nvic_restore_config(dlv_context_t *dlv)
 {
 	dlv_nvic_t *nvic_info = &(dlv->nvic);
 
-	NVIC->ITNS[0] = nvic_info->itns_val[0];
-	NVIC->ITNS[1] = nvic_info->itns_val[1];
-	for (uint32_t i = 0; i < 64; i++) {
+	for (uint32_t i = 0; i < DLV_NVIC_IRQ_WORD_COUNT; i++) {
+		NVIC->ITNS[i] = nvic_info->itns_val[i];
+	}
+	for (uint32_t i = 0; i < DLV_NVIC_IRQ_COUNT; i++) {
 		NVIC->IPR[i] = nvic_info->ipr_val[i];
 	}
 }
@@ -386,9 +387,9 @@ __IRAM_PM DLV_STATIC void dlv_nvic_restore_enable(dlv_context_t *dlv)
 	 * Pending wakeup IRQs remain blocked until pm_low_voltage_process()
 	 * performs its matching GLOBAL_INT_RESTORE().
 	 */
-	NVIC->ISER[0] = nvic_info->iser_val[0];
-	NVIC->ISER[1] = nvic_info->iser_val[1];
-	NVIC->ISER[2] = nvic_info->iser_val[2];
+	for (uint32_t i = 0; i < DLV_NVIC_IRQ_WORD_COUNT; i++) {
+		NVIC->ISER[i] = nvic_info->iser_val[i];
+	}
 	__DSB();
 	__ISB();
 }

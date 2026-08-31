@@ -17,6 +17,9 @@
 #define CONFIG_SAU_RECONFIG           1
 #define CONFIG_RESTORE_VIA_EXC_RETURN 1
 
+#define DLV_NVIC_IRQ_WORD_COUNT       3U
+#define DLV_NVIC_IRQ_COUNT            (DLV_NVIC_IRQ_WORD_COUNT * 32U)
+
 #if CONFIG_DEEP_LOW_VOLTAGE_SLEEP
 extern unsigned char _deep_lv_start;
 #define DLV_START_ADDR (uint32_t)&_deep_lv_start
@@ -47,10 +50,10 @@ typedef struct _dlv_scb_
 
 typedef struct _dlv_nvic_
 {
-	uint32_t iser_val[3];
-	uint32_t icer_val[2];
-	uint32_t itns_val[2];
-	uint8_t ipr_val[64];
+	uint32_t iser_val[DLV_NVIC_IRQ_WORD_COUNT];
+	uint32_t icer_val[DLV_NVIC_IRQ_WORD_COUNT];
+	uint32_t itns_val[DLV_NVIC_IRQ_WORD_COUNT];
+	uint8_t ipr_val[DLV_NVIC_IRQ_COUNT];
 }dlv_nvic_t;
 
 typedef struct _dlv_systick_
