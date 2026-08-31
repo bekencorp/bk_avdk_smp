@@ -1,3 +1,4 @@
+#include <components/log.h>
 #include <components/system.h>
 #include <os/os.h>
 #include <os/mem.h>
@@ -290,6 +291,8 @@ static int ota_do_process_data_wifi(f_ota_t *ota_ptr, uint16_t len, ota_wr_callb
             if (wr_callback(ota_ptr, ota_ptr->wr_last_len) == BK_OK)
             {
                 OTA_LOGI("wr the last remain data \r\n");
+                OTA_LOGI("download complete, size:0x%x\r\n", ota_ptr->image_size);
+                BK_LOG_FLUSH();
                 ret = BK_OK;
             }
             else

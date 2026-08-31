@@ -116,23 +116,22 @@ int32_t ota_hash_verify(const bk_logic_partition_t *part, const struct ota_rbl_h
         hash = ota_calc_hash(hash, buf, sizeof(buf));
     }
 
-    OTA_LOGI(" i :0x%x,hash :0x%x\r\n ",i,hash);
+    OTA_LOGD(" i :0x%x,hash :0x%x\r\n ", i, hash);
     /* align process */
     if (i != end_addr - sizeof(buf))
-    { 
+    {
         remain_size = end_addr - i;
         ota_read_partition(part, i, buf, remain_size, 0);
         hash = ota_calc_hash(hash, buf, remain_size);
-        OTA_LOGE(" >>> i :0x%x,hash :0x%x\r\n ",i,hash);
+        OTA_LOGD(" >>> i :0x%x,hash :0x%x\r\n ", i, hash);
     }
-    
-    OTA_LOGI("hash sucess!!!! \r\n");
 
     if (hash != hdr->hash)
     {
-        OTA_LOGE("Verify firmware hash(calc.hash: %08lx != hdr.hash: %08lx) failed on partition '%s'.", hash, hdr->hash,part->partition_owner);
+        OTA_LOGE("Verify firmware hash(calc.hash: %08lx != hdr.hash: %08lx) failed on partition '%s'.", hash, hdr->hash, part->partition_owner);
         return -1;
     }
 
+    OTA_LOGI("hash success:0x%x\r\n", hash);
     return 0;
 }

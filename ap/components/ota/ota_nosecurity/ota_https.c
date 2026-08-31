@@ -202,11 +202,13 @@ int bk_https_ota_download(const char *url)
 			return ret_val;
 		}
 	}
-	BK_LOGI(TAG,"ota_success.\r\n");
+	BK_LOGI(TAG, "ota_success, rebooting\r\n");
+	BK_LOG_FLUSH();
 	ota_do_deinit_operation();
 	bk_reboot();
 #else
-	BK_LOGI(TAG,"ota_success.\r\n");
+	BK_LOGI(TAG, "ota_success, rebooting\r\n");
+	BK_LOG_FLUSH();
 	bk_ota_finish_and_reboot();
 #endif
 	}

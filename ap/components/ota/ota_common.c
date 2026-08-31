@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "cli.h"
+#include <components/log.h>
 #include <components/system.h>
 #include "driver/flash.h"
 #include "common/bk_err.h"
@@ -239,9 +240,8 @@ int32_t ota_do_hash_check(void)
 	ota_get_rbl_head(bk_ptr, &rbl_hdr, partition_length);
 	
 	ret = ota_hash_verify(bk_ptr, &rbl_hdr);
-	if(ret == BK_OK)
-	{
-		OTA_LOGI("hash sucess!!!! \r\n");
+	if (ret == BK_OK) {
+		BK_LOG_FLUSH();
 	}
 
 	return ret;
@@ -268,6 +268,7 @@ int bk_ota_update_partition_flag(int input_val)
 	seq = ap_ab_commit(exec_slot, update_slot, (uint8_t)AB_STATE_TRIAL, (uint8_t)AB_DL_DONE, 0);
 	OTA_LOGI("OTA armed: TRIAL exec=%d update=%d seq->%u\r\n",
 		(int)exec_slot, (int)update_slot, (unsigned)seq);
+	BK_LOG_FLUSH();
 	return BK_OK;
 }
 
