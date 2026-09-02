@@ -71,6 +71,9 @@
 #include "bk_arch.h"
 #include "cache.h"
 #include <driver/aon_rtc.h>
+#if CONFIG_L2_CACHE_ENABLE
+#include "l2_cache.h"
+#endif
 #if CONFIG_DEEP_LV_DEBUG_GPIO
 #include "pm_debug.h"
 #endif
@@ -872,10 +875,18 @@ __IRAM_PM void dlv_context_restore(void)
 	dlv_sau_restore(dlv);
 	dlv_mpu_restore(dlv);
 	/*
-	 * dlv_scb_restore() invalidates L1. Keep the retained L2 contents/tags:
-	 * suspend cleaned the PSRAM heap before power-down, so they are coherent
-	 * with PSRAM and a full L2 invalidate adds tens of milliseconds.
-	 */
+	* The PL310 L2 controller loses its enable+config across AP power-down
+	* (its control block reads back all-zero on resume). dlv_scb_restore()
+	* only handles the CPU's L1 caches, so without re-enabling L2 here the
+	* whole system runs with L2 off. Because this SoC keeps the L1 D-cache
+	* disabled by design and relies on L2 to cache PSRAM/flash-XIP data, an
+	* off L2 makes every data access miss to slow memory: e.g. the flash-XIP
+	* SW SBC decoder collapses to ~1/4 real-time and A2DP playback starves.
+	* Re-init (aux-ctrl/filter) + invalidate + enable L2 to restore it.
+	*/
+	#if CONFIG_L2_CACHE_ENABLE
+	(void)l2_cache_init();
+	#endif
 	dlv_fpu_restore(dlv);
 	dlv_core_restore(dlv);
 	s_dlv_restore_profile.arch_done_us = (uint32_t)bk_aon_rtc_get_us();
