@@ -254,9 +254,18 @@ bk_err_t mb_chnl_read(u8 log_chnl, mb_chnl_cmd_t * read_buf);
 __IRAM_SEC bk_err_t mb_chnl_write(u8 log_chnl, mb_chnl_cmd_t * cmd_buf);
 
 #if CONFIG_PM_AP_FAST_BOOT_ENABLE
-/*
- * Return true while a logical command is queued for dst_cpu but has not yet
- * reached the physical mailbox. exempt_log_chnl is ignored by the scan.
+/**
+ * @brief Check for pending logical-channel transmissions to a CPU
+ *
+ * Scans all open logical channels targeting the specified CPU and reports
+ * whether any channel, except the exempt channel, is not in the idle state.
+ * An invalid destination or the local CPU is treated as having no pending
+ * transmission.
+ *
+ * @param dst_cpu Destination CPU ID
+ * @param exempt_log_chnl Logical channel ID to exclude from the scan
+ *
+ * @return true if a non-exempt transmission is pending; false otherwise
  */
 bool mb_chnl_tx_pending_to_cpu(u8 dst_cpu, u8 exempt_log_chnl);
 #endif

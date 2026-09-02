@@ -861,9 +861,26 @@ bool bk_pm_ap_boot_success_get(void);
 
 #if CONFIG_PM_AP_FAST_BOOT_ENABLE
 /**
- * Set/query complete AP readiness independently from AP0 boot_success.
+ * @brief Set the complete AP readiness state
+ *
+ * Updates the PM_AP_WORK_STATE_FULL_READY flag in the shared PM information.
+ * This state indicates that the AP CPUs and registered AP modules are ready,
+ * and is maintained independently from PM_AP_WORK_STATE_BOOT_SUCCESS.
+ *
+ * @param ready true to publish complete AP readiness; false to clear it
+ *
+ * @return BK_OK on success
  */
 bk_err_t bk_pm_ap_full_ready_set(bool ready);
+
+/**
+ * @brief Get the complete AP readiness state
+ *
+ * Reads the PM_AP_WORK_STATE_FULL_READY flag from the shared PM information
+ * after synchronizing its cached contents.
+ *
+ * @return true if the complete AP is ready; false otherwise
+ */
 bool bk_pm_ap_full_ready_get(void);
 #endif
 

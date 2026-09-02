@@ -2,6 +2,9 @@
 #include <os/mem.h>
 #include <components/log.h>
 #include <driver/mailbox_channel.h>
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+#include "bt_ipc_pm.h"
+#endif
 #include "bt_ipc_core.h"
 #include "../include/bt_ipc_vendor_event_handler.h"
 #if CONFIG_BLUETOOTH_SUPPORT_AP_PWD_ALL
@@ -38,6 +41,36 @@ static bt_hci_send_cb_t s_bt_ipc_hci_send_cb = NULL;
 
 #define BT_IPC_CMD_CHNL     MB_CHNL_BT_CMD
 #define BT_IPC_SEND_TIMEOUT_MS  4000
+
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+static volatile bool s_bt_ipc_fast_quiescing;
+static volatile bool s_bt_ipc_msg_processing;
+
+bk_err_t bt_ipc_quiesce(uint32_t timeout_ms)
+{
+    uint32_t start_ms = rtos_get_time();
+
+    __atomic_store_n(&s_bt_ipc_fast_quiescing, true, __ATOMIC_RELEASE);
+
+    while ((bt_ipc_env.queue != NULL) &&
+           (!rtos_is_queue_empty(&bt_ipc_env.queue) ||
+            __atomic_load_n(&s_bt_ipc_msg_processing,
+                            __ATOMIC_ACQUIRE))) {
+        if ((rtos_get_time() - start_ms) >= timeout_ms) {
+            LOGE("BT IPC fast quiesce timeout\r\n");
+            return BK_FAIL;
+        }
+        rtos_delay_milliseconds(1);
+    }
+
+    return BK_OK;
+}
+
+void bt_ipc_resume(void)
+{
+    __atomic_store_n(&s_bt_ipc_fast_quiescing, false, __ATOMIC_RELEASE);
+}
+#endif
 
 #define HCI_COMMAND_COMPLETE_EVT_CODE    0x0E
 #define HCI_VENDOR_EVT_CODE    0xFE
@@ -178,6 +211,13 @@ static void bt_ipc_mailbox_tx_cmpl_isr(void *param, mb_chnl_ack_t *ack_buf)
 
 static void bt_ipc_mailbox_send_msg(hci_hdr_t *msg)
 {
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+    if (__atomic_load_n(&s_bt_ipc_fast_quiescing, __ATOMIC_ACQUIRE)) {
+        bt_ipc_free_local_msg_payload(msg);
+        return;
+    }
+#endif
+
     if (BT_IPC_STATE_READY != bt_ipc_env.state)
     {
         LOGW("%s bt ipc is not ready!\r\n", __func__);
@@ -386,6 +426,10 @@ static void bt_ipc_message_handle(void)
 
         if (kNoErr == ret)
         {
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+            __atomic_store_n(&s_bt_ipc_msg_processing, true,
+                             __ATOMIC_RELEASE);
+#endif
             switch (msg.type)
             {
                 case BT_IPC_CMD_IND_MSG:
@@ -516,11 +560,19 @@ static void bt_ipc_message_handle(void)
                 break;
 
                 case BT_IPC_EXIT_MSG:
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+                    __atomic_store_n(&s_bt_ipc_msg_processing, false,
+                                     __ATOMIC_RELEASE);
+#endif
                     goto exit;
 
                 default:
                     break;
             }
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+            __atomic_store_n(&s_bt_ipc_msg_processing, false,
+                             __ATOMIC_RELEASE);
+#endif
         }
     }
 
@@ -606,6 +658,14 @@ void bt_ipc_init(void)
 #endif
 
     bt_ipc_env.state = BT_IPC_STATE_READY;
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+    s_bt_ipc_fast_quiescing = false;
+    s_bt_ipc_msg_processing = false;
+    ret = bt_ipc_pm_init();
+    if (ret != BK_OK) {
+        LOGE("register BT/BLE fast PM ops failed:%d\r\n", ret);
+    }
+#endif
     LOGD("%s success\n", __func__);
 }
 

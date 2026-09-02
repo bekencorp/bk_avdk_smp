@@ -15,6 +15,9 @@ if(CONFIG_WIFI_VNET_CONTROLLER)
 			wdrv_co_list.c
 			wdrv_debug.c
 		)
+	if(CONFIG_PM_AP_FAST_BOOT_ENABLE)
+		list(APPEND srcs wdrv_pm.c)
+	endif()
 	#list(APPEND prev_req mailbox)
 endif()
 

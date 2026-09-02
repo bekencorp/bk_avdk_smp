@@ -848,20 +848,108 @@ bk_err_t bk_pm_ap_boot_success_set(bool boot_success);
 
 #if CONFIG_PM_AP_FAST_BOOT_ENABLE
 /**
- * Register/unregister one AP module's fast power-management operations.
- * The descriptor must remain valid until it is unregistered.
+ * @brief Register an AP module's fast-suspend/resume operations
+ *
+ * The operations are inserted according to their priority. The descriptor and
+ * the objects referenced by it must remain valid until they are unregistered.
+ * Registration is only allowed while the fast PM state is running.
+ *
+ * @param ops Fast PM operations to register
+ *
+ * @return
+ * - BK_OK: Registration succeeded
+ * - BK_ERR_PARAM: The descriptor or its callback configuration is invalid
+ * - BK_ERR_NO_MEM: Failed to allocate a registration node
+ * - BK_ERR_BUSY: Fast PM is active or the descriptor is already registered
  */
 bk_err_t bk_pm_ap_fast_ops_register(const pm_ap_fast_pm_ops_t *ops);
+
+/**
+ * @brief Unregister an AP module's fast-suspend/resume operations
+ *
+ * The descriptor address must match the address used during registration.
+ * Unregistration is only allowed while the fast PM state is running.
+ *
+ * @param ops Fast PM operations to unregister
+ *
+ * @return
+ * - BK_OK: Unregistration succeeded
+ * - BK_ERR_PARAM: The descriptor is NULL
+ * - BK_ERR_BUSY: Fast PM is active
+ * - BK_FAIL: The descriptor is not registered
+ */
 bk_err_t bk_pm_ap_fast_ops_unregister(const pm_ap_fast_pm_ops_t *ops);
 
 /**
- * Internal fast-suspend/resume orchestration used by the CPU2 PM task.
+ * @brief Quiesce registered AP modules before fast suspend
+ *
+ * Clears the complete-AP-ready state and invokes quiesce callbacks in reverse
+ * priority order. If a callback fails, already-quiesced modules are resumed.
+ * This internal orchestration API is intended for the CPU2 PM task.
+ *
+ * @return
+ * - BK_OK: All registered modules were quiesced
+ * - BK_ERR_STATE: Fast PM is not in the running state
+ * - others: Error returned by a quiesce callback
  */
 bk_err_t bk_pm_ap_fast_suspend_prepare(void);
+
+/**
+ * @brief Back up registered AP module hardware state
+ *
+ * Invokes backup callbacks in reverse priority order with CPU2 interrupts
+ * disabled. CPU3 must already be offline, and callbacks must not block. If a
+ * callback fails, backed-up modules are restored before this function returns.
+ *
+ * @return
+ * - BK_OK: Hardware state was backed up and fast suspend is prepared
+ * - BK_ERR_STATE: Module quiescing has not completed
+ * - others: Error returned by a backup callback
+ */
 bk_err_t bk_pm_ap_fast_suspend_backup(void);
+
+/**
+ * @brief Restore registered AP module hardware state after fast resume
+ *
+ * Invokes restore callbacks in priority order with CPU2 interrupts disabled.
+ * Module resume callbacks must be invoked separately after this function.
+ *
+ * @return
+ * - BK_OK: All backed-up hardware state was restored
+ * - BK_ERR_STATE: Fast suspend is not in the prepared state
+ * - others: Error returned by a restore callback
+ */
 bk_err_t bk_pm_ap_fast_restore_hardware(void);
+
+/**
+ * @brief Resume registered AP modules after fast suspend or restore
+ *
+ * Invokes resume callbacks in priority order. On success, the fast PM state is
+ * returned to running, IPC reception is unblocked, and complete AP readiness
+ * is published.
+ *
+ * @return
+ * - BK_OK: All quiesced modules were resumed
+ * - BK_ERR_STATE: Fast PM is not quiescing or restoring
+ * - others: The first error returned by a resume callback
+ */
 bk_err_t bk_pm_ap_fast_resume_modules(void);
+
+/**
+ * @brief Check whether fast-suspend hardware backup is complete
+ *
+ * @return true if fast suspend is prepared; false otherwise
+ */
 bool bk_pm_ap_fast_suspend_is_prepared(void);
+
+/**
+ * @brief Enable or disable the CP-to-AP business IPC receive gate
+ *
+ * The PM control channel remains available so that suspend retry and abort
+ * requests can still reach the CPU2 PM task.
+ *
+ * @param blocked true to reject business IPC reception; false to allow it
+ */
 void bk_pm_ap_fast_ipc_rx_block_set(bool blocked);
 
 /**

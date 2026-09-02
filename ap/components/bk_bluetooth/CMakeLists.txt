@@ -34,6 +34,11 @@ if (CONFIG_BLUETOOTH_AP)
         list(APPEND incs
             core/ipc/include
         )
+        if (CONFIG_PM_AP_FAST_BOOT_ENABLE)
+            list(APPEND srcs
+                core/adapter/bt_ipc_pm.c
+            )
+        endif()
     endif()
 
 	if (CONFIG_BLUETOOTH_HOST_ONLY OR CONFIG_BLUETOOTH_SUPPORT_AP_PWD_ALL)
