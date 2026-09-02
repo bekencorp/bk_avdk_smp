@@ -332,6 +332,9 @@ int mb_ipc_cpu_is_power_off(u32 cpu_id)
 #define MB_IPC_HEARTBEAT_TIME		2000
 #define MB_IPC_HEARTBEAT_IPI_EVENT_POWER_UP		1
 #define MB_IPC_HEARTBEAT_IPI_EVENT_HEARTBEAT	2
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+#define MB_IPC_HEARTBEAT_IPI_EVENT_FULL_READY	3
+#endif
 
 static volatile u8  s_hb_paused = 0;
 
@@ -340,6 +343,23 @@ static bk_err_t mb_ipc_heartbeat_ipi_send(uint8_t event)
 {
 	return bk_ipi_send_domain(IPI_CP_CORE0, IPI_DOMAIN_HEARTBEAT, event, CPU2_CORE_ID);
 }
+
+bk_err_t mb_ipc_heartbeat_fast_resume_notify(void)
+{
+	/*
+	 * The retained heartbeat task does not execute its one-shot startup
+	 * notification again.  Complete CP's CORE_STARTING handshake explicitly
+	 * on every fast resume instead of waiting for the periodic heartbeat.
+	 */
+	return mb_ipc_heartbeat_ipi_send(MB_IPC_HEARTBEAT_IPI_EVENT_POWER_UP);
+}
+
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+bk_err_t mb_ipc_heartbeat_full_ready_notify(void)
+{
+	return mb_ipc_heartbeat_ipi_send(MB_IPC_HEARTBEAT_IPI_EVENT_FULL_READY);
+}
+#endif
 #endif
 
 void mb_ipc_heartbeat_pause(u8 pause)

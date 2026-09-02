@@ -34,6 +34,10 @@
 
 extern void mb_ipc_reset_notify(u32 cpu_id, u32 power_on);
 extern int mb_ipc_cpu_is_power_off(u32 cpu_id);
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE && CONFIG_SLAVE_HEART_BEAT_USE_IPI
+extern int mb_ipc_ap_full_ready_notified(void);
+extern void mb_ipc_ap_full_ready_clear(void);
+#endif
 
 typedef struct ap_ctrl_callback_node {
 	ap_ctrl_callback_t callback;
@@ -331,6 +335,15 @@ bk_err_t bk_pm_ap_full_ready_set(bool ready)
 {
 	pm_shared_info_t shared_info = {0};
 
+#if CONFIG_SLAVE_HEART_BEAT_USE_IPI
+	if (!ready) {
+		mb_ipc_ap_full_ready_clear();
+	}
+#endif
+	__DSB();
+	arch_dcache_invd_range((void *)&bk_sys_sw_regs_ptr()->pm_shared_info,
+		sizeof(bk_sys_sw_regs_ptr()->pm_shared_info));
+	__DSB();
 	bk_sys_sw_regs_get_pm_shared_info(&shared_info);
 	if (ready) {
 		shared_info.pm_ap_work_state |= PM_AP_WORK_STATE_FULL_READY;
@@ -342,7 +355,7 @@ bk_err_t bk_pm_ap_full_ready_set(bool ready)
 		BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_AP_WORK_STATE,
 		BK_SYS_SW_REGS_LOCK_ENABLE);
 	__DSB();
-	flush_dcache((void *)&bk_sys_sw_regs_ptr()->pm_shared_info,
+	arch_dcache_flush_range((void *)&bk_sys_sw_regs_ptr()->pm_shared_info,
 		sizeof(bk_sys_sw_regs_ptr()->pm_shared_info));
 	__DSB();
 	return BK_OK;
@@ -353,7 +366,7 @@ bool bk_pm_ap_full_ready_get(void)
 	pm_shared_info_t shared_info = {0};
 
 	__DSB();
-	flush_dcache((void *)&bk_sys_sw_regs_ptr()->pm_shared_info,
+	arch_dcache_invd_range((void *)&bk_sys_sw_regs_ptr()->pm_shared_info,
 		sizeof(bk_sys_sw_regs_ptr()->pm_shared_info));
 	__DSB();
 	bk_sys_sw_regs_get_pm_shared_info(&shared_info);
@@ -614,7 +627,11 @@ boot_ap:
 			 * peripheral registers and AP business modules are restored by the
 			 * CPU2 PM task, so do not release CP clients until AP_FULL_READY.
 			 */
-			while (!bk_pm_ap_full_ready_get() &&
+			while (
+#if CONFIG_SLAVE_HEART_BEAT_USE_IPI
+				!mb_ipc_ap_full_ready_notified() &&
+#endif
+				!bk_pm_ap_full_ready_get() &&
 				((bk_aon_rtc_get_current_tick(AON_RTC_ID_1) -
 				  full_ready_start_tick) <
 				 (PM_BOOT_AP_WAITING_TIEM * AON_RTC_MS_TICK_CNT))) {
@@ -623,7 +640,11 @@ boot_ap:
 #endif
 			}
 
-			if (!bk_pm_ap_full_ready_get()) {
+			if (
+#if CONFIG_SLAVE_HEART_BEAT_USE_IPI
+				!mb_ipc_ap_full_ready_notified() &&
+#endif
+				!bk_pm_ap_full_ready_get()) {
 				LOGE("AP full ready timeout; keep CP business callbacks blocked\r\n");
 			} else {
 				uint64_t full_ready_tick =
@@ -679,7 +700,7 @@ bk_err_t bk_pm_module_check_cp1_shutdown()
 	// }
     return BK_OK;
 }
-static void pm_module_shutdown_cpu1(pm_power_module_name_e module)
+static bk_err_t pm_module_shutdown_cpu1(pm_power_module_name_e module)
 {
 	bk_err_t ret = BK_OK;
 	GLOBAL_INT_DECLARATION();
@@ -689,27 +710,45 @@ static void pm_module_shutdown_cpu1(pm_power_module_name_e module)
 		{
 			#if CONFIG_PM_AP_POWERDOWN_WHEN_LV
 #if CONFIG_PM_AP_FAST_BOOT_ENABLE
+			/*
+			 * AP has published sleep-ready only after quiescing DMA and
+			 * cleaning its caches.  Prepare PSRAM retention while CPU2 is
+			 * still in WFI so a failure can be aborted and resumed.
+			 */
+			LOGI("AP_OFF_TRACE psram_vote_off begin\r\n");
+			ret = bk_pm_module_vote_psram_ctrl(PM_POWER_PSRAM_MODULE_NAME_MEDIA,
+				PM_POWER_MODULE_STATE_OFF);
+			LOGI("AP_OFF_TRACE psram_vote_off end ret=%d\r\n", ret);
+			if (ret != BK_OK) {
+				LOGE("AP fast boot: PSRAM retention failed, abort power-off\r\n");
+				return ret;
+			}
+
 			if (pm_ap_fast_resume_requested()) {
 				/* AP SRAM/DTCM retain power; only stop execution before power-off. */
-				if (bk_multicore_stop(CONFIG_AP_SYS_MASTER_CPU_ID) != BK_OK) {
+				LOGI("AP_OFF_TRACE cpu2_stop begin\r\n");
+				ret = bk_multicore_stop(CONFIG_AP_SYS_MASTER_CPU_ID);
+				LOGI("AP_OFF_TRACE cpu2_stop end ret=%d\r\n", ret);
+				if (ret != BK_OK) {
 					LOGE("AP fast resume: failed to hold AP reset\r\n");
 					pm_ap_fast_resume_clear();
 				}
 			} else {
 				LOGE("AP fast resume: AP did not publish a saved CPU context\r\n");
 			}
-			ret = bk_pm_module_vote_psram_ctrl(PM_POWER_PSRAM_MODULE_NAME_MEDIA,
-				PM_POWER_MODULE_STATE_OFF);
-			if (ret != BK_OK) {
-				LOGE("AP fast boot: PSRAM retention failed\r\n");
-				pm_ap_fast_resume_clear();
-			}
 #else
-			bk_pm_module_vote_psram_ctrl(PM_POWER_PSRAM_MODULE_NAME_MEDIA, PM_POWER_MODULE_STATE_OFF);
+			bk_pm_module_vote_psram_ctrl(PM_POWER_PSRAM_MODULE_NAME_MEDIA,
+				PM_POWER_MODULE_STATE_OFF);
 #endif
 			#endif
 
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+			LOGI("AP_OFF_TRACE ap_power_vote_off begin\r\n");
+#endif
 			bk_pm_module_vote_power_ctrl(POWER_SUB_DOMAIN_NAME_AP_CPU, PM_POWER_MODULE_STATE_OFF);
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+			LOGI("AP_OFF_TRACE ap_power_vote_off end\r\n");
+#endif
 			/* AP power is cut, force heartbeat state to OFF immediately. */
 			mb_ipc_reset_notify(CONFIG_AP_SYS_MASTER_CPU_ID, 0);
 			LOGI("pm_dbg ap_power_off: vote_off + reset_notify(off)\r\n");
@@ -757,6 +796,7 @@ static void pm_module_shutdown_cpu1(pm_power_module_name_e module)
 			pm_ap_powerdown_proof_log("shutdown_done");
 		}
 	}
+	return BK_OK;
 }
 
 bk_err_t bk_pm_module_vote_boot_ap_ctrl(pm_boot_ap_module_name_e module,pm_power_module_state_e power_state)
@@ -956,7 +996,17 @@ bk_err_t bk_pm_module_vote_boot_ap_ctrl(pm_boot_ap_module_name_e module,pm_power
 						#if CONFIG_HSPL_LEAK_DEBUG
 						pm_check_ap_hspl_leak();
 						#endif
-						pm_module_shutdown_cpu1(POWER_SUB_DOMAIN_NAME_AP_CPU);
+						ret = pm_module_shutdown_cpu1(
+							POWER_SUB_DOMAIN_NAME_AP_CPU);
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+						if (ret != BK_OK) {
+							LOGE("AP close: shutdown prepare failed[%d], rollback\r\n",
+								ret);
+							break;
+						}
+#else
+						(void)ret;
+#endif
 						pm_ap_powerdown_proof_log("shutdown_func_return");
 						LOGI("AP_PD_PROOF callback_begin: AP power already off, run CP callbacks\r\n");
 						bk_pm_ap_ctrl_callback_execute(PM_AP_CTRL_CB_TYPE_POWER_OFF);

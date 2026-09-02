@@ -393,36 +393,54 @@ bk_err_t bk_pm_module_vote_psram_ctrl(pm_power_psram_module_name_e module,pm_pow
 	}
     else //power down
     {
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+		LOGI("PSRAM_RET_TRACE vote_off begin: module=%d ctrl=0x%x\r\n",
+			module, s_pm_psram_ctrl_state);
+#endif
 		//if(s_pm_psram_ctrl_state&(0x1 << (module)))
 		{
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+#if CONFIG_PSRAM_DATA_RETENTION_ENABLE
+#if PM_PSRAM_RETENTION_PROBE_ENABLE
+			/* Write a probe pattern BEFORE the retention path so that we
+			 * can verify after power-up whether the PSRAM cells held
+			 * their content while the AP power-domain was off. */
+			bk_pm_psram_retention_probe_write();
+#endif
+			/*
+			 * Prepare retention before committing the OFF vote.  On failure
+			 * leave the vote set so the caller can abort AP power-down.
+			 */
+			LOGI("PSRAM_RET_TRACE retention call begin\r\n");
+			ret = bk_psram_data_retention();
+			LOGI("PSRAM_RET_TRACE retention call end ret=%d\r\n", ret);
+			if (ret != BK_OK) {
+				return ret;
+			}
+#endif
+#endif
 			GLOBAL_INT_DISABLE();
 			s_pm_psram_ctrl_state &= ~(0x1 << (module));
 			GLOBAL_INT_RESTORE();
-			//if(0x0 == s_pm_psram_ctrl_state)
-			{
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+			LOGI("PSRAM_RET_TRACE vote cleared: ctrl=0x%x\r\n",
+				s_pm_psram_ctrl_state);
+#else
 #if CONFIG_PSRAM_DATA_RETENTION_ENABLE
 #if PM_PSRAM_RETENTION_PROBE_ENABLE
-				/* Write a probe pattern BEFORE the retention path so that we
-				 * can verify after power-up whether the PSRAM cells held
-				 * their content while the AP power-domain was off. */
-				bk_pm_psram_retention_probe_write();
+			bk_pm_psram_retention_probe_write();
 #endif
-				/* Replace bk_psram_deinit() with the retention path: flush
-				 * the controller, latch PSRAM I/O pads at 3V, keep the PSRAM
-				 * voltage rail ON so cells stay alive while AHBP/M55 power
-				 * goes away. */
-				ret = bk_psram_data_retention();
-				if (ret != BK_OK) {
-					/* Retention setup failed; the controller may be left in
-					 * an inconsistent state. Fall back to a clean deinit so
-					 * the next vote_on starts from a known state via
-					 * bk_psram_init(). Cell data WILL be lost in this case.
-					 * No log here -- see WARN at function head. */
-					bk_psram_deinit();
-				}
-#else  /* !CONFIG_PSRAM_DATA_RETENTION_ENABLE: original deinit path */
+			ret = bk_psram_data_retention();
+			if (ret != BK_OK) {
 				bk_psram_deinit();
-#endif /* CONFIG_PSRAM_DATA_RETENTION_ENABLE */
+			}
+#endif
+#endif
+			//if(0x0 == s_pm_psram_ctrl_state)
+			{
+#if !CONFIG_PSRAM_DATA_RETENTION_ENABLE
+				bk_psram_deinit();
+#endif
 			}
 		}
 	}

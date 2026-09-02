@@ -154,19 +154,10 @@ static bk_err_t pm_ap_core_message_handle(void)
                         break;
                     }
                     if (!bk_cpu_hp_is_online(CPU3_CORE_ID)) {
-                        uint64_t online_start =
-                            bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
                         ret = bk_cpu_hp_online_direct(CPU3_CORE_ID);
-                        uint64_t online_end =
-                            bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
-                        uint32_t online_us =
-                            (uint32_t)(((online_end - online_start) * 1000000ULL) >> 15);
-                        LOGI("AP_TIME cpu3_online total_us=%u stage=%u\r\n",
-                            online_us, bk_cpu3_fast_resume_stage_get());
                         if (ret != BK_OK) {
-                            LOGE("AP fast resume: CPU3 online failed[%d]\r\n", ret);
-                        } else {
-                            LOGI("AP fast resume: CPU3 online ready\r\n");
+                            LOGE("AP fast resume: CPU3 online failed[%d], stage=%u\r\n",
+                                ret, bk_cpu3_fast_resume_stage_get());
                         }
                     }
                     if (!bk_cpu_hp_is_online(CPU3_CORE_ID)) {
@@ -179,8 +170,6 @@ static bk_err_t pm_ap_core_message_handle(void)
                         ret = bk_pm_ap_fast_resume_modules();
                         if (ret != BK_OK) {
                             LOGE("AP fast resume: module resume failed[%d]\r\n", ret);
-                        } else {
-                            LOGI("AP fast resume: AP full ready\r\n");
                         }
                     }
 #endif

@@ -165,6 +165,12 @@ bk_err_t bk_pm_ap_full_ready_set(bool ready)
 {
 	pm_shared_info_t shared_info = {0};
 
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+	__DSB();
+	arch_dcache_invd_range((void *)&bk_sys_sw_regs_ptr()->pm_shared_info,
+		sizeof(bk_sys_sw_regs_ptr()->pm_shared_info));
+	__DSB();
+#endif
 	bk_sys_sw_regs_get_pm_shared_info(&shared_info);
 	if (ready) {
 		shared_info.pm_ap_work_state |= PM_AP_WORK_STATE_FULL_READY;
@@ -176,9 +182,20 @@ bk_err_t bk_pm_ap_full_ready_set(bool ready)
 		BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_AP_WORK_STATE,
 		BK_SYS_SW_REGS_LOCK_ENABLE);
 	__DSB();
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+	arch_dcache_flush_range((void *)&bk_sys_sw_regs_ptr()->pm_shared_info,
+		sizeof(bk_sys_sw_regs_ptr()->pm_shared_info));
+#else
 	flush_dcache((void *)&bk_sys_sw_regs_ptr()->pm_shared_info,
 		sizeof(bk_sys_sw_regs_ptr()->pm_shared_info));
+#endif
 	__DSB();
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE && CONFIG_SLAVE_HEART_BEAT_USE_IPI
+	if (ready) {
+		extern bk_err_t mb_ipc_heartbeat_full_ready_notify(void);
+		(void)mb_ipc_heartbeat_full_ready_notify();
+	}
+#endif
 	return BK_OK;
 }
 
@@ -187,8 +204,13 @@ bool bk_pm_ap_full_ready_get(void)
 	pm_shared_info_t shared_info = {0};
 
 	__DSB();
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+	arch_dcache_invd_range((void *)&bk_sys_sw_regs_ptr()->pm_shared_info,
+		sizeof(bk_sys_sw_regs_ptr()->pm_shared_info));
+#else
 	flush_dcache((void *)&bk_sys_sw_regs_ptr()->pm_shared_info,
 		sizeof(bk_sys_sw_regs_ptr()->pm_shared_info));
+#endif
 	__DSB();
 	bk_sys_sw_regs_get_pm_shared_info(&shared_info);
 	return (shared_info.pm_ap_work_state &
@@ -296,6 +318,7 @@ bk_err_t bk_pm_ap_fast_suspend_prepare(void)
 {
 	pm_ap_fast_node_t *node;
 	bk_err_t ret = BK_OK;
+	uint32_t callback_count = 0;
 	uint32_t flags = pm_ap_fast_lock();
 
 	if (s_fast_state != PM_AP_FAST_STATE_RUNNING) {
@@ -307,14 +330,21 @@ bk_err_t bk_pm_ap_fast_suspend_prepare(void)
 	bk_pm_ap_full_ready_set(false);
 
 	for (node = s_fast_ops_tail; node != NULL; node = node->prev) {
+		callback_count++;
+		LOGI("AP_FAST_CB quiesce begin: name=%s priority=%u cb=%p\r\n",
+			node->ops.name, node->ops.priority, node->ops.quiesce);
 		node->quiesced = true;
 		if (node->ops.quiesce != NULL) {
 			ret = node->ops.quiesce(node->ops.arg);
-			if (ret != BK_OK) {
-				break;
-			}
+		}
+		LOGI("AP_FAST_CB quiesce end: name=%s ret=%d\r\n",
+			node->ops.name, ret);
+		if (ret != BK_OK) {
+			break;
 		}
 	}
+	LOGI("AP_FAST_CB prepare summary: count=%u ret=%d\r\n",
+		callback_count, ret);
 
 	if (ret != BK_OK) {
 		(void)bk_pm_ap_fast_resume_modules();

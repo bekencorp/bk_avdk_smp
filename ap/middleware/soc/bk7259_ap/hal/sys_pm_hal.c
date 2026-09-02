@@ -719,22 +719,17 @@ ap_fast_resume_after_wfi:
 				}
 			}
 			#endif
+#if CONFIG_SLAVE_HEART_BEAT_USE_IPI
 			{
-				uint32_t total_us;
-				uint32_t dtcm_us;
-				uint32_t l1_scb_us;
-				uint32_t arch_us;
-				uint32_t finish_us;
-				extern void dlv_restore_profile_get(uint32_t *total_us,
-					uint32_t *dtcm_us, uint32_t *l1_scb_us,
-					uint32_t *arch_us, uint32_t *finish_us);
+				extern bk_err_t mb_ipc_heartbeat_fast_resume_notify(void);
+				bk_err_t hb_ret = mb_ipc_heartbeat_fast_resume_notify();
 
-				dlv_restore_profile_get(&total_us, &dtcm_us, &l1_scb_us,
-					&arch_us, &finish_us);
-				BK_LOGI("deep_lv",
-					"AP_TIME restore total_us=%u dtcm_us=%u l1_scb_us=%u arch_us=%u finish_us=%u\r\n",
-					total_us, dtcm_us, l1_scb_us, arch_us, finish_us);
+				if (hb_ret != BK_OK) {
+					BK_LOGE("pm", "AP fast resume: heartbeat power-up failed[%d]\r\n",
+						hb_ret);
+				}
 			}
+#endif
 #endif
 		}
 		else

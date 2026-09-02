@@ -181,11 +181,16 @@ bk_err_t bk_pm_ap_close_ap_unregister_callback(pm_ap_close_ap_callback_info_t * 
 
 bk_err_t bk_pm_ap_close_ap_handle_callback()
 {
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+    uint32_t callback_count = 0;
+#endif
+
     for(int i = 0; i < sizeof(s_close_ap_cb_arry)/sizeof(pm_ap_close_ap_callback_info_t);i++)
     {
         if(s_close_ap_cb_arry[i].close_ap_cb_fn != NULL)
         {
 #if CONFIG_PM_AP_FAST_BOOT_ENABLE
+            callback_count++;
             uint32_t callback_start_ms = rtos_get_time();
             LOGI("AP close callback begin module=%d fn=%p\r\n",
                 i, s_close_ap_cb_arry[i].close_ap_cb_fn);
@@ -197,6 +202,9 @@ bk_err_t bk_pm_ap_close_ap_handle_callback()
 #endif
         }
     }
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+    LOGI("AP close callback summary count=%u\r\n", callback_count);
+#endif
     return BK_OK;
 }
 

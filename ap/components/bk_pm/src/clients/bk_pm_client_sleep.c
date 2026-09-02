@@ -27,6 +27,11 @@
 #include "pm_debug.h"
 #include "pm_wakeup_source.h"
 #include "pm_interface.h"
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE && CONFIG_CPU_HOTPLUG
+#include "FreeRTOS.h"
+#include "task.h"
+static volatile bool s_pm_fast_resume_freeze_ticks;
+#endif
 
 /*=========================SLEEP/WAKEUP FUNCTION START========================*/
 static void pm_enter_cpu_wfi()
@@ -65,7 +70,44 @@ uint64_t pm_cpu_wfi_process()
 uint64_t pm_management(uint32_t sleep_ticks)
 {
 	uint64_t missed_ticks = 0ULL;
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE && CONFIG_CPU_HOTPLUG
+	/*
+	 * Latch this before WFI. The resume path changes the fast-PM state to
+	 * RUNNING before the FreeRTOS port performs slept-tick compensation.
+	 */
+	if (bk_pm_ap_fast_suspend_is_prepared()) {
+		s_pm_fast_resume_freeze_ticks = true;
+		__DMB();
+	}
+#endif
 	missed_ticks = pm_cpu_wfi_process();
 	return missed_ticks;
 }
+
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE && CONFIG_CPU_HOTPLUG
+TickType_t bk_pm_fast_resume_adjust_slept_ticks(TickType_t slept_ticks)
+{
+	/*
+	 * AP tasks are suspended, not running, while the AP power domain is off.
+	 * Keep their relative FreeRTOS delays paused; wall-clock users continue
+	 * to use AON RTC.  This also prevents an expired-task burst from delaying
+	 * CPU3 restore before AP_FULL_READY.
+	 */
+	__DMB();
+	if (s_pm_fast_resume_freeze_ticks) {
+		s_pm_fast_resume_freeze_ticks = false;
+		__DMB();
+		return 1;
+	}
+	return slept_ticks;
+}
+
+void bk_pm_fast_resume_post_irq_enable(void)
+{
+	/* Called by the FreeRTOS tickless port after PRIMASK is cleared. */
+	if (!bk_pm_ap_full_ready_get()) {
+		taskYIELD();
+	}
+}
+#endif
 /*=========================ENTER SLEEP FUNCTION END========================*/
