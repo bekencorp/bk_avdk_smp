@@ -247,8 +247,8 @@ int mbedtls_hardware_poll( void *data,
     if( arm_ce_seed_read( output, len ) < 0 )
         return( -1 );
 #else
-    extern int bk_puf_get_random_number( void *data, unsigned char *output, size_t len);
-    if( bk_puf_get_random_number( data, output, len ) < 0 )
+    extern int myrand(void *rng_state, unsigned char *output, size_t len);
+    if (myrand(data, output, len) < 0)
         return( -1 );
 #endif
     *olen = len;
