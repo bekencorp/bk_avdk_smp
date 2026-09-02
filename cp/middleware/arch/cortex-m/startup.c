@@ -14,8 +14,15 @@
 
 #include "sdkconfig.h"
 #include "cmsis_compiler.h"
+#include <stdint.h>
 #include "wdt_driver.h"
 #include "sys_hal.h"
+
+#if CONFIG_DEBUG_VERSION || CONFIG_DUMP_ENABLE
+#define CP_SEC_DUMP_ABI_INFO 0x53440130U
+extern void bk_coredump_secure_fault_callback(void *context);
+extern const uintptr_t g_cp_secure_fault_context_address;
+#endif
 
 /*----------------------------------------------------------------------------
   External References
@@ -132,9 +139,15 @@ const VECTOR_ENTRY_TYPE __VECTOR_TABLE[] __VECTOR_TABLE_ATTRIBUTE = {
   BusFault_Handler,                         /* -11 Bus Fault Handler */
   UsageFault_Handler,                       /* -10 Usage Fault Handler */
   SecureFault_Handler,                      /*  -9 Secure Fault Handler */
+#if CONFIG_DEBUG_VERSION || CONFIG_DUMP_ENABLE
+  (VECTOR_ENTRY_TYPE)bk_coredump_secure_fault_callback,       /* Reserved: Secure dump callback */
+  (VECTOR_ENTRY_TYPE)&g_cp_secure_fault_context_address,       /* Reserved: Secure dump context pointer */
+  (VECTOR_ENTRY_TYPE)CP_SEC_DUMP_ABI_INFO,                     /* Reserved: Secure dump ABI */
+#else
   0,                                        /*     Reserved */
   0,                                        /*     Reserved */
   0,                                        /*     Reserved */
+#endif
   SVC_Handler,                              /*  -5 SVCall Handler */
   DebugMon_Handler,                         /*  -4 Debug Monitor Handler */
   0,                                        /*     Reserved */
