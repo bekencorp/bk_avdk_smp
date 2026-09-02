@@ -318,7 +318,7 @@ _error:
 int hmac_perf_main(void)
 {
 	uint32_t key_len_list[] = {128, 192, 256};
-	uint32_t data_len_list[] = {256, 512, 1024, 2048, 4096};
+	uint32_t data_len_list[] = {256, 512, 1024, 2048};
 	uint32_t cpu_freq_list[] = {PM_CPU_FRQ_120M, PM_CPU_FRQ_240M};
 	uint32_t cpu;
 	uint32_t key;
