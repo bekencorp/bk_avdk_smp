@@ -24,6 +24,10 @@
 #include <os/str.h>
 #include <components/log.h>
 #include <components/system.h>
+#include <components/event.h>
+#include <components/netif.h>
+#include <modules/wifi_types.h>
+#include "common/bk_err.h"
 #include "sdkconfig.h"
 
 #define TAG "core_mqtt"
@@ -36,6 +40,8 @@
 #define CORE_MQTT_ACK_PROPS_BUF_SIZE  128U
 #define CORE_MQTT_PROCESS_LOOP_DELAY_MS     20U
 #define CORE_MQTT_DESTROY_WAIT_MS     3000U
+#define CORE_MQTT_RECONNECT_DELAY_MS  5000U
+#define CORE_MQTT_NETWORK_POLL_MS     100U
 
 static MQTTContext_t s_mqtt_ctx;
 static NetworkContext_t s_net_ctx = { .socket = -1, .blocking_recv = false, .recv_timeout_ms = 200 };
@@ -60,6 +66,71 @@ static beken_thread_t s_mqtt_thread = NULL;
 static volatile int s_mqtt_started = 0;
 static volatile int s_mqtt_connected = 0;
 static volatile int s_mqtt_running = 0;
+static volatile int s_wifi_has_ip = 0;
+static volatile int s_wifi_cb_registered = 0;
+
+static void core_mqtt_sync_wifi_ip_state(void)
+{
+	netif_ip4_config_t ip4 = { 0 };
+
+	if (bk_netif_get_ip4_config(NETIF_IF_STA, &ip4) == BK_OK &&
+	    ip4.ip[0] != '\0' && os_strcmp(ip4.ip, "0.0.0.0") != 0) {
+		s_wifi_has_ip = 1;
+	} else {
+		s_wifi_has_ip = 0;
+	}
+}
+
+static bk_err_t core_mqtt_wifi_event_cb(void *arg, event_module_t event_module,
+					int event_id, void *event_data)
+{
+	(void)arg;
+
+	if (event_module == EVENT_MOD_WIFI &&
+	    event_id == EVENT_WIFI_STA_DISCONNECTED) {
+		s_wifi_has_ip = 0;
+	} else if (event_module == EVENT_MOD_NETIF &&
+		   event_id == EVENT_NETIF_GOT_IP4) {
+		netif_event_got_ip4_t *got_ip = (netif_event_got_ip4_t *)event_data;
+
+		if (got_ip && got_ip->netif_if == NETIF_IF_STA)
+			s_wifi_has_ip = 1;
+	}
+
+	return BK_OK;
+}
+
+static void core_mqtt_wifi_cb_register(void)
+{
+	if (s_wifi_cb_registered)
+		return;
+
+	core_mqtt_sync_wifi_ip_state();
+	BK_LOG_ON_ERR(bk_event_register_cb(EVENT_MOD_WIFI, EVENT_WIFI_STA_DISCONNECTED,
+					     core_mqtt_wifi_event_cb, NULL));
+	BK_LOG_ON_ERR(bk_event_register_cb(EVENT_MOD_NETIF, EVENT_NETIF_GOT_IP4,
+					     core_mqtt_wifi_event_cb, NULL));
+	s_wifi_cb_registered = 1;
+}
+
+static void core_mqtt_wifi_cb_unregister(void)
+{
+	if (!s_wifi_cb_registered)
+		return;
+
+	(void)bk_event_unregister_cb(EVENT_MOD_WIFI, EVENT_WIFI_STA_DISCONNECTED,
+				     core_mqtt_wifi_event_cb);
+	(void)bk_event_unregister_cb(EVENT_MOD_NETIF, EVENT_NETIF_GOT_IP4,
+				     core_mqtt_wifi_event_cb);
+	s_wifi_cb_registered = 0;
+	s_wifi_has_ip = 0;
+}
+
+static void core_mqtt_wait_for_network(void)
+{
+	while (s_mqtt_running && !s_wifi_has_ip)
+		rtos_delay_milliseconds(CORE_MQTT_NETWORK_POLL_MS);
+}
 
 static char *core_mqtt_get_client_id(void)
 {
@@ -308,7 +379,7 @@ static void core_mqtt_cleanup_session(void)
 	core_mqtt_transport_disconnect(&s_net_ctx);
 }
 
-static void core_mqtt_thread(void *arg)
+static int core_mqtt_establish_session(void)
 {
 	MQTTConnectInfo_t connect_info = { 0 };
 	MQTTStatus_t status;
@@ -317,13 +388,11 @@ static void core_mqtt_thread(void *arg)
 	uint32_t tx_bytes = 0;
 	uint32_t rx_bytes = 0;
 
-	(void)arg;
-
 	if (core_mqtt_transport_connect(&s_net_ctx, s_host, s_port, s_use_tls) != 0)
-		goto exit;
+		return -1;
 
 	if (!s_mqtt_running)
-		goto exit;
+		return -1;
 
 	memset(&s_mqtt_ctx, 0, sizeof(s_mqtt_ctx));
 	memset(&s_transport, 0, sizeof(s_transport));
@@ -340,7 +409,7 @@ static void core_mqtt_thread(void *arg)
 			   core_mqtt_event_callback, &s_fixed_buffer);
 	if (status != MQTTSuccess) {
 		BK_LOGE(TAG, "MQTT_Init failed status=%s\r\n", MQTT_Status_strerror(status));
-		goto exit;
+		goto fail;
 	}
 
 	status = MQTT_InitStatefulQoS(&s_mqtt_ctx,
@@ -353,7 +422,7 @@ static void core_mqtt_thread(void *arg)
 	if (status != MQTTSuccess) {
 		BK_LOGE(TAG, "MQTT_InitStatefulQoS failed status=%s\r\n",
 			MQTT_Status_strerror(status));
-		goto exit;
+		goto fail;
 	}
 
 	connect_info.cleanSession = true;
@@ -391,7 +460,7 @@ static void core_mqtt_thread(void *arg)
 				(long)pending_len, pending[0]);
 		}
 
-		goto exit;
+		goto fail;
 	}
 
 	core_mqtt_transport_set_nonblock_mode(&s_net_ctx, true);
@@ -399,17 +468,66 @@ static void core_mqtt_thread(void *arg)
 	s_mqtt_connected = 1;
 	BK_LOGI(TAG, "online (MQTT v5)\r\n");
 
-	while (s_mqtt_running) {
-		if (!core_mqtt_process_loop_once(&tx_bytes, &rx_bytes))
-			break;
-
-		rtos_delay_milliseconds(CORE_MQTT_PROCESS_LOOP_DELAY_MS);
+	if (s_sub_topic && s_mqtt_mutex) {
+		rtos_lock_mutex(&s_mqtt_mutex);
+		(void)core_mqtt_do_subscribe();
+		rtos_unlock_mutex(&s_mqtt_mutex);
 	}
 
-exit:
-	BK_LOGW(TAG, "offline\r\n");
+	return 0;
+
+fail:
+	core_mqtt_cleanup_session();
+	return -1;
+}
+
+static void core_mqtt_thread(void *arg)
+{
+	uint32_t tx_bytes = 0;
+	uint32_t rx_bytes = 0;
+
+	(void)arg;
+
+	while (s_mqtt_running) {
+		core_mqtt_wait_for_network();
+		if (!s_mqtt_running)
+			break;
+
+		if (core_mqtt_establish_session() != 0) {
+			if (!s_mqtt_running)
+				break;
+
+			if (s_wifi_has_ip) {
+				BK_LOGW(TAG, "connect failed, retry in %us\r\n",
+					(unsigned)(CORE_MQTT_RECONNECT_DELAY_MS / 1000U));
+				rtos_delay_milliseconds(CORE_MQTT_RECONNECT_DELAY_MS);
+			}
+			continue;
+		}
+
+		while (s_mqtt_running && s_mqtt_connected) {
+			if (!core_mqtt_process_loop_once(&tx_bytes, &rx_bytes))
+				break;
+
+			rtos_delay_milliseconds(CORE_MQTT_PROCESS_LOOP_DELAY_MS);
+		}
+
+		if (!s_mqtt_running)
+			break;
+
+		BK_LOGW(TAG, "offline\r\n");
+		core_mqtt_cleanup_session();
+
+		if (s_wifi_has_ip) {
+			BK_LOGI(TAG, "reconnect in %us\r\n",
+				(unsigned)(CORE_MQTT_RECONNECT_DELAY_MS / 1000U));
+			rtos_delay_milliseconds(CORE_MQTT_RECONNECT_DELAY_MS);
+		}
+	}
+
 	core_mqtt_cleanup_session();
 	core_mqtt_release_config();
+	core_mqtt_wifi_cb_unregister();
 	if (s_mqtt_mutex) {
 		rtos_deinit_mutex(&s_mqtt_mutex);
 		s_mqtt_mutex = NULL;
@@ -446,12 +564,15 @@ static int core_mqtt_client_start(const char *host, const char *username,
 		return -1;
 	}
 
+	core_mqtt_wifi_cb_register();
+
 	s_mqtt_running = 1;
 	ret = rtos_create_thread(&s_mqtt_thread, BEKEN_DEFAULT_WORKER_PRIORITY,
 				 "core_mqtt", core_mqtt_thread,
 				 CONFIG_COREMQTT_THREAD_STACK_SIZE, NULL);
 	if (ret != kNoErr) {
 		s_mqtt_running = 0;
+		core_mqtt_wifi_cb_unregister();
 		core_mqtt_release_config();
 		rtos_deinit_mutex(&s_mqtt_mutex);
 		s_mqtt_mutex = NULL;
