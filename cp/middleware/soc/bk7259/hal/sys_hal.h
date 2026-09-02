@@ -656,6 +656,7 @@ void sys_hal_psram_ldo_enable(uint32_t enable);
 uint32_t sys_hal_psram_ldo_status();
 void sys_hal_psram_clk_sel_with_id(uint32_t id, uint32_t value);
 void sys_hal_psram_set_clkdiv_with_id(uint32_t id, uint32_t value);
+void sys_hal_psram_get_clk_config_with_id(uint32_t id, uint32_t *clk_sel, uint32_t *clk_div);
 void sys_hal_psram_psldo_vsel(uint32_t value);
 void sys_hal_psram_psldo_vset(uint32_t output_voltage, uint32_t is_add_200mv);
 void sys_hal_psram_psram0_disckg(uint32_t value);

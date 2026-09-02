@@ -342,6 +342,15 @@ uint32_t sys_drv_psram_set_clkdiv_with_id(uint32_t id, uint32_t value)
 	return SYS_DRV_SUCCESS;
 }
 
+uint32_t sys_drv_psram_get_clk_config_with_id(uint32_t id, uint32_t *clk_sel, uint32_t *clk_div)
+{
+	uint32_t int_level = sys_drv_enter_critical();
+
+	sys_hal_psram_get_clk_config_with_id(id, clk_sel, clk_div);
+	sys_drv_exit_critical(int_level);
+	return SYS_DRV_SUCCESS;
+}
+
 uint32_t sys_drv_i2s_select_clock(uint32_t value)
 {
 	uint32_t int_level = 0;

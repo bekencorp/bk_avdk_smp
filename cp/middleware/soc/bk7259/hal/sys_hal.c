@@ -3095,6 +3095,20 @@ void sys_hal_psram_set_clkdiv_with_id(uint32_t id, uint32_t value)
 	}
 }
 
+void sys_hal_psram_get_clk_config_with_id(uint32_t id, uint32_t *clk_sel, uint32_t *clk_div)
+{
+	if (id == PSRAM_ID_0)
+	{
+		*clk_sel = sys_ahbp_ll_get_reg8_cksel_pram0();
+		*clk_div = sys_ahbp_ll_get_reg8_ckdiv_pram0();
+	}
+	else
+	{
+		*clk_sel = sys_ahbp_ll_get_reg9_cksel_pram1();
+		*clk_div = sys_ahbp_ll_get_reg9_ckdiv_pram1();
+	}
+}
+
 void sys_hal_psram_psldo_vsel(uint32_t value)
 {
 	return;

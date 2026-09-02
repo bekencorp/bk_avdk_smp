@@ -636,8 +636,9 @@ bk_err_t bk_psram_deinit_with_id(psram_id_t psram_id)
  * Set this to 0 to skip the (presumably redundant) clock re-setup
  * and verify locally that PSRAM still recovers correctly. Keep it
  * as 1 for production / when AHBP_PSRAM may also be cycled, since
- * the writes are then required for a clean controller comeback and
- * also match the reference psram_recovery() exactly.
+ * the writes are then required for a clean controller comeback.
+ * Recovery restores the live cksel / ckdiv snapshot rather than a
+ * fixed reference frequency, so fast boot matches cold boot.
  *
  * After verification, either:
  *   - leave it 1 (defensive, matches reference, ~no cost), or
@@ -651,6 +652,9 @@ bk_err_t bk_psram_deinit_with_id(psram_id_t psram_id)
 static volatile bool     s_psram_retention_active[PSRAM_ID_MAX]    = {false};
 static uint32_t          s_psram_retention_saved_mode[PSRAM_ID_MAX] = {0};
 static bool              s_psram_retention_mode_valid[PSRAM_ID_MAX] = {false};
+static uint32_t          s_psram_retention_saved_clk_sel[PSRAM_ID_MAX] = {0};
+static uint32_t          s_psram_retention_saved_clk_div[PSRAM_ID_MAX] = {0};
+static bool              s_psram_retention_clock_valid[PSRAM_ID_MAX] = {false};
 
 static bk_err_t psram_retention_drain(psram_id_t psram_id)
 {
@@ -699,6 +703,14 @@ static void psram_retention_save_mode(psram_id_t psram_id)
 	s_psram_retention_mode_valid[psram_id] = true;
 }
 
+static void psram_retention_save_clock(psram_id_t psram_id)
+{
+	sys_drv_psram_get_clk_config_with_id((uint32_t)psram_id,
+		&s_psram_retention_saved_clk_sel[psram_id],
+		&s_psram_retention_saved_clk_div[psram_id]);
+	s_psram_retention_clock_valid[psram_id] = true;
+}
+
 static uint32_t psram_retention_get_restore_mode(psram_id_t psram_id)
 {
 	if (s_psram_retention_mode_valid[psram_id]) {
@@ -718,12 +730,18 @@ static void psram_retention_recovery_one(psram_id_t psram_id)
 	psram_hal_set_reg2_value_with_id(psram_id, v);
 
 #if PM_PSRAM_RECOVER_RESET_CLOCK
-	/* Restore PSRAMx bus clock: 320M source / (1+1) = 160MHz.
-	 * All three writes go through sys_drv layer (id-routed, with
-	 * critical-section). Enabled by default as a defensive recovery
-	 * step; see PM_PSRAM_RECOVER_RESET_CLOCK comment for the rationale. */
-	sys_drv_psram_clk_sel_with_id((uint32_t)psram_id, 0);    /* 320M source */
-	sys_drv_psram_set_clkdiv_with_id((uint32_t)psram_id, 1); /* /(1+1) -> 160MHz */
+	/* Restore the exact source/divider used before retention. This keeps
+	 * fast-boot frequency aligned with cold boot even if the normal init
+	 * clock policy changes later. An active retention instance always has
+	 * a snapshot; use the HAL default only as a defensive fallback. */
+	if (s_psram_retention_clock_valid[psram_id]) {
+		sys_drv_psram_clk_sel_with_id((uint32_t)psram_id,
+			s_psram_retention_saved_clk_sel[psram_id]);
+		sys_drv_psram_set_clkdiv_with_id((uint32_t)psram_id,
+			s_psram_retention_saved_clk_div[psram_id]);
+	} else {
+		psram_hal_set_default_clk_with_id(psram_id);
+	}
 	sys_drv_psram_disckg_with_id((uint32_t)psram_id, 1);     /* bus clk enable */
 #endif
 
@@ -749,13 +767,15 @@ bk_err_t bk_psram_data_retention(void)
 		if (!s_psram_init_done[i]) {
 			s_psram_retention_active[i] = false;
 			s_psram_retention_mode_valid[i] = false;
+			s_psram_retention_clock_valid[i] = false;
 			continue;
 		}
 
-		/* Snapshot the live PSRAM mode register BEFORE we flush /
-		 * latch / gate clocks, so the recovery path can restore the
-		 * exact same value. */
+		/* Snapshot the live controller mode and clock configuration BEFORE
+		 * draining traffic / latching pads, so recovery exactly matches
+		 * the cold-boot configuration. */
 		psram_retention_save_mode((psram_id_t)i);
+		psram_retention_save_clock((psram_id_t)i);
 
 		ret = psram_retention_drain((psram_id_t)i);
 		if (ret != BK_OK) {
@@ -804,6 +824,8 @@ bk_err_t bk_psram_data_retention_recover(void)
 		psram_retention_recovery_one((psram_id_t)i);
 		s_psram_init_done[i] = true;
 		s_psram_retention_active[i] = false;
+		s_psram_retention_mode_valid[i] = false;
+		s_psram_retention_clock_valid[i] = false;
 	}
 
 	MEM_STATIC_LOGI("psram_data_retention_recover: done\r\n");
