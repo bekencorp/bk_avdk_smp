@@ -21,9 +21,13 @@
 #include "clock_driver.h"
 #include "bk_sys_ctrl.h"
 
+/* Keep in sync with temp_detect.h; HAL must not include that component header */
+#define ADC_HAL_TEMP_CODE_DFT_25DEGREE              6808
+#define ADC_HAL_TEMP_LSB_PER_10DEGREE               400
+
 uint32_t adc_hal_get_temp_code_dft_25degree(void)
 {
-    return 8505;
+    return ADC_HAL_TEMP_CODE_DFT_25DEGREE;
 }
 
 uint32_t adc_hal_get_temp_code_dft_threshold(void)
@@ -33,12 +37,12 @@ uint32_t adc_hal_get_temp_code_dft_threshold(void)
 
 uint32_t adc_hal_get_temp_lsb_per_10degree(void)
 {
-    return 580;
+    return ADC_HAL_TEMP_LSB_PER_10DEGREE;
 }
 
 uint32_t adc_hal_get_1Volt_value(void)
 {
-    return 0x1547;
+    return 0x15BD;
 }
 
 uint32_t adc_hal_get_1Volt_threshold(void)
@@ -48,7 +52,7 @@ uint32_t adc_hal_get_1Volt_threshold(void)
 
 uint32_t adc_hal_get_2Volt_value(void)
 {
-    return 0x2A73;
+    return 0x2B10;
 }
 
 uint32_t adc_hal_get_2Volt_threshold(void)

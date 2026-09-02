@@ -164,7 +164,7 @@ static uint16_t _volt_detect_calculate_voltage(uint16_t *raw_voltage_data)
 {
     uint32_t sum = 0, index, count = 0;
 
-    for (index = 5; index < ADC_TEMP_BUFFER_SIZE; index++)
+    for (index = ADC_TEMP_BUFFER_SKIP; index < ADC_TEMP_BUFFER_SIZE; index++)
     {
         /* 0 is invalid, but saradc may return 0 in power save mode */
         if ((0 != raw_voltage_data[index]) && (2048 != raw_voltage_data[index]))

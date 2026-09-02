@@ -28,9 +28,15 @@
 #define ADC_TEMP_SENSOR_CHANNEL                     7
 #define ADC_TEMP_SATURATE_MODE                      ADC_SATURATE_MODE_2
 
-#define ADC_TEMP_BUFFER_SIZE                        (5+5)//(+5 for skip)
+#define ADC_TEMP_BUFFER_SIZE                        (32) /* first half skip, second half for avg */
+#if (ADC_TEMP_BUFFER_SIZE & 0x1)
+/* odd: middle goes with skip, average latter floor(N/2) samples */
+#define ADC_TEMP_BUFFER_SKIP                        ((ADC_TEMP_BUFFER_SIZE + 1) / 2)
+#else
+#define ADC_TEMP_BUFFER_SKIP                        (ADC_TEMP_BUFFER_SIZE / 2)
+#endif
 #define ADC_TEMP_CODE_DFT_25DEGREE                  6808
-#define ADC_TMEP_LSB_PER_10DEGREE                   580
+#define ADC_TMEP_LSB_PER_10DEGREE                   400
 #define ADC_TEMP_VAL_MIN                            10
 #define ADC_TEMP_VAL_MAX                            0x3FFF //for ana_reg5_adc_div=1/3
 
