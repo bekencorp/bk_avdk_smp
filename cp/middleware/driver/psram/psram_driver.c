@@ -610,8 +610,12 @@ bk_err_t bk_psram_deinit_with_id(psram_id_t psram_id)
  * domain is gated; the PSRAM voltage and AHBP_PSRAM stay alive.
  * ============================================================ */
 
-#define PSRAM_RETENTION_FLUSH_BIT      (0x1U << 3)
 #define PSRAM_RETENTION_CKG_BYPASS_BIT (0x1U << 1)
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+#define PSRAM_RETENTION_MR0_ADDR       (0x00000000U)
+#else
+#define PSRAM_RETENTION_FLUSH_BIT      (0x1U << 3)
+#endif
 /* Fallback mode register value used only when no snapshot was taken
  * (e.g. retention helper called before any real PSRAM access). The
  * normal path always restores the snapshotted REG4 read live from
@@ -648,13 +652,45 @@ static volatile bool     s_psram_retention_active[PSRAM_ID_MAX]    = {false};
 static uint32_t          s_psram_retention_saved_mode[PSRAM_ID_MAX] = {0};
 static bool              s_psram_retention_mode_valid[PSRAM_ID_MAX] = {false};
 
-static void psram_retention_flush(psram_id_t psram_id)
+static bk_err_t psram_retention_drain(psram_id_t psram_id)
 {
-	uint32_t v = psram_hal_get_reg8_value_with_id(psram_id);
-	psram_hal_set_reg8_value_with_id(psram_id, v | PSRAM_RETENTION_FLUSH_BIT);
-	while (psram_hal_get_reg8_value_with_id(psram_id) & PSRAM_RETENTION_FLUSH_BIT) {
-		/* spin until controller clears flush bit */
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+	uint32_t mr0;
+
+	/*
+	 * AP has already stopped new work, waited for DMA idle and cleaned
+	 * L1/L2 before publishing pm_ap0_sleep_state.  Serialize one real
+	 * PSRAM command here so all previous controller traffic is complete
+	 * before the pads are latched.
+	 *
+	 * Do not use REG8 bit3: it is not described by the BK7259 HAL and on
+	 * current MP silicon it remains set forever instead of self-clearing.
+	 */
+	__asm volatile("dsb sy" ::: "memory");
+	MEM_STATIC_LOGI("retention_drain begin: id=%d reg2=0x%08x reg4=0x%08x reg8=0x%08x\r\n",
+		psram_id,
+		psram_hal_get_reg2_value_with_id(psram_id),
+		psram_hal_get_mode_value_with_id(psram_id),
+		psram_hal_get_reg8_value_with_id(psram_id));
+	mr0 = psram_hal_cmd_read_with_id(psram_id, PSRAM_RETENTION_MR0_ADDR);
+	__asm volatile("dsb sy" ::: "memory");
+	if (mr0 == 0U) {
+		MEM_STATIC_LOGE("retention_drain failed: id=%d reg8=0x%08x\r\n",
+			psram_id, psram_hal_get_reg8_value_with_id(psram_id));
+		return BK_ERR_TIMEOUT;
 	}
+	MEM_STATIC_LOGI("retention_drain done: id=%d mr0=0x%08x reg8=0x%08x\r\n",
+		psram_id, mr0, psram_hal_get_reg8_value_with_id(psram_id));
+#else
+	uint32_t reg8 = psram_hal_get_reg8_value_with_id(psram_id);
+
+	psram_hal_set_reg8_value_with_id(psram_id,
+		reg8 | PSRAM_RETENTION_FLUSH_BIT);
+	while ((psram_hal_get_reg8_value_with_id(psram_id) &
+		PSRAM_RETENTION_FLUSH_BIT) != 0U) {
+	}
+#endif
+	return BK_OK;
 }
 
 static void psram_retention_save_mode(psram_id_t psram_id)
@@ -702,6 +738,13 @@ static void psram_retention_recovery_one(psram_id_t psram_id)
 
 bk_err_t bk_psram_data_retention(void)
 {
+	bk_err_t ret;
+
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+	MEM_STATIC_LOGI("psram_data_retention begin: init0=%d init1=%d\r\n",
+		s_psram_init_done[PSRAM_ID_0], s_psram_init_done[PSRAM_ID_1]);
+#endif
+
 	for (int i = 0; i < (int)PSRAM_ID_MAX; i++) {
 		if (!s_psram_init_done[i]) {
 			s_psram_retention_active[i] = false;
@@ -714,7 +757,13 @@ bk_err_t bk_psram_data_retention(void)
 		 * exact same value. */
 		psram_retention_save_mode((psram_id_t)i);
 
-		psram_retention_flush((psram_id_t)i);
+		ret = psram_retention_drain((psram_id_t)i);
+		if (ret != BK_OK) {
+			for (int j = 0; j <= i; j++) {
+				s_psram_retention_active[j] = false;
+			}
+			return ret;
+		}
 		s_psram_retention_active[i] = true;
 	}
 

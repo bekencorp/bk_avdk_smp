@@ -76,6 +76,10 @@ int mb_ipc_cpu_is_power_off(u32 cpu_id)
 #define MB_IPC_HEARTBEAT_TIME       2000   /* slave sends heartbeat every 2s */
 #define MB_IPC_HEARTBEAT_IPI_EVENT_POWER_UP     1
 #define MB_IPC_HEARTBEAT_IPI_EVENT_HEARTBEAT    2
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+#define MB_IPC_HEARTBEAT_IPI_EVENT_FULL_READY   3
+static volatile u8 s_mb_ipc_ap_full_ready;
+#endif
 #if CONFIG_WDT_EN
 #define HB_TIMEOUT_MS               CONFIG_INT_WDT_PERIOD_MS
 #else
@@ -233,6 +237,26 @@ static void mb_ipc_heartbeat_ipi_callback(ipi_core_id_t core_id, uint32_t value,
 		}
 		mb_ipc_heartbeat_notify(cpu_id);
 	}
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+	else if (event == MB_IPC_HEARTBEAT_IPI_EVENT_FULL_READY) {
+		s_mb_ipc_ap_full_ready = 1;
+		__asm volatile ("dmb sy" ::: "memory");
+	}
+#endif
+}
+#endif
+
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+int mb_ipc_ap_full_ready_notified(void)
+{
+	__asm volatile ("dmb sy" ::: "memory");
+	return s_mb_ipc_ap_full_ready != 0;
+}
+
+void mb_ipc_ap_full_ready_clear(void)
+{
+	s_mb_ipc_ap_full_ready = 0;
+	__asm volatile ("dmb sy" ::: "memory");
 }
 #endif
 
@@ -389,6 +413,10 @@ void mb_ipc_reset_notify(u32 cpu_id, u32 power_on)
 	{
 		return;
 	}
+
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+	mb_ipc_ap_full_ready_clear();
+#endif
 	
 	if(power_on)
 	{
