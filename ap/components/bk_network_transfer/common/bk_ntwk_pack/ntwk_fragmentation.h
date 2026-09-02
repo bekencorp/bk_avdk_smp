@@ -46,6 +46,12 @@ typedef struct {
 	uint8_t start_buf;
 	/// the packet count of one frame
 	uint32_t frame_pkt_cnt;
+	/// reassembling a frame right now
+	bool active;
+	/// current frame invalidated, drop until eof/new frame
+	bool invalid;
+	/// id of the frame being reassembled
+	uint8_t cur_id;
 } cache_buffer_t;
 
 typedef struct {

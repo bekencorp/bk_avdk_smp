@@ -381,38 +381,69 @@ static void unfragment_process_packet(unfragment_cfg_t *config, uint8_t *data, u
     {
         ntwk_fragm_head_t *hdr = (ntwk_fragm_head_t *)data;
         uint32_t org_len;
+        uint8_t *payload;
+        uint8_t expected;
         GLOBAL_INT_DECLARATION();
 
         org_len = length - sizeof(ntwk_fragm_head_t);
-        data = data + sizeof(ntwk_fragm_head_t);
+        payload = data + sizeof(ntwk_fragm_head_t);
 
         LOGV("id:%d eof %d cnt %d size %d len %d org_len %d\r\n", hdr->id,hdr->eof,hdr->cnt,hdr->size,length,org_len);
 
-        if ((hdr->cnt == 0) || (hdr->size == 0) || (hdr->cnt > hdr->size) || (hdr->eof > 1))
+        /* cnt/size are 8-bit and wrap for frames with more than 255 fragments,
+         * so they can no longer be used as absolute bounds. Only eof is checked
+         * structurally; ordering is enforced with 8-bit modular arithmetic
+         * below. */
+        if (hdr->eof > 1)
         {
-            LOGW("%s, invalid fragment header, id:%u eof:%u cnt:%u size:%u len:%u\r\n",
-                 __func__, hdr->id, hdr->eof, hdr->cnt, hdr->size, length);
             return;
         }
 
-        if (hdr->cnt == 1) {
-            frame_buffer->frame->length = 0;
+        if (frame_buffer->active == false)
+        {
+            /* Idle: only a real frame start (cnt==1) can open a frame. */
+            if (hdr->cnt != 1)
+            {
+                return;
+            }
+            frame_buffer->active = true;
+            frame_buffer->invalid = false;
+            frame_buffer->cur_id = hdr->id;
             frame_buffer->frame_pkt_cnt = 0;
+            frame_buffer->frame->length = 0;
             frame_buffer->buf_ptr = frame_buffer->frame->frame;
             frame_buffer->start_buf = FRAG_BUF_COPY;
             LOGV("sof:%d\r\n", frame_buffer->frame->sequence);
         }
-        else
+        else if (hdr->id != frame_buffer->cur_id)
         {
-            if (frame_buffer->start_buf == FRAG_BUF_INIT)
-                frame_buffer->start_buf = FRAG_BUF_COPY;
+            /* A different id arrived mid-frame: the previous frame's eof was
+             * lost. Restart on a real new frame, otherwise drop until resync. */
+            if (hdr->cnt == 1)
+            {
+                frame_buffer->invalid = false;
+                frame_buffer->cur_id = hdr->id;
+                frame_buffer->frame_pkt_cnt = 0;
+                frame_buffer->frame->length = 0;
+                frame_buffer->buf_ptr = frame_buffer->frame->frame;
+            }
+            else
+            {
+                frame_buffer->invalid = true;
+            }
+        }
+        /* else: same id in progress. cnt==1 here is fragment #257 (8-bit wrap)
+         * and is accepted by the sequential check below. */
+        /* Strict, wrap-aware ordering; any gap/reorder invalidates the frame. */
+        expected = (uint8_t)(frame_buffer->frame_pkt_cnt + 1U);
+        if ((frame_buffer->invalid == false) && (hdr->cnt != expected))
+        {
+            LOGW("%s, seq gap, id:%u cnt:%u exp:%u pkt:%u\r\n",
+                 __func__, hdr->id, hdr->cnt, expected, frame_buffer->frame_pkt_cnt);
+            frame_buffer->invalid = true;
         }
 
-       /* LOGD("hdr-id:%d-%d, frame_packet_cnt:%d-%d, state:%d\r\n", hdr->id, config->frame->sequence,
-            (cache_buffer->frame_pkt_cnt + 1), hdr->cnt, cache_buffer->start_buf); */
-
-        if (((frame_buffer->frame_pkt_cnt + 1) == hdr->cnt)
-            && (frame_buffer->start_buf == FRAG_BUF_COPY))
+        if (frame_buffer->invalid == false)
         {
             /* Avoid unsigned overflow in length + org_len before bounds check. */
             if ((frame_buffer->frame->length > frame_buffer->frame->size) ||
@@ -420,30 +451,25 @@ static void unfragment_process_packet(unfragment_cfg_t *config, uint8_t *data, u
             {
                 LOGE("%s transfer_length %u + %u is over cache buf size %u \r\n",
                      __func__, frame_buffer->frame->length, org_len, frame_buffer->frame->size);
-                frame_buffer->frame->length = frame_buffer->frame->size;
-                frame_buffer->frame_pkt_cnt += 1;
-                if (hdr->eof == 1)
-                {
-                    frame_buffer->buf_ptr = frame_buffer->frame->frame;
-                    frame_buffer->frame->length = 0;
-                    frame_buffer->frame->sequence = config->frame_cnt++;
-                }
-                return;
+                frame_buffer->invalid = true;
             }
-
-            os_memcpy(frame_buffer->buf_ptr, data, org_len);
-
-            GLOBAL_INT_DISABLE();
-            frame_buffer->frame->length += org_len;
-            frame_buffer->buf_ptr += org_len;
-            frame_buffer->frame_pkt_cnt += 1;
-            GLOBAL_INT_RESTORE();
-
-            if (hdr->eof == 1)
+            else
             {
-                frame_buffer_t *new_frame = NULL;
-                
-                new_frame = config->malloc_cb(config->frame_size);
+                os_memcpy(frame_buffer->buf_ptr, payload, org_len);
+
+                GLOBAL_INT_DISABLE();
+                frame_buffer->frame->length += org_len;
+                frame_buffer->buf_ptr += org_len;
+                frame_buffer->frame_pkt_cnt += 1;
+                GLOBAL_INT_RESTORE();
+            }
+        }
+
+        if (hdr->eof == 1)
+        {
+            if ((frame_buffer->invalid == false) && (frame_buffer->frame->length > 0))
+            {
+                frame_buffer_t *new_frame = config->malloc_cb(config->frame_size);
 
                 if (new_frame)
                 {
@@ -454,11 +480,15 @@ static void unfragment_process_packet(unfragment_cfg_t *config, uint8_t *data, u
                 {
                     LOGV("frame buffer malloc failed\r\n");
                 }
-
-                frame_buffer->buf_ptr = frame_buffer->frame->frame;
-                frame_buffer->frame->length = 0;
-                frame_buffer->frame->sequence = config->frame_cnt++;
             }
+
+            /* Reset for the next frame, whether it was submitted or dropped. */
+            frame_buffer->buf_ptr = frame_buffer->frame->frame;
+            frame_buffer->frame->length = 0;
+            frame_buffer->frame->sequence = config->frame_cnt++;
+            frame_buffer->active = false;
+            frame_buffer->invalid = false;
+            frame_buffer->frame_pkt_cnt = 0;
         }
     }
     else
@@ -531,6 +561,12 @@ bk_err_t ntwk_unfragment_start(chan_type_t chan_type, uint32_t frame_size, void 
 
     s_unfragment_cfg_mgr[chan_type]->initialized = true;
 	s_unfragment_cfg_mgr[chan_type]->frame_size = frame_size;
+
+    s_unfragment_cfg_mgr[chan_type]->cache_buf.active = false;
+    s_unfragment_cfg_mgr[chan_type]->cache_buf.invalid = false;
+    s_unfragment_cfg_mgr[chan_type]->cache_buf.cur_id = 0;
+    s_unfragment_cfg_mgr[chan_type]->cache_buf.frame_pkt_cnt = 0;
+    s_unfragment_cfg_mgr[chan_type]->cache_buf.start_buf = FRAG_BUF_INIT;
 
     ret = data_pool_init(&s_unfragment_cfg_mgr[chan_type]->pool);
     if (ret != BK_OK)
