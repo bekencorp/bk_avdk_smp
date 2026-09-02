@@ -570,6 +570,18 @@ void sys_hal_enter_cpu_wfi()
 #if CONFIG_CPU_HOTPLUG
 #if CONFIG_PM_AP_FAST_BOOT_ENABLE
 			/*
+			 * Application quiesce and atomic peripheral backup run in the
+			 * CPU2 PM task. Never commit AP power-down until that transaction
+			 * is complete; this path already has interrupts masked and must
+			 * not invoke module callbacks.
+			 */
+			if (!bk_pm_ap_fast_suspend_is_prepared()) {
+				sys_ahbp_ll_set_reg10_value(int_state0_31);
+				sys_ahbp_ll_set_reg11_value(int_state32_63);
+				portNVIC_SYSTICK_CTRL_REG = systick_ctrl_value;
+				return;
+			}
+			/*
 			 * Only CPU2 context is retained. CPU3 hotplug requires a normal
 			 * task context and must be completed before entering this idle
 			 * critical section; attempting it here races its ACK state machine.

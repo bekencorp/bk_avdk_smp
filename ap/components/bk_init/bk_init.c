@@ -367,6 +367,15 @@ int bk_init(void)
 	app_eth_init();
 #endif
 
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+	/*
+	 * Cold boot reaches this point only after AP late initialization. Fast
+	 * resume republishes the same state after hardware, CPU3 and registered
+	 * modules have been restored by the CPU2 PM task.
+	 */
+	bk_pm_ap_full_ready_set(true);
+#endif
+
 	BK_LOGD(TAG, "First Boot: %d\r\n", bk_pm_ap_first_boot_get());
     set_ap_startup_index(AP_EXIT_BK_INIT);
 

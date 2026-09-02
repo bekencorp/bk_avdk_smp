@@ -22,6 +22,33 @@ extern "C" {
  */
 typedef void (*sleep_callback_t)(void *arg);
 
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+/**
+ * AP fast-suspend/resume callbacks.
+ *
+ * quiesce/resume run in the CPU2 PM task with interrupts enabled.
+ * backup/restore run with CPU3 offline and CPU2 interrupts disabled; they
+ * must not block, allocate memory, log, or wait for interrupt completion.
+ */
+typedef bk_err_t (*pm_ap_fast_callback_t)(void *arg);
+
+typedef struct {
+	const char *name;
+	pm_ap_fast_callback_t quiesce;
+	pm_ap_fast_callback_t backup;
+	pm_ap_fast_callback_t restore;
+	pm_ap_fast_callback_t resume;
+	void *arg;
+	uint8_t priority;
+} pm_ap_fast_pm_ops_t;
+
+#define PM_AP_FAST_PRIORITY_PLATFORM     (0U)
+#define PM_AP_FAST_PRIORITY_BUS          (50U)
+#define PM_AP_FAST_PRIORITY_PERIPHERAL   (100U)
+#define PM_AP_FAST_PRIORITY_SERVICE      (150U)
+#define PM_AP_FAST_PRIORITY_APPLICATION  (200U)
+#endif
+
 /* Standard priority definitions for callback execution order
  * Lower value = Higher priority = Executes first
  * Range: 0 (highest) to 255 (lowest)
@@ -740,7 +767,11 @@ typedef enum {
 	PM_AP_WORK_STATE_FIRST_BOOT   = (1U << 0), /**< first AP boot */
 	PM_AP_WORK_STATE_BOOT_SUCCESS = (1U << 1), /**< AP boot success */
 	PM_AP_WORK_STATE_FAST_RESUME  = (1U << 2), /**< AP FreeRTOS context is ready for restore */
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+	PM_AP_WORK_STATE_FULL_READY   = (1U << 3), /**< CPU2, CPU3 and registered AP modules are ready */
+#else
 	PM_AP_WORK_STATE_RESERVED3    = (1U << 3), /**< reserved for extension */
+#endif
 } pm_ap_work_state_e;
 
 typedef struct {
@@ -814,6 +845,31 @@ bool bk_pm_ap_first_boot_get(void);
  * @return BK_OK on success
  */
 bk_err_t bk_pm_ap_boot_success_set(bool boot_success);
+
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+/**
+ * Register/unregister one AP module's fast power-management operations.
+ * The descriptor must remain valid until it is unregistered.
+ */
+bk_err_t bk_pm_ap_fast_ops_register(const pm_ap_fast_pm_ops_t *ops);
+bk_err_t bk_pm_ap_fast_ops_unregister(const pm_ap_fast_pm_ops_t *ops);
+
+/**
+ * Internal fast-suspend/resume orchestration used by the CPU2 PM task.
+ */
+bk_err_t bk_pm_ap_fast_suspend_prepare(void);
+bk_err_t bk_pm_ap_fast_suspend_backup(void);
+bk_err_t bk_pm_ap_fast_restore_hardware(void);
+bk_err_t bk_pm_ap_fast_resume_modules(void);
+bool bk_pm_ap_fast_suspend_is_prepared(void);
+void bk_pm_ap_fast_ipc_rx_block_set(bool blocked);
+
+/**
+ * Publish/query complete AP readiness independently from AP0 boot_success.
+ */
+bk_err_t bk_pm_ap_full_ready_set(bool ready);
+bool bk_pm_ap_full_ready_get(void);
+#endif
 /****************************************************************************
  * Name: bk_pm_auxldo_ctrl_vote
  *

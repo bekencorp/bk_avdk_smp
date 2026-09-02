@@ -357,6 +357,23 @@ static void pm_cp1_mailbox_rx_isr(int *pm_mb, mb_chnl_cmd_t *cmd_buf)
 			break;
 		case PM_CP1_RECOVERY_CMD:
 #if CONFIG_PM_AP_FAST_BOOT_ENABLE
+			if (cmd_buf->param2 == PM_AP_RECOVERY_ACTION_ABORT) {
+				if ((cmd_buf->param1 != 0U) &&
+				    (cmd_buf->param1 == s_pm_ap_recovery_request_seq)) {
+					msg.event = PM_AP_CORE_FAST_SUSPEND_ABORT;
+					msg.param1 = cmd_buf->param1;
+					ret = bk_pm_ap_core_send_msg(&msg);
+					if (ret == BK_OK) {
+						s_pm_ap_recovery_request_seq = 0U;
+						LOGW("AP close abort queued seq=%u\r\n",
+							cmd_buf->param1);
+					}
+				} else {
+					LOGD("AP close stale abort seq=%u current=%u ignored\r\n",
+						cmd_buf->param1, s_pm_ap_recovery_request_seq);
+				}
+				break;
+			}
 			/*
 			 * CP retries a close request to recover a lost mailbox interrupt
 			 * or ACK. Queue each transaction only once; a new sequence number
@@ -364,6 +381,11 @@ static void pm_cp1_mailbox_rx_isr(int *pm_mb, mb_chnl_cmd_t *cmd_buf)
 			 */
 			if ((cmd_buf->param1 == 0U) ||
 			    (cmd_buf->param1 != s_pm_ap_recovery_request_seq)) {
+				/*
+				 * Close CP business RX at mailbox-ISR time, before the PM
+				 * thread gets scheduled. PWC remains open for retry/abort.
+				 */
+				bk_pm_ap_fast_ipc_rx_block_set(true);
 #endif
 				msg.event= PM_AP_CORE_AP_RECOVERY;
 				msg.param1 = cmd_buf->param1;
@@ -378,6 +400,11 @@ static void pm_cp1_mailbox_rx_isr(int *pm_mb, mb_chnl_cmd_t *cmd_buf)
 					bk_pm_cp1_ctrl_state_set(PM_MAILBOX_COMMUNICATION_INIT);
 				}
 #if CONFIG_PM_AP_FAST_BOOT_ENABLE
+				else {
+					/* No suspend transaction was accepted; keep AP usable. */
+					bk_pm_ap_fast_ipc_rx_block_set(false);
+					bk_pm_ap_full_ready_set(true);
+				}
 			} else {
 				LOGD("AP close request duplicate seq=%u ignored\r\n",
 					cmd_buf->param1);

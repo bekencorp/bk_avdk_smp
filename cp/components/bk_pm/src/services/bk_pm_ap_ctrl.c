@@ -47,6 +47,7 @@ typedef struct ap_ctrl_callback_node {
 #if CONFIG_PM_AP_FAST_BOOT_ENABLE
 #define PM_WAIT_AP_SLEEP_TIMEOUT_MS          (5000)
 #define PM_AP_RECOVERY_RETRY_MS               (250)
+#define PM_AP_MAILBOX_DRAIN_TIMEOUT_MS         (250)
 #else
 #define PM_WAIT_AP_SLEEP_TIMEOUT_MS          (3000)
 #endif
@@ -107,12 +108,39 @@ static volatile bool                              s_pm_ap_mailbox_backup_valid  
 #endif
 #if CONFIG_PM_AP_FAST_BOOT_ENABLE
 static uint32_t                                   s_pm_ap_recovery_request_seq   = 0;
+/*
+ * Local gate consumed by mailbox_channel.c while its enqueue critical section
+ * is held. It is separate from s_pm_cp1_closing so AP stays protected after
+ * the power-off transaction itself has completed.
+ */
+static volatile bool                              s_pm_ap_business_tx_enabled    = true;
 #endif
 #endif
 
 static ap_ctrl_callback_node_t *s_ap_ctrl_callback_head                          = NULL;
 
 /*=====================VARIABLE  SECTION  END=================*/
+
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE && (CONFIG_CPU_CNT > 1)
+/*
+ * Strong override of the mailbox driver's weak transmit gate. Keep PWC open
+ * for power-management handshakes; close every other CP->AP logical channel,
+ * including WiFi, BT/BLE and generic IPC, as one atomic policy boundary.
+ */
+bool mb_chnl_write_is_allowed(u8 log_chnl)
+{
+	if (GET_DST_CPU_ID(log_chnl) != MAILBOX_CPU2) {
+		return true;
+	}
+
+	if (log_chnl == MB_CHNL_PWC) {
+		return true;
+	}
+
+	__DMB();
+	return s_pm_ap_business_tx_enabled;
+}
+#endif
 
 static void pm_ap_powerdown_proof_log(const char *stage)
 {
@@ -297,6 +325,42 @@ bool bk_pm_ap_boot_success_get(void)
 	bk_sys_sw_regs_get_pm_shared_info(&shared_info);
 	return (shared_info.pm_ap_work_state & PM_AP_WORK_STATE_BOOT_SUCCESS) != 0;
 }
+
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+bk_err_t bk_pm_ap_full_ready_set(bool ready)
+{
+	pm_shared_info_t shared_info = {0};
+
+	bk_sys_sw_regs_get_pm_shared_info(&shared_info);
+	if (ready) {
+		shared_info.pm_ap_work_state |= PM_AP_WORK_STATE_FULL_READY;
+	} else {
+		shared_info.pm_ap_work_state &=
+			(uint8_t)~PM_AP_WORK_STATE_FULL_READY;
+	}
+	bk_sys_sw_regs_update_pm_shared_info(&shared_info,
+		BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_AP_WORK_STATE,
+		BK_SYS_SW_REGS_LOCK_ENABLE);
+	__DSB();
+	flush_dcache((void *)&bk_sys_sw_regs_ptr()->pm_shared_info,
+		sizeof(bk_sys_sw_regs_ptr()->pm_shared_info));
+	__DSB();
+	return BK_OK;
+}
+
+bool bk_pm_ap_full_ready_get(void)
+{
+	pm_shared_info_t shared_info = {0};
+
+	__DSB();
+	flush_dcache((void *)&bk_sys_sw_regs_ptr()->pm_shared_info,
+		sizeof(bk_sys_sw_regs_ptr()->pm_shared_info));
+	__DSB();
+	bk_sys_sw_regs_get_pm_shared_info(&shared_info);
+	return (shared_info.pm_ap_work_state &
+		PM_AP_WORK_STATE_FULL_READY) != 0U;
+}
+#endif
 
 bool bk_pm_ap_first_boot_get(void)
 {
@@ -539,24 +603,50 @@ boot_ap:
 		{
 			uint64_t ap0_ready_tick =
 				bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
+			uint64_t full_ready_start_tick = ap0_ready_tick;
 			uint64_t callback_start_tick;
 			uint64_t callback_end_tick;
 
 			LOGI("AP_TIME ap0_restore_scheduler_ready total_us=%u\r\n",
 				pm_ap_elapsed_us(ap0_resume_start_tick, ap0_ready_tick));
 			/*
-			 * AP fast resume restores mailbox/IPI interrupt state asynchronously.
-			 * Notify power-on clients only after AP reports boot_success, otherwise
-			 * the CP heartbeat RESUME event can be sent before AP can receive it.
+			 * boot_success intentionally means AP0 is available. CPU3,
+			 * peripheral registers and AP business modules are restored by the
+			 * CPU2 PM task, so do not release CP clients until AP_FULL_READY.
 			 */
-			callback_start_tick =
-				bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
-			bk_pm_ap_ctrl_callback_execute(PM_AP_CTRL_CB_TYPE_POWER_ON);
-			callback_end_tick =
-				bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
-			LOGI("AP_TIME cp_power_on_callbacks total_us=%u\r\n",
-				pm_ap_elapsed_us(callback_start_tick, callback_end_tick));
-			LOGI("bk_pm_ap_ctrl_callback_execute done\r\n");
+			while (!bk_pm_ap_full_ready_get() &&
+				((bk_aon_rtc_get_current_tick(AON_RTC_ID_1) -
+				  full_ready_start_tick) <
+				 (PM_BOOT_AP_WAITING_TIEM * AON_RTC_MS_TICK_CNT))) {
+#if CONFIG_SUPPORT_WWDT
+				bk_wwdt_feed();
+#endif
+			}
+
+			if (!bk_pm_ap_full_ready_get()) {
+				LOGE("AP full ready timeout; keep CP business callbacks blocked\r\n");
+			} else {
+				uint64_t full_ready_tick =
+					bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
+				/*
+				 * AP has restored CPU3, peripherals and modules. Open the
+				 * low-level mailbox gate before notifying CP clients.
+				 */
+				s_pm_ap_business_tx_enabled = true;
+				__DMB();
+				LOGI("AP_TIME ap_full_ready total_us=%u\r\n",
+					pm_ap_elapsed_us(ap0_resume_start_tick,
+						full_ready_tick));
+				callback_start_tick = full_ready_tick;
+				bk_pm_ap_ctrl_callback_execute(
+					PM_AP_CTRL_CB_TYPE_POWER_ON);
+				callback_end_tick =
+					bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
+				LOGI("AP_TIME cp_power_on_callbacks total_us=%u\r\n",
+					pm_ap_elapsed_us(callback_start_tick,
+						callback_end_tick));
+				LOGI("bk_pm_ap_ctrl_callback_execute done\r\n");
+			}
 		}
 #endif
 		#if CONFIG_SUPPORT_WWDT
@@ -651,6 +741,9 @@ static void pm_module_shutdown_cpu1(pm_power_module_name_e module)
 
 			bk_pm_ap_first_boot_set(false);
 			bk_pm_ap_boot_success_set(false);
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+			bk_pm_ap_full_ready_set(false);
+#endif
 			GLOBAL_INT_RESTORE();
 			pm_ap_powerdown_proof_log("after_clear_boot_state");
 
@@ -736,8 +829,65 @@ bk_err_t bk_pm_module_vote_boot_ap_ctrl(pm_boot_ap_module_name_e module,pm_power
 					bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
 				uint32_t recovery_request_seq;
 				uint64_t next_recovery_retry_tick;
+
+				/*
+				 * Let CP clients stop producing AP traffic before closing the
+				 * common mailbox gate. This keeps module-specific queue and
+				 * ownership handling outside the PM implementation.
+				 */
+				bk_pm_ap_ctrl_callback_execute(
+					PM_AP_CTRL_CB_TYPE_POWER_OFF_PREPARE);
+				/*
+				 * Close all CP->AP business channels before publishing or
+				 * sending the sleep request. mb_chnl_write() evaluates this
+				 * flag inside its enqueue critical section.
+				 */
+				s_pm_ap_business_tx_enabled = false;
+				__DMB();
+				bk_pm_ap_full_ready_set(false);
 #endif
 				s_pm_cp1_closing = 1;
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+				{
+					uint64_t drain_start_tick =
+						bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
+
+					/*
+					 * A producer that entered mailbox critical state just
+					 * before the gate closed may already have queued one
+					 * command. Drain such logical pending entries before
+					 * queuing higher-priority PWC, otherwise PWC could
+					 * overtake them and the command could arrive after the
+					 * AP has begun quiescing.
+					 */
+					while (mb_chnl_tx_pending_to_cpu(MAILBOX_CPU2,
+							MB_CHNL_PWC) &&
+						((bk_aon_rtc_get_current_tick(AON_RTC_ID_1) -
+						  drain_start_tick) <
+						 (PM_AP_MAILBOX_DRAIN_TIMEOUT_MS *
+						  AON_RTC_MS_TICK_CNT))) {
+#if CONFIG_SUPPORT_WWDT
+						bk_wwdt_feed();
+#endif
+					}
+
+					if (mb_chnl_tx_pending_to_cpu(MAILBOX_CPU2,
+							MB_CHNL_PWC)) {
+						LOGE("AP close: business mailbox drain timeout\r\n");
+						GLOBAL_INT_DISABLE();
+						s_pm_cp1_ctrl_state |= (0x1 << module);
+						s_pm_cp1_closing = 0;
+						s_pm_ap_business_tx_enabled = true;
+						GLOBAL_INT_RESTORE();
+						__DMB();
+						bk_pm_ap_full_ready_set(true);
+						bk_pm_ap_ctrl_callback_execute(
+							PM_AP_CTRL_CB_TYPE_POWER_OFF_ABORT);
+						ret = BK_FAIL;
+						goto pm_ap_vote_unlock;
+					}
+				}
+#endif
 				BK_LOGD(NULL, "boot_ap %d %d close 0x%llx %d\r\n",module, power_state,s_pm_cp1_module_recovery_state,bk_pm_ap_boot_success_get());
 				pm_ap_powerdown_proof_log("vote_off_begin");
 
@@ -875,12 +1025,56 @@ bk_err_t bk_pm_module_vote_boot_ap_ctrl(pm_boot_ap_module_name_e module,pm_power
 					__DSB();
 					flush_dcache((void *)&bk_sys_sw_regs_ptr()->pm_shared_info, sizeof(bk_sys_sw_regs_ptr()->pm_shared_info));
 					__DSB();
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+					/*
+					 * AP may already have quiesced modules and backed up
+					 * peripherals even though it never reached WFI. Ask its
+					 * CPU2 PM task to restore that prepared transaction.
+					 */
+					bk_err_t abort_ret =
+						pm_cp0_mailbox_send_data(PM_CP1_RECOVERY_CMD,
+						recovery_request_seq,
+						PM_AP_RECOVERY_ACTION_ABORT, 0);
+					if (abort_ret == BK_OK) {
+						uint64_t abort_start_tick =
+							bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
+
+						/*
+						 * Keep business TX closed until AP confirms that its
+						 * rollback resume callbacks have completed.
+						 */
+						while (!bk_pm_ap_full_ready_get() &&
+							((bk_aon_rtc_get_current_tick(AON_RTC_ID_1) -
+							  abort_start_tick) <
+							 (PM_BOOT_AP_WAITING_TIEM *
+							  AON_RTC_MS_TICK_CNT))) {
+#if CONFIG_SUPPORT_WWDT
+							bk_wwdt_feed();
+#endif
+						}
+						if (bk_pm_ap_full_ready_get()) {
+							s_pm_ap_business_tx_enabled = true;
+							__DMB();
+							bk_pm_ap_ctrl_callback_execute(
+								PM_AP_CTRL_CB_TYPE_POWER_OFF_ABORT);
+							LOGI("AP close abort completed; business mailbox reopened\r\n");
+						} else {
+							LOGE("AP close abort ready timeout; buogsiness mailbox remains closed\r\n");
+						}
+					} else {
+						LOGE("AP close abort send failed[%d]; business mailbox remains closed\r\n",
+							abort_ret);
+					}
+#endif
 					ret = BK_FAIL;
 					pm_ap_powerdown_proof_log("ap_sleep_timeout_rollback");
 				}
 			}
     	}
     }
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+pm_ap_vote_unlock:
+#endif
 	rtos_unlock_mutex(&s_pm_cp1_vote_mutex);
     return ret;
 }

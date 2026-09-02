@@ -34,6 +34,19 @@
 #define CHNL_STATE_BUSY		1
 #define CHNL_STATE_IDLE		0
 
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+/*
+ * PM may override this hook to reject CP business commands as soon as an AP
+ * shutdown transaction is accepted. The PM mailbox channel itself remains
+ * available through the overriding implementation for suspend/abort traffic.
+ */
+__attribute__((weak, noinline)) bool mb_chnl_read_is_allowed(u8 log_chnl)
+{
+	(void)log_chnl;
+	return true;
+}
+#endif
+
 /* If a physical channel stays BUSY longer than this (in milliseconds)
  * without seeing the matching ACK from the peer CPU, mb_chnl_write() will
  * forcibly recover it. Normal mailbox round-trips are << 1 ms, so 200 ms
@@ -436,7 +449,12 @@ static void mb_phy_chnl_rx_cmd_isr(mb_phy_chnl_cmd_t *cmd_ptr)
 		return;
 	}
 
-	if(log_chnl_cb_x[log_chnl_idx].rx_isr != NULL)
+	if ((log_chnl_cb_x[log_chnl_idx].rx_isr != NULL)
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+		&& ((log_chnl == MB_CHNL_PWC) ||
+			mb_chnl_read_is_allowed(log_chnl))
+#endif
+		)
 	{
 		/* clear all other hdr members except hdr.cmd. */
 		cmd_ptr->hdr.logical_chnl = 0;
@@ -450,7 +468,11 @@ static void mb_phy_chnl_rx_cmd_isr(mb_phy_chnl_cmd_t *cmd_ptr)
 	}
 	else
 	{
-		chnl_hdr.state |= CHNL_STATE_COM_FAIL;		/* cmd NO target app, it is an ACK bit to peer CPU. */
+		/*
+		 * No receiver, or PM has closed this business channel. Return a
+		 * negative ACK so the sender can release/retry its owned buffer.
+		 */
+		chnl_hdr.state |= CHNL_STATE_COM_FAIL;
 	}
 
 	if(chnl_hdr.ctrl & CHNL_CTRL_SYNC_TX)

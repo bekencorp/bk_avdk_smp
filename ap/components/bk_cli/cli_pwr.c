@@ -17,6 +17,11 @@
 #include <driver/timer.h>
 #include <components/bk_platform.h>
 #include <driver/pwr_clk.h>
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE && CONFIG_SPI
+#include <driver/spi.h>
+#include "spi_hal.h"
+#include "cmsis_gcc.h"
+#endif
 #include <driver/rosc_32k.h>
 #include <driver/rosc_ppm.h>
 #include <driver/pm_ap_core.h>
@@ -938,6 +943,211 @@ static void cli_pm_ap_demo_cmd(char *pcWriteBuffer, int xWriteBufferLen, int arg
 		return;
 	}
 }
+
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE && CONFIG_SPI
+/*
+ * AP fast-suspend SPI callback demo
+ *
+ * This demo deliberately does not call bk_spi_init() or claim GPIO/DMA
+ * resources. Register it only after the target SPI instance has been
+ * initialized by its real owner:
+ *
+ *   pm_spi_fast_demo register 1
+ *   pm_spi_fast_demo status
+ *   pm_spi_fast_demo busy 1     # simulate an in-flight transfer
+ *   pm_spi_fast_demo busy 0
+ *   pm_spi_fast_demo unregister
+ *
+ * Driver integration rules demonstrated here:
+ * 1. quiesce/resume may wait or use RTOS APIs; quiesce must stop new work and
+ *    wait for DMA/IRQ transfers with a finite timeout.
+ * 2. backup/restore run with CPU3 offline and CPU2 interrupts disabled. They
+ *    must only access retained memory and MMIO: no log, allocation, mutex,
+ *    semaphore, delay or other blocking API.
+ * 3. Clock/power dependencies must use PLATFORM/BUS priority callbacks so
+ *    they restore before this PERIPHERAL callback.
+ * 4. The callback descriptor and backup storage must remain valid until
+ *    bk_pm_ap_fast_ops_unregister() succeeds.
+ */
+#define CLI_SPI_FAST_QUIESCE_TIMEOUT_MS (20U)
+#define CLI_SPI_FAST_BACKUP_REG_NUM      (3U)
+
+typedef struct {
+	spi_hal_t hal;
+	uint32_t regs[CLI_SPI_FAST_BACKUP_REG_NUM];
+	volatile bool accepting;
+	volatile bool transfer_busy;
+	volatile bool backup_valid;
+	bool registered;
+} cli_spi_fast_demo_t;
+
+static cli_spi_fast_demo_t s_cli_spi_fast_demo;
+
+static bk_err_t cli_spi_fast_quiesce(void *arg)
+{
+	cli_spi_fast_demo_t *demo = (cli_spi_fast_demo_t *)arg;
+	uint32_t start_ms = rtos_get_time();
+
+	/* A real driver sets this gate before checking its DMA/IRQ busy state. */
+	__atomic_store_n(&demo->accepting, false, __ATOMIC_RELEASE);
+	while (__atomic_load_n(&demo->transfer_busy, __ATOMIC_ACQUIRE)) {
+		if ((rtos_get_time() - start_ms) >=
+			CLI_SPI_FAST_QUIESCE_TIMEOUT_MS) {
+			__atomic_store_n(&demo->accepting, true, __ATOMIC_RELEASE);
+			return BK_ERR_TIMEOUT;
+		}
+		rtos_delay_milliseconds(1);
+	}
+
+	return BK_OK;
+}
+
+static bk_err_t cli_spi_fast_backup(void *arg)
+{
+	cli_spi_fast_demo_t *demo = (cli_spi_fast_demo_t *)arg;
+	spi_hw_t *hw = demo->hal.hw;
+
+	/*
+	 * Atomic hardware snapshot. The PM framework has already disabled CPU2
+	 * interrupts; these are the same configuration registers saved by the
+	 * BK7259 SPI HAL. FIFO/data/status registers are intentionally excluded.
+	 */
+	demo->regs[0] = hw->global_ctrl.v;
+	demo->regs[1] = hw->ctrl.v;
+	demo->regs[2] = hw->cfg.v;
+	__DMB();
+	demo->backup_valid = true;
+	return BK_OK;
+}
+
+static bk_err_t cli_spi_fast_restore(void *arg)
+{
+	cli_spi_fast_demo_t *demo = (cli_spi_fast_demo_t *)arg;
+	spi_hw_t *hw = demo->hal.hw;
+
+	/*
+	 * Clock/power must already be available through an earlier PLATFORM/BUS
+	 * restore callback. Do not call ordinary SPI driver APIs in this phase.
+	 */
+	if (demo->backup_valid) {
+		hw->global_ctrl.v = demo->regs[0];
+		hw->ctrl.v = demo->regs[1];
+		hw->cfg.v = demo->regs[2];
+		__DMB();
+		demo->backup_valid = false;
+	}
+	return BK_OK;
+}
+
+static bk_err_t cli_spi_fast_resume(void *arg)
+{
+	cli_spi_fast_demo_t *demo = (cli_spi_fast_demo_t *)arg;
+
+	/* Real drivers re-enable software submissions and restart deferred work. */
+	__atomic_store_n(&demo->accepting, true, __ATOMIC_RELEASE);
+	return BK_OK;
+}
+
+static const pm_ap_fast_pm_ops_t s_cli_spi_fast_ops = {
+	.name = "cli_spi_demo",
+	.quiesce = cli_spi_fast_quiesce,
+	.backup = cli_spi_fast_backup,
+	.restore = cli_spi_fast_restore,
+	.resume = cli_spi_fast_resume,
+	.arg = &s_cli_spi_fast_demo,
+	.priority = PM_AP_FAST_PRIORITY_PERIPHERAL,
+};
+
+static void cli_pm_spi_fast_demo(char *pcWriteBuffer,
+	int xWriteBufferLen, int argc, char **argv)
+{
+	bk_err_t ret;
+
+	(void)pcWriteBuffer;
+	(void)xWriteBufferLen;
+
+	if (argc < 2) {
+		CLI_LOGI("usage: pm_spi_fast_demo {register <id>|unregister|busy <0|1>|status}\r\n");
+		return;
+	}
+
+	if (os_strcmp(argv[1], "register") == 0) {
+		uint32_t id;
+
+		if (argc != 3) {
+			CLI_LOGI("usage: pm_spi_fast_demo register <spi_id>\r\n");
+			return;
+		}
+		if (s_cli_spi_fast_demo.registered) {
+			CLI_LOGW("SPI fast PM demo already registered\r\n");
+			return;
+		}
+
+		id = os_strtoul(argv[2], NULL, 0);
+		if (id >= SPI_ID_MAX) {
+			CLI_LOGE("invalid SPI id:%u\r\n", id);
+			return;
+		}
+
+		os_memset(&s_cli_spi_fast_demo, 0,
+			sizeof(s_cli_spi_fast_demo));
+		s_cli_spi_fast_demo.hal.id = (spi_unit_t)id;
+		s_cli_spi_fast_demo.hal.hw =
+			(spi_hw_t *)SPI_LL_REG_BASE(id);
+		s_cli_spi_fast_demo.accepting = true;
+
+		ret = bk_pm_ap_fast_ops_register(&s_cli_spi_fast_ops);
+		if (ret == BK_OK) {
+			s_cli_spi_fast_demo.registered = true;
+			CLI_LOGI("SPI%u fast PM demo registered\r\n", id);
+		} else {
+			CLI_LOGE("register SPI fast PM demo failed:%d\r\n", ret);
+		}
+		return;
+	}
+
+	if (os_strcmp(argv[1], "unregister") == 0) {
+		if (!s_cli_spi_fast_demo.registered) {
+			CLI_LOGW("SPI fast PM demo is not registered\r\n");
+			return;
+		}
+		ret = bk_pm_ap_fast_ops_unregister(&s_cli_spi_fast_ops);
+		if (ret == BK_OK) {
+			s_cli_spi_fast_demo.registered = false;
+			CLI_LOGI("SPI fast PM demo unregistered\r\n");
+		} else {
+			CLI_LOGE("unregister SPI fast PM demo failed:%d\r\n", ret);
+		}
+		return;
+	}
+
+	if (os_strcmp(argv[1], "busy") == 0) {
+		if (argc != 3) {
+			CLI_LOGI("usage: pm_spi_fast_demo busy <0|1>\r\n");
+			return;
+		}
+		__atomic_store_n(&s_cli_spi_fast_demo.transfer_busy,
+			os_strtoul(argv[2], NULL, 0) != 0U,
+			__ATOMIC_RELEASE);
+		CLI_LOGI("SPI fast PM demo busy:%u\r\n",
+			s_cli_spi_fast_demo.transfer_busy);
+		return;
+	}
+
+	if (os_strcmp(argv[1], "status") == 0) {
+		CLI_LOGI("SPI fast PM demo: registered=%u id=%u accepting=%u busy=%u backup=%u\r\n",
+			s_cli_spi_fast_demo.registered,
+			s_cli_spi_fast_demo.hal.id,
+			s_cli_spi_fast_demo.accepting,
+			s_cli_spi_fast_demo.transfer_busy,
+			s_cli_spi_fast_demo.backup_valid);
+		return;
+	}
+
+	CLI_LOGI("usage: pm_spi_fast_demo {register <id>|unregister|busy <0|1>|status}\r\n");
+}
+#endif
+
 #define PWR_CMD_CNT (sizeof(s_pwr_commands) / sizeof(struct cli_command))
 static const struct cli_command s_pwr_commands[] = {
 #if 1//CONFIG_SYSTEM_CTRL
@@ -963,6 +1173,9 @@ static const struct cli_command s_pwr_commands[] = {
 #endif
 	{"pm_boot_ap", "pm_boot_ap [module_name] [ctrl_state:0x0:bootup; 0x1:shutdowm]", cli_pm_boot_ap},
 	{"pm_ap_demo", "pm_ap_demo {init|sleep|deep_sleep}", cli_pm_ap_demo_cmd},
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE && CONFIG_SPI
+	{"pm_spi_fast_demo", "pm_spi_fast_demo {register <id>|unregister|busy <0|1>|status}", cli_pm_spi_fast_demo},
+#endif
 #else
 	{"pm", "pm [sleep_mode] [wake_source] [vote1] [vote2] [vote3] [param1] [param2] [param3]", cli_pm_cmd},
 	{"pm_vote", "pm_vote [pm_sleep_mode] [pm_vote] [pm_vote_value] [pm_sleep_time]", cli_pm_vote_cmd},

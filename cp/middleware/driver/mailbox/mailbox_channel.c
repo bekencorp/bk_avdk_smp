@@ -28,6 +28,19 @@
 #define CHNL_STATE_BUSY		1
 #define CHNL_STATE_IDLE		0
 
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+/*
+ * PM may override this hook to atomically close CP->AP business traffic.
+ * Keep the default permissive so mailbox remains independent of the PM
+ * component and non-AP destinations are unaffected.
+ */
+__attribute__((weak, noinline)) bool mb_chnl_write_is_allowed(u8 log_chnl)
+{
+	(void)log_chnl;
+	return true;
+}
+#endif
+
 /* If a physical channel stays BUSY longer than this (in milliseconds)
  * without seeing the matching ACK from the peer CPU, mb_chnl_write() will
  * forcibly recover it. Normal mailbox round-trips are << 1 ms, so 200 ms
@@ -752,6 +765,42 @@ bk_err_t mb_chnl_init(void)
 	return BK_OK;
 }
 
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+bool mb_chnl_tx_pending_to_cpu(u8 dst_cpu, u8 exempt_log_chnl)
+{
+	mb_log_chnl_cb_t *log_chnl_cb_x;
+	bool pending = false;
+	u8 log_chnl_idx;
+	u32 int_mask;
+
+	if ((dst_cpu >= PHY_CHNL_NUM) || (dst_cpu == SELF_CPU)) {
+		return false;
+	}
+
+	log_chnl_cb_x =
+		(mb_log_chnl_cb_t *)(phy_chnl_log_chnl_list[dst_cpu]);
+	int_mask = mb_chnl_enter_critical();
+	for (log_chnl_idx = 0;
+		log_chnl_idx < phy_chnl_log_chnl_num[dst_cpu];
+		log_chnl_idx++) {
+		u8 log_chnl =
+			CPX_LOG_CHNL_START(SELF_CPU, dst_cpu) + log_chnl_idx;
+
+		if ((log_chnl == exempt_log_chnl) ||
+			(log_chnl_cb_x[log_chnl_idx].in_used == 0)) {
+			continue;
+		}
+		if (log_chnl_cb_x[log_chnl_idx].tx_state != CHNL_STATE_IDLE) {
+			pending = true;
+			break;
+		}
+	}
+	mb_chnl_exit_critical(int_mask);
+
+	return pending;
+}
+#endif
+
 /*
   * open logical chnanel.
   * input:
@@ -912,6 +961,20 @@ __IRAM_SEC bk_err_t mb_chnl_write(u8 log_chnl, mb_chnl_cmd_t * cmd_buf)
 		return BK_ERR_STATE;
 
 	u32 int_mask = mb_chnl_enter_critical();
+
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+	/*
+	 * Evaluate the PM gate while holding the same critical section used to
+	 * enqueue the command. This closes the race where a producer observes
+	 * AP-ready just before CP starts a shutdown transaction.
+	 */
+	if ((log_chnl != MB_CHNL_PWC) &&
+		!mb_chnl_write_is_allowed(log_chnl))
+	{
+		mb_chnl_exit_critical(int_mask);
+		return BK_ERR_BUSY;
+	}
+#endif
 
 	/* If the physical channel has been BUSY abnormally long (peer never
 	 * sent ACK / lost interrupt / lost ack), forcibly recover it so this

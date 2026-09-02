@@ -27,6 +27,10 @@ typedef void (*ap_ctrl_callback_t)(void *arg);
 typedef enum {
 	PM_AP_CTRL_CB_TYPE_POWER_ON = 0,  /**< Execute after AP power-on */
 	PM_AP_CTRL_CB_TYPE_POWER_OFF = 1, /**< Execute after AP power-off */
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+	PM_AP_CTRL_CB_TYPE_POWER_OFF_PREPARE, /**< Execute before CP closes AP business IPC */
+	PM_AP_CTRL_CB_TYPE_POWER_OFF_ABORT,   /**< Execute after a failed close rolls back */
+#endif
 } pm_ap_ctrl_cb_type_t;
 
 
@@ -579,7 +583,11 @@ typedef enum {
 	PM_AP_WORK_STATE_FIRST_BOOT   = (1U << 0), /**< first AP boot */
 	PM_AP_WORK_STATE_BOOT_SUCCESS = (1U << 1), /**< AP boot success */
 	PM_AP_WORK_STATE_FAST_RESUME  = (1U << 2), /**< AP FreeRTOS context is ready for restore */
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+	PM_AP_WORK_STATE_FULL_READY   = (1U << 3), /**< CPU2, CPU3 and registered AP modules are ready */
+#else
 	PM_AP_WORK_STATE_RESERVED3    = (1U << 3), /**< reserved for extension */
+#endif
 } pm_ap_work_state_e;
 
 typedef struct {
@@ -850,6 +858,14 @@ bk_err_t bk_pm_ap_boot_success_set(bool boot_success);
  * @return true if AP boot success (PM_AP_WORK_STATE_BOOT_SUCCESS), false otherwise
  */
 bool bk_pm_ap_boot_success_get(void);
+
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+/**
+ * Set/query complete AP readiness independently from AP0 boot_success.
+ */
+bk_err_t bk_pm_ap_full_ready_set(bool ready);
+bool bk_pm_ap_full_ready_get(void);
+#endif
 
 /**
  * @brief set whether this is the first AP boot
