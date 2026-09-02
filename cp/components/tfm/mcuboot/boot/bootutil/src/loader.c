@@ -112,30 +112,30 @@ boot_read_image_headers(struct boot_loader_state *state, bool require_all,
 {
     int rc;
     int i;
+    int hdr_ok = 0;
+    int last_rc = BOOT_EBADIMAGE;
+
+    /* All live callers pass require_all=false (split_go is unused). Always
+     * keep scanning so an unreadable slot0 does not hide a readable slot1
+     * (DIRECT_XIP A/B, overwrite pending OTA). Fail only if no header is
+     * physically readable; magic/validity is checked later.
+     */
+    (void)require_all;
 
     for (i = 0; i < BOOT_SLOT_SCAN_COUNT; i++) {
         rc = BOOT_HOOK_CALL(boot_read_image_header_hook, BOOT_HOOK_REGULAR,
                             BOOT_CURR_IMG(state), i, boot_img_hdr(state, i));
-        if (rc == BOOT_HOOK_REGULAR)
-        {
+        if (rc == BOOT_HOOK_REGULAR) {
             rc = boot_read_image_header(state, i, boot_img_hdr(state, i), bs);
         }
-        if (rc != 0) {
-            /* If `require_all` is set, fail on any single fail, otherwise
-             * if at least the first slot's header was read successfully,
-             * then the boot loader can attempt a boot.
-             *
-             * Failure to read any headers is a fatal error.
-             */
-            if (i > 0 && !require_all) {
-                return 0;
-            } else {
-                return rc;
-            }
+        if (rc == 0) {
+            hdr_ok = 1;
+        } else {
+            last_rc = rc;
         }
     }
 
-    return 0;
+    return hdr_ok ? 0 : last_rc;
 }
 
 /**
