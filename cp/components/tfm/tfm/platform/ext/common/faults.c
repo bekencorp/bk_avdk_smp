@@ -6,6 +6,7 @@
  */
 #include "tfm_hal_device_header.h"
 #include "utilities.h"
+#include "bk_tfm_cp_dump.h"
 /* "exception_info.h" must be the last include because of the IAR pragma */
 #include "exception_info.h"
 
@@ -76,6 +77,7 @@ void C_SecureFault_Handler(void)
      * Returning from this exception could allow a pending NS exception to be
      * taken, so the current solution is to panic.
      */
+    tfm_hal_secure_fault_handoff();
     tfm_core_panic();
 }
 

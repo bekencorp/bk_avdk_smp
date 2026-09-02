@@ -12,6 +12,7 @@ set(src
 	tfm_hal_platform.c
 	bk_tfm_ap_power.c
 	bk_tfm_ap_shim.c
+	bk_tfm_cp_dump.c
 	bk_tfm_mpc.c
 	bk_tfm_ppc.c
 	bk_efuse.c
