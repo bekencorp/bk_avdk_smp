@@ -262,7 +262,9 @@ armino_component_register(SRCS "${srcs}"
 
 get_filename_component(config_component_name ${CMAKE_CURRENT_LIST_DIR} NAME)
 armino_component_get_target(target "${config_component_name}")
-set_local_library_compile_option(${target})
+if(srcs)
+	set_local_library_compile_option(${target})
+endif()
 
 if (CONFIG_BLUETOOTH_AP)
     #host: <libbluetooth_host_ble|libbluetooth_host_dm_(bt|ble|dual)>[_nspe].a
