@@ -41,7 +41,9 @@ bk_err_t bk_sdio_host_init(sdio_host_id_t id, const sdio_host_cfg_t *cfg);
 /**
  * @brief     Deinit the sdio host controller
  *
- * Reset the specified host controller and release the shared driver resources.
+ * Reset the specified host controller. Shared ISR completion objects remain
+ * allocated for the driver lifetime so another core cannot race an unmount and
+ * access a deleted semaphore.
  *
  * @param id the sdio host controller id
  *

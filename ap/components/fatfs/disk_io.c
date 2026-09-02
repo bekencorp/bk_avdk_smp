@@ -331,14 +331,29 @@ DRESULT disk_read (
 		sdcard_operation_timing_reload();
 
 		result = bk_sd_card_read_blocks((uint8_t *)buff, sector, count);
+		if(result != BK_OK && !bk_sd_card_is_present()) {
+			/* Card physically removed: the heavy deinit/reinit reset loop below
+			 * would only burn several seconds of doomed retries. Fail fast so
+			 * f_unmount returns quickly and the next mount is not blocked. */
+			FATFS_LOGW("func %s line %d, card absent, skip reset loop\r\n", __func__, __LINE__);
+			return RES_ERROR;
+		}
 		if(result != BK_OK) {
 			FATFS_LOGW("func %s line %d,  bk_sd_card_read_blocks result:%d, do reset\r\n", __func__, __LINE__, result);
 			for(uint32_t i = 0; i < SDCARD_READ_FAIL_RETRY_CNT; i++) {
+				if (!bk_sd_card_is_present()) {
+					FATFS_LOGW("%s card absent, abort reset retries\r\n", __func__);
+					break;
+				}
 				FATFS_LOGW("%s retry count:%d\r\n", __func__, i);
 				sdcard_operation_err_reset();
 				result = bk_sd_card_read_blocks((uint8_t *)buff, sector, count);
 				if(result != RES_OK) {
 					FATFS_LOGW("%s ERROR result:%d\r\n", __func__, result);
+					if (!bk_sd_card_is_present()) {
+						FATFS_LOGW("%s card removed during retry\r\n", __func__);
+						break;
+					}
 				}
 				else
 					break;
@@ -469,12 +484,27 @@ DRESULT disk_write (
 		sdcard_operation_timing_reload();
 
 		result = bk_sd_card_write_blocks((uint8_t *)buff, sector, count);
+		if(result != BK_OK && !bk_sd_card_is_present()) {
+			/* Surprise removal during an in-flight write. Reinitializing an
+			 * absent medium races the hot-plug unmount path and leaves the
+			 * driver marked initialized without a usable card. */
+			FATFS_LOGW("func %s line %d, card absent, skip reset loop\r\n", __func__, __LINE__);
+			return RES_ERROR;
+		}
 		if(result != BK_OK) {
 			for(uint32_t i = 0; i < SDCARD_WRITE_FAIL_RETRY_CNT; i++) {
+				if (!bk_sd_card_is_present()) {
+					FATFS_LOGW("%s card absent, abort reset retries\r\n", __func__);
+					break;
+				}
 				sdcard_operation_err_reset();
 
 				result = bk_sd_card_write_blocks((uint8_t *)buff, sector, count);
 				if(result != RES_OK) {
+					if (!bk_sd_card_is_present()) {
+						FATFS_LOGW("%s card removed during retry\r\n", __func__);
+						break;
+					}
 					FATFS_LOGD("Check the remaining space!\r\n");
 					FATFS_LOGD("Get the value of the remaining space. res: %d\r\n", sd_disk_check_space_size());
 				}

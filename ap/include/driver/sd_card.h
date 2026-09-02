@@ -17,6 +17,7 @@
 #include <common/bk_include.h>
 #include <driver/sd_card_types.h>
 
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -149,6 +150,44 @@ uint32_t bk_sd_card_get_card_size(void);
  * @return card state
  */
 sd_card_state_t bk_sd_card_get_card_state(void);
+
+/**
+ * @brief Card-detect predicate callback.
+ *
+ * Implemented by the board/application (e.g. reading a card-detect GPIO). The
+ * implementation MUST be cheap and non-blocking and MUST NOT re-enter the SD
+ * stack (it may be invoked with driver/FS locks held).
+ *
+ * @return 1 when a card is present (or presence is unknown), 0 when absent.
+ */
+typedef uint8_t (*bk_sd_card_present_cb_t)(void);
+
+/**
+ * @brief Register a board card-detect predicate.
+ *
+ * The SD/FatFs stack consults the registered callback before spending its full
+ * retry / soft-reset budget on a failed transfer, so a physically removed card
+ * (detect pin says "gone") no longer costs several seconds of doomed timeouts.
+ *
+ * Boards without a card-detect pin simply never register one; the stack then
+ * treats presence as "unknown" and keeps the original retry behavior. Modeled
+ * on the Linux MMC core, which registers a card-detect source (host ->get_cd /
+ * mmc_gpiod_request_cd) rather than relying on a link-time weak override.
+ *
+ * @param[in] cb card-detect predicate, or NULL to clear a previous registration.
+ *
+ * @return BK_OK on success.
+ */
+bk_err_t bk_sd_card_set_present_cb(bk_sd_card_present_cb_t cb);
+
+/**
+ * @brief Query card presence via the registered predicate.
+ *
+ * @return 1 when a card is present or no predicate is registered (presence
+ *         unknown), 0 when the registered predicate reports the card absent.
+ */
+uint8_t bk_sd_card_is_present(void);
+
 
 #ifdef __cplusplus
 }

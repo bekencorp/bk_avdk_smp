@@ -3397,6 +3397,12 @@ FRESULT f_mount (
 
 	res = find_volume(&path, &fs, 0);	/* Force mounted the volume */
 	if (res != FR_OK) {
+		/* A forced mount can initialize the physical drive before the boot
+		 * sector is rejected. Roll that state back here, where FatFs owns
+		 * the mount transaction, so the next mount starts from a clean
+		 * media session. Keep the original mount error as the result. */
+		(void)disk_uninitialize((BYTE)vol);
+		FatFs[vol] = NULL;
 #if FF_FS_LOCK != 0
 		if(fs)
 		{
@@ -3409,7 +3415,6 @@ FRESULT f_mount (
 			fs->sobj = NULL;
 		}
 #endif
-		FatFs[vol] = NULL;
 		return res;
 	}
 

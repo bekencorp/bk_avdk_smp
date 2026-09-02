@@ -41,6 +41,23 @@
 #define SDCARD_HOST_ID   SDIO_HOST_ID_0
 #endif
 
+/* Board card-detect predicate registered via bk_sd_card_set_present_cb() (see
+ * sd_card.h). NULL means no board hook: presence is treated as "unknown" and the
+ * stack keeps the original retry behavior. A board registers a callback that
+ * reads the actual SDCD GPIO. */
+static bk_sd_card_present_cb_t s_present_cb = NULL;
+
+bk_err_t bk_sd_card_set_present_cb(bk_sd_card_present_cb_t cb)
+{
+	s_present_cb = cb;
+	return BK_OK;
+}
+
+uint8_t bk_sd_card_is_present(void)
+{
+	return s_present_cb ? s_present_cb() : 1;
+}
+
 #define SDIO_CARD_STABLE_TIMEOUT_MS  50
 /* Number of times we re-issue CMD0+CMD8 during sd_card_identify() before
  * declaring the slot empty. Covers warm-reboot cases where the card is still
@@ -419,6 +436,11 @@ bk_err_t bk_sd_card_write_blocks(const uint8_t *data, uint32_t block_addr, uint3
 		ret = bk_sdio_host_xfer(SDCARD_HOST_ID, &cmd, &xfer, NULL);
 		if (ret == BK_OK)
 			break;
+		/* Card physically removed -> further re-issues just burn doomed timeouts. */
+		if (!bk_sd_card_is_present()) {
+			SD_CARD_LOGW("card absent, abort write retries (addr=%d, cnt=%d)\r\n", block_addr, block_num);
+			break;
+		}
 		SD_CARD_LOGW("write blocks retry %d (addr=%d, cnt=%d)\r\n", i, block_addr, block_num);
 	}
 	return ret;
@@ -428,7 +450,9 @@ static bk_err_t sd_card_read_blocks_once(uint8_t *data, uint32_t block_addr, uin
 {
 	uint32_t arg = (s_sd_card_obj.sd_card.card_type == SD_CARD_TYPE_SDSC) ? (block_addr << 9) : block_addr;
 	sdio_host_cmd_t cmd = {
-		.index = SD_CMD_READ_MULTIPLE_BLOCK,
+		/* Keep protocol and host transfer semantics aligned: CMD17 for one
+		 * block, CMD18 only when a real multi-block transfer is requested. */
+		.index = (block_num == 1) ? SD_CMD_READ_SINGLE_BLOCK : SD_CMD_READ_MULTIPLE_BLOCK,
 		.arg = arg,
 		.resp_type = SDIO_HOST_RESP_R1,
 	};
@@ -446,6 +470,11 @@ static bk_err_t sd_card_read_blocks_once(uint8_t *data, uint32_t block_addr, uin
 		ret = bk_sdio_host_xfer(SDCARD_HOST_ID, &cmd, &xfer, NULL);
 		if (ret == BK_OK)
 			break;
+		/* Card physically removed -> further re-issues just burn doomed timeouts. */
+		if (!bk_sd_card_is_present()) {
+			SD_CARD_LOGW("card absent, abort read retries (addr=%d, cnt=%d)\r\n", block_addr, block_num);
+			break;
+		}
 		SD_CARD_LOGW("read blocks retry %d (addr=%d, cnt=%d)\r\n", i, block_addr, block_num);
 	}
 	return ret;
