@@ -6,9 +6,6 @@
 #include "wdrv_ipc.h"
 #include "wdrv_tx.h"
 #include "wdrv_rx.h"
-#if CONFIG_PM_AP_FAST_BOOT_ENABLE
-#include "wdrv_pm.h"
-#endif
 //#include "bk_err.h"
 #include <components/netif.h>
 #include <components/event.h>
@@ -18,37 +15,6 @@ struct wdrv_env_t wdrv_env = {0};
 struct wdrv_stats * wdrv_stats_ptr = &wdrv_env.stat;
 __attribute__((section(".wifi_data"))) uint8_t wdrv_cmd_buffer[MAX_NUM_CMD_BUFFERS][MAX_CMD_BUF_LENGTH] = {0};
 __attribute__((section(".wifi_data"))) uint8_t wdrv_cmd_bank[MAX_NUM_CMD_RX_BANK][MAX_CMD_BANK_LENGTH] = {0};
-
-#if CONFIG_PM_AP_FAST_BOOT_ENABLE
-static volatile bool s_wdrv_fast_quiescing;
-static volatile bool s_wdrv_msg_processing;
-static volatile uint32_t s_wdrv_msg_submitters;
-
-bk_err_t wdrv_ipc_quiesce(uint32_t timeout_ms)
-{
-    uint32_t start_ms = rtos_get_time();
-
-    __atomic_store_n(&s_wdrv_fast_quiescing, true, __ATOMIC_RELEASE);
-
-    while (!rtos_is_queue_empty(&wdrv_env.io_queue) ||
-           __atomic_load_n(&s_wdrv_msg_processing, __ATOMIC_ACQUIRE) ||
-           (__atomic_load_n(&s_wdrv_msg_submitters,
-                            __ATOMIC_ACQUIRE) != 0U)) {
-        if ((rtos_get_time() - start_ms) >= timeout_ms) {
-            WDRV_LOGE("WiFi fast quiesce timeout\r\n");
-            return BK_FAIL;
-        }
-        rtos_delay_milliseconds(1);
-    }
-
-    return BK_OK;
-}
-
-void wdrv_ipc_resume(void)
-{
-    __atomic_store_n(&s_wdrv_fast_quiescing, false, __ATOMIC_RELEASE);
-}
-#endif
 
 //struct wdrv_rx_bank_debug_t wdrv_rxbank_debug = {0};
 
@@ -93,14 +59,6 @@ bk_err_t wdrv_msg_sender(uint32_t head,enum wdrv_task_msg_evt type,uint8_t retry
     bk_err_t ret = BK_OK;
     struct wdrv_msg msg;
 
-#if CONFIG_PM_AP_FAST_BOOT_ENABLE
-    __atomic_add_fetch(&s_wdrv_msg_submitters, 1U, __ATOMIC_ACQ_REL);
-    if (__atomic_load_n(&s_wdrv_fast_quiescing, __ATOMIC_ACQUIRE)) {
-        __atomic_sub_fetch(&s_wdrv_msg_submitters, 1U, __ATOMIC_ACQ_REL);
-        return BK_ERR_BUSY;
-    }
-#endif
-
     msg.type = type;
     msg.arg = (uint32_t)head;
     WDRV_LOGV("%s,%d,head:0x%x\n",__func__,__LINE__,head);
@@ -110,9 +68,6 @@ bk_err_t wdrv_msg_sender(uint32_t head,enum wdrv_task_msg_evt type,uint8_t retry
         WDRV_STATS_INC(wdrv_msg_snder_fail,1);
         WDRV_LOGW("%s failed, ret=%d\r\n",__func__, ret);
     }
-#if CONFIG_PM_AP_FAST_BOOT_ENABLE
-    __atomic_sub_fetch(&s_wdrv_msg_submitters, 1U, __ATOMIC_ACQ_REL);
-#endif
 
     return ret;
 }
@@ -370,9 +325,6 @@ void wdrv_main(void *arg)
             continue;
         }
 
-#if CONFIG_PM_AP_FAST_BOOT_ENABLE
-        __atomic_store_n(&s_wdrv_msg_processing, true, __ATOMIC_RELEASE);
-#endif
         WDRV_LOGV("%s,%d, msg.type:%d\n",__func__,__LINE__,msg.type);
         switch (msg.type)
         {
@@ -408,9 +360,6 @@ void wdrv_main(void *arg)
 #endif
         if(wdrv_env.is_init)
             wdrv_attach_rx_buffer();
-#if CONFIG_PM_AP_FAST_BOOT_ENABLE
-        __atomic_store_n(&s_wdrv_msg_processing, false, __ATOMIC_RELEASE);
-#endif
     }
 }
 
@@ -485,17 +434,6 @@ bk_err_t wdrv_init()
     //wdrv_attach_rx_buffer();
 
     wdrv_env.is_init = 1;
-#if CONFIG_PM_AP_FAST_BOOT_ENABLE
-    bk_err_t pm_ret;
-
-    s_wdrv_fast_quiescing = false;
-    s_wdrv_msg_processing = false;
-    s_wdrv_msg_submitters = 0;
-    pm_ret = wdrv_pm_init();
-    if (pm_ret != BK_OK) {
-        WDRV_LOGE("register WiFi fast PM ops failed:%d\n", pm_ret);
-    }
-#endif
 
     return ret;
 wdrv_init_failed:
@@ -506,12 +444,6 @@ wdrv_init_failed:
 bk_err_t wdrv_deinit()
 {
     WDRV_LOGE("ctrl_if_deinit\n");
-#if CONFIG_PM_AP_FAST_BOOT_ENABLE
-    (void)wdrv_pm_deinit();
-    s_wdrv_fast_quiescing = false;
-    s_wdrv_msg_processing = false;
-    s_wdrv_msg_submitters = 0;
-#endif
     wdrv_env.is_init = 0;
 
 #if CONFIG_CONTROLLER_AP_BUFFER_COPY
