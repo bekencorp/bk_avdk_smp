@@ -47,6 +47,12 @@ typedef struct {
     uint32_t psplim;
 } bk_coredump_regs_t;
 
+volatile cp_secure_fault_context_t
+    g_cp_secure_fault_context[CP_SEC_DUMP_CONTEXT_COUNT]
+    __attribute__((aligned(32)));
+const uintptr_t g_cp_secure_fault_context_address =
+    (uintptr_t)g_cp_secure_fault_context;
+
 static inline bool is_dump_from_thread(uint32_t lr)
 {
     return lr & (1UL << 2);
@@ -251,6 +257,96 @@ static void bk_coredump_registers_arm(bk_exception_t *self)
     coredump_check_fault_addr_valid(&regs);
     coredump_check_stack_overflow(&regs);
     coredump_traceback(&regs);
+}
+
+void bk_coredump_secure_registers(const cp_secure_fault_context_t *context)
+{
+    bk_coredump_regs_t regs = {0};
+    bool source_secure = (context->flags & CP_SEC_DUMP_FLAG_SOURCE_SECURE) != 0U;
+    bool source_psp = (context->flags & CP_SEC_DUMP_FLAG_SOURCE_PSP) != 0U;
+
+    regs.r0 = context->r[0];
+    regs.r1 = context->r[1];
+    regs.r2 = context->r[2];
+    regs.r3 = context->r[3];
+    regs.r4 = context->r[4];
+    regs.r5 = context->r[5];
+    regs.r6 = context->r[6];
+    regs.r7 = context->r[7];
+    regs.r8 = context->r[8];
+    regs.r9 = context->r[9];
+    regs.r10 = context->r[10];
+    regs.r11 = context->r[11];
+    regs.r12 = context->r[12];
+    regs.sp = context->sp;
+    regs.lr = context->lr;
+    regs.pc = context->pc;
+    regs.xpsr = context->xpsr;
+    regs.msp = source_secure ? context->msp_s : context->msp_ns;
+    regs.psp = source_secure ? context->psp_s : context->psp_ns;
+    if (source_psp) {
+        regs.psp = regs.sp;
+    } else {
+        regs.msp = regs.sp;
+    }
+    regs.primask = source_secure ? context->primask_s : context->primask_ns;
+    regs.basepri = source_secure ? context->basepri_s : context->basepri_ns;
+    regs.faultmask = source_secure ? context->faultmask_s : context->faultmask_ns;
+    regs.control = source_secure ? context->control_s : context->control_ns;
+    regs.fpscr = context->fpscr_s;
+    regs.exception_lr = context->exception_lr;
+    regs.mmfar = context->mmfar_s;
+    regs.bfar = context->bfar_s;
+    regs.cfsr = context->cfsr_s;
+    regs.hfsr = context->hfsr_s;
+
+    coredump_write_arm_registers(&regs);
+    bk_coredump_write_registers("51 IPSR", context->ipsr);
+    bk_coredump_write_registers("52 FLAGS", context->flags);
+    bk_coredump_write_registers("53 FSP", context->frame_sp);
+    bk_coredump_write_registers("54 MSP_S", context->msp_s);
+    bk_coredump_write_registers("55 PSP_S", context->psp_s);
+    bk_coredump_write_registers("56 MSP_NS", context->msp_ns);
+    bk_coredump_write_registers("57 PSP_NS", context->psp_ns);
+    bk_coredump_write_registers("58 CTRL_S", context->control_s);
+    bk_coredump_write_registers("59 CTRL_NS", context->control_ns);
+    bk_coredump_write_registers("60 SFSR", context->sfsr);
+    bk_coredump_write_registers("61 SFAR", context->sfar);
+
+    if (!source_secure && context->frame_valid != 0U) {
+        coredump_traceback(&regs);
+    } else {
+        bk_coredump_write_prompt(
+            "Secure-source stack traceback skipped; registers were copied before BLXNS.\r\n");
+    }
+}
+
+void bk_coredump_secure_fault_callback(void *context_arg)
+{
+    cp_secure_fault_context_t *context =
+        (cp_secure_fault_context_t *)context_arg;
+    bool valid_context = false;
+
+    for (uint32_t i = 0; i < CP_SEC_DUMP_CONTEXT_COUNT; i++) {
+        if (context == (cp_secure_fault_context_t *)&g_cp_secure_fault_context[i]) {
+            valid_context = true;
+            break;
+        }
+    }
+
+    if (valid_context &&
+        context->magic == CP_SEC_DUMP_CONTEXT_MAGIC &&
+        context->version == CP_SEC_DUMP_ABI_VERSION &&
+        context->size == sizeof(*context) &&
+        context->frame_valid != 0U) {
+        bk_exception_handler_from_secure(context);
+        while (1) {
+        }
+    }
+
+    bk_reboot_ex(RESET_SOURCE_SECURE_FAULT);
+    while (1) {
+    }
 }
 
 static const char * const fault_type[] =

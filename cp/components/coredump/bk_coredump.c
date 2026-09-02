@@ -286,16 +286,30 @@ static void bk_exception_dump_main(bk_exception_t *self)
     bk_coredump_feed_watchdogs();
     bk_coredump_writer_init();
 
+    if (self->secure_context != NULL &&
+        self->reset_reason != RESET_SOURCE_CRASH_ASSERT) {
+        bk_coredump_write_meta_info(COREDUMP_EXCEPTION_INFO, (void *)"SecureFault");
+        bk_coredump_write_meta_info(COREDUMP_BUILD_INFO, (void *)build_version);
+#if CONFIG_SOC_SMP
+        bk_coredump_write_meta_info(COREDUMP_CORE_INFO,
+            (void *)(self->secure_context->core_id & 0x1U));
+#endif
+    } else {
+        bk_coredump_meta_info();
+    }
     /* Header - ALWAYS emitted (Debug and Release): CPU registers, system info
      * (fault type / build / core) and the reboot reason. In a Release build
      * (CONFIG_DUMP_ENABLE=n and no CONFIG_DEBUG_VERSION) this header is the
      * ENTIRE dump: no memory image, no peripheral banks - then reboot. */
-    bk_coredump_meta_info();
     bk_coredump_write_prompt("@dump_format_version: %u\r\n", (unsigned)BK_DUMP_FORMAT_VERSION);
     bk_coredump_dump_time(self->exception_time_us);
     bk_coredump_write_prompt("@reset-reason: 0x%x\r\n", self->reset_reason);
 
-    bk_coredump_registers(self);
+    if (self->secure_context != NULL) {
+        bk_coredump_secure_registers(self->secure_context);
+    } else {
+        bk_coredump_registers(self);
+    }
 
     coredump_prompt_prologue();
 
@@ -323,7 +337,8 @@ static void bk_exception_dump_main(bk_exception_t *self)
     coredump_prompt_info();
 
 #if CONFIG_CM_BACKTRACE
-    if (self->reset_reason != RESET_SOURCE_CRASH_ASSERT) {
+    if (self->reset_reason != RESET_SOURCE_CRASH_ASSERT &&
+        self->secure_context == NULL) {
         bk_coredump_feed_watchdogs();
         cm_backtrace_fault(self->lr, self->sp);
     }
@@ -390,6 +405,13 @@ static void bk_exception_postprocess(bk_exception_t *self)
     bk_reboot_ex(self->reset_reason);
 }
 
+static void bk_exception_handler_common(bk_exception_t *exception)
+{
+    bk_exception_preprocess(exception);
+    bk_exception_dump_main(exception);
+    bk_exception_postprocess(exception);
+}
+
 void bk_exception_handler(uint32_t reset_reason, uint32_t lr, uint32_t sp)
 {
     /* Capture the AON-RTC time first, so it reflects the exception moment as
@@ -410,15 +432,33 @@ void bk_exception_handler(uint32_t reset_reason, uint32_t lr, uint32_t sp)
         .basepri = __get_BASEPRI(),
         .faultmask = __get_FAULTMASK(),
         .control = __get_CONTROL(),
+        .secure_context = NULL,
         .exception_time_us = exception_time_us,
     };
-    bk_exception_preprocess(&exception);
-    /* Always run: the dump header (registers + system info + reboot reason) is
-     * emitted in EVERY build; the memory image inside bk_exception_dump_main is
-     * itself gated by CONFIG_DEBUG_VERSION || CONFIG_DUMP_ENABLE so a Release
-     * build only produces the minimal header then reboots. */
-    bk_exception_dump_main(&exception);
-    bk_exception_postprocess(&exception);
+
+    bk_exception_handler_common(&exception);
+}
+
+void bk_exception_handler_from_secure(const cp_secure_fault_context_t *context)
+{
+    bool source_secure =
+        (context->flags & CP_SEC_DUMP_FLAG_SOURCE_SECURE) != 0U;
+    uint32_t reset_reason = !source_secure && bk_check_assert()
+        ? RESET_SOURCE_CRASH_ASSERT
+        : RESET_SOURCE_SECURE_FAULT;
+    bk_exception_t exception = {
+        .lr = context->exception_lr,
+        .sp = context->frame_sp,
+        .reset_reason = reset_reason,
+        .primask = context->primask_ns,
+        .basepri = context->basepri_ns,
+        .faultmask = context->faultmask_ns,
+        .control = context->control_ns,
+        .secure_context = context,
+        .exception_time_us = bk_aon_rtc_get_us(),
+    };
+
+    bk_exception_handler_common(&exception);
 }
 
 void bk_assert_handler(const char *func, int line)

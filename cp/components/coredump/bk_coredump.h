@@ -4,6 +4,72 @@
 #include <stdbool.h>
 #include "os/mem.h"
 
+#define CP_SEC_DUMP_VECTOR_CALLBACK_INDEX 8U
+#define CP_SEC_DUMP_VECTOR_CONTEXT_INDEX  9U
+#define CP_SEC_DUMP_VECTOR_ABI_INDEX      10U
+#define CP_SEC_DUMP_CONTEXT_MAGIC         0x43505346U /* "CPSF" */
+#define CP_SEC_DUMP_ABI_VERSION           1U
+#define CP_SEC_DUMP_CONTEXT_WORDS         48U
+#define CP_SEC_DUMP_ABI_INFO              0x53440130U /* "SD", v1, 48 words */
+
+#define CP_SEC_DUMP_FLAG_SOURCE_SECURE    (1U << 0)
+#define CP_SEC_DUMP_FLAG_SOURCE_THREAD    (1U << 1)
+#define CP_SEC_DUMP_FLAG_SOURCE_PSP       (1U << 2)
+#define CP_SEC_DUMP_FLAG_DCRS_STACKED     (1U << 3)
+#define CP_SEC_DUMP_FLAG_FP_STACKED       (1U << 4)
+
+typedef struct cp_secure_fault_context {
+    uint32_t magic;
+    uint32_t version;
+    uint32_t size;
+    uint32_t core_id;
+    uint32_t flags;
+    uint32_t exception_lr;
+    uint32_t frame_sp;
+    uint32_t frame_valid;
+    uint32_t r[13];
+    uint32_t sp;
+    uint32_t lr;
+    uint32_t pc;
+    uint32_t xpsr;
+    uint32_t msp_s;
+    uint32_t psp_s;
+    uint32_t msp_ns;
+    uint32_t psp_ns;
+    uint32_t control_s;
+    uint32_t control_ns;
+    uint32_t sfsr;
+    uint32_t sfar;
+    uint32_t cfsr_s;
+    uint32_t hfsr_s;
+    uint32_t bfar_s;
+    uint32_t mmfar_s;
+    uint32_t ipsr;
+    uint32_t primask_s;
+    uint32_t basepri_s;
+    uint32_t faultmask_s;
+    uint32_t fpscr_s;
+    uint32_t primask_ns;
+    uint32_t basepri_ns;
+    uint32_t faultmask_ns;
+    uint32_t reserved[3];
+} cp_secure_fault_context_t;
+
+_Static_assert(sizeof(cp_secure_fault_context_t) ==
+               CP_SEC_DUMP_CONTEXT_WORDS * sizeof(uint32_t),
+               "CP Secure dump context ABI size mismatch");
+
+#if CONFIG_SOC_SMP
+#define CP_SEC_DUMP_CONTEXT_COUNT 2U
+#else
+#define CP_SEC_DUMP_CONTEXT_COUNT 1U
+#endif
+
+extern volatile cp_secure_fault_context_t
+    g_cp_secure_fault_context[CP_SEC_DUMP_CONTEXT_COUNT];
+extern const uintptr_t g_cp_secure_fault_context_address;
+void bk_coredump_secure_fault_callback(void *context_arg);
+
 typedef struct bk_assert_info
 {
     uint32_t magic;
@@ -22,6 +88,7 @@ typedef struct
     uint32_t basepri;
     uint32_t faultmask;
     uint32_t control;
+    const cp_secure_fault_context_t *secure_context;
     /* AON-RTC microsecond timestamp captured at exception entry, on the same
      * bk_aon_rtc_get_us() time base as the interrupt recorder, so the dump can
      * be aligned with the interrupt/task records and the exception timeline. */
@@ -50,6 +117,8 @@ void bk_coredump_write_registers(const char *name, uint32_t value);
 void bk_coredump_write_memory(const char *name, uint32_t stack_top, uint32_t stack_bottom);
 
 void bk_coredump_registers(bk_exception_t *self);
+void bk_coredump_secure_registers(const cp_secure_fault_context_t *context);
+void bk_exception_handler_from_secure(const cp_secure_fault_context_t *context);
 
 void bk_coredump_write_prompt(const char *format, ...);
 void bk_coredump_write_prompt_data(uint8_t *data, uint32_t size);
