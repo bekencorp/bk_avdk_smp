@@ -75,6 +75,52 @@ extern uint64_t check_IRQ_pending(void);
 #define PM_LOW_VOL_AON_LDO_SEL                (2)       // 0.7V
 #define PM_LOW_VOL_VIO_LDO_SEL                (0)       // 2.9V
 
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE && CONFIG_PSRAM_DATA_RETENTION_ENABLE
+#define AP_PSRAM_RETENTION_FLUSH_BIT           (1U << 3)
+#define AP_PSRAM_RETENTION_FLUSH_TIMEOUT       (1000000U)
+#define AP_PSRAM_REG8_ADDR(base)               ((base) + (0x8U << 2))
+
+/*
+ * Run the controller save command on AP before publishing sleep-ready.
+ * At this point CPU3 and DMA are stopped and the context backup has
+ * cleaned AP L1/L2, so no AP master can create more PSRAM writes.
+ */
+static bool sys_hal_psram_retention_flush(uint32_t *failed_id,
+	uint32_t *failed_reg2, uint32_t *failed_pre_reg8,
+	uint32_t *failed_reg8)
+{
+	const uint32_t reg8_addr[] = {
+		AP_PSRAM_REG8_ADDR(SOC_PSRAM0_REG_BASE),
+		AP_PSRAM_REG8_ADDR(SOC_PSRAM1_REG_BASE),
+	};
+
+	__DSB();
+	for (uint32_t i = 0; i < ARRAY_SIZE(reg8_addr); i++) {
+		uint32_t timeout = AP_PSRAM_RETENTION_FLUSH_TIMEOUT;
+		uint32_t pre_reg8 = REG_READ(reg8_addr[i]);
+
+		/*
+		 * REG8 is a command/status register. Write only set_save; carrying
+		 * old command/status bits forward can prevent a new command edge.
+		 */
+		REG_WRITE(reg8_addr[i], AP_PSRAM_RETENTION_FLUSH_BIT);
+		__DSB();
+		while ((REG_READ(reg8_addr[i]) &
+			AP_PSRAM_RETENTION_FLUSH_BIT) != 0U) {
+			if (--timeout == 0U) {
+				*failed_id = i;
+				*failed_reg2 = REG_READ(reg8_addr[i] - (6U << 2));
+				*failed_pre_reg8 = pre_reg8;
+				*failed_reg8 = REG_READ(reg8_addr[i]);
+				return false;
+			}
+		}
+	}
+	__DSB();
+	return true;
+}
+#endif
+
 #if CONFIG_OTA_POSITION_INDEPENDENT_AB || CONFIG_DIRECT_XIP
 #define FLASH_BASE_ADDRESS                    SOC_FLASH_REG_BASE
 #define FLASH_OFFSET_ADDR_BEGIN               (0x16)
@@ -544,7 +590,12 @@ void sys_hal_enter_cpu_wfi()
 			uint32_t systick_ctrl_value = 0;
 
 			systick_ctrl_value = portNVIC_SYSTICK_CTRL_REG;
-			//portNVIC_SYSTICK_CTRL_REG = 0;
+			/*
+			 * Stop the scheduler tick before checking pending work and
+			 * capturing context. The saved value is restored on every
+			 * abort and resume path below.
+			 */
+			portNVIC_SYSTICK_CTRL_REG = 0;
 
 			int_state0_31 = sys_ahbp_ll_get_reg10_value();
 			int_state32_63 = sys_ahbp_ll_get_reg11_value();
@@ -622,6 +673,47 @@ void sys_hal_enter_cpu_wfi()
 			__asm goto ("" : : : "memory" : ap_fast_resume_after_wfi);
 			dlv_trigger_backup_context_to(
 				(uint32_t)(uintptr_t)&&ap_fast_resume_after_wfi);
+#if CONFIG_PSRAM_DATA_RETENTION_ENABLE
+			/*
+			 * Context capture cleans AP L1/L2. Flush both PSRAM
+			 * controllers afterwards, while AP/AHBP command clocks are
+			 * still running, and before CP is told that AP is asleep.
+			 */
+			{
+				uint32_t failed_id = 0;
+				uint32_t failed_reg2 = 0;
+				uint32_t failed_pre_reg8 = 0;
+				uint32_t failed_reg8 = 0;
+
+				if (!sys_hal_psram_retention_flush(&failed_id,
+					&failed_reg2, &failed_pre_reg8, &failed_reg8)) {
+					sys_ahbp_ll_set_reg10_value(int_state0_31);
+					sys_ahbp_ll_set_reg11_value(int_state32_63);
+					portNVIC_SYSTICK_CTRL_REG = systick_ctrl_value;
+					bk_sys_sw_regs_get_pm_shared_info(&shared_info);
+					shared_info.pm_ap_work_state &=
+						(uint8_t)~PM_AP_WORK_STATE_FAST_RESUME;
+					bk_sys_sw_regs_update_pm_shared_info(&shared_info,
+						BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_AP_WORK_STATE,
+						BK_SYS_SW_REGS_LOCK_DISABLE);
+					__DSB();
+					flush_dcache(
+						(void *)&bk_sys_sw_regs_ptr()->pm_shared_info,
+						sizeof(bk_sys_sw_regs_ptr()->pm_shared_info));
+					__DSB();
+					/* SVC returned with PRIMASK/FAULTMASK held off. */
+					dlv_interrupt_restore();
+#if CONFIG_TASK_WDT
+					bk_task_wdt_start();
+#endif
+					BK_LOGE("pm",
+						"AP fast suspend: PSRAM%u cache flush timeout reg2=0x%08x pre_reg8=0x%08x reg8=0x%08x\r\n",
+						failed_id, failed_reg2, failed_pre_reg8,
+						failed_reg8);
+					return;
+				}
+			}
+#endif
 #endif
 
 			shared_info.pm_ap0_sleep_state = 1;

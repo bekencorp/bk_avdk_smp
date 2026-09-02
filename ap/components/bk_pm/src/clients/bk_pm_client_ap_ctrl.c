@@ -98,6 +98,7 @@ typedef enum {
 	PM_AP_FAST_STATE_QUIESCING,
 	PM_AP_FAST_STATE_PREPARED,
 	PM_AP_FAST_STATE_RESTORING,
+	PM_AP_FAST_STATE_APP_RESUMING,
 	PM_AP_FAST_STATE_FAILED,
 } pm_ap_fast_state_t;
 
@@ -114,6 +115,7 @@ static pm_ap_fast_node_t *s_fast_ops_head;
 static pm_ap_fast_node_t *s_fast_ops_tail;
 static volatile pm_ap_fast_state_t s_fast_state = PM_AP_FAST_STATE_RUNNING;
 static volatile bool s_fast_ipc_rx_blocked;
+static volatile bool s_fast_app_resume_pending;
 #if CONFIG_SOC_SMP
 static SPINLOCK_SECTION volatile spinlock_t s_fast_ops_lock = SPIN_LOCK_INIT;
 #endif
@@ -225,7 +227,8 @@ bk_err_t bk_pm_ap_fast_ops_register(const pm_ap_fast_pm_ops_t *ops)
 
 	if ((ops == NULL) || (ops->name == NULL) ||
 		((ops->quiesce == NULL) && (ops->backup == NULL) &&
-		 (ops->restore == NULL) && (ops->resume == NULL)) ||
+		 (ops->restore == NULL) && (ops->resume == NULL) &&
+		 (ops->app_resume == NULL)) ||
 		((ops->backup == NULL) != (ops->restore == NULL))) {
 		return BK_ERR_PARAM;
 	}
@@ -326,6 +329,7 @@ bk_err_t bk_pm_ap_fast_suspend_prepare(void)
 		return BK_ERR_STATE;
 	}
 	s_fast_state = PM_AP_FAST_STATE_QUIESCING;
+	s_fast_app_resume_pending = false;
 	pm_ap_fast_unlock(flags);
 	bk_pm_ap_full_ready_set(false);
 
@@ -450,6 +454,7 @@ bk_err_t bk_pm_ap_fast_resume_modules(void)
 
 	if (ret == BK_OK) {
 		s_fast_state = PM_AP_FAST_STATE_RUNNING;
+		s_fast_app_resume_pending = true;
 		__DMB();
 		bk_pm_ap_fast_ipc_rx_block_set(false);
 		bk_pm_ap_full_ready_set(true);
@@ -457,6 +462,37 @@ bk_err_t bk_pm_ap_fast_resume_modules(void)
 		s_fast_state = PM_AP_FAST_STATE_FAILED;
 		__DMB();
 	}
+	return ret;
+}
+
+bk_err_t bk_pm_ap_fast_app_resume(void)
+{
+	pm_ap_fast_node_t *node;
+	bk_err_t ret = BK_OK;
+	bk_err_t cb_ret;
+	uint32_t flags = pm_ap_fast_lock();
+
+	if ((s_fast_state != PM_AP_FAST_STATE_RUNNING) ||
+		!s_fast_app_resume_pending) {
+		pm_ap_fast_unlock(flags);
+		return BK_ERR_STATE;
+	}
+	s_fast_state = PM_AP_FAST_STATE_APP_RESUMING;
+	s_fast_app_resume_pending = false;
+	pm_ap_fast_unlock(flags);
+
+	for (node = s_fast_ops_head; node != NULL; node = node->next) {
+		if (node->ops.app_resume != NULL) {
+			cb_ret = node->ops.app_resume(node->ops.arg);
+			if ((ret == BK_OK) && (cb_ret != BK_OK)) {
+				ret = cb_ret;
+			}
+		}
+	}
+
+	flags = pm_ap_fast_lock();
+	s_fast_state = PM_AP_FAST_STATE_RUNNING;
+	pm_ap_fast_unlock(flags);
 	return ret;
 }
 

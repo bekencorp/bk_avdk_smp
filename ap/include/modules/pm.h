@@ -26,9 +26,10 @@ typedef void (*sleep_callback_t)(void *arg);
 /**
  * AP fast-suspend/resume callbacks.
  *
- * quiesce/resume run in the CPU2 PM task with interrupts enabled.
+ * quiesce/resume/app_resume run in the CPU2 PM task with interrupts enabled.
  * backup/restore run with CPU3 offline and CPU2 interrupts disabled; they
  * must not block, allocate memory, log, or wait for interrupt completion.
+ * app_resume runs only after AP0/AP1 and the CP-to-AP mailbox are ready.
  */
 typedef bk_err_t (*pm_ap_fast_callback_t)(void *arg);
 
@@ -38,6 +39,7 @@ typedef struct {
 	pm_ap_fast_callback_t backup;
 	pm_ap_fast_callback_t restore;
 	pm_ap_fast_callback_t resume;
+	pm_ap_fast_callback_t app_resume;
 	void *arg;
 	uint8_t priority;
 } pm_ap_fast_pm_ops_t;
@@ -934,6 +936,21 @@ bk_err_t bk_pm_ap_fast_restore_hardware(void);
  * - others: The first error returned by a resume callback
  */
 bk_err_t bk_pm_ap_fast_resume_modules(void);
+
+/**
+ * @brief Notify registered applications that fast resume is complete
+ *
+ * Invokes app_resume callbacks in priority order after AP_FULL_READY is
+ * published and CP confirms that CP-to-AP mailbox communication is available.
+ * Each successful module resume can trigger this callback phase only once.
+ * This internal orchestration API is intended for the CPU2 PM task.
+ *
+ * @return
+ * - BK_OK: All registered application resume callbacks completed
+ * - BK_ERR_STATE: AP is not ready or no callback phase is pending
+ * - others: The first error returned by an app_resume callback
+ */
+bk_err_t bk_pm_ap_fast_app_resume(void);
 
 /**
  * @brief Check whether fast-suspend hardware backup is complete

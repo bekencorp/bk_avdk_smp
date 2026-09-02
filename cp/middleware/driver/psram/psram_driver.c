@@ -615,6 +615,7 @@ bk_err_t bk_psram_deinit_with_id(psram_id_t psram_id)
 #define PSRAM_RETENTION_MR0_ADDR       (0x00000000U)
 #else
 #define PSRAM_RETENTION_FLUSH_BIT      (0x1U << 3)
+#define PSRAM_RETENTION_FLUSH_TIMEOUT  (1000000U)
 #endif
 /* Fallback mode register value used only when no snapshot was taken
  * (e.g. retention helper called before any real PSRAM access). The
@@ -656,7 +657,7 @@ static uint32_t          s_psram_retention_saved_clk_sel[PSRAM_ID_MAX] = {0};
 static uint32_t          s_psram_retention_saved_clk_div[PSRAM_ID_MAX] = {0};
 static bool              s_psram_retention_clock_valid[PSRAM_ID_MAX] = {false};
 
-static bk_err_t psram_retention_drain(psram_id_t psram_id)
+static bk_err_t psram_cache_flush_before_power_down(psram_id_t psram_id)
 {
 #if 0//CONFIG_PM_AP_FAST_BOOT_ENABLE
 	uint32_t mr0;
@@ -687,11 +688,15 @@ static bk_err_t psram_retention_drain(psram_id_t psram_id)
 		psram_id, mr0, psram_hal_get_reg8_value_with_id(psram_id));
 #else
 	uint32_t reg8 = psram_hal_get_reg8_value_with_id(psram_id);
+	uint32_t timeout = PSRAM_RETENTION_FLUSH_TIMEOUT;
 
 	psram_hal_set_reg8_value_with_id(psram_id,
 		reg8 | PSRAM_RETENTION_FLUSH_BIT);
 	while ((psram_hal_get_reg8_value_with_id(psram_id) &
 		PSRAM_RETENTION_FLUSH_BIT) != 0U) {
+		if (--timeout == 0U) {
+			return BK_ERR_TIMEOUT;
+		}
 	}
 #endif
 	return BK_OK;
@@ -756,13 +761,22 @@ static void psram_retention_recovery_one(psram_id_t psram_id)
 
 bk_err_t bk_psram_data_retention(void)
 {
+#if !CONFIG_PM_AP_FAST_BOOT_ENABLE
 	bk_err_t ret;
+#endif
+	GLOBAL_INT_DECLARATION();
 
 #if CONFIG_PM_AP_FAST_BOOT_ENABLE
 	MEM_STATIC_LOGI("psram_data_retention begin: init0=%d init1=%d\r\n",
 		s_psram_init_done[PSRAM_ID_0], s_psram_init_done[PSRAM_ID_1]);
 #endif
 
+	/*
+	 * AP has already quiesced CPU2/CPU3 and DMA. Keep CP from scheduling an
+	 * ISR or another task which could issue a new PSRAM transaction between
+	 * the controller snapshots and pad latch.
+	 */
+	GLOBAL_INT_DISABLE();
 	for (int i = 0; i < (int)PSRAM_ID_MAX; i++) {
 		if (!s_psram_init_done[i]) {
 			s_psram_retention_active[i] = false;
@@ -777,18 +791,33 @@ bk_err_t bk_psram_data_retention(void)
 		psram_retention_save_mode((psram_id_t)i);
 		psram_retention_save_clock((psram_id_t)i);
 
-		ret = psram_retention_drain((psram_id_t)i);
+#if !CONFIG_PM_AP_FAST_BOOT_ENABLE
+		/*
+		 * Fast boot flushes both controllers on AP after its final
+		 * L1/L2 clean and before publishing sleep-ready. Reissuing the
+		 * command here can race a controller whose AP command path is
+		 * already quiesced. Non-fast-boot callers still flush locally.
+		 */
+		ret = psram_cache_flush_before_power_down((psram_id_t)i);
 		if (ret != BK_OK) {
 			for (int j = 0; j <= i; j++) {
 				s_psram_retention_active[j] = false;
 			}
+			GLOBAL_INT_RESTORE();
+			MEM_STATIC_LOGE("psram cache flush timeout: id=%d reg2=0x%08x reg8=0x%08x\r\n",
+				i,
+				psram_hal_get_reg2_value_with_id((psram_id_t)i),
+				psram_hal_get_reg8_value_with_id((psram_id_t)i));
 			return ret;
 		}
+#endif
 		s_psram_retention_active[i] = true;
 	}
 
 	/* Latch PSRAM I/O pads at 3V. Covers PSRAM0 + PSRAM1. */
 	sys_drv_set_psram_pad_latch(1);
+	__asm volatile("dsb sy" ::: "memory");
+	GLOBAL_INT_RESTORE();
 
 	MEM_STATIC_LOGI("psram_data_retention: pads latched, p0=%d p1=%d, mode0=0x%08x mode1=0x%08x\r\n",
 				   s_psram_retention_active[PSRAM_ID_0],

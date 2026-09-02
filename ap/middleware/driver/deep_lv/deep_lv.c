@@ -298,6 +298,11 @@ __attribute__((naked)) __IRAM_PM void dlv_trigger_backup_context_to(uint32_t res
 		"    dsb                        \n"
 		"    isb                        \n"
 		"    svc %0                     \n"
+		/* Keep PSRAM quiet after SVC cleans the AP caches. */
+		"    cpsid i                    \n"
+		"    cpsid f                    \n"
+		"    dsb                        \n"
+		"    isb                        \n"
 		"    bx lr                      \n"
 		::"i"(portSVC_DEEP_LV_ENTER):"memory"
 	);

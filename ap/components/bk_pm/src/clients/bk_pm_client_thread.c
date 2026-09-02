@@ -204,6 +204,17 @@ static bk_err_t pm_ap_core_message_handle(void)
 #endif
                 }
                 break;
+                case PM_AP_CORE_APP_RESUME:
+                {
+                    ret = bk_pm_ap_fast_app_resume();
+                    if (ret != BK_OK) {
+                        LOGE("AP fast resume: app resume callbacks failed[%d]\r\n",
+                            ret);
+                    } else {
+                        LOGI("AP fast resume: app resume callbacks done\r\n");
+                    }
+                }
+                break;
 #endif
                 case PM_AP_CORE_SLEEP_WAKEUP_NOTIFY:
                 {

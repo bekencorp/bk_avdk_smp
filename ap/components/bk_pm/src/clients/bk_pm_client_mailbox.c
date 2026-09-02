@@ -411,6 +411,15 @@ static void pm_cp1_mailbox_rx_isr(int *pm_mb, mb_chnl_cmd_t *cmd_buf)
 			}
 #endif
 			break;
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+		case PM_AP_APP_RESUME_NOTIFY_CMD:
+			msg.event = PM_AP_CORE_APP_RESUME;
+			ret = bk_pm_ap_core_send_msg(&msg);
+			if (ret != BK_OK) {
+				LOGE("AP app resume notify queue failed[%d]\r\n", ret);
+			}
+			break;
+#endif
         case PM_RTC_DEEPSLEEP_CMD:
 			if(cmd_buf->param1 == BK_OK)
 			{

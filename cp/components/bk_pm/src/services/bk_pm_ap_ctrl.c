@@ -658,6 +658,12 @@ boot_ap:
 				LOGI("AP_TIME ap_full_ready total_us=%u\r\n",
 					pm_ap_elapsed_us(ap0_resume_start_tick,
 						full_ready_tick));
+				bk_err_t notify_ret = pm_cp0_mailbox_send_data(
+					PM_AP_APP_RESUME_NOTIFY_CMD, 0, 0, 0);
+				if (notify_ret != BK_OK) {
+					LOGE("AP app resume notify failed[%d]\r\n",
+						notify_ret);
+				}
 				callback_start_tick = full_ready_tick;
 				bk_pm_ap_ctrl_callback_execute(
 					PM_AP_CTRL_CB_TYPE_POWER_ON);
@@ -1105,6 +1111,13 @@ bk_err_t bk_pm_module_vote_boot_ap_ctrl(pm_boot_ap_module_name_e module,pm_power
 						if (bk_pm_ap_full_ready_get()) {
 							s_pm_ap_business_tx_enabled = true;
 							__DMB();
+							ret = pm_cp0_mailbox_send_data(
+								PM_AP_APP_RESUME_NOTIFY_CMD,
+								0, 0, 0);
+							if (ret != BK_OK) {
+								LOGE("AP abort app resume notify failed[%d]\r\n",
+									ret);
+							}
 							bk_pm_ap_ctrl_callback_execute(
 								PM_AP_CTRL_CB_TYPE_POWER_OFF_ABORT);
 							LOGI("AP close abort completed; business mailbox reopened\r\n");

@@ -15,6 +15,7 @@ typedef enum
     PM_AP_CORE_CPU3_ONLINE,
 #if CONFIG_PM_AP_FAST_BOOT_ENABLE
     PM_AP_CORE_FAST_SUSPEND_ABORT,
+    PM_AP_CORE_APP_RESUME,
 #endif
 	PM_AP_CORE_STATE_MAX
 }pm_ap_core_state_e;

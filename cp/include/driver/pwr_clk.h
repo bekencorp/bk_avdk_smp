@@ -44,6 +44,9 @@ extern "C" {
 #define PM_WAKEUP_CONFIG_CMD                 (0xf)
 
 #define PM_SLEEP_WAKEUP_NOTIFY_CMD           (0x10)
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+#define PM_AP_APP_RESUME_NOTIFY_CMD           (0x11)
+#endif
 
 #define PM_AON_RTC_DEFAULT_TICK_COUNT        (32)//only for cp1 using aon rtc
 
