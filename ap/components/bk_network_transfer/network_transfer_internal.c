@@ -83,8 +83,9 @@ static void ntwk_msg_message_handle(void)
 #endif
                     }
 
-                    // Call user registered event callback
-                    if (ntwk_in_cfg && ntwk_in_cfg->event_cb != NULL)
+                    ntwk_trans_msg_event_cb_t event_cb =
+                        (ntwk_in_cfg != NULL) ? ntwk_in_cfg->event_cb : NULL;
+                    if (event_cb != NULL)
                     {
                         LOGW("%s, event:%d, param:%d, chan_type:%d\n", __func__, msg.code, msg.param, msg.chan_type);
                         // Convert internal msg format to ntwk_trans_event_t
@@ -92,7 +93,7 @@ static void ntwk_msg_message_handle(void)
                         event.chan_type = msg.chan_type;
                         event.code = msg.code;
                         event.param = msg.param;
-                        ntwk_in_cfg->event_cb(&event);
+                        event_cb(&event);
                     }
                     else
                     {
@@ -171,9 +172,6 @@ bk_err_t ntwk_msg_stop(void)
         return BK_FAIL;
     }
 
-    /* clear event callback first */
-    ntwk_in_cfg->event_cb = NULL;
-
     /* delete message queue - this will wake up the thread waiting on rtos_pop_from_queue */
     if (ntwk_in_cfg->queue)
     {
@@ -191,6 +189,8 @@ bk_err_t ntwk_msg_stop(void)
         rtos_thread_join(ntwk_in_cfg->thd);
         ntwk_in_cfg->thd = NULL;
     }
+
+    ntwk_in_cfg->event_cb = NULL;
 
     LOGV("%s complete\n", __func__);
     return BK_OK;
