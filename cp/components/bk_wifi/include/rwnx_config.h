@@ -1240,8 +1240,9 @@
 #define BK_INTEROPER                    1
 #endif
 
-//Dynamic changes td window
-#define MAC_SUPPORT_DYNAMIC_TD_WINDOW   1
+/* TD Level/adaptive strategy macros live only in internal MACSW
+ * (properties/.../lmac/src/rwnx/rwnx_config.h). Do not define them here:
+ * libwifi is already compiled with one policy; host-side copies cannot switch it. */
 
 //use ckmn for rosc
 #define USE_CKMN                        1
