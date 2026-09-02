@@ -611,7 +611,7 @@ bk_err_t bk_psram_deinit_with_id(psram_id_t psram_id)
  * ============================================================ */
 
 #define PSRAM_RETENTION_CKG_BYPASS_BIT (0x1U << 1)
-#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+#if 0//CONFIG_PM_AP_FAST_BOOT_ENABLE
 #define PSRAM_RETENTION_MR0_ADDR       (0x00000000U)
 #else
 #define PSRAM_RETENTION_FLUSH_BIT      (0x1U << 3)
@@ -658,7 +658,7 @@ static bool              s_psram_retention_clock_valid[PSRAM_ID_MAX] = {false};
 
 static bk_err_t psram_retention_drain(psram_id_t psram_id)
 {
-#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+#if 0//CONFIG_PM_AP_FAST_BOOT_ENABLE
 	uint32_t mr0;
 
 	/*
