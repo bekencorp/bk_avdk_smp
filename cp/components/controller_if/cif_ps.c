@@ -4,8 +4,65 @@
 #include <driver/hal/hal_aon_rtc_types.h>
 #include <driver/aon_rtc_types.h>
 #include <driver/aon_rtc.h>
+#include <modules/pm.h>
 
 extern bool battery_test_mode;
+
+/*
+ * Sync CIF host_powerup with real AP power domain state.
+ * POWER_OFF runs after AP is shut down: clear flags so RX stays on CP.
+ * POWER_ON only marks host_powerup; host_wifi_init stays false until AP
+ * re-inits Wi-Fi, so packets are not forwarded before AP is ready.
+ */
+static void cif_ap_power_on_callback(void *arg)
+{
+    (void)arg;
+    CIF_LOGI("AP power on, sync CIF host state\r\n");
+    (void)cif_power_up_host();
+}
+
+static void cif_ap_power_off_callback(void *arg)
+{
+    (void)arg;
+    CIF_LOGI("AP power off, sync CIF host state\r\n");
+    (void)cif_power_down_host();
+}
+
+void cif_register_ap_power_callbacks(void)
+{
+    bk_err_t ret;
+
+    ret = bk_pm_ap_ctrl_callback_register(cif_ap_power_on_callback, NULL,
+                                          PM_AP_CTRL_CB_TYPE_POWER_ON);
+    if (ret != BK_OK) {
+        CIF_LOGW("register AP power-on callback failed: %d\r\n", ret);
+    }
+
+    ret = bk_pm_ap_ctrl_callback_register(cif_ap_power_off_callback, NULL,
+                                          PM_AP_CTRL_CB_TYPE_POWER_OFF);
+    if (ret != BK_OK) {
+        CIF_LOGW("register AP power-off callback failed: %d\r\n", ret);
+        bk_pm_ap_ctrl_callback_unregister(cif_ap_power_on_callback,
+                                          PM_AP_CTRL_CB_TYPE_POWER_ON);
+    }
+}
+
+void cif_unregister_ap_power_callbacks(void)
+{
+    bk_err_t ret;
+
+    ret = bk_pm_ap_ctrl_callback_unregister(cif_ap_power_off_callback,
+                                            PM_AP_CTRL_CB_TYPE_POWER_OFF);
+    if (ret != BK_OK) {
+        CIF_LOGW("unregister AP power-off callback failed: %d\r\n", ret);
+    }
+
+    ret = bk_pm_ap_ctrl_callback_unregister(cif_ap_power_on_callback,
+                                            PM_AP_CTRL_CB_TYPE_POWER_ON);
+    if (ret != BK_OK) {
+        CIF_LOGW("unregister AP power-on callback failed: %d\r\n", ret);
+    }
+}
 
 extern void stack_mem_dump(uint32_t stack_top, uint32_t stack_bottom);
 void cif_update_ps_state(uint8_t cif_fsm_evt)

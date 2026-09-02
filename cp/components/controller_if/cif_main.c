@@ -401,6 +401,8 @@ __IRAM2 void cif_rx_evt_complete(void *param, void *ack_buf)
 bk_err_t cif_deinit()
 {
     CIF_LOGE("cif_deinit\n");
+    cif_unregister_ap_power_callbacks();
+
     if (cif_env.handle) {
         rtos_delete_thread(&cif_env.handle);
         cif_env.handle = NULL;
@@ -467,6 +469,7 @@ bk_err_t cif_init()
     cif_env.cif_sleeping = false;
     cif_env.host_powerup = false;
     cif_env.no_host = true;
+    cif_register_ap_power_callbacks();
     return ret;
 cif_init_failed:
     cif_deinit();
