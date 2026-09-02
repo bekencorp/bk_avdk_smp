@@ -13,6 +13,7 @@ CONFIG_SLAVE_HEART_BEAT=y
 CONFIG_FREERTOS_ALLOW_OS_API_IN_IRQ_DISABLED=y
 CONFIG_SPINLOCK=y
 CONFIG_SUPPORT_WWDT=y
+CONFIG_WWDT_TEST=y
 CONFIG_SECURITY_FIRMWARE=y
 # flash controller MMIO (0x54030000) is secure-only; NS easyflash direct
 # access faults. Disable easyflash until NS flash goes through a secure gateway.
