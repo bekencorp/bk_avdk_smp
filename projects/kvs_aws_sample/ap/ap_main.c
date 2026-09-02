@@ -3,6 +3,8 @@
  * Master: send H264/H265/Opus from h264SampleFrames/h265SampleFrames/opusSampleFrames.
  * Viewer: receive and hand off to sampleVideoFrameHandler/sampleAudioFrameHandler in Common.c.
  * Role selected by CLI: run "kvs master" or "kvs viewer [channel_name]".
+ * AWS key: compile-time default below, or runtime "kvs cred <ak> <sk> [region]"
+ * (RAM only; overrides setenv; run cred before master/viewer).
  *
  * TLS CA: enable CONFIG_KVS_GET_CA_FROM_ARRAY to use embedded PEM (kvs_embedded_ca_cert.c).
  * Sample media dirs remain on SD:
