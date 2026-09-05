@@ -38,14 +38,22 @@ static u32 flash_cmd_write_handler(u8 *cmd_param, u16 param_len)
 
 	printf("param_len :0x%x, param_len - 4 :0x%x \r\n ", param_len, param_len - 4);
 	if (download_record_dl_flag == 0) {
+#if CONFIG_BL2_UPDATE_WITH_PC
 		if ((addr >= CONFIG_PRIMARY_MANIFEST_PHY_PARTITION_OFFSET) &&
 			(addr < CONFIG_PRIMARY_TFM_S_PHY_PARTITION_OFFSET)) {
+#else
+		/* Bootloader upgrade disabled: protect [0, TFM) except partition table. */
+		if ((addr < CONFIG_PRIMARY_TFM_S_PHY_PARTITION_OFFSET) &&
+		    !((addr >= CONFIG_PARTITION_PHY_PARTITION_OFFSET) &&
+		      (addr < (CONFIG_PARTITION_PHY_PARTITION_OFFSET +
+				 CONFIG_PARTITION_PHY_PARTITION_SIZE)))) {
+#endif
 			ret_val = OPERATE_PROTECTED_AREA;
 		}
 	}
 	if (bl_forbid_operate_boot_partition(addr, param_len - 4) != true) {
 		ret_val = OPERATE_PROTECTED_AREA;
-	} else {
+	} else if (ret_val == 0) {
 		flash_write_data(&cmd_param[4], addr, param_len - 4);
 	}
 
@@ -83,8 +91,15 @@ u32 flash_cmd_sector_write(rx_frm_ctrl_t *frm_ctrl)
 	memcpy(&addr, cmd_param, 4);
 
 	if (download_record_dl_flag == 0) {
+#if CONFIG_BL2_UPDATE_WITH_PC
 		if ((addr >= CONFIG_PRIMARY_MANIFEST_PHY_PARTITION_OFFSET) &&
 			(addr < CONFIG_PRIMARY_TFM_S_PHY_PARTITION_OFFSET)) {
+#else
+		if ((addr < CONFIG_PRIMARY_TFM_S_PHY_PARTITION_OFFSET) &&
+		    !((addr >= CONFIG_PARTITION_PHY_PARTITION_OFFSET) &&
+		      (addr < (CONFIG_PARTITION_PHY_PARTITION_OFFSET +
+				 CONFIG_PARTITION_PHY_PARTITION_SIZE)))) {
+#endif
 			frm_ctrl->status = OPERATE_PROTECTED_AREA;
 			return 2;
 		}
@@ -107,8 +122,15 @@ u32 flash_cmd_sector_write(rx_frm_ctrl_t *frm_ctrl)
 		wdt_time_set(DOWNLOAD_WDT_VALUE);
 
 		if (download_record_dl_flag == 0) {
+#if CONFIG_BL2_UPDATE_WITH_PC
 			if ((addr >= CONFIG_PRIMARY_MANIFEST_PHY_PARTITION_OFFSET) &&
 				(addr < CONFIG_PRIMARY_TFM_S_PHY_PARTITION_OFFSET)) {
+#else
+			if ((addr < CONFIG_PRIMARY_TFM_S_PHY_PARTITION_OFFSET) &&
+			    !((addr >= CONFIG_PARTITION_PHY_PARTITION_OFFSET) &&
+			      (addr < (CONFIG_PARTITION_PHY_PARTITION_OFFSET +
+					 CONFIG_PARTITION_PHY_PARTITION_SIZE)))) {
+#endif
 				frm_ctrl->status = OPERATE_PROTECTED_AREA;
 				printf("the protected addr! \r\n");
 				return 2;
@@ -221,12 +243,20 @@ static u32 flash_cmd_sector_erase_handler(u8 *cmd_param, u16 param_len)
 			ret_val = OPERATE_PROTECTED_AREA;
 		}
 	}
+#else
+	/* Bootloader upgrade disabled: protect [0, TFM) except partition table. */
+	if ((addr < CONFIG_PRIMARY_TFM_S_PHY_PARTITION_OFFSET) &&
+	    !((addr >= CONFIG_PARTITION_PHY_PARTITION_OFFSET) &&
+	      (addr < (CONFIG_PARTITION_PHY_PARTITION_OFFSET +
+			 CONFIG_PARTITION_PHY_PARTITION_SIZE)))) {
+		ret_val = OPERATE_PROTECTED_AREA;
+	}
 #endif
 	if (bl_forbid_operate_boot_partition(addr, ERASE_4KB_LENGTH) != true) {
 		ret_val = OPERATE_PROTECTED_AREA;
-	} else if (param_len == 4) {
+	} else if ((ret_val == 0) && (param_len == 4)) {
 		flash_erase_cmd(addr, FLASH_OPCODE_SE);
-	} else {
+	} else if (param_len != 4) {
 		ret_val = PACK_LEN_ERROR;
 	}
 
@@ -255,11 +285,18 @@ static u32 flash_cmd_size_erase_handler(u8 *cmd_param, u16 param_len)
 			ret_val = OPERATE_PROTECTED_AREA;
 		}
 	}
+#else
+	if ((addr < CONFIG_PRIMARY_TFM_S_PHY_PARTITION_OFFSET) &&
+	    !((addr >= CONFIG_PARTITION_PHY_PARTITION_OFFSET) &&
+	      (addr < (CONFIG_PARTITION_PHY_PARTITION_OFFSET +
+			 CONFIG_PARTITION_PHY_PARTITION_SIZE)))) {
+		ret_val = OPERATE_PROTECTED_AREA;
+	}
 #endif
 
 	if (bl_forbid_erase_boot_partition(addr, size_cmd) != true) {
 		ret_val = OPERATE_PROTECTED_AREA;
-	} else if (param_len == 5) {
+	} else if ((ret_val == 0) && (param_len == 5)) {
 		if (size_cmd == 0x20) {
 			flash_erase_cmd(addr, FLASH_OPCODE_SE);
 		} else if (size_cmd == 0xd8) {
@@ -267,7 +304,7 @@ static u32 flash_cmd_size_erase_handler(u8 *cmd_param, u16 param_len)
 		} else if (size_cmd == 0x52) {
 			flash_erase_cmd(addr, FLASH_OPCODE_BE1);
 		}
-	} else {
+	} else if (param_len != 5) {
 		ret_val = PACK_LEN_ERROR;
 	}
 
