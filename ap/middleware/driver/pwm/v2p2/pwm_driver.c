@@ -363,11 +363,6 @@ bk_err_t bk_pwm_driver_init(void)
 	bk_pwm_register_cli_test_feature();
 #endif
 
-#if CONFIG_CLI && CONFIG_PWM_API_TEST
-	int bk_pwm_register_cli_api_test_feature(void);
-	bk_pwm_register_cli_api_test_feature();
-#endif
-
 	return BK_OK;
 }
 
@@ -1354,7 +1349,7 @@ static void pwm_isr_common(pwm_unit_t id)
 
 	for (uint32_t index = 0; index < SOC_PWM_TIM_NUM; index++) {
 		if (pwm_hal_is_cc1if_triggered(index, int_status, SOC_PWM_GROUP_NUM)) {
-			// pwm_hal_set_cc1ie(index, 0);
+			pwm_hal_set_cc1ie(index, 0);
 			if (s_pwm.capture_sema) {
 				rtos_set_semaphore(&s_pwm.capture_sema);
 			}

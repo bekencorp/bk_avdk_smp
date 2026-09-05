@@ -20,12 +20,14 @@ menu "PWM"
 		bool "Enable pwm test"
 		default y
 
-	config PWM_API_TEST
+	config PWM_AUTO
 		depends on PWM && DRIVER_TEST
-		bool "Enable pwm api test"
+		bool "Enable pwm automatic loopback test"
 		default n
 		help
-			Enable pwm api test.
+			Enable the PWM automatic loopback CLI test.
+			The platform wiring is PWM2 (GPIO32) to PWM4 (GPIO34)
+			and PWM3 (GPIO33) to PWM5 (GPIO35).
 
 endmenu
 
