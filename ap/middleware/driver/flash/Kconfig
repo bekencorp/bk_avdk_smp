@@ -39,5 +39,14 @@ menu "FLASH"
 	config FLASH_BYPASS_OTP_OPERATION
 		bool "Bypass flash to operate otp in flash"
 		default n
+
+	config FLASH_CAPACITY_16M
+		bool "Use 16M flash partition table (auto_partitions_16M.csv)"
+		default n
+		help
+			Select the 16M partition layout (sys_rf/sys_net at 0xFFE000/0xFFF000).
+			Save as project default ([D] in menuconfig) or pass FLASH_CAPACITY=16M
+			on the make command line. Images are stored in build/<soc>/<project>_16M/
+			so they do not overwrite the 8M package.
 endmenu
 
