@@ -88,8 +88,11 @@ def get_ota_bin_hash():
     p = Partitions('partitions.csv', ota_type, s.secureboot_en, s.crc_en)
 
     if (ota_type == 'OVERWRITE'):
-        compress_bin('primary_all_code_signed.bin', 'compress.bin')
         pota = p.find_partition_by_name('ota')
+        if pota is None:
+            logging.debug('OVERWRITE: no ota partition, skip ota hash')
+            return
+        compress_bin('primary_all_code_signed.bin', 'compress.bin')
         # No --pad for the compressed ota image (must match sign_from_ota_sig).
         bl2_sign('hash', s.bl2_root_key_type, s.bl2_root_privkey, s.bl2_root_pubkey, None, 'compress.bin', pota.partition_size, '0.0.1', o.get_app_security_counter(), 'ota_signed.bin', 'ota_hash.json', pad=False)
 
@@ -113,6 +116,9 @@ def sign_from_ota_sig():
     ota_sig = get_app_sig('ota_sig.json')
     if (ota_type == 'OVERWRITE'):
         pota = p.find_partition_by_name('ota')
+        if pota is None:
+            logging.debug('OVERWRITE: no ota partition, skip ota sign_from_sig')
+            return
         # No --pad for the compressed ota image (must match get_ota_bin_hash).
         bl2_sign('sign_from_sig', s.bl2_root_key_type, s.bl2_root_privkey, s.bl2_root_pubkey, ota_sig, 'compress.bin', pota.partition_size, '0.0.1', o.get_app_security_counter(), 'ota_signed.bin', 'ota_hash.json', pad=False)
 

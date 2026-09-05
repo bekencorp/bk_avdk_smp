@@ -905,7 +905,8 @@ class Partitions:
             if(primary_all and primary_all.partition_size % (4096) != 0):
                 logging.error("total size of all primary partition should be 4k aligned!")
                 exit(1)
-            if primary_all:
+            # Journal limit only applies when packing a compressed ota image.
+            if p is not None and primary_all:
                 full_blocks = primary_all.partition_size // COMPRESS_BLOCK_SZ
                 if full_blocks > OTA_RESUME_MAX_FULL_BLOCKS:
                     max_kb = (OTA_RESUME_MAX_FULL_BLOCKS * COMPRESS_BLOCK_SZ) // 1024

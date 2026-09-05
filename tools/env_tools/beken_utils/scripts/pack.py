@@ -65,11 +65,14 @@ def pack_all(config_dir, aes_key):
         if (ota_type == 'OVERWRITE'):
             app_version = o.get_version()
             bl2_sign('sign', s.bl2_root_key_type, s.bl2_root_privkey, s.bl2_root_pubkey, None, 'primary_all_code.bin', pall.vir_sign_size, app_version, o.get_app_security_counter(), 'primary_all_code_signed.bin', 'app_hash.json', pad=False)
-            compress_bin('primary_all_code_signed.bin', 'compress.bin')
             pota = p.find_partition_by_name('ota')
-            # Compressed ota image: no --pad (see bl2_sign) -> ota.bin stays as
-            # small as the compressed payload instead of the whole ota partition.
-            bl2_sign('sign', s.bl2_root_key_type, s.bl2_root_privkey, s.bl2_root_pubkey, None, 'compress.bin', pota.partition_size, app_version, o.get_app_security_counter(), 'ota_signed.bin', 'ota_hash.json', pad=False)
+            if pota is None:
+                logging.debug('OVERWRITE: no ota partition, skip compress/sign ota.bin')
+            else:
+                compress_bin('primary_all_code_signed.bin', 'compress.bin')
+                # Compressed ota image: no --pad (see bl2_sign) -> ota.bin stays as
+                # small as the compressed payload instead of the whole ota partition.
+                bl2_sign('sign', s.bl2_root_key_type, s.bl2_root_privkey, s.bl2_root_pubkey, None, 'compress.bin', pota.partition_size, app_version, o.get_app_security_counter(), 'ota_signed.bin', 'ota_hash.json', pad=False)
         elif (ota_type == 'XIP'):
             pota = p.find_partition_by_name('primary_all')
             app_version = o.get_version()

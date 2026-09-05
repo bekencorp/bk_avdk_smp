@@ -39,12 +39,14 @@ def gen_partitions_hdr_file(partition, out_partition_hdr_file):
     f.write(line)
 
     partition_struct_array = f"#define PARTITION_MAP {{ \\\n"
+    emitted_names = set()
     for partition in partition.partitions:
 
         partition_name = partition.partition_name
         partition_struct_array +=  f"    {{\"{partition_name}\""
         partition_name = partition_name.upper()
         partition_name = partition_name.replace(' ', '_')
+        emitted_names.add(partition_name)
 
         logging.debug(f'generate constants for partition {partition_name}')
 
@@ -85,6 +87,15 @@ def gen_partitions_hdr_file(partition, out_partition_hdr_file):
                 f.write(line)
 
         empty_line(f)
+    # TF-M/BL2 always reference these; emit empty slots so a no-OTA CSV still compiles
+    # and does not pick up stub/partitions.h fake XIP addresses.
+    for name in ('SECONDARY_ALL', 'BOOT_PARAM', 'OTA', 'OTA_CONTROL'):
+        if name not in emitted_names:
+            line = f'#define %-45s 0x0\n' % (f'CONFIG_{name}_PHY_PARTITION_OFFSET',)
+            f.write(line)
+            line = f'#define %-45s 0x0\n' % (f'CONFIG_{name}_PHY_PARTITION_SIZE',)
+            f.write(line)
+            empty_line(f)
     partition_struct_array += f"}}\n"
     f.write(partition_struct_array)
     f.flush()
