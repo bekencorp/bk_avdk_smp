@@ -1,0 +1,94 @@
+#
+# secureboot_overwrite AP defconfig (diff vs board defconfig)
+#
+CONFIG_SOC_SMP=y
+CONFIG_CPU_ID_OFFSET=2
+CONFIG_SMP_CORE_CNT=2
+# CONFIG_FREERTOS_V10 is not set
+CONFIG_FREERTOS_SMP=y
+# Run the AP as the Non-Secure processing environment: the cross-bus master path
+# is forced Non-Secure by hardware, so the AP image uses Non-Secure aliases for
+# all memory and peripherals.
+CONFIG_SPE=0
+
+# PSRAM: SPE enables analog LDO + AHBP bus clock; CP inits controller.
+CONFIG_PSRAM=y
+CONFIG_PSRAM_TEST=y
+CONFIG_PSRAM_AS_SYS_MEMORY=y
+
+# GDMA registers live in the CP domain; this core is forced Non-Secure on the
+# cross-bus master path, so disable the general DMA driver during bring-up.
+# SPI then runs in non-DMA (CPU) mode.
+# CONFIG_GENERAL_DMA is not set
+# CONFIG_SPI_DMA is not set
+
+# The L2 cache controller is a secure resource; a Non-Secure master cannot reach
+# its control registers, so its maintenance loop would spin forever during
+# bring-up. Disable L2 management here so all cache maintenance uses the core's
+# private L1 (no external controller access). L2 stays bypassed.
+# CONFIG_L2_CACHE_ENABLE is not set
+
+# Use the CPU-direct SRAM alias for AP memory access.
+CONFIG_SRAM_DIRECT_ADDR=y
+
+CONFIG_SLAVE_HEART_BEAT=y
+
+CONFIG_SUPPORT_WWDT=y
+
+# OVERWRITE strategy: use the compressed-overwrite receive backend, NOT the XIP
+# A/B one. CONFIG_SECURE_OTA_OVERWRITE selects ota_secure_overwrite.c, which
+# stages the compressed+signed image into the `ota` staging partition via
+# non-secure flash writes and arms the OVERWRITE_CONFIRM magic in `ota_control`;
+# on the next reset BL2 decompresses `ota` -> `primary_all`. The two secure OTA
+# backends are mutually exclusive (ota.c: XIP takes precedence via #elif).
+# CONFIG_SECURE_OTA_XIP is not set
+CONFIG_SECURE_OTA_OVERWRITE=y
+
+# HTTPS OTA transport for secure overwrite: CLI `https_ota <url>` downloads
+# package/ota.bin over TLS; ota_do_init_operation() routes writes into
+# ota_secure_overwrite backend (same path as http_ota). Needs CONFIG_HTTPS
+# (bk_https) + CONFIG_PSA_MBEDTLS (TLS). Keep OTA_HTTP for plain-HTTP bring-up.
+CONFIG_OTA_FUNCTION=y
+CONFIG_HTTPS=y
+CONFIG_OTA_HTTPS=y
+CONFIG_PSA_MBEDTLS=y
+
+# NTP sync so the RTC has real UTC for the HTTPS cert validity check (without it
+# the clock defaults to ~2021 and TLS fails). Depends on CONFIG_AON_RTC.
+CONFIG_NTP_SYNC_RTC=y
+# 0 = store UTC in RTC (correct for x509 checks); use 8 for local UTC+8.
+CONFIG_RTC_NTP_TIMEZONE=0
+
+# Single execution slot; keep partition validation enabled.
+CONFIG_FLASH_PARTITION_CHECK_VALID=y
+
+# CONFIG_SYSTICK_32K is not set
+
+CONFIG_BLUETOOTH_AP=y
+CONFIG_AT=y
+CONFIG_DEFAULT_AT_PORT=5
+CONFIG_WIFI_AT_ENABLE=y
+CONFIG_MISC_AT_ENABLE=y
+CONFIG_AT_MAX_PORT_CNT=1
+CONFIG_IPERF_TEST=y
+CONFIG_DEMOS_IPERF=y
+
+CONFIG_SDCARD=y
+CONFIG_FATFS=y
+CONFIG_FATFS_SDCARD=y
+CONFIG_VFS=y
+CONFIG_LITTLEFS=y
+CONFIG_VFS_TEST=y
+#pm
+CONFIG_FREERTOS_USE_TICKLESS_IDLE=2
+CONFIG_GPIO_WAKEUP_SUPPORT=y
+CONFIG_GPIO_DYNAMIC_WAKEUP_SUPPORT=y
+CONFIG_PM_AP_SUBPOWER_DOMAIN_DEFAULT_DISABLE=y
+CONFIG_PM_AP_CPU_FRQ_DEFAUL=y
+
+#BLE
+CONFIG_BLUETOOTH_HOST_ONLY=n
+CONFIG_BLUETOOTH_SUPPORT_AP_PWD_ALL=y
+
+#easy flash
+CONFIG_EASY_FLASH_V4=y
