@@ -28,9 +28,34 @@
 #if (CONFIG_PSRAM_AUTO_DETECT)
 #include "bk_ef.h"
 #endif
-
 #include "ram_regions.h"
 #include "soc/bk7259/reg_base.h"
+
+static bool psram_test_addr_valid(uint32_t addr, uint32_t length)
+{
+	uint32_t cap;
+	uint32_t end;
+
+#ifdef CONFIG_PSRAM_CAPACITY
+	cap = CONFIG_PSRAM_CAPACITY;
+#else
+	cap = SOC_PSRAM_16M_SIZE;
+#endif
+	if (length == 0) {
+		return false;
+	}
+	end = addr + length;
+	if (end < addr) {
+		return false;
+	}
+	if ((addr >= SOC_PSRAM0_DATA_BASE) && (end <= (SOC_PSRAM0_DATA_BASE + cap))) {
+		return true;
+	}
+	if ((addr >= SOC_PSRAM1_DATA_BASE) && (end <= (SOC_PSRAM1_DATA_BASE + cap))) {
+		return true;
+	}
+	return false;
+}
 
 /* Default test windows use the current-world PSRAM data alias. */
 #ifndef CONFIG_PSRAM_TEST_CPU_ADDR
@@ -1513,7 +1538,7 @@ static void cli_psram_cmd_handle_ext(char *pcWriteBuffer, int xWriteBufferLen, i
 			length = ((length >> 2) + 1) << 2;
 		}
 
-		if (addr > (0x60800000UL + SOC_ADDR_OFFSET) || addr < SOC_PSRAM_DATA_BASE || length == 0)
+		if (!psram_test_addr_valid(addr, length))
 		{
 			msg = CLI_CMD_RSP_ERROR;
 		}
@@ -1560,7 +1585,7 @@ static void cli_psram_cmd_handle_ext(char *pcWriteBuffer, int xWriteBufferLen, i
 			length = ((length >> 2) + 1) << 2;
 		}
 
-		if (addr > (0x60800000UL + SOC_ADDR_OFFSET) || addr < SOC_PSRAM_DATA_BASE || length == 0)
+		if (!psram_test_addr_valid(addr, length))
 		{
 			msg = CLI_CMD_RSP_ERROR;
 		}
@@ -1585,7 +1610,7 @@ static void cli_psram_cmd_handle_ext(char *pcWriteBuffer, int xWriteBufferLen, i
 		addr = os_strtoul(argv[2], NULL, 16);
 		length = 20;
 
-		if (addr > (0x60800000UL + SOC_ADDR_OFFSET) || addr < SOC_PSRAM_DATA_BASE || length == 0)
+		if (!psram_test_addr_valid(addr, length))
 		{
 			msg = CLI_CMD_RSP_ERROR;
 			goto out;

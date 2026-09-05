@@ -52,5 +52,17 @@ menu "PSRAM"
 		  When n, use GDMA (dma_memcpy from general_dma); requires GENERAL_DMA.
 		default n
 
+	config PSRAM_CAPACITY_32M
+		depends on PSRAM
+		bool "Use 32M PSRAM layout (ram_regions_32M.csv)"
+		default n
+		help
+			Select the 32MB PSRAM map (high 16MB reserved per chip).
+			Save as project default ([D] in menuconfig) or pass
+			PSRAM_CAPACITY=32M on the make command line. Images go to
+			build/<soc>/<project>_psram32M/ (combined with FLASH_CAPACITY
+			suffix, e.g. app_16M_psram32M) so they do not overwrite
+			the 16M package.
+
 endmenu
 
