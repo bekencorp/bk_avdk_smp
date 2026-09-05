@@ -25,6 +25,10 @@
 
 static uint32_t s_sys_drv_cpu_freq_flash_read_addr;
 
+typedef struct {
+	pm_cpu_freq_e cpu_bus_freq;
+} sys_drv_cpu_freq_flash_read_ctx_t;
+
 static uint32_t sys_drv_get_cpu_freq_flash_read_addr(void)
 {
 	bk_logic_partition_t *partition = NULL;
@@ -43,12 +47,26 @@ static uint32_t sys_drv_get_cpu_freq_flash_read_addr(void)
 	return s_sys_drv_cpu_freq_flash_read_addr;
 }
 
+__IRAM_SEC static bk_err_t sys_drv_switch_cpu_bus_freq_clock_cb(void *arg)
+{
+	sys_drv_cpu_freq_flash_read_ctx_t *ctx = (sys_drv_cpu_freq_flash_read_ctx_t *)arg;
+
+	if (ctx == NULL) {
+		return BK_FAIL;
+	}
+
+	return sys_hal_switch_cpu_bus_freq_clock(ctx->cpu_bus_freq);
+}
+
 __IRAM_SEC static bk_err_t sys_drv_switch_cpu_bus_freq_with_flash_read(pm_cpu_freq_e cpu_bus_freq)
 {
 #if CONFIG_SPE
 	return sys_hal_switch_cpu_bus_freq(cpu_bus_freq);
 #else
 	uint8_t read_buf[SYS_DRV_CPU_FREQ_FLASH_READ_SIZE];
+	sys_drv_cpu_freq_flash_read_ctx_t ctx = {
+		.cpu_bus_freq = cpu_bus_freq,
+	};
 	uint32_t read_addr;
 	bk_err_t ret;
 
@@ -56,15 +74,20 @@ __IRAM_SEC static bk_err_t sys_drv_switch_cpu_bus_freq_with_flash_read(pm_cpu_fr
 		return sys_hal_switch_cpu_bus_freq(cpu_bus_freq);
 	}
 
-	read_addr = sys_drv_get_cpu_freq_flash_read_addr();
-	ret = bk_flash_read_bytes_with_freq(read_addr, read_buf,
-		sizeof(read_buf), &cpu_bus_freq);
-
+	ret = sys_hal_switch_cpu_bus_freq_prepare(cpu_bus_freq);
 	if (ret != BK_OK) {
-		return sys_hal_switch_cpu_bus_freq(cpu_bus_freq);
+		return ret;
 	}
 
-	return ret;
+	read_addr = sys_drv_get_cpu_freq_flash_read_addr();
+	ret = bk_flash_read_bytes_with_busy_cb(read_addr, read_buf,
+		sizeof(read_buf), sys_drv_switch_cpu_bus_freq_clock_cb, &ctx);
+
+	if (ret != BK_OK) {
+		return ret;
+	}
+
+	return sys_hal_switch_cpu_bus_freq_finish(cpu_bus_freq);
 #endif
 }
 

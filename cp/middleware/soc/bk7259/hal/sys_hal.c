@@ -539,18 +539,15 @@ __IRAM_SEC bk_err_t sys_hal_core_bus_clock_ctrl(uint32_t cksel_core, uint32_t ck
 	uint32_t target_ckdiv_core = ckdiv_core << PM_CLKDIV_CORE_POS;
 	if(cksel_core > PM_CLKSEL_CORE_MAX)
 	{
-		os_printf("Set dvfs cksel core > %d invalid\r\n",PM_CLKSEL_CORE_MAX);
 		return BK_FAIL;
 	}
 
 	if((ckdiv_core > PM_FREQUNCY_DIV_MAX))
 	{
-		os_printf("Set dvfs ckdiv_core > %d invalid\r\n",PM_FREQUNCY_DIV_MAX);
 		return BK_FAIL;
 	}
 	if(((cksel_core == PM_CLKSEL_CORE_320M)&&(ckdiv_core == PM_CLKDIV_CORE_0))||((cksel_core == PM_CLKSEL_CORE_480M)&&(ckdiv_core == PM_CLKDIV_CORE_0)))
 	{
-		os_printf("unsupport the cpu freq setting %d %d \r\n",cksel_core,ckdiv_core);
 		return BK_FAIL;
 	}
 
@@ -663,7 +660,51 @@ __IRAM_SEC static bk_err_t sys_hal_set_cpu_bus_freq_clock(const sys_hal_cpu_bus_
 		cfg->ckdiv_cpu0, cfg->ckdiv_cpu1);
 }
 
-__IRAM_SEC bk_err_t sys_hal_switch_cpu_bus_freq_high_to_low(pm_cpu_freq_e cpu_bus_freq)
+static pm_cpu_freq_e s_pre_cpu_freq = PM_CPU_FRQ_120M;
+
+__IRAM_SEC static void sys_hal_set_ram_speed_by_cpu_freq(pm_cpu_freq_e cpu_bus_freq)
+{
+	if(cpu_bus_freq < PM_CPU_FRQ_160M)
+	{
+		sys_hal_set_ram_low_speed();
+	}
+	else
+	{
+		sys_hal_set_ram_high_speed();
+	}
+}
+
+__IRAM_SEC bk_err_t sys_hal_switch_cpu_bus_freq_prepare(pm_cpu_freq_e cpu_bus_freq)
+{
+	const sys_hal_cpu_bus_freq_cfg_t *cfg = sys_hal_get_cpu_bus_freq_cfg(cpu_bus_freq);
+	pm_cpu_freq_e prev_freq = s_pre_cpu_freq;
+	bk_err_t ret;
+
+	if(cfg == NULL)
+		return BK_FAIL;
+
+	if(prev_freq == cpu_bus_freq)
+		return BK_OK;
+
+	if(prev_freq < cpu_bus_freq)
+	{
+		ret = sys_hal_ctrl_vddd_h_vol(PM_VDDD_H_VOL_1V);
+		if(ret != BK_OK)
+			return ret;
+
+		ret = sys_hal_ctrl_vdddig_h_vol(cfg->vdddig_vol);
+		if(ret != BK_OK)
+			return ret;
+
+		SYS_PM_HAL_CPU_BARRIER();
+		sys_hal_set_ram_speed_by_cpu_freq(cpu_bus_freq);
+		SYS_PM_HAL_CPU_BARRIER();
+	}
+
+	return BK_OK;
+}
+
+__IRAM_SEC bk_err_t sys_hal_switch_cpu_bus_freq_clock(pm_cpu_freq_e cpu_bus_freq)
 {
 	const sys_hal_cpu_bus_freq_cfg_t *cfg = sys_hal_get_cpu_bus_freq_cfg(cpu_bus_freq);
 	bk_err_t ret;
@@ -671,58 +712,76 @@ __IRAM_SEC bk_err_t sys_hal_switch_cpu_bus_freq_high_to_low(pm_cpu_freq_e cpu_bu
 	if(cfg == NULL)
 		return BK_FAIL;
 
+	if(s_pre_cpu_freq == cpu_bus_freq)
+		return BK_OK;
+
 	ret = sys_hal_set_cpu_bus_freq_clock(cfg);
 	SYS_PM_HAL_CPU_BARRIER();
 
+	return ret;
+}
+
+__IRAM_SEC bk_err_t sys_hal_switch_cpu_bus_freq_finish(pm_cpu_freq_e cpu_bus_freq)
+{
+	const sys_hal_cpu_bus_freq_cfg_t *cfg = sys_hal_get_cpu_bus_freq_cfg(cpu_bus_freq);
+	pm_cpu_freq_e prev_freq = s_pre_cpu_freq;
+	bk_err_t ret;
+
+	if(cfg == NULL)
+		return BK_FAIL;
+
+	if(prev_freq == cpu_bus_freq)
+		return BK_OK;
+
+	if(prev_freq > cpu_bus_freq)
+	{
+		sys_hal_set_ram_speed_by_cpu_freq(cpu_bus_freq);
+		SYS_PM_HAL_CPU_BARRIER();
+
+		ret = sys_hal_ctrl_vddd_h_vol(PM_VDDD_H_VOL_1V);
+		if(ret != BK_OK)
+			return ret;
+
+		ret = sys_hal_ctrl_vdddig_h_vol(cfg->vdddig_vol);
+		if(ret != BK_OK)
+			return ret;
+
+		SYS_PM_HAL_CPU_BARRIER();
+	}
+
+	s_pre_cpu_freq = cpu_bus_freq;
+	return BK_OK;
+}
+
+__IRAM_SEC bk_err_t sys_hal_switch_cpu_bus_freq_high_to_low(pm_cpu_freq_e cpu_bus_freq)
+{
+	bk_err_t ret;
+
+	ret = sys_hal_switch_cpu_bus_freq_prepare(cpu_bus_freq);
 	if(ret != BK_OK)
 		return ret;
 
-	if(cpu_bus_freq < PM_CPU_FRQ_160M)
-	{
-		sys_hal_set_ram_low_speed();
-	}
-	else
-	{
-		sys_hal_set_ram_high_speed();
-	}
-	SYS_PM_HAL_CPU_BARRIER();
+	ret = sys_hal_switch_cpu_bus_freq_clock(cpu_bus_freq);
+	if(ret != BK_OK)
+		return ret;
 
-	sys_hal_ctrl_vddd_h_vol(PM_VDDD_H_VOL_1V);
-	sys_hal_ctrl_vdddig_h_vol(cfg->vdddig_vol);
-	SYS_PM_HAL_CPU_BARRIER();
-
-	return ret;
+	return sys_hal_switch_cpu_bus_freq_finish(cpu_bus_freq);
 }
 __IRAM_SEC bk_err_t sys_hal_switch_cpu_bus_freq_low_to_high(pm_cpu_freq_e cpu_bus_freq)
 {
-	const sys_hal_cpu_bus_freq_cfg_t *cfg = sys_hal_get_cpu_bus_freq_cfg(cpu_bus_freq);
 	bk_err_t ret;
 
-	if(cfg == NULL)
-		return BK_FAIL;
+	ret = sys_hal_switch_cpu_bus_freq_prepare(cpu_bus_freq);
+	if(ret != BK_OK)
+		return ret;
 
-	sys_hal_ctrl_vddd_h_vol(PM_VDDD_H_VOL_1V);
-	sys_hal_ctrl_vdddig_h_vol(cfg->vdddig_vol);
+	ret = sys_hal_switch_cpu_bus_freq_clock(cpu_bus_freq);
+	if(ret != BK_OK)
+		return ret;
 
-	SYS_PM_HAL_CPU_BARRIER();
-
-	if(cpu_bus_freq < PM_CPU_FRQ_160M)
-	{
-		sys_hal_set_ram_low_speed();
-	}
-	else
-	{
-		sys_hal_set_ram_high_speed();
-	}
-	SYS_PM_HAL_CPU_BARRIER();
-
-	ret = sys_hal_set_cpu_bus_freq_clock(cfg);
-	SYS_PM_HAL_CPU_BARRIER();
-
-	return ret;
+	return sys_hal_switch_cpu_bus_freq_finish(cpu_bus_freq);
 }
 
-static pm_cpu_freq_e s_pre_cpu_freq = PM_CPU_FRQ_120M;
 __IRAM_SEC bk_err_t sys_hal_switch_cpu_bus_freq(pm_cpu_freq_e cpu_bus_freq)
 {
 	bk_err_t ret = BK_OK;

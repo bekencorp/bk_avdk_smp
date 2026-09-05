@@ -148,6 +148,9 @@ int32 sys_hal_bandgap_cali_set(uint32_t value);//increase or decrease the dvdddi
 uint32_t sys_hal_bandgap_cali_get();
 __IRAM_SEC bk_err_t sys_hal_switch_cpu_bus_freq(pm_cpu_freq_e cpu_bus_freq);
 __IRAM_SEC bk_err_t sys_hal_core_bus_clock_ctrl(uint32_t cksel_core, uint32_t ckdiv_core,uint32_t ckdiv_bus, uint32_t ckdiv_cpu0,uint32_t ckdiv_cpu1);
+__IRAM_SEC bk_err_t sys_hal_switch_cpu_bus_freq_prepare(pm_cpu_freq_e cpu_bus_freq);
+__IRAM_SEC bk_err_t sys_hal_switch_cpu_bus_freq_clock(pm_cpu_freq_e cpu_bus_freq);
+__IRAM_SEC bk_err_t sys_hal_switch_cpu_bus_freq_finish(pm_cpu_freq_e cpu_bus_freq);
 bk_err_t sys_hal_ap_cpu_freq_dump();
 bk_err_t sys_hal_cpu_freq_dump();
 void sys_hal_set_cpu0_rxevt_sel(uint32_t param);

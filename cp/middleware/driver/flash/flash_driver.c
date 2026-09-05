@@ -1050,43 +1050,68 @@ bk_err_t bk_flash_dump_write(uint32_t address, const uint8_t *user_buf, uint32_t
  * The boot path is sensitive to IRAM layout changes around flash_set_line_mode().
  */
 __attribute__((section(".iram")))
-static void flash_wait_op_done_with_freq(void *freq_arg)
+static bk_err_t flash_wait_op_done_with_busy_cb(bk_flash_busy_cb_t busy_cb,
+						void *busy_arg)
 {
+	bool cb_done = false;
+	bk_err_t ret = BK_OK;
+
 	while (flash_hal_is_busy(&s_flash.hal)) {
-		if (freq_arg) {
-			sys_hal_switch_cpu_bus_freq(*(pm_cpu_freq_e *)freq_arg);
+		if (busy_cb && !cb_done) {
+			ret = busy_cb(busy_arg);
+			cb_done = true;
 		}
 	}
+
+	if (busy_cb && !cb_done) {
+		return BK_ERR_TIMEOUT;
+	}
+
+	return ret;
 }
 
 __attribute__((section(".iram")))
-static void flash_set_op_cmd_read_with_freq(uint32_t read_addr, void *freq_arg)
+static bk_err_t flash_set_op_cmd_read_with_busy_cb(uint32_t read_addr,
+						   bk_flash_busy_cb_t busy_cb,
+						   void *busy_arg)
 {
 	flash_hw_t *hw = s_flash.hal.hw;
 
 	hw->op_cmd.addr_sw_reg = read_addr;
 	hw->op_cmd.op_type_sw = FLASH_OP_CMD_READ;
 	hw->op_ctrl.op_sw = 1;
-	flash_wait_op_done_with_freq(freq_arg);
+	return flash_wait_op_done_with_busy_cb(busy_cb, busy_arg);
 }
 
 __attribute__((section(".iram")))
-static void flash_read_common_with_freq(uint8_t *buffer, uint32_t address,
-					uint32_t len, void *freq_arg)
+static bk_err_t flash_read_common_with_busy_cb(uint8_t *buffer,
+					       uint32_t address,
+					       uint32_t len,
+					       bk_flash_busy_cb_t busy_cb,
+					       void *busy_arg)
 {
 	uint32_t addr = address & (~FLASH_ADDRESS_MASK);
 	uint32_t buf[FLASH_BUFFER_LEN] = {0};
 	uint8_t *pb = (uint8_t *)&buf[0];
+	bk_err_t ret;
 
 	if (len == 0) {
-		return;
+		return BK_OK;
 	}
 
 	while (len) {
 		uint32_t int_level = flash_enter_critical();
 
-		flash_set_op_cmd_read_with_freq(addr, freq_arg);
+		ret = flash_set_op_cmd_read_with_busy_cb(addr, busy_cb,
+			busy_arg);
 		addr += FLASH_BYTES_CNT;
+		busy_cb = NULL;
+		busy_arg = NULL;
+		if (ret != BK_OK) {
+			flash_exit_critical(int_level);
+			return ret;
+		}
+
 		for (uint32_t i = 0; i < FLASH_BUFFER_LEN; i++) {
 			buf[i] = flash_hal_read_data(&s_flash.hal);
 		}
@@ -1101,11 +1126,15 @@ static void flash_read_common_with_freq(uint8_t *buffer, uint32_t address,
 			}
 		}
 	}
+
+	return BK_OK;
 }
 
 __attribute__((section(".iram")))
-bk_err_t bk_flash_read_bytes_with_freq(uint32_t address, uint8_t *user_buf,
-				       uint32_t size, void *freq_arg)
+bk_err_t bk_flash_read_bytes_with_busy_cb(uint32_t address, uint8_t *user_buf,
+					  uint32_t size,
+					  bk_flash_busy_cb_t busy_cb,
+					  void *busy_arg)
 {
 	FLASH_RETURN_ON_DRIVER_NOT_INIT();
 
@@ -1113,9 +1142,8 @@ bk_err_t bk_flash_read_bytes_with_freq(uint32_t address, uint8_t *user_buf,
 		return BK_ERR_FLASH_ADDR_OUT_OF_RANGE;
 	}
 
-	flash_read_common_with_freq(user_buf, address, size, freq_arg);
-
-	return BK_OK;
+	return flash_read_common_with_busy_cb(user_buf, address, size,
+		busy_cb, busy_arg);
 }
 #endif
 
