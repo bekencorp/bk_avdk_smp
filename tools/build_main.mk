@@ -74,6 +74,28 @@ export CONFIG_SUBTITUTE_FILE := $(BK_CONFIG_FILE).config
 export PROJECT_NAME := $(PROJECT_NAME)_$(BK_CONFIG_FILE)
 endif
 
+# Flash capacity variant. Default 8M uses auto_partitions.csv and
+# build/<soc>/<project>/package. 16M uses auto_partitions_16M.csv and
+# build/<soc>/<project>_16M/package so the two images do not overwrite.
+# Select with FLASH_CAPACITY=16M on the make command line, or set
+# CONFIG_FLASH_CAPACITY_16M=y in the project CP defconfig (menuconfig [D]).
+ifndef FLASH_CAPACITY
+  _FC_DEFCONFIG := $(PROJECT_DIR)/cp/config/$(ARMINO_SOC_NAME)/defconfig
+  ifneq ($(wildcard $(_FC_DEFCONFIG)),)
+    ifneq ($(shell grep -E '^CONFIG_FLASH_CAPACITY_16M=y' $(_FC_DEFCONFIG) 2>/dev/null),)
+      FLASH_CAPACITY := 16M
+    endif
+  endif
+endif
+FLASH_CAPACITY ?= 8M
+export FLASH_CAPACITY
+ifeq ($(FLASH_CAPACITY),16M)
+  ifeq ($(wildcard $(PROJECT_DIR)/partitions/$(ARMINO_SOC_NAME)/auto_partitions_16M.csv),)
+    $(error FLASH_CAPACITY=16M but $(PROJECT_DIR)/partitions/$(ARMINO_SOC_NAME)/auto_partitions_16M.csv not found)
+  endif
+  export PROJECT_NAME := $(PROJECT_NAME)_16M
+endif
+
 ifneq ("$(BUILD_DIR)", "")
 	export PROJECT_BUILD_DIR := $(BUILD_DIR)/$(ARMINO_SOC_NAME)/$(PROJECT_NAME)
 else
@@ -114,6 +136,7 @@ help:
 	@echo " make smp_doc - generate smp doc"
 	@echo " make bkxxxx_ap_menuconfig - ap sdk config"
 	@echo " make bkxxxx_cp_menuconfig - cp sdk config"
+	@echo " FLASH_CAPACITY=8M|16M     - select partition CSV; 16M images go to <project>_16M/"
 	@echo ""
 
 common:
@@ -123,6 +146,7 @@ common:
 	@echo "armino ap path=$(ARMINO_AP_DIR)"
 	@echo "armino cp path=$(ARMINO_CP_DIR)"
 	@echo "armino build path=$(PROJECT_BUILD_DIR)"
+	@echo "FLASH_CAPACITY=$(FLASH_CAPACITY)"
 
 
 all: $(soc_targets) $(ARMINO_SOC)_cp

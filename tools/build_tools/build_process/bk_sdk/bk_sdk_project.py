@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 import importlib
 import json
+import os
 import re
 import struct
 import zlib
@@ -155,8 +156,24 @@ class bk_sdk_project(bk_project):
     def project_build_package_dir(self) -> Path:
         return self.project_build_dir / "package"
 
+    @staticmethod
+    def _flash_capacity() -> str:
+        """8M (default) or 16M. Driven by FLASH_CAPACITY env / make variable."""
+        cap = os.getenv("FLASH_CAPACITY", "8M").strip().upper()
+        cap = cap.replace("MB", "M")
+        if cap in ("16M", "16"):
+            return "16M"
+        return "8M"
+
     @property
     def auto_partitions_table(self) -> Path:
+        if self._flash_capacity() == "16M":
+            csv_16m = self.partitions_dir / "auto_partitions_16M.csv"
+            if not csv_16m.exists():
+                raise FileNotFoundError(
+                    f"FLASH_CAPACITY=16M but {csv_16m} does not exist"
+                )
+            return csv_16m
         return self.partitions_dir / "auto_partitions.csv"
 
     @property

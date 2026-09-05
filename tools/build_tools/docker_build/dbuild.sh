@@ -110,6 +110,9 @@ function set_docker_option() {
     if [ ! "$arch" = "x86_64" ]; then
         DOCKER_OPTION="${DOCKER_OPTION} --platform linux/amd64"
     fi
+    if [ -n "${FLASH_CAPACITY:-}" ]; then
+        DOCKER_OPTION="${DOCKER_OPTION} -e FLASH_CAPACITY=${FLASH_CAPACITY}"
+    fi
 }
 
 function docker_run_build() {
