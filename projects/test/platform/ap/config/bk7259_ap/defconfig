@@ -33,8 +33,8 @@ CONFIG_TE200_ENTROPY=y
 
 # --- driver test/api-test CLI switches (align with test/platform .it.csv, AP side) ---
 CONFIG_PWM=y
-CONFIG_PWM_TEST=y
-CONFIG_PWM_API_TEST=y
+# CONFIG_PWM_TEST is not set
+CONFIG_PWM_AUTO=y
 CONFIG_UART2=y
 CONFIG_UART_TEST=y
 CONFIG_UART_API_TEST=y
