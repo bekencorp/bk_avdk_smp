@@ -578,11 +578,53 @@ void sys_hal_gpio_ana_wakeup_enable(uint32_t count, uint32_t index, uint32_t typ
 
 void sys_hal_enter_cpu_wfi()
 {
+	static bool s_power_prepare_started;
+
 	if(portGET_CORE_ID() == CPU0_CORE_ID)
 	{
 		//bk_printf("CPU0_CORE_ID\r\n");
 		pm_shared_info_t shared_info = {0};
 		bk_sys_sw_regs_get_pm_shared_info(&shared_info);
+		if (shared_info.pm_cp0_sleep_state == 0x1) {
+			s_power_prepare_started = true;
+			/*
+			 * This idle path runs with interrupts disabled. Callbacks must
+			 * only gate new work and inspect lock-free retained state.
+			 * Returning without publishing pm_ap0_sleep_state lets normal
+			 * tasks drain pending work before the next idle probe.
+			 */
+			if (bk_pm_ap_power_prepare() != BK_OK) {
+				return;
+			}
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+			/*
+			 * CP already polls pm_shared_info while waiting for AP sleep.
+			 * Publish the accepted recovery sequence once all module drain
+			 * callbacks are ready, allowing CP to send the next recovery
+			 * command immediately instead of waiting up to one retry period.
+			 * The sequence match prevents stale READY data from a previous
+			 * close transaction from advancing a new one.
+			 */
+			uint32_t prepare_ready_seq =
+				bk_pm_ap_recovery_request_seq_get();
+			if ((prepare_ready_seq != 0U) &&
+				(shared_info.param2 != prepare_ready_seq)) {
+				shared_info.param2 = prepare_ready_seq;
+				bk_sys_sw_regs_update_pm_shared_info(&shared_info,
+					BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_PARAM2,
+					BK_SYS_SW_REGS_LOCK_DISABLE);
+				__DSB();
+				flush_dcache(
+					(void *)&bk_sys_sw_regs_ptr()->pm_shared_info,
+					sizeof(bk_sys_sw_regs_ptr()->pm_shared_info));
+				__DSB();
+			}
+#endif
+		} else if (s_power_prepare_started) {
+			/* Restore modules if CP timed out or cancelled the request. */
+			s_power_prepare_started = false;
+			(void)bk_pm_ap_power_prepare_abort();
+		}
 		if(shared_info.pm_cp0_sleep_state == 0x1)
 		{
 			volatile uint32_t int_state0_31;
@@ -752,6 +794,16 @@ ap_fast_resume_after_wfi:
 #if CONFIG_CPU_HOTPLUG && !CONFIG_PM_AP_FAST_BOOT_ENABLE
 			/* Match the original wake path when AP fast boot is disabled. */
 			bk_cpu_hp_online(CPU3_CORE_ID);
+#endif
+#if !CONFIG_PM_AP_FAST_BOOT_ENABLE
+			/*
+			 * arch_deep_sleep returned without AP power being removed.
+			 * Re-open modules that were gated during power-off preparation.
+			 */
+			if (s_power_prepare_started) {
+				s_power_prepare_started = false;
+				(void)bk_pm_ap_power_prepare_abort();
+			}
 #endif
 
 			sys_ahbp_ll_set_reg10_value(int_state0_31);

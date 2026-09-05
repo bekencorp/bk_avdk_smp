@@ -205,14 +205,14 @@ static bk_err_t i2c_demo_fast_resume(void *arg)
 	return BK_OK;
 }
 
-static const pm_ap_fast_pm_ops_t s_i2c_demo_fast_ops = {
+static const pm_ap_power_ops_t s_i2c_demo_fast_ops = {
 	.name = "i2c",
 	.quiesce = i2c_demo_fast_quiesce,
 	.backup = i2c_demo_fast_backup,
 	.restore = i2c_demo_fast_restore,
 	.resume = i2c_demo_fast_resume,
 	.arg = &s_i2c_fast_demo,
-	.priority = PM_AP_FAST_PRIORITY_PERIPHERAL,
+	.priority = PM_AP_POWER_PRIORITY_PERIPHERAL,
 };
 
 /*
@@ -225,7 +225,7 @@ static bk_err_t i2c_demo_prepare_init(i2c_id_t id,
 	bk_err_t ret;
 
 	if (!s_i2c_fast_demo.pm_registered) {
-		ret = bk_pm_ap_fast_ops_register(&s_i2c_demo_fast_ops);
+		ret = bk_pm_ap_power_ops_register(&s_i2c_demo_fast_ops);
 		if (ret != BK_OK) {
 			return ret;
 		}

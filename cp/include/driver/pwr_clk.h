@@ -571,6 +571,7 @@ bk_err_t bk_pm_module_vote_psram_ctrl(pm_power_psram_module_name_e module,pm_pow
  * -module:boot cp1 module name;power_state:PM_POWER_MODULE_STATE_ON;PM_POWER_MODULE_STATE_OFF
  * @return
  * - BK_OK: succeed
+ * - BK_ERR_TIMEOUT: AP mailbox drain, sleep-ready, or abort-ready wait timed out
  * - others: other errors.
  *
  */

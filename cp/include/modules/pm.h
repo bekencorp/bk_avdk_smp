@@ -600,8 +600,8 @@ typedef struct {
 	volatile uint8_t wakeup_alarm_name[ALARM_NAME_MAX_LEN+1];
 	volatile uint8_t gpio_id;
 	volatile uint32_t param0;
-	volatile uint32_t param1;
-	volatile uint32_t param2;
+	volatile uint32_t param1; /**< Fast Boot: AP-published suspend-failed recovery sequence */
+	volatile uint32_t param2; /**< Fast Boot: AP-published prepare-ready recovery sequence */
 } pm_shared_info_t;
 
 typedef enum {

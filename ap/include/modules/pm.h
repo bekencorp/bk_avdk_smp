@@ -22,34 +22,59 @@ extern "C" {
  */
 typedef void (*sleep_callback_t)(void *arg);
 
-#if CONFIG_PM_AP_FAST_BOOT_ENABLE
 /**
- * AP fast-suspend/resume callbacks.
+ * AP power transition callbacks.
  *
+ * prepare_power_off is the common non-blocking drain gate for normal and fast
+ * AP power-off. It runs repeatedly from the CPU2 idle path with interrupts
+ * disabled. On the first call, a module must atomically reject new submissions,
+ * then return BK_ERR_BUSY while its retained lock-free pending state is not
+ * empty. Normal tasks keep running between idle probes and drain existing work;
+ * the callback returns BK_OK only after that work is complete.
+ *
+ * The PM framework only schedules and aggregates callbacks. WiFi, BT/BLE and
+ * other clients own their queue, worker, transaction and mailbox-pending
+ * definitions; PM code must not inspect those private states. If CP cancels or
+ * times out, resume is called to reopen the module submission gate, so resume
+ * must be idempotent.
+ *
+ * prepare_power_off must not log, wait, allocate memory, or use a mutex,
+ * semaphore, queue or other RTOS service. It may only update/read lock-free
+ * retained state and must return in constant time.
  * quiesce/resume/app_resume run in the CPU2 PM task with interrupts enabled.
  * backup/restore run with CPU3 offline and CPU2 interrupts disabled; they
  * must not block, allocate memory, log, or wait for interrupt completion.
  * app_resume runs only after AP0/AP1 and the CP-to-AP mailbox are ready.
  */
-typedef bk_err_t (*pm_ap_fast_callback_t)(void *arg);
+typedef bk_err_t (*pm_ap_power_callback_t)(void *arg);
 
 typedef struct {
 	const char *name;
-	pm_ap_fast_callback_t quiesce;
-	pm_ap_fast_callback_t backup;
-	pm_ap_fast_callback_t restore;
-	pm_ap_fast_callback_t resume;
-	pm_ap_fast_callback_t app_resume;
+	pm_ap_power_callback_t prepare_power_off;
+	pm_ap_power_callback_t quiesce;
+	pm_ap_power_callback_t backup;
+	pm_ap_power_callback_t restore;
+	pm_ap_power_callback_t resume;
+	pm_ap_power_callback_t app_resume;
 	void *arg;
 	uint8_t priority;
-} pm_ap_fast_pm_ops_t;
+} pm_ap_power_ops_t;
 
-#define PM_AP_FAST_PRIORITY_PLATFORM     (0U)
-#define PM_AP_FAST_PRIORITY_BUS          (50U)
-#define PM_AP_FAST_PRIORITY_PERIPHERAL   (100U)
-#define PM_AP_FAST_PRIORITY_SERVICE      (150U)
-#define PM_AP_FAST_PRIORITY_APPLICATION  (200U)
-#endif
+/* Compatibility aliases for existing fast-boot clients. */
+typedef pm_ap_power_callback_t pm_ap_fast_callback_t;
+typedef pm_ap_power_ops_t pm_ap_fast_pm_ops_t;
+
+#define PM_AP_POWER_PRIORITY_PLATFORM     (0U)
+#define PM_AP_POWER_PRIORITY_BUS          (50U)
+#define PM_AP_POWER_PRIORITY_PERIPHERAL   (100U)
+#define PM_AP_POWER_PRIORITY_SERVICE      (150U)
+#define PM_AP_POWER_PRIORITY_APPLICATION  (200U)
+
+#define PM_AP_FAST_PRIORITY_PLATFORM     PM_AP_POWER_PRIORITY_PLATFORM
+#define PM_AP_FAST_PRIORITY_BUS          PM_AP_POWER_PRIORITY_BUS
+#define PM_AP_FAST_PRIORITY_PERIPHERAL   PM_AP_POWER_PRIORITY_PERIPHERAL
+#define PM_AP_FAST_PRIORITY_SERVICE      PM_AP_POWER_PRIORITY_SERVICE
+#define PM_AP_FAST_PRIORITY_APPLICATION  PM_AP_POWER_PRIORITY_APPLICATION
 
 /* Standard priority definitions for callback execution order
  * Lower value = Higher priority = Executes first
@@ -786,8 +811,8 @@ typedef struct {
     volatile uint8_t wakeup_alarm_name[ALARM_NAME_MAX_LEN+1];
     volatile uint8_t gpio_id;
     volatile uint32_t param0;
-    volatile uint32_t param1;
-    volatile uint32_t param2;
+    volatile uint32_t param1; /**< Fast Boot: AP-published suspend-failed recovery sequence */
+    volatile uint32_t param2; /**< Fast Boot: AP-published prepare-ready recovery sequence */
 } pm_shared_info_t;
 
 typedef enum {
@@ -848,40 +873,83 @@ bool bk_pm_ap_first_boot_get(void);
  */
 bk_err_t bk_pm_ap_boot_success_set(bool boot_success);
 
-#if CONFIG_PM_AP_FAST_BOOT_ENABLE
 /**
- * @brief Register an AP module's fast-suspend/resume operations
+ * @brief Register an AP module's power transition operations
  *
  * The operations are inserted according to their priority. The descriptor and
  * the objects referenced by it must remain valid until they are unregistered.
- * Registration is only allowed while the fast PM state is running.
+ * Registration is only allowed while the AP power state is running.
  *
- * @param ops Fast PM operations to register
+ * @param ops AP power operations to register
  *
  * @return
  * - BK_OK: Registration succeeded
  * - BK_ERR_PARAM: The descriptor or its callback configuration is invalid
  * - BK_ERR_NO_MEM: Failed to allocate a registration node
- * - BK_ERR_BUSY: Fast PM is active or the descriptor is already registered
+ * - BK_ERR_BUSY: An AP power transition is active or already registered
  */
-bk_err_t bk_pm_ap_fast_ops_register(const pm_ap_fast_pm_ops_t *ops);
+bk_err_t bk_pm_ap_power_ops_register(const pm_ap_power_ops_t *ops);
 
 /**
- * @brief Unregister an AP module's fast-suspend/resume operations
+ * @brief Unregister an AP module's power transition operations
  *
  * The descriptor address must match the address used during registration.
- * Unregistration is only allowed while the fast PM state is running.
+ * Unregistration is only allowed while the AP power state is running.
  *
  * @param ops Fast PM operations to unregister
  *
  * @return
  * - BK_OK: Unregistration succeeded
  * - BK_ERR_PARAM: The descriptor is NULL
- * - BK_ERR_BUSY: Fast PM is active
+ * - BK_ERR_BUSY: An AP power transition is active
  * - BK_FAIL: The descriptor is not registered
  */
+bk_err_t bk_pm_ap_power_ops_unregister(const pm_ap_power_ops_t *ops);
+
+/**
+ * @brief Probe whether registered modules are ready for AP power-off
+ *
+ * Calls prepare_power_off callbacks in reverse priority order. The function is
+ * non-blocking and may be called repeatedly from the CPU2 idle path with
+ * interrupts disabled.
+ *
+ * @return BK_OK if all modules are idle, BK_ERR_BUSY otherwise
+ */
+bk_err_t bk_pm_ap_power_prepare(void);
+
+/**
+ * @brief Check whether AP power-off preparation is complete
+ *
+ * This lock-free query is safe in mailbox ISR context.
+ *
+ * @return true if every prepare_power_off callback returned BK_OK
+ */
+bool bk_pm_ap_power_prepare_is_ready(void);
+
+/**
+ * @brief Dump the latest AP power-off preparation results
+ *
+ * Prints every registered module whose latest prepare_power_off callback
+ * returned an error. This function must be called from task context.
+ */
+void bk_pm_ap_power_prepare_dump(void);
+
+/**
+ * @brief Cancel an in-progress AP power-off preparation
+ *
+ * In normal power-off, invokes resume for modules whose prepare_power_off
+ * callback was entered. Fast-boot rollback is completed by the PM task's
+ * normal resume phase so callbacks are not run from the idle path.
+ *
+ * @return BK_OK or the first error returned by a resume callback
+ */
+bk_err_t bk_pm_ap_power_prepare_abort(void);
+
+/* Compatibility entry points for existing fast-boot clients. */
+bk_err_t bk_pm_ap_fast_ops_register(const pm_ap_fast_pm_ops_t *ops);
 bk_err_t bk_pm_ap_fast_ops_unregister(const pm_ap_fast_pm_ops_t *ops);
 
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
 /**
  * @brief Quiesce registered AP modules before fast suspend
  *
