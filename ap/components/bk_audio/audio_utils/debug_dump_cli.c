@@ -39,6 +39,35 @@ void aud_dump_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **arg
         goto cmd_fail;
     }
 
+    if (os_strcmp(argv[1], "transport") == 0)
+    {
+        if (argc == 3 && os_strcmp(argv[2], "uart") == 0)
+        {
+            if (debug_data_dump_set_transport(DEBUG_DUMP_TRANSPORT_UART, 0) != BK_OK)
+            {
+                goto cmd_fail;
+            }
+            LOGI("dump transport: uart\n!");
+            return;
+        }
+#if CONFIG_ADK_WIFI_DUMP_UTIL
+        if (argc == 4 && os_strcmp(argv[2], "wifi") == 0)
+        {
+            uint32_t port = os_strtoul(argv[3], NULL, 10);
+            if (port == 0 || port > 65535
+                || debug_data_dump_set_transport(DEBUG_DUMP_TRANSPORT_WIFI,
+                                                 (uint16_t)port) != BK_OK)
+            {
+                goto cmd_fail;
+            }
+            LOGI("dump transport: wifi, TCP port: %u; connect PC before enabling dump\n!",
+                 port);
+            return;
+        }
+#endif
+        goto cmd_fail;
+    }
+
     /* audio test */
     if(2 == argc)
     {
@@ -106,6 +135,12 @@ void aud_dump_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **arg
         {
             if (os_strtoul(argv[2], NULL, 10))
             {
+                if (debug_data_dump_get_transport() == DEBUG_DUMP_TRANSPORT_WIFI
+                    && !debug_data_dump_is_ready())
+                {
+                    LOGE("WiFi dump client is not connected\n!");
+                    return;
+                }
                 set_aud_dump_bitmap_bit(DUMP_TYPE_AEC_MIC_DATA);
                 LOGI("dump aud aec all data\n!");
             }
@@ -160,20 +195,28 @@ void aud_dump_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **arg
     LOGI("pre dump_bitmap : 0x%x, cur : 0x%x \n!", dump_bitmap_pre, dump_bitmap);
     if((!dump_bitmap_pre) && (dump_bitmap))
     {
-        LOGI("open dump uart\n!");
-        DEBUG_DATA_DUMP_BY_UART_OPEN();
+        if (debug_data_dump_open() != BK_OK)
+        {
+            LOGE("dump transport is not ready\n!");
+            clr_aud_dump_bitmap();
+            return;
+        }
+        LOGI("open dump transport: %s\n!",
+             debug_data_dump_get_transport() == DEBUG_DUMP_TRANSPORT_WIFI
+                 ? "wifi" : "uart");
     }
 
     if((dump_bitmap_pre) && (!dump_bitmap))
     {
-        LOGI("close dump uart\n!");
-        DEBUG_DATA_DUMP_BY_UART_CLOSE();
+        LOGI("close dump transport\n!");
+        debug_data_dump_close();
     }
 
     return;
 
 cmd_fail:
-    LOGE("cmd fail:audio_dump {enc_out|dec_in|enc_in|dec_out|aec_all|eq_in|eq_out|stop [value]}\n");
+    LOGE("cmd fail: audio_dump transport {uart|wifi PORT}; "
+         "audio_dump {enc_out|dec_in|enc_in|dec_out|aec_all|eq_in|eq_out|stop [value]}\n");
 }
 
 static const struct cli_command s_aud_dump_commands[] =

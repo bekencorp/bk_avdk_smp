@@ -73,8 +73,12 @@ void audio_free(void *ptr)
 void *audio_hsram_malloc(uint32_t size)
 {
     void *data = hsram_malloc(size);
+#if CONFIG_SRAM_DIRECT_ADDR
+    void *ret_data = data;
+#else
     uint32_t raw_addr = (uint32_t)(uintptr_t)data;
     void *ret_data = data ? (void *)(uintptr_t)(raw_addr + AUDIO_HSRAM_NONCACHE_OFFSET) : NULL;
+#endif
 #ifdef ENABLE_AUDIO_MEM_TRACE
     BK_LOGD(TAG, "hsram malloc raw:%p, ret:%p, size:%d, called:0x%08x \r\n",
         data, ret_data, size, (intptr_t)__builtin_return_address(0) - 2);
@@ -89,8 +93,12 @@ void audio_hsram_free(void *ptr)
         BK_LOGE(TAG, "hsram free ptr is NULL\r\n");
         return;
     }
+#if CONFIG_SRAM_DIRECT_ADDR
+    void *raw_ptr = ptr;
+#else
     uint32_t ret_addr = (uint32_t)(uintptr_t)ptr;
     void *raw_ptr = ptr ? (void *)(uintptr_t)(ret_addr - AUDIO_HSRAM_NONCACHE_OFFSET) : NULL;
+#endif
     hsram_free(raw_ptr);
 
 #ifdef ENABLE_AUDIO_MEM_TRACE

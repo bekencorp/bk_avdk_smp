@@ -27,4 +27,11 @@ if (CONFIG_ADK_DEBUG_DUMP_UTIL)
 	)
 endif()
 
-armino_component_register(SRCS "${srcs}" INCLUDE_DIRS "${incs}" PRIV_REQUIRES bk_common bk_vfs)
+if (CONFIG_ADK_WIFI_DUMP_UTIL)
+	list(APPEND srcs
+		wifi_dump_util.c
+	)
+endif()
+
+armino_component_register(SRCS "${srcs}" INCLUDE_DIRS "${incs}"
+	PRIV_REQUIRES bk_common bk_vfs lwip_intf_v2_1)
