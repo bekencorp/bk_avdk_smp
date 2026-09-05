@@ -151,7 +151,8 @@ int bk_boot_write_ota_confirm(uint32_t value)
 void bk_ota_confirm_clear_if_armed(void)
 {
     uint32_t phy_off = bk_boot_overwrite_confirm_off();
-    uint32_t sector;
+    uint32_t confirm_sector;
+    uint32_t journal_sector;
 
     if (phy_off == 0 || phy_off < CONFIG_PRIMARY_ALL_PHY_PARTITION_OFFSET) {
         return;
@@ -159,11 +160,18 @@ void bk_ota_confirm_clear_if_armed(void)
     if (!bk_boot_read_ota_confirm(OVERWRITE_CONFIRM)) {
         return;
     }
-    sector = phy_off & ~(OTA_CTRL_SECTOR_SIZE - 1u);
+    confirm_sector = phy_off & ~(OTA_CTRL_SECTOR_SIZE - 1u);
+    journal_sector = partition_get_phy_offset(PARTITION_OTA_CONTROL)
+		     & ~(OTA_CTRL_SECTOR_SIZE - 1u);
 
     bk_flash_min_unprotect_once();
     bk_flash_min_switch_line_mode_two();
-    bk_flash_erase_sector(sector);
+    /* Journal first: a crash after this erase with confirm still armed just
+     * reinstalls from block 0. Confirm last so an idle device has neither flag. */
+    if (journal_sector != 0 && journal_sector != confirm_sector) {
+        bk_flash_erase_sector(journal_sector);
+    }
+    bk_flash_erase_sector(confirm_sector);
     bk_flash_min_restore_line_mode();
 }
 

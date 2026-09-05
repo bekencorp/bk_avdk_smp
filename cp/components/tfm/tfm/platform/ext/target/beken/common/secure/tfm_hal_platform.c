@@ -228,9 +228,8 @@ FIH_RET_TYPE(enum tfm_hal_status_t) tfm_hal_platform_init(void)
 #endif /* CONFIG_DIRECT_XIP */
 
 #if CONFIG_OTA_OVERWRITE
-    /* Confirm-on-successful-boot: clear the compressed-overwrite confirm flag
-     * only now that the installed image has reached the secure world, and only
-     * if it is actually armed. Mirrors the XIP boot_param_confirm() above. */
+    /* Confirm-on-successful-boot: drop OVERWRITE_CONFIRM and the resume journal
+     * only now that the installed image has reached the secure world. */
     bk_ota_confirm_clear_if_armed();
 #endif
 

@@ -48,7 +48,8 @@ bool bk_boot_read_ota_confirm(uint32_t value);
  * (plain int so callers need no Beken type dependency). */
 int bk_boot_write_ota_confirm(uint32_t value);
 
-/* Erase confirm sector if armed. Used by SPE (boot ok) and BL2 (OTA verify fail). */
+/* If armed: erase resume journal (first 4K) then the confirm sector (last 4K).
+ * SPE calls this after a successful boot; BL2 calls it when secondary verify fails. */
 void bk_ota_confirm_clear_if_armed(void);
 
 #ifdef __cplusplus
