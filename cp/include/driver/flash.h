@@ -208,26 +208,33 @@ bk_err_t bk_flash_write_bytes(uint32_t address, const uint8_t *user_buf, uint32_
  */
 bk_err_t bk_flash_read_bytes(uint32_t address, uint8_t *user_buf, uint32_t size);
 
+#if !CONFIG_SPE
+typedef bk_err_t (*bk_flash_busy_cb_t)(void *arg);
+
 /**
- * @brief     Read data from flash; switch CPU/bus freq while waiting busy
+ * @brief     Read data from flash and run a callback while manual read is busy
  *
- * This API runs from IRAM. While the flash controller reports busy, if
- * @p freq_arg is non-NULL it is treated as a pointer to pm_cpu_freq_e and
- * passed to sys_hal_switch_cpu_bus_freq(). Caller is responsible for restoring
- * the previous frequency after the call if needed.
+ * This API runs from IRAM. It starts a DBUS manual read and invokes
+ * @p busy_cb once while the flash controller reports busy. The callback must
+ * be short and IRAM-safe.
  *
  * @param address address to read
  * @param user_buf the buffer to read the data
  * @param size size to read
- * @param freq_arg pointer to pm_cpu_freq_e used during busy wait; NULL to skip switch
+ * @param busy_cb callback invoked once during flash busy; NULL to only read
+ * @param busy_arg argument passed to @p busy_cb
  *
  * @return
  *    - BK_OK: succeed
  *    - BK_ERR_FLASH_ADDR_OUT_OF_RANGE: flash address is out of range
- *    - others: other errors.
+ *    - BK_ERR_TIMEOUT: busy window ended before callback could run
+ *    - others: callback or flash errors.
  */
-bk_err_t bk_flash_read_bytes_with_freq(uint32_t address, uint8_t *user_buf,
-				       uint32_t size, void *freq_arg);
+bk_err_t bk_flash_read_bytes_with_busy_cb(uint32_t address, uint8_t *user_buf,
+					  uint32_t size,
+					  bk_flash_busy_cb_t busy_cb,
+					  void *busy_arg);
+#endif
 
 /**
  * @brief     Read data from flas
