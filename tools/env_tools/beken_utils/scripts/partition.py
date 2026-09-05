@@ -17,6 +17,7 @@ from .common import *
 from .security import *
 from .ota import *
 from .parse_csv import *
+from .compress import COMPRESS_BLOCK_SZ, OTA_RESUME_MAX_FULL_BLOCKS
 
 SZ_16M = 0x1000000
 FLASH_BASE_ADDR = 0x04000000
@@ -903,6 +904,18 @@ class Partitions:
             primary_all = self.find_partition_by_name("primary_all")
             if(primary_all and primary_all.partition_size % (4096) != 0):
                 logging.error("total size of all primary partition should be 4k aligned!")
+                exit(1)
+            if primary_all:
+                full_blocks = primary_all.partition_size // COMPRESS_BLOCK_SZ
+                if full_blocks > OTA_RESUME_MAX_FULL_BLOCKS:
+                    max_kb = (OTA_RESUME_MAX_FULL_BLOCKS * COMPRESS_BLOCK_SZ) // 1024
+                    logging.error(
+                        f'primary_all size 0x{primary_all.partition_size:x} requires '
+                        f'{full_blocks} full 64KB blocks, but ota_control resume journal '
+                        f'only holds {OTA_RESUME_MAX_FULL_BLOCKS} entries '
+                        f'(max 0x{OTA_RESUME_MAX_FULL_BLOCKS * COMPRESS_BLOCK_SZ:x}, {max_kb}K). '
+                        f'Shrink primary_all or enlarge the journal in BL2/ota_control.')
+                    exit(1)
         elif(self.is_xip()):
             logging.debug("TODO")
         else:

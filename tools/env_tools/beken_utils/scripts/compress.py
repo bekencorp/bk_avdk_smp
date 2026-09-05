@@ -22,6 +22,24 @@ from .common import *
 COMPRESS_BLOCK_SZ = 0x10000
 _UINT16_MAX = 0xFFFF
 
+# MUST match resume_block_t / read_resume_block() in decompress_bl2.c:
+# first 4K of ota_control holds one journal record per full 64KB block.
+OTA_RESUME_JOURNAL_SIZE = 4096
+OTA_RESUME_BLOCK_RECORD_SIZE = 35
+OTA_RESUME_MAX_FULL_BLOCKS = OTA_RESUME_JOURNAL_SIZE // OTA_RESUME_BLOCK_RECORD_SIZE
+
+
+def check_journal_full_block_limit(block_num, *, context=''):
+    """Reject images with more full 64KB blocks than the ota_control journal holds."""
+    if block_num > OTA_RESUME_MAX_FULL_BLOCKS:
+        max_bytes = OTA_RESUME_MAX_FULL_BLOCKS * COMPRESS_BLOCK_SZ
+        raise ValueError(
+            f'{context}full 64KB block count {block_num} exceeds ota_control journal '
+            f'capacity ({OTA_RESUME_MAX_FULL_BLOCKS} records in '
+            f'{OTA_RESUME_JOURNAL_SIZE} bytes); max uncompressed size is '
+            f'0x{max_bytes:x} ({OTA_RESUME_MAX_FULL_BLOCKS} x 64KB). '
+            f'Enlarge the journal in BL2/ota_control or shrink primary_all.')
+
 
 def _lzma_compress_chunk(compress_tool, chunk):
     """Compress one chunk via the external lzma tool using private temp files.
@@ -63,6 +81,7 @@ def compress_bin(infile, outfile):
         raise ValueError(
             f'compress_bin: input {infile} size 0x{file_size:x} < one block '
             f'(0x{COMPRESS_BLOCK_SZ:x}); BL2 cannot install this image')
+    check_journal_full_block_limit(block_num, context='compress_bin: ')
 
     script_dir = get_script_dir()
     compress_tool = os.path.normpath(
