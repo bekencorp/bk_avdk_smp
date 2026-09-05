@@ -15,8 +15,6 @@ CONFIG_SPINLOCK=y
 CONFIG_SUPPORT_WWDT=y
 CONFIG_WWDT_TEST=y
 CONFIG_SECURITY_FIRMWARE=y
-# flash controller MMIO (0x54030000) is secure-only; NS easyflash direct
-# access faults. Disable easyflash until NS flash goes through a secure gateway.
 CONFIG_EASY_FLASH=n
 
 CONFIG_SPE=0
@@ -45,7 +43,7 @@ CONFIG_TFM_BL2_LOG_LEVEL="INFO"
 CONFIG_BL2_UPGRADE_STRATEGY="OVERWRITE_ONLY"
 CONFIG_XIP_NO_VERSION=y
 # Optional DEBUG: overwrite install erase/write read-back (default off for mass production).
-CONFIG_DEBUG_OTA_INSTALL=y
+CONFIG_DEBUG_OTA_INSTALL=n
 
 # --- SPE heap ---
 CONFIG_TFM_HEAP_SIZE=0x6000
