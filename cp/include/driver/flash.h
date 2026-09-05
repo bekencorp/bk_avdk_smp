@@ -215,20 +215,22 @@ typedef bk_err_t (*bk_flash_busy_cb_t)(void *arg);
  * @brief     Read data from flash and run a callback while manual read is busy
  *
  * This API runs from IRAM. It starts a DBUS manual read and invokes
- * @p busy_cb once while the flash controller reports busy. The callback must
- * be short and IRAM-safe.
+ * @p busy_cb exactly once for the transfer. The callback runs inside the flash
+ * busy window when observed, otherwise right after the op completes (the busy
+ * pulse can be too short to sample); either way the manual read is always
+ * finished and its FIFO drained before returning. The callback must be short
+ * and IRAM-safe.
  *
  * @param address address to read
  * @param user_buf the buffer to read the data
  * @param size size to read
- * @param busy_cb callback invoked once during flash busy; NULL to only read
+ * @param busy_cb callback invoked once for the transfer; NULL to only read
  * @param busy_arg argument passed to @p busy_cb
  *
  * @return
  *    - BK_OK: succeed
  *    - BK_ERR_FLASH_ADDR_OUT_OF_RANGE: flash address is out of range
- *    - BK_ERR_TIMEOUT: busy window ended before callback could run
- *    - others: callback or flash errors.
+ *    - others: error returned by @p busy_cb (the read FIFO is still drained).
  */
 bk_err_t bk_flash_read_bytes_with_busy_cb(uint32_t address, uint8_t *user_buf,
 					  uint32_t size,

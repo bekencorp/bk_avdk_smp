@@ -33,8 +33,11 @@
 #if CONFIG_SPE
 #include "security.h"
 #endif
-#if CONFIG_SPI_PM_CB_SUPPORT
+#if CONFIG_SPI_PM_CB_SUPPORT || CONFIG_PM_AP_FAST_BOOT_ENABLE
 #include <modules/pm.h>
+#endif
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+#include "cmsis_gcc.h"
 #endif
 
 #include "interrupt.h"
@@ -176,6 +179,19 @@ static spi_driver_t s_spi[SOC_SPI_UNIT_NUM] = {
 	},
 #endif
 };
+
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+#define SPI_FAST_BACKUP_REG_NUM (3U)
+
+typedef struct {
+	uint32_t regs[SOC_SPI_UNIT_NUM][SPI_FAST_BACKUP_REG_NUM];
+	uint32_t valid_mask;
+	bool registered;
+} spi_fast_pm_context_t;
+
+static spi_fast_pm_context_t s_spi_fast_pm;
+#endif
+
 static bool s_spi_driver_is_init = false;
 #if CONFIG_SPI_DMA
 /* Serializes DMA channel alloc/free bookkeeping in bk_spi_init/bk_spi_deinit so
@@ -658,6 +674,80 @@ static int bk_spi_restore(uint64_t sleep_time, void *args)
 #define SPI_PM_CHECK_RESTORE(id)
 #endif
 
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+static bk_err_t spi_fast_quiesce(void *arg)
+{
+	(void)arg;
+
+	for (spi_id_t id = SPI_ID_0; id < SPI_ID_MAX; id++) {
+		spi_hw_t *hw = s_spi[id].hal.hw;
+
+		if (s_spi[id].is_tx_blocked || s_spi[id].is_rx_blocked ||
+			hw->cfg.tx_en || hw->cfg.rx_en) {
+			return BK_ERR_BUSY;
+		}
+	}
+	return BK_OK;
+}
+
+static bk_err_t spi_fast_backup(void *arg)
+{
+	spi_fast_pm_context_t *ctx = arg;
+
+	ctx->valid_mask = 0U;
+	for (spi_id_t id = SPI_ID_0; id < SPI_ID_MAX; id++) {
+		spi_hw_t *hw;
+
+		/*
+		 * Only keep-alive (still inited) units are saved. Dumping a
+		 * deinited/unclocked SPI writes 0 back at restore, which clears
+		 * clk_gate_bypass; later spi_hal_init() only sets soft_reset and
+		 * leaves DMA request generation dead.
+		 */
+		if (!s_spi[id].id_init_bits) {
+			continue;
+		}
+		hw = s_spi[id].hal.hw;
+		ctx->regs[id][0] = hw->global_ctrl.v;
+		ctx->regs[id][1] = hw->ctrl.v;
+		ctx->regs[id][2] = hw->cfg.v;
+		ctx->valid_mask |= BIT(id);
+		hw->global_ctrl.v = 0U;
+	}
+	__DMB();
+	return BK_OK;
+}
+
+static bk_err_t spi_fast_restore(void *arg)
+{
+	spi_fast_pm_context_t *ctx = arg;
+
+	for (spi_id_t id = SPI_ID_0; id < SPI_ID_MAX; id++) {
+		spi_hw_t *hw;
+
+		if (!(ctx->valid_mask & BIT(id))) {
+			continue;
+		}
+		hw = s_spi[id].hal.hw;
+		hw->ctrl.v = ctx->regs[id][1];
+		hw->cfg.v = ctx->regs[id][2];
+		hw->global_ctrl.v = ctx->regs[id][0];
+	}
+	ctx->valid_mask = 0U;
+	__DMB();
+	return BK_OK;
+}
+
+static const pm_ap_fast_pm_ops_t s_spi_fast_ops = {
+	.name = "spi",
+	.quiesce = spi_fast_quiesce,
+	.backup = spi_fast_backup,
+	.restore = spi_fast_restore,
+	.arg = &s_spi_fast_pm,
+	.priority = PM_AP_FAST_PRIORITY_PERIPHERAL,
+};
+#endif
+
 bk_err_t bk_spi_driver_init(void)
 {
 	if (s_spi_driver_is_init) {
@@ -698,6 +788,15 @@ bk_err_t bk_spi_driver_init(void)
 	}
 #endif
 	spi_statis_init();
+
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+	bk_err_t pm_ret = bk_pm_ap_fast_ops_register(&s_spi_fast_ops);
+	if (pm_ret != BK_OK) {
+		return pm_ret;
+	}
+	s_spi_fast_pm.registered = true;
+#endif
+
 	s_spi_driver_is_init = true;
 
 #if CONFIG_CLI && CONFIG_SPI_TEST
@@ -713,6 +812,17 @@ bk_err_t bk_spi_driver_deinit(void)
 	if (!s_spi_driver_is_init) {
 		return BK_OK;
 	}
+
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+	if (s_spi_fast_pm.registered) {
+		bk_err_t pm_ret = bk_pm_ap_fast_ops_unregister(&s_spi_fast_ops);
+		if (pm_ret != BK_OK) {
+			return pm_ret;
+		}
+		os_memset(&s_spi_fast_pm, 0, sizeof(s_spi_fast_pm));
+	}
+#endif
+
 	spi_int_config_t int_cfg_table[] = SPI_INT_CONFIG_TABLE;
 	for (int id = SPI_ID_0; id < SOC_SPI_UNIT_NUM; id++) {
 		// Only deinit SPI units that were actually initialized
@@ -1113,15 +1223,19 @@ bk_err_t bk_spi_read_bytes_async(spi_id_t id, void *data, uint32_t size)
 
 #if CONFIG_SPI_DMA
 
-static bk_err_t spi_duplex_tx_rx_enable(spi_id_t id)
+static bk_err_t spi_duplex_tx_rx_enable(spi_id_t id, bool start_tx_dma)
 {
 	/* Get the rx path (dma + rx_en) ready before tx starts clocking the bus.
 	 * With a pre-filled tx fifo, enabling tx first would immediately generate
 	 * SCK and shift out the first frame before rx_en is set, so at high clock
 	 * rates rx misses the first byte. Enable tx/rx together in a single
 	 * register write so the shared clock starts with rx already armed. */
-	bk_dma_start(s_spi[id].spi_rx_dma_chan);
-	bk_dma_start(s_spi[id].spi_tx_dma_chan);
+	if (s_spi[id].is_rx_blocked) {
+		bk_dma_start(s_spi[id].spi_rx_dma_chan);
+	}
+	if (start_tx_dma) {
+		bk_dma_start(s_spi[id].spi_tx_dma_chan);
+	}
 	spi_hal_enable_tx_rx(&s_spi[id].hal);
 	return BK_OK;
 }
@@ -1167,6 +1281,8 @@ bk_err_t bk_spi_dma_duplex_xfer(spi_id_t id, const void *tx_data, uint32_t tx_si
 		 * causing the rx side to sample early (rx clock triggered ahead of tx data). */
 		uint32_t fifo_prefill = (chunk_size > (48 * frame_size)) ? (48 * frame_size) : chunk_size;
 
+		s_spi[id].is_tx_blocked = false;
+		s_spi[id].is_rx_blocked = false;
 		if(rx_data) {
 			s_spi[id].rx_buf = (uint8_t *)rx_data + offset;
 			if (s_spi[id].hal.hw->ctrl.bit_width == SPI_BIT_WIDTH_8BITS) {
@@ -1183,7 +1299,12 @@ bk_err_t bk_spi_dma_duplex_xfer(spi_id_t id, const void *tx_data, uint32_t tx_si
 		}
 
 		if(tx_data) {
-			s_spi[id].is_tx_blocked = true;
+			uint32_t tx_dma_len = chunk_size - fifo_prefill;
+
+			/* BK7259 transfer_len=0 means 0 bytes. Starting that channel
+			 * after Deep-LV never raises finish, so len=1 (all in FIFO)
+			 * would block forever on tx_sema. */
+			s_spi[id].is_tx_blocked = (tx_dma_len > 0);
 			spi_hal_clear_tx_fifo(&s_spi[id].hal);
 			uint16_t *tx_data16 = (uint16_t *)((uint8_t *)tx_data + offset);
 
@@ -1198,15 +1319,21 @@ bk_err_t bk_spi_dma_duplex_xfer(spi_id_t id, const void *tx_data, uint32_t tx_si
 				spi_hal_write_byte(&s_spi[id].hal, data);
 			}
 			spi_hal_set_tx_trans_len(&s_spi[id].hal, chunk_size);
-			bk_dma_set_src_start_addr(s_spi[id].spi_tx_dma_chan, ((uint32_t)tx_data + offset + fifo_prefill));
-			bk_dma_set_transfer_len(s_spi[id].spi_tx_dma_chan, chunk_size - fifo_prefill);
+			if (tx_dma_len > 0) {
+				bk_dma_set_src_start_addr(s_spi[id].spi_tx_dma_chan, ((uint32_t)tx_data + offset + fifo_prefill));
+				bk_dma_set_transfer_len(s_spi[id].spi_tx_dma_chan, tx_dma_len);
+			}
 		}
 		uint32_t int_level = spi_enter_critical();
-		spi_duplex_tx_rx_enable(id);
+		spi_duplex_tx_rx_enable(id, s_spi[id].is_tx_blocked);
 		spi_exit_critical(int_level);
 
-		rtos_get_semaphore(&s_spi[id].tx_sema, BEKEN_NEVER_TIMEOUT);
-		rtos_get_semaphore(&s_spi[id].rx_sema, BEKEN_NEVER_TIMEOUT);
+		if (s_spi[id].is_tx_blocked) {
+			rtos_get_semaphore(&s_spi[id].tx_sema, BEKEN_NEVER_TIMEOUT);
+		}
+		if (s_spi[id].is_rx_blocked) {
+			rtos_get_semaphore(&s_spi[id].rx_sema, BEKEN_NEVER_TIMEOUT);
+		}
 
 		int_level = spi_enter_critical();
 		spi_hal_disable_rx(&s_spi[id].hal);

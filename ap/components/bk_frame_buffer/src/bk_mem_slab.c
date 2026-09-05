@@ -43,6 +43,78 @@ fb_mem_heap_t frame_mem_heap = {0};
 #define MEM_SLAB_ERR_OVERFLOW_PREVIOUS_POINTER (-8)
 #define MEM_SLAB_ERR_OVERFLOW_CIRCULAR_REFERENCE (-9)
 
+static const char *bk_mem_slab_error_string(int error)
+{
+    switch (error)
+    {
+        case MEM_SLAB_ERR_OK:
+            return "ok";
+        case MEM_SLAB_ERR_OVERFLOW_INVALID_DATA:
+            return "invalid block data or size";
+        case MEM_SLAB_ERR_OVERFLOW_HEAD_FRONT:
+            return "block header front corrupted";
+        case MEM_SLAB_ERR_OVERFLOW_HEAD_BACK:
+            return "block header tail corrupted";
+        case MEM_SLAB_ERR_OVERFLOW_DATA_TAIL:
+            return "user data tail guard corrupted";
+        case MEM_SLAB_ERR_OVERFLOW_FREE_SIZE:
+            return "free block size invalid";
+        case MEM_SLAB_ERR_OVERFLOW_NEXT_POINTER:
+            return "free-list next pointer invalid";
+        case MEM_SLAB_ERR_OVERFLOW_PREVIOUS_POINTER:
+            return "free-list previous pointer invalid";
+        case MEM_SLAB_ERR_OVERFLOW_CIRCULAR_REFERENCE:
+            return "free-list circular reference";
+        default:
+            return "unknown corruption";
+    }
+}
+
+#if MEM_SLAB_MEM_DEBUG
+#define BK_MEM_SLAB_GUARD_WORDS (ALIGN_BYTES / sizeof(uint32_t))
+
+static uint32_t *bk_mem_slab_guard_ptr(fb_block_used *block)
+{
+    uint32_t user_aligned = SLAB_ALIGN_BYTES(block->user_size, ALIGN_BYTES);
+
+    return (uint32_t *)((uint8_t *)(block + 1) + user_aligned);
+}
+
+static void bk_mem_slab_guard_init(fb_block_used *block)
+{
+    uint32_t *guard = bk_mem_slab_guard_ptr(block);
+
+    for (uint32_t i = 0; i < BK_MEM_SLAB_GUARD_WORDS; i++)
+    {
+        guard[i] = FB_ALLOCATED_PATTERN;
+    }
+}
+
+static bool bk_mem_slab_guard_corrupted(fb_block_used *block,
+                                        uint32_t *word_index,
+                                        uint32_t *actual)
+{
+    uint32_t *guard = bk_mem_slab_guard_ptr(block);
+
+    for (uint32_t i = 0; i < BK_MEM_SLAB_GUARD_WORDS; i++)
+    {
+        if (guard[i] != FB_ALLOCATED_PATTERN)
+        {
+            if (word_index != NULL)
+            {
+                *word_index = i;
+            }
+            if (actual != NULL)
+            {
+                *actual = guard[i];
+            }
+            return true;
+        }
+    }
+    return false;
+}
+#endif
+
 static inline uint32_t bk_mem_slab_enter_critical(void)
 {
     uint32_t flags = rtos_disable_int();
@@ -288,10 +360,10 @@ void *bk_mem_slab_malloc(frame_buffer_heap_type_t type, uint32_t size)
     size = SLAB_ALIGN_BYTES(size, ALIGN_BYTES);
 
 #if MEM_SLAB_MEM_DEBUG
-    if (user_size == size)
-    {
-        size += ALIGN_BYTES;
-    }
+    /* Keep the guard on its own cache line. A canary in the payload's last
+     * line is unsafe on SMP: producer cache maintenance can write a stale
+     * copy of that shared line over the canary and report a false overflow. */
+    size += ALIGN_BYTES;
 #endif
 
     totalsize = size + sizeof(fb_block_used);
@@ -393,13 +465,7 @@ void *bk_mem_slab_malloc(frame_buffer_heap_type_t type, uint32_t size)
         alloc->line = line;
         alloc->head_end_check = FB_ALLOCATED_PATTERN;
         alloc->user_size = user_size;
-
-        if (size - user_size > 4)
-        {
-            uint32_t *padding = (uint32_t*)((uint8_t*)alloc + user_size + sizeof(fb_block_used));
-            *padding = FB_ALLOCATED_PATTERN;
-            LOGV("padding: %p, %x\n", padding, *padding);
-        }
+        bk_mem_slab_guard_init(alloc);
 #endif
 
         // move to the user memory space
@@ -415,10 +481,6 @@ void *bk_mem_slab_malloc(frame_buffer_heap_type_t type, uint32_t size)
 
 int bk_mem_slab_overflow_check(fb_block_used *head)
 {
-    uint32_t *padding = (uint32_t*)((uint8_t*)head + sizeof(fb_block_used) + head->user_size);
-
-    LOGV("overflow check: %x, %x, %x\n", head->corrupt_check, head->head_end_check, *padding);
-
     if (head->corrupt_check != FB_ALLOCATED_PATTERN)
     {
         return MEM_SLAB_ERR_OVERFLOW_HEAD_FRONT;
@@ -428,13 +490,21 @@ int bk_mem_slab_overflow_check(fb_block_used *head)
         return MEM_SLAB_ERR_OVERFLOW_HEAD_BACK;
     }
 
-    if (head->size - head->user_size > 4)
+    uint32_t user_aligned = SLAB_ALIGN_BYTES(head->user_size, ALIGN_BYTES);
+    uint32_t guarded_size = sizeof(fb_block_used) + user_aligned + ALIGN_BYTES;
+    if (head->size < guarded_size)
     {
-        if (*padding != FB_ALLOCATED_PATTERN)
-        {
-            LOGE("head: %p, %d, %x\n", head, head->user_size, *padding);
-            return MEM_SLAB_ERR_OVERFLOW_DATA_TAIL;
-        }
+        return MEM_SLAB_ERR_OVERFLOW_INVALID_DATA;
+    }
+
+    uint32_t guard_index = 0;
+    uint32_t guard_actual = 0;
+    if (bk_mem_slab_guard_corrupted(head, &guard_index, &guard_actual))
+    {
+        LOGE("head:%p user_size:%u guard+%u:0x%x expected:0x%x\n",
+             head, head->user_size, guard_index * sizeof(uint32_t),
+             guard_actual, FB_ALLOCATED_PATTERN);
+        return MEM_SLAB_ERR_OVERFLOW_DATA_TAIL;
     }
 
     return MEM_SLAB_ERR_OK;
@@ -502,7 +572,8 @@ void bk_mem_slab_free(void *mem_ptr)
     if (ret != MEM_SLAB_ERR_OK)
     {
         bk_mem_slab_exit_critical(int_flags);
-        LOGE("frame buffer overflow : %d\n", ret);
+        LOGE("frame buffer overflow: %d (%s)\n",
+             ret, bk_mem_slab_error_string(ret));
         BK_ASSERT(0);
         return;
     }
@@ -1023,20 +1094,33 @@ void bk_mem_slab_check_heap(uint8_t type)
                     break;
                 }
 
-                // Check padding area (if exists)
-                if (alloc_block->size - alloc_block->user_size > 4)
+                uint32_t user_aligned =
+                    SLAB_ALIGN_BYTES(alloc_block->user_size, ALIGN_BYTES);
+                if (alloc_block->size < sizeof(fb_block_used) + ALIGN_BYTES ||
+                    user_aligned >
+                        alloc_block->size - sizeof(fb_block_used) - ALIGN_BYTES)
                 {
-                    uint32_t *padding = (uint32_t*)((uint8_t*)alloc_block + sizeof(fb_block_used) + alloc_block->user_size);
-                    if (*padding != FB_ALLOCATED_PATTERN)
-                    {
-                        error_found = true;
-                        error_type = MEM_SLAB_ERR_OVERFLOW_DATA_TAIL;
-                        error_node = (void *)current;
-                        error_value = *padding;
-                        error_expected = FB_ALLOCATED_PATTERN;
-                        is_allocated_block_error = true;
-                        break;
-                    }
+                    error_found = true;
+                    error_type = MEM_SLAB_ERR_OVERFLOW_INVALID_DATA;
+                    error_node = (void *)current;
+                    error_size = alloc_block->size;
+                    is_allocated_block_error = true;
+                    break;
+                }
+
+                uint32_t guard_index = 0;
+                uint32_t guard_actual = 0;
+                if (bk_mem_slab_guard_corrupted(
+                        alloc_block, &guard_index, &guard_actual))
+                {
+                    error_found = true;
+                    error_type = MEM_SLAB_ERR_OVERFLOW_DATA_TAIL;
+                    error_node = (void *)current;
+                    error_value = guard_actual;
+                    error_expected = FB_ALLOCATED_PATTERN;
+                    error_size = guard_index * sizeof(uint32_t);
+                    is_allocated_block_error = true;
+                    break;
                 }
 #endif
 
@@ -1152,11 +1236,11 @@ void bk_mem_slab_check_heap(uint8_t type)
             case MEM_SLAB_ERR_OVERFLOW_DATA_TAIL:
                 if (is_allocated_block_error)
                 {
-                    error_desc = "Allocated block data tail padding corrupted";
+                    error_desc = "Allocated block data tail guard corrupted";
                 }
                 else
                 {
-                    error_desc = "Free block data tail padding corrupted";
+                    error_desc = "Free block data tail guard corrupted";
                 }
                 break;
             case MEM_SLAB_ERR_OVERFLOW_FREE_SIZE:

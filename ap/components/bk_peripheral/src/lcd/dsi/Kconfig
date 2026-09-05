@@ -5,6 +5,16 @@ menu "DSI LCD"
 		bool "Enable LCD_DSI intf"
 		default n
 
+	config LCD_FRD700B30023_MIPI_1024x600
+		depends on LCD_DSI
+		bool "Enable LCD_FRD700B30023_MIPI_1024x600 API"
+		default n
+
+	config LCD_GH8555BL_MIPI_800x1280
+		depends on LCD_DSI
+		bool "Enable LCD_GH8555BL_MIPI_800x1280 API"
+		default n
+
 	config LCD_HX8394F_MIPI_720x1280
 		depends on LCD_DSI
 		bool "Enable LCD_HX8394F_MIPI_720x1280 API"

@@ -32,7 +32,9 @@
 
 #include "bk_misc.h"
 
-#include <os/mem.h>
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+#include <modules/pm.h>
+#endif
 
 #ifdef CONFIG_FREERTOS_SMP
 #include "spinlock.h"
@@ -105,9 +107,34 @@ static dma_chnl_pool_t s_dma_chnl_pool = {0};
 
 static void dma_id_init_common(dma_id_t id)
 {
+    /* Deep-LV drops BAKP; leftover channel regs are not guaranteed zero.
+     * Reset this channel only (do not touch CP 0-3) before reconfiguring. */
+    dma_hal_reset_config_to_default(&s_dma.hal, id);
     dma_hal_set_cachable(&s_dma.hal, id, 1);
     s_dma.id_init_bits |= BIT(id);
 }
+
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+typedef struct {
+	dma_config_t cfg;
+	dma_sec_attr_t dest_sec;
+	dma_sec_attr_t src_sec;
+	uint8_t cfg_valid;
+	uint8_t finish_int_en;
+	uint8_t dest_sec_valid;
+	uint8_t src_sec_valid;
+} dma_fast_chan_t;
+
+static dma_fast_chan_t s_dma_fast_chan[SOC_DMA_CHAN_NUM_PER_UNIT];
+static bool s_dma_fast_pm_registered;
+
+static void dma_fast_chan_reset(dma_id_t id)
+{
+	if (id < SOC_DMA_CHAN_NUM_PER_UNIT) {
+		os_memset(&s_dma_fast_chan[id], 0, sizeof(s_dma_fast_chan[id]));
+	}
+}
+#endif
 
 static void dma_id_deinit_common(dma_id_t id)
 {
@@ -115,6 +142,9 @@ static void dma_id_deinit_common(dma_id_t id)
     dma_hal_stop_common(&s_dma.hal, id);
     dma_hal_set_cachable(&s_dma.hal, id, 0);
     dma_hal_reset_config_to_default(&s_dma.hal, id);
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+    dma_fast_chan_reset(id);
+#endif
 }
 
 static void dma_id_enable_interrupt_common(dma_id_t id)
@@ -189,6 +219,131 @@ u32 dma_chnl_user(dma_id_t chnl_id)
 	return s_dma_chnl_pool.chnl_user[chnl_id];
 }
 
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+static dma_id_t dma_fast_ap_id_end(void)
+{
+	dma_id_t end = CONFIG_DMA_LOGIC_CHAN_ID_MIN + CONFIG_DMA_LOGIC_CHAN_CNT;
+
+	if (end > SOC_DMA_CHAN_NUM_PER_UNIT) {
+		end = SOC_DMA_CHAN_NUM_PER_UNIT;
+	}
+	return end;
+}
+
+static bk_err_t dma_fast_quiesce(void *arg)
+{
+	dma_id_t id;
+	dma_id_t end = dma_fast_ap_id_end();
+
+	(void)arg;
+	for (id = CONFIG_DMA_LOGIC_CHAN_ID_MIN; id < end; id++) {
+		if (!(s_dma.id_init_bits & BIT(id))) {
+			continue;
+		}
+		if (dma_hal_get_enable_status(&s_dma.hal, id)) {
+			return BK_ERR_BUSY;
+		}
+		dma_hal_disable_finish_interrupt(&s_dma.hal, id);
+		dma_hal_clear_finish_interrupt_status(&s_dma.hal, id);
+	}
+	__DSB();
+	return BK_OK;
+}
+
+static bk_err_t dma_fast_backup(void *arg)
+{
+	(void)arg;
+	return BK_OK;
+}
+
+static bk_err_t dma_fast_restore_chan(dma_id_t id)
+{
+	dma_fast_chan_t *chan = &s_dma_fast_chan[id];
+
+	if (!chan->cfg_valid) {
+		return BK_OK;
+	}
+	dma_id_init_common(id);
+	dma_hal_init_dma(&s_dma.hal, id, &chan->cfg);
+	if (chan->finish_int_en) {
+		dma_id_enable_interrupt_common(id);
+		dma_hal_enable_finish_interrupt(&s_dma.hal, id);
+	}
+	if (chan->dest_sec_valid) {
+		dma_hal_set_dest_sec_attr(&s_dma.hal, id, chan->dest_sec);
+	}
+	if (chan->src_sec_valid) {
+		dma_hal_set_src_sec_attr(&s_dma.hal, id, chan->src_sec);
+	}
+	return BK_OK;
+}
+
+static bool dma_fast_has_ap_inited(void)
+{
+	dma_id_t id;
+	dma_id_t end = dma_fast_ap_id_end();
+
+	for (id = CONFIG_DMA_LOGIC_CHAN_ID_MIN; id < end; id++) {
+		if (s_dma.id_init_bits & BIT(id)) {
+			return true;
+		}
+	}
+	return false;
+}
+
+static bk_err_t dma_fast_restore(void *arg)
+{
+	dma_id_t id;
+	dma_id_t end = dma_fast_ap_id_end();
+
+	(void)arg;
+	/*
+	 * Nothing to replay when no AP channel is keep-alive: defer the full
+	 * controller recover to the next bk_dma_init() (lazy recover via
+	 * init_without_channels()). Doing init_without_channels() here with no
+	 * channels to bring back only sets soft_reset with no benefit, so skip.
+	 * (The SPI/DMA duplex post-wake hang was fixed by clk_gate_bypass in
+	 * spi_ll_init(), not by this skip.)
+	 */
+	if (!dma_fast_has_ap_inited()) {
+		return BK_OK;
+	}
+	dma_hal_init_without_channels(&s_dma.hal);
+	for (id = CONFIG_DMA_LOGIC_CHAN_ID_MIN; id < end; id++) {
+		if (s_dma.id_init_bits & BIT(id)) {
+			(void)dma_fast_restore_chan(id);
+		}
+	}
+	__DMB();
+	return BK_OK;
+}
+
+static bk_err_t dma_fast_resume(void *arg)
+{
+	dma_id_t id;
+	dma_id_t end = dma_fast_ap_id_end();
+
+	(void)arg;
+	for (id = CONFIG_DMA_LOGIC_CHAN_ID_MIN; id < end; id++) {
+		if ((s_dma.id_init_bits & BIT(id)) &&
+			s_dma_fast_chan[id].finish_int_en) {
+			dma_id_enable_interrupt_common(id);
+			dma_hal_enable_finish_interrupt(&s_dma.hal, id);
+		}
+	}
+	return BK_OK;
+}
+
+static const pm_ap_fast_pm_ops_t s_dma_fast_pm_ops = {
+	.name = "gdma",
+	.quiesce = dma_fast_quiesce,
+	.backup = dma_fast_backup,
+	.restore = dma_fast_restore,
+	.resume = dma_fast_resume,
+	.priority = PM_AP_FAST_PRIORITY_BUS,
+};
+#endif
+
 bk_err_t bk_dma_driver_init(void)
 {
     if (s_dma_driver_is_init) {
@@ -226,10 +381,22 @@ bk_err_t bk_dma_driver_init(void)
 
 	bk_int_isr_register(INT_SRC_GDMA0, dma_isr, NULL);
 
-    for (uint32_t uint_id = 0; uint_id < SOC_DMA_UNIT_NUM; uint_id++) {
+	for (uint32_t uint_id = 0; uint_id < SOC_DMA_UNIT_NUM; uint_id++) {
 	    s_dma.hal.id = uint_id;
 		dma_hal_init(&s_dma.hal);
 	}
+
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+	os_memset(s_dma_fast_chan, 0, sizeof(s_dma_fast_chan));
+	{
+		bk_err_t pm_ret = bk_pm_ap_fast_ops_register(&s_dma_fast_pm_ops);
+
+		if (pm_ret != BK_OK) {
+			return pm_ret;
+		}
+		s_dma_fast_pm_registered = true;
+	}
+#endif
 
     s_dma_driver_is_init = true;
 
@@ -245,6 +412,17 @@ bk_err_t bk_dma_driver_deinit(void)
     for (int id = 0; id < (SOC_DMA_CHAN_NUM_PER_UNIT*SOC_DMA_UNIT_NUM); id++) {
         dma_id_deinit_common(id);
     }
+
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+	if (s_dma_fast_pm_registered) {
+		bk_err_t pm_ret = bk_pm_ap_fast_ops_unregister(&s_dma_fast_pm_ops);
+
+		if (pm_ret != BK_OK) {
+			return pm_ret;
+		}
+		s_dma_fast_pm_registered = false;
+	}
+#endif
 
     bk_pm_module_vote_power_ctrl(PM_POWER_SUB_MODULE_NAME_BAKP_DMA0, PM_POWER_MODULE_STATE_OFF);
     bk_pm_module_vote_power_ctrl(PM_POWER_SUB_MODULE_NAME_BAKP_DMA1, PM_POWER_MODULE_STATE_OFF);
@@ -333,7 +511,17 @@ bk_err_t bk_dma_init(dma_id_t id, const dma_config_t *config)
     __DSB();
 
     dma_id_init_common(id);
-    return dma_hal_init_dma(&s_dma.hal, id, config);
+	{
+		bk_err_t ret = dma_hal_init_dma(&s_dma.hal, id, config);
+
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+		if ((ret == BK_OK) && (id < SOC_DMA_CHAN_NUM_PER_UNIT)) {
+			s_dma_fast_chan[id].cfg = *config;
+			s_dma_fast_chan[id].cfg_valid = 1U;
+		}
+#endif
+		return ret;
+	}
 }
 
 bk_err_t bk_dma_deinit(dma_id_t id)
@@ -449,6 +637,9 @@ bk_err_t bk_dma_enable_finish_interrupt(dma_id_t id)
     DMA_RETURN_ON_INVALID_ID(id);
     dma_id_enable_interrupt_common(id);
     dma_hal_enable_finish_interrupt(&s_dma.hal, id);
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+    s_dma_fast_chan[id].finish_int_en = 1U;
+#endif
     return BK_OK;
 }
 
@@ -458,6 +649,9 @@ bk_err_t bk_dma_disable_finish_interrupt(dma_id_t id)
 
     dma_hal_disable_finish_interrupt(&s_dma.hal, id);
     dma_hal_clear_finish_interrupt_status(&s_dma.hal, id);
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+    s_dma_fast_chan[id].finish_int_en = 0U;
+#endif
     __DSB();
     return BK_OK;
 }
@@ -762,6 +956,10 @@ bk_err_t bk_dma_set_dest_sec_attr(dma_id_t id, dma_sec_attr_t attr)
     DMA_RETURN_ON_INVALID_ID(id);
 
     dma_hal_set_dest_sec_attr(&s_dma.hal, id, attr);
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+    s_dma_fast_chan[id].dest_sec = attr;
+    s_dma_fast_chan[id].dest_sec_valid = 1U;
+#endif
     return BK_OK;
 }
 
@@ -771,6 +969,10 @@ bk_err_t bk_dma_set_src_sec_attr(dma_id_t id, dma_sec_attr_t attr)
     DMA_RETURN_ON_INVALID_ID(id);
 
     dma_hal_set_src_sec_attr(&s_dma.hal, id, attr);
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+    s_dma_fast_chan[id].src_sec = attr;
+    s_dma_fast_chan[id].src_sec_valid = 1U;
+#endif
     return BK_OK;
 }
 

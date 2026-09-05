@@ -37,9 +37,6 @@
  * are extern'd (like boot_param_ops.c) to avoid pulling BL2-only headers into
  * the SPE build. bk_flash_read_bytes/write_bytes come from <driver/flash.h>. */
 extern bk_err_t bk_flash_erase_sector(uint32_t address);
-extern void bk_flash_min_unprotect_once(void);
-extern void bk_flash_min_switch_line_mode_two(void);
-extern void bk_flash_min_restore_line_mode(void);
 
 /* Logging: only BL2 (MCUboot) has BOOT_LOG; the SDK log path is unsafe from the
  * SPE, so the shared build logs nothing there (matches boot_param_ops.c). */
@@ -128,8 +125,11 @@ int bk_boot_write_ota_confirm(uint32_t value)
      * sector (never the first, which holds the resume journal) before writing. */
     sector = phy_off & ~(OTA_CTRL_SECTOR_SIZE - 1u);
 
-    bk_flash_min_unprotect_once();
-    bk_flash_min_switch_line_mode_two();
+    /* BK7259SW-2937 defers unprotect out of flash init; the anti-brick re-arm
+     * path (primary wiped, confirm missing) reaches here WITHOUT having run
+     * boot_copy_region first. Nothing to set up: bk_flash_erase_sector /
+     * bk_flash_write_bytes each self-bracket line mode (two-line) and protection
+     * (unprotect -> op -> re-protect), and the readback works in four-line. */
     while (retry--) {
         struct ota_confirm_rec check = {0};
 
@@ -138,12 +138,10 @@ int bk_boot_write_ota_confirm(uint32_t value)
         bk_flash_read_bytes(phy_off, (uint8_t *)&check, sizeof(check));
         if (check.magic == rec.magic && check.confirm == rec.confirm &&
             check.crc == rec.crc) {
-            bk_flash_min_restore_line_mode();
             OTA_CONFIRM_INF("set ota confirm=%#x", value);
             return BK_OK;
         }
     }
-    bk_flash_min_restore_line_mode();
     OTA_CONFIRM_ERR("set ota confirm=%#x fail", value);
     return BK_FAIL;
 }
@@ -164,15 +162,13 @@ void bk_ota_confirm_clear_if_armed(void)
     journal_sector = partition_get_phy_offset(PARTITION_OTA_CONTROL)
 		     & ~(OTA_CTRL_SECTOR_SIZE - 1u);
 
-    bk_flash_min_unprotect_once();
-    bk_flash_min_switch_line_mode_two();
-    /* Journal first: a crash after this erase with confirm still armed just
+    /* bk_flash_erase_sector self-brackets line mode + protection per-op.
+     * Journal first: a crash after this erase with confirm still armed just
      * reinstalls from block 0. Confirm last so an idle device has neither flag. */
     if (journal_sector != 0 && journal_sector != confirm_sector) {
         bk_flash_erase_sector(journal_sector);
     }
     bk_flash_erase_sector(confirm_sector);
-    bk_flash_min_restore_line_mode();
 }
 
 #endif /* CONFIG_OTA_CONFIRM_UPDATE */

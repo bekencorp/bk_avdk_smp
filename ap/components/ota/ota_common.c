@@ -8,6 +8,9 @@
 #include "common/bk_err.h"
 #include "bk_private/bk_ota_private.h"
 #include <soc/soc.h>   /* SOC_FLASH_REG_BASE: applies the S/NS address offset */
+#ifdef CONFIG_TASK_WDT
+#include "bk_wdt.h"
+#endif
 
 #ifdef CONFIG_HTTP_AB_PARTITION
 #include "modules/ota.h"
@@ -431,6 +434,12 @@ void register_ota_callback(ota_process_data_callback_t ota_callback)
 
 int bk_ota_process_data(char*receive_data, uint32_t len, uint32_t received, uint32_t total)
 {
+#if CONFIG_TASK_WDT
+	/* HTTP and HTTPS both land here before backend flash/SD write. Secure
+	 * XIP/overwrite skip ota_do_process_data(), so feed in this common
+	 * entry to keep the per-core task WDT alive during a long download. */
+	bk_task_wdt_feed();
+#endif
 	if(s_ota_data_process != NULL)
 	{
 		/* Propagate the write result so the HTTP layer can abort the transfer

@@ -57,7 +57,21 @@ int drv_tp_open(int hor_size, int ver_size, tp_mirror_type_t tp_mirror)
         tp_config.refresh_rate = 20;  // unit: ms
         tp_config.tp_num = TP_SUPPORT_MAX_NUM;
 
-        bk_tp_driver_init(&tp_config);
+        ret = bk_tp_driver_init(&tp_config);
+        if (kNoErr != ret) {
+            LOGE("%s, bk_tp_driver_init fail!\r\n", __func__);
+            if (g_tp_dev.m_point_queue) {
+                bk_queue_destroy(g_tp_dev.m_point_queue);
+                g_tp_dev.m_point_queue = NULL;
+            }
+            if (g_tp_dev.m_mutex) {
+                rtos_deinit_mutex(&g_tp_dev.m_mutex);
+                g_tp_dev.m_mutex = NULL;
+            }
+            bk_tp_driver_deinit();
+            ret = kGeneralErr;
+            break;
+        }
     }while(0);
 
     return ret;

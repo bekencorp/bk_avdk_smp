@@ -1091,41 +1091,68 @@ bk_err_t bk_pm_module_vote_boot_ap_ctrl(pm_boot_ap_module_name_e module,pm_power
 						pm_cp0_mailbox_send_data(PM_CP1_RECOVERY_CMD,
 						recovery_request_seq,
 						PM_AP_RECOVERY_ACTION_ABORT, 0);
-					if (abort_ret == BK_OK) {
-						uint64_t abort_start_tick =
+					uint64_t abort_start_tick =
+						bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
+					uint64_t abort_retry_tick = abort_start_tick +
+						(PM_AP_RECOVERY_RETRY_MS *
+						 AON_RTC_MS_TICK_CNT);
+
+					/*
+					 * mb_chnl_write() returning BK_OK only means that PWC
+					 * accepted the command locally; it does not confirm that
+					 * AP received or handled ABORT. Retry the idempotent
+					 * sequence until AP publishes FULL_READY or timeout.
+					 */
+					while (!bk_pm_ap_full_ready_get() &&
+						((bk_aon_rtc_get_current_tick(AON_RTC_ID_1) -
+						  abort_start_tick) <
+						 (PM_BOOT_AP_WAITING_TIEM *
+						  AON_RTC_MS_TICK_CNT))) {
+						uint64_t abort_current_tick =
 							bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
 
-						/*
-						 * Keep business TX closed until AP confirms that its
-						 * rollback resume callbacks have completed.
-						 */
-						while (!bk_pm_ap_full_ready_get() &&
-							((bk_aon_rtc_get_current_tick(AON_RTC_ID_1) -
-							  abort_start_tick) <
-							 (PM_BOOT_AP_WAITING_TIEM *
-							  AON_RTC_MS_TICK_CNT))) {
+						if (abort_current_tick >= abort_retry_tick) {
+							abort_ret = pm_cp0_mailbox_send_data(
+								PM_CP1_RECOVERY_CMD,
+								recovery_request_seq,
+								PM_AP_RECOVERY_ACTION_ABORT, 0);
+							LOGW("AP close abort retry seq=%u ret=%d\r\n",
+								recovery_request_seq, abort_ret);
+							abort_retry_tick = abort_current_tick +
+								(PM_AP_RECOVERY_RETRY_MS *
+								 AON_RTC_MS_TICK_CNT);
+						}
 #if CONFIG_SUPPORT_WWDT
-							bk_wwdt_feed();
+						bk_wwdt_feed();
 #endif
+					}
+
+					/*
+					 * AP was not powered off, so never leave CP-side business
+					 * communication permanently gated. AP may still NACK
+					 * business traffic until its own rollback completes, but
+					 * reopening here allows recovery instead of a permanent
+					 * CP-side BK_ERR_BUSY state.
+					 */
+					bool ap_abort_ready = bk_pm_ap_full_ready_get();
+
+					s_pm_ap_business_tx_enabled = true;
+					__DMB();
+					if (ap_abort_ready) {
+						ret = pm_cp0_mailbox_send_data(
+							PM_AP_APP_RESUME_NOTIFY_CMD,
+							0, 0, 0);
+						if (ret != BK_OK) {
+							LOGE("AP abort app resume notify failed[%d]\r\n",
+								ret);
 						}
-						if (bk_pm_ap_full_ready_get()) {
-							s_pm_ap_business_tx_enabled = true;
-							__DMB();
-							ret = pm_cp0_mailbox_send_data(
-								PM_AP_APP_RESUME_NOTIFY_CMD,
-								0, 0, 0);
-							if (ret != BK_OK) {
-								LOGE("AP abort app resume notify failed[%d]\r\n",
-									ret);
-							}
-							bk_pm_ap_ctrl_callback_execute(
-								PM_AP_CTRL_CB_TYPE_POWER_OFF_ABORT);
-							LOGI("AP close abort completed; business mailbox reopened\r\n");
-						} else {
-							LOGE("AP close abort ready timeout; buogsiness mailbox remains closed\r\n");
-						}
+					}
+					bk_pm_ap_ctrl_callback_execute(
+						PM_AP_CTRL_CB_TYPE_POWER_OFF_ABORT);
+					if (ap_abort_ready) {
+						LOGI("AP close abort completed; business mailbox reopened\r\n");
 					} else {
-						LOGE("AP close abort send failed[%d]; business mailbox remains closed\r\n",
+						LOGE("AP close abort ready timeout, last send ret=%d; force reopen CP business mailbox\r\n",
 							abort_ret);
 					}
 #endif

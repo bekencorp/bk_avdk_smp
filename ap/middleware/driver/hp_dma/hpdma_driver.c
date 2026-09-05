@@ -138,7 +138,7 @@ static void hpdma_apply_smem_burst_policy_at_start(hpdma_id_t id);
  */
 bk_err_t hpdma_wait_to_idle(hpdma_id_t id);
 
-#if CONFIG_PM_ENABLE
+#if CONFIG_PM_ENABLE && !CONFIG_PM_AP_FAST_BOOT_ENABLE
 /*
  * S2 (HPDMA review):
  *   Adapter that matches the PM module's pm_cb signature
@@ -170,7 +170,45 @@ static pm_cb_conf_t s_hpdma_pm_exit_cfg = {
     .cb = hpdma_pm_exit_low_voltage_cb,
     .args = NULL,
 };
-#endif /* CONFIG_PM_ENABLE */
+#endif
+
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+static bool s_hpdma_fast_pm_registered;
+
+static bk_err_t hpdma_fast_quiesce(void *arg)
+{
+    (void)arg;
+    for (hpdma_id_t id = 0; id < SOC_HPDMA_CHAN_NUM_PER_UNIT; id++) {
+        if ((s_hpdma.id_init_bits & BIT(id)) &&
+            hpdma_hal_get_enable_status(&s_hpdma.hal, id)) {
+            return BK_ERR_BUSY;
+        }
+    }
+    return BK_OK;
+}
+
+static bk_err_t hpdma_fast_backup(void *arg)
+{
+    (void)arg;
+    return BK_OK;
+}
+
+static bk_err_t hpdma_fast_restore(void *arg)
+{
+    (void)arg;
+    hpdma_hal_init_without_channels(&s_hpdma.hal);
+    __DMB();
+    return BK_OK;
+}
+
+static const pm_ap_fast_pm_ops_t s_hpdma_fast_pm_ops = {
+    .name = "hpdma",
+    .quiesce = hpdma_fast_quiesce,
+    .backup = hpdma_fast_backup,
+    .restore = hpdma_fast_restore,
+    .priority = PM_AP_FAST_PRIORITY_BUS,
+};
+#endif
 
 static void hpdma_id_init_common(hpdma_id_t id)
 {
@@ -335,9 +373,13 @@ bk_err_t bk_hpdma_driver_init(void)
 		hpdma_hal_init(&s_hpdma.hal);
 	}
 
-    s_hpdma_driver_is_init = true;
-
-#if CONFIG_PM_ENABLE
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+    bk_err_t pm_ret = bk_pm_ap_fast_ops_register(&s_hpdma_fast_pm_ops);
+    if (pm_ret != BK_OK) {
+        return pm_ret;
+    }
+    s_hpdma_fast_pm_registered = true;
+#elif CONFIG_PM_ENABLE
     /*
      * S2 (HPDMA review):
      *   Wire bk_hpdma_recover_after_low_voltage() into the PM
@@ -360,6 +402,7 @@ bk_err_t bk_hpdma_driver_init(void)
     }
 #endif
 
+    s_hpdma_driver_is_init = true;
     return BK_OK;
 }
 
@@ -382,7 +425,15 @@ bk_err_t bk_hpdma_driver_deinit(void)
         hpdma_exit_critical(int_mask);
     }
 
-#if CONFIG_PM_ENABLE
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+    if (s_hpdma_fast_pm_registered) {
+        bk_err_t pm_ret = bk_pm_ap_fast_ops_unregister(&s_hpdma_fast_pm_ops);
+        if (pm_ret != BK_OK) {
+            return pm_ret;
+        }
+        s_hpdma_fast_pm_registered = false;
+    }
+#elif CONFIG_PM_ENABLE
     /*
      * S2 (HPDMA review):
      *   Unregister the exit-low-voltage callback paired with the one

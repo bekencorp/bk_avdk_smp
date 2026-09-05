@@ -54,6 +54,11 @@ menu "TP"
 		bool "Enable TP_CST9217 API"
 		default n
 
+	config TP_CST76XX
+		depends on TP
+		bool "Enable TP_CST76XX API (Hynitron HYT7760/CST76xx)"
+		default n
+
 	config TP_CST328
 		depends on TP
 		bool "Enable TP_CST328 API"

@@ -34,8 +34,8 @@ static const char *pm_dev_id_to_string(uint32_t dev_id)
 		"TOUCH", "I2S_1", "USB_1", "CAN", "PSRAM", "QSPI_1", "QSPI_2", "SDIO",
 		"AUXS", "BTDM", "WPAS", "MAC", "PHY", "JPEG", "DISP", "AUDIO", "RTC",
 		"GPIO", "VPU", "LIN", "PWM_1", "SECURE_WORLD", "UART4", "TRNG", "CPU1",
-		"PHY_DPD_CALI", "KEY", "CIF", "MAILBOX", "HPDMA", "GPU", "ISP", "NPU",
-		"LVGL", "DEFAULT",
+		"PHY_DPD_CALI", "KEY", "CIF", "MAILBOX", "UART5", "IPI", "HPDMA",
+		"GPU", "ISP", "NPU", "LVGL", "VPU_ENC", "DEFAULT",
 	};
 
 	if (dev_id >= PM_DEV_ID_MAX ||

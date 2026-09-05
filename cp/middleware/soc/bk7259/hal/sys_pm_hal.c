@@ -55,6 +55,9 @@
 #include <driver/ckmn.h>
 #include "ckmn_reg.h"
 #endif
+#if CONFIG_HSPL
+#include "hspl_driver.h"
+#endif
 #if CONFIG_MPU
 #include "mpu.h"
 #endif
@@ -1972,9 +1975,6 @@ __IRAM_PM void sys_hal_enter_low_voltage(void)
 #endif
 
 	#if CONFIG_DEEP_LV
-	#if CONFIG_SPE
-	aon_pmu_ll_set_r2(otp_vdd);// restore OTPLDO
-	#endif
 	uint32_t val;
 	sys_hal_analog_set(ANALOG_REG0, v_ana_r0);
 	sys_hal_analog_set(ANALOG_REG5, v_ana_r5);
@@ -2046,6 +2046,11 @@ __IRAM_PM void sys_hal_enter_low_voltage(void)
 	// {
 	// 	sys_ahbp_ll_set_rege_pwd_m55(pwd_m55);
 	// }
+	#if CONFIG_DEEP_LV
+	#if CONFIG_SPE
+	aon_pmu_ll_set_r2_otp_vdd_en((uint32_t)otp_vdd); /* restore OTPLDO */
+	#endif
+	#endif
 	aon_pmu_ll_set_r0_fast_boot(0);
 	aon_pmu_hal_set_dlv_startup(0);
 #if CONFIG_CKMN
@@ -2218,6 +2223,13 @@ __IRAM_PM void sys_hal_enter_low_voltage(void)
 	#endif
 	sys_hal_restore_core_freq(cksel_core, clkdiv_core, clkdiv_bus);
 	SYS_PM_HAL_CPU_BARRIER();
+
+#if CONFIG_DEEP_LV && CONFIG_HSPL
+	if (bk_hspl_deep_lv_resume_reinit() != BK_OK) {
+		BK_LOGE("pm", "HSPL0 restore after Deep-LV failed\r\n");
+		BK_ASSERT(0);
+	}
+#endif
 
 	#if CONFIG_DEEP_LV_DEBUG_GPIO
 	PM_GPIO_UP(37);//25

@@ -319,19 +319,19 @@ static bk_err_t bt_at_sema_get(uint32_t timeout_ms)
 
 
 
-static uint32_t bt_at_event_cb(bt_event_enum_t event, void *param)
+static void bt_at_event_cb(bk_gap_bt_cb_event_t event, bk_bt_gap_cb_param_t *param)
 {
     switch (event)
     {
-        case BK_DM_BT_EVENT_INQUIRY_RESULT:
+        case BK_BT_GAP_DISC_RES_EVT:
         {
-            uint8_t *addr = (uint8_t *)param;
-            BK_LOGD(TAG, "BT Inquiryed addr: %x %x %x %x %x %x \r\n", *(addr + 5), *(addr + 4), *(addr + 3), *(addr + 2), *(addr + 1), *(addr));
+            uint8_t *addr = param->disc_res.bda;
+            BK_LOGD(TAG, "BT Inquiryed addr: %x %x %x %x %x %x \r\n", addr[5], addr[4], addr[3], addr[2], addr[1], addr[0]);
         }
         break;
-        case BK_DM_BT_EVENT_DISCONNECT:
+        case BK_BT_GAP_ACL_DISCONN_CMPL_STAT_EVT:
         {
-            uint8_t *addr = (uint8_t *)param;
+            uint8_t *addr = param->acl_disconn_cmpl_stat.bda;
             BK_LOGD(TAG, "Disconnected from %x %x %x %x %x %x \r\n", addr[5], addr[4], addr[3], addr[2], addr[1], addr[0]);
             if (!os_memcmp(addr, spp_env.peer_addr.addr, 6))
             {
@@ -346,33 +346,28 @@ static uint32_t bt_at_event_cb(bt_event_enum_t event, void *param)
         }
         break;
 #endif
-        case BK_DM_BT_EVENT_CONNECTION_COMPLETE:
+        case BK_BT_GAP_ACL_CONN_CMPL_STAT_EVT:
         {
-            uint8_t *addr = (uint8_t *)param;
+            uint8_t *addr = param->acl_conn_cmpl_stat.bda;
             BK_LOGD(TAG, "Connected to %02x:%02x:%02x:%02x:%02x:%02x\n", addr[5], addr[4], addr[3], addr[2], addr[1], addr[0]);
         }
         break;
 
-        case BK_DM_BT_EVENT_LINKKEY_NOTIFY:
+        case BK_BT_GAP_LINK_KEY_NOTIF_EVT:
         {
-            bk_bt_linkkey_storage_t *linkkey = (typeof(linkkey))param;
+            uint8_t *addr = param->link_key_notif.bda;
 
             BK_LOGD(TAG, "%s recv linkkey %02X:%02X:%02X:%02X:%02X:%02X\n", __func__,
-                    linkkey->addr[5],
-                    linkkey->addr[4],
-                    linkkey->addr[3],
-                    linkkey->addr[2],
-                    linkkey->addr[1],
-                    linkkey->addr[0]);
+                    addr[5], addr[4], addr[3], addr[2], addr[1], addr[0]);
 
-            memcpy(&s_bt_linkkey, linkkey, sizeof(s_bt_linkkey));
-
+            memcpy(s_bt_linkkey.addr, addr, 6);
+            memcpy(s_bt_linkkey.link_key, param->link_key_notif.link_key, 16);
         }
         break;
 
-        case BK_DM_BT_EVENT_LINKKEY_REQ:
+        case BK_BT_GAP_LINK_KEY_REQ_EVT:
         {
-            uint8_t *addr = (typeof(addr))param;
+            uint8_t *addr = param->link_key_req.bda;
 
             if (!memcmp(addr, s_bt_linkkey.addr, sizeof(s_bt_linkkey.addr)))
             {
@@ -410,8 +405,6 @@ static uint32_t bt_at_event_cb(bt_event_enum_t event, void *param)
         default:
             break;
     }
-
-    return 0;
 }
 
 static void bt_at_cmd_cb(bt_cmd_t cmd, bt_cmd_param_t *param)
@@ -778,7 +771,7 @@ static int bt_start_inquiry_handle(int sync, int argc, char **argv)
 
     if (bk_bt_get_host_stack_type() == BK_BT_HOST_STACK_TYPE_ETHERMIND)
     {
-        bk_bt_gap_set_event_callback(bt_at_event_cb);
+        bk_bt_gap_register_callback(bt_at_event_cb);
         err = bk_bt_inquiry(INQUIRY_LAP, INQUIRY_LEN, 0, bt_at_cmd_cb);
         if (!err)
         {
@@ -823,7 +816,7 @@ static int bt_create_connection_handle(int sync, int argc, char **argv)
 
     if (bk_bt_get_host_stack_type() == BK_BT_HOST_STACK_TYPE_ETHERMIND)
     {
-        bk_bt_gap_set_event_callback(bt_at_event_cb);
+        bk_bt_gap_register_callback(bt_at_event_cb);
         bd_addr_t addr;
         uint8_t allow_role_switch = 0;
         err = bt_get_addr_from_param(&addr, argv[0]);
@@ -886,7 +879,7 @@ static int bt_disconnect_handle(int sync, int argc, char **argv)
 
     if (bk_bt_get_host_stack_type() == BK_BT_HOST_STACK_TYPE_ETHERMIND)
     {
-        bk_bt_gap_set_event_callback(bt_at_event_cb);
+        bk_bt_gap_register_callback(bt_at_event_cb);
         bd_addr_t addr;
         err = bt_get_addr_from_param(&addr, argv[0]);
         if (err)
@@ -947,7 +940,7 @@ static int bt_spp_connect_handle(int sync, int argc, char **argv)
             LOGE("Spp exisit one connection now, please disconnect first!!\r\n");
             goto error;
         }
-        bk_bt_gap_set_event_callback(bt_at_event_cb);
+        bk_bt_gap_register_callback(bt_at_event_cb);
         err = bt_get_addr_from_param(&spp_env.peer_addr, argv[0]);
         if (err)
         {
@@ -1054,7 +1047,7 @@ static int bt_spp_tx_handle(int sync, int argc, char **argv)
     }
     if (bk_bt_get_host_stack_type() == BK_BT_HOST_STACK_TYPE_ETHERMIND)
     {
-        bk_bt_gap_set_event_callback(bt_at_event_cb);
+        bk_bt_gap_register_callback(bt_at_event_cb);
         if (spp_env.conn_state != STATE_PROFILE_CONNECTED_AS_CLIENT && spp_env.conn_state != STATE_PROFILE_CONNECTED_AS_SERVER)
         {
             LOGE("Please connet spp first !! \r\n");
@@ -1225,7 +1218,7 @@ static int bt_spp_init_handle(int sync, int argc, char **argv)
         bk_bt_gap_set_scan_mode(BK_BT_CONNECTABLE, BK_BT_DISCOVERABLE);
         if (!spp_env.spp_init)
         {
-            bk_bt_gap_set_event_callback(bt_at_event_cb);
+            bk_bt_gap_register_callback(bt_at_event_cb);
             bk_bt_spp_init(bt_spp_event_notify_cb);
             spp_env.client_spp_handle = SPP_HANDLE_INVALID;
             bk_bt_spp_start((uint32_t *)&spp_env.client_spp_handle, &spp_env.local_server_channel, &spp_env.spp_record_handle);
@@ -1257,7 +1250,7 @@ static int bt_write_scan_enable_handle(int sync, int argc, char **argv)
 
     if (bk_bt_get_host_stack_type() == BK_BT_HOST_STACK_TYPE_ETHERMIND)
     {
-        bk_bt_gap_set_event_callback(bt_at_event_cb);
+        bk_bt_gap_register_callback(bt_at_event_cb);
         uint8_t scan_enable = os_strtoul(argv[0], NULL, 10) & 0xFFFFFFFF;
         if (scan_enable > 0x03)
         {
@@ -1308,7 +1301,7 @@ static int bt_read_scan_enable_handle(int sync, int argc, char **argv)
 
     if (bk_bt_get_host_stack_type() == BK_BT_HOST_STACK_TYPE_ETHERMIND)
     {
-        bk_bt_gap_set_event_callback(bt_at_event_cb);
+        bk_bt_gap_register_callback(bt_at_event_cb);
 
         err = bk_bt_read_scan_enable(bt_at_cmd_cb);
         if (err)
@@ -1829,7 +1822,7 @@ static int bt_enable_a2dp_source_connect_handle(int sync, int argc, char **argv)
     }
     if (bk_bt_get_host_stack_type() == BK_BT_HOST_STACK_TYPE_ETHERMIND)
     {
-        bk_bt_gap_set_event_callback(bt_at_event_cb);
+        bk_bt_gap_register_callback(bt_at_event_cb);
 
         err = bt_get_addr_from_param(&a2dp_env.peer_addr, argv[0]);
 
@@ -1939,7 +1932,7 @@ static int bt_enable_a2dp_source_disconnect_handle(int sync, int argc, char **ar
     }
     if (bk_bt_get_host_stack_type() == BK_BT_HOST_STACK_TYPE_ETHERMIND)
     {
-        bk_bt_gap_set_event_callback(bt_at_event_cb);
+        bk_bt_gap_register_callback(bt_at_event_cb);
 
         err = bt_get_addr_from_param(&a2dp_env.peer_addr, argv[0]);
 
@@ -3575,7 +3568,7 @@ static int bt_l2cap_init_handle(int sync, int argc, char **argv)
             LOGD("L2cap has been initated \r\n");
             break;
         }
-        bk_bt_gap_set_event_callback(bt_at_event_cb);
+        bk_bt_gap_register_callback(bt_at_event_cb);
         bk_bt_gap_set_scan_mode(BK_BT_CONNECTABLE, BK_BT_DISCOVERABLE);
         bk_bt_l2cap_init();
         bk_bt_l2cap_start_srv(BK_BT_L2CAP_SEC_NONE, AT_DM_L2CAP_LOCAL_PSM);
@@ -4004,7 +3997,7 @@ static int bt_start_inquiry_handle_gap(int sync, int argc, char **argv)
     PRINT_FUNC;
     int err = kNoErr;
 
-    bk_bt_gap_set_event_callback(bt_at_event_cb);
+    bk_bt_gap_register_callback(bt_at_event_cb);
 
     err = bk_bt_gap_start_discovery(BK_BT_INQ_MODE_GENERAL_INQUIRY, 0x0A, 0);
 
@@ -4029,7 +4022,7 @@ static int bt_create_connection_handle_gap(int sync, int argc, char **argv)
         goto error;
     }
 
-    bk_bt_gap_set_event_callback(bt_at_event_cb);
+    bk_bt_gap_register_callback(bt_at_event_cb);
     bd_addr_t addr;
     uint8_t allow_role_switch = 0;
     err = bt_get_addr_from_param(&addr, argv[0]);
@@ -4063,7 +4056,7 @@ static int bt_disconnect_handle_gap(int sync, int argc, char **argv)
         LOGE("Parameters error! \r\n");
         goto error;
     }
-    bk_bt_gap_set_event_callback(bt_at_event_cb);
+    bk_bt_gap_register_callback(bt_at_event_cb);
     bd_addr_t addr;
     err = bt_get_addr_from_param(&addr, argv[0]);
     if (err)
@@ -4098,7 +4091,7 @@ static int bt_write_scan_enable_handle_gap(int sync, int argc, char **argv)
         goto error;
     }
 
-    bk_bt_gap_set_event_callback(bt_at_event_cb);
+    bk_bt_gap_register_callback(bt_at_event_cb);
     uint8_t scan_enable = os_strtoul(argv[0], NULL, 10) & 0xFFFFFFFF;
     if (scan_enable > 0x03)
     {
@@ -4123,7 +4116,7 @@ static int bt_read_scan_enable_handle_gap(int sync, int argc, char **argv)
     PRINT_FUNC;
     int err = kNoErr;
 
-    bk_bt_gap_set_event_callback(bt_at_event_cb);
+    bk_bt_gap_register_callback(bt_at_event_cb);
 
     err = bk_bt_gap_get_scan_mode();
     if (err)

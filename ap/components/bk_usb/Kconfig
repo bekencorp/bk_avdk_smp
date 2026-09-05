@@ -145,6 +145,17 @@ menu "Bk_usb"
 					Perceived device type reported by MTP device property 0xD407.
 					Common values: 0 generic, 1 still image camera, 2 media player,
 					3 phone, 4 video camera, 5 PIM, 6 audio recorder.
+
+			config USBD_MTP_MAX_OBJECT_HANDLES
+				int "Max object handles in one GetObjectHandles response"
+				default 4096
+				help
+					Upper bound on how many objects MTP reports in a single
+					GetObjectHandles. The handle array is allocated from PSRAM
+					once as (N+1)*4 bytes. Folders with more files are truncated.
+					Raise this if a folder can exceed 4096 entries; lower it to
+					save PSRAM. MTP has no pagination, so the host only sees
+					this many objects per listing.
 		endmenu
 
 		config USBD_MSC_CBW_DEBUG_LOG

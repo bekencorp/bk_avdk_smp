@@ -100,6 +100,11 @@ static uint32_t mtp_get_perceived_device_type(void)
 
 #define MTP_BUFFER_SIZE 512
 #define MTP_COPY_BUFFER_SIZE (10*1024)
+#ifndef CONFIG_USBD_MTP_MAX_OBJECT_HANDLES
+#define CONFIG_USBD_MTP_MAX_OBJECT_HANDLES 4096
+#endif
+/* GetObjectHandles is 4+N*4 bytes; do not reuse the 512-byte mtp_buffer. */
+#define MTP_MAX_OBJECT_HANDLES ((uint32_t)CONFIG_USBD_MTP_MAX_OBJECT_HANDLES)
 
 static uint32_t mtp_put_ascii_string(uint8_t *dst, const char *src)
 {
@@ -774,6 +779,9 @@ static uint8_t *ep_out_buffer = NULL;//[MAX_PACKET_SIZE];
 static uint8_t *ep_in_buffer = NULL;//[MAX_PACKET_SIZE];
 
 static uint8_t *mtp_buffer = NULL;//[MTP_BUFFER_SIZE];
+#if CONFIG_VFS
+static uint32_t *s_handles_buf = NULL;
+#endif
 
 static uint32_t current_session_id = 0;
 static uint8_t mtp_state;
@@ -2368,10 +2376,20 @@ static void usbd_mtp_thread(void *argument)
             case MTP_THREAD_OP_GET_OBJECT_HANDLES:
             {
                 uint32_t handle_cnt = 1;
-                int max_cnt = (MTP_BUFFER_SIZE-4)/4;
-                uint32_t *buf = (uint32_t *)mtp_buffer;
+                int max_cnt = MTP_MAX_OBJECT_HANDLES;
+                uint32_t *buf;
                 mtp_packet_t *pack = (mtp_packet_t*)ep_out_buffer;
                 handle_map_item_t *item;
+                if(s_handles_buf == NULL)
+                {
+                    s_handles_buf = (uint32_t *)psram_malloc((MTP_MAX_OBJECT_HANDLES + 1) * sizeof(uint32_t));
+                    if(s_handles_buf == NULL)
+                    {
+                        mtp_send_respond(pack->transaction_id,MTP_RSP_DEVICE_BUSY);
+                        break;
+                    }
+                }
+                buf = s_handles_buf;
                 if(pack->parameter[2] != 0 && pack->parameter[2] != 0xffffffff)
                 {
                     //check if folder is exist
@@ -2390,7 +2408,6 @@ static void usbd_mtp_thread(void *argument)
                         //search all storage
                         for(int i = 0; i < NUM_OF_STORAGE; i++)
                         {
-                            uint16_t idx = ((pack->parameter[0]>>16) & 0xffff)-1;
                             DIR *dir = opendir(storage_info[i].mount_path);
                             if(dir)
                             {
@@ -2403,8 +2420,7 @@ static void usbd_mtp_thread(void *argument)
                                         USB_LOG_INFO("hidden file:%s\r\n",dir_items->d_name);
                                         continue;
                                     }
-                                    //USB_LOG_ERR("filename:%s,dir:0x%02X\r\n",dir_items->d_name,dir_items->d_type);
-                                    uint32_t hd = map_add_item(0,storage_info[idx].mount_path,dir_items->d_name,(dir_items->d_type & DT_DIR),i+1);
+                                    uint32_t hd = map_add_item(0,storage_info[i].mount_path,dir_items->d_name,(dir_items->d_type & DT_DIR),i+1);
                                     if(hd == 0) continue;
                                     buf[handle_cnt++] = hd;
                                     if(handle_cnt > max_cnt) break;
@@ -2437,7 +2453,6 @@ static void usbd_mtp_thread(void *argument)
                                     USB_LOG_INFO("hidden file:%s\r\n",dir_items->d_name);
                                     continue;
                                 }
-                                //USB_LOG_ERR("filename:%s,dir:0x%02X\r\n",dir_items->d_name,dir_items->d_type);
                                 uint32_t hd = map_add_item(0,storage_info[idx].mount_path,dir_items->d_name,(dir_items->d_type & DT_DIR),idx+1);
                                 if(hd == 0) continue;
                                 buf[handle_cnt++] = hd;
@@ -2463,7 +2478,6 @@ static void usbd_mtp_thread(void *argument)
                         struct dirent *dir_items;
                         while((dir_items = readdir(dir)) != NULL)
                         {
-                            //USB_LOG_ERR("filename:%s,dir:0x%02X\r\n",dir_items->d_name,dir_items->d_type);
                             uint32_t hd = map_add_item(pack->parameter[2],item->str,dir_items->d_name,(dir_items->d_type & DT_DIR),item->storage_id);
                             if(hd == 0) continue;
                             buf[handle_cnt++] = hd;
@@ -2485,7 +2499,7 @@ static void usbd_mtp_thread(void *argument)
                     mtp_send_respond(pack->transaction_id,MTP_RSP_INVALID_PARENT_OBJECT);
                 }
                 buf[0] = handle_cnt-1;
-                mtp_send_data(pack->transaction_id,pack->code,mtp_buffer,handle_cnt*4);
+                mtp_send_data(pack->transaction_id,pack->code,(uint8_t *)buf,handle_cnt*4);
             }
             break;
             case MTP_THREAD_OP_GET_OBJECT_INFO:
@@ -3687,6 +3701,13 @@ int usb_mtp_deinit(void)
     ep_out_buffer = NULL;
     ep_in_buffer = NULL;
     mtp_buffer = NULL;
+#if CONFIG_VFS
+    if(s_handles_buf)
+    {
+        psram_free(s_handles_buf);
+        s_handles_buf = NULL;
+    }
+#endif
     /* Power the USB analog PHY back down and release the no-sleep vote. */
     bk_analog_layer_usb_sys_related_ops(MTP_USB_DEVICE_MODE, false);
     bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_USB_1, 1, 0);

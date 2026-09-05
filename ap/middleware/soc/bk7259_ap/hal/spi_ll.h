@@ -112,6 +112,16 @@ static inline uint32_t spi_ll_get_rx_sample_edge(spi_hw_t *hw)
 static inline void spi_ll_init(spi_hw_t *hw)
 {
 	spi_ll_soft_reset(hw);
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+	/* Deep-LV drops BAKP. CPU MMIO still wakes the gated clock, but SPI
+	 * DMA requests stall unless the clock runs freely. UART Fast Boot
+	 * recover does the same. Scope: only Fast Boot builds face the Deep-LV
+	 * wake path (both keep-alive restore and post-wake re-init need this
+	 * bit - A/B showed a real DMA transaction after re-init hangs on the
+	 * DMA-done signal without it, so it must stay in init, not just the
+	 * restore callback); non-Fast-Boot builds keep normal SPI clock gating. */
+	hw->global_ctrl.clk_gate_bypass = 1;
+#endif
 	//notice bk7236 v5 need set byte_interval more than 0, to prevent spi clock issue when reading
 	spi_ll_set_byte_interval(hw, 1);
 	spi_ll_set_rx_sample_edge(hw, 1);

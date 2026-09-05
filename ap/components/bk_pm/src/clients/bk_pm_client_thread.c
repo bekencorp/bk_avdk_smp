@@ -12,6 +12,7 @@
 #include "sys_sw_regs.h"
 #include "cache.h"
 #include "bk_arch.h"
+#include <driver/dma.h>
 #endif
 
 /*=====================DEFINE  SECTION  START=====================*/
@@ -140,6 +141,25 @@ static bk_err_t pm_ap_core_message_handle(void)
                     ret = bk_pm_ap_fast_suspend_prepare();
                     if (ret != BK_OK) {
                         LOGE("AP fast suspend: module quiesce failed[%d]\r\n", ret);
+                        pm_ap_suspend_failure_publish(msg.param1);
+                        break;
+                    }
+                    /*
+                     * Modules get the first chance to stop their DMA in
+                     * quiesce. Reject the transaction here if any channel is
+                     * still enabled, before CPU3 is offlined and hardware is
+                     * backed up. This turns an eventual WFI timeout into an
+                     * immediate, recoverable suspend failure.
+                     */
+                    uint32_t dma_busy_mask = bk_dma_check_chn_status();
+                    if (dma_busy_mask != 0U) {
+                        LOGE("AP fast suspend: DMA still busy mask=0x%x after quiesce\r\n",
+                            dma_busy_mask);
+                        ret = bk_pm_ap_fast_resume_modules();
+                        if (ret != BK_OK) {
+                            LOGE("AP fast suspend: DMA busy rollback failed[%d]\r\n",
+                                ret);
+                        }
                         pm_ap_suspend_failure_publish(msg.param1);
                         break;
                     }

@@ -7,6 +7,10 @@
 # (board uses DMA_LOGIC_CHAN_ID_MIN=4).
 #
 
+# Use the Cortex-M core clock for SysTick in this test project. The AON sleep
+# wakeup ticktimer enable is not the Cortex-M SysTick clock gate.
+# CONFIG_SYSTICK_32K is not set
+
 # CONFIG_LWIP is not set
 # CONFIG_BK_NETIF is not set
 # CONFIG_WIFI_CLI_DEBUG is not set
@@ -37,7 +41,11 @@ CONFIG_PWM=y
 CONFIG_PWM_AUTO=y
 CONFIG_UART2=y
 CONFIG_UART_TEST=y
+CONFIG_UART_STRESS_TEST=y
 CONFIG_UART_API_TEST=y
+CONFIG_UART_RX_DMA=y
+CONFIG_UART_TX_DMA=y
+CONFIG_UART_RX_DMA_KFIFO_SIZE=256
 CONFIG_I2C_API_TEST=y
 CONFIG_FLASH_API_TEST=y
 CONFIG_GPIO_API_TEST=y

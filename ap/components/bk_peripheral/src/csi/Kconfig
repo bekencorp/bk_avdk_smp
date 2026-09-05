@@ -15,6 +15,11 @@ menu "CSI Camera"
         bool "Enable CSI_GC2053"
         default n
 
+    config CSI_GC20C3
+        depends on CSI_CAMERA
+        bool "Enable CSI_GC20C3"
+        default n
+
     config CSI_CV2005
         depends on CSI_CAMERA
         bool "Enable CSI_CV2005"

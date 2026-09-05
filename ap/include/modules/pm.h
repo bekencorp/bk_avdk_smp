@@ -499,6 +499,8 @@ typedef enum
 	PM_DEV_ID_KEY,          //42
 	PM_DEV_ID_CIF,          //43
 	PM_DEV_ID_MAILBOX,      //44
+	PM_DEV_ID_UART5,        //45, callback slot for hardware UART4
+	PM_DEV_ID_IPI,          //46
 	/*
 	 * S2 (HPDMA review):
 	 *   New PM device id for the High-Performance DMA controller. The
@@ -511,16 +513,16 @@ typedef enum
 	 *
 	 *   PM_DEV_ID_DEFAULT remains the sentinel for the "default cpu
 	 *   frequency" pseudo-device, so it is intentionally renumbered to
-	 *   46. PM_DEV_ID_MAX still fits the "max 63" limit.
+	 *   53. PM_DEV_ID_MAX still fits the "max 63" limit.
 	 */
-	PM_DEV_ID_HPDMA,        //45
-	PM_DEV_ID_GPU,          //46
-	PM_DEV_ID_ISP,          //47
-	PM_DEV_ID_NPU,          //48
-	PM_DEV_ID_LVGL,         //49
-	PM_DEV_ID_VPU_ENC,      // 50
+	PM_DEV_ID_HPDMA,        //47
+	PM_DEV_ID_GPU,          //48
+	PM_DEV_ID_ISP,          //49
+	PM_DEV_ID_NPU,          //50
+	PM_DEV_ID_LVGL,         //51
+	PM_DEV_ID_VPU_ENC,      //52
 
-	PM_DEV_ID_DEFAULT,      //51  it is used by pm module set default cpu frequency
+	PM_DEV_ID_DEFAULT,      //53  it is used by pm module set default cpu frequency
 
 	PM_DEV_ID_MAX       //attention:max 63
 }pm_dev_id_e;
@@ -584,6 +586,8 @@ typedef enum
 	PM_CP_DEV_ID_KEY,          //42
 	PM_CP_DEV_ID_CIF,          //43
 	PM_CP_DEV_ID_MAILBOX,      //44
+	PM_CP_DEV_ID_UART5,        //45
+	PM_CP_DEV_ID_IPI,          //46
 	/*
 	 * S2 (HPDMA review):
 	 *   Keep CP-side PM device id table in lock-step with the AP side.
@@ -592,9 +596,9 @@ typedef enum
 	 *   core PM ABI: shifting PM_DEV_ID_DEFAULT to a different ordinal
 	 *   on one core would silently misalign any cross-core PM tables.
 	 */
-	PM_CP_DEV_ID_HPDMA,        //45
+	PM_CP_DEV_ID_HPDMA,        //47
 
-	PM_CP_DEV_ID_DEFAULT,      //46  it is used by pm module set default cpu frequency
+	PM_CP_DEV_ID_DEFAULT,      //48  it is used by pm module set default cpu frequency
 
 	PM_CP_DEV_ID_MAX
 }pm_cp_dev_id_e;

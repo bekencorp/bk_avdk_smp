@@ -3,6 +3,8 @@ armino_build_get_property(target ARMINO_SOC)
 set(incs
 	soc/include
 	hal/include
+	# Single shared flash_core physical source lives in the CP tree.
+	../../../../cp/middleware/soc/common/flash_core
 	)
 
 set(srcs
@@ -22,7 +24,19 @@ endif()
 if (CONFIG_FLASH)
 	list(APPEND srcs
 		hal/flash_hal.c
+		# Reference the single shared flash_core physical source in the CP tree.
+		../../../../cp/middleware/soc/common/flash_core/bk_flash_core.c
+		../../../../cp/middleware/soc/common/flash_core/flash_core_config.c
 	)
+	# The AP has only a 4KB IRAM window before the fixed core1 NS vector (see the
+	# ASSERT in bk7259_ap_bsp.ld). Unlike the CP/bootloader/TF-M, the AP flash
+	# path historically ran from flash .text (relying on I-cache plus the mailbox
+	# arbitration with the CP), never from IRAM. Build the shared core with the
+	# .iram placement disabled so it keeps that layout and does not overflow the
+	# AP IRAM window; correctness is unchanged from the pre-flash_core AP driver.
+	set_source_files_properties(
+		../../../../cp/middleware/soc/common/flash_core/bk_flash_core.c
+		PROPERTIES COMPILE_DEFINITIONS "FLASH_CORE_IRAM=")
 endif()
 
 if (CONFIG_FFT)

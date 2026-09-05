@@ -100,6 +100,10 @@ static uint8_t h4_read_buffer[H4_READ_BUFF_SIZE];
 
 volatile static uint32_t s_hci_packet_parser_isr_buff_wt = 0;
 volatile static uint32_t s_hci_packet_parser_isr_buff_rd = 0;
+/* ISR ring overflow drop counters. Never log from ISR context; the parser
+ * thread reports the delta the next time it runs (see hci_packet_parser_handler). */
+volatile static uint32_t s_hci_isr_buff_drop_cnt = 0;
+static uint32_t s_hci_isr_buff_drop_reported = 0;
 
 static uint8_t packet_recv_state = H4_PACKET_IDLE;
 static uint32_t packet_bytes_need = 0;
@@ -154,6 +158,15 @@ static void hci_packet_parser_handler(void)
 {
     uint8_t type = 0;
     int32_t bytes_read = 0;
+
+    /* Report ISR ring overflow drops accumulated since last run (thread ctx). */
+    uint32_t drop_now = s_hci_isr_buff_drop_cnt;
+    if (drop_now != s_hci_isr_buff_drop_reported)
+    {
+        LOGE("isr ring full, dropped %u bytes (total %u)",
+             (unsigned)(drop_now - s_hci_isr_buff_drop_reported), (unsigned)drop_now);
+        s_hci_isr_buff_drop_reported = drop_now;
+    }
 
     do
     {
@@ -616,7 +629,9 @@ static int32_t hci_packet_do_parse(uint8_t *data, uint32_t len)
     {
         if (HCI_PACKET_PARSER_ISR_INDEX_PLUS(s_hci_packet_parser_isr_buff_wt) == s_hci_packet_parser_isr_buff_rd)
         {
-            LOGE("wt == rd, drop data !!!");
+            /* Runs in ISR: do NOT log here (was LOGE flood). Count and let the
+             * parser thread report the delta. */
+            s_hci_isr_buff_drop_cnt++;
 #if CONFIG_BLUETOOTH_HOST_ENABLE_H5
 #else
             BK_ASSERT(0);

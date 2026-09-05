@@ -68,7 +68,6 @@ typedef struct
     uint8_t thread_enable;
     uint32_t read_timeout;
     uint8_t channel;
-    beken_semaphore_t req_sem;
     beken_semaphore_t sem;
     beken_thread_t thread;
     void *controller;

@@ -20,8 +20,10 @@
 #include "pm_power.h"
 #include "pm_psram.h"
 #include "pm_debug.h"
+#include "bk_pm_internal_api.h"
 
 #define PM_AUXLDO_ENABLE_DELAY_US                      (100)
+#define PM_SEND_CMD_CP0_RESPONSE_TIME_OUT              (100) // 100ms
 
 static uint32_t s_pm_bakp_pm_state                      = 0;
 static uint32_t s_pm_ahpb_pm_state                      = 0;
@@ -444,6 +446,40 @@ bk_err_t bk_pm_auxldo_ctrl_vote(const pm_auxldo_ctrl_cfg_t *auxldo_cfg)
 	}
 
 	return BK_OK;
+}
+
+bk_err_t bk_pm_module_vote_cp_power_ctrl(pm_power_module_name_e module, pm_power_module_state_e power_state)
+{
+#if CONFIG_MAILBOX
+	uint64_t previous_tick  = 0;
+	uint64_t current_tick   = 0;
+    int ret                 = 0;
+	bk_pm_cp1_pwr_ctrl_state_set(PM_MAILBOX_COMMUNICATION_INIT);
+
+    ret = pm_cp1_mailbox_send_data(PM_POWER_CTRL_CMD, module,power_state,0);
+    if(ret != BK_OK)
+    {
+        return BK_FAIL;
+    }
+	previous_tick = pm_cp1_aon_rtc_counter_get();
+	current_tick = previous_tick;
+	while((current_tick - previous_tick) < (PM_SEND_CMD_CP0_RESPONSE_TIME_OUT*PM_AON_RTC_DEFAULT_TICK_COUNT))
+	{
+	    if (bk_pm_cp1_pwr_ctrl_state_get()) // wait the cp0 response
+	    {
+			break;
+	    }
+	    current_tick = pm_cp1_aon_rtc_counter_get();
+	}
+
+	if(!bk_pm_cp1_pwr_ctrl_state_get())
+	{
+	    BK_LOGD(NULL, "cp1 power_C:%d time out\r\n",module);
+	}
+
+#endif
+	return BK_OK;
+
 }
 /*=========================RF POWER CTRL END========================*/
 

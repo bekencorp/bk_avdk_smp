@@ -73,6 +73,17 @@ bk_err_t bk_hspl_driver_init(void);
  */
 bk_err_t bk_hspl_driver_deinit(void);
 
+#if CONFIG_DEEP_LV
+/**
+ * @brief Reinitialize HSPL0 hardware after CP Deep-LV wakeup
+ *
+ * Deep-LV retains the driver software state but resets HSPL0 registers.
+ *
+ * @return BK_OK on success, BK_FAIL otherwise
+ */
+bk_err_t bk_hspl_deep_lv_resume_reinit(void);
+#endif
+
 /**
  * @brief Try to lock a HSPL channel by reading its LOCK register
  *

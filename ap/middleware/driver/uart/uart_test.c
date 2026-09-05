@@ -17,6 +17,9 @@
 #include <driver/uart.h>
 #include <stdbool.h>
 #include <components/bk_platform.h>
+#if CONFIG_UART_STRESS_TEST && CONFIG_SHELL_ASYNCLOG
+#include <components/shell_task.h>
+#endif
 #include "uart_statis.h"
 #include "bk_misc.h"
 #include "sys_driver.h"
@@ -49,6 +52,12 @@ static void cli_uart_help(void)
 	CLI_LOGD("uart_lb_api {id}              -- timeout/empty/oversized/deinit negative tests\n");
 	CLI_LOGD("uart_lb_dma {id} [quick|full] -- DMA TX+RX loopback (needs CONFIG_UART_TX/RX_DMA)\n");
 	CLI_LOGD("uart_lb_flow {id}             -- HW CTS/RTS loopback (wire TX-RX and RTS-CTS)\n");
+#if CONFIG_UART_STRESS_TEST
+#if CONFIG_SHELL_ASYNCLOG
+	CLI_LOGD("uart_log_test [count] [interval_ms] -- print deterministic 256-byte log frames\n");
+#endif
+	CLI_LOGD("uart_lb_256 {id} [9600|38400|115200|all] -- 256-byte 8N1 loopback\n");
+#endif
 }
 
 static void cli_uart_dma_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
@@ -391,6 +400,132 @@ static void cli_uart_int_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc,
 		return;
 	}
 }
+
+#if CONFIG_UART_STRESS_TEST
+static bool uart_test_parse_u32(const char *text, uint32_t *value)
+{
+	uint32_t parsed = 0;
+
+	if (!text || !value || text[0] == '\0') {
+		return false;
+	}
+	for (uint32_t i = 0; text[i] != '\0'; i++) {
+		uint32_t digit;
+
+		if (text[i] < '0' || text[i] > '9') {
+			return false;
+		}
+		digit = (uint32_t)(text[i] - '0');
+		if (parsed > (0xffffffffu - digit) / 10u) {
+			return false;
+		}
+		parsed = parsed * 10u + digit;
+	}
+
+	*value = parsed;
+	return true;
+}
+
+#if CONFIG_SHELL_ASYNCLOG
+#define UART_LOG_TEST_FRAME_SIZE       (256u)
+#define UART_LOG_TEST_CRC_OFFSET       (246u)
+#define UART_LOG_TEST_DEFAULT_COUNT    (1u)
+#define UART_LOG_TEST_MAX_COUNT        (100000u)
+#define UART_LOG_TEST_MAX_INTERVAL_MS  (60000u)
+
+static uint32_t uart_log_test_crc32(const uint8_t *data, uint32_t len)
+{
+	uint32_t crc = 0xffffffffu;
+
+	for (uint32_t i = 0; i < len; i++) {
+		crc ^= data[i];
+		for (uint32_t bit = 0; bit < 8; bit++) {
+			if (crc & 1u) {
+				crc = (crc >> 1) ^ 0xedb88320u;
+			} else {
+				crc >>= 1;
+			}
+		}
+	}
+
+	return ~crc;
+}
+
+static void uart_log_test_put_hex32(uint8_t *output, uint32_t value)
+{
+	static const uint8_t hex[] = "0123456789ABCDEF";
+
+	for (uint32_t i = 0; i < 8; i++) {
+		uint32_t shift = 28u - (i * 4u);
+		output[i] = hex[(value >> shift) & 0xfu];
+	}
+}
+
+static void uart_log_test_build_frame(uint8_t *frame, uint32_t sequence)
+{
+	static const uint8_t pattern[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+	uint32_t crc;
+
+	os_memcpy(frame, "ULOG", 4);
+	uart_log_test_put_hex32(&frame[4], sequence);
+	frame[12] = ':';
+	for (uint32_t i = 13; i < 245; i++) {
+		frame[i] = pattern[(i - 13u) % (sizeof(pattern) - 1u)];
+	}
+	frame[245] = ':';
+
+	crc = uart_log_test_crc32(frame, UART_LOG_TEST_CRC_OFFSET);
+	uart_log_test_put_hex32(&frame[UART_LOG_TEST_CRC_OFFSET], crc);
+	frame[254] = '\r';
+	frame[255] = '\n';
+}
+
+static void cli_uart_log_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
+{
+	uint8_t frame[UART_LOG_TEST_FRAME_SIZE];
+	uint32_t count = UART_LOG_TEST_DEFAULT_COUNT;
+	uint32_t interval_ms = 0;
+	uint32_t queued = 0;
+
+	if (argc > 3) {
+		CLI_LOGE("UART_LOG_TEST: usage: uart_log_test [count] [interval_ms]\r\n");
+		return;
+	}
+	if (argc >= 2 && !uart_test_parse_u32(argv[1], &count)) {
+		CLI_LOGE("UART_LOG_TEST: invalid count=%s\r\n", argv[1]);
+		return;
+	}
+	if (argc >= 3 && !uart_test_parse_u32(argv[2], &interval_ms)) {
+		CLI_LOGE("UART_LOG_TEST: invalid interval_ms=%s\r\n", argv[2]);
+		return;
+	}
+	if (count == 0 || count > UART_LOG_TEST_MAX_COUNT) {
+		CLI_LOGE("UART_LOG_TEST: count must be 1..%u\r\n", UART_LOG_TEST_MAX_COUNT);
+		return;
+	}
+	if (interval_ms > UART_LOG_TEST_MAX_INTERVAL_MS) {
+		CLI_LOGE("UART_LOG_TEST: interval_ms must be 0..%u\r\n",
+			 UART_LOG_TEST_MAX_INTERVAL_MS);
+		return;
+	}
+
+	for (uint32_t sequence = 0; sequence < count; sequence++) {
+		uart_log_test_build_frame(frame, sequence);
+		if (!shell_log_raw_data(frame, sizeof(frame))) {
+			CLI_LOGE("UART_LOG_TEST: queue failed at sequence=%u\r\n", sequence);
+			break;
+		}
+		queued++;
+		if (interval_ms > 0 && sequence + 1u < count) {
+			rtos_delay_milliseconds(interval_ms);
+		}
+	}
+
+	CLI_LOGI("UART_LOG_TEST: queued=%u requested=%u interval_ms=%u frame_size=%u\r\n",
+		 queued, count, interval_ms, UART_LOG_TEST_FRAME_SIZE);
+}
+#endif
+#endif
 
 #if CONFIG_IDLE_UART_OUT_TEST
 static beken_thread_t idle_uart_out_test_handle = NULL;
@@ -840,6 +975,143 @@ out_free:
 	return ok;
 }
 
+#if CONFIG_UART_STRESS_TEST
+#define UART_LB_256_LEN             (256u)
+#define UART_LB_256_RX_TASK_PRIO    (3u)  /* Higher priority than the CLI transmitter task */
+#define UART_LB_256_RX_TASK_STACK   (2048u)
+
+typedef struct {
+	uart_id_t id;
+	uint8_t *data;
+	uint32_t len;
+	uint32_t timeout_ms;
+	beken_semaphore_t armed;
+	beken_semaphore_t done;
+	int read_len;
+	bool finished;
+} uart_lb_256_rx_ctx_t;
+
+static void uart_lb_256_rx_task(beken_thread_arg_t arg)
+{
+	uart_lb_256_rx_ctx_t *ctx = (uart_lb_256_rx_ctx_t *)arg;
+
+	rtos_set_semaphore(&ctx->armed);
+	ctx->read_len = uart_lb_read_full(ctx->id, ctx->data, ctx->len, ctx->timeout_ms);
+	rtos_set_semaphore(&ctx->done);
+	__atomic_store_n(&ctx->finished, true, __ATOMIC_RELEASE);
+	rtos_delete_thread(NULL);
+}
+
+static bool uart_lb_run_256(uart_id_t id, uint32_t baud, uint32_t seed)
+{
+	bool ok = false;
+	bool armed_init = false;
+	bool done_init = false;
+	bool uart_inited = false;
+	bool rx_created = false;
+	uint8_t *tx = (uint8_t *)os_malloc(UART_LB_256_LEN);
+	uint8_t *rx = (uint8_t *)os_malloc(UART_LB_256_LEN);
+	beken_thread_t rx_thread = NULL;
+	uart_lb_256_rx_ctx_t ctx;
+	uart_config_t cfg;
+	uint32_t timeout_ms = uart_lb_xfer_timeout_ms(baud, UART_LB_256_LEN);
+	bk_err_t write_ret = BK_FAIL;
+
+	if (!tx || !rx) {
+		CLI_LOGE("UART_LB_256: FAIL alloc\r\n");
+		goto out;
+	}
+
+	os_memset(&ctx, 0, sizeof(ctx));
+	ctx.id = id;
+	ctx.data = rx;
+	ctx.len = UART_LB_256_LEN;
+	ctx.timeout_ms = timeout_ms;
+	ctx.read_len = BK_FAIL;
+	uart_lb_fill_pattern(tx, UART_LB_256_LEN, seed, 0xff);
+	os_memset(rx, 0x55, UART_LB_256_LEN);
+
+	if (rtos_init_semaphore(&ctx.armed, 1) != kNoErr) {
+		CLI_LOGE("UART_LB_256: FAIL armed semaphore\r\n");
+		goto out;
+	}
+	armed_init = true;
+	if (rtos_init_semaphore(&ctx.done, 1) != kNoErr) {
+		CLI_LOGE("UART_LB_256: FAIL done semaphore\r\n");
+		goto out;
+	}
+	done_init = true;
+
+	uart_lb_build_config(&cfg, baud, UART_DATA_8_BITS, UART_PARITY_NONE,
+			     UART_STOP_BITS_1, UART_FLOWCTRL_DISABLE, false);
+	if (bk_uart_init(id, &cfg) != BK_OK) {
+		CLI_LOGE("UART_LB_256: FAIL init\r\n");
+		goto out;
+	}
+	uart_inited = true;
+	bk_uart_enable_rx_interrupt(id);
+	uart_lb_flush_rx(id);
+
+	if (rtos_create_thread(&rx_thread, UART_LB_256_RX_TASK_PRIO, "uart_lb_256_rx",
+			       uart_lb_256_rx_task, UART_LB_256_RX_TASK_STACK,
+			       (beken_thread_arg_t)&ctx) != kNoErr) {
+		CLI_LOGE("UART_LB_256: FAIL rx thread\r\n");
+		goto out;
+	}
+	rx_created = true;
+
+	if (rtos_get_semaphore(&ctx.armed, BEKEN_WAIT_FOREVER) != kNoErr) {
+		CLI_LOGE("UART_LB_256: FAIL rx arm wait\r\n");
+		goto out;
+	}
+
+	write_ret = bk_uart_write_bytes(id, tx, UART_LB_256_LEN);
+	if (rtos_get_semaphore(&ctx.done, BEKEN_WAIT_FOREVER) != kNoErr) {
+		CLI_LOGE("UART_LB_256: FAIL rx completion wait\r\n");
+		goto out;
+	}
+	while (!__atomic_load_n(&ctx.finished, __ATOMIC_ACQUIRE)) {
+		rtos_delay_milliseconds(1);
+	}
+	rx_created = false;
+
+	if (write_ret != BK_OK) {
+		CLI_LOGE("UART_LB_256: FAIL write ret=%d\r\n", write_ret);
+	} else if (ctx.read_len < 0) {
+		CLI_LOGE("UART_LB_256: FAIL read ret=%d\r\n", ctx.read_len);
+	} else if ((uint32_t)ctx.read_len != UART_LB_256_LEN) {
+		CLI_LOGE("UART_LB_256: FAIL len sent=%u recv=%d\r\n",
+			 UART_LB_256_LEN, ctx.read_len);
+	} else {
+		ok = uart_lb_verify(rx, UART_LB_256_LEN, seed, 0xff);
+	}
+
+out:
+	if (rx_created && rx_thread) {
+		rtos_delete_thread(&rx_thread);
+	}
+	if (uart_inited) {
+		bk_uart_deinit(id);
+	}
+	if (done_init) {
+		rtos_deinit_semaphore(&ctx.done);
+	}
+	if (armed_init) {
+		rtos_deinit_semaphore(&ctx.armed);
+	}
+	if (tx) {
+		os_free(tx);
+	}
+	if (rx) {
+		os_free(rx);
+	}
+
+	CLI_LOGI("UART_LB_256: %s (len=%u baud=%u 8N1)\r\n",
+		 ok ? "PASS" : "FAIL", UART_LB_256_LEN, baud);
+	return ok;
+}
+#endif
+
 static void uart_lb_run_matrix(uart_id_t id, bool full, bool use_dma)
 {
 	static const uint32_t lens_quick[] = {1, 16, 64, 128};
@@ -983,6 +1255,72 @@ static void cli_uart_lb_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
 		 id, full ? "full" : "quick");
 	uart_lb_run_matrix(id, full, false);
 }
+
+#if CONFIG_UART_STRESS_TEST
+static void cli_uart_lb_256_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
+{
+	static const uint32_t required_bauds[] = {9600u, 38400u, 115200u};
+	uart_id_t id;
+	uint32_t selected_baud = 0;
+	uint32_t id_value;
+	uint32_t pass = 0;
+	uint32_t total = 0;
+	bool run_all = true;
+
+	if (argc < 2 || argc > 3) {
+		CLI_LOGE("UART_LB_256: usage: uart_lb_256 {id} [9600|38400|115200|all]\r\n");
+		return;
+	}
+
+	if (!uart_test_parse_u32(argv[1], &id_value) ||
+	    id_value >= (uint32_t)UART_ID_MAX) {
+		CLI_LOGE("UART_LB_256: invalid uart id=%s\r\n", argv[1]);
+		return;
+	}
+	id = (uart_id_t)id_value;
+	if (id == UART_ID_0 || (uint32_t)id == (uint32_t)CONFIG_UART_PRINT_PORT) {
+		CLI_LOGE("UART_LB_256: uart id=%u is reserved for debug output\r\n",
+			 (uint32_t)id);
+		return;
+	}
+	if (bk_uart_is_in_used(id)) {
+		CLI_LOGE("UART_LB_256: uart id=%u is already in use\r\n", (uint32_t)id);
+		return;
+	}
+
+	if (argc == 3 && os_strcmp(argv[2], "all") != 0) {
+		if (!uart_test_parse_u32(argv[2], &selected_baud)) {
+			CLI_LOGE("UART_LB_256: invalid baud=%s\r\n", argv[2]);
+			return;
+		}
+		run_all = false;
+		if (selected_baud != 9600u && selected_baud != 38400u &&
+		    selected_baud != 115200u) {
+			CLI_LOGE("UART_LB_256: unsupported baud=%u\r\n", selected_baud);
+			return;
+		}
+	}
+
+	CLI_LOGI("UART_LB_256 START: id=%u baud=%s (jumper TX<->RX required)\r\n",
+		 (uint32_t)id, run_all ? "all" : argv[2]);
+	for (uint32_t i = 0; i < sizeof(required_bauds) / sizeof(required_bauds[0]); i++) {
+		uint32_t baud = required_bauds[i];
+
+		if (!run_all && baud != selected_baud) {
+			continue;
+		}
+		total++;
+		if (uart_lb_run_256(id, baud, UART_LB_SEED_BASE + 0x2560u + i)) {
+			pass++;
+		}
+	}
+
+	CLI_LOGI("UART_LB_256 SUMMARY: %u/%u PASS\r\n", pass, total);
+	if (total > 0 && pass == total) {
+		CLI_LOGI("UART_LB_256: ALL PASS\r\n");
+	}
+}
+#endif
 
 /*--------------------- negative / API exception tests ---------------------*/
 static void cli_uart_lb_api_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
@@ -1182,6 +1520,12 @@ DRV_CLI_CMD_EXPORT static const struct cli_command s_uart_commands[] = {
         {"uart_lb_api", "uart_lb_api {id}", cli_uart_lb_api_cmd},
         {"uart_lb_dma", "uart_lb_dma {id} [quick|full]", cli_uart_lb_dma_cmd},
         {"uart_lb_flow", "uart_lb_flow {id}", cli_uart_lb_flow_cmd},
+#if CONFIG_UART_STRESS_TEST
+#if CONFIG_SHELL_ASYNCLOG
+        {"uart_log_test", "uart_log_test [count] [interval_ms]", cli_uart_log_test_cmd},
+#endif
+        {"uart_lb_256", "uart_lb_256 {id} [9600|38400|115200|all]", cli_uart_lb_256_cmd},
+#endif
 #if CONFIG_IDLE_UART_OUT_TEST
         {"uart_test", "{idle_start|idle_stop} {uart0|uart1|uart2}", cli_uart_test_cmd},
 #endif //CONFIG_IDLE_UART_OUT_TEST

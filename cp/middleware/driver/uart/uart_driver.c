@@ -926,6 +926,12 @@ uint32_t uart_id_to_pm_uart_id(uint32_t uart_id)
 		case UART_ID_2:
 			return PM_DEV_ID_UART3;
 
+		case UART_ID_3:
+			return PM_DEV_ID_UART4;
+
+		case UART_ID_4:
+			return PM_DEV_ID_UART5;
+
 		default:
 			return PM_DEV_ID_UART1;
 	}
@@ -1396,6 +1402,12 @@ bk_err_t bk_uart_init(uart_id_t id, const uart_config_t *config)
 		bk_pm_sleep_register_cb(PM_MODE_LOW_VOLTAGE, PM_DEV_ID_UART4, &uart_enter_config, &uart_exit_config);
 		bk_pm_module_lv_sleep_state_clear(PM_DEV_ID_UART4);
 #endif
+#if (SOC_UART_ID_NUM_PER_UNIT >= 5)
+	} else if (id == UART_ID_4) {
+		bk_pm_module_vote_power_ctrl(PM_POWER_SUB_DOMAIN_UART4, PM_POWER_MODULE_STATE_ON);
+		bk_pm_sleep_register_cb(PM_MODE_LOW_VOLTAGE, PM_DEV_ID_UART5, &uart_enter_config, &uart_exit_config);
+		bk_pm_module_lv_sleep_state_clear(PM_DEV_ID_UART5);
+#endif
 	}
 #endif
 
@@ -1491,6 +1503,11 @@ bk_err_t bk_uart_deinit(uart_id_t id)
 	} else if (id == UART_ID_3) {
 		bk_pm_sleep_unregister_cb(PM_MODE_LOW_VOLTAGE, PM_DEV_ID_UART4, true, false);
 		bk_pm_module_vote_power_ctrl(PM_POWER_SUB_MODULE_NAME_BAKP_UART3, PM_POWER_MODULE_STATE_OFF);
+#endif
+#if (SOC_UART_ID_NUM_PER_UNIT >= 5)
+	} else if (id == UART_ID_4) {
+		bk_pm_sleep_unregister_cb(PM_MODE_LOW_VOLTAGE, PM_DEV_ID_UART5, true, false);
+		bk_pm_module_vote_power_ctrl(PM_POWER_SUB_DOMAIN_UART4, PM_POWER_MODULE_STATE_OFF);
 #endif
 	}
 #endif

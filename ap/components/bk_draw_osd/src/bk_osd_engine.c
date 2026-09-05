@@ -34,8 +34,10 @@ struct osd_engine {
     uint32_t owned_slot_mask;
 
     uint32_t *sprite;      /* in-progress sprite not yet committed (engine-owned) */
-    uint16_t  sw;
-    uint16_t  sh;
+    uint16_t  sw;          /* allocated storage width / GPU stride */
+    uint16_t  sh;          /* allocated storage height */
+    uint16_t  content_w;   /* logical source width, excluding alignment padding */
+    uint16_t  content_h;   /* logical source height, excluding alignment padding */
     uint16_t  dst_x;
     uint16_t  dst_y;
     uint16_t  content_x;
@@ -54,10 +56,13 @@ struct osd_engine {
 /* Merge a drawn rect into the bounding box; coords clamped to sprite bounds. */
 static void engine_bbox_add(struct osd_engine *eng, int x0, int y0, int x1, int y1)
 {
+    uint16_t width = eng->content_w != 0U ? eng->content_w : eng->sw;
+    uint16_t height = eng->content_h != 0U ? eng->content_h : eng->sh;
+
     if (x0 < 0) x0 = 0;
     if (y0 < 0) y0 = 0;
-    if (x1 > (int)eng->sw) x1 = eng->sw;
-    if (y1 > (int)eng->sh) y1 = eng->sh;
+    if (x1 > (int)width) x1 = width;
+    if (y1 > (int)height) y1 = height;
     if (x1 <= x0 || y1 <= y0) {
         return;   /* fully outside sprite or empty rect */
     }
@@ -119,8 +124,8 @@ avdk_err_t osd_engine_delete(osd_engine_handle_t eng)
 
 /* ---------------- compositing ---------------- */
 
-uint16_t osd_engine_sprite_w(osd_engine_handle_t eng) { return eng ? eng->sw : 0; }
-uint16_t osd_engine_sprite_h(osd_engine_handle_t eng) { return eng ? eng->sh : 0; }
+uint16_t osd_engine_sprite_w(osd_engine_handle_t eng) { return eng ? eng->content_w : 0; }
+uint16_t osd_engine_sprite_h(osd_engine_handle_t eng) { return eng ? eng->content_h : 0; }
 
 void osd_engine_set_slot(osd_engine_handle_t eng, uint8_t slot)
 {
@@ -184,13 +189,19 @@ avdk_err_t osd_engine_begin(osd_engine_handle_t eng, uint16_t w, uint16_t h,
 
     uint16_t cur_h = h;
     while (cur_h >= OSD_ENGINE_SHRINK_UNIT || cur_h == h) {
-        uint32_t bytes = (uint32_t)w * cur_h * 4u;
+        uint16_t storage_w = (uint16_t)(((uint32_t)w + OSD_ENGINE_TILE_W - 1U) &
+                                        ~(OSD_ENGINE_TILE_W - 1U));
+        uint16_t storage_h = (uint16_t)(((uint32_t)cur_h + OSD_ENGINE_TILE_H - 1U) &
+                                        ~(OSD_ENGINE_TILE_H - 1U));
+        uint32_t bytes = (uint32_t)storage_w * storage_h * 4u;
         uint32_t *sp = (uint32_t *)bk_frame_buffer_malloc(MEM_SLAB_HEAP_UNCODED, bytes);
         if (sp != NULL) {
             os_memset(sp, 0, bytes);
             eng->sprite = sp;
-            eng->sw     = w;
-            eng->sh     = cur_h;
+            eng->sw     = storage_w;
+            eng->sh     = storage_h;
+            eng->content_w = w;
+            eng->content_h = cur_h;
             eng->dst_x  = dst_x;
             eng->dst_y  = dst_y;
             eng->content_x = content_x;
@@ -345,14 +356,14 @@ avdk_err_t osd_engine_commit(osd_engine_handle_t eng)
      * Crop is only applied for rotate_degree == 0; rotated blits submit the full sprite so the
      * GPU rotation matrix maps a whole viewer-space sprite (crop offset under rotation would
      * need an axis-transformed dst, avoided here for correctness). */
-    uint16_t cx = 0, cy = 0, cw = eng->sw, ch = eng->sh;
+    uint16_t cx = 0, cy = 0, cw = eng->content_w, ch = eng->content_h;
     if (eng->bb_valid && eng->rotate_degree == 0) {
         uint16_t x0 = eng->bb_x0 & (uint16_t)~15u;
         uint16_t y0 = eng->bb_y0 & (uint16_t)~3u;
         uint16_t x1 = (uint16_t)((eng->bb_x1 + 15u) & ~15u);
         uint16_t y1 = (uint16_t)((eng->bb_y1 + 3u) & ~3u);
-        if (x1 > eng->sw) x1 = eng->sw;
-        if (y1 > eng->sh) y1 = eng->sh;
+        if (x1 > eng->content_w) x1 = eng->content_w;
+        if (y1 > eng->content_h) y1 = eng->content_h;
         cx = x0; cy = y0;
         cw = (uint16_t)(x1 - x0);
         ch = (uint16_t)(y1 - y0);
@@ -365,11 +376,11 @@ avdk_err_t osd_engine_commit(osd_engine_handle_t eng)
      * (see GPU frame blit / bk_gpu_blit_to_flexa_block matrix convention) */
     uint16_t dst_x, dst_y;
     if (eng->rotate_degree == 90) {
-        int32_t bx = (int32_t)eng->panel_w - (int32_t)eng->dst_y - (int32_t)eng->sh;
+        int32_t bx = (int32_t)eng->panel_w - (int32_t)eng->dst_y - (int32_t)eng->content_h;
         dst_x = (uint16_t)(bx < 0 ? 0 : bx);
         dst_y = eng->dst_x;
     } else if (eng->rotate_degree == 270) {
-        int32_t by = (int32_t)eng->panel_h - (int32_t)eng->dst_x - (int32_t)eng->sw;
+        int32_t by = (int32_t)eng->panel_h - (int32_t)eng->dst_x - (int32_t)eng->content_w;
         dst_x = eng->dst_y;
         dst_y = (uint16_t)(by < 0 ? 0 : by);
     } else {
@@ -379,8 +390,8 @@ avdk_err_t osd_engine_commit(osd_engine_handle_t eng)
 
     /* Footprint in the final display buffer. Rotated blits submit the whole sprite with axes
      * swapped, so the on-screen size is (sh x sw); the un-rotated path uses the crop rect. */
-    uint16_t fw = (eng->rotate_degree == 90 || eng->rotate_degree == 270) ? eng->sh : cw;
-    uint16_t fh = (eng->rotate_degree == 90 || eng->rotate_degree == 270) ? eng->sw : ch;
+    uint16_t fw = (eng->rotate_degree == 90 || eng->rotate_degree == 270) ? eng->content_h : cw;
+    uint16_t fh = (eng->rotate_degree == 90 || eng->rotate_degree == 270) ? eng->content_w : ch;
     uint32_t target_w = eng->panel_w;
     uint32_t target_h = eng->panel_h;
     if (eng->rotate_degree == 0U) {
@@ -449,17 +460,18 @@ avdk_err_t osd_engine_commit(osd_engine_handle_t eng)
         eng->rotate_degree == 0U ? eng->dst_y : dst_y;
     blit.footprint_rect.width =
         (eng->rotate_degree == 90U || eng->rotate_degree == 270U)
-            ? eng->sh
-            : eng->sw;
+            ? eng->content_h
+            : eng->content_w;
     blit.footprint_rect.height =
         (eng->rotate_degree == 90U || eng->rotate_degree == 270U)
-            ? eng->sw
-            : eng->sh;
+            ? eng->content_w
+            : eng->content_h;
     blit.release_user_data = NULL;
     blit.buffer_release_cb = osd_engine_free_cb;
 
     uint32_t *sprite = eng->sprite;
-    flush_dcache(sprite, (long)((uint32_t)eng->sw * eng->sh * 4U));
+    bk_dcache_clean_for_producer(
+        sprite, (size_t)((uint32_t)eng->sw * eng->sh * 4U));
     /* Release engine ownership before submit; GPU owns on success, freed below on failure */
     eng->sprite = NULL;
     avdk_err_t ret = bk_gpu_overlay_layer_submit_region(

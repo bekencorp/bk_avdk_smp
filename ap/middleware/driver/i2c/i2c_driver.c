@@ -29,8 +29,11 @@
 #if CONFIG_SPE
 #include "security.h"
 #endif
-#if CONFIG_I2C_PM_CB_SUPPORT
+#if CONFIG_I2C_PM_CB_SUPPORT || CONFIG_PM_AP_FAST_BOOT_ENABLE
 #include <modules/pm.h>
+#endif
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+#include "cmsis_gcc.h"
 #endif
 
 int cli_argi2c_test_init(void);
@@ -119,6 +122,19 @@ typedef struct bkTimerCallback{
 static bkTimercb_t i2ccallback[SOC_I2C_UNIT_NUM] ={0};
 static i2c_driver_t s_i2c[SOC_I2C_UNIT_NUM] = {0};
 static bool s_i2c_driver_is_init = false;
+
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+typedef struct {
+	uint32_t active_mask;
+	i2c_config_t config[SOC_I2C_UNIT_NUM];
+	volatile uint32_t busy_count[SOC_I2C_UNIT_NUM];
+	volatile bool suspended;
+	bool restore_required;
+	bool registered;
+} i2c_fast_pm_context_t;
+
+static i2c_fast_pm_context_t s_i2c_fast_pm;
+#endif
 
 static void i2c0_isr(void);
 #if (SOC_I2C_UNIT_NUM > 1)
@@ -594,6 +610,157 @@ static int i2c_pm_restore(uint64_t sleep_time, void *args)
 #define I2C_PM_CHECK_RESTORE(id)
 #endif
 
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+static i2c_typedef_t *i2c_fast_hw(i2c_id_t id)
+{
+	return (id == I2C_ID_0) ?
+		s_i2c[id].hal.hw.i2c0_hw : s_i2c[id].hal.hw.i2c1_hw;
+}
+
+static bk_err_t i2c_fast_quiesce(void *arg)
+{
+	i2c_fast_pm_context_t *ctx = arg;
+	uint32_t active = __atomic_load_n(&ctx->active_mask, __ATOMIC_ACQUIRE);
+
+	__atomic_store_n(&ctx->suspended, true, __ATOMIC_RELEASE);
+	for (i2c_id_t id = I2C_ID_0; id < I2C_ID_MAX; id++) {
+		if ((active & BIT(id)) &&
+			(__atomic_load_n(&ctx->busy_count[id], __ATOMIC_ACQUIRE) ||
+			i2c_hal_is_busy(&s_i2c[id].hal))) {
+			__atomic_store_n(&ctx->suspended, false, __ATOMIC_RELEASE);
+			return BK_ERR_BUSY;
+		}
+	}
+	return BK_OK;
+}
+
+static bk_err_t i2c_fast_backup(void *arg)
+{
+	i2c_fast_pm_context_t *ctx = arg;
+	uint32_t active = __atomic_load_n(&ctx->active_mask, __ATOMIC_ACQUIRE);
+
+	ctx->restore_required = true;
+	for (i2c_id_t id = I2C_ID_0; id < I2C_ID_MAX; id++) {
+		if (!(active & BIT(id))) {
+			continue;
+		}
+		i2c_fast_hw(id)->global_ctrl.v = 0U;
+	}
+	__DMB();
+	return BK_OK;
+}
+
+static bk_err_t i2c_fast_restore(void *arg)
+{
+	(void)arg;
+	return BK_OK;
+}
+
+static bk_err_t i2c_fast_resume(void *arg)
+{
+	i2c_fast_pm_context_t *ctx = arg;
+	uint32_t active = __atomic_load_n(&ctx->active_mask, __ATOMIC_ACQUIRE);
+
+	if (!ctx->restore_required) {
+		__atomic_store_n(&ctx->suspended, false, __ATOMIC_RELEASE);
+		return BK_OK;
+	}
+
+	i2c_hal_init(&s_i2c[I2C_ID_0].hal);
+	for (i2c_id_t id = I2C_ID_0; id < I2C_ID_MAX; id++) {
+		if (!(active & BIT(id))) {
+			continue;
+		}
+		s_i2c[id].hal.id = id;
+		i2c_hal_configure(&s_i2c[id].hal, &ctx->config[id]);
+		i2c_hal_start_common(&s_i2c[id].hal);
+		sys_drv_i2c_select_clock(id,
+			(ctx->config[id].src_clk == I2C_SCLK_120M) ?
+			I2C_SCLK_120M : I2C_SCLK_XTAL);
+		s_i2c[id].work_mode = 0;
+		s_i2c[id].is_addr_tx_done = false;
+		s_i2c[id].is_with_mem_addr = false;
+		s_i2c[id].data_ptr = NULL;
+		s_i2c[id].data_size = 0U;
+		s_i2c[id].data_offset = 0U;
+		s_i2c[id].int_status = 0U;
+		s_i2c[id].err_code = BK_OK;
+		s_i2c[id].master_status = I2C_IDLE;
+		i2ccallback[id].callbackflag = 0;
+		i2ccallback[id].asyncflag = 0;
+		i2ccallback[id].transtate = 0;
+
+		if (id == I2C_ID_0) {
+#if CONFIG_SOC_SMP
+			sys_drv_set_int_en(CPU2_CORE_ID, INT_SRC_I2C0, 1);
+#else
+			sys_drv_set_int_en(rtos_get_core_id(), INT_SRC_I2C0, 1);
+#endif
+		}
+#if (SOC_I2C_UNIT_NUM > 1)
+		else if (id == I2C_ID_1) {
+#if CONFIG_SOC_SMP
+			sys_drv_set_int_en(CPU2_CORE_ID, INT_SRC_I2C1, 1);
+#else
+			sys_drv_set_int_en(rtos_get_core_id(), INT_SRC_I2C1, 1);
+#endif
+		}
+#endif
+		while (rtos_get_semaphore(&s_i2c[id].tx_sema,
+			BEKEN_NO_WAIT) == BK_OK) {
+		}
+		while (rtos_get_semaphore(&s_i2c[id].rx_sema,
+			BEKEN_NO_WAIT) == BK_OK) {
+		}
+	}
+	ctx->restore_required = false;
+	__atomic_store_n(&ctx->suspended, false, __ATOMIC_RELEASE);
+	return BK_OK;
+}
+
+static bk_err_t i2c_fast_transfer_enter(i2c_id_t id)
+{
+	if (__atomic_load_n(&s_i2c_fast_pm.suspended, __ATOMIC_ACQUIRE)) {
+		return BK_ERR_BUSY;
+	}
+	__atomic_add_fetch(&s_i2c_fast_pm.busy_count[id], 1U,
+		__ATOMIC_ACQ_REL);
+	if (__atomic_load_n(&s_i2c_fast_pm.suspended, __ATOMIC_ACQUIRE)) {
+		__atomic_sub_fetch(&s_i2c_fast_pm.busy_count[id], 1U,
+			__ATOMIC_RELEASE);
+		return BK_ERR_BUSY;
+	}
+	return BK_OK;
+}
+
+static void i2c_fast_transfer_exit(i2c_id_t id)
+{
+	__atomic_sub_fetch(&s_i2c_fast_pm.busy_count[id], 1U,
+		__ATOMIC_RELEASE);
+}
+
+static const pm_ap_fast_pm_ops_t s_i2c_fast_ops = {
+	.name = "i2c",
+	.quiesce = i2c_fast_quiesce,
+	.backup = i2c_fast_backup,
+	.restore = i2c_fast_restore,
+	.resume = i2c_fast_resume,
+	.arg = &s_i2c_fast_pm,
+	.priority = PM_AP_FAST_PRIORITY_PERIPHERAL,
+};
+
+#define I2C_FAST_RETURN_ON_SUSPEND(id) do {\
+		bk_err_t fast_ret = i2c_fast_transfer_enter(id);\
+		if (fast_ret != BK_OK) {\
+			return fast_ret;\
+		}\
+	} while (0)
+#define I2C_FAST_TRANSFER_EXIT(id) i2c_fast_transfer_exit(id)
+#else
+#define I2C_FAST_RETURN_ON_SUSPEND(id)
+#define I2C_FAST_TRANSFER_EXIT(id)
+#endif
+
 bk_err_t bk_i2c_driver_init(void)
 {
 	if (s_i2c_driver_is_init) {
@@ -635,6 +802,16 @@ bk_err_t bk_i2c_driver_deinit(void)
 	if (!s_i2c_driver_is_init) {
 		return BK_OK;
 	}
+
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+	if (s_i2c_fast_pm.registered) {
+		bk_err_t ret = bk_pm_ap_fast_ops_unregister(&s_i2c_fast_ops);
+		if (ret != BK_OK) {
+			return ret;
+		}
+		os_memset(&s_i2c_fast_pm, 0, sizeof(s_i2c_fast_pm));
+	}
+#endif
 
 	for (int id = I2C_ID_0; id < I2C_ID_MAX; id++) {
 		i2c_id_deinit_common(id);
@@ -680,12 +857,26 @@ bk_err_t bk_i2c_init(i2c_id_t id, const i2c_config_t *cfg)
 	if (!(support_id & id_init_bits))
 		return BK_ERR_I2C_CHECK_DEFCONFIG;
 #endif
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+	if (!s_i2c_fast_pm.registered) {
+		bk_err_t ret = bk_pm_ap_fast_ops_register(&s_i2c_fast_ops);
+		if (ret != BK_OK) {
+			return ret;
+		}
+		s_i2c_fast_pm.registered = true;
+	}
+#endif
 	s_i2c[id].int_status = 0;
 	s_i2c[id].addr_mode = cfg->addr_mode;
 
 	i2c_id_init_common(id);
 	i2c_hal_configure(&s_i2c[id].hal, cfg);
 	i2c_hal_start_common(&s_i2c[id].hal);
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+	s_i2c_fast_pm.config[id] = *cfg;
+	__atomic_or_fetch(&s_i2c_fast_pm.active_mask, BIT(id),
+		__ATOMIC_RELEASE);
+#endif
 	I2C_LOGD("I2C(%d) init ok, baud_rate:%d\r\n", id, cfg->baud_rate);
 	if (cfg->src_clk == I2C_SCLK_120M)
 		sys_drv_i2c_select_clock(id, I2C_SCLK_120M);
@@ -699,6 +890,10 @@ bk_err_t bk_i2c_deinit(i2c_id_t id)
 {
 	I2C_RETURN_ON_NOT_INIT();
 
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+	__atomic_and_fetch(&s_i2c_fast_pm.active_mask, ~BIT(id),
+		__ATOMIC_RELEASE);
+#endif
 	i2c_id_deinit_common(id);
 #if (CONFIG_I2C_PM_CB_SUPPORT)
 	if (id == I2C_ID_0) {
@@ -722,6 +917,7 @@ bk_err_t bk_i2c_master_write(i2c_id_t id, uint32_t dev_addr, const uint8_t *data
 	I2C_PM_CHECK_RESTORE(id);
 
 	BK_RETURN_ON_ERR(i2c_wait_sm_bus_idle(id, timeout_ms));
+	I2C_FAST_RETURN_ON_SUSPEND(id);
 	if (timeout_ms != 0xFFFFFFFF){
 		i2ccallback[id].asyncflag = 1;
 	}
@@ -746,7 +942,9 @@ bk_err_t bk_i2c_master_write(i2c_id_t id, uint32_t dev_addr, const uint8_t *data
 		s_i2c[id].err_code = BK_ERR_I2C_ACK_TIMEOUT;
 	}
 
-	return s_i2c[id].err_code;
+	ret = s_i2c[id].err_code;
+	I2C_FAST_TRANSFER_EXIT(id);
+	return ret;
 }
 
 bk_err_t bk_i2c_master_write_noaddr(i2c_id_t id, const uint8_t *data, uint32_t size, uint32_t timeout_ms)
@@ -757,6 +955,7 @@ bk_err_t bk_i2c_master_write_noaddr(i2c_id_t id, const uint8_t *data, uint32_t s
 	I2C_RETURN_ON_ID_NOT_INIT(id);
 	I2C_PM_CHECK_RESTORE(id);
 	BK_RETURN_ON_ERR(i2c_wait_sm_bus_idle(id, timeout_ms));
+	I2C_FAST_RETURN_ON_SUSPEND(id);
 	if (timeout_ms != 0xFFFFFFFF){
 		i2ccallback[id].asyncflag = 1;
 	}
@@ -783,7 +982,9 @@ bk_err_t bk_i2c_master_write_noaddr(i2c_id_t id, const uint8_t *data, uint32_t s
 		s_i2c[id].err_code = BK_ERR_I2C_ACK_TIMEOUT;
 	}
 
-	return s_i2c[id].err_code;
+	ret = s_i2c[id].err_code;
+	I2C_FAST_TRANSFER_EXIT(id);
+	return ret;
 }
 
 bk_err_t bk_i2c_master_read(i2c_id_t id, uint32_t dev_addr, uint8_t *data, uint32_t size, uint32_t timeout_ms)
@@ -794,6 +995,7 @@ bk_err_t bk_i2c_master_read(i2c_id_t id, uint32_t dev_addr, uint8_t *data, uint3
 	I2C_RETURN_ON_ID_NOT_INIT(id);
 	I2C_PM_CHECK_RESTORE(id);
 	BK_RETURN_ON_ERR(i2c_wait_sm_bus_idle(id, timeout_ms));
+	I2C_FAST_RETURN_ON_SUSPEND(id);
 	if (timeout_ms != 0xFFFFFFFF){
 		i2ccallback[id].asyncflag = 1;
 	}
@@ -818,7 +1020,9 @@ bk_err_t bk_i2c_master_read(i2c_id_t id, uint32_t dev_addr, uint8_t *data, uint3
 		s_i2c[id].err_code = BK_ERR_I2C_ACK_TIMEOUT;
 	}
 
-	return s_i2c[id].err_code;
+	ret = s_i2c[id].err_code;
+	I2C_FAST_TRANSFER_EXIT(id);
+	return ret;
 }
 
 bk_err_t bk_i2c_master_read_noaddr(i2c_id_t id, uint8_t *data, uint32_t size, uint32_t timeout_ms)
@@ -829,6 +1033,7 @@ bk_err_t bk_i2c_master_read_noaddr(i2c_id_t id, uint8_t *data, uint32_t size, ui
 	I2C_RETURN_ON_ID_NOT_INIT(id);
 	I2C_PM_CHECK_RESTORE(id);
 	BK_RETURN_ON_ERR(i2c_wait_sm_bus_idle(id, timeout_ms));
+	I2C_FAST_RETURN_ON_SUSPEND(id);
 	if (timeout_ms != 0xFFFFFFFF){
 		i2ccallback[id].asyncflag = 1;
 	}
@@ -856,7 +1061,9 @@ bk_err_t bk_i2c_master_read_noaddr(i2c_id_t id, uint8_t *data, uint32_t size, ui
 		s_i2c[id].err_code = BK_ERR_I2C_ACK_TIMEOUT;
 	}
 
-	return s_i2c[id].err_code;
+	ret = s_i2c[id].err_code;
+	I2C_FAST_TRANSFER_EXIT(id);
+	return ret;
 }
 
 bk_err_t bk_i2c_slave_write(i2c_id_t id, const uint8_t *data, uint32_t size, uint32_t timeout_ms)
@@ -867,6 +1074,7 @@ bk_err_t bk_i2c_slave_write(i2c_id_t id, const uint8_t *data, uint32_t size, uin
 	I2C_RETURN_ON_ID_NOT_INIT(id);
 	I2C_PM_CHECK_RESTORE(id);
 	BK_RETURN_ON_ERR(i2c_wait_sm_bus_idle(id, timeout_ms));
+	I2C_FAST_RETURN_ON_SUSPEND(id);
 
 	uint32_t int_level = rtos_enter_critical();
 	i2c_hal_set_write_int_mode(&s_i2c[id].hal, size);
@@ -884,9 +1092,11 @@ bk_err_t bk_i2c_slave_write(i2c_id_t id, const uint8_t *data, uint32_t size, uin
 	i2c_hal_start_common(&s_i2c[id].hal);
 	if (ret != kNoErr) {
 		I2C_LOGW("I2C(%d) slave_write get semaphore timeout\r\n", id);
+		I2C_FAST_TRANSFER_EXIT(id);
 		return BK_ERR_I2C_ACK_TIMEOUT;
 	}
 
+	I2C_FAST_TRANSFER_EXIT(id);
 	return BK_OK;
 }
 
@@ -898,6 +1108,7 @@ bk_err_t bk_i2c_slave_read(i2c_id_t id, uint8_t *data, uint32_t size, uint32_t t
 	I2C_RETURN_ON_ID_NOT_INIT(id);
 	I2C_PM_CHECK_RESTORE(id);
 	BK_RETURN_ON_ERR(i2c_wait_sm_bus_idle(id, timeout_ms));
+	I2C_FAST_RETURN_ON_SUSPEND(id);
 
 	uint32_t int_level = rtos_enter_critical();
 	i2c_hal_set_read_int_mode(&s_i2c[id].hal, size);
@@ -912,9 +1123,11 @@ bk_err_t bk_i2c_slave_read(i2c_id_t id, uint8_t *data, uint32_t size, uint32_t t
 	ret = rtos_get_semaphore(&s_i2c[id].rx_sema, timeout_ms);
 	if (ret != kNoErr) {
 		I2C_LOGW("I2C(%d) slave_read get semaphore timeout\r\n", id);
+		I2C_FAST_TRANSFER_EXIT(id);
 		return BK_ERR_I2C_ACK_TIMEOUT;
 	}
 
+	I2C_FAST_TRANSFER_EXIT(id);
 	return BK_OK;
 }
 
@@ -927,6 +1140,7 @@ bk_err_t bk_i2c_memory_write(i2c_id_t id, const i2c_mem_param_t *mem_param)
 	I2C_RETURN_ON_ID_NOT_INIT(id);
 	I2C_PM_CHECK_RESTORE(id);
 	BK_RETURN_ON_ERR(i2c_wait_sm_bus_idle(id, mem_param->timeout_ms));
+	I2C_FAST_RETURN_ON_SUSPEND(id);
 
 	uint32_t int_level = rtos_enter_critical();
 	s_i2c[id].err_code = BK_OK;
@@ -950,7 +1164,9 @@ bk_err_t bk_i2c_memory_write(i2c_id_t id, const i2c_mem_param_t *mem_param)
 		s_i2c[id].err_code = BK_ERR_I2C_ACK_TIMEOUT;
 	}
 
-	return s_i2c[id].err_code;
+	ret = s_i2c[id].err_code;
+	I2C_FAST_TRANSFER_EXIT(id);
+	return ret;
 }
 
 bk_err_t bk_i2c_memory_read(i2c_id_t id, const i2c_mem_param_t *mem_param)
@@ -962,6 +1178,7 @@ bk_err_t bk_i2c_memory_read(i2c_id_t id, const i2c_mem_param_t *mem_param)
 	I2C_RETURN_ON_ID_NOT_INIT(id);
 	I2C_PM_CHECK_RESTORE(id);
 	BK_RETURN_ON_ERR(i2c_wait_sm_bus_idle(id, mem_param->timeout_ms));
+	I2C_FAST_RETURN_ON_SUSPEND(id);
 
 	uint32_t int_level = rtos_enter_critical();
 	s_i2c[id].err_code = BK_OK;
@@ -985,7 +1202,9 @@ bk_err_t bk_i2c_memory_read(i2c_id_t id, const i2c_mem_param_t *mem_param)
 		s_i2c[id].err_code = BK_ERR_I2C_ACK_TIMEOUT;
 	}
 
-	return s_i2c[id].err_code;
+	ret = s_i2c[id].err_code;
+	I2C_FAST_TRANSFER_EXIT(id);
+	return ret;
 }
 
 bk_err_t bk_i2c_set_baud_rate(i2c_id_t id, uint32_t baud_rate)
@@ -994,6 +1213,11 @@ bk_err_t bk_i2c_set_baud_rate(i2c_id_t id, uint32_t baud_rate)
 	I2C_RETURN_ON_ID_NOT_INIT(id);
 	I2C_PM_CHECK_RESTORE(id);
 	i2c_hal_set_baud_rate(&s_i2c[id].hal, baud_rate);
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+	/* Keep the Fast Boot snapshot in sync so resume restores the runtime
+	 * baud rate, not the stale value captured at bk_i2c_init(). */
+	s_i2c_fast_pm.config[id].baud_rate = baud_rate;
+#endif
 	return BK_OK;
 }
 
@@ -1003,6 +1227,11 @@ bk_err_t bk_i2c_set_slave_address(i2c_id_t id, uint16_t slave_addr)
 	I2C_RETURN_ON_ID_NOT_INIT(id);
 	I2C_PM_CHECK_RESTORE(id);
 	i2c_hal_set_slave_addr(&s_i2c[id].hal, slave_addr);
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+	/* Keep the Fast Boot snapshot in sync so resume restores the runtime
+	 * slave address, not the stale value captured at bk_i2c_init(). */
+	s_i2c_fast_pm.config[id].slave_addr = slave_addr;
+#endif
 	return BK_OK;
 }
 

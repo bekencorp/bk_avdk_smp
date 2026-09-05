@@ -19,8 +19,12 @@
 #include "sys_driver.h"
 #include "cpu_id.h"
 #include <os/os.h>
+#include "cmsis_gcc.h"
 #include "ipi_hal.h"
 #include "sys_reg.h"
+#if CONFIG_PM_ENABLE
+#include <modules/pm.h>
+#endif
 
 #define IPI_TAG "ipi"
 #define IPI_LOGI(...) BK_LOGI(IPI_TAG, ##__VA_ARGS__)
@@ -40,6 +44,51 @@ static ipi_domain_callback_info_t s_ipi_domain_callbacks[IPI_DOMAIN_MAX] = {0};
 static ipi_hal_t s_ipi_hal;
 
 static void bk_ipi_isr_dispatch(void);
+
+#define IPI_CP_CHANNEL_MASK \
+	((1U << IPI_CP_CORE0) | (1U << IPI_CP_CORE1))
+
+#if CONFIG_PM_ENABLE
+static uint32_t s_ipi_cp_enable_backup;
+
+static int ipi_pm_backup(uint64_t sleep_time, void *args)
+{
+	(void)sleep_time;
+	(void)args;
+	s_ipi_cp_enable_backup =
+		ipi_ll_get_int_reg(s_ipi_hal.hw) & IPI_CP_CHANNEL_MASK;
+	return BK_OK;
+}
+
+static int ipi_pm_restore(uint64_t sleep_time, void *args)
+{
+	uint32_t int_en;
+
+	(void)sleep_time;
+	(void)args;
+	ipi_hal_clear(&s_ipi_hal, IPI_CP_CORE0);
+	ipi_hal_clear(&s_ipi_hal, IPI_CP_CORE1);
+	int_en = ipi_ll_get_int_reg(s_ipi_hal.hw);
+	int_en = (int_en & ~IPI_CP_CHANNEL_MASK) | s_ipi_cp_enable_backup;
+	ipi_ll_set_int_reg(s_ipi_hal.hw, int_en);
+	__DMB();
+	sys_drv_set_int_en(CPU0_CORE_ID, INT_SRC_IPI,
+		(s_ipi_cp_enable_backup & (1U << IPI_CP_CORE0)) != 0U);
+	sys_drv_set_int_en(CPU1_CORE_ID, INT_SRC_IPI,
+		(s_ipi_cp_enable_backup & (1U << IPI_CP_CORE1)) != 0U);
+	return BK_OK;
+}
+
+static pm_cb_conf_t s_ipi_pm_enter = {
+	.cb = ipi_pm_backup,
+	.args = NULL,
+};
+
+static pm_cb_conf_t s_ipi_pm_exit = {
+	.cb = ipi_pm_restore,
+	.args = NULL,
+};
+#endif
 
 /**
  * @brief Validate core ID
@@ -104,6 +153,13 @@ bk_err_t bk_ipi_driver_init(void)
 	bk_ipi_register_cli_test_feature();
 #endif
 
+#if CONFIG_PM_ENABLE
+	if (bk_pm_sleep_register_cb(PM_MODE_LOW_VOLTAGE, PM_DEV_ID_IPI,
+		&s_ipi_pm_enter, &s_ipi_pm_exit) != BK_OK) {
+		return BK_FAIL;
+	}
+#endif
+
 	s_ipi_driver_init = true;
 
 	return BK_OK;
@@ -127,6 +183,11 @@ bk_err_t bk_ipi_driver_deinit(void)
 		s_ipi_domain_callbacks[i].callback = NULL;
 		s_ipi_domain_callbacks[i].param = NULL;
 	}
+
+#if CONFIG_PM_ENABLE
+	bk_pm_sleep_unregister_cb(PM_MODE_LOW_VOLTAGE, PM_DEV_ID_IPI,
+		true, true);
+#endif
 
 	s_ipi_driver_init = false;
 

@@ -13,3 +13,5 @@ CONFIG_SPINLOCK=y
 CONFIG_USE_CONV_UTF8=n
 CONFIG_IPERF_TEST=n
 CONFIG_WIFI_VNET_CONTROLLER=n
+# motion_detect is size-critical and does not need the flash test CLI.
+# CONFIG_FLASH_TEST is not set

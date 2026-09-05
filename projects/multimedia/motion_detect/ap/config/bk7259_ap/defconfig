@@ -64,6 +64,8 @@ CONFIG_MEDIA_SERVICE=y
 
 # CONFIG_DRIVER_TEST is not set
 # CONFIG_UART_TEST is not set
+# motion_detect is size-critical and does not need the flash test CLI.
+# CONFIG_FLASH_TEST is not set
 
 # PSRAM: same policy as the face_detection and face_verify demos for large TFLite model data and tensor arenas.
 CONFIG_PSRAM=y

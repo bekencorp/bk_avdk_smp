@@ -17,6 +17,8 @@
 #include "cli.h"
 #include "flash_driver.h"
 #include <os/os.h>
+#include <stdbool.h>
+#include <stdint.h>
 
 #if CONFIG_TFM_FLASH_NSC
 #include "tfm_flash_nsc.h"
@@ -61,6 +63,7 @@ static void cli_flash_help(void)
 	CLI_LOGD("flash_partition show\n");
 	CLI_LOGD("flash_erase_test ble\n");
 	CLI_LOGD("flash_test_task {start|stop} [1|2] - start/stop periodic flash test task\n");
+	CLI_LOGD("flash_conc {sns|smp|peer|stop|stat|help} - S/NS & multi-core concurrent E/W/R\n");
 }
 
 static void cli_flash_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
@@ -655,6 +658,479 @@ out:
 	os_memcpy(pcWriteBuffer, msg, os_strlen(msg));
 }
 
+
+/* ---- concurrent S/NS & multi-core flash stress (flash_conc) ---- */
+#ifndef FLASH_SECTOR_SIZE
+#define FLASH_SECTOR_SIZE 0x1000
+#endif
+
+/* USR_CONFIG @ 0x4E7000, size 0xF000 — keep slots non-overlapping with CP peer. */
+#ifndef CONFIG_FLASH_CONC_NS_ADDR
+#define CONFIG_FLASH_CONC_NS_ADDR     0x4E7000
+#endif
+#ifndef CONFIG_FLASH_CONC_S_ADDR
+#define CONFIG_FLASH_CONC_S_ADDR      0x4E8000
+#endif
+#ifndef CONFIG_FLASH_CONC_SMP0_ADDR
+#define CONFIG_FLASH_CONC_SMP0_ADDR   0x4E9000
+#endif
+#ifndef CONFIG_FLASH_CONC_SMP1_ADDR
+#define CONFIG_FLASH_CONC_SMP1_ADDR   0x4EA000
+#endif
+#ifndef CONFIG_FLASH_CONC_PEER_ADDR
+#define CONFIG_FLASH_CONC_PEER_ADDR   0x4EB000
+#endif
+
+#ifndef CONFIG_FLASH_CONC_SIZE
+#define CONFIG_FLASH_CONC_SIZE        0x100
+#endif
+#ifndef CONFIG_FLASH_CONC_INTERVAL_MS
+#define CONFIG_FLASH_CONC_INTERVAL_MS 50
+#endif
+
+#define FLASH_CONC_TASK_PRIO         5
+#define FLASH_CONC_TASK_STACK        2048
+#define FLASH_CONC_LOG_EVERY         20
+
+typedef enum {
+	FLASH_CONC_PATH_NS = 0,
+	FLASH_CONC_PATH_S  = 1,
+} flash_conc_path_t;
+
+typedef enum {
+	FLASH_CONC_CORE_ANY = 0xFF,
+	FLASH_CONC_CORE_0   = 0,
+	FLASH_CONC_CORE_1   = 1,
+} flash_conc_core_t;
+
+typedef struct {
+	const char *name;
+	uint8_t tag;
+	flash_conc_path_t path;
+	flash_conc_core_t core;
+	uint32_t addr;
+	uint32_t size;
+	uint32_t interval_ms;
+	volatile bool running;
+	beken_thread_t handle;
+	uint32_t ok_cnt;
+	uint32_t fail_cnt;
+	uint32_t iter;
+} flash_conc_worker_t;
+
+enum {
+	FLASH_CONC_IDX_NS = 0,
+	FLASH_CONC_IDX_S,
+	FLASH_CONC_IDX_SMP0,
+	FLASH_CONC_IDX_SMP1,
+	FLASH_CONC_IDX_PEER,
+	FLASH_CONC_WORKER_MAX,
+};
+
+static flash_conc_worker_t s_workers[FLASH_CONC_WORKER_MAX] = {
+	[FLASH_CONC_IDX_NS] = {
+		.name = "fc_ns", .tag = 0x10, .path = FLASH_CONC_PATH_NS,
+		.core = FLASH_CONC_CORE_ANY, .addr = CONFIG_FLASH_CONC_NS_ADDR,
+		.size = CONFIG_FLASH_CONC_SIZE, .interval_ms = CONFIG_FLASH_CONC_INTERVAL_MS,
+	},
+	[FLASH_CONC_IDX_S] = {
+		.name = "fc_s", .tag = 0x20, .path = FLASH_CONC_PATH_S,
+		.core = FLASH_CONC_CORE_ANY, .addr = CONFIG_FLASH_CONC_S_ADDR,
+		.size = CONFIG_FLASH_CONC_SIZE, .interval_ms = CONFIG_FLASH_CONC_INTERVAL_MS,
+	},
+	[FLASH_CONC_IDX_SMP0] = {
+		.name = "fc_smp0", .tag = 0x30, .path = FLASH_CONC_PATH_NS,
+		.core = FLASH_CONC_CORE_0, .addr = CONFIG_FLASH_CONC_SMP0_ADDR,
+		.size = CONFIG_FLASH_CONC_SIZE, .interval_ms = CONFIG_FLASH_CONC_INTERVAL_MS,
+	},
+	[FLASH_CONC_IDX_SMP1] = {
+		.name = "fc_smp1", .tag = 0x40, .path = FLASH_CONC_PATH_NS,
+		.core = FLASH_CONC_CORE_1, .addr = CONFIG_FLASH_CONC_SMP1_ADDR,
+		.size = CONFIG_FLASH_CONC_SIZE, .interval_ms = CONFIG_FLASH_CONC_INTERVAL_MS,
+	},
+	[FLASH_CONC_IDX_PEER] = {
+		.name = "fc_peer", .tag = 0x50, .path = FLASH_CONC_PATH_NS,
+		.core = FLASH_CONC_CORE_ANY, .addr = CONFIG_FLASH_CONC_PEER_ADDR,
+		.size = CONFIG_FLASH_CONC_SIZE, .interval_ms = CONFIG_FLASH_CONC_INTERVAL_MS,
+	},
+};
+
+static inline void flash_conc_wdt_feed(void)
+{
+#if CONFIG_TASK_WDT
+	extern void bk_task_wdt_feed(void);
+	bk_task_wdt_feed();
+#endif
+}
+
+static bk_err_t flash_conc_erase(flash_conc_worker_t *w, uint32_t sector_addr)
+{
+#if CONFIG_TFM_FLASH_NSC
+	if (w->path == FLASH_CONC_PATH_S) {
+		psa_flash_erase_sector(sector_addr);
+		return BK_OK;
+	}
+#else
+	(void)w;
+#endif
+	return bk_flash_erase_sector(sector_addr);
+}
+
+static bk_err_t flash_conc_write(flash_conc_worker_t *w, uint32_t addr,
+				 const uint8_t *buf, uint32_t len)
+{
+#if CONFIG_TFM_FLASH_NSC
+	if (w->path == FLASH_CONC_PATH_S) {
+		psa_flash_write_bytes(addr, (uint8_t *)buf, len);
+		return BK_OK;
+	}
+#else
+	(void)w;
+#endif
+	return bk_flash_write_bytes(addr, buf, len);
+}
+
+static bk_err_t flash_conc_read(flash_conc_worker_t *w, uint32_t addr,
+				uint8_t *buf, uint32_t len)
+{
+#if CONFIG_TFM_FLASH_NSC
+	if (w->path == FLASH_CONC_PATH_S) {
+		psa_flash_read_bytes(addr, buf, len);
+		return BK_OK;
+	}
+#else
+	(void)w;
+#endif
+	return bk_flash_read_bytes(addr, buf, len);
+}
+
+static void flash_conc_unprotect(flash_conc_worker_t *w)
+{
+#if CONFIG_TFM_FLASH_NSC
+	if (w->path == FLASH_CONC_PATH_S) {
+		psa_flash_set_protect_type(FLASH_PROTECT_NONE);
+		return;
+	}
+#endif
+	(void)w;
+	test_flash_set_protect_type_none();
+}
+
+static bk_err_t flash_conc_create_thread(flash_conc_worker_t *w,
+					 beken_thread_function_t fn)
+{
+#if CONFIG_SOC_SMP
+	if (w->core == FLASH_CONC_CORE_0) {
+		return rtos_core0_create_thread(&w->handle, FLASH_CONC_TASK_PRIO,
+			w->name, fn, FLASH_CONC_TASK_STACK, (beken_thread_arg_t)w);
+	}
+	if (w->core == FLASH_CONC_CORE_1) {
+		return rtos_core1_create_thread(&w->handle, FLASH_CONC_TASK_PRIO,
+			w->name, fn, FLASH_CONC_TASK_STACK, (beken_thread_arg_t)w);
+	}
+#endif
+	return rtos_create_thread(&w->handle, FLASH_CONC_TASK_PRIO,
+		w->name, fn, FLASH_CONC_TASK_STACK, (beken_thread_arg_t)w);
+}
+
+static void flash_conc_worker(beken_thread_arg_t arg)
+{
+	flash_conc_worker_t *w = (flash_conc_worker_t *)arg;
+	uint8_t *write_buf = NULL;
+	uint8_t *read_buf = NULL;
+
+	write_buf = (uint8_t *)os_malloc(w->size);
+	read_buf = (uint8_t *)os_malloc(w->size);
+	if (!write_buf || !read_buf) {
+		CLI_LOGE("%s: oom size=0x%x\r\n", w->name, w->size);
+		if (write_buf)
+			os_free(write_buf);
+		if (read_buf)
+			os_free(read_buf);
+		w->running = false;
+		w->handle = NULL;
+		rtos_delete_thread(NULL);
+		return;
+	}
+
+	flash_conc_unprotect(w);
+	CLI_LOGD("%s: start path=%s core=%u addr=0x%08x size=0x%x interval=%ums on_core=%u\r\n",
+		 w->name,
+		 (w->path == FLASH_CONC_PATH_S) ? "S" : "NS",
+		 (unsigned)w->core, w->addr, w->size, w->interval_ms,
+		 (unsigned)rtos_get_core_id());
+
+	while (w->running) {
+		bool ok = true;
+		bk_err_t ret;
+		uint32_t sector_addr = w->addr & ~(FLASH_SECTOR_SIZE - 1);
+
+		w->iter++;
+		flash_conc_wdt_feed();
+
+		ret = flash_conc_erase(w, sector_addr);
+		if (ret != BK_OK) {
+			CLI_LOGE("%s: erase fail addr=0x%08x ret=%d\r\n", w->name, sector_addr, ret);
+			ok = false;
+		}
+
+		for (uint32_t i = 0; i < w->size; i++)
+			write_buf[i] = (uint8_t)((w->tag + w->iter + i) & 0xFF);
+
+		flash_conc_wdt_feed();
+		ret = flash_conc_write(w, w->addr, write_buf, w->size);
+		if (ret != BK_OK) {
+			CLI_LOGE("%s: write fail addr=0x%08x ret=%d\r\n", w->name, w->addr, ret);
+			ok = false;
+		}
+
+		os_memset(read_buf, 0, w->size);
+		flash_conc_wdt_feed();
+		ret = flash_conc_read(w, w->addr, read_buf, w->size);
+		if (ret != BK_OK) {
+			CLI_LOGE("%s: read fail addr=0x%08x ret=%d\r\n", w->name, w->addr, ret);
+			ok = false;
+		} else {
+			for (uint32_t i = 0; i < w->size; i++) {
+				if (read_buf[i] != write_buf[i]) {
+					CLI_LOGE("%s: verify fail off=%u exp=0x%02x got=0x%02x iter=%u\r\n",
+						 w->name, i, write_buf[i], read_buf[i], w->iter);
+					ok = false;
+					break;
+				}
+			}
+		}
+
+		if (ok)
+			w->ok_cnt++;
+		else
+			w->fail_cnt++;
+
+		if (!ok || ((w->iter % FLASH_CONC_LOG_EVERY) == 0)) {
+			CLI_LOGD("%s: iter=%u ok=%u fail=%u core=%u\r\n",
+				 w->name, w->iter, w->ok_cnt, w->fail_cnt,
+				 (unsigned)rtos_get_core_id());
+		}
+
+		rtos_delay_milliseconds(w->interval_ms);
+	}
+
+	os_free(write_buf);
+	os_free(read_buf);
+	CLI_LOGD("%s: stopped ok=%u fail=%u\r\n", w->name, w->ok_cnt, w->fail_cnt);
+	w->handle = NULL;
+	rtos_delete_thread(NULL);
+}
+
+static bool flash_conc_worker_busy(const flash_conc_worker_t *w)
+{
+	return w->running || (w->handle != NULL);
+}
+
+static bk_err_t flash_conc_start_one(flash_conc_worker_t *w, uint32_t addr,
+				     uint32_t size, uint32_t interval_ms)
+{
+	bk_err_t ret;
+
+	if (flash_conc_worker_busy(w)) {
+		CLI_LOGE("%s: already running\r\n", w->name);
+		return BK_FAIL;
+	}
+
+#if !CONFIG_TFM_FLASH_NSC
+	if (w->path == FLASH_CONC_PATH_S) {
+		CLI_LOGE("%s: CONFIG_TFM_FLASH_NSC disabled, Secure path unavailable\r\n", w->name);
+		return BK_FAIL;
+	}
+#endif
+
+	if (addr)
+		w->addr = addr;
+	if (size)
+		w->size = size;
+	if (interval_ms)
+		w->interval_ms = interval_ms;
+
+	w->ok_cnt = 0;
+	w->fail_cnt = 0;
+	w->iter = 0;
+	w->running = true;
+
+	ret = flash_conc_create_thread(w, (beken_thread_function_t)flash_conc_worker);
+	if (ret != BK_OK) {
+		w->running = false;
+		w->handle = NULL;
+		CLI_LOGE("%s: create thread fail ret=%d\r\n", w->name, ret);
+		return ret;
+	}
+	return BK_OK;
+}
+
+static void flash_conc_stop_one(flash_conc_worker_t *w)
+{
+	if (!w->running && w->handle == NULL) {
+		CLI_LOGD("%s: not running\r\n", w->name);
+		return;
+	}
+	w->running = false;
+	CLI_LOGD("%s: stop requested\r\n", w->name);
+}
+
+static void flash_conc_stop_all(void)
+{
+	for (int i = 0; i < FLASH_CONC_WORKER_MAX; i++)
+		flash_conc_stop_one(&s_workers[i]);
+}
+
+static void flash_conc_print_stat(void)
+{
+	CLI_LOGD("flash_conc stat (AP):\r\n");
+	for (int i = 0; i < FLASH_CONC_WORKER_MAX; i++) {
+		flash_conc_worker_t *w = &s_workers[i];
+		CLI_LOGD("  %-8s path=%-2s core=%u addr=0x%08x run=%u iter=%u ok=%u fail=%u\r\n",
+			 w->name,
+			 (w->path == FLASH_CONC_PATH_S) ? "S" : "NS",
+			 (unsigned)w->core, w->addr,
+			 w->running ? 1U : 0U, w->iter, w->ok_cnt, w->fail_cnt);
+	}
+}
+
+static void cli_flash_conc_help(void)
+{
+	CLI_LOGD("flash_conc sns {start|stop} [ns_addr] [s_addr] [size] [interval_ms]\r\n");
+	CLI_LOGD("  Secure(NSC) + Non-Secure concurrent erase/write/read/verify\r\n");
+	CLI_LOGD("flash_conc smp {start|stop} [addr0] [addr1] [size] [interval_ms]\r\n");
+	CLI_LOGD("  SMP core0 + core1 concurrent erase/write/read/verify\r\n");
+	CLI_LOGD("flash_conc peer {start|stop} [addr] [size] [interval_ms]\r\n");
+	CLI_LOGD("  This-side worker for AP<->CP; start on both CLIs with different addrs\r\n");
+	CLI_LOGD("flash_conc stop | stat\r\n");
+	CLI_LOGD("defaults: ns=0x%08x s=0x%08x smp0=0x%08x smp1=0x%08x peer=0x%08x size=0x%x iv=%ums\r\n",
+		 CONFIG_FLASH_CONC_NS_ADDR, CONFIG_FLASH_CONC_S_ADDR,
+		 CONFIG_FLASH_CONC_SMP0_ADDR, CONFIG_FLASH_CONC_SMP1_ADDR,
+		 CONFIG_FLASH_CONC_PEER_ADDR, CONFIG_FLASH_CONC_SIZE,
+		 CONFIG_FLASH_CONC_INTERVAL_MS);
+}
+
+static void cli_flash_conc_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
+{
+	char *msg = CLI_CMD_RSP_SUCCEED;
+	bk_err_t ret = BK_OK;
+
+	(void)xWriteBufferLen;
+
+	if (argc < 2) {
+		cli_flash_conc_help();
+		msg = CLI_CMD_RSP_ERROR;
+		goto out;
+	}
+
+	if (os_strcmp(argv[1], "help") == 0) {
+		cli_flash_conc_help();
+		goto out;
+	}
+
+	if (os_strcmp(argv[1], "stat") == 0) {
+		flash_conc_print_stat();
+		goto out;
+	}
+
+	if (os_strcmp(argv[1], "stop") == 0) {
+		flash_conc_stop_all();
+		goto out;
+	}
+
+	if (os_strcmp(argv[1], "sns") == 0) {
+		if (argc < 3) {
+			cli_flash_conc_help();
+			msg = CLI_CMD_RSP_ERROR;
+			goto out;
+		}
+		if (os_strcmp(argv[2], "start") == 0) {
+			uint32_t ns_addr = (argc >= 4) ? os_strtoul(argv[3], NULL, 16) : 0;
+			uint32_t s_addr = (argc >= 5) ? os_strtoul(argv[4], NULL, 16) : 0;
+			uint32_t size = (argc >= 6) ? os_strtoul(argv[5], NULL, 16) : 0;
+			uint32_t iv = (argc >= 7) ? os_strtoul(argv[6], NULL, 10) : 0;
+
+			ret = flash_conc_start_one(&s_workers[FLASH_CONC_IDX_NS], ns_addr, size, iv);
+			if (ret == BK_OK)
+				ret = flash_conc_start_one(&s_workers[FLASH_CONC_IDX_S], s_addr, size, iv);
+			if (ret != BK_OK) {
+				flash_conc_stop_one(&s_workers[FLASH_CONC_IDX_NS]);
+				flash_conc_stop_one(&s_workers[FLASH_CONC_IDX_S]);
+				msg = CLI_CMD_RSP_ERROR;
+			}
+		} else if (os_strcmp(argv[2], "stop") == 0) {
+			flash_conc_stop_one(&s_workers[FLASH_CONC_IDX_NS]);
+			flash_conc_stop_one(&s_workers[FLASH_CONC_IDX_S]);
+		} else {
+			cli_flash_conc_help();
+			msg = CLI_CMD_RSP_ERROR;
+		}
+		goto out;
+	}
+
+	if (os_strcmp(argv[1], "smp") == 0) {
+		if (argc < 3) {
+			cli_flash_conc_help();
+			msg = CLI_CMD_RSP_ERROR;
+			goto out;
+		}
+		if (os_strcmp(argv[2], "start") == 0) {
+			uint32_t a0 = (argc >= 4) ? os_strtoul(argv[3], NULL, 16) : 0;
+			uint32_t a1 = (argc >= 5) ? os_strtoul(argv[4], NULL, 16) : 0;
+			uint32_t size = (argc >= 6) ? os_strtoul(argv[5], NULL, 16) : 0;
+			uint32_t iv = (argc >= 7) ? os_strtoul(argv[6], NULL, 10) : 0;
+
+			ret = flash_conc_start_one(&s_workers[FLASH_CONC_IDX_SMP0], a0, size, iv);
+			if (ret == BK_OK)
+				ret = flash_conc_start_one(&s_workers[FLASH_CONC_IDX_SMP1], a1, size, iv);
+			if (ret != BK_OK) {
+				flash_conc_stop_one(&s_workers[FLASH_CONC_IDX_SMP0]);
+				flash_conc_stop_one(&s_workers[FLASH_CONC_IDX_SMP1]);
+				msg = CLI_CMD_RSP_ERROR;
+			}
+		} else if (os_strcmp(argv[2], "stop") == 0) {
+			flash_conc_stop_one(&s_workers[FLASH_CONC_IDX_SMP0]);
+			flash_conc_stop_one(&s_workers[FLASH_CONC_IDX_SMP1]);
+		} else {
+			cli_flash_conc_help();
+			msg = CLI_CMD_RSP_ERROR;
+		}
+		goto out;
+	}
+
+	if (os_strcmp(argv[1], "peer") == 0) {
+		if (argc < 3) {
+			cli_flash_conc_help();
+			msg = CLI_CMD_RSP_ERROR;
+			goto out;
+		}
+		if (os_strcmp(argv[2], "start") == 0) {
+			uint32_t addr = (argc >= 4) ? os_strtoul(argv[3], NULL, 16) : 0;
+			uint32_t size = (argc >= 5) ? os_strtoul(argv[4], NULL, 16) : 0;
+			uint32_t iv = (argc >= 6) ? os_strtoul(argv[5], NULL, 10) : 0;
+
+			ret = flash_conc_start_one(&s_workers[FLASH_CONC_IDX_PEER], addr, size, iv);
+			if (ret != BK_OK)
+				msg = CLI_CMD_RSP_ERROR;
+			else
+				CLI_LOGD("AP peer started; also run on CP: flash_conc peer start\r\n");
+		} else if (os_strcmp(argv[2], "stop") == 0) {
+			flash_conc_stop_one(&s_workers[FLASH_CONC_IDX_PEER]);
+		} else {
+			cli_flash_conc_help();
+			msg = CLI_CMD_RSP_ERROR;
+		}
+		goto out;
+	}
+
+	cli_flash_conc_help();
+	msg = CLI_CMD_RSP_ERROR;
+
+out:
+	os_memcpy(pcWriteBuffer, msg, os_strlen(msg));
+}
+
 #define FLASH_CMD_CNT (sizeof(s_flash_commands) / sizeof(struct cli_command))
 DRV_CLI_CMD_EXPORT static const struct cli_command s_flash_commands[] = {
 	{"flash", "flash {erase|read|write} [start_addr] [len]", cli_flash_cmd},
@@ -662,6 +1138,7 @@ DRV_CLI_CMD_EXPORT static const struct cli_command s_flash_commands[] = {
 	{"flash_s", "flash {erase|read|write} [start_addr] [len]", cli_flash_cmd_s},
 #endif
 	{"flash_erase_test", "cli_flash_erase_test with ble connecting", cli_flash_erase_test_with_ble},
+	{"flash_conc", "flash_conc {sns|smp|peer|stop|stat|help}", cli_flash_conc_cmd},
 	{"flash_test_task", "flash_test_task {start|stop} [1|2] - periodic flash test", cli_flash_test_task_cmd},
 };
 

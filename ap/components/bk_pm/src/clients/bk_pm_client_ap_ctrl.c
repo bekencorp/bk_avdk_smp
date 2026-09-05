@@ -27,6 +27,7 @@
 #endif
 
 #define PM_SEND_CMD_CP1_RESPONSE_TIEM        (100)  //100ms
+#define PM_AP_QUIESCE_CALLBACK_TIMEOUT_MS    (100)
 
 #if CONFIG_MAILBOX
 pm_mailbox_communication_state_e bk_pm_ap_ctrl_state_get(void);
@@ -510,6 +511,9 @@ bk_err_t bk_pm_ap_fast_suspend_prepare(void)
 	bk_pm_ap_full_ready_set(false);
 
 	for (node = s_power_ops_tail; node != NULL; node = node->prev) {
+		uint32_t callback_start_ms = rtos_get_time();
+		uint32_t callback_elapsed_ms;
+
 		callback_count++;
 		LOGI("AP_FAST_CB quiesce begin: name=%s priority=%u cb=%p\r\n",
 			node->ops.name, node->ops.priority, node->ops.quiesce);
@@ -517,8 +521,16 @@ bk_err_t bk_pm_ap_fast_suspend_prepare(void)
 		if (node->ops.quiesce != NULL) {
 			ret = node->ops.quiesce(node->ops.arg);
 		}
-		LOGI("AP_FAST_CB quiesce end: name=%s ret=%d\r\n",
-			node->ops.name, ret);
+		callback_elapsed_ms = rtos_get_time() - callback_start_ms;
+		if ((ret == BK_OK) &&
+			(callback_elapsed_ms >= PM_AP_QUIESCE_CALLBACK_TIMEOUT_MS)) {
+			LOGE("AP_FAST_CB quiesce timeout: name=%s elapsed_ms=%u limit_ms=%u\r\n",
+				node->ops.name, callback_elapsed_ms,
+				PM_AP_QUIESCE_CALLBACK_TIMEOUT_MS);
+			ret = BK_ERR_TIMEOUT;
+		}
+		LOGI("AP_FAST_CB quiesce end: name=%s ret=%d elapsed_ms=%u\r\n",
+			node->ops.name, ret, callback_elapsed_ms);
 		if (ret != BK_OK) {
 			break;
 		}

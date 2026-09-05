@@ -15,6 +15,7 @@
 #include <driver/aon_rtc_types.h>
 #include <driver/aon_rtc.h>
 #include <driver/timer.h>
+#include <driver/dma.h>
 #include <components/bk_platform.h>
 #include <driver/pwr_clk.h>
 #if CONFIG_SPI
@@ -1390,6 +1391,182 @@ static void cli_pm_power_prepare_demo(char *pcWriteBuffer,
 	CLI_LOGI("usage: pm_power_prepare_demo {register|unregister|busy <0|1>|auto_drain <ms>|status}\r\n");
 }
 
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE && CONFIG_CPU_HOTPLUG
+/*
+ * Fast-suspend guard test.
+ *
+ * Test 1: quiesce callback budget
+ *   pm_fast_guard_test register
+ *   pm_fast_guard_test timeout_case
+ *   pm_boot_ap 9 1
+ * Expected: the 120 ms callback exceeds the framework's 100 ms budget,
+ *           suspend rolls back and AP remains available.
+ *
+ * Test 2: DMA guard after quiesce
+ *   Start a real audio/DMA stream first.
+ *   pm_fast_guard_test dma_case
+ *   pm_boot_ap 9 1
+ * Expected: "DMA still busy mask=..." followed by "rollback ready".
+ *
+ * Test 3: normal path
+ *   Stop all DMA users.
+ *   pm_fast_guard_test pass_case
+ *   pm_boot_ap 9 1
+ * Expected: no guard failure and AP proceeds to power off.
+ *
+ * The test deliberately does not allocate a synthetic DMA channel because
+ * doing so can conflict with real DMA owners. dma_case reports the live mask
+ * and requires the caller to start a known DMA client.
+ */
+#define CLI_FAST_GUARD_TIMEOUT_TEST_MS (120U)
+#define CLI_FAST_GUARD_BUDGET_MS       (100U)
+
+typedef struct {
+	volatile bool accepting;
+	volatile uint32_t quiesce_delay_ms;
+	volatile uint32_t quiesce_count;
+	volatile uint32_t resume_count;
+	volatile uint32_t last_quiesce_ms;
+	bool registered;
+} cli_fast_guard_test_t;
+
+static cli_fast_guard_test_t s_cli_fast_guard_test;
+
+static bk_err_t cli_fast_guard_prepare(void *arg)
+{
+	cli_fast_guard_test_t *test = (cli_fast_guard_test_t *)arg;
+
+	__atomic_store_n(&test->accepting, false, __ATOMIC_RELEASE);
+	return BK_OK;
+}
+
+static bk_err_t cli_fast_guard_quiesce(void *arg)
+{
+	cli_fast_guard_test_t *test = (cli_fast_guard_test_t *)arg;
+	uint32_t start_ms = rtos_get_time();
+	uint32_t delay_ms = __atomic_load_n(&test->quiesce_delay_ms,
+		__ATOMIC_ACQUIRE);
+
+	__atomic_add_fetch(&test->quiesce_count, 1U, __ATOMIC_RELAXED);
+	if (delay_ms != 0U) {
+		rtos_delay_milliseconds(delay_ms);
+	}
+	__atomic_store_n(&test->last_quiesce_ms,
+		rtos_get_time() - start_ms, __ATOMIC_RELEASE);
+	return BK_OK;
+}
+
+static bk_err_t cli_fast_guard_resume(void *arg)
+{
+	cli_fast_guard_test_t *test = (cli_fast_guard_test_t *)arg;
+
+	__atomic_store_n(&test->accepting, true, __ATOMIC_RELEASE);
+	__atomic_add_fetch(&test->resume_count, 1U, __ATOMIC_RELAXED);
+	return BK_OK;
+}
+
+static const pm_ap_power_ops_t s_cli_fast_guard_ops = {
+	.name = "cli_fast_guard",
+	.prepare_power_off = cli_fast_guard_prepare,
+	.quiesce = cli_fast_guard_quiesce,
+	.resume = cli_fast_guard_resume,
+	.arg = &s_cli_fast_guard_test,
+	.priority = PM_AP_POWER_PRIORITY_APPLICATION,
+};
+
+static void cli_pm_fast_guard_test(char *pcWriteBuffer,
+	int xWriteBufferLen, int argc, char **argv)
+{
+	cli_fast_guard_test_t *test = &s_cli_fast_guard_test;
+	uint32_t dma_busy_mask;
+	bk_err_t ret;
+
+	(void)pcWriteBuffer;
+	(void)xWriteBufferLen;
+
+	if (argc < 2) {
+		CLI_LOGI("usage: pm_fast_guard_test {register|unregister|timeout_case|dma_case|pass_case|status}\r\n");
+		return;
+	}
+
+	if (os_strcmp(argv[1], "register") == 0) {
+		if (test->registered) {
+			CLI_LOGW("Fast guard test already registered\r\n");
+			return;
+		}
+		os_memset(test, 0, sizeof(*test));
+		test->accepting = true;
+		ret = bk_pm_ap_power_ops_register(&s_cli_fast_guard_ops);
+		if (ret == BK_OK) {
+			test->registered = true;
+			CLI_LOGI("Fast guard test registered, budget=%u ms\r\n",
+				CLI_FAST_GUARD_BUDGET_MS);
+		} else {
+			CLI_LOGE("Fast guard test register failed:%d\r\n", ret);
+		}
+		return;
+	}
+
+	if (!test->registered) {
+		CLI_LOGW("Fast guard test is not registered; run: pm_fast_guard_test register\r\n");
+		return;
+	}
+
+	if (os_strcmp(argv[1], "unregister") == 0) {
+		ret = bk_pm_ap_power_ops_unregister(&s_cli_fast_guard_ops);
+		if (ret == BK_OK) {
+			test->registered = false;
+			CLI_LOGI("Fast guard test unregistered\r\n");
+		} else {
+			CLI_LOGE("Fast guard test unregister failed:%d\r\n", ret);
+		}
+		return;
+	}
+
+	if (os_strcmp(argv[1], "timeout_case") == 0) {
+		__atomic_store_n(&test->quiesce_delay_ms,
+			CLI_FAST_GUARD_TIMEOUT_TEST_MS, __ATOMIC_RELEASE);
+		CLI_LOGI("Timeout case armed: callback=%u ms, budget=%u ms; run pm_boot_ap 9 1\r\n",
+			CLI_FAST_GUARD_TIMEOUT_TEST_MS, CLI_FAST_GUARD_BUDGET_MS);
+		return;
+	}
+
+	if (os_strcmp(argv[1], "dma_case") == 0) {
+		__atomic_store_n(&test->quiesce_delay_ms, 0U, __ATOMIC_RELEASE);
+		dma_busy_mask = bk_dma_check_chn_status();
+		if (dma_busy_mask == 0U) {
+			CLI_LOGW("DMA case not armed: no active DMA; start an audio/DMA stream first\r\n");
+		} else {
+			CLI_LOGI("DMA case armed: live mask=0x%x; run pm_boot_ap 9 1\r\n",
+				dma_busy_mask);
+		}
+		return;
+	}
+
+	if (os_strcmp(argv[1], "pass_case") == 0) {
+		__atomic_store_n(&test->quiesce_delay_ms, 0U, __ATOMIC_RELEASE);
+		dma_busy_mask = bk_dma_check_chn_status();
+		if (dma_busy_mask != 0U) {
+			CLI_LOGW("Pass case blocked: stop DMA mask=0x%x before AP close\r\n",
+				dma_busy_mask);
+		} else {
+			CLI_LOGI("Pass case armed; run pm_boot_ap 9 1\r\n");
+		}
+		return;
+	}
+
+	if (os_strcmp(argv[1], "status") == 0) {
+		CLI_LOGI("Fast guard test: registered=%u accepting=%u delay_ms=%u quiesce_count=%u last_ms=%u resume_count=%u dma_mask=0x%x\r\n",
+			test->registered, test->accepting, test->quiesce_delay_ms,
+			test->quiesce_count, test->last_quiesce_ms,
+			test->resume_count, bk_dma_check_chn_status());
+		return;
+	}
+
+	CLI_LOGI("usage: pm_fast_guard_test {register|unregister|timeout_case|dma_case|pass_case|status}\r\n");
+}
+#endif
+
 #define PWR_CMD_CNT (sizeof(s_pwr_commands) / sizeof(struct cli_command))
 static const struct cli_command s_pwr_commands[] = {
 #if 1//CONFIG_SYSTEM_CTRL
@@ -1419,12 +1596,18 @@ static const struct cli_command s_pwr_commands[] = {
 	{"pm_spi_fast_demo", "pm_spi_fast_demo {register <id>|unregister|busy <0|1>|prepare <0|1>|status}", cli_pm_spi_fast_demo},
 #endif
 	{"pm_power_prepare_demo", "pm_power_prepare_demo {register|unregister|busy <0|1>|auto_drain <ms>|status}", cli_pm_power_prepare_demo},
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE && CONFIG_CPU_HOTPLUG
+	{"pm_fast_guard_test", "pm_fast_guard_test {register|unregister|timeout_case|dma_case|pass_case|status}", cli_pm_fast_guard_test},
+#endif
 #else
 	{"pm", "pm [sleep_mode] [wake_source] [vote1] [vote2] [vote3] [param1] [param2] [param3]", cli_pm_cmd},
 	{"pm_vote", "pm_vote [pm_sleep_mode] [pm_vote] [pm_vote_value] [pm_sleep_time]", cli_pm_vote_cmd},
 	{"pm_debug", "pm_debug [debug_en_value]", cli_pm_debug},
 	{"pm_ap_demo", "pm_ap_demo {init|sleep|deep_sleep}", cli_pm_ap_demo_cmd},
 	{"pm_power_prepare_demo", "pm_power_prepare_demo {register|unregister|busy <0|1>|auto_drain <ms>|status}", cli_pm_power_prepare_demo},
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE && CONFIG_CPU_HOTPLUG
+	{"pm_fast_guard_test", "pm_fast_guard_test {register|unregister|timeout_case|dma_case|pass_case|status}", cli_pm_fast_guard_test},
+#endif
 #endif //CONFIG_DEBUG_VERSION
 #endif //CONFIG_SYSTEM_CTRL
 };

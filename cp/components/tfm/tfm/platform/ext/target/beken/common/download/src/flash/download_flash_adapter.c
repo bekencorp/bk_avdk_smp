@@ -18,37 +18,17 @@
 #include <common/bk_err.h>
 
 /* Real HAL-backed helpers, implemented in bk7259/armino_min/hal/flash_min.c. */
-extern void     bk_flash_min_switch_line_mode_two(void);
-extern void     bk_flash_min_restore_line_mode(void);
 extern void     bk_flash_min_erase(uint32_t address, int type);
 extern uint16_t bk_flash_min_read_sr(uint8_t sr_width);
 extern void     bk_flash_min_write_sr(uint8_t sr_width, uint16_t sr_data);
 extern uint32_t bk_flash_min_get_id(void);
-extern void     bk_flash_min_unprotect_once(void);
 
-/* Read directly by the flash-id command handler. Filled on first enable. */
-unsigned int flash_id = 0;
-
-/* The protocol calls flash_op_enable_ctrl(0, 1) before flash ops and
- * flash_op_enable_ctrl(0, 0) after them. Use that bracket to switch between
- * QUAD continuous-read and flash operation mode. */
-int flash_op_enable_ctrl(uint32_t module, uint32_t enable)
+/* download_boot.h: flash_get_id() -> bk_flash_get_id(). Read on demand by the
+ * FLASH_CMD_SPI_OPERATE (RDID) handler; no session state, no handshake needed
+ * (RDID self-brackets to two-line internally). */
+uint32_t bk_flash_get_id(void)
 {
-	(void)module;
-	if (enable) {
-		/* Download-session handshake: drop the flash write protection once so the
-		 * subsequent erase/program/SR commands can write any sector. Read-only
-		 * secure boot never reaches here, so its protection stays asserted. Call
-		 * it while still in the configured line mode - it self-brackets the WRSR
-		 * (switch to two-line, write, restore) - then switch the session to
-		 * two-line for the following flash ops. */
-		bk_flash_min_unprotect_once();
-		bk_flash_min_switch_line_mode_two();
-		flash_id = bk_flash_min_get_id();
-	} else {
-		bk_flash_min_restore_line_mode();
-	}
-	return 0;
+	return bk_flash_min_get_id();
 }
 
 /* download_boot.h: flash_erase_cmd(addr, cmd) -> bk_flash_erase_cmd(addr, type).
@@ -70,16 +50,4 @@ bk_err_t bk_flash_write_sr(unsigned char bytes, uint16_t status_reg_data)
 {
 	bk_flash_min_write_sr((uint8_t)bytes, status_reg_data);
 	return BK_OK;
-}
-
-/* bl2_main.c serial-download flash line-mode bracket (declared in
- * cp/include/driver/flash.h). */
-void flash_switch_to_line_mode_two(void)
-{
-	bk_flash_min_switch_line_mode_two();
-}
-
-void flash_restore_line_mode(void)
-{
-	bk_flash_min_restore_line_mode();
 }

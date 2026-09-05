@@ -20,10 +20,6 @@
 extern "C" {
 #endif
 
-/* BL2 serial-download flash line-mode bracket. */
-void flash_switch_to_line_mode_two(void);
-void flash_restore_line_mode(void);
-
 #ifdef __cplusplus
 }
 #endif

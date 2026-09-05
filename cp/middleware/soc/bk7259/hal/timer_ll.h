@@ -281,7 +281,7 @@ static inline void timer_ll_reset_config_to_default(timer_hw_t *hw, uint32_t cha
 }
 
 #if CONFIG_TIMER_PM_CB_SUPPORT
-#define TIMER_CTRL_MASK            (0x3F)
+#define TIMER_CTRL_MASK            (0x7F)
 #define TIMER_PM_BACKUP_REG_NUM    (5)
 
 static inline void timer_ll_backup(timer_hw_t *hw, uint32_t group_id, uint32_t *pm_backup)

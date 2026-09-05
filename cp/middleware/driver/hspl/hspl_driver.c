@@ -164,6 +164,29 @@ bk_err_t bk_hspl_driver_deinit(void)
 	return BK_OK;
 }
 
+#if CONFIG_DEEP_LV
+bk_err_t bk_hspl_deep_lv_resume_reinit(void)
+{
+	uintptr_t base = hspl_get_base(BK_HSPL_ID_0);
+
+	if (!base) {
+		return BK_FAIL;
+	}
+
+	HSPL_REG_WR32(base, HSPL_REG_CLKRST, 0x1);
+	HSPL_REG_WR32(base, HSPL_REG_TIMEOUT_CFG, 0x0);
+	HSPL_REG_WR32(base, HSPL_REG_TIMEOUT_CTL, 0x0);
+	__asm volatile("dsb sy" ::: "memory");
+	__asm volatile("isb sy" ::: "memory");
+
+	if ((HSPL_REG_RD32(base, HSPL_REG_CLKRST) & 0x1U) == 0U) {
+		return BK_FAIL;
+	}
+
+	return BK_OK;
+}
+#endif
+
 uint32_t bk_hspl_read_lock_raw(bk_hspl_id_t hspl_id, uint8_t channel)
 {
 	uintptr_t base = hspl_get_base(hspl_id);

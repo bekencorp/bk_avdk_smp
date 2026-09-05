@@ -16,6 +16,9 @@
 
 #include <components/log.h>
 #include <driver/flash_types.h>
+#include "flash_core_config.h"
+#include "bk_flash_core.h"
+#include "bk_flash_port.h"
 
 #define FLASH_TAG "flash"
 #define FLASH_LOGI(...) BK_LOGI(FLASH_TAG, ##__VA_ARGS__)
@@ -24,11 +27,7 @@
 #define FLASH_LOGD(...) BK_LOGD(FLASH_TAG, ##__VA_ARGS__)
 #define FLASH_LOGV(...) BK_LOGV(FLASH_TAG, ##__VA_ARGS__)
 
-#define FLASH_SIZE_1M                    0x100000
-#define FLASH_SIZE_2M                    0x200000
-#define FLASH_SIZE_4M                    0x400000
-#define FLASH_SIZE_8M                    0x800000
-#define FLASH_SIZE_16M                   0x1000000
+/* FLASH_SIZE_* and flash_config_t now live in the shared flash_core_config.h. */
 #define FLASH_STATUS_REG_PROTECT_MASK    0xff
 #define FLASH_STATUS_REG_PROTECT_OFFSET  8
 #define FLASH_CMP_MASK                   0x1
@@ -51,22 +50,6 @@
 #define FLASH_BLOCK_SIZE                 (0x10000)
 #define FLASH_MAX_SIZE                   (FLASH_SIZE_16M)
 #define FLASH_API_MAGIC_CODE             (0x12345678)
-
-typedef struct {
-	uint32_t flash_id;
-	uint32_t flash_size;
-	uint8_t status_reg_size; /**< the byte count of status register */
-	flash_line_mode_t line_mode;
-	uint8_t cmp_post; /**< CMP bit position in status register */
-	uint8_t protect_post; /**< block protect bits position in status register */
-	uint8_t protect_mask; /**< block protect bits mask value in status register */
-	uint16_t protect_all;
-	uint16_t protect_none;
-	uint16_t unprotect_last_block;
-	uint8_t quad_en_post; /**< quad enable bit position in status register */
-	uint8_t quad_en_val; /**< When the QE pin is set to quad_en_val(1 or 0), the Quad IO2 and IO3 pins are enabled */
-	uint8_t coutinuous_read_mode_bits_val;
-} flash_config_t;
 
 /* Test-only helpers to toggle flash protection for CLI/verify. */
 void test_flash_set_protect_type_none(void);

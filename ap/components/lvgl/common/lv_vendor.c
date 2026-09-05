@@ -149,6 +149,11 @@ void lv_vendor_disp_unlock(void)
     rtos_unlock_mutex(&g_disp_mutex);
 }
 
+bool lv_vendor_is_initialized(void)
+{
+    return lv_vendor_initialized;
+}
+
 bool lv_vendor_gpu_lock(void)
 {
 #if (CONFIG_VG_LITE_GPU)

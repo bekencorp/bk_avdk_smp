@@ -218,10 +218,10 @@ static int32_t Flash_Initialize(ARM_Flash_SignalEvent_t cb_event)
 
     ppc_flash_ns_flag = bk_ppc_lock_flash();
     BK_LOG_ON_ERR(bk_flash_driver_init());
-    /* Do not unprotect here. The secure-boot/verify path is read-only and keeps
-     * the persistent flash write protection. Flash is unprotected only when a
-     * serial-download session starts (flash_op_enable_ctrl ->
-     * bk_flash_min_unprotect_once); normal DIRECT_XIP boot never writes flash. */
+    /* Init applies FLASH_PROTECT_ALL and it stays the runtime type: there is no
+     * session-wide unprotect. Erase/write self-unprotect PER_OP and re-protect
+     * after each op, so normal DIRECT_XIP boot (read-only) and the download
+     * session are both protected between ops. */
 
     flash_size = bk_flash_get_current_total_size();
     /* Optimze it if we support more than one flash */

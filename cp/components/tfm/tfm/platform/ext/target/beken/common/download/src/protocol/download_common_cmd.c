@@ -32,7 +32,9 @@ typedef struct {
 u8 uart_link_check_flag = 0;
 u32 download_record_dl_flag = 0;
 
-extern int flash_op_enable_ctrl(uint32_t module, uint32_t enable);
+/* Shared flash core (linked into BL2). Declared here because the download
+ * CMake target lacks the SDK soc/hal include paths. */
+extern void flash_core_unprotect(void);
 
 #if 0 //unused
 static u32 cmd_link_check_handler(u8 *cmd_param, u16 param_len)
@@ -58,9 +60,13 @@ static u32 cmd_bl2_link_check_handler(u8 *cmd_param, u16 param_len)
 
 	if (record_times == 1) {
 		printf("enter cmd_bl2_link_check_handler \r\n");
+		/* Handshake success: unprotect the flash once (init left it
+		 * FLASH_PROTECT_ALL). PER_OP still re-protects after each erase/PP, so
+		 * this is an explicit gesture; actual writes are carried by each op's
+		 * own self-unprotect. Reboot after flashing re-applies the protection. */
+		flash_core_unprotect();
 	}
 	tx_rsp_for_common_cmd(COMMON_RSP_BL2_CMD_LINK_CHECK, &temp, 1);
-	flash_op_enable_ctrl(0, 1); //enable flash operation
 	return 0;
 }
 
@@ -101,7 +107,6 @@ static u32 cmd_reboot_handler(u8 *cmd_param, u16 param_len)
 		return 1;
 
 	if (cmd_param[0] != 0xA5) {
-		flash_op_enable_ctrl(0, 0); //disable flash operation
 		tx_rsp_for_common_cmd(COMMON_CMD_REBOOT, &temp, 1);
 	} else {
 		download_uart_disable();

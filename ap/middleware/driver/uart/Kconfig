@@ -109,6 +109,13 @@ menu "UART"
 		bool "Enable uart test"
 		default y
 
+	config UART_STRESS_TEST
+		depends on UART_TEST
+		bool "Enable UART stress test"
+		default n
+		help
+			Enable the UART fixed-frame log and 256-byte loopback stress tests.
+
 	config UART_API_TEST
 		bool "Enable UART API test"
 		default n

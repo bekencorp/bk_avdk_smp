@@ -155,10 +155,11 @@ int main(void)
 #if CONFIG_BL2_DOWNLOAD
     if (efuse_is_secure_download_enabled()) {
         BOOT_LOG_INF("BB2: download start");
-        flash_switch_to_line_mode_two();
+        /* No line-mode bracket needed: each download flash op self-brackets to
+         * two-line and restores the ambient QUAD continuous-read; op_sw data
+         * reads work in four-line. */
         void legacy_boot_main(void);
         legacy_boot_main();
-        flash_restore_line_mode();
 #if CONFIG_DOWNLOAD_LOG
         /* The download transport shares UART0 with the console and tears down
          * its TX path and clock on exit; re-initialise the console so the

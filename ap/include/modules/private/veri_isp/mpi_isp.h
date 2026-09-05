@@ -276,6 +276,22 @@ int VSI_MPI_ISP_DisableChn(ISP_CHN IspChn);
 
 /*****************************************************************************/
 /**
+ * @brief   Abort a pending DQBUF on the output channel.
+ *
+ * Puts the channel's buffer queue into StreamOff so a reader blocked in
+ * VSI_MPI_ISP_DQBUF returns immediately (VSI_ERR_NOT_READY). Does NOT stop the
+ * MI DMA or free buffers; a subsequent VSI_MPI_ISP_DisableChn still performs the
+ * full teardown. Intended to let a channel close join its reader thread promptly.
+ *
+ * @param   IspChn              The ID of the output channel.
+ *
+ * @retval  VSI_SUCCESS         The operation is successful.
+ *
+ *****************************************************************************/
+int VSI_MPI_ISP_StreamOffChn(ISP_CHN IspChn);
+
+/*****************************************************************************/
+/**
  * @brief   Get straming status.
  *
  * @param   IspChn              The ID of the output channel.

@@ -159,6 +159,95 @@ static uart_driver_t s_uart[SOC_UART_ID_NUM_PER_UNIT] = {
 	},
 #endif
 };
+
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+#define UART_FAST_PM_FIRST_ID        UART_ID_1
+#define UART_FAST_PM_LAST_ID         UART_ID_5
+#define UART_FAST_PM_BACKUP_REG_NUM  (6U)
+#define UART_FAST_PM_QUIESCE_MS      (20U)
+
+typedef struct {
+	uint32_t active_mask;
+	uint32_t backup_valid_mask;
+	uint32_t backup[SOC_UART_ID_NUM_PER_UNIT][UART_FAST_PM_BACKUP_REG_NUM];
+	volatile uint32_t tx_busy_count;
+	volatile bool tx_suspended;
+	bool dma_paused;
+	bool registered;
+} uart_fast_pm_context_t;
+
+static uart_fast_pm_context_t s_uart_fast_pm;
+static bk_err_t uart_fast_quiesce(void *arg);
+static bk_err_t uart_fast_backup(void *arg);
+static bk_err_t uart_fast_restore(void *arg);
+static bk_err_t uart_fast_resume(void *arg);
+#if CONFIG_UART_RX_DMA
+static bk_err_t uart_rx_dma_restore(uart_id_t id);
+#endif
+#if CONFIG_UART_TX_DMA
+static bk_err_t uart_tx_dma_restore(uart_id_t id);
+#endif
+
+static const pm_ap_fast_pm_ops_t s_uart_fast_ops = {
+	.name = "uart",
+	.quiesce = uart_fast_quiesce,
+	.backup = uart_fast_backup,
+	.restore = uart_fast_restore,
+	.resume = uart_fast_resume,
+	.arg = &s_uart_fast_pm,
+	.priority = PM_AP_FAST_PRIORITY_PERIPHERAL,
+};
+
+static inline bool uart_fast_managed_id(uart_id_t id)
+{
+	return (id >= UART_FAST_PM_FIRST_ID) && (id <= UART_FAST_PM_LAST_ID);
+}
+
+static bk_err_t uart_fast_tx_enter(uart_id_t id)
+{
+	if (!uart_fast_managed_id(id)) {
+		return BK_OK;
+	}
+	if (__atomic_load_n(&s_uart_fast_pm.tx_suspended, __ATOMIC_ACQUIRE)) {
+		return BK_ERR_BUSY;
+	}
+
+	__atomic_add_fetch(&s_uart_fast_pm.tx_busy_count, 1U,
+		__ATOMIC_ACQ_REL);
+	if (__atomic_load_n(&s_uart_fast_pm.tx_suspended, __ATOMIC_ACQUIRE)) {
+		__atomic_sub_fetch(&s_uart_fast_pm.tx_busy_count, 1U,
+			__ATOMIC_RELEASE);
+		return BK_ERR_BUSY;
+	}
+	return BK_OK;
+}
+
+static void uart_fast_tx_exit(uart_id_t id)
+{
+	if (uart_fast_managed_id(id)) {
+		__atomic_sub_fetch(&s_uart_fast_pm.tx_busy_count, 1U,
+			__ATOMIC_RELEASE);
+	}
+}
+
+#define UART_FAST_TX_RETURN_ON_SUSPEND(id) do {\
+		bk_err_t fast_pm_ret = uart_fast_tx_enter(id);\
+		if (fast_pm_ret != BK_OK) {\
+			return fast_pm_ret;\
+		}\
+	} while (0)
+#define UART_FAST_TX_EXIT(id) uart_fast_tx_exit(id)
+#else
+static inline bk_err_t uart_fast_tx_enter(uart_id_t id)
+{
+	(void)id;
+	return BK_OK;
+}
+
+#define UART_FAST_TX_RETURN_ON_SUSPEND(id)
+#define UART_FAST_TX_EXIT(id)
+#endif
+
 static bool s_uart_driver_is_init = false;
 static uart_callback_t s_uart_rx_isr[SOC_UART_ID_NUM_PER_UNIT] = {NULL};
 static uart_callback_t s_uart_tx_isr[SOC_UART_ID_NUM_PER_UNIT] = {NULL};
@@ -898,7 +987,7 @@ void print_hex_dump(const char *prefix, const void *buf, int len)
 	BK_LOG_RAW("\n");
 }
 
-bk_err_t uart_write_byte(uart_id_t id, uint8_t data)
+static bk_err_t uart_write_byte_raw(uart_id_t id, uint8_t data)
 {
 	/* wait for fifo write ready
 	 * optimize it when write very fast
@@ -907,6 +996,16 @@ bk_err_t uart_write_byte(uart_id_t id, uint8_t data)
 	BK_WHILE (!uart_hal_is_fifo_write_ready(&s_uart[id].hal, id));
 	uart_hal_write_byte(&s_uart[id].hal, id, data);
 	return BK_OK;
+}
+
+bk_err_t uart_write_byte(uart_id_t id, uint8_t data)
+{
+	bk_err_t ret;
+
+	UART_FAST_TX_RETURN_ON_SUSPEND(id);
+	ret = uart_write_byte_raw(id, data);
+	UART_FAST_TX_EXIT(id);
+	return ret;
 }
 
 typedef struct {
@@ -993,11 +1092,15 @@ bk_err_t bk_uart_write_byte_unsafe(uart_id_t id, uint8_t data)
 void uart_write_byte_for_ate(uart_id_t id, uint8_t *data, uint8_t cnt)
 {
     int i;
+    if (uart_fast_tx_enter(id) != BK_OK) {
+        return;
+    }
     for(i = 0; i < cnt; i ++)
     {
         BK_WHILE (!uart_hal_is_fifo_write_ready(&s_uart[id].hal, id));
         uart_hal_write_byte(&s_uart[id].hal, id, data[i]);
     }
+    UART_FAST_TX_EXIT(id);
 }
 
 void uart_write_byte_for_fr(uart_id_t id, uint8_t *data, uint8_t cnt)
@@ -1011,11 +1114,15 @@ void uart_write_byte_for_fr(uart_id_t id, uint8_t *data, uint8_t cnt)
 
     BK_ASSERT (port != bk_get_printf_port());
 
+    if (uart_fast_tx_enter(id) != BK_OK) {
+        return;
+    }
     for(i = 0; i < cnt; i ++)
     {
         BK_WHILE (!uart_hal_is_fifo_write_ready(&s_uart[port].hal, port));
         uart_hal_write_byte(&s_uart[port].hal, port, data[i]);
     }
+    UART_FAST_TX_EXIT(id);
 }
 
 
@@ -1036,14 +1143,16 @@ bk_err_t uart_write_string(uart_id_t id, const char *string)
 {
 	const char *p = string;
 
+	UART_FAST_TX_RETURN_ON_SUSPEND(id);
 	while (*string) {
 		if (*string == '\n') {
 			if (p == string || *(string - 1) != '\r')
-				uart_write_byte(id, '\r'); /* append '\r' */
+				uart_write_byte_raw(id, '\r'); /* append '\r' */
 		}
-		uart_write_byte(id, *string++);
+		uart_write_byte_raw(id, *string++);
 	}
 
+	UART_FAST_TX_EXIT(id);
 	return BK_OK;
 }
 
@@ -1244,6 +1353,203 @@ bk_err_t bk_uart_pm_restore(uart_id_t id)
 }
 #endif
 
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+static void uart_fast_backup_one(uart_id_t id, uint32_t *backup)
+{
+	uart_hw_t *hw = s_uart[id].hal.hw;
+
+	backup[0] = hw->config.v;
+	backup[1] = hw->fifo_config.v;
+	backup[2] = hw->int_enable.v;
+	backup[3] = hw->flow_ctrl_config.v;
+	backup[4] = hw->wake_config.v;
+	backup[5] = hw->global_ctrl.v;
+	hw->global_ctrl.v = backup[5] & ~1U;
+}
+
+static void uart_fast_restore_one(uart_id_t id, const uint32_t *backup)
+{
+	uart_hw_t *hw = s_uart[id].hal.hw;
+
+	hw->config.v = backup[0];
+	hw->fifo_config.v = backup[1];
+	hw->int_enable.v = backup[2];
+	hw->flow_ctrl_config.v = backup[3];
+	hw->wake_config.v = backup[4];
+	hw->global_ctrl.v = backup[5];
+}
+
+/*
+ * AP power-off drops BAKP, so any UART DMA bytes in flight or arriving
+ * while AP is down are discarded. Stop the channels here so GDMA quiesce
+ * sees them idle; resume re-inits from kfifo start (same contract as the
+ * legacy LV uart_rx_dma_restore path).
+ */
+static void uart_fast_pause_dma(uint32_t active)
+{
+	for (uart_id_t id = UART_FAST_PM_FIRST_ID;
+		id <= UART_FAST_PM_LAST_ID; id++) {
+		if (!(active & BIT(id))) {
+			continue;
+		}
+#if CONFIG_UART_RX_DMA
+		if (s_uart[id].rx_dma_enable &&
+			(s_uart[id].rx_dma_id < DMA_ID_MAX)) {
+			bk_dma_stop(s_uart[id].rx_dma_id);
+			s_uart[id].rx_dma_stopped = true;
+		}
+#endif
+#if CONFIG_UART_TX_DMA
+		if (s_uart[id].tx_dma_enable &&
+			(s_uart[id].tx_dma_id < DMA_ID_MAX)) {
+			bk_dma_stop(s_uart[id].tx_dma_id);
+		}
+#endif
+	}
+}
+
+static void uart_fast_resume_dma(uint32_t active)
+{
+	for (uart_id_t id = UART_FAST_PM_FIRST_ID;
+		id <= UART_FAST_PM_LAST_ID; id++) {
+		if (!(active & BIT(id))) {
+			continue;
+		}
+#if CONFIG_UART_RX_DMA
+		if (s_uart[id].rx_dma_enable) {
+			(void)uart_rx_dma_restore(id);
+		}
+#endif
+#if CONFIG_UART_TX_DMA
+		if (s_uart[id].tx_dma_enable) {
+			(void)uart_tx_dma_restore(id);
+		}
+#endif
+	}
+}
+
+static bk_err_t uart_fast_wait_tx_idle(
+	uart_fast_pm_context_t *ctx, uint32_t start_ms)
+{
+	while (__atomic_load_n(&ctx->tx_busy_count, __ATOMIC_ACQUIRE) != 0U) {
+		if ((rtos_get_time() - start_ms) >=
+			UART_FAST_PM_QUIESCE_MS) {
+			return BK_ERR_TIMEOUT;
+		}
+		rtos_delay_milliseconds(1);
+	}
+	return BK_OK;
+}
+
+static bk_err_t uart_fast_wait_tx_complete(uart_id_t id, uint32_t start_ms)
+{
+	uart_hw_t *hw = s_uart[id].hal.hw;
+	uint32_t uart_clk = clk_get_uart_clk(id) ?
+		UART_CLOCK_FREQ_120M : UART_CLOCK_FREQ_26M;
+	uint32_t baud_rate = uart_clk / (hw->config.clk_div + 1U);
+	uint32_t frame_bits = 1U + 5U + hw->config.data_bits +
+		(hw->config.parity_en ? 1U : 0U) +
+		(hw->config.stop_bits ? 2U : 1U);
+	uint32_t frame_ms = MAX(
+		(frame_bits * 1000U + baud_rate - 1U) / baud_rate, 1U);
+
+	while (!uart_hal_is_tx_fifo_empty(&s_uart[id].hal, id)) {
+		if ((rtos_get_time() - start_ms) >=
+			UART_FAST_PM_QUIESCE_MS) {
+			return BK_ERR_TIMEOUT;
+		}
+		rtos_delay_milliseconds(1);
+	}
+	if (((rtos_get_time() - start_ms) + frame_ms) >
+		UART_FAST_PM_QUIESCE_MS) {
+		return BK_ERR_TIMEOUT;
+	}
+	rtos_delay_milliseconds(frame_ms);
+	return BK_OK;
+}
+
+static bk_err_t uart_fast_quiesce(void *arg)
+{
+	uart_fast_pm_context_t *ctx = arg;
+	uint32_t active = __atomic_load_n(&ctx->active_mask,
+		__ATOMIC_ACQUIRE);
+	uint32_t start_ms = rtos_get_time();
+	bk_err_t ret;
+
+	__atomic_store_n(&ctx->tx_suspended, true, __ATOMIC_RELEASE);
+	ret = uart_fast_wait_tx_idle(ctx, start_ms);
+	if (ret != BK_OK) {
+		__atomic_store_n(&ctx->tx_suspended, false, __ATOMIC_RELEASE);
+		return ret;
+	}
+
+	active = __atomic_load_n(&ctx->active_mask, __ATOMIC_ACQUIRE);
+	for (uart_id_t id = UART_FAST_PM_FIRST_ID;
+		id <= UART_FAST_PM_LAST_ID; id++) {
+		if (!(active & BIT(id))) {
+			continue;
+		}
+		ret = uart_fast_wait_tx_complete(id, start_ms);
+		if (ret != BK_OK) {
+			__atomic_store_n(&ctx->tx_suspended, false,
+				__ATOMIC_RELEASE);
+			return ret;
+		}
+	}
+	uart_fast_pause_dma(active);
+	ctx->dma_paused = true;
+	return BK_OK;
+}
+
+static bk_err_t uart_fast_backup(void *arg)
+{
+	uart_fast_pm_context_t *ctx = arg;
+	uint32_t active = __atomic_load_n(&ctx->active_mask,
+		__ATOMIC_ACQUIRE);
+
+	ctx->backup_valid_mask = 0U;
+	for (uart_id_t id = UART_FAST_PM_FIRST_ID;
+		id <= UART_FAST_PM_LAST_ID; id++) {
+		if (active & BIT(id)) {
+			uart_fast_backup_one(id, ctx->backup[id]);
+			ctx->backup_valid_mask |= BIT(id);
+		}
+	}
+	__DMB();
+	return BK_OK;
+}
+
+static bk_err_t uart_fast_restore(void *arg)
+{
+	uart_fast_pm_context_t *ctx = arg;
+	uint32_t valid = ctx->backup_valid_mask;
+
+	for (uart_id_t id = UART_FAST_PM_FIRST_ID;
+		id <= UART_FAST_PM_LAST_ID; id++) {
+		if (valid & BIT(id)) {
+			uart_fast_restore_one(id, ctx->backup[id]);
+		}
+	}
+	__DMB();
+	return BK_OK;
+}
+
+static bk_err_t uart_fast_resume(void *arg)
+{
+	uart_fast_pm_context_t *ctx = arg;
+	uint32_t active = __atomic_load_n(&ctx->active_mask,
+		__ATOMIC_ACQUIRE);
+
+	if (ctx->dma_paused) {
+		uart_fast_resume_dma(active);
+		ctx->dma_paused = false;
+	}
+	ctx->backup_valid_mask = 0U;
+	__atomic_store_n(&ctx->tx_suspended, false, __ATOMIC_RELEASE);
+	return BK_OK;
+}
+#endif
+
 bk_err_t bk_uart_driver_init(void)
 {
 	if (s_uart_driver_is_init) {
@@ -1280,6 +1586,16 @@ bk_err_t bk_uart_driver_deinit(void)
 	for (uart_id_t id = UART_ID_0; id < SOC_UART_ID_NUM_PER_UNIT; id++) {
 		bk_uart_deinit(id);
 	}
+
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+	if (s_uart_fast_pm.registered) {
+		bk_err_t ret = bk_pm_ap_fast_ops_unregister(&s_uart_fast_ops);
+		if (ret != BK_OK) {
+			return ret;
+		}
+		s_uart_fast_pm.registered = false;
+	}
+#endif
 
 	s_uart_driver_is_init = false;
 
@@ -1527,12 +1843,11 @@ bk_err_t uart_rx_dma_deinit(uart_id_t id)
 	return bk_dma_free(uart_id_to_dma_dev(id, 1), dma_id);
 }
 
-#if CONFIG_UART_PM_CB_SUPPORT
 /*
  * Re-configure and restart the RX DMA channel on an already-allocated
- * rx_dma_id (typically called from uart_pm_restore() after low voltage
- * wake-up). The DMA channel is NOT re-allocated to avoid leaking the
- * previous channel or double-alloc.
+ * rx_dma_id after power-loss (LV restore or AP Fast Boot resume). The
+ * DMA channel is NOT re-allocated. Destination is reset to kfifo start,
+ * so unread bytes from before the power-off window are discarded.
  */
 static bk_err_t uart_rx_dma_restore(uart_id_t id)
 {
@@ -1584,7 +1899,6 @@ static bk_err_t uart_rx_dma_restore(uart_id_t id)
 
 	return BK_OK;
 }
-#endif //CONFIG_UART_PM_CB_SUPPORT
 #endif
 
 #if (CONFIG_UART_TX_DMA)
@@ -1674,7 +1988,6 @@ static bk_err_t uart_tx_dma_deinit(uart_id_t id)
 	return bk_dma_free(uart_id_to_dma_dev(id, 0), dma_id);
 }
 
-#if CONFIG_UART_PM_CB_SUPPORT
 /*
  * Re-configure the TX DMA channel on an already-allocated tx_dma_id.
  * TX DMA is started per-transfer by uart_tx_dma_write_to_fifo(), so this
@@ -1716,7 +2029,6 @@ static bk_err_t uart_tx_dma_restore(uart_id_t id)
 
 	return BK_OK;
 }
-#endif //CONFIG_UART_PM_CB_SUPPORT
 #endif
 
 bk_err_t bk_uart_init(uart_id_t id, const uart_config_t *config)
@@ -1738,6 +2050,15 @@ bk_err_t bk_uart_init(uart_id_t id, const uart_config_t *config)
 		return BK_OK;
 	}
 
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+	if (uart_fast_managed_id(id) && !s_uart_fast_pm.registered) {
+		bk_err_t ret = bk_pm_ap_fast_ops_register(&s_uart_fast_ops);
+		if (ret != BK_OK) {
+			return ret;
+		}
+		s_uart_fast_pm.registered = true;
+	}
+#endif
 
 #if CONFIG_UART_PM_CB_SUPPORT	//this macro config set to n
 	pm_cb_conf_t uart_enter_config = {
@@ -1831,6 +2152,13 @@ bk_err_t bk_uart_init(uart_id_t id, const uart_config_t *config)
 	uart_hal_init_uart(&s_uart[id].hal, id, config);
 	uart_hal_start_common(&s_uart[id].hal, id);
 
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+	if (uart_fast_managed_id(id)) {
+		__atomic_or_fetch(&s_uart_fast_pm.active_mask, BIT(id),
+			__ATOMIC_RELEASE);
+	}
+#endif
+
 	return BK_OK;
 }
 
@@ -1845,6 +2173,13 @@ bk_err_t bk_uart_deinit(uart_id_t id)
 		return BK_OK;
 	}
 	
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+	if (uart_fast_managed_id(id)) {
+		__atomic_and_fetch(&s_uart_fast_pm.active_mask, ~BIT(id),
+			__ATOMIC_RELEASE);
+	}
+#endif
+
 #if CONFIG_UART_RX_DMA
 	uart_rx_dma_deinit(id);
 #endif
@@ -2063,6 +2398,7 @@ bk_err_t bk_uart_write_bytes(uart_id_t id, const void *data, uint32_t size)
 	UART_RETURN_ON_NOT_INIT();
 	UART_RETURN_ON_INVALID_ID(id);
 	UART_RETURN_ON_ID_NOT_INIT(id);
+	UART_FAST_TX_RETURN_ON_SUSPEND(id);
 	UART_PM_CHECK_RESTORE(id);
 #if CONFIG_UART_SW_FLOW_CTRL
 	const uint8_t *data_ptr = (const uint8_t *)data;
@@ -2087,7 +2423,7 @@ bk_err_t bk_uart_write_bytes(uart_id_t id, const void *data, uint32_t size)
 
 		for (uint32_t i = 0; i < to_send; i++)
 		{
-			uart_write_byte(id, data_ptr[bytes_sent + i]);
+			uart_write_byte_raw(id, data_ptr[bytes_sent + i]);
 		}
 	
 		bytes_sent += to_send;
@@ -2103,10 +2439,11 @@ bk_err_t bk_uart_write_bytes(uart_id_t id, const void *data, uint32_t size)
 #endif
 	{
 		for (int i = 0; i < size; i++) {
-			uart_write_byte(id, ((uint8 *)data)[i]);
+			uart_write_byte_raw(id, ((uint8 *)data)[i]);
 		}
 	}
 #endif
+	UART_FAST_TX_EXIT(id);
 	return BK_OK;
 }
 

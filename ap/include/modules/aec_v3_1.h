@@ -571,6 +571,15 @@ uint32_t aec_ver(void);
  
 void gtcrn_proc(void * pgtcrn,int32_t * spec, uint8_t* buff,uint8_t* relay);
 uint32_t gtcrn_size(void);
+typedef enum {
+    AEC_GTCRN_CTRL_SET_ENC0_BUFF = 0,
+    AEC_GTCRN_CTRL_SET_ENC1_BUFF,
+    AEC_GTCRN_CTRL_SET_ENC2_BUFF,
+    AEC_GTCRN_CTRL_SET_ENC3_BUFF,
+    AEC_GTCRN_CTRL_SET_DEC3_BUFF,
+    AEC_GTCRN_CTRL_SET_SCRATCH,
+} aec_gtcrn_ctrl_cmd_t;
+void gtcrn_set_buff(void *pgtcrn, uint32_t cmd, uint32_t buff);
 /**
 
 * @}

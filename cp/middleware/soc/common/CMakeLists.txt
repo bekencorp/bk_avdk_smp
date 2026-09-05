@@ -3,6 +3,7 @@ armino_build_get_property(target ARMINO_SOC)
 set(incs
 	soc/include
 	hal/include
+	flash_core
 	)
 
 set(srcs
@@ -25,6 +26,8 @@ endif()
 if (CONFIG_FLASH)
 	list(APPEND srcs
 		hal/flash_hal.c
+		flash_core/bk_flash_core.c
+		flash_core/flash_core_config.c
 	)
 endif()
 

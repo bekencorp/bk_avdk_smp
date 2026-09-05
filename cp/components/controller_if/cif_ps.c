@@ -145,7 +145,6 @@ bk_err_t cif_power_up_host(void)
     bk_pm_module_vote_cpu_freq(PM_DEV_ID_CIF, PM_CPU_FRQ_240M);
     ret = cif_exit_sleep();
     cif_env.host_powerup = true;
-
     return ret;
 }
 bk_err_t cif_power_down_host(void)
@@ -158,7 +157,6 @@ bk_err_t cif_power_down_host(void)
     //bluetooth_controller_deinit_api();
     //cif_power_down_host_by_gpio();
     cif_env.host_powerup = false;
-    cif_env.host_wifi_init = false;
     bk_pm_module_vote_cpu_freq(PM_DEV_ID_CIF, PM_CPU_FRQ_DEFAULT);
     return BK_OK;
 }

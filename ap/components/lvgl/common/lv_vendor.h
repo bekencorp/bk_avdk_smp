@@ -109,6 +109,9 @@ void lv_vendor_disp_lock(void);
 
 void lv_vendor_disp_unlock(void);
 
+/** False before lv_vendor_init() or after lv_vendor_deinit(). */
+bool lv_vendor_is_initialized(void);
+
 bool lv_vendor_gpu_lock(void);
 
 void lv_vendor_gpu_unlock(bool locked);

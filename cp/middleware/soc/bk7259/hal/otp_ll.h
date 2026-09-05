@@ -73,7 +73,7 @@ static inline int otp_ll_power_on(otp_hw_t *hw)
 {
 	sys_ll_set_cpu_device_clk_enable_otp_cken(1);
 	bk_delay_us(10);
-	bk_pm_module_vote_power_ctrl(POWER_SUB_MODULE_NAME_ENCP_OTP, PM_POWER_MODULE_STATE_ON);
+	bk_pm_module_vote_power_ctrl(PM_POWER_SUB_DOMAIN_OTP_APB, PM_POWER_MODULE_STATE_ON);
 	bk_delay_us(10);
 	return otp_ll_active(hw);
 }
@@ -88,7 +88,7 @@ static inline void otp_ll_power_off(otp_hw_t *hw)
 		return ;
 	}
 #endif
-	bk_pm_module_vote_power_ctrl(POWER_SUB_MODULE_NAME_ENCP_OTP, PM_POWER_MODULE_STATE_OFF);
+	bk_pm_module_vote_power_ctrl(PM_POWER_SUB_DOMAIN_OTP_APB, PM_POWER_MODULE_STATE_OFF);
 	bk_delay_us(10);
 	return;
 }

@@ -9,5 +9,7 @@ ota,,1900K,data,TRUE,TRUE
 usr_config,,60K,data,TRUE,TRUE
 easyflash,,8K,data,TRUE,TRUE
 easyflash_ap,,8K,data,TRUE,TRUE
+# Dedicated destructive scratch area for the Flash/UART concurrency test
+flash_stress,0x500000,300K,data,TRUE,TRUE
 sys_rf,0x7FE000,4k,data,TRUE,TRUE
 sys_net,0x7FF000,4k,data,TRUE,TRUE

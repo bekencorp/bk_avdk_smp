@@ -35,13 +35,6 @@
  * emitted, even with CONFIG_TFM_LOG_LEVEL lowered for production. */
 #define BP_LOG(fmt, ...) BK_LOG_FORCE(TAG ": " fmt, ##__VA_ARGS__)
 
-/* op_sw erase/PP are ignored while the flash is in QUAD continuous-read (the XIP
- * path leaves it there), so a commit must drop to TWO first and restore after.
- * Mirrors boot_param_commit() in BL2. */
-extern void bk_flash_min_unprotect_once(void);
-extern void bk_flash_min_switch_line_mode_two(void);
-extern void bk_flash_min_restore_line_mode(void);
-
 /* Running A/B slot from the flash XIP remap enable (0=A / 1=B), set by MCUboot
  * for the slot it actually booted. */
 extern uint32_t flash_get_excute_enable(void);
@@ -85,13 +78,11 @@ int boot_param_confirm(void)
 	memset(rec.rsvd0, 0, sizeof(rec.rsvd0));
 	rec.dl_state    = AB_DL_IDLE;
 
-	/* BK7259SW-2937: unprotect first or erase/PP are no-ops under status
-	 * protect (same trap as ota_confirm). Then leave QUAD continuous-read so
-	 * op_sw is accepted; XIP fetch still works in TWO mode. */
-	bk_flash_min_unprotect_once();
-	bk_flash_min_switch_line_mode_two();
+	/* BK7259SW-2937: nothing to bracket (same as ota_confirm) - the
+	 * ab_record_commit erase/PP go through flash_core, which per-op drops to
+	 * two-line so op_sw is accepted, self-unprotects -> op -> re-protect, and
+	 * restores the ambient QUAD continuous-read for the next XIP fetch. */
 	idx = ab_record_commit(base, &boot_param_ops, &rec);
-	bk_flash_min_restore_line_mode();
 
 	if (idx < 0) {
 		BK_LOGE(TAG, "commit failed %d\r\n", idx);

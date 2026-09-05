@@ -33,6 +33,16 @@ bk_err_t bk_isp_open(isp_handle_t *handle, isp_config_ext_t *config);
 
 bk_err_t bk_isp_close(isp_handle_t *handle, uint8_t chnl_id);
 
+/**
+ * @brief Abort a pending DQBUF on a channel so a blocked reader wakes immediately.
+ *
+ * Performs a buffer-queue StreamOff only: a reader blocked in pop_buf returns at
+ * once (BK_FAIL / not-ready) so the caller can join its reader thread promptly.
+ * Does NOT stop the MI DMA or free buffers; call bk_isp_close afterwards to do the
+ * full channel teardown. Safe no-op on an already-closed channel.
+ */
+bk_err_t bk_isp_dqbuf_abort(isp_handle_t *handle, uint8_t chnl_id);
+
 bk_err_t bk_isp_register_isr_callback(isp_handle_t *handle, isp_isr_type_t type, isp_isr_t cb, void *arg);
 
 bk_err_t bk_isp_deregister_isr_callback(isp_handle_t *handle, isp_isr_type_t type, void *arg);

@@ -62,11 +62,27 @@ typedef struct
     uint32_t timestamp;
 } debug_dump_data_header_t;
 
+typedef enum {
+    DEBUG_DUMP_TRANSPORT_UART = 0,
+    DEBUG_DUMP_TRANSPORT_WIFI,
+} debug_dump_transport_t;
+
 #if CONFIG_ADK_DEBUG_DUMP_UTIL
 extern struct uart_util g_debug_data_uart_util;
 extern volatile debug_dump_data_header_t dump_header[HEADER_ARRAY_CNT];
 extern const uint8_t g_dump_type2header_array_idx[DUMP_TYPE_MAX];
 extern uint16_t g_aud_data_dump_bitmap;
+
+bk_err_t debug_data_dump_set_transport(debug_dump_transport_t transport,
+                                        uint16_t port);
+debug_dump_transport_t debug_data_dump_get_transport(void);
+bk_err_t debug_data_dump_open(void);
+void debug_data_dump_close(void);
+void debug_data_dump_abort(void);
+bool debug_data_dump_is_ready(void);
+bk_err_t debug_data_dump_send_aec(const void *mic, uint32_t mic_len,
+                                  const void *ref, uint32_t ref_len,
+                                  const void *out, uint32_t out_len);
 
 #define DEBUG_DATA_DUMP_UART_ID            (2)
 #define DEBUG_DATA_DUMP_UART_BAUD_RATE     (2000000)
@@ -91,6 +107,10 @@ extern uint16_t g_aud_data_dump_bitmap;
 #define DEBUG_DATA_DUMP_UPDATE_HEADER_SAMPLE_RATE(dump_type,data_flow_idx,sr)          dump_header[g_dump_type2header_array_idx[dump_type]].data_flow[data_flow_idx].sample_rate = sr
 #define DEBUG_DATA_DUMP_UPDATE_HEADER_FRAME_IN_MS(dump_type,data_flow_idx,frame_ms)    dump_header[g_dump_type2header_array_idx[dump_type]].data_flow[data_flow_idx].frame_in_ms = frame_ms
 #define DEBUG_DATA_DUMP_UPDATE_HEADER_CHANNEL_NUM(dump_type,data_flow_idx,ch_n)        dump_header[g_dump_type2header_array_idx[dump_type]].data_flow[data_flow_idx].ch_num = ch_n
+#else
+#define DEBUG_DATA_DUMP_UPDATE_HEADER_SAMPLE_RATE(dump_type,data_flow_idx,sr)
+#define DEBUG_DATA_DUMP_UPDATE_HEADER_FRAME_IN_MS(dump_type,data_flow_idx,frame_ms)
+#define DEBUG_DATA_DUMP_UPDATE_HEADER_CHANNEL_NUM(dump_type,data_flow_idx,ch_n)
 #endif
 #define DEBUG_DATA_DUMP_BY_UART_HEADER(dump_type)                     DEBUG_DATA_DUMP_BY_UART_DATA((void *)&dump_header[g_dump_type2header_array_idx[dump_type]], sizeof(debug_dump_data_header_t))
 

@@ -493,11 +493,13 @@ int boot_copy_region(struct boot_loader_state *state,
 		return -1;
 	}
 
-	/* Overwrite must program primary_all; unprotect once then two-line
-	 * (BK7259SW-2937 keeps flash protected after init for XIP). */
+	/* Overwrite must program primary_all. Both axes are per-op self-bracketing:
+	 * flash_core erase/write and bk_flash_write_cbus each drop to two-line and
+	 * self-unprotect -> op -> re-protect -> restore the ambient QUAD
+	 * continuous-read, and the readback (op_sw / cbus) works in four-line, so no
+	 * session-wide line switch or unprotect is needed (BK7259SW-2937 keeps flash
+	 * protected after init for XIP). */
 	update_wdt(OTA_WDT_FEED_VAL);
-	bk_flash_min_unprotect_once();
-	bk_flash_min_switch_line_mode_two();
 
 	int restart_block_idx = resume_flash(block_num);
 	if (restart_block_idx < 0) {
@@ -576,7 +578,6 @@ int boot_copy_region(struct boot_loader_state *state,
 	rc = 0;
 
 out:
-	bk_flash_min_restore_line_mode();
 	return rc;
 }
 

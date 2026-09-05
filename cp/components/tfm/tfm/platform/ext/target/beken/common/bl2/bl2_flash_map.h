@@ -31,14 +31,6 @@ uint32_t get_flash_map_phy_size(uint32_t index);
 /* Block-granular fast erase used by the OTA install (cmsis_drivers/Driver_Flash.c). */
 int flash_area_erase_fast(uint32_t erase_off, uint32_t len);
 
-/* Drop flash to 2-line mode for erase/program and restore QUAD continuous-read
- * afterwards (bk7259/armino_min/hal/flash_min.c). */
-void bk_flash_min_switch_line_mode_two(void);
-void bk_flash_min_restore_line_mode(void);
-/* Clear persistent flash write-protect once (BK7259SW-2937 defer-unprotect).
- * Required before compressed-overwrite erase/program of primary_all. */
-void bk_flash_min_unprotect_once(void);
-
 #if CONFIG_OTA_OVERWRITE
 /* CBUS encrypt-on-write (0x04 + HW XTS-AES). Overwrite only; see flash_min.c. */
 void bk_flash_write_cbus(uint32_t address, const uint8_t *user_buf, uint32_t size);

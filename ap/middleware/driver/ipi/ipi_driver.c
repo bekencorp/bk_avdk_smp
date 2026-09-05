@@ -18,8 +18,12 @@
 #include <driver/int.h>
 #include "bk_arm_arch.h"
 #include <os/os.h>
+#include "cmsis_gcc.h"
 #include "sys_driver.h"
 #include "ipi_hal.h"
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+#include <modules/pm.h>
+#endif
 
 #define IPI_TAG "ipi"
 #define IPI_LOGI(...) BK_LOGI(IPI_TAG, ##__VA_ARGS__)
@@ -39,6 +43,43 @@ static ipi_domain_callback_info_t s_ipi_domain_callbacks[IPI_DOMAIN_MAX] = {0};
 static ipi_hal_t s_ipi_hal;
 
 static void bk_ipi_isr_dispatch(void);
+
+#define IPI_AP_CHANNEL_MASK \
+	((1U << IPI_AP_CORE0) | (1U << IPI_AP_CORE1))
+
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+static uint32_t s_ipi_ap_enable_backup;
+static bool s_ipi_fast_registered;
+
+static bk_err_t ipi_fast_backup(void *arg)
+{
+	(void)arg;
+	s_ipi_ap_enable_backup =
+		ipi_ll_get_int_reg(s_ipi_hal.hw) & IPI_AP_CHANNEL_MASK;
+	return BK_OK;
+}
+
+static bk_err_t ipi_fast_restore(void *arg)
+{
+	uint32_t int_en;
+
+	(void)arg;
+	ipi_hal_clear(&s_ipi_hal, IPI_AP_CORE0);
+	ipi_hal_clear(&s_ipi_hal, IPI_AP_CORE1);
+	int_en = ipi_ll_get_int_reg(s_ipi_hal.hw);
+	int_en = (int_en & ~IPI_AP_CHANNEL_MASK) | s_ipi_ap_enable_backup;
+	ipi_ll_set_int_reg(s_ipi_hal.hw, int_en);
+	__DMB();
+	return BK_OK;
+}
+
+static const pm_ap_fast_pm_ops_t s_ipi_fast_ops = {
+	.name = "ipi",
+	.backup = ipi_fast_backup,
+	.restore = ipi_fast_restore,
+	.priority = PM_AP_FAST_PRIORITY_BUS,
+};
+#endif
 
 /**
  * @brief Validate core ID
@@ -104,6 +145,14 @@ bk_err_t bk_ipi_driver_init(void)
 	bk_ipi_register_cli_test_feature();
 #endif
 
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+	bk_err_t ret = bk_pm_ap_fast_ops_register(&s_ipi_fast_ops);
+	if (ret != BK_OK) {
+		return ret;
+	}
+	s_ipi_fast_registered = true;
+#endif
+
 	s_ipi_driver_init = true;
 
 	return BK_OK;
@@ -127,6 +176,16 @@ bk_err_t bk_ipi_driver_deinit(void)
 		s_ipi_domain_callbacks[i].callback = NULL;
 		s_ipi_domain_callbacks[i].param = NULL;
 	}
+
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+	if (s_ipi_fast_registered) {
+		bk_err_t ret = bk_pm_ap_fast_ops_unregister(&s_ipi_fast_ops);
+		if (ret != BK_OK) {
+			return ret;
+		}
+		s_ipi_fast_registered = false;
+	}
+#endif
 
 	s_ipi_driver_init = false;
 

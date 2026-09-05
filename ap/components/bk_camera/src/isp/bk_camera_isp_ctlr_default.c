@@ -22,7 +22,7 @@
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
 
-#define ISP_CAMERA_READ_IDLE_TIMEOUT_MS 100
+#define ISP_CAMERA_READ_IDLE_TIMEOUT_MS 200
 
 typedef struct
 {
@@ -62,17 +62,6 @@ static void isp_camera_ctlr_task_entry(void *param)
 
     while (read_ctx->thread_enable)
     {
-        ret = rtos_get_semaphore(&read_ctx->req_sem, BEKEN_WAIT_FOREVER);
-        if (ret != BK_OK)
-        {
-            continue;
-        }
-
-        if (read_ctx->thread_enable == false)
-        {
-            break;
-        }
-
         uint8_t chnl_id = read_ctx->channel;
         config = &isp_control->chn[chnl_id];
         if (config == NULL || config->enable == false)
@@ -85,7 +74,9 @@ static void isp_camera_ctlr_task_entry(void *param)
         if (chnl_id < ISP_CHANNEL_INSTANCE_MAX &&
             isp_camera_ctlr_get_private(cam_control)->bond_owned[chnl_id])
         {
-            /* The channel queue is owned by an external zero-copy consumer. */
+            /* The channel queue is owned by an external zero-copy consumer; it drains
+             * the queue itself, so the free-running reader must not touch it. */
+            rtos_delay_milliseconds(10);
             continue;
         }
 
@@ -96,11 +87,12 @@ static void isp_camera_ctlr_task_entry(void *param)
             continue;
         }
 
-        if (read_ctx->read_enable == false || read_ctx->frame == NULL)
-        {
-            continue;
-        }
-
+        /* Free-running recycle: keep popping completed frames even when no read is
+         * pending. This keeps the FIFO done-queue drained -- so the next read always
+         * gets a freshly-captured frame instead of the oldest one stuck at the queue
+         * head -- and keeps buffers cycling so a frame-mode channel without keep-alive
+         * (e.g. MP) never stalls on buffer exhaustion. A frame is copied out only when
+         * a reader is waiting; otherwise it is simply requeued. */
         VIDEO_BUF_S buf;
         ret = isp_control->pop_buf(config->channel, &buf, read_ctx->read_timeout);
         if (ret == VSI_ERR_NOT_READY)
@@ -197,19 +189,10 @@ static avdk_err_t isp_camera_ctlr_start_channel_reader(bk_camera_isp_ctlr_t *con
     read_ctx->frame = NULL;
     read_ctx->size = 0;
 
-    ret = rtos_init_semaphore(&read_ctx->req_sem, 1);
-    if (ret != BK_OK)
-    {
-        LOGE("%s, %d channel %d req sem init error\n", __func__, __LINE__, channel);
-        return ret;
-    }
-
     ret = rtos_init_semaphore(&read_ctx->sem, 1);
     if (ret != BK_OK)
     {
         LOGE("%s, %d channel %d sem init error\n", __func__, __LINE__, channel);
-        rtos_deinit_semaphore(&read_ctx->req_sem);
-        read_ctx->req_sem = NULL;
         return ret;
     }
 
@@ -229,11 +212,6 @@ static avdk_err_t isp_camera_ctlr_start_channel_reader(bk_camera_isp_ctlr_t *con
             rtos_deinit_semaphore(&read_ctx->sem);
             read_ctx->sem = NULL;
         }
-        if (read_ctx->req_sem)
-        {
-            rtos_deinit_semaphore(&read_ctx->req_sem);
-            read_ctx->req_sem = NULL;
-        }
         return ret;
     }
 
@@ -251,14 +229,19 @@ static void isp_camera_ctlr_stop_channel_reader(bk_camera_isp_ctlr_t *control, u
     }
 
     read_ctx = &control->read_ctx[channel];
-    /* May already have exited on StreamOff NOT_READY; still join by handle. */
+    /* Clear the run flag, then wake the reader immediately: if it is blocked in a
+     * (possibly long) pop_buf/DQBUF poll, abort that DQBUF so it returns NOT_READY
+     * at once and exits, instead of waiting out the poll timeout. The abort is a
+     * VB-queue StreamOff only -- it neither stops the MI DMA nor frees buffers, so
+     * the subsequent bk_isp_close still performs the full DisableChn + buffer free
+     * (and buffers are only freed after this join confirms the reader has stopped). */
     read_ctx->thread_enable = false;
-    if (read_ctx->req_sem)
-    {
-        rtos_set_semaphore(&read_ctx->req_sem);
-    }
     if (read_ctx->thread)
     {
+        if (control->isp_handle)
+        {
+            bk_isp_dqbuf_abort(&control->isp_handle, channel);
+        }
         rtos_thread_join(&read_ctx->thread);
         read_ctx->thread = NULL;
     }
@@ -267,12 +250,6 @@ static void isp_camera_ctlr_stop_channel_reader(bk_camera_isp_ctlr_t *control, u
     {
         rtos_deinit_semaphore(&read_ctx->sem);
         read_ctx->sem = NULL;
-    }
-
-    if (read_ctx->req_sem)
-    {
-        rtos_deinit_semaphore(&read_ctx->req_sem);
-        read_ctx->req_sem = NULL;
     }
 
     read_ctx->read_enable = false;
@@ -443,13 +420,23 @@ static avdk_err_t isp_camera_ctlr_read(bk_isp_camera_ctlr_handle_t handle, uint1
         return ret;
     }
 
+    /* A previous read that timed out while the reader was mid-delivery can leave
+     * one stale completion token in sem (the reader posts after read() gave up).
+     * Reads are serialized by the read_enable busy-check above and read_enable is
+     * false here, so the reader cannot post again during this window -> at most one
+     * stale token can exist. Consume it (non-blocking, bounded) so this read only
+     * wakes on its own freshly delivered frame. */
+    (void)rtos_get_semaphore(&read_ctx->sem, 0);
+
     read_ctx->frame = frame;
     read_ctx->size = size;
-    read_ctx->read_enable = true;
     uint32_t wait_timeout = timeout ? timeout : ISP_CAMERA_READ_IDLE_TIMEOUT_MS;
     read_ctx->read_timeout = wait_timeout;
+    /* Publish read_enable last so the free-running reader never observes it true
+     * before frame/size are set. The reader hands us the next freshly popped
+     * frame and posts sem. */
+    read_ctx->read_enable = true;
 
-    rtos_set_semaphore(&read_ctx->req_sem);
     ret = rtos_get_semaphore(&read_ctx->sem, wait_timeout);
     if (ret != BK_OK)
     {

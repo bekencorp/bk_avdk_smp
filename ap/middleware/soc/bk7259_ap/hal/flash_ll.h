@@ -143,24 +143,30 @@ static inline void flash_ll_write_status_reg_common(flash_hw_t *hw, uint8_t sr_w
 	hw->cmd_cfg.v = 0;
 	hw->config.wrsr_data = v;
 	hw->op_ctrl.wp_value = 1;
-	if (sr_width == 1) {
+
+	/* Split write for max compatibility: 01H writes S0-7, 31H writes S8-15,
+	 * 11H writes S16-23 - one byte per command. This mirrors the read side
+	 * (RDSR/RDSR2/0x15) which is already per-register, and avoids the combined
+	 * 01H+2byte (WRSR2) form that some parts do not accept. wp_value stays 1
+	 * across all writes; the volatile 0x50 prefix (when set) is re-issued by
+	 * the controller before each op_sw WRSR. */
+	flash_ll_set_op_cmd(hw, FLASH_OP_CMD_WRSR);              /* 01H + S0-7 */
+
+	if (sr_width >= 2) {
+		flash_ll_wait_op_done(hw);
+		hw->config.wrsr_data = (v >> LEN_WRSR_S0_S7);       /* S8-15 */
+		flash_ll_init_wrsr_cmd(hw, CMD_WRSR_S8_S15);        /* 0x31 */
 		flash_ll_set_op_cmd(hw, FLASH_OP_CMD_WRSR);
-	} else if (sr_width == 2) {
-		flash_ll_set_op_cmd(hw, FLASH_OP_CMD_WRSR2);
-	} else {
-		if(FLASH_ID_GD25Q32C == flash_ll_get_id(hw) || FLASH_ID_TH25Q64 == flash_ll_get_id(hw)) {
-			flash_ll_set_op_cmd(hw, FLASH_OP_CMD_WRSR);
-			flash_ll_wait_op_done(hw);
-			hw->config.wrsr_data = (v >> LEN_WRSR_S0_S7);
-			flash_ll_init_wrsr_cmd(hw, CMD_WRSR_S8_S15);
-			flash_ll_set_op_cmd(hw, FLASH_OP_CMD_WRSR);
 
+		if (sr_width >= 3) {
 			flash_ll_wait_op_done(hw);
-
-			hw->cmd_cfg.v = 0;
-		} else {
-			flash_ll_set_op_cmd(hw, FLASH_OP_CMD_WRSR2);
+			hw->config.wrsr_data = (v >> LEN_WRSR_S8_S15);  /* S16-23 */
+			flash_ll_init_wrsr_cmd(hw, CMD_WRSR_S16_S24);   /* 0x11 */
+			flash_ll_set_op_cmd(hw, FLASH_OP_CMD_WRSR);
 		}
+
+		flash_ll_wait_op_done(hw);
+		hw->cmd_cfg.v = 0;   /* restore wrsr_cmd_sel back to default 01H */
 	}
 
 	flash_ll_wait_op_done(hw);

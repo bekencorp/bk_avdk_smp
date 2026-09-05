@@ -24,6 +24,7 @@
 #include "power_driver.h"
 #include <driver/int.h>
 #include <modules/pm.h>
+#include "cmsis_gcc.h"
 #include "sys_driver.h"
 #include "timer_driver.h"
 
@@ -38,11 +39,18 @@ typedef struct {
     uint32_t pm_backup[SOC_TIMER_GROUP_NUM-1][TIMER_PM_BACKUP_REG_NUM];
     uint8_t pm_bakeup_is_valid;
 #endif
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+    uint32_t fast_backup[SOC_TIMER_GROUP_NUM][5];
+    bool fast_backup_valid;
+#endif
 } timer_driver_t;
 
 static timer_driver_t s_timer = {0};
 static timer_isr_t s_timer_isr[SOC_TIMER_CHAN_NUM_PER_UNIT] = {NULL};
 static bool s_timer_driver_is_init = false;
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+static bool s_timer_fast_pm_registered;
+#endif
 
 #define TIMER_RETURN_ON_NOT_INIT() do {\
         if (!s_timer_driver_is_init) {\
@@ -312,6 +320,67 @@ static void timer_unregister_lvsleep_cb(uint32_t group_id)
 }
 #endif
 
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+#define TIMER_FAST_CTRL_MASK (0x7FU)
+
+static bk_err_t timer_fast_backup(void *arg)
+{
+    (void)arg;
+
+    for (uint32_t group = 0; group < SOC_TIMER_GROUP_NUM; group++) {
+        s_timer.fast_backup[group][0] =
+            s_timer.hal.hw->group[group].global_ctrl.v;
+        s_timer.fast_backup[group][1] =
+            s_timer.hal.hw->group[group].timer_cnt[0];
+        s_timer.fast_backup[group][2] =
+            s_timer.hal.hw->group[group].timer_cnt[1];
+        s_timer.fast_backup[group][3] =
+            s_timer.hal.hw->group[group].timer_cnt[2];
+        s_timer.fast_backup[group][4] =
+            s_timer.hal.hw->group[group].ctrl.v & TIMER_FAST_CTRL_MASK;
+
+        for (uint32_t chan = 0; chan < SOC_TIMER_CHAN_NUM_PER_GROUP; chan++) {
+            timer_ll_set_enable(s_timer.hal.hw, group, chan, 0);
+        }
+    }
+    s_timer.fast_backup_valid = true;
+    __DMB();
+    return BK_OK;
+}
+
+static bk_err_t timer_fast_restore(void *arg)
+{
+    (void)arg;
+
+    if (!s_timer.fast_backup_valid) {
+        return BK_OK;
+    }
+
+    for (uint32_t group = 0; group < SOC_TIMER_GROUP_NUM; group++) {
+        s_timer.hal.hw->group[group].global_ctrl.v =
+            s_timer.fast_backup[group][0];
+        s_timer.hal.hw->group[group].timer_cnt[0] =
+            s_timer.fast_backup[group][1];
+        s_timer.hal.hw->group[group].timer_cnt[1] =
+            s_timer.fast_backup[group][2];
+        s_timer.hal.hw->group[group].timer_cnt[2] =
+            s_timer.fast_backup[group][3];
+        s_timer.hal.hw->group[group].ctrl.v =
+            s_timer.fast_backup[group][4];
+    }
+    s_timer.fast_backup_valid = false;
+    __DMB();
+    return BK_OK;
+}
+
+static const pm_ap_fast_pm_ops_t s_timer_fast_pm_ops = {
+    .name = "timer45",
+    .backup = timer_fast_backup,
+    .restore = timer_fast_restore,
+    .priority = PM_AP_FAST_PRIORITY_PERIPHERAL,
+};
+#endif
+
 bk_err_t bk_timer_driver_init(void)
 {
     if (s_timer_driver_is_init) {
@@ -334,6 +403,14 @@ bk_err_t bk_timer_driver_init(void)
 #endif
     timer_hal_init(&s_timer.hal);
 
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+    bk_err_t pm_ret = bk_pm_ap_fast_ops_register(&s_timer_fast_pm_ops);
+    if (pm_ret != BK_OK) {
+        return pm_ret;
+    }
+    s_timer_fast_pm_registered = true;
+#endif
+
     s_timer_driver_is_init = true;
 
     return BK_OK;
@@ -344,6 +421,17 @@ bk_err_t bk_timer_driver_deinit(void)
     if (!s_timer_driver_is_init) {
         return BK_OK;
     }
+
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+    if (s_timer_fast_pm_registered) {
+        bk_err_t pm_ret =
+            bk_pm_ap_fast_ops_unregister(&s_timer_fast_pm_ops);
+        if (pm_ret != BK_OK) {
+            return pm_ret;
+        }
+        s_timer_fast_pm_registered = false;
+    }
+#endif
 
 #if CONFIG_TIMER_PM_CB_SUPPORT
     for (uint32_t group_id = 1; group_id < SOC_TIMER_GROUP_NUM; group_id++)

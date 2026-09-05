@@ -683,9 +683,23 @@ bk_err_t bk_pwm_group_init(const pwm_group_init_config_t *config, pwm_group_t *g
 
 bk_err_t bk_pwm_group_deinit(pwm_group_t group)
 {
-	bk_pwm_group_stop(group);
+	if ((group >= SOC_PWM_TIM_NUM) || !s_pwm.groups[group].is_valid) {
+		return BK_OK;
+	}
 
-	return BK_OK;
+	pwm_chan_t chan1 = s_pwm.groups[group].chan1;
+	pwm_chan_t chan2 = s_pwm.groups[group].chan2;
+	bk_err_t ret = bk_pwm_group_stop(group);
+	if (ret != BK_OK) {
+		return ret;
+	}
+
+	pwm_chan_deinit_common(chan1);
+	pwm_chan_deinit_common(chan2);
+	s_pwm.group_chan_init_level &= ~BIT(group);
+	os_memset(&s_pwm.groups[group], 0, sizeof(s_pwm.groups[group]));
+
+	return ret;
 }
 
 bk_err_t bk_pwm_group_set_config(pwm_group_t group, const pwm_group_config_t *config)
@@ -770,10 +784,9 @@ static int compare(const void *a, const void *b)
 	return (*(uint32_t *)a - *(uint32_t *)b);
 }
 
-static uint32_t find_most_freq(uint32_t arr[], uint32_t num, uint32_t *max_count)
+static uint32_t find_most_freq(uint32_t arr[], uint32_t num)
 {
 	if (num == 0) {
-		*max_count = 0;
 		return 0xff;
 	}
 
@@ -782,14 +795,14 @@ static uint32_t find_most_freq(uint32_t arr[], uint32_t num, uint32_t *max_count
 	uint32_t max_freq_number = arr[0];
 	uint32_t current_number = arr[0];
 	uint32_t current_count = 1;
-	*max_count = 1;
+	uint32_t max_count = 1;
 
 	for (uint32_t i = 0; i < num; i++) {
 		if (arr[i] == current_number) {
 			current_count++;
 		} else {
-			if (current_count > *max_count) {
-				*max_count = current_count;
+			if (current_count > max_count) {
+				max_count = current_count;
 				max_freq_number = current_number;
 			}
 			current_number = arr[i];
@@ -797,12 +810,45 @@ static uint32_t find_most_freq(uint32_t arr[], uint32_t num, uint32_t *max_count
 		}
 	}
 
-	if (current_count > *max_count) {
-		*max_count = current_count;
+	if (current_count > max_count) {
 		max_freq_number =  current_number;
 	}
 
 	return max_freq_number;
+}
+
+static uint32_t find_most_freq_pair(const uint32_t value_array[],
+									const uint32_t level_array[],
+									uint32_t num,
+									uint32_t *most_level)
+{
+	if (num == 0) {
+		*most_level = 0;
+		return 0xff;
+	}
+
+	uint32_t most_value = value_array[0];
+	*most_level = level_array[0];
+	uint32_t max_count = 1;
+
+	for (uint32_t i = 0; i < num; i++) {
+		uint32_t current_count = 0;
+
+		for (uint32_t j = 0; j < num; j++) {
+			if ((value_array[j] == value_array[i]) &&
+				(level_array[j] == level_array[i])) {
+				current_count++;
+			}
+		}
+
+		if (current_count > max_count) {
+			max_count = current_count;
+			most_value = value_array[i];
+			*most_level = level_array[i];
+		}
+	}
+
+	return most_value;
 }
 
 bk_err_t bk_pwm_capture_init(pwm_chan_t chan, const pwm_capture_init_config_t *config)
@@ -870,9 +916,9 @@ uint32_t bk_pwm_capture_get_period_duty_cycle(pwm_chan_t chan, uint32_t timeout_
 	uint32_t ccr1_shadow = 0;
 	uint32_t capture_int_type = 0;
 	uint32_t capture_edge = 0;
-	uint32_t max_count = 0;
 	uint32_t most_freq = 0;
 	uint32_t most_level = 0;
+	uint32_t sample_count = 0;
 	uint32_t ccr_shadow_array[PWM_CAPTURE_CACHE_NUM] = {0};
 	uint32_t level_array[PWM_CAPTURE_CACHE_NUM] = {0};
 	static uint32_t period_cycle = 0;
@@ -887,9 +933,13 @@ uint32_t bk_pwm_capture_get_period_duty_cycle(pwm_chan_t chan, uint32_t timeout_
 			}
 			ccr1_shadow = pwm_hal_get_ccr1_shadow(chan);
 			ccr_shadow_array[i] = ccr1_shadow;
+			sample_count++;
 		}
 		pwm_hal_set_cc1ie(chan, 0);
-		period_cycle = find_most_freq(ccr_shadow_array, PWM_CAPTURE_CACHE_NUM, &max_count);
+		if (sample_count == 0) {
+			return 0;
+		}
+		period_cycle = find_most_freq(ccr_shadow_array, sample_count);
 		return period_cycle;
 	}
 
@@ -911,11 +961,15 @@ uint32_t bk_pwm_capture_get_period_duty_cycle(pwm_chan_t chan, uint32_t timeout_
 
 		ccr_shadow_array[i] = ccr1_shadow;
 		level_array[i] = capture_int_type;
+		sample_count++;
 	}
 
 	pwm_hal_set_cc1ie(chan, 0);
-	most_freq = find_most_freq(ccr_shadow_array, PWM_CAPTURE_CACHE_NUM, &max_count);
-	most_level = find_most_freq(level_array, PWM_CAPTURE_CACHE_NUM, &max_count);
+	if (sample_count == 0) {
+		return 0;
+	}
+	most_freq = find_most_freq_pair(ccr_shadow_array, level_array, sample_count,
+									&most_level);
 
 	if (most_level) {
 		return most_freq;

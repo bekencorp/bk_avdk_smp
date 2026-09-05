@@ -29,8 +29,11 @@
 #include "FreeRTOS.h"
 #include "task.h"
 
-#if CONFIG_CAN_PM_CB_SUPPORT
+#if CONFIG_CAN_PM_CB_SUPPORT || CONFIG_PM_AP_FAST_BOOT_ENABLE
 #include <modules/pm.h>
+#endif
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+#include "cmsis_gcc.h"
 #endif
 
 #define CAN_ERR_RECOVER_STACK_SIZE      1024
@@ -680,6 +683,165 @@ bk_err_t can_driver_bit_rate_config(can_bit_rate_e s_speed, can_bit_rate_e f_spe
     return BK_OK;
 }
 
+/* bk_pm_module_vote_cp_power_ctrl() (BK7259SW-3437) lets the AP ask the CP to
+ * power a CP-side power domain. It is not yet exported in a public pm header,
+ * so declare it here until the pm module publishes a prototype. */
+extern bk_err_t bk_pm_module_vote_cp_power_ctrl(pm_power_module_name_e module,
+                                                pm_power_module_state_e power_state);
+
+/* CAN0's controller lives in the CP-side VEHP (VEHP_SPI_DEBUG) power domain.
+ * With CONFIG_PM_ONLY_CP_ENABLE the CP gates that domain off at boot, so the AP
+ * must vote it on before touching any CAN register - replacing the earlier
+ * board hack of commenting out pwd_vehp in sys_pm_hal.c. The vote is held on the
+ * CP, so across Deep-LV the CP re-powers VEHP on wake (before the AP fast-boot
+ * register restore runs); deinit releases the vote so CP can drop the domain. */
+static void can_vote_vehp_power(pm_power_module_state_e state)
+{
+    bk_pm_module_vote_cp_power_ctrl(PM_POWER_SUB_DOMAIN_CAN0, state);
+}
+
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+/* AP Fast Boot (CP Deep-LV) peripheral keep-alive for CAN.
+ *
+ * CAN lives in the VEHP power domain, which is dropped during CP Deep-LV. On
+ * wake the CP re-powers VEHP (because bk_can_init holds a CP vote for it, see
+ * can_vote_vehp_power) before this restore runs, but the controller comes back
+ * at power-on reset, so its programmed registers are lost.
+ * These callbacks snapshot the register file before suspend and replay it after
+ * wake, so a CAN channel that was live before sleep keeps working afterwards
+ * with no re-init from the app. There is no DMA, so backup/restore is a pure
+ * MMIO register save/restore that is safe with CPU2 interrupts disabled. */
+static uint32_t s_can_fast_backup[16];
+static bool s_can_fast_registered;
+
+static void can_fast_regs_save(uint32_t *b)
+{
+    b[0]  = can_hal_get_fd_enable();
+    b[1]  = can_hal_get_tid_esi_value();
+    b[2]  = can_hal_get_tbuf_ctrl_value();
+    b[3]  = can_hal_get_cfg_value();
+    b[4]  = can_hal_get_ie_value();
+    b[5]  = can_hal_get_sseg_value();
+    b[6]  = can_hal_get_fseg_value();
+    b[7]  = can_hal_get_cap_value();
+    b[8]  = can_hal_get_acf_value();
+    b[9]  = can_hal_get_aid_value();
+    b[10] = can_hal_get_ttcfg_value();
+    b[11] = can_hal_get_ref_msg_value();
+    b[12] = can_hal_get_mem_stat_value();
+    b[13] = can_hal_get_mem_es_value();
+    b[14] = can_hal_get_scfg_value();
+}
+
+static void can_fast_regs_restore(const uint32_t *b)
+{
+    /* Bit-timing (sseg/fseg) and capture (cap) registers only latch while the
+     * controller is held in reset (config mode), so replay every config/filter
+     * register first, then write CFG_STAT (0x28) last: its saved value carries
+     * reset=0 for the running state and releases the core from config mode. If
+     * the channel was itself in reset before sleep, that state is preserved. */
+    can_hal_set_reset(1);
+    can_hal_set_fd_enable(b[0]);
+    can_hal_set_tid_esi_value(b[1]);
+    can_hal_set_tbuf_ctrl_value(b[2]);
+    can_hal_set_ie_value(b[4]);
+    can_hal_set_sseg_value(b[5]);
+    can_hal_set_fseg_value(b[6]);
+    can_hal_set_cap_value(b[7]);
+    can_hal_set_acf_value(b[8]);
+    can_hal_set_aid_value(b[9]);
+    can_hal_set_ttcfg_value(b[10]);
+    can_hal_set_ref_msg_value(b[11]);
+    can_hal_set_mem_stat_value(b[12]);
+    can_hal_set_mem_es_value(b[13]);
+    can_hal_set_scfg_value(b[14]);
+    can_hal_set_cfg_value(b[3]);
+}
+
+static bk_err_t can_fast_quiesce(void *arg)
+{
+    (void)arg;
+    if (!s_can_hw_is_init) {
+        return BK_OK;
+    }
+    /* CAN has no DMA; refuse fast suspend only while a frame is actually being
+     * transmitted or received, so an in-flight frame is not truncated. */
+    if (can_hal_get_tactive() || can_hal_get_ractive()) {
+        return BK_ERR_BUSY;
+    }
+    return BK_OK;
+}
+
+static bk_err_t can_fast_backup(void *arg)
+{
+    (void)arg;
+    if (!s_can_hw_is_init) {
+        return BK_OK;
+    }
+    can_fast_regs_save(s_can_fast_backup);
+    __DMB();
+    return BK_OK;
+}
+
+static bk_err_t can_fast_restore(void *arg)
+{
+    (void)arg;
+    if (!s_can_hw_is_init) {
+        return BK_OK;
+    }
+    /* Re-enable the CAN clock gate/mux (VEHP domain power itself is restored by
+     * the CP deep-lv path) and replay the saved register file. */
+    bk_can_clock_enable();
+    can_fast_regs_restore(s_can_fast_backup);
+    __DMB();
+    return BK_OK;
+}
+
+/* Runs after wake once AP0/AP1 and the CP-to-AP mailbox are ready, so it is the
+ * only fast-boot stage where the mailbox-based CP power vote is safe. The prior
+ * restore already found VEHP powered (the init vote's pwd_vehp state is carried
+ * across Deep-LV); re-assert the vote here so it stays held for continued CAN
+ * use and the next sleep cycle, independent of how CP tracked it. */
+static bk_err_t can_fast_app_resume(void *arg)
+{
+    (void)arg;
+    if (!s_can_hw_is_init) {
+        return BK_OK;
+    }
+    can_vote_vehp_power(PM_POWER_MODULE_STATE_ON);
+    return BK_OK;
+}
+
+static const pm_ap_fast_pm_ops_t s_can_fast_ops = {
+    .name       = "can",
+    .quiesce    = can_fast_quiesce,
+    .backup     = can_fast_backup,
+    .restore    = can_fast_restore,
+    .app_resume = can_fast_app_resume,
+    .arg        = NULL,
+    .priority   = PM_AP_FAST_PRIORITY_PERIPHERAL,
+};
+
+static void can_fast_pm_register(void)
+{
+    if (s_can_fast_registered) {
+        return;
+    }
+    if (bk_pm_ap_fast_ops_register(&s_can_fast_ops) == BK_OK) {
+        s_can_fast_registered = true;
+    }
+}
+
+static void can_fast_pm_unregister(void)
+{
+    if (!s_can_fast_registered) {
+        return;
+    }
+    bk_pm_ap_fast_ops_unregister(&s_can_fast_ops);
+    s_can_fast_registered = false;
+}
+#endif /* CONFIG_PM_AP_FAST_BOOT_ENABLE */
+
 bk_err_t bk_can_init(can_dev_t *can)
 {
     bk_err_t ret = BK_OK;
@@ -702,12 +864,16 @@ bk_err_t bk_can_init(can_dev_t *can)
     }
 
     bk_pm_module_vote_power_ctrl(PM_POWER_SUB_MODULE_NAME_AHBP_CAN, PM_POWER_MODULE_STATE_ON);
+    /* Power the CP-side VEHP domain that hosts the CAN controller before any
+     * register access below (bk_can_base_init/can_hal_*). */
+    can_vote_vehp_power(PM_POWER_MODULE_STATE_ON);
 
     if (s_can_env == NULL) {
         s_can_env = os_zalloc(sizeof(can_env_t));
         if(!s_can_env) {
             CAN_LOGE("%s,%d s_can_env malloc fail\r\n", __func__, __LINE__);
             bk_pm_module_vote_power_ctrl(PM_POWER_SUB_MODULE_NAME_AHBP_CAN, PM_POWER_MODULE_STATE_OFF);
+            can_vote_vehp_power(PM_POWER_MODULE_STATE_OFF);
             return BK_ERR_CAN_CHK_ERROR;
         }
     }
@@ -720,6 +886,7 @@ bk_err_t bk_can_init(can_dev_t *can)
     if (ret != BK_OK) {
         bk_can_base_deinit();
         bk_pm_module_vote_power_ctrl(PM_POWER_SUB_MODULE_NAME_AHBP_CAN, PM_POWER_MODULE_STATE_OFF);
+        can_vote_vehp_power(PM_POWER_MODULE_STATE_OFF);
         return ret;
     }
     rtos_init_semaphore(&(s_can_env->rx_semphr), 1);
@@ -776,6 +943,9 @@ bk_err_t bk_can_init(can_dev_t *can)
     pm_cb_conf_t exit_config = {bk_can_restore, NULL};
     bk_pm_sleep_register_cb(PM_MODE_LOW_VOLTAGE, PM_DEV_ID_CAN, &enter_config, &exit_config);
 #endif
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+    can_fast_pm_register();
+#endif
 
     return BK_OK;
 }
@@ -788,6 +958,9 @@ bk_err_t bk_can_deinit(void)
     s_can_hw_is_init = false;
 #if (CONFIG_CAN_PM_CB_SUPPORT)
     bk_pm_sleep_unregister_cb(PM_MODE_LOW_VOLTAGE, PM_DEV_ID_CAN, true, true);
+#endif
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+    can_fast_pm_unregister();
 #endif
     can_err_recover_deinit();
     can_hal_int_disable();
@@ -812,6 +985,7 @@ bk_err_t bk_can_deinit(void)
     }
 
     bk_pm_module_vote_power_ctrl(PM_POWER_SUB_MODULE_NAME_AHBP_CAN, PM_POWER_MODULE_STATE_OFF);
+    can_vote_vehp_power(PM_POWER_MODULE_STATE_OFF);
 
     return BK_OK;
 }

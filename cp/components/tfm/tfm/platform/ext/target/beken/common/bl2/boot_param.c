@@ -43,16 +43,6 @@
 /* Force: A/B decision trace always emitted, even with BL2 log level lowered. */
 #define BP_FORCE(fmt, ...) BK_LOG_FORCE(TAG ": " fmt, ##__VA_ARGS__)
 
-/* Line-mode bracket for post-boot_go commits. The low-level op_sw erase/PP are
- * ignored while the device is in QUAD continuous-read (the XIP path leaves it in
- * that state after boot_go), so a commit must drop to TWO first and restore QUAD
- * afterwards. Kept here (not in flash_min.c) so the shared download/flash driver
- * behaviour is untouched. TEMPORARY: fold into the flash driver once the A/B OTA
- * write path is finalized. */
-extern void bk_flash_min_unprotect_once(void);
-extern void bk_flash_min_switch_line_mode_two(void);
-extern void bk_flash_min_restore_line_mode(void);
-
 typedef struct {
 	int8_t           latest_sector_idx; /* ping-pong sector 0/1 holding `active`; -1=virgin */
 	ab_flag_record_t latest_record;     /* authoritative record (valid, largest seq) */
@@ -198,22 +188,15 @@ int boot_param_commit(const ab_flag_record_t *rec)
 		return -1;
 	}
 
-	/* BK7259SW-2937 defers unprotect out of flash init. Without this, sector
-	 * erase/PP are ignored under status protect and look like success (no
-	 * read-back), so TRIAL never settles to NORMAL across reboot. */
-	bk_flash_min_unprotect_once();
-	/* Drop out of QUAD continuous-read so the op_sw erase/PP below are accepted
-	 * (post-boot_go the flash is left in continuous-read by the XIP path). */
-	bk_flash_min_switch_line_mode_two();
-
-	/* Shared ping-pong commit: stamps magic/ver/size, bumps seq, computes CRC
-	 * and writes the OPPOSITE sector so the current copy survives a torn write. */
+	/* BK7259SW-2937 defers unprotect out of flash init. Nothing to bracket here:
+	 * the ab_record_commit erase/PP go through flash_core, which per-op drops to
+	 * two-line (post-boot_go the XIP path leaves the device in QUAD
+	 * continuous-read) and self-unprotects -> op -> re-protect -> restores the
+	 * line mode, so protect stays applied between ops, TRIAL still settles to
+	 * NORMAL across reboot, and a subsequent do_boot XIP fetch runs in the
+	 * ambient QUAD mode. */
 	ab_flag_record_t out = *rec;
 	int write_idx = ab_record_commit(boot_param_partition_base(), &boot_param_ops, &out);
-
-	/* Restore QUAD continuous-read so a subsequent do_boot XIP fetch runs in the
-	 * same mode as the normal (no-commit) boot path. */
-	bk_flash_min_restore_line_mode();
 
 	if (write_idx < 0) {
 		BK_LOGE(TAG, "commit failed: %d\r\n", write_idx);

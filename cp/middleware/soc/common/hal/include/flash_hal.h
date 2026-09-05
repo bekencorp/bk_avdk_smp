@@ -44,7 +44,6 @@ typedef struct {
 #define flash_hal_set_dual_mode(hal) flash_ll_set_dual_mode((hal)->hw)
 #define flash_hal_set_quad_m_value(hal, m_value) flash_ll_set_quad_m_value((hal)->hw, m_value)
 #define flash_hal_set_qe(hal, qe_bit, qe_bit_post) flash_ll_set_qe((hal)->hw, qe_bit, qe_bit_post)
-#define flash_hal_set_clk(hal, clk_cfg) flash_ll_set_clk((hal)->hw, clk_cfg)
 #define flash_hal_set_default_clk(hal) flash_ll_set_default_clk((hal)->hw)
 #define flash_hal_set_clk_dpll(hal) flash_ll_set_clk_dpll((hal)->hw)
 #define flash_hal_set_clk_dco(hal, ate_enabled) flash_ll_set_clk_dco((hal)->hw, ate_enabled)

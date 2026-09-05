@@ -26,6 +26,7 @@
 #include "driver/drv_tp.h"
 #include <common/bk_compiler.h>
 #include <sw_i2c.h>
+#include "tp_i2c_ext.h"
 
 
 #define TAG "tp_drv"
@@ -222,6 +223,50 @@ int tp_i2c_write_uint16(uint8_t addr, uint16_t reg, uint8_t *buff, uint16_t len)
     return sw_i2c_memory_write(tp_i2c_handle, &mem_param);
 }
 
+bk_err_t tp_i2c_wr_reg(uint8_t dev_addr, uint32_t reg_addr, uint8_t reg_len,
+                       uint8_t *rbuf, uint16_t rlen)
+{
+    uint8_t wbuf[4];
+    bk_err_t ret;
+    uint8_t n;
+
+    if (tp_i2c_handle == NULL) {
+        return BK_FAIL;
+    }
+
+    reg_len &= 0x0F;
+    if (reg_len == 0 || reg_len > sizeof(wbuf)) {
+        return BK_FAIL;
+    }
+
+    n = reg_len;
+    while (n > 0) {
+        n--;
+        wbuf[n] = (uint8_t)(reg_addr & 0xFF);
+        reg_addr >>= 8;
+    }
+
+    ret = sw_i2c_master_write(tp_i2c_handle, dev_addr, wbuf, reg_len, TP_I2C_TIMEOUT);
+    if (ret != BK_OK) {
+        return ret;
+    }
+
+    if (rlen > 0 && rbuf != NULL) {
+        ret = sw_i2c_master_read(tp_i2c_handle, dev_addr, rbuf, rlen, TP_I2C_TIMEOUT);
+    }
+
+    return ret;
+}
+
+bk_err_t tp_i2c_read_raw(uint8_t dev_addr, uint8_t *buf, uint16_t len)
+{
+    if (tp_i2c_handle == NULL || buf == NULL || len == 0) {
+        return BK_FAIL;
+    }
+
+    return sw_i2c_master_read(tp_i2c_handle, dev_addr, buf, len, TP_I2C_TIMEOUT);
+}
+
 // tp gpio initialization and including sensor address select through controling gpio level.
 bk_err_t bk_tp_gpio_init(const tp_config_t *config)
 {
@@ -254,6 +299,8 @@ bk_err_t bk_tp_gpio_init(const tp_config_t *config)
 		rtos_delay_milliseconds(20);
 	#elif CONFIG_TP_CST9217
 		rtos_delay_milliseconds(20);
+	#elif CONFIG_TP_CST76XX
+		rtos_delay_milliseconds(50);
 	#else
 		rtos_delay_milliseconds(10);
 	#endif

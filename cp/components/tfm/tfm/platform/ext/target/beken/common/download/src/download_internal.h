@@ -44,7 +44,6 @@ typedef struct {
 
 extern u8 uart_link_check_flag;
 extern u32 download_record_dl_flag;
-extern unsigned int flash_id;
 
 void download_uart_init(const download_uart_config_t *cfg);
 void download_uart_set_baudrate(uint32_t baud_rate);

@@ -24,6 +24,9 @@
 #include "sys_driver.h"
 #include <modules/pm.h>
 #include <driver/gpio.h>
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+#include "cmsis_gcc.h"
+#endif
 
 static qspi_driver_t s_qspi[SOC_QSPI_UNIT_NUM] = {
 	{
@@ -54,6 +57,21 @@ static qspi_driver_t s_qspi[SOC_QSPI_UNIT_NUM] = {
 static bool s_qspi_driver_is_init = false;
 static qspi_callback_t s_qspi_tx_isr = {NULL};
 static qspi_callback_t s_qspi_rx_isr = {NULL};
+
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+#define QSPI_FAST_BACKUP_REG_NUM (28U)
+
+typedef struct {
+	uint32_t regs[SOC_QSPI_UNIT_NUM][QSPI_FAST_BACKUP_REG_NUM];
+	qspi_config_t config[SOC_QSPI_UNIT_NUM];
+	uint32_t valid_mask;
+	volatile uint32_t busy_count[SOC_QSPI_UNIT_NUM];
+	volatile bool suspended;
+	bool registered;
+} qspi_fast_pm_context_t;
+
+static qspi_fast_pm_context_t s_qspi_fast_pm;
+#endif
 
 #if CONFIG_USR_GPIO_CFG_EN
 #if(CONFIG_QSPI_LINE_MODE == 1)
@@ -193,6 +211,155 @@ static void qspi_id_deinit_common(qspi_id_t id)
 	qspi_clock_disable(id);
 }
 
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+static bk_err_t qspi_fast_transfer_enter(qspi_id_t id)
+{
+	if (__atomic_load_n(&s_qspi_fast_pm.suspended, __ATOMIC_ACQUIRE)) {
+		return BK_ERR_BUSY;
+	}
+	__atomic_add_fetch(&s_qspi_fast_pm.busy_count[id], 1U,
+		__ATOMIC_ACQ_REL);
+	if (__atomic_load_n(&s_qspi_fast_pm.suspended, __ATOMIC_ACQUIRE)) {
+		__atomic_sub_fetch(&s_qspi_fast_pm.busy_count[id], 1U,
+			__ATOMIC_RELEASE);
+		return BK_ERR_BUSY;
+	}
+	return BK_OK;
+}
+
+static void qspi_fast_transfer_exit(qspi_id_t id)
+{
+	__atomic_sub_fetch(&s_qspi_fast_pm.busy_count[id], 1U,
+		__ATOMIC_RELEASE);
+}
+
+static bk_err_t qspi_fast_quiesce(void *arg)
+{
+	qspi_fast_pm_context_t *ctx = arg;
+
+	__atomic_store_n(&ctx->suspended, true, __ATOMIC_RELEASE);
+	for (qspi_id_t id = QSPI_ID_0; id < QSPI_ID_MAX; id++) {
+		qspi_hw_t *hw = s_qspi[id].hal.hw;
+		if (__atomic_load_n(&ctx->busy_count[id], __ATOMIC_ACQUIRE) ||
+			hw->status.rx_busy || hw->status.tx_busy ||
+			hw->cmd_c_cfg2.cmd_start || hw->cmd_d_cfg2.cmd_start) {
+			__atomic_store_n(&ctx->suspended, false,
+				__ATOMIC_RELEASE);
+			return BK_ERR_BUSY;
+		}
+	}
+	return BK_OK;
+}
+
+static void qspi_fast_vote_power_on(qspi_id_t id)
+{
+	if (id == QSPI_ID_0) {
+		bk_pm_module_vote_power_ctrl(PM_POWER_SUB_MODULE_NAME_AHBP_QSPI,
+			PM_POWER_MODULE_STATE_ON);
+#if (SOC_QSPI_UNIT_NUM > 1)
+	} else if (id == QSPI_ID_1) {
+		bk_pm_module_vote_power_ctrl(PM_POWER_SUB_MODULE_NAME_AHBP_QSPI1,
+			PM_POWER_MODULE_STATE_ON);
+#endif
+	}
+}
+
+static void qspi_fast_backup_one(qspi_id_t id, uint32_t *backup)
+{
+	volatile uint32_t *raw = (volatile uint32_t *)s_qspi[id].hal.hw;
+
+	backup[0] = raw[0x02];
+	for (uint32_t i = 0U; i < 19U; i++) {
+		backup[1U + i] = raw[0x08U + i];
+	}
+	for (uint32_t i = 0U; i < 8U; i++) {
+		backup[20U + i] = raw[0x1DU + i];
+	}
+	raw[0x02] = 0U;
+}
+
+static void qspi_fast_restore_one(qspi_id_t id, const uint32_t *backup)
+{
+	volatile uint32_t *raw = (volatile uint32_t *)s_qspi[id].hal.hw;
+	qspi_hw_t *hw = s_qspi[id].hal.hw;
+
+	for (uint32_t i = 0U; i < 19U; i++) {
+		raw[0x08U + i] = backup[1U + i];
+	}
+	for (uint32_t i = 0U; i < 8U; i++) {
+		raw[0x1DU + i] = backup[20U + i];
+	}
+	raw[0x02] = backup[0];
+	hw->glb_ctrl.bps_clkgate = 1;
+}
+
+static void qspi_fast_recover_sys(qspi_id_t id, const qspi_config_t *config)
+{
+	qspi_init_gpio(id);
+	qspi_interrupt_enable(id);
+	qspi_hal_set_clock_source(id, config->src_clk);
+	sys_drv_qspi_set_src_clk_div(id, config->src_clk_div);
+}
+
+static bk_err_t qspi_fast_backup(void *arg)
+{
+	qspi_fast_pm_context_t *ctx = arg;
+
+	ctx->valid_mask = 0U;
+	for (qspi_id_t id = QSPI_ID_0; id < QSPI_ID_MAX; id++) {
+		if (!s_qspi[id].id_init_bits) {
+			continue;
+		}
+		qspi_fast_backup_one(id, ctx->regs[id]);
+		ctx->valid_mask |= BIT(id);
+	}
+	__DMB();
+	return BK_OK;
+}
+
+static bk_err_t qspi_fast_restore(void *arg)
+{
+	qspi_fast_pm_context_t *ctx = arg;
+
+	for (qspi_id_t id = QSPI_ID_0; id < QSPI_ID_MAX; id++) {
+		if (!(ctx->valid_mask & BIT(id))) {
+			continue;
+		}
+		qspi_fast_vote_power_on(id);
+		qspi_clock_enable(id);
+		qspi_fast_restore_one(id, ctx->regs[id]);
+	}
+	__DMB();
+	return BK_OK;
+}
+
+static bk_err_t qspi_fast_resume(void *arg)
+{
+	qspi_fast_pm_context_t *ctx = arg;
+
+	for (qspi_id_t id = QSPI_ID_0; id < QSPI_ID_MAX; id++) {
+		if (!(ctx->valid_mask & BIT(id))) {
+			continue;
+		}
+		qspi_fast_recover_sys(id, &ctx->config[id]);
+	}
+	ctx->valid_mask = 0U;
+	__DMB();
+	__atomic_store_n(&ctx->suspended, false, __ATOMIC_RELEASE);
+	return BK_OK;
+}
+
+static const pm_ap_fast_pm_ops_t s_qspi_fast_ops = {
+	.name = "qspi",
+	.quiesce = qspi_fast_quiesce,
+	.backup = qspi_fast_backup,
+	.restore = qspi_fast_restore,
+	.resume = qspi_fast_resume,
+	.arg = &s_qspi_fast_pm,
+	.priority = PM_AP_FAST_PRIORITY_PERIPHERAL,
+};
+#endif
+
 bk_err_t bk_qspi_driver_init(void)
 {
 	if (s_qspi_driver_is_init) {
@@ -206,6 +373,15 @@ bk_err_t bk_qspi_driver_init(void)
 	}
 
 	qspi_statis_init();
+
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+	bk_err_t pm_ret = bk_pm_ap_fast_ops_register(&s_qspi_fast_ops);
+	if (pm_ret != BK_OK) {
+		return pm_ret;
+	}
+	s_qspi_fast_pm.registered = true;
+#endif
+
 	s_qspi_driver_is_init = true;
 
 #if CONFIG_CLI && CONFIG_QSPI_TEST
@@ -221,6 +397,16 @@ bk_err_t bk_qspi_driver_deinit(void)
 	if (!s_qspi_driver_is_init) {
 		return BK_OK;
 	}
+
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+	if (s_qspi_fast_pm.registered) {
+		bk_err_t pm_ret = bk_pm_ap_fast_ops_unregister(&s_qspi_fast_ops);
+		if (pm_ret != BK_OK) {
+			return pm_ret;
+		}
+		os_memset(&s_qspi_fast_pm, 0, sizeof(s_qspi_fast_pm));
+	}
+#endif
 
 	for (int id = QSPI_ID_0; id < QSPI_ID_MAX; id++) {
 		qspi_id_deinit_common(id);
@@ -249,6 +435,9 @@ bk_err_t bk_qspi_init(qspi_id_t id, const qspi_config_t *config)
 	sys_drv_qspi_set_src_clk_div(id, config->src_clk_div);
 	qspi_hal_set_clk_div(&s_qspi[id].hal, config->clk_div);
 	s_qspi[id].id_init_bits |= BIT(0);
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+	s_qspi_fast_pm.config[id] = *config;
+#endif
 	return BK_OK;
 }
 
@@ -324,7 +513,18 @@ bk_err_t bk_qspi_command(qspi_id_t id, const qspi_cmd_t *cmd)
 {
 	BK_RETURN_ON_NULL(cmd);
 	QSPI_RETURN_ON_ID_NOT_INIT(id);
-	return qspi_hal_command(&s_qspi[id].hal, cmd);
+	bk_err_t ret;
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+	ret = qspi_fast_transfer_enter(id);
+	if (ret != BK_OK) {
+		return ret;
+	}
+#endif
+	ret = qspi_hal_command(&s_qspi[id].hal, cmd);
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+	qspi_fast_transfer_exit(id);
+#endif
+	return ret;
 }
 
 bk_err_t bk_qspi_write(qspi_id_t id, const void *data, uint32_t size)
@@ -333,14 +533,38 @@ bk_err_t bk_qspi_write(qspi_id_t id, const void *data, uint32_t size)
 	QSPI_RETURN_ON_NOT_INIT();
 	QSPI_RETURN_ON_ID_NOT_INIT(id);
 
-	return qspi_hal_io_write(&s_qspi[id].hal, data, size);
+	bk_err_t ret;
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+	ret = qspi_fast_transfer_enter(id);
+	if (ret != BK_OK) {
+		return ret;
+	}
+#endif
+	ret = qspi_hal_io_write(&s_qspi[id].hal, data, size);
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+	qspi_fast_transfer_exit(id);
+#endif
+	return ret;
 }
 
 bk_err_t bk_qspi_read(qspi_id_t id, void *data, uint32_t size)
 {
 	BK_RETURN_ON_NULL(data);
+	QSPI_RETURN_ON_NOT_INIT();
+	QSPI_RETURN_ON_ID_NOT_INIT(id);
 
-	return qspi_hal_io_read(&s_qspi[id].hal, data, size);
+	bk_err_t ret;
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+	ret = qspi_fast_transfer_enter(id);
+	if (ret != BK_OK) {
+		return ret;
+	}
+#endif
+	ret = qspi_hal_io_read(&s_qspi[id].hal, data, size);
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+	qspi_fast_transfer_exit(id);
+#endif
+	return ret;
 }
 
 bk_err_t bk_qspi_register_tx_isr(qspi_isr_t isr, void *param)

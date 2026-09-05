@@ -197,6 +197,62 @@ static void set_premultiplied_flag_if_needed(lv_draw_buf_t * dest_buf, bool prem
     }
 }
 
+/* ============================================================================
+ * BK patch BEGIN: LV_BK_VG_LITE_FLASH_IMG_BOUNCE
+ *
+ * Purpose: the GPU AXI master cannot read the flash XIP window. A VARIABLE image
+ * whose pixels live there in a GPU-native format (ARGB8888/XRGB8888/RGB565) would
+ * otherwise be handed to the GPU as a raw flash pointer by the default decoder,
+ * causing a VG-Lite AXI bus error / GPU hang. We detect this case and copy the
+ * pixels into a GPU-accessible RAM buffer in decoder_open().
+ *
+ * All BK modifications in this file are guarded by the single master switch
+ * LV_BK_VG_LITE_FLASH_IMG_BOUNCE (default 1). On an LVGL version upgrade, grep
+ * this macro name to locate every touched site; set it to 0 (e.g. in
+ * lv_conf_custom.h) to fully revert to upstream behavior.
+ * ============================================================================ */
+#ifndef LV_BK_VG_LITE_FLASH_IMG_BOUNCE
+    #define LV_BK_VG_LITE_FLASH_IMG_BOUNCE 1
+#endif
+
+#if LV_BK_VG_LITE_FLASH_IMG_BOUNCE
+
+#ifndef LV_VG_LITE_FLASH_XIP_BASE
+    #define LV_VG_LITE_FLASH_XIP_BASE 0x04000000u
+#endif
+#ifndef LV_VG_LITE_FLASH_XIP_END
+    #define LV_VG_LITE_FLASH_XIP_END  0x08000000u
+#endif
+
+static inline bool lv_vg_lite_addr_in_flash(const void * ptr)
+{
+    uintptr_t a = (uintptr_t)ptr;
+    return a >= LV_VG_LITE_FLASH_XIP_BASE && a < LV_VG_LITE_FLASH_XIP_END;
+}
+
+static inline bool lv_vg_lite_is_native_cf(lv_color_format_t cf)
+{
+    return cf == LV_COLOR_FORMAT_ARGB8888
+           || cf == LV_COLOR_FORMAT_ARGB8888_PREMULTIPLIED
+           || cf == LV_COLOR_FORMAT_XRGB8888
+           || cf == LV_COLOR_FORMAT_RGB565;
+}
+
+static bool variable_native_in_flash(lv_image_decoder_dsc_t * dsc, lv_color_format_t cf)
+{
+    if(lv_image_src_get_type(dsc->src) != LV_IMAGE_SRC_VARIABLE) {
+        return false;
+    }
+    if(!lv_vg_lite_is_native_cf(cf)) {
+        return false;
+    }
+    const lv_image_dsc_t * img = dsc->src;
+    return img != NULL && lv_vg_lite_addr_in_flash(img->data);
+}
+
+#endif /* LV_BK_VG_LITE_FLASH_IMG_BOUNCE */
+/* BK patch END */
+
 static lv_result_t decoder_info(lv_image_decoder_t * decoder, lv_image_decoder_dsc_t * dsc, lv_image_header_t * header)
 {
     lv_result_t res = lv_bin_decoder_info(decoder, dsc, header);
@@ -206,6 +262,17 @@ static lv_result_t decoder_info(lv_image_decoder_t * decoder, lv_image_decoder_d
 
     lv_color_format_t cf = get_converted_cf(header->cf);
     if(cf == LV_COLOR_FORMAT_UNKNOWN) {
+#if LV_BK_VG_LITE_FLASH_IMG_BOUNCE
+        /* BK patch: Not a format we convert. Normally decline so the default
+         * decoder passes the source pointer through unchanged (zero copy).
+         * Exception: a GPU-native image whose pixels are in flash - claim it here
+         * and bounce it to RAM in decoder_open(), otherwise the GPU faults reading
+         * flash over AXI. */
+        if(variable_native_in_flash(dsc, header->cf)
+           && !(header->flags & LV_IMAGE_FLAGS_COMPRESSED)) {
+            return LV_RESULT_OK; /* keep native header->cf unchanged */
+        }
+#endif /* LV_BK_VG_LITE_FLASH_IMG_BOUNCE */
         return LV_RESULT_INVALID;
     }
 
@@ -686,12 +753,53 @@ failed:
     return res;
 }
 
+#if LV_BK_VG_LITE_FLASH_IMG_BOUNCE
+/* BK patch: copy a GPU-native VARIABLE image out of the flash XIP window into a
+ * GPU-accessible RAM buffer. */
+static lv_result_t decoder_copy_variable_native(lv_draw_buf_t * dest_buf,
+                                                const lv_draw_buf_t * src_buf, bool premultiply)
+{
+    LV_PROFILER_DECODER_BEGIN;
+
+    const uint32_t w = src_buf->header.w;
+    const uint32_t h = src_buf->header.h;
+    const uint32_t bpp = lv_color_format_get_bpp(src_buf->header.cf); /* bits per pixel */
+    const uint32_t line_bytes = (w * bpp + 7) >> 3; /* round up to bytes */
+    const bool do_premul = premultiply && (src_buf->header.cf == LV_COLOR_FORMAT_ARGB8888);
+
+    for(uint32_t y = 0; y < h; y++) {
+        uint8_t * dest = lv_draw_buf_goto_xy(dest_buf, 0, y);
+        const uint8_t * src = (const uint8_t *)src_buf->data + (size_t)y * src_buf->header.stride;
+
+        /* CPU can read flash (XIP); only the GPU cannot. Copy pixels into the
+         * GPU-accessible RAM destination buffer. */
+        lv_memcpy(dest, src, line_bytes);
+
+        if(do_premul) {
+            image_color32_pre_mul((lv_color32_t *)dest, w);
+        }
+    }
+
+    LV_PROFILER_DECODER_END;
+    return LV_RESULT_OK;
+}
+#endif /* LV_BK_VG_LITE_FLASH_IMG_BOUNCE */
+
 static lv_draw_buf_t * create_dest_buf(uint32_t width, uint32_t height, lv_color_format_t src_cf)
 {
     lv_color_format_t dest_cf = get_converted_cf(src_cf);
     if(dest_cf == LV_COLOR_FORMAT_UNKNOWN) {
-        LV_LOG_WARN("NOT Supported src_cf: %d", src_cf);
-        return NULL;
+#if LV_BK_VG_LITE_FLASH_IMG_BOUNCE
+        /* BK patch: GPU-native format: copy to RAM without conversion. */
+        if(lv_vg_lite_is_native_cf(src_cf)) {
+            dest_cf = src_cf;
+        }
+        else
+#endif /* LV_BK_VG_LITE_FLASH_IMG_BOUNCE */
+        {
+            LV_LOG_WARN("NOT Supported src_cf: %d", src_cf);
+            return NULL;
+        }
     }
 
     lv_draw_buf_t * dest_buf = lv_draw_buf_create_ex(image_cache_draw_buf_handlers,
@@ -757,6 +865,17 @@ static lv_result_t decoder_open(lv_image_decoder_t * decoder, lv_image_decoder_d
                     case LV_COLOR_FORMAT_AL88:
                         res = decoder_open_variable_rgb(dest_buf, &src_buf, premultiply);
                         break;
+
+#if LV_BK_VG_LITE_FLASH_IMG_BOUNCE
+                    case LV_COLOR_FORMAT_ARGB8888:
+                    case LV_COLOR_FORMAT_ARGB8888_PREMULTIPLIED:
+                    case LV_COLOR_FORMAT_XRGB8888:
+                    case LV_COLOR_FORMAT_RGB565:
+                        /* BK patch: GPU-native format in flash: copy straight into RAM so
+                         * the GPU never reads the flash XIP window (avoids AXI bus error). */
+                        res = decoder_copy_variable_native(dest_buf, &src_buf, premultiply);
+                        break;
+#endif /* LV_BK_VG_LITE_FLASH_IMG_BOUNCE */
 
                     default:
                         LV_LOG_WARN("NOT Supported color format: %d, src: %p", src_buf.header.cf, dsc->src);

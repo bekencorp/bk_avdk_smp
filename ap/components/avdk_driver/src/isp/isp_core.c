@@ -1297,6 +1297,37 @@ bk_err_t bk_isp_close(isp_handle_t *handle, uint8_t chnl)
     return ret;
 }
 
+/* Wake a reader thread blocked in pop_buf (DQBUF) without tearing the channel down.
+ * This performs a VB-queue StreamOff only: a pending DQBUF returns immediately
+ * (VSI_ERR_NOT_READY) so the caller can join its reader at once. The MI DMA is not
+ * stopped and no buffers are freed here -- a subsequent bk_isp_close still runs the
+ * full DisableChn + buffer free, so the "free buffers only after the reader stopped"
+ * ordering the close path relies on is preserved. */
+bk_err_t bk_isp_dqbuf_abort(isp_handle_t *handle, uint8_t chnl)
+{
+    if (*handle == NULL)
+    {
+        LOGE("%s, %d\n", __func__, __LINE__);
+        return BK_FAIL;
+    }
+
+    if (chnl >= ISP_CHN_CNT)
+    {
+        LOGE("%s, %d, chnl error\n", __func__, __LINE__);
+        return BK_FAIL;
+    }
+
+    isp_control_t *control = (isp_control_t *)*handle;
+
+    /* Only touch a live channel; a closed one has no reader to wake. */
+    if (control->chn[chnl].enable == false)
+    {
+        return BK_OK;
+    }
+
+    return VSI_MPI_ISP_StreamOffChn(control->chn[chnl].channel);
+}
+
 bk_err_t bk_isp_flexa_sbi_config(isp_handle_t *handle, uint8_t chnl, uint8_t enable)
 {
     bk_err_t ret = BK_FAIL;
@@ -1549,7 +1580,7 @@ bk_err_t bk_isp_get_exposure_luminance(isp_handle_t *handle, uint32_t *luminance
         return BK_FAIL;
     }
 
-    *luminance = (exposure_info.meanLum * 1000 * 1000) / (exposure_info.exposure[0] * 39);
+    *luminance = (exposure_info.meanLum * 1000 * 1000) / (exposure_info.expTime[0] * exposure_info.again[0]);
     return BK_OK;
 }
 

@@ -320,9 +320,9 @@ static u32 flash_cmd_reg_read_handler(u8 *cmd_param, u16 param_len)
 	if (param_len < 1)
 		return 1;
 
-	/* Flash was already unprotected at the download handshake
-	 * (flash_op_enable_ctrl -> bk_flash_min_unprotect_once). This is a pure
-	 * read-back of the status register, so it does not toggle protection. */
+	/* Pure read-back of the status register; it does not toggle protection.
+	 * Protection is PER_OP (each erase/PP self-brackets unprotect/re-protect),
+	 * so there is no session-wide unprotect state to reflect here. */
 	cmd_param[1] = flash_read_sr(1);
 
 	tx_rsp_for_flash_cmd(FLASH_CMD_REG_READ, ret_val, cmd_param, 2);
@@ -364,6 +364,8 @@ static u32 flash_cmd_spi_op_handler(u8 *cmd_param, u16 param_len)
 	if (cmd_param[0] != 0x9F)
 		ret_val = PARAM_ERROR;
 
+	/* RDID (0x9F): read the id on demand instead of a cached global. */
+	u32 flash_id = flash_get_id();
 	p_rx[0] = (flash_id >> 24);
 	p_rx[1] = (flash_id >> 16);
 	p_rx[2] = (flash_id >> 8);

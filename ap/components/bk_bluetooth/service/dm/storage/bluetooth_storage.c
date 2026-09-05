@@ -616,24 +616,30 @@ int32_t bluetooth_storage_save_ble_key_info(bk_ble_bond_dev_t *list, uint32_t co
     for (uint32_t i = 0; i < count; ++i)
     {
         int32_t index;
+        uint8_t record_addr[6];
 
         if (!bluetooth_storage_is_addr_valid(list[i].bd_addr))
         {
             continue;
         }
 
-        index = bluetooth_storage_find_linkkey_info_index(list[i].bd_addr, NULL);
-
-        if (index < 0)
+        os_memcpy(record_addr, list[i].bd_addr, sizeof(record_addr));
+        if ((list[i].bond_key.key_mask & BK_LE_KEY_PID) &&
+                bluetooth_storage_is_addr_valid(list[i].bond_key.pid_key.static_addr))
         {
-            index = bluetooth_storage_alloc_linkkey_info(list[i].bd_addr);
+            os_memcpy(record_addr, list[i].bond_key.pid_key.static_addr, sizeof(record_addr));
         }
 
+        index = bluetooth_storage_find_linkkey_info_index(record_addr, NULL);
+        if (index < 0)
+        {
+            index = bluetooth_storage_alloc_linkkey_info(record_addr);
+        }
         if (index < 0)
         {
             LOGW("no slot for %02X:%02X:%02X:%02X:%02X:%02X",
-                 list[i].bd_addr[5], list[i].bd_addr[4], list[i].bd_addr[3],
-                 list[i].bd_addr[2], list[i].bd_addr[1], list[i].bd_addr[0]);
+                 record_addr[5], record_addr[4], record_addr[3],
+                 record_addr[2], record_addr[1], record_addr[0]);
             continue;
         }
 
