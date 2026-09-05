@@ -104,6 +104,7 @@
 #define SOC_PSRAM_4M_SIZE        (0x400000)
 #define SOC_PSRAM_8M_SIZE        (0x800000)
 #define SOC_PSRAM_16M_SIZE       (0x1000000)
+#define SOC_PSRAM_32M_SIZE       (0x2000000)
 #define SOC_QSPI0_DATA_SIZE      (0x4000000)
 #define SOC_QSPI1_DATA_SIZE      (0x4000000)
 
