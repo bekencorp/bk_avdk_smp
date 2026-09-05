@@ -57,7 +57,7 @@ typedef volatile union {
 		uint32_t secr_ctl_otp_0   :  3; /**<bit[0 : 2] secure flag for otp_000~otp_063(to define secure range)*/
 		uint32_t secr_ctl_otp_1   :  3; /**<bit[3 : 5] secure flag for otp_064~otp_127(to define secure range)*/
 		uint32_t secr_ctl_otp_2   :  3; /**<bit[6 : 8] secure flag for otp_128~otp_191(to define secure range)*/
-		uint32_t secr_ctl_otp_3   :  3; /**<bit[9 : 11] secure flag for otp_192~otp_256(to define secure range)*/
+		uint32_t secr_ctl_otp_3   :  3; /**<bit[9 : 11] secure flag for otp_192~otp_255(to define secure range)*/
 		uint32_t secr_ctl_puf_0   :  3; /**<bit[12 : 14] secure flag for puf_000~puf_007(to define secure range)*/
 		uint32_t secr_ctl_puf_1   :  3; /**<bit[15 : 17] secure flag for puf_008~puf_015(to define secure range)*/
 		uint32_t secr_ctl_puf_2   :  3; /**<bit[18 : 20] secure flag for puf_016~puf_023(to define secure range)*/
@@ -133,7 +133,7 @@ typedef volatile union {
 		uint32_t ptr_000          : 32; /**<bit[0 : 31] Test Mode-Test Row*/   
 	};
 	uint32_t v;
-} ptr_t; /*total ptr 000~016*/
+} ptr_t; /*total ptr 000~015*/
 
 
 
@@ -142,7 +142,7 @@ typedef volatile union {
 		uint32_t ptc_000          : 32; /**<bit[0 : 31] Test Mode-Test Column(only LSB is valid)*/
 	};
 	uint32_t v;
-} ptc_t; /*total ptc 000~016*/
+} ptc_t; /*total ptc 000~015*/
 
 
 typedef volatile union {
@@ -398,7 +398,7 @@ typedef volatile struct {
 } otp_hw_t;
 
 typedef volatile struct {
-	volatile otp2_t          otp2[767];                     /*reg 0x000-0x2FF*/
+	volatile otp2_t          otp2[768];                     /*reg 0x000-0x2FF*/
 } otp2_hw_t;
 
 #ifdef __cplusplus
