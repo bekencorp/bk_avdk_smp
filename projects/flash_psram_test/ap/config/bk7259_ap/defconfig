@@ -1,0 +1,28 @@
+#
+# Automatically generated project default config. You can update it with menuconfig [D] option.
+# This file contains only differences compared to board defconfig.
+#
+
+# CONFIG_SOC_SMP is not set
+# CONFIG_LWIP is not set
+CONFIG_SRAM_TEST=y
+# CONFIG_BK_NETIF is not set
+CONFIG_FREERTOS_V10=y
+# CONFIG_FREERTOS_SMP is not set
+# CONFIG_WIFI_CLI_DEBUG is not set
+# CONFIG_WIFI_VNET_CONTROLLER is not set
+
+# CONFIG_SPI is not set
+# CONFIG_SPI_DMA is not set
+# CONFIG_GENERAL_DMA is not set
+CONFIG_DMA_LOGIC_CHAN_CNT=16
+CONFIG_DMA_LOGIC_CHAN_ID_MIN=0
+# CONFIG_PSRAM is not set
+CONFIG_XTAL_FREQ=12000000
+CONFIG_PSRAM=y
+CONFIG_PSRAM_TEST=y
+# CONFIG_ALL_CODE_IN_PSRAM is not set
+CONFIG_TASK_STACK_IN_PSRAM=y
+CONFIG_QUEUE_IN_PSRAM=y
+CONFIG_MEMDUMP_ALL=y
+CONFIG_DUMP_UART_MEM_ENCODING_BASE64=y
