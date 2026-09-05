@@ -40,6 +40,7 @@ typedef enum
 #define PSRAM_APS6408L_ID         (0x8d09)
 #define PSRAM_W955D8MKY_5J_ID     (0xd0aa)
 #define PSRAM_APS128XXO_OB9_ID    (0x8d08)
+#define PSRAM_APS256XXN_OBX9_ID   (0x8d0f) /* placeholder; runtime uses vendor 0x8d + non-zero ID */
 #define PSRAM_SCB18X128XX_OAF_ID  (0x9a08)
 
 /* REG_0x00 */

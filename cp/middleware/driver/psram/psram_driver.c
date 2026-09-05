@@ -33,6 +33,13 @@
 #define PSRAM_4M_SIZE  (0x00400000)
 #define PSRAM_8M_SIZE  (0x00800000)
 #define PSRAM_16M_SIZE (0x01000000)
+#define PSRAM_32M_SIZE (0x02000000)
+
+/* APS256 spec Rev 1.2 §7.7 Table 3: MR2 MA=0x02. Table 12: MR2[2:0] density. */
+#define PSRAM_MR2_ADDR            (0x00000002)
+#define PSRAM_MR2_DENSITY_MASK    (0x7)
+#define PSRAM_MR2_DENSITY_128MB   (0x5) /* 128Mb = 16MB */
+#define PSRAM_MR2_DENSITY_256MB   (0x7) /* 256Mb = 32MB */
 
 #define PSRAM_THREAD_STACK_SIZE    3072
 #define PSRAM_THREAD_PRIORITY      4
@@ -189,6 +196,41 @@ uint32_t bk_psram_get_psram_id(void)
 	return s_psram_id.psram_id;
 }
 
+/* Spec Table 12: density is MR2[2:0]. cmd_read may return 16-bit; prefer
+ * a 16M/32M code in the low byte, else the high byte. */
+static uint32_t psram_mr2_density_bits(uint32_t mr2_raw)
+{
+	uint32_t lo = mr2_raw & PSRAM_MR2_DENSITY_MASK;
+	uint32_t hi = (mr2_raw >> 8) & PSRAM_MR2_DENSITY_MASK;
+
+	if ((lo == PSRAM_MR2_DENSITY_128MB) || (lo == PSRAM_MR2_DENSITY_256MB)) {
+		return lo;
+	}
+	if ((hi == PSRAM_MR2_DENSITY_128MB) || (hi == PSRAM_MR2_DENSITY_256MB)) {
+		return hi;
+	}
+	return lo;
+}
+
+static uint32_t psram_size_from_mr2_density(uint32_t density)
+{
+	if ((density & PSRAM_MR2_DENSITY_MASK) == PSRAM_MR2_DENSITY_256MB) {
+		return PSRAM_32M_SIZE;
+	}
+	return PSRAM_16M_SIZE;
+}
+
+static uint32_t psram_length_from_mr2(psram_id_t psram_id)
+{
+	uint32_t mr2 = psram_hal_cmd_read_with_id(psram_id, PSRAM_MR2_ADDR);
+	uint32_t density = psram_mr2_density_bits(mr2);
+	uint32_t size = psram_size_from_mr2_density(density);
+
+	MEM_STATIC_LOGI("id=0x%x mr2=0x%x density=0x%x size=0x%x\r\n",
+			 PSRAM_APS128XXO_OB9_ID, mr2, density, size);
+	return size;
+}
+
 uint32_t bk_psram_get_psram_data_length(uint32_t id)
 {
 	switch (id) {
@@ -197,7 +239,7 @@ uint32_t bk_psram_get_psram_data_length(uint32_t id)
 		case PSRAM_APS6408L_ID:
 			return PSRAM_8M_SIZE;
 		case PSRAM_APS128XXO_OB9_ID:
-			return PSRAM_16M_SIZE;
+			return psram_length_from_mr2(PSRAM_ID_0);
 		default:
 			return CONFIG_PSRAM_CAPACITY;
 	}
@@ -491,7 +533,8 @@ start_init:
 	else
 		psram_hal_set_default_clk_with_id(psram_id);
 
-	MEM_STATIC_LOGD("%s, %x-%x\r\n", __func__, actual_id, chip_id);
+	MEM_STATIC_LOGI("%s, actual_id=0x%x expected=0x%x cap=0x%x\r\n",
+			 __func__, actual_id, chip_id, CONFIG_PSRAM_CAPACITY);
 
 	switch (actual_id) {
 		case PSRAM_W955D8MKY_5J_ID:
@@ -503,9 +546,14 @@ start_init:
 				MEM_STATIC_LOGW("psram type(8MB) not match CONFIG_PSRAM_CAPACITY 0X%08X\r\n", CONFIG_PSRAM_CAPACITY);
 			break;
 		case PSRAM_APS128XXO_OB9_ID:
-			if (CONFIG_PSRAM_CAPACITY != PSRAM_16M_SIZE)
-				MEM_STATIC_LOGW("psram type(16MB) not match CONFIG_PSRAM_CAPACITY 0X%08X\r\n", CONFIG_PSRAM_CAPACITY);
+		{
+			uint32_t mr2_size = psram_length_from_mr2(psram_id);
+
+			if (CONFIG_PSRAM_CAPACITY != mr2_size)
+				MEM_STATIC_LOGW("psram MR2 size 0x%08X not match CONFIG_PSRAM_CAPACITY 0x%08X\r\n",
+						 mr2_size, CONFIG_PSRAM_CAPACITY);
 			break;
+		}
 		case PSRAM_SCB18X128XX_OAF_ID:
 			if (CONFIG_PSRAM_CAPACITY != PSRAM_16M_SIZE)
 				MEM_STATIC_LOGW("psram type(16MB) not match CONFIG_PSRAM_CAPACITY 0X%08X\r\n", CONFIG_PSRAM_CAPACITY);

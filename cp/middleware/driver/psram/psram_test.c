@@ -20,6 +20,7 @@
 #include "bk_general_dma.h"
 #include <driver/dma.h>
 #include "soc/mapping.h"
+#include "ram_regions.h"
 #include "psram_hal.h"
 #include "cache.h"
 #include "bk_sensor_internal.h"
@@ -76,6 +77,9 @@ typedef struct {
 
 static psram_debug_t *psram_debug[PSRAM_TEST_MAX_INSTANCE] = {NULL};
 
+#define PSRAM_TEST_RESERVED_OFF    (0x01000000u)
+#define PSRAM_TEST_RESERVED_SIZE   (0x01000000u)
+
 static inline uint32_t psram_test_get_base_addr(uint8_t psram_id)
 {
 	if (psram_id == 0) {
@@ -92,6 +96,53 @@ static inline uint32_t psram_test_get_base_addr(uint8_t psram_id)
 	/* If SOC doesn't define PSRAM1, fallback to PSRAM0 base */
 	return SOC_PSRAM_DATA_BASE;
 #endif
+}
+
+static inline uint32_t psram_test_chip_capacity(void)
+{
+#ifdef CONFIG_PSRAM_CAPACITY
+	return CONFIG_PSRAM_CAPACITY;
+#else
+	return SOC_PSRAM_16M_SIZE;
+#endif
+}
+
+static void psram_test_get_region(uint8_t psram_id, uint32_t *base_out, uint32_t *len_out)
+{
+	uint32_t base = psram_test_get_base_addr(psram_id);
+	uint32_t cap = psram_test_chip_capacity();
+
+	/* Keep low 16MB for slabs/heaps; address-test the reserved high 16MB. */
+	if (cap >= (PSRAM_TEST_RESERVED_OFF + PSRAM_TEST_RESERVED_SIZE)) {
+		*base_out = base + PSRAM_TEST_RESERVED_OFF;
+		*len_out = PSRAM_TEST_RESERVED_SIZE;
+	} else {
+		*base_out = base;
+		*len_out = cap;
+	}
+}
+
+static bool psram_test_addr_valid(uint32_t addr, uint32_t length)
+{
+	uint32_t cap = psram_test_chip_capacity();
+	uint32_t end;
+	uint8_t id;
+
+	if (length == 0) {
+		return false;
+	}
+	end = addr + length;
+	if (end < addr) {
+		return false;
+	}
+	for (id = 0; id < PSRAM_TEST_MAX_INSTANCE; id++) {
+		uint32_t base = psram_test_get_base_addr(id);
+
+		if ((addr >= base) && (end <= (base + cap))) {
+			return true;
+		}
+	}
+	return false;
 }
 
 static uint64_t bk_get_current_timer(void)
@@ -156,16 +207,11 @@ static void psram_cpu_write_test(psram_debug_t *ctx)
 	uint64_t timer0, timer1;
 	uint64_t total_time = 0;
 	uint32_t value = 0;
-	uint32_t base_addr = psram_test_get_base_addr(ctx->psram_id);
+	uint32_t base_addr;
+	uint32_t test_len;
 	bool silent_mode = ctx->silent_mode;
 
-#if (CONFIG_PSRAM_APS128XXO_OB9)
-	uint32_t test_len = 1024 * 1024 * 16;
-#elif (CONFIG_PSRAM_W955D8MKY_5J)
-	uint32_t test_len = 1024 * 1024 * 4;
-#else //CONFIG_PSRAM_APS6408L_O
-	uint32_t test_len = 1024 * 1024 * 8;
-#endif
+	psram_test_get_region(ctx->psram_id, &base_addr, &test_len);
 
 	if(!silent_mode)
 		CLI_LOGD("begin write %08x-%08x test\r\n", base_addr, base_addr + test_len);
@@ -294,15 +340,10 @@ static void psram_dma_write_test(psram_debug_t *ctx)
 	uint64_t timer0, timer1;
 	uint32_t total_time = 0;
 	uint32_t value = 0;
-	uint32_t base_addr = psram_test_get_base_addr(ctx->psram_id);
+	uint32_t base_addr;
+	uint32_t test_len;
 
-#if (CONFIG_PSRAM_APS128XXO_OB9)
-	uint32_t test_len = 1024 * 1024 * 16;
-#elif (CONFIG_PSRAM_W955D8MKY_5J)
-	uint32_t test_len = 1024 * 1024 * 4;
-#else //CONFIG_PSRAM_APS6408L_O
-	uint32_t test_len = 1024 * 1024 * 8;
-#endif
+	psram_test_get_region(ctx->psram_id, &base_addr, &test_len);
 
 	CLI_LOGD("begin write %08x-%08x test\r\n", base_addr, base_addr + test_len);
 
@@ -364,15 +405,10 @@ static void psram_write_continue_test(psram_debug_t *ctx)
 	uint64_t timer0, timer1;
 	uint32_t total_time = 0;
 	uint32_t value = 0;
-	uint32_t base_addr = psram_test_get_base_addr(ctx->psram_id);
+	uint32_t base_addr;
+	uint32_t test_len;
 
-#if (CONFIG_PSRAM_APS128XXO_OB9)
-	uint32_t test_len = 1024 * 1024 * 16;
-#elif (CONFIG_PSRAM_W955D8MKY_5J)
-	uint32_t test_len = 1024 * 1024 * 4;
-#else //CONFIG_PSRAM_APS6408L_O
-	uint32_t test_len = 1024 * 1024 * 8;
-#endif
+	psram_test_get_region(ctx->psram_id, &base_addr, &test_len);
 
 	CLI_LOGD("begin write %08x-%08x test\r\n", base_addr, base_addr + test_len);
 	timer0 = bk_get_current_timer();
@@ -765,16 +801,11 @@ static void psram_write_test_new(psram_debug_t *ctx)
 	uint32_t error_num = 0;
 	uint32_t value = 0;
 	uint32_t base = ctx ? psram_test_get_base_addr(ctx->psram_id) : SOC_PSRAM_DATA_BASE;
-	uint32_t base_addr = base;
+	uint32_t base_addr;
+	uint32_t test_len;
 
-//4Byte aligned
-#if (CONFIG_PSRAM_APS6408L_O)
-	uint32_t test_len = 1024 * 1024 * 8;
-#elif (CONFIG_PSRAM_W955D8MKY_5J)
-	uint32_t test_len = 1024 * 1024 * 4;
-#else //CONFIG_PSRAM_APS128XXO_OB9
-	uint32_t test_len = 1024 * 1024 * 16;
-#endif
+	psram_test_get_region(ctx ? ctx->psram_id : 0, &base_addr, &test_len);
+	(void)base;
 	ctx->length = 1024 * 32;
 
 	// CLI_LOGD("begin write %08x-%08x 4Byte unaligned test\r\n", base_addr, base_addr + test_len);
@@ -831,14 +862,7 @@ static void psram_write_test_new(psram_debug_t *ctx)
 
 
 //1Byte
-	base_addr = base;
-#if (CONFIG_PSRAM_APS6408L_O)
-	test_len = 1024 * 1024 * 8;
-#elif (CONFIG_PSRAM_W955D8MKY_5J)
-	test_len = 1024 * 1024 * 4;
-#else //CONFIG_PSRAM_APS128XXO_OB9
-	test_len = 1024 * 1024 * 16;
-#endif
+	psram_test_get_region(ctx ? ctx->psram_id : 0, &base_addr, &test_len);
 	ctx->length = 1024 * 32;
 
 	// CLI_LOGD("begin write %08x-%08x 1Byte test\r\n", base_addr, base_addr + test_len);
@@ -1703,7 +1727,7 @@ static void cli_psram_cmd_handle_ext(char *pcWriteBuffer, int xWriteBufferLen, i
 			length = ((length >> 2) + 1) << 2;
 		}
 
-		if (addr > 0x60800000 || addr < SOC_PSRAM_DATA_BASE || length == 0)
+		if (!psram_test_addr_valid(addr, length))
 		{
 			msg = CLI_CMD_RSP_ERROR;
 		}
@@ -1750,7 +1774,7 @@ static void cli_psram_cmd_handle_ext(char *pcWriteBuffer, int xWriteBufferLen, i
 			length = ((length >> 2) + 1) << 2;
 		}
 
-		if (addr > 0x60800000 || addr < SOC_PSRAM_DATA_BASE || length == 0)
+		if (!psram_test_addr_valid(addr, length))
 		{
 			msg = CLI_CMD_RSP_ERROR;
 		}
@@ -1775,7 +1799,7 @@ static void cli_psram_cmd_handle_ext(char *pcWriteBuffer, int xWriteBufferLen, i
 		addr = os_strtoul(argv[2], NULL, 16);
 		length = 20;
 
-		if (addr > 0x60800000 || addr < SOC_PSRAM_DATA_BASE || length == 0)
+		if (!psram_test_addr_valid(addr, length))
 		{
 			msg = CLI_CMD_RSP_ERROR;
 			goto out;

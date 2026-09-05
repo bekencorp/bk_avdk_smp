@@ -362,6 +362,46 @@ static int psram_hal_APS128XXO_OB9_init_with_id(psram_id_t psram_id, uint32_t *i
 	return 0;
 }
 
+/* APS256XXN-OBx9: same OPI Xccela sequence as APS128, accept APM vendor ID 0x8dxx. */
+static int psram_hal_APS256XXN_init_with_id(psram_id_t psram_id, uint32_t *id)
+{
+	uint32_t val = 0;
+
+	psram_ll_set_mode_value(psram_id, 0xEC084049);
+	psram_ll_set_reg5_value(psram_id, 0x2A4);
+	psram_hal_set_cmd_reset_with_id(psram_id);
+
+	psram_delay(500);
+
+	val = psram_hal_cmd_read_with_id(psram_id, 0x00000000);
+	if (val == 0) {
+		return -1;
+	}
+	if ((val & 0xFF00) != 0x8D00) {
+		return -1;
+	}
+	if (*id != 0 && *id != PSRAM_APS256XXN_OBX9_ID && val != *id) {
+		return -1;
+	}
+	*id = val;
+
+	val = psram_ll_get_regb_value(psram_id);
+	val = (val & ~(0x7 << 2)) | (0x6 << 2);
+	psram_hal_cmd_write_with_id(psram_id, 0x00000000, val);
+
+	psram_hal_cmd_read_with_id(psram_id, 0x00000004);
+	val = psram_ll_get_regb_value(psram_id);
+	val = (val & ~(0x7 << 5)) | (0x3 << 5);
+	psram_hal_cmd_write_with_id(psram_id, 0x00000004, val);
+
+	psram_hal_cmd_read_with_id(psram_id, 0x00000008);
+	val = psram_ll_get_regb_value(psram_id);
+	val |= 0x40;
+	psram_hal_cmd_write_with_id(psram_id, 0x00000008, val);
+
+	return 0;
+}
+
 static int psram_hal_SCB18X128XX_OAF_init_with_id(psram_id_t psram_id, uint32_t *id)
 {
 	uint32_t val = 0;
@@ -428,6 +468,11 @@ uint32_t psram_hal_config_init_with_id(psram_id_t psram_id, uint32_t id)
 			psram_hal_APS128XXO_OB9_init_with_id(psram_id, &type);
 			return type;
 		}
+		else if ((id == PSRAM_APS256XXN_OBX9_ID) || ((id & 0xFF00) == 0x8D00))
+		{
+			psram_hal_APS256XXN_init_with_id(psram_id, &type);
+			return type;
+		}
 		else if (id == PSRAM_SCB18X128XX_OAF_ID)
 		{
 			psram_hal_SCB18X128XX_OAF_init_with_id(psram_id, &type);
@@ -450,6 +495,13 @@ uint32_t psram_hal_config_init_with_id(psram_id_t psram_id, uint32_t id)
 
 		type = PSRAM_APS128XXO_OB9_ID;
 		ret = psram_hal_APS128XXO_OB9_init_with_id(psram_id, &type);
+		if (ret == 0)
+		{
+			return type;
+		}
+
+		type = PSRAM_APS256XXN_OBX9_ID;
+		ret = psram_hal_APS256XXN_init_with_id(psram_id, &type);
 		if (ret == 0)
 		{
 			return type;
