@@ -24,7 +24,9 @@ typedef enum {
 	UNKNOWN_DECOMPRESSPOR,
 } decompress_type_t;
 
-// BL2-friendly signature: the caller provides the output buffer `dest` (a fixed
-// SRAM region in BL2), so the decompressor never has to os_malloc a 64KB block
-// on the tiny BL2 heap. `src_len` is the compressed input length.
-uint8_t *decompress_in_memory(uint8_t *src, uint8_t *dest, uint32_t src_len, decompress_type_t decompressor);
+/* BL2-friendly: caller owns `dest` (fixed SRAM, no os_malloc).
+ * `src_len`  = compressed input bytes.
+ * `dest_cap` = usable size of `dest`; claimed LZMA uncomp_size must be
+ *              0 < claimed <= dest_cap or the call fails (NULL). */
+uint8_t *decompress_in_memory(uint8_t *src, uint8_t *dest, uint32_t src_len,
+			      uint32_t dest_cap, decompress_type_t decompressor);
