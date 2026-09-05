@@ -235,15 +235,7 @@ int boot_param_commit(const ab_flag_record_t *rec)
 int boot_get_active_slot_hook(int img_index, uint32_t *slot)
 {
 	(void)img_index;
-	/* Non-XIP/no secondary is primary-only; never prefer slot B. */
-	if (!CONFIG_DIRECT_XIP ||
-#if defined(CONFIG_XIP_FORCE_SLOT_A)
-	    true ||
-#endif
-	    partition_get_phy_size(PARTITION_SECONDARY_ALL) == 0u) {
-		*slot = 0u;
-		return 0;
-	}
+
 	*slot = (uint32_t)boot_param_preferred_slot();
 	return 0;
 }

@@ -139,18 +139,11 @@ static void flash_area_config_direct_xip(void)
 	/* Single-slot layouts (e.g. secureboot_ai) have no secondary_all.
 	 * Do not program A/B XIP remap with secondary_start=0 — that corrupts
 	 * remap state. Keep primary window only and disable OTA remap. */
-#if defined(CONFIG_XIP_FORCE_SLOT_A)
-	(void)secondary_size;
-	flash_set_xip_offset(primary_start, primary_start, primary_size);
-	flash_set_ota_enable(false);
-	return;
-#else
 	if (secondary_size == 0u) {
 		flash_set_xip_offset(primary_start, primary_start, primary_size);
 		flash_set_ota_enable(false);
 		return;
 	}
-#endif
 
 	flash_set_xip_offset(primary_start,
 			     flash_map[FLASH_MAP_IMAGE_SECONDARY_ALL].fa_off,

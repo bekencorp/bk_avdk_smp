@@ -112,11 +112,7 @@ int bk_flash_dbus_isolation_init(void)
 	 * 0xFFFFFFFF and marks nearly all flash Secure, so NS flash-controller
 	 * reads (e.g. sys_rf) BusFault. Fall back to primary_tfm_s only.
 	 */
-	if (!CONFIG_DIRECT_XIP ||
-#if defined(CONFIG_XIP_FORCE_SLOT_A)
-	    true ||
-#endif
-	    (secondary_offset == 0u) || (secondary_size == 0u)) {
+	if ((secondary_offset == 0u) || (secondary_size == 0u)) {
 		region1_start = partition_get_phy_offset(PARTITION_PRIMARY_TFM_S);
 		region1_end = region1_start + partition_get_phy_size(PARTITION_PRIMARY_TFM_S) - 1u;
 	} else {
@@ -222,9 +218,7 @@ FIH_RET_TYPE(enum tfm_hal_status_t) tfm_hal_platform_init(void)
 #if CONFIG_DIRECT_XIP
     /* A/B trial confirm: image verified + secure world up, so adopt a TRIAL slot
      * as the new NORMAL exec_slot. Idempotent: no-op for non-TRIAL/virgin. */
-#if !defined(CONFIG_XIP_FORCE_SLOT_A)
     (void)boot_param_confirm();
-#endif
 #endif /* CONFIG_DIRECT_XIP */
 
 #if CONFIG_OTA_OVERWRITE

@@ -100,11 +100,7 @@ extern bool is_validate_image;
 
 #define NO_ACTIVE_SLOT UINT32_MAX
 
-#if defined(CONFIG_XIP_FORCE_SLOT_A)
-#define BOOT_SLOT_SCAN_COUNT 1
-#else
 #define BOOT_SLOT_SCAN_COUNT BOOT_NUM_SLOTS
-#endif
 
 static int
 boot_read_image_headers(struct boot_loader_state *state, bool require_all,
@@ -2027,7 +2023,6 @@ boot_get_slot_usage(struct boot_loader_state *state)
             continue;
         }
 #endif
-        /* Force-A builds deliberately never open the placeholder B slot. */
         for (slot = 0; slot < BOOT_SLOT_SCAN_COUNT; slot++) {
             fa_id = flash_area_id_from_multi_image_slot(
                                                 BOOT_CURR_IMG(state), slot);
@@ -2055,10 +2050,6 @@ boot_get_slot_usage(struct boot_loader_state *state)
             }
         }
 
-#if defined(CONFIG_XIP_FORCE_SLOT_A)
-        state->slot_usage[BOOT_CURR_IMG(state)].
-            slot_available[BOOT_SECONDARY_SLOT] = false;
-#endif
         state->slot_usage[BOOT_CURR_IMG(state)].active_slot = NO_ACTIVE_SLOT;
     }
 
@@ -2077,13 +2068,6 @@ boot_get_slot_usage(struct boot_loader_state *state)
 static uint32_t
 find_slot_with_highest_version(struct boot_loader_state *state)
 {
-#if defined(CONFIG_XIP_FORCE_SLOT_A)
-    uint32_t primary = state->slot_usage[BOOT_CURR_IMG(state)].
-        slot_available[BOOT_PRIMARY_SLOT] ? BOOT_PRIMARY_SLOT : NO_ACTIVE_SLOT;
-
-    BOOT_LOG_FORCE("force-A candidate slot=%d", primary);
-    return primary;
-#else
     uint32_t slot;
     uint32_t candidate_slot = NO_ACTIVE_SLOT;
     int rc;
@@ -2129,7 +2113,6 @@ find_slot_with_highest_version(struct boot_loader_state *state)
     }
     BOOT_LOG_FORCE("candidate slot=%d", candidate_slot);
     return candidate_slot;
-#endif
 }
 
 #ifdef MCUBOOT_HAVE_LOGGING
