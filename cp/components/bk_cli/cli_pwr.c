@@ -1520,6 +1520,7 @@ static void cli_pm_boot_ap(char *pcWriteBuffer, int xWriteBufferLen, int argc, c
 #if 1 && (CONFIG_CPU_CNT > 1)
 	UINT32 boot_ap_state = 0;
 	UINT32 module_name    = 0;
+	bk_err_t ret;
 
 	if ((argc >= 2) && (os_strcmp(argv[1], "stress") == 0))
 	{
@@ -1535,7 +1536,17 @@ static void cli_pm_boot_ap(char *pcWriteBuffer, int xWriteBufferLen, int argc, c
 	}
 	module_name   = os_strtoul(argv[1], NULL, 10);
 	boot_ap_state   = os_strtoul(argv[2], NULL, 10);
-	bk_pm_module_vote_boot_ap_ctrl(module_name,boot_ap_state);
+	ret = bk_pm_module_vote_boot_ap_ctrl(module_name,boot_ap_state);
+	if (ret == BK_OK) {
+		BK_LOGI(NULL, "pm_boot_ap succeeded: module=%u state=%u ret=%d\r\n",
+			module_name, boot_ap_state, ret);
+	} else if (ret == BK_ERR_TIMEOUT) {
+		BK_LOGE(NULL, "pm_boot_ap timeout: module=%u state=%u ret=%d\r\n",
+			module_name, boot_ap_state, ret);
+	} else {
+		BK_LOGE(NULL, "pm_boot_ap failed: module=%u state=%u ret=%d\r\n",
+			module_name, boot_ap_state, ret);
+	}
 #endif
 }
 #if (CONFIG_CPU_CNT > 2)

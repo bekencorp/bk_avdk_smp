@@ -9,6 +9,9 @@
 #include "multicore_driver.h"
 #include "sys_types.h"
 #include <driver/aon_rtc.h>
+#include "sys_sw_regs.h"
+#include "cache.h"
+#include "bk_arch.h"
 #endif
 
 /*=====================DEFINE  SECTION  START=====================*/
@@ -40,6 +43,33 @@ typedef struct
 static pm_ap_core_info_t *s_pm_info = NULL;
 
 /*=====================VARIABLE  SECTION  END===================*/
+
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE && CONFIG_CPU_HOTPLUG
+static void pm_ap_suspend_failure_publish(uint32_t recovery_seq)
+{
+    pm_shared_info_t shared_info = {0};
+
+    /*
+     * Publish failure only after rollback has restored AP services. If resume
+     * failed, keep CP on the existing timeout path instead of letting it reopen
+     * business traffic against a partially restored AP.
+     */
+    if ((recovery_seq == 0U) || !bk_pm_ap_full_ready_get()) {
+        return;
+    }
+
+    bk_sys_sw_regs_get_pm_shared_info(&shared_info);
+    shared_info.param1 = recovery_seq;
+    bk_sys_sw_regs_update_pm_shared_info(&shared_info,
+        BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_PARAM1,
+        BK_SYS_SW_REGS_LOCK_DISABLE);
+    __DSB();
+    flush_dcache((void *)&bk_sys_sw_regs_ptr()->pm_shared_info,
+        sizeof(bk_sys_sw_regs_ptr()->pm_shared_info));
+    __DSB();
+    LOGW("AP fast suspend: rollback ready seq=%u\r\n", recovery_seq);
+}
+#endif
 
 /*================FUNCTION DECLARATION  SECTION  START==========*/
 
@@ -110,6 +140,7 @@ static bk_err_t pm_ap_core_message_handle(void)
                     ret = bk_pm_ap_fast_suspend_prepare();
                     if (ret != BK_OK) {
                         LOGE("AP fast suspend: module quiesce failed[%d]\r\n", ret);
+                        pm_ap_suspend_failure_publish(msg.param1);
                         break;
                     }
                     /*
@@ -123,6 +154,7 @@ static bk_err_t pm_ap_core_message_handle(void)
                         if (ret != BK_OK) {
                             LOGE("AP fast suspend: CPU3 offline failed[%d]\r\n", ret);
                             (void)bk_pm_ap_fast_resume_modules();
+                            pm_ap_suspend_failure_publish(msg.param1);
                             break;
                         } else {
                             LOGI("AP fast suspend: CPU3 offline ready\r\n");
@@ -134,6 +166,7 @@ static bk_err_t pm_ap_core_message_handle(void)
                         ret = bk_cpu_hp_online_direct(CPU3_CORE_ID);
                         if (ret == BK_OK) {
                             (void)bk_pm_ap_fast_resume_modules();
+                            pm_ap_suspend_failure_publish(msg.param1);
                         } else {
                             LOGE("AP fast suspend rollback: CPU3 online failed[%d]\r\n",
                                 ret);
@@ -197,7 +230,22 @@ static bk_err_t pm_ap_core_message_handle(void)
                         }
                     }
                     ret = bk_pm_ap_fast_resume_modules();
-                    if ((ret != BK_OK) && (ret != BK_ERR_STATE)) {
+                    if (ret == BK_ERR_STATE) {
+                        /*
+                         * The close request may still be waiting for
+                         * prepare_power_off and therefore has no fast suspend
+                         * transaction to restore. Reopen modules prepared by
+                         * the Idle probe in this PM task context.
+                         */
+                        ret = bk_pm_ap_power_prepare_abort();
+                        if (ret == BK_OK) {
+                            bk_pm_ap_fast_ipc_rx_block_set(false);
+                            bk_pm_ap_full_ready_set(true);
+                        }
+                    } else if (ret == BK_OK) {
+                        /* Fast resume already restored callbacks and state. */
+                        (void)bk_pm_ap_power_prepare_abort();
+                    } else {
                         LOGE("AP fast suspend abort: module resume failed[%d]\r\n",
                             ret);
                     }
