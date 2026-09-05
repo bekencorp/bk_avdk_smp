@@ -249,16 +249,25 @@ static int secure_ow_arm_confirm(void)
 	uint32_t retry = SECURE_OW_CONFIRM_RETRY;
 	uint32_t off   = s_secure_ow.confirm_off;
 	struct ota_confirm_rec rec;
+	uint8_t journal_probe[4];
 
 	rec.magic   = OTA_CONFIRM_REC_MAGIC;
 	rec.confirm = OVERWRITE_CONFIRM;
 	rec.crc     = secure_ow_crc32(&rec, 2 * sizeof(uint32_t));
 
 	/* Clear the BL2 resume journal (first sector) BEFORE arming so every install
-	 * starts from block 0. Otherwise stale journal records from a power-failed
-	 * prior install could make BL2 wrongly "resume" this fresh image. */
+	 * starts from block 0. Otherwise stale journal records from a prior install
+	 * could make BL2 wrongly "resume" this fresh image. */
 	if (bk_flash_erase_sector(s_secure_ow.ctrl_base) != BK_OK) {
 		OTA_LOGE("secure overwrite: journal erase fail @0x%x\r\n", s_secure_ow.ctrl_base);
+		return BK_FAIL;
+	}
+	os_memset(journal_probe, 0, sizeof(journal_probe));
+	bk_flash_read_bytes(s_secure_ow.ctrl_base, journal_probe, sizeof(journal_probe));
+	if (journal_probe[0] != 0xFF || journal_probe[1] != 0xFF ||
+	    journal_probe[2] != 0xFF || journal_probe[3] != 0xFF) {
+		OTA_LOGE("secure overwrite: journal not blank @0x%x\r\n", s_secure_ow.ctrl_base);
+		return BK_FAIL;
 	}
 
 	while (retry--) {
