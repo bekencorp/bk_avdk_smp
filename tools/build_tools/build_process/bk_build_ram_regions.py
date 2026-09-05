@@ -82,7 +82,9 @@ def ram_region_partition(partitions_dir: Path, ram_regions_table: Path):
         for name, attr in def_config.get("PSRAM_MPU_POLICIES", {}).items()
     }
     overrides: dict[str, object] = {}
-    policy_override = ram_regions_table.with_name("ram_regions_mpu.json")
+    policy_override = ram_regions_table.with_name(
+        f"{ram_regions_table.stem}_mpu.json"
+    )
     if policy_override.exists():
         with policy_override.open("r") as f:
             overrides = json.load(f)

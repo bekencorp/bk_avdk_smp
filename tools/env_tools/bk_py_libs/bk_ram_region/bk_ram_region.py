@@ -170,10 +170,10 @@ class bk_ram_region:
             if line_content.startswith("#") or len(line_content) == 0:
                 continue
             # Single PSRAM chip size (e.g. 8M, 16M). Header CONFIG_PSRAM_CAPACITY uses this value.
-            if "SINGLE_PSRAM_CAPCAITY_SIZE=" in line_content:
+            if "SINGLE_PSRAM_CAPACITY_SIZE=" in line_content:
                 self.psram_capacity = parse_format_size(line_content.split("=")[1])
                 continue
-            if "PSRAM_CAPCAITY_SIZE=" in line_content:
+            if "PSRAM_CAPACITY_SIZE=" in line_content:
                 self.psram_capacity = parse_format_size(line_content.split("=")[1])
                 continue
             self._check_line_valid(line_content)

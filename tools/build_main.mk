@@ -96,6 +96,30 @@ ifeq ($(FLASH_CAPACITY),16M)
   export PROJECT_NAME := $(PROJECT_NAME)_16M
 endif
 
+# PSRAM capacity variant. Default 16M uses ram_regions.csv and the
+# existing build dir. 32M uses ram_regions_32M.csv (high 16MB reserved
+# per chip) and appends _psram32M so images do not overwrite.
+# Select with PSRAM_CAPACITY=32M on the make command line, or set
+# CONFIG_PSRAM_CAPACITY_32M=y in the project CP defconfig (menuconfig [D]).
+# Independent of FLASH_CAPACITY: e.g. FLASH_CAPACITY=16M PSRAM_CAPACITY=32M
+# yields build/<soc>/<project>_16M_psram32M/.
+ifndef PSRAM_CAPACITY
+  _PC_DEFCONFIG := $(PROJECT_DIR)/cp/config/$(ARMINO_SOC_NAME)/defconfig
+  ifneq ($(wildcard $(_PC_DEFCONFIG)),)
+    ifneq ($(shell grep -E '^CONFIG_PSRAM_CAPACITY_32M=y' $(_PC_DEFCONFIG) 2>/dev/null),)
+      PSRAM_CAPACITY := 32M
+    endif
+  endif
+endif
+PSRAM_CAPACITY ?= 16M
+export PSRAM_CAPACITY
+ifeq ($(PSRAM_CAPACITY),32M)
+  ifeq ($(wildcard $(PROJECT_DIR)/partitions/$(ARMINO_SOC_NAME)/ram_regions_32M.csv),)
+    $(error PSRAM_CAPACITY=32M but $(PROJECT_DIR)/partitions/$(ARMINO_SOC_NAME)/ram_regions_32M.csv not found)
+  endif
+  export PROJECT_NAME := $(PROJECT_NAME)_psram32M
+endif
+
 ifneq ("$(BUILD_DIR)", "")
 	export PROJECT_BUILD_DIR := $(BUILD_DIR)/$(ARMINO_SOC_NAME)/$(PROJECT_NAME)
 else
@@ -137,6 +161,7 @@ help:
 	@echo " make bkxxxx_ap_menuconfig - ap sdk config"
 	@echo " make bkxxxx_cp_menuconfig - cp sdk config"
 	@echo " FLASH_CAPACITY=8M|16M     - select partition CSV; 16M images go to <project>_16M/"
+	@echo " PSRAM_CAPACITY=16M|32M    - select ram_regions CSV; 32M images go to <project>_psram32M/"
 	@echo ""
 
 common:
@@ -147,6 +172,7 @@ common:
 	@echo "armino cp path=$(ARMINO_CP_DIR)"
 	@echo "armino build path=$(PROJECT_BUILD_DIR)"
 	@echo "FLASH_CAPACITY=$(FLASH_CAPACITY)"
+	@echo "PSRAM_CAPACITY=$(PSRAM_CAPACITY)"
 
 
 all: $(soc_targets) $(ARMINO_SOC)_cp
@@ -218,7 +244,10 @@ print_partitions: $(auto_partition_out)
 ram_partition_script := $(ARMINO_AVDK_DIR)/tools/build_tools/build_process/bk_build_ram_regions.py
 RAM_REGIONS_DIR := $(PROJECT_DIR)/partitions/$(ARMINO_SOC_NAME)
 RAM_REGIONS_TABLE := $(RAM_REGIONS_DIR)/ram_regions.csv
-RAM_REGIONS_MPU_POLICY := $(wildcard $(RAM_REGIONS_DIR)/ram_regions_mpu.json)
+ifeq ($(PSRAM_CAPACITY),32M)
+RAM_REGIONS_TABLE := $(RAM_REGIONS_DIR)/ram_regions_32M.csv
+endif
+RAM_REGIONS_MPU_POLICY := $(wildcard $(RAM_REGIONS_TABLE:.csv=_mpu.json))
 ram_regions_out := $(PARTITIONS_DIR)/ram_regions.h
 ram_regions_setting := $(firstword \
 	$(wildcard $(ARMINO_AVDK_DIR)/tools/build_tools/build_process/bk_sdk/smp_ram_setting_$(ARMINO_SOC_NAME).json) \

@@ -27,17 +27,21 @@ SDK_PY_LIBS := $(SDK_DIR)/tools/env_tools/bk_py_libs
 # 8M (default) or 16M. Forwarded to SDK Makefile; 16M uses a separate build dir.
 FLASH_CAPACITY ?= 8M
 export FLASH_CAPACITY
+# 16M (default) or 32M. Forwarded to SDK Makefile; 32M uses ram_regions_32M.csv
+# and a separate build dir suffix _psram32M.
+PSRAM_CAPACITY ?= 16M
+export PSRAM_CAPACITY
 
 .PHONY: clean
 
 $(SOC_TARGET):
 ifeq ($(findstring Windows_NT,$(OS)), Windows_NT)
 	@$(MAKE) $(SOC_TARGET) PROJECT=$(PROJECT_NAME) PROJECT_DIR=$(PROJECT_PATH) BUILD_DIR=$(PROJECT_BUILD_DIR) \
-		FLASH_CAPACITY=$(FLASH_CAPACITY) \
+		FLASH_CAPACITY=$(FLASH_CAPACITY) PSRAM_CAPACITY=$(PSRAM_CAPACITY) \
 		PYTHONPATH="$(SDK_PY_LIBS);$(PYTHONPATH)" -C $(SDK_DIR)
 else
 	@$(MAKE) $(SOC_TARGET) PROJECT=$(PROJECT_NAME) PROJECT_DIR=$(PROJECT_PATH) BUILD_DIR=$(PROJECT_BUILD_DIR) \
-		FLASH_CAPACITY=$(FLASH_CAPACITY) \
+		FLASH_CAPACITY=$(FLASH_CAPACITY) PSRAM_CAPACITY=$(PSRAM_CAPACITY) \
 		PYTHONPATH=$(SDK_PY_LIBS):$$PYTHONPATH -C $(SDK_DIR)
 endif
 
