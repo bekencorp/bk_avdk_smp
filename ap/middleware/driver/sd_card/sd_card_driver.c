@@ -307,6 +307,120 @@ no_card:
 	return BK_FAIL;
 }
 
+static uint32_t sd_card_configured_clock_hz(void)
+{
+#if defined(CONFIG_SDCARD_CLOCK_FREQ_HZ)
+	return (uint32_t)CONFIG_SDCARD_CLOCK_FREQ_HZ;
+#elif CONFIG_SDCARD_HIGH_SPEED
+	return SD_HS_DEFAULT_CLOCK_HZ;
+#else
+	return 20000000u;
+#endif
+}
+
+static bk_err_t sd_card_apply_transfer_clock(bool high_speed)
+{
+	uint32_t hz = sd_card_configured_clock_hz();
+	bk_err_t ret;
+
+	if (high_speed) {
+		ret = bk_sdio_host_set_timing(SDCARD_HOST_ID, SDIO_HOST_TIMING_SDR25);
+		if (hz > SD_HS_MAX_CLOCK_HZ)
+			hz = SD_HS_MAX_CLOCK_HZ;
+	} else {
+		ret = bk_sdio_host_set_timing(SDCARD_HOST_ID, SDIO_HOST_TIMING_SDR12);
+		if (hz > SD_DS_MAX_CLOCK_HZ)
+			hz = SD_DS_MAX_CLOCK_HZ;
+	}
+	if (ret != BK_OK)
+		return ret;
+
+	ret = bk_sdio_host_set_clock(SDCARD_HOST_ID, hz);
+	if (ret != BK_OK)
+		return ret;
+
+	SD_CARD_LOGI("%s, clock=%u Hz\r\n",
+		     high_speed ? "High Speed" : "Default Speed", (unsigned)hz);
+	return BK_OK;
+}
+
+#if CONFIG_SDCARD_HIGH_SPEED
+typedef enum {
+	SD_HS_SWITCH_NOT_ENABLED = 0,
+	SD_HS_SWITCH_ENABLED,
+	SD_HS_SWITCH_INDETERMINATE,
+} sd_hs_switch_result_t;
+
+static bk_err_t sd_card_cmd6(uint32_t arg, uint8_t *status)
+{
+	sdio_host_cmd_t cmd = {
+		.index = SD_CMD_SWITCH_FUNC,
+		.arg = arg,
+		.resp_type = SDIO_HOST_RESP_R1,
+	};
+	sdio_host_data_t xfer = {
+		.dir = SDIO_HOST_XFER_READ,
+		.mode = SDIO_HOST_XFER_PIO,
+		.buf = status,
+		.block_size = SD_SWITCH_STATUS_SIZE,
+		.block_cnt = 1,
+	};
+	sdio_host_resp_t resp = {0};
+	bk_err_t ret;
+
+	ret = bk_sdio_host_xfer(SDCARD_HOST_ID, &cmd, &xfer, &resp);
+	if (ret != BK_OK)
+		return ret;
+	if (resp.timeout || resp.crc_err ||
+	    (resp.resp[0] & SD_R1_CMD6_ERROR_MASK)) {
+		SD_CARD_LOGW("CMD6 R1 error: status=0x%08x timeout=%u crc=%u\r\n",
+			     (unsigned)resp.resp[0], (unsigned)resp.timeout,
+			     (unsigned)resp.crc_err);
+		return BK_FAIL;
+	}
+	return BK_OK;
+}
+
+/* CMD6 must complete while the bus is still at Default Speed (<=25MHz). */
+static sd_hs_switch_result_t sd_card_switch_high_speed(void)
+{
+	uint8_t status[SD_SWITCH_STATUS_SIZE] = {0};
+	uint32_t retry;
+
+	for (retry = 0; retry < SD_SWITCH_BUSY_RETRY_CNT; retry++) {
+		if (sd_card_cmd6(SD_SWITCH_FUNC_CHECK_HS, status) != BK_OK) {
+			SD_CARD_LOGW("CMD6 High Speed check failed\r\n");
+			return SD_HS_SWITCH_NOT_ENABLED;
+		}
+		if ((status[13] & SD_SWITCH_GROUP1_HS_SUPPORT) == 0) {
+			SD_CARD_LOGW("card does not support High Speed\r\n");
+			return SD_HS_SWITCH_NOT_ENABLED;
+		}
+		if ((status[43] & SD_SWITCH_GROUP1_HS_BUSY) == 0)
+			break;
+		rtos_delay_milliseconds(1);
+	}
+	if (retry == SD_SWITCH_BUSY_RETRY_CNT) {
+		SD_CARD_LOGW("card High Speed function remains busy\r\n");
+		return SD_HS_SWITCH_NOT_ENABLED;
+	}
+
+	if (sd_card_cmd6(SD_SWITCH_FUNC_SET_HS, status) != BK_OK) {
+		SD_CARD_LOGE("CMD6 High Speed set result is indeterminate\r\n");
+		return SD_HS_SWITCH_INDETERMINATE;
+	}
+	if ((status[16] & SD_SWITCH_GROUP1_FUNC_MASK) != SD_SWITCH_GROUP1_FUNC_HS) {
+		SD_CARD_LOGW("CMD6 High Speed not selected (group1=%u)\r\n",
+			     (unsigned)(status[16] & SD_SWITCH_GROUP1_FUNC_MASK));
+		return SD_HS_SWITCH_NOT_ENABLED;
+	}
+
+	/* Spec: wait at least 8 clocks after a successful switch. */
+	rtos_delay_milliseconds(1);
+	return SD_HS_SWITCH_ENABLED;
+}
+#endif
+
 sd_card_state_t bk_sd_card_get_card_state(void)
 {
 	sdio_host_resp_t resp = {0};
@@ -352,13 +466,16 @@ bk_err_t bk_sd_card_init(void)
 #if CONFIG_SDCARD_BUSWIDTH_4LINE && CONFIG_USR_GPIO_CFG_EN
 		(void)sd_card_restore_data3_func(data3_func);
 #endif
+		(void)bk_sdio_host_deinit(SDCARD_HOST_ID);
 		return ret;
 	}
 
 #if CONFIG_SDCARD_BUSWIDTH_4LINE && CONFIG_USR_GPIO_CFG_EN
 	ret = sd_card_restore_data3_func(data3_func);
-	if (ret)
+	if (ret) {
+		(void)bk_sdio_host_deinit(SDCARD_HOST_ID);
 		return ret;
+	}
 #endif
 
 	rtos_delay_milliseconds(1);
@@ -381,22 +498,31 @@ bk_err_t bk_sd_card_init(void)
 	sd_send(SD_CMD_SET_BLOCKLEN, SDIO_HOST_RESP_R2, SD_BLOCK_LEN, NULL);
 	rtos_delay_milliseconds(1);
 
-	/* 20MHz is within the SD Default-Speed range (<=25MHz), so use the
-	 * Default-Speed (SDR12) sampling path here instead of SDR50. SDR50 is a
-	 * UHS-I mode that requires 1.8V signaling plus a tuned sampling clock;
-	 * on this 3.3V-only EVB with no tuning the SDR50 data-capture phase is
-	 * marginal and depends on the PHY delay value happening to be aligned.
-	 * After a full power-on boot it usually is, but after a soft re-init
-	 * (mount/unmount without reboot) it is intermittently misaligned and the
-	 * first multi-block read returns no data (RD_XFER_ACTIVE set but
-	 * BUF_RD_ENABLE never asserts, no CRC/timeout). SDR12 is the exact
-	 * sampling path used by card identification, which is 100% reliable. */
-	bk_sdio_host_set_timing(SDCARD_HOST_ID, SDIO_HOST_TIMING_SDR12);
-#if defined(CONFIG_SDCARD_CLOCK_FREQ_HZ)
-	bk_sdio_host_set_clock(SDCARD_HOST_ID, CONFIG_SDCARD_CLOCK_FREQ_HZ);
+	/* Speed mode is independent of DMA. Default Speed (SDR12, <=25MHz) is
+	 * the safe 3.3V path used by identification. High Speed is opt-in via
+	 * CONFIG_SDCARD_HIGH_SPEED: CMD6 first, then host HIGH_SPEED_EN / SDR25,
+	 * then the configured clock (default 40MHz). UHS-I SDR50/SDR104 are not
+	 * used here (1.8V + tuning). */
+#if CONFIG_SDCARD_HIGH_SPEED
+	{
+		sd_hs_switch_result_t hs_result = sd_card_switch_high_speed();
+
+		if (hs_result == SD_HS_SWITCH_INDETERMINATE) {
+			/* The card may already be in High Speed. Stop the host and
+			 * require a fresh CMD0 enumeration instead of continuing
+			 * with mismatched card/host timing. */
+			(void)bk_sdio_host_deinit(SDCARD_HOST_ID);
+			return BK_FAIL;
+		}
+		ret = sd_card_apply_transfer_clock(hs_result == SD_HS_SWITCH_ENABLED);
+	}
 #else
-	bk_sdio_host_set_clock(SDCARD_HOST_ID, 20000000);
+	ret = sd_card_apply_transfer_clock(false);
 #endif
+	if (ret != BK_OK) {
+		(void)bk_sdio_host_deinit(SDCARD_HOST_ID);
+		return ret;
+	}
 	rtos_delay_milliseconds(1);
 
 	s_sd_card_is_init = true;

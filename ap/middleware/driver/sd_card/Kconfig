@@ -30,20 +30,38 @@ menu "SDCARD"
 		      the CMD0/CMD8 identification window, then restored to the SDIO
 		      DATA3 function before the 4-bit switch.
 
+	config SDCARD_HIGH_SPEED
+		bool "Enable SD High Speed mode (CMD6, 3.3V)"
+		depends on SDCARD
+		default n
+		help
+		  Switch the card to SD High Speed after identification (CMD6
+		  access mode 1) and set the host HIGH_SPEED_EN / SDR25
+		  sampling path. This is classic 3.3V High Speed, not UHS-I;
+		  it does not require 1.8V signaling or tuning.
+
+		  Default (n) keeps Default Speed. When enabled, the transfer
+		  clock range is raised to 50MHz and defaults to 40MHz (the
+		  highest 80MHz-base integer divide that stays within the
+		  50MHz High Speed limit). If the card rejects CMD6 the
+		  driver falls back to Default Speed.
+
 	config SDCARD_CLOCK_FREQ_HZ
 		int "SD card transfer clock frequency in Hz"
 		depends on SDCARD
+		default 40000000 if SDCARD_HIGH_SPEED
 		default 20000000
-		range 400000 25000000
+		range 400000 50000000 if SDCARD_HIGH_SPEED
+		range 400000 25000000 if !SDCARD_HIGH_SPEED
 		help
 		  SD data-transfer clock after card identification, passed to
 		  bk_sdio_host_set_clock(). Identification still runs at the
 		  host's low init clock (~400kHz).
 
-		  Default 20000000 (20MHz) is within SD Default-Speed (<=25MHz)
-		  and matches the SDR12 timing path used by this driver. Lower
-		  values (e.g. 5000000 / 10000000) can be used on boards with
-		  marginal SDIO signal integrity until the PCB/SI is fixed.
+		  Without High Speed the range is 400kHz-25MHz (Default
+		  Speed; default 20MHz). With CONFIG_SDCARD_HIGH_SPEED the
+		  range is 400kHz-50MHz (default 40MHz). Lower values can be
+		  used on boards with marginal SDIO signal integrity.
 
 	config SDCARD_MAX_BLOCKS_PER_XFER
 		int "Max blocks per CMD18 transfer (0=unlimited)"

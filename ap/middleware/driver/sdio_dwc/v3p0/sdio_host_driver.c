@@ -266,9 +266,10 @@ void card_clk_stop(uintptr_t addr)
 	CLK_CTRL_R(addr) =  CLK_CTRL_R(addr) & 0xfffffffb;
 }
 
-void sd_clk_change(uintptr_t addr,uint16 SD_FREQ_SEL)
+bk_err_t sd_clk_change(uintptr_t addr,uint16 SD_FREQ_SEL)
 {
-	uint16 internal_clk_stable;
+	uint32_t wait;
+
 	card_clk_stop(addr);
 
 	CLK_CTRL_R(addr)= CLK_CTRL_R(addr) & 0xfffffff7;//Set CLK_CTRL_R.PLL_ENABLE to 0
@@ -276,16 +277,19 @@ void sd_clk_change(uintptr_t addr,uint16 SD_FREQ_SEL)
 	CLK_CTRL_R(addr) =  CLK_CTRL_R(addr) & 0xffffffdf;
 	CLK_CTRL_R(addr) =  CLK_CTRL_R(addr) | INTERNAL_CLK_EN | PLL_ENABLE;//Set INTERNAL_CLK_EN
 
-	internal_clk_stable = CLK_CTRL_R(addr) & 0x0002;
-	//wait internal clk stable
-	for(int i = 0; i < MAX_WAIT_STATE_TRANS_TIMES; i++) {
-		if(internal_clk_stable != 0) {
+	for (wait = 0; wait < MAX_WAIT_STATE_TRANS_TIMES; wait++) {
+		if (CLK_CTRL_R(addr) & INTERNAL_CLK_STABLE)
 			break;
-		}
 		rtos_delay_milliseconds(1);
+	}
+	if (wait == MAX_WAIT_STATE_TRANS_TIMES) {
+		SDIOD_LOGE("SD clock failed to stabilize, div=%u\r\n",
+			   (unsigned)SD_FREQ_SEL);
+		return BK_ERR_TIMEOUT;
 	}
 
 	card_clk_supply(addr);
+	return BK_OK;
 }
 
 void sd_card_interface_set(uintptr_t addr,uint8 UHS_MODE_SEL)
@@ -618,15 +622,14 @@ int receive_mult_data(uintptr_t addr, uint8_t *data, uint16 BLOCK_SIZE,uint16 BL
 	BLOCKCOUNT_R(addr)= BLOCK_CNT;
 	ARGUMENT_R(addr)  = ARGUMENT;
 
-	if (CMD == CMD17 && BLOCK_CNT == 1) {
-		/* Single-block read: no MULTBLK, block-count or Auto-CMD12 state
-		 * machine. This is the protocol-correct counterpart of CMD17. */
+	if (BLOCK_CNT == 1) {
+		/* Single-block read (SD CMD17, SD CMD6 64-byte switch status,
+		 * eMMC CMD8, SDIO CMD53 byte/block): no MULTBLK or Auto-CMD12. */
 		XFER_MODE_R(addr) = XFR_MODE_RESP_ERRCHK_EN | XFR_MODE_DATA_READ;
-		timeout_ms = SDIO_HOST_SD_CMD17_TIMEOUT_MS;
+		if (CMD == CMD17)
+			timeout_ms = SDIO_HOST_SD_CMD17_TIMEOUT_MS;
 	} else {
-		/* This is a generic Host PIO entry. eMMC CMD8 and SDIO CMD53 also
-		 * carry read data, so preserve their legacy transfer configuration
-		 * instead of rejecting every command other than SD CMD17/CMD18. */
+		/* Multi-block PIO (SD CMD18 and other multi-block reads). */
 		XFER_MODE_R(addr) = XFR_MODE_RESP_ERRCHK_EN | XFR_MODE_MULTBLK_SEL |
 			XFR_MODE_DATA_READ | XFR_MODE_AUTOCMD12_EN | XFR_MODE_BLKCNT_EN;
 	}
@@ -835,7 +838,9 @@ bk_err_t mshc_host_init(uintptr_t addr,uint16 sysclk_div,uint16 sdclk_div,uint8 
 	}
 
 	host_ctrl_set(addr,SD_BUS_PWR_VDD1,0x0e,CARD_IS_EMMC,DAT_XFER_WIDTH);//addr,SD_BUS_VOL_VDD1,TOUT_CNT,DAT_XFER_WIDTH
-	sd_clk_change(addr,sdclk_div);
+	ret = sd_clk_change(addr,sdclk_div);
+	if (ret != BK_OK)
+		return ret;
 
 	if(CARD_IS_EMMC == 1)  //EMMC CARD INIT
 	{
@@ -1527,6 +1532,8 @@ bk_err_t bk_sdio_host_reset(sdio_host_id_t id)
 bk_err_t bk_sdio_host_set_clock(sdio_host_id_t id, uint32_t freq_hz)
 {
 	uint32_t div;
+	bk_err_t ret;
+
 	if (id >= SDIO_HOST_ID_MAX)
 		return BK_ERR_PARAM;
 	if (freq_hz == 0)
@@ -1538,9 +1545,9 @@ bk_err_t bk_sdio_host_set_clock(sdio_host_id_t id, uint32_t freq_hz)
 		div = 0x3ff;
 	sdio_host_lock();
 	sdio_host_select(id);
-	sd_clk_change(s_active_base, (uint16)div);
+	ret = sd_clk_change(s_active_base, (uint16)div);
 	sdio_host_unlock();
-	return BK_OK;
+	return ret;
 }
 
 bk_err_t bk_sdio_host_set_bus_width(sdio_host_id_t id, sdio_host_bus_width2_t width)
@@ -1565,16 +1572,18 @@ bk_err_t bk_sdio_host_set_bus_width(sdio_host_id_t id, sdio_host_bus_width2_t wi
 bk_err_t bk_sdio_host_set_timing(sdio_host_id_t id, sdio_host_timing_t timing)
 {
 	uint8_t uhs;
+	uint8_t ctrl1;
 	bool is_emmc;
+	bool hs_en = false;
 	if (id >= SDIO_HOST_ID_MAX)
 		return BK_ERR_PARAM;
 	is_emmc = s_host_inst[id].is_emmc;
 	switch (timing) {
-	case SDIO_HOST_TIMING_SDR25:     uhs = UHS_MODE_SDR25; break;
+	case SDIO_HOST_TIMING_SDR25:     uhs = UHS_MODE_SDR25; hs_en = true; break;
 	case SDIO_HOST_TIMING_SDR50:     uhs = UHS_MODE_SDR50; break;
 	case SDIO_HOST_TIMING_SDR104:    uhs = UHS_MODE_SDR104; break;
 	case SDIO_HOST_TIMING_DDR50:     uhs = UHS_MODE_DDR50; break;
-	case SDIO_HOST_TIMING_MMC_HS:    uhs = UHS_MODE_EMMC_HS; break;
+	case SDIO_HOST_TIMING_MMC_HS:    uhs = UHS_MODE_EMMC_HS; hs_en = true; break;
 	case SDIO_HOST_TIMING_MMC_DDR:   uhs = UHS_MODE_EMMC_HSDDR; break;
 	case SDIO_HOST_TIMING_MMC_HS200: uhs = UHS_MODE_EMMC_HS200; break;
 	case SDIO_HOST_TIMING_MMC_HS400: uhs = UHS_MODE_EMMC_HS400; break;
@@ -1586,6 +1595,14 @@ bk_err_t bk_sdio_host_set_timing(sdio_host_id_t id, sdio_host_timing_t timing)
 		emmc_card_interface_set(s_active_base, uhs);
 	else
 		sd_card_interface_set(s_active_base, uhs);
+	/* HIGH_SPEED_EN selects the 3.3V High Speed sampling edge. SDR25 here
+	 * is the SDHCI path used for that mode, not UHS-I 1.8V SDR25. */
+	ctrl1 = HOST_CTRL1_R(s_active_base);
+	if (hs_en)
+		ctrl1 |= HIGH_SPEED_EN;
+	else
+		ctrl1 &= (uint8_t)~HIGH_SPEED_EN;
+	HOST_CTRL1_R(s_active_base) = ctrl1;
 	sdio_host_unlock();
 	return BK_OK;
 }
