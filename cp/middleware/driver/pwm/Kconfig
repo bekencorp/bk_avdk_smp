@@ -20,9 +20,5 @@ menu "PWM"
 		bool "Enable pwm test"
 		default y
 
-	config PWM_API_TEST
-		depends on PWM && DRIVER_TEST
-		bool "Enable pwm api test"
-		default n
 endmenu
 
