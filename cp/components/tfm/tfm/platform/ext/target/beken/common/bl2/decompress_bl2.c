@@ -68,6 +68,7 @@ extern void update_wdt(uint32_t val);
  * sector (separate so the confirm flag survives a redo, power-fail safe). 4KB = sector. */
 #define OTA_CTRL_SECTOR_SIZE (4 * 1024)
 #define OTA_WDT_FEED_VAL 0xFFFFu
+#define COMPRESS_BUF_SIZE (COMPRESS_BLOCK_SIZE + 64u)
 
 /* Optional install erase/write read-back checks (debug). Off by default. */
 #ifndef CONFIG_DEBUG_OTA_INSTALL
@@ -79,8 +80,8 @@ struct boot_loader_state;
 
 /* Fixed decode buffers: two 64KB static arrays fit BL2's 512KB RAM and avoid a
  * 64KB os_malloc against the 16KB BL2 heap. */
-static uint8_t s_compressed_buf[COMPRESS_BLOCK_SIZE + 64];
-static uint8_t s_decompressed_buf[COMPRESS_BLOCK_SIZE + 64];
+static uint8_t s_compressed_buf[COMPRESS_BUF_SIZE];
+static uint8_t s_decompressed_buf[COMPRESS_BUF_SIZE];
 
 /* Flash HW encryption is fused (efuse): primary_all must be XTS ciphertext, so the
  * decompressed plaintext is written through the CBUS window (HW AES encrypts on write);
@@ -89,8 +90,16 @@ static uint8_t s_decompressed_buf[COMPRESS_BLOCK_SIZE + 64];
  * Optional CONFIG_DEBUG_OTA_INSTALL: per-block decrypt-window compare after write. */
 static int primary_all_write(uint32_t phy_off, const uint8_t *buf, uint32_t size)
 {
+	if (size == 0 || buf == NULL) {
+		BOOT_LOG_ERR("OTA bad write arg phy=0x%x size=0x%x", phy_off, size);
+		return -1;
+	}
+
 	if (!efuse_is_flash_aes_enabled()) {
-		bk_flash_write_bytes(phy_off, buf, size);
+		if (bk_flash_write_bytes(phy_off, buf, size) != BK_OK) {
+			BOOT_LOG_ERR("OTA DBUS write fail phy=0x%x size=0x%x", phy_off, size);
+			return -1;
+		}
 		return 0;
 	}
 
@@ -190,8 +199,8 @@ static uint8_t read_resume_block(uint32_t back_address)
 		if (curr.index != 0xFF) {
 			CRC8_Update(&crc_8, &curr.index, sizeof(curr.index));
 			CRC8_Update(&crc_8, curr.data, sizeof(curr.data));
-			if (crc_8.crc != curr.crc8.crc) {
-				BOOT_LOG_ERR("resume block=%d crc8 error!", idx);
+			if (crc_8.crc != curr.crc8.crc || curr.index != idx) {
+				BOOT_LOG_ERR("resume block=%d corrupt (crc/index)", idx);
 				return 0xffu;
 			}
 		} else {
@@ -201,7 +210,7 @@ static uint8_t read_resume_block(uint32_t back_address)
 	return idx;
 }
 
-static void write_resume_block(uint8_t idx, uint32_t back_address)
+static int write_resume_block(uint8_t idx, uint32_t back_address)
 {
 	resume_block_t resume_block;
 	CRC8_Context crc_8;
@@ -212,7 +221,12 @@ static void write_resume_block(uint8_t idx, uint32_t back_address)
 	CRC8_Update(&crc_8, resume_block.data, sizeof(resume_block.data));
 	resume_block.index = idx;
 	resume_block.crc8 = crc_8;
-	bk_flash_write_bytes(back_address + idx * sizeof(resume_block_t),(uint8_t *)&resume_block, sizeof(resume_block));
+	if (bk_flash_write_bytes(back_address + idx * sizeof(resume_block_t),
+				 (uint8_t *)&resume_block, sizeof(resume_block)) != BK_OK) {
+		BOOT_LOG_ERR("resume journal write fail idx=%u", idx);
+		return -1;
+	}
+	return 0;
 }
 
 static uint32_t idx_sum(uint16_t *buffer, size_t idx)
@@ -296,15 +310,18 @@ static int flash_area_erase_fast_verify(uint32_t erase_off, uint32_t len)
 #endif
 }
 
-/* Sanity-check the ota_control base before erasing: a bogus offset (0, or below
- * primary_all) would erase the bootloader at flash offset 0 and brick the device. */
-static int ota_ctrl_erase_ok(uint32_t back_address, uint32_t primary_all_phy_offset)
+/* Sanity-check ota_control before erase/write: a bogus offset (0, or below
+ * primary_all) would touch bootloader/primary metadata and brick the device. */
+static int ota_ctrl_layout_ok(uint32_t back_address, uint32_t ota_ctrl_size,
+			      uint32_t primary_all_phy_offset)
 {
-	if (back_address != 0 && back_address >= primary_all_phy_offset) {
+	if (back_address != 0 &&
+	    back_address >= primary_all_phy_offset &&
+	    ota_ctrl_size > OTA_CTRL_SECTOR_SIZE) {
 		return 1;
 	}
-	BOOT_LOG_ERR("ota_control addr 0x%x invalid, skip erase (protect bootloader)",
-		     back_address);
+	BOOT_LOG_ERR("ota_control invalid addr=0x%x size=0x%x",
+		     back_address, ota_ctrl_size);
 	return 0;
 }
 
@@ -319,6 +336,10 @@ static int resume_flash(uint32_t block_num)
 	uint32_t back_address = get_resume_base_address();
 	uint32_t ota_ctrl_size = partition_get_phy_size(PARTITION_OTA_CONTROL);
 	uint32_t primary_magic = 0xffffffffu;
+
+	if (!ota_ctrl_layout_ok(back_address, ota_ctrl_size, primary_all_phy_offset)) {
+		return -1;
+	}
 
 	uint8_t restart_block_idx = read_resume_block(back_address);
 	BOOT_LOG_FORCE("total block=%u, resume block=%u", block_num, restart_block_idx);
@@ -348,20 +369,22 @@ static int resume_flash(uint32_t block_num)
 		 * empty primary (see stale-journal guard above). Journal-first means
 		 * a crash restarts from block 0. Confirm lives in the last sector and
 		 * is intentionally preserved. */
-		if (ota_ctrl_erase_ok(back_address, primary_all_phy_offset)) {
-			flash_area_erase_fast(back_address, ota_ctrl_size - OTA_CTRL_SECTOR_SIZE);
-		}
+		flash_area_erase_fast(back_address, ota_ctrl_size - OTA_CTRL_SECTOR_SIZE);
 		if (flash_area_erase_fast_verify(primary_all_phy_offset, primary_all_phy_size) != 0) {
 			return -1;
 		}
 		return 0;
 	}
 
+	/* Here: 0 < restart <= block_num, and block_num was already capped by
+	 * primary_vir_size/64KB in boot_copy_region, so restart*64KB cannot
+	 * exceed primary (phy >= vir on this platform). */
 	uint32_t restart_block_offset = primary_all_phy_offset + COMPRESS_BLOCK_SIZE * restart_block_idx;
 	uint32_t erase_size = primary_all_phy_size - COMPRESS_BLOCK_SIZE * restart_block_idx;
 	BOOT_LOG_INF("Resume: erase primary off=0x%x size=0x%x",
 		     restart_block_offset, erase_size);
-	if (flash_area_erase_fast_verify(restart_block_offset, erase_size) != 0) {
+	if (erase_size > 0 &&
+	    flash_area_erase_fast_verify(restart_block_offset, erase_size) != 0) {
 		return -1;
 	}
 	return restart_block_idx;
@@ -393,12 +416,20 @@ int boot_copy_region(struct boot_loader_state *state,
 	uint32_t primary_all_vir_size = get_flash_map_size(0);
 	uint32_t primary_all_phy_offset = get_flash_map_offset(0);
 
-	flash_area_read(fap_src, off_src + 8, &ih_hdr_size, sizeof(ih_hdr_size));
+	if (flash_area_read(fap_src, off_src + 8, &ih_hdr_size,
+			    sizeof(ih_hdr_size)) != 0) {
+		BOOT_LOG_ERR("OTA read ih_hdr_size failed");
+		return -1;
+	}
 	if (ih_hdr_size == 0 || ih_hdr_size == 0xffffu) {
 		ih_hdr_size = BL2_HEADER_SIZE;
 	}
 
-	flash_area_read(fap_src, off_src + ih_hdr_size, &block_num, sizeof(block_num));
+	if (flash_area_read(fap_src, off_src + ih_hdr_size, &block_num,
+			    sizeof(block_num)) != 0) {
+		BOOT_LOG_ERR("OTA read block_num failed");
+		return -1;
+	}
 
 	/* Guard a corrupt count before it sizes the VLA / drives the loop
 	 * (the image may be unverified when secure boot is off). */
@@ -412,6 +443,55 @@ int boot_copy_region(struct boot_loader_state *state,
 	uint32_t back_address = get_resume_base_address();
 	uint32_t bytes_copied  = 0;
 	uint8_t block_idx = 0;
+	uint32_t last_block_before_size;
+	uint32_t last_block_after_size;
+	uint32_t compressed_total = 0;
+	uint32_t write_size = 0;
+
+	/* Validate block_list before any primary_all erase. */
+	bytes_copied = ih_hdr_size + (uint32_t)sizeof(block_num);
+	if (flash_area_read(fap_src, off_src + bytes_copied, block_list,
+			    2u * (block_num + 2u)) != 0) {
+		BOOT_LOG_ERR("OTA read block_list failed");
+		return -1;
+	}
+	bytes_copied += 2u * (block_num + 2u);
+
+	for (uint32_t i = 0; i < block_num; i++) {
+		if (block_list[i] == 0) {
+			BOOT_LOG_ERR("OTA bad compressed size[%u]=0, abort",
+				     (unsigned)i);
+			return -1;
+		}
+		compressed_total += block_list[i];
+	}
+
+	last_block_after_size = block_list[block_num];
+	last_block_before_size = block_list[block_num + 1];
+	if (last_block_before_size > 0) {
+		if (last_block_after_size == 0) {
+			BOOT_LOG_ERR("OTA bad last block plain=%u comp=0, abort",
+				     (unsigned)last_block_before_size);
+			return -1;
+		}
+		compressed_total += last_block_after_size;
+		/* Same length used by the final flash write (32B aligned). */
+		write_size = ((last_block_before_size + 31u) / 32u) * 32u;
+	}
+
+	/* Covers both plaintext and the aligned last-block write. */
+	if (block_num * COMPRESS_BLOCK_SIZE + write_size > primary_all_vir_size) {
+		BOOT_LOG_ERR("OTA program size %u exceeds primary_all %u, abort",
+			     (unsigned)(block_num * COMPRESS_BLOCK_SIZE + write_size),
+			     (unsigned)primary_all_vir_size);
+		return -1;
+	}
+	if (bytes_copied + compressed_total > fap_src->fa_size) {
+		BOOT_LOG_ERR("OTA payload exceeds slot meta=%u comp=%u slot=%u",
+			     (unsigned)bytes_copied, (unsigned)compressed_total,
+			     (unsigned)fap_src->fa_size);
+		return -1;
+	}
 
 	/* Overwrite must program primary_all; unprotect once then two-line
 	 * (BK7259SW-2937 keeps flash protected after init for XIP). */
@@ -428,20 +508,20 @@ int boot_copy_region(struct boot_loader_state *state,
 	BOOT_LOG_FORCE("OTA resume done, block=%u", restart_block_idx);
 	int rate_process = (block_num >= 5) ? (int)(block_num / 5) : 1;
 
-	/* Skip [header][uint32 block_num], then read the block_list. */
-	bytes_copied = ih_hdr_size + (uint32_t)sizeof(block_num);
-	flash_area_read(fap_src, off_src + bytes_copied, block_list, 2 * (block_num + 2));
-	bytes_copied += 2 * (block_num + 2);
 	bytes_copied += idx_sum(block_list, restart_block_idx);
 
 	for (block_idx = restart_block_idx; block_idx < block_num; block_idx++) {
 		update_wdt(OTA_WDT_FEED_VAL);
 		clean_buf();
-		flash_area_read(fap_src, off_src + bytes_copied, s_compressed_buf,
-				block_list[block_idx]);
+		if (flash_area_read(fap_src, off_src + bytes_copied, s_compressed_buf, block_list[block_idx]) != 0) {
+			BOOT_LOG_ERR("OTA read compressed block %d failed", block_idx);
+			goto out;
+		}
 
+		/* src_len = compressed bytes; dest_cap = full 64KB block. */
 		uint8_t *r = decompress_in_memory(s_compressed_buf, s_decompressed_buf,
-						  COMPRESS_BLOCK_SIZE, DECOMPRESS_BY_LZMA);
+						  block_list[block_idx], COMPRESS_BLOCK_SIZE,
+						  DECOMPRESS_BY_LZMA);
 		if (r == NULL) {
 			BOOT_LOG_ERR("OTA decompress failed at block %d", block_idx);
 			goto out;
@@ -453,7 +533,9 @@ int boot_copy_region(struct boot_loader_state *state,
 			goto out;
 		}
 		/* Commit: record that block_idx is fully written. */
-		write_resume_block(block_idx, back_address);
+		if (write_resume_block(block_idx, back_address) != 0) {
+			goto out;
+		}
 
 		bytes_copied += block_list[block_idx];
 		if (((block_idx + 1) % rate_process) == 0) {
@@ -461,23 +543,27 @@ int boot_copy_region(struct boot_loader_state *state,
 		}
 	}
 
-	/* Final partial block. */
-	uint16_t last_block_before_size = block_list[block_idx + 1]; /* decompressed */
-	uint16_t last_block_after_size  = block_list[block_idx];     /* compressed   */
-
+	/* Final partial block (plain>0 already implies comp>0 above). */
 	if (last_block_before_size > 0) {
 		update_wdt(OTA_WDT_FEED_VAL);
 		clean_buf();
-		flash_area_read(fap_src, off_src + bytes_copied, s_compressed_buf, last_block_after_size);
+		if (flash_area_read(fap_src, off_src + bytes_copied, s_compressed_buf,
+				    last_block_after_size) != 0) {
+			BOOT_LOG_ERR("OTA read last block failed");
+			goto out;
+		}
+		/* dest_cap = declared plain size of the partial block. */
 		uint8_t *r = decompress_in_memory(s_compressed_buf, s_decompressed_buf,
-						  last_block_after_size, DECOMPRESS_BY_LZMA);
+						  last_block_after_size, last_block_before_size,
+						  DECOMPRESS_BY_LZMA);
 		if (r == NULL) {
 			BOOT_LOG_ERR("OTA decompress failed at last block");
 			goto out;
 		}
 
-		uint16_t write_size = (last_block_before_size + 31) / 32 * 32;
-		if (primary_all_write(primary_all_phy_offset + COMPRESS_BLOCK_SIZE * block_idx, s_decompressed_buf, write_size) != 0) {
+		if (primary_all_write(primary_all_phy_offset +
+				      COMPRESS_BLOCK_SIZE * block_idx,
+				      s_decompressed_buf, write_size) != 0) {
 			BOOT_LOG_ERR("OTA write/verify failed at last block");
 			goto out;
 		}

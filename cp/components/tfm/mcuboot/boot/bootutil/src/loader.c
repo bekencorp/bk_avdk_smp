@@ -1020,6 +1020,7 @@ boot_validate_slot(struct boot_loader_state *state, int slot,
 #endif
 
         /* No bootable image in slot; continue booting from the primary slot. */
+        BOOT_LOG_ERR("No bootable image in slot; continue booting from the primary slot.");
         fih_rc = FIH_NO_BOOTABLE_IMAGE;
         goto out;
     }
@@ -1168,12 +1169,7 @@ done:
 
 #if !defined(MCUBOOT_DIRECT_XIP) && !defined(MCUBOOT_RAM_LOAD)
 /**
- * Determines which swap operation to perform, if any.  If it is determined
- * that a swap operation is required, the image in the secondary slot is checked
- * for validity.  If the image in the secondary slot is invalid, it is erased,
- * and a swap type of "none" is indicated.
- *
- * @return                      The type of swap to perform (BOOT_SWAP_TYPE...)
+ * OVERWRITE_CONFIRM -> TEST; validate secondary, else clear confirm and NONE.
  */
 static int
 boot_validated_swap_type(struct boot_loader_state *state,
@@ -1182,32 +1178,24 @@ boot_validated_swap_type(struct boot_loader_state *state,
     int swap_type;
     FIH_DECLARE(fih_rc, FIH_FAILURE);
 
-    /* Compressed-overwrite: ota slot has no swap trailer. OVERWRITE_CONFIRM in
-     * ota_control arms a TEST swap; boot_copy_region (decompress_bl2.c)
-     * decompresses ota -> primary_all. Secondary is still validated below
-     * (signed), primary_all is validated on the next boot. */
     if (bk_boot_read_ota_confirm(OVERWRITE_CONFIRM)) {
         swap_type = BOOT_SWAP_TYPE_TEST;
     } else {
         swap_type = BOOT_SWAP_TYPE_NONE;
     }
     if (BOOT_IS_UPGRADE(swap_type)) {
-        /* Boot loader wants to switch to the secondary slot.
-         * Always validate (hash at minimum; signature when policy requires).
-         */
         FIH_CALL(boot_validate_slot, fih_rc, state, BOOT_SECONDARY_SLOT, bs);
         if (FIH_NOT_EQ(fih_rc, FIH_SUCCESS)) {
-            BOOT_LOG_ERR("validate encrypted image error");
-            if (FIH_EQ(fih_rc, FIH_NO_BOOTABLE_IMAGE)) {
-                swap_type = BOOT_SWAP_TYPE_NONE;
-            } else {
-                swap_type = BOOT_SWAP_TYPE_FAIL;
-            }
+            BOOT_LOG_ERR("secondary slot validate failed");
+            bk_ota_confirm_clear_if_armed();
+            swap_type = BOOT_SWAP_TYPE_NONE;
         }
     }
-    BOOT_LOG_FORCE("Swap type: %s", swap_type == BOOT_SWAP_TYPE_TEST   ? "test"   :
-                                swap_type == BOOT_SWAP_TYPE_NONE   ? "none"   :
-                                "BUG; can't happen");
+    BOOT_LOG_FORCE("Swap type: %s",
+                   swap_type == BOOT_SWAP_TYPE_TEST ? "test" :
+                   swap_type == BOOT_SWAP_TYPE_NONE ? "none" :
+                   swap_type == BOOT_SWAP_TYPE_FAIL ? "fail" :
+                   "unknown");
     return swap_type;
 }
 #endif
@@ -1858,8 +1846,9 @@ context_boot_go(struct boot_loader_state *state, struct boot_rsp *rsp)
             assert(rc == 0);
             break;
         case BOOT_SWAP_TYPE_FAIL:
-            /* Secondary image was invalid and is now erased; treat as a revert to
-             * primary so we don't retry it next reboot. */
+            /* Secondary invalid / upgrade aborted; do not install. Overwrite
+             * leaves ota staging intact; confirm is cleared by SPE if primary
+             * boots. */
             break;
 
         default:
@@ -1878,7 +1867,9 @@ context_boot_go(struct boot_loader_state *state, struct boot_rsp *rsp)
     /* Pass 3: updates done; re-validate each primary-slot image. */
     FIH_SET(fih_cnt, 0);
     IMAGES_ITER(BOOT_CURR_IMG(state)) {
-        if (BOOT_SWAP_TYPE(state) != BOOT_SWAP_TYPE_NONE) {
+        /* Reload headers only after a real upgrade (TEST/PERM/REVERT). FAIL
+         * must not be treated as success — primary was not overwritten. */
+        if (BOOT_IS_UPGRADE(BOOT_SWAP_TYPE(state))) {
             /* Reload headers so boot_data matches the slots. Passing NULL boot
              * state assumes headers are already in their proper slots (no swap
              * in progress). */
@@ -1887,8 +1878,7 @@ context_boot_go(struct boot_loader_state *state, struct boot_rsp *rsp)
                 FIH_SET(fih_rc, FIH_FAILURE);
                 goto out;
             }
-            /* After reload the bootstrap header info (was secondary) now reflects
-             * the primary slot. */
+            /* After reload the bootstrap header info reflects primary_all. */
         }
 
         /* Always re-validate primary after overwrite: hash is mandatory;
@@ -1905,8 +1895,8 @@ context_boot_go(struct boot_loader_state *state, struct boot_rsp *rsp)
             BOOT_LOG_ERR("Validate primary image fail");
             goto out;
         }
-        /* Pass 3 always re-validates primary; only log success after a real upgrade. */
-        if (BOOT_SWAP_TYPE(state) != BOOT_SWAP_TYPE_NONE) {
+        /* Pass 3 always re-validates primary; only log after a real upgrade. */
+        if (BOOT_IS_UPGRADE(BOOT_SWAP_TYPE(state))) {
             BOOT_LOG_FORCE("Overwrite update success");
         }
 

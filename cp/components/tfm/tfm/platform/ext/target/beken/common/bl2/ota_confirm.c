@@ -17,8 +17,7 @@
  * source, mirroring boot_param_ops.c, so BL2 and the SPE confirm path cannot
  * drift. Uses only flash primitives that exist in both worlds (bk_flash_*,
  * bk_flash_erase_sector, line-mode); erase is deliberately bk_flash_erase_sector
- * (not the BL2-only flash_area_erase_fast). The BL2-only re-arm helper, which
- * needs the MCUboot IMAGE_MAGIC, is guarded out of the SPE build below. */
+ * (not the BL2-only flash_area_erase_fast). */
 
 /* partitions_gen.h -> _ota.h: CONFIG_OTA_CONFIRM_UPDATE, OVERWRITE_CONFIRM and
  * CONFIG_PRIMARY_ALL_PHY_PARTITION_OFFSET. Kept outside the guard so the whole
@@ -129,10 +128,6 @@ int bk_boot_write_ota_confirm(uint32_t value)
      * sector (never the first, which holds the resume journal) before writing. */
     sector = phy_off & ~(OTA_CTRL_SECTOR_SIZE - 1u);
 
-    /* BK7259SW-2937 defers unprotect out of flash init. The anti-brick re-arm
-     * path (primary wiped, confirm missing) reaches here WITHOUT having run
-     * boot_copy_region first, so we must unprotect ourselves; otherwise
-     * erase/program are ignored and verify fails with magic still 0xFFFFFFFF. */
     bk_flash_min_unprotect_once();
     bk_flash_min_switch_line_mode_two();
     while (retry--) {
@@ -161,8 +156,6 @@ void bk_ota_confirm_clear_if_armed(void)
     if (phy_off == 0 || phy_off < CONFIG_PRIMARY_ALL_PHY_PARTITION_OFFSET) {
         return;
     }
-    /* Clear only after a real install (armed record present); skip on a normal
-     * boot so we neither wear the sector nor touch flash needlessly. */
     if (!bk_boot_read_ota_confirm(OVERWRITE_CONFIRM)) {
         return;
     }
@@ -173,27 +166,5 @@ void bk_ota_confirm_clear_if_armed(void)
     bk_flash_erase_sector(sector);
     bk_flash_min_restore_line_mode();
 }
-
-/* Anti-brick re-arm needs the MCUboot image magic, which only exists in the BL2
- * build. Guard the whole helper out of the SPE build (which never calls it). */
-#if defined(CONFIG_ENABLE_MCUBOOT_BL2)
-#include "bootutil/image.h"
-
-void bk_boot_rearm_ota_confirm_if_valid(void)
-{
-    uint32_t ota_off = partition_get_phy_offset(PARTITION_OTA);
-    uint32_t ota_magic = 0;
-
-    if (ota_off != 0 &&
-        bk_flash_read_bytes(ota_off, (uint8_t *)&ota_magic, sizeof(ota_magic)) == BK_OK &&
-        ota_magic == IMAGE_MAGIC) {
-        OTA_CONFIRM_ERR("APP invalid, re-arm compressed-overwrite install");
-        bk_boot_write_ota_confirm(OVERWRITE_CONFIRM);
-    } else {
-        OTA_CONFIRM_ERR("APP invalid, ota staging has no valid image (magic=%#x), skip re-arm",
-                        (unsigned int)ota_magic);
-    }
-}
-#endif /* CONFIG_ENABLE_MCUBOOT_BL2 */
 
 #endif /* CONFIG_OTA_CONFIRM_UPDATE */

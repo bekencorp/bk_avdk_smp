@@ -48,16 +48,8 @@ bool bk_boot_read_ota_confirm(uint32_t value);
  * (plain int so callers need no Beken type dependency). */
 int bk_boot_write_ota_confirm(uint32_t value);
 
-/* SPE confirm-on-boot: clear the confirm record ONLY when it is armed
- * (OVERWRITE_CONFIRM present and valid), so a normal boot never wears the
- * sector. Mirrors XIP boot_param_confirm(); call from TF-M once the freshly
- * installed image has reached the secure world. */
+/* Erase confirm sector if armed. Used by SPE (boot ok) and BL2 (OTA verify fail). */
 void bk_ota_confirm_clear_if_armed(void);
-
-/* Anti-brick (BL2 only): when boot_go() finds no bootable primary, re-arm the
- * install iff the ota staging slot still holds a valid MCUboot image header, so
- * an empty/corrupt staging slot cannot loop erase -> decompress-garbage -> fail. */
-void bk_boot_rearm_ota_confirm_if_valid(void);
 
 #ifdef __cplusplus
 }
