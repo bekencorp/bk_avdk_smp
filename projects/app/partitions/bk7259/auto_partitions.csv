@@ -1,6 +1,6 @@
 # BK7259 flash does not insert CRC data for code partitions,,,,,
 # The occupied space is the configured partition size; bootloader is 64K (0x10000),,,,
-FLASH_CAPACITY=16M
+FLASH_CAPACITY=8M
 #Name,Offset,Size,Type,Read,Write
 primary_bootloader,,64k,code,TRUE,FALSE
 primary_cp_app,,1900k,code,TRUE,FALSE
@@ -9,5 +9,5 @@ ota,,1900K,data,TRUE,TRUE
 usr_config,,60K,data,TRUE,TRUE
 easyflash,,8K,data,TRUE,TRUE
 easyflash_ap,,8K,data,TRUE,TRUE
-sys_rf,0xFFE000,4k,data,TRUE,TRUE
-sys_net,0xFFF000,4k,data,TRUE,TRUE
+sys_rf,0x7FE000,4k,data,TRUE,TRUE
+sys_net,0x7FF000,4k,data,TRUE,TRUE
