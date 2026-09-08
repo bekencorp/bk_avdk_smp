@@ -73,8 +73,8 @@ static uint32_t ota_bp_partition_base(void)
 	return part->partition_start_addr;
 }
 
-/* Clear shared reboot/try counter after a successful TRIAL confirm (same field
- * as BL2 boot_param_pmu_try_clear). */
+/* Clear shared AON try counter (same field as BL2 boot_param_pmu_try_clear).
+ * Used when arming a new TRIAL and after a successful confirm. */
 static void ota_bp_pmu_try_clear(void)
 {
 	uint32_t r7b = aon_pmu_ll_get_r7b();
@@ -137,6 +137,9 @@ int ota_boot_param_set_trial(uint8_t update_slot)
 		OTA_LOGE("boot_param commit failed: %d\r\n", write_idx);
 		return -1;
 	}
+
+	/* AON try survives warm reboot; reset so the new TRIAL gets a full try_max budget. */
+	ota_bp_pmu_try_clear();
 
 	OTA_LOGI("boot_param trial armed: exec=%u update=%u try_max=%u\r\n",
 			 rec.exec_slot, rec.update_slot, rec.try_max);
