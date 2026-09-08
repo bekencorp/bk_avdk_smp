@@ -29,6 +29,7 @@
 #include "bk_private/bk_ota_private.h"
 #include "CheckSumUtils.h"
 #include "ota_boot_param.h"
+#include "security.h"   /* CEIL_ALIGN_34 */
 
 #define SECURE_XIP_GLOBAL_HDR_LEN   32u
 #define SECURE_XIP_IMG_HDR_LEN      32u
@@ -146,28 +147,42 @@ static int secure_xip_parse_headers(void)
 	return BK_OK;
 }
 
-/* Backend .wr_flash: write one buffered chunk (<=1K, never crossing a 4K
- * sector) to the inactive slot with erase-on-sector-boundary and read-back
- * verify. Registered in s_ota_secure_xip_fun and invoked via the wr_callback
- * that ota.c hands to data_process. */
+/* Backend .wr_flash: stage one buffered chunk to the inactive slot with
+ * erase-on-sector-entry and read-back verify. CEIL_ALIGN_34 may start mid-
+ * sector, so a 1K buffer can cross a 4K boundary — split and erase each
+ * sector before writing into it. */
 static int secure_xip_wr_flash(f_ota_t *ota_ptr, uint16_t wlen)
 {
-	if (s_secure_xip.write_addr % FLASH_SECTOR_SIZE == 0) {
-		if (bk_flash_erase_sector(s_secure_xip.write_addr) != BK_OK) {
-			OTA_LOGE("secure xip: erase fail @0x%x\r\n", s_secure_xip.write_addr);
+	uint32_t addr = s_secure_xip.write_addr;
+	uint32_t off = 0;
+
+	while (off < wlen) {
+		uint32_t sector_addr = addr & ~(FLASH_SECTOR_SIZE - 1u);
+		uint32_t in_sector   = addr - sector_addr;
+		uint32_t room        = FLASH_SECTOR_SIZE - in_sector;
+		uint32_t chunk       = MIN((uint32_t)(wlen - off), room);
+
+		/* First payload byte may sit mid-sector (CRC pad); erase that sector
+		 * once. Later entries hit in_sector==0 at each new sector. */
+		if (in_sector == 0 || addr == s_secure_xip.update_slot_base) {
+			if (bk_flash_erase_sector(sector_addr) != BK_OK) {
+				OTA_LOGE("secure xip: erase fail @0x%x\r\n", sector_addr);
+				return BK_FAIL;
+			}
+		}
+		if (bk_flash_write_bytes(addr, ota_ptr->wr_buf + off, chunk) != BK_OK) {
+			OTA_LOGE("secure xip: write fail @0x%x\r\n", addr);
 			return BK_FAIL;
 		}
+		bk_flash_read_bytes(addr, ota_ptr->rd_buf, chunk);
+		if (os_memcmp(ota_ptr->wr_buf + off, ota_ptr->rd_buf, chunk) != 0) {
+			OTA_LOGE("secure xip: verify fail @0x%x len 0x%x\r\n", addr, chunk);
+			return BK_FAIL;
+		}
+		addr += chunk;
+		off  += chunk;
 	}
-	if (bk_flash_write_bytes(s_secure_xip.write_addr, ota_ptr->wr_buf, wlen) != BK_OK) {
-		OTA_LOGE("secure xip: write fail @0x%x\r\n", s_secure_xip.write_addr);
-		return BK_FAIL;
-	}
-	bk_flash_read_bytes(s_secure_xip.write_addr, ota_ptr->rd_buf, wlen);
-	if (os_memcmp(ota_ptr->wr_buf, ota_ptr->rd_buf, wlen) != 0) {
-		OTA_LOGE("secure xip: verify fail @0x%x len 0x%x\r\n", s_secure_xip.write_addr, wlen);
-		return BK_FAIL;
-	}
-	s_secure_xip.write_addr += wlen;
+	s_secure_xip.write_addr = addr;
 	return BK_OK;
 }
 
@@ -237,10 +252,38 @@ static int secure_xip_resolve_slot(uint8_t *running)
 	run      = (uint8_t)(bk_ota_get_current_partition() & 0x1);   /* 0=A, 1=B */
 	inactive = run ^ 1u;
 
-	s_secure_xip.update_slot      = inactive;
-	s_secure_xip.update_slot_size = secondary->partition_start_addr - primary->partition_start_addr;
-	s_secure_xip.update_slot_base = (inactive == 0) ? primary->partition_start_addr
-													: secondary->partition_start_addr;
+	s_secure_xip.update_slot = inactive;
+	{
+		uint32_t raw_base;
+		uint32_t raw_size;
+		uint32_t pad;
+
+#if defined(CONFIG_PRIMARY_ALL_PHY_PARTITION_OFFSET) && \
+    defined(CONFIG_SECONDARY_ALL_PHY_PARTITION_OFFSET) && \
+    defined(CONFIG_PRIMARY_ALL_PHY_PARTITION_SIZE)
+		raw_base = (inactive == 0) ? CONFIG_PRIMARY_ALL_PHY_PARTITION_OFFSET
+								   : CONFIG_SECONDARY_ALL_PHY_PARTITION_OFFSET;
+		raw_size = CONFIG_PRIMARY_ALL_PHY_PARTITION_SIZE;
+#else
+		raw_base = (inactive == 0) ? primary->partition_start_addr
+								   : secondary->partition_start_addr;
+		raw_size = secondary->partition_start_addr - primary->partition_start_addr;
+#endif
+		/* Align write base to 34B CRC unit; pad stays 0xFF, usable size shrinks. */
+		s_secure_xip.update_slot_base = CEIL_ALIGN_34(raw_base);
+		pad = s_secure_xip.update_slot_base - raw_base;
+		if (raw_size <= pad) {
+			OTA_LOGE("secure xip: slot%u too small after CRC align (size 0x%x pad %u)\r\n",
+					 inactive, raw_size, pad);
+			return BK_FAIL;
+		}
+		s_secure_xip.update_slot_size = raw_size - pad;
+		if (pad != 0) {
+			OTA_LOGI("secure xip: CRC-align slot%u 0x%x -> 0x%x (pad %u, usable 0x%x)\r\n",
+					 inactive, raw_base, s_secure_xip.update_slot_base,
+					 pad, s_secure_xip.update_slot_size);
+		}
+	}
 	*running = run;
 	return BK_OK;
 }

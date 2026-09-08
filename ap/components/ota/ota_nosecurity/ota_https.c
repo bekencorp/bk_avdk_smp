@@ -216,8 +216,7 @@ int bk_https_ota_download(const char *url)
 	ota_do_deinit_operation();
 	bk_reboot();
 #else
-	BK_LOGI(TAG, "ota_success, rebooting\r\n");
-	BK_LOG_FLUSH();
+	BK_LOGI(TAG, "download complete, finalizing\r\n");
 	bk_ota_finish_and_reboot();
 #endif
 	}

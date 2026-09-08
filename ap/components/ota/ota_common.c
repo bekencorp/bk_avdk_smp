@@ -473,7 +473,9 @@ int bk_ota_process_data(char*receive_data, uint32_t len, uint32_t received, uint
 {
 	if(s_ota_data_process != NULL)
 	{
-		s_ota_data_process(receive_data, len, received, total);
+		/* Propagate backend fail (e.g. flash write) so HTTP aborts instead of
+		 * reporting download success on a half-written image. */
+		return s_ota_data_process(receive_data, len, received, total);
 	}
 	return 0;
 }

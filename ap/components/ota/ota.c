@@ -94,6 +94,8 @@ void bk_ota_finish_and_reboot(void)
 		}
 	}
 
+	OTA_LOGI("ota_success, rebooting\r\n");
+	BK_LOG_FLUSH();
 	ota_do_deinit_operation();
 	bk_reboot();
 }
