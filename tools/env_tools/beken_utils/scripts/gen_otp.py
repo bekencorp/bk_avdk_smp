@@ -82,9 +82,9 @@ def gen_otp_efuse_config_file(aes_type, flash_aes_key, pubkey_pem_file, securebo
         bl1_pk_hash = hash_dict['bl1_rotpk_hash']
         bl2_pk_hash = hash_dict['bl2_rotpk_hash']
 
-        otp_efuse_config["Security_Ctrl"][0].update({"secure_boot_enable":"0,0,1"})
-        otp_efuse_config["Security_Ctrl"][0].update({"boot_mode":"0,3,1"})
-        otp_efuse_config["Security_Ctrl"][0].update({"direct_jump_enable":"0,6,1"})
+        # otp_efuse_config["Security_Ctrl"][0].update({"secure_boot_enable":"0,0,1"})
+        # otp_efuse_config["Security_Ctrl"][0].update({"boot_mode":"0,3,1"})
+        # otp_efuse_config["Security_Ctrl"][0].update({"direct_jump_enable":"0,6,1"})
 
         data = data.copy()
         data["name"] = "bl1_rotpk_hash"

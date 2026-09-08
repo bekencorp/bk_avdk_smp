@@ -35,16 +35,19 @@ def pack_all(config_dir):
         bl1_sign('sign', s.bl1_root_key_type, s.bl1_root_privkey, s.bl1_root_pubkey, None, pbl2.bin_name, pbl2.load_addr, pbl2.static_addr, 'primary_manifest.bin')
 
         pall = p.find_partition_by_name('primary_all')
-        bl2_sign('sign', s.bl2_root_key_type, s.bl2_root_privkey, s.bl2_root_pubkey, None, 'primary_all_code.bin', pall.vir_sign_size, '0.0.1', o.get_app_security_counter(), 'primary_all_code_signed.bin', 'app_hash.json')
+        # No --pad: swap trailer unused with DIRECT_XIP_REVERT off + boot_param.
+        bl2_sign('sign', s.bl2_root_key_type, s.bl2_root_privkey, s.bl2_root_pubkey, None, 'primary_all_code.bin', pall.vir_sign_size, '0.0.1', o.get_app_security_counter(), 'primary_all_code_signed.bin', 'app_hash.json', pad=False)
 
         if (ota_type == 'OVERWRITE'):
             compress_bin('primary_all_code_signed.bin', 'compress.bin')
             pota = p.find_partition_by_name('ota')
-            bl2_sign('sign', s.bl2_root_key_type, s.bl2_root_privkey, s.bl2_root_pubkey, None, 'compress.bin', pota.partition_size, '0.0.1', o.get_app_security_counter(), 'ota_signed.bin', 'ota_hash.json')
+            bl2_sign('sign', s.bl2_root_key_type, s.bl2_root_privkey, s.bl2_root_pubkey, None, 'compress.bin', pota.partition_size, '0.0.1', o.get_app_security_counter(), 'ota_signed.bin', 'ota_hash.json', pad=False)
         elif (ota_type == 'XIP'):
             pota = p.find_partition_by_name('primary_all')
             app_version = o.get_version()
-            bl2_sign('sign', s.bl2_root_key_type, s.bl2_root_privkey, s.bl2_root_pubkey, None, 'primary_all_code.bin', pall.vir_sign_size, app_version, o.get_app_security_counter(), 'ota_signed.bin', 'ota_hash.json')
+            bl2_sign('sign', s.bl2_root_key_type, s.bl2_root_privkey, s.bl2_root_pubkey, None, 'primary_all_code.bin', pall.vir_sign_size, app_version, o.get_app_security_counter(), 'ota_signed.bin', 'ota_hash.json', pad=False)
 
-    p.pack_bin('pack.json', s.flash_aes_type, s.flash_aes_key, o.get_app_security_counter(),o.get_encrypt())
+    # OTA AES follows flash AES: only FIXED has a software key to pre-encrypt OTA.
+    p.pack_bin('pack.json', s.flash_aes_type, s.flash_aes_key, o.get_app_security_counter(),
+               s.is_flash_aes_fixed())
     p.install_bin()

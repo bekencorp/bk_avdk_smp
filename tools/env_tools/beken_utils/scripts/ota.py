@@ -7,10 +7,12 @@ from .parse_csv import *
 
 ota_keys = [
     'strategy',
-    'encrypt'
     'app_security_counter',
-    'app_version'
+    'app_version',
 ]
+
+# Optional legacy field (ignored by pack/gen): encrypt.
+# OTA AES is derived from security.csv flash_aes_type (FIXED).
 
 class OTA(list):
 
@@ -27,6 +29,9 @@ class OTA(list):
         return self.csv.dic['strategy']
 
     def get_encrypt(self):
+        # Deprecated. Prefer Security.is_flash_aes_fixed(). Kept for old CSVs.
+        if 'encrypt' not in self.csv.dic:
+            return False
         return (self.csv.dic['encrypt'].upper() == 'TRUE')
 
     def get_version(self):

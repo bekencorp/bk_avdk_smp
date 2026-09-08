@@ -110,12 +110,13 @@ def gen_security_command(security_csv, outfile, debug):
 
 @gen.command("ota")
 @click.option("--ota_csv", type=click.Path(exists=True, dir_okay=False), required=False, default='ota.csv', help="OTA CSV file.")
+@click.option("--security_csv", type=click.Path(exists=True, dir_okay=False), required=False, default='security.csv', help="Security CSV file (CONFIG_OTA_ENCRYPTED follows flash_aes_type).")
 @click.option("--outfile", type=str, required=False, default='_ota.h', help="Output file")
 @click.option("--debug", is_flag=True, help="Enable debug")
-def gen_ota_command(ota_csv, outfile, debug):
+def gen_ota_command(ota_csv, security_csv, outfile, debug):
     """gen ota.h from ota.csv."""
     set_debug(debug)
-    gen_ota_config_file(ota_csv, outfile)
+    gen_ota_config_file(ota_csv, outfile, security_csv)
 
 @gen.command("otp")
 @click.option("--otp_csv", type=click.Path(exists=True, dir_okay=False), required=False, default='otp2.csv', help="OTP CSV file.")

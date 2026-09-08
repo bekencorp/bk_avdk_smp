@@ -2,11 +2,13 @@
 
 import logging
 from .ota import *
+from .security import Security
 from .gen_license import get_license
 from .common import *
 
-def gen_ota_config_file(ota_csv, outfile):
+def gen_ota_config_file(ota_csv, outfile, security_csv='security.csv'):
     ota = OTA(ota_csv)
+    security = Security(security_csv)
     f = open(outfile, 'w+')
     logging.debug(f'Create {outfile}')
     f.write(get_license())
@@ -48,8 +50,9 @@ def gen_ota_config_file(ota_csv, outfile):
         line = f'#define %-45s %d\n' %(macro_name, 0)
         f.write(line)
 
+    # Follow security.csv flash_aes_type (FIXED); ignore ota.csv encrypt.
     macro_name = f'CONFIG_OTA_ENCRYPTED'
-    if ota.get_encrypt():
+    if security.is_flash_aes_fixed():
         line = f'#define %-45s %d\n' %(macro_name, 1)
         f.write(line)
     else:

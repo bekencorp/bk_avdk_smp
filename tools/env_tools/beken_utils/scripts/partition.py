@@ -523,20 +523,12 @@ class Partition:
             crc(self.aes_bin_name, self.crc_bin_name)
             partition_hdr_pad_size = self.partition_hdr_pad_size
 
-            if self.is_xip() and self.is_primary:
-                all_bin_pack = self.crc_bin_name
-                with open(all_bin_pack,'rb+') as f:
-                    xip_status_phy_offset = ceil_align((self.partition_offset + self.partition_size - 4096),34)
-                    phy_bin_offset = xip_status_phy_offset - self.phy_partition_offset
-                    f.seek(0, os.SEEK_END)  # set file pointer to the end of file.
-                    end_pos = f.tell()      # get postion of end of file
-                    offset = phy_bin_offset - end_pos
-                    if offset < 0:
-                        raise RuntimeError(f"file {self.file_name_prefix} don't have enough space.")
-                    f.write(bytes([0xff]) * offset) # padding 0xff
-                    f.write(b'\xEF\xBE\xAD\xDE')
-                    f.seek(phy_bin_offset + 32)
-                    f.write(b'\xEF\xBE\xAD\xDE')
+            # NOTE: the legacy XIP "status magic" (0xDEADBEEF, written twice at the
+            # last 4KB of the primary_all slot) has been removed. It is dead when
+            # A/B selection uses boot_param (ABF1 / boot_get_active_slot_hook): the
+            # only consumer was DIRECT_XIP_REVERT's boot_select_or_erase(), which is
+            # compiled out (MCUBOOT_DIRECT_XIP_REVERT=OFF). Dropping it also stops
+            # padding primary_all to the full slot in all-app.bin.
 
         self.bin_size = os.path.getsize(self.crc_bin_name) + partition_hdr_pad_size
         logging.debug(f'{self.bin_name}: bin_size={self.bin_size}, pad_hdr_size={partition_hdr_pad_size} {self.partition_hdr_pad_size}')
@@ -1251,6 +1243,7 @@ class Partitions:
         ota_sign_bin = 'ota_signed.bin'
         ota_partition = self.find_partition_by_name("primary_all")
 
+        # AES is optional; Flash CRC packing is always required for XIP OTA.
         if ota_aes_en:
             aes_bin_name = "ota_aes.bin"
 
@@ -1258,10 +1251,11 @@ class Partitions:
             start_address = hex(phy2virtual(ota_partition.phy_partition_offset))
             cmd = f'{aes_tool} encrypt -infile {ota_sign_bin} -keywords {aes_key} -outfile {aes_bin_name} -startaddress {start_address}'
             run_cmd_not_check_ret(cmd)
-            crc_bin_name = f'ota_aes_crc.bin'
-            crc(aes_bin_name, crc_bin_name)
+            ota_sign_bin = aes_bin_name
 
-            ota_sign_bin = crc_bin_name
+        crc_bin_name = 'ota_aes_crc.bin' if ota_aes_en else 'ota_crc.bin'
+        crc(ota_sign_bin, crc_bin_name)
+        ota_sign_bin = crc_bin_name
 
         size = os.path.getsize(ota_sign_bin)
 

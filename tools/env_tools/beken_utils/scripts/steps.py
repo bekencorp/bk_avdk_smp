@@ -51,7 +51,7 @@ def get_app_bin_hash():
     bl1_sign('hash', s.bl1_root_key_type, s.bl1_root_privkey, s.bl1_root_pubkey, None, pbl2.bin_name, pbl2.load_addr, pbl2.static_addr, 'primary_manifest.bin')
 
     pall = p.find_partition_by_name('primary_all')
-    bl2_sign('hash', s.bl2_root_key_type, s.bl2_root_privkey, s.bl2_root_pubkey, None, 'primary_all_code.bin', pall.vir_sign_size, '0.0.1', o.get_app_security_counter(), 'primary_all_code_signed.bin', 'app_hash.json')
+    bl2_sign('hash', s.bl2_root_key_type, s.bl2_root_privkey, s.bl2_root_pubkey, None, 'primary_all_code.bin', pall.vir_sign_size, '0.0.1', o.get_app_security_counter(), 'primary_all_code_signed.bin', 'app_hash.json', pad=False)
 
 #Step2 - generate signature from app/manifest hash, do it in server has private key
 def sign_app_bin_hash():
@@ -76,7 +76,7 @@ def sign_from_app_sig():
 
     app_sig = get_app_sig('app_sig.json')
     pall = p.find_partition_by_name('primary_all')
-    bl2_sign('sign_from_sig', s.bl2_root_key_type, s.bl2_root_privkey, s.bl2_root_pubkey, app_sig, 'primary_all_code.bin', pall.vir_sign_size, '0.0.1', o.get_app_security_counter(), 'primary_all_code_signed.bin', 'app_hash.json')
+    bl2_sign('sign_from_sig', s.bl2_root_key_type, s.bl2_root_privkey, s.bl2_root_pubkey, app_sig, 'primary_all_code.bin', pall.vir_sign_size, '0.0.1', o.get_app_security_counter(), 'primary_all_code_signed.bin', 'app_hash.json', pad=False)
 
 #Step4 - get hash of ota binary
 def get_ota_bin_hash():
@@ -90,7 +90,7 @@ def get_ota_bin_hash():
     if (ota_type == 'OVERWRITE'):
         compress_bin('primary_all_code_signed.bin', 'compress.bin')
         pota = p.find_partition_by_name('ota')
-        bl2_sign('hash', s.bl2_root_key_type, s.bl2_root_privkey, s.bl2_root_pubkey, None, 'compress.bin', pota.partition_size, '0.0.1', o.get_app_security_counter(), 'ota_signed.bin', 'ota_hash.json')
+        bl2_sign('hash', s.bl2_root_key_type, s.bl2_root_privkey, s.bl2_root_pubkey, None, 'compress.bin', pota.partition_size, '0.0.1', o.get_app_security_counter(), 'ota_signed.bin', 'ota_hash.json', pad=False)
 
 #Step5 - generate signature from ota bin hash, do it in server has private key
 def sign_ota_bin_hash():
@@ -112,7 +112,7 @@ def sign_from_ota_sig():
     ota_sig = get_app_sig('ota_sig.json')
     if (ota_type == 'OVERWRITE'):
         pota = p.find_partition_by_name('ota')
-        bl2_sign('sign_from_sig', s.bl2_root_key_type, s.bl2_root_privkey, s.bl2_root_pubkey, ota_sig, 'compress.bin', pota.partition_size, '0.0.1', o.get_app_security_counter(), 'ota_signed.bin', 'ota_hash.json')
+        bl2_sign('sign_from_sig', s.bl2_root_key_type, s.bl2_root_privkey, s.bl2_root_pubkey, ota_sig, 'compress.bin', pota.partition_size, '0.0.1', o.get_app_security_counter(), 'ota_signed.bin', 'ota_hash.json', pad=False)
 
 #Step7 - pack download bin
 def steps_pack():
@@ -121,6 +121,8 @@ def steps_pack():
     s = Security('security.csv')
     ota_type = o.get_strategy()
     p = Partitions('partitions.csv', ota_type, s.secureboot_en)
-    p.pack_bin('pack.json', s.flash_aes_type, s.flash_aes_key, o.get_app_security_counter(),o.get_encrypt())
+    # OTA AES follows flash AES: only FIXED has a software key to pre-encrypt OTA.
+    p.pack_bin('pack.json', s.flash_aes_type, s.flash_aes_key, o.get_app_security_counter(),
+               s.is_flash_aes_fixed())
     insert_pk_hash('bootloader.bin', s.bl2_root_pubkey)
     p.install_bin()
