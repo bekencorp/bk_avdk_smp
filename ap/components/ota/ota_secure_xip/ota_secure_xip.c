@@ -215,13 +215,18 @@ static void secure_xip_log_progress(void)
 }
 
 /* Resolve the staging (inactive) slot into s_secure_xip: it is the slot opposite
- * the one currently running (HW XIP remap). The two XIP slots are contiguous and
- * equal-sized, so the gap between their bases is the per-slot size.
+ * the one currently running (HW XIP remap).
+ *
+ * On bk7258 (no TFM) the DIRECT_XIP A/B image is the merged primary_all /
+ * secondary_all (CP+AP). Those merged names are not in the AP partition enum;
+ * their bases are primary_cp_app / secondary_cp_app, exposed as
+ * BK_PARTITION_APPLICATION / BK_PARTITION_APPLICATION2. Slots are equal-sized
+ * and contiguous, so the gap between bases is the per-slot (primary_all) size.
  * @return BK_OK, filling *running with the live slot; BK_FAIL if partitions miss. */
 static int secure_xip_resolve_slot(uint8_t *running)
 {
-	bk_logic_partition_t *primary   = bk_flash_partition_get_info(BK_PARTITION_PRIMARY_TFM_S);
-	bk_logic_partition_t *secondary = bk_flash_partition_get_info(BK_PARTITION_SECONDARY_TFM_S);
+	bk_logic_partition_t *primary   = bk_flash_partition_get_info(BK_PARTITION_APPLICATION);
+	bk_logic_partition_t *secondary = bk_flash_partition_get_info(BK_PARTITION_APPLICATION2);
 	uint8_t run, inactive;
 
 	if (primary == NULL || secondary == NULL) {
