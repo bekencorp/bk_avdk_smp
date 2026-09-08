@@ -14,6 +14,8 @@
 
 #pragma once
 
+#include <stdint.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -32,6 +34,8 @@ extern "C" {
  */
 
 #define NETIF_IP4_STR_LEN 16      /**< IP4 string length */
+#define NETIF_IP6_ADDR_LEN 16     /**< IP6 address length */
+#define NETIF_IP6_STR_LEN 40      /**< IP6 string length */
 
 #define BK_ERR_NETIF_IF      (BK_ERR_NETIF_BASE - 1)  /**< Invalid interface ID */
 
@@ -50,8 +54,9 @@ typedef enum {
 
 typedef enum {
 	EVENT_NETIF_GOT_IP4, /**< Netif get IP4 event */
-	EVENT_NETIF_GOT_IP6, /**< Netif get IP6 event */
 	EVENT_NETIF_DHCP_TIMEOUT, /**get IP4 addr timeout, 20s**/
+	EVENT_NETIF_GOT_IP6_LL, /**< Netif get IP6 link-local event */
+	EVENT_NETIF_GOT_IP6_GLOBAL, /**< Netif get IP6 global or ULA event */
 } netif_event_t;
 
 typedef struct {
@@ -68,13 +73,9 @@ typedef struct {
 
 #define NETIF_MAX_IPV6_ADDRESSES 3
 typedef struct {
-	netif_if_t netif_if;
-	uint8_t addr_count;
-	struct {
-		uint8_t address[16];
-		uint8_t addr_state;
-		uint8_t addr_type;
-	} ipv6_addr[NETIF_MAX_IPV6_ADDRESSES];
+	netif_if_t netif_if;               /**< Netif interface ID */
+	char ip[NETIF_IP6_STR_LEN];        /**< IPv6 address string, for debug */
+	uint8_t addr_idx;                  /**< IPv6 address index in netif */
 } netif_event_got_ip6_t;
 
 /**

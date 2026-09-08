@@ -11,6 +11,10 @@
 #include <lwip/dhcp.h>
 #include "lwip/prot/dhcp.h"
 #include "lwip/apps/mdns.h"
+#if defined(CONFIG_IPV6) && defined(CONFIG_RIO)
+#include "ip6_route_hook/ip6_route_table.h"
+#include "lwip/priv/nd6_priv.h"
+#endif
 
 #include <lwip/sockets.h>
 #include "wlanif.h"
@@ -408,12 +412,8 @@ static void wm_netif_status_static_callback(struct netif *n)
 {
 	if (n->flags & NETIF_FLAG_UP) {
 		if (n == &g_mlan.netif) {
-#if CONFIG_WIFI_VNET_CONTROLLER
-			LWIP_LOGD("using static ip...\n");
 			LWIP_LOGD("ip_addr: "BK_IP4_FORMAT" \r\n", BK_IP4_STR(ip_addr_get_ip4_u32(&n->ip_addr)));
-#else
-			LWIP_LOGD("using static ip...\n");
-			LWIP_LOGD("ip_addr: "BK_IP4_FORMAT" \r\n", BK_IP4_STR(ip_addr_get_ip4_u32(&n->ip_addr)));
+#if !CONFIG_WIFI_VNET_CONTROLLER
 			//wifi_netif_notify_sta_got_ip();
 #endif
 
@@ -1562,7 +1562,11 @@ int net_configure_ipv6_address(struct ipv6_config *ipv6_addrs, int addr_count, v
 
 	if (!netif_is_up(&if_handle->netif)) {
 		LWIP_LOGD("netif is down, setting it up for IPv6\n");
-		return BK_FAIL;
+		netifapi_netif_set_up(&if_handle->netif);
+	}
+	if (if_handle == &g_mlan) {
+		netifapi_netif_set_link_up(&if_handle->netif);
+		netifapi_netif_set_default(&if_handle->netif);
 	}
 
 	/* Clear all global addresses (index 1+) before adding new ones
@@ -1625,6 +1629,93 @@ int net_configure_ipv6_address(struct ipv6_config *ipv6_addrs, int addr_count, v
 
 	return 0;
 }
+
+int net_configure_ipv6_gateway(const uint8_t gateway[16], const uint8_t gateway_mac[6],
+	uint32_t lifetime, void *intrfc_handle)
+{
+#if defined(CONFIG_RIO)
+struct iface *if_handle = (struct iface *)intrfc_handle;
+ip6_addr_t gw;
+bk_route_entry_t route;
+int i;
+int neighbor_idx = -1;
+int empty_idx = -1;
+
+if (!if_handle || !gateway || !gateway_mac)
+return -1;
+
+os_memset(&gw, 0, sizeof(gw));
+os_memcpy(gw.addr, gateway, 16);
+ip6_addr_assign_zone(&gw, IP6_UNICAST, &if_handle->netif);
+
+os_memset(&route, 0, sizeof(route));
+route.netif = &if_handle->netif;
+route.gateway = gw;
+route.prefix_length = 0;
+route.preference = 0;
+route.lifetime_seconds = lifetime ? lifetime : UINT32_MAX;
+
+LOCK_TCPIP_CORE();
+if (!bk_route_table_add_route_entry(&route)) {
+UNLOCK_TCPIP_CORE();
+LWIP_LOGE("failed to add IPv6 default route via %s\n", ip6addr_ntoa(&gw));
+return -1;
+}
+
+for (i = 0; i < LWIP_ND6_NUM_NEIGHBORS; i++) {
+if (ip6_addr_cmp(&neighbor_cache[i].next_hop_address, &gw)) {
+neighbor_idx = i;
+break;
+}
+if (empty_idx < 0 && neighbor_cache[i].state == ND6_NO_ENTRY)
+empty_idx = i;
+}
+
+if (neighbor_idx < 0)
+neighbor_idx = empty_idx;
+
+if (neighbor_idx < 0) {
+UNLOCK_TCPIP_CORE();
+LWIP_LOGE("no IPv6 neighbor cache slot for gateway %s\n", ip6addr_ntoa(&gw));
+return -1;
+}
+
+ip6_addr_set(&neighbor_cache[neighbor_idx].next_hop_address, &gw);
+neighbor_cache[neighbor_idx].netif = &if_handle->netif;
+os_memcpy(neighbor_cache[neighbor_idx].lladdr, gateway_mac, if_handle->netif.hwaddr_len);
+neighbor_cache[neighbor_idx].state = ND6_REACHABLE;
+neighbor_cache[neighbor_idx].isrouter = 1;
+neighbor_cache[neighbor_idx].counter.reachable_time = reachable_time;
+UNLOCK_TCPIP_CORE();
+
+LWIP_LOGD("IPv6 default gateway configured: %s\n", ip6addr_ntoa(&gw));
+return 0;
+#else
+LWIP_LOGW("CONFIG_RIO disabled, skip IPv6 gateway configuration\n");
+return -1;
+#endif
+}
+
+void net_clear_ipv6_gateway(void *intrfc_handle)
+{
+#if defined(CONFIG_RIO)
+struct iface *if_handle = (struct iface *)intrfc_handle;
+int i;
+
+if (!if_handle)
+return;
+
+LOCK_TCPIP_CORE();
+bk_route_table_remove_netif_routes(&if_handle->netif);
+for (i = 0; i < LWIP_ND6_NUM_NEIGHBORS; i++) {
+if (neighbor_cache[i].netif == &if_handle->netif && neighbor_cache[i].isrouter) {
+os_memset(&neighbor_cache[i], 0, sizeof(neighbor_cache[i]));
+}
+}
+UNLOCK_TCPIP_CORE();
+#endif
+}
+
 #endif /* CONFIG_IPV6 */
 
 int net_get_if_ip_addr(uint32_t *ip, void *intrfc_handle)

@@ -12,9 +12,12 @@
 #include "cif_ipc.h"
 #include "cif_wifi_api.h"
 #include "lwip/stats.h"
-#ifdef CONFIG_IPV6
+#if CONFIG_IPV6
 #include "lwip/netif.h"
 #include "lwip/ip6_addr.h"
+#include "lwip/dns.h"
+#include "lwip/ip_addr.h"
+#include "lwip/priv/nd6_priv.h"
 #endif
 
 extern int bmsg_tx_sender(struct pbuf *p, uint32_t vif_idx);
@@ -156,7 +159,7 @@ bk_err_t cif_handle_bk_cmd_connect_ind(char *ssid, uint8_t rssi, uint32_t ip, ui
     return cif_bk_send_event(BK_EVT_IPV4_IND, (uint8_t *)&ind, sizeof(ind));
 }
 
-#ifdef CONFIG_IPV6
+#if CONFIG_IPV6
 bk_err_t cif_handle_bk_cmd_ipv6_ind(void *n)
 {
     struct bk_msg_ipv6_ind ind = {0};
@@ -164,6 +167,10 @@ bk_err_t cif_handle_bk_cmd_ipv6_ind(void *n)
     u8 *ipv6_addr;
     int valid_count = 0;
     struct netif *netif = (struct netif *)n;
+#if LWIP_DNS
+    const ip_addr_t *dns_addr;
+#endif
+
     for (i = 0; i < MAX_IPV6_ADDRESSES_IN_MSG; i++) {
         if (ip6_addr_isvalid(netif_ip6_addr_state(netif, i))) {
             ipv6_addr = (u8 *)(ip_2_ip6(&netif->ip6_addr[i]))->addr;
@@ -174,6 +181,37 @@ bk_err_t cif_handle_bk_cmd_ipv6_ind(void *n)
         }
     }
     ind.addr_count = valid_count;
+
+#if LWIP_DNS
+    for (i = 0; i < MAX_IPV6_DNS_SERVERS_IN_MSG; i++) {
+        dns_addr = dns_getserver(i);
+        if (dns_addr && IP_IS_V6(dns_addr) && !ip_addr_isany(dns_addr)) {
+            os_memcpy(ind.dns_addr[ind.dns_count], ip_2_ip6(dns_addr)->addr, 16);
+            CIF_LOGI("IPv6 DNS server %d: %s\n", ind.dns_count, ipaddr_ntoa(dns_addr));
+            ind.dns_count++;
+        }
+    }
+    if (!ind.dns_count)
+        CIF_LOGI("no IPv6 DNS server learned\n");
+#endif
+
+    for (i = 0; i < LWIP_ND6_NUM_ROUTERS; i++) {
+        struct nd6_neighbor_cache_entry *neighbor = default_router_list[i].neighbor_entry;
+
+        if (neighbor && neighbor->netif == netif && neighbor->isrouter &&
+            neighbor->state != ND6_NO_ENTRY && neighbor->state != ND6_INCOMPLETE) {
+            os_memcpy(ind.gateway, neighbor->next_hop_address.addr, 16);
+            os_memcpy(ind.gateway_mac, neighbor->lladdr, IPV6_GATEWAY_MAC_LEN);
+            ind.gateway_lifetime = default_router_list[i].invalidation_timer;
+            ind.gw_valid = 1;
+            CIF_LOGI("IPv6 gateway: %s lifetime=%u\n",
+                     ip6addr_ntoa(&neighbor->next_hop_address),
+                     ind.gateway_lifetime);
+            break;
+        }
+    }
+    if (!ind.gw_valid)
+        CIF_LOGI("no IPv6 gateway learned\n");
 
     if (valid_count > 0) {
         return cif_bk_send_event(BK_EVT_IPV6_IND, (uint8_t *)&ind, sizeof(ind));

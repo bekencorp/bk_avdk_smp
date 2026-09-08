@@ -169,6 +169,11 @@ static struct iface g_eth = {{0}, .name = "eth"};
 static struct iface g_br = {{0}, .name = "br"};
 #endif
 net_sta_ipup_cb_fn sta_ipup_cb = NULL;
+#if LWIP_NETIF_EXT_STATUS_CALLBACK && LWIP_IPV6
+NETIF_DECLARE_EXT_CALLBACK(netif_ipv6_callback)
+static uint8_t s_sta_ip6_ll_reported;
+static uint8_t s_sta_ip6_global_reported;
+#endif
 
 extern void *net_get_sta_handle(void);
 extern void *net_get_uap_handle(void);
@@ -485,15 +490,41 @@ static void
 wm_netif_ipv6_status_callback(struct netif *netif, netif_nsc_reason_t reason, const netif_ext_callback_args_t *args)
 {
 	u8 *ipv6_addr;
+	char ip6_str[40];
 	s8_t addr_index;
 	LWIP_UNUSED_ARG(args);
 
 	if (reason & LWIP_NSC_IPV6_ADDR_STATE_CHANGED) {
 		addr_index = args->ipv6_addr_state_changed.addr_index;
+		if (addr_index < 0 || addr_index >= LWIP_IPV6_NUM_ADDRESSES)
+			return;
 		ipv6_addr = (u8 *)(ip_2_ip6(&netif->ip6_addr[addr_index]))->addr;
-		/*only global addr send got ip6 event*/
-		if (ip6_addr_isvalid(netif_ip6_addr_state(netif, addr_index)) &&
-			!ip6_addr_islinklocal(ip_2_ip6(&netif->ip6_addr[addr_index]))) {
+		if (!ip6_addr_ispreferred(netif_ip6_addr_state(netif, addr_index)))
+			return;
+		snprintf(ip6_str, sizeof(ip6_str),
+			 "%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x",
+			 ipv6_addr[0], ipv6_addr[1], ipv6_addr[2], ipv6_addr[3],
+			 ipv6_addr[4], ipv6_addr[5], ipv6_addr[6], ipv6_addr[7],
+			 ipv6_addr[8], ipv6_addr[9], ipv6_addr[10], ipv6_addr[11],
+			 ipv6_addr[12], ipv6_addr[13], ipv6_addr[14], ipv6_addr[15]);
+
+		if (ip6_addr_islinklocal(ip_2_ip6(&netif->ip6_addr[addr_index]))) {
+			if (s_sta_ip6_ll_reported & (1U << addr_index))
+				return;
+			s_sta_ip6_ll_reported |= (1U << addr_index);
+			LWIP_LOGE("ipv6_addr[%d] linklocal_addr: %02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x\r\n", addr_index,
+				  ipv6_addr[0], ipv6_addr[1], ipv6_addr[2], ipv6_addr[3],
+				  ipv6_addr[4], ipv6_addr[5], ipv6_addr[6], ipv6_addr[7],
+				  ipv6_addr[8], ipv6_addr[9], ipv6_addr[10], ipv6_addr[11],
+				  ipv6_addr[12], ipv6_addr[13], ipv6_addr[14], ipv6_addr[15]);
+#if CONFIG_IPV6
+			wifi_netif_notify_sta_got_ip6_ll(addr_index, ip6_str);
+			cif_handle_bk_cmd_ipv6_ind(netif);
+#endif
+		} else {
+			if (s_sta_ip6_global_reported & (1U << addr_index))
+				return;
+			s_sta_ip6_global_reported |= (1U << addr_index);
 			LWIP_LOGE("ipv6_addr[%d] : %02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x\r\n", addr_index,
 				  ipv6_addr[0], ipv6_addr[1], ipv6_addr[2], ipv6_addr[3],
 				  ipv6_addr[4], ipv6_addr[5], ipv6_addr[6], ipv6_addr[7],
@@ -502,8 +533,10 @@ wm_netif_ipv6_status_callback(struct netif *netif, netif_nsc_reason_t reason, co
 			LWIP_LOGE("ipv6_type[%d] :0x%x\r\n", addr_index, netif->ip6_addr[addr_index].type);
 			LWIP_LOGE("ipv6_state[%d] :0x%x\r\n", addr_index, netif->ip6_addr_state[addr_index]);
 
-			wifi_netif_notify_sta_got_ip(IP6);
+#if CONFIG_IPV6
+			wifi_netif_notify_sta_got_ip6_global(addr_index, ip6_str);
 			cif_handle_bk_cmd_ipv6_ind(netif);
+#endif
 #if !CONFIG_DISABLE_DEPRECIATED_WIFI_API
 			if (sta_ipup_cb)
 				sta_ipup_cb(NULL);
@@ -513,15 +546,9 @@ wm_netif_ipv6_status_callback(struct netif *netif, netif_nsc_reason_t reason, co
 #endif
 
 		}
-		else if (ip6_addr_islinklocal(ip_2_ip6(&netif->ip6_addr[addr_index])))
-			LWIP_LOGE("ipv6_addr[%d] linklocal_addr: %02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x\r\n", addr_index,
-				  ipv6_addr[0], ipv6_addr[1], ipv6_addr[2], ipv6_addr[3],
-				  ipv6_addr[4], ipv6_addr[5], ipv6_addr[6], ipv6_addr[7],
-				  ipv6_addr[8], ipv6_addr[9], ipv6_addr[10], ipv6_addr[11],
-				  ipv6_addr[12], ipv6_addr[13], ipv6_addr[14], ipv6_addr[15]);
 	}
 }
-#endif /*LWIP_NETIF_EXT_STATUS_CALLBACK*/
+#endif /* LWIP_NETIF_EXT_STATUS_CALLBACK && LWIP_IPV6 */
 
 static int check_iface_mask(void *handle, uint32_t ipaddr)
 {
@@ -639,6 +666,8 @@ void sta_ip_down(void)
 #if LWIP_IPV6
 #if LWIP_NETIF_EXT_STATUS_CALLBACK
 		netif_remove_ext_callback(&netif_ipv6_callback);
+		s_sta_ip6_ll_reported = 0;
+		s_sta_ip6_global_reported = 0;
 #endif
 		for (u8_t addr_idx = 1; addr_idx < LWIP_IPV6_NUM_ADDRESSES; addr_idx++) {
 			netif_ip6_addr_set(&g_mlan.netif, addr_idx, (const ip6_addr_t *)IP6_ADDR_ANY);

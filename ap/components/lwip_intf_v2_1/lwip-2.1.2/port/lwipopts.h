@@ -381,6 +381,7 @@ u32_t beken_random(void);
 #define LWIP_RAW                        1
 #ifdef CONFIG_IPV6
 #define LWIP_IPV6                        1
+#define LWIP_ND6_RDNSS_MAX_DNS_SERVERS  DNS_MAX_SERVERS
 #endif
 
 /* Enable IPv4 Auto IP	*/

@@ -104,14 +104,23 @@ struct wdrv_connect_ind
 };
 
 #define MAX_IPV6_ADDRESSES_IN_MSG 3
+#define MAX_IPV6_DNS_SERVERS_IN_MSG 2
+#define IPV6_GATEWAY_MAC_LEN 6
 struct wdrv_ipv6_ind
 {
     uint8_t addr_count;
+    uint8_t dns_count;
+    uint8_t gw_valid;
+    uint8_t reserved;
     struct {
         uint8_t address[16];  // (128 bits = 16 bytes)
         uint8_t addr_state;
         uint8_t addr_type;
     } ipv6_addr[MAX_IPV6_ADDRESSES_IN_MSG];
+    uint8_t dns_addr[MAX_IPV6_DNS_SERVERS_IN_MSG][16];
+    uint8_t gateway[16];
+    uint8_t gateway_mac[IPV6_GATEWAY_MAC_LEN];
+    uint32_t gateway_lifetime;
 };
 
 struct wdrv_mac_addr_cfm
@@ -289,7 +298,6 @@ enum BK_EVENT_TYPE
 {
     BK_EVT_IPV4_IND             = 0x1,
     BK_EVT_IPV6_IND             = 0x2,
-    BK_EVT_DISCONNECT_IND       = 0x3,
     BK_EVT_START_AP_IND         = 0x4,
     BK_EVT_ASSOC_AP_IND         = 0x5,
     BK_EVT_DISASSOC_AP_IND      = 0x6,
@@ -305,6 +313,8 @@ enum BK_EVENT_TYPE
     BK_EVT_P2P_GC_START_IND     = 0x10,
     BK_EVT_P2P_GC_STOP_IND      = 0x11,
     BK_EVT_WIFI_EVENT_IND       = 0x12,
+    BK_EVT_DHCP_TIMEOUT_IND     = 0x13,
+
     // BLE event
     // BK_EVT_BLE_XX            = 0x101
 
@@ -424,12 +434,6 @@ uint32_t wdrv_param_deinit(void);
 int bk_platform_get_wlan_status(void);
 extern void wdrv_rx_handle_event(wdrv_rx_msg *msg);
 extern void wdrv_rx_handle_cmd_confirm(wdrv_rx_msg *msg);
-void wdrv_notify_sta_connected(void);
-#if CONFIG_WIFI_VNET_CONTROLLER
-void wdrv_notify_sta_got_ipv4(void);
-void wdrv_reset_sta_ipv4_notified(void);
-bool wdrv_sta_ipv4_already_notified(void);
-#endif
 #if CONFIG_P2P
 void wdrv_notify_gc_got_ipv4(void);
 void wdrv_notify_gc_got_ip(void);
@@ -438,7 +442,6 @@ void wdrv_p2p_role_clear(void);
 void wdrv_notify_sta_got_ip(void);
 void bk_rx_handle_customer_event(void *data, uint16_t len);
 int bk_wdrv_send_customer_data(uint8_t *data, uint16_t len);
-void wdrv_notify_sta_disconnected(void *data, uint16_t len);
 void wdrv_notify_sap_sta_connected(void);
 void wdrv_notify_sta_got_ipv6(void);
 void wdrv_notify_sap_sta_disconnected(void);

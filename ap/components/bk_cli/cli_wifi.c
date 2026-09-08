@@ -5,7 +5,9 @@
 #include <../../lwip_intf_v2_1/lwip-2.1.2/port/net.h>
 #endif
 #include "lwip/ip4.h"
-#include "lwip/inet.h"
+#if CONFIG_IPV6
+#include "lwip/ip6_addr.h"
+#endif
 #include "bk_private/bk_wifi.h"
 #include "bk_wifi_private.h"
 #include "bk_cli.h"
@@ -969,10 +971,15 @@ int cli_netif_event_cb(void *arg, event_module_t event_module,
 		CLI_LOGW("%s got ip %s\n", netif_name, got_ip->ip);
 		break;
 #if CONFIG_IPV6
-	case EVENT_NETIF_GOT_IP6:
-		CLI_LOGW("BK STA got ipv6, addr_count=%d\n",
-				 ((netif_event_got_ip6_t *)event_data)->addr_count);
+	case EVENT_NETIF_GOT_IP6_LL:
+	case EVENT_NETIF_GOT_IP6_GLOBAL: {
+		netif_event_got_ip6_t *got_ip6 = (netif_event_got_ip6_t *)event_data;
+
+		CLI_LOGD("BK STA got ipv6 %s, idx=%d, addr=%s\n",
+				 event_id == EVENT_NETIF_GOT_IP6_LL ? "link-local" : "global",
+				 got_ip6->addr_idx, got_ip6->ip);
 		break;
+	}
 #endif
 	default:
 		CLI_LOGW("rx event <%d %d>\n", event_module, event_id);

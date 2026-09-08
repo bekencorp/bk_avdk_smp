@@ -25,11 +25,6 @@
 #include "bk_net.h"
 #include "event.h"
 #include <components/netif_types.h>
-#if CONFIG_IPV6
-#include "lwip/ip6_addr.h"
-#endif
-
-
 /*global variable defination*/
 
 #define TAG "AT_WLAN"
@@ -164,14 +159,17 @@ static bk_err_t at_wlan_netif_event_cb(void *arg, event_module_t event_module,
 
 			break;
 #if CONFIG_IPV6
-		case EVENT_NETIF_GOT_IP6:
+		case EVENT_NETIF_GOT_IP6_LL:
+		case EVENT_NETIF_GOT_IP6_GLOBAL:
 			atsvr_event_sender("wifi", AT_WLAN_STA_GOT_IPV6,
 				sizeof(netif_event_got_ip6_t), event_data, true);
 			break;
 #endif
 		case EVENT_NETIF_DHCP_TIMEOUT:
 			BK_LOGE(TAG,"DHCP timeout\r\n");
-			rtos_set_semaphore(&at_wlan_cfg.sta_protection);
+			if (at_wlan_cfg.sta_protection != NULL) {
+				rtos_set_semaphore(&at_wlan_cfg.sta_protection);
+			}
 			memset(at_wlan_stat.static_ip,0,16);
 			atsvr_event_sender("wifi",AT_WLAN_LOSS_DHCP,0,NULL,false);
 
@@ -239,46 +237,11 @@ int at_wlan_event_handler(atsvr_msg_t *msg)
 	case AT_WLAN_STA_GOT_IPV6:
 	{
 		netif_event_got_ip6_t *got_ip6 = (netif_event_got_ip6_t *)(msg->msg_param);
-		char ipv6_resultbuf[512];
-		char ip6_str[48];
-		int offset;
-		int n;
+		char ipv6_resultbuf[128];
 
-		offset = snprintf(ipv6_resultbuf, sizeof(ipv6_resultbuf), "\r\n" AT_WLAN_EVT_GOT_IPV6 "sta got ipv6:");
-		if (offset < 0)
-			offset = 0;
-		else if (offset >= (int)sizeof(ipv6_resultbuf))
-			offset = (int)sizeof(ipv6_resultbuf) - 1;
-
-		if (got_ip6 && got_ip6->addr_count > 0) {
-			uint8_t i;
-			uint8_t addr_count = got_ip6->addr_count;
-
-			if (addr_count > NETIF_MAX_IPV6_ADDRESSES)
-				addr_count = NETIF_MAX_IPV6_ADDRESSES;
-
-			for (i = 0; i < addr_count; i++) {
-				ip6addr_ntoa_r((const ip6_addr_t *)got_ip6->ipv6_addr[i].address,
-					ip6_str, sizeof(ip6_str));
-				if (i > 0) {
-					n = snprintf(ipv6_resultbuf + offset,
-						sizeof(ipv6_resultbuf) - offset, ",");
-					if (n > 0) {
-						offset += n;
-						if (offset >= (int)sizeof(ipv6_resultbuf))
-							offset = (int)sizeof(ipv6_resultbuf) - 1;
-					}
-				}
-				n = snprintf(ipv6_resultbuf + offset,
-					sizeof(ipv6_resultbuf) - offset, "%s", ip6_str);
-				if (n > 0) {
-					offset += n;
-					if (offset >= (int)sizeof(ipv6_resultbuf))
-						offset = (int)sizeof(ipv6_resultbuf) - 1;
-				}
-			}
-		}
-		snprintf(ipv6_resultbuf + offset, sizeof(ipv6_resultbuf) - offset, "\r\n\r\n");
+		snprintf(ipv6_resultbuf, sizeof(ipv6_resultbuf),
+			"\r\n" AT_WLAN_EVT_GOT_IPV6 "sta got ipv6:%s\r\n\r\n",
+			got_ip6 ? got_ip6->ip : "");
 		ATSVR_SIZEOF_OUTPUT_STRRING(ipv6_resultbuf);
 		break;
 	}

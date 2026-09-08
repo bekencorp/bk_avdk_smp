@@ -36,14 +36,17 @@ extern void net_get_p2p_go_cfg_addr(struct wlan_ip_config *addr);
 extern void net_get_p2p_go_if_addr(struct wlan_ip_config *addr);
 extern void net_get_p2p_gc_if_addr(struct wlan_ip_config *addr);
 #endif
-#ifdef CONFIG_IPV6
-int net_configure_ipv6_address(struct ipv6_config *ipv6_addrs, int addr_count, void *intrfc_handle);
-#endif
 #if CONFIG_WIFI6_CODE_STACK
 extern bool etharp_tmr_flag;
 extern void net_begin_send_arp_reply(bool is_send_arp, bool is_allow_send_req);
 #endif
 extern void net_restart_dhcp(void);
+#ifdef CONFIG_IPV6
+int net_configure_ipv6_address(struct ipv6_config *ipv6_addrs, int addr_count, void *intrfc_handle);
+int net_configure_ipv6_gateway(const uint8_t gateway[16], const uint8_t gateway_mac[6],
+			       uint32_t lifetime, void *intrfc_handle);
+void net_clear_ipv6_gateway(void *intrfc_handle);
+#endif
 #ifdef CONFIG_ETH
 extern int net_eth_add_netif(uint8_t *mac);
 extern int net_eth_remove_netif(void);

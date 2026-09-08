@@ -341,14 +341,23 @@ struct bk_msg_connect_ind
 };
 
 #define MAX_IPV6_ADDRESSES_IN_MSG 3
+#define MAX_IPV6_DNS_SERVERS_IN_MSG 2
+#define IPV6_GATEWAY_MAC_LEN 6
 struct bk_msg_ipv6_ind
 {
     uint8_t addr_count;
+    uint8_t dns_count;
+    uint8_t gw_valid;
+    uint8_t reserved;
     struct {
         uint8_t address[16];  // (128 bits = 16 bytes)
         uint8_t addr_state;
         uint8_t addr_type;
     } ipv6_addr[MAX_IPV6_ADDRESSES_IN_MSG];
+    uint8_t dns_addr[MAX_IPV6_DNS_SERVERS_IN_MSG][16];
+    uint8_t gateway[16];
+    uint8_t gateway_mac[IPV6_GATEWAY_MAC_LEN];
+    uint32_t gateway_lifetime;
 };
 
 struct bk_msg_connect_req

@@ -3,11 +3,13 @@
 #include "lwip/prot/ethernet.h"
 #include "lwip/prot/ip4.h"
 #include "lwip/prot/ip.h"
-#include "lwip/prot/ip6.h"
-#include "lwip/prot/icmp6.h"
 #include "lwip/prot/udp.h"
 #include "lwip/prot/tcp.h"
 #include "lwip/prot/icmp.h"
+#if CONFIG_IPV6
+#include "lwip/prot/ip6.h"
+#include "lwip/prot/icmp6.h"
+#endif
 #include "lwip/ping.h"
 
 #include "../../dhcpd/dhcp-bootp.h"
@@ -389,38 +391,114 @@ bool cif_filter_check_ip_data(struct pbuf *p)
 }
 
 #if CONFIG_IPV6
+/* IPv6 收包分流判定，语义与 cif_filter_check_ip_data() 一致：
+ *   true  —— CP 核自己的协议栈仍需处理该包
+ *   false —— 交由 AP 核独占处理，CP 核不得再收
+ *
+ * TCP/UDP 必须返回 false。CP 核与 AP 核的 netif 持有完全相同的 IPv6 全局地址，
+ * 若两边都收，CP 核查不到对应 PCB，会按 lwIP 的 no-matching-PCB 流程回 RST，
+ * 把 AP 核上正常的连接打死（表现为 TLS ClientHello 之前收到 ECONNRESET）。
+ * ICMPv6（RA/RS/NS/NA/MLD）两边都要：CP 核靠它跑 SLAAC/ND，AP 核靠它维护自己的邻居表。
+ * 解析失败或遇到未知情况一律返回 true，退回改动前的行为，避免误伤。
+ */
 static bool cif_filter_check_ip6_data(struct pbuf *p)
 {
-    bool upload2ctrl = false;
+    u16_t offset;
+    u8_t nexth;
+    u8_t icmp6_type;
+    int i;
 
-    if (p->len < (s16_t)(SIZEOF_ETH_HDR + IP6_HLEN + 1))
-        return false;
-
-    u8_t *payload = (u8_t *)p->payload;
-    u8_t nexth    = payload[SIZEOF_ETH_HDR + 6];
-
-    switch (nexth)
-    {
-        case IP6_NEXTH_ICMP6:
-            if (2 == get_ping_state()) //PING_STATE_STARTED
-            {
-                upload2ctrl = true;
-            } else {
-                upload2ctrl = false;
-            }
-            break;
-        case IP6_NEXTH_UDP:
-            upload2ctrl = false;
-            break;
-        case IP6_NEXTH_TCP:
-            upload2ctrl = false;
-            break;
-        default:
-            upload2ctrl = false;
-            break;
+    if (p->len < (SIZEOF_ETH_HDR + IP6_HLEN)) {
+        return true;
     }
 
-    return upload2ctrl;
+    /* 按固定偏移取 next header，不经由 struct ip6_hdr 指针。
+     * 以太网头 14 字节，IPv6 头起始地址不是 4 字节对齐，而该结构体首成员是 u32，
+     * 通过它访问会构成非对齐访问，在部分平台上触发对齐异常。
+     * IPv6 固定头中 next header 位于偏移 6。 */
+    nexth  = *((u8_t *)p->payload + SIZEOF_ETH_HDR + 6);
+    offset = SIZEOF_ETH_HDR + IP6_HLEN;
+
+    /* 逐个跳过扩展头（MLD 报文带 Hop-by-Hop）。限定层数，防畸形包死循环 */
+    for (i = 0; i < 8; i++) {
+        u8_t *ext;
+        u16_t extlen;
+
+        if ((nexth == IP6_NEXTH_TCP) || (nexth == IP6_NEXTH_UDP) ||
+            (nexth == IP6_NEXTH_UDPLITE)) {
+            CIF_LOGV("IPV6 L4 nexth:%d -> host only\r\n", nexth);
+            return false;
+        }
+
+        /* 分片头必须单独处理：它固定 8 字节，第 2 个字节是 Reserved 而不是长度，
+         * 套用下面的通用公式会算错。若漏掉它，分片的 TCP/UDP 会退回双核都收，
+         * 而 CP 侧 LWIP_IPV6_REASS 是开的，重组后同样查不到 PCB 并回 RST。 */
+        if (nexth == IP6_NEXTH_FRAGMENT) {
+            if ((offset + 8) > p->len) {
+                return true;
+            }
+            ext    = (u8_t *)p->payload + offset;
+            nexth  = ext[0];
+            offset = offset + 8;
+            continue;
+        }
+
+        if (nexth == IP6_NEXTH_ICMP6) {
+            /* ICMPv6 需要细分：只有 Echo Request 会产生「响应」，两个核都应答会让
+             * 对端看到重复的 echo reply(ping6 显示 DUP!)。其余类型两边都收是安全的：
+             *   - NS 虽会触发 NA，但两核回的 NA 内容完全一致(同 MAC、同 target)，
+             *     对端只是重复更新同一条邻居缓存；而 CP 核跑 DAD 必须收 NS
+             *   - MLD Query 同理，重复的成员报告对路由器无害
+             *   - 差错报文(DUR/PTB/TE/PP)本身不产生响应，且 AP 核的连接需要 PTB 做 PMTU
+             * 走到这里时 offset 正指向 ICMPv6 头，其首字节即 type。 */
+            if ((offset + 1) > p->len) {
+                return true;
+            }
+            icmp6_type = *((u8_t *)p->payload + offset);
+
+            if (ICMP6_TYPE_EREQ == icmp6_type) {
+                /* 交由 AP 核独占应答。此处与 IPv4 相反（IPv4 的 echo 给 CP 核），
+                 * 原因不是「业务在 AP 核」——按那个逻辑 IPv4 也该给 AP——
+                 * 而是两侧低功耗保活能力不对称：
+                 *   IPv4：CP 核有 ARP 代答（net.c:1188 etharp_reply），AP 睡眠时二层仍可达，
+                 *         echo 交给 CP 核才能构成完整的「睡眠可达」链路；
+                 *   IPv6：CP 核无任何 NS/ND 代答（nd6_na_output / ns_offload 全仓零实现，
+                 *         cif_low_power_handler() 亦是空壳），AP 睡眠后对端 NS 无人应答，
+                 *         邻居缓存一过期对端连 ping 都发不出，echo 给 CP 核只能换来
+                 *         缓存有效期内的一小段窗口，换不到 IPv4 那种睡眠可达性。
+                 * 若日后给 CP 核补上 IPv6 邻居代答，应连同 echo 一起搬到 CP 核，与 IPv4 对齐。 */
+                CIF_LOGV("IPV6 echo request -> host only\r\n");
+                return false;
+            }
+            if (ICMP6_TYPE_EREP == icmp6_type) {
+                /* 仅当 CP 核自己在跑 ping6 时才需要，与 IPv4 分支的判定保持一致 */
+                return (2 == get_ping_state()); /* PING_STATE_STARTED */
+            }
+
+            return true;
+        }
+
+        if ((nexth != IP6_NEXTH_HOPBYHOP) &&
+            (nexth != IP6_NEXTH_ROUTING)  &&
+            (nexth != IP6_NEXTH_DESTOPTS)) {
+            /* ESP/AH 等无法安全解析长度的头：维持两边都收 */
+            return true;
+        }
+
+        if ((offset + 2) > p->len) {
+            return true;
+        }
+        ext    = (u8_t *)p->payload + offset;
+        extlen = ((u16_t)ext[1] + 1) * 8;
+        nexth  = ext[0];
+        offset = offset + extlen;
+
+        if (offset >= p->len) {
+            return true;
+        }
+    }
+
+    return true;
 }
 #endif
 
@@ -440,6 +518,57 @@ static void cif_send_mem_free_req(void *mem_addr)
     }
 }
 #endif
+
+static bk_err_t cif_upload_rx_packet_to_host(struct pbuf *p, void *vif, uint8_t dst_idx)
+{
+    struct pbuf *p_copy = NULL;
+    struct cpdu_t *cpdu;
+    bk_err_t ret;
+
+#if CONFIG_CONTROLLER_RX_DIRECT_PSH
+    p_copy = pbuf_alloc(PBUF_RAW, p->len + sizeof(cpdu_t), PBUF_RAM_RX);
+    if (p_copy) {
+        pbuf_header(p_copy, -(s16)sizeof(struct cpdu_t));
+        memcpy(p_copy->payload, p->payload, p->len);
+    }
+#else
+    p_copy = (struct pbuf *)cif_maclloc_rx_buf();
+    if (p_copy) {
+#ifdef CONFIG_CONTROLLER_WAR
+        memcpy(p_copy->payload, p->payload, p->len);
+#else
+        dma_memcpy(p_copy->payload, p->payload, p->len);
+#endif
+        p_copy->len = p->len;
+    }
+#endif
+
+    if (p_copy == NULL) {
+        CIF_LOGV("%s,%d,alloc fail\n", __func__, __LINE__);
+        return BK_FAIL;
+    }
+
+    cpdu = (struct cpdu_t *)(p_copy + 1);
+    cpdu->co_hdr.length = p_copy->len - sizeof(struct pbuf);
+    cpdu->co_hdr.type = RX_MSDU_DATA;
+    cpdu->co_hdr.need_free = 0;
+    cpdu->co_hdr.special_type = 0;
+    cpdu->co_hdr.vif_idx = wifi_netif_vif_to_netif_type(vif);
+    cpdu->co_hdr.dst_index = dst_idx;
+
+    ret = cif_msg_sender(cpdu, CIF_TASK_MSG_RX_DATA, 0);
+    if (ret != BK_OK) {
+#if CONFIG_CONTROLLER_RX_DIRECT_PSH
+        pbuf_free(p_copy);
+#else
+        cif_free_rx_buf((uint32_t)p_copy);
+#endif
+    } else {
+        cif_stats_ptr->cif_rx_cnt++;
+    }
+
+    return ret;
+}
 
 bool cif_rx_local_packet_check(struct pbuf **p_ptr, struct eth_hdr * ethhdr,void* vif, uint8_t dst_idx)
 {
@@ -633,73 +762,68 @@ bool cif_rx_local_packet_check(struct pbuf **p_ptr, struct eth_hdr * ethhdr,void
 #if CONFIG_IPV6
         case ETHTYPE_IPV6:
         {
-            u8_t nexth      = (p->tot_len >= SIZEOF_ETH_HDR + 7)
-                            ? ((u8_t*)p->payload)[SIZEOF_ETH_HDR + 6] : 0;
-            u8_t icmp6_type = (nexth == IP6_NEXTH_ICMP6 && p->tot_len >= SIZEOF_ETH_HDR + IP6_HLEN + 1)
-                            ? ((u8_t*)p->payload)[SIZEOF_ETH_HDR + IP6_HLEN] : 0;
-             /*
-              * Packets that CP lwIP must also process (copy to both sides):
-              *   1. NDP: NS/NA/RS/RA (icmp6 133~136), nexth=58
-              *   2. MLD: Multicast Listener Discovery (icmp6 130~132,143), nexth=0 (Hop-by-Hop)
-              *      MLD uses Hop-by-Hop extension header, so nexth != 58; treat all nexth=0
-              *      multicast-dst packets as "need CP copy" to keep CP multicast state correct.
-              */
-            bool is_nd = (nexth == IP6_NEXTH_ICMP6)
-                         && (icmp6_type >= ICMP6_TYPE_MLQ && icmp6_type <= ICMP6_TYPE_RD);
-            bool is_mld = (nexth == 0);
-            bool need_copy = is_nd || is_mld;
-            if (need_copy)
+            CIF_LOGV("ETHTYPE_IPV6 RX\n");
+            if (cif_filter_check_ip6_data(p) == false)
             {
-                struct pbuf* p_copy = pbuf_alloc(PBUF_RAW, p->len + sizeof(cpdu_t), PBUF_RAM_RX);
-                //os_printf("[ipv6 nd] pbuf_alloc p_copy=%p\r\n", p_copy);
+                /* TCP/UDP：与 ETHTYPE_IP 一致，零拷贝独占转交 AP 核，
+                 * CP 核不得再收，否则会因查不到 PCB 而回 RST 打死对端连接。 */
+                struct pbuf* p_copy = NULL;
+
+#if CONFIG_CONTROLLER_RX_DIRECT_PSH
+                p_copy = p;
+                upload2ctrl = false;
+#else
+                p_copy = (struct pbuf*)cif_maclloc_rx_buf();
+
                 if (p_copy == NULL)
                 {
-                    CIF_LOGW("[ipv6 nd] alloc fail, CP-only\r\n");
-                    break;
+                    CIF_LOGV("%s,%d,alloc fail\n",__func__,__LINE__);
+                    pbuf_free(p);
+                    upload2ctrl = false;
+                    return upload2ctrl;
                 }
-                pbuf_header(p_copy, -(s16_t)sizeof(cpdu_t));
-                memcpy(p_copy->payload, p->payload, p->len);
 
-                struct cpdu_t *cpdu_nd = (struct cpdu_t*)(p_copy + 1);
-                cpdu_nd->co_hdr.length       = p_copy->len - sizeof(struct pbuf);
-                cpdu_nd->co_hdr.type         = RX_MSDU_DATA;
-                cpdu_nd->co_hdr.need_free    = 0;
-                cpdu_nd->co_hdr.special_type = 0;
-                cpdu_nd->co_hdr.vif_idx      = cif_vif_to_netif_wire(vif);
-                cpdu_nd->co_hdr.dst_index    = dst_idx;
+                BK_ASSERT(p_copy->payload);
+                #ifdef CONFIG_CONTROLLER_WAR
+                memcpy(p_copy->payload,p->payload,p->len);
+                #else
+                dma_memcpy(p_copy->payload,p->payload,p->len);
+                #endif
+                p_copy->len = p->len;
 
-                ret = cif_msg_sender(cpdu_nd, CIF_TASK_MSG_RX_DATA, 0);
-                if (ret != BK_OK)
+                pbuf_free(p);
+#endif
+                struct cpdu_t *cpdu = (struct cpdu_t*)(p_copy + 1);
+                cpdu->co_hdr.length = p_copy->len - sizeof(struct pbuf);
+                cpdu->co_hdr.type = RX_MSDU_DATA;
+                cpdu->co_hdr.need_free = 0;
+                cpdu->co_hdr.special_type = 0;
+                cpdu->co_hdr.vif_idx = wifi_netif_vif_to_netif_type(vif);
+                cpdu->co_hdr.dst_index = dst_idx;
+                CIF_LOGV("%s,%d ipv6 p:%p next:%p payload:%p len:%d\r\n",
+                    __func__,__LINE__, p_copy, p_copy->next, p_copy->payload, p_copy->tot_len);
+
+                ret = cif_msg_sender(cpdu,CIF_TASK_MSG_RX_DATA,0);
+                if(ret != BK_OK)
+                {
+                    #if CONFIG_CONTROLLER_RX_DIRECT_PSH
                     pbuf_free(p_copy);
-                else
+                    #else
+                    //If rxbuf push fail, free it immediately
+                    cif_free_rx_buf((uint32_t)p_copy);
+                    #endif
+                }else
+                {
                     cif_stats_ptr->cif_rx_cnt++;
-            }
-            else if (cif_filter_check_ip6_data(p) == false)
-            {
-                struct pbuf* p_data = p;
+                }
+
                 upload2ctrl = false;
-
-                struct cpdu_t *cpdu_data = (struct cpdu_t*)(p_data + 1);
-                cpdu_data->co_hdr.length       = p_data->len - sizeof(struct pbuf);
-                cpdu_data->co_hdr.type         = RX_MSDU_DATA;
-                cpdu_data->co_hdr.need_free    = 0;
-                cpdu_data->co_hdr.special_type = 0;
-                cpdu_data->co_hdr.vif_idx      = cif_vif_to_netif_wire(vif);
-                cpdu_data->co_hdr.dst_index    = dst_idx;
-
-                ret = cif_msg_sender(cpdu_data, CIF_TASK_MSG_RX_DATA, 0);
-                if (ret != BK_OK)
-                {
-                    upload2ctrl = true;
-                    CIF_LOGW("[ipv6 data] fwd fail, fallback to CP\r\n");
-                }
-                else
-                {
-                    cif_stats_ptr->cif_rx_cnt++;
-                }
             }
             else
             {
+                /* ICMPv6（RA/RS/NS/NA/MLD）等：复制一份给 AP 核维护其邻居表，
+                 * 原包仍进 CP 核协议栈，CP 核的 SLAAC/ND 依赖它。 */
+                cif_upload_rx_packet_to_host(p, vif, dst_idx);
                 upload2ctrl = true;
             }
             break;

@@ -200,7 +200,10 @@ void cli_ping_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **arg
 		cnt = os_strtoul(argv[2], NULL, 10);
 
 	BK_LOGD(NULL,"ping IP address:%s\n", argv[1]);
-	ping_start(argv[1], cnt, 0);
+	if (os_strcmp(argv[0], "ping6") == 0)
+		ping6_start(argv[1], cnt, 0);
+	else
+		ping_start(argv[1], cnt, 0);
 
 	if (!ret) {
 		msg = WIFI_CMD_RSP_SUCCEED;
@@ -471,7 +474,7 @@ static const struct cli_command s_netif_commands[] = {
 	{"ipconfig", "ipconfig [sta|ap][{ip}{mask}{gate}{dns}]", cli_ip_cmd},
 	{"dhcpc", "dhcpc", cli_dhcpc_cmd},
 	{"ping", "ping <ip>", cli_ping_cmd},
-#ifdef CONFIG_IPV6
+#if CONFIG_IPV6
 	{"ping6", "ping6 xxx", cli_ping_cmd},
 	{"ip6", "ip6 [sta|ap][{ip}{state}]", cli_ip6_cmd},
 #endif

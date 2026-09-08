@@ -44,6 +44,7 @@ bk_route_entry_t * bk_route_table_add_route_entry(const bk_route_entry_t * route
  *
  */
 int8_t bk_route_table_remove_route_entry(bk_route_entry_t * route_entry);
+void bk_route_table_remove_netif_routes(struct netif * netif);
 
 /**
  * @brief The lwIP ip6 route hook, called by the lwIP function ip6_route when sending packets.
