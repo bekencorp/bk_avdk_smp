@@ -1,0 +1,270 @@
+// Copyright 2023-2028 Beken
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#pragma once
+
+#include <stdint.h>
+#include <stdbool.h>
+#include <string.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/* boot_param: manages the dedicated 8K `boot_param` partition (two 4K
+ * ping-pong sectors) that stores the A/B boot record.
+ *
+ * This header is the SINGLE SOURCE OF TRUTH for the on-flash record layout AND
+ * the ping-pong algorithm (ab_record_is_valid / read_latest / commit below are
+ * static-inline so BL2, the AP side and any other consumer share one identical
+ * implementation and only inject their own flash driver + zlib-CRC32 through
+ * ab_flag_ops_t). The layout MUST stay byte-for-byte identical to the Python
+ * packer (beken_utils/scripts/partition.py: process_boot_param). Any layout
+ * change here requires updating the packer and bumping AB_FLAG_STRUCT_VER.
+ *
+ * The public boot_param_* API (BL2-facing, in boot_param.c) is a thin wrapper
+ * that binds the BL2 flash back-end to these shared primitives and adds the A/B
+ * slot-selection state machine. The record keeps its A/B semantics
+ * (ab_flag_record_t, ab_slot_t, exec/update_slot, AB_FLAG_* constants). */
+
+#define AB_FLAG_MAGIC       0x31464241u   /* 'A''B''F''1' little-endian */
+#define AB_FLAG_STRUCT_VER  1u            /* layout version, forward compat */
+#define AB_FLAG_SECTOR      0x1000u       /* 4K, one ping-pong copy per sector */
+#define AB_FLAG_COPIES      2u            /* ping-pong sector count */
+#define AB_FLAG_RECORD_SIZE 32u           /* sizeof(ab_flag_record_t) */
+#define AB_FLAG_CRC_LEN     28u           /* CRC covers head bytes [0..0x1B] */
+#define AB_TRY_MAX_DEFAULT  5u            /* TRIAL boots; also CRC NORMAL swap threshold */
+#define AB_FLAG_ERR_IO      (-2)
+
+/* AON_PMU R0/R7B try field; keep try_max < MASK so rollback can still fire. */
+#define BOOT_PARAM_PMU_TRY_BIT    (20u)
+#define BOOT_PARAM_PMU_TRY_MASK   (0xFu)  /* bit[20:23] */
+
+typedef enum { AB_SLOT_A = 0, AB_SLOT_B = 1 } ab_slot_t;
+
+typedef enum {
+	AB_STATE_NORMAL    = 0x01,   /* running committed exec_slot, nothing pending */
+	AB_STATE_TRIAL     = 0x02,   /* new image in update_slot, on trial, awaiting confirm */
+	AB_STATE_CONFIRMED = 0x03,   /* app-confirmed transient (settles to NORMAL) */
+} ab_boot_state_t;               /* 0x00 reserved as invalid/uninitialized */
+
+typedef enum {
+	AB_DL_IDLE    = 0,
+	AB_DL_ONGOING = 1,           /* OTA writing in progress (torn-write detect) */
+	AB_DL_DONE    = 2,
+} ab_dl_state_t;
+
+/* Persisted 32-byte record. Little-endian, packed. Reserved bytes are zeroed
+ * (NOT 0xFF) and participate in the CRC. crc32 covers bytes [0x00..0x1B]. */
+typedef struct {
+	uint32_t magic;         /* 0x00  AB_FLAG_MAGIC */
+	uint16_t struct_ver;    /* 0x04  layout version */
+	uint16_t size;          /* 0x06  sizeof(record)=32, sanity */
+	uint32_t seq;           /* 0x08  monotonic, larger = newer (ping-pong selector) */
+	uint8_t  exec_slot;     /* 0x0C  committed boot slot 0=A/1=B */
+	uint8_t  update_slot;   /* 0x0D  slot under trial / OTA target */
+	uint8_t  boot_state;    /* 0x0E  ab_boot_state_t */
+	uint8_t  dl_state;      /* 0x0F  ab_dl_state_t */
+	uint8_t  try_max;       /* 0x10  TRIAL boots before rollback (default 5) */
+	uint8_t  rsvd0[3];      /* 0x11..0x13 reserved, must be zero */
+	uint32_t rsvd1[2];      /* 0x14..0x1B reserved */
+	uint32_t crc32;         /* 0x1C  CRC32 over bytes[0..0x1B] */
+} ab_flag_record_t;
+
+_Static_assert(sizeof(ab_flag_record_t) == 32, "ab_flag_record_t must be 32 bytes");
+
+/* Back-end injected into the ping-pong algorithm below: flash driver +
+ * zlib-CRC32. read/erase_sector/write take an ABSOLUTE flash offset (partition
+ * base + sector offset) and return 0 on success. crc32 is the zlib-style CRC32
+ * over [buf, buf+len). */
+typedef struct {
+	int      (*read)(uint32_t off, void *buf, uint32_t len);
+	int      (*erase_sector)(uint32_t off);
+	int      (*write)(uint32_t off, const void *buf, uint32_t len);
+	uint32_t (*crc32)(const void *buf, uint32_t len);
+} ab_flag_ops_t;
+
+extern const ab_flag_ops_t boot_param_ops; /* boot_param_ops.c */
+
+uint32_t boot_param_partition_base(void);
+
+/* Shared AON_PMU try counter (CRC + TRIAL). Inc in decide_slot; clear when settled. */
+uint8_t boot_param_pmu_try_get(void);
+void    boot_param_pmu_try_inc(void);
+void    boot_param_pmu_try_clear(void);
+
+/* Monotonic comparison tolerant of 32-bit wraparound: true if a is newer. */
+static inline int ab_seq_newer(uint32_t a, uint32_t b)
+{
+	return (int32_t)(a - b) > 0;
+}
+
+/* Validate one record: framing, semantic enums/slots, and zlib-CRC32 over
+ * [0..CRC_LEN). Rejects unknown layouts rather than misparsing. try_max is
+ * normalized by the state machine for compatibility. */
+static inline int ab_record_is_valid(const ab_flag_record_t *rec,
+				     const ab_flag_ops_t *ops)
+{
+	if (rec->magic != AB_FLAG_MAGIC) {
+		return 0;
+	}
+	if (rec->size != AB_FLAG_RECORD_SIZE) {
+		return 0;
+	}
+	if (rec->struct_ver == 0u || rec->struct_ver > AB_FLAG_STRUCT_VER) {
+		return 0;
+	}
+	if ((rec->exec_slot != AB_SLOT_A && rec->exec_slot != AB_SLOT_B) ||
+	    (rec->update_slot != AB_SLOT_A && rec->update_slot != AB_SLOT_B)) {
+		return 0;
+	}
+	if (rec->boot_state != AB_STATE_NORMAL &&
+	    rec->boot_state != AB_STATE_TRIAL &&
+	    rec->boot_state != AB_STATE_CONFIRMED) {
+		return 0;
+	}
+	if (rec->dl_state != AB_DL_IDLE &&
+	    rec->dl_state != AB_DL_ONGOING &&
+	    rec->dl_state != AB_DL_DONE) {
+		return 0;
+	}
+
+	if (ops->crc32(rec, AB_FLAG_CRC_LEN) != rec->crc32) {
+		return 0;
+	}
+	return 1;
+}
+
+/* Scan all ping-pong copies. Returns the freshest valid sector, -1 if no copy
+ * is valid, or AB_FLAG_ERR_IO only when a read failed AND no valid copy was
+ * found (a healthy sector still wins over a glitch on the other one). */
+static inline int ab_record_read_latest(uint32_t part_base,
+					const ab_flag_ops_t *ops,
+					ab_flag_record_t *latest)
+{
+	ab_flag_record_t candidate;
+	int latest_idx = -1;
+	int io_err = 0;
+	uint32_t sector_idx;
+
+	for (sector_idx = 0; sector_idx < AB_FLAG_COPIES; sector_idx++) {
+		if (ops->read(part_base + sector_idx * AB_FLAG_SECTOR,
+			      &candidate, AB_FLAG_RECORD_SIZE) != 0) {
+			io_err = 1;
+			continue;
+		}
+		if (!ab_record_is_valid(&candidate, ops)) {
+			continue;
+		}
+		if (latest_idx < 0 || ab_seq_newer(candidate.seq, latest->seq)) {
+			*latest = candidate;
+			latest_idx = (int)sector_idx;
+		}
+	}
+	if (latest_idx < 0 && io_err) {
+		return AB_FLAG_ERR_IO;
+	}
+	return latest_idx;
+}
+
+/* Power-loss-safe commit: caller fills the semantic fields of *new_record
+ * (memset(0) first so reserved bytes stay 0); this stamps magic/ver/size/seq/crc
+ * and writes the OPPOSITE sector, so a torn write leaves the current copy intact.
+ * Read-back validates CRC/seq so a protect/line-mode no-op cannot look like success.
+ * Returns the written sector index, or AB_FLAG_ERR_IO on an erase/write/verify failure. */
+static inline int ab_record_commit(uint32_t part_base, const ab_flag_ops_t *ops,
+				   ab_flag_record_t *new_record)
+{
+	ab_flag_record_t latest;
+	int latest_idx = ab_record_read_latest(part_base, ops, &latest);
+	if (latest_idx < -1) {
+		return latest_idx;
+	}
+	int write_idx = (latest_idx < 0) ? 0 : (latest_idx ^ 1);
+
+	new_record->magic = AB_FLAG_MAGIC;
+	new_record->struct_ver = (uint16_t)AB_FLAG_STRUCT_VER;
+	new_record->size = (uint16_t)AB_FLAG_RECORD_SIZE;
+	new_record->seq = (latest_idx < 0) ? 1u : (latest.seq + 1u);
+	new_record->crc32 = ops->crc32(new_record, AB_FLAG_CRC_LEN);
+
+	if (ops->erase_sector(part_base + (uint32_t)write_idx * AB_FLAG_SECTOR) != 0) {
+		return AB_FLAG_ERR_IO;
+	}
+	if (ops->write(part_base + (uint32_t)write_idx * AB_FLAG_SECTOR,
+		       new_record, AB_FLAG_RECORD_SIZE) != 0) {
+		return AB_FLAG_ERR_IO;
+	}
+
+	/* Read-back: protect/line-mode no-ops return success without programming;
+	 * reject so callers do not log a false "commit ok" / "done". */
+	{
+		ab_flag_record_t check;
+
+		if (ops->read(part_base + (uint32_t)write_idx * AB_FLAG_SECTOR,
+			      &check, AB_FLAG_RECORD_SIZE) != 0 ||
+		    !ab_record_is_valid(&check, ops) ||
+		    check.seq != new_record->seq ||
+		    check.crc32 != new_record->crc32) {
+			return AB_FLAG_ERR_IO;
+		}
+	}
+	return write_idx;
+}
+
+/* Load the authoritative record into the module's cache: read both ping-pong
+ * SECTORS, validate each (magic/ver/size/crc32) and keep the valid copy with
+ * the largest seq. Call once early in boot. Returns 0 if a valid record was
+ * found, -1 if virgin (both copies invalid). */
+int boot_param_load(void);
+
+/* A/B slot pick: NORMAL->exec, TRIAL->update until try_max then rollback. Always try_inc. */
+uint8_t boot_param_decide_slot(void);
+
+/* Return the cached A/B slot from the last boot_param_decide_slot() without
+ * recomputing. Intended for the stage-2 slot hook, which MCUboot may call
+ * several times per boot. */
+uint8_t boot_param_preferred_slot(void);
+
+/* Copy the loaded authoritative record out (e.g. for logging). Returns 0 if a
+ * valid record is cached, -1 if virgin (out left untouched). */
+int boot_param_get_latest_record(ab_flag_record_t *out);
+
+/* Ping-pong commit: caller fills the semantic fields of `rec`; this stamps
+ * magic/ver/size, bumps seq, computes CRC and erases+writes the OPPOSITE
+ * sector (never the one currently valid), so a torn write cannot destroy the
+ * live copy. CRC at 0x1C doubles as the commit marker. Returns 0 on success.
+ * Not called on the stage-1 boot path yet. */
+int boot_param_commit(const ab_flag_record_t *rec);
+
+/* Absolute flash offset of ping-pong SECTOR idx (0/1) in the boot_param
+ * partition (partition base + idx * AB_FLAG_SECTOR). */
+uint32_t boot_param_get_sector_addr(int idx);
+
+/* zlib/PKZIP-compatible CRC32 (poly 0xEDB88320, init 0xFFFFFFFF, final xor).
+ * MUST match Python zlib.crc32 used by the packer. */
+uint32_t boot_param_crc32(const uint8_t *data, uint32_t len);
+
+/* MCUboot slot-selection hook (bootutil/boot_hooks.h): supplies the A/B
+ * preferred slot to find_slot_with_highest_version(). Implemented here in
+ * boot_param.c (always built) rather than the optional platform hooks_bl2.c,
+ * so slot steering is present regardless of the hooks build config. */
+int boot_get_active_slot_hook(int img_index, uint32_t *slot);
+
+/* After boot_go: persist fallback if preferred failed; clear PMU unless still TRIAL. */
+void boot_param_reconcile_booted(uint32_t image_off);
+
+#ifdef __cplusplus
+}
+#endif
