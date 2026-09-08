@@ -8,7 +8,8 @@ import copy
 import hashlib
 import math
 import csv
-
+import struct
+import zlib
 from enum import Enum
 
 from .crc import *
@@ -942,6 +943,61 @@ class Partitions:
             f.seek(0)
             f.write(boot_flag_val)
 
+    def process_boot_param(self, aes_type):
+        # Pre-provision the AB ping-pong flag partition (boot_param) so the very
+        # first boot sees a valid "NORMAL / exec_slot=A / seq=1" record instead of
+        # a virgin 0xFF sector. The 32-byte layout, reserved-byte convention
+        # (memset 0) and CRC32 (zlib/PKZIP) MUST stay identical to the C firmware
+        # common/bl2/boot_param.h (single source of truth for ab_flag_record_t,
+        # mirrors Gerrit #96393).
+        p = self.find_partition_by_name('boot_param')
+        if p == None:
+            return
+
+        AB_FLAG_MAGIC = 0x31464241        # 'A''B''F''1' little-endian
+        AB_FLAG_STRUCT_VER = 1
+        AB_FLAG_RECORD_SIZE = 32
+        AB_FLAG_SECTOR_SIZE = 0x1000
+        AB_STATE_NORMAL = 0x01
+        AB_DL_IDLE = 0x00
+        AB_SLOT_A = 0x00
+        AB_FLAG_DEFAULT_TRY_MAX = 5
+
+        # CRC-covered head [0x00..0x1B] (28 bytes), little-endian:
+        #   I magic | H struct_ver | H size | I seq | B exec_slot | B update_slot |
+        #   B boot_state | B dl_state | B try_max | 3s rsvd0 | 8s rsvd1
+        head = struct.pack(
+            '<IHHIBBBBB3s8s',
+            AB_FLAG_MAGIC,
+            AB_FLAG_STRUCT_VER,
+            AB_FLAG_RECORD_SIZE,
+            1,                          # seq
+            AB_SLOT_A,                  # exec_slot
+            AB_SLOT_A,                  # update_slot
+            AB_STATE_NORMAL,            # boot_state
+            AB_DL_IDLE,                 # dl_state
+            AB_FLAG_DEFAULT_TRY_MAX,    # try_max
+            b'\x00' * 3,                # rsvd0
+            b'\x00' * 8,                # rsvd1
+        )
+        if len(head) != AB_FLAG_RECORD_SIZE - 4:
+            raise RuntimeError(f'ab_flag head size {len(head)} != 28')
+        crc = zlib.crc32(head) & 0xFFFFFFFF
+        record = head + struct.pack('<I', crc)
+
+        size = p.partition_size
+        if size < 2 * AB_FLAG_SECTOR_SIZE:
+            raise RuntimeError(
+                f'boot_param size 0x{size:x} < 8K, AB ping-pong needs two 4K sectors')
+
+        sector0 = record + bytes([0xFF]) * (AB_FLAG_SECTOR_SIZE - len(record))
+        content = sector0 + bytes([0xFF]) * (size - AB_FLAG_SECTOR_SIZE)
+
+        p.bin_name = 'boot_param.bin'
+        logging.debug(f'create new {p.bin_name}: record crc=0x{crc:08x}, size=0x{size:x}')
+        with open(p.bin_name, 'wb+') as f:
+            f.write(content)
+
     def process_aes_crc(self, aes_type, aes_key):
         for p in self.partitions:
             if (p.partition_name in self.primary_partitions_verified_by_bl2) or (p.partition_name in self.secondary_partitions_verified_by_bl2) or p.partition_name == "secondary_all":
@@ -1266,6 +1322,7 @@ class Partitions:
         self.parse_and_validate_partitions_after_build()
         self.parse_and_validate_pack_json(pack_json)
         self.process_bl1_control(aes_type)
+        self.process_boot_param(aes_type)
         self.process_boot_flag(aes_type)
         self.create_partition_partition(aes_type, aes_key)
         self.process_aes_crc(aes_type, aes_key)
