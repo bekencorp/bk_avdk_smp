@@ -1,0 +1,603 @@
+{
+  "product": "BK7258 secureboot_xip Direct-XIP A/B",
+  "try_max_default": 5,
+  "phases": [
+    {
+      "name": "Phase1-baseline",
+      "ids": [
+        "P-01",
+        "H-01",
+        "T-01",
+        "E-01"
+      ]
+    },
+    {
+      "name": "Phase2-recovery",
+      "ids": [
+        "C-01",
+        "S-03",
+        "T-02",
+        "T-03",
+        "T-04",
+        "S-01",
+        "S-02"
+      ]
+    },
+    {
+      "name": "Phase3-power-sec",
+      "ids": [
+        "R-01",
+        "R-02",
+        "R-03",
+        "R-04",
+        "E-02",
+        "E-03"
+      ]
+    }
+  ],
+  "cases": [
+    {
+      "id": "P-01",
+      "category": "Pack",
+      "priority": "P0",
+      "title": "NONE: OTA 仅 CRC 不 AES",
+      "setup": "security flash_aes_type=NONE；ota.csv 无 encrypt",
+      "steps": "完整 pack，检查中间产物与 ota.bin",
+      "expect": "生成 ota_crc.bin；无 ota_aes.bin；ota.bin 含 OTA hdr + CRC 布局",
+      "auto": "pack_check",
+      "log_patterns": []
+    },
+    {
+      "id": "P-02",
+      "category": "Pack",
+      "priority": "P0",
+      "title": "FIXED: OTA AES+CRC",
+      "setup": "flash_aes_type=FIXED + 合法 64 hex key",
+      "steps": "完整 pack",
+      "expect": "ota_aes.bin → ota_aes_crc.bin → ota.bin；CONFIG_OTA_ENCRYPTED=1",
+      "auto": "pack_check",
+      "log_patterns": []
+    },
+    {
+      "id": "P-03",
+      "category": "Pack",
+      "priority": "P1",
+      "title": "encrypt 字段可缺省",
+      "setup": "ota.csv 不含 encrypt；security=NONE",
+      "steps": "gen _ota.h + pack",
+      "expect": "不报错；CONFIG_OTA_ENCRYPTED=0；行为同 P-01",
+      "auto": "pack_check",
+      "log_patterns": []
+    },
+    {
+      "id": "P-04",
+      "category": "Pack",
+      "priority": "P1",
+      "title": "版本号写入 OTA 镜像",
+      "setup": "ota.csv app_version=1.2.3；security_counter=N",
+      "steps": "pack 后解析 ota_signed / 烧录后 header",
+      "expect": "ih_ver / security_counter 与 csv 一致",
+      "auto": "pack_check",
+      "log_patterns": []
+    },
+    {
+      "id": "P-05",
+      "category": "Pack",
+      "priority": "P1",
+      "title": "all-app 与 ota 一致性",
+      "setup": "同一次 build 的 all-app.bin 与 ota.bin",
+      "steps": "对比 primary payload（去 OTA hdr / 对齐 CRC）",
+      "expect": "payload 与对应 slot 镜像一致（含签/哈希）",
+      "auto": "pack_check",
+      "log_patterns": []
+    },
+    {
+      "id": "H-01",
+      "category": "Happy",
+      "priority": "P0",
+      "title": "A→B 首次升级并 confirm",
+      "setup": "当前 NORMAL exec=A；合法更高版本 ota 写入 B",
+      "steps": "OTA 写 slotB → set_trial(B) → reboot → AP 起来 → confirm",
+      "expect": "TRIAL 选 B；confirm 后 NORMAL exec=B；try 清 0；冷启仍 B",
+      "auto": "manual",
+      "log_patterns": []
+    },
+    {
+      "id": "H-02",
+      "category": "Happy",
+      "priority": "P0",
+      "title": "B→A 反向升级并 confirm",
+      "setup": "NORMAL exec=B",
+      "steps": "同 H-01，目标 A",
+      "expect": "对称于 H-01；最终 NORMAL exec=A",
+      "auto": "manual",
+      "log_patterns": []
+    },
+    {
+      "id": "H-03",
+      "category": "Happy",
+      "priority": "P0",
+      "title": "连续两次 OTA（乒乓）",
+      "setup": "完成 H-01 后立刻再升一版",
+      "steps": "A/B 交替升级两次，每次都 confirm",
+      "expect": "每次均落在新 slot；无 residual TRIAL；try 始终被清",
+      "auto": "manual",
+      "log_patterns": []
+    },
+    {
+      "id": "H-04",
+      "category": "Happy",
+      "priority": "P1",
+      "title": "同版本/低版本升级策略",
+      "setup": "目标镜像 version ≤ 当前",
+      "steps": "发起 OTA / 或仅烧录低版本到非活跃槽后 reboot",
+      "expect": "按产品策略：拒绝下载或 boot 仍选更高/BP preferred（记录实测）",
+      "auto": "manual",
+      "log_patterns": []
+    },
+    {
+      "id": "H-05",
+      "category": "Happy",
+      "priority": "P1",
+      "title": "仅刷新非活跃槽后不 set_trial",
+      "setup": "NORMAL；写坏/写新到非活跃槽但不 arm TRIAL",
+      "steps": "reboot",
+      "expect": "仍 boot exec_slot；不进入 TRIAL 回滚路径",
+      "auto": "manual",
+      "log_patterns": []
+    },
+    {
+      "id": "T-01",
+      "category": "Trial",
+      "priority": "P0",
+      "title": "TRIAL 成功 confirm（默认 try_max=5）",
+      "setup": "合法新镜像；set_trial",
+      "steps": "reboot 1 次内 AP 调 confirm",
+      "expect": "state→NORMAL；exec=running；PMU try clear",
+      "auto": "manual",
+      "log_patterns": [
+        "decide: TRIAL",
+        "confirm",
+        "rollback"
+      ]
+    },
+    {
+      "id": "T-02",
+      "category": "Trial",
+      "priority": "P0",
+      "title": "TRIAL 新镜像 boot 挂死 → 回滚",
+      "setup": "update 槽 header/签名可通过，但 app 进不去或死循环复位；try_max=5",
+      "steps": "连续 warm reset，累计 try 到 >5（第 6 次）",
+      "expect": "decide: rollback → NORMAL exec=旧槽；try clear；能进旧系统",
+      "auto": "manual",
+      "log_patterns": [
+        "decide: TRIAL",
+        "confirm",
+        "rollback"
+      ]
+    },
+    {
+      "id": "T-03",
+      "category": "Trial",
+      "priority": "P0",
+      "title": "TRIAL 边界：try==try_max 仍试新槽",
+      "setup": "try_max=5",
+      "steps": "第 5 次 boot（try_cnt=5）观察 decide 日志",
+      "expect": "仍 preferred=update_slot；尚未 rollback",
+      "auto": "manual",
+      "log_patterns": [
+        "decide: TRIAL",
+        "confirm",
+        "rollback"
+      ]
+    },
+    {
+      "id": "T-04",
+      "category": "Trial",
+      "priority": "P0",
+      "title": "TRIAL 边界：try>try_max 回滚",
+      "setup": "承接 T-03",
+      "steps": "第 6 次 boot",
+      "expect": "rollback commit；boot 旧 exec_slot",
+      "auto": "manual",
+      "log_patterns": [
+        "decide: TRIAL",
+        "confirm",
+        "rollback"
+      ]
+    },
+    {
+      "id": "T-05",
+      "category": "Trial",
+      "priority": "P1",
+      "title": "TRIAL 期间不触发 NORMAL sticky",
+      "setup": "TRIAL；人为让 try 到 5",
+      "steps": "看 loader 日志有无 sticky/pre-swap",
+      "expect": "in_trial 时不做 sticky；回滚只由 decide_slot 负责",
+      "auto": "manual",
+      "log_patterns": [
+        "decide: TRIAL",
+        "confirm",
+        "rollback"
+      ]
+    },
+    {
+      "id": "T-06",
+      "category": "Trial",
+      "priority": "P1",
+      "title": "confirm 时非 TRIAL 幂等",
+      "setup": "已是 NORMAL",
+      "steps": "再调 ota_boot_param_confirm",
+      "expect": "skip / return 0；不改坏 record",
+      "auto": "manual",
+      "log_patterns": [
+        "decide: TRIAL",
+        "confirm",
+        "rollback"
+      ]
+    },
+    {
+      "id": "T-07",
+      "category": "Trial",
+      "priority": "P1",
+      "title": "confirm 采用实际 running slot",
+      "setup": "TRIAL；若 sticky/异常曾改过实际启动槽",
+      "steps": "confirm 后读 boot_param",
+      "expect": "exec_slot == bk_ota_get_current_partition()",
+      "auto": "manual",
+      "log_patterns": [
+        "decide: TRIAL",
+        "confirm",
+        "rollback"
+      ]
+    },
+    {
+      "id": "T-08",
+      "category": "Trial",
+      "priority": "P2",
+      "title": "自定义 try_max",
+      "setup": "record.try_max=3（合法 <15）",
+      "steps": "坏镜像 TRIAL 不 confirm",
+      "expect": "try_cnt>3 时回滚；日志 try_max=3",
+      "auto": "manual",
+      "log_patterns": [
+        "decide: TRIAL",
+        "confirm",
+        "rollback"
+      ]
+    },
+    {
+      "id": "S-01",
+      "category": "Sticky",
+      "priority": "P0",
+      "title": "preferred header OK / body hang → sticky 一次",
+      "setup": "NORMAL；BP preferred=坏槽（header 软 CRC 过、验签/跑挂）；另一槽好图",
+      "steps": "连续 warm reset 至 try==5",
+      "expect": "try==5 sticky 到另一可用槽并成功 boot；有 verified exceed 日志",
+      "auto": "manual",
+      "log_patterns": [
+        "verified exceed",
+        "try>",
+        "no sticky"
+      ]
+    },
+    {
+      "id": "S-02",
+      "category": "Sticky",
+      "priority": "P0",
+      "title": "sticky 目标也挂 → try>5 清计数不二次 sticky",
+      "setup": "两槽都 body hang（或 sticky 目标不可用）",
+      "steps": "try 到 >5",
+      "expect": "try cleared, no sticky；candidate 保持 version/BP；不乒乓死循环",
+      "auto": "manual",
+      "log_patterns": [
+        "verified exceed",
+        "try>",
+        "no sticky"
+      ]
+    },
+    {
+      "id": "S-03",
+      "category": "Sticky",
+      "priority": "P0",
+      "title": "preferred 不可用 → 直接选另一可用槽",
+      "setup": "BP preferred header 坏（soft CRC/hook 失败）；另一槽好",
+      "steps": "reboot",
+      "expect": "slot_available[pref]=false；boot 好槽；不依赖 sticky",
+      "auto": "manual",
+      "log_patterns": [
+        "verified exceed",
+        "try>",
+        "no sticky"
+      ]
+    },
+    {
+      "id": "S-04",
+      "category": "Sticky",
+      "priority": "P1",
+      "title": "成功 boot 后 try 清零",
+      "setup": "NORMAL 正常镜像",
+      "steps": "多次冷/热启成功进系统",
+      "expect": "稳定后 PMU try=0（或每次成功路径 clear）；无误 sticky",
+      "auto": "manual",
+      "log_patterns": [
+        "verified exceed",
+        "try>",
+        "no sticky"
+      ]
+    },
+    {
+      "id": "S-05",
+      "category": "Sticky",
+      "priority": "P1",
+      "title": "不可 sticky 到 unavailable",
+      "setup": "try==5；对端槽不可用",
+      "steps": "观察 swap 逻辑",
+      "expect": "不切换到 unavailable；保持 candidate",
+      "auto": "manual",
+      "log_patterns": [
+        "verified exceed",
+        "try>",
+        "no sticky"
+      ]
+    },
+    {
+      "id": "C-01",
+      "category": "SoftCRC",
+      "priority": "P0",
+      "title": "坏 header 不 CBUS 卡死",
+      "setup": "目标槽前若干字节破坏 CRC 布局",
+      "steps": "BL2 扫双槽 header",
+      "expect": "DBUS soft CRC 失败 → BOOT_EBADIMAGE；设备不 hang；另一槽可 boot",
+      "auto": "mutate_then_manual",
+      "log_patterns": [
+        "BOOT_EBADIMAGE",
+        "SoftCRC",
+        "unavailable"
+      ]
+    },
+    {
+      "id": "C-02",
+      "category": "SoftCRC",
+      "priority": "P0",
+      "title": "全 0xFF 空槽",
+      "setup": "非活跃槽擦除未写",
+      "steps": "boot",
+      "expect": "该槽 unavailable；boot 活跃好槽",
+      "auto": "manual",
+      "log_patterns": [
+        "BOOT_EBADIMAGE",
+        "SoftCRC",
+        "unavailable"
+      ]
+    },
+    {
+      "id": "C-03",
+      "category": "SoftCRC",
+      "priority": "P1",
+      "title": "plaintext header hook 二次校验",
+      "setup": "软 CRC 过但 header magic/结构非法",
+      "steps": "boot",
+      "expect": "hook 判坏；不进 CBUS 盲读路径挂死",
+      "auto": "manual",
+      "log_patterns": [
+        "BOOT_EBADIMAGE",
+        "SoftCRC",
+        "unavailable"
+      ]
+    },
+    {
+      "id": "C-04",
+      "category": "SoftCRC",
+      "priority": "P1",
+      "title": "双槽都坏 header",
+      "setup": "A/B header 均破坏；非 TRIAL",
+      "steps": "boot",
+      "expect": "无可用槽；行为符合产品（panic/复位）；try 按 NORMAL 策略清理",
+      "auto": "manual",
+      "log_patterns": [
+        "BOOT_EBADIMAGE",
+        "SoftCRC",
+        "unavailable"
+      ]
+    },
+    {
+      "id": "E-01",
+      "category": "Security",
+      "priority": "P0",
+      "title": "sig_verify_en=FALSE：只校哈希",
+      "setup": "当前工程配置；合法 hash 镜像",
+      "steps": "正常 OTA + boot",
+      "expect": "验签跳过；哈希失败仍拒 boot",
+      "auto": "manual",
+      "log_patterns": []
+    },
+    {
+      "id": "E-02",
+      "category": "Security",
+      "priority": "P0",
+      "title": "sig_verify_en=TRUE：错签名拒",
+      "setup": "打开验签；故意错 privkey 签 ota",
+      "steps": "烧录/OTA 后 boot",
+      "expect": "该槽 unavailable / 验签失败；回退另一槽或拒绝",
+      "auto": "manual",
+      "log_patterns": []
+    },
+    {
+      "id": "E-03",
+      "category": "Security",
+      "priority": "P0",
+      "title": "篡改 image 哈希失败",
+      "setup": "合法 ota 写入后改 body 1 byte",
+      "steps": "reboot",
+      "expect": "校验失败不进系统；不 hang",
+      "auto": "manual",
+      "log_patterns": []
+    },
+    {
+      "id": "E-04",
+      "category": "Security",
+      "priority": "P1",
+      "title": "FIXED AES 通路端到端",
+      "setup": "flash_aes_type=FIXED；芯片 AES key 匹配",
+      "steps": "pack→烧 all-app→OTA 升一版→confirm",
+      "expect": "CBUS/DBUS 路径正确；升级成功",
+      "auto": "manual",
+      "log_patterns": []
+    },
+    {
+      "id": "E-05",
+      "category": "Security",
+      "priority": "P1",
+      "title": "NONE 与 FIXED 镜像不可混用",
+      "setup": "设备 NONE；刷 FIXED 打包的 ota（或反之）",
+      "steps": "OTA / boot",
+      "expect": "校验或读出失败；不砖（另一槽可救）",
+      "auto": "manual",
+      "log_patterns": []
+    },
+    {
+      "id": "E-06",
+      "category": "Security",
+      "priority": "P2",
+      "title": "security_counter 单调",
+      "setup": "新镜像 counter < 已接受",
+      "steps": "OTA/boot（若启用 anti-rollback）",
+      "expect": "按 MCUboot/产品策略拒绝",
+      "auto": "manual",
+      "log_patterns": []
+    },
+    {
+      "id": "R-01",
+      "category": "Power",
+      "priority": "P0",
+      "title": "OTA 写入中断电",
+      "setup": "下载写非活跃槽中途断电",
+      "steps": "上电；必要时重试 OTA",
+      "expect": "仍可从旧槽 boot；坏半包被 softCRC/校验丢弃",
+      "auto": "manual",
+      "log_patterns": []
+    },
+    {
+      "id": "R-02",
+      "category": "Power",
+      "priority": "P0",
+      "title": "set_trial 后、首次 boot 前断电",
+      "setup": "已写好镜像并 commit TRIAL",
+      "steps": "断电再上电",
+      "expect": "进入 TRIAL 路径；成功则 confirm，失败可回滚",
+      "auto": "manual",
+      "log_patterns": []
+    },
+    {
+      "id": "R-03",
+      "category": "Power",
+      "priority": "P0",
+      "title": "TRIAL 已进 AP、confirm 前复位",
+      "setup": "新固件起来但未 confirm",
+      "steps": "多次复位不调用 confirm",
+      "expect": "try 累加；超限回滚旧槽（T-02）",
+      "auto": "manual",
+      "log_patterns": []
+    },
+    {
+      "id": "R-04",
+      "category": "Power",
+      "priority": "P1",
+      "title": "confirm 写 boot_param 中断电",
+      "setup": "TRIAL 成功路径；写 ping-pong 时掉电",
+      "steps": "反复上电",
+      "expect": "ab_flag 双扇区可恢复到一致合法记录；最终能 NORMAL 或再试 TRIAL",
+      "auto": "manual",
+      "log_patterns": []
+    },
+    {
+      "id": "R-05",
+      "category": "Power",
+      "priority": "P1",
+      "title": "冷启动清 PMU try",
+      "setup": "人为 try 抬到非 0",
+      "steps": "真正断电 PON（非 soft reset）",
+      "expect": "try=0；不误 sticky",
+      "auto": "manual",
+      "log_patterns": []
+    },
+    {
+      "id": "R-06",
+      "category": "Power",
+      "priority": "P1",
+      "title": "warm reset 保留 try",
+      "setup": "TRIAL 或 NORMAL hang 场景",
+      "steps": "WDT/软件复位",
+      "expect": "try 递增保留，支撑回滚/sticky",
+      "auto": "manual",
+      "log_patterns": []
+    },
+    {
+      "id": "N-01",
+      "category": "Negative",
+      "priority": "P0",
+      "title": "OTA 包截断 / 长度错",
+      "setup": "截短 ota.bin",
+      "steps": "HTTP/本地 OTA",
+      "expect": "下载层或校验失败；不 set_trial；旧系统可用",
+      "auto": "mutate_then_manual",
+      "log_patterns": []
+    },
+    {
+      "id": "N-02",
+      "category": "Negative",
+      "priority": "P1",
+      "title": "错误 OTA global/img hdr",
+      "setup": "篡改 OTA 头 checksum/offset",
+      "steps": "OTA",
+      "expect": "拒绝写入或写后不可 boot 新槽",
+      "auto": "mutate_then_manual",
+      "log_patterns": []
+    },
+    {
+      "id": "N-03",
+      "category": "Negative",
+      "priority": "P1",
+      "title": "boot_param 全毁",
+      "setup": "擦除 boot_param 分区",
+      "steps": "reboot",
+      "expect": "virgin → slot A；可再 OTA 重建 record",
+      "auto": "manual",
+      "log_patterns": []
+    },
+    {
+      "id": "N-04",
+      "category": "Negative",
+      "priority": "P1",
+      "title": "boot_param CRC 坏单扇区",
+      "setup": "破坏 ping 或 pong 一侧",
+      "steps": "reboot / confirm",
+      "expect": "读到另一侧合法 latest；可继续",
+      "auto": "manual",
+      "log_patterns": []
+    },
+    {
+      "id": "N-05",
+      "category": "Negative",
+      "priority": "P2",
+      "title": "非法 preferred slot 值",
+      "setup": "手工写坏 exec/update slot 字段",
+      "steps": "reboot",
+      "expect": "decide force A；不越界",
+      "auto": "manual",
+      "log_patterns": []
+    },
+    {
+      "id": "N-06",
+      "category": "Negative",
+      "priority": "P2",
+      "title": "并发二次 OTA",
+      "setup": "第一次 TRIAL 未结束又发起下载",
+      "steps": "产品 CLI/HTTP 重入",
+      "expect": "拒绝或串行；不出现双 TRIAL 撕裂",
+      "auto": "manual",
+      "log_patterns": []
+    }
+  ]
+}
