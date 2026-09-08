@@ -22,7 +22,12 @@ def pack_all(config_dir):
     o = OTA('ota.csv')
     s = Security('security.csv')
 
-    gen_otp_efuse_config_file(s.flash_aes_type, s.flash_aes_key, s.bl2_root_pubkey, s.secureboot_en, 'otp_efuse_config.json')
+    # Prefer the flash AES key from the config directory; the same key is used
+    # for the OTP config and the flash encryption to keep them consistent.
+    config_flash_aes_key = load_config_flash_aes_key()
+    flash_aes_key = config_flash_aes_key if config_flash_aes_key else s.flash_aes_key
+
+    gen_otp_efuse_config_file(s.flash_aes_type, flash_aes_key, s.bl2_root_pubkey, s.secureboot_en, 'otp_efuse_config.json')
 
     ota_type = o.get_strategy()
 
@@ -48,6 +53,6 @@ def pack_all(config_dir):
             bl2_sign('sign', s.bl2_root_key_type, s.bl2_root_privkey, s.bl2_root_pubkey, None, 'primary_all_code.bin', pall.vir_sign_size, app_version, o.get_app_security_counter(), 'ota_signed.bin', 'ota_hash.json', pad=False)
 
     # OTA AES follows flash AES: only FIXED has a software key to pre-encrypt OTA.
-    p.pack_bin('pack.json', s.flash_aes_type, s.flash_aes_key, o.get_app_security_counter(),
+    p.pack_bin('pack.json', s.flash_aes_type, flash_aes_key, o.get_app_security_counter(),
                s.is_flash_aes_fixed())
     p.install_bin()

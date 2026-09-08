@@ -34,6 +34,9 @@ GLOBAL_HDR_LEN = 32
 IMG_HDR_LEN = 32
 HDR_SZ = 0x1000
 TAIL_SZ = 0x1000
+# Reserved area ahead of the partition table entries; the bootloader reads the
+# entries starting at this offset.
+PPC_CONFIG_AREA_SZ = 0x400
 
 partition_keys_v2 = [
     'Name',
@@ -646,8 +649,12 @@ class Partitions:
             logging.debug(f'partition partition not exists, not create partition.bin')
             return
         
-        with open('partition_raw.bin','wb') as f,open('ppc_config.bin','rb') as f_src:
-            f.write(f_src.read())
+        with open('partition_raw.bin','wb') as f:
+            if os.path.exists('ppc_config.bin'):
+                with open('ppc_config.bin','rb') as f_src:
+                    f.write(f_src.read())
+            else:
+                f.write(bytes([0xFF] * PPC_CONFIG_AREA_SZ))
 
         with open("partition_raw.bin", 'a+b') as f:
             for p in self.partitions:
