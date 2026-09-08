@@ -4,16 +4,16 @@
 # partition that a core boots directly by XIP therefore needs its offset to be a
 # multiple of 34 (so the physical->virtual entry address phy/34*32 divides cleanly)
 # and, being flash, also a multiple of the 4 KB sector size. The least common
-# multiple is 68 KB, so such partitions are 68 KB aligned. The AP slots are booted
-# by CP (reset_cpu1_core reads the partition offset), so primary/secondary_ap_app
-# must be 68 KB aligned; the CP slots are booted by BL2, which realigns internally,
-# so they only need sector alignment. Image authenticity/confidentiality are added
-# via the MCUboot signature and XTS-AES flash encryption.
+# multiple is 68 KB, so such partitions are 68 KB aligned. Both CP and AP XIP
+# slots (primary/secondary_cp_app and primary/secondary_ap_app) are therefore
+# 68 KB aligned. Image authenticity/confidentiality are added via the MCUboot
+# signature and XTS-AES flash encryption.
 #
 # bl1_control is a code partition so the secure packer AES-encrypts it and writes
 # the secure-boot magic; bl2 is the second-stage MCUboot loader. The boot base
-# (bl1_control/boot_flag/partition/primary_manifest/bl2) is fixed and not part of
-# A/B upgrade. DIRECT_XIP dual slots apply only to the merged primary_all
+# (bl1_control/boot_flag/partition/primary_manifest) is fixed; bl2 is sized to
+# end on the next 68 KB boundary so primary_cp_app can start 68 KB-aligned with
+# no unused gap. DIRECT_XIP dual slots apply only to the merged primary_all
 # (CP + AP); both slots are identical in size.
 FLASH_CAPACITY=8M
 #Name,Offset,Size,Type,Read,Write
@@ -21,11 +21,11 @@ bl1_control,0x0,4k,code,TRUE,FALSE
 boot_flag,0x1000,4k,data,TRUE,FALSE
 partition,0x2000,4k,data,TRUE,FALSE
 primary_manifest,0x3000,4k,data,TRUE,FALSE
-bl2,0x4000,96k,code,TRUE,FALSE
-primary_cp_app,0x1C000,2064k,code,TRUE,TRUE
-primary_ap_app,0x220000,1880k,code,TRUE,TRUE
-secondary_cp_app,0x3F6000,2064k,code,TRUE,TRUE
-secondary_ap_app,0x5FA000,1880k,code,TRUE,TRUE
+bl2,0x4000,120k,code,TRUE,FALSE
+primary_cp_app,0x22000,2040k,code,TRUE,TRUE
+primary_ap_app,0x220000,1904k,code,TRUE,TRUE
+secondary_cp_app,0x3FC000,2040k,code,TRUE,TRUE
+secondary_ap_app,0x5FA000,1904k,code,TRUE,TRUE
 usr_config,0x7E9000,60k,data,TRUE,TRUE
 easyflash,0x7F8000,8k,data,TRUE,TRUE
 easyflash_ap,0x7FA000,8k,data,TRUE,TRUE
