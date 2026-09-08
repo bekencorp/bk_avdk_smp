@@ -76,11 +76,15 @@ void swap_ab_execute_partition(char *pcWriteBuffer, int xWriteBufferLen, int arg
 }
 #endif
 
-#if CONFIG_DIRECT_XIP && CONFIG_SECURITY_OTA
+#if CONFIG_SECURE_OTA_XIP || (CONFIG_DIRECT_XIP && CONFIG_SECURITY_OTA)
 void get_http_ab_version(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
+#if CONFIG_SECURE_OTA_XIP
+	uint8_t id = bk_ota_get_current_partition();
+#else
 	extern uint32_t flash_get_excute_enable();
 	uint32_t id = flash_get_excute_enable();
+#endif
 	if(id == 0){
 		BK_LOGD(NULL,"partition A\r\n");
 	} else if (id == 1){
@@ -209,7 +213,7 @@ static const struct cli_command s_ota_commands[] = {
 	{"swap_ab_partition", NULL, swap_ab_execute_partition},
 #endif
 
-#if CONFIG_DIRECT_XIP && CONFIG_SECURITY_OTA
+#if CONFIG_SECURE_OTA_XIP || (CONFIG_DIRECT_XIP && CONFIG_SECURITY_OTA)
 	{"ab_version", NULL, get_http_ab_version},
 #endif
 };
