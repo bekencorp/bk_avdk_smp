@@ -356,7 +356,7 @@ void wpas_notify_connected(struct wpa_supplicant *wpa_s)
 		wifi_station_status_event_notice(0, EVENT_WIFI_STA_CONNECTED);
 #endif
 
-		/* post event */
+		/* notify event */
 		os_memset(&sta_connected, 0, sizeof(sta_connected));
 		if (wpa_s->current_ssid && wpa_s->current_ssid->ssid) {
 			os_memcpy(&sta_connected.ssid, wpa_s->current_ssid->ssid,
@@ -448,7 +448,14 @@ void wpas_notify_disconnected(struct wpa_supplicant *wpa_s)
 		sta_disconnected.local_generated = local_generated;
 		sta_disconnected.disconnect_reason = state.reason_code;
 
-		#if CONFIG_WIFI_VNET_CONTROLLER
+		BK_LOG_ON_ERR(bk_event_post(EVENT_MOD_WIFI,
+#if CONFIG_P2P
+					wpas_use_p2p_gc_netif(wpa_s) ?
+					EVENT_WIFI_GC_DISCONNECTED :
+#endif
+					EVENT_WIFI_STA_DISCONNECTED,
+					&sta_disconnected, sizeof(sta_disconnected), BEKEN_NEVER_TIMEOUT));
+#if CONFIG_WIFI_VNET_CONTROLLER
 #if CONFIG_P2P
 		if (wpas_use_p2p_gc_netif(wpa_s)) {
 			cif_handle_bk_cmd_wifi_event_ind(CIF_WIFI_EVT_GC_DISCONNECTED,
@@ -461,15 +468,7 @@ void wpas_notify_disconnected(struct wpa_supplicant *wpa_s)
 							 &sta_disconnected,
 							 sizeof(sta_disconnected));
 		}
-		#endif
-
-		BK_LOG_ON_ERR(bk_event_post(EVENT_MOD_WIFI,
-#if CONFIG_P2P
-					wpas_use_p2p_gc_netif(wpa_s) ?
-					EVENT_WIFI_GC_DISCONNECTED :
 #endif
-					EVENT_WIFI_STA_DISCONNECTED,
-					&sta_disconnected, sizeof(sta_disconnected), BEKEN_NEVER_TIMEOUT));
 	}
 }
 

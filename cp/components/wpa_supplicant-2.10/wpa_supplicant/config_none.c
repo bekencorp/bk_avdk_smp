@@ -27,6 +27,9 @@
 #if CONFIG_P2P && CONFIG_EASY_FLASH
 #include "bk_ef.h"
 #endif
+#if CONFIG_WIFI_VNET_CONTROLLER
+#include "cif_cntrl.h"
+#endif
 
 #if !CONFIG_QUICK_TRACK
 /**
@@ -167,6 +170,11 @@ int wpa_config_set_wep(struct wpa_ssid *ssid)
 		sta_disconnected.local_generated = true;
 		BK_LOG_ON_ERR(bk_event_post(EVENT_MOD_WIFI, EVENT_WIFI_STA_DISCONNECTED,
 						&sta_disconnected, sizeof(sta_disconnected), BEKEN_NEVER_TIMEOUT));
+#if CONFIG_WIFI_VNET_CONTROLLER
+		cif_handle_bk_cmd_wifi_event_ind(CIF_WIFI_EVT_STA_DISCONNECTED,
+						 &sta_disconnected,
+						 sizeof(sta_disconnected));
+#endif
 	}
 
 	return 0;
@@ -230,6 +238,11 @@ int wpa_config_set_wpa(struct wpa_bss *bss, struct wpa_ssid *ssid, struct wpa_ie
 		sta_disconnected.local_generated = true;
 		BK_LOG_ON_ERR(bk_event_post(EVENT_MOD_WIFI, EVENT_WIFI_STA_DISCONNECTED,
 					  &sta_disconnected, sizeof(sta_disconnected), BEKEN_NEVER_TIMEOUT));
+#if CONFIG_WIFI_VNET_CONTROLLER
+		cif_handle_bk_cmd_wifi_event_ind(CIF_WIFI_EVT_STA_DISCONNECTED,
+						 &sta_disconnected,
+						 sizeof(sta_disconnected));
+#endif
 	}
 
 	return ret;

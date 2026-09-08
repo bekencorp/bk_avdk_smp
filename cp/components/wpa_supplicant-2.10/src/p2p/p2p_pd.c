@@ -23,6 +23,29 @@
 #define MAX_PROV_DISC_REQ_RETRIES 120
 
 
+#if BK_SUPPLICANT
+static int p2p_ignore_pd_req_on_active_go(struct p2p_data *p2p, const u8 *sa)
+{
+	size_t i;
+	int has_connected_client = 0;
+
+	for (i = 0; i < p2p->num_groups; i++) {
+		if (!p2p_get_group_num_members(p2p->groups[i]))
+			continue;
+
+		has_connected_client = 1;
+		if (p2p_group_is_client_connected(p2p->groups[i], sa))
+			return 0;
+	}
+
+	if (!has_connected_client)
+		return 0;
+
+	return 1;
+}
+#endif /* BK_SUPPLICANT */
+
+
 static void p2p_build_wps_ie_config_methods(struct wpabuf *buf,
 					    u16 config_methods)
 {
@@ -577,6 +600,14 @@ void p2p_process_prov_disc_req(struct p2p_data *p2p, const u8 *sa,
 
 	if (p2p_parse(data, len, &msg))
 		return;
+
+#if BK_SUPPLICANT
+	if (p2p_ignore_pd_req_on_active_go(p2p, sa)) {
+		p2p_parse_free(&msg);
+		return;
+	}
+#endif /* BK_SUPPLICANT */
+
 #if CONFIG_WPA_LOG
 	p2p_dbg(p2p, "Received Provision Discovery Request from " MACSTR
 		" with config methods 0x%x (freq=%d)",
