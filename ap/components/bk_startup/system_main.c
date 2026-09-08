@@ -28,11 +28,6 @@
 
 #include "boot.h"
 
-#if CONFIG_SECURE_OTA_XIP
-/* ota component (CONFIG_SECURE_OTA_XIP); avoid hard header dep from bk_startup. */
-extern int ota_boot_param_confirm(void);
-#endif
-
 #if CONFIG_FREERTOS_TRACE
 #include "trcRecorder.h"
 #endif
@@ -373,13 +368,6 @@ static void app_main_thread(void *arg)
 	//if nessary ,close the main() function.
 #endif
 
-#if CONFIG_TFM_FWU
-	bk_ota_accept_image();
-#endif
-#if CONFIG_SECURE_OTA_XIP
-	/* Non-TFM A/B: confirm TRIAL once AP is up (idempotent if not TRIAL). */
-	(void)ota_boot_param_confirm();
-#endif
     bk_pm_ap_core_init();
 	main();
 
