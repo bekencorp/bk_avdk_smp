@@ -54,6 +54,7 @@ typedef struct {
 	pwm_chan_t chan1;
 	pwm_chan_t chan2;
 	bool is_valid;
+	bool is_hw_default_group;
 	uint32_t period_cycle;     /**< PWM Group period cycle */
 	uint32_t chan1_duty_cycle; /**< Duty cycle of chan1 */
 	uint32_t chan2_duty_cycle; /**< Duty cycle of chan2 */
@@ -1234,6 +1235,7 @@ static void pwm_group_delete(pwm_group_t group)
 
 	if (group < PWM_GROUP_NUM) {
 		s_pwm_groups[group].is_valid = false;
+		s_pwm_groups[group].is_hw_default_group = false;
 		s_pwm_groups[group].chan1 = 0;
 		s_pwm_groups[group].chan2 = 0;
 	}
@@ -1373,6 +1375,7 @@ bk_err_t bk_pwm_group_init(const pwm_group_init_config_t *config, pwm_group_t *g
 	PWM_LOGD("group(%d) period=%d chan1_duty=%d chan2_duty=%d, dead_cycle=%d\n",
 			 *group, config->period_cycle, config->chan1_duty_cycle, config->chan2_duty_cycle, dead_cycle);
 
+	s_pwm_groups[*group].is_hw_default_group = pwm_chan_is_default_group(config->chan1, config->chan2);
 	s_pwm_groups[*group].period_cycle = config->period_cycle;
 	s_pwm_groups[*group].chan1_duty_cycle = config->chan1_duty_cycle;
 	s_pwm_groups[*group].chan2_duty_cycle = config->chan2_duty_cycle;
@@ -1479,12 +1482,21 @@ bk_err_t bk_pwm_group_set_config(pwm_group_t group, const pwm_group_config_t *co
 		return BK_ERR_PWM_GROUP_DUTY;
 	}
 
-	bk_pm_module_vote_cpu_freq(PM_DEV_ID_PWM_2, PM_CPU_FRQ_120M);
-
 	dead_cycle = (config->period_cycle - config->chan1_duty_cycle - config->chan2_duty_cycle) >> 1;
 
-	pwm_hal_set_new_config_way(&s_pwm[id1].hal, hw_ch1, 1);
-	pwm_hal_set_new_config_way(&s_pwm[id2].hal, hw_ch2, 1);
+	if (s_pwm_groups[group].is_hw_default_group) {
+		if (dead_cycle >= 0x400) {
+			PWM_LOGW("pwm_group_validate_dead_cycle, dead_cycle:%d\r\n", dead_cycle);
+			return BK_ERR_PWM_GROUP_DUTY;
+		}
+	}
+
+	bk_pm_module_vote_cpu_freq(PM_DEV_ID_PWM_2, PM_CPU_FRQ_120M);
+
+	if (!s_pwm_groups[group].is_hw_default_group) {
+		pwm_hal_set_new_config_way(&s_pwm[id1].hal, hw_ch1, 1);
+		pwm_hal_set_new_config_way(&s_pwm[id2].hal, hw_ch2, 1);
+	}
 
 	uint32_t int_level = rtos_enter_critical();
 	s_pwm_groups[group].period_cycle = config->period_cycle;
@@ -1954,6 +1966,26 @@ static uint32_t pwm_get_tim_arr(pwm_ch_t sw_ch)
 	return pwm_hal_get_tim_arr(&s_pwm[unit_id].hal, hw_ch);
 }
 
+static void pwm_group_update_hw_default_config(pwm_group_t group)
+{
+	pwm_group_init_config_t config = {
+		.chan1 = s_pwm_groups[group].chan1,
+		.chan2 = s_pwm_groups[group].chan2,
+		.period_cycle = s_pwm_groups[group].period_cycle,
+		.chan1_duty_cycle = s_pwm_groups[group].chan1_duty_cycle,
+		.chan2_duty_cycle = s_pwm_groups[group].chan2_duty_cycle,
+	};
+	pwm_ch_t hw_ch;
+	pwm_id_t unit_id;
+
+	pwm_group_output_mode_config(&config, 0, s_pwm_groups[group].dead_cycle);
+
+	pwm_sw_ch_to_hw_id_ch(s_pwm_groups[group].chan1, &unit_id, &hw_ch);
+	pwm_hal_set_uie(&s_pwm[unit_id].hal, hw_ch, 0);
+	s_pwm_groups[group].is_param_need_update = false;
+	s_pwm_groups[group].is_flip_mode_need_update = false;
+}
+
 static void pwm_group_update_config(pwm_group_t group)
 {
 	pwm_ch_t hw_ch;
@@ -1962,6 +1994,11 @@ static void pwm_group_update_config(pwm_group_t group)
 	uint32_t chan2_flip_mode;
 	pwm_period_duty_config_t config1 = {0};
 	pwm_period_duty_config_t config2 = {0};
+
+	if (s_pwm_groups[group].is_hw_default_group) {
+		pwm_group_update_hw_default_config(group);
+		return;
+	}
 
 	chan1_flip_mode = pwm_get_flip_mode(s_pwm_groups[group].chan1);
 	chan2_flip_mode = pwm_get_flip_mode(s_pwm_groups[group].chan2);
