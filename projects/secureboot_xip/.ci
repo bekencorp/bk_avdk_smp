@@ -1,1 +1,1 @@
-make bk7258 PROJECT=app_ab
+make bk7258 PROJECT=secureboot_xip
