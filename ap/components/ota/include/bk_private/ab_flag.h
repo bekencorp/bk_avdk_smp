@@ -43,8 +43,12 @@ extern "C" {
 #define AB_FLAG_CRC_LEN      28u          /* bytes [0..0x1B] covered by crc32 */
 #define AB_FLAG_SECTOR       0x1000u      /* one 4K sector per ping-pong copy */
 #define AB_FLAG_COPIES       2u
-#define AB_FLAG_DEFAULT_TRY_MAX 5u        /* trial boots before rollback (must be <= 7, 3-bit reboot counter) */
+#define AB_FLAG_DEFAULT_TRY_MAX 5u        /* allowed TRIAL boots of update_slot (BL2: cnt<=try_max; PMU 4-bit) */
 #define AB_FLAG_ERR_IO       (-2)
+
+/* Must match BL2 boot_param.h: AON_PMU R0/R7B try counter field. */
+#define BOOT_PARAM_PMU_TRY_BIT    (20u)
+#define BOOT_PARAM_PMU_TRY_MASK   (0xFu)  /* bit[20:23] */
 
 typedef enum {
     AB_SLOT_A = 0,

@@ -29,6 +29,12 @@ int ota_boot_param_read_latest(ab_flag_record_t *rec);
  * try_max. @return 0 on success, -1 on error (partition missing). */
 int ota_boot_param_set_trial(uint8_t update_slot);
 
+/* Confirm the currently running TRIAL image (non-TFM / AP path). Idempotent:
+ * non-TRIAL or virgin -> no flash write. Adopts the running slot as exec_slot,
+ * settles to NORMAL, and clears the AON_PMU try counter (bit[20:23]).
+ * @return 0 on success / nothing-to-do, -1 on missing record or commit fail. */
+int ota_boot_param_confirm(void);
+
 #ifdef __cplusplus
 }
 #endif

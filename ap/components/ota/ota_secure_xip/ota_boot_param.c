@@ -1,10 +1,11 @@
 /*
- * ota_boot_param.c - AP-side writer for the boot_param TRIAL record.
+ * ota_boot_param.c - AP-side writer for the boot_param TRIAL / confirm records.
  *
  * See ota_boot_param.h. The ping-pong algorithm and record layout come from the
  * shared ab_flag.h; this file only supplies the non-secure flash back-end and
  * targets the boot_param partition so the committed record is consumed by the
- * CP-side BL2/SPE (boot_param.h) unchanged.
+ * CP-side BL2 (boot_param.h) unchanged. Confirm is done here on AP
+ * (CONFIG_SECURE_OTA_XIP); there is no SPE boot_param_confirm.
  */
 
 #include <stdint.h>
@@ -13,6 +14,7 @@
 #include "driver/flash_partition.h"
 #include "modules/ota.h"          /* bk_ota_get_current_partition() */
 #include "bk_private/bk_ota_private.h"
+#include "aon_pmu_hal.h"
 #include "ab_flag.h"
 #include "ota_boot_param.h"
 
@@ -69,6 +71,16 @@ static uint32_t ota_bp_partition_base(void)
 		return 0;
 	}
 	return part->partition_start_addr;
+}
+
+/* Clear shared reboot/try counter after a successful TRIAL confirm (same field
+ * as BL2 boot_param_pmu_try_clear). */
+static void ota_bp_pmu_try_clear(void)
+{
+	uint32_t r7b = aon_pmu_ll_get_r7b();
+
+	r7b &= ~(BOOT_PARAM_PMU_TRY_MASK << BOOT_PARAM_PMU_TRY_BIT);
+	aon_pmu_hal_set_r0(r7b);
 }
 
 int ota_boot_param_read_latest(ab_flag_record_t *rec)
@@ -128,5 +140,51 @@ int ota_boot_param_set_trial(uint8_t update_slot)
 
 	OTA_LOGI("boot_param trial armed: exec=%u update=%u try_max=%u\r\n",
 			 rec.exec_slot, rec.update_slot, rec.try_max);
+	return 0;
+}
+
+int ota_boot_param_confirm(void)
+{
+	ab_flag_record_t rec;
+	uint32_t base = ota_bp_partition_base();
+	uint8_t running;
+	int idx;
+
+	if (base == 0) {
+		return -1;
+	}
+
+	idx = ab_record_read_latest(base, &s_ota_bp_ops, &rec);
+	if (idx < 0) {
+		OTA_LOGI("boot_param confirm: no valid record (%d), skip\r\n", idx);
+		return -1;
+	}
+
+	if (rec.boot_state != (uint8_t)AB_STATE_TRIAL) {
+		OTA_LOGI("boot_param confirm: state=%x not TRIAL, skip\r\n",
+			 rec.boot_state);
+		return 0;
+	}
+
+	/* Adopt the slot that actually brought up AP. */
+	running = (uint8_t)(bk_ota_get_current_partition() & 0x1u);
+	OTA_LOGI("boot_param confirm: TRIAL run=%u exec=%u upd=%u -> NORMAL\r\n",
+		 running, rec.exec_slot, rec.update_slot);
+
+	rec.exec_slot   = running;
+	rec.update_slot = running;
+	rec.boot_state  = (uint8_t)AB_STATE_NORMAL;
+	rec.dl_state    = (uint8_t)AB_DL_IDLE;
+	memset(rec.rsvd0, 0, sizeof(rec.rsvd0));
+
+	idx = ab_record_commit(base, &s_ota_bp_ops, &rec);
+	if (idx < 0) {
+		OTA_LOGE("boot_param confirm commit failed: %d\r\n", idx);
+		return -1;
+	}
+
+	ota_bp_pmu_try_clear();
+	OTA_LOGI("boot_param confirm done, exec_slot=%u sector=%d\r\n",
+		 running, idx);
 	return 0;
 }
