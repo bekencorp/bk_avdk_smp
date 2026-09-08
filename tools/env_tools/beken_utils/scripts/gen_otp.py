@@ -71,7 +71,7 @@ def reverse_order(hex_str):
     return reverse_str
 
 
-def gen_otp_efuse_config_file(aes_type, flash_aes_key, pubkey_pem_file, secureboot_en, outfile):
+def gen_otp_efuse_config_file(aes_type, flash_aes_key, pubkey_pem_file, secureboot_en, sig_verify_en, outfile):
     f = open(outfile, 'w+')
     logging.debug(f'Create {outfile}')
 
@@ -105,8 +105,7 @@ def gen_otp_efuse_config_file(aes_type, flash_aes_key, pubkey_pem_file, securebo
 
     data = {}
 
-    if aes_type == 'FIXED':
-        otp_efuse_config["Security_Ctrl"][0].update({"flash_aes_enable":"3,5,1"})
+    if aes_type.upper() == 'FIXED':
         data["name"] = "flash_aes_key"
         data["mode"] = "write"
         data["permission"] = "WR" #TODO change to NA
@@ -117,10 +116,6 @@ def gen_otp_efuse_config_file(aes_type, flash_aes_key, pubkey_pem_file, securebo
         data["data_type"] = "hex"
         data["status"] = "true"
         otp_efuse_config["Security_Data"].append(data)
-    elif aes_type == 'RANDOM':
-        otp_efuse_config["Security_Ctrl"][0].update({"flash_aes_enable":"3,5,1"})
-    else:
-        pass
 
     if secureboot_en:
         h = Rotpk_hash(pubkey_pem_file)
@@ -174,6 +169,12 @@ def gen_otp_efuse_config_file(aes_type, flash_aes_key, pubkey_pem_file, securebo
         data["data_type"] = "hex"
         data["status"] = "true"
         otp_efuse_config["Security_Data"].append(data)
+
+    # secure_boot_enable follows sig_verify_en.
+    otp_efuse_config["Security_Ctrl"][0]["secure_boot_enable"] = "0,0,1" if sig_verify_en else "0,0,0"
+
+    # flash_aes_enable is set for FIXED/RANDOM flash AES and cleared for NONE.
+    otp_efuse_config["Security_Ctrl"][0]["flash_aes_enable"] = "3,5,1" if aes_type.upper() in ('FIXED', 'RANDOM') else "3,5,0"
 
     json_str = json.dumps(otp_efuse_config, indent=4)
     with open('otp_efuse_config.json', 'w',newline="\n") as file:

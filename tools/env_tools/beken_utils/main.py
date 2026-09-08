@@ -132,12 +132,13 @@ def gen_ota_command(otp_csv, outfile, debug):
 @click.option("--flash_aes_key", type=str, required=False, default=None, help="flash AES key.")
 @click.option("--pubkey_pem_file", type=click.Path(exists=True, dir_okay=False), required=False, default='root_ec256_pubkey.pem', help="PEM secure boot public key file.")
 @click.option("--secure_boot", is_flag=True, help="Enable secure boot")
+@click.option("--sig_verify/--no_sig_verify", "sig_verify", default=True, help="Enable signature verification (sets secure_boot_enable).")
 @click.option("--outfile", type=str, required=False, default='otp_efuse_config.json', help="Output file")
 @click.option("--debug", is_flag=True, help="Enable debug")
-def gen_otp_efuse_command(flash_aes_type, flash_aes_key, pubkey_pem_file, secure_boot, outfile, debug):
+def gen_otp_efuse_command(flash_aes_type, flash_aes_key, pubkey_pem_file, secure_boot, sig_verify, outfile, debug):
     """gen otp_efuse_config.json from security csv files."""
     set_debug(debug)
-    gen_otp_efuse_config_file(flash_aes_type, flash_aes_key, pubkey_pem_file, secure_boot, outfile)
+    gen_otp_efuse_config_file(flash_aes_type, flash_aes_key, pubkey_pem_file, secure_boot, sig_verify, outfile)
 
 @gen.command("all")
 @click.option("--debug", is_flag=True, help="Enable debug")

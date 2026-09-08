@@ -27,7 +27,7 @@ def pack_all(config_dir):
     config_flash_aes_key = load_config_flash_aes_key()
     flash_aes_key = config_flash_aes_key if config_flash_aes_key else s.flash_aes_key
 
-    gen_otp_efuse_config_file(s.flash_aes_type, flash_aes_key, s.bl2_root_pubkey, s.secureboot_en, 'otp_efuse_config.json')
+    gen_otp_efuse_config_file(s.flash_aes_type, flash_aes_key, s.bl2_root_pubkey, s.secureboot_en, s.sig_verify_en, 'otp_efuse_config.json')
 
     ota_type = o.get_strategy()
 
