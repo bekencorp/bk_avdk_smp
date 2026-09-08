@@ -29,6 +29,9 @@ def gen_security_config_file(security_csv, outfile):
         line = f'#define %-45s %d\n' %("CONFIG_SECUREBOOT", 1)
         f.write(line)
 
+    line = f'#define %-45s %d\n' %("CONFIG_SIG_VERIFY_EN", 1 if security.sig_verify_en else 0)
+    f.write(line)
+
     if (security.bl2_root_key_type == 'rsa2048'):
         line = f'#define %-45s %s' %("MCUBOOT_SIGN_RSA", "1\n")
         f.write(line)

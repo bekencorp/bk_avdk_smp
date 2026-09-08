@@ -8,6 +8,7 @@ from .parse_csv import *
 
 security_keys = [
     'secureboot_en',
+    'sig_verify_en',
     'flash_aes_type',
     'flash_aes_key',
     'root_key_type',
@@ -32,6 +33,14 @@ class Security(dict):
 
     def parse_csv(self):
         self.secureboot_en = parse_bool(self.csv.dic['secureboot_en'])
+
+        # sig_verify_en controls whether BL2 authenticates the application image
+        # signature. When FALSE, BL2 still enforces the SHA256 integrity hash but
+        # skips signature authentication. It is independent of secureboot_en
+        # (BootROM->BL2). Optional, defaults to TRUE so existing security.csv
+        # files keep verifying the signature.
+        self.sig_verify_en = parse_bool(self.csv.dic.get('sig_verify_en', 'TRUE'))
+
         self.flash_aes_type = self.csv.dic['flash_aes_type'].upper()
 
         self.flash_aes_key = self.csv.dic['flash_aes_key']
