@@ -1,6 +1,7 @@
 #include "sdkconfig.h"
 #include <string.h>
 #include "cli.h"
+#include <components/log.h>
 #include <components/system.h>
 #include "driver/flash.h"
 #include "modules/ota.h"
@@ -153,10 +154,9 @@ int bk_http_ota_download(const char *uri)
 		OTA_LOGI("ota_success.\r\n");
 		bk_reboot();
 #else
-		OTA_LOGI("ota_success.\r\n");
-		ota_do_deinit_operation();
-		ota_input_event_handler(EVT_OTA_SUCCESS);
-		bk_reboot();
+		OTA_LOGI("ota_success, rebooting\r\n");
+		BK_LOG_FLUSH();
+		bk_ota_finish_and_reboot();
 #endif /*CONFIG_HTTP_AB_PARTITION*/
 	}
 	return ret;

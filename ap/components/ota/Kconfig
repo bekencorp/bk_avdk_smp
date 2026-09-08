@@ -55,4 +55,13 @@ menu "Ota"
 		default n
 		help
 			enable display picture when do ota position independent update
+	config SECURE_OTA_XIP
+		bool "Enable secure XIP A/B OTA on the non-secure OTA framework"
+		default n
+		help
+			Secure OTA that stages the ciphertext image into the inactive
+			DIRECT_XIP slot (secondary_all/primary_all) via non-secure flash
+			writes and arms a boot_param TRIAL record; BL2 does EC-P256
+			verification and rollback. Built on top of ota.c/ota_common.c/
+			ota_base_drv.c, and does NOT use CONFIG_SECURITY_OTA / TFM FWU.
 endmenu

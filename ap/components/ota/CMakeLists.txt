@@ -8,28 +8,25 @@ endif()
 
 list(APPEND srcs ota_checksum/CheckSumUtils.c)
 
-if (CONFIG_SECURITY_OTA)
-list(APPEND srcs ota_security/security_ota.c)
+# Non-secure OTA framework. The legacy TF-M FWU secure OTA (ota_security/) has
+# been removed; secure OTA is now the DIRECT_XIP A/B back-end in ota_secure_xip/.
+if (CONFIG_OTA_HTTPS)
+	list(APPEND srcs ota_nosecurity/ota_https.c)
+endif()
 
-	if (CONFIG_OTA_HTTPS)
-		list(APPEND srcs ota_security/security_ota_https.c)
-	endif()
+if (CONFIG_OTA_HTTP)
+	list(APPEND srcs ota_nosecurity/ota_http.c)
+endif()
+list(APPEND srcs
+	ota.c
+	ota_common.c
+	ota_base_drv.c)
 
-	if (CONFIG_OTA_HTTP)
-		list(APPEND srcs ota_security/security_ota_http.c)
-	endif()
-else()
-	if (CONFIG_OTA_HTTPS)
-		list(APPEND srcs ota_nosecurity/ota_https.c)
-	endif()
-
-	if (CONFIG_OTA_HTTP)
-		list(APPEND srcs ota_nosecurity/ota_http.c)
-	endif()
-	list(APPEND srcs 
-		ota.c
-		ota_common.c
-		ota_base_drv.c)
+# Secure XIP A/B OTA back-end, layered on the non-secure OTA framework.
+if (CONFIG_SECURE_OTA_XIP)
+	list(APPEND srcs
+		ota_secure_xip/ota_boot_param.c
+		ota_secure_xip/ota_secure_xip.c)
 endif()
 endif()
 armino_component_register(SRCS "${srcs}"

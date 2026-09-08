@@ -59,6 +59,10 @@ int ota_do_init_operation(void)
 	int ret = BK_FAIL;
 
 	OTA_MALLOC(ota_info, sizeof(ota_device_into_t));
+#if CONFIG_SECURE_OTA_XIP
+	/* Route every transport through the secure DIRECT_XIP A/B back-end. */
+	f_ota_fun_ptr = bk_ota_secure_xip_backend();
+#endif
 	ret = f_ota_fun_ptr->init(&ota_info->fota_dl_info); 	//do init
 	ota_info->fota_dl_info.ota_type = OTA_TYPE_WIFI;
 	if(ret == BK_OK)
@@ -73,6 +77,25 @@ void ota_do_deinit_operation(void)
 {
 	f_ota_fun_ptr->deinit(&ota_info->fota_dl_info);
 	OTA_FREE(ota_info);
+}
+
+void bk_ota_finish_and_reboot(void)
+{
+	/* Run the backend finish hook (secure OTA arms the boot_param TRIAL), then
+	 * deinit + reboot. A finish failure aborts the reboot; finish==NULL keeps
+	 * the old behaviour. */
+	if(ota_info != NULL && f_ota_fun_ptr->finish != NULL)
+	{
+		if(f_ota_fun_ptr->finish(&ota_info->fota_dl_info) != BK_OK)
+		{
+			OTA_LOGE("secure finalize failed, abort reboot\r\n");
+			ota_do_deinit_operation();
+			return;
+		}
+	}
+
+	ota_do_deinit_operation();
+	bk_reboot();
 }
 
 int ota_get_init_status(void)

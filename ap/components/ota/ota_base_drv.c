@@ -32,6 +32,11 @@ extern int ble_callback_deal_handler(uint32_t deal_flash_time);
 
 static int ota_do_init(f_ota_t* ota_ptr)
 {
+#if CONFIG_SECURE_OTA_XIP
+    /* DIRECT_XIP uses its own backend and has no ota partition. */
+    (void)ota_ptr;
+    return BK_ERR_NOT_SUPPORT;
+#else
     OTA_CHECK_POINTER(ota_ptr);
 
     OTA_MALLOC(ota_ptr->wr_buf, OTA_FLASH_BUFFER_LENGTH);
@@ -69,6 +74,7 @@ static int ota_do_init(f_ota_t* ota_ptr)
     ota_ptr->received_total_size  = 0;
     ota_ptr->wr_last_len          = 0;
     ota_ptr->wr_flash_flag        = 0;
+    ota_ptr->wr_err               = 0;
     ota_ptr->ota_crc.crc          = 0xFFFFFFFF;
     ota_ptr->wr_address           = ota_ptr->pt->partition_start_addr;
     ota_ptr->protect_type         = bk_flash_get_protect_type();
@@ -84,6 +90,7 @@ static int ota_do_init(f_ota_t* ota_ptr)
 #endif
 
     return BK_OK;
+#endif /* !CONFIG_SECURE_OTA_XIP */
 }
 
 static int ota_do_write_flash(f_ota_t* ota_ptr, uint16_t len)
@@ -501,6 +508,7 @@ static const f_ota_func_t s_ota_fun ={
     .data_process = ota_do_process_data,
     .crc          = ota_do_check_crc,
     .deinit       = ota_do_deinit,
+    .finish       = NULL,
 #if (CONFIG_REMOTE_VFS_CLIENT || CONFIG_VFS)
     .mount        = ota_do_mount,
     .open         = ota_do_open_file,
