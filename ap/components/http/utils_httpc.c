@@ -494,7 +494,9 @@ void http_flash_init(void)
 void http_flash_deinit(void)
 {
 	os_free(bk_http_ptr->wr_buf);
+	bk_http_ptr->wr_buf = NULL;
 	os_free(bk_http_ptr->wr_tmp_buf);
+	bk_http_ptr->wr_tmp_buf = NULL;
 	os_memset(bk_http_ptr, 0, sizeof(HTTP_DATA_ST));
 
 	ota_wr_block = 0;
@@ -642,6 +644,18 @@ int httpclient_retrieve_content(httpclient_t *client, char *data, int len, uint3
 		} else
 			readLen = client_data->retrieve_len;
 
+#if CONFIG_OTA_FUNCTION
+		/* len==0: header/body split across TCP segments, fetch first body bytes. */
+		if (len == 0 && readLen > 0) {
+			int first_len = HTTPCLIENT_MIN(HTTPCLIENT_CHUNK_SIZE - 1, (int)readLen);
+			ret = httpclient_recv(client, data, 1, first_len, &len, iotx_time_left(&timer));
+			if (ret == ERROR_HTTP_CONN || len == 0) {
+				BK_LOGD(NULL, "%s: no body received, ret:%d len:%d\r\n", __func__, ret, len);
+				return ret ? ret : ERROR_HTTP_CONN;
+			}
+		}
+#endif
+
 		os_printf("Total-Payload: %d Bytes; Read: %d Bytes", readLen, len);
 #if HTTP_WR_TO_FLASH
 		http_flash_init();
@@ -727,7 +741,10 @@ int httpclient_retrieve_content(httpclient_t *client, char *data, int len, uint3
 		} else {
 			log_debug("no more (content-length)");
 #if CONFIG_OTA_FUNCTION
-			if (bk_ota_process_data((char*)bk_http_ptr->wr_buf, bk_http_ptr->wr_last_len, bk_http_ptr->wr_last_len,bk_http_ptr->http_total) != 0) {
+			/* Body already written via net.read(); only flush leftover data,
+			 * a zero-length call would wrongly fail an already-done download. */
+			if (bk_http_ptr->wr_last_len > 0 &&
+				bk_ota_process_data((char*)bk_http_ptr->wr_buf, bk_http_ptr->wr_last_len, bk_http_ptr->wr_last_len, bk_http_ptr->http_total) != 0) {
 				os_printf("ota data process failed, abort download\r\n");
 #if HTTP_WR_TO_FLASH
 				http_flash_deinit();
