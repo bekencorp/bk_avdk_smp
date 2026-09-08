@@ -11,7 +11,6 @@
 #include <os/mem.h>
 #include <os/str.h>
 #include <driver/wdt.h>
-#include "security_ota.h"
 
 #if HTTP_WR_TO_FLASH
 #if CONFIG_FLASH_ORIGIN_API
@@ -648,14 +647,13 @@ int httpclient_retrieve_content(httpclient_t *client, char *data, int len, uint3
 		http_flash_init();
 #endif
 #if CONFIG_OTA_FUNCTION
-	bk_ota_process_data(data, len, len,readLen);
+	if (bk_ota_process_data(data, len, len, readLen) != 0) {
+		os_printf("ota data process failed, abort download\r\n");
+#if HTTP_WR_TO_FLASH
+		http_flash_deinit();
 #endif
-#if (CONFIG_SECURITY_OTA)
-		security_ota_init();
-		if(security_ota_parse_data(data, len) != 0){
-			return FAIL_RETURN;
-		}
-
+		return FAIL_RETURN;
+	}
 #endif
 
 		b_data =  os_malloc((TCP_LEN_MAX + 1) * sizeof(char));
@@ -729,15 +727,16 @@ int httpclient_retrieve_content(httpclient_t *client, char *data, int len, uint3
 		} else {
 			log_debug("no more (content-length)");
 #if CONFIG_OTA_FUNCTION
-			bk_ota_process_data((char*)bk_http_ptr->wr_buf, bk_http_ptr->wr_last_len, bk_http_ptr->wr_last_len,bk_http_ptr->http_total);
+			if (bk_ota_process_data((char*)bk_http_ptr->wr_buf, bk_http_ptr->wr_last_len, bk_http_ptr->wr_last_len,bk_http_ptr->http_total) != 0) {
+				os_printf("ota data process failed, abort download\r\n");
+#if HTTP_WR_TO_FLASH
+				http_flash_deinit();
+#endif
+				return FAIL_RETURN;
+			}
 #endif
 #if HTTP_WR_TO_FLASH
 			http_flash_deinit();
-#endif
-#if (CONFIG_SECURITY_OTA)
-			if (security_ota_deinit() != 0) {
-				return FAIL_RETURN;
-			}
 #endif
 			client_data->is_more = false;
 			break;
