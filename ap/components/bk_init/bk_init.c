@@ -112,9 +112,11 @@ extern void bk_ota_confirm_update_partition(ota_confirm_flag ota_confirm_val);
 extern bk_err_t bk_dbg_init(void);
 #endif
 
-// #ifdef CONFIG_WIFI_VNET_CONTROLLER
-// #include "wdrv_main.h"
-// #endif
+#if CONFIG_SECURE_OTA_XIP
+/* ota component (CONFIG_SECURE_OTA_XIP); avoid hard header dep from bk_startup. */
+extern int ota_boot_param_confirm(void);
+#endif
+
 #include "wifi_api.h"
 
 void rtos_user_app_launch_over(void);
@@ -333,6 +335,12 @@ int bk_init(void)
 #if (CONFIG_OTA_POSITION_INDEPENDENT_AB)
 	bk_ota_double_check_for_execution();
 #endif
+#endif
+
+#if CONFIG_SECURE_OTA_XIP
+	/* Must run after main()/uart printf_init: earlier BK_LOGI/bk_printf are
+	 * no-ops (printf_is_init()==false), and flash IPC is not ready yet. */
+	(void)ota_boot_param_confirm();
 #endif
 
 #if CONFIG_MICROPYTHON
