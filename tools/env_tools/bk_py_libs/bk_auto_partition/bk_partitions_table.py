@@ -86,6 +86,12 @@ class bk_partitions_table:
                 msg = f"{name} partition align error"
                 raise RuntimeError(msg)
 
+        # The larger 34 KB alignment for CRC code partitions only exists to place
+        # a Secure/Non-Secure boundary inside the continuous XIP space. A signed
+        # layout (marked by bl1_control) keeps everything in one world and never
+        # splits S/NS flash, so those partitions only need 4 KB sector alignment.
+        secure_layout = any(part.Name == "bl1_control" for part in self.partitions)
+
         for part in self.partitions:
             offset: int = part.Offset
             size: int = part.Size
@@ -94,7 +100,7 @@ class bk_partitions_table:
             logger.debug(part)
             check_align(name, offset, 0x1000)
             check_align(name, size, 0x1000)
-            if self.crc_enable and execute:
+            if self.crc_enable and execute and not secure_layout:
                 check_align(name, offset, 1024 * 34)
                 check_align(name, size, 1024 * 34)
 

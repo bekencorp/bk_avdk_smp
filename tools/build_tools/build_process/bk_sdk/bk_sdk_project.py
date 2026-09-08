@@ -147,6 +147,13 @@ class bk_sdk_project(bk_project):
         return self._is_ab_project
 
     @property
+    def is_security_firmware(self) -> bool:
+        cfg = self.project_path / "config" / self._project_info.soc_name / "config"
+        if not cfg.exists():
+            return False
+        return "CONFIG_SECURITY_FIRMWARE=y" in cfg.read_text(encoding="utf-8")
+
+    @property
     def flash_crc_enable(self) -> bool:
         return self._project_info.flash_crc_enable
 
@@ -156,6 +163,14 @@ class bk_sdk_project(bk_project):
 
     @property
     def flash_partitions_setting(self) -> Path:
+        # Secure firmware replaces the single primary_bootloader region with the
+        # BL1/BL2 secure-boot base partitions, so it needs its own ordering/limit
+        # rules instead of the default SMP layout constraints.
+        if self.is_security_firmware:
+            return (
+                Path(__file__).absolute().parent
+                / "smp_flash_partitions_setting_security.json"
+            )
         return Path(__file__).absolute().parent / "smp_flash_partitions_setting.json"
 
     @property

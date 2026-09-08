@@ -179,11 +179,34 @@ package_script := $(ARMINO_AVDK_DIR)/tools/build_tools/build_process/bk_build_pa
 package_dir := $(PROJECT_BUILD_DIR)/package
 package_json := $(PARTITIONS_DIR)/bk_package.json
 build_summary := $(package_dir)/build_summary.txt
+
+# Secure firmware detection: a project is secure when its per-SoC config enables
+# CONFIG_SECURITY_FIRMWARE. Secure builds are signed and XTS-AES encrypted by the
+# board wrapper (beken_utils pack all) instead of the plain packager.
+SECURITY_CONFIG_FILE := $(PROJECT_DIR)/config/$(ARMINO_SOC_NAME)/config
+IS_SECURITY_FIRMWARE := $(shell test -f $(SECURITY_CONFIG_FILE) && grep -q '^CONFIG_SECURITY_FIRMWARE=y' $(SECURITY_CONFIG_FILE) && echo y)
+secure_build_dir := $(PROJECT_BUILD_DIR)/$(ARMINO_SOC)
+secure_install_dir := $(secure_build_dir)/install
+secure_wrapper := $(ARMINO_CP_DIR)/middleware/boards/$(ARMINO_SOC)/$(ARMINO_SOC).wrapper
+
 package: $(package_script) $(ARMINO_SOC)_cp $(ARMINO_SOC)_ap
 	@mkdir -p $(package_dir)
+ifeq ($(IS_SECURITY_FIRMWARE),y)
+	@echo "Secure firmware: signing + flash encryption via $(secure_wrapper)"
+	@if [ ! -f "$(secure_wrapper)" ]; then echo "ERROR: secure wrapper not found: $(secure_wrapper)"; exit 1; fi
+	@cd $(secure_build_dir) && \
+		ARMINO_PATH=$(ARMINO_CP_DIR) \
+		ARMINO_AVDK_DIR=$(ARMINO_AVDK_DIR) \
+		ARMINO_SOC=$(ARMINO_SOC) \
+		PROJECT=$(PROJECT) \
+		PROJECT_DIR=$(PROJECT_DIR) \
+		python3 $(secure_wrapper) pack
+	@cp -a $(secure_install_dir)/. $(package_dir)/ 2>/dev/null || true
+else
 	@python3 $(package_script) $(PROJECT_BUILD_DIR) $(package_json) $(build_summary)
+endif
 ifneq ($(PRINT_SUMMARY), 0)
-	@cat $(build_summary)
+	@test -f $(build_summary) && cat $(build_summary) || true
 endif
 
 ap_doc:

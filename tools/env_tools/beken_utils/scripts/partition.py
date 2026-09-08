@@ -9,11 +9,21 @@ import hashlib
 import math
 import csv
 
+from enum import Enum
+
 from .crc import *
 from .common import *
 from .security import *
 from .ota import *
 from .parse_csv import *
+
+class PartitionType(Enum):
+    PARTITION_TYPE_APP  = 0x00
+    PARTITION_TYPE_DATA = 0x01
+    PARTITION_TYPE_ANY  = 0xff
+
+class PartitionSubType(Enum):
+    PARTITION_SubType_BK_UNDEFINED_0 = 0x00
 
 SZ_16M = 0x1000000
 FLASH_SECTOR_SZ = 0x1000
@@ -105,7 +115,7 @@ class Partition:
             logging.debug(f'Partition csv v1.0')
             self.partition_subtype = None
             self.partition_flags = None
-            if self.pdic['Execute'] == 'TRUE':
+            if str(self.pdic['Execute']).strip().upper() == 'TRUE':
                 self.partition_type = 'app'
             else:
                 self.partition_type = 'data'
@@ -649,40 +659,48 @@ class Partitions:
         with open("partition_raw.bin", 'a+b') as f:
             for p in self.partitions:
                 name = p.partition_name.encode('utf-8')
-                if len(name) < 24:
-                    name += bytes([0xFF] * (24 - len(name)))
+                if len(name) < 20:
+                    name += bytes([0xFF] * (20 - len(name)))
                 f.write(name)
-    
+
+                partition_type = PartitionType.PARTITION_TYPE_ANY
+                if p.partition_type == 'app':
+                    partition_type = PartitionType.PARTITION_TYPE_APP
+                elif p.partition_type == 'data':
+                    partition_type = PartitionType.PARTITION_TYPE_DATA
+                f.write(struct.pack(">B", partition_type.value))
+
+                partition_subtype = PartitionSubType.PARTITION_SubType_BK_UNDEFINED_0
+                f.write(struct.pack(">B", partition_subtype.value))
+
                 offset = struct.pack(">I",(p.partition_offset))
                 f.write(offset)
-    
+
                 size = struct.pack(">I",(p.partition_size))
                 f.write(size)
- 
+
+                raw_flags = getattr(p, 'partition_flags', None)
+                if raw_flags is None or raw_flags == '':
+                    flags = 0
+                elif isinstance(raw_flags, str):
+                    flags = int(raw_flags, 0)
+                else:
+                    flags = int(raw_flags)
+                f.write(struct.pack(">H", flags & 0xFFFF))
+
         if aes_type == 'RANDOM':
             with open('partition.bin','wb+') as f,open('partition_raw.bin','rb') as f_src:
                 f.write(f_src.read())
         else:
-            phy_partition_offset = ceil_align(partition.partition_offset, CRC_UNIT_TOTAL_SZ)
-            if aes_type == 'FIXED':
-                aes_infile = f'partition_raw.bin'
-                aes_bin_name = f'partition_aes.bin'
-                aes_tool = f'{self.tools_dir}/packager_tools/beken_aes'
-                start_address = hex(phy2virtual(phy_partition_offset))
-                cmd = f'{aes_tool} encrypt -infile {aes_infile} -keywords {aes_key} -outfile {aes_bin_name} -startaddress {start_address}'
-                run_cmd_not_check_ret(cmd)
-            else:
-                aes_bin_name = f'partition_raw.bin'
-
-            crc_bin_name = f'partition_crc.bin'
-            crc(aes_bin_name, crc_bin_name)
-
+            # The partition table is read as plaintext by the bootloader (name +
+            # offset/size parsing), so it is not AES-encrypted or software-CRC'd;
+            # only sector padding is applied ahead of the table.
+            phy_partition_offset = ceil_align(partition.partition_offset, CRC_UNIT_DATA_SZ)
             pad_size = phy_partition_offset - partition.partition_offset
             pad = bytes([0xFF]*(pad_size))
-            with open('partition.bin','wb+') as f,open('partition_crc.bin','rb') as f_src:
+            with open('partition.bin','wb+') as f,open('partition_raw.bin','rb') as f_src:
                 f.write(pad)
-                buf = f_src.read()
-                f.write(buf)
+                f.write(f_src.read())
 
         partition.bin_name = 'partition.bin'
         partition.bin_size = os.path.getsize(partition.bin_name)
@@ -877,7 +895,10 @@ class Partitions:
         p.bin_name = 'bl1_control.bin'
         with open(p.bin_name, 'wb') as f:
             logging.debug(f'create new {p.bin_name}')
-            pad = bytes([0xFF]*(0x1000))
+            # Leave CRC headroom: a 4 KB partition holds at most (4096//34)*32 =
+            # 3840 (0xF00) plaintext bytes once flash CRC is interleaved, so the
+            # CRC'd image stays within the partition and never overruns boot_flag.
+            pad = bytes([0xFF]*(0xF00))
             f.write(pad)
 
         if aes_type == 'RANDOM':
@@ -896,6 +917,30 @@ class Partitions:
                 with open(p.bin_name, 'rb+') as bl1_control_f:
                     bl1_control_f.seek(0)
                     bl1_control_f.write(bl2_msp_pc)
+
+    def process_boot_flag(self, aes_type):
+        # Boot control block read by the BootROM from the boot_flag partition
+        # (flash 0x1000). It must begin with the 'cTrL' magic (0x4C725463) plus
+        # boot_flag = PRIMARY(1); otherwise the BootROM treats the control block
+        # as invalid and falls back to defaults.
+        if self.bl1_secureboot_en == False:
+            return
+
+        p = self.find_partition_by_name('boot_flag')
+        if p == None:
+            return
+
+        boot_flag_val = bytes([0x63, 0x54, 0x72, 0x4c, 0x1])
+        p.bin_name = 'boot_flag.bin'
+        with open(p.bin_name, 'wb+') as f:
+            logging.debug(f'create new {p.bin_name}')
+            f.write(bytes([0x0] * (0x20)))
+            f.seek(32)
+            f.write(bytes([0xFF] * (0xFE0)))
+
+        with open(p.bin_name, 'rb+') as f:
+            f.seek(0)
+            f.write(boot_flag_val)
 
     def process_aes_crc(self, aes_type, aes_key):
         for p in self.partitions:
@@ -1221,6 +1266,7 @@ class Partitions:
         self.parse_and_validate_partitions_after_build()
         self.parse_and_validate_pack_json(pack_json)
         self.process_bl1_control(aes_type)
+        self.process_boot_flag(aes_type)
         self.create_partition_partition(aes_type, aes_key)
         self.process_aes_crc(aes_type, aes_key)
         self.gen_ota_bin(ota_aes_en, aes_key, security_counter)

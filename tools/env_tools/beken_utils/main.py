@@ -71,11 +71,12 @@ def pipeline():
 @click.option("--ota_type", type=click.Choice(['OVERWRITE', 'XIP']), default='OVERWRITE', required=True, help="The OTA type.")
 @click.option("--out_hdr_file", type=str, required=False, default='partition_gen.h', help="Output file")
 @click.option("--out_layout_file", type=str, required=False, default='partition_layout.h', help="Output file")
+@click.option("--secureboot", is_flag=True, help="Layout contains BL1 secure boot partitions")
 @click.option("--debug", is_flag=True, help="Enable debug")
-def gen_partition_command(partition_csv, ota_type, out_hdr_file, out_layout_file, debug):
+def gen_partition_command(partition_csv, ota_type, out_hdr_file, out_layout_file, secureboot, debug):
     """gen partition header and layout file."""
     set_debug(debug)
-    p = Partitions(partition_csv, ota_type)
+    p = Partitions(partition_csv, ota_type, secureboot)
     gen_partitions_hdr_file(p, out_hdr_file)
     gen_partitions_layout_file(p, out_layout_file)
 
