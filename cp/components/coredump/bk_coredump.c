@@ -27,6 +27,19 @@
 #define COREDUMP_STOP_READBACK_TIMEOUT_US 2000U
 #endif
 
+/* Upper bound on draining the pending async log from exception context. The log
+ * device can be blocked behind a peer core or a lock held by a stopped core, in
+ * which case an unbounded flush burns the whole watchdog window and the dump is
+ * lost to a reset instead of being printed. */
+#ifndef COREDUMP_LOG_FLUSH_TIMEOUT_US
+#define COREDUMP_LOG_FLUSH_TIMEOUT_US 500000U
+#endif
+
+#define COREDUMP_AON_WDT_REBOOT_TICKS 10U
+#define COREDUMP_AON_WDT_KEY_1ST      0x5A0000U
+#define COREDUMP_AON_WDT_KEY_2ND      0xA50000U
+#define COREDUMP_UNKNOWN_CORE         UINT32_MAX
+
 #if CONFIG_SUPPORT_WWDT
 #include <driver/wwdt.h>
 #include "wwdt_driver.h"
@@ -41,6 +54,7 @@ static volatile bk_assert_info_t s_bk_assert_info;
 static volatile uint32_t s_bk_exception_magic = 0;
 static volatile uint32_t s_core_id = 0;
 volatile uint32_t g_ap_dump_flag = 0;
+static bk_exception_reboot_info_t s_exception_reboot_info;
 
 static hook_func s_wifi_dump_func = NULL;
 static hook_func s_ble_dump_func = NULL;
@@ -51,6 +65,82 @@ void bk_coredump_feed_watchdogs(void)
     bk_wdt_force_feed();
 #endif
 }
+
+static void coredump_capture_primary_context(bk_exception_t *self)
+{
+    bk_coredump_minimal_context_t context;
+
+    bk_coredump_capture_minimal_context(self, &context);
+    s_exception_reboot_info.primary_reason = self->reset_reason;
+    s_exception_reboot_info.secondary_reason = RESET_SOURCE_UNKNOWN;
+    s_exception_reboot_info.primary_core = context.core_id;
+    s_exception_reboot_info.secondary_core = COREDUMP_UNKNOWN_CORE;
+    s_exception_reboot_info.pc = context.pc;
+    s_exception_reboot_info.lr = context.lr;
+    s_exception_reboot_info.sp = context.sp;
+    s_exception_reboot_info.cfsr = context.cfsr;
+    s_exception_reboot_info.hfsr = context.hfsr;
+    bk_misc_persist_exception_reboot_info(&s_exception_reboot_info);
+}
+
+static void coredump_print_primary_context(void)
+{
+    BK_DUMP_OUT(
+        "@PRIMARY_EXCEPTION reason=0x%x core=%u pc=0x%08x lr=0x%08x sp=0x%08x CFSR=0x%08x HFSR=0x%08x\r\n",
+        s_exception_reboot_info.primary_reason,
+        s_exception_reboot_info.primary_core,
+        s_exception_reboot_info.pc,
+        s_exception_reboot_info.lr,
+        s_exception_reboot_info.sp,
+        s_exception_reboot_info.cfsr,
+        s_exception_reboot_info.hfsr);
+}
+
+/* A secondary exception means the primary dump path itself faulted, so nothing
+ * in that path can be trusted any more. Record the reason and reset through the
+ * AON WDT registers directly: no locks, no log device, no bk_reboot_ex(). */
+static __attribute__((noreturn)) void coredump_secondary_reboot(
+    bk_exception_t *self)
+{
+    s_exception_reboot_info.secondary_reason = self->reset_reason;
+    s_exception_reboot_info.secondary_core = rtos_get_core_id();
+    bk_misc_persist_exception_reboot_info(&s_exception_reboot_info);
+
+    REG_WRITE(SOC_AON_WDT_REG_BASE,
+        COREDUMP_AON_WDT_KEY_1ST | COREDUMP_AON_WDT_REBOOT_TICKS);
+    REG_WRITE(SOC_AON_WDT_REG_BASE,
+        COREDUMP_AON_WDT_KEY_2ND | COREDUMP_AON_WDT_REBOOT_TICKS);
+    __DSB();
+
+    while (1) {
+        __NOP();
+    }
+}
+
+#if CONFIG_SHELL_ASYNCLOG
+static bool coredump_log_flush_continue(void *context)
+{
+    uint64_t start_us = *(uint64_t *)context;
+
+    bk_coredump_feed_watchdogs();
+    return (bk_aon_rtc_get_us() - start_us) <
+        COREDUMP_LOG_FLUSH_TIMEOUT_US;
+}
+
+static void coredump_flush_logs(void)
+{
+    uint64_t start_us = bk_aon_rtc_get_us();
+
+    if (!shell_log_flush_controlled(
+        coredump_log_flush_continue, &start_us)) {
+        BK_DUMP_OUT("@LOG_FLUSH_TIMEOUT: pending logs discarded\r\n");
+    }
+}
+#else
+static inline void coredump_flush_logs(void)
+{
+}
+#endif
 
 void bk_coredump_dump_time(uint64_t time_us)
 {
@@ -184,22 +274,27 @@ static void bk_exception_preprocess(bk_exception_t *self)
      * lock taken by bk_coredump_lock() below could spin/assert and trigger a
      * secondary exception. */
     secondary = (s_bk_exception_magic == BK_EXCEPTION_MAGIC);
+    if (secondary) {
+        coredump_secondary_reboot(self);
+    }
+
     s_bk_exception_magic = BK_EXCEPTION_MAGIC;
     s_core_id = rtos_get_core_id();
+    /* Capture and persist the minimal fault context before touching any lock or
+     * log device, so the reason/PC/LR/SP survive even if everything downstream
+     * (peer stop, log flush, full dump) stalls and a watchdog resets us. */
+    coredump_capture_primary_context(self);
+    bk_misc_set_reset_reason(self->reset_reason);
 
     bk_coredump_lock();
-    if (secondary) {
-        BK_DUMP_OUT("A secondary exception occurred, reset_reason: 0x%x\r\n", self->reset_reason);
-        bk_reboot_ex(self->reset_reason);
-    }
+    coredump_print_primary_context();
     coredump_stop_other_cores();
 
 #if CONFIG_SUPPORT_WWDT
     bk_wwdt_driver_deinit();
 #endif
     bk_coredump_feed_watchdogs();
-    bk_misc_set_reset_reason(self->reset_reason);
-    
+
     bk_set_printf_sync(true);  // set printf sync
 }
 
@@ -311,6 +406,8 @@ static void bk_exception_dump_main(bk_exception_t *self)
         bk_coredump_registers(self);
     }
 
+    coredump_flush_logs();
+
     coredump_prompt_prologue();
 
 #if CONFIG_DEBUG_VERSION || CONFIG_DUMP_ENABLE
@@ -399,9 +496,8 @@ void bk_coredump_dump_ap_memory_for_trap(void)
 
 static void bk_exception_postprocess(bk_exception_t *self)
 {
-    if (self->reset_reason != RESET_SOURCE_CRASH_ASSERT) {
-        BK_LOG_FLUSH();
-    }
+    if (self->reset_reason != RESET_SOURCE_CRASH_ASSERT)
+        coredump_flush_logs();
     bk_reboot_ex(self->reset_reason);
 }
 
