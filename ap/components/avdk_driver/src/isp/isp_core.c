@@ -66,6 +66,8 @@ enum {
 
 static isp_isr_handler_t isp_isr_handler[ISP_ISR_MAX][ISP_ISR_MODULE_MAX] = {0};
 static uint8_t s_isp_clk_vote_cnt = 0;
+static volatile uint32_t error_count = 0;
+static beken_timer_t s_isp_error_timer = {0};
 #if CONFIG_SOC_SMP
 static SPINLOCK_SECTION volatile spinlock_t s_isp_isr_spin_lock = SPIN_LOCK_INIT;
 #endif
@@ -88,6 +90,63 @@ static inline void isp_isr_unlock_irqrestore(uint32_t irq_flags)
 #endif
 
     rtos_enable_int(irq_flags);
+}
+
+static void isp_error_count_timer_cb(void *arg)
+{
+    uint32_t irq_flags;
+    uint32_t count;
+
+    (void)arg;
+
+    irq_flags = isp_isr_lock_irqsave();
+    count = error_count;
+    error_count = 0;
+    isp_isr_unlock_irqrestore(irq_flags);
+
+    if (count != 0) {
+        LOGW("isp error count: %u\n", count);
+    }
+}
+
+static void isp_error_count_timer_start(void)
+{
+    bk_err_t ret;
+
+    if (rtos_is_timer_init(&s_isp_error_timer)) {
+        if (!rtos_is_timer_running(&s_isp_error_timer)) {
+            rtos_start_timer(&s_isp_error_timer);
+        }
+        return;
+    }
+
+    error_count = 0;
+    ret = rtos_init_timer(&s_isp_error_timer, 1000, isp_error_count_timer_cb, NULL);
+    if (ret != BK_OK) {
+        LOGE("%s, init error timer failed, ret=%d\n", __func__, ret);
+        return;
+    }
+
+    ret = rtos_start_timer(&s_isp_error_timer);
+    if (ret != BK_OK) {
+        LOGE("%s, start error timer failed, ret=%d\n", __func__, ret);
+        rtos_deinit_timer(&s_isp_error_timer);
+        os_memset(&s_isp_error_timer, 0, sizeof(s_isp_error_timer));
+    }
+}
+
+static void isp_error_count_timer_stop(void)
+{
+    if (!rtos_is_timer_init(&s_isp_error_timer)) {
+        return;
+    }
+
+    if (rtos_is_timer_running(&s_isp_error_timer)) {
+        rtos_stop_timer(&s_isp_error_timer);
+    }
+    rtos_deinit_timer(&s_isp_error_timer);
+    os_memset(&s_isp_error_timer, 0, sizeof(s_isp_error_timer));
+    error_count = 0;
 }
 
 #ifdef ISP_AE_V10
@@ -223,12 +282,9 @@ static void isp_isr_callback(uint32_t state, void *args)
     {
         if (state & 0x0C)
         {
-            static uint32_t error_count = 0;
+            uint32_t irq_flags = isp_isr_lock_irqsave();
             error_count++;
-            if (error_count > 1000) {
-                LOGW("%s, %d, error state: %d\n", __func__, __LINE__, state);
-                error_count = 0;
-            }
+            isp_isr_unlock_irqrestore(irq_flags);
             if (control->chn[ISP_MP_CHN_ID].enable_flexa && control->close_sbi == 0)
             {
                 bk_isp_flexa_sbi_config((isp_handle_t *)&control, ISP_MP_CHN_ID, 0);
@@ -1161,6 +1217,7 @@ bk_err_t bk_isp_open(isp_handle_t *handle, isp_config_ext_t *config)
         }
 
         control->state = ISP_FSM_CHN_ENABLE;
+        isp_error_count_timer_start();
     }
 
     if (config->chnl_id == ISP_MP_CHN_ID)
@@ -1293,6 +1350,7 @@ bk_err_t bk_isp_close(isp_handle_t *handle, uint8_t chnl)
         isp_unregister_sensor_callbacks(control);
 
         control->state = ISP_FSM_INIT;
+        isp_error_count_timer_stop();
     }
 
     return ret;
