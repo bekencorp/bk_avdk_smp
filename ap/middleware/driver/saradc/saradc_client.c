@@ -14,7 +14,7 @@
 
 #include <string.h>
 #include <common/bk_include.h>
-#include "ram_regions.h"   /* CONFIG_AP_PSRAM_NOCACHE_HEAP_* for the bounce buffer */
+#include "ram_regions.h"   /* PSRAM heap macros for the non-cache bounce buffer */
 #include <os/mem.h>
 #include <os/os.h>
 #include <driver/adc.h>
@@ -84,8 +84,8 @@ static saradc_cmd_t *s_saradc_io = NULL;   /* non-cacheable IPC bounce buffer */
 
 static saradc_cmd_t *saradc_cmd_buf_alloc(void)
 {
-#if defined(CONFIG_AP_PSRAM_NOCACHE_HEAP_ADDR) && (CONFIG_AP_PSRAM_NOCACHE_HEAP_SIZE > 0)
-	saradc_cmd_t *p = (saradc_cmd_t *)psram_nocache_malloc(sizeof(saradc_cmd_t));
+#if defined(CONFIG_AP_PSRAM_HEAP_ADDR) && (CONFIG_AP_PSRAM_HEAP_SIZE > 0)
+	saradc_cmd_t *p = (saradc_cmd_t *)psram_malloc(sizeof(saradc_cmd_t));
 	if (p != NULL)
 		return p;
 #endif

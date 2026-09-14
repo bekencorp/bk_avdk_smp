@@ -104,16 +104,14 @@ ARM_MPU_Region_t mpu_regions[] = {
      * Change default cache policy in smp_ram_setting_bk7259.json, or override
      * it per project in partitions/bk7259/ram_regions_mpu.json.
      *
-     * Default layout:
-     *   PSRAM_MEM_SLAB_UNCODED:
-     *     0x60000000 - 0x60FFFFE0, attr 1, non-cacheable
-     *   PSRAM_MEM_SLAB_CODED / CP_PSRAM_HEAP /
-     *   AP_PSRAM_NOCACHE_HEAP / AP_PSRAM_DATA_SECTION:
-     *     0x64000000 - 0x64E7FFE0, attr 1, non-cacheable
-     *   AP_PSRAM_HEAP:
-     *     0x64E80000 - 0x64EFFFE0, attr 5, L2 write-back
+     * Default policy:
+     *   PSRAM_MEM_SLAB_UNCODED / PSRAM_MEM_SLAB_CODED /
+     *   CP_PSRAM_HEAP / AP_PSRAM_DATA_SECTION / AP_PSRAM_HEAP:
+     *     attr 1, non-cacheable
+     *   AP_PSRAM_CACHE_HEAP:
+     *     attr 5, L2 write-back, used for AP task stacks
      *   AP_PSRAM_CODE_SECTION:
-     *     0x64F00000 - 0x64FFFFE0, attr 3, L1/L2 write-back
+     *     attr 3, L1/L2 write-back
      */
 #if CONFIG_PSRAM_MPU_REGION_COUNT > 0
     { ARM_MPU_RBAR(CONFIG_PSRAM_MPU_REGION_0_BASE, ARM_MPU_SH_NON, 0, 1, 0),

@@ -5,7 +5,8 @@
     "PSRAM_CAPACITY": "8M",
     "PSRAM_MPU_DEFAULT_ATTR": "NON_CACHE",
     "PSRAM_MPU_POLICIES": {
-        "AP_PSRAM_HEAP": "L2_WRITE_BACK",
+        "AP_PSRAM_HEAP": "NON_CACHE",
+        "AP_PSRAM_CACHE_HEAP": "L2_WRITE_BACK",
         "AP_PSRAM_CODE_SECTION": "L1_L2_WRITE_BACK"
     },
     "Default_Regions": [

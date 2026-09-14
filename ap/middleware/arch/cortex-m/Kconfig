@@ -160,12 +160,11 @@ menu "Arch::Cm"
 
 		config CACHE_MAINTENANCE
 			bool
-			default y if DCACHE || L2_CACHE_ENABLE
 			default n
 			help
-				Enable cache maintenance APIs when any data cache level is
-				present. This keeps L2-only configurations able to clean or
-				invalidate shared buffers even when L1 DCache is disabled.
+				Enable per-buffer cache maintenance APIs. Leave disabled when
+				application buffers are allocated from non-cacheable memory and
+				only task stacks use cacheable PSRAM.
 
 		config HEAP_IN_CACHE
 			depends on SUPPORT_CACHEABLE_SRAM

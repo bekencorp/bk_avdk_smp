@@ -903,20 +903,29 @@ static void _cpu_hp_idle_handler_offline(cpu_hp_domain_t *domain, uint32_t cpu_i
 		AP_HOTPLUG_NVIC_ICPR_BASE[i] = 0xffffffff;
 	}
 
-#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+#if CONFIG_L2_CACHE_ENABLE
+	/*
+	 * CPU2 remains live while CPU3 is being offlined. Write back dirty cache
+	 * lines owned by CPU3 stack/kernel state, but avoid clean+invalidate of
+	 * shared L2 because CPU2 can still hold live FreeRTOS state there.
+	 *
+	 * CONFIG_CACHE_MAINTENANCE only gates per-buffer maintenance APIs. CPU
+	 * hotplug still needs this system-level writeback when L2 cache is enabled.
+	 */
+	arch_dcache_flush_all();
+#elif CONFIG_DCACHE
 	/*
 	 * CPU2 remains live while CPU3 is being offlined. flush_all_dcache()
-	 * includes shared-L2 maintenance when L2 is enabled and can discard or
-	 * rewrite CPU2's live FreeRTOS kernel state. Commit only CPU3's private
-	 * L1 dirty lines to L2/memory, then invalidate its private tags.
+	 * includes clean+invalidate semantics. Commit only CPU3's private L1 dirty
+	 * lines to memory, then invalidate its private tags.
+	 *
+	 * CONFIG_CACHE_MAINTENANCE only gates per-buffer maintenance APIs. CPU
+	 * hotplug still needs this system-level clean/invalidate when D-cache is
+	 * enabled.
 	 */
-#if CONFIG_DCACHE
 	SCB_CleanInvalidateDCache();
 	__DSB();
 	__ISB();
-#endif
-#elif CONFIG_CACHE_MAINTENANCE
-	flush_all_dcache();
 #endif
 	vTaskHotplugClearCurrentTCB(SMP_CORE1_ID);
 	_cpu3_irq_route_mask_all();
