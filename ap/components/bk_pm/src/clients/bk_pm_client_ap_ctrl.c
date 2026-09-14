@@ -248,6 +248,7 @@ bk_err_t bk_pm_ap_power_ops_register(const pm_ap_power_ops_t *ops)
 		 (ops->quiesce == NULL) && (ops->backup == NULL) &&
 		 (ops->restore == NULL) && (ops->resume == NULL) &&
 		 (ops->app_resume == NULL)) ||
+		((ops->quiesce != NULL) && (ops->resume == NULL)) ||
 		((ops->backup == NULL) != (ops->restore == NULL))) {
 		return BK_ERR_PARAM;
 	}
@@ -548,6 +549,8 @@ bk_err_t bk_pm_ap_fast_suspend_backup(void)
 {
 	pm_ap_power_node_t *node;
 	bk_err_t ret = BK_OK;
+	bk_err_t restore_ret = BK_OK;
+	bk_err_t cb_ret;
 	uint32_t flags;
 
 	if (s_power_state != PM_AP_FAST_STATE_QUIESCING) {
@@ -576,9 +579,17 @@ bk_err_t bk_pm_ap_fast_suspend_backup(void)
 	if (ret != BK_OK) {
 		for (node = s_power_ops_head; node != NULL; node = node->next) {
 			if (node->backed_up && (node->ops.restore != NULL)) {
-				(void)node->ops.restore(node->ops.arg);
+				cb_ret = node->ops.restore(node->ops.arg);
+				if ((restore_ret == BK_OK) && (cb_ret != BK_OK)) {
+					restore_ret = cb_ret;
+				}
 			}
 			node->backed_up = false;
+		}
+		if (restore_ret != BK_OK) {
+			s_power_state = PM_AP_FAST_STATE_FAILED;
+			ret = restore_ret;
+			__DMB();
 		}
 	} else {
 		s_power_state = PM_AP_FAST_STATE_PREPARED;
@@ -619,7 +630,7 @@ bk_err_t bk_pm_ap_fast_restore_hardware(void)
 	return ret;
 }
 
-bk_err_t bk_pm_ap_fast_resume_modules(void)
+static bk_err_t pm_ap_fast_resume_modules(bool app_resume_pending)
 {
 	pm_ap_power_node_t *node;
 	bk_err_t ret = BK_OK;
@@ -645,7 +656,12 @@ bk_err_t bk_pm_ap_fast_resume_modules(void)
 
 	if (ret == BK_OK) {
 		s_power_state = PM_AP_POWER_STATE_RUNNING;
-		s_fast_app_resume_pending = true;
+		/*
+		 * Rollback resumes only undo quiesce/backup and must not trigger
+		 * application restart. Arm app_resume exclusively for the real wake
+		 * path after AP has entered the prepared WFI/power-off sequence.
+		 */
+		s_fast_app_resume_pending = app_resume_pending;
 		__DMB();
 		bk_pm_ap_fast_ipc_rx_block_set(false);
 		bk_pm_ap_full_ready_set(true);
@@ -654,6 +670,16 @@ bk_err_t bk_pm_ap_fast_resume_modules(void)
 		__DMB();
 	}
 	return ret;
+}
+
+bk_err_t bk_pm_ap_fast_resume_modules(void)
+{
+	return pm_ap_fast_resume_modules(false);
+}
+
+bk_err_t bk_pm_ap_fast_wakeup_resume_modules(void)
+{
+	return pm_ap_fast_resume_modules(true);
 }
 
 bk_err_t bk_pm_ap_fast_app_resume(void)
