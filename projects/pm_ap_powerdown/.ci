@@ -1,3 +1,1 @@
-make bk7258 PROJECT=app
-make bk7257 PROJECT=app
-make bk7258 PROJECT=app BK_CONFIG_FILE=no_cli
+make bk7258 PROJECT=pm_ap_powerdown
