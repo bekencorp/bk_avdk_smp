@@ -403,10 +403,10 @@ static avdk_err_t isp_resources_setup(const h264d_gpu_display_isp_params_t *para
 {
 	avdk_err_t ret;
 	bk_camera_bus_config_t bus_config = (bk_camera_bus_config_t)CSI_CAM_BUS_I2C1_8BIT_2000TIMEOUT();
+	bus_config.pin_xclk = ISP_SENSOR_PIN_XCLK;
 	bk_camera_sensor_config_t sensor_config = {
 		.pin_reset = ISP_SENSOR_PIN_RESET,
 		.pin_pwdn  = ISP_SENSOR_PIN_PWDN,
-		.pin_xclk  = ISP_SENSOR_PIN_XCLK,
 		.bus       = NULL,
 	};
 

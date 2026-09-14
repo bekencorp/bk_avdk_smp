@@ -1,0 +1,43 @@
+#
+# Automatically generated project default config. You can update it with menuconfig [D] option.
+# This file contains only differences compared to board defconfig.
+#
+
+# CONFIG_ALL_CODE_IN_PSRAM is not set
+CONFIG_ISP=y
+CONFIG_MIPI_CSI=y
+CONFIG_BK_CAMERA=y
+CONFIG_FRAME_BUFFER=y
+CONFIG_BK_PERIPHERAL=y
+CONFIG_CSI_CAMERA=y
+# CONFIG_CSI_GC2053 is not set
+CONFIG_CSI_TP2863=y
+CONFIG_SYS_PRINT_DEV_MAILBOX=y
+# CONFIG_WIFI_CLI_DEBUG is not set
+CONFIG_MEDIA_SERVICE=y
+
+# TP2863 AHD board uses 12MHz XTAL (same as doorbell_lp / draw_osd MIPI examples)
+CONFIG_XTAL_FREQ=12000000
+
+# MIPI LCD + DPU (hx8399c 1080x1920)
+CONFIG_DPU_DRIVER=y
+CONFIG_DSI_DRIVER=y
+CONFIG_BK_DISPLAY=y
+CONFIG_MIPI_DSI=y
+CONFIG_LCD_DSI=y
+CONFIG_LCD_HX8399C_MIPI_1080x1920=y
+
+# GPU: ISP NV12 flexa -> rotate90 ARGB8888 + HV compress -> DPU
+CONFIG_VG_LITE_GPU=y
+CONFIG_APP_GPU=y
+
+# CONFIG_DRIVER_TEST is not set
+# CONFIG_UART_TEST is not set
+# CONFIG_SPI is not set
+# CONFIG_SPI_DMA is not set
+# CONFIG_GENERAL_DMA is not set
+CONFIG_DMA_LOGIC_CHAN_CNT=16
+CONFIG_DMA_LOGIC_CHAN_ID_MIN=0
+# CONFIG_PSRAM_WRITE_THROUGH is not set
+# CONFIG_PSRAM_CALIBRATE is not set
+# CONFIG_IPI is not set

@@ -155,10 +155,10 @@ int isp_detect_all_sensors(void)
     LOGI("Starting DVP sensor detection...\n");
 
     bus_config = (bk_camera_bus_config_t)DVP_CAM_BUS_I2C1_8BIT_2000TIMEOUT();
+    bus_config.pin_xclk = GPIO_27;
     os_memset(&sensor_config, 0, sizeof(sensor_config));
     sensor_config.pin_reset = GPIO_13;
     sensor_config.pin_pwdn = 0xFF;
-    sensor_config.pin_xclk = GPIO_27;
     sensor_count += isp_detect_sensor_on_port(DVP_CAMERA_PORT, &bus_config, &sensor_config, "DVP");
 
     LOGI("DVP sensor detection complete. Found %d sensor(s).\n", sensor_count);
@@ -346,10 +346,10 @@ static avdk_err_t isp_init_dvp_camera(uint16_t width, uint16_t height, uint16_t 
     avdk_err_t ret = AVDK_ERR_OK;
     bk_camera_bus_t *bus = NULL;
     bk_camera_bus_config_t bus_config = (bk_camera_bus_config_t)DVP_CAM_BUS_I2C1_8BIT_2000TIMEOUT();
+    bus_config.pin_xclk = GPIO_27;
     bk_camera_sensor_config_t sensor_config = {
         .pin_reset = GPIO_13,
         .pin_pwdn = 0xFF,
-        .pin_xclk = GPIO_27,
     };
     bk_isp_camera_ctlr_config_t isp_ctlr_config = CAM_DVP_DEFAULT_RAW8_CONFIG(width, height, fps);
     /* CAM_DVP_DEFAULT_RAW8_CONFIG hard-codes port_id = ISP_MIPI_PORT_ID (a known

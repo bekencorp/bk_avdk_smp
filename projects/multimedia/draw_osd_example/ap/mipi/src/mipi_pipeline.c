@@ -128,11 +128,11 @@ static avdk_err_t mipi_sensor_init(uint16_t w, uint16_t h, uint8_t fps,
     bus_cfg.pin_scl = MIPI_CAM_PIN_SCL;
     bus_cfg.pin_sda = MIPI_CAM_PIN_SDA;
     bus_cfg.i2c_id  = MIPI_CAM_I2C_ID;
+    bus_cfg.pin_xclk = MIPI_CAM_PIN_XCLK;
 
     bk_camera_sensor_config_t sensor_cfg = {
         .pin_reset = MIPI_CAM_PIN_RESET,
         .pin_pwdn  = -1,
-        .pin_xclk  = MIPI_CAM_PIN_XCLK,
     };
 
     bus = bk_camera_bus_new(&bus_cfg);

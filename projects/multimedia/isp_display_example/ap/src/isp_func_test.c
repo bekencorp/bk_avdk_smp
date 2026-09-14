@@ -1,17 +1,66 @@
 #include "include/isp_cli.h"
+#include "include/isp_display_pipeline.h"
+#include "include/isp_vc_route.h"
 
 #include <components/bk_camera_sensor.h>
 #include <components/bk_camera_bus.h>
 #include <components/bk_camera_configs.h>
 #include <components/bk_isp_camera.h>
 #include <components/bk_camera_isp_ctlr.h>
+#include <avdk_check.h>
+#include <isp_camera_ctlr.h>
 #include <driver/gpio.h>
 #include <driver/gpio_types.h>
-#include <driver/isp_base.h>
+#include <driver/mipi_csi.h>
 #include <components/bk_frame_buffer.h>
+#include <modules/pm.h>
+#include <sys_types.h>
 #include <os/mem.h>
 #include <os/str.h>
 #include <os/os.h>
+
+/* TP2863 doorbell_lp board: I2C1 @ GPIO69/70, reset GPIO71, no SoC MCLK */
+#define ISP_TP2863_PIN_SCL    GPIO_69
+#define ISP_TP2863_PIN_SDA    GPIO_70
+#define ISP_TP2863_PIN_RESET  GPIO_71
+#define ISP_TP2863_I2C_ID     1
+
+static void isp_tp2863_bus_config(bk_camera_bus_config_t *bus_config)
+{
+    *bus_config = (bk_camera_bus_config_t)CSI_CAM_BUS_I2C1_8BIT_2000TIMEOUT();
+    bus_config->pin_scl = ISP_TP2863_PIN_SCL;
+    bus_config->pin_sda = ISP_TP2863_PIN_SDA;
+    bus_config->i2c_id = ISP_TP2863_I2C_ID;
+    bus_config->pin_xclk = BK_CAMERA_PIN_INVALID;
+}
+
+static void isp_tp2863_sensor_config(bk_camera_sensor_config_t *sensor_config)
+{
+    os_memset(sensor_config, 0, sizeof(*sensor_config));
+    sensor_config->pin_reset = ISP_TP2863_PIN_RESET;
+    sensor_config->pin_pwdn = 0xFF;
+}
+
+static avdk_err_t isp_tp2863_camera_power(bool enable)
+{
+    int ldo_en = enable ? PM_AUXLDO_ENABLE : PM_AUXLDO_DISABLE;
+    pm_auxldo_ctrl_cfg_t cfg = {0};
+
+    cfg.ldo = AUXLDOS_SEL_1P8V;
+    cfg.out = PM_AUXLDO_1P8V_OUT_1P8V;
+    cfg.user = PM_AUXLDO_USER_CAMERA;
+    cfg.state = ldo_en;
+    AVDK_RETURN_ON_ERROR(bk_pm_auxldo_ctrl_vote(&cfg), TAG, "camera 1p8v ldo vote failed");
+
+    cfg = (pm_auxldo_ctrl_cfg_t){0};
+    cfg.ldo = AUXLDOS_SEL_1P2V;
+    cfg.out = PM_AUXLDO_1P2V_OUT_1P2V;
+    cfg.user = PM_AUXLDO_USER_CAMERA;
+    cfg.state = ldo_en;
+    AVDK_RETURN_ON_ERROR(bk_pm_auxldo_ctrl_vote(&cfg), TAG, "camera 1p2v ldo vote failed");
+    rtos_delay_milliseconds(1);
+    return AVDK_ERR_OK;
+}
 
 // ISP camera handle structure
 typedef struct {
@@ -29,6 +78,7 @@ typedef struct {
     bk_pixel_format_t sp_fmt;
     uint8_t is_initialized;  // Flag to indicate if camera is initialized
     uint8_t is_sensor_started;  // Flag to indicate if sensor streaming is started
+    void *isp_handle;
 } isp_camera_handle_t;
 
 static isp_camera_handle_t s_isp_camera_handle = {0};
@@ -132,11 +182,8 @@ int isp_detect_all_sensors(void)
 
     LOGI("Starting CSI sensor detection...\n");
 
-    bus_config = (bk_camera_bus_config_t)CSI_CAM_BUS_I2C1_8BIT_2000TIMEOUT();
-    bus_config.pin_xclk = GPIO_59;
-    os_memset(&sensor_config, 0, sizeof(sensor_config));
-    sensor_config.pin_reset = GPIO_71;
-    sensor_config.pin_pwdn = 0xFF;
+    isp_tp2863_bus_config(&bus_config);
+    isp_tp2863_sensor_config(&sensor_config);
     sensor_count += isp_detect_sensor_on_port(CSI_CAMERA_PORT, &bus_config, &sensor_config, "CSI");
 
     LOGI("CSI sensor detection complete. Found %d sensor(s).\n", sensor_count);
@@ -247,14 +294,15 @@ static avdk_err_t isp_init_mipi_camera(uint16_t width, uint16_t height, uint16_t
 {
     avdk_err_t ret = AVDK_ERR_OK;
     bk_camera_bus_t *bus = NULL;
-    bk_camera_bus_config_t bus_config = (bk_camera_bus_config_t)CSI_CAM_BUS_I2C1_8BIT_2000TIMEOUT();
-    bus_config.pin_xclk = GPIO_59;
-    bk_camera_sensor_config_t sensor_config = {
-        .pin_reset = GPIO_71,
-        .pin_pwdn = 0xFF,
-    };
+    bk_camera_bus_config_t bus_config;
+    bk_camera_sensor_config_t sensor_config;
 
-    LOGI("Initializing MIPI CSI camera: %dx%d @ %dfps\n", width, height, fps);
+    isp_tp2863_bus_config(&bus_config);
+    isp_tp2863_sensor_config(&sensor_config);
+
+    LOGI("Initializing MIPI CSI camera (TP2863): %dx%d @ %dfps\n", width, height, fps);
+
+    AVDK_GOTO_ON_ERROR(isp_tp2863_camera_power(true), err, TAG, "camera power on failed");
 
     // Step 1: Create and enable bus
     bus = bk_camera_bus_new(&bus_config);
@@ -325,6 +373,27 @@ static avdk_err_t isp_init_mipi_camera(uint16_t width, uint16_t height, uint16_t
         }
         isp_ctlr_config.sensor_object = sensor_object;
 
+        /* doorbell: start sensor (MIPI/TP2863) before ISP port init */
+        bk_mipi_csi_set_default_vc(0);
+        ret = bk_camera_sensor_init(s_isp_camera_handle.sensor_handle);
+        if (ret != AVDK_ERR_OK) {
+            LOGE("Failed to init sensor\n");
+            goto err;
+        }
+        {
+            bk_camera_sensor_format_t format = {
+                .width = width,
+                .height = height,
+                .fps = fps,
+            };
+            ret = bk_camera_sensor_set_format(s_isp_camera_handle.sensor_handle, &format);
+            if (ret != AVDK_ERR_OK) {
+                LOGE("Failed to set sensor format\n");
+                goto err;
+            }
+        }
+        s_isp_camera_handle.is_sensor_started = 1;
+
         // Step 5: Create and init camera controller
         ret = bk_camera_isp_ctlr_new(&s_isp_camera_handle.camera_ctlr_handle);
         if (ret != AVDK_ERR_OK)
@@ -338,6 +407,12 @@ static avdk_err_t isp_init_mipi_camera(uint16_t width, uint16_t height, uint16_t
         {
             LOGE("Failed to init camera device\n");
             goto err;
+        }
+
+        {
+            bk_camera_isp_ctlr_t *control = __containerof(s_isp_camera_handle.camera_ctlr_handle,
+                                                          bk_camera_isp_ctlr_t, ops);
+            s_isp_camera_handle.isp_handle = control->isp_handle;
         }
 
         // Step 6: Init camera port
@@ -376,6 +451,7 @@ err:
         bk_camera_bus_delete(bus);
     }
 
+    (void)isp_tp2863_camera_power(false);
     s_isp_camera_handle.is_sensor_started = 0;
     return ret;
 }
@@ -436,6 +512,12 @@ static avdk_err_t isp_create_instance(uint8_t chnl_id, uint16_t width, uint16_t 
     instance.enable_flexa = (flexa_mode > 0) ? 1 : 0;
     instance.work_mode = (flexa_mode > 0) ? 1 : 0; // 0: frame mode, 1: flexa mode
     instance.format = output_fmt;
+    if (chnl_id == 0) {
+        /* doorbell_lp: MP frame mode for LCD, larger buffer pool for vc_mux */
+        instance.enable_flexa = 0;
+        instance.work_mode = 0;
+        instance.buf_cnt = 7;
+    }
 
     ret = bk_isp_camera_channel_open(s_isp_camera_handle.camera_ctlr_handle, chnl_id, &instance);
 
@@ -472,6 +554,11 @@ static avdk_err_t isp_open_mipi_camera(uint16_t sensor_width, uint16_t sensor_he
 {
     avdk_err_t ret;
 
+    if (isp_vc_route_is_active()) {
+        LOGE("vc route is active, close it first: isp close_vc_route\n");
+        return AVDK_ERR_BUSY;
+    }
+
     if (!s_isp_camera_handle.is_initialized)
     {
         ret = isp_init_mipi_camera(sensor_width, sensor_height, fps, 0);
@@ -494,31 +581,14 @@ static avdk_err_t isp_open_mipi_camera(uint16_t sensor_width, uint16_t sensor_he
         return ret;
     }
 
-    /* Step 7: Start sensor streaming at last */
-    if (!s_isp_camera_handle.is_sensor_started)
-    {
-        ret = bk_camera_sensor_init(s_isp_camera_handle.sensor_handle);
-        if (ret != AVDK_ERR_OK)
-        {
-            LOGE("Failed to init sensor\n");
+    if (chnl_id == 0) {
+        ret = isp_display_pipeline_start(s_isp_camera_handle.camera_ctlr_handle,
+                                         isp_output_width, isp_output_height);
+        if (ret != AVDK_ERR_OK) {
+            LOGE("Failed to start display pipeline\n");
             isp_close_channel(chnl_id == 0);
             return ret;
         }
-
-        bk_camera_sensor_format_t format = {
-            .width = sensor_width,
-            .height = sensor_height,
-            .fps = fps,
-        };
-        ret = bk_camera_sensor_set_format(s_isp_camera_handle.sensor_handle, &format);
-        if (ret != AVDK_ERR_OK)
-        {
-            LOGE("Failed to set sensor format\n");
-            isp_close_channel(chnl_id == 0);
-            return ret;
-        }
-
-        s_isp_camera_handle.is_sensor_started = 1;
     }
 
     return AVDK_ERR_OK;
@@ -531,6 +601,8 @@ static avdk_err_t isp_open_mipi_camera(uint16_t sensor_width, uint16_t sensor_he
 static avdk_err_t isp_cleanup_all_resources(void)
 {
     avdk_err_t ret = AVDK_ERR_OK;
+
+    (void)isp_display_pipeline_stop();
 
     // Deinit camera device if initialized
     if (s_isp_camera_handle.is_initialized && s_isp_camera_handle.camera_ctlr_handle)
@@ -585,6 +657,7 @@ static avdk_err_t isp_cleanup_all_resources(void)
     s_isp_camera_handle.mp_height = 0;
     s_isp_camera_handle.sp_width = 0;
     s_isp_camera_handle.sp_height = 0;
+    s_isp_camera_handle.isp_handle = NULL;
 
     LOGI("All ISP resources cleaned up\n");
     return AVDK_ERR_OK;
@@ -600,6 +673,10 @@ static avdk_err_t isp_close_channel(uint8_t is_mp)
     avdk_err_t ret = AVDK_ERR_OK;
     const char *chnl_name = is_mp ? "MP" : "SP";
     uint8_t chnl_id = is_mp ? ISP_MP_CHN_ID : ISP_SP_CHN_ID;
+
+    if (is_mp) {
+        (void)isp_display_pipeline_stop();
+    }
 
     // Stop instance using standard API
     ret = bk_isp_camera_channel_close(s_isp_camera_handle.camera_ctlr_handle, chnl_id);
@@ -697,8 +774,63 @@ void cli_isp_func_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, c
         goto exit;
     }
 
-    if (os_strcmp(argv[1], "open") == 0)
+    if (os_strcmp(argv[1], "open_vc_route") == 0)
     {
+        uint16_t sensor_w = (argc > 2) ? (uint16_t)os_strtoul(argv[2], NULL, 10) : 1280;
+        uint16_t sensor_h = (argc > 3) ? (uint16_t)os_strtoul(argv[3], NULL, 10) : 720;
+        uint16_t fps = (argc > 4) ? (uint16_t)os_strtoul(argv[4], NULL, 10) : 25;
+        uint16_t isp_w = (argc > 5) ? (uint16_t)os_strtoul(argv[5], NULL, 10) : sensor_w;
+        uint16_t isp_h = (argc > 6) ? (uint16_t)os_strtoul(argv[6], NULL, 10) : sensor_h;
+        uint8_t default_vc = (argc > 7) ? (uint8_t)os_strtoul(argv[7], NULL, 10) : 0;
+
+        if (default_vc > 1) {
+            LOGE("Usage: isp open_vc_route [sensor_w] [sensor_h] [fps] [isp_w] [isp_h] [0|1]\n");
+            goto exit;
+        }
+        if (s_isp_camera_handle.is_initialized) {
+            LOGE("single camera already open, close it first\n");
+            goto exit;
+        }
+        ret = isp_vc_route_turn_on(sensor_w, sensor_h, fps, isp_w, isp_h, default_vc);
+    }
+    else if (os_strcmp(argv[1], "close_vc_route") == 0)
+    {
+        ret = isp_vc_route_turn_off();
+    }
+    else if (os_strcmp(argv[1], "vc_route_enable") == 0)
+    {
+        if (argc < 3) {
+            LOGE("Usage: isp vc_route_enable <0|1> [discard_frames]\n");
+            goto exit;
+        }
+        uint8_t vc = (uint8_t)os_strtoul(argv[2], NULL, 10);
+        uint8_t discard = (argc > 3) ? (uint8_t)os_strtoul(argv[3], NULL, 10) : 0;
+        ret = isp_vc_route_vc_enable(vc, discard);
+    }
+    else if (os_strcmp(argv[1], "vc_route_disable") == 0)
+    {
+        if (argc < 3) {
+            LOGE("Usage: isp vc_route_disable <0|1>\n");
+            goto exit;
+        }
+        uint8_t vc = (uint8_t)os_strtoul(argv[2], NULL, 10);
+        ret = isp_vc_route_vc_disable(vc);
+    }
+    else if (os_strcmp(argv[1], "vc_route_vc") == 0)
+    {
+        if (argc < 3) {
+            LOGE("Usage: isp vc_route_vc <0|1>\n");
+            goto exit;
+        }
+        uint8_t vc = (uint8_t)os_strtoul(argv[2], NULL, 10);
+        ret = isp_vc_route_select(vc);
+    }
+    else if (os_strcmp(argv[1], "open") == 0)
+    {
+        if (isp_vc_route_is_active()) {
+            LOGE("vc route is active, use isp close_vc_route first\n");
+            goto exit;
+        }
         // Parse command: isp open mp 1920 1080 20 1920 1080 frame [output_fmt]
         if (argc < 9)
         {
