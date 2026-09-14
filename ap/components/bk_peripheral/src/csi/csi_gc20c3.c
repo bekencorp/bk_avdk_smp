@@ -151,8 +151,10 @@ enum GC20C3_REG_INDEX {
 };
 
 #define GC20C3_720P_30FPS_LINEAR_MODE (0)
+#define GC20C3_1080P_20FPS_LINEAR_MODE (1)
 
 #define GC20C3_VMAX_720P30_LINEAR (1125)
+#define GC20C3_VMAX_1080P20_LINEAR (1687)
 
 typedef struct vsiGC20C3_DEVICE_S {
     vsi_u8_t i2cBus;
@@ -166,7 +168,7 @@ typedef struct vsiGC20C3_DEVICE_S {
 
 static GC20C3_DEVICE_S *GC20C3Dev[ISP_DEV_CNT][ISP_PORT_CNT] = {0};
 
-static ISP_CALIB_DATA_S * GC20C3_720P_CalibParam_dynamic = NULL;
+static ISP_CALIB_DATA_S * GC20C3_1080P_CalibParam_dynamic = NULL;
 
 static GC20C3_DEVICE_S *GC20C3_GetSensorDev(ISP_PORT IspPort)
 {
@@ -206,8 +208,10 @@ static int GC20C3_InitRegInfo(ISP_PORT IspPort)
 
     pSnsRegsInfo->snsData[REG_EXPTIME_H].delayFrameNum = 2;
     pSnsRegsInfo->snsData[REG_EXPTIME_H].regAddr = GC20C3_EXPTIME_H;
+    pSnsRegsInfo->snsData[REG_EXPTIME_H].data = 0x00;
     pSnsRegsInfo->snsData[REG_EXPTIME_L].delayFrameNum = 2;
     pSnsRegsInfo->snsData[REG_EXPTIME_L].regAddr = GC20C3_EXPTIME_L;
+    pSnsRegsInfo->snsData[REG_EXPTIME_L].data = 0x10;
 
     pSnsRegsInfo->snsData[REG_DGAIN_1].delayFrameNum = 2;
     pSnsRegsInfo->snsData[REG_DGAIN_1].regAddr = GC20C3_DGAIN_1;
@@ -234,15 +238,15 @@ static int GC20C3_InitRegInfo(ISP_PORT IspPort)
 
 static int GC20C3_Init(ISP_PORT IspPort, vsi_u8_t snsDev)
 {
-    if (GC20C3_720P_CalibParam_dynamic == NULL)
+    if (GC20C3_1080P_CalibParam_dynamic == NULL)
     {
-        GC20C3_720P_CalibParam_dynamic = os_malloc(sizeof(GC20C3_720P_CalibParam));
-        if (GC20C3_720P_CalibParam_dynamic == NULL)
+        GC20C3_1080P_CalibParam_dynamic = os_malloc(sizeof(GC20C3_1080P_CalibParam));
+        if (GC20C3_1080P_CalibParam_dynamic == NULL)
         {
-            LOGE("Failed to malloc GC20C3_720P_CalibParam_dynamic\n");
+            LOGE("Failed to malloc GC20C3_1080P_CalibParam_dynamic\n");
             return BK_FAIL;
         }
-        os_memcpy(GC20C3_720P_CalibParam_dynamic, &GC20C3_720P_CalibParam, sizeof(GC20C3_720P_CalibParam));
+        os_memcpy(GC20C3_1080P_CalibParam_dynamic, &GC20C3_1080P_CalibParam, sizeof(GC20C3_1080P_CalibParam));
     }
 
     GC20C3_DEVICE_S *pGC20C3Dev = GC20C3_GetSensorDev(IspPort);
@@ -283,10 +287,10 @@ static int GC20C3_Exit(ISP_PORT IspPort)
 
     vsios_i2c_sys_exit(pGC20C3Dev->i2cBus);
 
-    if (GC20C3_720P_CalibParam_dynamic != NULL)
+    if (GC20C3_1080P_CalibParam_dynamic != NULL)
     {
-        os_free(GC20C3_720P_CalibParam_dynamic);
-        GC20C3_720P_CalibParam_dynamic = NULL;
+        os_free(GC20C3_1080P_CalibParam_dynamic);
+        GC20C3_1080P_CalibParam_dynamic = NULL;
     }
 
     os_free(pGC20C3Dev);
@@ -340,22 +344,22 @@ static int GC20C3_InitAeDefault(ISP_PORT IspPort)
 
     switch (pGC20C3Dev->snsModeId) {
         case GC20C3_720P_30FPS_LINEAR_MODE:
-            pAeSnsDft->fullLinesMax = 0xFFFF;
+            pAeSnsDft->fullLinesMax = GC20C3_VMAX_720P30_LINEAR;
             pAeSnsDft->fullLinesStd = GC20C3_VMAX_720P30_LINEAR;
             pAeSnsDft->fullLines = pAeSnsDft->fullLinesStd;
             pAeSnsDft->fps = 30 * ISP_SNS_FPS_ACCU;   
             pAeSnsDft->linesPer500ms =
                 pAeSnsDft->fullLines * pAeSnsDft->fps / (2 * ISP_SNS_FPS_ACCU);
 
-            pAeSnsDft->maxIntLine  = pAeSnsDft->fullLines - 2;
+            pAeSnsDft->maxIntLine  = pAeSnsDft->fullLines - 8;
             pAeSnsDft->minIntLine  = 1;
             pAeSnsDft->intLineStep = 1;
 
-            pAeSnsDft->maxAgain  = 832 * 1024;
-            pAeSnsDft->minAgain  = 64 * 1024;
+            pAeSnsDft->maxAgain  = 320;
+            pAeSnsDft->minAgain  = 64;
             pAeSnsDft->againStep = 1;
 
-            pAeSnsDft->maxDgain  = 0xFFFF;   
+            pAeSnsDft->maxDgain  = 1024;   
             pAeSnsDft->minDgain  = 1024;
             pAeSnsDft->dgainStep = 1;
 
@@ -363,7 +367,33 @@ static int GC20C3_InitAeDefault(ISP_PORT IspPort)
             pAeSnsDft->dampOver = 0x40;
             pAeSnsDft->dampUnder = 0x40;
             pAeSnsDft->tolerance = 1;
-            pAeSnsDft->initExposure = 0x100 * pAeSnsDft->minAgain;
+            pAeSnsDft->initExposure = 0x08 * pAeSnsDft->minAgain;
+            break;
+        case GC20C3_1080P_20FPS_LINEAR_MODE:
+            pAeSnsDft->fullLinesMax = GC20C3_VMAX_1080P20_LINEAR;
+            pAeSnsDft->fullLinesStd = GC20C3_VMAX_1080P20_LINEAR;
+            pAeSnsDft->fullLines = pAeSnsDft->fullLinesStd;
+            pAeSnsDft->fps = 20 * ISP_SNS_FPS_ACCU;
+            pAeSnsDft->linesPer500ms =
+                pAeSnsDft->fullLines * pAeSnsDft->fps / (2 * ISP_SNS_FPS_ACCU);
+
+            pAeSnsDft->maxIntLine  = pAeSnsDft->fullLines - 8;
+            pAeSnsDft->minIntLine  = 1;
+            pAeSnsDft->intLineStep = 1;
+
+            pAeSnsDft->maxAgain  = 320;
+            pAeSnsDft->minAgain  = 64;
+            pAeSnsDft->againStep = 1;
+
+            pAeSnsDft->maxDgain  = 1024;
+            pAeSnsDft->minDgain  = 1024;
+            pAeSnsDft->dgainStep = 1;
+
+            pAeSnsDft->aeTarget = 48;
+            pAeSnsDft->dampOver = 0x40;
+            pAeSnsDft->dampUnder = 0x40;
+            pAeSnsDft->tolerance = 1;
+            pAeSnsDft->initExposure = 0x08 * pAeSnsDft->minAgain;
             break;
         default:
             break;
@@ -383,22 +413,21 @@ static int GC20C3_SetMode(ISP_PORT IspPort, ISP_SNS_MODE_S *pSnsMode)
     if ((pSnsMode->width == pGC20C3Dev->snsMode.width) &&
         (pSnsMode->height == pGC20C3Dev->snsMode.height) &&
         (pSnsMode->hdrMode == pGC20C3Dev->snsMode.hdrMode) &&
-        (pSnsMode->stichMode == pGC20C3Dev->snsMode.stichMode)) {
+        (pSnsMode->stichMode == pGC20C3Dev->snsMode.stichMode) &&
+        (pSnsMode->fps == pGC20C3Dev->snsMode.fps)) {
         return BK_OK;
     }
 
     if ((pSnsMode->width  == 1920) &&
         (pSnsMode->height == 1080) &&
-        (pSnsMode->hdrMode == HDR_MODE_LINEAR)) {
-        // GC20C3_Linear1920x1080Init(pGC20C3Dev->i2cBus, &pGC20C3Dev->i2cAttr);
+        (pSnsMode->hdrMode == HDR_MODE_LINEAR) &&
+        (pSnsMode->fps == 20 * ISP_SNS_FPS_ACCU)) {
         os_memcpy(&pGC20C3Dev->snsMode, pSnsMode, sizeof(*pSnsMode));
-        pGC20C3Dev->snsModeId = GC20C3_720P_30FPS_LINEAR_MODE;
+        pGC20C3Dev->snsModeId = GC20C3_1080P_20FPS_LINEAR_MODE;
         GC20C3_InitAeDefault(IspPort);
-    }
-    else if ((pSnsMode->width  == 640) &&
+    } else if ((pSnsMode->width  == 640) &&
         (pSnsMode->height == 480) &&
         (pSnsMode->hdrMode == HDR_MODE_LINEAR)) {
-        // GC20C3_Linear1920x1080Init(pGC20C3Dev->i2cBus, &pGC20C3Dev->i2cAttr);
         os_memcpy(&pGC20C3Dev->snsMode, pSnsMode, sizeof(*pSnsMode));
         pGC20C3Dev->snsModeId = GC20C3_720P_30FPS_LINEAR_MODE;
         GC20C3_InitAeDefault(IspPort);
@@ -435,7 +464,7 @@ static int GC20C3_SetStream(ISP_PORT IspPort, vsi_bool_t stream)
 
 static int GC20C3_SetIspDefault(ISP_PORT IspPort)
 {
-    VSI_MPI_ISP_SetCalib(IspPort, GC20C3_720P_CalibParam_dynamic);
+    VSI_MPI_ISP_SetCalib(IspPort, GC20C3_1080P_CalibParam_dynamic);
 
     return BK_OK;
 }
@@ -517,31 +546,21 @@ static int GC20C3_GainUpdate(ISP_PORT IspPort, vsi_u32_t *pAgain, vsi_u32_t *pDg
 
     switch(pGC20C3Dev->snsModeId) {
         case GC20C3_720P_30FPS_LINEAR_MODE:
+        case GC20C3_1080P_20FPS_LINEAR_MODE:
         {
-            uint32_t total_gain = (*pAgain) / 1024;
-            if (total_gain == 0) total_gain = 1; 
+            uint32_t total_gain = (*pAgain);
+            if (total_gain == 0) total_gain = 64; 
 
             gain = total_gain;
             GC20C3_CalcGain(&gain, &reg_val, &dGainReg, &convReg);
 
-            uint32_t dig_gain = (total_gain * 1024) / gain;
-            if (dig_gain < 1024) dig_gain = 1024; // >= 1x
-            
-            *pAgain = gain * 1024;      // * 1024
-            *pDgain = dig_gain;         //  * 1024
-
-            
-            pSnsRegsInfo->snsData[REG_AGAIN_2].data = reg_val.val1;
-            pSnsRegsInfo->snsData[REG_AGAIN_1].data = reg_val.val2;
+            pSnsRegsInfo->snsData[REG_AGAIN_1].data = reg_val.val1;
+            pSnsRegsInfo->snsData[REG_AGAIN_2].data = reg_val.val2;
             pSnsRegsInfo->snsData[REG_AGAIN_3].data = reg_val.val3;
             pSnsRegsInfo->snsData[REG_AGAIN_4].data = reg_val.val4;
             pSnsRegsInfo->snsData[REG_AGAIN_5].data = reg_val.val5;
             pSnsRegsInfo->snsData[REG_AGAIN_6].data = reg_val.val6;
             pSnsRegsInfo->snsData[REG_AGAIN_7].data = reg_val.val7;
-
-
-            pSnsRegsInfo->snsData[REG_DGAIN_1].data = (uint8_t)(dig_gain >> 8);
-            pSnsRegsInfo->snsData[REG_DGAIN_2].data = (uint8_t)(dig_gain & 0xFF);
             break;
         }
         default:
@@ -563,6 +582,7 @@ static int GC20C3_IntTimeUpdate(ISP_PORT IspPort, vsi_u32_t *pIntLine)
 
     switch(pGC20C3Dev->snsModeId) {
         case GC20C3_720P_30FPS_LINEAR_MODE:
+        case GC20C3_1080P_20FPS_LINEAR_MODE:
             pSnsRegsInfo->snsData[REG_EXPTIME_H].data = ((*pIntLine & 0xFF00) >> 8);
             pSnsRegsInfo->snsData[REG_EXPTIME_L].data = (*pIntLine & 0xFF);
             break;
@@ -843,23 +863,22 @@ static avdk_err_t gc20C3_set_ppi(bk_camera_sensor_ctlr_t *controller, uint16_t w
     win_x_start = (win_x_start < 3) ? 3 : win_x_start;
     win_x_start = win_x_start - ((win_x_start - 3) % 4);
 
-      bus->write16(bus, 0x0098, UINT16_HB(win_y_start));
-      bus->write16(bus, 0x0099, UINT16_LB(win_y_start));
-      bus->write16(bus, 0x009a, UINT16_HB(win_x_start));
-      bus->write16(bus, 0x009b, UINT16_LB(win_x_start));
-      bus->write16(bus, 0x0096, UINT16_HB(height));
-      bus->write16(bus, 0x0097, UINT16_LB(height));
-      bus->write16(bus, 0x0094, UINT16_HB(width));
-      bus->write16(bus, 0x0095, UINT16_LB(width));
+    bus->write16(bus, 0x0098, UINT16_HB(win_y_start));
+    bus->write16(bus, 0x0099, UINT16_LB(win_y_start));
+    bus->write16(bus, 0x009a, UINT16_HB(win_x_start));
+    bus->write16(bus, 0x009b, UINT16_LB(win_x_start));
+    bus->write16(bus, 0x0096, UINT16_HB(height));
+    bus->write16(bus, 0x0097, UINT16_LB(height));
+    bus->write16(bus, 0x0094, UINT16_HB(width));
+    bus->write16(bus, 0x0095, UINT16_LB(width));
 
     uint16_t lwc_set = width * 5 / 4 / 2 * 2; //width*5/4, then align to 2
-      bus->write16(bus, 0x010d,UINT16_HB(lwc_set));
-      bus->write16(bus, 0x010e,UINT16_LB(lwc_set));
-	  
+    bus->write16(bus, 0x010d,UINT16_HB(lwc_set));
+    bus->write16(bus, 0x010e,UINT16_LB(lwc_set));
 
-		bus->write16(bus, 0x03fe,0x30);
-		bus->write16(bus, 0x0100,0x03);    
-		bus->write16(bus, 0x03fe,0x00);
+    bus->write16(bus, 0x03fe,0x30);
+    bus->write16(bus, 0x0100,0x03);    
+    bus->write16(bus, 0x03fe,0x00);
     return 0;
 }
 
@@ -1030,26 +1049,7 @@ static const bk_camera_sensor_format_t gc20C3_format_array[] = {
     {
         .width = 1920,
         .height = 1080,
-        .fps = 30,
-        .output_pixel_fmt = FIXEL_FORMAT,
-    },
-    {
-        .width = 1920,
-        .height = 1080,
-        .fps = 25,
-        .output_pixel_fmt = FIXEL_FORMAT,
-    },
-    {
-        .width = 1920,
-        .height = 1080,
         .fps = 20,
-        .output_pixel_fmt = FIXEL_FORMAT,
-    },
-
-    {
-        .width = 1920,
-        .height = 1080,
-        .fps = 15,
         .output_pixel_fmt = FIXEL_FORMAT,
     },
 
@@ -1089,7 +1089,7 @@ static avdk_err_t gc20C3_ioctl(bk_camera_sensor_ctlr_t *controller, uint32_t cmd
             const ISP_CPROC_ATTR_S *src;
 
             AVDK_RETURN_ON_FALSE(out, AVDK_ERR_INVAL, TAG, "default cproc arg is NULL");
-            src = &GC20C3_720P_CalibParam.modules.cproc;
+            src = &GC20C3_1080P_CalibParam.modules.cproc;
             out->enable = src->enable ? 1 : 0;
             out->op_type = src->opType;
             out->manual.brightness = src->manualAttr.brightness;
