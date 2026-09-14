@@ -35,6 +35,9 @@
 #include <driver/audio_ring_buff.h>
 #include <driver/gpio.h>
 #include "gpio_driver.h"
+#if CONFIG_AUD_PM_FAST_HOT
+#include <modules/pm.h>
+#endif
 
 
 #define TAG  "ONBOARD_SPEAKER"
@@ -272,6 +275,15 @@ static void onboard_spk_extract_left_channel_16(const int16_t *lr, int16_t *left
 static onboard_speaker_stream_t *gl_onboard_speaker = NULL;
 static uint32_t spk_dma_finish_bitmap = 0;
 static uint32_t open_cnt = 0;//workaround of aud dac dma stop issue
+#if CONFIG_AUD_PM_FAST_HOT
+static bk_err_t onboard_spk_fast_quiesce(void *arg);
+static pm_ap_fast_pm_ops_t s_onboard_spk_fast_ops = {
+    .name = "onboard_spk",
+    .quiesce = onboard_spk_fast_quiesce,
+    .priority = PM_AP_FAST_PRIORITY_PERIPHERAL,
+};
+static uint8_t s_onboard_spk_fast_registered;
+#endif
 
 static uint8_t onboard_spk_calc_energy_level(const uint8_t *data, uint32_t size, uint8_t bits)
 {
@@ -888,6 +900,10 @@ static void aud_dac_dma_deconfig_source(onboard_speaker_stream_t *onboard_spk, u
 
     if (0xff != onboard_spk->spk_dma_id[i])
     {
+        /* Stop before deinit. Close skips dma_stop (open_cnt workaround);
+         * voice stop then destroy + 0ms AP OFF races leftover DAC DMA
+         * into PSRAM while CP latches pads. */
+        bk_dma_stop(onboard_spk->spk_dma_id[i]);
         bk_dma_deinit(onboard_spk->spk_dma_id[i]);
         bk_dma_free(DMA_DEV_AUDIO, onboard_spk->spk_dma_id[i]);
         if (onboard_spk->spk_ring_buff[i])
@@ -1126,6 +1142,12 @@ static bk_err_t _onboard_speaker_open(audio_element_handle_t self)
 
             if (0xff != onboard_spk->spk_dma_id[i])
             {
+                /* First start / PM path: DMA was stopped, clear stale samples */
+                if (!open_cnt)
+                {
+                    ring_buffer_clear(&gl_onboard_speaker->spk_rb[i]);
+                }
+
                 free_size = ring_buffer_get_free_size(&gl_onboard_speaker->spk_rb[i]);
                 if (free_size)
                 {
@@ -1922,6 +1944,14 @@ static bk_err_t _onboard_speaker_destroy(audio_element_handle_t self)
 {
     BK_LOGD(TAG, "[%s] _onboard_speaker_destroy \n", audio_element_get_tag(self));
 
+#if CONFIG_AUD_PM_FAST_HOT
+    if (s_onboard_spk_fast_registered) {
+        bk_pm_ap_fast_ops_unregister(&s_onboard_spk_fast_ops);
+        s_onboard_spk_fast_registered = 0;
+        s_onboard_spk_fast_ops.arg = NULL;
+    }
+#endif
+
     onboard_speaker_stream_t *onboard_spk = (onboard_speaker_stream_t *)audio_element_getdata(self);
     uint32_t i = 0;
     /* deinit dma */
@@ -1994,6 +2024,67 @@ static bk_err_t _onboard_speaker_destroy(audio_element_handle_t self)
 
     return BK_OK;
 }
+
+
+#if CONFIG_AUD_PM_FAST_HOT
+static void onboard_spk_pm_reset_open_state(onboard_speaker_stream_t *onboard_spk)
+{
+    uint32_t i;
+
+    if (!onboard_spk) {
+        return;
+    }
+
+    for (i = 0; i < AUD_DAC_SOURCE_MAX; i++) {
+        if ((onboard_spk->dac_source_bitmap & (1 << i)) &&
+            (0xff != onboard_spk->spk_dma_id[i])) {
+            bk_dma_stop(onboard_spk->spk_dma_id[i]);
+        }
+        onboard_spk->wr_spk_rb_done[i] = false;
+    }
+    onboard_spk->valid_frame_count_in_spk_rb = 0;
+    open_cnt = 0;
+}
+
+/**
+ * Strong override of weak bk_aud_pm_restore_notify():
+ * only AUD restore knows this is fast-boot bring-up; reset open_cnt here.
+ */
+void bk_aud_pm_restore_notify(void)
+{
+    if (!gl_onboard_speaker) {
+        return;
+    }
+    onboard_spk_pm_reset_open_state(gl_onboard_speaker);
+    BK_LOGD(TAG, "%s, open_cnt cleared after aud pm restore\n", __func__);
+}
+
+bk_err_t onboard_speaker_stream_pm_prepare_powerdown(audio_element_handle_t onboard_speaker_stream)
+{
+    onboard_speaker_stream_t *onboard_spk;
+
+    if (!onboard_speaker_stream) {
+        return BK_FAIL;
+    }
+
+    onboard_spk = (onboard_speaker_stream_t *)audio_element_getdata(onboard_speaker_stream);
+    if (!onboard_spk) {
+        return BK_FAIL;
+    }
+
+    /* Enter path: stop DMA while HW still alive before AUDP power-off */
+    onboard_spk_pm_reset_open_state(onboard_spk);
+    BK_LOGD(TAG, "%s, dma stopped / open_cnt cleared before powerdown\n", __func__);
+    return BK_OK;
+}
+
+static bk_err_t onboard_spk_fast_quiesce(void *arg)
+{
+    /* Close leaves DAC DMA running (open_cnt workaround). Fast suspend
+     * rejects AP OFF while those channels stay enabled. */
+    return onboard_speaker_stream_pm_prepare_powerdown((audio_element_handle_t)arg);
+}
+#endif
 
 audio_element_handle_t onboard_speaker_stream_init(onboard_speaker_stream_cfg_t *config)
 {
@@ -2352,6 +2443,15 @@ audio_element_handle_t onboard_speaker_stream_init(onboard_speaker_stream_cfg_t 
     el = audio_element_init(&cfg);
     AUDIO_MEM_CHECK(TAG, el, goto _onboard_speaker_init_exit);
     audio_element_setdata(el, gl_onboard_speaker);
+
+#if CONFIG_AUD_PM_FAST_HOT
+    if (!s_onboard_spk_fast_registered) {
+        s_onboard_spk_fast_ops.arg = el;
+        if (bk_pm_ap_fast_ops_register(&s_onboard_spk_fast_ops) == BK_OK) {
+            s_onboard_spk_fast_registered = 1;
+        }
+    }
+#endif
 
     audio_element_info_t info = {0};
     info.sample_rates = config->sample_rate[gl_onboard_speaker->main_dac_source];
