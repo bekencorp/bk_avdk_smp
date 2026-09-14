@@ -74,9 +74,20 @@ __IRAM_SEC void arch_int_set_default_priority(void)
 	}
 }
 
+static __attribute__((section(".itcm_sec_code"))) void arch_interrupt_null_isr(void)
+{
+}
+
 void arch_interrupt_register_int(uint32_t int_number, int_group_isr_t isr_callback)
 {
 	int ret;
+	uint32_t enable_irq = (isr_callback != NULL);
+
+	if (!enable_irq) {
+		NVIC_DisableIRQ(int_number);
+		NVIC_ClearPendingIRQ(int_number);
+		isr_callback = arch_interrupt_null_isr;
+	}
 
 	ret = int_controller_connect_by_intc_id(INT_CONTROLLER_ID_PRIMARY, int_number, isr_callback);
 	BK_ASSERT(ret == BK_OK);
@@ -85,7 +96,11 @@ void arch_interrupt_register_int(uint32_t int_number, int_group_isr_t isr_callba
 	BK_ASSERT(ret == BK_OK);
 #endif
 
-	NVIC_EnableIRQ(int_number);
+	__DSB();
+	__ISB();
+	if (enable_irq) {
+		NVIC_EnableIRQ(int_number);
+	}
 }
 
 void arch_interrupt_unregister_int(uint32_t int_number)
@@ -95,13 +110,20 @@ void arch_interrupt_unregister_int(uint32_t int_number)
 	if (int_number > (__INT_NUMBER_MAX - 1)) {
 		return;
 	}
-	// NVIC_DisableIRQ(int_number);
-	ret = int_controller_disconnect_by_intc_id(INT_CONTROLLER_ID_PRIMARY, int_number);
+	NVIC_DisableIRQ(int_number);
+	NVIC_ClearPendingIRQ(int_number);
+	__DSB();
+	__ISB();
+
+	/* Keep both live vector tables non-NULL while peer IRQ state may lag. */
+	ret = int_controller_connect_by_intc_id(INT_CONTROLLER_ID_PRIMARY, int_number, arch_interrupt_null_isr);
 	BK_ASSERT(ret == BK_OK);
 #if CONFIG_SOC_SMP
-	ret = int_controller_disconnect_by_intc_id(INT_CONTROLLER_ID_SECONDARY, int_number);
+	ret = int_controller_connect_by_intc_id(INT_CONTROLLER_ID_SECONDARY, int_number, arch_interrupt_null_isr);
 	BK_ASSERT(ret == BK_OK);
 #endif
+	__DSB();
+	__ISB();
 }
 
 void arch_int_init_all_irq(void)
@@ -112,7 +134,7 @@ void arch_int_init_all_irq(void)
 
 	for (uint32_t irq_type = 0; irq_type < __INT_NUMBER_MAX; irq_type++) {
 		NVIC_SetPriority(irq_type, IRQ_DEFAULT_PRIORITY);
-		NVIC_EnableIRQ(irq_type);
+		NVIC_DisableIRQ(irq_type);
 	}
 
 	bk_arch_set_basepri(old_basepri);
