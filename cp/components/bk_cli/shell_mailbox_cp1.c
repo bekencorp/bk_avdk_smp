@@ -338,7 +338,8 @@ static bk_err_t write_sync(shell_mb_ext_t *mb_ext, u8 * p_buf, u16 buf_len)
 	return ret_code;
 }
 
-static void shell_mb_flush(shell_mb_ext_t *mb_ext)
+static bool_t shell_mb_flush(
+	shell_mb_ext_t *mb_ext, const shell_flush_control_t *control)
 {
 	if(mb_ext->tx_stopped == 0)
 	{
@@ -350,6 +351,13 @@ static void shell_mb_flush(shell_mb_ext_t *mb_ext)
 	
 	while(mb_ext->tx_stopped == 0)
 	{
+		if((control != NULL) &&
+			(control->should_continue != NULL) &&
+			(control->should_continue(control->context) == bFALSE))
+		{
+			return bFALSE;
+		}
+
 		/* next tx. */
 		if(mb_ext->list_out_idx != mb_ext->list_in_idx)
 		{
@@ -386,6 +394,8 @@ static void shell_mb_flush(shell_mb_ext_t *mb_ext)
 			}
 		}
 	}
+
+	return bTRUE;
 }
 
 static void shell_mb_tx_trigger(shell_mb_ext_t *mb_ext)
@@ -581,6 +591,7 @@ static bool_t shell_mb_ctrl(shell_dev_t * shell_dev, u8 cmd, void *param)
 			break;
 
 		case SHELL_IO_CTRL_TX_RESET:
+			mb_ext->tx_stopped = 1;
 			mb_ext->list_out_idx = 0;
 			mb_ext->list_in_idx  = 0;
 
@@ -590,8 +601,12 @@ static bool_t shell_mb_ctrl(shell_dev_t * shell_dev, u8 cmd, void *param)
 			break;
 
 		case SHELL_IO_CTRL_FLUSH:
-			shell_mb_flush(mb_ext);
+			(void)shell_mb_flush(mb_ext, NULL);
 			break;
+
+		case SHELL_IO_CTRL_FLUSH_CONTROLLED:
+			return shell_mb_flush(
+				mb_ext, (const shell_flush_control_t *)param);
 
 		case SHELL_IO_CTRL_SET_RX_ISR:
 			mb_ext->rx_indicate_callback = (rx_indicate_t)param;

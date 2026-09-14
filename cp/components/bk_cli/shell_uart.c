@@ -268,7 +268,8 @@ static void shell_uart_tx_isr(int uartn, shell_uart_ext_t *uart_ext)
 	BK_LOG_UART_UNLOCK();
 }
 
-static void shell_uart_tx_trigger(shell_uart_ext_t *uart_ext)
+static void shell_uart_tx_trigger(
+	shell_uart_ext_t *uart_ext, const shell_flush_control_t *control)
 {
 	if(uart_ext->tx_suspend != 0)
 		return;
@@ -286,6 +287,13 @@ static void shell_uart_tx_trigger(shell_uart_ext_t *uart_ext)
 	{
 		while(uart_ext->tx_stopped == 0)
 		{
+			if((control != NULL) &&
+				(control->should_continue != NULL) &&
+				(control->should_continue(control->context) == bFALSE))
+			{
+				return;
+			}
+
 			if(uart_write_ready(uart_ext->uart_id) == BK_OK)
 			{
 				shell_uart_tx_isr(uart_ext->uart_id, uart_ext);
@@ -297,7 +305,8 @@ static void shell_uart_tx_trigger(shell_uart_ext_t *uart_ext)
 	bk_uart_enable_tx_interrupt(uart_ext->uart_id);
 }
 
-static void shell_uart_flush(shell_uart_ext_t *uart_ext)
+static bool_t shell_uart_flush(
+	shell_uart_ext_t *uart_ext, const shell_flush_control_t *control)
 {
 	int   ret;
 
@@ -305,17 +314,26 @@ static void shell_uart_flush(shell_uart_ext_t *uart_ext)
 	{
 		// resume tx.....
 		uart_ext->tx_suspend = 0;
-		shell_uart_tx_trigger(uart_ext);
+		shell_uart_tx_trigger(uart_ext, control);
 	}
 
 	while(uart_ext->tx_stopped == 0) /* log tx pending. */
 	{
+		if((control != NULL) &&
+			(control->should_continue != NULL) &&
+			(control->should_continue(control->context) == bFALSE))
+		{
+			return bFALSE;
+		}
+
 		ret = uart_write_ready(uart_ext->uart_id);
 		if(ret == BK_OK)
 		{
 			shell_uart_tx_isr(uart_ext->uart_id, uart_ext);
 		}
 	}
+
+	return bTRUE;
 }
 
 /* ===============================  shell uart driver APIs  =========================== */
@@ -405,7 +423,7 @@ static u16 shell_uart_write_async(shell_dev_t * shell_dev, u8 * pBuf, u16 BufLen
 
 		uart_ext->list_in_idx = (uart_ext->list_in_idx + 1) % TX_QUEUE_LEN;
 
-		shell_uart_tx_trigger(uart_ext);
+		shell_uart_tx_trigger(uart_ext, NULL);
 
 		return 1;
 	}
@@ -512,7 +530,7 @@ static u16 shell_uart_write_echo(shell_dev_t * shell_dev, u8 * pBuf, u16 BufLen)
 	}
 
 	if(wr_cnt > 0)
-		shell_uart_tx_trigger(uart_ext);
+		shell_uart_tx_trigger(uart_ext, NULL);
 
 	return wr_cnt;
 
@@ -553,6 +571,8 @@ static bool_t shell_uart_ctrl(shell_dev_t * shell_dev, u8 cmd, void *param)
 			break;
 
 		case SHELL_IO_CTRL_TX_RESET:
+			bk_uart_disable_tx_interrupt(uart_ext->uart_id);
+			uart_ext->tx_stopped = 1;
 			uart_ext->list_out_idx = 0;
 			uart_ext->list_in_idx  = 0;
 
@@ -563,8 +583,12 @@ static bool_t shell_uart_ctrl(shell_dev_t * shell_dev, u8 cmd, void *param)
 			break;
 
 		case SHELL_IO_CTRL_FLUSH:
-			shell_uart_flush(uart_ext);
+			(void)shell_uart_flush(uart_ext, NULL);
 			break;
+
+		case SHELL_IO_CTRL_FLUSH_CONTROLLED:
+			return shell_uart_flush(
+				uart_ext, (const shell_flush_control_t *)param);
 
 		case SHELL_IO_CTRL_TX_SUSPEND:
 			uart_ext->tx_suspend = 1;
@@ -592,7 +616,7 @@ static bool_t shell_uart_ctrl(shell_dev_t * shell_dev, u8 cmd, void *param)
 
 				// resume tx.....
 				uart_ext->tx_suspend = 0;
-				shell_uart_tx_trigger(uart_ext);
+				shell_uart_tx_trigger(uart_ext, NULL);
 			}
 			break;
 

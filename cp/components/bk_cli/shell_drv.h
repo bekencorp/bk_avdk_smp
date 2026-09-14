@@ -14,6 +14,15 @@ typedef  enum
 	bTRUE  = !bFALSE,
 } bool_t;
 
+/* Returns bFALSE to abandon an in-progress flush. Lets the caller bound a flush
+ * that would otherwise wait forever on a peer/device that never drains. */
+typedef bool_t (*shell_flush_continue_t)(void *context);
+
+typedef struct {
+	shell_flush_continue_t should_continue;
+	void *context;
+} shell_flush_control_t;
+
 typedef enum
 {
 	SHELL_IO_CTRL_GET_STATUS = 0,
@@ -29,6 +38,7 @@ typedef enum
 	SHELL_IO_CTRL_GET_RX_STATUS,
 	SHELL_IO_CTRL_SET_RX_ISR,
 	SHELL_IO_CTRL_SET_TX_CMPL_ISR,
+	SHELL_IO_CTRL_FLUSH_CONTROLLED,
 } shell_ctrl_cmd_t;
 
 enum
