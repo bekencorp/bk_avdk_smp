@@ -37,6 +37,9 @@
 #include <components/bk_platform.h>
 #include "reset_reason.h"
 #include <driver/pwr_clk.h>
+#if CONFIG_L2_CACHE_ENABLE
+#include "l2_cache.h"
+#endif
 
 #if CONFIG_EASY_FLASH
 #include "easyflash.h"
@@ -208,6 +211,9 @@ int components_early_init(void)
 {
     set_ap_startup_index(AP_ENTER_COMPONTENT_EARLY_INIT);
 	interrupt_init();
+#if CONFIG_L2_CACHE_ENABLE
+	l2_cache_error_monitor_enable();
+#endif
 #if CONFIG_RESET_REASON
 	reset_reason_init();
 #endif

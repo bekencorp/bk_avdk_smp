@@ -22,6 +22,13 @@
 #include <string.h>
 #include "cmsis_gcc.h"
 #include "bk_arch.h"
+#include <common/bk_err.h>
+#include <common/bk_assert.h>
+#include <driver/hal/hal_int_types.h>
+#include <soc/bk7259/int_types_impl.h>
+
+extern bk_err_t bk_int_isr_register(icu_int_src_t dev, int_group_isr_t isr, void *arg);
+extern int32_t sys_drv_set_int_en(uint32_t core_id, uint32_t int_num, uint32_t int_en);
 
 /* L2 Cache PL310 register definitions */
 #define L2C_PL310_BASE                0xA0000000U
@@ -31,6 +38,8 @@
 #define L2C_ADDR_FILTER_REG_OFFSET    0xC00U
 #define L2C_INT_CLEAR_REG_OFFSET      0x220U
 #define L2C_INT_MASK_REG_OFFSET       0x214U
+#define L2C_INT_MASK_STATUS_REG_OFFSET 0x218U
+#define L2C_INT_RAW_STATUS_REG_OFFSET 0x21CU
 #define L2C_INVALID_WAY_REG_OFFSET    0x77CU
 #define L2C_CLEAN_PA_REG_OFFSET       0x7B0U
 #define L2C_CLEAN_WAY_REG_OFFSET      0x7BCU
@@ -43,9 +52,78 @@
 
 /* L2 Cache control register bit definitions */
 #define L2C_CONTROL_ENABLE_BIT        (1U << 0)
+#define L2C_ERROR_INT_MASK            0x1FEU
 
 /* Timeout for waiting L2 cache enable (in iterations) */
 #define L2C_ENABLE_WAIT_TIMEOUT       1000000U
+
+typedef struct {
+    uint32_t raw_status;
+    uint32_t masked_status;
+    uint32_t active_status;
+    uint32_t control;
+    uint32_t aux_control;
+    uint32_t core_id;
+    uint32_t ipsr;
+    uint32_t count;
+} l2_cache_error_record_t;
+
+volatile l2_cache_error_record_t g_l2_cache_error_record;
+
+static bool s_l2_cache_error_monitor_enabled;
+
+static void l2_cache_error_isr(void)
+{
+    uint32_t raw_status = L2C_PL310_REG(L2C_INT_RAW_STATUS_REG_OFFSET);
+    uint32_t masked_status = L2C_PL310_REG(L2C_INT_MASK_STATUS_REG_OFFSET);
+    uint32_t active_status = (masked_status | raw_status) & L2C_ERROR_INT_MASK;
+
+    /* Stop any further L2 error interrupt storm before capturing state. */
+    L2C_PL310_REG(L2C_INT_MASK_REG_OFFSET) = 0U;
+    if (active_status != 0U) {
+        L2C_PL310_REG(L2C_INT_CLEAR_REG_OFFSET) = active_status;
+    }
+    __DSB();
+    __ISB();
+
+    g_l2_cache_error_record.raw_status = raw_status;
+    g_l2_cache_error_record.masked_status = masked_status;
+    g_l2_cache_error_record.active_status = active_status;
+    g_l2_cache_error_record.control = L2C_PL310_REG(L2C_CONTROL_REG_OFFSET);
+    g_l2_cache_error_record.aux_control = L2C_PL310_REG(L2C_AUX_CTRL_REG_OFFSET);
+    g_l2_cache_error_record.core_id = rtos_get_core_id();
+    g_l2_cache_error_record.ipsr = __get_IPSR();
+    g_l2_cache_error_record.count++;
+
+    BK_ASSERT(0);
+    while (1) {
+        __BKPT(0);
+    }
+}
+
+int32_t l2_cache_error_monitor_enable(void)
+{
+    if (!s_l2_cache_error_monitor_enabled) {
+        if (bk_int_isr_register(INT_SRC_L2CACHE_ERR, l2_cache_error_isr, NULL) != BK_OK) {
+            return -1;
+        }
+
+#if CONFIG_SOC_SMP
+        (void)sys_drv_set_int_en(CPU2_CORE_ID, INT_SRC_L2CACHE_ERR, 1);
+#else
+        (void)sys_drv_set_int_en(rtos_get_core_id(), INT_SRC_L2CACHE_ERR, 1);
+#endif
+
+        s_l2_cache_error_monitor_enabled = true;
+    }
+
+    L2C_PL310_REG(L2C_INT_CLEAR_REG_OFFSET) = L2C_ERROR_INT_MASK;
+    L2C_PL310_REG(L2C_INT_MASK_REG_OFFSET) = L2C_ERROR_INT_MASK;
+    __DSB();
+    __ISB();
+
+    return 0;
+}
 
 /* PMU register for memory retention check */
 /* Note: This needs to be verified with actual PMU register definition */
@@ -78,8 +156,19 @@ int32_t l2_cache_init(void)
     
     /* Check if L2 cache is already enabled */
     control_reg = L2C_PL310_REG(L2C_CONTROL_REG_OFFSET);
+
+    /* Clear L2 error interrupts. ECNTR is a performance event, not an error. */
+    L2C_PL310_REG(L2C_INT_CLEAR_REG_OFFSET) = L2C_ERROR_INT_MASK;
+
+    /* Keep error interrupts masked until interrupt controller is ready. */
+    L2C_PL310_REG(L2C_INT_MASK_REG_OFFSET) = 0U;
+
     if (control_reg & L2C_CONTROL_ENABLE_BIT) {
-        /* Already enabled, return success */
+        if (s_l2_cache_error_monitor_enabled) {
+            L2C_PL310_REG(L2C_INT_MASK_REG_OFFSET) = L2C_ERROR_INT_MASK;
+        }
+        __DSB();
+        __ISB();
         return 0;
     }
     
@@ -89,12 +178,6 @@ int32_t l2_cache_init(void)
     /* Close address filtering */
     L2C_PL310_REG(L2C_ADDR_FILTER_REG_OFFSET) = 0x0U;
     
-    /* Clear interrupts */
-    L2C_PL310_REG(L2C_INT_CLEAR_REG_OFFSET) = 0x1FFU;
-    
-    /* Enable all interrupts */
-    L2C_PL310_REG(L2C_INT_MASK_REG_OFFSET) = 0x1FFU;
-    
     /* Check PMU retention flag */
     if (!check_pmu_l2_retention_recovery()) {
         /* Not from retention, need to invalidate all L2 cache */
@@ -102,12 +185,16 @@ int32_t l2_cache_init(void)
             return -1;
         }
         
-        /* Clear interrupts again after invalidate */
-        L2C_PL310_REG(L2C_INT_CLEAR_REG_OFFSET) = 0x1FFU;
+        /* Clear L2 error interrupts again after invalidate. */
+        L2C_PL310_REG(L2C_INT_CLEAR_REG_OFFSET) = L2C_ERROR_INT_MASK;
     }
     
     /* Enable L2 cache */
     L2C_PL310_REG(L2C_CONTROL_REG_OFFSET) = L2C_CONTROL_ENABLE_BIT;
+
+    if (s_l2_cache_error_monitor_enabled) {
+        L2C_PL310_REG(L2C_INT_MASK_REG_OFFSET) = L2C_ERROR_INT_MASK;
+    }
     
     /* Memory barrier to ensure write completion */
     __DSB();
