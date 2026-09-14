@@ -64,6 +64,8 @@ PIXEL_FORMAT_E isp_camera_format_convert(bk_pixel_format_t bk_format)
             return PIXEL_FORMAT_UYVY;
         case BK_PIXEL_FORMAT_YYUV:
             return PIXEL_FORMAT_YYUV;
+        case BK_PIXEL_FORMAT_YUYV_SWAP:
+            return PIXEL_FORMAT_YUYV_SWAP;
 
         default:
             return PIXEL_FORMAT_MAX;

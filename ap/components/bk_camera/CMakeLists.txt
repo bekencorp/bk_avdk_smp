@@ -1,12 +1,13 @@
-set(incs include)
+set(incs include include/isp)
 set(srcs )
 set(req "")
-set(priv_req bk_common unity include avdk_driver bk_peripheral avdk_utils)
+set(priv_req bk_common unity include avdk_driver bk_peripheral avdk_utils bk_frame_buffer)
 
 if (CONFIG_BK_CAMERA)
 	list(APPEND srcs
 		src/bk_isp_camera.c
 		src/isp/bk_camera_isp_ctlr_default.c
+		src/isp/bk_camera_isp_vc_mux.c
 		src/sensor/bk_camera_sensor.c
 		src/sensor/bk_camera_bus.c
 		src/utils/isp_camera_utils.c

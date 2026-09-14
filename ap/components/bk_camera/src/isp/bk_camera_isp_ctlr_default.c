@@ -271,6 +271,23 @@ static void isp_camera_ctlr_stop_all_readers(bk_camera_isp_ctlr_t *control)
     }
 }
 
+static void isp_camera_ctlr_restore_init_if_idle(bk_camera_isp_ctlr_t *control)
+{
+    if (control == NULL)
+    {
+        return;
+    }
+
+    if (control->channel_state[ISP_MP_CHN_ID] == ISP_CHANNEL_STATE_TURN_OFF
+        && control->channel_state[ISP_SP_CHN_ID] == ISP_CHANNEL_STATE_TURN_OFF
+        && control->state == CAM_FSM_ENABLE)
+    {
+        control->state = CAM_FSM_INIT;
+        control->sensor_ctlr = 0;
+        LOGI("%s, all channels closed, state changed to INIT\n", __func__);
+    }
+}
+
 static bk_err_t isp_camera_ctlr_dev_init(bk_isp_camera_ctlr_handle_t handle)
 {
     bk_camera_isp_ctlr_t *control =  __containerof(handle, bk_camera_isp_ctlr_t, ops);
@@ -405,14 +422,9 @@ static avdk_err_t isp_camera_ctlr_read(bk_isp_camera_ctlr_handle_t handle, uint1
 
     isp_control_t *isp_control = (isp_control_t *)control->isp_handle;
 
-    if (control->read_register == false)
-    {
-        // register frame end cb
-        bk_isp_register_isr_callback((isp_handle_t *)&isp_control, ISP_FRAME_END_DONE,
-            camera_frame_complete_callback, control);
-
-        control->read_register = true;
-    }
+    // register frame end cb
+    bk_isp_register_isr_callback((isp_handle_t *)&isp_control, ISP_FRAME_END_DONE,
+        camera_frame_complete_callback, control);
 
     if (read_ctx->read_enable)
     {
@@ -481,8 +493,11 @@ static avdk_err_t isp_camera_ctlr_delete(bk_isp_camera_ctlr_handle_t handle)
  * touching frame-shared units -- so the concurrent MP flexa display is left undisturbed. */
 #define ISP_CAM_ARM_PROBE_FRAMES  3
 #define ISP_CAM_ARM_RETRY         24
+#define ISP_CAM_MP_ARM_RETRY      1
 #define ISP_CAM_ARM_BACKOFF_MS    20
 #define ISP_CAM_ARM_PROBE_TMO_MS  1000
+
+static int isp_camera_ctlr_arm_retry_count(uint8_t channel);
 
 static avdk_err_t isp_camera_ctlr_arm_probe_sustain(bk_camera_isp_ctlr_t *control, uint8_t channel,
                                                     isp_config_ext_t *isp_config,
@@ -512,7 +527,8 @@ static avdk_err_t isp_camera_ctlr_arm_probe_sustain(bk_camera_isp_ctlr_t *contro
     }
 
     avdk_err_t ret = AVDK_ERR_GENERIC;
-    for (int att = 1; att <= ISP_CAM_ARM_RETRY; att++)
+    const int retry_count = isp_camera_ctlr_arm_retry_count(channel);
+    for (int att = 1; att <= retry_count; att++)
     {
         int got = 0;
         for (; got < ISP_CAM_ARM_PROBE_FRAMES; got++)
@@ -558,6 +574,16 @@ static avdk_err_t isp_camera_ctlr_arm_probe_sustain(bk_camera_isp_ctlr_t *contro
 
     bk_frame_buffer_free(probe);
     return ret;
+}
+
+static int isp_camera_ctlr_arm_retry_count(uint8_t channel)
+{
+    if (channel == ISP_MP_CHN_ID)
+    {
+        return ISP_CAM_MP_ARM_RETRY;
+    }
+
+    return ISP_CAM_ARM_RETRY;
 }
 
 static avdk_err_t isp_camera_ctlr_channel_open(bk_isp_camera_ctlr_handle_t handle, uint8_t channel, bk_isp_camera_channel_config_t *config)
@@ -632,20 +658,24 @@ static avdk_err_t isp_camera_ctlr_channel_open(bk_isp_camera_ctlr_handle_t handl
         {
             (void)bk_isp_close(&controller->isp_handle, channel);
             controller->channel_state[channel] = ISP_CHANNEL_STATE_TURN_OFF;
+            isp_camera_ctlr_restore_init_if_idle(controller);
             return ret;
         }
     }
 
-    /* Frame-mode (non-flexa) channel (SP): confirm a live stream and re-arm a metastable
-     * dead-arm internally, so the caller never sees a half-dead (0-frame) session. */
-    if (isp_config.enable_flexa == 0 && isp_config.work_mode == 0 && channel != ISP_MP_CHN_ID)
+    /* Frame-mode (non-flexa) channels can arm into a half-dead state where
+     * open succeeds but no frame reaches pop_buf. Confirm a live stream and
+     * re-arm internally so callers do not see a 0-frame session. */
+    if (isp_config.enable_flexa == 0 && isp_config.work_mode == 0)
     {
         if (isp_camera_ctlr_arm_probe_sustain(controller, channel, &isp_config, config) != AVDK_ERR_OK)
         {
             LOGE("%s, %d, channel %d failed to arm (dead-arm) after %d attempts\n",
-                 __func__, __LINE__, channel, ISP_CAM_ARM_RETRY);
+                 __func__, __LINE__, channel, isp_camera_ctlr_arm_retry_count(channel));
+            isp_camera_ctlr_stop_channel_reader(controller, channel);
             bk_isp_close(&controller->isp_handle, channel);
             controller->channel_state[channel] = ISP_CHANNEL_STATE_TURN_OFF;
+            isp_camera_ctlr_restore_init_if_idle(controller);
             return AVDK_ERR_GENERIC;
         }
     }
@@ -686,14 +716,7 @@ static avdk_err_t isp_camera_ctlr_channel_close(bk_isp_camera_ctlr_handle_t hand
     LOGI("%s, %d, channel %d closed\n", __func__, __LINE__, channel);
 
 
-    if (controller->channel_state[ISP_MP_CHN_ID] == ISP_CHANNEL_STATE_TURN_OFF
-        && controller->channel_state[ISP_SP_CHN_ID] == ISP_CHANNEL_STATE_TURN_OFF
-        && controller->state == CAM_FSM_ENABLE)
-    {
-        controller->state = CAM_FSM_INIT;
-        controller->sensor_ctlr = 0;
-        LOGI("%s, %d, all channels closed, state changed to INIT\n", __func__, __LINE__);
-    }
+    isp_camera_ctlr_restore_init_if_idle(controller);
 
     return AVDK_ERR_OK;
 }
