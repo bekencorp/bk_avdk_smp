@@ -153,11 +153,12 @@ bk_err_t bk_i2s_driver_init(void)
 	bk_pm_clock_ctrl(PM_CLK_ID_I2S1, CLK_PWR_CTRL_PWR_UP);
 
 	//set apll clock config
-	sys_drv_apll_en(1);
 #if CONFIG_SOC_BK7259
+	sys_drv_apll_ref_acquire();   /* shared APLL: acquire reference (was sys_drv_apll_en(1)) */
 	sys_drv_apll_cal_val_set(0x8973CA70);  /// M52-reg0x5a
 	sys_drv_apll_config_set(0xC2A06AA6);   /// M52-reg0x59
 #else
+	sys_drv_apll_en(1);
 	sys_drv_apll_cal_val_set(0x8973CA6F);
 	sys_drv_apll_config_set(0xC2A0AE86);
 #endif
@@ -214,7 +215,11 @@ bk_err_t bk_i2s_driver_deinit(void)
 	}
 
 	//set apll clock config
+#if CONFIG_SOC_BK7259
+	sys_drv_apll_ref_release();   /* shared APLL: release reference (was sys_drv_apll_en(0)) */
+#else
 	sys_drv_apll_en(0);
+#endif
 	//	sys_drv_cb_manu_val_set(0x14);
 	//	sys_drv_ana_reg11_vsel_set(7);
 

@@ -550,6 +550,37 @@ uint32_t sys_drv_apll_en(uint32_t value)
 	sys_drv_exit_critical(int_level);
 	return SYS_DRV_SUCCESS;
 }
+
+/* APLL is a single physical PLL shared by audio and i2s on this core.
+ * Use paired acquire/release so that the PLL is only powered down when the
+ * last user releases it. AP and CP never use the APLL at the same time, so a
+ * per-core reference count is sufficient. */
+static volatile uint32_t s_apll_user_ref = 0;
+
+uint32_t sys_drv_apll_ref_acquire(void)
+{
+	uint32_t int_level = sys_drv_enter_critical();
+	if (s_apll_user_ref++ == 0) {
+		sys_hal_apll_en(1);
+	}
+	sys_drv_exit_critical(int_level);
+	return SYS_DRV_SUCCESS;
+}
+
+uint32_t sys_drv_apll_ref_release(void)
+{
+	uint32_t int_level = sys_drv_enter_critical();
+	if (s_apll_user_ref > 0 && --s_apll_user_ref == 0) {
+		sys_hal_apll_en(0);
+	}
+	sys_drv_exit_critical(int_level);
+	return SYS_DRV_SUCCESS;
+}
+
+uint32_t sys_drv_apll_ref_get(void)
+{
+	return s_apll_user_ref;
+}
 #if CONFIG_SOC_BK7259
 uint32_t sys_drv_get_apll_en_status(void)
 {

@@ -605,8 +605,10 @@ bk_err_t bk_aud_clk_deconfig(void)
 {
 	sys_drv_aud_select_clock(0);
 	//set apll clock config
+#if CONFIG_SOC_BK7259
+	sys_drv_apll_ref_release();   /* shared APLL: release reference (was sys_drv_apll_en(0)) */
+#else
 	sys_drv_apll_en(0);
-#if !CONFIG_SOC_BK7259
 	aud_hal_set_audio_config_apll_sel(0);
 #endif
 
@@ -626,6 +628,8 @@ bk_err_t bk_aud_driver_init(void)
 
     /* enable apb clock */
     audio_reg_hal_set_sys_cfg_apb_clk_en_dis(1);
+
+	sys_drv_apll_ref_acquire();   /* power up shared APLL via reference count */
 
 	bk_int_isr_register(INT_SRC_AUDIO, aud_isr, NULL);
 
@@ -728,13 +732,9 @@ bk_err_t bk_aud_driver_deinit(void)
 	/* enable apb clock */
 	audio_reg_hal_set_sys_cfg_apb_clk_en_dis(1); ////
 
-	// config analog register
-#if 0
-	// Temporarily disabled: Disable audio clock  --- 20260109-yong.li
-	// TODO: Re-enable after fixing the issue
-	sys_hal_aud_clock_en(0);   /// 
-#endif
-
+	/* NOTE: do NOT gate the audio clock here - the analog register writes and
+	 * the reset below still rely on it. Audio clock / APLL are turned off at the
+	 * very end, after all register access / reset finish. */
 	sys_hal_set_ana_reg20_value(0);
 	sys_hal_set_ana_reg21_value(0);
 	sys_hal_set_ana_reg27_value(0);
@@ -749,6 +749,10 @@ bk_err_t bk_aud_driver_deinit(void)
 	aud_hal_set_clk_control_soft_reset(1);
 	aud_hal_set_clk_control_soft_reset(0);
 #endif
+
+	/* Keep audio_cken unchanged for reliable reopen. Switch the mux to XTAL
+	 * and release the APLL reference (real power-down only at ref == 0). */
+	bk_aud_clk_deconfig();
 
 #else
 	// config analog register

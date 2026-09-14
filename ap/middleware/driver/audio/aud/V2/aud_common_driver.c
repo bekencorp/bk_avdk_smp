@@ -434,9 +434,14 @@ bk_err_t bk_aud_clk_config(aud_clk_t clk)
 
 bk_err_t bk_aud_clk_deconfig(void)
 {
-	sys_drv_aud_select_clock(0);
+	sys_drv_aud_select_clock(0);   /* switch audio clock mux back to XTAL first */
 	//set apll clock config
+	sys_hal_set_audioen(0);
+#if CONFIG_SOC_BK7259
+	sys_drv_apll_ref_release();    /* release APLL; only powered down when last user releases (was sys_drv_apll_en(0)) */
+#else
 	sys_drv_apll_en(0);
+#endif
 	return BK_OK;
 }
 
@@ -449,7 +454,11 @@ bk_err_t bk_aud_driver_init(void)
 
 	//bk_pm_module_vote_power_ctrl(PM_POWER_SUB_MODULE_NAME_AUDP_AUDIO, PM_POWER_MODULE_STATE_ON);
 	sys_drv_aud_select_clock(0);
+#if CONFIG_SOC_BK7259
+	sys_drv_apll_ref_acquire();   /* power up shared APLL via reference count (was sys_drv_apll_en(1)) */
+#else
 	sys_drv_apll_en(1);
+#endif
 	//bk_pm_clock_ctrl(PM_CLK_ID_AUDIO, CLK_PWR_CTRL_PWR_UP);
 
 #if CONFIG_SOC_BK7259
@@ -520,13 +529,9 @@ bk_err_t bk_aud_driver_deinit(void)
 	/* enable apb clock */
 	audio_reg_hal_set_sys_cfg_apb_clk_en_dis(1); ////
 
-	// config analog register
-#if 0
-	// Temporarily disabled: Disable audio clock  --- 20260109-yong.li
-	// TODO: Re-enable after fixing the issue
-	sys_hal_aud_clock_en(0);   /// 
-#endif
-
+	/* NOTE: do NOT gate the audio clock here - the analog register writes and
+	 * the hardware reset below still rely on it. Audio clock / APLL are turned
+	 * off at the very end, after all register access / reset / delay finish. */
 	sys_drv_set_ana_reg20_value(0);
 	sys_drv_set_ana_reg21_value(0);
 	sys_drv_set_ana_reg27_value(0);
@@ -539,8 +544,10 @@ bk_err_t bk_aud_driver_deinit(void)
 
 	bk_timer_delay_us(50);
 
+	/* Keep audio_cken unchanged for reliable reopen. Switch the mux to XTAL
+	 * and release the APLL reference (real power-down only at ref == 0). */
+	bk_aud_clk_deconfig();
 #endif
-	//bk_aud_clk_deconfig();
 
 	//bk_pm_clock_ctrl(PM_CLK_ID_AUDIO, CLK_PWR_CTRL_PWR_DOWN);
 	//bk_pm_module_vote_power_ctrl(PM_POWER_SUB_MODULE_NAME_AUDP_AUDIO, PM_POWER_MODULE_STATE_OFF);
@@ -717,6 +724,7 @@ typedef struct {
 	uint32_t aud_clk_sel;
 	uint32_t aud_cken;
 	uint32_t apll_pwd;
+	uint32_t ana_reg26;   /* APLL N coefficient (frequency); needed to re-lock after power loss */
 	uint32_t audio_regs[AUD_PM_AUDIO_REG_WORDS];
 	int32_t  eq_coef_dac0[AUD_PM_EQ_COEF_NUM_PER_DAC];
 	int32_t  eq_coef_dac1[AUD_PM_EQ_COEF_NUM_PER_DAC];
@@ -819,6 +827,7 @@ bk_err_t bk_aud_pm_backup(void)
 	s_aud_pm_backup.aud_clk_sel = sys_ll_get_cpu_clk_div_mode3_cksel_audio();
 	s_aud_pm_backup.aud_cken = sys_ll_get_reserver_reg0xd_audio_cken();
 	s_aud_pm_backup.apll_pwd = sys_ll_get_ana_reg5_pwdaudpll();
+	s_aud_pm_backup.ana_reg26 = sys_ll_get_ana_reg26_value();
 
 	aud_pm_dump_audio_regs(s_aud_pm_backup.audio_regs);
 	aud_pm_dump_eq_coef(AUD_PM_EQ_DAC0_COEF_BASE, s_aud_pm_backup.eq_coef_dac0);
@@ -844,6 +853,7 @@ bk_err_t bk_aud_pm_restore(void)
 
 	sys_hal_aud_clock_en(s_aud_pm_backup.aud_cken ? 1 : 0);
 	sys_ll_set_ana_reg5_pwdaudpll(s_aud_pm_backup.apll_pwd);
+	sys_ll_set_ana_reg26_value(s_aud_pm_backup.ana_reg26);   /* restore APLL N coefficient */
 	sys_drv_aud_select_clock(s_aud_pm_backup.aud_clk_sel);
 	audio_reg_hal_set_sys_cfg_apb_clk_en_dis(1);
 
@@ -854,6 +864,12 @@ bk_err_t bk_aud_pm_restore(void)
 	sys_drv_set_ana_reg28_value(s_aud_pm_backup.ana_reg28);
 	sys_drv_set_ana_reg29_value(s_aud_pm_backup.ana_reg29);
 	sys_drv_set_ana_reg30_value(s_aud_pm_backup.ana_reg30);
+
+	/* reg25 (config) and reg26 (N) are restored: re-lock the APLL if it was
+	 * powered at backup time, otherwise the mux would select a stale/unlocked PLL. */
+	if (s_aud_pm_backup.apll_pwd == 0) {
+		bk_aud_apll_spi_trigger();
+	}
 
 	aud_pm_restore_audio_regs(s_aud_pm_backup.audio_regs);
 

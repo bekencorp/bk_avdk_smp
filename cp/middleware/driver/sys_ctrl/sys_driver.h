@@ -412,6 +412,9 @@ uint32_t sys_drv_i2s3_int_en(uint32_t value);
 uint32_t sys_drv_i2s4_int_en(uint32_t value);
 #endif
 uint32_t sys_drv_apll_en(uint32_t value);
+uint32_t sys_drv_apll_ref_acquire(void);
+uint32_t sys_drv_apll_ref_release(void);
+uint32_t sys_drv_apll_ref_get(void);
 uint32_t sys_drv_cb_manu_val_set(uint32_t value);
 uint32_t sys_drv_ana_reg11_vsel_set(uint32_t value);
 uint32_t sys_drv_apll_cal_val_set(uint32_t value);
