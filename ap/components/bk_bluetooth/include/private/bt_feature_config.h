@@ -20,4 +20,5 @@ typedef struct
     uint16_t _ble_max_latency;
     uint8_t _support_lpo_rosc;
     uint8_t _ble_coc_local_cid_monotonous_increase;
+    uint8_t _hci_host_flow_control_enable;          //controller-to-host ACL flow control runtime switch.
 } bt_feature_struct_t;

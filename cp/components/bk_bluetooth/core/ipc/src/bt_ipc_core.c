@@ -38,6 +38,11 @@ static bt_hci_send_cb_t s_bt_ipc_hci_send_cb = NULL;
 #define BT_IPC_CMD_CHNL     MB_CHNL_BT_CMD
 #define BT_IPC_SEND_TIMEOUT_MS  4000
 
+#if CONFIG_BLUETOOTH_SUPPORT_AP_PWD_RETENTION
+#define BT_IPC_TX_GATE_POLL_MS      100
+#define BT_IPC_TX_GATE_TIMEOUT_MS  8000
+#endif
+
 #define HCI_COMMAND_COMPLETE_EVT_CODE    0x0E
 #define HCI_VENDOR_EVT_CODE    0xFE
 #define HCI_VENDOR_OPCODE      0xFEFE
@@ -54,7 +59,7 @@ enum
     BT_IPC_ISO_IND_MSG = 7,
 };
 
-#if CONFIG_BLUETOOTH_SUPPORT_AP_PWD_ALL
+#if (CONFIG_BLUETOOTH_SUPPORT_AP_PWD_ALL || CONFIG_BLUETOOTH_SUPPORT_AP_PWD_RETENTION)
 static int32_t bt_ipc_wakeup_ap(void)
 {
     bk_pm_module_vote_boot_ap_ctrl(PM_BOOT_AP_MODULE_NAME_APP, PM_POWER_MODULE_STATE_ON);
@@ -112,7 +117,7 @@ static void bt_ipc_free_local_msg_payload(hci_hdr_t *msg)
     }
 }
 
-#if CONFIG_BLUETOOTH_SUPPORT_AP_PWD_ALL
+#if (CONFIG_BLUETOOTH_SUPPORT_AP_PWD_ALL || CONFIG_BLUETOOTH_SUPPORT_AP_PWD_RETENTION)
 static int32_t bt_ipc_wait_ap_ble_ready(uint32_t timeout_ms)
 {
     int32_t ret;
@@ -269,7 +274,7 @@ static void bt_ipc_mailbox_send_msg(hci_hdr_t *msg)
      */
     if (bt_ipc_env.state != BT_IPC_STATE_PEEP_READY)
     {
-#if CONFIG_BLUETOOTH_SUPPORT_AP_PWD_ALL
+#if (CONFIG_BLUETOOTH_SUPPORT_AP_PWD_ALL || CONFIG_BLUETOOTH_SUPPORT_AP_PWD_RETENTION)
         int32_t ret = bt_ipc_wait_ap_ble_ready(BT_IPC_SEND_TIMEOUT_MS);
         if (ret != BK_OK)
         {
@@ -298,9 +303,24 @@ static void bt_ipc_mailbox_send_msg(hci_hdr_t *msg)
     }
 
     ret = mb_chnl_write(BT_IPC_CMD_CHNL, (mb_chnl_cmd_t*)&bt_ipc_cmd);
+
+#if CONFIG_BLUETOOTH_SUPPORT_AP_PWD_RETENTION
+    if (ret == BK_ERR_BUSY)
+    {
+        uint32_t waited = 0;
+        while ((ret == BK_ERR_BUSY) && (waited < BT_IPC_TX_GATE_TIMEOUT_MS))
+        {
+            rtos_delay_milliseconds(BT_IPC_TX_GATE_POLL_MS);
+            waited += BT_IPC_TX_GATE_POLL_MS;
+            ret = mb_chnl_write(BT_IPC_CMD_CHNL, (mb_chnl_cmd_t*)&bt_ipc_cmd);
+        }
+    }
+#endif
+
     if (ret != BK_OK)
     {
-        LOGW("mb_chnl_write failed\n");
+        LOGW("mb_chnl_write failed ret=0x%x, drop pkt type %d\n", ret, msg->pkt_type);
+        rtos_set_semaphore(&bt_ipc_env.send_sema);
         bt_ipc_free_local_msg_payload(msg);
         return;
     }
@@ -716,7 +736,7 @@ int32_t bt_ipc_init(void)
 
     bt_ipc_env.state = BT_IPC_STATE_LOCAL_READY;
 
-    #if CONFIG_BLUETOOTH_SUPPORT_AP_PWD_ALL
+    #if (CONFIG_BLUETOOTH_SUPPORT_AP_PWD_ALL || CONFIG_BLUETOOTH_SUPPORT_AP_PWD_RETENTION)
     bk_pm_ap_ctrl_callback_register(bt_ipc_notify_ap_power_off, NULL, PM_AP_CTRL_CB_TYPE_POWER_OFF);
     #endif
 

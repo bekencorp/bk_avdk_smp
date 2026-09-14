@@ -26,6 +26,9 @@ static bk_err_t bt_ipc_vendor_cmd_deinit_cb(uint16_t sub_opcode, const uint8_t *
 static bk_err_t bt_ipc_vendor_cmd_setpwr_cb(uint16_t sub_opcode, const uint8_t *data, uint16_t len);
 static bk_err_t bt_ipc_vendor_cmd_ble_dut_start_cb(uint16_t sub_opcode, const uint8_t *data, uint16_t len);
 static bk_err_t bt_ipc_vendor_cmd_ble_dut_stop_cb(uint16_t sub_opcode, const uint8_t *data, uint16_t len);
+#if CONFIG_BLUETOOTH_SUPPORT_AP_PWD_RETENTION
+static bk_err_t bt_ipc_vendor_cmd_ap_transport_ready_cb(uint16_t sub_opcode, const uint8_t *data, uint16_t len);
+#endif
 #if CONFIG_BLUETOOTH_SUPPORT_AP_PWD_ALL
 static bk_err_t bt_ipc_vendor_cmd_ble_cb(uint16_t sub_opcode, const uint8_t *data, uint16_t len);
 #endif
@@ -37,6 +40,9 @@ static bt_ipc_vendor_cmd_handler_t s_bt_ipc_vendor_cmd_handlers[BT_IPC_VENDOR_CM
     {BT_VENDOR_SUB_OPCODE_SETPWR, bt_ipc_vendor_cmd_setpwr_cb},
     {BT_VENDOR_SUB_OPCODE_BLE_DUT_START, bt_ipc_vendor_cmd_ble_dut_start_cb},
     {BT_VENDOR_SUB_OPCODE_BLE_DUT_STOP, bt_ipc_vendor_cmd_ble_dut_stop_cb},
+#if CONFIG_BLUETOOTH_SUPPORT_AP_PWD_RETENTION
+    {BT_VENDOR_SUB_OPCODE_AP_TRANSPORT_READY, bt_ipc_vendor_cmd_ap_transport_ready_cb},
+#endif
 #if CONFIG_BLUETOOTH_SUPPORT_AP_PWD_ALL
     {BT_VENDOR_SUB_OPCODE_BLE_CREATE_DB, bt_ipc_vendor_cmd_ble_cb},
     {BT_VENDOR_SUB_OPCODE_BLE_CREATE_ADV, bt_ipc_vendor_cmd_ble_cb},
@@ -115,6 +121,24 @@ static bk_err_t bt_ipc_vendor_cmd_deinit_cb(uint16_t sub_opcode, const uint8_t *
     bt_ipc_vendor_cmd_send_status(sub_opcode, BT_EVENT_STATUS_NOERROR);
     return ret;
 }
+
+#if CONFIG_BLUETOOTH_SUPPORT_AP_PWD_RETENTION
+static bk_err_t bt_ipc_vendor_cmd_ap_transport_ready_cb(uint16_t sub_opcode, const uint8_t *data, uint16_t len)
+{
+    (void)sub_opcode;
+    (void)data;
+    (void)len;
+
+    /* AP resumed from power-down with RAM retained. Unlike INIT, DO NOT call
+     * bk_bluetooth_init() here -- CP controller state is retained too. Just
+     * mark the peer alive so any CP sender blocked in bt_ipc_wait_ap_ble_ready()
+     * is released and pending HCI flushes. No status reply is sent: nothing on
+     * the AP side waits synchronously for it (bt_ipc_resume runs async in the
+     * bt_ipc thread). */
+    bt_ipc_set_state(BT_IPC_STATE_PEEP_READY);
+    return BK_OK;
+}
+#endif
 
 static bk_err_t bt_ipc_vendor_cmd_setpwr_cb(uint16_t sub_opcode, const uint8_t *data, uint16_t len)
 {

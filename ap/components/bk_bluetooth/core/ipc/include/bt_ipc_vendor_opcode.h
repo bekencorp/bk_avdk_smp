@@ -41,6 +41,10 @@ enum {
     BT_VENDOR_SUB_OPCODE_AP_WAKEUP_TRIGGER = 0x0020,
     BT_VENDOR_SUB_OPCODE_BLE_DUT_START = 0x0021,
     BT_VENDOR_SUB_OPCODE_BLE_DUT_STOP = 0x0022,
+    /* AP->CP: AP resumed from power-down with RAM retained. Transport is
+     * intact, so this only tells CP the peer is alive again (flush pending).
+     * Unlike INIT it MUST NOT trigger a full bk_bluetooth_init() on CP. */
+    BT_VENDOR_SUB_OPCODE_AP_TRANSPORT_READY = 0x0023,
     BT_VENDOR_SUB_OPCODE_COUNT,
 };
 

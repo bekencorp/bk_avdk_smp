@@ -92,6 +92,10 @@ menu "Bk_ble"
         bool "auto ble discover. Only used when single ble host"
         default y
 
+    config BLUETOOTH_HCI_HOST_FLOW_CONTROL
+        bool "enable HCI controller-to-host ACL flow control at runtime"
+        default n
+
     config BLUETOOTH_SUPPORT_IPC
         bool "bt support ipc"
 		depends on BLUETOOTH_AP
@@ -110,6 +114,14 @@ menu "Bk_ble"
         bool "bluetooth support ap power down all"
 		depends on BLUETOOTH_SUPPORT_IPC
         default n
+
+    config BLUETOOTH_SUPPORT_AP_PWD_RETENTION
+        bool "bluetooth support ap power down with RAM retention"
+		depends on BLUETOOTH_SUPPORT_IPC
+        default n
+        help
+            AP powers down but its RAM is retained. On resume the AP does not
+            re-init the stack; it is distinct from BLUETOOTH_SUPPORT_AP_PWD_ALL (AP RAM is lost).
 
 	menu "BK_MESH"
 		depends on BLE && BLUETOOTH_HOST_ONLY && BLUETOOTH_SUPPORT_IPC

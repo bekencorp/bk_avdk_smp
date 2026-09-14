@@ -25,4 +25,5 @@ typedef struct
     uint8_t _ble_coc_local_cid_monotonous_increase;
     uint8_t _support_lowpower_sleep;
     uint8_t _rf_mode;
+    uint8_t _hci_host_flow_control_enable;          //controller-to-host ACL flow control runtime switch.
 } bt_feature_struct_t;

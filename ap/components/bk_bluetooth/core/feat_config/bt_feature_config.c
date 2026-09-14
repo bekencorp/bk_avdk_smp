@@ -30,6 +30,9 @@ int bk_bt_feature_init(void)
     s_bt_feature_struct._support_lpo_rosc = 1;
 #endif
     s_bt_feature_struct._ble_coc_local_cid_monotonous_increase = 1;
+#if CONFIG_BLUETOOTH_HCI_HOST_FLOW_CONTROL
+    s_bt_feature_struct._hci_host_flow_control_enable = 1;
+#endif
     extern int bt_feature_adapter_init(void *arg);
 
     if (bt_feature_adapter_init((void *)&s_bt_feature_struct) != 0)

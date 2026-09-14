@@ -9,6 +9,9 @@
 #endif
 #include "cli.h"
 #include "components/bluetooth/bk_dm_bluetooth.h"
+#if CONFIG_BLUETOOTH_SUPPORT_AP_PWD_RETENTION
+#include <modules/pm.h>
+#endif
 
 #define TAG  "bt_ipc"
 
@@ -53,7 +56,70 @@ enum
     BT_IPC_ACL_IND_MSG = 5,
     BT_IPC_SCO_IND_MSG = 6,
     BT_IPC_ISO_IND_MSG = 7,
+    BT_IPC_RESUME_MSG = 8,
 };
+
+#if CONFIG_BLUETOOTH_SUPPORT_AP_PWD_RETENTION
+/* Actual AP_TRANSPORT_READY send. Runs in bt_ipc thread context (never in the
+ * PM callback), so the blocking mailbox write in bt_ipc_hci_send_vendor_cmd()
+ * is safe here. */
+static void bt_ipc_send_transport_ready(void)
+{
+    uint8_t cmd_data[2];
+
+    cmd_data[0] = BT_VENDOR_SUB_OPCODE_AP_TRANSPORT_READY >> 8;
+    cmd_data[1] = BT_VENDOR_SUB_OPCODE_AP_TRANSPORT_READY & 0xff;
+    bt_ipc_hci_send_vendor_cmd(cmd_data, sizeof(cmd_data));
+}
+
+static void bt_ipc_resume(void)
+{
+    bt_ipc_msg_t bt_ipc_msg;
+    LOGD("%s \r\n", __func__);
+    /* RAM retained: transport/state survived power-down. If we were never
+     * inited (cold boot), the normal bk_bluetooth_init() path handles it. */
+    if (BT_IPC_STATE_READY != bt_ipc_env.state)
+    {
+        return;
+    }
+
+    /* Called from PM low-voltage exit context: only defer to the bt_ipc
+     * thread, do not send from here. */
+    bt_ipc_msg.type = BT_IPC_RESUME_MSG;
+    bt_ipc_msg.param = 0;
+    if (kNoErr != rtos_push_to_queue(&bt_ipc_env.queue, &bt_ipc_msg, BEKEN_NO_WAIT))
+    {
+        LOGW("%s, push resume msg failed\r\n", __func__);
+    }
+}
+
+static bk_err_t bt_ipc_ap_fast_resume(void *arg)
+{
+	(void)arg;
+	bt_ipc_resume();
+	return BK_OK;
+}
+
+static const pm_ap_fast_pm_ops_t s_bt_ap_fast_ops = {
+    .name = "bt_ap_fast",
+    .quiesce = NULL,
+    .backup = NULL,
+    .restore = NULL,
+    .resume = NULL,
+    .app_resume = bt_ipc_ap_fast_resume,
+    .arg = NULL,
+    .priority = PM_AP_FAST_PRIORITY_PLATFORM,
+};
+
+static void bt_ipc_register_resume_cb(void)
+{
+    bk_err_t ret = bk_pm_ap_fast_ops_register(&s_bt_ap_fast_ops);
+    if (ret != BK_OK)
+    {
+        LOGW("register bt ipc pm ops failed\r\n");
+    }
+}
+#endif
 
 static void bt_ipc_free_local_msg_payload(hci_hdr_t *msg)
 {
@@ -193,12 +259,15 @@ static void bt_ipc_mailbox_send_msg(hci_hdr_t *msg)
     if (ret != BK_OK)
     {
         LOGW("get bt ipc send_sema failed\n");
+        bt_ipc_free_local_msg_payload(msg);
+        return;
     }
 
     ret = mb_chnl_write(BT_IPC_CMD_CHNL, (mb_chnl_cmd_t*)&bt_ipc_cmd);
     if (ret != BK_OK)
     {
-        LOGW("mb_chnl_write failed\n");
+        LOGW("mb_chnl_write failed ret=0x%x, drop pkt type %d\n", ret, msg->pkt_type);
+        rtos_set_semaphore(&bt_ipc_env.send_sema);
         bt_ipc_free_local_msg_payload(msg);
         return;
     }
@@ -515,6 +584,14 @@ static void bt_ipc_message_handle(void)
                 }
                 break;
 
+#if CONFIG_BLUETOOTH_SUPPORT_AP_PWD_RETENTION
+                case BT_IPC_RESUME_MSG:
+                {
+                    bt_ipc_send_transport_ready();
+                }
+                break;
+#endif
+
                 case BT_IPC_EXIT_MSG:
                     goto exit;
 
@@ -606,6 +683,13 @@ void bt_ipc_init(void)
 #endif
 
     bt_ipc_env.state = BT_IPC_STATE_READY;
+
+#if CONFIG_BLUETOOTH_SUPPORT_AP_PWD_RETENTION
+    /* Register once at cold boot; the registration lives in retained RAM and
+     * survives subsequent AP power-down cycles. */
+    bt_ipc_register_resume_cb();
+#endif
+
     LOGD("%s success\n", __func__);
 }
 
