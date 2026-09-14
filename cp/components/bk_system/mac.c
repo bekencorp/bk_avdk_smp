@@ -460,13 +460,6 @@ bk_err_t bk_get_mac(uint8_t *mac, mac_type_t type)
 		mac[5] += 1; // add 1, diff from wifi's mac
 		break;
 
-#ifdef CONFIG_ETH
-	case MAC_TYPE_ETH:
-		os_memcpy(mac, s_base_mac, BK_MAC_ADDR_LEN);
-		mac[5] += 2 /* NX_VIRT_DEV_MAX */  + 1 /* BLUETOOTH */;
-		break;
-#endif
-
 	/*
 	 * P2P MAC: a single dedicated P2P address, derived the same way a phone
 	 * derives its P2P device address from the station MAC -- by toggling the
