@@ -28,6 +28,9 @@
 #endif
 #include "cache.h"
 #include "pm_debug.h"
+#if CONFIG_PM_AP_SRAM_RETENTION_CHECK
+#include <modules/ap_sram_retention_check.h>
+#endif
 #if CONFIG_SUPPORT_WWDT
 #include <driver/wwdt.h>
 #endif
@@ -90,6 +93,145 @@ static void pm_ap_fast_resume_clear(void)
 	flush_dcache((void *)&bk_sys_sw_regs_ptr()->pm_shared_info,
 		sizeof(bk_sys_sw_regs_ptr()->pm_shared_info));
 	__DSB();
+}
+#endif
+
+#if CONFIG_PM_AP_SRAM_RETENTION_CHECK
+typedef struct {
+	const char *name;
+	uint32_t start;
+	uint32_t size;
+	uint32_t snapshot_offset;
+} pm_ap_sram_check_region_t;
+
+static const pm_ap_sram_check_region_t s_pm_ap_sram_check_regions[
+	AP_SRAM_CHECK_REGION_COUNT] = {
+	{"SMEM3", 0x28100000u, 0x40000u, 0x00000u},
+	{"SMEM4", 0x28140000u, 0x40000u, 0x40000u},
+	{"SMEM5", 0x28180000u, 0x40000u, 0x80000u},
+	{"SMEM6", 0x281c0000u, 0x20000u, 0xc0000u},
+};
+
+static bool s_pm_ap_sram_precheck_pass;
+
+static inline uint32_t pm_ap_sram_crc32_byte(uint32_t crc, uint8_t data)
+{
+	crc ^= data;
+	for (uint32_t i = 0; i < 8u; i++) {
+		crc = (crc >> 1) ^ ((crc & 1u) ? 0xedb88320u : 0u);
+	}
+	return crc;
+}
+
+static bool pm_ap_sram_address_is_skipped(
+	const volatile ap_sram_check_shared_t *shared, uint32_t addr)
+{
+	for (uint32_t i = 0; i < AP_SRAM_CHECK_SKIP_RANGE_COUNT; i++) {
+		if ((addr >= shared->skip_start[i]) &&
+			(addr < shared->skip_end[i])) {
+			return true;
+		}
+	}
+	return false;
+}
+
+static uint32_t pm_ap_sram_region_crc32(
+	const pm_ap_sram_check_region_t *region,
+	const volatile ap_sram_check_shared_t *shared)
+{
+	volatile const uint8_t *data =
+		(volatile const uint8_t *)(uintptr_t)region->start;
+	uint32_t crc = 0xffffffffu;
+
+	for (uint32_t i = 0; i < region->size; i++) {
+		uint32_t addr = region->start + i;
+		if (!pm_ap_sram_address_is_skipped(shared, addr)) {
+			crc = pm_ap_sram_crc32_byte(crc, data[i]);
+		}
+	}
+	return ~crc;
+}
+
+static bool pm_ap_sram_check_shared_is_valid(
+	const volatile ap_sram_check_shared_t *shared)
+{
+	if ((shared->magic != AP_SRAM_CHECK_MAGIC) ||
+		(shared->magic_inv != ~AP_SRAM_CHECK_MAGIC) ||
+		(shared->region_count != AP_SRAM_CHECK_REGION_COUNT)) {
+		return false;
+	}
+	for (uint32_t i = 0; i < AP_SRAM_CHECK_REGION_COUNT; i++) {
+		if (shared->crc_before_inv[i] != ~shared->crc_before[i]) {
+			return false;
+		}
+	}
+	return true;
+}
+
+static bool pm_ap_sram_check_from_cp(const char *stage)
+{
+	const volatile ap_sram_check_shared_t *shared =
+		(const volatile ap_sram_check_shared_t *)AP_SRAM_CHECK_PSRAM_BASE;
+	uint32_t logged_changes = 0u;
+	uint32_t failed_regions = 0u;
+
+	__DSB();
+	if (!pm_ap_sram_check_shared_is_valid(shared)) {
+		LOGE("AP SRAM %s metadata invalid: magic=0x%08x inv=0x%08x regions=%u\r\n",
+			stage, shared->magic, shared->magic_inv,
+			shared->region_count);
+		return false;
+	}
+
+	for (uint32_t i = 0; i < AP_SRAM_CHECK_REGION_COUNT; i++) {
+		const pm_ap_sram_check_region_t *region =
+			&s_pm_ap_sram_check_regions[i];
+		volatile const uint32_t *current =
+			(volatile const uint32_t *)(uintptr_t)region->start;
+		volatile const uint32_t *before =
+			(volatile const uint32_t *)(AP_SRAM_CHECK_SNAPSHOT_BASE +
+				region->snapshot_offset);
+		uint32_t crc_after = pm_ap_sram_region_crc32(region, shared);
+		uint32_t changed_words = 0u;
+
+		if (crc_after == shared->crc_before[i]) {
+			continue;
+		}
+		failed_regions |= (1u << i);
+		for (uint32_t word = 0;
+			word < (region->size / sizeof(uint32_t)); word++) {
+			uint32_t addr = region->start + word * sizeof(uint32_t);
+			uint32_t value_after;
+
+			if (pm_ap_sram_address_is_skipped(shared, addr)) {
+				continue;
+			}
+			value_after = current[word];
+			if (before[word] == value_after) {
+				continue;
+			}
+			changed_words++;
+			if (logged_changes < AP_SRAM_CHECK_MAX_CHANGE_LOGS) {
+				LOGE("AP SRAM %s %s changed: addr=0x%08x 0x%08x -> 0x%08x\r\n",
+					stage, region->name, addr, before[word],
+					value_after);
+				logged_changes++;
+			}
+		}
+		LOGE("AP SRAM %s %s CRC failed: 0x%08x -> 0x%08x changed_words=%u\r\n",
+			stage, region->name, shared->crc_before[i],
+			crc_after, changed_words);
+	}
+
+	if (logged_changes == AP_SRAM_CHECK_MAX_CHANGE_LOGS) {
+		LOGE("AP SRAM %s change log limited to first %u words\r\n",
+			stage, AP_SRAM_CHECK_MAX_CHANGE_LOGS);
+	}
+	if (failed_regions == 0u) {
+		LOGI("AP SRAM %s check passed generation=%u\r\n",
+			stage, shared->generation);
+	}
+	return failed_regions == 0u;
 }
 #endif
 
@@ -564,6 +706,13 @@ boot_ap:
 		}
 		#endif
 #endif
+#if CONFIG_PM_AP_SRAM_RETENTION_CHECK
+		if (!s_pm_ap_sram_precheck_pass) {
+			LOGW("AP SRAM POST-ON result is ambiguous because PRE-OFF failed\r\n");
+		}
+		(void)pm_ap_sram_check_from_cp(s_pm_ap_sram_precheck_pass ?
+			"POST-ON(retention)" : "POST-ON(pre-failed)");
+#endif
 		extern bk_err_t bk_start_ap_system(void);
 		if (bk_start_ap_system() != BK_OK) {
 			LOGE("bk_start_ap_system failed\r\n");
@@ -1016,6 +1165,15 @@ bk_err_t bk_pm_module_vote_boot_ap_ctrl(pm_boot_ap_module_name_e module,pm_power
 #endif
 					if (shared_info.pm_ap0_sleep_state == 0x1)
 					{
+#if CONFIG_PM_AP_SRAM_RETENTION_CHECK
+						/*
+						 * AP has published sleep-ready and cannot run normal
+						 * tasks anymore. Validate the AP-generated baseline
+						 * before removing AP SRAM power.
+						 */
+						s_pm_ap_sram_precheck_pass =
+							pm_ap_sram_check_from_cp("PRE-OFF");
+#endif
 #if CONFIG_PM_AP_FAST_BOOT_ENABLE
 						uint64_t sleep_ready_tick =
 							bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
