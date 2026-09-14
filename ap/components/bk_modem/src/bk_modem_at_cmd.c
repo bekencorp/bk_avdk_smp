@@ -78,6 +78,14 @@ static bk_err_t bk_modem_at_rsp_analysis(uint8_t *cmd,uint8_t *resp)
 				return BK_FAIL;
 			}
 		}
+		else if (0 == os_strcmp((const char *)cmd, AT_ECNETCFG_Q))
+		{
+			if (NULL == os_strstr((const char *)resp, AT_RSP_ECNETCFG_NAT1))
+			{
+				BK_MODEM_LOGI("at_rsp_analysis: rsp is fail, resp %s\r\n", resp);
+				return BK_FAIL;
+			}
+		}
 		BK_MODEM_LOGI("at_rsp_analysis: rsp is ok, cmd %s\r\n", cmd);
 		return BK_OK;
 	}

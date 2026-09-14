@@ -28,6 +28,7 @@
 #define AT_RSP_CPIN				"+CPIN: READY"
 #define AT_RSP_CEREG1			"+CEREG: 0,1"
 #define AT_RSP_CEREG5			"+CEREG: 0,5"
+#define AT_RSP_ECNETCFG_NAT1	"\"nat\",1,"
 
 
 ///ec at begin

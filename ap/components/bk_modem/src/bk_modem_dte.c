@@ -671,7 +671,7 @@ void bk_modem_dte_handle_uart_nic_start(void)
             goto fail;
         }
 
-        if (!bk_modem_at_cereg_enable())
+        if (!bk_modem_dce_cereg_enable())
         {
             temp_flag = 2;
             goto fail;
@@ -690,8 +690,14 @@ void bk_modem_dte_handle_uart_nic_start(void)
         }
 
         //bk_modem_env.is_ec_nat_set = true;
-        bk_modem_dce_ec_rst();
+        if (!bk_modem_dce_ec_rst())
+        {
+            temp_flag = 11;
+            goto fail;
+        }
 
+        bk_modem_set_state(MODEM_CHECK);
+        bk_modem_send_msg(MSG_MODEM_CHECK, 0, 0, 0); 
         return;
     }
 
