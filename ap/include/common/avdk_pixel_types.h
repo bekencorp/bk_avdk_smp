@@ -190,6 +190,8 @@ typedef enum {
     BK_PIXEL_FORMAT_VYUY         = 26,   /**< 4:2:2 packed; bytes per 2 pixels:  V   Y0  U   Y1 */
     BK_PIXEL_FORMAT_UYVY         = 27,   /**< 4:2:2 packed; bytes per 2 pixels:  U   Y0  V   Y1 */
     BK_PIXEL_FORMAT_YYUV         = 28,   /**< 4:2:2 packed; bytes per 2 pixels:  Y0  Y1  U   V  */
+    BK_PIXEL_FORMAT_YVYU         = 29,   /**< 4:2:2 packed; bytes per 2 pixels:  Y0  V   Y1  U  */
+    BK_PIXEL_FORMAT_YUYV_SWAP     = 30,   /**< 4:2:2 packed; bytes per 2 pixels:  Y1  V   Y0  U  */
 } bk_pixel_format_t;
 
 // need optimize

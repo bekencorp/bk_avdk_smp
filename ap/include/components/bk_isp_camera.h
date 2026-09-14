@@ -15,6 +15,7 @@
 #pragma once
 
 #include <components/bk_isp_camera_types.h>
+#include <components/bk_camera_isp_ctlr.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -74,6 +75,25 @@ avdk_err_t bk_isp_camera_close(bk_isp_camera_ctlr_handle_t handle);
  * @return AVDK error code
  */
 avdk_err_t bk_isp_camera_read(bk_isp_camera_ctlr_handle_t handle, uint16_t id, uint8_t *frame, uint32_t size, uint32_t timeout);
+
+avdk_err_t bk_isp_camera_vc_mux_start(bk_isp_camera_vc_mux_handle_t handle, bk_isp_camera_vc_mux_config_t *config);
+
+avdk_err_t bk_isp_camera_vc_mux_stop(bk_isp_camera_vc_mux_handle_t handle);
+
+avdk_err_t bk_isp_camera_vc_mux_vc_enable(bk_isp_camera_vc_mux_handle_t handle, uint8_t vc, uint8_t discard_frames);
+
+avdk_err_t bk_isp_camera_vc_mux_vc_disable(bk_isp_camera_vc_mux_handle_t handle, uint8_t vc);
+
+avdk_err_t bk_isp_camera_vc_mux_peek(bk_isp_camera_vc_mux_handle_t handle, bk_isp_camera_vc_mux_frame_ref_t *frame);
+
+avdk_err_t bk_isp_camera_vc_mux_release(bk_isp_camera_vc_mux_handle_t handle, bk_isp_camera_vc_mux_frame_ref_t *frame);
+
+/**
+ * @brief Destroy the ISP camera VC mux controller instance
+ * @param handle VC mux handle from bk_camera_isp_vc_mux_new
+ * @return AVDK error code
+ */
+avdk_err_t bk_isp_camera_vc_mux_delete(bk_isp_camera_vc_mux_handle_t handle);
 
 /**
  * @brief Register an ISP interrupt callback

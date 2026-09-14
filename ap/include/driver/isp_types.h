@@ -23,9 +23,12 @@ extern "C" {
 
 #if CONFIG_PT_MP_H264_FRAME_MODE
 #define ISP_FRAME_CNT_MAX (3)
+#elif CONFIG_CSI_TP2863
+#define ISP_FRAME_CNT_MAX (7)
 #else
 #define ISP_FRAME_CNT_MAX (2)
 #endif
+
 #define ISP_INPUT_SENSOR_NAME "GC2053_1080P_LINEAR"
 
 #include <modules/veri_isp/vsios_type.h>

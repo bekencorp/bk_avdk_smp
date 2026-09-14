@@ -23,6 +23,12 @@ extern "C" {
 
 bk_err_t bk_mipi_csi_controller_init(uint16_t width, uint16_t height, uint8_t data_type);
 
+bk_err_t bk_mipi_csi_controller_init_vc(uint16_t width, uint16_t height, uint8_t data_type, uint8_t vc);
+
+void bk_mipi_csi_set_default_vc(uint8_t vc);
+
+void bk_mipi_csi_set_runtime_vc(uint8_t vc);
+
 void bk_mipi_csi_controller_deinit(void);
 
 void bk_mipi_csi_controller_reset(void);

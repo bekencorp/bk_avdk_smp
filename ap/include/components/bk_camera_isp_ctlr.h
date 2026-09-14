@@ -97,6 +97,13 @@ typedef struct
  */
 avdk_err_t bk_camera_isp_ctlr_new(bk_isp_camera_ctlr_handle_t *handle);
 
+/**
+ * @brief Create an ISP camera VC mux controller attached to an existing camera controller
+ * @param handle Output VC mux handle
+ * @param camera ISP camera controller handle from bk_camera_isp_ctlr_new
+ * @return AVDK error code
+ */
+avdk_err_t bk_camera_isp_vc_mux_new(bk_isp_camera_vc_mux_handle_t *handle, bk_isp_camera_ctlr_handle_t camera);
 
 #ifdef __cplusplus
 }

@@ -23,6 +23,8 @@ extern "C" {
 #include <avdk_error.h>
 #include <avdk_check.h>
 
+#define BK_CAMERA_PIN_INVALID 0xFF
+
 typedef enum
 {
     DVP_CAMERA_PORT = 1,     /**< dvp port */
@@ -50,6 +52,7 @@ struct bk_camera_bus_config_t
     uint32_t timeout_ms;
     uint8_t mipi_port_en;
     uint8_t dvp_port_en;
+    uint8_t pin_xclk;         /**< Sensor MCLK GPIO; BK_CAMERA_PIN_INVALID = no SoC MCLK */
 };
 
 typedef struct bk_camera_bus_t bk_camera_bus_t;
@@ -64,6 +67,7 @@ struct bk_camera_bus_t
     void *i2c_handle;
     uint8_t mipi_port_en;
     uint8_t dvp_port_en;
+    uint8_t pin_xclk;
     avdk_err_t (*read8)(bk_camera_bus_t *bus, uint8_t reg, uint8_t *value);
     avdk_err_t (*read16)(bk_camera_bus_t *bus, uint16_t reg, uint8_t *value);
     avdk_err_t (*write8)(bk_camera_bus_t *bus, uint8_t reg, uint8_t value);

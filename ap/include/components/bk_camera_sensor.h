@@ -32,7 +32,6 @@ typedef struct
 {
     uint8_t pin_reset;        /**< Reset pin number */
     uint8_t pin_pwdn;         /**< Power-down pin number */
-    uint8_t pin_xclk;         /**< Clock pin number */
     bk_camera_bus_t *bus;     /**< Pointer to camera bus interface */
 } bk_camera_sensor_config_t;
 

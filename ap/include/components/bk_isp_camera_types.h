@@ -105,6 +105,24 @@ typedef struct
     uint8_t count;     /**< Drop first N frames after channel open (AE warmup), 0 = disabled */
 } bk_isp_camera_skip_frames_config_t;
 
+typedef struct
+{
+    uint8_t channel;
+    uint8_t discard_frames;
+    uint32_t frame_size;
+    uint16_t width;
+    uint16_t height;
+    uint8_t runtime_vc_switch; /**< Use lightweight MIPI VC switch (TP2863 dual-VC) */
+} bk_isp_camera_vc_mux_config_t;
+
+typedef struct
+{
+    uint8_t vc;
+    uint8_t *frame;
+    uint32_t frame_size;
+    uint32_t sequence;
+} bk_isp_camera_vc_mux_frame_ref_t;
+
 /** Number of strength nodes for CPROC auto attributes (matches ISP_AUTO_STRENGTH_NUN). */
 #define BK_ISP_CPROC_AUTO_STRENGTH_NUM 16
 
@@ -215,6 +233,23 @@ struct bk_camera_ctlr_t
     bk_isp_camera_channel_state_t (*channel_state_get)(bk_camera_ctlr_t *controller, uint8_t channel); /**< Get a channel state */
 } ;
 
+/**
+ * @brief ISP camera VC mux controller operation table
+ */
+typedef struct bk_camera_vc_mux_ctlr_t bk_camera_vc_mux_ctlr_t;
+
+struct bk_camera_vc_mux_ctlr_t
+{
+    avdk_err_t (*start)(bk_camera_vc_mux_ctlr_t *controller, bk_isp_camera_vc_mux_config_t *config); /**< Start VC mux service */
+    avdk_err_t (*stop)(bk_camera_vc_mux_ctlr_t *controller); /**< Stop VC mux service */
+    avdk_err_t (*vc_enable)(bk_camera_vc_mux_ctlr_t *controller, uint8_t vc, uint8_t discard_frames); /**< Enable one VC route */
+    avdk_err_t (*vc_disable)(bk_camera_vc_mux_ctlr_t *controller, uint8_t vc); /**< Disable one VC route */
+    avdk_err_t (*peek)(bk_camera_vc_mux_ctlr_t *controller, bk_isp_camera_vc_mux_frame_ref_t *frame); /**< Get VC mux latest frame pointer */
+    avdk_err_t (*release)(bk_camera_vc_mux_ctlr_t *controller, bk_isp_camera_vc_mux_frame_ref_t *frame); /**< Release VC mux frame pointer */
+    avdk_err_t (*del)(bk_camera_vc_mux_ctlr_t *controller); /**< Destroy the VC mux controller object and free memory */
+};
+
+typedef struct bk_camera_vc_mux_ctlr_t *bk_isp_camera_vc_mux_handle_t;
 
 
 #ifdef __cplusplus

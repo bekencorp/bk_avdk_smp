@@ -126,6 +126,7 @@ typedef enum vsiPIXEL_FORMAT_E {
 
     PIXEL_FORMAT_RAW420SP = 41,  /**< \brief RAW420 semi-planer format. */
     PIXEL_FORMAT_RAW422SP = 42,  /**< \brief RAW422 semi-planer format. */
+    PIXEL_FORMAT_YUYV_SWAP = 43, /**< \brief YUV422 packed; NV12 MI output needs data_swap. */
     PIXEL_FORMAT_MAX,
 } PIXEL_FORMAT_E;
 
