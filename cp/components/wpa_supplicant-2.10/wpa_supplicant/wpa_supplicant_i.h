@@ -1323,6 +1323,8 @@ struct wpa_supplicant {
 	int auto_reconnect_count;
 	/* start time of connection */
 	struct os_reltime auto_reconnect_start_time;
+	/* flag indicates last auto reconnect */
+	bool is_last_auto_reconnect;
 #endif
 
 	 /* Channel preferences for AP/P2P GO use */
@@ -1932,6 +1934,19 @@ static inline bool wpas_auto_reconnect_limited(struct wpa_supplicant *wpa_s)
 		return false;
 
 	return true;
+}
+
+/**
+ * Whether wpa supplicant connection auto reconnect is finished.
+ */
+static inline bool wpas_auto_reconnect_finish(struct wpa_supplicant *wpa_s)
+{
+	if (wpa_s->auto_reconnect_max_count != 0 &&
+		wpa_s->auto_reconnect_count == 0 &&
+		wpa_s->is_last_auto_reconnect)
+		return true;
+
+	return false;
 }
 #endif
 
