@@ -136,6 +136,12 @@ void wifi_netif_notify_sta_got_ip6_ll(uint8_t addr_idx, const char *ip)
 void wifi_netif_notify_sta_got_ip6_global(uint8_t addr_idx, const char *ip)
 {
 	wifi_netif_notify_sta_got_ip6_addr(EVENT_NETIF_GOT_IP6_GLOBAL, addr_idx, ip);
+
+	/* Same LMAC/linkstate path as DHCPv4: IPv6-only (SLAAC) never hits
+	 * wm_netif_status_callback, so ME_DHCP_DONE_IND would otherwise never
+	 * be sent. wifi_netif_notify_sta_got_ip(IP6) skips EVENT_NETIF_GOT_IP4.
+	 */
+	wifi_netif_notify_sta_got_ip(IP6);
 }
 #endif
 
