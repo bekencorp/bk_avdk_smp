@@ -271,7 +271,7 @@ static void bk_ble_provisioning_core_init(void)
     ret = rtos_init_queue(&db_info->queue,
                           "db_info->queue",
                           sizeof(ble_prov_msg_t),
-                          10);
+                          100);
 
     if (ret != BK_OK)
     {
