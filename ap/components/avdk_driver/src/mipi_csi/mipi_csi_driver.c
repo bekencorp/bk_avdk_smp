@@ -19,18 +19,21 @@
 #define BASEADDR_CSI            SOC_CSI_HOST_REG_BASE
 #define BASEADDR_CSI_EXT        SOC_CSI_EXT_REG_BASE
 
+static uint8_t s_mipi_csi_default_vc = 0;
+
 static void bk_csi_isr(void)
 {
     uint32_t state = REG_READ(BASEADDR_CSI + 0x0000000c);
     LOGI("%s, %d, state=%x\n", __func__, __LINE__, state);
 }
 
-bk_err_t bk_mipi_csi_controller_init(uint16_t width, uint16_t height, uint8_t data_type)
+bk_err_t bk_mipi_csi_controller_init_vc(uint16_t width, uint16_t height, uint8_t data_type, uint8_t vc)
 {
     uint8_t type = data_type; // default raw10
+    uint8_t vc_id = vc & 0x03;
 
     // CSI PHY
-    LOGI("%s %d %d format[0x%x] \r\n", __func__, width, height, data_type);
+    LOGI("%s %d %d format[0x%x] vc[%u]\r\n", __func__, width, height, data_type, vc_id);
 
     *((volatile unsigned int *)(BASEADDR_CSI + 0x00000040)) = 0xffffffff;
     *((volatile unsigned int *)(BASEADDR_CSI + 0x00000044)) = 0xffffffff;
@@ -43,7 +46,7 @@ bk_err_t bk_mipi_csi_controller_init(uint16_t width, uint16_t height, uint8_t da
     *((volatile unsigned int *)(BASEADDR_CSI + 0x00000018)) = 0x0; // ppi 8bit
     *((volatile unsigned int *)(BASEADDR_CSI + 0x000000ac)) = 0x0 << 24 | /*0x1f*/0x00 << 17 | 0x00<<16;
     *((volatile unsigned int *)(BASEADDR_CSI + 0x00000080)) = 0x01<<24 | 0x01<<16 | 0x01<<8 | 0x00<<0;
-    *((volatile unsigned int *)(BASEADDR_CSI + 0x00000084)) = 0x0; // ipi vc = 0x00
+    *((volatile unsigned int *)(BASEADDR_CSI + 0x00000084)) = vc_id; // ipi vc
     *((volatile unsigned int *)(BASEADDR_CSI + 0x00000088)) = type; // embedded data() | data type(0x2c)
     *((volatile unsigned int *)(BASEADDR_CSI + 0x0000008c)) = 0x01<<8; // autoAttr flush
 #if 0 // test pattern enable
@@ -89,6 +92,24 @@ bk_err_t bk_mipi_csi_controller_init(uint16_t width, uint16_t height, uint8_t da
 #endif
 
     return BK_OK;
+}
+
+bk_err_t bk_mipi_csi_controller_init(uint16_t width, uint16_t height, uint8_t data_type)
+{
+    return bk_mipi_csi_controller_init_vc(width, height, data_type, s_mipi_csi_default_vc);
+}
+
+void bk_mipi_csi_set_default_vc(uint8_t vc)
+{
+    s_mipi_csi_default_vc = vc & 0x03;
+    LOGI("default vc set to %u\r\n", s_mipi_csi_default_vc);
+}
+
+void bk_mipi_csi_set_runtime_vc(uint8_t vc)
+{
+    uint8_t vc_id = vc & 0x03;
+    *((volatile unsigned int *)(BASEADDR_CSI + 0x00000084)) = vc_id; // ipi vc
+    *((volatile unsigned int *)(BASEADDR_CSI + 0x0000008c)) = 0x01 << 8; // flush ipi after vc switch
 }
 
 void bk_mipi_csi_controller_deinit(void)

@@ -744,6 +744,7 @@ static bk_err_t bk_isp_flexa_buffer_config(isp_control_t *control, uint8_t chnl,
             break;
 
         case PIXEL_FORMAT_YUYV:
+        case PIXEL_FORMAT_YUYV_SWAP:
             break;
 
         default:
@@ -1371,7 +1372,14 @@ bk_err_t bk_isp_flexa_sbi_config(isp_handle_t *handle, uint8_t chnl, uint8_t ena
                 isp_sbi_config->streamAttr[1].entrySize = FLEXA_LINES / 2;
                 isp_sbi_config->streamAttr[1].streamEnable = 1;
                 break;
-
+            case PIXEL_FORMAT_YUYV:
+            case PIXEL_FORMAT_YUYV_SWAP:
+                //sbi config
+                isp_sbi_config->entryCnt = control->chn[chnl].buf_cnt;
+                isp_sbi_config->streamNum = 1; //yuv422
+                isp_sbi_config->streamAttr[0].entrySize = FLEXA_LINES;
+                isp_sbi_config->streamAttr[0].streamEnable = 1;
+                break;
             default:
                 LOGE("Invalid pixel format %d\n", control->chn[chnl].chn_attr.chnFormat.pixelFormat);
                 return ret;
