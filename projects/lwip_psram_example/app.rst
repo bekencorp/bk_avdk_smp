@@ -32,7 +32,7 @@ Build the Project
 
 构建命令：
 
-   make bk7258 PROJECT=lwip_psram_example
+       make bk7258 PROJECT=lwip_psram_example
 
 Flash
 ****************************
