@@ -183,10 +183,11 @@ bk_err_t rtos_create_thread_static(beken_thread_t* thread,
                                    void * const TaskTCBBuffer,
                                    uint32_t core_id )
 {
+    beken_thread_t new_thread;
     if ((core_id != 0) && (core_id != 1)) {
         core_id = tskNO_AFFINITY;
     }
-    thread =  (beken_thread_t* )xTaskCreateStaticPinnedToCore( (native_thread_t)function,
+    new_thread =  (beken_thread_t)xTaskCreateStaticPinnedToCore((native_thread_t)function,
                                                                 name,
                                                                 (unsigned short) (stack_size/sizeof( portSTACK_TYPE )),
                                                                 arg,
@@ -194,14 +195,18 @@ bk_err_t rtos_create_thread_static(beken_thread_t* thread,
                                                                 (StackType_t * const)TaskStackBuffer,
                                                                 (StaticTask_t * const)TaskTCBBuffer,
                                                                 core_id );
-     if(thread != NULL )
-     {
+    
+    if(new_thread != NULL )
+    {
+        if (thread != NULL)
+            *thread = new_thread;
+
         return kNoErr;
-     }
-     else
-     {
+    }
+    else
+    {
         return kGeneralErr;
-     }
+    }
 }
 
 
