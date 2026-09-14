@@ -570,7 +570,25 @@ void wpas_notify_state_changed(struct wpa_supplicant *wpa_s,
 		/* if auto reconnect has no limit, notify each connection state */
 		if ((old_state == WPA_COMPLETED && wpa_s->disable_auto_reconnect_after_disconnect) || /* don't reconnect */
 			!wpas_auto_reconnect_limited(wpa_s) || /* reconnect all handled by supplicant */
+			wpas_auto_reconnect_finish(wpa_s) ||
 			wpa_s->disconnected) {
+			if((wpa_s->disconnect_reason == 0 || wpa_s->assoc_status_code == 1) && old_state == WPA_ASSOCIATING)
+			{
+				if(g_sta_param_ptr->cipher_suite ==BK_SECURITY_TYPE_WPA3_WPA2_MIXED ||
+					g_sta_param_ptr->cipher_suite ==BK_SECURITY_TYPE_WPA3_SAE)
+				{
+					wpa_s->disconnect_reason = WIFI_REASON_WRONG_PASSWORD;
+				}
+				//else if(g_sta_param_ptr->cipher_suite >= BK_SECURITY_TYPE_WPA_TKIP &&
+				//	g_sta_param_ptr->cipher_suite <= BK_SECURITY_TYPE_WPA2_MIXED)
+				//{
+				//	wpa_s->disconnect_reason = WIFI_REASON_AUTH_FAIL;
+				//}
+				//else if(g_sta_param_ptr->cipher_suite == BK_SECURITY_TYPE_NONE)
+				//{
+				//	wpa_s->disconnect_reason = WIFI_REASON_AUTH_FAIL;
+				//}
+			}
 			/* don't reconnect */
 			wpas_notify_disconnected(wpa_s);
 		}

@@ -1578,12 +1578,19 @@ int wpa_supplicant_req_scan(struct wpa_supplicant *wpa_s, int sec, int usec)
 			WPA_LOGD("%s: remain count %d\n", __func__, wpa_s->auto_reconnect_count);
 			if (wpa_s->auto_reconnect_count > 0) {
 				wpa_s->auto_reconnect_count--;
+				wpa_s->is_last_auto_reconnect = false;
 				eloop_register_timeout(sec, usec, wpa_supplicant_scan, wpa_s, NULL);
 			} else if (wpa_s->auto_reconnect_count == 0) {
+				wpa_s->is_last_auto_reconnect = true;
 				WPA_LOGD("%s: max scan count reached\n", __func__);
 				// retry count reached
 				eloop_cancel_timeout(wpa_supplicant_auto_reconnect_timeout, wpa_s, NULL);
 				// post event
+				if ((wpa_s->disconnect_reason == 0 || wpa_s->assoc_status_code == 1) &&
+					wpa_s->wpa_state == WPA_ASSOCIATING)
+				{
+					return WPA_OK;
+				}
 				wpas_notify_disconnected(wpa_s);
 			}
 		} else {
