@@ -906,24 +906,28 @@ int usbh_hub_initialize(void)
         if (hub_event_queue == NULL) {
             USB_LOG_ERR("%s create queue fail\r\n", __func__);
             os_create_fail_flag = 1;
+            break;
         }
 
         hub_event_wait = usb_osal_sem_create(1);
         if (hub_event_wait == NULL) {
             USB_LOG_ERR("%s create sem fail\r\n", __func__);
             os_create_fail_flag = 1;
+            break;
         }
 
         hub_event_mutex = usb_osal_mutex_create();
         if (hub_event_mutex == NULL) {
             USB_LOG_ERR("%s create mutex fail\r\n", __func__);
             os_create_fail_flag = 1;
+            break;
         }
 
         hub_thread = usb_osal_thread_create("usbh_hub", CONFIG_USBHOST_PSC_STACKSIZE, CONFIG_USBHOST_PSC_PRIO, usbh_hub_thread, NULL);
         if (hub_thread == NULL) {
             USB_LOG_ERR("%s create thread fail\r\n", __func__);
             os_create_fail_flag = 1;
+            break;
         }
     }while(0);
 

@@ -755,6 +755,18 @@ int usbh_register_class_driver(uint8_t usb_prot_mode, void *drvier_info)
 {
     USB_LOG_VBS("[+]%s start:%x end:%x\r\n", __func__, __usbh_class_info_start__, __usbh_class_info_end__);
 
+    if (drvier_info == NULL) {
+        USB_LOG_ERR("%s: NULL drvier_info\r\n", __func__);
+        return -EINVAL;
+    }
+
+    uint32_t table_limit = (uint32_t)usbh_class_info_table + sizeof(usbh_class_info_table);
+    if (__usbh_class_info_end__ + sizeof(struct usbh_class_info) > table_limit) {
+        USB_LOG_ERR("%s: class info table full (max %d), drop registration\r\n",
+                    __func__, (int)(sizeof(usbh_class_info_table) / sizeof(struct usbh_class_info)));
+        return -ENOMEM;
+    }
+
     if(__usbh_class_info_start__ != __usbh_class_info_end__) {
         os_memcpy((void *)(__usbh_class_info_end__), (void *)(drvier_info), sizeof(struct usbh_class_info));
         __usbh_class_info_end__ += sizeof(struct usbh_class_info);
