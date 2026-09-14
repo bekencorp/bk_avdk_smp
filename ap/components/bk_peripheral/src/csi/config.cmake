@@ -56,6 +56,16 @@ if (CONFIG_CSI_CAMERA)
 		list(APPEND CSI_CAMERA_DEVICE_FILES ${CSI_CAMERA_PATH}/csi_sc3336p.c)
 		list(APPEND GLOBAL_FUNCTION_SYMBOLS "sc3336p_detect")
 	endif()
+
+	if (CONFIG_CSI_MIPI_BRIDGE)
+		list(APPEND CSI_CAMERA_DEVICE_FILES ${CSI_CAMERA_PATH}/csi_mipi_bridge.c)
+		list(APPEND GLOBAL_FUNCTION_SYMBOLS "mipi_bridge_detect")
+	endif()
+
+	if (CONFIG_CSI_TP2863)
+		list(APPEND CSI_CAMERA_DEVICE_FILES ${CSI_CAMERA_PATH}/csi_tp2863.c)
+		list(APPEND GLOBAL_FUNCTION_SYMBOLS "tp2863_detect")
+	endif()
 endif()
 
 

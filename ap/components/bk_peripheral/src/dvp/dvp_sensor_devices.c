@@ -92,7 +92,6 @@ bk_camera_sensor_handle_t bk_dvp_get_sensor_auto_detect(bk_camera_bus_t *bus)
     bk_camera_sensor_config_t config = {
         .pin_reset = 0xFF,
         .pin_pwdn = 0xFF,
-        .pin_xclk = 0,
         .bus = bus,
     };
 

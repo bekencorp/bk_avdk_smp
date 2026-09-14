@@ -60,4 +60,14 @@ menu "CSI Camera"
         bool "Enable CSI_SC3336P"
         default n
 
+    config CSI_MIPI_BRIDGE
+        depends on CSI_CAMERA
+        bool "Enable CSI_MIPI_BRIDGE"
+        default n
+
+    config CSI_TP2863
+        depends on CSI_CAMERA
+        bool "Enable CSI_TP2863"
+        default n
+
 endmenu
