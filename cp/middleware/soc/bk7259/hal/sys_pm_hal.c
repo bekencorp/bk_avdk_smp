@@ -827,7 +827,7 @@ static inline void sys_hal_deep_sleep_set_vldo(void)
 {
 	sys_ll_set_ana_reg9_aldohp(0);//bit10
 	sys_ll_set_ana_reg9_aloldohp(0);//bit21
-	sys_ll_set_ana_reg9_dldohp(0);//bit2
+	sys_ll_set_ana_reg9_dldohp(1);//bit2
 	sys_ll_set_ana_reg9_hsldo_hp(0);//bit12
 	//ronghui suggest ana0x49[1][2][10][12] 4bit at least 1bit = 1 when deepsleep,otherwise otp will not power on when wakeup
 	sys_ll_set_ana_reg9_coreldo_hp(0);//bit1
@@ -1054,7 +1054,7 @@ static inline void sys_hal_set_low_voltage(pm_sleep_mode_e sleep_mode, volatile 
 	#if CONFIG_LDO_SELF_LOW_POWER_MODE_ENA
 		sys_ll_set_ana_reg9_clk_sel(0); //bit0 0:rosc 1:xtal 32k
 		sys_ll_set_ana_reg9_coreldo_hp(0); //bit1 0:coreldo low power mode
-		sys_ll_set_ana_reg9_dldohp(0); //bit2 0:dldo low power mode
+		sys_ll_set_ana_reg9_dldohp(1); //bit2 0:dldo low power mode
 		sys_ll_set_ana_reg9_aldohp(0); //bit10 0:aldohp low power mode
 		sys_ll_set_ana_reg9_aloldohp(0); //bit21 0:aloldohp low power mode
 	#endif
@@ -1172,7 +1172,7 @@ static inline void sys_hal_set_low_voltage(pm_sleep_mode_e sleep_mode, volatile 
 	} else {
 		 sys_hal_set_halt_config(PM_MODE_DEEP_SLEEP);
 		 sys_hal_set_power_parameter(PM_MODE_DEEP_SLEEP);
-		 aon_pmu_ll_set_r2_otp_vdd_en(0);// close OTPLDO
+		 //aon_pmu_ll_set_r2_otp_vdd_en(0);// close OTPLDO
 	     #if CONFIG_GPIO_WAKEUP_SUPPORT
 		extern bk_err_t gpio_enable_interrupt_mult_for_wake(void);
 		gpio_enable_interrupt_mult_for_wake();
@@ -1740,8 +1740,8 @@ __IRAM_PM void sys_hal_enter_low_voltage(void)
 	}
 
 	#if CONFIG_SPE
-	bool otp_vdd = aon_pmu_ll_get_r2_otp_vdd_en();
-	aon_pmu_ll_set_r2_otp_vdd_en(0);// close OTPLDO, 1.5uA decrease
+	//bool otp_vdd = aon_pmu_ll_get_r2_otp_vdd_en();
+	//aon_pmu_ll_set_r2_otp_vdd_en(0);// close OTPLDO, 1.5uA decrease
 	#endif
 	// PM_GPIO_UP(36);//5
 	// PM_GPIO_DOWN(36);
@@ -2048,7 +2048,7 @@ __IRAM_PM void sys_hal_enter_low_voltage(void)
 	// }
 	#if CONFIG_DEEP_LV
 	#if CONFIG_SPE
-	aon_pmu_ll_set_r2_otp_vdd_en((uint32_t)otp_vdd); /* restore OTPLDO */
+	//aon_pmu_ll_set_r2_otp_vdd_en((uint32_t)otp_vdd); /* restore OTPLDO */
 	#endif
 	#endif
 	aon_pmu_ll_set_r0_fast_boot(0);
