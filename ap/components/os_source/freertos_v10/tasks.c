@@ -747,7 +747,12 @@ static inline void *task_malloc(size_t size, beken_mem_type_t eMemType)
     {
     case HEAP_MEM_TYPE_PSRAM:
 #if CONFIG_PSRAM_AS_SYS_MEMORY
-        return psram_malloc(size);
+        /*
+         * This helper is used for task-owned allocations. A PSRAM task should
+         * use the cacheable PSRAM task heap, while normal application buffers
+         * continue to use psram_malloc() outside of the task creation path.
+         */
+        return psram_cache_malloc(size);
 #else
         return NULL;
 #endif
@@ -762,6 +767,34 @@ static inline void *task_malloc(size_t size, beken_mem_type_t eMemType)
     default:
         return os_malloc(size);
     }
+}
+
+static inline void *task_stack_malloc(size_t size, beken_mem_type_t eMemType)
+{
+    if (eMemType == HEAP_MEM_TYPE_PSRAM) {
+#if CONFIG_PSRAM_AS_SYS_MEMORY
+        return psram_cache_malloc(size);
+#else
+        return NULL;
+#endif
+    }
+
+    return task_malloc(size, eMemType);
+}
+
+static inline void *task_tcb_malloc(size_t size, beken_mem_type_t eMemType)
+{
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+    /*
+     * Preserve the existing fast-boot rule: keep scheduler metadata in the
+     * default heap even when the task stack is allocated from PSRAM.
+     */
+    if (eMemType == HEAP_MEM_TYPE_PSRAM) {
+        return task_malloc(size, HEAP_MEM_TYPE_DEFAULT);
+    }
+#endif
+
+    return task_malloc(size, eMemType);
 }
 
 #if ( configSUPPORT_DYNAMIC_ALLOCATION == 1 )
@@ -786,7 +819,7 @@ static inline void *task_malloc(size_t size, beken_mem_type_t eMemType)
                  * the implementation of the port malloc function and whether or not static
                  * allocation is being used. */
 
-                pxNewTCB = ( TCB_t * ) task_malloc( sizeof( TCB_t ), eMemType );
+                pxNewTCB = ( TCB_t * ) task_tcb_malloc( sizeof( TCB_t ), eMemType );
 
                 if( pxNewTCB != NULL )
                 {
@@ -794,7 +827,7 @@ static inline void *task_malloc(size_t size, beken_mem_type_t eMemType)
                     /* Allocate space for the stack used by the task being created.
                      * The base of the stack memory stored in the TCB so the task can
                      * be deleted later if required. */
-                    pxNewTCB->pxStack = ( StackType_t * ) task_malloc( ( ( ( size_t ) usStackDepth ) * sizeof( StackType_t ) ), eMemType ); /*lint !e961 MISRA exception as the casts are only redundant for some ports. */
+                    pxNewTCB->pxStack = ( StackType_t * ) task_stack_malloc( ( ( ( size_t ) usStackDepth ) * sizeof( StackType_t ) ), eMemType ); /*lint !e961 MISRA exception as the casts are only redundant for some ports. */
 
                     if( pxNewTCB->pxStack == NULL )
                     {
@@ -810,12 +843,12 @@ static inline void *task_malloc(size_t size, beken_mem_type_t eMemType)
                 StackType_t * pxStack;
 
                 /* Allocate space for the stack used by the task being created. */
-                pxStack = task_malloc( ( ( ( size_t ) usStackDepth ) * sizeof( StackType_t ) ), eMemType ); /*lint !e9079 All values returned by pvPortMalloc() have at least the alignment required by the MCU's stack and this allocation is the stack. */
+                pxStack = task_stack_malloc( ( ( ( size_t ) usStackDepth ) * sizeof( StackType_t ) ), eMemType ); /*lint !e9079 All values returned by pvPortMalloc() have at least the alignment required by the MCU's stack and this allocation is the stack. */
 
                 if( pxStack != NULL )
                 {
                     /* Allocate space for the TCB. */
-                    pxNewTCB = ( TCB_t * ) task_malloc( sizeof( TCB_t ), eMemType ); /*lint !e9087 !e9079 All values returned by pvPortMalloc() have at least the alignment required by the MCU's stack, and the first member of TCB_t is always a pointer to the task's stack. */
+                    pxNewTCB = ( TCB_t * ) task_tcb_malloc( sizeof( TCB_t ), eMemType ); /*lint !e9087 !e9079 All values returned by pvPortMalloc() have at least the alignment required by the MCU's stack, and the first member of TCB_t is always a pointer to the task's stack. */
 
                     if( pxNewTCB != NULL )
                     {
