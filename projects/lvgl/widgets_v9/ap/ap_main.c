@@ -44,10 +44,10 @@ static void bk_lodoen_enable(void)
 
 typedef struct
 {
-    uint8_t enable;
     bk_display_ctlr_handle_t dpu_ctlr_handle;
     bk_display_bus_handle_t dis_bus_handle;
-	bk_avdk_lcd_panel_handle_t panel_handle;
+    bk_avdk_lcd_panel_handle_t panel_handle;
+    void *frame_buffer[CONFIG_LVGL_FRAME_BUFFER_NUM];
 } display_ctx_t;
 
 static display_ctx_t *g_disp_ctx = NULL;
@@ -55,6 +55,81 @@ static display_ctx_t *g_disp_ctx = NULL;
 static void bk_widgets_flush_cb(void *args, void *frame_buffer, int (*cb)(void *args))
 {
     bk_display_flush(args, frame_buffer, cb);
+}
+
+static void lvgl_app_widgets_free_frame_buffers(display_ctx_t *ctx)
+{
+    if (ctx == NULL) {
+        return;
+    }
+
+    for (int i = 0; i < CONFIG_LVGL_FRAME_BUFFER_NUM; i++) {
+        if (ctx->frame_buffer[i] != NULL) {
+            bk_frame_buffer_free(ctx->frame_buffer[i]);
+            ctx->frame_buffer[i] = NULL;
+        }
+    }
+}
+
+static void lvgl_app_widgets_display_deinit(display_ctx_t *ctx)
+{
+    if (ctx == NULL) {
+        return;
+    }
+
+    if (ctx->dpu_ctlr_handle != NULL) {
+        BK_LOG_ON_ERR(bk_display_close(ctx->dpu_ctlr_handle));
+        BK_LOG_ON_ERR(bk_display_deinit(ctx->dpu_ctlr_handle));
+        BK_LOG_ON_ERR(bk_display_delete(ctx->dpu_ctlr_handle));
+        ctx->dpu_ctlr_handle = NULL;
+    }
+
+    if (ctx->panel_handle != NULL) {
+        BK_LOG_ON_ERR(bk_lcd_panel_delete(ctx->panel_handle));
+        ctx->panel_handle = NULL;
+    }
+
+    if (ctx->dis_bus_handle != NULL) {
+        BK_LOG_ON_ERR(bk_display_bus_delete(ctx->dis_bus_handle));
+        ctx->dis_bus_handle = NULL;
+    }
+}
+
+static void lvgl_app_widgets_resource_deinit(void)
+{
+    if (lv_vendor_is_initialized()) {
+        lv_vendor_stop();
+        lv_vendor_deinit();
+    }
+
+#if (CONFIG_TP)
+    BK_LOG_ON_ERR(drv_tp_close());
+#endif
+
+    gpio_dev_unmap(GPIO_7);
+    BK_LOG_ON_ERR(bk_gpio_enable_output(GPIO_7));
+    bk_gpio_set_output_low(GPIO_7);
+
+    lvgl_app_widgets_display_deinit(g_disp_ctx);
+    lvgl_app_widgets_free_frame_buffers(g_disp_ctx);
+
+    if (g_disp_ctx != NULL) {
+        os_free(g_disp_ctx);
+        g_disp_ctx = NULL;
+    }
+}
+
+bk_err_t lvgl_app_widgets_deinit(void)
+{
+    if (g_disp_ctx == NULL) {
+        LOGW("%s already deinit\n", __func__);
+        return BK_OK;
+    }
+
+    lvgl_app_widgets_resource_deinit();
+    LOGI("%s complete\n", __func__);
+
+    return BK_OK;
 }
 
 bk_err_t lvgl_app_widgets_init(void)
@@ -132,18 +207,32 @@ bk_err_t lvgl_app_widgets_init(void)
 
     for (int i = 0; i < CONFIG_LVGL_FRAME_BUFFER_NUM; i++) {
         if (i % 2) {
-            lv_vnd_config.frame_buffer[i] = bk_frame_buffer_malloc(MEM_SLAB_HEAP_UNCODED, frame_buffer_size);
+            g_disp_ctx->frame_buffer[i] = bk_frame_buffer_malloc(MEM_SLAB_HEAP_UNCODED, frame_buffer_size);
         } else {
-            lv_vnd_config.frame_buffer[i] = bk_frame_buffer_malloc(MEM_SLAB_HEAP_CODED, frame_buffer_size);
+            g_disp_ctx->frame_buffer[i] = bk_frame_buffer_malloc(MEM_SLAB_HEAP_CODED, frame_buffer_size);
         }
+        if (g_disp_ctx->frame_buffer[i] == NULL) {
+            LOGE("frame buffer %d malloc failed, size=%u\n", i, frame_buffer_size);
+            ret = BK_FAIL;
+            goto err;
+        }
+        lv_vnd_config.frame_buffer[i] = g_disp_ctx->frame_buffer[i];
     }
     lv_vnd_config.args = g_disp_ctx->dpu_ctlr_handle;
     lv_vnd_config.flush_cb = bk_widgets_flush_cb;
 
-    lv_vendor_init(&lv_vnd_config);
+    ret = lv_vendor_init(&lv_vnd_config);
+    if (ret != BK_OK) {
+        LOGE("lv_vendor_init failed, ret=%d\n", ret);
+        goto err;
+    }
 
 #if (CONFIG_TP)
-    drv_tp_open(lv_vnd_config.width, lv_vnd_config.height, TP_MIRROR_NONE);
+    ret = drv_tp_open(lv_vnd_config.width, lv_vnd_config.height, TP_MIRROR_NONE);
+    if (ret != BK_OK) {
+        LOGE("drv_tp_open failed, ret=%d\n", ret);
+        goto err;
+    }
 #endif
 
     lv_vendor_disp_lock();
@@ -155,27 +244,7 @@ bk_err_t lvgl_app_widgets_init(void)
     return BK_OK;
 
 err:
-    // Handle error and release allocated resources
-    if (g_disp_ctx) {
-        if (g_disp_ctx->dpu_ctlr_handle) {
-            bk_display_deinit(g_disp_ctx->dpu_ctlr_handle);
-            bk_display_delete(g_disp_ctx->dpu_ctlr_handle);
-            g_disp_ctx->dpu_ctlr_handle = NULL;
-        }
-
-        if (g_disp_ctx->panel_handle) {
-            bk_lcd_panel_delete(g_disp_ctx->panel_handle);
-            g_disp_ctx->panel_handle = NULL;
-        }
-
-        if (g_disp_ctx->dis_bus_handle) {
-            bk_display_bus_delete(g_disp_ctx->dis_bus_handle);
-            g_disp_ctx->dis_bus_handle = NULL;
-        }
-
-        os_free(g_disp_ctx);
-        g_disp_ctx = NULL;
-    }
+    lvgl_app_widgets_resource_deinit();
 
     return ret;
 }
@@ -222,12 +291,18 @@ void cli_widgets_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **
         return;
     }
 
-    LOGI("usage: widgets rot <0|90|180|270>\r\n");
+    if (argc == 2 && os_strcmp(argv[1], "close") == 0) {
+        bk_err_t ret = lvgl_app_widgets_deinit();
+        LOGI("widgets close ret=%d\r\n", ret);
+        return;
+    }
+
+    LOGI("usage: widgets rot <0|90|180|270> | widgets close\r\n");
 }
 
 static const struct cli_command s_widgets_commands[] =
 {
-    {"widgets", "widgets rot <0|90|180|270>", cli_widgets_cmd},
+    {"widgets", "widgets rot <0|90|180|270> | widgets close", cli_widgets_cmd},
 };
 
 int cli_widgets_init(void)

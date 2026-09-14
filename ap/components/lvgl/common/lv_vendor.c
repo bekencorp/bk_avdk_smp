@@ -521,6 +521,14 @@ void lv_vendor_deinit(void)
         return;
     }
 
+    if (lvgl_task_state == STATE_RUNNING) {
+        if (lv_vendor_is_disp_thread()) {
+            LOGE("%s can not deinit from lvgl task\n", __func__);
+            return;
+        }
+        lv_vendor_stop();
+    }
+
     bk_pm_module_vote_cpu_freq(PM_DEV_ID_LVGL, PM_CPU_FRQ_DEFAULT);
 
 #if CONFIG_LVGL_V8
@@ -549,6 +557,7 @@ void lv_vendor_deinit(void)
 
 #if CONFIG_LVGL_V9
     lv_tick_set_cb(NULL);
+    lv_deinit();
 #endif
 
     ret = rtos_deinit_mutex(&g_disp_mutex);
@@ -598,11 +607,6 @@ void lv_vendor_deinit(void)
 #if LV_USE_USER_DATA
         disp->driver->user_data = NULL;
 #endif
-    }
-#else
-    lv_display_t *disp = lv_display_get_default();
-    if (disp != NULL) {
-        lv_display_set_user_data(disp, NULL);
     }
 #endif
     os_free(vnd_data);
