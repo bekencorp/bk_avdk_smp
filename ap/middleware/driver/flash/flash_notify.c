@@ -18,83 +18,76 @@
 #include "flash_driver.h"
 // #include "mb_ipc_cmd.h"
 
-static void (*s_flash_op_notify)(uint32_t param) = NULL;
-static void (*s_flash_op_notify_camera)(uint32_t param) = NULL;
-static flash_op_notify_onboard_mic_stream_callback_t s_flash_op_notify_onboard_mic_stream = NULL;
-static void *s_flash_op_notify_onboard_mic_stream_args = NULL;
-static void (*s_flash_op_notify_uart)(uint32_t param) = NULL;
+#define FLASH_MAX_OP_NOTIFY_CNT (4)
 
-bk_err_t mb_flash_register_op_uart_notify(void * notify_cb)
+typedef struct {
+	flash_op_notify_callback_t cb;
+	void *args;
+} flash_op_notify_slot_t;
+
+/* Array-based op-notify registry: the single registration path. */
+static flash_op_notify_slot_t s_flash_op_notify_slots[FLASH_MAX_OP_NOTIFY_CNT] = {0};
+
+bk_err_t mb_flash_register_op_notify_cb(flash_op_notify_callback_t notify_cb, void *args)
 {
-	if (s_flash_op_notify_uart == NULL)
+	uint32_t i;
+
+	if (notify_cb == NULL)
 	{
-		s_flash_op_notify_uart = (void (*)(uint32_t))notify_cb;
+		return BK_ERR_PARAM;
 	}
 
-	return BK_OK;
-}
-
-bk_err_t mb_flash_unregister_op_uart_notify(void)
-{
-	if(s_flash_op_notify_uart)
+	/* Same callback already registered: just refresh its args. */
+	for (i = 0; i < FLASH_MAX_OP_NOTIFY_CNT; i++)
 	{
-		s_flash_op_notify_uart = NULL;
+		if (s_flash_op_notify_slots[i].cb == notify_cb)
+		{
+			s_flash_op_notify_slots[i].args = args;
+			return BK_OK;
+		}
 	}
 
-	return BK_OK;
-}
-
-bk_err_t mb_flash_register_op_notify(void * notify_cb)
-{
-    s_flash_op_notify = (void (*)(uint32_t))notify_cb;
-
-	return BK_OK;
-}
-
-bk_err_t mb_flash_unregister_op_notify(void * notify_cb)
-{
-	if(s_flash_op_notify == notify_cb)
+	for (i = 0; i < FLASH_MAX_OP_NOTIFY_CNT; i++)
 	{
-		s_flash_op_notify = NULL;
-		return BK_OK;
+		if (s_flash_op_notify_slots[i].cb == NULL)
+		{
+			s_flash_op_notify_slots[i].cb = notify_cb;
+			s_flash_op_notify_slots[i].args = args;
+			return BK_OK;
+		}
+	}
+
+	return BK_ERR_FLASH_WAIT_CB_FULL;
+}
+
+bk_err_t mb_flash_unregister_op_notify_cb(flash_op_notify_callback_t notify_cb)
+{
+	uint32_t i;
+
+	for (i = 0; i < FLASH_MAX_OP_NOTIFY_CNT; i++)
+	{
+		if (s_flash_op_notify_slots[i].cb == notify_cb)
+		{
+			s_flash_op_notify_slots[i].cb = NULL;
+			s_flash_op_notify_slots[i].args = NULL;
+			return BK_OK;
+		}
 	}
 
 	return BK_ERR_FLASH_WAIT_CB_NOT_REGISTER;
 }
-bk_err_t mb_flash_register_op_camera_notify(void * notify_cb)
+
+static void flash_op_notify_dispatch(uint32_t busy)
 {
-	if (s_flash_op_notify_camera == NULL)
+	uint32_t i;
+
+	for (i = 0; i < FLASH_MAX_OP_NOTIFY_CNT; i++)
 	{
-		s_flash_op_notify_camera = notify_cb;
+		if (s_flash_op_notify_slots[i].cb != NULL)
+		{
+			s_flash_op_notify_slots[i].cb(busy, s_flash_op_notify_slots[i].args);
+		}
 	}
-
-	return BK_OK;
-}
-
-bk_err_t mb_flash_unregister_op_camera_notify(void)
-{
-	if(s_flash_op_notify_camera)
-	{
-		s_flash_op_notify_camera = NULL;
-	}
-
-	return BK_OK;
-}
-
-bk_err_t mb_flash_register_op_onboard_mic_stream_notify(void * notify_cb, void *args)
-{
-	s_flash_op_notify_onboard_mic_stream = notify_cb;
-	s_flash_op_notify_onboard_mic_stream_args = args;
-
-	return BK_OK;
-}
-
-bk_err_t mb_flash_unregister_op_onboard_mic_stream_notify(void)
-{
-	s_flash_op_notify_onboard_mic_stream = NULL;
-	s_flash_op_notify_onboard_mic_stream_args = NULL;
-
-	return BK_OK;
 }
 
 bk_err_t mb_flash_ipc_init(void)
@@ -104,38 +97,16 @@ bk_err_t mb_flash_ipc_init(void)
 
 bk_err_t mb_flash_op_prepare(void)
 {
-	// disable the LCD dev interrupt.
-	if(s_flash_op_notify != NULL)
-		s_flash_op_notify(0);
+	/* notify every registered peripheral: flash is about to erase/write. */
+	flash_op_notify_dispatch(1);
 
-	if (s_flash_op_notify_camera != NULL)
-	{
-		s_flash_op_notify_camera(1);
-	}
-
-	if (s_flash_op_notify_uart != NULL)
-	{
-		s_flash_op_notify_uart(1);
-	}
-	
 	return BK_OK;
 }
 
 bk_err_t mb_flash_op_finish(void)
 {
-	// enable the LCD dev interrupt.
-	if(s_flash_op_notify != NULL)
-		s_flash_op_notify(1);
-
-	if (s_flash_op_notify_camera != NULL)
-	{
-		s_flash_op_notify_camera(1);
-	}
-
-	if (s_flash_op_notify_uart != NULL)
-	{
-		s_flash_op_notify_uart(0);
-	}
+	/* notify every registered peripheral: flash erase/write finished. */
+	flash_op_notify_dispatch(0);
 
 	return BK_OK;
 }
