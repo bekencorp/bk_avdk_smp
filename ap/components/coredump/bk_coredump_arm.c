@@ -249,6 +249,46 @@ static void coredump_check_fault_addr_valid(bk_coredump_regs_t *regs)
     }
 }
 
+void bk_coredump_capture_minimal_context(
+    bk_exception_t *self, bk_coredump_minimal_context_t *context)
+{
+    if (self->secure_context != NULL) {
+        const ap_secure_fault_context_t *secure = self->secure_context;
+
+        context->core_id = secure->core_id;
+        context->pc = secure->pc;
+        context->lr = secure->lr;
+        context->sp = secure->sp;
+        context->cfsr = secure->cfsr_s;
+        context->hfsr = secure->hfsr_s;
+        return;
+    }
+
+    uint32_t *msp = (uint32_t *)self->sp;
+    bool from_thread = is_dump_from_thread(self->lr);
+    uint32_t *except_stack = from_thread
+        ? (uint32_t *)__get_PSP() : msp;
+    uint32_t stack_adj = 8U * sizeof(uint32_t);
+
+    if (is_from_task_wdt(
+        from_thread, self->reset_reason, except_stack[7])) {
+        except_stack = (uint32_t *)__get_PSP();
+    }
+    if (is_fpu_enabled(self->lr)) {
+        stack_adj += 18U * sizeof(uint32_t);
+    }
+    if (is_need_padding_word(except_stack[7])) {
+        stack_adj += sizeof(uint32_t);
+    }
+
+    context->core_id = rtos_get_core_id();
+    context->pc = except_stack[6];
+    context->lr = except_stack[5];
+    context->sp = (uint32_t)except_stack + stack_adj;
+    context->cfsr = SCB->CFSR;
+    context->hfsr = SCB->HFSR;
+}
+
 static void bk_coredump_registers_arm(bk_exception_t *self)
 {
     bk_coredump_regs_t regs;
