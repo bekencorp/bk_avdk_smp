@@ -355,31 +355,37 @@ bk_err_t bk_flash_set_operate_status(flash_op_status_t status);
 __attribute__((section(".itcm_sec_code"))) flash_op_status_t bk_flash_get_operate_status(void);
 
 /**
- * @brief  register a callback to be called when flash is busy waiting.
- * @param wait_cb:If flash is writing/erasing, it will block all of other applications.
- *                But maybe the application can't be blocked when flash is writing/erasing.
- *                So the application should register this wait_cb to flash.
- *                When flash is writing/erasing, it will call this wait_cb
+ * @brief  Register a generic flash operation notify callback (array-based).
+ *
+ * Preferred registration path for peripherals that must be paused around
+ * flash erase/write. Every registered callback is invoked with busy=1 before
+ * the flash operation and busy=0 after it (see flash_op_notify_callback_t).
+ *
+ * Notes:
+ *   - The callback runs inside the flash operation path; it MUST NOT trigger
+ *     another flash erase/write, otherwise it will dead-lock.
+ *   - Registering the same callback again only updates its args.
+ *
+ * @param notify_cb the callback to register (must not be NULL).
+ * @param args opaque context passed back to the callback.
  *
  * @return
  *    - BK_OK: succeed
- *    - others: registered too many(>4) wait_cb to flash.
+ *    - BK_ERR_FLASH_WAIT_CB_FULL: no free slot left
+ *    - BK_ERR_PARAM: notify_cb is NULL
  */
-bk_err_t mb_flash_register_op_notify(void * notify_cb);
+bk_err_t mb_flash_register_op_notify_cb(flash_op_notify_callback_t notify_cb, void *args);
 
 /**
- * @brief  unregister the wait_cb from flash waiting.
+ * @brief  Unregister a generic flash operation notify callback.
  *
- * @param wait_cb:If flash is writing/erasing, it will block all of other applications.
- *                But maybe the application can't be blocked when flash is writing/erasing.
- *                So the application should register this wait_cb to flash.
- *                When flash is writing/erasing, it will call this wait_cb
+ * @param notify_cb the callback previously registered.
  *
  * @return
  *    - BK_OK: succeed
- *    - others: The wait_cb isn't registered to flash.
+ *    - BK_ERR_FLASH_WAIT_CB_NOT_REGISTER: notify_cb was not registered
  */
-bk_err_t mb_flash_unregister_op_notify(void * notify_cb);
+bk_err_t mb_flash_unregister_op_notify_cb(flash_op_notify_callback_t notify_cb);
 
 /**
  * @brief  Get status if it is ready to erase flash, which means ble would sleep more than 56ms period.

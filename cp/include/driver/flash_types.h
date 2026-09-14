@@ -62,6 +62,18 @@ typedef enum {
 typedef void (*flash_ps_callback_t)(void);
 typedef void (*flash_wait_callback_t)(void);
 
+/**
+ * @brief Generic flash operation notify callback.
+ *
+ * Registered via mb_flash_register_op_notify_cb(). Called around every flash
+ * erase/write:
+ *   - busy != 0 : flash is about to erase/write (pause the peripheral).
+ *   - busy == 0 : flash erase/write finished (resume the peripheral).
+ * @param busy operation phase (see above).
+ * @param args opaque context passed at registration time.
+ */
+typedef void (*flash_op_notify_callback_t)(uint32_t busy, void *args);
+
 #ifdef __cplusplus
 }
 #endif
