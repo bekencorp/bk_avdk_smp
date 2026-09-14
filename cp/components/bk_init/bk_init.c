@@ -251,16 +251,6 @@ static int app_uart_debug_init_todo(void)
 	return BK_OK;
 }
 
-#if CONFIG_ETH
-extern int net_eth_start();
-static int app_eth_init(void)
-{
-	BK_LOGD(TAG, "ETH init\n");
-	net_eth_start();
-	return BK_OK;
-}
-#endif
-
 #if CONFIG_ENABLE_WIFI_DEFAULT_CONNECT
 extern void demo_wifi_fast_connect(void);
 #endif
@@ -339,10 +329,6 @@ int bk_init(void)
 	mac802154_init();
 #endif
 #endif //CONFIG_ATE_TEST
-
-#if CONFIG_ETH
-	app_eth_init();
-#endif
 
 #if (CONFIG_TEMP_DETECT || CONFIG_VOLT_DETECT)
 	bk_sensor_start();
