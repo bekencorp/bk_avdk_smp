@@ -369,7 +369,7 @@ psram_test_ext psram_soak_stop         # 或 psram_rapid_stop
 
 1. **PSRAM 初始化**：运行 `psram_test start cpu` 前会自动调用 `bk_psram_init()`。运行其他 `psram_test_ext` 命令前，请确保 PSRAM 已初始化（可先执行 `psram_test_ext init`）。
 
-2. **DMA 引擎**：`cpu_dma_verify` 默认使用 HPDMA（`CONFIG_PSRAM_TEST_USE_HPDMA=1`）。HPDMA 的 debug 级别日志（`hpdma_memcpy cpy_chn`）已屏蔽，不会在高频循环中刷屏。
+2. **DMA 引擎**：`cpu_dma_verify` 默认使用 HPDMA（`CONFIG_PSRAM_TEST_USE_HPDMA=1`）。HPDMA 的高频路径日志（`hpdma_memcpy cpy_chn`、`bk_hpdma_link_deinit` 成功释放）已降为 `LOGV`，不会在循环中刷屏。
 
 3. **栈溢出防护**：`stack_stress` 子任务栈为 48KB，局部数组为 2 x 4KB。若需增大局部数组，请同步增大 `STACK_STRESS_WORKER_STACK` 宏（位于 `psram_test.c`）。
 

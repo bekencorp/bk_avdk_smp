@@ -2261,7 +2261,9 @@ void bk_hpdma_link_deinit(void *desc_table)
         (uint32_t)raw_ptr < (uint32_t)desc_table) {
         // Free raw pointer (which was allocated with extra space)
         os_free(raw_ptr);
-        HPDMA_LOGD("%s freed desc_table=0x%x raw_ptr=0x%x\r\n", __func__, desc_table, raw_ptr);
+        /* Verbose only: cpu_dma_verify / other high-rate memcpy-link callers
+         * hit this every transfer. Keep it off the default debug UART. */
+        HPDMA_LOGV("%s freed desc_table=0x%x raw_ptr=0x%x\r\n", __func__, desc_table, raw_ptr);
     } else {
         HPDMA_LOGE("%s invalid raw_ptr: desc_table=0x%x raw_ptr=0x%x\r\n", __func__, desc_table, raw_ptr);
     }
