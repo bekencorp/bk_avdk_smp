@@ -46,6 +46,9 @@
 #if CONFIG_ADK_ONBOARD_SPEAKER_STREAM_V2
 #include <components/bk_audio/audio_streams/onboard_speaker_stream_v2.h>
 #endif
+#if CONFIG_AUD_PM_FAST_COLD
+#include "cli_voice_service.h"
+#endif
 #endif
 
 #define TAG "asr_cli"
@@ -650,6 +653,9 @@ void cli_asr_service_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc
 #if (CONFIG_VOICE_SERVICE)
         LOGD("%s, %d, startnomic, mic_type: %s, mic_samp_rate: %u, aec_en: %d\n",
              __func__, __LINE__, argv[2], mic_sample_rate, aec_en);
+#if CONFIG_AUD_PM_FAST_COLD
+        voice_cli_pm_release_rw();
+#endif
 
         voice_cfg_t voice_cfg = {0};
 

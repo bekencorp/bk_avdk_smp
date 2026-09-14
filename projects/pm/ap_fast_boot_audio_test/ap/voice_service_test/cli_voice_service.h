@@ -22,6 +22,11 @@ extern "C" {
 
 int cli_voice_service_init(void);
 
+#if CONFIG_AUD_PM_FAST_COLD
+/* startnomic owns voice; drop leftover voice_cli rw so quiesce will not hang. */
+void voice_cli_pm_release_rw(void);
+#endif
+
 #ifdef __cplusplus
 }
 #endif

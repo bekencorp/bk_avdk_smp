@@ -52,7 +52,7 @@ static beken_semaphore_t voice_start_sem = NULL;
 static bool gl_voice_spk_stereo_dup = false;
 static int16_t gl_voice_spk_stereo_buf[VOICE_SPK_STEREO_INTERLEAVE_SAMPLES_MAX * 2];
 
-/* +10 dB: 10^(10/20) = sqrt(10) ùù 3.162278, Q14 fixed-point */
+/* +10 dB: 10^(10/20) = sqrt(10) ~= 3.162278, Q14 fixed-point */
 #define VOICE_SPK_GAIN_10DB_Q14        51805
 
 static inline int16_t voice_spk_apply_gain_10db(int16_t sample)
@@ -116,6 +116,7 @@ static bk_err_t voice_service_hw_open(void)
 
 #if CONFIG_AUD_PM_FAST_COLD
 static uint8_t s_voice_cli_pm_registered;
+static uint8_t s_voice_cli_owns_rw;
 
 int voice_service_send_callback(unsigned char *data, unsigned int len, void *args);
 
@@ -168,7 +169,9 @@ static void voice_cli_rw_deinit(void)
 static bk_err_t voice_cli_pm_quiesce(void *arg)
 {
     (void)arg;
-    voice_cli_rw_deinit();
+    if (s_voice_cli_owns_rw) {
+        voice_cli_rw_deinit();
+    }
     gl_voice_service_handle = NULL;
     return BK_OK;
 }
@@ -176,11 +179,22 @@ static bk_err_t voice_cli_pm_quiesce(void *arg)
 static bk_err_t voice_cli_pm_app_resume(void *arg)
 {
     (void)arg;
+    if (!s_voice_cli_owns_rw) {
+        return BK_OK;
+    }
     gl_voice_service_handle = bk_voice_pm_get_handle();
     if (!gl_voice_service_handle) {
         return BK_OK;
     }
     return voice_cli_rw_init_start(gl_voice_service_handle);
+}
+
+void voice_cli_pm_release_rw(void)
+{
+    s_voice_cli_owns_rw = 0;
+    gl_voice_read_service_handle = NULL;
+    gl_voice_write_service_handle = NULL;
+    gl_voice_service_handle = NULL;
 }
 
 static const pm_ap_fast_pm_ops_t s_voice_cli_pm_ops = {
@@ -667,6 +681,7 @@ void cli_voice_service_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int ar
         media_audio_param_bind_voc_handle(gl_voice_service_handle);
     #endif
     #if CONFIG_AUD_PM_FAST_COLD
+        s_voice_cli_owns_rw = 1;
         voice_cli_pm_register();
     #endif
     }

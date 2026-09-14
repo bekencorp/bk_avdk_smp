@@ -1,1 +1,1 @@
-./dbuild.sh make bk7259 PROJECT=pm/ap_fast_boot
+./dbuild.sh make bk7259 PROJECT=pm/ap_fast_boot_audio_test
