@@ -683,6 +683,14 @@ static bk_err_t aud_asr_pm_quiesce(void *arg)
     return ret;
 }
 
+static bk_err_t aud_asr_pm_resume(void *arg)
+{
+    (void)arg;
+
+    /* Pairing for register. Recreate waits for app_resume. */
+    return BK_OK;
+}
+
 static bk_err_t aud_asr_pm_app_resume(void *arg)
 {
     aud_asr_cfg_t *cfg = (aud_asr_cfg_t *)arg;
@@ -721,6 +729,7 @@ static bk_err_t aud_asr_pm_app_resume(void *arg)
 static const pm_ap_fast_pm_ops_t s_aud_asr_pm_ops = {
     .name = "aud_asr",
     .quiesce = aud_asr_pm_quiesce,
+    .resume = aud_asr_pm_resume,
     .app_resume = aud_asr_pm_app_resume,
     .arg = &s_aud_asr_pm_cfg,
     .priority = (uint8_t)(PM_AP_POWER_PRIORITY_SERVICE + 10U),
