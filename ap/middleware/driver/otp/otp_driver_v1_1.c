@@ -386,7 +386,7 @@ bk_err_t bk_otp_apb_read_by_offset(uint32_t item_offset, uint8_t* buf, uint32_t 
  *    - others: other errors.
  */
 /* OTP2 (AHB) bank size in bytes; a raw offset read must stay within this range. */
-#define OTP2_AHB_BANK_SIZE  (0x800)
+#define OTP2_AHB_BANK_SIZE  (0xC00)
 
 bk_err_t bk_otp_ahb_read_by_offset(uint32_t item_offset, uint8_t* buf, uint32_t size)
 {
