@@ -270,7 +270,7 @@ ifeq ($(IS_SECURITY_FIRMWARE),y)
 else
 	@echo "[full-build] clean bootloader once for a reproducible full build"
 	@if [ -d "$(NORMAL_BOOTLOADER_DIR)" ]; then \
-		$(MAKE) -C $(NORMAL_BOOTLOADER_DIR) SOC_TYPE=$(ARMINO_SOC) clean; \
+		MAKEFLAGS= $(MAKE) -C $(NORMAL_BOOTLOADER_DIR) SOC_TYPE=$(ARMINO_SOC) clean; \
 	fi
 endif
 
@@ -366,7 +366,7 @@ ifeq ($(IS_SECURITY_FIRMWARE),y)
 else
 	@echo "clean bootloader output"
 	@if [ -d "$(NORMAL_BOOTLOADER_DIR)" ]; then \
-		$(MAKE) -C $(NORMAL_BOOTLOADER_DIR) SOC_TYPE=$(ARMINO_SOC) clean; \
+		MAKEFLAGS= $(MAKE) -C $(NORMAL_BOOTLOADER_DIR) SOC_TYPE=$(ARMINO_SOC) clean; \
 	fi
 endif
 

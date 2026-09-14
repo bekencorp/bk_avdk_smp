@@ -511,6 +511,14 @@ macro(project project_name)
         target_link_libraries(${project_elf} "-Wl,--no-whole-archive")
     endif()
 
+    if(__PROJECT_GROUP_LINK_COMPONENTS)
+        target_link_libraries(${project_elf} "-Wl,--end-group")
+    endif()
+
+    if(BUILD_PROPERTIES_LIB)
+        target_link_libraries(${project_elf} "-Wl,--end-group")
+    endif()
+
     set(mapfile "${CMAKE_BINARY_DIR}/${CMAKE_PROJECT_NAME}.map")
 
     if (CMAKE_HOST_WIN32)

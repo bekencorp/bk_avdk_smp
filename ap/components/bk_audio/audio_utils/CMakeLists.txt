@@ -1,4 +1,4 @@
-set(incs ./include)
+set(incs)
 
 set(srcs)
 

@@ -1,4 +1,5 @@
 set(build_path ${CMAKE_BINARY_DIR}/armino/zlib/zlib_v1_3_1)
+file(MAKE_DIRECTORY ${build_path})
 set(incs zlib_v1_3_1 ${build_path})
 
 set(srcs)

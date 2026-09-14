@@ -36,17 +36,17 @@ menu "Adk"
 
 		config ADK_AUTO_TEST_PIPELINE
 			depends on ADK_AUTO_TEST
-			bool "Enable ADK pipeline auto test "
+			bool "Enable ADK pipeline auto test"
 			default n
 
 		config ADK_AUTO_TEST_ELEMENT
 			depends on ADK_AUTO_TEST
-			bool "Enable ADK element auto test "
+			bool "Enable ADK element auto test"
 			default n
 
 		config ADK_AUTO_TEST_EVENT
 			depends on ADK_AUTO_TEST
-			bool "Enable ADK event listener auto test "
+			bool "Enable ADK event listener auto test"
 			default n
 	endmenu
 

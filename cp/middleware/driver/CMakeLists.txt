@@ -38,7 +38,7 @@ set(incs
 	)
 
 list(APPEND incs
-	${armino_path}/$ENV{PROJECT_DIR}/config/${target}/
+	$ENV{PROJECT_DIR}/cp/config/${target}/
 )
 
 set(srcs

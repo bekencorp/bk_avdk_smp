@@ -7,9 +7,9 @@ set(incs .
 	common/bk_video_fps_strategy
 	common/bk_ntwk_sdp
 	bk_network_service/bk_ntwk_socket
-	bk_network_service/bk_net_tcp_service
-	bk_network_service/bk_net_udp_service
-	bk_network_service/bk_net_cs2_service
+	bk_network_service/bk_ntwk_tcp_service
+	bk_network_service/bk_ntwk_udp_service
+	bk_network_service/bk_ntwk_cs2_service
 	bk_network_service/bk_ntwk_kvs_service
 )
 

@@ -24,6 +24,7 @@ run_make() {
 	local dir="$1"
 	local goal="$2"
 	local -a cmd=(
+		"env" "MAKEFLAGS="
 		"${MAKE_BIN}" "${goal}"
 		"ARMINO_TOOLS_PATH=${ARMINO_TOOLS_PATH}"
 		"PROJECT_DIR=${PROJECT_DIR}"

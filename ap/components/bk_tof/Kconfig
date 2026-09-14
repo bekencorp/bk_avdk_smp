@@ -13,7 +13,7 @@ menu "bk_tof"
 
 	config TOF_VI5302_ENABLE
 		depends on TOF_ENABLE
-		bool "Enable Visionics VI5302 "
+		bool "Enable Visionics VI5302"
 		default n
 
 	config TOF_VI5302_HW_IRQ

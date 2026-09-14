@@ -21,7 +21,6 @@ set(incs
 	icu
 	i2c
 	ipi
-	sdcard
 	saradc
 	pmu
 	mailbox

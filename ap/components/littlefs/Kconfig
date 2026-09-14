@@ -19,10 +19,11 @@ menu "Littlefs"
 			depends on LITTLEFS
 			bool "no config littlefs partition"
 
+	endchoice
+
 	config LFS_THREADSAFE
-		depends on "LITTLEFS"
+		depends on LITTLEFS
 		bool "Thread safe"
 		default y
 
-	endchoice
 endmenu

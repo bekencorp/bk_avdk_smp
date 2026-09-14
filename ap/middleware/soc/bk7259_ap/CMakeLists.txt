@@ -6,10 +6,10 @@ if(NOT "${target}" STREQUAL "bk7259_ap")
 endif()
 
 set(incs
-	soc
-	hal
-	./
-	./misc
+	${CMAKE_CURRENT_LIST_DIR}/soc
+	${CMAKE_CURRENT_LIST_DIR}/hal
+	${CMAKE_CURRENT_LIST_DIR}
+	${CMAKE_CURRENT_LIST_DIR}/misc
 	)
 set(srcs "misc/stub.c")
 

@@ -4,20 +4,20 @@ menu "HIGH PERFORMANCE DMA"
 		default y
 
 	config HPDMA_LOGIC_CHAN_CNT
-		prompt "Current CPU-CORE software system uses how many dma-logic-channels. \
-		        Total of all CPU-COREs dma logic chan count should be not bigger then total dma hardware supportted channels"
-		int "4"
+		int "Current CPU-CORE software system uses how many dma-logic-channels"
 		default 4
+		help
+			Total of all CPU-COREs dma logic chan count should be not bigger
+			than total DMA hardware supported channels.
 
 	config HPDMA_LOGIC_CHAN_ID_MIN
-		prompt "Current CPU-CORE software system min dma-logic-channel-id. \
-		        Be care overlap the other CPU-CORE software system's dma-logic-channel-id. \
-		        The value should be set like this: \
-		        CPU0 is from 0; \
-		        CPU1 is from CPU0_DMA_LOGIC_CHAN_CNT \
-		        CPU2 is from CPU0_DMA_LOGIC_CHAN_CNT + CPU1_DMA_LOGIC_CHAN_CNT"
-		int "0"
+		int "Current CPU-CORE software system min dma-logic-channel-id"
 		default 0
+		help
+			Be careful to avoid overlapping other CPU-CORE software system
+			DMA logic channel IDs. CPU0 starts from 0; CPU1 starts from
+			CPU0_DMA_LOGIC_CHAN_CNT; CPU2 starts from
+			CPU0_DMA_LOGIC_CHAN_CNT + CPU1_DMA_LOGIC_CHAN_CNT.
 
 	config HIGH_PERFORMANCE_DMA_TEST
 		depends on HIGH_PERFORMANCE_DMA

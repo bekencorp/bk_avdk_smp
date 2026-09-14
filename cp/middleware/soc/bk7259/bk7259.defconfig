@@ -249,7 +249,6 @@ CONFIG_FREERTOS=y
 # CONFIG_FREERTOS_FPU_ENABLE is not set
 # CONFIG_FREERTOS_USE_QUEUE_SETS is not set
 # CONFIG_MEM_MGMT is not set
-# CONFIG_FREERTOS_V9 is not set
 CONFIG_FREERTOS_V10=y
 # CONFIG_FREERTOS_SMP is not set
 # CONFIG_FREERTOS_POSIX is not set
@@ -267,8 +266,6 @@ CONFIG_FREERTOS_TICK_RATE_HZ=1000
 #
 # Modify LITEOS_M Config
 #
-# CONFIG_LITEOS_M is not set
-# CONFIG_LITEOS_M_V3 is not set
 # end of Modify LITEOS_M Config
 
 #
@@ -605,7 +602,6 @@ CONFIG_AP_VSIE=y
 # CONFIG_STA_VSIE is not set
 CONFIG_STA_AUTO_RECONNECT=y
 # CONFIG_WPA_LOG is not set
-# CONFIG_WIFI_WPS is not set
 # CONFIG_WPA2_ENTERPRISE is not set
 CONFIG_MOBILE_CONNECT_SAP_STATISTICS=y
 CONFIG_USE_MBEDTLS=y
@@ -1066,7 +1062,6 @@ CONFIG_SLAVE_HEART_BEAT=y
 #
 # TP
 #
-# CONFIG_TP is not set
 # end of TP
 
 #
@@ -1097,7 +1092,6 @@ CONFIG_CKMN_TEST=y
 #
 # SLCD
 #
-# CONFIG_SLCD is not set
 # end of SLCD
 
 #
@@ -1112,8 +1106,6 @@ CONFIG_SPINLOCK_STATIC_CNT=64
 #
 # I3C
 #
-# CONFIG_I3C is not set
-# CONFIG_I3C_TEST is not set
 # end of I3C
 
 #
@@ -1132,9 +1124,6 @@ CONFIG_DRIVER_TEST=y
 #
 # io_matrix
 #
-# CONFIG_SUPPORT_IO_MATRIX is not set
-# CONFIG_IO_MATRIX_VER1_0 is not set
-# CONFIG_IO_MATRIX_VER2_0 is not set
 # end of io_matrix
 
 #
