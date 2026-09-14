@@ -213,39 +213,24 @@ static void efuse_mac_cmd_test(char *pcWriteBuffer, int xWriteBufferLen, int arg
 #endif //#if (CONFIG_EFUSE)
 
 
-#if (CONFIG_WIFI_ENABLE) || (CONFIG_ETH)
+#if CONFIG_WIFI_ENABLE
 static void mac_command(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
 	uint8_t base_mac[BK_MAC_ADDR_LEN] = {0};
-#if CONFIG_WIFI_ENABLE
 	uint8_t sta_mac[BK_MAC_ADDR_LEN] = {0};
 	uint8_t ap_mac[BK_MAC_ADDR_LEN] = {0};
-#endif
-#if CONFIG_ETH
-	uint8_t eth_mac[BK_MAC_ADDR_LEN] = {0};
-#endif
 
 	if (argc == 1) {
 		BK_LOG_ON_ERR(bk_get_mac(base_mac, MAC_TYPE_BASE));
-#if CONFIG_WIFI_ENABLE
 		BK_LOG_ON_ERR(bk_wifi_sta_get_mac(sta_mac));
 		BK_LOG_ON_ERR(bk_wifi_ap_get_mac(ap_mac));
-#endif
-#if CONFIG_ETH
-		BK_LOG_ON_ERR(bk_get_mac(eth_mac, MAC_TYPE_ETH));
-#endif
 		if (ate_is_enabled()) {
 			BK_LOG_RAW("MAC address: %02x-%02x-%02x-%02x-%02x-%02x\r\n",
 						base_mac[0],base_mac[1],base_mac[2],base_mac[3],base_mac[4],base_mac[5]);
 		} else {
-#if CONFIG_WIFI_ENABLE
 			BK_LOG_RAW("base mac: "BK_MAC_FORMAT"\n", BK_MAC_STR(base_mac));
 			BK_LOG_RAW("sta mac: "BK_MAC_FORMAT"\n", BK_MAC_STR(sta_mac));
 			BK_LOG_RAW("ap mac: "BK_MAC_FORMAT"\n", BK_MAC_STR(ap_mac));
-#endif
-#if CONFIG_ETH
-			CLI_LOGD("eth mac: %pm\n", eth_mac);
-#endif
 		}
 	} else if (argc == 2) {
 		hexstr2bin_cli(argv[1], base_mac, BK_MAC_ADDR_LEN);
