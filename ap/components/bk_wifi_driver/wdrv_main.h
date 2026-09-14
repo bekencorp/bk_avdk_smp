@@ -72,9 +72,15 @@ Please enable 'CONFIG_CONTROLLER_AP_BUFFER_COPY'."
 #define EVENT_HEAD_LEN 4
 
 
+uint32_t wdrv_stats_lock(void);
+void wdrv_stats_unlock(uint32_t int_level);
+
 #define WDRV_STATS_INC(x,num) do{uint32_t int_level = 0;int_level = rtos_disable_int();wdrv_stats_ptr->x += num;rtos_enable_int(int_level);BK_ASSERT(wdrv_stats_ptr->x >= 0);}while(0)
 #define WDRV_STATS_DEC(x) do{uint32_t int_level = 0;int_level = rtos_disable_int();--wdrv_stats_ptr->x;rtos_enable_int(int_level);BK_ASSERT(wdrv_stats_ptr->x >= 0);}while(0)
 #define WDRV_STATS_RESET(x,num) do{uint32_t int_level = 0;int_level = rtos_disable_int();wdrv_stats_ptr->x = num;rtos_enable_int(int_level);BK_ASSERT(wdrv_stats_ptr->x >= 0);}while(0)
+#define WDRV_STATS_SMP_INC(x,num) do{uint32_t int_level = wdrv_stats_lock();wdrv_stats_ptr->x += num;wdrv_stats_unlock(int_level);}while(0)
+#define WDRV_STATS_SMP_DEC(x) do{uint32_t int_level = wdrv_stats_lock();BK_ASSERT(wdrv_stats_ptr->x > 0);if(wdrv_stats_ptr->x > 0)--wdrv_stats_ptr->x;wdrv_stats_unlock(int_level);}while(0)
+#define WDRV_STATS_SMP_RESET(x,num) do{uint32_t int_level = wdrv_stats_lock();wdrv_stats_ptr->x = num;wdrv_stats_unlock(int_level);}while(0)
 
 
 #define WDRV_IRQ_DISABLE(int_level) do { int_level = rtos_disable_int(); } while(0)
@@ -226,7 +232,7 @@ typedef struct wdrv_stats
 {
     uint16_t rx_alloc_num; //CP RX buffer numbers in use. Need CONFIG_CONTROLLER_RX_DIRECT_PSH = 0
     uint16_t rx_win;       // CONFIG_CONTROLLER_RX_DIRECT_PSH = 0
-    uint16_t tx_alloc_num;
+    uint32_t tx_alloc_num;
     uint16_t tx_list_num;
 
     uint32_t wdrv_tx_cnt;
@@ -269,7 +275,6 @@ struct wdrv_env_t
 #endif
 
 };
-
 
 extern struct wdrv_env_t wdrv_env;
 extern struct wdrv_stats * wdrv_stats_ptr;

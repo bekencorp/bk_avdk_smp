@@ -350,8 +350,8 @@ int wdrv_special_txdata_sender(void *head, uint32_t vif_idx)
 
     if(!cpdu->co_hdr.need_free)
     {
+        WDRV_STATS_SMP_INC(tx_alloc_num,1);
         WDRV_STATS_INC(wdrv_tx_cnt,1);
-        WDRV_STATS_INC(tx_alloc_num,1);
     }
     else
     {
@@ -362,7 +362,8 @@ int wdrv_special_txdata_sender(void *head, uint32_t vif_idx)
 	if (kNoErr != ret) {
 		WDRV_LOGE("%s failed, ret=%d\r\n",__func__, ret);
         WDRV_STATS_INC(wdrv_tx_snder_fail,1);
-		os_free(head);
+        if(!cpdu->co_hdr.need_free)
+            WDRV_STATS_SMP_DEC(tx_alloc_num);
 	}
 
 	return ret;
@@ -396,6 +397,10 @@ int wdrv_txdata_sender(struct pbuf *p, uint32_t vif_idx)
 	cpdu->next = NULL;
     if(!cpdu->co_hdr.need_free)
         cpdu->co_hdr.special_type = 0;
+    if(!cpdu->co_hdr.need_free)
+    {
+        WDRV_STATS_SMP_INC(tx_alloc_num,1);
+    }
 #if CONFIG_CONTROLLER_AP_BUFFER_COPY
     if(!cpdu->co_hdr.need_free)
     {
@@ -408,6 +413,7 @@ int wdrv_txdata_sender(struct pbuf *p, uint32_t vif_idx)
         {
             WDRV_EXIT_TXMSG_CRITICAL(int_level);
             WDRV_STATS_INC(tx_pending_drop_cnt,1);
+            WDRV_STATS_SMP_DEC(tx_alloc_num);
             return BK_ERR_NO_MEM;
         }
         wdrv_env.tx_pending_count++;
@@ -422,7 +428,6 @@ int wdrv_txdata_sender(struct pbuf *p, uint32_t vif_idx)
     if(!cpdu->co_hdr.need_free)
     {
         WDRV_STATS_INC(wdrv_tx_cnt,1);
-        WDRV_STATS_INC(tx_alloc_num,1);
     }
     else
     {
@@ -453,7 +458,7 @@ int wdrv_txdata_sender(struct pbuf *p, uint32_t vif_idx)
             WDRV_LOGE("%s failed, ret=%d\r\n",__func__, ret);
             WDRV_STATS_INC(wdrv_tx_snder_fail,1);
             pbuf_free(p);
-            WDRV_STATS_DEC(tx_alloc_num);
+            WDRV_STATS_SMP_DEC(tx_alloc_num);
 #if CONFIG_CONTROLLER_DEBUG
             TRACK_PBUF_FREE(p);
 #endif
@@ -470,6 +475,8 @@ int wdrv_txdata_sender(struct pbuf *p, uint32_t vif_idx)
 	if (kNoErr != ret) {
 		WDRV_LOGE("%s failed, ret=%d\r\n",__func__, ret);
         WDRV_STATS_INC(wdrv_tx_snder_fail,1);
+        if(!cpdu->co_hdr.need_free)
+            WDRV_STATS_SMP_DEC(tx_alloc_num);
 		pbuf_free(p);
 	}
 
@@ -663,7 +670,7 @@ void wdrv_tx_pending_flush(void)
             TRACK_PBUF_FREE(p);
 #endif
             pbuf_free(p);
-            WDRV_STATS_DEC(tx_alloc_num);
+            WDRV_STATS_SMP_DEC(tx_alloc_num);
         }
     }
 

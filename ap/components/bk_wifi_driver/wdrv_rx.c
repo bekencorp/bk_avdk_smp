@@ -105,7 +105,8 @@ void wdrv_rx_handle_msg(wdrv_rx_msg *msg)
 
 #if CONFIG_BK_RAW_LINK
     if (cpdu->co_hdr.special_type == TX_RLK_FREE_MEM_TYPE) {
-        rlkd_handle_free_mem_req((uint32_t)cpdu);
+        if (rlkd_handle_free_mem_req((uint32_t)cpdu) == BK_OK)
+            WDRV_STATS_SMP_DEC(tx_alloc_num);
         return;
     }
 #endif
@@ -158,7 +159,7 @@ void wdrv_rxdata_process(struct pbuf *p)
         TRACK_PBUF_FREE(pbuf);
 #endif
         pbuf_free(pbuf);
-        WDRV_STATS_DEC(tx_alloc_num);
+        WDRV_STATS_SMP_DEC(tx_alloc_num);
         wdrv_stats_ptr->wdrv_txc_cnt++;
         return;
     }

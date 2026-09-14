@@ -9,12 +9,85 @@
 //#include "bk_err.h"
 #include <components/netif.h>
 #include <components/event.h>
+#include <modules/pm.h>
 void __asm_flush_dcache_range(void* begin, void* end);
 
 struct wdrv_env_t wdrv_env = {0};
 struct wdrv_stats * wdrv_stats_ptr = &wdrv_env.stat;
 __attribute__((section(".wifi_data"))) uint8_t wdrv_cmd_buffer[MAX_NUM_CMD_BUFFERS][MAX_CMD_BUF_LENGTH] = {0};
 __attribute__((section(".wifi_data"))) uint8_t wdrv_cmd_bank[MAX_NUM_CMD_RX_BANK][MAX_CMD_BANK_LENGTH] = {0};
+
+static bool s_wdrv_pm_registered;
+#if CONFIG_SOC_SMP
+static SPINLOCK_SECTION volatile spinlock_t s_wdrv_stats_spin_lock =
+    SPIN_LOCK_INIT;
+#endif
+
+uint32_t wdrv_stats_lock(void)
+{
+    uint32_t int_level = rtos_disable_int();
+
+#if CONFIG_SOC_SMP
+    spin_lock(&s_wdrv_stats_spin_lock);
+#endif
+    return int_level;
+}
+
+void wdrv_stats_unlock(uint32_t int_level)
+{
+#if CONFIG_SOC_SMP
+    spin_unlock(&s_wdrv_stats_spin_lock);
+#endif
+    rtos_enable_int(int_level);
+}
+
+static bk_err_t wdrv_pm_prepare_power_off(void *arg)
+{
+    uint32_t int_level;
+    bk_err_t ret;
+
+    (void)arg;
+
+    /*
+     * The upper layer must stop submitting new TX before PM reaches this
+     * callback. The spin lock only protects the pending counter snapshot.
+     */
+    int_level = wdrv_stats_lock();
+    ret = (wdrv_stats_ptr->tx_alloc_num == 0U) ? BK_OK : BK_ERR_BUSY;
+    wdrv_stats_unlock(int_level);
+    return ret;
+}
+
+static const pm_ap_power_ops_t s_wdrv_pm_ops = {
+    .name = "wifi_data",
+    .prepare_power_off = wdrv_pm_prepare_power_off,
+};
+
+static bk_err_t wdrv_pm_init(void)
+{
+    bk_err_t ret;
+
+    if (s_wdrv_pm_registered)
+        return BK_OK;
+
+    ret = bk_pm_ap_power_ops_register(&s_wdrv_pm_ops);
+    if (ret == BK_OK)
+        s_wdrv_pm_registered = true;
+    return ret;
+}
+
+static bk_err_t wdrv_pm_deinit(void)
+{
+    bk_err_t ret;
+
+    if (!s_wdrv_pm_registered)
+        return BK_OK;
+
+    ret = bk_pm_ap_power_ops_unregister(&s_wdrv_pm_ops);
+    if (ret == BK_OK)
+        s_wdrv_pm_registered = false;
+    return ret;
+}
 
 //struct wdrv_rx_bank_debug_t wdrv_rxbank_debug = {0};
 
@@ -375,6 +448,8 @@ bk_err_t wdrv_init()
         return ret;
     }
 
+    WDRV_STATS_SMP_RESET(tx_alloc_num, 0U);
+
     //LWIP init
     // BK_LOG_ON_ERR(bk_event_init());
     // BK_LOG_ON_ERR(bk_netif_init());
@@ -434,6 +509,12 @@ bk_err_t wdrv_init()
     //wdrv_attach_rx_buffer();
 
     wdrv_env.is_init = 1;
+    ret = wdrv_pm_init();
+    if (ret != BK_OK)
+    {
+        WDRV_LOGE("register WiFi power ops failed:%d\n", ret);
+        goto wdrv_init_failed;
+    }
 
     return ret;
 wdrv_init_failed:
@@ -443,7 +524,15 @@ wdrv_init_failed:
 
 bk_err_t wdrv_deinit()
 {
+    bk_err_t ret;
+
     WDRV_LOGE("ctrl_if_deinit\n");
+    ret = wdrv_pm_deinit();
+    if (ret != BK_OK)
+    {
+        WDRV_LOGE("unregister WiFi power ops failed:%d\n", ret);
+        return ret;
+    }
     wdrv_env.is_init = 0;
 
 #if CONFIG_CONTROLLER_AP_BUFFER_COPY
