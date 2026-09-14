@@ -17,7 +17,11 @@
 #include "isp_core.h"
 #include <driver/isp.h>
 #include <driver/isp_base.h>
+#include <driver/mipi_csi.h>
+#include <driver/flash.h>
+#include <driver/flash_types.h>
 #include <components/bk_encode/bk_h264_encode_ctlr.h>
+#include "mpi_isp_mi.h"
 
 #include "bk_flexa_bond_types.h"
 
@@ -29,10 +33,15 @@
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 
 #define BK_FLEXA_ISP_BOND_STOP_WAIT_MS 2000U
+#define ISP_H264E_FLASH_RESTORE_DELAY_MS 10U
 
 typedef struct {
 	uint8_t set_sbi_flag;
 	uint8_t flexa_sbi;
+	uint8_t flash_paused;
+	uint8_t flash_sensor_stream_off;
+	uint8_t flash_resume_skip_frame;
+	beken_timer_t flash_restore_timer;
 } isp_h264e_bond_priv_t;
 
 static isp_h264e_bond_priv_t *isp_h264e_bond_priv(bk_flexa_bond_config_t *bond_p)
@@ -41,6 +50,257 @@ static isp_h264e_bond_priv_t *isp_h264e_bond_priv(bk_flexa_bond_config_t *bond_p
 		return NULL;
 	}
 	return (isp_h264e_bond_priv_t *)bond_p->bond;
+}
+
+static void isp_h264e_bond_flash_disable_mp_sbi(bk_flexa_bond_config_t *bond_p)
+{
+	bk_flexa_bond_t *in_stream;
+	isp_h264e_bond_priv_t *priv = isp_h264e_bond_priv(bond_p);
+	isp_handle_t isp_h;
+
+	if (priv == NULL) {
+		return;
+	}
+
+	in_stream = (bk_flexa_bond_t *)bond_p->in_stream;
+	if (in_stream == NULL || in_stream->handle == NULL) {
+		return;
+	}
+
+	isp_h = (isp_handle_t)in_stream->handle;
+	(void)bk_isp_flexa_sbi_config(&isp_h, ISP_MP_CHN_ID, 0);
+
+	priv->set_sbi_flag = 0;
+	priv->flexa_sbi = 0;
+	priv->flash_resume_skip_frame = 0;
+}
+
+static bk_err_t isp_h264e_bond_flash_set_sensor_stream(bk_flexa_bond_config_t *bond_p, uint8_t enable)
+{
+	bk_flexa_bond_t *in_stream;
+	isp_h264e_bond_priv_t *priv = isp_h264e_bond_priv(bond_p);
+	isp_control_t *isp_control;
+	int ret;
+
+	if (priv == NULL) {
+		return BK_ERR_PARAM;
+	}
+
+	if ((enable != 0 && priv->flash_sensor_stream_off == 0) ||
+	    (enable == 0 && priv->flash_sensor_stream_off != 0)) {
+		return BK_OK;
+	}
+
+	in_stream = (bk_flexa_bond_t *)bond_p->in_stream;
+	if (in_stream == NULL || in_stream->handle == NULL) {
+		return BK_ERR_PARAM;
+	}
+
+	isp_control = (isp_control_t *)in_stream->handle;
+	ret = (enable != 0)
+		? VSI_MPI_ISP_SnsStreamOn(isp_control->port)
+		: VSI_MPI_ISP_SnsStreamOff(isp_control->port);
+	if (ret != BK_OK) {
+		LOGW("%s sensor stream %s failed %d\r\n",
+		     __func__, enable ? "on" : "off", ret);
+		return ret;
+	}
+
+	if (enable != 0 && isp_control->port.portId == ISP_MIPI_PORT_ID) {
+		bk_mipi_csi_controller_reset();
+	}
+
+	priv->flash_sensor_stream_off = (enable == 0) ? 1 : 0;
+	return BK_OK;
+}
+
+static void isp_h264e_bond_flash_pause(bk_flexa_bond_config_t *bond_p)
+{
+	bk_flexa_bond_t *out_stream;
+	bk_h264_encode_ctlr_handle_t enc;
+	isp_h264e_bond_priv_t *priv;
+
+	if (bond_p == NULL) {
+		return;
+	}
+
+	priv = isp_h264e_bond_priv(bond_p);
+	if (priv == NULL) {
+		return;
+	}
+
+	if (priv->flash_paused != 0) {
+		return;
+	}
+
+	out_stream = (bk_flexa_bond_t *)bond_p->out_stream;
+	if (bond_p->in_stream == NULL || out_stream == NULL || out_stream->handle == NULL) {
+		return;
+	}
+
+	enc = (bk_h264_encode_ctlr_handle_t)out_stream->handle;
+	(void)bk_h264_encode_ioctl(enc, BK_H264_ENCODE_IOCTL_STOP_ENCODE, NULL);
+	(void)bk_h264_encode_force_idr(enc);
+
+	priv->flash_paused = 1;
+	isp_h264e_bond_flash_disable_mp_sbi(bond_p);
+	(void)isp_h264e_bond_flash_set_sensor_stream(bond_p, 0);
+}
+
+static void isp_h264e_bond_flash_resume(bk_flexa_bond_config_t *bond_p)
+{
+	bk_flexa_bond_t *out_stream;
+	bk_h264_encode_ctlr_handle_t enc;
+	isp_h264e_bond_priv_t *priv;
+
+	if (bond_p == NULL) {
+		return;
+	}
+
+	priv = isp_h264e_bond_priv(bond_p);
+	if (priv == NULL || priv->flash_paused == 0) {
+		return;
+	}
+
+	out_stream = (bk_flexa_bond_t *)bond_p->out_stream;
+	if (out_stream == NULL || out_stream->handle == NULL) {
+		return;
+	}
+
+	enc = (bk_h264_encode_ctlr_handle_t)out_stream->handle;
+	(void)bk_h264_encode_ioctl(enc, BK_H264_ENCODE_IOCTL_STOP_ENCODE, NULL);
+	(void)bk_h264_encode_force_idr(enc);
+
+	if (isp_h264e_bond_flash_set_sensor_stream(bond_p, 1) != BK_OK) {
+		return;
+	}
+
+	priv->flexa_sbi = 1;
+	priv->set_sbi_flag = 1;
+	priv->flash_resume_skip_frame = 1;
+	priv->flash_paused = 0;
+}
+
+static void isp_h264e_bond_flash_restore_timer_cb(void *arg)
+{
+	bk_flexa_bond_config_t *bond_p = (bk_flexa_bond_config_t *)arg;
+	isp_h264e_bond_priv_t *priv = isp_h264e_bond_priv(bond_p);
+
+	if (priv == NULL) {
+		return;
+	}
+
+	if (priv->flash_paused != 0) {
+		isp_h264e_bond_flash_resume(bond_p);
+	}
+
+	(void)rtos_stop_timer(&priv->flash_restore_timer);
+}
+
+static void isp_h264e_bond_flash_restore_timer_stop(bk_flexa_bond_config_t *bond_p)
+{
+	isp_h264e_bond_priv_t *priv;
+
+	if (bond_p == NULL) {
+		return;
+	}
+
+	priv = isp_h264e_bond_priv(bond_p);
+	if (priv == NULL || !rtos_is_timer_init(&priv->flash_restore_timer)) {
+		return;
+	}
+
+	if (rtos_is_timer_running(&priv->flash_restore_timer)) {
+		(void)rtos_stop_timer(&priv->flash_restore_timer);
+	}
+}
+
+static void isp_h264e_bond_flash_restore_timer_start(bk_flexa_bond_config_t *bond_p)
+{
+	isp_h264e_bond_priv_t *priv;
+
+	if (bond_p == NULL) {
+		return;
+	}
+
+	priv = isp_h264e_bond_priv(bond_p);
+	if (priv == NULL || !rtos_is_timer_init(&priv->flash_restore_timer)) {
+		return;
+	}
+
+	isp_h264e_bond_flash_restore_timer_stop(bond_p);
+	(void)rtos_start_timer(&priv->flash_restore_timer);
+}
+
+static void isp_h264e_flash_op_notify_handler(uint32_t param, void *args)
+{
+	bk_flexa_bond_config_t *bond_p = (bk_flexa_bond_config_t *)args;
+
+	if (bond_p == NULL) {
+		return;
+	}
+
+	if (param != 0) {
+		isp_h264e_bond_flash_restore_timer_stop(bond_p);
+		isp_h264e_bond_flash_pause(bond_p);
+	} else {
+		isp_h264e_bond_flash_restore_timer_start(bond_p);
+	}
+}
+
+static bk_err_t isp_h264e_bond_flash_notify_register(bk_flexa_bond_config_t *bond_p)
+{
+	if (bond_p == NULL) {
+		return BK_ERR_PARAM;
+	}
+
+	return mb_flash_register_op_notify_cb(isp_h264e_flash_op_notify_handler, bond_p);
+}
+
+static void isp_h264e_bond_flash_notify_unregister(bk_flexa_bond_config_t *bond_p)
+{
+	isp_h264e_bond_flash_restore_timer_stop(bond_p);
+	(void)mb_flash_unregister_op_notify_cb(isp_h264e_flash_op_notify_handler);
+}
+
+static bk_err_t isp_h264e_bond_flash_restore_timer_init(bk_flexa_bond_config_t *bond_p)
+{
+	isp_h264e_bond_priv_t *priv;
+
+	if (bond_p == NULL) {
+		return BK_ERR_PARAM;
+	}
+
+	priv = isp_h264e_bond_priv(bond_p);
+	if (priv == NULL) {
+		return BK_ERR_PARAM;
+	}
+
+	if (rtos_is_timer_init(&priv->flash_restore_timer)) {
+		return BK_OK;
+	}
+
+	return rtos_init_timer(&priv->flash_restore_timer,
+			       ISP_H264E_FLASH_RESTORE_DELAY_MS,
+			       isp_h264e_bond_flash_restore_timer_cb,
+			       bond_p);
+}
+
+static void isp_h264e_bond_flash_restore_timer_deinit(bk_flexa_bond_config_t *bond_p)
+{
+	isp_h264e_bond_priv_t *priv;
+
+	if (bond_p == NULL) {
+		return;
+	}
+
+	priv = isp_h264e_bond_priv(bond_p);
+	if (priv == NULL || !rtos_is_timer_init(&priv->flash_restore_timer)) {
+		return;
+	}
+
+	isp_h264e_bond_flash_restore_timer_stop(bond_p);
+	(void)rtos_deinit_timer(&priv->flash_restore_timer);
 }
 
 static void isp_h264e_bond_wait_sbi_disabled(bk_flexa_bond_config_t *bond_p)
@@ -54,6 +314,7 @@ static void isp_h264e_bond_wait_sbi_disabled(bk_flexa_bond_config_t *bond_p)
 
 	priv->flexa_sbi = 0;
 	priv->set_sbi_flag = 1;
+	priv->flash_resume_skip_frame = 0;
 
 	if (rtos_get_semaphore(&bond_p->sem, BK_FLEXA_ISP_BOND_STOP_WAIT_MS) == BK_OK) {
 		return;
@@ -89,13 +350,22 @@ static void isp_h264e_handle_frame_end_cb(uint32_t seq, uint32_t line, uint8_t c
 	}
 	isp_h264e_bond_priv_t *priv = isp_h264e_bond_priv(in_stream->bond_config);
 
+	if (priv != NULL && priv->flash_paused != 0) {
+		return;
+	}
+
 	if (priv != NULL && priv->set_sbi_flag == 1) {
-		priv->set_sbi_flag = 0;
 		isp_handle_t isp_h = (isp_handle_t)in_stream->handle;
 
 		if (priv->flexa_sbi == 1) {
+			if (priv->flash_resume_skip_frame != 0) {
+				priv->flash_resume_skip_frame = 0;
+				return;
+			}
+			priv->set_sbi_flag = 0;
 			bk_isp_flexa_sbi_config(&isp_h, ISP_MP_CHN_ID, 1);
 		} else {
+			priv->set_sbi_flag = 0;
 			bk_isp_flexa_sbi_config(&isp_h, ISP_MP_CHN_ID, 0);
 			rtos_set_semaphore(&in_stream->bond_config->sem);
 			return;
@@ -264,11 +534,27 @@ avdk_err_t bk_flexa_isp_h264e_bond_start(void **bond, void *isp, bk_h264_encode_
 		goto error;
 	}
 
+	br = isp_h264e_bond_flash_restore_timer_init(bond_new);
+	if (br != BK_OK) {
+		LOGE("%s flash restore timer init failed %d\r\n", __func__, br);
+		ret = AVDK_ERR_GENERIC;
+		goto error;
+	}
+
+	br = isp_h264e_bond_flash_notify_register(bond_new);
+	if (br != BK_OK) {
+		LOGE("%s flash notify register failed %d\r\n", __func__, br);
+		ret = AVDK_ERR_GENERIC;
+		goto error;
+	}
+
 	*bond = bond_new;
 	LOGI("%s bond started\r\n", __func__);
 	return ret;
 
 error:
+	isp_h264e_bond_flash_notify_unregister(bond_new);
+	isp_h264e_bond_flash_restore_timer_deinit(bond_new);
 	if (isp_h != NULL && in_stream != NULL) {
 		(void)bk_isp_deregister_isr_callback(&isp_h, ISP_SBI_CLOSE, in_stream);
 		(void)bk_isp_deregister_isr_callback(&isp_h, ISP_FRAME_END_DONE, in_stream);
@@ -302,6 +588,9 @@ void bk_flexa_isp_h264e_bond_stop(void *bond)
 	if (bond_p == NULL) {
 		return;
 	}
+
+	isp_h264e_bond_flash_notify_unregister(bond_p);
+	isp_h264e_bond_flash_restore_timer_deinit(bond_p);
 	isp_h264e_bond_wait_sbi_disabled(bond_p);
 
 	bk_flexa_bond_t *in_stream = bond_p->in_stream;
