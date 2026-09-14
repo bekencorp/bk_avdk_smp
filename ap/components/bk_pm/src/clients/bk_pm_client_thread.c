@@ -27,7 +27,11 @@
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
 
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+#define PM_AP_CORE_STACK_SIZE              (4096)
+#else
 #define PM_AP_CORE_STACK_SIZE              (1536)
+#endif
 #define PM_AP_CORE_QUEUE_NUMBER_OF_MESSAGE (30)
 #define PM_AP_CORE_THREAD_PRIORITY         (2)
 
