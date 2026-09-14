@@ -66,6 +66,17 @@ static bk_err_t player_cli_pm_quiesce(void *arg)
 {
     (void)arg;
     gl_player_handle = NULL;
+#if CONFIG_VOICE_SERVICE_TEST && CONFIG_ADK_ONBOARD_SPEAKER_STREAM_SUPPORT_MULTIPLE_SOURCE
+    gl_output_port_handle = NULL;
+#endif
+    return BK_OK;
+}
+
+static bk_err_t player_cli_pm_resume(void *arg)
+{
+    (void)arg;
+
+    /* Pairing for register. Mix/start waits for app_resume. */
     return BK_OK;
 }
 
@@ -75,6 +86,9 @@ static bk_err_t player_cli_pm_app_resume(void *arg)
     gl_player_handle = bk_player_pm_get_handle();
 #if CONFIG_VOICE_SERVICE_TEST && CONFIG_ADK_ONBOARD_SPEAKER_STREAM_SUPPORT_MULTIPLE_SOURCE
     if (gl_player_handle) {
+        if (gl_output_port_handle) {
+            return BK_OK;
+        }
         return player_cli_resume_mix_and_start(gl_player_handle);
     }
 #endif
@@ -84,6 +98,7 @@ static bk_err_t player_cli_pm_app_resume(void *arg)
 static const pm_ap_fast_pm_ops_t s_player_cli_pm_ops = {
     .name = "player_cli",
     .quiesce = player_cli_pm_quiesce,
+    .resume = player_cli_pm_resume,
     .app_resume = player_cli_pm_app_resume,
     .priority = PM_AP_POWER_PRIORITY_APPLICATION,
 };

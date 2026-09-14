@@ -103,6 +103,14 @@ static bk_err_t asr_cli_pm_quiesce(void *arg)
     return BK_OK;
 }
 
+static bk_err_t asr_cli_pm_resume(void *arg)
+{
+    (void)arg;
+
+    /* Pairing for register. Handle refresh waits for app_resume. */
+    return BK_OK;
+}
+
 static bk_err_t asr_cli_pm_app_resume(void *arg)
 {
     (void)arg;
@@ -115,6 +123,7 @@ static bk_err_t asr_cli_pm_app_resume(void *arg)
 static const pm_ap_fast_pm_ops_t s_asr_cli_pm_ops = {
     .name = "asr_cli",
     .quiesce = asr_cli_pm_quiesce,
+    .resume = asr_cli_pm_resume,
     .app_resume = asr_cli_pm_app_resume,
     .priority = PM_AP_POWER_PRIORITY_APPLICATION,
 };
@@ -159,6 +168,14 @@ static bk_err_t asr_cli_pm_quiesce(void *arg)
     return BK_OK;
 }
 
+static bk_err_t asr_cli_pm_resume(void *arg)
+{
+    (void)arg;
+
+    /* Pairing for register. Handle refresh waits for app_resume. */
+    return BK_OK;
+}
+
 static bk_err_t asr_cli_pm_app_resume(void *arg)
 {
     (void)arg;
@@ -170,6 +187,7 @@ static bk_err_t asr_cli_pm_app_resume(void *arg)
 static const pm_ap_fast_pm_ops_t s_asr_cli_pm_ops = {
     .name = "asr_cli",
     .quiesce = asr_cli_pm_quiesce,
+    .resume = asr_cli_pm_resume,
     .app_resume = asr_cli_pm_app_resume,
     .priority = PM_AP_POWER_PRIORITY_APPLICATION,
 };

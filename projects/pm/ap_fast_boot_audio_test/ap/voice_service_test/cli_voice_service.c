@@ -176,10 +176,21 @@ static bk_err_t voice_cli_pm_quiesce(void *arg)
     return BK_OK;
 }
 
+static bk_err_t voice_cli_pm_resume(void *arg)
+{
+    (void)arg;
+
+    /* Pairing for register. RW attach waits for app_resume. */
+    return BK_OK;
+}
+
 static bk_err_t voice_cli_pm_app_resume(void *arg)
 {
     (void)arg;
     if (!s_voice_cli_owns_rw) {
+        return BK_OK;
+    }
+    if (gl_voice_read_service_handle && gl_voice_write_service_handle) {
         return BK_OK;
     }
     gl_voice_service_handle = bk_voice_pm_get_handle();
@@ -200,6 +211,7 @@ void voice_cli_pm_release_rw(void)
 static const pm_ap_fast_pm_ops_t s_voice_cli_pm_ops = {
     .name = "voice_cli",
     .quiesce = voice_cli_pm_quiesce,
+    .resume = voice_cli_pm_resume,
     .app_resume = voice_cli_pm_app_resume,
     .priority = PM_AP_POWER_PRIORITY_APPLICATION,
 };
