@@ -75,13 +75,6 @@ else()
 	dhcpd/dhcp-server-main.c
 	)
 endif()
-# Ethernet
-if (CONFIG_ETH)
-	list(APPEND srcs
-	lwip-2.1.2/port/ethernetif.c
-	)
-endif()
-
 if (CONFIG_BRIDGE)
 	list(APPEND srcs
 	lwip-2.1.2/src/netif/bridgeif.c

@@ -35,13 +35,6 @@ extern bool etharp_tmr_flag;
 extern void net_begin_send_arp_reply(bool is_send_arp, bool is_allow_send_req);
 #endif
 extern void net_restart_dhcp(void);
-#ifdef CONFIG_ETH
-extern int net_eth_add_netif(uint8_t *mac);
-extern int net_eth_remove_netif(void);
-extern void *net_get_eth_handle(void);
-extern void eth_ip_start(void);
-extern void eth_ip_down(void);
-#endif
 #if CONFIG_BRIDGE
 extern void bridge_set_ip_start_flag(bool enable);
 extern void bridge_ip_start(void);

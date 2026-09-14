@@ -537,11 +537,6 @@ The STM32F107 allows computing and verifying the IP, UDP, TCP and ICMP checksums
   #define CHECKSUM_CHECK_TCP              1
 #endif
 
-#if CONFIG_ETH
-/* Enable Checksum Per Interface, ETH has HW csum module */
-#define LWIP_CHECKSUM_CTRL_PER_NETIF      1
-#endif
-
 /**
  * TCP_RESOURCE_FAIL_RETRY_LIMIT: limit for retrying sending of tcp segment
  * on resource failure error returned by driver.
