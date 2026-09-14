@@ -66,6 +66,7 @@ typedef enum
     ID_CV2002,       /**< CV2002 sensor */
     ID_CV2005,       /**< CV2005 sensor */
     ID_CV2008,       /**< CV2008 sensor */
+    ID_GC20C3,       /**< GC20C3 sensor */
 } sensor_id_t;
 
 /**

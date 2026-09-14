@@ -956,6 +956,20 @@ bk_err_t bk_pm_ap_power_prepare_abort(void);
 bk_err_t bk_pm_ap_fast_ops_register(const pm_ap_fast_pm_ops_t *ops);
 bk_err_t bk_pm_ap_fast_ops_unregister(const pm_ap_fast_pm_ops_t *ops);
 
+#if CONFIG_PM_AP_SRAM_RETENTION_CHECK
+/**
+ * @brief Register the AP idle-task stack range excluded from retention checks
+ */
+void bk_pm_ap_sram_retention_check_set_idle_stack(void *start, void *end);
+#else
+static inline void bk_pm_ap_sram_retention_check_set_idle_stack(void *start,
+	void *end)
+{
+	(void)start;
+	(void)end;
+}
+#endif
+
 #if CONFIG_PM_AP_FAST_BOOT_ENABLE
 /**
  * @brief Quiesce registered AP modules before fast suspend
