@@ -65,6 +65,18 @@ typedef enum {
     RESET_SOURCE_UNKNOWN = 0xff,
 } RESET_SOURCE_STATUS;
 
+typedef struct {
+    uint32_t primary_reason;
+    uint32_t secondary_reason;
+    uint32_t primary_core;
+    uint32_t secondary_core;
+    uint32_t pc;
+    uint32_t lr;
+    uint32_t sp;
+    uint32_t cfsr;
+    uint32_t hfsr;
+} bk_exception_reboot_info_t;
+
 typedef enum {
 	MAC_TYPE_BASE = 0,
 	MAC_TYPE_STA,
@@ -172,6 +184,7 @@ int bk_get_printf_port(void);
 uint32_t bk_misc_get_reset_reason(void);
 void bk_misc_set_reset_reason(uint32_t type);
 void bk_misc_set_ap_reset_reason(uint32_t type);
+void bk_misc_persist_exception_reboot_info(const bk_exception_reboot_info_t *info);
 bk_err_t bk_start_ap_system(void);
 
 /**

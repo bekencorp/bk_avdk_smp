@@ -35,6 +35,9 @@ int shell_get_log_statist(u32 * info_list, u32 num);
 void print_dynamic_log_info(void);
 
 void shell_log_flush(void);
+typedef bool (*shell_log_flush_continue_t)(void *context);
+bool shell_log_flush_controlled(
+	shell_log_flush_continue_t should_continue, void *context);
 void shell_set_uart_port(uint8_t uart_port);
 
 void shell_cmd_ind_out(const char *format, ...);
