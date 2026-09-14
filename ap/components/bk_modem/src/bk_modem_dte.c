@@ -291,43 +291,36 @@ void bk_modem_dte_handle_modem_check(void)
             break;
         }
 
-        if (bk_modem_env.comm_proto == UART_NIC_MODE)
+        if (!bk_modem_dce_exit_flight_mode())
         {
-            if (!bk_modem_dce_exit_flight_mode())
-            {
-                temp_flag = 8;
-                break;
-            }
-
-            bk_modem_set_state(UART_NIC_START);
-            bk_modem_send_msg(MSG_MODEM_UART_NIC_START, 0,0,0);
-            return;
+            temp_flag = 2;
+            goto retry;
         }
 
         if (!bk_modem_dce_check_sim())
         {
-            temp_flag = 2;
+            temp_flag = 3;
             sim_check_cnt++;
             break;
         }
         
         if (!bk_modem_dce_check_signal())
         {
-            temp_flag = 3;
+            temp_flag = 4;
             break;
         }  
         
         if (!bk_modem_dce_check_register())
         {
-            temp_flag = 4;
+            temp_flag = 5;
             break;
         }
         
         if (!bk_modem_dce_check_attach())
         {
-            temp_flag = 7;
+            temp_flag = 6;
             break;
-        }          
+        }
         
         // All checks passed, transition to appropriate mode
         sim_check_cnt = 0;
@@ -337,7 +330,13 @@ void bk_modem_dte_handle_modem_check(void)
             bk_modem_set_state(PPP_START);
             bk_modem_send_msg(MSG_PPP_START, 0,0,0);
         }
+        else if (bk_modem_env.comm_proto == UART_NIC_MODE)
 #endif
+        {
+            bk_modem_set_state(UART_NIC_START);
+            bk_modem_send_msg(MSG_MODEM_UART_NIC_START, 0,0,0);            
+        }
+
         BK_MODEM_LOGI("%s: modem check pass\r\n", __func__);
         return;
         
@@ -346,11 +345,11 @@ void bk_modem_dte_handle_modem_check(void)
     retry_time = 3000;
 
     // Special handling for SIM card detection failures
-    if ((temp_flag == 2) && (sim_check_cnt > 10))
+    if ((temp_flag == 3) && (sim_check_cnt > 10))
     {
         if (!bk_modem_dce_enter_flight_mode())
         {
-            temp_flag = 5;
+            temp_flag = 7;
             goto retry;
         }
         else
@@ -360,7 +359,7 @@ void bk_modem_dte_handle_modem_check(void)
 
         if (!bk_modem_dce_exit_flight_mode())
         {
-            temp_flag = 6;
+            temp_flag = 8;
             goto retry;
         }
 
@@ -667,7 +666,6 @@ void bk_modem_dte_handle_uart_nic_start(void)
     } 
     
     // Configure EC mode settings
-    //if ((bk_modem_dce_ec_check_nat()) && (!bk_modem_env.is_ec_nat_set))
     if (!bk_modem_dce_ec_check_nat())
     {
         if (!bk_modem_dce_ec_close_rndis())
@@ -676,65 +674,32 @@ void bk_modem_dte_handle_uart_nic_start(void)
             goto fail;
         }
 
-        if (!bk_modem_dce_cereg_enable())
-        {
-            temp_flag = 2;
-            goto fail;
-        }
-
         if (!bk_modem_dce_ec_set_nat())
         {
-            temp_flag = 3;
+            temp_flag =2;
             goto fail;
         }
 
-        if (!bk_modem_dce_save_settings())
-        {
-            temp_flag = 4;
-            goto fail;
-        }
-
-        //bk_modem_env.is_ec_nat_set = true;
-        if (!bk_modem_dce_ec_rst())
-        {
-            temp_flag = 11;
-            goto fail;
-        }
+        bk_modem_dce_ec_rst();
+        rtos_delay_milliseconds(3000);
 
         bk_modem_set_state(MODEM_CHECK);
-        bk_modem_send_msg(MSG_MODEM_CHECK, 0, 0, 0); 
+        bk_modem_send_msg(MSG_MODEM_CHECK, 0,0,0);
+
         return;
-    }
-
-    if (!bk_modem_dce_check_sim())
-    {
-        temp_flag = 5;
-        goto fail;
-    }
-
-    if (!bk_modem_dce_cereg_enable_with_loc())
-    {
-        temp_flag = 6;
-        goto fail;
     }
 
     if (!bk_modem_dce_ec_open_datapath())
     {
-        temp_flag = 7;
+        temp_flag = 3;
         goto fail;    
-    }
-
-    if (!bk_modem_dce_ec_sclkex_set())
-    {
-        temp_flag = 8;
-        goto fail;
     }
 
     // Initialize and perform EC handshake
     os_ret = rtos_init_semaphore(&bk_modem_ec_hs_sema, 1);
     if (os_ret != kNoErr)
     {
-        temp_flag = 9;
+        temp_flag =4;
         goto fail;     
     }
 
@@ -742,7 +707,7 @@ void bk_modem_dte_handle_uart_nic_start(void)
     os_ret = rtos_get_semaphore(&bk_modem_ec_hs_sema, 1000);
     if (os_ret != kNoErr)
     {
-        temp_flag = 10;
+        temp_flag = 5;
         bk_modem_ec_hs = 0;
         goto fail;        
     }
@@ -754,12 +719,12 @@ void bk_modem_dte_handle_uart_nic_start(void)
 fail:
     BK_MODEM_LOGI("%s: uart nic start fail %d\r\n", __func__, temp_flag);
 
-    if (temp_flag == 9)
+    if (temp_flag == 5)
     {
         rtos_deinit_semaphore(&bk_modem_ec_hs_sema);
         bk_modem_ec_hs_sema = NULL;
     }
-    //bk_modem_env.is_ec_nat_set = false;
+    bk_modem_env.is_ec_nat_set = false;
     bk_modem_set_state(MODEM_CHECK);
     bk_modem_send_msg(MSG_MODEM_CHECK, 0,0,0);
 }

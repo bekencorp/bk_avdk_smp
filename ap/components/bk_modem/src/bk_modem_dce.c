@@ -90,29 +90,14 @@ bool bk_modem_dce_check_register(void)
     return (BK_OK == bk_modem_at_get_operator_name());
 }
 
-bool bk_modem_dce_set_apn(void)
-{
-    return (BK_OK == bk_modem_at_cgdcont(1,"ipv4v6",""));
-}
-
-bool bk_modem_dce_save_settings(void)
-{
-    return (BK_OK == bk_modem_at_save_settings());
-}
-
 bool bk_modem_dce_check_attach(void)
 {
     return (BK_OK == bk_modem_at_get_ps_reg());
 }
 
-bool bk_modem_dce_cereg_enable(void)
+bool bk_modem_dce_set_apn(void)
 {
-    return (BK_OK == bk_modem_at_cereg_enable());
-}
-
-bool bk_modem_dce_cereg_enable_with_loc(void)
-{
-    return (BK_OK == bk_modem_at_cereg_enable_with_loc());
+    return (BK_OK == bk_modem_at_cgdcont(1,"ipv4v6",""));
 }
 
 #if CONFIG_LWIP_PPP_SUPPORT
@@ -168,9 +153,4 @@ bool bk_modem_dce_ec_set_nat(void)
 bool bk_modem_dce_ec_rst(void)
 {
     return (BK_OK == bk_modem_ec_at_rst());
-}
-
-bool bk_modem_dce_ec_sclkex_set(void)
-{
-    return (BK_OK == bk_modem_ec_at_sclkex_set());
 }

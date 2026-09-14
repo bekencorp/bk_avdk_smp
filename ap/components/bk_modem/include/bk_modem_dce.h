@@ -9,9 +9,6 @@ extern bool bk_modem_dce_check_sim(void);
 extern bool bk_modem_dce_check_signal(void);
 extern bool bk_modem_dce_check_register(void);
 extern bool bk_modem_dce_set_apn(void);
-extern bool bk_modem_dce_save_settings(void);
-extern bool bk_modem_dce_cereg_enable(void);
-extern bool bk_modem_dce_cereg_enable_with_loc(void);
 extern bool bk_modem_dce_check_attach(void);
 #if CONFIG_LWIP_PPP_SUPPORT
 extern bool bk_modem_dce_start_ppp(void);
@@ -24,6 +21,4 @@ extern bool bk_modem_dce_enter_flight_mode(void);
 extern bool bk_modem_dce_exit_flight_mode(void);
 extern bk_err_t bk_modem_at_get_ps_reg(void);
 extern bool bk_modem_dce_ec_rst(void);
-extern bool bk_modem_dce_ec_sclkex_set(void);
-
 #endif
