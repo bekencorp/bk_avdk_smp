@@ -874,6 +874,7 @@ bk_err_t bk_pm_module_vote_boot_ap_ctrl(pm_boot_ap_module_name_e module,pm_power
 				uint64_t shutdown_start_tick =
 					bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
 				uint32_t recovery_request_seq;
+				bool ap_suspend_failed = false;
 				uint64_t next_recovery_retry_tick;
 
 				/*
@@ -940,7 +941,21 @@ bk_err_t bk_pm_module_vote_boot_ap_ctrl(pm_boot_ap_module_name_e module,pm_power
 				pm_shared_info_t shared_info = {0};
 
 				shared_info.pm_cp0_sleep_state = 1;
-				bk_sys_sw_regs_update_pm_shared_info(&shared_info, BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_CP0_SLEEP_STATE, BK_SYS_SW_REGS_LOCK_DISABLE);
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+				/*
+				 * Discard a failure sequence left by the previous close
+				 * transaction before publishing the new sleep request.
+				 */
+				shared_info.param1 = 0U;
+				bk_sys_sw_regs_update_pm_shared_info(&shared_info,
+					BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_CP0_SLEEP_STATE |
+					BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_PARAM1,
+					BK_SYS_SW_REGS_LOCK_DISABLE);
+#else
+				bk_sys_sw_regs_update_pm_shared_info(&shared_info,
+					BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_CP0_SLEEP_STATE,
+					BK_SYS_SW_REGS_LOCK_DISABLE);
+#endif
 				__DSB();
 				flush_dcache((void *)&bk_sys_sw_regs_ptr()->pm_shared_info, sizeof(bk_sys_sw_regs_ptr()->pm_shared_info));
 				__DSB();
@@ -984,6 +999,21 @@ bk_err_t bk_pm_module_vote_boot_ap_ctrl(pm_boot_ap_module_name_e module,pm_power
 					bk_sys_sw_regs_get_pm_shared_info(&shared_info);
 					__DSB();
 
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+					/*
+					 * AP publishes the matching sequence only after a failed
+					 * suspend has completely rolled back and AP services are
+					 * ready. Stop retrying immediately instead of waiting for
+					 * the sleep-ready timeout.
+					 */
+					if (shared_info.param1 == recovery_request_seq)
+					{
+						ap_suspend_failed = true;
+						LOGW("ap_close: suspend failed seq=%u\r\n",
+							recovery_request_seq);
+						break;
+					}
+#endif
 					if (shared_info.pm_ap0_sleep_state == 0x1)
 					{
 #if CONFIG_PM_AP_FAST_BOOT_ENABLE
@@ -1059,9 +1089,14 @@ bk_err_t bk_pm_module_vote_boot_ap_ctrl(pm_boot_ap_module_name_e module,pm_power
 
 				if (!ap_sleep_ready)
 				{
-					LOGE("wait ap0_sleep_state timeout, cp0_sleep_state:%d ap0_sleep_state:%d\r\n",
-						shared_info.pm_cp0_sleep_state, shared_info.pm_ap0_sleep_state);
-					pm_ap_powerdown_proof_log("ap_sleep_ready_timeout");
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+					if (!ap_suspend_failed)
+#endif
+					{
+						LOGE("wait ap0_sleep_state timeout, cp0_sleep_state:%d ap0_sleep_state:%d\r\n",
+							shared_info.pm_cp0_sleep_state, shared_info.pm_ap0_sleep_state);
+						pm_ap_powerdown_proof_log("ap_sleep_ready_timeout");
+					}
 
 					/*
 					 * AP did not acknowledge sleep-ready, so it is still running. Keep the
@@ -1082,71 +1117,68 @@ bk_err_t bk_pm_module_vote_boot_ap_ctrl(pm_boot_ap_module_name_e module,pm_power
 					flush_dcache((void *)&bk_sys_sw_regs_ptr()->pm_shared_info, sizeof(bk_sys_sw_regs_ptr()->pm_shared_info));
 					__DSB();
 #if CONFIG_PM_AP_FAST_BOOT_ENABLE
-					/*
-					 * AP may already have quiesced modules and backed up
-					 * peripherals even though it never reached WFI. Ask its
-					 * CPU2 PM task to restore that prepared transaction.
-					 */
-					bk_err_t abort_ret =
-						pm_cp0_mailbox_send_data(PM_CP1_RECOVERY_CMD,
-						recovery_request_seq,
-						PM_AP_RECOVERY_ACTION_ABORT, 0);
-					uint64_t abort_start_tick =
-						bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
-					uint64_t abort_retry_tick = abort_start_tick +
-						(PM_AP_RECOVERY_RETRY_MS *
-						 AON_RTC_MS_TICK_CNT);
+					bk_err_t abort_ret = BK_OK;
 
-					/*
-					 * mb_chnl_write() returning BK_OK only means that PWC
-					 * accepted the command locally; it does not confirm that
-					 * AP received or handled ABORT. Retry the idempotent
-					 * sequence until AP publishes FULL_READY or timeout.
-					 */
-					while (!bk_pm_ap_full_ready_get() &&
-						((bk_aon_rtc_get_current_tick(AON_RTC_ID_1) -
-						  abort_start_tick) <
-						 (PM_BOOT_AP_WAITING_TIEM *
-						  AON_RTC_MS_TICK_CNT))) {
-						uint64_t abort_current_tick =
+					if (!ap_suspend_failed) {
+						/*
+						 * AP may already have quiesced modules and backed up
+						 * peripherals even though it never reached WFI. Ask
+						 * its CPU2 PM task to restore that transaction.
+						 */
+						abort_ret =
+							pm_cp0_mailbox_send_data(PM_CP1_RECOVERY_CMD,
+							recovery_request_seq,
+							PM_AP_RECOVERY_ACTION_ABORT, 0);
+						uint64_t abort_start_tick =
 							bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
+						uint64_t abort_retry_tick = abort_start_tick +
+							(PM_AP_RECOVERY_RETRY_MS *
+							 AON_RTC_MS_TICK_CNT);
 
-						if (abort_current_tick >= abort_retry_tick) {
-							abort_ret = pm_cp0_mailbox_send_data(
-								PM_CP1_RECOVERY_CMD,
-								recovery_request_seq,
-								PM_AP_RECOVERY_ACTION_ABORT, 0);
-							LOGW("AP close abort retry seq=%u ret=%d\r\n",
-								recovery_request_seq, abort_ret);
-							abort_retry_tick = abort_current_tick +
-								(PM_AP_RECOVERY_RETRY_MS *
-								 AON_RTC_MS_TICK_CNT);
-						}
+						/*
+						 * A successful local write does not prove that AP
+						 * handled ABORT. Retry the idempotent request until
+						 * AP publishes FULL_READY or the timeout expires.
+						 */
+						while (!bk_pm_ap_full_ready_get() &&
+							((bk_aon_rtc_get_current_tick(AON_RTC_ID_1) -
+							  abort_start_tick) <
+							 (PM_BOOT_AP_WAITING_TIEM *
+							  AON_RTC_MS_TICK_CNT))) {
+							uint64_t abort_current_tick =
+								bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
+
+							if (abort_current_tick >= abort_retry_tick) {
+								abort_ret = pm_cp0_mailbox_send_data(
+									PM_CP1_RECOVERY_CMD,
+									recovery_request_seq,
+									PM_AP_RECOVERY_ACTION_ABORT, 0);
+								LOGW("AP close abort retry seq=%u ret=%d\r\n",
+									recovery_request_seq, abort_ret);
+								abort_retry_tick = abort_current_tick +
+									(PM_AP_RECOVERY_RETRY_MS *
+									 AON_RTC_MS_TICK_CNT);
+							}
 #if CONFIG_SUPPORT_WWDT
-						bk_wwdt_feed();
+							bk_wwdt_feed();
 #endif
+						}
 					}
 
 					/*
-					 * AP was not powered off, so never leave CP-side business
-					 * communication permanently gated. AP may still NACK
-					 * business traffic until its own rollback completes, but
-					 * reopening here allows recovery instead of a permanent
-					 * CP-side BK_ERR_BUSY state.
+					 * AP was not powered off, so do not leave CP business
+					 * traffic permanently gated even if rollback times out.
 					 */
 					bool ap_abort_ready = bk_pm_ap_full_ready_get();
 
 					s_pm_ap_business_tx_enabled = true;
 					__DMB();
-					if (ap_abort_ready) {
-						ret = pm_cp0_mailbox_send_data(
-							PM_AP_APP_RESUME_NOTIFY_CMD,
-							0, 0, 0);
-						if (ret != BK_OK) {
-							LOGE("AP abort app resume notify failed[%d]\r\n",
-								ret);
-						}
-					}
+					/*
+					 * AP never powered off on an abort path. Its resume
+					 * callbacks have already undone quiesce/backup, so do not
+					 * send APP_RESUME_NOTIFY; that phase is reserved for a
+					 * successful power-off followed by fast wake.
+					 */
 					bk_pm_ap_ctrl_callback_execute(
 						PM_AP_CTRL_CB_TYPE_POWER_OFF_ABORT);
 					if (ap_abort_ready) {
@@ -1157,7 +1189,13 @@ bk_err_t bk_pm_module_vote_boot_ap_ctrl(pm_boot_ap_module_name_e module,pm_power
 					}
 #endif
 					ret = BK_FAIL;
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+					pm_ap_powerdown_proof_log(ap_suspend_failed ?
+						"ap_suspend_failed_rollback" :
+						"ap_sleep_timeout_rollback");
+#else
 					pm_ap_powerdown_proof_log("ap_sleep_timeout_rollback");
+#endif
 				}
 			}
     	}
