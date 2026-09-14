@@ -267,6 +267,14 @@ int bk_init(void)
 {
     set_ap_startup_index(AP_ENTER_BK_INIT);
 
+#if defined(CONFIG_OS_HEAP_USE_PSRAM)
+	/* Route the default os_malloc/pvPortMalloc heap to AP_PSRAM_HEAP. Done here
+	 * rather than in entry_main(): allocations made by rtos_init() and the early
+	 * driver init must stay on the SRAM heap. os_free() dispatches by address
+	 * range, so pointers from either heap remain valid. */
+	os_heap_enable_psram_default();
+#endif
+
 	components_init();
 
 	BK_LOGD(TAG, "armino app init: %s\n", build_version);
