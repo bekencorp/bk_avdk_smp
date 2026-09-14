@@ -26,6 +26,9 @@
 #include "cache.h"
 #include <driver/aon_rtc.h>
 #include "soc_debug.h"
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+#include <modules/pm.h>
+#endif
 
 /* Max time to wait for the peer core (CP) to consume a synchronous mailbox log
  * buffer. A healthy CP acks within microseconds; exceeding this means the CP is
@@ -556,6 +559,37 @@ static void shell_mb_tx_trigger(shell_mb_ext_t *mb_ext)
 	shell_mb_tx_isr2(mb_ext);
 }
 
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+/*
+ * log_blocked is retained across AP power-off and is otherwise only cleared by
+ * LOG_UNBLOCK. Fast resume restores mailbox HW but does not replay that opcode.
+ */
+static bk_err_t shell_mb_fast_resume(void *arg)
+{
+	shell_mb_ext_t *mb_ext = (shell_mb_ext_t *)arg;
+	uint32_t flags;
+
+	if (mb_ext == NULL) {
+		return BK_ERR_PARAM;
+	}
+
+	flags = mb_pump_enter();
+	mb_ext->log_blocked = 0;
+	shell_mb_tx_trigger(mb_ext);
+	mb_pump_exit(flags);
+	return BK_OK;
+}
+
+static const pm_ap_fast_pm_ops_t s_shell_mb_fast_ops = {
+	.name = "shell_mb",
+	.resume = shell_mb_fast_resume,
+	.arg = &dev_mb_ext,
+	.priority = PM_AP_FAST_PRIORITY_SERVICE,
+};
+
+static u8 s_shell_mb_fast_registered;
+#endif
+
 /* ===============================  shell mailbox driver APIs  =========================== */
 
 static bool_t shell_mb_init(shell_dev_t * shell_dev)
@@ -608,6 +642,14 @@ static bool_t shell_mb_open(shell_dev_t * shell_dev, tx_complete_t tx_callback, 
 	// call chnl driver to register isr callback;
 	mb_chnl_ctrl(mb_ext->chnl_id, MB_CHNL_SET_RX_ISR, (void *)shell_mb_rx_isr);
 	mb_chnl_ctrl(mb_ext->chnl_id, MB_CHNL_SET_TX_CMPL_ISR, (void *)shell_mb_tx_cmpl_isr);
+
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+	if ((mb_ext->chnl_id == MB_CHNL_LOG) && !s_shell_mb_fast_registered) {
+		if (bk_pm_ap_fast_ops_register(&s_shell_mb_fast_ops) == BK_OK) {
+			s_shell_mb_fast_registered = true;
+		}
+	}
+#endif
 
 	return bTRUE;
 }
@@ -798,6 +840,14 @@ static bool_t shell_mb_close(shell_dev_t * shell_dev)
 
 	mb_ext->tx_complete_callback = NULL;
 	mb_ext->rx_indicate_callback = NULL;
+
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+	if ((mb_ext->chnl_id == MB_CHNL_LOG) && s_shell_mb_fast_registered) {
+		if (bk_pm_ap_fast_ops_unregister(&s_shell_mb_fast_ops) == BK_OK) {
+			s_shell_mb_fast_registered = false;
+		}
+	}
+#endif
 
 	return bTRUE;
 }
