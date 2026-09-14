@@ -63,6 +63,7 @@
 #include "driver_i.h"
 #include "bk_rw.h"
 #include "rwnx_defs.h"
+#include "rw_ieee80211.h"
 #if (CONFIG_EASY_FLASH && CONFIG_EASY_FLASH_V4)
 #include "bk_ef.h"
 #endif
@@ -1673,6 +1674,7 @@ int wpa_supplicant_ctrl_iface_receive(wpah_msg_t *msg)
 		if (hostapd_has_p2p_group_bss()) {
 			if (hostapd_disable_infra_bss() < 0)
 				res = -1;
+			rwnx_csa_release();
 			break;
 		}
 #endif
@@ -1681,13 +1683,7 @@ int wpa_supplicant_ctrl_iface_receive(wpah_msg_t *msg)
 			hostapd_started = 0;
 		}
 
-		struct rwnx_hw *rwnx_hw = &g_rwnx_hw;
-		if(rwnx_hw->csa)
-		{
-			os_free(rwnx_hw->csa->bcn_ptr);
-			os_free(rwnx_hw->csa);
-			rwnx_hw->csa = 0;
-		}
+		rwnx_csa_release();
 	}	break;
 
 	case WPA_CTRL_CMD_AP_SET:
@@ -1932,6 +1928,7 @@ int wpa_supplicant_ctrl_iface_receive(wpah_msg_t *msg)
 #if CONFIG_P2P_SOFTAP_CHAN_ALIGN
 				if (hostapd_has_infra_bss()) {
 					hostapd_disable_p2p_bss();
+					rwnx_csa_release();
 					break;
 				}
 #endif
@@ -1939,13 +1936,7 @@ int wpa_supplicant_ctrl_iface_receive(wpah_msg_t *msg)
 					hostapd_main_exit();
 					hostapd_started = 0;
 				}
-				struct rwnx_hw *rwnx_hw = &g_rwnx_hw;
-				if(rwnx_hw->csa)
-				{
-					os_free(rwnx_hw->csa->bcn_ptr);
-					os_free(rwnx_hw->csa);
-					rwnx_hw->csa = 0;
-				}
+				rwnx_csa_release();
 			}
 		} else {
 			// Not in P2P group, just disable supplicant
