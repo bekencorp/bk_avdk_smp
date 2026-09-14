@@ -1,0 +1,11 @@
+menu "modules::wfa_ca"
+	config WFA_CA
+		bool "Enable WFA CA"
+		default n
+	config WFA_WMM_THREAD_PRIO
+		bool "enable priority of wmm task"
+		default n
+	config WMM_FC
+		bool "Enable WMM Flow control"
+		default y
+endmenu
