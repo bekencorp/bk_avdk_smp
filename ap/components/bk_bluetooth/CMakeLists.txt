@@ -304,8 +304,8 @@ if (CONFIG_BLUETOOTH_AP)
         list(APPEND bluetooth_elem ${bt_host_basename})
     endif()
 
-    message("WARINIG bt_host_exist ${bt_host_exist}")
-    message("WARINIG bt_host_basename ${bt_host_basename}")
+    message(STATUS "bt_host_exist ${bt_host_exist}")
+    message(STATUS "bt_host_basename ${bt_host_basename}")
 
 	foreach(lib_name ${bluetooth_elem})
 		#message("WARINIG lib_name ${ARMINO_PATH}/components/bk_libs/${ARMINO_SOC}/libs/${lib_name}")
