@@ -189,3 +189,12 @@ int bk_feature_phy_log_enable(void);
  *
  */
 int bk_feature_wifi_signal_cert_enable(void);
+
+/**
+ * @brief     Interface for customer to Enable/Disable keep alive arp reply
+ *
+ * @return
+ *    - 1: enable
+ *    - 0: disable
+ */
+int bk_feature_keep_alive_arp_reply_enable(void);

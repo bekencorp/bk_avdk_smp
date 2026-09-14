@@ -388,4 +388,8 @@ menu "Bk_Wifi"
 		default n
 		help
 			Enable BK Raw Link
+
+	config KEEP_ALIVE_ARP_REPLY_ENABLE
+		bool "Enable keep alive ARP reply"
+		default n
 endmenu

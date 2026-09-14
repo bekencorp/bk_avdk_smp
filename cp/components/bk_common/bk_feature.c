@@ -151,3 +151,12 @@ int bk_feature_wifi_signal_cert_enable(void) {
 	return 0;
 #endif
 }
+
+int bk_feature_keep_alive_arp_reply_enable(void) 
+{
+	#if CONFIG_KEEP_ALIVE_ARP_REPLY_ENABLE
+		return 1;
+	#else
+		return 0;
+	#endif
+}
