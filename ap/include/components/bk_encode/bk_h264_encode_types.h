@@ -43,6 +43,8 @@ typedef enum {
     BK_H264_ENCODE_IOCTL_SET_OSD,            // arg: bk_h264_encode_osd_t*
     BK_H264_ENCODE_IOCTL_SET_INPUT_BUF,      // frame mode: set next-frame input buffer, arg: bk_h264_encode_input_t*
     BK_H264_ENCODE_IOCTL_GET_STREAM_INFO,    // frame mode: read last-frame stream stats, arg: bk_h264_encode_stream_info_t*
+    BK_H264_ENCODE_IOCTL_SET_FRAME_RATE,     // arg: uint32_t* (fps)
+    BK_H264_ENCODE_IOCTL_SET_RC_QP_DELTA_RANGE, // arg: uint32_t*
 } bk_h264_encode_ioctl_cmd_t;
 
 /**

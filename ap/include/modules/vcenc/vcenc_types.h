@@ -108,51 +108,51 @@ typedef enum {
  * for JPEG vs H.264).
  */
 typedef struct vcenc_rate_ctrl_t {
-	int crf;
-	uint32_t picture_rc;
-	uint32_t ctb_rc;
-	uint32_t block_rc_size;
-	uint32_t picture_skip;
-	int qp_hdr;
-	uint32_t qp_min_pb;
-	uint32_t qp_max_pb;
-	uint32_t qp_min_i;
-	uint32_t qp_max_i;
-	uint32_t bit_per_second;
-	uint32_t cpb_max_rate;
-	uint32_t filler_data;
-	uint32_t hrd;
-	uint32_t hrd_cpb_size;
-	uint32_t bitrate_window;
-	int intra_qp_delta;
-	uint32_t fixed_intra_qp;
-	int bit_var_range_i;
-	int bit_var_range_p;
-	int bit_var_range_b;
-	int tol_moving_bit_rate;
-	int monitor_frames;
-	int target_pic_size;
-	int smooth_psnr_in_gop;
-	uint32_t static_scene_i_bit_percent;
-	uint32_t rc_qp_delta_range;
-	uint32_t rc_base_mb_complexity;
-	int pic_qp_delta_min;
-	int pic_qp_delta_max;
-	int long_term_qp_delta;
-	int vbr;
-	uint32_t rc_mode;
-	float tol_ctb_rc_inter;
-	float tol_ctb_rc_intra;
-	int tol_rc_underflow;
-	uint32_t max_i_prop;
-	uint32_t min_i_prop;
-	int change_pos;
-	int ctb_rc_row_qp_step;
-	int ctb_rc_row_qp_delta_range;
-	uint32_t ctb_rc_qp_delta_reverse;
-	uint32_t frame_rate_num;
-	uint32_t frame_rate_denom;
-	uint32_t hie_qp_delta_enable;
+	int crf;                         /* Constant-rate-factor quality target; -1 disables CRF. */
+	uint32_t picture_rc;             /* Enable picture-level rate control. */
+	uint32_t ctb_rc;                 /* CTB-level rate-control mode. */
+	uint32_t block_rc_size;          /* HW test: HWIF_ENC_RC_BLOCK_SIZE write has no effect; default is 64x64. */
+	uint32_t picture_skip;           /* Allow rate control to skip pictures. */
+	int qp_hdr;                      /* Forced picture QP; -1 lets rate control choose QP. */
+	uint32_t qp_min_pb;              /* Minimum QP for P/B frames. */
+	uint32_t qp_max_pb;              /* Maximum QP for P/B frames. */
+	uint32_t qp_min_i;               /* Minimum QP for I frames. */
+	uint32_t qp_max_i;               /* Maximum QP for I frames. */
+	uint32_t bit_per_second;         /* Target bitrate in bit/s; 0 uses the default budget. */
+	uint32_t cpb_max_rate;           /* HRD CPB max bitrate in bit/s; 0 disables max-rate cap. */
+	uint32_t filler_data;            /* Enable filler data insertion. */
+	uint32_t hrd;                    /* Enable HRD virtual buffer model. */
+	uint32_t hrd_cpb_size;           /* HRD CPB buffer size in bits; 0 lets RC choose. */
+	uint32_t bitrate_window;         /* Moving bitrate window, in frames. */
+	int intra_qp_delta;              /* I-frame QP delta from the RC-selected base QP. */
+	uint32_t fixed_intra_qp;         /* Fixed I-frame QP when non-zero. */
+	int bit_var_range_i;             /* I-frame bit variation range used for min/max I-frame bit budget. */
+	int bit_var_range_p;             /* P-frame bit variation range, percent over target frame bits. */
+	int bit_var_range_b;             /* B-frame bit variation range, percent over target frame bits. */
+	int tol_moving_bit_rate;         /* Moving bitrate tolerance, percent. */
+	int monitor_frames;             /* Number of frames monitored by rate control. */
+	int target_pic_size;             /* Internal per-picture target bits; set_rate_ctrl does not consume this field. */
+	int smooth_psnr_in_gop;          /* Obsolete in current H.264 path; value is stored but not consumed. */
+	uint32_t static_scene_i_bit_percent; /* I-frame bit percent used for static scenes. */
+	uint32_t rc_qp_delta_range;      /* Block RC QP delta range; larger values may raise max QP and output size; default 10. */
+	uint32_t rc_base_mb_complexity;  /* Hardware base MB complexity offset. */
+	int pic_qp_delta_min;            /* Minimum picture QP delta. */
+	int pic_qp_delta_max;            /* Maximum picture QP delta. */
+	int long_term_qp_delta;          /* Long-term reference QP delta. */
+	int vbr;                         /* Enable variable bitrate mode. */
+	uint32_t rc_mode;                /* Rate-control mode, see VCE_RC_* values. */
+	float tol_ctb_rc_inter;          /* CTB RC tolerance for inter blocks. */
+	float tol_ctb_rc_intra;          /* CTB RC tolerance for intra blocks. */
+	int tol_rc_underflow;            /* Virtual-buffer underflow tolerance, clipped to 0..99. */
+	uint32_t max_i_prop;             /* Maximum I-frame bit proportion. */
+	uint32_t min_i_prop;             /* Minimum I-frame bit proportion. */
+	int change_pos;                  /* RC change position in GOP, valid range 50..100. */
+	int ctb_rc_row_qp_step;          /* CTB row QP step. */
+	int ctb_rc_row_qp_delta_range;   /* CTB row QP delta range for CTB RC v2. */
+	uint32_t ctb_rc_qp_delta_reverse; /* Not connected in current H.264 path; value is stored but not written to HW. */
+	uint32_t frame_rate_num;         /* Actual encode fps numerator; wrong fps breaks RC bit budget. default 20 */
+	uint32_t frame_rate_denom;       /* Actual encode fps denominator. */
+	uint32_t hie_qp_delta_enable;    /* Enable hierarchical QP delta when supported. */
 } vcenc_rate_ctrl_t;
 
 /**
