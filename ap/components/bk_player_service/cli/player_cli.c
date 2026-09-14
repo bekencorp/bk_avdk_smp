@@ -184,6 +184,13 @@ void cli_player_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
         if (os_strcmp(argv[2], "0") == 0)
         {
             player_cfg.event_handle = player_event_handler;
+#if CONFIG_AUD_PM_FAST_COLD
+            if (BK_OK != bk_player_pm_save_cfg(&player_cfg))
+            {
+                LOGE("%s, %d, player save cfg fail\n", __func__, __LINE__);
+                return;
+            }
+#endif
             gl_player_handle = bk_player_create(&player_cfg);
             if (!gl_player_handle)
             {
@@ -194,6 +201,13 @@ void cli_player_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
         else if (os_strcmp(argv[2], "1") == 0)
         {
             player_cfg.event_handle = player1_event_handler;
+#if CONFIG_AUD_PM_FAST_COLD
+            if (BK_OK != bk_player_pm_save_cfg(&player_cfg))
+            {
+                LOGE("%s, %d, player save cfg fail\n", __func__, __LINE__);
+                return;
+            }
+#endif
             gl_player1_handle = bk_player_create(&player_cfg);
             if (!gl_player1_handle)
             {

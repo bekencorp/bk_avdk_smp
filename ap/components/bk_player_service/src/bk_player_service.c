@@ -1,5 +1,8 @@
 #include <common/bk_include.h>
 #include <os/os.h>
+#if CONFIG_AUD_PM_FAST_COLD
+#include <os/str.h>
+#endif
 #include "FreeRTOS.h"
 #include "task.h"
 #include <components/bk_audio/audio_pipeline/audio_pipeline.h>
@@ -24,6 +27,13 @@
 #include <modules/pm.h>
 
 #define TAG "player"
+
+#if CONFIG_AUD_PM_FAST_COLD
+static void player_pm_notify_init(bk_player_handle_t player_handle);
+static void player_pm_notify_start(bk_player_handle_t player_handle);
+static void player_pm_notify_deinit(bk_player_handle_t player_handle);
+static void player_pm_notify_play_info(const player_uri_info_t *uri, audio_dec_type_t dec_type);
+#endif
 
 #define PLAYER_CHECK_NULL(ptr, act) do {\
         if (ptr == NULL) {\
@@ -823,6 +833,10 @@ bk_player_handle_t bk_player_create(bk_player_cfg_t *cfg)
 
     player_handle->state = PLAYER_STATE_IDLE;
 
+#if CONFIG_AUD_PM_FAST_COLD
+    player_pm_notify_init(player_handle);
+#endif
+
     return player_handle;
 
 fail:
@@ -849,6 +863,10 @@ bk_err_t bk_player_set_decode_type(bk_player_handle_t player_handle, audio_dec_t
     PLAYER_CHECK_NULL(player_handle, return BK_FAIL);
 
     player_handle->dec_type = dec_type;
+
+#if CONFIG_AUD_PM_FAST_COLD
+    player_pm_notify_play_info(NULL, dec_type);
+#endif
 
     return BK_OK;
 }
@@ -1006,12 +1024,20 @@ bk_err_t bk_player_set_uri(bk_player_handle_t player_handle, player_uri_info_t *
         audio_element_set_uri(player_handle->in_stream, uri_info->uri);
     }
 
+#if CONFIG_AUD_PM_FAST_COLD
+    player_pm_notify_play_info(uri_info, player_handle->dec_type);
+#endif
+
     return BK_OK;
 }
 
 bk_err_t bk_player_destroy(bk_player_handle_t player_handle)
 {
     PLAYER_CHECK_NULL(player_handle, return BK_FAIL);
+
+#if CONFIG_AUD_PM_FAST_COLD
+    player_pm_notify_deinit(player_handle);
+#endif
 
     BK_LOGD(TAG, "%s\n", __func__);
 
@@ -1070,6 +1096,10 @@ bk_err_t bk_player_start(bk_player_handle_t player_handle)
     }
 
     player_handle->state = PLAYER_STATE_PLAYING;
+
+#if CONFIG_AUD_PM_FAST_COLD
+    player_pm_notify_start(player_handle);
+#endif
 
     return BK_OK;
 
@@ -1169,4 +1199,169 @@ bk_err_t bk_player_get_spkstr_type(bk_player_handle_t player_handle, spk_type_t 
 		return BK_FAIL;
 	}
 }
+
+#if CONFIG_AUD_PM_FAST_COLD
+#define PLAYER_PM_URI_MAX  256
+
+static bk_player_cfg_t s_player_pm_cfg;
+static player_uri_info_t s_player_pm_uri;
+static char s_player_pm_uri_buf[PLAYER_PM_URI_MAX];
+static audio_dec_type_t s_player_pm_dec_type;
+static bk_player_handle_t s_player_pm_handle;
+static uint8_t s_player_pm_cfg_valid;
+static uint8_t s_player_pm_has_uri;
+static uint8_t s_player_pm_has_dec;
+static uint8_t s_player_pm_want_restart;
+static uint8_t s_player_pm_in_quiesce;
+static uint8_t s_player_pm_registered;
+
+static void player_pm_notify_init(bk_player_handle_t player_handle)
+{
+    s_player_pm_handle = player_handle;
+}
+
+static void player_pm_notify_start(bk_player_handle_t player_handle)
+{
+    if (player_handle == s_player_pm_handle && s_player_pm_cfg_valid) {
+        s_player_pm_want_restart = 1;
+    }
+}
+
+static void player_pm_notify_deinit(bk_player_handle_t player_handle)
+{
+    if (player_handle != s_player_pm_handle) {
+        return;
+    }
+    s_player_pm_handle = NULL;
+}
+
+static void player_pm_notify_play_info(const player_uri_info_t *uri, audio_dec_type_t dec_type)
+{
+    s_player_pm_dec_type = dec_type;
+    s_player_pm_has_dec = 1;
+    if (!uri) {
+        return;
+    }
+
+    s_player_pm_uri = *uri;
+    if ((uri->uri_type != PLAYER_URI_TYPE_ARRAY) && uri->uri) {
+        uint32_t n = os_strlen(uri->uri);
+
+        if (n >= PLAYER_PM_URI_MAX) {
+            n = PLAYER_PM_URI_MAX - 1U;
+        }
+        os_memcpy(s_player_pm_uri_buf, uri->uri, n);
+        s_player_pm_uri_buf[n] = 0;
+        s_player_pm_uri.uri = s_player_pm_uri_buf;
+    }
+    s_player_pm_has_uri = 1;
+}
+
+static bk_err_t player_pm_quiesce(void *arg)
+{
+    (void)arg;
+
+    if (!s_player_pm_handle) {
+        return BK_OK;
+    }
+
+    s_player_pm_in_quiesce = 1;
+    bk_err_t ret = bk_player_destroy(s_player_pm_handle);
+    s_player_pm_in_quiesce = 0;
+    return ret;
+}
+
+static bk_err_t player_pm_app_resume(void *arg)
+{
+    bk_player_cfg_t *cfg = (bk_player_cfg_t *)arg;
+
+    if (!s_player_pm_cfg_valid || !s_player_pm_want_restart) {
+        return BK_OK;
+    }
+    if (!cfg) {
+        return BK_FAIL;
+    }
+    if (s_player_pm_handle) {
+        return BK_OK;
+    }
+
+    s_player_pm_handle = bk_player_create(cfg);
+    if (!s_player_pm_handle) {
+        BK_LOGE(TAG, "%s, player create fail on app_resume\n", __func__);
+        return BK_FAIL;
+    }
+
+    if (s_player_pm_has_dec) {
+        (void)bk_player_set_decode_type(s_player_pm_handle, s_player_pm_dec_type);
+    }
+    if (s_player_pm_has_uri) {
+        if (BK_OK != bk_player_set_uri(s_player_pm_handle, &s_player_pm_uri)) {
+            BK_LOGE(TAG, "%s, player set_uri fail on app_resume\n", __func__);
+            bk_player_destroy(s_player_pm_handle);
+            return BK_FAIL;
+        }
+    }
+
+    /* prompt_tone / not-playback has no speaker; app must attach mix then start. */
+    if (cfg->spk_type == SPK_TYPE_INVALID) {
+        BK_LOGI(TAG, "%s, not-playback: create+uri done, wait mix attach\n", __func__);
+        return BK_OK;
+    }
+
+    if (BK_OK != bk_player_start(s_player_pm_handle)) {
+        BK_LOGE(TAG, "%s, player start fail on app_resume\n", __func__);
+        bk_player_destroy(s_player_pm_handle);
+        return BK_FAIL;
+    }
+
+    return BK_OK;
+}
+
+static const pm_ap_fast_pm_ops_t s_player_pm_ops = {
+    .name = "player",
+    .quiesce = player_pm_quiesce,
+    .app_resume = player_pm_app_resume,
+    .arg = &s_player_pm_cfg,
+    .priority = PM_AP_POWER_PRIORITY_SERVICE,
+};
+
+bk_err_t bk_player_pm_save_cfg(const bk_player_cfg_t *cfg)
+{
+    if (!cfg) {
+        return BK_FAIL;
+    }
+
+    os_memcpy(&s_player_pm_cfg, cfg, sizeof(s_player_pm_cfg));
+    s_player_pm_cfg_valid = 1;
+
+    if (!s_player_pm_registered) {
+        if (BK_OK != bk_pm_ap_fast_ops_register(&s_player_pm_ops)) {
+            BK_LOGE(TAG, "%s, register player pm ops fail\n", __func__);
+            return BK_FAIL;
+        }
+        s_player_pm_registered = 1;
+    }
+
+    return BK_OK;
+}
+
+bk_err_t bk_player_pm_save_play_info(const player_uri_info_t *uri, audio_dec_type_t dec_type)
+{
+    player_pm_notify_play_info(uri, dec_type);
+    return BK_OK;
+}
+
+bk_player_handle_t bk_player_pm_get_handle(void)
+{
+    return s_player_pm_handle;
+}
+
+void bk_player_pm_clear(void)
+{
+    s_player_pm_want_restart = 0;
+    s_player_pm_cfg_valid = 0;
+    s_player_pm_has_uri = 0;
+    s_player_pm_has_dec = 0;
+}
+#endif
 
