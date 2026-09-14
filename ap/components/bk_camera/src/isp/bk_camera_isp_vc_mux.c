@@ -1,6 +1,7 @@
 #include <os/os.h>
 #include <os/mem.h>
 
+#include <components/bk_isp_camera.h>
 #include <components/bk_camera_isp_ctlr.h>
 #include <driver/isp.h>
 #include <driver/mipi_csi.h>
@@ -684,6 +685,13 @@ static avdk_err_t isp_camera_vc_mux_stop(bk_isp_camera_vc_mux_handle_t handle)
 
     isp_camera_vc_mux_free_frames(mux);
 
+    if (mux->channel_acquired && cam != NULL)
+    {
+        uint8_t channel = mux->channel;
+        (void)bk_isp_camera_ctlr_ioctl(mux->camera, BK_CAM_IOCTL_CHANNEL_RELEASE, &channel);
+        mux->channel_acquired = 0;
+    }
+
     if (mux->lock_inited)
     {
         rtos_deinit_mutex(&mux->lock);
@@ -711,9 +719,25 @@ static avdk_err_t isp_camera_vc_mux_start(bk_isp_camera_vc_mux_handle_t handle, 
 
     AVDK_RETURN_ON_ERROR(isp_camera_vc_mux_stop(handle), TAG, "vc mux stop failed");
 
+    {
+        uint8_t channel = cfg->channel;
+        ret = bk_isp_camera_ctlr_ioctl(mux->camera, BK_CAM_IOCTL_CHANNEL_ACQUIRE, &channel);
+        if (ret != AVDK_ERR_OK)
+        {
+            LOGE("%s, acquire channel %u failed %d\n", __func__, cfg->channel, ret);
+            return ret;
+        }
+        mux->channel_acquired = 1;
+    }
+
     if (rtos_init_mutex(&mux->lock) != BK_OK)
     {
         LOGE("%s, vc mux mutex init failed\n", __func__);
+        {
+            uint8_t channel = cfg->channel;
+            (void)bk_isp_camera_ctlr_ioctl(mux->camera, BK_CAM_IOCTL_CHANNEL_RELEASE, &channel);
+            mux->channel_acquired = 0;
+        }
         return AVDK_ERR_GENERIC;
     }
     mux->lock_inited = 1;

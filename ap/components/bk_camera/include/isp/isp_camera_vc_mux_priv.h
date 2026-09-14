@@ -56,6 +56,7 @@ typedef struct
     uint8_t switch_pending;
     uint8_t drain_stale_remaining;
     uint8_t isr_registered;
+    uint8_t channel_acquired;
     uint8_t timeout_count;
     uint8_t runtime_vc_switch;
     uint16_t width;
