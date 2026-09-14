@@ -518,7 +518,8 @@ wm_netif_ipv6_status_callback(struct netif *netif, netif_nsc_reason_t reason, co
 				  ipv6_addr[8], ipv6_addr[9], ipv6_addr[10], ipv6_addr[11],
 				  ipv6_addr[12], ipv6_addr[13], ipv6_addr[14], ipv6_addr[15]);
 #if CONFIG_IPV6
-			wifi_netif_notify_sta_got_ip6_ll(addr_index, ip6_str);
+			if (netif == &g_mlan.netif)
+				wifi_netif_notify_sta_got_ip6_ll(addr_index, ip6_str);
 			cif_handle_bk_cmd_ipv6_ind(netif);
 #endif
 		} else {
@@ -534,7 +535,8 @@ wm_netif_ipv6_status_callback(struct netif *netif, netif_nsc_reason_t reason, co
 			LWIP_LOGE("ipv6_state[%d] :0x%x\r\n", addr_index, netif->ip6_addr_state[addr_index]);
 
 #if CONFIG_IPV6
-			wifi_netif_notify_sta_got_ip6_global(addr_index, ip6_str);
+			if (netif == &g_mlan.netif)
+				wifi_netif_notify_sta_got_ip6_global(addr_index, ip6_str);
 			cif_handle_bk_cmd_ipv6_ind(netif);
 #endif
 #if !CONFIG_DISABLE_DEPRECIATED_WIFI_API
