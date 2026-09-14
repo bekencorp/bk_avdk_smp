@@ -20,6 +20,13 @@ bk_err_t bk_asr_event_handle(asr_event_handle event_handle, asr_evt_t event, voi
 bk_err_t bk_asr_get_status(asr_handle_t asr_handle, asr_sta_t *status);
 int bk_aud_asr_read_mic_data(asr_handle_t asr_handle, char *buffer, uint32_t size);
 
+#if CONFIG_AUD_PM_FAST_COLD
+bk_err_t bk_asr_pm_save_cfg(const asr_cfg_t *cfg);
+const asr_cfg_t *bk_asr_pm_get_cfg(void);
+asr_handle_t bk_asr_pm_get_handle(void);
+void bk_asr_pm_clear(void);
+#endif
+
 #ifdef  __cplusplus
 }
 #endif//__cplusplus

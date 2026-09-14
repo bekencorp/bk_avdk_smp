@@ -170,6 +170,50 @@ bk_err_t bk_voice_get_spkstr(voice_handle_t voice_handle, audio_element_handle_t
  */
 bk_err_t bk_voice_get_spkstr_type(voice_handle_t voice_handle, spk_type_t *spk_type);
 
+#if CONFIG_AUD_PM_FAST_COLD
+/**
+ * @brief      Save voice init config for AP fast-boot cold resume.
+ *
+ * CLI and product both build voice_cfg_t on the stack. Copy it here before
+ * bk_voice_init() so the retained config outlives that frame. On
+ * CONFIG_AUD_PM_FAST_COLD this also registers the voice PM ops; quiesce
+ * deinits, app_resume init+start with the saved config.
+ *
+ * @param[in]      cfg  The voice configuration to retain.
+ *
+ * @return         Error code.
+ *                 - 0: Success.
+ *                 - Non-zero: Failed.
+ */
+bk_err_t bk_voice_pm_save_cfg(const voice_cfg_t *cfg);
+
+/**
+ * @brief      Get the retained voice init config.
+ *
+ * @return         Pointer to the saved config, or NULL if none.
+ */
+const voice_cfg_t *bk_voice_pm_get_cfg(void);
+
+/**
+ * @brief      Get the current voice handle after PM app_resume.
+ *
+ * CLI must refresh its global handle from this after a cold resume;
+ * the handle from the previous bk_voice_init() is stale.
+ *
+ * @return         The live voice handle, or NULL if not inited.
+ */
+voice_handle_t bk_voice_pm_get_handle(void);
+
+/**
+ * @brief      Cancel cold resume of voice.
+ *
+ * Clears the retained cfg and want_restart. After this, app_resume will
+ * not init+start. Does not stop a running service; call stop/deinit first
+ * if the objects are still live.
+ */
+void bk_voice_pm_clear(void);
+#endif
+
 /**
  * @brief      Get the AEC algorithm element handle.
  *

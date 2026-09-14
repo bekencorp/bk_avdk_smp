@@ -303,6 +303,23 @@ bk_err_t onboard_speaker_stream_get_analog_gain(audio_element_handle_t onboard_s
  */
 bk_err_t onboard_speaker_stream_get_status(audio_element_handle_t onboard_speaker_stream, onboard_speaker_stream_status_t *status);
 
+
+#if CONFIG_AUD_PM_FAST_HOT
+/**
+ * @brief Optional enter-path helper: dma_stop + open_cnt=0 before AUDP off.
+ *
+ * Prefer relying on bk_aud_pm_restore() -> bk_aud_pm_restore_notify() to clear
+ * open_cnt after fast boot. Use this only when DMA must be stopped while the
+ * AUD domain is still powered. Not for normal pause/close.
+ *
+ * @param[in] onboard_speaker_stream  element handle
+ *
+ * @return BK_OK on success, otherwise fail
+ */
+bk_err_t onboard_speaker_stream_pm_prepare_powerdown(audio_element_handle_t onboard_speaker_stream);
+#endif
+
+
 #ifdef __cplusplus
 }
 #endif
