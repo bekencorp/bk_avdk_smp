@@ -449,6 +449,24 @@ void bk_sys_sw_regs_set_cp_uid_ptr(uint32_t addr)
 #endif
 }
 
+void bk_sys_sw_regs_set_ap_exception_record_ptr(uint32_t addr)
+{
+    /*
+     * Single 32-bit publish of a link-time-constant address (no lock needed).
+     * Called once from CP reset_reason init, before the AP is started, so the AP
+     * can persist its exception context into CP-retained memory. The AP domain
+     * SRAM is reloaded when the CP restarts the AP, so a record kept there does
+     * not survive the reset that follows a dump.
+     */
+    s_sys_sw_regs.ap_exception_record_ptr = addr;
+    __asm volatile ("dsb" ::: "memory");
+#if CONFIG_SUPPORT_CACHEABLE_SRAM
+    flush_dcache((void *)&s_sys_sw_regs.ap_exception_record_ptr,
+        sizeof(s_sys_sw_regs.ap_exception_record_ptr));
+    __asm volatile ("dsb" ::: "memory");
+#endif
+}
+
 bk_err_t bk_sys_sw_regs_update_pm_shared_info(const pm_shared_info_t *info, uint32_t field_mask, uint8_t use_lock)
 {
     uint32_t flags = 0;

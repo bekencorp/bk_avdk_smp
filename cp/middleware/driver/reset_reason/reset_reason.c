@@ -29,11 +29,113 @@
 #define TAG "init"
 #define DISPLAY_START_TYPE_STR 1
 
+#define EXCEPTION_REBOOT_INFO_MAGIC   0x45585231U
+#define EXCEPTION_REBOOT_INFO_VERSION 1U
 
 static volatile bool s_initialized = false;
 static uint32_t s_start_type = 0;
 static uint32_t s_misc_value_save = 0;
 static uint32_t s_mem_value_save = 0;
+
+typedef struct {
+	uint32_t magic;
+	uint32_t version;
+	bk_exception_reboot_info_t info;
+	uint32_t checksum;
+} exception_reboot_record_t;
+
+/* Survives a warm reset (NOLOAD, never zero-initialised at boot), so the
+ * primary exception context stays readable even when the secondary watchdog
+ * reset cuts the dump short. */
+static volatile exception_reboot_record_t s_exception_reboot_record
+	__attribute__((section(".noinit.exception_reboot_info"), aligned(32)));
+static bk_exception_reboot_info_t s_exception_reboot_info_save;
+static bool s_exception_reboot_info_valid;
+
+/* Same storage, but owned on behalf of the AP domain. The AP cannot keep its own
+ * record: the CP reloads AP SRAM when it restarts the AP, so whatever the AP
+ * wrote there is already gone by the time the next boot could report it. The CP
+ * publishes this slot's address through sys_sw_regs, the AP writes into it
+ * directly, and the CP reports it below over the synchronous UART path that is
+ * known to be up this early. */
+static volatile exception_reboot_record_t s_ap_exception_reboot_record
+	__attribute__((section(".noinit.exception_reboot_info"), aligned(32)));
+static bk_exception_reboot_info_t s_ap_exception_reboot_info_save;
+static bool s_ap_exception_reboot_info_valid;
+
+static uint32_t exception_reboot_info_checksum(
+	const bk_exception_reboot_info_t *info)
+{
+	return EXCEPTION_REBOOT_INFO_MAGIC ^ EXCEPTION_REBOOT_INFO_VERSION ^
+		info->primary_reason ^ info->secondary_reason ^
+		info->primary_core ^ info->secondary_core ^
+		info->pc ^ info->lr ^ info->sp ^ info->cfsr ^ info->hfsr;
+}
+
+/* SRAM is never mapped into the d-cache, so a barrier is all that is needed to
+ * order the magic/content/magic store sequence below; no cache maintenance. */
+#define exception_reboot_record_commit() __asm volatile ("dsb" ::: "memory")
+
+void bk_misc_persist_exception_reboot_info(
+	const bk_exception_reboot_info_t *info)
+{
+	/* Invalidate first, so a reset landing mid-update is detected as invalid
+	 * instead of reporting a half-written record. */
+	s_exception_reboot_record.magic = 0U;
+	exception_reboot_record_commit();
+
+	s_exception_reboot_record.version = EXCEPTION_REBOOT_INFO_VERSION;
+	s_exception_reboot_record.info = *info;
+	s_exception_reboot_record.checksum =
+		exception_reboot_info_checksum(info);
+	exception_reboot_record_commit();
+
+	s_exception_reboot_record.magic = EXCEPTION_REBOOT_INFO_MAGIC;
+	exception_reboot_record_commit();
+}
+
+/* Reads one slot and always clears it, so the slot is free for the domain that
+ * owns it to write a fresh record immediately after init. */
+static bool exception_reboot_record_take(
+	volatile exception_reboot_record_t *record,
+	bk_exception_reboot_info_t *out)
+{
+	bk_exception_reboot_info_t info = record->info;
+	uint32_t checksum = exception_reboot_info_checksum(&info);
+	bool valid = (record->magic == EXCEPTION_REBOOT_INFO_MAGIC) &&
+		(record->version == EXCEPTION_REBOOT_INFO_VERSION) &&
+		(record->checksum == checksum);
+
+	if (valid) {
+		*out = info;
+	}
+
+	record->magic = 0U;
+	exception_reboot_record_commit();
+
+	return valid;
+}
+
+static void exception_reboot_info_restore(void)
+{
+	s_exception_reboot_info_valid = exception_reboot_record_take(
+		&s_exception_reboot_record, &s_exception_reboot_info_save);
+	s_ap_exception_reboot_info_valid = exception_reboot_record_take(
+		&s_ap_exception_reboot_record, &s_ap_exception_reboot_info_save);
+}
+
+/* domain_tag is empty for the CP's own record and ",ap" for the AP slot, so the
+ * CP line keeps the exact wording that existing logs already match. */
+static void exception_reboot_info_report(
+	const char *domain_tag, const bk_exception_reboot_info_t *info)
+{
+	BK_DUMP_OUT(
+		"@PRIMARY_EXCEPTION(prev boot%s) reason=0x%x core=%u pc=0x%08x lr=0x%08x sp=0x%08x CFSR=0x%08x HFSR=0x%08x\r\n",
+		domain_tag, info->primary_reason, info->primary_core, info->pc,
+		info->lr, info->sp, info->cfsr, info->hfsr);
+	BK_DUMP_OUT("@SECONDARY_EXCEPTION(prev boot%s) reason=0x%x core=%u\r\n",
+		domain_tag, info->secondary_reason, info->secondary_core);
+}
 
 uint32_t bk_misc_get_reset_reason(void)
 {
@@ -187,6 +289,20 @@ void show_reset_reason(void)
 	}
 
 	BK_LOGD(TAG, "regs - %x, %x, %x\r\n", s_start_type, s_misc_value_save, s_mem_value_save);
+
+	/* Report the exception context recorded before the previous reset. Uses the
+	 * synchronous dump path (not BK_LOGx) so a reduced log level cannot drop the
+	 * only surviving evidence of a dump that was cut short. The record itself was
+	 * already cleared by exception_reboot_record_take(); clearing the valid flag
+	 * here stops a later "starttype" CLI call from re-reporting it. */
+	if (s_exception_reboot_info_valid) {
+		exception_reboot_info_report("", &s_exception_reboot_info_save);
+		s_exception_reboot_info_valid = false;
+	}
+	if (s_ap_exception_reboot_info_valid) {
+		exception_reboot_info_report(",ap", &s_ap_exception_reboot_info_save);
+		s_ap_exception_reboot_info_valid = false;
+	}
 }
 
 
@@ -290,6 +406,11 @@ uint32_t reset_reason_init(void)
 		return s_start_type;
 	}
 
+	exception_reboot_info_restore();
+	/* Publish before the CP starts the AP, so the AP always has somewhere to
+	 * persist its exception context. */
+	bk_sys_sw_regs_set_ap_exception_record_ptr(
+		(uint32_t)(uintptr_t)&s_ap_exception_reboot_record);
 	misc_value = aon_pmu_hal_get_reset_reason();
 	cp_reset_reason = ((misc_value >> 5) & 0x7f);
 	ap_reset_reason = ((misc_value >> 24) & 0x7f);

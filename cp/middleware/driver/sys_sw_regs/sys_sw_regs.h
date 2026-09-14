@@ -156,6 +156,12 @@ void bk_sys_sw_regs_set_cp_lwip_mem_info_ptr(uint32_t addr);
  */
 void bk_sys_sw_regs_set_cp_uid_ptr(uint32_t addr);
 /**
+ * @brief Publish the address of the CP-owned AP exception record slot so the AP
+ *        can persist its exception context into memory that survives the reset.
+ * @param addr Address of the CP-side slot; 0 clears.
+ */
+void bk_sys_sw_regs_set_ap_exception_record_ptr(uint32_t addr);
+/**
  * @brief Update PM info fields selected by mask.
  * @param info Input PM info values.
  * @param field_mask Bitmask of bk_sys_sw_regs_pm_shared_info_field_t to update.
