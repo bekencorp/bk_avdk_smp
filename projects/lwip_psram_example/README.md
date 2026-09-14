@@ -7,9 +7,9 @@
 `lwip_psram_example` demonstrates how to use non-cacheable PSRAM for lwIP
 dynamic memory on the BK7259 SMP platform. With this feature enabled, lwIP
 `mem_malloc()` allocations are ultimately served by
-`psram_nocache_malloc()`. This reduces AP SRAM usage by networking workloads
-and provides more buffer space for high-throughput and multi-connection
-scenarios.
+`psram_malloc()` from the default non-cacheable `AP_PSRAM_HEAP`. This reduces
+AP SRAM usage by networking workloads and provides more buffer space for
+high-throughput and multi-connection scenarios.
 
 The project also enables Wi-Fi, CLI, and iPerf. It does not connect to Wi-Fi or
 start an iPerf test automatically; use the UART CLI after boot.
@@ -64,17 +64,22 @@ CONFIG_CONTROLLER_AP_BUFFER_COPY=y
 configuration checks reject an incomplete combination.
 
 The RAM layout in `partitions/bk7259/ram_regions.csv` must also contain a
-non-zero `AP_PSRAM_NOCACHE_HEAP`. This example uses:
+non-zero `AP_PSRAM_HEAP`. In the new BK7259 PSRAM cache policy, this default
+application PSRAM heap is configured as non-cacheable by the platform MPU
+policy, while `AP_PSRAM_CACHE_HEAP` is reserved for task stacks. This example
+uses:
 
 ```text
-AP_PSRAM_NOCACHE_HEAP,  PSRAM,  , 0x020000
+AP_PSRAM_HEAP,        PSRAM,  , 0x080000
+AP_PSRAM_CACHE_HEAP,  PSRAM,  , 0x020000
 ```
 
-This reserves 128 KB of non-cacheable PSRAM for lwIP. Adjust the size according
-to the connection count, TCP window sizes, and peak traffic. When enlarging
-this region, resize the other PSRAM regions so that they do not overlap or
-exceed the physical PSRAM capacity. Run `make clean` after changing the RAM
-layout.
+LWIP allocates from `AP_PSRAM_HEAP` through `psram_malloc()`, so the buffer is
+non-cacheable without using a separate nocache heap. Adjust the heap size
+according to the connection count, TCP window sizes, and peak traffic. When
+enlarging this region, resize the other PSRAM regions so that they do not
+overlap or exceed the physical PSRAM capacity. Run `make clean` after changing
+the RAM layout.
 
 ## 5. Build and Flash
 
@@ -170,7 +175,7 @@ Add `-u` to the board-side iPerf command for a UDP test.
 
 ## 8. Notes
 
-- An undersized `AP_PSRAM_NOCACHE_HEAP` can cause connection failures, reduced
+- An undersized `AP_PSRAM_HEAP` can cause connection failures, reduced
   throughput, or packet loss. Size it for the peak workload;
 - Non-cacheable PSRAM is slower than SRAM. This configuration reduces SRAM
   pressure but does not guarantee higher throughput in every workload;

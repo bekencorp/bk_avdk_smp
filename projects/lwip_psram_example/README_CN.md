@@ -6,8 +6,8 @@
 
 `lwip_psram_example` 演示在 BK7259 SMP 平台上使用 non-cacheable PSRAM
 作为 lwIP 动态内存。启用该功能后，lwIP 的 `mem_malloc()` 最终通过
-`psram_nocache_malloc()` 分配内存，从而降低网络业务对 AP SRAM 的占用，并为
-大吞吐量、多连接等场景提供更大的网络缓冲空间。
+默认 non-cacheable `AP_PSRAM_HEAP` 中的 `psram_malloc()` 分配内存，从而降低
+网络业务对 AP SRAM 的占用，并为大吞吐量、多连接等场景提供更大的网络缓冲空间。
 
 工程同时启用了 Wi-Fi、CLI 和 iPerf，可通过 STA 联网和 iPerf 测试验证网络功能。
 工程启动后不会自动连接 Wi-Fi 或运行 iPerf，需要通过串口 CLI 手动操作。
@@ -61,15 +61,20 @@ CONFIG_CONTROLLER_AP_BUFFER_COPY=y
 配置检查。
 
 RAM 分区文件 `partitions/bk7259/ram_regions.csv` 中还必须提供大小非零的
-`AP_PSRAM_NOCACHE_HEAP`。本工程配置为：
+`AP_PSRAM_HEAP`。在新的 BK7259 PSRAM cache 策略下，默认应用 PSRAM heap
+由平台 MPU 策略配置为 non-cacheable，`AP_PSRAM_CACHE_HEAP` 仅保留给任务栈。
+本工程配置为：
 
 ```text
-AP_PSRAM_NOCACHE_HEAP,  PSRAM,  , 0x020000
+AP_PSRAM_HEAP,        PSRAM,  , 0x080000
+AP_PSRAM_CACHE_HEAP,  PSRAM,  , 0x020000
 ```
 
-即为 lwIP 预留 128 KB non-cacheable PSRAM。实际项目可根据并发连接数、TCP
-窗口和收发峰值调整该值。增大该区域时，需要相应调整其他 PSRAM 分区，确保分区
-不重叠且总大小不超过物理 PSRAM 容量。修改 RAM 分区后建议先执行 `make clean`。
+lwIP 通过 `psram_malloc()` 从 `AP_PSRAM_HEAP` 分配内存，因此不需要单独的
+nocache heap 也能获得 non-cacheable buffer。实际项目可根据并发连接数、TCP
+窗口和收发峰值调整该 heap 大小。增大该区域时，需要相应调整其他 PSRAM 分区，
+确保分区不重叠且总大小不超过物理 PSRAM 容量。修改 RAM 分区后建议先执行
+`make clean`。
 
 ## 5. 编译与烧录
 
@@ -162,7 +167,7 @@ iperf --stop
 
 ## 8. 注意事项
 
-- `AP_PSRAM_NOCACHE_HEAP` 过小可能导致连接失败、吞吐下降或丢包，应根据业务
+- `AP_PSRAM_HEAP` 过小可能导致连接失败、吞吐下降或丢包，应根据业务
   峰值调整分区大小；
 - non-cacheable PSRAM 的访问性能低于 SRAM，本配置用于降低 SRAM 压力，并不
   保证所有场景下吞吐量都会提升；
