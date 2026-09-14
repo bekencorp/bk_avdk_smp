@@ -27,6 +27,7 @@
 #include "rw_tx_buffering.h"
 #endif
 #include "rwnx_defs.h"
+#include "rw_ieee80211.h"
 #include "ctrl_iface.h"
 #include "rwnx_intf.h"
 #include "rwnx_params.h"
@@ -194,9 +195,6 @@ failed:
 }
 
 
-// TODO:
-// 1. release rwnx_hw->csa when exception occurs.
-// 2. @settings may contain probe resp, will these set to umac?
 int rwnx_cfg80211_channel_switch(uint8_t vif_idx, struct csa_settings *settings)
 {
 	struct rwnx_hw *rwnx_hw = &g_rwnx_hw;
@@ -204,38 +202,39 @@ int rwnx_cfg80211_channel_switch(uint8_t vif_idx, struct csa_settings *settings)
 	BCN_PARAM_ST *csa;
 	BCN_PARAM_ST *csa_pre;
 
-	if (rwnx_hw->csa) {
+	if (rwnx_hw->csa || rwnx_hw->csa_pre) {
 		BK_LOGE(TAG, "CSA in progress\r\n");
 		return -EBUSY;
 	}
 
-	// after csa
 	csa = (BCN_PARAM_ST *)os_malloc(sizeof(*csa));
 	csa_pre = (BCN_PARAM_ST *)os_malloc(sizeof(*csa_pre));
-	if ((!csa) ||(!csa_pre))
+	if ((!csa) || (!csa_pre)) {
+		os_free(csa);
+		os_free(csa_pre);
 		return -ENOMEM;
+	}
+
+	os_memset(csa, 0, sizeof(*csa));
+	os_memset(csa_pre, 0, sizeof(*csa_pre));
+	os_memset(&param, 0, sizeof(param));
 
 	rwnx_hw->csa = csa;
 	rwnx_hw->csa_pre = csa_pre;
 	csa->vif_idx = vif_idx;
 	csa_pre->vif_idx = vif_idx;
 
-	//Pre CSA
-	os_memset(rwnx_hw->csa_pre, 0, sizeof(*rwnx_hw->csa_pre));
-	rwnx_build_bcn(rwnx_hw->csa_pre, vif_idx, &settings->beacon_csa_pre, settings, true);
-	//os_memcpy(&rwnx_hw->freq_params, &settings->freq_params, sizeof(rwnx_hw->freq_params));
+	if (rwnx_build_bcn(rwnx_hw->csa_pre, vif_idx, &settings->beacon_csa_pre, settings, true) ||
+	    rwnx_build_bcn(rwnx_hw->csa, vif_idx, &settings->beacon_after, settings, true) ||
+	    rwnx_build_bcn(&param, vif_idx, &settings->beacon_csa, settings, false)) {
+		os_free(param.bcn_ptr);
+		rwnx_csa_release();
+		return -ENOMEM;
+	}
 
-	// After CSA
-	os_memset(rwnx_hw->csa, 0, sizeof(*rwnx_hw->csa));
-	rwnx_build_bcn(rwnx_hw->csa, vif_idx, &settings->beacon_after, settings, true);
 	os_memcpy(&rwnx_hw->freq_params, &settings->freq_params, sizeof(rwnx_hw->freq_params));
-
-	// CSA
-	os_memset(&param, 0, sizeof(param));
-	rwnx_build_bcn(&param, vif_idx, &settings->beacon_csa, settings, false);
 	rw_msg_send_bcn_change(&param);
 
-	// cfg80211_ch_switch_started_notify
 	wpa_ctrl_event_copy(WPA_CTRL_EVENT_CHAN_SWITCH_START_IND, &settings->freq_params,
 			sizeof(settings->freq_params));
 

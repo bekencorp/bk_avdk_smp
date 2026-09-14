@@ -1444,6 +1444,7 @@ uint64_t rwnx_hw_mm_features();
 UINT8 rw_ieee80211_get_scan_default_chan_num(void);
 bool country_code_policy_is_auto(void);
 void rwnx_csa_stop(void);
+void rwnx_csa_release(void);
 bool check_non_radar_channel_available(int chan);
 int get_wiphy_idx(struct wiphy *wiphy);
 int set_regdom(const struct ieee80211_regdomain *rd);

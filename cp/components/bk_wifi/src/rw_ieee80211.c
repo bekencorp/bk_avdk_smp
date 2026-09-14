@@ -303,31 +303,56 @@ static struct ieee80211_supported_band rwnx_band_5GHz = {
 #endif
 };
 
-// TODO: run in workqueue, need some lock.
+static void rwnx_csa_free_param(BCN_PARAM_ST *param)
+{
+	if (!param)
+		return;
+
+	os_free(param->bcn_ptr);
+	os_free(param);
+}
+
+/* Take ownership of CSA buffers so finish/stop/release cannot double-free. */
+static void rwnx_csa_detach(BCN_PARAM_ST **pre, BCN_PARAM_ST **csa)
+{
+	struct rwnx_hw *rwnx_hw = &g_rwnx_hw;
+	GLOBAL_INT_DECLARATION();
+
+	GLOBAL_INT_DISABLE();
+	*pre = rwnx_hw->csa_pre;
+	*csa = rwnx_hw->csa;
+	rwnx_hw->csa_pre = NULL;
+	rwnx_hw->csa = NULL;
+	GLOBAL_INT_RESTORE();
+}
+
+void rwnx_csa_release(void)
+{
+	BCN_PARAM_ST *pre, *csa;
+
+	rwnx_csa_detach(&pre, &csa);
+	rwnx_csa_free_param(pre);
+	rwnx_csa_free_param(csa);
+}
+
 static void rwnx_csa_finish(void *arg)
 {
- 	struct rwnx_hw *rwnx_hw = (struct rwnx_hw *)arg;
+	struct rwnx_hw *rwnx_hw = (struct rwnx_hw *)arg;
+	BCN_PARAM_ST *pre, *csa;
 	int ret;
 
-	if(rwnx_hw->csa_pre)
-	{
-		os_free(rwnx_hw->csa_pre->bcn_ptr);
-		os_free(rwnx_hw->csa_pre);
-		rwnx_hw->csa_pre = 0;
-	}
+	rwnx_csa_detach(&pre, &csa);
+	rwnx_csa_free_param(pre);
 
-	if (rwnx_hw->csa) {
-		ret = rw_msg_send_bcn_change(rwnx_hw->csa);  // FIXME: handle Only for AP/P2P-GO
+	if (csa) {
+		ret = rw_msg_send_bcn_change(csa);  // FIXME: handle Only for AP/P2P-GO
 		if (ret)
 			RWNX_LOGE("%s: csa finish failed\n", __func__);
 
-		os_free(rwnx_hw->csa->bcn_ptr);
-		os_free(rwnx_hw->csa);
-		rwnx_hw->csa = 0;
+		rwnx_csa_free_param(csa);
 
 		bk_wlan_ap_set_channel_config(rwnx_hw->freq_params.channel);
 
-		// cfg80211_ch_switch_notify
 		wpa_ctrl_event_copy(WPA_CTRL_EVENT_CHAN_SWITCH_IND, &rwnx_hw->freq_params,
 				sizeof(rwnx_hw->freq_params));
 	} else {
@@ -338,36 +363,31 @@ static void rwnx_csa_finish(void *arg)
 void rwnx_csa_stop(void)
 {
 	struct rwnx_hw *rwnx_hw = &g_rwnx_hw;
+	BCN_PARAM_ST *pre, *csa;
 	int ret;
 	RWNX_LOGD("%s\n", __func__);
 
-	if (rwnx_hw->csa) {
-		if(rwnx_hw->csa_pre)
-		{
-			ret = rw_msg_send_bcn_change(rwnx_hw->csa_pre);
+	rwnx_csa_detach(&pre, &csa);
+
+	if (csa) {
+		if (pre) {
+			ret = rw_msg_send_bcn_change(pre);
 			if (ret)
 				RWNX_LOGE("%s: failed\n", __func__);
-			
-			os_free(rwnx_hw->csa_pre->bcn_ptr);
-			os_free(rwnx_hw->csa_pre);
-			rwnx_hw->csa_pre = 0;
 		}
-
-		os_free(rwnx_hw->csa->bcn_ptr);
-		os_free(rwnx_hw->csa);
-		rwnx_hw->csa = 0;
 
 		bk_wlan_ap_set_channel_config(bk_wlan_ap_get_channel_config());
 
 		rwnx_hw->freq_params.freq = rw_ieee80211_get_centre_frequency(bk_wlan_ap_get_channel_config());
-		
-		// cfg80211_ch_switch_notify
+
 		wpa_ctrl_event_copy(WPA_CTRL_EVENT_CHAN_SWITCH_IND, &rwnx_hw->freq_params,
 				sizeof(rwnx_hw->freq_params));
-
 	} else {
 		RWNX_LOGI("%s: no active CSA\n", __func__);
 	}
+
+	rwnx_csa_free_param(pre);
+	rwnx_csa_free_param(csa);
 }
 
 extern void rwnxl_register_connector(RW_CONNECTOR_T *intf);
