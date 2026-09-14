@@ -12,6 +12,7 @@ uint32_t bk_pixel_size_get(bk_pixel_format_t format)
     switch (format)
     {
 	case BK_PIXEL_FORMAT_YUYV:
+	case BK_PIXEL_FORMAT_YUYV_SWAP:
 	case BK_PIXEL_FORMAT_NV12:
 	case BK_PIXEL_FORMAT_NV21:
         return 2; // TODO
@@ -78,6 +79,7 @@ uint32_t bk_image_size_get(uint16_t width, uint16_t height, bk_pixel_format_t fo
             return width * height * 3 / 2;
 
         case BK_PIXEL_FORMAT_YUYV:
+        case BK_PIXEL_FORMAT_YUYV_SWAP:
         case BK_PIXEL_FORMAT_VYUY:
         case BK_PIXEL_FORMAT_UYVY:
         case BK_PIXEL_FORMAT_YYUV:
