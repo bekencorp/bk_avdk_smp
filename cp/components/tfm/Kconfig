@@ -131,6 +131,18 @@ config TFM_SLEEP_RETENTION_NSC
         Sleep entry performs no register scan. Forwarded to the TF-M build as
         CONFIG_SLEEP_RETENTION_NSC.
 
+config TFM_OTP_NSC
+    bool "Enable NSC OTP access gateway (read/write secure OTP1/OTP2)"
+    default n
+    help
+        Beken ARMv8-M CMSE non-secure-callable (NSC) OTP access. When set, the
+        secure world builds the secure OTP driver (otp_s.c) and the gateways
+        (otp_nsc.c) and exports bk_otp_read_nsc / bk_otp_update_nsc /
+        bk_otp_read_permission_nsc / bk_otp_write_permission_nsc /
+        bk_otp_write_mask_nsc into libtfm_s_veneers.a, so the non-secure
+        cpu0_app can read/write OTP banks owned by the secure world. Forwarded
+        to the TF-M build as CONFIG_OTP_NSC.
+
 endmenu # TF-M Options
 
 endmenu # TFM

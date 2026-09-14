@@ -23,6 +23,10 @@
 #include "hal_hw_fih.h"
 #include "hal_sw_fih.h"
 #include "bk_tfm_ppc.h"
+/* Generated OTP2 map (otp_map_2 with per-item security from otp2.csv). Compiled
+ * into platform_s via common/secure/CMakeLists.txt; used to derive the OTP2 MPC
+ * secure/non-secure block LUT. */
+#include "_otp.h"
 
 #define TAG "mpc"
 
@@ -207,6 +211,63 @@ static void ram_mpc_cfg(void)
 	FIH_ASSERT4(iter_count == (ram_mpc_dev_end - MPC_DEV_SMEM0));
 }
 
+/* ---------------------------------------------------------------------------
+ * OTP2 MPC (CP domain, 0x448F0000)
+ *
+ * OTP2 holds RF calibration, MAC and customer items. Each block is marked
+ * Non-Secure so the Non-Secure world can read it, EXCEPT the blocks covered by
+ * items whose otp2.csv security field is OTP_SECURITY, which stay Secure (only
+ * reachable from the secure world / the OTP NSC gateways). This MPC instance is
+ * not modelled by the CP MPC driver, so it is programmed by direct register
+ * access, driving the block LUT from the generated otp_map_2[].
+ *
+ * MPC granularity is one block; a secure item and a non-secure item that fall
+ * in the same block force the whole block Secure, so secure/non-secure
+ * boundaries in otp2.csv must be block aligned.
+ * ------------------------------------------------------------------------- */
+#define OTP2_MPC_BASE       0x448F0000u
+#define MPC_BLK_SIZE_OFF    0x14u
+
+static void otp2_mpc_cfg(void)
+{
+	volatile uint32_t *ctrl     = (volatile uint32_t *)(OTP2_MPC_BASE + MPC_CTRL_OFF);
+	volatile uint32_t *blk_size = (volatile uint32_t *)(OTP2_MPC_BASE + MPC_BLK_SIZE_OFF);
+	volatile uint32_t *blk_max  = (volatile uint32_t *)(OTP2_MPC_BASE + MPC_BLK_MAX_OFF);
+	volatile uint32_t *blk_idx  = (volatile uint32_t *)(OTP2_MPC_BASE + MPC_BLK_IDX_OFF);
+	volatile uint32_t *blk_lut  = (volatile uint32_t *)(OTP2_MPC_BASE + MPC_BLK_LUT_OFF);
+	uint32_t block_bytes = 32u << (*blk_size & 0xFu);
+	uint32_t lut_words = *blk_max + 1u;
+	uint32_t items = otp_map_2_row();
+	uint32_t w;
+
+	*ctrl &= ~(1u << 8);              /* auto_increase off */
+
+	for (w = 0; w < lut_words; w++) {
+		uint32_t base_block = w * 32u;
+		/* Default every block in this LUT word Non-Secure (bit = 1). */
+		uint32_t lut = 0xFFFFFFFFu;
+		uint32_t item;
+
+		for (item = 0; item < items; item++) {
+			uint32_t first, last, b;
+
+			if (otp_map_2[item].security != OTP_SECURITY) {
+				continue;
+			}
+			first = otp_map_2[item].offset / block_bytes;
+			last  = (otp_map_2[item].offset + otp_map_2[item].allocated_size +
+			         block_bytes - 1u) / block_bytes; /* exclusive */
+			for (b = first; b < last; b++) {
+				if (b >= base_block && b < base_block + 32u) {
+					lut &= ~(1u << (b - base_block)); /* mark Secure (bit = 0) */
+				}
+			}
+		}
+		*blk_idx = w;
+		*blk_lut = lut;
+	}
+}
+
 static void cp_mpc_cfg(void)
 {
 	BK_LOG_ON_ERR(bk_mpc_driver_init());
@@ -216,6 +277,7 @@ static void cp_mpc_cfg(void)
 #if CONFIG_TFM_S_JUMP_TO_CPU0_APP || CONFIG_TFM_S_JUMP_TO_TFM_NS
 	ram_mpc_cfg();
 	flash_mpc_cfg();
+	otp2_mpc_cfg();
 #endif
 
 #if (0 == CONFIG_ENABLE_DEBUG)

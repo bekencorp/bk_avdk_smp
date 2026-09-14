@@ -149,6 +149,16 @@ if (CONFIG_TFM AND tfm_present)
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 ${_partitions_src_dir}/_mpc.h
                 ${partition_hdr_dir}/_mpc.h
+            # Stage the generated OTP map (otp_map_1/otp_map_2 with per-item
+            # security). Only _otp.h/_otp.c are staged so the sibling generated
+            # tfm_hal_ppc.h does not shadow the BK7259 stub no-op. otp_s.c
+            # embeds _otp.c; bk_tfm_mpc.c / provisioning.c include _otp.h.
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                ${_partitions_src_dir}/_otp.h
+                ${partition_hdr_dir}/_otp.h
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                ${_partitions_src_dir}/_otp.c
+                ${partition_hdr_dir}/_otp.c
             # Do not DEPENDS on generated headers by path: after clean they are
             # missing and ninja has no rule for them. Order via generated_files.
             DEPENDS ${_stub_partitions_h}
@@ -166,6 +176,16 @@ if (CONFIG_TFM AND tfm_present)
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 ${_stub_partitions_h}
                 ${partition_hdr_dir}/partitions.h
+            # Stage the generated OTP map (otp_map_1/otp_map_2 with per-item
+            # security). Only _otp.h/_otp.c are staged so the sibling generated
+            # tfm_hal_ppc.h does not shadow the BK7259 stub no-op. otp_s.c
+            # embeds _otp.c; bk_tfm_mpc.c / provisioning.c include _otp.h.
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                ${_partitions_src_dir}/_otp.h
+                ${partition_hdr_dir}/_otp.h
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                ${_partitions_src_dir}/_otp.c
+                ${partition_hdr_dir}/_otp.c
             # Do not DEPENDS on generated headers by path: after clean they are
             # missing and ninja has no rule for them. Order via generated_files.
             DEPENDS ${_stub_partitions_h}
@@ -287,6 +307,7 @@ if (CONFIG_TFM AND tfm_present)
                 -DCONFIG_REG_ACCESS_NSC=${CONFIG_TFM_REG_ACCESS_NSC}
                 -DCONFIG_AP_BOOT_NSC=${CONFIG_TFM_AP_BOOT_NSC}
                 -DCONFIG_SLEEP_RETENTION_NSC=${CONFIG_TFM_SLEEP_RETENTION_NSC}
+                -DCONFIG_OTP_NSC=${CONFIG_TFM_OTP_NSC}
             && cd ${tfm_build_dir} && ninja -- install
         BUILD_BYPRODUCTS ${tfm_build_dir}/secure_fw/libtfm_s_veneers.a
         BUILD_ALWAYS 1

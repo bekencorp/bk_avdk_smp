@@ -228,7 +228,7 @@ menu "Bk_cli"
 			default n
 
 		config OTP_TEST
-			depends on OTP
+			depends on OTP_V1
 			bool "Enable OTP Test"
 			default n
 		config ARCH_CLI_SUPPORT
