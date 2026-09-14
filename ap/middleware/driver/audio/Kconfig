@@ -54,4 +54,28 @@ menu "AUDIO"
 		default y
 		help
 			Enable Audio ring buffer
+
+	choice AUD_PM_FAST_MODE
+		prompt "Audio recovery mode after AP fast boot"
+		depends on AUDIO && PM_AP_FAST_BOOT_ENABLE
+		optional
+		help
+			Cold and hot recovery cannot share the same service
+			callbacks. Leave unselected if audio does not participate
+			in AP fast boot.
+
+		config AUD_PM_FAST_COLD
+			bool "Cold start (service init/deinit)"
+			help
+				On AP off, each audio service deinit. After fast
+				boot, the same service init+start with retained
+				config. AUD register backup/restore is not used.
+
+		config AUD_PM_FAST_HOT
+			bool "Hot start (register backup/restore + open/close)"
+			help
+				Keep service objects, backup/restore AUD
+				registers, then open. Mutually exclusive with
+				cold start.
+	endchoice
 endmenu
