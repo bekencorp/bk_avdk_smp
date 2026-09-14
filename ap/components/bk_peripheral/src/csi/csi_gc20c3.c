@@ -14,6 +14,7 @@
 
 #include <os/os.h>
 #include <os/mem.h>
+#include "csi_calib_mem.h"
 #include "csi_sensor_devices.h"
 #include <driver/mipi_csi.h>
 #include <components/bk_camera_sensor.h>
@@ -240,7 +241,7 @@ static int GC20C3_Init(ISP_PORT IspPort, vsi_u8_t snsDev)
 {
     if (GC20C3_1080P_CalibParam_dynamic == NULL)
     {
-        GC20C3_1080P_CalibParam_dynamic = os_malloc(sizeof(GC20C3_1080P_CalibParam));
+        GC20C3_1080P_CalibParam_dynamic = CSI_CALIB_MALLOC(sizeof(GC20C3_1080P_CalibParam));
         if (GC20C3_1080P_CalibParam_dynamic == NULL)
         {
             LOGE("Failed to malloc GC20C3_1080P_CalibParam_dynamic\n");
@@ -289,7 +290,7 @@ static int GC20C3_Exit(ISP_PORT IspPort)
 
     if (GC20C3_1080P_CalibParam_dynamic != NULL)
     {
-        os_free(GC20C3_1080P_CalibParam_dynamic);
+        CSI_CALIB_FREE(GC20C3_1080P_CalibParam_dynamic);
         GC20C3_1080P_CalibParam_dynamic = NULL;
     }
 

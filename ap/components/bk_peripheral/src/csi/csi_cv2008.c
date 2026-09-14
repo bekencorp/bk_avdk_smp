@@ -14,6 +14,7 @@
 
 #include <os/os.h>
 #include <os/mem.h>
+#include "csi_calib_mem.h"
 #include <os/str.h>
 #include <components/log.h>
 #include "csi_sensor_devices.h"
@@ -651,7 +652,7 @@ static int CV2008_Init(ISP_PORT IspPort, vsi_u8_t snsDev)
 {
     if (CV2008_1080P_CalibParam_dynamic == NULL)
     {
-        CV2008_1080P_CalibParam_dynamic = os_malloc(sizeof(CV2008_1080P_CalibParam));
+        CV2008_1080P_CalibParam_dynamic = CSI_CALIB_MALLOC(sizeof(CV2008_1080P_CalibParam));
         if (CV2008_1080P_CalibParam_dynamic == NULL)
         {
             LOGE("Failed to malloc CV2008_1080P_CalibParam_dynamic\n");
@@ -697,7 +698,7 @@ static int CV2008_Exit(ISP_PORT IspPort)
     vsios_i2c_sys_exit(pCV2008Dev->i2cBus);
     if (CV2008_1080P_CalibParam_dynamic != NULL)
     {
-        os_free(CV2008_1080P_CalibParam_dynamic);
+        CSI_CALIB_FREE(CV2008_1080P_CalibParam_dynamic);
         CV2008_1080P_CalibParam_dynamic = NULL;
     }
     return  BK_OK;

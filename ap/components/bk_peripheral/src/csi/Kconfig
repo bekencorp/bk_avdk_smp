@@ -5,6 +5,15 @@ menu "CSI Camera"
         bool "Enable csi camera"
         default n
 
+    config CSI_CALIB_USE_PSRAM
+        depends on CSI_CAMERA && PSRAM_AS_SYS_MEMORY
+        bool "Allocate CSI sensor calibration data from PSRAM"
+        default n
+        help
+            Allocate every CSI sensor's mutable ~20 KiB ISP calibration copy
+            from PSRAM instead of the small AP SRAM heap. Shared by all CSI
+            sensor drivers via CSI_CALIB_MALLOC/CSI_CALIB_FREE.
+
     config CSI_F58
         depends on CSI_CAMERA
         bool "Enable CSI_F58"

@@ -1,5 +1,6 @@
 #include <os/os.h>
 #include <os/mem.h>
+#include "csi_calib_mem.h"
 #include "csi_sensor_devices.h"
 #include <driver/mipi_csi.h>
 #include <components/bk_camera_sensor.h>
@@ -920,7 +921,7 @@ static int sc3336p_SensorInit(ISP_PORT IspPort, vsi_u8_t snsDev)
 {
     if (SC3336P_2304x1296_CalibParam_dynamic == NULL)
     {
-        SC3336P_2304x1296_CalibParam_dynamic = os_malloc(sizeof(SC3336P_2304x1296_CalibParam));
+        SC3336P_2304x1296_CalibParam_dynamic = CSI_CALIB_MALLOC(sizeof(SC3336P_2304x1296_CalibParam));
         if (SC3336P_2304x1296_CalibParam_dynamic == NULL)
         {
             LOGE("Failed to malloc SC3336P_2304x1296_CalibParam_dynamic\n");
@@ -968,7 +969,7 @@ static int sc3336p_SensorExit(ISP_PORT IspPort)
 
     if (SC3336P_2304x1296_CalibParam_dynamic != NULL)
     {
-        os_free(SC3336P_2304x1296_CalibParam_dynamic);
+        CSI_CALIB_FREE(SC3336P_2304x1296_CalibParam_dynamic);
         SC3336P_2304x1296_CalibParam_dynamic = NULL;
     }
     return  BK_OK;

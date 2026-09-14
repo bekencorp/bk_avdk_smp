@@ -14,6 +14,7 @@
 
 #include <os/os.h>
 #include <os/mem.h>
+#include "csi_calib_mem.h"
 #include "csi_sensor_devices.h"
 #include <driver/mipi_csi.h>
 #include <components/bk_camera_sensor.h>
@@ -171,7 +172,7 @@ static int OV2775_Init(ISP_PORT IspPort, vsi_u8_t snsDev)
 {
     if (OV2775_1080P_CalibParam_dynamic == NULL)
     {
-        OV2775_1080P_CalibParam_dynamic = os_malloc(sizeof(OV2775_1080P_CalibParam));
+        OV2775_1080P_CalibParam_dynamic = CSI_CALIB_MALLOC(sizeof(OV2775_1080P_CalibParam));
         if (OV2775_1080P_CalibParam_dynamic == NULL)
         {
             LOGE("Failed to malloc OV2775_1080P_CalibParam_dynamic\n");
@@ -220,7 +221,7 @@ static int OV2775_Exit(ISP_PORT IspPort)
 
     if (OV2775_1080P_CalibParam_dynamic != NULL)
     {
-        os_free(OV2775_1080P_CalibParam_dynamic);
+        CSI_CALIB_FREE(OV2775_1080P_CalibParam_dynamic);
         OV2775_1080P_CalibParam_dynamic = NULL;
     }
 

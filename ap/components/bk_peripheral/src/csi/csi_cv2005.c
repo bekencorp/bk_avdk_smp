@@ -33,6 +33,8 @@
 //###########################################################################################
 
 #include "vsios_i2c.h"
+
+#include "csi_calib_mem.h"
 #include "vsi_comm_video.h"
 #include "vsi_comm_isp.h"
 #include "vsi_comm_sns.h"
@@ -651,7 +653,7 @@ static int CV2005_Init(ISP_PORT IspPort, vsi_u8_t snsDev)
 {
     if (CV2005_1080P_CalibParam_dynamic == NULL)
     {
-        CV2005_1080P_CalibParam_dynamic = os_malloc(sizeof(CV2005_1080P_CalibParam));
+        CV2005_1080P_CalibParam_dynamic = CSI_CALIB_MALLOC(sizeof(CV2005_1080P_CalibParam));
         if (CV2005_1080P_CalibParam_dynamic == NULL)
         {
             LOGE("Failed to malloc CV2005_1080P_CalibParam_dynamic\n");
@@ -697,7 +699,7 @@ static int CV2005_Exit(ISP_PORT IspPort)
     vsios_i2c_sys_exit(pCV2005Dev->i2cBus);
     if (CV2005_1080P_CalibParam_dynamic != NULL)
     {
-        os_free(CV2005_1080P_CalibParam_dynamic);
+        CSI_CALIB_FREE(CV2005_1080P_CalibParam_dynamic);
         CV2005_1080P_CalibParam_dynamic = NULL;
     }
     return  BK_OK;

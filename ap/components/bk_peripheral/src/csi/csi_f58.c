@@ -14,6 +14,7 @@
 
 #include <os/os.h>
 #include <os/mem.h>
+#include "csi_calib_mem.h"
 #include "csi_sensor_devices.h"
 #include <driver/mipi_csi.h>
 #include <components/bk_camera_sensor.h>
@@ -170,7 +171,7 @@ static int F58_Init(ISP_PORT IspPort, vsi_u8_t snsDev)
 {
     if (F58_720P_CalibParam_dynamic == NULL)
     {
-        F58_720P_CalibParam_dynamic = os_malloc(sizeof(F58_720P_CalibParam));
+        F58_720P_CalibParam_dynamic = CSI_CALIB_MALLOC(sizeof(F58_720P_CalibParam));
         if (F58_720P_CalibParam_dynamic == NULL)
         {
             LOGE("Failed to malloc F58_720P_CalibParam_dynamic\n");
@@ -218,7 +219,7 @@ static int F58_Exit(ISP_PORT IspPort)
 
     if (F58_720P_CalibParam_dynamic != NULL)
     {
-        os_free(F58_720P_CalibParam_dynamic);
+        CSI_CALIB_FREE(F58_720P_CalibParam_dynamic);
         F58_720P_CalibParam_dynamic = NULL;
     }
     return  0;

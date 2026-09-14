@@ -1,5 +1,6 @@
 #include <os/os.h>
 #include <os/mem.h>
+#include "csi_calib_mem.h"
 #include "csi_sensor_devices.h"
 #include <driver/mipi_csi.h>
 #include <components/bk_camera_sensor.h>
@@ -342,7 +343,7 @@ static int SC4336_Init(ISP_PORT IspPort, vsi_u8_t snsDev)
 {
     if (SC4336_720P_CalibParam_dynamic == NULL)
     {
-        SC4336_720P_CalibParam_dynamic = os_malloc(sizeof(GC2053_720P_CalibParam));
+        SC4336_720P_CalibParam_dynamic = CSI_CALIB_MALLOC(sizeof(GC2053_720P_CalibParam));
         if (SC4336_720P_CalibParam_dynamic == NULL)
         {
             LOGE("Failed to malloc SC4336_720P_CalibParam_dynamic\n");
@@ -390,7 +391,7 @@ static int SC4336_Exit(ISP_PORT IspPort)
 
     if (SC4336_720P_CalibParam_dynamic != NULL)
     {
-        os_free(SC4336_720P_CalibParam_dynamic);
+        CSI_CALIB_FREE(SC4336_720P_CalibParam_dynamic);
         SC4336_720P_CalibParam_dynamic = NULL;
     }
     return  BK_OK;

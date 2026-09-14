@@ -66,6 +66,7 @@
 #include "vsi_comm_sns.h"
 #include "mpi_isp_calib.h"
 #include "gc2053_1080p_calib.h"
+#include "csi_calib_mem.h"
 
 #define GC2053_REG_BYTE_NUM  1
 #define GC2053_DATA_BYTE_NUM 1
@@ -263,7 +264,7 @@ static int GC2053_Init(ISP_PORT IspPort, vsi_u8_t snsDev)
 {
     if (GC2053_720P_CalibParam_dynamic == NULL)
     {
-        GC2053_720P_CalibParam_dynamic = os_malloc(sizeof(GC2053_720P_CalibParam));
+        GC2053_720P_CalibParam_dynamic = CSI_CALIB_MALLOC(sizeof(GC2053_720P_CalibParam));
         if (GC2053_720P_CalibParam_dynamic == NULL)
         {
             LOGE("Failed to malloc GC2053_720P_CalibParam_dynamic\n");
@@ -312,7 +313,7 @@ static int GC2053_Exit(ISP_PORT IspPort)
 
     if (GC2053_720P_CalibParam_dynamic != NULL)
     {
-        os_free(GC2053_720P_CalibParam_dynamic);
+        CSI_CALIB_FREE(GC2053_720P_CalibParam_dynamic);
         GC2053_720P_CalibParam_dynamic = NULL;
     }
 

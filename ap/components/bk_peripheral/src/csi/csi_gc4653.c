@@ -14,6 +14,7 @@
 
 #include <os/os.h>
 #include <os/mem.h>
+#include "csi_calib_mem.h"
 #include <os/str.h>
 #include <components/log.h>
 #include "csi_sensor_devices.h"
@@ -219,7 +220,7 @@ static int GC4653_Init(ISP_PORT IspPort, vsi_u8_t snsDev)
 {
     if (GC4653_720P_CalibParam_dynamic == NULL)
     {
-        GC4653_720P_CalibParam_dynamic = os_malloc(sizeof(GC4653_720P_CalibParam));
+        GC4653_720P_CalibParam_dynamic = CSI_CALIB_MALLOC(sizeof(GC4653_720P_CalibParam));
         if (GC4653_720P_CalibParam_dynamic == NULL)
         {
             LOGE("Failed to malloc GC4653_720P_CalibParam_dynamic\n");
@@ -265,7 +266,7 @@ static int GC4653_Exit(ISP_PORT IspPort)
     vsios_i2c_sys_exit(pGC4653Dev->i2cBus);
     if (GC4653_720P_CalibParam_dynamic != NULL)
     {
-        os_free(GC4653_720P_CalibParam_dynamic);
+        CSI_CALIB_FREE(GC4653_720P_CalibParam_dynamic);
         GC4653_720P_CalibParam_dynamic = NULL;
     }
     return  BK_OK;
