@@ -18,6 +18,19 @@
 
 #define DVP_I2C_TIMEOUT (50)
 
+/* Runtime DVP sensor I2C bus id.
+ * bk_dvp_detect() sets this from bk_dvp_config_t.i2c_config.id (via
+ * dvp_camera_i2c_set_id) before any sensor register access, so sensor read/write
+ * uses the very same bus that bk_i2c_init() was configured with. This makes
+ * i2c_config.id the single source of truth and removes the old requirement to
+ * also define CONFIG_DVP_CAMERA_I2C_ID. */
+static uint8_t s_dvp_i2c_id;   /* always set by dvp_camera_i2c_set_id() before use */
+
+void dvp_camera_i2c_set_id(uint8_t id)
+{
+    s_dvp_i2c_id = id;
+}
+
 int dvp_camera_i2c_read_uint8(uint8_t addr, uint8_t reg, uint8_t *value)
 {
     i2c_mem_param_t mem_param = {0};
@@ -29,7 +42,7 @@ int dvp_camera_i2c_read_uint8(uint8_t addr, uint8_t reg, uint8_t *value)
     mem_param.mem_addr = reg;
     mem_param.data = value;
 
-    return bk_i2c_memory_read(CONFIG_DVP_CAMERA_I2C_ID, &mem_param);
+    return bk_i2c_memory_read(s_dvp_i2c_id, &mem_param);
 }
 
 int dvp_camera_i2c_read_uint16(uint8_t addr, uint16_t reg, uint8_t *value)
@@ -43,7 +56,7 @@ int dvp_camera_i2c_read_uint16(uint8_t addr, uint16_t reg, uint8_t *value)
     mem_param.mem_addr = reg;
     mem_param.data = value;
 
-    return bk_i2c_memory_read(CONFIG_DVP_CAMERA_I2C_ID, &mem_param);
+    return bk_i2c_memory_read(s_dvp_i2c_id, &mem_param);
 }
 
 int dvp_camera_i2c_write_uint8(uint8_t addr, uint8_t reg, uint8_t value)
@@ -56,7 +69,7 @@ int dvp_camera_i2c_write_uint8(uint8_t addr, uint8_t reg, uint8_t value)
     mem_param.mem_addr = reg;
     mem_param.data = (uint8_t *)(&value);
 
-    return bk_i2c_memory_write(CONFIG_DVP_CAMERA_I2C_ID, &mem_param);
+    return bk_i2c_memory_write(s_dvp_i2c_id, &mem_param);
 }
 
 int dvp_camera_i2c_write_uint16(uint8_t addr, uint16_t reg, uint8_t value)
@@ -69,7 +82,7 @@ int dvp_camera_i2c_write_uint16(uint8_t addr, uint16_t reg, uint8_t value)
     mem_param.mem_addr = reg;
     mem_param.data = (uint8_t *)(&value);
 
-    return bk_i2c_memory_write(CONFIG_DVP_CAMERA_I2C_ID, &mem_param);
+    return bk_i2c_memory_write(s_dvp_i2c_id, &mem_param);
 }
 
 

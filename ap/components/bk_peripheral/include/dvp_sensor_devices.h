@@ -88,6 +88,18 @@ int dvp_camera_i2c_write_uint8(uint8_t addr, uint8_t reg, uint8_t value);
  */
 int dvp_camera_i2c_write_uint16(uint8_t addr, uint16_t reg, uint8_t value);
 
+/**
+ * @brief     set the I2C bus id used for DVP sensor register read/write
+ *
+ * bk_dvp_detect() calls this with bk_dvp_config_t.i2c_config.id so the sensor
+ * register read/write follows the same bus that bk_i2c_init() was configured
+ * with. This makes i2c_config.id the single source of truth and removes the
+ * need to also define CONFIG_DVP_CAMERA_I2C_ID.
+ *
+ * @param id I2C bus id (the same value passed as i2c_config.id to bk_dvp_open)
+ */
+void dvp_camera_i2c_set_id(uint8_t id);
+
 
 #ifdef __cplusplus
 }
