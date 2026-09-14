@@ -666,7 +666,7 @@ const static ISP_CALIB_DATA_S GC20C3_1080P_CalibParam = {
                 },
                 .againRange = {
                    .min = 64,
-                   .max = 320,
+                   .max = 640,
                 },
                 .dgainRange = {
                     .min = 1024,
@@ -676,7 +676,7 @@ const static ISP_CALIB_DATA_S GC20C3_1080P_CalibParam = {
                 .aeTarget = 85,
                 .dampOver = 0x40,
                 .dampUnder = 0x40,
-                .tolerance = 1,
+                .tolerance = 6,
                 .antiflicker = {
                     .enable = 0,
                     .flickerFreq = 50,
