@@ -618,6 +618,63 @@ static avdk_err_t h264_encode_ctlr_get_rate_ctrl(private_h264_encode_hw_flexa_ct
     return AVDK_ERR_OK;
 }
 
+static avdk_err_t h264_encode_ctlr_set_frame_rate(private_h264_encode_hw_flexa_ctlr_t *control,
+                                                  uint32_t frame_rate)
+{
+    if (frame_rate == 0U) {
+        LOGE("invalid frame rate: %u\r\n", frame_rate);
+        return AVDK_ERR_INVAL;
+    }
+    if (!control->encoder_inited) {
+        LOGE("h264 encoder is not opened\r\n");
+        return AVDK_ERR_INVAL;
+    }
+
+    vcenc_rate_ctrl_t vcenc_rc;
+    if (vcenc_h264_get_rate_ctrl(&control->enc_param, &vcenc_rc) != VCENC_OK) {
+        LOGE("vcenc_h264_get_rate_ctrl failed\r\n");
+        return AVDK_ERR_GENERIC;
+    }
+
+    vcenc_rc.frame_rate_num = frame_rate;
+    vcenc_rc.frame_rate_denom = 1U;
+    if (vcenc_rc.vbr != 0) {
+        vcenc_rc.bitrate_window = h264_encode_vbr_bitrate_window_frames(&vcenc_rc);
+    }
+
+    if (vcenc_h264_set_rate_ctrl(&control->enc_param, &vcenc_rc) != VCENC_OK) {
+        LOGE("vcenc_h264_set_rate_ctrl failed\r\n");
+        return AVDK_ERR_GENERIC;
+    }
+
+    LOGI("H.264 frame rate set, fps=%u\r\n", frame_rate);
+    return AVDK_ERR_OK;
+}
+
+static avdk_err_t h264_encode_ctlr_set_rc_qp_delta_range(private_h264_encode_hw_flexa_ctlr_t *control,
+                                                         uint32_t rc_qp_delta_range)
+{
+    if (!control->encoder_inited) {
+        LOGE("h264 encoder is not opened\r\n");
+        return AVDK_ERR_INVAL;
+    }
+
+    vcenc_rate_ctrl_t vcenc_rc;
+    if (vcenc_h264_get_rate_ctrl(&control->enc_param, &vcenc_rc) != VCENC_OK) {
+        LOGE("vcenc_h264_get_rate_ctrl failed\r\n");
+        return AVDK_ERR_GENERIC;
+    }
+
+    vcenc_rc.rc_qp_delta_range = rc_qp_delta_range;
+    if (vcenc_h264_set_rate_ctrl(&control->enc_param, &vcenc_rc) != VCENC_OK) {
+        LOGE("vcenc_h264_set_rate_ctrl failed\r\n");
+        return AVDK_ERR_GENERIC;
+    }
+
+    LOGI("H.264 rc_qp_delta_range set, range=%u\r\n", rc_qp_delta_range);
+    return AVDK_ERR_OK;
+}
+
 
 // Debug timer callback
 static void h264e_debug_callback(void *arg)
@@ -707,6 +764,18 @@ static avdk_err_t h264_encode_ctlr_ioctl(bk_h264_encode_ctlr_handle_t handle, ui
             return h264_encode_ctlr_set_rate_ctrl(control, (bk_h264_encode_rate_ctrl_t *)arg);
         case BK_H264_ENCODE_IOCTL_GET_RATE_CTRL:
             return h264_encode_ctlr_get_rate_ctrl(control, (bk_h264_encode_rate_ctrl_t *)arg);
+        case BK_H264_ENCODE_IOCTL_SET_FRAME_RATE:
+            if (arg == NULL) {
+                LOGE("frame rate arg is NULL\r\n");
+                return AVDK_ERR_INVAL;
+            }
+            return h264_encode_ctlr_set_frame_rate(control, *(uint32_t *)arg);
+        case BK_H264_ENCODE_IOCTL_SET_RC_QP_DELTA_RANGE:
+            if (arg == NULL) {
+                LOGE("rc_qp_delta_range arg is NULL\r\n");
+                return AVDK_ERR_INVAL;
+            }
+            return h264_encode_ctlr_set_rc_qp_delta_range(control, *(uint32_t *)arg);
         case BK_H264_ENCODE_IOCTL_SET_OSD:
             return h264_encode_set_osd_common(&control->enc_param, control->encoder_inited,
                                               control->osd_slots, (bk_h264_encode_osd_t *)arg);
