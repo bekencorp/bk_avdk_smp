@@ -74,6 +74,8 @@ CONFIG_MBEDTLS_USE_PSA_CRYPTO=y
 CONFIG_PSA_MBEDTLS_TEST=y
 CONFIG_CLASSIC_MBEDTLS_TEST=y
 CONFIG_TRUSTENGINE=y
+# OTP/TE200 share ENCP power domain, keep it always-on
+CONFIG_AON_ENCP=y
 # CONFIG_SW_CRYPTO is not set
 
 # --- PSRAM: CP does not use PSRAM, keep it disabled on CP ---
