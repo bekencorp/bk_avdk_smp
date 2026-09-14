@@ -32,6 +32,7 @@
 #include "avdk_crc.h"
 #include "media_utils.h"
 #include "dvp_private.h"
+#include "dvp_sensor_devices.h"   /* dvp_camera_i2c_set_id (bk_peripheral, via PRIV_REQUIRES) */
 
 #define TAG "dvp_drv"
 
@@ -1515,6 +1516,9 @@ const dvp_sensor_config_t *bk_dvp_detect(bk_dvp_config_t *config)
     i2c_config.baud_rate = config->i2c_config.baud_rate;
     i2c_config.addr_mode = I2C_ADDR_MODE_7BIT;
     bk_i2c_init(config->i2c_config.id, &i2c_config);
+
+    // keep sensor register R/W on the same bus as bk_i2c_init (single source of truth)
+    dvp_camera_i2c_set_id(config->i2c_config.id);
 
     // step 5: detect sensor
     sensor = bk_dvp_get_sensor_auto_detect();

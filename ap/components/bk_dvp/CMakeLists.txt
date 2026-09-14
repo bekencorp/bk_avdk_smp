@@ -1,6 +1,6 @@
 set(incs include)
 set(srcs "")
-set(priv_req bk_common avdk_utils)
+set(priv_req bk_common avdk_utils bk_peripheral)
 
 if (CONFIG_DVP_CAMERA)
 	list(APPEND srcs
