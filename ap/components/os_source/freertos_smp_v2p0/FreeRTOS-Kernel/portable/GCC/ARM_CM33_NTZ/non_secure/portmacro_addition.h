@@ -137,20 +137,18 @@ typedef spinlock_t                          portMUX_TYPE;               /**< Spi
 // ------------------ Critical Sections --------------------
 
 /**
- * @brief Enter a SMP critical section with a timeout
+ * @brief Enter a SMP critical section
  *
  * This function enters an SMP critical section by disabling interrupts then
- * taking a spinlock with a specified timeout.
+ * taking a spinlock.
  *
  * This function can be called in a nested manner.
  *
  * @note This function is made non-inline on purpose to reduce code size
  * @param mux Spinlock
- * @param timeout Timeout to wait for spinlock in number of CPU cycles.
- *                Use portMUX_NO_TIMEOUT to wait indefinitely
- *                Use portMUX_TRY_LOCK to only getting the spinlock a single time
+ * @param timeout Reserved. The current spinlock implementation waits until the
+ *                lock is acquired.
  * @retval pdPASS Critical section entered (spinlock taken)
- * @retval pdFAIL If timed out waiting for spinlock (will not occur if using portMUX_NO_TIMEOUT)
  */
 BaseType_t xPortEnterCriticalTimeout(portMUX_TYPE *mux, BaseType_t timeout);
 

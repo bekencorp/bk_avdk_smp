@@ -1566,11 +1566,7 @@ BaseType_t __attribute__((optimize("-O3"))) xPortEnterCriticalTimeout(portMUX_TY
     uint32_t lr = __get_LR();
     #endif
     BaseType_t xOldInterruptLevel = portSET_INTERRUPT_MASK_FROM_ISR();
-    if (!spinlock_acquire(mux, timeout)) {
-        //Timed out attempting to get spinlock. Restore previous interrupt level and return
-        portCLEAR_INTERRUPT_MASK_FROM_ISR(xOldInterruptLevel);
-        return pdFAIL;
-    }
+    (void)spinlock_acquire(mux, timeout);
     #if CONFIG_CRITICAL_LR_RECORD
     check_critical_crc();
     vPortEnterCriticalLrRecord(lr);
