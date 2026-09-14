@@ -282,6 +282,11 @@ static void isp_camera_ctlr_restore_init_if_idle(bk_camera_isp_ctlr_t *control)
         && control->channel_state[ISP_SP_CHN_ID] == ISP_CHANNEL_STATE_TURN_OFF
         && control->state == CAM_FSM_ENABLE)
     {
+        if (control->read_register)
+        {
+            (void)bk_isp_deregister_isr_callback(&control->isp_handle, ISP_FRAME_END_DONE, control);
+            control->read_register = false;
+        }
         control->state = CAM_FSM_INIT;
         control->sensor_ctlr = 0;
         LOGI("%s, all channels closed, state changed to INIT\n", __func__);
@@ -422,9 +427,11 @@ static avdk_err_t isp_camera_ctlr_read(bk_isp_camera_ctlr_handle_t handle, uint1
 
     isp_control_t *isp_control = (isp_control_t *)control->isp_handle;
 
-    // register frame end cb
-    bk_isp_register_isr_callback((isp_handle_t *)&isp_control, ISP_FRAME_END_DONE,
-        camera_frame_complete_callback, control);
+    if (control->read_register == false)
+    {
+        bk_isp_register_isr_callback((isp_handle_t *)&isp_control, ISP_FRAME_END_DONE, camera_frame_complete_callback, control);
+        control->read_register = true;
+    }
 
     if (read_ctx->read_enable)
     {
