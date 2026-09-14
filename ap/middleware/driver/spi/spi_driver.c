@@ -63,6 +63,12 @@ typedef struct {
 	dma_id_t spi_tx_dma_chan;
 	dma_id_t spi_rx_dma_chan;
 	bool dma_inited;
+#if CONFIG_SPI_DMA
+	/* kept so the channels can be reprogrammed after a power loss without the
+	 * original spi_config_t (see spi_fast_resume) */
+	dma_data_width_t spi_tx_dma_width;
+	dma_data_width_t spi_rx_dma_width;
+#endif
 #if CONFIG_SPI_PM_CB_SUPPORT
 	uint32_t pm_backup[SPI_PM_BACKUP_REG_NUM];
 	uint8_t pm_backup_is_valid;
@@ -526,6 +532,7 @@ static void spi_dma_tx_init(spi_id_t id, dma_id_t spi_tx_dma_chan, dma_data_widt
 	spi_int_config_t int_cfg_table[] = SPI_INT_CONFIG_TABLE;
 
 	s_spi[id].spi_tx_dma_chan = spi_tx_dma_chan;
+	s_spi[id].spi_tx_dma_width = spi_tx_dma_width;
 
 	dma_config.mode = DMA_WORK_MODE_SINGLE;
 	dma_config.chan_prio = 0;
@@ -552,6 +559,7 @@ static void spi_dma_rx_init(spi_id_t id, dma_id_t spi_rx_dma_chan, dma_data_widt
 	spi_int_config_t int_cfg_table[] = SPI_RX_INT_CONFIG_TABLE;
 
 	s_spi[id].spi_rx_dma_chan = spi_rx_dma_chan;
+	s_spi[id].spi_rx_dma_width = spi_rx_dma_width;
 
 	dma_config.mode = DMA_WORK_MODE_SINGLE;
 	dma_config.chan_prio = 0;
@@ -738,11 +746,42 @@ static bk_err_t spi_fast_restore(void *arg)
 	return BK_OK;
 }
 
+/*
+ * spi_fast_restore() above replays the SPI register file, but the TX/RX GDMA
+ * channels this SPI owns lose their own configuration (req_mux, work mode,
+ * addr inc/loop, finish interrupt, secure attrs) when BAKP loses power. A driver
+ * that reprograms only address and length per transfer - which is what
+ * bk_spi_dma_duplex_xfer() does - cannot bring those back, so a keep-alive SPI
+ * would wait on tx_sema forever after a wake.
+ *
+ * Reprogram them here rather than relying on the GDMA driver to replay a
+ * snapshot: the channel owner is the only party that knows the intended
+ * configuration, and this is the same contract uart_fast_resume_dma() already
+ * uses. bk_dma_alloc() is not called again - the channels stay owned across the
+ * cycle, only the hardware is reconfigured.
+ */
+static bk_err_t spi_fast_resume(void *arg)
+{
+	(void)arg;
+
+#if CONFIG_SPI_DMA
+	for (spi_id_t id = SPI_ID_0; id < SPI_ID_MAX; id++) {
+		if (!s_spi[id].id_init_bits || !s_spi[id].dma_inited) {
+			continue;
+		}
+		spi_dma_tx_init(id, s_spi[id].spi_tx_dma_chan, s_spi[id].spi_tx_dma_width);
+		spi_dma_rx_init(id, s_spi[id].spi_rx_dma_chan, s_spi[id].spi_rx_dma_width);
+	}
+#endif
+	return BK_OK;
+}
+
 static const pm_ap_fast_pm_ops_t s_spi_fast_ops = {
 	.name = "spi",
 	.quiesce = spi_fast_quiesce,
 	.backup = spi_fast_backup,
 	.restore = spi_fast_restore,
+	.resume = spi_fast_resume,
 	.arg = &s_spi_fast_pm,
 	.priority = PM_AP_FAST_PRIORITY_PERIPHERAL,
 };

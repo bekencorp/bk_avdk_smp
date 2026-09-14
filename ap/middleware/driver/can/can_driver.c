@@ -812,11 +812,25 @@ static bk_err_t can_fast_app_resume(void *arg)
     return BK_OK;
 }
 
+/*
+ * can_fast_quiesce() only vetoes suspend while a frame is in flight; it changes
+ * no state, so there is nothing to undo. The register file is replayed by
+ * can_fast_restore() and interrupt operation resumes in can_fast_app_resume().
+ * Required because bk_pm_ap_power_ops_register() rejects ops that supply
+ * quiesce without resume - app_resume does not satisfy that pairing.
+ */
+static bk_err_t can_fast_resume(void *arg)
+{
+    (void)arg;
+    return BK_OK;
+}
+
 static const pm_ap_fast_pm_ops_t s_can_fast_ops = {
     .name       = "can",
     .quiesce    = can_fast_quiesce,
     .backup     = can_fast_backup,
     .restore    = can_fast_restore,
+    .resume     = can_fast_resume,
     .app_resume = can_fast_app_resume,
     .arg        = NULL,
     .priority   = PM_AP_FAST_PRIORITY_PERIPHERAL,

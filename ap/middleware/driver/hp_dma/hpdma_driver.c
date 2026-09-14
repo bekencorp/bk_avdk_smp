@@ -201,11 +201,24 @@ static bk_err_t hpdma_fast_restore(void *arg)
     return BK_OK;
 }
 
+/*
+ * hpdma_fast_quiesce() only vetoes suspend while a channel is still enabled; it
+ * changes no state, so there is nothing to undo. Required because
+ * bk_pm_ap_power_ops_register() rejects ops that supply quiesce without resume,
+ * and that rejection propagates out of bk_hpdma_driver_init().
+ */
+static bk_err_t hpdma_fast_resume(void *arg)
+{
+    (void)arg;
+    return BK_OK;
+}
+
 static const pm_ap_fast_pm_ops_t s_hpdma_fast_pm_ops = {
     .name = "hpdma",
     .quiesce = hpdma_fast_quiesce,
     .backup = hpdma_fast_backup,
     .restore = hpdma_fast_restore,
+    .resume = hpdma_fast_resume,
     .priority = PM_AP_FAST_PRIORITY_BUS,
 };
 #endif
