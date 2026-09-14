@@ -723,6 +723,11 @@ static inline uint32_t sys_hal_disable_hf_clock(void)
 
 static inline void sys_hal_restore_hf_clock(volatile uint32_t val)
 {
+#if CONFIG_PSRAM_DATA_RETENTION_ENABLE
+	/* REG5 bit7 is owned by the PSRAM retention path. */
+	uint32_t current = sys_ll_get_ana_reg5_value();
+	val = (val & ~BIT(7)) | (current & BIT(7));
+#endif
 	sys_ll_set_ana_reg5_value(val);
 	SYS_PM_HAL_CPU_BARRIER();
 }
@@ -1893,7 +1898,13 @@ __IRAM_PM void sys_hal_enter_low_voltage(void)
 		 * before arch_deep_sleep() - no SRAM/flash access happens after it. */
 		sys_hal_enable_spi_latch();
 		aon_pmu_hal_r0_latch_to_r7b();
+		#if CONFIG_PSRAM_DATA_RETENTION_ENABLE
+		/* Keep the main voltage in its normal mode while halted. Lowering it
+		 * makes the internal PSRAM LDO fall below the retention voltage. */
+		aon_pmu_ll_set_r40_halt_volt(0);
+		#else
 		aon_pmu_ll_set_r40_halt_volt(1);
+		#endif
 
 		hf_reg_v = sys_hal_disable_hf_clock();
 		timer_hal_early_delay_us_iram(10);
@@ -1981,7 +1992,14 @@ __IRAM_PM void sys_hal_enter_low_voltage(void)
 	#if CONFIG_DEEP_LV
 	uint32_t val;
 	sys_hal_analog_set(ANALOG_REG0, v_ana_r0);
+#if CONFIG_PSRAM_DATA_RETENTION_ENABLE
+	/* Keep the PSRAM I/O-pad latch (REG5 bit7) unchanged. */
+	val = sys_hal_analog_get(ANALOG_REG5);
+	sys_hal_analog_set(ANALOG_REG5,
+		(v_ana_r5 & ~BIT(7)) | (val & BIT(7)));
+#else
 	sys_hal_analog_set(ANALOG_REG5, v_ana_r5);
+#endif
 
 	val = sys_hal_analog_get(ANALOG_REG0);
 	val |= BIT(26);
@@ -2006,7 +2024,18 @@ __IRAM_PM void sys_hal_enter_low_voltage(void)
 	sys_hal_analog_set(ANALOG_REG11, v_ana_r11);
 	sys_hal_analog_set(ANALOG_REG12, v_ana_r12);
 	sys_hal_analog_set(ANALOG_REG13, v_ana_r13);
+#if CONFIG_PSRAM_DATA_RETENTION_ENABLE
+	/*
+	 * Restore only the PSRAM power fields from the pre-sleep snapshot:
+	 * vpsramsel[30:27] and enpsram[31]. Keep all unrelated REG14 fields
+	 * at their current post-wake values.
+	 */
+	val = sys_hal_analog_get(ANALOG_REG14);
+	sys_hal_analog_set(ANALOG_REG14,
+		(val & ~(0x1FU << 27)) | (v_ana_r14 & (0x1FU << 27)));
+#else
 	sys_hal_analog_set(ANALOG_REG14, v_ana_r14);
+#endif
 	sys_hal_analog_set(ANALOG_REG15, 0);
 
 	sys_hal_analog_set(ANALOG_REG16, v_ana_r16);
