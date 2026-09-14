@@ -340,6 +340,19 @@ bk_err_t ntwk_in_register_audio_stop_cb(ntwk_in_stop_cb_t cb)
     return BK_OK;
 }
 
+bk_err_t ntwk_in_register_stop_all_cb(ntwk_in_stop_cb_t cb)
+{
+    if (ntwk_in_cfg == NULL)
+    {
+        LOGE("%s, ntwk_in_cfg is NULL\n", __func__);
+        return BK_FAIL;
+    }
+
+    ntwk_in_cfg->stop_all = cb;
+
+    return BK_OK;
+}
+
 bk_err_t ntwk_in_start(chan_type_t chan_type, void *param)
 {
     if (ntwk_in_cfg == NULL)
@@ -401,4 +414,23 @@ bk_err_t ntwk_in_stop(chan_type_t chan_type)
     }
 
     return BK_FAIL;
+}
+
+bk_err_t ntwk_in_stop_all(void)
+{
+    if (ntwk_in_cfg == NULL)
+    {
+        LOGE("%s, ntwk_in_cfg is NULL\n", __func__);
+        return BK_FAIL;
+    }
+
+    if (ntwk_in_cfg->stop_all != NULL)
+    {
+        return ntwk_in_cfg->stop_all();
+    }
+
+    (void)ntwk_in_stop(NTWK_TRANS_CHAN_CTRL);
+    (void)ntwk_in_stop(NTWK_TRANS_CHAN_VIDEO);
+    (void)ntwk_in_stop(NTWK_TRANS_CHAN_AUDIO);
+    return BK_OK;
 }

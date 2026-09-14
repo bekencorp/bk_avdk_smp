@@ -146,6 +146,8 @@ bk_err_t ntwk_tcp_audio_client_register_receive_cb(ntwk_audio_receive_cb_t cb);
 // TCP Client init/deinit
 bk_err_t ntwk_tcp_client_init(chan_type_t chan_type);
 bk_err_t ntwk_tcp_client_deinit(chan_type_t chan_type);
+bk_err_t ntwk_tcp_client_stop_all(void);
+bk_err_t ntwk_tcp_client_deinit_all(void);
 #endif // CONFIG_NTWK_CLIENT_SERVICE_ENABLE
 
 #ifdef __cplusplus

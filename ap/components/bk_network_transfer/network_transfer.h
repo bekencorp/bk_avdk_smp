@@ -431,6 +431,16 @@ bk_err_t ntwk_trans_chan_start(chan_type_t chan_type, void *param);
 bk_err_t ntwk_trans_chan_stop(chan_type_t chan_type);
 
 /**
+ * @brief Stop all channels together when the service supports it.
+ *
+ * TCP client disconnects ctrl/video/audio in parallel (request all, then join).
+ * Other services fall back to sequential per-channel stop.
+ *
+ * @return bk_err_t Result of stopping, returns BK_OK on success, error code on failure
+ */
+bk_err_t ntwk_trans_chan_stop_all(void);
+
+/**
  * @brief Set or clear channel send abort without closing the channel.
  *
  * When enabled, current retry/fragment send loops return quickly and new sends

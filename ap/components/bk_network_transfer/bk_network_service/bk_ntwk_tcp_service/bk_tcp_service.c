@@ -122,6 +122,7 @@ bk_err_t bk_tcp_trans_service_init(char *service_name)
         ctxt->cntrl_chan->send = ntwk_tcp_ctrl_client_chan_send;
         ntwk_in_register_ctrl_start_cb(ntwk_tcp_ctrl_client_chan_start);
         ntwk_in_register_ctrl_stop_cb(ntwk_tcp_ctrl_client_chan_stop);
+        ntwk_in_register_stop_all_cb(ntwk_tcp_client_stop_all);
 #if CONFIG_NTWK_CTRL_CHAN_JSON
         ntwk_json_register_send_cb(ctxt->cntrl_chan->type, ntwk_trans_json_tx_handler);
         ntwk_json_register_recv_cb(ctxt->cntrl_chan->type, ntwk_trans_json_rx_handler);
@@ -245,9 +246,7 @@ bk_err_t bk_tcp_trans_service_deinit(void)
     ntwk_tcp_deinit(NTWK_TRANS_CHAN_VIDEO);
     ntwk_tcp_deinit(NTWK_TRANS_CHAN_AUDIO);
 #else
-    ntwk_tcp_client_deinit(NTWK_TRANS_CHAN_CTRL);
-    ntwk_tcp_client_deinit(NTWK_TRANS_CHAN_VIDEO);
-    ntwk_tcp_client_deinit(NTWK_TRANS_CHAN_AUDIO);
+    ntwk_tcp_client_deinit_all();
 #endif // CONFIG_NTWK_CLIENT_SERVICE_ENABLE
 
     ntwk_trans_ctxt_deinit();

@@ -498,6 +498,19 @@ bk_err_t ntwk_trans_chan_stop(chan_type_t chan_type)
     return ret;
 }
 
+bk_err_t ntwk_trans_chan_stop_all(void)
+{
+    LOGV("%s start\r\n", __func__);
+
+    if (s_ntwk_trans_ctxt == NULL || !s_ntwk_trans_ctxt->initialized)
+    {
+        LOGE("%s, context not initialized\n", __func__);
+        return BK_FAIL;
+    }
+
+    return ntwk_in_stop_all();
+}
+
 bk_err_t ntwk_trans_chan_abort(chan_type_t chan_type, bool abort)
 {
     if (chan_type >= NTWK_TRANS_CHAN_MAX)

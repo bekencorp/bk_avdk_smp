@@ -1199,17 +1199,10 @@ bk_err_t ntwk_tcp_ctrl_client_chan_start(void *param)
     return ret;
 }
 
-bk_err_t ntwk_tcp_ctrl_client_chan_stop(void)
+static void ntwk_tcp_ctrl_client_stop_request(void)
 {
-    if (ntwk_tcp_ctrl_client_info == NULL)
-    {
-        LOGE("ntwk_tcp_ctrl_client_info is NULL, nothing to deinit\n");
-        return BK_FAIL;
-    }
-
     ntwk_tcp_ctrl_client_info->stop_req = 1;
     ntwk_tcp_ctrl_client_info->chan_state = NTWK_TRANS_CHAN_STOP;
-
     ntwk_tcp_ctrl_client_info->client_state = BK_FALSE;
 
     if (ntwk_tcp_ctrl_client_info->client_fd != -1)
@@ -1220,7 +1213,10 @@ bk_err_t ntwk_tcp_ctrl_client_chan_stop(void)
                  ntwk_tcp_ctrl_client_info->client_fd, errno);
         }
     }
+}
 
+static void ntwk_tcp_ctrl_client_stop_join(void)
+{
     if (ntwk_tcp_ctrl_client_info->thread != NULL)
     {
         if (ntwk_tcp_ctrl_client_info->stop_sem != NULL &&
@@ -1253,8 +1249,19 @@ bk_err_t ntwk_tcp_ctrl_client_chan_stop(void)
     }
 
     ntwk_msg_event_report(NTWK_TRANS_EVT_STOP, 0, NTWK_TRANS_CHAN_CTRL);
-
     ntwk_tcp_ctrl_client_info->receive_cb = NULL;
+}
+
+bk_err_t ntwk_tcp_ctrl_client_chan_stop(void)
+{
+    if (ntwk_tcp_ctrl_client_info == NULL)
+    {
+        LOGE("ntwk_tcp_ctrl_client_info is NULL, nothing to deinit\n");
+        return BK_FAIL;
+    }
+
+    ntwk_tcp_ctrl_client_stop_request();
+    ntwk_tcp_ctrl_client_stop_join();
 
     LOGD("%s end\n", __func__);
     return BK_OK;
@@ -1557,16 +1564,8 @@ bk_err_t ntwk_tcp_video_client_chan_start(void *param)
     return ret;
 }
 
-bk_err_t ntwk_tcp_video_client_chan_stop(void)
+static void ntwk_tcp_video_client_stop_request(void)
 {
-    LOGD("%s, %d\n", __func__, __LINE__);
-
-    if (video_tcp_client_service == NULL)
-    {
-        LOGE("%s: video_tcp_client_service is NULL\n", __func__);
-        return BK_FAIL;
-    }
-
     video_tcp_client_service->stop_req = 1;
     video_tcp_client_service->chan_state = NTWK_TRANS_CHAN_STOP;
     ntwk_msg_event_report(NTWK_TRANS_EVT_STOP, 0, NTWK_TRANS_CHAN_VIDEO);
@@ -1581,7 +1580,10 @@ bk_err_t ntwk_tcp_video_client_chan_stop(void)
                  video_tcp_client_service->video_fd, errno);
         }
     }
+}
 
+static void ntwk_tcp_video_client_stop_join(void)
+{
     if (video_tcp_client_service->video_thd)
     {
         if (video_tcp_client_service->stop_sem != NULL &&
@@ -1612,6 +1614,20 @@ bk_err_t ntwk_tcp_video_client_chan_stop(void)
         rtos_deinit_semaphore(&video_tcp_client_service->stop_sem);
         video_tcp_client_service->stop_sem = NULL;
     }
+}
+
+bk_err_t ntwk_tcp_video_client_chan_stop(void)
+{
+    LOGD("%s, %d\n", __func__, __LINE__);
+
+    if (video_tcp_client_service == NULL)
+    {
+        LOGE("%s: video_tcp_client_service is NULL\n", __func__);
+        return BK_FAIL;
+    }
+
+    ntwk_tcp_video_client_stop_request();
+    ntwk_tcp_video_client_stop_join();
 
     return BK_OK;
 }
@@ -1896,18 +1912,11 @@ bk_err_t ntwk_tcp_audio_client_chan_start(void *param)
     return ret;
 }
 
-bk_err_t ntwk_tcp_audio_client_chan_stop(void)
+static void ntwk_tcp_audio_client_stop_request(void)
 {
-    if (aud_tcp_client_service == NULL)
-    {
-        LOGE("aud_tcp_client_service is NULL\n");
-        return BK_FAIL;
-    }
-
     aud_tcp_client_service->stop_req = 1;
     aud_tcp_client_service->chan_state = NTWK_TRANS_CHAN_STOP;
     ntwk_msg_event_report(NTWK_TRANS_EVT_STOP, 0, NTWK_TRANS_CHAN_AUDIO);
-
     aud_tcp_client_service->aud_status = BK_FALSE;
 
     if (aud_tcp_client_service->aud_fd != -1)
@@ -1918,7 +1927,10 @@ bk_err_t ntwk_tcp_audio_client_chan_stop(void)
                  aud_tcp_client_service->aud_fd, errno);
         }
     }
+}
 
+static void ntwk_tcp_audio_client_stop_join(void)
+{
     if (aud_tcp_client_service->aud_thd)
     {
         if (aud_tcp_client_service->stop_sem != NULL &&
@@ -1949,6 +1961,18 @@ bk_err_t ntwk_tcp_audio_client_chan_stop(void)
         rtos_deinit_semaphore(&aud_tcp_client_service->stop_sem);
         aud_tcp_client_service->stop_sem = NULL;
     }
+}
+
+bk_err_t ntwk_tcp_audio_client_chan_stop(void)
+{
+    if (aud_tcp_client_service == NULL)
+    {
+        LOGE("aud_tcp_client_service is NULL\n");
+        return BK_FAIL;
+    }
+
+    ntwk_tcp_audio_client_stop_request();
+    ntwk_tcp_audio_client_stop_join();
 
     return BK_OK;
 }
@@ -2103,6 +2127,81 @@ bk_err_t ntwk_tcp_client_deinit(chan_type_t chan_type)
 
     LOGV("%s: chan_type %d deinitialized\n", __func__, chan_type);
 
+    return BK_OK;
+}
+
+bk_err_t ntwk_tcp_client_stop_all(void)
+{
+    uint8_t stop_ctrl = 0;
+    uint8_t stop_video = 0;
+    uint8_t stop_audio = 0;
+
+    /* Phase 1: request all channels to disconnect together. */
+    if (ntwk_tcp_ctrl_client_info != NULL &&
+        (ntwk_tcp_ctrl_client_info->thread != NULL ||
+         ntwk_tcp_ctrl_client_info->client_fd != -1 ||
+         ntwk_tcp_ctrl_client_info->client_state == BK_TRUE))
+    {
+        ntwk_tcp_ctrl_client_stop_request();
+        stop_ctrl = 1;
+    }
+
+    if (video_tcp_client_service != NULL &&
+        (video_tcp_client_service->video_thd != NULL ||
+         video_tcp_client_service->video_fd != -1 ||
+         video_tcp_client_service->video_status == BK_TRUE))
+    {
+        ntwk_tcp_video_client_stop_request();
+        stop_video = 1;
+    }
+
+    if (aud_tcp_client_service != NULL &&
+        (aud_tcp_client_service->aud_thd != NULL ||
+         aud_tcp_client_service->aud_fd != -1 ||
+         aud_tcp_client_service->aud_status == BK_TRUE))
+    {
+        ntwk_tcp_audio_client_stop_request();
+        stop_audio = 1;
+    }
+
+    /* Phase 2: wait for threads that are already exiting in parallel. */
+    if (stop_ctrl)
+    {
+        ntwk_tcp_ctrl_client_stop_join();
+    }
+    if (stop_video)
+    {
+        ntwk_tcp_video_client_stop_join();
+    }
+    if (stop_audio)
+    {
+        ntwk_tcp_audio_client_stop_join();
+    }
+
+    return BK_OK;
+}
+
+bk_err_t ntwk_tcp_client_deinit_all(void)
+{
+    (void)ntwk_tcp_client_stop_all();
+
+    if (ntwk_tcp_ctrl_client_info != NULL)
+    {
+        os_free(ntwk_tcp_ctrl_client_info);
+        ntwk_tcp_ctrl_client_info = NULL;
+    }
+    if (video_tcp_client_service != NULL)
+    {
+        os_free(video_tcp_client_service);
+        video_tcp_client_service = NULL;
+    }
+    if (aud_tcp_client_service != NULL)
+    {
+        os_free(aud_tcp_client_service);
+        aud_tcp_client_service = NULL;
+    }
+
+    LOGD("%s: all channels deinitialized\n", __func__);
     return BK_OK;
 }
 #endif // CONFIG_NTWK_CLIENT_SERVICE_ENABLE

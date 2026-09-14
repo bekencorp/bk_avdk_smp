@@ -43,6 +43,8 @@ typedef struct
 
     ntwk_in_start_cb_t audio_start;
     ntwk_in_stop_cb_t audio_stop;
+
+    ntwk_in_stop_cb_t stop_all;
 } ntwk_in_cfg_t;
 
 
@@ -62,9 +64,11 @@ bk_err_t ntwk_in_register_video_start_cb(ntwk_in_start_cb_t cb);
 bk_err_t ntwk_in_register_video_stop_cb(ntwk_in_stop_cb_t cb);
 bk_err_t ntwk_in_register_audio_start_cb(ntwk_in_start_cb_t cb);
 bk_err_t ntwk_in_register_audio_stop_cb(ntwk_in_stop_cb_t cb);
+bk_err_t ntwk_in_register_stop_all_cb(ntwk_in_stop_cb_t cb);
 
 bk_err_t ntwk_in_start(chan_type_t chan_type, void *param);
 bk_err_t ntwk_in_stop(chan_type_t chan_type);
+bk_err_t ntwk_in_stop_all(void);
 
 #if CONFIG_NTWK_CTRL_CHAN_JSON
 int ntwk_trans_json_tx_handler(chan_type_t chan, uint8_t *data, uint32_t length);
