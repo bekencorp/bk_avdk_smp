@@ -765,7 +765,18 @@ static inline void *task_malloc(size_t size, beken_mem_type_t eMemType)
     case HEAP_MEM_TYPE_SRAM:
         return os_sram_malloc(size);
     default:
-        return os_malloc(size);
+    {
+        void *ptr = os_sram_malloc(size);
+        if (ptr != NULL) {
+            return ptr;
+        }
+
+#if CONFIG_TASK_STACK_IN_PSRAM && CONFIG_PSRAM_AS_SYS_MEMORY
+        return psram_cache_malloc(size);
+#else
+        return NULL;
+#endif
+    }
     }
 }
 
