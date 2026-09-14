@@ -660,6 +660,13 @@ void cli_voice_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
         voice_cfg.args = NULL;
 
         /* start voice */
+#if CONFIG_AUD_PM_FAST_COLD
+        if (BK_OK != bk_voice_pm_save_cfg(&voice_cfg))
+        {
+            LOGE("%s, %d, voice save cfg fail\n", __func__, __LINE__);
+            goto fail;
+        }
+#endif
         gl_voice_handle = bk_voice_init(&voice_cfg);
         if (!gl_voice_handle)
         {

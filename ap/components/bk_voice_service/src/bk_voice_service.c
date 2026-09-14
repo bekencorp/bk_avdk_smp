@@ -21,6 +21,12 @@
 
 #define TAG "voc"
 
+#if CONFIG_AUD_PM_FAST_COLD
+static void voice_pm_notify_init(voice_handle_t voice_handle);
+static void voice_pm_notify_start(voice_handle_t voice_handle);
+static void voice_pm_notify_deinit(voice_handle_t voice_handle);
+#endif
+
 #if 0
 #define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
 #define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
@@ -444,6 +450,13 @@ static bk_err_t record_pipeline_stop(audio_pipeline_handle_t record_pipeline)
         return BK_FAIL;
     }
 
+#if CONFIG_AUD_PM_FAST_COLD
+    /* stop aborts ringbufs; wait_for_stop only resets element state.
+     * Without this, the next audio_pipeline_run/resume immediately hits
+     * AEL_IO_ABORT and can overflow the 1KB mic task. Same as bk_player_stop. */
+    audio_pipeline_reset_port(record_pipeline);
+#endif
+
     return BK_OK;
 }
 
@@ -782,6 +795,10 @@ static bk_err_t play_pipeline_stop(audio_pipeline_handle_t play_pipeline)
         BK_LOGE(TAG, "%s, %d, play_pipeline wait stop fail\n", __func__, __LINE__);
         return BK_FAIL;
     }
+
+#if CONFIG_AUD_PM_FAST_COLD
+    audio_pipeline_reset_port(play_pipeline);
+#endif
 
     return BK_OK;
 }
@@ -1470,6 +1487,10 @@ voice_handle_t bk_voice_init(voice_cfg_t *cfg)
     aud_dump_cli_init();
     #endif
 
+#if CONFIG_AUD_PM_FAST_COLD
+    voice_pm_notify_init(voice_handle);
+#endif
+
     return voice_handle;
 
 fail:
@@ -1504,6 +1525,10 @@ fail:
 bk_err_t bk_voice_deinit(voice_handle_t voice_handle)
 {
     VOICE_CHECK_NULL(voice_handle, return BK_FAIL);
+
+#if CONFIG_AUD_PM_FAST_COLD
+    voice_pm_notify_deinit(voice_handle);
+#endif
 
     BK_LOGD(TAG, "%s\n", __func__);
 
@@ -1576,6 +1601,10 @@ bk_err_t bk_voice_start(voice_handle_t voice_handle)
     }
 
     voice_handle->status = VOICE_STA_RUNNING;
+
+#if CONFIG_AUD_PM_FAST_COLD
+    voice_pm_notify_start(voice_handle);
+#endif
 
     return BK_OK;
 
@@ -1871,6 +1900,126 @@ static uint16_t bk_voice_get_mp3_frame_sample_cnt(uint16_t sample_rate, uint8_t 
     }
 
     return (sample_cnt*ch_num);
+}
+#endif
+
+#if CONFIG_AUD_PM_FAST_COLD
+static voice_cfg_t s_voice_pm_cfg;
+static voice_handle_t s_voice_pm_handle;
+static uint8_t s_voice_pm_cfg_valid;
+static uint8_t s_voice_pm_want_restart;
+static uint8_t s_voice_pm_in_quiesce;
+static uint8_t s_voice_pm_registered;
+
+static void voice_pm_notify_init(voice_handle_t voice_handle)
+{
+    s_voice_pm_handle = voice_handle;
+}
+
+static void voice_pm_notify_start(voice_handle_t voice_handle)
+{
+    if (voice_handle == s_voice_pm_handle && s_voice_pm_cfg_valid) {
+        s_voice_pm_want_restart = 1;
+    }
+}
+
+static void voice_pm_notify_deinit(voice_handle_t voice_handle)
+{
+    if (voice_handle != s_voice_pm_handle) {
+        return;
+    }
+
+    s_voice_pm_handle = NULL;
+}
+
+static bk_err_t voice_pm_quiesce(void *arg)
+{
+    (void)arg;
+
+    if (!s_voice_pm_handle) {
+        return BK_OK;
+    }
+
+    s_voice_pm_in_quiesce = 1;
+    bk_err_t ret = bk_voice_deinit(s_voice_pm_handle);
+    s_voice_pm_in_quiesce = 0;
+    return ret;
+}
+
+static bk_err_t voice_pm_app_resume(void *arg)
+{
+    voice_cfg_t *cfg = (voice_cfg_t *)arg;
+
+    if (!s_voice_pm_cfg_valid || !s_voice_pm_want_restart) {
+        return BK_OK;
+    }
+    if (!cfg) {
+        return BK_FAIL;
+    }
+    if (s_voice_pm_handle) {
+        return BK_OK;
+    }
+
+    s_voice_pm_handle = bk_voice_init(cfg);
+    if (!s_voice_pm_handle) {
+        BK_LOGE(TAG, "%s, voice init fail on app_resume\n", __func__);
+        return BK_FAIL;
+    }
+
+    if (BK_OK != bk_voice_start(s_voice_pm_handle)) {
+        BK_LOGE(TAG, "%s, voice start fail on app_resume\n", __func__);
+        bk_voice_deinit(s_voice_pm_handle);
+        return BK_FAIL;
+    }
+
+    return BK_OK;
+}
+
+static const pm_ap_fast_pm_ops_t s_voice_pm_ops = {
+    .name = "voice",
+    .quiesce = voice_pm_quiesce,
+    .app_resume = voice_pm_app_resume,
+    .arg = &s_voice_pm_cfg,
+    .priority = PM_AP_POWER_PRIORITY_SERVICE,
+};
+
+bk_err_t bk_voice_pm_save_cfg(const voice_cfg_t *cfg)
+{
+    if (!cfg) {
+        return BK_FAIL;
+    }
+
+    os_memcpy(&s_voice_pm_cfg, cfg, sizeof(s_voice_pm_cfg));
+    s_voice_pm_cfg_valid = 1;
+
+    if (!s_voice_pm_registered) {
+        if (BK_OK != bk_pm_ap_fast_ops_register(&s_voice_pm_ops)) {
+            BK_LOGE(TAG, "%s, register voice pm ops fail\n", __func__);
+            return BK_FAIL;
+        }
+        s_voice_pm_registered = 1;
+    }
+
+    return BK_OK;
+}
+
+const voice_cfg_t *bk_voice_pm_get_cfg(void)
+{
+    if (!s_voice_pm_cfg_valid) {
+        return NULL;
+    }
+    return &s_voice_pm_cfg;
+}
+
+voice_handle_t bk_voice_pm_get_handle(void)
+{
+    return s_voice_pm_handle;
+}
+
+void bk_voice_pm_clear(void)
+{
+    s_voice_pm_want_restart = 0;
+    s_voice_pm_cfg_valid = 0;
 }
 #endif
 
