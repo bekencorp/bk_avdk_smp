@@ -165,12 +165,17 @@ uint8_t cif_get_event_long_buf_cnt()
 uint8_t* cif_get_event_buffer(uint16_t size)
 {
     uint8_t type = 0xff;
+    uint8_t *buf = NULL;
+    uint32_t int_level;
+
     if(size < CIF_MAX_CFM_SHORT_PAYLOAD_LEN){
         type = CMD_BUF_SHORT;
     }
     else{
         type = CMD_BUF_LONG;
     }
+
+    int_level = cif_stats_enter_critical();
     switch(type)
     {
         case CMD_BUF_LONG:
@@ -183,7 +188,8 @@ uint8_t* cif_get_event_buffer(uint16_t size)
                 {
                     uint32_t pattern_addr = cif_env.cmd_addr[i] - EVENT_HEAD_LEN;
                     *((uint32_t*)pattern_addr) = PATTERN_BUSY;
-                    return (uint8_t*)cif_env.cmd_addr[i];
+                    buf = (uint8_t*)cif_env.cmd_addr[i];
+                    break;
                 }
             }
             break;
@@ -198,7 +204,8 @@ uint8_t* cif_get_event_buffer(uint16_t size)
                 {
                     uint32_t pattern_addr = cif_env.cmd_addr_short[i] - EVENT_HEAD_LEN;
                     *((uint32_t*)pattern_addr) = PATTERN_BUSY;
-                    return (uint8_t*)cif_env.cmd_addr_short[i];
+                    buf = (uint8_t*)cif_env.cmd_addr_short[i];
+                    break;
                 }
             }
             break;
@@ -209,7 +216,8 @@ uint8_t* cif_get_event_buffer(uint16_t size)
             break;
         }
     }
-    return NULL;
+    cif_stats_exit_critical(int_level);
+    return buf;
 }
 void cif_free_cmd_buffer(uint8_t* buf)
 {
@@ -220,8 +228,10 @@ void cif_free_cmd_buffer(uint8_t* buf)
     }
     else
     {
+        uint32_t int_level = cif_stats_enter_critical();
         uint32_t* pattern_addr = (uint32_t*)(buf - EVENT_HEAD_LEN);
         *pattern_addr = PATTERN_FREE;
+        cif_stats_exit_critical(int_level);
     }
 }
 
@@ -236,7 +246,7 @@ void cif_free_cmd_buffer(uint8_t* buf)
 void cif_tx_event_buffer_init()
 {
     memset(cif_tx_event_buffer, 0, MAX_NUM_CMD_LONG_BUF*CIF_MAX_CFM_DATA_LEN);
-    memset(cif_tx_event_short_buffer, 0, MAX_NUM_CMD_LONG_BUF*CIF_MAX_CFM_SHORT_LEN);
+    memset(cif_tx_event_short_buffer, 0, MAX_NUM_CMD_SHORT_BUF*CIF_MAX_CFM_SHORT_LEN);
 
     for(uint8_t i=0; i<MAX_NUM_CMD_LONG_BUF ; i++)
     {

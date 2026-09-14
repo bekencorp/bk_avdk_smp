@@ -275,10 +275,15 @@ bool wdrv_cp_mem_tx_allowed(void)
 
     /* memory is tight when the lwIP TX pool OR the lwIP total heap crosses the
      * high water mark, OR the CP OS heap drops to/below its reserve */
-    mem_tight = (lwip_avail && ((tx_pct >= 75) || (mem_pct > 80))) || heap_low;
+    mem_tight = (lwip_avail &&
+                 ((tx_pct >= TX_MEM_STOP_THRES) ||
+                  (mem_pct > TOTAL_MEM_STOP_THRES))) ||
+                heap_low;
     /* memory has eased only when BOTH lwIP metrics are below the low water mark
      * AND the CP OS heap is comfortably above its reserve */
-    mem_eased = (((tx_pct < 75) && (mem_pct <= 80)) && heap_ok);
+    mem_eased = (((tx_pct < TX_MEM_RESUME_THRES) &&
+                  (mem_pct < TOTAL_MEM_RESUME_THRES)) &&
+                 heap_ok);
 
     WDRV_IPC_LOCK(&wdrv_ipc_env[IPC_DATA], int_level);
     was_controlled = AP_TX_FLOW_STATE_CONTROLLED(wdrv_env.is_controlled);

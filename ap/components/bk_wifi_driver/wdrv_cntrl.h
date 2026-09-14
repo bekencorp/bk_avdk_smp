@@ -73,6 +73,10 @@ typedef struct {
 #define CP_MEM_SNAPSHOT_VERSION        1U
 #define AP_TX_FLOW_CONTROLLED_MASK     0x1U
 #define AP_TX_FLOW_CNT_SHIFT           1U
+#define TX_MEM_STOP_THRES       75U
+#define TX_MEM_RESUME_THRES     60U
+#define TOTAL_MEM_STOP_THRES    80U
+#define TOTAL_MEM_RESUME_THRES  70U
 
 typedef struct ap_tx_flow_state {
     volatile uint32_t value;

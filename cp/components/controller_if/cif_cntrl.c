@@ -705,8 +705,8 @@ static __IRAM2 bool cif_tx_flow_mem_recovered(void)
     heap_free = rtos_get_free_heap_size();
     heap_min_rsv = g_wifi_mac_config.min_rsv_mem;
 
-    return ((tx_pct < 75) &&
-            (mem_pct <= 80) &&
+    return ((tx_pct < TX_MEM_RESUME_THRES) &&
+            (mem_pct < TOTAL_MEM_RESUME_THRES) &&
             (heap_free > (heap_min_rsv + heap_min_rsv / 4)));
 #else
     return false;
