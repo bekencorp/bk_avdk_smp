@@ -3215,20 +3215,6 @@ __IRAM_SEC void sys_hal_set_sys2flsh_2wire(uint32_t value)
 {
 	return;
 }
-/** Ethernet start **/
-#ifdef CONFIG_ETH
-void sys_hal_enable_eth_int(uint32_t value)
-{
-	return;
-}
-
-void sys_hal_set_eth_clk_en(uint32_t value)
-{
-	sys_aonp_regd_t *r = (sys_aonp_regd_t *)(SOC_SYS_AONP_REG_BASE + (0xd << 2));
-	r->auxs_enet_cken = value;
-}
-#endif
-/** Ethernet End**/
 void sys_hal_set_ana_trxt_tst_enable(uint32_t value)
 {
 	return;
