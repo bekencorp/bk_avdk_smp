@@ -499,7 +499,7 @@ static bk_err_t _onboard_mic_destroy(audio_element_handle_t self)
     audio_free(onboard_mic);
     onboard_mic = NULL;
 
-    mb_flash_unregister_op_onboard_mic_stream_notify();
+    mb_flash_unregister_op_notify_cb(flash_op_notify_onboard_mic_stream_handler);
 
     ONBOARD_MIC_DATA_COUNT_CLOSE();
     ONBOARD_MIC_DATA_DUMP_BY_UART_CLOSE();
@@ -623,7 +623,7 @@ audio_element_handle_t onboard_mic_stream_init(onboard_mic_stream_cfg_t *config)
     info.codec_fmt = BK_CODEC_TYPE_PCM;
     audio_element_setinfo(el, &info);
 
-    mb_flash_register_op_onboard_mic_stream_notify(flash_op_notify_onboard_mic_stream_handler, el);
+    mb_flash_register_op_notify_cb(flash_op_notify_onboard_mic_stream_handler, el);
 
     ONBOARD_MIC_DATA_COUNT_OPEN();
     ONBOARD_MIC_DATA_DUMP_BY_UART_OPEN();
