@@ -402,7 +402,12 @@ static inline uint32_t shell_task_enter_critical()
 	uint32_t flags = rtos_disable_int();
 
 #if CONFIG_SOC_SMP
-	spin_lock(&shell_spin_lock);
+	/* In exception context the peer core has already been stopped and local
+	 * interrupts are off, so there is nothing left to serialise against. Taking
+	 * the lock would instead hang the dump: a peer stopped while holding it can
+	 * never release it and spinlock_take() has no timeout. */
+	if(!arch_is_enter_exception())
+		spin_lock(&shell_spin_lock);
 #endif // CONFIG_SOC_SMP
 
 	return flags;
@@ -411,7 +416,8 @@ static inline uint32_t shell_task_enter_critical()
 static inline void shell_task_exit_critical(uint32_t flags)
 {
 #if CONFIG_SOC_SMP
-	spin_unlock(&shell_spin_lock);
+	if(!arch_is_enter_exception())
+		spin_unlock(&shell_spin_lock);
 #endif // CONFIG_SOC_SMP
 
 	rtos_enable_int(flags);
@@ -2767,6 +2773,47 @@ int shell_get_log_statist(u32 * info_list, u32 num)
 	}
 
 	return cnt;
+}
+
+typedef struct {
+	shell_log_flush_continue_t should_continue;
+	void *context;
+} shell_log_flush_context_t;
+
+static bool_t shell_log_flush_continue(void *context)
+{
+	shell_log_flush_context_t *flush_context =
+		(shell_log_flush_context_t *)context;
+
+	return flush_context->should_continue(flush_context->context)
+		? bTRUE : bFALSE;
+}
+
+bool shell_log_flush_controlled(
+	shell_log_flush_continue_t should_continue, void *context)
+{
+	u32 int_mask;
+	bool_t flushed;
+	shell_log_flush_context_t flush_context = {
+		.should_continue = should_continue,
+		.context = context,
+	};
+	shell_flush_control_t control = {
+		.should_continue = shell_log_flush_continue,
+		.context = &flush_context,
+	};
+
+	if(should_continue == NULL)
+		return false;
+
+	int_mask = rtos_disable_int();
+	flushed = log_dev->dev_drv->io_ctrl(
+		log_dev, SHELL_IO_CTRL_FLUSH_CONTROLLED, &control);
+	if(flushed == bFALSE)
+		log_dev->dev_drv->io_ctrl(log_dev, SHELL_IO_CTRL_TX_RESET, NULL);
+	rtos_enable_int(int_mask);
+
+	return flushed == bTRUE;
 }
 
 void shell_log_flush(void)
