@@ -1271,6 +1271,14 @@ static bk_err_t player_pm_quiesce(void *arg)
     return ret;
 }
 
+static bk_err_t player_pm_resume(void *arg)
+{
+    (void)arg;
+
+    /* Pairing for register. Recreate waits for app_resume. */
+    return BK_OK;
+}
+
 static bk_err_t player_pm_app_resume(void *arg)
 {
     bk_player_cfg_t *cfg = (bk_player_cfg_t *)arg;
@@ -1320,6 +1328,7 @@ static bk_err_t player_pm_app_resume(void *arg)
 static const pm_ap_fast_pm_ops_t s_player_pm_ops = {
     .name = "player",
     .quiesce = player_pm_quiesce,
+    .resume = player_pm_resume,
     .app_resume = player_pm_app_resume,
     .arg = &s_player_pm_cfg,
     .priority = PM_AP_POWER_PRIORITY_SERVICE,
