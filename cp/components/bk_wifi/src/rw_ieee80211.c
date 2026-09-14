@@ -1209,5 +1209,38 @@ void rwnx_regulatory_hint_11d(int freq, const u8 *country_ie, u8 country_ie_len)
 	regulatory_hint_11d(&g_wiphy, band, country_ie, country_ie_len);
 }
 #endif
+
+/// Instrument discernible ssid & bssid
+bool rwnx_ieee80211_check_conn_instrument(const struct mac_ssid *ssid, const struct mac_addr *bssid)
+{
+    // check null pointer
+    if (ssid == NULL && bssid == NULL) {
+        return false;
+    }
+
+    UINT8 ssid_array[] = "CMW-AP";
+    UINT8 ssid_length = sizeof(ssid_array) - 1;
+    UINT8 ssid_array2[] = "P-DCTEST";
+    UINT8 ssid_length2 = sizeof(ssid_array2) - 1;
+    UINT16 bssid_addr1 = 0x0100; //"00:01:02:03:04:05"
+    UINT16 bssid_addr2 = 0x0302;
+    UINT16 bssid_addr3 = 0x0504;
+
+    // check SSID is matched
+    if (ssid && (ssid_length == ssid->length) && (!memcmp(ssid_array, ssid->array, ssid_length))) {
+        return true;
+    } else if (ssid && (ssid_length2 == ssid->length) && (!memcmp(ssid_array2, ssid->array, ssid_length2))) {
+        return true;
+    }
+
+    // check BSSID is matched (two SSID use the same BSSID check logic)
+    if (bssid && (bssid->array[0] == bssid_addr1) &&
+        (bssid->array[1] == bssid_addr2) &&
+        (bssid->array[2] == bssid_addr3)) {
+        return true;
+    }
+
+    return false;
+}
 // eof
 

@@ -1099,7 +1099,7 @@ UINT32 mhdr_scanu_result_ind(SCAN_RST_UPLOAD_T *scan_rst, void *msg, UINT32 len)
 					ssid_len = MAC_SSID_LEN;
 
 				os_memcpy(ssid_b, elmt_addr + 2, ssid_len);
-				RWNX_LOGD("drop: %s, chan:%d\r\n", ssid_b, chann);
+				RWNX_LOGD("drop: %s, chan:%d,not in countrycode\r\n", ssid_b, chann);
 			}
 
 			goto scan_rst_exit;
@@ -1128,7 +1128,7 @@ UINT32 mhdr_scanu_result_ind(SCAN_RST_UPLOAD_T *scan_rst, void *msg, UINT32 len)
                         ssid_len = MAC_SSID_LEN;
 
                     os_memcpy(ssid_b, elmt_addr + 2, ssid_len);
-                    RWNX_LOGD("drop: %s, chan:%d\r\n", ssid_b, chann);
+                    RWNX_LOGD("drop: %s, chan:%d,not in countrycode\r\n", ssid_b, chann);
                 }
                 goto scan_rst_exit;
             }

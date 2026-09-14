@@ -1451,6 +1451,7 @@ int set_regdom(const struct ieee80211_regdomain *rd);
 int ieee80211_channel_to_frequency(int chan, wifi_band_t band);
 int ieee80211_frequency_to_channel(int freq);
 uint16_t get_chan_flags(uint32_t flags);
+bool rwnx_ieee80211_check_conn_instrument(const struct mac_ssid *ssid, const struct mac_addr *bssid);
 void regulatory_hint_11d(struct wiphy *wiphy, wifi_band_t band, const u8 *country_ie, u8 country_ie_len);
 int regulatory_hint_core(const char *alpha2);
 int regulatory_hint_found_beacon(struct wiphy *wiphy, struct ieee80211_channel *beacon_chan);

@@ -2637,8 +2637,29 @@ bk_err_t bk_wifi_scan_start(const wifi_scan_config_t *config)
 
 	wlan_sta_scan_param_t scan_param = {0};
 	scan_param.id = (uint32_t)rtos_get_current_thread();
+	wifi_scan_config_t temp_config;
 
 	if (config ) {
+		temp_config = *config;
+		os_memset(temp_config.chan_nb, 0, sizeof(temp_config.chan_nb));
+
+		uint8_t orig_cnt = MIN(config->chan_cnt, WIFI_2BAND_MAX_CHAN_NUM);
+		uint8_t valid_cnt = 0;
+		for (int i = 0; i < orig_cnt; i++) {
+			if (0 == rw_ieee80211_is_scan_rst_in_countrycode(config->chan_nb[i])) {
+				WIFI_LOGI("chan %d not in countrycode, skip\r\n", config->chan_nb[i]);
+				continue;
+			}
+			temp_config.chan_nb[valid_cnt++] = config->chan_nb[i];
+		}
+		if (orig_cnt > 0 && 0 == valid_cnt) {
+			WIFI_LOGE("all configured channels not in countrycode\r\n");
+			return BK_ERR_PARAM;
+		}
+
+		temp_config.chan_cnt = valid_cnt;
+		config = &temp_config;
+
 		ssid_len = MIN(WLAN_SSID_MAX_LEN, os_strlen((char *)config->ssid));
 		scan_param.scan_cc = !!(config->flag & SCAN_TYPE_CC);
 
