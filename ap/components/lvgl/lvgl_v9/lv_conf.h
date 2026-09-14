@@ -724,6 +724,9 @@
 
 /** LODEPNG decoder library */
 #define LV_USE_LODEPNG 0
+#if LV_USE_LODEPNG
+    #define LV_LODEPNG_USE_PSRAM 0      /* 0: use default sram memory, 1: use psram memory. */
+#endif
 
 /** PNG decoder(libpng) library */
 #define LV_USE_LIBPNG 0

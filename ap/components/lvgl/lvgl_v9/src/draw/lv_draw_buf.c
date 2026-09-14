@@ -656,7 +656,14 @@ static void * buf_malloc(size_t size_bytes, lv_color_format_t color_format)
 
     /*Allocate larger memory to be sure it can be aligned as needed*/
     size_bytes += LV_DRAW_BUF_ALIGN - 1;
-    return lv_malloc(size_bytes);
+
+    /* Draw buffers can be far bigger than the SRAM heap behind lv_malloc() can
+     * serve (a decoded 180x180 ARGB8888 image is ~127KB), which made PNG
+     * decoding fail with lodepng error 83. Fall back to PSRAM instead of
+     * failing; buf_free()/lv_free() frees PSRAM pointers correctly too. */
+    void * buf = lv_malloc(size_bytes);
+    if(buf == NULL) buf = lv_psram_malloc(size_bytes);
+    return buf;
 }
 
 static void buf_free(void * buf)

@@ -92,6 +92,26 @@ static void * lodepng_realloc(void * ptr, size_t new_size)
     return lv_realloc(ptr, new_size);
 }
 
+#if LV_LODEPNG_USE_PSRAM
+/* Only the few large decode buffers (file, IDAT, raw scanlines) use these; the
+ * small and frequently touched allocations stay on the faster SRAM heap. */
+static void * lodepng_psram_malloc(size_t size)
+{
+#ifdef LODEPNG_PSRAM_MAX_ALLOC
+    if(size > LODEPNG_PSRAM_MAX_ALLOC) return 0;
+#endif
+    return lv_psram_malloc(size);
+}
+
+static void * lodepng_psram_realloc(void * ptr, size_t new_size)
+{
+#ifdef LODEPNG_PSRAM_MAX_ALLOC
+    if(new_size > LODEPNG_PSRAM_MAX_ALLOC) return 0;
+#endif
+    return lv_psram_realloc(ptr, new_size);
+}
+#endif
+
 static void lodepng_free(void * ptr)
 {
     lv_free(ptr);
@@ -100,6 +120,10 @@ static void lodepng_free(void * ptr)
 /* TODO: support giving additional void* payload to the custom allocators */
 void * lodepng_malloc(size_t size);
 void * lodepng_realloc(void * ptr, size_t new_size);
+#if LV_LODEPNG_USE_PSRAM
+void * lodepng_psram_malloc(size_t size);
+void * lodepng_psram_realloc(void * ptr, size_t new_size);
+#endif
 void lodepng_free(void * ptr);
 #endif /*LODEPNG_COMPILE_ALLOCATORS*/
 
@@ -302,6 +326,30 @@ static unsigned ucvector_resize(ucvector * p, size_t size)
     return ucvector_reserve(p, size);
 }
 
+#if LV_LODEPNG_USE_PSRAM
+/*PSRAM counterparts: the inflate output grows to the full raw image size, so the
+reallocations have to stay in PSRAM as well, not just the first allocation*/
+static unsigned ucvector_psram_reserve(ucvector * p, size_t size)
+{
+    if(size > p->allocsize) {
+        size_t newsize = size + (p->allocsize >> 1u);
+        void * data = lodepng_psram_realloc(p->data, newsize);
+        if(data) {
+            p->allocsize = newsize;
+            p->data = (unsigned char *)data;
+        }
+        else return 0; /*error: not enough memory*/
+    }
+    return 1; /*success*/
+}
+
+static unsigned ucvector_psram_resize(ucvector * p, size_t size)
+{
+    p->size = size;
+    return ucvector_psram_reserve(p, size);
+}
+#endif
+
 static ucvector ucvector_init(unsigned char * buffer, size_t size)
 {
     ucvector v;
@@ -408,7 +456,11 @@ unsigned lodepng_load_file(unsigned char ** out, size_t * outsize, const char * 
     if(size < 0) return 78;
     *outsize = (size_t)size;
 
+#if LV_LODEPNG_USE_PSRAM
+    *out = (unsigned char *)lodepng_psram_malloc((size_t)size);
+#else
     *out = (unsigned char *)lodepng_malloc((size_t)size);
+#endif
     if(!(*out) && size > 0) return 83; /*the above malloc failed*/
 
     return lodepng_buffer_file(*out, (size_t)size, filename);
@@ -1318,7 +1370,11 @@ static unsigned inflateHuffmanBlock(ucvector * out, LodePNGBitReader * reader,
         260; /* must be at least 258 for max length, and a few extra for adding a few extra literals */
     int done = 0;
 
+#if LV_LODEPNG_USE_PSRAM
+    if(!ucvector_psram_reserve(out, out->size + reserved_size)) return 83; /*alloc fail*/
+#else
     if(!ucvector_reserve(out, out->size + reserved_size)) return 83; /*alloc fail*/
+#endif
 
     HuffmanTree_init(&tree_ll);
     HuffmanTree_init(&tree_d);
@@ -1403,7 +1459,11 @@ static unsigned inflateHuffmanBlock(ucvector * out, LodePNGBitReader * reader,
             ERROR_BREAK(16); /*error: tried to read disallowed huffman symbol*/
         }
         if(out->allocsize - out->size < reserved_size) {
+#if LV_LODEPNG_USE_PSRAM
+            if(!ucvector_psram_reserve(out, out->size + reserved_size)) ERROR_BREAK(83); /*alloc fail*/
+#else
             if(!ucvector_reserve(out, out->size + reserved_size)) ERROR_BREAK(83); /*alloc fail*/
+#endif
         }
         /*check if any of the ensureBits above went out of bounds*/
         if(reader->bp > reader->bitsize) {
@@ -1445,7 +1505,11 @@ static unsigned inflateNoCompression(ucvector * out, LodePNGBitReader * reader,
         return 21; /*error: NLEN is not one's complement of LEN*/
     }
 
+#if LV_LODEPNG_USE_PSRAM
+    if(!ucvector_psram_resize(out, out->size + LEN)) return 83; /*alloc fail*/
+#else
     if(!ucvector_resize(out, out->size + LEN)) return 83; /*alloc fail*/
+#endif
 
     /*read the literal data: LEN bytes are now stored in the out buffer*/
     if(bytepos + LEN > size) return 23; /*error: reading outside of in buffer*/
@@ -2354,7 +2418,11 @@ static unsigned zlib_decompress(unsigned char ** out, size_t * outsize, size_t e
         ucvector v = ucvector_init(*out, *outsize);
         if(expected_size) {
             /*reserve the memory to avoid intermediate reallocations*/
+#if LV_LODEPNG_USE_PSRAM
+            ucvector_psram_resize(&v, *outsize + expected_size);
+#else
             ucvector_resize(&v, *outsize + expected_size);
+#endif
             v.size = *outsize;
         }
         error = lodepng_zlib_decompressv(&v, in, insize, settings);
@@ -5616,7 +5684,11 @@ static void decodeGeneric(unsigned char ** out, unsigned * w, unsigned * h,
     }
 
     /*the input filesize is a safe upper bound for the sum of idat chunks size*/
+#if LV_LODEPNG_USE_PSRAM
+    idat = (unsigned char *)lodepng_psram_malloc(insize);
+#else
     idat = (unsigned char *)lodepng_malloc(insize);
+#endif
     if(!idat) CERROR_RETURN(state->error, 83); /*alloc fail*/
 
     chunk = &in[33]; /*first byte of the first chunk after the header*/
