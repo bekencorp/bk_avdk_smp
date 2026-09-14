@@ -103,21 +103,23 @@ static void bk_modem_dte_ec_check_hs_data(uint32_t data_length, uint8_t *data)
  *        current PPP mode setting. It performs input validation and logs errors for invalid parameters.
  */
 #if CONFIG_LWIP_PPP_SUPPORT
-void bk_modem_dte_send_data(uint32_t data_length, uint8_t *data, enum bk_modem_ppp_mode_e ppp_mode)
+uint32_t bk_modem_dte_send_data(uint32_t data_length, uint8_t *data, enum bk_modem_ppp_mode_e ppp_mode)
 {
     if ((data_length == 0) || (data == NULL))
     {
         BK_MODEM_LOGE("%s:invalid data length\r\n",__func__);
-        return;
+        return 0;
     }
 
     if (bk_modem_env.bk_modem_ppp_mode == ppp_mode)
     {
-        bk_modem_usbh_bulkout_ind((char *)data, data_length);
+        int32_t ret = bk_modem_usbh_bulkout_ind((char *)data, data_length);
+        return (ret == data_length) ? data_length : 0;
     }
     else
         BK_MODEM_LOGE("%s: different ppp mode. %d %d\r\n",__func__, bk_modem_env.bk_modem_ppp_mode, ppp_mode);
 
+    return 0;
 }
 #endif
 
@@ -148,26 +150,29 @@ void bk_modem_dte_send_data_uart(uint32_t data_length, uint8_t *data, enum bk_mo
  *        handler based on the current PPP mode (AT command processing or PPP network stack).
  */
 #if CONFIG_LWIP_PPP_SUPPORT
-void bk_modem_dte_recv_data(uint32_t data_length, uint8_t *data)
+bk_err_t bk_modem_dte_recv_data(uint32_t data_length, uint8_t *data)
 {
     if ((data_length == 0) || (data == NULL))
     {
         BK_MODEM_LOGE("%s:invalid data input %d\r\n",__func__, data_length);
-        return;
+        return BK_FAIL;
     }
     
     if (bk_modem_env.bk_modem_ppp_mode == PPP_CMD_MODE)
     {
         bk_modem_at_rcv_resp((char *)data, data_length);
+        return BK_OK;
     }
     else if (bk_modem_env.bk_modem_ppp_mode == PPP_DATA_MODE)
     {
-        bk_modem_netif_lwip_ppp_input(data, data_length);
+        return bk_modem_netif_lwip_ppp_input(data, data_length);
     }
     else
     {
         BK_MODEM_LOGE("%s:invalid ppp mode %d\r\n",__func__, bk_modem_env.bk_modem_ppp_mode);
     }
+
+    return BK_FAIL;
 }
 #endif
 

@@ -44,21 +44,22 @@ void bk_modem_usbh_close(void)
 #endif
 }
 
-void bk_modem_usbh_bulkout_ind(char *p_tx, uint32_t l_tx)
+int32_t bk_modem_usbh_bulkout_ind(char *p_tx, uint32_t l_tx)
 {
 #if CONFIG_USB_CDC_MODEM
-	bk_cdc_acm_modem_write(p_tx, l_tx);
+	return bk_cdc_acm_modem_write(p_tx, l_tx);
 #endif
 }
 
-void bk_modem_usbh_bulkin_ind(uint8_t *p_rx, uint32_t l_rx)
+bk_err_t bk_modem_usbh_bulkin_ind(uint8_t *p_rx, uint32_t l_rx)
 {
 #if CONFIG_LWIP_PPP_SUPPORT
-	bk_modem_dte_recv_data(l_rx, (uint8_t *)p_rx);
+	return bk_modem_dte_recv_data(l_rx, (uint8_t *)p_rx);
 #else
 	(void)p_rx;
 	(void)l_rx;
 	BK_MODEM_LOGW("%s: drop USB data because PPP is disabled\r\n", __func__);
+	return BK_FAIL;
 #endif
 }
 
