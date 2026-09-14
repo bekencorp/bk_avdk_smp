@@ -121,12 +121,10 @@ void _soc_start(void)
     mpu_enable();
 #endif
 
-#if CONFIG_CACHE_MAINTENANCE
     /* Discard any stale cache lines left by a warm reset before enabling L1.
      * Invalidate-only: a clean here could write stale L2 lines back over the
      * freshly relocated .data/.iram and corrupt them. Matches the AP boot path. */
     arch_dcache_invd_all();
-#endif
 
 #if CONFIG_DCACHE
     arch_dcache_enable();
