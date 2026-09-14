@@ -100,5 +100,15 @@ menu "PM"
 			DTCM into retained AP SRAM and restore it before re-enabling
 			interrupts. The secondary AP core must be offline before capture.
 
+	config PM_AP_SRAM_RETENTION_CHECK
+		bool "Generate AP SRAM baseline for CP retention checks"
+		depends on PM_AP_FAST_BOOT_ENABLE && PSRAM_DATA_RETENTION_ENABLE
+		default n
+		help
+			Generate CRC32 values and a retained PSRAM snapshot for
+			SMEM3-SMEM6 before AP power-off. CP checks the banks after AP
+			reaches WFI and again before releasing AP reset. Idle-task and
+			AP main stacks are excluded.
+
 endmenu
 

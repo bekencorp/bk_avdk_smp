@@ -25,6 +25,7 @@
 #include <components/log.h>
 #include "common/bk_err.h"
 #include "driver/pm_ap_core.h"
+#include "sys_pm_hal_debug.h"
 #include <driver/gpio.h>
 #include <driver/hal/hal_gpio_types.h>
 //#include "gpio_hal.h"
@@ -76,6 +77,13 @@ static gpio_ldo_vote_node_t *s_gpio_ldo_vote_list  = NULL;
 
 
 /*================FUNCTION DECLARATION  SECTION  END========*/
+#if CONFIG_PM_AP_SRAM_RETENTION_CHECK
+void bk_pm_ap_sram_retention_check_set_idle_stack(void *start, void *end)
+{
+	sys_pm_hal_ap_sram_check_set_idle_stack(start, end);
+}
+#endif
+
 bk_err_t bk_pm_ap_misc_rtc_enter_deepsleep(uint32_t time_interval , aon_rtc_isr_t callback)
 {
 	return BK_OK;
