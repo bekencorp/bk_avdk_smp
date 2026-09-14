@@ -35,7 +35,6 @@
 
 #define dbg(...)
 
-
 /// Length of a char in bytes
 #define CHAR_LEN    (CHAR_BIT/8)
 
@@ -405,8 +404,19 @@ __IRAM2 void rwnx_tx_push(struct sk_buff *skb)
 
 	// Push to UMAC
 	ret = fhost_txbuf_push(txdesc, skb->ac);
-	if (ret)
+	if (ret != kNoErr) {
+		if (txdesc->host.flags & TXU_CNTRL_UNDER_BA) {
+			/*
+			 * bam_tx_cfm() already ran in fhost_txbuf_push(). Retry
+			 * confirmation returned one TXQ credit; only apply extra
+			 * credits released while moving the BAW.
+			 */
+			txq->credits += txdesc->host.cfm.credits - 1;
+			if (txq->credits <= 0)
+				rwnx_txq_stop(txq, RWNX_TXQ_STOP_FULL);
+		}
 		goto tx_exit;
+	}
 
 	// If successfully push to umac, decrease txq credits
 	txq->credits--;
