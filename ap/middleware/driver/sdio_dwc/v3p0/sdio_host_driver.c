@@ -61,6 +61,11 @@ void sdio_host_dispatch_card_irq(void); /* defined in the generic API section */
 #define SDIO_HOST_SD_CMD17_TIMEOUT_MS  500
 #define SDIO_HOST_R1B_TIMEOUT_MS       2000
 #define SDIO_HOST_BUF_READY_SLICE_MS   10
+#define SDIO_SRC_CLOCK_HZ              320000000u
+#define SDIO_SRC_DIV_MIN               4u
+#define SDIO_SRC_DIV_MAX               16u
+#define SDIO_HOST_DIV_MAX              1024u
+#define SDIO_HOST_MAX_CLOCK_HZ         80000000u
 
 uint32 adma3_wr_descriptor_addr[42];
 uint32 adma3_rd_descriptor_addr[42];
@@ -1531,22 +1536,67 @@ bk_err_t bk_sdio_host_reset(sdio_host_id_t id)
 
 bk_err_t bk_sdio_host_set_clock(sdio_host_id_t id, uint32_t freq_hz)
 {
-	uint32_t div;
+	uint32_t requested_hz = freq_hz;
+	uint32_t target_hz;
+	uint32_t best_src_div = 0;
+	uint32_t best_host_div = 0;
+	uint32_t best_total_div = UINT32_MAX;
+	uint32_t actual_hz;
 	bk_err_t ret;
 
 	if (id >= SDIO_HOST_ID_MAX)
 		return BK_ERR_PARAM;
 	if (freq_hz == 0)
 		freq_hz = 400000;
-	div = (80000000u + freq_hz - 1) / freq_hz;   /* base clock 80MHz */
-	if (div)
-		div -= 1;
-	if (div > 0x3ff)
-		div = 0x3ff;
+
+	/*
+	 * Follow the Linux SDHCI clock-selection rule: never exceed the
+	 * requested clock and choose the highest realizable frequency.
+	 *
+	 * BK7259 has two integer dividers:
+	 *   320MHz / source_div / host_div
+	 * The source divider is 4 bits and must keep the MSHC input <=80MHz.
+	 */
+	target_hz = MIN(freq_hz, SDIO_HOST_MAX_CLOCK_HZ);
+
+	for (uint32_t src_div = SDIO_SRC_DIV_MIN;
+	     src_div <= SDIO_SRC_DIV_MAX; src_div++) {
+		uint64_t denominator = (uint64_t)target_hz * src_div;
+		uint32_t host_div =
+			(uint32_t)(((uint64_t)SDIO_SRC_CLOCK_HZ +
+				    denominator - 1u) / denominator);
+		uint32_t total_div;
+
+		if (host_div == 0)
+			host_div = 1;
+		if (host_div > SDIO_HOST_DIV_MAX)
+			continue;
+		total_div = src_div * host_div;
+		if ((total_div < best_total_div) ||
+		    ((total_div == best_total_div) &&
+		     (host_div < best_host_div))) {
+			best_src_div = src_div;
+			best_host_div = host_div;
+			best_total_div = total_div;
+		}
+	}
+	if ((best_src_div == 0) || (best_host_div == 0))
+		return BK_ERR_PARAM;
+
+	actual_hz = SDIO_SRC_CLOCK_HZ / best_total_div;
 	sdio_host_lock();
 	sdio_host_select(id);
-	ret = sd_clk_change(s_active_base, (uint16)div);
+	card_clk_stop(s_active_base);
+	if (id == SDIO_HOST_ID_1)
+		sys_hal_sdio1_set_src_clk_div(best_src_div - 1u);
+	else
+		sys_hal_sdio0_set_src_clk_div(best_src_div - 1u);
+	ret = sd_clk_change(s_active_base, (uint16)(best_host_div - 1u));
 	sdio_host_unlock();
+
+	SDIOD_LOGI("SD clock request=%uHz target=%uHz actual=%uHz src_div=%u host_div=%u\r\n",
+		   requested_hz ? requested_hz : 400000u, target_hz, actual_hz,
+		   best_src_div, best_host_div);
 	return ret;
 }
 
