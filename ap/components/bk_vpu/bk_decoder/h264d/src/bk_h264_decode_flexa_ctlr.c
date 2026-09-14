@@ -158,7 +158,9 @@ static void flexa_done_cb(uint32_t wr_ptr, void *args)
 		}
 		bk_flexa_bond_t *b = (bk_flexa_bond_t *)ctrl->port[i].bond;
 		if (ctrl->port[i].first_bond != 0U) {
-			if (wr_ptr == 1U) {
+			uint32_t seg_num = (ctrl->config.segment_number != 0U) ?
+				(uint32_t)ctrl->config.segment_number : 2U;
+			if (wr_ptr > 0U && wr_ptr < seg_num) {
 				ctrl->port[i].first_bond = 0U;
 				if (b->flexa_done != NULL) {
 					b->flexa_done(wr_ptr, b);
