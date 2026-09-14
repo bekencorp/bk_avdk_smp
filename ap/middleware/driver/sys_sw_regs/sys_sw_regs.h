@@ -68,6 +68,12 @@ uint32_t bk_sys_sw_regs_get_cp_reset_reason(void);
 uint32_t bk_sys_sw_regs_get_ap_reset_reason(void);
 
 /**
+ * @brief Get the address of the CP-owned AP exception record slot.
+ * @return Slot address, or 0 when the CP has not published it yet.
+ */
+uint32_t bk_sys_sw_regs_get_ap_exception_record_ptr(void);
+
+/**
  * @brief Read the AP heap dump window for the selected heap pool.
  * @param id Heap pool identifier.
  * @param info Output buffer for the shared register contents.

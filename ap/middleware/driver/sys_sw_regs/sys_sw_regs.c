@@ -85,6 +85,11 @@ uint32_t bk_sys_sw_regs_get_ap_reset_reason(void)
     return s_sys_sw_regs.ap_reset_reason;
 }
 
+uint32_t bk_sys_sw_regs_get_ap_exception_record_ptr(void)
+{
+    return s_sys_sw_regs.ap_exception_record_ptr;
+}
+
 uint32_t bk_sys_sw_regs_get_ap_heap_dump(bk_sys_sw_regs_ap_heap_id_t id, ap_heap_dump_info_t *info)
 {
     volatile ap_heap_dump_info_t *slot = sys_sw_regs_ap_heap_slot(id);

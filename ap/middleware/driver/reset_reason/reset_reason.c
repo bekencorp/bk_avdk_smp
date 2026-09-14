@@ -30,11 +30,64 @@
 #define TAG "init"
 #define DISPLAY_START_TYPE_STR 1
 
+#define EXCEPTION_REBOOT_INFO_MAGIC   0x45585231U
+#define EXCEPTION_REBOOT_INFO_VERSION 1U
 
 static volatile bool s_initialized = false;
 static uint32_t s_start_type = 0;
 static uint32_t s_misc_value_save = 0;
 static uint32_t s_mem_value_save = 0;
+
+typedef struct {
+	uint32_t magic;
+	uint32_t version;
+	bk_exception_reboot_info_t info;
+	uint32_t checksum;
+} exception_reboot_record_t;
+
+static uint32_t exception_reboot_info_checksum(
+	const bk_exception_reboot_info_t *info)
+{
+	return EXCEPTION_REBOOT_INFO_MAGIC ^ EXCEPTION_REBOOT_INFO_VERSION ^
+		info->primary_reason ^ info->secondary_reason ^
+		info->primary_core ^ info->secondary_core ^
+		info->pc ^ info->lr ^ info->sp ^ info->cfsr ^ info->hfsr;
+}
+
+/* SRAM is never mapped into the d-cache, so a barrier is all that is needed to
+ * order the magic/content/magic store sequence below; no cache maintenance. */
+#define exception_reboot_record_commit() __asm volatile ("dsb" ::: "memory")
+
+/* The record lives in CP-retained memory, not in AP SRAM: the CP reloads AP SRAM
+ * when it restarts the AP, so a record kept on this side is already gone by the
+ * time the next boot could report it. The CP publishes the slot address before
+ * starting the AP and reports the record itself on the next boot. */
+void bk_misc_persist_exception_reboot_info(
+	const bk_exception_reboot_info_t *info)
+{
+	volatile exception_reboot_record_t *record =
+		(volatile exception_reboot_record_t *)(uintptr_t)
+			bk_sys_sw_regs_get_ap_exception_record_ptr();
+
+	/* Not published yet: skip persistence rather than fault on a null write.
+	 * The synchronous @PRIMARY_EXCEPTION header is emitted regardless. */
+	if (record == NULL) {
+		return;
+	}
+
+	/* Invalidate first, so a reset landing mid-update is detected as invalid
+	 * instead of reporting a half-written record. */
+	record->magic = 0U;
+	exception_reboot_record_commit();
+
+	record->version = EXCEPTION_REBOOT_INFO_VERSION;
+	record->info = *info;
+	record->checksum = exception_reboot_info_checksum(info);
+	exception_reboot_record_commit();
+
+	record->magic = EXCEPTION_REBOOT_INFO_MAGIC;
+	exception_reboot_record_commit();
+}
 
 uint32_t bk_misc_get_reset_reason(void)
 {
@@ -169,6 +222,8 @@ void show_reset_reason(void)
 #endif
 	}
 	BK_LOGD(TAG, "regs - %x, %x, %x\r\n", s_start_type, s_misc_value_save, s_mem_value_save);
+	/* The previous boot's exception context is reported by the CP, which owns the
+	 * record slot and whose synchronous output path is already up that early. */
 }
 
 // typedef volatile union {
