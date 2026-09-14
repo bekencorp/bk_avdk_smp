@@ -35,8 +35,8 @@ static void bk_heap_track_ap_heap_window(void *ptr, size_t size)
         pool_base = CONFIG_AP_PSRAM_HEAP_ADDR;
     }
 #endif
-#if defined(CONFIG_AP_PSRAM_NOCACHE_HEAP_ADDR) && (CONFIG_AP_PSRAM_NOCACHE_HEAP_SIZE > 0)
-    else if (ptr_is_psram_nocache_heap(ptr)) {
+#if defined(CONFIG_AP_PSRAM_CACHE_HEAP_ADDR) && (CONFIG_AP_PSRAM_CACHE_HEAP_SIZE > 0)
+    else if (ptr_is_psram_cache_heap(ptr)) {
         return;
     }
 #endif
@@ -92,9 +92,9 @@ size_t os_heap_get_allocated_size(void *ptr)
         return psram_get_allocated_size(ptr);
     }
     #endif
-    #if defined(CONFIG_AP_PSRAM_NOCACHE_HEAP_ADDR) && (CONFIG_AP_PSRAM_NOCACHE_HEAP_SIZE > 0)
-    else if (ptr_is_psram_nocache_heap(ptr)) {
-        return psram_nocache_get_allocated_size(ptr);
+    #if defined(CONFIG_AP_PSRAM_CACHE_HEAP_ADDR) && (CONFIG_AP_PSRAM_CACHE_HEAP_SIZE > 0)
+    else if (ptr_is_psram_cache_heap(ptr)) {
+        return psram_cache_get_allocated_size(ptr);
     }
     #endif
     #ifdef CONFIG_AP_HSRAM_HEAP_ADDR
@@ -263,9 +263,9 @@ void os_free_debug(const char *func_name, int line, void *ptr)
         psram_free_debug(func_name, line, ptr);
     }
     #endif
-    #if defined(CONFIG_AP_PSRAM_NOCACHE_HEAP_ADDR) && (CONFIG_AP_PSRAM_NOCACHE_HEAP_SIZE > 0)
-    else if (ptr_is_psram_nocache_heap(ptr)) {
-        psram_nocache_free_debug(func_name, line, ptr);
+    #if defined(CONFIG_AP_PSRAM_CACHE_HEAP_ADDR) && (CONFIG_AP_PSRAM_CACHE_HEAP_SIZE > 0)
+    else if (ptr_is_psram_cache_heap(ptr)) {
+        psram_cache_free_debug(func_name, line, ptr);
     }
     #endif
     #ifdef CONFIG_AP_HSRAM_HEAP_ADDR
@@ -291,9 +291,9 @@ void os_free_release(void *ptr)
         psram_free_release(ptr);
     }
     #endif
-    #if defined(CONFIG_AP_PSRAM_NOCACHE_HEAP_ADDR) && (CONFIG_AP_PSRAM_NOCACHE_HEAP_SIZE > 0)
-    else if (ptr_is_psram_nocache_heap(ptr)) {
-        psram_nocache_free_release(ptr);
+    #if defined(CONFIG_AP_PSRAM_CACHE_HEAP_ADDR) && (CONFIG_AP_PSRAM_CACHE_HEAP_SIZE > 0)
+    else if (ptr_is_psram_cache_heap(ptr)) {
+        psram_cache_free_release(ptr);
     }
     #endif
     #ifdef CONFIG_AP_HSRAM_HEAP_ADDR
@@ -379,13 +379,11 @@ void *os_realloc_release(void *ptr, size_t size)
         return bk_heap_realloc_release_impl(os_malloc_release, os_free_release,
                                             sram_get_allocated_size, ptr, size);
     }
-#if defined(CONFIG_AP_PSRAM_NOCACHE_HEAP_ADDR) && (CONFIG_AP_PSRAM_NOCACHE_HEAP_SIZE > 0)
-    else if (ptr_is_psram_nocache_heap(ptr)) {
-        /* Keep non-cacheable buffers (e.g. DMA) inside the nocache heap; do not
-         * migrate them into cached PSRAM, which would break cache coherency. */
-        return bk_heap_realloc_release_impl(psram_nocache_malloc_release,
-                                            psram_nocache_free_release,
-                                            psram_nocache_get_allocated_size,
+#if defined(CONFIG_AP_PSRAM_CACHE_HEAP_ADDR) && (CONFIG_AP_PSRAM_CACHE_HEAP_SIZE > 0)
+    else if (ptr_is_psram_cache_heap(ptr)) {
+        return bk_heap_realloc_release_impl(psram_cache_malloc_release,
+                                            psram_cache_free_release,
+                                            psram_cache_get_allocated_size,
                                             ptr, size);
     }
 #endif
@@ -564,47 +562,47 @@ void *psram_zalloc_release(size_t size)
 }
 #endif
 
-/* =========================== PSRAM NOCACHE HEAP =========================== */
-#if defined(CONFIG_AP_PSRAM_NOCACHE_HEAP_ADDR) && (CONFIG_AP_PSRAM_NOCACHE_HEAP_SIZE > 0)
+/* =========================== PSRAM CACHE HEAP =========================== */
+#if defined(CONFIG_AP_PSRAM_CACHE_HEAP_ADDR) && (CONFIG_AP_PSRAM_CACHE_HEAP_SIZE > 0)
 #if CONFIG_MEM_DEBUG
-static struct list_head s_psram_nocache_used;
-void bk_heap_psram_nocache_debug_init(void)
+static struct list_head s_psram_cache_used;
+void bk_heap_psram_cache_debug_init(void)
 {
-    INIT_LIST_HEAD(&s_psram_nocache_used);
+    INIT_LIST_HEAD(&s_psram_cache_used);
 }
 #endif
 
-static const bk_heap_t bk_heap_psram_nocache = {
-    .malloc = psram_nocache_malloc_impl,
-    .free = psram_nocache_free_impl,
+static const bk_heap_t bk_heap_psram_cache = {
+    .malloc = psram_cache_malloc_impl,
+    .free = psram_cache_free_impl,
 #if CONFIG_MEM_DEBUG
-    .used_list = &s_psram_nocache_used,
+    .used_list = &s_psram_cache_used,
 #endif
 };
 
-void *psram_nocache_malloc_debug(const char *func_name, int line, size_t size, int need_zero)
+void *psram_cache_malloc_debug(const char *func_name, int line, size_t size, int need_zero)
 {
-    return bk_heap_malloc_impl(&bk_heap_psram_nocache, func_name, line, size, need_zero);
+    return bk_heap_malloc_impl(&bk_heap_psram_cache, func_name, line, size, need_zero);
 }
 
-void psram_nocache_free_debug(const char *func_name, int line, void *ptr)
+void psram_cache_free_debug(const char *func_name, int line, void *ptr)
 {
-    bk_heap_free_impl(&bk_heap_psram_nocache, func_name, line, ptr);
+    bk_heap_free_impl(&bk_heap_psram_cache, func_name, line, ptr);
 }
 
-void *psram_nocache_malloc_release(size_t size)
+void *psram_cache_malloc_release(size_t size)
 {
-    return bk_heap_malloc_impl(&bk_heap_psram_nocache, "NULL", 0, size, 0);
+    return bk_heap_malloc_impl(&bk_heap_psram_cache, "NULL", 0, size, 0);
 }
 
-void psram_nocache_free_release(void *ptr)
+void psram_cache_free_release(void *ptr)
 {
-    bk_heap_free_impl(&bk_heap_psram_nocache, "NULL", 0, ptr);
+    bk_heap_free_impl(&bk_heap_psram_cache, "NULL", 0, ptr);
 }
 
-void *psram_nocache_zalloc_release(size_t size)
+void *psram_cache_zalloc_release(size_t size)
 {
-    return bk_heap_malloc_impl(&bk_heap_psram_nocache, "NULL", 0, size, 1);
+    return bk_heap_malloc_impl(&bk_heap_psram_cache, "NULL", 0, size, 1);
 }
 #endif
 
@@ -627,10 +625,10 @@ void os_dump_memory_stats(uint32_t start_tick, uint32_t ticks_since_malloc, cons
         BK_DUMP_OUT("psram heap list is empty.\r\n");
     }
     #endif
-    #if defined(CONFIG_AP_PSRAM_NOCACHE_HEAP_ADDR) && (CONFIG_AP_PSRAM_NOCACHE_HEAP_SIZE > 0)
-    BK_DUMP_OUT(">>>>> psram nocache heap dump memory stats.\r\n");
-    if (bk_heap_debug_dump_mem_stats(start_tick, ticks_since_malloc, task, &s_psram_nocache_used) != 0) {
-        BK_DUMP_OUT("psram nocache heap list is empty.\r\n");
+    #if defined(CONFIG_AP_PSRAM_CACHE_HEAP_ADDR) && (CONFIG_AP_PSRAM_CACHE_HEAP_SIZE > 0)
+    BK_DUMP_OUT(">>>>> psram cache heap dump memory stats.\r\n");
+    if (bk_heap_debug_dump_mem_stats(start_tick, ticks_since_malloc, task, &s_psram_cache_used) != 0) {
+        BK_DUMP_OUT("psram cache heap list is empty.\r\n");
     }
     #endif
 }
@@ -660,10 +658,10 @@ void bk_psram_heap_get_used_state(void)
     if (bk_heap_debug_dump_mem_stats(0, 0, NULL, &s_psram_used) != 0) {
         BK_DUMP_OUT("psram heap list is empty.\r\n");
     }
-#if defined(CONFIG_AP_PSRAM_NOCACHE_HEAP_ADDR) && (CONFIG_AP_PSRAM_NOCACHE_HEAP_SIZE > 0)
-    BK_DUMP_OUT(">>>>> psram nocache heap dump memory stats.\r\n");
-    if (bk_heap_debug_dump_mem_stats(0, 0, NULL, &s_psram_nocache_used) != 0) {
-        BK_DUMP_OUT("psram nocache heap list is empty.\r\n");
+#if defined(CONFIG_AP_PSRAM_CACHE_HEAP_ADDR) && (CONFIG_AP_PSRAM_CACHE_HEAP_SIZE > 0)
+    BK_DUMP_OUT(">>>>> psram cache heap dump memory stats.\r\n");
+    if (bk_heap_debug_dump_mem_stats(0, 0, NULL, &s_psram_cache_used) != 0) {
+        BK_DUMP_OUT("psram cache heap list is empty.\r\n");
     }
 #endif
 }
