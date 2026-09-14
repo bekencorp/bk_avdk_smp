@@ -115,6 +115,13 @@ static void rosc_calib_ckmn_isr(void)
 	int rosc_count = 0;
 
 	bk_ckmn_ckest_disable();
+
+	// the callback stays registered after calibration finishes, so a CKEST interrupt
+	// that is already pending must not touch the semaphore once it has been released
+	if (NULL == s_rosc_calib_sema) {
+		return;
+	}
+
 	rc26m_count = bk_ckmn_get_rc26m_count();
 	rosc_count = bk_ckmn_get_rc32k_count();
 
@@ -217,8 +224,21 @@ static void rosc_calib_thread(void *args)
 	s_records_array = NULL;
 #endif
 
-	rtos_deinit_semaphore(&s_rosc_calib_sema);
+	beken_semaphore_t calib_sema;
+	GLOBAL_INT_DECLARATION();
+
+	// a timed-out iteration can leave a second measurement outstanding, so stop the
+	// CKEST source and drop its latched status before releasing the semaphore
+	GLOBAL_INT_DISABLE();
+	bk_ckmn_ckest_disable();
+	bk_ckmn_clear_ckest_intr_status();
+	calib_sema = s_rosc_calib_sema;
 	s_rosc_calib_sema = NULL;
+	GLOBAL_INT_RESTORE();
+
+	if (calib_sema) {
+		rtos_deinit_semaphore(&calib_sema);
+	}
 
 	rtos_delete_thread(NULL);
 	s_rosc_calib_thread = NULL;
