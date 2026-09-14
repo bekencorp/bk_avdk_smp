@@ -127,10 +127,6 @@ bk_err_t bk_netif_get_ip4_config(netif_if_t ifx, netif_ip4_config_t *ip4_config)
 		net_get_if_addr(&addr, net_get_sta_handle());
 	} else if (ifx == NETIF_IF_AP) {
 		net_get_if_addr(&addr, net_get_uap_handle());
-#ifdef CONFIG_ETH
-	} else if (ifx == NETIF_IF_ETH) {
-		net_get_if_addr(&addr, net_get_eth_handle());
-#endif
 #if CONFIG_BRIDGE
 	} else if (ifx == NETIF_IF_BRIDGE) {
 		net_get_if_addr(&addr, net_get_br_handle());
