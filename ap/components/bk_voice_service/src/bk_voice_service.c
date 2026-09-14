@@ -1946,6 +1946,14 @@ static bk_err_t voice_pm_quiesce(void *arg)
     return ret;
 }
 
+static bk_err_t voice_pm_resume(void *arg)
+{
+    (void)arg;
+
+    /* Pairing for register. Recreate waits for app_resume. */
+    return BK_OK;
+}
+
 static bk_err_t voice_pm_app_resume(void *arg)
 {
     voice_cfg_t *cfg = (voice_cfg_t *)arg;
@@ -1978,6 +1986,7 @@ static bk_err_t voice_pm_app_resume(void *arg)
 static const pm_ap_fast_pm_ops_t s_voice_pm_ops = {
     .name = "voice",
     .quiesce = voice_pm_quiesce,
+    .resume = voice_pm_resume,
     .app_resume = voice_pm_app_resume,
     .arg = &s_voice_pm_cfg,
     .priority = PM_AP_POWER_PRIORITY_SERVICE,
