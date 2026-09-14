@@ -1839,7 +1839,6 @@ BaseType_t __attribute__((optimize("-O3"))) xPortEnterCriticalTimeout(portMUX_TY
      * saved level can be restored on the last call to exit the critical.
      */
     BaseType_t xOldInterruptLevel = portSET_INTERRUPT_MASK_FROM_ISR();
-#if CONFIG_PM_AP_FAST_BOOT_ENABLE
     /*
      * spinlock_acquire() always acquires the lock (timeout is not implemented)
      * and returns the interrupt state from its internal mask operation. A zero
@@ -1847,15 +1846,11 @@ BaseType_t __attribute__((optimize("-O3"))) xPortEnterCriticalTimeout(portMUX_TY
      * failure. Treating it as failure leaves the lock held without incrementing
      * this core's critical nesting, so a nested PendSV/SysTick can release
      * xKernelLock before the outer critical section exits.
+     *
+     * If spinlock_acquire() later returns an acquisition status, restore the
+     * timeout failure handling here.
      */
     ( void ) spinlock_acquire(mux, timeout);
-#else
-    if (!spinlock_acquire(mux, timeout)) {
-        //Timed out attempting to get spinlock. Restore previous interrupt level and return
-        portCLEAR_INTERRUPT_MASK_FROM_ISR(xOldInterruptLevel);
-        return pdFAIL;
-    }
-#endif
     //Spinlock acquired. Increment the critical nesting count.
     BaseType_t coreID = portGET_CORE_ID();
     BaseType_t newNesting = port_uxCriticalNesting[coreID] + 1;

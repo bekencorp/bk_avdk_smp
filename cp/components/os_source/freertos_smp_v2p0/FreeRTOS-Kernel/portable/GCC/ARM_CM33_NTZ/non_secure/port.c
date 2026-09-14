@@ -1469,11 +1469,17 @@ BaseType_t __attribute__((optimize("-O3"))) xPortEnterCriticalTimeout(portMUX_TY
      * saved level can be restored on the last call to exit the critical.
      */
     BaseType_t xOldInterruptLevel = portSET_INTERRUPT_MASK_FROM_ISR();
-    if (!spinlock_acquire(mux, timeout)) {
-        //Timed out attempting to get spinlock. Restore previous interrupt level and return
-        portCLEAR_INTERRUPT_MASK_FROM_ISR(xOldInterruptLevel);
-        return pdFAIL;
-    }
+    /*
+     * spinlock_acquire() always acquires the lock (timeout is not implemented)
+     * and returns the interrupt state from its internal mask operation. A zero
+     * return therefore means "BASEPRI was previously clear", not acquisition
+     * failure. Treating it as failure leaves the lock held without incrementing
+     * this core's critical nesting.
+     *
+     * If spinlock_acquire() later returns an acquisition status, restore the
+     * timeout failure handling here.
+     */
+    ( void ) spinlock_acquire(mux, timeout);
     //Spinlock acquired. Increment the critical nesting count.
     BaseType_t coreID = portGET_CORE_ID();
     BaseType_t newNesting = port_uxCriticalNesting[coreID] + 1;
