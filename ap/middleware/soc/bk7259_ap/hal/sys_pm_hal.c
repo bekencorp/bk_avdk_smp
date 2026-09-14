@@ -715,6 +715,13 @@ void sys_hal_enter_cpu_wfi()
 			__asm goto ("" : : : "memory" : ap_fast_resume_after_wfi);
 			dlv_trigger_backup_context_to(
 				(uint32_t)(uintptr_t)&&ap_fast_resume_after_wfi);
+#if CONFIG_PM_AP_SRAM_RETENTION_CHECK
+			/*
+			 * Context and DTCM backup are now stable. Snapshot every AP SRAM
+			 * bank before the retained-PSRAM controller save command below.
+			 */
+			sys_pm_hal_ap_sram_check_save();
+#endif
 #if CONFIG_PSRAM_DATA_RETENTION_ENABLE
 			/*
 			 * Context capture cleans AP L1/L2. Flush both PSRAM

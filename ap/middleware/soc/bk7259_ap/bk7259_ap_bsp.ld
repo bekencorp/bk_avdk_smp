@@ -550,6 +550,22 @@ SECTIONS
         __psram_code_end__ = .;
     } > PSRAM_CODE_SECTION AT > FLASH
 
+#if CONFIG_PM_AP_SRAM_RETENTION_CHECK
+    /*
+     * Fixed AP/CP shared layout:
+     *   +0x0000..+0x0fff control
+     *   +0x1000..+0xe0fff SMEM3..SMEM6 snapshot
+     * CP validates the retained banks before releasing AP reset, so this
+     * reservation must precede all normal AP PSRAM data.
+     */
+    .ap_sram_check (NOLOAD) :
+    {
+        . = ALIGN(32);
+        __ap_sram_check_start__ = .;
+        . += 0x000e1000;
+        __ap_sram_check_end__ = .;
+    } > PSRAM_DATA_SECTION
+#endif
 
     .psram.data :
     {

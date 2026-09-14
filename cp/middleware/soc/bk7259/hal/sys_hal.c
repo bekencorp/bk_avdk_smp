@@ -3492,6 +3492,10 @@ bk_err_t sys_hal_ap_clock_power_ctrl(power_module_state_t power_state)
 	if(power_state == POWER_MODULE_STATE_ON)
 	{
 		sys_ll_set_ana_reg10_spi_latch1v(1);
+		sys_ll_set_ana_reg9_hsldo_hp(1);
+		bk_delay_us(10);
+		sys_ll_set_ana_reg9_enfast_hsldo(1);
+		bk_delay_us(10);
 		sys_ll_set_ana_reg9_pwd_hsldo(1);
 		bk_delay_us(20);
 		sys_ll_set_ana_reg9_pwd_hsldo(0);
@@ -3503,6 +3507,14 @@ bk_err_t sys_hal_ap_clock_power_ctrl(power_module_state_t power_state)
 		sys_ll_set_ana_reg10_spi_latch1v(0);
 
 	#if 1
+
+		/*
+		 * Fast resume retains M55 SRAM/cache SRAM while AP is off. Do not run
+		 * the cold-boot power sequence here: it briefly asserts
+		 * mem4/5/6/cache PWD and destroys retained contents. Cold boot still
+		 * powers these banks in multicore_hal_m55_core_init_common().
+		 */
+	#if 0//!CONFIG_PM_AP_FAST_BOOT_ENABLE
 		regData = REG_READ(SOC_AON_PMU_REG_BASE + 0x2*4);
 		regData &= ~((0x1F<<21)|(0x1<<19));
 		regData |=  ((0x1F<<21)|(  0<<19));
@@ -3533,6 +3545,7 @@ bk_err_t sys_hal_ap_clock_power_ctrl(power_module_state_t power_state)
 		regData |=  ((0x00<<21)|(  0<<19));
 		REG_WRITE(SOC_AON_PMU_REG_BASE + 0x2*4, regData);
 		//bk_delay_us(20);
+	#endif
 		regData = REG_READ(SOC_AON_PMU_REG_BASE + 0x2*4);
 		regData &= ~((0x1<<18));
 		regData |=  ((  1<<18));
@@ -3579,7 +3592,7 @@ bk_err_t sys_hal_ap_clock_power_ctrl(power_module_state_t power_state)
 		}
 #endif
 		/*PSRAM Enable*/
-		sys_ll_set_ana_reg14_enpsram(1);
+		//sys_ll_set_ana_reg14_enpsram(1);
 		//bk_delay_us(10);
 		/*M55S Memory EMA switch to 1*/
 		REG_WRITE(SOC_SYS_AHBP_REG_BASE + 0x50*4,  (0x5A<<24) | (0x441<<10) | (0x241));
@@ -3592,6 +3605,7 @@ bk_err_t sys_hal_ap_clock_power_ctrl(power_module_state_t power_state)
 		REG_WRITE(SOC_SYS_AHBP_REG_BASE + 0x53*4,  (0xA5<<24) |               (0x901));
 		bk_delay_us(10);
 	#endif
+
 		/*M55:Default enable all the clock source for bringup */
 		REG_WRITE(SOC_SYS_AHBP_REG_BASE + 0xA*4, 0xFFFFFFFF);
 
@@ -3608,15 +3622,20 @@ bk_err_t sys_hal_ap_clock_power_ctrl(power_module_state_t power_state)
 	}
 	else
 	{
-		//aon_pmu_ll_set_r2_m55_rstn(1); // rstn release
-		//aon_pmu_ll_set_r2_m55_clk_en(0); // clk enable
+		aon_pmu_ll_set_r2_m55_clk_en(0); // clk disable
+		aon_pmu_ll_set_r2_m55_iso_en(1);
+		aon_pmu_ll_set_r2_m55_rstn(0);
+		aon_pmu_ll_set_r2_m55_mem_ret(0);
 
-		//sys_ll_set_ana_reg14_enpsram(0);
-
-		sys_ahbp_ll_set_rege_pwd_m55(1);
+		//sys_ahbp_ll_set_rege_pwd_m55(1);
 
 		sys_ll_set_ana_reg10_spi_latch1v(1);
+		sys_ll_set_ana_reg9_hsldo_hp(1);
+		bk_delay_us(10);
+		sys_ll_set_ana_reg9_enfast_hsldo(1);
+		bk_delay_us(10);
 		sys_ll_set_ana_reg16_enhspw(0);
+		bk_delay_us(10);
 		sys_ll_set_ana_reg9_pwd_hsldo(1);
 		sys_ll_set_ana_reg10_spi_latch1v(0);
 	}
@@ -3627,14 +3646,18 @@ static bk_err_t sys_hal_m55_clock_power_init()
 {
 	uint32_t regData = 0;
 	sys_ll_set_ana_reg10_spi_latch1v(1);
+	sys_ll_set_ana_reg9_hsldo_hp(1);
+	timer_hal_early_delay_us(10);
+	sys_ll_set_ana_reg9_enfast_hsldo(1);
+	timer_hal_early_delay_us(10);
 	sys_ll_set_ana_reg9_pwd_hsldo(1);
-	//bk_delay_us(20);
+	timer_hal_early_delay_us(10);
 	sys_ll_set_ana_reg9_pwd_hsldo(0);
-	//bk_delay_us(200);
+	timer_hal_early_delay_us(10);
 	sys_ll_set_ana_reg16_enhspw(1);
-	//bk_delay_us(200);
+	timer_hal_early_delay_us(10);
 	sys_ll_set_ana_reg16_vcorehssel(0xA);//0.7+0.025*0xA=0.95v
-	//bk_delay_us(200);
+	timer_hal_early_delay_us(10);
 	sys_ll_set_ana_reg10_spi_latch1v(0);
 #if CONFIG_SPE
 	regData = REG_READ(SOC_AON_PMU_REG_BASE + 0x2*4);

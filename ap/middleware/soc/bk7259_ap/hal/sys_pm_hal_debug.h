@@ -17,9 +17,22 @@
 #include <soc/soc.h>
 
 #define PM_HAL_LOGD HAL_LOGD
+#define PM_HAL_LOGE HAL_LOGE
 #define PM_HAL_LOGV HAL_LOGV
 
 #define LV_DEBUG_GPIO 18
+
+#if CONFIG_PM_AP_SRAM_RETENTION_CHECK
+void sys_pm_hal_ap_sram_check_set_idle_stack(void *start, void *end);
+void sys_pm_hal_ap_sram_check_save(void);
+#else
+static inline void sys_pm_hal_ap_sram_check_set_idle_stack(void *start, void *end)
+{
+	(void)start;
+	(void)end;
+}
+static inline void sys_pm_hal_ap_sram_check_save(void) {}
+#endif
 
 #if CONFIG_PM_HAL_DEBUG
 void sys_hal_debug_get_sys_regs_before_sleep(void);

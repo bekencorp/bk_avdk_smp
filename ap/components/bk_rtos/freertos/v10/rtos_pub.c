@@ -28,6 +28,7 @@
 #include <os/mem.h>
 #include "bk_uart.h"
 #include "bk_arch.h"
+#include <modules/pm.h>
 #include <components/system.h>
 #include <driver/gpio.h>
 #include "rtos_impl.h"
@@ -1451,6 +1452,9 @@ void vApplicationGetIdleTaskMemory( StaticTask_t **ppxIdleTaskTCBBuffer, StackTy
 
     /* Pass out the array that will be used as the Idle task's stack. */
     *ppxIdleTaskStackBuffer = uxIdleTaskStack;
+	bk_pm_ap_sram_retention_check_set_idle_stack(
+		uxIdleTaskStack,
+		uxIdleTaskStack + configMINIMAL_STACK_SIZE);
 
     /* Pass out the size of the array pointed to by *ppxIdleTaskStackBuffer.
     Note that, as the array is necessarily of type StackType_t,

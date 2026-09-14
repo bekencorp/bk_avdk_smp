@@ -28,6 +28,7 @@
 #include <os/mem.h>
 #include "bk_uart.h"
 #include "bk_arch.h"
+#include <modules/pm.h>
 #include <components/system.h>
 #include <driver/gpio.h>
 #include "rtos_impl.h"
@@ -2077,6 +2078,9 @@ void vApplicationGetIdleTaskMemory( StaticTask_t **ppxIdleTaskTCBBuffer, StackTy
 
     /* Pass out the array that will be used as the Idle task's stack. */
     *ppxIdleTaskStackBuffer = &uxIdleTaskStack[xCoreID][0];	//@cyg:TODO:temp uses 3 to avoid overflow
+	bk_pm_ap_sram_retention_check_set_idle_stack(
+		&uxIdleTaskStack[0][0],
+		&uxIdleTaskStack[configNUM_CORES][0]);
 	xCoreID++;
 	BK_ASSERT(xCoreID <= configNUM_CORES);
 

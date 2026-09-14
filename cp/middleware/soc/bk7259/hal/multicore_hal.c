@@ -158,7 +158,7 @@ static void multicore_hal_m55_core_init_common(bool reuse_retained_sram)
 #endif
 
 	/* PSRAM Enable */
-	sys_ll_set_ana_reg14_enpsram(1);
+	//sys_ll_set_ana_reg14_enpsram(1);
 
 	/* M55S Memory EMA switch to 1 */
 	multicore_hal_m55s_ram_ema_switch_to_high_speed();
