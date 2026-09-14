@@ -45,6 +45,9 @@ typedef void (*sleep_callback_t)(void *arg);
  * backup/restore run with CPU3 offline and CPU2 interrupts disabled; they
  * must not block, allocate memory, log, or wait for interrupt completion.
  * app_resume runs only after AP0/AP1 and the CP-to-AP mailbox are ready.
+ * A registered quiesce callback requires resume for rollback. backup and
+ * restore must be registered as a pair. resume without quiesce remains valid
+ * for modules that only use prepare_power_off.
  */
 typedef bk_err_t (*pm_ap_power_callback_t)(void *arg);
 
@@ -996,11 +999,12 @@ bk_err_t bk_pm_ap_fast_suspend_backup(void);
 bk_err_t bk_pm_ap_fast_restore_hardware(void);
 
 /**
- * @brief Resume registered AP modules after fast suspend or restore
+ * @brief Resume registered AP modules while rolling back fast suspend
  *
  * Invokes resume callbacks in priority order. On success, the fast PM state is
  * returned to running, IPC reception is unblocked, and complete AP readiness
- * is published.
+ * is published. This rollback API does not arm app_resume because AP was not
+ * powered off.
  *
  * @return
  * - BK_OK: All quiesced modules were resumed
@@ -1010,11 +1014,25 @@ bk_err_t bk_pm_ap_fast_restore_hardware(void);
 bk_err_t bk_pm_ap_fast_resume_modules(void);
 
 /**
+ * @brief Resume registered AP modules after a real fast-boot wake
+ *
+ * Performs the same restore-to-running transition as the rollback API, and
+ * additionally arms one app_resume phase. It is reserved for the CPU2 PM task
+ * after the prepared AP context returns from WFI/power-off.
+ *
+ * @return
+ * - BK_OK: All quiesced modules were resumed and app_resume was armed
+ * - BK_ERR_STATE: Fast PM is not restoring
+ * - others: The first error returned by a resume callback
+ */
+bk_err_t bk_pm_ap_fast_wakeup_resume_modules(void);
+
+/**
  * @brief Notify registered applications that fast resume is complete
  *
  * Invokes app_resume callbacks in priority order after AP_FULL_READY is
  * published and CP confirms that CP-to-AP mailbox communication is available.
- * Each successful module resume can trigger this callback phase only once.
+ * Only a real wake after AP power-off can trigger this callback phase, once.
  * This internal orchestration API is intended for the CPU2 PM task.
  *
  * @return
