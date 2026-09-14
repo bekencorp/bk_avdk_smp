@@ -24,6 +24,7 @@
 #include "sys_sw_regs.h"
 #include "aspl_lock.h"
 #include "cache.h"
+#include "reg_base.h" /* SOC_SRAM3_DATA_BASE / SOC_SRAM_DATA_END: AP SRAM extent */
 
 #if CONFIG_AP_EMUBOOT
 #include "cmsis_gcc.h"
@@ -46,6 +47,35 @@ static inline uint32_t sys_sw_regs_lock(void)
 static inline void sys_sw_regs_unlock(uint32_t flags)
 {
     bk_aspl_sys_sw_regs_exit_critical(flags);
+}
+
+/*
+ * The HSPL owner shadow lives in AP memory; the shared window only carries its
+ * address. A zero address means the AP never published it (the shipping build,
+ * where CONFIG_HSPL_LEAK_DEBUG is off), so callers degrade to "no owner".
+ *
+ * The address is produced by the other domain, so it is validated rather than
+ * trusted: a corrupted window word must degrade to "no owner" instead of faulting
+ * the CP. The block is AP .bss, so a usable address is word-aligned and spans only
+ * AP SRAM - the same SRAM3..SRAM6 extent the coredump AP-power gate treats as AP
+ * memory. Rejecting everything outside that range also covers the unpublished
+ * (zero) case, so no separate test for it is needed.
+ */
+static inline volatile hspl_owner_shadow_t *sys_sw_regs_hspl_owner_shadow(void)
+{
+    uint32_t addr;
+
+#if CONFIG_SUPPORT_CACHEABLE_SRAM
+    arch_dcache_invd_range((void *)&s_sys_sw_regs.hspl_owner_shadow_ptr, sizeof(s_sys_sw_regs.hspl_owner_shadow_ptr));
+#endif
+    addr = s_sys_sw_regs.hspl_owner_shadow_ptr;
+
+    if (((addr & 3U) != 0U) || (addr < (uint32_t)SOC_SRAM3_DATA_BASE) ||
+        (addr > ((uint32_t)SOC_SRAM_DATA_END - sizeof(hspl_owner_shadow_t)))) {
+        return NULL;
+    }
+
+    return (volatile hspl_owner_shadow_t *)(uintptr_t)addr;
 }
 
 static inline volatile ap_heap_dump_info_t *sys_sw_regs_ap_heap_slot(bk_sys_sw_regs_ap_heap_id_t id)
@@ -117,9 +147,19 @@ uint32_t bk_sys_sw_regs_get_ap_extra_dump(uint32_t index, ap_extra_dump_info_t *
 
 uint32_t bk_sys_sw_regs_get_hspl_owner(uint8_t res, uint8_t *core, uint32_t *pc)
 {
+    volatile hspl_owner_shadow_t *shadow = sys_sw_regs_hspl_owner_shadow();
     uint32_t owner_pc;
 
     if ((res >= 32U) || (core == NULL) || (pc == NULL)) {
+        return 0;
+    }
+
+    if (shadow == NULL) {
+        /* No usable shadow - either never published (CONFIG_HSPL_LEAK_DEBUG off on
+         * the AP) or the address failed validation. Report the resource as free,
+         * which is what an all-zero shadow would say. */
+        *pc = 0U;
+        *core = 0xFFU;
         return 0;
     }
 
@@ -135,17 +175,17 @@ uint32_t bk_sys_sw_regs_get_hspl_owner(uint8_t res, uint8_t *core, uint32_t *pc)
 #if CONFIG_SUPPORT_CACHEABLE_SRAM
     /*
      * Cacheable shared SRAM: invalidate before reading so we observe the writer's
-     * latest data. NOTE: if this path is ever shipped, align hspl_owner_pc/core to
+     * latest data. NOTE: if this path is ever shipped, align owner_pc/owner_core to
      * a cache line, otherwise invalidating a sub-line range may discard neighbouring
      * entries (see arch_dcache_invd_range contract in cache.h).
      */
     __asm volatile ("dsb" ::: "memory");
-    arch_dcache_invd_range((void *)&s_sys_sw_regs.hspl_owner_pc[res], sizeof(s_sys_sw_regs.hspl_owner_pc[res]));
-    arch_dcache_invd_range((void *)&s_sys_sw_regs.hspl_owner_core[res], sizeof(s_sys_sw_regs.hspl_owner_core[res]));
+    arch_dcache_invd_range((void *)&shadow->owner_pc[res], sizeof(shadow->owner_pc[res]));
+    arch_dcache_invd_range((void *)&shadow->owner_core[res], sizeof(shadow->owner_core[res]));
     __asm volatile ("dsb" ::: "memory");
 #endif
 
-    owner_pc = s_sys_sw_regs.hspl_owner_pc[res];
+    owner_pc = shadow->owner_pc[res];
     if (owner_pc == 0U) {
         *pc = 0U;
         *core = 0xFFU;
@@ -153,7 +193,7 @@ uint32_t bk_sys_sw_regs_get_hspl_owner(uint8_t res, uint8_t *core, uint32_t *pc)
     }
 
     *pc = owner_pc;
-    *core = s_sys_sw_regs.hspl_owner_core[res];
+    *core = shadow->owner_core[res];
     return 1U;
 }
 
@@ -326,8 +366,10 @@ void bk_sys_sw_regs_set_adc_key_sample(uint16_t raw, uint16_t mv, uint8_t status
 
 void bk_sys_sw_regs_set_hspl_owner(uint8_t res, uint8_t core, uint32_t pc)
 {
+    volatile hspl_owner_shadow_t *shadow = sys_sw_regs_hspl_owner_shadow();
+
     /* pc == 0 is reserved for the "free" state, so reject it as an owner value. */
-    if ((res >= 32U) || (pc == 0U)) {
+    if ((shadow == NULL) || (res >= 32U) || (pc == 0U)) {
         return;
     }
 
@@ -336,22 +378,24 @@ void bk_sys_sw_regs_set_hspl_owner(uint8_t res, uint8_t core, uint32_t pc)
      * Publish order: write core first, pc (the validity key) last, so a reader
      * that observes a valid pc always sees the matching core.
      */
-    s_sys_sw_regs.hspl_owner_core[res] = core;
-    s_sys_sw_regs.hspl_owner_pc[res] = pc;
+    shadow->owner_core[res] = core;
+    shadow->owner_pc[res] = pc;
     /* Hard-publish barrier: drain the store buffer so the entry is globally
      * observable to the other core before this returns (equivalent to __DSB()). */
     __asm volatile ("dsb" ::: "memory");
 #if CONFIG_SUPPORT_CACHEABLE_SRAM
     /* Cacheable shared SRAM: write the shadow back so the other core can read it. */
-    flush_dcache((void *)&s_sys_sw_regs.hspl_owner_core[res], sizeof(s_sys_sw_regs.hspl_owner_core[res]));
-    flush_dcache((void *)&s_sys_sw_regs.hspl_owner_pc[res], sizeof(s_sys_sw_regs.hspl_owner_pc[res]));
+    flush_dcache((void *)&shadow->owner_core[res], sizeof(shadow->owner_core[res]));
+    flush_dcache((void *)&shadow->owner_pc[res], sizeof(shadow->owner_pc[res]));
     __asm volatile ("dsb" ::: "memory");
 #endif
 }
 
 void bk_sys_sw_regs_clear_hspl_owner(uint8_t res)
 {
-    if (res >= 32U) {
+    volatile hspl_owner_shadow_t *shadow = sys_sw_regs_hspl_owner_shadow();
+
+    if ((shadow == NULL) || (res >= 32U)) {
         return;
     }
 
@@ -359,13 +403,16 @@ void bk_sys_sw_regs_clear_hspl_owner(uint8_t res)
      * Retire order: clear pc (the validity key) first so the slot reads as free
      * immediately, then reset core to the free sentinel (0xFF) for consistency.
      */
-    s_sys_sw_regs.hspl_owner_pc[res] = 0U;
-    s_sys_sw_regs.hspl_owner_core[res] = 0xFFU;
+    shadow->owner_pc[res] = 0U;
+    shadow->owner_core[res] = 0xFFU;
+    /* Same hard-retire barrier as the publish side: the CP's leak check runs at AP
+     * power-down and asserts on any entry it still sees as owned, so an undrained
+     * store buffer here would turn a normal release into a false leak report. */
+    __asm volatile ("dsb" ::: "memory");
 #if CONFIG_SUPPORT_CACHEABLE_SRAM
     /* Cacheable shared SRAM: write the cleared shadow back to memory. */
-    __asm volatile ("dsb" ::: "memory");
-    flush_dcache((void *)&s_sys_sw_regs.hspl_owner_pc[res], sizeof(s_sys_sw_regs.hspl_owner_pc[res]));
-    flush_dcache((void *)&s_sys_sw_regs.hspl_owner_core[res], sizeof(s_sys_sw_regs.hspl_owner_core[res]));
+    flush_dcache((void *)&shadow->owner_pc[res], sizeof(shadow->owner_pc[res]));
+    flush_dcache((void *)&shadow->owner_core[res], sizeof(shadow->owner_core[res]));
     __asm volatile ("dsb" ::: "memory");
 #endif
 }
