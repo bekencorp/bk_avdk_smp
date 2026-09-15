@@ -154,6 +154,16 @@ extern uint32_t wpa_hostapd_queue_poll(uint32_t param);
 void wpa_supplicant_external_auth_timeout(void *eloop_ctx, void *timeout_ctx);
 extern void sme_send_external_auth_status(struct wpa_supplicant *wpa_s,
 					  u16 status);
+#if defined(CONFIG_QUICK_TRACK) && CONFIG_QUICK_TRACK
+#if defined(CONFIG_WFA_CA) && CONFIG_WFA_CA
+extern bool is_wfa_prog_pmf();
+#else
+static bool is_wfa_prog_pmf(void)
+{
+	return false;
+}
+#endif
+#endif
 #endif
 
 #if CONFIG_WAPI_SUPPORT
@@ -1458,6 +1468,9 @@ void wpas_set_mgmt_group_cipher(struct wpa_supplicant *wpa_s,
 				struct wpa_ssid *ssid, struct wpa_ie_data *ie)
 {
 	int sel;
+#if BK_SUPPLICANT
+	unsigned int pmf;
+#endif
 
 	sel = ie->mgmt_group_cipher;
 	if (ssid->group_mgmt_cipher)
@@ -1490,8 +1503,20 @@ void wpas_set_mgmt_group_cipher(struct wpa_supplicant *wpa_s,
 	}
 	wpa_sm_set_param(wpa_s->wpa, WPA_PARAM_MGMT_GROUP,
 			 wpa_s->mgmt_group_cipher);
+
+#if BK_SUPPLICANT
+	pmf = wpas_get_ssid_pmf(wpa_s, ssid);
+#if defined(CONFIG_QUICK_TRACK) && CONFIG_QUICK_TRACK
+	// FIX PMF test failure.
+	if (!is_wfa_prog_pmf() && pmf != NO_MGMT_FRAME_PROTECTION &&
+		(ie->capabilities & (WPA_CAPABILITY_MFPC | WPA_CAPABILITY_MFPR)) == (WPA_CAPABILITY_MFPC | WPA_CAPABILITY_MFPR))
+		pmf = MGMT_FRAME_PROTECTION_REQUIRED;
+#endif
+	wpa_sm_set_param(wpa_s->wpa, WPA_PARAM_MFP, pmf);
+#else
 	wpa_sm_set_param(wpa_s->wpa, WPA_PARAM_MFP,
 			 wpas_get_ssid_pmf(wpa_s, ssid));
+#endif
 }
 
 
@@ -3119,7 +3144,7 @@ static u8 * wpas_populate_assoc_ies(
 	size_t max_wpa_ie_len = 500;
 	size_t wpa_ie_len;
 	int algs = WPA_AUTH_ALG_OPEN;
-#ifdef CONFIG_MBO
+#ifdef CONFIG_QUICK_MBO
 	const u8 *mbo_ie;
 #endif
 #if defined(CONFIG_SAE) || defined(CONFIG_FILS)
@@ -3411,7 +3436,7 @@ static u8 * wpas_populate_assoc_ies(
 	}
 #endif /* CONFIG_FST */
 
-#ifdef CONFIG_MBO
+#ifdef CONFIG_QUICK_MBO
 	mbo_ie = bss ? wpa_bss_get_vendor_ie(bss, MBO_IE_VENDOR_TYPE) : NULL;
 	if (!wpa_s->disable_mbo_oce && mbo_ie) {
 		int len;
@@ -3776,7 +3801,7 @@ fail:
 }
 
 
-#ifdef CONFIG_MBO
+#ifdef CONFIG_QUICK_MBO
 void wpas_update_mbo_connect_params(struct wpa_supplicant *wpa_s)
 {
 	struct wpa_driver_associate_params params;
@@ -8583,7 +8608,7 @@ void wpas_clear_temp_disabled(struct wpa_supplicant *wpa_s,
 }
 
 
-#ifdef CONFIG_FULL_SUPPLICANT
+#ifdef CONFIG_QUICK_MBO
 int disallowed_bssid(struct wpa_supplicant *wpa_s, const u8 *bssid)
 {
 	size_t i;

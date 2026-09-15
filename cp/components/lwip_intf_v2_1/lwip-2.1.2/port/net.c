@@ -1004,6 +1004,10 @@ int net_configure_address(struct ipv4_config *addr, void *intrfc_handle)
 
 	switch (addr->addr_type) {
 	case ADDR_TYPE_STATIC:
+#ifdef CONFIG_WFA_CERT
+		/* if set to static IP, disable DHCP client */
+		netifapi_dhcp_stop(&if_handle->netif);
+#endif
 		ip_addr_set_ip4_u32(&if_handle->ipaddr, addr->address);
 		ip_addr_set_ip4_u32(&if_handle->nmask, addr->netmask);
 		ip_addr_set_ip4_u32(&if_handle->gw, addr->gw);

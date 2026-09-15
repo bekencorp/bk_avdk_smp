@@ -778,9 +778,18 @@ int wpa_supplicant_ctrl_iface_set_network(struct wpa_supplicant *wpa_s, wlan_sta
 			//}
 		}
 		break;
-	case WLAN_STA_FIELD_WEP_KEY0:
-		//wpa_config_parse_wep_key
-		break;
+	case WLAN_STA_FIELD_WEP_KEY0: {
+		//wpa_config_parse_wep_key, set_wep_key
+		char *key = config->u.wep_key;
+		int key_len = strlen(key);
+		if (key_len == 5 || key_len == 13) {
+			memcpy(ssid->wep_key[0], key, key_len);
+			ssid->wep_key_len[0] = key_len;
+		} else if (key_len == 10 || key_len == 26) {
+			ssid->wep_key_len[0] = key_len / 2;
+			hexstr2bin(key, ssid->wep_key[0], ssid->wep_key_len[0]);
+		}
+	}	break;
 	case WLAN_STA_FIELD_WEP_KEY1:
 		break;
 	case WLAN_STA_FIELD_WEP_KEY2:

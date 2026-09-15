@@ -56,12 +56,12 @@ menu "Bk_rtos"
 			default n
 
 		config TASK_STACK_IN_PSRAM
-			depends on FREERTOS_V10
+			depends on (FREERTOS_V10 || FREERTOS_SMP) && PSRAM_AS_SYS_MEMORY
 			bool "Create FreeRTOS Task stack in psram"
 			default n
 		
 		config QUEUE_IN_PSRAM
-			depends on FREERTOS_V10
+			depends on FREERTOS_V10 || FREERTOS_SMP
 			bool "Create FreeRTOS queue in psram"
 			default n
 

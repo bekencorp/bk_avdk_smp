@@ -187,6 +187,11 @@ endif()
 if (CONFIG_MAC802154_TEST)
 	list(APPEND srcs cli_mac802154.c)
 endif()
+
+if (CONFIG_QUICK_TRACK)
+	list(APPEND srcs cli_quicktrack.c)
+endif()
+
 set(PRIV_REQUIRES_LIST bk_common psa_mbedtls temp_detect bk_netif bk_ps bk_init bk_libs bk_wifi compal cmsis bk_bluetooth bk_phy lwip_intf_v2_1 console at )
 # tfm exposes the NS-facing NSC headers (tfm/interface/include/tfm_*_nsc.h) used
 # by cli_reg.c / cli_mpc.c under CONFIG_TFM_*_NSC, and links libtfm_s_veneers.a.

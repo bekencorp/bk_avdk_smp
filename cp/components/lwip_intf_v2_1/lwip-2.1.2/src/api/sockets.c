@@ -3455,6 +3455,7 @@ lwip_setsockopt_impl(int s, int level, int optname, const void *optval, socklen_
           }
           break;
 #endif /* LWIP_UDP */
+#ifndef CONFIG_QUICK_TRACK
         case SO_BINDTODEVICE: {
           const struct ifreq *iface;
           struct netif *n = NULL;
@@ -3491,6 +3492,7 @@ lwip_setsockopt_impl(int s, int level, int optname, const void *optval, socklen_
               break;
           }
         }
+#endif /* CONFIG_QUICK_TRACK */
         break;
         default:
           LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_setsockopt(%d, SOL_SOCKET, UNIMPL: optname=0x%x, ..)\n",

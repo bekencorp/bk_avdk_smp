@@ -1271,6 +1271,23 @@ static inline uint32_t rtos_get_core_id(void)
 #define SMP_CORE0_ID              (0)   // CPU0 is smp core 0, (CPU0_CORE_ID - CONFIG_CPU_ID_OFFSET)
 #define SMP_CORE1_ID              (1)   // CPU1 is smp core 1, (CPU1_CORE_ID - CONFIG_CPU_ID_OFFSET)
 
+/** @brief Creates and starts a new thread with affinity
+  *
+  * @param thread     : Pointer to variable that will receive the thread handle (can be null)
+  * @param affinity   : Core affinity, bitmap of cores, -1 stands for all cores.
+  * @param priority   : A priority number.
+  * @param name       : a text name for the thread (can be null)
+  * @param function   : the main thread function
+  * @param stack_size : stack size for this thread
+  * @param arg        : argument which will be passed to thread function
+  *
+  * @return    kNoErr          : on success.
+  * @return    kGeneralErr     : if an error occurred
+  */
+bk_err_t rtos_create_thread_with_affinity(beken_thread_t *thread, uint32_t affinity,
+                        uint8_t priority, const char *name,
+                        beken_thread_function_t function, uint32_t stack_size,
+                        beken_thread_arg_t arg);
 
 /** @brief Creates and starts a new smp thread
   *

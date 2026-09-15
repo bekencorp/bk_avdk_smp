@@ -669,7 +669,7 @@ static int wpa_supplicant_match_privacy(struct wpa_bss *bss,
 #endif
 
 	if (bss->caps & IEEE80211_CAP_PRIVACY) {
-#if !CONFIG_QUICK_TRACK
+#if !CONFIG_QUICK_TRACK && !CONFIG_WFA_CERT
 		if (!wpa) {
 			wpa_config_set_wep(ssid);
 			privacy = 1;
@@ -1304,7 +1304,7 @@ static bool wpa_scan_res_ok(struct wpa_supplicant *wpa_s, struct wpa_ssid *ssid,
 	int res;
 	bool wpa, check_ssid, osen, rsn_osen = false;
 	struct wpa_ie_data data;
-#ifdef CONFIG_MBO
+#ifdef CONFIG_QUICK_MBO
 	const u8 *assoc_disallow;
 #endif /* CONFIG_MBO */
 #ifdef CONFIG_SAE
@@ -1423,7 +1423,9 @@ static bool wpa_scan_res_ok(struct wpa_supplicant *wpa_s, struct wpa_ssid *ssid,
 			MAC2STR(ssid->bssid), wpa_ssid_txt(ssid->ssid, ssid->ssid_len));
 
 		if (!wpa) {
+#if !CONFIG_QUICK_TRACK
 			wpa_config_set_none(ssid);
+#endif
 		} else {
 			size_t psk_len = 0;
 			u8 *psk = 0;
@@ -1662,7 +1664,7 @@ static bool wpa_scan_res_ok(struct wpa_supplicant *wpa_s, struct wpa_ssid *ssid,
 				(unsigned int) diff.usec);
 		return false;
 	}
-#ifdef CONFIG_MBO
+#ifdef CONFIG_QUICK_MBO
 #ifdef CONFIG_TESTING_OPTIONS
 	if (wpa_s->ignore_assoc_disallow)
 		goto skip_assoc_disallow;
@@ -1675,13 +1677,14 @@ static bool wpa_scan_res_ok(struct wpa_supplicant *wpa_s, struct wpa_ssid *ssid,
 				assoc_disallow[2]);
 		return false;
 	}
-
+#ifdef CONFIG_MBO
 	if (wpa_is_bss_tmp_disallowed(wpa_s, bss)) {
 		if (debug_print)
 			wpa_dbg(wpa_s, MSG_DEBUG,
 				"   skip - AP temporarily disallowed");
 		return false;
 	}
+#endif
 #ifdef CONFIG_TESTING_OPTIONS
 skip_assoc_disallow:
 #endif /* CONFIG_TESTING_OPTIONS */
@@ -1799,7 +1802,7 @@ struct wpa_ssid * wpa_scan_res_match(struct wpa_supplicant *wpa_s,
 		return NULL;
 	}
 
-#ifdef CONFIG_FULL_SUPPLICANT
+#ifdef CONFIG_QUICK_MBO
 	if (disallowed_bssid(wpa_s, bss->bssid)) {
 		if (debug_print)
 			wpa_dbg(wpa_s, MSG_DEBUG, "   skip - BSSID disallowed");
@@ -5661,10 +5664,12 @@ void wpa_supplicant_event_sta(void *ctx, enum wpa_event_type event,
 		radio_work_check_next(wpa_s);
 		break;
 #endif /* CONFIG_NO_SCAN_PROCESSING */
-#ifdef CONFIG_FULL_SUPPLICANT
+#ifdef CONFIG_QUICK_MBO
 	case EVENT_ASSOCINFO:
 		wpa_supplicant_event_associnfo(wpa_s, data);
 		break;
+#endif
+#ifdef CONFIG_FULL_SUPPLICANT
 	case EVENT_INTERFACE_STATUS:
 		wpa_supplicant_event_interface_status(wpa_s, data);
 		break;

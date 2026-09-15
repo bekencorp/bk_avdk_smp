@@ -1308,7 +1308,7 @@ error:
 }
 #endif
 
-#if CONFIG_COMPONENTS_WFA_CA
+#if CONFIG_WFA_CA
 extern void wfa_ca_start();
 extern void wfa_ca_stop();
 
@@ -2668,7 +2668,7 @@ static const struct cli_command s_wifi_commands[] = {
 	{"twt", "twt {setup|teardown}", cli_wifi_twt_cmd},
 #endif
 
-#if CONFIG_COMPONENTS_WFA_CA
+#if CONFIG_WFA_CA
 	{"wfa_ca", "wfa_ca <start|stop>", cli_wifi_wfa_ca_cmd},
 #endif
 

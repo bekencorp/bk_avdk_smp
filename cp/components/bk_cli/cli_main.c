@@ -1492,6 +1492,10 @@ int bk_cli_init(void)
 #endif //CONFIG_DEBUG_VERSION
 
 /*----------------WIFI cli command init end----------------------*/
+#if CONFIG_QUICK_TRACK
+	cli_quicktrack_init();
+#endif
+
 #if (CLI_CFG_SCR == 1)
 	cli_scr_init();
 #endif

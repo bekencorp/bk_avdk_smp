@@ -134,7 +134,9 @@ int cli_psa_crypto_init(void);
 int cli_psa_customization_init();
 int cli_cpu_perf_init(void);
 
-
+#if CONFIG_QUICK_TRACK
+int cli_quicktrack_init(void);
+#endif
 
 extern int hexstr2bin_cli(const char *hex, u8 *buf, size_t len);
 extern int hexstr2bin(const char *hex, u8 *buf, size_t len);

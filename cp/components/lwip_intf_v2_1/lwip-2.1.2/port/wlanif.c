@@ -382,7 +382,9 @@ ethernetif_input(int iface, struct pbuf *p, uint8_t dst_idx)
 	if (wlanif_forward_intra_bss(netif, vif, p, ethhdr, dst_idx))
 		return;
 
-#ifdef CONFIG_WIFI_VNET_CONTROLLER
+#if defined(CONFIG_WIFI_VNET_CONTROLLER) && \
+	!((defined(CONFIG_QUICK_TRACK) && CONFIG_QUICK_TRACK) || \
+	  (defined(CONFIG_WFA_CERT) && CONFIG_WFA_CERT))
 	if(false == cif_rx_local_packet_check(&p,ethhdr,vif,dst_idx))
 	{
 		return;

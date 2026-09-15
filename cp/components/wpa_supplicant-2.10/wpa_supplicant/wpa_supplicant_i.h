@@ -838,7 +838,7 @@ struct wpa_supplicant {
 	void *drv_priv; /* private data used by driver_ops */
 	void *global_drv_priv;
 
-#ifdef CONFIG_FULL_SUPPLICANT
+#ifdef CONFIG_QUICK_MBO
 	u8 *bssid_filter;
 	size_t bssid_filter_count;
 
@@ -1437,10 +1437,10 @@ struct wpa_supplicant {
 	u8 coloc_intf_dialog_token;
 	u8 coloc_intf_auto_report;
 	u8 coloc_intf_timeout;
-#ifdef CONFIG_MBO
+#ifdef CONFIG_QUICK_MBO
 	unsigned int wnm_mbo_trans_reason_present:1;
 	u8 wnm_mbo_transition_reason;
-#endif /* CONFIG_MBO */
+#endif /* CONFIG_QUICK_MBO */
 
 #ifdef CONFIG_TESTING_GET_GTK
 	u8 last_gtk[32];
@@ -1506,7 +1506,7 @@ struct wpa_supplicant {
 	struct wpabuf *received_mb_ies;
 #endif /* CONFIG_FST */
 
-#ifdef CONFIG_MBO
+#ifdef CONFIG_QUICK_MBO
 	/* Multiband operation non-preferred channel */
 	struct wpa_mbo_non_pref_channel {
 		enum mbo_non_pref_chan_reason reason;
