@@ -483,6 +483,9 @@ int ieee8023_phy_init(void)
 #ifdef CONFIG_PHY_REALTEK
 	phy_realtek_init();
 #endif
+#ifdef CONFIG_PHY_JLSEMI
+	phy_jlsemi_init();
+#endif
 	genphy_init();
 
 	return 0;

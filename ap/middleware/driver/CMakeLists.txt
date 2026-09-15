@@ -337,6 +337,7 @@ if (CONFIG_ETH)
 		eth/phy/micrel_ksz90x1.c
 		eth/phy/miiphyutil.c
 		eth/phy/realtek.c
+		eth/phy/jlsemi.c
 	)
 endif()
 

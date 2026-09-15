@@ -69,21 +69,6 @@ static inline uint32_t aon_pmu_ll_get_r7b_fast_boot(void) {
 	return r->fast_boot;
 }
 
-static inline void aon_pmu_ll_set_r0_flash_remap_sel(uint32_t v) {
-	aon_pmu_r0_t *r = (aon_pmu_r0_t*)(SOC_AON_PMU_REG_BASE + (0x0 << 2));
-	r->flash_remap_sel = v;
-}
-
-static inline uint32_t aon_pmu_ll_get_r0_flash_remap_sel(void) {
-	aon_pmu_r0_t *r = (aon_pmu_r0_t*)(SOC_AON_PMU_REG_BASE + (0x0 << 2));
-	return r->flash_remap_sel;
-}
-
-static inline uint32_t aon_pmu_ll_get_r7b_flash_remap_sel(void) {
-	aon_pmu_r0_t *r = (aon_pmu_r0_t*)(SOC_AON_PMU_REG_BASE + (0x7b << 2));
-	return r->flash_remap_sel;
-}
-
 static inline void aon_pmu_ll_set_r0_aon_reg0_for_software(uint32_t v) {
 	aon_pmu_r0_t *r = (aon_pmu_r0_t*)(SOC_AON_PMU_REG_BASE + (0x0 << 2));
 	r->aon_reg0_for_software = v;

@@ -34,33 +34,6 @@
  * must go through the provided API functions. */
 static SYS_SW_REGS_SECTION sys_sw_regs_t s_sys_sw_regs = {0};
 
-/* AP-owned block moved out of the 1024-byte shared window; only its address is
- * published there. Being in this translation unit, the AP reaches it at a
- * link-time-constant address, so its write path pays for no indirection. */
-static hspl_owner_shadow_t s_hspl_owner_shadow;
-
-/*
- * Publishing is a single 32-bit store of a link-time-constant address, so it
- * needs no lock: every writer stores the same value, and the CP either reads 0
- * (nothing recorded yet) or the final address.
- *
- * The store is unconditional rather than "only when the slot is still zero",
- * because the window lives in CP SRAM and no AP boot clears it. A slot left
- * behind by a differently-linked previous AP image would otherwise never be
- * corrected, and the CP would follow that stale address into whatever occupies
- * it now. Re-publishing on every write keeps the slot owned by the running image.
- *
- * It is done from the setter rather than an init hook so that a shipping build,
- * which never calls the setter, never publishes an address at all.
- */
-static inline void sys_sw_regs_publish_hspl_owner_shadow(void)
-{
-    s_sys_sw_regs.hspl_owner_shadow_ptr = (uint32_t)(uintptr_t)&s_hspl_owner_shadow;
-#if CONFIG_SUPPORT_CACHEABLE_SRAM
-    flush_dcache((void *)&s_sys_sw_regs.hspl_owner_shadow_ptr, sizeof(s_sys_sw_regs.hspl_owner_shadow_ptr));
-#endif
-}
-
 /* --------------------------------------------------------------------------
  * Lock helpers - delegate to HSPL SYS_SW_REGS resource lock
  * -------------------------------------------------------------------------- */
@@ -167,17 +140,17 @@ uint32_t bk_sys_sw_regs_get_hspl_owner(uint8_t res, uint8_t *core, uint32_t *pc)
 #if CONFIG_SUPPORT_CACHEABLE_SRAM
     /*
      * Cacheable shared SRAM: invalidate before reading so we observe the writer's
-     * latest data. NOTE: if this path is ever shipped, align owner_pc/owner_core to
+     * latest data. NOTE: if this path is ever shipped, align hspl_owner_pc/core to
      * a cache line, otherwise invalidating a sub-line range may discard neighbouring
      * entries (see arch_dcache_invd_range contract in cache.h).
      */
     __asm volatile ("dsb" ::: "memory");
-    arch_dcache_invd_range((void *)&s_hspl_owner_shadow.owner_pc[res], sizeof(s_hspl_owner_shadow.owner_pc[res]));
-    arch_dcache_invd_range((void *)&s_hspl_owner_shadow.owner_core[res], sizeof(s_hspl_owner_shadow.owner_core[res]));
+    arch_dcache_invd_range((void *)&s_sys_sw_regs.hspl_owner_pc[res], sizeof(s_sys_sw_regs.hspl_owner_pc[res]));
+    arch_dcache_invd_range((void *)&s_sys_sw_regs.hspl_owner_core[res], sizeof(s_sys_sw_regs.hspl_owner_core[res]));
     __asm volatile ("dsb" ::: "memory");
 #endif
 
-    owner_pc = s_hspl_owner_shadow.owner_pc[res];
+    owner_pc = s_sys_sw_regs.hspl_owner_pc[res];
     if (owner_pc == 0U) {
         *pc = 0U;
         *core = 0xFFU;
@@ -185,7 +158,7 @@ uint32_t bk_sys_sw_regs_get_hspl_owner(uint8_t res, uint8_t *core, uint32_t *pc)
     }
 
     *pc = owner_pc;
-    *core = s_hspl_owner_shadow.owner_core[res];
+    *core = s_sys_sw_regs.hspl_owner_core[res];
     return 1U;
 }
 
@@ -363,22 +336,20 @@ void bk_sys_sw_regs_set_hspl_owner(uint8_t res, uint8_t core, uint32_t pc)
         return;
     }
 
-    sys_sw_regs_publish_hspl_owner_shadow();
-
     /*
      * Single writer per slot (only the lock owner updates its own resource).
      * Publish order: write core first, pc (the validity key) last, so a reader
      * that observes a valid pc always sees the matching core.
      */
-    s_hspl_owner_shadow.owner_core[res] = core;
-    s_hspl_owner_shadow.owner_pc[res] = pc;
+    s_sys_sw_regs.hspl_owner_core[res] = core;
+    s_sys_sw_regs.hspl_owner_pc[res] = pc;
     /* Hard-publish barrier: drain the store buffer so the entry is globally
      * observable to the other core before this returns (equivalent to __DSB()). */
     __asm volatile ("dsb" ::: "memory");
 #if CONFIG_SUPPORT_CACHEABLE_SRAM
     /* Cacheable shared SRAM: write the shadow back so the other core can read it. */
-    flush_dcache((void *)&s_hspl_owner_shadow.owner_core[res], sizeof(s_hspl_owner_shadow.owner_core[res]));
-    flush_dcache((void *)&s_hspl_owner_shadow.owner_pc[res], sizeof(s_hspl_owner_shadow.owner_pc[res]));
+    flush_dcache((void *)&s_sys_sw_regs.hspl_owner_core[res], sizeof(s_sys_sw_regs.hspl_owner_core[res]));
+    flush_dcache((void *)&s_sys_sw_regs.hspl_owner_pc[res], sizeof(s_sys_sw_regs.hspl_owner_pc[res]));
     __asm volatile ("dsb" ::: "memory");
 #endif
 }
@@ -392,19 +363,14 @@ void bk_sys_sw_regs_clear_hspl_owner(uint8_t res)
     /*
      * Retire order: clear pc (the validity key) first so the slot reads as free
      * immediately, then reset core to the free sentinel (0xFF) for consistency.
-     * No publish is needed here: an unpublished shadow already reads as all-free,
-     * which is exactly what clearing a slot conveys.
      */
-    s_hspl_owner_shadow.owner_pc[res] = 0U;
-    s_hspl_owner_shadow.owner_core[res] = 0xFFU;
-    /* Same hard-retire barrier as the publish side: the CP's leak check runs at AP
-     * power-down and asserts on any entry it still sees as owned, so an undrained
-     * store buffer here would turn a normal release into a false leak report. */
-    __asm volatile ("dsb" ::: "memory");
+    s_sys_sw_regs.hspl_owner_pc[res] = 0U;
+    s_sys_sw_regs.hspl_owner_core[res] = 0xFFU;
 #if CONFIG_SUPPORT_CACHEABLE_SRAM
     /* Cacheable shared SRAM: write the cleared shadow back to memory. */
-    flush_dcache((void *)&s_hspl_owner_shadow.owner_pc[res], sizeof(s_hspl_owner_shadow.owner_pc[res]));
-    flush_dcache((void *)&s_hspl_owner_shadow.owner_core[res], sizeof(s_hspl_owner_shadow.owner_core[res]));
+    __asm volatile ("dsb" ::: "memory");
+    flush_dcache((void *)&s_sys_sw_regs.hspl_owner_pc[res], sizeof(s_sys_sw_regs.hspl_owner_pc[res]));
+    flush_dcache((void *)&s_sys_sw_regs.hspl_owner_core[res], sizeof(s_sys_sw_regs.hspl_owner_core[res]));
     __asm volatile ("dsb" ::: "memory");
 #endif
 }

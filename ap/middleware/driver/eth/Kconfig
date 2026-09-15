@@ -78,5 +78,25 @@ menu "ETH"
 		bool "Realtek PHY Support"
 		default n
 
+	config PHY_JLSEMI
+		bool "JLSemi JL11x1 100M PHY support"
+		depends on ETH
+		default n
+		help
+			Enable support for JLSemi JL11x1 10/100M Ethernet PHYs.
+
+	config ETH_PHY_HW_RESET
+		bool "Reset Ethernet PHY through GPIO"
+		depends on PHY_JLSEMI
+		default n
+		help
+			Reset the external Ethernet PHY before MDIO detection.
+
+	config ETH_PHY_RESET_GPIO
+		int "Ethernet PHY reset GPIO"
+		depends on ETH_PHY_HW_RESET
+		range 0 71
+		default 30
+
 endmenu
 

@@ -321,6 +321,7 @@ int genphy_read_status(struct phy_device *phydev);
 int phy_micrel_ksz90x1_init(void);
 int phy_smsc_init(void);
 int phy_realtek_init();
+int phy_jlsemi_init(void);
 
 int board_phy_config(struct phy_device *phydev);
 int get_phy_id(struct mii_dev *bus, int addr, int devad, u32 *phy_id);

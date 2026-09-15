@@ -64,15 +64,6 @@ typedef enum {
 int32_t l2_cache_init(void);
 
 /**
- * @brief Register and enable PL310 L2 cache error interrupt handling
- *
- * This must be called after the AP interrupt controller has been initialized.
- *
- * @return 0 on success, -1 on failure
- */
-int32_t l2_cache_error_monitor_enable(void);
-
-/**
  * @brief Wait for L2 cache to be enabled (for secondary CPU)
  * 
  * This function should be called by the secondary CPU to wait for L2 cache

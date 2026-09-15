@@ -14,7 +14,6 @@
 
 #include "sys_hal.h"
 #include "sys_driver.h"
-#include "sys_ll.h"
 
 //sys_ctrl CMD: CMD_QSPI_VDDRAM_VOLTAGE
 void sys_drv_set_qspi_vddram_voltage(uint32_t param)
@@ -108,18 +107,6 @@ uint32_t sys_drv_psram_psram_disckg(uint32_t value)
 	sys_drv_exit_critical(int_level);
 	return SYS_DRV_SUCCESS;
 
-}
-
-/* Latch / unlatch PSRAM I/O pads at 3V (ana_reg5.gpio_latch bit7).
- * Used by PSRAM retention path to keep pad state valid while the
- * M55 / AHBP sub-system is powered down. Covers PSRAM0 + PSRAM1. */
-uint32_t sys_drv_set_psram_pad_latch(uint32_t value)
-{
-	uint32_t int_level = sys_drv_enter_critical();
-
-	sys_ll_set_ana_reg5_gpio_latch(value);
-	sys_drv_exit_critical(int_level);
-	return SYS_DRV_SUCCESS;
 }
 
 /**  psram End **/
