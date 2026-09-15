@@ -122,7 +122,7 @@ static bool sys_hal_psram_retention_flush(uint32_t *failed_id,
 	}
 	__DSB();
 	bk_delay_us(100);
-	sys_drv_set_psram_pad_latch(1);
+	//sys_drv_set_psram_pad_latch(1);
 	/* REG2[0] Soft_Reset: 0 holds the PSRAM controller in reset. */
 	REG_WRITE(AP_PSRAM_REG2_ADDR(SOC_PSRAM0_REG_BASE),REG_READ(AP_PSRAM_REG2_ADDR(SOC_PSRAM0_REG_BASE)) & ~AP_PSRAM_SF_RESET_BIT);
 	REG_WRITE(AP_PSRAM_REG2_ADDR(SOC_PSRAM1_REG_BASE),REG_READ(AP_PSRAM_REG2_ADDR(SOC_PSRAM1_REG_BASE)) & ~AP_PSRAM_SF_RESET_BIT);
@@ -731,7 +731,7 @@ void sys_hal_enter_cpu_wfi()
 			 */
 			sys_pm_hal_ap_sram_check_save();
 #endif
-#if 0//CONFIG_PSRAM_DATA_RETENTION_ENABLE
+#if CONFIG_PSRAM_DATA_RETENTION_ENABLE
 			/*
 			 * Context capture cleans AP L1/L2. Flush both PSRAM
 			 * controllers afterwards, while AP/AHBP command clocks are
