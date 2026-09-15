@@ -525,14 +525,21 @@ static netif_if_t bk_network_auto_reconnect(bool val)	//val true means from disc
 	}
 #endif
 
-    if (netif_if != NETIF_IF_INVALID) {
-        if (val == false) {
+	if (netif_if != NETIF_IF_INVALID) {
+	/* P2P waits for peer operation, skip generic reconnect timeout/status handling */
+#if CONFIG_P2P
+		if (netif_if == NETIF_IF_P2P) {
+			return netif_if;
+		}
+#endif
+
+		if (val == false) {
 			network_status_check_stop_timeout_check();
-			network_status_check_start_timeout_check(50);    //50s
+			network_status_check_start_timeout_check(50);	//50s
 			bk_network_provisioning_update_status(BK_NETWORK_PROVISIONING_STATUS_RECONNECTING, NULL);
 			network_disc_evt_posted = 0;
 		}
-    }
+	}
 	return netif_if;
 }
 
