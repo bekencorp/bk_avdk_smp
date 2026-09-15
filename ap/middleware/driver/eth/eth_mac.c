@@ -210,6 +210,8 @@
 #define ETH_LOGD(...) BK_LOGD(ETH_TAG, ##__VA_ARGS__)
 #define ETH_LOGV(...) BK_LOGV(ETH_TAG, ##__VA_ARGS__)
 
+#define ETH_DMA_ADDR(addr) ((uint32_t)SOC_SRAM_PERI_ADDR((uintptr_t)(addr)))
+
 /** @defgroup ETH ETH
   * @brief ETH HAL module driver
   * @{
@@ -1056,7 +1058,8 @@ HAL_StatusTypeDef HAL_ETH_Transmit(ETH_HandleTypeDef *heth, ETH_TxPacketConfig *
 
     /* Start transmission */
     /* issue a poll command to Tx DMA by writing address of next immediate free descriptor */
-    WRITE_REG(heth->Instance->DMACTDTPR, (uint32_t)(heth->TxDescList.TxDesc[heth->TxDescList.CurTxDesc]));
+    WRITE_REG(heth->Instance->DMACTDTPR,
+              ETH_DMA_ADDR(heth->TxDescList.TxDesc[heth->TxDescList.CurTxDesc]));
 
     tickstart = HAL_ETH_GetTick();
 
@@ -1135,7 +1138,8 @@ HAL_StatusTypeDef HAL_ETH_Transmit_IT(ETH_HandleTypeDef *heth, ETH_TxPacketConfi
 
     /* Start transmission */
     /* issue a poll command to Tx DMA by writing address of next immediate free descriptor */
-    WRITE_REG(heth->Instance->DMACTDTPR, (uint32_t)(heth->TxDescList.TxDesc[heth->TxDescList.CurTxDesc]));
+    WRITE_REG(heth->Instance->DMACTDTPR,
+              ETH_DMA_ADDR(heth->TxDescList.TxDesc[heth->TxDescList.CurTxDesc]));
 
     return HAL_OK;
 
@@ -1307,7 +1311,7 @@ static void ETH_UpdateDescriptor(ETH_HandleTypeDef *heth)
       else
       {
         WRITE_REG(dmarxdesc->BackupAddr0, (uint32_t)buff);
-        WRITE_REG(dmarxdesc->DESC0, (uint32_t)buff);
+        WRITE_REG(dmarxdesc->DESC0, ETH_DMA_ADDR(buff));
       }
     }
 
@@ -3273,10 +3277,10 @@ static void ETH_DMATxDescListInit(ETH_HandleTypeDef *heth)
   WRITE_REG(heth->Instance->DMACTDRLR, (ETH_TX_DESC_CNT - 1U));
 
   /* Set Transmit Descriptor List Address */
-  WRITE_REG(heth->Instance->DMACTDLAR, (uint32_t) heth->Init.TxDesc);
+  WRITE_REG(heth->Instance->DMACTDLAR, ETH_DMA_ADDR(heth->Init.TxDesc));
 
   /* Set Transmit Descriptor Tail pointer */
-  WRITE_REG(heth->Instance->DMACTDTPR, (uint32_t) heth->Init.TxDesc);
+  WRITE_REG(heth->Instance->DMACTDTPR, ETH_DMA_ADDR(heth->Init.TxDesc));
 }
 
 static void ETH_DMATxDescListReInit(ETH_HandleTypeDef *heth)
@@ -3316,10 +3320,10 @@ static void ETH_DMATxDescListReInit(ETH_HandleTypeDef *heth)
   WRITE_REG(heth->Instance->DMACTDRLR, (ETH_TX_DESC_CNT - 1U));
 
   /* Set Transmit Descriptor List Address */
-  WRITE_REG(heth->Instance->DMACTDLAR, (uint32_t) heth->Init.TxDesc);
+  WRITE_REG(heth->Instance->DMACTDLAR, ETH_DMA_ADDR(heth->Init.TxDesc));
 
   /* Set Transmit Descriptor Tail pointer */
-  WRITE_REG(heth->Instance->DMACTDTPR, (uint32_t) heth->Init.TxDesc);
+  WRITE_REG(heth->Instance->DMACTDTPR, ETH_DMA_ADDR(heth->Init.TxDesc));
 }
 
 /**
@@ -3361,10 +3365,11 @@ static void ETH_DMARxDescListInit(ETH_HandleTypeDef *heth)
   WRITE_REG(heth->Instance->DMACRDRLR, ((uint32_t)(ETH_RX_DESC_CNT - 1U)));
 
   /* Set Receive Descriptor List Address */
-  WRITE_REG(heth->Instance->DMACRDLAR, (uint32_t) heth->Init.RxDesc);
+  WRITE_REG(heth->Instance->DMACRDLAR, ETH_DMA_ADDR(heth->Init.RxDesc));
 
   /* Set Receive Descriptor Tail pointer Address */
-  WRITE_REG(heth->Instance->DMACRDTPR, ((uint32_t)(heth->Init.RxDesc + (uint32_t)(ETH_RX_DESC_CNT - 1U))));
+  WRITE_REG(heth->Instance->DMACRDTPR,
+            ETH_DMA_ADDR(heth->Init.RxDesc + (uint32_t)(ETH_RX_DESC_CNT - 1U)));
 }
 
 static void ETH_DMARxDescListReInit(ETH_HandleTypeDef *heth)
@@ -3402,10 +3407,11 @@ static void ETH_DMARxDescListReInit(ETH_HandleTypeDef *heth)
   WRITE_REG(heth->Instance->DMACRDRLR, ((uint32_t)(ETH_RX_DESC_CNT - 1U)));
 
   /* Set Receive Descriptor List Address */
-  WRITE_REG(heth->Instance->DMACRDLAR, (uint32_t) heth->Init.RxDesc);
+  WRITE_REG(heth->Instance->DMACRDLAR, ETH_DMA_ADDR(heth->Init.RxDesc));
 
   /* Set Receive Descriptor Tail pointer Address */
-  WRITE_REG(heth->Instance->DMACRDTPR, ((uint32_t)(heth->Init.RxDesc + (uint32_t)(ETH_RX_DESC_CNT - 1U))));
+  WRITE_REG(heth->Instance->DMACRDTPR,
+            ETH_DMA_ADDR(heth->Init.RxDesc + (uint32_t)(ETH_RX_DESC_CNT - 1U)));
 }
 
 /**
@@ -3521,7 +3527,7 @@ static uint32_t ETH_Prepare_Tx_Descriptors(ETH_HandleTypeDef *heth, ETH_TxPacket
   descnbr += 1U;
 
   /* Set header or buffer 1 address */
-  WRITE_REG(dmatxdesc->DESC0, (uint32_t)txbuffer->buffer);
+  WRITE_REG(dmatxdesc->DESC0, ETH_DMA_ADDR(txbuffer->buffer));
   /* Set header or buffer 1 Length */
   MODIFY_REG(dmatxdesc->DESC2, ETH_DMATXNDESCRF_B1L, txbuffer->len);
 
@@ -3529,7 +3535,7 @@ static uint32_t ETH_Prepare_Tx_Descriptors(ETH_HandleTypeDef *heth, ETH_TxPacket
   {
     txbuffer = txbuffer->next;
     /* Set buffer 2 address */
-    WRITE_REG(dmatxdesc->DESC1, (uint32_t)txbuffer->buffer);
+    WRITE_REG(dmatxdesc->DESC1, ETH_DMA_ADDR(txbuffer->buffer));
     /* Set buffer 2 Length */
     MODIFY_REG(dmatxdesc->DESC2, ETH_DMATXNDESCRF_B2L, (txbuffer->len << 16));
   }
@@ -3635,7 +3641,7 @@ static uint32_t ETH_Prepare_Tx_Descriptors(ETH_HandleTypeDef *heth, ETH_TxPacket
     txbuffer = txbuffer->next;
 
     /* Set header or buffer 1 address */
-    WRITE_REG(dmatxdesc->DESC0, (uint32_t)txbuffer->buffer);
+    WRITE_REG(dmatxdesc->DESC0, ETH_DMA_ADDR(txbuffer->buffer));
     /* Set header or buffer 1 Length */
     MODIFY_REG(dmatxdesc->DESC2, ETH_DMATXNDESCRF_B1L, txbuffer->len);
 
@@ -3644,7 +3650,7 @@ static uint32_t ETH_Prepare_Tx_Descriptors(ETH_HandleTypeDef *heth, ETH_TxPacket
       /* Get the next Tx buffer in the list */
       txbuffer = txbuffer->next;
       /* Set buffer 2 address */
-      WRITE_REG(dmatxdesc->DESC1, (uint32_t)txbuffer->buffer);
+      WRITE_REG(dmatxdesc->DESC1, ETH_DMA_ADDR(txbuffer->buffer));
       /* Set buffer 2 Length */
       MODIFY_REG(dmatxdesc->DESC2, ETH_DMATXNDESCRF_B2L, (txbuffer->len << 16));
     }
