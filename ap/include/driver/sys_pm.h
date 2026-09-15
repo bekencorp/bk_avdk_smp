@@ -98,6 +98,7 @@ bk_err_t sys_drv_audif1_cksel_clkdiv_set(cksel_sys_xtal_apll_t cksel, uint32_t c
 bk_err_t sys_drv_i2so_clkdiv_set(uint32_t ckdiv);
 bk_err_t sys_drv_auxs_enet_cksel_clkdiv_set(cksel_sys_dco_apll_t cksel, uint32_t ckdiv);
 bk_err_t sys_drv_trace_cksel_clkdiv_set(cksel_sys_trace_t cksel, uint32_t ckdiv);
+bk_err_t sys_drv_dco_cali(uint32_t vco_mhz);
 
 
 bk_err_t sys_drv_auxldo_enable(auxldo_sel_t auxldo_sel,uint32_t value);
