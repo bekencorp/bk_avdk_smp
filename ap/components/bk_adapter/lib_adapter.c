@@ -23,21 +23,6 @@
 #include <components/system.h>
 #include "modules/wifi_types.h"
 
-int mcu_suppress_and_sleep(uint32_t sleep_ticks)
-{
-#if CONFIG_MCU_PS
-#if (CONFIG_FREERTOS)
-        GLOBAL_INT_DECLARATION();
-        GLOBAL_INT_DISABLE();
-        uint32_t missed_ticks = 0;
-        missed_ticks = mcu_power_save(sleep_ticks);
-        bk_update_tick(missed_ticks);
-        GLOBAL_INT_RESTORE();
-#endif
-#endif
-	return BK_OK;
-}
-
 //Called by bkreg_tx()
 int bkreg_tx_get_uart_port(void)
 {

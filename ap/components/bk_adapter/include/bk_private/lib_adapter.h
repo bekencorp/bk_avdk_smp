@@ -20,7 +20,6 @@
 extern "C" {
 #endif
 
-int mcu_suppress_and_sleep(uint32_t sleep_ticks);
 int bkreg_tx_get_uart_port(void);
 void write_cal_result_to_flash_secure_op1(void);
 void write_cal_result_to_flash_secure_op2(void);

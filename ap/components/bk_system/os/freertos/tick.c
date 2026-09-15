@@ -19,28 +19,6 @@
 #include "bk_wdt.h"
 #include <components/system.h>
 
-#if CONFIG_FREERTOS_USE_TICKLESS_IDLE
-void vTaskStepTick( TickType_t xTicksToJump );
-#endif
-
-extern void mcu_ps_increase_clr(void);
-
-int bk_update_tick(uint32_t tick)
-{
-	GLOBAL_INT_DECLARATION();
-
-	if (tick == 0)
-		return 0;
-
-	GLOBAL_INT_DISABLE();
-	mcu_ps_increase_clr();
-#if CONFIG_FREERTOS_USE_TICKLESS_IDLE
-	vTaskStepTick(tick);
-#endif
-	GLOBAL_INT_RESTORE();
-	return 0;
-}
-
 uint64_t bk_get_tick(void)
 {
 	if(platform_is_in_interrupt_context() == RTOS_SUCCESS) {
