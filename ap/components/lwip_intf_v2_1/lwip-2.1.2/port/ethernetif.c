@@ -172,8 +172,8 @@ LWIP_MEMPOOL_DECLARE(RX_POOL, ETH_RX_BUFFER_CNT, sizeof(RxBuff_t), "Zero-copy RX
 static uint8_t RxAllocStatus;
 
 
-static ETH_DMADescTypeDef DMARxDscrTab[ETH_RX_DESC_CNT]; /* Ethernet Rx DMA Descriptors */
-static ETH_DMADescTypeDef DMATxDscrTab[ETH_TX_DESC_CNT];   /* Ethernet Tx DMA Descriptors */
+static ETH_DMADescTypeDef DMARxDscrTab[ETH_RX_DESC_CNT] __attribute__((aligned(32))); /* Ethernet Rx DMA Descriptors */
+static ETH_DMADescTypeDef DMATxDscrTab[ETH_TX_DESC_CNT] __attribute__((aligned(32))); /* Ethernet Tx DMA Descriptors */
 extern u8_t memp_memory_RX_POOL_base[];
 extern int32_t xTaskGetTickCount( void );
 volatile int32_t bmsg_eth_rx_count = 0;
