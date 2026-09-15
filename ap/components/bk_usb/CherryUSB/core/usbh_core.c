@@ -21,7 +21,11 @@ struct setup_align_buffer {
 USB_NOCACHE_RAM_SECTION USB_MEM_ALIGNX uint8_t ep0_request_buffer[CONFIG_USBHOST_MAX_BUS][USB_ALIGN_UP(CONFIG_USBHOST_REQUEST_BUFFER_LEN, CONFIG_USB_ALIGN_SIZE)];
 USB_NOCACHE_RAM_SECTION USB_MEM_ALIGNX struct setup_align_buffer g_setup_buffer[CONFIG_USBHOST_MAX_BUS][CONFIG_USBHOST_MAX_EXTHUBS + 1][CONFIG_USBHOST_MAX_EHPORTS];
 
-struct usbh_bus g_usbhost_bus[CONFIG_USBHOST_MAX_BUS];
+struct usbh_bus g_usbhost_bus[CONFIG_USBHOST_MAX_BUS]
+#if CONFIG_USB_HOST_STRUCTS_IN_PSRAM
+    __attribute__((section(".psram.bss")))
+#endif
+    ;
 
 /* general descriptor field offsets */
 #define DESC_bLength         0 /** Length offset */

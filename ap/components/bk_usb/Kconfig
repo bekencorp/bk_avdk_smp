@@ -37,6 +37,16 @@ menu "Bk_usb"
 		config USB_HOST
 			bool "Enable USB Host Mode"
 			default y
+
+		config USB_HOST_STRUCTS_IN_PSRAM
+			bool "Place large USB host bookkeeping structures in PSRAM"
+			depends on USB_HOST && PSRAM_AS_SYS_MEMORY
+			default n
+			help
+				Place g_usbhost_bus and g_hub_class in .psram.bss to reduce
+				AP SRAM static usage. These structures are accessed during
+				USB enumeration and interrupt processing, so this option trades
+				access latency for about 31 KiB of SRAM.
 	
 		config USB_DEVICE
 			bool "Enable USB Device Mode"

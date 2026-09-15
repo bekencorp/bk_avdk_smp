@@ -504,6 +504,44 @@ static bool SCSI_readCapacity10(uint8_t busid, uint8_t **data, uint32_t *len)
     return true;
 }
 
+/* READ CAPACITY(16) / SERVICE ACTION IN(16), opcode 0x9E service action 0x10.
+ * Some hosts (e.g. certain Windows builds) probe this during enumeration, or
+ * issue it after READ CAPACITY(10) reports the 0xFFFFFFFF overflow sentinel.
+ * Without a handler the command hits the default case -> CHECK CONDITION ->
+ * the host logs one error then retries with READ CAPACITY(10) (functionally
+ * harmless but noisy). The 32-byte parameter data is: 8-byte returned LBA,
+ * 4-byte block length, then protection/geometry fields left 0. */
+static bool SCSI_readCapacity16(uint8_t busid, uint8_t **data, uint32_t *len)
+{
+    if (g_usbd_msc[busid].cbw.dDataLength == 0U) {
+        SCSI_SetSenseData(busid, SCSI_KCQIR_INVALIDCOMMAND);
+        return false;
+    }
+
+    uint32_t last_lba = g_usbd_msc[busid].scsi_blk_nbr[g_usbd_msc[busid].cbw.bLUN] - 1;
+    uint32_t blk_size = g_usbd_msc[busid].scsi_blk_size[g_usbd_msc[busid].cbw.bLUN];
+
+    uint8_t capacity16[32] = { 0 };
+    /* Returned Logical Block Address (8 bytes, big-endian); our LBA fits in 32 bits. */
+    capacity16[4] = (uint8_t)((last_lba >> 24) & 0xff);
+    capacity16[5] = (uint8_t)((last_lba >> 16) & 0xff);
+    capacity16[6] = (uint8_t)((last_lba >> 8) & 0xff);
+    capacity16[7] = (uint8_t)((last_lba >> 0) & 0xff);
+    /* Block length in bytes (4 bytes, big-endian). */
+    capacity16[8]  = (uint8_t)((blk_size >> 24) & 0xff);
+    capacity16[9]  = (uint8_t)((blk_size >> 16) & 0xff);
+    capacity16[10] = (uint8_t)((blk_size >> 8) & 0xff);
+    capacity16[11] = (uint8_t)((blk_size >> 0) & 0xff);
+
+    uint32_t data_len = sizeof(capacity16);
+    if (g_usbd_msc[busid].cbw.dDataLength < data_len) {
+        data_len = g_usbd_msc[busid].cbw.dDataLength;
+    }
+    memcpy(*data, (uint8_t *)capacity16, data_len);
+    *len = data_len;
+    return true;
+}
+
 static bool SCSI_read10(uint8_t busid, uint8_t **data, uint32_t *len)
 {
     (void)data;
@@ -726,6 +764,14 @@ static bool SCSI_CBWDecode(uint8_t busid, uint32_t nbytes)
                 break;
             case SCSI_CMD_READCAPACITY10:
                 ret = SCSI_readCapacity10(busid, &buf2send, &len2send);
+                break;
+            case SCSI_CMD_READCAPACITY16: /* 0x9E; shared with READ LONG(16) */
+                if ((g_usbd_msc[busid].cbw.CB[1] & 0x1f) == 0x10) { /* SAI_READ_CAPACITY_16 */
+                    ret = SCSI_readCapacity16(busid, &buf2send, &len2send);
+                } else {
+                    SCSI_SetSenseData(busid, SCSI_KCQIR_INVALIDCOMMAND);
+                    ret = false;
+                }
                 break;
             case SCSI_CMD_READ10:
                 ret = SCSI_read10(busid, NULL, 0);
