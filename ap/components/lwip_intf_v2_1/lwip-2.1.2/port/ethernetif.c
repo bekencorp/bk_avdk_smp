@@ -56,6 +56,7 @@
 #include "sys_hal.h"
 #include "miiphy.h"
 #include "os/mem.h"
+#include "driver/gpio.h"
 
 #define ETH_MULTI_PHY_SUPPORT  1
 
@@ -1041,6 +1042,18 @@ static int __HAL_ETH_Exit_LP()
 }
 #endif // CONFIG_ETH_PM_CB_SUPPORT
 
+#if CONFIG_PHY_JLSEMI && CONFIG_ETH_PHY_HW_RESET
+static void eth_phy_hw_reset(void)
+{
+  gpio_id_t reset_gpio = (gpio_id_t)CONFIG_ETH_PHY_RESET_GPIO;
+
+  bk_gpio_set_output_low(reset_gpio);
+  rtos_delay_milliseconds(2);
+  bk_gpio_set_output_high(reset_gpio);
+  rtos_delay_milliseconds(20);
+}
+#endif
+
 void HAL_ETH_MspInit(ETH_HandleTypeDef* ethHandle)
 {
   //LWIP_LOGD("HW DeviceID: 0x%x\n", REG_READ((ETH_BASE + 0x800*4)));
@@ -1068,6 +1081,10 @@ void HAL_ETH_MspInit(ETH_HandleTypeDef* ethHandle)
   gpio_dev_map_by_func(GPIO_DEV_ENET_REF_CLK);
 #endif
   gpio_dev_map_by_func(GPIO_DEV_ENET_TXEN);
+#endif
+
+#if CONFIG_PHY_JLSEMI && CONFIG_ETH_PHY_HW_RESET
+  eth_phy_hw_reset();
 #endif
 
   // Power On AHBP 
