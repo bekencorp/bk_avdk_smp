@@ -884,3 +884,11 @@ bk_err_t sys_drv_trace_cksel_clkdiv_set(cksel_sys_trace_t cksel, uint32_t ckdiv)
 	sys_drv_exit_critical(int_level);
 	return BK_OK;
 }
+
+/* No critical section here: the calibration sequence waits out several
+ * hundred microseconds of analog settling and must not hold off interrupts
+ * for that long. Callers run it once while bringing a consumer up. */
+bk_err_t sys_drv_dco_cali(uint32_t vco_mhz)
+{
+	return (BK_OK == sys_hal_dco_cali(vco_mhz)) ? BK_OK : BK_FAIL;
+}

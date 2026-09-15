@@ -47,6 +47,8 @@
 #endif
 
 extern uint64_t check_IRQ_pending(void);
+extern void bk_delay_us(UINT32 us);
+extern uint32_t sys_drv_set_psram_pad_latch(uint32_t value);
 
 #if CONFIG_GENERAL_DMA
 #define SYS_PM_DMA_CHN_BUSY() bk_dma_check_chn_status()
@@ -78,6 +80,8 @@ extern uint64_t check_IRQ_pending(void);
 #if CONFIG_PM_AP_FAST_BOOT_ENABLE && CONFIG_PSRAM_DATA_RETENTION_ENABLE
 #define AP_PSRAM_RETENTION_FLUSH_BIT           (1U << 3)
 #define AP_PSRAM_RETENTION_FLUSH_TIMEOUT       (1000000U)
+#define AP_PSRAM_SF_RESET_BIT                  (1U << 0)
+#define AP_PSRAM_REG2_ADDR(base)               ((base) + (0x2U << 2))
 #define AP_PSRAM_REG8_ADDR(base)               ((base) + (0x8U << 2))
 
 /*
@@ -117,6 +121,12 @@ static bool sys_hal_psram_retention_flush(uint32_t *failed_id,
 		}
 	}
 	__DSB();
+	bk_delay_us(100);
+	//sys_drv_set_psram_pad_latch(1);
+	/* REG2[0] Soft_Reset: 0 holds the PSRAM controller in reset. */
+	REG_WRITE(AP_PSRAM_REG2_ADDR(SOC_PSRAM0_REG_BASE),REG_READ(AP_PSRAM_REG2_ADDR(SOC_PSRAM0_REG_BASE)) & ~AP_PSRAM_SF_RESET_BIT);
+	REG_WRITE(AP_PSRAM_REG2_ADDR(SOC_PSRAM1_REG_BASE),REG_READ(AP_PSRAM_REG2_ADDR(SOC_PSRAM1_REG_BASE)) & ~AP_PSRAM_SF_RESET_BIT);
+
 	return true;
 }
 #endif
@@ -140,7 +150,6 @@ typedef struct
 
 uint64_t low_voltage_exit_tick = 0;
 uint64_t low_voltage_wakeup_time_us = 0;
-extern void bk_delay_us(UINT32 us);
 static inline bool is_lpo_src_26m32k(void)
 {
 	return (aon_pmu_ll_get_r41_lpo_config() == SYS_LPO_SRC_26M32K);
@@ -1092,9 +1101,118 @@ void sys_hal_dco_switch_freq(dco_cali_speed_e speed)
 	return;
 }
 
-static int sys_hal_dco_cali(dco_cali_speed_e speed)
+/* Per the BK7259_V2 DCO spec with a 26 MHz XTAL: ndiv is the loop divider in
+ * [31:24].[23:0] fixed point (VCO = 26 MHz * ndiv) and cnti is the number of
+ * VCO cycles expected inside a 20-XTAL-cycle calibration window. The spec only
+ * tabulates 320/480/640M, none of which divides down to the 50 MHz an RMII
+ * reference needs, so the rest are derived from the same two formulas. Every
+ * entry except the three tabulated ones is a multiple of 50 MHz reachable by
+ * the 4-bit AUXS_ENET divider. */
+static const struct {
+	uint32_t vco_mhz;
+	uint32_t cnti;
+	uint32_t ndiv;
+} s_dco_cali_tbl[] = {
+	{320, 0x0F6, 0x0C4EC4EC},
+	{350, 0x10D, 0x0D762762},
+	{400, 0x134, 0x0F627627},
+	{450, 0x15A, 0x114EC4EC},
+	{480, 0x171, 0x12762762},
+	{500, 0x181, 0x133B13B1},
+	{550, 0x1A7, 0x15276276},
+	{600, 0x1CE, 0x1713B13B},
+	{640, 0x1EC, 0x189D89D8},
+	{650, 0x1F4, 0x19000000},
+};
+
+#define DCO_BAND_MAX            0x3FU
+
+/* A full 6-bit band sweep costs 64 windows of 20 XTAL cycles, i.e. ~50 us at
+ * 26 MHz, so the 1 us / 100 us the CP code waits leaves no margin at all. */
+#define DCO_CALI_TRIG_GAP_US    200U
+#define DCO_CALI_SETTLE_US      2000U
+
+static uint32_t sys_hal_dco_state_get(uint32_t *reg7, uint32_t *reg8)
 {
-	return 0;
+	if (reg7)
+		*reg7 = sys_ll_get_ana_reg7_value();
+	if (reg8)
+		*reg8 = sys_ll_get_ana_reg8_value();
+
+	return sys_ll_get_ana_reg7_bandmanual();
+}
+
+int sys_hal_dco_cali(uint32_t vco_mhz)
+{
+	uint32_t cnti;
+	uint32_t ndiv;
+	uint32_t bandcal;
+	uint32_t reg7 = 0;
+	uint32_t reg8 = 0;
+	uint32_t i;
+
+	for (i = 0; i < ARRAY_SIZE(s_dco_cali_tbl); i++) {
+		if (s_dco_cali_tbl[i].vco_mhz == vco_mhz)
+			break;
+	}
+	if (i == ARRAY_SIZE(s_dco_cali_tbl)) {
+		PM_HAL_LOGE("dco: %d MHz has no calibration entry\r\n", vco_mhz);
+		return BK_FAIL;
+	}
+	cnti = s_dco_cali_tbl[i].cnti;
+	ndiv = s_dco_cali_tbl[i].ndiv;
+
+	/* The spec hands out this one ana_reg1 value alongside its 480M example
+	 * without saying which fields are frequency dependent; it is applied
+	 * as-is for every entry and measured fine down to 320M and up to 650M. */
+	sys_ll_set_ana_reg1_value(0x00655044);
+
+	sys_ll_set_ana_reg7_value(0x622E7080);
+	sys_ll_set_ana_reg8_value(ndiv);
+	sys_ll_set_ana_reg2_rst_unlock_dco(0);
+	sys_ll_set_ana_reg2_unlock_sel_dco(0);
+	sys_ll_set_ana_reg2_dco_modecal_1(0);
+	sys_ll_set_ana_reg2_dco_modecal(0);
+
+	sys_ll_set_ana_reg7_cnti(cnti);
+	sys_ll_set_ana_reg5_en_dco(1);
+
+	/* Current is calibrated first and the band second, both off one trigger,
+	 * so the pulse pair has to be issued twice before the result is valid. */
+	sys_ll_set_ana_reg7_osccal_trig(0);
+	bk_delay_us(DCO_CALI_TRIG_GAP_US);
+	sys_ll_set_ana_reg7_osccal_trig(1);
+	bk_delay_us(DCO_CALI_TRIG_GAP_US);
+	sys_ll_set_ana_reg7_osccal_trig(0);
+	bk_delay_us(DCO_CALI_TRIG_GAP_US);
+	sys_ll_set_ana_reg7_osccal_trig(1);
+	bk_delay_us(DCO_CALI_TRIG_GAP_US);
+	sys_ll_set_ana_reg7_osccal_trig(0);
+
+	bk_delay_us(DCO_CALI_SETTLE_US);
+
+	/* The band is left under hardware control: the PMU band_cal read does not
+	 * track this sequence, alternating between the band the boot-time 480 MHz
+	 * calibration left behind and 0 for the same ndiv across resets, so
+	 * driving bandmanual from it would pin the loop to a band unrelated to
+	 * vco_mhz. The read is kept for logging only. */
+	bandcal = aon_pmu_hal_band_cal_get() & DCO_BAND_MAX;
+
+	sys_ll_set_ana_reg2_rst_unlock_dco(1);
+	sys_ll_set_ana_reg2_rst_unlock_dco(0);
+
+	/* ana_reg7/8 reach the analog block over a serial bus, so the writes are
+	 * worth confirming before reading anything into the result. */
+	sys_hal_dco_state_get(&reg7, &reg8);
+	PM_HAL_LOGD("dco: %d MHz band_cal %d ndiv 0x%08x/0x%08x reg7 0x%08x\r\n",
+				vco_mhz, bandcal, ndiv, reg8, reg7);
+
+	if (reg8 != ndiv) {
+		PM_HAL_LOGE("dco: ndiv readback 0x%08x != 0x%08x\r\n", reg8, ndiv);
+		return BK_FAIL;
+	}
+
+	return BK_OK;
 }
 
 static int sys_hal_config_32k_source_default()

@@ -740,6 +740,7 @@ bk_err_t sys_hal_audif1_cksel_clkdiv_set(cksel_sys_xtal_apll_t cksel, uint32_t c
 bk_err_t sys_hal_i2so_clkdiv_set(uint32_t ckdiv);
 bk_err_t sys_hal_auxs_enet_cksel_clkdiv_set(cksel_sys_dco_apll_t cksel, uint32_t ckdiv);
 bk_err_t sys_hal_trace_cksel_clkdiv_set(cksel_sys_trace_t cksel, uint32_t ckdiv);
+int sys_hal_dco_cali(uint32_t vco_mhz);
 
 #if CONFIG_GPIO_CLOCK_PIN_SUPPORT
 /**  System Clock Start **/

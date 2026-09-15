@@ -98,5 +98,18 @@ menu "ETH"
 		range 0 71
 		default 30
 
+	config ETH_PHY_REF_CLK_DCO
+		bool "Feed the Ethernet PHY reference clock from the DCO"
+		depends on PHY_JLSEMI
+		default n
+		help
+			Calibrate the DCO to 500 MHz and route DCO/10 out on
+			CLK_AUXS_ENET as the 50 MHz reference for an external PHY that
+			has no crystal of its own. Calibration locks the DCO loop to
+			the 26 MHz XTAL, so the reference inherits the crystal accuracy
+			and the APLL is left alone for the audio peripherals. 500 MHz is
+			not one of the three VCO frequencies the DCO spec tabulates, so
+			validate link stability over temperature.
+
 endmenu
 
