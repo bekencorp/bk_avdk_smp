@@ -99,7 +99,7 @@
 #else
 #define SHELL_CMD_BUF_LEN		200
 #endif
-#define SHELL_RSP_BUF_LEN		140
+#define SHELL_RSP_BUF_LEN		256
 #define SHELL_IND_BUF_LEN		132
 
 #define SHELL_RSP_QUEUE_ID	    (7)
