@@ -1422,7 +1422,7 @@ static avdk_err_t gpu_ctlr_open(bk_gpu_ctlr_handle_t handle)
                                         1,
                                         "gpu",
                                         (beken_thread_function_t)gpu_flex_main_entry,
-                                        1024 * 10,
+                                        CONFIG_VG_LITE_GPU_TASK_STACK_SIZE,
                                         control);
 
         if (ret != AVDK_ERR_OK) {
