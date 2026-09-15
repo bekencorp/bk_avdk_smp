@@ -258,21 +258,21 @@ void vTaskExitCritical(void);
 
 #define portDISABLE_INTERRUPTS()                  bk_arch_raise_basepri()
 
-    #define portRESTORE_INTERRUPTS(ulState)       bk_arch_set_basepri( ulState )
+#define portRESTORE_INTERRUPTS(ulState)       bk_arch_set_basepri( ulState )
 
-    bk_err_t vPortYieldCore(int xCoreID);
-    #define portYIELD_CORE(a) vPortYieldCore(a)
+bk_err_t vPortYieldCore(int xCoreID);
+#define portYIELD_CORE(a) vPortYieldCore(a)
 
-    extern volatile spinlock_t isr_spin_lock;
-    extern volatile spinlock_t task_spin_lock;
+extern volatile spinlock_t isr_spin_lock;
+extern volatile spinlock_t task_spin_lock;
 
-    #define portGET_ISR_LOCK()        spin_lock(&isr_spin_lock)
-    #define portRELEASE_ISR_LOCK()    spin_unlock(&isr_spin_lock)
-    #define portGET_TASK_LOCK()     spin_lock(&task_spin_lock)
-    #define portRELEASE_TASK_LOCK() spin_unlock(&task_spin_lock)
+#define portGET_ISR_LOCK()        spin_lock(&isr_spin_lock)
+#define portRELEASE_ISR_LOCK()    spin_unlock(&isr_spin_lock)
+#define portGET_TASK_LOCK()     spin_lock(&task_spin_lock)
+#define portRELEASE_TASK_LOCK() spin_unlock(&task_spin_lock)
 
-    #define portINTERRUPTS_DISABLED(__ulState)        ( __ulState != 0 )
-    #define portENABLE_INTERRUPTS()                   port_set_basepri( 0UL )
+#define portINTERRUPTS_DISABLED(__ulState)        ( __ulState != 0 )
+#define portENABLE_INTERRUPTS()                   port_set_basepri( 0UL )
 
 /*-----------------------------------------------------------*/
 enum
