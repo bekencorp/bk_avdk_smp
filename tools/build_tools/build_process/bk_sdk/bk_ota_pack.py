@@ -31,6 +31,9 @@ BL_METADATA_FLASH_CONFIG_SIZE = 0xC00
 BL_METADATA_BOOTLOADER_SIZE = 0x10000
 BL_METADATA_PARTITION_MAGIC = 0x31545042  # "BPT1"
 BL_METADATA_FLASH_CONFIG_MAGIC = 0x31434642  # "BFC1"
+# Last 16 bytes of the 1KB BPT region; must match boot_metadata.h.
+BL_METADATA_AB_TRAILER_OFF = BL_METADATA_PARTITION_SIZE - 16
+BL_METADATA_AB_TRAILER_MAGIC = 0x42414642  # "BFAB"
 BL_OTA_SCHEME_FULL = 1
 BL_OTA_SCHEME_DIFF = 2
 BL_OTA_SCHEME_AB = 3
@@ -103,8 +106,13 @@ def build_metadata(magic: int, entry_size: int, entries: bytes, ota_scheme: int)
     return header + entries
 
 
-def serialize_partitions_table(partitions_json: Path) -> bytes:
-    """Serialize the FULL App partition table (App naming/semantics) from partitions.json."""
+def serialize_partitions_table(
+    partitions_json: Path,
+) -> tuple[bytes, int | None, int | None]:
+    """Serialize the FULL App partition table (App naming/semantics) from partitions.json.
+
+    Also returns application / s_app start addresses for the AB fastboot trailer.
+    """
     if not partitions_json.exists():
         raise RuntimeError(f"{partitions_json} not exists.")
     with partitions_json.open("r") as f:
@@ -113,6 +121,8 @@ def serialize_partitions_table(partitions_json: Path) -> bytes:
     sections = sorted(part_info["section"], key=lambda x: x["Id"])
     entries = bytes()
     app_count = 0
+    a_base = None
+    b_base = None
     for part in sections:
         execute = bool(part["Execute"])
         name, app_count = adapt_partition_name(part["Name"], execute, app_count)
@@ -123,21 +133,48 @@ def serialize_partitions_table(partitions_json: Path) -> bytes:
             options |= PAR_OPT_WRITE_EN
         if execute:
             options |= PAR_OPT_EXECUTE_EN
+        offset = int(part["Offset"])
+        if name == "application":
+            a_base = offset
+        elif name == "s_app":
+            b_base = offset
         entries += struct.pack(
             BL_PARTITION_ENTRY_FORMAT,
             int(part["Id"]),
             BL_FLASH_OWNER_EMBEDDED,
             format_string_to_bytes(name, BL_PARTITION_NAME_MAX),
-            int(part["Offset"]),
+            offset,
             int(part["Size"]),
             options,
             0,
         )
-    return build_metadata(
-        BL_METADATA_PARTITION_MAGIC,
-        BL_PARTITION_ENTRY_SIZE,
-        entries,
-        get_ota_scheme(),
+    return (
+        build_metadata(
+            BL_METADATA_PARTITION_MAGIC,
+            BL_PARTITION_ENTRY_SIZE,
+            entries,
+            get_ota_scheme(),
+        ),
+        a_base,
+        b_base,
+    )
+
+
+def write_ab_fastboot_trailer(binary_path: Path, a_base: int | None, b_base: int | None):
+    """Pin A/B bases at a fixed Flash offset. Header/entry CRC is unchanged."""
+    if not curr_project.is_ab_project:
+        return
+    if a_base is None or b_base is None or a_base >= b_base:
+        return
+    blob = struct.pack("<IIII", BL_METADATA_AB_TRAILER_MAGIC, a_base, b_base, 0)
+    with binary_path.open("r+b") as f:
+        f.seek(BL_METADATA_PARTITION_OFFSET + BL_METADATA_AB_TRAILER_OFF)
+        f.write(blob)
+    logger.info(
+        "AB fastboot trailer a=0x%x b=0x%x at 0x%x",
+        a_base,
+        b_base,
+        BL_METADATA_PARTITION_OFFSET + BL_METADATA_AB_TRAILER_OFF,
     )
 
 
@@ -227,7 +264,7 @@ def handle_bootloader_bin(pack_dir: Path):
     origin_bootloader_path = select_bootloader_source()
     pack_bootloader_path = pack_dir / bootloader_name
     partitions_json = curr_project.project_build_parititons_dir / "partitions.json"
-    part_bytes = serialize_partitions_table(partitions_json)
+    part_bytes, ab_a_base, ab_b_base = serialize_partitions_table(partitions_json)
     flash_config_bytes = serialize_flash_config_table(get_flash_config_csv())
     shutil.copy(origin_bootloader_path, pack_bootloader_path)
     bootloader_size = pack_bootloader_path.stat().st_size
@@ -244,12 +281,17 @@ def handle_bootloader_bin(pack_dir: Path):
         BL_METADATA_PARTITION_SIZE,
         part_bytes,
     )
+    if len(part_bytes) > BL_METADATA_AB_TRAILER_OFF:
+        raise RuntimeError(
+            f"BPT blob 0x{len(part_bytes):x} overlaps AB trailer at 0x{BL_METADATA_AB_TRAILER_OFF:x}"
+        )
     write_fixed_metadata(
         pack_bootloader_path,
         BL_METADATA_FLASH_CONFIG_OFFSET,
         BL_METADATA_FLASH_CONFIG_SIZE,
         flash_config_bytes,
     )
+    write_ab_fastboot_trailer(pack_bootloader_path, ab_a_base, ab_b_base)
 
     logger.info("attach bootloader metadata")
 
