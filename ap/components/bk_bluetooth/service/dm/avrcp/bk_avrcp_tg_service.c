@@ -285,7 +285,22 @@ static void avrcp_tg_cb(bk_avrcp_tg_cb_event_t event, bk_avrcp_tg_cb_param_t *pa
              param->conn_stat.remote_bda[2], param->conn_stat.remote_bda[1], param->conn_stat.remote_bda[0]);
         if (s_avrcp_tg.connected)
         {
+            uint8_t stored = 0;
+
             os_memcpy(s_avrcp_tg.remote_bda, param->conn_stat.remote_bda, sizeof(s_avrcp_tg.remote_bda));
+            if (bluetooth_storage_find_volume_by_addr(param->conn_stat.remote_bda, &stored) < 0)
+            {
+                s_avrcp_tg.local_volume = s_avrcp_tg.default_volume;
+            }
+            else
+            {
+                s_avrcp_tg.local_volume = stored;
+            }
+            LOGI("restore volume %d %02x:%02x:%02x:%02x:%02x:%02x",
+                 s_avrcp_tg.local_volume,
+                 param->conn_stat.remote_bda[5], param->conn_stat.remote_bda[4], param->conn_stat.remote_bda[3],
+                 param->conn_stat.remote_bda[2], param->conn_stat.remote_bda[1], param->conn_stat.remote_bda[0]);
+            bk_avrcp_tg_emit_current_volume();
             bk_avrcp_tg_emit(BK_AVRCP_TG_EVT_CONNECTED, s_avrcp_tg.remote_bda);
         }
         else
