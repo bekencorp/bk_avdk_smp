@@ -3,4 +3,15 @@ menu "frame Buffer"
 	config FRAME_BUFFER
 		bool "enable psram as frame buffer for saving image"
 		default n
+
+	config ISP_FLEXA_BUFFER_USE_HSRAM
+		bool "allocate the ISP flexa buffer from HSRAM instead of SRAM"
+		default y
+		help
+		    The ISP flexa buffer is one of the larger single allocations
+		    on the AP, so moving it to HSRAM is a way to relieve the
+		    general SRAM heap.
+
+		    Callers need no change either way: hsram_free is defined as
+		    os_free, so one free path serves both heaps.
 endmenu

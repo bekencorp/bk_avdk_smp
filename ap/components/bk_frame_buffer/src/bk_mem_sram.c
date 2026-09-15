@@ -10,9 +10,15 @@
 #include <components/bk_hardware_ram.h>
 
 
+/* Either heap is safe for the caller: hsram_free is os_free, so the release
+ * path does not depend on which one this returns. */
 void *bk_get_isp_flexa_buffer(uint32_t size)
 {
-    return hsram_malloc(size);//os_malloc(size);
+#if CONFIG_ISP_FLEXA_BUFFER_USE_HSRAM
+    return hsram_malloc(size);
+#else
+    return os_malloc(size);
+#endif
 }
 
 void *bk_get_gpu_flexa_buffer(uint32_t size)
