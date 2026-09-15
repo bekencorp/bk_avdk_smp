@@ -28,9 +28,26 @@ static void ap_resume_test_task(void *arg)
 		*heap_canary = 0xA55A5AA5U;
 	}
 
+	/*
+	 * Print once at INFO so retention canaries are visible after cold boot.
+	 * Keep the 2s proof at DEBUG: INFO on the shared UART collides with
+	 * CP's power-on callback window and inflates AP_TIME startup_success.
+	 */
+	sequence++;
+	BK_LOGI(TAG,
+		"RESUME_PROOF seq=%u stack=0x%08x heap=%p heap_value=0x%08x "
+		"main_entries=%u core=%u\r\n",
+		sequence,
+		stack_canary,
+		heap_canary,
+		(heap_canary != NULL) ? *heap_canary : 0U,
+		s_ap_main_entry_count,
+		rtos_get_core_id());
+
 	for (;;) {
+		rtos_delay_milliseconds(2000);
 		sequence++;
-		BK_LOGI(TAG,
+		BK_LOGD(TAG,
 			"RESUME_PROOF seq=%u stack=0x%08x heap=%p heap_value=0x%08x "
 			"main_entries=%u core=%u\r\n",
 			sequence,
@@ -39,7 +56,6 @@ static void ap_resume_test_task(void *arg)
 			(heap_canary != NULL) ? *heap_canary : 0U,
 			s_ap_main_entry_count,
 			rtos_get_core_id());
-		rtos_delay_milliseconds(2000);
 	}
 }
 

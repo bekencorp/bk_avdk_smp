@@ -807,13 +807,18 @@ boot_ap:
 				LOGI("AP_TIME ap_full_ready total_us=%u\r\n",
 					pm_ap_elapsed_us(ap0_resume_start_tick,
 						full_ready_tick));
+				/*
+				 * Start after the full-ready log so UART time is not
+				 * counted as callback latency.
+				 */
+				callback_start_tick =
+					bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
 				bk_err_t notify_ret = pm_cp0_mailbox_send_data(
 					PM_AP_APP_RESUME_NOTIFY_CMD, 0, 0, 0);
 				if (notify_ret != BK_OK) {
 					LOGE("AP app resume notify failed[%d]\r\n",
 						notify_ret);
 				}
-				callback_start_tick = full_ready_tick;
 				bk_pm_ap_ctrl_callback_execute(
 					PM_AP_CTRL_CB_TYPE_POWER_ON);
 				callback_end_tick =

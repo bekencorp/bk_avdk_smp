@@ -317,7 +317,7 @@ static bk_err_t pm_ap_core_message_handle(void)
                         LOGE("AP fast resume: app resume callbacks failed[%d]\r\n",
                             ret);
                     } else {
-                        LOGI("AP fast resume: app resume callbacks done\r\n");
+                        LOGD("AP fast resume: app resume callbacks done\r\n");
                     }
                 }
                 break;
