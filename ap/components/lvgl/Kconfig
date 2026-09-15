@@ -31,7 +31,7 @@ menu "LVGL"
         bool "Use PSRAM for LVGL internal memory allocation"
         default n
         help
-            Use PSRAM for LVGL's lv_malloc/lv_realloc/lv_free backend.
+            Use PSRAM for LVGL's memory pool and lv_malloc/lv_realloc/lv_free backend.
             The default is HSRAM for better latency.
 
     config LVGL_USE_KEYPAD

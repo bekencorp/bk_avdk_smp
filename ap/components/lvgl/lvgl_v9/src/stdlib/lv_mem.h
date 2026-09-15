@@ -142,6 +142,35 @@ void * lv_realloc_core(void * p, size_t new_size);
 void * lv_psram_malloc(size_t size);
 
 /**
+ * Free data allocated by lv_psram_malloc().
+ * @param data pointer to an allocated PSRAM block
+ */
+void lv_psram_free(void * data);
+
+#if LV_USE_STDLIB_MALLOC == LV_STDLIB_BUILTIN
+/**
+ * Tell whether a pointer came from lv_malloc(), i.e. whether lv_free() is the
+ * right way to release it.
+ *
+ * Only the builtin allocator can answer this, and only it needs to be asked:
+ * the other backends forward lv_free() to a system free() that already sorts
+ * out where a block belongs, while lv_free_core() here goes straight to
+ * lv_tlsf_free(), which assumes the pointer sits in its pool and reads a block
+ * header that is not there otherwise. Code that mixes lv_malloc() with
+ * lv_psram_malloc() - see buf_malloc() in lv_draw_buf.c - must sort them out
+ * before freeing, and cannot do it with an address-range test of its own,
+ * because the pool may itself have been taken from PSRAM.
+ *
+ * Covers the pool created by lv_mem_init() and nothing else. A pool added
+ * later through lv_mem_add_pool() would report false; no caller does that.
+ *
+ * @param data any pointer, may be NULL
+ * @return true if data lies inside LVGL's heap
+ */
+bool lv_mem_owns(const void * data);
+#endif
+
+/**
  * Reallocate a memory with a new size. The old content will be kept.
  * @param data_p pointer to an allocated memory.
  *               Its content will be copied to the new memory block and freed

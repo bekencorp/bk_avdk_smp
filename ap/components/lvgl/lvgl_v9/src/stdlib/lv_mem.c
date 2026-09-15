@@ -196,6 +196,15 @@ void * lv_psram_malloc(size_t size)
     return alloc;
 }
 
+void lv_psram_free(void * data)
+{
+    LV_TRACE_MEM("freeing PSRAM %p", data);
+    if(data == &zero_mem) return;
+    if(data == NULL) return;
+
+    psram_free(data);
+}
+
 void * lv_psram_realloc(void * data_p, size_t new_size)
 {
     LV_TRACE_MEM("reallocating %p with %lu size", data_p, (unsigned long)new_size);

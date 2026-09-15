@@ -567,6 +567,20 @@ static void * buf_malloc(size_t size_bytes, lv_color_format_t color_format)
 
 static void buf_free(void * buf)
 {
+#if LV_USE_STDLIB_MALLOC == LV_STDLIB_BUILTIN
+    /*
+     * buf_malloc() falls back to PSRAM when the heap is full, and lv_free()
+     * here reaches lv_tlsf_free(), which would read a block header a PSRAM
+     * block does not have. lv_psram_free() reaches os_free(), which puts the
+     * block back in whichever system heap the address falls in.
+     */
+    if(buf != NULL && !lv_mem_owns(buf))
+    {
+        lv_psram_free(buf);
+        return;
+    }
+#endif
+
     lv_free(buf);
 }
 

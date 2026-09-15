@@ -136,6 +136,21 @@ void lv_mem_remove_pool(lv_mem_pool_t pool)
     LV_LOG_WARN("invalid pool: %p", pool);
 }
 
+bool lv_mem_owns(const void * data)
+{
+    /*
+     * lv_tlsf_create() returns the block it was handed, so state.tlsf is the
+     * base of the LV_MEM_SIZE region lv_mem_init() built the heap on - its
+     * control block first, then the pool. Every lv_malloc() result therefore
+     * lies inside [state.tlsf, state.tlsf + LV_MEM_SIZE).
+     */
+    const uint8_t * base = (const uint8_t *)state.tlsf;
+
+    if(base == NULL || data == NULL) return false;
+
+    return (const uint8_t *)data >= base && (const uint8_t *)data < base + LV_MEM_SIZE;
+}
+
 void * lv_malloc_core(size_t size)
 {
 #if LV_USE_OS
