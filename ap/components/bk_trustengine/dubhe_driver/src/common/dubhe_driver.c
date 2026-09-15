@@ -164,6 +164,59 @@ static void dubhe_lv_init(void)
     pm_cb_conf_t exit = {dubhe_lv_exit, NULL};
     bk_pm_sleep_register_cb(PM_MODE_LOW_VOLTAGE, PM_DEV_ID_SECURE_WORLD, &enter, &exit);
 }
+
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+static bool s_ap_fast_suspended = false;
+
+extern bk_err_t bk_pm_module_vote_cp_power_ctrl(pm_power_module_name_e module,
+                                                pm_power_module_state_e power_state);
+
+static void dubhe_vote_cp_encp_power(pm_power_module_state_e state)
+{
+    bk_pm_module_vote_cp_power_ctrl(PM_POWER_SUB_DOMAIN_SHANHAI, state);
+}
+
+static bk_err_t dubhe_ap_fast_quiesce(void *arg)
+{
+    (void)arg;
+
+    /* Idempotent: the framework may re-run quiesce after an aborted suspend,
+     * and a second cleanup would underflow the unsigned nest count. */
+    if (s_ap_fast_suspended) {
+        return BK_OK;
+    }
+
+    dubhe_driver_cleanup();
+    s_ap_fast_suspended = true;
+    return BK_OK;
+}
+
+static bk_err_t dubhe_ap_fast_resume(void *arg)
+{
+    (void)arg;
+
+    if (!s_ap_fast_suspended) {
+        return BK_OK;
+    }
+
+    s_ap_fast_suspended = false;
+    /* Re-assert the CP-held ENCP vote before touching any TE200 register.
+     * Idempotent, and this callback runs in the PM task with interrupts on. */
+    dubhe_vote_cp_encp_power(PM_POWER_MODULE_STATE_ON);
+    do_dubhe_driver_init(SOC_SHANHAI_BASE);
+    return BK_OK;
+}
+
+/* Quiesce runs in reverse priority order and resume in priority order, so
+ * TE200 must sit below its service/application consumers: it is torn down
+ * after they stop issuing crypto and rebuilt before they resume. */
+static const pm_ap_fast_pm_ops_t s_dubhe_ap_fast_ops = {
+    .name = "te200",
+    .quiesce = dubhe_ap_fast_quiesce,
+    .resume = dubhe_ap_fast_resume,
+    .priority = PM_AP_FAST_PRIORITY_PERIPHERAL,
+};
+#endif /* CONFIG_PM_AP_FAST_BOOT_ENABLE */
 #endif
 
 /* GCC 14+: ISR must be compiled with general-regs-only when FPU is enabled. */
@@ -186,7 +239,7 @@ static int do_dubhe_driver_init( unsigned long dbh_base_addr )
     uint32_t int_level = rtos_disable_int();
 
 #if defined(DUBHE_SECURE)
-    bk_pm_module_vote_power_ctrl(POWER_SUB_MODULE_NAME_ENCP_TRUSTENGINE, PM_POWER_MODULE_STATE_ON);
+    // bk_pm_module_vote_power_ctrl(POWER_SUB_MODULE_NAME_ENCP_TRUSTENGINE, PM_POWER_MODULE_STATE_ON);
 #endif
     dubhe_delay_us(100);
 
@@ -255,7 +308,11 @@ int dubhe_driver_init( unsigned long dbh_base_addr )
 
 #if defined(DUBHE_SECURE)
         dubhe_lv_init();
-        bk_pm_module_vote_power_ctrl(POWER_SUB_MODULE_NAME_ENCP_TRUSTENGINE, PM_POWER_MODULE_STATE_ON);
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+        bk_pm_ap_fast_ops_register(&s_dubhe_ap_fast_ops);
+        dubhe_vote_cp_encp_power(PM_POWER_MODULE_STATE_ON);
+#endif
+        // bk_pm_module_vote_power_ctrl(POWER_SUB_MODULE_NAME_ENCP_TRUSTENGINE, PM_POWER_MODULE_STATE_ON);
 #endif
     }
 
@@ -313,7 +370,7 @@ void dubhe_driver_cleanup( void )
 
     dubhe_event_cleanup( );
 #if defined(DUBHE_SECURE)
-    bk_pm_module_vote_power_ctrl(POWER_SUB_MODULE_NAME_ENCP_TRUSTENGINE, PM_POWER_MODULE_STATE_OFF);
+    // bk_pm_module_vote_power_ctrl(POWER_SUB_MODULE_NAME_ENCP_TRUSTENGINE, PM_POWER_MODULE_STATE_OFF);
 #endif
     dubhe_delay_us(100);
 }
