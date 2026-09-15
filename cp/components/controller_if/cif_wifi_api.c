@@ -56,6 +56,10 @@ static bk_err_t bk_wifi_sta_get_arp_table(wifi_arp_sync_table_t *table)
 
 bk_err_t wifi_monitor_cp_cb(const uint8_t *frame, uint32_t len, const wifi_frame_info_t *frame_info)
 {
+#if (defined(CONFIG_QUICK_TRACK) && CONFIG_QUICK_TRACK) || (defined(CONFIG_WFA_CERT) && CONFIG_WFA_CERT)
+    return BK_OK;
+#endif
+
     struct monitor_struct
     {
         cpdu_t cp;
@@ -115,6 +119,10 @@ bk_err_t wifi_monitor_cp_cb(const uint8_t *frame, uint32_t len, const wifi_frame
 
 bk_err_t wifi_filter_cp_cb(const uint8_t *frame, uint32_t len, const wifi_frame_info_t *frame_info)
 {
+#if (defined(CONFIG_QUICK_TRACK) && CONFIG_QUICK_TRACK) || (defined(CONFIG_WFA_CERT) && CONFIG_WFA_CERT)
+    return BK_OK;
+#endif
+
     struct filter_struct
     {
         cpdu_t cp;
@@ -1065,6 +1073,10 @@ bk_err_t cif_send_wifi_api_evt(uint32_t cmd_id, uint32_t argc, ...)
 {
      bk_err_t ret = BK_OK;
     wifi_api_arg_info_t arg_info = { 0 };
+
+#if (defined(CONFIG_QUICK_TRACK) && CONFIG_QUICK_TRACK) || (defined(CONFIG_WFA_CERT) && CONFIG_WFA_CERT)
+    return BK_OK;
+#endif
 
     if (argc)
     {

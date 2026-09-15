@@ -332,6 +332,10 @@ __IRAM2 bool cif_filter_check_ip_data(struct pbuf *p)
 // 	BK_ASSERT(0);
 // 	 return 0;
 //   }
+#if (defined(CONFIG_QUICK_TRACK) && CONFIG_QUICK_TRACK) || (defined(CONFIG_WFA_CERT) && CONFIG_WFA_CERT)
+    return true;
+#endif
+
 #if CONFIG_BRIDGE
     if (bk_wifi_get_bridge_state() == BRIDGE_STATE_ENABLED) {
         upload2ctrl = false;
@@ -445,6 +449,10 @@ __IRAM2 bool cif_rx_local_packet_check(struct pbuf **p_ptr, struct eth_hdr * eth
     bool upload2ctrl = true;
     struct pbuf *p = *p_ptr;
     bk_err_t ret = BK_OK;
+
+#if (defined(CONFIG_QUICK_TRACK) && CONFIG_QUICK_TRACK) || (defined(CONFIG_WFA_CERT) && CONFIG_WFA_CERT)
+    return true;
+#endif
 
     CIF_LOGV("%s p:%x next:0x%x payload:0x%x sizeof:%d\r\n",__func__, p, p->next, p->payload, sizeof(struct pbuf));
 

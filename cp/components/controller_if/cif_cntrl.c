@@ -105,6 +105,18 @@ bk_err_t cif_bk_send_event(uint16_t event_id, uint8_t *event_data, uint16_t even
     struct ctrl_cmd_hdr * buf = NULL;
     bk_err_t ret = BK_OK;
 
+#if (defined(CONFIG_QUICK_TRACK) && CONFIG_QUICK_TRACK) || (defined(CONFIG_WFA_CERT) && CONFIG_WFA_CERT)
+    if ((event_id == BK_EVT_IPV4_IND) ||
+        (event_id == BK_EVT_IPV6_IND) ||
+        (event_id == BK_EVT_WIFI_EVENT_IND) ||
+        (event_id == BK_EVT_CUSTOMER_IND) ||
+        ((event_id >= BK_EVT_WIFI_API_START) && (event_id <= BK_EVT_WIFI_API_END)))
+    {
+        CIF_LOGD("%s skip event 0x%x for WFA/QuickTrack CP local handling\n", __func__, event_id);
+        return BK_OK;
+    }
+#endif
+
     if (!cif_env.host_powerup)
     {
         CIF_LOGD("%s skip event 0x%x, host not power up\n", __func__, event_id);
@@ -163,6 +175,9 @@ bk_err_t cif_handle_bk_cmd_connect_req(struct bk_msg_hdr *msg)
 }
 bk_err_t cif_handle_bk_cmd_connect_ind(char *ssid, uint8_t rssi, uint32_t ip, uint32_t gw, uint32_t mk, uint32_t dns, uint8_t vif_idx)
 {
+#if (defined(CONFIG_QUICK_TRACK) && CONFIG_QUICK_TRACK) || (defined(CONFIG_WFA_CERT) && CONFIG_WFA_CERT)
+    return BK_OK;
+#endif
     struct bk_msg_connect_ind ind = {0};
 
     os_strcpy((char *)ind.ussid, ssid);
@@ -178,6 +193,9 @@ bk_err_t cif_handle_bk_cmd_connect_ind(char *ssid, uint8_t rssi, uint32_t ip, ui
 #ifdef CONFIG_IPV6
 bk_err_t cif_handle_bk_cmd_ipv6_ind(void *n)
 {
+#if (defined(CONFIG_QUICK_TRACK) && CONFIG_QUICK_TRACK) || (defined(CONFIG_WFA_CERT) && CONFIG_WFA_CERT)
+    return BK_OK;
+#endif
     struct bk_msg_ipv6_ind ind = {0};
     int i;
     u8 *ipv6_addr;
@@ -471,6 +489,10 @@ bk_err_t cif_handle_bk_cmd_at_rsp(void *payload, uint16_t len, struct bk_msg_hdr
 }
 bk_err_t cif_handle_bk_cmd_at_ind(void *payload, uint16_t len)
 {
+#if (defined(CONFIG_QUICK_TRACK) && CONFIG_QUICK_TRACK) || (defined(CONFIG_WFA_CERT) && CONFIG_WFA_CERT)
+    return BK_OK;
+#endif
+
     uint32_t buf_len = sizeof(struct cpdu_t) + sizeof(struct bk_rx_msg_hdr) + len;
     struct ctrl_cmd_hdr * buf = NULL;
 
@@ -547,6 +569,10 @@ bk_err_t cif_handle_bk_cmd_wifi_mmd_cfg_req(struct bk_msg_hdr *msg)
 
 bk_err_t cif_handle_bk_cmd_set_netinfo_req(struct bk_msg_hdr *msg)
 {
+#if (defined(CONFIG_QUICK_TRACK) && CONFIG_QUICK_TRACK) || (defined(CONFIG_WFA_CERT) && CONFIG_WFA_CERT)
+    cif_bk_cmd_confirm(msg, NULL, 0);
+    return BK_OK;
+#endif
     int32_t ret = 0;
     struct bk_msg_net_info_req *req = (struct bk_msg_net_info_req *)(msg + 1);
     netif_ip4_config_t config = {0};
