@@ -248,11 +248,49 @@ static int app_uart_debug_init_todo(void)
 }
 
 #if CONFIG_ETH
+#define ETH_DELAYED_RETRY_MS 1000U
+
 extern int net_eth_start();
+
+static void app_eth_delayed_retry(void *arg)
+{
+	int ret;
+
+	(void)arg;
+	rtos_delay_milliseconds(ETH_DELAYED_RETRY_MS);
+	BK_LOGD(TAG, "ETH delayed retry start after %u ms\n",
+		ETH_DELAYED_RETRY_MS);
+
+	ret = net_eth_start();
+	if (ret == BK_OK)
+		BK_LOGI(TAG, "ETH delayed retry succeeded\n");
+	else
+		BK_LOGE(TAG, "ETH delayed retry failed: %d\n", ret);
+
+	rtos_delete_thread(NULL);
+}
+
 static int app_eth_init(void)
 {
+	beken_thread_t retry_thread = NULL;
+	int ret;
+
 	BK_LOGD(TAG, "ETH init\n");
-	net_eth_start();
+	ret = net_eth_start();
+	if (ret == BK_OK)
+		return BK_OK;
+
+	BK_LOGW(TAG, "ETH initial start failed: %d, scheduling delayed retry\n",
+		ret);
+	ret = rtos_create_thread(&retry_thread,
+		BEKEN_APPLICATION_PRIORITY,
+		"eth_retry",
+		(beken_thread_function_t)app_eth_delayed_retry,
+		2048,
+		NULL);
+	if (ret != BK_OK)
+		BK_LOGE(TAG, "create ETH delayed retry thread failed: %d\n", ret);
+
 	return BK_OK;
 }
 #endif
