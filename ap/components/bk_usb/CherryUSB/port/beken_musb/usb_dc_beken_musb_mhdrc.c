@@ -406,13 +406,10 @@ __WEAK void usb_dc_low_level_init(void)
      * jump to PC=0 -- exactly the MemFault pattern we are debugging
      * (see cmds/input.txt). Defensive: we still register so the
      * crash, if any, is reproducible, but we LOUDLY warn first. */
-    /* MILESTONE A: try the RISC-V USB bridge first. The stub currently
-     * returns -1 (see riscv_usb_bridge.c::usb_dc_riscv_device_prepare()),
-     * so we always fall through to the legacy M55 path below. The probe
-     * is wired here, so the follow-up milestone only needs to flip the
-     * stub return value -- the call site is already in place and the
-     * regression behaviour (M55 fallback on bridge failure) is the safe
-     * default. */
+    /* Try the RISC-V USB bridge first: usb_dc_riscv_device_prepare() starts the
+     * firmware and returns 0 when it owns the USBD IRQ, so we skip the M55 ISR
+     * below. On failure (rc<0, e.g. firmware image missing) we fall back to the
+     * legacy M55-resident USBD_IRQHandler path -- the safe default. */
     int riscv_bridge_rc = -1;
 #if CONFIG_USB_RISCV_BRIDGE
     /* Publish the device-role handshake region BEFORE starting the core (the

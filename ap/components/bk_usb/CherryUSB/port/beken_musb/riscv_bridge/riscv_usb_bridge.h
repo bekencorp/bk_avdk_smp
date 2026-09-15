@@ -19,19 +19,14 @@ int usb_hc_riscv_host_prepare(void);
 
 /* Device-side entry point for the RISC-V USB bridge.
  *
- * MILESTONE A status: scaffolding only. Always returns -1 so the caller
- * (usb_dc_low_level_init() in usb_dc_beken_musb_mhdrc.c) falls back to
- * the legacy M55-resident USBD_IRQHandler path. Device traffic stays
- * 100% on M55 until the follow-up milestone wires up:
- *   - dual-role / device firmware in
- *     ap/properties/modules/bk_riscv/riscv_src/fw/usb_dual/
- *   - shared-memory device region (riscv_usb_probe_t device fields)
- *   - AP-side IPI poll loop usb_dc_riscv_poll_events()
+ * Starts the dual-role RISC-V firmware so it owns the AP-side USBD IRQ; device
+ * events reach the CherryUSB core via the shared-memory probe + IPI poll loop
+ * (usb_dc_riscv_poll_events()). The caller (usb_dc_low_level_init() in
+ * usb_dc_beken_musb_mhdrc.c) skips the M55 USBD_IRQHandler when this succeeds.
  *
- * See docs/USB重构/07-M55_RISCV_USB桥设计.md §5 for the staging plan.
- *
- * Returns 0 on success (RISC-V firmware took over USBD IRQ), <0 on
- * failure (caller MUST keep registering USBD_IRQHandler on the M55).
+ * Returns 0 on success (RISC-V firmware took over USBD IRQ), <0 on failure --
+ * e.g. firmware image missing (caller MUST keep the M55-resident USBD_IRQHandler
+ * as the fallback).
  */
 int usb_dc_riscv_device_prepare(void);
 

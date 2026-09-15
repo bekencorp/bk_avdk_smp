@@ -211,13 +211,13 @@ menu "Bk_usb"
 				Host mode: fully implemented; AP-side USBH IRQ is owned by RISC-V
 				firmware (see riscv_usb_bridge.c::usb_hc_riscv_host_prepare()).
 
-				Device mode: scaffolding only at this milestone. With
-				CONFIG_USB_DEVICE=y the bridge code links in, but
-				usb_dc_riscv_device_prepare() is a stub returning -1; the
-				CherryUSB device port detects the stub failure and falls back to
-				the original M55-resident USBD_IRQHandler path. The shared
-				memory protocol + RISC-V firmware device path will be wired up
-				in the follow-up milestone (see docs/USB重构/07-*.md §5).
+				Device mode: implemented; AP-side USBD IRQ is owned by RISC-V
+				firmware (see riscv_usb_bridge.c::usb_dc_riscv_device_prepare(),
+				which starts the dual-role firmware and returns 0 so the device
+				port skips the M55 USBD_IRQHandler). Device events are reported to
+				the CherryUSB core via the shared-memory probe + IPI. If the
+				firmware is missing usb_dc_riscv_device_prepare() returns <0 and
+				the port falls back to the M55-resident USBD_IRQHandler.
 
 		config USB_RISCV_LOG_UART
 			depends on USB_RISCV_BRIDGE

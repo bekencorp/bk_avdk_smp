@@ -556,7 +556,15 @@ static void usb_hc_riscv_ipi_cb(ipi_core_id_t core_id, uint32_t value,
         return;
     }
 #endif
+#if CONFIG_USB_HOST
+    /* Host poll loop lives further down in this file. In a pure device build
+     * (CONFIG_USB_HOST=n) this whole call is compiled out so the RISC-V device
+     * path never forces the host controller code to be linked -- everything
+     * host-only here is then dropped by --gc-sections. Verified: without this
+     * guard the pure-device link fails with undefined `usbh_hub_thread_wakeup'
+     * / `g_usbhost_bus'. */
     usb_hc_riscv_poll_events();
+#endif
 }
 #endif
 
@@ -646,7 +654,9 @@ static void usb_hc_riscv_probe_init(uint32_t role)
 
 #if CONFIG_IPI
 /* Non-static: the device port calls this to register the shared IPI_DOMAIN_USB
- * callback when it brings up the RISC-V device firmware. */
+ * callback when it brings up the RISC-V device firmware. Reachable from the
+ * device dcd, so it (and the callback above) survive --gc-sections even in a
+ * pure device build where the rest of this host file is dropped. */
 bk_err_t usb_hc_riscv_ipi_enable(void)
 {
     bk_err_t ret;
@@ -1028,7 +1038,12 @@ void musb_intr_pipe_init(struct musb_pipe *pipe, uint8_t *buffer, uint32_t bufle
     musb_set_active_ep(old_ep_index);
 }
 
-/* Low-level helpers used by CherryUSB/driver/usb_driver.c. */
+/* Low-level helpers used by CherryUSB/driver/usb_driver.c.
+ * usb_driver.c is always compiled (CONFIG_USB), including in a pure device
+ * build (CONFIG_USB_DEVICE=y + CONFIG_USB_HOST=n). To keep these definitions
+ * reachable in that case, this whole file is compiled whenever CONFIG_USB_HOST
+ * OR CONFIG_USB_DEVICE is set (see CMakeLists.txt); the host-controller code
+ * around them is unreachable in a device build and dropped by --gc-sections. */
 #define M55_CLK_EN_REG  (SOC_SYS_AHBP_REG_BASE + 0x0A * 4)
 
 void usb_clk_config(uint8_t en)
