@@ -48,6 +48,8 @@ int32_t bk_modem_usbh_bulkout_ind(char *p_tx, uint32_t l_tx)
 {
 #if CONFIG_USB_CDC_MODEM
 	return bk_cdc_acm_modem_write(p_tx, l_tx);
+#else
+	return BK_FAIL;
 #endif
 }
 
