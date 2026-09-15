@@ -425,8 +425,10 @@ HAL_StatusTypeDef HAL_ETH_Init(ETH_HandleTypeDef *heth)
   /*------------------ MAC, MTL and DMA default Configuration ----------------*/
   ETH_MACDMAConfig(heth);
 
-  /* Skip the 128-bit software-only area after each 128-bit HW descriptor. */
-  MODIFY_REG(heth->Instance->DMACCR, ETH_DMACCR_DSL, ETH_DMACCR_DSL_128BIT);
+  /* Skip the 16-byte software-only area after each 16-byte HW descriptor, so the
+     DMA stride matches sizeof(ETH_DMADescTypeDef). DSL counts 16-byte units here,
+     so DSL=1 is what gives 16 bytes -- the ETH_DMACCR_DSL_xxx names are 4x off. */
+  MODIFY_REG(heth->Instance->DMACCR, ETH_DMACCR_DSL, ETH_DMACCR_DSL_32BIT);
 
   /* Set Receive Buffers Length (must be a multiple of 4) */
   if ((heth->Init.RxBuffLen % 0x4U) != 0x0U)
@@ -505,8 +507,8 @@ HAL_StatusTypeDef HAL_ETH_ReInit(ETH_HandleTypeDef *heth)
   /*------------------ MAC, MTL and DMA default Configuration ----------------*/
   ETH_MACDMAConfig(heth);
 
-  /* Skip the 128-bit software-only area after each 128-bit HW descriptor. */
-  MODIFY_REG(heth->Instance->DMACCR, ETH_DMACCR_DSL, ETH_DMACCR_DSL_128BIT);
+  /* Same 16-byte skip as HAL_ETH_Init(); see the note there on the DSL units. */
+  MODIFY_REG(heth->Instance->DMACCR, ETH_DMACCR_DSL, ETH_DMACCR_DSL_32BIT);
 
   MODIFY_REG(heth->Instance->DMACRCR, ETH_DMACRCR_RBSZ, ((heth->Init.RxBuffLen) << 1));
 

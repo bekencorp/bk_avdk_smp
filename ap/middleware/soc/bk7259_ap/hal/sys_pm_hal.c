@@ -47,6 +47,8 @@
 #endif
 
 extern uint64_t check_IRQ_pending(void);
+extern void bk_delay_us(UINT32 us);
+extern uint32_t sys_drv_set_psram_pad_latch(uint32_t value);
 
 #if CONFIG_GENERAL_DMA
 #define SYS_PM_DMA_CHN_BUSY() bk_dma_check_chn_status()
@@ -78,6 +80,8 @@ extern uint64_t check_IRQ_pending(void);
 #if CONFIG_PM_AP_FAST_BOOT_ENABLE && CONFIG_PSRAM_DATA_RETENTION_ENABLE
 #define AP_PSRAM_RETENTION_FLUSH_BIT           (1U << 3)
 #define AP_PSRAM_RETENTION_FLUSH_TIMEOUT       (1000000U)
+#define AP_PSRAM_SF_RESET_BIT                  (1U << 0)
+#define AP_PSRAM_REG2_ADDR(base)               ((base) + (0x2U << 2))
 #define AP_PSRAM_REG8_ADDR(base)               ((base) + (0x8U << 2))
 
 /*
@@ -117,6 +121,12 @@ static bool sys_hal_psram_retention_flush(uint32_t *failed_id,
 		}
 	}
 	__DSB();
+	bk_delay_us(100);
+	//sys_drv_set_psram_pad_latch(1);
+	/* REG2[0] Soft_Reset: 0 holds the PSRAM controller in reset. */
+	REG_WRITE(AP_PSRAM_REG2_ADDR(SOC_PSRAM0_REG_BASE),REG_READ(AP_PSRAM_REG2_ADDR(SOC_PSRAM0_REG_BASE)) & ~AP_PSRAM_SF_RESET_BIT);
+	REG_WRITE(AP_PSRAM_REG2_ADDR(SOC_PSRAM1_REG_BASE),REG_READ(AP_PSRAM_REG2_ADDR(SOC_PSRAM1_REG_BASE)) & ~AP_PSRAM_SF_RESET_BIT);
+
 	return true;
 }
 #endif
@@ -140,7 +150,6 @@ typedef struct
 
 uint64_t low_voltage_exit_tick = 0;
 uint64_t low_voltage_wakeup_time_us = 0;
-extern void bk_delay_us(UINT32 us);
 static inline bool is_lpo_src_26m32k(void)
 {
 	return (aon_pmu_ll_get_r41_lpo_config() == SYS_LPO_SRC_26M32K);

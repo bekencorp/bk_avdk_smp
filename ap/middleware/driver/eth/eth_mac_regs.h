@@ -1711,6 +1711,10 @@
 #define ETH_DMACCR_DSL_Pos                            (18U)
 #define ETH_DMACCR_DSL_Msk                            (0x7UL << ETH_DMACCR_DSL_Pos) /*!< 0x001C0000 */
 #define ETH_DMACCR_DSL                                ETH_DMACCR_DSL_Msk       /* Descriptor Skip Length */
+/* WARNING: these names assume DSL counts 32-bit words, which is wrong on this
+ * SoC -- its DMA bus is 128 bit, so DSL counts 16-byte units. The skip actually
+ * programmed is 4x what the name says: _32BIT skips 16 bytes, _64BIT skips 32,
+ * _128BIT skips 64. Pick by the byte count you need, not by the name. */
 #define ETH_DMACCR_DSL_0BIT                           ((uint32_t)0x00000000)
 #define ETH_DMACCR_DSL_32BIT                          ((uint32_t)0x00040000)
 #define ETH_DMACCR_DSL_64BIT                          ((uint32_t)0x00080000)
