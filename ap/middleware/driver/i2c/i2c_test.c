@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <os/os.h>
+#include <os/mem.h>
 #include <driver/i2c.h>
 #include "cli.h"
 #include "components/shell_task.h"
@@ -429,6 +430,230 @@ static int i2c_rc_stuck_bus(uint32_t len)
 }
 #endif
 
+/* ============================================================================
+ * i2c {id} cross_rd
+ *
+ * Single-board I2C0<->I2C1 co-test: each controller takes a turn as master and
+ * reads incrementing 0..9 from the other as slave, then prints a result table
+ * plus the received bytes. {id} is a placeholder (same as loopback).
+ *
+ * WIRING: I2C0.SDA<->I2C1.SDA, I2C0.SCL<->I2C1.SCL, plus bus pull-ups.
+ * ============================================================================ */
+#define I2C_RPT_FW_NAME        "BK7259"
+#define I2C_RPT_RAMP_LEN       10
+#define I2C_RPT_SLV_ADDR       0x42
+#define I2C_RPT_PASS_TEXT      "Host read incrementing 0..9, meet expectation, PASS"
+#define I2C_RPT_FAIL_TEXT      "Host did not read incrementing 0..9, FAIL"
+
+typedef struct {
+	int tested;
+	int pass;
+	int data_valid;
+	uint8_t data[I2C_RPT_RAMP_LEN];
+} i2c_rpt_item_t;
+
+static void i2c_rpt_dump_data(uint32_t id, const i2c_rpt_item_t *item)
+{
+	if (!item->data_valid) {
+		CLI_LOGI("  I2C%u data: (none)\r\n", (unsigned)id);
+		return;
+	}
+	CLI_LOGI("  I2C%u data: %u %u %u %u %u %u %u %u %u %u\r\n",
+		 (unsigned)id,
+		 item->data[0], item->data[1], item->data[2], item->data[3], item->data[4],
+		 item->data[5], item->data[6], item->data[7], item->data[8], item->data[9]);
+}
+
+static void i2c_rpt_print_table(const i2c_rpt_item_t items[I2C_ID_MAX])
+{
+	int n = 0;
+	int pass_n = 0;
+
+	for (int i = 0; i < I2C_ID_MAX; i++) {
+		if (items[i].tested) {
+			n++;
+			if (items[i].pass)
+				pass_n++;
+		}
+	}
+
+	CLI_LOGI("\r\n");
+	CLI_LOGI("==================== BK7259 Module I2C Test ====================\r\n");
+	CLI_LOGI("Description: I2C function test, total %d item(s)\r\n", n);
+	CLI_LOGI("Criteria: host reads numbers incrementing from 0 to 9\r\n");
+	CLI_LOGI("------------------------------------------------------------\r\n");
+	CLI_LOGI("Firmware         Item      Result\r\n");
+	for (int i = 0; i < I2C_ID_MAX; i++) {
+		if (!items[i].tested)
+			continue;
+		CLI_LOGI("%-16s I2C%d      %s\r\n",
+			 I2C_RPT_FW_NAME, i,
+			 items[i].pass ? I2C_RPT_PASS_TEXT : I2C_RPT_FAIL_TEXT);
+		i2c_rpt_dump_data((uint32_t)i, &items[i]);
+	}
+	CLI_LOGI("============================================================\r\n");
+	if (n > 0 && pass_n == n)
+		CLI_LOGI("I2C_CROSS_RD: ALL PASS\r\n");
+	else
+		CLI_LOGE("I2C_CROSS_RD: FAIL %d/%d\r\n", pass_n, n);
+}
+
+static void i2c_rpt_save_data(i2c_rpt_item_t *item, const uint8_t *rd)
+{
+	if (!item || !rd)
+		return;
+	os_memcpy(item->data, rd, I2C_RPT_RAMP_LEN);
+	item->data_valid = 1;
+}
+
+#ifndef CONFIG_SIM_I2C
+typedef struct {
+	uint32_t slv_id;
+	uint8_t *buf;
+	uint32_t len;
+	bk_err_t slv_ret;
+	beken_semaphore_t armed;
+	beken_semaphore_t done;
+} i2c_rpt_lb_ctx_t;
+
+static i2c_rpt_lb_ctx_t s_rpt_lb;
+
+static void i2c_rpt_lb_slave_task(beken_thread_arg_t arg)
+{
+	i2c_rpt_lb_ctx_t *c = (i2c_rpt_lb_ctx_t *)arg;
+
+	for (uint32_t i = 0; i < c->len; i++)
+		c->buf[i] = (uint8_t)i;
+	rtos_set_semaphore(&c->armed);
+	c->slv_ret = bk_i2c_slave_write(c->slv_id, c->buf, c->len, I2C_LB_TIMEOUT_MS);
+	rtos_set_semaphore(&c->done);
+	rtos_delete_thread(NULL);
+}
+
+static bk_err_t i2c_rpt_lb_setup(uint32_t mst_id, uint32_t slv_id)
+{
+	if (s_lb_saved_log_level < 0) {
+		s_lb_saved_log_level = shell_get_log_level();
+		shell_set_log_level(BK_LOG_INFO);
+	}
+
+	bk_err_t ret = bk_i2c_driver_init();
+	if (ret != BK_OK)
+		return ret;
+
+	i2c_config_t mcfg = {0};
+	mcfg.baud_rate = I2C_LB_BAUD;
+	mcfg.addr_mode = I2C_ADDR_MODE_7BIT;
+	mcfg.slave_addr = 0x00;
+	ret = bk_i2c_init(mst_id, &mcfg);
+	if (ret != BK_OK)
+		return ret;
+
+	i2c_config_t scfg = {0};
+	scfg.baud_rate = I2C_LB_BAUD;
+	scfg.addr_mode = I2C_ADDR_MODE_7BIT;
+	scfg.slave_addr = I2C_RPT_SLV_ADDR;
+	return bk_i2c_init(slv_id, &scfg);
+}
+
+static void i2c_rpt_lb_teardown(uint32_t mst_id, uint32_t slv_id)
+{
+	bk_i2c_deinit(mst_id);
+	bk_i2c_deinit(slv_id);
+	if (s_lb_saved_log_level >= 0) {
+		shell_set_log_level(s_lb_saved_log_level);
+		s_lb_saved_log_level = -1;
+	}
+}
+
+/* Master reads 0..9 from the other controller acting as slave. Returns 1 on pass. */
+static int i2c_rpt_loopback_one(uint32_t mst_id, uint32_t slv_id, i2c_rpt_item_t *item)
+{
+	uint8_t mbuf[I2C_RPT_RAMP_LEN];
+	beken_thread_t slv_thread = NULL;
+
+	os_memset(mbuf, 0xFF, sizeof(mbuf));
+	os_memset(&s_rpt_lb, 0, sizeof(s_rpt_lb));
+	s_rpt_lb.slv_id = slv_id;
+	s_rpt_lb.len = I2C_RPT_RAMP_LEN;
+	s_rpt_lb.buf = os_zalloc(I2C_RPT_RAMP_LEN);
+	if (!s_rpt_lb.buf) {
+		I2C_TC_FAIL("cross_rd", "I2C%u malloc fail", (unsigned)mst_id);
+		return 0;
+	}
+
+	if (i2c_rpt_lb_setup(mst_id, slv_id) != BK_OK) {
+		I2C_TC_FAIL("cross_rd", "I2C%u setup failed", (unsigned)mst_id);
+		os_free(s_rpt_lb.buf);
+		s_rpt_lb.buf = NULL;
+		i2c_rpt_lb_teardown(mst_id, slv_id);
+		return 0;
+	}
+
+	rtos_init_semaphore(&s_rpt_lb.armed, 1);
+	rtos_init_semaphore(&s_rpt_lb.done, 1);
+	if (rtos_create_thread(&slv_thread, I2C_LB_SLV_TASK_PRIO, "i2c_rpt_slv",
+			       i2c_rpt_lb_slave_task, I2C_LB_SLV_TASK_STACK,
+			       (beken_thread_arg_t)&s_rpt_lb) != kNoErr) {
+		I2C_TC_FAIL("cross_rd", "I2C%u slave thread create failed", (unsigned)mst_id);
+		rtos_deinit_semaphore(&s_rpt_lb.armed);
+		rtos_deinit_semaphore(&s_rpt_lb.done);
+		os_free(s_rpt_lb.buf);
+		s_rpt_lb.buf = NULL;
+		i2c_rpt_lb_teardown(mst_id, slv_id);
+		return 0;
+	}
+
+	rtos_get_semaphore(&s_rpt_lb.armed, I2C_LB_TIMEOUT_MS);
+	rtos_delay_milliseconds(I2C_LB_ARM_MARGIN_MS);
+	bk_err_t mret = bk_i2c_master_read(mst_id, I2C_RPT_SLV_ADDR, mbuf,
+					   I2C_RPT_RAMP_LEN, I2C_LB_TIMEOUT_MS);
+	rtos_get_semaphore(&s_rpt_lb.done, I2C_LB_TIMEOUT_MS + 100);
+
+	uint32_t errs = 0;
+	if (mret != BK_OK || s_rpt_lb.slv_ret != BK_OK) {
+		I2C_TC_FAIL("cross_rd", "I2C%u xfer err master=%d slave=%d",
+			    (unsigned)mst_id, mret, s_rpt_lb.slv_ret);
+		errs = I2C_RPT_RAMP_LEN;
+	} else {
+		for (uint32_t i = 0; i < I2C_RPT_RAMP_LEN; i++) {
+			if (mbuf[i] != (uint8_t)i) {
+				if (errs < 8)
+					CLI_LOGE("  I2C%u mismatch [%u]: expect=%u read=%u\r\n",
+						 (unsigned)mst_id, (unsigned)i, (unsigned)i, mbuf[i]);
+				errs++;
+			}
+		}
+	}
+
+	rtos_deinit_semaphore(&s_rpt_lb.armed);
+	rtos_deinit_semaphore(&s_rpt_lb.done);
+	os_free(s_rpt_lb.buf);
+	s_rpt_lb.buf = NULL;
+	i2c_rpt_lb_teardown(mst_id, slv_id);
+	i2c_rpt_save_data(item, mbuf);
+
+	if (errs) {
+		I2C_TC_FAIL("cross_rd", "I2C%u %u/%u bytes mismatch vs 0..9",
+			    (unsigned)mst_id, (unsigned)errs, (unsigned)I2C_RPT_RAMP_LEN);
+		return 0;
+	}
+	I2C_TC_PASS("cross_rd", "I2C%u host read 0..9 verified", (unsigned)mst_id);
+	return 1;
+}
+
+static void i2c_rpt_run(void)
+{
+	i2c_rpt_item_t items[I2C_ID_MAX] = {0};
+
+	items[I2C_ID_0].tested = 1;
+	items[I2C_ID_0].pass = i2c_rpt_loopback_one(I2C_ID_0, I2C_ID_1, &items[I2C_ID_0]);
+	items[I2C_ID_1].tested = 1;
+	items[I2C_ID_1].pass = i2c_rpt_loopback_one(I2C_ID_1, I2C_ID_0, &items[I2C_ID_1]);
+	i2c_rpt_print_table(items);
+}
+#endif /* CONFIG_SIM_I2C */
+
 static void cli_i2c_help(void)
 {
 	CLI_LOGD("i2c_driver init\r\n");
@@ -443,6 +668,7 @@ static void cli_i2c_help(void)
 	CLI_LOGD("i2c {id} tc_nack [dev_addr_hex]               - expect NACK/timeout from absent device\r\n");
 	CLI_LOGD("i2c {id} tc_invalid_param                     - NULL cfg / un-init id error-code checks\r\n");
 	CLI_LOGD("i2c {id} tc_mem_leak [loops] [tol_bytes]      - init/deinit heap leak check\r\n");
+	CLI_LOGD("i2c {id} cross_rd                            - I2C0<->I2C1 each as master reads 0..9\r\n");
 	CLI_LOGD("--- single-board co-test: jumper I2C0.SDA<->I2C1.SDA, I2C0.SCL<->I2C1.SCL + pull-ups ---\r\n");
 	CLI_LOGD("i2c {id} loopback {mst_wr_slv_rd|mst_rd_slv_wr|repeat|all} [len] [loops] - I2C0<->I2C1 auto co-test\r\n");
 	CLI_LOGD("i2c {id} recover {nack_then_ok|short_timeout_recover|slave_fifo_resync|stuck_bus|all} [len] - exception recovery\r\n");
@@ -1112,6 +1338,13 @@ static void cli_i2c_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
 			else
 				I2C_TC_FAIL("recover.all", "%d sub-check(s) failed", fails);
 		}
+	} else if (os_strcmp(argv[2], "cross_rd") == 0) {
+		/* I2C0<->I2C1 each as master reads 0..9. {id} is unused. */
+#ifndef CONFIG_SIM_I2C
+		i2c_rpt_run();
+#else
+		CLI_LOGE("cross_rd: not supported on CONFIG_SIM_I2C\r\n");
+#endif
 	} else if (os_strcmp(argv[2], "clk_select") == 0) {
 		CLI_RET_ON_INVALID_ARGC(argc, 4);
 		if (os_strcmp(argv[3], "xtal") == 0){
