@@ -57,6 +57,8 @@
 #include "miiphy.h"
 #include "os/mem.h"
 #include "driver/gpio.h"
+#include "driver/sys_pm.h"
+#include "sys_driver.h"
 
 #define ETH_MULTI_PHY_SUPPORT  1
 
@@ -72,6 +74,12 @@
 #define ETH_TX_BUFFER_MAX                      ((ETH_TX_DESC_CNT) * 2U)
 #define ETH_RX_BUFFER_SIZE                     ( 1536 )
 #define ETH_TX_DESCS_PER_TX                    8
+/* None of the three VCOs the DCO spec tabulates divides down to the 50 MHz an
+ * RMII reference needs, and 480 MHz is the only one of them that calibrates on
+ * this part, so 500 MHz is the closest reachable multiple of 50 to the band the
+ * hardware is known to cover. */
+#define ETH_AUXS_ENET_DCO_VCO                  500U
+#define ETH_AUXS_ENET_DCO_DIV                  9U
 
 /* MAX RX threshold per process */
 #define ETH_RX_FRAME_PREP_THD                  16
@@ -174,6 +182,8 @@ static uint8_t RxAllocStatus;
 
 static ETH_DMADescTypeDef DMARxDscrTab[ETH_RX_DESC_CNT] __attribute__((aligned(32))); /* Ethernet Rx DMA Descriptors */
 static ETH_DMADescTypeDef DMATxDscrTab[ETH_TX_DESC_CNT] __attribute__((aligned(32))); /* Ethernet Tx DMA Descriptors */
+static uint8_t s_eth_tx_aligned_buffers[ETH_TX_DESC_CNT][ETH_RX_BUFFER_SIZE]
+  __attribute__((aligned(32)));
 extern u8_t memp_memory_RX_POOL_base[];
 extern int32_t xTaskGetTickCount( void );
 volatile int32_t bmsg_eth_rx_count = 0;
@@ -699,7 +709,9 @@ static void bmsg_eth_tx_handler(BUS_MSG_T *msg)
 {
   struct pbuf *p = (struct pbuf *)msg->arg;
   ETH_TxPacketConfig *txconfig;
+  ETH_BufferTypeDef *txbuffer;
   struct eth_mac_priv *priv __maybe_unused = heth.priv;
+  uint32_t tx_desc_idx;
 
   if (!p) {
     LWIP_LOGE("no pbuf for tx\n");
@@ -716,6 +728,33 @@ static void bmsg_eth_tx_handler(BUS_MSG_T *msg)
     pbuf_free(p);
     return;
   }
+
+  if (p->tot_len > ETH_RX_BUFFER_SIZE) {
+    LWIP_LOGE("TX frame too large: %u\n", p->tot_len);
+    pbuf_free(p);
+    os_free(txconfig);
+    return;
+  }
+
+  /*
+   * Coalesce each frame into a DMA-safe, 32-byte-aligned buffer. LwIP's
+   * Ethernet payload is commonly only 2-byte aligned, which this GMAC/AHB
+   * path cannot reliably use as a TX buffer address.
+   */
+  tx_desc_idx = heth.TxDescList.CurTxDesc;
+  if (pbuf_copy_partial(p, s_eth_tx_aligned_buffers[tx_desc_idx],
+                        p->tot_len, 0) != p->tot_len) {
+    LWIP_LOGE("copy TX frame failed: %u\n", p->tot_len);
+    pbuf_free(p);
+    os_free(txconfig);
+    return;
+  }
+
+  txbuffer = txconfig->TxBuffer;
+  txbuffer[0].buffer = s_eth_tx_aligned_buffers[tx_desc_idx];
+  txbuffer[0].len = p->tot_len;
+  txbuffer[0].next = NULL;
+  txconfig->Length = p->tot_len;
 
   if (HAL_ETH_Transmit_IT(&heth, txconfig))  // FIXME: may failed, revise me
   {
@@ -1054,10 +1093,36 @@ static void eth_phy_hw_reset(void)
 }
 #endif
 
+#if CONFIG_ETH_PHY_REF_CLK_DCO
+static void eth_phy_ref_clock_init(void)
+{
+  /* Calibration locks the DCO loop to the 26 MHz XTAL and powers the
+   * oscillator up, so it has to run before the clock is routed to the pin. */
+  sys_drv_dco_cali(ETH_AUXS_ENET_DCO_VCO);
+  sys_drv_auxs_enet_cksel_clkdiv_set(CKSEL_SYS_DCO_APLL_DCO,
+                                      ETH_AUXS_ENET_DCO_DIV);
+  sys_hal_set_eth_clk_en(1);
+
+  LWIP_LOGD("PHY REF_CLK: %u MHz DCO/%u output on CLK_AUXS_ENET, sel=%u div=%u gate=%u en_dco=%u\n",
+            ETH_AUXS_ENET_DCO_VCO, ETH_AUXS_ENET_DCO_DIV + 1U,
+            sys_ll_get_cpu_clk_div_mode3_cksel_auxs_enet(),
+            sys_ll_get_cpu_clk_div_mode3_ckdiv_auxs_enet(),
+            sys_ll_get_reserver_reg0xd_auxs_enet_cken(),
+            sys_ll_get_ana_reg5_en_dco());
+}
+#endif
+
 void HAL_ETH_MspInit(ETH_HandleTypeDef* ethHandle)
 {
   //LWIP_LOGD("HW DeviceID: 0x%x\n", REG_READ((ETH_BASE + 0x800*4)));
   //LWIP_LOGD("HW VersionID: 0x%x\n", REG_READ((ETH_BASE + 0x801*4)));
+
+  // Power on the ETH domain before enabling its reference clock.
+  bk_pm_module_vote_power_ctrl(PM_POWER_SUB_MODULE_NAME_AHBP_ENET, PM_POWER_MODULE_STATE_ON);
+
+#if CONFIG_ETH_PHY_REF_CLK_DCO
+  eth_phy_ref_clock_init();
+#endif
 
 #if CONFIG_USR_GPIO_CFG_EN
   gpio_dev_map_by_func(GPIO_DEV_ENET_PHY_INT);
@@ -1079,6 +1144,9 @@ void HAL_ETH_MspInit(ETH_HandleTypeDef* ethHandle)
   gpio_dev_map_by_func(GPIO_DEV_ENET_GTCLK);
 #else
   gpio_dev_map_by_func(GPIO_DEV_ENET_REF_CLK);
+#if CONFIG_ETH_PHY_REF_CLK_DCO
+  gpio_dev_map_by_func(GPIO_DEV_CLK_AUXS_ENET);
+#endif
 #endif
   gpio_dev_map_by_func(GPIO_DEV_ENET_TXEN);
 #endif
@@ -1086,9 +1154,6 @@ void HAL_ETH_MspInit(ETH_HandleTypeDef* ethHandle)
 #if CONFIG_PHY_JLSEMI && CONFIG_ETH_PHY_HW_RESET
   eth_phy_hw_reset();
 #endif
-
-  // Power On AHBP 
-  bk_pm_module_vote_power_ctrl(PM_POWER_SUB_MODULE_NAME_AHBP_ENET, PM_POWER_MODULE_STATE_ON);
 
 #ifdef CONFIG_ETH_PM_CB_SUPPORT
   // Don't allow ETH enters PS
