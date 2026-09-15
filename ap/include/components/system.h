@@ -148,7 +148,6 @@ void bk_reboot_callback_register(reboot_callback_func func);
 int bk_tick_init(void);
 int bk_tick_reload(uint32_t time_ms);
 void bk_tick_handle(uint8_t arg);
-int bk_update_tick(uint32_t tick);
 uint64_t bk_get_tick(void);
 uint32_t bk_get_second(void);
 uint32_t bk_get_ms_per_tick(void);
