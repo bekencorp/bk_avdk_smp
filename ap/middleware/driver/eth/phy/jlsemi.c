@@ -90,12 +90,14 @@ static int jl11x1_config(struct phy_device *phydev)
 		return -1;
 	}
 
+	/* The PHY has to source REF_CLK: nothing on the board feeds it a 50MHz
+	 * input, so leaving bit12 set starves the MAC of its RMII clock and the
+	 * MAC soft reset never completes. */
 	ret = jl11x1_modify_paged(phydev, JL11X1_PAGE_RMII,
 				  JL11X1_RMII_CTRL_REG,
-				  JL11X1_RMII_CLK_50M_INPUT,
-				  JL11X1_RMII_CLK_50M_INPUT);
+				  JL11X1_RMII_CLK_50M_INPUT, 0);
 	if (ret < 0) {
-		BK_LOGD(NULL, "JL11x1: failed to set REF_CLK input mode: %d\n",
+		BK_LOGD(NULL, "JL11x1: failed to set REF_CLK output mode: %d\n",
 			ret);
 		return ret;
 	}
@@ -121,8 +123,8 @@ static int jl11x1_config(struct phy_device *phydev)
 		BK_LOGD(NULL, "JL11x1: hardware strap did not select RMII\n");
 		return -1;
 	}
-	if (!(rmii_ctrl & JL11X1_RMII_CLK_50M_INPUT)) {
-		BK_LOGD(NULL, "JL11x1: failed to select REF_CLK input mode\n");
+	if (rmii_ctrl & JL11X1_RMII_CLK_50M_INPUT) {
+		BK_LOGD(NULL, "JL11x1: failed to select REF_CLK output mode\n");
 		return -1;
 	}
 
