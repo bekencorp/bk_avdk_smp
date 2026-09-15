@@ -20,6 +20,11 @@
 #include "pal.h"
 #include "dubhe_sca.h"
 #include "dubhe_driver.h"
+#if !defined( TEE_M )
+/* os/os.h provides RTOS context checks and non-blocking mutex take; it is only
+ * available in the armino non-secure runtime build. */
+#include "os/os.h"
+#endif
 #if defined( DUBHE_FOR_RUNTIME )
 #if !defined( TEE_M )
 #include <modules/pm.h>
@@ -357,6 +362,122 @@ int32_t dubhe_mutex_unlock( dubhe_mutex_type_t dubhe_mutex )
 #endif
 #else
     (void) dubhe_mutex;
+    return ( 0 );
+#endif
+}
+
+int32_t dubhe_mutex_lock_adaptive( dubhe_mutex_type_t dubhe_mutex, dubhe_lock_ctx_t *ctx )
+{
+#if defined( DUBHE_FOR_RUNTIME )
+#if !defined( TEE_M )
+    pal_mutex_t m = NULL;
+
+    if ( ctx == NULL ) {
+        return MUTEX_LOCK_FAIL;
+    }
+
+    /* Must precede dubhe_ns_prepare_runtime(): the lazy init it performs
+     * allocates mutexes and registers an interrupt handler, neither of which is
+     * legal from an ISR. */
+    if ( rtos_is_in_interrupt_context() ) {
+        return MUTEX_LOCK_FAIL;
+    }
+
+#if !defined( DUBHE_SECURE )
+    dubhe_ns_prepare_runtime( );
+#endif
+    switch ( dubhe_mutex ) {
+    case DBH_SCA_MUTEX:  m = _g_sca_mutex;  break;
+    case DBH_HASH_MUTEX: m = _g_hash_mutex; break;
+    case DBH_ACA_MUTEX:  m = _g_aca_mutex;  break;
+    case DBH_TRNG_MUTEX: m = _g_trng_mutex; break;
+    case DBH_OTP_MUTEX:  m = _g_otp_mutex;  break;
+    default:             return MUTEX_LOCK_FAIL;
+    }
+
+    if ( m == NULL ) {
+        return MUTEX_LOCK_FAIL;
+    }
+
+    ctx->locked       = 0;
+    ctx->irq_disabled = 0;
+
+    /* With interrupts disabled, do not block. Take(0) acquires the same mutex as
+     * the normal path, so mutual exclusion still holds against blocking callers.
+     * The critical section inside the take saves the interrupt level on entry
+     * and restores it on exit, so the caller's IRQ-disable survives. */
+    if ( rtos_local_irq_disabled() ) {
+        if ( rtos_trylock_mutex( (beken_mutex_t *)&m ) != 0 ) {
+            return MUTEX_LOCK_FAIL;
+        }
+        ctx->locked       = 1;
+        ctx->irq_disabled = 1;
+        return MUTEX_LOCK_SUCCESS;
+    }
+
+    if ( pal_mutex_lock( m ) != MUTEX_LOCK_SUCCESS ) {
+        return MUTEX_LOCK_FAIL;
+    }
+    ctx->locked = 1;
+    return MUTEX_LOCK_SUCCESS;
+#else
+    (void) dubhe_mutex;
+    (void) ctx;
+    return ( 0 );
+#endif
+#else
+    (void) dubhe_mutex;
+    (void) ctx;
+    return ( 0 );
+#endif
+}
+
+int32_t dubhe_mutex_unlock_adaptive( dubhe_mutex_type_t dubhe_mutex, dubhe_lock_ctx_t *ctx )
+{
+#if defined( DUBHE_FOR_RUNTIME )
+#if !defined( TEE_M )
+    pal_mutex_t m = NULL;
+
+    if ( ctx == NULL ) {
+        return MUTEX_UNLOCK_FAIL;
+    }
+    switch ( dubhe_mutex ) {
+    case DBH_SCA_MUTEX:  m = _g_sca_mutex;  break;
+    case DBH_HASH_MUTEX: m = _g_hash_mutex; break;
+    case DBH_ACA_MUTEX:  m = _g_aca_mutex;  break;
+    case DBH_TRNG_MUTEX: m = _g_trng_mutex; break;
+    case DBH_OTP_MUTEX:  m = _g_otp_mutex;  break;
+    default:             return MUTEX_UNLOCK_FAIL;
+    }
+
+    if ( m == NULL || !ctx->locked ) {
+        return MUTEX_UNLOCK_FAIL;
+    }
+
+    /* This path always runs with interrupts disabled, where both
+     * pal_mutex_unlock() and rtos_unlock_mutex() assert in the non-SMP build.
+     * rtos_set_semaphore() reaches the same xSemaphoreGive() on the same handle
+     * without that assert, and its from-ISR branch is unreachable here because
+     * the lock side rejects ISR callers. */
+    if ( ctx->irq_disabled ) {
+        if ( rtos_set_semaphore( (beken_semaphore_t *)&m ) != 0 ) {
+            return MUTEX_UNLOCK_FAIL;
+        }
+    } else if ( pal_mutex_unlock( m ) != MUTEX_UNLOCK_SUCCESS ) {
+        return MUTEX_UNLOCK_FAIL;
+    }
+
+    ctx->locked       = 0;
+    ctx->irq_disabled = 0;
+    return MUTEX_UNLOCK_SUCCESS;
+#else
+    (void) dubhe_mutex;
+    (void) ctx;
+    return ( 0 );
+#endif
+#else
+    (void) dubhe_mutex;
+    (void) ctx;
     return ( 0 );
 #endif
 }

@@ -23,6 +23,10 @@
 #define POOL_SIZE ( 8 )
 #define WAIT_POOL_FILLED_US ( 3U )
 #define WAIT_POOL_FILLED_MAX ( 10000U )
+/* pal_udelay() is a busy wait. When the adaptive lock was taken with interrupts
+ * disabled the whole poll runs with IRQs masked, so cap it far below
+ * WAIT_POOL_FILLED_MAX to bound interrupt latency and keep watchdog margin. */
+#define WAIT_POOL_FILLED_ATOMIC_MAX ( 1000U )
 #define BIT_MASK( V, M ) ( ( V ) & ( M ) )
 
 #define _ALIGN_UP( addr, size )                                                \
@@ -284,6 +288,10 @@ void arm_ce_trng_driver_init( void )
 
 int arm_ce_seed_read( unsigned char *buf, size_t buf_len )
 {
+#if defined( DUBHE_FOR_RUNTIME )
+    dubhe_lock_ctx_t trng_lock_ctx = { 0 };
+#endif
+
     if ( buf_len == 0 ) {
         return 0;
     }
@@ -293,13 +301,20 @@ int arm_ce_seed_read( unsigned char *buf, size_t buf_len )
     }
 
 #if defined( DUBHE_FOR_RUNTIME )
-    dubhe_mutex_lock( DBH_TRNG_MUTEX );
+    /* adaptive lock: safe even if the caller has interrupts disabled */
+    if ( dubhe_mutex_lock_adaptive( DBH_TRNG_MUTEX, &trng_lock_ctx )
+         != MUTEX_LOCK_SUCCESS ) {
+        return DBH_TRNG_PARAM_INVALID;
+    }
 #endif
 
     arm_ce_random_data_read( buf, buf_len, false );
 
 #if defined( DUBHE_FOR_RUNTIME )
-    dubhe_mutex_unlock( DBH_TRNG_MUTEX );
+    if ( dubhe_mutex_unlock_adaptive( DBH_TRNG_MUTEX, &trng_lock_ctx )
+         != MUTEX_UNLOCK_SUCCESS ) {
+        return DBH_TRNG_PARAM_INVALID;
+    }
 #endif
     return 0;
 }
@@ -314,7 +329,10 @@ int arm_ce_trng_calibration_dump( uint32_t regBase,
     return 0;
 }
 #else
-static int arm_ce_random_data_read( unsigned char *buf, size_t buf_len, bool need_error )
+static int arm_ce_random_data_read( unsigned char *buf,
+                                    size_t buf_len,
+                                    bool need_error,
+                                    uint32_t wait_max )
 {
     uint32_t i, block_size = 0, extra_size = 0, error_count = 0;
     uint32_t random_data[POOL_SIZE];
@@ -353,7 +371,7 @@ static int arm_ce_random_data_read( unsigned char *buf, size_t buf_len, bool nee
                 break;
             }
             pal_udelay( WAIT_POOL_FILLED_US );
-            if ( ++wait_cnt > WAIT_POOL_FILLED_MAX ) {
+            if ( ++wait_cnt > wait_max ) {
                 return DBH_TRNG_PARAM_INVALID;
             }
 #if defined( DUBHE_SECURE )
@@ -379,6 +397,10 @@ void arm_ce_trng_driver_init( void )
 int arm_ce_seed_read( unsigned char *buf, size_t buf_len )
 {
     int ret;
+    uint32_t wait_max = WAIT_POOL_FILLED_MAX;
+#if defined( DUBHE_FOR_RUNTIME )
+    dubhe_lock_ctx_t trng_lock_ctx = { 0 };
+#endif
 
     if ( buf_len == 0 ) {
         return 0;
@@ -389,19 +411,29 @@ int arm_ce_seed_read( unsigned char *buf, size_t buf_len )
     }
 
 #if defined( DUBHE_FOR_RUNTIME )
-    dubhe_mutex_lock( DBH_TRNG_MUTEX );
+    /* adaptive lock: safe even if the caller has interrupts disabled */
+    if ( dubhe_mutex_lock_adaptive( DBH_TRNG_MUTEX, &trng_lock_ctx )
+         != MUTEX_LOCK_SUCCESS ) {
+        return DBH_TRNG_PARAM_INVALID;
+    }
+    if ( trng_lock_ctx.irq_disabled ) {
+        wait_max = WAIT_POOL_FILLED_ATOMIC_MAX;
+    }
 #endif
 #if defined( DUBHE_SECURE )
     dubhe_clk_enable( DBH_MODULE_TRNG );
 #endif
 
-    ret = arm_ce_random_data_read( buf, buf_len, false );
+    ret = arm_ce_random_data_read( buf, buf_len, false, wait_max );
 
 #if defined( DUBHE_SECURE )
     dubhe_clk_disable( DBH_MODULE_TRNG );
 #endif
 #if defined( DUBHE_FOR_RUNTIME )
-    dubhe_mutex_unlock( DBH_TRNG_MUTEX );
+    if ( dubhe_mutex_unlock_adaptive( DBH_TRNG_MUTEX, &trng_lock_ctx )
+         != MUTEX_UNLOCK_SUCCESS && ret == 0 ) {
+        ret = DBH_TRNG_PARAM_INVALID;
+    }
 #endif
     return ret;
 }
@@ -417,9 +449,19 @@ int arm_ce_trng_calibration_dump( uint32_t regBase,
     unsigned char *buf = NULL;
     int ret            = 0;
     int block_size     = 0;
+    uint32_t wait_max  = WAIT_POOL_FILLED_MAX;
+#if defined( DUBHE_FOR_RUNTIME )
+    dubhe_lock_ctx_t trng_lock_ctx = { 0 };
+#endif
 
 #if defined( DUBHE_FOR_RUNTIME )
-    dubhe_mutex_lock( DBH_TRNG_MUTEX );
+    if ( dubhe_mutex_lock_adaptive( DBH_TRNG_MUTEX, &trng_lock_ctx )
+         != MUTEX_LOCK_SUCCESS ) {
+        return DBH_TRNG_PARAM_INVALID;
+    }
+    if ( trng_lock_ctx.irq_disabled ) {
+        wait_max = WAIT_POOL_FILLED_ATOMIC_MAX;
+    }
 #endif
 #if defined( DUBHE_SECURE )
     dubhe_clk_enable( DBH_MODULE_TRNG );
@@ -455,7 +497,7 @@ int arm_ce_trng_calibration_dump( uint32_t regBase,
     block_size = _ALIGN_UP( size, bulk_size ) / bulk_size;
 
     for ( size_t i = 0; i < block_size; i++ ) {
-        arm_ce_random_data_read( buf, bulk_size, true );
+        arm_ce_random_data_read( buf, bulk_size, true, wait_max );
         on_trng_produce_data( buf, bulk_size );
     }
 
@@ -464,7 +506,10 @@ __out__:
     dubhe_clk_disable( DBH_MODULE_TRNG );
 #endif
 #if defined( DUBHE_FOR_RUNTIME )
-    dubhe_mutex_unlock( DBH_TRNG_MUTEX );
+    if ( dubhe_mutex_unlock_adaptive( DBH_TRNG_MUTEX, &trng_lock_ctx )
+         != MUTEX_UNLOCK_SUCCESS && ret == 0 ) {
+        ret = DBH_TRNG_PARAM_INVALID;
+    }
 #endif
     return ret;
 }
