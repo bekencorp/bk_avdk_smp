@@ -165,7 +165,9 @@ typedef struct
   __IO uint32_t MACTFCR;
   uint32_t      RESERVED5[7];
   __IO uint32_t MACRFCR;
-  uint32_t      RESERVED6[7];
+  uint32_t      RESERVED6[3];
+  __IO uint32_t MACRQC0R;                /* 0x0A0 */
+  uint32_t      RESERVED6A[3];
   __IO uint32_t MACISR;
   __IO uint32_t MACIER;
   __IO uint32_t MACRXTXSR;

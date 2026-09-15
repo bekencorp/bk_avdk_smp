@@ -228,7 +228,7 @@
 #define ETH_MACWTR_MASK               0x0000010FU
 #define ETH_MACTFCR_MASK              0xFFFF00F2U
 #define ETH_MACRFCR_MASK              0x00000003U
-#define ETH_MTLTQOMR_MASK             0x00000072U
+#define ETH_MTLTQOMR_MASK             0x0000007EU
 #define ETH_MTLRQOMR_MASK             0x0000007BU
 
 #define ETH_DMAMR_MASK                0x00007802U
@@ -425,8 +425,8 @@ HAL_StatusTypeDef HAL_ETH_Init(ETH_HandleTypeDef *heth)
   /*------------------ MAC, MTL and DMA default Configuration ----------------*/
   ETH_MACDMAConfig(heth);
 
-  /* SET DSL to 64 bit */
-  MODIFY_REG(heth->Instance->DMACCR, ETH_DMACCR_DSL, ETH_DMACCR_DSL_64BIT);
+  /* Skip the 128-bit software-only area after each 128-bit HW descriptor. */
+  MODIFY_REG(heth->Instance->DMACCR, ETH_DMACCR_DSL, ETH_DMACCR_DSL_128BIT);
 
   /* Set Receive Buffers Length (must be a multiple of 4) */
   if ((heth->Init.RxBuffLen % 0x4U) != 0x0U)
@@ -505,8 +505,8 @@ HAL_StatusTypeDef HAL_ETH_ReInit(ETH_HandleTypeDef *heth)
   /*------------------ MAC, MTL and DMA default Configuration ----------------*/
   ETH_MACDMAConfig(heth);
 
-  /* SET DSL to 64 bit */
-  MODIFY_REG(heth->Instance->DMACCR, ETH_DMACCR_DSL, ETH_DMACCR_DSL_64BIT);
+  /* Skip the 128-bit software-only area after each 128-bit HW descriptor. */
+  MODIFY_REG(heth->Instance->DMACCR, ETH_DMACCR_DSL, ETH_DMACCR_DSL_128BIT);
 
   MODIFY_REG(heth->Instance->DMACRCR, ETH_DMACRCR_RBSZ, ((heth->Init.RxBuffLen) << 1));
 
@@ -1283,6 +1283,7 @@ static void ETH_UpdateDescriptor(ETH_HandleTypeDef *heth)
   uint32_t descidx;
   uint32_t desccount;
   ETH_DMADescTypeDef *dmarxdesc;
+  ETH_DMADescTypeDef *lastdesc = NULL;
   uint8_t *buff = NULL;
   uint8_t allocStatus = 1U;
 
@@ -1329,6 +1330,9 @@ static void ETH_UpdateDescriptor(ETH_HandleTypeDef *heth)
         WRITE_REG(dmarxdesc->DESC3, ETH_DMARXNDESCRF_OWN | ETH_DMARXNDESCRF_BUF1V);
       }
 
+      /* Record the last descriptor returned to the Rx DMA. */
+      lastdesc = dmarxdesc;
+
       /* Increment current rx descriptor index */
       INCR_RX_DESC_INDEX(descidx, 1U);
       /* Get current descriptor address */
@@ -1339,8 +1343,11 @@ static void ETH_UpdateDescriptor(ETH_HandleTypeDef *heth)
 
   if (heth->RxDescList.RxBuildDescCnt != desccount)
   {
-    /* Set the Tail pointer address */
-    WRITE_REG(heth->Instance->DMACRDTPR, 0);
+    /* Keep the Rx tail pointer inside the descriptor ring. */
+    if (lastdesc != NULL)
+    {
+      WRITE_REG(heth->Instance->DMACRDTPR, ETH_DMA_ADDR(lastdesc));
+    }
 
     heth->RxDescList.RxBuildDescIdx = descidx;
     heth->RxDescList.RxBuildDescCnt = desccount;
@@ -2453,7 +2460,8 @@ HAL_StatusTypeDef HAL_ETH_GetMACConfig(ETH_HandleTypeDef *heth, ETH_MACConfigTyp
   macconf->UnicastPausePacketDetect = ((READ_BIT(heth->Instance->MACRFCR, ETH_MACRFCR_UP) >> 1) > 0U)
                                       ? ENABLE : DISABLE;
 
-  macconf->TransmitQueueMode = READ_BIT(heth->Instance->MTLTQOMR, (ETH_MTLTQOMR_TTC | ETH_MTLTQOMR_TSF));
+  macconf->TransmitQueueMode = READ_BIT(heth->Instance->MTLTQOMR,
+                                        (ETH_MTLTQOMR_TTC | ETH_MTLTQOMR_TSF | ETH_MTLTQOMR_TXQEN));
 
   macconf->ReceiveQueueMode = READ_BIT(heth->Instance->MTLRQOMR, (ETH_MTLRQOMR_RTC | ETH_MTLRQOMR_RSF));
   macconf->ForwardRxUndersizedGoodPacket = ((READ_BIT(heth->Instance->MTLRQOMR,
@@ -3134,6 +3142,10 @@ static void ETH_SetMACConfig(ETH_HandleTypeDef *heth,  ETH_MACConfigTypeDef *mac
 
   /* Write to MTLRQOMR */
   MODIFY_REG(heth->Instance->MTLRQOMR, ETH_MTLRQOMR_MASK, macregval);
+
+  /*------------------------ MACRQC0R Configuration --------------------*/
+  /* Without RXQ0EN the MAC drops every received packet before it reaches MTL */
+  MODIFY_REG(heth->Instance->MACRQC0R, ETH_MACRQC0R_RXQ0EN, ETH_MACRQC0R_RXQ0EN_DCB);
 }
 
 static void ETH_SetDMAConfig(ETH_HandleTypeDef *heth,  ETH_DMAConfigTypeDef *dmaconf)
@@ -3216,7 +3228,7 @@ static void ETH_MACDMAConfig(ETH_HandleTypeDef *heth)
   macDefaultConf.SourceAddrControl = ETH_SOURCEADDRESS_REPLACE_ADDR0;
   macDefaultConf.Speed = ETH_SPEED_100M;
   macDefaultConf.Support2KPacket = DISABLE;
-  macDefaultConf.TransmitQueueMode = ETH_TRANSMITSTOREFORWARD;
+  macDefaultConf.TransmitQueueMode = ETH_TRANSMITSTOREFORWARD | ETH_MTLTQOMR_TXQEN_ENABLED;
   macDefaultConf.TransmitFlowControl = DISABLE;
   macDefaultConf.UnicastPausePacketDetect = DISABLE;
   macDefaultConf.UnicastSlowProtocolPacketDetect = DISABLE;
@@ -3228,15 +3240,19 @@ static void ETH_MACDMAConfig(ETH_HandleTypeDef *heth)
   ETH_SetMACConfig(heth, &macDefaultConf);
 
   /*--------------- ETHERNET DMA registers default Configuration --------------*/
-  dmaDefaultConf.AddressAlignedBeats = ENABLE;
-  dmaDefaultConf.BurstMode = ETH_BURSTLENGTH_FIXED;
+  /*
+   * Use conservative single-beat INCR accesses for the BK7259 AHB path.
+   * Fixed 32-beat bursts can leave the DMA stuck fetching descriptors.
+   */
+  dmaDefaultConf.AddressAlignedBeats = DISABLE;
+  dmaDefaultConf.BurstMode = ETH_BURSTLENGTH_UNSPECIFIED;
   dmaDefaultConf.DMAArbitration = ETH_DMAARBITRATION_RX1_TX1;
   dmaDefaultConf.FlushRxPacket = DISABLE;
   dmaDefaultConf.PBLx8Mode = DISABLE;
   dmaDefaultConf.RebuildINCRxBurst = DISABLE;
-  dmaDefaultConf.RxDMABurstLength = ETH_RXDMABURSTLENGTH_32BEAT;
+  dmaDefaultConf.RxDMABurstLength = ETH_RXDMABURSTLENGTH_1BEAT;
   dmaDefaultConf.SecondPacketOperate = DISABLE;
-  dmaDefaultConf.TxDMABurstLength = ETH_TXDMABURSTLENGTH_32BEAT;
+  dmaDefaultConf.TxDMABurstLength = ETH_TXDMABURSTLENGTH_1BEAT;
   dmaDefaultConf.TCPSegmentation = DISABLE;
   dmaDefaultConf.MaximumSegmentSize = ETH_SEGMENT_SIZE_DEFAULT;
 
@@ -3435,6 +3451,13 @@ static uint32_t ETH_Prepare_Tx_Descriptors(ETH_HandleTypeDef *heth, ETH_TxPacket
   ETH_BufferTypeDef  *txbuffer = pTxConfig->TxBuffer;
   uint32_t           bd_count = 0;
   uint32_t           int_level;
+
+  /* Leave one descriptor free: a tail pointer equal to the current descriptor
+     is read by the DMA as an empty ring, so a completely filled ring stalls Tx */
+  if (dmatxdesclist->BuffersInUse >= (uint32_t)(ETH_TX_DESC_CNT - 1U))
+  {
+    return HAL_ETH_ERROR_BUSY;
+  }
 
   /* Current Tx Descriptor Owned by DMA: cannot be used by the application  */
   if ((READ_BIT(dmatxdesc->DESC3, ETH_DMATXNDESCWBF_OWN) == ETH_DMATXNDESCWBF_OWN)

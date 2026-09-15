@@ -1448,6 +1448,20 @@
 #define ETH_MTLTQOMR_FTQ_Pos                          (0U)
 #define ETH_MTLTQOMR_FTQ_Msk                          (0x1UL << ETH_MTLTQOMR_FTQ_Pos) /*!< 0x00000001 */
 #define ETH_MTLTQOMR_FTQ                              ETH_MTLTQOMR_FTQ_Msk     /* Flush Transmit Queue */
+#define ETH_MTLTQOMR_TXQEN_Pos                        (2U)
+#define ETH_MTLTQOMR_TXQEN_Msk                        (0x3UL << ETH_MTLTQOMR_TXQEN_Pos) /*!< 0x0000000C */
+#define ETH_MTLTQOMR_TXQEN                            ETH_MTLTQOMR_TXQEN_Msk   /* Transmit Queue Enable */
+#define ETH_MTLTQOMR_TXQEN_DISABLED                   ((uint32_t)0x00000000)   /* Queue not enabled */
+#define ETH_MTLTQOMR_TXQEN_AV                         ((uint32_t)0x00000004)   /* Enabled in AV mode */
+#define ETH_MTLTQOMR_TXQEN_ENABLED                    ((uint32_t)0x00000008)   /* Enabled */
+
+/******************  Bit definition for ETH_MACRQC0R register  ****************/
+#define ETH_MACRQC0R_RXQ0EN_Pos                       (0U)
+#define ETH_MACRQC0R_RXQ0EN_Msk                       (0x3UL << ETH_MACRQC0R_RXQ0EN_Pos) /*!< 0x00000003 */
+#define ETH_MACRQC0R_RXQ0EN                           ETH_MACRQC0R_RXQ0EN_Msk  /* Receive Queue 0 Enable */
+#define ETH_MACRQC0R_RXQ0EN_DISABLED                  ((uint32_t)0x00000000)   /* Queue not enabled */
+#define ETH_MACRQC0R_RXQ0EN_DCB                       ((uint32_t)0x00000001)   /* Enabled for DCB/generic traffic */
+#define ETH_MACRQC0R_RXQ0EN_AV                        ((uint32_t)0x00000002)   /* Enabled for AV traffic */
 
 /* Bit definition for Ethernet MTL Tx Queue Underflow Register */
 #define ETH_MTLTQUR_UFCNTOVF_Pos                      (11U)

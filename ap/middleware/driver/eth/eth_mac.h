@@ -95,6 +95,8 @@ typedef struct
   __IO uint32_t DESC3;
   uint32_t BackupAddr0; /* used to store rx buffer 1 address */
   uint32_t BackupAddr1; /* used to store rx buffer 2 address */
+  uint32_t Reserved0;   /* pad to a 32-byte stride, matching DMACCR.DSL */
+  uint32_t Reserved1;
 } ETH_DMADescTypeDef;
 /**
   *
