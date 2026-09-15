@@ -28,11 +28,7 @@ extern void usbh_hubport_release(struct usbh_hubport *hport);
 static const char *speed_table[] = { "error-speed", "low-speed", "full-speed", "high-speed", "wireless-speed", "super-speed", "superplus-speed" };
 
 #if CONFIG_USBHOST_MAX_EXTHUBS > 0
-static struct usbh_hub g_hub_class[CONFIG_USBHOST_MAX_EXTHUBS]
-#if CONFIG_USB_HOST_STRUCTS_IN_PSRAM
-    __attribute__((section(".psram.bss")))
-#endif
-    ;
+static struct usbh_hub g_hub_class[CONFIG_USBHOST_MAX_EXTHUBS];
 static uint32_t g_devinuse = 0;
 
 static struct usbh_hub *usbh_hub_class_alloc(void)

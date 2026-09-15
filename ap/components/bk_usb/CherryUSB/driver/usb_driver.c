@@ -260,6 +260,14 @@ void bk_analog_layer_usb_sys_related_ops(uint32_t usb_mode, bool ops)
 			REG_USB_USR_708  =	0x1;
 
 		} else {
+			/* #9196: assert the wrapper reset (M55sub USB_HS: 0x2[0] soft_resetn,
+			 * 0x4[7] reset); released by the writes at the end of this branch.
+			 * Same 0->1 pulse the host branch does - the device branch used to
+			 * skip it, so host->device left stale core state. */
+			REG_USB_USR_708 = 0x0;
+			REG_USB_USR_710 &= ~(0x1<< 7);
+			delay(100);
+
 			REG_USB_USR_710 |= (0x1<<15);
 			REG_USB_USR_710 |= (0x1<<14);   /* id_dig_reg=1 -> ID high -> B-device */
 			REG_USB_USR_710 |= (0x1<<16);
