@@ -1271,22 +1271,7 @@ bool rtos_is_queue_empty( beken_queue_t* queue )
 {
     signed portBASE_TYPE result;
 
-#ifdef CONFIG_FREERTOS_ALLOW_OS_API_IN_IRQ_DISABLED
-    if (platform_is_in_interrupt_context() == RTOS_SUCCESS)
-    {
-    //    uint32_t flags = taskENTER_CRITICAL_FROM_ISR();
-        result = xQueueIsQueueEmptyFromISR( *queue );
-    //    taskEXIT_CRITICAL_FROM_ISR(flags);
-    }
-    else
-    {
-    //    taskENTER_CRITICAL();
-        result = xQueueIsQueueEmptyFromISR(*queue);
-    //    taskEXIT_CRITICAL();
-    }
-#else
     result = xQueueIsQueueEmptyFromISR( *queue );
-#endif
 
     return ( result != 0 ) ? true : false;
 }
@@ -1295,22 +1280,7 @@ bool rtos_is_queue_full( beken_queue_t* queue )
 {
     signed portBASE_TYPE result;
 
-#ifdef CONFIG_FREERTOS_ALLOW_OS_API_IN_IRQ_DISABLED
-    if (platform_is_in_interrupt_context() == RTOS_SUCCESS)
-    {
-    //    uint32_t flags = taskENTER_CRITICAL_FROM_ISR();
-        result = xQueueIsQueueFullFromISR( *queue );
-    //    taskEXIT_CRITICAL_FROM_ISR(flags);
-    }
-    else
-    {
-    //    taskENTER_CRITICAL();
-        result = xQueueIsQueueFullFromISR(*queue);
-    //    taskEXIT_CRITICAL();
-    }
-#else
     result = xQueueIsQueueFullFromISR( *queue );
-#endif
 
     return ( result != 0 ) ? true : false;
 }

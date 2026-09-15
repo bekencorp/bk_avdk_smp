@@ -113,63 +113,8 @@ tshow_exit:
 #define MODE_STACK_FILL_BYTE 0x5A
 #define ARM_MODE_UNUSED ARM_MODE_ABT
 #define STACK_ARM_MOD_SHOW(all, cnt, MOD)
-#if 0 //temp modify
-#define STACK_ARM_MOD_SHOW(all, cnt, MOD) do{\
-		cnt = stack_check_free_space((uint8_t *)boot_stack_base_##MOD, MODE_STACK_FILL_BYTE);\
-		cnt = MIN(cnt, boot_stack_len_##MOD);\
-		posi_stack = stack_get_stack_top(ARM_MODE_##MOD);\
-		all += boot_stack_len_##MOD;\
-		\
-		if(posi_stack)\
-		{\
-			used += boot_stack_base_##MOD + boot_stack_len_##MOD - posi_stack;\
-			BK_DUMP_OUT("%-16s   %-10d   0x%-08x, 0x%-08x   %-10x   0x%-11x   0x%-9x\r\n",\
-					  #MOD, boot_stack_len_##MOD,\
-					  boot_stack_base_##MOD, boot_stack_base_##MOD + boot_stack_len_##MOD,\
-					  boot_stack_len_##MOD - cnt, boot_stack_base_##MOD + boot_stack_len_##MOD - posi_stack,\
-					  posi_stack - boot_stack_base_##MOD);\
-		}\
-		else\
-		{\
-			posi_stack = boot_stack_base_##MOD + cnt;\
-			used += boot_stack_base_##MOD + boot_stack_len_##MOD - posi_stack;\
-			BK_DUMP_OUT("%-16s   %-10d   0x%-08x- 0x%-08x   0x%-8x   ?0x%-10x   ?0x%-8x\r\n",\
-					  #MOD, boot_stack_len_##MOD,\
-					  boot_stack_base_##MOD, boot_stack_base_##MOD + boot_stack_len_##MOD,\
-					  boot_stack_len_##MOD - cnt, boot_stack_base_##MOD + boot_stack_len_##MOD - posi_stack,\
-					  posi_stack - boot_stack_base_##MOD);\
-		}\
-	}while(0)
-#endif
 void stack_arm_mode_show(uint32_t *total_cnt, uint32_t *used_cnt)
 {
-#if 0//temp modify
-	extern uint32_t boot_stack_base_UNUSED;
-	extern uint32_t boot_stack_len_UNUSED;
-	extern uint32_t boot_stack_base_IRQ;
-	extern uint32_t boot_stack_len_IRQ;
-	extern uint32_t boot_stack_base_SVC;
-	extern uint32_t boot_stack_len_SVC;
-	extern uint32_t boot_stack_base_FIQ;
-	extern uint32_t boot_stack_len_FIQ;
-	extern uint32_t boot_stack_base_SYS;
-	extern uint32_t boot_stack_len_SYS;
-
-	uint32_t all, used, cnt, posi_stack;
-	all = 0;
-	used = 0;
-
-	BK_DUMP_OUT("%-16s   %-10s   %-22s   %-10s   %-13s   %-11s\r\n",
-		"arm_mode", "stack_size", "address", "peak_used", "current_used", "available");
-	STACK_ARM_MOD_SHOW(all, cnt, SVC);
-	STACK_ARM_MOD_SHOW(all, cnt, IRQ);
-	STACK_ARM_MOD_SHOW(all, cnt, FIQ);
-	STACK_ARM_MOD_SHOW(all, cnt, SYS);
-	STACK_ARM_MOD_SHOW(all, cnt, UNUSED);
-
-	*total_cnt = all;
-	*used_cnt = used;
-#endif
 }
 
 void rtos_dump_stack_memory_usage(void)
