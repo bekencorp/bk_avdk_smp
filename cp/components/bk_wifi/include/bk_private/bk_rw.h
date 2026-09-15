@@ -305,6 +305,9 @@ extern int rw_msg_send_config_monitor_req(struct mac_chan_op *chan,
 		struct me_config_monitor_cfm *cfm);
 extern int rwnx_monitor_open();
 extern int rwnx_monitor_close();
+#if defined(CONFIG_WFA_CERT) && CONFIG_WFA_CERT
+extern int rwnx_msg_send_wfa_twt_setup(uint8_t setup_type, struct twt_conf_tag *twt_conf);
+#endif
 extern int rwnx_msg_send_twt_setup(uint8_t setup_type, uint16_t mantissa, uint8_t min_twt);
 extern int rwnx_msg_send_twt_teardown();
 extern int rw_msg_set_default_ac(uint32_t ac);

@@ -1458,6 +1458,9 @@ int hapd_intf_ke_rx_handle(int dummy)
 		rwm_transfer_mgmt_node(node);
 #else /* CONFIG_RWNX_SW_TXQ */
 		struct sk_buff *skb;
+#if defined(CONFIG_QUICK_TRACK) && CONFIG_QUICK_TRACK
+		struct ieee80211_hdr *hdr;
+#endif
 
 		// get the payload size that want to send to umac
 		payload_size = ke_mgmt_peek_rxed_next_payload_size(type_ptr->vif_index);
@@ -1482,7 +1485,16 @@ int hapd_intf_ke_rx_handle(int dummy)
 		};
 		ke_mgmt_packet_rx(&params);
 
+#if defined(CONFIG_QUICK_TRACK) && CONFIG_QUICK_TRACK
+		hdr = (struct ieee80211_hdr *)skb->msdu_ptr;
+		// If not associated, use 0xff as sta_idx to use unknown txq
+		if (g_rwnx_hw.associated)
+			skb->sta_idx = rwm_mgmt_tx_get_staidx(type_ptr->vif_index, hdr->addr1);  // RA
+		else
+			skb->sta_idx = 0xFF;
+#else
 		skb->sta_idx = 0xFF;  // FIXME BK7236
+#endif
 		skb->vif_idx = type_ptr->vif_index;
 #if CONFIG_P2P
 		if (type_ptr->type == HOSTAPD_MGMT_ROBUST)

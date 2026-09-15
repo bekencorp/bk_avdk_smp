@@ -451,6 +451,7 @@ void mhdr_connect_ind(void *msg, UINT32 len)
 	if (!ind->status_code) {
 		RWNX_LOGI("connect ok\n");
 		g_rwnx_hw.connected = true;
+		g_rwnx_hw.associated = true;
 #ifdef CONFIG_WIFI_REGDOMAIN
 		g_rwnx_hw.chan = ind->chan;
 #endif
@@ -462,8 +463,10 @@ void mhdr_connect_ind(void *msg, UINT32 len)
 
 		if (wlan_connect_user_cb.cb)
 			(*wlan_connect_user_cb.cb)(wlan_connect_user_cb.ctxt_arg, 0);
-	} else
+	} else {
 		RWNX_LOGV("connect fail\n");
+		g_rwnx_hw.associated = false;
+	}
 
 	/* Send to wpa_supplicant */
 	/* ind->assoc_ie_buf is a flexible array */
@@ -1655,6 +1658,8 @@ void rwnx_handle_recv_msg(struct ke_msg *rx_msg)
 		g_rwnx_hw.connected = false;
 
 		RWNX_LOGD("disconnect\n");
+
+		g_rwnx_hw.associated = false;
 
 #if defined(CONFIG_IEEE80211R) || defined(CONFIG_WNM)
 				if (!ind->reassoc)

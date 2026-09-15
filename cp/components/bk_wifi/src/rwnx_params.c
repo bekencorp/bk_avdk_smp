@@ -11,6 +11,8 @@
 #include "rwnx_defs.h"
 #include <os/str.h>
 
+bool g_disable_he_tb = false;
+
 struct mac_htcapability rwnx_htcap = {
 	.ht_capa_info   = 0x0f32,
 	.a_mpdu_param   = 0x1c,

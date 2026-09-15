@@ -470,7 +470,11 @@
   #undef CFG_MFP
   #define CFG_MFP
   // Force Radio Measurement module
+  #if defined(CONFIG_QUICK_TRACK) && CONFIG_QUICK_TRACK
+  #define NX_RM 1
+  #else
   #define NX_RM 0
+  #endif
 #else // !CFG_HE
   #define NX_HE 0
   #define NX_RM 0

@@ -853,7 +853,8 @@ void rwnx_start_xmit_mgmt(struct sk_buff *skb)
 	host->staid = skb->sta_idx;
 
 	// fill lmac desc
-	fhost_txdesc_mgmt_init(txdesc, (uint32_t)skb->msdu_ptr, skb->len);
+	if (fhost_txdesc_mgmt_init(txdesc, p_cnt, (uint32_t)skb->msdu_ptr, skb->len))
+		goto tx_exit;
 
 	// VO for all mgmt frames
 	skb->ac = AC_VO;

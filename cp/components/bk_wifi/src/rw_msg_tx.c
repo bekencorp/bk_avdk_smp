@@ -609,6 +609,28 @@ int rwnx_monitor_close()
 	return ret;
 }
 
+#if defined(CONFIG_WFA_CERT) && CONFIG_WFA_CERT
+int rwnx_msg_send_wfa_twt_setup(uint8_t setup_type, struct twt_conf_tag *twt_conf)
+{
+	int ret = 0;
+	unsigned char vif_idx = wifi_netif_mac_to_vifid((uint8_t *)&g_sta_param_ptr->own_mac);
+	struct twt_setup_cfm *twt_setup_cfm = (struct twt_setup_cfm *)os_malloc(sizeof(struct twt_setup_cfm));
+
+	if (NULL == twt_setup_cfm) {
+		RWNX_LOGD("twt setup failed: oom\r\n");
+		return BK_ERR_NO_MEM;
+	}
+
+	ret = rw_msg_send_twt_setup(setup_type, vif_idx, twt_conf, twt_setup_cfm);
+	if (!ret && (twt_setup_cfm->status == CO_OK))
+		RWNX_LOGD("set up success\r\n");
+	else
+		RWNX_LOGD("set up fail, ret = %d\r\n", ret);
+	os_free(twt_setup_cfm);
+	return ret;
+}
+#endif
+
 #if NX_TWT
 #ifdef CONFIG_WPA_TWT_TEST
 int rwnx_msg_send_twt_setup(uint8_t setup_type, uint16_t mantissa, uint8_t min_twt)
@@ -1633,6 +1655,11 @@ int rw_msg_send_sm_connect_req(CONNECT_PARAM_T *sme, void *cfm)
 
 #if NX_VERSION > NX_VERSION_PACK(6, 22, 0, 0)
 	rwnx_connecting_handler(req->vif_idx); // FIXME: move to right place
+#endif
+
+#if defined(CONFIG_QUICK_MBO)
+	// For WFA MBO test, sniffer may has time difference, and may not captured the assoc packet.
+	rtos_delay_milliseconds(200);
 #endif
 
 	/* Send the SM_CONNECT_REQ message to LMAC FW */
