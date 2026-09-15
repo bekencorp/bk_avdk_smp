@@ -11,7 +11,7 @@ set(incs
 	${CMAKE_CURRENT_LIST_DIR}
 	${CMAKE_CURRENT_LIST_DIR}/misc
 	)
-set(srcs "misc/stub.c")
+set(srcs)
 
 list(APPEND incs
 	$ENV{PROJECT_DIR}/ap/config/${target}/
