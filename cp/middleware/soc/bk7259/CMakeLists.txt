@@ -12,7 +12,7 @@ set(incs
 	${CMAKE_CURRENT_LIST_DIR}/misc
 	../../../components/bk_pm/include
 	)
-set(srcs "misc/stub.c")
+set(srcs)
 
 list(APPEND incs
 	$ENV{PROJECT_DIR}/partitions/${target}/
