@@ -1434,6 +1434,10 @@
 #define ETH_MTLISR_QIS                                ETH_MTLISR_QIS_Msk       /* Queue Interrupt status */
 
 /* Bit definition for Ethernet MTL Tx Queue Operation Mode Register */
+#define ETH_MTLTQOMR_TQS_Pos                          (16U)
+#define ETH_MTLTQOMR_TQS_Msk                          (0xFUL << ETH_MTLTQOMR_TQS_Pos) /*!< 0x000F0000 */
+#define ETH_MTLTQOMR_TQS                              ETH_MTLTQOMR_TQS_Msk     /* Transmit Queue Size, (TQS+1)*256 bytes */
+#define ETH_MTLTQOMR_TQS_2048B                        ((uint32_t)0x00070000)   /* 8 blocks of 256 bytes */
 #define ETH_MTLTQOMR_TTC_Pos                          (4U)
 #define ETH_MTLTQOMR_TTC_Msk                          (0x7UL << ETH_MTLTQOMR_TTC_Pos) /*!< 0x00000070 */
 #define ETH_MTLTQOMR_TTC                              ETH_MTLTQOMR_TTC_Msk     /* Transmit Threshold Control */

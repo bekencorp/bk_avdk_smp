@@ -3195,6 +3195,15 @@ static void ETH_MACDMAConfig(ETH_HandleTypeDef *heth)
   ETH_MACConfigTypeDef macDefaultConf;
   ETH_DMAConfigTypeDef dmaDefaultConf;
 
+  /*
+   * Allocate the full MTL FIFOs to queue 0. The reset value of 0 gives only
+   * 256 bytes, which is smaller than a 342-byte DHCP frame and deadlocks
+   * store-and-forward. TQS/RQS may only be written while the queues are
+   * still disabled, so this must precede ETH_SetMACConfig().
+   */
+  MODIFY_REG(heth->Instance->MTLTQOMR, ETH_MTLTQOMR_TQS, ETH_MTLTQOMR_TQS_2048B);
+  MODIFY_REG(heth->Instance->MTLRQOMR, ETH_MTLRQOMR_RQS, (0x7UL << ETH_MTLRQOMR_RQS_Pos));
+
   /*--------------- ETHERNET MAC registers default Configuration --------------*/
   macDefaultConf.AutomaticPadCRCStrip = ENABLE;
   macDefaultConf.BackOffLimit = ETH_BACKOFFLIMIT_10;
