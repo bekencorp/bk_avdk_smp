@@ -2428,7 +2428,14 @@ __IRAM_SEC void sys_hal_set_sys2flsh_2wire(uint32_t value)
 #ifdef CONFIG_ETH
 void sys_hal_enable_eth_int(uint32_t value)
 {
-	return;
+	/* Route the ENET interrupt to the core running the driver. bk_int_isr_register()
+	   only fills the NVIC vector; without this the SoC aggregator never forwards
+	   IRQ 14, so the handler never runs and DMACSR keeps its stale TI/RI flags. */
+#if CONFIG_SOC_SMP
+	sys_hal_set_int_en(CPU2_CORE_ID, INT_SRC_INET0, value ? 1 : 0);
+#else
+	sys_hal_set_int_en(rtos_get_core_id(), INT_SRC_INET0, value ? 1 : 0);
+#endif
 }
 
 void sys_hal_set_eth_clk_en(uint32_t value)
