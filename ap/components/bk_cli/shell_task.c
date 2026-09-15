@@ -1615,13 +1615,13 @@ static void rx_ind_process(void)
 			}
 
 			bk_err_t ret = rtos_get_semaphore(&cmd_line_buf.rsp_buf_semaphore, SHELL_WAIT_OUT_TIME);
-#if (CMD_DEV == DEV_MAILBOX) && CONFIG_PM_AP_FAST_BOOT_ENABLE
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
 			/*
-			 * A command arriving from CP proves the peer is alive. If a legacy
-			 * async completion was lost across AP power-down, reclaim the sole
-			 * response buffer instead of turning a transport bookkeeping miss
-			 * into a system-wide Assert. Responses below use the synchronous
-			 * path, so no new completion dependency is introduced.
+			 * A command reaching this point proves the shell is alive. If the
+			 * async TX completion that returns rsp_buf_semaphore was lost
+			 * across AP power-down, reuse the sole response buffer anyway
+			 * rather than turning a transport bookkeeping miss into a
+			 * system-wide Assert.
 			 */
 			(void)ret;
 #else

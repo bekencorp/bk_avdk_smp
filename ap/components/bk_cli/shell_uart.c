@@ -7,6 +7,9 @@
 #if CONFIG_AT
 #include "atsvr_port.h"
 #endif
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+#include <modules/pm.h>
+#endif
 
 
 #include "aspl_lock.h"
@@ -17,6 +20,9 @@
 #define TX_BUFF_SIZE     1024
 #define RX_BUFF_SIZE     200
 #define ECHO_BUFF_SIZE   64
+
+/* shell_uart and the AT server device. */
+#define SHELL_UART_FAST_PM_DEV_NUM   2
 
 typedef struct
 {
@@ -284,6 +290,72 @@ static void shell_uart_tx_trigger(shell_uart_ext_t *uart_ext)
 	bk_uart_enable_tx_interrupt(uart_ext->uart_id);
 }
 
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+static bk_err_t shell_uart_fast_resume(void *arg)
+{
+	shell_uart_ext_t *uart_ext = (shell_uart_ext_t *)arg;
+	uint32_t   flags;
+
+	if(uart_ext == NULL)
+		return BK_ERR_PARAM;
+
+	bk_uart_set_enable_tx(uart_ext->uart_id, 1);
+
+	flags = bk_aspl_uart_log_enter_critical();
+
+	bk_uart_disable_tx_interrupt(uart_ext->uart_id);
+	uart_ext->tx_suspend = 0;
+	uart_ext->tx_stopped = 1;
+	shell_uart_tx_trigger(uart_ext);
+
+	bk_aspl_uart_log_exit_critical(flags);
+
+	return BK_OK;
+}
+
+/* One ops per opened device; a free slot is identified by a NULL arg. */
+static pm_ap_fast_pm_ops_t   shell_uart_fast_ops[SHELL_UART_FAST_PM_DEV_NUM];
+
+static void shell_uart_fast_pm_register(shell_uart_ext_t *uart_ext)
+{
+	int   free_idx = -1;
+
+	for(int idx = 0; idx < SHELL_UART_FAST_PM_DEV_NUM; idx++)
+	{
+		if(shell_uart_fast_ops[idx].arg == uart_ext)
+			return;    /* already registered for this device. */
+
+		if((shell_uart_fast_ops[idx].arg == NULL) && (free_idx < 0))
+			free_idx = idx;
+	}
+
+	if(free_idx < 0)
+		return;
+
+	shell_uart_fast_ops[free_idx].name     = "shell_uart";
+	shell_uart_fast_ops[free_idx].resume   = shell_uart_fast_resume;
+	shell_uart_fast_ops[free_idx].arg      = uart_ext;
+	shell_uart_fast_ops[free_idx].priority = PM_AP_FAST_PRIORITY_SERVICE;
+
+	if(bk_pm_ap_fast_ops_register(&shell_uart_fast_ops[free_idx]) != BK_OK)
+		shell_uart_fast_ops[free_idx].arg = NULL;
+}
+
+static void shell_uart_fast_pm_unregister(shell_uart_ext_t *uart_ext)
+{
+	for(int idx = 0; idx < SHELL_UART_FAST_PM_DEV_NUM; idx++)
+	{
+		if(shell_uart_fast_ops[idx].arg != uart_ext)
+			continue;
+
+		if(bk_pm_ap_fast_ops_unregister(&shell_uart_fast_ops[idx]) == BK_OK)
+			shell_uart_fast_ops[idx].arg = NULL;
+
+		return;
+	}
+}
+#endif
+
 static bool_t shell_uart_flush(
 	shell_uart_ext_t *uart_ext, const shell_flush_control_t *control)
 {
@@ -369,6 +441,10 @@ static bool_t shell_uart_open(shell_dev_t * shell_dev, tx_complete_t tx_callback
 	{
 		bk_uart_enable_rx_interrupt(uart_ext->uart_id);
 	}
+
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+	shell_uart_fast_pm_register(uart_ext);
+#endif
 
 	return bTRUE;
 }
@@ -673,6 +749,10 @@ static bool_t shell_uart_close(shell_dev_t * shell_dev)
 
 	uart_ext->tx_complete_callback = NULL;
 	uart_ext->rx_indicate_callback = NULL;
+
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+	shell_uart_fast_pm_unregister(uart_ext);
+#endif
 
 	return bTRUE;
 }
