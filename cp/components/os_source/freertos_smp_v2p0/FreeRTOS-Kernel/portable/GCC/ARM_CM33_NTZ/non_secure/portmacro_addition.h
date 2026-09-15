@@ -227,7 +227,7 @@ void vPortYield( void );
  * @note [refactor-todo] Put this into private macros as its only called from task.c and is not public API
  * @param coreid ID of core to yield
  */
-//void vPortYieldOtherCore(BaseType_t coreid);	//@cyg:TODO:
+//void vPortYieldOtherCore(BaseType_t coreid);
 
 /**
  * @brief Checks if the current core can yield
@@ -238,7 +238,7 @@ void vPortYield( void );
  * @return true Core can yield
  * @return false Core cannot yield
  */
-///FORCE_INLINE_ATTR bool xPortCanYield(void);	//@cyg:TODO:
+///FORCE_INLINE_ATTR bool xPortCanYield(void);
 
 // ------------------- Hook Functions ----------------------
 
