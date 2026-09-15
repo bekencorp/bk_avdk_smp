@@ -1981,17 +1981,22 @@ static void ethernet_link_status_updated(struct netif *netif)
 }
 #endif
 
+static bool s_eth_base_initialized;
+
 int net_eth_start()
 {
 	int ret;
 	uint8_t mac[BK_MAC_ADDR_LEN];
 
-	miiphy_init();
+	if (!s_eth_base_initialized) {
+		miiphy_init();
 
-	ieee8023_phy_init();
+		ieee8023_phy_init();
 
-	// Init TCP/IP Stack
-	net_ipv4stack_init();
+		// Init TCP/IP Stack
+		net_ipv4stack_init();
+		s_eth_base_initialized = true;
+	}
 
 	// Get ETH MAC address
 	bk_get_mac(mac, MAC_TYPE_ETH);
