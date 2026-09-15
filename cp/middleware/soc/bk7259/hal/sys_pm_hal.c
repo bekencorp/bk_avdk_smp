@@ -1168,6 +1168,7 @@ static inline void sys_hal_set_low_voltage(pm_sleep_mode_e sleep_mode, volatile 
 	//sys_hal_clear_wakeup_status();
 	sys_hal_set_sleep_condition();
 	aon_pmu_ll_set_r0_memchk_bps(1);
+	/* Bitfield write: must not clobber flash_remap_sel (R0 bit4). */
 	aon_pmu_ll_set_r0_fast_boot(1);
 	#if CONFIG_DEEP_LV
 	aon_pmu_hal_set_dlv_startup(0);
