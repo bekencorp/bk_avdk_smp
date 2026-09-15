@@ -1383,8 +1383,10 @@ typedef struct
 /** @defgroup ETH_Speed  ETH Speed
   * @{
   */
-#define ETH_SPEED_10M        0x00000000U
-#define ETH_SPEED_100M       ETH_MACCR_FES
+/* PS selects the 10/100 MII/RMII port; without it the MAC stays on the
+   1000M GMII port and its Tx/Rx engines never start on an RMII PHY. */
+#define ETH_SPEED_10M        ETH_MACCR_PS
+#define ETH_SPEED_100M       (ETH_MACCR_PS | ETH_MACCR_FES)
 /**
   * @}
   */

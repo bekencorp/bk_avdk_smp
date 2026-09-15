@@ -66,26 +66,6 @@ typedef struct {
     volatile uint32_t size;
 } ap_extra_dump_info_t;
 
-/*
- * AP-owned HSPL owner shadow. Only its address lives in the shared window (see
- * hspl_owner_shadow_ptr), because the 1024-byte window is a scarce cross-domain
- * ABI while this block is 160 bytes of pure debug data. The AP reaches the fields
- * directly, so its write path gains no indirection; the published address exists
- * purely so the CP can locate the block.
- *
- * Written only when CONFIG_HSPL_LEAK_DEBUG is enabled, so in a shipping build the
- * address is never published and the CP reports every slot as free.
- *
- * Note this block sits in the AP power domain, unlike the window itself. The one
- * CP reader (pm_check_ap_hspl_leak) runs before pm_module_shutdown_cpu1() removes
- * AP SRAM power, so the access is valid; do not add a CP reader that can run with
- * the AP powered down, because reading AP SRAM then stalls the CP bus.
- */
-typedef struct {
-    volatile uint32_t owner_pc[32]; /**< HSPL owner caller PC shadow, 0 means free */
-    volatile uint8_t owner_core[32]; /**< HSPL owner core shadow */
-} hspl_owner_shadow_t;
-
 typedef struct {
     volatile uint32_t valid;
     volatile uint32_t seq;
@@ -113,16 +93,13 @@ typedef union {
         volatile uint8_t ap_cp_hang_dumping; /**< AP is dumping CP-hang context and owns UART output */
         volatile uint8_t cp_heartbeat_bumped;
         volatile uint8_t reserved0;
+        volatile uint32_t hspl_owner_pc[32]; /**< HSPL owner caller PC shadow, 0 means free */
+        volatile uint8_t hspl_owner_core[32]; /**< HSPL owner core shadow */
         volatile uint32_t cp_heap_size_ptr; /**< Addr of CP system heap xFreeBytesRemaining (size_t); 0 = not published */
         volatile uint32_t cp_lwip_mem_info_ptr; /**< Addr of CP cp_mem_addr_info_t snapshot (lwIP/heap addrs); 0 = not published */
         volatile uint32_t ap_tx_flow_state_ptr; /**< Addr of AP TX flow state; 0 = not published */
         volatile uint32_t cp_uid_ptr; /**< Addr of CP bk_uid_snapshot_t (chip UID); 0 = not published */
         volatile uint32_t ap_exception_record_ptr; /**< Addr of the CP-owned AP exception record slot; 0 = not published */
-        volatile uint32_t hspl_owner_shadow_ptr; /**< Addr of the AP-owned hspl_owner_shadow_t block; 0 = not published */
-        /* Explicit tail padding: keeps the named struct exactly 1024 bytes so the
-         * sizeof() assert below fails if a new member is added without shrinking
-         * this array. Shrink it by the size of whatever you add. */
-        volatile uint8_t reserved1[156];
     };
     volatile uint32_t reserved[256]; /**< Reserved for future use */
 } sys_sw_regs_t;

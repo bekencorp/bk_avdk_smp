@@ -85,6 +85,9 @@
 #define ETH_MACCR_JE_Pos                              (16U)
 #define ETH_MACCR_JE_Msk                              (0x1UL << ETH_MACCR_JE_Pos) /*!< 0x00010000 */
 #define ETH_MACCR_JE                                  ETH_MACCR_JE_Msk         /* Jumbo Packet Enable */
+#define ETH_MACCR_PS_Pos                              (15U)
+#define ETH_MACCR_PS_Msk                              (0x1UL << ETH_MACCR_PS_Pos) /*!< 0x00008000 */
+#define ETH_MACCR_PS                                  ETH_MACCR_PS_Msk         /* Port select: 1 = MII/RMII, 0 = GMII */
 #define ETH_MACCR_FES_Pos                             (14U)
 #define ETH_MACCR_FES_Msk                             (0x1UL << ETH_MACCR_FES_Pos) /*!< 0x00004000 */
 #define ETH_MACCR_FES                                 ETH_MACCR_FES_Msk        /* Fast ethernet speed */

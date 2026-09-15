@@ -222,7 +222,7 @@
 /** @addtogroup ETH_Private_Constants ETH Private Constants
   * @{
   */
-#define ETH_MACCR_MASK                0xFFFB7F7CU
+#define ETH_MACCR_MASK                0xFFFBFF7CU
 #define ETH_MACECR_MASK               0x3F077FFFU
 #define ETH_MACPFR_MASK               0x800007FFU
 #define ETH_MACWTR_MASK               0x0000010FU
@@ -2424,7 +2424,7 @@ HAL_StatusTypeDef HAL_ETH_GetMACConfig(ETH_HandleTypeDef *heth, ETH_MACConfigTyp
                                                    ETH_MACCR_ECRSFD) >> 11) > 0U) ? ENABLE : DISABLE;
   macconf->LoopbackMode = ((READ_BIT(heth->Instance->MACCR, ETH_MACCR_LM) >> 12) > 0U) ? ENABLE : DISABLE;
   macconf->DuplexMode = READ_BIT(heth->Instance->MACCR, ETH_MACCR_DM);
-  macconf->Speed = READ_BIT(heth->Instance->MACCR, ETH_MACCR_FES);
+  macconf->Speed = READ_BIT(heth->Instance->MACCR, (ETH_MACCR_PS | ETH_MACCR_FES));
   macconf->JumboPacket = ((READ_BIT(heth->Instance->MACCR, ETH_MACCR_JE) >> 16) > 0U) ? ENABLE : DISABLE;
   macconf->Jabber = ((READ_BIT(heth->Instance->MACCR, ETH_MACCR_JD) >> 17) == 0U) ? ENABLE : DISABLE;
   macconf->Watchdog = ((READ_BIT(heth->Instance->MACCR, ETH_MACCR_WD) >> 19) == 0U) ? ENABLE : DISABLE;
