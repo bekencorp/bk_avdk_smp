@@ -82,6 +82,15 @@ menu "PM"
 		bool "Power down ap when sleep"
 		default n
 
+	config PM_AP_WFI_ENABLE
+		bool "Enable AP idle WFI"
+		default n
+		help
+			Execute arch_sleep()/WFI in sys_hal_enter_cpu_wfi() when CP is
+			not requesting AP sleep, and on non-CPU0 cores. Keep this
+			disabled unless the project explicitly needs those idle WFI
+			paths.
+
 	config PM_AP_SUBPOWER_DOMAIN_DEFAULT_DISABLE
 		bool "Disable AP sub-power domains by default"
 		default n

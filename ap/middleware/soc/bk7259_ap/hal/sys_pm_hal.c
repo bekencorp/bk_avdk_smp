@@ -894,12 +894,16 @@ ap_fast_resume_after_wfi:
 		}
 		else
 		{
-			//arh_sleep();
+#if CONFIG_PM_AP_WFI_ENABLE
+			arch_sleep();
+#endif
 		}
 	}
 	else
 	{
-		//arch_sleep();
+#if CONFIG_PM_AP_WFI_ENABLE
+		arch_sleep();
+#endif
 	}
 }
 
