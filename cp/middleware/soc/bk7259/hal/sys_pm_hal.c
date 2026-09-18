@@ -50,7 +50,9 @@
 #include "FreeRTOS.h"
 //#include "armstar.h"
 #include "deep_lv/deep_lv.h"
+#if CONFIG_SPE
 #include "deep_lv/deep_lv_reserve.h"
+#endif
 #endif
 #if CONFIG_CKMN
 #include <driver/ckmn.h>
@@ -1888,9 +1890,11 @@ __IRAM_PM void sys_hal_enter_low_voltage(void)
 		#if CONFIG_PM_CP_DEEP_LV_SRAM_CHECK
 		sys_pm_hal_sram_crc_save();
 		#endif
+		#if CONFIG_SPE
 		/* Capture the repaired words while the repair is still in effect; only
 		 * register writes happen between here and arch_deep_sleep(). */
 		sys_hal_mem_check_bad_point_value_save();
+		#endif
 		/*disable hf clock*/
 
 		/* Keep a single spi_latch session across disable_hf_clock so the AON LDO

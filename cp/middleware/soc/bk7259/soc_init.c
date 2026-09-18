@@ -40,7 +40,9 @@
 
 #if CONFIG_DEEP_LV
 #include "deep_lv/deep_lv.h"
+#if CONFIG_SPE
 #include "deep_lv/deep_lv_reserve.h"
+#endif
 #include "system_star.h"
 #endif
 
@@ -283,9 +285,11 @@ void dlv_hook(void)
 	// }
 	if (dlv_is_startup())
 	{
+		#if CONFIG_SPE
 		/* The bad-point repair is dropped with the CPU power domain, so this
 		 * must run before any other wake-path code executes or reads SRAM. */
 		sys_hal_mem_check_bad_point_value_restore();
+		#endif
 
         #if CONFIG_PM_CP_DEEP_LV_SRAM_CHECK
 		sys_pm_hal_sram_crc_check();

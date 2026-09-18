@@ -12,13 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "deep_lv_reserve.h"
 #include "sdkconfig.h"
+#include "deep_lv_reserve.h"
 #include "reg_base.h"
 #include "soc/soc.h"
 #include <stdint.h>
 
-#if CONFIG_DEEP_LV
+#if CONFIG_DEEP_LV && CONFIG_SPE
 
 #define MEM_CHECK_BLOCK_NUM               3
 #define MEM_CHECK_POINT_PER_BLOCK         4
@@ -118,4 +118,4 @@ void sys_hal_mem_check_bad_point_value_restore(void)
 	}
 }
 
-#endif /* CONFIG_DEEP_LV */
+#endif /* CONFIG_DEEP_LV && CONFIG_SPE */

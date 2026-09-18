@@ -17,6 +17,7 @@
 extern "C" {
 #endif
 
+#if CONFIG_SPE
 /* Turning the CPU domain off for Deep-LV sleep stops the SRAM bad-point repair
  * from being applied: Reg03 mchk_valid goes 1 -> 0, so on wake a repaired word
  * reads back its raw defective cell instead of the spare it was redirected to.
@@ -38,6 +39,7 @@ void sys_hal_mem_check_bad_point_value_save(void);
 /* Write the captured words back. Call as early as possible on the wake path,
  * before any other code executes or reads SRAM. */
 void sys_hal_mem_check_bad_point_value_restore(void);
+#endif /* CONFIG_SPE */
 
 #ifdef __cplusplus
 }
