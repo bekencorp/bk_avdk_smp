@@ -118,6 +118,10 @@ menu "Bk_ble"
             AP powers down but its RAM is retained. On resume the AP does not
             re-init the stack; it is distinct from BLUETOOTH_SUPPORT_AP_PWD_ALL (AP RAM is lost).
 
+    config BLUETOOTH_BT_RF_HIGHEST_PRIORITY
+        bool "bluetooth bt rf highest priority"
+        default n
+
     choice BLUETOOTH_RF_MODE
         prompt "Select Bluetooth RF Mode"
         default BLUETOOTH_RF_MODE_IQ_HIGH_PLL

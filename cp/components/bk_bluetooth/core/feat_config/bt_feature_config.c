@@ -38,6 +38,10 @@ int bk_bt_feature_init(void)
     s_bt_feature_struct._support_lowpower_sleep = 1;
 #endif
 
+#if CONFIG_BLUETOOTH_BT_RF_HIGHEST_PRIORITY
+    s_bt_feature_struct._bt_rf_highest_priority = 1;
+#endif
+
     extern bool ate_is_enabled(void);
     if(!ate_is_enabled())
     {
