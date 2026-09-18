@@ -25,17 +25,15 @@ extern "C" {
 #define BK_ERR_MPC_INVALID_LUT_PARAM           (BK_ERR_MPC_BASE - 3) /**< MPC invalid lut parameter */
 #define BK_ERR_MPC_INVALID_DEV                 (BK_ERR_MPC_BASE - 4) /**< MPC invalid device ID */
 
+/* CP-domain MPC instances only (managed by the CP MPC driver). OTP1 has no MPC.
+ * AP-domain MPCs (PSRAM/QSPI/SMEM3-6/NPU) belong to the AP subsystem and are not
+ * managed by the CP driver. */
 typedef enum {
-	MPC_DEV_PSRAM = 0, /**< MPC device PSRAM */
-	MPC_DEV_QSPI0,     /**< MPC device QSPI0 */
-	MPC_DEV_QSPI1,     /**< MPC device QSPI1 */
-	MPC_DEV_OTP,       /**< MPC device OTP */
-	MPC_DEV_FLASH,     /**< MPC device FLASH */
+	MPC_DEV_FLASH = 0, /**< MPC device FLASH */
 	MPC_DEV_SMEM0,     /**< MPC device SMEM0 */
 	MPC_DEV_SMEM1,     /**< MPC device SMEM1 */
 	MPC_DEV_SMEM2,     /**< MPC device SMEM2 */
-	MPC_DEV_SMEM3,     /**< MPC device SMEM3 */
-	MPC_DEV_SMEM4,     /**< MPC device SMEM4 */
+	MPC_DEV_OTP2,      /**< MPC device OTP2 (AHB bank) */
 	MPC_DEV_MAX,       /**< MPC max device id */
 } mpc_dev_t;
 
