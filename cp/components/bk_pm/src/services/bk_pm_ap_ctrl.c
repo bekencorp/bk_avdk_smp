@@ -28,6 +28,7 @@
 #endif
 #include "cache.h"
 #include "pm_debug.h"
+#include "pm_sleep.h"
 #if CONFIG_PM_AP_SRAM_RETENTION_CHECK
 #include <modules/ap_sram_retention_check.h>
 #endif
@@ -248,7 +249,7 @@ static beken_mutex_t                              s_pm_cp1_vote_mutex           
 /*
  * The AP power domain also contains the mailbox register bank.  Keep an
  * explicit validity bit so an ordinary AP power cycle restores the mailbox;
- * g_enter_sleep only describes the CP deep-LV path and is not sufficient.
+ * The CP deep-LV sleep flag only describes that path and is not sufficient.
  */
 static volatile bool                              s_pm_ap_mailbox_backup_valid   = false;
 #endif
@@ -552,8 +553,8 @@ bk_err_t bk_pm_module_check_cp1_shutdown(void);
 pm_mailbox_communication_state_e bk_pm_cp0_psram_malloc_state_get(void);
 bk_err_t bk_pm_cp0_psram_malloc_state_set(pm_mailbox_communication_state_e state);
 #if CONFIG_DEEP_LV
-extern void sys_hal_mailbox_regs_backup();
-extern void sys_hal_mailbox_saved_regs_dump();
+extern void sys_hal_mailbox_regs_backup(void);
+extern void sys_hal_mailbox_saved_regs_dump(void);
 #endif
 static bk_err_t pm_cp0_mailbox_send_data(uint32_t cmd, uint32_t param1, uint32_t param2, uint32_t param3)
 {
@@ -594,7 +595,7 @@ bk_err_t bk_pm_cp1_recovery_module_state_ctrl(pm_cp1_prepare_close_module_name_e
 	return BK_OK;
 }
 
-bool bk_pm_cp1_recovery_all_state_get()
+bool bk_pm_cp1_recovery_all_state_get(void)
 {
 	bool cp1_all_module_recovery = false;
 	if(bk_pm_ap_boot_success_get())
@@ -603,9 +604,6 @@ bool bk_pm_cp1_recovery_all_state_get()
 	}
 	return cp1_all_module_recovery;
 }
-#if CONFIG_DEEP_LV
-extern uint32_t g_enter_sleep;
-#endif
 static void pm_module_bootup_cpu1(pm_power_module_name_e module)
 {
 #if CONFIG_PM_AP_FAST_BOOT_ENABLE
@@ -646,13 +644,14 @@ boot_ap:
 		 * POWER_SUB_DOMAIN_NAME_AP_CPU is on is ineffective because the
 		 * mailbox bank is reset by the following power-on sequence.
 		 */
-		if (s_pm_ap_mailbox_backup_valid || (g_enter_sleep == 0x1))
+		if (s_pm_ap_mailbox_backup_valid ||
+			(pm_deep_lv_sleep_flag_ctrl(PM_DEEP_LV_SLEEP_FLAG_GET) != 0U))
 		{
 			extern void sys_hal_mailbox_regs_restore(void);
 			sys_hal_mailbox_regs_restore();
 			sys_hal_mailbox_saved_regs_dump();
 			s_pm_ap_mailbox_backup_valid = false;
-			g_enter_sleep = 0x0;
+			pm_deep_lv_sleep_flag_ctrl(PM_DEEP_LV_SLEEP_FLAG_CLEAR);
 		}
 		#endif
 		/* Keep mailbox heartbeat state machine aligned with every AP power-on. */
@@ -662,13 +661,13 @@ boot_ap:
 #endif
 #else
 		#if CONFIG_DEEP_LV
-		if(g_enter_sleep == 0x1)
+		if (pm_deep_lv_sleep_flag_ctrl(PM_DEEP_LV_SLEEP_FLAG_GET) != 0U)
 		{
 			extern void sys_hal_mailbox_regs_restore(void);
 			sys_hal_mailbox_regs_restore();
 			sys_hal_mailbox_saved_regs_dump();
 			mb_ipc_reset_notify(CONFIG_AP_SYS_MASTER_CPU_ID, 1);
-			g_enter_sleep = 0x0;
+			pm_deep_lv_sleep_flag_ctrl(PM_DEEP_LV_SLEEP_FLAG_CLEAR);
 		}
 		#endif
 		bk_pm_module_vote_power_ctrl(POWER_SUB_DOMAIN_NAME_AP_CPU, PM_POWER_MODULE_STATE_ON);
@@ -688,28 +687,6 @@ boot_ap:
 		bk_delay_us(1000);
 		#if CONFIG_SUPPORT_WWDT
 		bk_wwdt_feed();
-		#endif
-		#if 0//CONFIG_PSRAM
-		{
-			volatile uint32_t *psram_test_addr = (volatile uint32_t *)psram_malloc(sizeof(uint32_t));
-			const uint32_t test_value = 0x5A5AA5A5;
-			uint32_t read_value = 0;
-
-			if (psram_test_addr == NULL) {
-				BK_LOGE(NULL, "psram self test failed: malloc null\r\n");
-			} else {
-				*psram_test_addr = test_value;
-				read_value = *psram_test_addr;
-				if (read_value == test_value) {
-					BK_LOGI(NULL, "psram self test pass: addr=0x%x val=0x%x\r\n",
-							(uint32_t)psram_test_addr, read_value);
-				} else {
-					BK_LOGE(NULL, "psram self test failed: addr=0x%x wr=0x%x rd=0x%x\r\n",
-							(uint32_t)psram_test_addr, test_value, read_value);
-				}
-				psram_free((void *)psram_test_addr);
-			}
-		}
 		#endif
 #endif
 #if CONFIG_PM_AP_SRAM_RETENTION_CHECK
@@ -862,19 +839,14 @@ static bk_err_t pm_cp1_vote_mutex_init(void)
 	GLOBAL_INT_RESTORE();
 	return BK_OK;
 }
-bk_err_t bk_pm_module_check_cp1_shutdown()
+bk_err_t bk_pm_module_check_cp1_shutdown(void)
 {
-	// if(0x0 == s_pm_cp1_ctrl_state)
-	// {
-	// 	pm_module_shutdown_cpu1(POWER_SUB_DOMAIN_NAME_AP_CPU);
-	// }
-    return BK_OK;
+	return BK_OK;
 }
 static bk_err_t pm_module_shutdown_cpu1(pm_power_module_name_e module)
 {
 	bk_err_t ret = BK_OK;
 	GLOBAL_INT_DECLARATION();
-	//if(PM_POWER_MODULE_STATE_ON == sys_drv_module_power_state_get(module))
 	{
 		if(module == POWER_SUB_DOMAIN_NAME_AP_CPU)
 		{
@@ -937,8 +909,6 @@ static bk_err_t pm_module_shutdown_cpu1(pm_power_module_name_e module)
 			LOGI("pm_dbg ap_power_off: vote_off + reset_notify(off)\r\n");
 #endif
 			pm_ap_powerdown_proof_log("after_power_vote_off");
-			//bk_pm_module_vote_cpu_freq(PM_DEV_ID_CPU1,PM_CPU_FRQ_DEFAULT);
-
 			GLOBAL_INT_DISABLE();
 			bk_pm_cp1_work_state_set(PM_MAILBOX_COMMUNICATION_INIT);
 			s_pm_cp1_closing = 0;
@@ -1471,7 +1441,7 @@ uint32_t bk_pm_get_cp1_psram_malloc_count(uint32_t using_psram_type)
 }
 
 /*trigger the cp1 heap malloc dump*/
-bk_err_t bk_pm_dump_cp1_psram_malloc_info()
+bk_err_t bk_pm_dump_cp1_psram_malloc_info(void)
 {
 	if(bk_pm_ap_boot_success_get())
 	{

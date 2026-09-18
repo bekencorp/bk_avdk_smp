@@ -20,9 +20,6 @@
  * Sleep Callback Management System
  ****************************************************************************/
 
-/* Callback type: called before sleep and after wakeup */
-typedef void (*sleep_callback_t)(void *arg);
-
 /* Callback node structure with priority support
  * 
  * Memory layout (32-bit ARM, aligned):
@@ -40,13 +37,6 @@ typedef struct sleep_callback_node {
 	struct sleep_callback_node *next;    /* Next node in sorted list */
 } sleep_callback_node_t;
 
-/* Priority definitions for common use cases */
-#define PM_CALLBACK_PRIORITY_CRITICAL    0    /* Critical hardware (clocks, power) */
-#define PM_CALLBACK_PRIORITY_HIGH        50   /* Important peripherals (UART, SPI) */
-#define PM_CALLBACK_PRIORITY_NORMAL      100  /* Standard drivers (GPIO, ADC) */
-#define PM_CALLBACK_PRIORITY_LOW         150  /* Non-critical (sensors, LEDs) */
-#define PM_CALLBACK_PRIORITY_LOWEST      200  /* Optional (debug, logging) */
-
 /* Global callback list heads - maintained in sorted order by priority */
 static sleep_callback_node_t *g_pre_sleep_callback_head  = NULL;   /* Called before sleep */
 static sleep_callback_node_t *g_post_sleep_callback_head = NULL;  /* Called after wakeup */
@@ -57,13 +47,13 @@ bk_err_t bk_pm_pre_sleep_callback_register(sleep_callback_t callback, void *arg,
 	uint32_t int_level;
 
 	if (!callback) {
-		return -1;  /* Invalid parameter */
+		return BK_ERR_PARAM;
 	}
 
 	/* Allocate new node */
 	new_node = (sleep_callback_node_t *)os_malloc(sizeof(sleep_callback_node_t));
 	if (!new_node) {
-		return -2;  /* Out of memory */
+		return BK_ERR_NO_MEM;
 	}
 
 	/* Initialize node */
@@ -95,7 +85,7 @@ bk_err_t bk_pm_pre_sleep_callback_register(sleep_callback_t callback, void *arg,
 	
 	rtos_enable_int(int_level);
 
-	return 0;
+	return BK_OK;
 }
 
 /**
@@ -113,7 +103,7 @@ bk_err_t bk_pm_pre_sleep_callback_unregister(sleep_callback_t callback)
 	int found = 0;
 
 	if (!callback) {
-		return -1;
+		return BK_ERR_PARAM;
 	}
 
 	int_level = rtos_disable_int();
@@ -146,7 +136,7 @@ bk_err_t bk_pm_pre_sleep_callback_unregister(sleep_callback_t callback)
 		rtos_enable_int(int_level);
 	}
 
-	return found ? 0 : -2;  /* -2: not found */
+	return found ? BK_OK : BK_ERR_NOT_FOUND;
 }
 
 bk_err_t bk_pm_pre_sleep_callback_execute(void)
@@ -177,13 +167,13 @@ bk_err_t bk_pm_post_sleep_callback_register(sleep_callback_t callback, void *arg
 	uint32_t int_level;
 
 	if (!callback) {
-		return -1;  /* Invalid parameter */
+		return BK_ERR_PARAM;
 	}
 
 	/* Allocate new node */
 	new_node = (sleep_callback_node_t *)os_malloc(sizeof(sleep_callback_node_t));
 	if (!new_node) {
-		return -2;  /* Out of memory */
+		return BK_ERR_NO_MEM;
 	}
 
 	/* Initialize node */
@@ -213,7 +203,7 @@ bk_err_t bk_pm_post_sleep_callback_register(sleep_callback_t callback, void *arg
 	
 	rtos_enable_int(int_level);
 
-	return 0;
+	return BK_OK;
 }
 
 bk_err_t bk_pm_post_sleep_callback_unregister(sleep_callback_t callback)
@@ -223,7 +213,7 @@ bk_err_t bk_pm_post_sleep_callback_unregister(sleep_callback_t callback)
 	int found = 0;
 
 	if (!callback) {
-		return -1;
+		return BK_ERR_PARAM;
 	}
 
 	int_level = rtos_disable_int();
@@ -256,7 +246,7 @@ bk_err_t bk_pm_post_sleep_callback_unregister(sleep_callback_t callback)
 		rtos_enable_int(int_level);
 	}
 
-	return found ? 0 : -2;  /* -2: not found */
+	return found ? BK_OK : BK_ERR_NOT_FOUND;
 }
 
 bk_err_t bk_pm_post_sleep_callback_execute(void)

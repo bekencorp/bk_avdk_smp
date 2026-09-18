@@ -15,7 +15,6 @@
 // limitations under the License.
 #include <modules/pm.h>
 #include "pm_debug.h"
-// #include "bk_pm_internal_api.h"
 
 #define PM_DEBUG_CTRL_STATE                    (8)
 #define PM_DEBUG_SYS_REG_BASE                  (SOC_SYSTEM_REG_BASE)
@@ -53,7 +52,7 @@ static const char *pm_lpo_src_to_string(uint32_t lpo)
 
 
 /*=========================DEBUG/TEST CTRL START========================*/
-void pm_debug_dump()
+void pm_debug_dump(void)
 {
 	pm_power_dump();
 
@@ -64,7 +63,7 @@ void pm_debug_dump()
 	pm_debug_module_state();
 }
 
-uint32_t pm_debug_mode()
+uint32_t pm_debug_mode(void)
 {
 	return s_debug_en;
 }

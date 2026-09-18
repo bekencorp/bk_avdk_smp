@@ -73,7 +73,7 @@ static volatile  uint64_t                         s_pm_cp1_module_recovery_state
 
 /*================FUNCTION  DECLARATION  START========*/
 #if CONFIG_PM_CLIENT
-static void pm_cp1_mailbox_init();
+static void pm_cp1_mailbox_init(void);
 bk_err_t pm_cp1_mailbox_response(uint32_t cmd, int ret);
 bk_err_t bk_pm_cp1_ctrl_state_set(pm_mailbox_communication_state_e state);
 pm_mailbox_communication_state_e bk_pm_cp1_ctrl_state_get();
@@ -81,7 +81,7 @@ static void pm_cp1_mailbox_send_data(uint32_t cmd, uint32_t param1,uint32_t para
 #endif
 
 #if CONFIG_PM_SERVER && (CONFIG_CPU_CNT > 1)
-static void pm_cp0_mailbox_init();
+static void pm_cp0_mailbox_init(void);
 static void pm_module_shutdown_cpu1(pm_power_module_name_e module);
 static bk_err_t pm_cp1_vote_mutex_init(void);
 bk_err_t bk_pm_cp1_recovery_module_state_ctrl(pm_cp1_prepare_close_module_name_e module,pm_cp1_module_recovery_state_e state);
@@ -90,7 +90,7 @@ static bk_err_t pm_cp0_mailbox_send_data(uint32_t cmd, uint32_t param1,uint32_t 
 /*================FUNCTION  DECLARATION  END========*/
 
 /*================INITIAL FUNCTION  START========*/
-bk_err_t bk_pm_mailbox_init()
+bk_err_t bk_pm_mailbox_init(void)
 {
 #if CONFIG_PM_CLIENT
 	/*cp1 mailbox init*/
@@ -110,7 +110,7 @@ bk_err_t bk_pm_mailbox_init()
 
 /*=====================PM_CLIENT  SECTION  START=================*/
 #if CONFIG_PM_CLIENT
-bk_err_t bk_pm_cp1_boot_ok_response_set()
+bk_err_t bk_pm_cp1_boot_ok_response_set(void)
 {
 	if(bk_pm_cp1_ctrl_state_get() == 0x0)
 	{
@@ -321,7 +321,7 @@ static void pm_cp1_mailbox_tx_isr(int *pm_mb)
 {
 }
 
-static void pm_cp1_mailbox_init()
+static void pm_cp1_mailbox_init(void)
 {
 	mb_chnl_open(MB_CHNL_PWC, NULL);
 	if (pm_cp1_mailbox_rx_isr != NULL)
@@ -481,7 +481,7 @@ static void pm_cp0_mailbox_rx_isr(int *pm_mb, mb_chnl_cmd_t *cmd_buf)
 static void pm_cp0_mailbox_tx_isr(int *pm_mb)
 {
 }
-static void pm_cp0_mailbox_init()
+static void pm_cp0_mailbox_init(void)
 {
 	mb_chnl_open(MB_CHNL_PWC, NULL);
 	if (pm_cp0_mailbox_rx_isr != NULL)
@@ -624,7 +624,7 @@ static bk_err_t pm_psram_power_ctrl(pm_power_psram_module_name_e module,pm_power
 #endif
 	return BK_OK;
 }
-bk_err_t pm_debug_pwr_clk_state()
+bk_err_t pm_debug_pwr_clk_state(void)
 {
 #if CONFIG_PSRAM
     pm_debug_psram_state();
@@ -633,7 +633,7 @@ bk_err_t pm_debug_pwr_clk_state()
 
 	return BK_OK;
 }
-uint32_t bk_pm_get_psram_ctrl_state()
+uint32_t bk_pm_get_psram_ctrl_state(void)
 {
 	uint32_t psram_ctrl_state = 0x1;//Default psram used and power on
 	#if CONFIG_PSRAM

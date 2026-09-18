@@ -70,19 +70,6 @@ void pm_core_dump(void);
 void pm_power_dump(void);
 
 /****************************************************************************
- * Name: pm_power_modules_dump
- *
- * Description:
- *   Dump power status of all modules in the system.
- *   Lists each module's power state and activity status.
- *
- * Returns:
- *   None
- *
- ****************************************************************************/
-void pm_power_modules_dump(void);
-
-/****************************************************************************
  * Name: pm_debug_lowvol_sleep_hook
  *
  * Description:
@@ -151,7 +138,6 @@ void pm_debug_ctrl(uint32_t debug_en);
  ****************************************************************************/
 void pm_power_modules_dump_with_sleep_mode(pm_sleep_mode_e sleep_mode);
 
-// TODO: rename or remove it
 /****************************************************************************
  * Name: pm_debug_module_state
  *

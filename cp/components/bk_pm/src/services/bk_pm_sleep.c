@@ -59,6 +59,7 @@ static __attribute__((section(".dtcm_sec_data "))) uint8_t s_pm_superdeep_enter_
 #endif
 
 static volatile  uint64_t s_pm_module_lv_sleep_state               = 0;
+static volatile uint32_t s_pm_deep_lv_sleep_flag                   = 0;
 
 static uint64_t s_pm_check_lv_enter_time_out	        = 0;
 static pm_enter_lv_timeout_cb_t s_pm_lv_timeout_cb_arr[PM_ENTER_LV_TIME_OUT_MODULE_MAX]= {0};
@@ -78,7 +79,7 @@ extern bk_err_t bk_flash_power_saving_enter(void);
 extern bk_err_t gpio_hal_switch_to_low_power_status(uint64_t skip_io);
 
 /*=========================SLEEP/WAKEUP FUNCTION START========================*/
-uint64_t pm_cpu_wfi_process()
+uint64_t pm_cpu_wfi_process(void)
 {
 	GLOBAL_INT_DECLARATION();
 	GLOBAL_INT_DISABLE();
@@ -94,20 +95,13 @@ uint64_t pm_cpu_wfi_process()
 	#if CONFIG_AON_RTC || CONFIG_ANA_RTC
 	uint64_t exit_tick          = 0ULL;
 	exit_tick = bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
-	if(exit_tick - entry_tick < 0)
-	{
-		sleep_tick = 0ULL;
-	}
-	else
-	{
-		sleep_tick = exit_tick - entry_tick;
-	}
+	sleep_tick = exit_tick - entry_tick;
 	#endif
 	GLOBAL_INT_RESTORE();
 	return sleep_tick;
 }
 
-uint64_t pm_normal_sleep_process()
+uint64_t pm_normal_sleep_process(void)
 {
 	GLOBAL_INT_DECLARATION();
 	uint64_t sleep_tick         = 0ULL;
@@ -119,7 +113,7 @@ uint64_t pm_normal_sleep_process()
 	if (0 == bk_pm_module_power_state_get(POWER_MODULE_NAME_BTSP))
 	{
 		/*When check bt wakeup time comming ,return, not sleep*/
-		if (!pm_check_protect_time(entry_tick, entry_tick))
+		if (!pm_check_protect_time(entry_tick))
 		{
 			GLOBAL_INT_RESTORE();
 			return sleep_tick;
@@ -146,14 +140,7 @@ uint64_t pm_normal_sleep_process()
 	#if CONFIG_AON_RTC || CONFIG_ANA_RTC
 	uint64_t exit_tick          = 0ULL;
 	exit_tick = bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
-	if(exit_tick - entry_tick < 0)
-	{
-		sleep_tick = 0ULL;
-	}
-	else
-	{
-		sleep_tick = exit_tick - entry_tick;
-	}
+	sleep_tick = exit_tick - entry_tick;
 	#else
 	sleep_tick = 0ULL;
 	#endif
@@ -167,8 +154,25 @@ uint64_t pm_normal_sleep_process()
 
 extern uint32_t pm_disable_int(void);
 extern void pm_enable_int(uint32_t irq_level);
-uint32_t g_enter_sleep = 0;
-uint64_t pm_low_voltage_process()
+
+uint32_t pm_deep_lv_sleep_flag_ctrl(pm_deep_lv_sleep_flag_op_t operation)
+{
+	switch (operation) {
+	case PM_DEEP_LV_SLEEP_FLAG_SET:
+		s_pm_deep_lv_sleep_flag = 1U;
+		break;
+	case PM_DEEP_LV_SLEEP_FLAG_CLEAR:
+		s_pm_deep_lv_sleep_flag = 0U;
+		break;
+	case PM_DEEP_LV_SLEEP_FLAG_GET:
+	default:
+		break;
+	}
+
+	return s_pm_deep_lv_sleep_flag;
+}
+
+uint64_t pm_low_voltage_process(void)
 {
 	GLOBAL_INT_DECLARATION();
 	//uint32_t irq_level = 0;
@@ -199,7 +203,7 @@ uint64_t pm_low_voltage_process()
 	pm_enter_low_voltage();
 
 	/* Execute post-sleep (wakeup) callbacks */
-	g_enter_sleep = 0x1;
+	pm_deep_lv_sleep_flag_ctrl(PM_DEEP_LV_SLEEP_FLAG_SET);
 	/*Debug pd,lpo,psram start*/
 	pm_debug_low_vol_wakeup_hook();
 	/*Debug pd,lpo,psram end*/
@@ -217,14 +221,7 @@ uint64_t pm_low_voltage_process()
 #if CONFIG_AON_RTC || CONFIG_ANA_RTC
 	uint64_t exit_tick          = 0ULL;
 	exit_tick = bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
-	if(exit_tick - entry_tick < 0)
-	{
-		sleep_tick = 0ULL;
-	}
-	else
-	{
-		sleep_tick = exit_tick - entry_tick;
-	}
+	sleep_tick = exit_tick - entry_tick;
 #endif
 #if CONFIG_PM_CP_DEEP_LV_SRAM_CHECK
 	sys_pm_hal_sram_crc_dump();
@@ -254,7 +251,7 @@ uint64_t pm_low_voltage_process()
 	return sleep_tick;
 }
 
-void pm_deep_sleep_prepare()
+void pm_deep_sleep_prepare(void)
 {
 	for (uint8_t i = 0; i < PM_SLEEP_CB_IND_PRI_1; i++)
 	{
@@ -265,7 +262,7 @@ void pm_deep_sleep_prepare()
 	}
 }
 
-uint64_t pm_deep_sleep_process()
+uint64_t pm_deep_sleep_process(void)
 {
 	uint64_t sleep_tick         = 0ULL;
 	GLOBAL_INT_DECLARATION();
@@ -316,14 +313,7 @@ uint64_t pm_deep_sleep_process()
 	#if CONFIG_AON_RTC || CONFIG_ANA_RTC
 	uint64_t exit_tick          = 0ULL;
 	exit_tick = bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
-	if(exit_tick - entry_tick < 0)
-	{
-		sleep_tick = 0ULL;
-	}
-	else
-	{
-		sleep_tick = exit_tick - entry_tick;
-	}
+	sleep_tick = exit_tick - entry_tick;
 	#else
 		sleep_tick = 0ULL;
 	#endif
@@ -333,7 +323,7 @@ uint64_t pm_deep_sleep_process()
 }
 
 #if CONFIG_PM_SUPER_DEEP_SLEEP
-void pm_super_deep_sleep_prepare()
+void pm_super_deep_sleep_prepare(void)
 {
 	for (uint8_t i = 0; i < PM_SLEEP_CB_IND_PRI_1; i++)
 	{
@@ -349,7 +339,7 @@ void pm_super_deep_sleep_prepare()
 	}
 }
 
-void pm_super_deep_sleep_process()
+void pm_super_deep_sleep_process(void)
 {
 	bk_printf("pm_super_deep_sleep_process\r\n");
 	for (uint8_t i = s_pm_superdeep_enter_cb_cnt[PM_CB_PRIORITY_1]; i < PM_DEEPSLEEP_CB_SIZE; i++)
@@ -376,7 +366,7 @@ void pm_super_deep_sleep_process()
 /*=========================SLEEP/WAKEUP FUNCTION END========================*/
 
 /*=========================LOW_VOLTAGE_PS PRIVATE FUNCTION START========================*/
-static int pm_low_voltage_resource_set()
+static int pm_low_voltage_resource_set(void)
 {
 	pm_dev_id_e dev_id = 0;
 	#if !CONFIG_PM_CLIENT
@@ -408,7 +398,7 @@ static int pm_low_voltage_resource_set()
 	if (0 == bk_pm_module_power_state_get(POWER_MODULE_NAME_BTSP))
 	{
 		/*When check bt wakeup time comming ,return, not sleep*/
-		if (!pm_check_protect_time(current_tick, current_tick))
+		if (!pm_check_protect_time(current_tick))
 		{
 			for (dev_id = 0; dev_id < PM_DEV_ID_MAX; dev_id++)
 			{
@@ -486,7 +476,7 @@ __IRAM_PM void pm_low_voltage_deferred_restore(void)
 	bk_pm_exit_low_vol_wakeup_source_set();
 }
 
-static void pm_low_voltage_resource_restore()
+static void pm_low_voltage_resource_restore(void)
 {
 	pm_dev_id_e dev_id = 0;
 
@@ -511,7 +501,7 @@ uint64_t bk_pm_module_lv_sleep_state_get(pm_dev_id_e module)
 {
 	return s_pm_module_lv_sleep_state & (0x1ULL << module);
 }
-__attribute__((section(".itcm_sec_code"))) bk_err_t bk_pm_module_lv_sleep_state_set()
+__attribute__((section(".itcm_sec_code"))) bk_err_t bk_pm_module_lv_sleep_state_set(void)
 {
 	s_pm_module_lv_sleep_state = 0xFFFFFFFFFFFFFFFF;
 	return BK_OK;
@@ -553,7 +543,7 @@ bk_err_t bk_pm_enter_lv_time_out_register_callback(pm_enter_lv_timeout_cb_t* lv_
 	return ret;
 }
 
-bk_err_t bk_pm_check_enter_lv_time_out()
+bk_err_t bk_pm_check_enter_lv_time_out(void)
 {
 	bk_err_t ret = BK_OK;
 	uint64_t cur_tick = 0;
@@ -581,7 +571,7 @@ bk_err_t bk_pm_check_enter_lv_time_out()
 	return ret;
 }
 
-bk_err_t pm_lv_enter_time_out_clear()
+bk_err_t pm_lv_enter_time_out_clear(void)
 {
 	s_pm_check_lv_enter_time_out = 0;
 	return BK_OK;
@@ -856,28 +846,28 @@ bool bk_pm_wifi_rtc_is_registered(void)
 /*=========================WIFI ALARM END========================*/
 
 /*=========================ENTER SLEEP FUNCTION START========================*/
-static void pm_enter_cpu_wfi()
+static void pm_enter_cpu_wfi(void)
 {
 	sys_drv_enter_cpu_wfi();
 }
 
-static void pm_enter_normal_sleep()
+static void pm_enter_normal_sleep(void)
 {
 	sys_drv_enter_normal_sleep(0);
 }
 
-static void pm_enter_low_voltage()
+static void pm_enter_low_voltage(void)
 {
 	sys_drv_enter_low_voltage();
 }
 
-static void pm_enter_deep_sleep()
+static void pm_enter_deep_sleep(void)
 {
 	sys_drv_enter_deep_sleep(NULL);
 }
 
 #if CONFIG_PM_SUPER_DEEP_SLEEP
-static void pm_enter_super_deep_sleep()
+static void pm_enter_super_deep_sleep(void)
 {
 	uint8_t use_super_deep = 1;
 	bk_misc_set_reset_reason(RESET_SOURCE_SUPER_DEEP);

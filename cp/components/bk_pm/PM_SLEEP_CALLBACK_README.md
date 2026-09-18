@@ -681,15 +681,17 @@ bk_pm_post_sleep_callback_register(cb, arg, 100); // NORMAL for post-sleep
 ## 📂 File Structure
 
 ```
-bk_pm/
-├── include/
-│   └── pm_sleep_callback.h              # API header with priority definitions
-├── src/services/
-│   ├── bk_pm_sleep_callback.c           # Implementation (267 lines)
-│   ├── bk_pm_sleep_callback_example.c   # Complete examples
-│   └── bk_pm_sleep.c                    # Integration (calls execute functions)
-└── PM_SLEEP_CALLBACK_README.md          # This document
+cp/
+├── include/modules/pm.h                 # API declarations and priority definitions
+└── components/bk_pm/
+    ├── src/services/
+│   ├── bk_pm_sleep_callback.c           # Callback-list implementation
+│   └── bk_pm_sleep.c                    # Sleep-path integration point
+    └── PM_SLEEP_CALLBACK_README.md      # This document
 ```
+
+> Note: callback execution is not currently enabled in the sleep paths.
+> Registration alone does not cause callbacks to run.
 
 ## ✅ Summary
 
@@ -704,7 +706,6 @@ bk_pm/
 - ✅ 6 API functions
 - ✅ 5 priority level constants
 - ✅ Priority-sorted linked lists
-- ✅ Complete examples
 - ✅ Full documentation
 
 **Ready to use - just register your callbacks with appropriate priorities!** 🚀

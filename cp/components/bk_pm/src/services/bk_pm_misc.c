@@ -17,7 +17,6 @@
 #include <components/sensor.h>
 #include <driver/aon_rtc.h>
 #include "sys_driver.h"
-#include <driver/gpio.h>
 #include "gpio_driver.h"
 #include <os/mem.h>
 #include "pm_debug.h"
@@ -31,7 +30,7 @@ typedef struct gpio_ldo_vote_node {
 } gpio_ldo_vote_node_t;
 
 /*=====================VARIABLE  SECTION  START=================*/
-uint64_t static s_startup_rtc_tick = 0;
+static uint64_t s_startup_rtc_tick = 0;
 static gpio_ldo_vote_node_t *s_gpio_ldo_vote_list       = NULL;
 
 static uint32_t s_pm_mcu_pm_state                       = 0;
@@ -45,7 +44,7 @@ static uint32_t s_pm_lowvol_consume_time_exit_wfi       = 0;
 /*================FUNCTION DECLARATION  SECTION  END========*/
 
 
-uint32_t bk_pm_mcu_pm_state_get()
+uint32_t bk_pm_mcu_pm_state_get(void)
 {
 	return s_pm_mcu_pm_state;
 }
@@ -55,7 +54,7 @@ bk_err_t bk_pm_mcu_pm_ctrl(uint32_t power_state)
 	return BK_OK;
 }
 
-uint32_t bk_pm_wakeup_from_lowvol_consume_time_get()
+uint32_t bk_pm_wakeup_from_lowvol_consume_time_get(void)
 {
 	return ((s_pm_lowvol_consume_time_exit_wfi * 1000) / bk_rtc_get_ms_tick_count()); // unit: us
 }
@@ -75,35 +74,34 @@ void bk_pm_cp_deep_lv_sram_check_get_idle_stack(void **start, void **end)
 /*=========================SPECIFIC API END========================*/
 
 /*=========================POWER/VOLTAGE CTRL START========================*/
-// TODO: for debug use?
 uint32_t bk_pm_lp_vol_get(void)
 {
 	return sys_drv_lp_vol_get();
 }
 
-int bk_pm_lp_vol_set(uint32_t value)
+bk_err_t bk_pm_lp_vol_set(uint32_t value)
 {
 	sys_drv_lp_vol_set(value);
 	return BK_OK;
 }
 
-uint32_t bk_pm_rf_tx_vol_get()
+uint32_t bk_pm_rf_tx_vol_get(void)
 {
 	return sys_drv_rf_tx_vol_get();
 }
 
-int bk_pm_rf_tx_vol_set(uint32_t value)
+bk_err_t bk_pm_rf_tx_vol_set(uint32_t value)
 {
 	sys_drv_rf_tx_vol_set(value);
 	return BK_OK;
 }
 
-uint32_t bk_pm_rf_rx_vol_get()
+uint32_t bk_pm_rf_rx_vol_get(void)
 {
 	return sys_drv_rf_rx_vol_get();
 }
 
-int bk_pm_rf_rx_vol_set(uint32_t value)
+bk_err_t bk_pm_rf_rx_vol_set(uint32_t value)
 {
 	sys_drv_rf_rx_vol_set(value);
 	return BK_OK;
@@ -113,20 +111,19 @@ int bk_pm_rf_rx_vol_set(uint32_t value)
 /*=========================DEBUG/TEST CTRL START========================*/
 const char *pm_sleep_mode_to_string(pm_sleep_mode_e sleep_mode)
 {
-    static const char* sleep_mode_strings[] = {
-        "NORMAL_SLEEP",
-        "LOW_VOLTAGE",
-        "DEEP_SLEEP",
-        "SUPER_DEEP_SLEEP",
-        "DEFAULT",
-        "UNKNOWN"
-    };
+	static const char *sleep_mode_strings[] = {
+		"NORMAL_SLEEP",
+		"LOW_VOLTAGE",
+		"DEEP_SLEEP",
+		"SUPER_DEEP_SLEEP",
+		"DEFAULT",
+	};
 
-    if (sleep_mode > PM_MODE_DEFAULT) {
-        return "UNKNOWN";
-    }
+	if ((sleep_mode < 0) || (sleep_mode > PM_MODE_DEFAULT)) {
+		return "UNKNOWN";
+	}
 
-    return sleep_mode_strings[sleep_mode];
+	return sleep_mode_strings[sleep_mode];
 }
 
 const char *pm_sleep_module_name_to_string(pm_sleep_module_name_e module)
@@ -269,7 +266,7 @@ bk_err_t bk_low_pwr_misc_rtc_enter_deepsleep(uint32_t time_interval , aon_rtc_is
 bk_err_t bk_low_pwr_misc_get_time_interval_from_startup(uint32_t* time_interval)
 {
 	#if CONFIG_AON_RTC
-	uint32_t tick_count = 0.0;
+	uint32_t tick_count = 0;
 	uint64_t entry_tick  =0;
 	if(time_interval == NULL)
 	{
@@ -297,7 +294,7 @@ bk_err_t bk_low_pwr_misc_startup_rtc_tick_set(uint64_t time_tick)
 	return BK_OK;
 }
 #if CONFIG_DEEPSLEEP_USING_WDT_PROTECT
-bk_err_t bk_low_pwr_deepsleep_using_wdt_protect()
+bk_err_t bk_low_pwr_deepsleep_using_wdt_protect(void)
 {
 	uint32_t sleep_count = 0;
 
@@ -447,31 +444,6 @@ static bk_err_t gpio_ldo_configure_output(gpio_id_t gpio_id, bool output_level)
 	return ret;
 }
 
-static bk_err_t bk_gpio_get_ldo_vote_state(gpio_id_t gpio_id, uint32_t *vote_state)
-{
-	gpio_ldo_vote_node_t *node = NULL;
-
-	if (gpio_id >= GPIO_NUM_MAX || gpio_id < 0) {
-		LOGE("Invalid gpio_id: %d\r\n", gpio_id);
-		return BK_ERR_GPIO_CHAN_ID;
-	}
-
-	if (vote_state == NULL) {
-		LOGE("vote_state pointer is NULL\r\n");
-		return BK_ERR_GPIO_INVALID_MODE;
-	}
-
-	/* Find the vote node for this GPIO */
-	node = gpio_ldo_find_or_create_node(gpio_id, false);
-	if (node == NULL) {
-		/* Node doesn't exist, meaning never used, vote state is 0 */
-		*vote_state = 0;
-	} else {
-		*vote_state = node->vote_state;
-	}
-
-	return BK_OK;
-}
 bk_err_t bk_gpio_ctrl_external_ldo(uint32_t module, gpio_id_t gpio_id, gpio_output_state_e value)
 {
 	bk_err_t ret               = BK_OK;
@@ -494,7 +466,7 @@ bk_err_t bk_gpio_ctrl_external_ldo(uint32_t module, gpio_id_t gpio_id, gpio_outp
 		return BK_ERR_GPIO_INVALID_MODE;
 	}
 
-	module_mask = (0x1 << module);
+	module_mask = (1U << module);
 
 	/* Handle vote enable (output high level) */
 	if (value == GPIO_OUTPUT_STATE_HIGH) {

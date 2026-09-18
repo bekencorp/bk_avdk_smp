@@ -1,4 +1,3 @@
-armino_build_get_property(target ARMINO_SOC)
 set(incs include)
 
 set(srcs src/bk_pm.c)

@@ -386,7 +386,7 @@ __attribute__((section(".itcm_sec_code")))  bk_err_t pm_lv_rtc_tick_set(pm_lv_st
  *   BK_OK on success, or error code on failure
  *
  ****************************************************************************/
-__attribute__((section(".iram")))  bk_err_t pm_enter_lv_rtc_tick_clear();
+__attribute__((section(".iram"))) bk_err_t pm_enter_lv_rtc_tick_clear(void);
 
 /****************************************************************************
  * Name: pm_wakeup_lv_rtc_tick_clear
@@ -399,7 +399,7 @@ __attribute__((section(".iram")))  bk_err_t pm_enter_lv_rtc_tick_clear();
  *   BK_OK on success, or error code on failure
  *
  ****************************************************************************/
-__attribute__((section(".iram")))  bk_err_t pm_wakeup_lv_rtc_tick_clear();
+__attribute__((section(".iram"))) bk_err_t pm_wakeup_lv_rtc_tick_clear(void);
 
 /****************************************************************************
  * Name: pm_rtc_cur_tick_get
@@ -412,7 +412,7 @@ __attribute__((section(".iram")))  bk_err_t pm_wakeup_lv_rtc_tick_clear();
  *   Current RTC tick value (64-bit)
  *
  ****************************************************************************/
-__attribute__((section(".iram")))  uint64_t pm_rtc_cur_tick_get();
+__attribute__((section(".iram"))) uint64_t pm_rtc_cur_tick_get(void);
 #endif
 
 #if CONFIG_PM_LV_WDT_PROTECTION
@@ -427,7 +427,7 @@ __attribute__((section(".iram")))  uint64_t pm_rtc_cur_tick_get();
  *   BK_OK on success, or error code on failure
  *
  ****************************************************************************/
-bk_err_t pm_wifi_event_init();
+bk_err_t pm_wifi_event_init(void);
 
 /****************************************************************************
  * Name: bk_pm_wifi_event_state

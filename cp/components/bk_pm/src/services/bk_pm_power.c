@@ -294,7 +294,7 @@ uint32_t bk_pm_get_video_vote_pwr_state(void)
 	return s_pm_video_pm_state ;
 }
 
-uint32_t bk_pm_phy_pm_state_get()
+uint32_t bk_pm_phy_pm_state_get(void)
 {
 	return s_pm_phy_pm_state;
 }
@@ -349,7 +349,7 @@ bk_err_t bk_pm_module_vote_xtal_rx_tx_anabuf_ctrl(pm_xtal_rx_tx_anabuf_module_na
 /*=========================RF POWER CTRL END========================*/
 
 /*=========================SPECIFIC API START========================*/
-bool bk_pm_phy_cali_state_get()
+bool bk_pm_phy_cali_state_get(void)
 {
 	return s_pm_phy_calibration_state;
 }
@@ -359,7 +359,7 @@ bk_err_t bk_pm_phy_cali_state_set(bool cali_state)
 	return BK_OK;
 }
 
-bool bk_pm_phy_reinit_flag_get()
+bool bk_pm_phy_reinit_flag_get(void)
 {
 	return s_pm_is_phy_reinit_flag;
 }
@@ -369,12 +369,12 @@ bk_err_t bk_pm_phy_reinit_flag_set(bool reinit_flag)
 	return BK_OK;
 }
 
-void bk_pm_phy_reinit_flag_clear()
+void bk_pm_phy_reinit_flag_clear(void)
 {
 	s_pm_is_phy_reinit_flag = false;
 }
 
-uint32_t bk_pm_vote_power_module_get()
+uint32_t bk_pm_vote_power_module_get(void)
 {
 	return s_pm_vote_power_module;
 }

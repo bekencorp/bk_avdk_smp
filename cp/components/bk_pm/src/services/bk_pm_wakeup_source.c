@@ -211,7 +211,7 @@ pm_wakeup_source_e bk_pm_wakeup_source_get(void)
 	return s_pm_wakeup_source;
 }
 
-void pm_touched_wakeup_low_voltage()
+void pm_touched_wakeup_low_voltage(void)
 {
 	sys_drv_touch_wakeup_enable(s_touch_wakeup_param.touch_channel);
 }
@@ -225,17 +225,17 @@ bk_err_t pm_vad_wakeup_deep_sleep(void)
 {
 	return bk_lp_vad_set_sleep_para_before_sleep();
 }
-void pm_rtc_wakeup_deep_sleep()
+void pm_rtc_wakeup_deep_sleep(void)
 {
 	aon_pmu_drv_set_wakeup_source(WAKEUP_SOURCE_INT_RTC);
 }
 
-void pm_touched_wakeup_deep_sleep()
+void pm_touched_wakeup_deep_sleep(void)
 {
 	sys_drv_touch_wakeup_enable(s_touch_wakeup_param.touch_channel);
 }
 
-bk_err_t pm_wakeup_from_deepsleep_handle()
+bk_err_t pm_wakeup_from_deepsleep_handle(void)
 {
 	uint32_t pmu_state = 0;
 	if (aon_pmu_drv_reg_get(PMU_REG2) & BIT(BIT_SLEEP_FLAG_DEEP_SLEEP))
@@ -248,7 +248,7 @@ bk_err_t pm_wakeup_from_deepsleep_handle()
 	return BK_OK;
 }
 
-void pm_deep_sleep_wakeup_source_set()
+void pm_deep_sleep_wakeup_source_set(void)
 {
 	uint32_t pmu_state = 0;
 	if (aon_pmu_drv_reg_get(PMU_REG2) & BIT(BIT_SLEEP_FLAG_DEEP_SLEEP))
@@ -299,7 +299,7 @@ pm_wakeup_source_e bk_pm_exit_low_vol_wakeup_source_get()
 	return s_pm_exit_low_vol_wakeup_source;
 }
 
-__IRAM_PM bk_err_t bk_pm_exit_low_vol_wakeup_source_set()
+__IRAM_PM bk_err_t bk_pm_exit_low_vol_wakeup_source_set(void)
 {
 	uint32_t pmu_state = 0;
 
@@ -338,7 +338,7 @@ __IRAM_PM bk_err_t bk_pm_exit_low_vol_wakeup_source_set()
 	return BK_OK;
 }
 
-bk_err_t bk_pm_exit_low_vol_wakeup_source_clear()
+bk_err_t bk_pm_exit_low_vol_wakeup_source_clear(void)
 {
 	/*clear the wakeup source*/
 	uint32_t pmu_state = 0;
@@ -353,7 +353,7 @@ bk_err_t bk_pm_exit_low_vol_wakeup_source_clear()
 	return BK_OK;
 }
 
-__attribute__((section(".iram")))  bk_err_t bk_pm_sleep_wakeup_reason_clear()
+__attribute__((section(".iram"))) bk_err_t bk_pm_sleep_wakeup_reason_clear(void)
 {
 	s_sleep_wakeup_irq    = 0;
 	s_sleep_wakeup_irq_id = 0;
@@ -373,7 +373,7 @@ __attribute__((section(".iram")))  bk_err_t bk_pm_sleep_wakeup_reason_set(uint64
 	}
 	return BK_OK;
 }
-bk_err_t bk_pm_rtc_wakeup_reason_parse()
+bk_err_t bk_pm_rtc_wakeup_reason_parse(void)
 {
 	bk_pm_wakeup_reason_e wakeup_reason = BK_PM_WAKEUP_UNKNOWN;
 	uint32_t int_src = 0;

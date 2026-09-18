@@ -36,16 +36,14 @@ uint64_t pm_management(uint32_t sleep_ticks);
  * Name: pm_check_protect_time
  *
  * Description:
- *   Check and calculate the protected time interval between two tick values.
- *   This function ensures minimum timing constraints are met to prevent
- *   power mode transitions that are too frequent or too short.
+ *   Check whether a power-mode transition is too close to the scheduled
+ *   Bluetooth wakeup time.
  *
  * Input Parameters:
  *   current_tick  - Current RTC tick value
- *   previous_tick - Previous RTC tick value
  *
  * Returns:
  *   Protected time interval in ticks
  *
  ****************************************************************************/
-uint32_t pm_check_protect_time(uint64_t current_tick, uint64_t previous_tick);
+uint32_t pm_check_protect_time(uint64_t current_tick);

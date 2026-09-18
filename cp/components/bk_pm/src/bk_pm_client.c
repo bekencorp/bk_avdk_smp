@@ -37,7 +37,7 @@ static uint8_t  s_debug_en               = 0;
 
 
 #if CONFIG_MAILBOX
-static uint64_t pm_cp1_aon_rtc_counter_get();
+static uint64_t pm_cp1_aon_rtc_counter_get(void);
 #endif
 
 
@@ -285,7 +285,7 @@ bk_err_t bk_pm_module_vote_ctrl_external_ldo(gpio_ctrl_ldo_module_e module,gpio_
 }
 
 #if CONFIG_MAILBOX
-static uint64_t pm_cp1_aon_rtc_counter_get()
+static uint64_t pm_cp1_aon_rtc_counter_get(void)
 {
 	volatile uint32_t val = REG_READ(PM_AON_RTC_CNT_VAL_L_ADDR);
 	volatile uint32_t val_hi = REG_READ(PM_AON_RTC_CNT_VAL_H_ADDR);
@@ -301,7 +301,7 @@ static uint64_t pm_cp1_aon_rtc_counter_get()
 #endif
 
 /*=========================DEBUG/TEST CTRL START========================*/
-uint32_t pm_debug_mode()
+uint32_t pm_debug_mode(void)
 {
 	return s_debug_en;
 }

@@ -14,6 +14,28 @@
 
 #include <common/bk_include.h>
 
+typedef enum {
+	PM_DEEP_LV_SLEEP_FLAG_GET = 0,
+	PM_DEEP_LV_SLEEP_FLAG_SET,
+	PM_DEEP_LV_SLEEP_FLAG_CLEAR,
+} pm_deep_lv_sleep_flag_op_t;
+
+/****************************************************************************
+ * Name: pm_deep_lv_sleep_flag_ctrl
+ *
+ * Description:
+ *   Read, set, or clear the CP deep low-voltage wakeup flag.
+ *
+ * Input Parameters:
+ *   operation - PM_DEEP_LV_SLEEP_FLAG_GET, PM_DEEP_LV_SLEEP_FLAG_SET,
+ *               or PM_DEEP_LV_SLEEP_FLAG_CLEAR
+ *
+ * Returns:
+ *   Current flag value after applying the operation
+ *
+ ****************************************************************************/
+uint32_t pm_deep_lv_sleep_flag_ctrl(pm_deep_lv_sleep_flag_op_t operation);
+
 /****************************************************************************
  * Name: pm_cpu_wfi_process
  *

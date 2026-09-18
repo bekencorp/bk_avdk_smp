@@ -460,7 +460,7 @@ bk_err_t pm_cp1_psram_malloc_count_state_set(uint32_t value)
 	return BK_OK;
 }
 
-bk_err_t pm_cp1_psram_malloc_state_get()
+bk_err_t pm_cp1_psram_malloc_state_get(void)
 {
 	#if (CONFIG_CPU_CNT > 1)
 	s_pm_cp1_psram_malloc_count_state = bk_pm_get_cp1_psram_malloc_count(0);
@@ -468,7 +468,7 @@ bk_err_t pm_cp1_psram_malloc_state_get()
 	return BK_OK;
 }
 
-__IRAM_SEC bk_err_t pm_psram_malloc_state_and_power_ctrl()
+__IRAM_SEC bk_err_t pm_psram_malloc_state_and_power_ctrl(void)
 {
 #if CONFIG_PSRAM_AS_SYS_MEMORY
 	uint32_t cp0_psram_malloc_count = 0;
@@ -509,7 +509,7 @@ __IRAM_SEC bk_err_t pm_psram_malloc_state_and_power_ctrl()
 	return BK_OK;
 }
 
-void pm_debug_psram()
+void pm_debug_psram(void)
 {
 	uint32_t cp0_psram_malloc_count = 0;
 
@@ -535,7 +535,7 @@ void pm_debug_psram()
 	}
 }
 
-void pm_debug_psram_state()
+void pm_debug_psram_state(void)
 {
 	LOGI("pm_psram:0x%x 0x%x\r\n",s_pm_psram_ctrl_state,bk_psram_heap_init_flag_get());
 }

@@ -113,7 +113,7 @@ uint64_t pm_management(uint32_t sleep_ticks)
 	return missed_ticks;
 }
 
-static uint64_t pm_state_machine()
+static uint64_t pm_state_machine(void)
 {
 	uint64_t missed_ticks       = 0ULL;
 	uint64_t sleep_tick         = 0ULL;
@@ -132,14 +132,6 @@ static uint64_t pm_state_machine()
 	uint64_t exit_tick          = 0ULL;
 	exit_tick = bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
 	sleep_tick = exit_tick - entry_tick;
-	if(exit_tick - entry_tick < 0)
-	{
-		sleep_tick = 0ULL;
-	}
-	else
-	{
-		sleep_tick = exit_tick - entry_tick;
-	}
 	#endif
 	GLOBAL_INT_RESTORE();
 
@@ -152,7 +144,7 @@ static uint64_t pm_state_machine()
 	return missed_ticks;
 }
 
-static uint64_t pm_check_and_ctrl_sleep()
+static uint64_t pm_check_and_ctrl_sleep(void)
 {
 	uint64_t sleep_tick = 0;
 
@@ -201,7 +193,7 @@ static uint64_t pm_check_and_ctrl_sleep()
 	return sleep_tick;
 }
 
-static void pm_enter_normal_sleep_modules_config()
+static void pm_enter_normal_sleep_modules_config(void)
 {
 	uint32_t i = 0;
 	pm_sleep_module_name_e enter_normal_sleep_modules[] = PM_ENTER_NORMAL_SLEEP_MODULES_CONFIG;
@@ -212,7 +204,7 @@ static void pm_enter_normal_sleep_modules_config()
 	}
 }
 
-static void pm_enter_low_vol_modules_config()
+static void pm_enter_low_vol_modules_config(void)
 {
 	uint32_t i = 0;
 	pm_sleep_module_name_e enter_low_vol_modules[] = PM_ENTER_LOW_VOL_MODULES_CONFIG;
@@ -223,7 +215,7 @@ static void pm_enter_low_vol_modules_config()
 	}
 }
 
-static void pm_enter_deep_sleep_modules_config()
+static void pm_enter_deep_sleep_modules_config(void)
 {
 	uint32_t i = 0;
 	pm_power_module_name_e enter_deep_sleep_modules[] = PM_ENTER_DEEP_SLEEP_MODULES_CONFIG;
@@ -425,7 +417,7 @@ uint64_t pm_light_sleep(uint32_t sleep_ticks)
 #endif
 
 #if CONFIG_PM_PROTECT_TIME_CHECK
-uint32_t pm_check_protect_time(uint64_t current_tick, uint64_t previous_tick)
+uint32_t pm_check_protect_time(uint64_t current_tick)
 {
 	if (s_bt_need_wakeup_time > current_tick)
 	{
