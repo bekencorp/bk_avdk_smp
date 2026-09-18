@@ -9,12 +9,9 @@ if (CONFIG_QSPI)
 		list(APPEND srcs qspi/qspi_psram.c)
 	endif()
 
-	if (CONFIG_QSPI_NAND_FLASH)
-		list(APPEND srcs qspi/qspi_nand_flash.c)
-		list(APPEND srcs qspi/qspi_nand_bbm.c)
-	elseif (CONFIG_QSPI_NOR_FLASH)
-		list(APPEND srcs qspi/qspi_flash.c)
-	endif()
+	# NOR/NAND flash protocol engines, BBM and device tables moved to
+	# components/bk_external_flash/qspi_flash. Only the QSPI controller,
+	# statistics and QSPI-PSRAM stay in middleware.
 
 	if (CONFIG_CLI AND CONFIG_QSPI_TEST)
 		list(APPEND srcs qspi/qspi_test.c)

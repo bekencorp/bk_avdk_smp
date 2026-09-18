@@ -35,13 +35,49 @@ menu "QSPI"
 			bool "Enable QSPI NAND Flash"
 	endchoice
 
+	config QSPI_NOR_FLASH_SIZE
+		hex "NOR Flash Size (Bytes)"
+		depends on QSPI_NOR_FLASH
+		default 0x1000000
+		help
+			Fallback total size of the SPI NOR Flash in bytes, used only when
+			Read ID (9Fh) returns a part not present in the descriptor registry.
+			Identified parts report their real capacity via
+			bk_qspi_flash_nor_total_size(). Default is 16MB (0x1000000).
+
+	config QSPI_NOR_ALLOW_UNKNOWN
+		bool "Allow unidentified SPI NOR to continue init"
+		depends on QSPI_NOR_FLASH
+		default y
+		help
+			When set, an unidentified SPI NOR (JEDEC ID not in the descriptor
+			registry) still initialises using a generic default descriptor and
+			the QSPI_NOR_FLASH_SIZE fallback capacity. Convenient while bringing
+			up a new part. Production configs should set this to n so an unknown
+			part fails init instead of running with possibly wrong command set,
+			protection bits or capacity.
+
 	config QSPI_NAND_FLASH_SIZE
 		hex "NAND Flash Size (Bytes)"
 		depends on QSPI_NAND_FLASH
 		default 0x8000000
 		help
-			Set the total size of the SPI NAND Flash in bytes.
-			Default is 128MB (0x8000000).
+			Fallback total size of the SPI NAND Flash in bytes, used only when
+			Read ID (9Fh) returns a part not present in the descriptor registry.
+			Identified parts report their real capacity via
+			bk_qspi_flash_nand_total_size(). Default is 128MB (0x8000000).
+
+	config QSPI_NAND_ALLOW_UNKNOWN
+		bool "Allow unidentified SPI NAND to continue init"
+		depends on QSPI_NAND_FLASH
+		default y
+		help
+			When set, an unidentified SPI NAND (JEDEC ID not in the descriptor
+			registry) still initialises using a generic default descriptor and
+			the QSPI_NAND_FLASH_SIZE fallback capacity. Convenient while bringing
+			up a new part. Production configs should set this to n so an unknown
+			part fails init instead of running with a possibly wrong capacity,
+			protection bit or ECC semantics.
 
 	config QSPI_TEST
 		depends on QSPI && DRIVER_TEST

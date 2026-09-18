@@ -194,6 +194,20 @@ SECTIONS
       __lcd_panel_device_array_end = .;
     } > FLASH
 
+    .qspi_nand_device_list ALIGN(4) : ALIGN(4)
+    {
+      __qspi_nand_device_array_start = .;
+      KEEP(*(.qspi_nand_device_list.*))
+      __qspi_nand_device_array_end = .;
+    } > FLASH
+
+    .qspi_nor_device_list ALIGN(4) : ALIGN(4)
+    {
+      __qspi_nor_device_array_start = .;
+      KEEP(*(.qspi_nor_device_list.*))
+      __qspi_nor_device_array_end = .;
+    } > FLASH
+
     .tp_detect :
     {
       __tp_sensor_detect_array_start = .;
