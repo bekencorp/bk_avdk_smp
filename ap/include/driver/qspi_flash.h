@@ -192,6 +192,11 @@ bk_err_t bk_qspi_flash_read(qspi_id_t id, uint32_t base_addr, void *data, uint32
 #define QSPI_NAND_PAGE_SIZE    2048U
 #define QSPI_NAND_BLOCK_SIZE   (QSPI_NAND_PAGE_SIZE * 64U)
 
+/* Total capacity in bytes of the SPI-NAND identified on @p id at init (falls
+ * back to CONFIG_QSPI_NAND_FLASH_SIZE when the part was not recognised).
+ * Defined in driver/qspi_nand_dev.h; declared here for flash-API-only users. */
+uint32_t bk_qspi_flash_nand_total_size(qspi_id_t id);
+
 bk_err_t bk_qspi_flash_nand_get_id(qspi_id_t id, uint8_t *buf, uint32_t len);
 bk_err_t bk_qspi_flash_nand_get_feature(qspi_id_t id, uint8_t addr, uint8_t *value);
 bk_err_t bk_qspi_flash_nand_set_feature(qspi_id_t id, uint8_t addr, uint8_t value);
