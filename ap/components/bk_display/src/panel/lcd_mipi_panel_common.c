@@ -169,9 +169,19 @@ static bk_err_t lcd_panel_common_init(bk_avdk_lcd_panel_t *panel)
     AVDK_RETURN_ON_ERROR(bk_display_bus_set_clock(priv->bus_handle, &clock_config), TAG, "set clock failed");
     priv->base.clk_src = clock_config.clk_src;
 
-    /* bk_display_bus_set_clock() -> mipi_dsi_clock_set() parks the host in
-     * COMMAND mode, so the init_cmds below go out as command-mode LP DCS
-     * (canonical MIPI bring-up), not squeezed into video blanking. */
+    /* Reset the panel after set_clock and just before init_cmds. set_clock
+     * (mipi_dsi_clock_set) has brought up the DSI D-PHY and parked the host in
+     * command mode with the data lanes at LP-11 (Stop State). Releasing the
+     * panel from reset once the clock/PHY is up and the link is at LP-11 is the
+     * canonical MIPI bring-up order and ensures the panel initializes against a
+     * valid host state before init_cmds are sent. Panels that opt out set
+     * .reset to NULL. */
+    if (priv->panel->reset != NULL) {
+        AVDK_RETURN_ON_ERROR(priv->panel->reset(panel), TAG, "panel reset failed");
+    }
+
+    /* init_cmds go out as command-mode LP DCS (canonical MIPI bring-up), not
+     * squeezed into video blanking. */
     bk_err_t ret = BK_OK;
     if (priv->panel->init == NULL) {
         LOGI("%s %s: init is NULL, skip\n", __func__, priv->panel->name);

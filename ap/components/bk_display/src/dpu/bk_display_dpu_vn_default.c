@@ -149,13 +149,11 @@ static avdk_err_t dpu_ctlr_init(bk_display_ctlr_handle_t handle)
     }
     dpu_ctlr_unlock(control);
 
-    /* Drive panel reset waveform and run init_cmds before reading
-     * panel->clk_src in dpu_ctlr_build_core_config(). */
-    ret = bk_lcd_panel_reset(control->panel);
-    if (ret != AVDK_ERR_OK) {
-        LOGE("%s panel reset err: %d\n", __func__, ret);
-        return ret;
-    }
+    /* Run the panel bring-up (set_clock -> reset -> init_cmds) before reading
+     * panel->clk_src in dpu_ctlr_build_core_config(). The panel reset is issued
+     * inside bk_lcd_panel_init() after set_clock (see lcd_panel_common_init),
+     * not here: resetting before set_clock releases RESX before the DSI D-PHY
+     * drives LP-11 and, on a cold boot, leaves the panel black. */
     ret = bk_lcd_panel_init(control->panel);
     if (ret != AVDK_ERR_OK) {
         LOGE("%s panel init err: %d\n", __func__, ret);
