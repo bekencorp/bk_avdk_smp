@@ -922,6 +922,13 @@ out:
     UVC_PACKET_PUSH_END();
 }
 
+/* Raw CherryUSB USB_ERR_* codes as returned by usbh_video_open()/bk_usbh_hub_port_dev_open().
+ * The errno.h in scope here (components/cherryusb/usb_errno.h) uses standard-errno numbering,
+ * which does NOT match these, so define local aliases to keep the disconnect check readable. */
+#define UVC_USBERR_NODEV      -3   /* USB_ERR_NODEV    : device gone from the bus */
+#define UVC_USBERR_IO        -12   /* USB_ERR_IO       : I/O error */
+#define UVC_USBERR_SHUTDOWN  -13   /* USB_ERR_SHUTDOWN : transfer aborted, pipe/link torn down */
+
 static avdk_err_t uvc_camera_stream_start_handle(uvc_stream_handle_t *handle, uint32_t param)
 {
     avdk_err_t ret = AVDK_ERR_OK;
@@ -975,7 +982,16 @@ static avdk_err_t uvc_camera_stream_start_handle(uvc_stream_handle_t *handle, ui
     ret = bk_usbh_hub_port_dev_open(uvc_param->info->port, uvc_param->port_info->device_index, uvc_param->port_info);
     if (ret != AVDK_ERR_OK)
     {
-        LOGE("%s, %d\n", __func__, __LINE__);
+        /* SET_INTERFACE aborted by a USB disconnect (DISCON/BABBLE): mark DISCONNECTED so the
+         * caller can tell a transient disconnect apart from other open failures. The out: path
+         * below preserves DISCONNECTED; the caller resets it to CLOSED after reading.
+         * Match the raw CherryUSB USB_ERR_* codes propagated up from usbh_video_open
+         * (NODEV=3, IO=12, SHUTDOWN=13; the errno.h in scope here uses different numbering). */
+        if (ret == UVC_USBERR_NODEV || ret == UVC_USBERR_IO || ret == UVC_USBERR_SHUTDOWN)
+        {
+            uvc_param->stream_state = UVC_STREAM_DISCONNECTED_STATE;
+        }
+        LOGE("%s, %d, dev_open failed, ret:%d\n", __func__, __LINE__, ret);
         goto out;
     }
 
@@ -1082,7 +1098,11 @@ out:
             uvc_camera_stream_update_port_idle_event(uvc_param);
         }
 
-        uvc_param->stream_state = UVC_STREAM_CLOSED_STATE;
+        /* Keep a DISCONNECTED marker for the caller; other failures fall back to CLOSED. */
+        if (uvc_param->stream_state != UVC_STREAM_DISCONNECTED_STATE)
+        {
+            uvc_param->stream_state = UVC_STREAM_CLOSED_STATE;
+        }
     }
 
     rtos_set_event_flags(&handle->handle, UVC_STREAM_START_BIT);
@@ -2337,10 +2357,16 @@ avdk_err_t bk_uvc_camera_stream_start(uvc_stream_handle_t *handle, bk_cam_uvc_co
 
     rtos_wait_for_event_flags(&handle->handle, UVC_STREAM_START_BIT, true, true, BEKEN_WAIT_FOREVER);
 
-    if (uvc_param->stream_state != UVC_STREAM_STREAMING_STATE)
+    if (uvc_param->stream_state == UVC_STREAM_DISCONNECTED_STATE)
+    {
+        LOGE("%s, %d, stream dropped by USB disconnect, port:%d\n", __func__, __LINE__, config->port);
+        ret = AVDK_ERR_SHUTDOWN;                              /* transient disconnect: caller may retry */
+        uvc_param->stream_state = UVC_STREAM_CLOSED_STATE;    /* reset now so stream_deinit can release */
+    }
+    else if (uvc_param->stream_state != UVC_STREAM_STREAMING_STATE)
     {
         LOGE("%s, %d, failed to start stream, port:%d\n", __func__, __LINE__, config->port);
-        ret = AVDK_ERR_UNSUPPORTED;
+        ret = AVDK_ERR_UNSUPPORTED;                          /* other failure: not retryable */
     }
 
 out:
