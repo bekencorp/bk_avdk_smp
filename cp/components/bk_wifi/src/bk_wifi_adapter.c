@@ -48,6 +48,7 @@
 #include "reg_domain.h"
 #include "bk_rw.h"
 #include "bk_wifi_adapter.h"
+#include <driver/timer.h>
 
 #if (CONFIG_CKMN)
 #include <driver/ckmn.h>
@@ -514,6 +515,20 @@ static void sys_hal_wifi_enter_sleep_status_set_wrapper(uint32_t status)
 #else
 	(void)status;
 #endif
+}
+
+static void bk_wifi_set_bk_timer_wrapper(uint32_t time_ms, void *callback)
+{
+    bk_timer_stop(TIMER_ID4);
+    bk_err_t ret = bk_timer_start(TIMER_ID4, time_ms, (timer_isr_t)callback);
+    if (ret != BK_OK) {
+        BK_LOGE(TAG, "bk_wifi_set_bk_timer_wrapper failed, error code:%x\n", ret);
+    }
+}
+
+static void bk_wifi_clear_bk_timer_wrapper(void)
+{
+    bk_timer_stop(TIMER_ID4);
 }
 
 static void wifi_vote_rf_ctrl_wrapper(uint8_t cmd)
@@ -1560,6 +1575,8 @@ __attribute__((section(".dtcm_sec_data "))) wifi_os_funcs_t g_wifi_os_funcs = {
 	._rtc_us_to_tick = bk_pm_wifi_rtc_us_to_tick_wrapper,
 	._rtc_tick_to_us = bk_pm_wifi_rtc_tick_to_us_wrapper,
 	._bk_pm_wifi_rtc_clear = bk_pm_wifi_rtc_clear_wrapper,
+	._bk_wifi_set_bk_timer = bk_wifi_set_bk_timer_wrapper,
+	._bk_wifi_clear_bk_timer = bk_wifi_clear_bk_timer_wrapper,
 	._wifi_vote_rf_ctrl = wifi_vote_rf_ctrl_wrapper,
 	._wifi_phy_clk_open = wifi_phy_clk_open_wrapper,
 	._wifi_phy_clk_close = wifi_phy_clk_close_wrapper,

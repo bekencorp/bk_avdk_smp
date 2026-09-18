@@ -167,6 +167,8 @@ typedef struct {
 	bk_err_t (*_bk_pm_low_voltage_register)(void *enter_config_cb,void *exit_config_cb);
 	void (*_bk_pm_wifi_rtc_set)(uint32_t tick, void *callback);
 	void (*_bk_pm_wifi_rtc_clear)(void);
+	void (*_bk_wifi_set_bk_timer)(uint32_t time_ms, void *callback);
+	void (*_bk_wifi_clear_bk_timer)(void);
 	void (* _wifi_vote_rf_ctrl)(uint8_t cmd);
 	void (* _wifi_phy_clk_open)(uint8_t is_wifi);
 	void (* _wifi_phy_clk_close)(uint8_t is_wifi);
