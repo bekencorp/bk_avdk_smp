@@ -3616,9 +3616,9 @@ bk_err_t sys_hal_ap_clock_power_ctrl(power_module_state_t power_state)
 		//sys_ahbp_ll_set_rege_pwd_m55(1);
 
 		sys_ll_set_ana_reg10_spi_latch1v(1);
-		sys_ll_set_ana_reg9_hsldo_hp(1);
+		sys_ll_set_ana_reg9_hsldo_hp(0);
 		bk_delay_us(10);
-		sys_ll_set_ana_reg9_enfast_hsldo(1);
+		sys_ll_set_ana_reg9_enfast_hsldo(0);
 		bk_delay_us(10);
 		sys_ll_set_ana_reg16_enhspw(0);
 		bk_delay_us(10);
