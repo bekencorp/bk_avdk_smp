@@ -1750,6 +1750,7 @@ __IRAM_PM void sys_hal_enter_low_voltage(void)
 	//bool otp_vdd = aon_pmu_ll_get_r2_otp_vdd_en();
 	//aon_pmu_ll_set_r2_otp_vdd_en(0);// close OTPLDO, 1.5uA decrease
 	#endif
+	sys_ll_set_ana_reg42_dslep_disable(0x1);//0x1: otp not power down when sleep; 0x0: otp power down when sleep;
 	// PM_GPIO_UP(36);//5
 	// PM_GPIO_DOWN(36);
 	uint32_t v_ana_r0 = sys_ll_get_ana_reg0_value();
