@@ -516,8 +516,10 @@ bk_err_t bk_pm_ap_fast_suspend_prepare(void)
 		uint32_t callback_elapsed_ms;
 
 		callback_count++;
+#if CONFIG_PM_AP_FAST_BOOT_VERBOSE_TRACE
 		LOGI("AP_FAST_CB quiesce begin: name=%s priority=%u cb=%p\r\n",
 			node->ops.name, node->ops.priority, node->ops.quiesce);
+#endif
 		node->quiesced = true;
 		if (node->ops.quiesce != NULL) {
 			ret = node->ops.quiesce(node->ops.arg);
@@ -530,14 +532,24 @@ bk_err_t bk_pm_ap_fast_suspend_prepare(void)
 				PM_AP_QUIESCE_CALLBACK_TIMEOUT_MS);
 			ret = BK_ERR_TIMEOUT;
 		}
+#if CONFIG_PM_AP_FAST_BOOT_VERBOSE_TRACE
 		LOGI("AP_FAST_CB quiesce end: name=%s ret=%d elapsed_ms=%u\r\n",
 			node->ops.name, ret, callback_elapsed_ms);
+#endif
 		if (ret != BK_OK) {
 			break;
 		}
 	}
-	LOGI("AP_FAST_CB prepare summary: count=%u ret=%d\r\n",
-		callback_count, ret);
+	if (ret != BK_OK) {
+		LOGE("AP_FAST_CB prepare failed: count=%u ret=%d\r\n",
+			callback_count, ret);
+	}
+#if CONFIG_PM_AP_FAST_BOOT_VERBOSE_TRACE
+	else {
+		LOGI("AP_FAST_CB prepare summary: count=%u ret=%d\r\n",
+			callback_count, ret);
+	}
+#endif
 
 	if (ret != BK_OK) {
 		(void)bk_pm_ap_fast_resume_modules();

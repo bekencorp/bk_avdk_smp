@@ -212,5 +212,14 @@ menu "PM"
 			Keep the AP in reset while its SRAM and PSRAM contents remain
 			in place. AP DTCM is backed up into retained AP SRAM before
 			power-off and restored before interrupts are re-enabled.
+
+	config PM_AP_FAST_BOOT_VERBOSE_TRACE
+		bool "Enable verbose AP fast boot transition trace"
+		depends on PM_AP_FAST_BOOT_ENABLE
+		default n
+		help
+			Print detailed proof and per-stage transition logs. Keep this
+			disabled normally to reduce UART backlog and power-transition
+			latency. Errors, timeouts and AP_TIME summaries remain enabled.
 endmenu
 

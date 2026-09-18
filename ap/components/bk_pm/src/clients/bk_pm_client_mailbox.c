@@ -396,8 +396,10 @@ static void pm_cp1_mailbox_rx_isr(int *pm_mb, mb_chnl_cmd_t *cmd_buf)
 			if (cmd_buf->param1 != s_pm_ap_recovery_request_seq) {
 				s_pm_ap_recovery_request_seq = cmd_buf->param1;
 				s_pm_ap_recovery_queued = false;
+#if CONFIG_PM_AP_FAST_BOOT_VERBOSE_TRACE
 				LOGI("AP close request pending prepare seq=%u\r\n",
 					cmd_buf->param1);
+#endif
 			}
 
 			if (s_pm_ap_recovery_queued) {
@@ -424,8 +426,10 @@ static void pm_cp1_mailbox_rx_isr(int *pm_mb, mb_chnl_cmd_t *cmd_buf)
 			ret = bk_pm_ap_core_send_msg(&msg);
 			if (ret == BK_OK) {
 				s_pm_ap_recovery_queued = true;
+#if CONFIG_PM_AP_FAST_BOOT_VERBOSE_TRACE
 				LOGI("AP close request queued after prepare seq=%u\r\n",
 					cmd_buf->param1);
+#endif
 				bk_pm_cp1_ctrl_state_set(PM_MAILBOX_COMMUNICATION_INIT);
 			} else {
 				/* Retry can queue it again; do not leave business RX closed. */

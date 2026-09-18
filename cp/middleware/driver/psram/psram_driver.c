@@ -812,7 +812,7 @@ bk_err_t bk_psram_data_retention(void)
 #endif
 	GLOBAL_INT_DECLARATION();
 
-#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE && CONFIG_PM_AP_FAST_BOOT_VERBOSE_TRACE
 	MEM_STATIC_LOGI("psram_data_retention begin: init0=%d init1=%d\r\n",
 		s_psram_init_done[PSRAM_ID_0], s_psram_init_done[PSRAM_ID_1]);
 #endif
@@ -864,6 +864,7 @@ bk_err_t bk_psram_data_retention(void)
 	__asm volatile("dsb sy" ::: "memory");
 	GLOBAL_INT_RESTORE();
 
+#if !CONFIG_PM_AP_FAST_BOOT_ENABLE || CONFIG_PM_AP_FAST_BOOT_VERBOSE_TRACE
 	MEM_STATIC_LOGI("psram_data_retention: pads latched, p0=%d p1=%d, mode0=0x%08x mode1=0x%08x, reg5_0=0x%08x reg5_1=0x%08x\r\n",
 				   s_psram_retention_active[PSRAM_ID_0],
 				   s_psram_retention_active[PSRAM_ID_1],
@@ -871,6 +872,7 @@ bk_err_t bk_psram_data_retention(void)
 				   s_psram_retention_saved_mode[PSRAM_ID_1],
 				   s_psram_retention_saved_reg5[PSRAM_ID_0],
 				   s_psram_retention_saved_reg5[PSRAM_ID_1]);
+#endif
 	return BK_OK;
 }
 
@@ -905,7 +907,9 @@ bk_err_t bk_psram_data_retention_recover(void)
 		s_psram_retention_reg5_valid[i] = false;
 	}
 
+#if CONFIG_PM_AP_FAST_BOOT_VERBOSE_TRACE
 	MEM_STATIC_LOGI("psram_data_retention_recover: done\r\n");
+#endif
 	return BK_OK;
 }
 

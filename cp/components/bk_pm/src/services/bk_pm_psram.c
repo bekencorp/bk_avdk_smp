@@ -393,7 +393,7 @@ bk_err_t bk_pm_module_vote_psram_ctrl(pm_power_psram_module_name_e module,pm_pow
 	}
     else //power down
     {
-#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE && CONFIG_PM_AP_FAST_BOOT_VERBOSE_TRACE
 		LOGI("PSRAM_RET_TRACE vote_off begin: module=%d ctrl=0x%x\r\n",
 			module, s_pm_psram_ctrl_state);
 #endif
@@ -411,9 +411,13 @@ bk_err_t bk_pm_module_vote_psram_ctrl(pm_power_psram_module_name_e module,pm_pow
 			 * Prepare retention before committing the OFF vote.  On failure
 			 * leave the vote set so the caller can abort AP power-down.
 			 */
+#if CONFIG_PM_AP_FAST_BOOT_VERBOSE_TRACE
 			LOGI("PSRAM_RET_TRACE retention call begin\r\n");
+#endif
 			ret = bk_psram_data_retention();
+#if CONFIG_PM_AP_FAST_BOOT_VERBOSE_TRACE
 			LOGI("PSRAM_RET_TRACE retention call end ret=%d\r\n", ret);
+#endif
 			if (ret != BK_OK) {
 				return ret;
 			}
@@ -422,10 +426,11 @@ bk_err_t bk_pm_module_vote_psram_ctrl(pm_power_psram_module_name_e module,pm_pow
 			GLOBAL_INT_DISABLE();
 			s_pm_psram_ctrl_state &= ~(0x1 << (module));
 			GLOBAL_INT_RESTORE();
-#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE && CONFIG_PM_AP_FAST_BOOT_VERBOSE_TRACE
 			LOGI("PSRAM_RET_TRACE vote cleared: ctrl=0x%x\r\n",
 				s_pm_psram_ctrl_state);
-#else
+#endif
+#if !CONFIG_PM_AP_FAST_BOOT_ENABLE
 #if CONFIG_PSRAM_DATA_RETENTION_ENABLE
 #if PM_PSRAM_RETENTION_PROBE_ENABLE
 			bk_pm_psram_retention_probe_write();

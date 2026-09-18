@@ -288,6 +288,7 @@ bool mb_chnl_write_is_allowed(u8 log_chnl)
 }
 #endif
 
+#if CONFIG_PM_AP_FAST_BOOT_VERBOSE_TRACE
 static void pm_ap_powerdown_proof_log(const char *stage)
 {
 	pm_shared_info_t shared_info = {0};
@@ -307,6 +308,9 @@ static void pm_ap_powerdown_proof_log(const char *stage)
 		s_pm_cp1_ctrl_state,
 		s_pm_cp1_closing);
 }
+#else
+#define pm_ap_powerdown_proof_log(stage) do { (void)(stage); } while (0)
+#endif
 
 #if CONFIG_HSPL_LEAK_DEBUG
 static void pm_check_ap_hspl_leak(void)
@@ -653,7 +657,9 @@ boot_ap:
 		#endif
 		/* Keep mailbox heartbeat state machine aligned with every AP power-on. */
 		mb_ipc_reset_notify(CONFIG_AP_SYS_MASTER_CPU_ID, 1);
+#if CONFIG_PM_AP_FAST_BOOT_VERBOSE_TRACE
 		LOGI("Ap_power_on: vote_on + context_restore + reset_notify(on)\r\n");
+#endif
 #else
 		#if CONFIG_DEEP_LV
 		if(g_enter_sleep == 0x1)
@@ -720,7 +726,9 @@ boot_ap:
 			bk_wwdt_feed();
 #endif
 		}
+#if !CONFIG_PM_AP_FAST_BOOT_ENABLE || CONFIG_PM_AP_FAST_BOOT_VERBOSE_TRACE
 		LOGI("bk_start_ap_system done\r\n");
+#endif
 #if !CONFIG_PM_AP_FAST_BOOT_ENABLE
 		bk_pm_ap_ctrl_callback_execute(PM_AP_CTRL_CB_TYPE_POWER_ON);
 		LOGI("bk_pm_ap_ctrl_callback_execute done\r\n");
@@ -826,7 +834,9 @@ boot_ap:
 				LOGI("AP_TIME cp_power_on_callbacks total_us=%u\r\n",
 					pm_ap_elapsed_us(callback_start_tick,
 						callback_end_tick));
+#if CONFIG_PM_AP_FAST_BOOT_VERBOSE_TRACE
 				LOGI("bk_pm_ap_ctrl_callback_execute done\r\n");
+#endif
 			}
 		}
 #endif
@@ -875,10 +885,14 @@ static bk_err_t pm_module_shutdown_cpu1(pm_power_module_name_e module)
 			 * cleaning its caches.  Prepare PSRAM retention while CPU2 is
 			 * still in WFI so a failure can be aborted and resumed.
 			 */
+#if CONFIG_PM_AP_FAST_BOOT_VERBOSE_TRACE
 			LOGI("AP_OFF_TRACE psram_vote_off begin\r\n");
+#endif
 			ret = bk_pm_module_vote_psram_ctrl(PM_POWER_PSRAM_MODULE_NAME_MEDIA,
 				PM_POWER_MODULE_STATE_OFF);
+#if CONFIG_PM_AP_FAST_BOOT_VERBOSE_TRACE
 			LOGI("AP_OFF_TRACE psram_vote_off end ret=%d\r\n", ret);
+#endif
 			if (ret != BK_OK) {
 				LOGE("AP fast boot: PSRAM retention failed, abort power-off\r\n");
 				return ret;
@@ -886,9 +900,13 @@ static bk_err_t pm_module_shutdown_cpu1(pm_power_module_name_e module)
 
 			if (pm_ap_fast_resume_requested()) {
 				/* AP SRAM/DTCM retain power; only stop execution before power-off. */
+#if CONFIG_PM_AP_FAST_BOOT_VERBOSE_TRACE
 				LOGI("AP_OFF_TRACE cpu2_stop begin\r\n");
+#endif
 				ret = bk_multicore_stop(CONFIG_AP_SYS_MASTER_CPU_ID);
+#if CONFIG_PM_AP_FAST_BOOT_VERBOSE_TRACE
 				LOGI("AP_OFF_TRACE cpu2_stop end ret=%d\r\n", ret);
+#endif
 				if (ret != BK_OK) {
 					LOGE("AP fast resume: failed to hold AP reset\r\n");
 					pm_ap_fast_resume_clear();
@@ -903,15 +921,21 @@ static bk_err_t pm_module_shutdown_cpu1(pm_power_module_name_e module)
 			#endif
 
 #if CONFIG_PM_AP_FAST_BOOT_ENABLE
+#if CONFIG_PM_AP_FAST_BOOT_VERBOSE_TRACE
 			LOGI("AP_OFF_TRACE ap_power_vote_off begin\r\n");
+#endif
 #endif
 			bk_pm_module_vote_power_ctrl(POWER_SUB_DOMAIN_NAME_AP_CPU, PM_POWER_MODULE_STATE_OFF);
 #if CONFIG_PM_AP_FAST_BOOT_ENABLE
+#if CONFIG_PM_AP_FAST_BOOT_VERBOSE_TRACE
 			LOGI("AP_OFF_TRACE ap_power_vote_off end\r\n");
+#endif
 #endif
 			/* AP power is cut, force heartbeat state to OFF immediately. */
 			mb_ipc_reset_notify(CONFIG_AP_SYS_MASTER_CPU_ID, 0);
+#if CONFIG_PM_AP_FAST_BOOT_VERBOSE_TRACE
 			LOGI("pm_dbg ap_power_off: vote_off + reset_notify(off)\r\n");
+#endif
 			pm_ap_powerdown_proof_log("after_power_vote_off");
 			//bk_pm_module_vote_cpu_freq(PM_DEV_ID_CPU1,PM_CPU_FRQ_DEFAULT);
 
@@ -951,8 +975,12 @@ static bk_err_t pm_module_shutdown_cpu1(pm_power_module_name_e module)
 			bk_pm_module_vote_xtal_rx_tx_anabuf_ctrl(PM_XTAL_RX_TX_ANABUF_MODULE_NAME_AP, PM_XTAL_RX_TX_ANABUF_ENTER_SLEEP);
 			bk_pm_module_vote_cpu_freq(PM_DEV_ID_AP,PM_CPU_FRQ_DEFAULT);
 			#endif
+#if !CONFIG_PM_AP_FAST_BOOT_ENABLE || CONFIG_PM_AP_FAST_BOOT_VERBOSE_TRACE
 			bk_printf_nonblock(4,NULL,"Shutdown_cp1[%d][%d][%d]\r\n",s_pm_cp1_closing,ret,s_pm_cp1_sema_count); //4:BK_LOG_DEBUG
+#endif
+#if CONFIG_PM_AP_FAST_BOOT_VERBOSE_TRACE
 			LOGI("pm_dbg ap_power_off: shutdown done closing=%d sema=%d\r\n", s_pm_cp1_closing, s_pm_cp1_sema_count);
+#endif
 			pm_ap_powerdown_proof_log("shutdown_done");
 		}
 	}
@@ -1114,7 +1142,11 @@ bk_err_t bk_pm_module_vote_boot_ap_ctrl(pm_boot_ap_module_name_e module,pm_power
 				flush_dcache((void *)&bk_sys_sw_regs_ptr()->pm_shared_info, sizeof(bk_sys_sw_regs_ptr()->pm_shared_info));
 				__DSB();
 
-				LOGD("pm_cp0_sleep_state: %d,ap0_sleep_state: %d\r\n", shared_info.pm_cp0_sleep_state, shared_info.pm_ap0_sleep_state);
+#if CONFIG_PM_AP_FAST_BOOT_VERBOSE_TRACE
+				LOGD("pm_cp0_sleep_state: %d,ap0_sleep_state: %d\r\n",
+					shared_info.pm_cp0_sleep_state,
+					shared_info.pm_ap0_sleep_state);
+#endif
 				pm_ap_powerdown_proof_log("cp_sleep_request_set");
 
 				uint64_t previous_tick = bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
@@ -1190,7 +1222,9 @@ bk_err_t bk_pm_module_vote_boot_ap_ctrl(pm_boot_ap_module_name_e module,pm_power
 						s_pm_ap_mailbox_backup_valid = true;
 #endif
 						#endif
+#if CONFIG_PM_AP_FAST_BOOT_VERBOSE_TRACE
 						LOGI("pm_dbg ap_close: ap_sleep_state ready, start shutdown\r\n");
+#endif
 						pm_ap_powerdown_proof_log("ap_sleep_ready");
 						#if CONFIG_HSPL_LEAK_DEBUG
 						pm_check_ap_hspl_leak();
@@ -1207,10 +1241,12 @@ bk_err_t bk_pm_module_vote_boot_ap_ctrl(pm_boot_ap_module_name_e module,pm_power
 						(void)ret;
 #endif
 						pm_ap_powerdown_proof_log("shutdown_func_return");
+#if CONFIG_PM_AP_FAST_BOOT_VERBOSE_TRACE
 						LOGI("AP_PD_PROOF callback_begin: AP power already off, run CP callbacks\r\n");
+#endif
 						bk_pm_ap_ctrl_callback_execute(PM_AP_CTRL_CB_TYPE_POWER_OFF);
 						pm_ap_powerdown_proof_log("callback_done");
-						LOGD("ap power off!!!\r\n");
+						LOGI("ap power off!!!\r\n");
 						ap_sleep_ready = true;
 						s_pm_cp1_closing = 0;
 						pm_ap_powerdown_proof_log("vote_off_complete");

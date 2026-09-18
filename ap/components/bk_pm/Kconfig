@@ -100,6 +100,15 @@ menu "PM"
 			DTCM into retained AP SRAM and restore it before re-enabling
 			interrupts. The secondary AP core must be offline before capture.
 
+	config PM_AP_FAST_BOOT_VERBOSE_TRACE
+		bool "Enable verbose AP fast boot transition trace"
+		depends on PM_AP_FAST_BOOT_ENABLE
+		default n
+		help
+			Print detailed mailbox, callback and transition logs. Keep this
+			disabled normally to reduce UART backlog and power-transition
+			latency. Errors, timeouts and summary logs remain enabled.
+
 	config PM_AP_SRAM_RETENTION_CHECK
 		bool "Generate AP SRAM baseline for CP retention checks"
 		depends on PM_AP_FAST_BOOT_ENABLE && PSRAM_DATA_RETENTION_ENABLE

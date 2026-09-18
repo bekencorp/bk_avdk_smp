@@ -129,8 +129,10 @@ static bk_err_t pm_ap_core_message_handle(void)
                 case PM_AP_CORE_AP_RECOVERY:
                 {
 #if CONFIG_PM_AP_FAST_BOOT_ENABLE
+#if CONFIG_PM_AP_FAST_BOOT_VERBOSE_TRACE
                     LOGI("AP fast suspend: recovery begin seq=%u\r\n",
                         msg.param1);
+#endif
 #if CONFIG_CPU_HOTPLUG
                     /*
                      * Keep the legacy close callbacks first, then let newly
@@ -141,8 +143,10 @@ static bk_err_t pm_ap_core_message_handle(void)
 #endif
                     bk_pm_ap_close_ap_handle_callback();
 #if CONFIG_PM_AP_FAST_BOOT_ENABLE
+#if CONFIG_PM_AP_FAST_BOOT_VERBOSE_TRACE
                     LOGI("AP fast suspend: close callbacks ready seq=%u\r\n",
                         msg.param1);
+#endif
 #endif
 #if CONFIG_PM_AP_FAST_BOOT_ENABLE && CONFIG_CPU_HOTPLUG
                     ret = bk_pm_ap_fast_suspend_prepare();
@@ -205,7 +209,9 @@ static bk_err_t pm_ap_core_message_handle(void)
                             pm_ap_suspend_failure_publish(msg.param1);
                             break;
                         } else {
+#if CONFIG_PM_AP_FAST_BOOT_VERBOSE_TRACE
                             LOGI("AP fast suspend: CPU3 offline ready\r\n");
+#endif
                         }
                     }
                     ret = bk_pm_ap_fast_suspend_backup();
@@ -225,8 +231,10 @@ static bk_err_t pm_ap_core_message_handle(void)
                         }
                         break;
                     }
+#if CONFIG_PM_AP_FAST_BOOT_VERBOSE_TRACE
                     LOGI("AP fast suspend: modules prepared seq=%u\r\n",
                         msg.param1);
+#endif
 #endif
                 }
                 break;

@@ -738,7 +738,8 @@ static bk_err_t cpu_hp_online_do(uint32_t cpu_id)
 
 bk_err_t bk_cpu_hp_offline_direct(uint32_t cpu_id)
 {
-#if CONFIG_CPU_HP_VOTE
+#if CONFIG_CPU_HP_VOTE && \
+	(!CONFIG_PM_AP_FAST_BOOT_ENABLE || CONFIG_PM_AP_FAST_BOOT_VERBOSE_TRACE)
 	MULTICORE_LOGW("cpu%u offline_direct: bypassing vote layer, vote tally may desync\r\n",
 		cpu_id);
 #endif
