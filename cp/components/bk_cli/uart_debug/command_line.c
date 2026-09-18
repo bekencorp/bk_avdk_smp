@@ -33,7 +33,7 @@
 #include "sys_driver.h"
 #include "bk_rf_internal.h"
 
-#define WIFI_AGC_TEST  0
+#define WIFI_AGC_TEST  1
 extern bk_err_t uart_write_byte(uart_id_t id, uint8_t data);
 extern void manual_cal_show_txpwr_tab_simple(void);
 extern UINT32 manual_cal_fitting_txpwr_tab(void);
