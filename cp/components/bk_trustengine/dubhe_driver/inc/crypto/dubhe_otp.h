@@ -80,7 +80,8 @@ extern "C" {
 
 /* User defined region 8 bytes default */
 #define DBH_OTP_USR_NON_SEC_REGION_SIZE ( 64 * DBH_OTP_WORD_SIZE )
-#define DBH_OTP_USR_SEC_REGION_SIZE ( 96 * DBH_OTP_WORD_SIZE )
+/* Sized so USR_NON_SEC + USR_SEC stays within the OTP bank boundary */
+#define DBH_OTP_USR_SEC_REGION_SIZE ( 32 * DBH_OTP_WORD_SIZE )
 #define DBH_OTP_USR_SEC_REGION_OFFSET                                          \
     ( ( DBH_OTP_USR_NON_SEC_REGION_OFFSET )                                    \
       + ( DBH_OTP_USR_NON_SEC_REGION_SIZE ) )
