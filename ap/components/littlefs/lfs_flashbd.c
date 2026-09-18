@@ -122,19 +122,33 @@ int lfs_flashbd_sync(const struct lfs_config *cfg) {
 
 #ifdef CONFIG_LFS_THREADSAFE
 static beken_mutex_t mutex_lfs;
-bk_err_t lfs_lock_init(void)
+static bool s_lfs_lock_inited;
+
+/* Idempotent: safe to call before every mount/format. Creates the shared
+ * recursive mutex once. */
+int lfs_lock_init(void)
 {
-	return rtos_init_recursive_mutex(&mutex_lfs);
+	if (s_lfs_lock_inited) {
+		return 0;
+	}
+	int ret = (int)rtos_init_recursive_mutex(&mutex_lfs);
+	if (ret == 0) {
+		s_lfs_lock_inited = true;
+	}
+	return ret;
 }
 
-bk_err_t lfs_lock()
+/* Signature matches struct lfs_config::lock/unlock (int (*)(const lfs_config*)). */
+int lfs_lock(const struct lfs_config *c)
 {
-	return rtos_lock_recursive_mutex(&mutex_lfs);
+	(void)c;
+	return (int)rtos_lock_recursive_mutex(&mutex_lfs);
 }
 
-bk_err_t lfs_unlock()
+int lfs_unlock(const struct lfs_config *c)
 {
-	return rtos_unlock_recursive_mutex(&mutex_lfs);
+	(void)c;
+	return (int)rtos_unlock_recursive_mutex(&mutex_lfs);
 }
 #endif
 #if (defined CONFIG_SPI_MST_FLASH)

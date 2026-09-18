@@ -59,6 +59,15 @@ int lfs_flashbd_erase(const struct lfs_config *cfg, lfs_block_t block);
 // Sync the block device
 int lfs_flashbd_sync(const struct lfs_config *cfg);
 
+#ifdef CONFIG_LFS_THREADSAFE
+// Shared littlefs lock helpers. lfs_lock_init() is idempotent and must be
+// called before the first lfs_mount()/lfs_format(); lfs_lock/lfs_unlock match
+// struct lfs_config::lock/unlock.
+int lfs_lock_init(void);
+int lfs_lock(const struct lfs_config *c);
+int lfs_unlock(const struct lfs_config *c);
+#endif
+
 #if (defined CONFIG_SPI_MST_FLASH)
 int lfs_spi_flashbd_init(uint32_t id);
 int lfs_spi_flashbd_read(const struct lfs_config *cfg, lfs_block_t block,
