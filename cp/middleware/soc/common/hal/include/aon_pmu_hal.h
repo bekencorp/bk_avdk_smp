@@ -28,8 +28,8 @@ typedef struct {
 
 /* AON_PMU r7c chip ID (BK7259) */
 #define BK7259_CHIP_ID_V2_MPW        (0x25910020U) /* BK7259V2 / MPW */
-#define BK7259_CHIP_ID_V3A           (0x26400820U) /* BK7259V3A */
-#define BK7259_CHIP_ID_V3B           (0x26400920U) /* BK7259V3B */
+#define BK7259_CHIP_ID_V3A           (0x26800820U) /* BK72593A */
+#define BK7259_CHIP_ID_V3B           (0x26800920U) /* BK72593B */
 #define BK7259_CHIP_ID_SERIES_MASK   (0xFFFF0000U)
 
 typedef enum {
