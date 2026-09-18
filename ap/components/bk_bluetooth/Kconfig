@@ -27,6 +27,15 @@ menu "Bk_ble"
 		depends on (BLUETOOTH_HOST_ONLY || BLUETOOTH_SUPPORT_AP_PWD_ALL)
 		default y
 
+	config BLE_BOARDING_JSON_PROFILE
+		bool "Use BLE boarding JSON profile"
+		depends on BLE
+		default n
+		help
+			Use the BLE boarding JSON profile instead of the legacy opcode
+			profile. Pass received provisioning data directly to the
+			registered upper-layer handler.
+
 	config BLE_LE_AUDIO
 		bool "Enable LE Audio"
 		depends on BLE && BLUETOOTH_BTDM_COMPONENT_ENABLE

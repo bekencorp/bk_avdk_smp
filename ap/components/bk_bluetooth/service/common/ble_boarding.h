@@ -33,5 +33,7 @@ int ble_boarding_init(ble_boarding_info_t *info);
 int ble_boarding_init_ex(ble_boarding_info_t *info, uint8_t add_service);
 int ble_boarding_deinit(void);
 int ble_boarding_adv_start(uint8_t *adv_data, uint16_t adv_len);
+int ble_boarding_adv_start_with_scan_rsp(uint8_t *adv_data, uint16_t adv_len,
+                                         uint8_t *scan_rsp_data, uint16_t scan_rsp_len);
 int ble_boarding_adv_stop(void);
 int ble_boarding_notify(uint8_t *data, uint16_t length);

@@ -118,8 +118,53 @@ enum
 #define DECL_CHARACTERISTIC_128      {0x03,0x28,0,0,0,0,0,0,0,0,0,0,0,0,0,0}
 #define DESC_CLIENT_CHAR_CFG_128     {0x02,0x29,0,0,0,0,0,0,0,0,0,0,0,0,0,0}
 
+#if CONFIG_BLE_BOARDING_JSON_PROFILE
+#define IPC_BOARDING_SERVICE_UUID_128 \
+{ \
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xB0, \
+    0x00, 0x40, 0x51, 0x04, 0x10, 0xAA, 0x00, 0xF0 \
+}
+
+#define IPC_BOARDING_WRITE_UUID_128 \
+{ \
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xB0, \
+    0x00, 0x40, 0x51, 0x04, 0x11, 0xAA, 0x00, 0xF0 \
+}
+
+#define IPC_BOARDING_NOTIFY_UUID_128 \
+{ \
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xB0, \
+    0x00, 0x40, 0x51, 0x04, 0x12, 0xAA, 0x00, 0xF0 \
+}
+
+static const uint8_t s_ipc_boarding_service_uuid[16] =
+    IPC_BOARDING_SERVICE_UUID_128;
+#endif
+
 ble_attm_desc_t boarding_service_db[BOARDING_IDX_NB] =
 {
+#if CONFIG_BLE_BOARDING_JSON_PROFILE
+    //  Service Declaration
+    [BOARDING_IDX_SVC]        = {IPC_BOARDING_SERVICE_UUID_128, BK_BLE_PERM_SET(RD, ENABLE), 0, 0},
+
+    [BOARDING_IDX_CHAR_DECL]  = {DECL_CHARACTERISTIC_128,  BK_BLE_PERM_SET(RD, ENABLE), 0, 0},
+    // Characteristic Value
+    [BOARDING_IDX_CHAR_VALUE] = {IPC_BOARDING_NOTIFY_UUID_128, BK_BLE_PERM_SET(NTF, ENABLE), BK_BLE_PERM_SET(RI, ENABLE) | BK_BLE_PERM_SET(UUID_LEN, UUID_128), 250},
+    //Client Characteristic Configuration Descriptor
+    [BOARDING_IDX_CHAR_DESC] = {DESC_CLIENT_CHAR_CFG_128, BK_BLE_PERM_SET(RD, ENABLE) | BK_BLE_PERM_SET(WRITE_REQ, ENABLE), 0, 0},
+
+    //operation
+    [BOARDING_IDX_CHAR_OPERATION_DECL]  = {DECL_CHARACTERISTIC_128, BK_BLE_PERM_SET(RD, ENABLE), 0, 0},
+    [BOARDING_IDX_CHAR_OPERATION_VALUE] = {IPC_BOARDING_WRITE_UUID_128, BK_BLE_PERM_SET(WRITE_REQ, ENABLE), BK_BLE_PERM_SET(RI, ENABLE) | BK_BLE_PERM_SET(UUID_LEN, UUID_128), 512},
+
+    //ssid
+    [BOARDING_IDX_CHAR_SSID_DECL]    = {DECL_CHARACTERISTIC_128, BK_BLE_PERM_SET(RD, ENABLE), 0, 0},
+    [BOARDING_IDX_CHAR_SSID_VALUE]   = {{BOARDING_CHARA_SSID_UUID & 0xFF, BOARDING_CHARA_SSID_UUID >> 8, 0}, BK_BLE_PERM_SET(WRITE_REQ, ENABLE) | BK_BLE_PERM_SET(RD, ENABLE), BK_BLE_PERM_SET(RI, ENABLE) | BK_BLE_PERM_SET(UUID_LEN, UUID_16), 128},
+
+    //password
+    [BOARDING_IDX_CHAR_PASSWORD_DECL]    = {DECL_CHARACTERISTIC_128, BK_BLE_PERM_SET(RD, ENABLE), 0, 0},
+    [BOARDING_IDX_CHAR_PASSWORD_VALUE]   = {{BOARDING_CHARA_PASSWORD_UUID & 0xFF, BOARDING_CHARA_PASSWORD_UUID >> 8, 0}, BK_BLE_PERM_SET(WRITE_REQ, ENABLE) | BK_BLE_PERM_SET(RD, ENABLE), BK_BLE_PERM_SET(RI, ENABLE) | BK_BLE_PERM_SET(UUID_LEN, UUID_16), 128},
+#else
     //  Service Declaration
     [BOARDING_IDX_SVC]        = {{BOARDING_SERVICE_UUID & 0xFF, BOARDING_SERVICE_UUID >> 8}, BK_BLE_PERM_SET(RD, ENABLE), 0, 0},
 
@@ -140,6 +185,7 @@ ble_attm_desc_t boarding_service_db[BOARDING_IDX_NB] =
     //password
     [BOARDING_IDX_CHAR_PASSWORD_DECL]    = {DECL_CHARACTERISTIC_128, BK_BLE_PERM_SET(RD, ENABLE), 0, 0},
     [BOARDING_IDX_CHAR_PASSWORD_VALUE]   = {{BOARDING_CHARA_PASSWORD_UUID & 0xFF, BOARDING_CHARA_PASSWORD_UUID >> 8, 0}, BK_BLE_PERM_SET(WRITE_REQ, ENABLE) | BK_BLE_PERM_SET(RD, ENABLE), BK_BLE_PERM_SET(RI, ENABLE) | BK_BLE_PERM_SET(UUID_LEN, UUID_16), 128},
+#endif
 };
 
 static void ble_at_cmd_cb(ble_cmd_t cmd, ble_cmd_param_t *param)
@@ -275,9 +321,22 @@ static void ble_at_legacy_notice_cb(ble_notice_t notice, void *param)
 
                     case BOARDING_IDX_CHAR_OPERATION_VALUE:
                     {
+#if CONFIG_BLE_BOARDING_JSON_PROFILE
+                        if (w_req->len > 0 && w_req->value &&
+                            ble_boarding_info && ble_boarding_info->cb)
+                        {
+                            ble_boarding_info->cb(BOARDING_OP_UNKNOWN,
+                                                  w_req->len,
+                                                  w_req->value);
+                        }
+                        else
+                        {
+                            LOGW("JSON op callback missing or invalid payload len=%u\r\n",
+                                 w_req->len);
+                        }
+#else
                         uint16_t opcode = 0, length = 0;
                         uint8_t *data = NULL;
-
                         if (w_req->len < 2)
                         {
                             LOGW("error input: operation code length: %d", w_req->len);
@@ -304,6 +363,7 @@ static void ble_at_legacy_notice_cb(ble_notice_t notice, void *param)
                         {
                             ble_boarding_operation_handle(opcode, length, data);
                         }
+#endif
                     }
                     break;
 
@@ -663,9 +723,16 @@ int ble_boarding_init_ex(ble_boarding_info_t *info, uint8_t add_service)
     ble_db_cfg.att_db_nb = BOARDING_IDX_NB;
     ble_db_cfg.prf_task_id = PRF_TASK_ID_BOARDING;
     ble_db_cfg.start_hdl = 0;
+#if CONFIG_BLE_BOARDING_JSON_PROFILE
+    ble_db_cfg.svc_perm = BK_BLE_PERM_SET(SVC_UUID_LEN, UUID_128);
+    os_memcpy(ble_db_cfg.uuid,
+              s_ipc_boarding_service_uuid,
+              sizeof(s_ipc_boarding_service_uuid));
+#else
     ble_db_cfg.svc_perm = BK_BLE_PERM_SET(SVC_UUID_LEN, UUID_16);
     ble_db_cfg.uuid[0] = BOARDING_SERVICE_UUID & 0xFF;
     ble_db_cfg.uuid[1] = BOARDING_SERVICE_UUID >> 8;
+#endif
 
     ret = bk_ble_create_db(&ble_db_cfg);
 
@@ -830,6 +897,118 @@ int ble_boarding_adv_start(uint8_t *adv_data, uint16_t adv_len)
     else
     {
         LOGD("set adv data success\n");
+    }
+
+    /* start adv */
+    ret = bk_ble_start_advertising(actv_idx, 0, ble_at_cmd_cb);
+
+    if (ret != BK_ERR_BLE_SUCCESS)
+    {
+        LOGW("start adv failed %d\n", ret);
+        goto error;
+    }
+
+    ret = rtos_get_semaphore(&ble_boarding_sema, AT_SYNC_CMD_TIMEOUT_MS);
+
+    if (ret != BK_OK)
+    {
+        LOGW("wait semaphore failed at %d, %d\n", ret, __LINE__);
+        goto error;
+    }
+    else
+    {
+        LOGD("start adv success\n");
+    }
+
+    return ret;
+
+error:
+
+    return BK_FAIL;
+}
+
+int ble_boarding_adv_start_with_scan_rsp(uint8_t *adv_data, uint16_t adv_len,
+                                         uint8_t *scan_rsp_data, uint16_t scan_rsp_len)
+{
+    ble_adv_param_t adv_param;
+    int actv_idx = 0;
+    bt_err_t ret = BK_FAIL;
+
+    /* set adv paramters */
+    os_memset(&adv_param, 0, sizeof(ble_adv_param_t));
+    adv_param.chnl_map = 7;
+    #if CONFIG_WIFI_CSI_EN
+    adv_param.adv_intv_min = 120*2;
+    adv_param.adv_intv_max = 160*2;
+    #else
+    adv_param.adv_intv_min = 120;
+    adv_param.adv_intv_max = 160;
+    #endif
+    adv_param.own_addr_type = OWN_ADDR_TYPE_PUBLIC_ADDR;
+    adv_param.adv_type = 0;
+    adv_param.adv_prop = 3;
+    adv_param.prim_phy = 1;
+    adv_param.second_phy = 1;
+
+    ret = bk_ble_create_advertising(actv_idx, &adv_param, ble_at_cmd_cb);
+
+    if (ret != BK_ERR_BLE_SUCCESS)
+    {
+        LOGW("config adv paramters failed %d\n", ret);
+        goto error;
+    }
+
+    ret = rtos_get_semaphore(&ble_boarding_sema, AT_SYNC_CMD_TIMEOUT_MS);
+
+    if (ret != BK_OK)
+    {
+        LOGW("wait semaphore failed at %d, %d\n", ret, __LINE__);
+        goto error;
+    }
+    else
+    {
+        LOGD("set adv paramters success\n");
+    }
+
+    /* set adv paramters */
+    ret = bk_ble_set_adv_data(actv_idx, adv_data, adv_len, ble_at_cmd_cb);
+
+    if (ret != BK_ERR_BLE_SUCCESS)
+    {
+        LOGW("set adv data failed %d\n", ret);
+        goto error;
+    }
+
+    ret = rtos_get_semaphore(&ble_boarding_sema, AT_SYNC_CMD_TIMEOUT_MS);
+
+    if (ret != BK_OK)
+    {
+        LOGW("wait semaphore failed at %d, %d\n", ret, __LINE__);
+        goto error;
+    }
+    else
+    {
+        LOGD("set adv data success\n");
+    }
+
+    ret = bk_ble_set_scan_rsp_data(actv_idx, scan_rsp_data, scan_rsp_len, ble_at_cmd_cb);
+
+    if (ret != BK_ERR_BLE_SUCCESS)
+    {
+        LOGW("set scan rsp data failed %d\n", ret);
+        goto error;
+    }
+
+    ret = rtos_get_semaphore(&ble_boarding_sema, AT_SYNC_CMD_TIMEOUT_MS);
+
+    if (ret != BK_OK)
+    {
+        LOGW("wait semaphore failed at %d, %d\n", ret, __LINE__);
+        goto error;
+    }
+    else
+    {
+        LOGD("set scan rsp data success\n");
     }
 
     /* start adv */
