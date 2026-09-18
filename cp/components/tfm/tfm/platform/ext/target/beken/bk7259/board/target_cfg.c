@@ -20,6 +20,7 @@
 #include "tfm_plat_defs.h"
 #include "region.h"
 #include "bk_tfm_mpc.h"
+#include "bk_wdt.h"
 #include <soc/soc.h>
 
 #ifdef PSA_API_TEST_IPC
@@ -154,16 +155,6 @@ enum tfm_plat_err_t enable_fault_handlers(void)
     return TFM_PLAT_ERR_SUCCESS;
 }
 
-void platform_disable_watchdog(void)
-{
-	*((volatile uint32_t *)(0x44800000 + 2 * 4)) = 1;
-	*((volatile uint32_t *)(0x44800000 + 4 * 4)) = (0x5A << 16) | (0);
-	*((volatile uint32_t *)(0x44800000 + 4 * 4)) = (0xA5 << 16) | (0);
-
-	*((volatile uint32_t *)(0x44000600 + 0 * 4)) = (0x5A << 16) | (0);
-	*((volatile uint32_t *)(0x44000600 + 0 * 4)) = (0xA5 << 16) | (0);
-}
-
 enum tfm_plat_err_t system_reset_cfg(void)
 {
 	uint32_t reg_value = SCB->AIRCR;
@@ -176,7 +167,7 @@ enum tfm_plat_err_t system_reset_cfg(void)
 
 	SCB->AIRCR = reg_value;
 
-	platform_disable_watchdog();//TODO disable watchdog, or feed watchdog
+	update_wdt(0xFFFF); //2s
 
 	return TFM_PLAT_ERR_SUCCESS;
 }

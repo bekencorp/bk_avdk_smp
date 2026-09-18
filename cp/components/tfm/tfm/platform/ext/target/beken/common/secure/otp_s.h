@@ -49,6 +49,10 @@ otp_privilege_t otp_read_permission(uint8_t map_id, uint32_t item);
 bk_err_t        otp_write_permission(uint8_t map_id, uint32_t item, otp_privilege_t permission);
 bk_err_t        otp_write_mask(uint8_t map_id, uint32_t item, otp_privilege_t permission);
 
+/* Define the whole OTP1 range (0x0-0x400) as a secure range and enable the
+ * secure protection. Secure-world only; the protection is permanent. */
+bk_err_t        otp_secure_range_enable(void);
+
 #ifdef __cplusplus
 }
 #endif

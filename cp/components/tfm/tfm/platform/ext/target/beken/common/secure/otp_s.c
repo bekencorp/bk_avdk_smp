@@ -280,3 +280,23 @@ bk_err_t otp_write_mask(uint8_t map_id, uint32_t item, otp_privilege_t permissio
 	otp_sleep();
 	return BK_OK;
 }
+
+/* Mark the whole OTP1 range (0x0-0x400) as a secure range so only the secure
+ * world may read it, then enable the secure protection. Secure-range
+ * granularity is 64 words (256 bytes); groups 0..3 cover the entire 0x400 bank.
+ * WARNING: enabling the protection is a permanent, irreversible OTP setting. */
+bk_err_t otp_secure_range_enable(void)
+{
+	/* If the secure protection is already enabled, the range was configured on a
+	 * previous boot; skip to avoid re-asserting it (a repeated setup can hang). */
+	if (otp_ll_read_security_protection(s_otp_hw) != 0) {
+		return BK_OK;
+	}
+
+	for (uint32_t group = 0; group < 4; group++) {
+		otp_ll_write_otp_security(s_otp_hw, group * 64);
+	}
+	otp_ll_enable_security_protection(s_otp_hw);
+
+	return BK_OK;
+}

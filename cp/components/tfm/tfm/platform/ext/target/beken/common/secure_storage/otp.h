@@ -26,34 +26,18 @@
 #define OTP_LOGD(...) BK_LOGD(OTP_TAG, ##__VA_ARGS__)
 #define OTP_LOG_RAW BK_LOG_RAW
 
-#define PSA_ROT_PROV_DATA_MAGIC		   0xBEEFFEED
+/* OTP region id passed to the crypto-engine OTP accessor. */
+#define OTP_REGION_BL2_PK_HASH   5u   /* BL2 boot public key hash slot (0x248) */
+#define OTP_REGION_USR_NON_SEC   8u   /* user data region, region base 0x280 */
 
-__PACKED_STRUCT otp_ps_data_t {
-	uint32_t magic;
-	uint8_t iak[32];
-	uint32_t iak_len;
-	uint32_t iak_type;
-	uint8_t iak_id[32];
+/* Byte offsets inside OTP_REGION_USR_NON_SEC (offset = item offset - 0x280). */
+#define OTP_APP_SEC_CNT_OFF      0x80u  /* application security counter (0x300) */
+#define OTP_HUK_OFF              0xC0u  /* HUK (0x340) */
 
-	uint8_t boot_seed[32]; //From TRNG
-	uint8_t implementation_id[32]; //Beken chip ID
-	uint8_t hw_version[32]; //Beken hardware version
-	uint8_t verification_service_url[32];
-	uint8_t profile_definition[32];
-
-	uint8_t entropy_seed[64];
-	uint8_t lcs[4];
-};
-
-#define OTP_S_BL2_ROTPK_SIZE          32
-
-#define OTP_S_NV_COUNTER_BL2_OFFSET   0
-#define OTP_S_NV_COUNTER_BL2_SIZE     32
-#define OTP_S_HUK_OFFSET OTP_S_NV_COUNTER_BL2_SIZE
-#define OTP_S_HUK_SIZE                32
-
-#define OTP_DATA_OFFSET (OTP_S_HUK_SIZE + OTP_S_NV_COUNTER_BL2_SIZE)
-#define OTP_PS_DATA_OFFSETOF(a, b)	(offsetof(a, b) + OTP_DATA_OFFSET - 4)
+/* Element sizes in bytes. */
+#define OTP_S_BL2_ROTPK_SIZE      32
+#define OTP_S_HUK_SIZE            32
+#define OTP_S_NV_COUNTER_BL2_SIZE 64
 
 enum tfm_plat_err_t otp_ps_read(enum tfm_otp_element_id_t id, size_t out_len, uint8_t *out);
 enum tfm_plat_err_t otp_ps_write(enum tfm_otp_element_id_t id, size_t in_len, const uint8_t *in);
