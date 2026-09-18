@@ -564,7 +564,7 @@ BaseType_t xQueueGenericReset( QueueHandle_t xQueue,
              * is safe.  In other cases alignment requirements are not strict (one or
              * two bytes). */
 #if CONFIG_QUEUE_IN_PSRAM && CONFIG_PSRAM_AS_SYS_MEMORY
-            pxNewQueue = ( Queue_t * ) psram_malloc( sizeof( Queue_t ) + xQueueSizeInBytes ); /*lint !e9087 !e9079 see comment above. */
+            pxNewQueue = ( Queue_t * ) psram_cache_malloc( sizeof( Queue_t ) + xQueueSizeInBytes ); /*lint !e9087 !e9079 see comment above. */
 
 #else
             pxNewQueue = ( Queue_t * ) pvPortMalloc( sizeof( Queue_t ) + xQueueSizeInBytes ); /*lint !e9087 !e9079 see comment above. */
