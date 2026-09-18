@@ -2037,6 +2037,24 @@ void sys_hal_en_tempdet(uint32_t value)
 {
 	sys_ll_set_ana_reg5_en_temp(value);
 }
+
+void sys_hal_set_temp_mode(uint32_t value)
+{
+    if (value)
+    {
+        sys_ll_set_ana_reg5_temp_gsel(0);
+    } 
+    else
+    {
+        sys_ll_set_ana_reg5_temp_gsel(1);
+    }
+}
+
+uint32_t sys_hal_get_temp_mode(void)
+{
+    return sys_ll_get_ana_reg5_temp_gsel();
+}
+
 uint32_t sys_hal_mclk_mux_get(void)
 {
 	uint32_t ret = 0;

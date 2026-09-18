@@ -221,7 +221,8 @@ void sys_drv_sadc_int_disable(void);
 void sys_drv_sadc_pwr_up(void);
 void sys_drv_sadc_pwr_down(void);
 void sys_drv_en_tempdet(uint32_t value);
-
+void sys_drv_set_temp_mode(bool high_volt_mode);
+uint32_t sys_drv_get_temp_mode_flag(void);
 /**  Platform End **/
 
 

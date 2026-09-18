@@ -897,6 +897,12 @@ bk_err_t bk_adc_driver_init(void)
     #endif
 
     adc_set_default_cali_val(&dev->data);
+
+#if CONFIG_TEMPERATURE_HIGH_VOLT
+    sys_drv_set_temp_mode(true);
+#else
+    sys_drv_set_temp_mode(false);
+#endif
     bk_int_isr_register(INT_SRC_SARADC, adc_isr, NULL);
 
     sys_hal_set_saradc_cali_config();

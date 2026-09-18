@@ -171,8 +171,15 @@ LOAD_TEMP:
         goto FAILURE;
     }
 
+#if CONFIG_TEMPERATURE_HIGH_VOLT
     BK_LOGI(TAG, "saradc temp value:[%x]\r\n", temp_values[0]);
+    sys_drv_set_temp_mode(true);
     saradc_set_calibrate_val(&temp_values[0], SARADC_CALIBRATE_TEMP_CODE25);
+#else
+    BK_LOGI(TAG, "saradc temp value:[%x]\r\n", temp_values[1]);
+    sys_drv_set_temp_mode(false);
+    saradc_set_calibrate_val(&temp_values[1], SARADC_CALIBRATE_TEMP_CODE25);
+#endif
 
     return BK_OK;
 
