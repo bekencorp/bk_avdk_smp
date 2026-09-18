@@ -2,6 +2,7 @@
 #include <os/os.h>
 #include <driver/pwm.h>
 #include <components/bk_platform.h>
+#include <soc/bk7259/pwm_cap.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <time.h>
@@ -11,6 +12,7 @@
 #ifndef PWM_CLOCK_SRC_XTAL
 #define PWM_CLOCK_SRC_XTAL 320000000
 #endif
+#define PWM_LA_PERIOD_CYCLE       (26000U)
 #define _PERIOD_2_FREQ(period)    ((period == 0) ? (0) : (PWM_CLOCK_SRC_XTAL / (period)))
 #define CLI_PWM_RETURN_ON_ERR(expr) do {\
 	bk_err_t ret = (expr);\
@@ -37,10 +39,143 @@ static void cli_pwm_help(void)
 	CLI_LOGD("pwm_capture {chan} init [pos|neg|edge]\n");
 	CLI_LOGD("pwm_capture {chan} {start|stop|deinit}\n");
 	CLI_LOGD("pwm_idle_test {idle_start|idle_stop}\n");
+	CLI_LOGD("pwm_timer {duty_percent} | pwm_timer stop\n");
+}
+
+typedef struct {
+	pwm_chan_t chan;
+	uint32_t gpio;
+} pwm_la_gpio_map_t;
+
+static const pwm_la_gpio_map_t s_pwm_la_gpio_map[] = {
+	{0, 6}, {1, 7}, {2, 32}, {3, 33}, {4, 34}, {5, 35},
+	{6, 22}, {7, 23}, {8, 24}, {9, 25}, {10, 36}, {11, 37},
+};
+
+static bool s_pwm_la_running = false;
+static bool s_pwm_la_inited[SOC_PWM_CHAN_NUM_MAX] = {false};
+static bool s_pwm_la_started[SOC_PWM_CHAN_NUM_MAX] = {false};
+
+static void pwm_la_print_gpio_map(void)
+{
+	CLI_LOGI("pwm_timer GPIO map:\r\n");
+	for (uint32_t i = 0; i < (sizeof(s_pwm_la_gpio_map) / sizeof(s_pwm_la_gpio_map[0])); i++) {
+		CLI_LOGI("  PWM%u -> GPIO%u\r\n",
+				 s_pwm_la_gpio_map[i].chan, s_pwm_la_gpio_map[i].gpio);
+	}
+}
+
+static bk_err_t pwm_la_stop_all(void)
+{
+	bk_err_t ret = BK_OK;
+
+	for (pwm_chan_t chan = 0; chan < SOC_PWM_CHAN_NUM_MAX; chan++) {
+		if (s_pwm_la_started[chan]) {
+			bk_err_t cleanup_ret = bk_pwm_stop(chan);
+			if ((ret == BK_OK) && (cleanup_ret != BK_OK))
+				ret = cleanup_ret;
+			s_pwm_la_started[chan] = false;
+		}
+		if (s_pwm_la_inited[chan]) {
+			bk_err_t cleanup_ret = bk_pwm_deinit(chan);
+			if ((ret == BK_OK) && (cleanup_ret != BK_OK))
+				ret = cleanup_ret;
+			s_pwm_la_inited[chan] = false;
+		}
+	}
+
+	s_pwm_la_running = false;
+	return ret;
+}
+
+static bk_err_t pwm_la_start_all(uint32_t duty_percent)
+{
+	uint32_t duty_cycle = (PWM_LA_PERIOD_CYCLE * duty_percent) / 100U;
+	pwm_init_config_t init_config = {
+		.period_cycle = PWM_LA_PERIOD_CYCLE,
+		.duty_cycle = duty_cycle,
+		.duty2_cycle = 0,
+		.duty3_cycle = 0,
+		.psc = 0,
+	};
+	bk_err_t ret;
+
+	if (s_pwm_la_running) {
+		ret = pwm_la_stop_all();
+		if (ret != BK_OK)
+			return ret;
+	}
+
+	ret = bk_pwm_driver_init();
+	if (ret != BK_OK)
+		return ret;
+
+	pwm_la_print_gpio_map();
+	CLI_LOGI("pwm_timer start: duty=%u%% period=%u duty_cycle=%u\r\n",
+			 duty_percent, PWM_LA_PERIOD_CYCLE, duty_cycle);
+
+	for (pwm_chan_t chan = 0; chan < SOC_PWM_CHAN_NUM_MAX; chan++) {
+		ret = bk_pwm_init(chan, &init_config);
+		if (ret != BK_OK) {
+			CLI_LOGE("pwm_timer init FAIL chan=%d ret=-0x%x\r\n", chan, -ret);
+			goto cleanup;
+		}
+		s_pwm_la_inited[chan] = true;
+	}
+
+	for (pwm_chan_t chan = 0; chan < SOC_PWM_CHAN_NUM_MAX; chan++) {
+		ret = bk_pwm_start(chan);
+		if (ret != BK_OK) {
+			CLI_LOGE("pwm_timer start FAIL chan=%d ret=-0x%x\r\n", chan, -ret);
+			goto cleanup;
+		}
+		s_pwm_la_started[chan] = true;
+	}
+
+	s_pwm_la_running = true;
+	CLI_LOGI("pwm_timer running, use 'pwm_timer stop' to stop\r\n");
+
+	return BK_OK;
+
+cleanup:
+	(void)pwm_la_stop_all();
+	bk_pwm_driver_deinit();
+	return ret;
 }
 
 static void cli_pwm_timer_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
+	bk_err_t ret;
+
+	(void)pcWriteBuffer;
+	(void)xWriteBufferLen;
+
+	if (argc < 2) {
+		CLI_LOGD("Usage: pwm_timer {duty_percent 1~100} | pwm_timer stop\r\n");
+		pwm_la_print_gpio_map();
+		return;
+	}
+
+	if (os_strcmp(argv[1], "stop") == 0) {
+		ret = pwm_la_stop_all();
+		if (ret == BK_OK)
+			ret = bk_pwm_driver_deinit();
+		if (ret != BK_OK)
+			CLI_LOGE("pwm_timer stop FAIL ret=-0x%x\r\n", -ret);
+		else
+			CLI_LOGI("pwm_timer stop OK\r\n");
+		return;
+	}
+
+	uint32_t duty_percent = os_strtoul(argv[1], NULL, 10);
+	if ((duty_percent == 0) || (duty_percent > 100)) {
+		CLI_LOGD("Usage: pwm_timer {duty_percent 1~100} | pwm_timer stop\r\n");
+		return;
+	}
+
+	ret = pwm_la_start_all(duty_percent);
+	if (ret != BK_OK)
+		CLI_LOGE("pwm_timer start FAIL ret=-0x%x\r\n", -ret);
 }
 
 static void cli_pwm_counter_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
@@ -912,7 +1047,7 @@ DRV_CLI_CMD_EXPORT static const struct cli_command s_pwm_commands[] = {
 	//{"pwm_duty", "pwm_duty {chan} {period} {d1} [d2] [d3]", cli_pwm_cmd},
 	{"pwm_capture", "pwm_capture {chan} {config|start|stop|init|deinit}", cli_pwm_capture_cmd},
 	{"pwm_group", "pwm_group {init|deinit|config|start|stop} [...]", cli_pwm_group_cmd},
-	{"pwm_timer", "pwm_timer ", cli_pwm_timer_cmd},
+	{"pwm_timer", "pwm_timer {duty_percent|stop}", cli_pwm_timer_cmd},
 	{"pwm_counter", "pwm_counter", cli_pwm_counter_cmd},
 	{"pwm_carrier", "pwm_carrier", cli_pwm_carrier_cmd},
 	{"pwm_idle_test", "{idle_init|idle_start|idle_stop|phase_shift}", cli_pwm_idle_test_cmd},
