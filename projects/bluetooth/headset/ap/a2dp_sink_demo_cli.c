@@ -18,6 +18,7 @@ static void headset_usage(void)
              "headset fast_forward XX\n"
              "headset vol_up\n"
              "headset vol_down\n"
+             "headset pair_mode [0|1]\n"
              "headset set_delay_value XX\n"
              "headset get_delay_value\n"
             );
@@ -226,7 +227,19 @@ static void cmd_headset_demo(char *pcWriteBuffer, int xWriteBufferLen, int argc,
     }
     else if (os_strcmp(argv[1], "pair_mode") == 0)
     {
-        bk_bt_enter_pairing_mode(1);
+        uint8_t is_visible = 1;
+
+        if (argc >= 3)
+        {
+            ret = sscanf(argv[2], "%hhu", &is_visible);
+
+            if (ret != 1)
+            {
+                goto __error;
+            }
+        }
+
+        bk_bt_enter_pairing_mode(is_visible);
     }
     else if (os_strcmp(argv[1], "set_delay_value") == 0)
     {
