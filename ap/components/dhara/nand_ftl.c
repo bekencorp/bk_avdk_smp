@@ -79,7 +79,18 @@ bk_err_t bk_nand_ftl_init(qspi_id_t id)
 		return BK_OK;
 	}
 
-	uint32_t device_blocks = (uint32_t)(FTL_DEVICE_SIZE / NAND_FTL_BLOCK_SIZE);
+	/* Init first: bk_qspi_flash_init() probes the JEDEC ID, and the partition
+	 * geometry below uses the probed device capacity. */
+	BK_RETURN_ON_ERR(bk_qspi_driver_init());
+	BK_RETURN_ON_ERR(bk_qspi_flash_init(id));
+
+	uint64_t device_size = (uint64_t)bk_qspi_flash_nand_total_size(id);
+	if (device_size == 0) {
+		FTL_LOGW("device size 0, using fallback %llu\r\n", (unsigned long long)FTL_DEVICE_SIZE);
+		device_size = FTL_DEVICE_SIZE;
+	}
+
+	uint32_t device_blocks = (uint32_t)(device_size / NAND_FTL_BLOCK_SIZE);
 	uint32_t start = (uint32_t)CONFIG_NAND_FTL_START_BLOCK;
 	uint32_t count = (uint32_t)CONFIG_NAND_FTL_BLOCK_COUNT;
 
@@ -94,9 +105,6 @@ bk_err_t bk_nand_ftl_init(qspi_id_t id)
 		FTL_LOGE("partition too small: %u blocks\r\n", count);
 		return BK_ERR_PARAM;
 	}
-
-	BK_RETURN_ON_ERR(bk_qspi_driver_init());
-	BK_RETURN_ON_ERR(bk_qspi_flash_init(id));
 
 	c->id = id;
 	c->start_block = start;

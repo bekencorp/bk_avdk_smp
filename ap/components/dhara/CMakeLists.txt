@@ -12,7 +12,13 @@ if(CONFIG_DHARA_FTL)
 		)
 endif()
 
+set(priv_req bk_common driver)
+if (CONFIG_QSPI_NAND_FLASH)
+	# nand_ftl.c calls bk_qspi_flash_*, implemented in the bk_external_flash component.
+	list(APPEND priv_req bk_external_flash)
+endif()
+
 armino_component_register(SRCS "${srcs}"
 		INCLUDE_DIRS "${incs}"
-		PRIV_REQUIRES bk_common driver
+		PRIV_REQUIRES "${priv_req}"
 		)
