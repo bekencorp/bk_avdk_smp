@@ -229,6 +229,17 @@ static int setup_lfs_config(struct lfs_config *config, const struct bk_little_fs
 	}
 	config->block_count = part->part_flash.size / config->block_size;
 
+#ifdef CONFIG_LFS_THREADSAFE
+	/* lfs_mount()/lfs_format() call cfg->lock() first; wire up the shared
+	 * recursive mutex, otherwise the NULL lock pointer faults. */
+	if (lfs_lock_init() != 0) {
+		os_free(config->context);
+		return -1;
+	}
+	config->lock = lfs_lock;
+	config->unlock = lfs_unlock;
+#endif
+
 	ret = lfs_flashbd_createcfg(config, &defaults);
 	if (ret) {
 		printf("create flashbd failed : %d\n", ret);
