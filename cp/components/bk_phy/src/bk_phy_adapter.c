@@ -830,6 +830,7 @@ const phy_os_funcs_t g_phy_os_funcs = {
     ._me_is_connect_with_instrument         = me_is_connect_with_instrument,
     ._bk_epa_gpio_config                    = bk_epa_gpio_config,
     ._bk_get_package_type                   = bk_get_package_type,
+    ._sys_drv_get_temp_mode_flag            = sys_drv_get_temp_mode_flag,
 };
 
 const phy_os_variable_t g_phy_os_variable = {
@@ -900,10 +901,12 @@ const phy_os_variable_t g_phy_os_variable = {
     ._ieee80211_num_bands           = IEEE80211_NUM_BANDS ,
 
 #if CONFIG_OTP_V1
+    ._OTP_MAC_ADDRESS1              = OTP_MAC_ADDRESS_1,
     ._OTP_RFCALI1                   = OTP_RFCALI1,
     ._OTP_VDDDIG_BANDGAP            = OTP_VDDDIG_BANDGAP ,
     ._OTP_DIA                       = OTP_DIA ,
     ._OTP_GADC_TEMPERATURE          = OTP_GADC_TEMPERATURE,
+    ._OTP_DEVICE_ID                 = OTP_DEVICE_ID,
 #endif
     ._BK_PACKAGE_TYPE_A_OLD_128A_S_MIC           = BK_PACKAGE_TYPE_A_OLD_128A_S_MIC,
     ._BK_PACKAGE_TYPE_A_NEW_128A_S_MIC           = BK_PACKAGE_TYPE_A_NEW_128A_S_MIC,
