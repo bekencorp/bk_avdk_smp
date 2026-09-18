@@ -19,6 +19,10 @@ set(priv_req bk_common bk_usb)
 if (CONFIG_QSPI_NAND_FLASH AND (CONFIG_FATFS_QSPI_0_FLASH OR CONFIG_FATFS_QSPI_1_FLASH))
 	list(APPEND priv_req dhara)
 endif()
+if (CONFIG_QSPI_NOR_FLASH OR CONFIG_QSPI_NAND_FLASH)
+	# disk_io.c calls bk_qspi_flash_*, implemented in the bk_external_flash component.
+	list(APPEND priv_req bk_external_flash)
+endif()
 
 armino_component_register(SRCS "${srcs}"
 		INCLUDE_DIRS "${incs}"

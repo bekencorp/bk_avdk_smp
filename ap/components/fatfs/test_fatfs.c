@@ -808,8 +808,13 @@ void test_fatfs_format(DISK_NUMBER number)
 {
 	FRESULT fr;
 	char cFileName[FF_MAX_LFN];
+	/* f_mkfs needs a work buffer of at least one sector. QSPI NOR reports a
+	 * 4096-byte sector (FLASH_SECTOR_SIZE), larger than WR_RD_BUF_SIZE (1024),
+	 * so a 1024-byte buffer makes sz_buf=len/ss round to 0 and mkfs aborts
+	 * (FR_MKFS_ABORTED). Size the buffer to FF_MAX_SS to cover all media. */
+	const uint32_t mkfs_buf_len = FF_MAX_SS;
 	//unsigned char ucRdTemp[WR_RD_BUF_SIZE];
-	unsigned char *ucRdTemp = os_malloc(WR_RD_BUF_SIZE);
+	unsigned char *ucRdTemp = os_malloc(mkfs_buf_len);
 	if(ucRdTemp == 0)
 	{
 		FATFS_LOGE("%s:os_malloc fail \r\n", __func__);
@@ -819,7 +824,7 @@ void test_fatfs_format(DISK_NUMBER number)
 	FATFS_LOGV("----- test_fatfs_format %d start -----\r\n", number);
 
 	sprintf(cFileName, "%d:", number);
-	fr = f_mkfs(cFileName, FM_ANY, 65536, ucRdTemp, WR_RD_BUF_SIZE);
+	fr = f_mkfs(cFileName, FM_ANY, 65536, ucRdTemp, mkfs_buf_len);
 	if (fr != FR_OK)
 	{
 		os_free(ucRdTemp);
