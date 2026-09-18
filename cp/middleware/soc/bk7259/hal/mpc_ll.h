@@ -13,9 +13,9 @@
 // limitations under the License.
 
 // BK7259 MPC low-level register access.
-// Adapted from bk7239n mpc_ll.h. Uses the SDK MPC_DEV enum
-// (hal_mpc_types.h: PSRAM/QSPI0/QSPI1/OTP/FLASH/SMEM0-4) and BK7259
-// SOC_MPC_*_REG_BASE from soc/bk7259/reg_base.h.
+// CP-domain MPC instances only (hal_mpc_types.h: FLASH/SMEM0-2/OTP2), mapped to
+// SOC_MPC_*_REG_BASE from soc/bk7259/reg_base.h. OTP1 has no MPC; the AP-domain
+// MPCs are configured elsewhere by direct register access.
 
 #pragma once
 
@@ -33,14 +33,6 @@ extern "C" {
 static inline uint32_t mpc_ll_get_reg_base(mpc_dev_t dev)
 {
 	switch (dev) {
-	case MPC_DEV_PSRAM:
-		return SOC_MPC_PSRAM_REG_BASE;
-	case MPC_DEV_QSPI0:
-		return SOC_MPC_QSPI0_REG_BASE;
-	case MPC_DEV_QSPI1:
-		return SOC_MPC_QSPI1_REG_BASE;
-	case MPC_DEV_OTP:
-		return SOC_MPC_OTP_REG_BASE;
 	case MPC_DEV_FLASH:
 		return SOC_MPC_FLASH_REG_BASE;
 	case MPC_DEV_SMEM0:
@@ -49,10 +41,8 @@ static inline uint32_t mpc_ll_get_reg_base(mpc_dev_t dev)
 		return SOC_MPC_SMEM1_REG_BASE;
 	case MPC_DEV_SMEM2:
 		return SOC_MPC_SMEM2_REG_BASE;
-	case MPC_DEV_SMEM3:
-		return SOC_MPC_SMEM3_REG_BASE;
-	case MPC_DEV_SMEM4:
-		return SOC_MPC_SMEM4_REG_BASE;
+	case MPC_DEV_OTP2:
+		return SOC_MPC_OTP2_REG_BASE;
 	default:
 		return BK_ERR_MPC_BASE;
 	}

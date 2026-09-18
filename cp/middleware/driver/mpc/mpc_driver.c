@@ -48,17 +48,10 @@ bk_err_t bk_mpc_driver_init(void)
 	}
 
 	os_memset(&s_mpc, 0, sizeof(s_mpc));
+	/* The enum only lists CP-domain MPCs (FLASH/SMEM0-2), all safe to touch
+	 * during CP secure boot. AP-domain MPCs and the OTP2 MPC are configured
+	 * separately by direct register access (see bk_tfm_mpc.c). */
 	for (uint32_t dev_id = 0; dev_id < MPC_DEV_MAX; dev_id++) {
-		/* BK7259: SMEM4 (dev 9) belongs to the AP subsystem and its MPC
-		 * instance (0x41250000) is not accessible from the CP secure core --
-		 * touching its ctrl register in mpc_ll_init() bus-faults / hangs (the
-		 * boot stalled right after the "I9" marker). Skip it. Only the MPC
-		 * instances the CP actually owns are initialised. */
-#if CONFIG_SOC_BK7259
-		if (dev_id == MPC_DEV_SMEM4) {
-			continue;
-		}
-#endif
 		s_mpc[dev_id].hal.dev = dev_id;
 		mpc_hal_init(&s_mpc[dev_id].hal);
 	}

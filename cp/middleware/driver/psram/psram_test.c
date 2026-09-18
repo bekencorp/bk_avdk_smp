@@ -1289,49 +1289,6 @@ void cli_test_psram_cache_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc
 #endif
 }
 
-#if (CONFIG_MPC)
-#include <driver/mpc.h>
-
-#define BUFFER_SIZE         (34)
-#define TEST_VALUE_START    0x41
-
-static void fill_buffer(uint8_t *pBuffer, uint32_t uwBufferLenght, uint32_t uwOffset)
-{
-	uint32_t tmpIndex = 0;
-
-	/* Put in global buffer different values */
-	for (tmpIndex = 0; tmpIndex < uwBufferLenght; tmpIndex++ ) {
-		pBuffer[tmpIndex] = tmpIndex + uwOffset;
-	}
-}
-
-static void cli_psram_test(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
-{
-	int i;
-	uint8_t *test_addr_sec = NULL;
-	char *msg = NULL;
-	uint8_t psram_tx_buffer[BUFFER_SIZE] = {0};
-	uint8_t psram_rx_buffer[BUFFER_SIZE] = {0};
-
-	fill_buffer(psram_tx_buffer, BUFFER_SIZE, TEST_VALUE_START);
-
-	/*set first block non-sec and second block sec*/
-	bk_mpc_driver_init();
-	bk_mpc_set_secure_attribute(MPC_DEV_PSRAM, 0, 1, MPC_BLOCK_NON_SECURE);
-	bk_mpc_set_secure_attribute(MPC_DEV_PSRAM, bk_mpc_get_block_size(MPC_DEV_PSRAM), 1, MPC_BLOCK_SECURE);
-
-	test_addr_sec = (uint8_t *)(SOC_PSRAM_DATA_ADDR_SEC + bk_mpc_get_block_size(MPC_DEV_PSRAM));
-	bk_psram_memcpy(test_addr_sec, psram_tx_buffer, BUFFER_SIZE);
-	bk_psram_memread(test_addr_sec, psram_rx_buffer, BUFFER_SIZE);
-
-	for (i = 0; i < BUFFER_SIZE; i++) {
-		BK_LOGD(NULL, "%02x ", psram_rx_buffer[i]);
-	}
-	BK_LOGD(NULL, "\r\n");
-	msg = CLI_CMD_RSP_SUCCEED;
-	os_memcpy(pcWriteBuffer, msg, os_strlen(msg));
-}
-#endif
 
 
 /* ============================================================
@@ -2023,9 +1980,6 @@ DRV_CLI_CMD_EXPORT static const struct cli_command s_psram_commands[] = {
 	{"psram_test_ext", "init|byte|word|rewirte|deinit|m55pwd_retention", cli_psram_cmd_handle_ext},
 	{"psram_test", "start|stop", cli_psram_cmd_handle},
 	{"psram_cache", "psram_cache <addr> <size>", cli_test_psram_cache_cmd},
-#if (CONFIG_MPC)
-	{"psram_mpc", "", cli_psram_test},
-#endif
 	{"psram_task_create", "create task on psram", cli_create_psram_task_handle},
 	{"psram_task_delete", "delete task on psram", cli_delete_psram_task_handle},
 };
