@@ -202,8 +202,12 @@ static void ntwk_tcp_ctrl_server_thread(beken_thread_arg_t data)
 
     LOGD("%s: start listen \n", __func__);
 
-    while (1)
+    while (!ntwl_tcp_ctrl_info->stop_req)
     {
+        if (ntwl_tcp_ctrl_info->server_fd < 0)
+        {
+            break;
+        }
         FD_ZERO(&watchfd);
         FD_SET(ntwl_tcp_ctrl_info->server_fd, &watchfd);
 
@@ -213,6 +217,10 @@ static void ntwk_tcp_ctrl_server_thread(beken_thread_arg_t data)
         if (ret <= 0)
         {
             LOGE("select ret:%d\n", ret);
+            if (ntwl_tcp_ctrl_info->stop_req)
+            {
+                break;
+            }
             continue;
         }
         else
@@ -252,7 +260,8 @@ static void ntwk_tcp_ctrl_server_thread(beken_thread_arg_t data)
                     ntwk_msg_event_report(NTWK_TRANS_EVT_CONNECTED, ntwl_tcp_ctrl_info->remote_address, NTWK_TRANS_CHAN_CTRL);
                 }
 
-                while (ntwl_tcp_ctrl_info->server_state == BK_TRUE)
+                while (ntwl_tcp_ctrl_info->server_state == BK_TRUE &&
+                       !ntwl_tcp_ctrl_info->stop_req)
                 {
                     rcv_len = recv(ntwl_tcp_ctrl_info->client_fd, rcv_buf, NTWK_TRANS_CMD_BUFFER, 0);
                     if (rcv_len > 0)
@@ -265,8 +274,11 @@ static void ntwk_tcp_ctrl_server_thread(beken_thread_arg_t data)
                     {
                         // close this socket
                         LOGD("%s, recv close fd:%d, rcv_len:%d, error:%d\n", __func__, ntwl_tcp_ctrl_info->client_fd, rcv_len, errno);
-                        close(ntwl_tcp_ctrl_info->client_fd);
-                        ntwl_tcp_ctrl_info->client_fd = -1;
+                        if (ntwl_tcp_ctrl_info->client_fd != -1)
+                        {
+                            close(ntwl_tcp_ctrl_info->client_fd);
+                            ntwl_tcp_ctrl_info->client_fd = -1;
+                        }
                         ntwl_tcp_ctrl_info->chan_state = NTWK_TRANS_CHAN_DISCONNECTED;
 
                         if (ntwl_tcp_ctrl_info->server_state == BK_TRUE)
@@ -324,6 +336,7 @@ bk_err_t ntwk_tcp_ctrl_chan_start(void *param)
 
     if (!ntwl_tcp_ctrl_info->thread)
     {
+        ntwl_tcp_ctrl_info->stop_req = 0;
         ret = rtos_create_thread(&ntwl_tcp_ctrl_info->thread,
                                  4,
                                  "ntwl_tcp_ctrl_srv",
@@ -348,6 +361,8 @@ bk_err_t ntwk_tcp_ctrl_chan_stop(void)
     }
 
     ntwl_tcp_ctrl_info->chan_state = NTWK_TRANS_CHAN_STOP;
+    ntwl_tcp_ctrl_info->stop_req = 1;
+    ntwl_tcp_ctrl_info->server_state = BK_FALSE;
     ntwk_msg_event_report(NTWK_TRANS_EVT_STOP, 0 , NTWK_TRANS_CHAN_CTRL);
 
     if (ntwl_tcp_ctrl_info->client_fd != -1)
@@ -442,8 +457,12 @@ static void ntwk_tcp_video_server_thread(beken_thread_arg_t data)
 
     LOGD("%s: start listen \n", __func__);
 
-    while (1)
+    while (!video_tcp_service->stop_req)
     {
+        if (video_tcp_service->video_server_fd < 0)
+        {
+            break;
+        }
         FD_ZERO(&watchfd);
         FD_SET(video_tcp_service->video_server_fd, &watchfd);
         video_tcp_service->chan_state = NTWK_TRANS_CHAN_WAITING_CONNECTED;
@@ -453,6 +472,10 @@ static void ntwk_tcp_video_server_thread(beken_thread_arg_t data)
         if (ret <= 0)
         {
             LOGE("select ret:%d\n", ret);
+            if (video_tcp_service->stop_req)
+            {
+                break;
+            }
             continue;
         }
         else
@@ -490,7 +513,8 @@ static void ntwk_tcp_video_server_thread(beken_thread_arg_t data)
                 ntwk_socket_set_qos(video_tcp_service->video_fd, IP_QOS_PRIORITY_LOW);
 
                 video_tcp_service->video_status = BK_TRUE;
-                while (video_tcp_service->video_status == BK_TRUE)
+                while (video_tcp_service->video_status == BK_TRUE &&
+                       !video_tcp_service->stop_req)
                 {
                     rcv_len = recv(video_tcp_service->video_fd, rcv_buf, NTWK_TCP_BUFFER, 0);
                     if (rcv_len > 0)
@@ -504,8 +528,11 @@ static void ntwk_tcp_video_server_thread(beken_thread_arg_t data)
                         int errno_temp = errno;
 
                         LOGD("vid recv close fd:%d, rcv_len:%d, error_code:%d\n", video_tcp_service->video_fd, rcv_len, errno);
-                        close(video_tcp_service->video_fd);
-                        video_tcp_service->video_fd = -1;
+                        if (video_tcp_service->video_fd != -1)
+                        {
+                            close(video_tcp_service->video_fd);
+                            video_tcp_service->video_fd = -1;
+                        }
                         video_tcp_service->chan_state = NTWK_TRANS_CHAN_DISCONNECTED;
 
                         if (errno_temp == ENOTCONN) {
@@ -556,6 +583,7 @@ bk_err_t ntwk_tcp_video_chan_start(void *param)
 
     if (!video_tcp_service->video_thd)
     {
+        video_tcp_service->stop_req = 0;
         ret = rtos_create_thread(&video_tcp_service->video_thd,
                                  4,
                                  "ntwk_tcp_video_srv",
@@ -582,9 +610,16 @@ bk_err_t ntwk_tcp_video_chan_stop(void)
     }
 
     video_tcp_service->chan_state = NTWK_TRANS_CHAN_STOP;
+    video_tcp_service->stop_req = 1;
     ntwk_msg_event_report(NTWK_TRANS_EVT_STOP, 0, NTWK_TRANS_CHAN_VIDEO);
 
     video_tcp_service->video_status = BK_FALSE;
+
+    if (video_tcp_service->video_fd != -1)
+    {
+        close(video_tcp_service->video_fd);
+        video_tcp_service->video_fd = -1;
+    }
 
     if (video_tcp_service->video_server_fd != -1)
     {
@@ -649,8 +684,12 @@ static void ntwk_tcp_audio_server_thread(beken_thread_arg_t data)
 
     LOGD("%s: start listen \n", __func__);
 
-    while (1)
+    while (!aud_tcp_service->stop_req)
     {
+        if (aud_tcp_service->aud_server_fd < 0)
+        {
+            break;
+        }
         FD_ZERO(&watchfd);
         FD_SET(aud_tcp_service->aud_server_fd, &watchfd);
         aud_tcp_service->chan_state = NTWK_TRANS_CHAN_WAITING_CONNECTED;
@@ -660,6 +699,10 @@ static void ntwk_tcp_audio_server_thread(beken_thread_arg_t data)
         if (ret <= 0)
         {
             LOGE("select ret:%d\n", ret);
+            if (aud_tcp_service->stop_req)
+            {
+                break;
+            }
             continue;
         }
         else
@@ -698,7 +741,8 @@ static void ntwk_tcp_audio_server_thread(beken_thread_arg_t data)
 
                 ntwk_socket_set_qos(aud_tcp_service->aud_fd, IP_QOS_PRIORITY_HIGH);
 
-                while (aud_tcp_service->aud_status == BK_TRUE)
+                while (aud_tcp_service->aud_status == BK_TRUE &&
+                       !aud_tcp_service->stop_req)
                 {
                     rcv_len = recv(aud_tcp_service->aud_fd, rcv_buf, NTWK_TCP_BUFFER, 0);
                     if (rcv_len > 0)
@@ -711,8 +755,11 @@ static void ntwk_tcp_audio_server_thread(beken_thread_arg_t data)
                         int errno_temp = errno;
                         // close this socket
                         LOGD("aud recv close fd:%d, rcv_len:%d, error_code:%d\n", aud_tcp_service->aud_fd, rcv_len, errno);
-                        close(aud_tcp_service->aud_fd);
-                        aud_tcp_service->aud_fd = -1;
+                        if (aud_tcp_service->aud_fd != -1)
+                        {
+                            close(aud_tcp_service->aud_fd);
+                            aud_tcp_service->aud_fd = -1;
+                        }
                         aud_tcp_service->chan_state = NTWK_TRANS_CHAN_DISCONNECTED;
 
                         if (errno_temp == ENOTCONN) {
@@ -761,6 +808,7 @@ bk_err_t ntwk_tcp_audio_chan_start(void *param)
 
     if (!aud_tcp_service->aud_thd)
     {
+        aud_tcp_service->stop_req = 0;
         ret = rtos_create_thread(&aud_tcp_service->aud_thd,
                                  4,
                                  "ntwk_tcp_aud_srv",
@@ -785,7 +833,15 @@ bk_err_t ntwk_tcp_audio_chan_stop(void)
     }
 
     aud_tcp_service->chan_state = NTWK_TRANS_CHAN_STOP;
+    aud_tcp_service->stop_req = 1;
+    aud_tcp_service->aud_status = BK_FALSE;
     ntwk_msg_event_report(NTWK_TRANS_EVT_STOP, 0, NTWK_TRANS_CHAN_AUDIO);
+
+    if (aud_tcp_service->aud_fd != -1)
+    {
+        close(aud_tcp_service->aud_fd);
+        aud_tcp_service->aud_fd = -1;
+    }
 
     if (aud_tcp_service->aud_server_fd != -1)
     {

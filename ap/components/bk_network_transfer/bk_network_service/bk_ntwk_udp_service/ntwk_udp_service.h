@@ -24,6 +24,7 @@ typedef int (*ntwk_udp_ctrl_receive_cb_t)(uint8_t *data, uint32_t length);
 typedef struct
 {
     uint32_t server_state : 1;
+    volatile uint8_t stop_req;
     struct sockaddr_in socket;
     beken_thread_t thread;
     int server_fd;

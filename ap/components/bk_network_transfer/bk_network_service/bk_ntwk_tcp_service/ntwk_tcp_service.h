@@ -24,6 +24,7 @@ typedef int (*ntwk_tcp_ctrl_receive_cb_t)(uint8_t *data, uint32_t length);
 typedef struct
 {
     uint32_t server_state : 1;
+    volatile uint8_t stop_req;
     struct sockaddr_in socket;
     beken_thread_t thread;
     int server_fd;
@@ -37,6 +38,7 @@ typedef struct
 typedef struct
 {
     beken_thread_t video_thd;
+    volatile uint8_t stop_req;
     struct sockaddr_in video_remote;
     struct sockaddr_in video_socket;
     int video_fd;
@@ -49,6 +51,7 @@ typedef struct
 typedef struct
 {
     beken_thread_t aud_thd;
+    volatile uint8_t stop_req;
     struct sockaddr_in aud_remote;
     struct sockaddr_in aud_socket;
     int aud_fd;
