@@ -76,23 +76,26 @@ void flash_core_exit_critical(uint32_t int_level)
 	}
 }
 
-/* Outer op lock: critical section + optional peripheral notify. */
+/*
+ * Outer op lock: peripheral notify runs outside the FLASH HSPL / IRQ-off
+ * window so callbacks may use blocking OS APIs. Hardware access stays
+ * between enter_critical and exit_critical.
+ */
 static uint32_t flash_core_lock(void)
 {
-	uint32_t int_level = flash_core_enter_critical();
-
 	if (s_port.op_prepare) {
 		s_port.op_prepare();
 	}
-	return int_level;
+	return flash_core_enter_critical();
 }
 
 static void flash_core_unlock(uint32_t int_level)
 {
+	flash_core_exit_critical(int_level);
+
 	if (s_port.op_finish) {
 		s_port.op_finish();
 	}
-	flash_core_exit_critical(int_level);
 }
 
 static void flash_core_progress(void)
