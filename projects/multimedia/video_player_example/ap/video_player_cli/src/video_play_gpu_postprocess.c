@@ -27,8 +27,7 @@
 #define VIDEO_PLAY_GPU_POST_PANEL_WIDTH      1080U
 #define VIDEO_PLAY_GPU_POST_PANEL_HEIGHT     1920U
 
-void bk_gpu_driver_init(void);
-void bk_gpu_driver_deinit(void);
+#include "gpu_core.h"
 
 typedef struct
 {
@@ -333,13 +332,22 @@ static avdk_err_t video_play_gpu_post_ensure_init(uint32_t strip_bytes)
 
     bk_gpu_driver_init();
 
-    s_gpu_post_contiguous_buffer = bk_get_gpu_flexa_buffer(CONFIG_VG_LITE_GPU_CONTIGUOUS_MEM_SZ);
-    if (s_gpu_post_contiguous_buffer == NULL)
     {
-        LOGE("%s: alloc VG-Lite contiguous buffer failed, size=%u\n",
-             __func__, (unsigned)CONFIG_VG_LITE_GPU_CONTIGUOUS_MEM_SZ);
-        bk_gpu_driver_deinit();
-        return AVDK_ERR_NOMEM;
+        uint32_t vg_mem_sz = bk_gpu_vg_lite_apply_mem_config(0, 0);
+        if (vg_mem_sz == 0)
+        {
+            LOGE("%s: vg_lite mem config failed\n", __func__);
+            bk_gpu_driver_deinit();
+            return AVDK_ERR_INVAL;
+        }
+        s_gpu_post_contiguous_buffer = bk_get_gpu_flexa_buffer(vg_mem_sz);
+        if (s_gpu_post_contiguous_buffer == NULL)
+        {
+            LOGE("%s: alloc VG-Lite contiguous buffer failed, size=%u\n",
+                 __func__, (unsigned)vg_mem_sz);
+            bk_gpu_driver_deinit();
+            return AVDK_ERR_NOMEM;
+        }
     }
 
     vg_lite_error_t vg_ret = vg_lite_set_buffer((uint8_t *)s_gpu_post_contiguous_buffer);

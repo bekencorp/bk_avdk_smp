@@ -342,7 +342,15 @@ avdk_err_t draw_tiger(void)
     g_disp_ctx->frame_buffer[1] = (void*)((uint32_t)bk_frame_buffer_malloc(MEM_SLAB_HEAP_UNCODED, (panel_timing->h_size + 64) * panel_timing->v_size) & 0xFFFFFFC0);
 
     bk_gpu_driver_init();
-    vg_lite_init(panel_timing->h_size / 2, panel_timing->v_size / 2);
+    {
+        uint32_t tess_w = panel_timing->h_size / 2;
+        uint32_t tess_h = panel_timing->v_size / 2;
+        if (bk_gpu_vg_lite_apply_mem_config(tess_w, tess_h) == 0) {
+            LOGE("vg_lite mem config failed\n");
+            return AVDK_ERR_NOMEM;
+        }
+        vg_lite_init(tess_w, tess_h);
+    }
 
     memset(&g_disp_ctx->draw_buffer,0,sizeof(vg_lite_buffer_t));
     vg_lite_buffer_t *pdraw_buffer = &g_disp_ctx->draw_buffer;

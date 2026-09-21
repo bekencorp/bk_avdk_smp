@@ -21,6 +21,7 @@ set(priv_req
     bk_gpu
     avdk_utils
     bk_peripheral
+    avdk_driver
 )
 
 if (CONFIG_H264D_GPU_DISPLAY_ENABLE_MIPI_DISPLAY)

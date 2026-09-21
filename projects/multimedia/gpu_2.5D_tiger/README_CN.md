@@ -104,7 +104,6 @@ CONFIG_DPU_DRIVER=y
 CONFIG_DSI_DRIVER=y
 CONFIG_FRAME_BUFFER=y
 CONFIG_VG_LITE_GPU=y
-CONFIG_VG_LITE_GPU_CONTIGUOUS_MEM_SZ=0x3A000
 CONFIG_LCD_HX8399C_MIPI_1080x1920=y
 CONFIG_MEDIA_SERVICE=y
 ```
@@ -120,7 +119,7 @@ CONFIG_MEDIA_SERVICE=y
 ## 7. 注意事项
 
 1. 本示例默认使用 `hx8399c_mipi_1080x1920` MIPI 屏。不同屏幕通常需要重新配置 timing 和初始化序列。
-2. GPU 渲染依赖连续内存，若 frame buffer 或 VG-Lite 初始化失败，请优先检查 PSRAM 和 `CONFIG_VG_LITE_GPU_CONTIGUOUS_MEM_SZ`。
+2. GPU 渲染依赖连续内存，若 frame buffer 或 VG-Lite 初始化失败，请优先检查 PSRAM 和 HSRAM 剩余量。
 3. 示例使用双 buffer 刷新，渲染线程会等待 DPU release 回调后再复用 buffer。
 4. 本示例上电自动运行，不提供额外 CLI 测试命令。
 

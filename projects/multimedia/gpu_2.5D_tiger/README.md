@@ -104,7 +104,6 @@ CONFIG_DPU_DRIVER=y
 CONFIG_DSI_DRIVER=y
 CONFIG_FRAME_BUFFER=y
 CONFIG_VG_LITE_GPU=y
-CONFIG_VG_LITE_GPU_CONTIGUOUS_MEM_SZ=0x3A000
 CONFIG_LCD_HX8399C_MIPI_1080x1920=y
 CONFIG_MEDIA_SERVICE=y
 ```
@@ -120,7 +119,7 @@ When adapting another LCD, check:
 ## 7. Notes
 
 1. The default panel is `hx8399c_mipi_1080x1920`. Other panels usually require matching timing and initialization sequences.
-2. GPU rendering requires contiguous memory. If frame-buffer or VG-Lite initialization fails, check PSRAM and `CONFIG_VG_LITE_GPU_CONTIGUOUS_MEM_SZ` first.
+2. GPU rendering requires contiguous memory. If frame-buffer or VG-Lite initialization fails, check PSRAM and remaining HSRAM first.
 3. The example uses double buffering. The render thread waits for the DPU release callback before reusing a buffer.
 4. This example starts automatically after boot and does not provide additional CLI test commands.
 

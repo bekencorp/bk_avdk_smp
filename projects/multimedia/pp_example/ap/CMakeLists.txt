@@ -4,7 +4,7 @@ set(srcs
     pp/src/pp_cli.c
 )
 
-set(priv_req media_service bk_cli avdk_utils psram_stress_service bk_peripheral)
+set(priv_req media_service bk_cli avdk_utils psram_stress_service bk_peripheral avdk_driver)
 
 if (CONFIG_BK_DECODER)
 set(h264_decode_common_dir

@@ -5,6 +5,7 @@
 #include <components/bk_frame_buffer.h>
 #include <components/bk_hardware_ram.h>
 #include <components/bk_gpu.h>
+#include "gpu_core.h"
 #include <modules/vg_lite_gpu/vg_lite.h>
 #include <driver/hpdma.h>
 #include "soc/reg_base.h"   /* SOC_SRAM_PERI_ADDR: HPDMA/GPU 只能访问 0x28 SRAM 别名 */
@@ -230,12 +231,20 @@ static avdk_err_t h264d_gpu_display_gpu_blit_init(void)
 	}
 
 	bk_gpu_driver_init();
-	s_gpu_blit_contiguous_buffer = bk_get_gpu_flexa_buffer(CONFIG_VG_LITE_GPU_CONTIGUOUS_MEM_SZ);
-	if (s_gpu_blit_contiguous_buffer == NULL) {
-		LOGE("alloc VG-Lite contiguous buffer failed, size=%u\r\n",
-		     (unsigned)CONFIG_VG_LITE_GPU_CONTIGUOUS_MEM_SZ);
-		bk_gpu_driver_deinit();
-		return AVDK_ERR_NOMEM;
+	{
+		uint32_t vg_mem_sz = bk_gpu_vg_lite_apply_mem_config(0, 0);
+		if (vg_mem_sz == 0) {
+			LOGE("vg_lite mem config failed\r\n");
+			bk_gpu_driver_deinit();
+			return AVDK_ERR_INVAL;
+		}
+		s_gpu_blit_contiguous_buffer = bk_get_gpu_flexa_buffer(vg_mem_sz);
+		if (s_gpu_blit_contiguous_buffer == NULL) {
+			LOGE("alloc VG-Lite contiguous buffer failed, size=%u\r\n",
+			     (unsigned)vg_mem_sz);
+			bk_gpu_driver_deinit();
+			return AVDK_ERR_NOMEM;
+		}
 	}
 
 	vg_ret = vg_lite_set_buffer((uint8_t *)s_gpu_blit_contiguous_buffer);
