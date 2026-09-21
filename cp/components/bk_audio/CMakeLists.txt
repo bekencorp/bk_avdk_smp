@@ -1,6 +1,113 @@
-set(incs . aec_m52)
+set(incs
+	.
+	aec_m52
+	audio_pipeline
+	audio_streams/raw_stream
+	audio_streams/array_stream
+	audio_streams/onboard_mic_stream
+	audio_streams/onboard_mic_stream/v1.0
+	audio_streams/onboard_mic_stream/v2.0
+	audio_streams/onboard_speaker_stream
+	audio_streams/onboard_speaker_stream/v2.0
+	audio_encoders/g711_encoder
+	audio_decoders/g711_decoder
+	audio_decoders/mp3_decoder
+	audio_decoders/wav_decoder
+	audio_algorithms/aec_v3_algorithm
+	audio_algorithms/aec_v3_algorithm/v2.0
+	audio_algorithms/eq_algorithm
+	audio_utils
+	../../properties/modules/audio_codec/helix
+	../../properties/modules/audio_codec/wav
+	../../properties/modules/audio_codec/eq
+	../../properties/modules/audio_codec/audio_osi
+)
 set(srcs)
 set(priv_requires bk_common driver)
+
+if (CONFIG_ADK)
+	list(APPEND srcs
+		../../properties/modules/audio_codec/audio_osi/audio_osi_wrapper.c
+	)
+	list(APPEND priv_requires audio_pipeline)
+endif()
+
+if (CONFIG_ADK_RAW_STREAM)
+	list(APPEND priv_requires raw_stream)
+endif()
+
+if (CONFIG_ADK_ARRAY_STREAM)
+	list(APPEND priv_requires array_stream)
+endif()
+
+if (CONFIG_ADK_ONBOARD_MIC_STREAM)
+	list(APPEND priv_requires onboard_mic_stream)
+endif()
+
+if (CONFIG_ADK_ONBOARD_SPEAKER_STREAM)
+	list(APPEND priv_requires onboard_speaker_stream)
+endif()
+
+if (CONFIG_ADK_G711_DECODER)
+	list(APPEND priv_requires g711_decoder)
+endif()
+
+if (CONFIG_ADK_MP3_DECODER)
+	list(APPEND srcs
+		../../properties/modules/audio_codec/helix/bitstream.c
+		../../properties/modules/audio_codec/helix/buffers.c
+		../../properties/modules/audio_codec/helix/dct32.c
+		../../properties/modules/audio_codec/helix/dequant.c
+		../../properties/modules/audio_codec/helix/dqchan.c
+		../../properties/modules/audio_codec/helix/huffman.c
+		../../properties/modules/audio_codec/helix/hufftabs.c
+		../../properties/modules/audio_codec/helix/imdct.c
+		../../properties/modules/audio_codec/helix/mp3dec.c
+		../../properties/modules/audio_codec/helix/mp3tabs.c
+		../../properties/modules/audio_codec/helix/polyphase.c
+		../../properties/modules/audio_codec/helix/scalfact.c
+		../../properties/modules/audio_codec/helix/stproc.c
+		../../properties/modules/audio_codec/helix/subband.c
+		../../properties/modules/audio_codec/helix/trigtabs.c
+	)
+	list(APPEND priv_requires mp3_decoder)
+endif()
+
+if (CONFIG_ADK_WAV_DECODER)
+	list(APPEND srcs
+		../../properties/modules/audio_codec/wav/wav_head.c
+	)
+	list(APPEND priv_requires wav_decoder)
+endif()
+
+if (CONFIG_ADK_G711_ENCODER)
+	list(APPEND priv_requires g711_encoder)
+endif()
+
+if (CONFIG_ADK_G711_DECODER OR CONFIG_ADK_G711_ENCODER)
+	list(APPEND srcs
+		../../properties/modules/audio_codec/g711/g711.c
+	)
+endif()
+
+if (CONFIG_ADK_AEC_V3_ALGORITHM)
+	list(APPEND priv_requires aec_v3_algorithm)
+endif()
+
+if (CONFIG_ADK_EQ_ALGORITHM)
+	list(APPEND srcs
+		../../properties/modules/audio_codec/eq/eq_src.c
+	)
+	list(APPEND priv_requires eq_algorithm)
+endif()
+
+if (CONFIG_ADK_COUNT_UTIL)
+	list(APPEND priv_requires audio_utils)
+endif()
+
+if (CONFIG_ADK_OBS_UTIL)
+	list(APPEND priv_requires audio_utils)
+endif()
 
 if (CONFIG_AEC_RUN_ON_M52)
 	list(APPEND srcs
@@ -15,3 +122,4 @@ armino_component_register(SRCS "${srcs}"
 	PRIV_REQUIRES ${priv_requires}
 	)
 
+armino_component_register_call_subdirs()

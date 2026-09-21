@@ -1,0 +1,45 @@
+set(incs ./include)
+
+set(srcs)
+set(priv_requires bk_common)
+
+if (CONFIG_ADK)
+list(APPEND srcs
+		audio_element.c
+		audio_event_iface.c
+		audio_pipeline.c
+		ringbuf.c
+		framebuf.c
+		audio_mem.c
+		audio_thread.c
+		audio_port.c
+		cb_port.c
+		rb_port.c
+		fb_port.c
+		audio_port_info_list.c
+	)
+
+if (CONFIG_ADK_AUTO_TEST_PIPELINE)
+	list(APPEND srcs
+		auto_test/audio_pipeline_test.c
+	)
+endif()
+
+if (CONFIG_ADK_AUTO_TEST_ELEMENT)
+	list(APPEND srcs
+		auto_test/audio_element_test.c
+	)
+endif()
+
+if (CONFIG_ADK_AUTO_TEST_EVENT)
+	list(APPEND srcs
+		auto_test/audio_event_iface_test.c
+	)
+endif()
+endif()
+
+if (CONFIG_ADK_OBS_UTIL)
+	list(APPEND priv_requires audio_utils)
+endif()
+
+armino_component_register(SRCS "${srcs}" INCLUDE_DIRS "${incs}" PRIV_REQUIRES "${priv_requires}")
