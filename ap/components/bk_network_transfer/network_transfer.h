@@ -51,6 +51,12 @@ typedef struct
     int param;            /**< Additional event-specific parameters or data, context dependent */
 } ntwk_trans_event_t;
 
+/** Network transfer session identifier. */
+typedef int ntwk_session_id_t;
+
+/** Invalid session identifier. */
+#define NTWK_INVALID_SESSION_ID ((ntwk_session_id_t)-1)
+
 #if CONFIG_NTWK_CLIENT_SERVICE_ENABLE
 typedef struct ntwk_server_net_info
 {
@@ -72,6 +78,23 @@ typedef void (*ntwk_trans_msg_event_cb_t)(ntwk_trans_event_t *event);
  * Compatible with ctrl/video/audio channel's recive callback signature
  */
 typedef int (*ntwk_trans_recv_cb_t)(uint8_t *data, uint32_t length);
+
+/**
+ * @brief Session-aware receive callback type.
+ *
+ * Used by multi-session services to deliver received data together with the
+ * source session id.
+ *
+ * @param sid Source session id
+ * @param chan Channel type
+ * @param data Received data
+ * @param length Data length
+ * @return int Result of receiving, returns non-negative value on success, negative value on failure
+ */
+typedef int (*ntwk_trans_session_recv_cb_t)(ntwk_session_id_t sid,
+                                            chan_type_t chan,
+                                            uint8_t *data,
+                                            uint32_t length);
 
 /**
  * @brief Network transfer control channel structure
@@ -97,6 +120,20 @@ typedef struct {
      * @return int Result of sending, returns 0 on success, negative value on failure
      */
     int (*send)(uint8_t *data, uint32_t length);
+
+    /**
+     * @brief Send control data to a specific session (optional)
+     *
+     * Session-aware transports (e.g. multi-session CS2) set this to target one
+     * peer. Single-connection transports may leave it NULL; the common layer
+     * then falls back to @ref send.
+     *
+     * @param sid Target session id
+     * @param data Control data buffer
+     * @param length Data length
+     * @return int Result of sending, returns 0 on success, negative value on failure
+     */
+    int (*send_to)(ntwk_session_id_t sid, uint8_t *data, uint32_t length);
 
     /**
      * @brief Receive control data
@@ -478,6 +515,19 @@ bk_err_t ntwk_trans_chan_discard_frame(chan_type_t chan_type, uint8_t frame_id);
 int ntwk_trans_ctrl_send(uint8_t *data, uint32_t length);
 
 /**
+ * @brief Send control data to a specific session.
+ *
+ * Used by multi-session services that need to reply to one peer instead of
+ * broadcasting or using the default session.
+ *
+ * @param sid Target session id
+ * @param data Control data
+ * @param length Data length
+ * @return int Result of sending, returns the number of bytes sent on success, negative value on failure
+ */
+int ntwk_trans_ctrl_send_to(ntwk_session_id_t sid, uint8_t *data, uint32_t length);
+
+/**
  * @brief Send video data
  *
  * Send video data through the currently registered context, automatically adapts the service type
@@ -510,6 +560,18 @@ int ntwk_trans_audio_send(uint8_t *data, uint32_t length, audio_enc_type_t audio
 int ntwk_trans_ctrl_recv_handler(uint8_t *data, uint32_t length);
 
 /**
+ * @brief Handle control data received from a specific session.
+ *
+ * Preserves the source session id for upper-layer session-aware callbacks.
+ *
+ * @param sid Source session id
+ * @param data Control data
+ * @param length Data length
+ * @return int Result of receiving, returns the number of bytes received on success, negative value on failure
+ */
+int ntwk_trans_ctrl_recv_handler_from_session(ntwk_session_id_t sid, uint8_t *data, uint32_t length);
+
+/**
  * @brief Handle video data received
  * @param data Video data
  * @param length Data length
@@ -533,6 +595,20 @@ int ntwk_trans_audio_recv_handler(uint8_t *data, uint32_t length);
  * @return int Result of receiving, returns the number of bytes received on success, negative value on failure
  */
 int ntwk_trans_pack_rx_handler(chan_type_t chan_type, uint8_t *data, uint32_t length);
+
+/**
+ * @brief Handle packed data received from a specific session.
+ *
+ * Unpacks the packet and keeps the source session id for session-aware receive
+ * dispatch.
+ *
+ * @param sid Source session id
+ * @param chan_type Channel type
+ * @param data Packet data
+ * @param length Data length
+ * @return int Result of receiving, returns the number of bytes received on success, negative value on failure
+ */
+int ntwk_trans_pack_rx_handler_from_session(ntwk_session_id_t sid, chan_type_t chan_type, uint8_t *data, uint32_t length);
 
 /**
  * @brief Handle fragment data received
@@ -565,6 +641,17 @@ bk_err_t ntwk_trans_register_msg_event_cb(ntwk_trans_msg_event_cb_t cb);
  * @return bk_err_t BK_OK on success, error code on failure
  */
 bk_err_t ntwk_trans_register_ctrl_recv_cb(ntwk_trans_recv_cb_t cb);
+
+/**
+ * @brief Register a session-aware receive callback.
+ *
+ * The callback is invoked by services that can identify the source session of
+ * received data.
+ *
+ * @param cb Session-aware receive callback
+ * @return bk_err_t BK_OK on success, error code on failure
+ */
+bk_err_t ntwk_trans_register_session_recv_cb(ntwk_trans_session_recv_cb_t cb);
 
 /**
  * @brief Register video channel receive callback

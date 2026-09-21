@@ -29,9 +29,46 @@
 static ntwk_trans_ctxt_t *s_ntwk_trans_ctxt = NULL;
 static volatile uint8_t s_ntwk_trans_chan_abort[NTWK_TRANS_CHAN_MAX] = {0};
 static volatile uint8_t s_ntwk_trans_chan_send_bypass[NTWK_TRANS_CHAN_MAX] = {0};
+typedef struct
+{
+    ntwk_trans_session_recv_cb_t recv_cb;
+    beken_mutex_t ctrl_session_lock;
+    uint8_t ctrl_session_lock_inited;
+    ntwk_session_id_t rx_session_id;
+    ntwk_session_id_t tx_session_id;
+} ntwk_trans_session_ctx_t;
+
+static ntwk_trans_session_ctx_t s_session_ctx =
+{
+    .rx_session_id = NTWK_INVALID_SESSION_ID,
+    .tx_session_id = NTWK_INVALID_SESSION_ID,
+};
 #if CONFIG_NTWK_CLIENT_SERVICE_ENABLE
 static ntwk_server_net_info_t s_ntwk_server_net_info = {0};
 #endif
+
+static int ntwk_trans_ctrl_send_to_transport(ntwk_session_id_t sid, uint8_t *data, uint32_t length)
+{
+    ntwk_trans_ctrl_chan_t *ctrl =
+        (s_ntwk_trans_ctxt != NULL) ? s_ntwk_trans_ctxt->cntrl_chan : NULL;
+
+    if (ctrl == NULL)
+    {
+        return BK_FAIL;
+    }
+
+    if (ctrl->send_to != NULL)
+    {
+        return (ctrl->send_to)(sid, data, length);
+    }
+
+    if (ctrl->send != NULL)
+    {
+        return (ctrl->send)(data, length);
+    }
+
+    return BK_FAIL;
+}
 
 static int ntwk_trans_chan_abort_check(uint32_t chan_type)
 {
@@ -108,6 +145,27 @@ int ntwk_trans_ctrl_recv_handler(uint8_t *data, uint32_t length)
     }
 
     return BK_FAIL;
+}
+
+int ntwk_trans_ctrl_recv_handler_from_session(ntwk_session_id_t sid, uint8_t *data, uint32_t length)
+{
+    int ret = BK_FAIL;
+
+    if (s_session_ctx.ctrl_session_lock_inited)
+    {
+        rtos_lock_mutex(&s_session_ctx.ctrl_session_lock);
+    }
+
+    s_session_ctx.rx_session_id = sid;
+    ret = ntwk_trans_ctrl_recv_handler(data, length);
+    s_session_ctx.rx_session_id = NTWK_INVALID_SESSION_ID;
+
+    if (s_session_ctx.ctrl_session_lock_inited)
+    {
+        rtos_unlock_mutex(&s_session_ctx.ctrl_session_lock);
+    }
+
+    return ret;
 }
 
 int ntwk_trans_video_recv_handler(uint8_t *data, uint32_t length)
@@ -267,6 +325,10 @@ int ntwk_trans_json_tx_handler(chan_type_t chan, uint8_t *data, uint32_t length)
         {
             if (s_ntwk_trans_ctxt->cntrl_chan && s_ntwk_trans_ctxt->cntrl_chan->send)
             {
+                if (s_session_ctx.tx_session_id != NTWK_INVALID_SESSION_ID)
+                {
+                    return ntwk_trans_ctrl_send_to_transport(s_session_ctx.tx_session_id, data, length);
+                }
                 return (s_ntwk_trans_ctxt->cntrl_chan->send)(data, length);
             }
         } break;
@@ -295,6 +357,15 @@ int ntwk_trans_json_rx_handler(chan_type_t chan, uint8_t *data, uint32_t length)
     {
         case NTWK_TRANS_CHAN_CTRL:
         {
+            if (s_session_ctx.rx_session_id != NTWK_INVALID_SESSION_ID
+                && s_session_ctx.recv_cb != NULL)
+            {
+                return s_session_ctx.recv_cb(s_session_ctx.rx_session_id,
+                                                    NTWK_TRANS_CHAN_CTRL,
+                                                    data,
+                                                    length);
+            }
+
             if (s_ntwk_trans_ctxt->cntrl_chan && s_ntwk_trans_ctxt->cntrl_chan->recive)
             {
                 return s_ntwk_trans_ctxt->cntrl_chan->recive(data, length);
@@ -379,6 +450,11 @@ bk_err_t ntwk_trans_ctxt_init(ntwk_trans_ctxt_t *ctxt)
     ntwk_fragment_register_abort_cb(NTWK_TRANS_CHAN_VIDEO, ntwk_trans_chan_abort_check);
     ntwk_fragment_register_abort_cb(NTWK_TRANS_CHAN_AUDIO, ntwk_trans_chan_abort_check);
     ntwk_socket_register_abort_check_cb(ntwk_trans_chan_abort_check);
+    if (!s_session_ctx.ctrl_session_lock_inited)
+    {
+        rtos_init_mutex(&s_session_ctx.ctrl_session_lock);
+        s_session_ctx.ctrl_session_lock_inited = 1;
+    }
 
 #if CONFIG_NTWK_CTRL_CHAN_JSON
     ntwk_json_init(NTWK_TRANS_CHAN_CTRL);
@@ -418,6 +494,14 @@ bk_err_t ntwk_trans_ctxt_deinit(void)
     ntwk_trans_chan_abort(NTWK_TRANS_CHAN_VIDEO, false);
     ntwk_trans_chan_abort(NTWK_TRANS_CHAN_AUDIO, false);
     ntwk_socket_register_abort_check_cb(NULL);
+    s_session_ctx.recv_cb = NULL;
+    s_session_ctx.rx_session_id = NTWK_INVALID_SESSION_ID;
+    s_session_ctx.tx_session_id = NTWK_INVALID_SESSION_ID;
+    if (s_session_ctx.ctrl_session_lock_inited)
+    {
+        rtos_deinit_mutex(&s_session_ctx.ctrl_session_lock);
+        s_session_ctx.ctrl_session_lock_inited = 0;
+    }
 
 #if CONFIG_NTWK_CTRL_CHAN_JSON
     ntwk_json_deinit(NTWK_TRANS_CHAN_CTRL);
@@ -556,6 +640,11 @@ int ntwk_trans_ctrl_send(uint8_t *data, uint32_t length)
         return BK_FAIL;
     }
 
+    if (s_session_ctx.rx_session_id != NTWK_INVALID_SESSION_ID)
+    {
+        return ntwk_trans_ctrl_send_to(s_session_ctx.rx_session_id, data, length);
+    }
+
     if (s_ntwk_trans_ctxt == NULL || !s_ntwk_trans_ctxt->initialized)
     {
         LOGE("%s, context not initialized\n", __func__);
@@ -595,6 +684,63 @@ int ntwk_trans_ctrl_send(uint8_t *data, uint32_t length)
     }
 
     return (s_ntwk_trans_ctxt->cntrl_chan->send)(data, length);
+}
+
+int ntwk_trans_ctrl_send_to(ntwk_session_id_t sid, uint8_t *data, uint32_t length)
+{
+    uint8_t *pack_ptr = NULL;
+    uint32_t pack_ptr_length = 0;
+    int ret = BK_FAIL;
+
+    if (sid == NTWK_INVALID_SESSION_ID)
+    {
+        LOGE("%s, invalid sid\n", __func__);
+        return BK_FAIL;
+    }
+
+    if (ntwk_trans_chan_abort_check(NTWK_TRANS_CHAN_CTRL))
+    {
+        return BK_FAIL;
+    }
+
+    if (data == NULL || length == 0)
+    {
+        LOGE("%s, invalid parameters\n", __func__);
+        return BK_FAIL;
+    }
+
+    if (s_ntwk_trans_ctxt == NULL || !s_ntwk_trans_ctxt->initialized)
+    {
+        LOGE("%s, context not initialized\n", __func__);
+        return BK_FAIL;
+    }
+
+    if (s_ntwk_trans_ctxt->cntrl_chan == NULL)
+    {
+        LOGE("%s, control channel not configured\n", __func__);
+        return BK_FAIL;
+    }
+
+    if (s_ntwk_trans_ctxt->cntrl_chan->fragment != NULL)
+    {
+        s_session_ctx.tx_session_id = sid;
+        ret = s_ntwk_trans_ctxt->cntrl_chan->fragment(data, length);
+        s_session_ctx.tx_session_id = NTWK_INVALID_SESSION_ID;
+        return (ret >= 0) ? BK_OK : BK_FAIL;
+    }
+
+    if (s_ntwk_trans_ctxt->cntrl_chan->pack != NULL)
+    {
+        if (s_ntwk_trans_ctxt->cntrl_chan->pack(data, length, &pack_ptr, &pack_ptr_length) >= 0)
+        {
+            return ntwk_trans_ctrl_send_to_transport(sid, pack_ptr, pack_ptr_length);
+        }
+
+        LOGE("%s, pack failed\n", __func__);
+        return BK_FAIL;
+    }
+
+    return ntwk_trans_ctrl_send_to_transport(sid, data, length);
 }
 
 int ntwk_trans_video_send(uint8_t *data, uint32_t length, image_format_t video_type)
@@ -773,6 +919,15 @@ int ntwk_trans_pack_rx_handler(chan_type_t chan_type, uint8_t *data, uint32_t le
 #endif
             }
 
+            if (s_session_ctx.rx_session_id != NTWK_INVALID_SESSION_ID
+                && s_session_ctx.recv_cb != NULL)
+            {
+                return s_session_ctx.recv_cb(s_session_ctx.rx_session_id,
+                                                    NTWK_TRANS_CHAN_CTRL,
+                                                    data,
+                                                    length);
+            }
+
             if (s_ntwk_trans_ctxt->cntrl_chan->recive != NULL)
             {
                 return s_ntwk_trans_ctxt->cntrl_chan->recive(data, length);
@@ -824,6 +979,27 @@ int ntwk_trans_pack_rx_handler(chan_type_t chan_type, uint8_t *data, uint32_t le
     return BK_FAIL;
 }
 
+int ntwk_trans_pack_rx_handler_from_session(ntwk_session_id_t sid, chan_type_t chan_type, uint8_t *data, uint32_t length)
+{
+    int ret = BK_FAIL;
+
+    if (s_session_ctx.ctrl_session_lock_inited)
+    {
+        rtos_lock_mutex(&s_session_ctx.ctrl_session_lock);
+    }
+
+    s_session_ctx.rx_session_id = sid;
+    ret = ntwk_trans_pack_rx_handler(chan_type, data, length);
+    s_session_ctx.rx_session_id = NTWK_INVALID_SESSION_ID;
+
+    if (s_session_ctx.ctrl_session_lock_inited)
+    {
+        rtos_unlock_mutex(&s_session_ctx.ctrl_session_lock);
+    }
+
+    return ret;
+}
+
 bk_err_t ntwk_trans_register_ctrl_recv_cb(ntwk_trans_recv_cb_t cb)
 {
     if (s_ntwk_trans_ctxt == NULL)
@@ -840,6 +1016,19 @@ bk_err_t ntwk_trans_register_ctrl_recv_cb(ntwk_trans_recv_cb_t cb)
 
     return BK_FAIL;
 }
+
+bk_err_t ntwk_trans_register_session_recv_cb(ntwk_trans_session_recv_cb_t cb)
+{
+    if (s_ntwk_trans_ctxt == NULL)
+    {
+        LOGE("%s, context not initialized\n", __func__);
+        return BK_FAIL;
+    }
+
+    s_session_ctx.recv_cb = cb;
+    return BK_OK;
+}
+
 bk_err_t ntwk_trans_register_video_recv_cb(ntwk_trans_recv_cb_t cb)
 {
     if (s_ntwk_trans_ctxt == NULL)

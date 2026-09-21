@@ -74,8 +74,11 @@ static void ntwk_msg_message_handle(void)
                 case NTWK_TRANS_EVT_DISCONNECTED:
                 case NTWK_TRANS_EVT_STOP:
                 {
-                    if ((msg.code == NTWK_TRANS_EVT_DISCONNECTED) ||
-                        (msg.code == NTWK_TRANS_EVT_STOP))
+                    bool clear_rx_cache = (msg.code == NTWK_TRANS_EVT_STOP);
+#if !(CONFIG_CS2_P2P_SERVER || CONFIG_CS2_P2P_CLIENT)
+                    clear_rx_cache = clear_rx_cache || (msg.code == NTWK_TRANS_EVT_DISCONNECTED);
+#endif
+                    if (clear_rx_cache)
                     {
                         ntwk_pack_clear_ccount(msg.chan_type);
 #if CONFIG_NTWK_CTRL_CHAN_JSON

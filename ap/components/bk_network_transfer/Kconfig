@@ -26,6 +26,60 @@ menu "Bk Network Transfer"
 		help
 			Enable H264 encoded frame dropping when the encoded-frame free queue is low.
 
+	config NTWK_CS2_CONGESTION_DROP
+		bool "Enable CS2 backlog-triggered per-session drop + force IDR"
+		depends on BK_NTWK_TRANSFER
+		depends on CS2_P2P_SERVER || CS2_P2P_CLIENT
+		default n
+		help
+			CS2 backlog-triggered drop policy.
+			The policy checks each subscribed session's CS2 TX buffer before
+			fanout:
+			  - sessions with room receive the current packet;
+			  - congested sessions skip the whole frame, enter waiting_key,
+			    and resume only on a keyframe after backlog drains;
+			  - audio packets are skipped per session when the audio backlog
+			    exceeds its threshold.
+			If all subscribed sessions are congested, the encoder-output side
+			can drop the whole H264 frame before it enters the ready queue.
+			Recovery uses one shared force-IDR arbiter with gap/streak limits.
+
+	config NTWK_CS2_DROP_START_THD
+		int "CS2 congestion drop START watermark (bytes)"
+		depends on NTWK_CS2_CONGESTION_DROP
+		default 131072
+		help
+			Start dropping when the worst session video backlog reaches this
+			high watermark. Suggested around CONFIG_CS2_TX_BUFFER_THD/2.
+
+	config NTWK_CS2_DROP_STOP_THD
+		int "CS2 congestion drop STOP watermark (bytes)"
+		depends on NTWK_CS2_CONGESTION_DROP
+		default 65536
+		help
+			Stop dropping and request a force IDR when the backlog drains to
+			this low watermark. Must be lower than START to give hysteresis and
+			leave room for one large I frame.
+
+	config NTWK_CS2_HEALTHY_FRAMES
+		int "CS2 congestion healthy frame count to reset force-IDR streak"
+		depends on NTWK_CS2_CONGESTION_DROP
+		default 25
+
+	config NTWK_CS2_FORCE_IDR_MIN_GAP_MS
+		int "CS2 congestion force IDR minimum interval (ms)"
+		depends on NTWK_CS2_CONGESTION_DROP
+		default 500
+
+	config NTWK_CS2_FORCE_IDR_MAX_STREAK
+		int "CS2 congestion force IDR max consecutive count"
+		depends on NTWK_CS2_CONGESTION_DROP
+		default 3
+		help
+			After this many consecutive forced IDRs without a healthy period,
+			stop forcing IDR (persistently slow, T2) and fall back to natural
+			keyframe recovery / business-layer degrade.
+
 	config DATA_NODE_SIZE
 		int "Video RX Node Size"
 		default 1472

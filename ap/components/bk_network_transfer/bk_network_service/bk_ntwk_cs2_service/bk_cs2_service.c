@@ -60,6 +60,7 @@ bk_err_t bk_cs2_trans_service_init(char *service_name)
        // ctxt->cntrl_chan->start = ntwk_cs2_ctrl_chan_start;
        // ctxt->cntrl_chan->stop = ntwk_cs2_ctrl_chan_stop;
         ctxt->cntrl_chan->send = ntwk_cs2_p2p_ctrl_send;
+        ctxt->cntrl_chan->send_to = ntwk_cs2_p2p_ctrl_send_to;
 #if CONFIG_NTWK_CTRL_CHAN_JSON
         ctxt->cntrl_chan->pack = NULL;
         ctxt->cntrl_chan->unpack = NULL;
@@ -79,13 +80,13 @@ bk_err_t bk_cs2_trans_service_init(char *service_name)
         ntwk_json_register_send_cb(ctxt->cntrl_chan->type, ntwk_trans_json_tx_handler);
         ntwk_json_register_recv_cb(ctxt->cntrl_chan->type, ntwk_trans_json_rx_handler);
         ntwk_json_chan_start(ctxt->cntrl_chan->type, NTWK_TRANS_DATA_MAX_SIZE);
-        ntwk_cs2_ctrl_register_receive_cb(ntwk_trans_ctrl_recv_handler);
+        ntwk_cs2_ctrl_register_receive_cb(ntwk_trans_ctrl_recv_handler_from_session);
 #else
         ntwk_pack_register_recv_cb(ctxt->cntrl_chan->type, ntwk_trans_pack_rx_handler);
            //configure ctrl channel
         ntwk_pack_chan_start(ctxt->cntrl_chan->type, NTWK_TRANS_DATA_MAX_SIZE, NTWK_TRANS_DATA_MAX_SIZE);
 
-        ntwk_cs2_ctrl_register_receive_cb(ntwk_trans_ctrl_recv_handler);
+        ntwk_cs2_ctrl_register_receive_cb(ntwk_trans_ctrl_recv_handler_from_session);
 #endif
     }
 
@@ -100,12 +101,18 @@ bk_err_t bk_cs2_trans_service_init(char *service_name)
         ctxt->video_chan->unpack = ntwk_pack_video_unpack;
         ctxt->video_chan->fragment = ntwk_fragment_video_fragment;
         ctxt->video_chan->unfragment = ntwk_fragment_video_unfragment;
+#if CONFIG_NTWK_CS2_CONGESTION_DROP
+        ctxt->video_chan->drop_check = NULL;
+#else
         ctxt->video_chan->drop_check = ntwk_video_drop_check;
+#endif
 
         ntwk_in_register_video_start_cb(ntwk_cs2_video_chan_start);
         ntwk_in_register_video_stop_cb(ntwk_cs2_video_chan_stop);
+#if !CONFIG_NTWK_CS2_CONGESTION_DROP
         ntwk_register_get_drop_size_cb(ntwk_cs2_get_current_write_size);
         ntwk_video_drop_start(CONFIG_CS2_TX_BUFFER_THD);
+#endif
 
         payload_size = NTWK_TRANS_TCP_DATA_MAX_SIZE - ntwk_pack_get_header_size() - ntwk_fragm_get_header_size();
         ntwk_fragment_start(ctxt->video_chan->type, payload_size, NULL);
@@ -164,7 +171,9 @@ bk_err_t bk_cs2_trans_service_deinit(void)
 #else
     ntwk_pack_chan_stop(NTWK_TRANS_CHAN_CTRL);
 #endif
+#if !CONFIG_NTWK_CS2_CONGESTION_DROP
     ntwk_video_drop_stop();
+#endif
     ntwk_fragment_stop(NTWK_TRANS_CHAN_VIDEO);
     ntwk_pack_chan_stop(NTWK_TRANS_CHAN_VIDEO);
     ntwk_pack_chan_stop(NTWK_TRANS_CHAN_AUDIO);

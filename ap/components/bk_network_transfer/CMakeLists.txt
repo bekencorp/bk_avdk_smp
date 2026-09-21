@@ -51,6 +51,12 @@ endif()
 
 if (CONFIG_CS2_P2P_SERVER OR CONFIG_CS2_P2P_CLIENT)
 list(APPEND srcs
+	common/bk_video_drop_policy/cs2_congestion_drop.c
+)
+endif()
+
+if (CONFIG_CS2_P2P_SERVER OR CONFIG_CS2_P2P_CLIENT)
+list(APPEND srcs
 	bk_network_service/bk_ntwk_cs2_service/ntwk_cs2_service.c
 	bk_network_service/bk_ntwk_cs2_service/bk_cs2_service.c
 )
