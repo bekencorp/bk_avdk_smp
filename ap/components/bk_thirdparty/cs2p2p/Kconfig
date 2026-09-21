@@ -28,6 +28,15 @@ menu "cs2p2p"
 		help
 			Set the threshold of the CS2 TX buffer. The recommended value is 5120 (1024*5).
 
+	config CS2_MAX_NUM_CONNECTIONS
+		int "Maximum CS2 number connections"
+		range 1 16
+		default 1
+		help
+			Set the maximum number of concurrent client sessions accepted by the CS2 service.
+			Default 1 keeps the original single-phone CS2 behavior. Multi-phone projects
+			such as doorbell_multi_session should set this to 2-4 in defconfig.
+
 	config CS2_MALLOC_USE_PSRAM
 		bool "cs2_malloc() malloc memory from PSRAM"
 		default n
