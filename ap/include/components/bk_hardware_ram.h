@@ -39,12 +39,7 @@ extern "C" {
 #endif
 
 #define ISP_BUFFER_SIZE				(((ISP_MAX_WIDTH * 16 * 3 / 2 * 3 + 64 + 63) / 64) * 64)
-#define GPU_BUFFER_SIZE				(((CONFIG_VG_LITE_GPU_CONTIGUOUS_MEM_SZ + 63) / 64) * 64)
 #define GPU_PINGPONG_BUFFER_SIZE	(((GPU_MAX_WIDTH * 16 * 2 + 64 + 63) / 64) * 64)
-//#define DPU_BUFFER_SIZE				(((32560 + 63) / 64) * 64)
-//#define H264E_BUFFER_SIZE			(((57664 + 63) / 64) * 64)
-
-//#define ALL_MEDIA_SRAM_SIZE (ISP_BUFFER_SIZE + GPU_BUFFER_SIZE + GPU_PINGPONG_BUFFER_SIZE + DPU_BUFFER_SIZE + H264E_BUFFER_SIZE)
 
 void *bk_get_isp_flexa_buffer(uint32_t size);
 void *bk_get_gpu_flexa_buffer(uint32_t size);

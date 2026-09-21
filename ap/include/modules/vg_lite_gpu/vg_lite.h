@@ -1238,7 +1238,20 @@ typedef float*              vg_lite_float_ptr;
     #define MESH_HEIGHT     16
     #define MESH_COUNT      2
 
+    /* Runtime VG-Lite heap parameters. Must be applied via vg_lite_set_mem_config()
+     * before vg_lite_init(). The contiguous heap size is calculated internally. */
+    typedef struct vg_lite_mem_config {
+        vg_lite_uint32_t gpu_base_addr;         /*! GPU register base. */
+        vg_lite_uint32_t command_buffer_size;   /*! Per-buffer command size. 0 = driver default. */
+        vg_lite_uint32_t tess_width;            /*! Tessellation width used to size the heap. 0 disables tess buffer unless Kconfig reserved max is set. */
+        vg_lite_uint32_t tess_height;           /*! Tessellation height used to size the heap. 0 disables tess buffer unless Kconfig reserved max is set. */
+    } vg_lite_mem_config_t;
+
 /* VGLite API Functions *******************************************************************************************************************/
+
+    /* Store runtime GPU/VG-Lite parameters and return the contiguous heap size
+     * the caller must allocate for vg_lite_set_buffer(). Returns 0 on error. */
+    vg_lite_uint32_t vg_lite_set_mem_config(const vg_lite_mem_config_t *config);
 
     vg_lite_error_t vg_lite_set_buffer(uint8_t *buffer);
 
@@ -1546,7 +1559,7 @@ typedef float*              vg_lite_float_ptr;
     vg_lite_error_t vg_lite_set_tess_buffer(vg_lite_uint32_t physical, vg_lite_uint32_t size);
 
     /* Can be called before vg_lite_init() to overwrite the default VG_LITE_COMMAND_BUFFER_SIZE */
-    /* Disabled in the Beken port: command buffer size is supplied by vsios_gpu_vg_lite_command_buffer_size(). */
+    /* Disabled in the Beken port: command buffer size is supplied by vg_lite_set_mem_config(). */
     /* vg_lite_error_t vg_lite_set_command_buffer_size(vg_lite_uint32_t size); */
 
     /* Set a user-defined external memory buffer (physical, 64-byte aligned) as VGLite command buffer.
