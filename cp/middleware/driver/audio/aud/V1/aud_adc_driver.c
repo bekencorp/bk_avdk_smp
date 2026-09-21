@@ -29,10 +29,10 @@
 
 #define TAG "aud_adc_drv"
 
-#define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
+#define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
 #define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
-#define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
+#define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
 
 
 #define AUD_ADC_RETURN_ON_NOT_INIT() do {\
@@ -113,7 +113,7 @@ bk_err_t bk_aud_adc_init(aud_adc_config_t *adc_config)
 
 	LOGD("configure mic and adc\r\n");
 
-	if (BK_OK != bk_aud_adc_set_sample_rate(adc_config->samp_rate)) {
+	if (BK_OK != bk_aud_adc_set_samp_rate(adc_config->samp_rate)) {
 		ret = BK_FAIL;
 		goto fail;
 	}
@@ -148,7 +148,7 @@ bk_err_t bk_aud_adc_deinit(void)
 	aud_hal_set_adc_config0_adc_hpf1_bypass(0);
 	aud_hal_set_adc_config0_adc_hpf2_bypass(0);
 
-	bk_aud_adc_set_sample_rate(8000);
+	bk_aud_adc_set_samp_rate(8000);
 
 	bk_err_t ret = bk_aud_set_module_init_sta(AUD_MODULE_ADC, false);
 
@@ -157,11 +157,11 @@ bk_err_t bk_aud_adc_deinit(void)
 	return ret;
 }
 
-bk_err_t bk_aud_adc_set_sample_rate(uint32_t samp_rate)
+bk_err_t bk_aud_adc_set_samp_rate(uint32_t samp_rate)
 {
 	AUD_ADC_RETURN_ON_NOT_INIT();
 
-#if CONFIG_SOC_BK7236XX || CONFIG_SOC_BK7259
+#if CONFIG_SOC_BK7236XX
 	/* get audio clock config */
 	if (1 == aud_hal_get_audio_config_apll_sel()) {
 		/* config apll */
@@ -424,4 +424,3 @@ bk_err_t bk_aud_adc_agc_config(aud_adc_agc_config_t *config)
 	AUD_ADC_RETURN_ON_NOT_INIT();
 	return aud_hal_adc_agc_config(config);
 }
-

@@ -587,6 +587,95 @@ uint32_t sys_drv_apll_spi_trigger_set(uint32_t value)
 	return SYS_DRV_SUCCESS;
 }
 
+uint32_t sys_drv_aud_looprst0v9_en(uint32_t value)
+{
+	uint32_t int_level = sys_drv_enter_critical();
+
+	sys_hal_aud_looprst0v9_en(value);
+	sys_drv_exit_critical(int_level);
+	return SYS_DRV_SUCCESS;
+}
+
+uint32_t sys_drv_aud_dac_ldcoc_en(uint32_t value)
+{
+	uint32_t int_level = sys_drv_enter_critical();
+	sys_hal_aud_dac_ldcoc_en(value);
+	sys_drv_exit_critical(int_level);
+	return SYS_DRV_SUCCESS;
+}
+
+uint32_t sys_drv_aud_dac_rdcoc_en(uint32_t value)
+{
+	uint32_t int_level = sys_drv_enter_critical();
+	sys_hal_aud_dac_rdcoc_en(value);
+	sys_drv_exit_critical(int_level);
+	return SYS_DRV_SUCCESS;
+}
+
+uint32_t sys_drv_aud_dac_enbs_en(uint32_t value)
+{
+	uint32_t int_level = sys_drv_enter_critical();
+	sys_hal_aud_dac_enbs_en(value);
+	sys_drv_exit_critical(int_level);
+	return SYS_DRV_SUCCESS;
+}
+
+uint32_t sys_drv_set_ana_reg20_value(uint32_t value)
+{
+	uint32_t int_level = sys_drv_enter_critical();
+	sys_hal_set_ana_reg20_value(value);
+	sys_drv_exit_critical(int_level);
+	return SYS_DRV_SUCCESS;
+}
+
+uint32_t sys_drv_set_ana_reg21_value(uint32_t value)
+{
+	uint32_t int_level = sys_drv_enter_critical();
+	sys_hal_set_ana_reg21_value(value);
+	sys_drv_exit_critical(int_level);
+	return SYS_DRV_SUCCESS;
+}
+
+uint32_t sys_drv_set_ana_reg25_value(uint32_t value)
+{
+	uint32_t int_level = sys_drv_enter_critical();
+	sys_hal_set_ana_reg25_value(value);
+	sys_drv_exit_critical(int_level);
+	return SYS_DRV_SUCCESS;
+}
+
+uint32_t sys_drv_set_ana_reg27_value(uint32_t value)
+{
+	uint32_t int_level = sys_drv_enter_critical();
+	sys_hal_set_ana_reg27_value(value);
+	sys_drv_exit_critical(int_level);
+	return SYS_DRV_SUCCESS;
+}
+
+uint32_t sys_drv_set_ana_reg28_value(uint32_t value)
+{
+	uint32_t int_level = sys_drv_enter_critical();
+	sys_hal_set_ana_reg28_value(value);
+	sys_drv_exit_critical(int_level);
+	return SYS_DRV_SUCCESS;
+}
+
+uint32_t sys_drv_set_ana_reg29_value(uint32_t value)
+{
+	uint32_t int_level = sys_drv_enter_critical();
+	sys_hal_set_ana_reg29_value(value);
+	sys_drv_exit_critical(int_level);
+	return SYS_DRV_SUCCESS;
+}
+
+uint32_t sys_drv_set_ana_reg30_value(uint32_t value)
+{
+	uint32_t int_level = sys_drv_enter_critical();
+	sys_hal_set_ana_reg30_value(value);
+	sys_drv_exit_critical(int_level);
+	return SYS_DRV_SUCCESS;
+}
+
 uint32_t sys_drv_i2s0_ckdiv_set(uint32_t value)
 {
 	uint32_t int_level = sys_drv_enter_critical();
@@ -606,5 +695,3 @@ uint32_t sys_drv_apll_config_set(uint32_t value)
 }
 
 /**  I2S End  **/
-
-

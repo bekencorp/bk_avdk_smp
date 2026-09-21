@@ -331,6 +331,9 @@ uint32_t  sys_drv_aud_select_clock(uint32_t value);
 #if CONFIG_SOC_BK7259
 uint32_t sys_drv_aud_set_ckdiv(uint32_t value);
 uint32_t sys_drv_aud_dac_diffen_en(uint32_t value);
+uint32_t sys_drv_aud_dac_ldcoc_en(uint32_t value);
+uint32_t sys_drv_aud_dac_rdcoc_en(uint32_t value);
+uint32_t sys_drv_aud_dac_enbs_en(uint32_t value);
 uint32_t sys_drv_aud_micbias_voc_en(uint32_t value);
 uint32_t sys_drv_aud_micbias_trm_set(uint32_t value);
 uint32_t sys_drv_aud_mic1_en(uint32_t value);
@@ -423,6 +426,14 @@ uint32_t sys_drv_apll_spi_trigger_set(uint32_t value);
 uint32_t sys_drv_i2s0_ckdiv_set(uint32_t value);
 uint32_t sys_drv_apll_config_set(uint32_t value);
 uint32_t sys_drv_dmic_clk_div_set(uint32_t value);
+uint32_t sys_drv_aud_looprst0v9_en(uint32_t value);
+uint32_t sys_drv_set_ana_reg20_value(uint32_t value);
+uint32_t sys_drv_set_ana_reg21_value(uint32_t value);
+uint32_t sys_drv_set_ana_reg25_value(uint32_t value);
+uint32_t sys_drv_set_ana_reg27_value(uint32_t value);
+uint32_t sys_drv_set_ana_reg28_value(uint32_t value);
+uint32_t sys_drv_set_ana_reg29_value(uint32_t value);
+uint32_t sys_drv_set_ana_reg30_value(uint32_t value);
 /**  I2S End  **/
 
 
@@ -688,4 +699,3 @@ void sys_drv_set_base_addr(uint32_t addr);
 
 #endif //_SYS_DRV_H_
 // eof
-

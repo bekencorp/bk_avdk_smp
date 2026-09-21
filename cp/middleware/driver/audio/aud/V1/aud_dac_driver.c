@@ -29,10 +29,10 @@
 
 #define TAG "aud_dac_drv"
 
-#define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
+#define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
 #define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
-#define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
+#define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
 
 
 #define AUD_DAC_RETURN_ON_NOT_INIT() do {\
@@ -253,6 +253,13 @@ bk_err_t bk_aud_dac_unmute(void)
 	return BK_OK;
 }
 
+bk_err_t bk_aud_dac_work_mode_set(uint32_t value)
+{
+	AUD_DAC_RETURN_ON_NOT_INIT();
+	sys_drv_aud_dac_work_mode_set(value);
+	return BK_OK;
+}
+
 bk_err_t bk_aud_dac_set_chl(aud_dac_chl_t dac_chl)
 {
 	AUD_DAC_RETURN_ON_NOT_INIT();
@@ -426,4 +433,3 @@ bk_err_t bk_aud_dac_set_dwa_bypass(uint8_t value)
 
 	return sys_drv_aud_dac_bypass_dwa_en(value);
 }
-

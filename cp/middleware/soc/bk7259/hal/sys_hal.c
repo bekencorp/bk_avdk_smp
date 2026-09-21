@@ -209,7 +209,7 @@ bk_err_t sys_hal_phy_ctrl(power_module_name_t module,power_module_state_t power_
 
 		if (0x0 == sys_hal_module_power_state_get(module))
 		{
-			if((bk_pm_vote_power_module_get() == PM_POWER_SUB_DOMAIN_PHY) || 
+			if((bk_pm_vote_power_module_get() == PM_POWER_SUB_DOMAIN_PHY) ||
 			(bk_pm_vote_power_module_get() == PM_POWER_SUB_DOMAIN_BTDM))
 			{
 				#if CONFIG_WIFI_ENABLE
@@ -2694,6 +2694,14 @@ void sys_hal_aud_dcoc_en(uint32_t value)
 {
     sys_ll_set_ana_reg29_lendcoc(value);
 }
+void sys_hal_aud_dac_ldcoc_en(uint32_t value)
+{
+    sys_ll_set_ana_reg29_lendcoc(value);
+}
+void sys_hal_aud_dac_rdcoc_en(uint32_t value)
+{
+    sys_ll_set_ana_reg29_rendcoc(value);
+}
 void sys_hal_aud_lmdcin_set(uint32_t value)
 {
 	return;
@@ -2711,6 +2719,10 @@ void sys_hal_aud_micbias_en(uint32_t value)
     sys_ll_set_ana_reg20_enmicbias(value);
 }
 void sys_hal_aud_dac_bias_en(uint32_t value)
+{
+    sys_ll_set_ana_reg30_enbs(value);
+}
+void sys_hal_aud_dac_enbs_en(uint32_t value)
 {
     sys_ll_set_ana_reg30_enbs(value);
 }
@@ -2917,6 +2929,10 @@ void sys_hal_apll_cal_val_set(uint32_t value)  /// modify - 260105
 void sys_hal_apll_spi_trigger_set(uint32_t value)
 {
     sys_ll_set_ana_reg25_spi_trigger(value);
+}
+void sys_hal_aud_looprst0v9_en(uint32_t value)
+{
+	sys_ll_set_ana_reg30_looprst0v9(value);
 }
 void sys_hal_i2s0_ckdiv_set(uint32_t value)
 {

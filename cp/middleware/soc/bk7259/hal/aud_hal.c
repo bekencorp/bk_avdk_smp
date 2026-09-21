@@ -13,189 +13,9 @@
 // limitations under the License.
 
 #include <common/bk_include.h>
-#include "sys_driver.h"
 #include "aud_hal.h"
 
-#define SYS_ANA_REG18_ISELAUD_DEFAULT_VAL                      (0x01)
-#define SYS_ANA_REG18_AUDCK_RLCEN1V_DEFAULT_VAL                (0x00)
-#define SYS_ANA_REG18_LCHCKINVEN1V_DEFAULT_VAL                 (0x01)
-#define SYS_ANA_REG18_ENAUDBIAS_DEFAULT_VAL                    (0x00)
-#define SYS_ANA_REG18_ENADCBIAS_DEFAULT_VAL                    (0x00)
-#define SYS_ANA_REG18_ENMICBIAS_DEFAULT_VAL                    (0x00)
-#define SYS_ANA_REG18_ADCCKINVEN1V_DEFAULT_VAL                 (0x00)
-#define SYS_ANA_REG18_DACFB2ST0V9_DEFAULT_VAL                  (0x01)
-#define SYS_ANA_REG18_NC1_DEFAULT_VAL                          (0x00)
-#define SYS_ANA_REG18_MICBIAS_TRM_DEFAULT_VAL                  (0x00)
-#define SYS_ANA_REG18_MICBIAS_VOC_DEFAULT_VAL                  (0x10)
-#define SYS_ANA_REG18_VREFSEL1V_DEFAULT_VAL                    (0x01)
-#define SYS_ANA_REG18_CAPSWSPI_DEFAULT_VAL                     (0x1f)
-#define SYS_ANA_REG18_ADREF_SEL_DEFAULT_VAL                    (0x02)
-#define SYS_ANA_REG18_NC0_DEFAULT_VAL                          (0x00)
-#define SYS_ANA_REG18_RESERVED_BIT_26_30_DEFAULT_VAL           (0x00)
-#define SYS_ANA_REG18_SPI_DACCKPSSEL_DEFAULT_VAL               (0x00)
-
-#define SYS_ANA_REG19_ISEL_DEFAULT_VAL                         (0x02)
-#define SYS_ANA_REG19_MICIRSEL1_DEFAULT_VAL                    (0x01)
-#define SYS_ANA_REG19_MICDACIT_DEFAULT_VAL                     (0x00)
-#define SYS_ANA_REG19_MICDACIH_DEFAULT_VAL                     (0x00)
-#define SYS_ANA_REG19_MICSINGLEEN_DEFAULT_VAL                  (0x00)
-#define SYS_ANA_REG19_DCCOMPEN_DEFAULT_VAL                     (0x00)
-#define SYS_ANA_REG19_MICGAIN_DEFAULT_VAL                      (0x00)
-#define SYS_ANA_REG19_MICDACEN_DEFAULT_VAL                     (0x00)
-#define SYS_ANA_REG19_STG2LSEN1V_DEFAULT_VAL                   (0x00)
-#define SYS_ANA_REG19_OPENLOOPCAL1V_DEFAULT_VAL                (0x00)
-#define SYS_ANA_REG19_CALLATCH_DEFAULT_VAL                     (0x00)
-#define SYS_ANA_REG19_VCMSEL_DEFAULT_VAL                       (0x01)
-#define SYS_ANA_REG19_DWAMODE_DEFAULT_VAL                      (0x01)
-#define SYS_ANA_REG19_R2REN_DEFAULT_VAL                        (0x00)
-#define SYS_ANA_REG19_NC_26_27_DEFAULT_VAL                     (0x00)
-#define SYS_ANA_REG19_MICEN_DEFAULT_VAL                        (0x00)
-#define SYS_ANA_REG19_RST_DEFAULT_VAL                          (0x00)
-#define SYS_ANA_REG19_BPDWA1V_DEFAULT_VAL                      (0x00)
-#define SYS_ANA_REG19_HCEN1STG_DEFAULT_VAL                     (0x01)
-
-#define SYS_ANA_REG20_HPDAC_DEFAULT_VAL                        (0x01)
-#define SYS_ANA_REG20_CALCON_SEL_DEFAULT_VAL                   (0x01)
-#define SYS_ANA_REG20_OSCDAC_DEFAULT_VAL                       (0x00)
-#define SYS_ANA_REG20_OCENDAC_DEFAULT_VAL                      (0x00)
-#define SYS_ANA_REG20_VCMSEL_DEFAULT_VAL                       (0x01)
-#define SYS_ANA_REG20_ADJDACREF_DEFAULT_VAL                    (0x10)
-#define SYS_ANA_REG20_DCOCHG_DEFAULT_VAL                       (0x00)
-#define SYS_ANA_REG20_DIFFEN_DEFAULT_VAL                       (0x01)
-#define SYS_ANA_REG20_ENDACCAL_DEFAULT_VAL                     (0x00)
-#define SYS_ANA_REG20_NC2_DEFAULT_VAL                          (0x00)
-#define SYS_ANA_REG20_LENDCOC_DEFAULT_VAL                      (0x00)
-#define SYS_ANA_REG20_NC1_DEFAULT_VAL                          (0x00)
-#define SYS_ANA_REG20_LENVCMD_DEFAULT_VAL                      (0x00)
-#define SYS_ANA_REG20_DACDRVEN_DEFAULT_VAL                     (0x00)
-#define SYS_ANA_REG20_NC0_DEFAULT_VAL                          (0x00)
-#define SYS_ANA_REG20_DACLEN_DEFAULT_VAL                       (0x00)
-#define SYS_ANA_REG20_DACG_DEFAULT_VAL                         (0x0f)
-#define SYS_ANA_REG20_DACMUTE_DEFAULT_VAL                      (0x00)
-#define SYS_ANA_REG20_DACDWAMODE_SEL_DEFAULT_VAL               (0x01)
-#define SYS_ANA_REG20_DACSEL_DEFAULT_VAL                       (0x0f)
-
-#define SYS_ANA_REG21_LMDCIN_DEFAULT_VAL                       (0x00)
-#define SYS_ANA_REG21_NC1_DEFAULT_VAL                          (0x00)
-#define SYS_ANA_REG21_SPIRST_OVC_DEFAULT_VAL                   (0x00)
-#define SYS_ANA_REG21_NC0_DEFAULT_VAL                          (0x00)
-#define SYS_ANA_REG21_ENIDACL_DEFAULT_VAL                      (0x00)
-#define SYS_ANA_REG21_DAC3RDHC0V9_DEFAULT_VAL                  (0x00)
-#define SYS_ANA_REG21_HC2S_DEFAULT_VAL                         (0x01)
-#define SYS_ANA_REG21_RFB_CTRL_DEFAULT_VAL                     (0x00)
-#define SYS_ANA_REG21_VCMSEL_DEFAULT_VAL                       (0x01)
-#define SYS_ANA_REG21_ENBS_DEFAULT_VAL                         (0x00)
-#define SYS_ANA_REG21_CALCK_SEL0V9_DEFAULT_VAL                 (0x00)
-#define SYS_ANA_REG21_BPDWA0V9_DEFAULT_VAL                     (0x00)
-#define SYS_ANA_REG21_LOOPRST0V9_DEFAULT_VAL                   (0x00)
-#define SYS_ANA_REG21_OCT0V9_DEFAULT_VAL                       (0x00)
-#define SYS_ANA_REG21_SOUT0V9_DEFAULT_VAL                      (0x00)
-#define SYS_ANA_REG21_HC0V9_DEFAULT_VAL                        (0x00)
-
-static uint32_t ana_reg18_value_cal(void)
-{
-	uint32_t value = 0;
-
-	value |= ((SYS_ANA_REG18_ISELAUD_DEFAULT_VAL & SYS_ANA_REG18_ISELAUD_MASK) << SYS_ANA_REG18_ISELAUD_POS);
-	value |= ((SYS_ANA_REG18_AUDCK_RLCEN1V_DEFAULT_VAL & SYS_ANA_REG18_AUDCK_RLCEN1V_MASK) << SYS_ANA_REG18_AUDCK_RLCEN1V_POS);
-	value |= ((SYS_ANA_REG18_LCHCKINVEN1V_DEFAULT_VAL & SYS_ANA_REG18_LCHCKINVEN1V_MASK) << SYS_ANA_REG18_LCHCKINVEN1V_POS);
-	value |= ((SYS_ANA_REG18_ENAUDBIAS_DEFAULT_VAL & SYS_ANA_REG18_ENAUDBIAS_MASK) << SYS_ANA_REG18_ENAUDBIAS_POS);
-	value |= ((SYS_ANA_REG18_ENADCBIAS_DEFAULT_VAL & SYS_ANA_REG18_ENADCBIAS_MASK) << SYS_ANA_REG18_ENADCBIAS_POS);
-	value |= ((SYS_ANA_REG18_ENMICBIAS_DEFAULT_VAL & SYS_ANA_REG18_ENMICBIAS_MASK) << SYS_ANA_REG18_ENMICBIAS_POS);
-	value |= ((SYS_ANA_REG18_ADCCKINVEN1V_DEFAULT_VAL & SYS_ANA_REG18_ADCCKINVEN1V_MASK) << SYS_ANA_REG18_ADCCKINVEN1V_POS);
-	value |= ((SYS_ANA_REG18_DACFB2ST0V9_DEFAULT_VAL & SYS_ANA_REG18_DACFB2ST0V9_MASK) << SYS_ANA_REG18_DACFB2ST0V9_POS);
-	value |= ((SYS_ANA_REG18_NC1_DEFAULT_VAL & SYS_ANA_REG18_NC1_MASK) << SYS_ANA_REG18_NC1_POS);
-	value |= ((SYS_ANA_REG18_MICBIAS_TRM_DEFAULT_VAL & SYS_ANA_REG18_MICBIAS_TRM_MASK) << SYS_ANA_REG18_MICBIAS_TRM_POS);
-	value |= ((SYS_ANA_REG18_MICBIAS_VOC_DEFAULT_VAL & SYS_ANA_REG18_MICBIAS_VOC_MASK) << SYS_ANA_REG18_MICBIAS_VOC_POS);
-	value |= ((SYS_ANA_REG18_VREFSEL1V_DEFAULT_VAL & SYS_ANA_REG18_VREFSEL1V_MASK) << SYS_ANA_REG18_VREFSEL1V_POS);
-	value |= ((SYS_ANA_REG18_CAPSWSPI_DEFAULT_VAL & SYS_ANA_REG18_CAPSWSPI_MASK) << SYS_ANA_REG18_CAPSWSPI_POS);
-	value |= ((SYS_ANA_REG18_ADREF_SEL_DEFAULT_VAL & SYS_ANA_REG18_ADREF_SEL_MASK) << SYS_ANA_REG18_ADREF_SEL_POS);
-	value |= ((SYS_ANA_REG18_NC0_DEFAULT_VAL & SYS_ANA_REG18_NC0_MASK) << SYS_ANA_REG18_NC0_POS);
-	value |= ((SYS_ANA_REG18_RESERVED_BIT_26_30_DEFAULT_VAL & SYS_ANA_REG18_RESERVED_BIT_26_30_MASK) << SYS_ANA_REG18_RESERVED_BIT_26_30_POS);
-	value |= ((SYS_ANA_REG18_SPI_DACCKPSSEL_DEFAULT_VAL & SYS_ANA_REG18_SPI_DACCKPSSEL_MASK) << SYS_ANA_REG18_SPI_DACCKPSSEL_POS);
-
-	return value;
-}
-
-static uint32_t ana_reg19_value_cal(void)
-{
-	uint32_t value = 0;
-
-	value |= ((SYS_ANA_REG19_ISEL_DEFAULT_VAL & SYS_ANA_REG19_ISEL_MASK) << SYS_ANA_REG19_ISEL_POS);
-	value |= ((SYS_ANA_REG19_MICIRSEL1_DEFAULT_VAL & SYS_ANA_REG19_MICIRSEL1_MASK) << SYS_ANA_REG19_MICIRSEL1_POS);
-	value |= ((SYS_ANA_REG19_MICDACIT_DEFAULT_VAL & SYS_ANA_REG19_MICDACIT_MASK) << SYS_ANA_REG19_MICDACIT_POS);
-	value |= ((SYS_ANA_REG19_MICDACIH_DEFAULT_VAL & SYS_ANA_REG19_MICDACIH_MASK) << SYS_ANA_REG19_MICDACIH_POS);
-	value |= ((SYS_ANA_REG19_MICSINGLEEN_DEFAULT_VAL & SYS_ANA_REG19_MICSINGLEEN_MASK) << SYS_ANA_REG19_MICSINGLEEN_POS);
-	value |= ((SYS_ANA_REG19_DCCOMPEN_DEFAULT_VAL & SYS_ANA_REG19_DCCOMPEN_MASK) << SYS_ANA_REG19_DCCOMPEN_POS);
-	value |= ((SYS_ANA_REG19_MICGAIN_DEFAULT_VAL & SYS_ANA_REG19_MICGAIN_MASK) << SYS_ANA_REG19_MICGAIN_POS);
-	value |= ((SYS_ANA_REG19_MICDACEN_DEFAULT_VAL & SYS_ANA_REG19_MICDACEN_MASK) << SYS_ANA_REG19_MICDACEN_POS);
-	value |= ((SYS_ANA_REG19_STG2LSEN1V_DEFAULT_VAL & SYS_ANA_REG19_STG2LSEN1V_MASK) << SYS_ANA_REG19_STG2LSEN1V_POS);
-	value |= ((SYS_ANA_REG19_OPENLOOPCAL1V_DEFAULT_VAL & SYS_ANA_REG19_OPENLOOPCAL1V_MASK) << SYS_ANA_REG19_OPENLOOPCAL1V_POS);
-	value |= ((SYS_ANA_REG19_CALLATCH_DEFAULT_VAL & SYS_ANA_REG19_CALLATCH_MASK) << SYS_ANA_REG19_CALLATCH_POS);
-	value |= ((SYS_ANA_REG19_VCMSEL_DEFAULT_VAL & SYS_ANA_REG19_VCMSEL_MASK) << SYS_ANA_REG19_VCMSEL_POS);
-	value |= ((SYS_ANA_REG19_DWAMODE_DEFAULT_VAL & SYS_ANA_REG19_DWAMODE_MASK) << SYS_ANA_REG19_DWAMODE_POS);
-	value |= ((SYS_ANA_REG19_R2REN_DEFAULT_VAL & SYS_ANA_REG19_R2REN_MASK) << SYS_ANA_REG19_R2REN_POS);
-	value |= ((SYS_ANA_REG19_NC_26_27_DEFAULT_VAL & SYS_ANA_REG19_NC_26_27_MASK) << SYS_ANA_REG19_NC_26_27_POS);
-	value |= ((SYS_ANA_REG19_MICEN_DEFAULT_VAL & SYS_ANA_REG19_MICEN_MASK) << SYS_ANA_REG19_MICEN_POS);
-	value |= ((SYS_ANA_REG19_RST_DEFAULT_VAL & SYS_ANA_REG19_RST_MASK) << SYS_ANA_REG19_RST_POS);
-	value |= ((SYS_ANA_REG19_BPDWA1V_DEFAULT_VAL & SYS_ANA_REG19_BPDWA1V_MASK) << SYS_ANA_REG19_BPDWA1V_POS);
-	value |= ((SYS_ANA_REG19_HCEN1STG_DEFAULT_VAL & SYS_ANA_REG19_HCEN1STG_MASK) << SYS_ANA_REG19_HCEN1STG_POS);
-
-	return value;
-}
-
-static uint32_t ana_reg20_value_cal(void)
-{
-	uint32_t value = 0;
-
-	value |= ((SYS_ANA_REG20_HPDAC_DEFAULT_VAL & SYS_ANA_REG20_HPDAC_MASK) << SYS_ANA_REG20_HPDAC_POS);
-	value |= ((SYS_ANA_REG20_CALCON_SEL_DEFAULT_VAL & SYS_ANA_REG20_CALCON_SEL_MASK) << SYS_ANA_REG20_CALCON_SEL_POS);
-	value |= ((SYS_ANA_REG20_OSCDAC_DEFAULT_VAL & SYS_ANA_REG20_OSCDAC_MASK) << SYS_ANA_REG20_OSCDAC_POS);
-	value |= ((SYS_ANA_REG20_OCENDAC_DEFAULT_VAL & SYS_ANA_REG20_OCENDAC_MASK) << SYS_ANA_REG20_OCENDAC_POS);
-	value |= ((SYS_ANA_REG20_VCMSEL_DEFAULT_VAL & SYS_ANA_REG20_VCMSEL_MASK) << SYS_ANA_REG20_VCMSEL_POS);
-	value |= ((SYS_ANA_REG20_ADJDACREF_DEFAULT_VAL & SYS_ANA_REG20_ADJDACREF_MASK) << SYS_ANA_REG20_ADJDACREF_POS);
-	value |= ((SYS_ANA_REG20_DCOCHG_DEFAULT_VAL & SYS_ANA_REG20_DCOCHG_MASK) << SYS_ANA_REG20_DCOCHG_POS);
-	value |= ((SYS_ANA_REG20_DIFFEN_DEFAULT_VAL & SYS_ANA_REG20_DIFFEN_MASK) << SYS_ANA_REG20_DIFFEN_POS);
-	value |= ((SYS_ANA_REG20_ENDACCAL_DEFAULT_VAL & SYS_ANA_REG20_ENDACCAL_MASK) << SYS_ANA_REG20_ENDACCAL_POS);
-	value |= ((SYS_ANA_REG20_NC2_DEFAULT_VAL & SYS_ANA_REG20_NC2_MASK) << SYS_ANA_REG20_NC2_POS);
-	value |= ((SYS_ANA_REG20_LENDCOC_DEFAULT_VAL & SYS_ANA_REG20_LENDCOC_MASK) << SYS_ANA_REG20_LENDCOC_POS);
-	value |= ((SYS_ANA_REG20_NC1_DEFAULT_VAL & SYS_ANA_REG20_NC1_MASK) << SYS_ANA_REG20_NC1_POS);
-	value |= ((SYS_ANA_REG20_LENVCMD_DEFAULT_VAL & SYS_ANA_REG20_LENVCMD_MASK) << SYS_ANA_REG20_LENVCMD_POS);
-	value |= ((SYS_ANA_REG20_DACDRVEN_DEFAULT_VAL & SYS_ANA_REG20_DACDRVEN_MASK) << SYS_ANA_REG20_DACDRVEN_POS);
-	value |= ((SYS_ANA_REG20_NC0_DEFAULT_VAL & SYS_ANA_REG20_NC0_MASK) << SYS_ANA_REG20_NC0_POS);
-	value |= ((SYS_ANA_REG20_DACLEN_DEFAULT_VAL & SYS_ANA_REG20_DACLEN_MASK) << SYS_ANA_REG20_DACLEN_POS);
-	value |= ((SYS_ANA_REG20_DACG_DEFAULT_VAL & SYS_ANA_REG20_DACG_MASK) << SYS_ANA_REG20_DACG_POS);
-	value |= ((SYS_ANA_REG20_DACMUTE_DEFAULT_VAL & SYS_ANA_REG20_DACMUTE_MASK) << SYS_ANA_REG20_DACMUTE_POS);
-	value |= ((SYS_ANA_REG20_DACDWAMODE_SEL_DEFAULT_VAL & SYS_ANA_REG20_DACDWAMODE_SEL_MASK) << SYS_ANA_REG20_DACDWAMODE_SEL_POS);
-	value |= ((SYS_ANA_REG20_DACSEL_DEFAULT_VAL & SYS_ANA_REG20_DACSEL_MASK) << SYS_ANA_REG20_DACSEL_POS);
-
-	return value;
-}
-
-static uint32_t ana_reg21_value_cal(void)
-{
-	uint32_t value = 0;
-
-	value |= ((SYS_ANA_REG21_LMDCIN_DEFAULT_VAL & SYS_ANA_REG21_LMDCIN_MASK) << SYS_ANA_REG21_LMDCIN_POS);
-	value |= ((SYS_ANA_REG21_NC1_DEFAULT_VAL & SYS_ANA_REG21_NC1_MASK) << SYS_ANA_REG21_NC1_POS);
-	value |= ((SYS_ANA_REG21_SPIRST_OVC_DEFAULT_VAL & SYS_ANA_REG21_SPIRST_OVC_MASK) << SYS_ANA_REG21_SPIRST_OVC_POS);
-	value |= ((SYS_ANA_REG21_NC0_DEFAULT_VAL & SYS_ANA_REG21_NC0_MASK) << SYS_ANA_REG21_NC0_POS);
-	value |= ((SYS_ANA_REG21_ENIDACL_DEFAULT_VAL & SYS_ANA_REG21_ENIDACL_MASK) << SYS_ANA_REG21_ENIDACL_POS);
-	value |= ((SYS_ANA_REG21_DAC3RDHC0V9_DEFAULT_VAL & SYS_ANA_REG21_DAC3RDHC0V9_MASK) << SYS_ANA_REG21_DAC3RDHC0V9_POS);
-	value |= ((SYS_ANA_REG21_HC2S_DEFAULT_VAL & SYS_ANA_REG21_HC2S_MASK) << SYS_ANA_REG21_HC2S_POS);
-	value |= ((SYS_ANA_REG21_RFB_CTRL_DEFAULT_VAL & SYS_ANA_REG21_RFB_CTRL_MASK) << SYS_ANA_REG21_RFB_CTRL_POS);
-	value |= ((SYS_ANA_REG21_VCMSEL_DEFAULT_VAL & SYS_ANA_REG21_VCMSEL_MASK) << SYS_ANA_REG21_VCMSEL_POS);
-	value |= ((SYS_ANA_REG21_ENBS_DEFAULT_VAL & SYS_ANA_REG21_ENBS_MASK) << SYS_ANA_REG21_ENBS_POS);
-	value |= ((SYS_ANA_REG21_CALCK_SEL0V9_DEFAULT_VAL & SYS_ANA_REG21_CALCK_SEL0V9_MASK) << SYS_ANA_REG21_CALCK_SEL0V9_POS);
-	value |= ((SYS_ANA_REG21_BPDWA0V9_DEFAULT_VAL & SYS_ANA_REG21_BPDWA0V9_MASK) << SYS_ANA_REG21_BPDWA0V9_POS);
-	value |= ((SYS_ANA_REG21_LOOPRST0V9_DEFAULT_VAL & SYS_ANA_REG21_LOOPRST0V9_MASK) << SYS_ANA_REG21_LOOPRST0V9_POS);
-	value |= ((SYS_ANA_REG21_OCT0V9_DEFAULT_VAL & SYS_ANA_REG21_OCT0V9_MASK) << SYS_ANA_REG21_OCT0V9_POS);
-	value |= ((SYS_ANA_REG21_SOUT0V9_DEFAULT_VAL & SYS_ANA_REG21_SOUT0V9_MASK) << SYS_ANA_REG21_SOUT0V9_POS);
-	value |= ((SYS_ANA_REG21_HC0V9_DEFAULT_VAL & SYS_ANA_REG21_HC0V9_MASK) << SYS_ANA_REG21_HC0V9_POS);
-
-	return value;
-}
-
+#if 0
 bk_err_t aud_hal_adc_hpf_config(aud_adc_hpf_config_t *config)
 {
 	aud_hal_set_adc_config1_adc_hpf2_coef_b0(config->adc_hpf2_coef_B0);
@@ -330,81 +150,68 @@ bk_err_t aud_hal_dtmf_config(aud_dtmf_config_t *config)
 
 	return BK_OK;
 }
+#endif
 
 /* get adc fifo port address */
-bk_err_t aud_hal_adc_get_fifo_addr(uint32_t *adc_fifo_addr)
+bk_err_t aud_hal_adc_get_mic0_data_bus_fifo_addr(uint32_t *fifo_addr)
 {
-	//*adc_fifo_addr = aud_ll_get_adc_fifo_addr();
-	*adc_fifo_addr = AUD_ADC_FPORT_ADDR;
+	*fifo_addr = SOC_AUDIO_FIFO_REG_BASE + (0x46 << 2);
+	return BK_OK;
+}
+
+bk_err_t aud_hal_adc_get_mic1_data_bus_fifo_addr(uint32_t *fifo_addr)
+{
+	*fifo_addr = SOC_AUDIO_FIFO_REG_BASE + (0x47 << 2);
 	return BK_OK;
 }
 
 /* get dac fifo port address */
-bk_err_t aud_hal_dac_get_fifo_addr(uint32_t *dac_fifo_addr)
+bk_err_t aud_hal_dac_spk0_get_a2dp_fifo_addr(uint32_t *fifo_addr)
 {
-	//*dac_fifo_addr = aud_ll_get_dac_fifo_addr();
-	*dac_fifo_addr = AUD_DAC_FPORT_ADDR;
+	*fifo_addr = SOC_AUDIO_FIFO_REG_BASE + (0x40 << 2);
+	return BK_OK;
+}
+
+bk_err_t aud_hal_dac_spk0_get_call_fifo_addr(uint32_t *fifo_addr)
+{
+	*fifo_addr = SOC_AUDIO_FIFO_REG_BASE + (0x41 << 2);
+	return BK_OK;
+}
+
+bk_err_t aud_hal_dac_spk0_get_hint_fifo_addr(uint32_t *fifo_addr)
+{
+	*fifo_addr = SOC_AUDIO_FIFO_REG_BASE + (0x42 << 2);
+	return BK_OK;
+}
+
+bk_err_t aud_hal_dac_spk1_get_a2dp_fifo_addr(uint32_t *fifo_addr)
+{
+	*fifo_addr = SOC_AUDIO_FIFO_REG_BASE + (0x43 << 2);
+	return BK_OK;
+}
+
+bk_err_t aud_hal_dac_spk1_get_call_fifo_addr(uint32_t *fifo_addr)
+{
+	*fifo_addr = SOC_AUDIO_FIFO_REG_BASE + (0x44 << 2);
+	return BK_OK;
+}
+
+bk_err_t aud_hal_dac_spk1_get_hint_fifo_addr(uint32_t *fifo_addr)
+{
+	*fifo_addr = SOC_AUDIO_FIFO_REG_BASE + (0x45 << 2);
 	return BK_OK;
 }
 
 /* get dtmf fifo port address */
 bk_err_t aud_hal_dtmf_get_fifo_addr(uint32_t *dtmf_fifo_addr)
 {
-	//*dtmf_fifo_addr = aud_ll_get_dtmf_fifo_addr();
-	*dtmf_fifo_addr = AUD_DTMF_FPORT_ADDR;
+	*dtmf_fifo_addr = audio_fifo_hal_get_mic0_data_bus_mic0_data_bus();
 	return BK_OK;
 }
 
 /* get dmic fifo port address */
 bk_err_t aud_hal_dmic_get_fifo_addr(uint32_t *dmic_fifo_addr)
 {
-	//*dmic_fifo_addr = aud_ll_get_dmic_fifo_addr();
-	*dmic_fifo_addr = AUD_DMIC_FPORT_ADDR;
+	*dmic_fifo_addr = audio_fifo_hal_get_mic0_data_bus_mic0_data_bus();
 	return BK_OK;
-}
-
-extern void delay(int num);
-bk_err_t aud_hal_clk_config(aud_clk_t clk)
-{
-	if (clk == AUD_CLK_APLL) {
-		sys_drv_aud_select_clock(1);
-		//set apll clock config
-		sys_drv_apll_en(1);
-		sys_drv_apll_cal_val_set(0x973CA70);   //(0x8973CA6F);
-		sys_drv_apll_config_set(0xC2A06A86);   //(0xC2A0AE86);
-		sys_drv_apll_spi_trigger_set(1);
-		delay(10);
-		sys_drv_apll_spi_trigger_set(0);
-		/* selet apll */
-		aud_hal_set_audio_config_apll_sel(1);
-	} else {
-		sys_drv_aud_select_clock(0);
-		/* selet xtal */
-		aud_hal_set_audio_config_apll_sel(0);
-	}
-
-	return BK_OK;
-}
-
-void aud_hal_init(void)
-{
-	aud_hal_set_clk_control_soft_reset(1);
-	sys_hal_set_ana_reg18_value(ana_reg18_value_cal());
-	sys_hal_set_ana_reg19_value(ana_reg19_value_cal());
-	sys_hal_set_ana_reg20_value(ana_reg20_value_cal());
-	sys_hal_set_ana_reg21_value(ana_reg21_value_cal()); //mic1
-	sys_hal_set_ana_reg27_value(0x91800006); //mic2
-	sys_drv_aud_audbias_en(1);
-}
-
-void aud_hal_deinit(void)
-{
-	sys_hal_set_ana_reg18_value(0);
-	sys_hal_set_ana_reg19_value(0);
-	sys_hal_set_ana_reg20_value(0);
-	sys_hal_set_ana_reg21_value(0);
-	sys_drv_aud_audbias_en(0);
-	aud_hal_set_clk_control_soft_reset(0);
-	aud_hal_set_clk_control_soft_reset(1);
-	aud_hal_set_clk_control_soft_reset(0);
 }

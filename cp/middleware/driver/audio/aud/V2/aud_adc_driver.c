@@ -12,24 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-
+#include <math.h>
 
 #include <common/bk_include.h>
-//#include "aud_hal.h"
-#include "aud_hal_bk7259.h"
+#include "aud_hal.h"
 
 #include "sys_driver.h"
 #include "clock_driver.h"
 #include <os/os.h>
 #include <os/mem.h>
 #include <driver/int.h>
-
+#include <driver/gpio.h>
 #include <driver/aud_adc.h>
 #include <driver/aud_adc_types.h>
+#include <timer/timer_driver.h>
 
 #include "gpio_driver.h"
-#include <driver/gpio.h>
-
 
 #define TAG "aud_adc_drv"
 
@@ -134,16 +132,18 @@ bk_err_t bk_aud_adc_init(aud_adc_config_t *adc_config)
     //enable audio adc power
     sys_drv_aud_adcbias_en(1);
     sys_drv_aud_micbias_en(1);
+    sys_drv_aud_audbias_en(1);
+    bk_timer_delay_us(1000);
 
-    /* config mic analog gain */
-    sys_drv_aud_mic1_gain_set(adc_config->chl_cfg[0].ana_gain);
-    sys_drv_aud_mic2_gain_set(adc_config->chl_cfg[1].ana_gain);
-    sys_drv_aud_mic3_gain_set(adc_config->chl_cfg[2].ana_gain);
+    /* config mic analog gain in dB */
+    bk_aud_adc_set_ana_gain_db(AUD_ADC_CHL_0, adc_config->chl_cfg[0].ana_gain);
+    bk_aud_adc_set_ana_gain_db(AUD_ADC_CHL_1, adc_config->chl_cfg[1].ana_gain);
+    bk_aud_adc_set_ana_gain_db(AUD_ADC_CHL_2, adc_config->chl_cfg[2].ana_gain);
 
-    /* config adc channel digital gain */
-    audio_reg_hal_set_adc_gain_cfg2_adc_chn0_gain(adc_config->chl_cfg[0].dig_gain);
-    audio_reg_hal_set_adc_gain_cfg1_adc_chn1_gain(adc_config->chl_cfg[1].dig_gain);
-    audio_reg_hal_set_adc_gain_cfg5_adc_chn2_gain(adc_config->chl_cfg[2].dig_gain);
+    /* config adc channel digital gain in dB */
+    bk_aud_adc_set_dig_gain_db(AUD_ADC_CHL_0, adc_config->chl_cfg[0].dig_gain);
+    bk_aud_adc_set_dig_gain_db(AUD_ADC_CHL_1, adc_config->chl_cfg[1].dig_gain);
+    bk_aud_adc_set_dig_gain_db(AUD_ADC_CHL_2, adc_config->chl_cfg[2].dig_gain);
 
     /* config mic mode */
     bk_aud_adc_set_mic_mode(AUD_ADC_CHL_0, adc_config->chl_cfg[0].adc_mode);
@@ -155,14 +155,27 @@ bk_err_t bk_aud_adc_init(aud_adc_config_t *adc_config)
     bk_aud_adc_set_bits_width(AUD_ADC_CHL_1, adc_config->chl_cfg[1].bits);
     bk_aud_adc_set_bits_width(AUD_ADC_CHL_2, adc_config->chl_cfg[2].bits);
 
+    /* Configure AEC loopback: 0=off, 1/2/3=hardware loopback mode */
+    {
+        uint8_t aec_en = adc_config->aec_en & 0x3;
+        if (aec_en) {
+            audio_reg_hal_set_adc_cfg_aec_en(1);//(aec_en);
+            audio_reg_hal_set_adc_cfg_aec_16b_sel(1);//(aec_en);
+        } else
+		{
+            audio_reg_hal_set_adc_cfg_aec_en(0);
+            audio_reg_hal_set_adc_cfg_aec_16b_sel(0);
+		}
+    }
+
     audio_reg_hal_set_adc_cfg_clk_adc_inv(adc_config->adc_samp_edge);
 
     //aud_hal_set_adc_config0_adc_hpf1_bypass(1);
     //aud_hal_set_adc_config0_adc_hpf2_bypass(1);
 
-    LOGI("configure mic and adc\r\n");
+    LOGD("configure mic and adc\r\n");
 
-    if (BK_OK != bk_aud_adc_set_sample_rate(adc_config->sample_rate)) {
+    if (BK_OK != bk_aud_adc_set_samp_rate(adc_config->sample_rate)) {
         ret = BK_FAIL;
         goto fail;
     }
@@ -200,12 +213,15 @@ bk_err_t bk_aud_adc_deinit(void)
     audio_reg_hal_set_adc_gain_cfg1_adc_chn1_gain(0);
     audio_reg_hal_set_adc_gain_cfg5_adc_chn2_gain(0);
 
+    audio_reg_hal_set_adc_cfg_aec_en(0x0);
+    audio_reg_hal_set_adc_cfg_aec_16b_sel(0x0);
+
 	audio_reg_hal_set_adc_cfg_clk_adc_inv(AUD_ADC_SAMP_EDGE_RISING);
 
 	//aud_hal_set_adc_config0_adc_hpf1_bypass(0);
 	//aud_hal_set_adc_config0_adc_hpf2_bypass(0);
 
-	bk_aud_adc_set_sample_rate(8000);
+	bk_aud_adc_set_samp_rate(8000);
 
 	bk_aud_set_module_init_sta(AUD_MODULE_ADC, false);
 
@@ -214,13 +230,14 @@ bk_err_t bk_aud_adc_deinit(void)
 	return BK_OK;
 }
 
-bk_err_t bk_aud_adc_set_sample_rate(uint32_t sample_rate)
+bk_err_t bk_aud_adc_set_samp_rate(uint32_t sample_rate)
 {
     AUD_ADC_RETURN_ON_NOT_INIT();
 
     uint32_t cic;
     uint32_t fir1_bps = 0;
     uint32_t fir2_bps = 0;
+    uint32_t fir3_bps = 1;
 
     switch (sample_rate)
     {
@@ -288,6 +305,7 @@ bk_err_t bk_aud_adc_set_sample_rate(uint32_t sample_rate)
     audio_reg_hal_set_sys_cfg_rx_sp_sel(cic);
     audio_reg_hal_set_adc_cfg_adc_lpf_bps1(fir1_bps);
     audio_reg_hal_set_adc_cfg_adc_lpf_bps2(fir2_bps);
+    audio_reg_hal_set_adc_cfg_adc_lpf_bps3(fir3_bps);
 
     /* config apll frequency */
     bk_aud_apll_config((sample_rate / 44100 * 44100 == sample_rate) ? AUD_APLL_FREQ_90P3168_MHZ : AUD_APLL_FREQ_98P3040_MHZ);
@@ -297,7 +315,7 @@ bk_err_t bk_aud_adc_set_sample_rate(uint32_t sample_rate)
 
 bk_err_t bk_aud_adc_set_ana_gain(aud_adc_chl_t chl, uint32_t value)
 {
-	AUD_ADC_RETURN_ON_NOT_INIT();
+    AUD_ADC_RETURN_ON_NOT_INIT();
     switch (chl) {
         case AUD_ADC_CHL_0:
             sys_drv_aud_mic1_gain_set(value);
@@ -315,12 +333,92 @@ bk_err_t bk_aud_adc_set_ana_gain(aud_adc_chl_t chl, uint32_t value)
             return BK_FAIL;
     }
 
-	return BK_OK;
+    return BK_OK;
+}
+
+static uint32_t bk_aud_adc_ana_gain_db_to_reg(int32_t db)
+{
+    if (db <= 0) {
+        return 0;
+    }
+    if (db > BK_AUD_ADC_ANA_GAIN_DB_MAX) {
+        db = (int32_t)BK_AUD_ADC_ANA_GAIN_DB_MAX;
+    }
+
+    {
+        uint32_t reg = (uint32_t)((db + 1) / 2); /* 2dB/step, round to nearest */
+        if (reg > ADC_ANA_GAIN_REG_MAX) {
+            reg = ADC_ANA_GAIN_REG_MAX;
+        }
+        return reg;
+    }
+}
+
+static int32_t bk_aud_adc_ana_gain_reg_to_db(uint32_t reg)
+{
+    if (reg > ADC_ANA_GAIN_REG_MAX) {
+        reg = ADC_ANA_GAIN_REG_MAX;
+    }
+    return (int32_t)(reg * 2u);
+}
+
+static bk_err_t bk_aud_adc_get_ana_gain_reg(aud_adc_chl_t chl, uint32_t *value)
+{
+    switch (chl) {
+        case AUD_ADC_CHL_0:
+            *value = sys_ll_get_ana_reg21_micgain_mic1();
+            break;
+
+        case AUD_ADC_CHL_1:
+            *value = sys_ll_get_ana_reg27_micgain_mic2();
+            break;
+
+        case AUD_ADC_CHL_2:
+            *value = sys_ll_get_ana_reg28_micgain_mic3();
+            break;
+
+        default:
+            return BK_FAIL;
+    }
+
+    return BK_OK;
+}
+
+bk_err_t bk_aud_adc_set_ana_gain_db(aud_adc_chl_t chl, int32_t db)
+{
+    AUD_ADC_RETURN_ON_NOT_INIT();
+
+    if (db <= 0) {
+        db = 0;
+    } else if (db > BK_AUD_ADC_ANA_GAIN_DB_MAX) {
+        db = (int32_t)BK_AUD_ADC_ANA_GAIN_DB_MAX;
+    }
+
+    return bk_aud_adc_set_ana_gain(chl, bk_aud_adc_ana_gain_db_to_reg(db));
+}
+
+bk_err_t bk_aud_adc_get_ana_gain_db(aud_adc_chl_t chl, int32_t *db)
+{
+    AUD_ADC_RETURN_ON_NOT_INIT();
+    if (db == NULL) {
+        LOGE("%s,%d db is NULL!\n", __func__, __LINE__);
+        return BK_FAIL;
+    }
+
+    uint32_t reg = 0;
+    bk_err_t ret = bk_aud_adc_get_ana_gain_reg(chl, &reg);
+    if (ret != BK_OK) {
+        LOGE("%s,%d get adc ana gain fail!\n", __func__, __LINE__);
+        return ret;
+    }
+
+    *db = bk_aud_adc_ana_gain_reg_to_db(reg);
+    return BK_OK;
 }
 
 bk_err_t bk_aud_adc_set_dig_gain(aud_adc_chl_t chl, uint32_t value)
 {
-	AUD_ADC_RETURN_ON_NOT_INIT();
+    AUD_ADC_RETURN_ON_NOT_INIT();
 
     switch (chl) {
         case AUD_ADC_CHL_0:
@@ -339,7 +437,128 @@ bk_err_t bk_aud_adc_set_dig_gain(aud_adc_chl_t chl, uint32_t value)
             return BK_FAIL;
     }
 
-	return BK_OK;
+    return BK_OK;
+}
+
+static uint32_t bk_aud_adc_dig_gain_db_to_reg(float db)
+{
+    if (db != db) {
+        return 0;
+    }
+    if (db > BK_AUD_ADC_DIG_GAIN_DB_MAX) {
+        db = BK_AUD_ADC_DIG_GAIN_DB_MAX;
+    }
+    if (db <= BK_AUD_ADC_DIG_GAIN_DB_SILENCE) {
+        return 0;
+    }
+
+    float linear = powf(10.0f, db / 20.0f);
+    float linear_max = powf(10.0f, BK_AUD_ADC_DIG_GAIN_DB_MAX / 20.0f);
+
+    if (linear > linear_max) {
+        linear = linear_max;
+    }
+    if (linear <= 0.0f) {
+        return 0;
+    }
+
+    float reg_max_lin = (float)ADC_DIG_GAIN_INT_MASK
+                      + (float)ADC_DIG_GAIN_FRAC_MASK / (float)ADC_DIG_GAIN_FRAC_SCALE;
+
+    if (linear > reg_max_lin) {
+        linear = reg_max_lin;
+    }
+
+    uint32_t int_part = (uint32_t)floorf(linear);
+    if (int_part > ADC_DIG_GAIN_INT_MASK) {
+        int_part = ADC_DIG_GAIN_INT_MASK;
+    }
+
+    float frac_f = linear - (float)int_part;
+    uint32_t frac = (uint32_t)(frac_f * (float)ADC_DIG_GAIN_FRAC_SCALE + 0.5f);
+    if (frac > ADC_DIG_GAIN_FRAC_MASK) {
+        frac = ADC_DIG_GAIN_FRAC_MASK;
+    }
+
+    return (int_part << ADC_DIG_GAIN_INT_SHIFT) | frac;
+}
+
+static float bk_aud_adc_dig_gain_reg_to_db(uint32_t reg)
+{
+    uint32_t int_part = (reg >> ADC_DIG_GAIN_INT_SHIFT) & ADC_DIG_GAIN_INT_MASK;
+    uint32_t frac = reg & ADC_DIG_GAIN_FRAC_MASK;
+    float linear = (float)int_part + (float)frac / (float)ADC_DIG_GAIN_FRAC_SCALE;
+
+    if (linear == 0.0f) {
+        return BK_AUD_ADC_DIG_GAIN_DB_SILENCE;
+    }
+
+    return 20.0f * log10f(linear);
+}
+
+static bk_err_t bk_aud_adc_get_dig_gain_reg(aud_adc_chl_t chl, uint32_t *value)
+{
+    switch (chl) {
+        case AUD_ADC_CHL_0:
+            *value = audio_reg_hal_get_adc_gain_cfg2_adc_chn0_gain();
+            break;
+
+        case AUD_ADC_CHL_1:
+            *value = audio_reg_hal_get_adc_gain_cfg1_adc_chn1_gain();
+            break;
+
+        case AUD_ADC_CHL_2:
+            *value = audio_reg_hal_get_adc_gain_cfg5_adc_chn2_gain();
+            break;
+
+        default:
+            return BK_FAIL;
+    }
+
+    return BK_OK;
+}
+
+bk_err_t bk_aud_adc_set_dig_gain_db(aud_adc_chl_t chl, float db)
+{
+    AUD_ADC_RETURN_ON_NOT_INIT();
+
+    if (db != db) {
+        LOGE("%s,%d db is NaN!\n", __func__, __LINE__);
+        return BK_FAIL;
+    }
+    if (db > BK_AUD_ADC_DIG_GAIN_DB_MAX) {
+        db = BK_AUD_ADC_DIG_GAIN_DB_MAX;
+    }
+    if (db <= BK_AUD_ADC_DIG_GAIN_DB_SILENCE) {
+        db = BK_AUD_ADC_DIG_GAIN_DB_SILENCE;
+    }
+
+    uint32_t reg = bk_aud_adc_dig_gain_db_to_reg(db);
+    bk_err_t ret = bk_aud_adc_set_dig_gain(chl, reg);
+    if (ret != BK_OK) {
+        LOGE("%s,%d set adc dig gain to %f dB, reg: 0x%x fail!\n", __func__, __LINE__, db, reg);
+    }
+
+    return ret;
+}
+
+bk_err_t bk_aud_adc_get_dig_gain_db(aud_adc_chl_t chl, float *db)
+{
+    AUD_ADC_RETURN_ON_NOT_INIT();
+    if (db == NULL) {
+        LOGE("%s,%d db is NULL!\n", __func__, __LINE__);
+        return BK_FAIL;
+    }
+
+    uint32_t reg = 0;
+    bk_err_t ret = bk_aud_adc_get_dig_gain_reg(chl, &reg);
+    if (ret != BK_OK) {
+        LOGE("%s,%d get adc dig gain fail!\n", __func__, __LINE__);
+        return ret;
+    }
+
+    *db = bk_aud_adc_dig_gain_reg_to_db(reg);
+    return BK_OK;
 }
 
 bk_err_t bk_aud_adc_set_mic_mode(aud_adc_chl_t chl, aud_adc_mode_t mode)
@@ -463,21 +682,21 @@ bk_err_t bk_aud_adc_start(aud_adc_chl_t chl)
         case AUD_ADC_CHL_0:
             sys_drv_aud_mic1_en(1);
             sys_drv_aud_mic1_rst_set(1);
-            delay(10);
+            bk_timer_delay_us(100);
             sys_drv_aud_mic1_rst_set(0);
             break;
 
         case AUD_ADC_CHL_1:
             sys_drv_aud_mic2_en(1);
             sys_drv_aud_mic2_rst_set(1);
-            delay(10);
+            bk_timer_delay_us(100);
             sys_drv_aud_mic2_rst_set(0);
             break;
 
         case AUD_ADC_CHL_2:
             sys_drv_aud_mic3_en(1);
             sys_drv_aud_mic3_rst_set(1);
-            delay(10);
+            bk_timer_delay_us(100);
             sys_drv_aud_mic3_rst_set(0);
             break;
 
@@ -572,6 +791,8 @@ void bk_aud_adc_enable_used_channel(uint32_t ch_bitmap)
         sw_board |= (1 << 3);
         audio_reg_hal_set_dac_cfg1_sw_board(sw_board);
     }
+
+    bk_aud_apll_spi_trigger();
 }
 
 bk_err_t bk_aud_adc_set_bits_width(aud_adc_chl_t chl, uint8_t bits_width)
@@ -590,7 +811,7 @@ bk_err_t bk_aud_adc_set_bits_width(aud_adc_chl_t chl, uint8_t bits_width)
     }
     else
     {
-        LOGE("%s, bits_width: %d, not support\n", __func__, __LINE__, bits_width);
+        LOGE("%s, bits_width: %d, not support\n", __func__, bits_width);
         return BK_FAIL;
     }
 
@@ -648,13 +869,13 @@ bk_err_t bk_aud_adc_agc_config(aud_adc_agc_config_t *config)
 
 void bk_aud_adc_dump_reg(void)
 {
-	uint32_t adc_bits = audio_reg_hal_get_adc_cfg_adc_16b_sel();
-	uint32_t rx_sp_sel = audio_reg_hal_get_sys_cfg_rx_sp_sel();
+	uint32_t adc_bits     = audio_reg_hal_get_adc_cfg_adc_16b_sel();
+	uint32_t rx_sp_sel    = audio_reg_hal_get_sys_cfg_rx_sp_sel();
 	uint32_t adc_lpf_bps1 = audio_reg_hal_get_adc_cfg_adc_lpf_bps1();
 	uint32_t adc_lpf_bps2 = audio_reg_hal_get_adc_cfg_adc_lpf_bps2();
 	uint32_t adc_lpf_bps3 = audio_reg_hal_get_adc_cfg_adc_lpf_bps3();
-	uint32_t dig_gain = audio_reg_hal_get_adc_gain_cfg2_adc_chn0_gain();// adc chl0
-	uint32_t ana_gain = sys_ll_get_ana_reg21_micgain_mic1();            // mic1
-	LOGI("adc_bits:%d, rx_sp_sel:%d, adc_lpf_bps1:%d, adc_lpf_bps2:%d, adc_lpf_bps3:%d, dig_gain:0x%x, ana_gain:0x%x\n",
+	uint32_t dig_gain     = audio_reg_hal_get_adc_gain_cfg2_adc_chn0_gain();// adc chl0
+	uint32_t ana_gain     = sys_ll_get_ana_reg21_micgain_mic1();            // mic1
+	LOGD("adc_bits:%d, rx_sp_sel:%d, adc_lpf_bps1:%d, adc_lpf_bps2:%d, adc_lpf_bps3:%d, dig_gain:0x%x, ana_gain:0x%x\n",
         adc_bits, rx_sp_sel, adc_lpf_bps1, adc_lpf_bps2, adc_lpf_bps3, dig_gain, ana_gain);
 }

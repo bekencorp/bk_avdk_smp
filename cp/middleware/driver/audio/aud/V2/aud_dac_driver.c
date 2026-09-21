@@ -13,27 +13,25 @@
 // limitations under the License.
 
 
+#include <math.h>
 
 #include <common/bk_include.h>
-
 #include <soc/soc.h>
-#if CONFIG_SOC_BK7259
-#include "aud_hal_bk7259.h"
-#include "sys_hal.h"
-#else
+
 #include "aud_hal.h"
-#endif
+#include "sys_hal.h"
 
 #include "sys_driver.h"
 #include "clock_driver.h"
 #include <os/os.h>
 #include <os/mem.h>
 #include <driver/int.h>
-//#include <modules/pm.h>
-
 #include <driver/aud_dac_types.h>
 #include <driver/aud_dac.h>
+#include <driver/aud_dac_drc.h>
+#include <timer/timer_driver.h>
 
+//#include <modules/pm.h>
 
 #define TAG "aud_dac_drv"
 
@@ -59,9 +57,26 @@ extern void delay(int num);
 bk_err_t bk_aud_dac_dacl_disable_int(void);
 bk_err_t bk_aud_dac_dacr_disable_int(void);
 
+static aud_dac_a2dp_rate_policy_t s_a2dp_rate_policy = AUD_DAC_A2DP_RATE_NATIVE;
+
+bk_err_t bk_aud_dac_set_a2dp_rate_policy(aud_dac_a2dp_rate_policy_t policy)
+{
+	if (policy > AUD_DAC_A2DP_RATE_HW_TO_48K) {
+		return BK_ERR_PARAM;
+	}
+	s_a2dp_rate_policy = policy;
+	return BK_OK;
+}
+
+bk_err_t bk_aud_dac_get_a2dp_rate_policy(aud_dac_a2dp_rate_policy_t *policy)
+{
+	BK_RETURN_ON_NULL(policy);
+	*policy = s_a2dp_rate_policy;
+	return BK_OK;
+}
+
 bk_err_t bk_aud_dac_init(aud_dac_config_t *dac_config)
 {
-	LOGD("[+]%s\r\n", __func__);
 	bk_err_t ret = BK_OK;
 	BK_RETURN_ON_NULL(dac_config);
 
@@ -70,6 +85,7 @@ bk_err_t bk_aud_dac_init(aud_dac_config_t *dac_config)
 		return BK_OK;
 	}
 	bk_aud_set_module_init_sta(AUD_MODULE_DAC, true);
+	s_a2dp_rate_policy = dac_config->a2dp_rate_policy;
 	/* audio common driver init */
 	if (BK_OK != bk_aud_driver_init()) {
 		LOGE("%s, audio driver init fail, line: %d \n", __func__, __LINE__);
@@ -81,23 +97,62 @@ bk_err_t bk_aud_dac_init(aud_dac_config_t *dac_config)
 	bk_aud_clk_config(dac_config->clk_src);
 
 	/*active dac*/
-	sys_drv_aud_dac_bias_en(1);
-	sys_drv_aud_dac_drv_en(1);
-	sys_drv_aud_dac_dcoc_en(1);   //// lendcoc rendcoc???
-	sys_drv_aud_dac_idacl_en(1);
-	sys_drv_aud_dac_idacr_en(1);
+    sys_drv_aud_dac_ldcoc_en(1);
+    sys_drv_aud_dac_rdcoc_en(1);
+    sys_drv_aud_audbias_en(1);
+    sys_drv_aud_dac_enbs_en(1);
+    sys_drv_aud_dac_idacl_en(1);
+    sys_drv_aud_dac_idacr_en(1);
+    sys_drv_aud_dac_drv_en(1);
 
-	audio_reg_hal_set_dac_cfg_dac_tx_anc_d2(2);  //tx_cic filter sample rate 0:96K, 1:194K, 2:384K  /// tx_cic???
-	audio_reg_hal_set_dac_cfg_mono_sel(2);
+    /* Silicon limitation: keep both DAC digital L/R enables asserted, even when only one output channel is used. */
+    audio_reg_hal_set_dac_cfg_dac_enable_l(1);
+    audio_reg_hal_set_dac_cfg_dac_enable_r(1);
+
+    sys_drv_aud_looprst0v9_en(1);
+    bk_timer_delay_us(1000);
+    sys_drv_aud_looprst0v9_en(0);
+
+	audio_reg_hal_set_dac_cfg_dac_tx_anc_d2(2);
 	if (dac_config->bits == 24) {
-		audio_reg_hal_set_dac_cfg_stereo_en(0);     /////
+        LOGW("%s, Unsupported bits width: %d\n", __func__, dac_config->bits);
+        ret = BK_FAIL;
+        goto fail;
 	} else {
-		audio_reg_hal_set_dac_cfg_stereo_en(5);     /////
+		/* 16bit LR: L/R packed in one 32bit word; stereo_en HW-splits to dacl/dacr */
+		if (dac_config->dac_chl == AUD_DAC_CHL_LR) {
+			audio_reg_hal_set_dac_cfg_mono_sel(0x0);
+			audio_reg_hal_set_dac_cfg_stereo_en(0x7);
+			audio_reg_hal_set_interface_matrix_dac_l_chn_sel(0);
+			audio_reg_hal_set_interface_matrix_dac_r_chn_sel(1);
+		} else {
+			audio_reg_hal_set_dac_cfg_mono_sel(0x7);
+			audio_reg_hal_set_dac_cfg_stereo_en(0x0);
+		}
 	}
+#if CONFIG_AUD_DAC_DRC
+	/* Single path: enable -> apply a2dp_drc; disable -> bypass. */
+	if (dac_config->a2dp_drc_en) {
+		ret = bk_aud_dac_drc_apply_param_cfg(&dac_config->a2dp_drc);
+		if (ret != BK_OK) {
+			LOGE("%s, apply a2dp_drc fail, %d\n", __func__, ret);
+			goto fail;
+		}
+	} else {
+		ret = bk_aud_dac_drc_disable();
+		if (ret != BK_OK) {
+			LOGE("%s, disable a2dp_drc fail, %d\n", __func__, ret);
+			goto fail;
+		}
+	}
+#else
 	audio_reg_hal_set_dac_cfg_drc_bypass(1);
-#if 1
+#endif
+
 	//enable dacl and dacr
-	switch (dac_config->dac_chl) {
+#if 0
+	switch (dac_config->dac_chl)
+	{
 		case AUD_DAC_CHL_L:
 			sys_drv_aud_dacr_en(0);
 			sys_drv_aud_dacl_en(1);
@@ -123,7 +178,6 @@ bk_err_t bk_aud_dac_init(aud_dac_config_t *dac_config)
 			break;
 	}
 #endif
-
 	//set dac work mode
 	if (dac_config->work_mode == AUD_DAC_WORK_MODE_SIGNAL_END) {
 		sys_drv_aud_dac_diffen_en(0);
@@ -135,8 +189,15 @@ bk_err_t bk_aud_dac_init(aud_dac_config_t *dac_config)
 		goto fail;
 	}
 
-	bk_aud_dac_set_dig_gain(dac_config->dig_gain);
-    bk_aud_dac_set_ana_gain(dac_config->ana_gain);
+	bk_aud_dac_set_dig_gain_db(dac_config->dig_gain);
+	bk_aud_dac_set_ana_gain_db(dac_config->ana_gain);
+
+	bk_aud_dac_spk0_set_source_gain_db(AUD_DAC_SOURCE_A2DP, 0.0f);
+	bk_aud_dac_spk1_set_source_gain_db(AUD_DAC_SOURCE_A2DP, 0.0f);
+	bk_aud_dac_spk0_set_source_gain_db(AUD_DAC_SOURCE_CALL, 0.0f);
+	bk_aud_dac_spk1_set_source_gain_db(AUD_DAC_SOURCE_CALL, 0.0f);
+	bk_aud_dac_spk0_set_source_gain_db(AUD_DAC_SOURCE_HINT, 0.0f);
+	bk_aud_dac_spk1_set_source_gain_db(AUD_DAC_SOURCE_HINT, 0.0f);
 
 	audio_reg_hal_set_dac_cfg_clk_dac_inv(dac_config->dac_clk_invert);
 
@@ -146,7 +207,7 @@ bk_err_t bk_aud_dac_init(aud_dac_config_t *dac_config)
 	bk_aud_dac_set_bits_width(AUD_DAC_SOURCE_HINT, dac_config->bits);
 
 	/* default: dac hpf bypass */
-	audio_reg_hal_set_dac_cfg_dac_hpf_bps(1); ///dac path bypass function, high active??? hpf bypass???
+	audio_reg_hal_set_dac_cfg_dac_hpf_bps(1);
 //	aud_hal_set_dac_config0_dac_hpf1_bypass(1);
 //	aud_hal_set_dac_config0_dac_hpf2_bypass(1);
 
@@ -156,7 +217,6 @@ bk_err_t bk_aud_dac_init(aud_dac_config_t *dac_config)
 		goto fail;
 	}
 #endif
-	LOGD("[-]%s\r\n", __func__);
 	return ret;
 
 fail:
@@ -189,8 +249,8 @@ bk_err_t bk_aud_dac_deinit(void)
 
 	sys_drv_aud_dac_diffen_en(1);
 
-	bk_aud_dac_set_dig_gain(0);
-	bk_aud_dac_set_ana_gain(0);
+	bk_aud_dac_set_dig_gain_db(BK_AUD_DAC_DIG_GAIN_DB_SILENCE);
+	bk_aud_dac_set_ana_gain_db(0);
 	audio_reg_hal_set_dac_cfg_clk_dac_inv(0);
 
 	//aud_hal_set_dac_config0_dac_hpf1_bypass(0);
@@ -199,6 +259,7 @@ bk_err_t bk_aud_dac_deinit(void)
 	//bk_aud_dac_set_sample_rate(8000);
 	/* reset */
 	//TODO
+	s_a2dp_rate_policy = AUD_DAC_A2DP_RATE_NATIVE;
 	bk_err_t ret = bk_aud_set_module_init_sta(AUD_MODULE_DAC, false);
 	bk_aud_driver_deinit();
 	return ret;
@@ -206,7 +267,6 @@ bk_err_t bk_aud_dac_deinit(void)
 
 bk_err_t bk_aud_dac_set_sample_rate(aud_dac_source_t source, uint32_t sample_rate)
 {
-    LOGD("[+]%s\r\n", __func__);
 	AUD_DAC_RETURN_ON_NOT_INIT();
 
     uint32_t lpf_bps1  = 0;
@@ -214,8 +274,8 @@ bk_err_t bk_aud_dac_set_sample_rate(aud_dac_source_t source, uint32_t sample_rat
     uint32_t lpf_bps3  = 0;
     uint32_t resample_bypass = 1;
     uint32_t spl_sel  = 0;
-
     uint32_t srindex  = 0;
+    bool use_441_apll = (sample_rate / 44100 * 44100 == sample_rate);
 
     switch (source)
     {
@@ -236,7 +296,13 @@ bk_err_t bk_aud_dac_set_sample_rate(aud_dac_source_t source, uint32_t sample_rat
                 case 48000:
                     break;
                 case 44100:
-                    resample_bypass = 1;
+                    if (s_a2dp_rate_policy == AUD_DAC_A2DP_RATE_HW_TO_48K) {
+                        /* Keep 44.1k input, enable HW resample into 48k clock domain */
+                        resample_bypass = 0;
+                        use_441_apll = false;
+                    } else {
+                        resample_bypass = 1;
+                    }
                     break;
                 default:
                     LOGW("%s, %d, music a2dp channel not support sample_rate: %d, use default 48000\n", __func__, __LINE__, sample_rate);
@@ -247,7 +313,7 @@ bk_err_t bk_aud_dac_set_sample_rate(aud_dac_source_t source, uint32_t sample_rat
             audio_reg_hal_set_dac_cfg_dac_lpf_bps3(lpf_bps3);
             audio_reg_hal_set_dac_cfg_dac_lpf_bps2(lpf_bps2);
             audio_reg_hal_set_dac_cfg_dac_lpf_bps1(lpf_bps1);
-            audio_reg_hal_set_dac_cfg1_rsp_bps(resample_bypass);   //// resample bypass???
+            audio_reg_hal_set_dac_cfg1_rsp_bps(resample_bypass);
             break;
 
         case AUD_DAC_SOURCE_CALL:
@@ -278,8 +344,7 @@ bk_err_t bk_aud_dac_set_sample_rate(aud_dac_source_t source, uint32_t sample_rat
     }
 
     /* config apll frequency */
-    bk_aud_apll_config((sample_rate / 44100 * 44100 == sample_rate) ? AUD_APLL_FREQ_90P3168_MHZ : AUD_APLL_FREQ_98P3040_MHZ);
-    LOGD("[-]%s\r\n", __func__);
+    bk_aud_apll_config(use_441_apll ? AUD_APLL_FREQ_90P3168_MHZ : AUD_APLL_FREQ_98P3040_MHZ);
 
     return BK_OK;
 }
@@ -398,14 +463,184 @@ bk_err_t bk_aud_dac_set_ana_gain(uint32_t value)
 	return BK_OK;
 }
 
+static uint32_t bk_aud_dac_ana_gain_db_to_reg(int32_t db)
+{
+    if (db <= 0) {
+        return 0;
+    }
+    if (db > BK_AUD_DAC_ANA_GAIN_DB_MAX) {
+        db = (int32_t)BK_AUD_DAC_ANA_GAIN_DB_MAX;
+    }
+
+    {
+        uint32_t reg = (uint32_t)db; /* 1dB/step */
+        if (reg > DAC_ANA_GAIN_REG_MAX) {
+            reg = DAC_ANA_GAIN_REG_MAX;
+        }
+        return reg;
+    }
+}
+
+static int32_t bk_aud_dac_ana_gain_reg_to_db(uint32_t reg)
+{
+    if (reg > DAC_ANA_GAIN_REG_MAX) {
+        reg = DAC_ANA_GAIN_REG_MAX;
+    }
+    return (int32_t)reg;
+}
+
+bk_err_t bk_aud_dac_set_ana_gain_db(int32_t db)
+{
+    AUD_DAC_RETURN_ON_NOT_INIT();
+
+    if (db <= 0) {
+        db = 0;
+    } else if (db > BK_AUD_DAC_ANA_GAIN_DB_MAX) {
+        db = (int32_t)BK_AUD_DAC_ANA_GAIN_DB_MAX;
+    }
+
+    return bk_aud_dac_set_ana_gain(bk_aud_dac_ana_gain_db_to_reg(db));
+}
+
 /* get audio dac analog gain */
 bk_err_t bk_aud_dac_get_ana_gain(uint32_t *gain)
 {
-	AUD_DAC_RETURN_ON_NOT_INIT();
-
-	*gain = sys_drv_aud_dacg_get();
-	return BK_OK;
+    AUD_DAC_RETURN_ON_NOT_INIT();
+    *gain = sys_drv_aud_dacg_get();
+    return BK_OK;
 }
+
+bk_err_t bk_aud_dac_get_ana_gain_db(int32_t *db)
+{
+    AUD_DAC_RETURN_ON_NOT_INIT();
+    if (db == NULL) {
+        LOGE("%s,%d db is NULL!\n", __func__, __LINE__);
+        return BK_FAIL;
+    }
+
+    *db = bk_aud_dac_ana_gain_reg_to_db(sys_drv_aud_dacg_get());
+    return BK_OK;
+}
+
+static uint32_t bk_aud_dac_dig_gain_db_to_reg(float db)
+{
+    if (db != db) {
+        return 0;
+    }
+    if (db > BK_AUD_DAC_DIG_GAIN_DB_MAX) {
+        db = BK_AUD_DAC_DIG_GAIN_DB_MAX;
+    }
+    if (db <= BK_AUD_DAC_DIG_GAIN_DB_SILENCE) {
+        return 0;
+    }
+
+    float linear = powf(10.0f, db / 20.0f);
+    float linear_max = powf(10.0f, BK_AUD_DAC_DIG_GAIN_DB_MAX / 20.0f);
+
+    if (linear > linear_max) {
+        linear = linear_max;
+    }
+    if (linear <= 0.0f) {
+        return 0;
+    }
+
+    float reg_max_lin = 3.0f + (float)DAC_DIG_GAIN_FRAC_MASK / (float)DAC_DIG_GAIN_FRAC_SCALE;
+
+    if (linear > reg_max_lin) {
+        linear = reg_max_lin;
+    }
+
+    uint32_t int_part = (uint32_t)floorf(linear);
+
+    if (int_part > 3u) {
+        int_part = 3u;
+    }
+    float frac_f = linear - (float)int_part;
+    uint32_t frac = (uint32_t)(frac_f * (float)DAC_DIG_GAIN_FRAC_SCALE + 0.5f);
+
+    if (frac > DAC_DIG_GAIN_FRAC_MASK) {
+        frac = DAC_DIG_GAIN_FRAC_MASK;
+    }
+    return (int_part << 28) | frac;
+}
+
+static float bk_aud_dac_dig_gain_reg_to_db(uint32_t reg)
+{
+    uint32_t sign     = (reg >> 30) & 1u;
+    uint32_t int_part = (reg >> 28) & 3u;
+    uint32_t frac     = reg & DAC_DIG_GAIN_FRAC_MASK;
+    float mag         = (float)int_part + (float)frac / (float)DAC_DIG_GAIN_FRAC_SCALE;
+
+    if (sign) {
+        mag = -mag;
+    }
+    if (mag == 0.0f) {
+        return BK_AUD_DAC_DIG_GAIN_DB_SILENCE;
+    }
+    {
+        float a = (mag < 0.0f) ? -mag : mag;
+        return 20.0f * log10f(a);
+    }
+}
+
+bk_err_t bk_aud_dac_set_dig_gain_db(float db)
+{
+    if (db != db) {
+        LOGE("%s,%d db is NaN!\n", __func__, __LINE__);
+        return BK_FAIL;
+    }
+    if (db > BK_AUD_DAC_DIG_GAIN_DB_MAX) {
+        db = BK_AUD_DAC_DIG_GAIN_DB_MAX;
+    }
+    if (db <= BK_AUD_DAC_DIG_GAIN_DB_SILENCE) {
+        db = BK_AUD_DAC_DIG_GAIN_DB_SILENCE;
+    }
+    uint32_t reg = bk_aud_dac_dig_gain_db_to_reg(db);
+    //LOGD("set dig gain to %f dB, reg: 0x%x\r\n", db, reg);
+    bk_err_t ret = bk_aud_dac_set_dig_gain(reg);
+    if (ret != BK_OK) {
+        LOGE("%s,%d set dig gain to %f dB, reg: 0x%x fail!\n", __func__, __LINE__, db, reg);
+        return ret;
+    }
+
+    return ret;
+}
+
+bk_err_t bk_aud_dac_get_dig_gain_db(float *db)
+{
+    if (db == NULL) {
+        LOGE("%s,%d db is NULL!\n", __func__, __LINE__);
+        return BK_FAIL;
+    }
+    uint32_t reg = 0;
+    bk_err_t ret = bk_aud_dac_get_dig_gain(&reg);
+    if (ret != BK_OK) {
+        LOGE("%s,%d get dig gain fail!\n", __func__, __LINE__);
+        return ret;
+    }
+    *db = bk_aud_dac_dig_gain_reg_to_db(reg);
+    //LOGD("get dig gain from reg: 0x%x, db: %f\r\n", reg, *db);
+    return ret;
+}
+
+bk_err_t bk_aud_dac_spk0_set_source_gain_db(aud_dac_source_t source, float db)
+{
+    if (db != db) {
+        LOGE("%s,%d db is NaN!\n", __func__, __LINE__);
+        return BK_FAIL;
+    }
+    return bk_aud_dac_spk0_set_source_gain(source, bk_aud_dac_dig_gain_db_to_reg(db));
+}
+
+bk_err_t bk_aud_dac_spk1_set_source_gain_db(aud_dac_source_t source, float db)
+{
+    if (db != db) {
+        LOGE("%s,%d db is NaN!\n", __func__, __LINE__);
+        return BK_FAIL;
+    }
+    return bk_aud_dac_spk1_set_source_gain(source, bk_aud_dac_dig_gain_db_to_reg(db));
+}
+
 
 bk_err_t bk_aud_dac_mute(void)
 {
@@ -432,7 +667,6 @@ bk_err_t bk_aud_dac_spk0_write_data(aud_dac_source_t source, uint32_t pcm_value)
 
         case AUD_DAC_SOURCE_CALL:
             audio_fifo_hal_set_spk0_call_port_spk0_call(pcm_value);
-            //os_printf("pcm_value : %x\n", pcm_value);
             break;
 
         case AUD_DAC_SOURCE_HINT:
@@ -442,7 +676,6 @@ bk_err_t bk_aud_dac_spk0_write_data(aud_dac_source_t source, uint32_t pcm_value)
         default:
             return BK_FAIL;
     }
-
     return BK_OK;
 }
 
@@ -730,12 +963,11 @@ bk_err_t bk_aud_dac_get_fifo_status(uint32_t *status)
 bk_err_t bk_aud_dac_spk0_source_enable(aud_dac_source_t source, uint32_t enable)
 {
     AUD_DAC_RETURN_ON_NOT_INIT();
-    os_printf("[+]%s, line:%d, source:%d,  enable:%d\r\n", __func__, __LINE__, source, enable);
 
-    uint32_t en_spk0 = audio_reg_hal_get_buf_ctrl_en_spk0();
+    uint32_t en_spk0  = audio_reg_hal_get_buf_ctrl_en_spk0();
+    uint32_t en_spk1  = audio_reg_hal_get_buf_ctrl_en_spk1();
     uint32_t sw_board = audio_reg_hal_get_dac_cfg1_sw_board();
-    uint32_t en_spk1 = audio_reg_hal_get_buf_ctrl_en_spk1();
-    os_printf("en_spk0 : %x, sw_board : %x, en_spk1 : %x\n", en_spk0, sw_board, en_spk1);
+
     if (enable) {
         switch (source) {
             case AUD_DAC_SOURCE_A2DP:
@@ -786,11 +1018,9 @@ bk_err_t bk_aud_dac_spk0_source_enable(aud_dac_source_t source, uint32_t enable)
                 return BK_FAIL;
         }
     }
-    os_printf("en_spk0 : %x, sw_board : %x, en_spk1 : %x\n", en_spk0, sw_board, en_spk1);
+
     audio_reg_hal_set_buf_ctrl_en_spk0(en_spk0);
     audio_reg_hal_set_dac_cfg1_sw_board(sw_board);
-    os_printf("en_spk0 : %x, sw_board : %x, en_spk1 : %x\n", audio_reg_hal_get_buf_ctrl_en_spk0(), audio_reg_hal_get_dac_cfg1_sw_board(), audio_reg_hal_get_buf_ctrl_en_spk1());
-    os_printf("[-]%s\r\n", __func__);
     return BK_OK;
 }
 
@@ -798,11 +1028,11 @@ bk_err_t bk_aud_dac_spk0_source_enable(aud_dac_source_t source, uint32_t enable)
 bk_err_t bk_aud_dac_spk1_source_enable(aud_dac_source_t source, uint32_t enable)
 {
     AUD_DAC_RETURN_ON_NOT_INIT();
-    os_printf("[+]%s, line:%d, source:%d,  enable:%d\r\n", __func__, __LINE__, source, enable);
-    uint32_t en_spk0 = audio_reg_hal_get_buf_ctrl_en_spk0();
+
+    uint32_t en_spk0  = audio_reg_hal_get_buf_ctrl_en_spk0();
+    uint32_t en_spk1  = audio_reg_hal_get_buf_ctrl_en_spk1();
     uint32_t sw_board = audio_reg_hal_get_dac_cfg1_sw_board();
-    uint32_t en_spk1 = audio_reg_hal_get_buf_ctrl_en_spk1();
-    os_printf("en_spk0 : %x, sw_board : %x, en_spk1 : %x\n", en_spk0, sw_board, en_spk1);
+
     if (enable) {
         switch (source) {
             case AUD_DAC_SOURCE_A2DP:
@@ -853,14 +1083,26 @@ bk_err_t bk_aud_dac_spk1_source_enable(aud_dac_source_t source, uint32_t enable)
                 return BK_FAIL;
         }
     }
-    os_printf("en_spk0 : %x, sw_board : %x, en_spk1 : %x\n", en_spk0, sw_board, en_spk1);
+
     audio_reg_hal_set_buf_ctrl_en_spk1(en_spk1);
     audio_reg_hal_set_dac_cfg1_sw_board(sw_board);
-    os_printf("en_spk0 : %x, sw_board : %x, en_spk1 : %x\n", audio_reg_hal_get_buf_ctrl_en_spk0(), audio_reg_hal_get_dac_cfg1_sw_board(), audio_reg_hal_get_buf_ctrl_en_spk1());
-    os_printf("[-]%s\r\n", __func__);
     return BK_OK;
 }
 
+bk_err_t bk_aud_dac_source_enable(uint8_t spk, aud_dac_source_t source, uint32_t enable)
+{
+    bk_err_t ret = BK_OK;
+
+    (void)spk;
+
+    ret = bk_aud_dac_spk0_source_enable(source, enable);
+    if (ret != BK_OK)
+    {
+        return ret;
+    }
+
+    return bk_aud_dac_spk1_source_enable(source, enable);
+}
 
 bk_err_t bk_aud_dac_start(aud_dac_chl_t dac_chl)
 {
@@ -868,19 +1110,17 @@ bk_err_t bk_aud_dac_start(aud_dac_chl_t dac_chl)
     switch (dac_chl) {
         case AUD_DAC_CHL_L:
             sys_drv_aud_dacl_en(1);
-            audio_reg_hal_set_dac_cfg_dac_enable_l(1);
+            sys_drv_aud_dacr_en(1);   ///
             break;
 
         case AUD_DAC_CHL_R:
+            sys_drv_aud_dacl_en(1);   ///
             sys_drv_aud_dacr_en(1);
-            audio_reg_hal_set_dac_cfg_dac_enable_r(1);
             break;
 
         case AUD_DAC_CHL_LR:
-            sys_drv_aud_dacr_en(1);
             sys_drv_aud_dacl_en(1);
-            audio_reg_hal_set_dac_cfg_dac_enable_l(1);
-            audio_reg_hal_set_dac_cfg_dac_enable_r(1);
+            sys_drv_aud_dacr_en(1);
             break;
 
         default:
@@ -888,6 +1128,7 @@ bk_err_t bk_aud_dac_start(aud_dac_chl_t dac_chl)
             return BK_FAIL;
             break;
     }
+    bk_aud_apll_spi_trigger();
     return BK_OK;
 }
 
@@ -896,20 +1137,18 @@ bk_err_t bk_aud_dac_stop(aud_dac_chl_t dac_chl)
 	AUD_DAC_RETURN_ON_NOT_INIT();
 	switch (dac_chl) {
 		case AUD_DAC_CHL_L:
-            audio_reg_hal_set_dac_cfg_dac_enable_l(0);
 			sys_drv_aud_dacl_en(0);
+			sys_drv_aud_dacr_en(0);
 			break;
 
 		case AUD_DAC_CHL_R:
-            audio_reg_hal_set_dac_cfg_dac_enable_r(0);
+			sys_drv_aud_dacl_en(0);
 			sys_drv_aud_dacr_en(0);
 			break;
 
 		case AUD_DAC_CHL_LR:
-            audio_reg_hal_set_dac_cfg_dac_enable_l(0);
-            audio_reg_hal_set_dac_cfg_dac_enable_r(0);
-			sys_drv_aud_dacr_en(0);
 			sys_drv_aud_dacl_en(0);
+			sys_drv_aud_dacr_en(0);
 			break;
 
 		default:
@@ -964,3 +1203,64 @@ bk_err_t bk_aud_dac_set_dwa_bypass(uint8_t value)
 }
 #endif
 
+bk_err_t bk_aud_dac_get_fifo_addr(aud_dac_source_t dac_source, uint8_t ch, dma_dev_t *dma_dev, uint32_t *dac_fifo_addr)
+{
+    bk_err_t ret = BK_OK;
+
+    if (dma_dev == NULL || dac_fifo_addr == NULL) {
+        LOGE("%s,%d dma_dev:0x%x or dac_fifo_addr:0x%x is invalid!\n", __func__, __LINE__,dma_dev,dac_fifo_addr);
+        return BK_FAIL;
+    }
+
+    if(0 == ch)
+    {
+        switch (dac_source)
+        {
+            case AUD_DAC_SOURCE_A2DP:
+                *dma_dev = DMA_DEV_AUD_SPK0;
+                bk_aud_dac_spk0_get_fifo_addr(AUD_DAC_SOURCE_A2DP, dac_fifo_addr);
+                break;
+            case AUD_DAC_SOURCE_CALL:
+                *dma_dev = DMA_DEV_AUD_SPK0_CALL;
+                bk_aud_dac_spk0_get_fifo_addr(AUD_DAC_SOURCE_CALL, dac_fifo_addr);
+                break;
+            case AUD_DAC_SOURCE_HINT:
+                *dma_dev = DMA_DEV_AUD_SPK0_HINT;
+                bk_aud_dac_spk0_get_fifo_addr(AUD_DAC_SOURCE_HINT, dac_fifo_addr);
+                break;
+            default:
+                LOGE("%s,%d dac_source:%d is invalid!\n", __func__, __LINE__,dac_source);
+                ret = BK_FAIL;
+                break;
+        }
+    }
+    else if(1 == ch)
+    {
+        switch (dac_source)
+        {
+            case AUD_DAC_SOURCE_A2DP:
+                *dma_dev = DMA_DEV_AUD_SPK1_A2DP;
+                bk_aud_dac_spk1_get_fifo_addr(AUD_DAC_SOURCE_A2DP, dac_fifo_addr);
+                break;
+            case AUD_DAC_SOURCE_CALL:
+                *dma_dev = DMA_DEV_AUD_SPK1_CALL;
+                bk_aud_dac_spk1_get_fifo_addr(AUD_DAC_SOURCE_CALL, dac_fifo_addr);
+                break;
+            case AUD_DAC_SOURCE_HINT:
+                *dma_dev = DMA_DEV_AUD_SPK1_HINT;
+                bk_aud_dac_spk1_get_fifo_addr(AUD_DAC_SOURCE_HINT, dac_fifo_addr);
+                break;
+            default:
+                LOGE("%s,%d dac_source:%d is invalid!\n", __func__, __LINE__,dac_source);
+                ret = BK_FAIL;
+                break;
+        }
+    }
+    else
+    {
+        ret = BK_FAIL;
+        LOGE("%s,%d ch:%d is invalid!\n", __func__, __LINE__,ch);
+    }
+
+    return ret;
+}

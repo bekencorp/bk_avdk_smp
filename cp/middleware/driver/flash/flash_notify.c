@@ -77,6 +77,28 @@ bk_err_t mb_flash_unregister_op_notify_cb(flash_op_notify_callback_t notify_cb)
 	return BK_ERR_FLASH_WAIT_CB_NOT_REGISTER;
 }
 
+static flash_op_notify_callback_t s_flash_op_onboard_mic_stream_notify = NULL;
+
+bk_err_t mb_flash_register_op_onboard_mic_stream_notify(void *notify_cb, void *args)
+{
+	s_flash_op_onboard_mic_stream_notify = (flash_op_notify_callback_t)notify_cb;
+	return mb_flash_register_op_notify_cb(s_flash_op_onboard_mic_stream_notify, args);
+}
+
+bk_err_t mb_flash_unregister_op_onboard_mic_stream_notify(void)
+{
+	bk_err_t ret;
+
+	if (s_flash_op_onboard_mic_stream_notify == NULL)
+	{
+		return BK_OK;
+	}
+
+	ret = mb_flash_unregister_op_notify_cb(s_flash_op_onboard_mic_stream_notify);
+	s_flash_op_onboard_mic_stream_notify = NULL;
+	return ret;
+}
+
 static void flash_op_notify_dispatch(uint32_t busy)
 {
 	uint32_t i;

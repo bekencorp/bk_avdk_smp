@@ -34,6 +34,7 @@ menu "SoC Low-level Drivers"
 
 	menu "Analog & Audio HW"
 	source "${ARMINO_PATH}/middleware/driver/i2s/Kconfig"
+	source "${ARMINO_PATH}/middleware/driver/audio/Kconfig"
 	source "${ARMINO_PATH}/middleware/driver/saradc/Kconfig"
 	source "${ARMINO_PATH}/middleware/driver/sdmadc/Kconfig"
 	source "${ARMINO_PATH}/middleware/driver/fft/Kconfig"

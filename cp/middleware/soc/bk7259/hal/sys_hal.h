@@ -508,7 +508,7 @@ void sys_hal_aud_bias_en(uint32_t value);
 void sys_hal_aud_dacr_en(uint32_t value);
 void sys_hal_aud_dacl_en(uint32_t value);
 //void sys_hal_aud_diffen_en(uint32_t value); ////????
-void sys_hal_aud_dac_diffen_en(uint32_t value); 
+void sys_hal_aud_dac_diffen_en(uint32_t value);
 void sys_hal_aud_rvcmd_en(uint32_t value);
 void sys_hal_aud_lvcmd_en(uint32_t value);
 void sys_hal_aud_micbias1v_en(uint32_t value);
@@ -524,11 +524,14 @@ void sys_hal_aud_mic2_single_en(uint32_t value);
 void sys_hal_aud_dacg_set(uint32_t value);
 uint32_t sys_hal_aud_dacg_get(void);
 void sys_hal_aud_dcoc_en(uint32_t value);
+void sys_hal_aud_dac_ldcoc_en(uint32_t value);
+void sys_hal_aud_dac_rdcoc_en(uint32_t value);
 void sys_hal_aud_lmdcin_set(uint32_t value);
 void sys_hal_aud_audbias_en(uint32_t value);
 void sys_hal_aud_adcbias_en(uint32_t value);
 void sys_hal_aud_micbias_en(uint32_t value);
 void sys_hal_aud_dac_bias_en(uint32_t value);
+void sys_hal_aud_dac_enbs_en(uint32_t value);
 //void sys_hal_aud_idac_en(uint32_t value); ////????
 void sys_hal_aud_idacl_en(uint32_t value);
 void sys_hal_aud_idacr_en(uint32_t value);
@@ -587,6 +590,7 @@ void sys_hal_apll_spi_trigger_set(uint32_t value);
 void sys_hal_i2s0_ckdiv_set(uint32_t value);
 void sys_hal_apll_config_set(uint32_t value);
 void sys_hal_dmic_clk_div_set(uint32_t value);
+void sys_hal_aud_looprst0v9_en(uint32_t value);
 /**  I2S End  **/
 
 
@@ -894,5 +898,3 @@ uint32_t sys_hal_get_psram_cpu1_qos(void);
 #ifdef __cplusplus
 }
 #endif
-
-

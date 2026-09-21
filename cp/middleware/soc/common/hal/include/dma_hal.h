@@ -71,11 +71,11 @@ typedef struct {
 #define dma_hal_enable_dest_addr_loop(hal, id) dma_ll_enable_dest_addr_loop((hal)->hw, id)
 #define dma_hal_disable_dest_addr_loop(hal, id) dma_ll_disable_dest_addr_loop((hal)->hw, id)
 
-#define dma_hal_set_src_pause_addr(hal, id, addr) dma_ll_set_src_pause_addr((hal)->hw, id, addr)
-#define dma_hal_set_dest_pause_addr(hal, id, addr) dma_ll_set_dest_pause_addr((hal)->hw, id, addr)
+#define dma_hal_set_src_pause_addr(hal, id, addr) dma_ll_set_src_pause_addr((hal)->hw, id, SOC_SRAM_PERI_ADDR(addr))
+#define dma_hal_set_dest_pause_addr(hal, id, addr) dma_ll_set_dest_pause_addr((hal)->hw, id, SOC_SRAM_PERI_ADDR(addr))
 #define dma_hal_get_src_read_addr(hal, id) dma_ll_get_src_read_addr((hal)->hw, id)
 #define dma_hal_get_dest_write_addr(hal, id) dma_ll_get_dest_write_addr((hal)->hw, id)
-#define dma_hal_set_next_ll_addr(hal, id, ll_addr) dma_ll_set_next_ll_addr((hal)->hw, id, ll_addr)
+#define dma_hal_set_next_ll_addr(hal, id, ll_addr) dma_ll_set_next_ll_addr((hal)->hw, id, SOC_SRAM_PERI_ADDR(ll_addr))
 #define dma_hal_get_next_ll_addr(hal, id) dma_ll_get_next_ll_addr((hal)->hw, id)
 
 #define dma_hal_set_src_data_width(hal, id, data_width) dma_ll_set_src_data_width((hal)->hw, id, data_width)
@@ -132,5 +132,3 @@ void dma_struct_dump(dma_id_t id);
 #ifdef __cplusplus
 }
 #endif
-
-

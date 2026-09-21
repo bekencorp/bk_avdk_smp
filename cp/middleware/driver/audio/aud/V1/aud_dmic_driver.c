@@ -30,10 +30,10 @@
 
 #define TAG "aud_dmic_drv"
 
-#define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
+#define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
 #define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
-#define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
+#define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
 
 #define AUD_DMIC_RETURN_ON_NOT_INIT() do {\
 			if (!bk_aud_get_module_init_sta(AUD_MODULE_DMIC)) {\
@@ -265,4 +265,3 @@ bk_err_t bk_aud_dmic_register_isr(aud_isr_t isr)
 	AUD_DMIC_RETURN_ON_NOT_INIT();
 	return bk_aud_register_aud_isr(AUD_ISR_DMIC, isr);
 }
-

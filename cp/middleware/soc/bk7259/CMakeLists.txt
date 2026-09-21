@@ -99,8 +99,7 @@ list(APPEND srcs
 
 if(CONFIG_AUDIO AND CONFIG_SOC_BK7259)
 	list(APPEND srcs
-		#"hal/aud_hal.c"
-		"hal/aud_hal_bk7259.c"
+		"hal/aud_hal.c"
 	)
 endif()
 
