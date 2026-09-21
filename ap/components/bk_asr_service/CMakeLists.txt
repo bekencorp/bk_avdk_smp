@@ -1,5 +1,6 @@
 set(incs)
 set(srcs "")
+set(priv_requires avdk_utils bk_common include wanson wanson_armino bk_tflite_micro)
 
 if (CONFIG_ASR_SERVICE)
 	list(APPEND srcs
@@ -47,10 +48,14 @@ endif()
 
 endif()
 
+if (CONFIG_ADK_OBS_UTIL)
+	list(APPEND priv_requires audio_utils)
+endif()
+
 armino_component_register(
     SRCS "${srcs}"
 	INCLUDE_DIRS "${incs}"
-	PRIV_REQUIRES avdk_utils bk_common include wanson wanson_armino bk_tflite_micro
+	PRIV_REQUIRES "${priv_requires}"
 )
 
 if (CONFIG_BEKEN_KWS AND LIB_KWS_MODEL_FILE_PATH AND EXISTS ${LIB_KWS_MODEL_FILE_PATH})

@@ -7,6 +7,9 @@
 #if CONFIG_AUD_PM_FAST_COLD
 #include <modules/pm.h>
 #endif
+#if CONFIG_ADK_OBS_UTIL
+#include <components/bk_audio/audio_utils/audio_obs_util.h>
+#endif
 
 #define TAG "aud_asr"
 
@@ -14,6 +17,11 @@
 static void aud_asr_pm_notify_init(aud_asr_handle_t aud_asr_handle);
 static void aud_asr_pm_notify_start(aud_asr_handle_t aud_asr_handle);
 static void aud_asr_pm_notify_deinit(aud_asr_handle_t aud_asr_handle);
+#endif
+#if CONFIG_ADK_OBS_UTIL
+static char __maybe_unused s_aud_asr_obs_tag[] = "aud_asr";
+static char __maybe_unused s_aud_asr_obs_log_tag[] = TAG;
+static audio_obs_element_stat_t __maybe_unused s_aud_asr_obs = {0};
 #endif
 
 #define AUD_ASR_CHECK_NULL(ptr, act) do {\
@@ -230,7 +238,13 @@ static void aud_asr_task_main(beken_thread_arg_t param_data)
 					#if CONFIG_BK7259_ASR_DEBUG
 						result = 1;
 					#else
+					#if CONFIG_ADK_OBS_UTIL
+						audio_obs_element_begin(&s_aud_asr_obs, s_aud_asr_obs_tag);
+					#endif
 						result = aud_asr_handle->aud_asr_recog((void*)aud_asr_handle->read_buff, aud_asr_handle->max_read_size, aud_asr_handle->p1, aud_asr_handle->p2);
+					#if CONFIG_ADK_OBS_UTIL
+						audio_obs_element_report(&s_aud_asr_obs, s_aud_asr_obs_tag, s_aud_asr_obs_log_tag, read_size, aud_asr_handle->max_read_size);
+					#endif
 					#endif
 					}
 					ASR_INPUT_END();
