@@ -92,11 +92,14 @@
 #define SOC_SRAM_PERI_ADDR_NORMAL_SECURE(addr) \
     ((((unsigned int)(addr) & SOC_SRAM_DIRECT_ADDR_MASK) == SOC_SRAM_NORMAL_ADDR_BASE_SECURE) ? \
      ((unsigned int)(addr) | SOC_SRAM_DIRECT_ADDR_BIT) : ((unsigned int)(addr)))
+
+#define SOC_SRAM_CPU_ADDR(addr) SOC_SRAM_PERI_ADDR_NORMAL(addr)
 #else
 #define SOC_SRAM_PERI_ADDR(addr) (addr)
 #define SOC_SRAM_PERI_ADDR_SECURE(addr) (addr)
 #define SOC_SRAM_PERI_ADDR_NORMAL(addr) (addr)
 #define SOC_SRAM_PERI_ADDR_NORMAL_SECURE(addr) (addr)
+#define SOC_SRAM_CPU_ADDR(addr)  (addr)
 #endif /* CONFIG_SRAM_DIRECT_ADDR */
 
 
@@ -265,4 +268,3 @@
 // The following base addresses not exist in the CP address mapping.
 #define SOC_IRDA_REG_BASE        SOC_IRDA0_REG_BASE
 #define SOC_SDIO_REG_BASE        SOC_SDIO0_REG_BASE
-

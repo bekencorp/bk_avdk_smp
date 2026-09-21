@@ -14,8 +14,8 @@
 //
 #pragma once
 
-#include <driver/int_types.h>
 #include <common/bk_include.h>
+#include <driver/int_types.h>
 #include <driver/hal/hal_aud_types.h>
 #include <driver/hal/hal_gpio_types.h>
 
@@ -29,7 +29,7 @@ extern "C" {
 #define BK_ERR_AUD_ADC_NOT_INIT         (BK_ERR_AUD_ADC_BASE - 1) /**< audio adc not init */
 #define BK_ERR_AUD_ADC_INVALID_PARAM    (BK_ERR_AUD_ADC_BASE - 2) /**< audio adc invalid param */
 
-#if CONFIG_SOC_BK7259
+#if CONFIG_AUD_DRIVER_V2
 #define AUD_MIC_CHL_NUM_MAX     (3)
 #endif
 
@@ -146,20 +146,44 @@ typedef enum {
 	AUD_ADC_LINE_ENABLE_MAX,
 } aud_adc_line_enable_t;
 
-#if CONFIG_SOC_BK7259
-typedef enum {
-	AUD_ADC_CHL_0 = 0,    /**< ADC L */
-	AUD_ADC_CHL_1,        /**< ADC R */
-	AUD_ADC_CHL_2,        /**< ADC L&R */
-	AUD_ADC_CHL_MAX,
-} aud_adc_chl_t;
-#else
+#if CONFIG_AUD_DRIVER_V1
 typedef enum {
 	AUD_ADC_CHL_L = 0,    /**< ADC L */
 	AUD_ADC_CHL_R,        /**< ADC R */
 	AUD_ADC_CHL_LR,       /**< ADC L&R */
 	AUD_ADC_CHL_MAX,
 } aud_adc_chl_t;
+#elif CONFIG_AUD_DRIVER_V2
+typedef enum {
+	AUD_ADC_CHL_0 = 0,    /**< ADC L */
+	AUD_ADC_CHL_1,        /**< ADC R */
+	AUD_ADC_CHL_2,        /**< ADC L&R */
+	AUD_ADC_CHL_MAX,
+} aud_adc_chl_t;
+
+typedef enum {
+	AUD_ADC_MIC1_FIFO_ALMOST_EMPTY_MASK = 1,
+	AUD_ADC_MIC1_FIFO_ALMOST_FULL_MASK  = 1 << 1,
+	AUD_ADC_MIC0_FIFO_ALMOST_EMPTY_MASK = 1 << 2,
+	AUD_ADC_MIC0_FIFO_ALMOST_FULL_MASK  = 1 << 3,
+} aud_adc_fifo_status_mask_t;
+
+enum
+{
+    AUDIO_ADC_CIC_D192 = 0,
+    AUDIO_ADC_CIC_D128,
+    AUDIO_ADC_CIC_D96,
+    AUDIO_ADC_CIC_D64,
+    AUDIO_ADC_CIC_D48,
+    AUDIO_ADC_CIC_D32,
+    AUDIO_ADC_CIC_D16,
+};
+
+typedef enum {
+	AUD_ADC_MIC_DATA_BUS_0 = 0,
+	AUD_ADC_MIC_DATA_BUS_1,
+} aud_adc_mic_data_bus_t;
+
 #endif
 
 typedef enum {
@@ -207,38 +231,12 @@ typedef enum {
 
 typedef enum {
 	/* fifo status */
-	AUD_ADCL_NEAR_FULL_MASK = 1 << 2,      /**< AUD ADC left channel FIFO near full */
-	AUD_ADCL_NEAR_EMPTY_MASK = 1 << 6,     /**< AUD ADC left channel FIFO near empty */
-	AUD_ADCL_FIFO_FULL_MASK = 1 << 10,     /**< AUD ADC left channel FIFO full */
-	AUD_ADCL_FIFO_EMPTY_MASK = 1 << 14,    /**< AUD ADC left channel FIFO empty */
+	AUD_ADCL_NEAR_FULL_MASK  = 1 << 2,      /**< AUD ADC left channel FIFO near full */
+	AUD_ADCL_NEAR_EMPTY_MASK = 1 << 6,      /**< AUD ADC left channel FIFO near empty */
+	AUD_ADCL_FIFO_FULL_MASK  = 1 << 10,     /**< AUD ADC left channel FIFO full */
+	AUD_ADCL_FIFO_EMPTY_MASK = 1 << 14,     /**< AUD ADC left channel FIFO empty */
 } aud_adc_status_mask_t;
 
-#if CONFIG_SOC_BK7259
-typedef enum {
-	AUD_ADC_MIC1_FIFO_ALMOST_EMPTY_MASK = 1,
-	AUD_ADC_MIC1_FIFO_ALMOST_FULL_MASK  = 1 << 1,
-	AUD_ADC_MIC0_FIFO_ALMOST_EMPTY_MASK = 1 << 2,
-	AUD_ADC_MIC0_FIFO_ALMOST_FULL_MASK  = 1 << 3,
-} aud_adc_fifo_status_mask_t;
-
-enum
-{
-    AUDIO_ADC_CIC_D192 = 0,
-    AUDIO_ADC_CIC_D128,
-    AUDIO_ADC_CIC_D96,
-    AUDIO_ADC_CIC_D64,
-    AUDIO_ADC_CIC_D48,
-    AUDIO_ADC_CIC_D32,
-    AUDIO_ADC_CIC_D16,
-};
-
-typedef enum {
-	AUD_ADC_MIC_DATA_BUS_0 = 0,
-	AUD_ADC_MIC_DATA_BUS_1,
-} aud_adc_mic_data_bus_t;
-
-
-#endif
 /**
  * @}
  */
@@ -249,41 +247,81 @@ typedef enum {
  * @ingroup bk_api_aud
  * @{
  */
-#if CONFIG_SOC_BK7259
+
+#if CONFIG_AUD_DRIVER_V1
 typedef struct {
-	int32_t dig_gain;                   /**< AUD adc digital gain set */
-	int32_t ana_gain;                   /**< AUD adc analog gain set */
+	aud_adc_chl_t adc_chl;                /**< AUD adc sample rate */
+	uint32_t samp_rate;                   /**< AUD adc sample rate */
+	uint32_t adc_gain;                    /**< AUD adc gain set */
+	aud_adc_samp_edge_t adc_samp_edge;    /**< AUD ADC data sampling clock edge select  rising/falling */
+	aud_adc_mode_t adc_mode;              /**< AUD ADC mode select  single_end/differen */
+	aud_clk_t clk_src;                    /**< AUD ADC clock select  xtal/apll */
+} aud_adc_config_t;
+
+#define DEFAULT_AUD_ADC_CONFIG() {                                \
+        .adc_chl   = AUD_ADC_CHL_L,                               \
+        .samp_rate = 8000,                                        \
+        .adc_gain  = 0x2d,                                        \
+        .adc_samp_edge = AUD_ADC_SAMP_EDGE_RISING,                \
+        .adc_mode      = AUD_ADC_MODE_DIFFEN,                     \
+        .clk_src       = AUD_CLK_APLL,                            \
+    }
+
+#elif CONFIG_AUD_DRIVER_V2
+/** Max ADC digital gain in dB (maps to register full-scale linear, ~0x1FFFF) */
+#define BK_AUD_ADC_DIG_GAIN_DB_MAX        (18.0f)
+/** dB returned when register linear gain is 0 (mute / -inf dB) */
+#define BK_AUD_ADC_DIG_GAIN_DB_SILENCE    (-100.0f)
+
+#define ADC_DIG_GAIN_INT_MASK             (0x7u)
+#define ADC_DIG_GAIN_INT_SHIFT            (14u)
+#define ADC_DIG_GAIN_FRAC_MASK            (0x3FFFu)
+#define ADC_DIG_GAIN_FRAC_SCALE           (16384u) /* 1<<14 */
+
+#define ADC_ANA_GAIN_REG_MAX              (0x0Fu)
+#define ADC_ANA_GAIN_STEP_DB              (2)
+#define BK_AUD_ADC_ANA_GAIN_DB_MAX        ((int32_t)ADC_ANA_GAIN_REG_MAX * ADC_ANA_GAIN_STEP_DB)
+
+typedef struct {
+	float dig_gain;                     /**< AUD adc digital gain in dB, range: (-inf, 18.0] */
+	int32_t ana_gain;                   /**< AUD adc analog gain in dB, range: [0, 30], 2dB/step */
 	aud_adc_mode_t adc_mode;            /**< AUD ADC mode select  single_end/differen */
 	uint8_t bits;                       /**< AUD ADC bits width 16/24 */
 } aud_adc_chl_config_t;
 
 typedef struct {
+	uint8_t chl_num;                                /*!< adc channel number */
+	aud_adc_chl_t adc_chl;
 	uint32_t sample_rate;                           /**< AUD adc sample rate */
 	aud_adc_samp_edge_t adc_samp_edge;              /**< AUD ADC data sampling clock edge select  rising/falling */
 	aud_clk_t clk_src;                              /**< AUD ADC clock select  xtal/apll */
-    aud_adc_chl_config_t chl_cfg[AUD_MIC_CHL_NUM_MAX];
+	uint8_t aec_en;                                 /**< aec_en: 0=disable, 1=enable. */
+	aud_adc_chl_config_t chl_cfg[AUD_MIC_CHL_NUM_MAX];
 } aud_adc_config_t;
 
 #define DEFAULT_AUD_ADC_CONFIG() {                      \
+    .chl_num     = 1,                                   \
+    .adc_chl     = AUD_ADC_CHL_0,                       \
     .sample_rate = 8000,                                \
     .adc_samp_edge = AUD_ADC_SAMP_EDGE_RISING,          \
     .clk_src = AUD_CLK_APLL,                            \
+    .aec_en  = 0,                                       \
     .chl_cfg = {                                        \
         {                                               \
-            .dig_gain = 0x4000,                         \
-            .ana_gain = 0x07,                           \
+            .dig_gain = 16.0f,                          \
+            .ana_gain = 20,                             \
             .adc_mode = AUD_ADC_MODE_DIFFEN,            \
             .bits = 16,                                 \
         },                                              \
         {                                               \
-            .dig_gain = 0x4000,                         \
-            .ana_gain = 0x07,                           \
+            .dig_gain = 16.0f,                          \
+            .ana_gain = 20,                             \
             .adc_mode = AUD_ADC_MODE_DIFFEN,            \
             .bits = 16,                                 \
         },                                              \
         {                                               \
-            .dig_gain = 0x4000,                         \
-            .ana_gain = 0x07,                           \
+            .dig_gain = 16.0f,                           \
+            .ana_gain = 20,                             \
             .adc_mode = AUD_ADC_MODE_DIFFEN,            \
             .bits = 16,                                 \
         },                                              \
@@ -316,24 +354,6 @@ typedef struct {
     .channel        = AUD_DMIC_CHANNEL_L,  \
 }
 
-#else
-typedef struct {
-	aud_adc_chl_t adc_chl;                /**< AUD adc sample rate */
-	uint32_t samp_rate;                   /**< AUD adc sample rate */
-	uint32_t adc_gain;                    /**< AUD adc gain set */
-	aud_adc_samp_edge_t adc_samp_edge;    /**< AUD ADC data sampling clock edge select  rising/falling */
-	aud_adc_mode_t adc_mode;              /**< AUD ADC mode select  single_end/differen */
-	aud_clk_t clk_src;                    /**< AUD ADC clock select  xtal/apll */
-} aud_adc_config_t;
-
-#define DEFAULT_AUD_ADC_CONFIG() {                                \
-        .adc_chl = AUD_ADC_CHL_L,                                 \
-        .samp_rate = 8000,                                        \
-        .adc_gain = 0x2d,                                         \
-        .adc_samp_edge = AUD_ADC_SAMP_EDGE_RISING,                \
-        .adc_mode = AUD_ADC_MODE_DIFFEN,                          \
-        .clk_src = AUD_CLK_APLL,                                  \
-    }
 #endif
 
 typedef struct {

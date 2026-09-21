@@ -14,7 +14,11 @@
 //
 #pragma once
 #include <common/bk_include.h>
+#include <driver/dma.h>
 #include <driver/aud_dac_types.h>
+#if CONFIG_AUD_DRIVER_V2
+#include <driver/aud_dac_drc.h>
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -30,6 +34,8 @@ extern "C" {
  *
  * This API init the dac module:
  *  - Configure the dac parameters to enable dac function.
+ *  - V2: when a2dp_drc_en != 0 apply dac_config->a2dp_drc (Preset/L2/raw);
+ *    otherwise bypass HW DRC. CALL/HINT do not pass through DRC.
  *
  * @param
  *    - dac_config: dac parameters configure
@@ -71,10 +77,23 @@ bk_err_t bk_aud_dac_deinit(void);
  *    - BK_ERR_AUD_DAC_NOT_INIT: audio dac is not init
  *    - others: other errors.
  */
-#if CONFIG_SOC_BK7259
-bk_err_t bk_aud_dac_set_sample_rate(aud_dac_source_t source, uint32_t sample_rate);
-#else
+#if CONFIG_AUD_DRIVER_V1
 bk_err_t bk_aud_dac_set_samp_rate(uint32_t samp_rate);
+#elif CONFIG_AUD_DRIVER_V2
+bk_err_t bk_aud_dac_set_sample_rate(aud_dac_source_t source, uint32_t sample_rate);
+
+/**
+ * @brief Set A2DP 44.1k rate policy (native clock vs HW resample to 48k domain).
+ *
+ * Does not change @ref bk_aud_dac_set_sample_rate signature. Takes effect on the
+ * next @ref bk_aud_dac_set_sample_rate for A2DP 44100.
+ */
+bk_err_t bk_aud_dac_set_a2dp_rate_policy(aud_dac_a2dp_rate_policy_t policy);
+
+/**
+ * @brief Get current A2DP 44.1k rate policy.
+ */
+bk_err_t bk_aud_dac_get_a2dp_rate_policy(aud_dac_a2dp_rate_policy_t *policy);
 #endif
 
 /**
@@ -87,14 +106,18 @@ bk_err_t bk_aud_dac_set_samp_rate(uint32_t samp_rate);
  *    - BK_ERR_AUD_DAC_NOT_INIT: audio dac is not init
  *    - others: other errors.
  */
-#if CONFIG_SOC_BK7259
+#if CONFIG_AUD_DRIVER_V1
 bk_err_t bk_aud_dac_set_dig_gain(uint32_t value);
-#else
-bk_err_t bk_aud_dac_set_gain(uint32_t value);
+#elif CONFIG_AUD_DRIVER_V2
+bk_err_t bk_aud_dac_set_dig_gain(uint32_t value);
+
+bk_err_t bk_aud_dac_set_dig_gain_db(float db);
 #endif
 
-#if CONFIG_SOC_BK7259
+#if CONFIG_AUD_DRIVER_V2
 bk_err_t bk_aud_dac_get_dig_gain(uint32_t *value);
+
+bk_err_t bk_aud_dac_get_dig_gain_db(float *db);
 #endif
 
 /**
@@ -107,10 +130,11 @@ bk_err_t bk_aud_dac_get_dig_gain(uint32_t *value);
  *    - BK_ERR_AUD_DAC_NOT_INIT: audio dac is not init
  *    - others: other errors.
  */
-#if CONFIG_SOC_BK7259
-bk_err_t bk_aud_dac_set_ana_gain(uint32_t value);
-#else
+#if CONFIG_AUD_DRIVER_V1
 bk_err_t bk_aud_dac_set_ana_gain(uint8_t value);
+#elif CONFIG_AUD_DRIVER_V2
+bk_err_t bk_aud_dac_set_ana_gain(uint32_t value);
+bk_err_t bk_aud_dac_set_ana_gain_db(int32_t db);
 #endif
 /**
  * @brief     Get the dac analog gain
@@ -123,6 +147,9 @@ bk_err_t bk_aud_dac_set_ana_gain(uint8_t value);
  *    - others: other errors.
  */
 bk_err_t bk_aud_dac_get_ana_gain(uint32_t *gain);
+#if CONFIG_AUD_DRIVER_V2
+bk_err_t bk_aud_dac_get_ana_gain_db(int32_t *db);
+#endif
 
 /**
  * @brief     Mute audio dac
@@ -160,7 +187,7 @@ bk_err_t bk_aud_dac_unmute(void);
  *    - BK_ERR_AUD_DAC_NOT_INIT: audio dac is not init
  *    - others: other errors.
  */
-#if !CONFIG_SOC_BK7259
+#if CONFIG_AUD_DRIVER_V1
 bk_err_t bk_aud_dac_set_chl(aud_dac_chl_t dac_chl);
 #endif
 /**
@@ -203,12 +230,12 @@ bk_err_t bk_aud_dac_disable_int(void);
  *    - BK_OK: succeed
  *    - others: other errors.
  */
-#if CONFIG_SOC_BK7259
-bk_err_t bk_aud_dac_spk0_get_fifo_addr(aud_dac_source_t source, uint32_t *fifo_addr);
-
-bk_err_t bk_aud_dac_spk1_get_fifo_addr(aud_dac_source_t source, uint32_t *fifo_addr);
-#else
+#if CONFIG_AUD_DRIVER_V1
 bk_err_t bk_aud_dac_get_fifo_addr(uint32_t *dac_fifo_addr);
+#elif CONFIG_AUD_DRIVER_V2
+bk_err_t bk_aud_dac_spk0_get_fifo_addr(aud_dac_source_t source, uint32_t *fifo_addr);
+bk_err_t bk_aud_dac_spk1_get_fifo_addr(aud_dac_source_t source, uint32_t *fifo_addr);
+bk_err_t bk_aud_dac_get_fifo_addr(aud_dac_source_t dac_source, uint8_t ch, dma_dev_t *dma_dev, uint32_t *dac_fifo_addr);
 #endif
 /**
 * @brief   Get the dac status information
@@ -223,10 +250,10 @@ bk_err_t bk_aud_dac_get_fifo_addr(uint32_t *dac_fifo_addr);
 *    - BK_ERR_AUD_DAC_NOT_INIT: audio dac is not init
 *    - others: other errors.
 */
-#if CONFIG_SOC_BK7259
-bk_err_t bk_aud_dac_get_fifo_status(uint32_t *status);
-#else
+#if CONFIG_AUD_DRIVER_V1
 bk_err_t bk_aud_dac_get_status(uint32_t *dac_status);
+#elif CONFIG_AUD_DRIVER_V2
+bk_err_t bk_aud_dac_get_fifo_status(uint32_t *status);
 #endif
 /**
  * @brief     Start dac
@@ -241,10 +268,10 @@ bk_err_t bk_aud_dac_get_status(uint32_t *dac_status);
  *    - BK_ERR_AUD_DAC_NOT_INIT: audio dac is not init
  *    - others: other errors.
  */
-#if CONFIG_SOC_BK7259 
-bk_err_t bk_aud_dac_start(aud_dac_chl_t dac_chl);
-#else
+#if CONFIG_AUD_DRIVER_V1
 bk_err_t bk_aud_dac_start(void);
+#elif CONFIG_AUD_DRIVER_V2
+bk_err_t bk_aud_dac_start(aud_dac_chl_t dac_chl);
 #endif
 /**
  * @brief     Stop dac
@@ -259,10 +286,10 @@ bk_err_t bk_aud_dac_start(void);
  *    - BK_ERR_AUD_DAC_NOT_INIT: audio dac is not init
  *    - others: other errors.
  */
-#if CONFIG_SOC_BK7259
-bk_err_t bk_aud_dac_stop(aud_dac_chl_t dac_chl);
-#else
+#if CONFIG_AUD_DRIVER_V1
 bk_err_t bk_aud_dac_stop(void);
+#elif CONFIG_AUD_DRIVER_V2
+bk_err_t bk_aud_dac_stop(aud_dac_chl_t dac_chl);
 #endif
 /**
  * @brief     Write data to dac
@@ -277,13 +304,11 @@ bk_err_t bk_aud_dac_stop(void);
  *    - BK_ERR_AUD_DAC_NOT_INIT: audio dac is not init
  *    - others: other errors.
  */
-#if CONFIG_SOC_BK7259
-bk_err_t bk_aud_dac_spk0_write_data(aud_dac_source_t source, uint32_t pcm_value);
-
-bk_err_t bk_aud_dac_spk1_write_data(aud_dac_source_t source, uint32_t pcm_value);
-
-#else
+#if CONFIG_AUD_DRIVER_V1
 bk_err_t bk_aud_dac_write(uint32_t pcm_value);
+#elif CONFIG_AUD_DRIVER_V2
+bk_err_t bk_aud_dac_spk0_write_data(aud_dac_source_t source, uint32_t pcm_value);
+bk_err_t bk_aud_dac_spk1_write_data(aud_dac_source_t source, uint32_t pcm_value);
 #endif
 
 /**
@@ -349,7 +374,22 @@ bk_err_t bk_aud_dac_register_isr(aud_isr_id_t isr_id, aud_isr_t isr);
  */
 bk_err_t bk_aud_dac_set_dwa_bypass(uint8_t value);
 
-#if CONFIG_SOC_BK7259
+/**
+ * @brief     Set the dac work mode
+ *
+ * This API set the dac work mode.
+ *
+ * @param
+ *    - value: dac work mode value
+ *
+ * @return
+ *    - BK_OK: succeed
+ *    - BK_ERR_AUD_DAC_NOT_INIT: audio dac is not init
+ *    - others: other errors.
+ */
+bk_err_t bk_aud_dac_work_mode_set(uint32_t value);
+
+#if CONFIG_AUD_DRIVER_V2
 bk_err_t bk_aud_dac_spk0_set_read_threshold(aud_dac_source_t source, uint16_t value);
 bk_err_t bk_aud_dac_spk0_set_write_threshold(aud_dac_source_t source, uint16_t value);
 bk_err_t bk_aud_dac_spk1_set_read_threshold(aud_dac_source_t source, uint16_t value);
@@ -365,11 +405,19 @@ bk_err_t bk_aud_dac_spk0_set_source_gain(aud_dac_source_t source, uint32_t value
 bk_err_t bk_aud_dac_spk1_set_source_gain(aud_dac_source_t source, uint32_t value);
 bk_err_t bk_aud_dac_spk0_get_source_gain(aud_dac_source_t source, uint32_t *value);
 bk_err_t bk_aud_dac_spk1_get_source_gain(aud_dac_source_t source, uint32_t *value);
+bk_err_t bk_aud_dac_spk0_set_source_gain_db(aud_dac_source_t source, float db);
+bk_err_t bk_aud_dac_spk1_set_source_gain_db(aud_dac_source_t source, float db);
+/**
+ * @brief Enable or disable one DAC source on both L (spk0) and R (spk1) FIFO paths.
+ *        Parameter @p spk is reserved for API compatibility and is ignored.
+ */
+bk_err_t bk_aud_dac_source_enable(uint8_t spk, aud_dac_source_t source, uint32_t enable);
 #endif
 
 /**
  * @}
  */
+
 
 #ifdef __cplusplus
 }

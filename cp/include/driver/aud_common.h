@@ -81,7 +81,7 @@ typedef enum {
 	AUD_CLK_MAX
 } aud_clk_t;
 
-#if CONFIG_SOC_BK7259
+#if CONFIG_AUD_DRIVER_V2
 typedef enum
 {
     AUD_APLL_FREQ_98P3040_MHZ = 0,
@@ -185,10 +185,57 @@ bk_err_t bk_aud_clk_deconfig(void);
  */
 bk_err_t bk_aud_register_aud_isr(aud_isr_id_t isr_id, aud_isr_t isr);
 
-#if CONFIG_SOC_BK7259
-bk_err_t bk_aud_apll_config(aud_apll_freq_t freq);
-#endif
 
+/**
+ * @brief     config mic0 analog gain
+ *
+ * This API config mic0 analog gain.
+ *
+ * @param ana_mic0_gain
+ *
+ * @return
+ *    - BK_OK: succeed
+ *    - others: other errors.
+ */
+
+bk_err_t bk_aud_set_ana_mic0_gain(uint8_t ana_mic0_gain);
+
+/**
+ * @brief     config mic1 analog gain
+ *
+ * This API config mic1 analog gain.
+ *
+ * @param ana_mic1_gain
+ *
+ * @return
+ *    - BK_OK: succeed
+ *    - others: other errors.
+ */
+
+bk_err_t bk_aud_set_ana_mic1_gain(uint8_t ana_mic1_gain);
+
+/**
+ * @brief     config audio dac analog gain
+ *
+ * This API config audio dac analog gain.
+ *
+ * @param ana_dac_gain
+ *
+ * @return
+ *    - BK_OK: succeed
+ *    - others: other errors.
+ */
+bk_err_t bk_aud_set_ana_dac_gain(uint8_t ana_dac_gain);
+
+#if CONFIG_AUD_DRIVER_V2
+bk_err_t bk_aud_apll_config(aud_apll_freq_t freq);
+
+bk_err_t bk_aud_apll_spi_trigger(void);
+
+void bk_aud_hardware_reset(void);
+
+void bk_aud_hardware_reset_release(void);
+#endif
 /**
  * @}
  */

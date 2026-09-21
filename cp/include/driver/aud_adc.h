@@ -74,11 +74,9 @@ bk_err_t bk_aud_adc_deinit(void);
  *    - BK_ERR_AUD_ADC_NOT_INIT: audio adc is not init
  *    - others: other errors.
  */
-#if CONFIG_SOC_BK7259
-bk_err_t bk_aud_adc_set_sample_rate(uint32_t sample_rate);
-#else
-bk_err_t bk_aud_adc_set_sample_rate(uint32_t samp_rate);
-#endif
+
+bk_err_t bk_aud_adc_set_samp_rate(uint32_t sample_rate);
+
 /**
  * @brief     Set the adc gain
  *
@@ -89,14 +87,18 @@ bk_err_t bk_aud_adc_set_sample_rate(uint32_t samp_rate);
  *    - BK_ERR_AUD_ADC_NOT_INIT: audio adc is not init
  *    - others: other errors.
  */
-#if CONFIG_SOC_BK7259 
+#if CONFIG_AUD_DRIVER_V1
+bk_err_t bk_aud_adc_set_gain(uint32_t value);
+#elif CONFIG_AUD_DRIVER_V2
 bk_err_t bk_aud_adc_set_ana_gain(aud_adc_chl_t chl, uint32_t value);
+bk_err_t bk_aud_adc_set_ana_gain_db(aud_adc_chl_t chl, int32_t db);
+bk_err_t bk_aud_adc_get_ana_gain_db(aud_adc_chl_t chl, int32_t *db);
 
 bk_err_t bk_aud_adc_set_dig_gain(aud_adc_chl_t chl, uint32_t value);
-
-#else
-bk_err_t bk_aud_adc_set_gain(uint32_t value);
+bk_err_t bk_aud_adc_set_dig_gain_db(aud_adc_chl_t chl, float db);
+bk_err_t bk_aud_adc_get_dig_gain_db(aud_adc_chl_t chl, float *db);
 #endif
+
 /**
  * @brief     Set the adc channel
  *
@@ -107,7 +109,7 @@ bk_err_t bk_aud_adc_set_gain(uint32_t value);
  *    - BK_ERR_AUD_ADC_NOT_INIT: audio adc is not init
  *    - others: other errors.
  */
-#if !CONFIG_SOC_BK7259
+#if CONFIG_AUD_DRIVER_V1
 bk_err_t bk_aud_adc_set_chl(aud_adc_chl_t chl);
 #endif
 
@@ -122,10 +124,10 @@ bk_err_t bk_aud_adc_set_chl(aud_adc_chl_t chl);
  *    - BK_ERR_AUD_ADC_NOT_INIT: audio adc is not init
  *    - others: other errors.
  */
-#if CONFIG_SOC_BK7259
-bk_err_t bk_aud_adc_set_mic_mode(aud_adc_chl_t chl, aud_adc_mode_t mode);
-#else
+#if CONFIG_AUD_DRIVER_V1
 bk_err_t bk_aud_adc_set_mic_mode(aud_mic_id_t mic_id, aud_adc_mode_t mode);
+#elif CONFIG_AUD_DRIVER_V2
+bk_err_t bk_aud_adc_set_mic_mode(aud_adc_chl_t chl, aud_adc_mode_t mode);
 #endif
 /**
  * @brief     Get the adc fifo address
@@ -136,10 +138,10 @@ bk_err_t bk_aud_adc_set_mic_mode(aud_mic_id_t mic_id, aud_adc_mode_t mode);
  *    - BK_OK: succeed
  *    - others: other errors.
  */
-#if CONFIG_SOC_BK7259
-bk_err_t bk_aud_adc_get_fifo_addr(aud_adc_mic_data_bus_t data_bus, uint32_t *fifo_addr);
-#else
+#if CONFIG_AUD_DRIVER_V1
 bk_err_t bk_aud_adc_get_fifo_addr(uint32_t *adc_fifo_addr);
+#elif CONFIG_AUD_DRIVER_V2
+bk_err_t bk_aud_adc_get_fifo_addr(aud_adc_mic_data_bus_t data_bus, uint32_t *fifo_addr);
 #endif
 /**
  * @brief     Get the audio adc fifo status information
@@ -154,10 +156,10 @@ bk_err_t bk_aud_adc_get_fifo_addr(uint32_t *adc_fifo_addr);
  *    - BK_ERR_AUD_ADC_NOT_INIT: audio adc is not init
  *    - others: other errors.
  */
-#if CONFIG_SOC_BK7259
-bk_err_t bk_aud_adc_get_fifo_status(uint32_t *status);
-#else
+#if CONFIG_AUD_DRIVER_V1
 bk_err_t bk_aud_adc_get_status(uint32_t *adc_status);
+#elif CONFIG_AUD_DRIVER_V2
+bk_err_t bk_aud_adc_get_fifo_status(uint32_t *status);
 #endif
 /**
  * @brief     Enable adc interrupt
@@ -207,10 +209,10 @@ bk_err_t bk_aud_adc_disable_int(void);
  *    - BK_ERR_AUD_ADC_NOT_INIT: audio adc is not init
  *    - others: other errors.
  */
-#if CONFIG_SOC_BK7259
-bk_err_t bk_aud_adc_start(aud_adc_chl_t chl);
-#else
+#if CONFIG_AUD_DRIVER_V1
 bk_err_t bk_aud_adc_start(void);
+#elif CONFIG_AUD_DRIVER_V2
+bk_err_t bk_aud_adc_start(aud_adc_chl_t chl);
 #endif
 /**
  * @brief     Stop audio adc
@@ -223,10 +225,10 @@ bk_err_t bk_aud_adc_start(void);
  *    - BK_ERR_AUD_ADC_NOT_INIT: audio adc is not init
  *    - others: other errors.
  */
-#if CONFIG_SOC_BK7259
-bk_err_t bk_aud_adc_stop(aud_adc_chl_t chl);
-#else
+#if CONFIG_AUD_DRIVER_V1
 bk_err_t bk_aud_adc_stop(void);
+#elif CONFIG_AUD_DRIVER_V2
+bk_err_t bk_aud_adc_stop(aud_adc_chl_t chl);
 #endif
 /**
  * @brief     Get adc data
@@ -240,10 +242,10 @@ bk_err_t bk_aud_adc_stop(void);
  *    - BK_ERR_AUD_ADC_NOT_INIT: audio adc is not init
  *    - others: other errors.
  */
-#if CONFIG_SOC_BK7259
-bk_err_t bk_aud_adc_get_fifo_data(aud_adc_mic_data_bus_t data_bus, uint32_t *adc_data);
-#else
+#if CONFIG_AUD_DRIVER_V1
 bk_err_t bk_aud_adc_get_fifo_data(uint32_t *adc_data);
+#elif CONFIG_AUD_DRIVER_V2
+bk_err_t bk_aud_adc_get_fifo_data(aud_adc_mic_data_bus_t data_bus, uint32_t *adc_data);
 #endif
 /**
  * @brief     Set audio adc data write threshold
@@ -258,11 +260,10 @@ bk_err_t bk_aud_adc_get_fifo_data(uint32_t *adc_data);
  *    - BK_ERR_AUD_ADC_NOT_INIT: audio adc is not init
  *    - others: other errors.
  */
-#if !CONFIG_SOC_BK7259
+#if CONFIG_AUD_DRIVER_V1
 bk_err_t bk_aud_adc_set_adcl_wr_threshold(uint32_t value);
-#endif
 
-#if CONFIG_SOC_BK7259
+#elif CONFIG_AUD_DRIVER_V2
 bk_err_t bk_aud_adc_set_write_threshold(aud_adc_mic_data_bus_t data_bus, uint32_t value);
 
 bk_err_t bk_aud_adc_set_read_threshold(aud_adc_mic_data_bus_t data_bus, uint32_t value);
@@ -325,7 +326,7 @@ bk_err_t bk_aud_adc_start_loop_test(void);
  */
 bk_err_t bk_aud_adc_stop_loop_test(void);
 
-#if CONFIG_SOC_BK7259
+#if CONFIG_AUD_DRIVER_V2
 bk_err_t bk_aud_adc_set_bits_width(aud_adc_chl_t chl, uint8_t bits_width);
 
 bk_err_t bk_aud_dmic_init(aud_dmic_config_t *dmic_config);

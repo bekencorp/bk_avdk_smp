@@ -23,7 +23,7 @@
 extern "C" {
 #endif
 
-#if (!CONFIG_SOC_BK7259)
+#if (CONFIG_AUD_DRIVER_V1)
 /**
  * @brief AUD defines
  * @defgroup bk_api_aud_defs macos

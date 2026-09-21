@@ -388,6 +388,27 @@ bk_err_t mb_flash_register_op_notify_cb(flash_op_notify_callback_t notify_cb, vo
 bk_err_t mb_flash_unregister_op_notify_cb(flash_op_notify_callback_t notify_cb);
 
 /**
+ * @brief  register a callback to be called before/after flash operation for onboard mic stream.
+ *
+ * @param notify_cb callback function.
+ * @param args callback argument.
+ *
+ * @return
+ *    - BK_OK: succeed
+ *    - others: other errors.
+ */
+bk_err_t mb_flash_register_op_onboard_mic_stream_notify(void *notify_cb, void *args);
+
+/**
+ * @brief  unregister onboard mic stream flash operation callback.
+ *
+ * @return
+ *    - BK_OK: succeed
+ *    - others: other errors.
+ */
+bk_err_t mb_flash_unregister_op_onboard_mic_stream_notify(void);
+
+/**
  * @brief  Get status if it is ready to erase flash, which means ble would sleep more than 56ms period.
  *
  * @return flash ready status
@@ -454,5 +475,3 @@ bk_err_t bk_flash_power_saving_exit(void);
 #ifdef __cplusplus
 }
 #endif
-
-
