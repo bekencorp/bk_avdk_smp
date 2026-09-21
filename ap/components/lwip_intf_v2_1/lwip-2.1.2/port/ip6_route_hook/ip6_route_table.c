@@ -102,6 +102,24 @@ int8_t bk_route_table_remove_route_entry(bk_route_entry_t * route_entry)
     return 0;
 }
 
+void bk_route_table_remove_netif_routes(struct netif * netif)
+{
+    for (bk_route_entry_t * route = &s_route_entries[0]; route < &s_route_entries[LWIP_ARRAYSIZE(s_route_entries)];)
+    {
+        if (route->netif == NULL)
+        {
+            break;
+        }
+        if (route->netif == netif)
+        {
+            sys_untimeout(route_timeout_handler, route);
+            bk_route_table_remove_route_entry(route);
+            continue;
+        }
+        route++;
+    }
+}
+
 static inline bool is_better_route(const bk_route_entry_t * lhs, const bk_route_entry_t * rhs)
 {
     if (rhs == NULL)

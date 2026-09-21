@@ -392,38 +392,83 @@ __IRAM2 bool cif_filter_check_ip_data(struct pbuf *p)
 }
 
 #if CONFIG_IPV6
+/* true  = CP still needs the packet (dual-copy or CP-only).
+ * false = AP exclusive; CP must not deliver it to lwIP (same global addr → RST).
+ * Walk extension headers so HBH/fragmented TCP is not treated as ND/MLD.
+ * Unknown/parse failure stays true (fail-open). */
 __IRAM3 static bool cif_filter_check_ip6_data(struct pbuf *p)
 {
-    bool upload2ctrl = false;
+    u16_t offset;
+    u8_t nexth;
+    u8_t icmp6_type;
+    int i;
 
-    if (p->len < (s16_t)(SIZEOF_ETH_HDR + IP6_HLEN + 1))
-        return false;
-
-    u8_t *payload = (u8_t *)p->payload;
-    u8_t nexth    = payload[SIZEOF_ETH_HDR + 6];
-
-    switch (nexth)
-    {
-        case IP6_NEXTH_ICMP6:
-            if (2 == get_ping_state()) //PING_STATE_STARTED
-            {
-                upload2ctrl = true;
-            } else {
-                upload2ctrl = false;
-            }
-            break;
-        case IP6_NEXTH_UDP:
-            upload2ctrl = false;
-            break;
-        case IP6_NEXTH_TCP:
-            upload2ctrl = false;
-            break;
-        default:
-            upload2ctrl = false;
-            break;
+    if (p->len < (s16_t)(SIZEOF_ETH_HDR + IP6_HLEN)) {
+        return true;
     }
 
-    return upload2ctrl;
+    /* Byte access: eth hdr is 14B so ip6_hdr is not 4-byte aligned. */
+    nexth  = *((u8_t *)p->payload + SIZEOF_ETH_HDR + 6);
+    offset = SIZEOF_ETH_HDR + IP6_HLEN;
+
+    for (i = 0; i < 8; i++) {
+        u8_t *ext;
+        u16_t extlen;
+
+        if ((nexth == IP6_NEXTH_TCP) || (nexth == IP6_NEXTH_UDP) ||
+            (nexth == IP6_NEXTH_UDPLITE)) {
+            return false;
+        }
+
+        /* Fragment hdr is 8B; byte 1 is reserved, not length. */
+        if (nexth == IP6_NEXTH_FRAGMENT) {
+            if ((offset + 8) > p->len) {
+                return true;
+            }
+            ext    = (u8_t *)p->payload + offset;
+            nexth  = ext[0];
+            offset = offset + 8;
+            continue;
+        }
+
+        if (nexth == IP6_NEXTH_ICMP6) {
+            if ((offset + 1) > p->len) {
+                return true;
+            }
+            icmp6_type = *((u8_t *)p->payload + offset);
+
+            /* Echo Request: AP-only to avoid ping6 DUP!. No CP NS offload. */
+            if (ICMP6_TYPE_EREQ == icmp6_type) {
+                return false;
+            }
+            if (ICMP6_TYPE_EREP == icmp6_type) {
+                return (2 == get_ping_state()); /* PING_STATE_STARTED */
+            }
+
+            /* NS/NA/RS/RA/MLD/PTB/... : both cores */
+            return true;
+        }
+
+        if ((nexth != IP6_NEXTH_HOPBYHOP) &&
+            (nexth != IP6_NEXTH_ROUTING)  &&
+            (nexth != IP6_NEXTH_DESTOPTS)) {
+            return true;
+        }
+
+        if ((offset + 2) > p->len) {
+            return true;
+        }
+        ext    = (u8_t *)p->payload + offset;
+        extlen = ((u16_t)ext[1] + 1) * 8;
+        nexth  = ext[0];
+        offset = offset + extlen;
+
+        if (offset >= p->len) {
+            return true;
+        }
+    }
+
+    return true;
 }
 #endif
 
@@ -646,49 +691,9 @@ __IRAM2 bool cif_rx_local_packet_check(struct pbuf **p_ptr, struct eth_hdr * eth
 #if CONFIG_IPV6
         case ETHTYPE_IPV6:
         {
-            u8_t nexth      = (p->tot_len >= SIZEOF_ETH_HDR + 7)
-                            ? ((u8_t*)p->payload)[SIZEOF_ETH_HDR + 6] : 0;
-            u8_t icmp6_type = (nexth == IP6_NEXTH_ICMP6 && p->tot_len >= SIZEOF_ETH_HDR + IP6_HLEN + 1)
-                            ? ((u8_t*)p->payload)[SIZEOF_ETH_HDR + IP6_HLEN] : 0;
-             /*
-              * Packets that CP lwIP must also process (copy to both sides):
-              *   1. NDP: NS/NA/RS/RA (icmp6 133~136), nexth=58
-              *   2. MLD: Multicast Listener Discovery (icmp6 130~132,143), nexth=0 (Hop-by-Hop)
-              *      MLD uses Hop-by-Hop extension header, so nexth != 58; treat all nexth=0
-              *      multicast-dst packets as "need CP copy" to keep CP multicast state correct.
-              */
-            bool is_nd = (nexth == IP6_NEXTH_ICMP6)
-                         && (icmp6_type >= ICMP6_TYPE_MLQ && icmp6_type <= ICMP6_TYPE_RD);
-            bool is_mld = (nexth == 0);
-            bool need_copy = is_nd || is_mld;
-            if (need_copy)
+            if (cif_filter_check_ip6_data(p) == false)
             {
-                struct pbuf* p_copy = pbuf_alloc(PBUF_RAW, p->len + sizeof(cpdu_t), PBUF_RAM_RX);
-                //os_printf("[ipv6 nd] pbuf_alloc p_copy=%p\r\n", p_copy);
-                if (p_copy == NULL)
-                {
-                    CIF_LOGW("[ipv6 nd] alloc fail, CP-only\r\n");
-                    break;
-                }
-                pbuf_header(p_copy, -(s16_t)sizeof(cpdu_t));
-                memcpy(p_copy->payload, p->payload, p->len);
-
-                struct cpdu_t *cpdu_nd = (struct cpdu_t*)(p_copy + 1);
-                cpdu_nd->co_hdr.length       = p_copy->len - sizeof(struct pbuf);
-                cpdu_nd->co_hdr.type         = RX_MSDU_DATA;
-                cpdu_nd->co_hdr.need_free    = 0;
-                cpdu_nd->co_hdr.special_type = 0;
-                cpdu_nd->co_hdr.vif_idx      = cif_vif_to_netif_wire(vif);
-                cpdu_nd->co_hdr.dst_index    = dst_idx;
-
-                ret = cif_msg_sender(cpdu_nd, CIF_TASK_MSG_RX_DATA, 0);
-                if (ret != BK_OK)
-                    pbuf_free(p_copy);
-                else
-                    cif_stats_ptr->cif_rx_cnt++;
-            }
-            else if (cif_filter_check_ip6_data(p) == false)
-            {
+                /* TCP/UDP/echo request: steal original pbuf to AP. */
                 struct pbuf* p_data = p;
                 upload2ctrl = false;
 
@@ -713,6 +718,30 @@ __IRAM2 bool cif_rx_local_packet_check(struct pbuf **p_ptr, struct eth_hdr * eth
             }
             else
             {
+                /* ND/MLD/PTB/unknown: copy to AP, original stays on CP. */
+                struct pbuf* p_copy = pbuf_alloc(PBUF_RAW, p->len + sizeof(cpdu_t), PBUF_RAM_RX);
+                if (p_copy == NULL)
+                {
+                    CIF_LOGW("[ipv6 nd] alloc fail, CP-only\r\n");
+                    upload2ctrl = true;
+                    break;
+                }
+                pbuf_header(p_copy, -(s16_t)sizeof(cpdu_t));
+                memcpy(p_copy->payload, p->payload, p->len);
+
+                struct cpdu_t *cpdu_nd = (struct cpdu_t*)(p_copy + 1);
+                cpdu_nd->co_hdr.length       = p_copy->len - sizeof(struct pbuf);
+                cpdu_nd->co_hdr.type         = RX_MSDU_DATA;
+                cpdu_nd->co_hdr.need_free    = 0;
+                cpdu_nd->co_hdr.special_type = 0;
+                cpdu_nd->co_hdr.vif_idx      = cif_vif_to_netif_wire(vif);
+                cpdu_nd->co_hdr.dst_index    = dst_idx;
+
+                ret = cif_msg_sender(cpdu_nd, CIF_TASK_MSG_RX_DATA, 0);
+                if (ret != BK_OK)
+                    pbuf_free(p_copy);
+                else
+                    cif_stats_ptr->cif_rx_cnt++;
                 upload2ctrl = true;
             }
             break;

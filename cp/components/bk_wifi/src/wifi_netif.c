@@ -24,6 +24,15 @@
 #include "bk_wifi_types.h"
 #include "common/bk_err.h"
 #include "bk_wifi_prop_private.h"
+#if CONFIG_WIFI_VNET_CONTROLLER
+#include "cif_cntrl.h"
+/* Keep in sync with AP BK_EVT_DHCP_TIMEOUT_IND in wdrv_cntrl.h. */
+#define BK_EVT_DHCP_TIMEOUT_IND 0x13
+#endif
+#if CONFIG_IPV6
+#include "lwip/dhcp.h"
+#include "net.h"
+#endif
 
 #define WIFI_INVALID_VIFID 0xff
 
@@ -106,6 +115,40 @@ __IRAM3 void *wifi_netif_get_vif_private_data(void *vif)
 }
 
 extern sta_param_t *g_sta_param_ptr;
+
+#if CONFIG_IPV6
+static void wifi_netif_notify_sta_got_ip6_addr(int event_id, uint8_t addr_idx,
+					       const char *ip)
+{
+	netif_event_got_ip6_t event_data = {0};
+
+	event_data.netif_if = NETIF_IF_STA;
+	event_data.addr_idx = addr_idx;
+	if (ip)
+		os_strncpy(event_data.ip, ip, sizeof(event_data.ip) - 1);
+
+	BK_LOG_ON_ERR(bk_event_post(EVENT_MOD_NETIF, event_id,
+				    &event_data, sizeof(event_data),
+				    BEKEN_NEVER_TIMEOUT));
+}
+
+void wifi_netif_notify_sta_got_ip6_ll(uint8_t addr_idx, const char *ip)
+{
+	wifi_netif_notify_sta_got_ip6_addr(EVENT_NETIF_GOT_IP6_LL, addr_idx, ip);
+}
+
+void wifi_netif_notify_sta_got_ip6_global(uint8_t addr_idx, const char *ip)
+{
+	wifi_netif_notify_sta_got_ip6_addr(EVENT_NETIF_GOT_IP6_GLOBAL, addr_idx, ip);
+
+	/* Same LMAC/linkstate path as DHCPv4: IPv6-only (SLAAC) never hits
+	 * wm_netif_status_callback, so ME_DHCP_DONE_IND would otherwise never
+	 * be sent. wifi_netif_notify_sta_got_ip(IP6) skips EVENT_NETIF_GOT_IP4.
+	 */
+	wifi_netif_notify_sta_got_ip(IP6);
+}
+#endif
+
 void wifi_netif_notify_sta_got_ip(enum ip_ver ver)
 {
 	wifi_linkstate_reason_t info;
@@ -129,31 +172,31 @@ void wifi_netif_notify_sta_got_ip(enum ip_ver ver)
 	if (ver == IP4)
 		BK_LOG_ON_ERR(bk_event_post(EVENT_MOD_NETIF, EVENT_NETIF_GOT_IP4,
 									&event_data, sizeof(event_data), BEKEN_NEVER_TIMEOUT));
-	else
-		BK_LOG_ON_ERR(bk_event_post(EVENT_MOD_NETIF, EVENT_NETIF_GOT_IP6,
-									&event_data, sizeof(event_data), BEKEN_NEVER_TIMEOUT));
 }
 
 void wifi_netif_notify_sta_dhcp_timeout(void)
 {
-	wifi_linkstate_reason_t info;
 	netif_event_got_ip4_t event_data = {0};
 
-	/* set link status */
-	info.state = WIFI_LINKSTATE_STA_DISCONNECTED;
-	info.reason_code = WIFI_REASON_DHCP_TIMEOUT;
-	mhdr_set_station_status(info);
-
-	/* Send Event DHCP_TIMEOUT */
+	/* IPv6: keep STA associated; caller stops DHCPv4 Discover. */
 	event_data.netif_if = NETIF_IF_STA;
 	WIFI_LOGD("DHCP timeout\r\n");
 	BK_LOG_ON_ERR(bk_event_post(EVENT_MOD_NETIF, EVENT_NETIF_DHCP_TIMEOUT,
 				  &event_data, sizeof(event_data), BEKEN_NEVER_TIMEOUT));
+#if CONFIG_WIFI_VNET_CONTROLLER
+	BK_LOG_ON_ERR(cif_bk_send_event(BK_EVT_DHCP_TIMEOUT_IND,
+					(uint8_t *)&event_data, sizeof(event_data)));
+#endif
 }
 
 void wifi_netif_notify_sta_disconnect(void)
 {
+#if CONFIG_IPV6
+	wifi_netif_notify_sta_dhcp_timeout();
+	dhcp_release_and_stop((struct netif *)net_get_sta_handle());
+#else
 	bk_wlan_dhcp_timeout();
+#endif
 }
 
 bool wifi_netif_sta_is_connected(void)

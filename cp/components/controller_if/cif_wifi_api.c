@@ -7,6 +7,7 @@
 #include <string.h>
 #include "cif_wifi_api.h"
 #include "cif_main.h"
+#include "cif_cntrl.h"
 #include "cif_ipc.h"
 #include "wifi_v2.h"
 #include "lwip/etharp.h"
@@ -787,6 +788,18 @@ bk_err_t cif_handle_wifi_api_cmd(struct bk_msg_hdr *msg)
             }
             break;
         }
+#ifdef CONFIG_IPV6
+        case STA_GET_NETIF_IPV6_CONFIG:
+        {
+            struct bk_msg_ipv6_ind *ipv6_config = (struct bk_msg_ipv6_ind *)arg_info->args[0];
+            if (ipv6_config) {
+                ret = cif_get_sta_ipv6_config(ipv6_config);
+            } else {
+                ret = BK_ERR_NULL_PARAM;
+            }
+            break;
+        }
+#endif
 #if CONFIG_BK_RAW_LINK
         case RLK_REGISTER_SEND_CB:
         {

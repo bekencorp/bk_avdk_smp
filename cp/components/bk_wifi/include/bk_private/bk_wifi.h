@@ -432,12 +432,16 @@ netif_if_t wifi_netif_mac_to_netif_type(uint8_t *mac);
 void wifi_netif_set_vif_private_data(void *vif, void *data);
 __IRAM3 void* wifi_netif_get_vif_private_data(void *vif);
 void wifi_netif_notify_sta_got_ip(enum ip_ver ver);
+#if CONFIG_IPV6
+void wifi_netif_notify_sta_got_ip6_ll(uint8_t addr_idx, const char *ip);
+void wifi_netif_notify_sta_got_ip6_global(uint8_t addr_idx, const char *ip);
+#endif
 void wifi_netif_notify_sta_dhcp_timeout(void);
+void wifi_netif_notify_sta_disconnect(void);
 void wifi_netif_call_status_cb_when_sta_got_ip(void);
 void wifi_netif_call_status_cb_when_sta_dhcp_timeout(void);
 bool wifi_netif_sta_is_connected(void);
 bool wifi_netif_sta_is_got_ip(void);
-void wifi_netif_notify_sta_disconnect(void);
 
 uint8_t* wifi_netif_vif_to_mac(void *vif);
 __IRAM3 int wifi_netif_vif_to_vifid(void *vif);

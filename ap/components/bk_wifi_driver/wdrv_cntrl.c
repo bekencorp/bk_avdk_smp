@@ -42,6 +42,11 @@
 #if CONFIG_CONTROLLER_AP_BUFFER_COPY
 #include <sys_sw_regs.h>
 #endif
+#if CONFIG_IPV6
+#include "lwip/ip6_addr.h"
+#include "lwip/dns.h"
+#include "lwip/ip_addr.h"
+#endif
 #define TAG "wdrv_cntrl"
 
 wdrv_wlan wdrv_host_env;
@@ -49,6 +54,37 @@ wdrv_wlan wdrv_host_env;
 wifi_linkstate_reason_t connect_flag = {WIFI_LINKSTATE_STA_IDLE, WIFI_REASON_MAX};
 
 FUNC_1PARAM_PTR connection_status_cb = 0;
+
+#if CONFIG_IPV6
+static uint8_t s_wdrv_sta_ip6_ll_reported;
+static uint8_t s_wdrv_sta_ip6_global_reported;
+
+static void wdrv_configure_ipv6_dns(void)
+{
+#if LWIP_DNS
+    ip_addr_t dns_addr;
+    uint8_t dns_count = wdrv_host_env.ipv6_ind.dns_count;
+    uint8_t i;
+
+    if (dns_count > MAX_IPV6_DNS_SERVERS_IN_MSG)
+        dns_count = MAX_IPV6_DNS_SERVERS_IN_MSG;
+    if (dns_count > DNS_MAX_SERVERS)
+        dns_count = DNS_MAX_SERVERS;
+
+    if (!dns_count)
+        WDRV_LOGD("no IPv6 DNS server in indication\n");
+
+    for (i = 0; i < dns_count; i++) {
+        os_memset(&dns_addr, 0, sizeof(dns_addr));
+        IP_SET_TYPE_VAL(dns_addr, IPADDR_TYPE_V6);
+        os_memcpy(ip_2_ip6(&dns_addr)->addr, wdrv_host_env.ipv6_ind.dns_addr[i], 16);
+        dns_setserver(i, &dns_addr);
+        WDRV_LOGD("IPv6 DNS server %d: %s\n", i, ipaddr_ntoa(&dns_addr));
+    }
+#endif
+}
+
+#endif
 
 void wdrv_notify_sta_got_ip(void);
 
@@ -222,7 +258,7 @@ void wdrv_notify_gc_got_ip(void)
 void wdrv_notify_sta_got_ipv6(void)
 {
 #if CONFIG_IPV6
-    netif_event_got_ip6_t got_ipv6 = {0};
+    netif_event_got_ip6_t got_ip6 = {0};
     struct ipv6_config ipv6_configs[MAX_IPV6_ADDRESSES];
     uint8_t addr_count;
     int i;
@@ -233,22 +269,59 @@ void wdrv_notify_sta_got_ipv6(void)
     if (addr_count == 0)
         return;
 
-    got_ipv6.netif_if = NETIF_IF_STA;
-    got_ipv6.addr_count = addr_count;
     for (i = 0; i < addr_count; i++) {
-        os_memcpy(&got_ipv6.ipv6_addr[i], &wdrv_host_env.ipv6_ind.ipv6_addr[i],
-                  sizeof(got_ipv6.ipv6_addr[i]));
-        os_memcpy(&ipv6_configs[i].address, got_ipv6.ipv6_addr[i].address, 16);
-        ipv6_configs[i].addr_state = got_ipv6.ipv6_addr[i].addr_state;
+        os_memcpy(&ipv6_configs[i].address,
+                  wdrv_host_env.ipv6_ind.ipv6_addr[i].address, 16);
+        ipv6_configs[i].addr_state = wdrv_host_env.ipv6_ind.ipv6_addr[i].addr_state;
     }
 
     if (net_configure_ipv6_address(ipv6_configs, addr_count, net_get_sta_handle()) != 0) {
-        WDRV_LOGE(TAG, "configure IPv6 address failed\n");
+        WDRV_LOGE("configure IPv6 address failed\n");
         return;
     }
+    wdrv_configure_ipv6_dns();
+    if (wdrv_host_env.ipv6_ind.gw_valid) {
+        ip6_addr_t *gateway = (ip6_addr_t *)wdrv_host_env.ipv6_ind.gateway;
 
-    BK_LOG_ON_ERR(bk_event_post(EVENT_MOD_NETIF, EVENT_NETIF_GOT_IP6,
-                                &got_ipv6, sizeof(got_ipv6), BEKEN_NEVER_TIMEOUT));
+        WDRV_LOGD("IPv6 gateway: %s lifetime=%u\n",
+                  ip6addr_ntoa(gateway),
+                  wdrv_host_env.ipv6_ind.gateway_lifetime);
+        if (net_configure_ipv6_gateway(wdrv_host_env.ipv6_ind.gateway,
+                                       wdrv_host_env.ipv6_ind.gateway_mac,
+                                       wdrv_host_env.ipv6_ind.gateway_lifetime,
+                                       net_get_sta_handle()) != 0) {
+            WDRV_LOGE("configure IPv6 gateway failed\n");
+        }
+    } else {
+        WDRV_LOGD("no IPv6 gateway in indication\n");
+    }
+
+    for (i = 0; i < addr_count; i++) {
+        ip6_addr_t *ip6addr = (ip6_addr_t *)wdrv_host_env.ipv6_ind.ipv6_addr[i].address;
+        uint8_t event_id;
+
+        if (wdrv_host_env.ipv6_ind.ipv6_addr[i].addr_state != IP6_ADDR_PREFERRED)
+            continue;
+
+        if (ip6_addr_islinklocal(ip6addr)) {
+            if (s_wdrv_sta_ip6_ll_reported & (1U << i))
+                continue;
+            s_wdrv_sta_ip6_ll_reported |= (1U << i);
+            event_id = EVENT_NETIF_GOT_IP6_LL;
+        } else {
+            if (s_wdrv_sta_ip6_global_reported & (1U << i))
+                continue;
+            s_wdrv_sta_ip6_global_reported |= (1U << i);
+            event_id = EVENT_NETIF_GOT_IP6_GLOBAL;
+        }
+
+        got_ip6.netif_if = NETIF_IF_STA;
+        got_ip6.addr_idx = i;
+        ip6addr_ntoa_r(ip6addr, got_ip6.ip, sizeof(got_ip6.ip));
+        BK_LOG_ON_ERR(bk_event_post(EVENT_MOD_NETIF, event_id,
+                                    &got_ip6, sizeof(got_ip6),
+                                    BEKEN_NEVER_TIMEOUT));
+    }
 #endif
 }
 
@@ -607,6 +680,11 @@ static void wdrv_handle_wifi_event_ind(cif_wifi_event_ind_t *ind)
             wdrv_host_env.p2p_role = 0;
         }
 #endif
+#if CONFIG_IPV6
+        s_wdrv_sta_ip6_ll_reported = 0;
+        s_wdrv_sta_ip6_global_reported = 0;
+        net_clear_ipv6_gateway(net_get_sta_handle());
+#endif
         break;
     case EVENT_WIFI_AP_CONNECTED:
         if (ind->data_len >= sizeof(wifi_event_ap_connected_t)) {
@@ -675,7 +753,7 @@ void wdrv_rx_handle_wifi_cntrl_event(wdrv_rx_msg *msg)
             wdrv_host_env.connect_ind.gw = cp_ind->gw;
             wdrv_host_env.connect_ind.dns = cp_ind->dns;
             wdrv_host_env.connect_ind.vif_idx = cp_ind->vif_idx;
-            WDRV_LOGD(TAG, "WLAN-INDICATE: connected\n");
+            WDRV_LOGD("WLAN-INDICATE: connected\n");
 #if 0
             BK_LOGD(NULL, "WLAN-INDICATE: connect to \'%s\' (%3d dBm)\r\n",
                 wdrv_host_env.connect_ind.ussid, wdrv_host_env.connect_ind.rssi);
@@ -702,14 +780,14 @@ void wdrv_rx_handle_wifi_cntrl_event(wdrv_rx_msg *msg)
         case BK_EVT_IPV6_IND:
 #if CONFIG_IPV6
             if (!msg->param || msg->param_len < sizeof(struct wdrv_ipv6_ind)) {
-                WDRV_LOGE(TAG, "invalid IPv6 ind, len=%u\n", msg->param_len);
+                WDRV_LOGE("invalid IPv6 ind, len=%u\n", msg->param_len);
                 break;
             }
             os_memset(&wdrv_host_env.ipv6_ind, 0, sizeof(wdrv_host_env.ipv6_ind));
             os_memcpy(&wdrv_host_env.ipv6_ind, msg->param, sizeof(struct wdrv_ipv6_ind));
             if (wdrv_host_env.ipv6_ind.addr_count > MAX_IPV6_ADDRESSES_IN_MSG)
                 wdrv_host_env.ipv6_ind.addr_count = MAX_IPV6_ADDRESSES_IN_MSG;
-            WDRV_LOGD(TAG, "IPv6 address count: %d\n", wdrv_host_env.ipv6_ind.addr_count);
+            WDRV_LOGD("IPv6 address count: %d\n", wdrv_host_env.ipv6_ind.addr_count);
             wdrv_notify_sta_got_ipv6();
 #endif
             break;

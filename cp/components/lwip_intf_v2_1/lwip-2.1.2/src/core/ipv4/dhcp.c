@@ -771,8 +771,9 @@ void dhcp_check_status(void)
           (netif->status_callback)(netif);
         }
 #ifdef CONFIG_WIFI_ENABLE
-        if (netif == (struct netif *)net_get_sta_handle())
+        if (netif == (struct netif *)net_get_sta_handle()) {
           wifi_netif_notify_sta_disconnect();
+        }
 #endif
       }
     }

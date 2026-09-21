@@ -196,7 +196,10 @@ void cli_ping_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **arg
 		len = (size_t)os_strtoul(argv[3], NULL, 10);
 
 	BK_LOGD(NULL,"ping IP address:%s cnt:%u len:%u\n", argv[1], cnt, (uint32_t)len);
-	ping_start(argv[1], cnt, len);
+	if (os_strcmp(argv[0], "ping6") == 0)
+		ping6_start(argv[1], cnt, len);
+	else
+		ping_start(argv[1], cnt, len);
 
 	if (!ret) {
 		msg = WIFI_CMD_RSP_SUCCEED;

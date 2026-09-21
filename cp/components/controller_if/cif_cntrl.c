@@ -2,6 +2,13 @@
 #include "net.h"
 #include "bk_wifi_types.h"
 #include "modules/wifi.h"
+#if CONFIG_IPV6
+#include "lwip/netif.h"
+#include "lwip/ip6_addr.h"
+#include "lwip/dns.h"
+#include "lwip/ip_addr.h"
+#include "lwip/priv/nd6_priv.h"
+#endif
 #include "bk_wifi.h"
 #include <stdlib.h>
 #include <string.h>
@@ -18,10 +25,6 @@
 #if CONFIG_SUPPORT_CACHEABLE_SRAM
 #include "cache.h"
 #endif
-#endif
-#ifdef CONFIG_IPV6
-#include "lwip/netif.h"
-#include "lwip/ip6_addr.h"
 #endif
 
 extern int bmsg_tx_sender(struct pbuf *p, uint32_t vif_idx);
@@ -191,6 +194,99 @@ bk_err_t cif_handle_bk_cmd_connect_ind(char *ssid, uint8_t rssi, uint32_t ip, ui
 }
 
 #ifdef CONFIG_IPV6
+static void cif_fill_ipv6_dns_and_gateway(struct netif *netif, struct bk_msg_ipv6_ind *ind)
+{
+	int i;
+#if LWIP_DNS
+	const ip_addr_t *dns_addr;
+#endif
+
+	if (!netif || !ind)
+		return;
+
+#if LWIP_DNS
+	for (i = 0; i < MAX_IPV6_DNS_SERVERS_IN_MSG; i++) {
+		dns_addr = dns_getserver(i);
+		if (dns_addr && IP_IS_V6(dns_addr) && !ip_addr_isany(dns_addr)) {
+			os_memcpy(ind->dns_addr[ind->dns_count], ip_2_ip6(dns_addr)->addr, 16);
+			CIF_LOGD("IPv6 DNS server %d: %s\n", ind->dns_count, ipaddr_ntoa(dns_addr));
+			ind->dns_count++;
+		}
+	}
+	if (!ind->dns_count)
+		CIF_LOGD("no IPv6 DNS server learned\n");
+#endif
+
+	for (i = 0; i < LWIP_ND6_NUM_ROUTERS; i++) {
+		struct nd6_neighbor_cache_entry *neighbor = default_router_list[i].neighbor_entry;
+
+		if (neighbor && neighbor->netif == netif && neighbor->isrouter &&
+		    neighbor->state != ND6_NO_ENTRY && neighbor->state != ND6_INCOMPLETE) {
+			os_memcpy(ind->gateway, neighbor->next_hop_address.addr, 16);
+			os_memcpy(ind->gateway_mac, neighbor->lladdr, IPV6_GATEWAY_MAC_LEN);
+			ind->gateway_lifetime = default_router_list[i].invalidation_timer;
+			ind->gw_valid = 1;
+			CIF_LOGD("IPv6 gateway: %s lifetime=%u\n",
+				 ip6addr_ntoa(&neighbor->next_hop_address),
+				 ind->gateway_lifetime);
+			break;
+		}
+	}
+	if (!ind->gw_valid)
+		CIF_LOGD("no IPv6 gateway learned\n");
+}
+
+static int cif_fill_ipv6_global_ind_from_netif(struct netif *netif,
+		struct bk_msg_ipv6_ind *ind, uint8_t vif_idx)
+{
+	int i;
+	int valid_count = 0;
+	u8 *ipv6_addr;
+
+	(void)vif_idx;
+	if (!netif || !ind)
+		return 0;
+
+	os_memset(ind, 0, sizeof(*ind));
+
+	for (i = 0; i < LWIP_IPV6_NUM_ADDRESSES && valid_count < MAX_IPV6_ADDRESSES_IN_MSG; i++) {
+		if (ip6_addr_isvalid(netif_ip6_addr_state(netif, i)) &&
+		    !ip6_addr_islinklocal(ip_2_ip6(&netif->ip6_addr[i]))) {
+			ipv6_addr = (u8 *)(ip_2_ip6(&netif->ip6_addr[i]))->addr;
+			os_memcpy(ind->ipv6_addr[valid_count].address, ipv6_addr, 16);
+			ind->ipv6_addr[valid_count].addr_state = netif->ip6_addr_state[i];
+			ind->ipv6_addr[valid_count].addr_type = netif->ip6_addr[i].type;
+			valid_count++;
+		}
+	}
+	ind->addr_count = (uint8_t)valid_count;
+	cif_fill_ipv6_dns_and_gateway(netif, ind);
+	return valid_count;
+}
+
+bk_err_t cif_send_ipv6_clear_ind(uint8_t vif_idx)
+{
+	struct bk_msg_ipv6_ind ind = {0};
+
+	(void)vif_idx;
+	return cif_bk_send_event(BK_EVT_IPV6_IND, (uint8_t *)&ind, sizeof(ind));
+}
+
+bk_err_t cif_get_sta_ipv6_config(struct bk_msg_ipv6_ind *ind)
+{
+	struct netif *sta_netif;
+
+	if (!ind)
+		return BK_ERR_NULL_PARAM;
+
+	sta_netif = (struct netif *)net_get_sta_handle();
+	if (!sta_netif)
+		return BK_ERR_STATE;
+
+	cif_fill_ipv6_global_ind_from_netif(sta_netif, ind, 0);
+	return BK_OK;
+}
+
 bk_err_t cif_handle_bk_cmd_ipv6_ind(void *n)
 {
 #if (defined(CONFIG_QUICK_TRACK) && CONFIG_QUICK_TRACK) || (defined(CONFIG_WFA_CERT) && CONFIG_WFA_CERT)
@@ -201,6 +297,7 @@ bk_err_t cif_handle_bk_cmd_ipv6_ind(void *n)
     u8 *ipv6_addr;
     int valid_count = 0;
     struct netif *netif = (struct netif *)n;
+
     for (i = 0; i < MAX_IPV6_ADDRESSES_IN_MSG; i++) {
         if (ip6_addr_isvalid(netif_ip6_addr_state(netif, i))) {
             ipv6_addr = (u8 *)(ip_2_ip6(&netif->ip6_addr[i]))->addr;
@@ -211,6 +308,7 @@ bk_err_t cif_handle_bk_cmd_ipv6_ind(void *n)
         }
     }
     ind.addr_count = valid_count;
+    cif_fill_ipv6_dns_and_gateway(netif, &ind);
 
     if (valid_count > 0) {
         return cif_bk_send_event(BK_EVT_IPV6_IND, (uint8_t *)&ind, sizeof(ind));
