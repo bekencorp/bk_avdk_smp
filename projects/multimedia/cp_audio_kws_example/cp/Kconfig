@@ -1,0 +1,36 @@
+menu "CP Audio KWS Example"
+
+	config CP_KWS_CPU_LIB
+		bool "Enable CP CPU KWS model library"
+		default n
+		help
+			Reserved for a future CP-compatible KWS model library.
+			The current imported AP/M55 hard-float KWS archive must not be
+			linked into the CP image.
+
+	config CP_KWS_MODEL_FROM_UDISK
+		bool "Use CP KWS model from VFS/file"
+		depends on CP_KWS_CPU_LIB
+		default n
+		help
+			Use the CP CPU KWS model library variant that loads model data
+			from VFS/file. The default CP KWS path uses built-in model data.
+
+	config CP_KWS_TEST
+		bool "Enable CP KWS validation CLI"
+		default n
+		help
+			Register the cp_kws CLI. It currently runs in stub mode because
+			there is no CP/M52-compatible KWS algorithm library yet.
+
+	config CP_PROMPT_TEST
+		bool "Enable CP voice/player prompt validation CLI"
+		default n
+		depends on VOICE_SERVICE && PLAYER_SERVICE && ADK_ONBOARD_SPEAKER_STREAM_SUPPORT_MULTIPLE_SOURCE
+		help
+			Register the migrated AP component voice and player CLI commands.
+			The prompt_tone flow uses the bk_voice_service speaker handle and
+			bk_player_service not-playback output port through the onboard
+			speaker multi-input framework.
+
+endmenu
