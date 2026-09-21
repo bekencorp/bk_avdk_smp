@@ -1776,9 +1776,101 @@ static avdk_err_t gpu_ctlr_delete(bk_gpu_ctlr_handle_t handle)
     return AVDK_ERR_OK;
 }
 
+/**
+ * Flexa ring depth check for downscale.
+ *
+ * Each output strip (flexa_lines) samples about
+ *   strip_src = ceil(flexa_lines * src_h / dst_h)
+ * source lines through the flexa window. The ISP/JPEG ring only holds
+ *   ring_lines = flexa_buff_cnt * flexa_lines
+ * When strip_src grows (dst_h shrinks), blit can fetch outside the mapped
+ * ring and trigger a VGLite AXI bus error.
+ *
+ * Empirically (1080p, flexa_lines=16, cnt=3): dst_h≈704 OK, dst_h<=688 fails.
+ * Require: 2 * strip_src <= ring_lines + 2
+ */
+static uint32_t gpu_flex_min_buff_cnt_for_scale(uint16_t src_h, uint16_t dst_h, uint8_t flexa_lines)
+{
+    uint32_t strip_src;
+    uint32_t min_ring_lines;
+
+    if (flexa_lines == 0 || src_h == 0 || dst_h == 0) {
+        return 0;
+    }
+
+    /* Same 16-align as gpu_flex_data_init() output_height. */
+    dst_h = (uint16_t)((dst_h + GPU_HIGHT_ALIGNMENT) & ~GPU_HIGHT_ALIGNMENT);
+    if (dst_h == 0) {
+        return 0;
+    }
+
+    strip_src = ((uint32_t)flexa_lines * src_h + dst_h - 1U) / dst_h;
+    /* 2 * strip_src - 2, clamped so upscale/1:1 still asks for at least 1 slot. */
+    if (strip_src <= 1U) {
+        min_ring_lines = flexa_lines;
+    } else {
+        min_ring_lines = strip_src * 2U - 2U;
+    }
+
+    return (min_ring_lines + flexa_lines - 1U) / flexa_lines;
+}
+
+static avdk_err_t gpu_ctlr_validate_scale_flexa(const bk_gpu_ctlr_config_t *config)
+{
+    uint16_t out_h;
+    uint8_t flexa_lines;
+    uint32_t min_cnt;
+    uint32_t strip_src;
+
+    if (config == NULL || !config->flexa || !config->scale) {
+        return AVDK_ERR_OK;
+    }
+
+    flexa_lines = config->flexa_lines ? config->flexa_lines : 16;
+    if (config->src_height == 0 || config->dst_height == 0 || config->flexa_buff_cnt == 0) {
+        LOGE("%s, invalid flexa scale config: src=%ux%u dst=%ux%u buff_cnt=%u lines=%u\n",
+             __func__,
+             config->src_width, config->src_height,
+             config->dst_width, config->dst_height,
+             config->flexa_buff_cnt, flexa_lines);
+        return AVDK_ERR_INVAL;
+    }
+
+    /* Only downscale on the flexa strip axis needs a deeper ring. */
+    out_h = (uint16_t)((config->dst_height + GPU_HIGHT_ALIGNMENT) & ~GPU_HIGHT_ALIGNMENT);
+    if (out_h >= config->src_height) {
+        return AVDK_ERR_OK;
+    }
+
+    min_cnt = gpu_flex_min_buff_cnt_for_scale(config->src_height, config->dst_height, flexa_lines);
+    strip_src = ((uint32_t)flexa_lines * config->src_height + out_h - 1U) / out_h;
+
+    if (config->flexa_buff_cnt < min_cnt) {
+        LOGE("%s, flexa buff_cnt too small for scale: src=%ux%u dst=%ux%u(aligned_h=%u) "
+             "scale_y=%u/%u strip_src_lines=%u lines=%u buff_cnt=%u need>=%u "
+             "(raise ISP/JPEG DECODE_BUFFER_CNT / flexa_buff_cnt)\n",
+             __func__,
+             config->src_width, config->src_height,
+             config->dst_width, config->dst_height, out_h,
+             (unsigned)out_h, (unsigned)config->src_height,
+             (unsigned)strip_src, flexa_lines,
+             config->flexa_buff_cnt, (unsigned)min_cnt);
+        return AVDK_ERR_INVAL;
+    }
+
+    LOGI("%s, scale flexa ok: src_h=%u dst_h=%u strip_src=%u buff_cnt=%u (min=%u)\n",
+         __func__, config->src_height, out_h, (unsigned)strip_src,
+         config->flexa_buff_cnt, (unsigned)min_cnt);
+    return AVDK_ERR_OK;
+}
+
 avdk_err_t bk_gpu_ctlr_new(bk_gpu_ctlr_handle_t *handle, bk_gpu_ctlr_config_t *config)
 {
     AVDK_RETURN_ON_FALSE(config && handle, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
+
+    if (gpu_ctlr_validate_scale_flexa(config) != AVDK_ERR_OK) {
+        return AVDK_ERR_INVAL;
+    }
 
     gpu_vn_ctlr_t *controller = os_malloc(sizeof(gpu_vn_ctlr_t));
     AVDK_RETURN_ON_FALSE(controller, AVDK_ERR_NOMEM, TAG, AVDK_ERR_NOMEM_TEXT);
