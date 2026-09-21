@@ -346,9 +346,7 @@ static int arm_ce_random_data_read( unsigned char *buf,
     for ( i = 0; i < block_size; ) {
         uint32_t wait_cnt = 0;
 
-#if defined( DUBHE_SECURE )
         _arm_ce_fill_pool_request();
-#endif
         /* wait pool full */
         do {
             if ( _arm_ce_is_pool_full() ) {
@@ -374,12 +372,10 @@ static int arm_ce_random_data_read( unsigned char *buf,
             if ( ++wait_cnt > wait_max ) {
                 return DBH_TRNG_PARAM_INVALID;
             }
-#if defined( DUBHE_SECURE )
-            /* Secure path may re-assert fill while waiting. */
+            /* Re-assert the fill trigger periodically while waiting. */
             if ( ( wait_cnt % 100U ) == 0U ) {
                 _arm_ce_fill_pool_request();
             }
-#endif
         } while ( true );
     }
 

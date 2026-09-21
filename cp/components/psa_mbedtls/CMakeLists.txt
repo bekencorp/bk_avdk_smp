@@ -117,13 +117,44 @@ if (CONFIG_LWIP)
 	)
 endif()
 
-# PSA Crypto server sources are not built in NS. When USE_PSA is enabled,
-# psa_* APIs come from the tfm component; keep client helpers only.
 if (CONFIG_MBEDTLS_USE_PSA_CRYPTO)
 	list(APPEND srcs
 		mbedtls/library/psa_util.c
-		mbedtls/library/psa_crypto_client.c
+		mbedtls/library/psa_crypto_cipher.c
+		mbedtls/library/psa_crypto_slot_management.c
+		mbedtls/library/psa_crypto_driver_wrappers_no_static.c
+		mbedtls/library/psa_crypto_hash.c
+		mbedtls/library/psa_crypto_aead.c
+		mbedtls/library/psa_crypto_mac.c
+		mbedtls/library/psa_crypto_random.c
 	)
+	# psa_mpi_helper.c fills in a bignum helper that the TrustEngine bignum.c
+	# leaves out; the upstream bignum.c compiled for the software backend already
+	# defines it, so including it there would be a duplicate definition.
+	# md_psa_client.c is needed by both backends (it stubs out PSA dispatch in the
+	# classic layer) and guards its own hardware-only helper internally.
+	if (CONFIG_TFM_CRYPTO)
+		list(APPEND srcs
+			mbedtls/library/psa_crypto_client.c
+			mbedtls_port/src/md_psa_client.c
+		)
+	else()
+		list(APPEND srcs
+			# Ported copy: hooks the threading init into psa_crypto_init() so the
+			# PSA mutexes exist even when no CLI or TLS code initialises them.
+			mbedtls_port/mbedtls/library/psa_crypto.c
+			mbedtls/library/psa_crypto_client.c
+			mbedtls/library/psa_crypto_rsa.c
+			mbedtls/library/psa_crypto_ecp.c
+			mbedtls/library/psa_crypto_ffdh.c
+		)
+		if (CONFIG_TRUSTENGINE)
+			list(APPEND srcs
+				mbedtls_port/src/psa_mpi_helper.c
+				mbedtls_port/src/rsa_key_parse.c
+			)
+		endif()
+	endif()
 endif()
 
 if (CONFIG_PSA_MBEDTLS_TEST)
@@ -140,12 +171,19 @@ if (CONFIG_PSA_MBEDTLS_TEST)
 		cli/psa_tests/ecdh.c
 		cli/psa_tests/ecdsa.c
 		cli/psa_tests/hmac.c
-		cli/psa_tests/psa_tls_client.c
 		cli/psa_tests/sha256.c
 		cli/psa_tests/sha384.c
 		cli/psa_tests/key_manage.c
 		cli/psa_tests/platform_misc.c
+		cli/psa_tests/psa_api_test.c
 	)
+
+	# The TLS sample needs the socket layer, which only exists with lwIP.
+	if (CONFIG_LWIP)
+		list(APPEND srcs
+			cli/psa_tests/psa_tls_client.c
+		)
+	endif()
 endif()
 
 if (CONFIG_CLASSIC_MBEDTLS_TEST)
@@ -174,7 +212,7 @@ endif()
 endif()
 
 set(psa_mbedtls_priv_requires bk_common lwip_intf_v2_1)
-if (CONFIG_MBEDTLS_USE_PSA_CRYPTO)
+if (CONFIG_MBEDTLS_USE_PSA_CRYPTO AND CONFIG_TFM_CRYPTO)
 	list(APPEND psa_mbedtls_priv_requires tfm)
 endif()
 

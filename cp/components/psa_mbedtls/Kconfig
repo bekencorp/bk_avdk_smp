@@ -10,20 +10,20 @@ menu "PSA Mbedtls"
 		depends on PSA_MBEDTLS
 
 		config MBEDTLS_USE_PSA_CRYPTO
-			bool "TLS/X509 use PSA via TF-M"
+			bool "TLS and apps use PSA Crypto API"
 			default n
-			depends on TFM && TFM_CRYPTO
+			depends on PSA_MBEDTLS
 			help
-				NS PSA Crypto APIs are provided by the TF-M Crypto partition.
-				TLS/X509 call psa_* through the TF-M NS client (IPC/veneer).
-				Does not enable a local PSA Crypto server in NS.
+				Enable MBEDTLS_USE_PSA_CRYPTO and PSA CLI/TLS psa_* usage.
+				When CONFIG_TFM_CRYPTO is set, psa_* is served by TF-M (PSA client).
+				When CONFIG_TFM_CRYPTO is unset, NS builds a local PSA Crypto server.
 
 		config PSA_MBEDTLS_TEST
 			bool "Enable psa interface test"
 			default n
 			depends on MBEDTLS_USE_PSA_CRYPTO
 			help
-				PSA CLI tests; requires TF-M PSA client path
+				PSA CLI tests (psa_crypto command)
 
 		config MBEDTLS_SSL_IN_CONTENT_LEN
 			int "Config MBEDTLS_SSL_IN_CONTENT_LEN"

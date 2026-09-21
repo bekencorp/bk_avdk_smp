@@ -35,6 +35,8 @@ int hmac_perf_main(void);
 int sha256_perf_main(void);
 int sha384_perf_main(void);
 
+int psa_api_test_main(void);
+
 /*key manage test begin*/
 int generate_key_manage(void);
 int aes_encrypt_decrypt(void);

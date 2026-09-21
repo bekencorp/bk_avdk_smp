@@ -46,6 +46,11 @@
 #if defined(MCUBOOT_SIGN_EC384)
 #define PSA_WANT_ALG_SHA_384                    1
 #endif
+
+#define MBEDTLS_PSA_BUILTIN_ALG_SHA_256         1
+#if defined(MCUBOOT_SIGN_EC384)
+#define MBEDTLS_PSA_BUILTIN_ALG_SHA_384         1
+#endif
 #define PSA_WANT_ALG_RSA_PSS                    1
 #define PSA_WANT_ALG_ECDSA                      1
 #define PSA_WANT_ECC_SECP_R1_256                1

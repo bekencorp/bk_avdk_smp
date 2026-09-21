@@ -8,6 +8,7 @@
 
 #include "common.h"
 #include "psa_crypto_core_common.h"
+#include "bk_mbedtls_port.h"
 
 #if defined(MBEDTLS_PSA_CRYPTO_C)
 
@@ -8596,6 +8597,11 @@ exit:
 psa_status_t psa_crypto_init(void)
 {
     psa_status_t status;
+
+    /* The key slot, global data and RNG mutexes must exist before any subsystem
+     * touches them, and this is the one entry point every PSA user has to call
+     * first. The helper is idempotent. */
+    bk_mbedtls_threading_init();
 
     /* Double initialization is explicitly allowed. Early out if everything is
      * done. */

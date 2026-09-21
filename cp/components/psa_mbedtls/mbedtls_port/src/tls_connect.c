@@ -21,6 +21,7 @@
 #include <string.h>
 #include <components/log.h>
 #include "tls_connect.h"
+#include "bk_mbedtls_port.h"
 
 #define TAG "TLS"
 #if CFG_OUT_PUT_MBEDTLS_DEBUG_INFO
@@ -40,6 +41,8 @@ static void my_debug( void *ctx, int level,
 int mbedtls_client_init(MbedTLSSession *session, void *entropy, size_t entropyLen)
 {
     int ret = 0;
+
+    bk_mbedtls_threading_init();
 
     mbedtls_net_init(&session->server_fd);
     mbedtls_ssl_init(&session->ssl);
@@ -248,6 +251,9 @@ void mbedtls_server_clean(MbedTLSSessionServer *session)
 int mbedtls_server_start(MbedTLSSessionServer *session, void *entropy, size_t entropyLen)
 {
 	int ret = 0;
+
+    bk_mbedtls_threading_init();
+
     mbedtls_ssl_init(&session->ssl);
     mbedtls_ssl_config_init(&session->conf);
     mbedtls_entropy_init(&session->entropy);

@@ -15,10 +15,11 @@
 #include "cli.h"
 #include <os/mem.h>
 #include "crypto_test.h"
+#include "bk_mbedtls_port.h"
 
 static void cli_psa_help(void)
 {
-	CLI_LOGD("psa_crypto [aes_cbc|aes_gcm|ecdh|ecdsa|hmac|tls_client\r\n");
+	CLI_LOGD("psa_crypto [aes_cbc|aes_gcm|ecdh|ecdsa|hmac|sha256|sha384|tls_client|psa_api]\r\n");
 	CLI_LOGD("psa_crypto_perf [aes_cbc|aes_gcm|ecdh|ecdsa|hmac|tls_client\r\n");
 	CLI_LOGD("psa_aes_key [genkey|encdec|attr|destroy\r\n");
 }
@@ -43,10 +44,18 @@ static void cli_psa_crypto_cmd(char *pcWriteBuffer, int xWriteBufferLen, int arg
 		sha256_main();
 	} else if (os_strcmp(argv[1], "sha384") == 0) {
 		sha384_main();
+#if CONFIG_LWIP
 	} else if (os_strcmp(argv[1], "tls_client") == 0) {
 		psa_tls_client_main();
+#endif
+	} else if (os_strcmp(argv[1], "psa_api") == 0) {
+		if (psa_api_test_main() == 0) {
+			CLI_LOGD("psa api test OK\r\n");
+		} else {
+			CLI_LOGD("psa api test NOK\r\n");
+		}
 	} else {
-
+		cli_psa_help();
 	}
 }
 
@@ -108,12 +117,13 @@ static void cli_psa_key_manage_cmd(char *pcWriteBuffer, int xWriteBufferLen, int
 
 #define PSA_CRYPTO_CMD_CNT (sizeof(s_psa_crypto_commands) / sizeof(struct cli_command))
 static const struct cli_command s_psa_crypto_commands[] = {
-	{"psa_crypto", "psa_crypto [aes_cbc|aes_gcm|ecdh|ecdsa|hmac|sha256|sha384|tls_client]", cli_psa_crypto_cmd},
+	{"psa_crypto", "psa_crypto [aes_cbc|aes_gcm|ecdh|ecdsa|hmac|sha256|sha384|tls_client|psa_api]", cli_psa_crypto_cmd},
 	{"psa_crypto_perf", "psa_crypto_perf [aes_cbc|aes_gcm|ecdh|ecdsa|hmac|sha256|sha384|tls_client]", cli_psa_crypto_perf_cmd},
 	{"psa_aes_key", "psa_aes_key [genkey|encdec|attr|destroy", cli_psa_key_manage_cmd},
 };
 
 int cli_psa_crypto_init(void)
 {
+	bk_mbedtls_threading_init();
 	return cli_register_commands(s_psa_crypto_commands, PSA_CRYPTO_CMD_CNT);
 }

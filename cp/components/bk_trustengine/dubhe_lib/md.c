@@ -41,7 +41,7 @@
 #include "mbedtls/sha512.h"
 #include "mbedtls/sha3.h"
 
-#if defined(MBEDTLS_PSA_CRYPTO_C)
+#if defined(MBEDTLS_PSA_CRYPTO_C) || defined(MBEDTLS_PSA_CRYPTO_CLIENT)
 #include <psa/crypto.h>
 #include "md_psa.h"
 #include "psa_util_internal.h"

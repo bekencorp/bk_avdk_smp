@@ -155,6 +155,24 @@ void mbedtls_threading_set_alt(void (*mutex_init)(mbedtls_threading_mutex_t *),
 }
 
 /*
+ * Create the library global mutexes, must run once before any mbedtls/PSA use
+ */
+void bk_mbedtls_threading_init(void)
+{
+    static char threading_inited;
+
+    if (threading_inited) {
+        return;
+    }
+
+    mbedtls_threading_set_alt(bk_threading_mutex_init_freertos,
+                              bk_threading_mutex_free_freertos,
+                              bk_threading_mutex_lock_freertos,
+                              bk_threading_mutex_unlock_freertos);
+    threading_inited = 1;
+}
+
+/*
  * Free global mutexes
  */
 void mbedtls_threading_free_alt(void)
