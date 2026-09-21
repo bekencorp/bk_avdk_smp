@@ -30,6 +30,10 @@ endif() #CONFIG_MEDIA_SERVICE
 
 set(priv_req bk_common bk_vfs bk_rtos lwip_intf_v2_1 bk_encoder bk_decoder avdk_driver bk_peripheral)
 
+if(CONFIG_FRAME_BUFFER)
+list(APPEND priv_req bk_frame_buffer)
+endif()
+
 if(CONFIG_BK_DISPLAY)
 list(APPEND priv_req bk_display)
 endif()

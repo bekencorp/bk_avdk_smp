@@ -7,6 +7,13 @@ set(srcs
     h264_decode/common/h264_decode_stream_1280x720_ibbp.c
 )
 
+if (CONFIG_H264_DECODE_ENABLE_1080P)
+list(APPEND srcs
+    h264_decode/common/h264_decode_stream_1920x1080.c
+    h264_decode/common/h264_decode_stream_1920x1080_gop30.c
+)
+endif()
+
 set(priv_req media_service h264d_fbpool bk_cli avdk_utils psram_stress_service)
 
 if (CONFIG_BK_DECODER)

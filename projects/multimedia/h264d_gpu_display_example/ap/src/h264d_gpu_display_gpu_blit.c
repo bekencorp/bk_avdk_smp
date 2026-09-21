@@ -330,11 +330,20 @@ avdk_err_t h264d_gpu_display_gpu_blit_rgb_frame(const uint8_t *src_buffer,
 
 	frame_size = h264d_gpu_display_compressed_argb_size(H264D_GPU_DISPLAY_GPU_DISPLAY_WIDTH,
 							   H264D_GPU_DISPLAY_GPU_DISPLAY_HEIGHT);
-	frame = bk_frame_buffer_malloc(MEM_SLAB_HEAP_UNCODED, frame_size);
+	/* Same heap as GPU dest pool: CODED PSRAM1, away from DPB on UNCODED. */
+	frame = bk_frame_buffer_malloc(MEM_SLAB_HEAP_CODED, frame_size);
 	if (frame == NULL) {
 		LOGE("alloc rgb display frame failed, size=%u\r\n", (unsigned)frame_size);
 		return AVDK_ERR_NOMEM;
 	}
+#if CONFIG_PSRAM_WRITE_THROUGH && H264D_GPU_DISPLAY_DEST_COVER_ENABLE
+	if (bk_frame_buffer_set(frame, BK_FRAME_BUFFER_FLAG_WRITE_THROUGH) != BK_OK) {
+		LOGE("enable rgb display frame write-through failed, frame=%p size=%u\r\n",
+		     frame, (unsigned)frame_size);
+		bk_frame_buffer_free(frame);
+		return AVDK_ERR_NOMEM;
+	}
+#endif
 
 	os_memset(&src_buf, 0, sizeof(src_buf));
 	os_memset(&dst_buf, 0, sizeof(dst_buf));

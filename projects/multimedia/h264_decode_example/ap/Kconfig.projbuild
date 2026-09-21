@@ -1,0 +1,19 @@
+menu "H264 Decode Example Configuration"
+
+	config H264_DECODE_ENABLE_1080P
+		bool "Enable 1080p test streams"
+		default n
+		help
+			Embed 1920x1080 H.264 elementary streams. Disable to save
+			flash when only 720p streams are needed.
+
+	config H264_DECODE_DPB_COVER
+		bool "Enable decoder DPB write-through cover"
+		default y
+		select PSRAM_WRITE_THROUGH
+		help
+			Give the decoder DPB a PSRAM write-through window (CLI
+			"cover" + boot default pool). Applies to any stream
+			resolution, not only 1080p.
+
+endmenu

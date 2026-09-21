@@ -5,6 +5,7 @@
 #include "cli.h"
 #include <components/bk_frame_buffer.h>
 #include "h264_decode_test.h"
+#include "vcdec_h264_test_common.h"
 #include "media_service.h"
 
 #define SYS_ANA_REG_BASE    (0x44010000)
@@ -59,9 +60,15 @@ int main(void)
     bk_frame_buffer_init();
 #endif
 
+#if CONFIG_H264_DECODE_DPB_COVER
+    h264_decode_cover_set_mode(H264_DECODE_COVER_POOL);
+#endif
+
     cli_h264_decode_init();
 
+#if VCDEC_H264_BOOT_DEMO_ENABLE
     vcdec_h264_run_boot_demo();
+#endif
 
     return 0;
 }

@@ -5,6 +5,7 @@
 
 #include "cli.h"
 #include "media_service.h"
+#include "avdk_monitor.h"
 #include "h264d_gpu_display_boot.h"
 #include "h264d_gpu_display_demo.h"
 
@@ -25,12 +26,14 @@ int main(void)
 	bk_init();
 	media_service_init();
 
-	bk_printf("%s, %d, m55 running...\r\n", __func__, __LINE__);
 	bk_auxldo_enable();
 
 #ifdef CONFIG_FRAME_BUFFER
 	bk_frame_buffer_init();
 #endif
+
+	avdk_monitor_init();
+	avdk_monitor_start();
 
 	cli_h264d_gpu_display_init();
 #ifdef CONFIG_BK_DECODER

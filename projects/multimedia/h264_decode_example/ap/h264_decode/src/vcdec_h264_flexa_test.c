@@ -1,14 +1,71 @@
 #include "vcdec_h264_test_common.h"
 #include "bk_flexa_bond_types.h"
 #include "h264_decode_h264_parser.h"
+#include <components/bk_hardware_ram.h>
 
 #define TAG "vcdec_h264_flexa"
 
 #define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 
+/* Same FLEXA geometry as h264d_gpu_display_example: 16-line strip x 4. */
 #define VCDEC_H264_TEST_FLEXA_SEG_HEIGHT_MB  1U
-#define VCDEC_H264_TEST_FLEXA_SEG_NUM        2U
+#define VCDEC_H264_TEST_FLEXA_SEG_NUM        4U
+#define VCDEC_H264_FLEXA_PP_ALIGN            64U
+#define VCDEC_H264_FLEXA_LOOPS               1U
+
+static vcdec_h264_ring_heap_t s_ring_heap = VCDEC_H264_RING_HEAP_HSRAM;
+
+const char *vcdec_h264_ring_heap_name(vcdec_h264_ring_heap_t heap)
+{
+	(void)heap;
+	return "HSRAM(SMEM3/4)";
+}
+
+void vcdec_h264_ring_heap_set(vcdec_h264_ring_heap_t heap)
+{
+	s_ring_heap = heap;
+}
+
+vcdec_h264_ring_heap_t vcdec_h264_ring_heap_get(void)
+{
+	return s_ring_heap;
+}
+
+static void *vcdec_h264_ring_aligned_malloc(uint32_t alignment, uint32_t size)
+{
+	void *raw;
+	uintptr_t start;
+	uintptr_t aligned;
+	uint32_t total;
+
+	if (alignment < sizeof(void *)) {
+		alignment = sizeof(void *);
+	}
+
+	total = size + alignment - 1U + (uint32_t)sizeof(void *);
+	raw = hsram_malloc(total);
+	if (raw == NULL) {
+		return NULL;
+	}
+
+	start = (uintptr_t)raw + sizeof(void *);
+	aligned = (start + (alignment - 1U)) & ~((uintptr_t)alignment - 1U);
+	((void **)aligned)[-1] = raw;
+	return (void *)aligned;
+}
+
+static void vcdec_h264_ring_aligned_free(void *ptr)
+{
+	void *raw;
+
+	if (ptr == NULL) {
+		return;
+	}
+
+	raw = ((void **)ptr)[-1];
+	os_free(raw);
+}
 
 static bk_flexa_bond_t s_h264_flexa_bond = {0};
 
@@ -21,26 +78,20 @@ static uint32_t vcdec_h264_flexa_size(uint32_t width)
 
 static void vcdec_h264_release_flexa_rd_ptr(vcdec_h264_test_ctx_t *ctx, uint32_t wr_ptr)
 {
-	uint32_t frame_seg_cnt;
 	bk_h264_decode_port_rd_t rd_cmd;
 
-	if (ctx == NULL || ctx->dec == NULL || ctx->pp_seg_lines == 0U || ctx->frame_height == 0U) {
+	if (ctx == NULL || ctx->dec == NULL) {
 		return;
 	}
 
-	if (wr_ptr == 0U) {
-		wr_ptr = (ctx->frame_height + ctx->pp_seg_lines - 1U) / ctx->pp_seg_lines;
-	}
-
-	frame_seg_cnt = (ctx->frame_height + ctx->pp_seg_lines - 1U) / ctx->pp_seg_lines;
+	/* wr_ptr is HW MB-row units (same as mini bond), not segment count. */
 	s_h264_flexa_bond.last_lines = wr_ptr;
 	rd_cmd.port_ptr = &s_h264_flexa_bond;
 	rd_cmd.rd_blocks = wr_ptr;
 	(void)bk_h264_decode_ioctl(ctx->dec, BK_H264_DECODE_IOCTL_PORT_SET_RD_PTR, &rd_cmd);
-
-	if (wr_ptr == frame_seg_cnt) {
-		(void)bk_h264_decode_ioctl(ctx->dec, BK_H264_DECODE_IOCTL_FLEXA_NOTIFY_PORT_DONE, &s_h264_flexa_bond);
-	}
+	/* Mini notifies port-done on every PP segment so the controller wait
+	 * is not tied to matching wr_ptr against a software segment count. */
+	(void)bk_h264_decode_ioctl(ctx->dec, BK_H264_DECODE_IOCTL_FLEXA_NOTIFY_PORT_DONE, &s_h264_flexa_bond);
 }
 
 static void vcdec_h264_flexa_done_cb(uint32_t wr_ptr, void *args)
@@ -90,6 +141,7 @@ static bk_err_t vcdec_h264_flexa_run(h264_decode_test_stream_t stream_id)
 	uint32_t frame_type_i = 0U;
 	uint32_t frame_type_p = 0U;
 	uint32_t expected_frame_done_count = 0U;
+	uint32_t loops = VCDEC_H264_TEST_ROUNDS;
 	const char *fail_stage = "start";
 	uint8_t test_pass = 0U;
 	avdk_err_t ret = AVDK_ERR_OK;
@@ -103,11 +155,21 @@ static bk_err_t vcdec_h264_flexa_run(h264_decode_test_stream_t stream_id)
 	}
 
 	pp_size = vcdec_h264_flexa_size(stream_cfg->width);
+#if CONFIG_H264_DECODE_ENABLE_1080P
+	loops = (stream_id == H264_DECODE_TEST_STREAM_1920X1080 ||
+	         stream_id == H264_DECODE_TEST_STREAM_1920X1080_GOP30) ?
+		VCDEC_H264_FLEXA_LOOPS : VCDEC_H264_TEST_ROUNDS;
+#else
+	loops = VCDEC_H264_TEST_ROUNDS;
+#endif
 	os_memset(&ctx, 0, sizeof(ctx));
 
-	LOGI("vcdec h264 flexa test start, stream=%s %ux%u bytes=%u\r\n",
+	LOGI("vcdec h264 flexa test start, stream=%s %ux%u bytes=%u seg=%ux%u loops=%u\r\n",
 	     stream_cfg->name, (unsigned)stream_cfg->width, (unsigned)stream_cfg->height,
-	     (unsigned)(*stream_cfg->bytes));
+	     (unsigned)(*stream_cfg->bytes),
+	     (unsigned)VCDEC_H264_TEST_FLEXA_SEG_HEIGHT_MB,
+	     (unsigned)VCDEC_H264_TEST_FLEXA_SEG_NUM,
+	     (unsigned)loops);
 
 	stream_buf = (uint8_t *)bk_frame_buffer_malloc(MEM_SLAB_HEAP_CODED, *stream_cfg->bytes);
 	if (stream_buf == NULL) {
@@ -117,13 +179,20 @@ static bk_err_t vcdec_h264_flexa_run(h264_decode_test_stream_t stream_id)
 	}
 	os_memcpy(stream_buf, stream_cfg->stream, *stream_cfg->bytes);
 
-	pp_buf = (uint8_t *)bk_frame_buffer_malloc(MEM_SLAB_HEAP_UNCODED, pp_size);
+	/* Same as h264d_gpu_display_example: 64-aligned PP ring. */
+	pp_buf = (uint8_t *)vcdec_h264_ring_aligned_malloc(VCDEC_H264_FLEXA_PP_ALIGN, pp_size);
 	if (pp_buf == NULL) {
+		LOGE("FLEXA pp ring alloc failed, size=%u heap=%s\r\n",
+		     (unsigned)pp_size, vcdec_h264_ring_heap_name(s_ring_heap));
 		fail_stage = "alloc_pp_buf";
 		ret = AVDK_ERR_NOMEM;
 		goto cleanup;
 	}
 	os_memset(pp_buf, 0, pp_size);
+	LOGI("FLEXA pp ring=%p size=%u heap=%s aligned64=%u\r\n",
+	     pp_buf, (unsigned)pp_size,
+	     vcdec_h264_ring_heap_name(s_ring_heap),
+	     (unsigned)(((uintptr_t)pp_buf & 0x3FU) == 0U));
 
 	ctx.frame_height = stream_cfg->height;
 	ctx.pp_seg_lines = 16U * VCDEC_H264_TEST_FLEXA_SEG_HEIGHT_MB;
@@ -155,6 +224,11 @@ static bk_err_t vcdec_h264_flexa_run(h264_decode_test_stream_t stream_id)
 		fail_stage = "decoder_init";
 		goto cleanup;
 	}
+	ret = h264_decode_cover_apply(dec);
+	if (ret != AVDK_ERR_OK) {
+		fail_stage = "cover_config";
+		goto cleanup;
+	}
 
 	ret = bk_h264_decode_open(dec);
 	if (ret != AVDK_ERR_OK) {
@@ -174,11 +248,11 @@ static bk_err_t vcdec_h264_flexa_run(h264_decode_test_stream_t stream_id)
 		goto cleanup;
 	}
 
-	for (round = 0U; round < VCDEC_H264_TEST_ROUNDS; round++) {
+	for (round = 0U; round < loops; round++) {
 		uint32_t offset = 0U;
 
 		LOGI("decode round %u/%u start\r\n",
-		     (unsigned)(round + 1U), (unsigned)VCDEC_H264_TEST_ROUNDS);
+		     (unsigned)(round + 1U), (unsigned)loops);
 
 		while (offset < *stream_cfg->bytes) {
 			const uint8_t *au_ptr = NULL;
@@ -203,19 +277,30 @@ static bk_err_t vcdec_h264_flexa_run(h264_decode_test_stream_t stream_id)
 			in.out_buffer = pp_buf;
 			in.out_buffer_size = pp_size;
 
-			ret = bk_h264_decode_frame(dec, &in);
-			if (ret != AVDK_ERR_OK) {
-				fail_stage = "decode_frame";
-				LOGE("decode au failed, round=%u au=%u ret=%d\r\n",
-				     (unsigned)(round + 1U), (unsigned)(done_aus + 1U), ret);
-				goto cleanup;
-			}
+			{
+				uint32_t t0 = rtos_get_time();
 
-			ret = bk_h264_decode_get_info(dec, &info);
-			if (ret != AVDK_ERR_OK) {
-				fail_stage = "get_info";
-				LOGE("get info failed, au=%u ret=%d\r\n", (unsigned)(done_aus + 1U), ret);
-				goto cleanup;
+				ret = bk_h264_decode_frame(dec, &in);
+				if (ret != AVDK_ERR_OK) {
+					fail_stage = "decode_frame";
+					LOGE("decode au failed, round=%u au=%u ret=%d\r\n",
+					     (unsigned)(round + 1U), (unsigned)(done_aus + 1U), ret);
+					goto cleanup;
+				}
+
+				ret = bk_h264_decode_get_info(dec, &info);
+				if (ret != AVDK_ERR_OK) {
+					fail_stage = "get_info";
+					LOGE("get info failed, au=%u ret=%d\r\n", (unsigned)(done_aus + 1U), ret);
+					goto cleanup;
+				}
+
+				LOGI("dec au=%u type=%s ref=%u cost=%u ms flexa_done=%u\r\n",
+				     (unsigned)(done_aus + 1U),
+				     vcdec_h264_frame_type_name(info.frame_type),
+				     (unsigned)info.is_reference,
+				     (unsigned)(rtos_get_time() - t0),
+				     (unsigned)ctx.flexa_done_count);
 			}
 
 			if (vcdec_h264_check_info(stream_cfg, &info, au_ptr, au_size) != BK_OK) {
@@ -238,13 +323,6 @@ static bk_err_t vcdec_h264_flexa_run(h264_decode_test_stream_t stream_id)
 				break;
 			}
 
-			LOGI("decoded au=%u size=%u type=%s ref=%u frame_done=%u flexa_done=%u\r\n",
-			     (unsigned)(done_aus + 1U),
-			     (unsigned)au_size,
-			     vcdec_h264_frame_type_name(info.frame_type),
-			     (unsigned)info.is_reference,
-			     (unsigned)ctx.frame_done_count,
-			     (unsigned)ctx.flexa_done_count);
 			done_aus++;
 		}
 	}
@@ -284,9 +362,11 @@ static bk_err_t vcdec_h264_flexa_run(h264_decode_test_stream_t stream_id)
 	}
 
 	test_pass = 1U;
-	LOGI("vcdec h264 flexa test done, decoded_aus=%u idr=%u i=%u p=%u\r\n",
-	     (unsigned)done_aus, (unsigned)frame_type_idr,
-	     (unsigned)frame_type_i, (unsigned)frame_type_p);
+	LOGI("FLEXA_RESULT: stream=%s frames=%u I=%u P=%u pp=%s\r\n",
+	     stream_cfg->name, (unsigned)done_aus,
+	     (unsigned)(frame_type_idr + frame_type_i),
+	     (unsigned)frame_type_p,
+	     vcdec_h264_ring_heap_name(s_ring_heap));
 
 cleanup:
 	if (dec != NULL) {
@@ -294,7 +374,7 @@ cleanup:
 	}
 	vcdec_h264_destroy_decoder(&dec);
 	if (pp_buf != NULL) {
-		bk_frame_buffer_free(pp_buf);
+		vcdec_h264_ring_aligned_free(pp_buf);
 	}
 	if (stream_buf != NULL) {
 		bk_frame_buffer_free(stream_buf);
@@ -303,7 +383,7 @@ cleanup:
 	os_memset(&s_h264_flexa_bond, 0, sizeof(s_h264_flexa_bond));
 
 	vcdec_h264_log_result("vcdec_h264_flexa_test", test_pass, fail_stage, ret,
-			      done_aus, VCDEC_H264_TEST_ROUNDS);
+			      done_aus, loops);
 	return test_pass ? BK_OK : BK_FAIL;
 }
 

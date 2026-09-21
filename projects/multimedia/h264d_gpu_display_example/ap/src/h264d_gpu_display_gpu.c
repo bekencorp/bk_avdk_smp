@@ -28,14 +28,17 @@ typedef struct {
 	void *frame_done_args;
 	beken_semaphore_t display_release_sem;
 	volatile uint32_t display_pushed;
+	volatile uint32_t frames_done;
 } h264d_gpu_display_gpu_ctx_t;
 
 #define DISPLAY_RELEASE_WAIT_MS 100U
 /* First 2 pushes bypass wait to fill DPU display+update slots. */
 #define DISPLAY_PRIME_COUNT   2U
 
-/* Two output frames are enough when DPU release is faster than GPU production. */
-#define GPU_FRAME_POOL_COUNT  2U
+/* Match the Simple baseline and avoid DPU/display back-pressure. */
+#define GPU_FRAME_POOL_COUNT  3U
+/* GPU dest on CODED (PSRAM1 @ 0x64000000). DPB/recon stay on UNCODED (PSRAM0). */
+#define GPU_DEST_HEAP         MEM_SLAB_HEAP_CODED
 
 typedef struct {
 	void *buf;
@@ -72,12 +75,20 @@ static void *h264d_gpu_display_frame_malloc(uint32_t size)
 	rtos_exit_critical(flags);
 
 	if (ptr == NULL) {
-		ptr = bk_frame_buffer_malloc(MEM_SLAB_HEAP_UNCODED, size);
+		ptr = bk_frame_buffer_malloc(GPU_DEST_HEAP, size);
 		if (ptr == NULL) {
 			LOGE("frame malloc FAILED size=%u pool_size=%u\r\n",
 			     (unsigned)size,
 			     (unsigned)s_frame_pool_buf_size);
 		}
+#if CONFIG_PSRAM_WRITE_THROUGH && H264D_GPU_DISPLAY_DEST_COVER_ENABLE
+		else if (bk_frame_buffer_set(ptr, BK_FRAME_BUFFER_FLAG_WRITE_THROUGH) != BK_OK) {
+			LOGE("frame write-through enable failed, ptr=%p size=%u\r\n",
+			     ptr, (unsigned)size);
+			bk_frame_buffer_free(ptr);
+			ptr = NULL;
+		}
+#endif
 	}
 	return ptr;
 }
@@ -128,7 +139,7 @@ static avdk_err_t h264d_gpu_display_frame_pool_init(uint32_t buf_size)
 	rtos_exit_critical(flags);
 
 	for (i = 0U; i < GPU_FRAME_POOL_COUNT; i++) {
-		s_frame_pool[i].buf = bk_frame_buffer_malloc(MEM_SLAB_HEAP_UNCODED, buf_size);
+		s_frame_pool[i].buf = bk_frame_buffer_malloc(GPU_DEST_HEAP, buf_size);
 		s_frame_pool[i].in_use = 0U;
 		if (s_frame_pool[i].buf == NULL) {
 			uint32_t j;
@@ -146,13 +157,35 @@ static avdk_err_t h264d_gpu_display_frame_pool_init(uint32_t buf_size)
 			s_frame_pool_buf_size = 0U;
 			return AVDK_ERR_NOMEM;
 		}
+#if CONFIG_PSRAM_WRITE_THROUGH && H264D_GPU_DISPLAY_DEST_COVER_ENABLE
+		if (bk_frame_buffer_set(s_frame_pool[i].buf,
+					BK_FRAME_BUFFER_FLAG_WRITE_THROUGH) != BK_OK) {
+			uint32_t j;
+
+			LOGE("frame pool write-through failed, slot=%u ptr=%p size=%u\r\n",
+			     (unsigned)i, s_frame_pool[i].buf, (unsigned)buf_size);
+			bk_frame_buffer_free(s_frame_pool[i].buf);
+			s_frame_pool[i].buf = NULL;
+			for (j = 0U; j < i; j++) {
+				if (s_frame_pool[j].buf != NULL) {
+					bk_frame_buffer_free(s_frame_pool[j].buf);
+					s_frame_pool[j].buf = NULL;
+					s_frame_pool[j].in_use = 0U;
+				}
+			}
+			s_frame_pool_init_count = 0U;
+			s_frame_pool_buf_size = 0U;
+			return AVDK_ERR_NOMEM;
+		}
+#endif
 	}
 	s_frame_pool_init_count = GPU_FRAME_POOL_COUNT;
 	s_frame_pool_buf_size = buf_size;
-	LOGI("frame pool ready: %u slots x %u bytes = %u total\r\n",
+	LOGI("frame pool ready: %u slots x %u bytes = %u total heap=%s\r\n",
 	     (unsigned)GPU_FRAME_POOL_COUNT,
 	     (unsigned)buf_size,
-	     (unsigned)(GPU_FRAME_POOL_COUNT * buf_size));
+	     (unsigned)(GPU_FRAME_POOL_COUNT * buf_size),
+	     (GPU_DEST_HEAP == MEM_SLAB_HEAP_CODED) ? "CODED/PSRAM1" : "UNCODED/PSRAM0");
 
 	return AVDK_ERR_OK;
 }
@@ -218,6 +251,8 @@ static void h264d_gpu_display_frame_done(void *frame, uint32_t frame_size, void 
 #endif
 
 	(void)args;
+
+	s_gpu_ctx.frames_done++;
 
 	if (s_gpu_ctx.frame_done_cb != NULL) {
 		s_gpu_ctx.frame_done_cb(frame, frame_size, s_gpu_ctx.frame_done_args);
@@ -285,11 +320,14 @@ avdk_err_t h264d_gpu_display_gpu_open(uint8_t *src_buffer,
 	}
 	s_gpu_ctx.display_pushed = 0U;
 #endif
+	s_gpu_ctx.frames_done = 0U;
 
 	{
+		/* Must match bk_gpu_ctlr: compress dest is 16-aligned, size = 4*(w/4)*h. */
+		uint32_t aligned_w = ((uint32_t)H264D_GPU_DISPLAY_GPU_DST_WIDTH + 15U) & ~15U;
+		uint32_t aligned_h = ((uint32_t)H264D_GPU_DISPLAY_GPU_DST_HEIGHT + 15U) & ~15U;
 		uint32_t pool_buf_size = (uint32_t)bk_pixel_size_get(BK_PIXEL_FORMAT_ARGB8888) *
-					 ((uint32_t)H264D_GPU_DISPLAY_GPU_DST_WIDTH / 4U) *
-					 (uint32_t)H264D_GPU_DISPLAY_GPU_DST_HEIGHT;
+					 (aligned_w / 4U) * aligned_h;
 		avdk_err_t pool_ret = h264d_gpu_display_frame_pool_init(pool_buf_size);
 
 		if (pool_ret != AVDK_ERR_OK) {
@@ -392,6 +430,21 @@ error:
 #endif
 	LOGE("gpu open failed: %d\r\n", (int)ret);
 	return ret;
+}
+
+void h264d_gpu_display_gpu_wait_frames(uint32_t frame_count, uint32_t timeout_ms)
+{
+	uint32_t start = rtos_get_time();
+
+	while (s_gpu_ctx.frames_done < frame_count) {
+		if ((rtos_get_time() - start) >= timeout_ms) {
+			LOGW("gpu wait frames timeout, done=%u expect=%u\r\n",
+			     (unsigned)s_gpu_ctx.frames_done,
+			     (unsigned)frame_count);
+			return;
+		}
+		rtos_delay_milliseconds(10U);
+	}
 }
 
 void h264d_gpu_display_gpu_close(void)

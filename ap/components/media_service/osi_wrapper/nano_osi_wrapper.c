@@ -7,6 +7,9 @@
 #if CONFIG_HIGH_PERFORMANCE_DMA
 #include <driver/hpdma.h>
 #endif
+#if CONFIG_FRAME_BUFFER
+#include <components/bk_frame_buffer.h>
+#endif
 #include "soc/reg_base.h"   /* SOC_SRAM_PERI_ADDR: resolved here (app side) where CONFIG_SRAM_DIRECT_ADDR is valid */
 
 static void *nano_malloc_wrapper(uint32_t size)
@@ -440,9 +443,23 @@ static uint32_t nano_sram_peri_addr_wrapper(uint32_t addr)
     return (uint32_t)SOC_SRAM_PERI_ADDR(addr);
 }
 
+static int nano_frame_buffer_set_write_through_wrapper(void *buffer)
+{
+#if CONFIG_FRAME_BUFFER && CONFIG_PSRAM_WRITE_THROUGH
+    if (buffer == NULL) {
+        return -1;
+    }
+    return (bk_frame_buffer_set(buffer, BK_FRAME_BUFFER_FLAG_WRITE_THROUGH) == BK_OK) ? 0 : -1;
+#else
+    (void)buffer;
+    return 0;
+#endif
+}
+
 static bk_nano_osi_funcs_t s_nano_osi_funcs =
 {
     .sram_peri_addr = nano_sram_peri_addr_wrapper,
+    .frame_buffer_set_write_through = nano_frame_buffer_set_write_through_wrapper,
 
     .malloc      = nano_malloc_wrapper,
     .free        = nano_free_wrapper,

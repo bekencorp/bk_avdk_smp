@@ -8,6 +8,7 @@
 #include <common/avdk_pixel_types.h>
 #include <components/bk_decode/bk_h264_decode_ctlr.h>
 #include <components/bk_flexa_bond.h>
+#include <driver/psram.h>
 
 #include "cli.h"
 #include "bk_private/bk_cli.h"
@@ -16,19 +17,25 @@
 #include "h264d_gpu_display_h264_parser.h"
 #include "h264d_gpu_display_gpu.h"
 #include "h264d_gpu_display_gpu_blit.h"
+#include <modules/vcdec/vcdec_h264_api.h>
 #if H264D_GPU_DISPLAY_ENABLE_MIPI_DISPLAY
 #include "h264d_gpu_display_dpu.h"
 #endif
 #if H264D_GPU_DISPLAY_ENABLE_ISP_PIP
 #include "h264d_gpu_display_isp.h"
 #endif
-#ifdef CONFIG_H264D_GPU_DISPLAY_TEST_STREAM_1280X720
+#if defined(CONFIG_H264D_GPU_DISPLAY_TEST_STREAM_1920X1080)
+#include "h264_decode_stream_1920x1080.h"
+#elif defined(CONFIG_H264D_GPU_DISPLAY_TEST_STREAM_1280X720)
 #include "h264_decode_stream_1280x720.h"
 #else
 #include "h264_decode_stream_720x1280.h"
 #endif
 
-#ifdef CONFIG_H264D_GPU_DISPLAY_TEST_STREAM_1280X720
+#if defined(CONFIG_H264D_GPU_DISPLAY_TEST_STREAM_1920X1080)
+#define H264D_GPU_DISPLAY_STREAM_DATA  h264_decode_stream_1920x1080
+#define H264D_GPU_DISPLAY_STREAM_BYTES h264_decode_stream_1920x1080_bytes
+#elif defined(CONFIG_H264D_GPU_DISPLAY_TEST_STREAM_1280X720)
 #define H264D_GPU_DISPLAY_STREAM_DATA  h264_decode_stream_1280x720
 #define H264D_GPU_DISPLAY_STREAM_BYTES h264_decode_stream_1280x720_bytes
 #else
@@ -48,7 +55,9 @@
 #define H264D_GPU_DISPLAY_TASK_STACK_SIZE (1024 * 16)
 #define H264D_GPU_DISPLAY_TIMEOUT_MS      1000U
 #define H264D_GPU_DISPLAY_SEG_HEIGHT_MB   1U
+#ifndef H264D_GPU_DISPLAY_SEG_NUM
 #define H264D_GPU_DISPLAY_SEG_NUM         4U
+#endif
 #define H264D_GPU_DISPLAY_FPS_TIMER_MS    4000U
 #define H264D_GPU_DISPLAY_OSD_WIDTH          320U
 #define H264D_GPU_DISPLAY_OSD_HEIGHT         320U
@@ -377,6 +386,7 @@ static avdk_err_t h264d_gpu_display_run(void)
 	void *bond = NULL;
 	h264d_gpu_display_fps_t fps;
 	bk_h264_decode_flexa_config_t dec_cfg = DEFAULT_H264_DECODE_FLEXA_CONFIG;
+	uint8_t recon_cover_enabled = H264D_GPU_DISPLAY_DPB_COVER_ENABLE ? 1U : 0U;
 
 	os_memset(&fps, 0, sizeof(fps));
 
@@ -400,6 +410,7 @@ static avdk_err_t h264d_gpu_display_run(void)
 
 	pp_buf = (uint8_t *)h264d_gpu_display_hsram_aligned_malloc(64U, pp_size);
 	if (pp_buf == NULL) {
+		LOGE("flexa pp buffer alloc failed, size=%u\r\n", (unsigned)pp_size);
 		ret = AVDK_ERR_NOMEM;
 		goto cleanup;
 	}
@@ -449,6 +460,11 @@ static avdk_err_t h264d_gpu_display_run(void)
 	if (ret != AVDK_ERR_OK) {
 		goto cleanup;
 	}
+	ret = bk_h264_decode_ioctl(decoder, BK_H264_DECODE_IOCTL_SET_RECON_COVER,
+				   &recon_cover_enabled);
+	if (ret != AVDK_ERR_OK) {
+		goto cleanup;
+	}
 	LOGI("stage: open decoder\r\n");
 	ret = bk_h264_decode_open(decoder);
 	if (ret != AVDK_ERR_OK) {
@@ -475,7 +491,7 @@ static avdk_err_t h264d_gpu_display_run(void)
 	}
 
 #if H264D_GPU_DISPLAY_ENABLE_MIPI_DISPLAY
-	LOGI("demo start, stream=%s decode=%ux%u, display=%ux%u gpu dst=%ux%u rotate=%u compress=1 scale=1\r\n",
+	LOGI("demo start, stream=%s decode=%ux%u, display=%ux%u gpu dst=%ux%u rotate=%u compress=1 scale=0\r\n",
 	     H264D_GPU_DISPLAY_TEST_STREAM_NAME,
 	     (unsigned)width,
 	     (unsigned)height,
@@ -485,7 +501,7 @@ static avdk_err_t h264d_gpu_display_run(void)
 	     (unsigned)H264D_GPU_DISPLAY_GPU_DST_HEIGHT,
 	     (unsigned)H264D_GPU_DISPLAY_GPU_ROTATE_DEGREE);
 #else
-	LOGI("demo start, stream=%s decode=%ux%u, display=disabled gpu dst=%ux%u rotate=%u compress=1 scale=1\r\n",
+	LOGI("demo start, stream=%s decode=%ux%u, display=disabled gpu dst=%ux%u rotate=%u compress=1 scale=0\r\n",
 	     H264D_GPU_DISPLAY_TEST_STREAM_NAME,
 	     (unsigned)width,
 	     (unsigned)height,
@@ -581,10 +597,12 @@ static avdk_err_t h264d_gpu_display_run(void)
 
 cleanup:
 	h264d_gpu_display_fps_timer_stop(&fps);
+	h264d_gpu_display_gpu_wait_frames(fps.decoded_frames, 2000U);
+	h264d_gpu_display_gpu_close();
 	if (bond != NULL) {
 		bk_flexa_h264d_gpu_bond_stop(bond);
+		bond = NULL;
 	}
-	h264d_gpu_display_gpu_close();
 #if H264D_GPU_DISPLAY_ENABLE_MIPI_DISPLAY
 	h264d_gpu_display_dpu_close();
 #endif

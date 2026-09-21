@@ -34,6 +34,7 @@ typedef enum {
 	BK_H264_DECODE_IOCTL_FLEXA_NOTIFY_PORT_DONE,
 	BK_H264_DECODE_IOCTL_RESET,
 	BK_H264_DECODE_IOCTL_SET_OSD,                /* arg: bk_h264_decode_osd_t* */
+	BK_H264_DECODE_IOCTL_SET_RECON_COVER,        /* arg: uint8_t* (0: disable, non-zero: enable) */
 	/* Zero-copy frame controller only (bk_h264_decode_frame_zerocopy_ctlr_new): */
 	BK_H264_DECODE_IOCTL_DEQUEUE,  /* arg: bk_h264_decode_dequeue_t*  - pull next display-order frame */
 	BK_H264_DECODE_IOCTL_RELEASE,  /* arg: bk_h264_decode_out_frame_t* - return a dequeued frame */

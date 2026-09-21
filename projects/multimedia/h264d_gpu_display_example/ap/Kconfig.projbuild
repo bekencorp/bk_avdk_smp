@@ -9,14 +9,25 @@ menu "H264D GPU Display Example Configuration"
 
 	choice H264D_GPU_DISPLAY_TEST_STREAM_CHOICE
 		prompt "H.264 test stream"
-		default H264D_GPU_DISPLAY_TEST_STREAM_1280X720
+		default H264D_GPU_DISPLAY_TEST_STREAM_1920X1080
 
 		config H264D_GPU_DISPLAY_TEST_STREAM_720X1280
 			bool "720x1280"
 
 		config H264D_GPU_DISPLAY_TEST_STREAM_1280X720
 			bool "1280x720"
+
+		config H264D_GPU_DISPLAY_TEST_STREAM_1920X1080
+			bool "1920x1080"
 	endchoice
+
+	config H264D_GPU_DISPLAY_DPB_COVER
+		bool "Enable decoder DPB write-through cover"
+		default y
+		select PSRAM_WRITE_THROUGH
+		help
+			Give the decoder recon/DPB a PSRAM write-through window.
+			Independent of the selected test stream resolution.
 
 	config H264D_GPU_DISPLAY_ENABLE_ISP_PIP
 		bool "Enable ISP picture-in-picture overlay"

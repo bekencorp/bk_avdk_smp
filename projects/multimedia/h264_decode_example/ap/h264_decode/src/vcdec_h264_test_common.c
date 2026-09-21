@@ -1,5 +1,9 @@
 #include "vcdec_h264_test_common.h"
 #include "h264_decode_stream_1280x720.h"
+#if CONFIG_H264_DECODE_ENABLE_1080P
+#include "h264_decode_stream_1920x1080.h"
+#include "h264_decode_stream_1920x1080_gop30.h"
+#endif
 
 #define TAG "vcdec_h264_test"
 
@@ -26,6 +30,27 @@ static const vcdec_h264_test_stream_cfg_t s_vcdec_h264_stream_ibbp = {
 	.height = 720U,
 };
 
+#if CONFIG_H264_DECODE_ENABLE_1080P
+static const vcdec_h264_test_stream_cfg_t s_vcdec_h264_stream_1080p = {
+	.id = H264_DECODE_TEST_STREAM_1920X1080,
+	.name = "1920x1080_58f",
+	.stream = h264_decode_stream_1920x1080,
+	.bytes = &h264_decode_stream_1920x1080_bytes,
+	.width = 1920U,
+	/* Coded height is MB-aligned (1080 → 1088); decoder reports 1920x1088. */
+	.height = 1088U,
+};
+
+static const vcdec_h264_test_stream_cfg_t s_vcdec_h264_stream_1080p_gop30 = {
+	.id = H264_DECODE_TEST_STREAM_1920X1080_GOP30,
+	.name = "1920x1080_gop30",
+	.stream = h264_decode_stream_1920x1080_gop30,
+	.bytes = &h264_decode_stream_1920x1080_gop30_bytes,
+	.width = 1920U,
+	.height = 1088U,
+};
+#endif
+
 const vcdec_h264_test_stream_cfg_t *vcdec_h264_get_stream_cfg(h264_decode_test_stream_t stream)
 {
 	switch (stream) {
@@ -33,6 +58,12 @@ const vcdec_h264_test_stream_cfg_t *vcdec_h264_get_stream_cfg(h264_decode_test_s
 		return &s_vcdec_h264_stream_1i30p;
 	case H264_DECODE_TEST_STREAM_1280X720_IBBP:
 		return &s_vcdec_h264_stream_ibbp;
+#if CONFIG_H264_DECODE_ENABLE_1080P
+	case H264_DECODE_TEST_STREAM_1920X1080:
+		return &s_vcdec_h264_stream_1080p;
+	case H264_DECODE_TEST_STREAM_1920X1080_GOP30:
+		return &s_vcdec_h264_stream_1080p_gop30;
+#endif
 	default:
 		return NULL;
 	}

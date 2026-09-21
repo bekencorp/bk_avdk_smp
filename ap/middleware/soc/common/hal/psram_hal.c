@@ -231,8 +231,9 @@ static int psram_hal_set_write_through_non_interleave(psram_write_through_area_t
 		reg_base = (uint32_t)SOC_PSRAM1_REG_BASE;
 		data_base = (uint32_t)SOC_PSRAM1_DATA_BASE;
 	}
-	cfg_start = start >> 5;
-	cfg_end   = end >> 5;
+	/* Cover registers use a controller-local offset in 32-byte units. */
+	cfg_start = (start - data_base) >> 5;
+	cfg_end   = (end - data_base) >> 5;
 	psram_ll_set_cover_start_with_base(reg_base, hal_id, cfg_start);
 	psram_ll_set_cover_stop_enable_with_base(reg_base, hal_id, BIT(31) | cfg_end);
 	{
@@ -246,11 +247,25 @@ static int psram_hal_set_write_through_non_interleave(psram_write_through_area_t
 	return BK_OK;
 }
 
-/** Clear write-through for an area on both PSRAM0 and PSRAM1. */
-static void psram_hal_disable_write_through_area(uint32_t hal_id)
+/*
+ * Clear write-through only on the PSRAM controller that owns this global area.
+ * Areas 0~3 and 4~7 share hal_id 0~3 on different controllers; clearing both
+ * controllers would disable an unrelated window on the other PSRAM.
+ */
+static void psram_hal_disable_write_through_area(psram_write_through_area_t area)
 {
+	uint32_t hal_id = area % PSRAM_WRITE_THROUGH_AREA_PER_PSRAM;
+
+#if CONFIG_PSRAM_INTERLEAVE
 	psram_ll_set_cover_stop_enable_with_base((uint32_t)SOC_PSRAM0_REG_BASE, hal_id, 0);
 	psram_ll_set_cover_stop_enable_with_base((uint32_t)SOC_PSRAM1_REG_BASE, hal_id, 0);
+#else
+	uint32_t reg_base = (area < PSRAM_WRITE_THROUGH_AREA_PER_PSRAM)
+			  ? (uint32_t)SOC_PSRAM0_REG_BASE
+			  : (uint32_t)SOC_PSRAM1_REG_BASE;
+
+	psram_ll_set_cover_stop_enable_with_base(reg_base, hal_id, 0);
+#endif
 }
 
 #endif /* CONFIG_PSRAM_WRITE_THROUGH */
@@ -289,7 +304,7 @@ int psram_hal_set_write_through(psram_write_through_area_t area, uint32_t enable
 		return psram_hal_set_write_through_non_interleave(area, start, end);
 	}
 
-	psram_hal_disable_write_through_area(area % PSRAM_WRITE_THROUGH_AREA_PER_PSRAM);
+	psram_hal_disable_write_through_area(area);
 	return BK_OK;
 #else
 	(void)area;

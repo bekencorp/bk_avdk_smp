@@ -159,6 +159,20 @@ vcdec_ret_e vcdec_h264_close(vcdec_handle handle);
  */
 vcdec_ret_e vcdec_h264_abort(vcdec_handle handle);
 
+/**
+ * @brief Enable/disable PSRAM write-through cover on the Flexa recon/DPB pool.
+ *
+ * The setting belongs to one decoder instance and may be changed before or
+ * after recon-pool allocation. Default is enabled. Frame-zerocopy DPB cover
+ * is controlled separately by h264d_fbpool_cover_set_enabled().
+ *
+ * @param handle decoder handle returned by vcdec_h264_init
+ * @param enabled non-zero to enable, zero to disable
+ *
+ * @return VCDEC_OK for success, others for failure
+ */
+vcdec_ret_e vcdec_h264_set_recon_cover_enabled(vcdec_handle handle, int enabled);
+
 #ifdef __cplusplus
 }
 #endif

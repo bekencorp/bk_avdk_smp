@@ -18,6 +18,36 @@
 
 static beken_thread_t s_h264d_test_thread = NULL;
 static volatile uint8_t s_h264d_test_running = 0;
+static h264_decode_cover_mode_t s_cover_mode = H264_DECODE_COVER_POOL;
+
+static const char *h264_decode_cover_mode_name(h264_decode_cover_mode_t mode)
+{
+    switch (mode) {
+    case H264_DECODE_COVER_POOL:
+        return "pool";
+    default:
+        return "off";
+    }
+}
+
+void h264_decode_cover_set_mode(h264_decode_cover_mode_t mode)
+{
+#if CONFIG_H264_DECODE_DPB_COVER
+    s_cover_mode = mode;
+#else
+    (void)mode;
+#endif
+}
+
+avdk_err_t h264_decode_cover_apply(bk_h264_decode_ctlr_handle_t decoder)
+{
+    uint8_t enabled = 0U;
+
+#if CONFIG_H264_DECODE_DPB_COVER
+    enabled = (s_cover_mode == H264_DECODE_COVER_POOL) ? 1U : 0U;
+#endif
+    return bk_h264_decode_ioctl(decoder, BK_H264_DECODE_IOCTL_SET_RECON_COVER, &enabled);
+}
 
 typedef enum {
     H264D_TEST_ID_VCDEC_H264 = 0,
@@ -68,6 +98,12 @@ static const char *h264_decode_stream_name(h264_decode_test_stream_t stream_id)
         return "1280x720_1i30p";
     case H264_DECODE_TEST_STREAM_1280X720_IBBP:
         return "1280x720_ibbp";
+#if CONFIG_H264_DECODE_ENABLE_1080P
+    case H264_DECODE_TEST_STREAM_1920X1080:
+        return "1920x1080";
+    case H264_DECODE_TEST_STREAM_1920X1080_GOP30:
+        return "1920x1080_gop30";
+#endif
     default:
         return "unknown";
     }
@@ -94,6 +130,19 @@ static int h264_decode_parse_stream_arg(const char *arg, h264_decode_test_stream
         *stream_id = H264_DECODE_TEST_STREAM_1280X720_IBBP;
         return 0;
     }
+
+#if CONFIG_H264_DECODE_ENABLE_1080P
+    if ((os_strcmp(arg, "1920x1080") == 0) ||
+        (os_strcmp(arg, "1920x1080_1i1p") == 0)) {
+        *stream_id = H264_DECODE_TEST_STREAM_1920X1080;
+        return 0;
+    }
+
+    if (os_strcmp(arg, "1920x1080_gop30") == 0) {
+        *stream_id = H264_DECODE_TEST_STREAM_1920X1080_GOP30;
+        return 0;
+    }
+#endif
 
     return -1;
 }
@@ -136,11 +185,31 @@ static void h264_decode_print_usage(void)
 {
     bk_printf("Usage:\r\n");
     bk_printf("  h264_decode help | -h    - show this help\r\n");
+#if CONFIG_H264_DECODE_DPB_COVER
+    bk_printf("  h264_decode cover [pool|off]                      - DPB write-through window (default pool = decoder DPB only)\r\n");
+#endif
+    bk_printf("  h264_decode ring [hsram]                          - FLEXA PP ring on HSRAM (SMEM3/4, default)\r\n");
 #ifdef CONFIG_BK_DECODER
-    bk_printf("  h264_decode vcdec_h264d [1280x720_1i30p|1280x720_ibbp]        - vcdec H.264 frame decode test (whole-frame, non-B)\r\n");
-    bk_printf("  h264_decode vcdec_h264d_flexa [1280x720_1i30p|1280x720_ibbp]  - vcdec H.264 decode test (FLEXA, non-B)\r\n");
-    bk_printf("  h264_decode vcdec_h264d_frame_zerocopy [1280x720_1i30p|1280x720_ibbp] - vcdec H.264 zero-copy/B-frame frame decode test\r\n");
-    bk_printf("    (stream defaults to 1280x720_ibbp; `1280x720` is an alias for it)\r\n");
+    bk_printf("  h264_decode vcdec_h264d [1280x720_1i30p|1280x720_ibbp");
+#if CONFIG_H264_DECODE_ENABLE_1080P
+    bk_printf("|1920x1080");
+#endif
+    bk_printf("]        - frame (non-B)\r\n");
+    bk_printf("  h264_decode vcdec_h264d_flexa [1280x720_1i30p|1280x720_ibbp");
+#if CONFIG_H264_DECODE_ENABLE_1080P
+    bk_printf("|1920x1080");
+#endif
+    bk_printf("]  - flexa (non-B)\r\n");
+    bk_printf("  h264_decode vcdec_h264d_frame_zerocopy [1280x720_1i30p|1280x720_ibbp");
+#if CONFIG_H264_DECODE_ENABLE_1080P
+    bk_printf("|1920x1080");
+#endif
+    bk_printf("] - zero-copy\r\n");
+#if CONFIG_H264_DECODE_ENABLE_1080P
+    bk_printf("    (default 1280x720_ibbp; 1920x1080 is the mini-project IDR+P stream)\r\n");
+    bk_printf("    1920x1080_gop30: recordh2641080.mp4, 195 frames, GOP 30, long P chains\r\n");
+#endif
+    bk_printf("    flexa uses GPU-example segments 1x4; 64-aligned PP ring, bank set by 'ring'\r\n");
     bk_printf("  h264_decode vcdec_h264d_frame_rgb                 - vcdec H.264 frame RGB565/RGB888 format test\r\n");
     bk_printf("  h264_decode vcdec_h264d_osd                       - vcdec H.264 OSD alpha-blend test (RGB565/RGB888 output)\r\n");
     bk_printf("  h264_decode vcdec_h264d_scale [1280x720_1i30p|1280x720_ibbp] - vcdec H.264 PP down-scale test (1/2)\r\n");
@@ -170,6 +239,39 @@ void cli_h264_decode_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
 
     if ((os_strcmp(argv[1], "help") == 0) || (os_strcmp(argv[1], "-h") == 0)) {
         h264_decode_print_usage();
+        cli_write_rsp(pcWriteBuffer, xWriteBufferLen, CLI_CMD_RSP_SUCCEED);
+        return;
+    }
+
+#if CONFIG_H264_DECODE_DPB_COVER
+    if (os_strcmp(argv[1], "cover") == 0) {
+        if (argc >= 3) {
+            if (os_strcmp(argv[2], "pool") == 0) {
+                h264_decode_cover_set_mode(H264_DECODE_COVER_POOL);
+            } else if (os_strcmp(argv[2], "off") == 0) {
+                h264_decode_cover_set_mode(H264_DECODE_COVER_OFF);
+            } else {
+                LOGE("unknown cover mode '%s', expected pool|off\r\n", argv[2]);
+                cli_write_rsp(pcWriteBuffer, xWriteBufferLen, CLI_CMD_RSP_ERROR);
+                return;
+            }
+        }
+        LOGI("DPB cover: %s (pool window applies to the next run)\r\n",
+             h264_decode_cover_mode_name(s_cover_mode));
+        cli_write_rsp(pcWriteBuffer, xWriteBufferLen, CLI_CMD_RSP_SUCCEED);
+        return;
+    }
+#endif
+
+    if (os_strcmp(argv[1], "ring") == 0) {
+        if (argc >= 3 && os_strcmp(argv[2], "hsram") != 0) {
+            LOGE("unknown ring heap '%s', expected hsram\r\n", argv[2]);
+            cli_write_rsp(pcWriteBuffer, xWriteBufferLen, CLI_CMD_RSP_ERROR);
+            return;
+        }
+        vcdec_h264_ring_heap_set(VCDEC_H264_RING_HEAP_HSRAM);
+        LOGI("FLEXA ring heap: %s (applies to the next flexa run)\r\n",
+             vcdec_h264_ring_heap_name(vcdec_h264_ring_heap_get()));
         cli_write_rsp(pcWriteBuffer, xWriteBufferLen, CLI_CMD_RSP_SUCCEED);
         return;
     }

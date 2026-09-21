@@ -462,6 +462,12 @@ static avdk_err_t h264_decode_ctlr_ioctl(bk_h264_decode_ctlr_handle_t handle, ui
 	case BK_H264_DECODE_IOCTL_ABORT:
 		vcdec_h264_abort(ctrl->vcdec_handle);
 		break;
+	case BK_H264_DECODE_IOCTL_SET_RECON_COVER:
+		AVDK_RETURN_ON_FALSE(arg, AVDK_ERR_INVAL, TAG, "arg is NULL");
+		if (vcdec_h264_set_recon_cover_enabled(ctrl->vcdec_handle, *(uint8_t *)arg) != VCDEC_OK) {
+			return AVDK_ERR_GENERIC;
+		}
+		break;
 	case BK_H264_DECODE_IOCTL_PORT_SET_RD_PTR: {
 		uint32_t flags = rtos_enter_critical();
 		bk_h264_decode_port_rd_t *p = (bk_h264_decode_port_rd_t *)arg;
