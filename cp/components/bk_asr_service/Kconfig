@@ -1,0 +1,115 @@
+# KCONFIG_GROUP: Multimedia::Audio::ASR
+menu "ASR Service"
+
+	config ASR_SERVICE
+		bool "Enable ASR Service"
+		depends on ADK && ADK_RAW_STREAM && (ADK_ONBOARD_MIC_STREAM || ADK_ONBOARD_DUAL_DMIC_MIC_STREAM)
+		default n
+		help
+			Enable ASR Service Interface API used for ASR
+	
+	choice ASR_SERVICE_USE_MEMORY
+		depends on ASR_SERVICE
+		prompt "Select asr service use memory"
+		default ASR_SERVICE_USE_SRAM
+
+		config ASR_SERVICE_USE_SRAM
+			bool "Enable asr service use sram"
+			help
+				asr service use sram memory
+
+		config ASR_SERVICE_USE_PSRAM
+			depends on PSRAM
+			bool "Enable asr service use psram"
+			help
+				asr service use psram memory
+	endchoice
+
+	choice ASR_SERVICE_MIC
+		depends on ASR_SERVICE
+		prompt "Select asr service with mic"
+		default ASR_SERVICE_WITH_MIC
+
+		config ASR_SERVICE_WITH_MIC
+			bool "Enable asr service with mic"
+			help
+				asr service with mic
+
+		config ASR_SERVICE_NO_MIC
+			bool "Enable asr service no mic"
+			help
+				the mic will be opened by other modules, the asr src is from the mic multioutput.
+	endchoice
+
+	config AUD_ASR_READ_SERVICE
+		depends on ASR_SERVICE 
+		bool "Enable Audio ASR Service"
+		default n
+		help
+			Enable Aud asr Service to read service mic data
+
+	config ASR_SERVICE_THREAD_BIND_CPU
+		bool "Enable ASR service thread bind cpu"
+		depends on ASR_SERVICE
+		default n
+		help
+			Enable ASR service thread bind cpu
+
+	config ASR_SERVICE_THREAD_BIND_CPU_ID
+		int "ASR service thread bind cpu id"
+		depends on ASR_SERVICE_THREAD_BIND_CPU
+		default 1
+		help
+			ASR service thread bind cpu id
+
+	config BEKEN_KWS
+		bool "Enable CONFIG_BEKEN_KWS"
+		depends on TFLITE_MICRO && ASR_SERVICE
+		default n
+
+	config BEKEN_KWS_MODEL_BUFFER_USE_PSRAM
+		depends on BEKEN_KWS && PSRAM
+		bool "Place KWS model file buffer in PSRAM"
+		default y if BEKEN_KWS_MODEL_FROM_UDISK
+		default n
+		help
+			Allocate the KWS model file buffer from PSRAM when models are loaded
+			from the file system.
+
+	config BEKEN_KWS_ARENA_USE_PSRAM
+		depends on BEKEN_KWS && PSRAM
+		bool "Place KWS TFLM tensor arena in PSRAM"
+		default y
+		help
+			Allocate the TFLM tensor arena (~70 KB) from PSRAM via psram_malloc.
+			This is the highest-priority placement; if y, BEKEN_KWS_ARENA_USE_HSRAM
+			is ignored.
+
+	config BEKEN_KWS_ARENA_USE_HSRAM
+		depends on BEKEN_KWS && !BEKEN_KWS_ARENA_USE_PSRAM
+		bool "Place KWS TFLM tensor arena in HSRAM"
+		default n
+		help
+			Allocate the TFLM tensor arena (~70 KB) from HSRAM via hsram_malloc.
+			Falls back to os_malloc when both _USE_PSRAM and _USE_HSRAM are n.
+
+	config BEKEN_KWS_SCRATCH_USE_PSRAM
+		depends on BEKEN_KWS && PSRAM
+		bool "Place KWS NPU fast-memory scratch in PSRAM"
+		default y
+		help
+			Allocate the Ethos-U NPU scratch_fast buffer (~28 KB) from PSRAM via
+			psram_malloc. This is the highest-priority placement; if y,
+			BEKEN_KWS_SCRATCH_USE_HSRAM is ignored.
+
+	config BEKEN_KWS_SCRATCH_USE_HSRAM
+		depends on BEKEN_KWS && !BEKEN_KWS_SCRATCH_USE_PSRAM
+		bool "Place KWS NPU fast-memory scratch in HSRAM"
+		default n
+		help
+			Allocate the Ethos-U NPU scratch_fast buffer (~28 KB) from HSRAM via
+			hsram_malloc. HSRAM has lower latency than PSRAM, so for performance
+			this is preferable when HSRAM has enough free space. Falls back to
+			os_malloc when both _USE_PSRAM and _USE_HSRAM are n.
+
+endmenu
