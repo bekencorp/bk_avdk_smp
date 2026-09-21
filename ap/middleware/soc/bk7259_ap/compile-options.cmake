@@ -17,7 +17,7 @@ set(OVERRIDE_LINK_OPTIONS
     "-Wl,--wrap=_free_r"
     "-Wl,--wrap=zalloc"
     "-Wl,--wrap=calloc"
-    "-Wl,--wrap=calloc_r"
+    "-Wl,--wrap=_calloc_r"
     "-Wl,--wrap=realloc"
     "-Wl,--wrap=_realloc_r"
     "-Wl,--wrap=printf"
