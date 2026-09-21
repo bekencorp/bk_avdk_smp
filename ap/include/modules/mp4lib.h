@@ -130,6 +130,10 @@ int MP4_set_audio_read_index(mp4_t *mp4, uint32_t sample, uint32_t *sample_size)
 // Read functions
 uint32_t MP4_read_next_video_sample(mp4_t *mp4, uint8_t *vidbuf, uint32_t max_bytes);
 uint32_t MP4_read_next_audio_sample(mp4_t *mp4, uint8_t *audbuf, uint32_t max_bytes);
+// Prefetch the next video segment index table without blocking audio reads.
+// Call after releasing any parser mutex that wraps MP4_read_next_*.
+void MP4_video_try_prefetch_next_segment(mp4_t *mp4, uint32_t next_sample_idx);
+void MP4_audio_try_prefetch_next_segment(mp4_t *mp4, uint32_t next_sample_idx);
 
 // Read-mode helpers (mainly for segmented sample tables)
 // Return the nearest previous sync sample (keyframe) index for H.264 seek-to-I.

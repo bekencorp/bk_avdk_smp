@@ -772,6 +772,7 @@ static avdk_err_t mp4_parser_read_video_packet(struct video_player_container_par
         }
         
         rtos_unlock_mutex(&ctx->mutex);
+        MP4_video_try_prefetch_next_segment(ctx->mp4_handle, ctx->current_video_sample);
         LOGV("%s: Read video sample %u, size=%u, pts=%llu\n",
              __func__, sample_num, out_buffer->length, out_buffer->pts);
         return AVDK_ERR_OK;
@@ -901,6 +902,7 @@ static avdk_err_t mp4_parser_read_audio_packet(struct video_player_container_par
         }
         
         rtos_unlock_mutex(&ctx->mutex);
+        MP4_audio_try_prefetch_next_segment(ctx->mp4_handle, ctx->current_audio_sample);
         LOGV("%s: Read audio sample %u, size=%u, pts=%llu\n",
              __func__, ctx->current_audio_sample - 1, out_buffer->length, out_buffer->pts);
         return AVDK_ERR_OK;

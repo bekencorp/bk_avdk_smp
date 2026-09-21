@@ -402,6 +402,7 @@ static void bk_video_player_audio_decode_thread(void *arg)
                 out_buffer = in_buffer->buffer;
                 ret = AVDK_ERR_OK;
                 in_buffer->buffer.data = NULL;
+                in_buffer->buffer.frame_buffer = NULL;
                 in_buffer->buffer.length = 0;
                 in_buffer->buffer.pts = 0;
                 in_buffer->buffer.user_data = NULL;
