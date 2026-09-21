@@ -11,11 +11,6 @@ menu "BK_GPU"
 		hex "vg-lite gpu module base address"
 		default 0x4c280000
 
-	config VG_LITE_GPU_CONTIGUOUS_MEM_SZ
-		depends on VG_LITE_GPU
-		hex "vg-lite gpu contigours memory size in sram"
-		default 0x20000
-
 	config VG_LITE_GPU_COMMAND_BUFFER_SIZE
 		depends on VG_LITE_GPU
 		hex "vg-lite gpu command buffer size, Default 16KB."
@@ -33,12 +28,22 @@ menu "BK_GPU"
 
 	config VG_LITE_GPU_TESS_WIDTH
 		depends on VG_LITE_GPU
-		int "vg-lite default tessellation width"
+		int "vg-lite reserved tessellation width (0 = no reserved tess)"
 		default 0
+		help
+		  Maximum tessellation width reserved when applying VG-Lite mem
+		  config. GPU is shared by multiple scenes, so the contiguous
+		  heap is always allocated for this maximum. A later
+		  vg_lite_init() request larger than this value fails.
+		  0 disables the reserved tess buffer.
 
 	config VG_LITE_GPU_TESS_HEIGHT
 		depends on VG_LITE_GPU
-		int "vg-lite default tessellation height"
+		int "vg-lite reserved tessellation height (0 = no reserved tess)"
 		default 0
+		help
+		  Maximum tessellation height reserved when applying VG-Lite mem
+		  config. Must be used together with VG_LITE_GPU_TESS_WIDTH.
+		  0 disables the reserved tess buffer.
 
 endmenu

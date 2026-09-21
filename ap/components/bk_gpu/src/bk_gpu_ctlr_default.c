@@ -1261,12 +1261,24 @@ static avdk_err_t gpu_ctlr_init(bk_gpu_ctlr_handle_t handle)
     bk_gpu_driver_init();
     driver_inited = true;
 
-    control->gpu_contiguous_buffer = bk_get_gpu_flexa_buffer(CONFIG_VG_LITE_GPU_CONTIGUOUS_MEM_SZ);
-    if (control->gpu_contiguous_buffer == NULL)
     {
-        LOGE("%s, %d bk_get_gpu_flexa_buffer failed\n", __func__, __LINE__);
-        ret = AVDK_ERR_NOMEM;
-        goto error;
+        uint32_t vg_mem_sz = bk_gpu_vg_lite_apply_mem_config(control->config.tess_width,
+                                                             control->config.tess_height);
+        if (vg_mem_sz == 0)
+        {
+            LOGE("%s, %d vg_lite mem config failed\n", __func__, __LINE__);
+            ret = AVDK_ERR_INVAL;
+            goto error;
+        }
+        control->gpu_contiguous_buffer = bk_get_gpu_flexa_buffer(vg_mem_sz);
+        if (control->gpu_contiguous_buffer == NULL)
+        {
+            LOGE("%s, %d bk_get_gpu_flexa_buffer failed, size=%u\n",
+                 __func__, __LINE__, (unsigned)vg_mem_sz);
+            ret = AVDK_ERR_NOMEM;
+            goto error;
+        }
+        LOGI("%s, %d vg_lite mem config success, size=%u\n", __func__, __LINE__, (unsigned)vg_mem_sz);
     }
     vg_lite_set_buffer(control->gpu_contiguous_buffer);
     vg_ret = vg_lite_init(control->config.tess_width, control->config.tess_height);
