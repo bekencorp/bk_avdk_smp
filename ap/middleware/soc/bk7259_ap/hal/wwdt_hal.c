@@ -14,19 +14,23 @@
 
 #include "wwdt_hal.h"
 #include "sys_hal.h"
+#include "aon_pmu_hal.h"
 
 #define WWDT_XTALL_ITUNE_VALUE 4
 
 static void wwdt_hal_enable_32k_clock(void)
 {
-	uint32_t reg_val;
+	uint32_t chip_id = aon_pmu_hal_get_chipid();
 
-	/* M55 CPU WWDT is driven by the 32 kHz low-speed clock, so enable both the clock gate and XTALL source. */
-	reg_val = REG_READ(SYS_ANA_REG5_ADDR);
-	reg_val &= ~(SYS_ANA_REG5_ITUNE_XTALL_MASK << SYS_ANA_REG5_ITUNE_XTALL_POS);
-	reg_val |= ((WWDT_XTALL_ITUNE_VALUE & SYS_ANA_REG5_ITUNE_XTALL_MASK) << SYS_ANA_REG5_ITUNE_XTALL_POS);
-	reg_val |= (SYS_ANA_REG5_EN_XTALL_MASK << SYS_ANA_REG5_EN_XTALL_POS);
-	REG_WRITE(SYS_ANA_REG5_ADDR, reg_val);
+	/* MP chips support ROSC32K; only MPW chips need the XTALL source. */
+	if (chip_id == BK7259_CHIP_ID_V2_MPW) {
+		uint32_t reg_val = REG_READ(SYS_ANA_REG5_ADDR);
+
+		reg_val &= ~(SYS_ANA_REG5_ITUNE_XTALL_MASK << SYS_ANA_REG5_ITUNE_XTALL_POS);
+		reg_val |= ((WWDT_XTALL_ITUNE_VALUE & SYS_ANA_REG5_ITUNE_XTALL_MASK) << SYS_ANA_REG5_ITUNE_XTALL_POS);
+		reg_val |= (SYS_ANA_REG5_EN_XTALL_MASK << SYS_ANA_REG5_EN_XTALL_POS);
+		REG_WRITE(SYS_ANA_REG5_ADDR, reg_val);
+	}
 }
 
 bk_err_t wwdt_hal_init(wwdt_hal_t *hal)

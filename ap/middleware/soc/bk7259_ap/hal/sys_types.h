@@ -15,6 +15,7 @@
 #pragma once
 
 #include <soc/soc.h>
+#include "aon_pmu_types.h"
 #include "sys_hw.h"
 
 #ifdef __cplusplus
@@ -149,13 +150,12 @@ extern "C" {
 #define PM_LOW_VOLTAGE_DELTA_WAKEUP_DELAY_IN_US ((PM_LOW_VOLTAGE_DELTA_WAKEUP_DELAY*1000000+RTC_CLOCK_FREQ-1)/RTC_CLOCK_FREQ)
 
 #define PM_CHIP_ID_HIGH_POS                              (16)
-#define PM_CHIP_ID_MASK                                  (0xFFFF0000)
-#define PM_CHIP_ID_MPW_V2_3                              (0x22710010)
-#define PM_CHIP_ID_MPW_V3                                (PM_CHIP_ID_MPW_V2_3)
-#define PM_CHIP_ID_MPW_V4                                (0x22C20010)
-#define PM_CHIP_ID_MP_A                                  (0x23640810)
-#define PM_CHIP_ID_MP_C                                  (0x23A40910)
-#define PM_CHIP_ID_BK7259                                (0x24740B00)
+#define PM_CHIP_ID_MASK                                  (BK7259_CHIP_ID_SERIES_MASK)
+#define PM_CHIP_ID_MPW                                   (BK7259_CHIP_ID_V2_MPW)
+#define PM_CHIP_ID_MPW_V2_3                              (BK7259_CHIP_ID_V2_MPW)
+#define PM_CHIP_ID_MPW_V4                                (BK7259_CHIP_ID_V2_MPW)
+#define PM_CHIP_ID_MP_A                                  (BK7259_CHIP_ID_V3A)
+#define PM_CHIP_ID_MP_B                                  (BK7259_CHIP_ID_V3B)
 
 #define PM_FREQUNCY_DIV_MAX                              (3)
 #define PM_CLKSEL_CORE_MAX                               (3)

@@ -16,6 +16,7 @@
 
 #include <soc/soc.h>
 #include "aon_pmu_ll.h"
+#include "aon_pmu_types.h"
 #include "sys_types.h"
 
 #ifdef __cplusplus
@@ -25,19 +26,6 @@ extern "C" {
 typedef struct {
 	aon_pmu_hw_t *hw;
 } aon_pmu_hal_t;
-
-/* AON_PMU r7c chip ID (BK7259) */
-#define BK7259_CHIP_ID_V2_MPW        (0x25910020U) /* BK7259V2 / MPW */
-#define BK7259_CHIP_ID_V3A           (0x26800820U) /* BK72593A */
-#define BK7259_CHIP_ID_V3B           (0x26800920U) /* BK72593B */
-#define BK7259_CHIP_ID_SERIES_MASK   (0xFFFF0000U)
-
-typedef enum {
-	BK7259_CHIP_MODEL_V2_MPW = 0,
-	BK7259_CHIP_MODEL_V3A,
-	BK7259_CHIP_MODEL_V3B,
-	BK7259_CHIP_MODEL_UNKNOWN,
-} bk7259_chip_model_e;
 
 bk_err_t aon_pmu_hal_init(void);
 uint32_t aon_pmu_hal_get_wakeup_source_reg(void);
