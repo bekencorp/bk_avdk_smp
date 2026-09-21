@@ -41,8 +41,7 @@
 #define H264_FRAME_GPU_TARGET_HEIGHT  0U
 #endif
 
-void bk_gpu_driver_init(void);
-void bk_gpu_driver_deinit(void);
+#include "gpu_core.h"
 
 static bool hw_h264_frame_is_valid_nal_type(uint8_t type)
 {
@@ -504,13 +503,22 @@ static avdk_err_t hw_h264_frame_gpu_ensure_init(hw_h264_decoder_frame_ctx_t *ctx
 
     bk_gpu_driver_init();
 
-    ctx->gpu_contiguous_buffer = bk_get_gpu_flexa_buffer(CONFIG_VG_LITE_GPU_CONTIGUOUS_MEM_SZ);
-    if (ctx->gpu_contiguous_buffer == NULL)
     {
-        LOGE("%s: alloc VG-Lite contiguous buffer failed, size=%u\n",
-             __func__, (unsigned)CONFIG_VG_LITE_GPU_CONTIGUOUS_MEM_SZ);
-        bk_gpu_driver_deinit();
-        return AVDK_ERR_NOMEM;
+        uint32_t vg_mem_sz = bk_gpu_vg_lite_apply_mem_config(0, 0);
+        if (vg_mem_sz == 0)
+        {
+            LOGE("%s: vg_lite mem config failed\n", __func__);
+            bk_gpu_driver_deinit();
+            return AVDK_ERR_INVAL;
+        }
+        ctx->gpu_contiguous_buffer = bk_get_gpu_flexa_buffer(vg_mem_sz);
+        if (ctx->gpu_contiguous_buffer == NULL)
+        {
+            LOGE("%s: alloc VG-Lite contiguous buffer failed, size=%u\n",
+                 __func__, (unsigned)vg_mem_sz);
+            bk_gpu_driver_deinit();
+            return AVDK_ERR_NOMEM;
+        }
     }
 
     vg_lite_error_t vg_ret = vg_lite_set_buffer((uint8_t *)ctx->gpu_contiguous_buffer);
