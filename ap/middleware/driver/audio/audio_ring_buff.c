@@ -3,6 +3,7 @@
 #include <driver/audio_ring_buff.h>
 #include <stdlib.h>
 #include <string.h>
+#include <soc/soc.h>
 #include "cache.h"
 
 
@@ -45,6 +46,16 @@ static inline void rb_dcache_sync_after_write(const RingBufferContext *rb, uint3
         __DSB();
         flush_dcache((void *)&rb->address[offset], (long)bytes);
     }
+}
+
+static inline uint32_t rb_dma_base(const RingBufferContext *rb)
+{
+    return SOC_SRAM_PERI_ADDR((uint32_t)(uintptr_t)rb->address);
+}
+
+static inline uint32_t rb_dma_offset(const RingBufferContext *rb, uint32_t dma_addr)
+{
+    return dma_addr - rb_dma_base(rb);
 }
 
 void ring_buffer_init(RingBufferContext* rb, uint8_t* addr, uint32_t capacity, dma_id_t dma_id, uint32_t dma_type)
@@ -107,7 +118,7 @@ uint32_t ring_buffer_read(RingBufferContext* rb, uint8_t* buffer, uint32_t size)
     if((rb->dma_id != DMA_ID_MAX) && (rb->dma_type == RB_DMA_TYPE_WRITE))
     {
         //读取DMA寄存器[dma1_dest_wr_addr],获取此时已经读到的地址
-        wp = rb->wp = bk_dma_get_enable_status(rb->dma_id) ? dma_get_dest_write_addr(rb->dma_id) - (uint32_t)rb->address : 0;
+        wp = rb->wp = bk_dma_get_enable_status(rb->dma_id) ? rb_dma_offset(rb, dma_get_dest_write_addr(rb->dma_id)) : 0;
     }
     else
     {
@@ -236,7 +247,7 @@ uint32_t ring_buffer_write(RingBufferContext* rb, uint8_t* buffer, uint32_t size
     if((rb->dma_id != DMA_ID_MAX) && (rb->dma_type == RB_DMA_TYPE_READ))
     {
         //读取DMA寄存器[dma0_src_rd_addr],获取此时已经读到的地址
-        rp = rb->rp = bk_dma_get_enable_status(rb->dma_id) ? dma_get_src_read_addr(rb->dma_id) - (uint32_t)rb->address : 0;
+        rp = rb->rp = bk_dma_get_enable_status(rb->dma_id) ? rb_dma_offset(rb, dma_get_src_read_addr(rb->dma_id)) : 0;
     }
     else
     {
@@ -312,13 +323,13 @@ uint32_t ring_buffer_get_fill_size(RingBufferContext* rb)
     {
         if(rb->dma_type == RB_DMA_TYPE_READ)
         {
-            rp = rb->rp = bk_dma_get_enable_status(rb->dma_id) ? dma_get_src_read_addr(rb->dma_id) - (uint32_t)rb->address : 0;
+            rp = rb->rp = bk_dma_get_enable_status(rb->dma_id) ? rb_dma_offset(rb, dma_get_src_read_addr(rb->dma_id)) : 0;
             wp = rb->wp;
         }
         else if(rb->dma_type == RB_DMA_TYPE_WRITE)
         {
             rp = rb->rp;
-            wp = rb->wp = bk_dma_get_enable_status(rb->dma_id) ? dma_get_dest_write_addr(rb->dma_id) - (uint32_t)rb->address : 0;
+            wp = rb->wp = bk_dma_get_enable_status(rb->dma_id) ? rb_dma_offset(rb, dma_get_dest_write_addr(rb->dma_id)) : 0;
         }
         else
         {
@@ -356,4 +367,3 @@ uint32_t ring_buffer_get_free_size(RingBufferContext* rb)
 
     return free_size > RWP_SAFE_INTERVAL ? free_size - RWP_SAFE_INTERVAL : 0;
 }
-
