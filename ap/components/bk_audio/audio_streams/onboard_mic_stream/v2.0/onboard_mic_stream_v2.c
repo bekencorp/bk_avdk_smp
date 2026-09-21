@@ -147,6 +147,7 @@ typedef struct onboard_mic_stream
     uint32_t                 lp_remain;        /**< remaining int16 samples of the spectral low-pass window */
     int32_t                  lpf_y[3];         /**< cascaded one-pole low-pass states (one per order) used during the low-pass window */
     beken_mutex_t            cfg_lock;
+    uint32_t                 flash_pause_cnt;  /**< nested flash_op_notify pause depth */
 } onboard_mic_stream_t;
 
 /* Mic (re)start transient shaper. Two decoupled windows; see the parameter
@@ -184,45 +185,92 @@ static uint8_t aud_adc_get_active_ch_num(void)
     return ch_num;
 }
 
+static void aud_adc_dma_finish_isr(dma_id_t dma_id);
+static bk_err_t aud_adc_dma_setup_hw(onboard_mic_stream_t *onboard_mic);
+
+/* Flash erase/write: stop ADC then dma_stop+deinit (v2 cannot stop/start in place).
+ * Resume re-inits the same DMA id / ringbuf, then dma_start + adc_start.
+ * Nested prepare/finish uses flash_pause_cnt. Experimental — not a final design. */
 static void flash_op_notify_onboard_mic_stream_handler(uint32_t param, void *args)
 {
-    return;
     audio_element_handle_t onboard_mic_stream = (audio_element_handle_t)args;
     uint32_t i;
+    bk_err_t ret;
+
     if (!onboard_mic_stream)
     {
         return;
     }
+
     onboard_mic_stream_t *onboard_mic = (onboard_mic_stream_t *)audio_element_getdata(onboard_mic_stream);
-    if (onboard_mic && audio_element_get_state(onboard_mic_stream) == AEL_STATE_RUNNING)
+    if (!onboard_mic || audio_element_get_state(onboard_mic_stream) != AEL_STATE_RUNNING ||
+        !onboard_mic->is_open)
     {
-        if (param)
+        return;
+    }
+
+    if (param)
+    {
+        if (onboard_mic->flash_pause_cnt++ != 0)
         {
-            BK_LOGV(TAG, "%s, start earse or write flash, stop dma and adc \n", __func__);
-            bk_dma_stop(onboard_mic->mic_dma_id);
-
-            for(i = 0; i < AUD_ADC_CHL_MAX; i++)
-            {
-                if(onboard_mic->ch_bitmap & (1 << i))
-                {
-                    bk_aud_adc_stop(i);
-                }
-            }
-
-            ring_buffer_clear(&onboard_mic->mic_rb);
+            return;
         }
-        else
+
+        for (i = 0; i < AUD_ADC_CHL_MAX; i++)
         {
-            BK_LOGV(TAG, "%s, stop earse or write flash, start dma and adc \n", __func__);
-            bk_dma_start(onboard_mic->mic_dma_id);
-            for(i = 0; i < AUD_ADC_CHL_MAX; i++)
+            if (onboard_mic->ch_bitmap & (1 << i))
             {
-                if(onboard_mic->ch_bitmap & (1 << i))
-                {
-                    bk_aud_adc_start(i);
-                }
+                bk_aud_adc_stop(i);
             }
         }
+
+        ret = bk_dma_stop(onboard_mic->mic_dma_id);
+        if (ret != BK_OK)
+        {
+            BK_LOGW(TAG, "%s, dma_stop fail: %d\n", __func__, ret);
+        }
+        bk_dma_deinit(onboard_mic->mic_dma_id);
+        ring_buffer_clear(&onboard_mic->mic_rb);
+    }
+    else
+    {
+        if (onboard_mic->flash_pause_cnt == 0)
+        {
+            return;
+        }
+        if (--onboard_mic->flash_pause_cnt != 0)
+        {
+            return;
+        }
+
+        ret = aud_adc_dma_setup_hw(onboard_mic);
+        if (ret != BK_OK)
+        {
+            BK_LOGE(TAG, "%s, dma_setup_hw fail\n", __func__);
+            return;
+        }
+
+        ring_buffer_clear(&onboard_mic->mic_rb);
+
+        ret = bk_dma_start(onboard_mic->mic_dma_id);
+        if (ret != BK_OK)
+        {
+            BK_LOGE(TAG, "%s, dma_start fail\n", __func__);
+            return;
+        }
+
+        for (i = 0; i < AUD_ADC_CHL_MAX; i++)
+        {
+            if (onboard_mic->ch_bitmap & (1 << i))
+            {
+                ret = bk_aud_adc_start(i);
+                if (ret != BK_OK)
+                {
+                    BK_LOGE(TAG, "%s, adc_start ch%u fail\n", __func__, (unsigned)i);
+                }
+            }
+        }
+        bk_aud_adc_enable_used_channel(onboard_mic->ch_bitmap);
     }
 }
 
@@ -259,14 +307,77 @@ static void aud_adc_dma_finish_isr(dma_id_t dma_id)
     AUD_ADC_DMA_ISR_END();
 }
 
-static bk_err_t aud_adc_dma_config(onboard_mic_stream_t *onboard_mic)
+static bk_err_t aud_adc_dma_setup_hw(onboard_mic_stream_t *onboard_mic)
 {
     bk_err_t ret = BK_OK;
     dma_config_t dma_config = {0};
     uint32_t adc_port_addr;
-    uint32_t frame_size = 0;
+    uint32_t frame_size;
+
+    if (!onboard_mic || !onboard_mic->mic_ring_buff)
+    {
+        return BK_FAIL;
+    }
+    if ((onboard_mic->mic_dma_id < DMA_ID_0) || (onboard_mic->mic_dma_id >= DMA_ID_MAX))
+    {
+        return BK_FAIL;
+    }
+
+    frame_size = (uint32_t)aud_adc_get_active_ch_num() * onboard_mic->frame_size;
 
     os_memset(&dma_config, 0, sizeof(dma_config_t));
+    dma_config.mode       = DMA_WORK_MODE_REPEAT;
+    dma_config.chan_prio  = 1;
+    dma_config.trans_type = DMA_TRANS_DEFAULT;
+    dma_config.src.dev    = DMA_DEV_AUD_MIC0;
+    dma_config.dst.dev    = DMA_DEV_DTCM;
+    dma_config.src.width  = DMA_DATA_WIDTH_32BITS;
+    dma_config.dst.width  = DMA_DATA_WIDTH_32BITS;
+
+    if (bk_aud_adc_get_fifo_addr(AUD_ADC_MIC_DATA_BUS_0, &adc_port_addr) != BK_OK)
+    {
+        BK_LOGE(TAG, "get adc fifo address failed\r\n");
+        return BK_FAIL;
+    }
+
+    dma_config.src.addr_inc_en  = DMA_ADDR_INC_ENABLE;
+    dma_config.src.addr_loop_en = DMA_ADDR_LOOP_ENABLE;
+    dma_config.src.start_addr   = adc_port_addr;
+    dma_config.src.end_addr     = adc_port_addr + 4;
+    dma_config.dst.addr_inc_en  = DMA_ADDR_INC_ENABLE;
+    dma_config.dst.addr_loop_en = DMA_ADDR_LOOP_ENABLE;
+    dma_config.dst.start_addr   = (uint32_t)(uintptr_t)onboard_mic->mic_ring_buff;
+    dma_config.dst.end_addr     = (uint32_t)(uintptr_t)onboard_mic->mic_ring_buff +
+                                  frame_size * DMA_CARRY_MIC_FRAME_NUM + DMA_CARRY_MIC_RINGBUF_SAFE_INTERVAL;
+
+    ret = bk_dma_init(onboard_mic->mic_dma_id, &dma_config);
+    if (ret != BK_OK)
+    {
+        BK_LOGE(TAG, "%s, dma_init fail\n", __func__);
+        return BK_FAIL;
+    }
+
+    bk_dma_set_transfer_len(onboard_mic->mic_dma_id, frame_size);
+    bk_dma_register_isr(onboard_mic->mic_dma_id, NULL, (void *)aud_adc_dma_finish_isr);
+    bk_dma_enable_finish_interrupt(onboard_mic->mic_dma_id);
+
+#if (CONFIG_SPE)
+    bk_dma_set_dest_sec_attr(onboard_mic->mic_dma_id, DMA_ATTR_SEC);
+    bk_dma_set_src_sec_attr(onboard_mic->mic_dma_id, DMA_ATTR_SEC);
+#endif
+
+    ring_buffer_init(&onboard_mic->mic_rb,
+                     (uint8_t *)onboard_mic->mic_ring_buff,
+                     frame_size * DMA_CARRY_MIC_FRAME_NUM + DMA_CARRY_MIC_RINGBUF_SAFE_INTERVAL,
+                     onboard_mic->mic_dma_id,
+                     RB_DMA_TYPE_WRITE);
+
+    return BK_OK;
+}
+
+static bk_err_t aud_adc_dma_config(onboard_mic_stream_t *onboard_mic)
+{
+    uint32_t frame_size;
 
     /* malloc dma channel */
     onboard_mic->mic_dma_id = bk_dma_alloc(DMA_DEV_AUDIO);
@@ -276,74 +387,22 @@ static bk_err_t aud_adc_dma_config(onboard_mic_stream_t *onboard_mic)
         goto exit;
     }
 
-    /* DMA must carry adcl and adcr data together. frame_size is one channel data size.
-     * If channel number is one, need double frame_size.
-     */
-    uint8_t active_ch_num = aud_adc_get_active_ch_num();
-    #if 0
-    if (onboard_mic->adc_cfg.chl_num == 1)
-    {
-        frame_size = onboard_mic->frame_size * 2;
-    }
-    else
-    {
-        frame_size = onboard_mic->frame_size;
-    }
-    #endif
-    frame_size = active_ch_num * onboard_mic->frame_size;
+    frame_size = (uint32_t)aud_adc_get_active_ch_num() * onboard_mic->frame_size;
 
     /* init ringbuffer to save two frame data. */
     onboard_mic->mic_ring_buff = (int8_t *)audio_dma_mem_calloc(DMA_CARRY_MIC_FRAME_NUM, frame_size + DMA_CARRY_MIC_RINGBUF_SAFE_INTERVAL / DMA_CARRY_MIC_FRAME_NUM);
     AUDIO_MEM_CHECK(TAG, onboard_mic->mic_ring_buff, return BK_FAIL);
-    /* init dma channel */
-    dma_config.mode       = DMA_WORK_MODE_REPEAT;
-    dma_config.chan_prio  = 1;
-    dma_config.trans_type = DMA_TRANS_DEFAULT;
-    dma_config.src.dev    = DMA_DEV_AUD_MIC0;
-    dma_config.dst.dev    = DMA_DEV_DTCM;
-    dma_config.src.width  = DMA_DATA_WIDTH_32BITS;
-    dma_config.dst.width  = DMA_DATA_WIDTH_32BITS;
-    /* get adc fifo address */
-    if (bk_aud_adc_get_fifo_addr(AUD_ADC_MIC_DATA_BUS_0, &adc_port_addr) != BK_OK)
+
+    if (aud_adc_dma_setup_hw(onboard_mic) != BK_OK)
     {
-        BK_LOGE(TAG, "get adc fifo address failed\r\n");
         goto exit;
     }
-    else
-    {
-        dma_config.src.addr_inc_en  = DMA_ADDR_INC_ENABLE;
-        dma_config.src.addr_loop_en = DMA_ADDR_LOOP_ENABLE;
-        dma_config.src.start_addr   = adc_port_addr;
-        dma_config.src.end_addr     = adc_port_addr + 4;
-    }
-    dma_config.trans_type       = DMA_TRANS_DEFAULT;
-    dma_config.dst.addr_inc_en  = DMA_ADDR_INC_ENABLE;
-    dma_config.dst.addr_loop_en = DMA_ADDR_LOOP_ENABLE;
-    dma_config.dst.start_addr   = (uint32_t)(uintptr_t)onboard_mic->mic_ring_buff;
-    dma_config.dst.end_addr     = (uint32_t)(uintptr_t)onboard_mic->mic_ring_buff + frame_size * DMA_CARRY_MIC_FRAME_NUM + DMA_CARRY_MIC_RINGBUF_SAFE_INTERVAL;
-    ret = bk_dma_init(onboard_mic->mic_dma_id, &dma_config);
-    if (ret != BK_OK)
-    {
-        BK_LOGE(TAG, "%s, %d, dma_init fail\n", __func__, __LINE__);
-        goto exit;
-    }
-
-    /* set dma transfer length */
-    bk_dma_set_transfer_len(onboard_mic->mic_dma_id, frame_size);
-    /* register dma isr */
-    bk_dma_register_isr(onboard_mic->mic_dma_id, NULL, (void *)aud_adc_dma_finish_isr);
-    bk_dma_enable_finish_interrupt(onboard_mic->mic_dma_id);
-
-#if (CONFIG_SPE)
-    bk_dma_set_dest_sec_attr(onboard_mic->mic_dma_id, DMA_ATTR_SEC);
-    bk_dma_set_src_sec_attr(onboard_mic->mic_dma_id, DMA_ATTR_SEC);
-#endif
-
-    ring_buffer_init(&onboard_mic->mic_rb, (uint8_t *)onboard_mic->mic_ring_buff, frame_size * DMA_CARRY_MIC_FRAME_NUM + DMA_CARRY_MIC_RINGBUF_SAFE_INTERVAL, onboard_mic->mic_dma_id, RB_DMA_TYPE_WRITE);
 
     BK_LOGD(TAG, "adc_dma_cfg mic_dma_id: %d, transfer_len: %d \n", onboard_mic->mic_dma_id, frame_size);
-    BK_LOGD(TAG, "src_start_addr: 0x%08x, src_end_addr: 0x%08x \n", dma_config.src.start_addr, dma_config.src.end_addr);
-    BK_LOGD(TAG, "dst_start_addr: 0x%08x, dst_end_addr: 0x%08x \n", dma_config.dst.start_addr, dma_config.dst.end_addr);
+    BK_LOGD(TAG, "dst_start_addr: 0x%08x, dst_end_addr: 0x%08x \n",
+            (uint32_t)(uintptr_t)onboard_mic->mic_ring_buff,
+            (uint32_t)(uintptr_t)onboard_mic->mic_ring_buff +
+                frame_size * DMA_CARRY_MIC_FRAME_NUM + DMA_CARRY_MIC_RINGBUF_SAFE_INTERVAL);
 
     return BK_OK;
 exit:
@@ -683,13 +742,7 @@ static bk_err_t _onboard_mic_close(audio_element_handle_t self)
     uint32_t i;
 
     onboard_mic_stream_t *onboard_mic = (onboard_mic_stream_t *)audio_element_getdata(self);
-
-    bk_err_t ret = bk_dma_stop(onboard_mic->mic_dma_id);
-    if (ret != BK_OK)
-    {
-        BK_LOGE(TAG, "%s, %d, dac dma stop fail\n", __func__, __LINE__);
-        return BK_FAIL;
-    }
+    bk_err_t ret = BK_FAIL;
 
     for(i = 0; i < AUD_ADC_CHL_MAX; i++)
     {
