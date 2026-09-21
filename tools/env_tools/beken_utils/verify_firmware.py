@@ -343,7 +343,9 @@ def verify_bootloader(path, root_pubkey, flash_key, encrypted, otp, rep):
 
     # 3) the manifest describes the BL2 image actually present in the image
     code_off = static_addr & 0x00FFFFFF
-    bl2_region = data[code_off:code_off + hashed_size]
+    # XTS decrypts whole 32-byte units; align the read up so the last unit is complete
+    read_size = -(-hashed_size // XTS_DATA_UNIT) * XTS_DATA_UNIT
+    bl2_region = data[code_off:code_off + read_size]
     if len(bl2_region) < hashed_size:
         rep.check(False, 'BL2 image digest matches manifest',
                   'BL2 region truncated')
