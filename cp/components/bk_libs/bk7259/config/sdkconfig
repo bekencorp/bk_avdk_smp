@@ -69,6 +69,27 @@ CONFIG_NO_HOSTED=y
 # end of Network Services
 
 #
+# Multimedia
+#
+
+#
+# Audio
+#
+
+#
+# KWS
+#
+
+#
+# CP KWS Model
+#
+# CONFIG_CP_KWS_CPU_LIB is not set
+# end of CP KWS Model
+# end of KWS
+# end of Audio
+# end of Multimedia
+
+#
 # Debug
 #
 # CONFIG_ASSERT_IGNORE is not set
@@ -262,3 +283,9 @@ CONFIG_ADAPTIVE_WAKEUP_DELAY=y
 # CONFIG_MINIMUM_SCAN_RESULTS is not set
 # end of modules::raw_link
 # end of Shared Configs with Public components
+
+#
+# AUDIO_AACDEC
+#
+# CONFIG_AUDIO_AACDEC is not set
+# end of AUDIO_AACDEC
