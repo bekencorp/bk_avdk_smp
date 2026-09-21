@@ -1108,7 +1108,7 @@ static void tx_req_process(void)
 
 	if(log_busy_queue.free_cnt == 0)
 		return;
-	
+
 	tx_ready = 0;
 
 	log_dev->dev_drv->io_ctrl(log_dev, SHELL_IO_CTRL_GET_STATUS, &tx_ready);
@@ -1181,7 +1181,7 @@ static void tx_req_process(void)
 				shell_assert_out(bTRUE, "xFATAL: in Tx_req id=%x\r\n", blk_id);
 		}
 	}
-	else if (queue_id == SHELL_DYM_QUEUE_ID) 
+	else if (queue_id == SHELL_DYM_QUEUE_ID)
 	{
 		dynamic_log_node *node = dynamic_list_switch();
 		if (node != NULL) {
@@ -1939,7 +1939,7 @@ void reset_forward_log_status(void)
 	ipc_fwd_data.rsp_buf.tag = INVALID_LOG_TAG;
 	ipc_fwd_data.ind_buf.tag = INVALID_LOG_TAG;
 	ipc_fwd_data.common_log_buf.tag = INVALID_LOG_TAG;
-	
+
 	shell_task_exit_critical(int_mask);
 }
 #endif
@@ -1950,7 +1950,7 @@ static void log_handle_task( void *para )
 	while(bTRUE)
 	{
 		Events = wait_any_event(&shell_log_event, BEKEN_WAIT_FOREVER);
-		
+
 		if(Events & SHELL_EVENT_DYM_FREE)
 		{
 			check_and_free_dynamic_node();
@@ -2106,7 +2106,7 @@ static int shell_log_raw_data_internel(bool hint, const u8 *data, u16 data_len)
 
 	if (NULL == packet_buf)
 	{
-		if (hint == 0) 
+		if (hint == 0)
 			return 0;
 
 		if (s_block_mode & LOG_BLOCK_MASK) {
@@ -2588,10 +2588,10 @@ int shell_cmd_forward(char *cmd, u16 cmd_len)
 	    u32  int_mask = shell_task_enter_critical();
 	    ret_code = ipc_dev->dev_drv->write_cmd(ipc_dev, &mb_cmd_buf);
 	    shell_task_exit_critical(int_mask);
-	    
+
 	    if(ret_code != 0)
 	        break;
-	        
+
 	    rtos_delay_milliseconds(10);
 	    try_cnt++;
 	    if(try_cnt < 4)
@@ -2894,12 +2894,34 @@ static void dynamic_node_gc(void)
 	shell_task_exit_critical(int_mask);
 	node = free_list;
 	while (node != NULL) {
+		uint32_t node_len = node->len;
+		uint32_t payload_len = 0;
+
+		if (node_len >= DYM_NODE_SIZE) {
+			payload_len = node_len - DYM_NODE_SIZE;
+		}
+
+		if ((node_len < DYM_NODE_SIZE) || (payload_len > CONFIG_DYM_LOG_MEM_MAX)) {
+			shell_assert_out(bTRUE, "DYM_BAD:node=%p,next=%p,len=%x,crc=%x\r\n",
+				node, node->next, node->len,
 #if LOG_CRC_CHECK
-		uint32_t crc = log_crc16(node->ptr, node->len - DYM_NODE_SIZE);
+				node->crc16
+#else
+				0
+#endif
+				);
+			node = node->next;
+			/* The node header is already corrupted. Do not LOG_FREE() it:
+			 * heap_4 will assert if this is no longer a valid allocated block. */
+			s_dynamic_log_num_in_mem--;
+			continue;
+		}
+#if LOG_CRC_CHECK
+		uint32_t crc = log_crc16(node->ptr, payload_len);
 		BK_ASSERT(crc == node->crc16);
 #endif
 		temp_node = node;
-		s_dynamic_log_total_len -= node->len;
+		s_dynamic_log_total_len -= node_len;
 		node = node->next;
 		LOG_FREE(temp_node);
 		s_dynamic_log_num_in_mem--;
