@@ -15,6 +15,7 @@
  ******************************************************************************
  */
 #include <common/bk_include.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <sys/stat.h>
 #include <sys/times.h>
@@ -64,6 +65,14 @@ __attribute__((weak)) void __wrap_free(void *pv)
 __attribute__((weak)) void *__wrap_calloc(size_t a, size_t b)
 {
 	void *pvReturn;
+
+	/* Reject an overflowing product, as newlib's calloc does: this wrapper
+	 * serves every calloc path, so a wrapped size would hand the caller a
+	 * buffer smaller than requested. */
+	if (a != 0 && b > (SIZE_MAX / a))
+    {
+        return NULL;
+    }
 
 	pvReturn = __wrap_malloc(a * b);
 	if (pvReturn)
