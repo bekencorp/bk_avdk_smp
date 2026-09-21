@@ -128,6 +128,11 @@ void lv_gpu_init(uint32_t tess_width, uint32_t tess_height)
 {
     bk_gpu_driver_init();
 
+    if (bk_gpu_vg_lite_apply_mem_config(tess_width, tess_height) == 0) {
+        LOGE("vg_lite mem config failed\n");
+        return;
+    }
+
     vg_lite_init(tess_width, tess_height);
 }
 
