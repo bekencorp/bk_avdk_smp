@@ -8,6 +8,7 @@
 #include <modules/pm.h>
 #include "sys_driver.h"
 #include <modules/vg_lite_gpu/vg_lite_platform.h>
+#include <modules/vg_lite_gpu/vg_lite.h>
 
 #define TAG "gpu_core"
 
@@ -64,6 +65,46 @@ static bk_err_t gpu_driver_lock(void)
     }
 
     return rtos_lock_mutex(&s_gpu_driver_lock);
+}
+
+uint32_t bk_gpu_vg_lite_apply_mem_config(uint32_t tess_width, uint32_t tess_height)
+{
+    vg_lite_mem_config_t cfg;
+    uint32_t max_w = 0;
+    uint32_t max_h = 0;
+
+    os_memset(&cfg, 0, sizeof(cfg));
+#ifdef CONFIG_VG_LITE_GPU_BASE_ADDRESS
+    cfg.gpu_base_addr = (uint32_t)CONFIG_VG_LITE_GPU_BASE_ADDRESS;
+#endif
+#ifdef CONFIG_VG_LITE_GPU_COMMAND_BUFFER_SIZE
+    cfg.command_buffer_size = (uint32_t)CONFIG_VG_LITE_GPU_COMMAND_BUFFER_SIZE;
+#endif
+#ifdef CONFIG_VG_LITE_GPU_TESS_WIDTH
+    max_w = (uint32_t)CONFIG_VG_LITE_GPU_TESS_WIDTH;
+#endif
+#ifdef CONFIG_VG_LITE_GPU_TESS_HEIGHT
+    max_h = (uint32_t)CONFIG_VG_LITE_GPU_TESS_HEIGHT;
+#endif
+
+    /* Non-zero Kconfig tess is the reserved maximum for all GPU scenes.
+     * Always size the contiguous heap for that maximum so a later
+     * vg_lite_init() cannot grow a previously allocated small buffer. */
+    if ((max_w != 0) && (max_h != 0)) {
+        if ((tess_width > max_w) || (tess_height > max_h)) {
+            LOGE("vg_lite tess %u x %u exceeds CONFIG max %u x %u\r\n",
+                 tess_width, tess_height, max_w, max_h);
+            return 0;
+        }
+        tess_width = max_w;
+        tess_height = max_h;
+    }
+
+    /* When the Kconfig max is 0, the first call latches this tess into OSI
+     * so vsios_gpu_vg_lite_tess_width/height stay stable for later scenes. */
+    cfg.tess_width = tess_width;
+    cfg.tess_height = tess_height;
+    return vg_lite_set_mem_config(&cfg);
 }
 
 void bk_gpu_driver_init(void)

@@ -14,6 +14,7 @@
 
 #pragma once
 
+#include <stdint.h>
 #include <common/bk_err.h>
 
 #ifdef __cplusplus
@@ -24,6 +25,13 @@ extern "C" {
 void bk_gpu_driver_init(void);
 
 void bk_gpu_driver_deinit(void);
+
+/* Apply VG-Lite runtime mem config (base/cmd/tess) and return the contiguous
+ * heap size the caller must allocate. If CONFIG_VG_LITE_GPU_TESS_WIDTH/HEIGHT
+ * are non-zero, the heap is always sized for that maximum and a larger tess
+ * request fails (returns 0). tess 0 x 0 disables the tess buffer only when
+ * those Kconfig values are 0. */
+uint32_t bk_gpu_vg_lite_apply_mem_config(uint32_t tess_width, uint32_t tess_height);
 
 /* Global VG-Lite hardware lock shared by all GPU users. */
 bk_err_t bk_gpu_global_lock(void);
