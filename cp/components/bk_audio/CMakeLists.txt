@@ -17,19 +17,15 @@ set(incs
 	audio_algorithms/aec_v3_algorithm/v2.0
 	audio_algorithms/eq_algorithm
 	audio_utils
-	../../properties/modules/audio_codec/helix
-	../../properties/modules/audio_codec/wav
-	../../properties/modules/audio_codec/eq
-	../../properties/modules/audio_codec/audio_osi
 )
 set(srcs)
 set(priv_requires bk_common driver)
 
 if (CONFIG_ADK)
 	list(APPEND srcs
-		../../properties/modules/audio_codec/audio_osi/audio_osi_wrapper.c
+		audio_osi_wrapper.c
 	)
-	list(APPEND priv_requires audio_pipeline)
+	list(APPEND priv_requires audio_pipeline audio_osi)
 endif()
 
 if (CONFIG_ADK_RAW_STREAM)
@@ -53,31 +49,11 @@ if (CONFIG_ADK_G711_DECODER)
 endif()
 
 if (CONFIG_ADK_MP3_DECODER)
-	list(APPEND srcs
-		../../properties/modules/audio_codec/helix/bitstream.c
-		../../properties/modules/audio_codec/helix/buffers.c
-		../../properties/modules/audio_codec/helix/dct32.c
-		../../properties/modules/audio_codec/helix/dequant.c
-		../../properties/modules/audio_codec/helix/dqchan.c
-		../../properties/modules/audio_codec/helix/huffman.c
-		../../properties/modules/audio_codec/helix/hufftabs.c
-		../../properties/modules/audio_codec/helix/imdct.c
-		../../properties/modules/audio_codec/helix/mp3dec.c
-		../../properties/modules/audio_codec/helix/mp3tabs.c
-		../../properties/modules/audio_codec/helix/polyphase.c
-		../../properties/modules/audio_codec/helix/scalfact.c
-		../../properties/modules/audio_codec/helix/stproc.c
-		../../properties/modules/audio_codec/helix/subband.c
-		../../properties/modules/audio_codec/helix/trigtabs.c
-	)
-	list(APPEND priv_requires mp3_decoder)
+	list(APPEND priv_requires mp3_decoder helix)
 endif()
 
 if (CONFIG_ADK_WAV_DECODER)
-	list(APPEND srcs
-		../../properties/modules/audio_codec/wav/wav_head.c
-	)
-	list(APPEND priv_requires wav_decoder)
+	list(APPEND priv_requires wav_decoder wav)
 endif()
 
 if (CONFIG_ADK_G711_ENCODER)
@@ -85,9 +61,7 @@ if (CONFIG_ADK_G711_ENCODER)
 endif()
 
 if (CONFIG_ADK_G711_DECODER OR CONFIG_ADK_G711_ENCODER)
-	list(APPEND srcs
-		../../properties/modules/audio_codec/g711/g711.c
-	)
+	list(APPEND priv_requires g711)
 endif()
 
 if (CONFIG_ADK_AEC_V3_ALGORITHM)
@@ -95,10 +69,7 @@ if (CONFIG_ADK_AEC_V3_ALGORITHM)
 endif()
 
 if (CONFIG_ADK_EQ_ALGORITHM)
-	list(APPEND srcs
-		../../properties/modules/audio_codec/eq/eq_src.c
-	)
-	list(APPEND priv_requires eq_algorithm)
+	list(APPEND priv_requires eq_algorithm eq)
 endif()
 
 if (CONFIG_ADK_COUNT_UTIL)
