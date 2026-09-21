@@ -246,6 +246,36 @@ bk_err_t audio_element_set_tag(audio_element_handle_t el, const char *tag);
 char *audio_element_get_tag(audio_element_handle_t el);
 
 /**
+ * @brief      Start process-cost observation for the current element.
+ *
+ *             The caller should place this after blocking input/wait operations
+ *             and before the non-blocking component work to keep timing
+ *             comparable across elements.
+ *
+ * @param[in]  el    The audio element handle
+ */
+void audio_element_obs_begin(audio_element_handle_t el);
+
+/**
+ * @brief      Finish process-cost observation for the current element.
+ *
+ * @param[in]  el          The audio element handle
+ * @param[in]  ret         The element process return value or input size
+ * @param[in]  frame_size  The expected frame size
+ */
+void audio_element_obs_end(audio_element_handle_t el, int ret, uint32_t frame_size);
+
+#if CONFIG_ADK_OBS_UTIL
+#define AUDIO_ELEMENT_OBS_BEGIN(el) \
+    audio_element_obs_begin(el)
+#define AUDIO_ELEMENT_OBS_END(el, ret, frame_size) \
+    audio_element_obs_end((el), (ret), (frame_size))
+#else
+#define AUDIO_ELEMENT_OBS_BEGIN(el) do { } while (0)
+#define AUDIO_ELEMENT_OBS_END(el, ret, frame_size) do { } while (0)
+#endif
+
+/**
  * @brief      Set audio element infomation.
  *
  * @param[in]  el    The audio element handle
