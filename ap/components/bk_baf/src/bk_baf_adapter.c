@@ -75,6 +75,7 @@ avdk_err_t bk_baf_init(const bk_baf_hw_config_t * hw)
      * Guarded so repeat calls are a no-op. */
     if(hw->init_gpu && !s_gpu_owned) {
         bk_gpu_driver_init();
+        if(bk_gpu_vg_lite_apply_mem_config(0, 0) == 0) return AVDK_ERR_NOMEM;
         if(vg_lite_init(0, 0) != VG_LITE_SUCCESS) return AVDK_ERR_GENERIC;
         s_gpu_owned = true;
     }
