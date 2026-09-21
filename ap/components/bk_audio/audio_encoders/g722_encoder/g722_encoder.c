@@ -105,6 +105,7 @@ static int _g722_encoder_process(audio_element_handle_t self, char *in_buffer, i
         AUDIO_MEM_CHECK(TAG, g722_out_ptr, return -1);
 
         int16_t *linear = (int16_t *)in_buffer;
+        AUDIO_ELEMENT_OBS_BEGIN(self);
         if(is_aud_dump_valid(DUMP_TYPE_ENC_IN_DATA))
         {
             /*update header*/
@@ -128,6 +129,7 @@ static int _g722_encoder_process(audio_element_handle_t self, char *in_buffer, i
 
         // Encode using G722
         int encoded_len = bk_g722_encode(&g722_enc->enc_state, g722_out_ptr, linear, r_size / 2);
+        AUDIO_ELEMENT_OBS_END(self, r_size, (uint32_t)in_len);
 
         G722_ENC_DATA_DUMP_BY_UART_DATA(g722_out_ptr, encoded_len);
 

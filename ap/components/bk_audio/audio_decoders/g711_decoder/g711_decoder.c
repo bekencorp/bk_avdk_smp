@@ -120,6 +120,7 @@ static int _g711_decoder_process(audio_element_handle_t self, char *in_buffer, i
 
         uint8_t *law = (uint8_t *)in_buffer;
 
+        AUDIO_ELEMENT_OBS_BEGIN(self);
         if(is_aud_dump_valid(DUMP_TYPE_DEC_IN_DATA))
         {
             /*update header*/
@@ -163,6 +164,7 @@ static int _g711_decoder_process(audio_element_handle_t self, char *in_buffer, i
                 g711_out_ptr[i] = alaw2linear(law[i]);
             }
         }
+        AUDIO_ELEMENT_OBS_END(self, r_size, (uint32_t)in_len);
 
         G711_DEC_DATA_DUMP_BY_UART_DATA(g711_out_ptr, r_size << 1);
 
@@ -252,4 +254,3 @@ _g711_decoder_init_exit:
     audio_free(g711_dec);
     return NULL;
 }
-

@@ -169,7 +169,7 @@ static uint8_t aud_adc_get_active_ch_num(void)
 {
     uint32_t i;
     uint8_t ch_num = 0;
-    
+
     for(i = 0; i < AUD_ADC_CHL_MAX; i++)
     {
         if(gl_onboard_mic->ch_bitmap & (1 << i))
@@ -208,7 +208,7 @@ static void flash_op_notify_onboard_mic_stream_handler(uint32_t param, void *arg
                     bk_aud_adc_stop(i);
                 }
             }
-            
+
             ring_buffer_clear(&onboard_mic->mic_rb);
         }
         else
@@ -586,11 +586,15 @@ static int _onboard_mic_process(audio_element_handle_t self, char *in_buffer, in
     }
     AUD_ONBOARD_MIC_SEM_WAIT_END();
 
+    AUDIO_ELEMENT_OBS_BEGIN(self);
     BK_LOGV(TAG, "[%s] _onboard_mic_process \n", audio_element_get_tag(self));
 
     /* read input data */
     AUD_ONBOARD_MIC_INPUT_START();
     int r_size = audio_element_input(self, in_buffer, in_len);
+#if CONFIG_ADK_OBS_UTIL
+    int obs_ret = r_size;
+#endif
     AUD_ONBOARD_MIC_INPUT_END();
 
     /* used to test dma pause function */
@@ -665,6 +669,9 @@ static int _onboard_mic_process(audio_element_handle_t self, char *in_buffer, in
         w_size = r_size;
     }
 
+#if CONFIG_ADK_OBS_UTIL
+    AUDIO_ELEMENT_OBS_END(self, obs_ret, (obs_ret > 0) ? (uint32_t)obs_ret : (uint32_t)in_len);
+#endif
     AUD_ONBOARD_MIC_PROCESS_END();
 
     return w_size;
@@ -908,7 +915,7 @@ audio_element_handle_t onboard_mic_stream_init(onboard_mic_stream_cfg_t *config)
     gl_onboard_mic->out_block_size = cfg.out_block_size;
     gl_onboard_mic->out_block_num  = cfg.out_block_num;
 
-    BK_LOGD(TAG, "ch_bitmap:%d, buffer_len: %d, out_block_size: %d, out_block_num: %d\n", 
+    BK_LOGD(TAG, "ch_bitmap:%d, buffer_len: %d, out_block_size: %d, out_block_num: %d\n",
         gl_onboard_mic->ch_bitmap, cfg.buffer_len, gl_onboard_mic->out_block_size, gl_onboard_mic->out_block_num);
 
     /* SSOT self-describe: log the capture-side lane layout so it can be eyeballed
@@ -1137,4 +1144,3 @@ bk_err_t onboard_mic_stream_get_analog_gain(audio_element_handle_t onboard_mic_s
 
     return BK_OK;
 }
-

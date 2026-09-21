@@ -148,6 +148,7 @@ static int _g722_decoder_process(audio_element_handle_t self, char *in_buffer, i
         //int16_t *g722_out_ptr = audio_malloc(out_size);
         AUDIO_MEM_CHECK(TAG, g722_out_ptr, return -1);
 
+        AUDIO_ELEMENT_OBS_BEGIN(self);
         if(is_aud_dump_valid(DUMP_TYPE_DEC_IN_DATA))
         {
             /*update header*/
@@ -175,8 +176,10 @@ static int _g722_decoder_process(audio_element_handle_t self, char *in_buffer, i
         {
             BK_LOGE(TAG, "g722_decode failed, ret: %d\n", decoded_len);
             //audio_free(g722_out_ptr);
+            AUDIO_ELEMENT_OBS_END(self, -1, (uint32_t)in_len);
             return -1;
         }
+        AUDIO_ELEMENT_OBS_END(self, r_size, (uint32_t)in_len);
 
         if(is_aud_dump_valid(DUMP_TYPE_DEC_OUT_DATA))
         {

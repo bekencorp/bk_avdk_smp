@@ -27,6 +27,7 @@
 #include <components/bk_audio/audio_pipeline/ringbuf.h>
 #include <components/bk_audio/audio_utils/debug_dump_util.h>
 #include <soc/soc.h>
+#include <components/bk_audio/audio_utils/audio_obs_util.h>
 #include "aud_hal.h"
 
 
@@ -285,6 +286,8 @@ static int _eq_algorithm_process(audio_element_handle_t self, char *in_buffer, i
     int w_size = 0;
     if (r_size > 0)
     {
+        AUDIO_ELEMENT_OBS_BEGIN(self);
+
         EQ_DATA_DUMP_IN_DATA(in_buffer, r_size);
         if(is_aud_dump_valid(DUMP_TYPE_EQ_IN_DATA))
         {
@@ -320,6 +323,7 @@ static int _eq_algorithm_process(audio_element_handle_t self, char *in_buffer, i
         rtos_unlock_mutex(&eq->cfg_lock);
 
         EQ_ALGORITHM_END();
+        AUDIO_ELEMENT_OBS_END(self, r_size, (uint32_t)in_len);
 
         EQ_DATA_DUMP_OUT_DATA(in_buffer, r_size);
 

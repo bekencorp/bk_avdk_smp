@@ -1,6 +1,7 @@
 set(incs)
 
 set(srcs)
+set(priv_requires bk_common)
 
 if (CONFIG_ADK)
 list(APPEND srcs
@@ -38,4 +39,8 @@ if (CONFIG_ADK_AUTO_TEST_EVENT)
 endif()
 endif()
 
-armino_component_register(SRCS "${srcs}" INCLUDE_DIRS "${incs}" PRIV_REQUIRES bk_common)
+if (CONFIG_ADK_OBS_UTIL)
+	list(APPEND priv_requires audio_utils)
+endif()
+
+armino_component_register(SRCS "${srcs}" INCLUDE_DIRS "${incs}" PRIV_REQUIRES "${priv_requires}")

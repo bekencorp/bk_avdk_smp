@@ -91,6 +91,7 @@ static int _g711_encoder_process(audio_element_handle_t self, char *in_buffer, i
 
         int16_t *linear = (int16_t *)in_buffer;
 
+        AUDIO_ELEMENT_OBS_BEGIN(self);
         if(is_aud_dump_valid(DUMP_TYPE_ENC_IN_DATA))
         {
             /*update header*/
@@ -126,6 +127,7 @@ static int _g711_encoder_process(audio_element_handle_t self, char *in_buffer, i
                 g711_out_ptr[i] = linear2alaw(linear[i]);
             }
         }
+        AUDIO_ELEMENT_OBS_END(self, r_size, (uint32_t)in_len);
         //      BK_LOGD(TAG, "[%s] r_size>>1: %d \n", audio_element_get_tag(self), r_size>1);
 
         G711_ENC_DATA_DUMP_BY_UART_DATA(g711_out_ptr, r_size >> 1);
@@ -219,4 +221,3 @@ _g711_encoder_init_exit:
     audio_free(g711_enc);
     return NULL;
 }
-

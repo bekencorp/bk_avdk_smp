@@ -31,6 +31,9 @@
 #include <components/bk_audio/audio_pipeline/fb_port.h>
 #include <components/bk_audio/audio_pipeline/rb_port.h>
 #include <components/bk_audio/audio_pipeline/cb_port.h>
+#if CONFIG_ADK_OBS_UTIL
+#include <components/bk_audio/audio_utils/audio_obs_util.h>
+#endif
 
 
 #define TAG  "AUD_ELE"
@@ -128,6 +131,9 @@ struct audio_element
     volatile bool               is_running;
     volatile bool               task_run;
     volatile bool               stopping;
+#if CONFIG_ADK_OBS_UTIL
+    audio_obs_element_stat_t    observe_stat;
+#endif
 };
 
 #define BIT6     0x00000040
@@ -618,6 +624,36 @@ bk_err_t audio_element_set_tag(audio_element_handle_t el, const char *tag)
 char *audio_element_get_tag(audio_element_handle_t el)
 {
     return el->tag;
+}
+
+void audio_element_obs_begin(audio_element_handle_t el)
+{
+#if CONFIG_ADK_OBS_UTIL
+    if (!el)
+    {
+        return;
+    }
+
+    audio_obs_element_begin(&el->observe_stat, el->tag);
+#else
+    (void)el;
+#endif
+}
+
+void audio_element_obs_end(audio_element_handle_t el, int ret, uint32_t frame_size)
+{
+#if CONFIG_ADK_OBS_UTIL
+    if (!el)
+    {
+        return;
+    }
+
+    audio_obs_element_report(&el->observe_stat, el->tag, TAG, ret, frame_size);
+#else
+    (void)el;
+    (void)ret;
+    (void)frame_size;
+#endif
 }
 
 bk_err_t audio_element_set_uri(audio_element_handle_t el, const char *uri)
@@ -1821,4 +1857,3 @@ bk_err_t audio_element_set_input_port_type(audio_element_handle_t el, port_type_
 
     return BK_OK;
 }
-

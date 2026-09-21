@@ -705,12 +705,12 @@ static void aec_dump_reset_context(aec_v3_algorithm_t *aec)
 
 static void aec_vad_flag_update(aec_v3_algorithm_t *aec, int vad_state)
 {
-    if((aec->vad_state != vad_state) 
-        && (VAD_NONE != vad_state) 
-        && (VAD_SPEECH_START <= vad_state) 
+    if((aec->vad_state != vad_state)
+        && (VAD_NONE != vad_state)
+        && (VAD_SPEECH_START <= vad_state)
         && (VAD_SILENCE >= vad_state))  //1 vad start 2 vad end 3 slience
     {
-        static const char *vad_str[] = 
+        static const char *vad_str[] =
         {
             "vad_none","vad_speech_start","vad_speech_end","vad_silence"
         };
@@ -993,8 +993,8 @@ static bk_err_t _aec_v3_algorithm_open(audio_element_handle_t self)
     aec_ctrl(aec->aec_ctx, AEC_CTRL_CMD_SET_MIC_DELAY, aec->aec_cfg.delay_points);      //设置参考信号延迟(采样点数，需要dump数据观察)
     BK_LOGV(TAG, "delay_points = %d\n", aec->aec_cfg.delay_points);
     aec_ctrl(aec->aec_ctx, AEC_CTRL_CMD_SET_EC_DEPTH, aec->aec_cfg.ec_depth);           //建议取值范围1~50; 后面几个参数建议先用aec_init内的默认值，具体需要根据实际情况调试; 总得来说回声越大需要调的越大
-    
-    aec_ctrl(aec->aec_ctx, AEC_CTRL_CMD_SET_REF_SCALE, aec->aec_cfg.ref_scale);         //取值0,1,2；rx数据如果幅值太小的话适当放大     
+
+    aec_ctrl(aec->aec_ctx, AEC_CTRL_CMD_SET_REF_SCALE, aec->aec_cfg.ref_scale);         //取值0,1,2；rx数据如果幅值太小的话适当放大
     aec_ctrl(aec->aec_ctx, AEC_CTRL_CMD_SET_VOL, aec->aec_cfg.voice_vol);               //通话过程中如果需要经常调节喇叭音量就设置下当前音量等级
     aec_ctrl(aec->aec_ctx, AEC_CTRL_CMD_SET_MAX_DELAY, AEC_DELAY_BUFFER_SIZE/2);
     aec_ctrl(aec->aec_ctx, AEC_CTRL_CMD_GET_FRAME_SAMPLE, (uint32_t)(&aec_frame_sample_cnt));
@@ -1116,15 +1116,15 @@ static bk_err_t _aec_v3_algorithm_open(audio_element_handle_t self)
                  aec->aec_ctx->dist,
                  aec->aec_ctx->mic_swap,
                  aec->aec_ctx->vol);
-    
-    BK_LOGD(TAG, "aec_cfg 2:ec_filter:0x%x,ec_depth:%d,drc_mode:%d,mic_delay:%d,max_mic_delay:%d\n", 
+
+    BK_LOGD(TAG, "aec_cfg 2:ec_filter:0x%x,ec_depth:%d,drc_mode:%d,mic_delay:%d,max_mic_delay:%d\n",
                  aec->aec_ctx->ec_filter,
                  aec->aec_ctx->ec_depth,
                  aec->aec_ctx->drc_mode,
                  aec->aec_ctx->mic_delay,
                  aec->aec_ctx->max_mic_delay);
 
-    BK_LOGD(TAG, "aec_cfg 3:spcnt:%d,ns_type:%d,ns_filter:0x%x,vad:%d,vad_en:%d,ec_only_out:%d\n", 
+    BK_LOGD(TAG, "aec_cfg 3:spcnt:%d,ns_type:%d,ns_filter:0x%x,vad:%d,vad_en:%d,ec_only_out:%d\n",
                  aec->aec_ctx->spcnt,
                  aec->aec_cfg.ns_type,
                  aec->aec_ctx->ns_filter,
@@ -1138,9 +1138,9 @@ static bk_err_t _aec_v3_algorithm_open(audio_element_handle_t self)
         if((aec->vad_cfg.vad_start_threshold !=0 && aec->vad_cfg.vad_stop_threshold != 0xff)
         && (aec->vad_cfg.vad_start_threshold != aec->vad_cfg.vad_stop_threshold))
         {
-            aec_vad_thr_mapping(aec->aec_ctx->SPthr, 
-                                aec->vad_cfg.vad_start_threshold, 
-                                aec->vad_cfg.vad_stop_threshold, 
+            aec_vad_thr_mapping(aec->aec_ctx->SPthr,
+                                aec->vad_cfg.vad_start_threshold,
+                                aec->vad_cfg.vad_stop_threshold,
                                 aec->vad_cfg.vad_silence_threshold,
                                 aec->vad_cfg.vad_eng_threshold);
         }
@@ -1450,7 +1450,7 @@ static int _aec_v3_algorithm_process(audio_element_handle_t self, char *in_buffe
         {
             AEC_DATA_DUMP_MIC_DATA(aec->mic_addr, aec->frame_size);
         }
-        
+
         AEC_DATA_DUMP_REF_DATA(aec->ref_addr, aec->frame_size);
 
         #if CONFIG_ADK_DEBUG_DUMP_UTIL
@@ -1461,12 +1461,13 @@ static int _aec_v3_algorithm_process(audio_element_handle_t self, char *in_buffe
         }
         #endif
 
+        AUDIO_ELEMENT_OBS_BEGIN(self);
         AEC_ALGORITHM_START();
         /* guard aec_ctx (shared with set_config's aec_ctrl) during the AEC compute window;
          * user callbacks below are intentionally left outside the lock */
         rtos_lock_recursive_mutex(&aec->cfg_lock);
 #if CONFIG_AEC_RUN_ON_M52
-        if (aec->m52_proxy) 
+        if (aec->m52_proxy)
         {
              if (aec_m52_proxy_copy_last_output(aec->m52_proxy, aec->out_addr, aec->frame_size) != BK_OK) {
                  os_memset(aec->out_addr, 0, aec->frame_size);
@@ -1552,6 +1553,7 @@ static int _aec_v3_algorithm_process(audio_element_handle_t self, char *in_buffe
         }
 
         AEC_ALGORITHM_END();
+        AUDIO_ELEMENT_OBS_END(self, r_size, (uint32_t)in_len);
 
         AEC_DATA_DUMP_OUT_DATA(aec->out_addr, aec->frame_size);
 
@@ -1618,7 +1620,7 @@ static int _aec_v3_algorithm_process(audio_element_handle_t self, char *in_buffe
                 {
                     w_size = aec->frame_size;
                 }
-                
+
                 int fill_size = rb_bytes_filled(aec->vad_rb);
 
                 if(aec->vad_cfg.vad_buf_size >= (fill_size + aec->frame_size))
@@ -1641,7 +1643,7 @@ static int _aec_v3_algorithm_process(audio_element_handle_t self, char *in_buffe
                 rb_read(aec->vad_rb, (char *)aec->out_read_addr,  aec->frame_size, BEKEN_WAIT_FOREVER);
 
                 vad_buff_data_size = rb_bytes_filled(aec->vad_rb);
-                
+
                 w_size = audio_element_output(self, (char *)aec->out_read_addr, aec->frame_size);
                 AEC_OUTPUT_END();
 
@@ -1728,7 +1730,7 @@ static bk_err_t _aec_v3_algorithm_destroy(audio_element_handle_t self)
         rb_destroy(aec->vad_rb);
         aec->vad_rb = NULL;
     }
-    
+
     if (aec->aec_ctx)
     {
         #if CONFIG_ADK_AEC_V3_USE_DTCM
@@ -1929,9 +1931,9 @@ bk_err_t aec_v3_algorithm_set_config(audio_element_handle_t aec_algorithm, void 
     if((aec->vad_cfg.vad_start_threshold !=0 && aec->vad_cfg.vad_stop_threshold != 0xff)
                                         && (aec->vad_cfg.vad_start_threshold != aec->vad_cfg.vad_stop_threshold))
     {
-        aec_vad_thr_mapping(aec->aec_ctx->SPthr, 
-                            aec->vad_cfg.vad_start_threshold, 
-                            aec->vad_cfg.vad_stop_threshold, 
+        aec_vad_thr_mapping(aec->aec_ctx->SPthr,
+                            aec->vad_cfg.vad_start_threshold,
+                            aec->vad_cfg.vad_stop_threshold,
                             aec->vad_cfg.vad_silence_threshold,
                             aec->vad_cfg.vad_eng_threshold);
     }

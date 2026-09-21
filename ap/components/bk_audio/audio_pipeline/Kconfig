@@ -512,6 +512,11 @@ menu "Adk"
 			bool "Enable ADK count debug util"
 			default y
 
+		config ADK_OBS_UTIL
+			depends on ADK_UTILS
+			bool "Enable ADK observe debug util"
+			default n
+
 		config ADK_VFS_UTIL
 			depends on ADK_UTILS
 			bool "Enable ADK vfs debug util"

@@ -39,7 +39,6 @@
 #include <modules/pm.h>
 #endif
 
-
 #define TAG  "ONBOARD_SPEAKER"
 
 //#define ONBOARD_SPK_DEBUG   //GPIO debug
@@ -1495,6 +1494,7 @@ static int _onboard_speaker_process(audio_element_handle_t self, char *in_buffer
         //return -1;
         BK_LOGE(TAG, "[%s] semaphore get timeout 2000ms\n", audio_element_get_tag(self));
     }
+    AUDIO_ELEMENT_OBS_BEGIN(self);
     AUD_ONBOARD_SPK_PROCESS_START();
     BK_LOGV(TAG, "[%s] _onboard_speaker_process \n", audio_element_get_tag(self));
 
@@ -1887,6 +1887,7 @@ static int _onboard_speaker_process(audio_element_handle_t self, char *in_buffer
 #endif
     //w_size = onboard_spk->frame_size;
 
+    AUDIO_ELEMENT_OBS_END(self, w_size, onboard_spk->frame_size[main_src]);
     AUD_ONBOARD_SPK_PROCESS_END();
     //BK_LOGD(TAG, "%s, %d, w_size: %d\n", __func__, __LINE__, w_size);
     return w_size;
@@ -1982,7 +1983,7 @@ static bk_err_t _onboard_speaker_destroy(audio_element_handle_t self)
             }
         }
     }
-    
+
     if (onboard_spk && onboard_spk->can_process)
     {
         rtos_deinit_semaphore(&onboard_spk->can_process);
@@ -2502,7 +2503,7 @@ _onboard_speaker_init_exit:
         rtos_deinit_mutex(&gl_onboard_speaker->cfg_lock);
         gl_onboard_speaker->cfg_lock = NULL;
     }
-    
+
 #if CONFIG_ADK_ONBOARD_SPEAKER_STREAM_SUPPORT_MULTIPLE_SOURCE
     /* Delete mutex lock, no need to free list nodes as they are not added yet in init phase */
     if (gl_onboard_speaker->lock)

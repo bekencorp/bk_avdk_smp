@@ -14,6 +14,12 @@ if (CONFIG_ADK_COUNT_UTIL)
 	)
 endif()
 
+if (CONFIG_ADK_OBS_UTIL)
+	list(APPEND srcs
+		audio_obs_util.c
+	)
+endif()
+
 if (CONFIG_ADK_VFS_UTIL)
 	list(APPEND srcs
 		vfs_util.c

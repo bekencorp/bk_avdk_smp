@@ -370,15 +370,18 @@ static int _aac_encoder_process(audio_element_handle_t self, char *in_buffer, in
 retry:
     if (aac_enc->valid_size >= aac_enc->frame_size)
     {
+        AUDIO_ELEMENT_OBS_BEGIN(self);
         AAC_ENCODER_FRAME_START();
         ret = _aac_encoder_lib_frame_process(aac_enc->enc_handle, aac_enc->frame_size, (int16_t *)aac_enc->in_pool_buff, aac_enc->out_buffer_len, &enc_size, aac_enc->out_frame_buff);
         AAC_ENCODER_FRAME_END();
         if (ret != BK_OK)
         {
             BK_LOGE(TAG, "[%s] %s, %d, aac encode frame fail, ret: %d\n", audio_element_get_tag(self), __func__, __LINE__, ret);
+            AUDIO_ELEMENT_OBS_END(self, -1, (uint32_t)aac_enc->frame_size);
             result = -1;
             goto out;
         }
+        AUDIO_ELEMENT_OBS_END(self, aac_enc->frame_size, (uint32_t)aac_enc->frame_size);
 
         aac_enc->valid_size -= aac_enc->frame_size;
         os_memmove(aac_enc->in_pool_buff, aac_enc->in_pool_buff + aac_enc->frame_size, aac_enc->valid_size);
@@ -406,15 +409,18 @@ retry:
                 os_memcpy(aac_enc->in_pool_buff + aac_enc->valid_size, in_buffer, aac_enc->in_pool_len - aac_enc->valid_size);
                 aac_enc->valid_size += aac_enc->in_pool_len;
 
+                AUDIO_ELEMENT_OBS_BEGIN(self);
                 AAC_ENCODER_FRAME_START();
                 ret = _aac_encoder_lib_frame_process(aac_enc->enc_handle, aac_enc->frame_size, (int16_t *)aac_enc->in_pool_buff, aac_enc->out_buffer_len, &enc_size, aac_enc->out_frame_buff);
                 AAC_ENCODER_FRAME_END();
                 if (ret != BK_OK)
                 {
                     BK_LOGE(TAG, "[%s] %s, %d, aac encode frame fail, ret: %d\n", audio_element_get_tag(self), __func__, __LINE__, ret);
+                    AUDIO_ELEMENT_OBS_END(self, -1, (uint32_t)aac_enc->frame_size);
                     result = -1;
                     goto out;
                 }
+                AUDIO_ELEMENT_OBS_END(self, aac_enc->frame_size, (uint32_t)aac_enc->frame_size);
 
                 aac_enc->valid_size -= aac_enc->frame_size;
                 os_memmove(aac_enc->in_pool_buff, aac_enc->in_pool_buff + aac_enc->frame_size, aac_enc->valid_size);
@@ -578,4 +584,3 @@ _aac_encoder_init_exit:
 
     return NULL;
 }
-
