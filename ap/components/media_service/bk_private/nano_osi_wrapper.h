@@ -21,11 +21,11 @@ typedef enum
 
 typedef struct
 {
-    const uint32_t gpu_base_addr;
-    const uint32_t gpu_vg_lite_contiguous_mem_sz;
-    const uint32_t gpu_vg_lite_command_buffer_size;
-    const uint32_t gpu_vg_lite_tess_width;
-    const uint32_t gpu_vg_lite_tess_height;
+    uint32_t gpu_base_addr;
+    uint32_t gpu_vg_lite_contiguous_mem_sz;
+    uint32_t gpu_vg_lite_command_buffer_size;
+    uint32_t gpu_vg_lite_tess_width;
+    uint32_t gpu_vg_lite_tess_height;
     /* Convert a CPU SRAM alias (0x2Cxxxxxx) to the peripheral alias (0x28xxxxxx)
      * that the media DMA/codec/GPU/ISP hardware must use. Implemented on the app
      * side so the prebuilt library (.a) carries no CONFIG_SRAM_DIRECT_ADDR /
