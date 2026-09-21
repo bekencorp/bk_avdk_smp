@@ -115,6 +115,29 @@ size_t psram_cache_get_allocated_size(void *ptr)
 {
     return bk_heap_get_allocated_size(s_psram_cache_region_id, ptr);
 }
+
+size_t bk_psram_cache_heap_get_total_size(void)
+{
+    return PSRAM_CACHE_HEAP_SIZE;
+}
+
+size_t bk_psram_cache_heap_get_free_size(void)
+{
+    if (s_psram_cache_region_id == BK_HEAP_INVALID_REGION_ID) {
+        return PSRAM_CACHE_HEAP_SIZE;
+    }
+
+    return bk_heap_get_free_size(s_psram_cache_region_id);
+}
+
+size_t bk_psram_cache_heap_get_minimum_free_size(void)
+{
+    if (s_psram_cache_region_id == BK_HEAP_INVALID_REGION_ID) {
+        return PSRAM_CACHE_HEAP_SIZE;
+    }
+
+    return bk_heap_get_min_free_size(s_psram_cache_region_id);
+}
 #endif
 
 size_t xPortGetPsramTotalHeapSize(void)

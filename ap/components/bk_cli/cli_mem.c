@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <stdint.h>
 #include "cli.h"
 #include <os/os.h>
 #include <os/mem.h>
@@ -17,33 +18,154 @@
 #include <driver/aon_rtc_types.h>
 #endif
 
+extern unsigned char _data_ram_begin;
+extern unsigned char __data_start__;
+extern unsigned char _data_ram_end;
+extern unsigned char _bss_start;
+extern unsigned char _bss_end;
+extern unsigned char _heap_start;
+extern unsigned char _heap_end;
+extern unsigned char __iram_start__;
+extern unsigned char __iram_end__;
+
+#if (CONFIG_AP_PSRAM_SECTION_ADDR)
+extern unsigned char __psram_data_start__;
+extern unsigned char __psram_data_end__;
+extern unsigned char __psram_bss_start__;
+extern unsigned char __psram_bss_end__;
+#endif
+
+#if CONFIG_AP_PSRAM_TEXT_ADDR
+extern unsigned char __psram_text_start__;
+extern unsigned char __psram_text_end__;
+#endif
+
+static uint32_t cli_mem_subtract_size(uint32_t total, uint32_t value)
+{
+	return (total >= value) ? (total - value) : 0;
+}
+
+static void cli_mem_print_region_row(const char *name, uint32_t start, uint32_t end)
+{
+	if (end <= start) {
+		return;
+	}
+
+	BK_DUMP_OUT("%-22s 0x%-8x 0x%-8x %-10u\r\n", name, start, end, end - start);
+}
+
+static void cli_mem_print_static_regions(void)
+{
+	uint32_t ram_start = (uint32_t)&_data_ram_begin;
+	uint32_t data_start = (uint32_t)&__data_start__;
+	uint32_t data_end = (uint32_t)&_data_ram_end;
+	uint32_t bss_start = (uint32_t)&_bss_start;
+	uint32_t bss_end = (uint32_t)&_bss_end;
+	uint32_t heap_start = (uint32_t)&_heap_start;
+	uint32_t heap_end = (uint32_t)&_heap_end;
+
+	BK_DUMP_OUT("%-22s %-10s %-10s %-10s\r\n", "region", "start", "end", "size");
+	BK_DUMP_OUT("%-22s %-10s %-10s %-10s\r\n", "------", "----------", "----------", "----------");
+	cli_mem_print_region_row("ap_ram", ram_start, heap_end);
+	cli_mem_print_region_row("ap_ram_non_heap", ram_start, heap_start);
+	cli_mem_print_region_row("iram", (uint32_t)&__iram_start__, (uint32_t)&__iram_end__);
+	cli_mem_print_region_row("data", data_start, data_end);
+	cli_mem_print_region_row("bss", bss_start, bss_end);
+	cli_mem_print_region_row("sram_heap", heap_start, heap_end);
+
+#if defined(CONFIG_AP_HSRAM_HEAP_ADDR) && (CONFIG_AP_HSRAM_HEAP_SIZE > 0)
+	cli_mem_print_region_row("hsram_heap",
+		SOC_SRAM_CPU_ADDR(CONFIG_AP_HSRAM_HEAP_ADDR),
+		SOC_SRAM_CPU_ADDR(CONFIG_AP_HSRAM_HEAP_ADDR) + CONFIG_AP_HSRAM_HEAP_SIZE);
+#endif
+#if defined(CONFIG_AP_PSRAM_HEAP_ADDR) && (CONFIG_AP_PSRAM_HEAP_SIZE > 0)
+	cli_mem_print_region_row("psram_heap",
+		CONFIG_AP_PSRAM_HEAP_ADDR,
+		CONFIG_AP_PSRAM_HEAP_ADDR + CONFIG_AP_PSRAM_HEAP_SIZE);
+#endif
+#if defined(CONFIG_AP_PSRAM_CACHE_HEAP_ADDR) && (CONFIG_AP_PSRAM_CACHE_HEAP_SIZE > 0)
+	cli_mem_print_region_row("psram_cache_heap",
+		CONFIG_AP_PSRAM_CACHE_HEAP_ADDR,
+		CONFIG_AP_PSRAM_CACHE_HEAP_ADDR + CONFIG_AP_PSRAM_CACHE_HEAP_SIZE);
+#endif
+#if defined(CONFIG_PSRAM_MEM_SLAB_CODED_ADDR) && (CONFIG_PSRAM_MEM_SLAB_CODED_SIZE > 0)
+	cli_mem_print_region_row("slab_coded",
+		CONFIG_PSRAM_MEM_SLAB_CODED_ADDR,
+		CONFIG_PSRAM_MEM_SLAB_CODED_ADDR + CONFIG_PSRAM_MEM_SLAB_CODED_SIZE);
+#endif
+#if defined(CONFIG_PSRAM_MEM_SLAB_UNCODED_ADDR) && (CONFIG_PSRAM_MEM_SLAB_UNCODED_SIZE > 0)
+	cli_mem_print_region_row("slab_uncoded",
+		CONFIG_PSRAM_MEM_SLAB_UNCODED_ADDR,
+		CONFIG_PSRAM_MEM_SLAB_UNCODED_ADDR + CONFIG_PSRAM_MEM_SLAB_UNCODED_SIZE);
+#endif
+#if (CONFIG_AP_PSRAM_SECTION_ADDR)
+	cli_mem_print_region_row("psram_data_used",
+		(uint32_t)&__psram_data_start__, (uint32_t)&__psram_data_end__);
+	cli_mem_print_region_row("psram_bss_used",
+		(uint32_t)&__psram_bss_start__, (uint32_t)&__psram_bss_end__);
+#endif
+#if CONFIG_AP_PSRAM_TEXT_ADDR
+	cli_mem_print_region_row("psram_text_used",
+		(uint32_t)&__psram_text_start__, (uint32_t)&__psram_text_end__);
+#endif
+}
+
+static void cli_mem_print_heap_row(const char *name, uint32_t total, uint32_t free_size, uint32_t min_free_size)
+{
+	uint32_t used_size = cli_mem_subtract_size(total, free_size);
+	uint32_t peak_used_size = cli_mem_subtract_size(total, min_free_size);
+	uint32_t percent_x10 = 0;
+
+	if (total != 0) {
+		percent_x10 = (uint32_t)(((uint64_t)peak_used_size * 1000) / total);
+	}
+
+	BK_DUMP_OUT("%-18s %10u %10u %10u %10u %10u %3u.%u%%\r\n",
+		name, total, used_size, free_size, min_free_size, peak_used_size,
+		percent_x10 / 10, percent_x10 % 10);
+}
+
 void cli_memory_free_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
 	uint32_t total_size,free_size,mini_size;
-    CLI_LOGD("================Static memory================\r\n");
-    os_show_memory_config_info();
 
-	CLI_LOGD("================Dynamic memory================\r\n");
-	cmd_printf("%-5s   %-5s   %-5s   %-5s   %-5s\r\n",
-		"name", "total", "free", "minimum", "peak");
-	
+	(void)pcWriteBuffer;
+	(void)xWriteBufferLen;
+	(void)argc;
+	(void)argv;
+
+	BK_DUMP_OUT("================Static memory================\r\n");
+	cli_mem_print_static_regions();
+
+	BK_DUMP_OUT("================Dynamic memory================\r\n");
+	BK_DUMP_OUT("%-18s %10s %10s %10s %10s %10s %7s\r\n",
+		"name", "total", "used", "free", "min_free", "peak_used",
+		"usage");
+
 	total_size = rtos_get_total_heap_size();
 	free_size  = rtos_get_free_heap_size();
 	mini_size  = rtos_get_minimum_free_heap_size();
-	cmd_printf("heap\t%d\t%d\t%d\t%d\r\n",  total_size,free_size,mini_size,total_size-mini_size);
+	cli_mem_print_heap_row("sram_heap", total_size, free_size, mini_size);
 
 #if CONFIG_PSRAM_AS_SYS_MEMORY
 	total_size = rtos_get_psram_total_heap_size();
 	free_size  = rtos_get_psram_free_heap_size();
 	mini_size  = rtos_get_psram_minimum_free_heap_size();
-	cmd_printf("psram\t%d\t%d\t%d\t%d\r\n", total_size,free_size,mini_size,total_size-mini_size);
+	cli_mem_print_heap_row("psram_heap", total_size, free_size, mini_size);
 #endif
 
 #if CONFIG_AP_HSRAM_HEAP_ADDR
 	total_size = rtos_get_hsram_total_heap_size();
 	free_size  = rtos_get_hsram_free_heap_size();
 	mini_size  = rtos_get_hsram_minimum_free_heap_size();
-	cmd_printf("hsram\t%d\t%d\t%d\t%d\r\n", total_size,free_size,mini_size,total_size-mini_size);
+	cli_mem_print_heap_row("hsram_heap", total_size, free_size, mini_size);
+#endif
+
+#if defined(CONFIG_AP_PSRAM_CACHE_HEAP_ADDR) && (CONFIG_AP_PSRAM_CACHE_HEAP_SIZE > 0)
+	total_size = bk_psram_cache_heap_get_total_size();
+	free_size = bk_psram_cache_heap_get_free_size();
+	mini_size = bk_psram_cache_heap_get_minimum_free_size();
+	cli_mem_print_heap_row("psram_cache_heap", total_size, free_size, mini_size);
 #endif
 
 }

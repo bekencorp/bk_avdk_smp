@@ -160,6 +160,9 @@ void *psram_cache_malloc_release(size_t size);
 void *psram_cache_zalloc_release(size_t size);
 void psram_cache_free_debug(const char *func_name, int line, void *ptr);
 void psram_cache_free_release(void *ptr);
+size_t bk_psram_cache_heap_get_total_size(void);
+size_t bk_psram_cache_heap_get_free_size(void);
+size_t bk_psram_cache_heap_get_minimum_free_size(void);
 #endif
 
 void *hsram_malloc_debug(const char *func_name, int line, size_t size, int need_zero);
