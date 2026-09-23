@@ -52,6 +52,16 @@ int bk_boot_write_ota_confirm(uint32_t value);
  * SPE calls this after a successful boot; BL2 calls it when secondary verify fails. */
 void bk_ota_confirm_clear_if_armed(void);
 
+/* True while an install is in flight, i.e. the resume journal holds at least
+ * one committed block. BL2 uses it to refuse disarming an install that has
+ * already started overwriting primary_all. */
+bool bk_ota_resume_journal_dirty(void);
+
+/* Erase resume journal only (first 4K of ota_control). Keeps OVERWRITE_CONFIRM
+ * so the next boot reinstalls from block 0 instead of trusting a "done" journal
+ * after primary hash/validate failed. */
+void bk_ota_clear_resume_journal(void);
+
 #ifdef __cplusplus
 }
 #endif

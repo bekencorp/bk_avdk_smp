@@ -130,7 +130,7 @@ __attribute__((section(".iram"))) void bk_flash_read_cbus(uint32_t address, void
 
 #if CONFIG_OTA_OVERWRITE
 /* Only the compressed/encrypted overwrite-OTA path needs the CPU-write window. */
-static void flash_wt_copy(volatile uint8_t *dst8, const uint8_t *user_buf, uint32_t size)
+__attribute__((section(".iram"))) static void flash_wt_copy(volatile uint8_t *dst8, const uint8_t *user_buf, uint32_t size)
 {
 	if (((((uintptr_t)dst8) | ((uintptr_t)user_buf)) & 3u) == 0u) {
 		volatile uint32_t *d32 = (volatile uint32_t *)dst8;
@@ -149,19 +149,16 @@ static void flash_wt_copy(volatile uint8_t *dst8, const uint8_t *user_buf, uint3
 	}
 }
 
-/* Cacheable (XIP) write window: the flash controller XTS-encrypts on the fly.
+/* CBUS write window (0x04 + phy): flash controller XTS-encrypts on the fly.
  * Used by the BL2 compressed/encrypted overwrite-OTA path (decompress_bl2.c).
- * Uses the shared core HAL handle for the CPU-write window and op-done wait.
  *
- * Self-brackets BOTH axes (PER_OP), so this path is fully self-contained and
- * needs no session state from the caller (the old switch_line_mode_two +
- * unprotect_once helpers are gone): drop to two-line (the CPU-write window
- * programs in two-line, like op_sw PP), volatile-unprotect, program, re-protect,
- * restore the ambient line mode. Order matters for cost: set(TWO) first so the
- * unprotect/protect internal line brackets collapse to cache no-ops. The
- * brackets sit OUTSIDE the __disable_irq window (their WRSR/line pokes are fine
- * with IRQs enabled in the single-threaded secure world); IRQ-off wraps only the
- * CPU-write burst. */
+ * Self-brackets BOTH axes (PER_OP): drop to two-line, volatile-unprotect,
+ * program, re-protect, restore line mode. IRQ-off covers the burst, the FIFO
+ * drain and the re-protect, so no WRSR can race the open window. */
+
+/* Second flush address: matches aboot's CPU_OPREATE_FLASH_OFFSET. */
+#define FLASH_CBUS_FLUSH_OFF	0x40u
+
 __attribute__((section(".iram"))) void bk_flash_write_cbus(uint32_t address, const uint8_t *user_buf, uint32_t size)
 {
 	volatile uint8_t *dst8 = (volatile uint8_t *)(SOC_FLASH_BASE_ADDR + address);
@@ -174,17 +171,25 @@ __attribute__((section(".iram"))) void bk_flash_write_cbus(uint32_t address, con
 
 	flash_core_cpu_wr_enable();
 	flash_wt_copy(dst8, user_buf, size);
+	__DSB();
+
+	/* Drain the cpu-data-write FIFO: wait_op_done only tracks op_sw commands,
+	 * so retire the pending stores with two reads off the burst (as in aboot).
+	 * Clean+invalidate first, else a WT-RA hit skips the bus access. */
+	flush_all_dcache();
+	(void)*(volatile uint8_t *)(SOC_FLASH_BASE_ADDR);
+	(void)*(volatile uint8_t *)(SOC_FLASH_BASE_ADDR + FLASH_CBUS_FLUSH_OFF);
+	__DSB();
+
 	flash_hal_wait_op_done(flash_core_hal());
 	flash_core_cpu_wr_disable();
 
-	/* Fresh ciphertext in flash; drop L1+L2 so readback/hash re-fetches. */
-	__DSB();
-	flush_all_dcache();
+	flash_core_protect();
+
 	if (!primask) {
 		__enable_irq();
 	}
 
-	flash_core_protect();
 	flash_core_set_line_mode(old_lm);
 }
 #endif /* CONFIG_OTA_OVERWRITE */

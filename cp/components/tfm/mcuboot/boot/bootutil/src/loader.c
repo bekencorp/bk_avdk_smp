@@ -38,11 +38,11 @@
 #include <string.h>
 #include "bootutil/bootutil.h"
 #include "bootutil/bootutil_public.h"
-#include "ota_confirm.h"    /* compressed-overwrite confirm-flag API */
 /* Brings CONFIG_OTA_OVERWRITE / CONFIG_OTA_CONFIRM_UPDATE / OVERWRITE_CONFIRM
  * (partitions_gen.h -> security.h -> _ota.h) so the compressed-overwrite
  * trigger below is enabled only for the secureboot_overwrite project. */
 #include "partitions_gen.h"
+#include "ota_confirm.h"    /* compressed-overwrite confirm-flag API */
 #include "bootutil/image.h"
 #include "bootutil_priv.h"
 #include "swap_priv.h"
@@ -1165,7 +1165,8 @@ done:
 
 #if !defined(MCUBOOT_DIRECT_XIP) && !defined(MCUBOOT_RAM_LOAD)
 /**
- * OVERWRITE_CONFIRM -> TEST; validate secondary, else clear confirm and NONE.
+ * OVERWRITE_CONFIRM -> TEST; validate secondary, else NONE (clearing the
+ * confirm only when primary is still bootable).
  */
 static int
 boot_validated_swap_type(struct boot_loader_state *state,
@@ -1183,7 +1184,17 @@ boot_validated_swap_type(struct boot_loader_state *state,
         FIH_CALL(boot_validate_slot, fih_rc, state, BOOT_SECONDARY_SLOT, bs);
         if (FIH_NOT_EQ(fih_rc, FIH_SUCCESS)) {
             BOOT_LOG_ERR("secondary slot validate failed");
-            bk_ota_confirm_clear_if_armed();
+            /* Disarming drops the only install request, and overwrite keeps no
+             * backup: do it only while primary can still boot. A dirty journal
+             * (install in flight) or a wiped primary means this confirm is the
+             * sole way back, so keep it armed and retry on the next boot. */
+            if (bk_ota_resume_journal_dirty() ||
+                !boot_is_header_valid(boot_img_hdr(state, BOOT_PRIMARY_SLOT),
+                                      BOOT_IMG_AREA(state, BOOT_PRIMARY_SLOT))) {
+                BOOT_LOG_ERR("primary not bootable, keep confirm armed");
+            } else {
+                bk_ota_confirm_clear_if_armed();
+            }
             swap_type = BOOT_SWAP_TYPE_NONE;
         }
     }
@@ -1889,6 +1900,13 @@ context_boot_go(struct boot_loader_state *state, struct boot_rsp *rsp)
             FIH_EQ(fih_rc, FIH_NO_BOOTABLE_IMAGE)) {
             FIH_SET(fih_rc, FIH_FAILURE);
             BOOT_LOG_ERR("Validate primary image fail");
+#if defined(CONFIG_OTA_OVERWRITE) && CONFIG_OTA_OVERWRITE
+            /* Keep OVERWRITE_CONFIRM, drop resume journal so the next boot
+             * reinstalls from block 0 (resume==block_num used to skip copy). */
+            if (BOOT_IS_UPGRADE(BOOT_SWAP_TYPE(state))) {
+                bk_ota_clear_resume_journal();
+            }
+#endif
             goto out;
         }
         /* Pass 3 always re-validates primary; only log after a real upgrade. */

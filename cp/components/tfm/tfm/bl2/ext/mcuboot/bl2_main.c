@@ -134,7 +134,7 @@ int main(void)
     bk_efuse_init();
 
     update_wdt(BL2_WDT_FEED_VAL);
-#if CONFIG_BL2_SECURE_DEBUG
+#if 1//CONFIG_BL2_SECURE_DEBUG
     extern void hal_secure_debug(void);
     hal_secure_debug();
 #endif

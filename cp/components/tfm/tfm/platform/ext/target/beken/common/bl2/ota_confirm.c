@@ -171,4 +171,44 @@ void bk_ota_confirm_clear_if_armed(void)
     bk_flash_erase_sector(confirm_sector);
 }
 
+bool bk_ota_resume_journal_dirty(void)
+{
+    uint32_t phy_off = bk_boot_overwrite_confirm_off();
+    uint32_t journal_sector;
+    uint8_t first = 0xFFu;
+
+    if (phy_off == 0 || phy_off < CONFIG_PRIMARY_ALL_PHY_PARTITION_OFFSET) {
+        return false;
+    }
+    journal_sector = partition_get_phy_offset(PARTITION_OTA_CONTROL)
+		     & ~(OTA_CTRL_SECTOR_SIZE - 1u);
+    if (journal_sector == 0 ||
+        journal_sector == (phy_off & ~(OTA_CTRL_SECTOR_SIZE - 1u))) {
+        return false;
+    }
+    /* Record 0 leads with its index byte; 0xFF means no block was committed
+     * yet (the same test read_resume_block() uses to find the journal end). */
+    bk_flash_read_bytes(journal_sector, &first, sizeof(first));
+    return (first != 0xFFu);
+}
+
+void bk_ota_clear_resume_journal(void)
+{
+    uint32_t phy_off = bk_boot_overwrite_confirm_off();
+    uint32_t journal_sector;
+    uint32_t confirm_sector;
+
+    if (phy_off == 0 || phy_off < CONFIG_PRIMARY_ALL_PHY_PARTITION_OFFSET) {
+        return;
+    }
+    journal_sector = partition_get_phy_offset(PARTITION_OTA_CONTROL)
+		     & ~(OTA_CTRL_SECTOR_SIZE - 1u);
+    confirm_sector = phy_off & ~(OTA_CTRL_SECTOR_SIZE - 1u);
+    /* Never erase the confirm sector here — keep OVERWRITE_CONFIRM armed. */
+    if (journal_sector != 0 && journal_sector != confirm_sector) {
+        bk_flash_erase_sector(journal_sector);
+        OTA_CONFIRM_FORCE("cleared resume journal (confirm kept)");
+    }
+}
+
 #endif /* CONFIG_OTA_CONFIRM_UPDATE */

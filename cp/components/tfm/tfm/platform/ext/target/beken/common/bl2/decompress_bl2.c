@@ -94,7 +94,8 @@ static int primary_all_write(uint32_t phy_off, const uint8_t *buf, uint32_t size
 		BOOT_LOG_ERR("OTA bad write arg phy=0x%x size=0x%x", phy_off, size);
 		return -1;
 	}
-
+	
+	update_wdt(OTA_WDT_FEED_VAL);
 	if (!efuse_is_flash_aes_enabled()) {
 		if (bk_flash_write_bytes(phy_off, buf, size) != BK_OK) {
 			BOOT_LOG_ERR("OTA DBUS write fail phy=0x%x size=0x%x", phy_off, size);
@@ -104,8 +105,8 @@ static int primary_all_write(uint32_t phy_off, const uint8_t *buf, uint32_t size
 	}
 
 	bk_flash_write_cbus(phy_off, buf, size);
-
-#if CONFIG_DEBUG_OTA_INSTALL
+	/* The caller feeds once per block, covering read + decompress + this
+	 * 64KB program; split that window, the program alone can take 100s of ms. */
 	update_wdt(OTA_WDT_FEED_VAL);
 	bk_flash_read_cbus(phy_off, s_compressed_buf, size);
 	for (uint32_t i = 0; i < size; i++) {
@@ -115,7 +116,7 @@ static int primary_all_write(uint32_t phy_off, const uint8_t *buf, uint32_t size
 			return -1;
 		}
 	}
-#endif
+
 	return 0;
 }
 
@@ -362,7 +363,10 @@ static int resume_flash(uint32_t block_num)
 	}
 
 	if ((restart_block_idx == 0) || (restart_block_idx == 0xffu) ||
-	    (restart_block_idx > block_num)) {
+	    (restart_block_idx >= block_num)) {
+		/* restart == block_num means all full 64KB blocks were journaled
+		 * (install claimed complete). Re-running with only the last
+		 * partial rewritten bricks after a hash fail — always full redo. */
 		BOOT_LOG_FORCE("Erase primary+journal");
 		/* Clear journal FIRST. If we erase primary then lose power before
 		 * clearing the journal, the next boot resumes mid-image against an
