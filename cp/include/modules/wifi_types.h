@@ -471,6 +471,11 @@ typedef struct {
 	uint8_t is_user_fast_connect;       /**< is use user fast connect */
 	uint8_t pmf;                        /**< is support pmf */
 	uint8_t tk[16];                     /**< WPA3 tk key */
+	/* WPA3 user fast-connect (same role as psk for WPA2): host self-manages */
+	uint8_t pmk_len;                    /**< SAE PMK length */
+	uint8_t pmk[64];                    /**< SAE PMK */
+	uint8_t pmkid[16];                  /**< SAE PMKID */
+	int akmp;                           /**< key mgmt (e.g. WPA_KEY_MGMT_SAE) */
 
 	/* auto reconnect configuration */
 	int auto_reconnect_count;          /**< auto reconnect max count, 0 for always reconnect */
