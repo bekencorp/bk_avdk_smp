@@ -268,12 +268,12 @@ if (CONFIG_TFM AND tfm_present)
         CONFIGURE_COMMAND ""
         BUILD_IN_SOURCE 1
         BUILD_COMMAND
-            cmake -G Ninja -B ${tfm_build_dir}
+            ${CMAKE_COMMAND} -G Ninja -S ${tfm_src_dir} -B ${tfm_build_dir}
                 -DCMAKE_PREFIX_PATH=${tfm_toolchain_path}
                 -DCMAKE_INSTALL_PREFIX=${tfm_install_dir}
                 -DARMINO_SDK_PATH=${armino_path}
                 -DTFM_PLATFORM=${tfm_platform}
-                -DTFM_TOOLCHAIN_FILE=toolchain_GNUARM.cmake
+                -DTFM_TOOLCHAIN_FILE=${tfm_src_dir}/toolchain_GNUARM.cmake
                 -DMCUBOOT_PATH=${tfm_mcuboot_path}
                 -DMBEDCRYPTO_PATH=${tfm_mbedcrypto_path}
                 -DMBEDCRYPTO_VERSION=mbedtls-3.6.6
@@ -311,7 +311,7 @@ if (CONFIG_TFM AND tfm_present)
                 -DCONFIG_AP_BOOT_NSC=${CONFIG_TFM_AP_BOOT_NSC}
                 -DCONFIG_SLEEP_RETENTION_NSC=${CONFIG_TFM_SLEEP_RETENTION_NSC}
                 -DCONFIG_OTP_NSC=${CONFIG_TFM_OTP_NSC}
-            && cd ${tfm_build_dir} && ninja -- install
+            && ninja -C ${tfm_build_dir} install
         BUILD_BYPRODUCTS ${tfm_build_dir}/secure_fw/libtfm_s_veneers.a
         BUILD_ALWAYS 1
         INSTALL_COMMAND ""
