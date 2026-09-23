@@ -41,6 +41,13 @@ extern "C" {
 #define ISP_BUFFER_SIZE				(((ISP_MAX_WIDTH * 16 * 3 / 2 * 3 + 64 + 63) / 64) * 64)
 #define GPU_PINGPONG_BUFFER_SIZE	(((GPU_MAX_WIDTH * 16 * 2 + 64 + 63) / 64) * 64)
 
+/**
+ * Allocate from AP SRAM first; fall back to HSRAM when SRAM is exhausted.
+ * @param tag log tag from caller (e.g. module name); may be NULL
+ * Free with os_free (hsram_free is aliased to os_free).
+ */
+void *bk_sram_hsram_malloc(const char *tag, uint32_t size);
+
 void *bk_get_isp_flexa_buffer(uint32_t size);
 void *bk_get_gpu_flexa_buffer(uint32_t size);
 void *bk_get_dpu_buffer(uint32_t size);
