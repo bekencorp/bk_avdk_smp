@@ -58,7 +58,7 @@ extern "C" {
  * to 2 or 3 (max 8 -- limited by debounce_cnt:uint8_t).
  */
 #define ADCKEY_TICKS_INTERVAL    CONFIG_ADC_KEY_SAMPLE_PERIOD_MS
-#define ADCKEY_DEBOUNCE_TICKS    1	//MAX 8 (1 tick = 20ms, vs GPIO 18ms)
+#define ADCKEY_DEBOUNCE_TICKS    2	//MAX 8 (1 tick = 20ms, vs GPIO 18ms)
 #define ADCKEY_SHORT_TICKS       (100 / ADCKEY_TICKS_INTERVAL)
 #define ADCKEY_LONG_TICKS        ((CONFIG_ADC_KEY_LONG_PRESS_MS + ADCKEY_TICKS_INTERVAL - 1) / ADCKEY_TICKS_INTERVAL)
 
