@@ -36,27 +36,6 @@ void close_wdt(void)
         update_wdt(0);
 }
 
-/* Arm the AON WDT alone (val in ms) and stop the CPU WWDT. The WWDT period is
- * 16-bit at 32kHz, so it caps at ~2s, too short for a 64KB block erase at its
- * datasheet maximum - flash_ll_wait_op_done() spins with no feed point inside.
- * The OTA install runs under this mode; update_wdt() restores both.
- *
- * Measured 4% long (0xFFFF -> 67.2s AON, 2.10s WWDT), so the ms unit comes off
- * an internal RC near 31.5kHz and drifts with temperature.
- *
- * val is capped at 16 bits: the key sits at bits[23:16] of the same register. */
-void update_wdt_aon_only(uint32_t val)
-{
-        val &= 0xFFFFu;
-
-        REG_WRITE(SOC_AON_PMU_REG_BASE + 0x2 * 4,
-                  (REG_READ(SOC_AON_PMU_REG_BASE + 0x2 * 4) & ~0x7u) | 0x7u);
-        REG_WRITE(SOC_AON_WDT_REG_BASE + 0x0, 0x5A0000 | val);
-        REG_WRITE(SOC_AON_WDT_REG_BASE + 0x0, 0xA50000 | val);
-        REG_WRITE(0xE0050010, 0x5A0000);
-        REG_WRITE(0xE0050010, 0xA50000);
-}
-
 void update_aon_wdt(uint32_t val)
 {
 #if CONFIG_SUPPORT_SWD_DEBUG

@@ -22,7 +22,6 @@ extern "C" {
 
 /* BK7259 board watchdog helpers (definitions in bk7259/board/wdt.c). */
 void update_wdt(uint32_t val);
-void update_wdt_aon_only(uint32_t val);
 void close_wdt(void);
 void update_aon_wdt(uint32_t val);
 void close_aon_wdt(void);
