@@ -35,6 +35,15 @@ static avdk_err_t bk_err_to_avdk(bk_err_t e)
 	return (e == BK_OK) ? AVDK_ERR_OK : AVDK_ERR_GENERIC;
 }
 
+static uint8_t isp_gpu_bond_port_count(void)
+{
+#if CONFIG_ISP_DUAL_MIPI_LOGICAL_PORT
+	return 3U;
+#else
+	return 2U;
+#endif
+}
+
 typedef struct {
 	uint8_t pending_port_id;
 	uint8_t frame_port_id;
@@ -42,6 +51,7 @@ typedef struct {
 	uint32_t frame_seq;
 } isp_gpu_bond_priv_t;
 
+#if CONFIG_ISP_DUAL_MIPI_LOGICAL_PORT
 static isp_gpu_bond_priv_t *isp_gpu_bond_priv(const bk_flexa_bond_t *in_stream)
 {
 	if (in_stream == NULL || in_stream->bond_config == NULL) {
@@ -49,6 +59,7 @@ static isp_gpu_bond_priv_t *isp_gpu_bond_priv(const bk_flexa_bond_t *in_stream)
 	}
 	return (isp_gpu_bond_priv_t *)in_stream->bond_config->bond;
 }
+#endif
 
 static void isp_bond_mb_line_isr(uint32_t seq, uint32_t line, uint8_t chnl, uint8_t ok, void *param)
 {
@@ -61,6 +72,7 @@ static void isp_bond_mb_line_isr(uint32_t seq, uint32_t line, uint8_t chnl, uint
 		return;
 	}
 
+#if CONFIG_ISP_DUAL_MIPI_LOGICAL_PORT
 	isp_gpu_bond_priv_t *priv = isp_gpu_bond_priv(in_stream);
 	if (priv == NULL) {
 		return;
@@ -86,6 +98,7 @@ static void isp_bond_mb_line_isr(uint32_t seq, uint32_t line, uint8_t chnl, uint
 	if (!priv->frame_accepted) {
 		return;
 	}
+#endif
 	if (!ok) {
 		if (in_stream->error != NULL) {
 			in_stream->error(0, in_stream);
@@ -151,7 +164,9 @@ avdk_err_t bk_flexa_isp_gpu_bond_start_extended(
 	bk_flexa_bond_config_t *bond_new = NULL;
 	bk_flexa_bond_t *in_stream = NULL;
 	bk_flexa_bond_t *out_stream = NULL;
+#if CONFIG_ISP_DUAL_MIPI_LOGICAL_PORT
 	isp_gpu_bond_priv_t *priv = NULL;
+#endif
 	isp_handle_t isp_h = NULL;
 	uint8_t gpu_flexa_mapped = 0;
 	uint8_t port_id =
@@ -161,7 +176,8 @@ avdk_err_t bk_flexa_isp_gpu_bond_start_extended(
 		LOGE("%s invalid args bond %p isp %p gpu %p\r\n", __func__, bond, isp, gpu);
 		return AVDK_ERR_INVAL;
 	}
-	if (port_id != BK_FLEXA_ISP_PORT_ANY && port_id >= ISP_PORT_CNT) {
+	if (port_id != BK_FLEXA_ISP_PORT_ANY &&
+		port_id >= isp_gpu_bond_port_count()) {
 		LOGE("%s invalid port %u\r\n", __func__, port_id);
 		return AVDK_ERR_INVAL;
 	}
@@ -193,6 +209,7 @@ avdk_err_t bk_flexa_isp_gpu_bond_start_extended(
 	}
 	os_memset(out_stream, 0, sizeof(bk_flexa_bond_t));
 
+#if CONFIG_ISP_DUAL_MIPI_LOGICAL_PORT
 	priv = (isp_gpu_bond_priv_t *)os_malloc(sizeof(isp_gpu_bond_priv_t));
 	if (priv == NULL) {
 		LOGE("%s malloc private state failed\r\n", __func__);
@@ -203,12 +220,15 @@ avdk_err_t bk_flexa_isp_gpu_bond_start_extended(
 	priv->pending_port_id = port_id;
 	priv->frame_port_id = BK_FLEXA_ISP_PORT_ANY;
 	priv->frame_seq = UINT32_MAX;
+#endif
 
 	bond_new->in_stream = in_stream;
 	bond_new->out_stream = out_stream;
 	bond_new->in_stream_type = BK_FLEXA_TYPE_ISP;
 	bond_new->out_stream_type = BK_FLEXA_TYPE_GPU;
+#if CONFIG_ISP_DUAL_MIPI_LOGICAL_PORT
 	bond_new->bond = priv;
+#endif
 
 	in_stream->handle = isp;
 	in_stream->flexa_done = isp_gpu_bond_isp_flexa_done;
@@ -265,10 +285,12 @@ error:
 		os_free(out_stream);
 		out_stream = NULL;
 	}
+#if CONFIG_ISP_DUAL_MIPI_LOGICAL_PORT
 	if (priv != NULL) {
 		os_free(priv);
 		priv = NULL;
 	}
+#endif
 	if (bond_new != NULL) {
 		os_free(bond_new);
 		bond_new = NULL;
@@ -287,6 +309,7 @@ avdk_err_t bk_flexa_isp_gpu_bond_start(void **bond, void *isp, bk_gpu_ctlr_handl
 
 avdk_err_t bk_flexa_isp_gpu_bond_set_port(void *bond, uint8_t port_id)
 {
+#if CONFIG_ISP_DUAL_MIPI_LOGICAL_PORT
 	if (bond == NULL ||
 		(port_id != BK_FLEXA_ISP_PORT_ANY && port_id >= ISP_PORT_CNT)) {
 		return AVDK_ERR_INVAL;
@@ -300,6 +323,11 @@ avdk_err_t bk_flexa_isp_gpu_bond_set_port(void *bond, uint8_t port_id)
 
 	__atomic_store_n(&priv->pending_port_id, port_id, __ATOMIC_RELEASE);
 	return AVDK_ERR_OK;
+#else
+	(void)bond;
+	(void)port_id;
+	return AVDK_ERR_UNSUPPORTED;
+#endif
 }
 
 void bk_flexa_isp_gpu_bond_stop(void *bond)

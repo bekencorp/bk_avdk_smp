@@ -458,6 +458,11 @@ static int nano_frame_buffer_set_write_through_wrapper(void *buffer)
 
 static bk_nano_osi_funcs_t s_nano_osi_funcs =
 {
+#if CONFIG_ISP_DUAL_MIPI_LOGICAL_PORT
+    .isp_port_count = 3U,
+#else
+    .isp_port_count = 2U,
+#endif
     .sram_peri_addr = nano_sram_peri_addr_wrapper,
     .frame_buffer_set_write_through = nano_frame_buffer_set_write_through_wrapper,
 
