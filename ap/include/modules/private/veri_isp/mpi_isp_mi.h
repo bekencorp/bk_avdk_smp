@@ -63,6 +63,8 @@ int VSI_MPI_ISP_SetMiChnStream(ISP_CHN IspChn, vsi_u8_t stream);
  *****************************************************************************/
 int VSI_MPI_ISP_MiIrqProcess(ISP_DEV IspDev, vsi_u32_t miMis);
 
+int VSI_MPI_ISP_MiIrqProcessByPort(ISP_PORT IspPort, vsi_u32_t miMis);
+
 int VSI_MPI_ISP_SetRingBufferFmt(ISP_CHN IspChn , FORMAT_S *pFormat);
 int VSI_MPI_ISP_SetMiV10LineEnable(ISP_CHN IspChn, vsi_u8_t enable);
 

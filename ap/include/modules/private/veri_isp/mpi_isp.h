@@ -145,6 +145,8 @@ int VSI_MPI_ISP_DisableDev(ISP_DEV IspDev);
  *****************************************************************************/
 int VSI_MPI_ISP_SetInput(ISP_PORT IspPort);
 
+int VSI_MPI_ISP_SelectContext(ISP_PORT IspPort);
+
 /*****************************************************************************/
 /**
  * @brief   Sets the ISP device port.

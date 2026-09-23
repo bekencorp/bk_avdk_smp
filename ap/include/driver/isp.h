@@ -25,7 +25,11 @@ bk_err_t bk_isp_dev_init(isp_handle_t *handle);
 
 bk_err_t bk_isp_port_init(isp_handle_t *handle, void *sensor_attr);
 
-bk_err_t bk_isp_port_change(isp_handle_t *handle, uint8_t chnl);
+bk_err_t bk_isp_port_select(isp_handle_t *handle, uint8_t port_id);
+
+bk_err_t bk_isp_port_context_restore(isp_handle_t *handle);
+
+bk_err_t bk_isp_port_change(isp_handle_t *handle);
 
 bk_err_t bk_isp_deinit(isp_handle_t *handle);
 
@@ -46,6 +50,19 @@ bk_err_t bk_isp_dqbuf_abort(isp_handle_t *handle, uint8_t chnl_id);
 bk_err_t bk_isp_register_isr_callback(isp_handle_t *handle, isp_isr_type_t type, isp_isr_t cb, void *arg);
 
 bk_err_t bk_isp_deregister_isr_callback(isp_handle_t *handle, isp_isr_type_t type, void *arg);
+
+bk_err_t bk_isp_frame_port_get(isp_handle_t *handle,
+                               uint8_t chnl_id,
+                               uint32_t sequence,
+                               uint8_t *port_id);
+
+bk_err_t bk_isp_register_3a_done_callback(isp_handle_t *handle,
+                                         isp_3a_done_cb_t cb,
+                                         void *arg);
+
+bk_err_t bk_isp_deregister_3a_done_callback(isp_handle_t *handle,
+                                           isp_3a_done_cb_t cb,
+                                           void *arg);
 
 /**
  * @brief Vote to enable/disable ISP (CISP) clock.

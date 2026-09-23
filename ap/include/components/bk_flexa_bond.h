@@ -26,6 +26,13 @@ extern "C" {
 #include <components/bk_encode/bk_jpeg_encode_ctlr.h>
 #include <components/bk_gpu_ctlr.h>
 
+#define BK_FLEXA_ISP_PORT_ANY 0xFFU
+
+typedef struct
+{
+	uint8_t port_id;
+} bk_flexa_isp_gpu_bond_config_t;
+
 avdk_err_t bk_flexa_mjpegd_h264e_bond_start(void **bond,
 					   bk_jpeg_decode_ctlr_handle_t jpeg,
 					   bk_h264_encode_ctlr_handle_t h264);
@@ -50,6 +57,12 @@ avdk_err_t bk_flexa_isp_jpege_bond_start(void **bond, void *isp,
 void bk_flexa_isp_jpege_bond_stop(void *bond);
 
 avdk_err_t bk_flexa_isp_gpu_bond_start(void **bond, void *isp, bk_gpu_ctlr_handle_t gpu);
+avdk_err_t bk_flexa_isp_gpu_bond_start_extended(
+	void **bond,
+	void *isp,
+	bk_gpu_ctlr_handle_t gpu,
+	const bk_flexa_isp_gpu_bond_config_t *config);
+avdk_err_t bk_flexa_isp_gpu_bond_set_port(void *bond, uint8_t port_id);
 void bk_flexa_isp_gpu_bond_stop(void *bond);
 
 #ifdef __cplusplus

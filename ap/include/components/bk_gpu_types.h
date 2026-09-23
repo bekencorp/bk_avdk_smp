@@ -36,6 +36,8 @@ typedef enum
     BK_GPU_IOCTL_FLEXA_ADDR_UNMAPPING,
     BK_GPU_IOCTL_LOCK,
     BK_GPU_IOCTL_UNLOCK,
+    BK_GPU_IOCTL_FLEXA_FRAME_LOCK,
+    BK_GPU_IOCTL_FLEXA_FRAME_UNLOCK,
     BK_GPU_IOCTL_ISP_FLEXA_READY,
     /* args = bool*: false = frame-end OSD blit; true = per flexa block. */
     BK_GPU_IOCTL_SET_OSD_BY_FLEXA,
@@ -86,6 +88,8 @@ typedef struct
     void *flexa_line_done_args;
     void (*frame_done)(void *frame, uint32_t frame_size, void *args);
     void *frame_done_args;
+    /* true: frame_done callback owns face/UI composition before display. */
+    bool client_compose_frame;
 } bk_gpu_ctlr_config_t;
 
 typedef struct

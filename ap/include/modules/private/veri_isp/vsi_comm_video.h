@@ -178,6 +178,7 @@ typedef struct vsiVIDEO_BUF_S{
     vsi_u32_t imageSize; /**< \brief The image size.*/
     vsi_u64_t timeStamp; /**< \brief The time stamp.*/
     vsi_u8_t  numPlanes;  /**< \brief The number of planes.*/
+    vsi_u8_t  portId;    /**< \brief Logical ISP port that produced this frame.*/
     VB_PLANE_S planes[VIDEO_MAX_PLANES];  /**< \brief Video buffer configuration.*/
 } VIDEO_BUF_S;
 

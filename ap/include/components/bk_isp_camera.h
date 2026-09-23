@@ -36,6 +36,8 @@ avdk_err_t bk_isp_camera_dev_init(bk_isp_camera_ctlr_handle_t handle);
  */
 avdk_err_t bk_isp_camera_port_init(bk_isp_camera_ctlr_handle_t handle, void *config);
 
+avdk_err_t bk_isp_camera_port_select(bk_isp_camera_ctlr_handle_t handle, uint8_t port_id);
+
 /**
  * @brief Switch or update the active ISP port configuration
  * @param handle ISP camera controller handle
@@ -75,6 +77,11 @@ avdk_err_t bk_isp_camera_close(bk_isp_camera_ctlr_handle_t handle);
  * @return AVDK error code
  */
 avdk_err_t bk_isp_camera_read(bk_isp_camera_ctlr_handle_t handle, uint16_t id, uint8_t *frame, uint32_t size, uint32_t timeout);
+
+avdk_err_t bk_isp_camera_multi_port_read(
+    bk_isp_camera_ctlr_handle_t handle,
+    const multi_port_read_param_t *param,
+    multi_port_read_result_t *result);
 
 avdk_err_t bk_isp_camera_vc_mux_start(bk_isp_camera_vc_mux_handle_t handle, bk_isp_camera_vc_mux_config_t *config);
 

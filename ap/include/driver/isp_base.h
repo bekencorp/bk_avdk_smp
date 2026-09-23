@@ -19,7 +19,7 @@ extern "C" {
 #endif
 
 #define ISP_DEV_CNT     (1)
-#define ISP_PORT_CNT    (2)
+#define ISP_PORT_CNT    (3)
 #define ISP_CHN_CNT     (2)
 #define VSI_ISP_DEV_CNT (1)
 #define ISPNANO_V2401
@@ -29,6 +29,9 @@ extern "C" {
 
 #define ISP_MIPI_PORT_ID 0
 #define ISP_DVP_PORT_ID 1
+
+#define ISP_MIPI_PORT_LOGICAL0 ISP_MIPI_PORT_ID
+#define ISP_MIPI_PORT_LOGICAL1 2
 
 
 #ifdef __cplusplus

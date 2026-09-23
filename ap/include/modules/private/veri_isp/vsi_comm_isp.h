@@ -245,7 +245,9 @@ typedef void (*isp_isr_event_cb)(vsi_u32_t event);
 typedef struct vsiISP_ISR_CALLBACK_S {
     void (*isp_mis)(vsi_u32_t state, void *arg);
     void (*mi_mis)(vsi_u32_t state, void *arg);
+    void (*pipeline_done)(ISP_PORT port, void *arg);
     void *args;
+    void (*mi_mis_by_port)(ISP_PORT port, vsi_u32_t state, void *arg);
 } ISP_ISR_CBS_S;
 /* @} vsi_comm_isp */
 

@@ -21,13 +21,7 @@ extern "C" {
 #include <driver/isp_base.h>
 #include <os/os.h>
 
-#if CONFIG_PT_MP_H264_FRAME_MODE
 #define ISP_FRAME_CNT_MAX (3)
-#elif CONFIG_CSI_TP2863
-#define ISP_FRAME_CNT_MAX (7)
-#else
-#define ISP_FRAME_CNT_MAX (2)
-#endif
 
 #define ISP_INPUT_SENSOR_NAME "GC2053_1080P_LINEAR"
 
@@ -103,6 +97,8 @@ typedef struct {
     uint32_t u_addr;
     uint32_t v_addr;
     uint32_t sequence;
+    uint32_t frame_port_sequence;
+    uint8_t frame_port_id;
     /* Number of upcoming MP-flexa frames to force-drop (report ok=0) so the GPU bond discards
      * the frames straddling a peer (SP) stream on/off. Arming or disarming SP pulses the global
      * MI_CFG_UPD latch, which reloads the live MP flexa shadow regs mid-frame and corrupts a few
@@ -116,6 +112,8 @@ typedef struct {
     uint8_t *frame_buffer[ISP_FRAME_CNT_MAX];
     uint8_t malloc_flag;
 } isp_channel_config_t;
+
+typedef void (*isp_3a_done_cb_t)(uint8_t port_id, void *arg);
 
 typedef struct {
     uint8_t state;
@@ -131,6 +129,8 @@ typedef struct {
     uint8_t close_sbi;
     int (*pop_buf) (ISP_CHN chn, VIDEO_BUF_S *pBuf, uint32_t timeMs);
     int (*free_buf) (ISP_CHN chn, VIDEO_BUF_S *pBuf);
+    isp_3a_done_cb_t three_a_done_cb;
+    void *three_a_done_arg;
 } isp_control_t;
 
 typedef struct {

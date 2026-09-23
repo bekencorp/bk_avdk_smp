@@ -73,6 +73,8 @@ typedef struct
     void *controller;
     uint8_t *frame;
     uint32_t size;
+    uint32_t frame_size;
+    uint8_t port_id;
 } isp_channel_read_ctx_t;
 
 typedef struct

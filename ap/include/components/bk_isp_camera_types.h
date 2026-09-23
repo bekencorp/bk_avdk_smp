@@ -23,6 +23,8 @@ extern "C" {
 #include <driver/hal/hal_yuv_buf_types.h>
 #include <driver/isp_types.h>
 
+#define BK_ISP_CAMERA_INVALID_PORT_ID 0xFFU
+
 
 typedef enum
 {
@@ -92,6 +94,8 @@ typedef enum
     BK_CAM_IOCTL_CHANNEL_RELEASE, /**< Return a channel to the camera thread; arg = uint8_t * */
     BK_CAM_IOCTL_FRAME_POP, /**< Dequeue a zero-copy frame; arg = bk_isp_camera_frame_info_t * */
     BK_CAM_IOCTL_FRAME_QBUF, /**< Re-queue a zero-copy frame; arg = bk_isp_camera_frame_info_t * */
+    BK_CAM_IOCTL_SELECT_ISP_PORT, /**< Select logical ISP port; arg = uint8_t * */
+    BK_CAM_IOCTL_RESTORE_ISP_PORT_CONTEXT, /**< Restore selected logical ISP port context; arg = NULL */
 } bk_cam_interface_ioctl_t;
 
 /**
@@ -196,7 +200,22 @@ typedef struct
     uint32_t timeout;      /**< FRAME_POP timeout in milliseconds; ignored by FRAME_QBUF. */
     uint8_t  channel;      /**< ISP channel id (ISP_MP_CHN_ID / ISP_SP_CHN_ID). */
     uint8_t  index;        /**< Frame-pool buffer index; pass back to BK_CAM_IOCTL_FRAME_QBUF. */
+    uint8_t  port_id;      /**< Logical ISP port that produced this frame. */
 } bk_isp_camera_frame_info_t;
+
+typedef struct
+{
+    uint16_t id;
+    uint8_t *frame;
+    uint32_t size;
+    uint32_t timeout;
+} multi_port_read_param_t;
+
+typedef struct
+{
+    uint32_t frame_size;
+    uint8_t port_id;
+} multi_port_read_result_t;
 
 /**
  * @brief Camera controller handle type definition
@@ -215,9 +234,13 @@ struct bk_camera_ctlr_t
 {
     avdk_err_t (*dev_init)(bk_camera_ctlr_t *controller);   /**< Initialize controller level resources (clock, GPIO, etc.) */
     avdk_err_t (*port_init)(bk_camera_ctlr_t *controller, void *config); /**< Configure a physical port according to the supplied configuration */
+    avdk_err_t (*port_select)(bk_camera_ctlr_t *controller, uint8_t port_id); /**< Select an initialized logical ISP port */
     avdk_err_t (*port_change)(bk_camera_ctlr_t *controller); /**< Switch the active port or update link configuration dynamically */
     avdk_err_t (*open)(bk_camera_ctlr_t *controller, void *parameter); /**< Open the controller for streaming with the specified parameters */
     avdk_err_t (*read)(bk_camera_ctlr_t *controller, uint16_t id, uint8_t *frame, uint32_t size, uint32_t timeout); /**< Read a frame */
+    avdk_err_t (*multi_port_read)(bk_camera_ctlr_t *controller,
+                                  const multi_port_read_param_t *param,
+                                  multi_port_read_result_t *result); /**< Read a frame and return its logical ISP port */
     avdk_err_t (*close)(bk_camera_ctlr_t *controller); /**< Stop streaming and release transient resources */
     avdk_err_t (*deinit)(bk_camera_ctlr_t *controller); /**< Deinitialize controller level resources */
     avdk_err_t (*suspend)(bk_camera_ctlr_t *controller); /**< Suspend the controller for low-power operation */
