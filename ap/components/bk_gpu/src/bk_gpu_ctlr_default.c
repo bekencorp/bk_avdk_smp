@@ -4,6 +4,8 @@
 #include <components/bk_gpu_ctlr.h>
 #include <components/bk_hardware_ram.h>
 #include <components/bk_frame_buffer.h>
+#include <driver/gpio.h>
+#include "gpio_driver.h"
 #include "avdk_monitor.h"
 #include "gpu_vn_ctlr.h"
 #include "gpu_core.h"
@@ -164,10 +166,20 @@ static avdk_err_t gpu_draw_path_clear(bk_gpu_ctlr_handle_t handle)
     return 0;
 }
 
-static int gpu_draw_path_process(vg_lite_matrix_t *matrix, vg_lite_path_t *path, vg_lite_buffer_t* buffer)
+static int gpu_draw_path_submit(vg_lite_matrix_t *matrix,
+                                vg_lite_path_t *path,
+                                vg_lite_buffer_t *buffer)
 {
-	CHECK_ERROR(vg_lite_draw(buffer, path, VG_LITE_FILL_EVEN_ODD, matrix, VG_LITE_BLEND_NONE, 0xFFFFFFFF));
-    CHECK_ERROR(vg_lite_finish());
+    vg_lite_error_t ret = vg_lite_draw(
+        buffer, path, VG_LITE_FILL_EVEN_ODD, matrix,
+        VG_LITE_BLEND_NONE, 0xFFFFFFFF);
+    if (ret != VG_LITE_SUCCESS) {
+        LOGE("vg_lite_draw failed %d buf=%dx%d fmt=%d tiled=%d compress=%d screen_copy=%d\r\n",
+             ret, buffer->width, buffer->height, (int)buffer->format,
+             (int)buffer->tiled, (int)buffer->compress_mode,
+             (int)buffer->screen_copy);
+        return -1;
+    }
     return 0;
 }
 
@@ -609,6 +621,26 @@ static inline void gpu_flex_data_deinit(gpu_flex_data_t *data, gpu_vn_ctlr_t *gp
     }
 }
 
+static inline void gpu_flex_frame_mutex_lock(gpu_vn_ctlr_t *gpu_vn_ctlr)
+{
+    if (gpu_vn_ctlr->flexa_frame_mutex != NULL &&
+        !gpu_vn_ctlr->flexa_frame_mutex_owned)
+    {
+        rtos_lock_mutex(&gpu_vn_ctlr->flexa_frame_mutex);
+        gpu_vn_ctlr->flexa_frame_mutex_owned = true;
+    }
+}
+
+static inline void gpu_flex_frame_mutex_unlock(gpu_vn_ctlr_t *gpu_vn_ctlr)
+{
+    if (gpu_vn_ctlr->flexa_frame_mutex != NULL &&
+        gpu_vn_ctlr->flexa_frame_mutex_owned)
+    {
+        gpu_vn_ctlr->flexa_frame_mutex_owned = false;
+        rtos_unlock_mutex(&gpu_vn_ctlr->flexa_frame_mutex);
+    }
+}
+
 /**
  * @brief Reset GPU flex pipeline state so that next frame can start cleanly.
  *        This is typically used when the upstream JPEG decoder reports a fatal error
@@ -622,6 +654,7 @@ static inline void gpu_flex_restart(gpu_vn_ctlr_t *gpu_vn_ctlr)
     gpu_vn_ctlr->line_err_flag = 1;
     gpu_vn_ctlr->flexa_frame_active = false;
     gpu_vn_ctlr->flexa_abort_notified = false;
+    gpu_flex_frame_mutex_unlock(gpu_vn_ctlr);
 
     /* Reset per-frame counters; next frame will start from index 1. */
     flex->flexa_index = 1;
@@ -730,8 +763,20 @@ static inline void gpu_flex_data_dma_transfer(gpu_flex_data_t *data, uint32_t of
     dma_config[0].dst_step = dst_step;
     dma_config[0].finish_int_en = 1;
     dma_config[0].half_finish_int_en = 0;
-    BK_LOG_ON_ERR(bk_hpdma_link_set_descs(data->link_dma_list_table, (hpdma_link_config_t *)dma_config, 1));
-    BK_LOG_ON_ERR(bk_hpdma_link_transfer(data->gdma, data->link_dma_list_table));
+    bk_err_t ret = bk_hpdma_link_set_descs(
+        data->link_dma_list_table, dma_config, 1);
+    if (ret != BK_OK) {
+        LOGE("%s, set desc failed: %d\r\n", __func__, ret);
+        return;
+    }
+
+    HPDMA_LINE_START();
+    ret = bk_hpdma_link_transfer(
+        data->gdma, data->link_dma_list_table);
+    if (ret != BK_OK) {
+        HPDMA_LINE_END();
+        LOGE("%s, transfer failed: %d\r\n", __func__, ret);
+    }
 }
 
 /**
@@ -832,6 +877,7 @@ static inline bool gpu_flex_data_frame_done(gpu_flex_data_t *data, gpu_vn_ctlr_t
     while(bk_hpdma_get_next_ll_addr(data->gdma));
     while(bk_hpdma_get_enable_status(data->gdma));
 #endif
+
     /* Swap frame buffer */
     uint32_t frame_size = bk_pixel_size_get(config->dst_format) * (config->compress ? data->output_width / 4 : data->output_width) * data->output_height;
     void *new_buffer = config->frame_malloc(frame_size);
@@ -842,27 +888,26 @@ static inline bool gpu_flex_data_frame_done(gpu_flex_data_t *data, gpu_vn_ctlr_t
         data->dpu_frame_buffers = new_buffer;
         AVDK_MONITOR_GPU_FRAME_PLUS();
 
-        /*
-         * Let the controller-owned compositor (the shared overlay) draw its
-         * layers before the frame is handed to the client, so applications
-         * never call the overlay compose API themselves. Copy the hook under
-         * the GPU global lock, then invoke it unlocked because compose takes the
-         * same lock via BK_GPU_IOCTL_LOCK. In per-FLEXA-block mode the blocks were
-         * already composed while streaming, so frame end only commits.
-         */
-        bk_gpu_global_lock();
-        bk_gpu_frame_composer_t composer = gpu_vn_ctlr->frame_composer;
-        bk_gpu_global_unlock();
-        if (gpu_vn_ctlr->osd_render_per_flexa_block)
-        {
-            if (composer.commit_flexa_frame != NULL)
+        if (!config->client_compose_frame) {
+            /*
+             * Default SDK behavior: compose registered layers before handing
+             * the frame to the client. A solution that sets
+             * client_compose_frame performs face/UI composition in frame_done.
+             */
+            bk_gpu_global_lock();
+            bk_gpu_frame_composer_t composer = gpu_vn_ctlr->frame_composer;
+            bk_gpu_global_unlock();
+            if (gpu_vn_ctlr->osd_render_per_flexa_block)
             {
-                composer.commit_flexa_frame(composer.ctx);
+                if (composer.commit_flexa_frame != NULL)
+                {
+                    composer.commit_flexa_frame(composer.ctx);
+                }
             }
-        }
-        else if (composer.compose_frame != NULL)
-        {
-            composer.compose_frame(composer.ctx, done_frame, frame_size);
+            else if (composer.compose_frame != NULL)
+            {
+                composer.compose_frame(composer.ctx, done_frame, frame_size);
+            }
         }
 
         if (config->frame_done)
@@ -898,6 +943,7 @@ static inline bool gpu_flex_data_frame_done(gpu_flex_data_t *data, gpu_vn_ctlr_t
     rtos_set_semaphore(&data->transfer_sem);
 #endif
 
+    gpu_flex_frame_mutex_unlock(gpu_vn_ctlr);
     return true;
 }
 
@@ -980,25 +1026,59 @@ static bool gpu_flex_process_line_block(gpu_flex_data_t *data,
         return false;
     }
 
+    vg_lite_error_t render_ret = VG_LITE_SUCCESS;
+
     if (gpu_flex_current_block_has_padding(data, config))
     {
-        vg_lite_clear(&data->dst_buf, NULL, 0x00000000);
+        render_ret = vg_lite_clear(
+            &data->dst_buf, NULL, 0x00000000);
     }
 
-    /* Perform GPU blit operation */
-    vg_lite_blit(&data->dst_buf, &data->src_buf, &data->matrix,
-                 VG_LITE_BLEND_NONE, 0, VG_LITE_FILTER_POINT);
-    vg_lite_finish();
+    if (render_ret == VG_LITE_SUCCESS)
+    {
+        render_ret = vg_lite_blit(
+            &data->dst_buf, &data->src_buf, &data->matrix,
+            VG_LITE_BLEND_NONE, 0, VG_LITE_FILTER_POINT);
+    }
 
-    /* Draw path changes are rare; avoid taking draw_mutex on every block when disabled. */
+    vg_lite_error_t finish_ret = vg_lite_finish();
+    if (render_ret != VG_LITE_SUCCESS ||
+        finish_ret != VG_LITE_SUCCESS)
+    {
+        LOGE("%s, GPU block render failed, render=%d finish=%d\r\n",
+             __func__, render_ret, finish_ret);
+        gpu_flex_abort_current_frame(gpu_vn_ctlr);
+        GPU_LINE_END();
+        bk_gpu_global_unlock();
+        return false;
+    }
+
+    /* Preserve the SDK draw-path API behavior for clients that enable it. */
     if (data->draw_enable)
     {
+        int draw_ret = 0;
+        vg_lite_error_t draw_finish_ret = VG_LITE_SUCCESS;
         rtos_lock_mutex(&data->draw_mutex);
-        if (data->draw_enable && gpu_flex_draw_path_intersects_block(data))
+        if (data->draw_enable &&
+            gpu_flex_draw_path_intersects_block(data))
         {
-            gpu_draw_path_process(&data->draw_matrix, &data->draw_path, &data->dst_buf);
+            draw_ret = gpu_draw_path_submit(
+                &data->draw_matrix, &data->draw_path, &data->dst_buf);
+            if (draw_ret == 0)
+            {
+                draw_finish_ret = vg_lite_finish();
+            }
         }
         rtos_unlock_mutex(&data->draw_mutex);
+        if (draw_ret != 0 || draw_finish_ret != VG_LITE_SUCCESS)
+        {
+            LOGE("%s, path draw=%d finish=%d\r\n",
+                 __func__, draw_ret, draw_finish_ret);
+            gpu_flex_abort_current_frame(gpu_vn_ctlr);
+            GPU_LINE_END();
+            bk_gpu_global_unlock();
+            return false;
+        }
     }
 
     if (gpu_flex_frame_abort_needed(data, gpu_vn_ctlr, frame_seq))
@@ -1076,7 +1156,6 @@ static bool gpu_flex_process_line_block(gpu_flex_data_t *data,
         }
     }
     GPU_LINE_END();
-    HPDMA_LINE_START();
     /* Pull out processed line data */
     return gpu_flex_data_line_pull_out(data, gpu_vn_ctlr);
 }
@@ -1131,6 +1210,7 @@ static void gpu_flex_main_entry(void *arg)
                                (src_line_count <= config->flexa_buff_cnt));
         if (can_sync_frame)
         {
+            gpu_flex_frame_mutex_lock(gpu_vn_ctlr);
             if (src_line_count != 1) {
                 LOGW("%s, flexa sync from early block, frame %u line %u\n",
                      __func__, src_frame_seq, src_line_count);
@@ -1165,8 +1245,6 @@ static void gpu_flex_main_entry(void *arg)
         {
             if (!gpu_vn_ctlr->flexa_frame_active)
             {
-                LOGD("%s, flexa waits frame start, frame %u line %u\n",
-                     __func__, src_frame_seq, src_line_count);
                 gpu_flex_restart(gpu_vn_ctlr);
             }
             else if (src_frame_seq != gpu_vn_ctlr->active_frame_seq)
@@ -1237,6 +1315,7 @@ static void gpu_flex_main_entry(void *arg)
     }
 
 thread_exit:
+    gpu_flex_frame_mutex_unlock(gpu_vn_ctlr);
     LOGW("%s,%d exit\n", __func__, __LINE__);
 
     /* Self-delete only. gpu_ctlr_close() joins this thread via rtos_thread_join() and is the
@@ -1377,6 +1456,12 @@ static void gpu_flex_resource_teardown(gpu_vn_ctlr_t *control)
 
     gpu_flex_deinit_pingpong_buffer(flex);
     gpu_flex_data_deinit(flex, control);
+
+    gpu_flex_frame_mutex_unlock(control);
+    if (control->flexa_frame_mutex != NULL) {
+        rtos_deinit_mutex(&control->flexa_frame_mutex);
+        control->flexa_frame_mutex = NULL;
+    }
 }
 
 static avdk_err_t gpu_ctlr_open(bk_gpu_ctlr_handle_t handle)
@@ -1403,6 +1488,13 @@ static avdk_err_t gpu_ctlr_open(bk_gpu_ctlr_handle_t handle)
             LOGE("%s, %d rtos_init_semaphore_ex gpu_process_sem failed\n", __func__, __LINE__);
             return ret;
         }
+
+        ret = rtos_init_mutex(&control->flexa_frame_mutex);
+        if (ret != AVDK_ERR_OK) {
+            LOGE("%s, %d rtos_init_mutex flexa_frame_mutex failed\n", __func__, __LINE__);
+            goto open_fail;
+        }
+        control->flexa_frame_mutex_owned = false;
 
         /* Initialize GPU hardware */
         gpu_flex_data_init(flex, control);
@@ -1601,6 +1693,22 @@ static avdk_err_t gpu_ctlr_ioctl(bk_gpu_ctlr_handle_t handle, uint32_t cmd, void
         case BK_GPU_IOCTL_UNLOCK:
             if (bk_gpu_global_unlock() != BK_OK) {
                 LOGW("%s %d gpu global unlock failed\r\n", __func__, __LINE__);
+                return AVDK_ERR_GENERIC;
+            }
+            break;
+
+        case BK_GPU_IOCTL_FLEXA_FRAME_LOCK:
+            if (control->flexa_frame_mutex == NULL ||
+                rtos_lock_mutex(&control->flexa_frame_mutex) != BK_OK) {
+                LOGW("%s %d flexa frame lock failed\r\n", __func__, __LINE__);
+                return AVDK_ERR_GENERIC;
+            }
+            break;
+
+        case BK_GPU_IOCTL_FLEXA_FRAME_UNLOCK:
+            if (control->flexa_frame_mutex == NULL ||
+                rtos_unlock_mutex(&control->flexa_frame_mutex) != BK_OK) {
+                LOGW("%s %d flexa frame unlock failed\r\n", __func__, __LINE__);
                 return AVDK_ERR_GENERIC;
             }
             break;

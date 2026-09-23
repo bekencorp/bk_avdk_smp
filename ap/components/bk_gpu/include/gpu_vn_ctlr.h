@@ -122,6 +122,8 @@ typedef struct
 
     beken_semaphore_t gpu_process_sem;
     beken_semaphore_t gpu_start_sem;
+    beken_mutex_t flexa_frame_mutex;
+    bool flexa_frame_mutex_owned;
 
     volatile bool flexa_stop;
     bool flexa_frame_active;
