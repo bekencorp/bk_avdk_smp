@@ -1,15 +1,45 @@
+#include <stdbool.h>
 #include "common/bk_assert.h"
 #include "bk_arch.h"
 #include "os/mem.h"
 #include "bk_coredump.h"
 #include "bk_dump_manifest.h"
 #include "memory.h"
+#include "reg_base.h"
+#include "sys_ahbp_ll.h"
+
+/*
+ * A peripheral bank whose clock is gated or whose power domain is off does not
+ * answer on the bus: the read stalls until a watchdog resets the chip, taking
+ * the rest of the dump with it.
+ *
+ * GPU is the known case: bk_gpu_driver_deinit() calls
+ * bk_pm_clock_ctrl(PM_CLK_ID_GPU, PM_CLK_CTRL_PWR_DOWN), which clears
+ * sys_ahbp rega.gpu_cken, while the shared VIDEO_POST power domain can stay up
+ * for DPU. pwd_video_post is active-high (1 = domain powered down).
+ */
+static bool peri_reg_bank_is_readable(uint32_t start_addr)
+{
+    if (start_addr == (uint32_t)SOC_GPU_REG_BASE) {
+        return (sys_ahbp_ll_get_rege_pwd_video_post() == 0U) &&
+               (sys_ahbp_ll_get_rega_gpu_cken() != 0U);
+    }
+
+    return true;
+}
 
 void bk_dump_peri_regs(void)
 {
     uint32_t peri_reg_info_count = bk_get_peri_reg_info_count();
     const bk_dump_mem_info_t *peri_reg_info_list = bk_get_peri_reg_info_list();
     for (int i = 0; i < peri_reg_info_count; i++) {
+        if (!peri_reg_bank_is_readable(peri_reg_info_list[i].start_addr)) {
+            bk_coredump_write_prompt(
+                "skip region: %s, addr=%08x, reason=clock_or_power_off\r\n",
+                peri_reg_info_list[i].name,
+                peri_reg_info_list[i].start_addr);
+            continue;
+        }
         bk_coredump_write_memory(
             peri_reg_info_list[i].name,
             peri_reg_info_list[i].start_addr,
@@ -104,21 +134,23 @@ void bk_dump_psram_mem(void)
 }
 
 /*
- * P0-1 path 4: AP-local full-memory dump used when the CP handoff fails.
+ * P0-1 path 4: AP-local RAM dump used when the CP handoff fails.
  *
  * Composed from the same safe primitives that back manifest(AP): current-context
- * stacks first, then peripheral register banks, DTCM, SRAM (with the SRAM3
- * secure carve-out skip applied in bk_dump_all_sram), registered extra memory
- * and PSRAM. The set equals manifest(AP) by construction (FI-2b) while keeping
- * the secure-skip / validity guards that a raw manifest address walk would drop
- * (a raw SRAM3-from-base read would SecureFault / stall the bus). Intentionally
- * omits the destructive peri probes, which stay Debug-only (P2-2).
+ * stacks first, then DTCM, SRAM (with the SRAM3 secure carve-out skip applied in
+ * bk_dump_all_sram), registered extra memory and PSRAM, keeping the secure-skip /
+ * validity guards that a raw manifest address walk would drop (a raw
+ * SRAM3-from-base read would SecureFault / stall the bus). Intentionally omits
+ * the destructive peri probes, which stay Debug-only (P2-2).
+ *
+ * Peripheral register banks are deliberately NOT dumped here: a bank read can
+ * stall the bus until the watchdog fires, so the caller emits them only after
+ * the RAM image and the end marker are out.
  */
-void bk_coredump_self_full_memory(void)
+void bk_coredump_self_ram_memory(void)
 {
     bk_dump_mstack();
     bk_dump_pstack();
-    bk_dump_peri_regs();
     bk_dump_dtcm();
     bk_dump_all_sram();
     bk_dump_extra_mem();

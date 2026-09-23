@@ -310,6 +310,11 @@ static void coredump_notify_cp_begin(void)
 static bk_err_t coredump_notify_cp_end(void)
 {
 #if (CONFIG_CPU_CNT > 1)
+    /* Arm the takeover confirmation BEFORE the request. The shared window
+     * survives a warm reset, so a leftover 1 from the previous crash would
+     * otherwise be read as an instant (false) confirmation. */
+    bk_sys_sw_regs_set_cp_ap_dump_taken(0);
+
     /* P0-1: propagate the handoff result so the caller can fall back to an AP
      * self-dump + reset when the CP does not accept the trap-end request. */
     bk_err_t ret = ipc_send_trap_handle_end();
@@ -505,10 +510,51 @@ static void ap_wait_cp_reboot(uint32_t budget_ms)
     }
 }
 
+/* P0-A: ipc_send_trap_handle_end()'s BK_OK only proves the mailbox write
+ * completed, and the CP's IPC ACK only proves its RX handler ran - that handler
+ * ACKs immediately and merely queues an event for the dump task, so NEITHER is
+ * evidence that the AP-memory dump was ever dispatched. Treating them as such
+ * made a CP that silently never dispatched look like a successful handoff, and
+ * the AP then burned its whole reboot budget before falling back.
+ *
+ * Wait instead for the flag the CP publishes from the dump entry itself, which
+ * is the first instant the takeover is real.
+ *
+ * TUNING: the window only has to cover CP RX-ISR -> event -> context switch into
+ * the highest-priority dump task, which is sub-millisecond on a healthy CP, so
+ * the default leaves ~2 orders of magnitude of margin. It MUST stay short: every
+ * millisecond here is taken from the AP's own fallback dump, which runs with the
+ * watchdogs live. */
+#ifndef CONFIG_AP_HANDOFF_CP_TAKEOVER_WINDOW_MS
+#define CONFIG_AP_HANDOFF_CP_TAKEOVER_WINDOW_MS 200U
+#endif
+#define AP_HANDOFF_CP_TAKEOVER_WINDOW_MS ((uint32_t)CONFIG_AP_HANDOFF_CP_TAKEOVER_WINDOW_MS)
+
+static bool ap_wait_cp_takeover(uint32_t window_ms)
+{
+#if (CONFIG_CPU_CNT > 1)
+    uint64_t start_us = bk_aon_rtc_get_us();
+    uint64_t window_us = (uint64_t)window_ms * 1000ULL;
+
+    do {
+        if (bk_sys_sw_regs_get_cp_ap_dump_taken() != 0U) {
+            return true;
+        }
+        coredump_feed_watchdogs();
+    } while ((bk_aon_rtc_get_us() - start_us) < window_us);
+
+    return false;
+#else
+    (void)window_ms;
+    return false;                          /* no CP to hand off to */
+#endif
+}
+
 static void bk_exception_dump_main(bk_exception_t *self)
 {
 #if CONFIG_DEBUG_VERSION || CONFIG_DUMP_ENABLE
     bk_err_t handoff;
+    const char *fallback_reason;
 #endif
 
     bk_coredump_writer_init();
@@ -566,17 +612,35 @@ static void bk_exception_dump_main(bk_exception_t *self)
     coredump_flush_for_cp_dump();          /* flush PSRAM L2 before CP reads AP RAM */
     handoff = coredump_notify_cp_end();    /* prefer handoff: CP dumps AP mem + resets */
 
-    if (handoff == BK_OK) {
+    if (handoff != BK_OK) {
+        fallback_reason = "send_fail";     /* request never left the AP */
+    } else if (!ap_wait_cp_takeover(AP_HANDOFF_CP_TAKEOVER_WINDOW_MS)) {
+        fallback_reason = "no_takeover";   /* request sent, CP never entered the dump */
+    } else {
+        /* CP confirmed it is dumping AP memory: give it the full budget to
+         * finish and reset the board. Returning means it took over and then
+         * died mid-dump. */
         ap_wait_cp_reboot(AP_HANDOFF_CP_REBOOT_BUDGET_MS);
+        fallback_reason = "cp_no_reboot";
     }
 
-    /* Reached here => the CP rejected the handoff, or did not reset the board
-     * within the budget (CP hung). Take over: AP self-dumps its full memory and
-     * resets deterministically so the failure is never a silent no-dump hang. */
-    BK_DUMP_OUT("@AP_HANDOFF_FAILED: AP self-dump full memory then reset\r\n");
+    /* Reached here => the handoff failed for one of the three reasons above.
+     * Take over: AP self-dumps its full memory and resets deterministically so
+     * the failure is never a silent no-dump hang. */
     bk_coredump_writer_init();             /* re-acquire UART lock (released above) */
-    bk_coredump_self_full_memory();        /* manifest(AP), local reads (path 4) */
-    coredump_prompt_epilogue();            /* end marker before any (debug-only) probe */
+    /* Emit the fallback marker through the coredump writer AFTER the lock is
+     * re-acquired. Written before writer_init it never reached the UART, so a
+     * captured log was indistinguishable from a dump that just stopped. The
+     * reason keeps the three failure modes distinguishable offline. */
+    bk_coredump_write_prompt("@AP_HANDOFF_FAILED: reason=%s, AP self-dump full memory then reset\r\n",
+                             fallback_reason);
+    bk_coredump_self_ram_memory();         /* manifest(AP) RAM, local reads (path 4) */
+    coredump_prompt_epilogue();            /* end marker before hang-prone reads */
+    /* Peripheral banks last: a read of a clock-gated or powered-down bank can
+     * stall the bus until the watchdog resets the chip, so it must not be able
+     * to cost us the RAM image or the end marker. */
+    coredump_feed_watchdogs();
+    bk_dump_peri_regs();
     bk_coredump_writer_deinit();
     coredump_feed_watchdogs();
     bk_reboot_ex(self->reset_reason);      /* AP is the sole reset issuer here */

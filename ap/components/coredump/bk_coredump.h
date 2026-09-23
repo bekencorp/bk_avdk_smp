@@ -156,6 +156,7 @@ void bk_dump_mstack(void);
 void bk_dump_pstack(void);
 void bk_dump_psram_mem(void);
 
-/* P0-1 path 4: AP-local full-memory dump used as the CP-handoff-failure
- * fallback (registers/stacks + manifest(AP) memory), then the caller resets. */
-void bk_coredump_self_full_memory(void);
+/* P0-1 path 4: AP-local RAM dump used as the CP-handoff-failure fallback
+ * (registers/stacks + manifest(AP) RAM). Peripheral register banks are left to
+ * the caller, which emits them after the end marker; then the caller resets. */
+void bk_coredump_self_ram_memory(void);
