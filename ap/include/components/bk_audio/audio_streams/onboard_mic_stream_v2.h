@@ -53,7 +53,7 @@ typedef struct
  * reference. Use this (not 0) as the "disabled" value, since 0/1/2 is a valid ADC channel. */
 #define ONBOARD_MIC_HW_REF_CH_NONE   (0xFF)
 
-#define ONBOARD_MIC_STREAM_TASK_STACK          (1024)
+#define ONBOARD_MIC_STREAM_TASK_STACK          (2048)
 #define ONBOARD_MIC_STREAM_TASK_CORE           (1)
 #define ONBOARD_MIC_STREAM_TASK_PRIO           (3)
 
