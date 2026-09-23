@@ -200,6 +200,17 @@ uint32_t bk_sys_sw_regs_get_ap_cp_hang_dumping(void)
     return s_sys_sw_regs.ap_cp_hang_dumping;
 }
 
+uint32_t bk_sys_sw_regs_get_cp_ap_dump_taken(void)
+{
+#if CONFIG_SUPPORT_CACHEABLE_SRAM
+    __asm volatile ("dsb" ::: "memory");
+    arch_dcache_invd_range((void *)&s_sys_sw_regs.cp_ap_dump_taken, sizeof(s_sys_sw_regs.cp_ap_dump_taken));
+    __asm volatile ("dsb" ::: "memory");
+#endif
+
+    return s_sys_sw_regs.cp_ap_dump_taken;
+}
+
 uint32_t bk_sys_sw_regs_get_adc_key_sample(adc_key_sample_info_t *info)
 {
     uint32_t flags;
@@ -416,6 +427,19 @@ void bk_sys_sw_regs_set_ap_cp_hang_dumping(uint32_t value)
     __asm volatile ("dsb" ::: "memory");
 #if CONFIG_SUPPORT_CACHEABLE_SRAM
     flush_dcache((void *)&s_sys_sw_regs.ap_cp_hang_dumping, sizeof(s_sys_sw_regs.ap_cp_hang_dumping));
+    __asm volatile ("dsb" ::: "memory");
+#endif
+}
+
+void bk_sys_sw_regs_set_cp_ap_dump_taken(uint32_t value)
+{
+    /* AP-side writer: clears the flag before requesting the handoff. The window
+     * survives a warm reset, so a stale 1 from the previous dump would otherwise
+     * read as a confirmed takeover. The CP is the only writer that sets it. */
+    s_sys_sw_regs.cp_ap_dump_taken = (value != 0U) ? 1U : 0U;
+    __asm volatile ("dsb" ::: "memory");
+#if CONFIG_SUPPORT_CACHEABLE_SRAM
+    flush_dcache((void *)&s_sys_sw_regs.cp_ap_dump_taken, sizeof(s_sys_sw_regs.cp_ap_dump_taken));
     __asm volatile ("dsb" ::: "memory");
 #endif
 }

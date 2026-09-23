@@ -112,7 +112,7 @@ typedef union {
         volatile uint8_t flash_init_done; /**< CP flash init completion flag */
         volatile uint8_t ap_cp_hang_dumping; /**< AP is dumping CP-hang context and owns UART output */
         volatile uint8_t cp_heartbeat_bumped;
-        volatile uint8_t reserved0;
+        volatile uint8_t cp_ap_dump_taken; /**< CP has ENTERED the AP-memory trap dump; AP handoff confirmation */
         volatile uint32_t cp_heap_size_ptr; /**< Addr of CP system heap xFreeBytesRemaining (size_t); 0 = not published */
         volatile uint32_t cp_lwip_mem_info_ptr; /**< Addr of CP cp_mem_addr_info_t snapshot (lwIP/heap addrs); 0 = not published */
         volatile uint32_t ap_tx_flow_state_ptr; /**< Addr of AP TX flow state; 0 = not published */
