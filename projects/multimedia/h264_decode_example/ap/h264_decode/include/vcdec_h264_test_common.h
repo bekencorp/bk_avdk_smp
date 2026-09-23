@@ -16,7 +16,7 @@ extern "C" {
 #define VCDEC_H264_TEST_ROUNDS       1U
 #define VCDEC_H264_TEST_DUMP_ENABLE  0
 /* Set to 1 to auto-run frame/flexa/zerocopy on boot. Off so CLI can pick the stream. */
-#define VCDEC_H264_BOOT_DEMO_ENABLE  0
+#define VCDEC_H264_BOOT_DEMO_ENABLE  1
 
 /* Static description of one embedded test stream. */
 typedef struct {
