@@ -5,6 +5,16 @@ menu "AVDK Driver"
 		bool "ISP Drvier"
 		default n
 
+	config ISP_DUAL_MIPI_LOGICAL_PORT
+		bool "Enable dual MIPI logical ISP ports"
+		default n
+		depends on ISP
+		depends on MIPI_CSI
+		help
+			Enable the additional logical MIPI port, per-port ISP context
+			storage, and dual-camera frame tagging. Keep disabled for
+			single-camera products to preserve their original memory usage.
+
 	config GPU
 		bool "GPU Driver"
 	default n

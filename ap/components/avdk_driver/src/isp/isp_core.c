@@ -71,6 +71,16 @@ static uint8_t s_isp_clk_vote_cnt = 0;
 static volatile uint32_t error_count = 0;
 static beken_timer_t s_isp_error_timer = {0};
 
+static uint8_t isp_active_port_count(void)
+{
+#if CONFIG_ISP_DUAL_MIPI_LOGICAL_PORT
+    return 3U;
+#else
+    return 2U;
+#endif
+}
+
+#if CONFIG_ISP_DUAL_MIPI_LOGICAL_PORT
 typedef struct {
     uint8_t valid;
     ISP_METADATA_S metadata;
@@ -78,6 +88,7 @@ typedef struct {
 } isp_port_context_t;
 
 static isp_port_context_t s_isp_port_context[ISP_DEV_CNT][ISP_PORT_CNT];
+#endif
 
 #if CONFIG_SOC_SMP
 static SPINLOCK_SECTION volatile spinlock_t s_isp_isr_spin_lock = SPIN_LOCK_INIT;
@@ -265,7 +276,7 @@ static void isp_unregister_sensor_callbacks(isp_control_t *control)
         return;
     }
 
-    for (i = 0; i < ISP_PORT_CNT; i++)
+    for (i = 0; i < isp_active_port_count(); i++)
     {
         ISP_PUB_ATTR_S *p = (ISP_PUB_ATTR_S *)control->pub_attr[i];
 
@@ -383,6 +394,7 @@ static void isp_pipeline_done_callback_ext(ISP_PORT port, void *args)
         return;
     }
 
+#if CONFIG_ISP_DUAL_MIPI_LOGICAL_PORT
     if ((port.portId == ISP_MIPI_PORT_LOGICAL0 ||
          port.portId == ISP_MIPI_PORT_LOGICAL1) &&
         control->isp_mutex != NULL &&
@@ -397,6 +409,7 @@ static void isp_pipeline_done_callback_ext(ISP_PORT port, void *args)
         }
         (void)rtos_unlock_mutex(&control->isp_mutex);
     }
+#endif
 
     isp_3a_done_cb_t cb;
     void *cb_arg;
@@ -814,14 +827,24 @@ static void isp_clock_enable(uint32_t clk)
     bk_isp_clock_enable(true);
 }
 
+static uint8_t isp_frame_buffer_limit(void)
+{
+#if CONFIG_ISP_DUAL_MIPI_LOGICAL_PORT || CONFIG_PT_MP_H264_FRAME_MODE || CONFIG_CSI_TP2863
+    return ISP_FRAME_CNT_MAX;
+#else
+    return 2U;
+#endif
+}
+
 static bk_err_t bk_isp_complete_buffer_config(isp_control_t *control, uint8_t chnl, uint8_t buf_cnt)
 {
     bk_err_t ret = BK_FAIL;
     uint8_t frame_cnt = buf_cnt;
+    uint8_t frame_limit = isp_frame_buffer_limit();
 
-    if (frame_cnt == 0 || frame_cnt > ISP_FRAME_CNT_MAX)
+    if (frame_cnt == 0 || frame_cnt > frame_limit)
     {
-        frame_cnt = ISP_FRAME_CNT_MAX;
+        frame_cnt = frame_limit;
     }
 
     for (int i = 0; i < frame_cnt; i++) {
@@ -1012,6 +1035,10 @@ bk_err_t bk_isp_port_init(isp_handle_t *handle, void *sensor_attr)
         LOGE("%s, Not Support input:%d\n", __func__, __LINE__);
         return ret;
     }
+    if (pubAttr->port_id >= isp_active_port_count())
+    {
+        return BK_ERR_PARAM;
+    }
 
     control->port.portId = pubAttr->port_id;
     control->pub_attr[control->port.portId] = pubAttr;
@@ -1046,7 +1073,8 @@ bk_err_t bk_isp_port_select(isp_handle_t *handle, uint8_t port_id)
 {
     bk_err_t ret = BK_FAIL;
 
-    if (handle == NULL || *handle == NULL || port_id >= ISP_PORT_CNT)
+    if (handle == NULL || *handle == NULL ||
+        port_id >= isp_active_port_count())
     {
         return BK_ERR_PARAM;
     }
@@ -1165,6 +1193,7 @@ bk_err_t bk_isp_port_context_restore(isp_handle_t *handle)
         return BK_ERR_PARAM;
     }
 
+#if CONFIG_ISP_DUAL_MIPI_LOGICAL_PORT
     isp_control_t *control = (isp_control_t *)*handle;
     if (control->isp_mutex == NULL ||
         rtos_lock_mutex(&control->isp_mutex) != BK_OK)
@@ -1197,6 +1226,9 @@ bk_err_t bk_isp_port_context_restore(isp_handle_t *handle)
 
     (void)rtos_unlock_mutex(&control->isp_mutex);
     return (ret == VSI_SUCCESS) ? BK_OK : BK_FAIL;
+#else
+    return BK_OK;
+#endif
 }
 
 bk_err_t bk_isp_port_change(isp_handle_t *handle)
@@ -1207,7 +1239,8 @@ bk_err_t bk_isp_port_change(isp_handle_t *handle)
     }
 
     isp_control_t *control = (isp_control_t *)*handle;
-    uint8_t port_id = (control->port.portId + 1) % ISP_PORT_CNT;
+    uint8_t port_id =
+        (control->port.portId + 1U) % isp_active_port_count();
 
     return bk_isp_port_select(handle, port_id);
 }
@@ -1228,7 +1261,9 @@ bk_err_t bk_isp_dev_init(isp_handle_t *handle)
         return ret;
     }
     os_memset(isp_control, 0, sizeof(isp_control_t));
+#if CONFIG_ISP_DUAL_MIPI_LOGICAL_PORT
     os_memset(s_isp_port_context, 0, sizeof(s_isp_port_context));
+#endif
 
     ret = rtos_init_mutex(&isp_control->isp_mutex);
     if (ret != BK_OK)
