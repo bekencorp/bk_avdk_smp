@@ -108,6 +108,14 @@ menu "Bk_cli"
 			bool "Enable Wifi Cli Enable"
 			default y
 
+		config ENABLE_WIFI_USER_FCI
+			depends on WIFI_CLI_ENABLE
+			bool "Enable WiFi user FCI (sta_fc) CLI"
+			default n
+			help
+				Host self-managed fast-connect CLI (sta_fc). Persist FCI to
+				sys_net partition (after MAC). Used by projects/wifi/usr_fast_connect.
+
 		config TCP_SERVER_TEST
 			depends on CLI
 			bool "Enable Tcp Server Test"

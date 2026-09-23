@@ -235,6 +235,9 @@ set(PRIV_REQUIRES_LIST bk_common psa_mbedtls bk_netif bk_ps fatfs bk_vfs bk_init
 if (CONFIG_DHARA_FTL)
 	list(APPEND PRIV_REQUIRES_LIST dhara)
 endif()
+if (CONFIG_EASY_FLASH)
+	list(APPEND PRIV_REQUIRES_LIST easy_flash)
+endif()
 
 armino_component_register(SRCS "cli_gsensor.c" "${srcs}"
 	INCLUDE_DIRS "${incs}"

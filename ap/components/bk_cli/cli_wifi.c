@@ -20,11 +20,55 @@
 #include "soc_debug.h"
 
 #include "ftp/ftpd.h"
+#include <stdio.h>
+#if CONFIG_ENABLE_WIFI_USER_FCI
+#include <driver/flash_partition.h>
+#endif
 
 #define TAG "wifi_cli"
 //#define CMD_WLAN_MAX_BSS_CNT	50
 //beken_semaphore_t wifi_cmd_sema = NULL;
 //int wifi_cmd_status = 0;
+
+#if CONFIG_ENABLE_WIFI_USER_FCI
+/*
+ * Tuya-style user fast-connect: host self-manages FCI.
+ * Persist to sys_net partition (not easy_flash), after MAC bytes.
+ * WPA2: psk; WPA3: pmk/pmkid/akmp/pmf/tk — same wifi_sta_config_t fields.
+ * TK required only when pmf == MGMT_FRAME_PROTECTION_REQUIRED (2).
+ *
+ * Layout in BK_PARTITION_SYS_NET (4KB):
+ *   [0, 6)  WiFi base MAC (bk_system/mac.c) — must not overwrite
+ *   [6, ..) user FCI blob (this CLI)
+ * Write path uses partition read/erase/write RMW so MAC is preserved.
+ * (bk_spec_flash_write_bytes is CP-only; not linked on AP.)
+ */
+#define CLI_WIFI_USER_FCI_MAGIC         0x55534632 /* 'USF2' */
+#define CLI_WIFI_USER_FCI_FLASH_OFFSET  0x6        /* NET_INFO_FAST_CONNECT_OFFSET */
+
+typedef struct {
+	uint32_t magic;
+	char ssid[WIFI_SSID_STR_LEN];
+	uint8_t bssid[WIFI_BSSID_LEN];
+	char password[WIFI_PASSWORD_LEN];
+	uint8_t psk[WIFI_PASSWORD_LEN]; /* 64-char hex PSK string, same as CP fci.psk */
+	uint8_t ip_addr[4];
+	uint8_t netmask[4];
+	uint8_t gw[4];
+	uint8_t dns1[4];
+	uint8_t tk[16];
+	uint8_t channel;
+	uint8_t pmf;
+	wifi_security_t security;
+	uint8_t pmk_len;
+	uint8_t pmk[64];
+	uint8_t pmkid[16];
+	int akmp;
+} cli_wifi_user_fci_t;
+
+static cli_wifi_user_fci_t s_cli_wifi_user_fci;
+static bool s_cli_wifi_user_fci_valid;
+#endif /* CONFIG_ENABLE_WIFI_USER_FCI */
 
 
 #if (CLI_CFG_WIFI == 1)
@@ -724,6 +768,346 @@ error:
 }
 
 
+#if CONFIG_ENABLE_WIFI_USER_FCI
+static void cli_wifi_ip_str_to_bytes(const char *str, uint8_t out[4])
+{
+	unsigned a = 0, b = 0, c = 0, d = 0;
+
+	os_memset(out, 0, 4);
+	if (!str || !str[0])
+		return;
+	if (sscanf(str, "%u.%u.%u.%u", &a, &b, &c, &d) == 4) {
+		out[0] = (uint8_t)a;
+		out[1] = (uint8_t)b;
+		out[2] = (uint8_t)c;
+		out[3] = (uint8_t)d;
+	}
+}
+
+static void cli_wifi_user_fci_dump(const cli_wifi_user_fci_t *fci)
+{
+	if (!fci)
+		return;
+
+	CLI_LOGI("user_fci magic=0x%x ssid=%s bssid=%02x:%02x:%02x:%02x:%02x:%02x "
+		 "chan=%d sec=%d pmf=%d pwd_len=%d psk_len=%d pmk_len=%d akmp=0x%x\n",
+		 fci->magic, fci->ssid,
+		 fci->bssid[0], fci->bssid[1], fci->bssid[2],
+		 fci->bssid[3], fci->bssid[4], fci->bssid[5],
+		 fci->channel, fci->security, fci->pmf,
+		 (int)os_strlen(fci->password), (int)os_strlen((char *)fci->psk),
+		 fci->pmk_len, fci->akmp);
+	CLI_LOGI("user_fci ip=%d.%d.%d.%d mask=%d.%d.%d.%d gw=%d.%d.%d.%d dns=%d.%d.%d.%d\n",
+		 fci->ip_addr[0], fci->ip_addr[1], fci->ip_addr[2], fci->ip_addr[3],
+		 fci->netmask[0], fci->netmask[1], fci->netmask[2], fci->netmask[3],
+		 fci->gw[0], fci->gw[1], fci->gw[2], fci->gw[3],
+		 fci->dns1[0], fci->dns1[1], fci->dns1[2], fci->dns1[3]);
+}
+
+static int cli_wifi_user_fci_collect(cli_wifi_user_fci_t *fci)
+{
+	wifi_sta_config_t cfg = {0};
+	wifi_link_status_t link = {0};
+	netif_ip4_config_t ip4 = {0};
+	int ret;
+
+	if (!fci)
+		return BK_ERR_NULL_PARAM;
+
+	os_memset(fci, 0, sizeof(*fci));
+	fci->magic = CLI_WIFI_USER_FCI_MAGIC;
+
+	ret = bk_wifi_sta_get_config(&cfg);
+	if (ret != BK_OK) {
+		CLI_LOGE("sta_get_config failed %d\n", ret);
+		return ret;
+	}
+
+	ret = bk_wifi_sta_get_link_status(&link);
+	if (ret != BK_OK) {
+		CLI_LOGE("sta_get_link_status failed %d\n", ret);
+		return ret;
+	}
+
+	ret = bk_netif_get_ip4_config(NETIF_IF_STA, &ip4);
+	if (ret != BK_OK) {
+		CLI_LOGW("get_ip4_config failed %d, save without IP\n", ret);
+	}
+
+	os_strlcpy(fci->ssid, link.ssid[0] ? link.ssid : cfg.ssid, sizeof(fci->ssid));
+	os_memcpy(fci->bssid, link.bssid, WIFI_BSSID_LEN);
+	os_strlcpy(fci->password, cfg.password, sizeof(fci->password));
+	fci->channel = link.channel ? link.channel : cfg.channel;
+	fci->security = link.security;
+	fci->pmf = cfg.pmf;
+	os_memcpy(fci->tk, cfg.tk, sizeof(fci->tk));
+	fci->pmk_len = cfg.pmk_len;
+	if (cfg.pmk_len > 0 && cfg.pmk_len <= sizeof(fci->pmk)) {
+		os_memcpy(fci->pmk, cfg.pmk, cfg.pmk_len);
+		os_memcpy(fci->pmkid, cfg.pmkid, sizeof(fci->pmkid));
+		fci->akmp = cfg.akmp;
+	}
+
+	cli_wifi_ip_str_to_bytes(ip4.ip, fci->ip_addr);
+	cli_wifi_ip_str_to_bytes(ip4.mask, fci->netmask);
+	cli_wifi_ip_str_to_bytes(ip4.gateway, fci->gw);
+	cli_wifi_ip_str_to_bytes(ip4.dns, fci->dns1);
+
+	/* Hex PSK from STA config (computed on CP); required for WPA2 fast connect. */
+	if (os_strlen((char *)cfg.psk) >= 64)
+		os_memcpy(fci->psk, cfg.psk, WIFI_PASSWORD_LEN);
+	else
+		CLI_LOGW("no hex psk in sta_get_config, leave psk empty\n");
+
+	if (fci->pmk_len == 0)
+		CLI_LOGW("no SAE PMK in sta_get_config yet (connect once so CP stores FCI)\n");
+
+	return BK_OK;
+}
+
+static int cli_wifi_user_fci_flash_write(const void *buf, uint32_t size)
+{
+	bk_logic_partition_t *pt;
+	uint8_t *sector = NULL;
+	bk_err_t ret = BK_FAIL;
+
+	if (!buf || size == 0)
+		return BK_ERR_PARAM;
+
+	pt = bk_flash_partition_get_info(BK_PARTITION_SYS_NET);
+	if (!pt) {
+		CLI_LOGE("sys_net partition not found\n");
+		return BK_FAIL;
+	}
+	if (CLI_WIFI_USER_FCI_FLASH_OFFSET + size > pt->partition_length) {
+		CLI_LOGE("user_fci too large for sys_net (off=%u size=%u len=%u)\n",
+			 (unsigned)CLI_WIFI_USER_FCI_FLASH_OFFSET, (unsigned)size,
+			 (unsigned)pt->partition_length);
+		return BK_ERR_PARAM;
+	}
+
+	sector = os_malloc(pt->partition_length);
+	if (!sector) {
+		CLI_LOGE("sys_net RMW malloc fail\n");
+		return BK_ERR_NO_MEM;
+	}
+
+	/* RMW whole partition: preserves MAC at [0, 6) */
+	ret = bk_flash_partition_read(BK_PARTITION_SYS_NET, sector, 0,
+				      pt->partition_length);
+	if (ret != BK_OK)
+		goto out;
+
+	os_memcpy(sector + CLI_WIFI_USER_FCI_FLASH_OFFSET, buf, size);
+
+	ret = bk_flash_partition_erase(BK_PARTITION_SYS_NET, 0, pt->partition_length);
+	if (ret != BK_OK)
+		goto out;
+
+	ret = bk_flash_partition_write(BK_PARTITION_SYS_NET, sector, 0,
+				       pt->partition_length);
+
+out:
+	os_free(sector);
+	if (ret != BK_OK) {
+		CLI_LOGE("sys_net write user_fci failed %d\n", ret);
+		return BK_FAIL;
+	}
+	return BK_OK;
+}
+
+static int cli_wifi_user_fci_flash_read(void *buf, uint32_t size)
+{
+	bk_err_t ret;
+
+	if (!buf || size == 0)
+		return BK_ERR_PARAM;
+
+	ret = bk_flash_partition_read(BK_PARTITION_SYS_NET, buf,
+				     CLI_WIFI_USER_FCI_FLASH_OFFSET, size);
+	if (ret != BK_OK) {
+		CLI_LOGE("sys_net read user_fci failed %d\n", ret);
+		return BK_FAIL;
+	}
+	return BK_OK;
+}
+
+static int cli_wifi_user_fci_save(const cli_wifi_user_fci_t *fci)
+{
+	int ret;
+
+	if (!fci || fci->magic != CLI_WIFI_USER_FCI_MAGIC)
+		return BK_ERR_PARAM;
+
+	os_memcpy(&s_cli_wifi_user_fci, fci, sizeof(*fci));
+	s_cli_wifi_user_fci_valid = true;
+
+	ret = cli_wifi_user_fci_flash_write(fci, sizeof(*fci));
+	if (ret != BK_OK)
+		return ret;
+
+	CLI_LOGI("saved user_fci to sys_net off=0x%x size=%d (MAC untouched)\n",
+		 CLI_WIFI_USER_FCI_FLASH_OFFSET, (int)sizeof(*fci));
+	return BK_OK;
+}
+
+static int cli_wifi_user_fci_load(cli_wifi_user_fci_t *fci)
+{
+	int ret;
+
+	if (!fci)
+		return BK_ERR_NULL_PARAM;
+
+	os_memset(fci, 0, sizeof(*fci));
+
+	ret = cli_wifi_user_fci_flash_read(fci, sizeof(*fci));
+	if (ret == BK_OK && fci->magic == CLI_WIFI_USER_FCI_MAGIC) {
+		os_memcpy(&s_cli_wifi_user_fci, fci, sizeof(*fci));
+		s_cli_wifi_user_fci_valid = true;
+		return BK_OK;
+	}
+	CLI_LOGW("sys_net user_fci miss/invalid (ret=%d magic=0x%x), try RAM\n",
+		 ret, fci->magic);
+
+	if (s_cli_wifi_user_fci_valid &&
+	    s_cli_wifi_user_fci.magic == CLI_WIFI_USER_FCI_MAGIC) {
+		os_memcpy(fci, &s_cli_wifi_user_fci, sizeof(*fci));
+		return BK_OK;
+	}
+
+	return BK_ERR_NOT_FOUND;
+}
+
+static int cli_wifi_user_fci_erase(void)
+{
+	cli_wifi_user_fci_t empty = {0};
+	int ret;
+
+	os_memset(&s_cli_wifi_user_fci, 0, sizeof(s_cli_wifi_user_fci));
+	s_cli_wifi_user_fci_valid = false;
+
+	ret = cli_wifi_user_fci_flash_write(&empty, sizeof(empty));
+	if (ret != BK_OK)
+		return ret;
+
+	CLI_LOGI("user_fci erased from sys_net (MAC untouched)\n");
+	return BK_OK;
+}
+
+static int cli_wifi_user_fci_connect(const cli_wifi_user_fci_t *fci)
+{
+	wifi_sta_config_t sta_config = WIFI_DEFAULT_STA_CONFIG();
+	int ret;
+	int i;
+	bool tk_valid = false;
+
+	if (!fci || fci->magic != CLI_WIFI_USER_FCI_MAGIC)
+		return BK_ERR_PARAM;
+
+	for (i = 0; i < 16; i++) {
+		if (fci->tk[i] != 0) {
+			tk_valid = true;
+			break;
+		}
+	}
+	/* Match CP: TK only mandatory for PMF required (value 2). WPA2 may omit TK. */
+	if (fci->pmf == 2 /* MGMT_FRAME_PROTECTION_REQUIRED */ && !tk_valid) {
+		CLI_LOGE("user_fast_connect: host TK is empty (PMF required), abort\n");
+		return BK_ERR_PARAM;
+	}
+
+	os_memset(&sta_config, 0, sizeof(sta_config));
+	os_strlcpy(sta_config.ssid, fci->ssid, sizeof(sta_config.ssid));
+	os_memcpy(sta_config.bssid, fci->bssid, WIFI_BSSID_LEN);
+	os_strlcpy(sta_config.password, fci->password, sizeof(sta_config.password));
+	os_memcpy(sta_config.psk, fci->psk, WIFI_PASSWORD_LEN);
+	os_memcpy(sta_config.ip_addr, fci->ip_addr, 4);
+	os_memcpy(sta_config.netmask, fci->netmask, 4);
+	os_memcpy(sta_config.gw, fci->gw, 4);
+	os_memcpy(sta_config.dns1, fci->dns1, 4);
+	os_memcpy(sta_config.tk, fci->tk, 16);
+	sta_config.channel = fci->channel;
+	sta_config.security = fci->security;
+	sta_config.pmf = fci->pmf;
+	sta_config.pmk_len = fci->pmk_len;
+	if (fci->pmk_len > 0 && fci->pmk_len <= sizeof(sta_config.pmk)) {
+		os_memcpy(sta_config.pmk, fci->pmk, fci->pmk_len);
+		os_memcpy(sta_config.pmkid, fci->pmkid, sizeof(sta_config.pmkid));
+		sta_config.akmp = fci->akmp;
+	}
+	/* Host self-managed FCI (WPA2 psk / WPA3 pmk), no CP flash on reconnect */
+	sta_config.is_user_fast_connect = 1;
+
+	cli_wifi_user_fci_dump(fci);
+
+	bk_wifi_sta_stop();
+	ret = bk_wifi_sta_set_config(&sta_config);
+	if (ret != BK_OK) {
+		CLI_LOGE("sta_set_config failed %d\n", ret);
+		return ret;
+	}
+	ret = bk_wifi_sta_start();
+	if (ret != BK_OK)
+		CLI_LOGE("sta_start failed %d\n", ret);
+	return ret;
+}
+
+void cli_wifi_sta_fc_help(void)
+{
+	CLI_RAW_LOGI("\r\nsta_fc {save|connect|show|erase}\n");
+	CLI_RAW_LOGI("  Host self-managed fast-connect (persist to sys_net, MAC kept).\n");
+	CLI_RAW_LOGI("  save   : get_config FCI (WPA2 psk / WPA3 pmk/pmf/tk) -> sys_net\n");
+	CLI_RAW_LOGI("  connect: load FCI, set is_user_fast_connect=1 (no CP flash)\n");
+	CLI_RAW_LOGI("  show   : dump saved FCI\n");
+	CLI_RAW_LOGI("  erase  : clear FCI in sys_net only (does not touch MAC)\n");
+	CLI_RAW_LOGI("  note   : TK required only if pmf=required; WPA2 may omit TK\n");
+	CLI_RAW_LOGI("  example: sta <ssid> <pwd> -> got ip -> sta_fc save\n");
+	CLI_RAW_LOGI("           reboot -> sta_fc connect\n");
+}
+
+void cli_wifi_sta_fc_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
+{
+	char *msg = WIFI_CMD_RSP_SUCCEED;
+	int ret = BK_OK;
+	cli_wifi_user_fci_t fci;
+
+	if (argc < 2 || !os_strcmp(argv[1], "help")) {
+		cli_wifi_sta_fc_help();
+		goto out;
+	}
+
+	if (!os_strcmp(argv[1], "save")) {
+		ret = cli_wifi_user_fci_collect(&fci);
+		if (ret == BK_OK) {
+			cli_wifi_user_fci_dump(&fci);
+			ret = cli_wifi_user_fci_save(&fci);
+		}
+	} else if (!os_strcmp(argv[1], "connect")) {
+		ret = cli_wifi_user_fci_load(&fci);
+		if (ret == BK_OK)
+			ret = cli_wifi_user_fci_connect(&fci);
+		else
+			CLI_LOGE("no saved user_fci, run sta_fc save first\n");
+	} else if (!os_strcmp(argv[1], "show")) {
+		ret = cli_wifi_user_fci_load(&fci);
+		if (ret == BK_OK)
+			cli_wifi_user_fci_dump(&fci);
+		else
+			CLI_LOGE("no saved user_fci\n");
+	} else if (!os_strcmp(argv[1], "erase")) {
+		ret = cli_wifi_user_fci_erase();
+	} else {
+		cli_wifi_sta_fc_help();
+		ret = BK_ERR_PARAM;
+	}
+
+out:
+	if (ret != BK_OK)
+		msg = WIFI_CMD_RSP_ERROR;
+	os_memcpy(pcWriteBuffer, msg, os_strlen(msg));
+}
+#endif /* CONFIG_ENABLE_WIFI_USER_FCI */
+
 void cli_wifi_sta_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
 	wifi_sta_config_t sta_config = WIFI_DEFAULT_STA_CONFIG();
@@ -1354,6 +1738,9 @@ static const struct cli_command s_wifi_commands[] = {
 	{"ap", "ap {ssid} [password] [channel] [hidden]", cli_wifi_ap_cmd},
 #endif
 	{"sta", "sta {ssid} [password] [bssid] [channel] [psk]", cli_wifi_sta_cmd},
+#if CONFIG_ENABLE_WIFI_USER_FCI
+	{"sta_fc", "sta_fc {save|connect|show|erase}", cli_wifi_sta_fc_cmd},
+#endif
 	{"stop", "stop {sta|ap}", cli_wifi_stop_cmd},
 	{"set_interval", "set_interval {0~255}", cli_wifi_set_interval_cmd},
 	{"monitor", "monitor {start|stop|show|chan}", cli_wifi_monitor_cmd},
