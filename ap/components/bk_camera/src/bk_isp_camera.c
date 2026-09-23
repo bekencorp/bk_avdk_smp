@@ -30,10 +30,17 @@ avdk_err_t bk_isp_camera_port_init(bk_isp_camera_ctlr_handle_t handle, void *con
     return handle->port_init(handle, config);
 }
 
+avdk_err_t bk_isp_camera_port_select(bk_isp_camera_ctlr_handle_t handle, uint8_t port_id)
+{
+    AVDK_RETURN_ON_FALSE(handle, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
+    AVDK_RETURN_ON_FALSE(handle->port_select, AVDK_ERR_UNSUPPORTED, TAG, AVDK_ERR_UNSUPPORTED_FUNCTION_TEXT);
+    return handle->port_select(handle, port_id);
+}
+
 avdk_err_t bk_isp_camera_port_change(bk_isp_camera_ctlr_handle_t handle)
 {
     AVDK_RETURN_ON_FALSE(handle, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
-    AVDK_RETURN_ON_FALSE(handle->dev_init, AVDK_ERR_UNSUPPORTED, TAG, AVDK_ERR_UNSUPPORTED_FUNCTION_TEXT);
+    AVDK_RETURN_ON_FALSE(handle->port_change, AVDK_ERR_UNSUPPORTED, TAG, AVDK_ERR_UNSUPPORTED_FUNCTION_TEXT);
     return handle->port_change(handle);
 }
 
@@ -63,6 +70,19 @@ avdk_err_t bk_isp_camera_read(bk_isp_camera_ctlr_handle_t handle, uint16_t id, u
     AVDK_RETURN_ON_FALSE(handle, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
     AVDK_RETURN_ON_FALSE(handle->read, AVDK_ERR_UNSUPPORTED, TAG, AVDK_ERR_UNSUPPORTED_FUNCTION_TEXT);
     return handle->read(handle, id, frame, size, timeout);
+}
+
+avdk_err_t bk_isp_camera_multi_port_read(
+    bk_isp_camera_ctlr_handle_t handle,
+    const multi_port_read_param_t *param,
+    multi_port_read_result_t *result)
+{
+    AVDK_RETURN_ON_FALSE(handle, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
+    AVDK_RETURN_ON_FALSE(param, AVDK_ERR_INVAL, TAG, "param is NULL");
+    AVDK_RETURN_ON_FALSE(result, AVDK_ERR_INVAL, TAG, "result is NULL");
+    AVDK_RETURN_ON_FALSE(handle->multi_port_read, AVDK_ERR_UNSUPPORTED, TAG,
+                         AVDK_ERR_UNSUPPORTED_FUNCTION_TEXT);
+    return handle->multi_port_read(handle, param, result);
 }
 
 avdk_err_t bk_isp_camera_vc_mux_start(bk_isp_camera_vc_mux_handle_t handle, bk_isp_camera_vc_mux_config_t *config)

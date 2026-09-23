@@ -29,6 +29,9 @@ typedef struct
     bk_camera_isp_ctlr_t controller;
     /* 1 = channel owned by an external zero-copy consumer; 0 = camera reader. */
     uint8_t bond_owned[ISP_CHANNEL_INSTANCE_MAX];
+    /* Serializes request publication/cancellation against the reader copy path.
+     * A timed-out read cannot return while the worker still touches its buffer. */
+    beken_mutex_t read_lock[ISP_CHANNEL_INSTANCE_MAX];
 } isp_camera_ctlr_private_t;
 
 static isp_camera_ctlr_private_t *isp_camera_ctlr_get_private(bk_camera_isp_ctlr_t *control)
@@ -108,10 +111,15 @@ static void isp_camera_ctlr_task_entry(void *param)
             continue;
         }
 
+        isp_camera_ctlr_private_t *private =
+            isp_camera_ctlr_get_private(cam_control);
+        rtos_lock_mutex(&private->read_lock[chnl_id]);
         if (read_ctx->read_enable && read_ctx->frame)
         {
             uint32_t copied = 0;
             uint8_t plane_cnt = buf.numPlanes ? buf.numPlanes : 1;
+            read_ctx->frame_size = 0;
+            read_ctx->port_id = BK_ISP_CAMERA_INVALID_PORT_ID;
 
             if (plane_cnt > VIDEO_MAX_PLANES)
             {
@@ -149,12 +157,17 @@ static void isp_camera_ctlr_task_entry(void *param)
             if (copied == 0)
             {
                 LOGE("%s, no plane data copied\n", __func__);
-                read_ctx->size = 0;
+            }
+            else
+            {
+                read_ctx->frame_size = copied;
+                read_ctx->port_id = buf.portId;
             }
 
             read_ctx->read_enable = false;
             rtos_set_semaphore(&read_ctx->sem);
         }
+        rtos_unlock_mutex(&private->read_lock[chnl_id]);
 
         isp_control->free_buf(config->channel, &buf);
     }
@@ -188,6 +201,8 @@ static avdk_err_t isp_camera_ctlr_start_channel_reader(bk_camera_isp_ctlr_t *con
     read_ctx->read_enable = false;
     read_ctx->frame = NULL;
     read_ctx->size = 0;
+    read_ctx->frame_size = 0;
+    read_ctx->port_id = BK_ISP_CAMERA_INVALID_PORT_ID;
 
     ret = rtos_init_semaphore(&read_ctx->sem, 1);
     if (ret != BK_OK)
@@ -255,6 +270,8 @@ static void isp_camera_ctlr_stop_channel_reader(bk_camera_isp_ctlr_t *control, u
     read_ctx->read_enable = false;
     read_ctx->frame = NULL;
     read_ctx->size = 0;
+    read_ctx->frame_size = 0;
+    read_ctx->port_id = BK_ISP_CAMERA_INVALID_PORT_ID;
     read_ctx->read_timeout = 0;
 }
 
@@ -349,12 +366,26 @@ static bk_err_t isp_camera_ctlr_port_init(bk_isp_camera_ctlr_handle_t handle, vo
     return AVDK_ERR_OK;
 }
 
+static bk_err_t isp_camera_ctlr_port_select(bk_isp_camera_ctlr_handle_t handle,
+                                            uint8_t port_id)
+{
+    bk_camera_isp_ctlr_t *control = __containerof(handle, bk_camera_isp_ctlr_t, ops);
+    AVDK_RETURN_ON_FALSE(control, AVDK_ERR_INVAL, TAG, "control is NULL");
+    AVDK_RETURN_ON_FALSE(port_id < ISP_PORT_CNT, AVDK_ERR_INVAL, TAG,
+                         "port id out of range");
+
+    AVDK_RETURN_ON_ERROR(
+        bk_isp_port_select(&control->isp_handle, port_id),
+        TAG, "port select failed");
+    return AVDK_ERR_OK;
+}
+
 static bk_err_t isp_camera_ctlr_port_change(bk_isp_camera_ctlr_handle_t handle)
 {
     bk_camera_isp_ctlr_t *control =  __containerof(handle, bk_camera_isp_ctlr_t, ops);
     AVDK_RETURN_ON_FALSE(control, AVDK_ERR_INVAL, TAG, "control is NULL");
 
-    AVDK_RETURN_ON_ERROR(bk_isp_port_change(&control->isp_handle, control->chnl), TAG, "exe fail");
+    AVDK_RETURN_ON_ERROR(bk_isp_port_change(&control->isp_handle), TAG, "exe fail");
     return AVDK_ERR_OK;
 }
 
@@ -406,22 +437,34 @@ static avdk_err_t isp_camera_csi_sensor_open(bk_camera_isp_ctlr_t *control, void
     return AVDK_ERR_OK;
 }
 
-static avdk_err_t isp_camera_ctlr_read(bk_isp_camera_ctlr_handle_t handle, uint16_t id, uint8_t *frame, uint32_t size, uint32_t timeout)
+static avdk_err_t isp_camera_ctlr_multi_port_read(
+    bk_isp_camera_ctlr_handle_t handle,
+    const multi_port_read_param_t *param,
+    multi_port_read_result_t *result)
 {
     avdk_err_t ret = AVDK_ERR_GENERIC;
 
     bk_camera_isp_ctlr_t *control = __containerof(handle, bk_camera_isp_ctlr_t, ops);
     AVDK_RETURN_ON_FALSE(control != NULL, ret, TAG, "control is NULL");
-    AVDK_RETURN_ON_FALSE(id < ISP_CHANNEL_INSTANCE_MAX, AVDK_ERR_INVAL, TAG, "channel out of range");
-    AVDK_RETURN_ON_FALSE(isp_camera_ctlr_get_private(control)->bond_owned[id] == 0,
+    AVDK_RETURN_ON_FALSE(param != NULL, AVDK_ERR_INVAL, TAG, "param is NULL");
+    AVDK_RETURN_ON_FALSE(result != NULL, AVDK_ERR_INVAL, TAG, "result is NULL");
+    AVDK_RETURN_ON_FALSE(param->id < ISP_CHANNEL_INSTANCE_MAX, AVDK_ERR_INVAL, TAG, "channel out of range");
+    AVDK_RETURN_ON_FALSE(param->frame != NULL && param->size > 0,
+                         AVDK_ERR_INVAL, TAG, "frame buffer is invalid");
+    AVDK_RETURN_ON_FALSE(isp_camera_ctlr_get_private(control)->bond_owned[param->id] == 0,
                          AVDK_ERR_BUSY, TAG,
                          "channel is owned by an external consumer");
 
-    isp_channel_read_ctx_t *read_ctx = &control->read_ctx[id];
+    result->frame_size = 0;
+    result->port_id = BK_ISP_CAMERA_INVALID_PORT_ID;
+
+    isp_channel_read_ctx_t *read_ctx = &control->read_ctx[param->id];
+    beken_mutex_t *read_lock =
+        &isp_camera_ctlr_get_private(control)->read_lock[param->id];
 
     if (control->state != CAM_FSM_ENABLE || read_ctx->thread_enable == false)
     {
-        LOGE("%s, %d camera channel %d not enable\n", __func__, __LINE__, id);
+        LOGE("%s, %d camera channel %d not enable\n", __func__, __LINE__, param->id);
         return ret;
     }
 
@@ -433,9 +476,11 @@ static avdk_err_t isp_camera_ctlr_read(bk_isp_camera_ctlr_handle_t handle, uint1
         control->read_register = true;
     }
 
+    rtos_lock_mutex(read_lock);
     if (read_ctx->read_enable)
     {
-        LOGW("%s, %d channel %d state error!\n", __func__, __LINE__, id);
+        LOGW("%s, %d channel %d state error!\n", __func__, __LINE__, param->id);
+        rtos_unlock_mutex(read_lock);
         return ret;
     }
 
@@ -446,34 +491,64 @@ static avdk_err_t isp_camera_ctlr_read(bk_isp_camera_ctlr_handle_t handle, uint1
      * stale token can exist. Consume it (non-blocking, bounded) so this read only
      * wakes on its own freshly delivered frame. */
     (void)rtos_get_semaphore(&read_ctx->sem, 0);
-
-    read_ctx->frame = frame;
-    read_ctx->size = size;
-    uint32_t wait_timeout = timeout ? timeout : ISP_CAMERA_READ_IDLE_TIMEOUT_MS;
+    read_ctx->frame = param->frame;
+    read_ctx->size = param->size;
+    read_ctx->frame_size = 0;
+    read_ctx->port_id = BK_ISP_CAMERA_INVALID_PORT_ID;
+    uint32_t wait_timeout = param->timeout ? param->timeout : ISP_CAMERA_READ_IDLE_TIMEOUT_MS;
     read_ctx->read_timeout = wait_timeout;
     /* Publish read_enable last so the free-running reader never observes it true
      * before frame/size are set. The reader hands us the next freshly popped
      * frame and posts sem. */
     read_ctx->read_enable = true;
+    rtos_unlock_mutex(read_lock);
 
     ret = rtos_get_semaphore(&read_ctx->sem, wait_timeout);
     if (ret != BK_OK)
     {
-        LOGW("%s, %d channel %d read timeout %dms\n", __func__, __LINE__, id, wait_timeout);
-        read_ctx->read_enable = false;
+        LOGW("%s, %d channel %d read timeout %dms\n",
+             __func__, __LINE__, param->id, wait_timeout);
     }
 
-    if (read_ctx->size == 0)
+    rtos_lock_mutex(read_lock);
+    read_ctx->read_enable = false;
+    if (read_ctx->frame_size == 0)
     {
         LOGW("%s, %d, frame size is 0\n", __func__, __LINE__);
         ret = AVDK_ERR_GENERIC;
     }
+    else
+    {
+        result->frame_size = read_ctx->frame_size;
+        result->port_id = read_ctx->port_id;
+        ret = AVDK_ERR_OK;
+    }
 
     read_ctx->size = 0;
-    read_ctx->read_enable = false;
+    read_ctx->frame_size = 0;
+    read_ctx->port_id = BK_ISP_CAMERA_INVALID_PORT_ID;
     read_ctx->frame = NULL;
+    (void)rtos_get_semaphore(&read_ctx->sem, 0);
+    rtos_unlock_mutex(read_lock);
 
     return ret;
+}
+
+static avdk_err_t isp_camera_ctlr_read(bk_isp_camera_ctlr_handle_t handle,
+                                       uint16_t id,
+                                       uint8_t *frame,
+                                       uint32_t size,
+                                       uint32_t timeout)
+{
+    multi_port_read_param_t param = {
+        .id = id,
+        .frame = frame,
+        .size = size,
+        .timeout = timeout,
+    };
+    multi_port_read_result_t result;
+
+    return isp_camera_ctlr_multi_port_read(handle, &param, &result);
 }
 
 static avdk_err_t isp_camera_ctlr_delete(bk_isp_camera_ctlr_handle_t handle)
@@ -481,7 +556,15 @@ static avdk_err_t isp_camera_ctlr_delete(bk_isp_camera_ctlr_handle_t handle)
     bk_camera_isp_ctlr_t *control = __containerof(handle, bk_camera_isp_ctlr_t, ops);
     AVDK_RETURN_ON_FALSE(control, AVDK_ERR_INVAL, TAG, "control is NULL");
 
-    os_free(isp_camera_ctlr_get_private(control));
+    isp_camera_ctlr_private_t *private = isp_camera_ctlr_get_private(control);
+    for (uint8_t channel = 0; channel < ISP_CHANNEL_INSTANCE_MAX; channel++)
+    {
+        if (private->read_lock[channel])
+        {
+            rtos_deinit_mutex(&private->read_lock[channel]);
+        }
+    }
+    os_free(private);
 
     return AVDK_ERR_OK;
 }
@@ -875,6 +958,36 @@ static avdk_err_t isp_camera_ctlr_ioctl(bk_isp_camera_ctlr_handle_t handle, bk_c
             return isp_camera_ctlr_frame_qbuf(handle, info->channel, info->index);
         }
 
+        case BK_CAM_IOCTL_SELECT_ISP_PORT:
+        {
+            AVDK_RETURN_ON_FALSE(arg, AVDK_ERR_INVAL, TAG, "port select arg is NULL");
+            uint8_t port_id = *(const uint8_t *)arg;
+            AVDK_RETURN_ON_FALSE(
+                port_id < ISP_PORT_CNT,
+                AVDK_ERR_INVAL, TAG, "port select id is invalid");
+            bk_err_t isp_ret =
+                bk_isp_port_select(&controller->isp_handle, port_id);
+            if (isp_ret != BK_OK)
+            {
+                LOGE("%s select ISP port failed: %d\n", __func__, isp_ret);
+                return AVDK_ERR_GENERIC;
+            }
+            break;
+        }
+
+        case BK_CAM_IOCTL_RESTORE_ISP_PORT_CONTEXT:
+        {
+            bk_err_t isp_ret =
+                bk_isp_port_context_restore(&controller->isp_handle);
+            if (isp_ret != BK_OK)
+            {
+                LOGE("%s restore ISP port context failed: %d\n",
+                     __func__, isp_ret);
+                return AVDK_ERR_GENERIC;
+            }
+            break;
+        }
+
         default:
             return AVDK_ERR_INVAL;
     }
@@ -979,6 +1092,7 @@ static avdk_err_t isp_camera_ctlr_frame_pop(bk_isp_camera_ctlr_handle_t handle, 
     info->frame_size = frame_size;
     info->channel = channel;
     info->index = (uint8_t)buf.index;
+    info->port_id = buf.portId;
     return AVDK_ERR_OK;
 }
 
@@ -1007,14 +1121,29 @@ avdk_err_t bk_camera_isp_ctlr_new(bk_isp_camera_ctlr_handle_t *handle)
     isp_camera_ctlr_private_t *private = os_malloc(sizeof(isp_camera_ctlr_private_t));
     AVDK_RETURN_ON_FALSE(private, AVDK_ERR_NOMEM, TAG, AVDK_ERR_NOMEM_TEXT);
     os_memset(private, 0, sizeof(isp_camera_ctlr_private_t));
+    for (uint8_t channel = 0; channel < ISP_CHANNEL_INSTANCE_MAX; channel++)
+    {
+        if (rtos_init_mutex(&private->read_lock[channel]) != BK_OK)
+        {
+            while (channel > 0)
+            {
+                channel--;
+                rtos_deinit_mutex(&private->read_lock[channel]);
+            }
+            os_free(private);
+            return AVDK_ERR_NO_RESOURCE;
+        }
+    }
     bk_camera_isp_ctlr_t *controller = &private->controller;
 
     // os_memcpy(&controller->config, config, sizeof(bk_isp_camera_ctlr_config_t));
     controller->ops.dev_init = isp_camera_ctlr_dev_init;
     controller->ops.port_init = isp_camera_ctlr_port_init;
+    controller->ops.port_select = isp_camera_ctlr_port_select;
     controller->ops.port_change = isp_camera_ctlr_port_change;
     controller->ops.deinit = isp_camera_ctlr_deinit;
     controller->ops.read = isp_camera_ctlr_read;
+    controller->ops.multi_port_read = isp_camera_ctlr_multi_port_read;
     controller->ops.del = isp_camera_ctlr_delete;
     controller->ops.channel_open = isp_camera_ctlr_channel_open;
     controller->ops.channel_close = isp_camera_ctlr_channel_close;
