@@ -62,12 +62,19 @@
 #define TAG "decompress"
 
 extern void update_wdt(uint32_t val);
+/* Install runs AON-only: the WWDT caps at ~2s, which a 64KB block erase can
+ * exceed when the part is hot or worn. See wdt.c. */
+extern void update_wdt_aon_only(uint32_t val);
 
 #define COMPRESS_BLOCK_SIZE (64 * 1024)
 /* ota_control: resume journal in first sector(s), OVERWRITE_CONFIRM in last
  * sector (separate so the confirm flag survives a redo, power-fail safe). 4KB = sector. */
 #define OTA_CTRL_SECTOR_SIZE (4 * 1024)
 #define OTA_WDT_FEED_VAL 0xFFFFu
+/* AON period for the install, in ms. The longest stretch with no feed is one
+ * 64KB block erase (~2s worst case), so 16s keeps ~8x margin and still bounds a
+ * real hang much tighter than 0xFFFF (~67s). */
+#define OTA_WDT_AON_MS 16000u
 #define COMPRESS_BUF_SIZE (COMPRESS_BLOCK_SIZE + 64u)
 
 /* Optional install erase/write read-back checks (debug). Off by default. */
@@ -95,7 +102,7 @@ static int primary_all_write(uint32_t phy_off, const uint8_t *buf, uint32_t size
 		return -1;
 	}
 	
-	update_wdt(OTA_WDT_FEED_VAL);
+	update_wdt_aon_only(OTA_WDT_AON_MS);
 	if (!efuse_is_flash_aes_enabled()) {
 		if (bk_flash_write_bytes(phy_off, buf, size) != BK_OK) {
 			BOOT_LOG_ERR("OTA DBUS write fail phy=0x%x size=0x%x", phy_off, size);
@@ -107,7 +114,7 @@ static int primary_all_write(uint32_t phy_off, const uint8_t *buf, uint32_t size
 	bk_flash_write_cbus(phy_off, buf, size);
 	/* The caller feeds once per block, covering read + decompress + this
 	 * 64KB program; split that window, the program alone can take 100s of ms. */
-	update_wdt(OTA_WDT_FEED_VAL);
+	update_wdt_aon_only(OTA_WDT_AON_MS);
 	bk_flash_read_cbus(phy_off, s_compressed_buf, size);
 	for (uint32_t i = 0; i < size; i++) {
 		if (s_compressed_buf[i] != buf[i]) {
@@ -251,7 +258,7 @@ static int verify_erase(uint32_t offset, uint32_t size)
 	uint32_t cur = offset;
 
 	while (remaining > 0) {
-		update_wdt(OTA_WDT_FEED_VAL);
+		update_wdt_aon_only(OTA_WDT_AON_MS);
 		uint32_t chunk = (remaining > ERASE_VERIFY_BUF_SIZE) ?
 				 ERASE_VERIFY_BUF_SIZE : remaining;
 		if (bk_flash_read_bytes(cur, verify_buf, chunk) != BK_OK) {
@@ -288,7 +295,7 @@ static int flash_area_erase_fast_verify(uint32_t erase_off, uint32_t len)
 		uint32_t remaining = len;
 		while (remaining > 0) {
 			uint32_t chunk = (remaining > COMPRESS_BLOCK_SIZE) ? COMPRESS_BLOCK_SIZE : remaining;
-			update_wdt(OTA_WDT_FEED_VAL);
+			update_wdt_aon_only(OTA_WDT_AON_MS);
 			flash_area_erase_fast(off, chunk);
 			off += chunk;
 			remaining -= chunk;
@@ -503,7 +510,7 @@ int boot_copy_region(struct boot_loader_state *state,
 	 * continuous-read, and the readback (op_sw / cbus) works in four-line, so no
 	 * session-wide line switch or unprotect is needed (BK7259SW-2937 keeps flash
 	 * protected after init for XIP). */
-	update_wdt(OTA_WDT_FEED_VAL);
+	update_wdt_aon_only(OTA_WDT_AON_MS);
 
 	int restart_block_idx = resume_flash(block_num);
 	if (restart_block_idx < 0) {
@@ -517,7 +524,7 @@ int boot_copy_region(struct boot_loader_state *state,
 	bytes_copied += idx_sum(block_list, restart_block_idx);
 
 	for (block_idx = restart_block_idx; block_idx < block_num; block_idx++) {
-		update_wdt(OTA_WDT_FEED_VAL);
+		update_wdt_aon_only(OTA_WDT_AON_MS);
 		clean_buf();
 		if (flash_area_read(fap_src, off_src + bytes_copied, s_compressed_buf, block_list[block_idx]) != 0) {
 			BOOT_LOG_ERR("OTA read compressed block %d failed", block_idx);
@@ -551,7 +558,7 @@ int boot_copy_region(struct boot_loader_state *state,
 
 	/* Final partial block (plain>0 already implies comp>0 above). */
 	if (last_block_before_size > 0) {
-		update_wdt(OTA_WDT_FEED_VAL);
+		update_wdt_aon_only(OTA_WDT_AON_MS);
 		clean_buf();
 		if (flash_area_read(fap_src, off_src + bytes_copied, s_compressed_buf,
 				    last_block_after_size) != 0) {
@@ -582,6 +589,9 @@ int boot_copy_region(struct boot_loader_state *state,
 	rc = 0;
 
 out:
+	/* Single exit for every path past the AON-only switch above, so the WWDT is
+	 * always back before boot_go() returns into bl2_main. */
+	update_wdt(OTA_WDT_FEED_VAL);
 	return rc;
 }
 
