@@ -96,6 +96,10 @@ typedef enum
     BK_CAM_IOCTL_FRAME_QBUF, /**< Re-queue a zero-copy frame; arg = bk_isp_camera_frame_info_t * */
     BK_CAM_IOCTL_SELECT_ISP_PORT, /**< Select logical ISP port; arg = uint8_t * */
     BK_CAM_IOCTL_RESTORE_ISP_PORT_CONTEXT, /**< Restore selected logical ISP port context; arg = NULL */
+    BK_CAM_IOCTL_GET_WB, /**< Get white balance attributes; arg = bk_isp_camera_wb_attr_t * */
+    BK_CAM_IOCTL_SET_WB, /**< Set white balance attributes; arg = bk_isp_camera_wb_attr_t * */
+    BK_CAM_IOCTL_GET_EXPOSURE, /**< Get exposure mode and manual values; arg = bk_isp_camera_exposure_attr_t * */
+    BK_CAM_IOCTL_SET_EXPOSURE, /**< Set exposure mode and manual values; arg = bk_isp_camera_exposure_attr_t * */
 } bk_cam_interface_ioctl_t;
 
 /**
@@ -167,6 +171,16 @@ typedef struct
  * @brief Current or initial exposure information for camera AE IOCTLs.
  */
 typedef bk_isp_exposure_info_t bk_isp_camera_exposure_info_t;
+
+/**
+ * @brief White balance attributes for BK_CAM_IOCTL_GET/SET_WB.
+ */
+typedef bk_isp_wb_attr_t bk_isp_camera_wb_attr_t;
+
+/**
+ * @brief Exposure attributes for BK_CAM_IOCTL_GET/SET_EXPOSURE.
+ */
+typedef bk_isp_exposure_attr_t bk_isp_camera_exposure_attr_t;
 
 /**
  * @brief Camera ISP instance configuration structure

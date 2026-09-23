@@ -988,6 +988,38 @@ static avdk_err_t isp_camera_ctlr_ioctl(bk_isp_camera_ctlr_handle_t handle, bk_c
             break;
         }
 
+        case BK_CAM_IOCTL_GET_WB:
+            AVDK_RETURN_ON_FALSE(arg, AVDK_ERR_INVAL, TAG, "wb get arg is NULL");
+            AVDK_RETURN_ON_ERROR(
+                bk_isp_get_wb_attr(&controller->isp_handle,
+                                   (bk_isp_camera_wb_attr_t *)arg),
+                TAG, "get wb attr failed");
+            break;
+
+        case BK_CAM_IOCTL_SET_WB:
+            AVDK_RETURN_ON_FALSE(arg, AVDK_ERR_INVAL, TAG, "wb set arg is NULL");
+            AVDK_RETURN_ON_ERROR(
+                bk_isp_set_wb_attr(&controller->isp_handle,
+                                   (const bk_isp_camera_wb_attr_t *)arg),
+                TAG, "set wb attr failed");
+            break;
+
+        case BK_CAM_IOCTL_GET_EXPOSURE:
+            AVDK_RETURN_ON_FALSE(arg, AVDK_ERR_INVAL, TAG, "exposure get arg is NULL");
+            AVDK_RETURN_ON_ERROR(
+                bk_isp_get_exposure_attr(&controller->isp_handle,
+                                         (bk_isp_camera_exposure_attr_t *)arg),
+                TAG, "get exposure attr failed");
+            break;
+
+        case BK_CAM_IOCTL_SET_EXPOSURE:
+            AVDK_RETURN_ON_FALSE(arg, AVDK_ERR_INVAL, TAG, "exposure set arg is NULL");
+            AVDK_RETURN_ON_ERROR(
+                bk_isp_set_exposure_attr(&controller->isp_handle,
+                                         (const bk_isp_camera_exposure_attr_t *)arg),
+                TAG, "set exposure attr failed");
+            break;
+
         default:
             return AVDK_ERR_INVAL;
     }

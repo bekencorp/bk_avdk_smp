@@ -127,6 +127,22 @@ avdk_err_t bk_isp_camera_deregister_isr_callback(bk_isp_camera_ctlr_handle_t han
  * @param ioctl IOCTL command identifier
  * @param arg Command-specific argument
  * @return AVDK error code
+ *
+ * White balance (BK_CAM_IOCTL_GET/SET_WB) and exposure
+ * (BK_CAM_IOCTL_GET/SET_EXPOSURE) notes:
+ * - Call them only after bk_isp_camera_port_init(). That step loads the sensor
+ *   tuning data, which overwrites the whole WB and exposure attribute set, so
+ *   anything set earlier is silently lost. Re-apply after a port re-init.
+ * - Both act on the currently selected logical ISP port; use
+ *   BK_CAM_IOCTL_SELECT_ISP_PORT first on multi-port setups.
+ * - Prefer get-modify-set so unrelated fields keep their current value.
+ * - Manual values take effect on the next 3A interrupt while streaming, so
+ *   expect a delay of one to three frames.
+ * - Out-of-range gains and exposure times are clamped by the ISP firmware with
+ *   a warning rather than rejected; read back if the exact value matters.
+ * - On a dual MIPI logical port setup, BK_CAM_IOCTL_RESTORE_ISP_PORT_CONTEXT
+ *   forces AE back to auto, so manual exposure must be re-applied after a port
+ *   switch. White balance is unaffected.
  */
 avdk_err_t bk_isp_camera_ctlr_ioctl(bk_isp_camera_ctlr_handle_t handle, bk_cam_interface_ioctl_t ioctl, void *arg);
 

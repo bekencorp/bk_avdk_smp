@@ -96,6 +96,27 @@ bk_err_t bk_isp_set_initial_exposure(
 
 bk_err_t bk_isp_resume_auto_exposure(isp_handle_t *handle);
 
+bk_err_t bk_isp_get_wb_attr(isp_handle_t *handle, bk_isp_wb_attr_t *attr);
+
+/**
+ * @brief Set the white balance mode and manual gains on the active ISP port.
+ *
+ * Must be called after bk_isp_port_init(), which loads the sensor tuning data
+ * and overwrites the whole WB attribute set.
+ */
+bk_err_t bk_isp_set_wb_attr(isp_handle_t *handle, const bk_isp_wb_attr_t *attr);
+
+bk_err_t bk_isp_get_exposure_attr(isp_handle_t *handle, bk_isp_exposure_attr_t *attr);
+
+/**
+ * @brief Set the exposure mode and manual exposure on the active ISP port.
+ *
+ * Unlike bk_isp_set_initial_exposure(), this works while the sensor is
+ * streaming; the new values reach the sensor within a few frames. Must be
+ * called after bk_isp_port_init().
+ */
+bk_err_t bk_isp_set_exposure_attr(isp_handle_t *handle, const bk_isp_exposure_attr_t *attr);
+
 #ifdef __cplusplus
 }
 #endif

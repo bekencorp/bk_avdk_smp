@@ -2209,3 +2209,168 @@ bk_err_t bk_isp_resume_auto_exposure(isp_handle_t *handle)
 
     return BK_OK;
 }
+
+static bool isp_op_type_is_valid(uint32_t op_type)
+{
+    return (op_type == BK_ISP_OP_TYPE_AUTO) || (op_type == BK_ISP_OP_TYPE_MANUAL);
+}
+
+bk_err_t bk_isp_get_wb_attr(isp_handle_t *handle, bk_isp_wb_attr_t *attr)
+{
+    if (handle == NULL || *handle == NULL || attr == NULL)
+    {
+        return BK_ERR_PARAM;
+    }
+
+    isp_control_t *control = (isp_control_t *)*handle;
+
+    /* ISP_WB_ATTR_S carries the AWB calibration data and is close to 1KB, too
+     * big for the caller's task stack. */
+    ISP_WB_ATTR_S *wb = (ISP_WB_ATTR_S *)os_malloc(sizeof(ISP_WB_ATTR_S));
+    if (wb == NULL)
+    {
+        return BK_ERR_NO_MEM;
+    }
+
+    bk_err_t ret = BK_OK;
+    if (VSI_MPI_ISP_GetWbAttr(control->port, wb) != VSI_SUCCESS)
+    {
+        LOGE("%s, get wb attr failed\n", __func__);
+        ret = BK_FAIL;
+        goto out;
+    }
+
+    attr->enable = wb->enable ? 1 : 0;
+    attr->op_type = wb->opType;
+    attr->manual_gain.r_gain = wb->manualAttr.wbGain.rGain;
+    attr->manual_gain.gr_gain = wb->manualAttr.wbGain.grGain;
+    attr->manual_gain.gb_gain = wb->manualAttr.wbGain.gbGain;
+    attr->manual_gain.b_gain = wb->manualAttr.wbGain.bGain;
+
+out:
+    os_free(wb);
+    return ret;
+}
+
+bk_err_t bk_isp_set_wb_attr(isp_handle_t *handle, const bk_isp_wb_attr_t *attr)
+{
+    if (handle == NULL || *handle == NULL || attr == NULL ||
+        !isp_op_type_is_valid(attr->op_type))
+    {
+        return BK_ERR_PARAM;
+    }
+
+    isp_control_t *control = (isp_control_t *)*handle;
+
+    ISP_WB_ATTR_S *wb = (ISP_WB_ATTR_S *)os_malloc(sizeof(ISP_WB_ATTR_S));
+    if (wb == NULL)
+    {
+        return BK_ERR_NO_MEM;
+    }
+
+    bk_err_t ret = BK_OK;
+    /* Read-modify-write: autoAttr holds the AWB calibration loaded from the
+     * sensor tuning data, zeroing it would break auto white balance. */
+    if (VSI_MPI_ISP_GetWbAttr(control->port, wb) != VSI_SUCCESS)
+    {
+        LOGE("%s, get wb attr failed\n", __func__);
+        ret = BK_FAIL;
+        goto out;
+    }
+
+    wb->enable = attr->enable ? 1 : 0;
+    wb->opType = (attr->op_type == BK_ISP_OP_TYPE_MANUAL) ? OP_TYPE_MANUAL : OP_TYPE_AUTO;
+    if (attr->op_type == BK_ISP_OP_TYPE_MANUAL)
+    {
+        wb->manualAttr.wbGain.rGain = attr->manual_gain.r_gain;
+        wb->manualAttr.wbGain.grGain = attr->manual_gain.gr_gain;
+        wb->manualAttr.wbGain.gbGain = attr->manual_gain.gb_gain;
+        wb->manualAttr.wbGain.bGain = attr->manual_gain.b_gain;
+    }
+
+    if (VSI_MPI_ISP_SetWbAttr(control->port, wb) != VSI_SUCCESS)
+    {
+        LOGE("%s, set wb attr failed\n", __func__);
+        ret = BK_FAIL;
+    }
+
+out:
+    os_free(wb);
+    return ret;
+}
+
+bk_err_t bk_isp_get_exposure_attr(isp_handle_t *handle, bk_isp_exposure_attr_t *attr)
+{
+    ISP_EXPOSURE_ATTR_S exp;
+
+    if (handle == NULL || *handle == NULL || attr == NULL)
+    {
+        return BK_ERR_PARAM;
+    }
+
+    isp_control_t *control = (isp_control_t *)*handle;
+    if (VSI_MPI_ISP_GetExposureAttr(control->port, &exp) != VSI_SUCCESS)
+    {
+        LOGE("%s, get exposure attr failed\n", __func__);
+        return BK_FAIL;
+    }
+
+    attr->op_type = exp.opType;
+    attr->int_time = exp.manualAttr.intTime;
+    attr->again = exp.manualAttr.again;
+    attr->dgain = exp.manualAttr.dgain;
+    return BK_OK;
+}
+
+bk_err_t bk_isp_set_exposure_attr(isp_handle_t *handle, const bk_isp_exposure_attr_t *attr)
+{
+    ISP_EXPOSURE_ATTR_S exp;
+
+    if (handle == NULL || *handle == NULL || attr == NULL ||
+        !isp_op_type_is_valid(attr->op_type))
+    {
+        return BK_ERR_PARAM;
+    }
+
+    if (attr->op_type == BK_ISP_OP_TYPE_MANUAL &&
+        (attr->int_time == 0 || attr->again == 0 || attr->dgain == 0))
+    {
+        return BK_ERR_PARAM;
+    }
+
+    isp_control_t *control = (isp_control_t *)*handle;
+    /* Read-modify-write: autoAttr holds the AE route, metering weights and
+     * sensor ranges loaded from the tuning data. */
+    if (VSI_MPI_ISP_GetExposureAttr(control->port, &exp) != VSI_SUCCESS)
+    {
+        LOGE("%s, get exposure attr failed\n", __func__);
+        return BK_FAIL;
+    }
+
+    exp.opType = (attr->op_type == BK_ISP_OP_TYPE_MANUAL) ? OP_TYPE_MANUAL : OP_TYPE_AUTO;
+    if (attr->op_type == BK_ISP_OP_TYPE_MANUAL)
+    {
+        exp.manualAttr.intTime = attr->int_time;
+        exp.manualAttr.again = attr->again;
+        exp.manualAttr.dgain = attr->dgain;
+    }
+
+    if (VSI_MPI_ISP_SetExposureAttr(control->port, &exp) != VSI_SUCCESS)
+    {
+        LOGE("%s, set exposure attr failed\n", __func__);
+        return BK_FAIL;
+    }
+
+    /* While streaming the 3A interrupt flushes the sensor registers every
+     * frame; committing here as well would fight the sensor delay-frame sync. */
+    if (!VSI_MPI_ISP_SnsStreamStatus(control->port))
+    {
+        if (VSI_MPI_ISP_CommitExposureAttr(control->port) != VSI_SUCCESS)
+        {
+            LOGE("%s, commit exposure attr failed\n", __func__);
+            return BK_FAIL;
+        }
+    }
+
+    return BK_OK;
+}

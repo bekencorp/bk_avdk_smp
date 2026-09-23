@@ -142,6 +142,50 @@ typedef struct {
     uint32_t mean_luminance;
 } bk_isp_exposure_info_t;
 
+/**
+ * @brief ISP module operating mode, values match VSI ISP_OP_TYPE_E.
+ */
+typedef enum {
+    BK_ISP_OP_TYPE_AUTO = 0,   /**< Auto, driven by the 3A algorithm */
+    BK_ISP_OP_TYPE_MANUAL = 1, /**< Manual, driven by the manual fields below */
+} bk_isp_op_type_t;
+
+/**
+ * @brief White balance gains, fixed point: 256 = 1.0x, valid range [256, 1023].
+ *
+ * Out-of-range values are clamped by the ISP firmware with a warning instead of
+ * being rejected, so read back after a set if the exact value matters.
+ */
+typedef struct {
+    uint16_t r_gain;  /**< Red channel gain */
+    uint16_t gr_gain; /**< Green channel gain on red lines */
+    uint16_t gb_gain; /**< Green channel gain on blue lines */
+    uint16_t b_gain;  /**< Blue channel gain */
+} bk_isp_wb_gain_t;
+
+/**
+ * @brief White balance attributes.
+ */
+typedef struct {
+    uint8_t enable;               /**< 0: bypass the WB module, 1: enable it */
+    uint32_t op_type;             /**< bk_isp_op_type_t */
+    bk_isp_wb_gain_t manual_gain; /**< Only applied when op_type is manual */
+} bk_isp_wb_attr_t;
+
+/**
+ * @brief Exposure attributes.
+ *
+ * The manual ranges depend on the sensor and are not queryable; use
+ * bk_isp_query_exposure_info() to read the current AE result as a baseline.
+ * Out-of-range values are clamped by the ISP firmware with a warning.
+ */
+typedef struct {
+    uint32_t op_type;  /**< bk_isp_op_type_t */
+    uint32_t int_time; /**< Manual exposure time in us */
+    uint32_t again;    /**< Manual analog gain */
+    uint32_t dgain;    /**< Manual digital gain */
+} bk_isp_exposure_attr_t;
+
 typedef void *isp_handle_t;
 
 
