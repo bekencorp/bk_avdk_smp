@@ -9,26 +9,42 @@
 #include <os/mem.h>
 #include <components/bk_hardware_ram.h>
 
+#define TAG "bk_mem_sram"
+#define LOGI(...) BK_LOGI(TAG, __VA_ARGS__)
+#define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
+#define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 
-/* Either heap is safe for the caller: hsram_free is os_free, so the release
- * path does not depend on which one this returns. */
 void *bk_get_isp_flexa_buffer(uint32_t size)
 {
-#if CONFIG_ISP_FLEXA_BUFFER_USE_HSRAM
-    return hsram_malloc(size);
-#else
-    return os_malloc(size);
-#endif
+    void *ptr = os_sram_malloc(size);
+
+    if (ptr == NULL) {
+        LOGW("%s: sram_malloc failed, use hsram_malloc", __func__);
+        ptr = hsram_malloc(size);
+    }
+    return ptr;
 }
 
 void *bk_get_gpu_flexa_buffer(uint32_t size)
 {
-    return hsram_malloc(size);
+    void *ptr = os_sram_malloc(size);
+
+    if (ptr == NULL) {
+        LOGW("%s: sram_malloc failed, use hsram_malloc", __func__);
+        ptr = hsram_malloc(size);
+    }
+    return ptr;
 }
 
 void *bk_get_gpu_output_buffer(uint32_t size)
 {
-    return hsram_malloc(size);
+    void *ptr = os_sram_malloc(size);
+
+    if (ptr == NULL) {
+        LOGW("%s: sram_malloc failed, use hsram_malloc", __func__);
+        ptr = hsram_malloc(size);
+    }
+    return ptr;
 }
 
 void *bk_get_dpu_buffer(uint32_t size)
