@@ -428,6 +428,19 @@ void bk_sys_sw_regs_set_ap_cp_hang_dumping(uint32_t value)
 #endif
 }
 
+void bk_sys_sw_regs_set_cp_ap_dump_taken(uint32_t value)
+{
+    /* Handoff confirmation: set by the CP once it has ENTERED the AP-memory trap
+     * dump, so the AP can distinguish a real takeover from a request that was
+     * acknowledged but never dispatched. The AP clears it before each request. */
+    s_sys_sw_regs.cp_ap_dump_taken = (value != 0U) ? 1U : 0U;
+    __asm volatile ("dsb" ::: "memory");
+#if CONFIG_SUPPORT_CACHEABLE_SRAM
+    flush_dcache((void *)&s_sys_sw_regs.cp_ap_dump_taken, sizeof(s_sys_sw_regs.cp_ap_dump_taken));
+    __asm volatile ("dsb" ::: "memory");
+#endif
+}
+
 uint32_t bk_sys_sw_regs_get_cp_heartbeat_bumped(void)
 {
 #if CONFIG_SUPPORT_CACHEABLE_SRAM

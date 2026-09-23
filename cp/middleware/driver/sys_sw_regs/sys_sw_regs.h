@@ -136,6 +136,16 @@ void bk_sys_sw_regs_set_hspl_owner(uint8_t res, uint8_t core, uint32_t pc);
 void bk_sys_sw_regs_clear_hspl_owner(uint8_t res);
 void bk_sys_sw_regs_set_ap_cp_hang_dumping(uint32_t value);
 void bk_sys_sw_regs_bump_cp_heartbeat_bumped(void);
+
+/**
+ * @brief Mark that this CP has entered the AP-memory trap dump.
+ *
+ * The AP polls this flag to confirm the handoff was actually dispatched, so it
+ * must be set at the dump entry and never merely on IPC reception.
+ *
+ * @param value Nonzero to mark the takeover, 0 to clear.
+ */
+void bk_sys_sw_regs_set_cp_ap_dump_taken(uint32_t value);
 /**
  * @brief Publish the address of the CP system heap free counter
  *        (FreeRTOS xFreeBytesRemaining) so AP can read it cross-core.
