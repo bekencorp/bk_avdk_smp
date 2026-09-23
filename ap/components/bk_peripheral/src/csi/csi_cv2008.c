@@ -53,6 +53,12 @@
 #define CV2008_REG_BYTE_NUM  2
 #define CV2008_DATA_BYTE_NUM 1
 
+/* 8-bit I2C write address. bk_camera_bus shifts it right by 1 to get the
+ * 7-bit device address, so every consumer of this sensor's address
+ * (bus->write_address and i2cAttr.slave_addr alike) must carry the 8-bit
+ * form, never the already-shifted 0x35. */
+#define CV2008_WRITE_ADDRESS (0x6A)
+
 #define CV2008_EXPTIME_H        0x3049
 #define CV2008_EXPTIME_L        0x3048
 
@@ -671,7 +677,7 @@ static int CV2008_Init(ISP_PORT IspPort, vsi_u8_t snsDev)
 
     os_memset(pCV2008Dev, 0, sizeof(*pCV2008Dev));
     pCV2008Dev->i2cBus              = snsDev;
-    pCV2008Dev->i2cAttr.slave_addr  = 0x35;
+    pCV2008Dev->i2cAttr.slave_addr  = CV2008_WRITE_ADDRESS;
     pCV2008Dev->i2cAttr.reg_bytes   = CV2008_REG_BYTE_NUM;
     pCV2008Dev->i2cAttr.data_bytes  = CV2008_DATA_BYTE_NUM;
     CV2008_InitRegInfo(IspPort);
@@ -1148,7 +1154,6 @@ ISP_SNS_OBJ_S snsCV2008Obj = {
 
 //###########################################################################################
 
-#define CV2008_WRITE_ADDRESS (0x6A) // I2C 写地址 例如sensor 的 7位 I2C 地址是 0x29 （0x52 >> 1 = 0x29）
 #define CHIP_ID_ADDR_HB (0x3003)    // 芯片ID高字节寄存器地址
 #define CHIP_ID_ADDR_LB (0x3002)    // 芯片ID低字节寄存器地址
 #define CHIP_ID_VAL_HB (0x20)       // 芯片ID高字节值 ('F' 的 ASCII)
