@@ -1362,8 +1362,8 @@ void uvc_camera_stream_disconnect_callback(bk_usb_hub_port_info *port_info, void
 
     uint32_t flags = uvc_stream_enter_critical();
     uvc_param->stream_state = UVC_STREAM_DISCONNECTED_STATE;
+    uvc_param->port_info = NULL;
     uvc_stream_exit_critical(flags);
-    //uvc_param->port_info = NULL;
 
     uvc_stream_task_send_msg(UVC_DISCONNECT_IND, (uint32_t)port);
 }
@@ -2346,7 +2346,7 @@ avdk_err_t bk_uvc_camera_stream_start(uvc_stream_handle_t *handle, bk_cam_uvc_co
         uvc_stream_exit_critical(flags);
     }
 
-    rtos_clear_event_flags(&handle->handle, config->port);
+    rtos_clear_event_flags(&handle->handle, UVC_STREAM_START_BIT);
 
     ret = uvc_stream_task_send_msg(UVC_STREAM_START_IND, (uint32_t)config->port);
     if (ret != AVDK_ERR_OK)
@@ -2401,7 +2401,8 @@ avdk_err_t bk_uvc_camera_stream_stop(uvc_stream_handle_t *handle, uint8_t port)
     uvc_param = &handle->camera[port - 1];
 
     uint32_t flags = uvc_stream_enter_critical();
-    if (uvc_param->stream_state == UVC_STREAM_STREAMING_STATE)
+    if (uvc_param->stream_state == UVC_STREAM_STREAMING_STATE
+        || uvc_param->stream_state == UVC_STREAM_DISCONNECTED_STATE)
     {
         uvc_param->stream_state = UVC_STREAM_CLOSING_STATE;
     }
