@@ -45,6 +45,7 @@ typedef struct {
     void (*pvStartRoutine)(void *);       /**< Application thread function. */
     void * pTaskArg;                      /**< Arguments for application thread function. */
     TaskHandle_t xTaskHandle;             /**< FreeRTOS task handle. */
+    SemaphoreHandle_t xExitSem;           /**< Given by the thread right before it deletes itself. */
 } lv_thread_t;
 
 typedef struct {
