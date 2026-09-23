@@ -61,7 +61,7 @@ class Mock:
     def generate_flash_aes_key(self):
         flash_aes_key = None
         out_tmp_file = os.path.join(self.output_folder, 'aes_key.txt')
-        run_cmd('{0} genkey 32 -outfile {1}'.format(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'tools', 'packager_tools', 'beken_aes'), out_tmp_file), check_ret=False)
+        run_cmd('{0} genkey 32 -outfile {1}'.format(get_aes_tool_exe(), out_tmp_file), check_ret=False)
         with open(out_tmp_file, 'r') as f:
             start_parse = False
             for tmp_line in f.readlines():

@@ -601,7 +601,7 @@ class Partition:
                     start_address = hex(self.vir_code_offset)
                 logging.debug(f'encrypt {self.partition_name}, startaddress={start_address}, out={self.aes_bin_name}')
                 #print(f'aes_key {aes_key} aes_bits {aes_bits}')
-                cmd = f'python3 {aes_tool} encrypt -infile {self.bin_name} -keywords {aes_key}  -aes {aes_bits} -outfile {self.aes_bin_name} -startaddress {start_address}'
+                cmd = f'{get_python_exe()} {aes_tool} encrypt -infile {self.bin_name} -keywords {aes_key}  -aes {aes_bits} -outfile {self.aes_bin_name} -startaddress {start_address}'
                 run_cmd_not_check_ret(cmd)
             else:
                 self.aes_bin_name = self.bin_name
@@ -1618,7 +1618,7 @@ class Partitions:
             aes_tool = f'{self.tools_dir}/packager_tools/xts_aes.py'
             aes_bits = get_xts_aes_bits(aes_key)
             start_address = hex(phy2virtual(ota_partition.phy_partition_offset, CRC_EN))
-            cmd = f'python3 {aes_tool} encrypt -infile {ota_sign_bin} -keywords {aes_key} -aes {aes_bits} -outfile {aes_bin_name} -startaddress {start_address}'
+            cmd = f'{get_python_exe()} {aes_tool} encrypt -infile {ota_sign_bin} -keywords {aes_key} -aes {aes_bits} -outfile {aes_bin_name} -startaddress {start_address}'
 
             run_cmd_not_check_ret(cmd)
             if CRC_EN == True:

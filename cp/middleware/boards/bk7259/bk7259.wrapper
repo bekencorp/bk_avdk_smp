@@ -49,6 +49,12 @@ if os.path.exists(secure_config_path):
 		    is_secure_boot = True
 
 
+def python_cmd(script, *args):
+	"""Windows cannot exec a .py by shebang; always spawn via the interpreter."""
+	py = sys.executable if sys.executable else 'python3'
+	extra = ' '.join(args)
+	return f'"{py}" "{script}" {extra}'.strip()
+
 def run_cmd(cmd):
 	p = subprocess.Popen(cmd, shell=True)
 	ret = p.wait()
@@ -161,7 +167,7 @@ def pack(prebuild):
 		if (gen_dir == None):
 			logging.error(f'Generated dir should NOT be empty')
 			exit(1)
-		run_cmd(f'{BK_UTILS_TOOL} gen all --debug')
+		run_cmd(python_cmd(BK_UTILS_TOOL, 'gen all --debug'))
 		cwd = os.getcwd()
 		copy_file(f'{cwd}/partitions_partition.h', f'{cwd}/partitions_gen.h')
 		return
@@ -227,7 +233,7 @@ def pack(prebuild):
 		else:
 			pass
 
-	run_cmd(f'{BK_UTILS_TOOL} pack all --debug')
+	run_cmd(python_cmd(BK_UTILS_TOOL, 'pack all --debug'))
 
 	logging.debug(f'copy binaries')
 	os.makedirs(f'{CMAKE_INSTALL_DIR}', exist_ok=True)
@@ -268,7 +274,7 @@ def pack(prebuild):
 	logging.debug(f'cd {saved_cur_dir}')
 
 	if is_secure_boot == False:
-		run_cmd_with_ret("python3 {}/tools/env_tools/rtt_ota/ota-rbl/ota_packager_python.py -i {} -o {} -g {} -ap {} -pjd {} packager".format(armino_path, f'{CMAKE_INSTALL_DIR}/app.bin', f'{bin_dir}/app_pack.rbl', header_path, armino_path, os.getenv("PROJECT_DIR")))
+		run_cmd_with_ret(python_cmd(f'{armino_path}/tools/env_tools/rtt_ota/ota-rbl/ota_packager_python.py', "-i {} -o {} -g {} -ap {} -pjd {} packager".format(f'{CMAKE_INSTALL_DIR}/app.bin', f'{bin_dir}/app_pack.rbl', header_path, armino_path, os.getenv("PROJECT_DIR"))))
 
 @click.group()
 @click.version_option(version='1.0.0.0')
@@ -280,9 +286,9 @@ def wrapper():
                 cpu1_build_path = build_path.replace(armino_soc, cpu1_armino_soc)
                 if os.path.exists(f'{cpu1_build_path}/app.bin'):
                         if is_secure_boot == True:
-                                os.system(f'cp {cpu1_build_path}/app.bin {cpu1_bin}')
+                                copy_file(f'{cpu1_build_path}/app.bin', cpu1_bin)
                         else:
-                                os.system(f'cp {cpu1_build_path}/app.bin {nosecurity_cpu1_bin}')
+                                copy_file(f'{cpu1_build_path}/app.bin', nosecurity_cpu1_bin)
 
 @wrapper.command("pack")
 @click.option("--prebuild/--no-prebuild", default=False, help="Whether it's post-build or pre-build")
@@ -291,7 +297,7 @@ def pack_bin(prebuild):
 	if is_secure_boot == True or prebuild == True:
 		pack(prebuild)
 	else:
-		run_cmd("python3 %s -n all-app.bin -f app.bin -c %s"%(nosecurity_pack, armino_soc))
+		run_cmd(python_cmd(nosecurity_pack, "-n all-app.bin -f app.bin -c %s"%(armino_soc)))
 
 if __name__ == '__main__':
 	logging.basicConfig()

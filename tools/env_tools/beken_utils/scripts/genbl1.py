@@ -126,7 +126,7 @@ class Genbl1:
     def gen_key_desc(self):
         self.out_key_desc_file = 'key_desc.json'
         logging.debug(f'start to gen key description file')
-        with open(self.out_key_desc_file, 'w+') as f:
+        with open(self.out_key_desc_file, 'w+', newline='\n', encoding='utf-8') as f:
             s_key['mnft_sig_cfg']['mnft_sig_sch'] = self.scheme
             s_key['mnft_sig_cfg']['mnft_prvkey'] = self.prvkey
             s_key['mnft_sig_cfg']['mnft_pubkey'] = self.pubkey
@@ -139,7 +139,7 @@ class Genbl1:
         logging.debug(f'load_addr={load_addr}')
         logging.debug(f'bin_name={bin_name}')
         hex_security_counter = '0x%08x' %(int(security_counter))
-        with open(out_manifest_file, 'w+') as f:
+        with open(out_manifest_file, 'w+', newline='\n', encoding='utf-8') as f:
             s_man['mnft_desc_cfg']['mnft_ver'] = hex_security_counter 
             s_man['mnft_desc_cfg']['sec_boot'] = self.is_sec_boot
             s_man['imgs'][0]['static_addr'] = static_addr

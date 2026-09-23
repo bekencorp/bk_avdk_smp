@@ -83,9 +83,7 @@ def compress_bin(infile, outfile):
             f'(0x{COMPRESS_BLOCK_SZ:x}); BL2 cannot install this image')
     check_journal_full_block_limit(block_num, context='compress_bin: ')
 
-    script_dir = get_script_dir()
-    compress_tool = os.path.normpath(
-        os.path.join(script_dir, '..', 'tools', 'packager_tools', 'lzma'))
+    compress_tool = get_compress_tool_exe()
     if not os.path.isfile(compress_tool):
         raise FileNotFoundError(f'lzma tool not found: {compress_tool}')
 

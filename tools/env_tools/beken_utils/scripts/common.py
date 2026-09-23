@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 import re
 import logging
+import platform
 import subprocess
 import os
 import shutil
+import sys
 
 s_base_addr = 0
 SZ_16M = 0x1000000
@@ -156,3 +158,37 @@ def get_script_dir():
     script_dir = os.path.abspath(__file__)
     script_dir = os.path.dirname(script_dir)
     return script_dir
+
+def _get_host_tool(tool_path):
+    system = platform.system()
+    if system == "Windows":
+        return tool_path + '.exe'
+    elif system == "Linux":
+        return tool_path
+    elif system == "Darwin":
+        raise RuntimeError("not support macos")
+    else:
+        raise RuntimeError("unknown system type")
+
+def get_secure_boot_tool_exe():
+    script_dir = get_script_dir()
+    sh_sec_tools = os.path.abspath(f'{script_dir}/../tools/sh_sec_tools/secure_boot_tool')
+    return _get_host_tool(sh_sec_tools)
+
+def get_aes_tool_exe():
+    script_dir = get_script_dir()
+    aes_tool = os.path.abspath(f'{script_dir}/../tools/packager_tools/beken_aes')
+    return _get_host_tool(aes_tool)
+
+def get_compress_tool_exe():
+    script_dir = get_script_dir()
+    compress_tool = os.path.abspath(f'{script_dir}/../tools/packager_tools/lzma')
+    return _get_host_tool(compress_tool)
+
+def move_file(src, dst):
+    """Replace dst with src; os.replace works on both Linux and Windows."""
+    os.replace(src, dst)
+
+def get_python_exe():
+    """Windows cannot exec a .py by shebang, so always spawn it via an interpreter."""
+    return sys.executable if sys.executable else 'python3'
