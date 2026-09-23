@@ -103,7 +103,7 @@ static void lvgl_app_widgets_resource_deinit(void)
     }
 
 #if (CONFIG_TP)
-    BK_LOG_ON_ERR(drv_tp_close());
+    drv_tp_close();
 #endif
 
     gpio_dev_unmap(GPIO_7);
@@ -137,6 +137,11 @@ bk_err_t lvgl_app_widgets_init(void)
     bk_err_t ret = BK_OK;
     lv_vnd_config_t lv_vnd_config = {0};
     uint32_t frame_buffer_size = 0;
+
+    if (g_disp_ctx != NULL) {
+        LOGW("%s already init\n", __func__);
+        return BK_OK;
+    }
 
     g_disp_ctx = os_malloc(sizeof(display_ctx_t));
     if (g_disp_ctx == NULL) {
@@ -228,11 +233,7 @@ bk_err_t lvgl_app_widgets_init(void)
     }
 
 #if (CONFIG_TP)
-    ret = drv_tp_open(lv_vnd_config.width, lv_vnd_config.height, TP_MIRROR_NONE);
-    if (ret != BK_OK) {
-        LOGE("drv_tp_open failed, ret=%d\n", ret);
-        goto err;
-    }
+    drv_tp_open(lv_vnd_config.width, lv_vnd_config.height, TP_MIRROR_NONE);
 #endif
 
     lv_vendor_disp_lock();
@@ -297,12 +298,18 @@ void cli_widgets_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **
         return;
     }
 
-    LOGI("usage: widgets rot <0|90|180|270> | widgets close\r\n");
+    if (argc == 2 && os_strcmp(argv[1], "open") == 0) {
+        bk_err_t ret = lvgl_app_widgets_init();
+        LOGI("widgets open ret=%d\r\n", ret);
+        return;
+    }
+
+    LOGI("usage: widgets rot <0|90|180|270> | widgets close | widgets open\r\n");
 }
 
 static const struct cli_command s_widgets_commands[] =
 {
-    {"widgets", "widgets rot <0|90|180|270> | widgets close", cli_widgets_cmd},
+    {"widgets", "widgets rot <0|90|180|270> | widgets close | widgets open", cli_widgets_cmd},
 };
 
 int cli_widgets_init(void)
