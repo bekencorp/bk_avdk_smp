@@ -41,6 +41,12 @@ menu "PM"
 		help
 		   config default cpu frequency(0:xtal;1:60M;2:80M;3:120M;4:160M;5:240M;)
 
+	config PM_AP_VOTE_CP_CPU_FREQ_DEFAULT
+		int "config AP vote CP cpu frequency"
+		default 5
+		help
+		   config AP vote CP cpu frequency(0:xtal;1:60M;2:80M;3:120M;4:160M;5:240M;)
+
 	config PM_PROTECT_TIME_CHECK
 		bool "Primarily protect time check"
 		default n

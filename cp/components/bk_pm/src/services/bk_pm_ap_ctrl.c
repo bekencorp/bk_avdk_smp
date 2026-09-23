@@ -615,7 +615,7 @@ static void pm_module_bootup_cpu1(pm_power_module_name_e module)
 boot_ap:
 		#if CONFIG_PM_AP_POWERDOWN_WHEN_LV
 		bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_AP, 0, 0);
-		bk_pm_module_vote_cpu_freq(PM_DEV_ID_AP,PM_CPU_FRQ_240M);
+		bk_pm_module_vote_cpu_freq(PM_DEV_ID_AP, CONFIG_PM_AP_VOTE_CP_CPU_FREQ_DEFAULT);
 		bk_pm_module_vote_xtal_rx_tx_anabuf_ctrl(PM_XTAL_RX_TX_ANABUF_MODULE_NAME_AP, PM_XTAL_RX_TX_ANABUF_EXIT_SLEEP);
 		#endif
 #if CONFIG_PM_AP_FAST_BOOT_ENABLE

@@ -15,6 +15,11 @@ menu "Controller IF"
 	config CONTROLLER_AP_BUFFER_COPY
 		bool "Controller AP buffer copy to CP buffer when AP use PSRAM instead of SRAM"
 		default n
+	config PM_WIFI_CIF_VOTE_CP_FREQ
+		bool "Enable CIF vote CP CPU frequency when host power up/down"
+		default y
+		help
+			Vote CP CPU frequency in cif_power_up_host/cif_power_down_host.
 	config WIFI_IRAM_OPT_LEVEL
 		int "WiFi IRAM optimization level (higher keeps more WiFi code in IRAM)"
 		range 1 3
