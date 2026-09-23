@@ -49,6 +49,7 @@
 #define MP3_SEEK_RETRY_STEP_BYTES   (1024U)
 #define MP3_SEEK_RETRY_MAX          (6U)
 #define MP3_SYNC_MAX_ATTEMPTS       (48U)
+#define MP3_DECODE_ERROR_RETRY_MAX  (256U)
 #define MP3_SEEK_PREROLL_FRAMES     (6U)
 #define MP3_HEADER_BITRATE_TOLERANCE (1000U)
 #define MP3_FRAME_SPACING_TOLERANCE_MIN (2U)
@@ -129,6 +130,7 @@ typedef struct mp3_decoder_priv
 
     id3v1_info_t id3v1_info;
     bool need_reset;
+    bool input_eof;
 } mp3_decoder_priv_t;
 
 
@@ -1521,37 +1523,41 @@ static int mp3_check_sync_internal(bk_audio_player_decoder_t *decoder, bool prob
         if (!probe_only)
         {
             BK_LOGD(AUDIO_PLAYER_TAG, "%s, ERR_MP3_INVALID_FRAMEHEADER, %d\n", __func__, __LINE__);
-            uint32_t bad_offset = priv->pending_header_valid ? priv->pending_header_offset : priv->last_seek_aligned_offset;
-            uint32_t frame_bytes_hint = mp3_get_frame_bytes_hint(priv);
-            uint32_t guard_span = mp3_get_invalid_skip_range(frame_bytes_hint);
-            if (priv->invalid_guard_span > guard_span)
+            /* Seek validation: schedule realign. Mid-stream corrupt: caller skips forward. */
+            if (priv->seek_pending_check)
             {
-                guard_span = priv->invalid_guard_span;
-            }
-            if (priv->last_invalid_header_valid)
-            {
-                uint32_t invalid_delta = (bad_offset > priv->last_invalid_header_offset)
-                                             ? (bad_offset - priv->last_invalid_header_offset)
-                                             : (priv->last_invalid_header_offset - bad_offset);
-                if (invalid_delta < frame_bytes_hint || invalid_delta < (guard_span / 2U))
+                uint32_t bad_offset = priv->pending_header_valid ? priv->pending_header_offset : priv->last_seek_aligned_offset;
+                uint32_t frame_bytes_hint = mp3_get_frame_bytes_hint(priv);
+                uint32_t guard_span = mp3_get_invalid_skip_range(frame_bytes_hint);
+                if (priv->invalid_guard_span > guard_span)
                 {
-                    uint32_t expanded = guard_span * 2U;
-                    if (expanded < guard_span)
-                    {
-                        expanded = MP3_AUDIO_BUF_SZ;
-                    }
-                    if (expanded > MP3_AUDIO_BUF_SZ)
-                    {
-                        expanded = MP3_AUDIO_BUF_SZ;
-                    }
-                    guard_span = expanded;
+                    guard_span = priv->invalid_guard_span;
                 }
+                if (priv->last_invalid_header_valid)
+                {
+                    uint32_t invalid_delta = (bad_offset > priv->last_invalid_header_offset)
+                                                 ? (bad_offset - priv->last_invalid_header_offset)
+                                                 : (priv->last_invalid_header_offset - bad_offset);
+                    if (invalid_delta < frame_bytes_hint || invalid_delta < (guard_span / 2U))
+                    {
+                        uint32_t expanded = guard_span * 2U;
+                        if (expanded < guard_span)
+                        {
+                            expanded = MP3_AUDIO_BUF_SZ;
+                        }
+                        if (expanded > MP3_AUDIO_BUF_SZ)
+                        {
+                            expanded = MP3_AUDIO_BUF_SZ;
+                        }
+                        guard_span = expanded;
+                    }
+                }
+                priv->last_invalid_header_offset = bad_offset;
+                priv->last_invalid_header_valid = true;
+                priv->invalid_guard_span = guard_span;
+                BK_LOGW(AUDIO_PLAYER_TAG, "%s, guard span:%u around bad offset:%u\n", __func__, guard_span, bad_offset);
+                mp3_schedule_alignment_retry(decoder, priv, false);
             }
-            priv->last_invalid_header_offset = bad_offset;
-            priv->last_invalid_header_valid = true;
-            priv->invalid_guard_span = guard_span;
-            BK_LOGW(AUDIO_PLAYER_TAG, "%s, guard span:%u around bad offset:%u\n", __func__, guard_span, bad_offset);
-            mp3_schedule_alignment_retry(decoder, priv, false);
         }
         goto __err;
     }
@@ -1679,6 +1685,7 @@ __retry:
     if (bytes_read > 0)
     {
         priv->bytes_left = priv->bytes_left + bytes_read;
+        priv->input_eof = false;
         return 0;
     }
     else
@@ -1689,11 +1696,14 @@ __retry:
         }
         else if (priv->bytes_left != 0)
         {
+            /* No more source data, but leftover frames may still decode. */
+            priv->input_eof = true;
             return 0;
         }
     }
 
     BK_LOGW(AUDIO_PLAYER_TAG, "can't read more data, end of stream. left=%d\n", priv->bytes_left);
+    priv->input_eof = true;
     return -1;
 }
 
@@ -1724,6 +1734,7 @@ static int mp3_decoder_open(audio_format_t format, void *param, bk_audio_player_
     priv->bytes_left = 0;
     priv->frames = 0;
     priv->need_reset = false;
+    priv->input_eof = false;
 
     priv->read_buffer = player_malloc(MP3_AUDIO_BUF_SZ);
     if (priv->read_buffer == NULL)
@@ -2041,6 +2052,8 @@ int mp3_decoder_get_data(bk_audio_player_decoder_t *decoder, char *buffer, int l
 {
     int err;
     int read_offset;
+    int decode_error_retries = 0;
+    int sync_attempts = 0;
 
     mp3_decoder_priv_t *priv = (mp3_decoder_priv_t *)decoder->decoder_priv;
 
@@ -2101,6 +2114,7 @@ int mp3_decoder_get_data(bk_audio_player_decoder_t *decoder, char *buffer, int l
         mp3_align_after_seek(decoder);
     }
 
+__refill:
     if ((priv->read_ptr == NULL) || priv->bytes_left < 2 * MAINBUF_SIZE)
     {
 
@@ -2121,7 +2135,15 @@ int mp3_decoder_get_data(bk_audio_player_decoder_t *decoder, char *buffer, int l
         //GPIO_UP(44);
         if (codec_mp3_fill_buffer(decoder) != 0)
         {
-            return -1;
+            if (priv->input_eof && priv->bytes_left == 0)
+            {
+                return 0;
+            }
+            if (!priv->input_eof)
+            {
+                return -1;
+            }
+            /* EOF with leftover bytes: keep decoding the tail. */
         }
         //GPIO_DOWN(44);
 
@@ -2149,14 +2171,28 @@ int mp3_decoder_get_data(bk_audio_player_decoder_t *decoder, char *buffer, int l
 #endif      //#ifdef WIFI_READ_DATA_TIME_DEBUG
     }
 
-    /* Protect mp3 decoder to avoid decoding assert when data is insufficient. */
+    /* Protect mp3 decoder to avoid decoding assert when data is insufficient.
+     * At EOF, leftover < MAINBUF_SIZE is normal: finish cleanly instead of SONG_FAILURE. */
     if (priv->bytes_left < MAINBUF_SIZE)
     {
-        BK_LOGE(AUDIO_PLAYER_TAG, "%s, connot read enough data, read: %d < %d, %d\n", __func__, priv->bytes_left, MAINBUF_SIZE, __LINE__);
-        return AUDIO_PLAYER_ERR;
+        if (priv->input_eof)
+        {
+            if (priv->bytes_left == 0)
+            {
+                BK_LOGI(AUDIO_PLAYER_TAG, "%s, mp3 data drained at end of stream, %d\n", __func__, __LINE__);
+                return 0;
+            }
+            /* Fall through and try to decode remaining tail frames. */
+        }
+        else
+        {
+            BK_LOGE(AUDIO_PLAYER_TAG, "%s, connot read enough data, read: %d < %d, %d\n", __func__, priv->bytes_left, MAINBUF_SIZE, __LINE__);
+            return AUDIO_PLAYER_ERR;
+        }
     }
 
-    int sync_attempts = 0;
+__find_sync:
+    sync_attempts = 0;
     while (1)
     {
     read_offset = MP3FindSyncWord(priv->read_ptr, priv->bytes_left);
@@ -2186,12 +2222,14 @@ int mp3_decoder_get_data(bk_audio_player_decoder_t *decoder, char *buffer, int l
             goto __sync_done;
         }
 
-        if (priv->force_realign)
+        /* Only dump buffer for seek realign; mid-stream keeps skipping forward. */
+        if (priv->force_realign && priv->seek_pending_check)
         {
             priv->force_realign = false;
             priv->bytes_left = 0;
             return 0;
         }
+        priv->force_realign = false;
 
         sync_attempts++;
         if (sync_attempts >= MP3_SYNC_MAX_ATTEMPTS || priv->bytes_left == 0)
@@ -2246,7 +2284,21 @@ __sync_retry:
         priv->seek_pending_check = false;
     }
 
+    if (priv->input_eof)
+    {
+        return 0;
+    }
+
+    /* Mid-stream lost sync: discard leftover junk and refill. */
     priv->bytes_left = 0;
+    if (codec_mp3_fill_buffer(decoder) != 0)
+    {
+        return priv->input_eof ? 0 : -1;
+    }
+    if (priv->bytes_left > 0)
+    {
+        goto __find_sync;
+    }
     return 0;
 
 __sync_done:
@@ -2304,8 +2356,13 @@ __sync_done:
     }
 #endif
 
-    uint8_t *frame_start_ptr = priv->read_ptr;
-    int bytes_before_decode = priv->bytes_left;
+    uint8_t *frame_start_ptr;
+    int bytes_before_decode;
+    int next_sync;
+
+__decode_frame:
+    frame_start_ptr = priv->read_ptr;
+    bytes_before_decode = priv->bytes_left;
 
     err = MP3Decode(priv->decoder, &priv->read_ptr, (int *)&priv->bytes_left, (short *)buffer, 0);
     priv->frames++;
@@ -2314,46 +2371,78 @@ __sync_done:
         switch (err)
         {
             case ERR_MP3_INDATA_UNDERFLOW:
-                // LOG_E("ERR_MP3_INDATA_UNDERFLOW.");
-                // codec_mp3->bytes_left = 0;
                 if (codec_mp3_fill_buffer(decoder) != 0)
                 {
-                    /* release this memory block */
-                    return -1;
+                    /* True EOF: finish song; transient read fail: error. */
+                    return priv->input_eof ? 0 : -1;
                 }
-                break;
+                goto __find_sync;
 
             case ERR_MP3_MAINDATA_UNDERFLOW:
-                /* do nothing - next call to decode will provide more mainData */
-                // LOG_E("ERR_MP3_MAINDATA_UNDERFLOW.");
-                break;
+                /* Need more main data — refill and retry decode at same frame. */
+                if (priv->input_eof)
+                {
+                    if (priv->bytes_left < 4)
+                    {
+                        return 0;
+                    }
+                    /* EOF with leftover: keep trying once more via sync path. */
+                    goto __find_sync;
+                }
+                if (codec_mp3_fill_buffer(decoder) != 0)
+                {
+                    return priv->input_eof ? 0 : -1;
+                }
+                goto __decode_frame;
 
             case ERR_MP3_INVALID_HUFFCODES:
                 BK_LOGE(AUDIO_PLAYER_TAG, "%s, invalid huffman codes, skip frame, left:%d, %d\n", __func__, priv->bytes_left, __LINE__);
                 /* fall through */
 
             default:
-                // LOG_E("unknown error: %d, left: %d.", err, codec_mp3->bytes_left);
-                // LOG_D("stream position: %d.", codec_mp3->parent.stream->position);
-                // stream_buffer(0, NULL);
-
-                // skip this frame
+                /* Skip bad frame and resync; do not treat as song end. */
                 if (priv->bytes_left > 0)
                 {
-                    priv->bytes_left --;
-                    priv->read_ptr ++;
+                    priv->bytes_left--;
+                    priv->read_ptr++;
+                    if (priv->bytes_left > 0)
+                    {
+                        next_sync = MP3FindSyncWord(priv->read_ptr, priv->bytes_left);
+                        if (next_sync > 0 && (uint32_t)next_sync < priv->bytes_left)
+                        {
+                            priv->read_ptr += next_sync;
+                            priv->bytes_left -= (uint32_t)next_sync;
+                        }
+                    }
                 }
-                else
+                else if (!priv->input_eof)
                 {
-                /* decoder ran out of bytes while handling an unexpected error */
-                BK_LOGE(AUDIO_PLAYER_TAG, "%s, decode error:%d with empty buffer, %d\n", __func__, err, __LINE__);
-//                if (codec_mp3_fill_buffer(decoder) != 0)
-//                {
-//                    BK_LOGE(AUDIO_PLAYER_TAG, "%s, refill after decode error failed, %d\n", __func__, __LINE__);
-//                    return -1;
-//                }
+                    if (codec_mp3_fill_buffer(decoder) != 0 && priv->bytes_left == 0)
+                    {
+                        return priv->input_eof ? 0 : -1;
+                    }
                 }
-                break;
+
+                decode_error_retries++;
+                if (decode_error_retries < (int)MP3_DECODE_ERROR_RETRY_MAX && priv->bytes_left > 0)
+                {
+                    goto __find_sync;
+                }
+                if (priv->input_eof)
+                {
+                    return 0;
+                }
+                /* Still mid-stream after many bad frames: refill and keep going. */
+                decode_error_retries = 0;
+                if (priv->bytes_left < MAINBUF_SIZE)
+                {
+                    goto __refill;
+                }
+                if (priv->bytes_left > 0)
+                {
+                    goto __find_sync;
+                }
+                return 0;
         }
     }
     else
