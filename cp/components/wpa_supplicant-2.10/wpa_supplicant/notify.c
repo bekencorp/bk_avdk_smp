@@ -188,13 +188,8 @@ void wlan_store_fci(struct wpa_supplicant *wpa_s)
 
 	os_memset(&fci, 0, sizeof(fci));
 
-	//read the static ip param that obtained
 	wlan_read_fast_connect_info(&pre_fci);
 
-	os_memcpy(fci.ip_addr, pre_fci.ip_addr, sizeof(pre_fci.ip_addr));
-	os_memcpy(fci.netmask, pre_fci.netmask, sizeof(pre_fci.netmask));
-	os_memcpy(fci.gw, pre_fci.gw, sizeof(pre_fci.gw));
-	os_memcpy(fci.dns1, pre_fci.dns1, sizeof(pre_fci.dns1));
 	os_memcpy(fci.ssid, bss->ssid, ssid->ssid_len);
 	os_memcpy(fci.bssid, bss->bssid, ETH_ALEN);
 	ieee80211_freq_to_chan(bss->freq, &fci.channel);
@@ -215,22 +210,58 @@ void wlan_store_fci(struct wpa_supplicant *wpa_s)
 	}
 
 #if CONFIG_WLAN_FAST_CONNECT_WPA3
-	if (wpa_s->wpa) {
-		struct rsn_pmksa_cache_entry *pmksa = wpa_s->wpa->cur_pmksa;
-		/* First SAE connection: cur_pmksa is NULL because AP doesn't
-		 * include PMKID in 4-way handshake msg1. Look up by BSSID. */
-		if (!pmksa)
-			pmksa = wpa_sm_pmksa_cache_get(wpa_s->wpa, bss->bssid,
-						       NULL, wpa_s->current_ssid, 0);
-		if (pmksa) {
-			fci.pmk_len = pmksa->pmk_len;
-			os_memcpy(fci.pmk, pmksa->pmk, pmksa->pmk_len);
-			os_memcpy(fci.pmkid, pmksa->pmkid, 16);
-			fci.akmp = wpa_s->wpa->key_mgmt;
-			WPA_LOGE("FCI: saving PMK len=%d akmp=0x%x",
-				   fci.pmk_len, fci.akmp);
+	/*
+	 * SAE PMK policy (GOT_IP may write IP later separately):
+	 * - WPA3/SAE: update PMK and save
+	 * - same SSID + non-WPA3: clear SAE and save
+	 * - different SSID + non-WPA3: keep previous SAE FCI (skip overwrite)
+	 */
+	{
+		int pre_ssid_len = os_strlen((char *)pre_fci.ssid);
+		bool ssid_match = (pre_ssid_len == (int)ssid->ssid_len &&
+				   ssid->ssid_len > 0 &&
+				   os_memcmp(pre_fci.ssid, bss->ssid, ssid->ssid_len) == 0);
+		bool is_sae = false;
+		bool pre_sae = (pre_fci.pmk_len > 0 && wpa_key_mgmt_sae(pre_fci.akmp));
+
+		if (wpa_s->wpa) {
+			struct rsn_pmksa_cache_entry *pmksa = wpa_s->wpa->cur_pmksa;
+			/* First SAE connection: cur_pmksa is NULL because AP doesn't
+			 * include PMKID in 4-way handshake msg1. Look up by BSSID. */
+			if (!pmksa)
+				pmksa = wpa_sm_pmksa_cache_get(wpa_s->wpa, bss->bssid,
+							       NULL, wpa_s->current_ssid, 0);
+			if (pmksa && wpa_key_mgmt_sae(wpa_s->wpa->key_mgmt)) {
+				is_sae = true;
+				fci.pmk_len = pmksa->pmk_len;
+				os_memcpy(fci.pmk, pmksa->pmk, pmksa->pmk_len);
+				os_memcpy(fci.pmkid, pmksa->pmkid, 16);
+				fci.akmp = wpa_s->wpa->key_mgmt;
+				WPA_LOGE("FCI: update SAE PMK len=%d akmp=0x%x",
+					 fci.pmk_len, fci.akmp);
+			}
+		}
+
+		if (!is_sae && !ssid_match && pre_sae) {
+			WPA_LOGI("FCI: keep SAE PMK, skip overwrite by other non-SAE SSID\n");
+			goto out;
+		}
+		if (!is_sae && pre_sae)
+			WPA_LOGI("FCI: clear SAE PMK (ssid_match=%d)", ssid_match);
+
+		/* Only reuse IP when same SSID; GOT_IP will refresh. */
+		if (ssid_match) {
+			os_memcpy(fci.ip_addr, pre_fci.ip_addr, sizeof(pre_fci.ip_addr));
+			os_memcpy(fci.netmask, pre_fci.netmask, sizeof(pre_fci.netmask));
+			os_memcpy(fci.gw, pre_fci.gw, sizeof(pre_fci.gw));
+			os_memcpy(fci.dns1, pre_fci.dns1, sizeof(pre_fci.dns1));
 		}
 	}
+#else
+	os_memcpy(fci.ip_addr, pre_fci.ip_addr, sizeof(pre_fci.ip_addr));
+	os_memcpy(fci.netmask, pre_fci.netmask, sizeof(pre_fci.netmask));
+	os_memcpy(fci.gw, pre_fci.gw, sizeof(pre_fci.gw));
+	os_memcpy(fci.dns1, pre_fci.dns1, sizeof(pre_fci.dns1));
 #endif
 
 #if CONFIG_WLAN_FAST_CONNECT_WITHOUT_SCAN

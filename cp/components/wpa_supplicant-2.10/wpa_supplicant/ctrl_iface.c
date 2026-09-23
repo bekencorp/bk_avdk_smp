@@ -1523,9 +1523,21 @@ int wpa_supplicant_ctrl_iface_receive(wpah_msg_t *msg)
 
 		wlan_sta_add_pmksa_cache_entry_t *entry = (wlan_sta_add_pmksa_cache_entry_t *)msg->argu;
 		struct wpa_ssid *ssid = wpa_config_get_network(wpa_s->conf, 0);
+		const u8 *pmkid = entry->pmkid;
+		int i, pmkid_valid = 0;
+
+		for (i = 0; i < (int)sizeof(entry->pmkid); i++) {
+			if (entry->pmkid[i] != 0) {
+				pmkid_valid = 1;
+				break;
+			}
+		}
+		/* NULL => pmksa_cache_add derives PMKID from PMK */
+		if (!pmkid_valid)
+			pmkid = NULL;
 
 		pmksa_cache_add(wpa_s->wpa->pmksa, entry->pmk, entry->pmk_len,
-							entry->pmkid, NULL, 0, entry->bssid,
+							pmkid, NULL, 0, entry->bssid,
 							wpa_s->wpa->own_addr,
 							ssid, entry->akmp,
 							NULL);
