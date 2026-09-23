@@ -18,6 +18,7 @@
 #include "multicore_hal.h"
 #include "sys_ll.h"
 #include "sys_ahbp_ll.h"
+#include "sys_sw_regs.h"
 
 /* P1-2: bounded wait for the peer-core stop to be confirmed via reset-status
  * readback before trusting cross-core/cross-domain reads. Fixed behaviour (no
@@ -459,6 +460,18 @@ static void bk_exception_dump_main(bk_exception_t *self)
 void bk_coredump_dump_ap_memory_for_trap(void)
 {
     uint64_t dump_time_us = bk_aon_rtc_get_us();
+
+    /* Confirm the handoff to the waiting AP. This MUST be the first statement:
+     * the AP holds its exception context (and its own watchdog) open until it
+     * sees this flag, and bk_coredump_writer_init() below can block on the
+     * shared UART HSPL. Publishing only after the lock would stretch the AP's
+     * confirmation window by an unbounded amount.
+     *
+     * It is deliberately NOT set in the IPC_AP_TRAP_HANDLE_END RX handler: that
+     * handler ACKs immediately and only queues an event for this task, so an
+     * ACK proves reception, not dispatch. Entering this function is the first
+     * moment the takeover is real. */
+    bk_sys_sw_regs_set_cp_ap_dump_taken(1);
 
 #if CONFIG_SUPPORT_WWDT
     bk_wwdt_driver_deinit();
