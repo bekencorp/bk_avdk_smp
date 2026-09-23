@@ -19,9 +19,85 @@
 #include "saradc_client.h"
 
 #define TAG "saradc_example"
-
 #define SARADC_EXAMPLE_BUFFER_SIZE  16
 #define SARADC_EXAMPLE_TIMEOUT      1000
+
+#if CONFIG_AP_SARADC_MEDIAN_FILTER
+float g_ap_ipt[9] = {0};
+
+void swap_v(float *a, float *b)
+{
+    float temp = *a;
+    *a = *b;
+    *b = temp;
+}
+
+void sort(float arr[], int n)
+{
+    for (int i = 0; i < n - 1; i++)
+    {
+        for (int j = 0; j < n - i - 1; j++)
+        {
+            if (arr[j] > arr[j + 1])
+            {
+                swap_v(&arr[j], &arr[j + 1]);
+            }
+        }
+    }
+}
+
+void adc_data_push(float *buff, float data, UINT8 size)
+{
+    for(UINT16 i = 0; i < size - 1; i++)
+    {
+        buff[i] = buff[i + 1];
+    }
+    buff[size-1] = data;
+}
+
+float med_filter(float input[], UINT16 size, UINT8 window_size)
+{
+    UINT16 half_window = window_size / 2;
+    float sum = 0;
+    if (window_size % 2 == 0)
+    {
+        bk_printf("Error: window_size must be an odd number.\n");
+        return 0;
+    }
+    float* output = (float*)os_malloc(size * sizeof(float));
+    if (output == NULL)
+    {
+        bk_printf("Error: failed to allocate memory for output array.\n");
+        return 0;
+    }
+    for (int i = 0; i < size; i++)
+    {
+        float window[window_size];
+        int window_index = 0;
+        for (int j = i - half_window; j <= i + half_window; j++)
+        {
+            if (j < 0)
+            {
+                window[window_index++] = input[0];
+            }
+            else if (j >= size)
+            {
+                window[window_index++] = input[size - 1];
+            }
+            else
+            {
+                window[window_index++] = input[j];
+            }
+        }
+        sort(window, window_size);
+        output[i] = window[half_window];
+    }
+    sort(output, size);
+    sum = output[8];
+    os_free(output);
+    return sum;
+}
+#endif
 /**
  * @brief SARADC basic usage example
  *
@@ -42,7 +118,10 @@ uint16_t saradc_example(UINT8 adc_chan)
     adc_config_t adc_config;
     uint16_t adc_data = 0;
     uint16_t cali_value = 0;
-
+#if CONFIG_AP_SARADC_MEDIAN_FILTER
+    static UINT8 num = 0;
+    UINT8 window_size = 9;
+#endif
     // Acquire ADC resource
     ret = bk_adc_acquire();
     if (ret != BK_OK) {
@@ -109,6 +188,20 @@ uint16_t saradc_example(UINT8 adc_chan)
     }
 
     cali_value = bk_adc_data_calculate(adc_data, adc_chan);
+#if CONFIG_AP_SARADC_MEDIAN_FILTER
+    if(num >= 9)
+    {
+        num -= 1;
+        adc_data_push(g_ap_ipt, cali_value, 9);
+        cali_value = med_filter(g_ap_ipt, 9, window_size);
+        //CLI_LOGI("volt value2:%d mv\n",(uint32_t)(cali_value*1000));
+    }
+    else
+    {
+        adc_data_push(g_ap_ipt, cali_value, 9);
+    }
+    num += 1;
+#endif
     BK_LOGE(TAG, "ADC data = %d, volt = %d(mv)\r\n", adc_data, cali_value);
 
     ret = bk_adc_stop();

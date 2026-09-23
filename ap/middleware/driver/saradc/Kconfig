@@ -22,5 +22,8 @@ menu "SARADC"
 		depends on SARADC
 		bool "Enable SARADC example"
 		default n
+	config AP_SARADC_MEDIAN_FILTER
+		bool "Enable saradc median filtering algorithm"
+		default n
 
 endmenu

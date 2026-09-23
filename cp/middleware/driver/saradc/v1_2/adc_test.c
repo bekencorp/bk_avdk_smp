@@ -25,6 +25,83 @@
 
 static UINT8 s_adc_reading_flag = 0;
 
+#if CONFIG_SARADC_MEDIAN_FILTER
+float g_ipt[9] = {0};
+
+void swap_v(float *a, float *b)
+{
+    float temp = *a;
+    *a = *b;
+    *b = temp;
+}
+
+void sort(float arr[], int n)
+{
+    for (int i = 0; i < n - 1; i++)
+    {
+        for (int j = 0; j < n - i - 1; j++)
+        {
+            if (arr[j] > arr[j + 1])
+            {
+                swap_v(&arr[j], &arr[j + 1]);
+            }
+        }
+    }
+}
+
+void adc_data_push(float *buff, float data, UINT8 size)
+{
+    for(UINT16 i = 0; i < size - 1; i++)
+    {
+        buff[i] = buff[i + 1];
+    }
+    buff[size-1] = data;
+}
+
+float med_filter(float input[], UINT16 size, UINT8 window_size)
+{
+    UINT16 half_window = window_size / 2;
+    float sum = 0;
+    if (window_size % 2 == 0)
+    {
+        bk_printf("Error: window_size must be an odd number.\n");
+        return 0;
+    }
+    float* output = (float*)os_malloc(size * sizeof(float));
+    if (output == NULL)
+    {
+        bk_printf("Error: failed to allocate memory for output array.\n");
+        return 0;
+    }
+    for (int i = 0; i < size; i++)
+    {
+        float window[window_size];
+        int window_index = 0;
+        for (int j = i - half_window; j <= i + half_window; j++)
+        {
+            if (j < 0)
+            {
+                window[window_index++] = input[0];
+            }
+            else if (j >= size)
+            {
+                window[window_index++] = input[size - 1];
+            }
+            else
+            {
+                window[window_index++] = input[j];
+            }
+        }
+        sort(window, window_size);
+        output[i] = window[half_window];
+    }
+    sort(output, size);
+    sum = output[8];
+    os_free(output);
+    return sum;
+}
+#endif
+
 static void cli_adc_help(void)
 {
     CLI_LOGI("adc_driver init/deinit\n");
@@ -112,7 +189,10 @@ static float cli_adc_read_single_chan(UINT8 adc_chan, uint32_t clk)
 {
     uint16_t value   = 0;
     float cali_value = 0;
-
+#if CONFIG_SARADC_MEDIAN_FILTER
+    static UINT8 num = 0;
+    UINT8 window_size = 9;
+#endif
     if(s_adc_reading_flag == 1)
     {
         CLI_LOGI("adc_read is running\r\n");
@@ -137,10 +217,23 @@ static float cli_adc_read_single_chan(UINT8 adc_chan, uint32_t clk)
     BK_LOG_ON_ERR(bk_adc_channel_init(&config));
     BK_LOG_ON_ERR(bk_adc_channel_read(adc_chan, &value, ADC_READ_SEMAPHORE_WAIT_TIME));
 
-    os_printf("adc_read_val:%x\r\n", value);
+    CLI_LOGD("adc_read_val:%x\r\n", value);
 
     cali_value = bk_adc_data_calculate(value, adc_chan);
-
+#if CONFIG_SARADC_MEDIAN_FILTER
+    if(num >= 9)
+    {
+        num -= 1;
+        adc_data_push(g_ipt, cali_value, 9);
+        cali_value = med_filter(g_ipt, 9, window_size);
+        //CLI_LOGI("volt value2:%d mv\n",(uint32_t)(cali_value*1000));
+    }
+    else
+    {
+        adc_data_push(g_ipt, cali_value, 9);
+    }
+    num += 1;
+#endif
     sys_drv_set_ana_pwd_gadc_buf(0);
     bk_adc_channel_deinit(adc_chan);
 
