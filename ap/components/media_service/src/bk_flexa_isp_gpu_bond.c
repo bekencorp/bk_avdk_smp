@@ -14,9 +14,11 @@
 
 #include <os/os.h>
 #include <os/mem.h>
+#include <stdint.h>
 #include "isp_core.h"
 #include <driver/isp.h>
 #include <driver/isp_base.h>
+#include <components/bk_flexa_bond.h>
 #include <components/bk_gpu.h>
 
 #include "bk_flexa_bond_types.h"
@@ -33,6 +35,21 @@ static avdk_err_t bk_err_to_avdk(bk_err_t e)
 	return (e == BK_OK) ? AVDK_ERR_OK : AVDK_ERR_GENERIC;
 }
 
+typedef struct {
+	uint8_t pending_port_id;
+	uint8_t frame_port_id;
+	uint8_t frame_accepted;
+	uint32_t frame_seq;
+} isp_gpu_bond_priv_t;
+
+static isp_gpu_bond_priv_t *isp_gpu_bond_priv(const bk_flexa_bond_t *in_stream)
+{
+	if (in_stream == NULL || in_stream->bond_config == NULL) {
+		return NULL;
+	}
+	return (isp_gpu_bond_priv_t *)in_stream->bond_config->bond;
+}
+
 static void isp_bond_mb_line_isr(uint32_t seq, uint32_t line, uint8_t chnl, uint8_t ok, void *param)
 {
 	bk_flexa_bond_t *in_stream = (bk_flexa_bond_t *)param;
@@ -41,6 +58,32 @@ static void isp_bond_mb_line_isr(uint32_t seq, uint32_t line, uint8_t chnl, uint
 		return;
 	}
 	if (chnl != ISP_MP_CHN_ID) {
+		return;
+	}
+
+	isp_gpu_bond_priv_t *priv = isp_gpu_bond_priv(in_stream);
+	if (priv == NULL) {
+		return;
+	}
+	if (priv->frame_seq != seq) {
+		isp_handle_t isp_h = (isp_handle_t)in_stream->handle;
+		uint8_t port_id = BK_FLEXA_ISP_PORT_ANY;
+		uint8_t selected_port = __atomic_load_n(
+			&priv->pending_port_id, __ATOMIC_ACQUIRE);
+
+		priv->frame_seq = seq;
+		if (bk_isp_frame_port_get(&isp_h, chnl, seq, &port_id) != BK_OK) {
+			priv->frame_port_id = BK_FLEXA_ISP_PORT_ANY;
+			priv->frame_accepted =
+				(selected_port == BK_FLEXA_ISP_PORT_ANY);
+		} else {
+			priv->frame_port_id = port_id;
+			priv->frame_accepted =
+				(selected_port == BK_FLEXA_ISP_PORT_ANY ||
+				 selected_port == port_id);
+		}
+	}
+	if (!priv->frame_accepted) {
 		return;
 	}
 	if (!ok) {
@@ -97,18 +140,29 @@ static void isp_gpu_bond_isp_stream_error(uint32_t reason, void *args)
 	}
 }
 
-avdk_err_t bk_flexa_isp_gpu_bond_start(void **bond, void *isp, bk_gpu_ctlr_handle_t gpu)
+avdk_err_t bk_flexa_isp_gpu_bond_start_extended(
+	void **bond,
+	void *isp,
+	bk_gpu_ctlr_handle_t gpu,
+	const bk_flexa_isp_gpu_bond_config_t *config)
 {
 	avdk_err_t ret = AVDK_ERR_OK;
 	bk_err_t br;
 	bk_flexa_bond_config_t *bond_new = NULL;
 	bk_flexa_bond_t *in_stream = NULL;
 	bk_flexa_bond_t *out_stream = NULL;
+	isp_gpu_bond_priv_t *priv = NULL;
 	isp_handle_t isp_h = NULL;
 	uint8_t gpu_flexa_mapped = 0;
+	uint8_t port_id =
+		(config != NULL) ? config->port_id : BK_FLEXA_ISP_PORT_ANY;
 
 	if (bond == NULL || isp == NULL || gpu == NULL) {
 		LOGE("%s invalid args bond %p isp %p gpu %p\r\n", __func__, bond, isp, gpu);
+		return AVDK_ERR_INVAL;
+	}
+	if (port_id != BK_FLEXA_ISP_PORT_ANY && port_id >= ISP_PORT_CNT) {
+		LOGE("%s invalid port %u\r\n", __func__, port_id);
 		return AVDK_ERR_INVAL;
 	}
 	if (*bond != NULL) {
@@ -126,6 +180,7 @@ avdk_err_t bk_flexa_isp_gpu_bond_start(void **bond, void *isp, bk_gpu_ctlr_handl
 	in_stream = (bk_flexa_bond_t *)os_malloc(sizeof(bk_flexa_bond_t));
 	if (in_stream == NULL) {
 		LOGE("%s malloc in_stream failed\r\n", __func__);
+		ret = AVDK_ERR_NOMEM;
 		goto error;
 	}
 	os_memset(in_stream, 0, sizeof(bk_flexa_bond_t));
@@ -133,14 +188,27 @@ avdk_err_t bk_flexa_isp_gpu_bond_start(void **bond, void *isp, bk_gpu_ctlr_handl
 	out_stream = (bk_flexa_bond_t *)os_malloc(sizeof(bk_flexa_bond_t));
 	if (out_stream == NULL) {
 		LOGE("%s malloc out_stream failed\r\n", __func__);
+		ret = AVDK_ERR_NOMEM;
 		goto error;
 	}
 	os_memset(out_stream, 0, sizeof(bk_flexa_bond_t));
+
+	priv = (isp_gpu_bond_priv_t *)os_malloc(sizeof(isp_gpu_bond_priv_t));
+	if (priv == NULL) {
+		LOGE("%s malloc private state failed\r\n", __func__);
+		ret = AVDK_ERR_NOMEM;
+		goto error;
+	}
+	os_memset(priv, 0, sizeof(isp_gpu_bond_priv_t));
+	priv->pending_port_id = port_id;
+	priv->frame_port_id = BK_FLEXA_ISP_PORT_ANY;
+	priv->frame_seq = UINT32_MAX;
 
 	bond_new->in_stream = in_stream;
 	bond_new->out_stream = out_stream;
 	bond_new->in_stream_type = BK_FLEXA_TYPE_ISP;
 	bond_new->out_stream_type = BK_FLEXA_TYPE_GPU;
+	bond_new->bond = priv;
 
 	in_stream->handle = isp;
 	in_stream->flexa_done = isp_gpu_bond_isp_flexa_done;
@@ -152,8 +220,14 @@ avdk_err_t bk_flexa_isp_gpu_bond_start(void **bond, void *isp, bk_gpu_ctlr_handl
 
 	out_stream->max_lines_per_frame =
 		(isp_control->chn[ISP_MP_CHN_ID].chn_attr.chnFormat.height + 15) / 16;
-	bk_gpu_ioctl(gpu, BK_GPU_IOCTL_FLEXA_ADDR_UNMAPPING, (void *)0);
-	bk_gpu_ioctl(gpu, BK_GPU_IOCTL_FLEXA_ADDR_MAPPING, (void *)isp_control->chn[ISP_MP_CHN_ID].y_addr);
+	(void)bk_gpu_ioctl(gpu, BK_GPU_IOCTL_FLEXA_ADDR_UNMAPPING, (void *)0);
+	ret = bk_gpu_ioctl(
+		gpu, BK_GPU_IOCTL_FLEXA_ADDR_MAPPING,
+		(void *)isp_control->chn[ISP_MP_CHN_ID].y_addr);
+	if (ret != AVDK_ERR_OK) {
+		LOGE("%s GPU FLEXA_ADDR_MAPPING failed %d\r\n", __func__, ret);
+		goto error;
+	}
 	gpu_flexa_mapped = 1;
 
 	out_stream->handle = (void *)gpu;
@@ -191,6 +265,10 @@ error:
 		os_free(out_stream);
 		out_stream = NULL;
 	}
+	if (priv != NULL) {
+		os_free(priv);
+		priv = NULL;
+	}
 	if (bond_new != NULL) {
 		os_free(bond_new);
 		bond_new = NULL;
@@ -199,11 +277,41 @@ error:
 	return ret;
 }
 
+avdk_err_t bk_flexa_isp_gpu_bond_start(void **bond, void *isp, bk_gpu_ctlr_handle_t gpu)
+{
+	bk_flexa_isp_gpu_bond_config_t config = {
+		.port_id = BK_FLEXA_ISP_PORT_ANY,
+	};
+	return bk_flexa_isp_gpu_bond_start_extended(bond, isp, gpu, &config);
+}
+
+avdk_err_t bk_flexa_isp_gpu_bond_set_port(void *bond, uint8_t port_id)
+{
+	if (bond == NULL ||
+		(port_id != BK_FLEXA_ISP_PORT_ANY && port_id >= ISP_PORT_CNT)) {
+		return AVDK_ERR_INVAL;
+	}
+
+	bk_flexa_bond_config_t *bond_p = (bk_flexa_bond_config_t *)bond;
+	isp_gpu_bond_priv_t *priv = (isp_gpu_bond_priv_t *)bond_p->bond;
+	if (priv == NULL) {
+		return AVDK_ERR_INVAL;
+	}
+
+	__atomic_store_n(&priv->pending_port_id, port_id, __ATOMIC_RELEASE);
+	return AVDK_ERR_OK;
+}
+
 void bk_flexa_isp_gpu_bond_stop(void *bond)
 {
 	bk_flexa_bond_config_t *bond_p = (bk_flexa_bond_config_t *)bond;
 	if (bond_p == NULL) {
 		return;
+	}
+	bk_flexa_bond_t *in_stream = bond_p->in_stream;
+	if (in_stream != NULL && in_stream->handle != NULL) {
+		isp_handle_t isp_h = (isp_handle_t)in_stream->handle;
+		(void)bk_isp_deregister_isr_callback(&isp_h, ISP_MB_LINE_DONE, in_stream);
 	}
 	bk_flexa_bond_t *out_stream = bond_p->out_stream;
 	if (out_stream != NULL && out_stream->handle != NULL) {
@@ -212,11 +320,6 @@ void bk_flexa_isp_gpu_bond_stop(void *bond)
 		(void)bk_gpu_ioctl((bk_gpu_ctlr_handle_t)out_stream->handle, BK_GPU_IOCTL_FLEXA_ADDR_UNMAPPING,
 				   (void *)0);
 	}
-	bk_flexa_bond_t *in_stream = bond_p->in_stream;
-	if (in_stream != NULL && in_stream->handle != NULL) {
-		isp_handle_t isp_h = (isp_handle_t)in_stream->handle;
-		(void)bk_isp_deregister_isr_callback(&isp_h, ISP_MB_LINE_DONE, in_stream);
-	}
 	if (bond_p->in_stream != NULL) {
 		os_free(bond_p->in_stream);
 		bond_p->in_stream = NULL;
@@ -224,6 +327,10 @@ void bk_flexa_isp_gpu_bond_stop(void *bond)
 	if (bond_p->out_stream != NULL) {
 		os_free(bond_p->out_stream);
 		bond_p->out_stream = NULL;
+	}
+	if (bond_p->bond != NULL) {
+		os_free(bond_p->bond);
+		bond_p->bond = NULL;
 	}
 	os_free(bond_p);
 	bond_p = NULL;

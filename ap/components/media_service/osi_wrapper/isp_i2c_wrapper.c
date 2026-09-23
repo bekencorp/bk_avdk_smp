@@ -2,6 +2,7 @@
 #include <components/bk_camera_bus.h>
 #include <driver/hal/hal_i2c_types.h>
 
+static beken_mutex_t s_isp_i2c_mutex;
 
 static int isp_i2c_init_wrapper(uint32_t id)
 {
@@ -15,15 +16,29 @@ static int isp_i2c_deinit_wrapper(uint32_t id)
     return 0;
 }
 
-static int isp_i2c_write_wrapper(uint32_t id, uint32_t addr, uint32_t data, uint8_t reg_bytes)
+static int isp_i2c_write_wrapper(uint32_t id, uint16_t slave_addr,
+                                 uint32_t addr, uint32_t data,
+                                 uint8_t reg_bytes)
 {
+    (void)id;
     bk_camera_bus_t * bus = bk_camera_bus_get();
     if (bus == NULL)
     {
         return -1;
     }
 
+    if (rtos_lock_mutex(&s_isp_i2c_mutex) != BK_OK)
+    {
+        return -1;
+    }
+
+    /* Keep the shared camera-bus object immutable. The bus callbacks only
+     * consume fields from the supplied object, so a transaction-local copy
+     * carries the sensor address without racing other camera users. */
+    bk_camera_bus_t transaction = *bus;
+    transaction.write_address = slave_addr;
     i2c_mem_addr_size_t addr_size = I2C_MEM_ADDR_SIZE_8BIT;
+    int ret = -1;
 
     if (reg_bytes == 2)
     {
@@ -32,18 +47,21 @@ static int isp_i2c_write_wrapper(uint32_t id, uint32_t addr, uint32_t data, uint
 
     if (addr_size == I2C_MEM_ADDR_SIZE_8BIT)
     {
-        return bus->write8(bus, addr, data);
+        ret = transaction.write8(&transaction, addr, data);
     }
     else if (addr_size == I2C_MEM_ADDR_SIZE_16BIT)
     {
-        return bus->write16(bus, addr, data);
+        ret = transaction.write16(&transaction, addr, data);
     }
 
-    return -1;
+    (void)rtos_unlock_mutex(&s_isp_i2c_mutex);
+    return ret;
 }
 
-static uint32_t isp_i2c_read_wrapper(uint32_t id, uint32_t addr, uint8_t reg_bytes)
+static uint32_t isp_i2c_read_wrapper(uint32_t id, uint16_t slave_addr,
+                                     uint32_t addr, uint8_t reg_bytes)
 {
+    (void)id;
     uint32_t value = 0;
     bk_camera_bus_t * bus = bk_camera_bus_get();
     if (bus == NULL)
@@ -51,6 +69,13 @@ static uint32_t isp_i2c_read_wrapper(uint32_t id, uint32_t addr, uint8_t reg_byt
         return 0;
     }
 
+    if (rtos_lock_mutex(&s_isp_i2c_mutex) != BK_OK)
+    {
+        return 0;
+    }
+
+    bk_camera_bus_t transaction = *bus;
+    transaction.write_address = slave_addr;
     i2c_mem_addr_size_t addr_size = I2C_MEM_ADDR_SIZE_8BIT;
 
     if (reg_bytes == 2)
@@ -60,13 +85,14 @@ static uint32_t isp_i2c_read_wrapper(uint32_t id, uint32_t addr, uint8_t reg_byt
 
     if (addr_size == I2C_MEM_ADDR_SIZE_8BIT)
     {
-        bus->read8(bus, addr, (uint8_t *)&value);
+        transaction.read8(&transaction, addr, (uint8_t *)&value);
     }
     else if (addr_size == I2C_MEM_ADDR_SIZE_16BIT)
     {
-        bus->read16(bus, addr, (uint8_t *)&value);
+        transaction.read16(&transaction, addr, (uint8_t *)&value);
     }
 
+    (void)rtos_unlock_mutex(&s_isp_i2c_mutex);
     return value;
 }
 
@@ -82,6 +108,11 @@ extern int vsios_i2c_adapter_init(void *funcs);
 bk_err_t bk_isp_i2c_funcs_init(void)
 {
     bk_err_t ret = BK_OK;
+    if (s_isp_i2c_mutex == NULL &&
+        rtos_init_mutex(&s_isp_i2c_mutex) != BK_OK)
+    {
+        return BK_FAIL;
+    }
     if (vsios_i2c_adapter_init(&s_isp_i2c_funcs) != 0)
     {
         ret = BK_FAIL;
