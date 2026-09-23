@@ -296,6 +296,11 @@ static void avrcp_tg_cb(bk_avrcp_tg_cb_event_t event, bk_avrcp_tg_cb_param_t *pa
             {
                 s_avrcp_tg.local_volume = stored;
             }
+
+            if (s_avrcp_tg.local_volume == 0)
+            {
+                s_avrcp_tg.local_volume = 1.0 * PLATFORM_SPK_GAIN_DEFAULT / PLATFORM_SPK_GAIN_MAX * AVRCP_GAIN_MAX;
+            }
             LOGI("restore volume %d %02x:%02x:%02x:%02x:%02x:%02x",
                  s_avrcp_tg.local_volume,
                  param->conn_stat.remote_bda[5], param->conn_stat.remote_bda[4], param->conn_stat.remote_bda[3],
