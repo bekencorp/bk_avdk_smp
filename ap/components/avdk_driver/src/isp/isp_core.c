@@ -43,8 +43,10 @@
 typedef struct {
     isp_isr_t isr_handler;
     void *param;
-    uint8_t enable : 1;
-    uint8_t reg_en : 1;
+    uint32_t in_flight;
+    uint32_t generation;
+    uint8_t enable;
+    uint8_t reg_en;
 } isp_isr_handler_t;
 
 enum {
@@ -68,6 +70,15 @@ static isp_isr_handler_t isp_isr_handler[ISP_ISR_MAX][ISP_ISR_MODULE_MAX] = {0};
 static uint8_t s_isp_clk_vote_cnt = 0;
 static volatile uint32_t error_count = 0;
 static beken_timer_t s_isp_error_timer = {0};
+
+typedef struct {
+    uint8_t valid;
+    ISP_METADATA_S metadata;
+    ISP_EXPOSURE_ATTR_S exposure_attr;
+} isp_port_context_t;
+
+static isp_port_context_t s_isp_port_context[ISP_DEV_CNT][ISP_PORT_CNT];
+
 #if CONFIG_SOC_SMP
 static SPINLOCK_SECTION volatile spinlock_t s_isp_isr_spin_lock = SPIN_LOCK_INIT;
 #endif
@@ -90,6 +101,59 @@ static inline void isp_isr_unlock_irqrestore(uint32_t irq_flags)
 #endif
 
     rtos_enable_int(irq_flags);
+}
+
+static bool isp_isr_handler_acquire(isp_isr_type_t type,
+                                    uint8_t index,
+                                    bool activate,
+                                    bool require_enabled,
+                                    isp_isr_t *callback,
+                                    void **param)
+{
+    isp_isr_handler_t *handler = &isp_isr_handler[type][index];
+    uint32_t generation;
+
+    if (!__atomic_load_n(&handler->reg_en, __ATOMIC_ACQUIRE))
+    {
+        return false;
+    }
+
+    generation = __atomic_load_n(&handler->generation, __ATOMIC_ACQUIRE);
+    (void)__atomic_add_fetch(&handler->in_flight, 1U, __ATOMIC_ACQ_REL);
+    if (generation != __atomic_load_n(&handler->generation, __ATOMIC_ACQUIRE) ||
+        !__atomic_load_n(&handler->reg_en, __ATOMIC_ACQUIRE))
+    {
+        (void)__atomic_sub_fetch(&handler->in_flight, 1U, __ATOMIC_RELEASE);
+        return false;
+    }
+
+    if (activate)
+    {
+        __atomic_store_n(&handler->enable, 1U, __ATOMIC_RELEASE);
+    }
+    if (require_enabled &&
+        !__atomic_load_n(&handler->enable, __ATOMIC_ACQUIRE))
+    {
+        (void)__atomic_sub_fetch(&handler->in_flight, 1U, __ATOMIC_RELEASE);
+        return false;
+    }
+
+    *callback = __atomic_load_n(&handler->isr_handler, __ATOMIC_ACQUIRE);
+    *param = __atomic_load_n(&handler->param, __ATOMIC_ACQUIRE);
+    if (*callback == NULL ||
+        generation != __atomic_load_n(&handler->generation, __ATOMIC_ACQUIRE) ||
+        !__atomic_load_n(&handler->reg_en, __ATOMIC_ACQUIRE))
+    {
+        (void)__atomic_sub_fetch(&handler->in_flight, 1U, __ATOMIC_RELEASE);
+        return false;
+    }
+    return true;
+}
+
+static void isp_isr_handler_release(isp_isr_type_t type, uint8_t index)
+{
+    (void)__atomic_sub_fetch(&isp_isr_handler[type][index].in_flight,
+                             1U, __ATOMIC_RELEASE);
 }
 
 static void isp_error_count_timer_cb(void *arg)
@@ -176,16 +240,18 @@ static void isp_invoke_isr_callbacks(isp_control_t *control, isp_isr_type_t type
 
 	for (i = 0; i < ISP_ISR_MODULE_MAX; i++)
 	{
-		if (isp_isr_handler[type][i].reg_en
-		    && isp_isr_handler[type][i].isr_handler != NULL)
+        isp_isr_t callback = NULL;
+        void *param = NULL;
+		if (isp_isr_handler_acquire(type, i, false, false,
+                                    &callback, &param))
 		{
 			uint32_t line = (type == ISP_SBI_CLOSE)
 				? control->chn[chnl_id].skip_frames_remaining
 				: control->chn[chnl_id].line;
 
-			isp_isr_handler[type][i].isr_handler(control->chn[chnl_id].sequence,
-							     line, chnl_id, error,
-							     isp_isr_handler[type][i].param);
+			callback(control->chn[chnl_id].sequence, line,
+                     chnl_id, error, param);
+            isp_isr_handler_release(type, i);
 		}
 	}
 }
@@ -310,6 +376,40 @@ static void isp_isr_callback_ext(vsi_u32_t state, void *args)
     isp_isr_callback(state_temp, args);
 }
 
+static void isp_pipeline_done_callback_ext(ISP_PORT port, void *args)
+{
+    isp_control_t *control = (isp_control_t *)args;
+    if (control == NULL) {
+        return;
+    }
+
+    if ((port.portId == ISP_MIPI_PORT_LOGICAL0 ||
+         port.portId == ISP_MIPI_PORT_LOGICAL1) &&
+        control->isp_mutex != NULL &&
+        rtos_lock_mutex(&control->isp_mutex) == BK_OK) {
+        isp_port_context_t *context =
+            &s_isp_port_context[port.devId][port.portId];
+
+        if (VSI_MPI_ISP_GetMetaData(port, &context->metadata) == VSI_SUCCESS) {
+            (void)VSI_MPI_ISP_GetExposureAttr(
+                port, &context->exposure_attr);
+            context->valid = 1;
+        }
+        (void)rtos_unlock_mutex(&control->isp_mutex);
+    }
+
+    isp_3a_done_cb_t cb;
+    void *cb_arg;
+    uint32_t irq_flags = isp_isr_lock_irqsave();
+    cb = control->three_a_done_cb;
+    cb_arg = control->three_a_done_arg;
+    isp_isr_unlock_irqrestore(irq_flags);
+
+    if (cb != NULL) {
+        cb((uint8_t)port.portId, cb_arg);
+    }
+}
+
 static bool isp_peer_channel_warmup_done(isp_control_t *control, uint8_t chnl_id)
 {
     uint8_t peer_id = (chnl_id == ISP_MP_CHN_ID) ? ISP_SP_CHN_ID : ISP_MP_CHN_ID;
@@ -404,24 +504,17 @@ static void isp_mi_isr_callback_handle(isp_control_t *control, uint8_t isr_type,
     {
         for (i = 0; i < ISP_ISR_MODULE_MAX; i++)
         {
-            if (isp_isr_handler[isr_type][i].reg_en)
+            isp_isr_t callback = NULL;
+            void *param = NULL;
+            if (isp_isr_handler_acquire(
+                    isr_type, i,
+                    control->chn[chnl_id].line == 1,
+                    true, &callback, &param))
             {
-                if (isp_isr_handler[isr_type][i].enable == false
-                    && control->chn[chnl_id].line == 1)
-                {
-                    isp_isr_handler[isr_type][i].enable = true;
-                }
-
-                /* deregister race: bk_isp_deregister_isr_callback memsets this
-                 * slot under spinlock while ISR runs lock-free. NULL-check
-                 * isr_handler so we degrade to a no-op instead of jumping to 0. */
-                if (isp_isr_handler[isr_type][i].enable
-                    && isp_isr_handler[isr_type][i].isr_handler != NULL)
-                {
-                    isp_isr_handler[isr_type][i].isr_handler(control->chn[chnl_id].sequence,
-                        control->chn[chnl_id].line, chnl_id, ok,
-                        isp_isr_handler[isr_type][i].param);
-                }
+                callback(control->chn[chnl_id].sequence,
+                         control->chn[chnl_id].line,
+                         chnl_id, ok, param);
+                isp_isr_handler_release(isr_type, i);
             }
         }
     }
@@ -433,20 +526,22 @@ static void isp_mi_isr_callback_handle(isp_control_t *control, uint8_t isr_type,
         }
         for (i = 0; i < ISP_ISR_MODULE_MAX; i++)
         {
-            if (isp_isr_handler[isr_type][i].reg_en)
+            isp_isr_t callback = NULL;
+            void *param = NULL;
+            if (isp_isr_handler_acquire(
+                    isr_type, i, false, false, &callback, &param))
             {
-                if (isp_isr_handler[isr_type][i].isr_handler)
-                {
-                    isp_isr_handler[isr_type][i].isr_handler(control->chn[chnl_id].sequence,
-                        control->chn[chnl_id].line, chnl_id, ok,
-                        isp_isr_handler[isr_type][i].param);
-                }
+                callback(control->chn[chnl_id].sequence,
+                         control->chn[chnl_id].line,
+                         chnl_id, ok, param);
+                isp_isr_handler_release(isr_type, i);
             }
         }
     }
 }
 
-static void isp_mi_isr_callback(uint32_t state, void *args)
+static void isp_mi_isr_callback_by_port(
+    uint32_t state, uint8_t frame_port_id, void *args)
 {
     uint8_t i = 0;
     isp_control_t *control = (isp_control_t *)args;
@@ -459,6 +554,12 @@ static void isp_mi_isr_callback(uint32_t state, void *args)
         {
             if (control->chn[ISP_MP_CHN_ID].line == 0)
             {
+                control->chn[ISP_MP_CHN_ID].frame_port_id =
+                    frame_port_id;
+                __atomic_store_n(
+                    &control->chn[ISP_MP_CHN_ID].frame_port_sequence,
+                    control->chn[ISP_MP_CHN_ID].sequence,
+                    __ATOMIC_RELEASE);
                 ISP_MP_FRAME_START();
             }
             control->chn[ISP_MP_CHN_ID].skip_active =
@@ -477,6 +578,12 @@ static void isp_mi_isr_callback(uint32_t state, void *args)
         {
             if (control->chn[ISP_SP_CHN_ID].line == 0)
             {
+                control->chn[ISP_SP_CHN_ID].frame_port_id =
+                    frame_port_id;
+                __atomic_store_n(
+                    &control->chn[ISP_SP_CHN_ID].frame_port_sequence,
+                    control->chn[ISP_SP_CHN_ID].sequence,
+                    __ATOMIC_RELEASE);
                 ISP_SP_FRAME_START();
                 control->chn[ISP_SP_CHN_ID].skip_active =
                     isp_channel_skip_warmup_needed(control, ISP_SP_CHN_ID) ? 1 : 0;
@@ -531,7 +638,6 @@ static void isp_mi_isr_callback(uint32_t state, void *args)
             control->chn[ISP_MP_CHN_ID].sequence++;
             control->chn[ISP_MP_CHN_ID].line = 0;
             ISP_MP_LINE_END();
-
             ISP_MP_FRAME_END();
         }
 
@@ -572,8 +678,17 @@ static void isp_mi_isr_callback(uint32_t state, void *args)
 
 static void isp_mi_isr_callback_ext(vsi_u32_t state, void *args)
 {
-    uint32_t state_temp = (uint32_t)state;
-    isp_mi_isr_callback(state_temp, args);
+    isp_control_t *control = (isp_control_t *)args;
+    uint8_t port_id = control
+        ? (uint8_t)control->port.portId : ISP_MIPI_PORT_LOGICAL0;
+    isp_mi_isr_callback_by_port((uint32_t)state, port_id, args);
+}
+
+static void isp_mi_isr_callback_by_port_ext(
+    ISP_PORT port, vsi_u32_t state, void *args)
+{
+    isp_mi_isr_callback_by_port(
+        (uint32_t)state, (uint8_t)port.portId, args);
 }
 
 bk_err_t bk_isp_clock_enable(uint8_t enable)
@@ -927,11 +1042,69 @@ bk_err_t bk_isp_port_init(isp_handle_t *handle, void *sensor_attr)
     return ret;
 }
 
-bk_err_t bk_isp_port_change(isp_handle_t *handle, uint8_t chnl)
+bk_err_t bk_isp_port_select(isp_handle_t *handle, uint8_t port_id)
 {
     bk_err_t ret = BK_FAIL;
+
+    if (handle == NULL || *handle == NULL || port_id >= ISP_PORT_CNT)
+    {
+        return BK_ERR_PARAM;
+    }
+
     isp_control_t *control = (isp_control_t *)*handle;
-    control->port.portId = (control->port.portId + 1) % ISP_PORT_CNT;
+    if (control->pub_attr[port_id] == NULL)
+    {
+        LOGE("%s, port %u is not initialized\n", __func__, port_id);
+        return BK_ERR_STATE;
+    }
+    if (control->port.portId == port_id)
+    {
+        return BK_OK;
+    }
+
+    ISP_PORT target_port = control->port;
+    uint8_t output_port_id = port_id;
+    target_port.portId = port_id;
+    if (port_id == ISP_MIPI_PORT_LOGICAL1)
+    {
+        output_port_id = ISP_MIPI_PORT_LOGICAL0;
+    }
+
+    bool logical_mipi_switch =
+        (control->port.portId == ISP_MIPI_PORT_LOGICAL0 ||
+         control->port.portId == ISP_MIPI_PORT_LOGICAL1) &&
+        (port_id == ISP_MIPI_PORT_LOGICAL0 ||
+         port_id == ISP_MIPI_PORT_LOGICAL1);
+
+    if (logical_mipi_switch)
+    {
+        if (VSI_MPI_ISP_SnsStreamStatus(target_port) == 0)
+        {
+            ret = VSI_MPI_ISP_SnsStreamOn(target_port);
+            if (ret != VSI_SUCCESS)
+            {
+                LOGE("%s, start logical port %u sensor state failed: %d\n",
+                     __func__, port_id, ret);
+                return BK_FAIL;
+            }
+        }
+
+        ret = VSI_MPI_ISP_SelectContext(target_port);
+        if (ret != BK_OK)
+        {
+            return ret;
+        }
+
+        control->port = target_port;
+        for (uint8_t chnl = 0; chnl < ISP_CHN_CNT; chnl++)
+        {
+            if (control->chn[chnl].enable)
+            {
+                control->chn[chnl].channel.portId = output_port_id;
+            }
+        }
+        return BK_OK;
+    }
 
     VSI_MPI_RESET(0, 0);
     VSI_MPI_RESET(0, 1);
@@ -939,7 +1112,7 @@ bk_err_t bk_isp_port_change(isp_handle_t *handle, uint8_t chnl)
     VSI_MPI_RESET(0, 3);
     VSI_MPI_RESET(0, 6);
 
-    if (control->port.portId == ISP_DVP_PORT_ID)
+    if (target_port.portId == ISP_DVP_PORT_ID)
     {
         bk_mipi_csi_ext_set_enable(1);
     }
@@ -948,13 +1121,95 @@ bk_err_t bk_isp_port_change(isp_handle_t *handle, uint8_t chnl)
         bk_mipi_csi_ext_set_enable(0);
     }
 
-    control->chn[chnl].channel.portId = control->port.portId;
-    VSI_MPI_ISP_SetScaleAttr(control->chn[chnl].channel, &control->chn[chnl].chn_attr);
+    for (uint8_t chnl = 0; chnl < ISP_CHN_CNT; chnl++)
+    {
+        ISP_CHN target_channel;
+
+        if (!control->chn[chnl].enable)
+        {
+            continue;
+        }
+
+        target_channel = control->chn[chnl].channel;
+        target_channel.portId = port_id;
+        ret = VSI_MPI_ISP_SetScaleAttr(target_channel,
+                                       &control->chn[chnl].chn_attr);
+        if (ret != BK_OK)
+        {
+            VSI_MPI_RESET_CLEAR(0);
+            return ret;
+        }
+    }
     
-    ret = VSI_MPI_ISP_SetInput(control->port);
+    ret = VSI_MPI_ISP_SetInput(target_port);
     VSI_MPI_RESET_CLEAR(0);
+    if (ret == BK_OK)
+    {
+        control->port = target_port;
+        for (uint8_t chnl = 0; chnl < ISP_CHN_CNT; chnl++)
+        {
+            if (control->chn[chnl].enable)
+            {
+                control->chn[chnl].channel.portId = output_port_id;
+            }
+        }
+    }
 
     return ret;
+}
+
+bk_err_t bk_isp_port_context_restore(isp_handle_t *handle)
+{
+    if (handle == NULL || *handle == NULL)
+    {
+        return BK_ERR_PARAM;
+    }
+
+    isp_control_t *control = (isp_control_t *)*handle;
+    if (control->isp_mutex == NULL ||
+        rtos_lock_mutex(&control->isp_mutex) != BK_OK)
+    {
+        return BK_FAIL;
+    }
+
+    isp_port_context_t *context =
+        &s_isp_port_context[control->dev][control->port.portId];
+    if (!context->valid)
+    {
+        (void)rtos_unlock_mutex(&control->isp_mutex);
+        return BK_OK;
+    }
+
+    int ret = VSI_MPI_ISP_SetMetaData(control->port, &context->metadata);
+    if (ret != VSI_SUCCESS)
+    {
+        (void)rtos_unlock_mutex(&control->isp_mutex);
+        return BK_FAIL;
+    }
+
+    ISP_EXPOSURE_ATTR_S exposure;
+    if (VSI_MPI_ISP_GetExposureAttr(control->port, &exposure) == VSI_SUCCESS &&
+        exposure.opType != OP_TYPE_AUTO)
+    {
+        exposure.opType = OP_TYPE_AUTO;
+        ret = VSI_MPI_ISP_SetExposureAttr(control->port, &exposure);
+    }
+
+    (void)rtos_unlock_mutex(&control->isp_mutex);
+    return (ret == VSI_SUCCESS) ? BK_OK : BK_FAIL;
+}
+
+bk_err_t bk_isp_port_change(isp_handle_t *handle)
+{
+    if (handle == NULL || *handle == NULL)
+    {
+        return BK_ERR_PARAM;
+    }
+
+    isp_control_t *control = (isp_control_t *)*handle;
+    uint8_t port_id = (control->port.portId + 1) % ISP_PORT_CNT;
+
+    return bk_isp_port_select(handle, port_id);
 }
 
 bk_err_t bk_isp_dev_init(isp_handle_t *handle)
@@ -973,6 +1228,14 @@ bk_err_t bk_isp_dev_init(isp_handle_t *handle)
         return ret;
     }
     os_memset(isp_control, 0, sizeof(isp_control_t));
+    os_memset(s_isp_port_context, 0, sizeof(s_isp_port_context));
+
+    ret = rtos_init_mutex(&isp_control->isp_mutex);
+    if (ret != BK_OK)
+    {
+        LOGE("%s, %d init isp_mutex\n", __func__, __LINE__);
+        goto error;
+    }
 
     ret = rtos_init_semaphore(&isp_control->isp_sem, 1);
     if (ret != BK_OK)
@@ -996,7 +1259,9 @@ bk_err_t bk_isp_dev_init(isp_handle_t *handle)
     ISP_ISR_CBS_S cbs = {
         .isp_mis = isp_isr_callback_ext,
         .mi_mis = isp_mi_isr_callback_ext,
+        .pipeline_done = isp_pipeline_done_callback_ext,
         .args = isp_control,
+        .mi_mis_by_port = isp_mi_isr_callback_by_port_ext,
     };
     ret = VSI_MPI_ISP_RegIsrCallBack(isp_control->dev, cbs);
     if (ret != BK_OK)
@@ -1030,7 +1295,7 @@ error:
 bk_err_t bk_isp_deinit(isp_handle_t *handle)
 {
     bk_err_t ret = BK_OK;
-    if (*handle == NULL)
+    if (handle == NULL || *handle == NULL)
     {
         LOGW("%s, already deinit\n", __func__);
         return ret;
@@ -1090,6 +1355,11 @@ bk_err_t bk_isp_deinit(isp_handle_t *handle)
 
     // disable isp pwd
     bk_pm_module_vote_power_ctrl(PM_POWER_SUB_DOMAIN_ISP, PM_POWER_MODULE_STATE_OFF);
+
+    if (control->isp_mutex)
+    {
+        rtos_deinit_mutex(&control->isp_mutex);
+    }
 
     os_free(control);
     *handle = NULL;
@@ -1497,7 +1767,7 @@ bk_err_t bk_isp_register_isr_callback(isp_handle_t *handle, isp_isr_type_t type,
     bool already_registered = false;
     bool no_free_slot = false;
 
-    if (*handle == NULL)
+    if (handle == NULL || *handle == NULL || cb == NULL)
     {
         LOGE("%s, %d\n", __func__, __LINE__);
         return ret;
@@ -1536,10 +1806,13 @@ bk_err_t bk_isp_register_isr_callback(isp_handle_t *handle, isp_isr_type_t type,
     {
         if (isp_isr_handler[type][i].param == NULL)
         {
-            isp_isr_handler[type][i].isr_handler = cb;
-            isp_isr_handler[type][i].param = arg;
-            isp_isr_handler[type][i].enable = false;
-            isp_isr_handler[type][i].reg_en = true;
+            isp_isr_handler_t *handler = &isp_isr_handler[type][i];
+            (void)__atomic_add_fetch(
+                &handler->generation, 1U, __ATOMIC_RELEASE);
+            __atomic_store_n(&handler->isr_handler, cb, __ATOMIC_RELEASE);
+            __atomic_store_n(&handler->param, arg, __ATOMIC_RELEASE);
+            __atomic_store_n(&handler->enable, 0U, __ATOMIC_RELEASE);
+            __atomic_store_n(&handler->reg_en, 1U, __ATOMIC_RELEASE);
             ret = BK_OK;
             registered_index = i;
             break;
@@ -1575,8 +1848,9 @@ bk_err_t bk_isp_deregister_isr_callback(isp_handle_t *handle, isp_isr_type_t typ
 {
     bk_err_t ret = BK_FAIL;
     uint8_t i = 0;
+    isp_isr_handler_t *handler = NULL;
 
-    if (*handle == NULL)
+    if (handle == NULL || *handle == NULL || type >= ISP_ISR_MAX || arg == NULL)
     {
         LOGE("%s, %d\n", __func__, __LINE__);
         return ret;
@@ -1588,8 +1862,12 @@ bk_err_t bk_isp_deregister_isr_callback(isp_handle_t *handle, isp_isr_type_t typ
     {
         if (isp_isr_handler[type][i].param == arg)
         {
-            isp_isr_handler[type][i].reg_en = false;
-            os_memset(&isp_isr_handler[type][i], 0, sizeof(isp_isr_handler_t));
+            handler = &isp_isr_handler[type][i];
+            __atomic_store_n(&handler->reg_en, 0U, __ATOMIC_RELEASE);
+            (void)__atomic_add_fetch(
+                &handler->generation, 1U, __ATOMIC_RELEASE);
+            __atomic_store_n(
+                &handler->isr_handler, NULL, __ATOMIC_RELEASE);
             ret = BK_OK;
             break;
         }
@@ -1597,7 +1875,90 @@ bk_err_t bk_isp_deregister_isr_callback(isp_handle_t *handle, isp_isr_type_t typ
 
     isp_isr_unlock_irqrestore(irq_flags);
 
+    if (handler != NULL)
+    {
+        while (__atomic_load_n(&handler->in_flight, __ATOMIC_ACQUIRE) != 0)
+        {
+            rtos_delay_milliseconds(1);
+        }
+
+        irq_flags = isp_isr_lock_irqsave();
+        if (handler->param == arg &&
+            !__atomic_load_n(&handler->reg_en, __ATOMIC_ACQUIRE))
+        {
+            __atomic_store_n(&handler->param, NULL, __ATOMIC_RELEASE);
+            __atomic_store_n(&handler->enable, 0U, __ATOMIC_RELEASE);
+        }
+        isp_isr_unlock_irqrestore(irq_flags);
+    }
+
     return ret;
+}
+
+bk_err_t bk_isp_frame_port_get(isp_handle_t *handle,
+                               uint8_t chnl_id,
+                               uint32_t sequence,
+                               uint8_t *port_id)
+{
+    if (handle == NULL || *handle == NULL || port_id == NULL ||
+        chnl_id >= ISP_CHN_CNT)
+    {
+        return BK_ERR_PARAM;
+    }
+
+    isp_control_t *control = (isp_control_t *)*handle;
+    uint32_t latched_sequence = __atomic_load_n(
+        &control->chn[chnl_id].frame_port_sequence, __ATOMIC_ACQUIRE);
+    if (latched_sequence != sequence)
+    {
+        return BK_ERR_STATE;
+    }
+
+    *port_id = control->chn[chnl_id].frame_port_id;
+    return BK_OK;
+}
+
+bk_err_t bk_isp_register_3a_done_callback(isp_handle_t *handle,
+                                         isp_3a_done_cb_t cb,
+                                         void *arg)
+{
+    if (handle == NULL || *handle == NULL || cb == NULL || arg == NULL) {
+        return BK_ERR_PARAM;
+    }
+
+    isp_control_t *control = (isp_control_t *)*handle;
+    uint32_t irq_flags = isp_isr_lock_irqsave();
+    if (control->three_a_done_cb != NULL &&
+        (control->three_a_done_cb != cb ||
+         control->three_a_done_arg != arg)) {
+        isp_isr_unlock_irqrestore(irq_flags);
+        return BK_ERR_BUSY;
+    }
+    control->three_a_done_cb = cb;
+    control->three_a_done_arg = arg;
+    isp_isr_unlock_irqrestore(irq_flags);
+    return BK_OK;
+}
+
+bk_err_t bk_isp_deregister_3a_done_callback(isp_handle_t *handle,
+                                           isp_3a_done_cb_t cb,
+                                           void *arg)
+{
+    if (handle == NULL || *handle == NULL || cb == NULL || arg == NULL) {
+        return BK_ERR_PARAM;
+    }
+
+    isp_control_t *control = (isp_control_t *)*handle;
+    uint32_t irq_flags = isp_isr_lock_irqsave();
+    if (control->three_a_done_cb != cb ||
+        control->three_a_done_arg != arg) {
+        isp_isr_unlock_irqrestore(irq_flags);
+        return BK_ERR_STATE;
+    }
+    control->three_a_done_cb = NULL;
+    control->three_a_done_arg = NULL;
+    isp_isr_unlock_irqrestore(irq_flags);
+    return BK_OK;
 }
 
 bk_err_t bk_isp_soft_reset(isp_handle_t *handle)
