@@ -195,6 +195,15 @@ static void lv_partial_flush_compress(lv_vnd_data_t *vnd_data, lv_partial_flush_
     vg_lite_allocate_with_data(&lv_dst_buf, vnd_data->disp_buf, NULL, NULL, NULL);
 
     lv_partial_set_compress_matrix(vnd_data, ctx);
+
+    /*
+     * VG-Lite draw may leave HW scissor enabled in partial-buffer coordinates.
+     * Compress blit targets the full-frame DEC buffer; clear scissor first so the
+     * leftover clip does not truncate the compressed output.
+     * (-1,-1,-1,-1) disables scissor per vg_lite_set_scissor().
+     */
+    vg_lite_set_scissor(-1, -1, -1, -1);
+
     vg_lite_error_t ret = vg_lite_blit_rect(&lv_dst_buf, &lv_src_buf, &rect, &lv_matrix, VG_LITE_BLEND_NONE, 0, VG_LITE_FILTER_POINT);
     if (ret != VG_LITE_SUCCESS) {
         LOGE("%s blit compressed frame buffer failed, ret=%d, area=(%d,%d)-(%d,%d)\n",
