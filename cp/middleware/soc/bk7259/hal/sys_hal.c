@@ -3625,10 +3625,10 @@ bk_err_t sys_hal_ap_clock_power_ctrl(power_module_state_t power_state)
 		REG_WRITE(SOC_SYS_AHBP_REG_BASE + 0x53*4,  (0xA5<<24) |               (0x901));
 		bk_delay_us(10);
 	#endif
-
+	    #if !CONFIG_PM_CP_PERI_CLK_DEFAULT_OFF
 		/*M55:Default enable all the clock source for bringup */
 		REG_WRITE(SOC_SYS_AHBP_REG_BASE + 0xA*4, 0xFFFFFFFF);
-
+        #endif
 		/*M55 cpu freq and bus 480M, subbus 240M */
 		regData = REG_READ(SOC_SYS_AHBP_REG_BASE + 0x8*4);
 		regData |= 0x1 << 4;
@@ -3762,9 +3762,10 @@ static bk_err_t sys_hal_m55_clock_power_init()
 	REG_WRITE(SOC_SYS_AHBP_REG_BASE + 0x53*4,  (0x5A<<24) |               (0x901));
 	REG_WRITE(SOC_SYS_AHBP_REG_BASE + 0x53*4,  (0xA5<<24) |               (0x901));
 	//bk_delay_us(10);
+	#if !CONFIG_PM_CP_PERI_CLK_DEFAULT_OFF
 	/*M55:Default enable all the clock source for bringup */
 	REG_WRITE(SOC_SYS_AHBP_REG_BASE + 0xA*4, 0xFFFFFFFF);
-
+	#endif
 	/*M55 cpu freq and bus 480M, subbus 240M */
 	regData = REG_READ(SOC_SYS_AHBP_REG_BASE + 0x8*4);
 	regData |= 0x1 << 4;
