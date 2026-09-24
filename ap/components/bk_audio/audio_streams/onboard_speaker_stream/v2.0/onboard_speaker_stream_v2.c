@@ -193,6 +193,8 @@ typedef struct onboard_speaker_stream
     beken_semaphore_t        can_process;                   /**< can process */
     int8_t                  *temp_buff;                     /**< HW pack / silence / AEC-ref scratch (interleaved PCM or 32-bit L|R) */
     uint32_t                 temp_buff_len;                 /**< bytes allocated for temp_buff */
+    int8_t                  *pcm_in_buff;                   /**< overflow input when frame_size > element buf (hot reconfig ch/rate grow) */
+    uint32_t                 pcm_in_buff_len;               /**< bytes allocated for pcm_in_buff */
     bool                     wr_spk_rb_done[AUD_DAC_SOURCE_MAX];       /**< write one farme data to speaker ring buffer done */
     uint8_t                  valid_frame_count_in_spk_rb;   /**< the count of valid farme data in speaker ring buffer, data playback finish when the count is 0 */
 
@@ -212,8 +214,10 @@ typedef struct onboard_speaker_stream
     uint32_t                 dac_source_bitmap;             /**< bitmap of active dac source,bit[x]:0:source_x inactive;1:source_x active */
     aud_dac_source_t         main_dac_source;               /**< main input source mapped to element->in */
     uint32_t                 dma_frame_size;                /**< Bytes per DMA transfer to DAC ring: same as frame_size for 44.1k/48k passthrough; otherwise length after resampling to 48k */
+    uint8_t                  a2dp_in_ch;                    /**< logical A2DP PCM in channels (1/2); may differ from chl_num when DMA is live and HW ch is frozen */
     aud_rsp_cfg_t            rsp_cfg[AUD_DAC_SOURCE_MAX];   /**< resampler config */
-    uint16_t                *rsp_out_buff[AUD_DAC_SOURCE_MAX];/**< interleaved resampler output (mono or stereo) */
+    uint16_t                *rsp_out_buff[AUD_DAC_SOURCE_MAX];    /**< interleaved resampler output (mono or stereo) */
+    uint32_t                 rsp_out_buff_len[AUD_DAC_SOURCE_MAX];/**< bytes allocated for rsp_out_buff[i] */
     void                    *rsp_handler[AUD_DAC_SOURCE_MAX];/**< resampler handler */
     onboard_speaker_stream_status_t status;                 /**< runtime status for upper layer */
     uint8_t                         play_energy_threshold;  /**< voice-play enter threshold in range 0~100 */
@@ -439,6 +443,108 @@ static uint32_t onboard_spk_max_in_frame_bytes(const onboard_speaker_stream_t *o
     return max_in;
 }
 
+static uint32_t onboard_spk_scale_frame_bytes(uint32_t old_frame,
+                                             int old_rate, int old_ch, int old_bits,
+                                             int new_rate, int new_ch, int new_bits)
+{
+    uint32_t old_bps;
+    uint32_t new_bps;
+    uint32_t align;
+    uint32_t bytes;
+
+    if (old_frame == 0 || old_rate <= 0 || old_ch <= 0 || old_bits <= 0 ||
+        new_rate <= 0 || new_ch <= 0 || new_bits <= 0)
+    {
+        return 0;
+    }
+
+    old_bps = (uint32_t)old_rate * (uint32_t)old_ch * ((uint32_t)old_bits / 8u);
+    new_bps = (uint32_t)new_rate * (uint32_t)new_ch * ((uint32_t)new_bits / 8u);
+    if (old_bps == 0 || new_bps == 0)
+    {
+        return 0;
+    }
+
+    bytes = (uint32_t)(((uint64_t)old_frame * (uint64_t)new_bps) / (uint64_t)old_bps);
+    align = (uint32_t)new_ch * ((uint32_t)new_bits / 8u);
+    if (align > 1u)
+    {
+        bytes = (bytes / align) * align;
+    }
+    return (bytes == 0) ? align : bytes;
+}
+
+static bk_err_t onboard_spk_a2dp_match_hw_channels(onboard_speaker_stream_t *onboard_spk,
+                                                   const int16_t *in_pcm, uint32_t in_bytes,
+                                                   uint32_t in_ch, uint32_t hw_ch,
+                                                   const int16_t **out_pcm, uint32_t *out_bytes)
+{
+    if (!in_pcm || !out_pcm || !out_bytes || in_ch == 0 || hw_ch == 0)
+    {
+        return BK_FAIL;
+    }
+
+    if (in_ch == hw_ch)
+    {
+        *out_pcm = in_pcm;
+        *out_bytes = in_bytes;
+        return BK_OK;
+    }
+
+    if (in_ch == 1 && hw_ch == 2)
+    {
+        int16_t *out_lr = (int16_t *)onboard_spk->temp_buff;
+        const int16_t *in_mono = in_pcm;
+        uint32_t mono_samples = in_bytes / sizeof(int16_t);
+        uint32_t need = mono_samples * 2u * sizeof(int16_t);
+        uint32_t s;
+
+        if (need > onboard_spk->temp_buff_len || out_lr == NULL)
+        {
+            BK_LOGE(TAG, "%s:%d temp_buff too small for mono->stereo need=%u cur=%u\n",
+                    __func__, __LINE__, need, onboard_spk->temp_buff_len);
+            return BK_FAIL;
+        }
+        for (s = 0; s < mono_samples; s++)
+        {
+            int16_t v = in_mono[s];
+            out_lr[2 * s + 0] = v;
+            out_lr[2 * s + 1] = v;
+        }
+        *out_pcm = out_lr;
+        *out_bytes = need;
+        return BK_OK;
+    }
+
+    if (in_ch == 2 && hw_ch == 1)
+    {
+        int16_t *out_m = (int16_t *)onboard_spk->temp_buff;
+        const int16_t *in_lr = in_pcm;
+        uint32_t pairs = in_bytes / (sizeof(int16_t) * 2u);
+        uint32_t need = pairs * sizeof(int16_t);
+        uint32_t s;
+
+        if (need > onboard_spk->temp_buff_len || out_m == NULL)
+        {
+            BK_LOGE(TAG, "%s:%d temp_buff too small for stereo->mono need=%u cur=%u\n",
+                    __func__, __LINE__, need, onboard_spk->temp_buff_len);
+            return BK_FAIL;
+        }
+        for (s = 0; s < pairs; s++)
+        {
+            int32_t l = in_lr[2 * s + 0];
+            int32_t r = in_lr[2 * s + 1];
+            out_m[s] = (int16_t)((l + r) / 2);
+        }
+        *out_pcm = out_m;
+        *out_bytes = need;
+        return BK_OK;
+    }
+
+    BK_LOGE(TAG, "%s:%d unsupported ch convert in=%u hw=%u\n", __func__, __LINE__, in_ch, hw_ch);
+    return BK_FAIL;
+}
+
 /* Grow temp_buff when dma_frame_size / in-frame increases (e.g. 44.1k init -> 16k->48k rsp).
  * Never shrink; failure leaves the previous buffer intact. */
 static bk_err_t onboard_spk_ensure_temp_buff_size(onboard_speaker_stream_t *onboard_spk, uint32_t need)
@@ -469,6 +575,77 @@ static bk_err_t onboard_spk_ensure_temp_buff_size(onboard_speaker_stream_t *onbo
     onboard_spk->temp_buff = new_buff;
     onboard_spk->temp_buff_len = need;
     BK_LOGD(TAG, "%s, line: %d, temp_buff_len -> %u\n", __func__, __LINE__, need);
+    return BK_OK;
+}
+
+static bk_err_t onboard_spk_ensure_pcm_in_buff_size(onboard_speaker_stream_t *onboard_spk, uint32_t need)
+{
+    int8_t *new_buff;
+
+    if (need == 0)
+    {
+        return BK_OK;
+    }
+    if (onboard_spk->pcm_in_buff != NULL && need <= onboard_spk->pcm_in_buff_len)
+    {
+        return BK_OK;
+    }
+
+    new_buff = (int8_t *)audio_calloc(1, need);
+    if (!new_buff)
+    {
+        BK_LOGE(TAG, "%s, line: %d, grow pcm_in_buff to %u fail (cur=%u)\n",
+                __func__, __LINE__, need, onboard_spk->pcm_in_buff_len);
+        return BK_FAIL;
+    }
+
+    if (onboard_spk->pcm_in_buff)
+    {
+        audio_free(onboard_spk->pcm_in_buff);
+    }
+    onboard_spk->pcm_in_buff = new_buff;
+    onboard_spk->pcm_in_buff_len = need;
+    BK_LOGD(TAG, "%s, line: %d, pcm_in_buff_len -> %u\n", __func__, __LINE__, need);
+    return BK_OK;
+}
+
+static bk_err_t onboard_spk_ensure_rsp_out_buff_size(onboard_speaker_stream_t *onboard_spk,
+                                                    uint32_t src_idx, uint32_t need)
+{
+    uint16_t *new_buff;
+
+    if (src_idx >= AUD_DAC_SOURCE_MAX)
+    {
+        return BK_FAIL;
+    }
+    if (need == 0)
+    {
+        return BK_OK;
+    }
+    if (need < DEFAULT_AUD_DAC_RSP_BUF_SIZE)
+    {
+        need = DEFAULT_AUD_DAC_RSP_BUF_SIZE;
+    }
+    if (onboard_spk->rsp_out_buff[src_idx] != NULL && need <= onboard_spk->rsp_out_buff_len[src_idx])
+    {
+        return BK_OK;
+    }
+
+    new_buff = (uint16_t *)audio_calloc(1, need);
+    if (!new_buff)
+    {
+        BK_LOGE(TAG, "%s, line: %d, grow rsp_out_buff[%u] to %u fail (cur=%u)\n",
+                __func__, __LINE__, src_idx, need, onboard_spk->rsp_out_buff_len[src_idx]);
+        return BK_FAIL;
+    }
+
+    if (onboard_spk->rsp_out_buff[src_idx])
+    {
+        audio_free(onboard_spk->rsp_out_buff[src_idx]);
+    }
+    onboard_spk->rsp_out_buff[src_idx] = new_buff;
+    onboard_spk->rsp_out_buff_len[src_idx] = need;
+    BK_LOGD(TAG, "%s, line: %d, rsp_out_buff[%u]_len -> %u\n", __func__, __LINE__, src_idx, need);
     return BK_OK;
 }
 
@@ -1298,9 +1475,22 @@ static int _onboard_speaker_write(audio_port_handle_t self, char *buffer, int le
 static bk_err_t audio_dac_reconfig(onboard_speaker_stream_t *onboard_spk, int rate, int ch, int bits, aud_dac_source_t dma_src)
 {
     bk_err_t ret = BK_OK;
+    /* Capture before chl_num/bits may be updated below; needed to scale frame_size.
+     * A2DP may freeze HW chl_num while a2dp_in_ch tracks logical PCM in. */
+    const uint32_t old_frame = onboard_spk->frame_size[dma_src];
+    const int old_rate = onboard_spk->sample_rate[dma_src];
+    const int old_ch   = (dma_src == AUD_DAC_SOURCE_A2DP && onboard_spk->a2dp_in_ch)
+                         ? (int)onboard_spk->a2dp_in_ch : onboard_spk->chl_num;
+    const int old_bits = onboard_spk->bits;
 
-    /* Apply PCM channel count before rsp init so src_ch/dest_ch match the new format. */
-    if (onboard_spk->chl_num != ch)
+    /* Apply PCM channel count before rsp init so src_ch/dest_ch match the new format.
+     * If DMA is already live we must NOT touch dac_chl / DMA width (no dma_stop). */
+    if (open_cnt > 0)
+    {
+        BK_LOGD(TAG, "%s, line: %d, dma live: keep hw chl_num:%d (pcm in ch:%d)\n",
+                __func__, __LINE__, onboard_spk->chl_num, ch);
+    }
+    else if (onboard_spk->chl_num != ch)
     {
         if (ch == 2)
         {
@@ -1363,8 +1553,14 @@ static bk_err_t audio_dac_reconfig(onboard_speaker_stream_t *onboard_spk, int ra
     }
     else
     {
+        uint32_t new_in_frame;
         uint32_t new_dma_frame_size;
         uint32_t need_temp;
+        const uint32_t old_dma_frame_size = onboard_spk->dma_frame_size;
+        /* Close never dma_stop; open_cnt>0 means this DMA channel was started and
+         * is still "live". Must not set_transfer_len / restart without stop. */
+        const bool dma_live = (open_cnt > 0);
+        bool keep_hw_xfer_len = false;
 
         if (onboard_spk_a2dp_src_unsupported(rate))
         {
@@ -1374,23 +1570,133 @@ static bk_err_t audio_dac_reconfig(onboard_speaker_stream_t *onboard_spk, int ra
 
         if (onboard_spk_a2dp_src_need_resample(rate))
         {
-            new_dma_frame_size = onboard_spk->frame_size[AUD_DAC_SOURCE_A2DP] * DEFAULT_AUD_DAC_SAMPLE_RATE
-                / rate;
+            new_in_frame = onboard_spk_scale_frame_bytes(old_frame, old_rate, old_ch, old_bits,
+                                                         rate, ch, bits);
+            if (new_in_frame == 0)
+            {
+                BK_LOGE(TAG, "%s, line: %d, scale frame_size fail old=%u %d/%d/%d -> %d/%d/%d\n",
+                        __func__, __LINE__, old_frame, old_rate, old_ch, old_bits, rate, ch, bits);
+                return BK_FAIL;
+            }
+            new_dma_frame_size = new_in_frame * DEFAULT_AUD_DAC_SAMPLE_RATE / (uint32_t)rate;
+
+            /* No bk_dma_stop: keep HW xfer/ch; derive PCM in_frame for the same
+             * wall-clock period (any rate/ch — not tied to a specific test file). */
+            if (dma_live && old_dma_frame_size > 0)
+            {
+                uint32_t hw_ch = onboard_spk->chl_num > 1 ? 2u : 1u;
+                uint32_t in_ch = ch > 1 ? 2u : 1u;
+                uint32_t align = in_ch * ((uint32_t)bits / 8u);
+                if (align == 0)
+                {
+                    align = 2;
+                }
+                new_dma_frame_size = old_dma_frame_size;
+                new_in_frame = old_dma_frame_size * (uint32_t)rate * in_ch
+                    / (DEFAULT_AUD_DAC_SAMPLE_RATE * hw_ch);
+                new_in_frame = (new_in_frame / align) * align;
+                if (new_in_frame == 0)
+                {
+                    new_in_frame = align;
+                }
+                keep_hw_xfer_len = true;
+                BK_LOGD(TAG, "%s, %d, dma live: keep hw xfer %u hw_ch:%u, in_frame=%u in_ch:%u\n",
+                        __func__, __LINE__, new_dma_frame_size, hw_ch, new_in_frame, in_ch);
+            }
         }
         else
         {
-            new_dma_frame_size = onboard_spk->frame_size[AUD_DAC_SOURCE_A2DP];
+            /* Passthrough 44.1k/48k:
+             * - Rate-only hop (48↔44.1): NEVER rescale frame/dma (A2DP finish↔can_process
+             *   desync). Only update DAC sample rate below.
+             * - ch/bits change: rescale in_frame; if DMA live, freeze HW xfer and
+             *   derive in_frame from wall-clock (process does mono↔stereo match). */
+            const bool ch_bits_changed = (old_ch != ch || old_bits != bits);
+
+            if (ch_bits_changed)
+            {
+                new_in_frame = onboard_spk_scale_frame_bytes(old_frame, old_rate, old_ch, old_bits,
+                                                             rate, ch, bits);
+                if (new_in_frame == 0)
+                {
+                    BK_LOGE(TAG, "%s, line: %d, passthrough scale frame fail old=%u %d/%d/%d -> %d/%d/%d\n",
+                            __func__, __LINE__, old_frame, old_rate, old_ch, old_bits, rate, ch, bits);
+                    return BK_FAIL;
+                }
+                new_dma_frame_size = new_in_frame;
+
+                if (dma_live && old_dma_frame_size > 0)
+                {
+                    uint32_t hw_ch = onboard_spk->chl_num > 1 ? 2u : 1u;
+                    uint32_t in_ch = ch > 1 ? 2u : 1u;
+                    uint32_t align = in_ch * ((uint32_t)bits / 8u);
+                    if (align == 0)
+                    {
+                        align = 2;
+                    }
+                    new_dma_frame_size = old_dma_frame_size;
+                    new_in_frame = old_dma_frame_size * in_ch / hw_ch;
+                    new_in_frame = (new_in_frame / align) * align;
+                    if (new_in_frame == 0)
+                    {
+                        new_in_frame = align;
+                    }
+                    keep_hw_xfer_len = true;
+                    BK_LOGD(TAG, "%s, %d, dma live passthrough ch: keep hw xfer %u hw_ch:%u, in_frame=%u in_ch:%u\n",
+                            __func__, __LINE__, new_dma_frame_size, hw_ch, new_in_frame, in_ch);
+                }
+            }
+            else
+            {
+                new_in_frame = old_frame ? old_frame : onboard_spk->frame_size[AUD_DAC_SOURCE_A2DP];
+                new_dma_frame_size = old_dma_frame_size ? old_dma_frame_size : new_in_frame;
+                if (dma_live && old_dma_frame_size > 0)
+                {
+                    new_dma_frame_size = old_dma_frame_size;
+                    keep_hw_xfer_len = true;
+                }
+                if (old_rate != rate)
+                {
+                    BK_LOGD(TAG, "%s, %d, passthrough rate-only %d->%d: keep frame=%u dma=%u\n",
+                            __func__, __LINE__, old_rate, rate, new_in_frame, new_dma_frame_size);
+                }
+            }
         }
 
-        need_temp = onboard_spk_max_in_frame_bytes(onboard_spk);
-        if (new_dma_frame_size > need_temp)
         {
-            need_temp = new_dma_frame_size;
-        }
-        /* Grow scratch before tearing down rsp / publishing dma_frame_size. */
-        if (BK_OK != onboard_spk_ensure_temp_buff_size(onboard_spk, need_temp))
-        {
-            return BK_FAIL;
+            const uint8_t new_in_ch = (ch > 1) ? 2 : 1;
+
+            need_temp = onboard_spk_max_in_frame_bytes(onboard_spk);
+            if (new_dma_frame_size > need_temp)
+            {
+                need_temp = new_dma_frame_size;
+            }
+            if (new_in_frame > need_temp)
+            {
+                need_temp = new_in_frame;
+            }
+            /* Channel convert scratch: mono→stereo needs 2x in; stereo→mono needs in (src). */
+            if (new_in_ch == 1 && onboard_spk->chl_num > 1 &&
+                (new_in_frame * 2u) > need_temp)
+            {
+                need_temp = new_in_frame * 2u;
+            }
+            else if (new_in_ch > 1 && onboard_spk->chl_num == 1 &&
+                     new_in_frame > need_temp)
+            {
+                need_temp = new_in_frame;
+            }
+            /* Grow BEFORE publishing frame_size / a2dp_in_ch (el->buf stays at init size). */
+            if (BK_OK != onboard_spk_ensure_pcm_in_buff_size(onboard_spk, new_in_frame))
+            {
+                return BK_FAIL;
+            }
+            if (BK_OK != onboard_spk_ensure_temp_buff_size(onboard_spk, need_temp))
+            {
+                return BK_FAIL;
+            }
+            onboard_spk->frame_size[AUD_DAC_SOURCE_A2DP] = new_in_frame;
+            onboard_spk->a2dp_in_ch = new_in_ch;
         }
 
         if (onboard_spk->rsp_handler[AUD_DAC_SOURCE_A2DP])
@@ -1412,11 +1718,12 @@ static bk_err_t audio_dac_reconfig(onboard_speaker_stream_t *onboard_spk, int ra
             onboard_spk->rsp_cfg[AUD_DAC_SOURCE_A2DP].dest_rate = DEFAULT_AUD_DAC_SAMPLE_RATE;
             onboard_spk_rsp_set_channel_config(onboard_spk, AUD_DAC_SOURCE_A2DP);
 
-            BK_LOGE(TAG, "%s, %d, rsp[%d] reconfig: src ch:%d,src rate:%d, dest rate:%d,\n",
+            BK_LOGE(TAG, "%s, %d, rsp[%d] reconfig: src ch:%d,src rate:%d, dest rate:%d, in_frame:%u dma_frame:%u\n",
                 __func__, __LINE__, AUD_DAC_SOURCE_A2DP,
                 onboard_spk->rsp_cfg[AUD_DAC_SOURCE_A2DP].src_ch,
                 onboard_spk->rsp_cfg[AUD_DAC_SOURCE_A2DP].src_rate,
-                onboard_spk->rsp_cfg[AUD_DAC_SOURCE_A2DP].dest_rate);
+                onboard_spk->rsp_cfg[AUD_DAC_SOURCE_A2DP].dest_rate,
+                new_in_frame, new_dma_frame_size);
 
             ret = bk_aud_rsp_init_multi_instance(onboard_spk->rsp_cfg[AUD_DAC_SOURCE_A2DP], &onboard_spk->rsp_handler[AUD_DAC_SOURCE_A2DP]);
             if (ret != BK_OK)
@@ -1424,14 +1731,9 @@ static bk_err_t audio_dac_reconfig(onboard_speaker_stream_t *onboard_spk, int ra
                 BK_LOGE(TAG, "%s, %d, audio resampler[%d] init fail\n", __func__, __LINE__, AUD_DAC_SOURCE_A2DP);
                 return BK_FAIL;
             }
-            if (onboard_spk->rsp_out_buff[AUD_DAC_SOURCE_A2DP] == NULL)
+            if (BK_OK != onboard_spk_ensure_rsp_out_buff_size(onboard_spk, AUD_DAC_SOURCE_A2DP, new_dma_frame_size))
             {
-                onboard_spk->rsp_out_buff[AUD_DAC_SOURCE_A2DP] = audio_calloc(1, DEFAULT_AUD_DAC_RSP_BUF_SIZE);
-                if (!onboard_spk->rsp_out_buff[AUD_DAC_SOURCE_A2DP])
-                {
-                    BK_LOGE(TAG, "%s, %d, malloc rsp[%d] output buffer fail\n", __func__, __LINE__, AUD_DAC_SOURCE_A2DP);
-                    return BK_FAIL;
-                }
+                return BK_FAIL;
             }
         }
         else
@@ -1445,17 +1747,22 @@ static bk_err_t audio_dac_reconfig(onboard_speaker_stream_t *onboard_spk, int ra
             {
                 audio_free(onboard_spk->rsp_out_buff[AUD_DAC_SOURCE_A2DP]);
                 onboard_spk->rsp_out_buff[AUD_DAC_SOURCE_A2DP] = NULL;
+                onboard_spk->rsp_out_buff_len[AUD_DAC_SOURCE_A2DP] = 0;
             }
         }
 
-        if (onboard_spk_hw_stereo_split_mode(onboard_spk))
+        /* Never touch HW transfer length while DMA is live (no dma_stop allowed). */
+        if (!keep_hw_xfer_len)
         {
-            bk_dma_set_transfer_len(onboard_spk->spk_dma_id[AUD_DAC_SOURCE_A2DP],
-                                    onboard_spk_hw_dma_xfer_bytes(onboard_spk, AUD_DAC_SOURCE_A2DP));
-        }
-        else
-        {
-            bk_dma_set_transfer_len(onboard_spk->spk_dma_id[AUD_DAC_SOURCE_A2DP], onboard_spk->dma_frame_size);
+            if (onboard_spk_hw_stereo_split_mode(onboard_spk))
+            {
+                bk_dma_set_transfer_len(onboard_spk->spk_dma_id[AUD_DAC_SOURCE_A2DP],
+                                        onboard_spk_hw_dma_xfer_bytes(onboard_spk, AUD_DAC_SOURCE_A2DP));
+            }
+            else
+            {
+                bk_dma_set_transfer_len(onboard_spk->spk_dma_id[AUD_DAC_SOURCE_A2DP], onboard_spk->dma_frame_size);
+            }
         }
     }
 
@@ -1564,18 +1871,28 @@ static bk_err_t _update_dac_config(audio_element_handle_t onboard_speaker_stream
 static int _onboard_speaker_process(audio_element_handle_t self, char *in_buffer, int in_len)
 {
     onboard_speaker_stream_t *onboard_spk = (onboard_speaker_stream_t *)audio_element_getdata(self);
-    uint32_t main_src = onboard_spk->main_dac_source;
+    uint32_t main_src;
     int r_size = 0;
     int w_size = 0;
     uint32_t write_size;
     uint8_t *write_addr;
-    uint32_t rsp_out_len,rsp_in_len;
     bk_err_t ret;
+
+    if (onboard_spk == NULL || gl_onboard_speaker == NULL)
+    {
+        BK_LOGE(TAG, "[%s] speaker already destroyed (spk=%p gl=%p)\n",
+                audio_element_get_tag(self), onboard_spk, gl_onboard_speaker);
+        return AEL_IO_FAIL;
+    }
+
+    main_src = onboard_spk->main_dac_source;
 
     if (BK_OK != rtos_get_semaphore(&onboard_spk->can_process, 2000 / portTICK_RATE_MS)) //portMAX_DELAY, 25 / portTICK_RATE_MS
     {
-        //return -1;
+        /* AEL_IO_TIMEOUT: skip this round only. Do NOT return -1/AEL_IO_FAIL
+         * or audio_element will enter ERROR and never process again. */
         BK_LOGE(TAG, "[%s] semaphore get timeout 2000ms\n", audio_element_get_tag(self));
+        return AEL_IO_TIMEOUT;
     }
     AUDIO_ELEMENT_OBS_BEGIN(self);
     AUD_ONBOARD_SPK_PROCESS_START();
@@ -1589,12 +1906,34 @@ static int _onboard_speaker_process(audio_element_handle_t self, char *in_buffer
 
     for(i = 0; i < AUD_DAC_SOURCE_MAX; i++)
     {
-        if(gl_onboard_speaker->dac_source_bitmap & (1 << i))
+        if(onboard_spk->dac_source_bitmap & (1 << i))
         {
+            char *pcm_src = in_buffer;
+
             AUD_ONBOARD_SPK_INPUT_START();
             if (i == onboard_spk->main_dac_source)
             {
-                r_size = audio_element_input(self, in_buffer, onboard_spk->frame_size[i]);
+                uint32_t want = onboard_spk->frame_size[i];
+
+                if (want > (uint32_t)in_len)
+                {
+                    if (onboard_spk->pcm_in_buff == NULL ||
+                        onboard_spk->pcm_in_buff_len < want)
+                    {
+                        BK_LOGE(TAG, "%s:%d frame %u > el buf %d and pcm_in_buff missing\n",
+                                __func__, __LINE__, want, in_len);
+                        r_size = 0;
+                    }
+                    else
+                    {
+                        pcm_src = (char *)onboard_spk->pcm_in_buff;
+                        r_size = audio_element_input(self, pcm_src, want);
+                    }
+                }
+                else
+                {
+                    r_size = audio_element_input(self, pcm_src, want);
+                }
             }
             else
             {
@@ -1677,63 +2016,86 @@ static int _onboard_speaker_process(audio_element_handle_t self, char *in_buffer
 
                 if (r_size == onboard_spk->frame_size[i])
                 {
-                    const int16_t *play_pcm = (const int16_t *)in_buffer;
+                    const int16_t *play_pcm = (const int16_t *)pcm_src;
                     uint32_t play_pcm_bytes = r_size;
+                    bool play_ok = true;
 
                     if (AUD_DAC_SOURCE_A2DP == i && onboard_spk->rsp_handler[i])
                     {
-                        play_pcm_bytes = onboard_spk->dma_frame_size;
-                        if (onboard_spk->chl_num > 1)
+                        const int16_t *rsp_in = play_pcm;
+                        uint32_t rsp_in_bytes = (uint32_t)r_size;
+                        uint32_t rsp_ch = onboard_spk->chl_num > 1 ? 2u : 1u;
+                        uint32_t in_ch = onboard_spk->a2dp_in_ch ? onboard_spk->a2dp_in_ch : rsp_ch;
+                        uint32_t rsp_in_len = 0, rsp_out_len = 0;
+
+                        /* DMA-live may freeze HW ch while PCM in ch differs. */
+                        if (BK_OK != onboard_spk_a2dp_match_hw_channels(onboard_spk,
+                                play_pcm, rsp_in_bytes, in_ch, rsp_ch, &rsp_in, &rsp_in_bytes))
                         {
-                            ret = onboard_spk_rsp_process_frame(onboard_spk, i, play_pcm,
-                                                                (int16_t *)onboard_spk->rsp_out_buff[i],
-                                                                &play_pcm_bytes);
-                            if (BK_OK != ret)
-                            {
-                                BK_LOGE(TAG, "%s:%d A2DP stereo resample fail\n", __func__, __LINE__);
-                            }
-                            play_pcm = (const int16_t *)onboard_spk->rsp_out_buff[i];
+                            BK_LOGE(TAG, "%s:%d A2DP ch match fail before rsp\n", __func__, __LINE__);
+                            play_ok = false;
                         }
                         else
                         {
-                            rsp_out_len = play_pcm_bytes / 2;
-                            rsp_in_len = r_size / 2;
-                            ret = bk_aud_rsp_process_multi_instance((int16_t *)in_buffer,
-                                                                    &rsp_in_len,
+                            play_pcm_bytes = onboard_spk->dma_frame_size;
+                            rsp_in_len = rsp_in_bytes / (sizeof(int16_t) * rsp_ch);
+                            rsp_out_len = play_pcm_bytes / (sizeof(int16_t) * rsp_ch);
+                            ret = bk_aud_rsp_process_multi_instance((int16_t *)rsp_in, &rsp_in_len,
                                                                     (int16_t *)onboard_spk->rsp_out_buff[i],
                                                                     &rsp_out_len,
                                                                     onboard_spk->rsp_handler[i]);
                             if (BK_OK != ret)
                             {
-                                BK_LOGE(TAG, "%s:%d resample fail\n", __func__, __LINE__);
+                                BK_LOGE(TAG, "%s:%d A2DP resample fail\n", __func__, __LINE__);
                             }
                             play_pcm = (const int16_t *)onboard_spk->rsp_out_buff[i];
-                            play_pcm_bytes = rsp_out_len * sizeof(int16_t);
+                            play_pcm_bytes = rsp_out_len * sizeof(int16_t) * rsp_ch;
                         }
                     }
-                    onboard_spk_commit_play_pcm(onboard_spk, i, (int16_t *)play_pcm, play_pcm_bytes);
-                    write_addr = onboard_spk_prepare_dac_write_buf(onboard_spk, play_pcm, play_pcm_bytes, &write_size);
+                    else if (AUD_DAC_SOURCE_A2DP == i)
+                    {
+                        uint32_t hw_ch = onboard_spk->chl_num > 1 ? 2u : 1u;
+                        uint32_t in_ch = onboard_spk->a2dp_in_ch ? onboard_spk->a2dp_in_ch : hw_ch;
+
+                        if (BK_OK != onboard_spk_a2dp_match_hw_channels(onboard_spk,
+                                play_pcm, play_pcm_bytes, in_ch, hw_ch, &play_pcm, &play_pcm_bytes))
+                        {
+                            BK_LOGE(TAG, "%s:%d A2DP passthrough ch match fail\n", __func__, __LINE__);
+                            play_ok = false;
+                        }
+                    }
+
+                    if (play_ok)
+                    {
+                        onboard_spk_commit_play_pcm(onboard_spk, i, (int16_t *)play_pcm, play_pcm_bytes);
+                        write_addr = onboard_spk_prepare_dac_write_buf(onboard_spk, play_pcm, play_pcm_bytes, &write_size);
 #ifdef AEC_MIC_DELAY_POINTS_DEBUG
-                    aec_mic_delay_debug((int16_t *)write_addr, write_size);
+                        aec_mic_delay_debug((int16_t *)write_addr, write_size);
 #endif
 #ifdef SPK_DATA_DEBUG
-                    change_pcm_data_to_8k((uint8_t *)write_addr, write_size);
+                        change_pcm_data_to_8k((uint8_t *)write_addr, write_size);
 #endif
-                    ONBOARD_SPK_DATA_DUMP_BY_UART_DATA(write_addr, write_size);
-                    ring_buffer_write(&onboard_spk->spk_rb[i],
-                                      write_addr, write_size);
-                    onboard_spk->wr_spk_rb_done[i] = true;
-                    onboard_spk_update_status_by_energy(self, onboard_spk,
-                        onboard_spk_calc_energy_level(write_addr, write_size, onboard_spk->bits), false);
-                    onboard_spk_multi_output_pcm(self, onboard_spk, (const int16_t *)in_buffer, r_size);
-                    ONBOARD_SPK_DATA_COUNT_ADD_SIZE(onboard_spk->frame_size[i]);
+                        ONBOARD_SPK_DATA_DUMP_BY_UART_DATA(write_addr, write_size);
+                        ring_buffer_write(&onboard_spk->spk_rb[i],
+                                          write_addr, write_size);
+                        onboard_spk->wr_spk_rb_done[i] = true;
+                        onboard_spk_update_status_by_energy(self, onboard_spk,
+                            onboard_spk_calc_energy_level(write_addr, write_size, onboard_spk->bits), false);
+                        onboard_spk_multi_output_pcm(self, onboard_spk, (const int16_t *)pcm_src, r_size);
+                        ONBOARD_SPK_DATA_COUNT_ADD_SIZE(onboard_spk->frame_size[i]);
+                    }
+                    else
+                    {
+                        r_size = 0;
+                    }
                 }
-                else
+                if (r_size != onboard_spk->frame_size[i])
                 {
                     uint32_t interleaved_bytes;
 
-                    if (AUD_DAC_SOURCE_A2DP == i && onboard_spk->rsp_handler[i])
+                    if (AUD_DAC_SOURCE_A2DP == i && onboard_spk->dma_frame_size > 0)
                     {
+                        /* HW period size (may differ from PCM in frame_size after live ch freeze). */
                         interleaved_bytes = onboard_spk->dma_frame_size;
                     }
                     else
@@ -1820,91 +2182,130 @@ static int _onboard_speaker_process(audio_element_handle_t self, char *in_buffer
         }
     }
 #else
-    AUD_ONBOARD_SPK_INPUT_START();
-    r_size = audio_element_input(self, in_buffer, onboard_spk->frame_size[main_src]);
-    AUD_ONBOARD_SPK_INPUT_END();
-
-    if (onboard_spk->wr_spk_rb_done[main_src] == false)
     {
-        BK_LOGV(TAG, "%s,%d,r_size:%d,onboard_spk->frame_size:%d\n", __func__, __LINE__, r_size, onboard_spk->frame_size[main_src]);
-        if (r_size == onboard_spk->frame_size[main_src])
-        {
-            const int16_t *play_pcm = (const int16_t *)in_buffer;
-            uint32_t play_pcm_bytes = r_size;
+        char *pcm_src = in_buffer;
+        uint32_t want = onboard_spk->frame_size[main_src];
 
-            if (onboard_spk->rsp_handler[main_src])
+        AUD_ONBOARD_SPK_INPUT_START();
+        if (want > (uint32_t)in_len)
+        {
+            if (onboard_spk->pcm_in_buff && onboard_spk->pcm_in_buff_len >= want)
             {
-                play_pcm_bytes = onboard_spk->dma_frame_size;
-                if (onboard_spk->chl_num > 1)
+                pcm_src = (char *)onboard_spk->pcm_in_buff;
+            }
+            else
+            {
+                BK_LOGE(TAG, "%s:%d frame %u > el buf %d and pcm_in_buff missing\n",
+                        __func__, __LINE__, want, in_len);
+                want = 0;
+            }
+        }
+        r_size = want ? audio_element_input(self, pcm_src, want) : 0;
+        AUD_ONBOARD_SPK_INPUT_END();
+
+        if (onboard_spk->wr_spk_rb_done[main_src] == false)
+        {
+            BK_LOGV(TAG, "%s,%d,r_size:%d,onboard_spk->frame_size:%d\n", __func__, __LINE__, r_size, onboard_spk->frame_size[main_src]);
+            if (r_size == onboard_spk->frame_size[main_src])
+            {
+                const int16_t *play_pcm = (const int16_t *)pcm_src;
+                uint32_t play_pcm_bytes = r_size;
+                bool play_ok = true;
+
+                if (onboard_spk->rsp_handler[main_src])
                 {
-                    ret = onboard_spk_rsp_process_frame(onboard_spk, main_src, play_pcm,
-                                                        (int16_t *)onboard_spk->rsp_out_buff[main_src],
-                                                        &play_pcm_bytes);
-                    if (BK_OK != ret)
+                    const int16_t *rsp_in = play_pcm;
+                    uint32_t rsp_in_bytes = (uint32_t)r_size;
+                    uint32_t rsp_ch = onboard_spk->chl_num > 1 ? 2u : 1u;
+                    uint32_t in_ch = onboard_spk->a2dp_in_ch ? onboard_spk->a2dp_in_ch : rsp_ch;
+                    uint32_t rsp_out_len;
+                    uint32_t rsp_in_len;
+
+                    if (BK_OK != onboard_spk_a2dp_match_hw_channels(onboard_spk,
+                            play_pcm, rsp_in_bytes, in_ch, rsp_ch, &rsp_in, &rsp_in_bytes))
                     {
-                        BK_LOGE(TAG, "%s:%d A2DP stereo resample fail\n", __func__, __LINE__);
+                        BK_LOGE(TAG, "%s:%d A2DP ch match fail before rsp\n", __func__, __LINE__);
+                        play_ok = false;
                     }
-                    play_pcm = (const int16_t *)onboard_spk->rsp_out_buff[main_src];
+                    else
+                    {
+                        play_pcm_bytes = onboard_spk->dma_frame_size;
+                        rsp_in_len = rsp_in_bytes / (sizeof(int16_t) * rsp_ch);
+                        rsp_out_len = play_pcm_bytes / (sizeof(int16_t) * rsp_ch);
+                        ret = bk_aud_rsp_process_multi_instance((int16_t *)rsp_in, &rsp_in_len,
+                                                                (int16_t *)onboard_spk->rsp_out_buff[main_src],
+                                                                &rsp_out_len,
+                                                                onboard_spk->rsp_handler[main_src]);
+                        if (BK_OK != ret)
+                        {
+                            BK_LOGE(TAG, "%s:%d A2DP resample fail\n", __func__, __LINE__);
+                        }
+                        play_pcm = (const int16_t *)onboard_spk->rsp_out_buff[main_src];
+                        play_pcm_bytes = rsp_out_len * sizeof(int16_t) * rsp_ch;
+                    }
+                }
+                else if (main_src == AUD_DAC_SOURCE_A2DP)
+                {
+                    uint32_t hw_ch = onboard_spk->chl_num > 1 ? 2u : 1u;
+                    uint32_t in_ch = onboard_spk->a2dp_in_ch ? onboard_spk->a2dp_in_ch : hw_ch;
+
+                    if (BK_OK != onboard_spk_a2dp_match_hw_channels(onboard_spk,
+                            play_pcm, play_pcm_bytes, in_ch, hw_ch, &play_pcm, &play_pcm_bytes))
+                    {
+                        BK_LOGE(TAG, "%s:%d A2DP passthrough ch match fail\n", __func__, __LINE__);
+                        play_ok = false;
+                    }
+                }
+
+                if (play_ok)
+                {
+                    onboard_spk_commit_play_pcm(onboard_spk, main_src, (int16_t *)play_pcm, play_pcm_bytes);
+
+                    write_addr = onboard_spk_prepare_dac_write_buf(onboard_spk, play_pcm, play_pcm_bytes, &write_size);
+#ifdef AEC_MIC_DELAY_POINTS_DEBUG
+                    aec_mic_delay_debug((int16_t *)write_addr, write_size);
+#endif
+#ifdef SPK_DATA_DEBUG
+                    change_pcm_data_to_8k((uint8_t *)write_addr, write_size);
+#endif
+                    ONBOARD_SPK_DATA_DUMP_BY_UART_DATA(write_addr, write_size);
+                    ring_buffer_write(&onboard_spk->spk_rb[main_src],
+                                      write_addr, write_size);
+                    onboard_spk->wr_spk_rb_done[main_src] = true;
+                    onboard_spk_update_status_by_energy(self, onboard_spk,
+                        onboard_spk_calc_energy_level(write_addr, write_size, onboard_spk->bits), false);
+                    onboard_spk_multi_output_pcm(self, onboard_spk, (const int16_t *)pcm_src, r_size);
+                    ONBOARD_SPK_DATA_COUNT_ADD_SIZE(onboard_spk->frame_size[main_src]);
                 }
                 else
                 {
-                    rsp_out_len = play_pcm_bytes / 2;
-                    rsp_in_len = r_size / 2;
-                    ret = bk_aud_rsp_process_multi_instance((int16_t *)in_buffer,
-                                                            &rsp_in_len,
-                                                            (int16_t *)onboard_spk->rsp_out_buff[main_src],
-                                                            &rsp_out_len,
-                                                            onboard_spk->rsp_handler[main_src]);
-                    if (BK_OK != ret)
-                    {
-                        BK_LOGE(TAG, "%s:%d resample fail\n", __func__, __LINE__);
-                    }
-                    play_pcm = (const int16_t *)onboard_spk->rsp_out_buff[main_src];
-                    play_pcm_bytes = rsp_out_len * sizeof(int16_t);
+                    r_size = 0;
                 }
             }
+            if (r_size != onboard_spk->frame_size[main_src])
+            {
+                uint32_t interleaved_bytes = (main_src == AUD_DAC_SOURCE_A2DP && onboard_spk->dma_frame_size > 0)
+                    ? onboard_spk->dma_frame_size : onboard_spk->frame_size[main_src];
 
-            onboard_spk_commit_play_pcm(onboard_spk, main_src, (int16_t *)play_pcm, play_pcm_bytes);
-
-            write_addr = onboard_spk_prepare_dac_write_buf(onboard_spk, play_pcm, play_pcm_bytes, &write_size);
+                onboard_spk_commit_silence_frame(onboard_spk, main_src, interleaved_bytes);
 #ifdef AEC_MIC_DELAY_POINTS_DEBUG
-            aec_mic_delay_debug((int16_t *)write_addr, write_size);
+                aec_mic_delay_debug((int16_t *)onboard_spk->temp_buff, interleaved_bytes);
 #endif
+                BK_LOGV(TAG, "[%s] fill silence data \n", audio_element_get_tag(self));
 #ifdef SPK_DATA_DEBUG
-            change_pcm_data_to_8k((uint8_t *)write_addr, write_size);
+                change_pcm_data_to_8k((uint8_t *)onboard_spk->temp_buff, interleaved_bytes);
 #endif
-            ONBOARD_SPK_DATA_DUMP_BY_UART_DATA(write_addr, write_size);
-            ring_buffer_write(&onboard_spk->spk_rb[main_src],
-                              write_addr, write_size);
-            onboard_spk->wr_spk_rb_done[main_src] = true;
-            onboard_spk_update_status_by_energy(self, onboard_spk,
-                onboard_spk_calc_energy_level(write_addr, write_size, onboard_spk->bits), false);
-            onboard_spk_multi_output_pcm(self, onboard_spk, (const int16_t *)in_buffer, r_size);
-            ONBOARD_SPK_DATA_COUNT_ADD_SIZE(onboard_spk->frame_size[main_src]);
-        }
-        else
-        {
-            uint32_t interleaved_bytes = onboard_spk->rsp_handler[main_src]
-                ? onboard_spk->dma_frame_size : onboard_spk->frame_size[main_src];
-
-            onboard_spk_commit_silence_frame(onboard_spk, main_src, interleaved_bytes);
-#ifdef AEC_MIC_DELAY_POINTS_DEBUG
-            aec_mic_delay_debug((int16_t *)onboard_spk->temp_buff, interleaved_bytes);
-#endif
-            BK_LOGV(TAG, "[%s] fill silence data \n", audio_element_get_tag(self));
-#ifdef SPK_DATA_DEBUG
-            change_pcm_data_to_8k((uint8_t *)onboard_spk->temp_buff, interleaved_bytes);
-#endif
-            write_addr = onboard_spk_prepare_dac_write_buf(onboard_spk,
-                (const int16_t *)onboard_spk->temp_buff, interleaved_bytes, &write_size);
-            ONBOARD_SPK_DATA_DUMP_BY_UART_DATA(write_addr, write_size);
-            ring_buffer_write(&onboard_spk->spk_rb[main_src],
-                              write_addr, write_size);
-            onboard_spk->wr_spk_rb_done[main_src] = true;
-            onboard_spk_update_status_by_energy(self, onboard_spk, 0, false);
-            onboard_spk_multi_output_pcm(self, onboard_spk, (const int16_t *)onboard_spk->temp_buff,
-                                       onboard_spk->frame_size[main_src]);
-            FILL_SILENCE_DATA_COUNT_ADD_SIZE(onboard_spk->frame_size[main_src]);
+                write_addr = onboard_spk_prepare_dac_write_buf(onboard_spk,
+                    (const int16_t *)onboard_spk->temp_buff, interleaved_bytes, &write_size);
+                ONBOARD_SPK_DATA_DUMP_BY_UART_DATA(write_addr, write_size);
+                ring_buffer_write(&onboard_spk->spk_rb[main_src],
+                                  write_addr, write_size);
+                onboard_spk->wr_spk_rb_done[main_src] = true;
+                onboard_spk_update_status_by_energy(self, onboard_spk, 0, false);
+                onboard_spk_multi_output_pcm(self, onboard_spk, (const int16_t *)onboard_spk->temp_buff,
+                                           onboard_spk->frame_size[main_src]);
+                FILL_SILENCE_DATA_COUNT_ADD_SIZE(onboard_spk->frame_size[main_src]);
+            }
         }
     }
 
@@ -2051,6 +2452,12 @@ static bk_err_t _onboard_speaker_destroy(audio_element_handle_t self)
             audio_free(onboard_spk->temp_buff);
             onboard_spk->temp_buff = NULL;
         }
+        if (onboard_spk->pcm_in_buff)
+        {
+            audio_free(onboard_spk->pcm_in_buff);
+            onboard_spk->pcm_in_buff = NULL;
+            onboard_spk->pcm_in_buff_len = 0;
+        }
 
         for(i = 0; i < AUD_DAC_SOURCE_MAX; i++)
         {
@@ -2062,6 +2469,7 @@ static bk_err_t _onboard_speaker_destroy(audio_element_handle_t self)
                 {
                     audio_free(onboard_spk->rsp_out_buff[i]);
                     onboard_spk->rsp_out_buff[i] = NULL;
+                    onboard_spk->rsp_out_buff_len[i] = 0;
                 }
             }
         }
@@ -2096,6 +2504,12 @@ static bk_err_t _onboard_speaker_destroy(audio_element_handle_t self)
 
     if (onboard_spk)
     {
+        /* Only clear the singleton if we are freeing the active instance.
+         * A failed second init must not leave gl dangling / NULL while A2DP still runs. */
+        if (gl_onboard_speaker == onboard_spk)
+        {
+            gl_onboard_speaker = NULL;
+        }
         audio_free(onboard_spk);
         onboard_spk = NULL;
     }
@@ -2176,6 +2590,16 @@ audio_element_handle_t onboard_speaker_stream_init(onboard_speaker_stream_cfg_t 
     bk_err_t ret = BK_OK;
     uint32 i = 0, k = 0;
     aud_dac_chl_t effective_dac_chl;
+
+    /* One live instance only: a second init (e.g. prompt/voice while A2DP holds
+     * DMA) used to overwrite gl, fail on dma alloc, then set gl=NULL and crash
+     * the still-running process task. */
+    if (gl_onboard_speaker != NULL)
+    {
+        BK_LOGE(TAG, "%s, already inited, refuse second init (gl=%p)\n",
+                __func__, gl_onboard_speaker);
+        return NULL;
+    }
 
     gl_onboard_speaker = audio_calloc(1, sizeof(onboard_speaker_stream_t));
     AUDIO_MEM_CHECK(TAG, gl_onboard_speaker, return NULL);
@@ -2304,6 +2728,14 @@ audio_element_handle_t onboard_speaker_stream_init(onboard_speaker_stream_cfg_t 
             __func__, __LINE__, gl_onboard_speaker->main_dac_source);
     }
 
+    if (gl_onboard_speaker->dac_source_bitmap & (1 << AUD_DAC_SOURCE_A2DP))
+    {
+        gl_onboard_speaker->a2dp_in_ch = (config->chl_num > 1) ? 2 : 1;
+    }
+    else
+    {
+        gl_onboard_speaker->a2dp_in_ch = 0;
+    }
     /* init onboard speaker */
     aud_dac_config_t aud_dac_cfg = DEFAULT_AUD_DAC_CONFIG();
     if (config->chl_num != 1 && config->chl_num != 2)
@@ -2376,10 +2808,13 @@ audio_element_handle_t onboard_speaker_stream_init(onboard_speaker_stream_cfg_t 
     */
     os_memset(&gl_onboard_speaker->spk_rb, 0x00, sizeof(RingBufferContext) * AUD_DAC_SOURCE_MAX);
     gl_onboard_speaker->temp_buff = NULL;
+    gl_onboard_speaker->pcm_in_buff = NULL;
+    gl_onboard_speaker->pcm_in_buff_len = 0;
 
     for(i = 0; i < AUD_DAC_SOURCE_MAX; i++)
     {
         gl_onboard_speaker->rsp_out_buff[i] = NULL;
+        gl_onboard_speaker->rsp_out_buff_len[i] = 0;
         gl_onboard_speaker->rsp_handler[i] = NULL;
         gl_onboard_speaker->spk_dma_id[i] = 0xff;
 
@@ -2423,8 +2858,8 @@ audio_element_handle_t onboard_speaker_stream_init(onboard_speaker_stream_cfg_t 
                         goto _onboard_speaker_init_exit;
                     }
 
-                    gl_onboard_speaker->rsp_out_buff[i] = audio_calloc(1, DEFAULT_AUD_DAC_RSP_BUF_SIZE);
-                    if (!gl_onboard_speaker->rsp_out_buff[i])
+                    if (BK_OK != onboard_spk_ensure_rsp_out_buff_size(gl_onboard_speaker, i,
+                                                                     gl_onboard_speaker->dma_frame_size))
                     {
                         BK_LOGE(TAG, "%s, %d, malloc rsp[%d] output buffer fail\n", __func__, __LINE__, i);
                         goto _onboard_speaker_init_exit;
@@ -2561,6 +2996,12 @@ _onboard_speaker_init_exit:
         audio_free(gl_onboard_speaker->temp_buff);
         gl_onboard_speaker->temp_buff = NULL;
     }
+    if (gl_onboard_speaker->pcm_in_buff)
+    {
+        audio_free(gl_onboard_speaker->pcm_in_buff);
+        gl_onboard_speaker->pcm_in_buff     = NULL;
+        gl_onboard_speaker->pcm_in_buff_len = 0;
+    }
 
     for(i = 0; i < AUD_DAC_SOURCE_MAX; i++)
     {
@@ -2572,6 +3013,7 @@ _onboard_speaker_init_exit:
             {
                 audio_free(gl_onboard_speaker->rsp_out_buff[i]);
                 gl_onboard_speaker->rsp_out_buff[i] = NULL;
+                gl_onboard_speaker->rsp_out_buff_len[i] = 0;
             }
         }
     }
@@ -2632,40 +3074,58 @@ bk_err_t onboard_speaker_stream_set_param(audio_element_handle_t onboard_speaker
         return BK_FAIL;
     }
 
-    if (onboard_spk->sample_rate[dma_src] == rate && onboard_spk->chl_num == ch && onboard_spk->bits == bits)
+    if (onboard_spk->sample_rate[dma_src] == rate && onboard_spk->bits == bits)
     {
-        BK_LOGD(TAG, "current dma_src:%d sample_rate: %d, chl_num: %d, bits: %d \n", dma_src, onboard_spk->sample_rate[dma_src], onboard_spk->chl_num, onboard_spk->bits);
-        BK_LOGD(TAG, "new samp_rate: %d, chl_num: %d, bits: %d \n", rate, ch, bits);
-        BK_LOGD(TAG, "not need update onboard speaker \n");
-
-        /* The DAC APLL is a clock shared by all sources. While this source was idle
-         * another source (e.g. a 16k CALL) may have switched the APLL to a different
-         * frequency, which silently detunes this source on resume (e.g. 44.1k plays
-         * out at 48k). The cached format matches, so re-assert the sample rate to
-         * restore the correct APLL/divider for this source's clock domain. */
-        if (BK_OK != bk_aud_dac_set_sample_rate(dma_src,
-                (dma_src == AUD_DAC_SOURCE_A2DP && onboard_spk_a2dp_src_need_resample(rate)) ? DEFAULT_AUD_DAC_SAMPLE_RATE : rate))
+        uint8_t cur_in_ch = onboard_spk->chl_num;
+        if (dma_src == AUD_DAC_SOURCE_A2DP && onboard_spk->a2dp_in_ch)
         {
-            BK_LOGE(TAG, "%s, line: %d, re-assert sample rate: %d fail \n", __func__, __LINE__, rate);
+            cur_in_ch = onboard_spk->a2dp_in_ch;
         }
-        return BK_OK;
+        if (cur_in_ch == (uint8_t)ch)
+        {
+            BK_LOGD(TAG, "current dma_src:%d sample_rate: %d, chl_num: %d, bits: %d \n", dma_src, onboard_spk->sample_rate[dma_src], onboard_spk->chl_num, onboard_spk->bits);
+            BK_LOGD(TAG, "new samp_rate: %d, chl_num: %d, bits: %d \n", rate, ch, bits);
+            BK_LOGD(TAG, "not need update onboard speaker \n");
+
+            /* The DAC APLL is a clock shared by all sources. While this source was idle
+             * another source (e.g. a 16k CALL) may have switched the APLL to a different
+             * frequency, which silently detunes this source on resume (e.g. 44.1k plays
+             * out at 48k). The cached format matches, so re-assert the sample rate to
+             * restore the correct APLL/divider for this source's clock domain. */
+            if (BK_OK != bk_aud_dac_set_sample_rate(dma_src,
+                    (dma_src == AUD_DAC_SOURCE_A2DP && onboard_spk_a2dp_src_need_resample(rate)) ? DEFAULT_AUD_DAC_SAMPLE_RATE : rate))
+            {
+                BK_LOGE(TAG, "%s, line: %d, re-assert sample rate: %d fail \n", __func__, __LINE__, rate);
+            }
+            return BK_OK;
+        }
     }
 
-    if (state == AEL_STATE_RUNNING)
+    /* DMA already started and close never dma_stop: pause→close would stall
+     * finish ISR with no way to restart. Hot-reconfig software path only. */
+    const bool dma_live = (open_cnt > 0);
+
+    if (state == AEL_STATE_RUNNING && !dma_live)
     {
-        /* set read data timeout */
         audio_element_set_input_timeout(onboard_speaker_stream, 0);
         if (BK_OK != audio_element_pause(onboard_speaker_stream))
         {
             BK_LOGE(TAG, "%s, line: %d, audio_element_pause fail \n", __func__, __LINE__);
         }
     }
+    else if (state == AEL_STATE_RUNNING && dma_live)
+    {
+        BK_LOGD(TAG, "%s, %d, dma live: hot reconfig (skip pause/close)\n", __func__, __LINE__);
+    }
 
     if (BK_OK == audio_dac_reconfig(onboard_spk, rate, ch, bits, dma_src))
     {
         onboard_spk->sample_rate[dma_src] = rate;
-        onboard_spk->chl_num = ch;
         onboard_spk->bits = bits;
+        if (!dma_live)
+        {
+            onboard_spk->chl_num = ch;
+        }
         audio_element_setdata(onboard_speaker_stream, onboard_spk);
     }
     else
@@ -2679,7 +3139,7 @@ bk_err_t onboard_speaker_stream_set_param(audio_element_handle_t onboard_speaker
         audio_element_set_music_info(onboard_speaker_stream, rate, ch, bits);
     }
 
-    if (state == AEL_STATE_RUNNING)
+    if (state == AEL_STATE_RUNNING && !dma_live)
     {
         /* Do not resume with a partial reconfig (e.g. new dma_frame_size but temp_buff grow failed). */
         if (err != BK_OK)
