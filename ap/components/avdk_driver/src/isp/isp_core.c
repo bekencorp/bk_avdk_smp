@@ -83,11 +83,138 @@ static uint8_t isp_active_port_count(void)
 #if CONFIG_ISP_DUAL_MIPI_LOGICAL_PORT
 typedef struct {
     uint8_t valid;
+    uint8_t wb_valid;
+    uint8_t ccm_valid;
+    uint8_t cproc_valid;
     ISP_METADATA_S metadata;
     ISP_EXPOSURE_ATTR_S exposure_attr;
+    ISP_WB_SWITCH_CONTEXT_S wb;
+    ISP_CCM_SWITCH_CONTEXT_S ccm;
+    ISP_CPROC_SWITCH_CONTEXT_S cproc;
 } isp_port_context_t;
 
 static isp_port_context_t s_isp_port_context[ISP_DEV_CNT][ISP_PORT_CNT];
+
+static bk_err_t isp_wb_switch_context_capture(ISP_PORT port)
+{
+    isp_port_context_t *context =
+        &s_isp_port_context[port.devId][port.portId];
+    int ret = VSI_MPI_ISP_CaptureWbSwitchContext(port, &context->wb);
+    context->wb_valid = (ret == VSI_SUCCESS);
+    return context->wb_valid ? BK_OK : BK_FAIL;
+}
+
+static bk_err_t isp_ccm_switch_context_capture(ISP_PORT port)
+{
+    isp_port_context_t *context =
+        &s_isp_port_context[port.devId][port.portId];
+    int ret = VSI_MPI_ISP_CaptureCcmSwitchContext(port, &context->ccm);
+    context->ccm_valid = (ret == VSI_SUCCESS);
+    return context->ccm_valid ? BK_OK : BK_FAIL;
+}
+
+static bk_err_t isp_cproc_switch_context_capture(ISP_PORT port)
+{
+    isp_port_context_t *context =
+        &s_isp_port_context[port.devId][port.portId];
+    int ret = VSI_MPI_ISP_CaptureCprocSwitchContext(
+        port, &context->cproc);
+    context->cproc_valid = (ret == VSI_SUCCESS);
+    return context->cproc_valid ? BK_OK : BK_FAIL;
+}
+
+static bk_err_t isp_switch_context_commit(
+    isp_control_t *control, ISP_PORT target_port)
+{
+    uint32_t mask = __atomic_load_n(
+        &control->switch_module_mask, __ATOMIC_ACQUIRE);
+    isp_port_context_t *context =
+        &s_isp_port_context[target_port.devId][target_port.portId];
+
+    /* Validate every selected module before writing any shared register. */
+    if ((mask & BK_ISP_SWITCH_MODULE_WB) != 0U)
+    {
+        if (!context->wb_valid)
+        {
+            LOGE("%s, WB context for port %u is invalid\n",
+                 __func__, target_port.portId);
+            return BK_ERR_STATE;
+        }
+    }
+    if ((mask & BK_ISP_SWITCH_MODULE_CCM) != 0U)
+    {
+        if (!context->ccm_valid)
+        {
+            LOGE("%s, CCM context for port %u is invalid\n",
+                 __func__, target_port.portId);
+            return BK_ERR_STATE;
+        }
+    }
+    if ((mask & BK_ISP_SWITCH_MODULE_CPROC) != 0U)
+    {
+        if (!context->cproc_valid)
+        {
+            LOGE("%s, CPROC context for port %u is invalid\n",
+                 __func__, target_port.portId);
+            return BK_ERR_STATE;
+        }
+    }
+
+    if ((mask & BK_ISP_SWITCH_MODULE_WB) != 0U &&
+        VSI_MPI_ISP_StageWbSwitchContext(
+            target_port, &context->wb) != VSI_SUCCESS)
+    {
+        LOGE("%s, stage WB context for port %u failed\n",
+             __func__, target_port.portId);
+        return BK_FAIL;
+    }
+    if ((mask & BK_ISP_SWITCH_MODULE_CCM) != 0U &&
+        VSI_MPI_ISP_StageCcmSwitchContext(
+            target_port, &context->ccm) != VSI_SUCCESS)
+    {
+        LOGE("%s, stage CCM context for port %u failed\n",
+             __func__, target_port.portId);
+        return BK_FAIL;
+    }
+    if ((mask & BK_ISP_SWITCH_MODULE_CPROC) != 0U &&
+        VSI_MPI_ISP_StageCprocSwitchContext(
+            target_port, &context->cproc) != VSI_SUCCESS)
+    {
+        LOGE("%s, stage CPROC context for port %u failed\n",
+             __func__, target_port.portId);
+        return BK_FAIL;
+    }
+
+    if ((mask & BK_ISP_SWITCH_MODULE_WB) != 0U)
+    {
+        if (VSI_MPI_ISP_CommitWbSwitchContext(target_port) != VSI_SUCCESS)
+        {
+            LOGE("%s, commit WB context for port %u failed\n",
+                 __func__, target_port.portId);
+            return BK_FAIL;
+        }
+    }
+    if ((mask & BK_ISP_SWITCH_MODULE_CCM) != 0U)
+    {
+        if (VSI_MPI_ISP_CommitCcmSwitchContext(target_port) != VSI_SUCCESS)
+        {
+            LOGE("%s, commit CCM context for port %u failed\n",
+                 __func__, target_port.portId);
+            return BK_FAIL;
+        }
+    }
+    if ((mask & BK_ISP_SWITCH_MODULE_CPROC) != 0U)
+    {
+        if (VSI_MPI_ISP_CommitCprocSwitchContext(target_port) != VSI_SUCCESS)
+        {
+            LOGE("%s, commit CPROC context for port %u failed\n",
+                 __func__, target_port.portId);
+            return BK_FAIL;
+        }
+    }
+
+    return BK_OK;
+}
 #endif
 
 #if CONFIG_SOC_SMP
@@ -350,10 +477,28 @@ int isp_set_port_attribute(ISP_PORT IspPort, ISP_PUB_ATTR_S *pPubAttr)
     return VSI_SUCCESS;
 }
 
-//state :2 : ISP_MP_FRAME_END_STATE, 64 : ISP_MP_MB_LINE_STATE
+#define ISP_CORE_FRAME_END_STATE 0x02U
+#define ISP_CORE_V_START_STATE   0x40U
+
+/* Raw ISP_MIS bits: FRAME_END=bit1, V_START=bit6. */
 static void isp_isr_callback(uint32_t state, void *args)
 {
     isp_control_t *control = (isp_control_t *)args;
+
+    if (state & ISP_CORE_FRAME_END_STATE)
+    {
+        if (control != NULL)
+        {
+            __atomic_store_n(&control->in_vblank, 1U, __ATOMIC_RELEASE);
+        }
+    }
+    if (state & ISP_CORE_V_START_STATE)
+    {
+        if (control != NULL)
+        {
+            __atomic_store_n(&control->in_vblank, 0U, __ATOMIC_RELEASE);
+        }
+    }
 
     if (control && control->state == ISP_FSM_CHN_ENABLE)
     {
@@ -407,6 +552,22 @@ static void isp_pipeline_done_callback_ext(ISP_PORT port, void *args)
                 port, &context->exposure_attr);
             context->valid = 1;
         }
+        if ((__atomic_load_n(
+                 &control->switch_module_mask, __ATOMIC_ACQUIRE) &
+             BK_ISP_SWITCH_MODULE_WB) != 0U) {
+            (void)isp_wb_switch_context_capture(port);
+        }
+        if ((__atomic_load_n(
+                 &control->switch_module_mask, __ATOMIC_ACQUIRE) &
+             BK_ISP_SWITCH_MODULE_CCM) != 0U) {
+            (void)isp_ccm_switch_context_capture(port);
+        }
+        if ((__atomic_load_n(
+                 &control->switch_module_mask, __ATOMIC_ACQUIRE) &
+             BK_ISP_SWITCH_MODULE_CPROC) != 0U) {
+            (void)isp_cproc_switch_context_capture(port);
+        }
+
         (void)rtos_unlock_mutex(&control->isp_mutex);
     }
 #endif
@@ -418,8 +579,11 @@ static void isp_pipeline_done_callback_ext(ISP_PORT port, void *args)
     cb_arg = control->three_a_done_arg;
     isp_isr_unlock_irqrestore(irq_flags);
 
-    if (cb != NULL) {
-        cb((uint8_t)port.portId, cb_arg);
+    if (cb != NULL && port.portId < ISP_PORT_CNT) {
+        uint32_t sequence = __atomic_load_n(
+            &control->frame_end_sequence[port.portId],
+            __ATOMIC_ACQUIRE);
+        cb((uint8_t)port.portId, sequence, cb_arg);
     }
 }
 
@@ -613,6 +777,13 @@ static void isp_mi_isr_callback_by_port(
 
         if (state & ISP_MP_FRAME_END_STATE)
         {
+            if (frame_port_id < ISP_PORT_CNT)
+            {
+                __atomic_store_n(
+                    &control->frame_end_sequence[frame_port_id],
+                    control->chn[ISP_MP_CHN_ID].sequence,
+                    __ATOMIC_RELEASE);
+            }
             ISP_MP_LINE_START();
             control->chn[ISP_MP_CHN_ID].line++;
             AVDK_MONITOR_MP_FRAME_PLUS();
@@ -1066,6 +1237,30 @@ bk_err_t bk_isp_port_init(isp_handle_t *handle, void *sensor_attr)
         control->sensor_sns_registered = 1;
     }
 
+#if CONFIG_ISP_DUAL_MIPI_LOGICAL_PORT
+    if (ret == VSI_SUCCESS &&
+        (__atomic_load_n(
+             &control->switch_module_mask, __ATOMIC_ACQUIRE) &
+         BK_ISP_SWITCH_MODULE_WB) != 0U)
+    {
+        (void)isp_wb_switch_context_capture(control->port);
+    }
+    if (ret == VSI_SUCCESS &&
+        (__atomic_load_n(
+             &control->switch_module_mask, __ATOMIC_ACQUIRE) &
+         BK_ISP_SWITCH_MODULE_CCM) != 0U)
+    {
+        (void)isp_ccm_switch_context_capture(control->port);
+    }
+    if (ret == VSI_SUCCESS &&
+        (__atomic_load_n(
+             &control->switch_module_mask, __ATOMIC_ACQUIRE) &
+         BK_ISP_SWITCH_MODULE_CPROC) != 0U)
+    {
+        (void)isp_cproc_switch_context_capture(control->port);
+    }
+#endif
+
     return ret;
 }
 
@@ -1117,9 +1312,25 @@ bk_err_t bk_isp_port_select(isp_handle_t *handle, uint8_t port_id)
             }
         }
 
+        if (control->isp_mutex == NULL ||
+            rtos_lock_mutex(&control->isp_mutex) != BK_OK)
+        {
+            return BK_FAIL;
+        }
+
+#if CONFIG_ISP_DUAL_MIPI_LOGICAL_PORT
+        ret = isp_switch_context_commit(control, target_port);
+        if (ret != BK_OK)
+        {
+            (void)rtos_unlock_mutex(&control->isp_mutex);
+            return ret;
+        }
+#endif
+
         ret = VSI_MPI_ISP_SelectContext(target_port);
         if (ret != BK_OK)
         {
+            (void)rtos_unlock_mutex(&control->isp_mutex);
             return ret;
         }
 
@@ -1131,6 +1342,7 @@ bk_err_t bk_isp_port_select(isp_handle_t *handle, uint8_t port_id)
                 control->chn[chnl].channel.portId = output_port_id;
             }
         }
+        (void)rtos_unlock_mutex(&control->isp_mutex);
         return BK_OK;
     }
 
@@ -1261,6 +1473,10 @@ bk_err_t bk_isp_dev_init(isp_handle_t *handle)
         return ret;
     }
     os_memset(isp_control, 0, sizeof(isp_control_t));
+    for (uint8_t port_id = 0U; port_id < ISP_PORT_CNT; port_id++)
+    {
+        isp_control->frame_end_sequence[port_id] = UINT32_MAX;
+    }
 #if CONFIG_ISP_DUAL_MIPI_LOGICAL_PORT
     os_memset(s_isp_port_context, 0, sizeof(s_isp_port_context));
 #endif
@@ -1994,6 +2210,94 @@ bk_err_t bk_isp_deregister_3a_done_callback(isp_handle_t *handle,
     control->three_a_done_arg = NULL;
     isp_isr_unlock_irqrestore(irq_flags);
     return BK_OK;
+}
+
+bool bk_isp_is_in_vblank(isp_handle_t *handle)
+{
+    if (handle == NULL || *handle == NULL)
+    {
+        return false;
+    }
+
+    isp_control_t *control = (isp_control_t *)*handle;
+    return __atomic_load_n(&control->in_vblank, __ATOMIC_ACQUIRE) != 0U;
+}
+
+bk_err_t bk_isp_switch_module_mask_set(isp_handle_t *handle, uint32_t mask)
+{
+    const uint32_t supported_mask =
+        BK_ISP_SWITCH_MODULE_WB |
+        BK_ISP_SWITCH_MODULE_CCM |
+        BK_ISP_SWITCH_MODULE_CPROC;
+    if (handle == NULL || *handle == NULL ||
+        (mask & ~supported_mask) != 0U)
+    {
+        return BK_ERR_PARAM;
+    }
+
+    isp_control_t *control = (isp_control_t *)*handle;
+
+#if CONFIG_ISP_DUAL_MIPI_LOGICAL_PORT
+    if (control->isp_mutex == NULL ||
+        rtos_lock_mutex(&control->isp_mutex) != BK_OK)
+    {
+        return BK_FAIL;
+    }
+
+    if (mask != BK_ISP_SWITCH_MODULE_NONE)
+    {
+        for (uint8_t port_id = 0U; port_id < ISP_PORT_CNT; port_id++)
+        {
+            if ((control->port_pipeline_inited & (1U << port_id)) == 0U)
+            {
+                continue;
+            }
+
+            ISP_PORT port = {
+                .devId = control->dev,
+                .portId = port_id,
+            };
+            if (((mask & BK_ISP_SWITCH_MODULE_WB) != 0U &&
+                 isp_wb_switch_context_capture(port) != BK_OK) ||
+                ((mask & BK_ISP_SWITCH_MODULE_CCM) != 0U &&
+                 isp_ccm_switch_context_capture(port) != BK_OK) ||
+                ((mask & BK_ISP_SWITCH_MODULE_CPROC) != 0U &&
+                 isp_cproc_switch_context_capture(port) != BK_OK))
+            {
+                (void)rtos_unlock_mutex(&control->isp_mutex);
+                return BK_FAIL;
+            }
+        }
+    }
+
+    __atomic_store_n(
+        &control->switch_module_mask, mask, __ATOMIC_RELEASE);
+    (void)rtos_unlock_mutex(&control->isp_mutex);
+    return BK_OK;
+#else
+    if (mask != BK_ISP_SWITCH_MODULE_NONE)
+    {
+        return BK_ERR_NOT_SUPPORT;
+    }
+    __atomic_store_n(
+        &control->switch_module_mask, mask, __ATOMIC_RELEASE);
+    return BK_OK;
+#endif
+}
+
+bk_err_t bk_isp_sensor_update_mode_set(
+    isp_handle_t *handle, bk_isp_sensor_update_mode_t mode)
+{
+    if (handle == NULL || *handle == NULL ||
+        mode > BK_ISP_SENSOR_UPDATE_AT_FRAME_IN)
+    {
+        return BK_ERR_PARAM;
+    }
+
+    isp_control_t *control = (isp_control_t *)*handle;
+    int ret = VSI_MPI_ISP_SetSensorUpdateMode(
+        control->dev, (ISP_SENSOR_UPDATE_MODE_E)mode);
+    return (ret == VSI_SUCCESS) ? BK_OK : BK_FAIL;
 }
 
 bk_err_t bk_isp_soft_reset(isp_handle_t *handle)
