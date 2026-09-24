@@ -100,6 +100,14 @@ typedef enum
     BK_CAM_IOCTL_SET_WB, /**< Set white balance attributes; arg = bk_isp_camera_wb_attr_t * */
     BK_CAM_IOCTL_GET_EXPOSURE, /**< Get exposure mode and manual values; arg = bk_isp_camera_exposure_attr_t * */
     BK_CAM_IOCTL_SET_EXPOSURE, /**< Set exposure mode and manual values; arg = bk_isp_camera_exposure_attr_t * */
+    BK_CAM_IOCTL_FRAME_PORT_GET, /**< Query logical port for a frame; arg = bk_isp_camera_frame_port_query_t * */
+    BK_CAM_IOCTL_REGISTER_ISR_CALLBACK, /**< Register ISP callback; arg = bk_isp_camera_isr_callback_config_t * */
+    BK_CAM_IOCTL_DEREGISTER_ISR_CALLBACK, /**< Deregister ISP callback; arg = bk_isp_camera_isr_callback_config_t * */
+    BK_CAM_IOCTL_REGISTER_PIPELINE_DONE_CALLBACK, /**< Register pipeline callback; arg = bk_isp_camera_pipeline_callback_config_t * */
+    BK_CAM_IOCTL_DEREGISTER_PIPELINE_DONE_CALLBACK, /**< Deregister pipeline callback; arg = bk_isp_camera_pipeline_callback_config_t * */
+    BK_CAM_IOCTL_IS_IN_VBLANK, /**< Query ISP blanking state; arg = bk_isp_camera_vblank_state_t * */
+    BK_CAM_IOCTL_SET_ISP_SWITCH_MODULE_MASK, /**< Set fast ISP switch modules; arg = uint32_t * */
+    BK_CAM_IOCTL_SET_SENSOR_UPDATE_MODE, /**< Set Sensor register update timing; arg = bk_isp_camera_sensor_update_mode_t * */
 } bk_cam_interface_ioctl_t;
 
 /**
@@ -112,6 +120,40 @@ typedef struct
     uint8_t channel;   /**< ISP channel id (ISP_MP_CHN_ID / ISP_SP_CHN_ID) */
     uint8_t count;     /**< Drop first N frames after channel open (AE warmup), 0 = disabled */
 } bk_isp_camera_skip_frames_config_t;
+
+typedef struct
+{
+    uint8_t channel;
+    uint32_t sequence;
+    uint8_t port_id;
+} bk_isp_camera_frame_port_query_t;
+
+typedef struct
+{
+    bk_camera_isr_type_t type;
+    bk_camera_isr_t callback;
+    void *arg;
+} bk_isp_camera_isr_callback_config_t;
+
+typedef void (*bk_isp_camera_pipeline_done_cb_t)(
+    uint8_t port_id, uint32_t sequence, void *arg);
+
+typedef struct
+{
+    bk_isp_camera_pipeline_done_cb_t callback;
+    void *arg;
+} bk_isp_camera_pipeline_callback_config_t;
+
+typedef struct
+{
+    uint8_t in_vblank;
+} bk_isp_camera_vblank_state_t;
+
+typedef enum
+{
+    BK_ISP_CAMERA_SENSOR_UPDATE_IN_PIPELINE = 0U,
+    BK_ISP_CAMERA_SENSOR_UPDATE_AT_FRAME_IN = 1U,
+} bk_isp_camera_sensor_update_mode_t;
 
 typedef struct
 {

@@ -64,6 +64,19 @@ bk_err_t bk_isp_deregister_3a_done_callback(isp_handle_t *handle,
                                            isp_3a_done_cb_t cb,
                                            void *arg);
 
+bool bk_isp_is_in_vblank(isp_handle_t *handle);
+
+/**
+ * @brief Select fast ISP modules restored during a logical-camera switch.
+ *
+ * The default mask is BK_ISP_SWITCH_MODULE_NONE. The mask is runtime state;
+ * the internal ISP library does not depend on an application CONFIG macro.
+ */
+bk_err_t bk_isp_switch_module_mask_set(isp_handle_t *handle, uint32_t mask);
+
+bk_err_t bk_isp_sensor_update_mode_set(
+    isp_handle_t *handle, bk_isp_sensor_update_mode_t mode);
+
 /**
  * @brief Vote to enable/disable ISP (CISP) clock.
  *

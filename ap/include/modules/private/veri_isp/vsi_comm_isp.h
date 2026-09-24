@@ -50,6 +50,40 @@ typedef struct {
     vsi_u32_t portId; /**< \brief The port ID. */
 } ISP_PORT;
 
+/** \brief Runtime-selectable fast ISP context modules. */
+typedef enum vsiISP_SWITCH_MODULE_E {
+    ISP_SWITCH_MODULE_NONE = 0U,
+    ISP_SWITCH_MODULE_WB   = 1U << 0,
+    ISP_SWITCH_MODULE_CCM  = 1U << 1,
+    ISP_SWITCH_MODULE_DG   = 1U << 2,
+    ISP_SWITCH_MODULE_CPROC = 1U << 3,
+} ISP_SWITCH_MODULE_E;
+
+typedef enum vsiISP_SENSOR_UPDATE_MODE_E {
+    ISP_SENSOR_UPDATE_IN_PIPELINE = 0U,
+    ISP_SENSOR_UPDATE_AT_FRAME_IN = 1U,
+} ISP_SENSOR_UPDATE_MODE_E;
+
+/** \brief Packed WB gain registers used by the fast port switch path. */
+typedef struct vsiISP_WB_SWITCH_CONTEXT_S {
+    vsi_u32_t gainG;
+    vsi_u32_t gainRB;
+} ISP_WB_SWITCH_CONTEXT_S;
+
+/** \brief Packed CCM coefficient and offset registers. */
+typedef struct vsiISP_CCM_SWITCH_CONTEXT_S {
+    vsi_u32_t coeff[9];
+    vsi_u32_t offset[3];
+} ISP_CCM_SWITCH_CONTEXT_S;
+
+/** \brief Packed CPROC value registers used by the fast port switch path. */
+typedef struct vsiISP_CPROC_SWITCH_CONTEXT_S {
+    vsi_u32_t contrast;
+    vsi_u32_t brightness;
+    vsi_u32_t saturation;
+    vsi_u32_t hue;
+} ISP_CPROC_SWITCH_CONTEXT_S;
+
 /** \brief   This structure specifies the ISP channel. */
 typedef struct {
     vsi_u32_t devId;  /**< \brief The device ID. */

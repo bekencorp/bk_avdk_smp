@@ -147,6 +147,9 @@ int VSI_MPI_ISP_SetInput(ISP_PORT IspPort);
 
 int VSI_MPI_ISP_SelectContext(ISP_PORT IspPort);
 
+int VSI_MPI_ISP_SetSensorUpdateMode(
+    ISP_DEV IspDev, ISP_SENSOR_UPDATE_MODE_E mode);
+
 /*****************************************************************************/
 /**
  * @brief   Sets the ISP device port.
@@ -376,6 +379,30 @@ int VSI_MPI_ISP_GetMetaData(ISP_PORT IspPort, ISP_METADATA_S *pMetaData);
  *
  *****************************************************************************/
 int VSI_MPI_ISP_SetMetaData(ISP_PORT IspPort, ISP_METADATA_S *pMetaData);
+
+int VSI_MPI_ISP_CaptureWbSwitchContext(
+    ISP_PORT IspPort, ISP_WB_SWITCH_CONTEXT_S *pContext);
+
+int VSI_MPI_ISP_StageWbSwitchContext(
+    ISP_PORT IspPort, const ISP_WB_SWITCH_CONTEXT_S *pContext);
+
+int VSI_MPI_ISP_CommitWbSwitchContext(ISP_PORT IspPort);
+
+int VSI_MPI_ISP_CaptureCcmSwitchContext(
+    ISP_PORT IspPort, ISP_CCM_SWITCH_CONTEXT_S *pContext);
+
+int VSI_MPI_ISP_StageCcmSwitchContext(
+    ISP_PORT IspPort, const ISP_CCM_SWITCH_CONTEXT_S *pContext);
+
+int VSI_MPI_ISP_CommitCcmSwitchContext(ISP_PORT IspPort);
+
+int VSI_MPI_ISP_CaptureCprocSwitchContext(
+    ISP_PORT IspPort, ISP_CPROC_SWITCH_CONTEXT_S *pContext);
+
+int VSI_MPI_ISP_StageCprocSwitchContext(
+    ISP_PORT IspPort, const ISP_CPROC_SWITCH_CONTEXT_S *pContext);
+
+int VSI_MPI_ISP_CommitCprocSwitchContext(ISP_PORT IspPort);
 
 /*****************************************************************************/
 /**

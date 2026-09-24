@@ -113,7 +113,22 @@ typedef struct {
     uint8_t malloc_flag;
 } isp_channel_config_t;
 
-typedef void (*isp_3a_done_cb_t)(uint8_t port_id, void *arg);
+typedef void (*isp_3a_done_cb_t)(uint8_t port_id,
+                                 uint32_t sequence,
+                                 void *arg);
+
+typedef enum {
+    BK_ISP_SWITCH_MODULE_NONE = 0U,
+    BK_ISP_SWITCH_MODULE_WB   = 1U << 0,
+    BK_ISP_SWITCH_MODULE_CCM  = 1U << 1,
+    BK_ISP_SWITCH_MODULE_DG   = 1U << 2,
+    BK_ISP_SWITCH_MODULE_CPROC = 1U << 3,
+} bk_isp_switch_module_t;
+
+typedef enum {
+    BK_ISP_SENSOR_UPDATE_IN_PIPELINE = 0U,
+    BK_ISP_SENSOR_UPDATE_AT_FRAME_IN = 1U,
+} bk_isp_sensor_update_mode_t;
 
 typedef struct {
     uint8_t state;
@@ -131,6 +146,9 @@ typedef struct {
     int (*free_buf) (ISP_CHN chn, VIDEO_BUF_S *pBuf);
     isp_3a_done_cb_t three_a_done_cb;
     void *three_a_done_arg;
+    uint32_t frame_end_sequence[ISP_PORT_CNT];
+    uint8_t in_vblank;
+    uint32_t switch_module_mask;
 } isp_control_t;
 
 typedef struct {
