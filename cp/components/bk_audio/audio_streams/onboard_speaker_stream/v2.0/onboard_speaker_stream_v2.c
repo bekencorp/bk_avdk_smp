@@ -169,7 +169,8 @@ static const uint32_t PCM_8000[] = {
 
 typedef struct onboard_speaker_stream
 {
-    uint8_t                  chl_num;                       /**< PCM channel count: 1 mono, 2 interleaved stereo */
+    uint8_t                  chl_num;                       /**< DAC output PCM channel count: 1 mono, 2 interleaved stereo. Fixed at init. */
+    uint8_t                  src_chl_num[AUD_DAC_SOURCE_MAX];/**< per-source PCM channel count; a mono source is up-mixed to chl_num on read */
     aud_dac_chl_t            dac_chl;                       /**< DAC output route: L / R / LR */
     uint32_t                 sample_rate[AUD_DAC_SOURCE_MAX];/**< speaker sample rate */
     float                    dig_gain;                      /**< audio dac digital gain in dB */
@@ -391,6 +392,21 @@ static void onboard_spk_update_status_by_energy(audio_element_handle_t self, onb
 {
     bool is_playing = onboard_spk_is_voice_playing(onboard_spk, energy_level);
     onboard_spk_update_status(self, onboard_spk, is_playing, energy_level, force_report);
+}
+
+/* Duplicate mono samples into interleaved L=R. The DAC channel count is fixed at init,
+ * so a mono source is widened here instead of switching the DAC/DMA at runtime. */
+static void onboard_spk_expand_mono_to_stereo(const int16_t *mono, int16_t *lr, uint32_t mono_samples)
+{
+    uint32_t s;
+
+    for (s = 0; s < mono_samples; s++)
+    {
+        int16_t v = mono[s];
+
+        lr[2 * s + 0] = v;
+        lr[2 * s + 1] = v;
+    }
 }
 
 /* A2DP stereo resample (plan B): one Speex instance, src_ch=dest_ch=2, interleaved in/out */
@@ -1299,51 +1315,17 @@ static bk_err_t audio_dac_reconfig(onboard_speaker_stream_t *onboard_spk, int ra
 {
     bk_err_t ret = BK_OK;
 
-    /* Apply PCM channel count before rsp init so src_ch/dest_ch match the new format. */
-    if (onboard_spk->chl_num != ch)
+    /* The DAC channel count is fixed at init. Switching it here would have to rewrite
+     * dest_data_width and the DMA geometry on a channel that close() deliberately leaves
+     * running (open_cnt workaround), and bk_dma_set_dest_data_width does not synchronise
+     * with a REPEAT-mode channel. A mono source is widened to L=R on the read path
+     * instead, which is what the aux ports already do. */
+    if (ch > onboard_spk->chl_num)
     {
-        if (ch == 2)
-        {
-            onboard_spk->dac_chl = AUD_DAC_CHL_LR;
-        }
-        else if (onboard_spk->dac_chl == AUD_DAC_CHL_LR)
-        {
-            onboard_spk->dac_chl = AUD_DAC_CHL_L;
-        }
-        onboard_spk->chl_num = ch;
-
-        if (BK_OK != bk_aud_dac_start(onboard_spk->dac_chl))
-        {
-            BK_LOGE(TAG, "%s, line: %d, updata onboard speaker pcm chl_num: %d fail \n", __func__, __LINE__, ch);
-            return BK_FAIL;
-        }
-        else
-        {
-            BK_LOGD(TAG, "%s, line: %d, updata onboard speaker pcm chl_num: %d ok \n", __func__, __LINE__, ch);
-        }
-
-        /* single DMA channel only: LR hw-split uses 32-bit packed words */
-        dma_data_width_t dst_width = DMA_DATA_WIDTH_32BITS;
-        if (bits == 16 && onboard_spk->dac_chl != AUD_DAC_CHL_LR)
-        {
-            dst_width = DMA_DATA_WIDTH_16BITS;
-        }
-        ret = bk_dma_set_dest_data_width(onboard_spk->spk_dma_id[dma_src], dst_width);
-
-        if (ret != BK_OK)
-        {
-            BK_LOGE(TAG, "%s, line: %d, set dest_data_width fail \n", __func__, __LINE__);
-            return BK_FAIL;
-        }
-        else
-        {
-            BK_LOGD(TAG, "%s, line: %d, set dest_data_width ok \n", __func__, __LINE__);
-        }
+        BK_LOGE(TAG, "%s, line: %d, src ch: %d exceeds dac chl_num: %d \n", __func__, __LINE__, ch, onboard_spk->chl_num);
+        return BK_FAIL;
     }
-    else
-    {
-        BK_LOGD(TAG, "%s, line: %d, ch: %d unchanged! \n", __func__, __LINE__, ch);
-    }
+    onboard_spk->src_chl_num[dma_src] = (uint8_t)ch;
 
     /* check and set sample rate */
     if(AUD_DAC_SOURCE_A2DP != dma_src)
@@ -1363,7 +1345,7 @@ static bk_err_t audio_dac_reconfig(onboard_speaker_stream_t *onboard_spk, int ra
     }
     else
     {
-        uint32_t new_dma_frame_size;
+        uint32_t new_frame_size;
         uint32_t need_temp;
 
         if (onboard_spk_a2dp_src_unsupported(rate))
@@ -1372,20 +1354,29 @@ static bk_err_t audio_dac_reconfig(onboard_speaker_stream_t *onboard_spk, int ra
             return BK_FAIL;
         }
 
+        /* dma_frame_size is HW geometry: the ring buffer, the DMA block length and
+         * rsp_out_buff were all sized from it at init and cannot change afterwards.
+         * The DAC always drains at 48k, so the free variable on a format change is the
+         * input frame, not the output block. Derive it from the fixed output block and
+         * the resampler ratio, so the resampler keeps producing exactly one DMA block
+         * per iteration and no DMA register has to be touched. */
         if (onboard_spk_a2dp_src_need_resample(rate))
         {
-            new_dma_frame_size = onboard_spk->frame_size[AUD_DAC_SOURCE_A2DP] * DEFAULT_AUD_DAC_SAMPLE_RATE
-                / rate;
+            new_frame_size = onboard_spk->dma_frame_size * rate / DEFAULT_AUD_DAC_SAMPLE_RATE;
         }
         else
         {
-            new_dma_frame_size = onboard_spk->frame_size[AUD_DAC_SOURCE_A2DP];
+            new_frame_size = onboard_spk->dma_frame_size;
         }
 
         need_temp = onboard_spk_max_in_frame_bytes(onboard_spk);
-        if (new_dma_frame_size > need_temp)
+        if (new_frame_size > need_temp)
         {
-            need_temp = new_dma_frame_size;
+            need_temp = new_frame_size;
+        }
+        if (onboard_spk->dma_frame_size > need_temp)
+        {
+            need_temp = onboard_spk->dma_frame_size;
         }
         /* Grow scratch before tearing down rsp / publishing dma_frame_size. */
         if (BK_OK != onboard_spk_ensure_temp_buff_size(onboard_spk, need_temp))
@@ -1399,7 +1390,7 @@ static bk_err_t audio_dac_reconfig(onboard_speaker_stream_t *onboard_spk, int ra
             onboard_spk->rsp_handler[AUD_DAC_SOURCE_A2DP] = NULL;
         }
         onboard_spk->sample_rate[AUD_DAC_SOURCE_A2DP] = rate;
-        onboard_spk->dma_frame_size = new_dma_frame_size;
+        onboard_spk->frame_size[AUD_DAC_SOURCE_A2DP] = new_frame_size;
 
         if (onboard_spk_a2dp_src_need_resample(rate))
         {
@@ -1561,6 +1552,36 @@ static bk_err_t _update_dac_config(audio_element_handle_t onboard_speaker_stream
 }
 #endif
 
+/* Read one main-source frame into in_buffer, widening a mono source to interleaved
+ * L=R so the DAC keeps the channel count it was initialised with. The aux ports do the
+ * same at their own read site using port_info; the main source has no port_info entry,
+ * so its channel count comes from src_chl_num[]. A short read is returned as-is and
+ * handled by the caller's silence path. */
+static int onboard_spk_read_main_frame(audio_element_handle_t self, onboard_speaker_stream_t *onboard_spk,
+    char *in_buffer, uint32_t src_idx)
+{
+    uint32_t frame_bytes = onboard_spk->frame_size[src_idx];
+    uint32_t wanted = frame_bytes;
+    int r_size;
+
+    if (onboard_spk->src_chl_num[src_idx] == 1 && onboard_spk->chl_num > 1)
+    {
+        wanted = frame_bytes / 2;
+    }
+
+    r_size = audio_element_input(self, in_buffer, wanted);
+    if (wanted == frame_bytes || r_size != (int)wanted)
+    {
+        return r_size;
+    }
+
+    onboard_spk_expand_mono_to_stereo((const int16_t *)in_buffer, (int16_t *)onboard_spk->temp_buff,
+                                      wanted / sizeof(int16_t));
+    os_memcpy(in_buffer, onboard_spk->temp_buff, frame_bytes);
+
+    return (int)frame_bytes;
+}
+
 static int _onboard_speaker_process(audio_element_handle_t self, char *in_buffer, int in_len)
 {
     onboard_speaker_stream_t *onboard_spk = (onboard_speaker_stream_t *)audio_element_getdata(self);
@@ -1594,7 +1615,7 @@ static int _onboard_speaker_process(audio_element_handle_t self, char *in_buffer
             AUD_ONBOARD_SPK_INPUT_START();
             if (i == onboard_spk->main_dac_source)
             {
-                r_size = audio_element_input(self, in_buffer, onboard_spk->frame_size[i]);
+                r_size = onboard_spk_read_main_frame(self, onboard_spk, in_buffer, i);
             }
             else
             {
@@ -1637,24 +1658,17 @@ static int _onboard_speaker_process(audio_element_handle_t self, char *in_buffer
                         /* Convert mono -> interleaved stereo (L=R) when speaker runs stereo. */
                         if (port_info && port_info->chl_num == 1 && onboard_spk->chl_num > 1)
                         {
-                            int16_t *out_lr = (int16_t *)onboard_spk->temp_buff;
-                            const int16_t *in_mono = (const int16_t *)in_buffer;
-                            uint32_t mono_samples = 0;
                             if ((uint32_t)r_size < wanted_size)
                             {
                                 os_memset((uint8_t *)in_buffer+r_size, 0x00, wanted_size-(uint32_t)r_size);
                             }
 
-                            mono_samples = wanted_size / sizeof(int16_t);
-                            for (uint32_t s = 0; s < mono_samples; s++)
-                            {
-                                int16_t v = in_mono[s];
-                                out_lr[2 * s + 0] = v;
-                                out_lr[2 * s + 1] = v;
-                            }
+                            onboard_spk_expand_mono_to_stereo((const int16_t *)in_buffer,
+                                                              (int16_t *)onboard_spk->temp_buff,
+                                                              wanted_size / sizeof(int16_t));
 
                             /* overwrite in_buffer with stereo interleaved for downstream */
-                            os_memcpy(in_buffer, out_lr, (size_t)wanted_size * 2);
+                            os_memcpy(in_buffer, onboard_spk->temp_buff, (size_t)wanted_size * 2);
                             r_size = (int)onboard_spk->frame_size[i];
                         }
                     }
@@ -1821,7 +1835,7 @@ static int _onboard_speaker_process(audio_element_handle_t self, char *in_buffer
     }
 #else
     AUD_ONBOARD_SPK_INPUT_START();
-    r_size = audio_element_input(self, in_buffer, onboard_spk->frame_size[main_src]);
+    r_size = onboard_spk_read_main_frame(self, onboard_spk, in_buffer, main_src);
     AUD_ONBOARD_SPK_INPUT_END();
 
     if (onboard_spk->wr_spk_rb_done[main_src] == false)
@@ -2203,8 +2217,9 @@ audio_element_handle_t onboard_speaker_stream_init(onboard_speaker_stream_cfg_t 
     k = config->frame_size[0];
     for(i = 0; i < AUD_DAC_SOURCE_MAX; i++)
     {
-        gl_onboard_speaker->sample_rate[i] = config->sample_rate[i];
-        gl_onboard_speaker->frame_size[i]  = config->frame_size[i];
+        gl_onboard_speaker->sample_rate[i]  = config->sample_rate[i];
+        gl_onboard_speaker->frame_size[i]   = config->frame_size[i];
+        gl_onboard_speaker->src_chl_num[i]  = config->chl_num;
 
         if(k < config->frame_size[i])
         {
@@ -2632,9 +2647,9 @@ bk_err_t onboard_speaker_stream_set_param(audio_element_handle_t onboard_speaker
         return BK_FAIL;
     }
 
-    if (onboard_spk->sample_rate[dma_src] == rate && onboard_spk->chl_num == ch && onboard_spk->bits == bits)
+    if (onboard_spk->sample_rate[dma_src] == rate && onboard_spk->src_chl_num[dma_src] == ch && onboard_spk->bits == bits)
     {
-        BK_LOGD(TAG, "current dma_src:%d sample_rate: %d, chl_num: %d, bits: %d \n", dma_src, onboard_spk->sample_rate[dma_src], onboard_spk->chl_num, onboard_spk->bits);
+        BK_LOGD(TAG, "current dma_src:%d sample_rate: %d, chl_num: %d, bits: %d \n", dma_src, onboard_spk->sample_rate[dma_src], onboard_spk->src_chl_num[dma_src], onboard_spk->bits);
         BK_LOGD(TAG, "new samp_rate: %d, chl_num: %d, bits: %d \n", rate, ch, bits);
         BK_LOGD(TAG, "not need update onboard speaker \n");
 
@@ -2664,7 +2679,6 @@ bk_err_t onboard_speaker_stream_set_param(audio_element_handle_t onboard_speaker
     if (BK_OK == audio_dac_reconfig(onboard_spk, rate, ch, bits, dma_src))
     {
         onboard_spk->sample_rate[dma_src] = rate;
-        onboard_spk->chl_num = ch;
         onboard_spk->bits = bits;
         audio_element_setdata(onboard_speaker_stream, onboard_spk);
     }
