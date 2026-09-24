@@ -39,6 +39,13 @@
 #include <driver/aud_dac_types.h>
 #include <timer/timer_driver.h>
 
+#if CONFIG_SOC_BK7259 && CONFIG_AUD_PM_FAST_HOT
+#include "sys_ll.h"
+#include <soc/soc.h>
+#include "audio_reg_struct.h"
+#include "audio_reg_reg.h"
+#endif
+
 
 #if CONFIG_SOC_BK7259
 #define SYS_ANA_REG20_ISELAUD_DEFAULT_VAL                       (0x01)
@@ -434,9 +441,7 @@ bk_err_t bk_aud_clk_deconfig(void)
 	sys_drv_apll_ref_release();    /* release APLL; only powered down when last user releases (was sys_drv_apll_en(0)) */
 #else
 	sys_drv_apll_en(0);
-	aud_hal_set_audio_config_apll_sel(0);
 #endif
-
 	return BK_OK;
 }
 
@@ -445,17 +450,21 @@ bk_err_t bk_aud_driver_init(void)
 	if (s_aud_driver_is_init)
 		return BK_OK;
 
+	bk_pm_module_vote_cpu_freq(PM_DEV_ID_AUDIO, PM_CPU_FRQ_240M);
+
 	//bk_pm_module_vote_power_ctrl(PM_POWER_SUB_MODULE_NAME_AUDP_AUDIO, PM_POWER_MODULE_STATE_ON);
 	sys_drv_aud_select_clock(0);
+#if CONFIG_SOC_BK7259
+	sys_drv_apll_ref_acquire();   /* power up shared APLL via reference count (was sys_drv_apll_en(1)) */
+#else
 	sys_drv_apll_en(1);
+#endif
 	//bk_pm_clock_ctrl(PM_CLK_ID_AUDIO, CLK_PWR_CTRL_PWR_UP);
 
 #if CONFIG_SOC_BK7259
 
     /* enable apb clock */
     audio_reg_hal_set_sys_cfg_apb_clk_en_dis(1);
-
-	sys_drv_apll_ref_acquire();   /* power up shared APLL via reference count */
 
 	bk_int_isr_register(INT_SRC_AUDIO, aud_isr, NULL);
 
@@ -467,8 +476,6 @@ bk_err_t bk_aud_driver_init(void)
 	sys_drv_set_int_en(rtos_get_core_id(), INT_SRC_AUDIO, 1);
 #endif
 	//sys_hal_aud_aud_en(1);
-	/* current version not support, next version support. */
-	//aud_hal_set_clk_control_soft_reset(1);
 
 	sys_drv_set_ana_reg25_value(0xC2A06AA6); /// fix value - 260116  //sys 0x59
 
@@ -523,8 +530,8 @@ bk_err_t bk_aud_driver_deinit(void)
 	audio_reg_hal_set_sys_cfg_apb_clk_en_dis(1); ////
 
 	/* NOTE: do NOT gate the audio clock here - the analog register writes and
-	 * the reset below still rely on it. Audio clock / APLL are turned off at the
-	 * very end, after all register access / reset finish. */
+	 * the hardware reset below still rely on it. Audio clock / APLL are turned
+	 * off at the very end, after all register access / reset / delay finish. */
 	sys_drv_set_ana_reg20_value(0);
 	sys_drv_set_ana_reg21_value(0);
 	sys_drv_set_ana_reg27_value(0);
@@ -540,13 +547,11 @@ bk_err_t bk_aud_driver_deinit(void)
 	/* Keep audio_cken unchanged for reliable reopen. Switch the mux to XTAL
 	 * and release the APLL reference (real power-down only at ref == 0). */
 	bk_aud_clk_deconfig();
-
 #endif
-	//bk_aud_clk_deconfig();
 
 	//bk_pm_clock_ctrl(PM_CLK_ID_AUDIO, CLK_PWR_CTRL_PWR_DOWN);
 	//bk_pm_module_vote_power_ctrl(PM_POWER_SUB_MODULE_NAME_AUDP_AUDIO, PM_POWER_MODULE_STATE_OFF);
-
+	bk_pm_module_vote_cpu_freq(PM_DEV_ID_AUDIO, PM_CPU_FRQ_DEFAULT);
 	s_aud_driver_is_init = false;
 	return BK_OK;
 }
@@ -695,3 +700,213 @@ void bk_aud_hardware_reset_release(void)
     audio_reg_hal_set_reserved0_value(1);
     audio_reg_hal_set_reserved0_value(0);
 }
+
+#if CONFIG_SOC_BK7259 && CONFIG_AUD_PM_FAST_HOT
+
+#define AUD_PM_BACKUP_MAGIC              (0x41554450u) /* 'AUDP' */
+#define AUD_PM_EQ_FILTER_NUM             (10)
+#define AUD_PM_EQ_COEF_NUM_PER_FILTER    (5)
+#define AUD_PM_EQ_COEF_NUM_PER_DAC       (AUD_PM_EQ_FILTER_NUM * AUD_PM_EQ_COEF_NUM_PER_FILTER)
+#define AUD_PM_AUDIO_REG_WORDS           (sizeof(audio_reg_hw_t) / sizeof(uint32_t))
+#define AUD_PM_EQ_DAC0_COEF_BASE         ((volatile int32_t *)(SOC_AUDIO_FIFO_REG_BASE + 0x6600U))
+#define AUD_PM_EQ_DAC1_COEF_BASE         ((volatile int32_t *)(SOC_AUDIO_FIFO_REG_BASE + 0x6800U))
+
+typedef struct {
+	uint32_t magic;
+	uint32_t valid;
+	uint32_t ana_reg20;
+	uint32_t ana_reg21;
+	uint32_t ana_reg25;
+	uint32_t ana_reg27;
+	uint32_t ana_reg28;
+	uint32_t ana_reg29;
+	uint32_t ana_reg30;
+	uint32_t aud_clk_sel;
+	uint32_t aud_cken;
+	uint32_t apll_pwd;
+	uint32_t ana_reg26;   /* APLL N coefficient (frequency); needed to re-lock after power loss */
+	uint32_t audio_regs[AUD_PM_AUDIO_REG_WORDS];
+	int32_t  eq_coef_dac0[AUD_PM_EQ_COEF_NUM_PER_DAC];
+	int32_t  eq_coef_dac1[AUD_PM_EQ_COEF_NUM_PER_DAC];
+} aud_pm_backup_ctx_t;
+
+static aud_pm_backup_ctx_t s_aud_pm_backup;
+static bool s_aud_pm_power_restore_pending;
+
+/* Skip RO / status and map holes on restore write; dump still reads all. */
+static bool aud_pm_reg_skip_write(uint32_t word_idx)
+{
+	return (word_idx == 0x00) || /* device_id */
+	       (word_idx == 0x01) || /* version_id */
+	       (word_idx == 0x1e) || /* rsv hole */
+	       ((word_idx >= 0x22) && (word_idx <= 0x23)) || /* rsv hole */
+	       (word_idx == 0x24) || /* dac_ro_sts */
+	       (word_idx == 0x25) || /* adc_ro_sts */
+	       (word_idx == 0x26) || /* anc_sts */
+	       (word_idx == 0x29) || /* aud_int_sts */
+	       ((word_idx >= 0x3c) && (word_idx <= 0x3f)); /* rsv hole */
+}
+
+static void aud_pm_dump_audio_regs(uint32_t *dst)
+{
+	uint32_t i;
+
+	for (i = 0; i < AUD_PM_AUDIO_REG_WORDS; i++) {
+		dst[i] = REG_READ(SOC_AUDIO_REG_REG_BASE + (i << 2));
+	}
+}
+
+static void aud_pm_restore_audio_regs(const uint32_t *src)
+{
+	uint32_t i;
+	uint32_t val;
+
+	for (i = 0; i < AUD_PM_AUDIO_REG_WORDS; i++) {
+		if (aud_pm_reg_skip_write(i)) {
+			continue;
+		}
+		val = src[i];
+		/* sys_cfg(0x04): keep APB gate on so later REG_WRITE still work */
+		if (i == 0x04) {
+			val |= (1U << AUDIO_REG_SYS_CFG_APB_CLK_EN_DIS_POS);
+		}
+		REG_WRITE(SOC_AUDIO_REG_REG_BASE + (i << 2), val);
+	}
+}
+
+static void aud_pm_dump_eq_coef(volatile int32_t *base, int32_t *dst)
+{
+	uint32_t i;
+
+	for (i = 0; i < AUD_PM_EQ_COEF_NUM_PER_DAC; i++) {
+		dst[i] = base[i];
+	}
+}
+
+static void aud_pm_restore_eq_coef(volatile int32_t *base, const int32_t *src)
+{
+	uint32_t i;
+
+	for (i = 0; i < AUD_PM_EQ_COEF_NUM_PER_DAC; i++) {
+		base[i] = src[i];
+	}
+}
+
+static void aud_pm_clear_run_enables(void)
+{
+	audio_reg_hal_set_dac_cfg_dac_enable_l(0);
+	audio_reg_hal_set_dac_cfg_dac_enable_r(0);
+	audio_reg_hal_set_adc_cfg_adc_en(0);
+	audio_reg_hal_set_buf_ctrl_en_spk0(0);
+	audio_reg_hal_set_buf_ctrl_en_spk1(0);
+	audio_reg_hal_set_buf_ctrl_en_mic(0);
+}
+
+bool bk_aud_pm_backup_valid(void)
+{
+	return (s_aud_pm_backup.valid != 0) &&
+	       (s_aud_pm_backup.magic == AUD_PM_BACKUP_MAGIC);
+}
+
+bk_err_t bk_aud_pm_backup(void)
+{
+	if (!s_aud_driver_is_init) {
+		return BK_OK;
+	}
+
+	os_memset(&s_aud_pm_backup, 0, sizeof(s_aud_pm_backup));
+
+	s_aud_pm_backup.ana_reg20 = sys_ll_get_ana_reg20_value();
+	s_aud_pm_backup.ana_reg21 = sys_ll_get_ana_reg21_value();
+	s_aud_pm_backup.ana_reg25 = sys_ll_get_ana_reg25_value();
+	s_aud_pm_backup.ana_reg27 = sys_ll_get_ana_reg27_value();
+	s_aud_pm_backup.ana_reg28 = sys_ll_get_ana_reg28_value();
+	s_aud_pm_backup.ana_reg29 = sys_ll_get_ana_reg29_value();
+	s_aud_pm_backup.ana_reg30 = sys_ll_get_ana_reg30_value();
+
+	s_aud_pm_backup.aud_clk_sel = sys_ll_get_cpu_clk_div_mode3_cksel_audio();
+	s_aud_pm_backup.aud_cken = sys_ll_get_reserver_reg0xd_audio_cken();
+	s_aud_pm_backup.apll_pwd = sys_ll_get_ana_reg5_pwdaudpll();
+	s_aud_pm_backup.ana_reg26 = sys_ll_get_ana_reg26_value();
+
+	aud_pm_dump_audio_regs(s_aud_pm_backup.audio_regs);
+	aud_pm_dump_eq_coef(AUD_PM_EQ_DAC0_COEF_BASE, s_aud_pm_backup.eq_coef_dac0);
+	aud_pm_dump_eq_coef(AUD_PM_EQ_DAC1_COEF_BASE, s_aud_pm_backup.eq_coef_dac1);
+
+	s_aud_pm_backup.magic = AUD_PM_BACKUP_MAGIC;
+	s_aud_pm_backup.valid = 1;
+	return BK_OK;
+}
+
+bk_err_t bk_aud_pm_restore(void)
+{
+	if (!s_aud_driver_is_init) {
+		return BK_ERR_AUD_DRV_NOT_INIT;
+	}
+	if (!bk_aud_pm_backup_valid()) {
+		return BK_FAIL;
+	}
+
+	/* AUD power domain is owned by this driver, not platform common path */
+	bk_pm_module_vote_power_ctrl(PM_POWER_SUB_MODULE_NAME_AUDP_AUDIO, PM_POWER_MODULE_STATE_ON);
+	bk_pm_clock_ctrl(PM_CLK_ID_AUDIO, CLK_PWR_CTRL_PWR_UP);
+
+	sys_hal_aud_clock_en(s_aud_pm_backup.aud_cken ? 1 : 0);
+	sys_ll_set_ana_reg5_pwdaudpll(s_aud_pm_backup.apll_pwd);
+	sys_ll_set_ana_reg26_value(s_aud_pm_backup.ana_reg26);   /* restore APLL N coefficient */
+	sys_drv_aud_select_clock(s_aud_pm_backup.aud_clk_sel);
+	audio_reg_hal_set_sys_cfg_apb_clk_en_dis(1);
+
+	sys_drv_set_ana_reg25_value(s_aud_pm_backup.ana_reg25);
+	sys_drv_set_ana_reg20_value(s_aud_pm_backup.ana_reg20);
+	sys_drv_set_ana_reg21_value(s_aud_pm_backup.ana_reg21);
+	sys_drv_set_ana_reg27_value(s_aud_pm_backup.ana_reg27);
+	sys_drv_set_ana_reg28_value(s_aud_pm_backup.ana_reg28);
+	sys_drv_set_ana_reg29_value(s_aud_pm_backup.ana_reg29);
+	sys_drv_set_ana_reg30_value(s_aud_pm_backup.ana_reg30);
+
+	/* reg25 (config) and reg26 (N) are restored: re-lock the APLL if it was
+	 * powered at backup time, otherwise the mux would select a stale/unlocked PLL. */
+	if (s_aud_pm_backup.apll_pwd == 0) {
+		bk_aud_apll_spi_trigger();
+	}
+
+	aud_pm_restore_audio_regs(s_aud_pm_backup.audio_regs);
+
+	audio_reg_hal_set_sys_cfg_mem_dac_eq_sw_init(1);
+	aud_pm_restore_eq_coef(AUD_PM_EQ_DAC0_COEF_BASE, s_aud_pm_backup.eq_coef_dac0);
+	aud_pm_restore_eq_coef(AUD_PM_EQ_DAC1_COEF_BASE, s_aud_pm_backup.eq_coef_dac1);
+	audio_reg_hal_set_sys_cfg_mem_dac_eq_sw_init(0);
+
+	aud_pm_clear_run_enables();
+
+#if CONFIG_SOC_SMP
+	sys_drv_set_int_en(CPU2_CORE_ID, INT_SRC_AUDIO, 1);
+#else
+	sys_drv_set_int_en(rtos_get_core_id(), INT_SRC_AUDIO, 1);
+#endif
+
+	/* Definitive fast-boot AUD bring-up marker for application */
+	s_aud_pm_power_restore_pending = true;
+
+	/* Let streams reset software state (open_cnt etc.) */
+	bk_aud_pm_restore_notify();
+
+	return BK_OK;
+}
+
+bool bk_aud_pm_power_restore_pending(void)
+{
+	return s_aud_pm_power_restore_pending;
+}
+
+void bk_aud_pm_clear_power_restore_flag(void)
+{
+	s_aud_pm_power_restore_pending = false;
+}
+
+__attribute__((weak)) void bk_aud_pm_restore_notify(void)
+{
+}
+
+#endif /* CONFIG_SOC_BK7259 && CONFIG_AUD_PM_FAST_HOT */
