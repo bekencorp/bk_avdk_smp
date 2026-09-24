@@ -25,12 +25,14 @@
  *                   void     bk_kws_set_tflm_buf(void *buf);
  *                   uint32_t bk_kws_get_npu_scratch_size(void);
  *                   void     bk_kws_set_npu_scratch(void *buf);
+ *                   void     bk_kws_deinit(void);
  */
 extern uint32_t bk_kws_get_tflm_buf_size(void);
 extern void     bk_kws_set_tflm_buf(void *buf);
 extern uint32_t bk_kws_get_npu_scratch_size(void);
 extern void     bk_kws_set_npu_scratch(void *buf);
 extern void     bk_kws_init(void);
+extern void     bk_kws_deinit(void);
 extern int      bk_kws_is_ready(void);
 extern int      bk_kws_switch_model(int model_id);
 extern int      bk_tflite_ASR_Recog(short *buf, int buf_len,
@@ -56,11 +58,7 @@ extern int bk_kws_set_model_from_array(KWS_MODED_TYPE model_id);
 
 /* Alignment requirements specified by bk_kws.h. */
 #define KWS_ARENA_ALIGN     32u
-#if CONFIG_NPU
 #define KWS_SCRATCH_ALIGN   32u
-#else
-#define KWS_SCRATCH_ALIGN   16u
-#endif
 #define ALIGN_UP(p, a)      (((uintptr_t)(p) + ((a)-1u)) & ~((uintptr_t)((a)-1u)))
 
 /* -------- Heap-placement selectors --------------------------------------
@@ -74,29 +72,41 @@ extern int bk_kws_set_model_from_array(KWS_MODED_TYPE model_id);
 #if CONFIG_BEKEN_KWS_ARENA_USE_PSRAM
     #define KWS_ARENA_MALLOC(sz)  psram_malloc(sz)
     #define KWS_ARENA_FREE(p)     psram_free(p)
+    #define KWS_ARENA_FREE_SIZE() rtos_get_psram_free_heap_size()
     #define KWS_ARENA_HEAP_NAME   "PSRAM"
+    #define KWS_ARENA_HEAP_TAG    "P"
 #elif CONFIG_BEKEN_KWS_ARENA_USE_HSRAM
     #define KWS_ARENA_MALLOC(sz)  hsram_malloc(sz)
     #define KWS_ARENA_FREE(p)     hsram_free(p)
+    #define KWS_ARENA_FREE_SIZE() rtos_get_hsram_free_heap_size()
     #define KWS_ARENA_HEAP_NAME   "HSRAM"
+    #define KWS_ARENA_HEAP_TAG    "H"
 #else
     #define KWS_ARENA_MALLOC(sz)  os_malloc(sz)
     #define KWS_ARENA_FREE(p)     os_free(p)
+    #define KWS_ARENA_FREE_SIZE() rtos_get_free_heap_size()
     #define KWS_ARENA_HEAP_NAME   "DEFAULT"
+    #define KWS_ARENA_HEAP_TAG    "D"
 #endif
 
 #if CONFIG_BEKEN_KWS_SCRATCH_USE_PSRAM
     #define KWS_SCRATCH_MALLOC(sz)  psram_malloc(sz)
     #define KWS_SCRATCH_FREE(p)     psram_free(p)
+    #define KWS_SCRATCH_FREE_SIZE() rtos_get_psram_free_heap_size()
     #define KWS_SCRATCH_HEAP_NAME   "PSRAM"
+    #define KWS_SCRATCH_HEAP_TAG    "P"
 #elif CONFIG_BEKEN_KWS_SCRATCH_USE_HSRAM
     #define KWS_SCRATCH_MALLOC(sz)  hsram_malloc(sz)
     #define KWS_SCRATCH_FREE(p)     hsram_free(p)
+    #define KWS_SCRATCH_FREE_SIZE() rtos_get_hsram_free_heap_size()
     #define KWS_SCRATCH_HEAP_NAME   "HSRAM"
+    #define KWS_SCRATCH_HEAP_TAG    "H"
 #else
     #define KWS_SCRATCH_MALLOC(sz)  os_malloc(sz)
     #define KWS_SCRATCH_FREE(p)     os_free(p)
+    #define KWS_SCRATCH_FREE_SIZE() rtos_get_free_heap_size()
     #define KWS_SCRATCH_HEAP_NAME   "DEFAULT"
+    #define KWS_SCRATCH_HEAP_TAG    "D"
 #endif
 
 /* Caller-owned KWS buffers. Kept at module scope so we can free them later. */
@@ -143,13 +153,23 @@ int bk_tflite_asr_init(void)
     uint32_t scratch_sz = bk_kws_get_npu_scratch_size();
 
     /* Over-allocate by one alignment quantum: the heap allocators do not
-     * guarantee the 32/16-byte alignment that the KWS / NPU drivers require. */
+     * guarantee the 32-byte alignment that the KWS / NPU drivers require. */
+    uint32_t arena_free_before = KWS_ARENA_FREE_SIZE();
     s_kws_tflm_buf_owner    = KWS_ARENA_MALLOC(arena_sz     + KWS_ARENA_ALIGN);
+
+    uint32_t scratch_free_before = KWS_SCRATCH_FREE_SIZE();
     s_kws_npu_scratch_owner = KWS_SCRATCH_MALLOC(scratch_sz + KWS_SCRATCH_ALIGN);
 
+    BK_LOGD(NULL, "kws mem pre a=%s:%u/%u s=%s:%u/%u\n",
+            KWS_ARENA_HEAP_TAG,
+            (unsigned)(arena_sz + KWS_ARENA_ALIGN),
+            (unsigned)arena_free_before,
+            KWS_SCRATCH_HEAP_TAG,
+            (unsigned)(scratch_sz + KWS_SCRATCH_ALIGN),
+            (unsigned)scratch_free_before);
+
     if (s_kws_tflm_buf_owner == NULL || s_kws_npu_scratch_owner == NULL) {
-        BK_LOGE(NULL, "bk_tflite_asr_init: malloc failed: "
-                "arena=%p (%u B from %s), scratch=%p (%u B from %s)\n",
+        BK_LOGE(NULL, "kws mem fail a=%p:%u:%s s=%p:%u:%s\n",
                 s_kws_tflm_buf_owner,    (unsigned)arena_sz,   KWS_ARENA_HEAP_NAME,
                 s_kws_npu_scratch_owner, (unsigned)scratch_sz, KWS_SCRATCH_HEAP_NAME);
         bk_tflite_asr_deinit();
@@ -191,9 +211,13 @@ int bk_tflite_asr_recog(void *read_buf, uint32_t read_size, void *p1, void *p2)
 
 void bk_tflite_asr_deinit(void)
 {
-    /* Detach pointers in the KWS module first so any stray invoke after
-     * deinit hits the NULL guard inside the library instead of dereferencing
-     * freed memory. */
+    /* Release TFLM/NPU resources before detaching/freeing caller-owned
+     * arena/scratch buffers. This keeps bk_ethosu_init/deinit paired across
+     * repeated ASR page enter/exit cycles. */
+    bk_kws_deinit();
+
+    /* Detach pointers in the KWS module so any stray invoke after deinit hits
+     * the NULL guard inside the library instead of dereferencing freed memory. */
     bk_kws_set_tflm_buf(NULL);
     bk_kws_set_npu_scratch(NULL);
 
@@ -205,5 +229,10 @@ void bk_tflite_asr_deinit(void)
         KWS_SCRATCH_FREE(s_kws_npu_scratch_owner);
         s_kws_npu_scratch_owner = NULL;
     }
+
+    BK_LOGD(NULL, "kws mem post a=%s:%u s=%s:%u\n",
+            KWS_ARENA_HEAP_TAG, (unsigned)KWS_ARENA_FREE_SIZE(),
+            KWS_SCRATCH_HEAP_TAG, (unsigned)KWS_SCRATCH_FREE_SIZE());
+
     s_kws_initialized = false;
 }

@@ -4,12 +4,20 @@
 #include <components/bk_audio_asr_service.h>
 #include <components/bk_asr_service_types.h>
 #include <components/bk_asr_service.h>
+#if CONFIG_AUD_PM_FAST_COLD
+#include <modules/pm.h>
+#endif
 #if CONFIG_ADK_OBS_UTIL
 #include <components/bk_audio/audio_utils/audio_obs_util.h>
 #endif
 
 #define TAG "aud_asr"
 
+#if CONFIG_AUD_PM_FAST_COLD
+static void aud_asr_pm_notify_init(aud_asr_handle_t aud_asr_handle);
+static void aud_asr_pm_notify_start(aud_asr_handle_t aud_asr_handle);
+static void aud_asr_pm_notify_deinit(aud_asr_handle_t aud_asr_handle);
+#endif
 #if CONFIG_ADK_OBS_UTIL
 static char __maybe_unused s_aud_asr_obs_tag[] = "aud_asr";
 static char __maybe_unused s_aud_asr_obs_log_tag[] = TAG;
@@ -49,6 +57,7 @@ struct aud_asr
 	beken_semaphore_t sem;
 	uint8_t *read_buff;
 	bool running;
+	bool init_ok;                                                                  /**< set by aud_asr_task_main once the aud_asr_init() callback succeeds */
 	uint32_t max_read_size;                                                         /**< the max size of data read from asr handle, used in asr_read_callback */
 	void (*aud_asr_result_handle)(void *p1, void *p2);
 	int (*aud_asr_init)(void);
@@ -182,6 +191,7 @@ static void aud_asr_task_main(beken_thread_arg_t param_data)
 			goto aud_asr_exit;
 		}
 	}
+	aud_asr_handle->init_ok = true;
 	rtos_set_semaphore(&aud_asr_handle->sem);
 	while (1)
 	{
@@ -368,6 +378,8 @@ aud_asr_handle_t bk_aud_asr_init(aud_asr_cfg_t *cfg)
                          (beken_thread_arg_t)aud_asr_handle);
     #endif
     #else
+    /* CP has no HSRAM window, so select the stack heap from the service
+     * memory type instead of calling rtos_create_hsram_thread(). */
     if (cfg->mem_type == AUDIO_MEM_TYPE_PSRAM)
     {
         ret = rtos_create_psram_thread(&aud_asr_handle->aud_asr_task_hdl,
@@ -395,7 +407,42 @@ aud_asr_handle_t bk_aud_asr_init(aud_asr_cfg_t *cfg)
 
     rtos_get_semaphore(&aud_asr_handle->sem, BEKEN_NEVER_TIMEOUT);
 
+    if (!aud_asr_handle->init_ok)
+    {
+        BK_LOGE(TAG, "%s, %d, aud_asr_init callback failed\n", __func__, __LINE__);
+
+        rtos_deinit_semaphore(&aud_asr_handle->sem);
+        aud_asr_handle->sem = NULL;
+
+        if (aud_asr_handle->read_buff)
+        {
+            if (aud_asr_handle->mem_type == AUDIO_MEM_TYPE_PSRAM)
+            {
+                psram_free(aud_asr_handle->read_buff);
+            }
+            else
+            {
+                os_free(aud_asr_handle->read_buff);
+            }
+        }
+
+        if (aud_asr_handle->mem_type == AUDIO_MEM_TYPE_PSRAM)
+        {
+            psram_free(aud_asr_handle);
+        }
+        else
+        {
+            os_free(aud_asr_handle);
+        }
+
+        return NULL;
+    }
+
     cli_asr_dump_init();
+
+#if CONFIG_AUD_PM_FAST_COLD
+    aud_asr_pm_notify_init(aud_asr_handle);
+#endif
 
     BK_LOGD(TAG, "init aud asr task complete\n");
     return aud_asr_handle;
@@ -443,13 +490,21 @@ bk_err_t bk_aud_asr_deinit(aud_asr_handle_t aud_asr_handle)
 
     AUD_ASR_CHECK_NULL(aud_asr_handle, return ret);
 
+#if CONFIG_AUD_PM_FAST_COLD
+    aud_asr_pm_notify_deinit(aud_asr_handle);
+#endif
+
     BK_LOGD(TAG, "%s\n", __func__);
 
-    ret = aud_asr_send_msg(aud_asr_handle->aud_asr_msg_que, AUD_ASR_EXIT, NULL);
-    if (ret != BK_OK)
+    uint32_t retry = 0;
+    while ((ret = aud_asr_send_msg(aud_asr_handle->aud_asr_msg_que, AUD_ASR_EXIT, NULL)) != BK_OK)
     {
-        BK_LOGE(TAG, "%s, %d, send message: AUD_ASR_EXIT fail\n", __func__, __LINE__);
-        return ret;
+        if (++retry > 50)
+        {
+            BK_LOGE(TAG, "%s, %d, send message: AUD_ASR_EXIT keeps failing, give up\n", __func__, __LINE__);
+            return ret;
+        }
+        rtos_delay_milliseconds(2);
     }
 
     rtos_get_semaphore(&aud_asr_handle->sem, BEKEN_NEVER_TIMEOUT);
@@ -498,6 +553,9 @@ bk_err_t bk_aud_asr_start(aud_asr_handle_t aud_asr_handle)
         BK_LOGE(TAG, "%s, %d, send message: AUD_ASR_START fail\n", __func__, __LINE__);
         return ret;
     }
+#if CONFIG_AUD_PM_FAST_COLD
+    aud_asr_pm_notify_start(aud_asr_handle);
+#endif
     return ret;
 }
 
@@ -610,3 +668,129 @@ int cli_asr_dump_deinit(void)
 {
     return cli_unregister_commands(s_asr_dump_commands, ASR_DUMP_CMD_CNT);
 }
+
+#if CONFIG_AUD_PM_FAST_COLD
+static aud_asr_cfg_t s_aud_asr_pm_cfg;
+static aud_asr_handle_t s_aud_asr_pm_handle;
+static uint8_t s_aud_asr_pm_cfg_valid;
+static uint8_t s_aud_asr_pm_want_restart;
+static uint8_t s_aud_asr_pm_in_quiesce;
+static uint8_t s_aud_asr_pm_registered;
+
+static void aud_asr_pm_notify_init(aud_asr_handle_t aud_asr_handle)
+{
+    s_aud_asr_pm_handle = aud_asr_handle;
+}
+
+static void aud_asr_pm_notify_start(aud_asr_handle_t aud_asr_handle)
+{
+    if (aud_asr_handle == s_aud_asr_pm_handle && s_aud_asr_pm_cfg_valid) {
+        s_aud_asr_pm_want_restart = 1;
+    }
+}
+
+static void aud_asr_pm_notify_deinit(aud_asr_handle_t aud_asr_handle)
+{
+    if (aud_asr_handle != s_aud_asr_pm_handle) {
+        return;
+    }
+    s_aud_asr_pm_handle = NULL;
+}
+
+static bk_err_t aud_asr_pm_quiesce(void *arg)
+{
+    (void)arg;
+
+    if (!s_aud_asr_pm_handle) {
+        return BK_OK;
+    }
+
+    s_aud_asr_pm_in_quiesce = 1;
+    bk_err_t ret = bk_aud_asr_deinit(s_aud_asr_pm_handle);
+    s_aud_asr_pm_in_quiesce = 0;
+    return ret;
+}
+
+static bk_err_t aud_asr_pm_resume(void *arg)
+{
+    (void)arg;
+
+    /* Pairing for register. Recreate waits for app_resume. */
+    return BK_OK;
+}
+
+static bk_err_t aud_asr_pm_app_resume(void *arg)
+{
+    aud_asr_cfg_t *cfg = (aud_asr_cfg_t *)arg;
+
+    if (!s_aud_asr_pm_cfg_valid || !s_aud_asr_pm_want_restart) {
+        return BK_OK;
+    }
+    if (!cfg) {
+        return BK_FAIL;
+    }
+    if (s_aud_asr_pm_handle) {
+        return BK_OK;
+    }
+
+    cfg->asr_handle = bk_asr_pm_get_handle();
+    if (!cfg->asr_handle) {
+        BK_LOGE(TAG, "%s, asr handle not ready on app_resume\n", __func__);
+        return BK_FAIL;
+    }
+
+    s_aud_asr_pm_handle = bk_aud_asr_init(cfg);
+    if (!s_aud_asr_pm_handle) {
+        BK_LOGE(TAG, "%s, aud_asr init fail on app_resume\n", __func__);
+        return BK_FAIL;
+    }
+
+    if (BK_OK != bk_aud_asr_start(s_aud_asr_pm_handle)) {
+        BK_LOGE(TAG, "%s, aud_asr start fail on app_resume\n", __func__);
+        bk_aud_asr_deinit(s_aud_asr_pm_handle);
+        return BK_FAIL;
+    }
+
+    return BK_OK;
+}
+
+static const pm_ap_fast_pm_ops_t s_aud_asr_pm_ops = {
+    .name = "aud_asr",
+    .quiesce = aud_asr_pm_quiesce,
+    .resume = aud_asr_pm_resume,
+    .app_resume = aud_asr_pm_app_resume,
+    .arg = &s_aud_asr_pm_cfg,
+    .priority = (uint8_t)(PM_AP_POWER_PRIORITY_SERVICE + 10U),
+};
+
+bk_err_t bk_aud_asr_pm_save_cfg(const aud_asr_cfg_t *cfg)
+{
+    if (!cfg) {
+        return BK_FAIL;
+    }
+
+    os_memcpy(&s_aud_asr_pm_cfg, cfg, sizeof(s_aud_asr_pm_cfg));
+    s_aud_asr_pm_cfg_valid = 1;
+
+    if (!s_aud_asr_pm_registered) {
+        if (BK_OK != bk_pm_ap_fast_ops_register(&s_aud_asr_pm_ops)) {
+            BK_LOGE(TAG, "%s, register aud_asr pm ops fail\n", __func__);
+            return BK_FAIL;
+        }
+        s_aud_asr_pm_registered = 1;
+    }
+
+    return BK_OK;
+}
+
+aud_asr_handle_t bk_aud_asr_pm_get_handle(void)
+{
+    return s_aud_asr_pm_handle;
+}
+
+void bk_aud_asr_pm_clear(void)
+{
+    s_aud_asr_pm_want_restart = 0;
+    s_aud_asr_pm_cfg_valid = 0;
+}
+#endif

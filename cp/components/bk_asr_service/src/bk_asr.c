@@ -2,6 +2,9 @@
 #include "task.h"
 
 #include <os/os.h>
+#if CONFIG_AUD_PM_FAST_COLD
+#include <os/mem.h>
+#endif
 #include <modules/pm.h>
 #include <common/bk_include.h>
 #include <driver/pwr_clk.h>
@@ -9,10 +12,19 @@
 
 #include <components/bk_audio_asr_service.h>
 #include <components/bk_audio_asr_service_types.h>
+#if CONFIG_AUD_PM_FAST_COLD && CONFIG_VOICE_SERVICE
+#include <components/bk_voice_service.h>
+#endif
 #include <components/bk_audio/audio_pipeline/audio_types.h>
 #include <components/bk_audio/audio_utils/debug_dump_util.h>
 
 #define TAG "asr"
+
+#if CONFIG_AUD_PM_FAST_COLD
+static void asr_pm_notify_init(asr_handle_t asr_handle, uint8_t with_mic);
+static void asr_pm_notify_start(asr_handle_t asr_handle);
+static void asr_pm_notify_deinit(asr_handle_t asr_handle);
+#endif
 
 #define ASR_CHECK_NULL(ptr, act) do {\
         if (ptr == NULL) {\
@@ -79,6 +91,7 @@ static bk_err_t asr_pipeline_deinit(asr_handle_t asr_handle)
             BK_LOGE(TAG, "%s, %d, destroy asr pipeline fail\n", __func__, __LINE__);
             return BK_FAIL;
         }
+        asr_handle->asr_evt = NULL;
     }
 
     if (BK_OK != audio_pipeline_deinit(asr_handle->asr_pipeline))
@@ -172,6 +185,7 @@ static bk_err_t asr_pipeline_deinit_with_mic(asr_handle_t asr_handle)
             BK_LOGE(TAG, "%s, %d, destroy asr pipeline fail\n", __func__, __LINE__);
             return BK_FAIL;
         }
+        asr_handle->asr_evt = NULL;
     }
 
     if (BK_OK != audio_pipeline_deinit(asr_handle->asr_pipeline))
@@ -385,7 +399,7 @@ static bk_err_t asr_pipeline_init_with_mic(asr_handle_t asr_handle, asr_cfg_t *c
     }
     return BK_OK;
 fail:
-    asr_pipeline_deinit(asr_handle);
+    asr_pipeline_deinit_with_mic(asr_handle);
     return BK_FAIL;
 }
 
@@ -863,7 +877,8 @@ bk_err_t bk_asr_init_with_mic(asr_cfg_t *cfg, asr_handle_t asr_handle)
     asr_handle->mic_type     = cfg->mic_type;
     asr_handle->event_handle = cfg->event_handle;
 
-    //bk_pm_module_vote_cpu_freq(PM_DEV_ID_AUDIO, PM_CPU_FRQ_480M);
+    /* PM_CPU_FRQ_240M is the highest frequency CP exposes. */
+    bk_pm_module_vote_cpu_freq(PM_DEV_ID_AUDIO, PM_CPU_FRQ_240M);
     //bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_AUDP, 0, 0);
 
     //if (cfg->asr_rsp_en)
@@ -902,11 +917,15 @@ bk_err_t bk_asr_init_with_mic(asr_cfg_t *cfg, asr_handle_t asr_handle)
 
     asr_handle->status = ASR_STA_IDLE;
 
+#if CONFIG_AUD_PM_FAST_COLD
+    asr_pm_notify_init(asr_handle, 1);
+#endif
+
     return BK_OK;
 
 fail:
 
-    //bk_pm_module_vote_cpu_freq(PM_DEV_ID_AUDIO, PM_CPU_FRQ_DEFAULT);
+    bk_pm_module_vote_cpu_freq(PM_DEV_ID_AUDIO, PM_CPU_FRQ_DEFAULT);
 
     asr_listener_deinit(asr_handle);
     asr_pipeline_deinit_with_mic(asr_handle);
@@ -969,7 +988,7 @@ bk_err_t bk_asr_init(asr_cfg_t *cfg, asr_handle_t asr_handle)
 				BK_LOGE(TAG, "%s, %d, link asr_raw_read to asr_in_rb fail\n", __func__, __LINE__);
 				goto fail;
 			}
-		//	audio_element_set_input_timeout(asr_handle->asr_raw_read, 10);
+			audio_element_set_input_timeout(asr_handle->asr_raw_read, 40);
 			audio_element_run(asr_handle->asr_raw_read);
 		} else
 		{
@@ -1008,6 +1027,10 @@ bk_err_t bk_asr_init(asr_cfg_t *cfg, asr_handle_t asr_handle)
     }
 
     asr_handle->status = ASR_STA_IDLE;
+
+#if CONFIG_AUD_PM_FAST_COLD
+    asr_pm_notify_init(asr_handle, 0);
+#endif
     return BK_OK;
 
 fail:
@@ -1020,6 +1043,10 @@ fail:
     {
         audio_element_deinit(asr_handle->asr_raw_read);
         asr_handle->asr_raw_read = NULL;
+    }
+    if (asr_handle->asr_in_rb && asr_handle->mic_str)
+    {
+        audio_element_set_multi_output_port(asr_handle->mic_str, NULL, 0);
     }
     if (asr_handle->asr_in_rb)
     {
@@ -1043,6 +1070,10 @@ bk_err_t bk_asr_deinit(asr_handle_t asr_handle)
 {
     ASR_CHECK_NULL(asr_handle, return BK_FAIL);
 
+#if CONFIG_AUD_PM_FAST_COLD
+    asr_pm_notify_deinit(asr_handle);
+#endif
+
     BK_LOGD(TAG, "%s\n", __func__);
 
     if (asr_handle->status == ASR_STA_RUNNING)
@@ -1051,16 +1082,30 @@ bk_err_t bk_asr_deinit(asr_handle_t asr_handle)
     }
 
     asr_listener_stop(asr_handle);
+    asr_listener_deinit(asr_handle);
 #if (CONFIG_ASR_SERVICE_WITH_MIC)
     asr_pipeline_deinit_with_mic(asr_handle);
+    bk_pm_module_vote_cpu_freq(PM_DEV_ID_AUDIO, PM_CPU_FRQ_DEFAULT);
 #else
     asr_pipeline_deinit(asr_handle);
 #endif
     BK_LOGD(TAG, "%s, asr_pipeline deinit complete\n", __func__);
 
-    //bk_pm_module_vote_cpu_freq(PM_DEV_ID_AUDIO, PM_CPU_FRQ_DEFAULT);
 
-    asr_listener_deinit(asr_handle);
+    if (asr_handle->asr_raw_read)
+    {
+        audio_element_deinit(asr_handle->asr_raw_read);
+        asr_handle->asr_raw_read = NULL;
+    }
+    if (asr_handle->asr_in_rb && asr_handle->mic_str)
+    {
+        audio_element_set_multi_output_port(asr_handle->mic_str, NULL, 0);
+    }
+    if (asr_handle->asr_in_rb)
+    {
+        audio_port_deinit(asr_handle->asr_in_rb);
+        asr_handle->asr_in_rb = NULL;
+    }
 
     asr_handle->status = ASR_STA_NONE;
 
@@ -1114,6 +1159,10 @@ bk_err_t bk_asr_start(asr_handle_t asr_handle)
     }
 
     asr_handle->status = ASR_STA_RUNNING;
+
+#if CONFIG_AUD_PM_FAST_COLD
+    asr_pm_notify_start(asr_handle);
+#endif
     return BK_OK;
 
 fail:
@@ -1207,6 +1256,166 @@ bk_err_t bk_asr_event_handle(asr_event_handle event_handle, asr_evt_t event, voi
 {
     ASR_CHECK_NULL(event_handle, return BK_FAIL);
     return event_handle(event, param, args);
+}
+#endif
+
+#if CONFIG_AUD_PM_FAST_COLD
+static asr_cfg_t s_asr_pm_cfg;
+static asr_handle_t s_asr_pm_handle;
+static uint8_t s_asr_pm_cfg_valid;
+static uint8_t s_asr_pm_want_restart;
+static uint8_t s_asr_pm_in_quiesce;
+static uint8_t s_asr_pm_registered;
+static uint8_t s_asr_pm_with_mic;
+
+static void asr_pm_notify_init(asr_handle_t asr_handle, uint8_t with_mic)
+{
+    s_asr_pm_handle = asr_handle;
+    s_asr_pm_with_mic = with_mic;
+}
+
+static void asr_pm_notify_start(asr_handle_t asr_handle)
+{
+    if (asr_handle == s_asr_pm_handle && s_asr_pm_cfg_valid) {
+        s_asr_pm_want_restart = 1;
+    }
+}
+
+static void asr_pm_notify_deinit(asr_handle_t asr_handle)
+{
+    if (asr_handle != s_asr_pm_handle) {
+        return;
+    }
+    s_asr_pm_handle = NULL;
+}
+
+static bk_err_t asr_pm_quiesce(void *arg)
+{
+    (void)arg;
+
+    if (!s_asr_pm_handle) {
+        return BK_OK;
+    }
+
+    s_asr_pm_in_quiesce = 1;
+    bk_err_t ret = bk_asr_deinit(s_asr_pm_handle);
+    s_asr_pm_in_quiesce = 0;
+    return ret;
+}
+
+static bk_err_t asr_pm_resume(void *arg)
+{
+    (void)arg;
+
+    /* Pairing for register. Recreate waits for app_resume. */
+    return BK_OK;
+}
+
+static bk_err_t asr_pm_app_resume(void *arg)
+{
+    asr_cfg_t *cfg = (asr_cfg_t *)arg;
+
+    if (!s_asr_pm_cfg_valid || !s_asr_pm_want_restart) {
+        return BK_OK;
+    }
+    if (!cfg) {
+        return BK_FAIL;
+    }
+    if (s_asr_pm_handle) {
+        return BK_OK;
+    }
+
+    s_asr_pm_handle = bk_asr_create(cfg);
+    if (!s_asr_pm_handle) {
+        BK_LOGE(TAG, "%s, asr create fail on app_resume\n", __func__);
+        return BK_FAIL;
+    }
+
+    if (s_asr_pm_with_mic) {
+        if (BK_OK != bk_asr_init_with_mic(cfg, s_asr_pm_handle)) {
+            BK_LOGE(TAG, "%s, asr init_with_mic fail on app_resume\n", __func__);
+            s_asr_pm_handle = NULL;
+            return BK_FAIL;
+        }
+    } else {
+#if CONFIG_VOICE_SERVICE
+        voice_handle_t voc = bk_voice_pm_get_handle();
+        const voice_cfg_t *voc_cfg = bk_voice_pm_get_cfg();
+
+        if (!voc || !voc_cfg) {
+            BK_LOGE(TAG, "%s, voice not ready for asr nomic resume\n", __func__);
+            bk_asr_deinit(s_asr_pm_handle);
+            return BK_FAIL;
+        }
+        s_asr_pm_handle->mic_str =
+            (audio_element_handle_t)bk_voice_get_mic_str(voc, (voice_cfg_t *)voc_cfg);
+        if (BK_OK != bk_asr_init(cfg, s_asr_pm_handle)) {
+            BK_LOGE(TAG, "%s, asr init fail on app_resume\n", __func__);
+            s_asr_pm_handle = NULL;
+            return BK_FAIL;
+        }
+#else
+        BK_LOGE(TAG, "%s, nomic asr resume needs voice service\n", __func__);
+        bk_asr_deinit(s_asr_pm_handle);
+        return BK_FAIL;
+#endif
+    }
+
+    if (BK_OK != bk_asr_start(s_asr_pm_handle)) {
+        BK_LOGE(TAG, "%s, asr start fail on app_resume\n", __func__);
+        bk_asr_deinit(s_asr_pm_handle);
+        return BK_FAIL;
+    }
+
+    return BK_OK;
+}
+
+static const pm_ap_fast_pm_ops_t s_asr_pm_ops = {
+    .name = "asr",
+    .quiesce = asr_pm_quiesce,
+    .resume = asr_pm_resume,
+    .app_resume = asr_pm_app_resume,
+    .arg = &s_asr_pm_cfg,
+    .priority = PM_AP_POWER_PRIORITY_SERVICE,
+};
+
+bk_err_t bk_asr_pm_save_cfg(const asr_cfg_t *cfg)
+{
+    if (!cfg) {
+        return BK_FAIL;
+    }
+
+    os_memcpy(&s_asr_pm_cfg, cfg, sizeof(s_asr_pm_cfg));
+    s_asr_pm_cfg_valid = 1;
+
+    if (!s_asr_pm_registered) {
+        if (BK_OK != bk_pm_ap_fast_ops_register(&s_asr_pm_ops)) {
+            BK_LOGE(TAG, "%s, register asr pm ops fail\n", __func__);
+            return BK_FAIL;
+        }
+        s_asr_pm_registered = 1;
+    }
+
+    return BK_OK;
+}
+
+const asr_cfg_t *bk_asr_pm_get_cfg(void)
+{
+    if (!s_asr_pm_cfg_valid) {
+        return NULL;
+    }
+    return &s_asr_pm_cfg;
+}
+
+asr_handle_t bk_asr_pm_get_handle(void)
+{
+    return s_asr_pm_handle;
+}
+
+void bk_asr_pm_clear(void)
+{
+    s_asr_pm_want_restart = 0;
+    s_asr_pm_cfg_valid = 0;
 }
 #endif
 
