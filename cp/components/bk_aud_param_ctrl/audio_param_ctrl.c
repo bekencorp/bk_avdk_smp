@@ -8,6 +8,9 @@
 #if CONFIG_ADK_ONBOARD_SPEAKER_STREAM_V2
 #include <components/bk_audio/audio_streams/onboard_speaker_stream_v2.h>
 #endif
+#if CONFIG_AUD_DAC_DRC
+#include <driver/aud_dac_drc.h>
+#endif
 #if CONFIG_ADK_AEC_V3_ALGORITHM_COMPONENT_V2
 #include <components/bk_audio/audio_algorithms/aec_v3_algorithm_v2.h>
 #endif
@@ -345,6 +348,9 @@ bk_err_t bk_app_aud_service_bind(app_aud_service_type_t service_type,
     if (para->aec_v3_config.app_aec_en) {
         bk_app_update_aud_aec_v3_config(&para->aec_v3_config, service_type);
     }
+    if (para->drc_config.app_drc_en) {
+        bk_app_update_aud_drc_config(&para->drc_config, service_type);
+    }
     if (service_type == AUD_SERVICE_SINGLE_MIC) {
         if (para->eq_ul_config.app_eq_en) {
             bk_app_update_aud_eq_config(&para->eq_ul_config, service_type);
@@ -505,5 +511,38 @@ void bk_app_load_aud_eq_config(app_eq_load_t *eq_load, app_aud_service_type_t se
     }
     aud_param_unlock();
 #endif
+}
+
+void bk_app_update_aud_drc_config(app_aud_drc_config_t *drc_config, app_aud_service_type_t service_type)
+{
+    AUDIO_PARAM_CHECK_NULL(drc_config, return);
+    AUDIO_PARAM_CHECK_TYPE(service_type, return);
+
+#if CONFIG_AUD_DAC_DRC
+    /* app_drc_en is audio_param policy; driver cfg has no enable field */
+    if (!drc_config->app_drc_en) {
+        return;
+    }
+
+    aud_param_lock();
+    if (bk_aud_dac_drc_apply_param_cfg(&drc_config->param) != BK_OK) {
+        LOGE("%s, apply param_cfg fail (service=%d mode=%d)\n",
+             __func__, (int)service_type, (int)drc_config->param.mode);
+    }
+    aud_param_unlock();
+#else
+    (void)drc_config;
+    (void)service_type;
+    LOGW("%s, CONFIG_AUD_DAC_DRC disabled\n", __func__);
+#endif
+}
+
+void bk_app_load_aud_drc_config(app_aud_drc_config_t *drc_config, app_aud_service_type_t service_type)
+{
+    AUDIO_PARAM_CHECK_NULL(drc_config, return);
+    AUDIO_PARAM_CHECK_TYPE(service_type, return);
+    /* HW has no readback of k/p/st; caller should keep the last applied table. */
+    (void)drc_config;
+    (void)service_type;
 }
 
