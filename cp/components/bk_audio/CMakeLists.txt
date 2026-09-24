@@ -22,10 +22,7 @@ set(srcs)
 set(priv_requires bk_common driver)
 
 if (CONFIG_ADK)
-	list(APPEND srcs
-		audio_osi_wrapper.c
-	)
-	list(APPEND priv_requires audio_pipeline audio_osi)
+	list(APPEND priv_requires audio_pipeline)
 endif()
 
 if (CONFIG_ADK_RAW_STREAM)
