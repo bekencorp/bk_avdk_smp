@@ -41,9 +41,17 @@ typedef struct
     int                     task_core;          /*!< Task running in core (0 or 1) */
     int                     task_prio;          /*!< Task priority (based on freeRTOS priority) */
     uint32_t                ch_bitmap;          /*!< Active adc channel bitmap,bit[x]:0:ch_x inactive;1:ch_x active */
+    uint8_t                 hw_ref_ch;          /*!< in-channel hardware reference: the ADC channel (AUD_ADC_CHL_x, must be
+                                                     set in ch_bitmap) whose lane carries the loopback reference signal. This is
+                                                     an uplink-geometry hint (NOT an ADC register): it only applies to plain hw
+                                                     loopback where adc_cfg.aec_en==0 (the ref rides a real ADC channel rather
+                                                     than being appended). Default ONBOARD_MIC_HW_REF_CH_NONE = no in-channel ref. */
+    uint32_t               reserved[4];
 } onboard_mic_stream_cfg_t;
 
-
+/* Sentinel for onboard_mic_stream_cfg_t.hw_ref_ch: no in-channel hardware
+ * reference. Use this (not 0) as the "disabled" value, since 0/1/2 is a valid ADC channel. */
+#define ONBOARD_MIC_HW_REF_CH_NONE   (0xFF)
 
 #define ONBOARD_MIC_STREAM_TASK_STACK          (1024)
 #define ONBOARD_MIC_STREAM_TASK_CORE           (1)
@@ -103,6 +111,7 @@ typedef struct
     .task_core  = ONBOARD_MIC_STREAM_TASK_CORE,                         \
     .task_prio  = ONBOARD_MIC_STREAM_TASK_PRIO,                         \
     .ch_bitmap  = ONBOARD_MIC_ADC_DEFAULT_ACTIVE_CH_BITS,               \
+    .hw_ref_ch  = ONBOARD_MIC_HW_REF_CH_NONE,                           \
 }
 
 /**

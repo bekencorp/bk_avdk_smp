@@ -235,6 +235,65 @@ bk_err_t bk_aud_apll_spi_trigger(void);
 void bk_aud_hardware_reset(void);
 
 void bk_aud_hardware_reset_release(void);
+
+#if CONFIG_AUD_PM_FAST_HOT
+/**
+ * @brief Backup AUD digital regs + related ANA/clock context before AUDP / CPU-down.
+ *
+ * Only available when CONFIG_AUD_PM_FAST_HOT=y.
+ * Saves audio_reg block, ANA20/21/25/27-30, APLL/aud clock selects, and HW EQ
+ * coefficient memory. Does not touch DMA (platform owns bk_dma_pm_*).
+ * No-op with BK_OK if AUD driver is not initialized.
+ *
+ * @return
+ *    - BK_OK: succeed
+ *    - others: other errors.
+ */
+bk_err_t bk_aud_pm_backup(void);
+
+/**
+ * @brief Restore AUD context after AP fast resume.
+ *
+ * Only available when CONFIG_AUD_PM_FAST_HOT=y.
+ * Votes AUDP_AUDIO power + AUDIO clock on, then restores ANA / digital regs /
+ * EQ coef and clears DAC/ADC/buf run enables so service open can re-arm.
+ * Ends by calling bk_aud_pm_restore_notify() so audio components can reset
+ * software state (e.g. spk open_cnt), and sets the power-restore pending
+ * flag for the application. Does not touch DMA / GPIO.
+ *
+ * @return
+ *    - BK_OK: succeed
+ *    - BK_ERR_AUD_DRV_NOT_INIT: driver not init
+ *    - BK_FAIL: no valid backup
+ */
+bk_err_t bk_aud_pm_restore(void);
+
+/**
+ * @brief Component hook after AUD PM restore (weak default is empty).
+ *
+ * Overridden by audio streams (e.g. onboard speaker) to clear open_cnt /
+ * stop stale DMA software state. Invoked only from bk_aud_pm_restore().
+ */
+void bk_aud_pm_restore_notify(void);
+
+/**
+ * @brief Whether bk_aud_pm_restore() has run and app has not acked yet.
+ *
+ * Application may use this before starting services (e.g. pipeline reset_port).
+ * Cleared by bk_aud_pm_clear_power_restore_flag() after all services are up.
+ */
+bool bk_aud_pm_power_restore_pending(void);
+
+/**
+ * @brief Ack fast-boot AUD restore; call after application finished starting services.
+ */
+void bk_aud_pm_clear_power_restore_flag(void);
+
+/**
+ * @brief Whether a valid AUD PM backup exists.
+ */
+bool bk_aud_pm_backup_valid(void);
+#endif /* CONFIG_AUD_PM_FAST_HOT */
 #endif
 /**
  * @}

@@ -49,6 +49,17 @@ typedef void (*onboard_speaker_status_cb_t)(audio_element_handle_t onboard_speak
                                             void *user_data);
 
 /**
+ * @brief   External-amp PA control parameters (alias of the canonical
+ *          aud_pa_ctrl_t defined in driver/aud_dac_types.h).
+ *
+ * Lets upper layers (local music, A2DP, HFP) pass PA config as one unit.
+ * GPIO id / polarity are board-specific and owned by the product layer.
+ */
+typedef aud_pa_ctrl_t onboard_speaker_pa_ctrl_t;
+
+#define DEFAULT_ONBOARD_SPEAKER_PA_CTRL() DEFAULT_AUD_PA_CTRL()
+
+/**
  * @brief   Onboard Speaker Stream configurations, if any entry is zero then the configuration will be set to default values
  */
 typedef struct
@@ -58,6 +69,13 @@ typedef struct
     uint32_t                sample_rate[AUD_DAC_SOURCE_MAX];/*!< speaker sample rate */
     float                   dig_gain;           /*!< audio dac digital gain in dB */
     int32_t                 ana_gain;           /*!< audio dac analog gain in dB (integer step) */
+    /**
+     * A2DP-path HW DRC. When a2dp_drc_en!=0, a2dp_drc (Preset/L2/raw) is
+     * applied at DAC init; otherwise HW DRC is bypassed.
+     * CALL/HINT do not go through HW DRC.
+     */
+    uint8_t                 a2dp_drc_en;
+    aud_dac_drc_param_cfg_t   a2dp_drc;
     aud_dac_work_mode_t     work_mode;          /*!< audio dac mode: signal_ended/differen */
     uint8_t                 bits;               /*!< Bit wide (8, 16, 24, 32 bits) */
     aud_clk_t               clk_src;            /*!< audio clock: XTAL(26MHz)/APLL */
@@ -83,7 +101,7 @@ typedef struct
     void                    *status_cb_user_data;/*!< user data of status callback */
 } onboard_speaker_stream_cfg_t;
 
-#define ONBOARD_SPEAKER_STREAM_TASK_STACK          (1536)
+#define ONBOARD_SPEAKER_STREAM_TASK_STACK          (2048)
 #define ONBOARD_SPEAKER_STREAM_TASK_CORE           (1)
 #define ONBOARD_SPEAKER_STREAM_TASK_PRIO           (3)
 
@@ -112,6 +130,8 @@ typedef struct
         .sample_rate[2] = 16000,                               \
         .dig_gain = -7.0f,                                     \
         .ana_gain = 4,                                         \
+        .a2dp_drc_en = 0,                                      \
+        .a2dp_drc = AUD_DAC_DRC_PARAM_CFG_OFF(),                 \
         .work_mode = AUD_DAC_WORK_MODE_DIFFEN,                 \
         .bits = 16,                                            \
         .clk_src = AUD_CLK_APLL,                               \
@@ -220,7 +240,7 @@ bk_err_t onboard_speaker_stream_get_input_port_info_by_port_id(audio_element_han
 
 /**
  * @brief      Set input audio port info.
- * @note       Do not call set_input_port_info in audio_port_info_t->notify_cb.
+ * @note       Do not call set_input_port_info in audio_port_info_t->notify_cb. 
  *             Because the callback function is called in the context of the audio port, and the mutex lock is not allowed to be used in the callback function.
  *
  * @param[in]      onboard_speaker_stream  element handle
@@ -231,6 +251,20 @@ bk_err_t onboard_speaker_stream_get_input_port_info_by_port_id(audio_element_han
  *                 - other: failed
  */
 bk_err_t onboard_speaker_stream_set_input_port_info(audio_element_handle_t onboard_speaker_stream, audio_port_info_t *port_info);
+
+/**
+ * @brief      Update the sample rate of a single auxiliary (non-main) DAC source.
+ *
+ * @param[in]      onboard_speaker_stream  element handle
+ * @param[in]      dma_src   auxiliary DAC source (must not be the main source)
+ * @param[in]      rate      new PCM sample rate for this source
+ * @param[in]      frame_ms  per-source frame/DMA-period duration in ms (> 0)
+ *
+ * @return         Result
+ *                 - BK_OK: success
+ *                 - other: failed
+ */
+bk_err_t onboard_speaker_stream_set_aux_format(audio_element_handle_t onboard_speaker_stream, aud_dac_source_t dma_src, int rate, int frame_ms);
 #endif
 
 /**
@@ -268,6 +302,23 @@ bk_err_t onboard_speaker_stream_get_analog_gain(audio_element_handle_t onboard_s
  *                 - other: failed
  */
 bk_err_t onboard_speaker_stream_get_status(audio_element_handle_t onboard_speaker_stream, onboard_speaker_stream_status_t *status);
+
+
+#if CONFIG_AUD_PM_FAST_HOT
+/**
+ * @brief Optional enter-path helper: dma_stop + open_cnt=0 before AUDP off.
+ *
+ * Prefer relying on bk_aud_pm_restore() -> bk_aud_pm_restore_notify() to clear
+ * open_cnt after fast boot. Use this only when DMA must be stopped while the
+ * AUD domain is still powered. Not for normal pause/close.
+ *
+ * @param[in] onboard_speaker_stream  element handle
+ *
+ * @return BK_OK on success, otherwise fail
+ */
+bk_err_t onboard_speaker_stream_pm_prepare_powerdown(audio_element_handle_t onboard_speaker_stream);
+#endif
+
 
 #ifdef __cplusplus
 }

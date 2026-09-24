@@ -28,7 +28,7 @@ typedef enum {
 
 /**
  * A2DP HW DRC parameter block (Preset / L2 / raw 8-seg).
- * Pure DRC params - no "enable" flag. Calling
+ * Pure DRC params — no "enable" flag. Calling
  * bk_aud_dac_drc_apply_param_cfg() applies immediately; upper layers
  * (a2dp_drc_en / app_drc_en) only gate whether they call it.
  *

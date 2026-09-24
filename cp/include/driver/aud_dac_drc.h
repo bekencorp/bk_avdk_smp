@@ -18,7 +18,7 @@ extern "C" {
 /**
  * @brief DAC A2DP-path hardware DRC APIs
  *
- * HW path: spk_a2dp -> Resample -> EQ -> DRC -> Mix.
+ * HW path: spk_a2dp → Resample → EQ → DRC → Mix.
  * Only AUD_DAC_SOURCE_A2DP goes through DRC; CALL / HINT mix after DRC
  * and are NOT compressed by these APIs.
  *
@@ -50,7 +50,7 @@ extern "C" {
  *   - mode=2: fill k_val / p_reg / st_val yourself (expert 8-seg)
  *
  * @param cfg parameter block; must not be NULL
- *            mode 0 -> preset, 1 -> L2, 2 -> raw 8-seg (see types)
+ *            mode 0 → preset, 1 → L2, 2 → raw 8-seg (see types)
  *
  * @return
  *    - BK_OK: succeed

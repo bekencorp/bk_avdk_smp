@@ -1,6 +1,7 @@
 armino_build_get_property(target ARMINO_SOC)
 
 armino_component_register(INCLUDE_DIRS .
+	modules/fdk_aac_enc
 	modules/securityip
 	modules/freetype
 	soc/${target}

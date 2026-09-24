@@ -126,6 +126,13 @@ bk_err_t bk_player_get_spkstr(bk_player_handle_t player_handle, audio_element_ha
  */
 bk_err_t bk_player_get_spkstr_type(bk_player_handle_t player_handle, spk_type_t *spk_type);
 
+#if CONFIG_AUD_PM_FAST_COLD
+bk_err_t bk_player_pm_save_cfg(const bk_player_cfg_t *cfg);
+bk_err_t bk_player_pm_save_play_info(const player_uri_info_t *uri, audio_dec_type_t dec_type);
+bk_player_handle_t bk_player_pm_get_handle(void);
+void bk_player_pm_clear(void);
+#endif
+
 #ifdef  __cplusplus
 }
 #endif//__cplusplus
