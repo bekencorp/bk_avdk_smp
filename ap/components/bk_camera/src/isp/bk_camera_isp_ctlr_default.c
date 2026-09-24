@@ -1019,6 +1019,102 @@ static avdk_err_t isp_camera_ctlr_ioctl(bk_isp_camera_ctlr_handle_t handle, bk_c
                                          (const bk_isp_camera_exposure_attr_t *)arg),
                 TAG, "set exposure attr failed");
             break;
+        case BK_CAM_IOCTL_FRAME_PORT_GET:
+        {
+            bk_isp_camera_frame_port_query_t *query =
+                (bk_isp_camera_frame_port_query_t *)arg;
+            AVDK_RETURN_ON_FALSE(
+                query, AVDK_ERR_INVAL, TAG, "frame port query is NULL");
+            bk_err_t isp_ret = bk_isp_frame_port_get(
+                &controller->isp_handle, query->channel,
+                query->sequence, &query->port_id);
+            if (isp_ret != BK_OK)
+            {
+                return AVDK_ERR_GENERIC;
+            }
+            break;
+        }
+
+        case BK_CAM_IOCTL_REGISTER_ISR_CALLBACK:
+        {
+            bk_isp_camera_isr_callback_config_t *cfg =
+                (bk_isp_camera_isr_callback_config_t *)arg;
+            AVDK_RETURN_ON_FALSE(
+                cfg && cfg->callback && cfg->arg,
+                AVDK_ERR_INVAL, TAG, "ISR callback config is invalid");
+            return isp_camera_ctlr_register_isr_callback(
+                handle, cfg->type, cfg->callback, cfg->arg);
+        }
+
+        case BK_CAM_IOCTL_DEREGISTER_ISR_CALLBACK:
+        {
+            bk_isp_camera_isr_callback_config_t *cfg =
+                (bk_isp_camera_isr_callback_config_t *)arg;
+            AVDK_RETURN_ON_FALSE(
+                cfg && cfg->arg,
+                AVDK_ERR_INVAL, TAG, "ISR callback config is invalid");
+            return isp_camera_ctlr_deregister_isr_callback(
+                handle, cfg->type, cfg->arg);
+        }
+
+        case BK_CAM_IOCTL_REGISTER_PIPELINE_DONE_CALLBACK:
+        {
+            bk_isp_camera_pipeline_callback_config_t *cfg =
+                (bk_isp_camera_pipeline_callback_config_t *)arg;
+            AVDK_RETURN_ON_FALSE(
+                cfg && cfg->callback && cfg->arg,
+                AVDK_ERR_INVAL, TAG, "pipeline callback config is invalid");
+            bk_err_t isp_ret = bk_isp_register_3a_done_callback(
+                &controller->isp_handle,
+                (isp_3a_done_cb_t)cfg->callback, cfg->arg);
+            return (isp_ret == BK_OK) ? AVDK_ERR_OK : AVDK_ERR_GENERIC;
+        }
+
+        case BK_CAM_IOCTL_DEREGISTER_PIPELINE_DONE_CALLBACK:
+        {
+            bk_isp_camera_pipeline_callback_config_t *cfg =
+                (bk_isp_camera_pipeline_callback_config_t *)arg;
+            AVDK_RETURN_ON_FALSE(
+                cfg && cfg->callback && cfg->arg,
+                AVDK_ERR_INVAL, TAG, "pipeline callback config is invalid");
+            bk_err_t isp_ret = bk_isp_deregister_3a_done_callback(
+                &controller->isp_handle,
+                (isp_3a_done_cb_t)cfg->callback, cfg->arg);
+            return (isp_ret == BK_OK) ? AVDK_ERR_OK : AVDK_ERR_GENERIC;
+        }
+
+        case BK_CAM_IOCTL_IS_IN_VBLANK:
+        {
+            bk_isp_camera_vblank_state_t *state =
+                (bk_isp_camera_vblank_state_t *)arg;
+            AVDK_RETURN_ON_FALSE(
+                state, AVDK_ERR_INVAL, TAG, "vblank state is NULL");
+            state->in_vblank =
+                bk_isp_is_in_vblank(&controller->isp_handle) ? 1U : 0U;
+            break;
+        }
+
+        case BK_CAM_IOCTL_SET_ISP_SWITCH_MODULE_MASK:
+        {
+            AVDK_RETURN_ON_FALSE(
+                arg, AVDK_ERR_INVAL, TAG, "switch module mask is NULL");
+            bk_err_t isp_ret = bk_isp_switch_module_mask_set(
+                &controller->isp_handle, *(const uint32_t *)arg);
+            return (isp_ret == BK_OK) ? AVDK_ERR_OK : AVDK_ERR_GENERIC;
+        }
+
+        case BK_CAM_IOCTL_SET_SENSOR_UPDATE_MODE:
+        {
+            bk_isp_camera_sensor_update_mode_t *mode =
+                (bk_isp_camera_sensor_update_mode_t *)arg;
+            AVDK_RETURN_ON_FALSE(
+                mode && *mode <= BK_ISP_CAMERA_SENSOR_UPDATE_AT_FRAME_IN,
+                AVDK_ERR_INVAL, TAG, "sensor update mode is invalid");
+            bk_err_t isp_ret = bk_isp_sensor_update_mode_set(
+                &controller->isp_handle,
+                (bk_isp_sensor_update_mode_t)*mode);
+            return (isp_ret == BK_OK) ? AVDK_ERR_OK : AVDK_ERR_GENERIC;
+        }
 
         default:
             return AVDK_ERR_INVAL;
