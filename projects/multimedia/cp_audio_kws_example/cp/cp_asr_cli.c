@@ -5,6 +5,7 @@
 #include <os/str.h>
 #include "cli.h"
 #include "bk_private/bk_cli.h"
+#include "cp_audio_res.h"
 
 #include <driver/aud_adc_types.h>
 #include <components/bk_audio_asr_service.h>
@@ -119,6 +120,7 @@ int doorbell_asr_turn_off(void)
 	}
 
 	s_cp_asr.enabled = false;
+	cp_aud_mic_release(CP_AUD_OWNER_ASR);
 	os_printf("cp_asr turn_off done\r\n");
 	return BK_OK;
 }
@@ -136,6 +138,10 @@ static int cp_asr_turn_on(uint32_t aec, uint32_t sample_rate, uint8_t asr_en)
 
 	if (sample_rate != 8000 && sample_rate != 16000) {
 		os_printf("cp_asr unsupported sample_rate=%u\r\n", sample_rate);
+		return BK_FAIL;
+	}
+
+	if (BK_OK != cp_aud_mic_acquire(CP_AUD_OWNER_ASR)) {
 		return BK_FAIL;
 	}
 
@@ -168,6 +174,7 @@ static int cp_asr_turn_on(uint32_t aec, uint32_t sample_rate, uint8_t asr_en)
 	s_cp_asr.asr_handle = bk_asr_create(&asr_cfg);
 	if (!s_cp_asr.asr_handle) {
 		os_printf("cp_asr bk_asr_create failed\r\n");
+		cp_aud_mic_release(CP_AUD_OWNER_ASR);
 		return BK_FAIL;
 	}
 
@@ -175,6 +182,7 @@ static int cp_asr_turn_on(uint32_t aec, uint32_t sample_rate, uint8_t asr_en)
 	if (ret != BK_OK) {
 		os_printf("cp_asr bk_asr_init_with_mic failed: %d\r\n", ret);
 		(void)doorbell_asr_turn_off();
+		cp_aud_mic_release(CP_AUD_OWNER_ASR);
 		return BK_FAIL;
 	}
 
@@ -191,6 +199,7 @@ static int cp_asr_turn_on(uint32_t aec, uint32_t sample_rate, uint8_t asr_en)
 	if (!s_cp_asr.aud_asr_handle) {
 		os_printf("cp_asr bk_aud_asr_init failed\r\n");
 		(void)doorbell_asr_turn_off();
+		cp_aud_mic_release(CP_AUD_OWNER_ASR);
 		return BK_FAIL;
 	}
 
@@ -198,6 +207,7 @@ static int cp_asr_turn_on(uint32_t aec, uint32_t sample_rate, uint8_t asr_en)
 	if (ret != BK_OK) {
 		os_printf("cp_asr bk_asr_start failed: %d\r\n", ret);
 		(void)doorbell_asr_turn_off();
+		cp_aud_mic_release(CP_AUD_OWNER_ASR);
 		return BK_FAIL;
 	}
 
@@ -205,6 +215,7 @@ static int cp_asr_turn_on(uint32_t aec, uint32_t sample_rate, uint8_t asr_en)
 	if (ret != BK_OK) {
 		os_printf("cp_asr bk_aud_asr_start failed: %d\r\n", ret);
 		(void)doorbell_asr_turn_off();
+		cp_aud_mic_release(CP_AUD_OWNER_ASR);
 		return BK_FAIL;
 	}
 

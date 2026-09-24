@@ -11,6 +11,7 @@
 #include <components/bk_audio/audio_decoders/g711_decoder.h>
 #include <components/bk_audio/audio_streams/raw_stream.h>
 #include <components/bk_audio/audio_streams/onboard_speaker_stream_v2.h>
+#include "cp_audio_res.h"
 
 #define CP_PROMPT_SAMPLE_RATE       16000u
 #define CP_PROMPT_FRAME_MS          20u
@@ -207,8 +208,13 @@ static bk_err_t cp_prompt_play_array(uint32_t duration_ms)
 		return BK_FAIL;
 	}
 
+	if (BK_OK != cp_aud_spk_acquire(CP_AUD_OWNER_PROMPT)) {
+		return BK_FAIL;
+	}
+
 	ret = cp_prompt_player_init(&player);
 	if (ret != BK_OK) {
+		cp_aud_spk_release(CP_AUD_OWNER_PROMPT);
 		return ret;
 	}
 
@@ -216,6 +222,7 @@ static bk_err_t cp_prompt_play_array(uint32_t duration_ms)
 	ret = cp_prompt_write_array_g711a(player.raw_write, duration_ms);
 	rtos_delay_milliseconds(duration_ms + 100);
 	cp_prompt_player_cleanup(&player);
+	cp_aud_spk_release(CP_AUD_OWNER_PROMPT);
 	os_printf("cp_prompt array g711a playback done: ret=%d\r\n", ret);
 	return ret;
 }

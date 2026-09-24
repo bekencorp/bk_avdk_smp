@@ -18,6 +18,7 @@
 
 #include <components/bk_voice_service.h>
 #include <components/bk_voice_service_types.h>
+#include "cp_audio_res.h"
 #include <components/bk_voice_read_service.h>
 #include <components/bk_voice_read_service_types.h>
 #include <components/bk_voice_write_service.h>
@@ -43,6 +44,7 @@
 #define CLI_CMD_RSP_ERROR                 "CMDRSP:ERROR\r\n"
 
 voice_handle_t gl_voice_service_handle = NULL;
+static bool gl_voice_res_held = false;
 static voice_read_handle_t gl_voice_read_service_handle = NULL;
 static voice_write_handle_t gl_voice_write_service_handle = NULL;
 static beken_semaphore_t voice_start_sem = NULL;
@@ -138,6 +140,18 @@ void cli_voice_service_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int ar
             LOGE("%s, %d, agc: %d not right\n", __func__, __LINE__, argc);
             goto exit;
         }
+
+        /* voice_service builds both the onboard speaker and the onboard mic. */
+        if (BK_OK != cp_aud_spk_acquire(CP_AUD_OWNER_VOICE_SERVICE))
+        {
+            goto exit;
+        }
+        if (BK_OK != cp_aud_mic_acquire(CP_AUD_OWNER_VOICE_SERVICE))
+        {
+            cp_aud_spk_release(CP_AUD_OWNER_VOICE_SERVICE);
+            goto exit;
+        }
+        gl_voice_res_held = true;
 
         voice_cfg_t voice_cfg = {0};
         aec_mode = os_strtoul(argv[4], NULL, 10);
@@ -580,6 +594,13 @@ exit:
     gl_voice_write_service_handle = NULL;
     gl_voice_service_handle  = NULL;
     gl_voice_spk_stereo_dup = false;
+
+    if (gl_voice_res_held)
+    {
+        cp_aud_mic_release(CP_AUD_OWNER_VOICE_SERVICE);
+        cp_aud_spk_release(CP_AUD_OWNER_VOICE_SERVICE);
+        gl_voice_res_held = false;
+    }
 
     os_memcpy(pcWriteBuffer, msg, os_strlen(msg));
 }

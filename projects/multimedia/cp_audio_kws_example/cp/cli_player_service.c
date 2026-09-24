@@ -15,10 +15,11 @@
 #include <os/os.h>
 #include <components/log.h>
 #include "cli.h"
+#include "cp_audio_res.h"
 
 #include <components/bk_player_service.h>
 #include <components/bk_player_service_types.h>
-#include "prompt_tone_test.h"
+#include "hint_prompt_clips.h"
 
 #if CONFIG_VOICE_SERVICE_TEST
 #include <components/bk_voice_service.h>
@@ -282,6 +283,13 @@ void cli_player_service_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int a
 
             if(!play_back_start_flag)
             {
+                /* playback builds its own onboard speaker, so it must own the DAC. */
+                if (BK_OK != cp_aud_spk_acquire(CP_AUD_OWNER_PLAYER_SERVICE))
+                {
+                    os_memcpy(pcWriteBuffer, msg, os_strlen(msg));
+                    return;
+                }
+
                 bk_player_cfg_t player_cfg = DEFAULT_PLAYER_WITH_PLAYBACK_CONFIG();
                 #if CONFIG_ADK_ONBOARD_SPEAKER_STREAM_V2
                 for(uint32_t i = 0; i < AUD_DAC_SOURCE_MAX; i++)
@@ -307,6 +315,7 @@ void cli_player_service_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int a
                 if (!gl_player_handle)
                 {
                     LOGE("%s, %d, bk_player_init fail\n", __func__, __LINE__);
+                    cp_aud_spk_release(CP_AUD_OWNER_PLAYER_SERVICE);
                     os_memcpy(pcWriteBuffer, msg, os_strlen(msg));
                     return;
                 }
@@ -319,19 +328,19 @@ void cli_player_service_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int a
                 if (array_id == 0)
                 {
                     uri_info.uri = (char *)asr_wakeup_prompt_tone_array;
-                    uri_info.total_len = sizeof(asr_wakeup_prompt_tone_array);
+                    uri_info.total_len = asr_wakeup_prompt_tone_array_len;
                     bk_player_set_decode_type(gl_player_handle, AUDIO_DEC_TYPE_PCM);
                 }
                 else if (array_id == 1)
                 {
                     uri_info.uri = (char *)network_provision_prompt_tone_array;
-                    uri_info.total_len = sizeof(network_provision_prompt_tone_array);
+                    uri_info.total_len = network_provision_prompt_tone_array_len;
                     bk_player_set_decode_type(gl_player_handle, AUDIO_DEC_TYPE_MP3);
                 }
                 else if (array_id == 2)
                 {
                     uri_info.uri = (char *)low_voltage_prompt_tone_array;
-                    uri_info.total_len = sizeof(low_voltage_prompt_tone_array);
+                    uri_info.total_len = low_voltage_prompt_tone_array_len;
                     bk_player_set_decode_type(gl_player_handle, AUDIO_DEC_TYPE_WAV);
                 }
                 else
@@ -379,6 +388,10 @@ void cli_player_service_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int a
         else if (os_strcmp(argv[2], "stop") == 0)
         {
             msg = CLI_CMD_RSP_SUCCEED;
+            if (play_back_start_flag)
+            {
+                cp_aud_spk_release(CP_AUD_OWNER_PLAYER_SERVICE);
+            }
             play_back_start_flag = 0;
             goto exit;
         }
@@ -407,9 +420,18 @@ void cli_player_service_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int a
                 return;
             }
 
+            /* prompt_tone uses DEFAULT_PLAYER_NOT_PLAYBACK_CONFIG(): it builds no
+             * speaker of its own and rides the one voice_service owns. */
             if (!gl_voice_service_handle)
             {
                 LOGE("%s, %d, start voice_service before prompt_tone\n", __func__, __LINE__);
+                goto exit;
+            }
+
+            if (!cp_aud_spk_owned_by(CP_AUD_OWNER_VOICE_SERVICE))
+            {
+                LOGE("%s, %d, prompt_tone needs voice_service to own the speaker, owner=%s\n",
+                     __func__, __LINE__, cp_aud_spk_owner() ? cp_aud_spk_owner() : "none");
                 goto exit;
             }
 
@@ -461,19 +483,19 @@ void cli_player_service_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int a
                 if (array_id == 0)
                 {
                     uri_info.uri = (char *)asr_wakeup_prompt_tone_array;
-                    uri_info.total_len = sizeof(asr_wakeup_prompt_tone_array);
+                    uri_info.total_len = asr_wakeup_prompt_tone_array_len;
                     bk_player_set_decode_type(tmp_player_handle, AUDIO_DEC_TYPE_PCM);
                 }
                 else if (array_id == 1)
                 {
                     uri_info.uri = (char *)network_provision_prompt_tone_array;
-                    uri_info.total_len = sizeof(network_provision_prompt_tone_array);
+                    uri_info.total_len = network_provision_prompt_tone_array_len;
                     bk_player_set_decode_type(tmp_player_handle, AUDIO_DEC_TYPE_MP3);
                 }
                 else if (array_id == 2)
                 {
                     uri_info.uri = (char *)low_voltage_prompt_tone_array;
-                    uri_info.total_len = sizeof(low_voltage_prompt_tone_array);
+                    uri_info.total_len = low_voltage_prompt_tone_array_len;
                     bk_player_set_decode_type(tmp_player_handle, AUDIO_DEC_TYPE_WAV);
                 }
                 else

@@ -16,13 +16,6 @@ menu "CP Audio KWS Example"
 			Use the CP CPU KWS model library variant that loads model data
 			from VFS/file. The default CP KWS path uses built-in model data.
 
-	config CP_KWS_TEST
-		bool "Enable CP KWS validation CLI"
-		default n
-		help
-			Register the cp_kws CLI. It currently runs in stub mode because
-			there is no CP/M52-compatible KWS algorithm library yet.
-
 	config CP_PROMPT_TEST
 		bool "Enable CP voice/player prompt validation CLI"
 		default n

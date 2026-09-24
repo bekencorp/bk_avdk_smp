@@ -26,6 +26,7 @@ CONFIG_UART_PRINT_BAUD_RATE=115200
 CONFIG_DEFAULT_AT_PORT=0
 CONFIG_CLI_TASK_STACK_SIZE=4096
 CONFIG_FREERTOS_USE_QUEUE_SETS=y
+CONFIG_MEDIA_SERVICE=y
 CONFIG_ADK=y
 # CONFIG_ADK_USE_SRAM is not set
 CONFIG_ADK_USE_PSRAM=y
@@ -51,6 +52,8 @@ CONFIG_ADK_WAV_DECODER=y
 CONFIG_ADK_AEC_V3_ALGORITHM=y
 CONFIG_ADK_AEC_V3_ALGORITHM_COMPONENT_V2=y
 CONFIG_ADK_EQ_ALGORITHM=y
+CONFIG_AUDIO_PLAY=y
+CONFIG_AUDIO_RECORD=y
 CONFIG_VOICE_SERVICE=y
 CONFIG_VOICE_SERVICE_USE_SRAM=y
 CONFIG_VOICE_READ_SERVICE=y
@@ -68,8 +71,8 @@ CONFIG_ASR_SERVICE_WITH_MIC=y
 CONFIG_AUD_ASR_READ_SERVICE=y
 
 # The current imported CPU KWS library is AP/M55 hard-float/MVE, while the CP
-# toolchain targets M52 soft-float by default. Keep the algorithm library off
-# and register only the CP KWS stub CLI.
+# toolchain targets M52 soft-float by default, so the algorithm library stays
+# off. Until an M52 build exists, "audio asr_turn_on" is the real validation
+# path: it runs the full mic/AEC/asr_service chain with a stub recog callback.
 # CONFIG_CP_KWS_CPU_LIB is not set
-# CONFIG_CP_KWS_TEST is not set
 CONFIG_CP_PROMPT_TEST=y
