@@ -28,6 +28,7 @@
 #include <modules/aec_v3_1.h>
 
 #include <components/bk_audio/audio_pipeline/ringbuf.h>
+#include <components/bk_audio/audio_pipeline/audio_uplink_layout.h>
 #include <components/bk_audio/audio_utils/debug_dump_util.h>
 
 #define TAG  "AEC_ALGORITHM"
@@ -108,11 +109,94 @@ static struct vfs_util g_aec_vfs_util_out = {0};
 
 #endif  //CONFIG_ADK_UTILS
 
-#define AEC_EX_SIZE (93380)
+#define GTCRN_ENC0_SIZE    (4160U)
+#define GTCRN_ENC1_SIZE    (12672U)
+#define GTCRN_ENC2_SIZE    (21120U)
+#define GTCRN_ENC3_SIZE    (23232U)
+#define GTCRN_DEC3_SIZE    (23232U)
+#define GTCRN_SCRATCH_SIZE (6336U)
 #define AEC_DELAY_BUFFER_SIZE (2000)
 uint8_t * gtbuff = NULL;
+#if CONFIG_AUD_AI_NS_SUPPORT && !CONFIG_AUD_AI_NS_USE_STATIC_SRAM
+static uint8_t *gtbuff_enc0 = NULL;
+static uint8_t *gtbuff_enc1 = NULL;
+static uint8_t *gtbuff_enc2 = NULL;
+static uint8_t *gtbuff_enc3 = NULL;
+static uint8_t *gtbuff_dec3 = NULL;
+static uint8_t *gtbuff_scratch = NULL;
+#endif
 #if (CONFIG_AUD_AI_NS_SUPPORT && (CONFIG_AUD_AI_NS_USE_STATIC_SRAM))
-uint32 aec_gtbuf[94*1024/4] __attribute__((section(".aec_bss")));
+#if !defined(CONFIG_AEC_AI_NS_STATIC_ADDR) || !defined(CONFIG_AEC_AI_NS_STATIC_SIZE)
+#error "AEC AI NS static HSRAM region is not configured"
+#endif
+#define AEC_GTBUF_STATIC_ADDR SOC_SRAM_CPU_ADDR(CONFIG_AEC_AI_NS_STATIC_ADDR)
+#endif
+
+#if CONFIG_AUD_AI_NS_SUPPORT && !CONFIG_AUD_AI_NS_USE_STATIC_SRAM
+static void aec_gtcrn_buffers_free(void)
+{
+    if (gtbuff_scratch) audio_hsram_free(gtbuff_scratch);
+    if (gtbuff_dec3) audio_hsram_free(gtbuff_dec3);
+    if (gtbuff_enc3) audio_hsram_free(gtbuff_enc3);
+    if (gtbuff_enc2) audio_hsram_free(gtbuff_enc2);
+    if (gtbuff_enc1) audio_hsram_free(gtbuff_enc1);
+    if (gtbuff_enc0) audio_hsram_free(gtbuff_enc0);
+    if (gtbuff) audio_hsram_free(gtbuff);
+    gtbuff_scratch = NULL;
+    gtbuff_dec3 = NULL;
+    gtbuff_enc3 = NULL;
+    gtbuff_enc2 = NULL;
+    gtbuff_enc1 = NULL;
+    gtbuff_enc0 = NULL;
+    gtbuff = NULL;
+}
+
+static bk_err_t aec_gtcrn_buffers_alloc(void)
+{
+    uint32_t context_size = gtcrn_size();
+
+    gtbuff = audio_hsram_malloc(context_size);
+    gtbuff_enc0 = audio_hsram_malloc(GTCRN_ENC0_SIZE);
+    gtbuff_enc1 = audio_hsram_malloc(GTCRN_ENC1_SIZE);
+    gtbuff_enc2 = audio_hsram_malloc(GTCRN_ENC2_SIZE);
+    gtbuff_enc3 = audio_hsram_malloc(GTCRN_ENC3_SIZE);
+    gtbuff_dec3 = audio_hsram_malloc(GTCRN_DEC3_SIZE);
+    gtbuff_scratch = audio_hsram_malloc(GTCRN_SCRATCH_SIZE);
+
+    if (!gtbuff || !gtbuff_enc0 || !gtbuff_enc1 || !gtbuff_enc2
+        || !gtbuff_enc3 || !gtbuff_dec3 || !gtbuff_scratch)
+    {
+        aec_gtcrn_buffers_free();
+        return BK_FAIL;
+    }
+
+    os_memset(gtbuff, 0, context_size);
+    os_memset(gtbuff_enc0, 0, GTCRN_ENC0_SIZE);
+    os_memset(gtbuff_enc1, 0, GTCRN_ENC1_SIZE);
+    os_memset(gtbuff_enc2, 0, GTCRN_ENC2_SIZE);
+    os_memset(gtbuff_enc3, 0, GTCRN_ENC3_SIZE);
+    os_memset(gtbuff_dec3, 0, GTCRN_DEC3_SIZE);
+    os_memset(gtbuff_scratch, 0, GTCRN_SCRATCH_SIZE);
+    return BK_OK;
+}
+
+static void aec_gtcrn_buffers_bind(AECContext *ctx)
+{
+    aec_ctrl(ctx, AEC_CTRL_CMD_SET_GTPROC, (uint32_t)(uintptr_t)gtcrn_proc);
+    aec_ctrl(ctx, AEC_CTRL_CMD_SET_GTBUFF, (uint32_t)(uintptr_t)gtbuff);
+    gtcrn_set_buff(ctx->pGTCRN, AEC_GTCRN_CTRL_SET_SCRATCH,
+                   (uint32_t)(uintptr_t)gtbuff_scratch);
+    gtcrn_set_buff(ctx->pGTCRN, AEC_GTCRN_CTRL_SET_ENC0_BUFF,
+                   (uint32_t)(uintptr_t)gtbuff_enc0);
+    gtcrn_set_buff(ctx->pGTCRN, AEC_GTCRN_CTRL_SET_ENC1_BUFF,
+                   (uint32_t)(uintptr_t)gtbuff_enc1);
+    gtcrn_set_buff(ctx->pGTCRN, AEC_GTCRN_CTRL_SET_ENC2_BUFF,
+                   (uint32_t)(uintptr_t)gtbuff_enc2);
+    gtcrn_set_buff(ctx->pGTCRN, AEC_GTCRN_CTRL_SET_ENC3_BUFF,
+                   (uint32_t)(uintptr_t)gtbuff_enc3);
+    gtcrn_set_buff(ctx->pGTCRN, AEC_GTCRN_CTRL_SET_DEC3_BUFF,
+                   (uint32_t)(uintptr_t)gtbuff_dec3);
+}
 #endif
 
 #define AEC_EC_OUT_BUF_LEN (770*sizeof(int32_t))
@@ -134,6 +218,12 @@ typedef struct aec_algorithm
     int16_t *out_addr;
     uint32_t frame_size;    /**< 20ms data */
     int      dual_ch;       /**< Enable dual channel input(1)/Disable dual channel input(0)*/
+    /* Uplink caps resolved at open from the upstream mic (when available). When
+     * in_caps_valid, the interleaved lane layout and per-read length are driven by
+     * the capture caps instead of the hand-set dual_ch/aec_loop/adc_ch_num. */
+    aud_uplink_layout_t in_layout;
+    uint8_t  in_caps_valid;
+    uint32_t in_read_len;   /**< bytes to read per process = lane_num * frame_size */
     int      vad_state;
     int      aec_phase;
     int16_t  *out_read_addr;
@@ -155,7 +245,59 @@ typedef struct aec_algorithm
     int     phase_cb_pending;
     int32_t phase_cb_phs;
     int     phase_cb_vad_flag;
+#if CONFIG_ADK_DEBUG_DUMP_UTIL
+    uint8_t  aec_dump_prev_enable;
+    uint16_t aec_dump_zero_frame_count;
+    uint8_t  aec_dump_param_printed;
+#endif
 } aec_v3_algorithm_t;
+
+#if CONFIG_ADK_DEBUG_DUMP_UTIL
+static void aec_dump_print_sim_params(const aec_v3_algorithm_t *aec)
+{
+    const AECContext *ctx = aec->aec_ctx;
+    const char *ns_mode = "classic";
+
+    if (aec->aec_cfg.ns_type == NS_CLOSE)
+    {
+        ns_mode = "off";
+    }
+    else if (aec->aec_cfg.ns_type == NS_AI)
+    {
+        ns_mode = "gtcrn";
+    }
+
+    BK_LOGI(TAG, "AEC_SIM_PARA_BEGIN\n");
+    BK_LOGI(TAG, "delay=%d\n", ctx->mic_delay);
+    BK_LOGI(TAG, "max_delay=%d\n", ctx->max_mic_delay);
+    BK_LOGI(TAG, "flags=0x%x\n", ctx->flags);
+    BK_LOGI(TAG, "ns=%s\n", ns_mode);
+    BK_LOGI(TAG, "ns_filter=0x%x\n", ctx->ns_filter);
+    BK_LOGI(TAG, "ns_level=%d\n", aec->aec_cfg.ns_level);
+    BK_LOGI(TAG, "ns_para=%d\n", aec->aec_cfg.ns_para);
+    BK_LOGI(TAG, "ec_depth=0x%x\n", ctx->ec_depth);
+    BK_LOGI(TAG, "ec_filter=0x%x\n", ctx->ec_filter);
+    BK_LOGI(TAG, "drc=%d\n", ctx->drc_mode);
+    BK_LOGI(TAG, "ref_scale=%d\n", ctx->ref_scale);
+    BK_LOGI(TAG, "mic_scale=%d\n", ctx->mic_scale);
+    BK_LOGI(TAG, "voice_vol=%d\n", ctx->vol);
+    BK_LOGI(TAG, "vad_enable=%d\n", ctx->vad ? 1 : 0);
+    BK_LOGI(TAG, "bands=2\n");
+    BK_LOGI(TAG, "ref_up=%d\n", ctx->ref_up);
+    BK_LOGI(TAG, "dual_perp=%d\n", aec->aec_cfg.dual_perp);
+    BK_LOGI(TAG, "phs_s1=%d\n", ctx->phs_s1);
+    BK_LOGI(TAG, "dist=%d\n", ctx->dist);
+    BK_LOGI(TAG, "mic_swap=%d\n", ctx->mic_swap);
+    BK_LOGI(TAG, "frame=%d\n", (ctx->frame_samples == 320) ? 0 : ctx->frame_samples);
+    BK_LOGI(TAG,
+            "# fs=%u mode=%d dual_ch=%d interweave=%d aec_loop=%u ref_ch=%u adc_ch_num=%u ec_only_output=%u internal_sbnum=%d effective_frame=%d\n",
+            (unsigned)aec->aec_cfg.fs, aec->aec_cfg.mode, aec->dual_ch,
+            ctx->interweave, aec->aec_cfg.aec_loop, aec->aec_cfg.ref_ch,
+            aec->aec_cfg.adc_ch_num, aec->aec_cfg.ec_only_output,
+            ctx->sbnum, ctx->frame_samples);
+    BK_LOGI(TAG, "AEC_SIM_PARA_END\n");
+}
+#endif
 
 #if CONFIG_AEC_RUN_ON_M52
 static void aec_m52_fill_ctrl_cfg(const aec_v3_algorithm_t *aec, aec_m52_ctrl_cfg_t *ctrl_cfg)
@@ -452,6 +594,115 @@ static void aec_vad_thr_mapping(int16_t* SPthr, int32_t start_thr, int32_t stop_
     BK_LOGD(TAG, "aec_cfg 6 SPthr[7:13]:%d  %d  %d  %d  %d  %d  %d\n", SPthr[7], SPthr[8], SPthr[9], SPthr[10], SPthr[11], SPthr[12], SPthr[13]);
 }
 
+#if CONFIG_ADK_DEBUG_DUMP_UTIL
+static void aec_dump_reset_context(aec_v3_algorithm_t *aec)
+{
+    AECContext *ctx = aec->aec_ctx;
+    uint8_t flags = ctx->flags;
+    uint8_t ns_filter = ctx->ns_filter;
+    uint8_t ec_filter = ctx->ec_filter;
+    uint8_t interweave = ctx->interweave;
+    uint8_t mic_swap = ctx->mic_swap;
+    uint8_t ref_up = ctx->ref_up;
+    uint8_t vol = ctx->vol;
+    int8_t ec_depth = ctx->ec_depth;
+    int8_t ref_scale = ctx->ref_scale;
+    int8_t mic_scale = ctx->mic_scale;
+    int8_t drc_mode = ctx->drc_mode;
+    int8_t vad = ctx->vad;
+    int16_t frame_samples = ctx->frame_samples;
+    int16_t max_mic_delay = ctx->max_mic_delay;
+    int16_t mic_delay = ctx->mic_delay;
+    int16_t dist = ctx->dist;
+    int16_t phs_s1 = ctx->phs_s1;
+
+#if CONFIG_AEC_RUN_ON_M52
+    if (aec->m52_proxy)
+    {
+        BK_LOGW(TAG, "aec dump context reset is unavailable while AEC runs on M52\n");
+        return;
+    }
+#endif
+
+    ctx->fs = 0;
+    aec_init(ctx, aec->aec_cfg.fs);
+
+    if (frame_samples != ctx->frame_samples)
+    {
+        aec_ctrl(ctx, AEC_CTRL_CMD_SET_WINDOW, (uint32_t)frame_samples);
+    }
+    aec_ctrl(ctx, AEC_CTRL_CMD_SET_MAX_DELAY, (uint32_t)max_mic_delay);
+    aec_ctrl(ctx, AEC_CTRL_CMD_SET_DELAY_BUFF, 0);
+    aec_ctrl(ctx, AEC_CTRL_CMD_SET_MIC_DELAY, (uint32_t)mic_delay);
+    aec_ctrl(ctx, AEC_CTRL_CMD_SET_NS_LEVEL, (uint32_t)aec->aec_cfg.ns_level);
+    aec_ctrl(ctx, AEC_CTRL_CMD_SET_NS_PARA, (uint32_t)aec->aec_cfg.ns_para);
+    aec_ctrl(ctx, AEC_CTRL_CMD_SET_DRC, (uint32_t)(uint8_t)drc_mode);
+    aec_ctrl(ctx, AEC_CTRL_CMD_SET_EC_DEPTH, (uint32_t)(uint8_t)ec_depth);
+    aec_ctrl(ctx, AEC_CTRL_CMD_SET_REF_SCALE, (uint32_t)(uint8_t)ref_scale);
+    aec_ctrl(ctx, AEC_CTRL_CMD_SET_MIC_SCALE, (uint32_t)(uint8_t)mic_scale);
+    aec_ctrl(ctx, AEC_CTRL_CMD_SET_VOL, (uint32_t)vol);
+    aec_ctrl(ctx, AEC_CTRL_CMD_SET_BANDS, 2);
+    aec_ctrl(ctx, AEC_CTRL_CMD_SET_REF_UP, (uint32_t)ref_up);
+    aec_ctrl(ctx, AEC_CTRL_CMD_SET_DUAL_PERP, (uint32_t)aec->aec_cfg.dual_perp);
+
+    ctx->interweave = interweave;
+    ctx->dist = dist;
+    ctx->mic_swap = mic_swap;
+    ctx->vad = vad;
+    ctx->phs_s1 = phs_s1;
+
+#if CONFIG_AUD_AI_NS_SUPPORT
+    if (aec->aec_cfg.ns_type == NS_AI && gtbuff)
+    {
+    #if CONFIG_AUD_AI_NS_USE_STATIC_SRAM
+        os_memset(gtbuff, 0, CONFIG_AEC_AI_NS_STATIC_SIZE);
+        aec_ctrl(ctx, AEC_CTRL_CMD_SET_GTBUFF, (uint32_t)(uintptr_t)gtbuff);
+        aec_ctrl(ctx, AEC_CTRL_CMD_SET_GTPROC, (uint32_t)(uintptr_t)gtcrn_proc);
+        aec_ctrl(ctx, AEC_CTRL_CMD_SET_GTTEMP, (uint32_t)(uintptr_t)ctx->tmp2);
+    #else
+        os_memset(gtbuff, 0, gtcrn_size());
+        os_memset(gtbuff_enc0, 0, GTCRN_ENC0_SIZE);
+        os_memset(gtbuff_enc1, 0, GTCRN_ENC1_SIZE);
+        os_memset(gtbuff_enc2, 0, GTCRN_ENC2_SIZE);
+        os_memset(gtbuff_enc3, 0, GTCRN_ENC3_SIZE);
+        os_memset(gtbuff_dec3, 0, GTCRN_DEC3_SIZE);
+        os_memset(gtbuff_scratch, 0, GTCRN_SCRATCH_SIZE);
+        aec_gtcrn_buffers_bind(ctx);
+    #endif
+    }
+#endif
+
+    aec_ctrl(ctx, AEC_CTRL_CMD_SET_NS_FILTER, (uint32_t)ns_filter);
+    aec_ctrl(ctx, AEC_CTRL_CMD_SET_EC_FILTER, (uint32_t)ec_filter);
+    aec_ctrl(ctx, AEC_CTRL_CMD_SET_FLAGS, (uint32_t)flags);
+
+    if (buff_ecout)
+    {
+        os_memset(buff_ecout, 0, AEC_EC_OUT_BUF_LEN);
+        aec_ctrl(ctx, AEC_CTRL_CMD_SET_EOBUFF, (uint32_t)(uintptr_t)buff_ecout);
+    }
+
+    if ((aec->vad_cfg.vad_start_threshold != 0
+         && aec->vad_cfg.vad_stop_threshold != 0xff)
+        && (aec->vad_cfg.vad_start_threshold
+            != aec->vad_cfg.vad_stop_threshold))
+    {
+        aec_vad_thr_mapping(ctx->SPthr,
+                            aec->vad_cfg.vad_start_threshold,
+                            aec->vad_cfg.vad_stop_threshold,
+                            aec->vad_cfg.vad_silence_threshold,
+                            aec->vad_cfg.vad_eng_threshold);
+    }
+
+    aec->mic_addr = ctx->sin;
+    aec->ref_addr = ctx->rin;
+    aec->out_addr = ctx->out;
+    aec->vad_state = VAD_NONE;
+    aec->vad_cb_pending = 0;
+    aec->phase_cb_pending = 0;
+}
+#endif
+
 static void aec_vad_flag_update(aec_v3_algorithm_t *aec, int vad_state)
 {
     if((aec->vad_state != vad_state)
@@ -610,6 +861,67 @@ static void aec_dtcm_free(void *ptr)
 }
 #endif
 
+/* Resolve the interleaved uplink lane geometry for this AEC element.
+ *
+ * By open() time the pipeline is linked, so the upstream mic's caps (if any) have
+ * been propagated to this element. When present, the caps are the single source of
+ * truth for the whole uplink geometry: this derives BOTH the de-interleave layout /
+ * per-read length AND the mic-count selector (dual_ch) from them, so the integrator
+ * never hand-sets dual_ch / aec_loop / ref_ch / adc_ch_num.
+ *
+ * Only HARDWARE mode reads the reference off the interleaved ADC stream; SOFTWARE
+ * gets its reference via multi_input, so caps do not drive it (in_read_len stays 0
+ * and _process uses the element buffer length). When no caps are published
+ * (in_caps_valid=0) it falls back to the config-derived layout, i.e. behaviour is
+ * unchanged for legacy / non-onboard-mic sources.
+ *
+ * Sets: aec->in_caps_valid, aec->in_layout, aec->in_read_len, and (caps path)
+ * aec->dual_ch. Must be called before the dual_ch-dependent DSP setup in open(). */
+static void _aec_v3_resolve_uplink_layout(audio_element_handle_t self, aec_v3_algorithm_t *aec)
+{
+    aec->in_caps_valid = 0;
+    aec->in_read_len   = 0;
+
+    if (aec->aec_cfg.mode != AEC_MODE_HARDWARE)
+    {
+        return;
+    }
+
+    aud_uplink_caps_t caps;
+    if (audio_element_get_input_uplink_caps(self, &caps) == BK_OK && caps.valid)
+    {
+        aud_uplink_layout_t lay = aud_uplink_layout_from_caps(&caps);
+        if (lay.lane_num > 0)
+        {
+            char s[48];
+            aec->in_layout     = lay;
+            aec->in_caps_valid = 1;
+            aec->in_read_len   = (uint32_t)lay.lane_num * aec->frame_size;
+            /* derive the DSP mic-count selector from the real mic count
+             * (dual/triple both run the >=2-mic path today) */
+            aec->dual_ch = (lay.mic_cnt >= 2) ? 1 : 0;
+            aud_uplink_layout_fmt(&lay, s, sizeof(s));
+            BK_LOGI(TAG, "[%s] uplink caps from mic: ch_bitmap=0x%x aec_en=%d -> lanes=%d %s read_len=%d dual_ch=%d\n",
+                    audio_element_get_tag(self), caps.ch_bitmap, caps.aec_en,
+                    lay.lane_num, s, aec->in_read_len, aec->dual_ch);
+            return;
+        }
+    }
+
+    /* No usable caps: fall back to the config-derived layout so in_read_len still
+     * reflects the real lane count (el->buf was over-allocated to the ceiling). */
+    int ref_ch = (aec->aec_cfg.ref_ch == AEC_REF_CH_DEFAULT)
+                     ? AUD_UPLINK_REF_CH_DEFAULT : (int)aec->aec_cfg.ref_ch;
+    aud_uplink_layout_t con = aud_uplink_aec_consume_layout_ex(
+                                  true, (uint8_t)aec->dual_ch,
+                                  aec->aec_cfg.aec_loop != 0, ref_ch,
+                                  aec->aec_cfg.adc_ch_num);
+    aec->in_read_len = (uint32_t)con.lane_num * aec->frame_size;
+    BK_LOGI(TAG, "[%s] uplink caps absent -> fallback config layout (dual_ch=%d aec_loop=%d adc_ch_num=%d lanes=%d)\n",
+            audio_element_get_tag(self), aec->dual_ch, aec->aec_cfg.aec_loop,
+            aec->aec_cfg.adc_ch_num, con.lane_num);
+}
+
 static bk_err_t _aec_v3_algorithm_open(audio_element_handle_t self)
 {
     uint32_t val = 0;
@@ -618,17 +930,17 @@ static bk_err_t _aec_v3_algorithm_open(audio_element_handle_t self)
     BK_LOGD(TAG, "[%s] %s\n", audio_element_get_tag(self), __func__);
     aec_v3_algorithm_t *aec = (aec_v3_algorithm_t *)audio_element_getdata(self);
 
+#if CONFIG_ADK_DEBUG_DUMP_UTIL
+    aec->aec_dump_prev_enable = 0;
+    aec->aec_dump_zero_frame_count = 0;
+    aec->aec_dump_param_printed = 0;
+#endif
+
     uint32_t offset = 0;
     uint32_t aec_frame_sample_cnt;
 
     aec_context_size = aec_size(AEC_DELAY_BUFFER_SIZE/2);
     offset += aec_context_size;
-    #if CONFIG_AUD_AI_NS_SUPPORT && !CONFIG_AUD_AI_NS_USE_STATIC_SRAM
-    if(aec->aec_cfg.ns_type == NS_AI)
-    {
-       // aec_context_size = aec_size((AEC_EX_SIZE + AEC_DELAY_BUFFER_SIZE)/2);
-    }
-    #endif
 
     /* init */
     #if CONFIG_ADK_AEC_V3_USE_DTCM
@@ -653,6 +965,12 @@ static bk_err_t _aec_v3_algorithm_open(audio_element_handle_t self)
     aec->ref_addr = (int16_t *)(uintptr_t)val;
     aec_ctrl(aec->aec_ctx, AEC_CTRL_CMD_GET_OUT_BUF, (uint32_t)(uintptr_t)(&val));
     aec->out_addr = (int16_t *)(uintptr_t)val;
+
+    /* Resolve the uplink lane geometry (de-interleave layout, per-read length and
+     * the dual_ch mic-count selector) from the upstream mic's caps. Kept in a
+     * dedicated helper so this open() stays focused on AEC-algorithm init. Must run
+     * before the dual_ch-dependent DSP setup below. */
+    _aec_v3_resolve_uplink_layout(self, aec);
 
     //以下是参数调节示例,aec_init中都已经有默认值,可以直接先用默认值
     if(aec->dual_ch)
@@ -698,27 +1016,27 @@ static bk_err_t _aec_v3_algorithm_open(audio_element_handle_t self)
 
         aec_ctrl(aec->aec_ctx, AEC_CTRL_CMD_SET_NS_FILTER, 0x80);
         #if CONFIG_AUD_AI_NS_USE_STATIC_SRAM
-        gtbuff = (uint8_t*)aec_gtbuf;
+        gtbuff = (uint8_t *)(uintptr_t)AEC_GTBUF_STATIC_ADDR;
         #else
-        //gtbuff = ((uint8_t *)aec->aec_ctx + offset);
-        if(gtbuff)
+        if (gtbuff)
         {
-            audio_hsram_free(gtbuff);
-            gtbuff = NULL;
-            BK_LOGE(TAG, "[%s] %s, %d, gtbuff is not NULL, free gtbuff \n", audio_element_get_tag(self), __func__, __LINE__);
+            aec_gtcrn_buffers_free();
+            BK_LOGW(TAG, "[%s] existing GTCRN buffers freed before realloc\n",
+                    audio_element_get_tag(self));
         }
-        gtbuff = audio_hsram_malloc(AEC_EX_SIZE);
-        BK_LOGD(TAG, "gtbuff:0x%x\n", gtbuff);
-        if (!gtbuff)
+        if (aec_gtcrn_buffers_alloc() != BK_OK)
         {
-            BK_LOGE(TAG, "[%s] %s, %d, audio_malloc gtbuff: %d fail \n", audio_element_get_tag(self), __func__, __LINE__, AEC_EX_SIZE);
+            BK_LOGE(TAG, "allocate GTCRN buffers failed\n");
             goto fail;
         }
         #endif
-        memset(gtbuff, 0 , AEC_EX_SIZE);
+        #if CONFIG_AUD_AI_NS_USE_STATIC_SRAM
         aec_ctrl(aec->aec_ctx, AEC_CTRL_CMD_SET_GTBUFF, (uint32_t)gtbuff);
         aec_ctrl(aec->aec_ctx, AEC_CTRL_CMD_SET_GTPROC, (uint32_t)gtcrn_proc);
         aec_ctrl(aec->aec_ctx, AEC_CTRL_CMD_SET_GTTEMP, (uint32_t)aec->aec_ctx->tmp2);
+        #else
+        aec_gtcrn_buffers_bind(aec->aec_ctx);
+        #endif
         #else
         BK_LOGE(TAG, "ERR:aec ns_type is NA_AI but CONFIG_AUD_AI_NS_SUPPORT is disabled!\n");
         #endif
@@ -879,6 +1197,9 @@ static bk_err_t _aec_v3_algorithm_open(audio_element_handle_t self)
 
     return BK_OK;
 fail:
+#if CONFIG_AUD_AI_NS_SUPPORT && !CONFIG_AUD_AI_NS_USE_STATIC_SRAM
+    aec_gtcrn_buffers_free();
+#endif
     if (aec->aec_ctx)
     {
         #if CONFIG_ADK_AEC_V3_USE_DTCM
@@ -979,112 +1300,151 @@ static int _aec_v3_algorithm_process(audio_element_handle_t self, char *in_buffe
     aec_v3_algorithm_t *aec = (aec_v3_algorithm_t *)audio_element_getdata(self);
     #if CONFIG_ADK_DEBUG_DUMP_UTIL
     uint32_t mic_data_len = aec->frame_size;
+    uint8_t dump_enable = is_aud_dump_valid(DUMP_TYPE_AEC_MIC_DATA) ? 1 : 0;
+    uint8_t dump_zero_input = 0;
+
+    if (dump_enable && !aec->aec_dump_prev_enable)
+    {
+        aec->aec_dump_zero_frame_count = 0;
+        aec->aec_dump_param_printed = 0;
+        rtos_lock_recursive_mutex(&aec->cfg_lock);
+        aec_dump_reset_context(aec);
+        rtos_unlock_recursive_mutex(&aec->cfg_lock);
+        BK_LOGI(TAG, "aec_all bit-exact capture start: context reset, zero first 100 frames\n");
+    }
+    else if (!dump_enable)
+    {
+        aec->aec_dump_zero_frame_count = 0;
+        aec->aec_dump_param_printed = 0;
+    }
+    aec->aec_dump_prev_enable = dump_enable;
+    dump_zero_input = dump_enable && (aec->aec_dump_zero_frame_count < 100);
     #endif
 
     AEC_PROCESS_START();
 
+    /* Read exactly one interleaved mic block. When the mic published caps, the
+     * per-read length is driven by the caps-resolved lane count; otherwise fall
+     * back to the element buffer length (config-derived). */
+    /* HARDWARE reads exactly one interleaved mic block (in_read_len, set in _open
+     * from caps or config). SOFTWARE keeps the element buffer length unchanged. */
+    int want = (aec->aec_cfg.mode == AEC_MODE_HARDWARE && aec->in_read_len > 0)
+                   ? (int)aec->in_read_len : in_len;
     AEC_INPUT_START();
-    int r_size = audio_element_input(self, in_buffer, in_len);
-    BK_LOGV(TAG, "[%s] r_size=%d, in_len=%d \n",audio_element_get_tag(self), r_size, in_len);
-    if (r_size != in_len)
+    int r_size = audio_element_input(self, in_buffer, want);
+    BK_LOGV(TAG, "[%s] r_size=%d, want=%d, in_len=%d \n",audio_element_get_tag(self), r_size, want, in_len);
+    if (r_size != want)
     {
-        BK_LOGE(TAG, "mic_data Waring: r_size=%d, in_len=%d \n", r_size, in_len);
+        BK_LOGE(TAG, "mic_data Waring: r_size=%d, want=%d \n", r_size, want);
     }
-    uint32_t len = 0;
-    if(aec->dual_ch)
+    if (aec->aec_cfg.mode == AEC_MODE_HARDWARE)
     {
-        if (aec->aec_cfg.mode == AEC_MODE_HARDWARE)
+        /* Data-driven de-interleave. Lane layout (lane count, which lane is the
+         * reference, which are mics, which are discarded) comes from the upstream
+         * mic caps when available (the single source of truth), else it is
+         * resolved from the local config (dual_ch + aec_loop + ref_ch + adc_ch_num),
+         * which reproduces the legacy /4,/6,/8 bit-for-bit. */
+        int16_t *data_ptr = (int16_t *)in_buffer;
+        aud_uplink_layout_t lay;
+        if (aec->in_caps_valid)
         {
-            uint16_t i = 0,j = 0;
-            int16_t *data_ptr = (int16_t *)in_buffer;
-
-#if CONFIG_AUD_AEC_LOOP
-            len = r_size/8 * 2;
-            for (i = 0; i < r_size/8; i++)
-            {
-                g_mic3[i] = data_ptr[4*i+0];
-                g_mic1[i] = aec->mic_addr[j]   = data_ptr[4*i+1];
-                g_mic2[i] = aec->mic_addr[j+1] = data_ptr[4*i+2];
-                g_mic0[i] = aec->ref_addr[i]   = data_ptr[4*i+3];
-                j += 2;
-            }
-#else
-            len = r_size/6 * 2;
-            for (i = 0; i < r_size/6; i++)
-            {
-                g_mic0[i] = aec->ref_addr[i]   = data_ptr[3*i+0];
-                g_mic1[i] = aec->mic_addr[j]   = data_ptr[3*i+1];
-                g_mic2[i] = aec->mic_addr[j+1] = data_ptr[3*i+2];
-                j += 2;
-            }
-#endif
+            lay = aec->in_layout;
         }
         else
         {
-            aec->mic_addr = (int16_t *)in_buffer;
-            int r_ref_size = audio_element_multi_input(self, (char *)aec->ref_addr, in_len/2, 0, 0);
-            if (r_ref_size != in_len/2)
+            int ref_ch = (aec->aec_cfg.ref_ch == AEC_REF_CH_DEFAULT)
+                             ? AUD_UPLINK_REF_CH_DEFAULT : (int)aec->aec_cfg.ref_ch;
+            lay = aud_uplink_aec_consume_layout_ex(
+                      true, (uint8_t)aec->dual_ch,
+                      aec->aec_cfg.aec_loop != 0, ref_ch,
+                      aec->aec_cfg.adc_ch_num);
+        }
+        uint8_t  L = lay.lane_num;
+        uint16_t frames = (r_size > 0) ? (uint16_t)(r_size / (2 * L)) : 0;
+        uint16_t i;
+
+        for (i = 0; i < frames; i++)
+        {
+            int16_t *grp = &data_ptr[L * i];
+
+            g_mic0[i] = aec->ref_addr[i] = grp[lay.ref_index];
+            g_mic1[i] = aec->mic_addr[lay.mic_cnt * i + 0] = grp[lay.mic_index[0]];
+            if (lay.mic_cnt > 1)
             {
-                BK_LOGV(TAG, "rd ref_data error: r_ref_size=%d, in_len=%d line:%d \n", r_ref_size, in_len/2, __LINE__);
-                os_memset(aec->ref_addr, 0, in_len/2);
+                g_mic2[i] = aec->mic_addr[lay.mic_cnt * i + 1] = grp[lay.mic_index[1]];
             }
-            else
+            if (lay.discard_cnt > 0)
             {
-                BK_LOGV(TAG, "rd ref_data:r_ref_size=%d, in_line:%d,line:%d \n", r_ref_size, in_len/2, __LINE__);
+                g_mic3[i] = grp[lay.discard_index[0]];
             }
         }
     }
     else
     {
-        if (aec->aec_cfg.mode == AEC_MODE_HARDWARE)
+        aec->mic_addr = (int16_t *)in_buffer;
+        /* software mode: mics ride the ADC stream, reference is pushed in via
+         * multi_input. The reference is a single (mono) lane, while the mic block
+         * packs mic_cnt interleaved lanes, so the per-lane ref length is the mic
+         * block divided by the mic count. dual_ch is the mic-count selector
+         * (0=single, 1=dual, 2=triple), i.e. mic_cnt = dual_ch + 1 - do NOT hardcode
+         * /2, which only held for the dual case. */
+        uint8_t  mic_cnt = (uint8_t)(aec->dual_ch + 1);
+        uint32_t ref_len = in_len / mic_cnt;
+        int r_ref_size = audio_element_multi_input(self, (char *)aec->ref_addr, ref_len, 0, 0);
+        if ((uint32_t)r_ref_size != ref_len)
         {
-#if CONFIG_AUD_AEC_LOOP
-            uint16_t i = 0;
-            int16_t *data_ptr = (int16_t *)in_buffer;
-            len = r_size/4 * 2;
-            for (i = 0; i < r_size/4; i++)
-            {
-                g_mic1[i] = aec->mic_addr[i] = data_ptr[2*i+0];
-                g_mic0[i] = aec->ref_addr[i] = data_ptr[2*i+1];
-            }
-#else
-            int16_t *lr_data_ptr = (int16_t *)in_buffer;
-            for (uint16_t i = 0; i < r_size / 4; i++)
-            {
-                aec->mic_addr[i] = lr_data_ptr[2 * i];
-                aec->ref_addr[i] = lr_data_ptr[2 * i + 1];
-            }
-#endif
+            BK_LOGV(TAG, "rd ref_data error: r_ref_size=%d, ref_len=%d line:%d \n", r_ref_size, (int)ref_len, __LINE__);
+            os_memset(aec->ref_addr, 0, ref_len);
         }
         else
         {
-            aec->mic_addr = (int16_t *)in_buffer;
-            int r_ref_size = audio_element_multi_input(self, (char *)aec->ref_addr, in_len, 0, 0);
-            if (r_ref_size != in_len)
+            BK_LOGV(TAG, "rd ref_data: r_ref_size=%d, ref_len=%d line:%d \n", r_ref_size, (int)ref_len, __LINE__);
+        }
+
+        /* SOFTWARE mode feeds the (possibly dual-mic interleaved) mic block to the
+         * algorithm as-is and never runs the HARDWARE de-interleave loop, so the
+         * per-lane debug buffers g_mic0/1/2 (consumed by the UART dump below) stay
+         * stale. Fill them here so mic/ref waveforms can be captured for the
+         * dual-dmic + software-ref case too. Only done when the dump is active, and
+         * only touches debug buffers - no effect on the audio path. */
+#if CONFIG_ADK_DEBUG_DUMP_UTIL
+        if (dump_enable)
+        {
+            uint32_t ns = (uint32_t)(aec->frame_size / sizeof(int16_t));
+            const uint32_t cap = (uint32_t)(sizeof(g_mic0) / sizeof(g_mic0[0]));
+            if (ns > cap) { ns = cap; }
+            int16_t *mic = (int16_t *)in_buffer;
+            for (uint32_t i = 0; i < ns; i++)
             {
-                BK_LOGV(TAG, "ref_data Waring: r_size=%d, in_len=%d line:%d \n", r_size, in_len, __LINE__);
-                os_memset(aec->ref_addr, 0, in_len);
-            }
-            else
-            {
-                //BK_LOGV(TAG, "ref_data Waring: r_size=%d, line:%d \n", r_size, __LINE__);
+                g_mic0[i] = (uint16_t)aec->ref_addr[i];                          /* ref  */
+                g_mic1[i] = (uint16_t)mic[mic_cnt * i + 0];                      /* mic0 */
+                if (mic_cnt > 1) { g_mic2[i] = (uint16_t)mic[mic_cnt * i + 1]; } /* mic1 */
+                if (mic_cnt > 2) { g_mic3[i] = (uint16_t)mic[mic_cnt * i + 2]; } /* mic2 */
             }
         }
+#endif
     }
-    (void)len;
 
     AEC_INPUT_END();
 
     int w_size = 0;
     if (r_size > 0)
     {
+#if CONFIG_ADK_DEBUG_DUMP_UTIL
+        if (aec->dual_ch)
+        {
+            mic_data_len = aec->frame_size * 2;
+        }
+        if (dump_zero_input)
+        {
+            os_memset(aec->mic_addr, 0, mic_data_len);
+            os_memset(aec->ref_addr, 0, aec->frame_size);
+        }
+#endif
 
         if(aec->dual_ch)
         {
             AEC_DATA_DUMP_MIC_DATA(aec->mic_addr, aec->frame_size*2);
-            #if CONFIG_ADK_DEBUG_DUMP_UTIL
-            mic_data_len = aec->frame_size * 2;
-            #endif
         }
         else
         {
@@ -1094,7 +1454,7 @@ static int _aec_v3_algorithm_process(audio_element_handle_t self, char *in_buffe
         AEC_DATA_DUMP_REF_DATA(aec->ref_addr, aec->frame_size);
 
         #if CONFIG_ADK_DEBUG_DUMP_UTIL
-        if(is_aud_dump_valid(DUMP_TYPE_AEC_MIC_DATA))
+        if (dump_enable)
         {
             os_memcpy(mic_data_save,aec->mic_addr, mic_data_len);
             os_memcpy(ref_data_save,aec->ref_addr, aec->frame_size);
@@ -1179,7 +1539,8 @@ static int _aec_v3_algorithm_process(audio_element_handle_t self, char *in_buffe
         {
             aec->ec_out_cb(buff_ecout, aec->frame_size);
         }
-        uint32_t interleave_bytes = 0;
+        /* Only consumed by the debug-dump path below. */
+        uint32_t __maybe_unused interleave_bytes = 0;
         if (aec->interleaved_out_phase_enable && aec->out_phase_interleave_buf)
         {
             uint32_t ns = (uint32_t)(aec->frame_size / sizeof(int16_t));
@@ -1191,7 +1552,6 @@ static int _aec_v3_algorithm_process(audio_element_handle_t self, char *in_buffe
             }
             interleave_bytes = ns * 2 * (uint32_t)sizeof(int16_t);
         }
-        (void)interleave_bytes;
 
         AEC_ALGORITHM_END();
         AUDIO_ELEMENT_OBS_END(self, r_size, (uint32_t)in_len);
@@ -1199,29 +1559,39 @@ static int _aec_v3_algorithm_process(audio_element_handle_t self, char *in_buffe
         AEC_DATA_DUMP_OUT_DATA(aec->out_addr, aec->frame_size);
 
         #if CONFIG_ADK_DEBUG_DUMP_UTIL
-        if(is_aud_dump_valid(DUMP_TYPE_AEC_MIC_DATA))
+        if (dump_enable
+            && is_aud_dump_valid(DUMP_TYPE_AEC_MIC_DATA))
         {
             /*update header*/
-            DEBUG_DATA_DUMP_UPDATE_HEADER_DATA_FLOW_LEN(DUMP_TYPE_AEC_MIC_DATA, 0, len);
-            DEBUG_DATA_DUMP_UPDATE_HEADER_DATA_FLOW_LEN(DUMP_TYPE_AEC_REF_DATA, 1, len);
-            DEBUG_DATA_DUMP_UPDATE_HEADER_DATA_FLOW_LEN(DUMP_TYPE_AEC_OUT_DATA, 2, len);
+            DEBUG_DATA_DUMP_UPDATE_HEADER_DATA_FLOW_LEN(DUMP_TYPE_AEC_MIC_DATA, 0, mic_data_len);
+            DEBUG_DATA_DUMP_UPDATE_HEADER_DATA_FLOW_LEN(DUMP_TYPE_AEC_REF_DATA, 1, aec->frame_size);
+            DEBUG_DATA_DUMP_UPDATE_HEADER_DATA_FLOW_LEN(DUMP_TYPE_AEC_OUT_DATA, 2, aec->frame_size);
+            DEBUG_DATA_DUMP_UPDATE_HEADER_CHANNEL_NUM(DUMP_TYPE_AEC_MIC_DATA, 0,
+                                                       aec->dual_ch ? 2 : 1);
             DEBUG_DATA_DUMP_UPDATE_HEADER_TIMESTAMP(DUMP_TYPE_AEC_MIC_DATA);
 
-            /*dump data function is called by multi-thread,need suspend task scheduler until data dump finished*/
-            DEBUG_DATA_DUMP_SUSPEND_ALL;
-
-            /*dump header*/
-            DEBUG_DATA_DUMP_BY_UART_HEADER(DUMP_TYPE_AEC_MIC_DATA);
-
-            /*dump data*/
-            DEBUG_DATA_DUMP_BY_UART_DATA(g_mic1, len);//mic_data
-            DEBUG_DATA_DUMP_BY_UART_DATA(g_mic0, len);//ref_data
-//            DEBUG_DATA_DUMP_BY_UART_DATA(buff_ecout, len);//echo_data
-            DEBUG_DATA_DUMP_BY_UART_DATA(aec->out_addr, len);//(aec->out_addr, aec->frame_size);
-            DEBUG_DATA_DUMP_RESUME_ALL;
+            if (debug_data_dump_send_aec(mic_data_save, mic_data_len,
+                                         ref_data_save, aec->frame_size,
+                                         aec->out_addr, aec->frame_size) != BK_OK)
+            {
+                BK_LOGE(TAG, "AEC dump transport failed; capture stopped\n");
+                debug_data_dump_abort();
+            }
 
             /*update seq*/
             DEBUG_DATA_DUMP_UPDATE_HEADER_SEQ_NUM(DUMP_TYPE_AEC_MIC_DATA);
+
+            if (dump_zero_input)
+            {
+                aec->aec_dump_zero_frame_count++;
+                if ((aec->aec_dump_zero_frame_count == 100)
+                    && !aec->aec_dump_param_printed)
+                {
+                    aec->aec_dump_param_printed = 1;
+                    aec_dump_print_sim_params(aec);
+                    BK_LOGI(TAG, "aec_all bit-exact capture: real input starts next frame\n");
+                }
+            }
         }
         else if (is_aud_dump_valid(DUMP_TYPE_AEC_OUT_PHASE_DATA) && aec->interleaved_out_phase_enable && aec->out_phase_interleave_buf)
         {
@@ -1371,11 +1741,11 @@ static bk_err_t _aec_v3_algorithm_destroy(audio_element_handle_t self)
         #endif
         aec->aec_ctx = NULL;
     }
-    if(gtbuff)
-    {
-        audio_hsram_free(gtbuff);
-        gtbuff = NULL;
-    }
+#if CONFIG_AUD_AI_NS_SUPPORT && !CONFIG_AUD_AI_NS_USE_STATIC_SRAM
+    aec_gtcrn_buffers_free();
+#else
+    gtbuff = NULL;
+#endif
     if (aec->cfg_lock)
     {
         rtos_deinit_recursive_mutex(&aec->cfg_lock);
@@ -1423,23 +1793,37 @@ audio_element_handle_t aec_v3_algorithm_init(aec_v3_algorithm_cfg_t *config)
     cfg.multi_out_port_num = config->multi_out_port_num;
     cfg.multi_in_port_num  = config->multi_in_port_num; /// if mode==AEC_MODE_HARDWARE => multi_in_port_num = 0
 
-    cfg.buffer_len = aec_alg->frame_size;
+    /* Size el->buf only. el->buf is allocated here at task start, BEFORE the pipeline
+     * is linked, so the mic caps are not visible yet - this cannot know the real lane
+     * count. The actual de-interleave geometry (and per-read length) is resolved from
+     * the mic caps later, in _open (_aec_v3_resolve_uplink_layout); that is the single
+     * source of truth. Here we only need a buffer big enough:
+     *   HARDWARE: over-allocate to the physical lane ceiling so the caps-resolved
+     *             per-read length always fits (a few unused bytes are harmless);
+     *   SOFTWARE: no caps read, so the exact config-derived size is enough. */
+    {
+        bool hw_mode = (config->aec_cfg.mode == AEC_MODE_HARDWARE);
+        int  ref_ch  = (config->aec_cfg.ref_ch == AEC_REF_CH_DEFAULT)
+                           ? AUD_UPLINK_REF_CH_DEFAULT : (int)config->aec_cfg.ref_ch;
+        aud_uplink_layout_t con = aud_uplink_aec_consume_layout_ex(
+                                      hw_mode, (uint8_t)config->dual_ch,
+                                      config->aec_cfg.aec_loop != 0, ref_ch,
+                                      config->aec_cfg.adc_ch_num);
 
-    if (config->aec_cfg.mode == AEC_MODE_HARDWARE) {
-        cfg.buffer_len += aec_alg->frame_size;
-    }
-    if (config->dual_ch) {
-        cfg.buffer_len += aec_alg->frame_size;
-#if CONFIG_AUD_AEC_LOOP
-        cfg.buffer_len += aec_alg->frame_size;
-#endif
-    }
+        if (hw_mode)
+        {
+            uint8_t max_lanes = (con.lane_num > AUD_UPLINK_MAX_LANES) ? con.lane_num : (uint8_t)AUD_UPLINK_MAX_LANES;
+            cfg.buffer_len = (uint32_t)max_lanes * aec_alg->frame_size;
+        }
+        else
+        {
+            cfg.buffer_len = (uint32_t)con.lane_num * aec_alg->frame_size;
+        }
 
-    BK_LOGD(TAG, "frame_size:%d,buf len:%d,config->dual_ch:%d,config->aec_cfg.mode:%d\n",
-                  aec_alg->frame_size,
-                  cfg.buffer_len,
-                  config->dual_ch,
-                  config->aec_cfg.mode);
+        BK_LOGD(TAG, "aec el->buf: frame_size:%d buf_len:%d mode:%s (config dual_ch:%d; real layout resolved from mic caps in open)\n",
+                aec_alg->frame_size, cfg.buffer_len,
+                hw_mode ? "HW" : "SW", config->dual_ch);
+    }
 
     cfg.tag = "aec_algorithm";
     el = audio_element_init(&cfg);

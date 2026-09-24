@@ -59,7 +59,7 @@ static bk_err_t _opus_enc_destroy(audio_element_handle_t self)
         opus_encoder_destroy(opus_enc->encoder);
         opus_enc->encoder = NULL;
     }
-
+    
     if (opus_enc->encoded_data) {
         audio_free(opus_enc->encoded_data);
         opus_enc->encoded_data = NULL;
@@ -92,11 +92,11 @@ static bk_err_t _opus_enc_open(audio_element_handle_t self)
             break;
     }
 
-    opus_enc->encoder = opus_encoder_create(opus_encoder_cfg->sample_rate,
-                                               opus_encoder_cfg->channels,
-                                               application,
+    opus_enc->encoder = opus_encoder_create(opus_encoder_cfg->sample_rate, 
+                                               opus_encoder_cfg->channels, 
+                                               application, 
                                                &error);
-
+    
     if (error != OPUS_OK || opus_enc->encoder == NULL) {
         BK_LOGE(TAG, "opus_encoder_create failed: %d\n", error);
         return BK_FAIL;
@@ -141,10 +141,15 @@ static bk_err_t _opus_enc_open(audio_element_handle_t self)
 static bk_err_t _opus_enc_close(audio_element_handle_t self)
 {
     opus_enc_t *opus_enc = (opus_enc_t *)audio_element_getdata(self);
-
+    
     if (opus_enc->encoder) {
         opus_encoder_destroy(opus_enc->encoder);
         opus_enc->encoder = NULL;
+    }
+
+    if (opus_enc->encoded_data) {
+        audio_free(opus_enc->encoded_data);
+        opus_enc->encoded_data = NULL;
     }
 
     return BK_OK;
@@ -160,7 +165,7 @@ static int _opus_enc_process(audio_element_handle_t self, char *in_buffer, int i
 
     // Calculate required bytes for one frame
     int required_bytes = frame_size * opus_enc->opus_encoder_cfg.channels * sizeof(opus_int16);
-
+    
     // Check if encoded_data buffer is allocated
     if (encoded_data == NULL) {
         BK_LOGE(TAG, "encoded_data buffer is not allocated\n");
@@ -203,7 +208,7 @@ static int _opus_enc_process(audio_element_handle_t self, char *in_buffer, int i
 
     // Encode the frame
     int encoded_bytes = opus_encode(opus_enc->encoder, pcm_data, frame_size, encoded_data, max_data_bytes);
-
+    
     if (encoded_bytes < 0) {
         BK_LOGE(TAG, "opus_encode failed: %d\n", encoded_bytes);
         return AEL_IO_FAIL;
@@ -232,7 +237,7 @@ static int _opus_enc_process(audio_element_handle_t self, char *in_buffer, int i
 
     // Write encoded data to output
     int written = audio_element_output(self, (char *)encoded_data, encoded_bytes);
-
+    
     if (written != encoded_bytes) {
         BK_LOGE(TAG, "audio_element_write failed: %d != %d\n", written, encoded_bytes);
         return AEL_IO_FAIL;
@@ -261,7 +266,7 @@ audio_element_handle_t opus_enc_init(opus_enc_cfg_t *config)
     // Buffer needs to hold at least one frame of PCM data
     // frame_size * channels * sizeof(opus_int16)
     int min_buffer_size = config->frame_samples_per_channel * config->channels * sizeof(opus_int16);
-
+    
     audio_element_cfg_t cfg = DEFAULT_AUDIO_ELEMENT_CONFIG();
     audio_element_handle_t el;
     opus_enc_t *opus_enc;
@@ -315,6 +320,6 @@ audio_element_handle_t opus_enc_init(opus_enc_cfg_t *config)
     info->channels = config->channels;
     info->bits = 16; // Opus input is always 16-bit
     info->codec_fmt = BK_CODEC_TYPE_OPUS;
-
+    
     return el;
 }

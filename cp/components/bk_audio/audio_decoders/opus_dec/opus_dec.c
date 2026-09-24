@@ -35,7 +35,7 @@ static bk_err_t _opus_dec_open(audio_element_handle_t self)
 
     /* Calculate maximum frame size */
     opus_dec->max_frame_size = opus_dec->config.sample_rate * opus_dec->config.channels * 120 / 1000; /* 120ms max frame */
-
+    
     /* Allocate output buffer */
     opus_dec->out_buf = (int16_t *)audio_malloc(opus_dec->max_frame_size * sizeof(int16_t));
     if (!opus_dec->out_buf) {
@@ -48,6 +48,12 @@ static bk_err_t _opus_dec_open(audio_element_handle_t self)
 static bk_err_t _opus_dec_close(audio_element_handle_t self)
 {
     BK_LOGV(TAG, "[%s] _opus_dec_close \n", audio_element_get_tag(self));
+    opus_dec_t *opus_dec = (opus_dec_t *)audio_element_getdata(self);
+
+    if (opus_dec && opus_dec->out_buf) {
+        audio_free(opus_dec->out_buf);
+        opus_dec->out_buf = NULL;
+    }
 
     return BK_OK;
 }
@@ -127,7 +133,6 @@ static bk_err_t _opus_dec_destroy(audio_element_handle_t self)
 {
     opus_dec_t *opus_dec = (opus_dec_t *)audio_element_getdata(self);
 
-
     if (opus_dec->out_buf) {
         audio_free(opus_dec->out_buf);
     }
@@ -137,7 +142,6 @@ static bk_err_t _opus_dec_destroy(audio_element_handle_t self)
     }
 
     audio_free(opus_dec);
-
     return BK_OK;
 }
 

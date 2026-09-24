@@ -25,6 +25,7 @@
 #include <components/bk_audio/audio_pipeline/audio_error.h>
 #include <components/bk_audio/audio_pipeline/audio_port.h>
 #include <components/bk_audio/audio_pipeline/audio_element.h>
+#include <components/bk_audio/audio_pipeline/audio_uplink_layout.h>
 #include <driver/aud_adc.h>
 #include <driver/dma.h>
 #include <driver/audio_ring_buff.h>
@@ -34,8 +35,10 @@
 
 #define TAG  "OB_MIC"
 
-#define DMA_CARRY_MIC_FRAME_NUM                (2)
-#define DMA_CARRY_MIC_RINGBUF_SAFE_INTERVAL    (DMA_CARRY_MIC_FRAME_NUM * 2)
+#define DMA_CARRY_MIC_FRAME_NUM                (8)
+#define DMA_CARRY_MIC_RINGBUF_SAFE_INTERVAL    (32)
+
+#define ONBOARD_MIC_DROP_ON_BACKPRESSURE       1
 
 //#define ONBOARD_MIC_DEBUG   //GPIO debug
 
@@ -102,6 +105,28 @@ static count_util_t onboard_mic_count_util = {0};
 
 #endif  //ONBOARD_MIC_DATA_COUNT
 
+/* dump onboard_mic stream output pcm data by uart */
+//#define ONBOARD_MIC_DATA_DUMP_BY_UART
+
+#ifdef ONBOARD_MIC_DATA_DUMP_BY_UART
+#include <components/bk_audio/audio_utils/uart_util.h>
+static struct uart_util gl_ob_mic_uart_util = {0};
+#define ONBOARD_MIC_DATA_DUMP_UART_ID            (1)
+#define ONBOARD_MIC_DATA_DUMP_UART_BAUD_RATE     (2000000)
+
+#define ONBOARD_MIC_DATA_DUMP_BY_UART_OPEN()                    uart_util_create(&gl_ob_mic_uart_util, ONBOARD_MIC_DATA_DUMP_UART_ID, ONBOARD_MIC_DATA_DUMP_UART_BAUD_RATE)
+#define ONBOARD_MIC_DATA_DUMP_BY_UART_CLOSE()                   uart_util_destroy(&gl_ob_mic_uart_util)
+#define ONBOARD_MIC_DATA_DUMP_BY_UART_DATA(data_buf, len)       uart_util_tx_data(&gl_ob_mic_uart_util, data_buf, len)
+
+#else
+
+#define ONBOARD_MIC_DATA_DUMP_BY_UART_OPEN()
+#define ONBOARD_MIC_DATA_DUMP_BY_UART_CLOSE()
+#define ONBOARD_MIC_DATA_DUMP_BY_UART_DATA(data_buf, len)
+
+#endif  //ONBOARD_MIC_DATA_DUMP_BY_UART
+
+
 typedef struct onboard_mic_stream
 {
     aud_adc_config_t         adc_cfg;          /**< ADC mode configuration */
@@ -122,6 +147,7 @@ typedef struct onboard_mic_stream
     uint32_t                 lp_remain;        /**< remaining int16 samples of the spectral low-pass window */
     int32_t                  lpf_y[3];         /**< cascaded one-pole low-pass states (one per order) used during the low-pass window */
     beken_mutex_t            cfg_lock;
+    uint32_t                 flash_pause_cnt;  /**< nested flash_op_notify pause depth */
 } onboard_mic_stream_t;
 
 /* Mic (re)start transient shaper. Two decoupled windows; see the parameter
@@ -159,45 +185,92 @@ static uint8_t aud_adc_get_active_ch_num(void)
     return ch_num;
 }
 
+static void aud_adc_dma_finish_isr(dma_id_t dma_id);
+static bk_err_t aud_adc_dma_setup_hw(onboard_mic_stream_t *onboard_mic);
+
+/* Flash erase/write: stop ADC then dma_stop+deinit (v2 cannot stop/start in place).
+ * Resume re-inits the same DMA id / ringbuf, then dma_start + adc_start.
+ * Nested prepare/finish uses flash_pause_cnt. Experimental — not a final design. */
 static void flash_op_notify_onboard_mic_stream_handler(uint32_t param, void *args)
 {
-    return;
     audio_element_handle_t onboard_mic_stream = (audio_element_handle_t)args;
     uint32_t i;
+    bk_err_t ret;
+
     if (!onboard_mic_stream)
     {
         return;
     }
+
     onboard_mic_stream_t *onboard_mic = (onboard_mic_stream_t *)audio_element_getdata(onboard_mic_stream);
-    if (onboard_mic && audio_element_get_state(onboard_mic_stream) == AEL_STATE_RUNNING)
+    if (!onboard_mic || audio_element_get_state(onboard_mic_stream) != AEL_STATE_RUNNING ||
+        !onboard_mic->is_open)
     {
-        if (param)
+        return;
+    }
+
+    if (param)
+    {
+        if (onboard_mic->flash_pause_cnt++ != 0)
         {
-            BK_LOGV(TAG, "%s, start earse or write flash, stop dma and adc \n", __func__);
-            bk_dma_stop(onboard_mic->mic_dma_id);
-
-            for(i = 0; i < AUD_ADC_CHL_MAX; i++)
-            {
-                if(onboard_mic->ch_bitmap & (1 << i))
-                {
-                    bk_aud_adc_stop(i);
-                }
-            }
-
-            ring_buffer_clear(&onboard_mic->mic_rb);
+            return;
         }
-        else
+
+        for (i = 0; i < AUD_ADC_CHL_MAX; i++)
         {
-            BK_LOGV(TAG, "%s, stop earse or write flash, start dma and adc \n", __func__);
-            bk_dma_start(onboard_mic->mic_dma_id);
-            for(i = 0; i < AUD_ADC_CHL_MAX; i++)
+            if (onboard_mic->ch_bitmap & (1 << i))
             {
-                if(onboard_mic->ch_bitmap & (1 << i))
-                {
-                    bk_aud_adc_start(i);
-                }
+                bk_aud_adc_stop(i);
             }
         }
+
+        ret = bk_dma_stop(onboard_mic->mic_dma_id);
+        if (ret != BK_OK)
+        {
+            BK_LOGW(TAG, "%s, dma_stop fail: %d\n", __func__, ret);
+        }
+        bk_dma_deinit(onboard_mic->mic_dma_id);
+        ring_buffer_clear(&onboard_mic->mic_rb);
+    }
+    else
+    {
+        if (onboard_mic->flash_pause_cnt == 0)
+        {
+            return;
+        }
+        if (--onboard_mic->flash_pause_cnt != 0)
+        {
+            return;
+        }
+
+        ret = aud_adc_dma_setup_hw(onboard_mic);
+        if (ret != BK_OK)
+        {
+            BK_LOGE(TAG, "%s, dma_setup_hw fail\n", __func__);
+            return;
+        }
+
+        ring_buffer_clear(&onboard_mic->mic_rb);
+
+        ret = bk_dma_start(onboard_mic->mic_dma_id);
+        if (ret != BK_OK)
+        {
+            BK_LOGE(TAG, "%s, dma_start fail\n", __func__);
+            return;
+        }
+
+        for (i = 0; i < AUD_ADC_CHL_MAX; i++)
+        {
+            if (onboard_mic->ch_bitmap & (1 << i))
+            {
+                ret = bk_aud_adc_start(i);
+                if (ret != BK_OK)
+                {
+                    BK_LOGE(TAG, "%s, adc_start ch%u fail\n", __func__, (unsigned)i);
+                }
+            }
+        }
+        bk_aud_adc_enable_used_channel(onboard_mic->ch_bitmap);
     }
 }
 
@@ -234,14 +307,77 @@ static void aud_adc_dma_finish_isr(dma_id_t dma_id)
     AUD_ADC_DMA_ISR_END();
 }
 
-static bk_err_t aud_adc_dma_config(onboard_mic_stream_t *onboard_mic)
+static bk_err_t aud_adc_dma_setup_hw(onboard_mic_stream_t *onboard_mic)
 {
     bk_err_t ret = BK_OK;
     dma_config_t dma_config = {0};
     uint32_t adc_port_addr;
-    uint32_t frame_size = 0;
+    uint32_t frame_size;
+
+    if (!onboard_mic || !onboard_mic->mic_ring_buff)
+    {
+        return BK_FAIL;
+    }
+    if ((onboard_mic->mic_dma_id < DMA_ID_0) || (onboard_mic->mic_dma_id >= DMA_ID_MAX))
+    {
+        return BK_FAIL;
+    }
+
+    frame_size = (uint32_t)aud_adc_get_active_ch_num() * onboard_mic->frame_size;
 
     os_memset(&dma_config, 0, sizeof(dma_config_t));
+    dma_config.mode       = DMA_WORK_MODE_REPEAT;
+    dma_config.chan_prio  = 1;
+    dma_config.trans_type = DMA_TRANS_DEFAULT;
+    dma_config.src.dev    = DMA_DEV_AUD_MIC0;
+    dma_config.dst.dev    = DMA_DEV_DTCM;
+    dma_config.src.width  = DMA_DATA_WIDTH_32BITS;
+    dma_config.dst.width  = DMA_DATA_WIDTH_32BITS;
+
+    if (bk_aud_adc_get_fifo_addr(AUD_ADC_MIC_DATA_BUS_0, &adc_port_addr) != BK_OK)
+    {
+        BK_LOGE(TAG, "get adc fifo address failed\r\n");
+        return BK_FAIL;
+    }
+
+    dma_config.src.addr_inc_en  = DMA_ADDR_INC_ENABLE;
+    dma_config.src.addr_loop_en = DMA_ADDR_LOOP_ENABLE;
+    dma_config.src.start_addr   = adc_port_addr;
+    dma_config.src.end_addr     = adc_port_addr + 4;
+    dma_config.dst.addr_inc_en  = DMA_ADDR_INC_ENABLE;
+    dma_config.dst.addr_loop_en = DMA_ADDR_LOOP_ENABLE;
+    dma_config.dst.start_addr   = (uint32_t)(uintptr_t)onboard_mic->mic_ring_buff;
+    dma_config.dst.end_addr     = (uint32_t)(uintptr_t)onboard_mic->mic_ring_buff +
+                                  frame_size * DMA_CARRY_MIC_FRAME_NUM + DMA_CARRY_MIC_RINGBUF_SAFE_INTERVAL;
+
+    ret = bk_dma_init(onboard_mic->mic_dma_id, &dma_config);
+    if (ret != BK_OK)
+    {
+        BK_LOGE(TAG, "%s, dma_init fail\n", __func__);
+        return BK_FAIL;
+    }
+
+    bk_dma_set_transfer_len(onboard_mic->mic_dma_id, frame_size);
+    bk_dma_register_isr(onboard_mic->mic_dma_id, NULL, (void *)aud_adc_dma_finish_isr);
+    bk_dma_enable_finish_interrupt(onboard_mic->mic_dma_id);
+
+#if (CONFIG_SPE)
+    bk_dma_set_dest_sec_attr(onboard_mic->mic_dma_id, DMA_ATTR_SEC);
+    bk_dma_set_src_sec_attr(onboard_mic->mic_dma_id, DMA_ATTR_SEC);
+#endif
+
+    ring_buffer_init(&onboard_mic->mic_rb,
+                     (uint8_t *)onboard_mic->mic_ring_buff,
+                     frame_size * DMA_CARRY_MIC_FRAME_NUM + DMA_CARRY_MIC_RINGBUF_SAFE_INTERVAL,
+                     onboard_mic->mic_dma_id,
+                     RB_DMA_TYPE_WRITE);
+
+    return BK_OK;
+}
+
+static bk_err_t aud_adc_dma_config(onboard_mic_stream_t *onboard_mic)
+{
+    uint32_t frame_size;
 
     /* malloc dma channel */
     onboard_mic->mic_dma_id = bk_dma_alloc(DMA_DEV_AUDIO);
@@ -251,74 +387,22 @@ static bk_err_t aud_adc_dma_config(onboard_mic_stream_t *onboard_mic)
         goto exit;
     }
 
-    /* DMA must carry adcl and adcr data together. frame_size is one channel data size.
-     * If channel number is one, need double frame_size.
-     */
-    uint8_t active_ch_num = aud_adc_get_active_ch_num();
-    #if 0
-    if (onboard_mic->adc_cfg.chl_num == 1)
-    {
-        frame_size = onboard_mic->frame_size * 2;
-    }
-    else
-    {
-        frame_size = onboard_mic->frame_size;
-    }
-    #endif
-    frame_size = active_ch_num * onboard_mic->frame_size;
+    frame_size = (uint32_t)aud_adc_get_active_ch_num() * onboard_mic->frame_size;
 
     /* init ringbuffer to save two frame data. */
     onboard_mic->mic_ring_buff = (int8_t *)audio_dma_mem_calloc(DMA_CARRY_MIC_FRAME_NUM, frame_size + DMA_CARRY_MIC_RINGBUF_SAFE_INTERVAL / DMA_CARRY_MIC_FRAME_NUM);
     AUDIO_MEM_CHECK(TAG, onboard_mic->mic_ring_buff, return BK_FAIL);
-    /* init dma channel */
-    dma_config.mode       = DMA_WORK_MODE_REPEAT;
-    dma_config.chan_prio  = 1;
-    dma_config.trans_type = DMA_TRANS_DEFAULT;
-    dma_config.src.dev    = DMA_DEV_AUD_MIC0;
-    dma_config.dst.dev    = DMA_DEV_DTCM;
-    dma_config.src.width  = DMA_DATA_WIDTH_32BITS;
-    dma_config.dst.width  = DMA_DATA_WIDTH_32BITS;
-    /* get adc fifo address */
-    if (bk_aud_adc_get_fifo_addr(AUD_ADC_MIC_DATA_BUS_0, &adc_port_addr) != BK_OK)
+
+    if (aud_adc_dma_setup_hw(onboard_mic) != BK_OK)
     {
-        BK_LOGE(TAG, "get adc fifo address failed\r\n");
         goto exit;
     }
-    else
-    {
-        dma_config.src.addr_inc_en  = DMA_ADDR_INC_ENABLE;
-        dma_config.src.addr_loop_en = DMA_ADDR_LOOP_ENABLE;
-        dma_config.src.start_addr   = adc_port_addr;
-        dma_config.src.end_addr     = adc_port_addr + 4;
-    }
-    dma_config.trans_type       = DMA_TRANS_DEFAULT;
-    dma_config.dst.addr_inc_en  = DMA_ADDR_INC_ENABLE;
-    dma_config.dst.addr_loop_en = DMA_ADDR_LOOP_ENABLE;
-    dma_config.dst.start_addr   = (uint32_t)(uintptr_t)onboard_mic->mic_ring_buff;
-    dma_config.dst.end_addr     = (uint32_t)(uintptr_t)onboard_mic->mic_ring_buff + frame_size * DMA_CARRY_MIC_FRAME_NUM + DMA_CARRY_MIC_RINGBUF_SAFE_INTERVAL;
-    ret = bk_dma_init(onboard_mic->mic_dma_id, &dma_config);
-    if (ret != BK_OK)
-    {
-        BK_LOGE(TAG, "%s, %d, dma_init fail\n", __func__, __LINE__);
-        goto exit;
-    }
-
-    /* set dma transfer length */
-    bk_dma_set_transfer_len(onboard_mic->mic_dma_id, frame_size);
-    /* register dma isr */
-    bk_dma_register_isr(onboard_mic->mic_dma_id, NULL, (void *)aud_adc_dma_finish_isr);
-    bk_dma_enable_finish_interrupt(onboard_mic->mic_dma_id);
-
-#if (CONFIG_SPE)
-    bk_dma_set_dest_sec_attr(onboard_mic->mic_dma_id, DMA_ATTR_SEC);
-    bk_dma_set_src_sec_attr(onboard_mic->mic_dma_id, DMA_ATTR_SEC);
-#endif
-
-    ring_buffer_init(&onboard_mic->mic_rb, (uint8_t *)onboard_mic->mic_ring_buff, frame_size * DMA_CARRY_MIC_FRAME_NUM + DMA_CARRY_MIC_RINGBUF_SAFE_INTERVAL, onboard_mic->mic_dma_id, RB_DMA_TYPE_WRITE);
 
     BK_LOGD(TAG, "adc_dma_cfg mic_dma_id: %d, transfer_len: %d \n", onboard_mic->mic_dma_id, frame_size);
-    BK_LOGD(TAG, "src_start_addr: 0x%08x, src_end_addr: 0x%08x \n", dma_config.src.start_addr, dma_config.src.end_addr);
-    BK_LOGD(TAG, "dst_start_addr: 0x%08x, dst_end_addr: 0x%08x \n", dma_config.dst.start_addr, dma_config.dst.end_addr);
+    BK_LOGD(TAG, "dst_start_addr: 0x%08x, dst_end_addr: 0x%08x \n",
+            (uint32_t)(uintptr_t)onboard_mic->mic_ring_buff,
+            (uint32_t)(uintptr_t)onboard_mic->mic_ring_buff +
+                frame_size * DMA_CARRY_MIC_FRAME_NUM + DMA_CARRY_MIC_RINGBUF_SAFE_INTERVAL);
 
     return BK_OK;
 exit:
@@ -542,6 +626,11 @@ static void onboard_mic_apply_startup_shaping(onboard_mic_stream_t *m, int16_t *
     }
 }
 
+
+#if ONBOARD_MIC_DROP_ON_BACKPRESSURE
+static uint32_t s_onboard_mic_bp_drop = 0;   /* frames dropped due to downstream back-pressure */
+#endif
+
 static int _onboard_mic_process(audio_element_handle_t self, char *in_buffer, int in_len)
 {
     onboard_mic_stream_t *onboard_mic = (onboard_mic_stream_t *)audio_element_getdata(self);
@@ -562,7 +651,9 @@ static int _onboard_mic_process(audio_element_handle_t self, char *in_buffer, in
     /* read input data */
     AUD_ONBOARD_MIC_INPUT_START();
     int r_size = audio_element_input(self, in_buffer, in_len);
+#if CONFIG_ADK_OBS_UTIL
     int obs_ret = r_size;
+#endif
     AUD_ONBOARD_MIC_INPUT_END();
 
     /* used to test dma pause function */
@@ -592,9 +683,34 @@ static int _onboard_mic_process(audio_element_handle_t self, char *in_buffer, in
                                           (int16_t *)in_buffer,
                                           (uint32_t)r_size / sizeof(int16_t));   //~700us
 
+        ONBOARD_MIC_DATA_DUMP_BY_UART_DATA(in_buffer, r_size);
+
         //audio_element_multi_output(self, in_buffer, r_size, 0);
         AUD_ONBOARD_MIC_OUTPUT_START();
+#if ONBOARD_MIC_DROP_ON_BACKPRESSURE
+        {
+            audio_port_handle_t out_port = audio_element_get_output_port(self);
+            int out_free = (out_port != NULL) ? audio_port_get_free_size(out_port) : -1;
+
+            if (out_free >= r_size)
+            {
+                w_size = audio_element_output(self, in_buffer, r_size);
+            }
+            else
+            {
+                /* downstream full (uplink back-pressure) or free-size unavailable
+                 * -> drop this whole frame, NEVER block. */
+                w_size = r_size;
+                if ((++s_onboard_mic_bp_drop % 100u) == 1u)
+                {
+                    //BK_LOGW(TAG, "backpressure: drop mic frame #%u (out_free=%d frame=%d)\n",
+                    //        (unsigned)s_onboard_mic_bp_drop, out_free, r_size);
+                }
+            }
+        }
+#else
         w_size = audio_element_output(self, in_buffer, r_size);
+#endif
         AUD_ONBOARD_MIC_OUTPUT_END();
 
         ONBOARD_MIC_DATA_COUNT_ADD_SIZE(r_size);
@@ -612,7 +728,9 @@ static int _onboard_mic_process(audio_element_handle_t self, char *in_buffer, in
         w_size = r_size;
     }
 
+#if CONFIG_ADK_OBS_UTIL
     AUDIO_ELEMENT_OBS_END(self, obs_ret, (obs_ret > 0) ? (uint32_t)obs_ret : (uint32_t)in_len);
+#endif
     AUD_ONBOARD_MIC_PROCESS_END();
 
     return w_size;
@@ -624,13 +742,7 @@ static bk_err_t _onboard_mic_close(audio_element_handle_t self)
     uint32_t i;
 
     onboard_mic_stream_t *onboard_mic = (onboard_mic_stream_t *)audio_element_getdata(self);
-
-    bk_err_t ret = bk_dma_stop(onboard_mic->mic_dma_id);
-    if (ret != BK_OK)
-    {
-        BK_LOGE(TAG, "%s, %d, dac dma stop fail\n", __func__, __LINE__);
-        return BK_FAIL;
-    }
+    bk_err_t ret = BK_FAIL;
 
     for(i = 0; i < AUD_ADC_CHL_MAX; i++)
     {
@@ -676,11 +788,96 @@ static bk_err_t _onboard_mic_destroy(audio_element_handle_t self)
     audio_free(onboard_mic);
     onboard_mic = NULL;
 
-    mb_flash_unregister_op_onboard_mic_stream_notify();
+    mb_flash_unregister_op_notify_cb(flash_op_notify_onboard_mic_stream_handler);
 
     ONBOARD_MIC_DATA_COUNT_CLOSE();
+    ONBOARD_MIC_DATA_DUMP_BY_UART_CLOSE();
 
     return BK_OK;
+}
+
+/* Publish the capture-side uplink caps so a downstream AEC can derive the
+ * interleaved lane layout itself (no hand-set dual_ch/aec_loop/adc_ch_num). The mic
+ * is the natural owner of this geometry.
+ *
+ * Two hardware-reference mechanisms are expressed here:
+ *   - aec_en==1 : APPEND. The hw adds a dedicated ref lane at the tail; every
+ *                 enabled ADC channel is a mic. ref_ch is not used (stays AUTO).
+ *   - aec_en==0 + hw_ref_ch valid : IN-CHANNEL. A real ADC channel carries the
+ *                 loopback reference. The ADC channel number is translated into its
+ *                 LANE index (its position among the enabled channels, since the DMA
+ *                 interleaves active channels in ascending order) and published as
+ *                 caps.ref_ch. The remaining enabled channels are mics. If hw_ref_ch
+ *                 is NONE/not enabled, ref_ch stays AUTO (mics only / no in-channel
+ *                 ref) - unchanged legacy behaviour.
+ *
+ * The in-channel reference is an ANALOG loopback wired to an ADC pin, so it must NOT
+ * land on a channel DMIC drives digitally (mode 0 owns ch0, mode 1 owns ch1/ch2). */
+static void _onboard_mic_publish_uplink_caps(audio_element_handle_t el,
+                                             const onboard_mic_stream_cfg_t *config)
+{
+    aud_uplink_caps_t caps;
+    os_memset(&caps, 0x00, sizeof(caps));
+    caps.valid     = 1;
+    caps.aec_en    = gl_onboard_mic->adc_cfg.aec_en ? 1 : 0;
+    caps.ref_ch    = AUD_UPLINK_REF_CH_AUTO;
+    caps.version   = AUD_UPLINK_CAPS_VERSION;
+    caps.ch_bitmap = gl_onboard_mic->ch_bitmap;
+
+    if (!caps.aec_en)
+    {
+        uint8_t refch = config->hw_ref_ch;
+        uint32_t dmic_mask = 0;
+        if (config->dmic_en)
+        {
+            dmic_mask = (config->dmic_cfg.dmic_mode == AUD_DMIC_MODE_0)
+                            ? ONBOARD_MIC_ADC_ACTIVE_CH_0_BIT
+                            : (ONBOARD_MIC_ADC_ACTIVE_CH_1_BIT | ONBOARD_MIC_ADC_ACTIVE_CH_2_BIT);
+        }
+
+        if (refch >= AUD_ADC_CHL_MAX || !(gl_onboard_mic->ch_bitmap & (1u << refch)))
+        {
+            if (refch != ONBOARD_MIC_HW_REF_CH_NONE)
+            {
+                BK_LOGE(TAG, "invalid hw_ref_ch=%d (not enabled in ch_bitmap=0x%x); ignored\n",
+                        refch, gl_onboard_mic->ch_bitmap);
+            }
+            /* aec_en==0 and no valid in-channel reference declared: every enabled ADC
+             * channel becomes a mic (ref_ch stays AUTO). With >=2 channels this is very
+             * likely a misconfiguration - one channel was probably meant as the
+             * in-channel hardware reference but hw_ref_ch was not set - which would make
+             * the downstream AEC treat the reference lane as a second mic (dual_ch=1)
+             * and lose the reference. We deliberately do NOT guess/auto-correct: just
+             * warn so the integrator declares hw_ref_ch. If the reference genuinely
+             * arrives via software (multi_input), this is expected and can be ignored. */
+            else if (gl_onboard_mic->adc_cfg.chl_num >= 2)
+            {
+                BK_LOGW(TAG, "%d adc channels enabled (ch_bitmap=0x%x) but no in-channel hw ref "
+                             "declared; all are treated as mics. If one is the hardware reference, "
+                             "set hw_ref_ch; if the ref is software (multi_input), ignore.\n",
+                        gl_onboard_mic->adc_cfg.chl_num, gl_onboard_mic->ch_bitmap);
+            }
+        }
+        else if (dmic_mask & (1u << refch))
+        {
+            BK_LOGE(TAG, "hw_ref_ch=%d conflicts with dmic (mode=%d owns mask=0x%x); "
+                         "the analog ref channel must be outside the dmic channels; ignored\n",
+                    refch, config->dmic_cfg.dmic_mode, dmic_mask);
+        }
+        else
+        {
+            uint8_t lane = 0;
+            for (uint8_t b = 0; b < refch; b++)
+            {
+                if (gl_onboard_mic->ch_bitmap & (1u << b)) { lane++; }
+            }
+            caps.ref_ch = lane;
+            BK_LOGI(TAG, "in-channel hw ref: adc_ch=%d -> lane=%d (ch_bitmap=0x%x, dmic_en=%d)\n",
+                    refch, lane, gl_onboard_mic->ch_bitmap, config->dmic_en);
+        }
+    }
+
+    audio_element_set_uplink_caps(el, &caps);
 }
 
 audio_element_handle_t onboard_mic_stream_init(onboard_mic_stream_cfg_t *config)
@@ -711,6 +908,41 @@ audio_element_handle_t onboard_mic_stream_init(onboard_mic_stream_cfg_t *config)
     /* the buffer_len is the parameter of _onboard_mic_process api */
 
     gl_onboard_mic->ch_bitmap = config->ch_bitmap;
+
+    /* Backward-compat guard for a historical misconfiguration. When digital mics
+     * (dmic) are enabled, the real mic channels are exactly the dmic-owned ADC
+     * channels (mode 0 -> ch0, mode 1 -> ch1/ch2). Some old solutions enabled ALL
+     * three ADC channels by mistake (e.g. ch_bitmap=0x7 with dmic mode 1 + append
+     * ref), which makes the downstream AEC see a phantom extra mic lane (mic_cnt=3)
+     * and misbehave. Rather than hard-failing, narrow ch_bitmap to the channels that
+     * are actually meaningful and WARN loudly so the integrator fixes the config.
+     * A non-dmic channel explicitly designated as the in-channel hw reference
+     * (aec_en==0 + hw_ref_ch) is legitimate and kept. */
+    if (config->dmic_en)
+    {
+        uint32_t dmic_mask = (config->dmic_cfg.dmic_mode == AUD_DMIC_MODE_0)
+                                 ? ONBOARD_MIC_ADC_ACTIVE_CH_0_BIT
+                                 : (ONBOARD_MIC_ADC_ACTIVE_CH_1_BIT | ONBOARD_MIC_ADC_ACTIVE_CH_2_BIT);
+        uint32_t keep_mask = dmic_mask;
+        if (!gl_onboard_mic->adc_cfg.aec_en
+            && config->hw_ref_ch < AUD_ADC_CHL_MAX
+            && (gl_onboard_mic->ch_bitmap & (1u << config->hw_ref_ch)))
+        {
+            keep_mask |= (1u << config->hw_ref_ch);
+        }
+
+        uint32_t spurious = gl_onboard_mic->ch_bitmap & ~keep_mask;
+        if (spurious)
+        {
+            uint32_t corrected = gl_onboard_mic->ch_bitmap & keep_mask;
+            BK_LOGW(TAG, "dmic_en=1(mode %d) but non-dmic adc channels 0x%x also enabled; "
+                         "auto-correcting ch_bitmap 0x%x -> 0x%x (spurious channels dropped). "
+                         "Please fix the config.\n",
+                    config->dmic_cfg.dmic_mode, spurious, gl_onboard_mic->ch_bitmap, corrected);
+            gl_onboard_mic->ch_bitmap = corrected;
+        }
+    }
+
     uint8_t adc_active_ch_num = 0;
     for (i = 0; i < AUD_ADC_CHL_MAX; i++)
     {
@@ -738,6 +970,20 @@ audio_element_handle_t onboard_mic_stream_init(onboard_mic_stream_cfg_t *config)
 
     BK_LOGD(TAG, "ch_bitmap:%d, buffer_len: %d, out_block_size: %d, out_block_num: %d\n",
         gl_onboard_mic->ch_bitmap, cfg.buffer_len, gl_onboard_mic->out_block_size, gl_onboard_mic->out_block_num);
+
+    /* SSOT self-describe: log the capture-side lane layout so it can be eyeballed
+     * against the AEC consume-side log; also verify the SSOT reproduces the legacy
+     * lane count. Behaviour-neutral. See audio_uplink_layout.h. */
+    {
+        aud_uplink_layout_t cap = aud_uplink_capture_layout(gl_onboard_mic->ch_bitmap, gl_onboard_mic->adc_cfg.aec_en);
+        uint8_t legacy_lanes = aud_adc_get_active_ch_num();
+        BK_LOGI(TAG, "uplink_capture_layout: lanes=%d mic_cnt=%d ref_index=%d aec_en=%d ch_bitmap=0x%x\n",
+                cap.lane_num, cap.mic_cnt, cap.ref_index, gl_onboard_mic->adc_cfg.aec_en, gl_onboard_mic->ch_bitmap);
+        if (cap.lane_num != legacy_lanes) {
+            BK_LOGE(TAG, "uplink SSOT lane mismatch: ssot=%d legacy=%d (ch_bitmap=0x%x aec_en=%d)\n",
+                    cap.lane_num, legacy_lanes, gl_onboard_mic->ch_bitmap, gl_onboard_mic->adc_cfg.aec_en);
+        }
+    }
 
     /* init audio adc */
     bk_aud_hardware_reset();
@@ -803,9 +1049,13 @@ audio_element_handle_t onboard_mic_stream_init(onboard_mic_stream_cfg_t *config)
     info.codec_fmt    = BK_CODEC_TYPE_PCM;
     audio_element_setinfo(el, &info);
 
-    mb_flash_register_op_onboard_mic_stream_notify(flash_op_notify_onboard_mic_stream_handler, el);
+    /* Publish capture-side uplink caps (lane geometry + reference) for the AEC. */
+    _onboard_mic_publish_uplink_caps(el, config);
+
+    mb_flash_register_op_notify_cb(flash_op_notify_onboard_mic_stream_handler, el);
 
     ONBOARD_MIC_DATA_COUNT_OPEN();
+    ONBOARD_MIC_DATA_DUMP_BY_UART_OPEN();
 
     return el;
 _onboard_mic_init_exit:

@@ -125,11 +125,25 @@ static bk_err_t _wav_decoder_close(audio_element_handle_t self)
 {
     BK_LOGV(TAG, "[%s] _wav_decoder_close \n", audio_element_get_tag(self));
     wav_decoder_t *wav_dec = (wav_decoder_t *)audio_element_getdata(self);
+    audio_element_state_t state = audio_element_get_state(self);
 
-    if (AEL_STATE_PAUSED != audio_element_get_state(self))
+    // Reset info to default values to ensure music info will be reported on next open
+    // Keep info unchanged when in PAUSED state to avoid re-reporting after resume
+    if (state != AEL_STATE_PAUSED)
     {
         wav_dec->head_parse_cmp = false;
         //audio_element_set_byte_pos(self, 0);
+
+        audio_element_info_t info = {0};
+        bk_err_t ret = audio_element_getinfo(self, &info);
+        if (ret == BK_OK)
+        {
+            info.sample_rates = 0;
+            info.channels = 0;
+            info.bits = 0;
+            audio_element_setinfo(self, &info);
+        }
+        BK_LOGV(TAG, "[%s] Component in state %d, reset info \n", audio_element_get_tag(self), state);
     }
 
     return BK_OK;
@@ -147,21 +161,26 @@ static bk_err_t music_info_report(audio_element_handle_t self)
         return BK_FAIL;
     }
 
-    /* Report music information */
-    info.bits = wav_dec->info.bits;
-    info.sample_rates = wav_dec->info.samplerate;
-    info.channels = wav_dec->info.channels;
-    ret = audio_element_setinfo(self, &info);
-    if (ret != BK_OK)
+    /* check frame information, report new frame information if frame information change */
+    if (wav_dec->info.bits != info.bits
+        || wav_dec->info.samplerate != info.sample_rates
+        || wav_dec->info.channels != info.channels)
     {
-        BK_LOGE(TAG, "[%s] audio_element_setinfo fail \n", audio_element_get_tag(self));
-        return BK_FAIL;
-    }
-    ret = audio_element_report_info(self);
-    if (ret != BK_OK)
-    {
-        BK_LOGE(TAG, "[%s] audio_element_report_info fail \n", audio_element_get_tag(self));
-        return BK_FAIL;
+        info.bits = wav_dec->info.bits;
+        info.sample_rates = wav_dec->info.samplerate;
+        info.channels = wav_dec->info.channels;
+        ret = audio_element_setinfo(self, &info);
+        if (ret != BK_OK)
+        {
+            BK_LOGE(TAG, "[%s] audio_element_setinfo fail \n", audio_element_get_tag(self));
+            return BK_FAIL;
+        }
+        ret = audio_element_report_info(self);
+        if (ret != BK_OK)
+        {
+            BK_LOGE(TAG, "[%s] audio_element_report_info fail \n", audio_element_get_tag(self));
+            return BK_FAIL;
+        }
     }
 
     return BK_OK;
@@ -281,6 +300,14 @@ audio_element_handle_t wav_decoder_init(wav_decoder_cfg_t *config)
 
     AUDIO_MEM_CHECK(TAG, el, goto _wav_decoder_init_exit);
     audio_element_setdata(el, wav_dec);
+
+    audio_element_info_t info = {0};
+    audio_element_getinfo(el, &info);
+    info.sample_rates = 0;
+    info.channels = 0;
+    info.bits = 0;
+    info.codec_fmt = BK_CODEC_TYPE_WAV;
+    audio_element_setinfo(el, &info);
 
     WAV_DEC_DATA_DUMP_BY_UART_OPEN();
 

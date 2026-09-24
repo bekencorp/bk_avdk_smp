@@ -1,4 +1,4 @@
-set(incs ./include)
+set(incs)
 
 set(srcs)
 set(priv_requires bk_common)
@@ -8,6 +8,7 @@ list(APPEND srcs
 		audio_element.c
 		audio_event_iface.c
 		audio_pipeline.c
+		audio_uplink_layout.c
 		ringbuf.c
 		framebuf.c
 		audio_mem.c

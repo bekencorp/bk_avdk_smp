@@ -109,6 +109,13 @@ struct audio_element
     audio_element_info_t        info;
     audio_element_info_t        *report_info;
 
+    /* Uplink caps: additive stream-geometry hand-off from the capture producer
+     * (mic) down to the AEC consumer. own = published by this element; in =
+     * forwarded from upstream by the pipeline at link time. Both default to
+     * {valid=0} so elements that never touch them are unaffected. */
+    aud_uplink_caps_t           uplink_caps_own;
+    aud_uplink_caps_t           uplink_caps_in;
+
     beken_thread_t              audio_thread;
 
     /* PrivateData */
@@ -722,6 +729,43 @@ bk_err_t audio_element_getinfo(audio_element_handle_t el, audio_element_info_t *
     return BK_FAIL;
 }
 
+bk_err_t audio_element_set_uplink_caps(audio_element_handle_t el, const aud_uplink_caps_t *caps)
+{
+    if (!el || !caps) {
+        return BK_FAIL;
+    }
+    el->uplink_caps_own = *caps;
+    return BK_OK;
+}
+
+bk_err_t audio_element_get_uplink_caps(audio_element_handle_t el, aud_uplink_caps_t *caps)
+{
+    if (!el || !caps) {
+        return BK_FAIL;
+    }
+    /* effective = own if published, else pass upstream through */
+    *caps = el->uplink_caps_own.valid ? el->uplink_caps_own : el->uplink_caps_in;
+    return BK_OK;
+}
+
+bk_err_t audio_element_set_input_uplink_caps(audio_element_handle_t el, const aud_uplink_caps_t *caps)
+{
+    if (!el || !caps) {
+        return BK_FAIL;
+    }
+    el->uplink_caps_in = *caps;
+    return BK_OK;
+}
+
+bk_err_t audio_element_get_input_uplink_caps(audio_element_handle_t el, aud_uplink_caps_t *caps)
+{
+    if (!el || !caps) {
+        return BK_FAIL;
+    }
+    *caps = el->uplink_caps_in;
+    return BK_OK;
+}
+
 bk_err_t audio_element_report_info(audio_element_handle_t el)
 {
     if (el)
@@ -1253,7 +1297,17 @@ bk_err_t audio_element_deinit(audio_element_handle_t el)
 {
     audio_element_stop(el);
     audio_element_wait_for_stop(el);
-    audio_element_terminate(el);
+    if (audio_element_terminate(el) != BK_OK)
+    {
+        audio_element_abort_output_port(el);
+        audio_element_abort_input_port(el);
+        if (audio_element_terminate_with_ticks(el, DEFAULT_MAX_WAIT_TIME) != BK_OK)
+        {
+            BK_LOGE(TAG, "[%s-%p] task did not terminate; leaking element to avoid use-after-free \n",
+                    el->tag, el);
+            return BK_FAIL;
+        }
+    }
     vEventGroupDelete(el->state_event);
 
     audio_event_iface_destroy(el->iface_event);
