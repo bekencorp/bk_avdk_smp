@@ -2,8 +2,10 @@
 #include "cli_section.h"
 #include <common/bk_assert.h>
 #include <driver/timer.h>
+#include <os/mem.h>
 #include <os/os.h>
 #include <os/str.h>
+#include <stddef.h>
 #include <stdint.h>
 #include "sys_sw_regs.h"
 
@@ -26,6 +28,12 @@
 #define APP_DUMP_FOLLOW_WAIT_MS  30000U
 /* TIMER_ID0 is permanently reserved when CONFIG_TIMER_US is enabled. */
 #define APP_DUMP_TIMER_ID        TIMER_ID11
+#define APP_DUMP_HEAP_BUF_LEN      32U
+#define APP_DUMP_HEAP_MAGIC        0x48454150u /* 'HEAP' */
+#define APP_DUMP_HEAP_TAG_A        0x41414141u /* 'AAAA' */
+#define APP_DUMP_HEAP_TAG_B        0x42424242u /* 'BBBB' */
+#define APP_DUMP_HEAP_UAF_TRIES    8U
+#define APP_DUMP_HEAP_CANARY_LEN   4U
 
 typedef enum {
 	APP_DUMP_CONTEXT_TASK = 0,
@@ -39,7 +47,17 @@ typedef enum {
 	APP_DUMP_FAULT_BADPC,
 	APP_DUMP_FAULT_UDF,
 	APP_DUMP_FAULT_DIVZERO,
+	APP_DUMP_FAULT_HEAP_OVERFLOW,
+	APP_DUMP_FAULT_HEAP_UAF,
+	APP_DUMP_FAULT_HEAP_CANARY,
 } app_dump_fault_t;
+
+typedef struct {
+	uint8_t buf[APP_DUMP_HEAP_BUF_LEN];
+	uint32_t tag;
+	uint32_t magic;
+	void (*fn)(void);
+} app_dump_heap_obj_t;
 
 typedef struct {
 	const char *name;
@@ -82,6 +100,9 @@ static const app_dump_mode_t s_app_dump_modes[] = {
 	{"critical_badpc", APP_DUMP_CONTEXT_CRITICAL, APP_DUMP_FAULT_BADPC},
 	{"critical_udf", APP_DUMP_CONTEXT_CRITICAL, APP_DUMP_FAULT_UDF},
 	{"critical_divzero", APP_DUMP_CONTEXT_CRITICAL, APP_DUMP_FAULT_DIVZERO},
+	{"task_heap_overflow", APP_DUMP_CONTEXT_TASK, APP_DUMP_FAULT_HEAP_OVERFLOW},
+	{"task_heap_uaf", APP_DUMP_CONTEXT_TASK, APP_DUMP_FAULT_HEAP_UAF},
+	{"task_heap_canary", APP_DUMP_CONTEXT_TASK, APP_DUMP_FAULT_HEAP_CANARY},
 };
 
 static bool app_dump_get_case_id_len(const char *case_id, size_t *length)
@@ -174,6 +195,128 @@ static void app_dump_divzero(void)
 	(void)result;
 }
 
+static void app_dump_heap_safe_nop(void)
+{
+}
+
+static void app_dump_heap_overflow(void)
+{
+	app_dump_heap_obj_t *obj;
+	volatile uint8_t *p;
+	size_t i;
+
+	obj = (app_dump_heap_obj_t *)os_zalloc(sizeof(*obj));
+	if (obj == NULL) {
+		os_printf("DUMP_TEST_HEAP kind=overflow result=alloc_fail\r\n");
+		BK_ASSERT(false);
+		return;
+	}
+
+	obj->tag = APP_DUMP_HEAP_TAG_A;
+	obj->magic = APP_DUMP_HEAP_MAGIC;
+	obj->fn = app_dump_heap_safe_nop;
+	os_printf("DUMP_TEST_HEAP kind=overflow obj=%p magic=%08x fn=%p\r\n",
+		(void *)obj, (unsigned)obj->magic, (void *)obj->fn);
+
+	p = obj->buf;
+	for (i = 0; i < APP_DUMP_HEAP_BUF_LEN; i++) {
+		p[i] = 0x5AU;
+	}
+	for (i = APP_DUMP_HEAP_BUF_LEN; i < sizeof(*obj); i++) {
+		p[i] = 0x00;
+	}
+
+	os_printf("DUMP_TEST_HEAP kind=overflow after_stomp magic=%08x fn=%p\r\n",
+		(unsigned)obj->magic, (void *)obj->fn);
+	obj->fn();
+}
+
+static void app_dump_heap_uaf(void)
+{
+	app_dump_heap_obj_t *owner_a;
+	app_dump_heap_obj_t *owner_b;
+	app_dump_heap_obj_t *dangling;
+	uint32_t tries;
+	uint32_t reused;
+
+	owner_a = (app_dump_heap_obj_t *)os_zalloc(sizeof(*owner_a));
+	if (owner_a == NULL) {
+		os_printf("DUMP_TEST_HEAP kind=uaf result=alloc_fail\r\n");
+		BK_ASSERT(false);
+		return;
+	}
+
+	owner_a->tag = APP_DUMP_HEAP_TAG_A;
+	owner_a->magic = APP_DUMP_HEAP_MAGIC;
+	owner_a->fn = app_dump_heap_safe_nop;
+	dangling = owner_a;
+	os_free(owner_a);
+
+	owner_b = NULL;
+	reused = 0U;
+	for (tries = 0; tries < APP_DUMP_HEAP_UAF_TRIES; tries++) {
+		owner_b = (app_dump_heap_obj_t *)os_zalloc(sizeof(*owner_b));
+		if (owner_b == NULL) {
+			break;
+		}
+		if (owner_b == dangling) {
+			reused = 1U;
+			break;
+		}
+		os_free(owner_b);
+		owner_b = NULL;
+	}
+
+	if (owner_b == NULL) {
+		os_printf("DUMP_TEST_HEAP kind=uaf result=alloc_fail dangling=%p\r\n",
+			(void *)dangling);
+		dangling->fn = NULL;
+		dangling->fn();
+		return;
+	}
+
+	owner_b->tag = APP_DUMP_HEAP_TAG_B;
+	owner_b->magic = APP_DUMP_HEAP_MAGIC;
+	owner_b->fn = app_dump_heap_safe_nop;
+	os_printf("DUMP_TEST_HEAP kind=uaf dangling=%p b=%p reused=%u\r\n",
+		(void *)dangling, (void *)owner_b, (unsigned)reused);
+
+	dangling->fn = NULL;
+	os_printf("DUMP_TEST_HEAP kind=uaf after_uaf_write b_fn=%p\r\n",
+		(void *)owner_b->fn);
+
+	owner_b->fn();
+}
+
+static void app_dump_heap_canary(void)
+{
+	app_dump_heap_obj_t *obj;
+	volatile uint8_t *p;
+	size_t i;
+
+	obj = (app_dump_heap_obj_t *)os_zalloc(sizeof(*obj));
+	if (obj == NULL) {
+		os_printf("DUMP_TEST_HEAP kind=canary result=alloc_fail\r\n");
+		BK_ASSERT(false);
+		return;
+	}
+
+	obj->tag = APP_DUMP_HEAP_TAG_A;
+	obj->magic = APP_DUMP_HEAP_MAGIC;
+	obj->fn = app_dump_heap_safe_nop;
+	p = (volatile uint8_t *)obj;
+	for (i = 0; i < APP_DUMP_HEAP_CANARY_LEN; i++) {
+		p[sizeof(*obj) + i] = 0xAB;
+	}
+
+	os_printf("DUMP_TEST_HEAP kind=canary obj=%p tag_stomp=%p len=%u\r\n",
+		(void *)obj, (void *)(p + sizeof(*obj)),
+		(unsigned)APP_DUMP_HEAP_CANARY_LEN);
+
+	obj->fn = NULL;
+	obj->fn();
+}
+
 static void app_dump_trigger(app_dump_fault_t fault)
 {
 	switch (fault) {
@@ -191,6 +334,15 @@ static void app_dump_trigger(app_dump_fault_t fault)
 		break;
 	case APP_DUMP_FAULT_DIVZERO:
 		app_dump_divzero();
+		break;
+	case APP_DUMP_FAULT_HEAP_OVERFLOW:
+		app_dump_heap_overflow();
+		break;
+	case APP_DUMP_FAULT_HEAP_UAF:
+		app_dump_heap_uaf();
+		break;
+	case APP_DUMP_FAULT_HEAP_CANARY:
+		app_dump_heap_canary();
 		break;
 	default:
 		BK_ASSERT(false);
