@@ -1539,7 +1539,8 @@ static int _aec_v3_algorithm_process(audio_element_handle_t self, char *in_buffe
         {
             aec->ec_out_cb(buff_ecout, aec->frame_size);
         }
-        uint32_t interleave_bytes = 0;
+        /* Only consumed by the debug-dump path below. */
+        uint32_t __maybe_unused interleave_bytes = 0;
         if (aec->interleaved_out_phase_enable && aec->out_phase_interleave_buf)
         {
             uint32_t ns = (uint32_t)(aec->frame_size / sizeof(int16_t));

@@ -191,4 +191,3 @@ _opus_decoder_init_exit:
     audio_free(opus_dec);
     return NULL;
 }
-
