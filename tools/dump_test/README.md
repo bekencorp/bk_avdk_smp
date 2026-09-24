@@ -43,11 +43,18 @@ AP 和 CP 的 Dump CLI 保留 `task_assert`、`isr_assert`、`isr_crash`、
 ap_cmd ap_dump_test CASE_001 isr_udf 0
 ap_cmd ap_dump_test CASE_002 isr_divzero 1
 cp_dump_test CASE_003 critical_badpc
+ap_cmd ap_dump_test CASE_004 task_heap_overflow 0
+ap_cmd ap_dump_test CASE_005 task_heap_uaf 0
 ```
 
 AP1 的 ISR 模式仍由 AP0 发起 IPI，在 AP1 IPI callback 上下文触发。`badpc`
 调用 0 地址函数指针；`udf` 执行 GCC ARM `udf` 指令；`divzero` 使用 volatile
 操作数，依赖系统初始化已启用的 divide-by-zero trap。
+
+Heap 模式仅 task 上下文：`task_heap_overflow` 在同一堆对象内越界写坏相邻函数指针；
+`task_heap_uaf` 先 free 再同址分配，经悬空指针污染新 owner 后调用。
+`task_heap_canary` 故意写穿 user payload 破坏 MEM_DEBUG 尾部 `0xcd` canary，
+供离线 Heap Integrity 检出 Mem Overflow。三者都会打印 `DUMP_TEST_HEAP ...` 标记。
 
 ## Heartbeat 与 Owner/Follower
 

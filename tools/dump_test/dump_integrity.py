@@ -253,7 +253,7 @@ def _expected_reason_kinds(mode: Optional[str]) -> Optional[Tuple[str, ...]]:
         return ("Assert",)
     if fault in ("udf", "divzero"):
         return ("UsageFault",)
-    if fault in ("badpc", "crash"):
+    if fault in ("badpc", "crash", "overflow", "uaf", "canary"):
         return ("MemFault", "BusFault", "HardFault")
     return None
 
