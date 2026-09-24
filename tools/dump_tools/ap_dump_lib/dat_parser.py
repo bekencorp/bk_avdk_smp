@@ -11,8 +11,9 @@ from pathlib import Path
 HEX_BYTE_RE = re.compile(r"\b[0-9a-fA-F]{2}\b")
 HEX_RE = re.compile(r"0x[0-9a-fA-F]+|(?<![A-Za-z0-9_])[0-9a-fA-F]{8}(?![A-Za-z0-9_])")
 STACK_BEGIN_RE = re.compile(
-    r">>>>stack mem dump begin(?:,\s*region:\s*(?P<region>[^,]+))?.*?"
-    r"stack_top=(?P<top>[0-9a-fA-F]+)\s*,\s*stack end=(?P<end>[0-9a-fA-F]+)",
+    r">>>>stack mem dump begin,\s*region:\s*(?P<region>.+?)"
+    r"(?:,\s*encoding=(?P<encoding>[^,\s]+))?"
+    r",\s*stack_top=(?P<top>[0-9a-fA-F]+)\s*,\s*stack end=(?P<end>[0-9a-fA-F]+)",
     re.IGNORECASE,
 )
 STACK_END_RE = re.compile(r"<<<<stack mem dump end", re.IGNORECASE)
@@ -23,6 +24,27 @@ INT_RE = re.compile(
     r"enter=(?P<enter>\d+)\s+exit=(?P<exit>\d+)"
 )
 INT_HEADER_RE = re.compile(r"interrupt recorder (?P<core>core\d+) total=(?P<total>\d+) depth=(?P<depth>\d+)")
+# Serial capture prefixes seen in JIRA/autotest iot logs, SecureCRT exports,
+# and view_log / dump_test captures ("[HH:MM:SS.ms] RX  | payload").
+LOG_PREFIX_RE = re.compile(
+    r"^(?:"
+    r"\[[^\]]+\]\s*(?:(?:RX|TX|SYS)\s*\|\s*)?"            # [tag] optional RX|TX|SYS |
+    r"|(?:COM\d+\s+)?"                                    # optional COMxx
+    r"\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}(?:\.\d+)?\s*:?\s*"  # YYYY-MM-DD HH:MM:SS[.us][:]
+    r"|(?:RX|TX|SYS)\s*\|\s*"                             # bare RX| after prior strip
+    r")"
+)
+
+
+def strip_log_prefix(line: str) -> str:
+    """Remove per-line serial/autotest timestamp prefixes before parsing."""
+    prev = None
+    text = line
+    # Apply repeatedly so "[ts] RX  | ..." and leftover "RX  | ..." both clear.
+    while prev != text:
+        prev = text
+        text = LOG_PREFIX_RE.sub("", text, count=1)
+    return text
 
 
 @dataclass
@@ -42,6 +64,12 @@ class StackRegion:
             return None
         off = address - self.start
         return int.from_bytes(self.data[off:off + 4], "little")
+
+    def read_bytes(self, address: int, size: int) -> bytes | None:
+        if size <= 0 or not self.contains(address, size):
+            return None
+        off = address - self.start
+        return self.data[off:off + size]
 
     def iter_words(self):
         limit = len(self.data) - (len(self.data) % 4)
@@ -117,19 +145,35 @@ def parse_int(text: str) -> int:
 
 
 def split_sessions(text: str) -> list[tuple[int, int, list[str]]]:
-    lines = text.splitlines()
+    raw_lines = text.splitlines()
+    lines = [strip_log_prefix(line) for line in raw_lines]
     begins = [i for i, line in enumerate(lines) if "user except handler begin" in line.lower()]
     if not begins:
         return [(1, len(lines), lines)]
 
     sessions: list[tuple[int, int, list[str]]] = []
-    for begin in begins:
+    for session_no, begin in enumerate(begins):
+        prev_end = begins[session_no - 1] + 1 if session_no > 0 else 0
+        session_start = begin
+        # Registers and dump metadata may be printed before the explicit
+        # "user except handler begin" banner. Include that preamble so crash
+        # point and dump reason are not lost.
+        for idx in range(begin, prev_end - 1, -1):
+            lower = lines[idx].lower()
+            if "@dump-reason:" in lower:
+                session_start = idx
+                continue
+            if "current regs:" in lower:
+                session_start = idx
+                continue
+            if "dump_test_begin" in lower:
+                session_start = idx
         end = len(lines) - 1
         for idx in range(begin + 1, len(lines)):
             if "user except handler end" in lines[idx].lower():
                 end = idx
                 break
-        sessions.append((begin + 1, end + 1, lines[begin:end + 1]))
+        sessions.append((session_start + 1, end + 1, lines[session_start:end + 1]))
     return sessions
 
 
@@ -167,6 +211,7 @@ def parse_stack_regions(lines: list[str], base_line_no: int) -> list[StackRegion
             continue
 
         name = (match.group("region") or f"stack@{match.group('top')}").strip()
+        encoding = (match.group("encoding") or "").strip().lower()
         start = int(match.group("top"), 16)
         end = int(match.group("end"), 16)
         body: list[str] = []
@@ -176,10 +221,23 @@ def parse_stack_regions(lines: list[str], base_line_no: int) -> list[StackRegion
             body.append(lines[idx])
             idx += 1
         end_idx = idx if idx < len(lines) else len(lines) - 1
+        expected = end - start if end > start else 0
         ascii_data = _decode_ascii_stack(body)
-        data = ascii_data if ascii_data else _decode_base64_stack(body)
-        if end > start:
-            data = data[: end - start]
+        base64_data = _decode_base64_stack(body)
+        # Prefer explicit encoding=base64. Otherwise pick the decode whose
+        # length is closest to the declared region size — hex-byte regex can
+        # falsely match fragments inside base64 lines and yield tiny payloads.
+        if encoding == "base64":
+            data = base64_data
+        elif encoding in {"hex", "ascii", "bin"}:
+            data = ascii_data if ascii_data else base64_data
+        elif expected > 0 and (ascii_data or base64_data):
+            candidates = [item for item in (base64_data, ascii_data) if item]
+            data = min(candidates, key=lambda blob: abs(len(blob) - expected))
+        else:
+            data = ascii_data if ascii_data else base64_data
+        if expected > 0:
+            data = data[:expected]
         regions.append(
             StackRegion(
                 name=name,
@@ -208,7 +266,7 @@ def parse_registers(lines: list[str], base_line_no: int) -> list[RegisterBlock]:
         reg = REG_RE.match(line)
         if reg:
             current.registers[reg.group("name").lower()] = int(reg.group("value"), 16)
-        elif line.strip() == "" or line.startswith("Traceback:"):
+        elif line.strip() == "" or "Traceback:" in line:
             current = None
     return blocks
 
@@ -304,10 +362,10 @@ def parse_dat(path: Path, session_index: int | None = None) -> tuple[list[DumpSe
     for idx, (start_line, end_line, lines) in enumerate(raw_sessions):
         session = DumpSession(index=idx, start_line=start_line, end_line=end_line, lines=lines)
         for line in lines:
-            if "build time =>" in line:
+            if "build time =>" in line and not session.build_time:
                 session.build_time = line.split("=>", 1)[1].strip().strip("!")
-            if "@Dump-reason:" in line:
-                session.dump_reason = line.split(":", 1)[1].strip()
+            if "@Dump-reason:" in line and not session.dump_reason:
+                session.dump_reason = line.split("@Dump-reason:", 1)[1].strip()
         session.registers = parse_registers(lines, start_line)
         session.tracebacks = parse_tracebacks(lines, start_line)
         session.stack_regions = parse_stack_regions(lines, start_line)

@@ -1,3 +1,94 @@
+# BK7259 Dump Analyzer 使用说明
+
+`bk_dump_analyze.py` 是 BK7259 dump 一键分析入口。客户可以把 dump log 和匹配的
+`app.elf` 放到 `tools/dump_tools/input/`，然后执行一条命令，工具会自动解析异常现场并在
+控制台输出诊断摘要；需要归档时可通过 `-o report.md` 输出完整 Markdown 报告。
+
+## 一键分析入口
+
+### 默认输入目录
+
+默认输入目录：
+
+```text
+tools/dump_tools/input/
+```
+
+默认查找规则：
+
+1. 如果指定 `--log` / `--elf`，优先使用指定路径。
+2. 如果未指定 `--log`，在 `tools/dump_tools/input/` 查找最新的 `.DAT/.log/.txt`。
+3. ELF（AP/CP 都叫 `app.elf`）：先找 `input/app.elf`。
+4. 若 input 没有 `app.elf`，再按模式到 build 目录找：
+   - AP / heartbeat / handoff → `build/**/bk7259_ap/app.elf`
+   - CP → `build/**/bk7259/app.elf`
+5. 一次只分析一侧异常，因此 input 下不需要区分 `cp_app.elf`。
+
+### 基本用法
+
+默认输出到控制台：
+
+```bash
+python3 tools/dump_tools/bk_dump_analyze.py
+```
+
+指定 log 和 elf（AP 或 CP 均可，放匹配的那份 `app.elf`）：
+
+```bash
+python3 tools/dump_tools/bk_dump_analyze.py \
+  --log /path/to/dump.DAT \
+  --elf /path/to/app.elf
+```
+
+CP 异常 dump（CPU0/CPU1），ELF 同样是 `app.elf`：
+
+```bash
+python3 tools/dump_tools/bk_dump_analyze.py \
+  --log /path/to/cp_dump.log \
+  --elf /path/to/bk7259/app.elf
+```
+
+`auto` 模式会按寄存器核号区分 AP（CPU2/3）与 CP（CPU0/1）。
+
+输出完整 Markdown 报告：
+
+```bash
+python3 tools/dump_tools/bk_dump_analyze.py -o report.md
+```
+
+列出 dump sessions：
+
+```bash
+python3 tools/dump_tools/bk_dump_analyze.py --list-sessions
+```
+
+指定 dump 类型：
+
+```bash
+python3 tools/dump_tools/bk_dump_analyze.py --mode ap-exception
+python3 tools/dump_tools/bk_dump_analyze.py --mode cp-exception
+python3 tools/dump_tools/bk_dump_analyze.py --mode heartbeat
+```
+
+调用链按置信度分级：`high`（固件 traceback）、`medium`（任务表）、`low`（栈扫描）。
+控制台默认只展示 high/medium；完整 low 链在 `-o report.md` 中。
+
+异常 dump 还会做 **离线 Heap Integrity**：用 ELF 中的 `s_sram_used` / `xUsed` 等
+used-list 符号，在 dump 内存镜像上遍历 `MEM_DEBUG` 已分配块并核对尾部 `0xcd`
+canary。不依赖固件打印 `sram heap dump memory stats`。若 canary 被破坏，报告会给出
+user 指针与 alloc 现场（func/line/task）。对象内踩踏但未破坏 canary 的情况不会命中。
+
+## 旧入口
+
+以下工具仍保留，便于内部调试或兼容已有流程：
+
+- `analyze_ap_dump.py`
+- `analyze_heartbeat_timeout.py`
+
+新需求优先使用 `bk_dump_analyze.py`。
+
+---
+
 # AP Dump Analyzer 使用说明
 
 `analyze_ap_dump.py` 用来分析 BK7259 AP 侧异常 dump。它会结合 AP 侧 `app.elf` 和串口导出的 `.DAT` 日志，生成一份 Markdown 报告，帮助快速定位当前任务、调用栈、中断状态和可能卡住的位置。
@@ -27,7 +118,7 @@
 最简单的方式是把 `app.elf` 和 `.DAT` 放在同一个目录，然后执行：
 
 ```bash
-python3 /home/gang.peng/bk_avdk_smp_dev_7259v2_version/tools/analyze_ap_dump.py --output report.md
+python3 tools/dump_tools/analyze_ap_dump.py --output report.md
 ```
 
 工具会自动：
@@ -42,7 +133,7 @@ python3 /home/gang.peng/bk_avdk_smp_dev_7259v2_version/tools/analyze_ap_dump.py 
 如果文件不在当前目录，或者当前目录里有多个 `app.elf`，可以手动指定：
 
 ```bash
-python3 /home/gang.peng/bk_avdk_smp_dev_7259v2_version/tools/analyze_ap_dump.py \
+python3 tools/dump_tools/analyze_ap_dump.py \
   --elf build/bk7259/app/bk7259_ap/app.elf \
   --dat crash_log.DAT \
   --output report.md
@@ -51,7 +142,7 @@ python3 /home/gang.peng/bk_avdk_smp_dev_7259v2_version/tools/analyze_ap_dump.py 
 如果不加 `--output`，报告会直接打印到终端：
 
 ```bash
-python3 /home/gang.peng/bk_avdk_smp_dev_7259v2_version/tools/analyze_ap_dump.py \
+python3 tools/dump_tools/analyze_ap_dump.py \
   --elf app.elf \
   --dat crash_log.DAT
 ```
@@ -61,7 +152,7 @@ python3 /home/gang.peng/bk_avdk_smp_dev_7259v2_version/tools/analyze_ap_dump.py 
 有些 `.DAT` 文件里可能包含多次重启或多次异常。可以先列出所有 session：
 
 ```bash
-python3 /home/gang.peng/bk_avdk_smp_dev_7259v2_version/tools/analyze_ap_dump.py \
+python3 tools/dump_tools/analyze_ap_dump.py \
   --elf app.elf \
   --dat crash_log.DAT \
   --list-sessions
@@ -77,7 +168,7 @@ python3 /home/gang.peng/bk_avdk_smp_dev_7259v2_version/tools/analyze_ap_dump.py 
 默认分析最后一次 session。如果要分析第 0 次：
 
 ```bash
-python3 /home/gang.peng/bk_avdk_smp_dev_7259v2_version/tools/analyze_ap_dump.py \
+python3 tools/dump_tools/analyze_ap_dump.py \
   --elf app.elf \
   --dat crash_log.DAT \
   --session-index 0 \
@@ -102,15 +193,15 @@ python3 /home/gang.peng/bk_avdk_smp_dev_7259v2_version/tools/analyze_ap_dump.py 
 
 ```bash
 cd /tmp/ap_dump_case
-python3 /home/gang.peng/bk_avdk_smp_dev_7259v2_version/tools/analyze_ap_dump.py \
+python3 tools/dump_tools/analyze_ap_dump.py \
   --output report.md
 ```
 
 ### 分析构建目录里的 ELF 和单独保存的日志
 
 ```bash
-python3 /home/gang.peng/bk_avdk_smp_dev_7259v2_version/tools/analyze_ap_dump.py \
-  --elf /home/gang.peng/bk_avdk_smp_dev_7259v2_version/build/bk7259/doorbell/bk7259_ap/app.elf \
+python3 tools/dump_tools/analyze_ap_dump.py \
+  --elf build/bk7259/doorbell/bk7259_ap/app.elf \
   --dat /tmp/crash_20260425.DAT \
   --output /tmp/crash_report.md
 ```
@@ -118,7 +209,7 @@ python3 /home/gang.peng/bk_avdk_smp_dev_7259v2_version/tools/analyze_ap_dump.py 
 ### 只分析第一次 Dump
 
 ```bash
-python3 /home/gang.peng/bk_avdk_smp_dev_7259v2_version/tools/analyze_ap_dump.py \
+python3 tools/dump_tools/analyze_ap_dump.py \
   --elf app.elf \
   --dat long_run.DAT \
   --session-index 0 \
@@ -157,7 +248,7 @@ CPU 寄存器，需要通过 SRAM + PSRAM + 外设寄存器快照来还原现场
 ## 基本用法
 
 ```bash
-python3 /home/gang.peng/bk_avdk_smp_dev_7259v2_version/tools/dump_tools/analyze_heartbeat_timeout.py \
+python3 tools/dump_tools/analyze_heartbeat_timeout.py \
     /path/to/heartbeat_dump.log /path/to/app.elf
 ```
 

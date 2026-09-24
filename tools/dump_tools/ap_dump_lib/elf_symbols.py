@@ -120,14 +120,79 @@ class ElfSymbols:
                 return None
         return sym
 
+    @staticmethod
+    def _is_linker_or_data_symbol(name: str) -> bool:
+        lowered = name.lower()
+        markers = (
+            "__itcm_",
+            "__dtcm_",
+            "__sram_",
+            "__psram_",
+            "__flash_",
+            "_start__",
+            "_end__",
+            "_offset",
+            "region_",
+            "LOADADDR",
+        )
+        if any(m.lower() in name for m in markers):
+            return True
+        if lowered.startswith(("__", ".")):
+            # Keep real C functions like __aeabi_* out of stack-scan noise unless
+            # they look like compiler helpers with tiny offsets.
+            if lowered.startswith("__aeabi_"):
+                return False
+            return True
+        return False
+
     def looks_like_code(self, address: int) -> bool:
         lookup = normalize_thumb_return(address)
         sym = self.nearest(lookup)
         if not sym:
             return False
         kind = sym.kind.upper()
-        return kind in {"T", "W", "FUNC"} or kind.endswith("T")
+        if not (kind in {"T", "W", "FUNC"} or kind.endswith("T")):
+            return False
+        if self._is_linker_or_data_symbol(sym.name):
+            return False
+        # Reject hits that land far past the symbol without a reliable size.
+        if sym.size and lookup >= sym.address + sym.size:
+            return False
+        if not sym.size and lookup - sym.address > 0x400:
+            return False
+        return True
 
+    def extract_build_time(self) -> str | None:
+        """Best-effort banner string from ELF rodata (e.g. 'Sep  3 2026 00:13:11')."""
+        try:
+            raw = subprocess.check_output(["strings", str(self.elf_path)], text=True, errors="ignore")
+        except Exception:
+            return None
+        # Prefer explicit "build time => ..." payloads when present.
+        for line in raw.splitlines():
+            if "build time" in line.lower() and "=>" in line:
+                value = line.split("=>", 1)[1].strip(" !\t")
+                # Skip printf format templates like "%s".
+                if value and "%" not in value and len(value) >= 8:
+                    return value
+        month = r"(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)"
+        pat = re.compile(rf"^{month}\s+\d{{1,2}}\s+\d{{4}}\s+\d{{2}}:\d{{2}}:\d{{2}}$")
+        for line in raw.splitlines():
+            if pat.match(line.strip()):
+                return line.strip()
+        return None
+
+    def build_time_matches(self, dump_build_time: str | None) -> tuple[bool | None, str]:
+        """Return (match?, note). None means unable to compare."""
+        if not dump_build_time:
+            return None, "dump build time not found"
+        elf_bt = self.extract_build_time()
+        if not elf_bt:
+            return None, "ELF build time string not found"
+        # Normalize whitespace for 'Sep  3' vs 'Sep 3'.
+        norm = lambda s: " ".join(s.replace("!", "").split())
+        matched = norm(elf_bt) == norm(dump_build_time)
+        return matched, f"dump=`{dump_build_time}` elf=`{elf_bt}`"
     def resolve(self, address: int, normalize_thumb: bool = True) -> ResolvedAddress:
         lookup = normalize_thumb_return(address) if normalize_thumb else address
         if normalize_thumb and (address & 1):

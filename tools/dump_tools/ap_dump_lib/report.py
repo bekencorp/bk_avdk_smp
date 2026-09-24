@@ -3,8 +3,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from .context_analysis import ContextAnalysis
 from .dat_parser import DumpSession
 from .elf_symbols import ElfSymbols
+from .heap_analysis import HeapAnalysisResult, render_heap_markdown
 from .interrupt_analysis import CoreInterruptSummary
 from .stack_analysis import AnalysisResult, StackChain
 
@@ -41,28 +43,51 @@ def render_report(
     symbols: ElfSymbols,
     analysis: AnalysisResult,
     interrupts: list[CoreInterruptSummary],
+    side: str = "AP",
+    heap: HeapAnalysisResult | None = None,
+    context: ContextAnalysis | None = None,
 ) -> str:
     px = symbols.get("pxCurrentTCBs")
     lines: list[str] = []
-    lines.append("# AP Dump Analysis Report")
+    lines.append(f"# {side} Dump Analysis Report")
     lines.append("")
     lines.append("## Summary")
+    elf_match = analysis.elf_build_match
+    if elf_match is True:
+        elf_status = f"MATCH ({analysis.elf_build_note})"
+    elif elf_match is False:
+        elf_status = f"MISMATCH ({analysis.elf_build_note})"
+    else:
+        elf_status = f"unknown ({analysis.elf_build_note or 'n/a'})"
     lines.extend(
         _table(
             ["Item", "Value"],
             [
+                ["Side", side],
                 ["ELF", str(elf_path)],
                 ["DAT", str(dat_path)],
                 ["Selected session", f"{session.index} of {sessions_count} (lines {session.start_line}-{session.end_line})"],
                 ["Build time", session.build_time or "not found"],
+                ["ELF vs dump build", elf_status],
                 ["Dump reason", session.dump_reason or "not found"],
                 ["Likely stuck point", analysis.likely_stuck],
+                ["Execution context", f"{context.verdict} [{context.confidence}]" if context else "not analyzed"],
                 ["pxCurrentTCBs", _hex(px.address if px else None)],
                 ["Stack regions", str(len(session.stack_regions))],
                 ["Traceback commands", str(len(session.tracebacks))],
             ],
         )
     )
+
+    if context:
+        lines.append("## Execution Context")
+        rows = [
+            ["Verdict", f"{context.verdict} [{context.confidence}]"],
+            ["Core", f"CPU{context.core}" if context.core is not None else "unknown"],
+            ["Evidence", "<br>".join(context.evidence) if context.evidence else ""],
+            ["Notes", "<br>".join(context.notes) if context.notes else ""],
+        ]
+        lines.extend(_table(["Item", "Value"], rows))
 
     lines.append("## Current Core State")
     rows = []
@@ -97,7 +122,7 @@ def render_report(
             rng = f" stack=0x{chain.stack_range[0]:08x}..0x{chain.stack_range[1]:08x}"
         stuck = f" likely_stuck=`{chain.likely_stuck}`" if chain.likely_stuck else ""
         lines.append(f"### {chain.name}")
-        lines.append(f"- Source: `{chain.source}`{rng}{stuck}")
+        lines.append(f"- Source: `{chain.source}` confidence=`{chain.confidence}`{rng}{stuck}")
         lines.extend(_chain_lines(chain))
         lines.append("")
 
@@ -124,6 +149,9 @@ def render_report(
         for item in stack.chain:
             lines.append(f"  - `{item.display}`")
         lines.append("")
+
+    if heap is not None:
+        lines.extend(render_heap_markdown(heap))
 
     lines.append("## Raw Evidence")
     if session.evidence:
