@@ -788,3 +788,13 @@ avdk_err_t bk_h264_encode_frame_ctlr_new(bk_h264_encode_ctlr_handle_t *handle, b
     LOGI("H.264 encoder controller created\r\n");
     return AVDK_ERR_OK;
 }
+
+avdk_err_t bk_h264_encode_frame_ctlr_handle_to_instance(bk_h264_encode_ctlr_handle_t handle, void **instance)
+{
+    private_h264_encode_frame_ctlr_t *controller;
+
+    AVDK_RETURN_ON_FALSE(handle && instance, AVDK_ERR_INVAL, TAG, "handle/instance is NULL");
+    controller = __containerof(handle, private_h264_encode_frame_ctlr_t, ops);
+    *instance = (void *)controller->enc_param.instance;
+    return AVDK_ERR_OK;
+}

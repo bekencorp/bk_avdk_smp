@@ -41,9 +41,9 @@
 #define FPS_CTRL_BY_LENGTH 1 //controled by framelen and linelen
 #define FPS_CRTL_METHOD FPS_CTRL_BY_LENGTH
 
-#define DEFAULT_FRAME_LEN 1125
-#define DEFAULT_LINE_LEN 1000
-#define GC20C3_PCLK (DEFAULT_FRAME_LEN * DEFAULT_LINE_LEN * 30)
+#define DEFAULT_FRAME_LEN 1200  //1125
+#define DEFAULT_LINE_LEN 1406  //1000
+#define GC20C3_PCLK (DEFAULT_FRAME_LEN * DEFAULT_LINE_LEN * 20)
 
 #define WIN_MAX_X 1928
 #define WIN_MAX_Y 1088
@@ -1124,9 +1124,9 @@ static const struct i2c_config sensor_gc20C3_init_table[] =
     { 0x025a,0x5e},
     { 0x0211,0x01},
     { 0x0340,0x04},
-    { 0x0341,0x65},
-    { 0x0342,0x03},
-    { 0x0343,0xe8},
+    { 0x0341,0xB0},
+    { 0x0342,0x05},
+    { 0x0343,0x7e},
     { 0x0212,0x14},
     { 0x0350,0x06},
     { 0x0348,0x07},

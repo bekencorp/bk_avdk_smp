@@ -666,7 +666,7 @@ const static ISP_CALIB_DATA_S GC20C3_1080P_CalibParam = {
                 },
                 .againRange = {
                    .min = 64,
-                   .max = 640,
+                   .max = 2048,
                 },
                 .dgainRange = {
                     .min = 1024,
@@ -676,7 +676,7 @@ const static ISP_CALIB_DATA_S GC20C3_1080P_CalibParam = {
                 .aeTarget = 85,
                 .dampOver = 0x40,
                 .dampUnder = 0x40,
-                .tolerance = 6,
+                .tolerance = 4,
                 .antiflicker = {
                     .enable = 0,
                     .flickerFreq = 50,
@@ -1221,7 +1221,7 @@ const static ISP_CALIB_DATA_S GC20C3_1080P_CalibParam = {
 
         .cproc = {
             .enable = 1,
-            .opType = OP_TYPE_MANUAL,
+            .opType = OP_TYPE_AUTO,
             .manualAttr = {
                 .brightness = 0,
                 .contrast = 128,
@@ -1232,8 +1232,8 @@ const static ISP_CALIB_DATA_S GC20C3_1080P_CalibParam = {
                 .brightness = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
                 .contrast = {128, 128, 128, 128, 128, 128, 128, 128,
                             128, 128, 128, 128, 128, 128, 128, 128},
-                .saturation = {128, 128, 128, 128, 128, 128, 128, 128,
-                            125, 120, 115, 110, 105, 100, 95, 90},
+                .saturation = {110, 110, 100, 100, 100, 100, 100, 100,
+                            95, 95, 95, 95, 90, 90, 90, 90},
                 .hue = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
             },
         },

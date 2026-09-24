@@ -1215,3 +1215,12 @@ exit:
     cJSON_Delete(root);
     return ret;
 }
+
+bk_err_t h264e_stream_handle_set_resolution_fps(uint32_t width, uint32_t height, uint32_t fps, uint32_t gop)
+{
+    s_encoder_config.width = width;
+    s_encoder_config.height = height;
+    s_encoder_config.fps = fps;
+    s_encoder_config.gop_frame_count = gop;
+    return BK_OK;
+}
