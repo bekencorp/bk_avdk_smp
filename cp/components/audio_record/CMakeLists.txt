@@ -1,0 +1,14 @@
+set(incs include)
+set(srcs "")
+
+if (CONFIG_AUDIO_RECORD)
+	list(APPEND srcs
+		src/audio_record.c
+	)
+endif()
+
+armino_component_register(
+    SRCS "${srcs}"
+	INCLUDE_DIRS "${incs}"
+	PRIV_REQUIRES bk_common include bk_audio
+)
