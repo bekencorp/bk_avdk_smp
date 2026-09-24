@@ -152,6 +152,21 @@ bk_err_t bk_bt_gap_set_cod(bk_bt_cod_t cod, bk_bt_cod_mode_t mode);
 bk_err_t bk_bt_gap_read_rssi_delta(bk_bd_addr_t remote_addr);
 
 /**
+ * @brief           This function is called to mask the bluetooth device address printed in SDK log.
+ *                  By default the full address is printed. Once enabled, the address is printed as
+ *                  xx:xx:xx:xx:AA:BB with only the lowest 2 bytes visible.
+ *
+ * @param[in]       mask_enable - 0: print full address, 1: mask the address
+ *
+ * @attention       This API can be called before bk_bluetooth_init().
+ *
+ * @return
+ *                  - BK_OK : Succeed
+ *                  - BK_FAIL: others
+ */
+bk_err_t bk_bt_gap_set_addr_log_mask(uint8_t mask_enable);
+
+/**
 * @brief           Removes a device from the security database list of
 *                  peer device.
 *

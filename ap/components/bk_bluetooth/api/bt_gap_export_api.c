@@ -179,6 +179,12 @@ bk_err_t bk_bt_gap_read_rssi_delta(bk_bd_addr_t remote_addr)
     return ret;
 }
 
+bk_err_t bk_bt_gap_set_addr_log_mask(uint8_t mask_enable)
+{
+    bk_bt_gap_set_addr_log_mask_private(mask_enable ? 1 : 0);
+    return BK_OK;
+}
+
 bk_err_t bk_bt_gap_remove_bond_device(bk_bd_addr_t bd_addr)
 {
     return BK_OK;

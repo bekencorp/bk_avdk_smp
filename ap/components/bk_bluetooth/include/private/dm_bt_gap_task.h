@@ -175,5 +175,6 @@ void bk_bt_gap_set_callback(bk_bt_gap_cb_t cb);
 uint32_t bk_bt_gap_get_class_of_device();
 void bk_bt_gap_set_class_of_device(uint32_t cod);
 bt_err_t bk_bt_gap_get_remote_service_record_private(bk_bd_addr_t remote_bda, bk_bt_uuid_t *uuid);
+void bk_bt_gap_set_addr_log_mask_private(uint8_t mask_enable);
 
 #endif //__DM_BT_GAP_TASK_H__
