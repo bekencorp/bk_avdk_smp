@@ -263,12 +263,20 @@ if (CONFIG_TFM AND tfm_present)
     set(tfm_beken_path ${tfm_src_dir}/platform/ext/target/beken)
 
     include(ExternalProject)
+    # See tfm/CMakeLists.txt: keep object paths under Windows MAX_PATH so gcc
+    # can create *.o.d depfiles (MSYS CMake does not apply the Windows default).
+    set(tfm_object_path_max)
+    if(CMAKE_HOST_WIN32 OR CMAKE_HOST_SYSTEM_NAME MATCHES "Windows|MSYS|MINGW|CYGWIN"
+       OR "$ENV{OS}" STREQUAL "Windows_NT")
+        set(tfm_object_path_max -DCMAKE_OBJECT_PATH_MAX=220)
+    endif()
     ExternalProject_Add(tfm_project
         SOURCE_DIR ${tfm_src_dir}
         CONFIGURE_COMMAND ""
         BUILD_IN_SOURCE 1
         BUILD_COMMAND
             ${CMAKE_COMMAND} -G Ninja -S ${tfm_src_dir} -B ${tfm_build_dir}
+                ${tfm_object_path_max}
                 -DCMAKE_PREFIX_PATH=${tfm_toolchain_path}
                 -DCMAKE_INSTALL_PREFIX=${tfm_install_dir}
                 -DARMINO_SDK_PATH=${armino_path}
