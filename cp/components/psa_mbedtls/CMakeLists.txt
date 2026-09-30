@@ -137,6 +137,7 @@ if (CONFIG_MBEDTLS_USE_PSA_CRYPTO)
 		list(APPEND srcs
 			mbedtls/library/psa_crypto_client.c
 			mbedtls_port/src/md_psa_client.c
+			mbedtls_port/src/psa_crypto_client_shim.c
 		)
 	else()
 		list(APPEND srcs
@@ -151,10 +152,18 @@ if (CONFIG_MBEDTLS_USE_PSA_CRYPTO)
 		if (CONFIG_TRUSTENGINE)
 			list(APPEND srcs
 				mbedtls_port/src/psa_mpi_helper.c
-				mbedtls_port/src/rsa_key_parse.c
 			)
 		endif()
 	endif()
+endif()
+
+# The TrustEngine rsa.c replaces the upstream one but has no PKCS#1 DER
+# helpers, which mbedtls 3.6 moved out of pkparse/pkwrite into rsa.c. pkwrite.c
+# needs them on the classic path, independent of any PSA configuration.
+if (CONFIG_TRUSTENGINE)
+	list(APPEND srcs
+		mbedtls_port/src/rsa_key_parse.c
+	)
 endif()
 
 if (CONFIG_PSA_MBEDTLS_TEST)

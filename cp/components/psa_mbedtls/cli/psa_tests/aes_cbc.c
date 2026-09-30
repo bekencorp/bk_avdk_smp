@@ -32,6 +32,9 @@
 #define CRYPTO_EXAMPLE_AES_MAX_TEXT_SIZE (64)
 #define CRYPTO_EXAMPLE_AES_BLOCK_SIZE (16)
 
+/* Largest entry of data_len_list[] in the perf loop. */
+#define MAX_TEXT_SIZE (2048)
+
 static uint8_t m_iv[CRYPTO_EXAMPLE_AES_BLOCK_SIZE];
 
 /* Below text is used as plaintext for encryption/decryption */
@@ -51,9 +54,9 @@ static psa_key_id_t key_id;
 
 static int test_init(void)
 {
-	s_plain_text_p = os_malloc(8192);
-	s_encrypted_text_p = os_malloc(8192);
-	s_decrypted_text_p = os_malloc(8192);
+	s_plain_text_p = os_malloc(MAX_TEXT_SIZE);
+	s_encrypted_text_p = os_malloc(MAX_TEXT_SIZE);
+	s_decrypted_text_p = os_malloc(MAX_TEXT_SIZE);
 	s_iv_p = os_malloc(32);
 
 	if (!s_plain_text_p || !s_encrypted_text_p || !s_decrypted_text_p || !s_iv_p) {
@@ -61,7 +64,7 @@ static int test_init(void)
 		return -1;
 	}
 
-	os_memset(s_plain_text_p, 0xaa, 8192);
+	os_memset(s_plain_text_p, 0xaa, MAX_TEXT_SIZE);
 
 	return 0;
 }

@@ -129,8 +129,8 @@ int psa_tls_client_main(void)
     BK_LOGD(TAG, "psa_crypto_init...");
     psa_status_t status = psa_crypto_init();
     if (status != PSA_SUCCESS) {
-        mbedtls_fprintf(stderr, "Failed to initialize PSA Crypto implementation: %d\n",
-                        (int) status);
+        BK_LOGE(TAG, "Failed to initialize PSA Crypto implementation: %d\n",
+                (int) status);
         goto exit;
     }
     BK_LOGD(TAG, " ok\n");
