@@ -852,6 +852,10 @@ DSTATUS disk_uninitialize ( BYTE pdrv/* Physical drive nmuber to identify the dr
 
 	switch (pdrv) {
 	case DEV_RAM:
+		/* Dormant: no RAM volume can mount, so this error return is never
+		 * consumed. Implementing the RAM backend must also return RES_OK here,
+		 * or f_unmount() skips the volume-table cleanup and leaks a dangling
+		 * FATFS pointer. */
 		return stat;
 
 	case DEV_SD :
@@ -867,7 +871,8 @@ DSTATUS disk_uninitialize ( BYTE pdrv/* Physical drive nmuber to identify the dr
 		break;
 
 	case DEV_USB :
-		break;
+		stat = RES_OK;
+		return stat;
 
 #if (defined CONFIG_FATFS_INTERNAL_FLASH)
 	case DEV_FLASH :
