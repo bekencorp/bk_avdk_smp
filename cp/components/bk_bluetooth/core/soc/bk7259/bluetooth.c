@@ -47,6 +47,7 @@
 #define BT_OSI_VERSION              0x00010001
 
 #include <driver/aon_rtc.h>
+#include <driver/timer.h>
 
 #define PM_BT_LP_RTC_ALARM_NAME  PM_BT_RTC_ALARM_NAME
 
@@ -1142,6 +1143,31 @@ static void bt_delay_us(uint32_t us)
     bk_delay_us(us);
 }
 
+#define BT_US_TIMER_ID   TIMER_ID5
+
+static void (*s_bt_us_timer_cb)(void) = NULL;
+
+static void bt_us_timer_isr(timer_id_t timer_id)
+{
+    if (s_bt_us_timer_cb)
+    {
+        s_bt_us_timer_cb();
+    }
+}
+
+static void bt_us_timer_start(uint64_t us, void *callback)
+{
+    s_bt_us_timer_cb = (void (*)(void))callback;
+    bk_timer_start_us(BT_US_TIMER_ID, us, bt_us_timer_isr);
+}
+
+static void bt_us_timer_stop(void)
+{
+    bk_timer_stop(BT_US_TIMER_ID);
+    bk_timer_cancel(BT_US_TIMER_ID);
+    s_bt_us_timer_cb = NULL;
+}
+
 static uint16_t bt_get_low_voltage_wakeup_margin_cycles(void)
 {
     return PM_SLEEP_WAKEUP_COMSUME_ALL_TIME_TICKS;
@@ -1323,6 +1349,8 @@ static struct bt_osi_funcs_t bt_osi_funcs =
     ._bt_vote_cpu_freq = bt_vote_cpu_freq_wrapper,
     ._bt_flash_enter_critical = bt_flash_enter_critical,
     ._bt_flash_exit_critical = bt_flash_exit_critical,
+    ._bt_us_timer_start = bt_us_timer_start,
+    ._bt_us_timer_stop = bt_us_timer_stop,
 };
 
 int bk_bt_os_adapter_init(void)

@@ -191,6 +191,9 @@ struct bt_osi_funcs_t
     void (*_bt_vote_cpu_freq)(uint32_t cpu_freq);
     uint32_t (*_bt_flash_enter_critical)(void);
     void (*_bt_flash_exit_critical)(uint32_t flags);
+
+    void (*_bt_us_timer_start)(uint64_t us, void *callback);
+    void (*_bt_us_timer_stop)(void);
 };
 
 int bt_os_adapter_init(void *osi_funcs);
