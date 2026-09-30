@@ -72,6 +72,10 @@ BOOT_LOG_MODULE_DECLARE(mcuboot);
 static struct boot_loader_state boot_data;
 
 extern bool is_validate_image;
+extern void update_wdt(uint32_t val);
+
+#define BOOT_IMAGE_VALIDATE_ATTEMPTS 2u
+#define BOOT_IMAGE_VALIDATE_WDT_FEED 0xFFFFu
 
 #if (BOOT_IMAGE_NUMBER > 1)
 #define IMAGES_ITER(x) for ((x) = 0; (x) < BOOT_IMAGE_NUMBER; ++(x))
@@ -825,9 +829,20 @@ boot_image_check(struct boot_loader_state *state, struct image_header *hdr,
         }
     }
 #endif
-    bk_sw_fih_set_data(FIH_SW_INDEX10);
-    FIH_CALL(bootutil_img_validate, fih_rc, BOOT_CURR_ENC(state), image_index,
-             hdr, fap, tmpbuf, BOOT_TMPBUF_SZ, NULL, 0, NULL);
+    for (uint8_t attempt = 0; attempt < BOOT_IMAGE_VALIDATE_ATTEMPTS; ++attempt) {
+        bk_sw_fih_set_data(FIH_SW_INDEX10);
+        FIH_CALL(bootutil_img_validate, fih_rc, BOOT_CURR_ENC(state), image_index,
+                 hdr, fap, tmpbuf, BOOT_TMPBUF_SZ, NULL, 0, NULL);
+
+        if (FIH_EQ(fih_rc, FIH_SUCCESS)) {
+            if (attempt != 0) {
+                BOOT_LOG_FORCE("image validate retry ok");
+            }
+            break;
+        }
+
+        update_wdt(BOOT_IMAGE_VALIDATE_WDT_FEED);
+    }
 
     FIH_RET(fih_rc);
 }
