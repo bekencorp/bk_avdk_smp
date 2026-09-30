@@ -85,10 +85,12 @@ static int _bk_fatfs_mount(struct bk_filesystem *fs, unsigned long mount_flags, 
 static int _bk_fatfs_unmount(struct bk_filesystem *fs) {
 	BK_FATFS *bk_ffs;
 	int ret;
+	BYTE pdrv;
 
 	bk_ffs = (BK_FATFS *)fs->fs_data;
-	//ret = f_unmount(bk_ffs->vol_str);	// TODO : FR_NOT_ENABLED
-	ret = f_unmount(1, bk_ffs->vol_str, 0);
+	/* vol_str[0] was built from the devices[] index, which is this volume's pdrv. */
+	pdrv = (BYTE)(bk_ffs->vol_str[0] - '0');
+	ret = f_unmount(pdrv, bk_ffs->vol_str, 0);
 
 	os_free(bk_ffs);
 	fs->fs_data = NULL;
