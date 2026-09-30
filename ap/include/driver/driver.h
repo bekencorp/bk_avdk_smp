@@ -50,7 +50,6 @@
 #include "sd_card.h"
 #include "sdio_host.h"
 #include "sdio_types.h"
-#include "securityip.h"
 #include "spi.h"
 #include "timer.h"
 #include "touch.h"
@@ -60,6 +59,5 @@
 #include "uart.h"
 #include "uvc_camera.h"
 #include "wdt.h"
-#include "vault.h"
 #include "otp.h"
 

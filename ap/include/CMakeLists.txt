@@ -8,7 +8,6 @@ list(APPEND incs
 	modules/vg_lite_gpu
 	modules/private/veri_isp
 	modules/fdk_aac_enc
-	modules/securityip
 	modules/freetype
 	)
 list(APPEND incs modules/dpu)

@@ -76,7 +76,6 @@ typedef int bk_err_t;
 #define BK_ERR_MAILBOX_BASE        (-0x2b00)
 #define BK_ERR_QSPI_BASE           (-0x2c00)
 #define BK_ERR_I2C_BASE            (-0x2d00)
-#define BK_ERR_VAULT_BASE          (-0x2e00)
 #define BK_ERR_AON_RTC_BASE        (-0x2f00)
 #define BK_ERR_JPEG_BASE           (-0x3000)
 #define BK_ERR_AUD_BASE            (-0x3100)
