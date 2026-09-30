@@ -61,8 +61,6 @@ mkdir -p ~/armino && cd ~/armino
 git clone --branch release/v4.0.1 https://github.com/bekencorp/bk_avdk_smp.git
 ```
 
-代码获取的更多说明见 [快速入门](https://docs.bekencorp.com/arminodoc/bk_avdk_smp/smp_doc/bk7259/zh_CN/v4.0.1/get-started/index.html)。
-
 ## 编译环境安装
 
 Armino SMP 支持本地编译和 Docker 编译，可根据开发平台选择以下方式部署编译环境。
@@ -83,9 +81,9 @@ sudo bash tools/env_tools/setup/armino_env_setup.sh
 
 ### Docker 编译
 
-Docker 编译镜像为 [`bekencorp/armino-idk`](https://hub.docker.com/r/bekencorp/armino-idk/tags)，请选择 `1.5` 或更高版本的镜像标签，支持 Windows / Linux / macOS。
+Docker 编译镜像为 [bekencorp/armino-idk](https://hub.docker.com/r/bekencorp/armino-idk/tags)，请选择 `1.5` 或更高版本的镜像标签，支持 Windows / Linux / macOS。
 
-详细安装步骤请参阅 [Armino SMP 快速入门：环境部署及编译](https://docs.bekencorp.com/arminodoc/bk_avdk_smp/smp_doc/bk7259/zh_CN/v4.0.1/get-started/index.html)。
+详细安装步骤请参阅 [环境部署及编译](https://docs.bekencorp.com/arminodoc/bk_avdk_smp/smp_doc/bk7259/zh_CN/v4.0.1/get-started/index.html#smp-get-started-env)。
 
 ## 编译工程
 
@@ -109,8 +107,6 @@ cd ~/armino/bk_avdk_smp
 build/bk7259/app/package/all-app.bin
 ```
 
-编译命令的详细说明请参阅 [快速入门](https://docs.bekencorp.com/arminodoc/bk_avdk_smp/smp_doc/bk7259/zh_CN/v4.0.1/get-started/index.html)。
-
 ## 烧录固件
 
 可选择以下任一方式烧录固件：
@@ -120,25 +116,42 @@ build/bk7259/app/package/all-app.bin
 
 烧录时请选择上一节编译生成的 `all-app.bin` 固件文件。
 
-详细烧录流程请参阅 [Armino SMP 快速入门](https://docs.bekencorp.com/arminodoc/bk_avdk_smp/smp_doc/bk7259/zh_CN/v4.0.1/get-started/index.html)。
-
+详细烧录流程请参阅 [烧录代码](https://docs.bekencorp.com/arminodoc/bk_avdk_smp/smp_doc/bk7259/zh_CN/v4.0.1/get-started/index.html#smp-get-started-flash)。
 ## 参考工程
-
-以下按类型列出典型工程；更多示例见 SDK 仓库 `projects/` 目录。
-
-| 工程名 | 主要功能 | 详细说明（见文档） |
-| --- | --- | --- |
-| `isp_example` | 多媒体 / 摄像头：MIPI CSI 采集与 ISP 处理 | `projects/multimedia/isp_example/README_CN.md` |
-| `mipi_lcd_example` | 多媒体 / 显示：MIPI DSI LCD 显示 | `projects/multimedia/mipi_lcd_example/README_CN.md` |
-| `h264_encode_example` | 多媒体 / 编解码：H.264 编码 | `projects/multimedia/h264_encode_example/README_CN.md` |
-| `player_service_example` | 多媒体 / 音频：bk_player_service 播放链路 | `projects/multimedia/player_service_example/README_CN.md` |
-| `widgets_v9` | GUI：LVGL V9 Widgets Demo | `projects/lvgl/widgets_v9/README_CN.md` |
-| `gatt_server` | 蓝牙：BLE GATT Server | `projects/bluetooth/gatt_server/README_CN.md` |
-| `kvs_webrtc_example` | 网络 / Wi-Fi：KVS WebRTC 音视频推流 | `projects/multimedia/kvs_webrtc_example/README_CN.md` |
-| `face_recognition` | 端侧 AI：YOLOFace 人脸检测与 OSD 显示 | `projects/tflite_micro/face_recognition/README_CN.md` |
-| `ap_powerdown_keepalive` | 低功耗：AP 掉电保活与 CP keepalive | `projects/ap_powerdown_keepalive/README_CN.md` |
-
-新建工程、分区与配置方法见 [新建工程介绍](https://docs.bekencorp.com/arminodoc/bk_avdk_smp/smp_doc/bk7259/zh_CN/v4.0.1/developer-guide/create_new_project_rule/index.html)。
+以下列出参考工程，可点击查看工程详细说明。<!-- readme-projects:begin -->
+<table>
+<tbody>
+<tr><td><a href="/projects/24g/">24g</a></td><td><a href="/projects/ap_emuboot/">ap_emuboot</a></td><td><a href="/projects/ap_powerdown_keepalive/">ap_powerdown_keepalive</a></td></tr>
+<tr><td><a href="/projects/app/">app</a></td><td><a href="/projects/app_ab/">app_ab</a></td><td><a href="/projects/bluetooth/central/">central</a></td></tr>
+<tr><td><a href="/projects/bluetooth/dm_ble_gatt_client/">dm_ble_gatt_client</a></td><td><a href="/projects/bluetooth/dm_ble_gatt_server/">dm_ble_gatt_server</a></td><td><a href="/projects/bluetooth/dm_ble_hogp_device/">dm_ble_hogp_device</a></td></tr>
+<tr><td><a href="/projects/bluetooth/dut/">dut</a></td><td><a href="/projects/bluetooth/gatt_client/">gatt_client</a></td><td><a href="/projects/bluetooth/gatt_server/">gatt_server</a></td></tr>
+<tr><td><a href="/projects/bluetooth/headset/">headset</a></td><td><a href="/projects/bluetooth/le_audio/broadcast_sink/">le_audio/broadcast_sink</a></td><td><a href="/projects/bluetooth/le_audio/broadcast_source/">le_audio/broadcast_source</a></td></tr>
+<tr><td><a href="/projects/bluetooth/le_audio/unicast_client/">le_audio/unicast_client</a></td><td><a href="/projects/bluetooth/le_audio/unicast_server/">le_audio/unicast_server</a></td><td><a href="/projects/bluetooth/mesh/">mesh</a></td></tr>
+<tr><td><a href="/projects/bluetooth/pbap_pce/">pbap_pce</a></td><td><a href="/projects/bluetooth/spp/">spp</a></td><td><a href="/projects/flash_psram_test/">flash_psram_test</a></td></tr>
+<tr><td><a href="/projects/kvs_aws_sample/">kvs_aws_sample</a></td><td><a href="/projects/lvgl/benchmark_v9/">benchmark_v9</a></td><td><a href="/projects/lvgl/widgets_v8/">widgets_v8</a></td></tr>
+<tr><td><a href="/projects/lvgl/widgets_v9/">widgets_v9</a></td><td><a href="/projects/lwip_psram_example/">lwip_psram_example</a></td><td><a href="/projects/multimedia/asr_service_example/">asr_service_example</a></td></tr>
+<tr><td><a href="/projects/multimedia/audio_example/">audio_example</a></td><td><a href="/projects/multimedia/audio_example_ap/">audio_example_ap</a></td><td><a href="/projects/multimedia/audio_player_example/">audio_player_example</a></td></tr>
+<tr><td><a href="/projects/multimedia/draw_osd_example/">draw_osd_example</a></td><td><a href="/projects/multimedia/dvp_example/">dvp_example</a></td><td><a href="/projects/multimedia/fisheye_example/">fisheye_example</a></td></tr>
+<tr><td><a href="/projects/multimedia/frame_buffer_example/">frame_buffer_example</a></td><td><a href="/projects/multimedia/gpu_2.5D_tiger/">gpu_2.5D_tiger</a></td><td><a href="/projects/multimedia/h264_decode_example/">h264_decode_example</a></td></tr>
+<tr><td><a href="/projects/multimedia/h264_encode_example/">h264_encode_example</a></td><td><a href="/projects/multimedia/h264d_gpu_display_example/">h264d_gpu_display_example</a></td><td><a href="/projects/multimedia/isp_example/">isp_example</a></td></tr>
+<tr><td><a href="/projects/multimedia/jpeg_decode_example/">jpeg_decode_example</a></td><td><a href="/projects/multimedia/jpeg_encode_example/">jpeg_encode_example</a></td><td><a href="/projects/multimedia/kvs_webrtc_example/">kvs_webrtc_example</a></td></tr>
+<tr><td><a href="/projects/multimedia/mipi_lcd_example/">mipi_lcd_example</a></td><td><a href="/projects/multimedia/motion_detect/">motion_detect</a></td><td><a href="/projects/multimedia/player_service_example/">player_service_example</a></td></tr>
+<tr><td><a href="/projects/multimedia/pp_example/">pp_example</a></td><td><a href="/projects/multimedia/qr_example/">qr_example</a></td><td><a href="/projects/multimedia/qspi_lcd_example/">qspi_lcd_example</a></td></tr>
+<tr><td><a href="/projects/multimedia/rgb_lcd_example/">rgb_lcd_example</a></td><td><a href="/projects/multimedia/spi_lcd_example/">spi_lcd_example</a></td><td><a href="/projects/multimedia/usb_example/">usb_example</a></td></tr>
+<tr><td><a href="/projects/multimedia/usb_hset/">usb_hset</a></td><td><a href="/projects/multimedia/uvc_display_example/">uvc_display_example</a></td><td><a href="/projects/multimedia/uvc_example/">uvc_example</a></td></tr>
+<tr><td><a href="/projects/multimedia/video_player_example/">video_player_example</a></td><td><a href="/projects/pm/ap_fast_boot/">ap_fast_boot</a></td><td><a href="/projects/pm/pm/">pm</a></td></tr>
+<tr><td><a href="/projects/pm/pm_smp_fast_boot/">pm_smp_fast_boot</a></td><td><a href="/projects/secureboot_overwrite/">secureboot_overwrite</a></td><td><a href="/projects/secureboot_overwrite_no_en/">secureboot_overwrite_no_en</a></td></tr>
+<tr><td><a href="/projects/secureboot_xip/">secureboot_xip</a></td><td><a href="/projects/sram_lite/">sram_lite</a></td><td><a href="/projects/test/cpu_perf_test/">cpu_perf_test</a></td></tr>
+<tr><td><a href="/projects/test/platform/">platform</a></td><td><a href="/projects/test/ram_test/">ram_test</a></td><td><a href="/projects/tflite_micro/face_recognition/">face_recognition</a></td></tr>
+<tr><td><a href="/projects/tflite_micro/gesture_detection/">gesture_detection</a></td><td><a href="/projects/tflite_micro/hand_gesture_detection/">hand_gesture_detection</a></td><td><a href="/projects/tflite_micro/palm_recognition/">palm_recognition</a></td></tr>
+<tr><td><a href="/projects/tflite_micro/person_detection/">person_detection</a></td><td><a href="/projects/tflite_micro/pet_detection/">pet_detection</a></td><td><a href="/projects/tflite_micro/tflite_micro_example/">tflite_micro_example</a></td></tr>
+<tr><td><a href="/projects/wifi/bridge/">bridge</a></td><td><a href="/projects/wifi/iperf/">iperf</a></td><td><a href="/projects/wifi/p2p/">p2p</a></td></tr>
+<tr><td><a href="/projects/wifi/rlk_demo/">rlk_demo</a></td><td><a href="/projects/wifi/scan_example/">scan_example</a></td><td><a href="/projects/wifi/softap_example/">softap_example</a></td></tr>
+<tr><td><a href="/projects/wifi/sta_example/">sta_example</a></td></tr>
+</tbody>
+</table>
+<!-- readme-projects:end -->
+新建工程、分区与配置方法请参阅 [新建工程介绍](https://docs.bekencorp.com/arminodoc/bk_avdk_smp/smp_doc/bk7259/zh_CN/v4.0.1/developer-guide/create_new_project_rule/index.html)。
 
 ## 产品解决方案
 

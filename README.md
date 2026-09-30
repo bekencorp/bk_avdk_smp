@@ -61,8 +61,6 @@ mkdir -p ~/armino && cd ~/armino
 git clone --branch release/v4.0.1 https://github.com/bekencorp/bk_avdk_smp.git
 ```
 
-For more details, see [Getting Started](https://docs.bekencorp.com/arminodoc/bk_avdk_smp/smp_doc/bk7259/en/v4.0.1/get-started/index.html).
-
 ## Build Environment
 
 Armino SMP supports local and Docker builds. Choose a setup method based on your development platform.
@@ -83,9 +81,9 @@ Download and install [Armino Bash](https://dl.bekencorp.com/tools/arminosdk/Wind
 
 ### Docker build
 
-Use the [`bekencorp/armino-idk`](https://hub.docker.com/r/bekencorp/armino-idk/tags) image. Choose tag `1.5` or newer. Windows / Linux / macOS are supported.
+Use the [bekencorp/armino-idk](https://hub.docker.com/r/bekencorp/armino-idk/tags) image. Choose tag `1.5` or newer. Windows / Linux / macOS are supported.
 
-For more details, see [Armino SMP Getting Started: Environment Setup and Build](https://docs.bekencorp.com/arminodoc/bk_avdk_smp/smp_doc/bk7259/en/v4.0.1/get-started/index.html).
+For more details, see [Environment Deployment and Compilation](https://docs.bekencorp.com/arminodoc/bk_avdk_smp/smp_doc/bk7259/en/v4.0.1/get-started/index.html#smp-get-started-env).
 
 ## Build a Project
 
@@ -109,8 +107,6 @@ After a successful build, the firmware for flashing is at the following path (re
 build/bk7259/app/package/all-app.bin
 ```
 
-For more details, see [Getting Started](https://docs.bekencorp.com/arminodoc/bk_avdk_smp/smp_doc/bk7259/en/v4.0.1/get-started/index.html).
-
 ## Flash Firmware
 
 Flash the firmware with either of the following:
@@ -120,24 +116,41 @@ Flash the firmware with either of the following:
 
 Select the `all-app.bin` firmware built in the previous section.
 
-For more details, see [Armino SMP Getting Started](https://docs.bekencorp.com/arminodoc/bk_avdk_smp/smp_doc/bk7259/en/v4.0.1/get-started/index.html).
-
+For more details, see [Burn Code](https://docs.bekencorp.com/arminodoc/bk_avdk_smp/smp_doc/bk7259/en/v4.0.1/get-started/index.html#smp-get-started-flash).
 ## Example Projects
-
-Typical projects by category are listed below. More examples are under `projects/` in the SDK repository.
-
-| Project | Main features | Details (see docs) |
-| --- | --- | --- |
-| `isp_example` | Multimedia / camera: MIPI CSI capture and ISP pipeline | `projects/multimedia/isp_example/README.md` |
-| `mipi_lcd_example` | Multimedia / display: MIPI DSI LCD | `projects/multimedia/mipi_lcd_example/README.md` |
-| `h264_encode_example` | Multimedia / codec: H.264 encode | `projects/multimedia/h264_encode_example/README.md` |
-| `player_service_example` | Multimedia / audio: bk_player_service playback path | `projects/multimedia/player_service_example/README.md` |
-| `widgets_v9` | GUI: LVGL V9 widgets demo | `projects/lvgl/widgets_v9/README.md` |
-| `gatt_server` | Bluetooth: BLE GATT server | `projects/bluetooth/gatt_server/README.md` |
-| `kvs_webrtc_example` | Network / Wi-Fi: KVS WebRTC A/V streaming | `projects/multimedia/kvs_webrtc_example/README.md` |
-| `face_recognition` | On-device AI: YOLOFace detection with OSD | `projects/tflite_micro/face_recognition/README.md` |
-| `ap_powerdown_keepalive` | Low power: AP power-down keepalive with CP | `projects/ap_powerdown_keepalive/README.md` |
-
+The following reference projects are listed; click a name for details.<!-- readme-projects:begin -->
+<table>
+<tbody>
+<tr><td><a href="/projects/24g/">24g</a></td><td><a href="/projects/ap_emuboot/">ap_emuboot</a></td><td><a href="/projects/ap_powerdown_keepalive/">ap_powerdown_keepalive</a></td></tr>
+<tr><td><a href="/projects/app/">app</a></td><td><a href="/projects/app_ab/">app_ab</a></td><td><a href="/projects/bluetooth/central/">central</a></td></tr>
+<tr><td><a href="/projects/bluetooth/dm_ble_gatt_client/">dm_ble_gatt_client</a></td><td><a href="/projects/bluetooth/dm_ble_gatt_server/">dm_ble_gatt_server</a></td><td><a href="/projects/bluetooth/dm_ble_hogp_device/">dm_ble_hogp_device</a></td></tr>
+<tr><td><a href="/projects/bluetooth/dut/">dut</a></td><td><a href="/projects/bluetooth/gatt_client/">gatt_client</a></td><td><a href="/projects/bluetooth/gatt_server/">gatt_server</a></td></tr>
+<tr><td><a href="/projects/bluetooth/headset/">headset</a></td><td><a href="/projects/bluetooth/le_audio/broadcast_sink/">le_audio/broadcast_sink</a></td><td><a href="/projects/bluetooth/le_audio/broadcast_source/">le_audio/broadcast_source</a></td></tr>
+<tr><td><a href="/projects/bluetooth/le_audio/unicast_client/">le_audio/unicast_client</a></td><td><a href="/projects/bluetooth/le_audio/unicast_server/">le_audio/unicast_server</a></td><td><a href="/projects/bluetooth/mesh/">mesh</a></td></tr>
+<tr><td><a href="/projects/bluetooth/pbap_pce/">pbap_pce</a></td><td><a href="/projects/bluetooth/spp/">spp</a></td><td><a href="/projects/flash_psram_test/">flash_psram_test</a></td></tr>
+<tr><td><a href="/projects/kvs_aws_sample/">kvs_aws_sample</a></td><td><a href="/projects/lvgl/benchmark_v9/">benchmark_v9</a></td><td><a href="/projects/lvgl/widgets_v8/">widgets_v8</a></td></tr>
+<tr><td><a href="/projects/lvgl/widgets_v9/">widgets_v9</a></td><td><a href="/projects/lwip_psram_example/">lwip_psram_example</a></td><td><a href="/projects/multimedia/asr_service_example/">asr_service_example</a></td></tr>
+<tr><td><a href="/projects/multimedia/audio_example/">audio_example</a></td><td><a href="/projects/multimedia/audio_example_ap/">audio_example_ap</a></td><td><a href="/projects/multimedia/audio_player_example/">audio_player_example</a></td></tr>
+<tr><td><a href="/projects/multimedia/draw_osd_example/">draw_osd_example</a></td><td><a href="/projects/multimedia/dvp_example/">dvp_example</a></td><td><a href="/projects/multimedia/fisheye_example/">fisheye_example</a></td></tr>
+<tr><td><a href="/projects/multimedia/frame_buffer_example/">frame_buffer_example</a></td><td><a href="/projects/multimedia/gpu_2.5D_tiger/">gpu_2.5D_tiger</a></td><td><a href="/projects/multimedia/h264_decode_example/">h264_decode_example</a></td></tr>
+<tr><td><a href="/projects/multimedia/h264_encode_example/">h264_encode_example</a></td><td><a href="/projects/multimedia/h264d_gpu_display_example/">h264d_gpu_display_example</a></td><td><a href="/projects/multimedia/isp_example/">isp_example</a></td></tr>
+<tr><td><a href="/projects/multimedia/jpeg_decode_example/">jpeg_decode_example</a></td><td><a href="/projects/multimedia/jpeg_encode_example/">jpeg_encode_example</a></td><td><a href="/projects/multimedia/kvs_webrtc_example/">kvs_webrtc_example</a></td></tr>
+<tr><td><a href="/projects/multimedia/mipi_lcd_example/">mipi_lcd_example</a></td><td><a href="/projects/multimedia/motion_detect/">motion_detect</a></td><td><a href="/projects/multimedia/player_service_example/">player_service_example</a></td></tr>
+<tr><td><a href="/projects/multimedia/pp_example/">pp_example</a></td><td><a href="/projects/multimedia/qr_example/">qr_example</a></td><td><a href="/projects/multimedia/qspi_lcd_example/">qspi_lcd_example</a></td></tr>
+<tr><td><a href="/projects/multimedia/rgb_lcd_example/">rgb_lcd_example</a></td><td><a href="/projects/multimedia/spi_lcd_example/">spi_lcd_example</a></td><td><a href="/projects/multimedia/usb_example/">usb_example</a></td></tr>
+<tr><td><a href="/projects/multimedia/usb_hset/">usb_hset</a></td><td><a href="/projects/multimedia/uvc_display_example/">uvc_display_example</a></td><td><a href="/projects/multimedia/uvc_example/">uvc_example</a></td></tr>
+<tr><td><a href="/projects/multimedia/video_player_example/">video_player_example</a></td><td><a href="/projects/pm/ap_fast_boot/">ap_fast_boot</a></td><td><a href="/projects/pm/pm/">pm</a></td></tr>
+<tr><td><a href="/projects/pm/pm_smp_fast_boot/">pm_smp_fast_boot</a></td><td><a href="/projects/secureboot_overwrite/">secureboot_overwrite</a></td><td><a href="/projects/secureboot_overwrite_no_en/">secureboot_overwrite_no_en</a></td></tr>
+<tr><td><a href="/projects/secureboot_xip/">secureboot_xip</a></td><td><a href="/projects/sram_lite/">sram_lite</a></td><td><a href="/projects/test/cpu_perf_test/">cpu_perf_test</a></td></tr>
+<tr><td><a href="/projects/test/platform/">platform</a></td><td><a href="/projects/test/ram_test/">ram_test</a></td><td><a href="/projects/tflite_micro/face_recognition/">face_recognition</a></td></tr>
+<tr><td><a href="/projects/tflite_micro/gesture_detection/">gesture_detection</a></td><td><a href="/projects/tflite_micro/hand_gesture_detection/">hand_gesture_detection</a></td><td><a href="/projects/tflite_micro/palm_recognition/">palm_recognition</a></td></tr>
+<tr><td><a href="/projects/tflite_micro/person_detection/">person_detection</a></td><td><a href="/projects/tflite_micro/pet_detection/">pet_detection</a></td><td><a href="/projects/tflite_micro/tflite_micro_example/">tflite_micro_example</a></td></tr>
+<tr><td><a href="/projects/wifi/bridge/">bridge</a></td><td><a href="/projects/wifi/iperf/">iperf</a></td><td><a href="/projects/wifi/p2p/">p2p</a></td></tr>
+<tr><td><a href="/projects/wifi/rlk_demo/">rlk_demo</a></td><td><a href="/projects/wifi/scan_example/">scan_example</a></td><td><a href="/projects/wifi/softap_example/">softap_example</a></td></tr>
+<tr><td><a href="/projects/wifi/sta_example/">sta_example</a></td></tr>
+</tbody>
+</table>
+<!-- readme-projects:end -->
 For more details, see [Create a New Project](https://docs.bekencorp.com/arminodoc/bk_avdk_smp/smp_doc/bk7259/en/v4.0.1/developer-guide/create_new_project_rule/index.html).
 
 ## Product Solutions
