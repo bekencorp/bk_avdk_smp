@@ -15,7 +15,7 @@ extern "C" {
  * flags the AP could service the merged state once and lose a completion. The
  * ring records every completion as its own entry, so the AP drains
  * evt_rd..evt_wr and never misses one even when the IPI coalesced. Each entry
- * is (type << 8) | (ep & 0xFF). */
+ * is a RISCV_USB_PROBE_EVT_* value. */
 #define RISCV_USB_EVT_RING_SIZE 128U   /* power of 2 */
 #define RISCV_USB_EVT_RING_MASK (RISCV_USB_EVT_RING_SIZE - 1U)
 #define RISCV_USB_EVT_TYPE_EP0   1U
