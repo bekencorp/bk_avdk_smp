@@ -83,6 +83,29 @@ def build_armino_doc(source_path, dest_path, build_path, landir, version):
     run_cmd(f'rm -rf {os.path.join(build_path, landir, "inc")}')
     run_cmd(f'rm -rf {os.path.join(build_path, landir, "latex")}')
 
+def _sync_readme_reference_projects(root_path, version):
+	"""更新 docs/README 参考工程表（与方案仓 sync 逻辑一致）。"""
+	docs_dir = os.path.join(root_path, "docs")
+	script = os.path.join(docs_dir, "armino_doc.py")
+	if not os.path.isfile(script):
+		return
+	soc = os.environ.get("ARMINO_SOC", "bk7259")
+	if version in (None, "", "latest"):
+		version = {"bk7258": "v3.1.1", "bk7259": "v4.0.1"}.get(soc, "v4.0.1")
+	proc = subprocess.run(
+		[
+			sys.executable,
+			script,
+			"--sync-readme-projects",
+			"--version",
+			version,
+		],
+		cwd=docs_dir,
+		env=os.environ.copy(),
+	)
+	if proc.returncode:
+		sys.exit(proc.returncode)
+
 def build_html(source_path, dest_path, build_path, landir):
 	print("found souce: " + source_path + " dest: " + dest_path + " build: " + build_path)
 	command = "make -C " + source_path + " arminodocs -j8 " + "TARGET_DIR=" + dest_path
@@ -135,6 +158,7 @@ def build_pdf(source_path, dest_path, build_path, landir):
 
 def build_doc(target, docs_path, build_path, version):
     print("build %s docs" % target)
+    _sync_readme_reference_projects(os.path.normpath(os.path.join(docs_path, "..")), version)
 
     subdirectories = [d for d in os.listdir(docs_path) if os.path.isdir(os.path.join(docs_path, d))]
     white_list = {"en", "zh_CN"}
@@ -164,6 +188,7 @@ def build_doc(target, docs_path, build_path, version):
 
 def build_all(docs_path, build_path, version):
     print("build all docs")
+    _sync_readme_reference_projects(os.path.normpath(os.path.join(docs_path, "..")), version)
 
     subdirectories = [d for d in os.listdir(docs_path) if os.path.isdir(os.path.join(docs_path, d))]
     black_list = {"common", ".git"}
