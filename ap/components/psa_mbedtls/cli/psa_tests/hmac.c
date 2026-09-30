@@ -27,6 +27,9 @@
 #define CRYPTO_EXAMPLE_HMAC_TEXT_SIZE (100)
 #define CRYPTO_EXAMPLE_HMAC_KEY_SIZE (32)
 
+/* Largest entry of data_len_list[] in the perf loop. */
+#define MAX_TEXT_SIZE (2048)
+
 #define TAG "mbedtls"
 
 /* Below text is used as plaintext for signing/verifiction */
@@ -40,14 +43,14 @@ static uint8_t *s_plain_text_p = 0;
 
 static int test_init(void)
 {
-	s_plain_text_p = os_malloc(8192);
+	s_plain_text_p = os_malloc(MAX_TEXT_SIZE);
 
 	if (!s_plain_text_p) {
 		BK_LOGE(TAG, "Failed to alloc memory...\r\n");
 		return -1;
 	}
 
-	os_memset(s_plain_text_p, 0xaa, 8192);
+	os_memset(s_plain_text_p, 0xaa, MAX_TEXT_SIZE);
 
 	return 0;
 }

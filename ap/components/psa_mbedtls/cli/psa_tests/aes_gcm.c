@@ -33,6 +33,9 @@
 #define CRYPTO_EXAMPLE_AES_ADDITIONAL_SIZE (35)
 #define CRYPTO_EXAMPLE_AES_GCM_TAG_LENGTH (16)
 
+/* Largest entry of data_len_list[] in the perf loop. */
+#define MAX_TEXT_SIZE (2048)
+
 /* AES sample IV, DO NOT USE IN PRODUCTION */
 static uint8_t m_iv[CRYPTO_EXAMPLE_AES_IV_SIZE];
 
@@ -56,16 +59,16 @@ static psa_key_id_t key_id;
 
 static int test_init(void)
 {
-	s_plain_text_p = os_malloc(8192);
-	s_encrypted_text_p = os_malloc(8192);
-	s_decrypted_text_p = os_malloc(8192 + 32);
+	s_plain_text_p = os_malloc(MAX_TEXT_SIZE);
+	s_encrypted_text_p = os_malloc(MAX_TEXT_SIZE + CRYPTO_EXAMPLE_AES_GCM_TAG_LENGTH);
+	s_decrypted_text_p = os_malloc(MAX_TEXT_SIZE + 32);
 
 	if (!s_plain_text_p || !s_encrypted_text_p || !s_decrypted_text_p) {
 		BK_LOGE(TAG, "Failed to alloc memory...\r\n");
 		return -1;
 	}
 
-	os_memset(s_plain_text_p, 0xaa, 8192);
+	os_memset(s_plain_text_p, 0xaa, MAX_TEXT_SIZE);
 
 	return 0;
 }
