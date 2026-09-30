@@ -1776,12 +1776,21 @@ int bk_dm_prf_gattc_main(cli_gatt_param_t *param)
 {
     ble_err_t ret = 0;
 
-    ret = rtos_init_semaphore(&s_ble_sema, 1);
-
-    if (ret != 0)
+    if (s_dm_gattc_is_init)
     {
-        gatt_loge("rtos_init_semaphore err %d", ret);
+        gatt_loge("already init");
         return -1;
+    }
+
+    if (!s_ble_sema)
+    {
+        ret = rtos_init_semaphore(&s_ble_sema, 1);
+
+        if (ret != 0)
+        {
+            gatt_loge("rtos_init_semaphore err %d", ret);
+            return -1;
+        }
     }
 
     if (param)
