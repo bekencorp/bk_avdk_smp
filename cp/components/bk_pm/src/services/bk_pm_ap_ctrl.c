@@ -624,11 +624,15 @@ boot_ap:
 		bk_wwdt_feed();
 		#endif
 		extern void bk_delay_us(UINT32 us);
-		bk_delay_us(200);
+		bk_delay_us(800);
 		#if CONFIG_PSRAM
-		if (bk_pm_module_vote_psram_ctrl(PM_POWER_PSRAM_MODULE_NAME_MEDIA,
-			PM_POWER_MODULE_STATE_ON) != BK_OK) {
-			LOGE("AP fast boot: PSRAM restore failed\r\n");
+		bk_err_t psram_ret = bk_pm_module_vote_psram_ctrl(
+			PM_POWER_PSRAM_MODULE_NAME_MEDIA,
+			PM_POWER_MODULE_STATE_ON);
+		if (psram_ret != BK_OK) {
+			LOGE("AP fast boot: PSRAM restore failed: %d, keep AP stopped\r\n",
+				psram_ret);
+			return;
 		}
 		#endif
 		#if CONFIG_SUPPORT_WWDT
@@ -856,6 +860,13 @@ static bk_err_t pm_module_shutdown_cpu1(pm_power_module_name_e module)
 		if(module == POWER_SUB_DOMAIN_NAME_AP_CPU)
 		{
 			#if CONFIG_PM_AP_POWERDOWN_WHEN_LV
+			/*
+			 * Keep CP scheduling/ISR activity blocked from PSRAM pad latch
+			 * through the actual AP power-off. bk_psram_data_retention()
+			 * uses a nested critical section, so its restore leaves this
+			 * outer critical section active.
+			 */
+			GLOBAL_INT_DISABLE();
 #if CONFIG_PM_AP_FAST_BOOT_ENABLE
 			/*
 			 * AP has published sleep-ready only after quiescing DMA and
@@ -871,6 +882,7 @@ static bk_err_t pm_module_shutdown_cpu1(pm_power_module_name_e module)
 			LOGI("AP_OFF_TRACE psram_vote_off end ret=%d\r\n", ret);
 #endif
 			if (ret != BK_OK) {
+				GLOBAL_INT_RESTORE();
 				LOGE("AP fast boot: PSRAM retention failed, abort power-off\r\n");
 				return ret;
 			}
@@ -880,7 +892,8 @@ static bk_err_t pm_module_shutdown_cpu1(pm_power_module_name_e module)
 #if CONFIG_PM_AP_FAST_BOOT_VERBOSE_TRACE
 				LOGI("AP_OFF_TRACE cpu2_stop begin\r\n");
 #endif
-				ret = bk_multicore_stop(CONFIG_AP_SYS_MASTER_CPU_ID);
+				//ret = BK_OK;
+				bk_multicore_stop(CONFIG_AP_SYS_MASTER_CPU_ID);
 #if CONFIG_PM_AP_FAST_BOOT_VERBOSE_TRACE
 				LOGI("AP_OFF_TRACE cpu2_stop end ret=%d\r\n", ret);
 #endif
@@ -903,6 +916,9 @@ static bk_err_t pm_module_shutdown_cpu1(pm_power_module_name_e module)
 #endif
 #endif
 			bk_pm_module_vote_power_ctrl(POWER_SUB_DOMAIN_NAME_AP_CPU, PM_POWER_MODULE_STATE_OFF);
+			#if CONFIG_PM_AP_POWERDOWN_WHEN_LV
+			GLOBAL_INT_RESTORE();
+			#endif
 #if CONFIG_PM_AP_FAST_BOOT_ENABLE
 #if CONFIG_PM_AP_FAST_BOOT_VERBOSE_TRACE
 			LOGI("AP_OFF_TRACE ap_power_vote_off end\r\n");

@@ -15,6 +15,7 @@
 #pragma once
 
 #include <soc/soc.h>
+#include <stdbool.h>
 
 #define PM_HAL_LOGD HAL_LOGD
 #define PM_HAL_LOGV HAL_LOGV
@@ -63,4 +64,30 @@ void sys_hal_lv_aon_snap_post_record(void);
 void sys_hal_lv_aon_ldo_record(uint32_t pre, uint32_t sleep_cfg, uint32_t after_sleep_set,
 	uint32_t after_ramp, uint32_t backup, uint32_t after_ana_restore, uint32_t final);
 void sys_hal_lv_aon_debug_flush(void);
+#endif
+
+#ifndef PM_PSRAM_RETENTION_TRACE
+#define PM_PSRAM_RETENTION_TRACE 0
+#endif
+
+#if PM_PSRAM_RETENTION_TRACE
+typedef enum {
+	PSRAM_TRACE_PREPARE_BEFORE_LATCH = 0,
+	PSRAM_TRACE_PREPARE_AFTER_LATCH,
+	PSRAM_TRACE_RECOVER_ENTRY,
+	PSRAM_TRACE_LDO_READY,
+	PSRAM_TRACE_CTRL_PREPARED,
+	PSRAM_TRACE_PAD_RELEASED,
+	PSRAM_TRACE_CTRL_STARTED,
+	PSRAM_TRACE_STAGE_COUNT,
+} psram_retention_trace_stage_t;
+
+void psram_retention_trace_capture(psram_retention_trace_stage_t stage, bool controller_accessible);
+void psram_retention_trace_dump(void);
+#else
+#define psram_retention_trace_capture(stage, controller_accessible) do { \
+	(void)(stage); \
+	(void)(controller_accessible); \
+} while (0)
+#define psram_retention_trace_dump() do { } while (0)
 #endif

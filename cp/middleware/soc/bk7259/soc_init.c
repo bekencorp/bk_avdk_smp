@@ -288,7 +288,9 @@ void dlv_hook(void)
 		#if CONFIG_SPE
 		/* The bad-point repair is dropped with the CPU power domain, so this
 		 * must run before any other wake-path code executes or reads SRAM. */
+        #if 1//!CONFIG_PSRAM_DATA_RETENTION_ENABLE
 		sys_hal_mem_check_bad_point_value_restore();
+		#endif
 		#endif
 
         #if CONFIG_PM_CP_DEEP_LV_SRAM_CHECK

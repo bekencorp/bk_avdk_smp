@@ -16,11 +16,15 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <components/log.h>
+#include <components/system.h>
 #include "pm_debug.h"
 #include "aon_pmu_hal.h"
 #include <os/os.h>
 #include "sys_ll.h"
+#include "sys_ahbp_ll.h"
 #include "sys_types.h"
+#include "psram_hal.h"
 
 #if CONFIG_CKMN
 #include <driver/ckmn.h>
@@ -821,5 +825,76 @@ void sys_hal_lv_aon_debug_flush(void)
 	s_lv_aon_debug.pre_valid = 0;
 	s_lv_aon_debug.at_valid = 0;
 	s_lv_aon_debug.post_valid = 0;
+}
+#endif
+
+#if PM_PSRAM_RETENTION_TRACE
+typedef struct {
+	uint32_t valid;
+	uint32_t ana_reg5;
+	uint32_t ana_reg14;
+	uint32_t aon_r40;
+	uint32_t ahbp_reg8;
+	uint32_t ahbp_reg9;
+	uint32_t ahbp_rega;
+	uint32_t ctrl0_reg2;
+	uint32_t ctrl0_reg4;
+	uint32_t ctrl0_reg5;
+	uint32_t ctrl1_reg2;
+	uint32_t ctrl1_reg4;
+	uint32_t ctrl1_reg5;
+} psram_retention_trace_t;
+
+static psram_retention_trace_t s_psram_retention_trace[PSRAM_TRACE_STAGE_COUNT];
+
+#define PSRAM_RET_TRACE_LOGI(format, ...) bk_printf_static_block(BK_LOG_INFO, "psram", format, ##__VA_ARGS__)
+
+void psram_retention_trace_capture(psram_retention_trace_stage_t stage, bool controller_accessible)
+{
+	psram_retention_trace_t *trace = &s_psram_retention_trace[stage];
+
+	trace->ana_reg5 = sys_ll_get_ana_reg5_value();
+	trace->ana_reg14 = sys_ll_get_ana_reg14_value();
+	trace->aon_r40 = aon_pmu_ll_get_r40();
+	trace->ahbp_reg8 = sys_ahbp_ll_get_reg8_value();
+	trace->ahbp_reg9 = sys_ahbp_ll_get_reg9_value();
+	trace->ahbp_rega = sys_ahbp_ll_get_rega_value();
+	if (controller_accessible)
+	{
+		trace->ctrl0_reg2 = psram_hal_get_reg2_value(PSRAM_ID_0);
+		trace->ctrl0_reg4 = psram_hal_get_mode_value(PSRAM_ID_0);
+		trace->ctrl0_reg5 = psram_hal_get_reg5_value(PSRAM_ID_0);
+		trace->ctrl1_reg2 = psram_hal_get_reg2_value(PSRAM_ID_1);
+		trace->ctrl1_reg4 = psram_hal_get_mode_value(PSRAM_ID_1);
+		trace->ctrl1_reg5 = psram_hal_get_reg5_value(PSRAM_ID_1);
+	}
+	else
+	{
+		trace->ctrl0_reg2 = 0xFFFFFFFFU;
+		trace->ctrl0_reg4 = 0xFFFFFFFFU;
+		trace->ctrl0_reg5 = 0xFFFFFFFFU;
+		trace->ctrl1_reg2 = 0xFFFFFFFFU;
+		trace->ctrl1_reg4 = 0xFFFFFFFFU;
+		trace->ctrl1_reg5 = 0xFFFFFFFFU;
+	}
+	trace->valid = 1U;
+}
+
+void psram_retention_trace_dump(void)
+{
+	static const char *const stage_name[PSRAM_TRACE_STAGE_COUNT] = { "prepare_before_latch", "prepare_after_latch", "recover_entry", "ldo_ready", "ctrl_prepared", "pad_released", "ctrl_started", };
+
+	for (uint32_t i = 0; i < PSRAM_TRACE_STAGE_COUNT; i++)
+	{
+		psram_retention_trace_t *trace = &s_psram_retention_trace[i];
+
+		if (trace->valid == 0U)
+		{
+			continue;
+		}
+		PSRAM_RET_TRACE_LOGI("PSRAM_RET_TRACE stage=%s reg5=0x%08x reg14=0x%08x r40=0x%08x ahbp8=0x%08x ahbp9=0x%08x ahbpa=0x%08x\r\n", stage_name[i], trace->ana_reg5, trace->ana_reg14, trace->aon_r40, trace->ahbp_reg8, trace->ahbp_reg9, trace->ahbp_rega);
+		PSRAM_RET_TRACE_LOGI("PSRAM_RET_TRACE stage=%s ctrl0_r2=0x%08x ctrl0_r4=0x%08x ctrl0_r5=0x%08x ctrl1_r2=0x%08x ctrl1_r4=0x%08x ctrl1_r5=0x%08x\r\n", stage_name[i], trace->ctrl0_reg2, trace->ctrl0_reg4, trace->ctrl0_reg5, trace->ctrl1_reg2, trace->ctrl1_reg4, trace->ctrl1_reg5);
+		trace->valid = 0U;
+	}
 }
 #endif

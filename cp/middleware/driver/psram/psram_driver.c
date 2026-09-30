@@ -26,6 +26,7 @@
 #include <driver/psram.h>
 #include "ram_regions.h"
 #include <modules/pm.h>
+#include "sys_pm_hal_debug.h"
 #if (CONFIG_PSRAM_AUTO_DETECT)
 #include "bk_ef.h"
 #endif
@@ -675,6 +676,9 @@ bk_err_t bk_psram_deinit_with_id(psram_id_t psram_id)
 /* Fallback REG5 (drive strength / delay) used only when no snapshot
  * was taken. 0x380 matches the SCB18X128XX / default init path. */
 #define PSRAM_RETENTION_REG5_FALLBACK       (0x380)
+#define PSRAM_RETENTION_LDO_STABLE_US        (100U)
+#define PSRAM_RETENTION_PAD_STABLE_US        (100U)
+#define PSRAM_RETENTION_CTRL_STABLE_US       (100U)
 
 /* TEMP / LOCAL VERIFICATION SWITCH:
  *
@@ -700,6 +704,15 @@ bk_err_t bk_psram_deinit_with_id(psram_id_t psram_id)
 #ifndef PM_PSRAM_RECOVER_RESET_CLOCK
 #define PM_PSRAM_RECOVER_RESET_CLOCK 1
 #endif
+/*
+ * Diagnostic safety mode only. Production retention recovery must restore
+ * the exact pre-sleep source/divider. Leaving this enabled makes cycle 1
+ * enter retention with the cold-boot clock and cycle 2 enter with 80 MHz,
+ * so the two sleep cycles are not electrically or logically equivalent.
+ */
+#ifndef PM_PSRAM_RECOVER_SAFE_CLOCK
+#define PM_PSRAM_RECOVER_SAFE_CLOCK 0
+#endif
 
 static volatile bool     s_psram_retention_active[PSRAM_ID_MAX]    = {false};
 static uint32_t          s_psram_retention_saved_mode[PSRAM_ID_MAX] = {0};
@@ -724,11 +737,8 @@ static bk_err_t psram_cache_flush_before_power_down(psram_id_t psram_id)
 		}
 	}
 	bk_delay_us(100);
-	/* Latch PSRAM I/O pads at 3V. Covers PSRAM0 + PSRAM1. */
-	sys_drv_set_psram_pad_latch(1);
 	/* REG2[0] Soft_Reset: 0 holds the PSRAM controller in reset. */
 	psram_hal_set_sf_reset_with_id(psram_id, 0);
-
 	return BK_OK;
 }
 
@@ -760,14 +770,19 @@ static uint32_t psram_retention_get_restore_mode(psram_id_t psram_id)
 	return PSRAM_RETENTION_MODE_REG_FALLBACK;
 }
 
-static void psram_retention_recovery_one(psram_id_t psram_id)
+static void psram_retention_prepare_controller(psram_id_t psram_id)
 {
 	uint32_t v;
 	uint32_t mode = psram_retention_get_restore_mode(psram_id);
 
-	/* PSRAM REG2 bit1 = 1 : clock-gating bypass before clk re-select. */
+	/*
+	 * Keep the controller in reset while its clock and timing registers are
+	 * rebuilt. Register accesses are internal and do not drive the latched
+	 * external PSRAM pads.
+	 */
 	v = psram_hal_get_reg2_value_with_id(psram_id);
-	v |= PSRAM_RETENTION_CKG_BYPASS_BIT;//0:low power mode;1:normal power mode
+	v &= ~PSRAM_RETENTION_SF_RESET_BIT;
+	v |= PSRAM_RETENTION_CKG_BYPASS_BIT;
 	psram_hal_set_reg2_value_with_id(psram_id, v);
 
 #if PM_PSRAM_RECOVER_RESET_CLOCK
@@ -783,6 +798,7 @@ static void psram_retention_recovery_one(psram_id_t psram_id)
 	} else {
 		psram_hal_set_default_clk_with_id(psram_id);
 	}
+
 	sys_drv_psram_disckg_with_id((uint32_t)psram_id, 1);     /* bus clk enable */
 #endif
 
@@ -801,7 +817,11 @@ static void psram_retention_recovery_one(psram_id_t psram_id)
 		psram_hal_set_reg5_value_with_id(psram_id,
 			PSRAM_RETENTION_REG5_FALLBACK);
 	}
-	/* PSRAM REG2 bit0 = 1 : soft-reset controller. */
+}
+
+static void psram_retention_start_controller(psram_id_t psram_id)
+{
+	/* Start only after the retained external pads have been released. */
 	psram_hal_set_sf_reset_with_id(psram_id, 1);
 }
 
@@ -810,6 +830,7 @@ bk_err_t bk_psram_data_retention(void)
 #if !CONFIG_PM_AP_FAST_BOOT_ENABLE
 	bk_err_t ret;
 #endif
+	bool any_active = false;
 	GLOBAL_INT_DECLARATION();
 
 #if CONFIG_PM_AP_FAST_BOOT_ENABLE && CONFIG_PM_AP_FAST_BOOT_VERBOSE_TRACE
@@ -841,10 +862,9 @@ bk_err_t bk_psram_data_retention(void)
 
 #if !CONFIG_PM_AP_FAST_BOOT_ENABLE
 		/*
-		 * Fast boot flushes both controllers on AP after its final
-		 * L1/L2 clean and before publishing sleep-ready. Reissuing the
-		 * command here can race a controller whose AP command path is
-		 * already quiesced. Non-fast-boot callers still flush locally.
+		 * Fast boot has already flushed and reset both controllers on AP
+		 * before publishing sleep-ready. Only non-fast-boot callers need
+		 * to flush/reset each active controller here.
 		 */
 		ret = psram_cache_flush_before_power_down((psram_id_t)i);
 		if (ret != BK_OK) {
@@ -860,8 +880,22 @@ bk_err_t bk_psram_data_retention(void)
 		}
 #endif
 		s_psram_retention_active[i] = true;
+		any_active = true;
+	}
+
+	//psram_retention_trace_capture(PSRAM_TRACE_PREPARE_BEFORE_LATCH, true);
+	/*
+	 * gpio_latch covers PSRAM0 and PSRAM1, so assert it only after every
+	 * active controller has completed all snapshot/flush/reset accesses.
+	 * No PSRAM data transaction is allowed until recovery releases it.
+	 */
+	if (any_active) {
+		__asm volatile("dsb sy" ::: "memory");
+		sys_drv_set_psram_pad_latch(1);
+		bk_delay_us(PSRAM_RETENTION_PAD_STABLE_US);
 	}
 	__asm volatile("dsb sy" ::: "memory");
+	//psram_retention_trace_capture(PSRAM_TRACE_PREPARE_AFTER_LATCH, false);
 	GLOBAL_INT_RESTORE();
 
 #if !CONFIG_PM_AP_FAST_BOOT_ENABLE || CONFIG_PM_AP_FAST_BOOT_VERBOSE_TRACE
@@ -890,22 +924,58 @@ bk_err_t bk_psram_data_retention_recover(void)
 		MEM_STATIC_LOGW("psram_data_retention_recover: no active retention, fall back to bk_psram_init\r\n");
 		return bk_psram_init();
 	}
+	//psram_retention_trace_capture(PSRAM_TRACE_RECOVER_ENTRY, true);
 
-	/* Release PSRAM pad latch before the controller drives them again. */
+	/*
+	 * PSRAM is not powered down during fast-boot retention; the LDO should
+	 * already be enabled.  Read back the live hardware state and warn if it
+	 * is unexpectedly off, then force it on before accessing any controller
+	 * registers or pads.
+	 */
+	if (sys_hal_psram_ldo_status() != 1) {
+		MEM_STATIC_LOGE("PSRAM LDO unexpectedly off, re-enabling\r\n");
+		sys_drv_psram_ldo_enable(1);
+	}
+	bk_delay_us(PSRAM_RETENTION_LDO_STABLE_US);
+	__asm volatile("dsb sy" ::: "memory");
+	//psram_retention_trace_capture(PSRAM_TRACE_LDO_READY, true);
+	/*
+	 * The rail, clock and controller timing are now valid. Release the pad
+	 * latch while all controllers remain in reset, then wait for pad levels
+	 * to settle before allowing a controller to issue transactions.
+	 */
 	sys_drv_set_psram_pad_latch(0);
-	bk_delay_us(1000);
+	__asm volatile("dsb sy" ::: "memory");
+	bk_delay_us(PSRAM_RETENTION_PAD_STABLE_US);
+
+	/*
+	 * AP/AHBP is already powered by the caller. Rebuild every controller
+	 * while reset is asserted and the external pads are still latched.
+	 */
+	for (int i = 0; i < (int)PSRAM_ID_MAX; i++) {
+		if (!s_psram_retention_active[i]) {
+			continue;
+		}
+		psram_retention_prepare_controller((psram_id_t)i);
+	}
+	__asm volatile("dsb sy" ::: "memory");
+	//psram_retention_trace_capture(PSRAM_TRACE_CTRL_PREPARED, true);
 
 	for (int i = 0; i < (int)PSRAM_ID_MAX; i++) {
 		if (!s_psram_retention_active[i]) {
 			continue;
 		}
-		psram_retention_recovery_one((psram_id_t)i);
+		psram_retention_start_controller((psram_id_t)i);
 		s_psram_init_done[i] = true;
 		s_psram_retention_active[i] = false;
 		s_psram_retention_mode_valid[i] = false;
 		s_psram_retention_clock_valid[i] = false;
 		s_psram_retention_reg5_valid[i] = false;
 	}
+	__asm volatile("dsb sy" ::: "memory");
+	bk_delay_us(PSRAM_RETENTION_CTRL_STABLE_US);
+	//psram_retention_trace_capture(PSRAM_TRACE_CTRL_STARTED, true);
+	//psram_retention_trace_dump();
 
 #if CONFIG_PM_AP_FAST_BOOT_VERBOSE_TRACE
 	MEM_STATIC_LOGI("psram_data_retention_recover: done\r\n");

@@ -3526,6 +3526,14 @@ bk_err_t sys_hal_ap_clock_power_ctrl(power_module_state_t power_state)
 		bk_delay_us(200);
 		sys_ll_set_ana_reg10_spi_latch1v(0);
 
+		/*
+		 * The M55 domain power-down indication is asserted before the HS
+		 * rail is cut. Clear it only after the rail has settled, and before
+		 * releasing memory retention, clock, reset and isolation below.
+		 */
+		sys_ahbp_ll_set_rege_pwd_m55(0);
+		bk_delay_us(1);
+
 	#if 1
 
 		/*
@@ -3642,12 +3650,21 @@ bk_err_t sys_hal_ap_clock_power_ctrl(power_module_state_t power_state)
 	}
 	else
 	{
-		aon_pmu_ll_set_r2_m55_clk_en(0); // clk disable
+		/*
+		 * Isolate the M55 bus before stopping the core and cutting VDDDIG.
+		 * Keep the SRAM/cache PWD bits untouched: m55_mem_ret=0 asserts
+		 * retention for AP fast resume.
+		 */
 		aon_pmu_ll_set_r2_m55_iso_en(1);
+		bk_delay_us(1);
 		aon_pmu_ll_set_r2_m55_rstn(0);
+		bk_delay_us(1);
+		aon_pmu_ll_set_r2_m55_clk_en(0); // clk disable
+		bk_delay_us(1);
 		aon_pmu_ll_set_r2_m55_mem_ret(0);
-
-		//sys_ahbp_ll_set_rege_pwd_m55(1);
+		bk_delay_us(1);
+		sys_ahbp_ll_set_rege_pwd_m55(1);
+		bk_delay_us(1);
 
 		sys_ll_set_ana_reg10_spi_latch1v(1);
 		sys_ll_set_ana_reg9_hsldo_hp(0);

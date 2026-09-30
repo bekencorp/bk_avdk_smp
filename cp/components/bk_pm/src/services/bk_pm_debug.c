@@ -100,13 +100,13 @@ void pm_debug_lowvol_sleep_hook(void)
 {
 	s_before_low_vol_pd  = REG_READ(PM_DEBUG_SYS_REG_BASE+0x10*4);
 	s_before_low_vol_lpo = REG_READ(PM_DEBUG_PMU_REG_BASE+0x41*4);
-	s_before_low_vol_psram = REG_READ(PM_DEBUG_SYS_REG_BASE+0x4d*4);
+	s_before_low_vol_psram = REG_READ(PM_DEBUG_SYS_REG_BASE+0x4e*4);
 }
 
 void pm_debug_low_vol_wakeup_hook(void)
 {
 	s_after_low_vol_pd  = REG_READ(PM_DEBUG_SYS_REG_BASE+0x10*4);
 	s_after_low_vol_lpo = REG_READ(PM_DEBUG_PMU_REG_BASE+0x41*4);
-	s_after_low_vol_psram = REG_READ(PM_DEBUG_SYS_REG_BASE+0x4d*4);
+	s_after_low_vol_psram = REG_READ(PM_DEBUG_SYS_REG_BASE+0x4e*4);
 }
 /*=========================DEBUG HOOK END========================*/

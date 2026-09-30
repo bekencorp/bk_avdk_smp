@@ -128,5 +128,15 @@ menu "PM"
 			reaches WFI and again before releasing AP reset. Idle-task and
 			AP main stacks are excluded.
 
+	config PM_AP_PSRAM_RETENTION_CHECK
+		bool "Enable AP PSRAM retention verify test"
+		depends on PM_AP_FAST_BOOT_ENABLE && PSRAM_DATA_RETENTION_ENABLE
+		default n
+		help
+			Allocate a 1 MiB PSRAM pattern, register AP power ops, and
+			verify CRC/increment pattern after each real AP power-off
+			wake-up. Keep disabled for normal builds; enable only when
+			debugging PSRAM data retention.
+
 endmenu
 

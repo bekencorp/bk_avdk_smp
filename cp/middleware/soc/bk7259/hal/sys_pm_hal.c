@@ -139,19 +139,49 @@ __IRAM_PM static void sys_hal_config_ap_sram_power_down(void)
  */
 __IRAM_PM static void sys_hal_keep_ap_sram_power_on(void)
 {
-	aon_pmu_ll_set_r2_m55_mem3_pwd(0);
+	extern void bk_printf_nonblock(int level, char *tag, const char *fmt, ...);
+
+	if (aon_pmu_ll_get_r2_m55_mem3_pwd() != 0)
+	{
+		bk_printf_nonblock(3, NULL, "keep_ap_sram_on: mem3_pwd unexpected, fixing\r\n");
+		aon_pmu_ll_set_r2_m55_mem3_pwd(0);
+	}
 	timer_hal_early_delay_us_iram(1);
-	aon_pmu_ll_set_r2_m55_mem4_pwd(0);
+	if (aon_pmu_ll_get_r2_m55_mem4_pwd() != 0)
+	{
+		bk_printf_nonblock(3, NULL, "keep_ap_sram_on: mem4_pwd unexpected, fixing\r\n");
+		aon_pmu_ll_set_r2_m55_mem4_pwd(0);
+	}
 	timer_hal_early_delay_us_iram(1);
-	aon_pmu_ll_set_r2_m55_mem5_pwd(0);
+	if (aon_pmu_ll_get_r2_m55_mem5_pwd() != 0)
+	{
+		bk_printf_nonblock(3, NULL, "keep_ap_sram_on: mem5_pwd unexpected, fixing\r\n");
+		aon_pmu_ll_set_r2_m55_mem5_pwd(0);
+	}
 	timer_hal_early_delay_us_iram(1);
-	aon_pmu_ll_set_r2_m55_mem6_pwd(0);
+	if (aon_pmu_ll_get_r2_m55_mem6_pwd() != 0)
+	{
+		bk_printf_nonblock(3, NULL, "keep_ap_sram_on: mem6_pwd unexpected, fixing\r\n");
+		aon_pmu_ll_set_r2_m55_mem6_pwd(0);
+	}
 	timer_hal_early_delay_us_iram(1);
-	aon_pmu_ll_set_r2_m55_cpu2_cache_pwd(0);
+	if (aon_pmu_ll_get_r2_m55_cpu2_cache_pwd() != 0)
+	{
+		bk_printf_nonblock(3, NULL, "keep_ap_sram_on: cpu2_cache_pwd unexpected, fixing\r\n");
+		aon_pmu_ll_set_r2_m55_cpu2_cache_pwd(0);
+	}
 	timer_hal_early_delay_us_iram(1);
-	aon_pmu_ll_set_r2_m55_cpu3_cache_pwd(0);
+	if (aon_pmu_ll_get_r2_m55_cpu3_cache_pwd() != 0)
+	{
+		bk_printf_nonblock(3, NULL, "keep_ap_sram_on: cpu3_cache_pwd unexpected, fixing\r\n");
+		aon_pmu_ll_set_r2_m55_cpu3_cache_pwd(0);
+	}
 	timer_hal_early_delay_us_iram(1);
-	aon_pmu_ll_set_r2_m55_mem_auto_set(0);
+	if (aon_pmu_ll_get_r2_m55_mem_auto_set() != 0)
+	{
+		bk_printf_nonblock(3, NULL, "keep_ap_sram_on: mem_auto_set unexpected, fixing\r\n");
+		aon_pmu_ll_set_r2_m55_mem_auto_set(0);
+	}
 }
 #endif
 
@@ -725,11 +755,7 @@ static inline uint32_t sys_hal_disable_hf_clock(void)
 
 static inline void sys_hal_restore_hf_clock(volatile uint32_t val)
 {
-#if CONFIG_PSRAM_DATA_RETENTION_ENABLE
-	/* REG5 bit7 is owned by the PSRAM retention path. */
-	uint32_t current = sys_ll_get_ana_reg5_value();
-	val = (val & ~BIT(7)) | (current & BIT(7));
-#endif
+	/* val is the pre-sleep REG5 snapshot and includes the PSRAM pad-latch state. */
 	sys_ll_set_ana_reg5_value(val);
 	SYS_PM_HAL_CPU_BARRIER();
 }
@@ -1071,6 +1097,7 @@ static inline void sys_hal_set_low_voltage(pm_sleep_mode_e sleep_mode, volatile 
 	}
 	else
 	{
+		#if !CONFIG_PSRAM_DATA_RETENTION_ENABLE
 		sys_ll_set_ana_reg9_aldohp(0);//bit10
 		timer_hal_early_delay_us_iram(10);
 		//sys_ll_set_ana_reg9_aloldohp(0);//bit21
@@ -1081,6 +1108,7 @@ static inline void sys_hal_set_low_voltage(pm_sleep_mode_e sleep_mode, volatile 
 		//ronghui suggest ana0x49[1][2][10][12] 4bit at least 1bit = 1 when deepsleep,otherwise otp will not power on when wakeup
 		sys_ll_set_ana_reg9_coreldo_hp(0);//bit1
 		timer_hal_early_delay_us_iram(10);
+		#endif
 	}
 	sys_hal_disable_spi_latch();
 }
@@ -1651,6 +1679,22 @@ __IRAM_PM void sys_hal_enter_low_voltage(void)
 
 	portNVIC_SYSTICK_LOAD_REG = PM_EXIT_LOWVOL_SYSTICK_RELOAD_TIME;
 
+	/*
+	 * AP/M55 must be physically off before taking any Deep-LV snapshot.
+	 *
+	 * In particular, ANA9.pwd_hsldo, ANA16.enhspw and AON R2 are saved
+	 * below and restored after wakeup.  If the fallback power-down is done
+	 * after those snapshots, a partially-on AP state from the first resume
+	 * is restored and the next sleep repeatedly enters/exits Deep-LV.
+	 */
+#if CONFIG_DEEP_LV && CONFIG_PM_AP_POWERDOWN_WHEN_LV
+	if (!sys_hal_is_m55_core_power_down())
+	{
+		sys_hal_power_down_m55_core();
+		SYS_PM_HAL_CPU_BARRIER();
+	}
+#endif
+
 // PM_GPIO_UP(36);//1
 // PM_GPIO_DOWN(36);
 	sys_hal_mask_cpu0_int();
@@ -1804,7 +1848,8 @@ __IRAM_PM void sys_hal_enter_low_voltage(void)
 
 	#if CONFIG_DEEP_LV
 	/*power optimization*/
-	if(sys_ll_get_ana_reg14_en_alo2corepsw() != 0)
+	uint32_t alo2corepsw = sys_ll_get_ana_reg14_en_alo2corepsw();
+	if(alo2corepsw != 0)
 	{
 		sys_ll_set_ana_reg14_en_alo2corepsw(0);
 		timer_hal_early_delay_us_iram(10);
@@ -1865,19 +1910,20 @@ __IRAM_PM void sys_hal_enter_low_voltage(void)
 	#endif//CONFIG_CKMN
 
 	sys_hal_lv_deep_sleep_enter_clear();
-
+	/*
+	 * The snapshot now always describes the already-powered-down M55
+	 * domain, so wake restore cannot accidentally re-enable VDDDIG.
+	 */
 	aon_pmu_hal_backup();
 
-	if (!sys_hal_is_m55_core_power_down())
-	{
-		sys_hal_power_down_m55_core();
-	}
 	// PM_GPIO_UP(36);//8
 	// PM_GPIO_DOWN(36);
 	sys_hal_deep_lv_enter();
 	__NOP();
 	if (aon_pmu_hal_get_dlv_startup_iram())
 	{
+		//extern void bk_printf_nonblock(int level, char *tag, const char *fmt, ...);
+		//bk_printf_nonblock(3, NULL, "BLE_PWR_TRACE stage=system_before_deep_lv r42=0x%08x sys_reg10=0x%08x r14=0x%08x r5=0x%08x\r\n", aon_pmu_ll_get_r42_value(), sys_ll_get_reserver_reg0x10_value(), sys_ll_get_ana_reg14_value(), sys_ll_get_ana_reg5_value());
 		aon_pmu_ll_set_r42_value(0xF);
 
 		#if CONFIG_CKMN
@@ -1893,7 +1939,9 @@ __IRAM_PM void sys_hal_enter_low_voltage(void)
 		#if CONFIG_SPE
 		/* Capture the repaired words while the repair is still in effect; only
 		 * register writes happen between here and arch_deep_sleep(). */
+		#if 1//!CONFIG_PSRAM_DATA_RETENTION_ENABLE
 		sys_hal_mem_check_bad_point_value_save();
+		#endif
 		#endif
 		/*disable hf clock*/
 
@@ -1999,10 +2047,12 @@ __IRAM_PM void sys_hal_enter_low_voltage(void)
 	uint32_t val;
 	sys_hal_analog_set(ANALOG_REG0, v_ana_r0);
 #if CONFIG_PSRAM_DATA_RETENTION_ENABLE
-	/* Keep the PSRAM I/O-pad latch (REG5 bit7) unchanged. */
-	val = sys_hal_analog_get(ANALOG_REG5);
-	sys_hal_analog_set(ANALOG_REG5,
-		(v_ana_r5 & ~BIT(7)) | (val & BIT(7)));
+	/*
+	 * Deep-LV resets REG5 bit7 to zero before software restore. Restore the
+	 * complete pre-sleep snapshot so retained PSRAM pads remain latched until
+	 * bk_psram_data_retention_recover() explicitly releases them for AP boot.
+	 */
+	sys_hal_analog_set(ANALOG_REG5, v_ana_r5);
 #else
 	sys_hal_analog_set(ANALOG_REG5, v_ana_r5);
 #endif
@@ -2032,13 +2082,13 @@ __IRAM_PM void sys_hal_enter_low_voltage(void)
 	sys_hal_analog_set(ANALOG_REG13, v_ana_r13);
 #if CONFIG_PSRAM_DATA_RETENTION_ENABLE
 	/*
-	 * Restore only the PSRAM power fields from the pre-sleep snapshot:
-	 * vpsramsel[30:27] and enpsram[31]. Keep all unrelated REG14 fields
-	 * at their current post-wake values.
+	 * Restore the complete pre-sleep snapshot for PSRAM and Buck-D, but keep
+	 * en_alo2corepsw asserted as Reset_Handler requires during Deep-LV wake.
+	 * Clearing this bit to its pre-sleep value here removes the core supply
+	 * path before the wireless domain has recovered: BTDM reset then cannot
+	 * self-clear and both wake-correction handshakes time out.
 	 */
-	val = sys_hal_analog_get(ANALOG_REG14);
-	sys_hal_analog_set(ANALOG_REG14,
-		(val & ~(0x1FU << 27)) | (v_ana_r14 & (0x1FU << 27)));
+	sys_hal_analog_set(ANALOG_REG14, v_ana_r14 | BIT(0));
 #else
 	sys_hal_analog_set(ANALOG_REG14, v_ana_r14);
 #endif
