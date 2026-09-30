@@ -39,6 +39,7 @@ typedef enum
 	TP_ID_CST328,
 	TP_ID_FT5316,
 	TP_ID_CST76XX,
+	TP_ID_CST7XX,
 } tp_sensor_id_t;
 
 /**
