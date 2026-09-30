@@ -299,6 +299,8 @@ bk_err_t bk_tp_gpio_init(const tp_config_t *config)
 		rtos_delay_milliseconds(20);
 	#elif CONFIG_TP_CST9217
 		rtos_delay_milliseconds(20);
+	#elif CONFIG_TP_CST7XX
+		rtos_delay_milliseconds(20);
 	#elif CONFIG_TP_CST76XX
 		rtos_delay_milliseconds(50);
 	#else

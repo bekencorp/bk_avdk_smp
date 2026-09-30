@@ -42,6 +42,10 @@ const tp_sensor_config_t *tp_sensor_configs[] =
 	&tp_sensor_cst816d,
 #endif
 
+#if CONFIG_TP_CST7XX
+	&tp_sensor_cst7xx,
+#endif
+
 #if CONFIG_TP_CST9217
 	&tp_sensor_cst9217,
 #endif

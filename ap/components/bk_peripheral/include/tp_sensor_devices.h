@@ -37,6 +37,9 @@ extern "C" {
 #if CONFIG_TP_CST816D
     extern const tp_sensor_config_t tp_sensor_cst816d;
 #endif
+#if CONFIG_TP_CST7XX
+    extern const tp_sensor_config_t tp_sensor_cst7xx;
+#endif
 #if CONFIG_TP_CST9217
     extern const tp_sensor_config_t tp_sensor_cst9217;
 #endif
