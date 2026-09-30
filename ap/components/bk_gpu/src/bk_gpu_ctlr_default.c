@@ -136,18 +136,19 @@ static avdk_err_t gpu_draw_path_build(bk_gpu_ctlr_handle_t handle, bk_gpu_draw_p
 
     rtos_lock_mutex(&flex->draw_mutex);
 
-    CHECK_ERROR(vg_lite_clear_path(&flex->draw_path));
+    CHECK_ERROR(vg_lite_clear_path(&flex->draw_pending_path));
 
-    memset(&flex->draw_path, 0, sizeof(vg_lite_path_t));
+    memset(&flex->draw_pending_path, 0, sizeof(flex->draw_pending_path));
 
-	vg_lite_init_path(&flex->draw_path, VG_LITE_S16, VG_LITE_HIGH, vg_lite_get_path_length(path_set->cmd, path_set->size, VG_LITE_S16), NULL, 0, 0, 0, 0);
+	vg_lite_init_path(&flex->draw_pending_path, VG_LITE_S16, VG_LITE_HIGH, vg_lite_get_path_length(path_set->cmd, path_set->size, VG_LITE_S16), NULL, 0, 0, 0, 0);
 
-	CHECK_ERROR(vg_lite_append_path(&flex->draw_path, path_set->cmd, path_set->data, path_set->size));
-	CHECK_ERROR(vg_lite_set_stroke(&flex->draw_path, VG_LITE_CAP_ROUND, VG_LITE_JOIN_MITER, 4, 8, NULL, 0, 8, path_set->color));
-	CHECK_ERROR(vg_lite_update_stroke(&flex->draw_path));
-	CHECK_ERROR(vg_lite_set_path_type(&flex->draw_path,VG_LITE_DRAW_STROKE_PATH));
+	CHECK_ERROR(vg_lite_append_path(&flex->draw_pending_path, path_set->cmd, path_set->data, path_set->size));
+	CHECK_ERROR(vg_lite_set_stroke(&flex->draw_pending_path, VG_LITE_CAP_ROUND, VG_LITE_JOIN_MITER, 4, 8, NULL, 0, 8, path_set->color));
+	CHECK_ERROR(vg_lite_update_stroke(&flex->draw_pending_path));
+	CHECK_ERROR(vg_lite_set_path_type(&flex->draw_pending_path,VG_LITE_DRAW_STROKE_PATH));
 
-    controller->flex.draw_enable = 1;
+    flex->draw_pending_enable = 1;
+    flex->draw_pending_ready = true;
 
     rtos_unlock_mutex(&flex->draw_mutex);
 
@@ -160,8 +161,8 @@ static avdk_err_t gpu_draw_path_clear(bk_gpu_ctlr_handle_t handle)
     gpu_flex_data_t *flex = &controller->flex;
 
     rtos_lock_mutex(&flex->draw_mutex);
-    controller->flex.draw_enable = 0;
-    CHECK_ERROR(vg_lite_clear_path(&flex->draw_path));
+    flex->draw_pending_enable = 0;
+    flex->draw_pending_ready = true;
     rtos_unlock_mutex(&flex->draw_mutex);
     return 0;
 }
@@ -513,6 +514,25 @@ static void gpu_flex_update_matrix(gpu_flex_data_t *data,
     gpu_flex_update_strip_translate_matrix(data, config);
 }
 
+/*
+ * Publish one complete pending path at the FLEXA frame boundary. The active
+ * path then stays unchanged until the next frame, so every block observes the
+ * same overlay coordinates.
+ */
+static inline void gpu_flex_latch_draw_path(gpu_flex_data_t *data)
+{
+    rtos_lock_mutex(&data->draw_mutex);
+    if (data->draw_pending_ready)
+    {
+        vg_lite_path_t path = data->draw_path;
+        data->draw_path = data->draw_pending_path;
+        data->draw_pending_path = path;
+        data->draw_enable = data->draw_pending_enable;
+        data->draw_pending_ready = false;
+    }
+    rtos_unlock_mutex(&data->draw_mutex);
+}
+
 /**
  * @brief Initialize GPU flex data structure
  * @param data GPU flex data structure to initialize
@@ -542,6 +562,11 @@ static inline void gpu_flex_data_init(gpu_flex_data_t *data, gpu_vn_ctlr_t *gpu_
     data->input_width_x_height = data->input_width * data->input_height;
     data->scale_x = (float)data->output_width / (float)data->input_width;
     data->scale_y = (float)data->output_height / (float)data->input_height;
+    data->draw_enable = 0;
+    data->draw_pending_enable = 0;
+    data->draw_pending_ready = false;
+    memset(&data->draw_path, 0, sizeof(data->draw_path));
+    memset(&data->draw_pending_path, 0, sizeof(data->draw_pending_path));
 
     if (rtos_init_mutex(&data->draw_mutex) != BK_OK)
     {
@@ -616,6 +641,12 @@ static inline void gpu_flex_data_deinit(gpu_flex_data_t *data, gpu_vn_ctlr_t *gp
 
     if (data->draw_mutex)
     {
+        rtos_lock_mutex(&data->draw_mutex);
+        CHECK_ERROR(vg_lite_clear_path(&data->draw_path));
+        CHECK_ERROR(vg_lite_clear_path(&data->draw_pending_path));
+        data->draw_enable = 0;
+        data->draw_pending_ready = false;
+        rtos_unlock_mutex(&data->draw_mutex);
         rtos_deinit_mutex(&data->draw_mutex);
         data->draw_mutex = NULL;
     }
@@ -1058,7 +1089,6 @@ static bool gpu_flex_process_line_block(gpu_flex_data_t *data,
     {
         int draw_ret = 0;
         vg_lite_error_t draw_finish_ret = VG_LITE_SUCCESS;
-        rtos_lock_mutex(&data->draw_mutex);
         if (data->draw_enable &&
             gpu_flex_draw_path_intersects_block(data))
         {
@@ -1069,7 +1099,6 @@ static bool gpu_flex_process_line_block(gpu_flex_data_t *data,
                 draw_finish_ret = vg_lite_finish();
             }
         }
-        rtos_unlock_mutex(&data->draw_mutex);
         if (draw_ret != 0 || draw_finish_ret != VG_LITE_SUCCESS)
         {
             LOGE("%s, path draw=%d finish=%d\r\n",
@@ -1237,6 +1266,7 @@ static void gpu_flex_main_entry(void *arg)
                     in_s->report_seq = src_frame_seq;
                 }
             }
+            gpu_flex_latch_draw_path(flex);
             gpu_vn_ctlr->flexa_frame_active = true;
             GPU_FRAME_START();
         }

@@ -106,7 +106,10 @@ typedef struct {
     float scale_y;                            /* output_height / input_height */
 
     uint8_t draw_enable;
+    uint8_t draw_pending_enable;
+    bool draw_pending_ready;
     vg_lite_path_t draw_path;
+    vg_lite_path_t draw_pending_path;
     vg_lite_matrix_t draw_matrix;
     beken_mutex_t draw_mutex;
     beken_semaphore_t transfer_sem;
