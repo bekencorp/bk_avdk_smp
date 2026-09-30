@@ -1745,7 +1745,8 @@ int mbedtls_ecp_muladd( mbedtls_ecp_group *grp, mbedtls_ecp_point *R,
 
 #if defined(MBEDTLS_ECP_MONTGOMERY_ENABLED)
 #if defined(MBEDTLS_ECP_DP_CURVE25519_ENABLED)
-#define ECP_MPI_INIT(s, n, p) {s, (n), (mbedtls_mpi_uint *)(p)}
+/* mbedtls 3.6 puts the limb pointer first in mbedtls_mpi. */
+#define ECP_MPI_INIT(s, n, p) {(mbedtls_mpi_uint *)(p), (s), (n)}
 #define ECP_MPI_INIT_ARRAY(x)   \
     ECP_MPI_INIT(1, sizeof(x) / sizeof(mbedtls_mpi_uint), x)
 /*
