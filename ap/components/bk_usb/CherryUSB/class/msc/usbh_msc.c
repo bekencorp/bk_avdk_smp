@@ -360,7 +360,15 @@ int usbh_msc_scsi_init(struct usbh_msc *msc_class)
     uint16_t cnt;
 
     cnt = 0;
-    while (usbh_msc_scsi_testunitready(msc_class) < 0) {
+    while ((ret = usbh_msc_scsi_testunitready(msc_class)) < 0) {
+        /* Only a CSW answer (-USB_ERR_INVAL) means "not ready yet" and is worth
+         * repeating. Any other code means the transfer itself did not complete,
+         * so each further retry just holds this thread for another
+         * CONFIG_USBHOST_MSC_TIMEOUT without giving the device a new chance. */
+        if (ret != -USB_ERR_INVAL) {
+            USB_LOG_ERR("Fail to scsi_testunitready: %d\r\n", ret);
+            return ret;
+        }
         USB_LOG_WRN("Device not ready, try again...\r\n");
         ret = usbh_msc_scsi_requestsense(msc_class);
         if (ret < 0) {

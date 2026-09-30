@@ -103,6 +103,7 @@ void usb_hc_exit_critical(uint32_t flags)
 
 typedef void (*bk_legacy_roothub_cb_t)(void);
 int usb_hc_mhdrc_register_init(void);
+void usbh_musb_disconnect_set_status(void);
 extern struct usbh_bus g_usbhost_bus[];
 void usbh_hub_thread_wakeup(struct usbh_hub *hub);
 
@@ -127,6 +128,10 @@ void usbh_roothub_thread_send_queue(uint8_t port, void *callback)
 void bk_cherryusb_v16_host_recover(struct usbh_bus *bus)
 {
     (void)bus;
+    /* This path has no physical disconnect, so the pipe map and URB state left
+     * by the failed attempt are never torn down and the next enumeration binds
+     * stale pipes: EP0 answers while bulk times out. */
+    usbh_musb_disconnect_set_status();
     usb_hc_mhdrc_register_init();
 }
 
@@ -646,6 +651,11 @@ static void usb_hc_riscv_probe_init(uint32_t role)
     ctx->usb_ep0_state_addr = SOC_SRAM_PERI_ADDR((uint32_t)(uintptr_t)&usb_ep0_state);
     ctx->pending_ep0 = 0;
     ctx->role = role;
+    /* The probe survives a firmware stop/start, so rewind the cursors or the
+     * first poll replays the previous session. */
+    ctx->evt_wr = 0;
+    ctx->evt_rd = 0;
+    ctx->evt_drop = 0;
     for (uint32_t i = 0U; i < (uint32_t)RISCV_USB_PROBE_PIPE_NUM; i++) {
         ctx->pending_pipe_tx[i] = 0;
         ctx->pending_pipe_rx[i] = 0;
@@ -689,26 +699,8 @@ bk_err_t usb_hc_riscv_ipi_enable(void)
 #endif
 
 
-void usb_hc_riscv_poll_events(void)
+static void usb_hc_riscv_dispatch_event(volatile riscv_usb_probe_t *ctx, uint32_t event)
 {
-    volatile riscv_usb_probe_t *ctx = get_riscv_usb_probe();
-    uint32_t event;
-    // uint32_t event_data;
-
-    if (!usb_hc_riscv_enabled()) {
-        return;
-    }
-
-    if (ctx->irq_seq == s_riscv_probe_last_irq_seq) {
-        return;
-    }
-
-    s_riscv_probe_last_irq_seq = ctx->irq_seq;
-    event = ctx->event;
-    // event_data = ctx->event_data;
-    ctx->event = RISCV_USB_PROBE_EVT_NONE;
-    ctx->event_data = 0;
-
     switch (event) {
         case RISCV_USB_PROBE_EVT_CONNECT:
             HWREGB(USB_PHY_BASE + NANENG_PHY_FC_REG0C) = 0xE0;
@@ -760,6 +752,28 @@ void usb_hc_riscv_poll_events(void)
 
         default:
             break;
+    }
+}
+
+void usb_hc_riscv_poll_events(void)
+{
+    volatile riscv_usb_probe_t *ctx = get_riscv_usb_probe();
+
+    if (!usb_hc_riscv_enabled() || ctx->evt_rd == ctx->evt_wr) {
+        return;
+    }
+
+    s_riscv_probe_last_irq_seq = ctx->irq_seq;
+
+    /* Drain all of them: the single ctx->event slot only ever held the last one
+     * written, so a DISCON followed by a CONNECT lost the DISCON. */
+    while (ctx->evt_rd != ctx->evt_wr) {
+        uint32_t rd = ctx->evt_rd;
+        uint32_t event = ctx->evt_ring[rd & RISCV_USB_EVT_RING_MASK];
+
+        __sync_synchronize();
+        ctx->evt_rd = rd + 1U;
+        usb_hc_riscv_dispatch_event(ctx, event);
     }
 
     /* USB HS IRQ route back to RISC-V (bit8=1), same as riscv_usb_bridge usb_hc_route_irq_to_riscv */
@@ -1135,6 +1149,10 @@ void musb_isoc_pipe_init(struct musb_pipe *pipe, uint8_t *buffer, uint32_t bufle
 
 static int usbh_reset_port(const uint8_t port)
 {
+    /* Host mode must not leave the device-side D+ pull-up set: usb_dc_init()
+     * sets it and an abnormal role switch can skip usb_dc_deinit(). */
+    HWREGB(USB_BASE + MUSB_POWER_OFFSET) &= ~USB_POWER_SOFTCONN;
+
     g_musb_hcd.port_pe = 0;
     HWREGB(USB_BASE + MUSB_POWER_OFFSET) |= USB_POWER_RESET;
     usb_osal_msleep(20);
@@ -1977,6 +1995,12 @@ int usbh_submit_urb(struct usbh_urb *urb)
     if (!urb) {
         USB_LOG_DBG("[=]%s urb is null\r\n", __func__);
         return -EINVAL;
+    }
+
+    /* Gone device raises no completion event, so a submit would burn the full
+     * URB timeout. Same guard as the generic musb port. */
+    if (!g_musb_hcd.port_pe) {
+        return -ENODEV;
     }
 
     pipe = (struct musb_pipe *)urb->hcpriv;

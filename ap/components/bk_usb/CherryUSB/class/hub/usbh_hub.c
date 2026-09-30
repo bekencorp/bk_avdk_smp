@@ -587,6 +587,16 @@ static void usbh_hub_events(struct usbh_hub *hub)
             if (portstatus & HUB_PORT_STATUS_CONNECTION) {
                 hub->bus->event_handler(hub->bus->busid, hub->index, port + 1, USB_INTERFACE_ANY, USBH_EVENT_DEVICE_CONNECTED);
 
+                /* Still addressed here means the matching disconnect was never
+                 * processed (unplug+replug collapse into one connect while this
+                 * thread is busy). Resetting below would kill the live session;
+                 * a real unplug clears ->connected first, so it still resets. */
+                child = &hub->child[port];
+                if (child->connected && child->dev_addr != 0) {
+                    USB_LOG_WRN("Port %u already has an addressed session, ignoring duplicate connect\r\n", port + 1);
+                    continue;
+                }
+
                 ret = usbh_hub_set_feature(hub, port + 1, HUB_PORT_FEATURE_RESET);
                 if (ret < 0) {
                     USB_LOG_ERR("Failed to reset port %u, errorcode: %d\r\n", port + 1, ret);
