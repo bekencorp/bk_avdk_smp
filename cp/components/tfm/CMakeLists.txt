@@ -26,6 +26,41 @@ if (EXISTS ${tfm_src_dir}/CMakeLists.txt)
 endif()
 
 if (CONFIG_TFM AND tfm_present)
+    # Secure TF-M build directory. Linux keeps the historical
+    # build/<soc>/<project>/<soc>/armino/tfm location. On Windows that path
+    # makes intermedia_tfm_internal_trusted_storage.o.d exceed MAX_PATH (the
+    # .d file is 263 characters for secureboot_overwrite_no_en). Dropping the
+    # extra <soc>/armino components places it at
+    # build/<soc>/<project>/tfm (249 characters here). If the checkout itself
+    # is deep enough that this still would not fit, use build/tfm/<bin>_<hash>
+    # which stays inside the SDK build tree.
+    set(tfm_build_dir ${CMAKE_BINARY_DIR}/armino/tfm)
+    if(CMAKE_HOST_WIN32 OR CMAKE_HOST_SYSTEM_NAME MATCHES "Windows|MSYS|MINGW|CYGWIN"
+       OR "$ENV{OS}" STREQUAL "Windows_NT")
+        # Longest gcc depfile relative to the TF-M build directory.
+        set(_tfm_longest_dep "secure_fw/partitions/internal_trusted_storage/CMakeFiles/tfm_psa_rot_partition_its.dir/d1e07c980996c979a9d4fc54b61934ec/intermedia_tfm_internal_trusted_storage.o.d")
+        get_filename_component(_tfm_project_dir "${CMAKE_BINARY_DIR}" DIRECTORY)
+        get_filename_component(_tfm_soc_dir "${_tfm_project_dir}" DIRECTORY)
+        get_filename_component(_tfm_build_root "${_tfm_soc_dir}" DIRECTORY)
+        get_filename_component(_tfm_soc_name "${_tfm_soc_dir}" NAME)
+        get_filename_component(_tfm_bin_name "${CMAKE_BINARY_DIR}" NAME)
+        set(_tfm_preferred "${_tfm_project_dir}/tfm")
+        string(LENGTH "${_tfm_preferred}/${_tfm_longest_dep}" _tfm_preferred_len)
+        if(_tfm_bin_name STREQUAL _tfm_soc_name AND _tfm_preferred_len LESS 250)
+            set(tfm_build_dir "${_tfm_preferred}")
+        else()
+            string(MD5 _tfm_hash "${CMAKE_BINARY_DIR}")
+            string(SUBSTRING "${_tfm_hash}" 0 8 _tfm_hash)
+            set(tfm_build_dir "${_tfm_build_root}/tfm/${_tfm_bin_name}_${_tfm_hash}")
+            string(LENGTH "${tfm_build_dir}/${_tfm_longest_dep}" _tfm_short_len)
+            if(NOT _tfm_short_len LESS 250)
+                message(FATAL_ERROR
+                    "TF-M build path is still ${_tfm_short_len} characters with depfile suffix, above the Windows MAX_PATH budget. Move the SDK tree to a shorter directory.")
+            endif()
+        endif()
+        message(STATUS "TF-M Windows build dir: ${tfm_build_dir}")
+    endif()
+
     # TF-M 2.1.0 NS interface sources (names differ from the older Dev2.0.x):
     #   tfm_psa_ns_api.c        -> tfm_tz_psa_ns_api.c (TrustZone variant)
     #   tfm_crypto_ipc_api.c    -> tfm_crypto_api.c
@@ -48,7 +83,7 @@ if (CONFIG_TFM AND tfm_present)
     list(APPEND incs
         tfm/interface/include
         tfm/interface/include/crypto_keys
-        ${CMAKE_BINARY_DIR}/armino/tfm/generated/interface/include
+        ${tfm_build_dir}/generated/interface/include
     )
     if (CONFIG_TFM_CRYPTO)
         list(APPEND srcs tfm/interface/src/tfm_crypto_api.c)
@@ -241,7 +276,6 @@ if (CONFIG_TFM AND tfm_present)
     if (NOT IS_ABSOLUTE ${tfm_toolchain_path})
         set(tfm_toolchain_path ${armino_path}/${tfm_toolchain_path})
     endif()
-    set(tfm_build_dir ${CMAKE_BINARY_DIR}/armino/tfm)
     set(tfm_install_dir ${CMAKE_BINARY_DIR}/tfm_install)
 
     # External libraries referenced by local path (no network fetch).
@@ -319,7 +353,7 @@ if (CONFIG_TFM AND tfm_present)
                 -DCONFIG_AP_BOOT_NSC=${CONFIG_TFM_AP_BOOT_NSC}
                 -DCONFIG_SLEEP_RETENTION_NSC=${CONFIG_TFM_SLEEP_RETENTION_NSC}
                 -DCONFIG_OTP_NSC=${CONFIG_TFM_OTP_NSC}
-            && ninja -C ${tfm_build_dir} install
+            && ${CMAKE_MAKE_PROGRAM} -C ${tfm_build_dir} install
         BUILD_BYPRODUCTS ${tfm_build_dir}/secure_fw/libtfm_s_veneers.a
         BUILD_ALWAYS 1
         INSTALL_COMMAND ""

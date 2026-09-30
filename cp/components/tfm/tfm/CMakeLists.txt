@@ -11,7 +11,7 @@ cmake_minimum_required(VERSION 3.16)
 
 # Windows MAX_PATH is 260 (including NUL). Native arm-none-eabi-gcc cannot open
 # compiler depfiles (*.o.d) whose absolute path exceeds that. Armino nests TF-M
-# under build/<soc>/<project>/<soc>/armino/tfm and compiles out-of-tree
+# under build/<soc>/<project>/tfm (Windows) or .../<soc>/armino/tfm and compiles out-of-tree
 # bk_trustengine sources, which produces object paths such as:
 #   .../accelerator/CMakeFiles/crypto_service_crypto_hw.dir/<md5>/cp/components/...
 # MSYS/Cygwin CMake leaves CMAKE_OBJECT_PATH_MAX at 0 (unlimited); native
