@@ -1659,6 +1659,8 @@ typedef float*              vg_lite_float_ptr;
 #if DUMP_PNG
     vg_lite_error_t vg_lite_dump_png(const vg_lite_char *filename, vg_lite_buffer_t *buffer);
 #endif
+    vg_lite_void vg_lite_dump_cmdbuf_stats(vg_lite_void);
+
     /* Return VGLite parameters in params[] array */
     vg_lite_error_t vg_lite_get_parameter(vg_lite_param_type_t type,
                                     vg_lite_int32_t count,
