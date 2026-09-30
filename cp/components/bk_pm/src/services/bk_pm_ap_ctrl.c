@@ -727,6 +727,11 @@ boot_ap:
 			bk_wwdt_feed();
 			#endif
 			current_tick = bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
+
+			if (g_ap_dump_flag != 0U)
+			{
+				previous_tick = current_tick;
+			}
 		}
 
 		if(!bk_pm_ap_boot_success_get())
