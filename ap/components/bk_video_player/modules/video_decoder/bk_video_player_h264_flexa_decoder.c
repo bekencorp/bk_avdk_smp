@@ -49,7 +49,8 @@
  *   "compressed ARGB8888 in HSRAM/PSRAM".
  *
  *   Buffer ownership:
- *     - GPU malloc cb -> hsram_malloc() first, then PSRAM mem_slab fallback
+ *     - GPU malloc cb -> PSRAM1 (CODED) output pool, so the H.264 recon
+ *       pool can stay on PSRAM0 (UNCODED)
  *     - GPU frame_display cb -> our queue -> engine -> user's
  *       decode_complete_cb -> bk_display_flush(..., allocator-aware free cb)
  *     - LCD eventually calls the output-frame free callback that matches the
@@ -61,9 +62,8 @@
  * flexa_buff_cnt=3):
  *   - Flexa pp ring (HSRAM):  mb_w * 16 * seg_h * seg_n * 3/2
  *                             = 1088 * 16 * 1 * 3 * 1.5 = ~76 KB
- *   - GPU output (HSRAM):     one or more compressed ARGB frame buffers,
+ *   - GPU output (PSRAM1/CODED): 3 compressed ARGB frame buffers,
  *                             ~2 MB each for 1080x1920 DEC400 output
- *                             (falls back to PSRAM if HSRAM is exhausted)
  *   - Annex-B work buffer:    grows on demand, ~max_AU_size + SPS/PPS
  *
  * Source: ap/projects/multimedia/h264d_gpu_display_example/ap/src/
@@ -759,8 +759,9 @@ static bool h264_decoder_gpu_pool_init(uint32_t size)
 
     for (uint32_t i = 0U; i < H264_DECODER_GPU_OUTPUT_POOL_COUNT; i++)
     {
+        /* CODED (PSRAM1): keep UNCODED free for the H.264 recon pool. */
         s_gpu_output_pool[i].buffer =
-            bk_frame_buffer_malloc(MEM_SLAB_HEAP_UNCODED, size);
+            bk_frame_buffer_malloc(MEM_SLAB_HEAP_CODED, size);
         if (s_gpu_output_pool[i].buffer == NULL)
         {
             for (uint32_t j = 0U; j < i; j++)
@@ -819,7 +820,7 @@ static void *h264_decoder_gpu_frame_malloc(uint32_t size)
     }
 
     /* Fallback is only expected if fixed-pool allocation failed at startup. */
-    ptr = bk_frame_buffer_malloc(MEM_SLAB_HEAP_UNCODED, size);
+    ptr = bk_frame_buffer_malloc(MEM_SLAB_HEAP_CODED, size);
     if (ptr == NULL)
     {
         LOGE("%s: alloc gpu output failed, size=%u\n", __func__, (unsigned)size);
