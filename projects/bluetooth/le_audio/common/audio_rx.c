@@ -37,6 +37,20 @@ typedef struct
 	uint8_t  lc3[LE_AUDIO_RX_FRAME_MAX_BYTES];
 } le_audio_rx_iso_pkt_t;
 
+typedef struct
+{
+	uint16_t       handle;
+	lc3_dec_info_t dec;
+	uint8_t       *dec_mem;
+} le_audio_rx_stream_t;
+
+typedef struct
+{
+	uint16_t handles[LE_AUDIO_MAX_STREAMS];
+	uint8_t  count;
+	le_audio_codec_cfg_t cfg;
+} le_audio_rx_group_t;
+
 static const le_audio_pcm_sink_t *s_sink;
 static le_audio_codec_cfg_t       s_cfg;
 
@@ -45,12 +59,17 @@ static beken_thread_t  s_rx_thread;
 static beken_semaphore_t s_rx_stop_sema;
 static uint8_t         s_rx_inited;
 
-static lc3_dec_info_t  s_dec_info;
-static uint8_t        *s_dec_mem;
-static int16_t        *s_pcm;
+static le_audio_rx_stream_t s_streams[LE_AUDIO_MAX_STREAMS];
+static uint8_t         s_stream_count;
+static int16_t        *s_pcm_ch;
+static int16_t        *s_pcm_out;
 static uint8_t         s_dec_ready;
 static uint8_t         s_sink_opened;
 static uint32_t        s_lc3_rx_count;
+static uint32_t        s_unknown_count;
+
+/* Streams already collected for the SDU period being assembled */
+static uint8_t         s_group_mask;
 
 void le_audio_audio_set_sink(const le_audio_pcm_sink_t *snk)
 {
@@ -104,20 +123,31 @@ static int le_audio_rx_queue_push(uint8_t type, const void *data, uint16_t len, 
 
 static void le_audio_rx_decoder_free(void)
 {
-	if (s_dec_mem)
+	uint8_t i;
+
+	for (i = 0; i < LE_AUDIO_MAX_STREAMS; i++)
 	{
-		os_free(s_dec_mem);
-		s_dec_mem = NULL;
+		if (s_streams[i].dec_mem)
+		{
+			os_free(s_streams[i].dec_mem);
+		}
+	}
+	os_memset(s_streams, 0, sizeof(s_streams));
+
+	if (s_pcm_ch)
+	{
+		os_free(s_pcm_ch);
+		s_pcm_ch = NULL;
 	}
 
-	if (s_pcm)
+	if (s_pcm_out)
 	{
-		os_free(s_pcm);
-		s_pcm = NULL;
+		os_free(s_pcm_out);
+		s_pcm_out = NULL;
 	}
 
 	s_dec_ready = 0;
-	os_memset(&s_dec_info, 0, sizeof(s_dec_info));
+	s_group_mask = 0;
 }
 
 static int le_audio_rx_decoder_init(void)
@@ -125,6 +155,7 @@ static int le_audio_rx_decoder_init(void)
 	int dt = (int)s_cfg.frame_us;
 	int sr = (int)s_cfg.sample_rate;
 	int frame_samples;
+	uint8_t i;
 
 	if (s_dec_ready)
 	{
@@ -132,35 +163,47 @@ static int le_audio_rx_decoder_init(void)
 	}
 
 	frame_samples = (sr * dt) / 1000000;
-	if (frame_samples <= 0)
+	if ((frame_samples <= 0) || (s_stream_count == 0))
 	{
-		BK_LOGE(TAG, "bad lc3 params dt=%d sr=%d\n", dt, sr);
+		BK_LOGE(TAG, "bad lc3 params dt=%d sr=%d streams=%u\n", dt, sr, s_stream_count);
 		return -1;
 	}
 
-	s_dec_mem = (uint8_t *)os_malloc(LE_AUDIO_RX_LC3_WORK_BYTES);
-	s_pcm = (int16_t *)os_malloc(frame_samples * sizeof(int16_t));
-	if (!s_dec_mem || !s_pcm)
+	/* One decoder per stream: each one carries a single channel */
+	for (i = 0; i < s_stream_count; i++)
 	{
-		BK_LOGE(TAG, "lc3 decoder alloc failed (mem=%p pcm=%p)\n", s_dec_mem, s_pcm);
+		s_streams[i].dec.channel = 1;
+		s_streams[i].dec.frame_us = dt;
+		s_streams[i].dec.frame_samples = frame_samples;
+		s_streams[i].dec.frame_bytes = s_cfg.frame_bytes;
+		s_streams[i].dec.dec_srate_hz = sr;
+		s_streams[i].dec.pcm_sbytes = sizeof(int16_t);
+		s_streams[i].dec.frame_cnt = 0;
+		s_streams[i].dec_mem = (uint8_t *)os_malloc(LE_AUDIO_RX_LC3_WORK_BYTES);
+		if (!s_streams[i].dec_mem)
+		{
+			BK_LOGE(TAG, "lc3 decoder alloc failed stream=%u\n", i);
+			le_audio_rx_decoder_free();
+			return -1;
+		}
+		lc3_decoder_init(&s_streams[i].dec, s_streams[i].dec_mem);
+	}
+
+	s_pcm_ch = (int16_t *)os_malloc(frame_samples * sizeof(int16_t));
+	s_pcm_out = (int16_t *)os_malloc(frame_samples * s_stream_count * sizeof(int16_t));
+	if (!s_pcm_ch || !s_pcm_out)
+	{
+		BK_LOGE(TAG, "pcm alloc failed ch=%p out=%p\n", s_pcm_ch, s_pcm_out);
 		le_audio_rx_decoder_free();
 		return -1;
 	}
 
-	os_memset(&s_dec_info, 0, sizeof(s_dec_info));
-	s_dec_info.channel = 1;
-	s_dec_info.frame_us = dt;
-	s_dec_info.frame_samples = frame_samples;
-	s_dec_info.frame_bytes = s_cfg.frame_bytes;
-	s_dec_info.dec_srate_hz = sr;
-	s_dec_info.pcm_sbytes = sizeof(int16_t);
-	s_dec_info.frame_cnt = 0;
-
-	lc3_decoder_init(&s_dec_info, s_dec_mem);
+	os_memset(s_pcm_out, 0, frame_samples * s_stream_count * sizeof(int16_t));
+	s_group_mask = 0;
 	s_dec_ready = 1;
 
-	BK_LOGI(TAG, "lc3 decoder ready dt=%dus sr=%dHz samples=%d frame_bytes=%d\n",
-	        dt, sr, frame_samples, s_dec_info.frame_bytes);
+	BK_LOGI(TAG, "lc3 decoder ready streams=%u dt=%dus sr=%dHz samples=%d frame_bytes=%d\n",
+	        s_stream_count, dt, sr, frame_samples, s_cfg.frame_bytes);
 	return 0;
 }
 
@@ -198,15 +241,67 @@ static void le_audio_rx_teardown(void)
 {
 	le_audio_rx_sink_close();
 	le_audio_rx_decoder_free();
+	s_stream_count = 0;
 	s_lc3_rx_count = 0;
+	s_unknown_count = 0;
+}
+
+static int le_audio_rx_stream_index(uint16_t handle)
+{
+	uint8_t i;
+
+	for (i = 0; i < s_stream_count; i++)
+	{
+		if (s_streams[i].handle == handle)
+		{
+			return (int)i;
+		}
+	}
+
+	return -1;
+}
+
+/* Hand one SDU period to the sink, silent on channels that did not arrive */
+static void le_audio_rx_flush_group(void)
+{
+	int samples = s_streams[0].dec.frame_samples * s_stream_count;
+
+	if (s_group_mask == 0)
+	{
+		return;
+	}
+
+	if (s_sink && s_sink->write)
+	{
+		s_sink->write(s_pcm_out, samples);
+	}
+
+	os_memset(s_pcm_out, 0, samples * sizeof(int16_t));
+	s_group_mask = 0;
 }
 
 static void le_audio_rx_handle_iso(const le_audio_rx_iso_pkt_t *pkt)
 {
 	uint16_t frame_bytes;
+	int index;
+	int frame_samples;
+	int i;
 
 	if (!pkt || pkt->lc3_len == 0U)
 	{
+		return;
+	}
+
+	index = le_audio_rx_stream_index(pkt->header.connection_handle);
+	if (index < 0)
+	{
+		s_unknown_count++;
+		if ((s_unknown_count == 1U) || ((s_unknown_count % 1000U) == 0U))
+		{
+			BK_LOGW(TAG, "iso for unknown handle=0x%03x #%lu, streams=%u\n",
+			        pkt->header.connection_handle,
+			        (unsigned long)s_unknown_count, s_stream_count);
+		}
 		return;
 	}
 
@@ -233,16 +328,34 @@ static void le_audio_rx_handle_iso(const le_audio_rx_iso_pkt_t *pkt)
 	}
 
 	frame_bytes = pkt->lc3_len;
-	if (frame_bytes > s_dec_info.frame_bytes)
+	if (frame_bytes > s_streams[index].dec.frame_bytes)
 	{
-		frame_bytes = s_dec_info.frame_bytes;
+		frame_bytes = s_streams[index].dec.frame_bytes;
 	}
-	s_dec_info.frame_bytes = frame_bytes;
+	s_streams[index].dec.frame_bytes = frame_bytes;
 
-	lc3_decoder_proc(&s_dec_info, (uint8_t *)pkt->lc3, (uint8_t *)s_pcm);
-	if (s_sink && s_sink->write)
+	lc3_decoder_proc(&s_streams[index].dec, (uint8_t *)pkt->lc3, (uint8_t *)s_pcm_ch);
+
+	/*
+	 * This stream already delivered the period being assembled, so it is the
+	 * next one: release what was collected, silent on the channels that were
+	 * lost. Each stream produces exactly one frame per SDU interval.
+	 */
+	if (s_group_mask & (uint8_t)(1U << index))
 	{
-		s_sink->write(s_pcm, s_dec_info.frame_samples);
+		le_audio_rx_flush_group();
+	}
+
+	frame_samples = s_streams[index].dec.frame_samples;
+	for (i = 0; i < frame_samples; i++)
+	{
+		s_pcm_out[i * s_stream_count + index] = s_pcm_ch[i];
+	}
+	s_group_mask |= (uint8_t)(1U << index);
+
+	if (s_group_mask == (uint8_t)((1U << s_stream_count) - 1U))
+	{
+		le_audio_rx_flush_group();
 	}
 }
 
@@ -262,10 +375,24 @@ static void le_audio_rx_task(void *arg)
 		switch (msg.type)
 		{
 		case LE_AUDIO_RX_MSG_PLAY_START:
-			BK_LOGI(TAG, "PLAY_START\n");
-			s_lc3_rx_count = 0;
-			le_audio_rx_decoder_init();
-			le_audio_rx_sink_open();
+			if (msg.data && msg.len >= sizeof(le_audio_rx_group_t))
+			{
+				const le_audio_rx_group_t *group = (const le_audio_rx_group_t *)msg.data;
+				uint8_t i;
+
+				le_audio_rx_teardown();
+				s_cfg = group->cfg;
+				s_stream_count = group->count;
+				for (i = 0; i < group->count; i++)
+				{
+					s_streams[i].handle = group->handles[i];
+				}
+				BK_LOGI(TAG, "PLAY_START streams=%u handle=0x%04x/0x%04x\n",
+				        group->count, group->handles[0],
+				        (group->count > 1) ? group->handles[1] : 0);
+				le_audio_rx_decoder_init();
+				le_audio_rx_sink_open();
+			}
 			break;
 
 		case LE_AUDIO_RX_MSG_PLAY_STOP:
@@ -339,9 +466,43 @@ int le_audio_audio_rx_init(void)
 	return BK_OK;
 }
 
-int le_audio_audio_rx_start(void)
+int le_audio_audio_rx_start(const uint16_t *handles, uint8_t count,
+                            const le_audio_codec_cfg_t *cfg)
 {
-	return le_audio_rx_queue_push(LE_AUDIO_RX_MSG_PLAY_START, NULL, 0, BEKEN_WAIT_FOREVER);
+	le_audio_rx_group_t group = {0};
+	uint8_t i;
+
+	if (!handles || !cfg || count == 0 || count > LE_AUDIO_MAX_STREAMS)
+	{
+		return BK_ERR_PARAM;
+	}
+
+	/* Already playing this group; a new group replaces the old one */
+	if (s_stream_count == count)
+	{
+		for (i = 0; i < count; i++)
+		{
+			if (s_streams[i].handle != handles[i])
+			{
+				break;
+			}
+		}
+		if (i == count)
+		{
+			return BK_OK;
+		}
+	}
+
+	group.count = count;
+	group.cfg = *cfg;
+	group.cfg.channels = count;
+	for (i = 0; i < count; i++)
+	{
+		group.handles[i] = handles[i];
+	}
+
+	return le_audio_rx_queue_push(LE_AUDIO_RX_MSG_PLAY_START, &group, sizeof(group),
+	                              BEKEN_WAIT_FOREVER);
 }
 
 void le_audio_audio_rx_stop(void)

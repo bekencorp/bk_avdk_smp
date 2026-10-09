@@ -88,6 +88,9 @@ ap_cmd le_audio delegator on
 
 ## Notes
 
-- Single BIS / single stream by design; `bis_index` is 1-based.
+- Every BIS of the BIG is synced by default and the streams are decoded into one
+  stereo playback; `bis_index` is 1-based and selects a single BIS when given.
+- The audio channel is closed when the stream stops, on PA sync loss or on a
+  dissociate indication, instead of being left running empty.
 - For an encrypted broadcast set the Broadcast Code (or let the Assistant push it
   over BASS) before syncing.

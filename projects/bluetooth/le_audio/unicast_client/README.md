@@ -25,10 +25,14 @@ from the matching GA/BASS callback.
 Unicast Client — one command (`connect`) triggers the whole chain:
 
 ```text
-connect <peer> ──▶ ACL connected ──▶ setup ──▶ get caps ──▶ discover ASE
-   ──▶ config codec ──▶ set CIG ──▶ QoS ──▶ enable ──▶ create CIS
-   ──▶ ISO path ready ──▶ TX tone ──▶ STREAMING
+connect <peer> ──▶ ACL connected ──▶ exchange ATT MTU ──▶ setup ──▶ get caps
+   ──▶ discover ASE ──▶ config codec one by one ──▶ set CIG (2 CIS) ──▶ QoS
+   ──▶ enable ──▶ create CIS ──▶ ISO path ready ──▶ TX tone ──▶ STREAMING
 ```
+
+The MTU exchange has to complete before any profile GATT traffic: at the default
+23 octet MTU neither a PAC record read response nor a Config QoS covering two
+ASEs fits in one PDU, and the peer answers Invalid Length.
 
 Broadcast Assistant — you drive it with a few high-level commands; PAST is handled
 automatically:
@@ -99,6 +103,15 @@ ap_cmd le_audio assistant_add 0 1
 
 ## Notes
 
-- Single stream by design. The ASCS chain is FSM-driven, so there are no manual
+- Stereo over two streams by default: two sink ASEs are discovered, configured as
+  front left / front right, and carried by **two CIS of the same CIG**. The stream
+  count comes from `CONFIG_LE_AUDIO_STREAM_COUNT`; set it to 1 for a single stream.
+- The ASCS chain is FSM-driven, so there are no manual
   `setup/caps/discover/config/cig/qos/enable/cis` commands — `connect` does it all.
-- `bis_mask` is a bitmask (BIS 1 = `0x1`); `type` is the peer address type.
+- QoS is decided by the client, not taken from the preferred values the server
+  exposes in its ASE (the spec treats those as a hint only). The set matches the
+  48 kHz / 10 ms / 120 octet configuration, and a two stream CIG is interleaved:
+  sequential packing makes the controller lay the CIS end to end and refuse the
+  group once the total air time exceeds one ISO interval.
+- `bis_mask` is a bitmask (BIS 1 = `0x1`, both BIS = `0x3`); `type` is the peer
+  address type.

@@ -30,7 +30,8 @@ static uint8_t s_state = BSRC_IDLE;
 static uint8_t s_session = LE_AUDIO_BSRC_SESSION_NONE;
 static uint8_t s_sep;
 static uint8_t s_stop_pending;
-static uint16_t s_bis_handle;
+static uint16_t s_bis_handle[LE_AUDIO_MAX_STREAMS];
+static uint8_t s_bis_count;
 static le_audio_codec_cfg_t s_cfg;
 static uint8_t s_bcode[16];
 static uint8_t s_bcode_set;
@@ -118,7 +119,8 @@ static void bsrc_reset_session(void)
 	s_session = LE_AUDIO_BSRC_SESSION_NONE;
 	s_sep = 0;
 	s_stop_pending = 0;
-	s_bis_handle = 0;
+	os_memset(s_bis_handle, 0, sizeof(s_bis_handle));
+	s_bis_count = 0;
 	s_state = BSRC_IDLE;
 }
 
@@ -126,9 +128,11 @@ static int bsrc_setup_announcement(void)
 {
 	bk_bap_codec_info_t codec;
 	bk_bap_medadata_t meta;
-	bk_bap_codec_ie_t stream;
+	bk_bap_codec_ie_t stream[LE_AUDIO_MAX_STREAMS];
 	bk_bap_lc3_codec_specific_conf_t lc3_conf;
 	uint8_t session = LE_AUDIO_BSRC_SESSION_NONE;
+	uint8_t nstream;
+	uint8_t i;
 	int ret;
 
 	if (s_session != LE_AUDIO_BSRC_SESSION_NONE)
@@ -138,21 +142,28 @@ static int bsrc_setup_announcement(void)
 	}
 
 	le_audio_codec_cfg_default(&s_cfg);
+	nstream = s_cfg.channels;
 	os_memset(&codec, 0, sizeof(codec));
 	os_memset(&meta, 0, sizeof(meta));
-	os_memset(&stream, 0, sizeof(stream));
+	os_memset(stream, 0, sizeof(stream));
 	os_memset(&lc3_conf, 0, sizeof(lc3_conf));
 
 	lc3_conf.sf = s_cfg.sf;
 	lc3_conf.fd = s_cfg.fd;
-	lc3_conf.aca = BK_BT_AUDIO_LOCATION_FRONT_LEFT;
 	lc3_conf.opcf = s_cfg.frame_bytes;
 	lc3_conf.mcfpSDU = 1;
 
+	/* Subgroup level: the codec setting shared by every BIS */
 	codec.coding_format = BK_BT_CODEC_ID_LC3;
 	bk_dm_bap_create_codec_spec_conf_ltv(&lc3_conf, codec.ie, &codec.ie_len);
-	bk_dm_bap_create_codec_spec_conf_ltv(&lc3_conf, stream.value, &stream.length);
 	bk_dm_bap_create_metadata_ltv(meta.data, &meta.length);
+
+	/* BIS level: one audio channel per BIS */
+	for (i = 0; i < nstream; i++)
+	{
+		lc3_conf.aca = le_audio_channel_location(i);
+		bk_dm_bap_create_codec_spec_conf_ltv(&lc3_conf, stream[i].value, &stream[i].length);
+	}
 
 	ret = bk_dm_bap_broadcast_alloc_session(&session);
 	if (ret)
@@ -169,7 +180,7 @@ static int bsrc_setup_announcement(void)
 		goto fail;
 	}
 
-	ret = bk_dm_bap_broadcast_sep_register(s_session, &codec, &meta, 1, &stream, &s_sep);
+	ret = bk_dm_bap_broadcast_sep_register(s_session, &codec, &meta, nstream, stream, &s_sep);
 	if (ret)
 	{
 		BK_LOGE(TAG, "sep register failed ret=%d\n", ret);
@@ -184,7 +195,8 @@ static int bsrc_setup_announcement(void)
 	}
 
 	s_state = BSRC_ANNOUNCING;
-	BK_LOGI(TAG, "setup announcement pending session=%u sep=%u\n", s_session, s_sep);
+	BK_LOGI(TAG, "setup announcement pending session=%u sep=%u bis=%u\n",
+	        s_session, s_sep, nstream);
 	return 0;
 
 fail:
@@ -308,8 +320,15 @@ static void bsrc_handle_started(const bk_bap_boradcast_paramters_t *param)
 		return;
 	}
 
-	s_bis_handle = param->connection_handle[0];
-	BK_LOGI(TAG, "broadcast started big=%u bis_handle=0x%04x\n", param->big_handle, s_bis_handle);
+	s_bis_count = (param->num_bis > LE_AUDIO_MAX_STREAMS) ? LE_AUDIO_MAX_STREAMS : param->num_bis;
+	for (uint8_t i = 0; i < s_bis_count; i++)
+	{
+		s_bis_handle[i] = param->connection_handle[i];
+		BK_LOGI(TAG, "broadcast started big=%u bis[%u] handle=0x%04x location=0x%08lx\n",
+		        param->big_handle, i, s_bis_handle[i],
+		        (unsigned long)le_audio_channel_location(i));
+	}
+
 	if (s_stop_pending)
 	{
 		s_stop_pending = 0;
@@ -317,7 +336,9 @@ static void bsrc_handle_started(const bk_bap_boradcast_paramters_t *param)
 		return;
 	}
 
-	if (le_audio_audio_tx_start(s_bis_handle, bsrc_send, &s_cfg) == 0)
+	/* One channel per BIS, so the stream count follows the BIG */
+	s_cfg.channels = s_bis_count;
+	if (le_audio_audio_tx_start(s_bis_handle, s_bis_count, bsrc_send, &s_cfg) == 0)
 	{
 		s_state = BSRC_STREAMING;
 		BK_LOGI(TAG, "tx started; stop with ap_cmd le_audio stop\n");
@@ -431,6 +452,7 @@ int broadcast_source_demo_init(void)
 		.end_announcement_cb = bsrc_on_end,
 		.broadcast_start_cb = bsrc_on_start,
 		.broadcast_suspend_cb = bsrc_on_suspend,
+		.iso_tx_complete_cb = le_audio_audio_tx_iso_complete,
 	};
 	int ret;
 

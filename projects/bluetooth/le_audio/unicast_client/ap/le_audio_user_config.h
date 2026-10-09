@@ -24,6 +24,10 @@ extern "C" {
 #define CONFIG_LE_AUDIO_FRAME_BYTES 120
 #endif
 
+#ifndef CONFIG_LE_AUDIO_STREAM_COUNT
+#define CONFIG_LE_AUDIO_STREAM_COUNT 2
+#endif
+
 #ifdef __cplusplus
 }
 #endif

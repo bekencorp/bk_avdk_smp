@@ -20,7 +20,7 @@ static const bk_bap_pacs_cfg_t s_sink_pacs_cfg =
 {
 	.supported_contexts = BK_GAP_DEFAULT_CONTEXTS,
 	.available_contexts = BK_GAP_DEFAULT_CONTEXTS,
-	.audio_location = BK_BT_AUDIO_LOCATION_FRONT_LEFT,
+	.audio_location = BK_BT_AUDIO_LOCATION_FRONT_LEFT | BK_BT_AUDIO_LOCATION_FRONT_RIGHT,
 	.supported_sampling_frequencies = BK_BAP_LC3_CAP_FREQ_48KHZ,
 	.supported_frame_durations = BK_BAP_LC3_CAP_DURATION_10MS,
 	.supported_channel_counts = BK_BAP_LC3_CAP_CHANNEL_COUNT_1,
@@ -42,9 +42,10 @@ enum
 static uint8_t s_state = BSINK_IDLE;
 static bk_bap_source_announce_data_t s_sources[DEMO_MAX_SOURCES];
 static uint8_t s_source_count;
-static uint8_t s_selected_bis = 1;
+static uint8_t s_selected_bis;
 static uint8_t s_scan_enabled;
 static uint16_t s_sync_handle = 0xFFFF;
+static le_audio_codec_cfg_t s_cfg;
 
 static bk_bass_source_info_t s_bass_src;
 static uint8_t s_bass_active;
@@ -61,6 +62,7 @@ typedef enum
 	BSINK_EVT_ASSOCIATED,
 	BSINK_EVT_BASE_CONFIG,
 	BSINK_EVT_BIG_INFO,
+	BSINK_EVT_BIG_SYNCED,
 	BSINK_EVT_BROADCAST_EVENT,
 	BSINK_EVT_BASS_ADD_SOURCE,
 	BSINK_EVT_BASS_SET_CODE,
@@ -79,6 +81,7 @@ typedef struct
 		bk_bap_source_announce_data_t announce;
 		bk_bap_source_associate_data_t associate;
 		bk_bap_source_big_info_t big_info;
+		bk_bap_boradcast_paramters_t enable;
 		bk_bass_source_info_t bass_src;
 		struct
 		{
@@ -95,7 +98,7 @@ static void bsink_reset_sources(void)
 {
 	os_memset(s_sources, 0, sizeof(s_sources));
 	s_source_count = 0;
-	s_selected_bis = 1;
+	s_selected_bis = 0;
 }
 
 static uint8_t bsink_make_bis_list(uint32_t bis_sync, uint8_t *bis_list, uint8_t bis_list_size)
@@ -254,7 +257,8 @@ static void bsink_enable(uint16_t sync_handle, uint32_t bis_sync)
 	code = bsink_effective_broadcast_code();
 	s_sync_handle = sync_handle;
 	ret = bk_dm_bap_broadcast_enable(sync_handle, (uint8_t *)code, bis_count, bis_list);
-	BK_LOGI(TAG, "broadcast_enable sync=0x%04x bis=%u ret=%d\n", sync_handle, bis_list[0], ret);
+	BK_LOGI(TAG, "broadcast_enable sync=0x%04x bis_count=%u first_bis=%u ret=%d\n",
+	        sync_handle, bis_count, bis_list[0], ret);
 	if (ret == 0)
 	{
 		s_state = BSINK_ENABLING;
@@ -272,6 +276,20 @@ static void bsink_on_big_info(bk_bap_source_big_info_t *info)
 
 	evt.type = BSINK_EVT_BIG_INFO;
 	evt.u.big_info = *info;
+	(void)bsink_post_event(&evt, 0);
+}
+
+static void bsink_on_enable(bk_bap_boradcast_paramters_t *param)
+{
+	bsink_evt_t evt = {0};
+
+	if (!param)
+	{
+		return;
+	}
+
+	evt.type = BSINK_EVT_BIG_SYNCED;
+	evt.u.enable = *param;
 	(void)bsink_post_event(&evt, 0);
 }
 
@@ -355,7 +373,7 @@ static void bsink_handle_announcement(const bk_bap_source_announce_data_t *sourc
 	index = s_source_count++;
 	s_sources[index] = *source;
 	bsink_print_source((uint8_t)index, source);
-	BK_LOGI(TAG, "next: ap_cmd le_audio sync %d 1\n", index);
+	BK_LOGI(TAG, "next: ap_cmd le_audio sync %d\n", index);
 }
 
 static void bsink_handle_base_config(bsink_evt_t *evt)
@@ -366,8 +384,15 @@ static void bsink_handle_base_config(bsink_evt_t *evt)
 	if (evt->u.base.length &&
 	    bk_dm_bap_decode_basic_audio_config(&config, evt->u.base.data, evt->u.base.length) == BK_OK)
 	{
-		BK_LOGI(TAG, "BASE parsed; BIS index is 1-based, e.g. ap_cmd le_audio sync 0 1\n");
+		BK_LOGI(TAG, "BASE parsed; sync all BIS with 'sync <src>', one BIS with 'sync <src> <bis>'\n");
 	}
+}
+
+static uint32_t bsink_all_bis_mask(uint8_t num_bis)
+{
+	uint8_t count = (num_bis > LE_AUDIO_MAX_STREAMS) ? LE_AUDIO_MAX_STREAMS : num_bis;
+
+	return (count == 0U) ? 1UL : ((1UL << count) - 1UL);
 }
 
 static void bsink_handle_big_info(const bk_bap_source_big_info_t *info)
@@ -384,7 +409,8 @@ static void bsink_handle_big_info(const bk_bap_source_big_info_t *info)
 	        (unsigned long)info->sdu_interval, info->encryption);
 	for (uint8_t i = 1; i <= info->num_bis; i++)
 	{
-		BK_LOGI(TAG, "  BIS[%u]%s\n", i, i == s_selected_bis ? " selected" : "");
+		BK_LOGI(TAG, "  BIS[%u]%s\n", i,
+		        ((s_selected_bis == 0U) || (i == s_selected_bis)) ? " selected" : "");
 	}
 	if (!s_bass_active && s_selected_bis > info->num_bis)
 	{
@@ -397,8 +423,45 @@ static void bsink_handle_big_info(const bk_bap_source_big_info_t *info)
 		BK_LOGW(TAG, "encrypted broadcast; set code with ap_cmd le_audio broadcast_code <hex32>\n");
 	}
 
-	bis_sync = s_bass_active ? s_bass_src.bis_sync : (1UL << (s_selected_bis - 1U));
+	if (s_bass_active)
+	{
+		bis_sync = s_bass_src.bis_sync;
+	}
+	else if (s_selected_bis == 0U)
+	{
+		/* Sync every BIS on offer so a stereo broadcast plays both channels */
+		bis_sync = bsink_all_bis_mask(info->num_bis);
+	}
+	else
+	{
+		bis_sync = (1UL << (s_selected_bis - 1U));
+	}
 	bsink_enable(info->sync_handle, bis_sync);
+}
+
+static void bsink_handle_big_synced(const bk_bap_boradcast_paramters_t *param)
+{
+	uint16_t handles[LE_AUDIO_MAX_STREAMS];
+	uint8_t count;
+	uint8_t i;
+
+	if (!param || param->num_bis == 0U)
+	{
+		return;
+	}
+
+	count = (param->num_bis > LE_AUDIO_MAX_STREAMS) ? LE_AUDIO_MAX_STREAMS : param->num_bis;
+	for (i = 0; i < count; i++)
+	{
+		handles[i] = param->connection_handle[i];
+		BK_LOGI(TAG, "bis[%u] handle=0x%04x -> channel location 0x%08lx\n",
+		        i, handles[i], (unsigned long)le_audio_channel_location(i));
+	}
+
+	/* Playback follows the stream: one channel per synchronised BIS */
+	le_audio_codec_cfg_default(&s_cfg);
+	s_cfg.channels = count;
+	le_audio_audio_rx_start(handles, count, &s_cfg);
 }
 
 static void bsink_handle_broadcast_event(bk_bap_sink_cb_evt_t event, uint32_t status)
@@ -409,7 +472,6 @@ static void bsink_handle_broadcast_event(bk_bap_sink_cb_evt_t event, uint32_t st
 	{
 		s_scan_enabled = 0;
 		s_state = BSINK_STREAMING;
-		le_audio_audio_rx_start();
 		if (s_bass_active)
 		{
 			(void)bk_dm_bass_delegator_set_pa_state(DEMO_PA_STATE_SYNCED);
@@ -438,6 +500,22 @@ static void bsink_handle_broadcast_event(bk_bap_sink_cb_evt_t event, uint32_t st
 		{
 			s_state = BSINK_IDLE;
 		}
+	}
+	else if (event == BK_BAP_SINK_DISSOCIATE_IND)
+	{
+		/* PA sync lost: the source is gone, so close the audio path and drop
+		 * the session. The sync handle is already invalid, so only the BIG
+		 * needs tearing down if we were still streaming. */
+		le_audio_audio_rx_stop();
+		if ((s_state == BSINK_STREAMING || s_state == BSINK_ENABLING) &&
+		    s_sync_handle != 0xFFFF)
+		{
+			bk_dm_bap_broadcast_disable(s_sync_handle);
+		}
+		s_sync_handle = 0xFFFF;
+		s_state = BSINK_IDLE;
+		s_bass_active = 0;
+		s_bass_code_set = 0;
 	}
 	else if (event == BK_BAP_SINK_DISSOCIATE_CNF)
 	{
@@ -508,15 +586,18 @@ static int bsink_do_sync(uint8_t source_index, uint8_t bis_index)
 		BK_LOGW(TAG, "bad source index=%u count=%u\n", source_index, s_source_count);
 		return BK_FAIL;
 	}
-	if (bis_index == 0)
+	if ((s_state != BSINK_IDLE) && (s_state != BSINK_SCANNING))
 	{
-		BK_LOGW(TAG, "BIS index is 1-based\n");
+		/* A PA sync is already up; re-associating would be rejected by the stack */
+		BK_LOGW(TAG, "sync rejected, state=%u; run ap_cmd le_audio stop first\n", s_state);
 		return BK_FAIL;
 	}
 
+	/* 0 takes every BIS of the broadcast, which is how stereo is received */
 	s_selected_bis = bis_index;
 	s_bass_active = 0;
-	BK_LOGI(TAG, "sync source=%u bis=%u\n", source_index, bis_index);
+	BK_LOGI(TAG, "sync source=%u bis=%s\n", source_index,
+	        (bis_index == 0U) ? "all" : "selected");
 	return bsink_associate_source(source_index);
 }
 
@@ -664,6 +745,9 @@ static void bsink_evt_thread(void *arg)
 		case BSINK_EVT_BASE_CONFIG:
 			bsink_handle_base_config(&evt);
 			break;
+		case BSINK_EVT_BIG_SYNCED:
+			bsink_handle_big_synced(&evt.u.enable);
+			break;
 		case BSINK_EVT_BIG_INFO:
 			bsink_handle_big_info(&evt.u.big_info);
 			break;
@@ -721,6 +805,7 @@ int broadcast_sink_demo_init(void)
 		.associate_cb = bsink_on_associate,
 		.config_cb = bsink_on_config,
 		.big_info_cb = bsink_on_big_info,
+		.broadcast_enable_cb = bsink_on_enable,
 		.lc3_data_cb = bsink_on_lc3_data,
 		.broadcast_event_cb = bsink_on_event,
 	};

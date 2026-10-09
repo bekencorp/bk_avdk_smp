@@ -16,4 +16,9 @@ menu "LE Audio Broadcast Sink Configuration"
         int "LC3 frame bytes"
         default 120
 
+    config LE_AUDIO_STREAM_COUNT
+        int "Audio streams (1 mono, 2 stereo: one LC3 stream per channel)"
+        default 2
+        range 1 2
+
 endmenu

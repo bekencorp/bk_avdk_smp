@@ -2,6 +2,10 @@
 #include "unicast_server_demo.h"
 #include "../../common/audio.h"
 
+#if CONFIG_LE_AUDIO_MCP
+#include <components/bluetooth/bk_dm_mcp_types.h>
+#endif
+
 #include <os/str.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -48,7 +52,16 @@ static void le_audio_usage(void)
 	         "  le_audio preset list|<name>\n"
 	         "  le_audio adv on|off\n"
 	         "  le_audio rx_ready <ase>\n"
-	         "  le_audio release <ase>\n");
+	         "  le_audio release <ase>\n"
+#if CONFIG_LE_AUDIO_VCP
+	         "  le_audio volume <0-255>\n"
+	         "  le_audio mute on|off\n"
+#endif
+#if CONFIG_LE_AUDIO_MCP
+	         "  le_audio play|pause|stop|next|prev\n"
+	         "  le_audio mcp_notify on|off | mcp_read\n"
+#endif
+	         );
 }
 
 static void cmd_le_audio(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
@@ -85,6 +98,53 @@ static void cmd_le_audio(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
 	{
 		ret = unicast_server_demo_release((uint8_t)strtoul(argv[2], NULL, 0));
 	}
+#if CONFIG_LE_AUDIO_VCP
+	else if (os_strcmp(argv[1], "volume") == 0 && argc >= 3)
+	{
+		ret = unicast_server_demo_set_volume((uint8_t)strtoul(argv[2], NULL, 0));
+	}
+	else if (os_strcmp(argv[1], "mute") == 0 && argc >= 3)
+	{
+		if (os_strcmp(argv[2], "on") == 0)
+		{
+			ret = unicast_server_demo_set_mute(1);
+		}
+		else if (os_strcmp(argv[2], "off") == 0)
+		{
+			ret = unicast_server_demo_set_mute(0);
+		}
+	}
+#endif /* CONFIG_LE_AUDIO_VCP */
+#if CONFIG_LE_AUDIO_MCP
+	else if (os_strcmp(argv[1], "play") == 0)
+	{
+		ret = unicast_server_demo_media_control(BK_MCP_OPC_PLAY);
+	}
+	else if (os_strcmp(argv[1], "pause") == 0)
+	{
+		ret = unicast_server_demo_media_control(BK_MCP_OPC_PAUSE);
+	}
+	else if (os_strcmp(argv[1], "stop") == 0)
+	{
+		ret = unicast_server_demo_media_control(BK_MCP_OPC_STOP);
+	}
+	else if (os_strcmp(argv[1], "next") == 0)
+	{
+		ret = unicast_server_demo_media_control(BK_MCP_OPC_NEXT_TRACK);
+	}
+	else if (os_strcmp(argv[1], "prev") == 0)
+	{
+		ret = unicast_server_demo_media_control(BK_MCP_OPC_PREV_TRACK);
+	}
+	else if (os_strcmp(argv[1], "mcp_notify") == 0 && argc >= 3)
+	{
+		ret = unicast_server_demo_media_notify(os_strcmp(argv[2], "on") == 0);
+	}
+	else if (os_strcmp(argv[1], "mcp_read") == 0)
+	{
+		ret = unicast_server_demo_media_read();
+	}
+#endif /* CONFIG_LE_AUDIO_MCP */
 
 	le_audio_cli_write_rsp(pcWriteBuffer, xWriteBufferLen, ret == 0 ? CLI_RSP_OK : CLI_RSP_ERROR);
 }

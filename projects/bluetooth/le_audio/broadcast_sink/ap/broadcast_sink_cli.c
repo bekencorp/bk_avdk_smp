@@ -78,7 +78,7 @@ static void le_audio_usage(void)
 	         "  ap_cmd le_audio preset list|<name>\n"
 	         "  ap_cmd le_audio scan on|off       # report broadcast source index\n"
 	         "  ap_cmd le_audio list              # print scanned sources\n"
-	         "  ap_cmd le_audio sync <src> 1      # BIS index is 1-based\n"
+	         "  ap_cmd le_audio sync <src> [bis]  # bis 1-based, omit for all (stereo)\n"
 	         "  ap_cmd le_audio delegator on|off  # expose BASS for Broadcast Assistant\n"
 	         "  ap_cmd le_audio stop\n"
 	         "  ap_cmd le_audio broadcast_code <hex32>|clear\n");
@@ -108,10 +108,11 @@ static void cmd_le_audio(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
 		broadcast_sink_demo_list_sources();
 		ret = 0;
 	}
-	else if (os_strcmp(argv[1], "sync") == 0 && argc >= 4)
+	else if (os_strcmp(argv[1], "sync") == 0 && argc >= 3)
 	{
+		/* Without a BIS index every BIS is synchronised, one per channel */
 		ret = broadcast_sink_demo_sync((uint8_t)strtoul(argv[2], NULL, 0),
-		                (uint8_t)strtoul(argv[3], NULL, 0));
+		                (argc >= 4) ? (uint8_t)strtoul(argv[3], NULL, 0) : 0U);
 	}
 	else if (os_strcmp(argv[1], "delegator") == 0 && argc >= 3)
 	{

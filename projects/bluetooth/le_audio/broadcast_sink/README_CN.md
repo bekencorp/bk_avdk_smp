@@ -84,5 +84,7 @@ ap_cmd le_audio delegator on
 
 ## 说明
 
-- 设计上单 BIS / 单流；`bis 序号` 从 1 开始。
+- 默认同步 BIG 里的所有 BIS，两路解码后合成立体声播放；`bis 序号` 从 1 开始，
+  指定序号则只同步那一条。
+- 流停止时（PA 同步丢失或收到 dissociate）会关闭音频通道，不会留着空跑。
 - 加密广播需在同步前设置 Broadcast Code（或由 Assistant 通过 BASS 下发）。

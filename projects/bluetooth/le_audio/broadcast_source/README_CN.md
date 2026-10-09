@@ -65,7 +65,9 @@ tx started; stop with ap_cmd le_audio stop
 
 ## 说明
 
-- 设计上单 BIS / 单流。
+- 默认双 BIS 立体声：一个 BIG 里两条 BIS，每条承载一个声道（BIS 1 前左、BIS 2 前右），
+  各自在 BASE 里带自己的 Audio_Channel_Allocation。BIS 数由
+  `CONFIG_LE_AUDIO_STREAM_COUNT` 决定，配成 1 即退回单 BIS。
 - 加密广播时，sink 侧要设置相同的 Broadcast Code。
 - LC3 流参数来自 `ap/le_audio_user_config.h`（默认 48 kHz / 10 ms / 120 字节）与
   `../common/audio_codec.c` 中的共享 preset 表。

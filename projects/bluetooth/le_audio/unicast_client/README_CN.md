@@ -24,10 +24,13 @@
 Unicast Client —— 一条 `connect` 触发整条链：
 
 ```text
-connect <peer> ──▶ ACL 连接 ──▶ setup ──▶ 取能力 ──▶ 发现 ASE
-   ──▶ 配置 codec ──▶ 设置 CIG ──▶ QoS ──▶ enable ──▶ 建立 CIS
-   ──▶ ISO path ready ──▶ 发送 tone ──▶ STREAMING
+connect <peer> ──▶ ACL 连接 ──▶ 协商 ATT MTU ──▶ setup ──▶ 取能力 ──▶ 发现 ASE
+   ──▶ 逐个配置 codec ──▶ 设置 CIG（2 条 CIS）──▶ QoS ──▶ enable ──▶ 建立 CIS
+   ──▶ ISO path ready ──▶ 双流发送 tone ──▶ STREAMING
 ```
+
+MTU 协商必须排在任何 profile GATT 操作之前：默认 23 字节的 MTU 装不下一条 PAC 记录
+读回包，也装不下两个 ASE 的 Config QoS，对端会回 Invalid Length。
 
 Broadcast Assistant —— 你用几条高层命令驱动，PAST 自动完成：
 
@@ -96,6 +99,11 @@ ap_cmd le_audio assistant_add 0 1
 
 ## 说明
 
-- 设计上单流。ASCS 链由状态机驱动，因此没有手动的
+- 默认双流立体声：发现两个 sink ASE，分别配置为前左 / 前右，放进**同一个 CIG 的两条
+  CIS**。流数由 `CONFIG_LE_AUDIO_STREAM_COUNT` 决定，配成 1 即退回单流。
+- ASCS 链由状态机驱动，因此没有手动的
   `setup/caps/discover/config/cig/qos/enable/cis` 命令——`connect` 一条全包。
-- `bis_mask` 是位掩码（BIS 1 = `0x1`）；`type` 是对端地址类型。
+- QoS 由 client 决定，不采用 server 在 ASE 里宣告的 preferred 值（规范上那只是建议）。
+  当前取 48 kHz / 10 ms / 120 字节对应的一组参数，双流时 CIG 用 interleaved 打包——
+  顺序打包会让控制器把两条 CIS 首尾相接，总空中时间超过一个 ISO interval 就会被拒。
+- `bis_mask` 是位掩码（BIS 1 = `0x1`，两条 BIS = `0x3`）；`type` 是对端地址类型。

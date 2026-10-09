@@ -5,6 +5,7 @@
 #include <components/bluetooth/bk_dm_bap.h>
 #include <components/bluetooth/bk_dm_bass.h>
 #include <components/bluetooth/bk_dm_gap_ble.h>
+#include <components/bluetooth/bk_dm_gattc.h>
 #include <components/log.h>
 #include <os/mem.h>
 #include <os/str.h>
@@ -19,7 +20,8 @@
 #define UCLI_THREAD_STACK    4096U
 #define UCLI_CMD_TIMEOUT_MS  5000U
 #define UCLI_AUTO_CIG_ID     1U
-#define UCLI_AUTO_CIS_ID     1U
+/* CIS IDs are handed out per stream: 1, 2, ... */
+#define UCLI_AUTO_CIS_ID(i)  ((uint8_t)((i) + 1U))
 
 typedef struct
 {
@@ -43,15 +45,42 @@ static uint8_t s_deleg_type;
 static uint8_t s_have_deleg;
 static uint8_t s_past_done;
 static uint8_t s_code_done;
-static uint8_t s_past_pending;
-static uint16_t s_past_acl;
-static uint8_t s_past_src_id;
 static uint8_t s_bcode[16];
 static uint8_t s_bcode_set;
 
 static uint8_t s_last_ase;
 static uint8_t s_last_role;
 static uint16_t s_last_cis_handle;
+
+/*
+ * One Sink ASE per audio channel, all in a single CIG. The CIG has to be
+ * programmed and its CISes created in one command each, so the ASEs are
+ * collected here and the group steps run once every ASE has caught up.
+ */
+typedef struct
+{
+	uint8_t  ase_id;
+	uint8_t  role;
+	uint8_t  stage;   /*!< ucli_stage_t, only ever moves forward */
+	uint16_t cis_handle;
+} ucli_stream_t;
+
+/*
+ * A stream walks these in order, and a group step runs once every stream of the
+ * group reached the stage that step needs.
+ */
+typedef enum
+{
+	UCLI_STAGE_DISCOVERED = 0,
+	UCLI_STAGE_CODEC_CONFIGURED,
+	UCLI_STAGE_CIS_ASSIGNED,
+	UCLI_STAGE_QOS_CONFIGURED,
+	UCLI_STAGE_ENABLING,
+	UCLI_STAGE_ISO_READY,
+} ucli_stage_t;
+
+static ucli_stream_t s_streams[LE_AUDIO_MAX_STREAMS];
+static uint8_t s_stream_count;
 
 typedef enum
 {
@@ -67,6 +96,8 @@ typedef enum
 	UCLI_EVT_CIS_HANDLE,
 	UCLI_EVT_CIS_ESTABLISHED,
 	UCLI_EVT_ISO_PATH_READY,
+	UCLI_EVT_GATT_CONNECTED,
+	UCLI_EVT_MTU_UPDATED,
 } ucli_evt_type_t;
 
 typedef struct
@@ -85,8 +116,27 @@ typedef struct
 		bk_bap_unicast_ase_discovered_t ase;
 		bk_bap_unicast_cis_info_t cis;
 		bk_bap_unicast_iso_path_t iso;
+		struct
+		{
+			uint16_t conn_id;
+			uint16_t mtu;
+			uint8_t  link_role;
+			uint8_t  status;
+		} gatt;
 	} u;
 } ucli_evt_t;
+
+static bk_gatt_if_t s_gattc_if;
+
+/*
+ * The profile flow only starts once the ACL is up and the ATT MTU is settled.
+ * At the default 23 octet MTU a PAC record read or a Config QoS for two ASEs
+ * does not fit in one PDU and the peer answers Invalid Length. The GA bearer
+ * reports the link up before the GATT client reports the connection, so both
+ * are joined here.
+ */
+static uint8_t s_acl_up;
+static uint8_t s_mtu_ready;
 
 static beken_queue_t s_evt_queue;
 static beken_thread_t s_evt_thread;
@@ -292,6 +342,47 @@ static void ucli_gap_cb(bk_ble_gap_cb_event_t event, bk_ble_gap_cb_param_t *para
 	}
 }
 
+/* GATT client up-calls. GA does not expose the ATT bearer, so the MTU exchange
+ * and the connection role come from the BLE GATT interface. */
+static int32_t ucli_gattc_cb(bk_gattc_cb_event_t event, bk_gatt_if_t gattc_if,
+                             bk_ble_gattc_cb_param_t *param)
+{
+	ucli_evt_t evt = {0};
+
+	(void)gattc_if;
+	if (!param)
+	{
+		return 0;
+	}
+
+	switch (event)
+	{
+	case BK_GATTC_REG_EVT:
+		s_gattc_if = param->reg.gatt_if;
+		break;
+
+	case BK_GATTC_CONNECT_EVT:
+		evt.type = UCLI_EVT_GATT_CONNECTED;
+		evt.u.gatt.conn_id = param->connect.conn_id;
+		evt.u.gatt.link_role = param->connect.link_role;
+		(void)ucli_post_event(&evt, 0);
+		break;
+
+	case BK_GATTC_CFG_MTU_EVT:
+		evt.type = UCLI_EVT_MTU_UPDATED;
+		evt.u.gatt.conn_id = param->cfg_mtu.conn_id;
+		evt.u.gatt.mtu = param->cfg_mtu.mtu;
+		evt.u.gatt.status = (uint8_t)param->cfg_mtu.status;
+		(void)ucli_post_event(&evt, 0);
+		break;
+
+	default:
+		break;
+	}
+
+	return 0;
+}
+
 static void ucli_on_ready(bk_bap_unicast_ready_t *info)
 {
 	ucli_evt_t evt = {0};
@@ -403,25 +494,11 @@ static void ucli_assist_on_announcement(bk_bap_source_announce_data_t *source)
 	        source->address[5], source->address[4], source->address[3],
 	        source->address[2], source->address[1], source->address[0],
 	        source->address_type, source->rssi, (unsigned long)source->broadcast_id);
-
-	/* PA-sync the first discovered source now, while the ext scan is still
-	 * active. On this controller PA-create-sync only succeeds during an
-	 * active scan; deferring it to assistant_add (after scan is stopped for
-	 * the ACL connect) returns failure, so the periodic-adv sync must be
-	 * acquired here to have it ready for PAST. Matches the validated flow. */
-	if (s_src_sync_handle == 0xFFFF)
-	{
-		int ret = bk_dm_bap_broadcast_associate(&s_sources[index]);
-
-		BK_LOGI(TAG, "PA-sync source[%d] for PAST ret=%d\n", index, ret);
-	}
 	BK_LOGI(TAG, "next: ap_cmd le_audio assistant_add <source_index> [bis_mask]\n");
 }
 
 /* Transfer our source periodic-adv sync to the delegator (PAST), optionally
- * pushing the broadcast code first. If our own PA sync is not ready yet, the
- * request is remembered and completed from the associate callback - otherwise
- * the delegator's one-shot Sync Info Request would be lost and PAST never sent. */
+ * pushing the broadcast code first. */
 static void ucli_assist_try_past(uint16_t acl_handle, uint8_t src_id)
 {
 	int ret;
@@ -433,10 +510,7 @@ static void ucli_assist_try_past(uint16_t acl_handle, uint8_t src_id)
 
 	if (s_src_sync_handle == 0xFFFF)
 	{
-		s_past_pending = 1;
-		s_past_acl = acl_handle;
-		s_past_src_id = src_id;
-		BK_LOGW(TAG, "delegator requests PAST; deferring until source PA-synced\n");
+		BK_LOGW(TAG, "delegator requests PAST but source is not PA-synced\n");
 		return;
 	}
 
@@ -455,8 +529,18 @@ static void ucli_assist_try_past(uint16_t acl_handle, uint8_t src_id)
 	if (ret == 0)
 	{
 		s_past_done = 1;
-		s_past_pending = 0;
 	}
+}
+
+static int ucli_assist_send_add_source(uint8_t index, uint32_t bis_sync)
+{
+	bk_bap_source_announce_data_t *source = &s_sources[index];
+	uint32_t bcast_id = source->broadcast_id != 0U ? source->broadcast_id : 0x00ADBEEFU;
+
+	BK_LOGI(TAG, "Add Source idx=%u sid=%u bcast_id=0x%06lx bis_sync=0x%08lx\n",
+	        index, source->advertising_sid, (unsigned long)bcast_id, (unsigned long)bis_sync);
+	return bk_dm_bass_add_source_ex(0, source->address, source->address_type,
+	                                source->advertising_sid, bcast_id, bis_sync);
 }
 
 static void ucli_assist_on_associate(bk_bap_source_associate_data_t *data)
@@ -467,10 +551,11 @@ static void ucli_assist_on_associate(bk_bap_source_associate_data_t *data)
 	}
 	s_src_sync_handle = data->handle;
 	BK_LOGI(TAG, "source PA-synced for PAST handle=0x%04x\n", data->handle);
-	if (s_past_pending)
+}
+
+static void ucli_assist_on_broadcast_event(bk_bap_sink_cb_evt_t event, uint32_t status)
 	{
-		ucli_assist_try_past(s_past_acl, s_past_src_id);
-	}
+	BK_LOGI(TAG, "broadcast evt=%d status=0x%02lx\n", event, (unsigned long)status);
 }
 
 static void ucli_assist_bass_setup(uint16_t acl_handle, uint8_t status)
@@ -509,18 +594,21 @@ static void ucli_assist_bass_event(uint16_t acl_handle, bk_bass_cb_evt_t evt, ui
 	BK_LOGI(TAG, "BASS client evt=%d handle=0x%04x status=0x%02x\n", evt, acl_handle, status);
 }
 
-static int ucli_do_tone_start(uint16_t connection_handle)
+static int ucli_do_tone_start(const uint16_t *handles, uint8_t count)
 {
 	le_audio_codec_cfg_t cfg;
 
 	le_audio_codec_cfg_default(&cfg);
-	return le_audio_audio_tx_start(connection_handle, ucli_send, &cfg);
+	cfg.channels = count;
+	return le_audio_audio_tx_start(handles, count, ucli_send, &cfg);
 }
 
 static int ucli_do_tone_stop(void)
 {
 	return le_audio_audio_tx_stop();
 }
+
+static void ucli_streams_reset(void);
 
 static int ucli_do_scan(uint8_t on)
 {
@@ -590,6 +678,43 @@ static int ucli_do_connect_peer(uint8_t index)
 	return ucli_do_connect_addr(s_peers[index].addr, s_peers[index].addr_type);
 }
 
+static void ucli_setup_if_ready(void)
+{
+	int ret;
+
+	if (!s_acl_up || !s_mtu_ready)
+	{
+		BK_LOGI(TAG, "setup waits for acl=%u mtu=%u\n", s_acl_up, s_mtu_ready);
+		return;
+	}
+
+	ret = bk_dm_bap_unicast_setup();
+	BK_LOGI(TAG, "auto setup ret=%d\n", ret);
+}
+
+static void ucli_handle_gatt_connected(uint16_t conn_id, uint8_t link_role)
+{
+	int ret;
+
+	/* Only the central negotiates the MTU: the stack refuses a request coming
+	 * from the peripheral, so on that side there is nothing to wait for. */
+	if (link_role != 0U)
+	{
+		s_mtu_ready = 1U;
+	}
+	else
+	{
+		ret = bk_ble_gattc_send_mtu_req(s_gattc_if, conn_id);
+		BK_LOGI(TAG, "mtu req conn=%u ret=%d\n", conn_id, ret);
+		if (ret != BK_OK)
+		{
+			s_mtu_ready = 1U;
+		}
+	}
+
+	ucli_setup_if_ready();
+}
+
 static void ucli_handle_ready(const bk_bap_unicast_ready_t *info)
 {
 	int ret;
@@ -610,8 +735,8 @@ static void ucli_handle_ready(const bk_bap_unicast_ready_t *info)
 
 	if (info->phase == BK_BAP_UNICAST_READY_ACL_CONNECTED)
 	{
-		ret = bk_dm_bap_unicast_setup();
-		BK_LOGI(TAG, "auto setup ret=%d\n", ret);
+		s_acl_up = 1U;
+		ucli_setup_if_ready();
 	}
 	else if (info->phase == BK_BAP_UNICAST_READY_GA_SETUP)
 	{
@@ -623,11 +748,195 @@ static void ucli_handle_ready(const bk_bap_unicast_ready_t *info)
 		ret = bk_dm_bap_unicast_discover();
 		BK_LOGI(TAG, "auto discover ret=%d\n", ret);
 	}
+	else if (info->phase == BK_BAP_UNICAST_READY_ACL_DISCONNECTED)
+	{
+		BK_LOGI(TAG, "peer disconnected, stopping tone\n");
+		s_acl_up = 0U;
+		s_mtu_ready = 0U;
+		le_audio_audio_tx_stop();
+		ucli_streams_reset();
+	}
+}
+
+static int ucli_stream_index(uint8_t ase_id)
+{
+	uint8_t i;
+
+	for (i = 0; i < s_stream_count; i++)
+	{
+		if (s_streams[i].ase_id == ase_id)
+		{
+			return (int)i;
+		}
+	}
+
+	return -1;
+}
+
+static void ucli_streams_reset(void)
+{
+	os_memset(s_streams, 0, sizeof(s_streams));
+	s_stream_count = 0;
+}
+
+/*
+ * Collect the ASE IDs of the group, provided every stream reached the stage the
+ * caller needs. Reports the stream still holding the group up otherwise.
+ */
+static bool ucli_group_at_stage(uint8_t stage, const char *step, uint8_t *ase_ids)
+{
+	uint8_t i;
+
+	if (s_stream_count == 0U)
+	{
+		return false;
+	}
+
+	for (i = 0; i < s_stream_count; i++)
+	{
+		if (s_streams[i].stage < stage)
+		{
+			BK_LOGI(TAG, "%s waits for ase=%u stage=%u\n", step, s_streams[i].ase_id, s_streams[i].stage);
+			return false;
+		}
+		ase_ids[i] = s_streams[i].ase_id;
+	}
+
+	return true;
+}
+
+/*
+ * Configure the ASEs one at a time, each with its own audio location, and wait
+ * for the Codec Configured state of one before starting the next. The ASE
+ * control point carries a single operation and only one response of a write
+ * covering several ASEs surfaces, so this step cannot be batched. The steps
+ * after it do work on the whole group.
+ */
+static void ucli_streams_configure_next(void)
+{
+	bk_bap_codec_spec_config_t codec_cfg = {0};
+	le_audio_codec_cfg_t cfg;
+	uint8_t ase_id;
+	uint8_t role;
+	uint8_t i;
+	int ret;
+
+	for (i = 0; i < s_stream_count; i++)
+	{
+		if (s_streams[i].stage < UCLI_STAGE_CODEC_CONFIGURED)
+		{
+			break;
+		}
+	}
+
+	if (i >= s_stream_count)
+	{
+		/* Every ASE carries its codec configuration */
+		return;
+	}
+
+	le_audio_codec_cfg_default(&cfg);
+	codec_cfg.sampling_frequency = cfg.sf;
+	codec_cfg.frame_duration = cfg.fd;
+	codec_cfg.octects_per_codec_frame = cfg.frame_bytes;
+	codec_cfg.audio_channel_allocation = le_audio_channel_location(i);
+
+	ase_id = s_streams[i].ase_id;
+	role = BK_GAP_ROLE_SINK;
+
+	ret = bk_dm_bap_unicast_configure(1U, &ase_id, &role, 0, &codec_cfg);
+	BK_LOGI(TAG, "auto config ase=%u location=0x%08lx ret=%d\n",
+	        ase_id, (unsigned long)codec_cfg.audio_channel_allocation, ret);
+}
+
+/* Program the whole CIG once every ASE reports its codec configuration */
+static void ucli_streams_set_cig(void)
+{
+	uint8_t ase_ids[LE_AUDIO_MAX_STREAMS];
+	uint8_t cis_ids[LE_AUDIO_MAX_STREAMS];
+	bk_bap_qos_cfg_t qos;
+	uint8_t i;
+	int ret;
+
+	if (!ucli_group_at_stage(UCLI_STAGE_CODEC_CONFIGURED, "cig", ase_ids))
+	{
+		return;
+	}
+	for (i = 0; i < s_stream_count; i++)
+	{
+		cis_ids[i] = UCLI_AUTO_CIS_ID(i);
+	}
+
+	/*
+	 * Follows the BAP 48_4_1 preset that goes with the 48 kHz / 10 ms / 120
+	 * octet codec configuration - the acceptor only exposes preferences, the
+	 * initiator decides. Two deviations are forced by the controller, which
+	 * pins the ISO interval to the SDU interval and rejects a CIG whose total
+	 * air time exceeds it: the group is interleaved so the CIS share sub event
+	 * slots instead of being laid end to end, and the retransmissions stay at 2
+	 * because the preset value of 5 needs more sub events than fit in 10 ms.
+	 */
+	os_memset(&qos, 0, sizeof(qos));
+	qos.framing = BK_BAP_QOS_FRAMING_UNFRAMED;
+	qos.phy = BK_BAP_QOS_PHY_2M;
+	qos.retransmission_number = BK_BAP_QOS_RETRANSMISSION_2;
+	qos.max_transport_latency = BK_BAP_QOS_LATENCY_20MS;
+	qos.presentation_delay = BK_BAP_QOS_PRESENTATION_DELAY_40MS;
+	qos.packing = (s_stream_count > 1U) ? BK_BAP_QOS_PACKING_INTERLEAVED
+	                                    : BK_BAP_QOS_PACKING_SEQUENTIAL;
+
+	ret = bk_dm_bap_unicast_set_cig(UCLI_AUTO_CIG_ID, s_stream_count, ase_ids, cis_ids, &qos);
+	BK_LOGI(TAG, "auto cig streams=%u packing=%u ret=%d\n", s_stream_count, qos.packing, ret);
+}
+
+/* QoS for the group, once the CIG handed out a CIS handle to every ASE */
+static void ucli_streams_qos(void)
+{
+	uint8_t ase_ids[LE_AUDIO_MAX_STREAMS];
+	int ret;
+
+	if (!ucli_group_at_stage(UCLI_STAGE_CIS_ASSIGNED, "qos", ase_ids))
+	{
+		return;
+	}
+
+	ret = bk_dm_bap_unicast_qos(s_stream_count, ase_ids);
+	BK_LOGI(TAG, "auto qos streams=%u ret=%d\n", s_stream_count, ret);
+}
+
+/* Enable the group, once every ASE reports its QoS configuration */
+static void ucli_streams_enable(void)
+{
+	uint8_t ase_ids[LE_AUDIO_MAX_STREAMS];
+	int ret;
+
+	if (!ucli_group_at_stage(UCLI_STAGE_QOS_CONFIGURED, "enable", ase_ids))
+	{
+		return;
+	}
+
+	ret = bk_dm_bap_unicast_enable(s_stream_count, ase_ids, BK_GAP_DEFAULT_CONTEXTS);
+	BK_LOGI(TAG, "auto enable streams=%u ret=%d\n", s_stream_count, ret);
+}
+
+/* Create every CIS of the CIG with one command, once all ASEs are enabling */
+static void ucli_streams_create_cis(void)
+{
+	uint8_t ase_ids[LE_AUDIO_MAX_STREAMS];
+	int ret;
+
+	if (!ucli_group_at_stage(UCLI_STAGE_ENABLING, "create cis", ase_ids))
+	{
+		return;
+	}
+
+	ret = bk_dm_bap_unicast_create_cis(s_stream_count, ase_ids);
+	BK_LOGI(TAG, "auto cis streams=%u ret=%d\n", s_stream_count, ret);
 }
 
 static void ucli_handle_ase_discovered(const bk_bap_unicast_ase_discovered_t *info)
 {
-	int ret;
+	le_audio_codec_cfg_t cfg;
 
 	if (!info)
 	{
@@ -635,15 +944,35 @@ static void ucli_handle_ase_discovered(const bk_bap_unicast_ase_discovered_t *in
 	}
 	s_last_ase = info->ase_id;
 	s_last_role = info->ase_role;
-	BK_LOGI(TAG, "ase_discovered ase=0x%02x role=%u state=0x%02x acl=0x%04x\n",
-	        info->ase_id, info->ase_role, info->ase_state, info->acl_handle);
-	ret = bk_dm_bap_unicast_configure(info->ase_id, BK_GAP_ROLE_SINK, 0);
-	BK_LOGI(TAG, "auto config ase=%u ret=%d\n", info->ase_id, ret);
+	BK_LOGI(TAG, "ase_discovered ase=0x%02x role=%u state=0x%02x acl=0x%04x last=%u\n",
+	        info->ase_id, info->ase_role, info->ase_state, info->acl_handle, info->last);
+
+	le_audio_codec_cfg_default(&cfg);
+	if (ucli_stream_index(info->ase_id) >= 0)
+	{
+		/* Already collected */
+	}
+	else if (s_stream_count >= cfg.channels)
+	{
+		BK_LOGI(TAG, "ase=%u ignored, already using %u streams\n", info->ase_id, s_stream_count);
+	}
+	else
+	{
+		s_streams[s_stream_count].ase_id = info->ase_id;
+		s_streams[s_stream_count].role = info->ase_role;
+		s_stream_count++;
+	}
+
+	/* Wait for the whole ASE list before touching the control point */
+	if (info->last)
+	{
+		ucli_streams_configure_next();
+	}
 }
 
 static void ucli_handle_state(const bk_bap_unicast_state_t *info)
 {
-	int ret;
+	int index;
 
 	if (!info)
 	{
@@ -651,26 +980,38 @@ static void ucli_handle_state(const bk_bap_unicast_state_t *info)
 	}
 	BK_LOGI(TAG, "state=%u ase=0x%02x role=%u acl=0x%04x\n",
 	        info->state, info->ase_id, info->ase_role, info->acl_handle);
+	index = ucli_stream_index(info->ase_id);
+	if (index < 0)
+	{
+		return;
+	}
+
 	if (info->state == BK_BAP_UNICAST_STATE_CODEC_CONFIGURED)
 	{
-		ret = bk_dm_bap_unicast_set_cig(info->ase_id, UCLI_AUTO_CIG_ID, UCLI_AUTO_CIS_ID);
-		BK_LOGI(TAG, "auto cig ase=%u ret=%d\n", info->ase_id, ret);
+		s_streams[index].stage = UCLI_STAGE_CODEC_CONFIGURED;
+		/* Next ASE, then the CIG once all of them carry a configuration */
+		ucli_streams_configure_next();
+		ucli_streams_set_cig();
 	}
 	else if (info->state == BK_BAP_UNICAST_STATE_QOS_CONFIGURED)
 	{
-		ret = bk_dm_bap_unicast_enable(info->ase_id, BK_GAP_DEFAULT_CONTEXTS);
-		BK_LOGI(TAG, "auto enable ase=%u ret=%d\n", info->ase_id, ret);
+		s_streams[index].stage = UCLI_STAGE_QOS_CONFIGURED;
+		ucli_streams_enable();
 	}
 	else if (info->state == BK_BAP_UNICAST_STATE_ENABLING)
 	{
-		ret = bk_dm_bap_unicast_create_cis(info->ase_id);
-		BK_LOGI(TAG, "auto cis ase=%u ret=%d\n", info->ase_id, ret);
+		s_streams[index].stage = UCLI_STAGE_ENABLING;
+		ucli_streams_create_cis();
+	}
+	else if (info->state == BK_BAP_UNICAST_STATE_IDLE)
+	{
+		ucli_streams_reset();
 	}
 }
 
 static void ucli_handle_cis_handle(const bk_bap_unicast_cis_info_t *info)
 {
-	int ret;
+	int index;
 
 	if (!info)
 	{
@@ -679,12 +1020,23 @@ static void ucli_handle_cis_handle(const bk_bap_unicast_cis_info_t *info)
 	s_last_cis_handle = info->local_cis_handle;
 	BK_LOGI(TAG, "cis_handle ase=0x%02x cig=0x%02x cis=0x%02x cis_handle=0x%04x\n",
 	        info->ase_id, info->cig_id, info->cis_id, info->local_cis_handle);
-	ret = bk_dm_bap_unicast_qos(info->ase_id);
-	BK_LOGI(TAG, "auto qos ase=%u ret=%d\n", info->ase_id, ret);
+
+	index = ucli_stream_index(info->ase_id);
+	if (index < 0)
+	{
+		return;
+	}
+	s_streams[index].cis_handle = info->local_cis_handle;
+	s_streams[index].stage = UCLI_STAGE_CIS_ASSIGNED;
+	ucli_streams_qos();
 }
 
 static void ucli_handle_iso_path_ready(const bk_bap_unicast_iso_path_t *info)
 {
+	uint16_t handles[LE_AUDIO_MAX_STREAMS];
+	uint8_t ase_ids[LE_AUDIO_MAX_STREAMS];
+	int index;
+	uint8_t i;
 	int ret;
 
 	if (!info)
@@ -692,10 +1044,29 @@ static void ucli_handle_iso_path_ready(const bk_bap_unicast_iso_path_t *info)
 		return;
 	}
 	s_last_cis_handle = info->local_cis_handle;
-	BK_LOGI(TAG, "iso_path_ready ase=0x%02x cis_handle=0x%04x -> auto tone\n",
+	BK_LOGI(TAG, "iso_path_ready ase=0x%02x cis_handle=0x%04x\n",
 	        info->ase_id, info->local_cis_handle);
-	ret = ucli_do_tone_start(info->local_cis_handle);
-	BK_LOGI(TAG, "auto tone handle=0x%04x ret=%d\n", info->local_cis_handle, ret);
+
+	index = ucli_stream_index(info->ase_id);
+	if (index < 0)
+	{
+		return;
+	}
+	s_streams[index].cis_handle = info->local_cis_handle;
+	s_streams[index].stage = UCLI_STAGE_ISO_READY;
+
+	/* Send only once every stream can carry data, so channels stay aligned */
+	if (!ucli_group_at_stage(UCLI_STAGE_ISO_READY, "tone", ase_ids))
+	{
+		return;
+	}
+	for (i = 0; i < s_stream_count; i++)
+	{
+		handles[i] = s_streams[i].cis_handle;
+	}
+
+	ret = ucli_do_tone_start(handles, s_stream_count);
+	BK_LOGI(TAG, "auto tone streams=%u ret=%d\n", s_stream_count, ret);
 }
 
 static void ucli_evt_thread(void *arg)
@@ -727,7 +1098,7 @@ static void ucli_evt_thread(void *arg)
 			ret = ucli_do_connect_addr(evt.addr, evt.addr_type);
 			break;
 		case UCLI_EVT_CMD_TONE_START:
-			ret = ucli_do_tone_start(evt.handle);
+			ret = ucli_do_tone_start(&evt.handle, 1U);
 			break;
 		case UCLI_EVT_CMD_TONE_STOP:
 			ret = ucli_do_tone_stop();
@@ -751,6 +1122,15 @@ static void ucli_evt_thread(void *arg)
 			break;
 		case UCLI_EVT_ISO_PATH_READY:
 			ucli_handle_iso_path_ready(&evt.u.iso);
+			break;
+		case UCLI_EVT_GATT_CONNECTED:
+			ucli_handle_gatt_connected(evt.u.gatt.conn_id, evt.u.gatt.link_role);
+			break;
+		case UCLI_EVT_MTU_UPDATED:
+			BK_LOGI(TAG, "mtu=%u status=0x%02x conn=%u\n",
+			        evt.u.gatt.mtu, evt.u.gatt.status, evt.u.gatt.conn_id);
+			s_mtu_ready = 1U;
+			ucli_setup_if_ready();
 			break;
 		default:
 			break;
@@ -808,11 +1188,13 @@ int unicast_client_demo_init(void)
 		.unicast_iso_path_ready_cb = ucli_on_iso_path_ready,
 		.unicast_state_cb = ucli_on_state,
 		.unicast_ready_cb = ucli_on_ready,
+		.iso_tx_complete_cb = le_audio_audio_tx_iso_complete,
 	};
 	static const bk_bap_sink_callbacks_t sink_cbs =
 	{
 		.announcement_cb = ucli_assist_on_announcement,
 		.associate_cb = ucli_assist_on_associate,
+		.broadcast_event_cb = ucli_assist_on_broadcast_event,
 	};
 	static const bk_bass_client_callbacks_t bass_cbs =
 	{
@@ -828,6 +1210,21 @@ int unicast_client_demo_init(void)
 	ucli_set_security();
 	ret = bk_ble_gap_register_callback(ucli_gap_cb);
 	BK_LOGI(TAG, "bk_ble_gap_register_callback ret=%d\n", ret);
+	if (ret != BK_OK)
+	{
+		return ret;
+	}
+
+	ret = bk_ble_gattc_register_callback(ucli_gattc_cb);
+	BK_LOGI(TAG, "bk_ble_gattc_register_callback ret=%d\n", ret);
+	if (ret != BK_OK)
+	{
+		return ret;
+	}
+
+	/* Hands out the gattc_if reported by BK_GATTC_REG_EVT */
+	ret = bk_ble_gattc_app_register(0U);
+	BK_LOGI(TAG, "bk_ble_gattc_app_register ret=%d gattc_if=%u\n", ret, s_gattc_if);
 	if (ret != BK_OK)
 	{
 		return ret;
@@ -989,7 +1386,6 @@ int unicast_client_demo_assistant_connect(uint8_t *deleg_addr, uint8_t addr_type
 	s_have_deleg = 1;
 	s_past_done = 0;
 	s_code_done = 0;
-	s_past_pending = 0;
 	BK_LOGI(TAG, "connect delegator %02x:%02x:%02x:%02x:%02x:%02x type=%u\n",
 	        deleg_addr[5], deleg_addr[4], deleg_addr[3],
 	        deleg_addr[2], deleg_addr[1], deleg_addr[0], addr_type);
@@ -1007,8 +1403,7 @@ int unicast_client_demo_assistant_discover(uint8_t *deleg_addr, uint8_t addr_typ
 
 int unicast_client_demo_assistant_add(uint8_t source_index, uint32_t bis_sync)
 {
-	bk_bap_source_announce_data_t *source;
-	uint32_t bcast_id;
+	int ret;
 
 	if (source_index >= s_source_count)
 	{
@@ -1016,22 +1411,18 @@ int unicast_client_demo_assistant_add(uint8_t source_index, uint32_t bis_sync)
 		return -1;
 	}
 
-	source = &s_sources[source_index];
-	bcast_id = source->broadcast_id != 0U ? source->broadcast_id : 0x00ADBEEFU;
-	bis_sync = bis_sync != 0U ? bis_sync : 0x00000001U;
-
-	/* PA-sync was issued during scanning (see ucli_assist_on_announcement).
-	 * If it is still pending, the PAST is completed from the associate
-	 * callback / deferred path once the sync handle arrives. */
 	if (s_src_sync_handle == 0xFFFF)
 	{
-		BK_LOGW(TAG, "source not PA-synced yet; PAST will be sent once sync completes\n");
+		ret = bk_dm_bap_broadcast_associate(&s_sources[source_index]);
+		BK_LOGI(TAG, "PA-sync source[%u] ret=%d\n", source_index, ret);
+		if (ret != 0)
+		{
+			return ret;
+		}
 	}
 
-	BK_LOGI(TAG, "Add Source idx=%u sid=%u bcast_id=0x%06lx bis_sync=0x%08lx\n",
-	        source_index, source->advertising_sid, (unsigned long)bcast_id, (unsigned long)bis_sync);
-	return bk_dm_bass_add_source_ex(0, source->address, source->address_type,
-	                                source->advertising_sid, bcast_id, bis_sync);
+	return ucli_assist_send_add_source(source_index,
+	                                   bis_sync != 0U ? bis_sync : 0x00000001U);
 }
 
 int unicast_client_demo_assistant_remove(uint8_t source_id)
@@ -1051,7 +1442,6 @@ void unicast_client_demo_assistant_stop(void)
 	s_have_deleg = 0;
 	s_past_done = 0;
 	s_code_done = 0;
-	s_past_pending = 0;
 }
 
 int unicast_client_demo_set_broadcast_code(const uint8_t *code16)

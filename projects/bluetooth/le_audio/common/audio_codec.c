@@ -44,7 +44,11 @@ static void le_audio_codec_init(void)
 	s_current.sample_rate = CONFIG_LE_AUDIO_SAMPLE_RATE;
 	s_current.frame_us = CONFIG_LE_AUDIO_FRAME_US;
 	s_current.frame_bytes = CONFIG_LE_AUDIO_FRAME_BYTES;
-	s_current.channels = 1;
+	s_current.channels = CONFIG_LE_AUDIO_STREAM_COUNT;
+	if (s_current.channels > LE_AUDIO_MAX_STREAMS)
+	{
+		s_current.channels = LE_AUDIO_MAX_STREAMS;
+	}
 	s_current.sf = le_audio_codec_freq_enum(CONFIG_LE_AUDIO_SAMPLE_RATE);
 	s_current.fd = (CONFIG_LE_AUDIO_FRAME_US == 7500) ?
 	               BK_BT_CODEC_FRAME_DURATION_7500US : BK_BT_CODEC_FRAME_DURATION_10000US;
@@ -85,10 +89,14 @@ int le_audio_codec_set_preset(const char *name)
 	{
 		if (os_strcmp(name, s_presets[i].name) == 0)
 		{
+			uint8_t channels = s_current.channels;
+
 			s_current = s_presets[i].cfg;
+			s_current.channels = channels;
 			s_current_name = s_presets[i].name;
-			BK_LOGI(TAG, "preset=%s sr=%lu dt=%luus bytes=%u\n",
-			        s_current_name, s_current.sample_rate, s_current.frame_us, s_current.frame_bytes);
+			BK_LOGI(TAG, "preset=%s sr=%lu dt=%luus bytes=%u channels=%u\n",
+			        s_current_name, s_current.sample_rate, s_current.frame_us,
+			        s_current.frame_bytes, s_current.channels);
 			return 0;
 		}
 	}
@@ -100,4 +108,10 @@ int le_audio_codec_set_preset(const char *name)
 const char *le_audio_codec_current_name(void)
 {
 	return s_current_name;
+}
+
+uint32_t le_audio_channel_location(uint8_t stream_index)
+{
+	return (stream_index == 0U) ? BK_BT_AUDIO_LOCATION_FRONT_LEFT
+	                            : BK_BT_AUDIO_LOCATION_FRONT_RIGHT;
 }

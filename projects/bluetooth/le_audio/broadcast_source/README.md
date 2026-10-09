@@ -68,7 +68,10 @@ tx started; stop with ap_cmd le_audio stop
 
 ## Notes
 
-- Single BIS / single stream by design.
+- Stereo over two BIS by default: one BIG with two BIS, each carrying one channel
+  (BIS 1 front left, BIS 2 front right) and advertising its own
+  Audio_Channel_Allocation in the BASE. The BIS count comes from
+  `CONFIG_LE_AUDIO_STREAM_COUNT`; set it to 1 for a single BIS.
 - For an encrypted broadcast, set the same Broadcast Code on the sink side.
 - LC3 stream parameters come from `ap/le_audio_user_config.h` (default 48 kHz /
   10 ms / 120 bytes) and the shared preset table in `../common/audio_codec.c`.

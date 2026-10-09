@@ -53,6 +53,29 @@ In the common case you do not need to type anything — just connect from the cl
 | `le_audio rx_ready <ase>` | Manually issue Receiver Start Ready (normally automatic) |
 | `le_audio release <ase>` | Release an ASE and stop playback |
 
+### Volume control (VCP renderer, `CONFIG_LE_AUDIO_VCP`, on by default)
+
+This side is the Volume Renderer, so a Volume Controller on the client side is
+reported through a callback. The commands below change the volume locally and
+notify every subscribed controller.
+
+| Command | Action |
+| --- | --- |
+| `le_audio volume <0-255>` | Set the absolute volume |
+| `le_audio mute on` / `off` | Mute / unmute |
+
+### Media control (MCP, `CONFIG_LE_AUDIO_MCP`, on by default)
+
+The player state lives on the peer; this side acts as Media Control Client and
+issues control point operations.
+
+| Command | Action |
+| --- | --- |
+| `le_audio play` / `pause` / `stop` | Play / pause / stop |
+| `le_audio next` / `prev` | Next / previous track |
+| `le_audio mcp_notify on` / `off` | Subscribe / unsubscribe from player state notifications |
+| `le_audio mcp_read` | Read the current player state |
+
 Expected log when a client connects and streams:
 
 ```text
@@ -64,5 +87,12 @@ receiver start ready ase=1
 
 ## Notes
 
-- Single CIS / single stream by design.
+- Stereo over two streams by default: two sink ASEs are registered, PACS exposes
+  front left plus front right, the streams are carried by **two CIS of the same
+  CIG**, and both are decoded and mixed into one stereo playback. The stream count
+  comes from `CONFIG_LE_AUDIO_STREAM_COUNT`.
+- PACS deliberately reports `supported_channel_counts` of 1: each stream carries a
+  single channel. Reporting 2 lets a peer set up one CIS instead and pack left and
+  right into the same SDU.
+- The QoS in the ASE is only a preference; the client decides the final parameters.
 - The client chooses the codec/QoS; this side just accepts and plays.
