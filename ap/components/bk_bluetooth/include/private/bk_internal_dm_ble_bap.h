@@ -4,12 +4,14 @@
 
 #define BKI_BAP_CODEC_IE_LEN                                 24U
 #define BKI_BAP_METADATA_LEN                                 24U
+#define BKI_BAP_MAX_BIS                                      2U
 
 #define BKI_BAP_SINK_EVT_SACN_END                            0x01U
 #define BKI_BAP_SINK_EVT_DISABLE_CNF                         0x02U
 #define BKI_BAP_SINK_EVT_DISABLE_IND                         0x03U
 #define BKI_BAP_SINK_EVT_ENABLE_CNF                          0x04U
 #define BKI_BAP_SINK_EVT_DISSOCIATE_CNF                      0x05U
+#define BKI_BAP_SINK_EVT_DISSOCIATE_IND                      0x06U
 
 
 typedef struct
@@ -108,7 +110,7 @@ typedef struct
     uint8_t big_handle;
     uint8_t nse;
     uint8_t num_bis;
-    uint16_t connection_handle[2];
+    uint16_t connection_handle[BKI_BAP_MAX_BIS];
 } bki_bap_boradcast_paramters_t;
 
 
@@ -119,6 +121,7 @@ typedef struct
     void (* config_cb)(uint8_t *data, uint16_t length);
     void (* big_info_cb)(bki_bap_source_big_info_t *bk_bap_source_big_info);
     void (* lc3_data_cb)(uint8_t *header, uint8_t *data, uint32_t length);
+    void (* broadcast_enable_cb)(bki_bap_boradcast_paramters_t *bki_bap_boradcast_paramters);
     void (* broadcast_event_cb)(uint32_t event, uint32_t status);
 } bki_bap_sink_callbacks_t;
 
@@ -128,6 +131,7 @@ typedef struct
     void (* end_announcement_cb)(uint32_t status, void *paramters);
     void (* broadcast_start_cb)(bki_bap_boradcast_paramters_t *bki_bap_boradcast_paramters);
     void (* broadcast_suspend_cb)(uint8_t handle, uint8_t reason);
+    void (* iso_tx_complete_cb)(uint16_t handle, uint16_t num_completed);
 } bki_bap_source_callbacks_t;
 
 typedef struct
@@ -136,6 +140,7 @@ typedef struct
     uint8_t ase_role;
     uint8_t ase_state;
     uint16_t acl_handle;
+    uint8_t last;
 } bki_bap_unicast_ase_discovered_t;
 
 typedef struct
@@ -155,9 +160,14 @@ typedef struct
     uint16_t local_cis_handle;
 } bki_bap_unicast_iso_path_t;
 
+/* ASE state values as defined by ASCS */
+#define BKI_BAP_UNICAST_STATE_IDLE                          0x00U
 #define BKI_BAP_UNICAST_STATE_CODEC_CONFIGURED              0x01U
 #define BKI_BAP_UNICAST_STATE_QOS_CONFIGURED                0x02U
 #define BKI_BAP_UNICAST_STATE_ENABLING                      0x03U
+#define BKI_BAP_UNICAST_STATE_STREAMING                     0x04U
+#define BKI_BAP_UNICAST_STATE_DISABLING                     0x05U
+#define BKI_BAP_UNICAST_STATE_RELEASING                     0x06U
 
 typedef struct
 {
@@ -180,6 +190,7 @@ typedef struct
 #define BKI_BAP_UNICAST_READY_GA_SETUP         0x02U
 #define BKI_BAP_UNICAST_READY_CAPABILITIES     0x03U
 #define BKI_BAP_UNICAST_READY_ACL_DISCONNECTED 0x04U
+#define BKI_BAP_UNICAST_READY_ENCRYPTED        0x05U
 
 typedef struct
 {
@@ -219,11 +230,31 @@ uint32_t appl_le_audio_unicast_connect(uint8_t *addr, uint8_t addr_type, uint8_t
 uint32_t appl_le_audio_unicast_setup(void);
 uint32_t appl_le_audio_unicast_get_capabilities(uint8_t role);
 uint32_t appl_le_audio_unicast_discover(void);
-uint32_t appl_le_audio_unicast_configure(uint8_t ase_id, uint8_t role, uint8_t cap_index);
-uint32_t appl_le_audio_unicast_set_cig(uint8_t ase_id, uint8_t cig_id, uint8_t cis_id);
-uint32_t appl_le_audio_unicast_qos(uint8_t ase_id);
-uint32_t appl_le_audio_unicast_enable(uint8_t ase_id, uint16_t contexts);
-uint32_t appl_le_audio_unicast_create_cis(uint8_t ase_id);
+/*
+ * Configure, QoS and enable take the whole stream group: the ASE control point
+ * holds one operation at a time, so the ASEs of a CIG go in a single write.
+ */
+uint32_t appl_le_audio_unicast_configure(uint8_t ase_count,
+    const uint8_t *ase_ids,
+    const uint8_t *roles,
+    uint8_t cap_index,
+    const bki_bap_lc3_codec_specific_conf_t *codec_conf);
+/* QoS the initiator decides on, overriding the preferences of the acceptor */
+typedef struct
+{
+    uint32_t presentation_delay;
+    uint16_t max_transport_latency;
+    uint8_t framing;
+    uint8_t phy;
+    uint8_t retransmission_number;
+    uint8_t packing;
+} bki_bap_qos_cfg_t;
+
+/* All CISes of a CIG are programmed and created together, hence the arrays */
+uint32_t appl_le_audio_unicast_set_cig(uint8_t cig_id, uint8_t cis_count, const uint8_t *ase_ids, const uint8_t *cis_ids, const bki_bap_qos_cfg_t *qos_cfg);
+uint32_t appl_le_audio_unicast_qos(uint8_t ase_count, const uint8_t *ase_ids);
+uint32_t appl_le_audio_unicast_enable(uint8_t ase_count, const uint8_t *ase_ids, uint16_t contexts);
+uint32_t appl_le_audio_unicast_create_cis(uint8_t cis_count, const uint8_t *ase_ids);
 uint32_t appl_le_audio_unicast_receiver_start_ready(uint8_t ase_id);
 uint32_t appl_le_audio_unicast_release(uint8_t ase_id);
 uint32_t appl_le_audio_unicast_remove_iso(uint16_t connection_handle, uint8_t direction);

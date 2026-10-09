@@ -316,6 +316,7 @@ void bk_dm_bap_internal_unicast_ase_discovered(const bki_bap_unicast_ase_discove
     public_info.ase_role = info->ase_role;
     public_info.ase_state = info->ase_state;
     public_info.acl_handle = info->acl_handle;
+    public_info.last = info->last;
 
     if (sink_callbacks && sink_callbacks->unicast_ase_discovered_cb)
     {
@@ -538,29 +539,62 @@ bk_err_t bk_dm_bap_unicast_discover(void)
     return appl_le_audio_unicast_discover();
 }
 
-bk_err_t bk_dm_bap_unicast_configure(uint8_t ase_id, uint8_t role, uint8_t cap_index)
+bk_err_t bk_dm_bap_unicast_configure(uint8_t ase_count, const uint8_t *ase_ids, const uint8_t *roles, uint8_t cap_index,
+                                     const bk_bap_codec_spec_config_t *codec_cfg)
 {
-    return appl_le_audio_unicast_configure(ase_id, role, cap_index);
+    bki_bap_lc3_codec_specific_conf_t cs_conf[BK_GAP_MAX_ASE];
+    uint8_t i;
+
+    if ((codec_cfg == NULL) || (ase_count == 0) || (ase_count > BK_GAP_MAX_ASE))
+    {
+        return BK_ERR_PARAM;
+    }
+
+    os_memset(cs_conf, 0, sizeof(cs_conf));
+    for (i = 0; i < ase_count; i++)
+    {
+        cs_conf[i].sf = codec_cfg[i].sampling_frequency;
+        cs_conf[i].fd = codec_cfg[i].frame_duration;
+        cs_conf[i].aca = codec_cfg[i].audio_channel_allocation;
+        cs_conf[i].opcf = codec_cfg[i].octects_per_codec_frame;
+        cs_conf[i].mcfpSDU = 1U;
+    }
+
+    return appl_le_audio_unicast_configure(ase_count, ase_ids, roles, cap_index, cs_conf);
 }
 
-bk_err_t bk_dm_bap_unicast_set_cig(uint8_t ase_id, uint8_t cig_id, uint8_t cis_id)
+bk_err_t bk_dm_bap_unicast_set_cig(uint8_t cig_id, uint8_t cis_count, const uint8_t *ase_ids, const uint8_t *cis_ids, const bk_bap_qos_cfg_t *qos_cfg)
 {
-    return appl_le_audio_unicast_set_cig(ase_id, cig_id, cis_id);
+    bki_bap_qos_cfg_t internal_qos;
+
+    if (qos_cfg == NULL)
+    {
+        return BK_ERR_PARAM;
+    }
+
+    internal_qos.presentation_delay = qos_cfg->presentation_delay;
+    internal_qos.max_transport_latency = qos_cfg->max_transport_latency;
+    internal_qos.framing = qos_cfg->framing;
+    internal_qos.phy = qos_cfg->phy;
+    internal_qos.retransmission_number = qos_cfg->retransmission_number;
+    internal_qos.packing = qos_cfg->packing;
+
+    return appl_le_audio_unicast_set_cig(cig_id, cis_count, ase_ids, cis_ids, &internal_qos);
 }
 
-bk_err_t bk_dm_bap_unicast_qos(uint8_t ase_id)
+bk_err_t bk_dm_bap_unicast_qos(uint8_t ase_count, const uint8_t *ase_ids)
 {
-    return appl_le_audio_unicast_qos(ase_id);
+    return appl_le_audio_unicast_qos(ase_count, ase_ids);
 }
 
-bk_err_t bk_dm_bap_unicast_enable(uint8_t ase_id, uint16_t contexts)
+bk_err_t bk_dm_bap_unicast_enable(uint8_t ase_count, const uint8_t *ase_ids, uint16_t contexts)
 {
-    return appl_le_audio_unicast_enable(ase_id, contexts);
+    return appl_le_audio_unicast_enable(ase_count, ase_ids, contexts);
 }
 
-bk_err_t bk_dm_bap_unicast_create_cis(uint8_t ase_id)
+bk_err_t bk_dm_bap_unicast_create_cis(uint8_t cis_count, const uint8_t *ase_ids)
 {
-    return appl_le_audio_unicast_create_cis(ase_id);
+    return appl_le_audio_unicast_create_cis(cis_count, ase_ids);
 }
 
 bk_err_t bk_dm_bap_unicast_receiver_start_ready(uint8_t ase_id)
@@ -869,6 +903,10 @@ static inline void bk_dm_bap_broadcast_event_sink_cb(uint32_t event, uint32_t st
                 sink_cb_evt = BK_BAP_SINK_DISSOCIATE_CNF;
             break;
 
+            case BKI_BAP_SINK_EVT_DISSOCIATE_IND:
+                sink_cb_evt = BK_BAP_SINK_DISSOCIATE_IND;
+            break;
+
         }
 
         sink_callbacks->broadcast_event_cb(sink_cb_evt, status);
@@ -894,31 +932,49 @@ static inline void bk_dm_bap_end_announcement_source_cb(uint32_t status, void *p
 }
 
 
+static void bk_dm_bap_copy_broadcast_paramters(bk_bap_boradcast_paramters_t *dst, const bki_bap_boradcast_paramters_t *src)
+{
+    uint8_t num_bis = src->num_bis;
+    uint8_t i;
+
+    if (num_bis > BK_GAP_MAX_BIS)
+    {
+        num_bis = BK_GAP_MAX_BIS;
+    }
+
+    os_memset(dst, 0, sizeof(*dst));
+    dst->error_code = src->error_code;
+    dst->big_handle = src->big_handle;
+    dst->nse = src->nse;
+    dst->num_bis = num_bis;
+
+    for (i = 0; i < num_bis; i++)
+    {
+        dst->connection_handle[i] = src->connection_handle[i];
+    }
+}
+
 static inline void bk_dm_bap_broadcast_start_source_cb(bki_bap_boradcast_paramters_t *bki_bap_boradcast_paramters)
 {
     if (source_callbacks
         && source_callbacks->broadcast_start_cb)
     {
         bk_bap_boradcast_paramters_t bk_bap_boradcast_paramters;
-        uint8_t num_bis = bki_bap_boradcast_paramters->num_bis;
-        uint8_t i;
 
-        if (num_bis > BK_GAP_MAX_BIS)
-        {
-            num_bis = BK_GAP_MAX_BIS;
-        }
-
-        bk_bap_boradcast_paramters.error_code = bki_bap_boradcast_paramters->error_code;
-        bk_bap_boradcast_paramters.big_handle = bki_bap_boradcast_paramters->big_handle;
-        bk_bap_boradcast_paramters.nse = bki_bap_boradcast_paramters->nse;
-        bk_bap_boradcast_paramters.num_bis = num_bis;
-
-        for (i = 0; i < num_bis; i++)
-        {
-            bk_bap_boradcast_paramters.connection_handle[i] = bki_bap_boradcast_paramters->connection_handle[i];
-        }
-
+        bk_dm_bap_copy_broadcast_paramters(&bk_bap_boradcast_paramters, bki_bap_boradcast_paramters);
         source_callbacks->broadcast_start_cb(&bk_bap_boradcast_paramters);
+    }
+}
+
+static inline void bk_dm_bap_broadcast_enable_sink_cb(bki_bap_boradcast_paramters_t *bki_bap_boradcast_paramters)
+{
+    if (sink_callbacks
+        && sink_callbacks->broadcast_enable_cb)
+    {
+        bk_bap_boradcast_paramters_t bk_bap_boradcast_paramters;
+
+        bk_dm_bap_copy_broadcast_paramters(&bk_bap_boradcast_paramters, bki_bap_boradcast_paramters);
+        sink_callbacks->broadcast_enable_cb(&bk_bap_boradcast_paramters);
     }
 }
 
@@ -928,6 +984,15 @@ static inline void bk_dm_bap_broadcast_suspend_source_cb(uint8_t handle, uint8_t
         && source_callbacks->broadcast_suspend_cb)
     {
         source_callbacks->broadcast_suspend_cb(handle, reason);
+    }
+}
+
+static inline void bk_dm_bap_iso_tx_complete_source_cb(uint16_t handle, uint16_t num_completed)
+{
+    if (source_callbacks
+        && source_callbacks->iso_tx_complete_cb)
+    {
+        source_callbacks->iso_tx_complete_cb(handle, num_completed);
     }
 }
 
@@ -1133,6 +1198,7 @@ static bki_bap_sink_callbacks_t internal_sink_callbacks =
     .config_cb = bk_dm_bap_config_sink_callback,
     .lc3_data_cb = bk_dm_bap_lc3_data_sink_callback,
     .big_info_cb = bk_dm_bap_big_info_sink_callback,
+    .broadcast_enable_cb = bk_dm_bap_broadcast_enable_sink_cb,
     .broadcast_event_cb = bk_dm_bap_broadcast_event_sink_cb,
 };
 
@@ -1142,6 +1208,7 @@ static bki_bap_source_callbacks_t internal_source_callbacks =
     .end_announcement_cb = bk_dm_bap_end_announcement_source_cb,
     .broadcast_start_cb = bk_dm_bap_broadcast_start_source_cb,
     .broadcast_suspend_cb = bk_dm_bap_broadcast_suspend_source_cb,
+    .iso_tx_complete_cb = bk_dm_bap_iso_tx_complete_source_cb,
 };
 
 
