@@ -127,7 +127,14 @@ static vg_lite_buffer_format_t gpu_format_convert(bk_pixel_format_t bk_format)
     return vg_format;
 }
 
-#define CHECK_ERROR
+#define CHECK_ERROR(Function)                                                         \
+    do {                                                                              \
+        vg_lite_error_t _vg_err = (Function);                                         \
+        if (_vg_err != VG_LITE_SUCCESS) {                                             \
+            LOGE("%s,%d " #Function " failed %d\r\n", __func__, __LINE__, (int)_vg_err); \
+            goto ErrorHandler;                                                        \
+        }                                                                             \
+    } while (0)
 
 static avdk_err_t gpu_draw_path_build(bk_gpu_ctlr_handle_t handle, bk_gpu_draw_path_set_t *path_set)
 {
@@ -153,6 +160,14 @@ static avdk_err_t gpu_draw_path_build(bk_gpu_ctlr_handle_t handle, bk_gpu_draw_p
     rtos_unlock_mutex(&flex->draw_mutex);
 
     return 0;
+
+ErrorHandler:
+    (void)vg_lite_clear_path(&flex->draw_pending_path);
+    memset(&flex->draw_pending_path, 0, sizeof(flex->draw_pending_path));
+    flex->draw_pending_enable = 0;
+    flex->draw_pending_ready = false;
+    rtos_unlock_mutex(&flex->draw_mutex);
+    return AVDK_ERR_HWERROR;
 }
 
 static avdk_err_t gpu_draw_path_clear(bk_gpu_ctlr_handle_t handle)
@@ -341,9 +356,9 @@ static void gpu_flex_hpdma_link_transfer_complete_callback(hpdma_id_t hpdma_id, 
 /**
  * @brief Initialize DMA for rotation operations
  * @param data GPU flex data structure
- * @param rotation_degree Rotation angle
+ * @return AVDK_ERR_OK on success
  */
-static void gpu_flex_init_dma(gpu_flex_data_t *data)
+static avdk_err_t gpu_flex_init_dma(gpu_flex_data_t *data)
 {
     uint32_t link_cnt = 1;
 
@@ -351,7 +366,7 @@ static void gpu_flex_init_dma(gpu_flex_data_t *data)
     if (data->link_dma_list_table == NULL)
     {
         LOGE("%s, %d bk_hpdma_link_init failed, link_cnt=%d\n", __func__, __LINE__, link_cnt);
-        return;
+        return AVDK_ERR_NOMEM;
     }
 
     data->gdma = bk_hpdma_alloc(HPDMA_DEV_DTCM);
@@ -360,7 +375,7 @@ static void gpu_flex_init_dma(gpu_flex_data_t *data)
         LOGE("%s, %d bk_hpdma_alloc failed\n", __func__, __LINE__);
         bk_hpdma_link_deinit(data->link_dma_list_table);
         data->link_dma_list_table = NULL;
-        return;
+        return AVDK_ERR_NO_RESOURCE;
     }
     /*
      * P1 (HPDMA review): use HPDMA_BURST_LEN_INC16 enum; the SMEM-same-
@@ -374,6 +389,8 @@ static void gpu_flex_init_dma(gpu_flex_data_t *data)
     BK_LOG_ON_ERR(bk_hpdma_register_isr(data->gdma, NULL, NULL, gpu_flex_hpdma_link_transfer_complete_callback, &data->transfer_sem));
     BK_LOG_ON_ERR(bk_hpdma_enable_finish_interrupt(data->gdma));
 #endif
+
+    return AVDK_ERR_OK;
 }
 
 static void gpu_flex_update_horizontal_mirror_matrix(gpu_flex_data_t *data,
@@ -537,10 +554,12 @@ static inline void gpu_flex_latch_draw_path(gpu_flex_data_t *data)
  * @brief Initialize GPU flex data structure
  * @param data GPU flex data structure to initialize
  * @param gpu_vn_ctlr GPU controller handle
+ * @return AVDK_ERR_OK on success
  */
-static inline void gpu_flex_data_init(gpu_flex_data_t *data, gpu_vn_ctlr_t *gpu_vn_ctlr)
+static avdk_err_t gpu_flex_data_init(gpu_flex_data_t *data, gpu_vn_ctlr_t *gpu_vn_ctlr)
 {
     bk_gpu_ctlr_config_t *config = &gpu_vn_ctlr->config;
+    avdk_err_t ret;
 
     /* Initialize basic parameters */
     gpu_vn_ctlr->line_cnt = 0;
@@ -571,13 +590,13 @@ static inline void gpu_flex_data_init(gpu_flex_data_t *data, gpu_vn_ctlr_t *gpu_
     if (rtos_init_mutex(&data->draw_mutex) != BK_OK)
     {
         LOGE("%s, %d init draw_mutex\n", __func__, __LINE__);
-        return;
+        return AVDK_ERR_NOMEM;
     }
 
     if (rtos_init_semaphore(&data->transfer_sem, 1) != BK_OK)
     {
         LOGE("%s, %d init transfer_sem\n", __func__, __LINE__);
-        return;
+        return AVDK_ERR_NOMEM;
     }
     rtos_set_semaphore(&data->transfer_sem);
 
@@ -605,8 +624,11 @@ static inline void gpu_flex_data_init(gpu_flex_data_t *data, gpu_vn_ctlr_t *gpu_
         vg_lite_scale(data->scale_x, data->scale_y, &data->matrix);
     }
 
-    /* Initialize DMA for rotation if needed */
-    gpu_flex_init_dma(data);
+    ret = gpu_flex_init_dma(data);
+    if (ret != AVDK_ERR_OK)
+    {
+        return ret;
+    }
 
     /* Configure source buffer */
     data->src_buf.width = data->input_width;
@@ -623,14 +645,15 @@ static inline void gpu_flex_data_init(gpu_flex_data_t *data, gpu_vn_ctlr_t *gpu_
     if (gpu_flex_init_pingpong_buffer(data) != 0)
     {
         LOGE("%s, %d gpu_flex_init_pingpong_buffer failed\n", __func__, __LINE__);
-        return;
+        return AVDK_ERR_NOMEM;
     }
 
     /* Configure destination buffer */
     gpu_flex_configure_dst_buffer(data, config);
+    return AVDK_ERR_OK;
 }
 
-static inline void gpu_flex_data_deinit(gpu_flex_data_t *data, gpu_vn_ctlr_t *gpu_vn_ctlr)
+static void gpu_flex_data_deinit(gpu_flex_data_t *data)
 {
     /* Deinit only resources that were successfully initialized. */
     if (data->transfer_sem)
@@ -644,6 +667,14 @@ static inline void gpu_flex_data_deinit(gpu_flex_data_t *data, gpu_vn_ctlr_t *gp
         rtos_lock_mutex(&data->draw_mutex);
         CHECK_ERROR(vg_lite_clear_path(&data->draw_path));
         CHECK_ERROR(vg_lite_clear_path(&data->draw_pending_path));
+        data->draw_enable = 0;
+        data->draw_pending_ready = false;
+        rtos_unlock_mutex(&data->draw_mutex);
+        rtos_deinit_mutex(&data->draw_mutex);
+        data->draw_mutex = NULL;
+        return;
+
+ErrorHandler:
         data->draw_enable = 0;
         data->draw_pending_ready = false;
         rtos_unlock_mutex(&data->draw_mutex);
@@ -1058,6 +1089,7 @@ static bool gpu_flex_process_line_block(gpu_flex_data_t *data,
     }
 
     vg_lite_error_t render_ret = VG_LITE_SUCCESS;
+    int draw_ret = 0;
 
     if (gpu_flex_current_block_has_padding(data, config))
     {
@@ -1072,42 +1104,30 @@ static bool gpu_flex_process_line_block(gpu_flex_data_t *data,
             VG_LITE_BLEND_NONE, 0, VG_LITE_FILTER_POINT);
     }
 
+    /*
+     * Queue optional draw-path on top of the blit, then sync once.
+     * Two vg_lite_finish() calls per strip roughly double GPU wait
+     * when draw_enable is set.
+     */
+    if (render_ret == VG_LITE_SUCCESS &&
+        data->draw_enable &&
+        gpu_flex_draw_path_intersects_block(data))
+    {
+        draw_ret = gpu_draw_path_submit(
+            &data->draw_matrix, &data->draw_path, &data->dst_buf);
+    }
+
     vg_lite_error_t finish_ret = vg_lite_finish();
     if (render_ret != VG_LITE_SUCCESS ||
+        draw_ret != 0 ||
         finish_ret != VG_LITE_SUCCESS)
     {
-        LOGE("%s, GPU block render failed, render=%d finish=%d\r\n",
-             __func__, render_ret, finish_ret);
+        LOGE("%s, GPU block render failed, render=%d draw=%d finish=%d\r\n",
+             __func__, render_ret, draw_ret, finish_ret);
         gpu_flex_abort_current_frame(gpu_vn_ctlr);
         GPU_LINE_END();
         bk_gpu_global_unlock();
         return false;
-    }
-
-    /* Preserve the SDK draw-path API behavior for clients that enable it. */
-    if (data->draw_enable)
-    {
-        int draw_ret = 0;
-        vg_lite_error_t draw_finish_ret = VG_LITE_SUCCESS;
-        if (data->draw_enable &&
-            gpu_flex_draw_path_intersects_block(data))
-        {
-            draw_ret = gpu_draw_path_submit(
-                &data->draw_matrix, &data->draw_path, &data->dst_buf);
-            if (draw_ret == 0)
-            {
-                draw_finish_ret = vg_lite_finish();
-            }
-        }
-        if (draw_ret != 0 || draw_finish_ret != VG_LITE_SUCCESS)
-        {
-            LOGE("%s, path draw=%d finish=%d\r\n",
-                 __func__, draw_ret, draw_finish_ret);
-            gpu_flex_abort_current_frame(gpu_vn_ctlr);
-            GPU_LINE_END();
-            bk_gpu_global_unlock();
-            return false;
-        }
     }
 
     if (gpu_flex_frame_abort_needed(data, gpu_vn_ctlr, frame_seq))
@@ -1485,7 +1505,7 @@ static void gpu_flex_resource_teardown(gpu_vn_ctlr_t *control)
     }
 
     gpu_flex_deinit_pingpong_buffer(flex);
-    gpu_flex_data_deinit(flex, control);
+    gpu_flex_data_deinit(flex);
 
     gpu_flex_frame_mutex_unlock(control);
     if (control->flexa_frame_mutex != NULL) {
@@ -1527,7 +1547,11 @@ static avdk_err_t gpu_ctlr_open(bk_gpu_ctlr_handle_t handle)
         control->flexa_frame_mutex_owned = false;
 
         /* Initialize GPU hardware */
-        gpu_flex_data_init(flex, control);
+        ret = gpu_flex_data_init(flex, control);
+        if (ret != AVDK_ERR_OK) {
+            LOGE("%s, %d gpu_flex_data_init failed %d\n", __func__, __LINE__, ret);
+            goto open_fail;
+        }
 
         /* Initialize face detection matrix */
         vg_lite_identity(&flex->draw_matrix);
