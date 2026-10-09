@@ -29,22 +29,34 @@ typedef struct {
 	pm_cpu_freq_e cpu_bus_freq;
 } sys_drv_cpu_freq_flash_read_ctx_t;
 
+static uint32_t sys_drv_get_cpu_freq_flash_fallback_read_addr(void)
+{
+	uint32_t flash_size = bk_flash_get_current_total_size();
+
+	if (flash_size >= SYS_DRV_CPU_FREQ_FLASH_READ_SIZE) {
+		return flash_size - SYS_DRV_CPU_FREQ_FLASH_READ_SIZE;
+	}
+
+	return SYS_DRV_CPU_FREQ_FLASH_READ_FALLBACK_ADDR;
+}
+
 static uint32_t sys_drv_get_cpu_freq_flash_read_addr(void)
 {
-	bk_logic_partition_t *partition = NULL;
-
 	if (s_sys_drv_cpu_freq_flash_read_addr != 0) {
 		return s_sys_drv_cpu_freq_flash_read_addr;
 	}
 
-	partition = bk_flash_partition_get_info(BK_PARTITION_EASYFLASH);
-	if ((partition == NULL) ||
-		(partition->partition_length < SYS_DRV_CPU_FREQ_FLASH_READ_SIZE)) {
-		return SYS_DRV_CPU_FREQ_FLASH_READ_FALLBACK_ADDR;
-	}
+#if defined(BK_PARTITION_EASYFLASH)
+	bk_logic_partition_t *partition = bk_flash_partition_get_info(BK_PARTITION_EASYFLASH);
 
-	s_sys_drv_cpu_freq_flash_read_addr = partition->partition_start_addr;
-	return s_sys_drv_cpu_freq_flash_read_addr;
+	if ((partition != NULL) &&
+		(partition->partition_length >= SYS_DRV_CPU_FREQ_FLASH_READ_SIZE)) {
+		s_sys_drv_cpu_freq_flash_read_addr = partition->partition_start_addr;
+		return s_sys_drv_cpu_freq_flash_read_addr;
+	}
+#endif
+
+	return sys_drv_get_cpu_freq_flash_fallback_read_addr();
 }
 
 __IRAM_SEC static bk_err_t sys_drv_switch_cpu_bus_freq_clock_cb(void *arg)
