@@ -78,6 +78,15 @@ uint32_t bk_sys_sw_regs_get_ap_heap_dump(bk_sys_sw_regs_ap_heap_id_t id, ap_heap
 uint32_t bk_sys_sw_regs_get_ap_extra_dump(uint32_t index, ap_extra_dump_info_t *info);
 uint32_t bk_sys_sw_regs_get_hspl_owner(uint8_t res, uint8_t *core, uint32_t *pc);
 uint32_t bk_sys_sw_regs_get_ap_cp_hang_dumping(void);
+/**
+ * @brief Check whether the AP has trapped and owns a long self-dump.
+ *
+ * The AP-boot supervisor must not treat a missing boot-success report as a boot
+ * failure while this is set, or it reboots the AP mid-dump.
+ *
+ * @return Nonzero while the AP is self-dumping.
+ */
+uint32_t bk_sys_sw_regs_get_ap_self_dumping(void);
 uint32_t bk_sys_sw_regs_get_cp_heartbeat_bumped(void);
 /**
  * @brief Read PM info snapshot from shared registers.
@@ -146,6 +155,13 @@ void bk_sys_sw_regs_bump_cp_heartbeat_bumped(void);
  * @param value Nonzero to mark the takeover, 0 to clear.
  */
 void bk_sys_sw_regs_set_cp_ap_dump_taken(uint32_t value);
+
+/**
+ * @brief Clear the AP self-dump flag when the CP's wait budget expires.
+ * @param value 0 to clear; the AP is the only writer that sets it, and it
+ *              normally clears it itself once the dump is complete.
+ */
+void bk_sys_sw_regs_set_ap_self_dumping(uint32_t value);
 /**
  * @brief Publish the address of the CP system heap free counter
  *        (FreeRTOS xFreeBytesRemaining) so AP can read it cross-core.

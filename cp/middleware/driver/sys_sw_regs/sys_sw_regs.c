@@ -441,6 +441,31 @@ void bk_sys_sw_regs_set_cp_ap_dump_taken(uint32_t value)
 #endif
 }
 
+uint32_t bk_sys_sw_regs_get_ap_self_dumping(void)
+{
+#if CONFIG_SUPPORT_CACHEABLE_SRAM
+    __asm volatile ("dsb" ::: "memory");
+    arch_dcache_invd_range((void *)&s_sys_sw_regs.ap_self_dumping, sizeof(s_sys_sw_regs.ap_self_dumping));
+    __asm volatile ("dsb" ::: "memory");
+#endif
+
+    return s_sys_sw_regs.ap_self_dumping;
+}
+
+void bk_sys_sw_regs_set_ap_self_dumping(uint32_t value)
+{
+    /* CP-side writer: escape hatch only. The AP sets the flag on trap entry and
+     * clears it when the dump completes, so the CP clears it solely when its
+     * wait budget expires, for an AP that died mid-dump. The window survives a
+     * warm reset, so a flag left set would otherwise delay every later boot. */
+    s_sys_sw_regs.ap_self_dumping = (value != 0U) ? 1U : 0U;
+    __asm volatile ("dsb" ::: "memory");
+#if CONFIG_SUPPORT_CACHEABLE_SRAM
+    flush_dcache((void *)&s_sys_sw_regs.ap_self_dumping, sizeof(s_sys_sw_regs.ap_self_dumping));
+    __asm volatile ("dsb" ::: "memory");
+#endif
+}
+
 uint32_t bk_sys_sw_regs_get_cp_heartbeat_bumped(void)
 {
 #if CONFIG_SUPPORT_CACHEABLE_SRAM
