@@ -301,6 +301,13 @@ static void coredump_prompt_info(void)
 static void coredump_notify_cp_begin(void)
 {
 #if (CONFIG_CPU_CNT > 1)
+    /* Publish the trap in shared memory before the IPC, and do not gate it on
+     * the IPC result: the CP's AP-boot supervisor reboots the AP when it sees no
+     * boot-success report within its window, which is orders of magnitude
+     * shorter than a full memory dump. That reboot must be suppressed even when
+     * the mailbox cannot deliver the indication below. */
+    bk_sys_sw_regs_set_ap_self_dumping(1);
+
     if (ipc_send_trap_handle_begin() != BK_OK) {
         BK_DUMP_OUT("warning: notify CP trap begin failed\r\n");
     }
@@ -643,6 +650,14 @@ static void bk_exception_dump_main(bk_exception_t *self)
     bk_dump_peri_regs();
     bk_coredump_writer_deinit();
     coredump_feed_watchdogs();
+#if (CONFIG_CPU_CNT > 1)
+    /* Release the CP's AP-boot supervisor: the dump is complete and the reset
+     * below is ours, so booting the AP from here on destroys nothing. This is
+     * the only clear on the AP side, which keeps the flag single-writer: the CP
+     * only reads it, apart from a timeout escape hatch for an AP that dies
+     * mid-dump and never reaches this line. */
+    bk_sys_sw_regs_set_ap_self_dumping(0);
+#endif
     bk_reboot_ex(self->reset_reason);      /* AP is the sole reset issuer here */
 #else
     /* Release (CONFIG_DUMP_ENABLE=n): header only, no memory image, no CP
