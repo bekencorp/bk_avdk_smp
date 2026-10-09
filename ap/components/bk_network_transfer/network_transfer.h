@@ -366,12 +366,6 @@ typedef bk_err_t (*ntwk_trans_unfragment_send_cb_t)(frame_buffer_t *data);
  * @return bk_err_t Error code, BK_OK on success, others on failure
  */
 typedef bk_err_t (*ntwk_trans_unfragment_free_cb_t)(frame_buffer_t *data);
-/**
- * @brief Network Transfer Unfragmentation receive gate callback type
- * @param chan Channel type the packet arrived on
- * @return true to keep reassembling, false to drop the packet immediately
- */
-typedef bool (*ntwk_trans_unfragment_rx_gate_cb_t)(chan_type_t chan);
 
 /**
  * @brief Network transfer context structure
@@ -716,22 +710,6 @@ bk_err_t ntwk_trans_register_unfragment_send_cb(chan_type_t chan, ntwk_trans_unf
  * @return bk_err_t BK_OK on success, error code on failure
  */
 bk_err_t ntwk_trans_register_unfragment_free_cb(chan_type_t chan, ntwk_trans_unfragment_free_cb_t cb);
-
-/**
- * @brief Register unfragmented data receive gate callback
- *
- * Register a callback that is queried for every incoming fragment before it is
- * copied into the reassembly pool. Returning false drops the packet right away,
- * which keeps the pool and the unfragment task idle while the downstream frame
- * sink is closed (for example, while a cast session is being torn down).
- *
- * Passing NULL clears the gate, so every packet is accepted again.
- *
- * @param chan Channel type (CHAN_CTRL/CHAN_VIDEO/CHAN_AUDIO)
- * @param cb Gate callback function pointer (signature: bool (*)(chan_type_t chan))
- * @return bk_err_t BK_OK on success, error code on failure
- */
-bk_err_t ntwk_trans_register_unfragment_rx_gate_cb(chan_type_t chan, ntwk_trans_unfragment_rx_gate_cb_t cb);
 
 #if CONFIG_NTWK_CLIENT_SERVICE_ENABLE
 /**

@@ -1096,17 +1096,6 @@ bk_err_t ntwk_trans_register_unfragment_free_cb(chan_type_t chan, ntwk_trans_unf
     return ntwk_unfragment_register_free_cb(chan, cb);
 }
 
-bk_err_t ntwk_trans_register_unfragment_rx_gate_cb(chan_type_t chan, ntwk_trans_unfragment_rx_gate_cb_t cb)
-{
-    if (s_ntwk_trans_ctxt == NULL || !s_ntwk_trans_ctxt->initialized)
-    {
-        LOGE("%s, context not initialized\n", __func__);
-        return BK_FAIL;
-    }
-
-    return ntwk_unfragment_register_rx_gate_cb(chan, cb);
-}
-
 #if CONFIG_NTWK_CLIENT_SERVICE_ENABLE
 bk_err_t ntwk_trans_set_server_net_info(ntwk_server_net_info_t *net_info)
 {
