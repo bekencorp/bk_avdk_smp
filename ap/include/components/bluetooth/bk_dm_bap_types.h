@@ -39,6 +39,8 @@ extern "C" {
 #define BK_GAP_DEFAULT_CONTEXTS           (BK_GAP_CONTEXT_UNSPECIFIED | BK_GAP_CONTEXT_MEDIA)
 
 #define BK_GAP_DEFAULT_ASE_COUNT          0x01U
+/* ASEs of one stream group, one audio channel each */
+#define BK_GAP_MAX_ASE                    0x04U
 /* Backward-compatible alias kept for older demo code. */
 #define BK_GAP_DEFAULT_AES_COUNT          BK_GAP_DEFAULT_ASE_COUNT
 
@@ -166,6 +168,7 @@ typedef enum {
     BK_BAP_SINK_DISABLE_CNF,
     BK_BAP_SINK_ENABLE_CNF,
     BK_BAP_SINK_DISSOCIATE_CNF,
+    BK_BAP_SINK_DISSOCIATE_IND,
 } bk_bap_sink_cb_evt_t;
 
 
@@ -176,6 +179,25 @@ typedef struct
     uint16_t octects_per_codec_frame;
     uint32_t audio_channel_allocation;
 } bk_bap_codec_spec_config_t;
+
+/* CIS arrangement within a CIG, see the HCI Packing parameter */
+#define BK_BAP_QOS_PACKING_SEQUENTIAL         0x00U
+#define BK_BAP_QOS_PACKING_INTERLEAVED        0x01U
+
+/*
+ * QoS the initiator configures for a stream group. The values an acceptor
+ * exposes in its ASE are only preferences, so the initiator supplies its own -
+ * normally the BAP preset that goes with the codec configuration.
+ */
+typedef struct
+{
+    uint32_t presentation_delay;    /*!< us */
+    uint16_t max_transport_latency; /*!< ms */
+    uint8_t framing;
+    uint8_t phy;
+    uint8_t retransmission_number;
+    uint8_t packing;                /*!< BK_BAP_QOS_PACKING_xxx */
+} bk_bap_qos_cfg_t;
 
 typedef struct
 {
@@ -293,6 +315,8 @@ typedef struct
     uint8_t ase_role;
     uint8_t ase_state;
     uint16_t acl_handle;
+    /* Set on the last ASE, so the application knows the discovery is complete */
+    uint8_t last;
 } bk_bap_unicast_ase_discovered_t;
 
 typedef struct
@@ -312,11 +336,16 @@ typedef struct
     uint16_t local_cis_handle;
 } bk_bap_unicast_iso_path_t;
 
+/* ASE state values as defined by ASCS */
 typedef enum
 {
+    BK_BAP_UNICAST_STATE_IDLE             = 0x00,
     BK_BAP_UNICAST_STATE_CODEC_CONFIGURED = 0x01,
     BK_BAP_UNICAST_STATE_QOS_CONFIGURED   = 0x02,
     BK_BAP_UNICAST_STATE_ENABLING         = 0x03,
+    BK_BAP_UNICAST_STATE_STREAMING        = 0x04,
+    BK_BAP_UNICAST_STATE_DISABLING        = 0x05,
+    BK_BAP_UNICAST_STATE_RELEASING        = 0x06,
 } bk_bap_unicast_state_evt_t;
 
 typedef struct
@@ -342,6 +371,7 @@ typedef enum
     BK_BAP_UNICAST_READY_GA_SETUP         = 0x02,
     BK_BAP_UNICAST_READY_CAPABILITIES     = 0x03,
     BK_BAP_UNICAST_READY_ACL_DISCONNECTED = 0x04,
+    BK_BAP_UNICAST_READY_ENCRYPTED        = 0x05,
 } bk_bap_unicast_ready_evt_t;
 
 typedef struct
@@ -351,6 +381,7 @@ typedef struct
     void (* config_cb)(uint8_t *data, uint16_t length);
     void (* big_info_cb)(bk_bap_source_big_info_t *bk_bap_source_big_info);
     void (* lc3_data_cb)(bk_bap_iso_header_t *header, uint8_t *data, uint32_t length);
+    void (* broadcast_enable_cb)(bk_bap_boradcast_paramters_t *bk_bap_boradcast_paramters);
     void (* broadcast_event_cb)(bk_bap_sink_cb_evt_t event, uint32_t status);
     void (* unicast_ase_discovered_cb)(bk_bap_unicast_ase_discovered_t *info);
     void (* unicast_cis_request_cb)(bk_bap_unicast_cis_info_t *info);
@@ -366,6 +397,7 @@ typedef struct
     void (* end_announcement_cb)(uint32_t status, void *paramters);
     void (* broadcast_start_cb)(bk_bap_boradcast_paramters_t *bk_bap_boradcast_paramters);
     void (* broadcast_suspend_cb)(uint8_t handle, uint8_t reason);
+    void (* iso_tx_complete_cb)(uint16_t handle, uint16_t num_completed);
     void (* unicast_ase_discovered_cb)(bk_bap_unicast_ase_discovered_t *info);
     void (* unicast_cis_handle_assigned_cb)(bk_bap_unicast_cis_info_t *info);
     void (* unicast_cis_established_cb)(bk_bap_unicast_cis_info_t *info);
