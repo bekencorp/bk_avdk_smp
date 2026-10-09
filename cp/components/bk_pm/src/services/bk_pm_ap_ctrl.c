@@ -63,6 +63,13 @@ typedef struct ap_ctrl_callback_node {
 
 #define PM_BOOT_AP_WAITING_TIEM             (1800) // 1.8s
 #define PM_BOOT_AP_TRY_COUNT                (3)
+/* An AP that traps during its own boot can never report boot success, and its
+ * self-dump streams the whole memory image over the shared UART, which takes
+ * minutes against the 1.8s window above. A full 346-region dump measured 5m56s,
+ * so this keeps roughly 1.7x margin. The wait clears the flag on exit, so the
+ * budget is spent at most once per trap and the remaining boot attempts favour
+ * recovery over forensics. */
+#define PM_BOOT_AP_DUMP_WAITING_TIEM        (600000) // 10min
 #define PM_AP_CTRL_MUTEX_WAIT_WARN_MS       (500)
 
 #if CONFIG_PM_AP_FAST_BOOT_ENABLE
@@ -351,6 +358,7 @@ static void pm_check_ap_hspl_leak(void)
 
 /*===================FUNCTION  DECLARATION  START=============*/
 extern void bk_wdt_force_reboot(void);
+extern void bk_wdt_force_feed(void);
 
 /*==================FUNCTION  DECLARATION  END================*/
 
@@ -604,6 +612,45 @@ bool bk_pm_cp1_recovery_all_state_get(void)
 	}
 	return cp1_all_module_recovery;
 }
+/* Block while the AP streams a trap dump over the shared UART, so the caller
+ * does not reset the AP out from under it. Bounded by the dump budget, and the
+ * flag is force-cleared on expiry so an AP that died mid-dump delays one boot
+ * rather than every boot. */
+static void pm_wait_ap_trap_dump_done(void)
+{
+	uint64_t previous_tick;
+	uint64_t current_tick;
+
+	if(bk_sys_sw_regs_get_ap_self_dumping() == 0)
+	{
+		return;
+	}
+
+	LOGI("AP trap dump in progress, defer AP boot up to %u ms\r\n",
+		 (uint32_t)PM_BOOT_AP_DUMP_WAITING_TIEM);
+
+	previous_tick = bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
+	current_tick = previous_tick;
+	while((current_tick - previous_tick) < (PM_BOOT_AP_DUMP_WAITING_TIEM*AON_RTC_MS_TICK_CNT))
+	{
+		if(bk_sys_sw_regs_get_ap_self_dumping() == 0)
+		{
+			break;
+		}
+		#if CONFIG_SUPPORT_WWDT
+		bk_wwdt_feed();
+		#endif
+		#if CONFIG_WDT_EN
+		/* AON WDT is always on and its period is far shorter than this wait. */
+		bk_wdt_force_feed();
+		#endif
+		current_tick = bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
+	}
+
+	bk_sys_sw_regs_set_ap_self_dumping(0);
+	LOGI("AP trap dump wait done\r\n");
+}
+
 static void pm_module_bootup_cpu1(pm_power_module_name_e module)
 {
 #if CONFIG_PM_AP_FAST_BOOT_ENABLE
@@ -613,6 +660,13 @@ static void pm_module_bootup_cpu1(pm_power_module_name_e module)
 	if(module == POWER_SUB_DOMAIN_NAME_AP_CPU)
 	{
 boot_ap:
+		/* The AP is released from reset long before this function runs, so it can
+		 * already be dumping a boot trap by the time we get here. The power-on
+		 * sequence below re-inits AP SRAM and restarts the core, which truncates
+		 * that dump, so wait it out first. The AP clears the flag when it is done
+		 * and about to reset itself; the bounded wait plus the clear afterwards
+		 * keep an AP that died mid-dump from costing more than one boot. */
+		pm_wait_ap_trap_dump_done();
 		#if CONFIG_PM_AP_POWERDOWN_WHEN_LV
 		bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_AP, 0, 0);
 		bk_pm_module_vote_cpu_freq(PM_DEV_ID_AP, CONFIG_PM_AP_VOTE_CP_CPU_FREQ_DEFAULT);
@@ -749,6 +803,10 @@ boot_ap:
 			}
 			if(s_pm_cp1_boot_try_count == PM_BOOT_AP_TRY_COUNT)
 			{
+				/* Unlike the retry above this does not pass through boot_ap, so
+				 * it needs its own guard to keep the whole-chip reset from
+				 * truncating a dump the AP is still streaming. */
+				pm_wait_ap_trap_dump_done();
 				#if CONFIG_WDT_EN
 				bk_wdt_force_reboot();//try 3 times, if fail ,reboot.
 				#endif
