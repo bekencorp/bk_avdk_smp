@@ -154,7 +154,8 @@ typedef enum
 {
     VIDEO_PLAYER_EVT_NONE = 0,
     VIDEO_PLAYER_EVT_FINISHED = 1,
-    VIDEO_PLAYER_EVT_EXIT = 2,
+    VIDEO_PLAYER_EVT_ERROR = 2,
+    VIDEO_PLAYER_EVT_EXIT = 3,
 } video_player_evt_type_t;
 
 typedef struct
@@ -163,6 +164,7 @@ typedef struct
     // Heap allocated by producer (optional), must be freed by consumer thread.
     // NULL means "no file path".
     char *file_path;
+    avdk_err_t error;
 } video_player_evt_msg_t;
 
 static void video_player_event_thread_entry(beken_thread_arg_t arg)
@@ -199,6 +201,10 @@ static void video_player_event_thread_entry(beken_thread_arg_t arg)
         {
             controller->config.playback_finished_cb(controller->config.playback_finished_user_data,
                                                     file_path);
+        }
+        else if (msg.type == VIDEO_PLAYER_EVT_ERROR && controller->config.error_cb != NULL)
+        {
+            controller->config.error_cb(controller->config.error_user_data, msg.error);
         }
 
         if (file_path != NULL)
@@ -248,6 +254,25 @@ static void video_player_post_finished_event(private_video_player_ctlr_t *contro
     }
 }
 
+void video_player_post_error_event(private_video_player_ctlr_t *controller, avdk_err_t error)
+{
+    if (controller == NULL || controller->config.error_cb == NULL ||
+        controller->event_thread == NULL)
+    {
+        return;
+    }
+
+    video_player_evt_msg_t msg;
+    os_memset(&msg, 0, sizeof(msg));
+    msg.type = VIDEO_PLAYER_EVT_ERROR;
+    msg.error = error;
+
+    if (rtos_push_to_queue(&controller->event_queue, &msg, BEKEN_NO_WAIT) != kNoErr)
+    {
+        LOGW("%s: event queue full, drop error=%d\n", __func__, error);
+    }
+}
+
 static void video_player_event_notify_init(private_video_player_ctlr_t *controller)
 {
     if (controller == NULL)
@@ -259,6 +284,7 @@ static void video_player_event_notify_init(private_video_player_ctlr_t *controll
     // - playback_finished_cb delivery
     // - internal async tasks (e.g., async pixel conversion completion)
     if (controller->config.playback_finished_cb == NULL &&
+        controller->config.error_cb == NULL &&
         controller->config.video.decode_complete_cb == NULL)
     {
         return;

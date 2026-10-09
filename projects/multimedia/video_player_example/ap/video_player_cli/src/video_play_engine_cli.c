@@ -62,6 +62,44 @@ static bool s_video_player_core_started = false;
 static bool s_video_player_core_opened = false;
 static bk_display_ctlr_handle_t s_lcd_display_handle = NULL;
 static audio_player_device_handle_t s_audio_player_handle = NULL;
+static beken_thread_t s_video_player_timeout_stop_thread = NULL;
+
+static void video_play_engine_timeout_stop_thread(void *arg)
+{
+    (void)arg;
+
+    /* Let the vp_evt callback return before closing its controller/event thread. */
+    rtos_delay_milliseconds(1);
+    video_play_engine_runtime_shutdown();
+    LOGW("%s: playback runtime destroyed after decode timeout\n", __func__);
+
+    s_video_player_timeout_stop_thread = NULL;
+    rtos_delete_thread(NULL);
+}
+
+static void video_play_engine_error_cb(void *user_data, avdk_err_t error)
+{
+    (void)user_data;
+
+    LOGE("%s: asynchronous player error=%d\n", __func__, error);
+    if (error == AVDK_ERR_TIMEOUT &&
+        s_video_player_core_handle != NULL &&
+        s_video_player_core_started &&
+        s_video_player_timeout_stop_thread == NULL)
+    {
+        bk_err_t ret = rtos_create_thread(&s_video_player_timeout_stop_thread,
+                                          BEKEN_DEFAULT_WORKER_PRIORITY,
+                                          "vp_tmo_stop",
+                                          (beken_thread_function_t)video_play_engine_timeout_stop_thread,
+                                          4096,
+                                          NULL);
+        if (ret != BK_OK)
+        {
+            s_video_player_timeout_stop_thread = NULL;
+            LOGE("%s: create timeout stop thread failed, ret=%d\n", __func__, ret);
+        }
+    }
+}
 
 typedef enum
 {
@@ -873,6 +911,8 @@ void cli_video_play_engine_cmd(char *pcWriteBuffer, int xWriteBufferLen, int arg
         s_play_user_ctx.audio_volume = 100;
         s_play_user_ctx.audio_muted = false;
         cfg.user_data = &s_play_user_ctx;
+        cfg.error_cb = video_play_engine_error_cb;
+        cfg.error_user_data = NULL;
 
         // Volume/mute control callbacks must be provided at init time (no dynamic registration).
         cfg.audio.audio_set_volume_cb = video_play_audio_set_volume_cb;

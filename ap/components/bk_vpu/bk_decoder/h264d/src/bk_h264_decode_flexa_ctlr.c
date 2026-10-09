@@ -282,9 +282,10 @@ static avdk_err_t h264_decode_callback(void *param)
 	ret = vcdec_h264_decode_frame(ctrl->vcdec_handle, &ctrl->decode_config);
 	if (ret != VCDEC_FRAME_READY && ret != VCDEC_OK) {
 		LOGE("%s %d vcdec_h264_decode_frame failed: %d\r\n", __func__, __LINE__, (int)ret);
-		ctrl->decode_result = AVDK_ERR_GENERIC;
+		ctrl->decode_result = (uint32_t)((ret == VCDEC_HW_TIMEOUT) ?
+			AVDK_ERR_TIMEOUT : AVDK_ERR_GENERIC);
 		DECODE_FRAME_END;
-		return AVDK_ERR_GENERIC;
+		return (avdk_err_t)ctrl->decode_result;
 	}
 	DECODE_FRAME_END;
 	ctrl->decode_result = BK_OK;
@@ -385,7 +386,7 @@ static avdk_err_t h264_decode_ctlr_decode_frame(bk_h264_decode_ctlr_handle_t han
 			}
 		}
 		h264_decode_notify_flexa_bonds_error(ctrl);
-		return AVDK_ERR_GENERIC;
+		return (avdk_err_t)ctrl->decode_result;
 	}
 
 	for (uint32_t i = 0; i < BK_H264_DECODE_RD_PORT_MAX; i++) {

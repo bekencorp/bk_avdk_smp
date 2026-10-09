@@ -257,6 +257,8 @@ typedef void (*video_player_audio_decode_complete_cb_t)(void *user_data,
 typedef void (*video_player_video_decode_complete_cb_t)(void *user_data,
                                                         const video_player_video_frame_meta_t *meta,
                                                         video_player_buffer_t *buffer);
+// Asynchronous player error callback. Called outside the decode thread.
+typedef void (*video_player_error_cb_t)(void *user_data, avdk_err_t error);
 
 // Audio output control callbacks
 // These callbacks are used by controller to notify the upper layer to apply actual audio output control.
@@ -496,6 +498,10 @@ typedef struct bk_video_player_config
     // This callback is intended for app layer to decide what to do after internal playback completes.
     video_player_playback_finished_cb_t playback_finished_cb;
     void *playback_finished_user_data;
+
+    // Asynchronous decoder/player error notification (optional).
+    video_player_error_cb_t error_cb;
+    void *error_user_data;
 } bk_video_player_config_t;
 
 // -----------------------------------------------------------------------------

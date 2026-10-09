@@ -695,6 +695,12 @@ static void bk_video_player_video_decode_thread(void *arg)
             controller->video_parse_thread_running = false;
             controller->module_status.status = VIDEO_PLAYER_STATUS_FINISHED;
         }
+        else if (ret == AVDK_ERR_TIMEOUT &&
+                 controller->error_notified_session_id != iter_session_id)
+        {
+            controller->error_notified_session_id = iter_session_id;
+            video_player_post_error_event(controller, ret);
+        }
 
         // Always release encoded packet buffer after decode (or retry) completes.
         if (controller->config.video.packet_buffer_free_cb != NULL && in_buffer_node->buffer.data != NULL)

@@ -174,6 +174,7 @@ typedef struct private_video_player_ctlr_s
     bool is_paused;
     uint64_t pause_start_time_ms;     // System time (ms) when pause started, used to calculate pause duration on resume
     uint32_t eof_notified_session_id;      // The play_session_id that has already posted FINISHED event (0 = none)
+    uint32_t error_notified_session_id;    // The play_session_id that has already posted an error event
     bool video_eof_reached;                // Video EOF flag
     bool audio_eof_reached;                // Audio EOF flag
     beken_semaphore_t stop_sem;
@@ -287,6 +288,11 @@ static inline void video_player_get_output_geometry(const private_video_player_c
  * @return avdk_err_t AVDK_ERR_OK on success, error code on failure
  */
 avdk_err_t bk_video_player_handle_play_mode(private_video_player_ctlr_t *controller);
+
+/**
+ * @brief Post an asynchronous player error to the application callback
+ */
+void video_player_post_error_event(private_video_player_ctlr_t *controller, avdk_err_t error);
 
 /**
  * @brief Create new video player controller
