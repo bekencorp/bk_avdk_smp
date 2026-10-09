@@ -50,7 +50,7 @@ typedef struct {
 
 static ntp_packet packet = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 
-static void ntp_error(char* msg)
+static void ntp_error(char *msg)
 {
     BK_LOGD(NULL, "\033[31;22m[E/NTP]: ERROR %s\033[0m\n", msg); // Print the error message to stderr.
 }
@@ -100,7 +100,7 @@ time_t ntp_get_time(char *host_name, uint32_t *frac_val)
     server = gethostbyname(host_name); // Convert URL to IP.
 
     if (server == NULL) {
-        ntp_error("no such host");
+        //ntp_error("no such host");
         goto __exit;
     }
 
