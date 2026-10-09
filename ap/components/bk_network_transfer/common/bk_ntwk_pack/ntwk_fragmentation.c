@@ -17,6 +17,10 @@
 
 #define NTWK_FRAG_HEADER_SIZE  (sizeof(ntwk_fragm_head_t))
 
+/* Rate limit for the rx-gate drop log: a closed gate can last for a whole
+ * session, and one line per packet starves the unfragment task. */
+#define NTWK_RX_GATE_DROP_LOG_EVERY  512U
+
 static fragment_cfg_t *s_fragment_cfg_mgr[NTWK_TRANS_CHAN_MAX] = {NULL};
 static unfragment_cfg_t *s_unfragment_cfg_mgr[NTWK_TRANS_CHAN_MAX] = {NULL};
 static ntwk_fragment_abort_cb_t s_fragment_abort_cb[NTWK_TRANS_CHAN_MAX] = {NULL};
@@ -638,6 +642,8 @@ bk_err_t ntwk_unfragment_stop(chan_type_t chan_type)
     s_unfragment_cfg_mgr[chan_type]->malloc_cb = NULL;
     s_unfragment_cfg_mgr[chan_type]->send_cb = NULL;
     s_unfragment_cfg_mgr[chan_type]->free_cb = NULL;
+    s_unfragment_cfg_mgr[chan_type]->rx_gate_cb = NULL;
+    s_unfragment_cfg_mgr[chan_type]->rx_gate_drop_cnt = 0;
     s_unfragment_cfg_mgr[chan_type]->frame_size = 0;
 
     s_unfragment_cfg_mgr[chan_type]->initialized = false;
@@ -675,6 +681,21 @@ bk_err_t ntwk_unfragment(uint32_t chan_type, uint8_t *data, uint32_t length)
         LOGE("unfr uninit type %d\n", chan_type);
         return -1;
     }
+
+    /* Consumer gate: while the downstream sink is closed no frame buffer can be
+     * obtained, so reassembling is pointless. Drop here instead of burning a pool
+     * slot and a malloc failure per packet. */
+    if ((config->rx_gate_cb != NULL) && (config->rx_gate_cb((chan_type_t)chan_type) == false))
+    {
+        config->rx_gate_drop_cnt++;
+        if ((config->rx_gate_drop_cnt % NTWK_RX_GATE_DROP_LOG_EVERY) == 1U)
+        {
+            LOGW("%s, rx gate closed, dropped %u packets (chan %u)\n",
+                 __func__, config->rx_gate_drop_cnt, chan_type);
+        }
+        return BK_OK;
+    }
+    config->rx_gate_drop_cnt = 0;
 
     data_pool_t *pool = &config->pool;
 
@@ -748,6 +769,27 @@ bk_err_t ntwk_unfragment_register_free_cb(chan_type_t chan_type, unfragment_data
     }
 
     s_unfragment_cfg_mgr[chan_type]->free_cb = cb;
+
+    return BK_OK;
+}
+
+bk_err_t ntwk_unfragment_register_rx_gate_cb(chan_type_t chan_type, unfragment_rx_gate_cb_t cb)
+{
+    if (chan_type >= NTWK_TRANS_CHAN_MAX)
+    {
+        LOGE("%s: invalid chan_type %d\n", __func__, chan_type);
+        return BK_ERR_PARAM;
+    }
+
+    if (s_unfragment_cfg_mgr[chan_type] == NULL)
+    {
+        LOGE("%s: not initialized\n", __func__);
+        return BK_FAIL;
+    }
+
+    /* NULL is allowed and clears the gate (accept everything). */
+    s_unfragment_cfg_mgr[chan_type]->rx_gate_cb = cb;
+    s_unfragment_cfg_mgr[chan_type]->rx_gate_drop_cnt = 0;
 
     return BK_OK;
 }

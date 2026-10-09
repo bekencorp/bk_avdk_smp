@@ -83,6 +83,8 @@ typedef struct
 typedef frame_buffer_t *(*unfragment_data_malloc_cb_t)(uint32_t size);
 typedef bk_err_t (*unfragment_data_send_cb_t)(frame_buffer_t *data);
 typedef bk_err_t (*unfragment_data_free_cb_t)(frame_buffer_t *data);
+/** Return false to drop the incoming packet before it enters the reassembly pool. */
+typedef bool (*unfragment_rx_gate_cb_t)(chan_type_t chan_type);
 
 typedef struct
 {
@@ -94,8 +96,10 @@ typedef struct
     unfragment_data_malloc_cb_t malloc_cb;
     unfragment_data_send_cb_t send_cb;
     unfragment_data_free_cb_t free_cb;
+    unfragment_rx_gate_cb_t rx_gate_cb;
     uint32_t frame_size;
     uint32_t frame_cnt;
+    uint32_t rx_gate_drop_cnt;
 	bool initialized;
 } unfragment_cfg_t;
 
@@ -122,6 +126,7 @@ bk_err_t ntwk_unfragment_stop(chan_type_t chan_type);
 bk_err_t ntwk_unfragment_register_malloc_cb(chan_type_t chan_type, unfragment_data_malloc_cb_t cb);
 bk_err_t ntwk_unfragment_register_send_cb(chan_type_t chan_type, unfragment_data_send_cb_t cb);
 bk_err_t ntwk_unfragment_register_free_cb(chan_type_t chan_type, unfragment_data_free_cb_t cb);
+bk_err_t ntwk_unfragment_register_rx_gate_cb(chan_type_t chan_type, unfragment_rx_gate_cb_t cb);
 
 bk_err_t ntwk_fragmentation_init(chan_type_t chan_type);
 bk_err_t ntwk_fragmentation_deinit(chan_type_t chan_type);
