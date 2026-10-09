@@ -161,6 +161,19 @@ void bk_sys_sw_regs_bump_cp_heartbeat_bumped(void);
 void bk_sys_sw_regs_set_cp_ap_dump_taken(uint32_t value);
 
 /**
+ * @brief Announce that the AP has trapped and owns a long self-dump.
+ *
+ * Read by the CP's AP-boot supervisor, which must not treat a missing
+ * boot-success report as a boot failure while this is set. Published through
+ * shared memory because the mailbox is unreliable at this point.
+ *
+ * @param value Nonzero on trap entry, zero once the dump is complete and the
+ *              AP is about to reset itself. The AP is the only writer except
+ *              for the CP's timeout escape hatch.
+ */
+void bk_sys_sw_regs_set_ap_self_dumping(uint32_t value);
+
+/**
  * @brief Get the SSPL list.
  * @return Pointer to the SSPL list.
  */

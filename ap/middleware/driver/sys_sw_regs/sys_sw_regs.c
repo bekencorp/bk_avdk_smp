@@ -444,6 +444,21 @@ void bk_sys_sw_regs_set_cp_ap_dump_taken(uint32_t value)
 #endif
 }
 
+void bk_sys_sw_regs_set_ap_self_dumping(uint32_t value)
+{
+    /* Announces the trap through shared memory rather than the mailbox, because
+     * the CP's AP-boot supervisor must see it even when the mailbox cannot carry
+     * it: the AP power-on sequence resets the mailbox bank, and the CP masks most
+     * of its interrupts as soon as it handles IPC_AP_TRAP_HANDLE_BEGIN. The AP
+     * clears it once the dump is complete, just before resetting itself. */
+    s_sys_sw_regs.ap_self_dumping = (value != 0U) ? 1U : 0U;
+    __asm volatile ("dsb" ::: "memory");
+#if CONFIG_SUPPORT_CACHEABLE_SRAM
+    flush_dcache((void *)&s_sys_sw_regs.ap_self_dumping, sizeof(s_sys_sw_regs.ap_self_dumping));
+    __asm volatile ("dsb" ::: "memory");
+#endif
+}
+
 uint32_t bk_sys_sw_regs_get_cp_heartbeat_bumped(void)
 {
 #if CONFIG_SUPPORT_CACHEABLE_SRAM
