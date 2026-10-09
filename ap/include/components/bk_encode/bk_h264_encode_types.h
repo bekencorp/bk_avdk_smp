@@ -41,6 +41,8 @@ typedef enum {
     BK_H264_ENCODE_IOCTL_SET_RATE_CTRL,      // arg: bk_h264_encode_rate_ctrl_t*
     BK_H264_ENCODE_IOCTL_GET_RATE_CTRL,      // arg: bk_h264_encode_rate_ctrl_t*
     BK_H264_ENCODE_IOCTL_SET_OSD,            // arg: bk_h264_encode_osd_t*
+    BK_H264_ENCODE_IOCTL_SET_OSD_BITMAP_BOXES,   // arg: bk_h264_encode_osd_bitmap_boxes_t*
+    BK_H264_ENCODE_IOCTL_SET_OSD_ARGB8888_BOXES, // arg: bk_h264_encode_osd_argb8888_boxes_t*
     BK_H264_ENCODE_IOCTL_SET_INPUT_BUF,      // frame mode: set next-frame input buffer, arg: bk_h264_encode_input_t*
     BK_H264_ENCODE_IOCTL_GET_STREAM_INFO,    // frame mode: read last-frame stream stats, arg: bk_h264_encode_stream_info_t*
     BK_H264_ENCODE_IOCTL_SET_FRAME_RATE,     // arg: uint32_t* (fps)
@@ -102,6 +104,69 @@ typedef struct
     bk_h264_encode_osd_buffer_free_cb_t buffer_free;
     void *free_arg;
 } bk_h264_encode_osd_t;
+
+/**
+ * @brief One hollow rectangle for mono-color BITMAP OSD overlay.
+ *
+ * Only one color is supported per call: @p color of boxes[0] is converted to
+ * BITMAP foreground YUV and applied to all boxes in the batch. Per-box colors
+ * after the first entry are ignored (a warning may be logged).
+ */
+typedef struct
+{
+    uint32_t x;         /**< Top-left X in frame coordinates. */
+    uint32_t y;         /**< Top-left Y in frame coordinates. */
+    uint32_t width;     /**< Box width in pixels. */
+    uint32_t height;    /**< Box height in pixels. */
+    uint32_t thickness; /**< Border thickness in pixels (min 1). */
+    uint32_t color;     /**< RGB888 0x00RRGGBB; only boxes[0].color is used. */
+} bk_h264_encode_osd_bitmap_box_t;
+
+/**
+ * @brief Batch hollow-rectangle request rendered as a mono-color BITMAP OSD.
+ *
+ * Encoder builds one BITMAP buffer covering the union of all boxes and installs
+ * it on @p index. Only one color is supported (from boxes[0].color). Pass
+ * @p count == 0 or @p boxes == NULL to clear the slot. On success the encoder
+ * owns the buffer; later encode frames overlay it automatically.
+ */
+typedef struct
+{
+    uint32_t index;                                /**< Overlay slot index, 0..7. */
+    uint8_t alpha;                                 /**< Global alpha; 0 means 255. */
+    uint32_t count;                                /**< Number of boxes in @p boxes. */
+    const bk_h264_encode_osd_bitmap_box_t *boxes;  /**< Box array; NULL when clearing. */
+} bk_h264_encode_osd_bitmap_boxes_t;
+
+/**
+ * @brief One hollow rectangle for multi-color ARGB8888 OSD overlay.
+ *
+ * Each box keeps its own @p color (including per-pixel alpha). A==0 is treated
+ * as fully opaque (0xFF) for convenience when callers pass RGB888-only values.
+ */
+typedef struct
+{
+    uint32_t x;         /**< Top-left X in frame coordinates. */
+    uint32_t y;         /**< Top-left Y in frame coordinates. */
+    uint32_t width;     /**< Box width in pixels. */
+    uint32_t height;    /**< Box height in pixels. */
+    uint32_t thickness; /**< Border thickness in pixels (min 1). */
+    uint32_t color;     /**< ARGB8888 0xAARRGGBB; A==0 means opaque. */
+} bk_h264_encode_osd_argb8888_box_t;
+
+/**
+ * @brief Batch hollow-rectangle request rendered as an ARGB8888 OSD.
+ *
+ * Encoder builds one ARGB8888 buffer covering the union of all boxes. Non-border
+ * pixels stay transparent (A=0). Each box may use a different color/alpha.
+ * Pass @p count == 0 or @p boxes == NULL to clear the slot.
+ */
+typedef struct
+{
+    uint32_t index;                                  /**< Overlay slot index, 0..7. */
+    uint32_t count;                                  /**< Number of boxes in @p boxes. */
+    const bk_h264_encode_osd_argb8888_box_t *boxes;  /**< Box array; NULL when clearing. */
+} bk_h264_encode_osd_argb8888_boxes_t;
 
 typedef enum
 {

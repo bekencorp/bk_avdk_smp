@@ -52,6 +52,16 @@ avdk_err_t h264_encode_set_osd_common(h264_enc_param_t *enc_param,
                                       h264_encode_osd_slot_state_t *slots,
                                       bk_h264_encode_osd_t *osd);
 
+avdk_err_t h264_encode_set_osd_bitmap_boxes_common(h264_enc_param_t *enc_param,
+                                                   bool encoder_inited,
+                                                   h264_encode_osd_slot_state_t *slots,
+                                                   bk_h264_encode_osd_bitmap_boxes_t *boxes);
+
+avdk_err_t h264_encode_set_osd_argb8888_boxes_common(h264_enc_param_t *enc_param,
+                                                     bool encoder_inited,
+                                                     h264_encode_osd_slot_state_t *slots,
+                                                     bk_h264_encode_osd_argb8888_boxes_t *boxes);
+
 void h264_encode_osd_sync_to_vcenc(h264_enc_param_t *enc_param,
                                    h264_encode_osd_slot_state_t *slots);
 

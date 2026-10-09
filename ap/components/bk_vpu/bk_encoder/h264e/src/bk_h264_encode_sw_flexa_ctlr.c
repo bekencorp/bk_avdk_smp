@@ -754,6 +754,14 @@ static avdk_err_t h264_encode_ctlr_ioctl(bk_h264_encode_ctlr_handle_t handle, ui
         case BK_H264_ENCODE_IOCTL_SET_OSD:
             return h264_encode_set_osd_common(&control->enc_param, control->encoder_inited,
                                               control->osd_slots, (bk_h264_encode_osd_t *)arg);
+        case BK_H264_ENCODE_IOCTL_SET_OSD_BITMAP_BOXES:
+            return h264_encode_set_osd_bitmap_boxes_common(&control->enc_param, control->encoder_inited,
+                                                           control->osd_slots,
+                                                           (bk_h264_encode_osd_bitmap_boxes_t *)arg);
+        case BK_H264_ENCODE_IOCTL_SET_OSD_ARGB8888_BOXES:
+            return h264_encode_set_osd_argb8888_boxes_common(&control->enc_param, control->encoder_inited,
+                                                             control->osd_slots,
+                                                             (bk_h264_encode_osd_argb8888_boxes_t *)arg);
         case H264_ENCODE_IOCTL_SET_VCENC_RATE_CTRL_PRIV:
             return h264_encode_set_vcenc_rate_ctrl_common(&control->enc_param, control->encoder_inited, (bk_h264_encode_vcenc_rate_ctrl_t *)arg);
         case H264_ENCODE_IOCTL_GET_VCENC_RATE_CTRL_PRIV:

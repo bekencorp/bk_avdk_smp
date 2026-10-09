@@ -43,7 +43,7 @@ if (CONFIG_H264E_STREAM_SESSION)
     )
 endif()
 
-set(priv_req bk_common avdk_driver bk_libs media_service avdk_utils)
+set(priv_req bk_common avdk_driver bk_libs media_service avdk_utils bk_frame_buffer)
 set(req "")
 
 # if (CONFIG_H264E_STREAM_SESSION)

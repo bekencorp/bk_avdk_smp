@@ -147,6 +147,66 @@ avdk_err_t bk_h264_encode_set_osd(bk_h264_encode_ctlr_handle_t handle,
                                   bk_h264_encode_osd_t *osd);
 
 /**
+ * @brief Draw hollow rectangles as a mono-color BITMAP OSD overlay
+ *
+ * Internally allocates one BITMAP (1bpp) covering the union of all boxes,
+ * rasterizes borders, and installs it on @p boxes->index. Subsequent encode
+ * frames overlay automatically.
+ *
+ * Color limitation: BITMAP OSD supports only one foreground color per call.
+ * The color is taken from boxes->boxes[0].color (RGB888 → YUV); additional
+ * per-box colors are ignored. Pass count==0 / boxes==NULL to clear the slot.
+ *
+ * Buffer size (PSRAM / UNCODED heap, owned by encoder until replaced/cleared):
+ *   canvas = axis-aligned union of all boxes, then
+ *     x/y rounded down to 2 px, width/height rounded up to 8 px;
+ *   size   = (canvas_w / 8) * canvas_h  bytes  (1 bit/pixel).
+ * Example: one 100x80 box → canvas 104x80 → 1040 bytes.
+ *
+ * Geometry tip (avoid encode mosaic): keep each box's start (x,y), size
+ * (width,height), and border thickness as multiples of 16. Otherwise,
+ * the encoder may introduce mosaic artifacts around the lines.
+ *
+ * @param handle Encoder handle
+ * @param boxes BITMAP rectangle batch descriptor
+ * @return AVSDK error code
+ */
+avdk_err_t bk_h264_encode_set_osd_bitmap_boxes(bk_h264_encode_ctlr_handle_t handle,
+                                               bk_h264_encode_osd_bitmap_boxes_t *boxes);
+
+/**
+ * @brief Draw hollow rectangles as a multi-color ARGB8888 OSD overlay
+ *
+ * Internally allocates one ARGB8888 buffer covering the union of all boxes,
+ * rasterizes borders with per-box ARGB color (alpha blend enabled by HW), and
+ * installs it on @p boxes->index. Non-border pixels are transparent.
+ * Subsequent encode frames overlay automatically.
+ *
+ * Each box may use a different color. Color format is 0xAARRGGBB; if A==0 the
+ * implementation forces opaque 0xFF. Pass count==0 / boxes==NULL to clear.
+ *
+ * Buffer size (PSRAM / UNCODED heap, owned by encoder until replaced/cleared):
+ *   canvas = axis-aligned union of all boxes, then
+ *     x/y/width/height all rounded to 2 px;
+ *   size   = canvas_w * canvas_h * 4  bytes  (32 bit/pixel).
+ * Example: one 100x80 box → canvas 100x80 → 32000 bytes.
+ *
+ * Size note: ARGB8888 needs 32x the memory of BITMAP for the same canvas
+ * (32 bpp vs 1 bpp). Prefer bk_h264_encode_set_osd_bitmap_boxes() when a
+ * single color is enough.
+ *
+ * Geometry tip (avoid encode mosaic): keep each box's start (x,y), size
+ * (width,height), and border thickness as multiples of 16. Otherwise,
+ * the encoder may introduce mosaic artifacts around the lines.
+ *
+ * @param handle Encoder handle
+ * @param boxes ARGB8888 rectangle batch descriptor
+ * @return AVSDK error code
+ */
+avdk_err_t bk_h264_encode_set_osd_argb8888_boxes(bk_h264_encode_ctlr_handle_t handle,
+                                                 bk_h264_encode_osd_argb8888_boxes_t *boxes);
+
+/**
  * @brief Delete encoder
  * @param handle Encoder handle
  * @return AVSDK error code

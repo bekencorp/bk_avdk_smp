@@ -1,7 +1,9 @@
 #include <components/log.h>
 #include <components/avdk_utils/avdk_error.h>
+#include <components/bk_frame_buffer.h>
 #include <cache.h>
 #include <os/os.h>
+#include <os/mem.h>
 #include <stdint.h>
 
 #include "h264_encode_osd_priv.h"
@@ -10,12 +12,14 @@
 #define TAG "h264_encode_osd"
 
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
+#define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
 
 #define H264_OSD_CTB_W           64U
 #define H264_OSD_CTB_H           16U
 #define H264_OSD_XY_ALIGN        2U
 #define H264_OSD_BITMAP_ALIGN    8U
 #define H264_OSD_ADDR_ALIGN      4U
+#define H264_OSD_BOX_MAX_COUNT   64U
 
 static beken_mutex_t s_osd_slots_mutex;
 static bool s_osd_mutex_ready;
@@ -543,4 +547,476 @@ avdk_err_t h264_encode_set_osd_common(h264_enc_param_t *enc_param,
 
     h264_encode_osd_slots_unlock();
     return AVDK_ERR_OK;
+}
+
+static uint32_t h264_encode_osd_align_down(uint32_t value, uint32_t align)
+{
+    return value & ~(align - 1U);
+}
+
+static uint32_t h264_encode_osd_align_up(uint32_t value, uint32_t align)
+{
+    return (value + align - 1U) & ~(align - 1U);
+}
+
+static void h264_encode_osd_rgb_to_yuv(uint32_t color, uint8_t *y, uint8_t *u, uint8_t *v)
+{
+    /* BT.601 full-range (Y/U/V in 0..255) */
+    int r = (int)((color >> 16) & 0xFFU);
+    int g = (int)((color >> 8) & 0xFFU);
+    int b = (int)(color & 0xFFU);
+    int y_val = (77 * r + 150 * g + 29 * b + 128) >> 8;
+    int u_val = ((-43 * r - 85 * g + 128 * b + 128) >> 8) + 128;
+    int v_val = ((128 * r - 107 * g - 21 * b + 128) >> 8) + 128;
+
+    *y = (uint8_t)((y_val < 0) ? 0 : ((y_val > 255) ? 255 : y_val));
+    *u = (uint8_t)((u_val < 0) ? 0 : ((u_val > 255) ? 255 : u_val));
+    *v = (uint8_t)((v_val < 0) ? 0 : ((v_val > 255) ? 255 : v_val));
+}
+
+static void h264_encode_osd_bitmap_set_bit(uint8_t *buffer, uint32_t width,
+                                           uint32_t x, uint32_t y)
+{
+    uint32_t row_bytes = width / 8U;
+
+    buffer[y * row_bytes + (x / 8U)] |= (uint8_t)(0x80U >> (x & 7U));
+}
+
+static void h264_encode_osd_bitmap_fill_rect(uint8_t *buffer, uint32_t canvas_w,
+                                              uint32_t canvas_h, uint32_t x,
+                                              uint32_t y, uint32_t w, uint32_t h)
+{
+    uint32_t row;
+    uint32_t col;
+
+    if (buffer == NULL || w == 0U || h == 0U || x >= canvas_w || y >= canvas_h) {
+        return;
+    }
+
+    if ((x + w) > canvas_w) {
+        w = canvas_w - x;
+    }
+    if ((y + h) > canvas_h) {
+        h = canvas_h - y;
+    }
+
+    for (row = 0U; row < h; row++) {
+        for (col = 0U; col < w; col++) {
+            h264_encode_osd_bitmap_set_bit(buffer, canvas_w, x + col, y + row);
+        }
+    }
+}
+
+static void h264_encode_osd_bitmap_draw_box(uint8_t *buffer, uint32_t canvas_w,
+                                            uint32_t canvas_h, uint32_t x,
+                                            uint32_t y, uint32_t w, uint32_t h,
+                                            uint32_t thickness)
+{
+    uint32_t t = thickness;
+
+    if (w == 0U || h == 0U || t == 0U) {
+        return;
+    }
+
+    if (t > (w / 2U)) {
+        t = (w > 1U) ? (w / 2U) : 1U;
+    }
+    if (t > (h / 2U)) {
+        t = (h > 1U) ? (h / 2U) : 1U;
+    }
+
+    /* top / bottom / left / right borders */
+    h264_encode_osd_bitmap_fill_rect(buffer, canvas_w, canvas_h, x, y, w, t);
+    h264_encode_osd_bitmap_fill_rect(buffer, canvas_w, canvas_h, x, y + h - t, w, t);
+    h264_encode_osd_bitmap_fill_rect(buffer, canvas_w, canvas_h, x, y, t, h);
+    h264_encode_osd_bitmap_fill_rect(buffer, canvas_w, canvas_h, x + w - t, y, t, h);
+}
+
+static void h264_encode_osd_bitmap_boxes_buffer_free(void *buffer, void *free_arg)
+{
+    (void)free_arg;
+    if (buffer != NULL) {
+        bk_frame_buffer_free(buffer);
+    }
+}
+
+avdk_err_t h264_encode_set_osd_bitmap_boxes_common(h264_enc_param_t *enc_param,
+                                            bool encoder_inited,
+                                            h264_encode_osd_slot_state_t *slots,
+                                            bk_h264_encode_osd_bitmap_boxes_t *boxes)
+{
+    bk_h264_encode_osd_t osd = {0};
+    uint32_t frame_w;
+    uint32_t frame_h;
+    uint32_t min_x;
+    uint32_t min_y;
+    uint32_t max_x;
+    uint32_t max_y;
+    uint32_t canvas_x;
+    uint32_t canvas_y;
+    uint32_t canvas_w;
+    uint32_t canvas_h;
+    uint32_t buf_size;
+    uint8_t *bitmap = NULL;
+    uint8_t yuv_y;
+    uint8_t yuv_u;
+    uint8_t yuv_v;
+    uint32_t i;
+    avdk_err_t ret;
+
+    if (enc_param == NULL || slots == NULL || boxes == NULL) {
+        LOGE("osd boxes arg is NULL\r\n");
+        return AVDK_ERR_INVAL;
+    }
+    if (!encoder_inited) {
+        LOGE("h264 encoder is not opened\r\n");
+        return AVDK_ERR_INVAL;
+    }
+    if (boxes->index >= H264_ENCODE_OSD_SLOT_COUNT) {
+        LOGE("invalid osd boxes index: %u\r\n", boxes->index);
+        return AVDK_ERR_INVAL;
+    }
+
+    /* Clear slot when no boxes are provided. */
+    if (boxes->count == 0U || boxes->boxes == NULL) {
+        osd.index = boxes->index;
+        osd.buffer = NULL;
+        osd.format = BK_H264_ENCODE_OVERLAY_FORMAT_BITMAP;
+        return h264_encode_set_osd_common(enc_param, encoder_inited, slots, &osd);
+    }
+
+    if (boxes->count > H264_OSD_BOX_MAX_COUNT) {
+        LOGE("osd boxes count %u exceeds max %u\r\n", boxes->count, H264_OSD_BOX_MAX_COUNT);
+        return AVDK_ERR_INVAL;
+    }
+
+    frame_w = enc_param->width;
+    frame_h = enc_param->height;
+    if (frame_w == 0U || frame_h == 0U) {
+        LOGE("encoder frame size invalid: %ux%u\r\n", frame_w, frame_h);
+        return AVDK_ERR_INVAL;
+    }
+
+    min_x = frame_w;
+    min_y = frame_h;
+    max_x = 0U;
+    max_y = 0U;
+
+    for (i = 0U; i < boxes->count; i++) {
+        const bk_h264_encode_osd_bitmap_box_t *box = &boxes->boxes[i];
+        uint32_t x1;
+        uint32_t y1;
+
+        if (box->width == 0U || box->height == 0U || box->thickness == 0U) {
+            LOGE("box[%u] invalid geometry w=%u h=%u t=%u\r\n",
+                 i, box->width, box->height, box->thickness);
+            return AVDK_ERR_INVAL;
+        }
+        if ((box->x + box->width) > frame_w || (box->y + box->height) > frame_h) {
+            LOGE("box[%u] out of frame %ux%u: x=%u y=%u w=%u h=%u\r\n",
+                 i, frame_w, frame_h, box->x, box->y, box->width, box->height);
+            return AVDK_ERR_INVAL;
+        }
+
+        x1 = box->x + box->width;
+        y1 = box->y + box->height;
+        if (box->x < min_x) {
+            min_x = box->x;
+        }
+        if (box->y < min_y) {
+            min_y = box->y;
+        }
+        if (x1 > max_x) {
+            max_x = x1;
+        }
+        if (y1 > max_y) {
+            max_y = y1;
+        }
+
+        if (i > 0U && box->color != boxes->boxes[0].color) {
+            LOGW("box[%u] color 0x%06x differs from boxes[0]; BITMAP uses first color\r\n",
+                 i, (unsigned)(box->color & 0xFFFFFFU));
+        }
+    }
+
+    canvas_x = h264_encode_osd_align_down(min_x, H264_OSD_XY_ALIGN);
+    canvas_y = h264_encode_osd_align_down(min_y, H264_OSD_XY_ALIGN);
+    canvas_w = h264_encode_osd_align_up(max_x - canvas_x, H264_OSD_BITMAP_ALIGN);
+    canvas_h = h264_encode_osd_align_up(max_y - canvas_y, H264_OSD_BITMAP_ALIGN);
+
+    if (canvas_w > frame_w || canvas_h > frame_h) {
+        LOGE("bitmap canvas %ux%u exceeds frame %ux%u\r\n",
+             canvas_w, canvas_h, frame_w, frame_h);
+        return AVDK_ERR_INVAL;
+    }
+    if ((canvas_x + canvas_w) > frame_w) {
+        canvas_x = h264_encode_osd_align_down(frame_w - canvas_w, H264_OSD_XY_ALIGN);
+    }
+    if ((canvas_y + canvas_h) > frame_h) {
+        canvas_y = h264_encode_osd_align_down(frame_h - canvas_h, H264_OSD_XY_ALIGN);
+    }
+    if ((canvas_x + canvas_w) > frame_w || (canvas_y + canvas_h) > frame_h ||
+        canvas_w == 0U || canvas_h == 0U) {
+        LOGE("aligned bitmap canvas invalid: %ux%u at (%u,%u) frame %ux%u\r\n",
+             canvas_w, canvas_h, canvas_x, canvas_y, frame_w, frame_h);
+        return AVDK_ERR_INVAL;
+    }
+
+    buf_size = (canvas_w / 8U) * canvas_h;
+    bitmap = (uint8_t *)bk_frame_buffer_malloc(MEM_SLAB_HEAP_UNCODED, buf_size);
+    if (bitmap == NULL) {
+        LOGE("alloc osd bitmap %u bytes failed\r\n", buf_size);
+        return AVDK_ERR_NOMEM;
+    }
+    os_memset(bitmap, 0, buf_size);
+
+    for (i = 0U; i < boxes->count; i++) {
+        const bk_h264_encode_osd_bitmap_box_t *box = &boxes->boxes[i];
+
+        h264_encode_osd_bitmap_draw_box(bitmap, canvas_w, canvas_h,
+                                        box->x - canvas_x, box->y - canvas_y,
+                                        box->width, box->height, box->thickness);
+    }
+
+    h264_encode_osd_rgb_to_yuv(boxes->boxes[0].color, &yuv_y, &yuv_u, &yuv_v);
+
+    osd.index = boxes->index;
+    osd.buffer = bitmap;
+    osd.format = BK_H264_ENCODE_OVERLAY_FORMAT_BITMAP;
+    osd.alpha = (boxes->alpha == 0U) ? 255U : boxes->alpha;
+    osd.x = canvas_x;
+    osd.y = canvas_y;
+    osd.width = canvas_w;
+    osd.height = canvas_h;
+    osd.bitmap_y = yuv_y;
+    osd.bitmap_u = yuv_u;
+    osd.bitmap_v = yuv_v;
+    osd.buffer_free = h264_encode_osd_bitmap_boxes_buffer_free;
+    osd.free_arg = NULL;
+
+    ret = h264_encode_set_osd_common(enc_param, encoder_inited, slots, &osd);
+    if (ret != AVDK_ERR_OK) {
+        h264_encode_osd_bitmap_boxes_buffer_free(bitmap, NULL);
+    }
+    return ret;
+}
+
+static uint32_t h264_encode_osd_argb_normalize(uint32_t color)
+{
+    /* A==0 treated as opaque so RGB888-only callers still draw visible borders. */
+    if ((color & 0xFF000000U) == 0U) {
+        return color | 0xFF000000U;
+    }
+    return color;
+}
+
+static void h264_encode_osd_argb_fill_rect(uint32_t *buffer, uint32_t canvas_w,
+                                            uint32_t canvas_h, uint32_t x,
+                                            uint32_t y, uint32_t w, uint32_t h,
+                                            uint32_t color)
+{
+    uint32_t row;
+    uint32_t col;
+
+    if (buffer == NULL || w == 0U || h == 0U || x >= canvas_w || y >= canvas_h) {
+        return;
+    }
+
+    if ((x + w) > canvas_w) {
+        w = canvas_w - x;
+    }
+    if ((y + h) > canvas_h) {
+        h = canvas_h - y;
+    }
+
+    for (row = 0U; row < h; row++) {
+        uint32_t *line = &buffer[(y + row) * canvas_w + x];
+
+        for (col = 0U; col < w; col++) {
+            line[col] = color;
+        }
+    }
+}
+
+static void h264_encode_osd_argb_draw_box(uint32_t *buffer, uint32_t canvas_w,
+                                          uint32_t canvas_h, uint32_t x,
+                                          uint32_t y, uint32_t w, uint32_t h,
+                                          uint32_t thickness, uint32_t color)
+{
+    uint32_t t = thickness;
+
+    if (w == 0U || h == 0U || t == 0U) {
+        return;
+    }
+
+    if (t > (w / 2U)) {
+        t = (w > 1U) ? (w / 2U) : 1U;
+    }
+    if (t > (h / 2U)) {
+        t = (h > 1U) ? (h / 2U) : 1U;
+    }
+
+    h264_encode_osd_argb_fill_rect(buffer, canvas_w, canvas_h, x, y, w, t, color);
+    h264_encode_osd_argb_fill_rect(buffer, canvas_w, canvas_h, x, y + h - t, w, t, color);
+    h264_encode_osd_argb_fill_rect(buffer, canvas_w, canvas_h, x, y, t, h, color);
+    h264_encode_osd_argb_fill_rect(buffer, canvas_w, canvas_h, x + w - t, y, t, h, color);
+}
+
+static void h264_encode_osd_argb8888_boxes_buffer_free(void *buffer, void *free_arg)
+{
+    (void)free_arg;
+    if (buffer != NULL) {
+        bk_frame_buffer_free(buffer);
+    }
+}
+
+avdk_err_t h264_encode_set_osd_argb8888_boxes_common(h264_enc_param_t *enc_param,
+                                                     bool encoder_inited,
+                                                     h264_encode_osd_slot_state_t *slots,
+                                                     bk_h264_encode_osd_argb8888_boxes_t *boxes)
+{
+    bk_h264_encode_osd_t osd = {0};
+    uint32_t frame_w;
+    uint32_t frame_h;
+    uint32_t min_x;
+    uint32_t min_y;
+    uint32_t max_x;
+    uint32_t max_y;
+    uint32_t canvas_x;
+    uint32_t canvas_y;
+    uint32_t canvas_w;
+    uint32_t canvas_h;
+    uint32_t buf_size;
+    uint32_t *argb = NULL;
+    uint32_t i;
+    avdk_err_t ret;
+
+    if (enc_param == NULL || slots == NULL || boxes == NULL) {
+        LOGE("osd argb boxes arg is NULL\r\n");
+        return AVDK_ERR_INVAL;
+    }
+    if (!encoder_inited) {
+        LOGE("h264 encoder is not opened\r\n");
+        return AVDK_ERR_INVAL;
+    }
+    if (boxes->index >= H264_ENCODE_OSD_SLOT_COUNT) {
+        LOGE("invalid osd argb boxes index: %u\r\n", boxes->index);
+        return AVDK_ERR_INVAL;
+    }
+
+    if (boxes->count == 0U || boxes->boxes == NULL) {
+        osd.index = boxes->index;
+        osd.buffer = NULL;
+        osd.format = BK_H264_ENCODE_OVERLAY_FORMAT_ARGB8888;
+        return h264_encode_set_osd_common(enc_param, encoder_inited, slots, &osd);
+    }
+
+    if (boxes->count > H264_OSD_BOX_MAX_COUNT) {
+        LOGE("osd argb boxes count %u exceeds max %u\r\n",
+             boxes->count, H264_OSD_BOX_MAX_COUNT);
+        return AVDK_ERR_INVAL;
+    }
+
+    frame_w = enc_param->width;
+    frame_h = enc_param->height;
+    if (frame_w == 0U || frame_h == 0U) {
+        LOGE("encoder frame size invalid: %ux%u\r\n", frame_w, frame_h);
+        return AVDK_ERR_INVAL;
+    }
+
+    min_x = frame_w;
+    min_y = frame_h;
+    max_x = 0U;
+    max_y = 0U;
+
+    for (i = 0U; i < boxes->count; i++) {
+        const bk_h264_encode_osd_argb8888_box_t *box = &boxes->boxes[i];
+        uint32_t x1;
+        uint32_t y1;
+
+        if (box->width == 0U || box->height == 0U || box->thickness == 0U) {
+            LOGE("argb box[%u] invalid geometry w=%u h=%u t=%u\r\n",
+                 i, box->width, box->height, box->thickness);
+            return AVDK_ERR_INVAL;
+        }
+        if ((box->x + box->width) > frame_w || (box->y + box->height) > frame_h) {
+            LOGE("argb box[%u] out of frame %ux%u: x=%u y=%u w=%u h=%u\r\n",
+                 i, frame_w, frame_h, box->x, box->y, box->width, box->height);
+            return AVDK_ERR_INVAL;
+        }
+
+        x1 = box->x + box->width;
+        y1 = box->y + box->height;
+        if (box->x < min_x) {
+            min_x = box->x;
+        }
+        if (box->y < min_y) {
+            min_y = box->y;
+        }
+        if (x1 > max_x) {
+            max_x = x1;
+        }
+        if (y1 > max_y) {
+            max_y = y1;
+        }
+    }
+
+    /* ARGB8888 only requires 2-pixel XY alignment. */
+    canvas_x = h264_encode_osd_align_down(min_x, H264_OSD_XY_ALIGN);
+    canvas_y = h264_encode_osd_align_down(min_y, H264_OSD_XY_ALIGN);
+    canvas_w = h264_encode_osd_align_up(max_x - canvas_x, H264_OSD_XY_ALIGN);
+    canvas_h = h264_encode_osd_align_up(max_y - canvas_y, H264_OSD_XY_ALIGN);
+
+    if (canvas_w > frame_w || canvas_h > frame_h) {
+        LOGE("argb canvas %ux%u exceeds frame %ux%u\r\n",
+             canvas_w, canvas_h, frame_w, frame_h);
+        return AVDK_ERR_INVAL;
+    }
+    if ((canvas_x + canvas_w) > frame_w) {
+        canvas_x = h264_encode_osd_align_down(frame_w - canvas_w, H264_OSD_XY_ALIGN);
+    }
+    if ((canvas_y + canvas_h) > frame_h) {
+        canvas_y = h264_encode_osd_align_down(frame_h - canvas_h, H264_OSD_XY_ALIGN);
+    }
+    if ((canvas_x + canvas_w) > frame_w || (canvas_y + canvas_h) > frame_h ||
+        canvas_w == 0U || canvas_h == 0U) {
+        LOGE("aligned argb canvas invalid: %ux%u at (%u,%u) frame %ux%u\r\n",
+             canvas_w, canvas_h, canvas_x, canvas_y, frame_w, frame_h);
+        return AVDK_ERR_INVAL;
+    }
+
+    buf_size = canvas_w * canvas_h * 4U;
+    argb = (uint32_t *)bk_frame_buffer_malloc(MEM_SLAB_HEAP_UNCODED, buf_size);
+    if (argb == NULL) {
+        LOGE("alloc osd argb %u bytes failed\r\n", buf_size);
+        return AVDK_ERR_NOMEM;
+    }
+    /* Transparent background; only borders carry alpha. */
+    os_memset(argb, 0, buf_size);
+
+    for (i = 0U; i < boxes->count; i++) {
+        const bk_h264_encode_osd_argb8888_box_t *box = &boxes->boxes[i];
+
+        h264_encode_osd_argb_draw_box(argb, canvas_w, canvas_h,
+                                      box->x - canvas_x, box->y - canvas_y,
+                                      box->width, box->height, box->thickness,
+                                      h264_encode_osd_argb_normalize(box->color));
+    }
+
+    osd.index = boxes->index;
+    osd.buffer = argb;
+    osd.format = BK_H264_ENCODE_OVERLAY_FORMAT_ARGB8888;
+    osd.alpha = 0U; /* ignored for ARGB8888; per-pixel A is used */
+    osd.x = canvas_x;
+    osd.y = canvas_y;
+    osd.width = canvas_w;
+    osd.height = canvas_h;
+    osd.buffer_free = h264_encode_osd_argb8888_boxes_buffer_free;
+    osd.free_arg = NULL;
+
+    ret = h264_encode_set_osd_common(enc_param, encoder_inited, slots, &osd);
+    if (ret != AVDK_ERR_OK) {
+        h264_encode_osd_argb8888_boxes_buffer_free(argb, NULL);
+    }
+    return ret;
 }
