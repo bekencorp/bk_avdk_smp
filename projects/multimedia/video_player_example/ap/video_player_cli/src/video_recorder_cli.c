@@ -30,7 +30,7 @@
 
 static const struct cli_command s_video_recorder_commands[] =
 {
-    {"video_record", "video_record start|stop [path] [w] [h] [mjpeg|h264] [mp4] [aac|pcm|g711a|g711u|g722]", cli_video_record_cmd},
+    {"video_record", "video_record start|stop [path] [w] [h] [mjpeg|h264] [mp4|avi] [aac|pcm|g711a|g711u|g722]", cli_video_record_cmd},
 };
 
 static bk_video_recorder_handle_t video_recorder_handle = NULL;
@@ -486,9 +486,12 @@ void cli_video_record_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, ch
 
         const bool force_mp4 = cmd_contain(argc, argv, "mp4") || cmd_contain(argc, argv, "MP4");
         const bool force_avi = cmd_contain(argc, argv, "avi") || cmd_contain(argc, argv, "AVI");
-        const bool path_mp4 = (os_strstr(video_recorder_output_path, ".mp4") != NULL);
+        const bool path_mp4 = (os_strstr(video_recorder_output_path, ".mp4") != NULL) ||
+                              (os_strstr(video_recorder_output_path, ".MP4") != NULL);
+        const bool path_avi = (os_strstr(video_recorder_output_path, ".avi") != NULL) ||
+                              (os_strstr(video_recorder_output_path, ".AVI") != NULL);
 
-        if (force_avi)
+        if (force_avi || path_avi)
         {
             record_type = VIDEO_RECORDER_TYPE_AVI;
             char *ext = os_strstr(video_recorder_output_path, ".mp4");

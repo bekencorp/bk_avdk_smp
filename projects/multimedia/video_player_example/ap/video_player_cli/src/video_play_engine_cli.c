@@ -40,7 +40,6 @@
 #endif
 
 #include "bk_partition.h"
-#include <sys/stat.h>
 
 #define TAG "video_play_engine_cli"
 
@@ -668,15 +667,18 @@ static void video_play_engine_destroy_runtime(bool close_lcd)
 {
     if (s_video_player_core_handle != NULL)
     {
-        if (s_video_player_core_opened)
+        if (s_video_player_core_started)
         {
             avdk_err_t ret = bk_video_player_engine_stop(s_video_player_core_handle);
             if (ret != AVDK_ERR_OK)
             {
                 LOGW("%s: video player engine stop failed, ret=%d\n", __func__, ret);
             }
+        }
 
-            ret = bk_video_player_engine_close(s_video_player_core_handle);
+        if (s_video_player_core_opened)
+        {
+            avdk_err_t ret = bk_video_player_engine_close(s_video_player_core_handle);
             if (ret != AVDK_ERR_OK)
             {
                 LOGW("%s: video player engine close failed, ret=%d\n", __func__, ret);
@@ -826,6 +828,7 @@ void cli_video_play_engine_cmd(char *pcWriteBuffer, int xWriteBufferLen, int arg
             if (ret != AVDK_ERR_OK)
             {
                 LOGE("%s: video_play_lcd_open failed, ret:%d\n", __func__, ret);
+                video_play_engine_destroy_runtime(true);
                 goto exit;
             }
 
@@ -839,6 +842,7 @@ void cli_video_play_engine_cmd(char *pcWriteBuffer, int xWriteBufferLen, int arg
         if (ret != AVDK_ERR_OK)
         {
             LOGE("%s: video_play_display_worker_init failed, ret=%d\n", __func__, ret);
+            video_play_engine_destroy_runtime(true);
             goto exit;
         }
 
@@ -930,7 +934,7 @@ void cli_video_play_engine_cmd(char *pcWriteBuffer, int xWriteBufferLen, int arg
         if (ret != AVDK_ERR_OK || s_video_player_core_handle == NULL)
         {
             LOGE("%s: bk_video_player_engine_new failed, ret=%d\n", __func__, ret);
-            s_video_player_core_handle = NULL;
+            video_play_engine_destroy_runtime(true);
             goto exit;
         }
 
@@ -960,8 +964,7 @@ void cli_video_play_engine_cmd(char *pcWriteBuffer, int xWriteBufferLen, int arg
         if (ret != AVDK_ERR_OK)
         {
             LOGE("%s: video player engine open failed, ret=%d\n", __func__, ret);
-            bk_video_player_engine_delete(s_video_player_core_handle);
-            s_video_player_core_handle = NULL;
+            video_play_engine_destroy_runtime(true);
             goto exit;
         }
         s_video_player_core_opened = true;
@@ -974,10 +977,7 @@ void cli_video_play_engine_cmd(char *pcWriteBuffer, int xWriteBufferLen, int arg
         if (ret != AVDK_ERR_OK)
         {
             LOGE("%s: get_media_info failed, ret=%d, file=%s\n", __func__, ret, file_path);
-            bk_video_player_engine_close(s_video_player_core_handle);
-            bk_video_player_engine_delete(s_video_player_core_handle);
-            s_video_player_core_handle = NULL;
-            s_video_player_core_opened = false;
+            video_play_engine_destroy_runtime(true);
             goto exit;
         }
         // Some containers/codecs (e.g. AAC in AVI) may not provide bits_per_sample in header.
@@ -1056,10 +1056,7 @@ audio_init_done:
         if (ret != AVDK_ERR_OK)
         {
             LOGE("%s: bk_video_player_engine_set_file_path failed, ret=%d\n", __func__, ret);
-            bk_video_player_engine_close(s_video_player_core_handle);
-            bk_video_player_engine_delete(s_video_player_core_handle);
-            s_video_player_core_handle = NULL;
-            s_video_player_core_opened = false;
+            video_play_engine_destroy_runtime(true);
             goto exit;
         }
 
@@ -1068,10 +1065,7 @@ audio_init_done:
         if (ret != AVDK_ERR_OK)
         {
             LOGE("%s: video player engine start(seek 0) failed, ret=%d\n", __func__, ret);
-            bk_video_player_engine_close(s_video_player_core_handle);
-            bk_video_player_engine_delete(s_video_player_core_handle);
-            s_video_player_core_handle = NULL;
-            s_video_player_core_opened = false;
+            video_play_engine_destroy_runtime(true);
             goto exit;
         }
 

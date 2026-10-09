@@ -317,10 +317,11 @@ avdk_err_t avi_write_video_frame(private_video_recorder_ctlr_t *controller, uint
                 }
                 else
                 {
-                    // Skip this P/B-frame to maintain max frame rate
-                    LOGV("%s: Skipping H264 P/B-frame to maintain max frame rate (interval=%u ms, min=%u ms)\n",
+                    /* P frames are references. Dropping one breaks every later
+                     * frame until the next IDR, so keep the whole H264 chain. */
+                    LOGV("%s: Saving H264 P/B-frame despite short interval (interval=%u ms, min=%u ms)\n",
                          __func__, time_since_last_saved, min_interval_ms);
-                    return AVDK_ERR_OK; // Return OK but don't write frame
+                    should_save_frame = true;
                 }
             }
             else
