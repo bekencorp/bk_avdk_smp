@@ -3616,8 +3616,18 @@ int usb_mtp_init(void)
     ep_out_buffer = os_malloc(MTP_RX_CHUNK);
     if(ep_out_buffer == NULL)
     {
-        USB_LOG_ERR("%s malloc ep_out_buffer fail", __func__);
-        return BK_FAIL;
+#ifdef CONFIG_AP_PSRAM_NOCACHE_HEAP_ADDR
+        ep_out_buffer = psram_nocache_malloc(MTP_RX_CHUNK);
+        if(ep_out_buffer != NULL)
+        {
+            USB_LOG_INFO("%s ep_out_buffer fallback to nocache psram\r\n", __func__);
+        }
+        else
+#endif
+        {
+            USB_LOG_ERR("%s malloc ep_out_buffer fail", __func__);
+            return BK_FAIL;
+        }
     }
     ep_in_buffer = os_malloc(MAX_PACKET_SIZE);
     if(ep_in_buffer == NULL)
