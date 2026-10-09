@@ -43,7 +43,32 @@ typedef struct
     bool is_key;
     uint8_t frame_id;
     uint8_t cnt;
+    /* 整帧字节数，首片按「分片数 × 本片长度」估算，后续分片沿用这次决策。 */
+    uint32_t frame_bytes;
 } ntwk_cs2_video_pkt_meta_t;
+
+/* ---------------- TX 预算分配（按活跃订阅路数） ---------------- */
+
+/* 总额先扣 CMD 预留，余下按订阅路数均分；每路视频占 NUM/DEN，其余给音频。 */
+#define NTWK_CS2_BUDGET_TOTAL   ((uint32_t)CONFIG_CS2_TX_BUFFER_THD)
+#define NTWK_CS2_BUDGET_SHARED  (NTWK_CS2_BUDGET_TOTAL - (uint32_t)CONFIG_NTWK_CS2_CMD_RESERVE)
+
+/* 满路时的每路视频配额，只用于启动告警。 */
+#define NTWK_CS2_MIN_VIDEO_QUOTA \
+    ((NTWK_CS2_BUDGET_SHARED / (uint32_t)CONFIG_CS2_MAX_NUM_CONNECTIONS) \
+     * (uint32_t)CONFIG_NTWK_CS2_VIDEO_SHARE_NUM / (uint32_t)CONFIG_NTWK_CS2_VIDEO_SHARE_DEN)
+
+/**
+ * @brief 按当前活跃订阅路数重算各通道配额。订阅/退订/会话释放时调用。
+ * @param subs 活跃订阅路数（0 视为 1，避免除零）。
+ */
+void ntwk_cs2_cong_set_subs(uint32_t subs);
+
+/** 当前每会话视频配额（字节），供日志/诊断使用。 */
+uint32_t ntwk_cs2_cong_get_video_quota(void);
+
+/** 当前每会话音频配额（字节），供日志/诊断使用。 */
+uint32_t ntwk_cs2_cong_get_audio_quota(void);
 
 /* ---------------- 全局预投递丢帧（编码输出口） ---------------- */
 
@@ -106,10 +131,11 @@ bool ntwk_cs2_cong_video_admit(int index, uint32_t backlog,
 /**
  * @brief 每会话 audio 准入决策。
  * @param index   session 数组下标。
- * @param backlog 该会话 CS2 audio 通道当前 TX 积压字节数。
+ * @param backlog 该会话音频 TX 积压。TCP 下是会话级共享积压。
+ * @param pkt_len 本次写入字节数，计入判据。
  * @return true -> 发送；false -> 跳过。
  */
-bool ntwk_cs2_cong_audio_admit(int index, uint32_t backlog);
+bool ntwk_cs2_cong_audio_admit(int index, uint32_t backlog, uint32_t pkt_len);
 
 /** 标记该会话本帧发送被截断（失败/部分）：丢掉剩余、置 waiting_key、请求强制 IDR。 */
 void ntwk_cs2_cong_mark_truncated(int index);

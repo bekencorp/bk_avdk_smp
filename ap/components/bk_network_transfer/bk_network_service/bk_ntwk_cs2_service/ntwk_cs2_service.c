@@ -204,6 +204,54 @@ static cs2_session_t *ntwk_cs2_alloc_session_locked(int session_id)
     return NULL;
 }
 
+/* 打印该会话是 UDP 还是 TCP。 */
+static void ntwk_cs2_log_session_bearer(int session_id, int index)
+{
+    session_info_t sinfo;
+
+    if (get_session_info(session_id, &sinfo) != ERROR_PPCS_SUCCESSFUL)
+    {
+        LOGW("session bearer: sid=%d idx=%d query fail\n", session_id, index);
+        return;
+    }
+
+    /* idx 与丢帧日志对应。 */
+    LOGI("session bearer: sid=%d idx=%d mode=%s skt=%s bmode=%d rmt=%s:%d\n",
+         session_id, index, sinfo.mode,
+         (1 == get_socket_type(sinfo.skt)) ? "TCP" : "UDP", sinfo.bmode,
+         sinfo.remote_ip, sinfo.remote_port);
+}
+
+/* 按视频、音频订阅数的较大者重算配额。须持有 ntwk_cs2_info->mutex。 */
+static void ntwk_cs2_update_budget_locked(void)
+{
+    uint32_t video_subs = 0;
+    uint32_t audio_subs = 0;
+
+    if (ntwk_cs2_info == NULL)
+    {
+        return;
+    }
+
+    for (int i = 0; i < NTWK_CS2_MAX_NUM_CONNECTIONS; i++)
+    {
+        if (!ntwk_cs2_info->sessions[i].used)
+        {
+            continue;
+        }
+        if (ntwk_cs2_info->sessions[i].video_subscribed)
+        {
+            video_subs++;
+        }
+        if (ntwk_cs2_info->sessions[i].audio_subscribed)
+        {
+            audio_subs++;
+        }
+    }
+
+    ntwk_cs2_cong_set_subs((video_subs > audio_subs) ? video_subs : audio_subs);
+}
+
 static void ntwk_cs2_release_session_locked(cs2_session_t *session)
 {
     if (session == NULL || !session->used)
@@ -451,6 +499,7 @@ static int ntwk_cs2_p2p_write_internal(int SessionID, uint8_t Channel, uint8_t *
     int32_t Check_ret = 0;
     UINT32 WriteSize = size;
     uint32_t write_index = 0;
+    /* CMD 不单独设水位：视频和音频配额之和只占总额减去 CMD 预留。 */
     uint32_t write_not_send_thr = PPCS_TX_BUFFER_THD;
     const uint32_t write_per_count_thr = size;
 
@@ -722,7 +771,7 @@ int ntwk_cs2_audio_send_packet(uint8_t *data, uint32_t length, audio_enc_type_t 
                 continue;
             }
 
-            if (!ntwk_cs2_cong_audio_admit(session_idx[i], backlog))
+            if (!ntwk_cs2_cong_audio_admit(session_idx[i], backlog, size))
             {
                 continue;
             }
@@ -853,6 +902,9 @@ out:
     {
         ntwk_cs2_release_session_locked(session);
     }
+
+    /* 会话消失（含异常断开）后重算：它让出的切片要还给其余路。 */
+    ntwk_cs2_update_budget_locked();
 
     active_count = ntwk_cs2_get_active_session_count_locked();
     ntwk_cs2_info->device_connected = (active_count > 0) ? BK_TRUE : BK_FALSE;
@@ -1545,9 +1597,19 @@ bk_err_t ntwk_cs2_set_video_subscribe(int session_id, bool enable)
         return BK_FAIL;
     }
 
+    int log_index = session->index;
+
     session->video_subscribed = enable ? BK_TRUE : BK_FALSE;
     ntwk_cs2_cong_on_subscribe(session->index, enable);
+    ntwk_cs2_update_budget_locked();
     rtos_unlock_mutex(&ntwk_cs2_info->mutex);
+
+    if (enable)
+    {
+        /* 订阅时打一次承载层。放在解锁之后——get_session_info() 会进库，
+         * 不在持锁时调用。 */
+        ntwk_cs2_log_session_bearer(session_id, log_index);
+    }
 
     return BK_OK;
 }
@@ -1572,6 +1634,7 @@ bk_err_t ntwk_cs2_set_audio_subscribe(int session_id, bool enable)
     {
         session->speaker_owner = BK_FALSE;
     }
+    ntwk_cs2_update_budget_locked();
     rtos_unlock_mutex(&ntwk_cs2_info->mutex);
 
     return BK_OK;

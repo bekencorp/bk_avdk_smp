@@ -101,14 +101,66 @@ static void ntwk_cs2_force_idr_reset(void)
 #if CONFIG_NTWK_CS2_CONGESTION_DROP
 
 #define POLICY_MAX_SESSIONS         CONFIG_CS2_MAX_NUM_CONNECTIONS
-#define NTWK_CS2_VIDEO_WRITE_THD    CS2_IMG_MAX_TX_BUFFER_THD
-#define NTWK_CS2_VIDEO_RESUME_THD   (CS2_IMG_MAX_TX_BUFFER_THD / 2)
 #define H264_NAL_TYPE_IDR           (5)
 
 static uint8_t  s_waiting_key[POLICY_MAX_SESSIONS];   /* 1: 跳过了非关键帧，等关键帧干净恢复 */
 static uint8_t  s_skip_frame[POLICY_MAX_SESSIONS];    /* 1: 跳过当前帧的剩余分片 */
 static uint8_t  s_sending_frame[POLICY_MAX_SESSIONS]; /* 1: 当前帧已准入，继续发剩余分片 */
 static uint32_t s_skip_count[POLICY_MAX_SESSIONS];    /* 该会话累计跳帧数（调试统计） */
+
+/* 每会话配额。初值按单路，set_subs() 之前不会误丢。 */
+static uint32_t s_video_quota = (NTWK_CS2_BUDGET_SHARED
+                                 * CONFIG_NTWK_CS2_VIDEO_SHARE_NUM
+                                 / CONFIG_NTWK_CS2_VIDEO_SHARE_DEN);
+static uint32_t s_audio_quota = (NTWK_CS2_BUDGET_SHARED
+                                 - NTWK_CS2_BUDGET_SHARED
+                                   * CONFIG_NTWK_CS2_VIDEO_SHARE_NUM
+                                   / CONFIG_NTWK_CS2_VIDEO_SHARE_DEN);
+static uint32_t s_subs_count = 1;
+
+/* 积压降到配额一半，才允许用关键帧恢复。 */
+static uint32_t cong_video_resume_thd(void)
+{
+    return s_video_quota / 2;
+}
+
+void ntwk_cs2_cong_set_subs(uint32_t subs)
+{
+    uint32_t n = (subs == 0) ? 1 : subs;
+    uint32_t slice;
+    uint32_t video;
+
+    if (n > POLICY_MAX_SESSIONS)
+    {
+        n = POLICY_MAX_SESSIONS;
+    }
+
+    slice = NTWK_CS2_BUDGET_SHARED / n;
+    video = slice * CONFIG_NTWK_CS2_VIDEO_SHARE_NUM / CONFIG_NTWK_CS2_VIDEO_SHARE_DEN;
+
+    if (n == s_subs_count && video == s_video_quota)
+    {
+        return;
+    }
+
+    s_subs_count = n;
+    s_video_quota = video;
+    s_audio_quota = slice - video;
+
+    LOGI("budget: subs=%u slice=%u video=%u audio=%u cmd_rsv=%u total=%u\n",
+         n, slice, s_video_quota, s_audio_quota,
+         (uint32_t)CONFIG_NTWK_CS2_CMD_RESERVE, NTWK_CS2_BUDGET_TOTAL);
+}
+
+uint32_t ntwk_cs2_cong_get_video_quota(void)
+{
+    return s_video_quota;
+}
+
+uint32_t ntwk_cs2_cong_get_audio_quota(void)
+{
+    return s_audio_quota;
+}
 
 static bool cong_index_valid(int index)
 {
@@ -208,6 +260,8 @@ void ntwk_cs2_cong_parse_video_packet(uint8_t *data, uint32_t length,
     meta->cnt = frag->cnt;
     meta->first_frag = (frag->cnt <= 1);
     meta->last_frag = (frag->eof != 0);
+    /* 整帧字节数估算：总分片数 × 本片长度（见 .h）。size 为 0 的异常值按单片算。 */
+    meta->frame_bytes = (frag->size > 0) ? ((uint32_t)frag->size * length) : length;
     if (video_type == IMAGE_H264 && meta->first_frag)
     {
         meta->is_key = ntwk_cs2_h264_payload_is_key(frag->data, nal_len);
@@ -231,9 +285,8 @@ bool ntwk_cs2_cong_video_admit(int index, uint32_t backlog,
 
         if (s_waiting_key[index])
         {
-            /* 该会话此前跳过了帧：只有 buffer 排空到低水位、且来的是关键帧，
-             * 才干净恢复；期间请求一次强制 IDR，尽快拿到关键帧。 */
-            if (backlog <= NTWK_CS2_VIDEO_RESUME_THD)
+            /* 此前跳过了帧：积压降到一半且是关键帧才恢复。 */
+            if (backlog <= cong_video_resume_thd())
             {
                 ntwk_cs2_request_force_idr();
                 if (meta->is_key)
@@ -243,18 +296,27 @@ bool ntwk_cs2_cong_video_admit(int index, uint32_t backlog,
                 }
             }
         }
-        else if (backlog < NTWK_CS2_VIDEO_WRITE_THD)
+        else if (backlog + meta->frame_bytes <= s_video_quota)
         {
-            /* buffer 还吃得下：发。 */
+            /* 积压加整帧仍在配额内。 */
             admit = true;
         }
+#if CONFIG_NTWK_CS2_ADMIT_OVERSIZE_ON_EMPTY
+        else if (backlog == 0 && meta->frame_bytes > s_video_quota)
+        {
+            /* 整帧大于配额且队列已空：放行，避免一直等关键帧。 */
+            admit = true;
+            LOGW("idx:%d admit oversize frame id:%u bytes:%u > quota:%u (queue empty)\n",
+                 index, meta->frame_id, meta->frame_bytes, s_video_quota);
+        }
+#endif
         else
         {
-            /* buffer 吃不下：跳过整帧并置 waiting_key。 */
+            /* 装不下：跳过整帧，等关键帧。 */
             s_waiting_key[index] = 1;
             s_skip_count[index]++;
-            LOGI("idx:%d skip frame id:%u cnt:%u backlog:%u waiting_key\n",
-                 index, meta->frame_id, meta->cnt, backlog);
+            LOGI("idx:%d skip frame id:%u cnt:%u backlog:%u bytes:%u quota:%u waiting_key\n",
+                 index, meta->frame_id, meta->cnt, backlog, meta->frame_bytes, s_video_quota);
         }
 
         s_sending_frame[index] = admit ? 1 : 0;
@@ -262,7 +324,7 @@ bool ntwk_cs2_cong_video_admit(int index, uint32_t backlog,
         return admit;
     }
 
-    /* 后续分片：沿用首片决策，禁止中途改口导致半帧。 */
+    /* 后续分片沿用首片决策。 */
     if (s_skip_frame[index] || !s_sending_frame[index])
     {
         return false;
@@ -301,16 +363,18 @@ void ntwk_cs2_cong_note_frame_end(void)
     ntwk_cs2_note_force_idr_health(!any_waiting);
 }
 
-bool ntwk_cs2_cong_audio_admit(int index, uint32_t backlog)
+bool ntwk_cs2_cong_audio_admit(int index, uint32_t backlog, uint32_t pkt_len)
 {
     if (!cong_index_valid(index))
     {
         return false;
     }
 
-    if (backlog > CS2_AUD_MAX_TX_BUFFER_THD)
+    /* 积压加本包超过音频配额则丢。TCP 下积压含视频，判据偏保守。 */
+    if (backlog + pkt_len > s_audio_quota)
     {
-        LOGV("idx:%d audio drop, backlog:%u\n", index, backlog);
+        LOGV("idx:%d audio drop, backlog:%u len:%u quota:%u\n",
+             index, backlog, pkt_len, s_audio_quota);
         return false;
     }
 
@@ -376,12 +440,17 @@ void ntwk_cs2_cong_mark_truncated(int index)
     (void)index;
 }
 
-bool ntwk_cs2_cong_audio_admit(int index, uint32_t backlog)
+bool ntwk_cs2_cong_audio_admit(int index, uint32_t backlog, uint32_t pkt_len)
 {
     (void)index;
     (void)backlog;
+    (void)pkt_len;
     return true;
 }
+
+void ntwk_cs2_cong_set_subs(uint32_t subs) { (void)subs; }
+uint32_t ntwk_cs2_cong_get_video_quota(void) { return 0; }
+uint32_t ntwk_cs2_cong_get_audio_quota(void) { return 0; }
 
 void ntwk_cs2_cong_note_frame_end(void) {}
 void ntwk_cs2_cong_reset_session(int index) { (void)index; }
@@ -444,6 +513,28 @@ void ntwk_cs2_congestion_drop_init(void)
          CONFIG_NTWK_CS2_HEALTHY_FRAMES,
          CONFIG_NTWK_CS2_FORCE_IDR_MIN_GAP_MS,
          CONFIG_NTWK_CS2_FORCE_IDR_MAX_STREAK);
+
+    LOGI("budget total:%u cmd_rsv:%u share:%u/%u max_sess:%u min_video_quota:%u\n",
+         NTWK_CS2_BUDGET_TOTAL, (uint32_t)CONFIG_NTWK_CS2_CMD_RESERVE,
+         (uint32_t)CONFIG_NTWK_CS2_VIDEO_SHARE_NUM,
+         (uint32_t)CONFIG_NTWK_CS2_VIDEO_SHARE_DEN,
+         (uint32_t)CONFIG_CS2_MAX_NUM_CONNECTIONS,
+         (uint32_t)NTWK_CS2_MIN_VIDEO_QUOTA);
+
+    if (NTWK_CS2_MIN_VIDEO_QUOTA < (uint32_t)CONFIG_NTWK_CS2_EXPECT_MAX_FRAME)
+    {
+        /* 满路视频配额装不下一个预期最大帧。 */
+        LOGW("budget: min_video_quota %u < expect_max_frame %u at %u sessions; "
+             "oversize-on-empty admit %s\n",
+             (uint32_t)NTWK_CS2_MIN_VIDEO_QUOTA,
+             (uint32_t)CONFIG_NTWK_CS2_EXPECT_MAX_FRAME,
+             (uint32_t)CONFIG_CS2_MAX_NUM_CONNECTIONS,
+#if CONFIG_NTWK_CS2_ADMIT_OVERSIZE_ON_EMPTY
+             "enabled");
+#else
+             "DISABLED - video may stall permanently");
+#endif
+    }
 }
 
 void ntwk_cs2_congestion_drop_reset(void)

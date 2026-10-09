@@ -44,6 +44,42 @@ menu "Bk Network Transfer"
 			can drop the whole H264 frame before it enters the ready queue.
 			Recovery uses one shared force-IDR arbiter with gap/streak limits.
 
+	config NTWK_CS2_CMD_RESERVE
+		int "CS2 CMD channel reserved TX budget (bytes)"
+		depends on NTWK_CS2_CONGESTION_DROP
+		default 8192
+		help
+			Video and audio quotas together only occupy
+			(CS2_TX_BUFFER_THD - this).
+
+	config NTWK_CS2_VIDEO_SHARE_NUM
+		int "CS2 per-session video share numerator"
+		depends on NTWK_CS2_CONGESTION_DROP
+		default 4
+
+	config NTWK_CS2_VIDEO_SHARE_DEN
+		int "CS2 per-session video share denominator"
+		depends on NTWK_CS2_CONGESTION_DROP
+		default 5
+		help
+			Video gets NUM/DEN of each session slice; audio gets the rest.
+
+	config NTWK_CS2_ADMIT_OVERSIZE_ON_EMPTY
+		bool "Admit an oversize frame when the session queue is empty"
+		depends on NTWK_CS2_CONGESTION_DROP
+		default y
+		help
+			Let a frame larger than the video quota through when the queue
+			is empty, so video does not stay stuck waiting for a keyframe.
+
+	config NTWK_CS2_EXPECT_MAX_FRAME
+		int "Expected largest encoded frame (startup warning only)"
+		depends on NTWK_CS2_CONGESTION_DROP
+		default 98304
+		help
+			Logged at startup when the max-session video quota cannot hold
+			one frame of this size. Admission uses the real frame length.
+
 	config NTWK_CS2_DROP_START_THD
 		int "CS2 congestion drop START watermark (bytes)"
 		depends on NTWK_CS2_CONGESTION_DROP
