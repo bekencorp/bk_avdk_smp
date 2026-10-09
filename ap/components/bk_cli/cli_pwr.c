@@ -15,7 +15,9 @@
 #include <driver/aon_rtc_types.h>
 #include <driver/aon_rtc.h>
 #include <driver/timer.h>
+#if CONFIG_GENERAL_DMA
 #include <driver/dma.h>
+#endif
 #include <components/bk_platform.h>
 #include <driver/pwr_clk.h>
 #if CONFIG_SPI
@@ -1478,7 +1480,9 @@ static void cli_pm_fast_guard_test(char *pcWriteBuffer,
 	int xWriteBufferLen, int argc, char **argv)
 {
 	cli_fast_guard_test_t *test = &s_cli_fast_guard_test;
+#if CONFIG_GENERAL_DMA
 	uint32_t dma_busy_mask;
+#endif
 	bk_err_t ret;
 
 	(void)pcWriteBuffer;
@@ -1533,6 +1537,7 @@ static void cli_pm_fast_guard_test(char *pcWriteBuffer,
 
 	if (os_strcmp(argv[1], "dma_case") == 0) {
 		__atomic_store_n(&test->quiesce_delay_ms, 0U, __ATOMIC_RELEASE);
+#if CONFIG_GENERAL_DMA
 		dma_busy_mask = bk_dma_check_chn_status();
 		if (dma_busy_mask == 0U) {
 			CLI_LOGW("DMA case not armed: no active DMA; start an audio/DMA stream first\r\n");
@@ -1540,11 +1545,15 @@ static void cli_pm_fast_guard_test(char *pcWriteBuffer,
 			CLI_LOGI("DMA case armed: live mask=0x%x; run pm_boot_ap 9 1\r\n",
 				dma_busy_mask);
 		}
+#else
+		CLI_LOGW("DMA case not armed: CONFIG_GENERAL_DMA is disabled\r\n");
+#endif
 		return;
 	}
 
 	if (os_strcmp(argv[1], "pass_case") == 0) {
 		__atomic_store_n(&test->quiesce_delay_ms, 0U, __ATOMIC_RELEASE);
+#if CONFIG_GENERAL_DMA
 		dma_busy_mask = bk_dma_check_chn_status();
 		if (dma_busy_mask != 0U) {
 			CLI_LOGW("Pass case blocked: stop DMA mask=0x%x before AP close\r\n",
@@ -1552,6 +1561,9 @@ static void cli_pm_fast_guard_test(char *pcWriteBuffer,
 		} else {
 			CLI_LOGI("Pass case armed; run pm_boot_ap 9 1\r\n");
 		}
+#else
+		CLI_LOGI("Pass case armed; run pm_boot_ap 9 1\r\n");
+#endif
 		return;
 	}
 
@@ -1559,7 +1571,13 @@ static void cli_pm_fast_guard_test(char *pcWriteBuffer,
 		CLI_LOGI("Fast guard test: registered=%u accepting=%u delay_ms=%u quiesce_count=%u last_ms=%u resume_count=%u dma_mask=0x%x\r\n",
 			test->registered, test->accepting, test->quiesce_delay_ms,
 			test->quiesce_count, test->last_quiesce_ms,
-			test->resume_count, bk_dma_check_chn_status());
+			test->resume_count,
+#if CONFIG_GENERAL_DMA
+			bk_dma_check_chn_status()
+#else
+			0U
+#endif
+			);
 		return;
 	}
 

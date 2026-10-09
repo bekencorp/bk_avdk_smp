@@ -15,7 +15,6 @@
 #include "sys_sw_regs.h"
 #include "cache.h"
 #include "bk_arch.h"
-#include <driver/dma.h>
 #endif
 
 /*=====================DEFINE  SECTION  START=====================*/
@@ -156,6 +155,17 @@ static bk_err_t pm_ap_core_message_handle(void)
                         break;
                     }
 #if CONFIG_GENERAL_DMA
+                    /*
+                     * Modules get the first chance to stop their DMA in
+                     * quiesce. Reject the transaction here if any channel is
+                     * still enabled, before CPU3 is offlined and hardware is
+                     * backed up. This turns an eventual WFI timeout into an
+                     * immediate, recoverable suspend failure.
+                     *
+                     * Skip the check when the general DMA driver is disabled.
+                     * This Non-Secure AP image cannot own GDMA, so the driver
+                     * is not linked and there is no channel status to read.
+                     */
                     {
                         uint32_t dma_busy_mask = bk_dma_check_chn_status();
 
@@ -172,25 +182,6 @@ static bk_err_t pm_ap_core_message_handle(void)
                         }
                     }
 #endif
-                    /*
-                     * Modules get the first chance to stop their DMA in
-                     * quiesce. Reject the transaction here if any channel is
-                     * still enabled, before CPU3 is offlined and hardware is
-                     * backed up. This turns an eventual WFI timeout into an
-                     * immediate, recoverable suspend failure.
-                     */
-                    uint32_t dma_busy_mask = bk_dma_check_chn_status();
-                    if (dma_busy_mask != 0U) {
-                        LOGE("AP fast suspend: DMA still busy mask=0x%x after quiesce\r\n",
-                            dma_busy_mask);
-                        ret = bk_pm_ap_fast_resume_modules();
-                        if (ret != BK_OK) {
-                            LOGE("AP fast suspend: DMA busy rollback failed[%d]\r\n",
-                                ret);
-                        }
-                        pm_ap_suspend_failure_publish(msg.param1);
-                        break;
-                    }
                     /*
                      * Fast resume retains CPU2 only. Run CPU3 hotplug from this
                      * CPU2-pinned PM task before the idle path captures the AP

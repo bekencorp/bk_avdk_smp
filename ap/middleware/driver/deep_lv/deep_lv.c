@@ -102,7 +102,7 @@
 #endif
 
 #define portNVIC_SHPR3_REG                    ( *( ( volatile uint32_t * ) 0xe000ed20 ) )
-#define AP_DTCM_BASE_ADDR                     (0x20000000UL)
+#define AP_DTCM_BASE_ADDR                     (SOC_DTCM_DATA_BASE)
 #define AP_DTCM_BACKUP_MAGIC                  (0x4454434DUL) /* "DTCM" */
 #define AP_DTCM_WORD_COUNT                    (CONFIG_DTCM_SIZE / sizeof(uint32_t))
 
@@ -290,6 +290,7 @@ __IRAM_PM void dlv_startup(void)
  */
 __attribute__((naked)) __IRAM_PM void dlv_trigger_backup_context_to(uint32_t resume_pc)
 {
+#if CONFIG_SPE
 	__asm volatile
 	(
 		"    .syntax unified            \n"
@@ -306,6 +307,37 @@ __attribute__((naked)) __IRAM_PM void dlv_trigger_backup_context_to(uint32_t res
 		"    bx lr                      \n"
 		::"i"(portSVC_DEEP_LV_ENTER):"memory"
 	);
+#else
+	__asm volatile
+	(
+		"    .syntax unified            \n"
+		/*
+		 * pm_cpu_wfi_process() enters through GLOBAL_INT_DISABLE(), which
+		 * leaves BASEPRI at 0x20. That mask also blocks the configurable
+		 * SVC exception, so executing SVC would escalate directly to
+		 * HardFault with HFSR.FORCED set and no CFSR cause bits.
+		 *
+		 * Match the restore trigger: relax BASEPRI enough for SVC while
+		 * continuing to mask PendSV, SysTick and normal low-priority IRQs.
+		 */
+		"    movs r1, %1                \n"
+		"    msr basepri, r1            \n"
+		"    cpsie i                    \n"
+		"    cpsie f                    \n"
+		"    dsb                        \n"
+		"    isb                        \n"
+		"    svc %0                     \n"
+		/*
+		 * PRIMASK/FAULTMASK are raised in Handler mode before EXC_RETURN
+		 * (see dlv_stack_frame_save_and_dlv). Keep barriers only here.
+		 */
+		"    dsb                        \n"
+		"    isb                        \n"
+		"    bx lr                      \n"
+		::"i"(portSVC_DEEP_LV_ENTER),
+		  "i"(configMAX_SYSCALL_INTERRUPT_PRIORITY):"r1", "memory"
+	);
+#endif
 }
 
 /*************************************************************/
@@ -317,7 +349,12 @@ __IRAM_PM DLV_STATIC void dlv_scb_save(dlv_context_t *dlv)
 	scb_info->scr_val = SCB->SCR;
 	scb_info->ccr_val = SCB->CCR;
 	scb_info->cpacr_val = SCB->CPACR;
+#if CONFIG_SPE
+	/* NSACR is Secure-only; Non-Secure images must not touch it. */
 	scb_info->nsacr_val = SCB->NSACR;
+#else
+	scb_info->nsacr_val = 0U;
+#endif
 	scb_info->vtor_val = SCB->VTOR;
 	// scb_info->shpr_val[10] = SCB->SHPR[10];
 	// scb_info->shpr_val[11] = SCB->SHPR[11];
@@ -332,8 +369,14 @@ __IRAM_PM DLV_STATIC void dlv_nvic_save(dlv_context_t *dlv)
 	nvic_info->iser_val[0] = NVIC->ISER[0];
 	nvic_info->iser_val[1] = NVIC->ISER[1];
 	nvic_info->iser_val[2] = NVIC->ISER[2];
+#if CONFIG_SPE
+	/* ITNS is Secure-only; reading it from NS raises SecureFault. */
 	nvic_info->itns_val[0] = NVIC->ITNS[0];
 	nvic_info->itns_val[1] = NVIC->ITNS[1];
+#else
+	nvic_info->itns_val[0] = 0U;
+	nvic_info->itns_val[1] = 0U;
+#endif
 	for (uint32_t i = 0; i < 64; i++) {
 		nvic_info->ipr_val[i] = NVIC->IPR[i];
 	}
@@ -351,6 +394,7 @@ __IRAM_PM DLV_STATIC void dlv_systick_save(dlv_context_t *dlv)
 
 __IRAM_PM DLV_STATIC void dlv_sau_save(dlv_context_t *dlv)
 {
+#if CONFIG_SPE
 	uint32_t i;
 	dlv_sau_t *sau_info = &(dlv->sau);
 
@@ -365,6 +409,14 @@ __IRAM_PM DLV_STATIC void dlv_sau_save(dlv_context_t *dlv)
 			sau_info->rlar_val[i] = SAU->RLAR;
 		}
 	}
+#else
+	/*
+	 * SAU is Secure-only. The Non-Secure AP fast-boot image must not access
+	 * it from the SVC deep-LV enter path; doing so SecureFaults and surfaces
+	 * as a forced HardFault with an empty CFSR while closing AP.
+	 */
+	dlv->sau.is_enable = 0U;
+#endif
 }
 
 __IRAM_PM DLV_STATIC void dlv_mpu_save(dlv_context_t *dlv)
@@ -435,6 +487,7 @@ __IRAM_PM DLV_STATIC void dlv_core_save(dlv_context_t *dlv)
 	core_info->psplim_val = __get_PSPLIM();
 	core_info->psp_val = __get_PSP();
 
+#if CONFIG_SPE
 	core_info->basepri_s_val = __get_BASEPRI();
 	core_info->basepri_ns_val = __TZ_get_BASEPRI_NS();
 #if CONFIG_GET_AT_SVC_CONTEXT
@@ -446,6 +499,23 @@ __IRAM_PM DLV_STATIC void dlv_core_save(dlv_context_t *dlv)
 	core_info->primask_ns_val = __TZ_get_PRIMASK_NS();
 	core_info->fault_mask_s_val = __get_FAULTMASK();
 	core_info->fault_mask_ns_val = __TZ_get_FAULTMASK_NS();
+#else
+	/*
+	 * *_NS MRS/MSR forms are Secure-only. In a Non-Secure image, save the
+	 * current-state masks through the normal accessors and clear the unused
+	 * Secure-bank shadow fields.
+	 */
+	core_info->basepri_s_val = __get_BASEPRI();
+	core_info->primask_s_val = __get_PRIMASK();
+	core_info->fault_mask_s_val = __get_FAULTMASK();
+	core_info->basepri_ns_val = 0U;
+	core_info->primask_ns_val = 0U;
+	core_info->fault_mask_ns_val = 0U;
+#if CONFIG_GET_AT_SVC_CONTEXT
+	core_info->control_s_val = __get_CONTROL();
+	core_info->control_ns_val = 0U;
+#endif
+#endif
 }
 
 __IRAM_PM void mini_dlv_stack_frame_save_and_dlv(void)
@@ -503,6 +573,15 @@ __attribute__((naked)) __IRAM_PM void dlv_stack_frame_save_and_dlv(uint32_t exc_
 		"    bl deep_lv_enter                               \n"
 		"    dsb                                            \n"
 		"    isb                                            \n"
+#if !CONFIG_SPE
+		/*
+		 * Raise global masks in Handler mode before returning to Thread so
+		 * PSRAM stays quiet after cache maintenance, without relying on
+		 * post-SVC cpsid in Thread mode.
+		 */
+		"    cpsid i                                        \n"
+		"    cpsid f                                        \n"
+#endif
 		"    ldr r0, stack_frame_const1                     \n"
 		"    ldr r0, [r0]                                   \n"/* Read s_current_stack_frame. */
 		"    ldr lr, [r0, #8]                               \n"/* Reload EXC_RETURN from stk_frame.exc_return. */
@@ -527,7 +606,9 @@ __IRAM_PM DLV_STATIC void dlv_scb_restore(dlv_context_t *dlv)
 	 * that state here; keep D-Cache disabled until its stale tags are removed.
 	 */
 	SCB->CCR = ccr_val & ~SCB_CCR_DC_Msk;
+#if CONFIG_SPE
 	SCB->NSACR = scb_info->nsacr_val;
+#endif
 	SCB->AIRCR = scb_info->aircr_val;
 	__DSB();
 	__ISB();
@@ -558,8 +639,10 @@ __IRAM_PM DLV_STATIC void dlv_nvic_restore(dlv_context_t *dlv)
 	NVIC->ISER[0] = nvic_info->iser_val[0];
 	NVIC->ISER[1] = nvic_info->iser_val[1];
 	NVIC->ISER[2] = nvic_info->iser_val[2];
+#if CONFIG_SPE
 	NVIC->ITNS[0] = nvic_info->itns_val[0];
 	NVIC->ITNS[1] = nvic_info->itns_val[1];
+#endif
 	for (uint32_t i = 0; i < 64; i++) {
 		NVIC->IPR[i] = nvic_info->ipr_val[i];
 	}
@@ -575,6 +658,7 @@ __IRAM_PM DLV_STATIC void dlv_systick_restore(dlv_context_t *dlv)
 
 __IRAM_PM DLV_STATIC void dlv_sau_restore(dlv_context_t *dlv)
 {
+#if CONFIG_SPE
 	#if (0 == CONFIG_SAU_RECONFIG)
 	uint32_t i;
 	#endif
@@ -593,6 +677,9 @@ __IRAM_PM DLV_STATIC void dlv_sau_restore(dlv_context_t *dlv)
 		SAU->CTRL = sau_info->ctrl_val;
 	#endif
 	}
+#else
+	(void)dlv;
+#endif
 }
 
 __IRAM_PM DLV_STATIC void dlv_mpu_restore(dlv_context_t *dlv)
@@ -686,6 +773,7 @@ void dlv_interrupt_restore(void)
 {
 	dlv_core_t *core_info = &(s_dlv_context.core);
 
+#if CONFIG_SPE
 #if CONFIG_PM_AP_FAST_BOOT_ENABLE
 	/*
 	 * Tickless idle enters with PRIMASK set and BASEPRI clear. Cache
@@ -706,6 +794,21 @@ void dlv_interrupt_restore(void)
 	__ISB();
 	/* Restore the current security state's global interrupt mask last. */
 	__set_PRIMASK(core_info->primask_s_val);
+#else
+#if CONFIG_PM_AP_FAST_BOOT_ENABLE
+	/*
+	 * The fast-boot SVC entry temporarily relaxes BASEPRI to admit SVC.
+	 * Leave BASEPRI clear until the outer PM critical section restores it.
+	 */
+	__set_BASEPRI(0);
+#else
+	__set_BASEPRI(core_info->basepri_s_val);
+#endif
+	__set_FAULTMASK(core_info->fault_mask_s_val);
+	__DSB();
+	__ISB();
+	__set_PRIMASK(core_info->primask_s_val);
+#endif
 }
 
 __IRAM_PM DLV_STATIC void dlv_stack_frame_restore(void)
