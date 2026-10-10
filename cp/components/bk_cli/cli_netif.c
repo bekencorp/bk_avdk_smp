@@ -3,6 +3,8 @@
 #include "bk_private/bk_wifi.h"
 #if CONFIG_LWIP
 #include "lwip/ping.h"
+#include "lwip/dns.h"
+#include "lwip/ip_addr.h"
 #endif
 #include <components/netif.h>
 #include "bk_netif.h"
@@ -464,6 +466,82 @@ void cli_per_packet_info_output_cmd(char *pcWriteBuffer, int xWriteBufferLen, in
 	}
 }
 
+#if CONFIG_LWIP
+void cli_dns_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
+{
+	char *msg = WIFI_CMD_RSP_ERROR;
+	bk_err_t ret;
+	uint8_t i, n;
+	const char *servers[NETIF_DNS_SERVER_MAX];
+	const ip_addr_t *dns;
+
+	(void)xWriteBufferLen;
+
+	if (argc < 2)
+		goto usage;
+
+	if (os_strcmp(argv[1], "show") == 0) {
+		for (i = 0; i < DNS_MAX_SERVERS; i++) {
+			dns = dns_getserver(i);
+			if (dns && !ip_addr_isany(dns))
+				CLI_LOGI("dns[%u]=%s\n", i, ipaddr_ntoa(dns));
+			else
+				CLI_LOGI("dns[%u]=(empty)\n", i);
+		}
+		msg = WIFI_CMD_RSP_SUCCEED;
+		goto out;
+	}
+
+	if (os_strcmp(argv[1], "set4") == 0) {
+		if (argc < 3)
+			goto usage;
+		n = (uint8_t)(argc - 2);
+		if (n > NETIF_DNS_SERVER_MAX)
+			n = NETIF_DNS_SERVER_MAX;
+		for (i = 0; i < n; i++)
+			servers[i] = argv[2 + i];
+		ret = bk_netif_set_dns_servers(servers, n);
+		CLI_LOGI("dns set4 ret=%d\n", ret);
+		msg = (ret == BK_OK) ? WIFI_CMD_RSP_SUCCEED : WIFI_CMD_RSP_ERROR;
+		goto out;
+	}
+
+#if CONFIG_IPV6
+	if (os_strcmp(argv[1], "set6") == 0) {
+		if (argc < 3)
+			goto usage;
+		n = (uint8_t)(argc - 2);
+		if (n > NETIF_DNS_SERVER_MAX)
+			n = NETIF_DNS_SERVER_MAX;
+		for (i = 0; i < n; i++)
+			servers[i] = argv[2 + i];
+		ret = bk_netif_set_dns6_servers(servers, n);
+		CLI_LOGI("dns set6 ret=%d\n", ret);
+		msg = (ret == BK_OK) ? WIFI_CMD_RSP_SUCCEED : WIFI_CMD_RSP_ERROR;
+		goto out;
+	}
+#endif
+
+	if (os_strcmp(argv[1], "clear") == 0) {
+		ret = bk_netif_clear_dns_servers();
+		CLI_LOGI("dns clear ret=%d (sticky off, no reconnect re-apply)\n", ret);
+		msg = (ret == BK_OK) ? WIFI_CMD_RSP_SUCCEED : WIFI_CMD_RSP_ERROR;
+		goto out;
+	}
+
+usage:
+	CLI_LOGE("usage:\n"
+		 "  dns show\n"
+		 "  dns set4 <ip> [ip2 ...]\n"
+#if CONFIG_IPV6
+		 "  dns set6 <ip> [ip2 ...]\n"
+#endif
+		 "  dns clear\n");
+out:
+	os_memcpy(pcWriteBuffer, msg, os_strlen(msg));
+}
+#endif
+
 #define NETIF_CMD_CNT (sizeof(s_netif_commands) / sizeof(struct cli_command))
 static const struct cli_command s_netif_commands[] = {
 	{"ip", "ip [sta|ap][{ip}{mask}{gate}{dns}]", cli_ip_cmd},
@@ -483,6 +561,9 @@ static const struct cli_command s_netif_commands[] = {
 #endif
 
 	{"per_packet_info", "per_packet_info [per_packet_info_output_bitmap(base 16)]", cli_per_packet_info_output_cmd},
+#if CONFIG_LWIP
+	{"dns", "dns show|set4 <ip..>|set6 <ip..>|clear", cli_dns_cmd},
+#endif
 #if CONFIG_WEBCLIENT
 	{"webclient", "webclient [ota|get|post] [url] [postdata]", cli_webclient_cmd},
 #endif
