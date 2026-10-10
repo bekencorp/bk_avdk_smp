@@ -975,25 +975,32 @@ static void cli_dma_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc,
 	if ((id) >= SOC_DMA_UNIT_NUM * SOC_DMA_CHAN_NUM_PER_UNIT) {	//TODO:MAX CHAN or computes it
 		return;
     }
+	/* src/dest sec_attr live in the req_mux register, and dma_hal_init_dma()
+	 * only writes back its dev mux fields. Stash the attributes and program
+	 * them after init, matching AP where a channel reset on the init path
+	 * would otherwise clear them. */
+	dma_sec_attr_t src_sec_attr = DMA_ATTR_NON_SEC;
+	dma_sec_attr_t dst_sec_attr = DMA_ATTR_NON_SEC;
+
 	if (os_strcmp(argv[8], "src_s") == 0) {
 		dma_config.src.start_addr = src_addr;
 		dma_config.src.end_addr = (src_addr + buffer_size);
-		bk_dma_set_src_sec_attr(id, DMA_ATTR_SEC);
+		src_sec_attr = DMA_ATTR_SEC;
 	} else {
 		src_mem_addr = (uint8_t *)src_addr;
 		dma_config.src.start_addr = src_addr;
 		dma_config.src.end_addr = (src_addr + buffer_size);
-		bk_dma_set_src_sec_attr(id, DMA_ATTR_NON_SEC);
+		src_sec_attr = DMA_ATTR_NON_SEC;
 	}
 	if (os_strcmp(argv[9], "des_s") == 0) {
 		dma_config.dst.start_addr = dest_addr;
 		dma_config.dst.end_addr = (dest_addr + buffer_size);
-		bk_dma_set_dest_sec_attr(id, DMA_ATTR_SEC);
+		dst_sec_attr = DMA_ATTR_SEC;
 	} else {
 		dest_mem_addr = (uint8_t *)dest_addr;
 		dma_config.dst.start_addr = dest_addr;
 		dma_config.dst.end_addr = (dest_addr + buffer_size);
-		bk_dma_set_dest_sec_attr(id, DMA_ATTR_NON_SEC);
+		dst_sec_attr = DMA_ATTR_NON_SEC;
 	}
 	dma_config.mode = DMA_WORK_MODE_SINGLE;
 	dma_config.chan_prio = 7;
@@ -1010,6 +1017,8 @@ static void cli_dma_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc,
 	//dma_config.trans_type = DMA_TRANS_NO;		//TODO:
 
 	bk_dma_init(id, &dma_config);
+	bk_dma_set_src_sec_attr(id, src_sec_attr);
+	bk_dma_set_dest_sec_attr(id, dst_sec_attr);
 	bk_dma_set_transfer_len(id, buffer_size);
 	bk_dma_register_isr(id, dma_half_finish_int_cb, dma_finish_int_cb);
 

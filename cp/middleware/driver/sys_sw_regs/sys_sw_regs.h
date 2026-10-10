@@ -162,14 +162,6 @@ void bk_sys_sw_regs_set_cp_ap_dump_taken(uint32_t value);
  *              normally clears it itself once the dump is complete.
  */
 void bk_sys_sw_regs_set_ap_self_dumping(uint32_t value);
-
-/**
- * @brief Publish or clear the AP wdrv IPC ready state.
- * @param ready Nonzero after wdrv IPC callbacks are registered, 0 otherwise.
- */
-void bk_sys_sw_regs_set_ap_wdrv_ipc_ready(uint32_t ready);
-uint32_t bk_sys_sw_regs_get_ap_wdrv_ipc_ready(void);
-
 /**
  * @brief Publish the address of the CP system heap free counter
  *        (FreeRTOS xFreeBytesRemaining) so AP can read it cross-core.
