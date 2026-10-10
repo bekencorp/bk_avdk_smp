@@ -66,10 +66,8 @@ static void wdrv_configure_ipv6_dns(void)
     uint8_t dns_count = wdrv_host_env.ipv6_ind.dns_count;
     uint8_t i;
 
-    if (dns_count > MAX_IPV6_DNS_SERVERS_IN_MSG)
-        dns_count = MAX_IPV6_DNS_SERVERS_IN_MSG;
-    if (dns_count > DNS_MAX_SERVERS)
-        dns_count = DNS_MAX_SERVERS;
+    if (dns_count > DNS_IPV6_SERVER_SLOTS)
+        dns_count = DNS_IPV6_SERVER_SLOTS;
 
     if (!dns_count)
         WDRV_LOGD("no IPv6 DNS server in indication\n");
@@ -78,9 +76,11 @@ static void wdrv_configure_ipv6_dns(void)
         os_memset(&dns_addr, 0, sizeof(dns_addr));
         IP_SET_TYPE_VAL(dns_addr, IPADDR_TYPE_V6);
         os_memcpy(ip_2_ip6(&dns_addr)->addr, wdrv_host_env.ipv6_ind.dns_addr[i], 16);
-        dns_setserver(i, &dns_addr);
-        WDRV_LOGD("IPv6 DNS server %d: %s\n", i, ipaddr_ntoa(&dns_addr));
+        dns_setserver((u8_t)(DNS_IPV6_SERVER_BASE + i), &dns_addr);
+        WDRV_LOGD("IPv6 DNS server slot %d: %s\n",
+                  DNS_IPV6_SERVER_BASE + i, ipaddr_ntoa(&dns_addr));
     }
+    net_dns_override_apply_v6();
 #endif
 }
 
