@@ -103,7 +103,12 @@ static int _bk_fatfs_unmount2(struct bk_filesystem *fs, int flag) {
 }
 
 static int _bk_fatfs_mkfs(const char *partition_name, const void *data) {
-	#define TEMP_SIZE 1024
+	/* f_mkfs needs a work buffer of at least one sector. QSPI NOR reports a
+	 * 4096-byte sector (FLASH_SECTOR_SIZE) through disk_ioctl, so a 1024-byte
+	 * buffer makes f_mkfs compute sz_buf = len / ss == 0 and abort with
+	 * FR_MKFS_ABORTED (14). Size it to FF_MAX_SS so every medium fits; the
+	 * same fix already exists in fatfs/test_fatfs.c. */
+	const uint32_t mkfs_buf_len = FF_MAX_SS;
 	struct bk_fatfs_partition *part;
 	char *temp;
 	char vol_str[3];
@@ -116,7 +121,7 @@ static int _bk_fatfs_mkfs(const char *partition_name, const void *data) {
 	if (idx < 0)
 		return -1;
 
-	temp = os_malloc(TEMP_SIZE);
+	temp = os_malloc(mkfs_buf_len);
 	if (!temp)
 		return -1;
 
@@ -124,8 +129,7 @@ static int _bk_fatfs_mkfs(const char *partition_name, const void *data) {
 	vol_str[1] = ':';
 	vol_str[2] = '\0';
 
-	//ret = f_mkfs(vol_str, NULL, temp, TEMP_SIZE);
-	ret = f_mkfs(vol_str, FM_ANY, 65536, temp, TEMP_SIZE);
+	ret = f_mkfs(vol_str, FM_ANY, 65536, temp, mkfs_buf_len);
 
 	os_free(temp);
 	return ret;
