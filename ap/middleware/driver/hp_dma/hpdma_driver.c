@@ -2402,10 +2402,14 @@ bk_err_t bk_hpdma_link_transfer(hpdma_id_t id, void *desc_table)
     hpdma_config.dst.step = 0;
     hpdma_config.dst.addr_loop_en = HPDMA_ADDR_LOOP_DISABLE;
 
-    bk_hpdma_set_next_ll_addr(id, (uint32_t)desc_table);
-
     // Initialize and configure DMA
     bk_hpdma_init(id, &hpdma_config);
+
+    /* next_ll_addr must be programmed after bk_hpdma_init(): hpdma_hal_init_dma()
+     * never writes it back, so any channel reset on the init path would clear it
+     * and leave the channel enabled with no chain loaded. Matches the order used
+     * by the general DMA driver. */
+    bk_hpdma_set_next_ll_addr(id, (uint32_t)desc_table);
 
 #if CONFIG_SPE
     bk_hpdma_set_src_sec_attr(id, HPDMA_ATTR_SEC);
