@@ -1239,12 +1239,14 @@ typedef float*              vg_lite_float_ptr;
     #define MESH_COUNT      2
 
     /* Runtime VG-Lite heap parameters. Must be applied via vg_lite_set_mem_config()
-     * before vg_lite_init(). The contiguous heap size is calculated internally. */
+     * before vg_lite_init(). Contiguous heap is NOT fixed-size: init_calc(cmd/tess)
+     * plus optional runtime_margin for vg_lite_allocate peak. */
     typedef struct vg_lite_mem_config {
         vg_lite_uint32_t gpu_base_addr;         /*! GPU register base. */
         vg_lite_uint32_t command_buffer_size;   /*! Per-buffer command size. 0 = driver default. */
         vg_lite_uint32_t tess_width;            /*! Tessellation width used to size the heap. 0 disables tess buffer unless Kconfig reserved max is set. */
         vg_lite_uint32_t tess_height;           /*! Tessellation height used to size the heap. 0 disables tess buffer unless Kconfig reserved max is set. */
+        vg_lite_uint32_t runtime_margin;        /*! Extra contiguous bytes for runtime vidmem_allocate (LVGL temp / path upload / mask...). 0 = none. */
     } vg_lite_mem_config_t;
 
 /* VGLite API Functions *******************************************************************************************************************/
