@@ -147,6 +147,36 @@ bk_err_t bk_netif_get_ip4_config(netif_if_t ifx, netif_ip4_config_t *ip4_config)
 	return BK_OK;
 }
 
+bk_err_t bk_netif_set_dns_servers(const char *servers[], uint8_t count)
+{
+	if (!servers || count == 0)
+		return BK_ERR_NULL_PARAM;
+
+	if (net_dns_override_set(servers, count) != 0)
+		return BK_FAIL;
+
+	return BK_OK;
+}
+
+#if CONFIG_IPV6
+bk_err_t bk_netif_set_dns6_servers(const char *servers[], uint8_t count)
+{
+	if (!servers || count == 0)
+		return BK_ERR_NULL_PARAM;
+
+	if (net_dns_override_set_v6(servers, count) != 0)
+		return BK_FAIL;
+
+	return BK_OK;
+}
+#endif
+
+bk_err_t bk_netif_clear_dns_servers(void)
+{
+	net_dns_override_clear();
+	return BK_OK;
+}
+
 #if CONFIG_IPV6
 bk_err_t bk_netif_get_ip6_addr_info(netif_if_t ifx)
 {
