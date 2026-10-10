@@ -66,6 +66,7 @@ enum BK_WIFI_API_CMD_TYPE
     STA_GET_NETIF_IP4_CONFIG            = 0x31D,
     STA_NETIF_IP4_CONFIG                = 0x31E,
     STA_GET_ARP_TABLE                   = 0x31F,
+    STA_SET_DNS_SERVER                  = 0x375,
 
     // AP management command section
     AP_SET_CONFIG                       = 0x320,
