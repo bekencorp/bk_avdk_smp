@@ -5,6 +5,7 @@ extern "C" {
 #endif
 
 #include "lwip_netif_address.h"
+#include <components/netif_types.h>
 
 extern void uap_ip_down(void);
 extern void uap_ip_start(void);
@@ -43,6 +44,21 @@ extern void bridge_netif_teardown(void);
 extern uint32_t bridge_ip_is_start(void);
 extern void *net_get_br_handle(void);
 #endif
+
+/** Sticky DNS override used by STA sync / DHCP / RDNSS. */
+int net_dns_override_set(const char *servers[], uint8_t count);
+#if CONFIG_IPV6
+int net_dns_override_set_v6(const char *servers[], uint8_t count);
+#endif
+void net_dns_override_clear(void);
+void net_dns_override_apply_v4(void);
+#if CONFIG_IPV6
+void net_dns_override_apply_v6(void);
+#endif
+int net_dns_override_enabled(void);
+uint32_t net_dns_override_get(uint8_t idx);
+/* Import sticky snapshot from AP (STA_SET_DNS_SERVER). */
+int net_dns_override_from_config(const netif_dns_config_t *cfg);
 
 #ifdef __cplusplus
 }

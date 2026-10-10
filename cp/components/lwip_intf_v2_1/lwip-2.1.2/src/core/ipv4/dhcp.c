@@ -713,6 +713,11 @@ dhcp_handle_ack(struct netif *netif, struct dhcp_msg *msg_in)
     ip_addr_set_ip4_u32_val(dns_addr, lwip_htonl(dhcp_get_option_value(dhcp, DHCP_OPTION_IDX_DNS_SERVER + n)));
     dns_setserver(n, &dns_addr);
   }
+  /* Re-apply customer sticky DNS after DHCP ACK/renew (BK7259SW-3873). */
+  {
+    extern void net_dns_override_apply_v4(void);
+    net_dns_override_apply_v4();
+  }
 #endif /* LWIP_DHCP_PROVIDE_DNS_SERVERS */
 }
 
@@ -1735,7 +1740,7 @@ again:
         /* special case: there might be more than one server */
         LWIP_ERROR("len %% 4 == 0", len % 4 == 0, return ERR_VAL;);
         /* limit number of DNS servers */
-        decode_len = LWIP_MIN(len, 4 * DNS_MAX_SERVERS);
+        decode_len = LWIP_MIN(len, 4 * LWIP_DHCP_PROVIDE_DNS_SERVERS);
         LWIP_ERROR("len >= decode_len", len >= decode_len, return ERR_VAL;);
         decode_idx = DHCP_OPTION_IDX_DNS_SERVER;
         break;

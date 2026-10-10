@@ -557,8 +557,8 @@ nd6_input(struct pbuf *p, struct netif *inp)
     u8_t *buffer; /* Used to copy options. */
     u16_t offset;
 #if LWIP_ND6_RDNSS_MAX_DNS_SERVERS
-    /* There can be multiple RDNSS options per RA */
-    u8_t rdnss_server_idx = 0;
+    /* There can be multiple RDNSS options per RA; install into IPv6 DNS slots only. */
+    u8_t rdnss_server_idx = DNS_IPV6_SERVER_BASE;
 #endif /* LWIP_ND6_RDNSS_MAX_DNS_SERVERS */
 
     /* Check that RA header fits in packet. */
@@ -766,7 +766,8 @@ nd6_input(struct pbuf *p, struct netif *inp)
 
         rdnss_opt = (struct rdnss_option *)buffer;
         num = (rdnss_opt->length - 1) / 2;
-        for (n = 0; (rdnss_server_idx < DNS_MAX_SERVERS) && (n < num); n++) {
+        for (n = 0; (rdnss_server_idx < (DNS_IPV6_SERVER_BASE + DNS_IPV6_SERVER_SLOTS)) &&
+             (rdnss_server_idx < DNS_MAX_SERVERS) && (n < num); n++) {
           ip_addr_t rdnss_address;
 
           /* Copy directly from pbuf to get an aligned, zoned copy of the prefix. */
@@ -778,9 +779,10 @@ nd6_input(struct pbuf *p, struct netif *inp)
               /* TODO implement Lifetime > 0 */
               dns_setserver(rdnss_server_idx++, &rdnss_address);
             } else {
-              /* TODO implement DNS removal in dns.c */
+              /* TODO implement DNS removal in dns.c — only clear IPv6 slots */
               u8_t s;
-              for (s = 0; s < DNS_MAX_SERVERS; s++) {
+              for (s = DNS_IPV6_SERVER_BASE;
+                   s < (DNS_IPV6_SERVER_BASE + DNS_IPV6_SERVER_SLOTS) && s < DNS_MAX_SERVERS; s++) {
                 const ip_addr_t *addr = dns_getserver(s);
                 if(ip_addr_cmp(addr, &rdnss_address)) {
                   dns_setserver(s, NULL);
@@ -800,6 +802,13 @@ nd6_input(struct pbuf *p, struct netif *inp)
       /* option length is checked earlier to be non-zero to make sure loop ends */
       offset += 8 * (u8_t)option_len8;
     }
+
+#if LWIP_ND6_RDNSS_MAX_DNS_SERVERS
+    {
+      extern void net_dns_override_apply_v6(void);
+      net_dns_override_apply_v6();
+    }
+#endif /* LWIP_ND6_RDNSS_MAX_DNS_SERVERS */
 
     break; /* ICMP6_TYPE_RA */
   }

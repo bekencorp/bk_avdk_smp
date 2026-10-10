@@ -362,8 +362,10 @@ static void wm_netif_status_callback(struct netif *n)
 					bk_wifi_sta_get_link_status(&gc_link_status);
 					os_memcpy(gc_ssid, gc_link_status.ssid, 32);
 					gc_rssi = gc_link_status.rssi;
+					/* Capture DHCP DNS before sticky may overwrite slots. */
 					gc_dns_server = dns_getserver(0);
 					n->dns1 = ip_addr_get_ip4_u32(gc_dns_server);
+					net_dns_override_apply_v4();
 					cif_handle_bk_cmd_connect_ind(gc_ssid, gc_rssi,
 						ip_addr_get_ip4_u32(&n->ip_addr),
 						ip_addr_get_ip4_u32(&n->gw),
@@ -394,8 +396,10 @@ static void wm_netif_status_callback(struct netif *n)
 					bk_wifi_sta_get_link_status(&link_status);
 					os_memcpy(ssid, link_status.ssid, 32);
 					ctrl_rssi = link_status.rssi;
+					/* Capture DHCP DNS before sticky may overwrite slots. */
 					dns_server = dns_getserver(0);
 					n->dns1 = ip_addr_get_ip4_u32(dns_server);
+					net_dns_override_apply_v4();
 
 					sta_ip_settings.address = ip_addr_get_ip4_u32(&n->ip_addr);
 					sta_ip_settings.gw = ip_addr_get_ip4_u32(&n->gw);
@@ -411,10 +415,7 @@ static void wm_netif_status_callback(struct netif *n)
 #endif
 
 					if (bk_feature_fast_dhcp_enable()) {
-						/* store current IP to flash */
-						const ip_addr_t *dns_server;
-						dns_server = dns_getserver(0);
-						n->dns1 = ip_addr_get_ip4_u32(dns_server);
+						/* store current IP to flash (n->dns1 = DHCP, not sticky) */
 						struct wlan_fast_connect_info fci = { 0 };
 						wlan_read_fast_connect_info(&fci);
 						os_memset(&fci.ip_addr, 0, sizeof(fci.ip_addr));
@@ -607,6 +608,8 @@ void net_interface_dhcp_stop(void *intrfc_handle)
 	netif_set_status_callback(&if_handle->netif, NULL);
 }
 
+static void net_dns_servers_zero(void);
+
 void sta_ip_down(void)
 {
 	if (sta_ip_start_flag) {
@@ -633,6 +636,8 @@ void sta_ip_down(void)
 		cif_send_ipv6_clear_ind(0);
 #endif
 #endif
+		/* Drop active DNS only; sticky kept unless bk_netif_clear_dns_servers(). */
+		net_dns_servers_zero();
 	}
 }
 
@@ -1194,11 +1199,310 @@ int net_get_if_ip_mask(uint32_t *nm, void *intrfc_handle)
 	return 0;
 }
 
+/* Sticky DNS override: survives DHCP / RDNSS so CP HTTP keepalive can use custom DNS. */
+#if DNS_IPV4_SERVER_SLOTS > NETIF_DNS_SERVER_MAX
+#error "DNS_IPV4_SERVER_SLOTS exceeds NETIF_DNS_SERVER_MAX"
+#endif
+#if CONFIG_IPV6 && (DNS_IPV6_SERVER_SLOTS > NETIF_DNS_SERVER_MAX)
+#error "DNS_IPV6_SERVER_SLOTS exceeds NETIF_DNS_SERVER_MAX"
+#endif
+
+static uint8_t s_dns_override_v4_en;
+static uint8_t s_dns_override_v4_cnt;
+static uint32_t s_dns_override_v4[DNS_IPV4_SERVER_SLOTS];
+#if CONFIG_IPV6
+static uint8_t s_dns_override_v6_en;
+static uint8_t s_dns_override_v6_cnt;
+static ip_addr_t s_dns_override_v6[DNS_IPV6_SERVER_SLOTS];
+#endif
+
+static void net_dns_servers_zero_v4(void)
+{
+	u8_t i;
+
+	for (i = 0; i < DNS_IPV4_SERVER_SLOTS && i < DNS_MAX_SERVERS; i++)
+		dns_setserver(i, NULL);
+}
+
+#if CONFIG_IPV6
+static void net_dns_servers_zero_v6(void)
+{
+	u8_t i;
+
+	for (i = 0; i < DNS_IPV6_SERVER_SLOTS &&
+	     (DNS_IPV6_SERVER_BASE + i) < DNS_MAX_SERVERS; i++)
+		dns_setserver((u8_t)(DNS_IPV6_SERVER_BASE + i), NULL);
+}
+#endif
+
+static void net_dns_servers_zero(void)
+{
+	net_dns_servers_zero_v4();
+#if CONFIG_IPV6
+	net_dns_servers_zero_v6();
+#endif
+}
+
+void net_dns_override_apply_v4(void)
+{
+	ip_addr_t tmp;
+	u8_t i;
+
+	if (!s_dns_override_v4_en)
+		return;
+	for (i = 0; i < DNS_IPV4_SERVER_SLOTS && i < DNS_MAX_SERVERS; i++) {
+		ip_addr_set_ip4_u32(&tmp, s_dns_override_v4[i]);
+		dns_setserver(i, &tmp);
+	}
+}
+
+#if CONFIG_IPV6
+void net_dns_override_apply_v6(void)
+{
+	u8_t i;
+
+	if (!s_dns_override_v6_en)
+		return;
+	for (i = 0; i < DNS_IPV6_SERVER_SLOTS &&
+	     (DNS_IPV6_SERVER_BASE + i) < DNS_MAX_SERVERS; i++) {
+		dns_setserver((u8_t)(DNS_IPV6_SERVER_BASE + i),
+			      &s_dns_override_v6[i]);
+	}
+}
+#endif
+
+int net_dns_override_enabled(void)
+{
+	return s_dns_override_v4_en;
+}
+
+uint32_t net_dns_override_get(uint8_t idx)
+{
+	if (idx >= DNS_IPV4_SERVER_SLOTS || !s_dns_override_v4_en)
+		return 0;
+	return s_dns_override_v4[idx];
+}
+
+/* Parse all entries first; commit only on full success (no half-write). */
+static int net_dns_override_store_v4(const char *servers[], uint8_t count)
+{
+	ip_addr_t addr;
+	uint32_t tmp[DNS_IPV4_SERVER_SLOTS];
+	uint32_t last = 0;
+	u8_t i, n;
+
+	if (!servers || count == 0)
+		return -1;
+
+	n = count;
+	if (n > DNS_IPV4_SERVER_SLOTS)
+		n = DNS_IPV4_SERVER_SLOTS;
+
+	for (i = 0; i < n; i++) {
+		if (!servers[i] || !servers[i][0] ||
+		    !ipaddr_aton(servers[i], &addr) ||
+		    !IP_IS_V4_VAL(addr) || ip_addr_isany(&addr))
+			return -1;
+		last = ip_addr_get_ip4_u32(&addr);
+		tmp[i] = last;
+	}
+	for (; i < DNS_IPV4_SERVER_SLOTS; i++)
+		tmp[i] = last;
+
+	os_memcpy(s_dns_override_v4, tmp, sizeof(tmp));
+	s_dns_override_v4_cnt = n;
+	s_dns_override_v4_en = 1;
+	return 0;
+}
+
+#if CONFIG_IPV6
+static int net_dns_override_store_v6(const char *servers[], uint8_t count)
+{
+	ip_addr_t addr, last;
+	ip_addr_t tmp[DNS_IPV6_SERVER_SLOTS];
+	u8_t i, n;
+
+	if (!servers || count == 0)
+		return -1;
+
+	n = count;
+	if (n > DNS_IPV6_SERVER_SLOTS)
+		n = DNS_IPV6_SERVER_SLOTS;
+
+	ip_addr_set_zero_ip6(&last);
+	for (i = 0; i < n; i++) {
+		if (!servers[i] || !servers[i][0] ||
+		    !ipaddr_aton(servers[i], &addr) ||
+		    !IP_IS_V6_VAL(addr) || ip_addr_isany(&addr))
+			return -1;
+		tmp[i] = addr;
+		last = addr;
+	}
+	for (; i < DNS_IPV6_SERVER_SLOTS; i++)
+		tmp[i] = last;
+
+	os_memcpy(s_dns_override_v6, tmp, sizeof(tmp));
+	s_dns_override_v6_cnt = n;
+	s_dns_override_v6_en = 1;
+	return 0;
+}
+#endif
+
+int net_dns_override_set(const char *servers[], uint8_t count)
+{
+	u8_t i;
+
+	if (net_dns_override_store_v4(servers, count) != 0)
+		return -1;
+	net_dns_override_apply_v4();
+	for (i = 0; i < s_dns_override_v4_cnt; i++)
+		LWIP_LOGI("dns v4 override[%u]: %s\r\n", i, servers[i]);
+	return 0;
+}
+
+#if CONFIG_IPV6
+int net_dns_override_set_v6(const char *servers[], uint8_t count)
+{
+	u8_t i;
+
+	if (net_dns_override_store_v6(servers, count) != 0)
+		return -1;
+	net_dns_override_apply_v6();
+	for (i = 0; i < s_dns_override_v6_cnt; i++)
+		LWIP_LOGI("dns v6 override[%u]: %s\r\n", i, servers[i]);
+	return 0;
+}
+#endif
+
+void net_dns_override_clear(void)
+{
+	s_dns_override_v4_en = 0;
+	s_dns_override_v4_cnt = 0;
+	os_memset(s_dns_override_v4, 0, sizeof(s_dns_override_v4));
+#if CONFIG_IPV6
+	s_dns_override_v6_en = 0;
+	s_dns_override_v6_cnt = 0;
+	os_memset(s_dns_override_v6, 0, sizeof(s_dns_override_v6));
+#endif
+	net_dns_servers_zero();
+	LWIP_LOGI("dns override cleared\r\n");
+}
+
+int net_dns_override_from_config(const netif_dns_config_t *cfg)
+{
+	const char *v4_ptrs[NETIF_DNS_SERVER_MAX];
+#if CONFIG_IPV6
+	const char *v6_ptrs[NETIF_DNS_SERVER_MAX];
+#endif
+	/* Staging: validate both families before touching sticky / slots. */
+	uint32_t stage_v4[DNS_IPV4_SERVER_SLOTS];
+#if CONFIG_IPV6
+	ip_addr_t stage_v6[DNS_IPV6_SERVER_SLOTS];
+	u8_t stage_v6_cnt = 0;
+#endif
+	u8_t stage_v4_cnt = 0;
+	u8_t i, n;
+	ip_addr_t addr;
+	uint32_t last4 = 0;
+#if CONFIG_IPV6
+	ip_addr_t last6;
+#endif
+
+	if (!cfg)
+		return -1;
+
+	if (!cfg->v4_en && !cfg->v6_en) {
+		net_dns_override_clear();
+		return 0;
+	}
+
+	/* ---- validate / stage (no sticky mutation on failure) ---- */
+	if (cfg->v4_en) {
+		if (cfg->dns4_cnt == 0 || cfg->dns4_cnt > NETIF_DNS_SERVER_MAX)
+			return -1;
+		n = cfg->dns4_cnt;
+		if (n > DNS_IPV4_SERVER_SLOTS)
+			n = DNS_IPV4_SERVER_SLOTS;
+		for (i = 0; i < cfg->dns4_cnt; i++)
+			v4_ptrs[i] = cfg->dns4[i];
+		for (i = 0; i < n; i++) {
+			if (!v4_ptrs[i] || !v4_ptrs[i][0] ||
+			    !ipaddr_aton(v4_ptrs[i], &addr) ||
+			    !IP_IS_V4_VAL(addr) || ip_addr_isany(&addr))
+				return -1;
+			last4 = ip_addr_get_ip4_u32(&addr);
+			stage_v4[i] = last4;
+		}
+		for (; i < DNS_IPV4_SERVER_SLOTS; i++)
+			stage_v4[i] = last4;
+		stage_v4_cnt = n;
+	}
+
+#if CONFIG_IPV6
+	if (cfg->v6_en) {
+		if (cfg->dns6_cnt == 0 || cfg->dns6_cnt > NETIF_DNS_SERVER_MAX)
+			return -1;
+		n = cfg->dns6_cnt;
+		if (n > DNS_IPV6_SERVER_SLOTS)
+			n = DNS_IPV6_SERVER_SLOTS;
+		for (i = 0; i < cfg->dns6_cnt; i++)
+			v6_ptrs[i] = cfg->dns6[i];
+		ip_addr_set_zero_ip6(&last6);
+		for (i = 0; i < n; i++) {
+			if (!v6_ptrs[i] || !v6_ptrs[i][0] ||
+			    !ipaddr_aton(v6_ptrs[i], &addr) ||
+			    !IP_IS_V6_VAL(addr) || ip_addr_isany(&addr))
+				return -1;
+			stage_v6[i] = addr;
+			last6 = addr;
+		}
+		for (; i < DNS_IPV6_SERVER_SLOTS; i++)
+			stage_v6[i] = last6;
+		stage_v6_cnt = n;
+	}
+#endif
+
+	/* ---- commit + slot update ---- */
+	if (cfg->v4_en) {
+		os_memcpy(s_dns_override_v4, stage_v4, sizeof(stage_v4));
+		s_dns_override_v4_cnt = stage_v4_cnt;
+		s_dns_override_v4_en = 1;
+		net_dns_override_apply_v4();
+	} else {
+		s_dns_override_v4_en = 0;
+		s_dns_override_v4_cnt = 0;
+		os_memset(s_dns_override_v4, 0, sizeof(s_dns_override_v4));
+		net_dns_servers_zero_v4();
+	}
+
+#if CONFIG_IPV6
+	if (cfg->v6_en) {
+		os_memcpy(s_dns_override_v6, stage_v6, sizeof(stage_v6));
+		s_dns_override_v6_cnt = stage_v6_cnt;
+		s_dns_override_v6_en = 1;
+		net_dns_override_apply_v6();
+	} else {
+		s_dns_override_v6_en = 0;
+		s_dns_override_v6_cnt = 0;
+		os_memset(s_dns_override_v6, 0, sizeof(s_dns_override_v6));
+		net_dns_servers_zero_v6();
+	}
+#endif
+	return 0;
+}
+
 void net_configure_dns(struct iface *if_handle, struct wlan_ip_config *ip)
 {
 	ip_addr_t tmp;
+	u8_t i;
 
 	if (ip->ipv4.addr_type == ADDR_TYPE_STATIC) {
+		if (net_dns_override_enabled()) {
+			ip->ipv4.dns1 = net_dns_override_get(0);
+#if DNS_IPV4_SERVER_SLOTS > 1
+			ip->ipv4.dns2 = net_dns_override_get(1);
+#endif
+		}
 		if (ip->ipv4.dns1 == 0) {
 			if (if_handle == &g_mlan && bk_feature_fast_dhcp_enable()) {
 #ifdef CONFIG_WIFI_ENABLE
@@ -1213,10 +1517,13 @@ void net_configure_dns(struct iface *if_handle, struct wlan_ip_config *ip)
 		if (ip->ipv4.dns2 == 0)
 			ip->ipv4.dns2 = ip->ipv4.dns1;
 
-		ip_addr_set_ip4_u32(&tmp, ip->ipv4.dns1);
-		dns_setserver(0, &tmp);
-		ip_addr_set_ip4_u32(&tmp, ip->ipv4.dns2);
-		dns_setserver(1, &tmp);
+		for (i = 0; i < DNS_IPV4_SERVER_SLOTS && i < DNS_MAX_SERVERS; i++) {
+			ip_addr_set_ip4_u32(&tmp, (i == 0) ? ip->ipv4.dns1 : ip->ipv4.dns2);
+			dns_setserver(i, &tmp);
+		}
+	} else {
+		/* DHCP path: re-apply IPv4 sticky after stack may have set DNS. */
+		net_dns_override_apply_v4();
 	}
 
 	/* DNS MAX Retries should be configured in lwip/dns.c to 3/4 */
