@@ -376,9 +376,12 @@ struct bk_msg_connect_ind
 };
 
 #define MAX_IPV6_ADDRESSES_IN_MSG 3
-#define MAX_IPV6_DNS_SERVERS_IN_MSG 2
 #define IPV6_GATEWAY_MAC_LEN 6
-/* Layout must match AP wdrv_ipv6_ind */
+/* dns_addr[] uses DNS_IPV6_SERVER_SLOTS (lwipopts via pbuf.h). */
+#ifndef DNS_IPV6_SERVER_SLOTS
+#define DNS_IPV6_SERVER_SLOTS 2
+#endif
+/* Layout must match AP wdrv_ipv6_ind. */
 struct bk_msg_ipv6_ind
 {
     uint8_t addr_count;
@@ -390,7 +393,7 @@ struct bk_msg_ipv6_ind
         uint8_t addr_state;
         uint8_t addr_type;
     } ipv6_addr[MAX_IPV6_ADDRESSES_IN_MSG];
-    uint8_t dns_addr[MAX_IPV6_DNS_SERVERS_IN_MSG][16];
+    uint8_t dns_addr[DNS_IPV6_SERVER_SLOTS][16];
     uint8_t gateway[16];
     uint8_t gateway_mac[IPV6_GATEWAY_MAC_LEN];
     uint32_t gateway_lifetime;

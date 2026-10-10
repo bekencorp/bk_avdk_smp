@@ -350,6 +350,18 @@ bk_err_t cif_handle_wifi_api_cmd(struct bk_msg_hdr *msg)
             break;
         }
 
+        case STA_SET_DNS_SERVER:
+        {
+            netif_dns_config_t *dns_cfg = (netif_dns_config_t *)arg_info->args[0];
+
+            if (!dns_cfg) {
+                ret = BK_ERR_NULL_PARAM;
+                break;
+            }
+            ret = (net_dns_override_from_config(dns_cfg) == 0) ? BK_OK : BK_FAIL;
+            break;
+        }
+
         case STA_GET_ARP_TABLE:
         {
             ret = bk_wifi_sta_get_arp_table((wifi_arp_sync_table_t *)arg_info->args[0]);

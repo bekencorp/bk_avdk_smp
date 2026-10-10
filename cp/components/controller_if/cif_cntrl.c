@@ -205,8 +205,9 @@ static void cif_fill_ipv6_dns_and_gateway(struct netif *netif, struct bk_msg_ipv
 		return;
 
 #if LWIP_DNS
-	for (i = 0; i < MAX_IPV6_DNS_SERVERS_IN_MSG; i++) {
-		dns_addr = dns_getserver(i);
+	for (i = 0; i < DNS_IPV6_SERVER_SLOTS &&
+	     (DNS_IPV6_SERVER_BASE + i) < DNS_MAX_SERVERS; i++) {
+		dns_addr = dns_getserver((u8_t)(DNS_IPV6_SERVER_BASE + i));
 		if (dns_addr && IP_IS_V6(dns_addr) && !ip_addr_isany(dns_addr)) {
 			os_memcpy(ind->dns_addr[ind->dns_count], ip_2_ip6(dns_addr)->addr, 16);
 			CIF_LOGD("IPv6 DNS server %d: %s\n", ind->dns_count, ipaddr_ntoa(dns_addr));
