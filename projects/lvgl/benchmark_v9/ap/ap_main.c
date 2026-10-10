@@ -30,18 +30,6 @@
 extern void user_app_main(void);
 extern void rtos_set_user_app_entry(beken_thread_function_t entry);
 
-#define SYS_ANA_REG_BASE    (0x44010000)
-#define LDO_ANA_REG         (0x69)
-
-static void bk_lodoen_enable(void)
-{
-    uint32_t reg = REG_READ(SYS_ANA_REG_BASE + LDO_ANA_REG * 4);
-    reg |= (0xF << 28) | (0x2 << 23) | (0x7 << 19) | (0x7 << 15);
-    reg &= ~(0xF << 11);
-    reg |= (0x8 << 11);
-    REG_WRITE(SYS_ANA_REG_BASE + LDO_ANA_REG * 4, reg);
-}
-
 typedef struct
 {
     uint8_t enable;
@@ -73,8 +61,8 @@ bk_err_t lvgl_app_benchmark_init(void)
     bk_display_dpu_config_t dpu_config =
     {
         .video.enable = true,
-        .video.decompress = false,
-        .video.format = BK_PIXEL_FORMAT_RGB565,
+        .video.decompress = true,
+        .video.format = BK_PIXEL_FORMAT_ARGB8888,
     };
 
     const bk_lcd_panel_config_t panel_config =
@@ -110,12 +98,12 @@ bk_err_t lvgl_app_benchmark_init(void)
     lv_vnd_config.height = HEIGHT;
     lv_vnd_config.render_mode = RENDER_PARTIAL_MODE;
     if (lv_vnd_config.render_mode == RENDER_PARTIAL_MODE) {
-        lv_vnd_config.draw_pixel_size = WIDTH * 128 * sizeof(bk_color_t);
+        lv_vnd_config.draw_pixel_size = WIDTH * 96 * sizeof(bk_color_t);
     }
     lv_vnd_config.rotation = ROTATE_NONE;
     lv_vnd_config.disp_width = WIDTH;
     lv_vnd_config.disp_height = HEIGHT;
-    lv_vnd_config.output_compress = false;
+    lv_vnd_config.output_compress = true;
     if (lv_vnd_config.output_compress && lv_vnd_config.render_mode == RENDER_PARTIAL_MODE) {
         if (WIDTH % 16 || HEIGHT % 4) {
             lv_vnd_config.disp_width = (WIDTH + 15) & ~15;
@@ -202,8 +190,6 @@ int main(void)
     bk_init();
 
     media_service_init();
-
-    bk_lodoen_enable();
 
     bk_frame_buffer_init();
 

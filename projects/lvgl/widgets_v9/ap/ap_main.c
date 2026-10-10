@@ -30,18 +30,6 @@
 extern void user_app_main(void);
 extern void rtos_set_user_app_entry(beken_thread_function_t entry);
 
-#define SYS_ANA_REG_BASE    (0x44010000)
-#define LDO_ANA_REG         (0x69)
-
-static void bk_lodoen_enable(void)
-{
-    uint32_t reg = REG_READ(SYS_ANA_REG_BASE + LDO_ANA_REG * 4);
-    reg |= (0xF << 28) | (0x2 << 23) | (0x7 << 19) | (0x7 << 15);
-    reg &= ~(0xF << 11);
-    reg |= (0x8 << 11);
-    REG_WRITE(SYS_ANA_REG_BASE + LDO_ANA_REG * 4, reg);
-}
-
 typedef struct
 {
     bk_display_ctlr_handle_t dpu_ctlr_handle;
@@ -322,8 +310,6 @@ int main(void)
     bk_init();
 
     media_service_init();
-
-    bk_lodoen_enable();
 
     bk_frame_buffer_init();
 
