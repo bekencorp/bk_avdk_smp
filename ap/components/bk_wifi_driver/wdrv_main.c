@@ -10,6 +10,7 @@
 #include <components/netif.h>
 #include <components/event.h>
 #include <modules/pm.h>
+#include <sys_sw_regs.h>
 void __asm_flush_dcache_range(void* begin, void* end);
 
 struct wdrv_env_t wdrv_env = {0};
@@ -448,14 +449,13 @@ bk_err_t wdrv_init()
         return ret;
     }
 
+    bk_sys_sw_regs_set_ap_wdrv_ipc_ready(0);
     WDRV_STATS_SMP_RESET(tx_alloc_num, 0U);
 
     //LWIP init
     // BK_LOG_ON_ERR(bk_event_init());
     // BK_LOG_ON_ERR(bk_netif_init());
 
-    //IPC interface init
-    wdrv_ipc_init();
 #if CONFIG_CONTROLLER_AP_BUFFER_COPY
     co_list_init(&wdrv_env.tx_pending_list);
     wdrv_env.tx_pending_count = 0;
@@ -499,6 +499,17 @@ bk_err_t wdrv_init()
         goto wdrv_init_failed;
     }
 
+    /*
+     * Register mailbox callbacks only after the queue and its consumer task
+     * are ready. CP may send data as soon as an RX callback is visible.
+     */
+    ret = wdrv_ipc_init();
+    if (ret != BK_OK)
+    {
+        WDRV_LOGE("wdrv_ipc_init failed:%d\n", ret);
+        goto wdrv_init_failed;
+    }
+
     ret = wdrv_host_init();
     if (ret != BK_OK)
     {
@@ -526,6 +537,7 @@ bk_err_t wdrv_deinit()
 {
     bk_err_t ret;
 
+    bk_sys_sw_regs_set_ap_wdrv_ipc_ready(0);
     WDRV_LOGE("ctrl_if_deinit\n");
     ret = wdrv_pm_deinit();
     if (ret != BK_OK)

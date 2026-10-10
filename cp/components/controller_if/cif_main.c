@@ -6,6 +6,7 @@
 #if CONFIG_SOC_SMP
 #include "spinlock.h"
 #endif
+#include <sys_sw_regs.h>
 
 struct cif_env_t cif_env = {0};
 struct cif_stats * cif_stats_ptr = &(cif_env.stats);
@@ -322,6 +323,12 @@ __IRAM2 bk_err_t cif_rxdata_pre_process(uint8_t channel,void* head,uint8_t need_
         CIF_IPC_LOCK(&cif_ipc_env[ipc_chnl], int_level);
         co_list_push_back((struct co_list *)&cif_ipc_env[ipc_chnl].rx_list,(struct co_list_hdr *)head);
         CIF_IPC_UNLOCK(&cif_ipc_env[ipc_chnl], int_level);
+    }
+
+    if (!bk_sys_sw_regs_get_ap_wdrv_ipc_ready())
+    {
+        cif_env.host_wifi_init = false;
+        return BK_OK;
     }
 
     CIF_IPC_LOCK(&cif_ipc_env[ipc_chnl], int_level);

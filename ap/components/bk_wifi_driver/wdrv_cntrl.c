@@ -39,9 +39,7 @@
 #if CONFIG_PSA_MBEDTLS
 #include "mbedtls/bignum.h"
 #endif
-#if CONFIG_CONTROLLER_AP_BUFFER_COPY
 #include <sys_sw_regs.h>
-#endif
 #if CONFIG_IPV6
 #include "lwip/ip6_addr.h"
 #include "lwip/dns.h"
@@ -928,6 +926,7 @@ bk_err_t wdrv_host_init(void)
 
     co_list_init((struct co_list *)&wdrv_host_env.cfm_pending_list);
     rtos_init_mutex(&wdrv_host_env.cfm_lock);
+    bk_sys_sw_regs_set_ap_wdrv_ipc_ready(1);
 
     if(wdrv_get_mac_addr() != 0)
         return BK_FAIL;

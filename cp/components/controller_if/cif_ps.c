@@ -5,6 +5,7 @@
 #include <driver/aon_rtc_types.h>
 #include <driver/aon_rtc.h>
 #include <modules/pm.h>
+#include <sys_sw_regs.h>
 
 extern bool battery_test_mode;
 
@@ -25,6 +26,10 @@ static void cif_ap_power_off_callback(void *arg)
 {
     (void)arg;
     CIF_LOGI("AP power off, sync CIF host state\r\n");
+#if !CONFIG_PM_AP_FAST_BOOT_ENABLE
+    cif_env.host_wifi_init = false;
+    bk_sys_sw_regs_set_ap_wdrv_ipc_ready(0);
+#endif
     (void)cif_power_down_host();
 }
 
