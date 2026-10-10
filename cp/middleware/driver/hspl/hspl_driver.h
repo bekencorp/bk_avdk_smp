@@ -114,6 +114,21 @@ bk_err_t bk_hspl_unlock(bk_hspl_id_t hspl_id, uint8_t channel);
 bk_err_t bk_hspl_get_state(bk_hspl_id_t hspl_id, uint8_t channel, hspl_state_t *state);
 
 /**
+ * @brief Collect every channel of one HSPL instance currently owned by a master
+ *
+ * Reads the STA registers only, so it never disturbs lock state and needs no
+ * cooperation from the owning core. That makes it usable to audit a core that
+ * is about to be reset or powered off, or one that already trapped.
+ *
+ * @param hspl_id HSPL instance to scan
+ * @param owner_id Hardware master id to match against STA bits[4:1]
+ * @param channel_mask Output BIT(channel) mask of matching channels (must not be NULL)
+ * @return BK_OK on success, BK_FAIL on invalid instance or argument
+ */
+bk_err_t bk_hspl_get_owner_channel_mask(bk_hspl_id_t hspl_id, uint8_t owner_id,
+	uint32_t *channel_mask);
+
+/**
  * @brief Read raw LOCK register value (note: reading LOCK triggers lock attempt)
  * @param channel 0..15
  * @return Raw register value

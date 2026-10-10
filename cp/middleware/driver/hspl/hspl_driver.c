@@ -219,6 +219,30 @@ bk_err_t bk_hspl_get_state(bk_hspl_id_t hspl_id, uint8_t channel, hspl_state_t *
 	return BK_OK;
 }
 
+bk_err_t bk_hspl_get_owner_channel_mask(bk_hspl_id_t hspl_id, uint8_t owner_id,
+	uint32_t *channel_mask)
+{
+	uint32_t mask = 0;
+
+	if (!channel_mask || !hspl_get_base(hspl_id)) {
+		return BK_FAIL;
+	}
+
+	for (uint8_t channel = 0; channel < HSPL_CHANNEL_MAX; channel++) {
+		hspl_state_t state = {0};
+
+		if (bk_hspl_get_state(hspl_id, channel, &state) != BK_OK) {
+			return BK_FAIL;
+		}
+		if (state.owner_valid && (state.owner_id == owner_id)) {
+			mask |= (1U << channel);
+		}
+	}
+
+	*channel_mask = mask;
+	return BK_OK;
+}
+
 bk_err_t bk_hspl_try_lock(bk_hspl_id_t hspl_id, uint8_t channel, uint8_t *owner_id)
 {
 	uint32_t val;
