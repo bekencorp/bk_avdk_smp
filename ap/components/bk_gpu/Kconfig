@@ -46,4 +46,27 @@ menu "BK_GPU"
 		  config. Must be used together with VG_LITE_GPU_TESS_WIDTH.
 		  0 disables the reserved tess buffer.
 
+	config VG_LITE_GPU_CONTIGUOUS_RUNTIME_MARGIN
+		depends on VG_LITE_GPU
+		hex "vg-lite contiguous heap runtime margin (non-fixed size)"
+		default 0x0
+		help
+		  Extra bytes on top of the dynamically sized VG-Lite contiguous
+		  heap (command buffer + tessellation + driver init). The heap is
+		  not a fixed size: calculated base + this margin.
+
+		  Default is 0. Raise it in the project defconfig when the product
+		  needs more GPU working memory at runtime, for example:
+		    - LVGL GPU drawing with heavy blend / temporary surfaces
+		    - Vector path / stroke drawing on the GPU
+		    - Mask, scissor, or gradient drawing
+		    - Dual-core concurrent GPU + OSD redraw under load
+
+		  Leave at 0 for typical video blit / OSD overlay on external
+		  frame buffers (PSRAM), when no extra GPU working memory is
+		  required.
+
+		  If the log shows VG_LITE_OUT_OF_MEMORY during GPU draw, raise
+		  this in defconfig (typical starting point 0x8000 / 32KB).
+
 endmenu
