@@ -396,9 +396,22 @@ u32_t beken_random(void);
  * LWIP_RAW==1: Enable application layer to hook into the IP layer itself.
  */
 #define LWIP_RAW                        1
+/*
+ * DNS slots: [0 .. DNS_IPV4_SERVER_SLOTS) = IPv4 (DHCP/static/sticky).
+ * With IPv6: [DNS_IPV6_SERVER_BASE ..) = IPv6, BASE == IPV4_SLOTS.
+ */
+#define DNS_IPV4_SERVER_SLOTS           2
+#define LWIP_DHCP_MAX_DNS_SERVERS       DNS_IPV4_SERVER_SLOTS
+
 #ifdef CONFIG_IPV6
 #define LWIP_IPV6                        1
-#define LWIP_ND6_RDNSS_MAX_DNS_SERVERS  DNS_MAX_SERVERS
+#define DNS_IPV6_SERVER_SLOTS           2
+#define DNS_IPV6_SERVER_BASE            DNS_IPV4_SERVER_SLOTS
+#define DNS_MAX_SERVERS                 (DNS_IPV4_SERVER_SLOTS + DNS_IPV6_SERVER_SLOTS)
+#define LWIP_DHCP6_MAX_DNS_SERVERS      DNS_IPV6_SERVER_SLOTS
+#define LWIP_ND6_RDNSS_MAX_DNS_SERVERS  DNS_IPV6_SERVER_SLOTS
+#else
+#define DNS_MAX_SERVERS                 DNS_IPV4_SERVER_SLOTS
 #endif
 
 /* Enable IPv4 Auto IP	*/
@@ -482,7 +495,7 @@ u32_t beken_random(void);
 #define LWIP_DNS                        1
 #define DNS_TABLE_SIZE                  CONFIG_DNS_TABLE_SIZE  // number of table entries, default 4
 //#define DNS_MAX_NAME_LENGTH           64  // max. name length, default 256
-#define DNS_MAX_SERVERS                 2  // number of DNS servers, default 2
+/* DNS_MAX_SERVERS / slot layout defined above (near LWIP_IPV6). */
 #define DNS_DOES_NAME_CHECK             1  // compare received name with given,def 0
 #define DNS_MSG_SIZE                    512
 #define MDNS_MSG_SIZE                   512

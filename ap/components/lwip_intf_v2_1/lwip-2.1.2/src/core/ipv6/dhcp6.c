@@ -537,8 +537,12 @@ dhcp6_handle_config_reply(struct netif *netif, struct pbuf *p_msg_in)
         return;
       }
       ip6_addr_assign_zone(dns_addr6, IP6_UNKNOWN, netif);
-      /* @todo: do we need a different offset than DHCP(v4)? */
-      dns_setserver(n, &dns_addr);
+      /* Install into IPv6 DNS slots (do not overwrite IPv4 slots 0/1). */
+      dns_setserver((u8_t)(DNS_IPV6_SERVER_BASE + n), &dns_addr);
+    }
+    {
+      extern void net_dns_override_apply_v6(void);
+      net_dns_override_apply_v6();
     }
   }
   /* @ todo: parse and set Domain Search List */

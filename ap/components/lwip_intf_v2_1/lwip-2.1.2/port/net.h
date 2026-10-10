@@ -5,6 +5,7 @@ extern "C" {
 #endif
 
 #include "lwip_netif_address.h"
+#include <components/netif_types.h>
 
 extern void uap_ip_down(void);
 extern void uap_ip_start(void);
@@ -103,6 +104,21 @@ uint32_t ppp_ip_is_start(void);
 void bk_netif_trigger_loopnetif_msg(void);
 #endif
 void bk_netif_add_dns_server(uint8_t idx, const char* szIpv4);
+
+/** Sticky DNS override used by STA sync / DHCP / RDNSS. */
+int net_dns_override_set(const char *servers[], uint8_t count);
+#if CONFIG_IPV6
+int net_dns_override_set_v6(const char *servers[], uint8_t count);
+#endif
+void net_dns_override_clear(void);
+void net_dns_override_apply_v4(void);
+#if CONFIG_IPV6
+void net_dns_override_apply_v6(void);
+#endif
+int net_dns_override_enabled(void);
+uint32_t net_dns_override_get(uint8_t idx);
+void net_dns_override_to_config(netif_dns_config_t *cfg);
+
 #ifdef __cplusplus
 }
 #endif

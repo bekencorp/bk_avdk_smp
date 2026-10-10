@@ -708,6 +708,8 @@ void net_interface_dhcp_stop(void *intrfc_handle)
 	netif_set_status_callback(&if_handle->netif, NULL);
 }
 
+static void net_dns_servers_zero(void);
+
 void sta_ip_down(void)
 {
 	if (sta_ip_start_flag) {
@@ -724,6 +726,8 @@ void sta_ip_down(void)
 			g_mlan.netif.ip6_addr_state[addr_idx] = IP6_ADDR_INVALID;
 		}
 #endif
+		/* Drop active DNS only; sticky kept unless bk_netif_clear_dns_servers(). */
+		net_dns_servers_zero();
 	}
 }
 
@@ -735,8 +739,17 @@ void sta_ip_apply_static_binary(uint32_t ip, uint32_t mk, uint32_t gw, uint32_t 
 		.netmask = mk,
 		.gw = gw,
 		.dns1 = dns,
+		.dns2 = 0,
 	};
 	struct netif *n = &g_mlan.netif;
+
+	/* Prefer customer sticky DNS over CP DHCP-synced DNS. */
+	if (net_dns_override_enabled()) {
+		addr.dns1 = net_dns_override_get(0);
+#if DNS_IPV4_SERVER_SLOTS > 1
+		addr.dns2 = net_dns_override_get(1);
+#endif
+	}
 
 	os_memcpy(&sta_ip_settings, &addr, sizeof(addr));
 
@@ -1776,18 +1789,27 @@ int net_get_if_ip_mask(uint32_t *nm, void *intrfc_handle)
 void net_configure_dns(struct iface *if_handle, struct ipv4_config *ip)
 {
 	ip_addr_t tmp;
+	u8_t i;
 
 	(void)if_handle;
+
+	if (net_dns_override_enabled()) {
+		ip->dns1 = net_dns_override_get(0);
+#if DNS_IPV4_SERVER_SLOTS > 1
+		ip->dns2 = net_dns_override_get(1);
+#endif
+	}
 
 	if (ip->dns1 == 0)
 		ip->dns1 = ip->gw;
 	if (ip->dns2 == 0)
 		ip->dns2 = ip->dns1;
 
-	ip_addr_set_ip4_u32(&tmp, ip->dns1);
-	dns_setserver(0, &tmp);
-	ip_addr_set_ip4_u32(&tmp, ip->dns2);
-	dns_setserver(1, &tmp);
+	/* Fill IPv4 DNS slots only; leave IPv6 slots untouched. */
+	for (i = 0; i < DNS_IPV4_SERVER_SLOTS && i < DNS_MAX_SERVERS; i++) {
+		ip_addr_set_ip4_u32(&tmp, (i == 0) ? ip->dns1 : ip->dns2);
+		dns_setserver(i, &tmp);
+	}
 
 	/* DNS MAX Retries should be configured in lwip/dns.c to 3/4 */
 	/* DNS Cache size of about 4 is sufficient */
@@ -2290,18 +2312,253 @@ int host_wlan_remove_sap_netif(void)
 
 #endif
 
+/* Sticky DNS override: survives DHCP / RDNSS / SMP IND sync. */
+#if DNS_IPV4_SERVER_SLOTS > NETIF_DNS_SERVER_MAX
+#error "DNS_IPV4_SERVER_SLOTS exceeds NETIF_DNS_SERVER_MAX"
+#endif
+#if CONFIG_IPV6 && (DNS_IPV6_SERVER_SLOTS > NETIF_DNS_SERVER_MAX)
+#error "DNS_IPV6_SERVER_SLOTS exceeds NETIF_DNS_SERVER_MAX"
+#endif
+
+static uint8_t s_dns_override_v4_en;
+static uint8_t s_dns_override_v4_cnt;
+static uint32_t s_dns_override_v4[DNS_IPV4_SERVER_SLOTS];
+#if CONFIG_IPV6
+static uint8_t s_dns_override_v6_en;
+static uint8_t s_dns_override_v6_cnt;
+static ip_addr_t s_dns_override_v6[DNS_IPV6_SERVER_SLOTS];
+#endif
+
+static void net_dns_servers_zero_v4(void)
+{
+	u8_t i;
+
+	for (i = 0; i < DNS_IPV4_SERVER_SLOTS && i < DNS_MAX_SERVERS; i++)
+		dns_setserver(i, NULL);
+}
+
+#if CONFIG_IPV6
+static void net_dns_servers_zero_v6(void)
+{
+	u8_t i;
+
+	for (i = 0; i < DNS_IPV6_SERVER_SLOTS &&
+	     (DNS_IPV6_SERVER_BASE + i) < DNS_MAX_SERVERS; i++)
+		dns_setserver((u8_t)(DNS_IPV6_SERVER_BASE + i), NULL);
+}
+#endif
+
+static void net_dns_servers_zero(void)
+{
+	net_dns_servers_zero_v4();
+#if CONFIG_IPV6
+	net_dns_servers_zero_v6();
+#endif
+}
+
+void net_dns_override_apply_v4(void)
+{
+	ip_addr_t tmp;
+	u8_t i;
+
+	if (!s_dns_override_v4_en)
+		return;
+	for (i = 0; i < DNS_IPV4_SERVER_SLOTS && i < DNS_MAX_SERVERS; i++) {
+		ip_addr_set_ip4_u32(&tmp, s_dns_override_v4[i]);
+		dns_setserver(i, &tmp);
+	}
+}
+
+#if CONFIG_IPV6
+void net_dns_override_apply_v6(void)
+{
+	u8_t i;
+
+	if (!s_dns_override_v6_en)
+		return;
+	for (i = 0; i < DNS_IPV6_SERVER_SLOTS &&
+	     (DNS_IPV6_SERVER_BASE + i) < DNS_MAX_SERVERS; i++) {
+		dns_setserver((u8_t)(DNS_IPV6_SERVER_BASE + i),
+			      &s_dns_override_v6[i]);
+	}
+}
+#endif
+
+int net_dns_override_enabled(void)
+{
+	return s_dns_override_v4_en;
+}
+
+uint32_t net_dns_override_get(uint8_t idx)
+{
+	if (idx >= DNS_IPV4_SERVER_SLOTS || !s_dns_override_v4_en)
+		return 0;
+	return s_dns_override_v4[idx];
+}
+
+/* Parse all entries first; commit only on full success (no half-write). */
+static int net_dns_override_store_v4(const char *servers[], uint8_t count)
+{
+	ip_addr_t addr;
+	uint32_t tmp[DNS_IPV4_SERVER_SLOTS];
+	uint32_t last = 0;
+	u8_t i, n;
+
+	if (!servers || count == 0)
+		return -1;
+
+	n = count;
+	if (n > DNS_IPV4_SERVER_SLOTS)
+		n = DNS_IPV4_SERVER_SLOTS;
+
+	for (i = 0; i < n; i++) {
+		if (!servers[i] || !servers[i][0] ||
+		    !ipaddr_aton(servers[i], &addr) ||
+		    !IP_IS_V4_VAL(addr) || ip_addr_isany(&addr))
+			return -1;
+		last = ip_addr_get_ip4_u32(&addr);
+		tmp[i] = last;
+	}
+	for (; i < DNS_IPV4_SERVER_SLOTS; i++)
+		tmp[i] = last;
+
+	os_memcpy(s_dns_override_v4, tmp, sizeof(tmp));
+	s_dns_override_v4_cnt = n;
+	s_dns_override_v4_en = 1;
+	return 0;
+}
+
+#if CONFIG_IPV6
+static int net_dns_override_store_v6(const char *servers[], uint8_t count)
+{
+	ip_addr_t addr, last;
+	ip_addr_t tmp[DNS_IPV6_SERVER_SLOTS];
+	u8_t i, n;
+
+	if (!servers || count == 0)
+		return -1;
+
+	n = count;
+	if (n > DNS_IPV6_SERVER_SLOTS)
+		n = DNS_IPV6_SERVER_SLOTS;
+
+	ip_addr_set_zero_ip6(&last);
+	for (i = 0; i < n; i++) {
+		if (!servers[i] || !servers[i][0] ||
+		    !ipaddr_aton(servers[i], &addr) ||
+		    !IP_IS_V6_VAL(addr) || ip_addr_isany(&addr))
+			return -1;
+		tmp[i] = addr;
+		last = addr;
+	}
+	for (; i < DNS_IPV6_SERVER_SLOTS; i++)
+		tmp[i] = last;
+
+	os_memcpy(s_dns_override_v6, tmp, sizeof(tmp));
+	s_dns_override_v6_cnt = n;
+	s_dns_override_v6_en = 1;
+	return 0;
+}
+#endif
+
+int net_dns_override_set(const char *servers[], uint8_t count)
+{
+	u8_t i;
+
+	if (net_dns_override_store_v4(servers, count) != 0)
+		return -1;
+	net_dns_override_apply_v4();
+	for (i = 0; i < s_dns_override_v4_cnt; i++)
+		LWIP_LOGI("dns v4 override[%u]: %s\r\n", i, servers[i]);
+	return 0;
+}
+
+#if CONFIG_IPV6
+int net_dns_override_set_v6(const char *servers[], uint8_t count)
+{
+	u8_t i;
+
+	if (net_dns_override_store_v6(servers, count) != 0)
+		return -1;
+	net_dns_override_apply_v6();
+	for (i = 0; i < s_dns_override_v6_cnt; i++)
+		LWIP_LOGI("dns v6 override[%u]: %s\r\n", i, servers[i]);
+	return 0;
+}
+#endif
+
+void net_dns_override_clear(void)
+{
+	s_dns_override_v4_en = 0;
+	s_dns_override_v4_cnt = 0;
+	os_memset(s_dns_override_v4, 0, sizeof(s_dns_override_v4));
+#if CONFIG_IPV6
+	s_dns_override_v6_en = 0;
+	s_dns_override_v6_cnt = 0;
+	os_memset(s_dns_override_v6, 0, sizeof(s_dns_override_v6));
+#endif
+	net_dns_servers_zero();
+	LWIP_LOGI("dns override cleared\r\n");
+}
+
+void net_dns_override_to_config(netif_dns_config_t *cfg)
+{
+	ip_addr_t tmp;
+	const char *s;
+	u8_t i;
+
+	if (!cfg)
+		return;
+	os_memset(cfg, 0, sizeof(*cfg));
+	cfg->v4_en = s_dns_override_v4_en;
+	if (s_dns_override_v4_en) {
+		cfg->dns4_cnt = s_dns_override_v4_cnt;
+		for (i = 0; i < s_dns_override_v4_cnt && i < NETIF_DNS_SERVER_MAX; i++) {
+			ip_addr_set_ip4_u32(&tmp, s_dns_override_v4[i]);
+			s = ipaddr_ntoa(&tmp);
+			if (s)
+				os_strncpy(cfg->dns4[i], s, NETIF_IP4_STR_LEN - 1);
+		}
+	}
+#if CONFIG_IPV6
+	cfg->v6_en = s_dns_override_v6_en;
+	if (s_dns_override_v6_en) {
+		cfg->dns6_cnt = s_dns_override_v6_cnt;
+		for (i = 0; i < s_dns_override_v6_cnt && i < NETIF_DNS_SERVER_MAX; i++) {
+			s = ipaddr_ntoa(&s_dns_override_v6[i]);
+			if (s)
+				os_strncpy(cfg->dns6[i], s, NETIF_IP6_STR_LEN - 1);
+		}
+	}
+#endif
+}
+
 void bk_netif_add_dns_server(uint8_t idx, const char* szIpv4)
 {
-    ip_addr_t ipaddr;
-    ipaddr_aton(szIpv4, &ipaddr);
-    if (ipaddr_aton(szIpv4, &ipaddr))
-    {
-        LWIP_LOGI("idx:(%d)dns:(%s)",idx,szIpv4);
-        dns_setserver(idx, &ipaddr);
-    }
-    else
-    {
-        LWIP_LOGI("idx:(%d)dns:(%s)",idx,szIpv4);
-    }
+	ip_addr_t ipaddr;
+	u8_t i;
+
+	if (!szIpv4 || !ipaddr_aton(szIpv4, &ipaddr) || !IP_IS_V4_VAL(ipaddr)) {
+		LWIP_LOGI("idx:(%d)dns:(%s) invalid\r\n", idx, szIpv4 ? szIpv4 : "null");
+		return;
+	}
+
+	if (idx >= DNS_IPV4_SERVER_SLOTS || idx >= DNS_MAX_SERVERS) {
+		LWIP_LOGI("idx:(%d) out of IPv4 DNS slots(%d)\r\n", idx, DNS_IPV4_SERVER_SLOTS);
+		return;
+	}
+
+	LWIP_LOGI("idx:(%d)dns:(%s)\r\n", idx, szIpv4);
+	dns_setserver(idx, &ipaddr);
+
+	/* Keep sticky so renew/IPV4_IND cannot wipe IPv4 slots. */
+	s_dns_override_v4[idx] = ip_addr_get_ip4_u32(&ipaddr);
+	if (idx == 0) {
+		for (i = 1; i < DNS_IPV4_SERVER_SLOTS; i++) {
+			if (!s_dns_override_v4_en || s_dns_override_v4[i] == 0)
+				s_dns_override_v4[i] = s_dns_override_v4[0];
+		}
+	}
+	s_dns_override_v4_en = 1;
 }
 

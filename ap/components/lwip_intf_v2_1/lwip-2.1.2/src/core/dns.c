@@ -1017,6 +1017,51 @@ again:
   return txid;
 }
 
+#if BK_DNS
+/**
+ * Pick first non-empty DNS server, preferring IPv6 slots for AAAA / IPv4 slots for A.
+ * After preferred range is empty, wrap through the whole table.
+ */
+static u8_t
+dns_pick_start_server_idx(u8_t dns_addrtype)
+{
+  u8_t start = 0;
+  u8_t i, idx;
+
+#if LWIP_IPV4 && LWIP_IPV6
+  if (LWIP_DNS_ADDRTYPE_IS_IPV6(dns_addrtype)) {
+    start = DNS_IPV6_SERVER_BASE;
+  } else {
+    start = 0;
+  }
+#else
+  LWIP_UNUSED_ARG(dns_addrtype);
+#endif
+  for (i = 0; i < DNS_MAX_SERVERS; i++) {
+    idx = (u8_t)((start + i) % DNS_MAX_SERVERS);
+    if (!ip_addr_isany_val(dns_servers[idx])) {
+      return idx;
+    }
+  }
+  return start;
+}
+
+/** Next non-empty DNS server after @p cur (wrap). Returns @p cur if none. */
+static u8_t
+dns_next_nonempty_server_idx(u8_t cur)
+{
+  u8_t i, idx;
+
+  for (i = 1; i < DNS_MAX_SERVERS; i++) {
+    idx = (u8_t)((cur + i) % DNS_MAX_SERVERS);
+    if (!ip_addr_isany_val(dns_servers[idx])) {
+      return idx;
+    }
+  }
+  return cur;
+}
+#endif /* BK_DNS */
+
 /**
  * Check whether there are other backup DNS servers available to try
  */
@@ -1026,9 +1071,13 @@ dns_backupserver_available(struct dns_table_entry *pentry)
   u8_t ret = 0;
 
   if (pentry) {
+#if BK_DNS
+    ret = (dns_next_nonempty_server_idx(pentry->server_idx) != pentry->server_idx) ? 1 : 0;
+#else
     if ((pentry->server_idx + 1 < DNS_MAX_SERVERS) && !ip_addr_isany_val(dns_servers[pentry->server_idx + 1])) {
       ret = 1;
     }
+#endif
   }
 
   return ret;
@@ -1056,14 +1105,17 @@ dns_check_entry(u8_t i)
       /* initialize new entry */
       entry->txid = dns_create_txid();
       entry->state = DNS_STATE_ASKING;
+#if BK_DNS
+#if LWIP_IPV4 && LWIP_IPV6
+      entry->server_idx = dns_pick_start_server_idx(entry->reqaddrtype);
+#else
+      entry->server_idx = dns_pick_start_server_idx(0);
+#endif
+#else
       entry->server_idx = 0;
+#endif
       entry->tmr = 1;
       entry->retries = 0;
-#if BK_DNS
-      while((entry->server_idx +1 < DNS_MAX_SERVERS) && ip_addr_isany_val(dns_servers[entry->server_idx])) {
-	entry->server_idx++;
-      }
-#endif
       /* send DNS packet for this entry */
       err = dns_send(i);
       if (err != ERR_OK) {
@@ -1074,18 +1126,17 @@ dns_check_entry(u8_t i)
     case DNS_STATE_ASKING:
       if (--entry->tmr == 0) {
         if (++entry->retries == DNS_MAX_RETRIES) {
-#if BK_DNS
-	  while((entry->server_idx +1 < DNS_MAX_SERVERS) && ip_addr_isany_val(dns_servers[entry->server_idx])) {
-		entry->server_idx++;
-          }
-#endif
           if (dns_backupserver_available(entry)
 #if LWIP_DNS_SUPPORT_MDNS_QUERIES
               && !entry->is_mdns
 #endif /* LWIP_DNS_SUPPORT_MDNS_QUERIES */
              ) {
             /* change of server */
+#if BK_DNS
+            entry->server_idx = dns_next_nonempty_server_idx(entry->server_idx);
+#else
             entry->server_idx++;
+#endif
             entry->tmr = 1;
             entry->retries = 0;
           } else {
