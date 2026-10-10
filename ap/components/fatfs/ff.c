@@ -1926,8 +1926,7 @@ WORD xdir_sum (			/* Get checksum of the directoly entry block */
 
 static
 WORD xname_sum (		/* Get check sum (to be used as hash) of the name */
-	const WCHAR* name,	/* File name to be calculated */
-	int upcase			/* Non-zero: up-case per exFAT spec; 0: hash the raw name as-is */
+	const WCHAR* name	/* File name to be calculated */
 )
 {
 	WCHAR chr;
@@ -1935,7 +1934,7 @@ WORD xname_sum (		/* Get check sum (to be used as hash) of the name */
 
 
 	while ((chr = *name++) != 0) {
-		if (upcase) chr = ff_wtoupper(chr);	/* File name needs to be upper-case converted */
+		chr = ff_wtoupper(chr);		/* File name needs to be upper-case converted */
 		sum = ((sum & 1) ? 0x8000 : 0) + (sum >> 1) + (chr & 0xFF);
 		sum = ((sum & 1) ? 0x8000 : 0) + (sum >> 1) + (chr >> 8);
 	}
@@ -2156,7 +2155,7 @@ void create_xdir (
 
 	dirb[XDIR_NumName] = nlen;		/* Set name length */
 	dirb[XDIR_NumSec] = 1 + nc1;	/* Set secondary count */
-	st_word(dirb + XDIR_NameHash, xname_sum(lfn, 1));	/* Set name hash (up-cased per spec) */
+	st_word(dirb + XDIR_NameHash, xname_sum(lfn));	/* Set name hash */
 }
 
 #endif	/* !FF_FS_READONLY */
@@ -2266,20 +2265,13 @@ FRESULT dir_find (	/* FR_OK(0):succeeded, !=0:error */
 	if (fs->fs_type == FS_EXFAT) {	/* On the exFAT volume */
 		BYTE nc;
 		UINT di, ni;
-		WORD hash = xname_sum(fs->lfnbuf, 1);		/* Spec-compliant hash: up-cased name */
-		WORD hash_raw = xname_sum(fs->lfnbuf, 0);	/* Tolerant hash: raw name (non-compliant cards store this) */
+		WORD hash = xname_sum(fs->lfnbuf);		/* Hash value of the name to find */
 
 		while ((res = dir_read(dp, 0)) == FR_OK) {	/* Read an item */
-			WORD sh = ld_word(fs->dirbuf + XDIR_NameHash);
 #if FF_MAX_LFN < 255
 			if (fs->dirbuf[XDIR_NumName] > FF_MAX_LFN) continue;			/* Skip comparison if inaccessible object name */
 #endif
-			/* NameHash is only a fast pre-filter. Some cards (e.g. certain
-			 * non-Microsoft formatters) write the hash of the non-up-cased
-			 * name, breaking the spec-compliant filter and hiding the file
-			 * while Windows still finds it by name. Accept either hash and let
-			 * the up-cased name comparison below be the authority. */
-			if (sh != hash && sh != hash_raw) continue;	/* Skip comparison if hash mismatched */
+			if (ld_word(fs->dirbuf + XDIR_NameHash) != hash) continue;	/* Skip comparison if hash mismatched */
 			for (nc = fs->dirbuf[XDIR_NumName], di = SZDIRE * 2, ni = 0; nc; nc--, di += 2, ni++) {	/* Compare the name */
 				if ((di % SZDIRE) == 0) di += 2;
 				if (ff_wtoupper(ld_word(fs->dirbuf + di)) != ff_wtoupper(fs->lfnbuf[ni])) break;
