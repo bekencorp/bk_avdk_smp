@@ -104,7 +104,7 @@ lv_result_t lv_thread_init(lv_thread_t * pxThread,  const char * const name,
                                         9 - tskIDLE_PRIORITY - xSchedPriority,
                                         name,
                                         prvRunThread,
-                                        (configSTACK_DEPTH_TYPE)(usStackSize / sizeof(StackType_t)),
+                                        (uint32_t)usStackSize,
                                         (void *)pxThread) == kNoErr) ? pdPASS : pdFAIL;
 #else
     BaseType_t xTaskCreateStatus = xTaskCreate(
