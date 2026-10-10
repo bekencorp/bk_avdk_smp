@@ -4,6 +4,8 @@
 #if CONFIG_LWIP
 #include "lwip/ping.h"
 #include "lwip/inet.h"
+#include "lwip/dns.h"
+#include "lwip/ip_addr.h"
 #include <../../lwip_intf_v2_1/lwip-2.1.2/port/net.h>
 #endif
 #include <components/netif.h>
@@ -747,6 +749,93 @@ void cli_per_packet_info_output_cmd(char *pcWriteBuffer, int xWriteBufferLen, in
 	}
 }
 
+#if CONFIG_LWIP
+void cli_dns_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
+{
+	char *msg = WIFI_CMD_RSP_ERROR;
+	bk_err_t ret;
+	uint8_t i, n;
+	const char *servers[NETIF_DNS_SERVER_MAX];
+	const ip_addr_t *dns;
+	netif_dns_config_t sticky;
+
+	(void)xWriteBufferLen;
+
+	if (argc < 2)
+		goto usage;
+
+	if (os_strcmp(argv[1], "show") == 0) {
+		for (i = 0; i < DNS_MAX_SERVERS; i++) {
+			dns = dns_getserver(i);
+			if (dns && !ip_addr_isany(dns))
+				CLI_LOGI("dns[%u]=%s\n", i, ipaddr_ntoa(dns));
+			else
+				CLI_LOGI("dns[%u]=(empty)\n", i);
+		}
+		os_memset(&sticky, 0, sizeof(sticky));
+		net_dns_override_to_config(&sticky);
+		CLI_LOGI("sticky v4_en=%u cnt=%u\n", sticky.v4_en, sticky.dns4_cnt);
+		for (i = 0; sticky.v4_en && i < sticky.dns4_cnt && i < NETIF_DNS_SERVER_MAX; i++)
+			CLI_LOGI("  sticky dns4[%u]=%s\n", i, sticky.dns4[i]);
+#if CONFIG_IPV6
+		CLI_LOGI("sticky v6_en=%u cnt=%u\n", sticky.v6_en, sticky.dns6_cnt);
+		for (i = 0; sticky.v6_en && i < sticky.dns6_cnt && i < NETIF_DNS_SERVER_MAX; i++)
+			CLI_LOGI("  sticky dns6[%u]=%s\n", i, sticky.dns6[i]);
+#endif
+		msg = WIFI_CMD_RSP_SUCCEED;
+		goto out;
+	}
+
+	if (os_strcmp(argv[1], "set4") == 0) {
+		if (argc < 3)
+			goto usage;
+		n = (uint8_t)(argc - 2);
+		if (n > NETIF_DNS_SERVER_MAX)
+			n = NETIF_DNS_SERVER_MAX;
+		for (i = 0; i < n; i++)
+			servers[i] = argv[2 + i];
+		ret = bk_netif_set_dns_servers(servers, n);
+		CLI_LOGI("dns set4 ret=%d\n", ret);
+		msg = (ret == BK_OK) ? WIFI_CMD_RSP_SUCCEED : WIFI_CMD_RSP_ERROR;
+		goto out;
+	}
+
+#if CONFIG_IPV6
+	if (os_strcmp(argv[1], "set6") == 0) {
+		if (argc < 3)
+			goto usage;
+		n = (uint8_t)(argc - 2);
+		if (n > NETIF_DNS_SERVER_MAX)
+			n = NETIF_DNS_SERVER_MAX;
+		for (i = 0; i < n; i++)
+			servers[i] = argv[2 + i];
+		ret = bk_netif_set_dns6_servers(servers, n);
+		CLI_LOGI("dns set6 ret=%d\n", ret);
+		msg = (ret == BK_OK) ? WIFI_CMD_RSP_SUCCEED : WIFI_CMD_RSP_ERROR;
+		goto out;
+	}
+#endif
+
+	if (os_strcmp(argv[1], "clear") == 0) {
+		ret = bk_netif_clear_dns_servers();
+		CLI_LOGI("dns clear ret=%d (sticky off, no reconnect re-apply)\n", ret);
+		msg = (ret == BK_OK) ? WIFI_CMD_RSP_SUCCEED : WIFI_CMD_RSP_ERROR;
+		goto out;
+	}
+
+usage:
+	CLI_LOGE("usage:\n"
+		 "  dns show\n"
+		 "  dns set4 <ip> [ip2 ...]\n"
+#if CONFIG_IPV6
+		 "  dns set6 <ip> [ip2 ...]\n"
+#endif
+		 "  dns clear\n");
+out:
+	os_memcpy(pcWriteBuffer, msg, os_strlen(msg));
+}
+#endif
+
 #define NETIF_CMD_CNT (sizeof(s_netif_commands) / sizeof(struct cli_command))
 static const struct cli_command s_netif_commands[] = {
 	{"ip", "ip [sta|ap|p2p|p2p_go|p2p_gc][{ip}{mask}{gate}{dns}]", cli_ip_cmd},
@@ -782,6 +871,9 @@ static const struct cli_command s_netif_commands[] = {
 	{"httplog", "httplog [1|0].", cli_http_debug_cmd},
 #endif
 	{"per_packet_info", "per_packet_info [per_packet_info_output_bitmap(base 16)]", cli_per_packet_info_output_cmd},
+#if CONFIG_LWIP
+	{"dns", "dns show|set4 <ip..>|set6 <ip..>|clear", cli_dns_cmd},
+#endif
 #if CONFIG_WEBCLIENT
 	{"webclient", "webclient [ota|get|post] [url] [postdata]", cli_webclient_cmd},
 #endif
