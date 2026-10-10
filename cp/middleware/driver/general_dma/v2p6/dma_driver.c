@@ -1012,7 +1012,7 @@ void *bk_dma_link_init(uint32_t link_cnt)
             DMA_LOGE("Descriptor alignment error: curr=0x%x next=0x%x\r\n", curr_desc_addr, next_desc_addr);
         }
         
-        curr_desc->next_desc_addr = (uint32_t)next_desc_addr;
+        curr_desc->next_desc_addr = (uint32_t)SOC_SRAM_PERI_ADDR(next_desc_addr);
         DMA_LOGV("Desc[%d] addr=0x%x next_addr=0x%x\r\n", i, curr_desc_addr, curr_desc->next_desc_addr);
     }
     
@@ -1083,8 +1083,8 @@ bk_err_t bk_dma_link_set_desc(void *desc_table, uint32_t index,
     }
     
     // Configure descriptor - directly copy fields since structures match
-    desc->src_addr = config->src_addr;
-    desc->dst_addr = config->dst_addr;
+    desc->src_addr = SOC_SRAM_PERI_ADDR(config->src_addr);
+    desc->dst_addr = SOC_SRAM_PERI_ADDR(config->dst_addr);
     desc->ctrl.control = config->ctrl.control;  // Copy control word (includes length and interrupt enables)
     
     DMA_LOGV("Desc[%d] src=0x%x dst=0x%x length=%d finish_int=%d half_finish_int=%d\r\n",
