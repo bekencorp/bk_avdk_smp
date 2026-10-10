@@ -24,6 +24,9 @@
 #include "multicore_driver.h"
 #include "sys_ahbp_ll.h"
 #include "bk_private/bk_wdt.h"
+#if CONFIG_HSPL
+#include "hspl_res_lock.h"
+#endif
 
 void bk_multicore_set_cpu_id(uint32_t cpu_id)
 {
@@ -115,6 +118,13 @@ static volatile uint32_t _cpu3_offline_ack1;
 static volatile uint32_t _cpu3_offline_ack2;
 static volatile uint32_t _cpu3_offline_ack3;
 static volatile uint32_t _cpu3_online_ack;
+#if CONFIG_HSPL
+/* Published by CPU3 together with _cpu3_offline_ack1 when it refuses to go
+ * offline, consumed by CPU2 to roll the transaction back and report why. */
+static volatile int32_t _cpu3_offline_result;
+static volatile uint32_t _cpu3_offline_hspl_hw_mask;
+static volatile uint32_t _cpu3_offline_hspl_sw_mask;
+#endif
 #if CONFIG_PM_AP_FAST_BOOT_ENABLE
 #define CPU3_FAST_RESUME_REQUEST_MAGIC (0x43503352UL)
 static SPINLOCK_SECTION volatile uint32_t _cpu3_fast_resume_request;
@@ -329,6 +339,14 @@ static bk_err_t _cpu_hotplug_wait_ack(volatile uint32_t *ack, uint32_t timeout_s
 		current_step += AP_HOTPLUG_TIMEOUT_ONE_STEP;
 	}
 
+	/*
+	 * Acquire side of the handshake. The peer publishes its payload (state,
+	 * masks, offline result) before storing the ACK, so this core must not be
+	 * allowed to observe the ACK ahead of that payload. volatile only stops the
+	 * compiler from caching the load, it orders nothing between cores.
+	 */
+	_cpu_hp_barrier();
+
 	return BK_OK;
 }
 
@@ -480,6 +498,11 @@ static bk_err_t _cpu_hp_offline_internal(uint32_t cpu_id, uint32_t from_atomic)
 	_cpu3_offline_ack1 = 0;
 	_cpu3_offline_ack2 = 0;
 	_cpu3_offline_ack3 = 0;
+#if CONFIG_HSPL
+	_cpu3_offline_result = BK_OK;
+	_cpu3_offline_hspl_hw_mask = 0;
+	_cpu3_offline_hspl_sw_mask = 0;
+#endif
 	_cpu3_wants_offline = -1;
 	ret = crosscore_int_send_hotplug_stop(CPU3_CORE_ID);
 	if ((ret != BK_OK) && (ret != BK_ERR_IN_PROGRESS)) {
@@ -502,14 +525,28 @@ static bk_err_t _cpu_hp_offline_internal(uint32_t cpu_id, uint32_t from_atomic)
 		goto out;
 	}
 
+#if CONFIG_HSPL
+	if (_cpu3_offline_result != BK_OK) {
+		/* CPU3 still owns a cross-core resource; stopping it now would orphan
+		 * that lock for the whole system (BK7259SW-3867). */
+		MULTICORE_LOGE("cpu3 offline rejected: hspl hw_mask=0x%x sw_mask=0x%x\r\n",
+			_cpu3_offline_hspl_hw_mask, _cpu3_offline_hspl_sw_mask);
+		ret = (bk_err_t)_cpu3_offline_result;
+		_cpu_hp_domain_set_dying(domain, cpu_id, 0);
+		_cpu_hp_set_state(domain, cpu_id, BK_CPU_HP_STATE_ONLINE);
+		goto out;
+	}
+#endif
+
 continue_offline:
 	_cpu_hp_set_state(domain, cpu_id, BK_CPU_HP_STATE_IRQ_MIGRATING);
 	_cpu3_irq_route_migrate_but_ipi();
 	_cpu_hp_set_state(domain, cpu_id, BK_CPU_HP_STATE_QUIESCE);
-	_cpu3_offline_ack2 = 1;
 	_cpu_hp_barrier();
+	_cpu3_offline_ack2 = 1;
 
 	while (_cpu3_offline_ack3 == 0);
+	_cpu_hp_barrier();
 #if CONFIG_TASK_WDT
 	bk_task_wdt_set_feed_bits(smp_core, false);
 #else
@@ -643,6 +680,7 @@ static bk_err_t _cpu_hp_online_internal(uint32_t cpu_id, uint32_t from_atomic)
 		 * vRestoreContextOfFirstTask() with BASEPRI raised; release it only
 		 * after online/active state, IRQ routes and mailbox are all visible.
 		 */
+		_cpu_hp_barrier();
 		_cpu3_online_release = 1U;
 		_cpu_hp_barrier();
 		__SEV();
@@ -655,6 +693,7 @@ fail_online:
 	MULTICORE_LOGE("cpu3 online failed[%d], fast-resume stage=%u\r\n",
 		ret, _cpu3_fast_resume_stage);
 	_cpu3_online_requested = 0;
+	_cpu_hp_barrier();
 	_cpu3_online_release = 2U;
 	_cpu_hp_barrier();
 	__SEV();
@@ -837,8 +876,8 @@ void bk_cpu_hp_core_online_ready(void)
 	if ((portGET_CORE_ID() == SMP_CORE1_ID) &&
 	    (_cpu3_online_requested != 0U)) {
 		_cpu3_fast_resume_stage = 7U;
-		_cpu3_online_ack = 1U;
 		_cpu_hp_barrier();
+		_cpu3_online_ack = 1U;
 
 		/*
 		 * Keep CPU3 inside the first-context restore window with BASEPRI
@@ -867,8 +906,8 @@ static void _cpu_hp_idle_handler_online(cpu_hp_domain_t *domain, uint32_t cpu_id
 	if ((portGET_CORE_ID() == SMP_CORE1_ID) &&
 	    (_ap_domain.cpu_state[CPU3_CORE_ID] == BK_CPU_HP_STATE_SECONDARY_BOOT)) {
 		_cpu_hp_set_state(&_ap_domain, CPU3_CORE_ID, BK_CPU_HP_STATE_JOIN_SCHEDULER);
-		_cpu3_online_ack = 1;
 		_cpu_hp_barrier();
+		_cpu3_online_ack = 1;
 	}
 #endif
 	_cpu3_wants_offline = -1;
@@ -886,13 +925,49 @@ static void _cpu_hp_idle_handler_offline(cpu_hp_domain_t *domain, uint32_t cpu_i
 		return;
 	}
 
+#if CONFIG_HSPL
+	/*
+	 * Last point where this core can still release anything: it no longer
+	 * schedules and its local interrupts are masked, so no code can re-acquire
+	 * a resource between this check and the reset. A lock still owned here
+	 * would survive the reset as an orphan that no core is able to release -
+	 * on HSPL_0 the CP then blocks forever on it (BK7259SW-3867), on HSPL_1
+	 * CPU2 does. Refuse the transition and let CPU2 roll it back.
+	 *
+	 * Holding _cpu_hp_spin_lock does not trip the HSPL_1 part of the check:
+	 * spinlock_take() releases HSPL_1 channel 0 before it returns, and the
+	 * check only matches this core's own hardware owner id.
+	 */
+	{
+		bk_hspl_res_core_state_t hspl_state = {0};
+
+		if (bk_hspl_res_check_core_released(cpu_id,
+			(uint8_t)_cpu_hp_get_smp_core_id(domain, cpu_id),
+			&hspl_state) != BK_OK) {
+			_cpu3_offline_hspl_hw_mask = hspl_state.hw_owned_mask;
+			_cpu3_offline_hspl_sw_mask = hspl_state.sw_held_mask;
+			_cpu3_offline_result = BK_ERR_BUSY;
+			/* Never leave 0 behind: 0 means "committed" and would let a racing
+			 * CPU2 timeout reset this core anyway. */
+			_cpu3_wants_offline = -1;
+			_cpu_hp_domain_set_active(domain, cpu_id, 1);
+			_cpu_hp_barrier();
+			_cpu3_offline_ack1 = 1;
+			spin_unlock(&_cpu_hp_spin_lock);
+			_cpu_hp_enable_local_irq(irq_level);
+			return;
+		}
+	}
+#endif
+
 	_cpu3_wants_offline = 0;
 	spin_unlock(&_cpu_hp_spin_lock);
 
 	_cpu_hp_set_state(domain, cpu_id, BK_CPU_HP_STATE_QUIESCE);
-	_cpu3_offline_ack1 = 1;
 	_cpu_hp_barrier();
+	_cpu3_offline_ack1 = 1;
 	while (_cpu3_offline_ack2 == 0);
+	_cpu_hp_barrier();
 	
 	AP_HOTPLUG_SYSTICK_CTRL = 0;
 	AP_HOTPLUG_SYSTICK_VAL = 0;
@@ -931,8 +1006,8 @@ static void _cpu_hp_idle_handler_offline(cpu_hp_domain_t *domain, uint32_t cpu_i
 	vTaskHotplugClearCurrentTCB(SMP_CORE1_ID);
 	_cpu3_irq_route_mask_all();
 	_cpu_hp_domain_set_online(domain, cpu_id, 0);
-	_cpu3_offline_ack3 = 1;
 	_cpu_hp_barrier();
+	_cpu3_offline_ack3 = 1;
 
 	while (1) {
 		_cpu_hp_wfi();

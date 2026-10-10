@@ -115,6 +115,40 @@ bk_err_t bk_hspl_res_unlock(bk_hspl_res_t res);
  */
 bk_err_t bk_hspl_res_must_lock(bk_hspl_res_t res);
 
+/**
+ * @brief Residual lock state of one core
+ *
+ * @note One bit per resource id, so BK_HSPL_RES_MAX must stay <= 32.
+ */
+typedef struct {
+	uint32_t hw_owned_mask;	/**< BIT(res) set when HSPL still reports this core as owner */
+	uint32_t sw_held_mask;	/**< BIT(res) set when this core's recursion count is not zero */
+} bk_hspl_res_core_state_t;
+
+/**
+ * @brief Check that a core no longer holds any HSPL resource
+ *
+ * Covers both instances: HSPL_0 (res 0..15, CP<->AP, survives an AP power
+ * cycle) and HSPL_1 (res 16..31, AP internal, orphans the surviving AP core
+ * when its peer is reset). Call this before a core is reset or its power
+ * domain is cut.
+ *
+ * @note Read-only probe. It samples the STA registers, which report the owner
+ *       without attempting an acquire, plus the local recursion counters.
+ *       It never releases a lock on behalf of the core: an orphaned lock must
+ *       be prevented, not forcibly cleared.
+ *       Safe to call from an ISR or with local interrupts disabled.
+ *
+ * @param hw_owner_id   Hardware owner id of the core (e.g. CPU3_CORE_ID)
+ * @param sw_core_index Index of the core in the local recursion table (SMP core id)
+ * @param state         Optional, receives the residual masks
+ *
+ * @return BK_OK when nothing is held, BK_ERR_BUSY when a residual lock is found,
+ *         BK_ERR_PARAM when sw_core_index is out of range
+ */
+bk_err_t bk_hspl_res_check_core_released(uint8_t hw_owner_id, uint8_t sw_core_index,
+	bk_hspl_res_core_state_t *state);
+
 void bk_hspl_res_dbg_set_owner(bk_hspl_res_t res, uint8_t core, uint32_t pc);
 void bk_hspl_res_dbg_clear_owner(bk_hspl_res_t res);
 

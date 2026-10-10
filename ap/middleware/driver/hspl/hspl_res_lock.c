@@ -532,4 +532,54 @@ bk_err_t bk_hspl_res_unlock_irqrestore(bk_hspl_res_t res, uint32_t flags)
 	return ret;
 }
 
+bk_err_t bk_hspl_res_check_core_released(uint8_t hw_owner_id, uint8_t sw_core_index,
+	bk_hspl_res_core_state_t *state)
+{
+	uint32_t hw_owned_mask = 0;
+	uint32_t sw_held_mask = 0;
 
+	if (sw_core_index >= HSPL_MAX_CORES) {
+		return BK_ERR_PARAM;
+	}
+
+	/* Publish this core's own lock/unlock stores before sampling the mutexes. */
+	hspl_sync_barrier();
+
+	/*
+	 * Both instances matter. HSPL_0 (res 0..15) is the CP<->AP mutex whose
+	 * owner survives an AP power cycle. HSPL_1 (res 16..31) is AP internal,
+	 * so a lock left there by a core that is about to be reset orphans the
+	 * surviving AP core instead of the CP. Either way the core must hold
+	 * nothing before it goes away.
+	 */
+	for (uint8_t res = 0; res < BK_HSPL_RES_MAX; res++) {
+		hspl_state_t hw = {0};
+		uint8_t hspl_id = 0;
+		uint8_t channel = 0;
+
+		(void)bk_hspl_res_get_map((bk_hspl_res_t)res, &hspl_id, &channel);
+
+		/* STA reports the owner without side effects. The LOCK register must
+		 * never be used here because reading it is itself an acquire attempt. */
+		if (bk_hspl_get_state((bk_hspl_id_t)hspl_id, channel, &hw) != BK_OK) {
+			/* Cannot prove the resource is free: report it as still held. */
+			hw_owned_mask |= (1U << res);
+			continue;
+		}
+
+		if (hw.owner_valid && (hw.owner_id == hw_owner_id)) {
+			hw_owned_mask |= (1U << res);
+		}
+
+		if (s_rec_count[res][sw_core_index] != 0) {
+			sw_held_mask |= (1U << res);
+		}
+	}
+
+	if (state) {
+		state->hw_owned_mask = hw_owned_mask;
+		state->sw_held_mask = sw_held_mask;
+	}
+
+	return ((hw_owned_mask | sw_held_mask) == 0) ? BK_OK : BK_ERR_BUSY;
+}

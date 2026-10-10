@@ -37,6 +37,9 @@
 #include "driver/pm_ap_core.h"
 #include "hspl_driver.h"
 #endif
+#if CONFIG_HSPL
+#include "hspl_res_lock.h"
+#endif
 #include "sys_ahbp_ll.h"
 #include "multicore_driver.h"
 #if CONFIG_GENERAL_DMA
@@ -669,6 +672,44 @@ void sys_hal_enter_cpu_wfi()
 				return;
 			}
 
+#if CONFIG_HSPL
+			/*
+			 * CPU2 is the last AP core standing and the AP power domain is
+			 * about to be cut. An HSPL_0 owner survives that power cycle, so a
+			 * lock still held here becomes an orphan that no core can ever
+			 * release and the CP blocks on it forever (BK7259SW-3867).
+			 * Interrupts are masked and the tick is stopped, so nothing can
+			 * acquire a new lock after this point. CPU3 is covered by the
+			 * equivalent gate in its offline handler, so the two compose.
+			 * Abort like the checks above and retry on the next idle probe;
+			 * never force-unlock.
+			 */
+			{
+				bk_hspl_res_core_state_t hspl_state = {0};
+
+				/*
+				 * portGET_CORE_ID() is how the lock bookkeeping indexes its
+				 * recursion counters, so it selects the right row in every
+				 * config; SMP_CORE0_ID only exists under CONFIG_SOC_SMP.
+				 */
+				if (bk_hspl_res_check_core_released(CPU2_CORE_ID,
+					(uint8_t)portGET_CORE_ID(), &hspl_state) != BK_OK) {
+					static bool s_ap_pd_hspl_warned;
+
+					if (!s_ap_pd_hspl_warned) {
+						BK_LOGE("pm",
+							"AP power down blocked: hspl hw_mask=0x%x sw_mask=0x%x\r\n",
+							hspl_state.hw_owned_mask, hspl_state.sw_held_mask);
+						s_ap_pd_hspl_warned = true;
+					}
+					sys_ahbp_ll_set_reg10_value(int_state0_31);
+					sys_ahbp_ll_set_reg11_value(int_state32_63);
+					portNVIC_SYSTICK_CTRL_REG = systick_ctrl_value;
+					return;
+				}
+			}
+#endif
+
 #if CONFIG_CPU_HOTPLUG
 #if CONFIG_PM_AP_FAST_BOOT_ENABLE
 			/*
@@ -709,8 +750,30 @@ void sys_hal_enter_cpu_wfi()
 			bk_task_wdt_stop();
 #endif
 #else
-			/* Preserve the original non-fast-boot hotplug lifecycle. */
-			bk_cpu_hp_offline(CPU3_CORE_ID);
+			/*
+			 * Preserve the original non-fast-boot hotplug lifecycle, but do
+			 * not sleep when CPU3 refused to stop: it may still own an HSPL
+			 * resource, and cutting the AP domain would orphan that lock
+			 * (BK7259SW-3867).
+			 *
+			 * Under CONFIG_CPU_HP_VOTE this entry point is a deprecated stub
+			 * that reports BK_ERR_NOT_SUPPORT without ever looking at CPU3, so
+			 * that result says nothing about lock ownership and must not block
+			 * suspend. CPU3 is gated by its own check in the offline idle
+			 * handler on that path.
+			 */
+			{
+				bk_err_t hp_offline_ret =
+					bk_cpu_hp_offline(CPU3_CORE_ID);
+
+				if ((hp_offline_ret != BK_OK) &&
+					(hp_offline_ret != BK_ERR_NOT_SUPPORT)) {
+					sys_ahbp_ll_set_reg10_value(int_state0_31);
+					sys_ahbp_ll_set_reg11_value(int_state32_63);
+					portNVIC_SYSTICK_CTRL_REG = systick_ctrl_value;
+					return;
+				}
+			}
 #endif
 #endif
 
