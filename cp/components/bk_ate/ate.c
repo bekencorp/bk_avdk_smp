@@ -66,7 +66,9 @@ static bk_err_t ate_gpio_init(void)
 	if(s_ate_enabled == true)
 	{
 	    //rf_ps_enable_clear();
+#if (CONFIG_WIFI_ENABLE || CONFIG_BLUETOOTH)
 	    rf_module_vote_ctrl(RF_OPEN,RF_BY_ATE_WIFI_BIT);
+#endif
 	}
 
 	bk_gpio_set_value(gpio_id, gpio_cfg_v);
