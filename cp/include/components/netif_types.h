@@ -62,6 +62,22 @@ typedef struct {
 	char dns[NETIF_IP4_STR_LEN];       /**< DNS server IP address. */
 } netif_ip4_config_t;
 
+/**
+ * IPC / snapshot capacity for sticky DNS lists.
+ * Must be >= DNS_IPV4_SERVER_SLOTS and DNS_IPV6_SERVER_SLOTS (lwipopts).
+ */
+#define NETIF_DNS_SERVER_MAX 4
+
+/** Sticky DNS override snapshot (AP/CP IPC and local apply). */
+typedef struct {
+	char dns4[NETIF_DNS_SERVER_MAX][NETIF_IP4_STR_LEN];
+	char dns6[NETIF_DNS_SERVER_MAX][NETIF_IP6_STR_LEN];
+	uint8_t dns4_cnt;                  /**< Valid entries in dns4[], 0..NETIF_DNS_SERVER_MAX. */
+	uint8_t dns6_cnt;                  /**< Valid entries in dns6[], 0..NETIF_DNS_SERVER_MAX. */
+	uint8_t v4_en;                     /**< 1: IPv4 sticky active. */
+	uint8_t v6_en;                     /**< 1: IPv6 sticky active. */
+} netif_dns_config_t;
+
 typedef struct {
 	netif_if_t netif_if;               /**< Netif interface ID */
 	char ip[NETIF_IP4_STR_LEN];        /**< Local IP address. */
