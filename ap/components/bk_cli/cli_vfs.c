@@ -32,6 +32,9 @@
 /* qspi_flash.h uses qspi_id_t without pulling in its definition. */
 #include <driver/qspi_flash.h>
 #include <driver/qspi_nand_bbm.h>
+#define VFS_QSPI_LFS_ALIGN QSPI_NAND_BLOCK_SIZE
+#else
+#define VFS_QSPI_LFS_ALIGN 0x1000U
 #endif
 
 #if CONFIG_DHARA_FTL
@@ -508,6 +511,12 @@ typedef struct {
 	int         qspi_id;       /* QSPI unit index, or -1 when not on QSPI */
 } vfs_dev_t;
 
+typedef struct {
+	bool valid;
+	uint32_t start;
+	uint32_t size;
+} vfs_lfs_range_t;
+
 static const vfs_dev_t s_vfs_devs[] = {
 	{ "flash", VFS_INTERNAL_FLASH_PATITION_0, LFS_FLASH,         0,                 0,                VFS_DEV_FAT_FLASH, -1 },
 	{ "spi0",  VFS_SPI_FLASH_0_PATITION_0,    VFS_DEV_LFS_SPI0,  spi_flash_start,   spi_flash_size,   VFS_DEV_FAT_SPI0,  -1 },
@@ -576,13 +585,73 @@ static bool vfs_dev_supports(const vfs_dev_t *dev, vfs_bench_fs_t fs)
 	return true;
 }
 
+static int vfs_lfs_parse_range(int argc, char **argv, int first_arg, vfs_lfs_range_t *range)
+{
+	range->valid = false;
+	range->start = 0;
+	range->size = 0;
+
+	if (argc == first_arg) {
+		return 0;
+	}
+	if (argc != first_arg + 2) {
+		CLI_LOGE("littlefs range needs both offset and size\r\n");
+		return -1;
+	}
+
+	range->start = os_strtoul(argv[first_arg], NULL, 0);
+	range->size = os_strtoul(argv[first_arg + 1], NULL, 0);
+	range->valid = true;
+	return 0;
+}
+
+static int vfs_qspi_lfs_check_range(const vfs_dev_t *dev, const vfs_lfs_range_t *range)
+{
+	if (!range || !range->valid) {
+		return 0;
+	}
+	if (dev->qspi_id < 0) {
+		CLI_LOGE("%s: offset/size is only supported for QSPI littlefs\r\n", dev->name);
+		return -1;
+	}
+	if (!range->size || range->start > UINT32_MAX - range->size) {
+		CLI_LOGE("%s: invalid littlefs range 0x%x/0x%x\r\n",
+		         dev->name, range->start, range->size);
+		return -1;
+	}
+	if ((range->start & (VFS_QSPI_LFS_ALIGN - 1U)) ||
+	    (range->size & (VFS_QSPI_LFS_ALIGN - 1U))) {
+		CLI_LOGE("%s: range must be 0x%x aligned\r\n", dev->name, VFS_QSPI_LFS_ALIGN);
+		return -1;
+	}
+
+#if CONFIG_QSPI_NAND_FLASH
+	uint32_t end = range->start + range->size;
+	uint32_t total = bk_qspi_flash_nand_total_size((qspi_id_t)dev->qspi_id);
+
+	if (total && end > total) {
+		CLI_LOGE("%s: range end 0x%x exceeds NAND size 0x%x\r\n", dev->name, end, total);
+		return -1;
+	}
+#endif
+	return 0;
+}
+
 /* Fill in the littleFS partition for a device. The internal flash carries no
  * fixed geometry here (size 0): it comes from the flash partition table. */
 static int vfs_dev_lfs_part(const vfs_dev_t *dev, struct bk_little_fs_partition *part,
-                            const char *mount_point)
+                            const char *mount_point, const vfs_lfs_range_t *range)
 {
 	uint32_t start = dev->lfs_start;
 	uint32_t size = dev->lfs_size;
+
+	if (vfs_qspi_lfs_check_range(dev, range)) {
+		return -1;
+	}
+	if (range && range->valid) {
+		start = range->start;
+		size = range->size;
+	}
 
 	if (!size) {
 		bk_logic_partition_t *fs_partition = bk_flash_partition_get_info(BK_PARTITION_FS_ID);
@@ -602,7 +671,8 @@ static int vfs_dev_lfs_part(const vfs_dev_t *dev, struct bk_little_fs_partition 
 	return 0;
 }
 
-static int vfs_dev_format(const vfs_dev_t *dev, vfs_bench_fs_t fs)
+static int vfs_dev_format_range(const vfs_dev_t *dev, vfs_bench_fs_t fs,
+                                const vfs_lfs_range_t *range)
 {
 	if (!vfs_dev_supports(dev, fs)) {
 		return -1;
@@ -611,11 +681,15 @@ static int vfs_dev_format(const vfs_dev_t *dev, vfs_bench_fs_t fs)
 	if (fs == VFS_BENCH_FS_LFS) {
 		struct bk_little_fs_partition part;
 
-		if (vfs_dev_lfs_part(dev, &part, dev->mount_point)) {
+		if (vfs_dev_lfs_part(dev, &part, dev->mount_point, range)) {
 			return -1;
 		}
 		return mkfs("PART_NONE", "littlefs", &part);
 	} else {
+		if (range && range->valid) {
+			CLI_LOGE("%s: offset/size is not supported for fatfs\r\n", dev->name);
+			return -1;
+		}
 		struct bk_fatfs_partition part;
 
 		part.part_type = FATFS_DEVICE;
@@ -625,7 +699,13 @@ static int vfs_dev_format(const vfs_dev_t *dev, vfs_bench_fs_t fs)
 	}
 }
 
-static int vfs_dev_mount(const vfs_dev_t *dev, vfs_bench_fs_t fs, const char *mount_point)
+static int vfs_dev_format(const vfs_dev_t *dev, vfs_bench_fs_t fs)
+{
+	return vfs_dev_format_range(dev, fs, NULL);
+}
+
+static int vfs_dev_mount_range(const vfs_dev_t *dev, vfs_bench_fs_t fs,
+                               const char *mount_point, const vfs_lfs_range_t *range)
 {
 	if (!vfs_dev_supports(dev, fs)) {
 		return -1;
@@ -638,11 +718,15 @@ static int vfs_dev_mount(const vfs_dev_t *dev, vfs_bench_fs_t fs, const char *mo
 	if (fs == VFS_BENCH_FS_LFS) {
 		struct bk_little_fs_partition part;
 
-		if (vfs_dev_lfs_part(dev, &part, mount_point)) {
+		if (vfs_dev_lfs_part(dev, &part, mount_point, range)) {
 			return -1;
 		}
 		return mount("SOURCE_NONE", mount_point, "littlefs", 0, &part);
 	} else {
+		if (range && range->valid) {
+			CLI_LOGE("%s: offset/size is not supported for fatfs\r\n", dev->name);
+			return -1;
+		}
 		struct bk_fatfs_partition part;
 
 		part.part_type = FATFS_DEVICE;
@@ -650,6 +734,11 @@ static int vfs_dev_mount(const vfs_dev_t *dev, vfs_bench_fs_t fs, const char *mo
 		part.part_dev.device_name = dev->fatfs_dev;
 		return mount("SOURCE_NONE", mount_point, "fatfs", 0, &part);
 	}
+}
+
+static int vfs_dev_mount(const vfs_dev_t *dev, vfs_bench_fs_t fs, const char *mount_point)
+{
+	return vfs_dev_mount_range(dev, fs, mount_point, NULL);
 }
 
 static int vfs_fs_from_name(const char *name, vfs_bench_fs_t *out)
@@ -1580,8 +1669,8 @@ void cli_vfs_test(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **arg
 	int ret;
 
 	if (argc < 2) {
-		BK_LOGD(NULL, "usage : vfs format <dev> <lfs|fatfs>\n");
-		BK_LOGD(NULL, "        vfs mount <dev> <lfs|fatfs> [mount_point]\n");
+		BK_LOGD(NULL, "usage : vfs format <dev> <lfs|fatfs> [offset size]\n");
+		BK_LOGD(NULL, "        vfs mount <dev> <lfs|fatfs> [mount_point] [offset size]\n");
 		BK_LOGD(NULL, "        vfs umount|read|write|unlink|rename ...\n");
 		BK_LOGD(NULL, "        vfs bench <dev> [lfs|fatfs|all] [file_kb] [rounds]\n");
 		BK_LOGD(NULL, "        vfs soak start <dev> [lfs|fatfs] [file_kb] | stop | status\n");
@@ -1597,7 +1686,7 @@ void cli_vfs_test(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **arg
 
 	if (os_strcmp(argv[1], "format") == 0) {
 		if (argc < 3) {
-			BK_LOGD(NULL, "usage : vfs format <dev> <lfs|fatfs>\n");
+			BK_LOGD(NULL, "usage : vfs format <dev> <lfs|fatfs> [offset size]\n");
 			vfs_dev_list();
 			return;
 		}
@@ -1609,12 +1698,16 @@ void cli_vfs_test(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **arg
 
 			if (dev) {
 				vfs_bench_fs_t fs;
+				vfs_lfs_range_t range;
 
 				if (argc < 4 || vfs_fs_from_name(argv[3], &fs)) {
-					BK_LOGD(NULL, "usage : vfs format <dev> <lfs|fatfs>\n");
+					BK_LOGD(NULL, "usage : vfs format <dev> <lfs|fatfs> [offset size]\n");
 					return;
 				}
-				ret = vfs_dev_format(dev, fs);
+				if (vfs_lfs_parse_range(argc, argv, 4, &range)) {
+					return;
+				}
+				ret = vfs_dev_format_range(dev, fs, &range);
 				BK_LOGD(NULL, "format ret=%d\n", ret);
 				return;
 			}
@@ -1624,14 +1717,26 @@ void cli_vfs_test(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **arg
 			ret = test_format_lfs();
 		else if (os_strcmp(argv[2], "spi_lfs") == 0)
 			ret = test_format_spi_lfs();
-		else if (os_strcmp(argv[2], "qspi_lfs") == 0)
-			ret = test_format_qspi_lfs();
+		else if (os_strcmp(argv[2], "qspi_lfs") == 0) {
+			const vfs_dev_t *dev = vfs_dev_find("qspi0");
+			vfs_lfs_range_t range;
+
+			if (!dev || vfs_lfs_parse_range(argc, argv, 3, &range)) {
+				return;
+			}
+			ret = vfs_dev_format_range(dev, VFS_BENCH_FS_LFS, &range);
+		}
 		else if (os_strcmp(argv[2], "qspi0_1_lfs") == 0)
 			ret = test_format_qspi0_part1_lfs();
 		else if (os_strcmp(argv[2], "fatfs") == 0)
 			ret = test_format_fatfs();
-		else if (os_strcmp(argv[2], "qspi0_fatfs") == 0)
+		else if (os_strcmp(argv[2], "qspi0_fatfs") == 0) {
+			if (argc != 3) {
+				BK_LOGD(NULL, "usage : vfs format qspi0_fatfs\n");
+				return;
+			}
 			ret = test_format_qspi0_fatfs();
+		}
 		else if (os_strcmp(argv[2], "flash_fatfs") == 0)
 			ret = test_format_flash_fatfs();
 		else {
@@ -1644,7 +1749,7 @@ void cli_vfs_test(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **arg
 		char *mount_point;
 
 		if (argc < 3) {
-			BK_LOGD(NULL, "usage : vfs mount <dev> <lfs|fatfs> [MOUNT_POINT]\n");
+			BK_LOGD(NULL, "usage : vfs mount <dev> <lfs|fatfs> [MOUNT_POINT] [offset size]\n");
 			vfs_dev_list();
 			return;
 		}
@@ -1655,19 +1760,40 @@ void cli_vfs_test(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **arg
 
 			if (dev) {
 				vfs_bench_fs_t fs;
+				vfs_lfs_range_t range;
+				const char *dev_mount_point = NULL;
+				int range_arg = argc;
 
 				if (argc < 4 || vfs_fs_from_name(argv[3], &fs)) {
-					BK_LOGD(NULL, "usage : vfs mount <dev> <lfs|fatfs> [MOUNT_POINT]\n");
+					BK_LOGD(NULL, "usage : vfs mount <dev> <lfs|fatfs> [MOUNT_POINT] [offset size]\n");
 					return;
 				}
-				ret = vfs_dev_mount(dev, fs, (argc >= 5) ? argv[4] : NULL);
+				if (argc == 5 || argc == 7) {
+					dev_mount_point = argv[4];
+				}
+				if (argc == 6) {
+					if (argv[4][0] == '/') {
+						BK_LOGD(NULL, "usage : vfs mount <dev> <lfs|fatfs> [MOUNT_POINT] [offset size]\n");
+						return;
+					}
+					range_arg = 4;
+				} else if (argc == 7) {
+					range_arg = 5;
+				} else if (argc != 4 && argc != 5) {
+					BK_LOGD(NULL, "usage : vfs mount <dev> <lfs|fatfs> [MOUNT_POINT] [offset size]\n");
+					return;
+				}
+				if (vfs_lfs_parse_range(argc, argv, range_arg, &range)) {
+					return;
+				}
+				ret = vfs_dev_mount_range(dev, fs, dev_mount_point, &range);
 				BK_LOGD(NULL, "mount ret=%d\n", ret);
 				return;
 			}
 		}
 
 		if (argc < 4) {
-			BK_LOGD(NULL, "usage : vfs mount <dev> <lfs|fatfs> [MOUNT_POINT]\n");
+			BK_LOGD(NULL, "usage : vfs mount <dev> <lfs|fatfs> [MOUNT_POINT] [offset size]\n");
 			vfs_dev_list();
 			return;
 		}
@@ -1677,14 +1803,26 @@ void cli_vfs_test(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **arg
 			ret = test_mount_lfs(mount_point);
 		else if (os_strcmp(argv[2], "spi_lfs") == 0)
 			ret = test_mount_spi_lfs(mount_point);
-		else if (os_strcmp(argv[2], "qspi_lfs") == 0)
-			ret = test_mount_qspi_lfs(mount_point);
+		else if (os_strcmp(argv[2], "qspi_lfs") == 0) {
+			const vfs_dev_t *dev = vfs_dev_find("qspi0");
+			vfs_lfs_range_t range;
+
+			if (!dev || vfs_lfs_parse_range(argc, argv, 4, &range)) {
+				return;
+			}
+			ret = vfs_dev_mount_range(dev, VFS_BENCH_FS_LFS, mount_point, &range);
+		}
 		else if (os_strcmp(argv[2], "qspi0_1_lfs") == 0)
 			ret = test_mount_qspi0_part1_lfs(mount_point);
 		else if (os_strcmp(argv[2], "fatfs") == 0)
 			ret = test_mount_fatfs(mount_point);
-		else if (os_strcmp(argv[2], "qspi0_fatfs") == 0)
+		else if (os_strcmp(argv[2], "qspi0_fatfs") == 0) {
+			if (argc != 4) {
+				BK_LOGD(NULL, "usage : vfs mount qspi0_fatfs MOUNT_POINT\n");
+				return;
+			}
 			ret = test_mount_qspi0_fatfs(mount_point);
+		}
 		else if (os_strcmp(argv[2], "flash_fatfs") == 0)
 			ret = test_mount_flash_fatfs(mount_point);
 		else {

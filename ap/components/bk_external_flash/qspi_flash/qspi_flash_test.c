@@ -801,6 +801,251 @@ static void cli_nand_sweep(qspi_id_t id, nand_sweep_phase_t phase, int argc, cha
 	os_free(rd);
 }
 
+static void nand_range_mark_fail(nand_sweep_stat_t *st, uint32_t block)
+{
+	if (!st->any_fail) {
+		st->any_fail = true;
+		st->first_fail_block = block;
+	}
+}
+
+static bool nand_range_skip_bad(qspi_id_t id, uint32_t block, nand_sweep_stat_t *st)
+{
+	bool is_bad = false;
+
+	if (bk_qspi_flash_nand_is_factory_bad(id, block, &is_bad) != BK_OK || is_bad) {
+		st->blocks_skipped++;
+		return true;
+	}
+	return false;
+}
+
+static bool nand_range_read_block(qspi_id_t id, uint32_t block, uint8_t *rd, nand_sweep_stat_t *st)
+{
+	uint32_t first_page = block * NAND_BLOCK_PAGE_COUNT;
+
+	for (uint32_t p = 0; p < NAND_BLOCK_PAGE_COUNT; p++) {
+		uint64_t t0 = bk_aon_rtc_get_us();
+		bk_err_t ret = bk_qspi_flash_nand_page_read_quad(id, first_page + p, 0,
+		                                                 rd, NAND_PAGE_SIZE_BYTES);
+		st->read_us += bk_aon_rtc_get_us() - t0;
+		if (ret != BK_OK) {
+			CLI_LOGE("range_loop: block %u page %u pre-read FAIL(%d)\r\n", block, first_page + p, ret);
+			st->read_fail++;
+			nand_range_mark_fail(st, block);
+			return false;
+		}
+		st->read_bytes += NAND_PAGE_SIZE_BYTES;
+	}
+	return true;
+}
+
+static bool nand_range_verify_erased(qspi_id_t id, uint32_t block, uint8_t *rd,
+                                     nand_sweep_stat_t *st)
+{
+	uint32_t first_page = block * NAND_BLOCK_PAGE_COUNT;
+
+	for (uint32_t p = 0; p < NAND_BLOCK_PAGE_COUNT; p++) {
+		uint64_t t0 = bk_aon_rtc_get_us();
+		bk_err_t ret = bk_qspi_flash_nand_page_read_quad(id, first_page + p, 0,
+		                                                 rd, NAND_PAGE_SIZE_BYTES);
+		st->read_us += bk_aon_rtc_get_us() - t0;
+		if (ret != BK_OK) {
+			CLI_LOGE("range_loop: block %u page %u erase-read FAIL(%d)\r\n", block, first_page + p, ret);
+			st->read_fail++;
+			nand_range_mark_fail(st, block);
+			return false;
+		}
+		st->read_bytes += NAND_PAGE_SIZE_BYTES;
+		if (!nand_sweep_page_is_erased(rd)) {
+			CLI_LOGE("range_loop: block %u page %u erase verify FAIL\r\n", block, first_page + p);
+			st->verify_fail++;
+			nand_range_mark_fail(st, block);
+			return false;
+		}
+	}
+	return true;
+}
+
+static bool nand_range_program_block(qspi_id_t id, uint32_t tag, uint32_t block,
+                                     uint8_t *wr, nand_sweep_stat_t *st)
+{
+	uint32_t first_page = block * NAND_BLOCK_PAGE_COUNT;
+
+	for (uint32_t p = 0; p < NAND_BLOCK_PAGE_COUNT; p++) {
+		nand_sweep_fill(wr, tag, block, p);
+		uint64_t t0 = bk_aon_rtc_get_us();
+		bk_err_t ret = bk_qspi_flash_nand_page_program_quad(id, first_page + p, 0,
+		                                                    wr, NAND_PAGE_SIZE_BYTES);
+		st->write_us += bk_aon_rtc_get_us() - t0;
+		if (ret != BK_OK) {
+			CLI_LOGE("range_loop: block %u page %u program FAIL(%d)\r\n", block, first_page + p, ret);
+			st->program_fail++;
+			nand_range_mark_fail(st, block);
+			return false;
+		}
+		st->write_bytes += NAND_PAGE_SIZE_BYTES;
+	}
+	return true;
+}
+
+static bool nand_range_verify_block(qspi_id_t id, uint32_t tag, uint32_t block,
+                                    uint8_t *wr, uint8_t *rd, nand_sweep_stat_t *st)
+{
+	uint32_t first_page = block * NAND_BLOCK_PAGE_COUNT;
+
+	for (uint32_t p = 0; p < NAND_BLOCK_PAGE_COUNT; p++) {
+		uint64_t t0 = bk_aon_rtc_get_us();
+		bk_err_t ret = bk_qspi_flash_nand_page_read_quad(id, first_page + p, 0,
+		                                                 rd, NAND_PAGE_SIZE_BYTES);
+		st->read_us += bk_aon_rtc_get_us() - t0;
+		if (ret != BK_OK) {
+			CLI_LOGE("range_loop: block %u page %u readback FAIL(%d)\r\n", block, first_page + p, ret);
+			st->read_fail++;
+			nand_range_mark_fail(st, block);
+			return false;
+		}
+		st->read_bytes += NAND_PAGE_SIZE_BYTES;
+		nand_sweep_fill(wr, tag, block, p);
+		if (os_memcmp(rd, wr, NAND_PAGE_SIZE_BYTES) != 0) {
+			uint32_t i = 0;
+			while (i < NAND_PAGE_SIZE_BYTES && rd[i] == wr[i]) {
+				i++;
+			}
+			CLI_LOGE("range_loop: block %u page %u MISMATCH at %u exp 0x%02x got 0x%02x\r\n",
+			         block, first_page + p, i, wr[i], rd[i]);
+			st->verify_fail++;
+			nand_range_mark_fail(st, block);
+			return false;
+		}
+	}
+	return true;
+}
+
+static void nand_range_loop_block(qspi_id_t id, uint32_t tag, uint32_t block,
+                                  uint8_t *wr, uint8_t *rd, nand_sweep_stat_t *st)
+{
+	if (nand_range_skip_bad(id, block, st)) {
+		return;
+	}
+	if (!nand_range_read_block(id, block, rd, st)) {
+		st->blocks_tested++;
+		return;
+	}
+	if (bk_qspi_flash_nand_block_erase(id, block) != BK_OK) {
+		CLI_LOGE("range_loop: block %u erase FAIL\r\n", block);
+		st->erase_fail++;
+		nand_range_mark_fail(st, block);
+		st->blocks_tested++;
+		return;
+	}
+	if (nand_range_verify_erased(id, block, rd, st) &&
+	    nand_range_program_block(id, tag, block, wr, st)) {
+		(void)nand_range_verify_block(id, tag, block, wr, rd, st);
+	}
+	st->blocks_tested++;
+}
+
+static bool nand_range_args(qspi_id_t id, char **argv, uint32_t *from, uint32_t *to,
+                            uint32_t *rounds)
+{
+	uint32_t total = bk_qspi_flash_nand_total_size(id);
+	uint32_t offset = os_strtoul(argv[2], NULL, 0);
+	uint32_t size = os_strtoul(argv[3], NULL, 0);
+
+	*rounds = os_strtoul(argv[4], NULL, 0);
+	if (!total || !size || !*rounds || offset > UINT32_MAX - size) {
+		CLI_LOGE("range_loop: invalid offset/size/times\r\n");
+		return false;
+	}
+	if ((offset & (NAND_BLOCK_SIZE_BYTES - 1U)) || (size & (NAND_BLOCK_SIZE_BYTES - 1U))) {
+		CLI_LOGE("range_loop: offset and size must be 0x%x aligned\r\n", NAND_BLOCK_SIZE_BYTES);
+		return false;
+	}
+	if (offset + size > total) {
+		CLI_LOGE("range_loop: end 0x%x exceeds NAND size 0x%x\r\n", offset + size, total);
+		return false;
+	}
+	*from = offset / NAND_BLOCK_SIZE_BYTES;
+	*to = (offset + size) / NAND_BLOCK_SIZE_BYTES - 1U;
+	return true;
+}
+
+static void cli_nand_range_loop(qspi_id_t id, int argc, char **argv)
+{
+	if (!s_nand_initialized) { CLI_LOGE("not initialized\r\n"); return; }
+	if (argc < 5) {
+		CLI_LOGI("Usage: qspi_nand range_loop <offset> <size> <times> [tag] [print_cnt]\r\n");
+		return;
+	}
+
+	uint32_t from, to, rounds;
+	if (!nand_range_args(id, argv, &from, &to, &rounds)) {
+		return;
+	}
+	uint32_t tag = (argc >= 6) ? os_strtoul(argv[5], NULL, 0) : 0;
+	uint32_t print_cnt = (argc >= 7) ? os_strtoul(argv[6], NULL, 0) : 1;
+	if (!print_cnt) {
+		print_cnt = 1;
+	}
+
+	bk_err_t ret = bk_qspi_flash_nand_set_protect_none(id);
+	if (ret != BK_OK) {
+		CLI_LOGE("range_loop: protect_none FAIL(%d)\r\n", ret);
+		return;
+	}
+
+	uint8_t *wr = (uint8_t *)os_malloc(NAND_PAGE_SIZE_BYTES);
+	uint8_t *rd = (uint8_t *)os_malloc(NAND_PAGE_SIZE_BYTES);
+	if (!wr || !rd) {
+		CLI_LOGE("range_loop: no mem\r\n");
+		if (wr) os_free(wr);
+		if (rd) os_free(rd);
+		return;
+	}
+
+	nand_sweep_stat_t st;
+	os_memset(&st, 0, sizeof(st));
+	uint32_t ecc_corr_before = 0, ecc_unc_before = 0;
+	uint32_t ecc_corr_after = 0, ecc_unc_after = 0;
+	bk_qspi_flash_nand_get_ecc_stat(&ecc_corr_before, &ecc_unc_before);
+	CLI_LOGW("range_loop: DESTRUCTIVE - blocks %u..%u, %u round(s)\r\n", from, to, rounds);
+	uint64_t t_start = bk_aon_rtc_get_us();
+
+	for (uint32_t r = 0; r < rounds; r++) {
+		for (uint32_t b = from; b <= to; b++) {
+			nand_range_loop_block(id, tag + r, b, wr, rd, &st);
+			nand_sweep_yield();
+		}
+		if (((r + 1U) % print_cnt) == 0U) {
+			CLI_LOGI("range_loop: round %u/%u done\r\n", r + 1U, rounds);
+		}
+	}
+
+	uint64_t elapsed = bk_aon_rtc_get_us() - t_start;
+	uint32_t w_kbps, w_t, r_kbps, r_t;
+	nand_sweep_kbps(st.write_bytes, st.write_us, &w_kbps, &w_t);
+	nand_sweep_kbps(st.read_bytes, st.read_us, &r_kbps, &r_t);
+	bk_qspi_flash_nand_get_ecc_stat(&ecc_corr_after, &ecc_unc_after);
+	CLI_LOGI("=== NAND RANGE_LOOP: blocks %u..%u x%u ===\r\n", from, to, rounds);
+	CLI_LOGI("  tested=%u factory_bad_skipped=%u elapsed=%llu us\r\n",
+	         st.blocks_tested, st.blocks_skipped, (unsigned long long)elapsed);
+	CLI_LOGI("  Write: %llu B, avg %u.%u KB/s\r\n",
+	         (unsigned long long)st.write_bytes, w_kbps, w_t);
+	CLI_LOGI("  Read : %llu B, avg %u.%u KB/s\r\n",
+	         (unsigned long long)st.read_bytes, r_kbps, r_t);
+	CLI_LOGI("  Fails: erase=%u program=%u read=%u verify=%u\r\n",
+	         st.erase_fail, st.program_fail, st.read_fail, st.verify_fail);
+	CLI_LOGI("  ECC delta: corrected=%u uncorrectable=%u\r\n",
+	         ecc_corr_after - ecc_corr_before, ecc_unc_after - ecc_unc_before);
+	if (st.any_fail) {
+		CLI_LOGI("  first failing block: %u\r\n", st.first_fail_block);
+	}
+	CLI_LOGI("=== RANGE_LOOP RESULT: %s ===\r\n", st.any_fail ? "FAIL" : "PASS");
+	os_free(wr);
+	os_free(rd);
+}
+
 static void cli_nand_usage(void)
 {
 	CLI_LOGI("qspi_nand init\r\n");
@@ -821,6 +1066,7 @@ static void cli_nand_usage(void)
 	CLI_LOGI("qspi_nand sweep [from] [to] [rounds] - Whole-die erase/write/verify (material import)\r\n");
 	CLI_LOGI("qspi_nand sweep_write [from] [to] [tag] - Fill blocks and LEAVE the data (retention test)\r\n");
 	CLI_LOGI("qspi_nand sweep_verify [from] [to] [tag] - Verify only, no erase/write (after bake/power cycle)\r\n");
+	CLI_LOGI("qspi_nand range_loop <offset> <size> <times> [tag] [print_cnt] - Destructive erase/read/write/read loop\r\n");
 	CLI_LOGI("qspi_nand read_oob {page} - Dump 64B spare with ECC on and off\r\n");
 	CLI_LOGI("qspi_nand factory_bad {block} - Check factory bad-block marker\r\n");
 	CLI_LOGI("qspi_nand bbm init - Bring up the bad-block management layer\r\n");
@@ -1099,6 +1345,8 @@ bt_end:
 		cli_nand_sweep(qspi_id, NAND_SWEEP_WRITE, argc, argv);
 	} else if (os_strcmp(subcmd, "sweep_verify") == 0) {
 		cli_nand_sweep(qspi_id, NAND_SWEEP_VERIFY, argc, argv);
+	} else if (os_strcmp(subcmd, "range_loop") == 0) {
+		cli_nand_range_loop(qspi_id, argc, argv);
 	} else if (os_strcmp(subcmd, "read_oob") == 0) {
 		if (!s_nand_initialized) { CLI_LOGE("not initialized\r\n"); return; }
 		if (argc < 3) { CLI_LOGI("Usage: qspi_nand read_oob <page>\r\n"); return; }
