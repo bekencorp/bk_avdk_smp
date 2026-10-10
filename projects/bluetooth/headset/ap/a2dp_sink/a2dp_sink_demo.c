@@ -534,11 +534,11 @@ static const char *a2dp_sink_play_status_to_str(uint8_t play_status)
     }
 }
 
-static void on_avrcp_ct_evt(bk_avrcp_ct_evt_t evt, void *arg, void *user_data)
+static void on_avrcp_ct_evt(bk_avrcp_ct_evt_t evt, void *arg, bk_avrcp_rn_rsp_t rn_rsp, void *user_data)
 {
     (void)user_data;
 
-    LOGI("%s event: %d\n", __func__, evt);
+    LOGI("%s event: %d rn_rsp %s\n", __func__, evt, rn_rsp == BK_AVRCP_RN_RSP_CHANGED ? "CHANGED" : "INTERIM");
 
     switch (evt)
     {
