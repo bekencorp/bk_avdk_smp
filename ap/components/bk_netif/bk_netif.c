@@ -274,4 +274,66 @@ bk_err_t bk_netif_dhcpc_start(netif_if_t ifx)
 	ip_address_set(1/*STA*/, 1/*DHCP enabled*/, empty_ip, empty_ip, empty_ip, empty_ip);
 	return BK_OK;
 }
+
+#ifdef CONFIG_WIFI_VNET_CONTROLLER
+static bk_err_t netif_dns_sync_to_cp(void)
+{
+	bk_err_t ret;
+	netif_dns_config_t *dns_cfg;
+
+	dns_cfg = (netif_dns_config_t *)os_zalloc(sizeof(netif_dns_config_t));
+	if (!dns_cfg)
+		return BK_ERR_NO_MEM;
+
+	net_dns_override_to_config(dns_cfg);
+	ret = wifi_send_com_api_cmd(STA_SET_DNS_SERVER, 1, (uint32_t)dns_cfg);
+	os_free(dns_cfg);
+	if (ret != BK_OK)
+		BK_LOGE(NULL, "%s sync DNS to CP failed, ret=%d\n", __func__, ret);
+	return ret;
+}
+#endif
+
+bk_err_t bk_netif_set_dns_servers(const char *servers[], uint8_t count)
+{
+	if (!servers || count == 0)
+		return BK_ERR_NULL_PARAM;
+
+	if (net_dns_override_set(servers, count) != 0)
+		return BK_FAIL;
+
+#ifdef CONFIG_WIFI_VNET_CONTROLLER
+	return netif_dns_sync_to_cp();
+#else
+	return BK_OK;
+#endif
+}
+
+#if CONFIG_IPV6
+bk_err_t bk_netif_set_dns6_servers(const char *servers[], uint8_t count)
+{
+	if (!servers || count == 0)
+		return BK_ERR_NULL_PARAM;
+
+	if (net_dns_override_set_v6(servers, count) != 0)
+		return BK_FAIL;
+
+#ifdef CONFIG_WIFI_VNET_CONTROLLER
+	return netif_dns_sync_to_cp();
+#else
+	return BK_OK;
+#endif
+}
+#endif
+
+bk_err_t bk_netif_clear_dns_servers(void)
+{
+	net_dns_override_clear();
+#ifdef CONFIG_WIFI_VNET_CONTROLLER
+	return netif_dns_sync_to_cp();
+#else
+	return BK_OK;
+#endif
+}
+
 #endif
