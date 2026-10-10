@@ -108,6 +108,49 @@ bk_err_t bk_netif_get_ip6_addr_info(netif_if_t ifx);
 bk_err_t bk_netif_static_ip(netif_ip4_config_t static_ip4_config);
 
 /**
+ * @brief  Set sticky IPv4 DNS servers (survive DHCP / SMP IPV4 sync / reconnect)
+ *
+ * On SMP, applies on AP and syncs full sticky snapshot to CP.
+ * Does not clear an existing IPv6 sticky override.
+ * Call bk_netif_clear_dns_servers() to stop re-apply on later reconnect.
+ *
+ * @param servers  Array of IPv4 DNS strings, e.g. {"8.8.8.8","8.8.4.4"}.
+ * @param count    Number of entries (>=1). Extra beyond SDK IPv4 DNS slots
+ *                 are ignored; if count < slots, the last entry is repeated.
+ *
+ * @return BK_OK, or BK_ERR_NULL_PARAM / BK_FAIL
+ */
+bk_err_t bk_netif_set_dns_servers(const char *servers[], uint8_t count);
+
+#if CONFIG_IPV6
+/**
+ * @brief  Set sticky IPv6 DNS servers (survive RDNSS / DHCPv6 / IPV6_IND / reconnect)
+ *
+ * Installs into IPv6 DNS slots. Syncs to CP on SMP.
+ * Does not clear an existing IPv4 sticky override.
+ * Call bk_netif_clear_dns_servers() to stop re-apply on later reconnect.
+ *
+ * @param servers  Array of IPv6 DNS strings.
+ * @param count    Number of entries (>=1). Extra beyond SDK IPv6 DNS slots
+ *                 are ignored; if count < slots, the last entry is repeated.
+ *
+ * @return BK_OK, or BK_ERR_NULL_PARAM / BK_FAIL
+ */
+bk_err_t bk_netif_set_dns6_servers(const char *servers[], uint8_t count);
+#endif
+
+/**
+ * @brief  Clear sticky DNS overrides (disable reconnect re-apply)
+ *
+ * Clears sticky IPv4/IPv6 config and zeros current DNS slots.
+ * STA disconnect alone only zeros slots and keeps sticky; reconnect will
+ * re-apply sticky unless this API was called.
+ *
+ * @return BK_OK on success
+ */
+bk_err_t bk_netif_clear_dns_servers(void);
+
+/**
  * @}
  */
 
