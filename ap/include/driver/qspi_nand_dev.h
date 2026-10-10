@@ -26,6 +26,9 @@ extern "C" {
 /* Max JEDEC ID bytes compared during Read ID (9Fh) probing. */
 #define QSPI_NAND_ID_MAX_LEN         4U
 
+/* Unique ID length used by parts that expose a 16-byte UID (e.g. GD5F05). */
+#define QSPI_NAND_UID_LEN            16U
+
 /* Device capacity and page/block geometry. */
 typedef struct {
 	uint32_t total_size;        /**< device capacity in bytes */
@@ -33,6 +36,37 @@ typedef struct {
 	uint32_t spare_size;        /**< spare/OOB bytes per page (e.g. 64) */
 	uint32_t pages_per_block;   /**< pages per erase block (e.g. 64) */
 } qspi_nand_geometry_t;
+
+/**
+ * Unique ID (UID) retrieval method.
+ *
+ * UID readout is not standardized across SPI-NAND vendors, so the method is data
+ * driven (like Read ID): a descriptor only fills ::qspi_nand_uid_t and the
+ * common driver runs the matching sequence. Extend this enum when a vendor needs
+ * a fundamentally different path (e.g. a dedicated Read-UID opcode).
+ */
+typedef enum {
+	QSPI_NAND_UID_NONE = 0,   /**< part exposes no UID / unsupported */
+	QSPI_NAND_UID_OTP_PAGE,   /**< OTP_EN + page read (+ optional complement) */
+} qspi_nand_uid_method_t;
+
+/**
+ * Parameters for ::QSPI_NAND_UID_OTP_PAGE (GD5F05-class parts).
+ *
+ * The feature-register address and the ECC-enable bit are reused from
+ * ::qspi_nand_reg_t.configuration and ::qspi_nand_bit_t.ecc_enable, so this only
+ * carries what is UID-specific. Redundant copies let the driver skip a copy that
+ * fails the complement check and try the next one.
+ */
+typedef struct {
+	qspi_nand_uid_method_t method; /**< QSPI_NAND_UID_NONE disables UID */
+	uint8_t  otp_en_bit;      /**< configuration-register OTP_EN mask */
+	uint16_t page;            /**< row address that holds the UID */
+	uint8_t  uid_len;         /**< UID length in bytes (<= QSPI_NAND_UID_LEN) */
+	bool     has_complement;  /**< UID is followed by its bit-wise complement */
+	uint8_t  copy_count;      /**< redundant copies to try (>= 1) */
+	uint16_t copy_stride;     /**< byte stride between successive copies */
+} qspi_nand_uid_t;
 
 /* Command opcodes and command-phase field widths. */
 typedef struct {
@@ -92,6 +126,7 @@ typedef struct {
 	qspi_nand_cmd_t cmd;
 	qspi_nand_reg_t reg;
 	qspi_nand_bit_t bit;
+	qspi_nand_uid_t uid;        /**< UID readout params; method NONE if absent */
 } qspi_nand_dev_t;
 
 /* Linker-section entry emitted by ::QSPI_NAND_DEVICE_SECTION. Only a fixed-size

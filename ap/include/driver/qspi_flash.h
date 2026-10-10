@@ -191,6 +191,10 @@ bk_err_t bk_qspi_flash_read(qspi_id_t id, uint32_t base_addr, void *data, uint32
  * NAND_PAGE_SIZE_BYTES / NAND_BLOCK_SIZE_BYTES in qspi_nand_flash.h. */
 #define QSPI_NAND_PAGE_SIZE    2048U
 #define QSPI_NAND_BLOCK_SIZE   (QSPI_NAND_PAGE_SIZE * 64U)
+#ifndef QSPI_NAND_UID_LEN
+/* Keep in sync with driver/qspi_nand_dev.h. */
+#define QSPI_NAND_UID_LEN      16U
+#endif
 
 /* Total capacity in bytes of the SPI-NAND identified on @p id at init (falls
  * back to CONFIG_QSPI_NAND_FLASH_SIZE when the part was not recognised).
@@ -198,6 +202,20 @@ bk_err_t bk_qspi_flash_read(qspi_id_t id, uint32_t base_addr, void *data, uint32
 uint32_t bk_qspi_flash_nand_total_size(qspi_id_t id);
 
 bk_err_t bk_qspi_flash_nand_get_id(qspi_id_t id, uint8_t *buf, uint32_t len);
+
+/**
+ * @brief Read the vendor Unique ID (UID) of the probed SPI-NAND on @p id.
+ *
+ * Dispatches to the active device descriptor's vendor UID reader.
+ * GD5F05 implements DS-01394 §8.10 (OTP_EN + page 0 + complement check).
+ * Other parts return BK_ERR_NOT_SUPPORT until they register their own path.
+ *
+ * @param uid  output buffer for ::QSPI_NAND_UID_LEN bytes
+ * @param len  must be >= ::QSPI_NAND_UID_LEN
+ * @return BK_OK, BK_ERR_NOT_SUPPORT, BK_ERR_STATE (UID invalid), or I/O error
+ */
+bk_err_t bk_qspi_flash_nand_get_uid(qspi_id_t id, uint8_t *uid, uint32_t len);
+
 bk_err_t bk_qspi_flash_nand_get_feature(qspi_id_t id, uint8_t addr, uint8_t *value);
 bk_err_t bk_qspi_flash_nand_set_feature(qspi_id_t id, uint8_t addr, uint8_t value);
 bk_err_t bk_qspi_flash_nand_get_block_lock(qspi_id_t id, uint8_t *value);
@@ -277,6 +295,26 @@ bk_err_t bk_qspi_flash_nand_mark_bad(qspi_id_t id, uint32_t block);
  * @return BK_OK on success, else error.
  */
 bk_err_t bk_qspi_flash_nand_page_is_erased(qspi_id_t id, uint32_t page, bool *erased);
+
+/**
+ * @brief      Read the cumulative on-die ECC counters (since boot or last reset)
+ *
+ * A rising @p corrected count means the part is still returning good data while
+ * its ECC margin is being consumed, which makes it the earliest practical wear
+ * indicator - it moves long before a read actually fails. @p uncorrectable
+ * counts reads that could not be repaired (data loss).
+ *
+ * Counters are chip-wide, not per id. Either pointer may be NULL.
+ *
+ * @param corrected      out: reads repaired by on-die ECC
+ * @param uncorrectable  out: reads that exceeded the ECC capability
+ */
+void bk_qspi_flash_nand_get_ecc_stat(uint32_t *corrected, uint32_t *uncorrectable);
+
+/**
+ * @brief      Zero the ECC counters so a test can measure one interval
+ */
+void bk_qspi_flash_nand_reset_ecc_stat(void);
 #endif /* CONFIG_QSPI_NAND_FLASH */
 
 /**
