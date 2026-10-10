@@ -16,14 +16,12 @@ if (CONFIG_QSPI_NAND_FLASH)
 	list(APPEND srcs
 		qspi_flash/qspi_nand_flash.c
 		qspi_flash/qspi_nand_bbm.c
-		qspi_flash/nand/qspi_nand_zb35q01.c
 		qspi_flash/nand/qspi_nand_gd5f05.c
 	)
 	list(APPEND priv_incs qspi_flash)
 	# Device descriptors register into .qspi_nand_device_list via a static entry;
 	# force-keep the descriptor globals for non-whole-archive links.
 	list(APPEND GLOBAL_FUNCTION_SYMBOLS
-		qspi_nand_zb35q01_dev
 		qspi_nand_gd5f05m7ue_dev
 		qspi_nand_gd5f05m7re_dev
 	)
@@ -31,13 +29,11 @@ elseif (CONFIG_QSPI_NOR_FLASH)
 	list(APPEND srcs
 		qspi_flash/qspi_nor_flash.c
 		qspi_flash/nor/qspi_nor_gd25.c
-		qspi_flash/nor/qspi_nor_puya_p25q32.c
 		qspi_flash/nor/qspi_nor_xmc_xm25qh256.c
 	)
 	list(APPEND priv_incs qspi_flash)
 	list(APPEND GLOBAL_FUNCTION_SYMBOLS
 		qspi_nor_gd25_dev
-		qspi_nor_p25q32_dev
 		qspi_nor_xm25qh256_dev
 	)
 endif()

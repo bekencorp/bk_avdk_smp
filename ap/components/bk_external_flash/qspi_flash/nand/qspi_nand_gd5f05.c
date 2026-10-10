@@ -17,6 +17,9 @@
 
 #if CONFIG_QSPI_NAND_FLASH
 
+/* GD5F05 B0h Configuration Register OTP_EN bit (DS-01394 Table 15-1). */
+#define GD5F05_CFG_OTP_EN            BIT(6)
+
 /* GigaDevice GD5F05 family: 512Mbit (64MB), 2KB page, 64 pages/block, mfg C8h.
  * Command set and geometry match the ZB35 generic profile; only the JEDEC ID,
  * capacity and the A0h write-protect bit differ.
@@ -77,6 +80,16 @@
 		.ecc_no_error = 0x0, \
 		.ecc_corrected = 0x1, \
 		.ecc_uncorrectable = 0x2, \
+	}, \
+	/* DS-01394 §8.10: OTP_EN + page-0 read; 16B UID + complement, 16 copies. */ \
+	.uid = { \
+		.method = QSPI_NAND_UID_OTP_PAGE, \
+		.otp_en_bit = GD5F05_CFG_OTP_EN, \
+		.page = 0U, \
+		.uid_len = QSPI_NAND_UID_LEN, \
+		.has_complement = true, \
+		.copy_count = 16U, \
+		.copy_stride = 32U, \
 	}, \
 }
 

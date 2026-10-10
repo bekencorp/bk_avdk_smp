@@ -739,8 +739,6 @@ bk_err_t bk_qspi_flash_write(qspi_id_t id, uint32_t base_addr, const void *data,
 	uint32_t page_write_len = 0;
 	bk_err_t ret = BK_OK;
 
-	QSPI_LOGD("[%s] Called with base_addr=0x%08X, size=%d\r\n", __func__, base_addr, size);
-
 	if (NULL == data) {
 		QSPI_LOGE("[%s] data is NULL!\r\n", __func__);
 		return BK_ERR_NULL_PARAM;
@@ -756,7 +754,6 @@ bk_err_t bk_qspi_flash_write(qspi_id_t id, uint32_t base_addr, const void *data,
 
 	if(0 != (base_addr & FLASH_PAGE_MASK)) {
 		write_addr = base_addr & (~FLASH_PAGE_MASK);
-		QSPI_LOGD("[%s] Address not page-aligned, aligning to 0x%08X, reading page first\r\n", __func__, write_addr);
 		ret = bk_qspi_flash_line_read(id, write_addr, buf, QSPI_FIFO_LEN_MAX);
 		if (BK_OK != ret) {
 			QSPI_LOGE("[%s] quad_read head fail[ret=%d, addr=0x%08X]!\r\n", __func__, ret, write_addr);
@@ -764,9 +761,7 @@ bk_err_t bk_qspi_flash_write(qspi_id_t id, uint32_t base_addr, const void *data,
 		}
 		page_write_len = (QSPI_FIFO_LEN_MAX - (base_addr & FLASH_PAGE_MASK));
 		write_len = (page_write_len > left_len) ? left_len : page_write_len;
-		QSPI_LOGD("[%s] Copying %d bytes to buffer offset 0x%02X\r\n", __func__, write_len, (base_addr & FLASH_PAGE_MASK));
 		os_memcpy(buf + (base_addr & FLASH_PAGE_MASK), data, write_len);
-		QSPI_LOGD("[%s] Writing full page (256 bytes) to address 0x%08X\r\n", __func__, write_addr);
 		ret = bk_qspi_flash_line_program(id, write_addr, buf, QSPI_FIFO_LEN_MAX);
 		if (BK_OK != ret) {
 			QSPI_LOGE("[%s] page_program head fail[ret=%d, addr=0x%08X]!\r\n", __func__, ret, write_addr);
@@ -794,18 +789,15 @@ bk_err_t bk_qspi_flash_write(qspi_id_t id, uint32_t base_addr, const void *data,
 		return BK_OK;
 	}
 	if(0 != ((base_addr + size) & FLASH_PAGE_MASK)) {
-		// Last partial page: read entire page, merge data, write entire page
+		/* Last partial page: read-modify-write the whole page. */
 		write_addr = (base_addr + offset) & (~FLASH_PAGE_MASK);
-		QSPI_LOGD("[%s] Last partial page, reading page at 0x%08X\r\n", __func__, write_addr);
 		ret = bk_qspi_flash_line_read(id, write_addr, buf, QSPI_FIFO_LEN_MAX);
 		if (BK_OK != ret) {
 			QSPI_LOGE("[%s] quad_read tail fail[ret=%d, addr=0x%08X]!\r\n", __func__, ret, write_addr);
 			return ret;
 		}
 		write_len = (base_addr + size) & FLASH_PAGE_MASK;
-		QSPI_LOGD("[%s] Copying %d bytes to buffer offset 0x%02X\r\n", __func__, write_len, ((base_addr + offset) & FLASH_PAGE_MASK));
 		os_memcpy(buf + ((base_addr + offset) & FLASH_PAGE_MASK), data + offset, write_len);
-		QSPI_LOGD("[%s] Writing full page (256 bytes) to address 0x%08X\r\n", __func__, write_addr);
 		ret = bk_qspi_flash_line_program(id, write_addr, buf, QSPI_FIFO_LEN_MAX);
 		if (BK_OK != ret) {
 			QSPI_LOGE("[%s] page_program tail fail[ret=%d, addr=0x%08X]!\r\n", __func__, ret, write_addr);

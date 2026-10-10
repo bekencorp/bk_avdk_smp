@@ -104,6 +104,7 @@ static const qspi_nand_dev_t s_nand_dev_default = {
 		.ecc_corrected = 0x1,
 		.ecc_uncorrectable = 0x2,
 	},
+	.uid = { .method = QSPI_NAND_UID_NONE },
 };
 
 static const qspi_nand_dev_t *s_active_dev[QSPI_ID_MAX];
@@ -296,15 +297,42 @@ static bk_err_t nand_wait_ready_internal(qspi_id_t id)
 	return nand_wait_ready_with_status(id, NULL);
 }
 
+/* Cumulative on-die ECC outcomes since boot. A rising corrected count is the
+ * earliest usable wear indicator: the part still returns good data, so nothing
+ * upstream fails, yet the margin is already being consumed. Exposed via
+ * bk_qspi_flash_nand_get_ecc_stat() for aging/burn-in reports. */
+static uint32_t s_nand_ecc_corrected;
+static uint32_t s_nand_ecc_uncorrectable;
+
 /* Decode the C0h ECC status field captured after a page-read completes. */
 static bk_err_t nand_ecc_status_check(uint8_t status)
 {
 	uint8_t eccs = (status & NAND_STATUS_ECC_MASK) >> NAND_STATUS_ECC_POS;
 
 	if (eccs == NAND_ECC_UNCORRECTABLE) {
+		s_nand_ecc_uncorrectable++;
 		return BK_ERR_QSPI_NAND_ECC_FAIL;
 	}
+	if (eccs == NAND_ECC_CORRECTED) {
+		s_nand_ecc_corrected++;
+	}
 	return BK_OK;
+}
+
+void bk_qspi_flash_nand_get_ecc_stat(uint32_t *corrected, uint32_t *uncorrectable)
+{
+	if (corrected) {
+		*corrected = s_nand_ecc_corrected;
+	}
+	if (uncorrectable) {
+		*uncorrectable = s_nand_ecc_uncorrectable;
+	}
+}
+
+void bk_qspi_flash_nand_reset_ecc_stat(void)
+{
+	s_nand_ecc_corrected = 0;
+	s_nand_ecc_uncorrectable = 0;
 }
 
 static bk_err_t nand_write_enable_internal(qspi_id_t id)
@@ -742,27 +770,47 @@ static bk_err_t nand_oob_program_internal(qspi_id_t id, uint32_t page, uint32_t 
 	return BK_OK;
 }
 
-/* Temporarily disable on-die ECC around a callback-less spare read: the factory
- * bad-block marker is written by the vendor with ECC off, so it must be read the
- * same way to avoid the ECC engine reinterpreting the raw spare bytes. */
-static bk_err_t nand_read_oob_no_ecc(qspi_id_t id, uint32_t page, uint32_t oob_off,
-                                     uint8_t *buf, uint32_t len)
+/*
+ * Read the bad-block marker with on-die ECC *enabled*.
+ *
+ * Measured on GD5F05M7UE (qspi_nand read_oob dumps both views of one page):
+ *
+ *   page 0     good block, written   ECC on: FFh   ECC off: 79h
+ *   page 25600 good block, untouched ECC on: FFh   ECC off: FFh
+ *   page 16384 factory-bad block     ECC on: 00h   ECC off: 00h
+ *
+ * With ECC disabled the part returns the raw spare, and its first 16 bytes hold
+ * ECC parity - so spare[0] of any block that has ever been programmed reads
+ * back non-FFh and every written good block looks factory-bad. With ECC enabled
+ * the parity is hidden behind the user-meta view and spare[0] is the real
+ * marker, correct for all three cases above.
+ *
+ * Reading the marker is not a data access, so the ECC counters are restored
+ * afterwards: scanning for bad blocks must not register as device wear.
+ */
+static bk_err_t nand_read_bad_marker(qspi_id_t id, uint32_t page, uint8_t *marker)
 {
+	uint32_t ecc_corrected_saved = s_nand_ecc_corrected;
+	uint32_t ecc_uncorrectable_saved = s_nand_ecc_uncorrectable;
 	uint8_t cfg = 0;
 	bk_err_t ret;
 
 	BK_RETURN_ON_ERR(nand_feature_get_internal(id, NAND_FEATURE_ADDR_DRIVE, &cfg));
 
-	bool ecc_was_on = (cfg & NAND_CFG_ECC_E_BIT) != 0;
-	if (ecc_was_on) {
-		BK_RETURN_ON_ERR(nand_feature_set_internal(id, NAND_FEATURE_ADDR_DRIVE, cfg & ~NAND_CFG_ECC_E_BIT));
+	bool ecc_was_off = (cfg & NAND_CFG_ECC_E_BIT) == 0;
+	if (ecc_was_off) {
+		BK_RETURN_ON_ERR(nand_feature_set_internal(id, NAND_FEATURE_ADDR_DRIVE,
+		                                           cfg | NAND_CFG_ECC_E_BIT));
 	}
 
-	ret = nand_page_read_internal(id, page, NAND_PAGE_SIZE_BYTES + oob_off, buf, len);
+	ret = nand_page_read_internal(id, page, NAND_BAD_MARKER_COLUMN, marker, 1);
 
-	if (ecc_was_on) {
-		BK_LOG_ON_ERR(nand_feature_set_internal(id, NAND_FEATURE_ADDR_DRIVE, cfg | NAND_CFG_ECC_E_BIT));
+	if (ecc_was_off) {
+		BK_LOG_ON_ERR(nand_feature_set_internal(id, NAND_FEATURE_ADDR_DRIVE, cfg));
 	}
+
+	s_nand_ecc_corrected = ecc_corrected_saved;
+	s_nand_ecc_uncorrectable = ecc_uncorrectable_saved;
 	return ret;
 }
 
@@ -919,6 +967,102 @@ bk_err_t bk_qspi_flash_nand_get_id(qspi_id_t id, uint8_t *buf, uint32_t len)
 	BK_RETURN_ON_ERR(nand_check_id(id));
 
 	return nand_read_id_internal(id, buf, len);
+}
+
+/* Validate one UID copy: with a complement present, UID[i] XOR comp[i] must be
+ * 0xFF for every byte; without one, any copy is accepted as-is. */
+static bool nand_uid_copy_valid(const uint8_t *copy, const qspi_nand_uid_t *u)
+{
+	if (!u->has_complement) {
+		return true;
+	}
+	for (uint32_t i = 0; i < u->uid_len; i++) {
+		if ((uint8_t)(copy[i] ^ copy[u->uid_len + i]) != 0xFFU) {
+			return false;
+		}
+	}
+	return true;
+}
+
+/* Return the first UID copy that passes validation, else BK_ERR_STATE. */
+static bk_err_t nand_uid_pick(const uint8_t *raw, const qspi_nand_uid_t *u, uint8_t *uid)
+{
+	for (uint32_t c = 0; c < u->copy_count; c++) {
+		const uint8_t *copy = &raw[c * u->copy_stride];
+
+		if (nand_uid_copy_valid(copy, u)) {
+			os_memcpy(uid, copy, u->uid_len);
+			return BK_OK;
+		}
+	}
+	return BK_ERR_STATE;
+}
+
+/* Common QSPI_NAND_UID_OTP_PAGE reader (GD5F05 DS-01394 §8.10):
+ * enter OTP mode via OTP_EN, page-read the UID row into cache, then pick a valid
+ * copy. On-die ECC is disabled for the raw read because integrity is enforced by
+ * the UID/complement XOR rule; the configuration register is always restored. */
+static bk_err_t nand_read_uid_otp_page(qspi_id_t id, const qspi_nand_dev_t *dev,
+                                       uint8_t *uid, uint32_t len)
+{
+	const qspi_nand_uid_t *u = &dev->uid;
+	uint8_t cfg_addr = dev->reg.configuration;
+	uint8_t ecc_bit = dev->bit.ecc_enable;
+	uint8_t cfg = 0, cfg_saved = 0;
+	uint8_t *raw = NULL;
+	bk_err_t ret;
+
+	if (u->uid_len == 0 || u->uid_len > len || u->copy_count == 0) {
+		return BK_ERR_PARAM;
+	}
+
+	uint32_t copy_bytes = u->has_complement ? (uint32_t)u->uid_len * 2U : u->uid_len;
+	uint32_t stride = u->copy_stride ? u->copy_stride : copy_bytes;
+	if (stride < copy_bytes) {
+		return BK_ERR_PARAM;
+	}
+	uint32_t raw_len = (u->copy_count - 1U) * stride + copy_bytes;
+
+	BK_RETURN_ON_ERR(nand_feature_get_internal(id, cfg_addr, &cfg_saved));
+	cfg = (uint8_t)((cfg_saved | u->otp_en_bit) & (uint8_t)~ecc_bit);
+	BK_RETURN_ON_ERR(nand_feature_set_internal(id, cfg_addr, cfg));
+	BK_RETURN_ON_ERR(nand_feature_get_internal(id, cfg_addr, &cfg));
+	if ((cfg & u->otp_en_bit) == 0) {
+		(void)nand_feature_set_internal(id, cfg_addr, cfg_saved);
+		return BK_ERR_STATE;
+	}
+
+	raw = (uint8_t *)os_malloc(raw_len);
+	if (!raw) {
+		(void)nand_feature_set_internal(id, cfg_addr, cfg_saved);
+		return BK_ERR_NO_MEM;
+	}
+
+	ret = nand_page_read_internal(id, u->page, 0, raw, raw_len);
+	if (ret == BK_OK) {
+		ret = nand_uid_pick(raw, u, uid);
+	}
+
+	os_free(raw);
+	(void)nand_feature_set_internal(id, cfg_addr, cfg_saved);
+	return ret;
+}
+
+bk_err_t bk_qspi_flash_nand_get_uid(qspi_id_t id, uint8_t *uid, uint32_t len)
+{
+	const qspi_nand_dev_t *dev;
+
+	BK_RETURN_ON_ERR(nand_check_id(id));
+	BK_RETURN_ON_NULL(uid);
+
+	dev = bk_qspi_nand_dev(id);
+	switch (dev->uid.method) {
+	case QSPI_NAND_UID_OTP_PAGE:
+		return nand_read_uid_otp_page(id, dev, uid, len);
+	case QSPI_NAND_UID_NONE:
+	default:
+		return BK_ERR_NOT_SUPPORT;
+	}
 }
 
 bk_err_t bk_qspi_flash_nand_set_feature(qspi_id_t id, uint8_t addr, uint8_t value)
@@ -1121,7 +1265,16 @@ bk_err_t bk_qspi_flash_nand_is_factory_bad(qspi_id_t id, uint32_t block, bool *i
 
 	for (uint32_t i = 0; i < 2; i++) {
 		uint8_t marker = NAND_BAD_MARKER_GOOD;
-		BK_RETURN_ON_ERR(nand_read_oob_no_ecc(id, base_page + i, 0, &marker, 1));
+		bk_err_t ret = nand_read_bad_marker(id, base_page + i, &marker);
+
+		/* A marker page the ECC engine cannot repair is itself a bad-block
+		 * symptom; retire the block rather than hand it to a filesystem. */
+		if (ret == BK_ERR_QSPI_NAND_ECC_FAIL) {
+			*is_bad = true;
+			return BK_OK;
+		}
+		BK_RETURN_ON_ERR(ret);
+
 		if (marker != NAND_BAD_MARKER_GOOD) {
 			*is_bad = true;
 			return BK_OK;
@@ -1309,9 +1462,10 @@ void qspi_flash_test_case(qspi_id_t id, uint32_t base_addr, void *data, uint32_t
 	}
 
 	if (bk_qspi_flash_nand_get_id(id, id_buf, sizeof(id_buf)) == BK_OK) {
-		QSPI_LOGI("%s zb35 id = %02x %02x (expect %02x %02x)\n", __func__,
-		          id_buf[0], id_buf[1],
-		          NAND_JEDEC_MFG_ID_ZBIT, NAND_JEDEC_DEV_ID_ZB35Q01);
+		const qspi_nand_dev_t *dev = bk_qspi_nand_dev(id);
+
+		QSPI_LOGI("%s nand id = %02x %02x (%s)\n", __func__, id_buf[0], id_buf[1],
+		          dev ? dev->name : "unrecognised");
 	}
 
 	BK_LOG_ON_ERR(bk_qspi_flash_nand_set_protect_none(id));
@@ -1320,7 +1474,7 @@ void qspi_flash_test_case(qspi_id_t id, uint32_t base_addr, void *data, uint32_t
 	BK_LOG_ON_ERR(bk_qspi_flash_single_read(id, page_addr, verify, NAND_PAGE_SIZE_BYTES));
 	for (uint32_t i = 0; i < NAND_PAGE_SIZE_BYTES; i++) {
 		if (verify[i] != 0xFF) {
-			QSPI_LOGI("[ZB35 TEST] erase mismatch idx:%u val:%02x\r\n", i, verify[i]);
+			QSPI_LOGI("[NAND TEST] erase mismatch idx:%u val:%02x\r\n", i, verify[i]);
 			break;
 		}
 	}
@@ -1330,7 +1484,7 @@ void qspi_flash_test_case(qspi_id_t id, uint32_t base_addr, void *data, uint32_t
 	BK_LOG_ON_ERR(bk_qspi_flash_single_read(id, page_addr, verify, NAND_PAGE_SIZE_BYTES));
 	for (uint32_t i = 0; i < NAND_PAGE_SIZE_BYTES; i++) {
 		if (verify[i] != 0xAA) {
-			QSPI_LOGI("[ZB35 TEST] 0xAA mismatch idx:%u val:%02x\r\n", i, verify[i]);
+			QSPI_LOGI("[NAND TEST] 0xAA mismatch idx:%u val:%02x\r\n", i, verify[i]);
 			break;
 		}
 	}
@@ -1340,7 +1494,7 @@ void qspi_flash_test_case(qspi_id_t id, uint32_t base_addr, void *data, uint32_t
 	BK_LOG_ON_ERR(bk_qspi_flash_single_read(id, page_addr, verify, NAND_PAGE_SIZE_BYTES));
 	for (uint32_t i = 0; i < NAND_PAGE_SIZE_BYTES; i++) {
 		if (verify[i] != 0x55) {
-			QSPI_LOGI("[ZB35 TEST] 0x55 mismatch idx:%u val:%02x\r\n", i, verify[i]);
+			QSPI_LOGI("[NAND TEST] 0x55 mismatch idx:%u val:%02x\r\n", i, verify[i]);
 			break;
 		}
 	}

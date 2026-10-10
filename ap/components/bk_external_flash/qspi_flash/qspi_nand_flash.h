@@ -61,10 +61,13 @@ extern "C" {
 #define NAND_BLOCK_PAGE_COUNT        64U
 #define NAND_BLOCK_SIZE_BYTES        (NAND_PAGE_SIZE_BYTES * NAND_BLOCK_PAGE_COUNT)
 
-/* Factory bad-block marker: manufacturer writes a non-FFh value into the first
- * spare byte of page 0 (and page 1) of a bad block, with on-die ECC disabled.
- * Confirm the exact column/page against the ZB35Q01CYIG datasheet before relying
- * on a single page. */
+/* Factory bad-block marker: the manufacturer writes a non-FFh value into the
+ * first spare byte of page 0 (and page 1) of a bad block.
+ *
+ * Read it with on-die ECC *enabled*. With ECC disabled the part returns the raw
+ * spare, whose leading bytes hold ECC parity, so spare[0] of any block that has
+ * ever been programmed reads back non-FFh and every written good block looks
+ * factory-bad (measured on GD5F05M7UE; see nand_read_bad_marker()). */
 #define NAND_BAD_MARKER_COLUMN       NAND_PAGE_SIZE_BYTES
 #define NAND_BAD_MARKER_GOOD         0xFFU
 /* Capacity used only when Read ID (9Fh) returns an id not in the descriptor
@@ -93,9 +96,10 @@ extern "C" {
 #define NAND_DEFAULT_TIMEOUT_MS      100U
 #define NAND_ERASE_TIMEOUT_MS        3000U
 
-/* ZB35Q01CYIG JEDEC ID (Table 3-1) */
-#define NAND_JEDEC_MFG_ID_ZBIT       0x5E
-#define NAND_JEDEC_DEV_ID_ZB35Q01    0xC1
+/* No per-part JEDEC ID constants live here: the expected ID belongs to the
+ * device descriptor registry (qspi_nand_dev_t.id), and bk_qspi_nand_dev()
+ * returns whichever part init actually probed. Hardcoding one vendor's ID here
+ * only produced false "id mismatch" warnings on every other board. */
 
 /* A0h Protection Register bits */
 #define NAND_PROT_WP_E_BIT           BIT(1)

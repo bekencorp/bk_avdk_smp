@@ -26,12 +26,18 @@
 #include <soc/soc.h>
 #include <driver/qspi.h>
 #include <driver/qspi_flash.h>
+#include <os/os.h>
 #include <os/mem.h>
 #include <os/str.h>
 #include "cli.h"
 #if CONFIG_QSPI_NAND_FLASH
 #include "qspi_nand_flash.h"
+#include <driver/qspi_nand_dev.h>
 #include <driver/qspi_nand_bbm.h>
+#include <driver/aon_rtc.h>
+#if CONFIG_TASK_WDT
+#include "bk_wdt.h"
+#endif
 #endif
 
 #if (CONFIG_QSPI_NOR_FLASH)
@@ -441,10 +447,365 @@ static void cli_qspi_flash_cmd(char *pcWriteBuffer, int xWriteBufferLen, int arg
 #if CONFIG_QSPI_NAND_FLASH
 static bool s_nand_initialized = false;
 
+/*
+ * Render bytes as "xx xx xx" into a caller-supplied buffer.
+ *
+ * The log backend prefixes every CLI_LOGI call, so emitting one byte per call
+ * turns a 16-byte dump into 16 prefixed fragments. Build the line first and
+ * print it once. @p out must hold at least len*3 bytes.
+ */
+static void nand_hex_line(char *out, const uint8_t *buf, uint32_t len)
+{
+	static const char hex[] = "0123456789abcdef";
+	uint32_t n = 0;
+
+	for (uint32_t i = 0; i < len; i++) {
+		out[n++] = hex[buf[i] >> 4];
+		out[n++] = hex[buf[i] & 0x0F];
+		out[n++] = ' ';
+	}
+	out[n ? n - 1 : 0] = '\0';
+}
+
+/*
+ * Whole-die sweep used for incoming-material inspection.
+ *
+ * The filesystem-level tests only ever touch the littleFS partition (blocks
+ * 0..7, 1.6% of a 512-block die) and concentrate all wear there, which is the
+ * wrong shape for qualifying a batch of parts. This walks every block instead:
+ * erase, program a per-page unique pattern, read back and compare, then erase
+ * again so the part is handed over clean. Coverage is 100% at roughly two P/E
+ * cycles per block, so a full pass costs about a minute and a negligible slice
+ * of the 80K-cycle endurance budget.
+ *
+ * The same walk also runs as two halves for data-retention work: WRITE fills
+ * the die and leaves the data in place, then VERIFY reads it back after the
+ * part has been baked or power-cycled. The pattern is a pure function of
+ * (tag, block, page), so the verify side needs no state carried across the
+ * power cycle - it recomputes what every page should hold.
+ */
+typedef enum {
+	NAND_SWEEP_FULL = 0,   /* erase -> program -> verify -> erase */
+	NAND_SWEEP_WRITE,      /* erase -> program, data deliberately left behind */
+	NAND_SWEEP_VERIFY,     /* read + compare only: no erase, no program */
+} nand_sweep_phase_t;
+
+typedef struct {
+	uint32_t blocks_tested;
+	uint32_t blocks_skipped;   /* factory-bad, never erased */
+	uint32_t blocks_unwritten; /* verify: block still erased, nothing to check */
+	uint32_t erase_fail;
+	uint32_t program_fail;
+	uint32_t read_fail;
+	uint32_t verify_fail;
+	uint32_t first_fail_block;
+	bool     any_fail;
+	uint64_t write_bytes;
+	uint64_t read_bytes;
+	uint64_t write_us;
+	uint64_t read_us;
+} nand_sweep_stat_t;
+
+static inline uint32_t nand_sweep_lcg(uint32_t *s)
+{
+	*s = (*s * 1103515245u) + 12345u;
+	return *s;
+}
+
+/* Unique payload per (tag, block, page): a constant or block-wide pattern
+ * cannot catch a mis-addressed access, since every page would compare equal.
+ * @p tag is the round index for a full sweep and the generation number for a
+ * write/verify pair; either way the same tag reproduces the same bytes. */
+static void nand_sweep_fill(uint8_t *buf, uint32_t tag, uint32_t block, uint32_t page)
+{
+	uint32_t seed = (tag * 2654435761u) ^ (block << 8) ^ page ^ 1u;
+
+	for (uint32_t i = 0; i < NAND_PAGE_SIZE_BYTES; i++) {
+		buf[i] = (uint8_t)(nand_sweep_lcg(&seed) >> 24);
+	}
+}
+
+static bool nand_sweep_page_is_erased(const uint8_t *buf)
+{
+	for (uint32_t i = 0; i < NAND_PAGE_SIZE_BYTES; i++) {
+		if (buf[i] != 0xFF) {
+			return false;
+		}
+	}
+	return true;
+}
+
+/*
+ * Feed the task watchdog and, crucially, yield.
+ *
+ * A whole-die pass is ~50 s of back-to-back QSPI transfers. Running that as an
+ * uninterrupted CLI loop starved the tick path and the 2 s interrupt watchdog
+ * (CONFIG_INT_WWDT_PERIOD_MS) reset the chip partway through. Feeding the 60 s
+ * task watchdog alone is not enough - the loop has to give the scheduler air,
+ * the same way the VFS soak task does between rounds. One millisecond per
+ * block costs ~0.5 s over 512 blocks, about 1% of the sweep.
+ */
+static void nand_sweep_yield(void)
+{
+#if CONFIG_TASK_WDT
+	bk_task_wdt_feed();
+#endif
+	rtos_delay_milliseconds(1);
+}
+
+static void nand_sweep_kbps(uint64_t bytes, uint64_t us, uint32_t *whole, uint32_t *tenth)
+{
+	uint64_t v;
+
+	if (!us) {
+		*whole = 0;
+		*tenth = 0;
+		return;
+	}
+	v = (bytes * 10000000ull) / us / 1024ull;
+	*whole = (uint32_t)(v / 10ull);
+	*tenth = (uint32_t)(v % 10ull);
+}
+
+/* One block, one phase. Never aborts the caller's walk; a failing block is
+ * recorded and skipped so the operator gets the full bad-block list in one run. */
+static void nand_sweep_block(qspi_id_t id, nand_sweep_phase_t phase, uint32_t tag,
+                             uint32_t block, uint8_t *wr, uint8_t *rd,
+                             nand_sweep_stat_t *st)
+{
+	uint32_t first_page = block * NAND_BLOCK_PAGE_COUNT;
+	uint64_t t0;
+	bool is_bad = false;
+
+	/* Factory-bad blocks must never be erased: the marking may be
+	 * unrecoverable afterwards (GD5F05 datasheet sec 12). VERIFY applies the
+	 * same test so it walks exactly the set of blocks WRITE programmed. */
+	if (bk_qspi_flash_nand_is_factory_bad(id, block, &is_bad) != BK_OK || is_bad) {
+		st->blocks_skipped++;
+		return;
+	}
+
+	if (phase != NAND_SWEEP_VERIFY) {
+		if (bk_qspi_flash_nand_block_erase(id, block) != BK_OK) {
+			CLI_LOGE("sweep: block %u erase FAIL\r\n", block);
+			st->erase_fail++;
+			goto failed;
+		}
+
+		for (uint32_t p = 0; p < NAND_BLOCK_PAGE_COUNT; p++) {
+			nand_sweep_fill(wr, tag, block, p);
+
+			t0 = bk_aon_rtc_get_us();
+			bk_err_t ret = bk_qspi_flash_nand_page_program_quad(id, first_page + p, 0,
+			                                                    wr, NAND_PAGE_SIZE_BYTES);
+			st->write_us += bk_aon_rtc_get_us() - t0;
+			if (ret != BK_OK) {
+				CLI_LOGE("sweep: block %u page %u program FAIL\r\n", block, first_page + p);
+				st->program_fail++;
+				goto failed;
+			}
+			st->write_bytes += NAND_PAGE_SIZE_BYTES;
+		}
+	}
+
+	if (phase != NAND_SWEEP_WRITE) {
+		for (uint32_t p = 0; p < NAND_BLOCK_PAGE_COUNT; p++) {
+			t0 = bk_aon_rtc_get_us();
+			bk_err_t ret = bk_qspi_flash_nand_page_read_quad(id, first_page + p, 0,
+			                                                 rd, NAND_PAGE_SIZE_BYTES);
+			st->read_us += bk_aon_rtc_get_us() - t0;
+			if (ret != BK_OK) {
+				CLI_LOGE("sweep: block %u page %u read FAIL(%d)\r\n", block, first_page + p, ret);
+				st->read_fail++;
+				goto failed;
+			}
+			st->read_bytes += NAND_PAGE_SIZE_BYTES;
+
+			nand_sweep_fill(wr, tag, block, p);
+			if (os_memcmp(rd, wr, NAND_PAGE_SIZE_BYTES) != 0) {
+				/* A block WRITE never reached still reads erased. Counting it
+				 * separately keeps a range mismatch (or a tag typo) from being
+				 * reported as retention corruption. Only VERIFY may do this:
+				 * in the other phases the block was just programmed, so an
+				 * erased page 0 is a program failure and must stay one. */
+				if ((phase == NAND_SWEEP_VERIFY) && (p == 0) && nand_sweep_page_is_erased(rd)) {
+					st->blocks_unwritten++;
+					return;
+				}
+
+				/* Report the first differing byte only; a whole-die sweep must
+				 * not drown the console on a single bad page. */
+				uint32_t i = 0;
+				while (i < NAND_PAGE_SIZE_BYTES && rd[i] == wr[i]) {
+					i++;
+				}
+				CLI_LOGE("sweep: block %u page %u MISMATCH at %u exp 0x%02x got 0x%02x\r\n",
+				         block, first_page + p, i, wr[i], rd[i]);
+				st->verify_fail++;
+				goto failed;
+			}
+		}
+	}
+
+	/* Hand the block back erased so the part is ready for a filesystem. WRITE
+	 * must not do this - its whole point is to leave the data behind - and
+	 * VERIFY must not touch the data it was asked to check. */
+	if (phase == NAND_SWEEP_FULL) {
+		BK_LOG_ON_ERR(bk_qspi_flash_nand_block_erase(id, block));
+	}
+	st->blocks_tested++;
+	return;
+
+failed:
+	if (!st->any_fail) {
+		st->any_fail = true;
+		st->first_fail_block = block;
+	}
+	st->blocks_tested++;
+}
+
+static const char *nand_sweep_phase_name(nand_sweep_phase_t phase)
+{
+	switch (phase) {
+	case NAND_SWEEP_WRITE:  return "SWEEP_WRITE";
+	case NAND_SWEEP_VERIFY: return "SWEEP_VERIFY";
+	default:                return "SWEEP";
+	}
+}
+
+/*
+ * Shared driver for `sweep`, `sweep_write` and `sweep_verify`.
+ *
+ * argv[2]/argv[3] are the block range. argv[4] is the round count for a full
+ * sweep and the pattern tag for the write/verify pair: a verify must be given
+ * the same tag as the write it checks, or every page mismatches.
+ */
+static void cli_nand_sweep(qspi_id_t id, nand_sweep_phase_t phase, int argc, char **argv)
+{
+	if (!s_nand_initialized) { CLI_LOGE("not initialized\r\n"); return; }
+
+	uint32_t total_blocks = bk_qspi_flash_nand_total_size(id) / NAND_BLOCK_SIZE_BYTES;
+	if (!total_blocks) { CLI_LOGE("sweep: unknown device size\r\n"); return; }
+
+	const char *name = nand_sweep_phase_name(phase);
+	bool full = (phase == NAND_SWEEP_FULL);
+	uint32_t from = 0;
+	uint32_t to = total_blocks - 1;
+	uint32_t rounds = 1;
+	uint32_t tag = 0;
+
+	if (argc >= 3) { from = os_strtoul(argv[2], NULL, 0); }
+	if (argc >= 4) { to = os_strtoul(argv[3], NULL, 0); }
+	if (argc >= 5) {
+		if (full) {
+			rounds = os_strtoul(argv[4], NULL, 0);
+		} else {
+			tag = os_strtoul(argv[4], NULL, 0);
+		}
+	}
+
+	if (from > to || to >= total_blocks || !rounds) {
+		CLI_LOGE("%s: need 0 <= from <= to <= %u and rounds >= 1\r\n",
+		         name, total_blocks - 1);
+		return;
+	}
+
+	uint8_t *wr = (uint8_t *)os_malloc(NAND_PAGE_SIZE_BYTES);
+	uint8_t *rd = (uint8_t *)os_malloc(NAND_PAGE_SIZE_BYTES);
+	if (!wr || !rd) {
+		CLI_LOGE("%s: no mem\r\n", name);
+		if (wr) os_free(wr);
+		if (rd) os_free(rd);
+		return;
+	}
+
+	uint32_t ecc_corr_before = 0, ecc_unc_before = 0;
+	uint32_t ecc_corr_after = 0, ecc_unc_after = 0;
+
+	/* Snapshot rather than reset: another measurement may be in progress. */
+	bk_qspi_flash_nand_get_ecc_stat(&ecc_corr_before, &ecc_unc_before);
+
+	switch (phase) {
+	case NAND_SWEEP_WRITE:
+		CLI_LOGW("sweep_write: DESTRUCTIVE - erases and fills blocks %u..%u (tag %u), data left in place\r\n",
+		         from, to, tag);
+		break;
+	case NAND_SWEEP_VERIFY:
+		CLI_LOGI("sweep_verify: read-only, expecting tag %u pattern in blocks %u..%u\r\n",
+		         tag, from, to);
+		break;
+	default:
+		CLI_LOGW("sweep: DESTRUCTIVE - erases blocks %u..%u (%u round(s))\r\n",
+		         from, to, rounds);
+		break;
+	}
+
+	nand_sweep_stat_t st;
+	os_memset(&st, 0, sizeof(st));
+	uint64_t t_start = bk_aon_rtc_get_us();
+
+	for (uint32_t r = 0; r < rounds; r++) {
+		for (uint32_t b = from; b <= to; b++) {
+			nand_sweep_block(id, phase, full ? r : tag, b, wr, rd, &st);
+			nand_sweep_yield();
+
+			/* Keep the operator informed without flooding the console. */
+			if (((b - from) % 64U) == 63U) {
+				CLI_LOGI("sweep: round %u/%u block %u/%u\r\n",
+				         r + 1, rounds, b, to);
+			}
+		}
+	}
+
+	uint64_t elapsed = bk_aon_rtc_get_us() - t_start;
+	bk_qspi_flash_nand_get_ecc_stat(&ecc_corr_after, &ecc_unc_after);
+
+	uint32_t w_kbps, w_t, r_kbps, r_t;
+	nand_sweep_kbps(st.write_bytes, st.write_us, &w_kbps, &w_t);
+	nand_sweep_kbps(st.read_bytes, st.read_us, &r_kbps, &r_t);
+
+	if (full) {
+		CLI_LOGI("=== NAND SWEEP: blocks %u..%u x%u ===\r\n", from, to, rounds);
+	} else {
+		CLI_LOGI("=== NAND %s: blocks %u..%u tag %u ===\r\n", name, from, to, tag);
+	}
+	CLI_LOGI("  tested=%u factory_bad_skipped=%u elapsed=%llu us\r\n",
+	         st.blocks_tested, st.blocks_skipped, (unsigned long long)elapsed);
+	if (phase == NAND_SWEEP_VERIFY) {
+		/* Printed even when zero: a retention verify is only meaningful if the
+		 * operator can see that every block really did hold data to check. */
+		CLI_LOGI("  unwritten(still erased)=%u\r\n", st.blocks_unwritten);
+	}
+	if (full || (st.write_bytes != 0)) {
+		CLI_LOGI("  Write: %llu B, avg %u.%u KB/s\r\n",
+		         (unsigned long long)st.write_bytes, w_kbps, w_t);
+	}
+	if (full || (st.read_bytes != 0)) {
+		CLI_LOGI("  Read : %llu B, avg %u.%u KB/s\r\n",
+		         (unsigned long long)st.read_bytes, r_kbps, r_t);
+	}
+	CLI_LOGI("  Fails: erase=%u program=%u read=%u verify=%u\r\n",
+	         st.erase_fail, st.program_fail, st.read_fail, st.verify_fail);
+	CLI_LOGI("  ECC delta: corrected=%u uncorrectable=%u\r\n",
+	         ecc_corr_after - ecc_corr_before, ecc_unc_after - ecc_unc_before);
+	if (st.any_fail) {
+		CLI_LOGI("  first failing block: %u\r\n", st.first_fail_block);
+	}
+	if (st.blocks_unwritten) {
+		CLI_LOGW("  %u block(s) were still erased: check the range and tag match the write phase\r\n",
+		         st.blocks_unwritten);
+	}
+	CLI_LOGI("=== %s RESULT: %s ===\r\n", name, st.any_fail ? "FAIL" : "PASS");
+
+	os_free(wr);
+	os_free(rd);
+}
+
 static void cli_nand_usage(void)
 {
 	CLI_LOGI("qspi_nand init\r\n");
 	CLI_LOGI("qspi_nand get_id\r\n");
+	CLI_LOGI("qspi_nand get_uid - GD5F05 OTP UID (vendor-specific)\r\n");
 	CLI_LOGI("qspi_nand protect_none\r\n");
 	CLI_LOGI("qspi_nand quad_enable - Clear WP-E to enable Quad (4-wire) mode\r\n");
 	CLI_LOGI("qspi_nand get_feature {addr}\r\n");
@@ -457,6 +818,10 @@ static void cli_nand_usage(void)
 	CLI_LOGI("qspi_nand test_page {page} - Test erase/write/read on a page\r\n");
 	CLI_LOGI("qspi_nand page_test {page} - Single page erase/write/read verify\r\n");
 	CLI_LOGI("qspi_nand block_test {block} - Full block erase/write/read verify\r\n");
+	CLI_LOGI("qspi_nand sweep [from] [to] [rounds] - Whole-die erase/write/verify (material import)\r\n");
+	CLI_LOGI("qspi_nand sweep_write [from] [to] [tag] - Fill blocks and LEAVE the data (retention test)\r\n");
+	CLI_LOGI("qspi_nand sweep_verify [from] [to] [tag] - Verify only, no erase/write (after bake/power cycle)\r\n");
+	CLI_LOGI("qspi_nand read_oob {page} - Dump 64B spare with ECC on and off\r\n");
 	CLI_LOGI("qspi_nand factory_bad {block} - Check factory bad-block marker\r\n");
 	CLI_LOGI("qspi_nand bbm init - Bring up the bad-block management layer\r\n");
 	CLI_LOGI("qspi_nand bbm dump - Dump BBT: layout, bad blocks, remaps\r\n");
@@ -485,15 +850,42 @@ static void cli_qspi_nand_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc
 		uint8_t id_buf[FLASH_READ_ID_SIZE] = {0};
 		bk_err_t ret = bk_qspi_flash_nand_get_id(qspi_id, id_buf, sizeof(id_buf));
 		if (ret == BK_OK) {
-			CLI_LOGI("nand id: %02x %02x (expect %02x %02x)\n",
-			         id_buf[0], id_buf[1],
-			         NAND_JEDEC_MFG_ID_ZBIT, NAND_JEDEC_DEV_ID_ZB35Q01);
-			if (id_buf[0] != NAND_JEDEC_MFG_ID_ZBIT ||
-			    id_buf[1] != NAND_JEDEC_DEV_ID_ZB35Q01) {
-				CLI_LOGW("nand id mismatch for ZB35Q01CYIG\n");
+			/* Compare against the descriptor that init actually probed, not a
+			 * hardcoded part: the registry decides which device is supported,
+			 * so a fixed expectation only produces false alarms once the
+			 * board carries anything else. */
+			const qspi_nand_dev_t *dev = bk_qspi_nand_dev(qspi_id);
+
+			if (!dev) {
+				CLI_LOGW("nand id: %02x %02x (no matching device descriptor)\n",
+				         id_buf[0], id_buf[1]);
+			} else if (os_memcmp(id_buf, dev->id, dev->id_len) != 0) {
+				CLI_LOGW("nand id: %02x %02x mismatches probed %s (%02x %02x)\n",
+				         id_buf[0], id_buf[1], dev->name, dev->id[0], dev->id[1]);
+			} else {
+				CLI_LOGI("nand id: %02x %02x (%s)\n", id_buf[0], id_buf[1], dev->name);
 			}
 		} else {
 			CLI_LOGE("nand get id fail(%d)\n", ret);
+		}
+	} else if (os_strcmp(subcmd, "get_uid") == 0) {
+		uint8_t uid[QSPI_NAND_UID_LEN] = {0};
+		bk_err_t ret;
+
+		if (!s_nand_initialized) {
+			CLI_LOGE("QSPI not initialized! Please run 'qspi_nand init' first\r\n");
+			return;
+		}
+		ret = bk_qspi_flash_nand_get_uid(qspi_id, uid, sizeof(uid));
+		if (ret == BK_OK) {
+			char line[QSPI_NAND_UID_LEN * 3];
+
+			nand_hex_line(line, uid, QSPI_NAND_UID_LEN);
+			CLI_LOGI("nand uid: %s\r\n", line);
+		} else if (ret == BK_ERR_NOT_SUPPORT) {
+			CLI_LOGE("get_uid not supported by probed part\r\n");
+		} else {
+			CLI_LOGE("nand get_uid fail(%d)\r\n", ret);
 		}
 	} else if (os_strcmp(subcmd, "protect_none") == 0) {
 		BK_LOG_ON_ERR(bk_qspi_flash_nand_set_protect_none(qspi_id));
@@ -556,10 +948,13 @@ static void cli_qspi_nand_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc
 		bk_err_t ret = bk_qspi_flash_single_read(qspi_id, addr, buffer, len);
 		if (ret == BK_OK) {
 			CLI_LOGI("page %u col 0x%x len %u:\r\n", page, column, len);
-			for (uint32_t i = 0; i < len; i++) {
-				CLI_LOGI("%02x%s", buffer[i], ((i + 1) % 16) ? " " : "\r\n");
+			for (uint32_t off = 0; off < len; off += 16) {
+				uint32_t n = (len - off > 16) ? 16 : (len - off);
+				char line[16 * 3];
+
+				nand_hex_line(line, buffer + off, n);
+				CLI_LOGI("  %04x: %s\r\n", column + off, line);
 			}
-			if (len % 16) CLI_LOGI("\r\n");
 		} else {
 			CLI_LOGE("page read failed: %d\r\n", ret);
 		}
@@ -596,10 +991,13 @@ static void cli_qspi_nand_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc
 		bk_err_t ret = bk_qspi_flash_nand_page_read_quad(qspi_id, page, column, buffer, len);
 		if (ret == BK_OK) {
 			CLI_LOGI("page %u col 0x%x len %u (quad):\r\n", page, column, len);
-			for (uint32_t i = 0; i < len; i++) {
-				CLI_LOGI("%02x%s", buffer[i], ((i + 1) % 16) ? " " : "\r\n");
+			for (uint32_t off = 0; off < len; off += 16) {
+				uint32_t n = (len - off > 16) ? 16 : (len - off);
+				char line[16 * 3];
+
+				nand_hex_line(line, buffer + off, n);
+				CLI_LOGI("  %04x: %s\r\n", column + off, line);
 			}
-			if (len % 16) CLI_LOGI("\r\n");
 		} else {
 			CLI_LOGE("page read quad failed: %d\r\n", ret);
 		}
@@ -695,6 +1093,60 @@ pt_end:
 		CLI_LOGI("=== BLOCK_TEST PASS ===\r\n");
 bt_end:
 		os_free(buf);
+	} else if (os_strcmp(subcmd, "sweep") == 0) {
+		cli_nand_sweep(qspi_id, NAND_SWEEP_FULL, argc, argv);
+	} else if (os_strcmp(subcmd, "sweep_write") == 0) {
+		cli_nand_sweep(qspi_id, NAND_SWEEP_WRITE, argc, argv);
+	} else if (os_strcmp(subcmd, "sweep_verify") == 0) {
+		cli_nand_sweep(qspi_id, NAND_SWEEP_VERIFY, argc, argv);
+	} else if (os_strcmp(subcmd, "read_oob") == 0) {
+		if (!s_nand_initialized) { CLI_LOGE("not initialized\r\n"); return; }
+		if (argc < 3) { CLI_LOGI("Usage: qspi_nand read_oob <page>\r\n"); return; }
+		uint32_t page = os_strtoul(argv[2], NULL, 0);
+		uint8_t oob[NAND_SPARE_SIZE_BYTES];
+		uint8_t cfg = 0;
+		bk_err_t ret;
+
+		/*
+		 * Dump the same spare area twice, once per on-die ECC setting.
+		 *
+		 * A factory bad-block marker has to survive a data write, so it must
+		 * sit in a byte the ECC engine does not own. Comparing the two views
+		 * says which one the marker check should sample: with ECC enabled the
+		 * part hides its parity and presents the user meta area, with ECC
+		 * disabled the raw spare comes back, parity included.
+		 */
+		ret = bk_qspi_flash_nand_get_feature(qspi_id, NAND_FEATURE_ADDR_DRIVE, &cfg);
+		if (ret != BK_OK) { CLI_LOGE("read cfg B0h fail(%d)\r\n", ret); return; }
+		CLI_LOGI("=== READ_OOB page=%u (B0h=0x%02x, ECC-E=%d) ===\r\n",
+		         page, cfg, (cfg & NAND_CFG_ECC_E_BIT) ? 1 : 0);
+
+		for (uint32_t pass = 0; pass < 2; pass++) {
+			bool want_ecc = (pass == 0);
+			uint8_t want_cfg = want_ecc ? (uint8_t)(cfg | NAND_CFG_ECC_E_BIT)
+			                            : (uint8_t)(cfg & (uint8_t)~NAND_CFG_ECC_E_BIT);
+
+			ret = bk_qspi_flash_nand_set_feature(qspi_id, NAND_FEATURE_ADDR_DRIVE, want_cfg);
+			if (ret != BK_OK) { CLI_LOGE("set cfg fail(%d)\r\n", ret); break; }
+
+			os_memset(oob, 0, sizeof(oob));
+			ret = bk_qspi_flash_nand_read_oob(qspi_id, page, 0, oob, sizeof(oob));
+			if (ret != BK_OK) {
+				CLI_LOGE("ECC %s: read_oob fail(%d)\r\n", want_ecc ? "on " : "off", ret);
+				continue;
+			}
+
+			CLI_LOGI("ECC %s spare[0]=0x%02x:\r\n", want_ecc ? "on " : "off", oob[0]);
+			for (uint32_t off = 0; off < NAND_SPARE_SIZE_BYTES; off += 16) {
+				char line[16 * 3];
+
+				nand_hex_line(line, oob + off, 16);
+				CLI_LOGI("  %02x: %s\r\n", off, line);
+			}
+		}
+
+		/* Always hand the part back in the state we found it in. */
+		BK_LOG_ON_ERR(bk_qspi_flash_nand_set_feature(qspi_id, NAND_FEATURE_ADDR_DRIVE, cfg));
 	} else if (os_strcmp(subcmd, "factory_bad") == 0) {
 		if (!s_nand_initialized) { CLI_LOGE("not initialized\r\n"); return; }
 		if (argc < 3) { CLI_LOGI("Usage: qspi_nand factory_bad <block>\r\n"); return; }
@@ -733,7 +1185,7 @@ bt_end:
 #if CONFIG_QSPI_NAND_FLASH
 #define QSPI_FLASH_CMD_CNT (sizeof(s_qspi_flash_commands) / sizeof(struct cli_command))
 DRV_CLI_CMD_EXPORT static const struct cli_command s_qspi_flash_commands[] = {
-	{"qspi_nand", "qspi_nand {init|get_id|...}", cli_qspi_nand_cmd},
+	{"qspi_nand", "qspi_nand {init|get_id|get_uid|sweep|sweep_write|sweep_verify|...}", cli_qspi_nand_cmd},
 };
 #elif (CONFIG_QSPI_NOR_FLASH)
 #define QSPI_FLASH_CMD_CNT (sizeof(s_qspi_flash_commands) / sizeof(struct cli_command))
