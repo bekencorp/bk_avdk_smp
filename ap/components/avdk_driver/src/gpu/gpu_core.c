@@ -86,6 +86,13 @@ uint32_t bk_gpu_vg_lite_apply_mem_config(uint32_t tess_width, uint32_t tess_heig
 #ifdef CONFIG_VG_LITE_GPU_TESS_HEIGHT
     max_h = (uint32_t)CONFIG_VG_LITE_GPU_TESS_HEIGHT;
 #endif
+#ifdef CONFIG_VG_LITE_GPU_CONTIGUOUS_RUNTIME_MARGIN
+    /* Non-fixed heap: init_calc(cmd/tess) + runtime margin for vg_lite_allocate.
+     * Raise CONFIG_VG_LITE_GPU_CONTIGUOUS_RUNTIME_MARGIN when enabling LVGL
+     * vg_lite temps, path upload, mask/scissor/grad, or dual-core OSD paths
+     * that still allocate from contiguous (see Kconfig help). */
+    cfg.runtime_margin = (uint32_t)CONFIG_VG_LITE_GPU_CONTIGUOUS_RUNTIME_MARGIN;
+#endif
 
     /* Non-zero Kconfig tess is the reserved maximum for all GPU scenes.
      * Always size the contiguous heap for that maximum so a later

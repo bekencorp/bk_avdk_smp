@@ -26,11 +26,14 @@ void bk_gpu_driver_init(void);
 
 void bk_gpu_driver_deinit(void);
 
-/* Apply VG-Lite runtime mem config (base/cmd/tess) and return the contiguous
- * heap size the caller must allocate. If CONFIG_VG_LITE_GPU_TESS_WIDTH/HEIGHT
- * are non-zero, the heap is always sized for that maximum and a larger tess
- * request fails (returns 0). tess 0 x 0 disables the tess buffer only when
- * those Kconfig values are 0. */
+/* Apply VG-Lite mem config (base/cmd/tess + runtime margin) and return the
+ * contiguous heap size the caller must allocate. Heap is NOT fixed-size:
+ * init_calc(cmd/tess) + CONFIG_VG_LITE_GPU_CONTIGUOUS_RUNTIME_MARGIN.
+ * If CONFIG_VG_LITE_GPU_TESS_WIDTH/HEIGHT are non-zero, the heap is always
+ * sized for that maximum and a larger tess request fails (returns 0).
+ * tess 0 x 0 disables the tess buffer only when those Kconfig values are 0.
+ * Raise CONTIGUOUS_RUNTIME_MARGIN for LVGL vg_lite temps / path upload /
+ * mask-scissor-grad / dual-core contiguous allocates (see Kconfig help). */
 uint32_t bk_gpu_vg_lite_apply_mem_config(uint32_t tess_width, uint32_t tess_height);
 
 /* Global VG-Lite hardware lock shared by all GPU users. */
