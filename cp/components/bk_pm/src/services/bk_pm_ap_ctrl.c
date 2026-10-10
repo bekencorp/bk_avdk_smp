@@ -355,6 +355,70 @@ static void pm_check_ap_hspl_leak(void)
 }
 #endif
 
+#if CONFIG_HSPL
+/*
+ * Hardware master ids the AP cores (CPU2, CPU3) report on HSPL STA bits[4:1],
+ * matching the core ids recorded in the software shadow above.
+ *
+ * ASSUMPTION: confirmed for core 0 and core 3 from field dumps; core 2 is
+ * extrapolated from that pattern. A wrong mapping makes the scan below miss an
+ * orphan, it never aborts a healthy power-off.
+ */
+#define PM_AP_HSPL_OWNER_FIRST  (2U)
+#define PM_AP_HSPL_OWNER_LAST   (3U)
+
+/*
+ * HSPL_0 (0x45010000) sits outside the AP power domain, so a channel still
+ * owned by an AP core survives AP power-off and wedges every later CP acquire.
+ * Unlike the shadow-based check above this asks the hardware, so it needs no AP
+ * cooperation and does not depend on CONFIG_HSPL_LEAK_DEBUG.
+ *
+ * The caller runs this only after AP published sleep-ready, which it does with
+ * interrupts masked and after passing its own release check, so no AP task can
+ * be mid-critical-section here and a reported owner is a real orphan.
+ *
+ * Returns a BIT(channel) mask of HSPL_0 channels left owned by an AP core.
+ */
+static uint32_t pm_ap_hspl0_orphan_scan(void)
+{
+	uint32_t orphan_mask = 0U;
+
+	for (uint8_t owner_id = PM_AP_HSPL_OWNER_FIRST;
+		owner_id <= PM_AP_HSPL_OWNER_LAST; owner_id++) {
+		uint32_t owned_mask = 0U;
+		uint8_t channel = 0;
+
+		if (bk_hspl_get_owner_channel_mask(BK_HSPL_ID_0, owner_id,
+			&owned_mask) != BK_OK) {
+			continue;
+		}
+		orphan_mask |= owned_mask;
+
+		for (; owned_mask != 0U; owned_mask >>= 1, channel++) {
+			uint8_t shadow_core = 0xFFU;
+			uint32_t shadow_pc = 0U;
+
+			if ((owned_mask & 1U) == 0U) {
+				continue;
+			}
+			/*
+			 * Best effort attribution: the shadow carries the acquire
+			 * PC only when the AP build enabled CONFIG_HSPL_LEAK_DEBUG,
+			 * otherwise it reports the resource as free.
+			 */
+			(void)bk_sys_sw_regs_get_hspl_owner(channel, &shadow_core,
+				&shadow_pc);
+			LOGE("AP HSPL0 orphan: res=%u hw_owner=%u shadow_core=%u shadow_pc=0x%08x\r\n",
+				channel, owner_id, shadow_core, shadow_pc);
+		}
+	}
+
+	return orphan_mask;
+}
+#else
+static inline uint32_t pm_ap_hspl0_orphan_scan(void) { return 0U; }
+#endif
+
 
 /*===================FUNCTION  DECLARATION  START=============*/
 extern void bk_wdt_force_reboot(void);
@@ -1201,6 +1265,7 @@ bk_err_t bk_pm_module_vote_boot_ap_ctrl(pm_boot_ap_module_name_e module,pm_power
 				uint64_t previous_tick = bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
 				uint64_t current_tick = previous_tick;
 				bool ap_sleep_ready = false;
+				uint32_t ap_hspl0_orphan_mask = 0U;
 				uint64_t next_log_tick = previous_tick + (500 * AON_RTC_MS_TICK_CNT);
 #if CONFIG_PM_AP_FAST_BOOT_ENABLE
 				/*
@@ -1278,6 +1343,18 @@ bk_err_t bk_pm_module_vote_boot_ap_ctrl(pm_boot_ap_module_name_e module,pm_power
 						#if CONFIG_HSPL_LEAK_DEBUG
 						pm_check_ap_hspl_leak();
 						#endif
+						/*
+						 * Last point at which AP power is still on. An AP-owned
+						 * HSPL_0 channel here outlives the power-off and would
+						 * deadlock the next CP acquire, so keep AP powered and
+						 * let the rollback below restore it.
+						 */
+						ap_hspl0_orphan_mask = pm_ap_hspl0_orphan_scan();
+						if (ap_hspl0_orphan_mask != 0U) {
+							LOGE("AP close: HSPL0 orphan mask=0x%08x, keep AP powered\r\n",
+								ap_hspl0_orphan_mask);
+							break;
+						}
 						ret = pm_module_shutdown_cpu1(
 							POWER_SUB_DOMAIN_NAME_AP_CPU);
 #if CONFIG_PM_AP_FAST_BOOT_ENABLE
@@ -1338,7 +1415,9 @@ bk_err_t bk_pm_module_vote_boot_ap_ctrl(pm_boot_ap_module_name_e module,pm_power
 				if (!ap_sleep_ready)
 				{
 #if CONFIG_PM_AP_FAST_BOOT_ENABLE
-					if (!ap_suspend_failed)
+					if (!ap_suspend_failed && (ap_hspl0_orphan_mask == 0U))
+#else
+					if (ap_hspl0_orphan_mask == 0U)
 #endif
 					{
 						LOGE("wait ap0_sleep_state timeout, cp0_sleep_state:%d ap0_sleep_state:%d\r\n",
