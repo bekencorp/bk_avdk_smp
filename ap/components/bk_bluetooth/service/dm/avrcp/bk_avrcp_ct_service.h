@@ -41,11 +41,8 @@ typedef struct
     uint8_t volume;
 } bk_avrcp_ct_abs_vol_rsp_t;
 
-/** AVRCP controller event callback.
- *  rn_rsp indicates, for RegisterNotification-driven events, whether this is the
- *  peer's INTERIM (initial snapshot) or CHANGED (real change) response. For
- *  non-notification events it is BK_AVRCP_RN_RSP_CHANGED and can be ignored. */
-typedef void (*bk_avrcp_ct_event_cb_t)(bk_avrcp_ct_evt_t evt, void *arg, bk_avrcp_rn_rsp_t rn_rsp, void *user_data);
+/** AVRCP controller event callback. */
+typedef void (*bk_avrcp_ct_event_cb_t)(bk_avrcp_ct_evt_t evt, void *arg, void *user_data);
 
 /** AVRCP controller service configuration. */
 typedef struct

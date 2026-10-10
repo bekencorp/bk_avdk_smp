@@ -244,13 +244,6 @@ typedef struct {
     uint16_t bits;                                /*!< bit mask representation of supported event_ids */
 } bk_avrcp_rn_evt_cap_mask_t;
 
-/// AVRC notification response type
-typedef enum
-{
-    BK_AVRCP_RN_RSP_INTERIM,     /*!< initial response to RegisterNotification, should be sent T_mtp(1000ms) from receiving the command */
-    BK_AVRCP_RN_RSP_CHANGED,     /*!< final response to RegisterNotification command */
-} bk_avrcp_rn_rsp_t;
-
 /// AVRCP controller callback parameters
 typedef union {
     /**
@@ -279,7 +272,6 @@ typedef union {
         uint8_t event_id;                        /*!< id of AVRCP event notification */
         bk_avrcp_rn_param_t event_parameter;     /*!< event notification parameter */
         uint8_t remote_bda[6];                /*!< remote bluetooth device address */
-        bk_avrcp_rn_rsp_t rn_rsp;               /*!< peer rn rsp */
     } change_ntf;                                /*!< notifications */
 
     /**
@@ -326,6 +318,14 @@ typedef union {
 
 } bk_avrcp_ct_cb_param_t;
 
+
+
+/// AVRC notification response type
+typedef enum
+{
+    BK_AVRCP_RN_RSP_INTERIM,     /*!< initial response to RegisterNotification, should be sent T_mtp(1000ms) from receiving the command */
+    BK_AVRCP_RN_RSP_CHANGED,     /*!< final response to RegisterNotification command */
+} bk_avrcp_rn_rsp_t;
 
 /// AVRC target notification event notification capability
 typedef enum

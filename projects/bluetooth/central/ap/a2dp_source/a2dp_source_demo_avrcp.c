@@ -106,13 +106,9 @@ static void on_avrcp_tg_evt(bk_avrcp_tg_evt_t evt, void *arg, void *user_data)
     }
 }
 
-static void on_avrcp_ct_evt(bk_avrcp_ct_evt_t evt, void *arg, bk_avrcp_rn_rsp_t rn_rsp, void *user_data)
+static void on_avrcp_ct_evt(bk_avrcp_ct_evt_t evt, void *arg, void *user_data)
 {
     (void)user_data;
-    if(rn_rsp == BK_AVRCP_RN_RSP_INTERIM)
-    {
-        return;
-    }
 
     switch (evt)
     {

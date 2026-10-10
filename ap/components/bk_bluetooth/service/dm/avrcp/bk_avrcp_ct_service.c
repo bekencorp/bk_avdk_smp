@@ -59,11 +59,11 @@ typedef struct
 
 static avrcp_ct_ctx_t s_avrcp_ct;
 
-static void bk_avrcp_ct_emit(bk_avrcp_ct_evt_t evt, void *arg, bk_avrcp_rn_rsp_t rn_rsp)
+static void bk_avrcp_ct_emit(bk_avrcp_ct_evt_t evt, void *arg)
 {
     if (s_avrcp_ct.event_cb)
     {
-        s_avrcp_ct.event_cb(evt, arg, rn_rsp, s_avrcp_ct.event_user_data);
+        s_avrcp_ct.event_cb(evt, arg, s_avrcp_ct.event_user_data);
     }
 }
 
@@ -163,7 +163,7 @@ static int avrcp_send_passthrough(uint8_t cmd)
     return BK_OK;
 }
 
-static void avrcp_notify_event_handler(uint8_t event_id, bk_avrcp_rn_param_t *event_parameter, struct avrcp_ct_change_notify_param *notify_param)
+static void avrcp_notify_event_handler(uint8_t event_id, bk_avrcp_rn_param_t *event_parameter)
 {
     switch (event_id)
     {
@@ -171,13 +171,8 @@ static void avrcp_notify_event_handler(uint8_t event_id, bk_avrcp_rn_param_t *ev
     {
         uint8_t playback = event_parameter->playback;
         LOGI("Playback status changed: 0x%x", playback);
-        bk_avrcp_ct_emit(BK_AVRCP_CT_EVT_PLAY_STATUS_CHANGED, &playback, notify_param->rn_rsp);
-
-        if(notify_param->rn_rsp == BK_AVRCP_RN_RSP_CHANGED)
-        {
-            bk_bt_avrcp_ct_send_register_notification_cmd(s_avrcp_ct.remote_bda, BK_AVRCP_RN_PLAY_STATUS_CHANGE, 0);
-        }
-
+        bk_avrcp_ct_emit(BK_AVRCP_CT_EVT_PLAY_STATUS_CHANGED, &playback);
+        bk_bt_avrcp_ct_send_register_notification_cmd(s_avrcp_ct.remote_bda, BK_AVRCP_RN_PLAY_STATUS_CHANGE, 0);
         break;
     }
     case BK_AVRCP_RN_TRACK_CHANGE:
@@ -185,64 +180,39 @@ static void avrcp_notify_event_handler(uint8_t event_id, bk_avrcp_rn_param_t *ev
         uint64_t track = 0;
         os_memcpy(&track, event_parameter->elm_id, sizeof(event_parameter->elm_id));
         LOGI("track changed: %lld", track);
-        bk_avrcp_ct_emit(BK_AVRCP_CT_EVT_TRACK_CHANGED, &track, notify_param->rn_rsp);
-
-        if(notify_param->rn_rsp == BK_AVRCP_RN_RSP_CHANGED)
-        {
-            bk_bt_avrcp_ct_send_register_notification_cmd(s_avrcp_ct.remote_bda, BK_AVRCP_RN_TRACK_CHANGE, 0);
-        }
-
+        bk_avrcp_ct_emit(BK_AVRCP_CT_EVT_TRACK_CHANGED, &track);
+        bk_bt_avrcp_ct_send_register_notification_cmd(s_avrcp_ct.remote_bda, BK_AVRCP_RN_TRACK_CHANGE, 0);
         break;
     }
     case BK_AVRCP_RN_PLAY_POS_CHANGED:
     {
         uint32_t play_pos = event_parameter->play_pos;
         LOGI("play position changed: %u ms", play_pos);
-        bk_avrcp_ct_emit(BK_AVRCP_CT_EVT_PLAY_POS_CHANGED, &play_pos, notify_param->rn_rsp);
-
-        if(notify_param->rn_rsp == BK_AVRCP_RN_RSP_CHANGED)
-        {
-            bk_bt_avrcp_ct_send_register_notification_cmd(s_avrcp_ct.remote_bda,
-                                                        BK_AVRCP_RN_PLAY_POS_CHANGED,
-                                                        AVRCP_PLAY_POS_REPORT_INTERVAL_S);
-        }
-
+        bk_avrcp_ct_emit(BK_AVRCP_CT_EVT_PLAY_POS_CHANGED, &play_pos);
+        bk_bt_avrcp_ct_send_register_notification_cmd(s_avrcp_ct.remote_bda,
+                                                      BK_AVRCP_RN_PLAY_POS_CHANGED,
+                                                      AVRCP_PLAY_POS_REPORT_INTERVAL_S);
         break;
     }
     case BK_AVRCP_RN_AVAILABLE_PLAYERS_CHANGE:
         LOGI("avaliable player changed");
-
-        if(notify_param->rn_rsp == BK_AVRCP_RN_RSP_CHANGED)
-        {
-            bk_bt_avrcp_ct_send_register_notification_cmd(s_avrcp_ct.remote_bda, BK_AVRCP_RN_AVAILABLE_PLAYERS_CHANGE, 0);
-        }
-
+        bk_bt_avrcp_ct_send_register_notification_cmd(s_avrcp_ct.remote_bda, BK_AVRCP_RN_AVAILABLE_PLAYERS_CHANGE, 0);
         break;
     case BK_AVRCP_RN_VOLUME_CHANGE:
     {
         uint8_t vol = event_parameter->volume;
         LOGI("peer volume changed: 0x%x", vol);
         s_avrcp_ct.peer_vol = vol;
-        bk_avrcp_ct_emit(BK_AVRCP_CT_EVT_REMOTE_VOLUME_CHANGED, &vol, notify_param->rn_rsp);
-
-        if(notify_param->rn_rsp == BK_AVRCP_RN_RSP_CHANGED)
-        {
-            bk_bt_avrcp_ct_send_register_notification_cmd(s_avrcp_ct.remote_bda, BK_AVRCP_RN_VOLUME_CHANGE, 0);
-        }
-
+        bk_avrcp_ct_emit(BK_AVRCP_CT_EVT_REMOTE_VOLUME_CHANGED, &vol);
+        bk_bt_avrcp_ct_send_register_notification_cmd(s_avrcp_ct.remote_bda, BK_AVRCP_RN_VOLUME_CHANGE, 0);
         break;
     }
     case BK_AVRCP_RN_BATTERY_STATUS_CHANGE:
     {
         uint8_t batt = event_parameter->batt;
         LOGI("peer battery changed: %d", batt);
-        bk_avrcp_ct_emit(BK_AVRCP_CT_EVT_REMOTE_BATTERY_CHANGED, &batt, notify_param->rn_rsp);
-
-        if(notify_param->rn_rsp == BK_AVRCP_RN_RSP_CHANGED)
-        {
-            bk_bt_avrcp_ct_send_register_notification_cmd(s_avrcp_ct.remote_bda, BK_AVRCP_RN_BATTERY_STATUS_CHANGE, 0);
-        }
-
+        bk_avrcp_ct_emit(BK_AVRCP_CT_EVT_REMOTE_BATTERY_CHANGED, &batt);
+        bk_bt_avrcp_ct_send_register_notification_cmd(s_avrcp_ct.remote_bda, BK_AVRCP_RN_BATTERY_STATUS_CHANGE, 0);
         break;
     }
     default:
@@ -270,11 +240,11 @@ static void avrcp_ct_cb(bk_avrcp_ct_cb_event_t event, bk_avrcp_ct_cb_param_t *pa
             os_memcpy(s_avrcp_ct.remote_bda, avrcp->conn_state.remote_bda, sizeof(s_avrcp_ct.remote_bda));
             avrcp_stop_auto_connect_timer();
             bk_bt_avrcp_ct_send_get_rn_capabilities_cmd(s_avrcp_ct.remote_bda);
-            bk_avrcp_ct_emit(BK_AVRCP_CT_EVT_CONNECTED, s_avrcp_ct.remote_bda, BK_AVRCP_RN_RSP_CHANGED);
+            bk_avrcp_ct_emit(BK_AVRCP_CT_EVT_CONNECTED, s_avrcp_ct.remote_bda);
         }
         else
         {
-            bk_avrcp_ct_emit(BK_AVRCP_CT_EVT_DISCONNECTED, s_avrcp_ct.remote_bda, BK_AVRCP_RN_RSP_CHANGED);
+            bk_avrcp_ct_emit(BK_AVRCP_CT_EVT_DISCONNECTED, s_avrcp_ct.remote_bda);
             os_memset(s_avrcp_ct.remote_bda, 0, sizeof(s_avrcp_ct.remote_bda));
         }
         break;
@@ -338,18 +308,17 @@ static void avrcp_ct_cb(bk_avrcp_ct_cb_event_t event, bk_avrcp_ct_cb_param_t *pa
         break;
 
     case BK_AVRCP_CT_CHANGE_NOTIFY_EVT:
-        LOGI("AVRCP event notification: %d %02x:%02x:%02x:%02x:%02x:%02x %s",
+        LOGI("AVRCP event notification: %d %02x:%02x:%02x:%02x:%02x:%02x",
              avrcp->change_ntf.event_id,
              avrcp->change_ntf.remote_bda[5], avrcp->change_ntf.remote_bda[4], avrcp->change_ntf.remote_bda[3],
-             avrcp->change_ntf.remote_bda[2], avrcp->change_ntf.remote_bda[1], avrcp->change_ntf.remote_bda[0],
-             avrcp->change_ntf.rn_rsp == BK_AVRCP_RN_RSP_CHANGED ? "CHANGED" : "INTERIM");
-        avrcp_notify_event_handler(avrcp->change_ntf.event_id, &avrcp->change_ntf.event_parameter, &avrcp->change_ntf);
+             avrcp->change_ntf.remote_bda[2], avrcp->change_ntf.remote_bda[1], avrcp->change_ntf.remote_bda[0]);
+        avrcp_notify_event_handler(avrcp->change_ntf.event_id, &avrcp->change_ntf.event_parameter);
         break;
 
     case BK_AVRCP_CT_GET_ELEM_ATTR_RSP_EVT:
         LOGI("get elem rsp status %d count %d",
              avrcp->elem_attr_rsp.status, avrcp->elem_attr_rsp.attr_count);
-        bk_avrcp_ct_emit(BK_AVRCP_CT_EVT_ELEM_ATTR_RSP, param, BK_AVRCP_RN_RSP_CHANGED);
+        bk_avrcp_ct_emit(BK_AVRCP_CT_EVT_ELEM_ATTR_RSP, param);
         break;
 
     case BK_AVRCP_CT_SET_ABSOLUTE_VOLUME_RSP_EVT:
@@ -360,7 +329,7 @@ static void avrcp_ct_cb(bk_avrcp_ct_cb_event_t event, bk_avrcp_ct_cb_param_t *pa
             .volume = avrcp->set_volume_rsp.volume,
         };
         LOGI("set abs vol rsp status %d vol %d", rsp.status, rsp.volume);
-        bk_avrcp_ct_emit(BK_AVRCP_CT_EVT_SET_ABS_VOLUME_RSP, &rsp, BK_AVRCP_RN_RSP_CHANGED);
+        bk_avrcp_ct_emit(BK_AVRCP_CT_EVT_SET_ABS_VOLUME_RSP, &rsp);
         break;
     }
 
