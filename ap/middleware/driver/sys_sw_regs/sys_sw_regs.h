@@ -174,6 +174,12 @@ void bk_sys_sw_regs_set_cp_ap_dump_taken(uint32_t value);
 void bk_sys_sw_regs_set_ap_self_dumping(uint32_t value);
 
 /**
+ * @brief Publish or clear the AP wdrv IPC ready state.
+ * @param ready Nonzero after wdrv IPC callbacks are registered, 0 otherwise.
+ */
+void bk_sys_sw_regs_set_ap_wdrv_ipc_ready(uint32_t ready);
+
+/**
  * @brief Get the SSPL list.
  * @return Pointer to the SSPL list.
  */

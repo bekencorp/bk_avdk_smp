@@ -459,6 +459,15 @@ void bk_sys_sw_regs_set_ap_self_dumping(uint32_t value)
 #endif
 }
 
+void bk_sys_sw_regs_set_ap_wdrv_ipc_ready(uint32_t ready)
+{
+    s_sys_sw_regs.ap_wdrv_ipc_ready = (ready != 0U) ? 1U : 0U;
+#if CONFIG_SUPPORT_CACHEABLE_SRAM
+    flush_dcache((void *)&s_sys_sw_regs.ap_wdrv_ipc_ready,
+        sizeof(s_sys_sw_regs.ap_wdrv_ipc_ready));
+#endif
+}
+
 uint32_t bk_sys_sw_regs_get_cp_heartbeat_bumped(void)
 {
 #if CONFIG_SUPPORT_CACHEABLE_SRAM
