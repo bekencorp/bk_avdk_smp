@@ -138,6 +138,20 @@ int spk_service_write_ex(spk_service_src_t src, const void *buffer, uint32_t len
 bk_err_t spk_service_set_volume(float gain_db);
 
 /**
+ * @brief  Set one source's base digital gain in dB.
+ *
+ * The effective source gain is base gain plus the current duck offset. Keeping
+ * the base in spk_service ensures HINT attach/detach restores an A2DP source to
+ * its AVRCP-derived level instead of falling back to 0 dB.
+ *
+ * @param[in] src      source whose base gain is updated.
+ * @param[in] gain_db  source base digital gain in dB.
+ *
+ * @return BK_OK on success, otherwise a bk_err_t error.
+ */
+bk_err_t spk_service_set_src_gain_db(spk_service_src_t src, float gain_db);
+
+/**
  * @brief  Mute / unmute the whole DAC output (all sources).
  *
  * @param[in] mute  1 mute, 0 unmute.

@@ -641,6 +641,37 @@ bk_err_t bk_aud_dac_spk1_set_source_gain_db(aud_dac_source_t source, float db)
     return bk_aud_dac_spk1_set_source_gain(source, bk_aud_dac_dig_gain_db_to_reg(db));
 }
 
+bk_err_t bk_aud_dac_spk0_get_source_gain_db(aud_dac_source_t source, float *db)
+{
+    uint32_t reg = 0;
+    bk_err_t ret;
+
+    if (!db) {
+        return BK_ERR_PARAM;
+    }
+    ret = bk_aud_dac_spk0_get_source_gain(source, &reg);
+    if (ret != BK_OK) {
+        return ret;
+    }
+    *db = bk_aud_dac_dig_gain_reg_to_db(reg);
+    return BK_OK;
+}
+
+bk_err_t bk_aud_dac_spk1_get_source_gain_db(aud_dac_source_t source, float *db)
+{
+    uint32_t reg = 0;
+    bk_err_t ret;
+
+    if (!db) {
+        return BK_ERR_PARAM;
+    }
+    ret = bk_aud_dac_spk1_get_source_gain(source, &reg);
+    if (ret != BK_OK) {
+        return ret;
+    }
+    *db = bk_aud_dac_dig_gain_reg_to_db(reg);
+    return BK_OK;
+}
 
 bk_err_t bk_aud_dac_mute(void)
 {

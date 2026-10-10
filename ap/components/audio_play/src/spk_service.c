@@ -894,6 +894,32 @@ bk_err_t spk_service_set_volume(float gain_db)
     return onboard_speaker_stream_set_digital_gain(ctx->speaker, gain_db);
 }
 
+bk_err_t spk_service_set_src_gain_db(spk_service_src_t src, float gain_db)
+{
+    spk_service_ctx_t *ctx = &s_spk_service;
+
+    if ((int)src >= (int)AUD_DAC_SOURCE_MAX)
+    {
+        return BK_FAIL;
+    }
+
+    spk_lock();
+    if (!ctx->inited)
+    {
+        spk_unlock();
+        return BK_FAIL;
+    }
+
+    ctx->src_base_db[src] = gain_db;
+    spk_service_apply_gains_locked(ctx, -1);
+    LOGI("[gain_dbg] src base set: src=%d base=%.2f effective=%.2f muted=%d\n",
+         (int)src, (double)gain_db,
+         (double)spk_service_src_effective_db(ctx, src),
+         ctx->src_muted[src] ? 1 : 0);
+    spk_unlock();
+    return BK_OK;
+}
+
 bk_err_t spk_service_set_mute(uint8_t mute)
 {
     spk_service_ctx_t *ctx = &s_spk_service;
@@ -995,6 +1021,12 @@ int      spk_service_write_ex(spk_service_src_t src, const void *buffer, uint32_
     (void)src; (void)buffer; (void)len; (void)timeout_ms; return -1;
 }
 bk_err_t spk_service_set_volume(float gain_db)           { (void)gain_db; return BK_ERR_NOT_SUPPORT; }
+bk_err_t spk_service_set_src_gain_db(spk_service_src_t src, float gain_db)
+{
+    (void)src;
+    (void)gain_db;
+    return BK_ERR_NOT_SUPPORT;
+}
 bk_err_t spk_service_set_mute(uint8_t mute)              { (void)mute; return BK_ERR_NOT_SUPPORT; }
 bk_err_t spk_service_set_src_mute(spk_service_src_t src, uint8_t mute) { (void)src; (void)mute; return BK_ERR_NOT_SUPPORT; }
 bool     spk_service_is_running(void)                    { return false; }
