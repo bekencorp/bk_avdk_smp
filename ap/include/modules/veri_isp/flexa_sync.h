@@ -119,6 +119,17 @@ int VSI_FLEXA_ClearSyncStreamStatus(ISP_CHN IspChn, VSI_FLEXA_SYNC_ATTR_S *pSync
  *****************************************************************************/
 int VSI_FLEXA_GetSyncStreamStatus(ISP_CHN IspChn, VSI_FLEXA_STREAM_STATUS_S *pSyncStatus);
 
+/*****************************************************************************/
+/**
+ * @brief   Software-reset the FLEXA Synchronizer (SOFTWARE_CONTROL.sw_reset).
+ *
+ * \param   IspChn           ISP information, include device ID, port ID, channel ID.
+ *
+ * @retval  VSI_SUCCESS      The operation is successful.
+ *
+ *****************************************************************************/
+int VSI_FLEXA_SoftwareReset(ISP_CHN IspChn);
+
 #ifdef __cplusplus
 #if __cplusplus
 }
