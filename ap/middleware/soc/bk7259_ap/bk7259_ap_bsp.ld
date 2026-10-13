@@ -19,7 +19,11 @@
 OUTPUT_FORMAT("elf32-littlearm", "elf32-bigarm", "elf32-littlearm")
 
 __MSP_STACK_SIZE = (4 << 10);
+#if CONFIG_OS_HEAP_USE_PSRAM
+__MIN_HEAP_SIZE  = (32 << 10);
+#else
 __MIN_HEAP_SIZE  = (90 << 10);
+#endif
 PERSIST_MEM_AREA_SIZE = 4;
 REBOOT_TAG_AREA_SIZE = 4;
 
