@@ -2472,6 +2472,42 @@ bk_err_t bk_isp_set_cproc_attr(isp_handle_t *handle, void *cproc_attr)
     return BK_OK;
 }
 
+bk_err_t bk_isp_get_gamma_out_attr(isp_handle_t *handle, bk_isp_gamma_out_attr_t *attr)
+{
+    if (handle == NULL || *handle == NULL || attr == NULL)
+    {
+        return BK_ERR_PARAM;
+    }
+
+    isp_control_t *control = (isp_control_t *)*handle;
+    if (VSI_MPI_ISP_GetGammaOutAttr(
+            control->port, (ISP_GAMMA_OUT_ATTR_S *)attr) != VSI_SUCCESS)
+    {
+        LOGE("%s, get gamma out attr failed\n", __func__);
+        return BK_FAIL;
+    }
+
+    return BK_OK;
+}
+
+bk_err_t bk_isp_set_gamma_out_attr(isp_handle_t *handle, bk_isp_gamma_out_attr_t *attr)
+{
+    if (handle == NULL || *handle == NULL || attr == NULL)
+    {
+        return BK_ERR_PARAM;
+    }
+
+    isp_control_t *control = (isp_control_t *)*handle;
+    if (VSI_MPI_ISP_SetGammaOutAttr(
+            control->port, (ISP_GAMMA_OUT_ATTR_S *)attr) != VSI_SUCCESS)
+    {
+        LOGE("%s, set gamma out attr failed\n", __func__);
+        return BK_FAIL;
+    }
+
+    return BK_OK;
+}
+
 bk_err_t bk_isp_query_exposure_info(isp_handle_t *handle,
                                     bk_isp_exposure_info_t *info)
 {

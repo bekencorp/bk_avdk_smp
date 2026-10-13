@@ -108,6 +108,8 @@ typedef enum
     BK_CAM_IOCTL_IS_IN_VBLANK, /**< Query ISP blanking state; arg = bk_isp_camera_vblank_state_t * */
     BK_CAM_IOCTL_SET_ISP_SWITCH_MODULE_MASK, /**< Set fast ISP switch modules; arg = uint32_t * */
     BK_CAM_IOCTL_SET_SENSOR_UPDATE_MODE, /**< Set Sensor register update timing; arg = bk_isp_camera_sensor_update_mode_t * */
+    BK_CAM_IOCTL_GET_GAMMA_OUT, /**< Get gamma-out attributes; arg = bk_isp_camera_gamma_out_attr_t * */
+    BK_CAM_IOCTL_SET_GAMMA_OUT, /**< Set gamma-out attributes; arg = bk_isp_camera_gamma_out_attr_t * */
 } bk_cam_interface_ioctl_t;
 
 /**
@@ -223,6 +225,14 @@ typedef bk_isp_wb_attr_t bk_isp_camera_wb_attr_t;
  * @brief Exposure attributes for BK_CAM_IOCTL_GET/SET_EXPOSURE.
  */
 typedef bk_isp_exposure_attr_t bk_isp_camera_exposure_attr_t;
+
+/**
+ * @brief Gamma-out attributes for BK_CAM_IOCTL_GET/SET_GAMMA_OUT.
+ *
+ * 962 bytes, do not place one on a task stack. BK_CAM_IOCTL_SET_GAMMA_OUT
+ * clamps out-of-range nodes in place, so the argument must be writable.
+ */
+typedef bk_isp_gamma_out_attr_t bk_isp_camera_gamma_out_attr_t;
 
 /**
  * @brief Camera ISP instance configuration structure

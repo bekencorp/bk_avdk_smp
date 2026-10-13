@@ -101,6 +101,26 @@ bk_err_t bk_isp_get_cproc_attr(isp_handle_t *handle, void *cproc_attr);
 
 bk_err_t bk_isp_set_cproc_attr(isp_handle_t *handle, void *cproc_attr);
 
+/**
+ * @brief Read the gamma-out attributes of the active ISP port.
+ *
+ * @param attr 962 bytes, must not live on a task stack.
+ */
+bk_err_t bk_isp_get_gamma_out_attr(isp_handle_t *handle, bk_isp_gamma_out_attr_t *attr);
+
+/**
+ * @brief Write the gamma-out attributes of the active ISP port.
+ *
+ * Must be called after bk_isp_port_init(), which loads the sensor tuning data
+ * and overwrites the whole gamma-out curve. Works while the sensor is
+ * streaming; the new curve is latched on the next frame.
+ *
+ * @param attr Not const on purpose: out-of-range nodes are clamped in place, so
+ *             on return attr holds exactly what the ISP programmed. 962 bytes,
+ *             must not live on a task stack.
+ */
+bk_err_t bk_isp_set_gamma_out_attr(isp_handle_t *handle, bk_isp_gamma_out_attr_t *attr);
+
 bk_err_t bk_isp_query_exposure_info(isp_handle_t *handle,
                                     bk_isp_exposure_info_t *info);
 

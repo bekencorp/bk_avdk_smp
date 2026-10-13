@@ -204,6 +204,38 @@ typedef struct {
     uint32_t dgain;    /**< Manual digital gain */
 } bk_isp_exposure_attr_t;
 
+/** Number of nodes per gamma-out curve, matches ISP_GAMMA_OUT_NODE_NUM. */
+#define BK_ISP_GAMMA_OUT_NODE_NUM 64
+
+/**
+ * @brief Gamma-out curves, one piecewise-linear curve per colour channel.
+ *
+ * Segment n spans 1 << px[n] input codes and ends at output level y[n].
+ * x[0]/y[0] are hardwired to 0, so the arrays hold x[1]..x[64] / y[1]..y[64].
+ *
+ * The field order must stay identical to ISP_GAMMA_OUT_CURVE_ATTR_S: the ISP
+ * driver hands this struct straight to the ISP firmware instead of copying it.
+ */
+typedef struct {
+    uint8_t  red_px[BK_ISP_GAMMA_OUT_NODE_NUM];   /**< Range: [0, 12] */
+    uint16_t red_x[BK_ISP_GAMMA_OUT_NODE_NUM];    /**< Range: [0, 4095] */
+    uint16_t red_y[BK_ISP_GAMMA_OUT_NODE_NUM];    /**< Range: [0, 1023] */
+    uint8_t  green_px[BK_ISP_GAMMA_OUT_NODE_NUM]; /**< Range: [0, 12] */
+    uint16_t green_x[BK_ISP_GAMMA_OUT_NODE_NUM];  /**< Range: [0, 4095] */
+    uint16_t green_y[BK_ISP_GAMMA_OUT_NODE_NUM];  /**< Range: [0, 1023] */
+    uint8_t  blue_px[BK_ISP_GAMMA_OUT_NODE_NUM];  /**< Range: [0, 12] */
+    uint16_t blue_x[BK_ISP_GAMMA_OUT_NODE_NUM];   /**< Range: [0, 4095] */
+    uint16_t blue_y[BK_ISP_GAMMA_OUT_NODE_NUM];   /**< Range: [0, 1023] */
+} bk_isp_gamma_out_curve_t;
+
+/**
+ * @brief Gamma-out attributes, 962 bytes. Do not place one on a task stack.
+ */
+typedef struct {
+    uint8_t enable;                 /**< 0: bypass the gamma-out module, 1: enable it */
+    bk_isp_gamma_out_curve_t curve; /**< Still programmed when enable is 0, just bypassed */
+} bk_isp_gamma_out_attr_t;
+
 typedef void *isp_handle_t;
 
 

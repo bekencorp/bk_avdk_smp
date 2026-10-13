@@ -936,6 +936,22 @@ static avdk_err_t isp_camera_ctlr_ioctl(bk_isp_camera_ctlr_handle_t handle, bk_c
                 TAG, "set cproc attr failed");
             break;
 
+        case BK_CAM_IOCTL_GET_GAMMA_OUT:
+            AVDK_RETURN_ON_FALSE(arg, AVDK_ERR_INVAL, TAG, "gamma out get arg is NULL");
+            AVDK_RETURN_ON_ERROR(
+                bk_isp_get_gamma_out_attr(&controller->isp_handle,
+                                          (bk_isp_camera_gamma_out_attr_t *)arg),
+                TAG, "get gamma out attr failed");
+            break;
+
+        case BK_CAM_IOCTL_SET_GAMMA_OUT:
+            AVDK_RETURN_ON_FALSE(arg, AVDK_ERR_INVAL, TAG, "gamma out set arg is NULL");
+            AVDK_RETURN_ON_ERROR(
+                bk_isp_set_gamma_out_attr(&controller->isp_handle,
+                                          (bk_isp_camera_gamma_out_attr_t *)arg),
+                TAG, "set gamma out attr failed");
+            break;
+
         case BK_CAM_IOCTL_CHANNEL_ACQUIRE:
             AVDK_RETURN_ON_FALSE(arg, AVDK_ERR_INVAL, TAG, "channel acquire arg is NULL");
             return isp_camera_ctlr_channel_acquire(handle, *(uint8_t *)arg);
