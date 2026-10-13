@@ -39,21 +39,8 @@
  */
 #define VIDEO_PLAYER_H264_DECODER_OUTPUT_ROTATION_DEG   0U
 
-#define SYS_ANA_REG_BASE    (0x44010000)
-#define LDO_ANA_REG         (0x69)
-
 #define TAG "ap_main"
 #define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
-
-
-static void bk_auxldo_enable(void)
-{
-    uint32_t reg = REG_READ(SYS_ANA_REG_BASE + LDO_ANA_REG * 4);
-    reg |= (0xF << 28) | (0x2 << 23) | (0x7 << 19) | (0x7 << 15);
-    reg &= ~(0xF << 11);
-    reg |= (0x8 << 11);
-    REG_WRITE(SYS_ANA_REG_BASE + LDO_ANA_REG * 4, reg);
-}
 
 #if CONFIG_BK_DECODER && CONFIG_BK_VIDEO_PLAYER_ENABLE_HW_H264_VIDEO_DECODER
 /*
@@ -140,7 +127,6 @@ int main(void)
     display_board.dpu_video.decompress = true;
     display_board.dpu_video.format = BK_PIXEL_FORMAT_ARGB8888;
 
-
     gpu_board.flexa.enable = true;
     gpu_board.flexa.degree = 90;
     gpu_board.flexa.src_width = 1920;
@@ -154,8 +140,6 @@ int main(void)
     gpu_board.flexa.tess_width = 0;
     gpu_board.flexa.tess_height = 0;
 
-
-    bk_auxldo_enable();
     bk_frame_buffer_init();
 
 #if CONFIG_BK_DECODER && CONFIG_BK_VIDEO_PLAYER_ENABLE_HW_H264_VIDEO_DECODER

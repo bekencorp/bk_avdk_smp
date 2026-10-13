@@ -60,7 +60,7 @@ common_components/avdk_nn_module/
 
 ### 3.2 Flow
 
-1. `bk_init()` → `media_service_init()` → `bk_auxldo_enable()` → `bk_frame_buffer_init()`
+1. `bk_init()` → `media_service_init()` → `bk_frame_buffer_init()`
 2. Configure camera, display, GPU, then call `devices_mgmt_init()`
 3. Create `YolofaceDetectionModel` and register the box callback
 4. `AvdkVideoReatorOSD` opens camera and display

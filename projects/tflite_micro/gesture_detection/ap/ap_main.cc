@@ -17,8 +17,6 @@ extern "C" {
 #include "avdk_monitor.h"
 #include <lcd/lcd_mipi_hx8399c_1080x1920.h>
 #include <lcd/lcd_mipi_lt8912b_bridge.h>
-#define SYS_ANA_REG_BASE    (0x44010000)
-#define LDO_ANA_REG         (0x69)
 
 #include "AvdkVideoReator.h"
 #include "AvdkDetectionModel.h"
@@ -31,16 +29,6 @@ extern "C" {
 #endif
 #include "driver/drv_tp.h"
 #include <components/bk_frame_buffer.h>
-
-
-static void bk_auxldo_enable(void)
-{
-    uint32_t reg = REG_READ(SYS_ANA_REG_BASE + LDO_ANA_REG * 4);
-    reg |= (0xF << 28) | (0x2 << 23) | (0x7 << 19) | (0x7 << 15);
-    reg &= ~(0xF << 11);
-    reg |= (0x8 << 11);
-    REG_WRITE(SYS_ANA_REG_BASE + LDO_ANA_REG * 4, reg);
-}
 
 static AvdkVideoReator *video_reator = NULL;
 static GestureDetectionModel *model = NULL;
@@ -235,7 +223,6 @@ int main(void)
     gpu_board.flexa.tess_width = 0;
     gpu_board.flexa.tess_height = 0;
 
-    bk_auxldo_enable();
     bk_frame_buffer_init();
 
     /* Board config for Multimedia config */
@@ -282,5 +269,4 @@ int main(void)
 
     return 0;
 }
-
 

@@ -15,7 +15,6 @@
 #include "cli.h"
 #endif
 
-
 #if CONFIG_GCOV
 static void cli_gcov_dump_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
@@ -47,8 +46,6 @@ int main(void)
 #endif
 
     media_service_init();
-
-    bk_printf("lodoen enable...\r\n");
 
     avdk_monitor_init();
     avdk_monitor_start();

@@ -11,20 +11,9 @@
 #include "app_camera.h"
 #include "devices_mgmt.h"
 #include "avdk_monitor.h"
-#define SYS_ANA_REG_BASE    (0x44010000)
-#define LDO_ANA_REG         (0x69)
 
 #include "AvdkVideoReator.h"
 #include "tflm_person_detect.h"
-
-static void bk_auxldo_enable(void)
-{
-    uint32_t reg = REG_READ(SYS_ANA_REG_BASE + LDO_ANA_REG * 4);
-    reg |= (0xF << 28) | (0x2 << 23) | (0x7 << 19) | (0x7 << 15);
-    reg &= ~(0xF << 11);
-    reg |= (0x8 << 11);
-    REG_WRITE(SYS_ANA_REG_BASE + LDO_ANA_REG * 4, reg);
-}
 
 static AvdkVideoReator *video_reator = NULL;
 static PersonDetectModel *model = NULL;
@@ -108,7 +97,6 @@ int main(void)
     camera_board.isp.sp_enable = false;
     camera_board.isp.sp_flexa = false;
 
-    bk_auxldo_enable();
     bk_frame_buffer_init();
 
     /* Board config for Multimedia config */
@@ -124,5 +112,4 @@ int main(void)
 
     return 0;
 }
-
 

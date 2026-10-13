@@ -123,10 +123,9 @@ The main flow is:
 
 1. `main()` calls `bk_init()`.
 2. `media_service_init()` initializes the media service.
-3. `bk_lodoen_enable()` configures related power registers.
-4. `bk_frame_buffer_init()` initializes the frame buffer system.
-5. The `widgets` CLI command is registered.
-6. `lvgl_app_widgets_init()` initializes display, touch, and LVGL.
+3. `bk_frame_buffer_init()` initializes the frame buffer system.
+4. The `widgets` CLI command is registered.
+5. `lvgl_app_widgets_init()` initializes display, touch, and LVGL.
 
 Inside `lvgl_app_widgets_init()`:
 

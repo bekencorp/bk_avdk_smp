@@ -62,7 +62,7 @@ common_components/avdk_nn_module/
 
 ### 3.2 处理流程
 
-1. `bk_init()` → `media_service_init()` → `bk_auxldo_enable()` → `bk_frame_buffer_init()`
+1. `bk_init()` → `media_service_init()` → `bk_frame_buffer_init()`
 2. 配置摄像头、显示、GPU，并调用 `devices_mgmt_init()`
 3. 创建 `YolofaceDetectionModel`，注册检测框回调
 4. `AvdkVideoReatorOSD` 打开摄像头和显示

@@ -54,7 +54,7 @@ fisheye_example/
 
 ### 3.2 处理流程
 
-1. `bk_init()` → `media_service_init()` → `bk_auxldo_enable()` → `bk_frame_buffer_init()` → **fisheye_cli_init()**
+1. `bk_init()` → `media_service_init()` → `bk_frame_buffer_init()` → **fisheye_cli_init()**
 2. 上电后自动创建低优先级 `fisheye_boot` task，延时 2 秒后执行默认 **320×180 / dump=0** 标定。
 3. 用户也可以通过 CLI 手动执行 **ap_cmd fisheye cal …**
 4. 分配缓冲，调用 **fisheye_calibration()**

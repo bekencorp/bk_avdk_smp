@@ -70,7 +70,7 @@ common_components/avdk_nn_module/
 
 ### 3.2 处理流程
 
-1. `bk_init()` → `media_service_init()` → `bk_auxldo_enable()` → `bk_frame_buffer_init()`
+1. `bk_init()` → `media_service_init()` → `bk_frame_buffer_init()`
 2. 配置摄像头、显示、GPU 与设备管理
 3. `app_event_init()` 初始化事件队列、播放器与状态机，并注册 CLI
 4. 创建 `GestureDetectionModel`，注册手势结果与图像回调

@@ -68,7 +68,7 @@ common_components/avdk_nn_module/
 
 ### 3.2 Flow
 
-1. `bk_init()` → `media_service_init()` → `bk_auxldo_enable()` → `bk_frame_buffer_init()`
+1. `bk_init()` → `media_service_init()` → `bk_frame_buffer_init()`
 2. Configure camera, display, GPU, and device management
 3. `app_event_init()` initializes event queue, player, state machine, and CLI
 4. Create `GestureDetectionModel` and register gesture/image callbacks

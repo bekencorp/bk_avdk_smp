@@ -126,10 +126,9 @@ make bk7259 PROJECT=lvgl/widgets_v8
 
 1. `main()` 调用 `bk_init()` 初始化系统。
 2. 调用 `media_service_init()` 初始化多媒体服务。
-3. 调用 `bk_lodoen_enable()` 配置相关电源寄存器。
-4. 调用 `bk_frame_buffer_init()` 初始化帧缓冲。
-5. 注册 `widgets` CLI 命令。
-6. 调用 `lvgl_app_widgets_init()` 初始化显示、触摸和 LVGL。
+3. 调用 `bk_frame_buffer_init()` 初始化帧缓冲。
+4. 注册 `widgets` CLI 命令。
+5. 调用 `lvgl_app_widgets_init()` 初始化显示、触摸和 LVGL。
 
 `lvgl_app_widgets_init()` 内部主要做这些事：
 

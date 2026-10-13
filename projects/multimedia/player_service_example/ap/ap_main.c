@@ -26,18 +26,6 @@
 #include "cli_voice_service.h"
 #endif
 
-#define SYS_ANA_REG_BASE    (0x44010000)
-#define LDO_ANA_REG         (0x69)
-
-
-static void bk_auxldo_enable(void)
-{
-    uint32_t reg = REG_READ(SYS_ANA_REG_BASE + LDO_ANA_REG * 4);
-    reg |= (0xF << 28) | (0x2 << 23) | (0x7 << 19) | (0x7 << 15);
-    reg &= ~(0xF << 11);
-    reg |= (0x8 << 11);
-    REG_WRITE(SYS_ANA_REG_BASE + LDO_ANA_REG * 4, reg);
-}
 int main(void)
 {
 	bk_init();
@@ -97,7 +85,6 @@ int main(void)
         },
     };
 #endif
-    bk_auxldo_enable();
     bk_frame_buffer_init();
 
 #if 0
@@ -105,7 +92,6 @@ int main(void)
     app_camera_board_config_set(&config);
     app_display_board_config_set(&display_config);
     app_gpu_board_config_set(&gpu_config);
-
 
     /* Debug config for Multimedia */
     avdk_monitor_init();

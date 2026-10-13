@@ -12,7 +12,6 @@
 #include <common/avdk_pixel_types.h>
 #include "lcd_example.h"
 #include "lcd_image.h"
-#include <modules/pm.h>
 
 /* Per-case display duration (rough hold, not strictly timed) before auto teardown. */
 #define MIPI_LCD_CASE_DURATION_MS  (20 * 1000)
@@ -28,21 +27,6 @@
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
 
 
-
-static avdk_err_t bk_lodoen_enable(bool enable)
-{
-    int ldo_en = enable ? PM_AUXLDO_ENABLE : PM_AUXLDO_DISABLE;
-    LOGI("%s, vddio enable: %d\n", __func__, ldo_en);
-
-    pm_auxldo_ctrl_cfg_t auxldo_cfg = {0};
-    auxldo_cfg.ldo   = AUXLDOS_SEL_1P8V;
-    auxldo_cfg.out   = PM_AUXLDO_1P8V_OUT_1P8V;
-    auxldo_cfg.user  = PM_AUXLDO_USER_DISPLAY;
-    auxldo_cfg.state = ldo_en;
-    AVDK_RETURN_ON_ERROR(bk_pm_auxldo_ctrl_vote(&auxldo_cfg), TAG, "display 1p8v ldo vote failed");
-    rtos_delay_milliseconds(1);
-    return AVDK_ERR_OK;
-}
 
 /* Flush free callback: display driver calls this when done with the frame; we just free it. */
 static avdk_err_t display_frame_free(void *args)
@@ -234,7 +218,6 @@ avdk_err_t lcd_example_dsi_open(display_ctx_t *context, const char *panel_name, 
         .reset_pin = GPIO_60,
     };
 
-    bk_lodoen_enable(true);
     AVDK_GOTO_ON_ERROR(bk_display_dsi_bus_new(&context->dis_bus_handle, NULL), err, TAG, "display dsi bus new err\n");
 
     const bk_display_dsi_panel_t *panel_list[MAX_PANEL_COUNT];
@@ -305,8 +288,6 @@ avdk_err_t lcd_example_dsi_close(display_ctx_t *context)
         bk_display_bus_delete(context->dis_bus_handle);
         context->dis_bus_handle = NULL;
     }
-    bk_lodoen_enable(false);
-
     LOGI("%s complete\n", __func__);
     return AVDK_ERR_OK;
 }

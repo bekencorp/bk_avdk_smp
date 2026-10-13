@@ -287,7 +287,6 @@ int main(void)
     bk_printf("%s, %d, m55 running...\r\n", __func__, __LINE__);
 
 
-    // bk_lodoen_enable();
     #ifdef CONFIG_FRAME_BUFFER
     bk_frame_buffer_init();
     #endif

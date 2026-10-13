@@ -53,7 +53,7 @@ fisheye_example/
 
 ### 3.2 Flow
 
-1. `bk_init()` → `media_service_init()` → `bk_auxldo_enable()` → `bk_frame_buffer_init()` → **`fisheye_cli_init()`**
+1. `bk_init()` → `media_service_init()` → `bk_frame_buffer_init()` → **`fisheye_cli_init()`**
 2. A low-priority `fisheye_boot` task starts automatically, waits 2 seconds, then runs the default **320×180 / dump=0** calibration.
 3. User can also run **`ap_cmd fisheye cal …`** manually from the CLI.
 4. Allocate buffer, run **`fisheye_calibration()`**

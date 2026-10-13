@@ -11,19 +11,6 @@
 
 #include <components/bk_frame_buffer.h>
 
-#define SYS_ANA_REG_BASE    (0x44010000)
-#define LDO_ANA_REG         (0x69)
-
-
-static void bk_auxldo_enable(void)
-{
-    uint32_t reg = REG_READ(SYS_ANA_REG_BASE + LDO_ANA_REG * 4);
-    reg |= (0xF << 28) | (0x2 << 23) | (0x7 << 19) | (0x7 << 15);
-    reg &= ~(0xF << 11);
-    reg |= (0x8 << 11);
-    REG_WRITE(SYS_ANA_REG_BASE + LDO_ANA_REG * 4, reg);
-}
-
 int main(void)
 {
     bk_init();
@@ -35,11 +22,6 @@ int main(void)
 
     bk_printf("%s, %d, m55 running...\r\n", __func__, __LINE__);
 
-    bk_printf("lodoen enable start...\r\n");
-
-    bk_auxldo_enable();
-
-    bk_printf("lodoen enable...\r\n");
 #ifdef CONFIG_FRAME_BUFFER
     bk_frame_buffer_init();
 #endif
