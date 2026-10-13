@@ -284,6 +284,8 @@ static void isp_h264e_handle_frame_end_cb(uint32_t seq, uint32_t line, uint8_t c
 		if (priv->flexa_sbi == 1) {
 			priv->set_sbi_flag = 0;
 			bk_isp_flexa_sbi_config(&isp_h, ISP_MP_CHN_ID, 1);
+			(void)bk_h264_encode_ioctl(enc, BK_H264_ENCODE_IOCTL_STOP_ENCODE, NULL);
+			(void)bk_h264_encode_force_idr(enc);
 		} else {
 			priv->set_sbi_flag = 0;
 			bk_isp_flexa_sbi_config(&isp_h, ISP_MP_CHN_ID, 0);
