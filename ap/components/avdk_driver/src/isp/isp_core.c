@@ -66,6 +66,19 @@ enum {
 #define ISP_FLEXA_STREAM_ID_CB 0x15
 #define ISP_FLEXA_STREAM_ID_CR 0x16
 
+#define ISP_MI_SBI_CR_OUTSYNC_STATE  (1u << 20)
+#define ISP_MI_SBI_CR_TIMEOUT_STATE  (1u << 21)
+#define ISP_MI_SBI_CB_OUTSYNC_STATE  (1u << 22)
+#define ISP_MI_SBI_CB_TIMEOUT_STATE  (1u << 23)
+#define ISP_MI_SBI_Y_OUTSYNC_STATE   (1u << 24)
+#define ISP_MI_SBI_Y_TIMEOUT_STATE   (1u << 25)
+#define ISP_MI_SBI_OUTSYNC_STATE     (ISP_MI_SBI_CR_OUTSYNC_STATE | ISP_MI_SBI_CB_OUTSYNC_STATE \
+                                      | ISP_MI_SBI_Y_OUTSYNC_STATE)
+#define ISP_MI_SBI_TIMEOUT_STATE     (ISP_MI_SBI_CR_TIMEOUT_STATE | ISP_MI_SBI_CB_TIMEOUT_STATE \
+                                      | ISP_MI_SBI_Y_TIMEOUT_STATE)
+#define ISP_MI_SBI_ERROR_STATE       (ISP_MI_SBI_OUTSYNC_STATE | ISP_MI_SBI_TIMEOUT_STATE)
+
+
 static isp_isr_handler_t isp_isr_handler[ISP_ISR_MAX][ISP_ISR_MODULE_MAX] = {0};
 static uint8_t s_isp_clk_vote_cnt = 0;
 static volatile uint32_t error_count = 0;
@@ -477,6 +490,28 @@ int isp_set_port_attribute(ISP_PORT IspPort, ISP_PUB_ATTR_S *pPubAttr)
     return VSI_SUCCESS;
 }
 
+bk_err_t bk_isp_flexa_sync_sw_reset(isp_handle_t *handle, uint8_t chnl)
+{
+    if (handle == NULL || *handle == NULL) {
+        LOGE("%s, %d\n", __func__, __LINE__);
+        return BK_FAIL;
+    }
+
+    if (chnl >= ISP_CHN_CNT) {
+        LOGE("%s, %d, chnl_id error\n", __func__, __LINE__);
+        return BK_FAIL;
+    }
+
+    isp_control_t *control = (isp_control_t *)*handle;
+    int ret = VSI_FLEXA_SoftwareReset(control->chn[chnl].channel);
+    if (ret != VSI_SUCCESS) {
+        LOGE("%s, %d, flexa sync sw_reset fail %d\n", __func__, __LINE__, ret);
+        return BK_FAIL;
+    }
+
+    return BK_OK;
+}
+
 #define ISP_CORE_FRAME_END_STATE 0x02U
 #define ISP_CORE_V_START_STATE   0x40U
 
@@ -509,6 +544,7 @@ static void isp_isr_callback(uint32_t state, void *args)
             isp_isr_unlock_irqrestore(irq_flags);
             if (control->chn[ISP_MP_CHN_ID].enable_flexa && control->close_sbi == 0)
             {
+                bk_isp_flexa_sync_sw_reset((isp_handle_t *)&control, ISP_MP_CHN_ID);
                 bk_isp_flexa_sbi_config((isp_handle_t *)&control, ISP_MP_CHN_ID, 0);
                 if (control->chn[ISP_MP_CHN_ID].skip_frames_remaining == 0)
                 {
@@ -727,6 +763,26 @@ static void isp_mi_isr_callback_by_port(
 
     if (control && control->state == ISP_FSM_CHN_ENABLE)
     {
+        if (state & ISP_MI_SBI_ERROR_STATE)
+        {
+            if (control->chn[ISP_MP_CHN_ID].enable_flexa && control->close_sbi == 0)
+            {
+                bk_isp_flexa_sync_sw_reset((isp_handle_t *)&control, ISP_MP_CHN_ID);
+                bk_isp_flexa_sbi_config((isp_handle_t *)&control, ISP_MP_CHN_ID, 0);
+                if (control->chn[ISP_MP_CHN_ID].skip_frames_remaining == 0)
+                {
+                    control->chn[ISP_MP_CHN_ID].skip_frames_remaining += 1;
+                }
+                else
+                {
+                    control->chn[ISP_MP_CHN_ID].skip_frames_remaining++;
+                }
+                control->close_sbi = 1;
+                isp_invoke_isr_callbacks(control, ISP_SBI_CLOSE, ISP_MP_CHN_ID,
+                                         (uint8_t)state);
+            }
+        }
+
         if (state & ISP_MP_MB_LINE_STATE)
         {
             if (control->chn[ISP_MP_CHN_ID].line == 0)
@@ -1989,11 +2045,14 @@ bk_err_t bk_isp_flexa_sbi_config(isp_handle_t *handle, uint8_t chnl, uint8_t ena
 
     flexa_sync.streamNum = isp_sbi_config->streamNum;
     flexa_sync.streamAttr[0].streamId = ISP_FLEXA_STREAM_ID_Y;
-    flexa_sync.streamAttr[0].entryCnt = isp_sbi_config->streamAttr[0].entrySize;
+    flexa_sync.streamAttr[0].entryCnt = isp_sbi_config->entryCnt;
     flexa_sync.streamAttr[1].streamId = ISP_FLEXA_STREAM_ID_CB;
-    flexa_sync.streamAttr[1].entryCnt = isp_sbi_config->streamAttr[1].entrySize;
+    flexa_sync.streamAttr[1].entryCnt = isp_sbi_config->entryCnt;
     flexa_sync.streamAttr[2].streamId = ISP_FLEXA_STREAM_ID_CR;
-    flexa_sync.streamAttr[2].entryCnt = isp_sbi_config->streamAttr[2].entrySize;
+    flexa_sync.streamAttr[2].entryCnt = isp_sbi_config->entryCnt;
+    flexa_sync.streamAttr[0].producerTimeOut = 100;
+    flexa_sync.streamAttr[1].producerTimeOut = 100;
+    flexa_sync.streamAttr[2].producerTimeOut = 100;
 
     VSI_FLEXA_SetSyncAttr(control->chn[chnl].channel, &flexa_sync);
     ret = VSI_MPI_ISP_SetSbiProducer(control->chn[chnl].channel, isp_sbi_config);
