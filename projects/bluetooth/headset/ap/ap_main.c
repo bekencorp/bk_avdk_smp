@@ -4,6 +4,8 @@
 #include <os/os.h>
 #include <components/shell_task.h>
 #include "components/bluetooth/bk_dm_bluetooth.h"
+#include "components/bluetooth/bk_dm_a2dp.h"
+#include "components/bluetooth/bk_dm_hfp.h"
 
 #include "bt_manager.h"
 #include "headset_user_config.h"
@@ -80,6 +82,14 @@ int main(void)
 
     extern int cli_ble_gatt_demo_init(void);
     cli_ble_gatt_demo_init();
+#endif
+
+#if CONFIG_BLUETOOTH_A2DP_OFFLOAD_SINK
+	bk_a2dp_sink_offload_set_enabled(true);
+#endif
+
+#if CONFIG_BLUETOOTH_HFP_SCO_OFFLOAD
+	bk_hfp_sco_offload_set_enabled(true);
 #endif
 
 #endif

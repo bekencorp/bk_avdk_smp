@@ -331,6 +331,32 @@ menu "Bk_ble"
 				host support enabled too (CONFIG_HFP_AG). Disabled by default;
 				enable it in the project that needs the AG role (e.g.
 				bluetooth/central).
+
+		config BLUETOOTH_A2DP_OFFLOAD_SINK
+			bool "Enable A2DP Sink audio offload to CP"
+			default n
+			help
+				Offload the A2DP Sink media path to the CP core.
+
+		config BLUETOOTH_HFP_SCO_OFFLOAD
+			bool "Enable HFP SCO voice offload to CP"
+			default n
+			help
+				Offload the HFP SCO full-duplex voice path to the CP core.
+				Must match the CP-side switch.
+
+		config BLUETOOTH_AVRCP_CT_TRACK_CHANGE_NTF
+			bool "AVRCP CT register track-change notification"
+			default y
+			help
+				Register for AVRCP track-change notifications on the CT.
+
+		config BLUETOOTH_AVRCP_CT_PLAY_POS_NTF
+			bool "AVRCP CT register play-position notification"
+			default y
+			help
+				Register for AVRCP play-position notifications on the CT.
+				Periodic (~1s), higher AVRCP traffic.
 	endmenu
 
 	menu "bluetooth CTKD Modules"

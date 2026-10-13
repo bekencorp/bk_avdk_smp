@@ -257,6 +257,32 @@ bt_err_t bk_bt_a2dp_sink_get_delay_value(void);
  */
 bt_err_t bk_bt_a2dp_set_cap(uint8_t source_or_sink, bk_a2dp_codec_cap_t *cap);
 
+/**
+ * @brief           A2DP Sink Offload: enable/disable the feature at runtime.
+ *
+ * @param[in]       en: true to enable / false to disable
+ *
+ * @return          BK_ERR_BT_SUCCESS on success; BK_ERR_BT_BUSY if a session is
+ *                  active; others on fail.
+ */
+bt_err_t bk_a2dp_sink_offload_set_enabled(bool en);
+
+/**
+ * @brief           A2DP Sink Offload: read back the feature switch.
+ *
+ * @return          true if enabled, else false.
+ */
+bool bk_a2dp_sink_offload_get_enabled(void);
+
+/**
+ * @brief           A2DP Sink Offload: push AVRCP absolute volume to the CP.
+ *
+ * @param[in]       vol: AVRCP absolute volume, 0~127
+ *
+ * @return          BK_ERR_BT_SUCCESS on success; others on fail.
+ */
+bt_err_t bk_a2dp_sink_offload_set_volume(uint8_t vol);
+
 #ifdef __cplusplus
 }
 #endif

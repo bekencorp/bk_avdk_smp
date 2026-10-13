@@ -28,6 +28,41 @@ if (CONFIG_BLUETOOTH)
         core/bt_main.c
     )
 
+    # A2DP Sink Offload - Layer 4 pass-through shim + CP playback driver
+    if (CONFIG_BLUETOOTH_A2DP_OFFLOAD_SINK)
+        list(APPEND srcs
+            service/dm/a2dp/a2dp_sink_offload.c
+            service/dm/a2dp/a2dp_sink_offload_player.c
+        )
+        # audio assembler: only when the audio_play framework is available.
+        # The player still builds without it (drives flow, skips real playback).
+        if (CONFIG_AUDIO_PLAY)
+            list(APPEND srcs
+                service/dm/a2dp/a2dp_sink_audio.c
+                service/dm/utils/mpeg4_latm_dec.c
+            )
+            list(APPEND incs
+                service/dm/utils
+            )
+        endif()
+        list(APPEND incs
+            service/dm/a2dp
+        )
+    endif()
+
+    # HFP SCO Offload - Layer 4 pass-through shim + CP full-duplex voice driver.
+    # Real audio is gated inside the sources by CONFIG_AUDIO_PLAY / CONFIG_AUDIO_RECORD;
+    # the shim + player still build (drive flow, skip real audio) without them.
+    if (CONFIG_BLUETOOTH_HFP_SCO_OFFLOAD)
+        list(APPEND srcs
+            service/dm/hfp/hfp_sco_offload.c
+            service/dm/hfp/hfp_sco_offload_player.c
+        )
+        list(APPEND incs
+            service/dm/hfp
+        )
+    endif()
+
 	if (CONFIG_BTDM_CONTROLLER_ONLY)
 		list(APPEND srcs
 			"core/hci/hal_hci_core.c"
@@ -147,7 +182,7 @@ endif()
 
 armino_component_register(SRCS "${srcs}"
 	INCLUDE_DIRS "${incs}"
-	PRIV_REQUIRES bk_phy psa_mbedtls
+	PRIV_REQUIRES bk_phy psa_mbedtls audio_play audio_record
 	)
 
 # get_filename_component(config_component_name ${CMAKE_CURRENT_LIST_DIR} NAME)

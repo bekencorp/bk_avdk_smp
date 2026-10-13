@@ -122,6 +122,19 @@ menu "Bk_ble"
         bool "bluetooth bt rf highest priority"
         default n
 
+    config BLUETOOTH_A2DP_OFFLOAD_SINK
+        bool "Enable A2DP Sink audio offload on CP"
+        default n
+        help
+            CP-side gate for A2DP Sink offload. Must match the AP-side switch.
+
+    config BLUETOOTH_HFP_SCO_OFFLOAD
+        bool "Enable HFP SCO voice offload on CP"
+        default n
+        help
+            CP-side gate for HFP SCO offload (full-duplex). Must match the
+            AP-side switch.
+
     choice BLUETOOTH_RF_MODE
         prompt "Select Bluetooth RF Mode"
         default BLUETOOTH_RF_MODE_IQ_HIGH_PLL

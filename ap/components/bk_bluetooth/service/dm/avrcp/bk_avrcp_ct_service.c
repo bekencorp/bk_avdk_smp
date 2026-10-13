@@ -315,13 +315,17 @@ static void avrcp_ct_cb(bk_avrcp_ct_cb_event_t event, bk_avrcp_ct_cb_param_t *pa
             }
             if (s_avrcp_ct.peer_cap & (0x01 << BK_AVRCP_RN_TRACK_CHANGE))
             {
+#if CONFIG_BLUETOOTH_AVRCP_CT_TRACK_CHANGE_NTF
                 bk_bt_avrcp_ct_send_register_notification_cmd(s_avrcp_ct.remote_bda, BK_AVRCP_RN_TRACK_CHANGE, 0);
+#endif
             }
             if (s_avrcp_ct.peer_cap & (0x01 << BK_AVRCP_RN_PLAY_POS_CHANGED))
             {
+#if CONFIG_BLUETOOTH_AVRCP_CT_PLAY_POS_NTF
                 bk_bt_avrcp_ct_send_register_notification_cmd(s_avrcp_ct.remote_bda,
                                                               BK_AVRCP_RN_PLAY_POS_CHANGED,
                                                               AVRCP_PLAY_POS_REPORT_INTERVAL_S);
+#endif
             }
         }
         break;

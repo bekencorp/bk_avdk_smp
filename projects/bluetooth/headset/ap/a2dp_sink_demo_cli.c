@@ -21,6 +21,7 @@ static void headset_usage(void)
              "headset pair_mode [0|1]\n"
              "headset set_delay_value XX\n"
              "headset get_delay_value\n"
+             "headset cleanbond\n"
             );
 
     return;
@@ -353,6 +354,11 @@ static void cmd_headset_demo(char *pcWriteBuffer, int xWriteBufferLen, int argc,
         }
 
         hfp_demo_cust_cmd(cmd);
+    }
+    else if(os_strcmp(argv[1], "cleanbond") == 0)
+    {
+        /* debug: clear all bonded/pairing info */
+        bt_manager_clean_bond();
     }
     else
     {

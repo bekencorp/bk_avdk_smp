@@ -7,6 +7,7 @@
 #include "bk_avrcp_tg_service.h"
 
 #include "components/bluetooth/bk_dm_avrcp.h"
+#include "components/bluetooth/bk_dm_a2dp.h"
 #include "bluetooth_storage.h"
 #include "bt_manager.h"
 
@@ -145,7 +146,18 @@ static void bk_avrcp_tg_emit(bk_avrcp_tg_evt_t evt, void *arg)
 void bk_avrcp_tg_emit_current_volume(void)
 {
     uint8_t local_volume = bk_avrcp_tg_get_local_volume_value();
-    bk_avrcp_tg_emit(BK_AVRCP_TG_EVT_VOLUME_CHANGED, &local_volume);
+
+    /* A2DP offload owns playback on the CP: forward the volume to the CP instead
+     * of driving the AP local audio gain. Only apply the local gain path when
+     * offload is disabled. */
+    if (bk_a2dp_sink_offload_get_enabled())
+    {
+        bk_a2dp_sink_offload_set_volume(local_volume);
+    }
+    else
+    {
+        bk_avrcp_tg_emit(BK_AVRCP_TG_EVT_VOLUME_CHANGED, &local_volume);
+    }
 }
 
 /* ---- player_mode: passthrough worker ---- */

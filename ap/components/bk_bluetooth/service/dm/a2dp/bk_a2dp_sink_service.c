@@ -22,6 +22,7 @@ typedef struct
     uint8_t a2dp_connected;
     uint8_t auto_accept_conn;
     uint8_t bt_manager_index;
+    uint8_t local_audio_running;   /* whether local decode/PA path is started (not started under offload; for symmetric suspend) */
     bk_a2dp_audio_state_t audio_state;
     bk_a2dp_mcc_t codec;
     beken_semaphore_t api_sync_sema;
@@ -171,7 +172,11 @@ static void a2dp_service_cb(bk_a2dp_cb_event_t event, bk_a2dp_cb_param_t *param)
             if (s_a2dp.audio_state == BK_A2DP_AUDIO_STATE_STARTED)
             {
                 s_a2dp.audio_state = BK_A2DP_AUDIO_STATE_SUSPEND;
-                a2dp_service_stream_suspend();
+                if (s_a2dp.local_audio_running)
+                {
+                    s_a2dp.local_audio_running = 0;
+                    a2dp_service_stream_suspend();
+                }
             }
             bk_avrcp_ct_service_notify_a2dp_state(0, a2dp->conn_state.remote_bda);
             a2dp_service_emit_connection_event(BK_A2DP_SINK_EVT_DISCONNECTED, a2dp->conn_state.remote_bda);
@@ -194,13 +199,26 @@ static void a2dp_service_cb(bk_a2dp_cb_event_t event, bk_a2dp_cb_param_t *param)
         if (a2dp->audio_state.state == BK_A2DP_AUDIO_STATE_STARTED)
         {
             s_a2dp.audio_state = a2dp->audio_state.state;
-            a2dp_service_stream_start(&s_a2dp.codec);
+            /* when offload is enabled the CP handles media; AP does not start the local decode/PA path. */
+            if (!bk_a2dp_sink_offload_get_enabled())
+            {
+                s_a2dp.local_audio_running = 1;
+                a2dp_service_stream_start(&s_a2dp.codec);
+            }
+            else
+            {
+                LOGI("offload enabled, skip local audio start\n");
+            }
         }
         else if (a2dp->audio_state.state == BK_A2DP_AUDIO_STATE_SUSPEND &&
                  s_a2dp.audio_state == BK_A2DP_AUDIO_STATE_STARTED)
         {
             s_a2dp.audio_state = a2dp->audio_state.state;
-            a2dp_service_stream_suspend();
+            if (s_a2dp.local_audio_running)
+            {
+                s_a2dp.local_audio_running = 0;
+                a2dp_service_stream_suspend();
+            }
         }
         break;
 

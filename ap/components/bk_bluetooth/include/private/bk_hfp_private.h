@@ -46,6 +46,11 @@ bt_err_t bt_hf_client_send_nrec_internal(uint8_t *remote_bda);
 bt_err_t bt_hf_client_redial_internal(uint8_t *remote_bda);
 bt_err_t bt_hf_client_send_custom_cmd_internal(uint8_t *remote_bda, const char *atcmd);
 
+/* HFP SCO Offload */
+bt_err_t bt_hf_client_sco_offload_set_enabled_internal(bool en);
+bool     bt_hf_client_sco_offload_get_enabled_internal(void);
+bt_err_t bt_hf_client_sco_offload_set_volume_internal(uint8_t vgs);
+
 
 #ifdef __cplusplus
 }

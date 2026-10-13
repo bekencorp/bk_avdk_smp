@@ -131,3 +131,32 @@ bt_err_t bk_bt_hf_client_send_custom_cmd(uint8_t *remote_bda, const char *atcmd)
     return bt_hf_client_send_custom_cmd_internal(remote_bda, atcmd);
 }
 
+bt_err_t bk_hfp_sco_offload_set_enabled(bool en)
+{
+#if CONFIG_BLUETOOTH_HFP_SCO_OFFLOAD
+    return bt_hf_client_sco_offload_set_enabled_internal(en);
+#else
+    (void)en;
+    return BK_ERR_BT_CMD_NOT_SUPPORT;
+#endif
+}
+
+bool bk_hfp_sco_offload_get_enabled(void)
+{
+#if CONFIG_BLUETOOTH_HFP_SCO_OFFLOAD
+    return bt_hf_client_sco_offload_get_enabled_internal();
+#else
+    return false;
+#endif
+}
+
+bt_err_t bk_hfp_sco_offload_set_volume(uint8_t vgs)
+{
+#if CONFIG_BLUETOOTH_HFP_SCO_OFFLOAD
+    return bt_hf_client_sco_offload_set_volume_internal(vgs);
+#else
+    (void)vgs;
+    return BK_ERR_BT_CMD_NOT_SUPPORT;
+#endif
+}
+

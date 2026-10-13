@@ -28,6 +28,9 @@ bt_err_t bt_a2dp_sink_disconnect_internal(uint8_t *remote_bda);
 bt_err_t bt_a2dp_sink_set_delay_value_internal(uint16_t delay_value);
 bt_err_t bt_a2dp_sink_get_delay_value_internal(void);
 bt_err_t bk_bt_a2dp_set_cap_internal(uint8_t source_or_sink, bk_a2dp_codec_cap_t *cap);
+bt_err_t bt_a2dp_sink_offload_set_enabled_internal(bool en);
+bool bt_a2dp_sink_offload_get_enabled_internal(void);
+bt_err_t bt_a2dp_sink_offload_set_volume_internal(uint8_t vol);
 
 #ifdef __cplusplus
 }

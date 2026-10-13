@@ -58,6 +58,13 @@ static void hfp_service_cb(bk_hf_client_cb_event_t event, bk_hf_client_cb_param_
 
             if (BK_HF_CLIENT_AUDIO_STATE_DISCONNECTED == param->audio_state.state)
             {
+#if CONFIG_BLUETOOTH_HFP_SCO_OFFLOAD
+                /* Offload: the host already sent the Stop VSC, suppress the app event. */
+                if (bk_hfp_sco_offload_get_enabled())
+                {
+                    break;
+                }
+#endif
                 hfp_service_emit(BK_HFP_HF_EVT_AUDIO_DISCONNECTED, NULL);
             }
             else if (BK_HF_CLIENT_AUDIO_STATE_CONNECTED == param->audio_state.state)
@@ -72,6 +79,14 @@ static void hfp_service_cb(bk_hf_client_cb_event_t event, bk_hf_client_cb_param_
                      info.remote_bda[5], info.remote_bda[4], info.remote_bda[3],
                      info.remote_bda[2], info.remote_bda[1], info.remote_bda[0], info.codec);
 
+#if CONFIG_BLUETOOTH_HFP_SCO_OFFLOAD
+                /* Offload: the host already sent the Start VSC and the CP runs the
+                 * voice path, suppress the app event. */
+                if (bk_hfp_sco_offload_get_enabled())
+                {
+                    break;
+                }
+#endif
                 hfp_service_emit(BK_HFP_HF_EVT_AUDIO_CONNECTED, &info);
             }
         }
@@ -207,6 +222,15 @@ static void hfp_service_cb(bk_hf_client_cb_event_t event, bk_hf_client_cb_param_
             {
                 LOGI("+VGM: HPF Microphone gain: %d \n", param->volume_control.volume);
             }
+#if CONFIG_BLUETOOTH_HFP_SCO_OFFLOAD
+            /* Offload: forward +VGS to CP, suppress the app event. */
+            if (bk_hfp_sco_offload_get_enabled() &&
+                param->volume_control.type == BK_HF_VOLUME_CONTROL_TARGET_SPK)
+            {
+                bk_hfp_sco_offload_set_volume(vol.volume);
+                break;
+            }
+#endif
             hfp_service_emit(BK_HFP_HF_EVT_VOLUME_CHANGED, &vol);
         }
         break;
@@ -275,6 +299,13 @@ static void hfp_service_data_cb(const uint8_t *data, uint16_t data_len)
         return;
     }
 
+#if CONFIG_BLUETOOTH_HFP_SCO_OFFLOAD
+    /* Offload: downlink SCO handled on CP, drop stray host-path data. */
+    if (bk_hfp_sco_offload_get_enabled())
+    {
+        return;
+    }
+#endif
     voice.data = data;
     voice.len = data_len;
     hfp_service_emit(BK_HFP_HF_EVT_VOICE_DATA, &voice);

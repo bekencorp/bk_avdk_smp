@@ -15,4 +15,4 @@ endif()
 endif()
 
 
-armino_component_register(SRCS "${srcs}" INCLUDE_DIRS "${incs}")
+armino_component_register(SRCS "${srcs}" INCLUDE_DIRS "${incs}" PRIV_REQUIRES bk_bluetooth)

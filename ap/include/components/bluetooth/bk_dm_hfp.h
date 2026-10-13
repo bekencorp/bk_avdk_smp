@@ -357,6 +357,37 @@ bt_err_t bk_bt_hf_client_redial(uint8_t *remote_bda);
  */
 bt_err_t bk_bt_hf_client_send_custom_cmd(uint8_t *remote_bda, const char *atcmd);
 
+/**
+ * @brief           HFP SCO Offload: enable/disable the full-duplex voice offload
+ *                  to CP at runtime. When enabled, the host starts/stops the
+ *                  offload itself on SCO connect/disconnect and the HFP
+ *                  service forwards +VGS and suppresses the AP host audio
+ *                  path, so the application stays offload-agnostic.
+ *
+ * @param[in]       en: true to enable / false to disable
+ *
+ * @return          BK_ERR_BT_SUCCESS on success; BK_ERR_BT_BUSY if a session is
+ *                  active; others on fail.
+ */
+bt_err_t bk_hfp_sco_offload_set_enabled(bool en);
+
+/**
+ * @brief           HFP SCO Offload: read back the feature switch.
+ *
+ * @return          true if enabled, else false.
+ */
+bool bk_hfp_sco_offload_get_enabled(void);
+
+/**
+ * @brief           HFP SCO Offload: push HFP speaker volume (+VGS) to the CP.
+ *                  Driven by the HFP service on +VGS when offload is enabled.
+ *
+ * @param[in]       vgs: HFP +VGS speaker gain, 0~15
+ *
+ * @return          BK_ERR_BT_SUCCESS on success; others on fail.
+ */
+bt_err_t bk_hfp_sco_offload_set_volume(uint8_t vgs);
+
 #ifdef __cplusplus
 }
 #endif
