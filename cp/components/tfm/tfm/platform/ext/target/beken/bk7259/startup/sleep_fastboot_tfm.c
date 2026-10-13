@@ -19,15 +19,24 @@
 extern uint32_t sys_is_running_from_deep_sleep(void);
 extern void tcm_spe(void);
 
-/* Same clear sequence as sys_pm_hal deep-LV restore:
- * clear R0.fast_boot / R0.dlv_startup, then R25-latch into R7B.
- * (TFM S may not define CONFIG_DEEP_LV, so do not call aon_pmu_hal_set_dlv_startup.)
+/* Clear the deep-sleep markers in the retained R0 image.
+ * TFM S may not define CONFIG_DEEP_LV, so do not call
+ * aon_pmu_hal_set_dlv_startup().
  */
 static void tfm_sleep_clear_aon_fastboot_flags(void)
 {
-	aon_pmu_ll_set_r0_fast_boot(0);
-	aon_pmu_ll_set_r0_dlv_startup(0);
+	aon_pmu_r0_t retained;
+
+	/* R7B is the retained source of truth after reset. Restore all retained
+	 * fields to R0 before clearing the fastboot markers so the whole-word
+	 * latch cannot erase reset reason, owner, or other retained state. */
+	retained.v = aon_pmu_ll_get_r7b();
+	retained.fast_boot = 0;
+	retained.dlv_startup = 0;
+	aon_pmu_ll_set_r0(retained.v);
+	__DSB();
 	aon_pmu_hal_r0_latch_to_r7b();
+	__DSB();
 }
 
 static bool tfm_sleep_warm_boot_applicable(void)

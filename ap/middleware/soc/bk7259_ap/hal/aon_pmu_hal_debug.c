@@ -34,7 +34,7 @@ static void aon_pmu_dump_r0(void)
 	SOC_LOGI("	memchk_bps: %8x\r\n", r->memchk_bps);
 	SOC_LOGI("	fast_boot: %8x\r\n", r->fast_boot);
 	SOC_LOGI("	flash_remap_sel: %8x\r\n", r->flash_remap_sel);
-	SOC_LOGI("	aon_reg0_for_software: %8x\r\n", r->aon_reg0_for_software);
+	SOC_LOGI("	reset_reason_owner: %8x\r\n", r->reset_reason_owner);
 	SOC_LOGI("	gpio_sleep: %8x\r\n", r->gpio_sleep);
 }
 

@@ -193,13 +193,16 @@ __attribute__((naked)) int BL2_DS_ENTRY bl2_deepsleep_fastboot(void)
 		"bx r7\n"
 
 		/*
-		 * Fastboot aborted: clear R0.fast_boot, then R25-latch into R7B
-		 * (aon_pmu_hal_r0_latch_to_r7b). Still no stack use.
+		 * Fastboot aborted: restore the retained R7B image to R0, clear only
+		 * fast_boot, then latch it back. R0 may have reset to its default
+		 * value, so using it as the source would erase retained fields such
+		 * as reset_reason and reset_reason_owner.
 		 */
 		"9:\n"
-		"ldr r0, =" BL2_DS_STRINGIFY(BL2_DS_PMU_R0_ADDR) "\n"
+		"ldr r0, =" BL2_DS_STRINGIFY(BL2_DS_PMU_SHADOW_ADDR) "\n"
 		"ldr r1, [r0]\n"
 		"bic r1, r1, #" BL2_DS_STRINGIFY(BL2_DS_FAST_BOOT_BIT) "\n"
+		"ldr r0, =" BL2_DS_STRINGIFY(BL2_DS_PMU_R0_ADDR) "\n"
 		"str r1, [r0]\n"
 		"dsb\n"
 		"ldr r2, =" BL2_DS_STRINGIFY(BL2_DS_PMU_R25_ADDR) "\n"
@@ -282,11 +285,12 @@ __attribute__((naked)) int BL2_DS_ENTRY bl2_deepsleep_fastboot(void)
 		"cpsie i\n"
 		"bx r7\n"
 
-		/* Same as DIRECT_XIP: clear R0.fast_boot then R25 latch. */
+		/* Same as DIRECT_XIP: preserve R7B fields while clearing fast_boot. */
 		"9:\n"
-		"ldr r0, =" BL2_DS_STRINGIFY(BL2_DS_PMU_R0_ADDR) "\n"
+		"ldr r0, =" BL2_DS_STRINGIFY(BL2_DS_PMU_SHADOW_ADDR) "\n"
 		"ldr r1, [r0]\n"
 		"bic r1, r1, #" BL2_DS_STRINGIFY(BL2_DS_FAST_BOOT_BIT) "\n"
+		"ldr r0, =" BL2_DS_STRINGIFY(BL2_DS_PMU_R0_ADDR) "\n"
 		"str r1, [r0]\n"
 		"dsb\n"
 		"ldr r2, =" BL2_DS_STRINGIFY(BL2_DS_PMU_R25_ADDR) "\n"

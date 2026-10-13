@@ -50,8 +50,7 @@ void bk_reboot_ex(uint32_t reset_reason)
 #endif
 
 	if (reset_reason < RESET_SOURCE_UNKNOWN) {
-		bk_misc_set_cp_reset_reason(reset_reason);
-		bk_misc_set_ap_reset_reason(reset_reason);
+		bk_misc_set_system_reset_reason(reset_reason);
 	}
 
 	bk_reboot_writer_init();

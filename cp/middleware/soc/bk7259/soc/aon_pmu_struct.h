@@ -29,12 +29,12 @@ typedef volatile union {
 		uint32_t dig_wake_en                      :  1; /**<bit[2 : 2] */
 		uint32_t bl2_deep_sleep                   :  1; /**<bit[3 : 3] */
 		uint32_t flash_remap_sel                  :  1; /**<bit[4 : 4], Flash 0x19 bit0: 0=A, 1=B */
-		uint32_t aon_reg0_for_software            :  3; /**<bit[5 : 7] */
+		uint32_t reset_reason_owner               :  3; /**<bit[5 : 7], 0=none, 1=CP, 2=AP, 3=both */
 		uint32_t gpio_retention_bitmap            :  4; /**<bit[8 : 11] */
 		uint32_t bl2_reset_count                  :  3; /**<bit[12 :14] */
 		uint32_t secboot_bootloader_address       :  8; /**<bit[15:22] */
 		uint32_t dlv_startup                      :  1; /**<bit[23:23] */
-		uint32_t reset_reason                     :  7; /**<bit[24 : 30] */
+		uint32_t reset_reason                     :  7; /**<bit[24 : 30], reset reason for the owner in bit[5:7] */
 		uint32_t gpio_sleep                       :  1; /**<bit[31 : 31] */
 	};
 	uint32_t v;

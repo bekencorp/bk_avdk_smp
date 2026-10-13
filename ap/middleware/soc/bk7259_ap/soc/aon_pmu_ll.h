@@ -84,14 +84,14 @@ static inline uint32_t aon_pmu_ll_get_r7b_flash_remap_sel(void) {
 	return r->flash_remap_sel;
 }
 
-static inline void aon_pmu_ll_set_r0_aon_reg0_for_software(uint32_t v) {
+static inline void aon_pmu_ll_set_r0_reset_reason_owner(uint32_t v) {
 	aon_pmu_r0_t *r = (aon_pmu_r0_t*)(SOC_AON_PMU_REG_BASE + (0x0 << 2));
-	r->aon_reg0_for_software = v;
+	r->reset_reason_owner = v;
 }
 
-static inline uint32_t aon_pmu_ll_get_r0_aon_reg0_for_software(void) {
+static inline uint32_t aon_pmu_ll_get_r0_reset_reason_owner(void) {
 	aon_pmu_r0_t *r = (aon_pmu_r0_t*)(SOC_AON_PMU_REG_BASE + (0x0 << 2));
-	return r->aon_reg0_for_software;
+	return r->reset_reason_owner;
 }
 
 static inline void aon_pmu_ll_set_r0_gpio_sleep(uint32_t v) {

@@ -32,6 +32,15 @@
 #define EXCEPTION_REBOOT_INFO_MAGIC   0x45585231U
 #define EXCEPTION_REBOOT_INFO_VERSION 1U
 
+#define RESET_REASON_VALUE_MAX        0x7fU
+
+typedef enum {
+	RESET_REASON_OWNER_NONE = 0U,
+	RESET_REASON_OWNER_CP = 1U,
+	RESET_REASON_OWNER_AP = 2U,
+	RESET_REASON_OWNER_BOTH = 3U,
+} reset_reason_owner_t;
+
 static volatile bool s_initialized = false;
 static uint32_t s_start_type = 0;
 static uint32_t s_misc_value_save = 0;
@@ -306,55 +315,56 @@ void show_reset_reason(void)
 }
 
 
-// typedef volatile union {
-// 	struct {
-// 		uint32_t memchk_bps               :  1; /**<bit[0 : 0] */
-// 		uint32_t fast_boot                :  1; /**<bit[1 : 1] */
-// 		uint32_t ota_finish               :  1; /**<bit[2 : 2] */
-// 		uint32_t bl2_deep_sleep           :  1; /**<bit[3 : 3] */
-// 		uint32_t dlv_startup              :  1; /**<bit[4 : 4] */
-// 		uint32_t reset_reason_cp          :  7; /**<bit[5 : 11] */
-// 		uint32_t gpio_retention_bitmap    :  8; /**<bit[12 : 19] */
-// 		uint32_t reset_count              :  4 ;/**<bit[20 : 23] */
-// 		uint32_t reset_reason_ap          :  7; /**<bit[24 : 30] */
-// 		uint32_t gpio_sleep               :  1; /**<bit[31 : 31] */
-// 	};
-// 	uint32_t v;
-// } aon_pmu_r0_t;
+static void bk_misc_store_reset_reason(uint32_t type, reset_reason_owner_t owner)
+{
+	aon_pmu_r0_t r0;
+
+	r0.v = aon_pmu_hal_get_r0();
+	r0.reset_reason_owner = (uint32_t)owner;
+	r0.reset_reason = type;
+	aon_pmu_hal_set_r0(r0.v);
+}
 
 void bk_misc_set_cp_reset_reason(uint32_t type)
 {
-	if (type > 0x7f) {
+	if (type > RESET_REASON_VALUE_MAX) {
 		BK_DUMP_OUT("Invalid cp rr type: 0x%x", type);
 		return;
 	}
 
-	/* use PMU_REG0 bit[5:11] for cp reset reason */
-	uint32_t misc_value = aon_pmu_hal_get_r0();
-
-	/* clear last reset reason */
-	misc_value &= ~(0x7f << 5);
-
-	misc_value |= ((type & 0x7f) << 5);
-	aon_pmu_hal_set_r0(misc_value);
+	bk_misc_store_reset_reason(type, RESET_REASON_OWNER_CP);
 }
 
 void bk_misc_set_ap_reset_reason(uint32_t type)
 {
-	if (type > 0x7f) {
+	if (type > RESET_REASON_VALUE_MAX) {
 		BK_LOGE(TAG, "Invalid ap rr type: 0x%x\r\n", type);
 		return;
 	}
 
-	/* use PMU_REG0 bit[24:30] for reset reason */
-	uint32_t misc_value = aon_pmu_hal_get_r0();
-
 	BK_LOGI(TAG, "set ap rr: 0x%x\r\n", type);
-	/* clear last reset reason */
-	misc_value &= ~(0x7f << 24);
+	bk_misc_store_reset_reason(type, RESET_REASON_OWNER_AP);
+}
 
-	misc_value |= ((type & 0x7f) << 24);
-	aon_pmu_hal_set_r0(misc_value);
+void bk_misc_set_system_reset_reason(uint32_t type)
+{
+	aon_pmu_r0_t r0;
+
+	if (type > RESET_REASON_VALUE_MAX) {
+		BK_DUMP_OUT("Invalid system rr type: 0x%x", type);
+		return;
+	}
+
+	/* A fault path records its core before bk_reboot_ex() resets the system.
+	 * Preserve that owner when the reboot reason is unchanged. */
+	r0.v = aon_pmu_hal_get_r0();
+	if ((r0.reset_reason_owner > RESET_REASON_OWNER_NONE) &&
+		(r0.reset_reason_owner <= RESET_REASON_OWNER_BOTH) &&
+		(r0.reset_reason == type)) {
+		return;
+	}
+
+	bk_misc_store_reset_reason(type, RESET_REASON_OWNER_BOTH);
 }
 
 void bk_misc_set_reset_reason(uint32_t type)
@@ -398,9 +408,12 @@ uint32_t reset_reason_deep_sleep_check(void)
 
 uint32_t reset_reason_init(void)
 {
+	aon_pmu_r0_t r0;
 	uint32_t misc_value;
-	uint32_t cp_reset_reason = 0;
-	uint32_t ap_reset_reason = 0;
+	uint32_t reset_reason;
+	uint32_t reset_reason_owner;
+	uint32_t cp_reset_reason = RESET_SOURCE_POWERON;
+	uint32_t ap_reset_reason = RESET_SOURCE_POWERON;
 
 	if (s_initialized != 0) {
 		return s_start_type;
@@ -411,9 +424,17 @@ uint32_t reset_reason_init(void)
 	 * persist its exception context. */
 	bk_sys_sw_regs_set_ap_exception_record_ptr(
 		(uint32_t)(uintptr_t)&s_ap_exception_reboot_record);
-	misc_value = aon_pmu_hal_get_reset_reason();
-	cp_reset_reason = ((misc_value >> 5) & 0x7f);
-	ap_reset_reason = ((misc_value >> 24) & 0x7f);
+	r0.v = aon_pmu_hal_get_reset_reason();
+	misc_value = r0.v;
+	reset_reason = r0.reset_reason;
+	reset_reason_owner = r0.reset_reason_owner;
+
+	if ((reset_reason_owner & RESET_REASON_OWNER_CP) != 0U) {
+		cp_reset_reason = reset_reason;
+	}
+	if ((reset_reason_owner & RESET_REASON_OWNER_AP) != 0U) {
+		ap_reset_reason = reset_reason;
+	}
 	
 	s_start_type = cp_reset_reason;
 	s_misc_value_save = misc_value;
@@ -422,8 +443,7 @@ uint32_t reset_reason_init(void)
 	bk_sys_sw_regs_set_cp_reset_reason(cp_reset_reason);
 	bk_sys_sw_regs_set_ap_reset_reason(ap_reset_reason);
 
-	bk_misc_set_cp_reset_reason(RESET_SOURCE_POWERON);
-	bk_misc_set_ap_reset_reason(RESET_SOURCE_POWERON);
+	bk_misc_store_reset_reason(RESET_SOURCE_POWERON, RESET_REASON_OWNER_NONE);
 
 	s_initialized = true;
 	return s_start_type;
