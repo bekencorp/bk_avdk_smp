@@ -1193,18 +1193,6 @@ static bk_err_t bk_isp_flexa_buffer_config(isp_control_t *control, uint8_t chnl,
         frame_size += buf.planes[index].size;
     }
 
-    if (control->chn[chnl].base_addr == NULL)
-    {
-        control->chn[chnl].base_addr = (uint8_t *)bk_get_isp_flexa_buffer(frame_size + 64);
-        if (control->chn[chnl].base_addr == NULL)
-        {
-            LOGE("%s, %d malloc failed:%d\n", __func__, __LINE__, frame_size);
-            ret = BK_FAIL;
-            return ret;
-        }
-        control->chn[chnl].malloc_flag = true;
-    }
-
     buf.planes[0].dmaPhyAddr = (((uint32_t)(uintptr_t)control->chn[chnl].base_addr + (64-1)) & ~(64-1));
 
     LOGD("buf_base:%p, numplanes:%d \r\n", control->chn[chnl].base_addr, buf.numPlanes);
@@ -1623,13 +1611,14 @@ bk_err_t bk_isp_deinit(isp_handle_t *handle)
 
     for (uint8_t i = 0; i < ISP_CHN_CNT; i++)
     {
-        if (control->chn[i].malloc_flag == true)
+        if (control->chn[i].malloc_flag)
         {
             if (control->chn[i].base_addr)
             {
                 os_free(control->chn[i].base_addr);
                 control->chn[i].base_addr = NULL;
             }
+            control->chn[i].malloc_flag = false;
         }
         else
         {
@@ -1759,9 +1748,22 @@ bk_err_t bk_isp_open(isp_handle_t *handle, isp_config_ext_t *config)
     }
     else
     {
-        if (config->width == ISP_MAX_WIDTH)
+        uint32_t buf_size = (uint32_t)config->buf_cnt * config->width * FLEXA_LINES * 3 / 2 + 64;
+        if (config->ext_buf != NULL)
         {
-            control->chn[config->chnl_id].base_addr = bk_get_isp_flexa_buffer(config->buf_cnt * config->width * FLEXA_LINES * 3 / 2 + 64);
+            if (config->ext_buf_size < buf_size)
+            {
+                LOGE("%s, %d, ext flexa buffer too small: %u < %u\n", __func__, __LINE__,
+                        config->ext_buf_size, buf_size);
+                return BK_FAIL;
+            }
+            control->chn[config->chnl_id].base_addr = (uint8_t *)config->ext_buf;
+            control->chn[config->chnl_id].ext_buf_size = config->ext_buf_size;
+            control->chn[config->chnl_id].malloc_flag = false;
+        }
+        else
+        {
+            control->chn[config->chnl_id].base_addr = bk_get_isp_flexa_buffer(buf_size);
             if(control->chn[config->chnl_id].base_addr == NULL)
             {
                 LOGE("%s, %d, bk_get_isp_flexa_buffer failed\n", __func__, __LINE__);
@@ -1962,6 +1964,20 @@ bk_err_t bk_isp_dqbuf_abort(isp_handle_t *handle, uint8_t chnl)
     }
 
     return VSI_MPI_ISP_StreamOffChn(control->chn[chnl].channel);
+}
+
+bk_err_t bk_isp_flexa_buffer_size_get(uint8_t buf_cnt, uint16_t width, uint32_t *size)
+{
+    if (size == NULL || buf_cnt == 0 || width == 0)
+    {
+        LOGE("%s, %d, invalid param\n", __func__, __LINE__);
+        return BK_ERR_PARAM;
+    }
+
+    /* Same formula as the internal flexa ring allocation in bk_isp_open:
+     * Y + UV planes plus 64 bytes of alignment slack. */
+    *size = (uint32_t)buf_cnt * width * FLEXA_LINES * 3 / 2 + 64;
+    return BK_OK;
 }
 
 bk_err_t bk_isp_flexa_sbi_config(isp_handle_t *handle, uint8_t chnl, uint8_t enable)
