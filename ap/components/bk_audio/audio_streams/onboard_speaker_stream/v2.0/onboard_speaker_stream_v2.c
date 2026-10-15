@@ -1915,7 +1915,11 @@ static int _onboard_speaker_process(audio_element_handle_t self, char *in_buffer
             {
                 uint32_t want = onboard_spk->frame_size[i];
 
-                if (want > (uint32_t)in_len)
+                if (onboard_spk->wr_spk_rb_done[i])
+                {
+                    r_size = 0;
+                }
+                else if (want > (uint32_t)in_len)
                 {
                     if (onboard_spk->pcm_in_buff == NULL ||
                         onboard_spk->pcm_in_buff_len < want)
