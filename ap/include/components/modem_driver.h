@@ -48,6 +48,22 @@ typedef enum bk_modem_comm_if_e
 bk_err_t bk_modem_init(bk_modem_comm_proto comm_proto, bk_modem_comm_if comm_if);
 
 /**
+ * @brief     Get the modem communication configuration currently in use
+ *
+ * Read back the comm_proto / comm_if values passed to bk_modem_init() and
+ * stored in bk_modem_env, so callers (e.g. auto-reconnect persistence) can
+ * save the exact parameters without hardcoding them.
+ *
+ * @param[out] comm_proto: current bk_modem_comm_proto, or INVALID_MODE
+ * @param[out] comm_if:    current bk_modem_comm_if, or INVALID_IF
+ *
+ * @return
+ *    - BK_OK: succeed
+ *    - others: other errors.
+ */
+bk_err_t bk_modem_get_comm_config(uint8_t *comm_proto, uint8_t *comm_if);
+
+/**
  * @brief     Modem Driver uninstallation
  *
  * Turn off the Modem driver, and it will disconnect to modem modules.
