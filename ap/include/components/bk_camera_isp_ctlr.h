@@ -87,6 +87,15 @@ typedef struct
     isp_channel_read_ctx_t read_ctx[ISP_CHANNEL_INSTANCE_MAX];
     bk_isp_camera_channel_state_t channel_state[ISP_CHANNEL_INSTANCE_MAX];
     uint8_t skip_frames[ISP_CHANNEL_INSTANCE_MAX];
+    /* External flexa buffer parked via BK_CAM_IOCTL_SET_FLEXA_BUF before
+     * dev_init/channel_open (isp_handle not created yet); injected into the
+     * ISP control by channel_open right before bk_isp_open. When a release_cb
+     * is parked, the ctlr owns the buffer and fires the cb when it drops it
+     * (ctlr deinit / replaced by a new SET). */
+    void *ext_flexa_buf[ISP_CHANNEL_INSTANCE_MAX];
+    uint32_t ext_flexa_buf_size[ISP_CHANNEL_INSTANCE_MAX];
+    bk_isp_camera_flexa_buf_release_cb_t ext_flexa_buf_release_cb[ISP_CHANNEL_INSTANCE_MAX];
+    void *ext_flexa_buf_user_data[ISP_CHANNEL_INSTANCE_MAX];
     ISP_PUB_ATTR_S attr[ISP_PORT_CNT];
     // bk_isp_camera_ctlr_config_t config;
     bk_camera_ctlr_t ops;

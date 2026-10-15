@@ -93,6 +93,28 @@ bk_err_t bk_cis_mclk_clock_enable(uint32_t clk, uint8_t gpio, uint8_t enable);
 
 bk_err_t bk_isp_flexa_sbi_config(isp_handle_t *handle, uint8_t chnl, uint8_t enable);
 
+/**
+ * @brief Compute the flexa ring buffer size for a channel geometry.
+ *
+ * Single source of the size formula used by the internal allocation, so an
+ * externally allocated buffer (bk_isp_flexa_buffer_set) is always sized to
+ * match what bk_isp_open would have requested.
+ *
+ * @param buf_cnt flexa ring slice count planned for channel open
+ * @param width channel width in pixels planned for channel open
+ * @param size output: required buffer size in bytes
+ */
+bk_err_t bk_isp_flexa_buffer_size_get(uint8_t buf_cnt, uint16_t width, uint32_t *size);
+
+/**
+ * @brief Provide an externally allocated flexa ring buffer for a channel.
+ *
+ * Must be called before the channel is opened. Once set, bk_isp_open uses this
+ * buffer instead of allocating internally and never frees it; the caller keeps
+ * ownership and is responsible for freeing it after the channel is closed.
+ */
+bk_err_t bk_isp_flexa_buffer_set(isp_handle_t *handle, uint8_t chnl, void *buf, uint32_t size);
+
 bk_err_t bk_isp_soft_reset(isp_handle_t *handle);
 
 bk_err_t bk_isp_get_exposure_luminance(isp_handle_t *handle, uint32_t *luminance);

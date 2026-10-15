@@ -110,6 +110,8 @@ typedef enum
     BK_CAM_IOCTL_SET_SENSOR_UPDATE_MODE, /**< Set Sensor register update timing; arg = bk_isp_camera_sensor_update_mode_t * */
     BK_CAM_IOCTL_GET_GAMMA_OUT, /**< Get gamma-out attributes; arg = bk_isp_camera_gamma_out_attr_t * */
     BK_CAM_IOCTL_SET_GAMMA_OUT, /**< Set gamma-out attributes; arg = bk_isp_camera_gamma_out_attr_t * */
+    BK_CAM_IOCTL_GET_FLEXA_BUF_SIZE, /**< Query flexa ring buffer size for a channel geometry; arg = bk_isp_camera_flexa_buf_size_t * */
+    BK_CAM_IOCTL_SET_FLEXA_BUF, /**< Set an externally allocated flexa ring buffer before channel open; arg = bk_isp_camera_flexa_buf_t * */
 } bk_cam_interface_ioctl_t;
 
 /**
@@ -122,6 +124,45 @@ typedef struct
     uint8_t channel;   /**< ISP channel id (ISP_MP_CHN_ID / ISP_SP_CHN_ID) */
     uint8_t count;     /**< Drop first N frames after channel open (AE warmup), 0 = disabled */
 } bk_isp_camera_skip_frames_config_t;
+
+/**
+ * @brief Flexa ring buffer size query for BK_CAM_IOCTL_GET_FLEXA_BUF_SIZE.
+ *
+ * Caller fills buf_cnt/width with the same values that will be passed to
+ * channel_open; the controller returns the required buffer size in bytes.
+ */
+typedef struct
+{
+    uint8_t buf_cnt;   /**< Flexa ring slice count planned for channel open */
+    uint16_t width;    /**< Channel width in pixels planned for channel open */
+    uint32_t size;     /**< Output: required flexa ring buffer size in bytes */
+} bk_isp_camera_flexa_buf_size_t;
+
+/**
+ * @brief Flexa ring buffer release callback.
+ *
+ * Invoked when the controller drops an externally provided flexa buffer
+ * (camera ctlr deinit, or the buffer is replaced by a new SET_FLEXA_BUF).
+ */
+typedef void (*bk_isp_camera_flexa_buf_release_cb_t)(void *buffer, void *user_data);
+
+/**
+ * @brief External flexa ring buffer for BK_CAM_IOCTL_SET_FLEXA_BUF.
+ *
+ * Hands an externally allocated buffer to the controller before channel open.
+ * The controller then uses it instead of allocating internally, and never
+ * frees it (the caller keeps ownership).
+ */
+typedef struct
+{
+    uint8_t channel;   /**< ISP channel id (ISP_MP_CHN_ID / ISP_SP_CHN_ID) */
+    void *buffer;      /**< Externally allocated flexa ring buffer */
+    uint32_t size;     /**< Buffer size in bytes (from BK_CAM_IOCTL_GET_FLEXA_BUF_SIZE) */
+    /** Optional release callback: fired when the controller drops the buffer
+     *  (ctlr deinit / replaced by a new SET). NULL = caller keeps ownership. */
+    bk_isp_camera_flexa_buf_release_cb_t release_cb;
+    void *user_data;   /**< Context passed back to release_cb */
+} bk_isp_camera_flexa_buf_t;
 
 typedef struct
 {

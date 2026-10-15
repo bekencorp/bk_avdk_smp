@@ -43,6 +43,20 @@ typedef enum
     BK_GPU_IOCTL_SET_OSD_BY_FLEXA,
     BK_GPU_IOCTL_GET_OUTPUT_INFO,  /** query hardware output geometry/format (bk_gpu_output_info_t *) */
     BK_GPU_IOCTL_REFRESH_DIRTY,    /** re-compose dirty layers onto a bg frame during a stall (void *bg_frame) */
+    /** Query the vg-lite contiguous heap size for a tess geometry; args = bk_gpu_vg_mem_size_t *
+     *  (tess params in, size out). The params must match the bk_gpu_ctlr_config_t passed to
+     *  bk_gpu_ctlr_new: init() recomputes the size from that config and validates the buffer. */
+    BK_GPU_IOCTL_GET_VG_MEM_SIZE,
+    /** Provide an externally allocated vg-lite contiguous buffer before init(); args = bk_gpu_vg_mem_buf_t *.
+     *  Once set, init() uses this buffer instead of allocating internally and deinit() never frees it. */
+    BK_GPU_IOCTL_SET_VG_MEM_BUF,
+    /** Query the flexa pingpong output buffer size; args = bk_gpu_output_buf_size_t *
+     *  (geometry in, size out). The params must match the bk_gpu_ctlr_config_t passed to
+     *  bk_gpu_ctlr_new: open() recomputes the size from that config and validates the buffer. */
+    BK_GPU_IOCTL_GET_OUTPUT_BUF_SIZE,
+    /** Provide an externally allocated flexa pingpong output buffer before open(); args = bk_gpu_output_buf_t *.
+     *  Once set, open() uses this buffer instead of allocating internally and close() never frees it. */
+    BK_GPU_IOCTL_SET_OUTPUT_BUF,
 } bk_gpu_ioctl_cmd_t;
 
 /* Hardware output frame descriptor, as produced by the GPU controller. */
@@ -60,6 +74,84 @@ typedef struct
     uint32_t frame_seq;
     uint32_t line_cnt;
 } bk_gpu_isp_flexa_event_t;
+
+/**
+ * @brief vg-lite contiguous heap size query for BK_GPU_IOCTL_GET_VG_MEM_SIZE.
+ *
+ * Caller fills tess_width/tess_height with the same values passed to
+ * bk_gpu_ctlr_new; the controller returns the required buffer size in bytes.
+ */
+typedef struct
+{
+    uint32_t tess_width;   /**< Tessellation width in pixels */
+    uint32_t tess_height;  /**< Tessellation height in pixels */
+    uint32_t size;         /**< Output: required contiguous buffer size in bytes */
+} bk_gpu_vg_mem_size_t;
+
+/**
+ * @brief vg-lite contiguous buffer release callback.
+ *
+ * Invoked when the controller drops an externally provided vg buffer
+ * (ctlr deinit, or the buffer is replaced by a new SET_VG_MEM_BUF).
+ */
+typedef void (*bk_gpu_vg_mem_buf_release_cb_t)(void *buffer, void *user_data);
+
+/**
+ * @brief External vg-lite contiguous buffer for BK_GPU_IOCTL_SET_VG_MEM_BUF.
+ *
+ * Hands an externally allocated buffer to the controller before init().
+ * The controller then uses it instead of allocating internally, and never
+ * frees it (the caller keeps ownership and frees it after deinit).
+ */
+typedef struct
+{
+    void *buffer;    /**< Externally allocated contiguous buffer (SRAM/HSRAM only) */
+    uint32_t size;   /**< Buffer size in bytes (from BK_GPU_IOCTL_GET_VG_MEM_SIZE) */
+    /** Optional release callback: fired when the controller drops the buffer
+     *  (ctlr deinit / replaced by a new SET). NULL = caller keeps ownership. */
+    bk_gpu_vg_mem_buf_release_cb_t release_cb;
+    void *user_data; /**< Context passed back to release_cb */
+} bk_gpu_vg_mem_buf_t;
+
+/**
+ * @brief Flexa pingpong output buffer size query for BK_GPU_IOCTL_GET_OUTPUT_BUF_SIZE.
+ *
+ * Caller fills the fields with the same values passed to bk_gpu_ctlr_new;
+ * the controller returns the required buffer size in bytes.
+ */
+typedef struct
+{
+    uint16_t dst_width;            /**< Same as bk_gpu_ctlr_config_t.dst_width */
+    bk_pixel_format_t dst_format;  /**< Same as bk_gpu_ctlr_config_t.dst_format */
+    uint8_t flexa_lines;           /**< Same as bk_gpu_ctlr_config_t.flexa_lines */
+    bool compress;                 /**< Same as bk_gpu_ctlr_config_t.compress */
+    uint32_t size;                 /**< Output: required pingpong buffer size in bytes */
+} bk_gpu_output_buf_size_t;
+
+/**
+ * @brief Flexa pingpong output buffer release callback.
+ *
+ * Invoked when the controller drops an externally provided output buffer
+ * (ctlr deinit, or the buffer is replaced by a new SET_OUTPUT_BUF).
+ */
+typedef void (*bk_gpu_output_buf_release_cb_t)(void *buffer, void *user_data);
+
+/**
+ * @brief External flexa pingpong output buffer for BK_GPU_IOCTL_SET_OUTPUT_BUF.
+ *
+ * Hands an externally allocated buffer to the controller before open().
+ * The controller then uses it instead of allocating internally, and close()
+ * never frees it.
+ */
+typedef struct
+{
+    void *buffer;    /**< Externally allocated pingpong buffer (SRAM/HSRAM only) */
+    uint32_t size;   /**< Buffer size in bytes (from BK_GPU_IOCTL_GET_OUTPUT_BUF_SIZE) */
+    /** Optional release callback: fired when the controller drops the buffer
+     *  (ctlr deinit / replaced by a new SET). NULL = caller keeps ownership. */
+    bk_gpu_output_buf_release_cb_t release_cb;
+    void *user_data; /**< Context passed back to release_cb */
+} bk_gpu_output_buf_t;
 
 typedef struct
 {

@@ -80,6 +80,11 @@ typedef struct {
     char *name;
     /** Drop first N complete frames after channel open (AE warmup), 0 = disabled. */
     uint8_t skip_frames;
+    /* External flexa ring buffer provided by the caller (BK_CAM_IOCTL_SET_FLEXA_BUF
+     * parked in the camera ctlr and handed over by channel_open). When set,
+     * bk_isp_open uses it instead of allocating internally and never frees it. */
+    void *ext_buf;
+    uint32_t ext_buf_size;
 } isp_config_ext_t;
 
 typedef struct {
@@ -111,6 +116,9 @@ typedef struct {
     uint8_t warmup_done;           /**< Latched 1 only after this channel finished a configured (>0) skip countdown, or inherited an already-warmed peer at open. A skip=0 channel is NOT a warmup authority. */
     uint8_t *frame_buffer[ISP_FRAME_CNT_MAX];
     uint8_t malloc_flag;
+    /**< Size of the externally provided flexa ring buffer (bk_isp_flexa_buffer_set),
+     * 0 = no external buffer, internal allocation applies. */
+    uint32_t ext_buf_size;
 } isp_channel_config_t;
 
 typedef void (*isp_3a_done_cb_t)(uint8_t port_id,
