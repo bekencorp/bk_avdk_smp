@@ -17,6 +17,7 @@
 
 #include <components/bk_audio/audio_pipeline/audio_element.h>
 #include <components/audio_param_ctrl.h>
+struct ssl3_result; /*!< forward decl; full definition lives in modules/aec_v3_1.h */
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -187,6 +188,7 @@ typedef int (*ec_out_callback)(int32_t *buffer, uint16_t len);
 typedef int (*vad_state_callback)(int32_t state);
 typedef int (*aec_phase_callback)(int32_t phase, int vad_flag);
 typedef int (*aec_level_callback)(int32_t level);
+typedef int (*ssl3_result_callback)(const struct ssl3_result *result);
 
 /**
  * @brief      AEC algorithm configurations
@@ -211,7 +213,8 @@ typedef struct
     aec_phase_callback      aec_phase_cb;       /*!< AEC phase callback function */
     aec_level_callback      aec_level_cb;       /*!< AEC output level callback function, range: 0~100 */
     int16_t                 interleaved_out_phase_enable; /*!< 0: off; non-zero: malloc interleave buf and fill (out,phase) per frame */
-    uint32_t                reserved[2];
+    ssl3_result_callback    ssl3_result_cb;     
+    uint32_t                reserved[1];
 } aec_v3_algorithm_cfg_t;
 
 #define AEC_V3_DELAY_SAMPLE_POINTS_MAX           (1000)
@@ -289,6 +292,7 @@ typedef struct
     .vad_state_cb = NULL,                                   \
     .aec_phase_cb = NULL,                                   \
     .aec_level_cb = NULL,                                   \
+    .ssl3_result_cb = NULL,                                 \
     .interleaved_out_phase_enable = 0,                      \
 }
 

@@ -1,6 +1,6 @@
 #include "sdkconfig.h"
 
-#if CONFIG_ADK_WIFI_DUMP_UTIL
+#if CONFIG_ADK_WIFI_DUMP_UTIL || CONFIG_ADK_SSL3_WIFI_REPORT
 
 #include <common/bk_include.h>
 #include <common/bk_err.h>
@@ -35,8 +35,19 @@ typedef struct
     wifi_dump_packet_t *packets;
 } wifi_dump_context_t;
 
-static wifi_dump_context_t s_wifi_dump = {
-    .client_fd = -1,
+static const char *const s_thread_names[WIFI_DUMP_INSTANCE_MAX] = {
+    "wifi_dump0",
+    "wifi_dump1",
+};
+
+static const char *const s_queue_names[WIFI_DUMP_INSTANCE_MAX] = {
+    "wifi_dump_q0",
+    "wifi_dump_q1",
+};
+
+static wifi_dump_context_t s_wifi_dump[WIFI_DUMP_INSTANCE_MAX] = {
+    { .client_fd = -1 },
+    { .client_fd = -1 },
 };
 
 static wifi_dump_packet_t *wifi_dump_alloc_packets(void)
@@ -58,38 +69,38 @@ static void wifi_dump_free_packets(wifi_dump_packet_t *packets)
 #endif
 }
 
-static void wifi_dump_release_packet(uint8_t index)
+static void wifi_dump_release_packet(wifi_dump_context_t *ctx, uint8_t index)
 {
-    rtos_lock_mutex(&s_wifi_dump.pool_lock);
-    s_wifi_dump.pool_used &= ~(1UL << index);
-    rtos_unlock_mutex(&s_wifi_dump.pool_lock);
+    rtos_lock_mutex(&ctx->pool_lock);
+    ctx->pool_used &= ~(1UL << index);
+    rtos_unlock_mutex(&ctx->pool_lock);
 }
 
-static int wifi_dump_acquire_packet(void)
+static int wifi_dump_acquire_packet(wifi_dump_context_t *ctx)
 {
     int index = -1;
 
-    rtos_lock_mutex(&s_wifi_dump.pool_lock);
+    rtos_lock_mutex(&ctx->pool_lock);
     for (int i = 0; i < CONFIG_ADK_WIFI_DUMP_QUEUE_DEPTH; i++)
     {
-        if ((s_wifi_dump.pool_used & (1UL << i)) == 0)
+        if ((ctx->pool_used & (1UL << i)) == 0)
         {
-            s_wifi_dump.pool_used |= (1UL << i);
+            ctx->pool_used |= (1UL << i);
             index = i;
             break;
         }
     }
-    rtos_unlock_mutex(&s_wifi_dump.pool_lock);
+    rtos_unlock_mutex(&ctx->pool_lock);
     return index;
 }
 
-static void wifi_dump_flush_queue(void)
+static void wifi_dump_flush_queue(wifi_dump_context_t *ctx)
 {
     uint8_t index;
 
-    while (rtos_pop_from_queue(&s_wifi_dump.queue, &index, BEKEN_NO_WAIT) == BK_OK)
+    while (rtos_pop_from_queue(&ctx->queue, &index, BEKEN_NO_WAIT) == BK_OK)
     {
-        wifi_dump_release_packet(index);
+        wifi_dump_release_packet(ctx, index);
     }
 }
 
@@ -111,9 +122,18 @@ static int wifi_dump_send_all(int fd, const uint8_t *data, uint32_t len)
 
 static void wifi_dump_server_thread(beken_thread_arg_t arg)
 {
+    int inst = (int)(uintptr_t)arg;
     int listen_fd = -1;
     struct sockaddr_in server_addr;
-    (void)arg;
+    wifi_dump_context_t *ctx;
+
+    if (inst < 0 || inst >= WIFI_DUMP_INSTANCE_MAX)
+    {
+        BK_LOGE(WIFI_DUMP_TAG, "invalid instance %d\n", inst);
+        rtos_delete_thread(NULL);
+        return;
+    }
+    ctx = &s_wifi_dump[inst];
 
     listen_fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     if (listen_fd < 0)
@@ -127,16 +147,16 @@ static void wifi_dump_server_thread(beken_thread_arg_t arg)
     os_memset(&server_addr, 0, sizeof(server_addr));
     server_addr.sin_family = AF_INET;
     server_addr.sin_addr.s_addr = INADDR_ANY;
-    server_addr.sin_port = htons(s_wifi_dump.port);
+    server_addr.sin_port = htons(ctx->port);
 
     if (bind(listen_fd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0
         || listen(listen_fd, 1) < 0)
     {
-        BK_LOGE(WIFI_DUMP_TAG, "listen on port %u failed\n", s_wifi_dump.port);
+        BK_LOGE(WIFI_DUMP_TAG, "listen on port %u failed\n", ctx->port);
         goto exit;
     }
 
-    BK_LOGI(WIFI_DUMP_TAG, "TCP server listening on port %u\n", s_wifi_dump.port);
+    BK_LOGI(WIFI_DUMP_TAG, "TCP server [%d] listening on port %u\n", inst, ctx->port);
     while (1)
     {
         struct sockaddr_in client_addr;
@@ -152,22 +172,23 @@ static void wifi_dump_server_thread(beken_thread_arg_t arg)
             .tv_usec = 0,
         };
         setsockopt(client_fd, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
-        s_wifi_dump.client_fd = client_fd;
-        s_wifi_dump.enqueue_fail_count = 0;
-        wifi_dump_flush_queue();
-        BK_LOGI(WIFI_DUMP_TAG, "client %s connected\n", inet_ntoa(client_addr.sin_addr));
+        ctx->client_fd = client_fd;
+        ctx->enqueue_fail_count = 0;
+        wifi_dump_flush_queue(ctx);
+        BK_LOGI(WIFI_DUMP_TAG, "client [%d] %s connected\n",
+                inst, inet_ntoa(client_addr.sin_addr));
 
-        while (s_wifi_dump.client_fd == client_fd)
+        while (ctx->client_fd == client_fd)
         {
             uint8_t index;
-            if (rtos_pop_from_queue(&s_wifi_dump.queue, &index, 200) != BK_OK)
+            if (rtos_pop_from_queue(&ctx->queue, &index, 200) != BK_OK)
             {
                 continue;
             }
 
-            wifi_dump_packet_t *packet = &s_wifi_dump.packets[index];
+            wifi_dump_packet_t *packet = &ctx->packets[index];
             int ret = wifi_dump_send_all(client_fd, packet->data, packet->len);
-            wifi_dump_release_packet(index);
+            wifi_dump_release_packet(ctx, index);
             if (ret != 0)
             {
                 BK_LOGE(WIFI_DUMP_TAG, "TCP send failed, capture stopped\n");
@@ -175,13 +196,13 @@ static void wifi_dump_server_thread(beken_thread_arg_t arg)
             }
         }
 
-        if (s_wifi_dump.client_fd == client_fd)
+        if (ctx->client_fd == client_fd)
         {
-            s_wifi_dump.client_fd = -1;
+            ctx->client_fd = -1;
         }
         close(client_fd);
-        wifi_dump_flush_queue();
-        BK_LOGI(WIFI_DUMP_TAG, "client disconnected\n");
+        wifi_dump_flush_queue(ctx);
+        BK_LOGI(WIFI_DUMP_TAG, "client [%d] disconnected\n", inst);
     }
 
 exit:
@@ -189,98 +210,130 @@ exit:
     {
         close(listen_fd);
     }
-    s_wifi_dump.initialized = false;
-    s_wifi_dump.thread = NULL;
+    ctx->initialized = false;
+    ctx->client_fd = -1;
+    wifi_dump_flush_queue(ctx);
+    rtos_deinit_queue(&ctx->queue);
+    rtos_deinit_mutex(&ctx->pool_lock);
+    if (ctx->packets != NULL)
+    {
+        wifi_dump_free_packets(ctx->packets);
+        ctx->packets = NULL;
+    }
+    ctx->thread = NULL;
     rtos_delete_thread(NULL);
 }
 
-bk_err_t wifi_dump_util_start(uint16_t port)
+bk_err_t wifi_dump_util_start_at(wifi_dump_instance_t inst, uint16_t port)
 {
     bk_err_t ret;
+    wifi_dump_context_t *ctx;
 
-    if (s_wifi_dump.initialized)
-    {
-        return s_wifi_dump.port == port ? BK_OK : BK_FAIL;
-    }
-    if (port == 0)
+    if (inst < 0 || inst >= WIFI_DUMP_INSTANCE_MAX || port == 0)
     {
         return BK_ERR_PARAM;
     }
+    ctx = &s_wifi_dump[inst];
+    if (ctx->initialized)
+    {
+        return ctx->port == port ? BK_OK : BK_FAIL;
+    }
 
-    os_memset(&s_wifi_dump, 0, sizeof(s_wifi_dump));
-    s_wifi_dump.client_fd = -1;
-    s_wifi_dump.port = port;
-    s_wifi_dump.packets = wifi_dump_alloc_packets();
-    if (!s_wifi_dump.packets)
+    os_memset(ctx, 0, sizeof(*ctx));
+    ctx->client_fd = -1;
+    ctx->port = port;
+    ctx->packets = wifi_dump_alloc_packets();
+    if (!ctx->packets)
     {
         BK_LOGE(WIFI_DUMP_TAG, "allocate %u packet slots failed\n",
                 CONFIG_ADK_WIFI_DUMP_QUEUE_DEPTH);
         return BK_ERR_NO_MEM;
     }
 
-    ret = rtos_init_mutex(&s_wifi_dump.pool_lock);
+    ret = rtos_init_mutex(&ctx->pool_lock);
     if (ret != BK_OK)
     {
-        wifi_dump_free_packets(s_wifi_dump.packets);
-        s_wifi_dump.packets = NULL;
+        wifi_dump_free_packets(ctx->packets);
+        ctx->packets = NULL;
         return ret;
     }
-    ret = rtos_init_queue(&s_wifi_dump.queue, "wifi_dump_q", sizeof(uint8_t),
+    ret = rtos_init_queue(&ctx->queue, s_queue_names[inst], sizeof(uint8_t),
                           CONFIG_ADK_WIFI_DUMP_QUEUE_DEPTH);
     if (ret != BK_OK)
     {
-        rtos_deinit_mutex(&s_wifi_dump.pool_lock);
-        wifi_dump_free_packets(s_wifi_dump.packets);
-        s_wifi_dump.packets = NULL;
+        rtos_deinit_mutex(&ctx->pool_lock);
+        wifi_dump_free_packets(ctx->packets);
+        ctx->packets = NULL;
         return ret;
     }
 
-    s_wifi_dump.initialized = true;
-    ret = rtos_create_thread(&s_wifi_dump.thread, BEKEN_APPLICATION_PRIORITY,
-                             "wifi_dump", wifi_dump_server_thread, 4096, NULL);
+    ctx->initialized = true;
+    ret = rtos_create_thread(&ctx->thread, BEKEN_APPLICATION_PRIORITY,
+                             s_thread_names[inst], wifi_dump_server_thread,
+                             4096, (beken_thread_arg_t)(uintptr_t)inst);
     if (ret != BK_OK)
     {
-        s_wifi_dump.initialized = false;
-        rtos_deinit_queue(&s_wifi_dump.queue);
-        rtos_deinit_mutex(&s_wifi_dump.pool_lock);
-        wifi_dump_free_packets(s_wifi_dump.packets);
-        s_wifi_dump.packets = NULL;
+        ctx->initialized = false;
+        rtos_deinit_queue(&ctx->queue);
+        rtos_deinit_mutex(&ctx->pool_lock);
+        wifi_dump_free_packets(ctx->packets);
+        ctx->packets = NULL;
         return ret;
     }
     return BK_OK;
 }
 
-void wifi_dump_util_close_client(void)
+void wifi_dump_util_close_client_at(wifi_dump_instance_t inst)
 {
-    int client_fd = s_wifi_dump.client_fd;
+    wifi_dump_context_t *ctx;
+    int client_fd;
 
-    s_wifi_dump.client_fd = -1;
+    if (inst < 0 || inst >= WIFI_DUMP_INSTANCE_MAX)
+    {
+        return;
+    }
+    ctx = &s_wifi_dump[inst];
+    client_fd = ctx->client_fd;
+
+    ctx->client_fd = -1;
     if (client_fd >= 0)
     {
         shutdown(client_fd, SHUT_RDWR);
     }
-    if (s_wifi_dump.initialized)
+    if (ctx->initialized)
     {
-        wifi_dump_flush_queue();
+        wifi_dump_flush_queue(ctx);
     }
 }
 
-bool wifi_dump_util_is_connected(void)
+bool wifi_dump_util_is_connected_at(wifi_dump_instance_t inst)
 {
-    return s_wifi_dump.initialized && s_wifi_dump.client_fd >= 0;
+    if (inst < 0 || inst >= WIFI_DUMP_INSTANCE_MAX)
+    {
+        return false;
+    }
+    return s_wifi_dump[inst].initialized && s_wifi_dump[inst].client_fd >= 0;
 }
 
-bk_err_t wifi_dump_util_enqueue(const void *header, uint32_t header_len,
-                                const void *data0, uint32_t len0,
-                                const void *data1, uint32_t len1,
-                                const void *data2, uint32_t len2)
+bk_err_t wifi_dump_util_enqueue_at(wifi_dump_instance_t inst,
+                                   const void *header, uint32_t header_len,
+                                   const void *data0, uint32_t len0,
+                                   const void *data1, uint32_t len1,
+                                   const void *data2, uint32_t len2)
 {
     uint32_t total_len = header_len + len0 + len1 + len2;
     uint32_t offset = 0;
     uint8_t queue_index;
     int index;
+    wifi_dump_context_t *ctx;
 
-    if (!wifi_dump_util_is_connected())
+    if (inst < 0 || inst >= WIFI_DUMP_INSTANCE_MAX)
+    {
+        return BK_ERR_PARAM;
+    }
+    ctx = &s_wifi_dump[inst];
+
+    if (!wifi_dump_util_is_connected_at(inst))
     {
         return BK_FAIL;
     }
@@ -290,18 +343,18 @@ bk_err_t wifi_dump_util_enqueue(const void *header, uint32_t header_len,
         return BK_ERR_PARAM;
     }
 
-    index = wifi_dump_acquire_packet();
+    index = wifi_dump_acquire_packet(ctx);
     if (index < 0)
     {
-        s_wifi_dump.enqueue_fail_count++;
-        if (s_wifi_dump.enqueue_fail_count == 1)
+        ctx->enqueue_fail_count++;
+        if (ctx->enqueue_fail_count == 1)
         {
             BK_LOGE(WIFI_DUMP_TAG, "queue overflow, capture data is incomplete\n");
         }
         return BK_ERR_NO_MEM;
     }
 
-    wifi_dump_packet_t *packet = &s_wifi_dump.packets[index];
+    wifi_dump_packet_t *packet = &ctx->packets[index];
     os_memcpy(packet->data + offset, header, header_len);
     offset += header_len;
     os_memcpy(packet->data + offset, data0, len0);
@@ -312,12 +365,40 @@ bk_err_t wifi_dump_util_enqueue(const void *header, uint32_t header_len,
     packet->len = (uint16_t)total_len;
 
     queue_index = (uint8_t)index;
-    if (rtos_push_to_queue(&s_wifi_dump.queue, &queue_index, BEKEN_NO_WAIT) != BK_OK)
+    if (rtos_push_to_queue(&ctx->queue, &queue_index, BEKEN_NO_WAIT) != BK_OK)
     {
-        wifi_dump_release_packet(queue_index);
+        wifi_dump_release_packet(ctx, queue_index);
         return BK_FAIL;
     }
     return BK_OK;
 }
 
-#endif /* CONFIG_ADK_WIFI_DUMP_UTIL */
+/* Backward-compatible public API: operates on the AUDIO instance. */
+bk_err_t wifi_dump_util_start(uint16_t port)
+{
+    return wifi_dump_util_start_at(WIFI_DUMP_INSTANCE_AUDIO, port);
+}
+
+void wifi_dump_util_close_client(void)
+{
+    wifi_dump_util_close_client_at(WIFI_DUMP_INSTANCE_AUDIO);
+}
+
+bool wifi_dump_util_is_connected(void)
+{
+    return wifi_dump_util_is_connected_at(WIFI_DUMP_INSTANCE_AUDIO);
+}
+
+bk_err_t wifi_dump_util_enqueue(const void *header, uint32_t header_len,
+                                const void *data0, uint32_t len0,
+                                const void *data1, uint32_t len1,
+                                const void *data2, uint32_t len2)
+{
+    return wifi_dump_util_enqueue_at(WIFI_DUMP_INSTANCE_AUDIO,
+                                     header, header_len,
+                                     data0, len0,
+                                     data1, len1,
+                                     data2, len2);
+}
+
+#endif /* CONFIG_ADK_WIFI_DUMP_UTIL || CONFIG_ADK_SSL3_WIFI_REPORT */

@@ -69,6 +69,7 @@ extern "C" {
 #define AEC_DM_FLAG_MSK         (1 << AEC_DM_FLAG_SFT)
 #define AEC_DS_FLAG_MSK         (1 << AEC_DS_FLAG_SFT)
 
+#define AEC_TRIMIC_FLAG_MSK     (0x04)
 #define MaxBand                 (10)
 
 #define FFT_LEN_NB              (256)
@@ -568,6 +569,55 @@ void aec_ctrl(AECContext* aec, uint32_t cmd, uint32_t arg);
 
 void aec_proc(AECContext* aec, int16_t* rin, int16_t* sin, int16_t* out);
 uint32_t aec_ver(void);
+#define SSL3_MIC_COUNT   (3U)
+#define SSL3_PAIR_COUNT  (3U)
+typedef enum {
+    SSL3_OK = 0,
+    SSL3_ERR_ARGUMENT = -1,
+    SSL3_ERR_CONFIG = -2,
+    SSL3_ERR_SCRATCH = -3,
+    SSL3_ERR_NO_DIRECTION = -4
+} ssl3_status_t;
+
+typedef struct ssl3_config {
+    uint16_t size;
+    uint16_t version;
+    int16_t mic_x_mm_q8[SSL3_MIC_COUNT];
+    int16_t mic_z_mm_q8[SSL3_MIC_COUNT];
+    int16_t channel_delay_q12[SSL3_MIC_COUNT];
+    int16_t channel_gain_q15[SSL3_MIC_COUNT];
+    uint32_t sample_rate;
+    uint32_t sound_speed_mm_s;
+    uint16_t freq_low_hz;
+    uint16_t freq_high_hz;
+    uint16_t min_pair_quality_q15;
+    uint16_t min_confidence_q15;
+    uint16_t smooth_alpha_q15;
+    uint16_t closure_limit_q12;
+    uint8_t hold_frames;
+    uint8_t pair_updates_per_frame;
+    uint8_t reserved[2];
+} ssl3_config_t;
+
+typedef struct ssl3_result {
+    uint16_t size;
+    uint16_t version;
+    int16_t azimuth_deg_q8;
+    int16_t elevation_deg_q8;
+    uint16_t confidence_q15;
+    int16_t tdoa_q12[SSL3_PAIR_COUNT];
+    int16_t closure_error_q12;
+    uint8_t valid_pair_mask;
+    uint8_t valid;
+    uint8_t state;
+    uint8_t reserved;
+    uint32_t frame_index;
+} ssl3_result_t;
+void ssl3_default_config(ssl3_config_t *config);
+uint32_t  aec_ssl3_size(void);
+int32_t   aec_ssl3_init(void *memory, uint32_t memory_bytes, int16_t fs,
+                        const ssl3_config_t *config);
+void      aec_ssl3_attach(void *ssl3_memory, ssl3_result_t *ssl3_result);
  
 void gtcrn_proc(void * pgtcrn,int32_t * spec, uint8_t* buff,uint8_t* relay);
 uint32_t gtcrn_size(void);

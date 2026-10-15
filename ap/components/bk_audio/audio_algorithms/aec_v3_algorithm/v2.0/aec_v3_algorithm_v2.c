@@ -218,6 +218,8 @@ typedef struct aec_algorithm
     int16_t *out_addr;
     uint32_t frame_size;    /**< 20ms data */
     int      dual_ch;       /**< Enable dual channel input(1)/Disable dual channel input(0)*/
+    void          *ssl3_memory;   
+    ssl3_result_t  ssl3_result;  
     /* Uplink caps resolved at open from the upstream mic (when available). When
      * in_caps_valid, the interleaved lane layout and per-read length are driven by
      * the capture caps instead of the hand-set dual_ch/aec_loop/adc_ch_num. */
@@ -232,6 +234,7 @@ typedef struct aec_algorithm
     vad_state_callback vad_state_cb;
     aec_phase_callback aec_phase_cb;
     aec_level_callback aec_level_cb;
+    ssl3_result_callback ssl3_result_cb;
     int16_t interleaved_out_phase_enable;
     int16_t *out_phase_interleave_buf; /*!< malloc when interleaved_out_phase_enable; size frame_size*2 bytes */
     /** when ec_only_output=1: 0=multi_output use aec out, 1=multi_output use ec out; when ec_only_output=0, multi_output always aec out */
@@ -861,6 +864,39 @@ static void aec_dtcm_free(void *ptr)
 }
 #endif
 
+#if CONFIG_ADK_DEBUG_DUMP_UTIL
+static void aec_prepare_split_mic_dump_header(uint8_t mic_num, uint32_t frame_bytes,
+                                               uint16_t sample_rate)
+{
+    volatile debug_dump_data_header_t *hdr =
+        &dump_header[g_dump_type2header_array_idx[DUMP_TYPE_AEC_MIC_DATA]];
+    uint32_t i;
+
+    if (mic_num > 3) {
+        mic_num = 3;
+    }
+    hdr->data_flow_num = mic_num + 2;
+    for (i = 0; i < hdr->data_flow_num; i++) {
+        hdr->data_flow[i].dump_type = (i < mic_num) ? DUMP_TYPE_AEC_MIC_DATA
+            : ((i == mic_num) ? DUMP_TYPE_AEC_REF_DATA : DUMP_TYPE_AEC_OUT_DATA);
+        hdr->data_flow[i].dump_file_type = DUMP_FILE_TYPE_PCM;
+        hdr->data_flow[i].len = (uint16_t)frame_bytes;
+#if CONFIG_ADK_DEBUG_DUMP_DATA_TYPE_EXTENSION
+        hdr->data_flow[i].sample_rate = sample_rate;
+        hdr->data_flow[i].frame_in_ms = 20;
+        hdr->data_flow[i].ch_num = 1;
+#else
+        (void)sample_rate;
+#endif
+    }
+    hdr->timestamp = rtos_get_time();
+}
+
+static uint8_t aec_split_dump_mic_num(const aec_v3_algorithm_t *aec)
+{
+    return (aec->dual_ch == 2) ? 3 : 0;
+}
+#endif
 /* Resolve the interleaved uplink lane geometry for this AEC element.
  *
  * By open() time the pipeline is linked, so the upstream mic's caps (if any) have
@@ -894,12 +930,19 @@ static void _aec_v3_resolve_uplink_layout(audio_element_handle_t self, aec_v3_al
         if (lay.lane_num > 0)
         {
             char s[48];
+            if (aec->aec_cfg.adc_ch_num > 0
+                && aec->aec_cfg.adc_ch_num != lay.mic_cnt) {
+                BK_LOGW(TAG, "configured adc_ch_num=%u differs from capture mic count=%u\n",
+                        aec->aec_cfg.adc_ch_num, lay.mic_cnt);
+            }
             aec->in_layout     = lay;
             aec->in_caps_valid = 1;
             aec->in_read_len   = (uint32_t)lay.lane_num * aec->frame_size;
-            /* derive the DSP mic-count selector from the real mic count
-             * (dual/triple both run the >=2-mic path today) */
-            aec->dual_ch = (lay.mic_cnt >= 2) ? 1 : 0;
+            /* dual_ch is historically named but encodes mic_count - 1. */
+            aec->dual_ch = (lay.mic_cnt > 0) ? (int)(lay.mic_cnt - 1) : 0;
+            if (aec->dual_ch > 2) {
+                aec->dual_ch = 2;
+            }
             aud_uplink_layout_fmt(&lay, s, sizeof(s));
             BK_LOGI(TAG, "[%s] uplink caps from mic: ch_bitmap=0x%x aec_en=%d -> lanes=%d %s read_len=%d dual_ch=%d\n",
                     audio_element_get_tag(self), caps.ch_bitmap, caps.aec_en,
@@ -1057,6 +1100,10 @@ static bk_err_t _aec_v3_algorithm_open(audio_element_handle_t self)
     if(aec->dual_ch)
     {
         aec->aec_ctx->interweave = aec->aec_cfg.interweave;
+        if (aec->dual_ch == 2)
+        {
+            aec->aec_ctx->interweave |= AEC_TRIMIC_FLAG_MSK;
+        }
         aec->aec_ctx->dist       = aec->aec_cfg.dist;
         aec->aec_ctx->mic_swap   = aec->aec_cfg.mic_swap;
         if(aec->vad_cfg.vad_enable)
@@ -1068,6 +1115,27 @@ static bk_err_t _aec_v3_algorithm_open(audio_element_handle_t self)
         if(DUAL_CH_0_DEGREE == aec->aec_cfg.dual_perp)
         {
             aec->aec_ctx->dist = aec->aec_cfg.dist;
+        }
+
+        if (aec->dual_ch == 2)
+        {
+            ssl3_config_t ssl3_cfg;
+            uint32_t ssl3_bytes = aec_ssl3_size();
+            aec->ssl3_memory = audio_malloc(ssl3_bytes);
+            if (aec->ssl3_memory == NULL)
+            {
+                BK_LOGE(TAG, "[%s] %s, %d, audio_malloc ssl3 sidecar: %u fail \n",
+                        audio_element_get_tag(self), __func__, __LINE__, (unsigned)ssl3_bytes);
+                goto fail;
+            }
+            ssl3_default_config(&ssl3_cfg);
+            if (aec_ssl3_init(aec->ssl3_memory, ssl3_bytes, (int16_t)aec->aec_cfg.fs, &ssl3_cfg) != SSL3_OK)
+            {
+                BK_LOGE(TAG, "[%s] %s, %d, aec_ssl3_init fail \n",
+                        audio_element_get_tag(self), __func__, __LINE__);
+                goto fail;
+            }
+            aec_ssl3_attach(aec->ssl3_memory, &aec->ssl3_result);
         }
     }
 
@@ -1087,8 +1155,10 @@ static bk_err_t _aec_v3_algorithm_open(audio_element_handle_t self)
 
     #if CONFIG_ADK_DEBUG_DUMP_UTIL
     uint32_t mic_data_len = aec->frame_size;
-    if(aec->dual_ch)
-    {
+    uint8_t split_dump_mics = aec_split_dump_mic_num(aec);
+    if (split_dump_mics) {
+        mic_data_len = aec->frame_size * split_dump_mics;
+    } else if(aec->dual_ch) {
         mic_data_len <<= 1;
     }
 
@@ -1200,6 +1270,13 @@ fail:
 #if CONFIG_AUD_AI_NS_SUPPORT && !CONFIG_AUD_AI_NS_USE_STATIC_SRAM
     aec_gtcrn_buffers_free();
 #endif
+    if (aec->ssl3_memory)
+    {
+        aec_ssl3_attach(NULL, NULL);
+        audio_free(aec->ssl3_memory);
+        aec->ssl3_memory = NULL;
+    }
+
     if (aec->aec_ctx)
     {
         #if CONFIG_ADK_AEC_V3_USE_DTCM
@@ -1300,6 +1377,7 @@ static int _aec_v3_algorithm_process(audio_element_handle_t self, char *in_buffe
     aec_v3_algorithm_t *aec = (aec_v3_algorithm_t *)audio_element_getdata(self);
     #if CONFIG_ADK_DEBUG_DUMP_UTIL
     uint32_t mic_data_len = aec->frame_size;
+    uint8_t split_dump_mics = aec_split_dump_mic_num(aec);
     uint8_t dump_enable = is_aud_dump_valid(DUMP_TYPE_AEC_MIC_DATA) ? 1 : 0;
     uint8_t dump_zero_input = 0;
 
@@ -1360,9 +1438,8 @@ static int _aec_v3_algorithm_process(audio_element_handle_t self, char *in_buffe
                       aec->aec_cfg.adc_ch_num);
         }
         uint8_t  L = lay.lane_num;
-        uint16_t frames = (r_size > 0) ? (uint16_t)(r_size / (2 * L)) : 0;
+        uint16_t frames = (r_size > 0 && L > 0) ? (uint16_t)(r_size / (2 * L)) : 0;
         uint16_t i;
-
         for (i = 0; i < frames; i++)
         {
             int16_t *grp = &data_ptr[L * i];
@@ -1372,6 +1449,10 @@ static int _aec_v3_algorithm_process(audio_element_handle_t self, char *in_buffe
             if (lay.mic_cnt > 1)
             {
                 g_mic2[i] = aec->mic_addr[lay.mic_cnt * i + 1] = grp[lay.mic_index[1]];
+            }
+            if (lay.mic_cnt > 2)
+            {
+                g_mic3[i] = aec->mic_addr[lay.mic_cnt * i + 2] = grp[lay.mic_index[2]];
             }
             if (lay.discard_cnt > 0)
             {
@@ -1431,32 +1512,41 @@ static int _aec_v3_algorithm_process(audio_element_handle_t self, char *in_buffe
     if (r_size > 0)
     {
 #if CONFIG_ADK_DEBUG_DUMP_UTIL
-        if (aec->dual_ch)
-        {
+        if (split_dump_mics) {
+            mic_data_len = aec->frame_size * split_dump_mics;
+        } else if (aec->dual_ch) {
             mic_data_len = aec->frame_size * 2;
         }
         if (dump_zero_input)
         {
-            os_memset(aec->mic_addr, 0, mic_data_len);
+            uint32_t algorithm_mic_len = aec->frame_size * (uint32_t)(aec->dual_ch + 1);
+            os_memset(aec->mic_addr, 0, algorithm_mic_len);
             os_memset(aec->ref_addr, 0, aec->frame_size);
         }
 #endif
 
-        if(aec->dual_ch)
-        {
-            AEC_DATA_DUMP_MIC_DATA(aec->mic_addr, aec->frame_size*2);
-        }
-        else
-        {
-            AEC_DATA_DUMP_MIC_DATA(aec->mic_addr, aec->frame_size);
-        }
+        AEC_DATA_DUMP_MIC_DATA(aec->mic_addr,
+                               aec->frame_size * (uint32_t)(aec->dual_ch + 1));
 
         AEC_DATA_DUMP_REF_DATA(aec->ref_addr, aec->frame_size);
 
         #if CONFIG_ADK_DEBUG_DUMP_UTIL
         if (dump_enable)
         {
-            os_memcpy(mic_data_save,aec->mic_addr, mic_data_len);
+            if (split_dump_mics) {
+                uint32_t ns = aec->frame_size / sizeof(int16_t);
+                os_memset(mic_data_save, 0, mic_data_len);
+                if (!dump_zero_input) {
+                    for (uint8_t mic = 0; mic < split_dump_mics; mic++) {
+                        int16_t *dst = mic_data_save + (mic * ns);
+                        for (uint32_t si = 0; si < ns; si++) {
+                            dst[si] = aec->mic_addr[split_dump_mics * si + mic];
+                        }
+                    }
+                }
+            } else {
+                os_memcpy(mic_data_save,aec->mic_addr, mic_data_len);
+            }
             os_memcpy(ref_data_save,aec->ref_addr, aec->frame_size);
         }
         #endif
@@ -1535,6 +1625,10 @@ static int _aec_v3_algorithm_process(audio_element_handle_t self, char *in_buffe
             aec->aec_level_cb(level);
         }
 
+        if (aec->ssl3_result_cb)
+        {
+            aec->ssl3_result_cb(&aec->ssl3_result);
+        }
         if(aec->ec_out_cb && buff_ecout)
         {
             aec->ec_out_cb(buff_ecout, aec->frame_size);
@@ -1563,12 +1657,17 @@ static int _aec_v3_algorithm_process(audio_element_handle_t self, char *in_buffe
             && is_aud_dump_valid(DUMP_TYPE_AEC_MIC_DATA))
         {
             /*update header*/
-            DEBUG_DATA_DUMP_UPDATE_HEADER_DATA_FLOW_LEN(DUMP_TYPE_AEC_MIC_DATA, 0, mic_data_len);
-            DEBUG_DATA_DUMP_UPDATE_HEADER_DATA_FLOW_LEN(DUMP_TYPE_AEC_REF_DATA, 1, aec->frame_size);
-            DEBUG_DATA_DUMP_UPDATE_HEADER_DATA_FLOW_LEN(DUMP_TYPE_AEC_OUT_DATA, 2, aec->frame_size);
-            DEBUG_DATA_DUMP_UPDATE_HEADER_CHANNEL_NUM(DUMP_TYPE_AEC_MIC_DATA, 0,
-                                                       aec->dual_ch ? 2 : 1);
-            DEBUG_DATA_DUMP_UPDATE_HEADER_TIMESTAMP(DUMP_TYPE_AEC_MIC_DATA);
+            if (split_dump_mics) {
+                aec_prepare_split_mic_dump_header(split_dump_mics, aec->frame_size,
+                                                  (uint16_t)aec->aec_cfg.fs);
+            } else {
+                DEBUG_DATA_DUMP_UPDATE_HEADER_DATA_FLOW_LEN(DUMP_TYPE_AEC_MIC_DATA, 0, mic_data_len);
+                DEBUG_DATA_DUMP_UPDATE_HEADER_DATA_FLOW_LEN(DUMP_TYPE_AEC_REF_DATA, 1, aec->frame_size);
+                DEBUG_DATA_DUMP_UPDATE_HEADER_DATA_FLOW_LEN(DUMP_TYPE_AEC_OUT_DATA, 2, aec->frame_size);
+                DEBUG_DATA_DUMP_UPDATE_HEADER_CHANNEL_NUM(DUMP_TYPE_AEC_MIC_DATA, 0,
+                                                           aec->dual_ch ? 2 : 1);
+                DEBUG_DATA_DUMP_UPDATE_HEADER_TIMESTAMP(DUMP_TYPE_AEC_MIC_DATA);
+            }
 
             if (debug_data_dump_send_aec(mic_data_save, mic_data_len,
                                          ref_data_save, aec->frame_size,
@@ -1732,6 +1831,13 @@ static bk_err_t _aec_v3_algorithm_destroy(audio_element_handle_t self)
         aec->vad_rb = NULL;
     }
 
+    if (aec->ssl3_memory)
+    {
+        aec_ssl3_attach(NULL, NULL);
+        audio_free(aec->ssl3_memory);
+        aec->ssl3_memory = NULL;
+    }
+
     if (aec->aec_ctx)
     {
         #if CONFIG_ADK_AEC_V3_USE_DTCM
@@ -1843,6 +1949,7 @@ audio_element_handle_t aec_v3_algorithm_init(aec_v3_algorithm_cfg_t *config)
     aec_alg->vad_state_cb = config->vad_state_cb;
     aec_alg->aec_phase_cb = config->aec_phase_cb;
     aec_alg->aec_level_cb = config->aec_level_cb;
+    aec_alg->ssl3_result_cb = config->ssl3_result_cb;
     aec_alg->interleaved_out_phase_enable = (config->interleaved_out_phase_enable != 0) ? 1 : 0;
     aec_alg->out_phase_interleave_buf = NULL;
 #if CONFIG_AEC_RUN_ON_M52
