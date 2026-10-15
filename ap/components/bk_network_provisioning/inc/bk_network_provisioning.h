@@ -55,9 +55,22 @@ typedef struct bk_fast_connect_d
     uint16_t flag;		//to check if netif_if_t is configed, default 0
     uint8_t p2p_dev_name[33];
     uint8_t p2p_go_intent;	/* P2P GO intent (1-15), 0 = use default 15 on reconnect */
+    uint8_t modem_proto;	/* bk_modem_comm_proto, valid when BIT(NETIF_IF_MODEM) is set */
+    uint8_t modem_if;		/* bk_modem_comm_if, valid when BIT(NETIF_IF_MODEM) is set */
 }BK_FAST_CONNECT_D;
 
 #define BK_NW_PRO_P2P_GO_INTENT_DEFAULT 15
+
+/**
+ * @brief       persist the modem comm parameters used at provisioning time so
+ *              the auto-reconnect path can restart the 4G modem the same way.
+ *
+ * @param       comm_proto: bk_modem_comm_proto (e.g. UART_NIC_MODE / PPP_MODE)
+ * @param       comm_if:    bk_modem_comm_if (e.g. UART_IF / USB_IF)
+ *
+ * @return      BK_OK: success, others: fail
+ */
+bk_err_t bk_network_provisioning_set_modem_comm(uint8_t comm_proto, uint8_t comm_if);
 
 typedef void (*network_provisioning_status_cb_t)(bk_network_provisioning_status_t status, void *user_data);
 

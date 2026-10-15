@@ -24,6 +24,10 @@
 #include "lwip/inet.h"
 #include "port/net.h"
 
+#if CONFIG_BK_MODEM
+#include "components/modem_driver.h"
+#endif
+
 //TODO np
 #if (CONFIG_EASY_FLASH && CONFIG_EASY_FLASH_V4)
 #include "bk_ef.h"
@@ -124,6 +128,22 @@ void network_status_check_stop_timeout_check(void)
   }
 }
 
+#if CONFIG_BK_MODEM
+bk_err_t bk_network_provisioning_set_modem_comm(uint8_t comm_proto, uint8_t comm_if)
+{
+    BK_FAST_CONNECT_D info = {0};
+
+    bk_get_env_enhance("d_network_id", (void *)&info, sizeof(BK_FAST_CONNECT_D));
+    info.modem_proto = comm_proto;
+    info.modem_if = comm_if;
+    info.flag |= BIT(NETIF_IF_MODEM);
+    bk_set_env_enhance("d_network_id", (const void *)&info, sizeof(BK_FAST_CONNECT_D));
+
+    BK_LOGI(TAG, "set modem comm proto=%d if=%d\r\n", comm_proto, comm_if);
+    return BK_OK;
+}
+#endif
+
 static int save_network_auto_restart_info(netif_if_t type)
 {
 	BK_FAST_CONNECT_D info_tmp = {0};
@@ -165,6 +185,9 @@ static int save_network_auto_restart_info(netif_if_t type)
 #if CONFIG_BK_MODEM
 	} else if (type == NETIF_IF_PPP) {
 		info_tmp.flag |= BIT(NETIF_IF_PPP); 
+	} else if (type == NETIF_IF_MODEM) {
+		info_tmp.flag |= BIT(NETIF_IF_MODEM);
+		(void)bk_modem_get_comm_config(&info_tmp.modem_proto, &info_tmp.modem_if);
 #endif
 #if CONFIG_P2P
 	} else if (type == NETIF_IF_P2P) {
@@ -505,9 +528,17 @@ static netif_if_t bk_network_auto_reconnect(bool val)	//val true means from disc
 #endif
 #if CONFIG_BK_MODEM
 	else if (info.flag & BIT(NETIF_IF_PPP)) {
-		extern bk_err_t bk_modem_init(uint8_t comm_proto, uint8_t comm_if);
-		bk_modem_init(1, 1);
+		uint8_t modem_proto = info.modem_proto ? info.modem_proto : (uint8_t)PPP_MODE;
+		uint8_t modem_if = info.modem_if ? info.modem_if : (uint8_t)USB_IF;
+		BK_LOGI(TAG, "modem auto-reconnect: proto=%d if=%d\n", modem_proto, modem_if);
+		bk_modem_init(modem_proto, modem_if);
 		netif_if = NETIF_IF_PPP;
+	} else if (info.flag & BIT(NETIF_IF_MODEM)) {
+		uint8_t modem_proto = info.modem_proto ? info.modem_proto : (uint8_t)UART_NIC_MODE;
+		uint8_t modem_if = info.modem_if ? info.modem_if : (uint8_t)UART_IF;
+		BK_LOGI(TAG, "modem auto-reconnect: proto=%d if=%d\n", modem_proto, modem_if);
+		bk_modem_init(modem_proto, modem_if);
+		netif_if = NETIF_IF_MODEM;
 	}
 #endif
 #if CONFIG_P2P
