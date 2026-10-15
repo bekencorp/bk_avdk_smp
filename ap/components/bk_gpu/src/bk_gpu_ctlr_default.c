@@ -274,19 +274,81 @@ static inline uintptr_t align_buffer_address(uintptr_t addr)
 }
 
 /**
+ * @brief Hand an externally provided vg buffer back to the caller.
+ *
+ * Fires the release callback parked with BK_GPU_IOCTL_SET_VG_MEM_BUF and drops
+ * the slot (vg_mem_ext_buf/gpu_contiguous_buffer included). Called at every
+ * point the ctlr stops owning the buffer: init failure (bad geometry),
+ * ctlr deinit, ctlr delete. No-op without a parked buffer or callback -- the
+ * buffer then stays caller-owned and parked for a re-init.
+ */
+static void gpu_ctlr_release_ext_vg_buf(gpu_vn_ctlr_t *control)
+{
+    if (control->vg_mem_ext_buf == NULL || control->vg_mem_release_cb == NULL) {
+        return;
+    }
+
+    control->vg_mem_release_cb(control->vg_mem_ext_buf, control->vg_mem_user_data);
+    control->vg_mem_ext_buf = NULL;
+    control->vg_mem_ext_buf_size = 0;
+    control->vg_mem_release_cb = NULL;
+    control->vg_mem_user_data = NULL;
+    control->gpu_contiguous_buffer = NULL;
+}
+
+/**
+ * @brief Hand an externally provided flexa pingpong output buffer back.
+ *
+ * Same hand-back policy as gpu_ctlr_release_ext_vg_buf, for the buffer parked
+ * with BK_GPU_IOCTL_SET_OUTPUT_BUF: fired on open failure (bad geometry),
+ * ctlr deinit and ctlr delete. No-op without a parked buffer or callback.
+ */
+static void gpu_ctlr_release_ext_output_buf(gpu_vn_ctlr_t *control)
+{
+    if (control->ext_output_buf == NULL || control->ext_output_release_cb == NULL) {
+        return;
+    }
+
+    control->ext_output_release_cb(control->ext_output_buf, control->ext_output_user_data);
+    control->ext_output_buf = NULL;
+    control->ext_output_buf_size = 0;
+    control->ext_output_release_cb = NULL;
+    control->ext_output_user_data = NULL;
+}
+
+/**
  * @brief Initialize ping-pong buffer for GPU processing
  * @param data GPU flex data structure
  * @return 0 on success, -1 on failure
  */
-static int gpu_flex_init_pingpong_buffer(gpu_flex_data_t *data)
+static int gpu_flex_init_pingpong_buffer(gpu_flex_data_t *data, gpu_vn_ctlr_t *gpu_vn_ctlr)
 {
     /* Allocate extra bytes so each ping/pong start can be aligned to 64 bytes. */
     uint32_t pingpong_size = data->output_width_x_flexa_lines * 2 + BUFFER_ALIGNMENT_SIZE;
-    uintptr_t base_addr = (uintptr_t)bk_get_gpu_output_buffer(pingpong_size);
-    if (base_addr == 0)
+    uintptr_t base_addr;
+
+    if (gpu_vn_ctlr->ext_output_buf != NULL)
     {
-        LOGE("%s, %d bk_get_gpu_output_buffer failed, size=%u\n", __func__, __LINE__, pingpong_size);
-        return -1;
+        /* External buffer (BK_GPU_IOCTL_SET_OUTPUT_BUF): use as-is, never
+         * freed internally. Size must cover the pingpong pair plus the
+         * 64-byte alignment headroom, same as the internal allocation. */
+        if (gpu_vn_ctlr->ext_output_buf_size < pingpong_size)
+        {
+            LOGE("%s, %d ext output buffer too small: %u < %u, release buffer\n",
+                 __func__, __LINE__, gpu_vn_ctlr->ext_output_buf_size, pingpong_size);
+            gpu_ctlr_release_ext_output_buf(gpu_vn_ctlr);
+            return -1;
+        }
+        base_addr = (uintptr_t)gpu_vn_ctlr->ext_output_buf;
+    }
+    else
+    {
+        base_addr = (uintptr_t)bk_get_gpu_output_buffer(pingpong_size);
+        if (base_addr == 0)
+        {
+            LOGE("%s, %d bk_get_gpu_output_buffer failed, size=%u\n", __func__, __LINE__, pingpong_size);
+            return -1;
+        }
     }
 
     /* Keep the original allocation pointer for deinit; buffers[] stores aligned addresses only. */
@@ -298,7 +360,7 @@ static int gpu_flex_init_pingpong_buffer(gpu_flex_data_t *data)
     return 0;
 }
 
-static void gpu_flex_deinit_pingpong_buffer(gpu_flex_data_t *data)
+static void gpu_flex_deinit_pingpong_buffer(gpu_flex_data_t *data, gpu_vn_ctlr_t *gpu_vn_ctlr)
 {
     if (data == NULL)
     {
@@ -308,8 +370,12 @@ static void gpu_flex_deinit_pingpong_buffer(gpu_flex_data_t *data)
 
     if (data->pingpong_raw_addr != 0)
     {
-        /* Free the original non-aligned address returned by allocator. */
-        hsram_free((void *)data->pingpong_raw_addr);
+        /* Free the original non-aligned address returned by allocator;
+         * an externally provided buffer is caller-owned, never freed here. */
+        if (gpu_vn_ctlr->ext_output_buf_size == 0)
+        {
+            hsram_free((void *)data->pingpong_raw_addr);
+        }
         data->pingpong_raw_addr = 0;
     }
 
@@ -642,7 +708,7 @@ static avdk_err_t gpu_flex_data_init(gpu_flex_data_t *data, gpu_vn_ctlr_t *gpu_v
                                NULL, NULL);
 
     /* Initialize ping-pong buffer */
-    if (gpu_flex_init_pingpong_buffer(data) != 0)
+    if (gpu_flex_init_pingpong_buffer(data, gpu_vn_ctlr) != 0)
     {
         LOGE("%s, %d gpu_flex_init_pingpong_buffer failed\n", __func__, __LINE__);
         return AVDK_ERR_NOMEM;
@@ -1441,13 +1507,28 @@ static avdk_err_t gpu_ctlr_init(bk_gpu_ctlr_handle_t handle)
             ret = AVDK_ERR_INVAL;
             goto error;
         }
-        control->gpu_contiguous_buffer = bk_get_gpu_flexa_buffer(vg_mem_sz);
-        if (control->gpu_contiguous_buffer == NULL)
+        if (control->vg_mem_ext_buf != NULL)
         {
-            LOGE("%s, %d bk_get_gpu_flexa_buffer failed, size=%u\n",
-                 __func__, __LINE__, (unsigned)vg_mem_sz);
-            ret = AVDK_ERR_NOMEM;
-            goto error;
+            if (control->vg_mem_ext_buf_size < vg_mem_sz)
+            {
+                LOGE("%s, %d ext vg buffer too small: %u < %u, release buffer\n",
+                    __func__, __LINE__, control->vg_mem_ext_buf_size, vg_mem_sz);
+                ret = AVDK_ERR_NOMEM;
+                gpu_ctlr_release_ext_vg_buf(control);
+                goto error;
+            }
+            control->gpu_contiguous_buffer = control->vg_mem_ext_buf;
+        }
+        else
+        {
+            control->gpu_contiguous_buffer = bk_get_gpu_flexa_buffer(vg_mem_sz);
+            if (control->gpu_contiguous_buffer == NULL)
+            {
+                LOGE("%s, %d bk_get_gpu_flexa_buffer failed, size=%u\n",
+                     __func__, __LINE__, (unsigned)vg_mem_sz);
+                ret = AVDK_ERR_NOMEM;
+                goto error;
+            }
         }
         LOGI("%s, %d vg_lite mem config success, size=%u\n", __func__, __LINE__, (unsigned)vg_mem_sz);
     }
@@ -1464,8 +1545,13 @@ static avdk_err_t gpu_ctlr_init(bk_gpu_ctlr_handle_t handle)
 error:
     vg_lite_set_buffer(NULL);
     if (control->gpu_contiguous_buffer) {
-        os_free(control->gpu_contiguous_buffer);
-        control->gpu_contiguous_buffer = NULL;
+        if (control->vg_mem_ext_buf_size == 0) {
+            /* Internally allocated: free it. */
+            os_free(control->gpu_contiguous_buffer);
+            control->gpu_contiguous_buffer = NULL;
+        } else {
+            gpu_ctlr_release_ext_vg_buf(control);
+        }
     }
     if (driver_inited) {
         bk_gpu_driver_deinit();
@@ -1493,10 +1579,16 @@ static avdk_err_t gpu_ctlr_deinit(bk_gpu_ctlr_handle_t handle)
 
     bk_gpu_driver_deinit();
 
-    if (control->gpu_contiguous_buffer) {
+    if (control->vg_mem_ext_buf != NULL) {
+        gpu_ctlr_release_ext_vg_buf(control);
+    } else if (control->gpu_contiguous_buffer) {
         os_free(control->gpu_contiguous_buffer);
         control->gpu_contiguous_buffer = NULL;
     }
+
+    /* External flexa pingpong output buffer (BK_GPU_IOCTL_SET_OUTPUT_BUF):
+     * same hand-back policy as the vg buffer above. */
+    gpu_ctlr_release_ext_output_buf(control);
 
     return AVDK_ERR_OK;
 }
@@ -1546,7 +1638,7 @@ static void gpu_flex_resource_teardown(gpu_vn_ctlr_t *control)
         flex->link_dma_list_table = NULL;
     }
 
-    gpu_flex_deinit_pingpong_buffer(flex);
+    gpu_flex_deinit_pingpong_buffer(flex, control);
     gpu_flex_data_deinit(flex);
 
     gpu_flex_frame_mutex_unlock(control);
@@ -1957,6 +2049,89 @@ static avdk_err_t gpu_ctlr_ioctl(bk_gpu_ctlr_handle_t handle, uint32_t cmd, void
             return composer.refresh_dirty(composer.ctx, bg_frame);
         }
 
+        case BK_GPU_IOCTL_GET_VG_MEM_SIZE:
+        {
+            bk_gpu_vg_mem_size_t *query = (bk_gpu_vg_mem_size_t *)args;
+            if (query == NULL) {
+                return AVDK_ERR_INVAL;
+            }
+            uint32_t vg_mem_sz = bk_gpu_vg_lite_apply_mem_config(query->tess_width,
+                                                                  query->tess_height);
+            if (vg_mem_sz == 0) {
+                LOGE("%s %d vg mem size query failed, tess=%u x %u\r\n",
+                     __func__, __LINE__, query->tess_width, query->tess_height);
+                return AVDK_ERR_INVAL;
+            }
+            query->size = vg_mem_sz;
+        }
+        break;
+
+        case BK_GPU_IOCTL_SET_VG_MEM_BUF:
+        {
+            bk_gpu_vg_mem_buf_t *cfg = (bk_gpu_vg_mem_buf_t *)args;
+            if (cfg == NULL || cfg->buffer == NULL || cfg->size == 0) {
+                LOGE("%s %d vg mem buf is NULL or size is 0\r\n", __func__, __LINE__);
+                return AVDK_ERR_INVAL;
+            }
+            /* Never swap a buffer that is already live (allocated by a previous
+             * init or a previous SET). */
+            if (control->vg_mem_ext_buf != NULL || control->gpu_contiguous_buffer != NULL) {
+                LOGW("%s %d vg contiguous buffer already set\r\n", __func__, __LINE__);
+                return AVDK_ERR_BUSY;
+            }
+
+            /* External buffer: used as-is by gpu_ctlr_init, never freed
+             * internally. A release_cb, when given, is fired by deinit/delete
+             * when the ctlr drops the buffer; without one the caller keeps
+             * ownership and the buffer stays parked for re-init reuse. */
+            control->vg_mem_ext_buf = (uint8_t *)cfg->buffer;
+            control->vg_mem_ext_buf_size = cfg->size;
+            control->vg_mem_release_cb = cfg->release_cb;
+            control->vg_mem_user_data = cfg->user_data;
+            LOGI("%s, ext vg buffer %p size %u\n", __func__, cfg->buffer, cfg->size);
+        }
+        break;
+
+        case BK_GPU_IOCTL_GET_OUTPUT_BUF_SIZE:
+        {
+            bk_gpu_output_buf_size_t *query = (bk_gpu_output_buf_size_t *)args;
+            if (query == NULL || query->dst_width == 0 || query->flexa_lines == 0) {
+                return AVDK_ERR_INVAL;
+            }
+            /* Mirror gpu_flex_data_init(): output_width is 16-aligned when
+             * compressing, and the pingpong pair needs one strip per slot plus
+             * 64 bytes so both slots can start 64-byte aligned. */
+            uint32_t output_width = query->compress
+                ? ((query->dst_width + GPU_HIGHT_ALIGNMENT) & ~GPU_HIGHT_ALIGNMENT)
+                : query->dst_width;
+            uint32_t output_width_x_flexa_lines = query->compress
+                ? output_width * query->flexa_lines
+                : bk_pixel_size_get(query->dst_format) * output_width * query->flexa_lines;
+            query->size = output_width_x_flexa_lines * 2 + BUFFER_ALIGNMENT_SIZE;
+        }
+        break;
+
+        case BK_GPU_IOCTL_SET_OUTPUT_BUF:
+        {
+            bk_gpu_output_buf_t *cfg = (bk_gpu_output_buf_t *)args;
+            if (cfg == NULL || cfg->buffer == NULL || cfg->size == 0) {
+                LOGE("%s %d output buf is NULL or size is 0\r\n", __func__, __LINE__);
+                return AVDK_ERR_INVAL;
+            }
+            /* Never swap a buffer that is live: the flex worker is blitting
+             * into the current pingpong pair (open'd). */
+            if (control->ext_output_buf != NULL) {
+                LOGW("%s %d ext output buffer is already set\r\n", __func__, __LINE__);
+                return AVDK_ERR_BUSY;
+            }
+            control->ext_output_buf = (uint8_t *)cfg->buffer;
+            control->ext_output_buf_size = cfg->size;
+            control->ext_output_release_cb = cfg->release_cb;
+            control->ext_output_user_data = cfg->user_data;
+            LOGI("%s, ext output buffer %p size %u\n", __func__, cfg->buffer, cfg->size);
+        }
+        break;
+
         default:
             return AVDK_ERR_UNSUPPORTED;
     }
@@ -1968,6 +2143,12 @@ static avdk_err_t gpu_ctlr_delete(bk_gpu_ctlr_handle_t handle)
 {
     gpu_vn_ctlr_t *control =  __containerof(handle, gpu_vn_ctlr_t, ops);
     AVDK_RETURN_ON_FALSE(control, AVDK_ERR_INVAL, TAG, "control is NULL");
+
+    /* Safety net: a caller that skipped deinit still gets its external vg and
+     * pingpong output buffers handed back before the ctlr (and the parked
+     * slots) die. */
+    gpu_ctlr_release_ext_vg_buf(control);
+    gpu_ctlr_release_ext_output_buf(control);
 
     /* Tear down the hidden legacy-blit overlay (if any) with the controller. */
     bk_gpu_frame_composer_t composer;

@@ -139,6 +139,16 @@ typedef struct
     volatile bool flexa_notify_pending;
     uint8_t *gpu_contiguous_buffer;
 
+    uint8_t *vg_mem_ext_buf;
+    uint32_t vg_mem_ext_buf_size;
+    bk_gpu_vg_mem_buf_release_cb_t vg_mem_release_cb;
+    void *vg_mem_user_data;
+
+    uint8_t *ext_output_buf;
+    uint32_t ext_output_buf_size;
+    bk_gpu_output_buf_release_cb_t ext_output_release_cb;
+    void *ext_output_user_data;
+
     bk_gpu_ctlr_config_t config;
     /*
      * false (default): fire flexa_line_done only at frame end path;
