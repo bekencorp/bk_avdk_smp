@@ -683,6 +683,30 @@ ErrorHandler:
     }
 }
 
+static inline void gpu_composer_lock(gpu_vn_ctlr_t *gpu_vn_ctlr)
+{
+    if (gpu_vn_ctlr->composer_mutex != NULL) {
+        rtos_lock_mutex(&gpu_vn_ctlr->composer_mutex);
+    }
+}
+
+static inline void gpu_composer_unlock(gpu_vn_ctlr_t *gpu_vn_ctlr)
+{
+    if (gpu_vn_ctlr->composer_mutex != NULL) {
+        rtos_unlock_mutex(&gpu_vn_ctlr->composer_mutex);
+    }
+}
+
+static inline bk_gpu_frame_composer_t gpu_composer_snapshot(gpu_vn_ctlr_t *gpu_vn_ctlr)
+{
+    bk_gpu_frame_composer_t composer;
+
+    gpu_composer_lock(gpu_vn_ctlr);
+    composer = gpu_vn_ctlr->frame_composer;
+    gpu_composer_unlock(gpu_vn_ctlr);
+    return composer;
+}
+
 static inline void gpu_flex_frame_mutex_lock(gpu_vn_ctlr_t *gpu_vn_ctlr)
 {
     if (gpu_vn_ctlr->flexa_frame_mutex != NULL &&
@@ -810,8 +834,8 @@ static inline void gpu_flex_abort_current_frame(gpu_vn_ctlr_t *gpu_vn_ctlr)
     }
 }
 
-static inline void gpu_flex_data_dma_transfer(gpu_flex_data_t *data, uint32_t offset,
-                                              uint32_t xsize, uint32_t ysize, uint32_t dst_step)
+static inline bk_err_t gpu_flex_data_dma_transfer(gpu_flex_data_t *data, uint32_t offset,
+                                                  uint32_t xsize, uint32_t ysize, uint32_t dst_step)
 {
     hpdma_link_config_t dma_config[1];
 
@@ -829,7 +853,7 @@ static inline void gpu_flex_data_dma_transfer(gpu_flex_data_t *data, uint32_t of
         data->link_dma_list_table, dma_config, 1);
     if (ret != BK_OK) {
         LOGE("%s, set desc failed: %d\r\n", __func__, ret);
-        return;
+        return ret;
     }
 
     HPDMA_LINE_START();
@@ -838,7 +862,10 @@ static inline void gpu_flex_data_dma_transfer(gpu_flex_data_t *data, uint32_t of
     if (ret != BK_OK) {
         HPDMA_LINE_END();
         LOGE("%s, transfer failed: %d\r\n", __func__, ret);
+        return ret;
     }
+
+    return BK_OK;
 }
 
 /**
@@ -870,6 +897,7 @@ static inline bool gpu_flex_data_line_pull_out(gpu_flex_data_t *data, gpu_vn_ctl
     }
 
     /* Copy processed data based on rotation angle */
+    bk_err_t dma_ret = BK_OK;
     if (config->rotate_degree == 90 || config->rotate_degree == 270)
     {
         uint32_t pixel_size = bk_pixel_size_get(config->dst_format);
@@ -887,7 +915,7 @@ static inline bool gpu_flex_data_line_pull_out(gpu_flex_data_t *data, gpu_vn_ctl
             offset = (data->flexa_index - 1) * data->flexa_lines_x_4;
         }
 
-        gpu_flex_data_dma_transfer(data, offset, data->flexa_lines_x_4, ysize, stride);
+        dma_ret = gpu_flex_data_dma_transfer(data, offset, data->flexa_lines_x_4, ysize, stride);
     }
     else if (config->rotate_degree == 0)
     {
@@ -895,7 +923,7 @@ static inline bool gpu_flex_data_line_pull_out(gpu_flex_data_t *data, gpu_vn_ctl
         uint32_t xsize = data->output_width * bk_pixel_size_get(config->dst_format);
         uint32_t ysize = config->compress ? config->flexa_lines / 4 : config->flexa_lines;
 
-        gpu_flex_data_dma_transfer(data, offset, xsize, ysize, 0);
+        dma_ret = gpu_flex_data_dma_transfer(data, offset, xsize, ysize, 0);
     }
     else if (config->rotate_degree == 180)
     {
@@ -905,7 +933,23 @@ static inline bool gpu_flex_data_line_pull_out(gpu_flex_data_t *data, gpu_vn_ctl
         uint32_t xsize = data->output_width * pixel_size;
         uint32_t ysize = config->compress ? config->flexa_lines / 4 : config->flexa_lines;
 
-        gpu_flex_data_dma_transfer(data, offset, xsize, ysize, 0);
+        dma_ret = gpu_flex_data_dma_transfer(data, offset, xsize, ysize, 0);
+    }
+
+    if (dma_ret != BK_OK)
+    {
+        /* The block never reached dpu_frame_buffers. Abort the current frame
+         * (the decoder is notified once via frame_done(BK_FAIL)) instead of
+         * silently advancing to the next ping-pong buffer with stale data. */
+        LOGE("%s,%d block dma failed %d, abort frame\n", __func__, __LINE__, dma_ret);
+#if HDMA_OPEN_ISR_ENABLE
+        /* Re-balance the completion semaphore: the failed transfer never
+         * fires its finish ISR, and frame_done()'s re-post is skipped on the
+         * abort path. */
+        rtos_set_semaphore(&data->transfer_sem);
+#endif
+        gpu_flex_abort_current_frame(gpu_vn_ctlr);
+        return false;
     }
 
     /* Switch to next ping-pong buffer */
@@ -956,9 +1000,7 @@ static inline bool gpu_flex_data_frame_done(gpu_flex_data_t *data, gpu_vn_ctlr_t
              * the frame to the client. A solution that sets
              * client_compose_frame performs face/UI composition in frame_done.
              */
-            bk_gpu_global_lock();
-            bk_gpu_frame_composer_t composer = gpu_vn_ctlr->frame_composer;
-            bk_gpu_global_unlock();
+            bk_gpu_frame_composer_t composer = gpu_composer_snapshot(gpu_vn_ctlr);
             if (gpu_vn_ctlr->osd_render_per_flexa_block)
             {
                 if (composer.commit_flexa_frame != NULL)
@@ -1192,7 +1234,7 @@ static bool gpu_flex_process_line_block(gpu_flex_data_t *data,
          * same-thread) callback; done_lines carries the completed-block count
          * (== blk), preserving the historical flexa_line_done() argument.
          */
-        bk_gpu_frame_composer_t composer = gpu_vn_ctlr->frame_composer;
+        bk_gpu_frame_composer_t composer = gpu_composer_snapshot(gpu_vn_ctlr);
         if (composer.compose_flexa_block != NULL)
         {
             composer.compose_flexa_block(composer.ctx, &block);
@@ -1760,12 +1802,20 @@ static avdk_err_t gpu_ctlr_ioctl(bk_gpu_ctlr_handle_t handle, uint32_t cmd, void
             break;
 
         case BK_GPU_IOCTL_FLEXA_FRAME_UNLOCK:
-            if (control->flexa_frame_mutex == NULL ||
-                rtos_unlock_mutex(&control->flexa_frame_mutex) != BK_OK) {
+        {
+            if (control->flexa_frame_mutex == NULL) {
+                return AVDK_ERR_GENERIC;
+            }
+            if (control->flexa_frame_mutex_owned) {
+                LOGW("%s %d flexa frame unlock while worker owns frame\r\n", __func__, __LINE__);
+                return AVDK_ERR_BUSY;
+            }
+            if (rtos_unlock_mutex(&control->flexa_frame_mutex) != BK_OK) {
                 LOGW("%s %d flexa frame unlock failed\r\n", __func__, __LINE__);
                 return AVDK_ERR_GENERIC;
             }
-            break;
+        }
+        break;
 
         case BK_GPU_IOCTL_SET_OSD_BY_FLEXA:
             control->osd_render_per_flexa_block =
@@ -1818,7 +1868,7 @@ static avdk_err_t gpu_ctlr_ioctl(bk_gpu_ctlr_handle_t handle, uint32_t cmd, void
             if (owner == NULL) {
                 return AVDK_ERR_INVAL;
             }
-            bk_gpu_global_lock();
+            gpu_composer_lock(control);
             avdk_err_t ret = AVDK_ERR_OK;
             if (*owner == BK_GPU_COMPOSITOR_OWNER_NONE) {
                 control->compositor_owner = BK_GPU_COMPOSITOR_OWNER_NONE;
@@ -1829,7 +1879,7 @@ static avdk_err_t gpu_ctlr_ioctl(bk_gpu_ctlr_handle_t handle, uint32_t cmd, void
             } else {
                 ret = AVDK_ERR_BUSY;
             }
-            bk_gpu_global_unlock();
+            gpu_composer_unlock(control);
             return ret;
         }
 
@@ -1837,7 +1887,7 @@ static avdk_err_t gpu_ctlr_ioctl(bk_gpu_ctlr_handle_t handle, uint32_t cmd, void
         {
             bk_gpu_frame_composer_t *composer =
                 (bk_gpu_frame_composer_t *)args;
-            bk_gpu_global_lock();
+            gpu_composer_lock(control);
             avdk_err_t ret = AVDK_ERR_OK;
             if (composer == NULL) {
                 os_memset(&control->frame_composer, 0,
@@ -1874,7 +1924,7 @@ static avdk_err_t gpu_ctlr_ioctl(bk_gpu_ctlr_handle_t handle, uint32_t cmd, void
                 control->compositor_owner =
                     BK_GPU_COMPOSITOR_OWNER_LEGACY;
             }
-            bk_gpu_global_unlock();
+            gpu_composer_unlock(control);
             return ret;
         }
 
@@ -1885,9 +1935,7 @@ static avdk_err_t gpu_ctlr_ioctl(bk_gpu_ctlr_handle_t handle, uint32_t cmd, void
             if (composer == NULL) {
                 return AVDK_ERR_INVAL;
             }
-            bk_gpu_global_lock();
-            *composer = control->frame_composer;
-            bk_gpu_global_unlock();
+            *composer = gpu_composer_snapshot(control);
         }
         break;
 
@@ -1898,19 +1946,15 @@ static avdk_err_t gpu_ctlr_ioctl(bk_gpu_ctlr_handle_t handle, uint32_t cmd, void
                 return AVDK_ERR_INVAL;
             }
             /*
-             * Snapshot the composer under the lock, then run refresh_dirty
-             * unlocked: the overlay takes its own mutex and issues GPU work, so
-             * holding the GPU global lock across it would serialize/stall the worker.
+             * Snapshot under composer_mutex, then run refresh_dirty unlocked:
+             * the overlay takes its own mutex and issues GPU work under the
+             * GPU global lock, so do not hold composer_mutex across it.
              */
-            bk_gpu_global_lock();
-            avdk_err_t (*refresh)(void *, void *) =
-                control->frame_composer.refresh_dirty;
-            void *ctx = control->frame_composer.ctx;
-            bk_gpu_global_unlock();
-            if (refresh == NULL || ctx == NULL) {
+            bk_gpu_frame_composer_t composer = gpu_composer_snapshot(control);
+            if (composer.refresh_dirty == NULL || composer.ctx == NULL) {
                 return AVDK_ERR_OK; /* nothing composited yet */
             }
-            return refresh(ctx, bg_frame);
+            return composer.refresh_dirty(composer.ctx, bg_frame);
         }
 
         default:
@@ -1926,10 +1970,20 @@ static avdk_err_t gpu_ctlr_delete(bk_gpu_ctlr_handle_t handle)
     AVDK_RETURN_ON_FALSE(control, AVDK_ERR_INVAL, TAG, "control is NULL");
 
     /* Tear down the hidden legacy-blit overlay (if any) with the controller. */
-    if (control->frame_composer.destroy != NULL)
+    bk_gpu_frame_composer_t composer;
+    gpu_composer_lock(control);
+    composer = control->frame_composer;
+    os_memset(&control->frame_composer, 0, sizeof(control->frame_composer));
+    control->compositor_owner = BK_GPU_COMPOSITOR_OWNER_NONE;
+    gpu_composer_unlock(control);
+    if (composer.destroy != NULL)
     {
-        control->frame_composer.destroy(control->frame_composer.ctx);
-        os_memset(&control->frame_composer, 0, sizeof(control->frame_composer));
+        composer.destroy(composer.ctx);
+    }
+
+    if (control->composer_mutex != NULL) {
+        rtos_deinit_mutex(&control->composer_mutex);
+        control->composer_mutex = NULL;
     }
 
     os_free(control);
@@ -2026,6 +2080,36 @@ static avdk_err_t gpu_ctlr_validate_scale_flexa(const bk_gpu_ctlr_config_t *conf
     return AVDK_ERR_OK;
 }
 
+static avdk_err_t gpu_ctlr_validate_config(const bk_gpu_ctlr_config_t *config)
+{
+    if (config == NULL) {
+        return AVDK_ERR_INVAL;
+    }
+
+    if (config->src_width == 0 || config->src_height == 0 ||
+        config->dst_width == 0 || config->dst_height == 0) {
+        LOGE("%s, zero geometry: src=%ux%u dst=%ux%u\n", __func__,
+             config->src_width, config->src_height,
+             config->dst_width, config->dst_height);
+        return AVDK_ERR_INVAL;
+    }
+
+    if (config->flexa_lines == 0 || config->flexa_buff_cnt == 0) {
+        LOGE("%s, invalid flexa params: lines=%u buff_cnt=%u\n", __func__,
+             config->flexa_lines, config->flexa_buff_cnt);
+        return AVDK_ERR_INVAL;
+    }
+
+    if (gpu_format_convert(config->src_format) == (vg_lite_buffer_format_t)-1 ||
+        gpu_format_convert(config->dst_format) == (vg_lite_buffer_format_t)-1) {
+        LOGE("%s, unsupported pixel format: src=%d dst=%d\n", __func__,
+             (int)config->src_format, (int)config->dst_format);
+        return AVDK_ERR_INVAL;
+    }
+
+    return AVDK_ERR_OK;
+}
+
 avdk_err_t bk_gpu_ctlr_new(bk_gpu_ctlr_handle_t *handle, bk_gpu_ctlr_config_t *config)
 {
     AVDK_RETURN_ON_FALSE(config && handle, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
@@ -2034,9 +2118,19 @@ avdk_err_t bk_gpu_ctlr_new(bk_gpu_ctlr_handle_t *handle, bk_gpu_ctlr_config_t *c
         return AVDK_ERR_INVAL;
     }
 
+    if (gpu_ctlr_validate_config(config) != AVDK_ERR_OK) {
+        return AVDK_ERR_INVAL;
+    }
+
     gpu_vn_ctlr_t *controller = os_malloc(sizeof(gpu_vn_ctlr_t));
     AVDK_RETURN_ON_FALSE(controller, AVDK_ERR_NOMEM, TAG, AVDK_ERR_NOMEM_TEXT);
     os_memset(controller, 0, sizeof(gpu_vn_ctlr_t));
+
+    if (rtos_init_mutex(&controller->composer_mutex) != BK_OK) {
+        LOGE("%s, %d rtos_init_mutex composer_mutex failed\n", __func__, __LINE__);
+        os_free(controller);
+        return AVDK_ERR_NOMEM;
+    }
 
     os_memcpy(&controller->config, config, sizeof(bk_gpu_ctlr_config_t));
     controller->osd_render_per_flexa_block = false;

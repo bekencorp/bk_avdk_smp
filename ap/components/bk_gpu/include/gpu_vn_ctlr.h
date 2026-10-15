@@ -156,7 +156,9 @@ typedef struct
      * Frame-compositor arbitration + hook for the legacy bk_gpu_blit_set path.
      * compositor_owner holds a bk_gpu_compositor_owner_t; frame_composer, when
      * registered, is driven once per finished frame before frame_done().
+     * composer_mutex protects owner + frame_composer (not GPU HW / vg_lite).
      */
+    beken_mutex_t composer_mutex;
     uint8_t compositor_owner;
     bk_gpu_frame_composer_t frame_composer;
     gpu_flex_data_t flex;
