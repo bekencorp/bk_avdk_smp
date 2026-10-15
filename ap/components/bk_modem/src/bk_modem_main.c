@@ -232,6 +232,17 @@ bk_err_t bk_modem_deinit(void)
     return BK_OK;
 }
 
+bk_err_t bk_modem_get_comm_config(uint8_t *comm_proto, uint8_t *comm_if)
+{
+    if (comm_proto == NULL || comm_if == NULL) {
+        return BK_ERR_NULL_PARAM;
+    }
+
+    *comm_proto = (uint8_t)bk_modem_env.comm_proto;
+    *comm_if = (uint8_t)bk_modem_env.comm_if;
+    return BK_OK;
+}
+
 /**
  * @brief Initialize the modem module
  * @param comm_proto Communication protocol (PPP_MODE or UART_NIC_MODE)
