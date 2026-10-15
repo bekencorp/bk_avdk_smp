@@ -823,6 +823,17 @@ void wdrv_rx_handle_wifi_cntrl_event(wdrv_rx_msg *msg)
         case BK_EVT_WIFI_EVENT_IND:
             wdrv_handle_wifi_event_ind((cif_wifi_event_ind_t *)msg->param);
             break;
+        case BK_EVT_DHCP_TIMEOUT_IND:
+#if CONFIG_IPV6
+            if (!msg->param || msg->param_len < sizeof(netif_event_got_ip4_t)) {
+                WDRV_LOGE("invalid dhcp timeout ind, len=%u\n", msg->param_len);
+                break;
+            }
+            BK_LOG_ON_ERR(bk_event_post(EVENT_MOD_NETIF, EVENT_NETIF_DHCP_TIMEOUT,
+                                        msg->param, msg->param_len,
+                                        BEKEN_NEVER_TIMEOUT));
+#endif
+            break;
 #endif
 #if CONFIG_CONTROLLER_AP_BUFFER_COPY
         case BK_EVT_TX_FLOW_RESUME_IND:
