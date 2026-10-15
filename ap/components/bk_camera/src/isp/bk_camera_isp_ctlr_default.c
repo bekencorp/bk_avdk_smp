@@ -389,6 +389,31 @@ static bk_err_t isp_camera_ctlr_port_change(bk_isp_camera_ctlr_handle_t handle)
     return AVDK_ERR_OK;
 }
 
+/* Fire the parked release callbacks for the external flexa buffers. Called
+ * when the ctlr stops owning the buffers: camera ctlr deinit (the ISP core is
+ * torn down there) and ctlr delete (safety net for a caller that skipped
+ * deinit). A slot with a release_cb is fired and cleared (the app frees the
+ * buffer in the cb, so the parked pointer must not survive); a slot without
+ * a cb is caller-owned and stays parked -- the memory is still valid, so a
+ * later channel_open keeps reusing it. */
+static void isp_camera_ctlr_release_ext_flexa_bufs(bk_camera_isp_ctlr_t *control)
+{
+    for (uint8_t channel = 0; channel < ISP_CHANNEL_INSTANCE_MAX; channel++)
+    {
+        if (control->ext_flexa_buf[channel] != NULL
+            && control->ext_flexa_buf_release_cb[channel] != NULL)
+        {
+            control->ext_flexa_buf_release_cb[channel](
+                control->ext_flexa_buf[channel],
+                control->ext_flexa_buf_user_data[channel]);
+            control->ext_flexa_buf[channel] = NULL;
+            control->ext_flexa_buf_size[channel] = 0;
+            control->ext_flexa_buf_release_cb[channel] = NULL;
+            control->ext_flexa_buf_user_data[channel] = NULL;
+        }
+    }
+}
+
 static avdk_err_t isp_camera_ctlr_deinit(bk_isp_camera_ctlr_handle_t handle)
 {
     avdk_err_t ret = AVDK_ERR_GENERIC;
@@ -415,6 +440,10 @@ static avdk_err_t isp_camera_ctlr_deinit(bk_isp_camera_ctlr_handle_t handle)
         }
         control->isp_handle = NULL;
     }
+
+    /* The ISP core that used the external flexa buffers is gone: hand them
+     * back to the app via the parked release callbacks. */
+    isp_camera_ctlr_release_ext_flexa_bufs(control);
 
     ret = BK_OK;
 
@@ -555,6 +584,10 @@ static avdk_err_t isp_camera_ctlr_delete(bk_isp_camera_ctlr_handle_t handle)
 {
     bk_camera_isp_ctlr_t *control = __containerof(handle, bk_camera_isp_ctlr_t, ops);
     AVDK_RETURN_ON_FALSE(control, AVDK_ERR_INVAL, TAG, "control is NULL");
+
+    /* Safety net: a caller that skipped deinit still gets its external flexa
+     * buffers handed back before the ctlr (and the parked slots) die. */
+    isp_camera_ctlr_release_ext_flexa_bufs(control);
 
     isp_camera_ctlr_private_t *private = isp_camera_ctlr_get_private(control);
     for (uint8_t channel = 0; channel < ISP_CHANNEL_INSTANCE_MAX; channel++)
@@ -726,6 +759,12 @@ static avdk_err_t isp_camera_ctlr_channel_open(bk_isp_camera_ctlr_handle_t handl
         isp_config.skip_frames
     );
 
+    /* Hand a flexa buffer parked via BK_CAM_IOCTL_SET_FLEXA_BUF to bk_isp_open
+     * through the config: bk_isp_open installs it instead of allocating. This
+     * works whether or not the ISP core (isp_handle) has been created yet. */
+    isp_config.ext_buf = controller->ext_flexa_buf[channel];
+    isp_config.ext_buf_size = controller->ext_flexa_buf_size[channel];
+
     AVDK_RETURN_ON_ERROR(bk_isp_open(&controller->isp_handle, &isp_config), TAG, "exe fail");
     controller->chnl = channel;
 
@@ -870,10 +909,66 @@ static avdk_err_t isp_camera_ctlr_frame_pop(bk_isp_camera_ctlr_handle_t handle, 
 static avdk_err_t isp_camera_ctlr_frame_qbuf(bk_isp_camera_ctlr_handle_t handle, uint8_t channel,
                                              uint8_t index);
 
+static bool buf_on_psram(const void *buf)
+{
+    uint32_t buf_addr = (uint32_t)(uintptr_t)buf;
+    return buf_addr >= (uint32_t)SOC_PSRAM0_DATA_BASE
+           && buf_addr < ((uint32_t)SOC_PSRAM1_DATA_BASE + SOC_PSRAM_16M_SIZE);
+}
+
 static avdk_err_t isp_camera_ctlr_ioctl(bk_isp_camera_ctlr_handle_t handle, bk_cam_interface_ioctl_t ioctl, void *arg)
 {
     bk_camera_isp_ctlr_t *controller = __containerof(handle, bk_camera_isp_ctlr_t, ops);
     AVDK_RETURN_ON_FALSE(controller, AVDK_ERR_INVAL, TAG, "control is NULL");
+
+    /* Flexa buffer ioctls must work before dev_init/channel_open, so handle
+     * them before the isp_handle check: the size query is pure math and the
+     * buffer is parked in the controller until channel_open injects it. */
+    switch (ioctl)
+    {
+        case BK_CAM_IOCTL_GET_FLEXA_BUF_SIZE:
+        {
+            bk_isp_camera_flexa_buf_size_t *query =
+                (bk_isp_camera_flexa_buf_size_t *)arg;
+            AVDK_RETURN_ON_FALSE(
+                query, AVDK_ERR_INVAL, TAG, "flexa buf size arg is NULL");
+            bk_err_t isp_ret = bk_isp_flexa_buffer_size_get(
+                query->buf_cnt, query->width, &query->size);
+            return (isp_ret == BK_OK) ? AVDK_ERR_OK : AVDK_ERR_GENERIC;
+        }
+
+        case BK_CAM_IOCTL_SET_FLEXA_BUF:
+        {
+            bk_isp_camera_flexa_buf_t *cfg =
+                (bk_isp_camera_flexa_buf_t *)arg;
+            AVDK_RETURN_ON_FALSE(
+                cfg && cfg->buffer, AVDK_ERR_INVAL, TAG, "flexa buf arg is invalid");
+            AVDK_RETURN_ON_FALSE(
+                cfg->channel < ISP_CHANNEL_INSTANCE_MAX, AVDK_ERR_INVAL, TAG, "flexa buf channel invalid");
+
+            if (controller->ext_flexa_buf[cfg->channel] != NULL)
+            {
+                LOGW("%s, %d, ch%d flexa buf already set, release it\n", __func__, __LINE__, cfg->channel);
+                return AVDK_ERR_GENERIC;
+            }
+
+            if (buf_on_psram(cfg->buffer))
+            {
+                LOGW("%s, %d, flexa buf is on PSRAM, not allowed\n", __func__, __LINE__);
+                return AVDK_ERR_GENERIC;
+            }
+
+            controller->ext_flexa_buf[cfg->channel] = cfg->buffer;
+            controller->ext_flexa_buf_size[cfg->channel] = cfg->size;
+            controller->ext_flexa_buf_release_cb[cfg->channel] = cfg->release_cb;
+            controller->ext_flexa_buf_user_data[cfg->channel] = cfg->user_data;
+            return AVDK_ERR_OK;
+        }
+
+        default:
+            break;
+    }
+
     AVDK_RETURN_ON_FALSE(controller->isp_handle, AVDK_ERR_INVAL, TAG, "isp_handle is NULL");
 
     switch (ioctl)
