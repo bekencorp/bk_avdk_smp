@@ -30,6 +30,83 @@ static USB_NOCACHE_RAM_SECTION USB_MEM_ALIGNX uint8_t g_cdc_ecm_inttx_buffer[USB
 
 static struct usbh_cdc_ecm g_cdc_ecm_class;
 
+/* Stop handshake for the rx thread. Killing its URBs only makes the blocking
+ * submit return; the thread still runs and still touches g_cdc_ecm_class and the
+ * netif afterwards, so disconnect has to know whether it has actually left
+ * before tearing any of that down.
+ *
+ * The state says who owns g_cdc_ecm_class right now:
+ *   IDLE     nobody - safe to (re)connect
+ *   RUNNING  the rx thread
+ *   EXITING  the rx thread has made its last access and given the exit
+ *            semaphore; disconnect does the teardown
+ * The wait is unconditional: disconnect must not return while the thread can
+ * still touch a USB object, because usbh_hubport_release() deletes hport->mutex
+ * as soon as we return (usbh_core.c:607) and the next enumeration memsets the
+ * whole hubport, descriptors and endpoints included. Deferring only the class
+ * teardown would not save a thread that is holding those.
+ *
+ * What bounds the wait is the disconnect path itself, not a timeout: hport
+ * ->connected is already false before CLASS_DISCONNECT runs (usbh_core.c:597,
+ * the only caller), and usbh_submit_urb() refuses a disconnected port with
+ * -ENODEV (usb_hc_beken_musb.c:1988). So an urb in flight is ended by the kills
+ * below, and one submitted just after them fails immediately instead of
+ * blocking. The thread's remaining delays are its own msleep(100)/msleep(128),
+ * so it reaches the exit within roughly 128ms.
+ *
+ * The mutex covers the RUNNING->EXITING handoff, the one transition the rx
+ * thread and the enumeration thread can reach at once, and orders the thread's
+ * last shared write before disconnect publishes IDLE. */
+enum {
+    CDC_ECM_RX_IDLE = 0,
+    CDC_ECM_RX_RUNNING,
+    CDC_ECM_RX_EXITING,
+};
+
+static volatile bool g_cdc_ecm_rx_running;
+static volatile uint8_t g_cdc_ecm_rx_state;
+static usb_osal_sem_t g_cdc_ecm_rx_exit_sem;
+static usb_osal_mutex_t g_cdc_ecm_rx_lock;
+
+int usbh_cdc_ecm_rx_thread_prepare(void)
+{
+    /* Created once and reused: deleting either per disconnect would reintroduce
+     * a race with a thread that has not woken up yet. */
+    if (g_cdc_ecm_rx_lock == NULL) {
+        g_cdc_ecm_rx_lock = usb_osal_mutex_create();
+        if (g_cdc_ecm_rx_lock == NULL) {
+            USB_LOG_ERR("Failed to create cdc ecm rx lock\r\n");
+            return -USB_ERR_NOMEM;
+        }
+    }
+
+    if (g_cdc_ecm_rx_exit_sem == NULL) {
+        g_cdc_ecm_rx_exit_sem = usb_osal_sem_create(0);
+        if (g_cdc_ecm_rx_exit_sem == NULL) {
+            USB_LOG_ERR("Failed to create cdc ecm rx exit sem\r\n");
+            return -USB_ERR_NOMEM;
+        }
+    } else {
+        /* Backstop. Disconnect already drains the count under the lock after the
+         * thread's last write, so a stale count should not reach here; this only
+         * keeps one from surviving into the next connection if it somehow does.
+         * Drained rather than usb_osal_sem_reset(), which is an empty stub in
+         * this SDK's OSAL adaptor. Zero timeout does not block. */
+        while (usb_osal_sem_take(g_cdc_ecm_rx_exit_sem, 0) == 0) {
+        }
+    }
+
+    g_cdc_ecm_rx_running = true;
+    g_cdc_ecm_rx_state = CDC_ECM_RX_RUNNING;
+    return 0;
+}
+
+void usbh_cdc_ecm_rx_thread_abort(void)
+{
+    g_cdc_ecm_rx_running = false;
+    g_cdc_ecm_rx_state = CDC_ECM_RX_IDLE;
+}
+
 static int usbh_cdc_ecm_set_eth_packet_filter(struct usbh_cdc_ecm *cdc_ecm_class, uint16_t filter_value)
 {
     struct usb_setup_packet *setup;
@@ -82,6 +159,15 @@ static int usbh_cdc_ecm_connect(struct usbh_hubport *hport, uint8_t intf)
 
     struct usbh_cdc_ecm *cdc_ecm_class = &g_cdc_ecm_class;
 
+    /* There is one static instance, so a re-plug that lands here while the
+     * previous rx thread still owns it must be refused: the memset() below
+     * would pull the endpoints out from under that thread. Cleared again once
+     * the thread finishes its own teardown, so a later re-plug gets through. */
+    if (g_cdc_ecm_rx_state != CDC_ECM_RX_IDLE) {
+        USB_LOG_ERR("CDC ECM instance still busy (rx state:%d)\r\n", g_cdc_ecm_rx_state);
+        return -USB_ERR_BUSY;
+    }
+
     memset(cdc_ecm_class, 0, sizeof(struct usbh_cdc_ecm));
 
     cdc_ecm_class->hport = hport;
@@ -123,6 +209,7 @@ get_mac:
     memset(mac_buffer, 0, 12);
     ret = usbh_get_string_desc(cdc_ecm_class->hport, mac_str_idx, (uint8_t *)mac_buffer, 12);
     if (ret < 0) {
+        USB_LOG_ERR("Failed to read cdc ecm mac string %u, ret:%d\r\n", mac_str_idx, ret);
         return ret;
     }
 
@@ -168,7 +255,14 @@ get_mac:
         }
 
         USB_LOG_INFO("Select cdc ecm altsetting: %d\r\n", altsetting);
-        usbh_set_interface(cdc_ecm_class->hport, cdc_ecm_class->data_intf, altsetting);
+        /* Bail out instead of falling through: the endpoints above were taken
+         * from the alt1 descriptor, so if the device stays on alt0 its data
+         * endpoints are not active and no netif must be created. */
+        ret = usbh_set_interface(cdc_ecm_class->hport, cdc_ecm_class->data_intf, altsetting);
+        if (ret < 0) {
+            USB_LOG_ERR("Failed to select cdc ecm altsetting %d, ret:%d\r\n", altsetting, ret);
+            return ret;
+        }
     } else {
         for (uint8_t i = 0; i < hport->config.intf[intf + 1].altsetting[0].intf_desc.bNumEndpoints; i++) {
             ep_desc = &hport->config.intf[intf + 1].altsetting[0].ep[i].ep_desc;
@@ -197,7 +291,16 @@ get_mac:
 
     USB_LOG_INFO("Register CDC ECM Class:%s\r\n", hport->config.intf[intf].devname);
 
-    usbh_cdc_ecm_run(cdc_ecm_class);
+    ret = usbh_cdc_ecm_run(cdc_ecm_class);
+    if (ret < 0) {
+        /* run() rolled back whatever it had built, so leave no devname behind
+         * either: an interface that carries no traffic is worse than no
+         * interface, and disconnect keys its teardown off this name. */
+        USB_LOG_ERR("Failed to start CDC ECM, ret:%d\r\n", ret);
+        memset(hport->config.intf[intf].devname, 0, CONFIG_USBHOST_DEV_NAMELEN);
+        return ret;
+    }
+
     return ret;
 }
 
@@ -208,6 +311,15 @@ static int usbh_cdc_ecm_disconnect(struct usbh_hubport *hport, uint8_t intf)
     struct usbh_cdc_ecm *cdc_ecm_class = (struct usbh_cdc_ecm *)hport->config.intf[intf].priv;
 
     if (cdc_ecm_class) {
+        /* Before the kills, not after: a thread that wakes up between the kill
+         * and the flag going down just submits another WAITING_FOREVER urb and
+         * is then unreachable. */
+        g_cdc_ecm_rx_running = false;
+        /* Same reason on the tx side: usbh_cdc_ecm_eth_output() gates on this
+         * alone, and the netif stays up until stop() below. Without it lwIP can
+         * keep handing us frames while we are tearing the instance down. */
+        cdc_ecm_class->connect_status = false;
+
         if (cdc_ecm_class->bulkin) {
             usbh_kill_urb(&cdc_ecm_class->bulkin_urb);
         }
@@ -221,12 +333,45 @@ static int usbh_cdc_ecm_disconnect(struct usbh_hubport *hport, uint8_t intf)
         }
 
         if (hport->config.intf[intf].devname[0] != '\0') {
-            usb_osal_thread_schedule_other();
             USB_LOG_INFO("Unregister CDC ECM Class:%s\r\n", hport->config.intf[intf].devname);
-            usbh_cdc_ecm_stop(cdc_ecm_class);
-        }
 
-        memset(cdc_ecm_class, 0, sizeof(struct usbh_cdc_ecm));
+            /* Wait for the thread to confirm it has stopped touching the USB
+             * objects. Nothing below may run before that: stop() removes the
+             * netif it feeds, the memset() clears the endpoints it reads, and
+             * our caller then deletes hport->mutex and later reuses the whole
+             * hubport. No timeout - see the handshake comment at the top for why
+             * the thread is already bounded, and why returning early would hand
+             * a live thread pointers that are about to be recycled. */
+            if (g_cdc_ecm_rx_state == CDC_ECM_RX_RUNNING && g_cdc_ecm_rx_exit_sem) {
+                usb_osal_sem_take(g_cdc_ecm_rx_exit_sem, USB_OSAL_WAITING_FOREVER);
+            }
+
+            if (g_cdc_ecm_rx_lock) {
+                /* Taking the lock puts us after the thread's last shared write,
+                 * whether we observed EXITING above or raced it. Then drain, so
+                 * a count the thread left behind after exiting on its own cannot
+                 * satisfy the next disconnect's wait, and publish IDLE here
+                 * rather than letting the thread do it - it must not write
+                 * anything once a new connection may already own the state. */
+                usb_osal_mutex_take(g_cdc_ecm_rx_lock);
+                if (g_cdc_ecm_rx_exit_sem) {
+                    while (usb_osal_sem_take(g_cdc_ecm_rx_exit_sem, 0) == 0) {
+                    }
+                }
+                usbh_cdc_ecm_stop(cdc_ecm_class);
+                memset(cdc_ecm_class, 0, sizeof(struct usbh_cdc_ecm));
+                g_cdc_ecm_rx_state = CDC_ECM_RX_IDLE;
+                usb_osal_mutex_give(g_cdc_ecm_rx_lock);
+            } else {
+                /* No lock means run() never got as far as creating one, so no
+                 * thread was ever started and there is nothing to order against. */
+                usbh_cdc_ecm_stop(cdc_ecm_class);
+                memset(cdc_ecm_class, 0, sizeof(struct usbh_cdc_ecm));
+                g_cdc_ecm_rx_state = CDC_ECM_RX_IDLE;
+            }
+        } else {
+            memset(cdc_ecm_class, 0, sizeof(struct usbh_cdc_ecm));
+        }
     }
 
     return ret;
@@ -242,12 +387,17 @@ void usbh_cdc_ecm_rx_thread(CONFIG_USB_OSAL_THREAD_SET_ARGV)
     // clang-format off
 find_class:
     // clang-format on
+    /* Every path that loops back here must re-test the stop flag, otherwise a
+     * disconnect that kills the URBs just sends the thread round again. */
+    if (!g_cdc_ecm_rx_running) {
+        goto delete;
+    }
     g_cdc_ecm_class.connect_status = false;
     if (usbh_find_class_instance("/dev/cdc_ether") == NULL) {
         goto delete;
     }
 
-    while (g_cdc_ecm_class.connect_status == false) {
+    while (g_cdc_ecm_rx_running && g_cdc_ecm_class.connect_status == false) {
         ret = usbh_cdc_ecm_get_connect_status(&g_cdc_ecm_class);
         if (ret < 0) {
             usb_osal_msleep(100);
@@ -257,7 +407,7 @@ find_class:
     }
 
     g_cdc_ecm_rx_length = 0;
-    while (1) {
+    while (g_cdc_ecm_rx_running) {
         usbh_bulk_urb_fill(&g_cdc_ecm_class.bulkin_urb, g_cdc_ecm_class.hport, g_cdc_ecm_class.bulkin, g_cdc_ecm_rx_buffer, CONFIG_USBHOST_CDC_ECM_ETH_MAX_SIZE, USB_OSAL_WAITING_FOREVER, NULL, NULL);
         ret = usbh_submit_urb(&g_cdc_ecm_class.bulkin_urb);
         if (ret < 0) {
@@ -285,6 +435,23 @@ find_class:
     // clang-format off
 delete:
     USB_LOG_INFO("Delete cdc ecm rx thread\r\n");
+    g_cdc_ecm_rx_running = false;
+
+    /* Publish the exit and signal it as one step, so a disconnect that takes the
+     * lock afterwards is guaranteed to be past both. Everything this thread will
+     * ever touch has been touched by now; it does not write IDLE and does not
+     * come back, which is what keeps a late signal from this connection out of
+     * the next one. */
+    if (g_cdc_ecm_rx_lock) {
+        usb_osal_mutex_take(g_cdc_ecm_rx_lock);
+    }
+    g_cdc_ecm_rx_state = CDC_ECM_RX_EXITING;
+    if (g_cdc_ecm_rx_exit_sem) {
+        usb_osal_sem_give(g_cdc_ecm_rx_exit_sem);
+    }
+    if (g_cdc_ecm_rx_lock) {
+        usb_osal_mutex_give(g_cdc_ecm_rx_lock);
+    }
     usb_osal_thread_delete(NULL);
     // clang-format on
 }

@@ -35,13 +35,22 @@ extern "C" {
 
 int usbh_cdc_ecm_get_connect_status(struct usbh_cdc_ecm *cdc_ecm_class);
 
-void usbh_cdc_ecm_run(struct usbh_cdc_ecm *cdc_ecm_class);
+/* Returns < 0 if the interface could not be brought up, with everything it had
+ * built already rolled back; usbh_cdc_ecm_connect() then fails too instead of
+ * registering a device that carries no traffic. */
+int usbh_cdc_ecm_run(struct usbh_cdc_ecm *cdc_ecm_class);
 void usbh_cdc_ecm_stop(struct usbh_cdc_ecm *cdc_ecm_class);
 
 uint8_t *usbh_cdc_ecm_get_eth_txbuf(void);
 int usbh_cdc_ecm_eth_output(uint32_t buflen);
 void usbh_cdc_ecm_eth_input(uint8_t *buf, uint32_t buflen);
 void usbh_cdc_ecm_rx_thread(CONFIG_USB_OSAL_THREAD_SET_ARGV);
+
+/* Arm/undo the rx thread stop handshake. Call prepare() before creating the
+ * thread and abort() if that creation fails; disconnect then waits for the
+ * thread to confirm it has exited before tearing the instance down. */
+int usbh_cdc_ecm_rx_thread_prepare(void);
+void usbh_cdc_ecm_rx_thread_abort(void);
 
 #ifdef __cplusplus
 }

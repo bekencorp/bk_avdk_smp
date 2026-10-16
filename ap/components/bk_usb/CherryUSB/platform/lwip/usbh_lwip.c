@@ -5,6 +5,7 @@
  */
 #include "netif/etharp.h"
 #include "lwip/netif.h"
+#include "lwip/netifapi.h"
 #include "lwip/pbuf.h"
 #include "lwip/tcpip.h"
 #if LWIP_DHCP
@@ -117,6 +118,12 @@ static void dhcp_timeout(void *arg)
 
 struct netif g_cdc_ecm_netif;
 
+/* Whether g_cdc_ecm_netif is currently registered with lwIP. run() can fail
+ * after rolling its own work back, and disconnect still calls stop() for the
+ * cases where the rx thread owned the teardown, so stop() needs to tell a live
+ * interface from one that was never there. */
+static bool g_cdc_ecm_netif_added;
+
 static err_t usbh_cdc_ecm_linkoutput(struct netif *netif, struct pbuf *p)
 {
     int ret;
@@ -150,9 +157,15 @@ static err_t usbh_cdc_ecm_if_init(struct netif *netif)
     return ERR_OK;
 }
 
-void usbh_cdc_ecm_run(struct usbh_cdc_ecm *cdc_ecm_class)
+/* This runs on the USB enumeration thread, so every netif/dhcp call below goes
+ * through netifapi_* to execute inside the tcpip thread. LWIP_TCPIP_CORE_LOCKING
+ * is 1 here (lwipopts.h leaves it at the opt.h default), which makes the raw
+ * netif_add()/dhcp_start() calls this file used to make a data race against the
+ * tcpip thread. netifapi_* is also what this SDK's own net.c uses for its netifs. */
+int usbh_cdc_ecm_run(struct usbh_cdc_ecm *cdc_ecm_class)
 {
     struct netif *netif = &g_cdc_ecm_netif;
+    err_t err;
 
     netif->hwaddr_len = 6;
     memcpy(netif->hwaddr, cdc_ecm_class->mac, 6);
@@ -161,23 +174,78 @@ void usbh_cdc_ecm_run(struct usbh_cdc_ecm *cdc_ecm_class)
     IP4_ADDR(&g_netmask, 0, 0, 0, 0);
     IP4_ADDR(&g_gateway, 0, 0, 0, 0);
 
-    netif = netif_add(netif, &g_ipaddr, &g_netmask, &g_gateway, NULL, usbh_cdc_ecm_if_init, tcpip_input);
-    netif_set_default(netif);
-    while (!netif_is_up(netif)) {
+    err = netifapi_netif_add(netif, ip_2_ip4(&g_ipaddr), ip_2_ip4(&g_netmask), ip_2_ip4(&g_gateway),
+                             NULL, usbh_cdc_ecm_if_init, tcpip_input);
+    if (err != ERR_OK) {
+        USB_LOG_ERR("Failed to add cdc ecm netif, err:%d\r\n", err);
+        return -USB_ERR_INVAL;
+    }
+    g_cdc_ecm_netif_added = true;
+    netifapi_netif_set_default(netif);
+
+    /* usbh_cdc_ecm_if_init() raises NETIF_FLAG_UP itself and netifapi_netif_add()
+     * only returns once the tcpip thread has run it, so this is a state check,
+     * not a wait. Spinning here would hang the enumeration thread for good. */
+    if (!netif_is_up(netif)) {
+        USB_LOG_ERR("cdc ecm netif did not come up\r\n");
+        goto err_remove_netif;
     }
 
     dhcp_handle = usb_osal_timer_create("dhcp", 200, dhcp_timeout, netif, true);
     if (dhcp_handle == NULL) {
         USB_LOG_ERR("timer creation failed! \r\n");
-        while (1) {
-        }
+        goto err_remove_netif;
     }
 
-    usb_osal_thread_create("usbh_cdc_ecm_rx", 2048, CONFIG_USBHOST_PSC_PRIO + 1, usbh_cdc_ecm_rx_thread, NULL);
+    /* DHCP is started before the rx thread on purpose: rolling a failed
+     * dhcp_start() back would otherwise have to stop a thread that is already
+     * running, which duplicates disconnect's exit handshake inside this
+     * function. dhcp_start() only queues a DISCOVER and arms lwIP's own retry
+     * timers, so having the thread appear milliseconds later changes nothing -
+     * the retries cover it. */
 #if LWIP_DHCP
-    dhcp_start(netif);
+    err = netifapi_dhcp_start(netif);
+    if (err != ERR_OK) {
+        USB_LOG_ERR("Failed to start dhcp on cdc ecm netif, err:%d\r\n", err);
+        goto err_stop_dhcp;
+    }
+#endif
+
+    /* Arm the stop handshake before the thread exists: usbh_cdc_ecm_rx_thread()
+     * gives the semaphore on its way out and disconnect waits for it. */
+    if (usbh_cdc_ecm_rx_thread_prepare() < 0) {
+        goto err_stop_dhcp;
+    }
+
+    if (usb_osal_thread_create("usbh_cdc_ecm_rx", 2048, CONFIG_USBHOST_PSC_PRIO + 1,
+                               usbh_cdc_ecm_rx_thread, NULL) == NULL) {
+        USB_LOG_ERR("Failed to create cdc ecm rx thread\r\n");
+        usbh_cdc_ecm_rx_thread_abort();
+        goto err_stop_dhcp;
+    }
+
+#if LWIP_DHCP
     usb_osal_timer_start(dhcp_handle);
 #endif
+    return 0;
+
+    /* Unwind in reverse so a failure leaves nothing behind - no netif with no rx
+     * thread feeding it, no timer polling a netif that is gone. The error goes
+     * back to usbh_cdc_ecm_connect(), which then fails the interface outright. */
+err_stop_dhcp:
+#if LWIP_DHCP
+    /* Safe after a failed dhcp_start() too: dhcp_release_and_stop() and
+     * dhcp_cleanup() both return early when the netif has no dhcp struct. */
+    netifapi_dhcp_stop(netif);
+    netifapi_netif_common(netif, dhcp_cleanup, NULL);
+#endif
+    usb_osal_timer_delete(dhcp_handle);
+    dhcp_handle = NULL;
+err_remove_netif:
+    netifapi_netif_set_down(netif);
+    netifapi_netif_remove(netif);
+    g_cdc_ecm_netif_added = false;
+    return -USB_ERR_INVAL;
 }
 
 void usbh_cdc_ecm_stop(struct usbh_cdc_ecm *cdc_ecm_class)
@@ -185,13 +253,27 @@ void usbh_cdc_ecm_stop(struct usbh_cdc_ecm *cdc_ecm_class)
     struct netif *netif = &g_cdc_ecm_netif;
     (void)cdc_ecm_class;
 
+    /* run() already unwound everything, so there is nothing here to take down
+     * and netif_remove() would be operating on an unregistered netif. */
+    if (!g_cdc_ecm_netif_added) {
+        return;
+    }
+
 #if LWIP_DHCP
-    dhcp_stop(netif);
-    dhcp_cleanup(netif);
-    usb_osal_timer_delete(dhcp_handle);
+    netifapi_dhcp_stop(netif);
+    /* dhcp_cleanup() has no netifapi_ wrapper of its own; netifapi_netif_common()
+     * is the generic form the other wrappers expand to. */
+    netifapi_netif_common(netif, dhcp_cleanup, NULL);
 #endif
-    netif_set_down(netif);
-    netif_remove(netif);
+    /* run() creates the timer unconditionally, so release it the same way.
+     * NULL when run() already rolled back. */
+    if (dhcp_handle) {
+        usb_osal_timer_delete(dhcp_handle);
+        dhcp_handle = NULL;
+    }
+    netifapi_netif_set_down(netif);
+    netifapi_netif_remove(netif);
+    g_cdc_ecm_netif_added = false;
 }
 #endif
 

@@ -119,7 +119,7 @@ void usbh_cdc_ecm_eth_input(uint8_t *buf, uint32_t buflen)
     usbh_net_input_common(&g_cdc_ecm_netif_glue, buf, buflen);
 }
 
-void usbh_cdc_ecm_run(struct usbh_cdc_ecm *cdc_ecm_class)
+int usbh_cdc_ecm_run(struct usbh_cdc_ecm *cdc_ecm_class)
 {
     memset(&g_cdc_ecm_netif_glue, 0, sizeof(struct usbh_net_netif_glue));
 
@@ -140,6 +140,9 @@ void usbh_cdc_ecm_run(struct usbh_cdc_ecm *cdc_ecm_class)
     esp_netif_action_connected(esp_netif, NULL, 0, NULL);
 
     usb_osal_thread_create("usbh_cdc_ecm_rx", 2048, CONFIG_USBHOST_PSC_PRIO + 1, usbh_cdc_ecm_rx_thread, NULL);
+    /* Signature follows the shared header; this platform's own error handling is
+     * left as it was, having no way to exercise it here. */
+    return 0;
 }
 
 void usbh_cdc_ecm_stop(struct usbh_cdc_ecm *cdc_ecm_class)
