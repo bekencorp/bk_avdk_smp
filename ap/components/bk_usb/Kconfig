@@ -254,6 +254,34 @@ menu "Bk_usb"
 			bool "Enable Usb Cdc"
 			default n
 
+		config USBH_CDC_ECM
+			depends on USB_HOST
+			bool "Enable Usb Host Cdc Ecm"
+			default n
+			help
+				Enable the CherryUSB CDC-ECM host class and its lwIP glue, used to
+				bring up a USB ethernet netif (for example a 4G module exposing
+				CDC-ECM). Requires LWIP_TCPIP_THREAD_STACKSIZE >= 1024.
+
+		config USB_HOST_FIFO_LAYOUT_4BULK
+			depends on USB_HOST
+			bool "Host FIFO layout: 4 bulk slots of 512 bytes"
+			default n
+			help
+				Re-partitions the controller's 4096-byte dynamic FIFO for projects
+				that need four concurrent 512-byte bulk endpoints - for example a
+				CDC-ECM netif (bulk in+out) running in parallel with a vendor AT
+				channel (bulk in+out) on the same composite device.
+
+				The default layout reserves 1024 bytes per big-packet slot and so
+				offers only three of them, which is one short. This option reserves
+				512 bytes for local indices 1..4 and 64 bytes for 5..7, leaving the
+				total inside 4096 bytes.
+
+				Keep this off for projects with 1024-byte endpoints (UVC/UAC
+				isochronous): under this layout a 1024-byte endpoint landing in
+				indices 1..4 would overrun the next slot.
+
 		config USB_CHARGE
 			bool "Enable Usb Charge"
 			default n

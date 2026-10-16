@@ -200,6 +200,25 @@ if (CONFIG_USB)
 			)
 		endif() # CONFIG_USB_CDC
 
+		if (CONFIG_USBH_CDC_ECM)
+			list(APPEND incs
+				${BK_CHERRYUSB_DIR}/platform/lwip
+			)
+			list(APPEND srcs
+				${BK_CHERRYUSB_DIR}/class/cdc/usbh_cdc_ecm.c
+				${BK_CHERRYUSB_DIR}/platform/lwip/usbh_lwip.c
+			)
+			# usbh_lwip.c has a #warning advising LWIP_TCPIP_CORE_LOCKING_INPUT=1,
+			# which -Werror turns into a build failure. With it at 0 the file takes
+			# the PBUF_POOL + memcpy path, which is correct, just not zero-copy;
+			# raising it would mean changing the shared lwipopts.h and the input
+			# semantics of every other netif, so downgrade the warning here only.
+			set_source_files_properties(
+				${BK_CHERRYUSB_DIR}/platform/lwip/usbh_lwip.c
+				PROPERTIES COMPILE_FLAGS -Wno-error=cpp
+			)
+		endif() # CONFIG_USBH_CDC_ECM
+
 		if (CONFIG_USBH_SERIAL_CH340)
 			list(APPEND incs
 				bk_usbh_simulate_uart/
@@ -258,4 +277,9 @@ set(usb_priv_req bk_common driver bk_vfs utf8)
 if (CONFIG_USBD_MSC_STORAGE_QSPI_NAND)
 	list(APPEND usb_priv_req dhara)
 endif()
+# lwip_intf_v2_1 provides the lwIP headers used by CherryUSB's platform/lwip glue
+# (netif/etharp.h, lwip/dhcp.h) when the CDC-ECM host class is enabled.
+# Listed unconditionally: component requirements are expanded before sdkconfig
+# is available, so CONFIG_* cannot gate REQUIRES/PRIV_REQUIRES.
+set(usb_priv_req ${usb_priv_req} lwip_intf_v2_1)
 armino_component_register(SRCS "${srcs}" INCLUDE_DIRS "${incs}" PRIV_REQUIRES "${usb_priv_req}")

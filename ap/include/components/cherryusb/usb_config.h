@@ -163,6 +163,11 @@
 #define CONFIG_USBHOST_MAX_ENDPOINTS 4
 #undef CONFIG_USBHOST_PIPE_NUM
 #define CONFIG_USBHOST_PIPE_NUM 8
+/* CherryUSB's platform/lwip glue selects its netif implementation by platform
+ * macro; derive it from the BK Kconfig switch so only one place is toggled. */
+#if CONFIG_USBH_CDC_ECM
+#define CONFIG_USBHOST_PLATFORM_CDC_ECM
+#endif
 #ifndef CONFIG_USBHOST_MAX_BUS
 #define CONFIG_USBHOST_MAX_BUS 1
 #endif
