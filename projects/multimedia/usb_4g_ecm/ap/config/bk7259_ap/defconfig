@@ -1,0 +1,65 @@
+#
+# Automatically generated project default config. You can update it with menuconfig [D] option.
+# This file contains only differences compared to board defconfig.
+#
+# usb_4g_ecm AP defconfig -- host-only thin slice.
+# Brings up the MUSB controller as A-host through the RISC-V USB bridge.
+# All multimedia / audio / AI / display / camera / storage and the USB-device
+# (MSC/MTP) gadget subsystems from usb_example are dropped. CDC-ECM enumeration,
+# the lwip glue and the intf3 vendor-AT bulk driver are wired in later steps.
+
+# --- force-off lines kept from the base (board default may be =y) ---
+# CONFIG_ALL_CODE_IN_PSRAM is not set
+# CONFIG_DVP_CAMERA is not set
+# CONFIG_DVP_GC2145 is not set
+# CONFIG_WIFI_CLI_DEBUG is not set
+# CONFIG_UART_TEST is not set
+# CONFIG_PSRAM_CALIBRATE is not set
+
+# --- peripheral / clock / memory plumbing ---
+CONFIG_BK_PERIPHERAL=y
+CONFIG_XTAL_FREQ=12000000
+CONFIG_TRNG_SUPPORT=y
+CONFIG_FREERTOS_USE_QUEUE_SETS=y
+CONFIG_TASK_STACK_IN_PSRAM=y
+CONFIG_QUEUE_IN_PSRAM=y
+CONFIG_SPINLOCK_DYNAMIC_CNT=512
+
+# --- flash / cross-core / debug ---
+CONFIG_FLASH=y
+CONFIG_EASY_FLASH_V4=y
+CONFIG_IPI=y
+CONFIG_SYS_PRINT_DEV_MAILBOX=y
+CONFIG_CONTROLLER_AP_BUFFER_COPY=y
+# hard dependency of CONFIG_CONTROLLER_AP_BUFFER_COPY (wdrv_main.h #error);
+# also routes lwip libc malloc to PSRAM, wanted for the later CDC-ECM path.
+CONFIG_LWIP_MEM_LIBC_MALLOC_USE_PSRAM=y
+# CherryUSB's platform/lwip glue has a hard #error below 1024; the shared SoC
+# default is 512 here (no CONFIG_KEYVALUE / CONFIG_FTP_SERVER to raise it).
+CONFIG_LWIP_TCPIP_THREAD_STACKSIZE=1024
+CONFIG_DUMP_UART_MEM_ENCODING_ASCII=y
+CONFIG_DUMP_BY_LOG_UART=y
+CONFIG_MEMDUMP_ALL=y
+
+# --- watchdogs off for bring-up (long USB enumeration waits) ---
+CONFIG_TASK_WDT=n
+CONFIG_SUPPORT_WWDT=n
+
+# --- USB host stack + RISC-V USB bridge ---
+CONFIG_USB=y
+# CONFIG_BK_USB_CHERRYUSB_LEGACY is not set
+CONFIG_BK_USB_CHERRYUSB_V1_6=y
+CONFIG_USB_VBAT_CONTROL_GPIO_ID=0x20
+CONFIG_TASK_USB_PRIO=2
+CONFIG_USB_HUB_MULTIPLE_DEVICES=y
+CONFIG_USBHOST_HUB_MAX_EHPORTS=4
+CONFIG_USBHOST_HUB_PORT_SUPPORT_MAX_DEVICE=5
+CONFIG_USBHOST_HUB_PORT_1_VBAT_CONTROL_GPIO_ID=0xFF
+CONFIG_USB_RISCV_BRIDGE=y
+CONFIG_USB_HOST=y
+CONFIG_USB_HUB=y
+CONFIG_USBH_CDC_ECM=y
+# ECM bulk in+out plus the vendor AT channel's bulk in+out are four MPS-512
+# endpoints. The default FIFO layout reserves 1024 bytes per big-packet slot and
+# has only three of them; this one reserves 512 and has four.
+CONFIG_USB_HOST_FIFO_LAYOUT_4BULK=y
