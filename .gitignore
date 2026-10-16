@@ -1,0 +1,8 @@
+# Build output
+/build/
+
+# Python bytecode from the build and env tools
+__pycache__/
+
+# Local review scratch, superseded by the code comments and project READMEs
+.claude_review*
