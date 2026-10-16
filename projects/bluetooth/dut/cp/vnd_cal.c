@@ -319,9 +319,9 @@ const TXPWR_CAL_ST gtxpwr_tab_def_ble[TXPWR_CAL_2G_MAX] = {
 };
 
 const TXPWR_CAL_ST gtxpwr_tab_def_polar_ble[TXPWR_CAL_2G_MAX] = {
-    INIT_TXPWR_VALUE(1,  29),  // ch0 2402  inused
-    INIT_TXPWR_VALUE(20, 25),  // ch19 2440 inused
-    INIT_TXPWR_VALUE(40, 24),  // ch39 2480 inused
+    INIT_TXPWR_VALUE(1,  48),  // ch0 2402  inused
+    INIT_TXPWR_VALUE(20, 48),  // ch19 2440 inused
+    INIT_TXPWR_VALUE(40, 48),  // ch39 2480 inused
 };
 
 /* IEEE 802.15.4 2.4G logical ch 11/19/26 (align g_dif_g_thread_ch*); same strip count as BLE/WiFi 2G */
