@@ -42,14 +42,14 @@ static struct usbh_cdc_ecm g_cdc_ecm_class;
  *            semaphore; disconnect does the teardown
  * The wait is unconditional: disconnect must not return while the thread can
  * still touch a USB object, because usbh_hubport_release() deletes hport->mutex
- * as soon as we return (usbh_core.c:607) and the next enumeration memsets the
- * whole hubport, descriptors and endpoints included. Deferring only the class
- * teardown would not save a thread that is holding those.
+ * as soon as we return and the next enumeration memsets the whole hubport,
+ * descriptors and endpoints included. Deferring only the class teardown would
+ * not save a thread that is holding those.
  *
  * What bounds the wait is the disconnect path itself, not a timeout: hport
- * ->connected is already false before CLASS_DISCONNECT runs (usbh_core.c:597,
- * the only caller), and usbh_submit_urb() refuses a disconnected port with
- * -ENODEV (usb_hc_beken_musb.c:1988). So an urb in flight is ended by the kills
+ * ->connected is already false before CLASS_DISCONNECT runs - see
+ * usbh_hubport_release() in usbh_core.c, its only caller - and usbh_submit_urb()
+ * refuses a disconnected port with -ENODEV. So an urb in flight is ended by the kills
  * below, and one submitted just after them fails immediately instead of
  * blocking. The thread's remaining delays are its own msleep(100)/msleep(128),
  * so it reaches the exit within roughly 128ms.

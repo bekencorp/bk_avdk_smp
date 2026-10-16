@@ -328,7 +328,7 @@ typedef struct {
  *   ep0      addr    0  size  64, 128 reserved
  *   ep1..4   addr  256/896/1536/2176  size 512, 640 reserved each
  *   ep5..7   addr 2704/2784/2864      size  64,  80 reserved each
- * Top of the used region is 2944 of 4096 bytes.
+ * Top of the used region is 2928 of 4096 bytes.
  *
  * Note the size written here is only the reservation: usbh_pipe_alloc_epx()
  * re-writes TXFIFOSZ/RXFIFOSZ from the endpoint's real MPS at bind time. A
