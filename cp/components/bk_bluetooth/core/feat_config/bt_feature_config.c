@@ -42,23 +42,15 @@ int bk_bt_feature_init(void)
     s_bt_feature_struct._bt_rf_highest_priority = 1;
 #endif
 
-    extern bool ate_is_enabled(void);
-    if(!ate_is_enabled())
-    {
-    #if CONFIG_BLUETOOTH_RF_MODE_POLAR
-        s_bt_feature_struct._rf_mode = RF_MODE_POLAR;
-    #elif CONFIG_BLUETOOTH_RF_MODE_IQ_HIGH_PLL
-        s_bt_feature_struct._rf_mode = RF_MODE_IQ_HIGH_PLL;
-    #elif CONFIG_BLUETOOTH_RF_MODE_IQ_LOW_PLL
-        s_bt_feature_struct._rf_mode = RF_MODE_IQ_LOW_PLL;
-    #else
-        s_bt_feature_struct._rf_mode = RF_MODE_IQ_HIGH_PLL;
-    #endif
-    }
-    else
-    {
-        s_bt_feature_struct._rf_mode = RF_MODE_IQ_HIGH_PLL;
-    }
+#if CONFIG_BLUETOOTH_RF_MODE_POLAR
+    s_bt_feature_struct._rf_mode = RF_MODE_POLAR;
+#elif CONFIG_BLUETOOTH_RF_MODE_IQ_HIGH_PLL
+    s_bt_feature_struct._rf_mode = RF_MODE_IQ_HIGH_PLL;
+#elif CONFIG_BLUETOOTH_RF_MODE_IQ_LOW_PLL
+    s_bt_feature_struct._rf_mode = RF_MODE_IQ_LOW_PLL;
+#else
+    s_bt_feature_struct._rf_mode = RF_MODE_IQ_HIGH_PLL;
+#endif
 
     extern int bt_feature_adapter_init(void *arg);
 
