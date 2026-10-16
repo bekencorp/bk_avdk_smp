@@ -6,3 +6,6 @@ __pycache__/
 
 # Local review scratch, superseded by the code comments and project READMEs
 .claude_review*
+
+# Host-side test binary, built by projects/multimedia/usb_4g_ecm/test/host/Makefile
+/projects/multimedia/usb_4g_ecm/test/host/test_modem_at

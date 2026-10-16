@@ -114,6 +114,6 @@ The AT channel's own share: a 512 B rx buffer and a 256 B tx buffer (both in `US
 
 ## 11. Verification Status
 
-**Verified**: the build passes (`EXIT=0`, no warnings from the new files); the class registration record does land in the `usbh_class_info` section (three entries: hub, cdc_ecm, modem_at).
+**Verified**: the build passes (`EXIT=0`, no warnings from the new files); the class registration record does land in the `usbh_class_info` section (three entries: hub, cdc_ecm, modem_at); `modem_at.c`'s byte-stream handling passes ten cases on the build machine (`make -C test/host run`, see `test/host/test_modem_at.c`) — reassembly across packets, several lines in one packet, echo filtering, `+CME ERROR` as a failure, URCs not waking the caller, a late OK after a timeout not counting as the next command's success, over-long lines dropped whole, re-entry refused, link loss during a wait cancelling the command.
 
-**Not verified, needs hardware**: whether intf3 binding hits only the intended interface; the real behaviour of packet splitting, multiple lines per packet, echo, URCs and timeouts; cleanup across unplug and module restart; FIFO and pipe usage with ECM and AT running together; long-run stability.
+**Not verified, needs hardware**: whether intf3 binding hits only the intended interface; a real module's packet timing and URC content; cleanup across unplug and module restart; FIFO and pipe usage with ECM and AT running together; long-run stability. The harness is single-threaded, so it cannot construct the race window where a result code lands between the wait expiring and DRAIN being published; only a board can exercise that.
