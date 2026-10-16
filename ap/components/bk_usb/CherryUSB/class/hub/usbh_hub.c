@@ -646,6 +646,21 @@ static void usbh_hub_events(struct usbh_hub *hub)
 
                     USB_LOG_INFO("New %s device on Bus %u, Hub %u, Port %u connected\r\n", speed_table[speed], hub->bus->busid, hub->index, port + 1);
 
+#if CONFIG_BK_USB_CHERRYUSB_V1_6
+                    /* BK7259: the port layer closes its submit gate on
+                     * disconnect and does not re-open it on the connect
+                     * interrupt, because that interrupt can arrive before this
+                     * thread has run the previous device's CLASS_DISCONNECT. By
+                     * here usbh_hubport_release() has returned, so the old class
+                     * instance is gone and cannot re-submit into the slots it
+                     * used to own. Open the gate for the device about to be
+                     * enumerated. */
+                    if (hub->is_roothub) {
+                        extern void bk_cherryusb_v16_host_submit_open(void);
+                        bk_cherryusb_v16_host_submit_open();
+                    }
+#endif
+
                     if (usbh_enumerate(child) < 0) {
                         /** release child sources */
                         usbh_hubport_release(child);

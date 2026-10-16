@@ -311,12 +311,51 @@ typedef struct {
 
 #ifndef ALLOC_FIX_EP_LOCAL_IDX_ENABLE
 #define ALLOC_FIX_EP_LOCAL_IDX_ENABLE 1
-/* 
+
+#if CONFIG_USB_HOST_FIFO_LAYOUT_4BULK
+/* Four 512-byte bulk slots instead of three 1024-byte ones. Needed when a
+ * CDC-ECM netif (bulk in+out) and a vendor AT channel (bulk in+out) run on the
+ * same composite device: four MPS-512 endpoints all map to the big-packet band,
+ * and the default layout has only three slots there.
+ *
+ * Usable local indices are 1..7, not 1..8: pipe_pool[] is indexed by the
+ * hardware ep index and sized CONFIG_USBHOST_PIPE_NUM (8), and the bridge drain
+ * loop walks ep 1..7, so completions on ep 8 would never be delivered. This
+ * layout therefore ends the small band at 8 (exclusive) and leaves the
+ * 128/256 band empty, as the default layout already does.
+ *
+ * Reserved sizes per slot, matching the offsets the init loop programs:
+ *   ep0      addr    0  size  64, 128 reserved
+ *   ep1..4   addr  256/896/1536/2176  size 512, 640 reserved each
+ *   ep5..7   addr 2704/2784/2864      size  64,  80 reserved each
+ * Top of the used region is 2944 of 4096 bytes.
+ *
+ * Note the size written here is only the reservation: usbh_pipe_alloc_epx()
+ * re-writes TXFIFOSZ/RXFIFOSZ from the endpoint's real MPS at bind time. A
+ * 1024-byte endpoint landing in 1..4 would declare SIZE_1024 and overrun the
+ * next slot, which is why this layout is opt-in per project. */
+#define SZ_512_TO_1024_EP_BASE_INDEX 1
+#define SZ_512_TO_1024_EP_MAX_INDEX  5
+#define SZ_512_TO_1024_E_OFFSET      512
+#define SZ_512_TO_1024_FIFOSZ        USB_TXFIFOSZ_SIZE_512
+
+#define SZ_8_TO_64_EP_BASE_INDEX     5
+#define SZ_8_TO_64_EP_MAX_INDEX      8
+#define SZ_8_TO_64_E_OFFSET          64
+#define SZ_8_TO_64_FIFOSZ            USB_TXFIFOSZ_SIZE_64
+
+#define SZ_128_TO_256_EP_BASE_INDEX  CONIFG_USB_MUSB_PIPE_NUM
+#define SZ_128_TO_256_EP_MAX_INDEX   CONIFG_USB_MUSB_PIPE_NUM
+#define SZ_128_TO_256_E_OFFSET       256
+#define SZ_128_TO_256_FIFOSZ         USB_TXFIFOSZ_SIZE_256
+#else
+/*
  * 1024bytes & 512bytes:
  */
 #define SZ_512_TO_1024_EP_BASE_INDEX 1
 #define SZ_512_TO_1024_EP_MAX_INDEX USBEPToIndex(USB_EP_4)
 #define SZ_512_TO_1024_E_OFFSET 1024
+#define SZ_512_TO_1024_FIFOSZ USB_TXFIFOSZ_SIZE_1024
 
 /*
  * 64bytes:
@@ -324,12 +363,15 @@ typedef struct {
 #define SZ_8_TO_64_EP_BASE_INDEX USBEPToIndex(USB_EP_4)
 #define SZ_8_TO_64_EP_MAX_INDEX CONIFG_USB_MUSB_PIPE_NUM
 #define SZ_8_TO_64_E_OFFSET 64
+#define SZ_8_TO_64_FIFOSZ USB_TXFIFOSZ_SIZE_128
 
 /* 256bytes:
  */
 #define SZ_128_TO_256_EP_BASE_INDEX CONIFG_USB_MUSB_PIPE_NUM
 #define SZ_128_TO_256_EP_MAX_INDEX CONIFG_USB_MUSB_PIPE_NUM
 #define SZ_128_TO_256_E_OFFSET 256
+#define SZ_128_TO_256_FIFOSZ USB_TXFIFOSZ_SIZE_256
+#endif
 #endif
 
 typedef enum {
@@ -377,6 +419,27 @@ typedef struct {
 } bk_v16_ep_pipe_map_t;
 
 static bk_v16_ep_pipe_map_t s_ep_pipe_map[CONFIG_USBHOST_PIPE_NUM * 2];
+
+/* Gate for pipe/map access. AP-private on purpose: g_musb_hcd is published to
+ * the RISC-V core (see ctx->g_musb_hcd_addr), so its field offsets and the
+ * pipe_pool element size are a cross-core ABI and must not change here.
+ * port_pe cannot serve as this gate either - usbh_reset_port() clears and
+ * re-sets it around every bus reset. It goes false together with the resource
+ * reset in usbh_musb_disconnect_set_status() and true again only in
+ * bk_cherryusb_v16_host_submit_open(), both under usb_enter_critical(), the
+ * same lock usbh_submit_urb() holds across find, alloc and publish.
+ * Arrival of a device and permission to submit are deliberately separate: the
+ * connect interrupt fires while the hub thread may not yet have run
+ * CLASS_DISCONNECT for the previous device, so an old class thread woken by the
+ * disconnect reset still sees its own running flag and hport->connected set. If
+ * the connect event re-opened the gate, that thread could re-submit and take a
+ * slot before its disconnect callback ever runs. The gate therefore re-opens
+ * only after usbh_hubport_release() has returned and just before the new
+ * device is enumerated - see the call in usbh_hub.c.
+ * True at init: a device already attached at boot is enumerated without any
+ * USB_IS_CONN interrupt, so projects that never see a connect event (UVC/UAC/
+ * MSC with a fixed device) must not start out offline. */
+static volatile bool s_port_online = true;
 
 static volatile uint8_t usb_ep0_state = USB_EP0_STATE_SETUP;
 static uint8_t musb_get_active_ep(void);
@@ -1218,25 +1281,28 @@ int usb_hc_mhdrc_register_init(void)
     for (uint8_t i = 1; i < CONIFG_USB_MUSB_PIPE_NUM; i++) {
         musb_set_active_ep(i);
 #if ALLOC_FIX_EP_LOCAL_IDX_ENABLE
+        /* The declared size comes from the band macro so that the reservation
+         * programmed here and the stride below cannot drift apart. RX and TX
+         * share the encoding (USB_RXFIFOSZ_SIZE_n == USB_TXFIFOSZ_SIZE_n). */
         if(i < SZ_512_TO_1024_EP_MAX_INDEX) {
             fifo_offset += 128;
-            HWREGB(USB_BASE + MUSB_TXFIFOSZ_OFFSET) = USB_TXFIFOSZ_SIZE_1024;
+            HWREGB(USB_BASE + MUSB_TXFIFOSZ_OFFSET) = SZ_512_TO_1024_FIFOSZ;
             HWREGH(USB_BASE + MUSB_TXFIFOADD_OFFSET) = (fifo_offset >> 3);
-            HWREGB(USB_BASE + MUSB_RXFIFOSZ_OFFSET) = USB_RXFIFOSZ_SIZE_1024;
+            HWREGB(USB_BASE + MUSB_RXFIFOSZ_OFFSET) = SZ_512_TO_1024_FIFOSZ;
             HWREGH(USB_BASE + MUSB_RXFIFOADD_OFFSET) = (fifo_offset >> 3);
             fifo_offset += SZ_512_TO_1024_E_OFFSET;
         } else if(i < SZ_8_TO_64_EP_MAX_INDEX){
             fifo_offset += 16;
-            HWREGB(USB_BASE + MUSB_TXFIFOSZ_OFFSET) = USB_TXFIFOSZ_SIZE_128;
+            HWREGB(USB_BASE + MUSB_TXFIFOSZ_OFFSET) = SZ_8_TO_64_FIFOSZ;
             HWREGH(USB_BASE + MUSB_TXFIFOADD_OFFSET) = (fifo_offset >> 3);
-            HWREGB(USB_BASE + MUSB_RXFIFOSZ_OFFSET) = USB_RXFIFOSZ_SIZE_128;
+            HWREGB(USB_BASE + MUSB_RXFIFOSZ_OFFSET) = SZ_8_TO_64_FIFOSZ;
             HWREGH(USB_BASE + MUSB_RXFIFOADD_OFFSET) = (fifo_offset >> 3);
             fifo_offset += SZ_8_TO_64_E_OFFSET;
         } else {
             fifo_offset += 16;
-            HWREGB(USB_BASE + MUSB_TXFIFOSZ_OFFSET) = USB_TXFIFOSZ_SIZE_256;
+            HWREGB(USB_BASE + MUSB_TXFIFOSZ_OFFSET) = SZ_128_TO_256_FIFOSZ;
             HWREGH(USB_BASE + MUSB_TXFIFOADD_OFFSET) = (fifo_offset >> 3);
-            HWREGB(USB_BASE + MUSB_RXFIFOSZ_OFFSET) = USB_RXFIFOSZ_SIZE_256;
+            HWREGB(USB_BASE + MUSB_RXFIFOSZ_OFFSET) = SZ_128_TO_256_FIFOSZ;
             HWREGH(USB_BASE + MUSB_RXFIFOADD_OFFSET) = (fifo_offset >> 3);
             fifo_offset += SZ_128_TO_256_E_OFFSET;
         }
@@ -1289,6 +1355,7 @@ int usb_hc_init(struct usbh_bus *bus)
     (void)bus;
     USB_LOG_VBS("[+]%s\r\n", __func__);
     memset(&g_musb_hcd, 0, sizeof(struct musb_hcd));
+    s_port_online = true;
     bk_ep_pipe_map_clear();
     memset(s_v16_urb, 0, sizeof(s_v16_urb));
     memset(s_bk_urb, 0, sizeof(s_bk_urb));
@@ -1557,10 +1624,24 @@ static uint8_t usbh_pipe_alloc_ep_local_index(uint16_t fifosize)
 
     switch(fifosize)
     {
+#if CONFIG_USB_HOST_FIFO_LAYOUT_4BULK
+        case USB_TXFIFOSZ_SIZE_1024:
+            /* The big-packet slots only reserve 512 bytes under this layout, and
+             * usbh_pipe_alloc_epx() would program SIZE_1024 from the endpoint's
+             * real MPS and overrun the next slot. Fail the allocation instead so
+             * the mismatch shows up as a refused endpoint, not as corruption. */
+            USB_LOG_ERR("%s mps 1024 ep rejected: 4bulk fifo layout reserves 512\r\n", __func__);
+            ep_local_index = CONIFG_USB_MUSB_PIPE_NUM;
+            break;
+        case USB_TXFIFOSZ_SIZE_512:
+            ep_local_index = usbh_get_ep_local_index(SZ_512_TO_1024_EP_BASE_INDEX, SZ_512_TO_1024_EP_MAX_INDEX);
+            break;
+#else
         case USB_TXFIFOSZ_SIZE_512:
         case USB_TXFIFOSZ_SIZE_1024:
             ep_local_index = usbh_get_ep_local_index(SZ_512_TO_1024_EP_BASE_INDEX, SZ_512_TO_1024_EP_MAX_INDEX);
             break;
+#endif
         case USB_TXFIFOSZ_SIZE_8:
         case USB_TXFIFOSZ_SIZE_16:
         case USB_TXFIFOSZ_SIZE_32:
@@ -1765,7 +1846,12 @@ static struct musb_pipe *usbh_pipe_alloc_epx(uint16_t bVal,
                                             struct musb_pipe *ppipe,
                                             const struct usbh_endpoint_cfg *ep_cfg)
 {
-    uint32_t flags = usb_enter_critical();
+    /* Caller must hold usb_enter_critical(): usbh_submit_urb() now takes it
+     * around the whole find/alloc/publish sequence so the reset in
+     * usbh_musb_disconnect_set_status() cannot land in the middle of it. The
+     * spinlock behind usb_enter_critical() is not reentrant, so this function
+     * must not take it again. Its only call path is
+     * usbh_submit_urb() -> usbh_pipe_alloc() -> here. */
     usb_osal_sem_t waitsem = NULL;
     struct musb_pipe *epx_ppipe = NULL;
     uint8_t ep_local_idx = ppipe->ep_local_index;
@@ -1799,7 +1885,6 @@ static struct musb_pipe *usbh_pipe_alloc_epx(uint16_t bVal,
     /* restore variable */
     epx_ppipe->inuse = true;
     epx_ppipe->waitsem = waitsem;
-    usb_exit_critical(flags);
     return epx_ppipe;
 }
 
@@ -1812,8 +1897,12 @@ int usbh_pipe_alloc(usbh_pipe_t *pipe, const struct usbh_endpoint_cfg *ep_cfg)
 
     ep_idx = ep_cfg->ep_addr & 0x7f;
 
-    if (ep_idx > CONIFG_USB_MUSB_PIPE_NUM) {
-        USB_LOG_DBG("%s Please check Endpoint index ep_idx:%d PIPE_NUM:%d\r\n", __func__, ep_idx, CONIFG_USB_MUSB_PIPE_NUM);
+    /* ep_idx is the device-side endpoint number written to the 4-bit target
+     * endpoint field of RXTYPE/TXTYPE, so its only hard limit is 15. The local
+     * pipe/FIFO slot is a separate resource bounded by CONIFG_USB_MUSB_PIPE_NUM
+     * and allocated below as ep_local_idx. */
+    if (ep_idx > 15) {
+        USB_LOG_DBG("%s Please check Endpoint index ep_idx:%d\r\n", __func__, ep_idx);
         return -ENOMEM;
     }
 
@@ -1928,7 +2017,33 @@ int usbh_submit_urb(struct usbh_urb *urb)
         return -EINVAL;
     }
 
+    /* One section covers reusing hcpriv, the map lookup, the allocation and the
+     * map publish. Checking only before the final publish was not enough: the
+     * reset in usbh_musb_disconnect_set_status() runs inline from the ISR or the
+     * probe context, so a submitter preempted after the lookup re-took an
+     * ep_local_index bit and re-published a map entry that the reset had just
+     * cleared, leaving the freshly cleaned tables dirty for the next device. */
+    uint32_t flags = usb_enter_critical();
+
+    if (!s_port_online) {
+        usb_exit_critical(flags);
+        USB_LOG_DBG("[=]%s port offline\r\n", __func__);
+        return -ENODEV;
+    }
+
+    /* No stale-hcpriv check here. The pipes are pooled and reused, so neither
+     * the pointer nor a per-slot tag identifies the connection a request was
+     * bound to: a slot handed to the new device carries the new tag, and the
+     * disconnect reset already nulled hcpriv on the requests it dropped.
+     * What keeps an old class instance out is the offline gate above: it stays
+     * closed from the disconnect reset until the hub thread has released the
+     * port and is about to enumerate the next device, so a class thread woken
+     * by the reset is rejected here no matter how early the next connect
+     * interrupt arrives. The rx-state barrier in usbh_cdc_ecm.c covers the
+     * other direction - it keeps a new instance from binding before the old
+     * one has exited. hport->connected below still guards the rest. */
     pipe = (struct musb_pipe *)urb->hcpriv;
+
     if (!pipe && urb->hport && urb->ep) {
         uint8_t ep_type = (uint8_t)(urb->ep->bmAttributes & USB_ENDPOINT_TYPE_MASK);
         pipe = (struct musb_pipe *)bk_ep_pipe_map_find(urb->hport, urb->ep->bEndpointAddress, ep_type);
@@ -1951,9 +2066,11 @@ int usbh_submit_urb(struct usbh_urb *urb)
 
         ret = usbh_pipe_alloc(&new_pipe, &ep_cfg);
         if (ret < 0) {
+            usb_exit_critical(flags);
             return ret;
         }
         if (!new_pipe) {
+            usb_exit_critical(flags);
             return -ENOMEM;
         }
         bk_ep_pipe_map_add(urb->hport, urb->ep->bEndpointAddress, ep_type, new_pipe);
@@ -1962,6 +2079,7 @@ int usbh_submit_urb(struct usbh_urb *urb)
     }
 
     if (!pipe) {
+        usb_exit_critical(flags);
         USB_LOG_DBG("[=]%s pipe is null\r\n", __func__);
         return -EINVAL;
     }
@@ -1979,15 +2097,23 @@ int usbh_submit_urb(struct usbh_urb *urb)
         }
     }
 
+    /* Both checks belong inside the section that publishes the urb, not before
+     * it. Tested outside, a submitter can pass them, be preempted, and have
+     * usbh_kill_urb() run to completion before it binds: the kill sees no urb
+     * and pipe->waiter still false, so it neither cancels the request nor gives
+     * the semaphore, and the submitter then blocks on a device that is already
+     * gone. Re-tested here against the same lock the kill now takes, the two
+     * orders are both safe - we see connected == false and give up, or we
+     * publish first and the kill finds the urb and the waiter. */
     if (!pipe->hport->connected) {
+        usb_exit_critical(flags);
         return -ENODEV;
     }
 
     if (pipe->urb) {
+        usb_exit_critical(flags);
         return -EBUSY;
     }
-
-    uint32_t flags = usb_enter_critical();
 
     pipe->waiter = false;
     pipe->xfrd = 0;
@@ -2042,6 +2168,8 @@ errout_timeout:
 int usbh_kill_urb(struct usbh_urb *urb)
 {
     struct musb_pipe *pipe;
+    uint8_t slot;
+    uint8_t dir;
 
     if (!urb) {
         return -EINVAL;
@@ -2053,9 +2181,34 @@ int usbh_kill_urb(struct usbh_urb *urb)
         return -EINVAL;
     }
 
-    if (pipe->ep_local_index < CONFIG_USBHOST_PIPE_NUM) {
-        s_v16_urb[pipe->ep_local_index][bk_pipe_dir(pipe)] = NULL;
+    /* Same lock as the publish in usbh_submit_urb(), so a request cannot be
+     * half-published while we decide there is nothing to cancel. Both callers
+     * in this file and the one in usbh_core.c are outside the section, and the
+     * lock is not recursive. */
+    uint32_t flags = usb_enter_critical();
+
+    slot = pipe->ep_local_index;
+    dir = bk_pipe_dir(pipe);
+
+    if (slot >= CONFIG_USBHOST_PIPE_NUM) {
+        usb_exit_critical(flags);
+        return -EINVAL;
     }
+
+    /* Cancel only if this slot is still carrying this very request. pipe->urb
+     * is the internal shadow urb (see bk_urb_bind), so the caller's request is
+     * matched through s_v16_urb. A mismatch means there is nothing here to
+     * cancel: either it already completed, or hcpriv is left over from a
+     * previous connection and the slot has since been handed to another
+     * request - clearing pipe->urb and waking the waiter would abort that one
+     * with -ESHUTDOWN. Identity of the request is what decides this; a
+     * per-slot connection tag cannot, because the slot is reused. */
+    if (s_v16_urb[slot][dir] != urb) {
+        usb_exit_critical(flags);
+        return -EINVAL;
+    }
+
+    s_v16_urb[slot][dir] = NULL;
     pipe->urb = NULL;
 
     if (pipe->waiter) {
@@ -2063,6 +2216,8 @@ int usbh_kill_urb(struct usbh_urb *urb)
         urb->errorcode = -ESHUTDOWN;
         usb_osal_sem_give(pipe->waitsem);
     }
+
+    usb_exit_critical(flags);
 
     return 0;
 }
@@ -2238,6 +2393,19 @@ void handle_ep0(void)
 
 void usbh_musb_disconnect_set_status()
 {
+    usb_osal_sem_t wakeup[CONFIG_USBHOST_PIPE_NUM * 2];
+    uint8_t wakeup_num = 0;
+
+    /* Taking the lock here does not nest: the ISR queues this callback at
+     * USB_IS_DISCON and returns before USBH_IRQHandler() enters its own
+     * section, and the probe and sw-trigger callers hold nothing. */
+    uint32_t flags = usb_enter_critical();
+
+    /* Closing the gate before the tables are cleared is the point of the
+     * section - a submitter already inside usbh_submit_urb() either completed
+     * before us and gets torn down by the loop below, or finds the port offline
+     * and allocates nothing. */
+    s_port_online = false;
     g_musb_hcd.port_csc = 1;
     g_musb_hcd.port_pec = 1;
     g_musb_hcd.port_pe = 0;
@@ -2260,9 +2428,19 @@ void usbh_musb_disconnect_set_status()
             }
             if (pipe->waiter) {
                 pipe->waiter = false;
-                usb_osal_sem_give(pipe->waitsem);
+                /* Give outside the section: waiter is already cleared, so the
+                 * wakeup is only a signal and does not need the lock, and this
+                 * keeps the scheduler out of a critical section that the sw
+                 * trigger enters from task context. */
+                wakeup[wakeup_num++] = pipe->waitsem;
             }
         }
+    }
+
+    usb_exit_critical(flags);
+
+    for (uint8_t i = 0; i < wakeup_num; i++) {
+        usb_osal_sem_give(wakeup[i]);
     }
 }
 void usbh_musb_trigger_disconnect_by_sw()
@@ -2494,9 +2672,34 @@ static void usbh_dma_tx_irq_handler(    uint8_t chn_idx, struct musb_pipe *pipe,
 
 void usbh_musb_connect_set_status()
 {
+    /* Same reasoning as the disconnect callback: the ISR returns at USB_IS_CONN
+     * before entering its own section, and the probe caller holds nothing. */
+    uint32_t flags = usb_enter_critical();
+
+    /* Physical arrival only. The submit gate stays closed here on purpose; it
+     * is re-opened by bk_cherryusb_v16_host_submit_open() once the hub thread
+     * has released the previous port. The hub's own port operations do not need
+     * the gate: for the roothub they go through usbh_roothub_control() instead
+     * of a URB. */
     g_musb_hcd.port_csc = 1;
     g_musb_hcd.port_pec = 1;
     g_musb_hcd.port_pe = 1;
+
+    usb_exit_critical(flags);
+}
+
+/* Re-open the submit gate closed by usbh_musb_disconnect_set_status().
+ * Called from the hub thread after usbh_hubport_release() has returned - so
+ * after the previous device's CLASS_DISCONNECT - and before the new device is
+ * enumerated. Idempotent: paths that never see a disconnect (a device attached
+ * at boot, or a child of an external hub) find the gate already open. */
+void bk_cherryusb_v16_host_submit_open(void)
+{
+    uint32_t flags = usb_enter_critical();
+
+    s_port_online = true;
+
+    usb_exit_critical(flags);
 }
 
 void USBH_IRQHandler(uint8_t busid)
