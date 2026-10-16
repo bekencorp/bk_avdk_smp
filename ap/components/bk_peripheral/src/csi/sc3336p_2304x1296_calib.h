@@ -663,7 +663,7 @@
              .autoAttr = {
                  .expTimeRange = {
                      .min =  10,
-#if CONFIG_PT_MP_H264_FRAME_MODE
+#if CONFIG_PTZ_CAMERA_3DNR_SUPPORT
                      .max =  59000,
 #else
                      .max =  100000,

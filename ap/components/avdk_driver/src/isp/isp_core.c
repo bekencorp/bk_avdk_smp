@@ -1056,7 +1056,7 @@ static void isp_clock_enable(uint32_t clk)
 
 static uint8_t isp_frame_buffer_limit(void)
 {
-#if CONFIG_ISP_DUAL_MIPI_LOGICAL_PORT || CONFIG_PT_MP_H264_FRAME_MODE || CONFIG_CSI_TP2863
+#if CONFIG_ISP_DUAL_MIPI_LOGICAL_PORT || CONFIG_PTZ_CAMERA_3DNR_SUPPORT || CONFIG_CSI_TP2863
     return ISP_FRAME_CNT_MAX;
 #else
     return 2U;
