@@ -370,6 +370,11 @@ void bk_wlan_ap_csa_coexist_mode(void *arg, uint8_t dummy)
 	if (0 == bk_wlan_has_role(VIF_AP))
 		return;
 
+	if ((bk_feature_close_coexist_csa() || close_coexist_csa)) {
+		WIFI_LOGI("close ap csa:feature %d,flag %d\n",bk_feature_close_coexist_csa(),close_coexist_csa);
+		return;
+	}
+
 	frequency = bk_wlan_sta_get_frequency();
 	if (frequency) {
 		WIFI_LOGD("hostapd_channel_switch\n");
