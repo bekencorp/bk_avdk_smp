@@ -50,12 +50,17 @@ static char g_line[MODEM_AT_LINE_MAX + 1];
 static uint32_t g_line_len = 0;
 static bool g_line_over = false; /* current line exceeded the buffer */
 
+/* Internal response buffer. The receive thread writes here, not to the caller's
+ * stack - a pointer into the caller's stack becomes a dangling pointer the
+ * instant the caller is woken. Only copied out to g_resp on state change. */
+static char s_resp_buf[257];
+static uint32_t s_resp_len = 0;
+
 /* The command in flight. Valid only while the caller is blocked in
  * modem_at_send(), which is exactly the WAIT and DRAIN window. */
 static const char *g_cmd = NULL;
 static char *g_resp = NULL;
 static uint32_t g_resp_size = 0;
-static uint32_t g_resp_len = 0;
 
 /* "+CME ERROR: 30" style failures carry a code, plain "ERROR" does not; both
  * end the command the same way. */
@@ -78,19 +83,19 @@ static int at_classify(const char *line)
 static void at_resp_append(const char *line)
 {
     uint32_t len = strlen(line);
-    uint32_t need = len + (g_resp_len ? 2 : 0);
+    uint32_t need = len + (s_resp_len ? 2 : 0);
 
-    if (!g_resp || g_resp_len + need + 1 > g_resp_size) {
+    if (s_resp_len + need + 1 > sizeof(s_resp_buf)) {
         LOGD("resp full, drop: %s\r\n", line);
         return;
     }
-    if (g_resp_len) {
-        g_resp[g_resp_len++] = '\r';
-        g_resp[g_resp_len++] = '\n';
+    if (s_resp_len) {
+        s_resp_buf[s_resp_len++] = '\r';
+        s_resp_buf[s_resp_len++] = '\n';
     }
-    memcpy(&g_resp[g_resp_len], line, len);
-    g_resp_len += len;
-    g_resp[g_resp_len] = '\0';
+    memcpy(&s_resp_buf[s_resp_len], line, len);
+    s_resp_len += len;
+    s_resp_buf[s_resp_len] = '\0';
 }
 
 /* One complete line, CRLF already stripped, never empty. Receive thread. */
@@ -99,6 +104,18 @@ static void at_on_line(const char *line)
     int result;
 
     if (g_state == AT_STATE_IDLE) {
+        /* Attribution rule: a line that arrives with no command pending is a
+         * URC. The prefix is never used to decide - "+CSQ: 20,99" is a
+         * response when we asked and a URC when we did not.
+         *
+         * Known limitation: a response that arrives after the command timed
+         * out AND the drain window expired is incorrectly attributed as a URC.
+         * The drain window (MODEM_AT_DRAIN_MS) covers the common case where
+         * the module answers just after we gave up, but a module that takes
+         * longer than drain_ms after timeout will trigger the misattribution.
+         * The only robust fix is a per-command correlation token (the module
+         * does not provide one), or syntactic classification (fragile and
+         * module-specific). */
         if (g_urc_cb) {
             g_urc_cb(line);
         } else {
@@ -128,6 +145,12 @@ static void at_on_line(const char *line)
     if (result != AT_RESULT_NONE) {
         if (result == AT_RESULT_ERROR) {
             at_resp_append(line); /* the caller wants to see which error */
+        }
+        /* Copy internal buffer to caller's stack before signaling done. */
+        if (g_resp && g_resp_size) {
+            uint32_t copy_len = s_resp_len < g_resp_size - 1 ? s_resp_len : g_resp_size - 1;
+            memcpy(g_resp, s_resp_buf, copy_len);
+            g_resp[copy_len] = '\0';
         }
         g_result = (uint8_t)result;
         rtos_set_semaphore(&g_done_sem);
@@ -247,7 +270,7 @@ int modem_at_send(const char *cmd, char *resp, uint32_t resp_size, uint32_t time
     g_cmd = cmd;
     g_resp = (resp && resp_size) ? resp : NULL;
     g_resp_size = g_resp ? resp_size : 0;
-    g_resp_len = 0;
+    s_resp_len = 0;
     g_result = AT_RESULT_NONE;
     /* Published before the write: the answer can arrive while it is still in
      * the controller's FIFO. */
