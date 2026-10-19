@@ -65,6 +65,14 @@ void usb_modem_at_init(usb_modem_at_rx_cb_t rx_cb, usb_modem_at_link_cb_t link_c
 {
     g_at_rx_cb = rx_cb;
     g_at_link_cb = link_cb;
+
+    if (!g_at_tx_lock) {
+        g_at_tx_lock = usb_osal_mutex_create();
+        if (!g_at_tx_lock) {
+            USB_LOG_ERR("modem AT TX lock create failed\r\n");
+        }
+    }
+
     USB_LOG_INFO("modem AT transport ready, waiting for intf%u\r\n", MODEM_AT_EXPECT_INTF);
 }
 
@@ -136,8 +144,9 @@ static void modem_at_rx_thread(CONFIG_USB_OSAL_THREAD_SET_ARGV)
         }
     }
 
-    /* Published before the sem: disconnect uses the state to decide whether it
-     * has to wait at all, and must not wait on a thread that already left. */
+    /* Published before the sem: disconnect waits on any non-IDLE state. The
+     * thread must give exactly once, and after giving it no longer touches
+     * connection state, endpoints, or synchronization objects. */
     g_at_rx_state = MODEM_AT_RX_EXITING;
     if (g_at_rx_exit_sem) {
         usb_osal_sem_give(g_at_rx_exit_sem);
@@ -202,13 +211,21 @@ static int modem_at_connect(struct usbh_hubport *hport, uint8_t intf)
 
     hport->config.intf[intf].priv = port;
 
-    /* Created per connection and destroyed on disconnect, so a module reset
-     * cannot leave a stale count or a held mutex behind. Order matters: the
-     * locks and the handshake must exist before the thread can run. */
+    /* TX lock is permanent and created at init. If it doesn't exist here, the
+     * module cannot operate safely - refuse the connection. */
+    if (!g_at_tx_lock) {
+        USB_LOG_ERR("modem AT TX lock not available\r\n");
+        hport->config.intf[intf].priv = NULL;
+        memset(port, 0, sizeof(struct modem_at_port));
+        return -USB_ERR_NOMEM;
+    }
+
+    /* RX exit semaphore is per-connection and destroyed on disconnect, so a
+     * module reset cannot leave a stale count behind. It must exist before
+     * the thread can run. */
     g_at_rx_exit_sem = usb_osal_sem_create(0);
-    g_at_tx_lock = usb_osal_mutex_create();
-    if (!g_at_rx_exit_sem || !g_at_tx_lock) {
-        USB_LOG_ERR("modem AT osal alloc failed\r\n");
+    if (!g_at_rx_exit_sem) {
+        USB_LOG_ERR("modem AT rx exit sem alloc failed\r\n");
         goto errout;
     }
 
@@ -228,9 +245,13 @@ static int modem_at_connect(struct usbh_hubport *hport, uint8_t intf)
     snprintf(hport->config.intf[intf].devname, CONFIG_USBHOST_DEV_NAMELEN, DEV_FORMAT);
     USB_LOG_INFO("Register modem AT Class:%s\r\n", hport->config.intf[intf].devname);
 
-    /* Last: the callee may call usb_modem_at_write() straight from here, so
-     * the tx lock and the endpoints have to be in place already. */
+    /* Publish online under the lock so writers see consistent instance state.
+     * Link callback is invoked outside the lock: it may call write, which would
+     * deadlock if we hold the same mutex. */
+    usb_osal_mutex_take(g_at_tx_lock);
     g_at_online = true;
+    usb_osal_mutex_give(g_at_tx_lock);
+
     if (g_at_link_cb) {
         g_at_link_cb(true);
     }
@@ -282,26 +303,34 @@ static int modem_at_disconnect(struct usbh_hubport *hport, uint8_t intf)
      * clears the endpoints it reads, and our caller then deletes hport->mutex
      * and recycles the whole hubport. The wait is bounded because the thread's
      * only block is the urb we just killed. */
-    if (g_at_rx_state == MODEM_AT_RX_RUNNING && g_at_rx_exit_sem) {
+    /* Wait for the RX thread to exit if it was created: RUNNING means it's
+     * currently active, EXITING means it's on its way out but has not yet
+     * given the semaphore. IDLE means no thread exists or it already exited. */
+    if (g_at_rx_state != MODEM_AT_RX_IDLE && g_at_rx_exit_sem) {
         usb_osal_sem_take(g_at_rx_exit_sem, USB_OSAL_WAITING_FOREVER);
     }
 
     if (g_at_tx_lock) {
-        /* After the online flag went down and after the kill, so any writer is
-         * already out of the critical section. */
+        /* Take TX lock to drain all in-flight writers. Writers holding the lock
+         * are blocked on killed URB; new writers bail on offline or NULL ep.
+         * Clear the instance under the lock so late writers see nothing. The
+         * lock itself is permanent and kept for the next connection. */
         usb_osal_mutex_take(g_at_tx_lock);
+        memset(port, 0, sizeof(struct modem_at_port));
+        hport->config.intf[intf].priv = NULL;
+        memset(hport->config.intf[intf].devname, 0, CONFIG_USBHOST_DEV_NAMELEN);
         usb_osal_mutex_give(g_at_tx_lock);
-        usb_osal_mutex_delete(g_at_tx_lock);
-        g_at_tx_lock = NULL;
+    } else {
+        /* Lock creation failed at init; clean up without synchronization. */
+        memset(port, 0, sizeof(struct modem_at_port));
+        hport->config.intf[intf].priv = NULL;
+        memset(hport->config.intf[intf].devname, 0, CONFIG_USBHOST_DEV_NAMELEN);
     }
+
     if (g_at_rx_exit_sem) {
         usb_osal_sem_delete(g_at_rx_exit_sem);
         g_at_rx_exit_sem = NULL;
     }
-
-    memset(port, 0, sizeof(struct modem_at_port));
-    hport->config.intf[intf].priv = NULL;
-    memset(hport->config.intf[intf].devname, 0, CONFIG_USBHOST_DEV_NAMELEN);
 
     /* Published here rather than by the thread: the thread must not write
      * anything once a new connection may already own the state. */
