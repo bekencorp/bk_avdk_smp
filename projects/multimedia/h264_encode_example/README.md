@@ -9,6 +9,8 @@ This project demonstrates H264 encoding on the Beken platform. The current test 
 The project provides:
 
 - Frame-mode and software FLEXA VCENC H264 encode tests (pure encode, no OSD)
+- Dual-channel concurrent VCENC H264 encode test (`h264_encode vcenc_h264e_frame_dual`, two frame-mode encoders at different resolutions: 256x128 + 512x256)
+- Dual-channel concurrent VCENC H264 FLEXA encode test (`h264_encode vcenc_h264e_flexa_dual`, two software FLEXA encoders)
 - Interactive OSD test command: `h264_encode osd` (8 channels + ARGB8888 / NV12 / Bitmap, single frame)
 - Boot-time VCENC H264 self-test when `CONFIG_BK_ENCODER` is enabled
 - Integration-test entries in `.it.csv`
@@ -71,6 +73,8 @@ h264_encode_example/
 
 - Supports VCENC H264 frame-mode encoding test
 - Supports VCENC H264 software FLEXA encoding test
+- Supports VCENC H264 dual-channel concurrent encoding test (two frame-mode encoders at different resolutions: 256x128 + 512x256)
+- Supports VCENC H264 dual-channel concurrent FLEXA encoding test (two software FLEXA encoders)
 - Uses built-in `h264_encode_stream_256x128` NV12 input
 - Encodes 30 frames with GOP set to 15
 - Provides unified `[RESULT][PASS]` / `[RESULT][FAIL]` logs
@@ -119,13 +123,17 @@ Command execution failure prints: "CMDRSP:ERROR"
 h264_encode help
 h264_encode vcenc_h264e
 h264_encode vcenc_h264e_flexa
+h264_encode vcenc_h264e_frame_dual
+h264_encode vcenc_h264e_flexa_dual
 h264_encode osd
 ```
 
 - `vcenc_h264e` runs the frame-mode encoder test.
 - `vcenc_h264e_flexa` runs the software FLEXA encoder test.
+- `vcenc_h264e_frame_dual` runs the dual-channel concurrent encode test (two frame-mode encoders at different resolutions: 256x128 + 512x256).
+- `vcenc_h264e_flexa_dual` runs the dual-channel concurrent FLEXA encode test (two software FLEXA encoders).
 - `osd` runs the OSD test (8 channels + ARGB8888, NV12, Bitmap; one encoded frame).
-- Both encode commands use the built-in 256x128 NV12 frame for 30 frames with GOP 15.
+- All encode commands use the built-in 256x128 NV12 frame for 30 frames with GOP 15.
 - `CMDRSP:OK` means the test task was created successfully; check `[RESULT]` logs for the final pass/fail status.
 
 ## 5. Test Examples
@@ -170,13 +178,46 @@ All 8 OSD slots are enabled in one frame: slot1 NV12, slot2 Bitmap, the rest ARG
 
 Tests slot0 ARGB8888, slot1 NV12, and slot2 Bitmap on separate CTB columns.
 
-### 5.4 Integration Test Commands
+### 5.4 Dual-Channel Concurrent Encode Test
+
+```text
+h264_encode vcenc_h264e_frame_dual
+```
+
+Two frame-mode encoders run in separate threads and concurrently encode 30 frames each at different resolutions:
+
+- Channel 0: built-in `h264_encode_stream_256x128` NV12 image, 256x128
+- Channel 1: runtime-generated stripe test pattern, 512x256
+
+Expected final log:
+
+```text
+[RESULT][PASS] vcenc_h264_dual_test success, channels=2/2 frames=60/60 ch0=256x128 size=... ch1=512x256 size=...
+```
+
+### 5.5 Dual-Channel Concurrent FLEXA Encode Test
+
+```text
+h264_encode vcenc_h264e_flexa_dual
+```
+
+Two software FLEXA encoders run in separate threads and concurrently encode the built-in 256x128 NV12 frame for 30 frames each, with independent line-block pipeline advancement.
+
+Expected final log:
+
+```text
+[RESULT][PASS] vcenc_h264_flexa_dual_test success, channels=2/2 frames=60/60 ch0_size=... ch1_size=...
+```
+
+### 5.6 Integration Test Commands
 
 `.it.csv` contains:
 
 ```text
 ap_cmd h264_encode vcenc_h264e
 ap_cmd h264_encode vcenc_h264e_flexa
+ap_cmd h264_encode vcenc_h264e_frame_dual
+ap_cmd h264_encode vcenc_h264e_flexa_dual
 ap_cmd h264_encode osd
 ```
 

@@ -10,6 +10,8 @@
 
 - VCENC H264 整帧模式编码测试：`h264_encode vcenc_h264e`
 - VCENC H264 软件 FLEXA 模式编码测试：`h264_encode vcenc_h264e_flexa`
+- VCENC H264 双路并发编码测试：`h264_encode vcenc_h264e_frame_dual`（两路整帧模式编码器不同分辨率同时编码：256x128 + 512x256）
+- VCENC H264 双路并发 FLEXA 编码测试：`h264_encode vcenc_h264e_flexa_dual`（两路软件 FLEXA 编码模块同时编码）
 - 整帧 / FLEXA 编码回归测试（纯编码，不叠加 OSD）
 - 交互式 OSD 测试：`h264_encode osd`（8 路通道 + ARGB8888 / NV12 / Bitmap 三种格式，单帧编码）
 - `CONFIG_BK_ENCODER` 使能时的上电自动编码自检
@@ -74,6 +76,8 @@ h264_encode_example/
 
 - 支持 VCENC H264 整帧编码测试
 - 支持 VCENC H264 软件 FLEXA 编码测试
+- 支持 VCENC H264 双路并发编码测试（两路整帧编码模块不同分辨率同时编码：256x128 + 512x256）
+- 支持 VCENC H264 双路并发 FLEXA 编码测试（两路软件 FLEXA 编码模块同时编码）
 - 使用内置 `h264_encode_stream_256x128` NV12 输入图像
 - 每次测试编码 30 帧，GOP 设置为 15
 - 提供统一 `[RESULT][PASS]` / `[RESULT][FAIL]` 结果日志
@@ -115,13 +119,17 @@ make bk7259 PROJECT=multimedia/h264_encode_example
 h264_encode help
 h264_encode vcenc_h264e
 h264_encode vcenc_h264e_flexa
+h264_encode vcenc_h264e_frame_dual
+h264_encode vcenc_h264e_flexa_dual
 h264_encode osd
 ```
 
 - `vcenc_h264e`：执行整帧模式编码测试
 - `vcenc_h264e_flexa`：执行软件 FLEXA 模式编码测试
+- `vcenc_h264e_frame_dual`：执行双路并发编码测试（两路整帧编码模块同时编码）
+- `vcenc_h264e_flexa_dual`：执行双路并发 FLEXA 编码测试（两路软件 FLEXA 编码模块同时编码）
 - `osd`：执行 OSD 测试（8 路通道 + ARGB8888 / NV12 / Bitmap 三种格式，单帧编码）
-- 两个编码命令都使用内置 256x128 NV12 图像，GOP 为 15，共编码 30 帧
+- 编码命令都使用内置 256x128 NV12 图像，GOP 为 15，共编码 30 帧
 - `CMDRSP:OK` 只表示测试线程创建成功，最终是否通过请看 `[RESULT]` 日志
 
 ## 5. 测试示例
@@ -164,13 +172,46 @@ h264_encode osd
 
 单帧同时启用 8 路 OSD，其中 slot1 为 NV12、slot2 为 Bitmap，其余为 ARGB8888；每路独占一个 CTB 单元（4 列 × 2 行）。
 
-### 5.4 集成测试命令
+### 5.4 双路并发编码测试
+
+```text
+h264_encode vcenc_h264e_frame_dual
+```
+
+两路整帧模式编码器分别运行在独立线程中，以不同分辨率并发编码 30 帧：
+
+- 通道 0：内置 `h264_encode_stream_256x128` NV12 图像，256x128
+- 通道 1：运行时合成的条纹测试图案，512x256
+
+预期最终日志：
+
+```text
+[RESULT][PASS] vcenc_h264_dual_test success, channels=2/2 frames=60/60 ch0=256x128 size=... ch1=512x256 size=...
+```
+
+### 5.5 双路并发 FLEXA 编码测试
+
+```text
+h264_encode vcenc_h264e_flexa_dual
+```
+
+两路软件 FLEXA 编码器分别运行在独立线程中，使用内置 256x128 NV12 图像并发编码 30 帧，各自独立跑 line-block 流水线推进。
+
+预期最终日志：
+
+```text
+[RESULT][PASS] vcenc_h264_flexa_dual_test success, channels=2/2 frames=60/60 ch0_size=... ch1_size=...
+```
+
+### 5.6 集成测试命令
 
 `.it.csv` 包含：
 
 ```text
 ap_cmd h264_encode vcenc_h264e
 ap_cmd h264_encode vcenc_h264e_flexa
+ap_cmd h264_encode vcenc_h264e_frame_dual
+ap_cmd h264_encode vcenc_h264e_flexa_dual
 ap_cmd h264_encode osd
 ```
 

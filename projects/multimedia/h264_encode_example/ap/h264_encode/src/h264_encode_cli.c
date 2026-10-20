@@ -20,12 +20,16 @@ typedef enum {
     H264E_TEST_ID_VCENC_H264 = 2,
     H264E_TEST_ID_VCENC_H264_FLEXA = 3,
     H264E_TEST_ID_OSD = 4,
+    H264E_TEST_ID_VCENC_H264_DUAL = 5,
+    H264E_TEST_ID_VCENC_H264_FLEXA_DUAL = 6,
 } h264e_test_id_t;
 
 
 #ifdef CONFIG_BK_ENCODER
 extern int vcenc_h264_frame_test(void);
 extern int vcenc_h264_flexa_test(void);
+extern int vcenc_h264_dual_test(void);
+extern int vcenc_h264_flexa_dual_test(void);
 extern int h264_encode_osd_test(void);
 #endif
 
@@ -65,6 +69,10 @@ static const char *h264_encode_mode_name(h264e_test_id_t test_id)
         return "frame";
     case H264E_TEST_ID_VCENC_H264_FLEXA:
         return "flexa";
+    case H264E_TEST_ID_VCENC_H264_DUAL:
+        return "dual";
+    case H264E_TEST_ID_VCENC_H264_FLEXA_DUAL:
+        return "flexa_dual";
     case H264E_TEST_ID_OSD:
         return "osd";
     default:
@@ -84,6 +92,10 @@ static void h264e_test_task_entry(void *arg)
         test_ret = vcenc_h264_frame_test();
     } else if (test_id == H264E_TEST_ID_VCENC_H264_FLEXA) {
         test_ret = vcenc_h264_flexa_test();
+    } else if (test_id == H264E_TEST_ID_VCENC_H264_DUAL) {
+        test_ret = vcenc_h264_dual_test();
+    } else if (test_id == H264E_TEST_ID_VCENC_H264_FLEXA_DUAL) {
+        test_ret = vcenc_h264_flexa_dual_test();
     } else if (test_id == H264E_TEST_ID_OSD) {
         test_ret = h264_encode_osd_test();
     }
@@ -120,6 +132,8 @@ static void h264_encode_print_usage(void)
     bk_printf("  h264_encode help | -h       - show this help\r\n");
     bk_printf("  h264_encode vcenc_h264e     - vcenc H.264 encode test, frame mode, 256x128 NV12\r\n");
     bk_printf("  h264_encode vcenc_h264e_flexa - vcenc H.264 encode test, FLEXA mode, 256x128 NV12\r\n");
+    bk_printf("  h264_encode vcenc_h264e_frame_dual  - vcenc H.264 encode test, 2-channel concurrent encode\r\n");
+    bk_printf("  h264_encode vcenc_h264e_flexa_dual - FLEXA encode test, 2-channel concurrent encode\r\n");
     bk_printf("  h264_encode osd             - 8-slot OSD test (ARGB/NV12/Bitmap), 256x128 NV12\r\n");
 }
 
@@ -154,6 +168,12 @@ void cli_h264_encode_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
     } else if (os_strcmp(argv[1], "vcenc_h264e_flexa") == 0) {
         test_id = H264E_TEST_ID_VCENC_H264_FLEXA;
         task_name = "vcenc_h264e_flexa";
+    } else if (os_strcmp(argv[1], "vcenc_h264e_frame_dual") == 0) {
+        test_id = H264E_TEST_ID_VCENC_H264_DUAL;
+        task_name = "vcenc_h264e_frame_dual";
+    } else if (os_strcmp(argv[1], "vcenc_h264e_flexa_dual") == 0) {
+        test_id = H264E_TEST_ID_VCENC_H264_FLEXA_DUAL;
+        task_name = "vcenc_h264e_flexa_dual";
     } else if (os_strcmp(argv[1], "osd") == 0) {
         test_id = H264E_TEST_ID_OSD;
         task_name = "h264_osd";

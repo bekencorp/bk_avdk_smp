@@ -21,6 +21,8 @@ void cli_h264_encode_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
 void cli_h264e_api_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv);
 int vcenc_h264_run_frame(void);
 int vcenc_h264_run_flexa(void);
+int vcenc_h264_dual_test(void);
+int vcenc_h264_flexa_dual_test(void);
 void vcenc_h264_run_boot_demo(void);
 
 // Buffer callback functions
