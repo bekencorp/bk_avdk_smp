@@ -18,6 +18,7 @@
 #include <modules/pm.h>
 #include <components/bk_audio/audio_pipeline/audio_pipeline.h>
 #include <components/bk_audio/audio_pipeline/audio_event_iface.h>
+#include <components/bk_audio/audio_utils/audio_pm_util.h>
 #include <components/bk_audio/audio_streams/raw_stream.h>
 #include <components/bk_audio/audio_streams/onboard_mic_stream_v2.h>
 #include <components/bk_audio/audio_encoders/sbc_enc.h>
@@ -132,11 +133,11 @@ bk_err_t audio_record_open(audio_record_t *record)
         return BK_OK;
     }
 
-    bk_pm_module_vote_cpu_freq(PM_DEV_ID_AUDIO, PM_CPU_FRQ_480M);
+    bk_audio_pm_vote_cpu_freq_acquire();
 
     audio_record_ctx_t *ctx = os_malloc(sizeof(audio_record_ctx_t));
     if (!ctx) {
-        bk_pm_module_vote_cpu_freq(PM_DEV_ID_AUDIO, PM_CPU_FRQ_DEFAULT);
+        bk_audio_pm_vote_cpu_freq_release();
         return BK_FAIL;
     }
     os_memset(ctx, 0x00, sizeof(audio_record_ctx_t));
@@ -285,7 +286,7 @@ fail:
         }
         os_free(ctx);
     }
-    bk_pm_module_vote_cpu_freq(PM_DEV_ID_AUDIO, PM_CPU_FRQ_DEFAULT);
+    bk_audio_pm_vote_cpu_freq_release();
     return BK_FAIL;
 }
 
@@ -353,7 +354,7 @@ bk_err_t audio_record_close(audio_record_t *record)
 
     os_free(ctx);
     record->record_ctx = NULL;
-    bk_pm_module_vote_cpu_freq(PM_DEV_ID_AUDIO, PM_CPU_FRQ_DEFAULT);
+    bk_audio_pm_vote_cpu_freq_release();
     return BK_OK;
 }
 

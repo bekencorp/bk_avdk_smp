@@ -23,6 +23,7 @@
 #include <driver/uart.h>
 #include "gpio_driver.h"
 #include <modules/pm.h>
+#include <components/bk_audio/audio_utils/audio_pm_util.h>
 
 //#include "BK7256_RegList.h"
 
@@ -132,7 +133,7 @@ void cli_m4a_decoder_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc
 	}
 
 	BK_LOGD(NULL, "-----------open file ok----------- \n");
-	bk_pm_module_vote_cpu_freq(PM_DEV_ID_AUDIO,PM_CPU_FRQ_320M);
+	bk_audio_pm_vote_cpu_freq_acquire();
 
 #ifndef TF_dump
 	uart_dump_init();

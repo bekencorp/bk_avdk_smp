@@ -19,6 +19,7 @@
 #include <modules/fdk_aac_enc/aacenc_lib.h>
 #include "ff.h"
 #include <modules/pm.h>
+#include <components/bk_audio/audio_utils/audio_pm_util.h>
 #include "cli.h"
 
 
@@ -257,7 +258,7 @@ void cli_aac_encoder_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc
     os_memset(out_buffer, 0, AAC_FRAME_SIZE);
 
     BK_LOGD(NULL, "-----------open file ok----------- \n");
-    bk_pm_module_vote_cpu_freq(PM_DEV_ID_AUDIO, PM_CPU_FRQ_480M);
+    bk_audio_pm_vote_cpu_freq_acquire();
 
     /* init AAC encoder */
     //aacEncSetMemType(MEM_TYPE_PSRAM);     //use psram
@@ -313,7 +314,7 @@ void cli_aac_encoder_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc
 
 fail:
 
-    bk_pm_module_vote_cpu_freq(PM_DEV_ID_AUDIO, PM_CPU_FRQ_DEFAULT);
+    bk_audio_pm_vote_cpu_freq_release();
 
     fr = f_close(&aac_file);
     if (fr != FR_OK)

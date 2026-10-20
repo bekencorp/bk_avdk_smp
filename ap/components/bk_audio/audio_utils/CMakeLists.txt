@@ -1,6 +1,8 @@
 set(incs)
 
-set(srcs)
+set(srcs
+	audio_pm_util.c
+)
 
 if (CONFIG_ADK_UART_UTIL)
 	list(APPEND srcs

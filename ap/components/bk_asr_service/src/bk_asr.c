@@ -17,7 +17,7 @@
 #endif
 #include <components/bk_audio/audio_pipeline/audio_types.h>
 #include <components/bk_audio/audio_utils/debug_dump_util.h>
-
+#include <components/bk_audio/audio_utils/audio_pm_util.h>
 #define TAG "asr"
 
 #if CONFIG_AUD_PM_FAST_COLD
@@ -877,7 +877,7 @@ bk_err_t bk_asr_init_with_mic(asr_cfg_t *cfg, asr_handle_t asr_handle)
     asr_handle->mic_type     = cfg->mic_type;
     asr_handle->event_handle = cfg->event_handle;
 
-    bk_pm_module_vote_cpu_freq(PM_DEV_ID_AUDIO, PM_CPU_FRQ_480M);
+    bk_audio_pm_vote_cpu_freq_acquire();
     //bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_AUDP, 0, 0);
 
     //if (cfg->asr_rsp_en)
@@ -924,7 +924,7 @@ bk_err_t bk_asr_init_with_mic(asr_cfg_t *cfg, asr_handle_t asr_handle)
 
 fail:
 
-    bk_pm_module_vote_cpu_freq(PM_DEV_ID_AUDIO, PM_CPU_FRQ_DEFAULT);
+    bk_audio_pm_vote_cpu_freq_release();
 
     asr_listener_deinit(asr_handle);
     asr_pipeline_deinit_with_mic(asr_handle);
@@ -955,7 +955,7 @@ bk_err_t bk_asr_init(asr_cfg_t *cfg, asr_handle_t asr_handle)
     asr_handle->asr_en     = cfg->asr_en;
     asr_handle->asr_rsp_en = cfg->asr_rsp_en;
 
-    //bk_pm_module_vote_cpu_freq(PM_DEV_ID_AUDIO, PM_CPU_FRQ_480M);
+    //bk_audio_pm_vote_cpu_freq_acquire();
     //bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_AUDP, 0, 0);
 
     if (cfg->asr_rsp_en)
@@ -1034,7 +1034,7 @@ bk_err_t bk_asr_init(asr_cfg_t *cfg, asr_handle_t asr_handle)
 
 fail:
 
-    //bk_pm_module_vote_cpu_freq(PM_DEV_ID_AUDIO, PM_CPU_FRQ_DEFAULT);
+    //bk_audio_pm_vote_cpu_freq_release();
 
     asr_listener_deinit(asr_handle);
     asr_pipeline_deinit(asr_handle);
@@ -1084,7 +1084,7 @@ bk_err_t bk_asr_deinit(asr_handle_t asr_handle)
     asr_listener_deinit(asr_handle);
 #if (CONFIG_ASR_SERVICE_WITH_MIC)
     asr_pipeline_deinit_with_mic(asr_handle);
-    bk_pm_module_vote_cpu_freq(PM_DEV_ID_AUDIO, PM_CPU_FRQ_DEFAULT);
+    bk_audio_pm_vote_cpu_freq_release();
 #else
     asr_pipeline_deinit(asr_handle);
 #endif

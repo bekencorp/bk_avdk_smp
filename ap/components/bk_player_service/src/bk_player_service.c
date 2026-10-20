@@ -6,6 +6,7 @@
 #include "FreeRTOS.h"
 #include "task.h"
 #include <components/bk_audio/audio_pipeline/audio_pipeline.h>
+#include <components/bk_audio/audio_utils/audio_pm_util.h>
 #include <components/bk_audio/audio_pipeline/audio_mem.h>
 #include <components/bk_audio/audio_pipeline/audio_thread.h>
 #include <components/bk_audio/audio_pipeline/rb_port.h>
@@ -827,7 +828,7 @@ bk_player_handle_t bk_player_create(bk_player_cfg_t *cfg)
         goto fail;
     }
 
-    bk_pm_module_vote_cpu_freq(PM_DEV_ID_AUDIO, PM_CPU_FRQ_480M);
+    bk_audio_pm_vote_cpu_freq_acquire();
 
     //bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_AUDP, 0, 0);
 
@@ -841,7 +842,7 @@ bk_player_handle_t bk_player_create(bk_player_cfg_t *cfg)
 
 fail:
 
-    bk_pm_module_vote_cpu_freq(PM_DEV_ID_AUDIO, PM_CPU_FRQ_DEFAULT);
+    bk_audio_pm_vote_cpu_freq_release();
 
     listener_deinit(player_handle);
 
@@ -1051,7 +1052,7 @@ bk_err_t bk_player_destroy(bk_player_handle_t player_handle)
     play_pipeline_deinit(player_handle);
     BK_LOGD(TAG, "%s, play_pipeline deinit complete\n", __func__);
 
-    bk_pm_module_vote_cpu_freq(PM_DEV_ID_AUDIO, PM_CPU_FRQ_DEFAULT);
+    bk_audio_pm_vote_cpu_freq_release();
 
     listener_deinit(player_handle);
 
