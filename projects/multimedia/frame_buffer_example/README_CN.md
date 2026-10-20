@@ -13,6 +13,7 @@
 - `MEM_SLAB_HEAP_UNCODED` heap 的分配示例。
 - `bk_mem_slab_dump_heap()` heap 状态打印。
 - `avdk_hex_dump()` 内存内容打印。
+- `frame_queue_test()` 基于 `bk_frame_queue` 的帧队列用例（多消费者、阻塞释放、快慢消费者丢帧、注销回收等）。
 - 可选的 frame buffer 越界检测验证用例。
 
 ## 2. 硬件需求
@@ -32,9 +33,11 @@ frame_buffer_example/
 ├── README_CN.md
 ├── app.rst
 ├── ap/
-│   ├── ap_main.c             # AP 主入口，启动 frame buffer 测试
+│   ├── ap_main.c             # AP 主入口，启动 frame buffer 与 frame queue 测试
 │   ├── frame_buffer_test.c   # frame buffer 分配、释放和越界检测用例
 │   ├── frame_buffer_test.h
+│   ├── frame_queue_test.c    # bk_frame_queue 帧队列（多消费者/丢帧/回收）用例
+│   ├── frame_queue_test.h
 │   └── config/
 ├── cp/
 │   ├── cp_main.c
@@ -69,6 +72,7 @@ build/bk7259/frame_buffer_example/package/all-app.bin
 5. 打印 heap 状态和 buffer 附近的十六进制内存内容。
 6. 释放 3 块 buffer。
 7. 再次打印 heap 状态和 buffer 附近内存内容。
+8. `frame_queue_test()` 运行 `bk_frame_queue` 帧队列用例（多消费者、阻塞释放、快慢消费者丢帧、注销回收等）。
 
 串口日志应包含类似输出：
 
@@ -79,6 +83,9 @@ frame_buffer_mem_dump_test: frame1: 0x...
 frame_buffer_mem_dump_test: frame2: 0x...
 frame_buffer_mem_dump_test: frame3: 0x...
 frame_buffer_mem_dump_test: end
+...
+frame_queue_test start
+[RESULT][PASS] frame_queue_test success
 ```
 
 日志中还会输出 `bk_mem_slab_dump_heap()` 的 heap 信息，以及 `avdk_hex_dump()` 打印的内存数据。

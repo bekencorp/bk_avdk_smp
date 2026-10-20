@@ -13,6 +13,7 @@ This example includes:
 - Allocation from `MEM_SLAB_HEAP_UNCODED`.
 - Heap-state output with `bk_mem_slab_dump_heap()`.
 - Memory dump output with `avdk_hex_dump()`.
+- `frame_queue_test()`: `bk_frame_queue` cases (multi-consumer, blocking release, fast/slow-consumer frame drop, unregister/recycle).
 - Optional frame-buffer overflow detection cases.
 
 ## 2. Hardware Requirements
@@ -32,9 +33,11 @@ frame_buffer_example/
 ├── README_CN.md
 ├── app.rst
 ├── ap/
-│   ├── ap_main.c             # AP entry, starts the frame-buffer test
+│   ├── ap_main.c             # AP entry, starts the frame-buffer and frame-queue tests
 │   ├── frame_buffer_test.c   # Allocation, free and overflow detection cases
 │   ├── frame_buffer_test.h
+│   ├── frame_queue_test.c    # bk_frame_queue cases (multi-consumer / drop / recycle)
+│   ├── frame_queue_test.h
 │   └── config/
 ├── cp/
 │   ├── cp_main.c
@@ -69,6 +72,7 @@ The default test runs automatically after boot. No CLI command is required. The 
 5. Print heap status and hexadecimal memory content around each buffer.
 6. Free the three buffers.
 7. Print heap status and memory content again.
+8. Run the `bk_frame_queue` cases in `frame_queue_test()` (multi-consumer, blocking release, fast/slow-consumer drop, unregister/recycle).
 
 UART logs should contain output similar to:
 
@@ -79,6 +83,9 @@ frame_buffer_mem_dump_test: frame1: 0x...
 frame_buffer_mem_dump_test: frame2: 0x...
 frame_buffer_mem_dump_test: frame3: 0x...
 frame_buffer_mem_dump_test: end
+...
+frame_queue_test start
+[RESULT][PASS] frame_queue_test success
 ```
 
 The log also contains heap information from `bk_mem_slab_dump_heap()` and memory data from `avdk_hex_dump()`.
