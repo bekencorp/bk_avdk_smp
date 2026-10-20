@@ -76,6 +76,39 @@ static void pm_ap_suspend_failure_publish(uint32_t recovery_seq)
     __DSB();
     LOGW("AP fast suspend: rollback ready seq=%u\r\n", recovery_seq);
 }
+
+/*
+ * Online CPU3 up to the scheduler gate and leave it there. Resume callbacks
+ * then run on this CPU2 PM task with CPU3 still outside the SMP scheduler.
+ */
+static bk_err_t pm_ap_cpu3_online_blocked(void)
+{
+    bk_err_t ret = BK_OK;
+
+    if (bk_cpu_hp_is_online(CPU3_CORE_ID)) {
+        return BK_OK;
+    }
+
+    bk_cpu3_scheduler_release_defer(1U);
+    ret = bk_cpu_hp_online_direct(CPU3_CORE_ID);
+    bk_cpu3_scheduler_release_defer(0U);
+    return ret;
+}
+
+static void pm_ap_cpu3_scheduler_release(void)
+{
+    if (bk_cpu_hp_is_online(CPU3_CORE_ID)) {
+        bk_cpu3_scheduler_release();
+    }
+}
+
+/*
+ * full_ready is published inside module resume, and CP immediately sends
+ * APP_RESUME plus power-on callbacks. Releasing CPU3 in that same instant
+ * lets CPU3 enter the scheduler while those callbacks are still running.
+ * Hold CPU3 until this PM task has finished APP_RESUME.
+ */
+static uint8_t s_cpu3_release_after_app_resume;
 #endif
 
 /*================FUNCTION DECLARATION  SECTION  START==========*/
@@ -208,13 +241,14 @@ static bk_err_t pm_ap_core_message_handle(void)
                     ret = bk_pm_ap_fast_suspend_backup();
                     if (ret != BK_OK) {
                         LOGE("AP fast suspend: hardware backup failed[%d]\r\n", ret);
-                        ret = bk_cpu_hp_online_direct(CPU3_CORE_ID);
+                        ret = pm_ap_cpu3_online_blocked();
                         if (ret == BK_OK) {
                             ret = bk_pm_ap_fast_resume_modules();
                             if (ret != BK_OK) {
                                 LOGE("AP fast suspend: backup rollback resume failed[%d]\r\n",
                                     ret);
                             }
+                            pm_ap_cpu3_scheduler_release();
                             pm_ap_suspend_failure_publish(msg.param1);
                         } else {
                             LOGE("AP fast suspend rollback: CPU3 online failed[%d]\r\n",
@@ -238,7 +272,7 @@ static bk_err_t pm_ap_core_message_handle(void)
                         break;
                     }
                     if (!bk_cpu_hp_is_online(CPU3_CORE_ID)) {
-                        ret = bk_cpu_hp_online_direct(CPU3_CORE_ID);
+                        ret = pm_ap_cpu3_online_blocked();
                         if (ret != BK_OK) {
                             LOGE("AP fast resume: CPU3 online failed[%d], stage=%u\r\n",
                                 ret, bk_cpu3_fast_resume_stage_get());
@@ -252,14 +286,16 @@ static bk_err_t pm_ap_core_message_handle(void)
                         LOGE("AP fast resume: CPU3 not ready, AP0 remains available\r\n");
                     } else {
                         /*
-                         * This event is queued only after the retained AP
-                         * context returns from the prepared WFI/power-off
-                         * sequence. Unlike an abort rollback, it must arm the
-                         * final application resume phase.
+                         * CPU3 is online but still blocked before the scheduler.
+                         * Restore modules on CPU2 first. full_ready lets CP send
+                         * APP_RESUME; keep CPU3 out until that message is done.
                          */
                         ret = bk_pm_ap_fast_wakeup_resume_modules();
                         if (ret != BK_OK) {
                             LOGE("AP fast resume: module resume failed[%d]\r\n", ret);
+                            pm_ap_cpu3_scheduler_release();
+                        } else {
+                            s_cpu3_release_after_app_resume = 1U;
                         }
                     }
 #endif
@@ -279,7 +315,7 @@ static bk_err_t pm_ap_core_message_handle(void)
                         }
                     }
                     if (!bk_cpu_hp_is_online(CPU3_CORE_ID)) {
-                        ret = bk_cpu_hp_online_direct(CPU3_CORE_ID);
+                        ret = pm_ap_cpu3_online_blocked();
                         if (ret != BK_OK) {
                             LOGE("AP fast suspend abort: CPU3 online failed[%d]\r\n",
                                 ret);
@@ -306,6 +342,7 @@ static bk_err_t pm_ap_core_message_handle(void)
                         LOGE("AP fast suspend abort: module resume failed[%d]\r\n",
                             ret);
                     }
+                    pm_ap_cpu3_scheduler_release();
 #endif
                 }
                 break;
@@ -318,6 +355,12 @@ static bk_err_t pm_ap_core_message_handle(void)
                     } else {
                         LOGD("AP fast resume: app resume callbacks done\r\n");
                     }
+#if CONFIG_CPU_HOTPLUG
+                    if (s_cpu3_release_after_app_resume != 0U) {
+                        s_cpu3_release_after_app_resume = 0U;
+                        pm_ap_cpu3_scheduler_release();
+                    }
+#endif
                 }
                 break;
 #endif
