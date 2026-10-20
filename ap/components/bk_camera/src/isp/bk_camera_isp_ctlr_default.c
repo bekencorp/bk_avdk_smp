@@ -1086,19 +1086,6 @@ static avdk_err_t isp_camera_ctlr_ioctl(bk_isp_camera_ctlr_handle_t handle, bk_c
             break;
         }
 
-        case BK_CAM_IOCTL_RESTORE_ISP_PORT_CONTEXT:
-        {
-            bk_err_t isp_ret =
-                bk_isp_port_context_restore(&controller->isp_handle);
-            if (isp_ret != BK_OK)
-            {
-                LOGE("%s restore ISP port context failed: %d\n",
-                     __func__, isp_ret);
-                return AVDK_ERR_GENERIC;
-            }
-            break;
-        }
-
         case BK_CAM_IOCTL_GET_WB:
             AVDK_RETURN_ON_FALSE(arg, AVDK_ERR_INVAL, TAG, "wb get arg is NULL");
             AVDK_RETURN_ON_ERROR(
@@ -1168,6 +1155,32 @@ static avdk_err_t isp_camera_ctlr_ioctl(bk_isp_camera_ctlr_handle_t handle, bk_c
                 handle, cfg->type, cfg->arg);
         }
 
+        case BK_CAM_IOCTL_REGISTER_PIPELINE_START_CALLBACK:
+        {
+            bk_isp_camera_pipeline_callback_config_t *cfg =
+                (bk_isp_camera_pipeline_callback_config_t *)arg;
+            AVDK_RETURN_ON_FALSE(
+                cfg && cfg->callback && cfg->arg,
+                AVDK_ERR_INVAL, TAG, "pipeline callback config is invalid");
+            bk_err_t isp_ret = bk_isp_register_3a_start_callback(
+                &controller->isp_handle,
+                (isp_3a_start_cb_t)cfg->callback, cfg->arg);
+            return (isp_ret == BK_OK) ? AVDK_ERR_OK : AVDK_ERR_GENERIC;
+        }
+
+        case BK_CAM_IOCTL_DEREGISTER_PIPELINE_START_CALLBACK:
+        {
+            bk_isp_camera_pipeline_callback_config_t *cfg =
+                (bk_isp_camera_pipeline_callback_config_t *)arg;
+            AVDK_RETURN_ON_FALSE(
+                cfg && cfg->callback && cfg->arg,
+                AVDK_ERR_INVAL, TAG, "pipeline callback config is invalid");
+            bk_err_t isp_ret = bk_isp_deregister_3a_start_callback(
+                &controller->isp_handle,
+                (isp_3a_start_cb_t)cfg->callback, cfg->arg);
+            return (isp_ret == BK_OK) ? AVDK_ERR_OK : AVDK_ERR_GENERIC;
+        }
+
         case BK_CAM_IOCTL_REGISTER_PIPELINE_DONE_CALLBACK:
         {
             bk_isp_camera_pipeline_callback_config_t *cfg =
@@ -1205,15 +1218,6 @@ static avdk_err_t isp_camera_ctlr_ioctl(bk_isp_camera_ctlr_handle_t handle, bk_c
             break;
         }
 
-        case BK_CAM_IOCTL_SET_ISP_SWITCH_MODULE_MASK:
-        {
-            AVDK_RETURN_ON_FALSE(
-                arg, AVDK_ERR_INVAL, TAG, "switch module mask is NULL");
-            bk_err_t isp_ret = bk_isp_switch_module_mask_set(
-                &controller->isp_handle, *(const uint32_t *)arg);
-            return (isp_ret == BK_OK) ? AVDK_ERR_OK : AVDK_ERR_GENERIC;
-        }
-
         case BK_CAM_IOCTL_SET_SENSOR_UPDATE_MODE:
         {
             bk_isp_camera_sensor_update_mode_t *mode =
@@ -1224,6 +1228,15 @@ static avdk_err_t isp_camera_ctlr_ioctl(bk_isp_camera_ctlr_handle_t handle, bk_c
             bk_err_t isp_ret = bk_isp_sensor_update_mode_set(
                 &controller->isp_handle,
                 (bk_isp_sensor_update_mode_t)*mode);
+            return (isp_ret == BK_OK) ? AVDK_ERR_OK : AVDK_ERR_GENERIC;
+        }
+
+        case BK_CAM_IOCTL_PIPELINE_CFG_UPD_ENABLE:
+        {
+            AVDK_RETURN_ON_FALSE(
+                arg, AVDK_ERR_INVAL, TAG, "pipeline cfg upd arg is NULL");
+            bk_err_t isp_ret = bk_isp_pipeline_cfg_upd_enable(
+                &controller->isp_handle, *(uint8_t *)arg);
             return (isp_ret == BK_OK) ? AVDK_ERR_OK : AVDK_ERR_GENERIC;
         }
 
