@@ -48,6 +48,13 @@ extern "C" {
  */
 void *bk_sram_hsram_malloc(const char *tag, uint32_t size);
 
+/**
+ * Allocate from AP HSRAM first; fall back to SRAM when HSRAM is exhausted.
+ * @param tag log tag from caller (e.g. module name); may be NULL
+ * Free with os_free (hsram_free is aliased to os_free).
+ */
+void *bk_hsram_sram_malloc(const char *tag, uint32_t size);
+
 void *bk_get_isp_flexa_buffer(uint32_t size);
 void *bk_get_gpu_flexa_buffer(uint32_t size);
 void *bk_get_dpu_buffer(uint32_t size);
