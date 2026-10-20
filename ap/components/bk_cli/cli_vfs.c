@@ -591,7 +591,7 @@ static int vfs_lfs_parse_range(int argc, char **argv, int first_arg, vfs_lfs_ran
 	range->start = 0;
 	range->size = 0;
 
-	if (argc == first_arg) {
+	if (argc <= first_arg) {
 		return 0;
 	}
 	if (argc != first_arg + 2) {
@@ -699,11 +699,6 @@ static int vfs_dev_format_range(const vfs_dev_t *dev, vfs_bench_fs_t fs,
 	}
 }
 
-static int vfs_dev_format(const vfs_dev_t *dev, vfs_bench_fs_t fs)
-{
-	return vfs_dev_format_range(dev, fs, NULL);
-}
-
 static int vfs_dev_mount_range(const vfs_dev_t *dev, vfs_bench_fs_t fs,
                                const char *mount_point, const vfs_lfs_range_t *range)
 {
@@ -734,11 +729,6 @@ static int vfs_dev_mount_range(const vfs_dev_t *dev, vfs_bench_fs_t fs,
 		part.part_dev.device_name = dev->fatfs_dev;
 		return mount("SOURCE_NONE", mount_point, "fatfs", 0, &part);
 	}
-}
-
-static int vfs_dev_mount(const vfs_dev_t *dev, vfs_bench_fs_t fs, const char *mount_point)
-{
-	return vfs_dev_mount_range(dev, fs, mount_point, NULL);
 }
 
 static int vfs_fs_from_name(const char *name, vfs_bench_fs_t *out)
@@ -1058,7 +1048,8 @@ static int vfs_bench_round(const char *path, uint32_t file_bytes, uint32_t seed,
 }
 
 /* Bring up one filesystem on a device. Destructive: always mkfs. */
-static int vfs_bench_setup(const vfs_dev_t *dev, vfs_bench_fs_t fs)
+static int vfs_bench_setup(const vfs_dev_t *dev, vfs_bench_fs_t fs,
+                           const vfs_lfs_range_t *range)
 {
 	int ret;
 
@@ -1069,14 +1060,14 @@ static int vfs_bench_setup(const vfs_dev_t *dev, vfs_bench_fs_t fs)
 	/* A previous run (or a manual `vfs mount`) may still hold the path. */
 	(void)test_umount_vfs((char *)dev->mount_point);
 
-	ret = vfs_dev_format(dev, fs);
+	ret = vfs_dev_format_range(dev, fs, range);
 	if (ret) {
 		CLI_LOGE("bench: mkfs %s on %s failed (%d)\r\n",
 		         vfs_bench_fs_name(fs), dev->name, ret);
 		return ret;
 	}
 
-	ret = vfs_dev_mount(dev, fs, dev->mount_point);
+	ret = vfs_dev_mount_range(dev, fs, dev->mount_point, range);
 	if (ret) {
 		CLI_LOGE("bench: mount %s on %s failed (%d)\r\n",
 		         vfs_bench_fs_name(fs), dev->name, ret);
@@ -1146,7 +1137,8 @@ static uint32_t vfs_bench_fit_file_bytes(const char *mount_point, uint32_t want_
 }
 
 static void vfs_bench_run_fs(const vfs_dev_t *dev, vfs_bench_fs_t fs,
-                             uint32_t file_kb, uint32_t rounds)
+                             uint32_t file_kb, uint32_t rounds,
+                             const vfs_lfs_range_t *range)
 {
 	vfs_bench_stat_t st;
 	char path[VFS_FILE_MAX_LEN + 16];
@@ -1156,7 +1148,7 @@ static void vfs_bench_run_fs(const vfs_dev_t *dev, vfs_bench_fs_t fs,
 	uint32_t file_bytes = file_kb * 1024U;
 	uint32_t i;
 
-	if (vfs_bench_setup(dev, fs)) {
+	if (vfs_bench_setup(dev, fs, range)) {
 		return;
 	}
 
@@ -1206,11 +1198,12 @@ static void vfs_bench_cmd(int argc, char **argv)
 	const vfs_dev_t *dev;
 	uint32_t file_kb = VFS_BENCH_DEF_FILE_KB;
 	uint32_t rounds = VFS_BENCH_DEF_ROUNDS;
+	vfs_lfs_range_t range;
 	bool run_lfs = true;
 	bool run_fatfs = true;
 
 	if (argc < 3) {
-		CLI_LOGE("usage: vfs bench <dev> [lfs|fatfs|all] [file_kb] [rounds]\r\n");
+		CLI_LOGE("usage: vfs bench <dev> [lfs|fatfs|all] [file_kb] [rounds] [offset size]\r\n");
 		vfs_dev_list();
 		return;
 	}
@@ -1228,7 +1221,7 @@ static void vfs_bench_cmd(int argc, char **argv)
 		} else if (os_strcmp(argv[3], "fatfs") == 0) {
 			run_lfs = false;
 		} else {
-			CLI_LOGE("usage: vfs bench <dev> [lfs|fatfs|all] [file_kb] [rounds]\r\n");
+			CLI_LOGE("usage: vfs bench <dev> [lfs|fatfs|all] [file_kb] [rounds] [offset size]\r\n");
 			return;
 		}
 	}
@@ -1238,6 +1231,9 @@ static void vfs_bench_cmd(int argc, char **argv)
 	}
 	if (argc >= 6) {
 		rounds = os_strtoul(argv[5], NULL, 10);
+	}
+	if (vfs_lfs_parse_range(argc, argv, 6, &range)) {
+		return;
 	}
 
 	if (!file_kb || file_kb > VFS_BENCH_MAX_FILE_KB) {
@@ -1290,13 +1286,22 @@ static void vfs_bench_cmd(int argc, char **argv)
 	}
 #endif
 
+	if (range.valid && run_fatfs) {
+		CLI_LOGE("bench: offset/size only applies to littlefs; run lfs and fatfs separately\r\n");
+		return;
+	}
+
 	CLI_LOGW("bench: DESTRUCTIVE - reformats %s at %s\r\n", dev->name, dev->mount_point);
+	if (range.valid) {
+		CLI_LOGW("bench: littlefs range 0x%x..0x%x\r\n",
+		         range.start, range.start + range.size);
+	}
 
 	if (run_lfs) {
-		vfs_bench_run_fs(dev, VFS_BENCH_FS_LFS, file_kb, rounds);
+		vfs_bench_run_fs(dev, VFS_BENCH_FS_LFS, file_kb, rounds, &range);
 	}
 	if (run_fatfs) {
-		vfs_bench_run_fs(dev, VFS_BENCH_FS_FATFS, file_kb, rounds);
+		vfs_bench_run_fs(dev, VFS_BENCH_FS_FATFS, file_kb, rounds, &range);
 	}
 }
 
@@ -1307,6 +1312,7 @@ static vfs_bench_stat_t s_soak_stat;
 static vfs_bench_fs_t s_soak_fs = VFS_BENCH_FS_LFS;
 static const vfs_dev_t *s_soak_dev;
 static uint32_t s_soak_file_kb = VFS_BENCH_DEF_FILE_KB;
+static vfs_lfs_range_t s_soak_range;
 
 static void vfs_soak_task(beken_thread_arg_t arg)
 {
@@ -1326,7 +1332,7 @@ static void vfs_soak_task(beken_thread_arg_t arg)
 		goto out;
 	}
 
-	if (vfs_bench_setup(dev, s_soak_fs)) {
+	if (vfs_bench_setup(dev, s_soak_fs, &s_soak_range)) {
 		goto out;
 	}
 
@@ -1383,7 +1389,7 @@ out:
 static void vfs_soak_cmd(int argc, char **argv)
 {
 	if (argc < 3) {
-		CLI_LOGE("usage: vfs soak start <dev> [lfs|fatfs] [file_kb]\r\n");
+		CLI_LOGE("usage: vfs soak start <dev> [lfs|fatfs] [file_kb] [offset size]\r\n");
 		CLI_LOGE("       vfs soak stop|status\r\n");
 		vfs_dev_list();
 		return;
@@ -1391,6 +1397,7 @@ static void vfs_soak_cmd(int argc, char **argv)
 
 	if (os_strcmp(argv[2], "start") == 0) {
 		const vfs_dev_t *dev;
+		vfs_lfs_range_t range;
 
 		if (s_soak_running) {
 			CLI_LOGW("soak: already running\r\n");
@@ -1398,7 +1405,7 @@ static void vfs_soak_cmd(int argc, char **argv)
 		}
 
 		if (argc < 4) {
-			CLI_LOGE("usage: vfs soak start <dev> [lfs|fatfs] [file_kb]\r\n");
+			CLI_LOGE("usage: vfs soak start <dev> [lfs|fatfs] [file_kb] [offset size]\r\n");
 			vfs_dev_list();
 			return;
 		}
@@ -1424,16 +1431,28 @@ static void vfs_soak_cmd(int argc, char **argv)
 			CLI_LOGE("soak: file_kb must be 1..%u\r\n", VFS_BENCH_MAX_FILE_KB);
 			return;
 		}
+		if (vfs_lfs_parse_range(argc, argv, 6, &range)) {
+			return;
+		}
+		if (range.valid && s_soak_fs == VFS_BENCH_FS_FATFS) {
+			CLI_LOGE("soak: offset/size is not supported for fatfs\r\n");
+			return;
+		}
 		if (!vfs_dev_supports(dev, s_soak_fs)) {
 			return;
 		}
 
+		s_soak_range = range;
 		s_soak_dev = dev;
 		vfs_bench_stat_reset(&s_soak_stat);
 		s_soak_stop = false;
 		s_soak_running = true;
 
 		CLI_LOGW("soak: DESTRUCTIVE - reformats %s at %s\r\n", dev->name, dev->mount_point);
+		if (range.valid) {
+			CLI_LOGW("soak: littlefs range 0x%x..0x%x\r\n",
+			         range.start, range.start + range.size);
+		}
 		if (rtos_create_thread(&s_soak_handle, 5, "vfs_soak",
 		                       (beken_thread_function_t)vfs_soak_task, 4 * 1024, 0)) {
 			CLI_LOGE("soak: create thread failed\r\n");
@@ -1453,7 +1472,7 @@ static void vfs_soak_cmd(int argc, char **argv)
 		vfs_bench_report("VFS SOAK STATUS", vfs_bench_fs_name(s_soak_fs),
 		                 s_soak_file_kb, &s_soak_stat);
 	} else {
-		CLI_LOGE("usage: vfs soak start <dev> [lfs|fatfs] [file_kb]\r\n");
+		CLI_LOGE("usage: vfs soak start <dev> [lfs|fatfs] [file_kb] [offset size]\r\n");
 		CLI_LOGE("       vfs soak stop|status\r\n");
 	}
 }
@@ -1672,8 +1691,8 @@ void cli_vfs_test(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **arg
 		BK_LOGD(NULL, "usage : vfs format <dev> <lfs|fatfs> [offset size]\n");
 		BK_LOGD(NULL, "        vfs mount <dev> <lfs|fatfs> [mount_point] [offset size]\n");
 		BK_LOGD(NULL, "        vfs umount|read|write|unlink|rename ...\n");
-		BK_LOGD(NULL, "        vfs bench <dev> [lfs|fatfs|all] [file_kb] [rounds]\n");
-		BK_LOGD(NULL, "        vfs soak start <dev> [lfs|fatfs] [file_kb] | stop | status\n");
+		BK_LOGD(NULL, "        vfs bench <dev> [lfs|fatfs|all] [file_kb] [rounds] [offset size]\n");
+		BK_LOGD(NULL, "        vfs soak start <dev> [lfs|fatfs] [file_kb] [offset size] | stop | status\n");
 		BK_LOGD(NULL, "        vfs threadsafe_test <tasks> [file_kb] [mount_point]\n");
 		BK_LOGD(NULL, "        vfs devs\n");
 		return;
