@@ -132,6 +132,8 @@ static SPINLOCK_SECTION volatile uint32_t _cpu3_fast_resume_stage;
 static SPINLOCK_SECTION volatile uint32_t _cpu3_online_requested;
 /* 0: CPU3 waits with BASEPRI raised, 1: CPU0 published online state, 2: abort. */
 static SPINLOCK_SECTION volatile uint32_t _cpu3_online_release;
+/* While set, online succeeds but leaves CPU3 blocked until bk_cpu3_scheduler_release(). */
+static SPINLOCK_SECTION volatile uint32_t _cpu3_defer_scheduler_release;
 #endif
 static ap_cpu3_irq_route_snapshot_t _cpu3_irq_route;
 
@@ -676,14 +678,18 @@ static bk_err_t _cpu_hp_online_internal(uint32_t cpu_id, uint32_t from_atomic)
 		crosscore_int_reset_send();
 #if CONFIG_PM_AP_FAST_BOOT_ENABLE
 		/*
-		 * Second phase of the online handshake. CPU3 is still blocked in
-		 * vRestoreContextOfFirstTask() with BASEPRI raised; release it only
-		 * after online/active state, IRQ routes and mailbox are all visible.
+		 * CPU3 is still blocked in vRestoreContextOfFirstTask() with BASEPRI
+		 * raised. IRQ routes and the mailbox are visible now. The fast-resume
+		 * PM path defers this release until its resume callbacks return, so
+		 * CPU3 does not enter the SMP scheduler while CPU2 is still restoring
+		 * modules. Every other online caller releases here.
 		 */
-		_cpu_hp_barrier();
-		_cpu3_online_release = 1U;
-		_cpu_hp_barrier();
-		__SEV();
+		if (_cpu3_defer_scheduler_release == 0U) {
+			_cpu_hp_barrier();
+			_cpu3_online_release = 1U;
+			_cpu_hp_barrier();
+			__SEV();
+		}
 #endif
 		goto out;
 	}
@@ -840,6 +846,20 @@ void bk_cpu3_fast_resume_prepare(void)
 	_cpu3_fast_resume_stage = 1U;
 	_cpu3_fast_resume_request = CPU3_FAST_RESUME_REQUEST_MAGIC;
 	_cpu_hp_barrier();
+}
+
+void bk_cpu3_scheduler_release_defer(uint32_t defer)
+{
+	_cpu3_defer_scheduler_release = (defer != 0U) ? 1U : 0U;
+	_cpu_hp_barrier();
+}
+
+void bk_cpu3_scheduler_release(void)
+{
+	_cpu_hp_barrier();
+	_cpu3_online_release = 1U;
+	_cpu_hp_barrier();
+	__SEV();
 }
 
 uint32_t bk_cpu3_fast_resume_consume(void)

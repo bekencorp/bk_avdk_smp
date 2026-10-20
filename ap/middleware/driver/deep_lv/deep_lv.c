@@ -541,20 +541,12 @@ __IRAM_PM void mini_dlv_stack_frame_save_and_dlv(void)
 	flush_dcache((void *)&bk_sys_sw_regs_ptr()->pm_shared_info,
 		sizeof(bk_sys_sw_regs_ptr()->pm_shared_info));
 	__DSB();
-
-#if CONFIG_CACHE_MAINTENANCE
 	/*
-	 * PSRAM task stacks live in an L2 write-back-only MPU region. Clean that
-	 * physical range explicitly before the by-way cache operation so every
-	 * saved task frame reaches PSRAM before AP/L2 power is removed.
+	 * Do not clean L2 here. deep_lv_enter() still stores the saved context
+	 * after this function returns. The one write-back sits in
+	 * sys_hal_enter_cpu_wfi(), immediately before the PSRAM controller
+	 * save command.
 	 */
-#if CONFIG_TASK_STACK_IN_PSRAM && CONFIG_PSRAM_AS_SYS_MEMORY
-	(void)arch_dcache_flush_range((void *)(uintptr_t)CONFIG_AP_PSRAM_HEAP_ADDR,
-		CONFIG_AP_PSRAM_HEAP_SIZE);
-	__DSB();
-#endif
-	flush_all_dcache();
-#endif
 }
 
 __attribute__((naked)) __IRAM_PM void dlv_stack_frame_save_and_dlv(uint32_t exc_return)

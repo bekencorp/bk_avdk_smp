@@ -76,6 +76,8 @@ uint32_t bk_cpu3_fast_resume_is_pending(void);
 void bk_cpu3_fast_resume_stage_set(uint32_t stage);
 uint32_t bk_cpu3_fast_resume_stage_get(void);
 void bk_cpu_hp_core_online_ready(void);
+void bk_cpu3_scheduler_release_defer(uint32_t defer);
+void bk_cpu3_scheduler_release(void);
 #endif
 
 #if CONFIG_CPU_HP_GOVERNOR

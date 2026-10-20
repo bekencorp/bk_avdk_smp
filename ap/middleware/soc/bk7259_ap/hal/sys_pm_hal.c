@@ -796,10 +796,17 @@ void sys_hal_enter_cpu_wfi()
 #endif
 #if CONFIG_PSRAM_DATA_RETENTION_ENABLE
 			/*
-			 * Context capture cleans AP L1/L2. Flush both PSRAM
-			 * controllers afterwards, while AP/AHBP command clocks are
-			 * still running, and before CP is told that AP is asleep.
+			 * Last write-back before the controller snapshots PSRAM cells.
+			 * CPU3 is already offline, DMA was idle, and the SVC return
+			 * path holds PRIMASK/FAULTMASK, so no other AP master can
+			 * allocate a new dirty line. flush_all_dcache() writes every
+			 * dirty L2 line back by way. Non-cacheable PSRAM never
+			 * allocated a line, so those cells stay as they are.
+			 * Nothing between this call and the save command may store
+			 * to the L2 write-back heap.
 			 */
+			flush_all_dcache();
+			__DSB();
 			{
 				uint32_t failed_id = 0;
 				uint32_t failed_reg2 = 0;
