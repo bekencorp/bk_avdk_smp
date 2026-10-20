@@ -1113,8 +1113,246 @@ static inline void sys_hal_set_low_voltage(pm_sleep_mode_e sleep_mode, volatile 
 	sys_hal_disable_spi_latch();
 }
 
+void sys_hal_enter_deep_sleep_nspe(void *param)
+{
+	volatile uint32_t int_state1, int_state2, int_state3;
+	volatile uint8_t cksel_core = 0, clkdiv_core = 0, clkdiv_bus = 0;
+	volatile uint8_t cksel_flash = 0, clkdiv_flash = 0;
+	volatile uint32_t core_low_voltage;
+	volatile uint32_t systick_ctrl_value    = 0;
 
-/*__IRAM_PM*/ void sys_hal_enter_deep_sleep(void *param)
+	volatile uint32_t v_ana_r9              = 0;
+#if CONFIG_OPTIMIZE_AON_CURRENT
+	volatile uint32_t valoldosel            = 0;
+#endif
+
+#if CONFIG_DEEP_LV
+	pm_lpo_src_e lpo_src           = PM_LPO_SRC_ROSC;
+#endif
+
+#if CONFIG_OTA_POSITION_INDEPENDENT_AB || CONFIG_DIRECT_XIP
+	flash_ab_reg_t  ab_flash_reg   = {0};
+#endif
+	portNVIC_INT_CTRL_REG |= portNVIC_SYSTICKCLR_BIT;
+	systick_ctrl_value = portNVIC_SYSTICK_CTRL_REG;
+	portNVIC_SYSTICK_LOAD_REG = PM_EXIT_LOWVOL_SYSTICK_RELOAD_TIME;
+	portNVIC_SYSTICK_CTRL_REG = 0;//disable the systick, avoid it affect the enter low voltage sleep
+
+	int_state1 = sys_ll_get_cpu0_int_0_31_en_value();
+	int_state2 = sys_ll_get_cpu0_int_32_63_en_value();
+	int_state3 = sys_ll_get_cpu0_int_64_95_en_value();
+	sys_ll_set_cpu0_int_0_31_en_value(0x0);
+	sys_ll_set_cpu0_int_32_63_en_value(0x0);
+	sys_ll_set_cpu0_int_64_95_en_value(0x0);
+	if(check_IRQ_pending()||(sys_ll_get_cpu0_int_0_31_status_value()||(sys_ll_get_cpu0_int_32_63_status_value()) || (sys_ll_get_cpu0_int_64_95_status_value()))||(portNVIC_INT_CTRL_REG&portNVIC_SYSTICKSET_BIT) ||(sys_hal_wifi_enter_sleep_status_get()))
+	{
+		sys_ll_set_cpu0_int_0_31_en_value(int_state1);
+		sys_ll_set_cpu0_int_32_63_en_value(int_state2);
+		sys_ll_set_cpu0_int_64_95_en_value(int_state3);
+		portNVIC_SYSTICK_CTRL_REG = systick_ctrl_value;
+		return;
+	}
+	portNVIC_SYSTICK_LOAD_REG = PM_EXIT_LOWVOL_SYSTICK_RELOAD_TIME;
+
+#if CONFIG_DEEP_LV && CONFIG_PM_AP_POWERDOWN_WHEN_LV
+	if (!sys_hal_is_m55_core_power_down())
+	{
+		sys_hal_power_down_m55_core();
+		SYS_PM_HAL_CPU_BARRIER();
+	}
+#endif
+
+	sys_hal_mask_cpu0_int();
+#if CONFIG_GPIO_WAKEUP_SUPPORT
+	extern bk_err_t gpio_enable_interrupt_mult_for_wake(void);
+	gpio_enable_interrupt_mult_for_wake();
+#endif
+	bk_pm_module_lv_sleep_state_set();
+	bk_pm_sleep_wakeup_reason_clear();
+
+	#if CONFIG_OPTIMIZE_AON_CURRENT
+	valoldosel = sys_ll_get_ana_reg9_valoldosel();
+	#endif
+	#if CONFIG_DEEP_LV
+	lpo_src = aon_pmu_ll_get_r41_lpo_config();
+	#endif
+	#if CONFIG_OTA_POSITION_INDEPENDENT_AB || CONFIG_DIRECT_XIP
+	flash_ab_info_backup(&ab_flash_reg);
+	#endif
+
+	#if CONFIG_INT_WDT
+	extern void close_wdt(void);
+	close_wdt();
+
+	#if CONFIG_SUPPORT_WWDT
+	bk_wwdt_stop();
+	#endif
+
+	#if INT_AON_WDT
+	bk_wdt_suspend();
+	#endif
+
+	#if CONFIG_TASK_WDT
+	bk_task_wdt_stop();
+	#endif
+	#endif
+
+	sys_hal_backup_set_core_26m(&cksel_core, &clkdiv_core, &clkdiv_bus);
+	SYS_PM_HAL_CPU_BARRIER();
+
+	sys_hal_backup_set_flash_26m(&cksel_flash, &clkdiv_flash);
+	SYS_PM_HAL_CPU_BARRIER();
+
+	sys_hal_set_ram_low_speed();
+	SYS_PM_HAL_CPU_BARRIER();
+
+	extern void sys_hal_ctrl_vdddig_h_vol(uint8_t vol);
+	sys_hal_ctrl_vdddig_h_vol(PM_VDDDIG_H_VOL_0V825);
+	SYS_PM_HAL_CPU_BARRIER();
+
+	sys_ll_set_cpu_anaspi_freq_anaspi_freq(0);//(CPU FREQ /2)/(1+0)=13M
+
+#if !CONFIG_DEEP_LV
+#if CONFIG_SPE
+	sys_ll_set_cpu0_int_32_63_en_cpu0_gpio_s_int_en(0x1);
+#else
+	sys_hal_enable_hsu_int();
+#endif
+	sys_ll_set_cpu0_int_32_63_en_cpu0_rtc_int_en(0x1);
+	sys_ll_set_cpu0_int_32_63_en_cpu0_touched_int_en(0x1);
+#endif
+
+	sys_hal_set_sleep_condition();
+
+	if (param && *(uint8_t *)param) {
+		sys_hal_set_halt_config(PM_MODE_SUPER_DEEP_SLEEP);
+		sys_hal_set_power_parameter(PM_MODE_SUPER_DEEP_SLEEP);
+	} else {
+		 sys_hal_set_halt_config(PM_MODE_DEEP_SLEEP);
+		 sys_hal_set_power_parameter(PM_MODE_DEEP_SLEEP);
+
+	}
+
+	#if CONFIG_DEEP_LV
+	volatile uint32_t v_sys_r10    = 0;
+	sys_hal_power_down_pd(&v_sys_r10);
+
+	if(lpo_src == PM_LPO_SRC_X32K)
+	{
+		sys_hal_power_on_and_select_rosc(PM_LPO_SRC_X32K);
+	}
+	else
+	{
+		sys_hal_power_on_and_select_rosc(PM_LPO_SRC_ROSC);
+	}
+
+	#endif
+	sys_ll_set_ana_reg42_dslep_disable(0x1);//0x1: otp not power down when sleep; 0x0: otp power down when sleep;
+
+	#if CONFIG_PM_AP_SRAM_POWER_CTRL
+	sys_hal_config_ap_sram_power_down();
+	#endif
+	#if CONFIG_DEEP_LV
+	sys_hal_set_low_voltage(PM_MODE_DEEP_SLEEP, &v_ana_r9, &core_low_voltage);
+	#else
+	sys_hal_set_low_voltage(PM_MODE_LOW_VOLTAGE, &v_ana_r9, &core_low_voltage);
+	#endif
+	SYS_PM_HAL_CPU_BARRIER();
+
+#if CONFIG_OPTIMIZE_AON_CURRENT
+	v_ana_r9 = (v_ana_r9 & ~PM_ANA_REG9_VALOLDOSEL_MASK) |
+		((valoldosel & 0x7u) << PM_ANA_REG9_VALOLDOSEL_POS);
+#endif
+	sys_hal_enable_spi_latch();
+
+	#if CONFIG_PSRAM_POWER_DOMAIN_LV_DISABLE && !CONFIG_PSRAM_DATA_RETENTION_ENABLE
+	uint32_t psram_state = sys_ll_get_ana_reg14_enpsram();
+	if(psram_state != 0x0)
+	{
+		sys_ll_set_ana_reg14_enpsram(0x0);//the psram power domain need the app enable again
+	}
+	#endif
+
+	/*power optimization*/
+	uint32_t alo2corepsw = sys_ll_get_ana_reg14_en_alo2corepsw();
+	if(alo2corepsw != 0)
+	{
+		sys_ll_set_ana_reg14_en_alo2corepsw(0);
+		timer_hal_early_delay_us_iram(10);
+	}
+
+	if(sys_ll_get_ana_reg12_enpowa() != 0x0)
+	{
+		sys_ll_set_ana_reg12_enpowa(0x0);
+		timer_hal_early_delay_us_iram(10);
+	}
+	if(sys_ll_get_ana_reg12_ampoen() != 0x0)
+	{
+		sys_ll_set_ana_reg12_ampoen(0x0);
+		timer_hal_early_delay_us_iram(10);
+	}
+
+	if(sys_ll_get_ana_reg13_denburst() != 0x0)
+	{
+		sys_ll_set_ana_reg13_denburst(0x0);//buckD burst disable
+		timer_hal_early_delay_us_iram(10);
+	}
+
+	if(sys_ll_get_ana_reg12_aenburst() != 0x0)
+	{
+		sys_ll_set_ana_reg12_aenburst(0x0);//buckA burst disable
+		timer_hal_early_delay_us_iram(10);
+	}
+	sys_hal_disable_spi_latch();
+
+	if (param && *(uint8_t *)param)
+	{
+		#if CONFIG_AON_PMU_REG0_REFACTOR_DEV
+		aon_pmu_hal_set_gpio_sleep(1, false);
+		aon_pmu_hal_r0_latch_to_r7b();
+		#else
+		sys_hal_gpio_state_switch(true);
+		#endif
+		aon_pmu_ll_set_r3_shutdown_flag(1);
+		sys_ll_set_ana_reg11_sd(1);//shutdown directly
+		SYS_PM_HAL_CPU_BARRIER();
+		/*-----enter deep sleep-------*/
+		arch_deep_sleep();
+	}
+	else
+	{
+		aon_pmu_ll_set_r42_value(0xF);
+		sys_hal_enable_spi_latch();
+		aon_pmu_hal_r0_latch_to_r7b();
+		aon_pmu_ll_set_r40_halt_volt(1);
+		sys_hal_disable_hf_clock();
+		timer_hal_early_delay_us_iram(10);
+		if(sys_ll_get_ana_reg5_en_cb() != 0)
+		{
+			sys_ll_set_ana_reg5_en_cb(0);
+			timer_hal_early_delay_us_iram(10);
+		}
+
+		sys_ll_set_ana_reg9_valoldosel(PM_LOW_VOL_AON_LDO_SEL);
+		timer_hal_early_delay_us_iram(10);
+		if(sys_ll_get_ana_reg9_valoldosel() != PM_LOW_VOL_AON_LDO_SEL)
+		{
+			sys_ll_set_ana_reg9_valoldosel(PM_LOW_VOL_AON_LDO_SEL);
+			timer_hal_early_delay_us_iram(10);
+		}
+		aon_pmu_ll_set_r0_memchk_bps(1);
+		aon_pmu_ll_set_r0_fast_boot(1);
+		#if CONFIG_DEEP_LV
+		aon_pmu_hal_set_dlv_startup(0);
+		#endif
+		sys_hal_disable_spi_latch();
+
+		SYS_PM_HAL_CPU_BARRIER();
+		/*enter deep sleep*/
+		arch_deep_sleep();
+	}
+}
+void sys_hal_enter_deep_sleep_spe(void* param)
 {
 	volatile uint32_t int_state1, int_state2, int_state3;
 	uint32_t systick_ctrl_value = 0;
@@ -1185,9 +1423,13 @@ static inline void sys_hal_set_low_voltage(pm_sleep_mode_e sleep_mode, volatile 
 	#endif//CONFIG_INT_WDT
 
 	lpo_src = aon_pmu_ll_get_r41_lpo_config();
-	if((lpo_src == PM_LPO_SRC_ROSC)||(lpo_src == PM_LPO_SRC_DIVD))
+	if(lpo_src == PM_LPO_SRC_X32K)
 	{
-		sys_hal_power_on_and_select_rosc(lpo_src);
+		sys_hal_power_on_and_select_rosc(PM_LPO_SRC_X32K);
+	}
+	else
+	{
+		sys_hal_power_on_and_select_rosc(PM_LPO_SRC_ROSC);
 	}
 	/* r42[0]=pwd_blppwd, r42[1]=pwd_wlppwd, r42[2]=blp_isolate, r42[3]=wlp_isolate.
 	 * deep-sleep previously only powered down WL/BL (r42=0x3) without enabling the
@@ -1320,7 +1562,15 @@ static inline void sys_hal_set_low_voltage(pm_sleep_mode_e sleep_mode, volatile 
 		/*-----enter deep sleep-------*/
 		arch_deep_sleep();
 	}
+}
 
+/*__IRAM_PM*/ void sys_hal_enter_deep_sleep(void *param)
+{
+	#if !CONFIG_SPE
+	sys_hal_enter_deep_sleep_nspe(param);
+	#else
+	sys_hal_enter_deep_sleep_spe(param);
+	#endif
 }
 static inline void sys_hal_restore_voltage(volatile uint32_t ana_r8, volatile uint32_t core_low_voltage)
 {
@@ -1787,9 +2037,13 @@ __IRAM_PM void sys_hal_enter_low_voltage(void)
 	#if CONFIG_DEEP_LV
 	volatile uint32_t v_sys_r10    = 0;
 	sys_hal_power_down_pd(&v_sys_r10);
-	if(lpo_src == PM_LPO_SRC_ROSC)
+	if(lpo_src == PM_LPO_SRC_X32K)
 	{
-		sys_hal_power_on_and_select_rosc(lpo_src);
+		sys_hal_power_on_and_select_rosc(PM_LPO_SRC_X32K);
+	}
+	else
+	{
+		sys_hal_power_on_and_select_rosc(PM_LPO_SRC_ROSC);
 	}
 
 	#if CONFIG_SPE
@@ -2258,7 +2512,9 @@ __IRAM_PM void sys_hal_enter_low_voltage(void)
 	{
 		sys_ll_set_reserver_reg0x10_rom_pgen(rom_pgen);
 	}
-
+	#if CONFIG_DEEP_LV
+	aon_pmu_ll_set_r41_lpo_config(lpo_src);
+	#endif
 /*---------------at least delay 190us end -----------------*/
 	#if CONFIG_DEEP_LV_DEBUG_GPIO
 	PM_GPIO_UP(37);//17
