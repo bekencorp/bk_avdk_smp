@@ -33,6 +33,18 @@ void *bk_sram_hsram_malloc(const char *tag, uint32_t size)
     return ptr;
 }
 
+void *bk_hsram_sram_malloc(const char *tag, uint32_t size)
+{
+    const char *log_tag = (tag != NULL) ? tag : TAG;
+    void *ptr = hsram_malloc(size);
+
+    if (ptr == NULL) {
+        LOGW("%s: hsram_malloc failed, use os_sram_malloc, ptr=%p, size=%u\n", log_tag, ptr, size);
+        ptr = os_sram_malloc(size);
+    }
+    return ptr;
+}
+
 void *bk_get_isp_flexa_buffer(uint32_t size)
 {
     return bk_sram_hsram_malloc("isp_flexa", size);
