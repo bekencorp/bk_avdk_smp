@@ -53,10 +53,8 @@ bk_err_t dma_hal_init_dma(dma_hal_t *hal, dma_id_t id, const dma_config_t *confi
     dma_ll_set_src_req_mux(hal->hw, id, config->src.dev);
 
 	dma_ll_set_pixel_trans_type(hal->hw, id, config->trans_type);
-#if !CONFIG_SOC_BK7259
 	dma_ll_set_dest_write_interval(hal->hw, id, config->dest_wr_intlv);
 	dma_ll_set_src_read_interval(hal->hw, id, config->src_rd_intlv);
-#endif
     /* The DMA engine can only access the 0x28xxxxxx SRAM alias. */
     uint32_t src_start_addr = SOC_SRAM_PERI_ADDR(config->src.start_addr);
     uint32_t src_end_addr   = SOC_SRAM_PERI_ADDR(config->src.end_addr);

@@ -686,11 +686,13 @@ static bk_err_t uart_id_init_common(uart_id_t id)
 #if CONFIG_UART_RX_DMA
 	//default not enable rx dma
 	s_uart[id].rx_dma_enable = 0;
+	s_uart[id].rx_dma_id = DMA_ID_MAX;
 	s_uart[id].rx_dma_rewind_when_fifo_empty = 0;
 #endif
 #if CONFIG_UART_TX_DMA
 	//default not enable tx dma
 	s_uart[id].tx_dma_enable = 0;
+	s_uart[id].tx_dma_id = DMA_ID_MAX;
 #endif
 
 	return ret;
@@ -1633,6 +1635,7 @@ static inline dma_dev_t uart_id_to_dma_dev(uart_id_t id, bool rx)
 			return DMA_DEV_UART1 + rx_id_offset;
 	}
 }
+
 #endif
 
 #if (CONFIG_UART_RX_DMA)
@@ -1750,7 +1753,6 @@ static inline void uart_rx_dma_src_port_config(uart_id_t id, dma_port_config_t *
 	cfg_ptr->addr_inc_en = DMA_ADDR_INC_DISABLE,
 	cfg_ptr->addr_loop_en = DMA_ADDR_LOOP_DISABLE,
 	cfg_ptr->dev = uart_id_to_dma_dev(id, 1);
-	BK_LOGD(NULL, "src dev=%d\r\n", cfg_ptr->dev);
 	cfg_ptr->end_addr = cfg_ptr->start_addr = (uint32_t)uart_hal_get_read_data_addr(&s_uart[id].hal, id) & 0xffffffffc;
 }
 
@@ -1828,19 +1830,37 @@ bk_err_t uart_rx_dma_deinit(uart_id_t id)
 {
 	dma_id_t dma_id = s_uart[id].rx_dma_id;
 
+	/* Invalidate the ISR reverse mapping first so a pending finish
+	 * interrupt cannot re-enter uart_rx_dma_fifo_full() and restart this
+	 * channel while it is being torn down. */
+	s_uart[id].rx_dma_enable = 0;
+	s_uart[id].rx_dma_id = DMA_ID_MAX;
+
 	if (dma_id < DMA_ID_MAX)
 	{
-		bk_dma_stop(dma_id);
+		/* Stop the source and isolate the channel so it cannot be fed new
+		 * bytes or restarted by its finish interrupt during teardown. */
+		bk_uart_set_enable_rx(id, 0);
+		bk_dma_disable_finish_interrupt(dma_id);
+		bk_dma_register_isr(dma_id, NULL, NULL);
+
+		/* Full channel teardown: bk_dma_deinit() stops the channel and
+		 * resets its config (stale destination pointer and transfer length),
+		 * so the engine cannot touch the kfifo buffer about to be freed. A
+		 * bare bk_dma_stop() only clears enable and leaves the engine's write
+		 * pointer dangling -> use-after-free. */
+		bk_dma_deinit(dma_id);
+		__DSB();
+
+		bk_dma_free(uart_id_to_dma_dev(id, 1), dma_id);
 	}
 
-	s_uart[id].rx_dma_id = 0;
-	s_uart[id].rx_dma_enable = 0;
 	s_uart[id].rx_dma_stopped = false;
 	s_uart[id].rx_hw_stopped = false;
 	s_uart[id].last_dma_len = 0;
 	s_uart[id].rx_dma_accounted_len = 0;
 
-	return bk_dma_free(uart_id_to_dma_dev(id, 1), dma_id);
+	return BK_OK;
 }
 
 /*
@@ -1936,7 +1956,7 @@ static bk_err_t uart_tx_dma_write_to_fifo(uart_id_t id, uint32_t data_address, u
 
 	return BK_OK;
 }
-static bk_err_t uart_tx_dma_init(uart_id_t id)
+bk_err_t uart_tx_dma_init(uart_id_t id)
 {
 	//DMA malloc chn
 	dma_id_t dma_id = bk_dma_alloc(uart_id_to_dma_dev(id, 0));
@@ -1959,11 +1979,11 @@ static bk_err_t uart_tx_dma_init(uart_id_t id)
 		dma_cfg.src = dma_mem_port_config;
 		dma_cfg.mode = DMA_WORK_MODE_SINGLE;
 		dma_cfg.chan_prio = 0;	//UART speed is slow, so no need high priority
-		dma_cfg.dest_wr_intlv = 8;
+		dma_cfg.dest_wr_intlv = 15;
 		BK_LOG_ON_ERR(bk_dma_init(dma_id, &dma_cfg));
+#if (CONFIG_SPE)
 		bk_dma_set_dest_burst_len(dma_id, BURST_LEN_SINGLE);
 		bk_dma_set_src_burst_len(dma_id, BURST_LEN_SINGLE);
-#if (CONFIG_SPE)
 		BK_LOG_ON_ERR(bk_dma_set_dest_sec_attr(dma_id, DMA_ATTR_SEC));
 		BK_LOG_ON_ERR(bk_dma_set_src_sec_attr(dma_id, DMA_ATTR_SEC));
 #endif
@@ -1983,9 +2003,23 @@ static bk_err_t uart_tx_dma_init(uart_id_t id)
 static bk_err_t uart_tx_dma_deinit(uart_id_t id)
 {
 	dma_id_t dma_id = s_uart[id].tx_dma_id;
-	s_uart[id].tx_dma_id = 0;
+
+	s_uart[id].tx_dma_id = DMA_ID_MAX;
 	s_uart[id].tx_dma_enable = 0;
-	return bk_dma_free(uart_id_to_dma_dev(id, 0), dma_id);
+
+	if (dma_id < DMA_ID_MAX) {
+		bk_dma_disable_finish_interrupt(dma_id);
+		bk_dma_register_isr(dma_id, NULL, NULL);
+		bk_dma_deinit(dma_id);
+		__DSB();
+		bk_dma_free(uart_id_to_dma_dev(id, 0), dma_id);
+	}
+	return BK_OK;
+}
+
+bk_err_t bk_uart_dma_write_string(uart_id_t id, const char *string)
+{
+	return uart_tx_dma_write_to_fifo(id, (uint32_t)string, strlen(string));
 }
 
 /*
@@ -2015,12 +2049,12 @@ static bk_err_t uart_tx_dma_restore(uart_id_t id)
 
 	dma_cfg.mode          = DMA_WORK_MODE_SINGLE;
 	dma_cfg.chan_prio     = 0;
-	dma_cfg.dest_wr_intlv = 8;
+	dma_cfg.dest_wr_intlv = 15;
 
 	BK_LOG_ON_ERR(bk_dma_init(dma_id, &dma_cfg));
+#if (CONFIG_SPE)
 	bk_dma_set_dest_burst_len(dma_id, BURST_LEN_SINGLE);
 	bk_dma_set_src_burst_len(dma_id, BURST_LEN_SINGLE);
-#if (CONFIG_SPE)
 	BK_LOG_ON_ERR(bk_dma_set_dest_sec_attr(dma_id, DMA_ATTR_SEC));
 	BK_LOG_ON_ERR(bk_dma_set_src_sec_attr(dma_id, DMA_ATTR_SEC));
 #endif

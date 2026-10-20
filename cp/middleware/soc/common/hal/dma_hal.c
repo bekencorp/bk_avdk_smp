@@ -53,6 +53,8 @@ bk_err_t dma_hal_init_dma(dma_hal_t *hal, dma_id_t id, const dma_config_t *confi
     dma_ll_set_src_req_mux(hal->hw, id, config->src.dev);
 
     dma_ll_set_pixel_trans_type(hal->hw, id, config->trans_type);
+    dma_ll_set_dest_write_interval(hal->hw, id, config->dest_wr_intlv);
+    dma_ll_set_src_read_interval(hal->hw, id, config->src_rd_intlv);
 
     /* When CONFIG_SRAM_DIRECT_ADDR is enabled the OS RAM lives in the
      * 0x2Cxxxxxx alias, while SOC_RAM_BASE is the 0x28xxxxxx alias. The DMA

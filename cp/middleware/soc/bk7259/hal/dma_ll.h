@@ -518,6 +518,26 @@ static inline uint32_t dma_ll_get_src_burst_len(dma_hw_t *hw, dma_id_t id)
 	return (hw->config_group[id].req_mux.src_burst_len & 0x3);
 }
 
+static inline void dma_ll_set_dest_write_interval(dma_hw_t *hw, dma_id_t id, uint32_t interval)
+{
+	hw->config_group[id].req_mux.dest_write_interval = interval & 0xf;
+}
+
+static inline uint32_t dma_ll_get_dest_write_interval(dma_hw_t *hw, dma_id_t id)
+{
+	return (hw->config_group[id].req_mux.dest_write_interval & 0xf);
+}
+
+static inline void dma_ll_set_src_read_interval(dma_hw_t *hw, dma_id_t id, uint32_t interval)
+{
+	hw->config_group[id].req_mux.src_read_interval = interval & 0xf;
+}
+
+static inline uint32_t dma_ll_get_src_read_interval(dma_hw_t *hw, dma_id_t id)
+{
+	return (hw->config_group[id].req_mux.src_read_interval & 0xf);
+}
+
 static inline void dma_ll_bus_err_int_enable(dma_hw_t *hw, dma_id_t id)
 {
 	hw->config_group[id].req_mux.bus_err_int_en = 0x1;

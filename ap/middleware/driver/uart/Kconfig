@@ -77,12 +77,14 @@ menu "UART"
 		bool "Enable UART tx dma copy data support,special feature used for UART TX data. \
 			When erase Flash, CPU can't get instructions from flash then it can't work, \
 			so DMA copy data from RAM to UART FIFO"
+		depends on GENERAL_DMA
 		default n
 
 	config UART_RX_DMA
 		bool "Enable UART rx dma copy data support,special feature used for UART RX data. \
 		      When erase Flash, CPU can't get instructions from flash then it can't work, \
 		      so DMA copy data from UART FIFO to RAM"
+		depends on GENERAL_DMA
 		default n
 
 	config UART_RX_DMA_KFIFO_SIZE

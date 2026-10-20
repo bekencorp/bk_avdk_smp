@@ -51,6 +51,9 @@ static void cli_uart_help(void)
 	CLI_LOGD("uart_lb {id} [quick|full]     -- TX<->RX jumper loopback matrix (SPI_LB style)\n");
 	CLI_LOGD("uart_lb_api {id}              -- timeout/empty/oversized/deinit negative tests\n");
 	CLI_LOGD("uart_lb_dma {id} [quick|full] -- DMA TX+RX loopback (needs CONFIG_UART_TX/RX_DMA)\n");
+	CLI_LOGD("uart_dma_test {start|stop} {id} [baud] [len] -- dual-task TX+RX DMA loopback\n");
+	CLI_LOGD("uart_dma_stress {start|stop} [id] [baud] -- ping-pong integrity (byteerrs/shorts/resyncs)\n");
+	CLI_LOGD("uart_dma_cycle {id} [baud] [iterations] -- init/io/deinit cycle (init_fail/io_fail)\n");
 	CLI_LOGD("uart_lb_flow {id}             -- HW CTS/RTS loopback (wire TX-RX and RTS-CTS)\n");
 #if CONFIG_UART_STRESS_TEST
 #if CONFIG_SHELL_ASYNCLOG
@@ -1509,6 +1512,782 @@ out_free:
 	}
 }
 
+/*--------------------- UART TX+RX DMA loopback test suite --------------------
+ *
+ * uart_dma_test   {start|stop} {id} [baud] [len]   -- dual-task RX loopback
+ * uart_dma_stress {start|stop} [id] [baud]         -- ping-pong integrity
+ * uart_dma_cycle  {id} [baud] [iterations]         -- init/io/deinit cycle
+ *
+ * High baud (>2M) must run off APLL: the 7259 UART source clock is
+ * DCO/XTAL_26M/APLL. XTAL cannot derive 4M (26/6 = 4.333M, 8.33% error)
+ * while APLL at 120MHz divides exactly (120/30 = 4.000M). Requires
+ * CONFIG_UART_TX_DMA && CONFIG_UART_RX_DMA and an external TX<->RX jumper.
+ *====================================================================*/
+
+#if (CONFIG_UART_TX_DMA && CONFIG_UART_RX_DMA)
+
+/* Pick the clock the requested baud rate can actually be derived from.
+ *
+ * uart_hal_set_baud_rate() computes clk_div = clk / baud - 1, so the error
+ * depends on how evenly the source clock divides:
+ *   XTAL 26MHz @ 2Mbps -> 26/13   = 2.0000Mbps, 0.00% error
+ *   XTAL 26MHz @ 4Mbps -> 26/6    = 4.3333Mbps, 8.33% error (unusable)
+ *   APLL 120MHz @ 4Mbps -> 120/30 = 4.0000Mbps, 0.00% error
+ *
+ * So anything above 2Mbps has to run off the APLL. Stay on the XTAL below
+ * that: the APLL is a chip-global resource shared with SPI and audio, so
+ * bringing it up when the XTAL is exact would be a needless risk. */
+#define UART_DMA_TEST_XTAL_MAX_BAUD  (2000000)
+
+static uart_src_clk_t uart_dma_test_pick_clk(uint32_t baud)
+{
+	return (baud > UART_DMA_TEST_XTAL_MAX_BAUD) ? UART_SCLK_APLL : UART_SCLK_XTAL_26M;
+}
+
+static const char *uart_dma_test_clk_name(uart_src_clk_t clk)
+{
+	return (clk == UART_SCLK_APLL) ? "APLL" : "XTAL";
+}
+
+/* ============================================================
+ * UART DMA Dual-Task Loopback Test
+ *
+ *   TX task --write--> UART TX DMA --loopback--> UART RX DMA
+ *                |                              |
+ *          TX ISR fires (FIFO empty = sent)     |
+ *                |                              v
+ *          set semaphore -----------------> RX task wakes
+ *                                            read + verify
+ *
+ * Requires TX pin <-> RX pin externally loopback connected.
+ *
+ * Usage:
+ *   uart_dma_test start {uart_id} [baud_rate] [test_len]
+ *   uart_dma_test stop
+ * ============================================================ */
+
+#define DMA_TEST_DEFAULT_LEN      256
+#define DMA_TEST_SEMA_TIMEOUT_MS  2000
+#define DMA_TEST_READ_TIMEOUT_MS  2000
+#define DMA_TEST_PASS_LOG_EVERY   512
+
+typedef struct {
+	uart_id_t uart_id;
+	uint32_t  test_len;
+	beken_semaphore_t round_start_sema;
+	beken_thread_t    tx_thread;
+	beken_thread_t    rx_thread;
+	volatile bool     running;
+	volatile uint32_t tx_round;
+	volatile uint32_t rx_round;
+	uint32_t pass_count;
+	uint32_t fail_count;
+} uart_dma_test_t;
+
+static uart_dma_test_t s_dma_test = {0};
+
+static void dma_test_fill_pattern(uint8_t *buf, uint32_t len, uint32_t pattern_id)
+{
+	for (uint32_t i = 0; i < len; i++) {
+		if (pattern_id == 0) {
+			buf[i] = (uint8_t)(0x55U ^ (i & 0xFF));
+		} else {
+			buf[i] = (uint8_t)(0xAAU ^ (i & 0xFF));
+		}
+	}
+}
+
+static bool dma_test_match_buffer(const uint8_t *buf_a, const uint8_t *buf_b,
+				  uint32_t len, int *first_err)
+{
+	for (uint32_t i = 0; i < len; i++) {
+		if (buf_a[i] != buf_b[i]) {
+			if (first_err) {
+				*first_err = (int)i;
+			}
+			return false;
+		}
+	}
+	if (first_err) {
+		*first_err = -1;
+	}
+	return true;
+}
+
+/* ---- TX Task: alternate two buffers and send via DMA ---- */
+static void dma_test_tx_task(void *arg)
+{
+	uart_dma_test_t *t = (uart_dma_test_t *)arg;
+	uint8_t *tx_buf[2] = {0};
+
+	tx_buf[0] = (uint8_t *)os_malloc(t->test_len);
+	tx_buf[1] = (uint8_t *)os_malloc(t->test_len);
+	if (!tx_buf[0] || !tx_buf[1]) {
+		CLI_LOGE("TX task: malloc %u bytes failed\r\n", t->test_len);
+		goto tx_exit;
+	}
+
+	dma_test_fill_pattern(tx_buf[0], t->test_len, 0);
+	dma_test_fill_pattern(tx_buf[1], t->test_len, 1);
+
+	CLI_LOGW("TX task started (uart_id=%d, len=%u)\r\n", t->uart_id, t->test_len);
+
+	while (t->running) {
+		if (rtos_get_semaphore(&t->round_start_sema, DMA_TEST_SEMA_TIMEOUT_MS) != kNoErr) {
+			if (t->running) {
+				CLI_LOGW("[Round %u] TX: wait round start timeout\r\n",
+					 (uint32_t)t->tx_round);
+			}
+			continue;
+		}
+
+		if (!t->running) {
+			break;
+		}
+
+		uint32_t round = t->tx_round;
+		uint32_t pattern_id = round & 0x1;
+
+		/* Send one of two fixed buffers so stale reads are easy to identify. */
+		bk_uart_write_bytes(t->uart_id, tx_buf[pattern_id], t->test_len);
+
+		t->tx_round++;
+	}
+
+	os_free(tx_buf[0]);
+	os_free(tx_buf[1]);
+tx_exit:
+	CLI_LOGW("TX task exiting\r\n");
+	t->tx_thread = NULL;
+	rtos_delete_thread(NULL);
+}
+
+/* ---- RX Task: read data, verify it, then release next TX round ---- */
+static void dma_test_rx_task(void *arg)
+{
+	uart_dma_test_t *t = (uart_dma_test_t *)arg;
+	uint8_t *rx_buf = (uint8_t *)os_malloc(t->test_len);
+	uint8_t *expect_buf[2] = {0};
+
+	expect_buf[0] = (uint8_t *)os_malloc(t->test_len);
+	expect_buf[1] = (uint8_t *)os_malloc(t->test_len);
+	if (!rx_buf || !expect_buf[0] || !expect_buf[1]) {
+		CLI_LOGE("RX task: malloc %u bytes failed\r\n", t->test_len);
+		goto rx_exit;
+	}
+
+	dma_test_fill_pattern(expect_buf[0], t->test_len, 0);
+	dma_test_fill_pattern(expect_buf[1], t->test_len, 1);
+
+	CLI_LOGW("RX task started (uart_id=%d, len=%u)\r\n", t->uart_id, t->test_len);
+
+	while (t->running) {
+		os_memset(rx_buf, 0, t->test_len);
+		uint32_t total_read = 0;
+		uint32_t retry = 0;
+		while (t->running && total_read < t->test_len && retry < 3) {
+			int ret = bk_uart_read_bytes(t->uart_id,
+						     rx_buf + total_read,
+						     t->test_len - total_read,
+						     DMA_TEST_READ_TIMEOUT_MS);
+			if (ret < 0) {
+				if (!t->running) {
+					break;
+				}
+				retry++;
+				CLI_LOGW("[Round %u] RX: read timeout, got %u/%u\r\n",
+					 (uint32_t)t->rx_round, total_read, t->test_len);
+				continue;
+			}
+			total_read += (uint32_t)ret;
+		}
+
+		if (!t->running) {
+			break;
+		}
+
+		uint32_t round = t->rx_round;
+		uint32_t expect_pattern_id = round & 0x1;
+		uint32_t other_pattern_id = expect_pattern_id ^ 0x1;
+		bool pass = true;
+		bool matched_other = false;
+		int first_err = -1;
+		int other_first_err = -1;
+
+		if (total_read != t->test_len) {
+			pass = false;
+		} else {
+			pass = dma_test_match_buffer(rx_buf, expect_buf[expect_pattern_id],
+						     t->test_len, &first_err);
+			if (!pass) {
+				matched_other = dma_test_match_buffer(rx_buf, expect_buf[other_pattern_id],
+								       t->test_len, &other_first_err);
+			}
+		}
+
+		if (pass) {
+			t->pass_count++;
+			if ((round % DMA_TEST_PASS_LOG_EVERY) == 0) {
+				CLI_LOGW("[Round %u] PASS (%u bytes, buffer%u)\r\n",
+					 round, total_read, expect_pattern_id + 1);
+			}
+		} else {
+			t->fail_count++;
+			if (matched_other) {
+				CLI_LOGE("[Round %u] FAIL: expect buffer%u but matched buffer%u\r\n",
+					 round, expect_pattern_id + 1, other_pattern_id + 1);
+			} else if (first_err >= 0) {
+				uint8_t exp = expect_buf[expect_pattern_id][first_err];
+				CLI_LOGE("[Round %u] FAIL @%d: expect buffer%u=0x%02X got=0x%02X\r\n",
+					 round, first_err, expect_pattern_id + 1, exp, rx_buf[first_err]);
+			} else {
+				CLI_LOGE("[Round %u] FAIL: received %u/%u bytes\r\n",
+					 round, total_read, t->test_len);
+			}
+		}
+
+		t->rx_round++;
+
+		if (t->round_start_sema) {
+			rtos_set_semaphore(&t->round_start_sema);
+		}
+	}
+
+	os_free(expect_buf[0]);
+	os_free(expect_buf[1]);
+	os_free(rx_buf);
+rx_exit:
+	CLI_LOGW("RX task exiting (pass=%u, fail=%u)\r\n", t->pass_count, t->fail_count);
+	t->rx_thread = NULL;
+	rtos_delete_thread(NULL);
+}
+
+static void cli_uart_dma_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
+{
+	(void)pcWriteBuffer;
+	(void)xWriteBufferLen;
+
+	if (argc < 2) {
+		cli_uart_help();
+		return;
+	}
+
+	if (os_strcmp(argv[1], "start") == 0) {
+		uint32_t baud_rate;
+		uart_config_t config;
+
+		if (s_dma_test.running) {
+			CLI_LOGW("Test already running, stop first\r\n");
+			return;
+		}
+		if (argc < 3) {
+			CLI_LOGW("Usage: uart_dma_test start {uart_id} [baud_rate] [test_len]\r\n");
+			return;
+		}
+
+		os_memset(&s_dma_test, 0, sizeof(s_dma_test));
+		s_dma_test.uart_id = (uart_id_t)os_strtoul(argv[2], NULL, 10);
+		baud_rate = (argc > 3) ? os_strtoul(argv[3], NULL, 10) : UART_BAUD_RATE;
+		s_dma_test.test_len = (argc > 4) ? os_strtoul(argv[4], NULL, 10) : DMA_TEST_DEFAULT_LEN;
+
+		if (s_dma_test.uart_id == CONFIG_UART_PRINT_PORT) {
+			CLI_LOGW("UART%d is the print port, use a different one\r\n", s_dma_test.uart_id);
+			return;
+		}
+		if (bk_uart_is_in_used(s_dma_test.uart_id)) {
+			CLI_LOGW("UART%d already in use\r\n", s_dma_test.uart_id);
+			return;
+		}
+
+		os_memset(&config, 0, sizeof(config));
+		config.baud_rate = baud_rate;
+		config.data_bits = UART_DATA_8_BITS;
+		config.parity = UART_PARITY_NONE;
+		config.stop_bits = UART_STOP_BITS_1;
+		config.flow_ctrl = UART_FLOWCTRL_DISABLE;
+		config.src_clk = uart_dma_test_pick_clk(baud_rate);
+		config.rx_dma_en = UART_DMA_ENABLE;
+		config.tx_dma_en = UART_DMA_ENABLE;
+
+		if (bk_uart_init(s_dma_test.uart_id, &config) != BK_OK) {
+			CLI_LOGE("UART%d init failed\r\n", s_dma_test.uart_id);
+			return;
+		}
+		bk_uart_enable_rx_interrupt(s_dma_test.uart_id);
+
+		if (rtos_init_semaphore(&s_dma_test.round_start_sema, 1) != kNoErr) {
+			CLI_LOGE("Create round_start semaphore failed\r\n");
+			bk_uart_deinit(s_dma_test.uart_id);
+			return;
+		}
+		rtos_set_semaphore(&s_dma_test.round_start_sema);
+
+		s_dma_test.running = true;
+
+		CLI_LOGW("=== UART%d DMA Dual-Task Test ===\r\n", s_dma_test.uart_id);
+		CLI_LOGW("  Baud: %u, Clk: %s, Len: %u, TX<->RX loopback\r\n",
+			 baud_rate, uart_dma_test_clk_name(config.src_clk), s_dma_test.test_len);
+
+		if (rtos_create_thread(&s_dma_test.rx_thread, 4, "dma_rx",
+				       dma_test_rx_task, 4096, &s_dma_test) != kNoErr) {
+			CLI_LOGE("Create RX task failed\r\n");
+			s_dma_test.running = false;
+			goto start_fail;
+		}
+		if (rtos_create_thread(&s_dma_test.tx_thread, 4, "dma_tx",
+				       dma_test_tx_task, 4096, &s_dma_test) != kNoErr) {
+			CLI_LOGE("Create TX task failed\r\n");
+			s_dma_test.running = false;
+			goto start_fail;
+		}
+
+		CLI_LOGW("Test running... use 'uart_dma_test stop' to end\r\n");
+		return;
+
+start_fail:
+		if (s_dma_test.rx_thread) {
+			rtos_delete_thread(&s_dma_test.rx_thread);
+			s_dma_test.rx_thread = NULL;
+		}
+		rtos_deinit_semaphore(&s_dma_test.round_start_sema);
+		s_dma_test.round_start_sema = NULL;
+		bk_uart_deinit(s_dma_test.uart_id);
+		return;
+
+	} else if (os_strcmp(argv[1], "stop") == 0) {
+		if (!s_dma_test.running) {
+			CLI_LOGW("No test running\r\n");
+			return;
+		}
+
+		s_dma_test.running = false;
+
+		if (s_dma_test.round_start_sema) {
+			rtos_set_semaphore(&s_dma_test.round_start_sema);
+		}
+
+		rtos_delay_milliseconds(DMA_TEST_READ_TIMEOUT_MS + 200);
+
+		if (s_dma_test.tx_thread) {
+			rtos_delete_thread(&s_dma_test.tx_thread);
+			s_dma_test.tx_thread = NULL;
+		}
+		if (s_dma_test.rx_thread) {
+			rtos_delete_thread(&s_dma_test.rx_thread);
+			s_dma_test.rx_thread = NULL;
+		}
+
+		bk_uart_deinit(s_dma_test.uart_id);
+
+		if (s_dma_test.round_start_sema) {
+			rtos_deinit_semaphore(&s_dma_test.round_start_sema);
+			s_dma_test.round_start_sema = NULL;
+		}
+
+		CLI_LOGW("=== Test Stopped ===\r\n");
+		CLI_LOGW("  Rounds: %u, PASS: %u, FAIL: %u\r\n",
+			 (uint32_t)s_dma_test.rx_round, s_dma_test.pass_count, s_dma_test.fail_count);
+
+	} else {
+		cli_uart_help();
+	}
+}
+
+/* ============================================================
+ * UART DMA ping-pong integrity stress (half-duplex)
+ *
+ * Send one block via TX DMA, read it back via RX DMA, verify
+ * mod-256 ramp. Requires TX pin <-> RX pin self-loopback.
+ *
+ * Usage:
+ *   uart_dma_stress start [uart_id] [baud_rate]
+ *   uart_dma_stress stop
+ * ============================================================ */
+#define STRESS_DEFAULT_UART_ID   UART_ID_1
+#define STRESS_DEFAULT_BAUD      4000000
+/* Must stay below CONFIG_UART_RX_DMA_KFIFO_SIZE, otherwise one ping-pong block
+ * fills the RX kfifo, the driver disables RX, and the test reports short reads
+ * that are a config artefact rather than a driver defect. The Kconfig default
+ * is only 512, so a build that does not override it cannot run this test. */
+#if (CONFIG_UART_RX_DMA_KFIFO_SIZE <= 1024)
+#error "uart_dma_stress needs CONFIG_UART_RX_DMA_KFIFO_SIZE > 1024 (e.g. 4096)"
+#endif
+#define STRESS_BLOCK             1024
+#define STRESS_READ_TIMEOUT_MS   200
+#define STRESS_MAX_DISCONT       8
+#define STRESS_REPORT_BLOCKS     512
+#define STRESS_TASK_STACK        4096
+#define STRESS_TASK_PRIO         2
+#define STRESS_MAX_ERR_LOG       30
+
+typedef struct {
+	uart_id_t uart_id;
+	uint32_t baud;
+	beken_thread_t thread;
+	volatile bool running;
+	uint32_t tx_total;
+	uint32_t rx_total;
+	uint32_t err_total;
+	uint32_t byteerr_total;
+	uint32_t short_total;
+	uint32_t resync_total;
+} uart_dma_stress_t;
+
+static uart_dma_stress_t s_dma_stress = {0};
+
+static void uart_dma_stress_task(void *arg)
+{
+	uart_dma_stress_t *t = (uart_dma_stress_t *)arg;
+	uint8_t *tx = NULL;
+	uint8_t *rx = NULL;
+	uint32_t counter = 0;
+	uint32_t block = 0;
+	uint32_t burst_run = 0;
+	uart_config_t cfg = {0};
+
+	tx = (uint8_t *)os_malloc(STRESS_BLOCK);
+	rx = (uint8_t *)os_malloc(STRESS_BLOCK);
+	if (!tx || !rx) {
+		CLI_LOGE("uart_dma_stress: malloc failed\r\n");
+		goto exit;
+	}
+
+	cfg.baud_rate = t->baud;
+	cfg.data_bits = UART_DATA_8_BITS;
+	cfg.parity = UART_PARITY_NONE;
+	cfg.stop_bits = UART_STOP_BITS_1;
+	cfg.flow_ctrl = UART_FLOWCTRL_DISABLE;
+	cfg.src_clk = uart_dma_test_pick_clk(t->baud);
+	cfg.rx_dma_en = UART_DMA_ENABLE;
+	cfg.tx_dma_en = UART_DMA_ENABLE;
+
+	if (bk_uart_init(t->uart_id, &cfg) != BK_OK) {
+		CLI_LOGE("uart_dma_stress: uart(%d) init failed\r\n", t->uart_id);
+		goto exit;
+	}
+	bk_uart_enable_rx_interrupt(t->uart_id);
+
+	CLI_LOGW("uart_dma_stress START id=%d baud=%u clk=%s block=%d\r\n",
+		 t->uart_id, t->baud,
+		 uart_dma_test_clk_name(cfg.src_clk),
+		 STRESS_BLOCK);
+
+	/* Drain stale RX (bootloader echo on loopback) before first write. */
+	{
+		int drained = 0;
+		while (1) {
+			int n = bk_uart_read_bytes(t->uart_id, rx, STRESS_BLOCK, 100);
+			if (n <= 0) {
+				break;
+			}
+			drained += n;
+			if (drained > 64 * 1024) {
+				break;
+			}
+		}
+		CLI_LOGW("uart_dma_stress DRAIN stale rx=%d\r\n", drained);
+	}
+
+	while (t->running) {
+		int off = 0;
+		int nbad = 0;
+		int discont = 0;
+		int offs[6];
+
+		for (int i = 0; i < STRESS_BLOCK; i++) {
+			tx[i] = (uint8_t)(counter + i);
+		}
+		counter += STRESS_BLOCK;
+
+		if (bk_uart_write_bytes(t->uart_id, tx, STRESS_BLOCK) != BK_OK) {
+			t->err_total++;
+			if (t->err_total <= STRESS_MAX_ERR_LOG) {
+				CLI_LOGE("uart_dma_stress write failed blk=%u\r\n", block);
+			}
+			continue;
+		}
+		t->tx_total += STRESS_BLOCK;
+
+		while (off < STRESS_BLOCK) {
+			int n = bk_uart_read_bytes(t->uart_id, rx + off,
+						   STRESS_BLOCK - off, STRESS_READ_TIMEOUT_MS);
+			if (n <= 0) {
+				break;
+			}
+			off += n;
+		}
+		t->rx_total += (off > 0) ? (uint32_t)off : 0;
+
+		if (off != STRESS_BLOCK) {
+			t->short_total++;
+			if (burst_run++ == 0) {
+				CLI_LOGW("uart_dma_stress ANOMALY start blk=%u kind=short got=%d/%d\r\n",
+					 block, off, STRESS_BLOCK);
+			}
+			while (bk_uart_read_bytes(t->uart_id, rx, STRESS_BLOCK, 20) > 0) {
+				;
+			}
+		} else {
+			for (int i = 0; i < STRESS_BLOCK; i++) {
+				if (rx[i] != tx[i]) {
+					if (nbad < 6) {
+						offs[nbad] = i;
+					}
+					nbad++;
+				}
+			}
+			if (nbad) {
+				for (int i = 1; i < STRESS_BLOCK; i++) {
+					if (rx[i] != (uint8_t)(rx[i - 1] + 1)) {
+						discont++;
+					}
+				}
+				if (discont <= STRESS_MAX_DISCONT) {
+					int flushed = 0;
+					int quiet = 0;
+					while (quiet < 2) {
+						if (bk_uart_read_bytes(t->uart_id, rx, STRESS_BLOCK, 20) > 0) {
+							flushed++;
+							quiet = 0;
+							if (flushed > 128) {
+								break;
+							}
+						} else {
+							quiet++;
+						}
+					}
+					t->resync_total++;
+					if (burst_run++ == 0) {
+						CLI_LOGW("uart_dma_stress ANOMALY start blk=%u kind=frame shift=0x%02x discont=%d\r\n",
+							 block, rx[0], discont);
+					}
+				} else {
+					t->byteerr_total += (uint32_t)nbad;
+					t->err_total++;
+					if (t->err_total <= STRESS_MAX_ERR_LOG) {
+						CLI_LOGE("uart_dma_stress MISMATCH blk=%u nbad=%d discont=%d offs=%d,%d,%d\r\n",
+							 block, nbad, discont,
+							 offs[0], (nbad > 1) ? offs[1] : -1, (nbad > 2) ? offs[2] : -1);
+					}
+				}
+			} else if (burst_run) {
+				CLI_LOGW("uart_dma_stress ANOMALY end blk=%u run=%u shorts=%u resyncs=%u\r\n",
+					 block, burst_run, t->short_total, t->resync_total);
+				burst_run = 0;
+			}
+		}
+
+		if ((++block % STRESS_REPORT_BLOCKS) == 0) {
+			CLI_LOGW("uart_dma_stress %s blocks=%u tx=%u rx=%u byteerrs=%u shorts=%u resyncs=%u\r\n",
+				 t->byteerr_total ? "FAIL" : "PASS",
+				 block, t->tx_total, t->rx_total,
+				 t->byteerr_total, t->short_total, t->resync_total);
+		}
+	}
+
+	bk_uart_deinit(t->uart_id);
+exit:
+	if (tx) {
+		os_free(tx);
+	}
+	if (rx) {
+		os_free(rx);
+	}
+	CLI_LOGW("uart_dma_stress STOPPED blocks_approx err=%u byteerrs=%u shorts=%u resyncs=%u\r\n",
+		 t->err_total, t->byteerr_total, t->short_total, t->resync_total);
+	t->thread = NULL;
+	t->running = false;
+	rtos_delete_thread(NULL);
+}
+
+static void cli_uart_dma_stress_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
+{
+	(void)pcWriteBuffer;
+	(void)xWriteBufferLen;
+
+	if (argc < 2) {
+		cli_uart_help();
+		return;
+	}
+
+	if (os_strcmp(argv[1], "start") == 0) {
+		if (s_dma_stress.running || s_dma_stress.thread) {
+			CLI_LOGW("uart_dma_stress already running, stop first\r\n");
+			return;
+		}
+		if (s_dma_test.running) {
+			CLI_LOGW("uart_dma_test is running, stop it first\r\n");
+			return;
+		}
+
+		os_memset(&s_dma_stress, 0, sizeof(s_dma_stress));
+		s_dma_stress.uart_id = (argc > 2) ? (uart_id_t)os_strtoul(argv[2], NULL, 10)
+						  : STRESS_DEFAULT_UART_ID;
+		s_dma_stress.baud = (argc > 3) ? os_strtoul(argv[3], NULL, 10)
+					       : STRESS_DEFAULT_BAUD;
+
+		if (s_dma_stress.uart_id == CONFIG_UART_PRINT_PORT) {
+			CLI_LOGW("UART%d is the print port, use a different one\r\n", s_dma_stress.uart_id);
+			return;
+		}
+		if (bk_uart_is_in_used(s_dma_stress.uart_id)) {
+			CLI_LOGW("UART%d already in use\r\n", s_dma_stress.uart_id);
+			return;
+		}
+
+		s_dma_stress.running = true;
+		if (rtos_create_thread(&s_dma_stress.thread, STRESS_TASK_PRIO, "uart_dma_stress",
+				       uart_dma_stress_task,
+				       STRESS_TASK_STACK, &s_dma_stress) != kNoErr) {
+			CLI_LOGE("create uart_dma_stress task failed\r\n");
+			s_dma_stress.running = false;
+			return;
+		}
+		CLI_LOGW("uart_dma_stress running (loopback TX<->RX), use 'uart_dma_stress stop'\r\n");
+	} else if (os_strcmp(argv[1], "stop") == 0) {
+		if (!s_dma_stress.running && !s_dma_stress.thread) {
+			CLI_LOGW("uart_dma_stress not running\r\n");
+			return;
+		}
+		s_dma_stress.running = false;
+		for (int i = 0; i < 50 && s_dma_stress.thread; i++) {
+			rtos_delay_milliseconds(100);
+		}
+		if (s_dma_stress.thread) {
+			CLI_LOGW("uart_dma_stress task still alive, force delete\r\n");
+			rtos_delete_thread(&s_dma_stress.thread);
+			s_dma_stress.thread = NULL;
+			bk_uart_deinit(s_dma_stress.uart_id);
+		}
+		CLI_LOGW("uart_dma_stress stopped: tx=%u rx=%u byteerrs=%u shorts=%u resyncs=%u\r\n",
+			 s_dma_stress.tx_total, s_dma_stress.rx_total,
+			 s_dma_stress.byteerr_total, s_dma_stress.short_total, s_dma_stress.resync_total);
+	} else {
+		cli_uart_help();
+	}
+}
+
+/* ============================================================
+ * UART DMA init/deinit cycle test
+ *
+ * Repeatedly init the UART with DMA, move one block over the
+ * loopback, then deinit. Catches resources that are not released
+ * on teardown.
+ *
+ * Usage:
+ *   uart_dma_cycle {uart_id} [baud_rate] [iterations]
+ * ============================================================ */
+#define CYCLE_DEFAULT_ITERATIONS  20
+#define CYCLE_BLOCK               256
+#define CYCLE_READ_TIMEOUT_MS     200
+
+static void cli_uart_dma_cycle_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
+{
+	uart_id_t uart_id;
+	uint32_t baud;
+	uint32_t iterations;
+	uint32_t init_fail = 0;
+	uint32_t io_fail = 0;
+	uint8_t *tx = NULL;
+	uint8_t *rx = NULL;
+	uart_config_t cfg = {0};
+
+	(void)pcWriteBuffer;
+	(void)xWriteBufferLen;
+
+	if (argc < 2) {
+		cli_uart_help();
+		return;
+	}
+
+	uart_id = (uart_id_t)os_strtoul(argv[1], NULL, 10);
+	baud = (argc > 2) ? os_strtoul(argv[2], NULL, 10) : STRESS_DEFAULT_BAUD;
+	iterations = (argc > 3) ? os_strtoul(argv[3], NULL, 10) : CYCLE_DEFAULT_ITERATIONS;
+
+	if (uart_id == CONFIG_UART_PRINT_PORT) {
+		CLI_LOGW("UART%d is the print port, use a different one\r\n", uart_id);
+		return;
+	}
+	if (s_dma_stress.running || s_dma_test.running) {
+		CLI_LOGW("another uart dma test is running, stop it first\r\n");
+		return;
+	}
+
+	tx = (uint8_t *)os_malloc(CYCLE_BLOCK);
+	rx = (uint8_t *)os_malloc(CYCLE_BLOCK);
+	if (!tx || !rx) {
+		CLI_LOGE("uart_dma_cycle: malloc failed\r\n");
+		goto exit;
+	}
+	for (uint32_t i = 0; i < CYCLE_BLOCK; i++) {
+		tx[i] = (uint8_t)i;
+	}
+
+	cfg.baud_rate = baud;
+	cfg.data_bits = UART_DATA_8_BITS;
+	cfg.parity = UART_PARITY_NONE;
+	cfg.stop_bits = UART_STOP_BITS_1;
+	cfg.flow_ctrl = UART_FLOWCTRL_DISABLE;
+	cfg.src_clk = uart_dma_test_pick_clk(baud);
+	cfg.rx_dma_en = UART_DMA_ENABLE;
+	cfg.tx_dma_en = UART_DMA_ENABLE;
+
+	CLI_LOGW("uart_dma_cycle START id=%d baud=%u clk=%s iterations=%u\r\n",
+		 uart_id, baud, uart_dma_test_clk_name(cfg.src_clk), iterations);
+
+	for (uint32_t n = 0; n < iterations; n++) {
+		int off = 0;
+
+		if (bk_uart_init(uart_id, &cfg) != BK_OK) {
+			init_fail++;
+			CLI_LOGE("uart_dma_cycle iter=%u init failed\r\n", n);
+			continue;
+		}
+		bk_uart_enable_rx_interrupt(uart_id);
+		uart_lb_flush_rx(uart_id);
+
+		if (bk_uart_write_bytes(uart_id, tx, CYCLE_BLOCK) != BK_OK) {
+			io_fail++;
+			CLI_LOGE("uart_dma_cycle iter=%u write failed\r\n", n);
+		} else {
+			while (off < CYCLE_BLOCK) {
+				int r = bk_uart_read_bytes(uart_id, rx + off,
+							   CYCLE_BLOCK - off, CYCLE_READ_TIMEOUT_MS);
+				if (r <= 0) {
+					break;
+				}
+				off += r;
+			}
+			if (off != CYCLE_BLOCK ||
+			    !dma_test_match_buffer(rx, tx, CYCLE_BLOCK, NULL)) {
+				io_fail++;
+				CLI_LOGE("uart_dma_cycle iter=%u io mismatch got=%d/%d\r\n",
+					 n, off, CYCLE_BLOCK);
+			}
+		}
+
+		while (!bk_uart_is_tx_over(uart_id)) {
+			rtos_delay_milliseconds(1);
+		}
+
+		bk_uart_deinit(uart_id);
+	}
+
+	CLI_LOGW("uart_dma_cycle %s iterations=%u init_fail=%u io_fail=%u\r\n",
+		 (init_fail || io_fail) ? "FAIL" : "PASS",
+		 iterations, init_fail, io_fail);
+
+exit:
+	if (tx) {
+		os_free(tx);
+	}
+	if (rx) {
+		os_free(rx);
+	}
+}
+
+#endif /* CONFIG_UART_TX_DMA && CONFIG_UART_RX_DMA */
+
 #define UART_CMD_CNT (sizeof(s_uart_commands) / sizeof(struct cli_command))
 DRV_CLI_CMD_EXPORT static const struct cli_command s_uart_commands[] = {
         {"uart_driver", "{init|deinit}", cli_uart_driver_cmd},
@@ -1519,6 +2298,11 @@ DRV_CLI_CMD_EXPORT static const struct cli_command s_uart_commands[] = {
         {"uart_lb", "uart_lb {id} [quick|full]", cli_uart_lb_cmd},
         {"uart_lb_api", "uart_lb_api {id}", cli_uart_lb_api_cmd},
         {"uart_lb_dma", "uart_lb_dma {id} [quick|full]", cli_uart_lb_dma_cmd},
+#if (CONFIG_UART_TX_DMA && CONFIG_UART_RX_DMA)
+        {"uart_dma_test", "uart_dma_test {start|stop} {id} [baud] [len]", cli_uart_dma_test_cmd},
+        {"uart_dma_stress", "uart_dma_stress {start|stop} [id] [baud]", cli_uart_dma_stress_cmd},
+        {"uart_dma_cycle", "uart_dma_cycle {id} [baud] [iterations]", cli_uart_dma_cycle_cmd},
+#endif
         {"uart_lb_flow", "uart_lb_flow {id}", cli_uart_lb_flow_cmd},
 #if CONFIG_UART_STRESS_TEST
 #if CONFIG_SHELL_ASYNCLOG
