@@ -35,7 +35,7 @@
 #define CSI_CALIB_MALLOC(size) psram_malloc(size)
 #define CSI_CALIB_FREE(ptr)    psram_free(ptr)
 #else
-#define CSI_CALIB_MALLOC(size) bk_sram_hsram_malloc("csi_calib", size)
+#define CSI_CALIB_MALLOC(size) bk_hsram_sram_malloc("csi_calib", size)
 #define CSI_CALIB_FREE(ptr)    os_free(ptr)
 #endif
 
