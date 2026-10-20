@@ -3616,11 +3616,11 @@ int usb_mtp_init(void)
     ep_out_buffer = os_malloc(MTP_RX_CHUNK);
     if(ep_out_buffer == NULL)
     {
-#ifdef CONFIG_AP_PSRAM_NOCACHE_HEAP_ADDR
-        ep_out_buffer = psram_nocache_malloc(MTP_RX_CHUNK);
+#ifdef CONFIG_AP_PSRAM_HEAP_ADDR
+        ep_out_buffer = psram_malloc(MTP_RX_CHUNK);
         if(ep_out_buffer != NULL)
         {
-            USB_LOG_INFO("%s ep_out_buffer fallback to nocache psram\r\n", __func__);
+            USB_LOG_INFO("%s ep_out_buffer fallback to psram\r\n", __func__);
         }
         else
 #endif
