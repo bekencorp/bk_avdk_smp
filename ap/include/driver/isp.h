@@ -25,9 +25,15 @@ bk_err_t bk_isp_dev_init(isp_handle_t *handle);
 
 bk_err_t bk_isp_port_init(isp_handle_t *handle, void *sensor_attr);
 
+/**
+ * @brief Select an initialized ISP port.
+ *
+ * Logical MIPI switching only publishes the software port identity. It does
+ * not restart sensor streaming, reset AE to auto, or synchronously restore
+ * all hardware registers. Applications manage streaming and explicitly set
+ * the exposure mode when auto exposure is required.
+ */
 bk_err_t bk_isp_port_select(isp_handle_t *handle, uint8_t port_id);
-
-bk_err_t bk_isp_port_context_restore(isp_handle_t *handle);
 
 bk_err_t bk_isp_port_change(isp_handle_t *handle);
 
@@ -56,10 +62,37 @@ bk_err_t bk_isp_frame_port_get(isp_handle_t *handle,
                                uint32_t sequence,
                                uint8_t *port_id);
 
+/**
+ * @brief Register a software pipeline-start callback in isp_core after frame-end.
+ *
+ * 3A start/done registration and unregistration require task context;
+ * ISR callers receive BK_ERR_STATE. Registering the same cb/arg is idempotent.
+ * A conflicting registration or an unregister in progress returns BK_ERR_BUSY.
+ * Callers must serialize device DeInit with registration/unregistration and
+ * keep the handle valid.
+ */
+bk_err_t bk_isp_register_3a_start_callback(isp_handle_t *handle,
+                                         isp_3a_start_cb_t cb,
+                                         void *arg);
+
+/**
+ * @brief Unregister a start callback and wait for its in-flight calls to finish.
+ *
+ * Do not hold locks needed by the callback while waiting. Self-unregistration
+ * and concurrent unregistration return BK_ERR_BUSY; a cb/arg mismatch returns
+ * BK_ERR_STATE. Only BK_OK permits releasing arg. On failure, retain arg and
+ * retry from an external task.
+ */
+bk_err_t bk_isp_deregister_3a_start_callback(isp_handle_t *handle,
+                                           isp_3a_start_cb_t cb,
+                                           void *arg);
+
+/** @brief Register a pipeline-done callback; same constraints as start registration. */
 bk_err_t bk_isp_register_3a_done_callback(isp_handle_t *handle,
                                          isp_3a_done_cb_t cb,
                                          void *arg);
 
+/** @brief Unregister and drain a done callback; same contract as start unregistration. */
 bk_err_t bk_isp_deregister_3a_done_callback(isp_handle_t *handle,
                                            isp_3a_done_cb_t cb,
                                            void *arg);
@@ -67,12 +100,18 @@ bk_err_t bk_isp_deregister_3a_done_callback(isp_handle_t *handle,
 bool bk_isp_is_in_vblank(isp_handle_t *handle);
 
 /**
- * @brief Select fast ISP modules restored during a logical-camera switch.
+ * @brief Request configuration refresh for ready modules on a logical port.
+ * @param port_id Target logical ISP port, initialized by bk_isp_port_init.
+ * @return BK_OK: request accepted, not a hardware-latch guarantee;
+ *         BK_ERR_PARAM: invalid handle or port;
+ *         BK_ERR_STATE: missing port initialization bit or pub_attr;
+ *         BK_FAIL: unavailable mutex, lock failure, or downstream failure.
  *
- * The default mask is BK_ISP_SWITCH_MODULE_NONE. The mask is runtime state;
- * the internal ISP library does not depend on an application CONFIG macro.
+ * Task context only. Callers must serialize Init/DeInit with this interface.
+ * Acquires isp_mutex and module locks. Individual modules that have not
+ * completed Init are skipped successfully without requesting an update.
  */
-bk_err_t bk_isp_switch_module_mask_set(isp_handle_t *handle, uint32_t mask);
+bk_err_t bk_isp_pipeline_cfg_upd_enable(isp_handle_t *handle, uint8_t port_id);
 
 bk_err_t bk_isp_sensor_update_mode_set(
     isp_handle_t *handle, bk_isp_sensor_update_mode_t mode);

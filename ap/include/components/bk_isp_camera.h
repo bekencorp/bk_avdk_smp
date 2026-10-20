@@ -36,6 +36,14 @@ avdk_err_t bk_isp_camera_dev_init(bk_isp_camera_ctlr_handle_t handle);
  */
 avdk_err_t bk_isp_camera_port_init(bk_isp_camera_ctlr_handle_t handle, void *config);
 
+/**
+ * @brief Select an initialized ISP port.
+ *
+ * Logical MIPI switching does not restart sensor streaming or reset AE to auto.
+ * Applications manage streaming and use BK_CAM_IOCTL_SET_EXPOSURE explicitly
+ * to restore auto exposure. Selection publishes the software port identity;
+ * it does not guarantee synchronous restoration of all hardware registers.
+ */
 avdk_err_t bk_isp_camera_port_select(bk_isp_camera_ctlr_handle_t handle, uint8_t port_id);
 
 /**
@@ -140,9 +148,14 @@ avdk_err_t bk_isp_camera_deregister_isr_callback(bk_isp_camera_ctlr_handle_t han
  *   expect a delay of one to three frames.
  * - Out-of-range gains and exposure times are clamped by the ISP firmware with
  *   a warning rather than rejected; read back if the exact value matters.
- * - On a dual MIPI logical port setup, BK_CAM_IOCTL_RESTORE_ISP_PORT_CONTEXT
- *   forces AE back to auto, so manual exposure must be re-applied after a port
- *   switch. White balance is unaffected.
+ * - Logical MIPI port switching preserves each port's exposure mode instead
+ *   of resetting AE. Use BK_CAM_IOCTL_SET_EXPOSURE explicitly on the target
+ *   port to restore auto mode. Switching does not restart a stopped sensor;
+ *   applications manage the streaming lifecycle.
+ * - Pipeline start/done callbacks run in the isp_core task. Registration and
+ *   unregistration require task context. Successful unregistration drains
+ *   in-flight calls before arg may be released; retain arg and retry on failure.
+ *   Do not unregister from the target callback itself or hold locks it needs.
  */
 avdk_err_t bk_isp_camera_ctlr_ioctl(bk_isp_camera_ctlr_handle_t handle, bk_cam_interface_ioctl_t ioctl, void *arg);
 

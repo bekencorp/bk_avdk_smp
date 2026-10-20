@@ -95,7 +95,6 @@ typedef enum
     BK_CAM_IOCTL_FRAME_POP, /**< Dequeue a zero-copy frame; arg = bk_isp_camera_frame_info_t * */
     BK_CAM_IOCTL_FRAME_QBUF, /**< Re-queue a zero-copy frame; arg = bk_isp_camera_frame_info_t * */
     BK_CAM_IOCTL_SELECT_ISP_PORT, /**< Select logical ISP port; arg = uint8_t * */
-    BK_CAM_IOCTL_RESTORE_ISP_PORT_CONTEXT, /**< Restore selected logical ISP port context; arg = NULL */
     BK_CAM_IOCTL_GET_WB, /**< Get white balance attributes; arg = bk_isp_camera_wb_attr_t * */
     BK_CAM_IOCTL_SET_WB, /**< Set white balance attributes; arg = bk_isp_camera_wb_attr_t * */
     BK_CAM_IOCTL_GET_EXPOSURE, /**< Get exposure mode and manual values; arg = bk_isp_camera_exposure_attr_t * */
@@ -103,15 +102,17 @@ typedef enum
     BK_CAM_IOCTL_FRAME_PORT_GET, /**< Query logical port for a frame; arg = bk_isp_camera_frame_port_query_t * */
     BK_CAM_IOCTL_REGISTER_ISR_CALLBACK, /**< Register ISP callback; arg = bk_isp_camera_isr_callback_config_t * */
     BK_CAM_IOCTL_DEREGISTER_ISR_CALLBACK, /**< Deregister ISP callback; arg = bk_isp_camera_isr_callback_config_t * */
+    BK_CAM_IOCTL_REGISTER_PIPELINE_START_CALLBACK, /**< Register pipeline callback; arg = bk_isp_camera_pipeline_callback_config_t * */
+    BK_CAM_IOCTL_DEREGISTER_PIPELINE_START_CALLBACK, /**< Deregister pipeline callback; arg = bk_isp_camera_pipeline_callback_config_t * */
     BK_CAM_IOCTL_REGISTER_PIPELINE_DONE_CALLBACK, /**< Register pipeline callback; arg = bk_isp_camera_pipeline_callback_config_t * */
     BK_CAM_IOCTL_DEREGISTER_PIPELINE_DONE_CALLBACK, /**< Deregister pipeline callback; arg = bk_isp_camera_pipeline_callback_config_t * */
     BK_CAM_IOCTL_IS_IN_VBLANK, /**< Query ISP blanking state; arg = bk_isp_camera_vblank_state_t * */
-    BK_CAM_IOCTL_SET_ISP_SWITCH_MODULE_MASK, /**< Set fast ISP switch modules; arg = uint32_t * */
     BK_CAM_IOCTL_SET_SENSOR_UPDATE_MODE, /**< Set Sensor register update timing; arg = bk_isp_camera_sensor_update_mode_t * */
     BK_CAM_IOCTL_GET_GAMMA_OUT, /**< Get gamma-out attributes; arg = bk_isp_camera_gamma_out_attr_t * */
     BK_CAM_IOCTL_SET_GAMMA_OUT, /**< Set gamma-out attributes; arg = bk_isp_camera_gamma_out_attr_t * */
     BK_CAM_IOCTL_GET_FLEXA_BUF_SIZE, /**< Query flexa ring buffer size for a channel geometry; arg = bk_isp_camera_flexa_buf_size_t * */
     BK_CAM_IOCTL_SET_FLEXA_BUF, /**< Set an externally allocated flexa ring buffer before channel open; arg = bk_isp_camera_flexa_buf_t * */
+    BK_CAM_IOCTL_PIPELINE_CFG_UPD_ENABLE, /**< Enable pipeline configuration update; arg = uint8_t * */
 } bk_cam_interface_ioctl_t;
 
 /**

@@ -121,17 +121,23 @@ typedef struct {
     uint32_t ext_buf_size;
 } isp_channel_config_t;
 
+typedef void (*isp_3a_start_cb_t)(uint8_t port_id,
+                                 uint32_t sequence,
+                                 void *arg);
+
 typedef void (*isp_3a_done_cb_t)(uint8_t port_id,
                                  uint32_t sequence,
                                  void *arg);
 
-typedef enum {
-    BK_ISP_SWITCH_MODULE_NONE = 0U,
-    BK_ISP_SWITCH_MODULE_WB   = 1U << 0,
-    BK_ISP_SWITCH_MODULE_CCM  = 1U << 1,
-    BK_ISP_SWITCH_MODULE_DG   = 1U << 2,
-    BK_ISP_SWITCH_MODULE_CPROC = 1U << 3,
-} bk_isp_switch_module_t;
+/* Protected by the driver's SMP critical section; unregister also reads
+ * in_flight atomically while waiting outside that section.
+ */
+typedef struct {
+    uint32_t generation;
+    uint32_t in_flight;
+    uint8_t unregistering;
+    beken_thread_t *thread;
+} isp_3a_callback_state_t;
 
 typedef enum {
     BK_ISP_SENSOR_UPDATE_IN_PIPELINE = 0U,
@@ -154,9 +160,13 @@ typedef struct {
     int (*free_buf) (ISP_CHN chn, VIDEO_BUF_S *pBuf);
     isp_3a_done_cb_t three_a_done_cb;
     void *three_a_done_arg;
+    isp_3a_callback_state_t three_a_done_state;
     uint32_t frame_end_sequence[ISP_PORT_CNT];
+    isp_3a_start_cb_t three_a_start_cb;
+    void *three_a_start_arg;
+    isp_3a_callback_state_t three_a_start_state;
+    uint32_t frame_start_sequence[ISP_PORT_CNT];
     uint8_t in_vblank;
-    uint32_t switch_module_mask;
 } isp_control_t;
 
 typedef struct {
