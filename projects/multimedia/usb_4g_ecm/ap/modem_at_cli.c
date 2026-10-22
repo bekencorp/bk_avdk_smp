@@ -21,8 +21,45 @@ static const char *const s_probe_cmds[] = {
     "ATI",
     "AT+CPIN?",
     "AT+CSQ",
+    "AT+CESQ",
     "AT+CEREG?",
+    "AT+CGATT?",
+    "AT+CGCONTRDP=1",
+    "AT+CGPADDR=1",
+    "AT+ECSTATUS",
 };
+
+void modem_at_log_exchange(char *tag, const char *cmd, int ret, const char *resp)
+{
+    const char *tail = NULL;
+
+    if (resp == NULL) {
+        resp = "";
+    }
+    if (ret == 0) {
+        tail = "OK";
+    } else if (ret == -1) {
+        tail = resp[0] ? NULL : "ERROR";
+    } else if (ret == -2) {
+        tail = "timeout";
+    } else if (ret == -3) {
+        tail = "offline";
+    } else if (ret == -4) {
+        tail = "write failed";
+    } else if (ret == -5) {
+        tail = "busy";
+    } else {
+        tail = "failed";
+    }
+
+    if (resp[0] && tail) {
+        BK_LOGI(tag, "%s\r\n%s\r\n%s\r\n", cmd, resp, tail);
+    } else if (resp[0]) {
+        BK_LOGI(tag, "%s\r\n%s\r\n", cmd, resp);
+    } else {
+        BK_LOGI(tag, "%s\r\n%s\r\n", cmd, tail);
+    }
+}
 
 static void at_cli_run(const char *cmd)
 {
@@ -32,7 +69,7 @@ static void at_cli_run(const char *cmd)
     /* resp carries the informational lines on success and the error line on
      * -1; on the other codes it holds whatever arrived before the command was
      * abandoned, which is usually nothing. */
-    LOGI("%s -> %d%s%s\r\n", cmd, ret, resp[0] ? "\r\n" : "", resp);
+    modem_at_log_exchange(TAG, cmd, ret, resp);
 }
 
 static void at_cli_cmd(char *buf, int len, int argc, char **argv)

@@ -23,6 +23,11 @@ typedef void (*modem_at_urc_cb_t)(const char *line);
  * enumeration can reach intf3. urc_cb may be NULL. */
 int modem_at_init(modem_at_urc_cb_t urc_cb);
 
+/* Called on the USB connect thread when intf3 is claimed or released. Must
+ * return immediately. NULL clears the hook. Set it before the host is opened. */
+typedef void (*modem_at_link_cb_t)(bool online);
+void modem_at_set_link_hook(modem_at_link_cb_t hook);
+
 /* True while intf3 is claimed. */
 bool modem_at_is_online(void);
 

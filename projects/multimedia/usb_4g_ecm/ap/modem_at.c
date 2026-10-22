@@ -1,11 +1,8 @@
 /*
  * Minimal AT command manager. See modem_at.h for the contract.
  *
- * Attribution rule, and the only interesting thing in here: a response line
- * belongs to the pending command, and a line that arrives with no command
- * pending is a URC. The prefix is never used to decide that - "+CSQ: 20,99" is
- * a response when we asked and a URC when we did not, and keying on '+' would
- * get both cases wrong in one direction or the other.
+ * Command state and response storage are protected from RX/caller races.
+ * Known URCs are separated from command replies; callbacks run without locks.
  */
 #include <string.h>
 #include <os/os.h>
@@ -35,32 +32,36 @@ enum {
     AT_RESULT_ERROR,
 };
 
-static volatile uint8_t g_state = AT_STATE_IDLE;
-static volatile uint8_t g_result = AT_RESULT_NONE;
+static uint8_t g_state = AT_STATE_IDLE;
+static uint8_t g_result = AT_RESULT_NONE;
 
 /* Serialises callers; g_state alone cannot, two callers could both see IDLE. */
 static beken_mutex_t g_cmd_lock = NULL;
+/* Protects shared state between RX thread and caller: s_cmd_buf, s_resp_buf,
+ * s_resp_len, g_result. Held briefly to snapshot or update, never held while
+ * waiting for response or calling URC callback. */
+static beken_mutex_t g_state_lock = NULL;
 /* Given by the receive thread when a final result code lands. */
 static beken_semaphore_t g_done_sem = NULL;
 
 static modem_at_urc_cb_t g_urc_cb = NULL;
+static modem_at_link_cb_t g_link_hook = NULL;
 
-/* Line assembly across USB packets. Owned by the receive thread alone. */
+/* Partial line state is shared with link reset; protected by g_state_lock. */
 static char g_line[MODEM_AT_LINE_MAX + 1];
 static uint32_t g_line_len = 0;
 static bool g_line_over = false; /* current line exceeded the buffer */
 
+/* Internal command buffer. The caller's cmd pointer is copied here under
+ * g_state_lock, so the RX thread never dereferences the caller's stack. */
+static char s_cmd_buf[USB_MODEM_AT_TX_MAX];
 /* Internal response buffer. The receive thread writes here, not to the caller's
  * stack - a pointer into the caller's stack becomes a dangling pointer the
- * instant the caller is woken. Only copied out to g_resp on state change. */
-static char s_resp_buf[257];
+ * instant the caller is woken. The caller copies out under g_state_lock. */
+/* AT+ECPCFG? answers with one line per option and "usbNet" is near the end.
+ * 257 bytes drops that line, so a later check cannot tell ECM from RNDIS. */
+static char s_resp_buf[1280];
 static uint32_t s_resp_len = 0;
-
-/* The command in flight. Valid only while the caller is blocked in
- * modem_at_send(), which is exactly the WAIT and DRAIN window. */
-static const char *g_cmd = NULL;
-static char *g_resp = NULL;
-static uint32_t g_resp_size = 0;
 
 /* "+CME ERROR: 30" style failures carry a code, plain "ERROR" does not; both
  * end the command the same way. */
@@ -98,89 +99,78 @@ static void at_resp_append(const char *line)
     s_resp_buf[s_resp_len] = '\0';
 }
 
-/* One complete line, CRLF already stripped, never empty. Receive thread. */
+/* Called with state lock held. Query replies take precedence over URCs. */
+static bool at_is_urc(const char *line)
+{
+    static const char *const queries[] = { "AT+CREG?", "AT+CGREG?", "AT+CEREG?" };
+    static const char *const prefixes[] = { "+CREG:", "+CGREG:", "+CEREG:" };
+    for (unsigned i = 0; i < sizeof(queries) / sizeof(queries[0]); i++) {
+        if (!strncmp(line, prefixes[i], strlen(prefixes[i]))) {
+            return strcmp(s_cmd_buf, queries[i]) != 0;
+        }
+    }
+    return !strncmp(line, "+CGEV:", 6) || !strcmp(line, "RING") ||
+           !strcmp(line, "NO CARRIER");
+}
+
 static void at_on_line(const char *line)
 {
-    int result;
+    bool urc = false;
+    int result = at_classify(line);
 
-    if (g_state == AT_STATE_IDLE) {
-        /* Attribution rule: a line that arrives with no command pending is a
-         * URC. The prefix is never used to decide - "+CSQ: 20,99" is a
-         * response when we asked and a URC when we did not.
-         *
-         * Known limitation: a response that arrives after the command timed
-         * out AND the drain window expired is incorrectly attributed as a URC.
-         * The drain window (MODEM_AT_DRAIN_MS) covers the common case where
-         * the module answers just after we gave up, but a module that takes
-         * longer than drain_ms after timeout will trigger the misattribution.
-         * The only robust fix is a per-command correlation token (the module
-         * does not provide one), or syntactic classification (fragile and
-         * module-specific). */
+    rtos_lock_mutex(&g_state_lock);
+    if (g_state == AT_STATE_IDLE ||
+        at_is_urc(line)) {
+        urc = true;
+    } else if (g_state == AT_STATE_DRAIN) {
+        if (result != AT_RESULT_NONE) {
+            rtos_set_semaphore(&g_done_sem);
+        }
+    } else if (g_result == AT_RESULT_NONE && strcmp(line, s_cmd_buf)) {
+        if (result != AT_RESULT_NONE) {
+            if (result == AT_RESULT_ERROR) {
+                at_resp_append(line);
+            }
+            g_result = (uint8_t)result;
+            /* Signal before unlocking: timeout/new-command cannot overtake it. */
+            rtos_set_semaphore(&g_done_sem);
+        } else {
+            at_resp_append(line);
+        }
+    }
+    rtos_unlock_mutex(&g_state_lock);
+    if (urc) {
         if (g_urc_cb) {
             g_urc_cb(line);
         } else {
             LOGD("urc: %s\r\n", line);
         }
-        return;
     }
-
-    result = at_classify(line);
-
-    if (g_state == AT_STATE_DRAIN) {
-        /* Belongs to a command whose caller already gave up. Dropping it here
-         * is the whole point: left in place it would be read as the next
-         * command's answer. */
-        LOGD("late: %s\r\n", line);
-        if (result != AT_RESULT_NONE) {
-            rtos_set_semaphore(&g_done_sem);
-        }
-        return;
-    }
-
-    /* The module echoes the command back before answering. */
-    if (g_cmd && !strcmp(line, g_cmd)) {
-        return;
-    }
-
-    if (result != AT_RESULT_NONE) {
-        if (result == AT_RESULT_ERROR) {
-            at_resp_append(line); /* the caller wants to see which error */
-        }
-        /* Copy internal buffer to caller's stack before signaling done. */
-        if (g_resp && g_resp_size) {
-            uint32_t copy_len = s_resp_len < g_resp_size - 1 ? s_resp_len : g_resp_size - 1;
-            memcpy(g_resp, s_resp_buf, copy_len);
-            g_resp[copy_len] = '\0';
-        }
-        g_result = (uint8_t)result;
-        rtos_set_semaphore(&g_done_sem);
-        return;
-    }
-
-    at_resp_append(line);
 }
 
 static void at_on_rx(const uint8_t *data, uint32_t len)
 {
+    char line[MODEM_AT_LINE_MAX + 1];
     for (uint32_t i = 0; i < len; i++) {
+        bool complete = false;
         char c = (char)data[i];
-
+        rtos_lock_mutex(&g_state_lock);
         if (c == '\r' || c == '\n') {
-            if (g_line_over) {
-                LOGE("line over %u bytes, dropped\r\n", MODEM_AT_LINE_MAX);
-            } else if (g_line_len) {
-                g_line[g_line_len] = '\0';
-                at_on_line(g_line);
+            if (!g_line_over && g_line_len) {
+                memcpy(line, g_line, g_line_len);
+                line[g_line_len] = '\0';
+                complete = true;
             }
-            /* Empty lines are the CRLF padding around every response. */
             g_line_len = 0;
             g_line_over = false;
-            continue;
-        }
-        if (g_line_len < MODEM_AT_LINE_MAX) {
+        } else if (g_line_len < MODEM_AT_LINE_MAX) {
             g_line[g_line_len++] = c;
         } else {
             g_line_over = true;
+        }
+        rtos_unlock_mutex(&g_state_lock);
+        if (complete) {
+            at_on_line(line);
         }
     }
 }
@@ -188,19 +178,24 @@ static void at_on_rx(const uint8_t *data, uint32_t len)
 static void at_on_link(bool online)
 {
     LOGI("AT channel %s\r\n", online ? "online" : "offline");
-
-    if (online) {
-        g_line_len = 0;
-        g_line_over = false;
-        return;
-    }
-    /* Release a waiting caller now; it rechecks the link and returns -3. The
-     * partial line is dropped so a reconnect does not resume mid-sentence. */
+    rtos_lock_mutex(&g_state_lock);
     g_line_len = 0;
     g_line_over = false;
-    if (g_state != AT_STATE_IDLE) {
+    if (!online && g_state != AT_STATE_IDLE) {
+        /* Cancel the transaction even if a result arrived at the same edge. */
+        g_result = AT_RESULT_NONE;
+        g_state = AT_STATE_IDLE;
         rtos_set_semaphore(&g_done_sem);
     }
+    rtos_unlock_mutex(&g_state_lock);
+    if (g_link_hook) {
+        g_link_hook(online);
+    }
+}
+
+void modem_at_set_link_hook(modem_at_link_cb_t hook)
+{
+    g_link_hook = hook;
 }
 
 int modem_at_init(modem_at_urc_cb_t urc_cb)
@@ -215,9 +210,18 @@ int modem_at_init(modem_at_urc_cb_t urc_cb)
         LOGE("mutex init failed %d\r\n", err);
         return err;
     }
+    err = rtos_init_mutex(&g_state_lock);
+    if (err != BK_OK) {
+        LOGE("state lock init failed %d\r\n", err);
+        rtos_deinit_mutex(&g_cmd_lock);
+        g_cmd_lock = NULL;
+        return err;
+    }
     err = rtos_init_semaphore(&g_done_sem, 1);
     if (err != BK_OK) {
         LOGE("sem init failed %d\r\n", err);
+        rtos_deinit_mutex(&g_state_lock);
+        g_state_lock = NULL;
         rtos_deinit_mutex(&g_cmd_lock);
         g_cmd_lock = NULL;
         return err;
@@ -259,60 +263,50 @@ int modem_at_send(const char *cmd, char *resp, uint32_t resp_size, uint32_t time
         goto unlock;
     }
 
-    /* A result code that landed after the previous command gave up would
-     * otherwise satisfy this command's wait immediately. */
+    rtos_lock_mutex(&g_state_lock);
     while (rtos_get_semaphore(&g_done_sem, BEKEN_NO_WAIT) == BK_OK) {
     }
-
     memcpy(tx, cmd, cmd_len);
     tx[cmd_len] = '\r';
-
-    g_cmd = cmd;
-    g_resp = (resp && resp_size) ? resp : NULL;
-    g_resp_size = g_resp ? resp_size : 0;
+    memcpy(s_cmd_buf, cmd, cmd_len + 1);
     s_resp_len = 0;
     g_result = AT_RESULT_NONE;
-    /* Published before the write: the answer can arrive while it is still in
-     * the controller's FIFO. */
     g_state = AT_STATE_WAIT;
+    rtos_unlock_mutex(&g_state_lock);
 
     written = usb_modem_at_write((const uint8_t *)tx, cmd_len + 1, timeout_ms);
     if (written != (int)(cmd_len + 1)) {
-        LOGE("write %s failed %d\r\n", cmd, written);
-        g_state = AT_STATE_IDLE;
         ret = usb_modem_at_is_online() ? -4 : -3;
-        goto unlock;
+        rtos_lock_mutex(&g_state_lock);
+        goto finish;
     }
 
     if (rtos_get_semaphore(&g_done_sem, timeout_ms) != BK_OK) {
-        /* Swallow a late answer so it is not read as the next command's. */
-        g_state = AT_STATE_DRAIN;
-        rtos_get_semaphore(&g_done_sem, MODEM_AT_DRAIN_MS);
-        g_state = AT_STATE_IDLE;
-        /* The result code can land in the gap between the wait expiring and
-         * DRAIN being published, in which case the answer is complete and in
-         * resp already - reporting a timeout would throw it away. */
-        if (g_result == AT_RESULT_NONE) {
-            LOGE("%s timeout\r\n", cmd);
-            ret = -2;
-            goto unlock;
+        rtos_lock_mutex(&g_state_lock);
+        if (g_result == AT_RESULT_NONE && g_state == AT_STATE_WAIT) {
+            g_state = AT_STATE_DRAIN;
+            rtos_unlock_mutex(&g_state_lock);
+            rtos_get_semaphore(&g_done_sem, MODEM_AT_DRAIN_MS);
+            rtos_lock_mutex(&g_state_lock);
+            ret = g_state == AT_STATE_IDLE ? -3 : -2;
+            goto finish;
         }
-    }
-    g_state = AT_STATE_IDLE;
-
-    if (g_result == AT_RESULT_OK) {
-        ret = 0;
-    } else if (g_result == AT_RESULT_ERROR) {
-        ret = -1;
+        /* A final result or offline notification won the timeout race. */
     } else {
-        /* Woken by the offline edge, not by a result code. */
-        ret = -3;
+        rtos_lock_mutex(&g_state_lock);
     }
 
+    ret = g_result == AT_RESULT_OK ? 0 :
+          g_result == AT_RESULT_ERROR ? -1 : -3;
+    if ((ret == 0 || ret == -1) && resp && resp_size) {
+        uint32_t n = s_resp_len < resp_size - 1 ? s_resp_len : resp_size - 1;
+        memcpy(resp, s_resp_buf, n);
+        resp[n] = '\0';
+    }
+finish:
+    g_state = AT_STATE_IDLE;
+    rtos_unlock_mutex(&g_state_lock);
 unlock:
-    g_cmd = NULL;
-    g_resp = NULL;
-    g_resp_size = 0;
     rtos_unlock_mutex(&g_cmd_lock);
     return ret;
 }

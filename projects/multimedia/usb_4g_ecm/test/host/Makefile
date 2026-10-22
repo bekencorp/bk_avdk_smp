@@ -10,13 +10,22 @@
 AP_DIR := ../../ap
 CFLAGS := -std=gnu11 -Wall -Wextra -Wno-unused-parameter -Istub -I$(AP_DIR)
 
-test_modem_at: test_modem_at.c $(AP_DIR)/modem_at.c $(AP_DIR)/modem_at.h
+test_modem_at: test_modem_at.c $(AP_DIR)/modem_at.c $(AP_DIR)/modem_at.h stub/os/os.h
 	$(CC) $(CFLAGS) -o $@ test_modem_at.c $(AP_DIR)/modem_at.c
 
 run: test_modem_at
 	./test_modem_at
 
 clean:
-	rm -f test_modem_at
+	rm -f test_modem_at test_modem_at_threads
 
 .PHONY: run clean
+
+# Real mutexes/semaphores and an independent RX thread, unlike the parser fixture.
+test_modem_at_threads: test_modem_at_threads.c $(AP_DIR)/modem_at.c stub/os/threaded_os.h
+	$(CC) $(CFLAGS) -DMODEM_AT_THREADED_TEST -pthread -o $@ test_modem_at_threads.c $(AP_DIR)/modem_at.c
+
+run-threads: test_modem_at_threads
+	./test_modem_at_threads
+
+.PHONY: run-threads

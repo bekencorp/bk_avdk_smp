@@ -6,6 +6,8 @@
 #include <components/usb_types.h>
 #include "modem_at.h"
 #include "modem_at_cli.h"
+#include "modem_ecm_cfg.h"
+#include "net_check.h"
 
 #define TAG "usb4g"
 #define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
@@ -24,12 +26,11 @@ static beken_thread_t s_usb_init_thread = NULL;
  * instead of calling tcpip_init() twice. */
 extern void net_ipv4stack_init(void);
 
-/* Thin slice: bring the MUSB controller up in USB HOST mode only.
- *   bk_usb_driver_init()        registers the adaptation layer + class drivers
+/* Bring the MUSB controller up in USB HOST mode.
+ *   bk_init()                   has already registered the adaptation layer + class drivers
  *   bk_usb_open(USB_HOST_MODE)  powers the controller as an A-host (VBUS out)
- * No device gadget, no MSC/UVC. CDC-ECM enumeration + lwip glue + the intf3
- * vendor-AT bulk driver are wired in later steps; this task just proves the
- * host stack initialises cleanly on the new project. */
+ * No device gadget, no MSC/UVC. CDC-ECM and the intf3 AT driver bind during
+ * enumeration. The link hook checks the module profile; net_check runs once. */
 static void usb_host_init_task(void *arg)
 {
     /* Must precede enumeration: the ECM class driver hands packets straight to
@@ -45,14 +46,8 @@ static void usb_host_init_task(void *arg)
         goto out;
     }
     modem_at_cli_init(); /* test entry; a failure here costs nothing but itself */
-
-    ret = bk_usb_driver_init();
-    if (ret != BK_OK) {
-        /* Opening the controller on top of a failed adaptation-layer init would
-         * hide the real cause behind a second, unrelated error code. */
-        LOGE("bk_usb_driver_init failed ret=%d\r\n", ret);
-        goto out;
-    }
+    modem_at_set_link_hook(modem_ecm_cfg_on_link);
+    net_check_start();
 
     ret = bk_usb_open(USB_HOST_MODE);
     if (ret != BK_OK) {

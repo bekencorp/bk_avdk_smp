@@ -217,5 +217,29 @@ int main(void)
     ret = modem_at_send("AT+COPS=?", resp, sizeof(resp), 1000);
     expect("ret", ret, -2);
 
+    reset();
+    script(0, "\r\n+CEREG: 2,1\r\n+CGEV: ME DETACH\r\nOK\r\n");
+    ret = modem_at_send("AT+CEREG?", resp, sizeof(resp), 1000);
+    expect("registration query ret", ret, 0);
+    expect_str("registration response", resp, "+CEREG: 2,1");
+    expect("interleaved URC count", g_urc_count, 1);
+    expect_str("interleaved URC", g_urc, "+CGEV: ME DETACH");
+    const char *queries[] = { "AT+CREG?", "AT+CGREG?" };
+    const char *replies[] = { "+CREG: 2,1", "+CGREG: 2,1" };
+    for (unsigned i = 0; i < 2; i++) {
+        char chunk[64];
+        reset();
+        snprintf(chunk, sizeof(chunk), "%s\r\nOK\r\n", replies[i]);
+        script(0, chunk);
+        ret = modem_at_send(queries[i], resp, sizeof(resp), 1000);
+        expect("other registration ret", ret, 0);
+        expect_str("other registration reply", resp, replies[i]);
+        expect("query not URC", g_urc_count, 0);
+    }
+    reset();
+    script(1, "\r\n+CGEV: ME DETACH\r\nOK\r\n");
+    ret = modem_at_send("AT+CSQ", resp, sizeof(resp), 1000);
+    expect("drain remains timeout", ret, -2);
+    expect("URC during drain", g_urc_count, 1);
     return test_tail(resp, longline);
 }

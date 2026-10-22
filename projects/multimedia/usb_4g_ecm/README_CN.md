@@ -58,17 +58,21 @@ rm -rf build/bk7259/usb_4g_ecm
 
 1. `net_ipv4stack_init()` —— ECM 驱动会把收到的包直接交给 `netif->input`，tcpip 线程和它的 mbox 必须先存在。
 2. `modem_at_init()` —— 装上 intf3 传输层回调；类驱动的 connect 路径会调用它们，所以必须早于枚举。
-3. `bk_usb_driver_init()` + `bk_usb_open(USB_HOST_MODE)` —— 控制器以 A-host 身份上电，开始枚举。
+3. 注册模组配置回调和一次性外网检查，然后 `bk_usb_open(USB_HOST_MODE)`。类驱动已由 `bk_init()` 注册，控制器以 A-host 身份上电并开始枚举。
 
 ## 6. AT 通道测试命令
 
 ```text
 modem_at                   # 查看链路在线状态
-modem_at probe             # 跑一遍只读命令：AT / ATI / AT+CPIN? / AT+CSQ / AT+CEREG?
+modem_at probe             # 跑一遍只读诊断：身份、SIM、信号、注册、附着、PDP 地址和 UE 状态
 modem_at AT+CGDCONT?       # 发送任意命令（控制台按空格切分，内部会重新拼回）
 ```
 
-输出形如 `AT+CSQ -> 0` 后跟响应行，其中数字是返回码：
+在 CP 提示符下加 `ap_cmd`。串口打印命令、响应正文，再打印 `OK`、错误行、`timeout`、`offline`、`write failed` 或 `busy`。带逗号的命令要加引号，例如 `ap_cmd modem_at "AT+CFUN=1,1"`，否则 AP 命令行会把逗号当成参数分隔。下面的数字是 `modem_at_send()` 的返回值，不出现在打印里：
+
+`probe` 中的 `AT+CESQ`、`AT+CEREG?`、`AT+CGATT?`、`AT+CGCONTRDP=1`、`AT+CGPADDR=1` 和
+`AT+ECSTATUS` 对应 Lierda LTE Standard AT 手册中的信号、EPS 注册、分组域附着、PDP
+动态参数、PDP 地址和 UE 状态查询。它们只读，不修改 APN、注册策略或 PDP 状态。
 
 | 返回码 | 含义 |
 | --- | --- |
@@ -81,7 +85,7 @@ modem_at AT+CGDCONT?       # 发送任意命令（控制台按空格切分，内
 
 ## 7. 实现要点
 
-**响应归属**：有命令在飞时，收到的行归这条命令；没有命令在飞时，收到的行是 URC。**不按 `+` 前缀判定** —— `+CSQ: 20,99` 在我们问了的时候是响应，没问的时候是 URC，按前缀判定两种情况必错一种。
+**响应归属**：命令状态、内部命令副本和响应缓冲由 RX/调用方共用的短锁保护；仅调用方复制结果到自身缓冲。已知注册/网络/来电 URC 在锁外分发；`AT+CREG?`、`AT+CGREG?`、`AT+CEREG?` 的对应前缀优先归查询响应。仍不具备完整的模组专用 URC 语法解析能力。
 
 **超时后的迟到应答**：命令超时后进入 DRAIN 状态，吞掉迟到的输出（有界 300 ms），避免它被当成下一条命令的应答。
 
@@ -100,9 +104,9 @@ modem_at AT+CGDCONT?       # 发送任意命令（控制台按空格切分，内
 
 ## 9. 资源占用
 
-当前固件（AP 侧，`make` 输出的统计）：FLASH 481836 B（23.07%）、RAM 172676 B（43.91%）、IRAM 1432 B、DTCM 2304 B。
+当前固件（AP 侧，`make` 输出的统计）：FLASH 484236 B（23.18%）、RAM 175492 B（44.63%）、IRAM 1432 B、DTCM 2304 B。
 
-AT 通道自身的增量：rx 缓冲 512 B + tx 缓冲 256 B（均在 `USB_NOCACHE_RAM_SECTION`）、收线程栈 2048 B、行缓冲与响应缓冲各 257 B。
+AT 通道自身的增量：rx 缓冲 512 B + tx 缓冲 256 B（均在 `USB_NOCACHE_RAM_SECTION`）、收线程栈 2048 B、行缓冲 257 B、管理器响应缓冲 1280 B、命令行打印缓冲 257 B。
 
 ## 10. 已知限制
 
@@ -116,4 +120,19 @@ AT 通道自身的增量：rx 缓冲 512 B + tx 缓冲 256 B（均在 `USB_NOCAC
 
 **已验证**：构建通过（`EXIT=0`，新文件零告警）；类注册记录确实落在 `usbh_class_info` 段内（段内 3 条：hub、cdc_ecm、modem_at）；`modem_at.c` 的字节流处理在构建机上过了 10 个用例（`make -C test/host run`，见 `test/host/test_modem_at.c`）—— 拆包重组、同包多行、回显过滤、`+CME ERROR` 归为失败、URC 不唤醒调用方、超时后迟到的 OK 不被算作下一条命令的成功、超长行整行丢弃、重入拒绝、等待中掉线取消。
 
-**未验证，需开发板实测**：intf3 绑定是否只命中目标接口；真实模组的分包时序与 URC 内容；拔插与模组重启下的资源清理；ECM 与 AT 并行时的 FIFO 与管道占用；长稳。夹具是单线程的，构造不出「结果码落在等待到期与 DRAIN 发布之间」这个竞态窗口，它只能靠板上实跑。
+**2026-10-22 板上记录**（Lierda NT26-FCN，`3505:0003`，NAT `192.168.10.100`）：连续 100 次 `AT+CSQ` 都是 `OK`，没有串到下一条。DHCP 为 `192.168.10.100/24`，网关 `192.168.10.1`，DNS `192.168.10.2` 和 `192.168.10.3`。一次解析 `www.qq.com` 并完成短 TCP，响应以 `HTTP/` 开头。模组保持 ECM、`nat=1` 和自动拨号 `AT+ECNETDEVCTL=3,1,1`，不改已有 APN。`AT+LRST` 被该固件拒绝。`AT+CFUN=1,1` 后 USB 和 AT 恢复，拨号状态回到 1，热重连后 DHCP 停在 `DISCOVER`；重启 BK7259 后约 2 秒重新拿到地址。
+
+**仍未做**：10 次拔插、30 分钟双向 TCP 并行 AT、2 小时长稳，以及热重连后 DHCP 恢复的原因。主机夹具是单线程的，构造不出「结果码落在等待到期与 DRAIN 发布之间」这个竞态窗口。
+
+## 12. 主机回归（2026-10-20）
+
+在工程目录执行：
+
+```bash
+make -C test/host run
+make -C test/host run-threads
+```
+
+第一项验证拆包、命令结果、注册查询与交错 URC、DRAIN 中的网络 URC。第二项使用真实 pthread 锁/信号量与独立 RX 线程，执行 500 轮查询、URC 回调重入和断开取消。它们不覆盖 BK USB 控制器、FreeRTOS 调度或实际 URB 取消。AT RX 错误重试增加 20ms 退避，具体恢复效果仍需板测。
+
+限制：300ms DRAIN 不能保证覆盖任意迟到响应；同一注册前缀的查询响应与异步注册上报仍可能存在语法歧义。

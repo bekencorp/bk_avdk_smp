@@ -58,17 +58,21 @@ The init task in `ap_main.c` runs a fixed sequence, and the order itself matters
 
 1. `net_ipv4stack_init()` - the ECM driver hands received packets straight to `netif->input`, so the tcpip thread and its mbox must exist first.
 2. `modem_at_init()` - installs the intf3 transport callbacks, which the class driver's connect path invokes, so it must precede enumeration.
-3. `bk_usb_driver_init()` + `bk_usb_open(USB_HOST_MODE)` - the controller powers up as an A-host and enumeration begins.
+3. Register the module-config hook and the one-shot connectivity check, then `bk_usb_open(USB_HOST_MODE)`. `bk_init()` has already registered the class drivers; the controller powers up as an A-host and enumeration begins.
 
 ## 6. AT Channel Test Commands
 
 ```text
 modem_at                   # show link state
-modem_at probe             # run the read-only set: AT / ATI / AT+CPIN? / AT+CSQ / AT+CEREG?
+modem_at probe             # run read-only identity, SIM, signal, registration, attach, PDP and UE-state queries
 modem_at AT+CGDCONT?       # send any command (the console splits on spaces; it is rejoined internally)
 ```
 
-Output looks like `AT+CSQ -> 0` followed by the response lines, where the number is the return code:
+From the CP prompt, prefix `ap_cmd`. The log prints the command, the response text, then `OK`, the error line, `timeout`, `offline`, `write failed`, or `busy`. Quote commands that contain a comma, for example `ap_cmd modem_at "AT+CFUN=1,1"`, because the AP shell splits on commas. The numbers below are `modem_at_send()` return codes and are not printed:
+
+The probe also runs `AT+CESQ`, `AT+CEREG?`, `AT+CGATT?`, `AT+CGCONTRDP=1`,
+`AT+CGPADDR=1`, and `AT+ECSTATUS`, matching the Lierda LTE Standard AT manual.
+These commands are read-only: they do not change APN, registration policy, or PDP state.
 
 | Code | Meaning |
 | --- | --- |
@@ -100,9 +104,9 @@ Output looks like `AT+CSQ -> 0` followed by the response lines, where the number
 
 ## 9. Resource Usage
 
-Current firmware (AP core, from the `make` summary): FLASH 481836 B (23.07%), RAM 172676 B (43.91%), IRAM 1432 B, DTCM 2304 B.
+Current firmware (AP core, from the `make` summary): FLASH 484236 B (23.18%), RAM 175492 B (44.63%), IRAM 1432 B, DTCM 2304 B.
 
-The AT channel's own share: a 512 B rx buffer and a 256 B tx buffer (both in `USB_NOCACHE_RAM_SECTION`), a 2048 B rx thread stack, and 257 B each for the line and response buffers.
+The AT channel's own share: a 512 B rx buffer and a 256 B tx buffer (both in `USB_NOCACHE_RAM_SECTION`), a 2048 B rx thread stack, a 257 B line buffer, a 1280 B manager response buffer, and a 257 B CLI print buffer.
 
 ## 10. Known Limitations
 
@@ -116,4 +120,6 @@ The AT channel's own share: a 512 B rx buffer and a 256 B tx buffer (both in `US
 
 **Verified**: the build passes (`EXIT=0`, no warnings from the new files); the class registration record does land in the `usbh_class_info` section (three entries: hub, cdc_ecm, modem_at); `modem_at.c`'s byte-stream handling passes ten cases on the build machine (`make -C test/host run`, see `test/host/test_modem_at.c`) — reassembly across packets, several lines in one packet, echo filtering, `+CME ERROR` as a failure, URCs not waking the caller, a late OK after a timeout not counting as the next command's success, over-long lines dropped whole, re-entry refused, link loss during a wait cancelling the command.
 
-**Not verified, needs hardware**: whether intf3 binding hits only the intended interface; a real module's packet timing and URC content; cleanup across unplug and module restart; FIFO and pipe usage with ECM and AT running together; long-run stability. The harness is single-threaded, so it cannot construct the race window where a result code lands between the wait expiring and DRAIN being published; only a board can exercise that.
+**Board record, 2026-10-22** (Lierda NT26-FCN, `3505:0003`, NAT `192.168.10.100`): 100 consecutive `AT+CSQ` commands returned `OK` with no crossed answers. DHCP gave `192.168.10.100/24`, gateway `192.168.10.1`, DNS `192.168.10.2` and `192.168.10.3`. One lookup of `www.qq.com` and one short TCP returned a payload starting with `HTTP/`. The module stayed in ECM with `nat=1` and auto-dial `AT+ECNETDEVCTL=3,1,1`; the existing APN was left as-is. This firmware rejects `AT+LRST`. After `AT+CFUN=1,1`, USB and AT came back and the dial state returned to 1, but DHCP stayed in `DISCOVER` until the BK7259 itself rebooted, which then got the address in about 2 seconds.
+
+**Still open**: 10 unplug cycles, 30 minutes of bidirectional TCP with AT, a 2 hour soak, and the cause of DHCP not recovering across a hot reconnect. The host harness is single-threaded and cannot construct the race where a result code lands between the wait expiring and DRAIN being published.

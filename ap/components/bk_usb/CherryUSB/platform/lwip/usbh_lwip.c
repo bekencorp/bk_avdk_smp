@@ -12,6 +12,9 @@
 #include "lwip/dhcp.h"
 #include "lwip/prot/dhcp.h"
 #endif
+#if LWIP_DNS
+#include "lwip/dns.h"
+#endif
 
 #include "usbh_core.h"
 
@@ -63,27 +66,29 @@ void usbh_lwip_eth_output_common(struct pbuf *p, uint8_t *buf)
 
 void usbh_lwip_eth_input_common(struct netif *netif, uint8_t *buf, uint32_t len)
 {
-#if LWIP_TCPIP_CORE_LOCKING_INPUT
-    pbuf_type type = PBUF_REF;
-#else
-    pbuf_type type = PBUF_POOL;
-#endif
-    err_t err;
     struct pbuf *p;
+    struct pbuf *q;
+    const uint8_t *src = buf;
+    uint32_t left = len;
+    err_t err;
 
-    p = pbuf_alloc(PBUF_RAW, len, type);
-    if (p != NULL) {
-#if LWIP_TCPIP_CORE_LOCKING_INPUT
-        p->payload = buf;
-#else
-        usb_memcpy(p->payload, buf, len);
-#endif
-        err = netif->input(p, netif);
-        if (err != ERR_OK) {
-            pbuf_free(p);
-        }
-    } else {
+    /* Own the bytes. A PBUF_REF onto the caller's static RX buffer is reused
+     * by the next USB IN while TCP still holds the pbuf. */
+    p = pbuf_alloc(PBUF_RAW, len, PBUF_POOL);
+    if (p == NULL) {
         USB_LOG_ERR("No memory to alloc pbuf\r\n");
+        return;
+    }
+    for (q = p; q != NULL && left != 0; q = q->next) {
+        uint32_t n = q->len < left ? q->len : left;
+
+        usb_memcpy(q->payload, src, n);
+        src += n;
+        left -= n;
+    }
+    err = netif->input(p, netif);
+    if (err != ERR_OK) {
+        pbuf_free(p);
     }
 }
 
@@ -103,7 +108,12 @@ static void dhcp_timeout(void *arg)
 #endif
             USB_LOG_INFO("IPv4 Address     : %s\r\n", ipaddr_ntoa(&netif->ip_addr));
             USB_LOG_INFO("IPv4 Subnet mask : %s\r\n", ipaddr_ntoa(&netif->netmask));
-            USB_LOG_INFO("IPv4 Gateway     : %s\r\n\r\n", ipaddr_ntoa(&netif->gw));
+            USB_LOG_INFO("IPv4 Gateway     : %s\r\n", ipaddr_ntoa(&netif->gw));
+#if LWIP_DNS
+            USB_LOG_INFO("IPv4 DNS         : %s\r\n", ipaddr_ntoa(dns_getserver(0)));
+            USB_LOG_INFO("IPv4 DNS2        : %s\r\n", ipaddr_ntoa(dns_getserver(1)));
+#endif
+            USB_LOG_INFO("\r\n");
 
             usb_osal_timer_stop(dhcp_handle);
 #if LWIP_DHCP
