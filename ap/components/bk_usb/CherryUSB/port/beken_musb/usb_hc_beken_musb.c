@@ -659,19 +659,21 @@ static void usb_hc_riscv_complete_pipe(uint32_t event, uint32_t event_data)
         }
     } else if (event == RISCV_USB_PROBE_EVT_PIPE_RX) {
         if (event_data < CONFIG_USBHOST_PIPE_NUM) {
+            struct usbh_urb *shadow;
+
             pipe = &g_musb_hcd.pipe_pool[event_data][1];
-            urb = s_v16_urb[event_data][1];
-            if (pipe != NULL) {
+            shadow = pipe->urb;
+            /* A full MPS packet with buffer left is continued in place. Waking
+             * the waiter and then binding the same URB again leaves pipe->urb
+             * occupied, so the next submit returns -EBUSY forever. A short
+             * packet or a full buffer ends the transfer. */
+            if (shadow && shadow->num_of_iso_packets <= 1 && pipe->ep_mps &&
+                shadow->transfer_buffer_length > 0 && shadow->actual_length &&
+                (shadow->actual_length % pipe->ep_mps) == 0) {
+                HWREGB(USB_BASE + MUSB_IND_RXCSRL_OFFSET) |= USB_RXCSRL1_REQPKT;
+            } else if (pipe != NULL) {
                 musb_pipe_waitup(pipe);
             }
-            if (urb && urb->num_of_iso_packets <= 1)
-            {
-                if(urb->transfer_buffer_length > 0) {
-                    bk_urb_bind(pipe, urb);
-                    HWREGB(USB_BASE + MUSB_IND_RXCSRL_OFFSET) |= USB_RXCSRL1_REQPKT;
-                }
-            }
-            
         }
     }
 
@@ -2527,13 +2529,11 @@ static void usbh_rx_irq_handler(uint8_t ep_idx, struct musb_pipe *pipe, struct u
                     {
                         HWREGB(USB_BASE + MUSB_IND_RXCSRL_OFFSET) &= ~USB_RXCSRL1_RXRDY;
 
+                        /* A short packet ends the transfer. Re-arming pipe->urb
+                         * here makes the next submit return -EBUSY forever. */
                         if ((size < pipe->ep_mps && size != 0) || (urb->transfer_buffer_length == 0)) {
                             urb->errorcode = 0;
                             musb_pipe_waitup(pipe);
-                            if(urb->transfer_buffer_length > 0) {
-                                pipe->urb = (struct usbh_urb *)urb;
-                                HWREGB(USB_BASE + MUSB_IND_RXCSRL_OFFSET) |= USB_RXCSRL1_REQPKT;
-                            }
                         } else {
                             HWREGB(USB_BASE + MUSB_IND_RXCSRL_OFFSET) |= USB_RXCSRL1_REQPKT;
                         }
@@ -2652,13 +2652,11 @@ static void usbh_dma_rx_irq_handler(    uint8_t chn_idx, struct musb_pipe *pipe,
         }
 
     } else {
+        /* A short packet ends the transfer. Re-arming pipe->urb here makes
+         * the next submit return -EBUSY forever. */
         if ((urb->actual_length < pipe->ep_mps) || (urb->transfer_buffer_length == 0)) {
             urb->errorcode = 0;
             musb_pipe_waitup(pipe);
-            if(urb->transfer_buffer_length > 0) {
-                pipe->urb = (struct usbh_urb *)urb;
-                HWREGB(USB_BASE + MUSB_IND_RXCSRL_OFFSET) |= USB_RXCSRL1_REQPKT;
-            }
         } else {
              HWREGB(USB_BASE + MUSB_IND_RXCSRL_OFFSET) |= USB_RXCSRL1_REQPKT;
         }
@@ -2853,11 +2851,11 @@ void USBH_IRQHandler(uint8_t busid)
                    musb_pipe_waitup(pipe);
                    //goto pipe_wait;
                } else if (ep_csrl_status & USB_RXCSRL1_NAKTO) {
-                   HWREGB(USB_BASE + MUSB_IND_RXCSRL_OFFSET) &= ~USB_RXCSRL1_NAKTO;
-                   USB_LOG_VBS("[=]%s ep_idx:%d USB_RXCSRL1_NAKTO\r\n", __func__, ep_idx);
-                   urb->errorcode = -EBUSY;
-                   musb_pipe_waitup(pipe);
-                   //goto pipe_wait;
+                   /* No data yet. Completing the URB with -EBUSY lets the next
+                    * submit find the pipe still owned, so it returns -EBUSY
+                    * without issuing another IN. Write REQPKT with the NAKTO
+                    * bit clear and keep the waiter blocked. */
+                   HWREGB(USB_BASE + MUSB_IND_RXCSRL_OFFSET) = USB_RXCSRL1_REQPKT;
                } else if (ep_csrl_status & USB_RXCSRL1_STALLED) {
                    HWREGB(USB_BASE + MUSB_IND_RXCSRL_OFFSET) &= ~USB_RXCSRL1_STALLED;
                    urb->errorcode = -EPERM;

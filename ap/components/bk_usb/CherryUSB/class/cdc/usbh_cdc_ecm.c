@@ -129,7 +129,10 @@ int usbh_cdc_ecm_get_connect_status(struct usbh_cdc_ecm *cdc_ecm_class)
 {
     int ret;
 
-    usbh_int_urb_fill(&cdc_ecm_class->intin_urb, cdc_ecm_class->hport, cdc_ecm_class->intin, g_cdc_ecm_inttx_buffer, 16, USB_OSAL_WAITING_FOREVER, NULL, NULL);
+    /* One-shot notification. Waiting forever misses it when the device sent
+     * NETWORK_CONNECTION before this URB was queued, and then DHCP never
+     * leaves the host. */
+    usbh_int_urb_fill(&cdc_ecm_class->intin_urb, cdc_ecm_class->hport, cdc_ecm_class->intin, g_cdc_ecm_inttx_buffer, 16, 1000, NULL, NULL);
     ret = usbh_submit_urb(&cdc_ecm_class->intin_urb);
     if (ret < 0) {
         return ret;
@@ -392,18 +395,17 @@ find_class:
     if (!g_cdc_ecm_rx_running) {
         goto delete;
     }
-    g_cdc_ecm_class.connect_status = false;
     if (usbh_find_class_instance("/dev/cdc_ether") == NULL) {
         goto delete;
     }
 
-    while (g_cdc_ecm_rx_running && g_cdc_ecm_class.connect_status == false) {
+    /* Altsetting 1 is already selected. Take one notification if it is still
+     * pending, then start the data path either way. */
+    if (!g_cdc_ecm_class.connect_status) {
         ret = usbh_cdc_ecm_get_connect_status(&g_cdc_ecm_class);
-        if (ret < 0) {
-            usb_osal_msleep(100);
-            goto find_class;
+        if (ret < 0 || !g_cdc_ecm_class.connect_status) {
+            g_cdc_ecm_class.connect_status = true;
         }
-        usb_osal_msleep(128);
     }
 
     g_cdc_ecm_rx_length = 0;

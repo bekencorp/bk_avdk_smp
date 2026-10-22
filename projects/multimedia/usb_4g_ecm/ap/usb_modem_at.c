@@ -130,11 +130,16 @@ static void modem_at_rx_thread(CONFIG_USB_OSAL_THREAD_SET_ARGV)
         if (ret < 0) {
             /* A kill from disconnect lands here too, and g_at_rx_running is
              * already false by then, so the loop condition is the exit. Other
-             * errors (stall, babble) are retried: the module may just have
-             * nothing to say yet, and bailing out would silently kill the AT
-             * channel for the rest of the session. */
+             * errors are retried with a delay; an idle endpoint normally waits
+             * in submit rather than returning an error. */
             if (g_at_rx_running) {
+                /* A failed submit can leave this URB owning the pipe. The next
+                 * submit then returns -EBUSY without starting another IN. */
+                usbh_kill_urb(&port->bulkin_urb);
                 USB_LOG_DBG("modem AT bulk in ret:%d\r\n", ret);
+                /* Offline is closed before CLASS_DISCONNECT; yield so hub
+                 * teardown can run. Persistent endpoint errors must not spin. */
+                usb_osal_msleep(20);
             }
             continue;
         }
@@ -258,10 +263,9 @@ static int modem_at_connect(struct usbh_hubport *hport, uint8_t intf)
     return 0;
 
 errout:
-    if (g_at_tx_lock) {
-        usb_osal_mutex_delete(g_at_tx_lock);
-        g_at_tx_lock = NULL;
-    }
+    /* TX lock is permanent (created at init) and must not be deleted here. Only
+     * per-connection resources are cleaned up: the RX exit semaphore was created
+     * for this connection attempt and should be destroyed before returning. */
     if (g_at_rx_exit_sem) {
         usb_osal_sem_delete(g_at_rx_exit_sem);
         g_at_rx_exit_sem = NULL;
