@@ -17,6 +17,7 @@
 #endif
 
 #include "usbh_core.h"
+#include "os/mem.h"
 
 #if LWIP_TCPIP_CORE_LOCKING_INPUT != 1
 #warning suggest you to set LWIP_TCPIP_CORE_LOCKING_INPUT to 1, usb handles eth input with own thread
@@ -64,28 +65,42 @@ void usbh_lwip_eth_output_common(struct pbuf *p, uint8_t *buf)
     }
 }
 
+struct usbh_psram_pbuf {
+    struct pbuf_custom custom;
+};
+
+static void usbh_psram_pbuf_free(struct pbuf *p)
+{
+    /* custom is the first member, and it is the psram_malloc() pointer. */
+    psram_free(p);
+}
+
 void usbh_lwip_eth_input_common(struct netif *netif, uint8_t *buf, uint32_t len)
 {
+    struct usbh_psram_pbuf *up;
     struct pbuf *p;
-    struct pbuf *q;
-    const uint8_t *src = buf;
-    uint32_t left = len;
+    uint8_t *payload;
     err_t err;
 
-    /* Own the bytes. A PBUF_REF onto the caller's static RX buffer is reused
-     * by the next USB IN while TCP still holds the pbuf. */
-    p = pbuf_alloc(PBUF_RAW, len, PBUF_POOL);
-    if (p == NULL) {
+    /* The SRAM pbuf pool is 48 buffers and stalls a download once TCP holds
+     * one window. The frame itself lives in PSRAM; the pool is not used. */
+    if (len == 0 || len > 0xffff) {
+        return;
+    }
+    up = psram_malloc(LWIP_MEM_ALIGN_SIZE(sizeof(*up)) + len);
+    if (up == NULL) {
         USB_LOG_ERR("No memory to alloc pbuf\r\n");
         return;
     }
-    for (q = p; q != NULL && left != 0; q = q->next) {
-        uint32_t n = q->len < left ? q->len : left;
-
-        usb_memcpy(q->payload, src, n);
-        src += n;
-        left -= n;
+    payload = (uint8_t *)up + LWIP_MEM_ALIGN_SIZE(sizeof(*up));
+    up->custom.custom_free_function = usbh_psram_pbuf_free;
+    p = pbuf_alloced_custom(PBUF_RAW, (u16_t)len, PBUF_RAM, &up->custom, payload, (u16_t)len);
+    if (p == NULL) {
+        psram_free(up);
+        USB_LOG_ERR("No memory to alloc pbuf\r\n");
+        return;
     }
+    usb_memcpy(p->payload, buf, len);
     err = netif->input(p, netif);
     if (err != ERR_OK) {
         pbuf_free(p);

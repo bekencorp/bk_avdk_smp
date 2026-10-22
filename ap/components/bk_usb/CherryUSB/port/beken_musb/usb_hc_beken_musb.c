@@ -174,8 +174,15 @@ static void USBH_IRQHandler_Compat(void)
 }
 
 struct musb_pipe;
+struct musb_wake {
+    usb_osal_sem_t sem;
+    struct usbh_urb *urb;
+};
+static struct musb_wake musb_pipe_detach(struct musb_pipe *pipe);
+static void musb_wake_signal(struct musb_wake wake);
 static inline void musb_pipe_waitup(struct musb_pipe *pipe);
 void usb_hc_riscv_poll_events(void);
+void usb_hc_riscv_zlp_cancel(void);
 
 #ifndef BK_URB_MAX_ISO_PACKETS
 #define BK_URB_MAX_ISO_PACKETS 8
@@ -623,6 +630,13 @@ static void usb_hc_riscv_ipi_cb(ipi_core_id_t core_id, uint32_t value,
 }
 #endif
 
+/* Length at the last full-MPS continue. A later event with the same
+ * actual_length is the zero-length packet that ends an ECM frame. */
+static struct musb_pipe *s_zlp_pipe;
+static uint32_t s_zlp_len;
+static uint8_t s_zlp_ticks;
+#define USB_ZLP_WAIT_TICKS 5U
+
 static void usb_hc_riscv_complete_pipe(uint32_t event, uint32_t event_data)
 {
     struct musb_pipe *pipe = NULL;
@@ -661,22 +675,39 @@ static void usb_hc_riscv_complete_pipe(uint32_t event, uint32_t event_data)
         if (event_data < CONFIG_USBHOST_PIPE_NUM) {
             struct usbh_urb *shadow;
 
+            struct musb_wake wake = { 0 };
+            uint32_t flags;
+            uint32_t got;
+
             pipe = &g_musb_hcd.pipe_pool[event_data][1];
+            flags = usb_enter_critical();
             shadow = pipe->urb;
-            /* Continue a full MPS packet only while the buffer still has room.
-             * A short packet, or a buffer that is already full, ends the URB.
-             * The AT read buffer is one MPS. Requesting another packet after it
-             * fills waits forever: the device holds the rest until this
-             * transfer completes. Waking the waiter and rebinding the same URB
-             * is not an option either; the next submit then returns -EBUSY. */
-            if (shadow && shadow->num_of_iso_packets <= 1 && pipe->ep_mps &&
-                shadow->actual_length &&
-                (shadow->actual_length % pipe->ep_mps) == 0 &&
-                shadow->actual_length < shadow->transfer_buffer_length) {
+            got = shadow ? shadow->actual_length : 0;
+            /* Continue only when this event added bytes, the chunk fills an
+             * MPS, and the buffer still has room. A zero-length packet does
+             * not change actual_length; that ends the frame. The AT buffer is
+             * one MPS, so its first packet fills it and does not continue.
+             * Waking the waiter and rebinding the same URB is not an option:
+             * the next submit then returns -EBUSY. */
+            if (shadow && shadow->num_of_iso_packets <= 1 &&
+                s_zlp_pipe == pipe && got == s_zlp_len) {
+                s_zlp_pipe = NULL;
+                wake = musb_pipe_detach(pipe);
+            } else if (shadow && shadow->num_of_iso_packets <= 1 && pipe->ep_mps &&
+                       got && (got % pipe->ep_mps) == 0 &&
+                       got < shadow->transfer_buffer_length) {
+                s_zlp_pipe = pipe;
+                s_zlp_len = got;
+                s_zlp_ticks = USB_ZLP_WAIT_TICKS;
                 HWREGB(USB_BASE + MUSB_IND_RXCSRL_OFFSET) |= USB_RXCSRL1_REQPKT;
             } else if (pipe != NULL) {
-                musb_pipe_waitup(pipe);
+                if (s_zlp_pipe == pipe) {
+                    s_zlp_pipe = NULL;
+                }
+                wake = musb_pipe_detach(pipe);
             }
+            usb_exit_critical(flags);
+            musb_wake_signal(wake);
         }
     }
 
@@ -854,6 +885,206 @@ static beken_timer_t s_riscv_wd_timer;
 static volatile uint32_t s_riscv_wd_last_seq = 0;
 static uint8_t s_riscv_wd_inited = 0;
 
+/* The 10 ms watchdog is already running. A full-MPS continue that never
+ * sees the closing zero-length packet would otherwise sit in submit forever.
+ * Five quiet ticks completes the URB with the bytes already received. */
+static void usb_hc_zlp_tick(void)
+{
+    struct musb_pipe *pipe;
+    struct musb_wake wake = { 0 };
+    uint32_t flags;
+    uint32_t kept;
+
+    flags = usb_enter_critical();
+    pipe = s_zlp_pipe;
+    if (pipe == NULL) {
+        usb_exit_critical(flags);
+        return;
+    }
+    if (s_zlp_ticks > 0) {
+        s_zlp_ticks--;
+    }
+    if (s_zlp_ticks > 0) {
+        usb_exit_critical(flags);
+        return;
+    }
+    if (pipe->urb == NULL) {
+        s_zlp_pipe = NULL;
+        usb_exit_critical(flags);
+        return;
+    }
+    if (pipe->urb->actual_length != s_zlp_len) {
+        s_zlp_ticks = USB_ZLP_WAIT_TICKS;
+        usb_exit_critical(flags);
+        return;
+    }
+    s_zlp_pipe = NULL;
+    kept = s_zlp_len;
+    wake = musb_pipe_detach(pipe);
+    usb_exit_critical(flags);
+    USB_LOG_INFO("rx zlp timeout, keep %u bytes\r\n", kept);
+    musb_wake_signal(wake);
+}
+
+/* RXRDY stuck means the packet is in the FIFO and the RISC-V never posted the
+ * completion. Read it here. A token that has fallen off with an empty FIFO is
+ * armed again. Neither path flushes. Three ticks skip the gap inside one frame. */
+static void musb_read_packet(uint8_t ep_idx, uint8_t *buffer, uint16_t len);
+static uint8_t s_in_idle_ticks[8];
+static uint8_t s_rxrdy_ticks[8];
+
+static void usb_hc_drain_rxrdy(struct musb_pipe *pipe)
+{
+    struct usbh_urb *urb;
+    struct musb_wake wake = { 0 };
+    uint32_t flags;
+    uint32_t count;
+    uint32_t size;
+    uint32_t room;
+    uint8_t old;
+
+    flags = usb_enter_critical();
+    urb = pipe->urb;
+    if (urb == NULL || urb->transfer_buffer == NULL ||
+        urb->actual_length > urb->transfer_buffer_length) {
+        usb_exit_critical(flags);
+        return;
+    }
+    old = musb_get_active_ep();
+    musb_set_active_ep(pipe->ep_local_index);
+    if ((HWREGB(USB_BASE + MUSB_IND_RXCSRL_OFFSET) & USB_RXCSRL1_RXRDY) == 0) {
+        musb_set_active_ep(old);
+        usb_exit_critical(flags);
+        return;
+    }
+    count = HWREGH(USB_BASE + MUSB_IND_RXCOUNT_OFFSET);
+    room = urb->transfer_buffer_length - urb->actual_length;
+    size = room;
+    if (pipe->ep_mps && size > pipe->ep_mps) {
+        size = pipe->ep_mps;
+    }
+    size = MIN(size, count);
+    if (size > 0) {
+        musb_read_packet(pipe->ep_local_index,
+                         urb->transfer_buffer + urb->actual_length, (uint16_t)size);
+        urb->actual_length += size;
+    }
+    urb->errorcode = 0;
+    HWREGB(USB_BASE + MUSB_IND_RXCSRL_OFFSET) &= ~USB_RXCSRL1_RXRDY;
+
+    if (size == 0 || size < pipe->ep_mps ||
+        urb->actual_length >= urb->transfer_buffer_length) {
+        if (s_zlp_pipe == pipe) {
+            s_zlp_pipe = NULL;
+        }
+        wake = musb_pipe_detach(pipe);
+        musb_set_active_ep(old);
+        usb_exit_critical(flags);
+        musb_wake_signal(wake);
+        return;
+    }
+    s_zlp_pipe = pipe;
+    s_zlp_len = urb->actual_length;
+    s_zlp_ticks = USB_ZLP_WAIT_TICKS;
+    HWREGB(USB_BASE + MUSB_IND_RXCSRL_OFFSET) |= USB_RXCSRL1_REQPKT;
+    musb_set_active_ep(old);
+    usb_exit_critical(flags);
+}
+
+static void usb_hc_in_token_tick(void)
+{
+    uint32_t lim = CONFIG_USBHOST_PIPE_NUM;
+    uint32_t i;
+
+    if (lim > (uint32_t)RISCV_USB_PROBE_PIPE_NUM) {
+        lim = (uint32_t)RISCV_USB_PROBE_PIPE_NUM;
+    }
+    for (i = 1; i < lim; i++) {
+        struct musb_pipe *pipe = &g_musb_hcd.pipe_pool[i][1];
+        uint8_t csr;
+        uint8_t old;
+
+        if (i >= 8 || pipe->urb == NULL || (pipe->ep_addr & 0x80) == 0) {
+            continue;
+        }
+        old = musb_get_active_ep();
+        musb_set_active_ep(pipe->ep_local_index);
+        csr = HWREGB(USB_BASE + MUSB_IND_RXCSRL_OFFSET);
+        musb_set_active_ep(old);
+        if (csr & USB_RXCSRL1_RXRDY) {
+            s_in_idle_ticks[i] = 0;
+            if (s_rxrdy_ticks[i] < 3) {
+                s_rxrdy_ticks[i]++;
+                continue;
+            }
+            s_rxrdy_ticks[i] = 0;
+            usb_hc_drain_rxrdy(pipe);
+            continue;
+        }
+        s_rxrdy_ticks[i] = 0;
+        /* ERROR/STALL leaves REQPKT clear and the RISC-V never completes the
+         * URB. NAK timeout does the same. Ignore either and the IN sits until
+         * the download stops. Clear by writing REQPKT alone, matching the
+         * host IRQ path. A finished short packet is woken below instead. */
+        if ((csr & (USB_RXCSRL1_ERROR | USB_RXCSRL1_NAKTO | USB_RXCSRL1_STALLED)) != 0 &&
+            (csr & USB_RXCSRL1_RXRDY) == 0) {
+            s_in_idle_ticks[i] = 0;
+            HWREGB_SET_ACTIVE_EP(pipe->ep_local_index,
+                                 (USB_BASE + MUSB_IND_RXCSRL_OFFSET),
+                                 USB_RXCSRL1_REQPKT);
+            continue;
+        }
+        if ((csr & USB_RXCSRL1_REQPKT) != 0 || s_zlp_pipe == pipe) {
+            s_in_idle_ticks[i] = 0;
+            continue;
+        }
+        if (s_in_idle_ticks[i] < 3) {
+            s_in_idle_ticks[i]++;
+            continue;
+        }
+        s_in_idle_ticks[i] = 0;
+        /* Hardware is idle. Length 0 means the token never went out. A
+         * non-multiple of MPS is a finished frame whose completion was lost.
+         * A multiple still needs the next packet. */
+        if (pipe->urb->actual_length == 0 ||
+            (pipe->ep_mps && (pipe->urb->actual_length % pipe->ep_mps) == 0 &&
+             pipe->urb->actual_length < pipe->urb->transfer_buffer_length)) {
+            if (pipe->urb->actual_length != 0) {
+                s_zlp_pipe = pipe;
+                s_zlp_len = pipe->urb->actual_length;
+                s_zlp_ticks = USB_ZLP_WAIT_TICKS;
+            }
+            HWREGB_SET_ACTIVE_EP(pipe->ep_local_index,
+                                 (USB_BASE + MUSB_IND_RXCSRL_OFFSET),
+                                 USB_RXCSRL1_REQPKT);
+            continue;
+        }
+        {
+            struct musb_wake wake;
+            uint32_t flags;
+            uint8_t csr2;
+
+            flags = usb_enter_critical();
+            musb_set_active_ep(pipe->ep_local_index);
+            csr2 = HWREGB(USB_BASE + MUSB_IND_RXCSRL_OFFSET);
+            if (pipe->urb == NULL ||
+                (csr2 & (USB_RXCSRL1_RXRDY | USB_RXCSRL1_REQPKT)) != 0) {
+                musb_set_active_ep(old);
+                usb_exit_critical(flags);
+                continue;
+            }
+            pipe->urb->errorcode = 0;
+            if (s_zlp_pipe == pipe) {
+                s_zlp_pipe = NULL;
+            }
+            wake = musb_pipe_detach(pipe);
+            musb_set_active_ep(old);
+            usb_exit_critical(flags);
+            musb_wake_signal(wake);
+        }
+    }
+}
+
 static void usb_hc_riscv_watchdog_cb(void *arg)
 {
     volatile riscv_usb_probe_t *ctx = get_riscv_usb_probe();
@@ -863,8 +1094,17 @@ static void usb_hc_riscv_watchdog_cb(void *arg)
 
     if (!usb_hc_riscv_enabled()) {
         s_riscv_wd_last_seq = 0;
+        s_zlp_pipe = NULL;
+        for (uint32_t z = 0; z < 8; z++) {
+            s_in_idle_ticks[z] = 0;
+            s_rxrdy_ticks[z] = 0;
+        }
         return;
     }
+
+    /* Drain a stuck RXRDY before the ZLP timer can complete a short buffer. */
+    usb_hc_in_token_tick();
+    usb_hc_zlp_tick();
 
     seq = ctx->irq_seq;
     if (seq == s_riscv_probe_last_irq_seq) {
@@ -896,8 +1136,17 @@ static void usb_hc_riscv_watchdog_start(void)
     s_riscv_wd_inited = 1;
 }
 #endif /* CONFIG_IPI */
+
+void usb_hc_riscv_zlp_cancel(void)
+{
+    s_zlp_pipe = NULL;
+}
 #else
 void usb_hc_riscv_poll_events(void)
+{
+}
+
+void usb_hc_riscv_zlp_cancel(void)
 {
 }
 #endif
@@ -2227,45 +2476,53 @@ int usbh_kill_urb(struct usbh_urb *urb)
     return 0;
 }
 
-static inline void musb_pipe_waitup(struct musb_pipe *pipe)
+static struct musb_wake musb_pipe_detach(struct musb_pipe *pipe)
 {
-    struct usbh_urb *urb;
+    struct musb_wake wake = { 0 };
     struct usbh_urb *bk_urb;
     uint8_t slot;
     uint8_t dir;
 
-    if(!pipe) {
-        USB_LOG_DBG("[=]%s pipe is null\r\n", __func__);
-        return;
+    if (!pipe) {
+        return wake;
     }
     slot = pipe->ep_local_index;
     dir = bk_pipe_dir(pipe);
     if (slot < CONFIG_USBHOST_PIPE_NUM) {
-        urb = s_v16_urb[slot][dir];
+        wake.urb = s_v16_urb[slot][dir];
         s_v16_urb[slot][dir] = NULL;
-    } else {
-        urb = NULL;
     }
     bk_urb = pipe->urb;
-    bk_urb_sync_to_urb(urb, bk_urb);
+    bk_urb_sync_to_urb(wake.urb, bk_urb);
     pipe->urb = NULL;
 
     if (pipe->waiter) {
         pipe->waiter = false;
-        if(pipe->waitsem)
-            usb_osal_sem_give(pipe->waitsem);
+        wake.sem = pipe->waitsem;
     }
-    if(!urb){
-        USB_LOG_DBG("[=]%s urb is null\r\n", __func__);
+    return wake;
+}
+
+static void musb_wake_signal(struct musb_wake wake)
+{
+    if (wake.sem) {
+        usb_osal_sem_give(wake.sem);
+    }
+    if (!wake.urb) {
         return;
     }
-    if (urb->complete) {
-        if (urb->errorcode < 0) {
-            urb->complete(urb->arg, urb->errorcode);
+    if (wake.urb->complete) {
+        if (wake.urb->errorcode < 0) {
+            wake.urb->complete(wake.urb->arg, wake.urb->errorcode);
         } else {
-            urb->complete(urb->arg, urb->actual_length);
+            wake.urb->complete(wake.urb->arg, wake.urb->actual_length);
         }
     }
+}
+
+static inline void musb_pipe_waitup(struct musb_pipe *pipe)
+{
+    musb_wake_signal(musb_pipe_detach(pipe));
 }
 
 void handle_ep0(void)
@@ -2405,6 +2662,8 @@ void usbh_musb_disconnect_set_status()
      * USB_IS_DISCON and returns before USBH_IRQHandler() enters its own
      * section, and the probe and sw-trigger callers hold nothing. */
     uint32_t flags = usb_enter_critical();
+
+    usb_hc_riscv_zlp_cancel();
 
     /* Closing the gate before the tables are cleared is the point of the
      * section - a submitter already inside usbh_submit_urb() either completed

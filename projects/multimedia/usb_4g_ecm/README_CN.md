@@ -66,6 +66,7 @@ rm -rf build/bk7259/usb_4g_ecm
 modem_at                   # 查看链路在线状态
 modem_at probe             # 跑一遍只读诊断：身份、SIM、信号、注册、附着、PDP 地址和 UE 状态
 modem_at AT+CGDCONT?       # 发送任意命令（控制台按空格切分，内部会重新拼回）
+ap_cmd modem_at AT+CSQ
 ```
 
 在 CP 提示符下加 `ap_cmd`。串口打印命令、响应正文，再打印 `OK`、错误行、`timeout`、`offline`、`write failed` 或 `busy`。带逗号的命令要加引号，例如 `ap_cmd modem_at "AT+CFUN=1,1"`，否则 AP 命令行会把逗号当成参数分隔。下面的数字是 `modem_at_send()` 的返回值，不出现在打印里：

@@ -8,6 +8,7 @@
 #include "modem_at_cli.h"
 #include "modem_ecm_cfg.h"
 #include "net_check.h"
+#include "speed_test.h"
 
 #define TAG "usb4g"
 #define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
@@ -46,6 +47,7 @@ static void usb_host_init_task(void *arg)
         goto out;
     }
     modem_at_cli_init(); /* test entry; a failure here costs nothing but itself */
+    speed_test_cli_init();
     modem_at_set_link_hook(modem_ecm_cfg_on_link);
     net_check_start();
 

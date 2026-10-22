@@ -271,7 +271,7 @@ static void iperf_report_avg_bandwidth(uint64_t pkt_len)
 		double total_f;
 		total_f = (double)pkt_len * 8;
 		total_f /= (double)(IPERF_MEGA_UNIT * s_tick_delta);
-		BK_LOGD(NULL, "[%d-%d] sec bandwidth: %.2f  Mbits/sec.\r\n",
+		BK_LOGI(NULL, "[%d-%d] sec bandwidth: %.2f  Mbits/sec.\r\n",
 				0, s_tick_delta , total_f);
 	}
 }
@@ -336,7 +336,7 @@ static void iperf_report_task_handler(void *arg)
 
 			if (s_pkt_delta >= 0)
 			{
-				BK_LOGD(NULL, "[%d-%d] sec bandwidth: %d Kbits/sec.\r\n",
+				BK_LOGI(NULL, "[%d-%d] sec bandwidth: %d Kbits/sec.\r\n",
 						  s_tick_delta, s_tick_delta + IPERF_REPORT_INTERVAL, f);
 			}
 			s_tick_delta = s_tick_delta + IPERF_REPORT_INTERVAL;
@@ -413,7 +413,7 @@ static void iperf_client(void *thread_param)
 	while (s_param.state == IPERF_STATE_STARTED) {
 		sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 		if (sock < 0) {
-			BK_LOGD(NULL, "iperf: create socket failed, err=%d!\n", errno);
+			BK_LOGI(NULL, "iperf: create socket failed, err=%d!\n", errno);
 			rtos_delay_milliseconds(1000);
 			continue;
 		}
@@ -434,10 +434,10 @@ static void iperf_client(void *thread_param)
 
 		ret = connect(sock, (const struct sockaddr *)&addr, sizeof(addr));
 		if (ret == -1) {
-			BK_LOGD(NULL, "iperf: connect failed, err=%d!\n", errno);
+			BK_LOGI(NULL, "iperf: connect failed, err=%d!\n", errno);
 			connect_retry_cnt ++;
 			if (connect_retry_cnt >= IPERF_MAX_TX_CONNECT_RETRY) {
-				BK_LOGD(NULL, "iperf: tx connect max retry(%u)\n", connect_retry_cnt);
+				BK_LOGI(NULL, "iperf: tx connect max retry(%u)\n", connect_retry_cnt);
 				goto _exit;
 			}
 		}else{
@@ -445,7 +445,7 @@ static void iperf_client(void *thread_param)
 		}
 	}
 
-	BK_LOGD(NULL, "iperf: connect to iperf server successful!\n");
+	BK_LOGI(NULL, "iperf: connect to iperf server successful!\n");
 	iperf_set_sock_opt(sock);
 
 	iperf_report_task_start();
@@ -481,7 +481,7 @@ _tx_retry:
 			if (errno == EWOULDBLOCK) {
 				retry_cnt ++;
 				if (retry_cnt >= IPERF_MAX_TX_RETRY) {
-					BK_LOGD(NULL, "iperf: tx reaches max retry(%u)\n", retry_cnt);
+					BK_LOGI(NULL, "iperf: tx reaches max retry(%u)\n", retry_cnt);
 					break;
 				} else
 					goto _tx_retry;
@@ -502,7 +502,7 @@ _exit:
 	if (send_buf)
 		os_free(send_buf);
 	iperf_cleanup();
-	BK_LOGD(NULL, "iperf: is stopped\n");
+	BK_LOGI(NULL, "iperf: is stopped\n");
 	rtos_delete_thread(NULL);
 }
 
@@ -910,23 +910,23 @@ int iperf_param_find(int argc, char **argv, char *param)
 
 void iperf_usage(void)
 {
-	BK_LOGD(NULL, "Usage: iperf [-s|-c host] [options]\n");
-	BK_LOGD(NULL, "       iperf [-h|--stop]\n");
-	BK_LOGD(NULL, "\n");
-	BK_LOGD(NULL, "Client/Server:\n");
-	BK_LOGD(NULL, "  -p #         server port to listen on/connect to\n");
-	BK_LOGD(NULL, "\n");
-	BK_LOGD(NULL, "Server specific:\n");
-	BK_LOGD(NULL, "  -s           run in server mode\n");
-	BK_LOGD(NULL, "\n");
-	BK_LOGD(NULL, "Client specific:\n");
-	BK_LOGD(NULL, "  -c <host>    run in client mode, connecting to <host>\n");
-	BK_LOGD(NULL, "\n");
-	BK_LOGD(NULL, "Miscellaneous:\n");
-	BK_LOGD(NULL, "  -u           udp support, and the default mode is tcp\n");
-	BK_LOGD(NULL, "  -t #[time]      time in seconds to transmit for (default 30 secs)\n");
-	BK_LOGD(NULL, "  -h           print this message and quit\n");
-	BK_LOGD(NULL, "  --stop       stop iperf program\n");
+	BK_LOGI(NULL, "Usage: iperf [-s|-c host] [options]\n");
+	BK_LOGI(NULL, "       iperf [-h|--stop]\n");
+	BK_LOGI(NULL, "\n");
+	BK_LOGI(NULL, "Client/Server:\n");
+	BK_LOGI(NULL, "  -p #         server port to listen on/connect to\n");
+	BK_LOGI(NULL, "\n");
+	BK_LOGI(NULL, "Server specific:\n");
+	BK_LOGI(NULL, "  -s           run in server mode\n");
+	BK_LOGI(NULL, "\n");
+	BK_LOGI(NULL, "Client specific:\n");
+	BK_LOGI(NULL, "  -c <host>    run in client mode, connecting to <host>\n");
+	BK_LOGI(NULL, "\n");
+	BK_LOGI(NULL, "Miscellaneous:\n");
+	BK_LOGI(NULL, "  -u           udp support, and the default mode is tcp\n");
+	BK_LOGI(NULL, "  -t #[time]      time in seconds to transmit for (default 30 secs)\n");
+	BK_LOGI(NULL, "  -h           print this message and quit\n");
+	BK_LOGI(NULL, "  --stop       stop iperf program\n");
 
 	return;
 }

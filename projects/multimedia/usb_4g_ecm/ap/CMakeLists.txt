@@ -7,6 +7,7 @@ set(srcs
 	modem_at_cli.c
 	modem_ecm_cfg.c
 	net_check.c
+	speed_test.c
 	)
 
 set(priv_req bk_usb bk_cli lwip_intf_v2_1)

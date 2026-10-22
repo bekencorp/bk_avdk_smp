@@ -63,3 +63,11 @@ CONFIG_USBH_CDC_ECM=y
 # endpoints. The default FIFO layout reserves 1024 bytes per big-packet slot and
 # has only three of them; this one reserves 512 and has four.
 CONFIG_USB_HOST_FIFO_LAYOUT_4BULK=y
+
+# ECM netif is on the AP. The CP iperf command cannot send on it.
+CONFIG_IPERF_TEST=y
+CONFIG_DEMOS_IPERF=y
+# Download test keeps one TCP window of frames. The board default pool is 3,
+# which drops the rest and stalls the transfer.
+CONFIG_LWIP_PBUF_POOL_SIZE=48
+CONFIG_LWIP_TCP_WND=65535
