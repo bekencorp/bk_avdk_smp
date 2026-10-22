@@ -663,13 +663,16 @@ static void usb_hc_riscv_complete_pipe(uint32_t event, uint32_t event_data)
 
             pipe = &g_musb_hcd.pipe_pool[event_data][1];
             shadow = pipe->urb;
-            /* A full MPS packet with buffer left is continued in place. Waking
-             * the waiter and then binding the same URB again leaves pipe->urb
-             * occupied, so the next submit returns -EBUSY forever. A short
-             * packet or a full buffer ends the transfer. */
+            /* Continue a full MPS packet only while the buffer still has room.
+             * A short packet, or a buffer that is already full, ends the URB.
+             * The AT read buffer is one MPS. Requesting another packet after it
+             * fills waits forever: the device holds the rest until this
+             * transfer completes. Waking the waiter and rebinding the same URB
+             * is not an option either; the next submit then returns -EBUSY. */
             if (shadow && shadow->num_of_iso_packets <= 1 && pipe->ep_mps &&
-                shadow->transfer_buffer_length > 0 && shadow->actual_length &&
-                (shadow->actual_length % pipe->ep_mps) == 0) {
+                shadow->actual_length &&
+                (shadow->actual_length % pipe->ep_mps) == 0 &&
+                shadow->actual_length < shadow->transfer_buffer_length) {
                 HWREGB(USB_BASE + MUSB_IND_RXCSRL_OFFSET) |= USB_RXCSRL1_REQPKT;
             } else if (pipe != NULL) {
                 musb_pipe_waitup(pipe);
