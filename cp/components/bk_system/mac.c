@@ -38,56 +38,115 @@
 static uint8_t s_base_mac[] = DEFAULT_MAC_ADDR;
 static bool s_mac_inited    = false;
 
-#if (CONFIG_BASE_MAC_FROM_OTP1)
-static int write_base_mac_to_otp1(const uint8_t *mac)
+#if (CONFIG_BASE_MAC_FROM_OTP2)
+/**
+ * to find an empty mac addr item
+ */
+int get_otp2_mac_addr_item(UINT32 *item)
 {
 #if CONFIG_OTP_V1
+    UINT8 i = OTP_MAC_ADDRESS_1;
     int ret = BK_FAIL;
     uint8_t mac_r[] = DEFAULT_MAC_ADDR;
 
-    ret = bk_otp_ahb_read(OTP_MAC_ADDRESS_1, mac_r, BASE_MAC_LEN);
-    if(ret == 0)
+    for(i = OTP_MAC_ADDRESS_1; i <= OTP_MAC_ADDRESS_4; i++)
     {
-        for(UINT8 i = 0; i < BASE_MAC_LEN; i++)
+        *item = i;
+        ret = bk_otp_ahb_read(i,(UINT8 *)&mac_r,BASE_MAC_LEN);
+        for(UINT8 j = 0; j < BASE_MAC_LEN; j++)
         {
-            if(mac_r[i] == 0x00)
+            if(mac_r[j] == 0x00)
             {
                ret += 1;
             }
         }
         if(ret == BASE_MAC_LEN)
         {
-           ret = bk_otp_ahb_update(OTP_MAC_ADDRESS_1, (uint8_t *)mac, BASE_MAC_LEN);
-           if(ret == 0)
+            return BK_OK;
+        }
+        else if(i == OTP_MAC_ADDRESS_4 && ret != BASE_MAC_LEN)
+        {
+            return BK_FAIL;
+        }
+    }
+    return ret;
+#else
+    return BK_FAIL;
+#endif
+}
+
+static int write_base_mac_to_otp2(const uint8_t *mac)
+{
+#if CONFIG_OTP_V1
+    int ret = BK_FAIL;
+    uint8_t buf[6];
+    UINT32 item = OTP_MAC_ADDRESS_1;
+
+    ret = get_otp2_mac_addr_item(&item);
+    if((item > OTP_MAC_ADDRESS_1 && item <= OTP_MAC_ADDRESS_4) && ret == BK_OK)
+    {
+        item -= 1;
+    }
+
+    ret = bk_otp_ahb_read(item, buf, BASE_MAC_LEN);
+
+    if(((buf[0] != mac[0]) || (buf[1] != mac[1]) || (buf[2] != mac[2]) || (buf[3] != mac[3])
+        || (buf[4] != mac[4]) || (buf[5] != mac[5])) && ret == BK_OK)
+    {
+        ret = get_otp2_mac_addr_item(&item);
+        if(ret == BK_OK)
+        {
+           ret = bk_otp_ahb_update(item, (uint8_t *)mac, BASE_MAC_LEN);
+           if(ret == BK_OK)
                return BK_OK;
            else
                return BK_FAIL;
         }
         else
-        {
             return BK_FAIL;
-        }
     }
+    else
+        return BK_OK;
+#else
     return BK_FAIL;
 #endif
 }
 
-static int read_base_mac_to_otp1(uint8_t *mac)
+static int read_base_mac_to_otp2(uint8_t *mac)
 {
 #if CONFIG_OTP_V1
     int ret = BK_FAIL;
     uint8_t buf[6];
-    ret = bk_otp_ahb_read(OTP_MAC_ADDRESS_1, buf, BASE_MAC_LEN);
+    UINT32 item = OTP_MAC_ADDRESS_1;
+
+    ret = get_otp2_mac_addr_item(&item);
+    if((item > OTP_MAC_ADDRESS_1 && item <= OTP_MAC_ADDRESS_4) && ret == BK_OK)
+    {
+        item -= 1;
+    }
+
+    ret = bk_otp_ahb_read(item, buf, BASE_MAC_LEN);
     if ((ret == BK_OK) && ((buf[0] != 0) || (buf[1] != 0) || (buf[2] != 0) || (buf[3] != 0) || (buf[4] != 0) || (buf[5] != 0)))
     {
         os_memcpy(mac, buf, sizeof(buf));
         return ret;
     }
-#endif
-    if (manual_cal_get_macaddr_from_flash((uint8_t *)mac))
-        return BK_OK;
+    else if(ret == BK_OK)
+    {
+        ret = bk_otp_apb_read(OTP_MAC_ADDRESS_1, buf, BASE_MAC_LEN);
+        if ((ret == BK_OK) && ((buf[0] != 0) || (buf[1] != 0) || (buf[2] != 0) || (buf[3] != 0) || (buf[4] != 0) || (buf[5] != 0)))
+        {
+            os_memcpy(mac, buf, sizeof(buf));
+            return ret;
+        }
+        else
+            return BK_FAIL;
+    }
     else
         return BK_FAIL;
+#else
+    return BK_FAIL;
+#endif
 }
 #endif
 
@@ -116,7 +175,7 @@ static int bk_check_mac_address(u8 *mac)
 }
 #endif
 
-#if (!CONFIG_BASE_MAC_FROM_OTP1)
+#if (!CONFIG_BASE_MAC_FROM_OTP2)
 /*
 1. BASE MAC stored at flash partison: BK_PARTITION_SYS_NET as WIFI_MAC_ITEM (0x3ff000: first 6 bytes)
 2. BASE MAC maybe missed while board power down at the time point:
@@ -367,11 +426,11 @@ static int mac_init(void)
 {
     int ret = BK_FAIL;
 
-#if (!CONFIG_BASE_MAC_FROM_OTP1)
+#if (CONFIG_BASE_MAC_FROM_OTP2)
+    ret = read_base_mac_to_otp2(s_base_mac);
+#else
     ret = get_net_info(WIFI_MAC_ITEM, s_base_mac, NULL, NULL);
     //ret = sync_mac_record();
-#else
-    ret = read_base_mac_to_otp1(s_base_mac);
 #endif
 
 #if (CONFIG_RANDOM_MAC_ADDR)
@@ -382,7 +441,7 @@ static int mac_init(void)
     ) {
         os_memcpy(s_base_mac, DEFAULT_MAC_ADDR, BK_MAC_ADDR_LEN);
         random_mac_address(s_base_mac);
-#if (!CONFIG_BASE_MAC_FROM_OTP1)
+#if (!CONFIG_BASE_MAC_FROM_OTP2)
         ret = save_net_info(WIFI_MAC_ITEM, s_base_mac, NULL, NULL);
         //ret = sync_mac_record();
 #endif
@@ -494,13 +553,13 @@ bk_err_t bk_set_base_mac(const uint8_t *mac)
 
     os_memcpy(s_base_mac, mac, BK_MAC_ADDR_LEN);
 
-#if (!CONFIG_BASE_MAC_FROM_OTP1)
+#if (CONFIG_BASE_MAC_FROM_OTP2)
+    ret = write_base_mac_to_otp2(s_base_mac);
+    ret = read_base_mac_to_otp2(s_base_mac);
+#else
     ret = save_net_info(WIFI_MAC_ITEM, s_base_mac, NULL, NULL);
     //ret = sync_mac_record();
     ret = get_net_info(WIFI_MAC_ITEM, s_base_mac, NULL, NULL);
-#else
-    ret = write_base_mac_to_otp1(s_base_mac);
-    ret = read_base_mac_to_otp1(s_base_mac);
 #endif
 
     if (ret != BK_OK)
