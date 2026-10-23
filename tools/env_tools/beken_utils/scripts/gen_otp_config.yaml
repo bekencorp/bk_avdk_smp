@@ -1,0 +1,48 @@
+# OTP/efuse configuration per soc. Add a new top-level soc key to support more chips.
+#
+# security_ctrl: Security_Ctrl bit table, each value is "byte,bit,default"
+#                 (the last segment is the value written by gen_otp.py).
+# security_data: Security_Data address table, start_addr/byte_len are hex strings,
+#                 last_valid_addr is derived as start_addr + byte_len.
+
+bk7259:
+  security_ctrl:
+    secure_boot_debug_disable:    "0,1,0"
+    fast_boot_disable:            "0,2,0"
+    secure_boot_supported:        "0,3,0"
+    secure_boot_clock_select:     "0,4,0"
+    random_delay_enable:          "0,5,0"
+    power_on_fastboot_disable:    "0,6,0"
+    boot_critical_error:          "0,7,0"
+
+    attack_nmi_enable:            "2,4,0"
+    spi_to_ahb_disable:           "2,5,0"
+    auto_reset_enable[0]:         "2,6,0"
+    auto_reset_enable[1]:         "2,7,0"
+
+    memchk_bps_enable:            "3,0,0"
+    debug_hw_disable:             "3,1,0"
+    shanghai_clk_gating_enable:   "3,2,0"
+    flash_no_crc_enable:          "3,3,1"
+    flash_aes_mode:               "3,4,0"
+    flash_aes_enable:             "3,5,0"
+    spi_download_disable:         "3,6,0"
+    swd_jtag_disable:             "3,7,0"
+
+  security_data:
+    flash_aes_key1:
+      start_addr: "0x42100580"
+      byte_len: "0x20"
+    flash_aes_key2:
+      start_addr: "0x42100560"
+      byte_len: "0x20"
+    # single-entry variant used when the flash AES key is not 256-bit
+    flash_aes_key:
+      start_addr: "0x42100580"
+      byte_len: "0x20"
+    bl1_rotpk_hash:
+      start_addr: "0x42100628"
+      byte_len: "0x20"
+    bl2_rotpk_hash:
+      start_addr: "0x42100648"
+      byte_len: "0x20"

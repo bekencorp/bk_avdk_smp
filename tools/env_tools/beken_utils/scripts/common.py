@@ -12,6 +12,11 @@ SZ_16M = 0x1000000
 CRC_SIZE = 0X02
 CRC_PAKEIT = 0X20
 
+# Optional top-level pack.json key declaring the action pipelines (see
+# scripts/pipeline.py). Every other top-level key maps a product bin to its
+# partition list, so the packing code must skip this one.
+PIPELINES_KEY = 'pipelines'
+
 def ceil_align(value, alignment):
     return (((value + alignment - 1) // alignment) * alignment)
 
@@ -96,12 +101,59 @@ def run_cmd(cmd):
     p = subprocess.Popen(cmd, shell=True)
     ret = p.wait()
     if (ret):
-        logging.error(f'failed to run "{cmd}"')
+        logging.error(f'failed to run "{cmd}" (exit {ret})')
         exit(1)
 
 def run_cmd_not_check_ret(cmd):
     p = subprocess.Popen(cmd, shell=True)
     p.wait()
+
+def verify_key_pair_match(privkey_pem_file, pubkey_pem_file):
+    """Return True when the private key PEM derives the given public key PEM.
+
+    Compares the DER SubjectPublicKeyInfo of the two keys. Pure-Python via the
+    cryptography package (no openssl/diff dependency, so it works on Windows).
+    """
+    if not os.path.isfile(privkey_pem_file) or not os.path.isfile(pubkey_pem_file):
+        return False
+    try:
+        # Lazy import keeps common.py import-safe even if cryptography is absent.
+        from cryptography.hazmat.primitives import serialization
+        with open(privkey_pem_file, 'rb') as f:
+            privkey = serialization.load_pem_private_key(f.read(), password=None)
+        with open(pubkey_pem_file, 'rb') as f:
+            pubkey = serialization.load_pem_public_key(f.read())
+        derived = privkey.public_key().public_bytes(
+            encoding=serialization.Encoding.DER,
+            format=serialization.PublicFormat.SubjectPublicKeyInfo)
+        given = pubkey.public_bytes(
+            encoding=serialization.Encoding.DER,
+            format=serialization.PublicFormat.SubjectPublicKeyInfo)
+        return derived == given
+    except ModuleNotFoundError as e:
+        logging.warning(f'cryptography not installed, skip key pair check: {e}')
+        return True
+    except Exception as e:
+        logging.error(f'failed to load key files for pair check: {e}')
+        return False
+
+def check_signing_key_pair(privkey_pem_file, pubkey_pem_file, context=''):
+    """Fail the build early when the signing key pair does not match.
+
+    Skipped when either file is missing (e.g. pack-only hosts that never hold
+    a private key), so the offline sign-server flow is unaffected.
+    """
+    if not privkey_pem_file or not os.path.isfile(privkey_pem_file):
+        logging.debug(f'{context}private key not present ({privkey_pem_file}), skip key pair check')
+        return
+    if not pubkey_pem_file or not os.path.isfile(pubkey_pem_file):
+        logging.debug(f'{context}public key not present ({pubkey_pem_file}), skip key pair check')
+        return
+    if not verify_key_pair_match(privkey_pem_file, pubkey_pem_file):
+        logging.error(
+            f'{context}signing key pair mismatch: private key "{privkey_pem_file}" does not '
+            f'match public key "{pubkey_pem_file}"')
+        exit(1)
 
 def pattern_match(string, pattern):
     match = re.search(pattern, string)

@@ -128,6 +128,17 @@ if [ -d "${BUILDDIR}/bk_py_libs" ]; then
     echo "PYTHONPATH: $PYTHONPATH"
 fi
 
+# pyyaml is required by scripts/gen_otp.py (YAML driven OTP config). Check it
+# here so an offline server fails fast with an actionable message instead of a
+# mid-build ImportError.
+if ! python3 -c "import yaml" >/dev/null 2>&1; then
+    echo "Error: python3 module 'yaml' (PyYAML) not found."
+    echo "       Install it (e.g. pip3 install PyYAML / pip3 install -r requirements.txt),"
+    echo "       or ship it to the offline server inside bk_py_libs or bk_py_libs.tgz so"
+    echo "       that it is importable via PYTHONPATH=${BUILDDIR}/bk_py_libs"
+    exit 1
+fi
+
 # ============================================================================
 # 5. Sign + encrypt + pack
 # ============================================================================

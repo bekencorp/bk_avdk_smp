@@ -17,6 +17,7 @@ from .common import *
 from .security import *
 from .ota import *
 from .parse_csv import *
+from .save_cmd import save_cmd
 from .compress import COMPRESS_BLOCK_SZ, OTA_RESUME_MAX_FULL_BLOCKS
 
 SZ_16M = 0x1000000
@@ -602,7 +603,8 @@ class Partition:
                 logging.debug(f'encrypt {self.partition_name}, startaddress={start_address}, out={self.aes_bin_name}')
                 #print(f'aes_key {aes_key} aes_bits {aes_bits}')
                 cmd = f'{get_python_exe()} {aes_tool} encrypt -infile {self.bin_name} -keywords {aes_key}  -aes {aes_bits} -outfile {self.aes_bin_name} -startaddress {start_address}'
-                run_cmd_not_check_ret(cmd)
+                save_cmd(f'Encrypt partition {self.partition_name}:{self.bin_name}', cmd)
+                run_cmd(cmd)
             else:
                 self.aes_bin_name = self.bin_name
 
@@ -1619,8 +1621,8 @@ class Partitions:
             aes_bits = get_xts_aes_bits(aes_key)
             start_address = hex(phy2virtual(ota_partition.phy_partition_offset, CRC_EN))
             cmd = f'{get_python_exe()} {aes_tool} encrypt -infile {ota_sign_bin} -keywords {aes_key} -aes {aes_bits} -outfile {aes_bin_name} -startaddress {start_address}'
-
-            run_cmd_not_check_ret(cmd)
+            save_cmd(f'Encrypt OTA image {ota_sign_bin}', cmd)
+            run_cmd(cmd)
             if CRC_EN == True:
                 crc_bin_name = f'ota_aes_crc.bin'
                 crc(aes_bin_name, crc_bin_name)
@@ -1668,6 +1670,10 @@ class Partitions:
             self.pack_json = json.load(f)
 
         for k in self.pack_json:
+            # "pipelines" declares the action order (scripts/pipeline.py): it is
+            # not a product -> partition list, so it must not be validated as one.
+            if k == PIPELINES_KEY:
+                continue
             for v in self.pack_json[k]:
                 p = self.find_partition_by_name(v)
                 if p == None:
@@ -1713,3 +1719,4 @@ class Partitions:
         self.copy_file('otp_efuse_config.json', install_dir)
         self.copy_file('primary_all.bin', install_dir)
         self.copy_file('partition.bin', install_dir)
+        self.copy_file('pack_cmd_list.txt', install_dir)

@@ -17,6 +17,7 @@ import struct
 import tempfile
 
 from .common import *
+from .save_cmd import save_cmd
 
 # MUST match COMPRESS_BLOCK_SIZE in BL2 decompress_bl2.c (64 * 1024).
 COMPRESS_BLOCK_SZ = 0x10000
@@ -86,6 +87,9 @@ def compress_bin(infile, outfile):
     compress_tool = get_compress_tool_exe()
     if not os.path.isfile(compress_tool):
         raise FileNotFoundError(f'lzma tool not found: {compress_tool}')
+
+    save_cmd(f'Compress OTA image {infile} -> {outfile}',
+             f'{compress_tool} e <in> <out> (lzma, {COMPRESS_BLOCK_SZ}-byte blocks)')
 
     logging.debug(f'compress {infile}: size=0x{file_size:x} full_blocks={block_num} rem={remainder}')
 

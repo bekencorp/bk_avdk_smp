@@ -1,8 +1,57 @@
 #!/usr/bin/env python3
 
+import copy
 import logging
+from pathlib import Path
+
+import yaml
+
 from .common import *
 from scripts.rotpk_hash import *
+
+SOC_TYPE = 'bk7259'
+
+_OTP_CONFIG_PATH = Path(__file__).with_name('gen_otp_config.yaml')
+_OTP_CONFIG = None
+
+
+def load_otp_config():
+    global _OTP_CONFIG
+    if _OTP_CONFIG is None:
+        with _OTP_CONFIG_PATH.open(encoding='utf-8') as f:
+            _OTP_CONFIG = yaml.safe_load(f) or {}
+    return _OTP_CONFIG
+
+
+def get_soc_config():
+    config = load_otp_config()
+    if SOC_TYPE not in config:
+        logging.error(f'{SOC_TYPE} not found in {_OTP_CONFIG_PATH}')
+        exit(1)
+    return config[SOC_TYPE]
+
+
+def get_security_ctrl():
+    """Return a fresh copy of the Security_Ctrl bit table, so updating one
+    field does not pollute the cached config."""
+    return copy.deepcopy(get_soc_config()['security_ctrl'])
+
+
+def update_security_ctrl_last_value(security_ctrl, field_name, value):
+    """Update only the last segment of a comma-separated Security_Ctrl value."""
+    parts = security_ctrl[field_name].split(',')
+    parts[-1] = str(value)
+    security_ctrl[field_name] = ','.join(parts)
+
+
+def get_otp_addr(data_name):
+    security_data = get_soc_config()['security_data']
+    if data_name not in security_data:
+        supported = ', '.join(sorted(security_data.keys()))
+        logging.error(f'unsupported Security_Data "{data_name}", supported: {supported}')
+        exit(1)
+    return security_data[data_name]
+
 
 def reverse_order(hex_str):
     hex_str_len = len(hex_str)
@@ -38,11 +87,17 @@ def get_effective_flash_aes_key(flash_aes_key):
     return flash_aes_key
 
 
-def add_security_data(otp_efuse_config, name, start_addr, byte_len, data, permission="RO", mode="write"):
+def add_security_data(otp_efuse_config, name, data, byte_len=None):
+    """Append one Security_Data record; the address comes from gen_otp_config.yaml."""
+    otp_addr = get_otp_addr(name)
+    start_addr = int(otp_addr['start_addr'], 16)
+    if byte_len is None:
+        byte_len = int(otp_addr['byte_len'], 16)
+
     entry = {
         "name": name,
-        "mode": mode,
-        "permission": permission,
+        "mode": "write",
+        "permission": "RO",
         "start_addr": hex(start_addr),
         "last_valid_addr": hex(start_addr + byte_len),
         "byte_len": hex(byte_len),
@@ -57,40 +112,19 @@ def gen_otp_efuse_config_file(aes_type, flash_aes_key, pubkey_pem_file, securebo
     f = open(outfile, 'w+')
     logging.debug(f'Create {outfile}')
 
+    security_ctrl = get_security_ctrl()
+
     otp_efuse_config = {
         "User_Operate_Enable":  "false",
         "Security_Ctrl_Enable": "true",
         "Security_Data_Enable": "true",
         "User_Operate":[],
 
-        "Security_Ctrl":[{
-            "secure_boot_debug_disable":    "0,1,0",
-            "fast_boot_disable":            "0,2,0",
-            "secure_boot_supported":        "0,3,0",
-            "secure_boot_clock_select":     "0,4,0",
-            "random_delay_enable":          "0,5,0",
-            "power_on_fastboot_disable":    "0,6,0",
-            "boot_critical_error":          "0,7,0",
-
-            "attack_nmi_enable":            "2,4,0",
-            "spi_to_ahb_disable":           "2,5,0",
-            "auto_reset_enable[0]":         "2,6,0",
-            "auto_reset_enable[1]":         "2,7,0",
-        
-            "memchk_bps_enable":            "3,0,0",
-            "debug_hw_disable":             "3,1,0",
-            "shanghai_clk_gating_enable":   "3,2,0",
-            "flash_no_crc_enable":          "3,3,1",
-            "flash_aes_mode":               "3,4,0",
-            "flash_aes_enable":             "3,5,0",
-            "spi_download_disable":         "3,6,0",
-            "swd_jtag_disable":             "3,7,0"
-        }],
+        "Security_Ctrl":[security_ctrl],
 
         "Security_Data":[]
     }
 
-    data = {}
     # if secureboot_en:
     #     if  aes_type == 'FIXED':
     #         efuse_data = "28000000"   #if want to configure other value, please configure this item_value(0x28000008)
@@ -100,18 +134,18 @@ def gen_otp_efuse_config_file(aes_type, flash_aes_key, pubkey_pem_file, securebo
     #     add_security_data(otp_efuse_config, "efuse", 0x44850014, 0x4, efuse_data)
 
     if aes_type == 'FIXED':
-        otp_efuse_config["Security_Ctrl"][0].update({"flash_aes_enable":"3,5,1"})
+        update_security_ctrl_last_value(security_ctrl, "flash_aes_enable", 1)
         flash_aes_key = get_effective_flash_aes_key(flash_aes_key)
         if flash_aes_key != None:
             if len(flash_aes_key) == 128:
                 flash_aes_key1 = flash_aes_key[:64]
                 flash_aes_key2 = flash_aes_key[64:]
-                add_security_data(otp_efuse_config, "flash_aes_key2", 0x42100560, 0x20, flash_aes_key2)
-                add_security_data(otp_efuse_config, "flash_aes_key1", 0x42100580, 0x20, flash_aes_key1)
+                add_security_data(otp_efuse_config, "flash_aes_key2", flash_aes_key2)
+                add_security_data(otp_efuse_config, "flash_aes_key1", flash_aes_key1)
             else:
-                otp_efuse_config["Security_Ctrl"][0].update({"flash_aes_mode":"3,4,1"})
+                update_security_ctrl_last_value(security_ctrl, "flash_aes_mode", 1)
                 flash_aes_key_byte_len = get_flash_aes_key_byte_len(flash_aes_key)
-                add_security_data(otp_efuse_config, "flash_aes_key", 0x42100580, flash_aes_key_byte_len, flash_aes_key)
+                add_security_data(otp_efuse_config, "flash_aes_key", flash_aes_key, flash_aes_key_byte_len)
 
     if secureboot_en:
         h = Rotpk_hash(pubkey_pem_file)
@@ -119,13 +153,13 @@ def gen_otp_efuse_config_file(aes_type, flash_aes_key, pubkey_pem_file, securebo
         bl1_pk_hash = (hash_dict['bl1_rotpk_hash'])
         bl2_pk_hash = (hash_dict['bl2_rotpk_hash'])
 
-        add_security_data(otp_efuse_config, "bl1_rotpk_hash", 0x42100628, 0x20, bl1_pk_hash)
-        add_security_data(otp_efuse_config, "bl2_rotpk_hash", 0x42100648, 0x20, bl2_pk_hash)
+        add_security_data(otp_efuse_config, "bl1_rotpk_hash", bl1_pk_hash)
+        add_security_data(otp_efuse_config, "bl2_rotpk_hash", bl2_pk_hash)
     else:
         h = Rotpk_hash(pubkey_pem_file, False)
         hash_dict = h.gen_rotpk_hash()
         bl2_pk_hash = (hash_dict['bl2_rotpk_hash'])
-        add_security_data(otp_efuse_config, "bl2_rotpk_hash", 0x42100648, 0x20, bl2_pk_hash)
+        add_security_data(otp_efuse_config, "bl2_rotpk_hash", bl2_pk_hash)
 
     json_str = json.dumps(otp_efuse_config, indent=4)
     with open('otp_efuse_config.json', 'w',newline="\n") as file:

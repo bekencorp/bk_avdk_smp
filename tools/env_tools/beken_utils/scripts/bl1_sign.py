@@ -5,6 +5,7 @@ import json
 import logging
 from .common import *
 from .genbl1 import *
+from .save_cmd import save_cmd
 
 def bl1_sign_hash(privkey_pem_file, manifest_hash, outfile):
     sh_sec_tools = get_secure_boot_tool_exe()
@@ -14,6 +15,7 @@ def bl1_sign_hash(privkey_pem_file, manifest_hash, outfile):
         f.write(manifest_hash)
 
     cmd = f'{sh_sec_tools} sign -k {privkey_pem_file} -d {digest_file}'
+    save_cmd('BL1 sign manifest hash', cmd)
     run_cmd(cmd)
 
     signature_dict = {
@@ -46,6 +48,7 @@ def gen_manifest_bin(action_type, manifest_json_file, outfile):
         logging.error(f'invalid bl1_sign action {action_type}')
         exit(1)
 
+    save_cmd(f'BL1 manifest ({action_type})', cmd)
     run_cmd(cmd)
     move_file('manifest.bin', outfile)
 
@@ -63,6 +66,12 @@ def bl1_sign(action_type, key_type, privkey_pem_file, pubkey_pem_file, signature
         manifest_json_file = 'secondary_manifest.json'
     else :
         manifest_json_file = 'primary_manifest.json'
+    if action_type in ('hash', 'sign_from_sig'):
+        # Neither digesting nor re-assembling a manifest needs the private key,
+        # and key_desc.json carries mnft_prvkey verbatim: secure_boot_tool fails
+        # if that path does not exist. Blanking it here keeps the pack server of
+        # the split-signing flow free of any private key material.
+        privkey_pem_file = ''
     g = Genbl1(True, key_type, privkey_pem_file, pubkey_pem_file, outfile)
     g.gen_key_desc()
     g.gen_manifest(7, static_addr, load_addr, bin_file, manifest_json_file)

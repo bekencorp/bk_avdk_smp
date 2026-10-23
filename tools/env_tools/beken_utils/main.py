@@ -22,13 +22,14 @@ from scripts.bl1_sign import *
 from scripts.bl2_sign import *
 from scripts.pk_hash import *
 from scripts.pack import *
+from scripts.pipeline import list_steps
 from scripts.compress import *
 from scripts import crc
 from scripts import encrypt
 from scripts import xts_aes
 from scripts import generator
 from scripts.sign import *
-from scripts.steps import *
+from scripts.image_check import main as image_check_main
 from scripts.solution_generator import *
 from scripts.copy_json_data_csv import *
 
@@ -57,10 +58,6 @@ def sign():
 @cli.group("pack")
 def pack():
     """Merge partitions, CRC/AES and packing"""
-
-@cli.group("steps")
-def steps():
-    """Create downloadable bin step by step"""
 
 @cli.group("pipeline")
 def pipeline():
@@ -189,63 +186,52 @@ def pk_hash_command(pubkey_pem_file, debug):
     set_debug(debug)
     get_pk_hash(pubkey_pem_file)
 
-@steps.command("get_app_bin_hash")
-@click.option("--debug", is_flag=True, help="Enable debug")
-def get_bin_hash_command(debug):
-    """Get binaries hash for signing"""
-    set_debug(debug)
-    get_app_bin_hash()
-
-@steps.command("sign_app_bin_hash")
-@click.option("--debug", is_flag=True, help="Enable debug")
-def sign_hash_command(debug):
-    """Signing app binaries hash"""
-    set_debug(debug)
-    sign_app_bin_hash()
-
-@steps.command("sign_from_app_sig")
-@click.option("--debug", is_flag=True, help="Enable debug")
-def sign_from_sig_command(debug):
-    """Create signed app bin based on signature"""
-    set_debug(debug)
-    sign_from_app_sig()
-
-@steps.command("get_ota_bin_hash")
-@click.option("--debug", is_flag=True, help="Enable debug")
-def get_ota_bin_hash_command(debug):
-    """Get OTA binary hash"""
-    set_debug(debug)
-    get_ota_bin_hash()
-
-@steps.command("sign_ota_bin_hash")
-@click.option("--debug", is_flag=True, help="Enable debug")
-def sign_ota_bin_hash_command(debug):
-    """Create signature of OTA bin hash"""
-    set_debug(debug)
-    sign_ota_bin_hash()
-
-@steps.command("sign_from_ota_sig")
-@click.option("--debug", is_flag=True, help="Enable debug")
-def sign_from_ota_sig_command(debug):
-    """Create signed OTA bin from signature"""
-    set_debug(debug)
-    sign_from_ota_sig()
-
-@steps.command("pack")
-@click.option("--debug", is_flag=True, help="Enable debug")
-def pack_command(debug):
-    """Pack download bin"""
-    set_debug(debug)
-    steps_pack()
-
 @pack.command("all")
 @click.option("--debug", is_flag=True, help="Enable debug")
 @click.option("--config_dir", type=click.Path(exists=True, dir_okay=True), required=False, default=None, help="configuration files dir")
 @click.option("--aes_key", type=str, required=False, default=None, help="configuration flash aes key")
-def pack_command(debug, config_dir, aes_key):
+@click.option("--preset", type=str, required=False, default='all', help="pipeline preset to run (default: all = today's flow)")
+def pack_command(debug, config_dir, aes_key, preset):
     """Pack downloadable bin in a single command"""
     set_debug(debug)
-    pack_all(config_dir, aes_key)
+    pack_all(config_dir, aes_key, preset)
+
+@pack.command("run")
+@click.option("--preset", type=str, required=False, default=None, help="pipeline preset declared in pack.json (or a built-in one)")
+@click.option("--steps", type=str, required=False, default=None, help="comma separated action list, e.g. PACK_CONTAINERS,INSTALL")
+@click.option("--config_dir", type=click.Path(exists=True, dir_okay=True), required=False, default=None, help="configuration files dir")
+@click.option("--aes_key", type=str, required=False, default=None, help="configuration flash aes key")
+@click.option("--debug", is_flag=True, help="Enable debug")
+def pack_run_command(preset, steps, config_dir, aes_key, debug):
+    """Run one pipeline stage (split signing: hash / sign-hash / apply-sig / pack)"""
+    set_debug(debug)
+    if (preset is None) == (steps is None):
+        logging.error('give exactly one of --preset / --steps')
+        exit(1)
+    # No pack_cmd_list.txt reset here: a split build runs several stages in a
+    # row and the log has to keep all of them.
+    pack_run(steps if steps else preset, config_dir, aes_key)
+
+@pack.command("list-steps")
+@click.option("--debug", is_flag=True, help="Enable debug")
+def pack_list_steps_command(debug):
+    """List the pipeline presets (with expansion) and all registered actions"""
+    set_debug(debug)
+    list_steps()
+
+@pack.command("check")
+@click.option("--all_app", "--all-app", "all_app", type=str, required=False, default='all-app.bin', help="Download container to be checked.")
+@click.option("--ota", type=str, required=False, default='ota.bin', help="OTA container to be checked.")
+@click.option("--bootloader", type=str, required=False, default='bootloader.bin', help="Bootloader image to be checked.")
+@click.option("--crc_en", "--crc-en", "crc_en", is_flag=True, help="flash CRC interleaving is enabled (security.csv: crc_en)")
+@click.option("--debug", is_flag=True, help="Enable debug")
+def image_check_command(all_app, ota, bootloader, crc_en, debug):
+    """check packed images (container structure + CRCs)"""
+    set_debug(debug)
+    argv = ['--all-app', all_app, '--ota', ota, '--bootloader', bootloader]
+    if crc_en:
+        argv.append('--crc_en')
+    sys.exit(image_check_main(argv))
 
 @sign.command("bl1_sign_hash")
 @click.option("--privkey_pem_file", type=click.Path(exists=True, dir_okay=False), required=False, default='root_ec256_privkey.pem', help="PEM private key file.")

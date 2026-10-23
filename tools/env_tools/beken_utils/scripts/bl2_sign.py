@@ -5,11 +5,13 @@ import json
 import logging
 from .common import *
 from .genbl1 import *
+from .save_cmd import save_cmd
 
 def bl2_sign_hash(privkey_pem_file, hash, outfile):
     script_dir = get_script_dir()
     bl2_signing_tool = f'{get_python_exe()} {script_dir}/../tools/mcuboot_tools/imgtool.py'
     cmd = f'{bl2_signing_tool} sign-hash -k {privkey_pem_file} -d {hash} -o {outfile}'
+    save_cmd('BL2 sign hash', cmd)
     run_cmd(cmd)
 
 def bl2_sign(action_type, key_type, privkey_pem_file, pubkey_pem_file, signature, bin_file, partition_size, version, security_counter, sign_outfile, hash_outfile, pad=True):
@@ -21,6 +23,13 @@ def bl2_sign(action_type, key_type, privkey_pem_file, pubkey_pem_file, signature
     if action_type == 'hash':
         key_opt = f''
         hash_outfile_opt = f'--hash_outfile {hash_outfile}'
+    elif action_type == 'sign_from_sig':
+        # The signature is supplied through --signature, so imgtool must not try
+        # to load a private key: the pack-server side of the split-signing flow
+        # does not have one. imgtool then takes the embedded public key from
+        # --pubkeyfile (image.py: key is None -> pubkeyfile).
+        key_opt = f''
+        hash_outfile_opt = ''
     else:
         key_opt = f'-k {privkey_pem_file}'
         hash_outfile_opt = ''
@@ -43,5 +52,6 @@ def bl2_sign(action_type, key_type, privkey_pem_file, pubkey_pem_file, signature
     script_dir = get_script_dir()
     bl2_signing_tool_dir = f'{get_python_exe()} {script_dir}/../tools/mcuboot_tools/imgtool.py'
     cmd = f'{bl2_signing_tool_dir} sign {key_opt} --public-key-format full --max-align 8 --align 1 --version {version} --security-counter {security_counter} --pad-header --header-size 0x1000 --slot-size {partition_size} {pad_opt} --boot-record SPE --endian little --encrypt-keylen 128 {bin_file} {sign_outfile} --action_type {action_type} {signature_opt} --pubkeyfile {pubkey_pem_file} {hash_outfile_opt}'
+    save_cmd(f'BL2 sign ({action_type}) {bin_file} -> {sign_outfile}', cmd)
     run_cmd(cmd)
     return
