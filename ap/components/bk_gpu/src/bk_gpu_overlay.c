@@ -1080,11 +1080,26 @@ avdk_err_t bk_gpu_overlay_layer_acquire(
     for (uint8_t i = 0U; i < BK_GPU_OVERLAY_LAYER_MAX; i++)
     {
         bk_gpu_overlay_layer_t *layer = &overlay->layers[i];
+        /*
+         * A released slot intentionally keeps its backing and dirty flag (see
+         * overlay_layer_clear_locked): restoring that backing is the only way
+         * to erase the pixels an OSD covered once the display is frozen. Such a
+         * slot is still free, so do not let its residue block reuse - that left
+         * every slot permanently unacquirable after release.
+         */
         if (!layer->allocated && layer->update_buffer == NULL &&
-            layer->display_buffer == NULL &&
-            layer->backing_buffer == NULL &&
-            layer->capture_buffer == NULL && !layer->dirty)
+            layer->display_buffer == NULL)
         {
+            /*
+             * A released slot keeps its backing/dirty residue for the next
+             * refresh_dirty to restore. The new owner must not inherit it: that
+             * would replay a previous instance's pixels onto this one's first
+             * composed frame, and leak the backing.
+             */
+            overlay_backing_free(layer);
+            overlay_capture_free(layer);
+            layer->dirty = false;
+
             uint16_t generation = (uint16_t)(layer->generation + 1U);
             if (generation == 0U)
             {
@@ -1264,9 +1279,13 @@ uint8_t bk_gpu_overlay_get_available_layer_count(
     for (uint8_t i = 0U; i < BK_GPU_OVERLAY_LAYER_MAX; i++)
     {
         bk_gpu_overlay_layer_t *layer = &overlay->layers[i];
+        /*
+         * A released slot keeps its backing and dirty flag so the next
+         * refresh_dirty can restore the pixels an OSD covered; that residue
+         * must not make the slot look busy, or it can never be reused.
+         */
         if (!layer->allocated && layer->update_buffer == NULL &&
-            layer->display_buffer == NULL &&
-            layer->backing_buffer == NULL && !layer->dirty)
+            layer->display_buffer == NULL)
         {
             count++;
         }
