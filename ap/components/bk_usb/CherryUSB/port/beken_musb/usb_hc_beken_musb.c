@@ -630,6 +630,12 @@ static void usb_hc_riscv_ipi_cb(ipi_core_id_t core_id, uint32_t value,
 }
 #endif
 
+/* ECM bulk completions. A gap after traffic has been moving is logged by
+ * reading the endpoint registers only. Nothing here changes the transfer. */
+static volatile uint32_t s_ecm_rx_done;
+static uint32_t s_ecm_rx_snap;
+static uint8_t s_ecm_rx_gap;
+
 /* Length at the last full-MPS continue. A later event with the same
  * actual_length is the zero-length packet that ends an ECM frame. */
 static struct musb_pipe *s_zlp_pipe;
@@ -680,6 +686,9 @@ static void usb_hc_riscv_complete_pipe(uint32_t event, uint32_t event_data)
             uint32_t got;
 
             pipe = &g_musb_hcd.pipe_pool[event_data][1];
+            if (pipe->ep_addr == 0x83) {
+                s_ecm_rx_done++;
+            }
             flags = usb_enter_critical();
             shadow = pipe->urb;
             got = shadow ? shadow->actual_length : 0;
@@ -930,8 +939,16 @@ static void usb_hc_zlp_tick(void)
  * completion. Read it here. A token that has fallen off with an empty FIFO is
  * armed again. Neither path flushes. Three ticks skip the gap inside one frame. */
 static void musb_read_packet(uint8_t ep_idx, uint8_t *buffer, uint16_t len);
+void musb_bulk_pipe_init(struct musb_pipe *pipe, uint8_t *buffer, uint32_t buflen);
 static uint8_t s_in_idle_ticks[8];
 static uint8_t s_rxrdy_ticks[8];
+/* Submitted IN length. The RISC-V side shrinks transfer_buffer_length, so the
+ * original is the only way to tell 512/1002 from a buffer that was not moved. */
+static uint32_t s_rx_submit_len[8];
+/* Short OUT whose CSR went idle with actual_length still 0. First idle window
+ * re-arms TXRDY; a second one means the completion was lost. */
+static uint8_t s_tx_idle[8];
+static uint8_t s_tx_rearm[8];
 
 static void usb_hc_drain_rxrdy(struct musb_pipe *pipe)
 {
@@ -942,38 +959,86 @@ static void usb_hc_drain_rxrdy(struct musb_pipe *pipe)
     uint32_t size;
     uint32_t room;
     uint8_t old;
+    uint8_t *dst;
+    int advanced;
 
     flags = usb_enter_critical();
     urb = pipe->urb;
-    if (urb == NULL || urb->transfer_buffer == NULL ||
-        urb->actual_length > urb->transfer_buffer_length) {
+    if (urb == NULL || urb->transfer_buffer == NULL) {
         usb_exit_critical(flags);
         return;
     }
+    /* The RISC-V side advances transfer_buffer and shrinks the length as it
+     * copies packets, and keeps actual_length as the running total.
+     * 1024/490 has actual past the remaining length. 512/1002 is the same
+     * state one packet earlier: 512 + 1002 is the submitted 1514, so the
+     * pointer has already moved. The old check left room at 490 and refused
+     * the 512-byte packet sitting in the FIFO. */
+    advanced = urb->actual_length > urb->transfer_buffer_length;
+    if (!advanced && pipe->ep_local_index < 8) {
+        uint32_t submitted = s_rx_submit_len[pipe->ep_local_index];
+
+        if (submitted > urb->transfer_buffer_length &&
+            urb->actual_length + urb->transfer_buffer_length == submitted) {
+            advanced = 1;
+        }
+    }
+    if (advanced) {
+        room = urb->transfer_buffer_length;
+        dst = urb->transfer_buffer;
+    } else {
+        room = urb->transfer_buffer_length - urb->actual_length;
+        dst = urb->transfer_buffer + urb->actual_length;
+    }
     old = musb_get_active_ep();
     musb_set_active_ep(pipe->ep_local_index);
-    if ((HWREGB(USB_BASE + MUSB_IND_RXCSRL_OFFSET) & USB_RXCSRL1_RXRDY) == 0) {
+    {
+        uint8_t csr = HWREGB(USB_BASE + MUSB_IND_RXCSRL_OFFSET);
+
+        if ((csr & USB_RXCSRL1_RXRDY) == 0) {
+            musb_set_active_ep(old);
+            usb_exit_critical(flags);
+            return;
+        }
+        count = HWREGH(USB_BASE + MUSB_IND_RXCOUNT_OFFSET) & USB_RXCOUNT1_COUNT_M;
+        /* RXCOUNT is one packet. Zero or past MPS means it was not latched.
+         * The blob has already accounted for a short tail (1024 received,
+         * 490 still named in the buffer, CSR full+ready). That tail is
+         * `room` bytes, not another 512, and leaving it unread stops the
+         * modem. A full buffer with the same CSR is one MPS. */
+        if (count == 0 || (pipe->ep_mps && count > pipe->ep_mps)) {
+            if (room > 0 && pipe->ep_mps && room < pipe->ep_mps) {
+                count = room;
+            } else if ((csr & USB_RXCSRL1_FULL) && pipe->ep_mps &&
+                       room >= pipe->ep_mps) {
+                count = pipe->ep_mps;
+            } else {
+                musb_set_active_ep(old);
+                usb_exit_critical(flags);
+                return;
+            }
+        }
+    }
+    if (count == 0 || room < count) {
         musb_set_active_ep(old);
         usb_exit_critical(flags);
         return;
     }
-    count = HWREGH(USB_BASE + MUSB_IND_RXCOUNT_OFFSET);
-    room = urb->transfer_buffer_length - urb->actual_length;
-    size = room;
-    if (pipe->ep_mps && size > pipe->ep_mps) {
-        size = pipe->ep_mps;
-    }
-    size = MIN(size, count);
+    size = count;
     if (size > 0) {
-        musb_read_packet(pipe->ep_local_index,
-                         urb->transfer_buffer + urb->actual_length, (uint16_t)size);
+        musb_read_packet(pipe->ep_local_index, dst, (uint16_t)size);
         urb->actual_length += size;
+        if (advanced) {
+            urb->transfer_buffer += size;
+            urb->transfer_buffer_length -= size;
+        }
     }
     urb->errorcode = 0;
     HWREGB(USB_BASE + MUSB_IND_RXCSRL_OFFSET) &= ~USB_RXCSRL1_RXRDY;
 
     if (size == 0 || size < pipe->ep_mps ||
-        urb->actual_length >= urb->transfer_buffer_length) {
+        (!advanced && urb->actual_length >= urb->transfer_buffer_length) ||
+        (advanced && urb->transfer_buffer_length == 0)) {
         if (s_zlp_pipe == pipe) {
             s_zlp_pipe = NULL;
         }
@@ -1085,6 +1150,125 @@ static void usb_hc_in_token_tick(void)
     }
 }
 
+/* A single-packet OUT (AT command, TCP ACK) whose CSR is idle and whose
+ * actual_length is still 0 never completed. TXRDY stays set while the device
+ * NAKs, so this is not that case. Re-arm once; if it is idle again, the
+ * completion was lost and the waiter is released with the full length.
+ * A longer OUT is left alone: failing one mid-transfer drops the download. */
+static void usb_hc_out_idle_recover(void)
+{
+    uint32_t lim = CONFIG_USBHOST_PIPE_NUM;
+    uint32_t i;
+
+    if (lim > 8) {
+        lim = 8;
+    }
+    for (i = 1; i < lim; i++) {
+        struct musb_pipe *tx = &g_musb_hcd.pipe_pool[i][0];
+        struct usbh_urb *urb = tx->urb;
+        uint8_t old;
+        uint8_t csr;
+        uint32_t flags;
+        struct musb_wake wake;
+
+        if (urb == NULL || (tx->ep_addr & 0x80) != 0 ||
+            tx->ep_local_index >= 8 || tx->ep_mps == 0 ||
+            urb->transfer_buffer == NULL ||
+            urb->transfer_buffer_length == 0 ||
+            urb->transfer_buffer_length > tx->ep_mps ||
+            urb->actual_length != 0) {
+            s_tx_idle[i] = 0;
+            s_tx_rearm[i] = 0;
+            continue;
+        }
+        old = musb_get_active_ep();
+        musb_set_active_ep(tx->ep_local_index);
+        csr = HWREGB(USB_BASE + MUSB_IND_TXCSRL_OFFSET);
+        musb_set_active_ep(old);
+        if (csr & (USB_TXCSRL1_TXRDY | USB_TXCSRL1_ERROR | USB_TXCSRL1_NAKTO |
+                   USB_TXCSRL1_STALLED | USB_TXCSRL1_FIFONE)) {
+            s_tx_idle[i] = 0;
+            continue;
+        }
+        if (s_tx_idle[i] < 3) {
+            s_tx_idle[i]++;
+            continue;
+        }
+        s_tx_idle[i] = 0;
+        flags = usb_enter_critical();
+        if (tx->urb != urb) {
+            usb_exit_critical(flags);
+            s_tx_rearm[i] = 0;
+            continue;
+        }
+        if (!s_tx_rearm[i]) {
+            s_tx_rearm[i] = 1;
+            musb_bulk_pipe_init(tx, urb->transfer_buffer, urb->transfer_buffer_length);
+            usb_exit_critical(flags);
+            continue;
+        }
+        urb->actual_length = urb->transfer_buffer_length;
+        urb->errorcode = 0;
+        wake = musb_pipe_detach(tx);
+        usb_exit_critical(flags);
+        s_tx_rearm[i] = 0;
+        musb_wake_signal(wake);
+    }
+}
+
+/* After ECM receive traffic has moved, a 200 ms gap is the stall. Read the
+ * IN and OUT registers a few times, then stay quiet. No bit is written. */
+static void usb_hc_ecm_gap_log(void)
+{
+    static const uint8_t eps[2] = { 0x83, 0x0c };
+    uint32_t lim = CONFIG_USBHOST_PIPE_NUM;
+    uint32_t n;
+
+    if (s_ecm_rx_done != s_ecm_rx_snap) {
+        s_ecm_rx_snap = s_ecm_rx_done;
+        s_ecm_rx_gap = 0;
+        return;
+    }
+    if (s_ecm_rx_done == 0 || s_ecm_rx_gap >= 200) {
+        return;
+    }
+    s_ecm_rx_gap++;
+    if (s_ecm_rx_gap < 20 || (s_ecm_rx_gap % 50) != 20) {
+        return;
+    }
+    if (lim > 8) {
+        lim = 8;
+    }
+    for (n = 0; n < 2; n++) {
+        struct musb_pipe *pipe = NULL;
+        uint8_t dir = (eps[n] & 0x80) ? 1 : 0;
+        uint8_t old;
+        uint8_t csr;
+        uint32_t i;
+
+        for (i = 1; i < lim; i++) {
+            struct musb_pipe *p = &g_musb_hcd.pipe_pool[i][dir];
+
+            if (p->ep_addr == eps[n]) {
+                pipe = p;
+                break;
+            }
+        }
+        if (pipe == NULL || pipe->urb == NULL || pipe->ep_local_index >= 8) {
+            USB_LOG_INFO("gap ep %u urb 0\r\n", eps[n]);
+            continue;
+        }
+        old = musb_get_active_ep();
+        musb_set_active_ep(pipe->ep_local_index);
+        csr = HWREGB(USB_BASE + (dir ? MUSB_IND_RXCSRL_OFFSET : MUSB_IND_TXCSRL_OFFSET));
+        musb_set_active_ep(old);
+        USB_LOG_INFO("gap ep %u csr %02x len %u/%u\r\n",
+                     pipe->ep_addr, csr,
+                     (unsigned)pipe->urb->actual_length,
+                     (unsigned)pipe->urb->transfer_buffer_length);
+    }
+}
+
 static void usb_hc_riscv_watchdog_cb(void *arg)
 {
     volatile riscv_usb_probe_t *ctx = get_riscv_usb_probe();
@@ -1098,13 +1282,21 @@ static void usb_hc_riscv_watchdog_cb(void *arg)
         for (uint32_t z = 0; z < 8; z++) {
             s_in_idle_ticks[z] = 0;
             s_rxrdy_ticks[z] = 0;
+            s_tx_idle[z] = 0;
+            s_tx_rearm[z] = 0;
+            s_rx_submit_len[z] = 0;
         }
+        s_ecm_rx_done = 0;
+        s_ecm_rx_snap = 0;
+        s_ecm_rx_gap = 0;
         return;
     }
 
     /* Drain a stuck RXRDY before the ZLP timer can complete a short buffer. */
     usb_hc_in_token_tick();
     usb_hc_zlp_tick();
+    usb_hc_out_idle_recover();
+    usb_hc_ecm_gap_log();
 
     seq = ctx->irq_seq;
     if (seq == s_riscv_probe_last_irq_seq) {
@@ -2374,6 +2566,9 @@ int usbh_submit_urb(struct usbh_urb *urb)
     bk_urb_bind(pipe, urb);
     urb->errorcode = -EBUSY;
     urb->actual_length = 0;
+    if ((pipe->ep_addr & 0x80) && pipe->ep_local_index < 8) {
+        s_rx_submit_len[pipe->ep_local_index] = urb->transfer_buffer_length;
+    }
 
     if (urb->timeout > 0) {
         pipe->waiter = true;

@@ -66,6 +66,31 @@ static int cfg_send(char *resp, uint32_t resp_size, const char *cmd)
     return ret;
 }
 
+/* USB "online" is published when intf3 is claimed, while the hub is still
+ * walking the later interfaces. The module's AT parser is not in that
+ * event. A write can also be completed locally when the first short OUT
+ * loses its completion, so the caller sees a successful write and an empty
+ * body. Plain AT returning OK is the ready check. */
+static int cfg_wait_ready(char *resp, uint32_t resp_size)
+{
+    int ret = -2;
+    int i;
+
+    for (i = 0; i < 8; i++) {
+        if (s_stop || !modem_at_is_online()) {
+            return -3;
+        }
+        rtos_delay_milliseconds(i == 0 ? 300 : 250);
+        resp[0] = '\0';
+        ret = modem_at_send("AT", resp, resp_size, 1000);
+        if (ret == 0) {
+            return 0;
+        }
+    }
+    modem_at_log_exchange(TAG, "AT", ret, resp);
+    return ret;
+}
+
 static void modem_ecm_cfg_task(void *arg)
 {
     static char resp[1280];
@@ -74,8 +99,19 @@ static void modem_ecm_cfg_task(void *arg)
 
     (void)arg;
 
+    /* Do not query until a round trip has succeeded. A blind delay still
+     * sends AT+ECPCFG? before the parser answers; that write is reported
+     * complete and the body stays empty, so it burns the whole 5 s wait. */
+    ret = cfg_wait_ready(resp, sizeof(resp));
+    if (ret != 0) {
+        goto done;
+    }
+
     ret = cfg_send(resp, sizeof(resp), "AT+ECPCFG?");
-    if (ret == 0) {
+    if (ret != 0 || !strstr(resp, "+ECPCFG:")) {
+        goto done;
+    }
+    {
         int usb_ctrl = field_digit(resp, "\"usbCtrl\"");
         int usb_net = field_digit(resp, "\"usbNet\"");
 
@@ -89,28 +125,40 @@ static void modem_ecm_cfg_task(void *arg)
         }
     }
 
-    if (!s_stop) {
-        ret = cfg_send(resp, sizeof(resp), "AT+ECNETCFG?");
-        if (ret == 0 && strstr(resp, "\"nat\"") && !nat_is_nic(resp)) {
-            if (cfg_send(resp, sizeof(resp),
-                         "AT+ECNETCFG=\"nat\",1,\"192.168.10.100\"") == 0) {
-                restart = true;
-            }
+    if (s_stop) {
+        goto done;
+    }
+    ret = cfg_send(resp, sizeof(resp), "AT+ECNETCFG?");
+    if (ret != 0 || !strstr(resp, "\"nat\"")) {
+        goto done;
+    }
+    if (!nat_is_nic(resp)) {
+        if (cfg_send(resp, sizeof(resp),
+                     "AT+ECNETCFG=\"nat\",1,\"192.168.10.100\"") == 0) {
+            restart = true;
         }
     }
 
-    if (!s_stop) {
-        ret = cfg_send(resp, sizeof(resp), "AT+CGDCONT?");
-        if (ret == 0 && !strstr(resp, "+CGDCONT: 1,")) {
-            cfg_send(resp, sizeof(resp), "AT+CGDCONT=1,\"IP\"");
-        }
+    if (s_stop) {
+        goto done;
+    }
+    ret = cfg_send(resp, sizeof(resp), "AT+CGDCONT?");
+    if (ret != 0 || !strstr(resp, "+CGDCONT:")) {
+        goto done;
+    }
+    if (!strstr(resp, "+CGDCONT: 1,")) {
+        cfg_send(resp, sizeof(resp), "AT+CGDCONT=1,\"IP\"");
     }
 
-    if (!s_stop) {
-        ret = cfg_send(resp, sizeof(resp), "AT+ECNETDEVCTL?");
-        if (ret == 0 && !strstr(resp, "+ECNETDEVCTL: 3,1,1")) {
-            cfg_send(resp, sizeof(resp), "AT+ECNETDEVCTL=3,1,1");
-        }
+    if (s_stop) {
+        goto done;
+    }
+    ret = cfg_send(resp, sizeof(resp), "AT+ECNETDEVCTL?");
+    if (ret != 0 || !strstr(resp, "+ECNETDEVCTL:")) {
+        goto done;
+    }
+    if (!strstr(resp, "+ECNETDEVCTL: 3,1,1")) {
+        cfg_send(resp, sizeof(resp), "AT+ECNETDEVCTL=3,1,1");
     }
 
     /* AT+LRST often ends the channel without a final OK. One attempt is enough;
@@ -120,6 +168,7 @@ static void modem_ecm_cfg_task(void *arg)
         cfg_send(resp, sizeof(resp), "AT+LRST");
     }
 
+done:
     s_running = false;
     rtos_delete_thread(NULL);
 }

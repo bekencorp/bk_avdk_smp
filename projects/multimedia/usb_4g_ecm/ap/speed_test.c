@@ -50,6 +50,16 @@ static uint32_t kbps_of(uint32_t bytes, uint32_t ms)
     return (uint32_t)(((uint64_t)bytes * 8) / ms);
 }
 
+static void close_now(int fd)
+{
+    struct linger ling;
+
+    ling.l_onoff = 1;
+    ling.l_linger = 0;
+    setsockopt(fd, SOL_SOCKET, SO_LINGER, &ling, sizeof(ling));
+    closesocket(fd);
+}
+
 static void dl_task(void *arg)
 {
     struct addrinfo hints;
@@ -90,9 +100,29 @@ static void dl_task(void *arg)
     tv.tv_usec = 0;
     setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
     setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
-    if (connect(fd, res->ai_addr, res->ai_addrlen) != 0) {
-        LOGE("connect failed %d\r\n", errno);
-        goto out;
+    {
+        int nb = 1;
+        int soerr = 0;
+        socklen_t slen = sizeof(soerr);
+        fd_set wfds;
+
+        ioctlsocket(fd, FIONBIO, &nb);
+        if (connect(fd, res->ai_addr, res->ai_addrlen) != 0 && errno != EINPROGRESS) {
+            LOGE("connect failed %d\r\n", errno);
+            goto out;
+        }
+        FD_ZERO(&wfds);
+        FD_SET(fd, &wfds);
+        if (select(fd + 1, NULL, &wfds, NULL, &tv) <= 0) {
+            LOGE("connect timeout\r\n");
+            goto out;
+        }
+        if (getsockopt(fd, SOL_SOCKET, SO_ERROR, &soerr, &slen) != 0 || soerr != 0) {
+            LOGE("connect failed %d\r\n", soerr != 0 ? soerr : errno);
+            goto out;
+        }
+        nb = 0;
+        ioctlsocket(fd, FIONBIO, &nb);
     }
     if (send(fd, s_req, sizeof(s_req) - 1, 0) < 0) {
         LOGE("send failed %d\r\n", errno);
@@ -152,7 +182,7 @@ static void dl_task(void *arg)
 
 out:
     if (fd >= 0) {
-        closesocket(fd);
+        close_now(fd);
     }
     if (res != NULL) {
         freeaddrinfo(res);

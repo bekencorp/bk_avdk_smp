@@ -46,6 +46,7 @@
 #include "lwip/ip_addr.h"
 #include "lwip/udp.h"
 #include "lwip/tcp.h"
+#include "lwip/priv/tcp_priv.h"
 #include "lwip/raw.h"
 
 #include "lwip/memp.h"
@@ -993,13 +994,12 @@ lwip_netconn_do_close_internal(struct netconn *conn  WRITE_DELAYED_PARAM)
 #if LWIP_SO_LINGER
     /* check linger possibilites before calling tcp_close */
     err = ERR_OK;
-    /* linger enabled/required at all? (i.e. is there untransmitted data left?) */
-    if ((conn->linger >= 0) && (conn->pcb.tcp->unsent || conn->pcb.tcp->unacked)) {
-      if ((conn->linger == 0)) {
-        /* data left but linger prevents waiting */
-        tcp_abort(tpcb);
-        tpcb = NULL;
-      } else if (conn->linger > 0) {
+    /* linger 0 drops the pcb without RST or FIN. Either segment is sent
+       through USB, and a stuck ECM pipe blocks this thread forever. */
+    if (conn->linger == 0) {
+      tcp_abandon(tpcb, 0);
+      tpcb = NULL;
+    } else if ((conn->linger > 0) && (conn->pcb.tcp->unsent || conn->pcb.tcp->unacked)) {
         /* data left and linger says we should wait */
         if (netconn_is_nonblocking(conn)) {
           /* data left on a nonblocking netconn -> cannot linger */
@@ -1014,7 +1014,6 @@ lwip_netconn_do_close_internal(struct netconn *conn  WRITE_DELAYED_PARAM)
           /* data left -> need to wait for ACK after successful close */
           linger_wait_required = 1;
         }
-      }
     }
     if ((err == ERR_OK) && (tpcb != NULL))
 #endif /* LWIP_SO_LINGER */
