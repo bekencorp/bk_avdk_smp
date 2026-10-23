@@ -14,6 +14,7 @@
 
 #include <common/bk_include.h>
 #include <os/os.h>
+#include <os/mem.h>
 #include <driver/int.h>
 #include <driver/gpio.h>
 #include <driver/gpio_types.h>
@@ -1037,18 +1038,24 @@ bk_err_t bk_gpio_register_wakeup_source(gpio_id_t gpio_id,
 {
 	bk_err_t ret = BK_OK;
 #if CONFIG_MAILBOX
-	gpio_lowerpower_t lowerpower_info = {
-		.header = {
-			.gpio_id = gpio_id,
-			.event = GPIO_WAKEUP_UP_EVENT
-		},
-		.data.int_type = int_type
-	};
+	/* Payload must not be on the caller's stack: AP stacks are PSRAM
+	 * write-back cached and dcache maintenance is disabled, so CP would
+	 * read stale data. os_malloc gives a CP-consistent buffer; SYNC send
+	 * returns after CP consumes it, so freeing here is safe. */
+	gpio_lowerpower_t *lowerpower_info = os_malloc(sizeof(gpio_lowerpower_t));
+	if (lowerpower_info == NULL) {
+		GPIO_LOGW("%s:payload alloc failed\r\n", __func__);
+		return BK_ERR_NO_MEM;
+	}
+	lowerpower_info->header.gpio_id = gpio_id;
+	lowerpower_info->header.event = GPIO_WAKEUP_UP_EVENT;
+	lowerpower_info->data.int_type = int_type;
 	GPIO_LOGD("%s:register wakeup source gpio_id = %d, int_type = %d \r\n", __func__, gpio_id, int_type);
-	ret = bk_ipc_send(&gpio_ipc, &lowerpower_info, sizeof(lowerpower_info), MIPC_CHAN_SEND_FLAG_SYNC, 0);
+	ret = bk_ipc_send(&gpio_ipc, lowerpower_info, sizeof(gpio_lowerpower_t), MIPC_CHAN_SEND_FLAG_SYNC, 0);
 	if (ret != BK_OK) {
 		GPIO_LOGW("%s:register wakeup source gpio_id = %d, int_type = %d failed \r\n", __func__, gpio_id, int_type);
 	}
+	os_free(lowerpower_info);
 #endif
 	return ret;
 }
@@ -1057,16 +1064,20 @@ bk_err_t bk_gpio_unregister_wakeup_source(gpio_id_t gpio_id)
 {
 	bk_err_t ret = BK_OK;
 #if CONFIG_MAILBOX
-	gpio_lowerpower_t lowerpower_info = {
-		.header = {
-			.gpio_id = gpio_id,
-			.event = GPIO_CANCEL_WAKEUP_EVENT
-		}
-	};
-	ret = bk_ipc_send(&gpio_ipc, &lowerpower_info, sizeof(lowerpower_info), MIPC_CHAN_SEND_FLAG_SYNC, 0);
+	/* Same as bk_gpio_register_wakeup_source(): the payload is sent
+	 * zero-copy, so it must not live on the caller's stack. */
+	gpio_lowerpower_t *lowerpower_info = os_malloc(sizeof(gpio_lowerpower_t));
+	if (lowerpower_info == NULL) {
+		GPIO_LOGW("%s:payload alloc failed\r\n", __func__);
+		return BK_ERR_NO_MEM;
+	}
+	lowerpower_info->header.gpio_id = gpio_id;
+	lowerpower_info->header.event = GPIO_CANCEL_WAKEUP_EVENT;
+	ret = bk_ipc_send(&gpio_ipc, lowerpower_info, sizeof(gpio_lowerpower_t), MIPC_CHAN_SEND_FLAG_SYNC, 0);
 	if (ret != BK_OK) {
 		GPIO_LOGW("%s:unregister wakeup source gpio_id = %d failed \r\n", __func__, gpio_id);
 	}
+	os_free(lowerpower_info);
 #endif
 	return ret;
 }
