@@ -116,6 +116,19 @@ menu "Bk Network Transfer"
 			stop forcing IDR (persistently slow, T2) and fall back to natural
 			keyframe recovery / business-layer degrade.
 
+	config NTWK_CS2_SPEAKER_OWNER_REQUIRED
+		bool "Require an explicit speaker owner for CS2 downlink audio (multi-session)"
+		depends on BK_NTWK_TRANSFER
+		depends on CS2_P2P_SERVER || CS2_P2P_CLIENT
+		default n
+		help
+			Multi-session projects only. When enabled, downlink audio is
+			delivered only to the session that claimed the speaker through
+			ntwk_cs2_set_speaker_owner(); other sessions' audio is dropped.
+			Keep disabled for single-session projects: the legacy behavior
+			(downlink audio always delivered) is preserved, so applications
+			that never call ntwk_cs2_set_speaker_owner are not muted.
+
 	config DATA_NODE_SIZE
 		int "Video RX Node Size"
 		default 1472

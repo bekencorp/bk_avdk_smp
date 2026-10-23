@@ -1045,7 +1045,14 @@ static int ntwk_cs2_p2p_audio_receiver(beken_thread_arg_t arg)
 
             rtos_lock_mutex(&ntwk_cs2_info->mutex);
             cs2_session_t *cur_session = ntwk_cs2_find_session_locked(session_id);
+#if CONFIG_NTWK_CS2_SPEAKER_OWNER_REQUIRED
             if (cur_session != NULL && cur_session->speaker_owner)
+#else
+            /* Single-session compatibility: applications that never claim the
+             * speaker must still receive downlink audio, as before the
+             * multi-session change, otherwise they are muted silently. */
+            if (cur_session != NULL)
+#endif
             {
                 cur_session->last_rx_tick = rtos_get_time();
                 is_owner = true;
