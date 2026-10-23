@@ -1235,8 +1235,9 @@ static avdk_err_t isp_camera_ctlr_ioctl(bk_isp_camera_ctlr_handle_t handle, bk_c
         {
             AVDK_RETURN_ON_FALSE(
                 arg, AVDK_ERR_INVAL, TAG, "pipeline cfg upd arg is NULL");
+            bk_isp_port_upd_enable_t *port_upd_enable = (bk_isp_port_upd_enable_t *)arg;
             bk_err_t isp_ret = bk_isp_pipeline_cfg_upd_enable(
-                &controller->isp_handle, *(uint8_t *)arg);
+                &controller->isp_handle, port_upd_enable->port_id, port_upd_enable->enable);
             return (isp_ret == BK_OK) ? AVDK_ERR_OK : AVDK_ERR_GENERIC;
         }
 
