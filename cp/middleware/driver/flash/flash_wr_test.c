@@ -28,6 +28,8 @@
 #define  T_PAGE_MAX     3000
 #define  T_SECTOR_TYP   60000
 #define  T_SECTOR_MAX   400000
+/* flash_cert reference: PY25Q129HA tSE max 240ms (Table 5-4). */
+#define  T_SECTOR_CERT_MAX 240000
 #define  T_BLK32_TYP    480000
 #define  T_BLK32_MAX    3200000
 #define  T_BLK64_TYP    200000
@@ -167,6 +169,26 @@ static uint32_t erase_unit_size(flash_erase_unit_t u)
 	case FLASH_ERASE_BLK64: return FLASH_BLK64_SIZE;
 	case FLASH_ERASE_SECTOR:
 	default:                return FLASH_SECTOR_SIZE;
+	}
+}
+
+static uint32_t flash_erase_cert_max_us(flash_erase_unit_t u)
+{
+	switch (u) {
+	case FLASH_ERASE_BLK32: return T_BLK32_MAX;
+	case FLASH_ERASE_BLK64: return T_BLK64_MAX;
+	case FLASH_ERASE_SECTOR:
+	default:                return T_SECTOR_CERT_MAX;
+	}
+}
+
+static void flash_test_check_erase_time_exceed(int iter, int32_t cost_us, flash_erase_unit_t u)
+{
+	uint32_t max_us = flash_erase_cert_max_us(u);
+
+	if (cost_us > (int32_t)max_us) {
+		BK_DUMP_OUT("sdk_exc_flash_erase_time_exceed_tse: [erase %d time] >>>>> cost time: %d us exceeds max %u us\r\n",
+			iter, cost_us, max_us);
 	}
 }
 
@@ -596,6 +618,7 @@ static bk_err_t test_flash_count_time(volatile uint32_t start_addr, uint32_t len
 		time_end = bk_aon_rtc_get_us();
 		erase_us = (uint32_t)(time_end - time_start);
 		BK_DUMP_OUT("[erase 1 time] cost time: %u us\r\n", erase_us);
+		flash_test_check_erase_time_exceed(1, (int32_t)erase_us, eunit);
 	}
 
 	for (int i = 0; i <= (int)test_times; i++) {
@@ -618,8 +641,10 @@ static bk_err_t test_flash_count_time(volatile uint32_t start_addr, uint32_t len
 			flash_erase_one_unit(addr, eunit);
 		time_end = bk_aon_rtc_get_us();
 		tick_cnt = (int32_t)(time_end - time_start);
-		if (i % print_cnt == 0)
+		if (i % print_cnt == 0) {
 			BK_DUMP_OUT("[erase %d time] >>>>> cost time: %d us.\r\n", i, tick_cnt);
+			flash_test_check_erase_time_exceed(i, tick_cnt, eunit);
+		}
 
 		for (addr = erase_start; addr < erase_end; addr += 256) {
 			os_memset(buf, 0, 256);
