@@ -1210,6 +1210,11 @@ bk_err_t bk_isp_port_select(isp_handle_t *handle, uint8_t port_id)
 
     ISP_PORT target_port = control->port;
     uint8_t output_port_id = port_id;
+
+    //LOGV("%s, port %u -> %u\n", __func__, control->port.portId, port_id);
+    VSI_MPI_ISP_PipelineSetCtrl(control->port, false);
+    VSI_MPI_ISP_PipelineSetCtrl(target_port, true);
+
     target_port.portId = port_id;
     if (port_id == ISP_MIPI_PORT_LOGICAL1)
     {
@@ -1301,7 +1306,7 @@ bk_err_t bk_isp_port_select(isp_handle_t *handle, uint8_t port_id)
     return ret;
 }
 
-bk_err_t bk_isp_pipeline_cfg_upd_enable(isp_handle_t *handle, uint8_t port_id)
+bk_err_t bk_isp_pipeline_cfg_upd_enable(isp_handle_t *handle, uint8_t port_id, vsi_bool_t enable)
 {
     if (handle == NULL || *handle == NULL ||
         port_id >= isp_active_port_count() || port_id >= ISP_PORT_CNT)
@@ -1326,7 +1331,7 @@ bk_err_t bk_isp_pipeline_cfg_upd_enable(isp_handle_t *handle, uint8_t port_id)
     ISP_PORT IspPort = control->port;
     IspPort.portId = port_id;
 
-    int vsi_ret = VSI_MPI_ISP_PipelineCfgUpdEnable(IspPort);
+    int vsi_ret = VSI_MPI_ISP_PipelineCfgUpdEnable(IspPort, enable);
     bk_err_t ret = (vsi_ret == VSI_SUCCESS) ? BK_OK : BK_FAIL;
 
     (void)rtos_unlock_mutex(&control->isp_mutex);
