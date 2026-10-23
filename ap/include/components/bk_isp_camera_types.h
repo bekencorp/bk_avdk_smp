@@ -325,6 +325,12 @@ typedef struct
     uint8_t port_id;
 } multi_port_read_result_t;
 
+typedef struct
+{
+    uint8_t port_id;
+    vsi_bool_t enable;
+} bk_isp_port_upd_enable_t;
+
 /**
  * @brief Camera controller handle type definition
  */

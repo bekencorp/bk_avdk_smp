@@ -386,7 +386,7 @@ int VSI_MPI_ISP_SetMetaData(ISP_PORT IspPort, ISP_METADATA_S *pMetaData);
  * Visit all modules and return the first failure. Success acknowledges the
  * request, not completion of the hardware configuration latch.
  */
-int VSI_MPI_ISP_PipelineCfgUpdEnable(ISP_PORT IspPort);
+int VSI_MPI_ISP_PipelineCfgUpdEnable(ISP_PORT IspPort, vsi_bool_t enable);
 
 /*****************************************************************************/
 /**
@@ -438,6 +438,7 @@ void VSI_MPI_RESET_CLEAR(ISP_DEV dev_id);
 
 void VSI_MPI_ISP_PipeLineSet(ISP_PORT IspPort);
 
+int VSI_MPI_ISP_PipelineSetCtrl(ISP_PORT IspPort, vsi_bool_t shadow);
 
 /* @} mpi_isp */
 

@@ -111,7 +111,7 @@ bool bk_isp_is_in_vblank(isp_handle_t *handle);
  * Acquires isp_mutex and module locks. Individual modules that have not
  * completed Init are skipped successfully without requesting an update.
  */
-bk_err_t bk_isp_pipeline_cfg_upd_enable(isp_handle_t *handle, uint8_t port_id);
+bk_err_t bk_isp_pipeline_cfg_upd_enable(isp_handle_t *handle, uint8_t port_id, vsi_bool_t enable);
 
 bk_err_t bk_isp_sensor_update_mode_set(
     isp_handle_t *handle, bk_isp_sensor_update_mode_t mode);
