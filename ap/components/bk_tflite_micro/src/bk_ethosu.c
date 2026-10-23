@@ -23,6 +23,11 @@ extern int arch_dcache_invd_range(void *addr, size_t size);
 
 static struct ethosu_driver ethosu0_driver = {0};
 
+/* Idempotent guard for bk_ethosu_init(): a second init would re-register the
+ * same driver instance and self-loop the driver's registered_drivers list,
+ * hanging ethosu_reserve_driver() forever while holding the global mutex. */
+static uint8_t s_bk_ethosu_inited = 0;
+
 extern void bk_delay_us(UINT32 us);
 
 static char TAG[] = "ethosu";
@@ -166,6 +171,11 @@ int bk_ethosu_init(void *fast_memory, uint32_t fast_memory_size)
 {
     int ret = 0;
 
+    if (s_bk_ethosu_inited) {
+        LOGI("Ethos-U driver already initialized, skip re-init\r\n");
+        return 0;
+    }
+
     // Disable NPU power down (if needed)
     bk_pm_module_vote_power_ctrl(PM_POWER_SUB_DOMAIN_NPU, PM_POWER_MODULE_STATE_ON);
     bk_pm_module_vote_cpu_freq(PM_DEV_ID_NPU, PM_CPU_FRQ_480M);
@@ -203,6 +213,7 @@ int bk_ethosu_init(void *fast_memory, uint32_t fast_memory_size)
     }
 
     bk_ethosu_int_enable(1);
+    s_bk_ethosu_inited = 1;
     LOGI("Ethos-U driver initialized successfully, ret=%d\r\n", ret);
 
     return ret;
@@ -218,6 +229,7 @@ void bk_ethosu_deinit(void)
     bk_pm_clock_ctrl(PM_CLK_ID_NPU, CLK_PWR_CTRL_PWR_DOWN);
     bk_pm_module_vote_cpu_freq(PM_DEV_ID_NPU, PM_CPU_FRQ_DEFAULT);
     bk_pm_module_vote_power_ctrl(PM_POWER_SUB_DOMAIN_NPU, PM_POWER_MODULE_STATE_OFF);
+    s_bk_ethosu_inited = 0;
 }
 
 /**
