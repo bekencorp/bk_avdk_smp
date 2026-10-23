@@ -164,7 +164,10 @@ typedef struct
  *
  * Ownership: overlay takes ownership of @p src_buffer for the update cycle and
  * invokes buffer_release_cb when the buffer is no longer needed (including on
- * replace/clear/delete). buffer_release_cb must be non-NULL.
+ * replace/clear/delete). buffer_release_cb must be non-NULL. The overlay also
+ * performs producer-side D-cache maintenance on src_buffer at submit time, so
+ * buffers in cacheable memory are safe for the GPU bus master to read; callers
+ * need not clean the buffer themselves.
  */
 typedef struct
 {

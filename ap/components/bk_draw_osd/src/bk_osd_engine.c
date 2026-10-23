@@ -8,7 +8,6 @@
 #include <os/str.h>
 #include <components/log.h>
 #include <components/bk_frame_buffer.h>
-#include "cache.h"
 
 #include "bk_osd_engine.h"
 #include "bk_osd_emwin_font.h"
@@ -470,9 +469,6 @@ avdk_err_t osd_engine_commit(osd_engine_handle_t eng)
     blit.buffer_release_cb = osd_engine_free_cb;
 
     uint32_t *sprite = eng->sprite;
-    bk_dcache_clean_for_producer(
-        sprite, (size_t)((uint32_t)eng->sw * eng->sh * 4U));
-    /* Release engine ownership before submit; GPU owns on success, freed below on failure */
     eng->sprite = NULL;
     avdk_err_t ret = bk_gpu_overlay_layer_submit_region(
         eng->overlay, eng->layer_handles[eng->slot], sprite, &blit);

@@ -8,11 +8,14 @@
 
 #include "avdk_monitor.h"
 #include "gpu_vn_ctlr.h"
+#include "cache.h"
 
 #define TAG "gpu_overlay"
+
 #define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 #define LOGV(...)
+
 #define OVERLAY_DEFERRED_RELEASE_MAX (BK_GPU_OVERLAY_LAYER_MAX * 2U)
 #define OVERLAY_COMPRESS_ALIGN_X 16U
 #define OVERLAY_COMPRESS_ALIGN_Y 4U
@@ -845,7 +848,6 @@ static avdk_err_t overlay_backing_restore(
         layer->backing_w, layer->backing_h);
 }
 
-/* overlay->mutex and the backend GPU lock are held by the caller. */
 static avdk_err_t overlay_compose_locked(
     bk_gpu_overlay_handle_t overlay, void *dst_buffer,
     uint32_t layer_mask, bool restore_previous, bool promote,
@@ -944,8 +946,8 @@ static avdk_err_t overlay_compose_locked(
     }
 
     uint8_t draw_order[BK_GPU_OVERLAY_LAYER_MAX];
-    uint8_t draw_count =
-        overlay_draw_order_locked(overlay, layer_mask, draw_order);
+    uint8_t draw_count = overlay_draw_order_locked(overlay, layer_mask, draw_order);
+    (void)bk_gpu_ioctl(overlay->gpu, BK_GPU_IOCTL_LOCK, NULL);
     for (uint8_t pos = 0U; pos < draw_count; pos++)
     {
         uint8_t i = draw_order[pos];
@@ -960,6 +962,7 @@ static avdk_err_t overlay_compose_locked(
             break;
         }
     }
+    (void)bk_gpu_ioctl(overlay->gpu, BK_GPU_IOCTL_UNLOCK, NULL);
     vg_lite_free_without_free_data(&display);
     if (ret == AVDK_ERR_OK)
     {
@@ -1126,6 +1129,19 @@ avdk_err_t bk_gpu_overlay_layer_submit_region(
     {
         return AVDK_ERR_INVAL;
     }
+
+    uint16_t clean_w = config->buffer_width != 0U
+                            ? config->buffer_width
+                            : config->src_width;
+    uint16_t clean_h = config->buffer_height != 0U
+                            ? config->buffer_height
+                            : config->src_height;
+    uint32_t clean_bytes = bk_image_size_get(clean_w, clean_h, config->src_format);
+    if (clean_bytes != 0U)
+    {
+        bk_dcache_clean_for_producer(src_buffer, (size_t)clean_bytes);
+    }
+
     rtos_lock_mutex(&overlay->mutex);
     if (overlay->deleting ||
         !overlay_layer_decode_locked(overlay, layer_handle, &index))
@@ -1275,10 +1291,9 @@ static avdk_err_t overlay_compose(
         rtos_unlock_mutex(&overlay->mutex);
         return AVDK_ERR_INVAL;
     }
-    (void)bk_gpu_ioctl(overlay->gpu, BK_GPU_IOCTL_LOCK, NULL);
+
     avdk_err_t ret = overlay_compose_locked(
         overlay, dst_buffer, layer_mask, restore_previous, true, &releases);
-    (void)bk_gpu_ioctl(overlay->gpu, BK_GPU_IOCTL_UNLOCK, NULL);
     rtos_unlock_mutex(&overlay->mutex);
     overlay_release_batch_run(&releases);
     return ret;
@@ -1320,10 +1335,8 @@ avdk_err_t bk_gpu_overlay_refresh_dirty_layers(
         return AVDK_ERR_OK;
     }
 
-    (void)bk_gpu_ioctl(overlay->gpu, BK_GPU_IOCTL_LOCK, NULL);
     avdk_err_t ret = overlay_compose_locked(
         overlay, dst_buffer, dirty_mask, true, true, &releases);
-    (void)bk_gpu_ioctl(overlay->gpu, BK_GPU_IOCTL_UNLOCK, NULL);
     rtos_unlock_mutex(&overlay->mutex);
     overlay_release_batch_run(&releases);
     return ret;
@@ -1507,7 +1520,6 @@ avdk_err_t bk_gpu_overlay_compose_flexa_block(
     display.width = block->frame_total_width;
     display.height = block->frame_total_height;
 
-    (void)bk_gpu_ioctl(overlay->gpu, BK_GPU_IOCTL_LOCK, NULL);
     OSD_BLIT_START();
     if (block->block_index == 1U)
     {
@@ -1553,6 +1565,7 @@ avdk_err_t bk_gpu_overlay_compose_flexa_block(
     uint8_t draw_order[BK_GPU_OVERLAY_LAYER_MAX];
     uint8_t draw_count = overlay_draw_order_locked(
         overlay, BK_GPU_OVERLAY_ALL_LAYERS, draw_order);
+    (void)bk_gpu_ioctl(overlay->gpu, BK_GPU_IOCTL_LOCK, NULL);
     for (uint8_t pos = 0U; pos < draw_count; pos++)
     {
         uint8_t i = draw_order[pos];
@@ -1580,8 +1593,8 @@ avdk_err_t bk_gpu_overlay_compose_flexa_block(
             overlay->flexa_frame_compose_failed = true;
         }
     }
-    OSD_BLIT_END();
     (void)bk_gpu_ioctl(overlay->gpu, BK_GPU_IOCTL_UNLOCK, NULL);
+    OSD_BLIT_END();
     rtos_unlock_mutex(&overlay->mutex);
     return ret;
 }

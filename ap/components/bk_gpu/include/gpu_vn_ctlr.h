@@ -151,8 +151,10 @@ typedef struct
 
     bk_gpu_ctlr_config_t config;
     /*
-     * false (default): fire flexa_line_done only at frame end path;
-     * true: fire the per-FLEXA-block hook so a client can compose mid-frame.
+     * false (default): config->flexa_line_done (if set) still fires per
+     * FLEXA block as the plain progress notification, without any OSD
+     * composition; true: additionally fire the per-FLEXA-block compose hook
+     * so a client can compose mid-frame.
      * Toggled via BK_GPU_IOCTL_SET_OSD_BY_FLEXA.
      */
     bool osd_render_per_flexa_block;

@@ -1247,10 +1247,11 @@ static bool gpu_flex_process_line_block(gpu_flex_data_t *data,
     }
 
     bk_gpu_global_unlock();
+    bk_gpu_flexa_block_t block;
     if (render_per_block)
     {
         const uint16_t flexa_lines = config->flexa_lines;
-        bk_gpu_flexa_block_t block = {
+        block = (bk_gpu_flexa_block_t){
             .block_index = blk,
             .local_width = (uint16_t)data->dst_buf.width,
             .local_height = (uint16_t)data->dst_buf.height,
@@ -1293,24 +1294,31 @@ static bool gpu_flex_process_line_block(gpu_flex_data_t *data,
             block.frame_height = flexa_lines;
         }
         /*
-         * Compose the shared overlay onto this block as it streams out, so the
-         * application does not drive per-block composition itself. Then publish
-         * the block for the optional client notification: it can still pull the
-         * block via BK_GPU_IOCTL_GET_FLEXA_BLOCK during the (synchronous,
-         * same-thread) callback; done_lines carries the completed-block count
-         * (== blk), preserving the historical flexa_line_done() argument.
+         * Compose the shared overlay onto this block as it streams out, so
+         * the application does not drive per-block composition itself.
          */
         bk_gpu_frame_composer_t composer = gpu_composer_snapshot(gpu_vn_ctlr);
         if (composer.compose_flexa_block != NULL)
         {
             composer.compose_flexa_block(composer.ctx, &block);
         }
-        if (config->flexa_line_done != NULL)
+    }
+    if (config->flexa_line_done != NULL)
+    {
+        /*
+         * Per-block progress notification fires regardless of per-block
+         * compose mode. Only in compose mode is the block view published
+         * around the (synchronous, same-thread) callback so the client can
+         * still pull it via BK_GPU_IOCTL_GET_FLEXA_BLOCK; without compose
+         * mode the callback receives only the completed-block count (== blk),
+         * matching the pre-overlay-manager behavior.
+         */
+        if (render_per_block)
         {
             gpu_vn_ctlr->current_flexa_block = &block;
-            config->flexa_line_done((uint32_t)blk, config->flexa_line_done_args);
-            gpu_vn_ctlr->current_flexa_block = NULL;
         }
+        config->flexa_line_done((uint32_t)blk, config->flexa_line_done_args);
+        gpu_vn_ctlr->current_flexa_block = NULL;
     }
     GPU_LINE_END();
     /* Pull out processed line data */
