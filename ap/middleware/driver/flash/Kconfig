@@ -36,8 +36,18 @@ menu "FLASH"
 		bool "Enable flash clk using 120M"
 		default n
 
+	config FLASH_BYPASS
+		bool "enable flash bypass"
+		default n
+
 	config FLASH_BYPASS_OTP_OPERATION
+		depends on FLASH_BYPASS
 		bool "Bypass flash to operate otp in flash"
+		default n
+
+	config FLASH_OTP_OPERATION
+		bool "Operate flash OTP via flash controller command remap"
+		depends on FLASH_TEST
 		default n
 
 	config FLASH_CAPACITY_16M

@@ -41,6 +41,7 @@ typedef enum {
 	FLASH_OP_CMD_HPM   = 21, /**< flash command high performance mode */
 	FLASH_OP_CMD_CRMR  = 22,
 	FLASH_OP_CMD_CRMR2 = 23,
+	FLASH_OP_CMD_RDSCR = 28, /**< flash command read security register */
 } flash_op_cmd_t;
 
 typedef enum

@@ -130,6 +130,22 @@ static inline void flash_ll_clear_volatile_status_write(flash_hw_t *hw)
 	flash_ll_wait_op_done(hw);
 }
 
+
+static inline void flash_ll_otp_opcodes_set(flash_hw_t *hw)
+{
+	flash_ll_wait_op_done(hw);
+	hw->REG_0x1C.se_cmd = 0x44;
+	hw->REG_0x1D.pp_cmd = 0x42;
+}
+
+static inline void flash_ll_otp_opcodes_clear(flash_hw_t *hw)
+{
+	flash_ll_wait_op_done(hw);
+	hw->REG_0x1C.se_cmd = 0x20;
+	hw->REG_0x1D.pp_cmd = 0x02;
+	flash_ll_wait_op_done(hw);
+}
+
 static inline void flash_ll_write_status_reg_common(flash_hw_t *hw, uint8_t sr_width, uint32_t sr_data)
 {
 	uint32_t v = sr_data;
@@ -285,6 +301,14 @@ static inline void flash_ll_set_op_cmd_read(flash_hw_t *hw, uint32_t read_addr)
 {
 	hw->op_cmd.addr_sw_reg = read_addr;
 	hw->op_cmd.op_type_sw = FLASH_OP_CMD_READ;
+	hw->op_ctrl.op_sw = 1;
+	flash_ll_wait_op_done(hw);
+}
+
+static inline void flash_ll_set_op_cmd_read_scr(flash_hw_t *hw, uint32_t read_addr)
+{
+	hw->op_cmd.addr_sw_reg = read_addr;
+	hw->op_cmd.op_type_sw = FLASH_OP_CMD_RDSCR;
 	hw->op_ctrl.op_sw = 1;
 	flash_ll_wait_op_done(hw);
 }

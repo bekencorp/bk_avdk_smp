@@ -698,8 +698,7 @@ static void test_flash_usr_config(char op)
 	}
 }
 
-#if CONFIG_FLASH_BYPASS_OTP_OPERATION
-/* flash_bypass_test otp <E/R/W/L> <otp_idx> <offset> <len> [data-hex] */
+#if CONFIG_FLASH_BYPASS_OTP_OPERATION || CONFIG_FLASH_OTP_OPERATION
 static uint8_t hex_nibble(char c)
 {
 	if (c >= '0' && c <= '9') return c - '0';
@@ -707,7 +706,10 @@ static uint8_t hex_nibble(char c)
 	if (c >= 'A' && c <= 'F') return c - 'A' + 10;
 	return 0;
 }
+#endif
 
+#if CONFIG_FLASH_BYPASS_OTP_OPERATION
+/* flash_bypass_test otp <E/R/W/L> <otp_idx> <offset> <len> [data-hex] */
 static void flash_bypass_otp_test(int argc, char **argv)
 {
 	flash_bypass_otp_ctrl_t param;
@@ -802,6 +804,112 @@ static void flash_bypass_command_test(char *pcWriteBuffer, int xWriteBufferLen, 
 		return;
 	}
 	BK_DUMP_OUT("flash_bypass_test otp <E/R/W/L> <otp_idx> <offset> <len> [data]\r\n");
+}
+#endif
+
+#if CONFIG_FLASH_OTP_OPERATION
+
+/* flash_otp_test otp <E/R/W/L> <otp_idx> <offset> <len> [data-hex] */
+static void flash_otp_test(int argc, char **argv)
+{
+	uint32_t otp_idx, offset, length;
+	int ret;
+	char op;
+
+	if (argc < 6) {
+		BK_DUMP_OUT("flash_otp_test otp <E/R/W/L> <otp_idx> <offset> <len> [data]\r\n");
+		return;
+	}
+
+	op = argv[2][0];
+	otp_idx = os_strtoul(argv[3], NULL, 16);
+	offset = os_strtoul(argv[4], NULL, 16);
+	length = os_strtoul(argv[5], NULL, 16);
+
+	if ((otp_idx < 1) || (otp_idx > FLASH_OTP_IDX_MAX)) {
+		BK_DUMP_OUT("invalid otp_idx %d (1~%d)\r\n", otp_idx, FLASH_OTP_IDX_MAX);
+		return;
+	}
+	if ((offset > FLASH_OTP_BLOCK_LENGTH) ||
+		(offset + length > FLASH_OTP_BLOCK_LENGTH)) {
+		BK_DUMP_OUT("invalid offset/len (block %d bytes)\r\n", FLASH_OTP_BLOCK_LENGTH);
+		return;
+	}
+
+	switch (op) {
+	case 'E':
+		ret = bk_flash_otp_erase(otp_idx);
+		if (ret == BK_OK)
+			BK_DUMP_OUT("CMDRSP:OK\r\n");
+		else if (ret == BK_ERR_NO_MEM)
+			BK_DUMP_OUT("OTP erase idx=%d malloc fail\r\n", otp_idx);
+		else
+			BK_DUMP_OUT("OTP erase idx=%d failed: verify not all-FF\r\n", otp_idx);
+		break;
+	case 'R': {
+		if (length == 0) {
+			BK_DUMP_OUT("invalid read len 0x%x\r\n", length);
+			return;
+		}
+		uint8_t *buf = os_malloc(length);
+		if (buf == NULL) {
+			BK_DUMP_OUT("malloc fail\r\n");
+			return;
+		}
+		if (bk_flash_otp_read(otp_idx, offset, length, buf) == BK_OK) {
+			for (uint32_t i = 0; i < length; i++) {
+				BK_DUMP_OUT("%02X ", buf[i]);
+				if ((i & 0xF) == 0xF)
+					BK_DUMP_OUT("\r\n");
+			}
+			BK_DUMP_OUT("\r\n");
+			BK_DUMP_OUT("CMDRSP:OK\r\n");
+		} else {
+			BK_DUMP_OUT("OTP read idx=%d failed\r\n", otp_idx);
+		}
+		os_free(buf);
+		break;
+	}
+	case 'W': {
+		if ((argc < 7) || (length == 0) || (os_strlen(argv[6]) < length * 2)) {
+			BK_DUMP_OUT("invalid write len/data\r\n");
+			return;
+		}
+		uint8_t *buf = os_malloc(length);
+		if (buf == NULL) {
+			BK_DUMP_OUT("malloc fail\r\n");
+			return;
+		}
+		for (uint32_t i = 0; i < length; i++) {
+			buf[i] = (hex_nibble(argv[6][i * 2]) << 4) | hex_nibble(argv[6][i * 2 + 1]);
+		}
+		if (bk_flash_otp_write(otp_idx, offset, length, buf) == BK_OK)
+			BK_DUMP_OUT("CMDRSP:OK\r\n");
+		else
+			BK_DUMP_OUT("OTP write idx=%d failed\r\n", otp_idx);
+		os_free(buf);
+		break;
+	}
+	case 'L':
+		ret = bk_flash_otp_lock(otp_idx);
+		if (ret == BK_OK)
+			BK_DUMP_OUT("CMDRSP:OK\r\n");
+		else
+			BK_DUMP_OUT("OTP lock idx=%d failed\r\n", otp_idx);
+		break;
+	default:
+		BK_DUMP_OUT("flash_otp_test otp <E/R/W/L> <otp_idx> <offset> <len> [data]\r\n");
+		break;
+	}
+}
+
+static void flash_otp_command_test(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
+{
+	if (argc >= 2 && os_strcmp(argv[1], "otp") == 0) {
+		flash_otp_test(argc, argv);
+		return;
+	}
+	BK_DUMP_OUT("flash_otp_test otp <E/R/W/L> <otp_idx> <offset> <len> [data]\r\n");
 }
 #endif
 
@@ -1167,6 +1275,9 @@ DRV_CLI_CMD_EXPORT static const struct cli_command s_flash_commands[] = {
 	{"flash_test",   "flash_test <cmd(R/W/E/N)>", flash_command_test},
 #if CONFIG_FLASH_BYPASS_OTP_OPERATION
 	{"flash_bypass_test", "flash_bypass_test otp <E/R/W/L> ...", flash_bypass_command_test},
+#endif
+#if CONFIG_FLASH_OTP_OPERATION
+	{"flash_otp_test", "flash_otp_test otp <E/R/W/L> ...", flash_otp_command_test},
 #endif
 };
 

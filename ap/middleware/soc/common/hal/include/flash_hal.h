@@ -50,6 +50,7 @@ typedef struct {
 #define flash_hal_set_clk_dco(hal, ate_enabled) flash_ll_set_clk_dco((hal)->hw, ate_enabled)
 #define flash_hal_erase_block(hal, erase_addr, type) flash_ll_erase_block((hal)->hw, erase_addr, type)
 #define flash_hal_set_op_cmd_read(hal, read_addr) flash_ll_set_op_cmd_read((hal)->hw, read_addr)
+#define flash_hal_set_op_cmd_read_scr(hal, read_addr) flash_ll_set_op_cmd_read_scr((hal)->hw, read_addr)
 #define flash_hal_read_data(hal) flash_ll_read_data((hal)->hw)
 #define flash_hal_set_op_cmd_write(hal, write_addr) flash_ll_set_op_cmd_write((hal)->hw, write_addr)
 #define flash_hal_write_data(hal, data) flash_ll_write_data((hal)->hw, data)
@@ -65,6 +66,8 @@ typedef struct {
 #define flash_hal_get_addr_offset(hal) flash_ll_get_addr_offset((hal)->hw)
 #define flash_hal_set_addr_offset(hal, addr_offset) flash_ll_set_addr_offset((hal)->hw, addr_offset)
 #define flash_hal_set_volatile_status_write(hal) flash_ll_set_volatile_status_write((hal)->hw)
+#define flash_hal_otp_opcodes_set(hal) flash_ll_otp_opcodes_set((hal)->hw)
+#define flash_hal_otp_opcodes_clear(hal) flash_ll_otp_opcodes_clear((hal)->hw)
 #define flash_hal_read_data_sw_flash_sel(hal) flash_ll_read_data_sw_flash_sel((hal)->hw)
 
 bk_err_t flash_hal_init(flash_hal_t *hal);

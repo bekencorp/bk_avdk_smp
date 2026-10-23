@@ -221,6 +221,71 @@ bk_err_t bk_flash_read_bytes(uint32_t address, uint8_t *user_buf, uint32_t size)
  */
 bk_err_t bk_flash_read_word(uint32_t address, uint32_t *user_buf, uint32_t size);
 
+#if CONFIG_FLASH_OTP_OPERATION
+#define FLASH_OTP_IDX_MAX           (3)      /**< number of security-register blocks */
+#define FLASH_OTP_BLOCK_LENGTH      (1024)   /**< bytes per security-register block */
+
+/**
+ * @brief     Read data from a flash security-register (OTP) block
+ *
+ * @param otp_idx security-register index, 1 ~ FLASH_OTP_IDX_MAX
+ * @param offset offset within the block
+ * @param len length to read
+ * @param buf the buffer to read the data
+ *
+ * @return
+ *    - BK_OK: succeed
+ *    - BK_ERR_PARAM: invalid otp_idx/offset/len
+ *    - others: other errors.
+ */
+bk_err_t bk_flash_otp_read(uint32_t otp_idx, uint32_t offset, uint32_t len, uint8_t *buf);
+
+/**
+ * @brief     Write data to a flash security-register (OTP) block
+ *
+ * @param otp_idx security-register index, 1 ~ FLASH_OTP_IDX_MAX
+ * @param offset offset within the block
+ * @param len length to write
+ * @param buf the pointer to data which is to write
+ *
+ * @return
+ *    - BK_OK: succeed
+ *    - BK_ERR_PARAM: invalid otp_idx/offset/len
+ *    - others: other errors.
+ */
+bk_err_t bk_flash_otp_write(uint32_t otp_idx, uint32_t offset, uint32_t len, const uint8_t *buf);
+
+/**
+ * @brief     Erase a flash security-register (OTP) block and verify it is
+ *            all 0xFF, retried up to 3 times
+ *
+ * @param otp_idx security-register index, 1 ~ FLASH_OTP_IDX_MAX
+ *
+ * @return
+ *    - BK_OK: succeed
+ *    - BK_ERR_PARAM: invalid otp_idx
+ *    - BK_ERR_NO_MEM: no memory for the verify buffer
+ *    - BK_FAIL: verify is not all 0xFF after retries
+ *    - others: other errors.
+ */
+bk_err_t bk_flash_otp_erase(uint32_t otp_idx);
+
+/**
+ * @brief     Lock a flash security-register (OTP) block by setting its LB bit
+ *            in the status register (non-volatile, irreversible)
+ *
+ * @param otp_idx security-register index, 1 ~ FLASH_OTP_IDX_MAX
+ *
+ * @return
+ *    - BK_OK: succeed
+ *    - BK_ERR_PARAM: invalid otp_idx
+ *    - BK_FAIL: the flash has no 2-byte status register, or the LB bit
+ *               readback failed after retries
+ *    - others: other errors.
+ */
+bk_err_t bk_flash_otp_lock(uint32_t otp_idx);
+#endif
+
 /**
  * @brief   Get flash  init  flag
  *

@@ -23,6 +23,7 @@
 #include <components/ate.h>
 #include <driver/flash.h>
 #include <os/os.h>
+#include <os/mem.h>
 #include "flash_driver.h"
 #include "flash_hal.h"
 #include "sys_driver.h"
@@ -457,3 +458,249 @@ __attribute__((section(".iram"))) bk_err_t bk_flash_exit_deep_sleep(void)
 {
 	return BK_FAIL;
 }
+
+#if CONFIG_FLASH_OTP_OPERATION
+/* ------------------------------------------------------------------------- */
+/* Security-register (OTP) operations                                          */
+/* ------------------------------------------------------------------------- */
+
+#define FLASH_OTP_IDX_ADDR(idx)    ((idx) << 12)
+#define FLASH_OTP_LOCK_BIT(idx)    (10 + (idx))  /* LB1/LB2/LB3: SR bit 11/12/13 */
+#define FLASH_OTP_RETRY_MAX        (3)
+
+/* 32-byte aligned chunk read; same op_sw data path as flash_core_read_bytes_raw(). */
+static void flash_otp_read_chunks(flash_hal_t *hal, uint8_t *buffer, uint32_t address, uint32_t len)
+{
+	uint32_t addr = address & (~FLASH_ADDRESS_MASK);
+	uint32_t tmp[FLASH_BUFFER_LEN] = {0};
+	uint8_t *pb = (uint8_t *)&tmp[0];
+
+	while (len) {
+		flash_hal_set_op_cmd_read_scr(hal, addr);
+		addr += FLASH_BYTES_CNT;
+		for (uint32_t i = 0; i < FLASH_BUFFER_LEN; i++) {
+			tmp[i] = flash_hal_read_data(hal);
+		}
+
+		for (uint32_t i = address % FLASH_BYTES_CNT; i < FLASH_BYTES_CNT; i++) {
+			*buffer++ = pb[i];
+			address++;
+			len--;
+			if (len == 0) {
+				break;
+			}
+		}
+	}
+}
+
+/* 32-byte aligned chunk write; same op_sw data path as flash_core_write_common_raw(). */
+static void flash_otp_write_chunks(flash_hal_t *hal, const uint8_t *buffer, uint32_t address, uint32_t len)
+{
+	uint32_t addr = address & (~FLASH_ADDRESS_MASK);
+	uint32_t tmp[FLASH_BUFFER_LEN];
+	uint8_t *pb = (uint8_t *)&tmp[0];
+
+	while (len) {
+		for (uint32_t i = 0; i < FLASH_BYTES_CNT; i++) {
+			pb[i] = 0xFF;
+		}
+		for (uint32_t i = address % FLASH_BYTES_CNT; i < FLASH_BYTES_CNT; i++) {
+			pb[i] = *buffer++;
+			address++;
+			len--;
+			if (len == 0) {
+				break;
+			}
+		}
+
+		flash_hal_wait_op_done(hal);
+		for (uint32_t i = 0; i < FLASH_BUFFER_LEN; i++) {
+			flash_hal_write_data(hal, tmp[i]);
+		}
+		flash_hal_set_op_cmd_write(hal, addr);
+		addr += FLASH_BYTES_CNT;
+	}
+}
+
+/* One erase + verify attempt in one atomic bracket. Returns 0 when the whole
+ * block reads back 0xFF, 1 when the verify failed (worth retrying: the
+ * device can silently drop an erase, like the bypass test observed). */
+static int flash_otp_erase_once(flash_hal_t *hal, uint32_t otp_idx, uint8_t *verify)
+{
+	int ret;
+
+	mb_flash_op_prepare();
+	uint32_t int_level = flash_core_enter_critical();
+	flash_line_mode_t old = flash_core_set_line_mode(FLASH_LINE_MODE_TWO);
+
+	flash_hal_otp_opcodes_set(hal);
+
+	flash_hal_erase_block(hal, FLASH_OTP_IDX_ADDR(otp_idx), FLASH_OP_CMD_SE);
+
+	flash_otp_read_chunks(hal, verify, FLASH_OTP_IDX_ADDR(otp_idx), FLASH_OTP_BLOCK_LENGTH);
+
+	flash_hal_otp_opcodes_clear(hal);
+
+	ret = 0;
+	for (uint32_t i = 0; i < FLASH_OTP_BLOCK_LENGTH; i++) {
+		if (verify[i] != 0xFF) {
+			ret = 1;
+			break;
+		}
+	}
+
+	flash_core_set_line_mode(old);
+	flash_core_exit_critical(int_level);
+	mb_flash_op_finish();
+	return ret;
+}
+
+bk_err_t bk_flash_otp_read(uint32_t otp_idx, uint32_t offset, uint32_t len, uint8_t *buf)
+{
+	if ((otp_idx < 1) || (otp_idx > FLASH_OTP_IDX_MAX) ||
+		(len == 0) || (offset + len > FLASH_OTP_BLOCK_LENGTH)) {
+		return BK_ERR_PARAM;
+	}
+
+	if (!s_flash_is_init || flash_core_get_cfg() == NULL) {
+		bk_err_t ret = ensure_flash_driver_initialized();
+		if (ret != BK_OK) {
+			FLASH_LOGW("otp read error: flash driver init failed\r\n");
+			return ret;
+		}
+	}
+
+	flash_hal_t *hal = flash_core_hal();
+
+	mb_flash_op_prepare();
+	uint32_t int_level = flash_core_enter_critical();
+	flash_line_mode_t old = flash_core_set_line_mode(FLASH_LINE_MODE_TWO);
+
+	flash_otp_read_chunks(hal, buf, FLASH_OTP_IDX_ADDR(otp_idx) + offset, len);
+
+	flash_core_set_line_mode(old);
+	flash_core_exit_critical(int_level);
+	mb_flash_op_finish();
+	return BK_OK;
+}
+
+/* OTP write: opcode 0x42 rides the page-program op; no read window is
+ * needed, the PP slot is never used by XIP fetches. */
+bk_err_t bk_flash_otp_write(uint32_t otp_idx, uint32_t offset, uint32_t len, const uint8_t *buf)
+{
+	if ((otp_idx < 1) || (otp_idx > FLASH_OTP_IDX_MAX) ||
+		(len == 0) || (offset + len > FLASH_OTP_BLOCK_LENGTH)) {
+		return BK_ERR_PARAM;
+	}
+
+	if (!s_flash_is_init || flash_core_get_cfg() == NULL) {
+		bk_err_t ret = ensure_flash_driver_initialized();
+		if (ret != BK_OK) {
+			FLASH_LOGW("otp write error: flash driver init failed\r\n");
+			return ret;
+		}
+	}
+
+	flash_hal_t *hal = flash_core_hal();
+
+	mb_flash_op_prepare();
+	uint32_t int_level = flash_core_enter_critical();
+	flash_line_mode_t old = flash_core_set_line_mode(FLASH_LINE_MODE_TWO);
+
+	flash_hal_otp_opcodes_set(hal);
+	flash_otp_write_chunks(hal, buf, FLASH_OTP_IDX_ADDR(otp_idx) + offset, len);
+	flash_hal_otp_opcodes_clear(hal);
+
+	flash_core_set_line_mode(old);
+	flash_core_exit_critical(int_level);
+	mb_flash_op_finish();
+	return BK_OK;
+}
+
+/* OTP erase: opcode 0x44 rides the sector-erase op; erase-then-verify with
+ * retry, like the bypass test (the device can silently drop an erase). */
+bk_err_t bk_flash_otp_erase(uint32_t otp_idx)
+{
+	if ((otp_idx < 1) || (otp_idx > FLASH_OTP_IDX_MAX)) {
+		return BK_ERR_PARAM;
+	}
+
+	if (!s_flash_is_init || flash_core_get_cfg() == NULL) {
+		bk_err_t ret = ensure_flash_driver_initialized();
+		if (ret != BK_OK) {
+			FLASH_LOGW("otp erase error: flash driver init failed\r\n");
+			return ret;
+		}
+	}
+
+	flash_hal_t *hal = flash_core_hal();
+	uint8_t *verify = os_malloc(FLASH_OTP_BLOCK_LENGTH);
+
+	if (verify == NULL) {
+		return BK_ERR_NO_MEM;
+	}
+
+	int ok = 0;
+	for (uint32_t i = 0; i < FLASH_OTP_RETRY_MAX; i++) {
+		if (flash_otp_erase_once(hal, otp_idx, verify) == 0) {
+			ok = 1;
+			break;
+		}
+	}
+	os_free(verify);
+
+	if (!ok) {
+		FLASH_LOGE("otp idx=%d erase verify not all-FF\r\n", otp_idx);
+		return BK_FAIL;
+	}
+	return BK_OK;
+}
+
+/* OTP lock: set the LB bit of this block in the status register. LB bits are
+ * non-volatile, so use the standard WREN + WRSR path (no 0x50 prefix). */
+bk_err_t bk_flash_otp_lock(uint32_t otp_idx)
+{
+	if ((otp_idx < 1) || (otp_idx > FLASH_OTP_IDX_MAX)) {
+		return BK_ERR_PARAM;
+	}
+
+	if (!s_flash_is_init || flash_core_get_cfg() == NULL) {
+		bk_err_t ret = ensure_flash_driver_initialized();
+		if (ret != BK_OK) {
+			FLASH_LOGW("otp lock error: flash driver init failed\r\n");
+			return ret;
+		}
+	}
+
+	const flash_config_t *cfg = flash_core_get_cfg();
+
+	/* LB1-3 live in SR2 (S8-15): needs at least a 2-byte status register. */
+	if (cfg->status_reg_size < 2) {
+		FLASH_LOGE("otp lock needs a 2-byte status register\r\n");
+		return BK_FAIL;
+	}
+
+	flash_hal_t *hal = flash_core_hal();
+	uint32_t lock_bit = FLASH_OTP_LOCK_BIT(otp_idx);
+	bk_err_t ret = BK_FAIL;
+
+	for (uint32_t i = 0; i < FLASH_OTP_RETRY_MAX; i++) {
+		uint32_t int_level = flash_core_enter_critical();
+		flash_line_mode_t old = flash_core_set_line_mode(FLASH_LINE_MODE_TWO);
+
+		uint32_t sr = flash_hal_read_status_reg(hal, cfg->status_reg_size);
+		sr |= (1u << lock_bit);
+		flash_hal_write_status_reg_nvol(hal, cfg->status_reg_size, sr);
+		sr = flash_hal_read_status_reg(hal, cfg->status_reg_size);
+
+		flash_core_set_line_mode(old);
+		flash_core_exit_critical(int_level);
+
+		if (sr & (1u << lock_bit)) {
+			ret = BK_OK;
+			break;
+		}
+	}
+	return ret;
+}
+#endif
