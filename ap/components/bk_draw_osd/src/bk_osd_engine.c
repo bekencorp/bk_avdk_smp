@@ -409,6 +409,11 @@ avdk_err_t osd_engine_commit(osd_engine_handle_t eng)
              dst_x, dst_y, eng->panel_w, eng->panel_h, eng->rotate_degree);
         bk_frame_buffer_free(eng->sprite);
         eng->sprite = NULL;
+        /* Element left the panel: drop the previous sprite on this slot (the array path no longer
+         * pre-clears all layers), otherwise the stale sprite keeps compositing. */
+        if ((eng->owned_slot_mask & (1UL << eng->slot)) != 0U) {
+            return osd_engine_clear_slot(eng, eng->slot);
+        }
         return AVDK_ERR_OK;
     }
     if ((uint32_t)dst_x + fw > target_w ||
@@ -525,6 +530,20 @@ avdk_err_t osd_engine_clear_slots(osd_engine_handle_t eng, uint32_t slot_mask)
         }
     }
     return result;
+}
+
+/* Clear every owned slot whose ordinal is >= slot_ordinal (stale tail after a repaint that now
+ * uses fewer clusters). Slot ordinals are assigned densely from 0, so the tail is exactly the
+ * set of retired slots. */
+avdk_err_t osd_engine_clear_slots_above(osd_engine_handle_t eng, uint8_t slot_ordinal)
+{
+    if (eng == NULL || slot_ordinal > BK_GPU_OVERLAY_LAYER_MAX) {
+        return AVDK_ERR_INVAL;
+    }
+    uint32_t mask = (slot_ordinal >= BK_GPU_OVERLAY_LAYER_MAX)
+                        ? 0U
+                        : eng->owned_slot_mask & ~((1UL << slot_ordinal) - 1UL);
+    return osd_engine_clear_slots(eng, mask);
 }
 
 uint8_t osd_engine_layer_capacity(osd_engine_handle_t eng)

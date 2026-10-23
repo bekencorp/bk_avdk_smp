@@ -450,13 +450,12 @@ static avdk_err_t osd_draw_osd_array(bk_draw_osd_ctlr_handle_t handle, const ble
      * cluster<->slot mapping is no longer guaranteed stable across calls and skipping is unsafe. */
     bool full = p->layout_dirty || (list != NULL) || (p->dirty == NULL) || (nclusters < n);
 
-    if (full) {
-        avdk_err_t clear_ret = osd_engine_clear(p->engine);
-        if (clear_ret != AVDK_ERR_OK) {
-            rtos_unlock_mutex(&p->lock);
-            return clear_ret;
-        }
-    }
+    /* Full repaint does NOT pre-clear ("build first, tear down after"): clearing every layer up
+     * front blanks the whole OSD for at least one frame, because a freshly submitted sprite only
+     * reaches display_buffer at the next frame boundary (commit_flexa_frame / compose_frame). Every
+     * element — even unchanged ones — visibly flickers. Instead resubmit onto the existing layers:
+     * display keeps the old sprite until promotion swaps the new one in atomically, and slots the
+     * new layout no longer uses are dropped only after the repaint succeeds (see below). */
 
     /* 4) Per cluster: use an engine-local layer ordinal. bk_gpu owns physical allocation. */
     avdk_err_t ret = AVDK_ERR_OK;
@@ -514,6 +513,12 @@ static avdk_err_t osd_draw_osd_array(bk_draw_osd_ctlr_handle_t handle, const ble
     /* On a clean render the GPU now matches the list: drop dirty flags and the layout-changed
      * marker. On mid-way failure we keep them so the next call retries the unpainted slots. */
     if (ret == AVDK_ERR_OK) {
+        /* Full repaint succeeded: release the owned slots beyond the new layout's cluster count
+         * (stale sprite from the previous arrangement). Done only after success so a mid-way
+         * failure keeps the old content visible until the next retry. */
+        if (full) {
+            (void)osd_engine_clear_slots_above(p->engine, slot_ordinal);
+        }
         for (size_t i = 0; i < p->dirty_cap; i++) p->dirty[i] = false;
         p->layout_dirty = false;
     }

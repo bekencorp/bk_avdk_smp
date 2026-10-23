@@ -82,6 +82,9 @@ avdk_err_t osd_engine_commit(osd_engine_handle_t eng);
 avdk_err_t osd_engine_clear(osd_engine_handle_t eng);
 avdk_err_t osd_engine_clear_slot(osd_engine_handle_t eng, uint8_t slot);
 avdk_err_t osd_engine_clear_slots(osd_engine_handle_t eng, uint32_t slot_mask);
+/** @brief Clear every owned slot whose ordinal is >= slot_ordinal (retired slots after a repaint
+ *         that now uses fewer clusters). Slots are assigned densely from 0. */
+avdk_err_t osd_engine_clear_slots_above(osd_engine_handle_t eng, uint8_t slot_ordinal);
 uint8_t osd_engine_layer_capacity(osd_engine_handle_t eng);
 
 #ifdef __cplusplus
