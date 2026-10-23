@@ -106,7 +106,8 @@ struct reg_beacon {
 	struct ieee80211_channel chan;
 };
 
-static struct bk_work reg_work;;
+static struct bk_work reg_work;
+static bool reg_restore_pending;
 static void reg_todo(void *arg);
 
 /* We keep a static world regulatory domain */
@@ -2449,8 +2450,19 @@ out:
 
 static void reg_todo(void *arg)
 {
+	bool restore;
+	uint32_t irq_flags;
+
 	reg_process_pending_hints();
 	reg_process_pending_beacon_hints();
+
+	irq_flags = rtos_enter_critical();
+	restore = reg_restore_pending;
+	reg_restore_pending = false;
+	rtos_exit_critical(irq_flags);
+
+	if (restore)
+		restore_regulatory_settings(false);
 }
 
 static void queue_regulatory_request(struct regulatory_request *request)
@@ -2733,7 +2745,12 @@ static void restore_regulatory_settings(bool reset_user)
 void regulatory_hint_disconnect(void)
 {
 	WIFI_LOGI("Restore regulatory settings\n");
-	restore_regulatory_settings(false);
+
+	uint32_t irq_flags = rtos_enter_critical();
+	reg_restore_pending = true;
+	rtos_exit_critical(irq_flags);
+
+	bk_work_sched(&reg_work);
 }
 
 static bool freq_is_chan_12_13_14(u16 freq)
