@@ -21,6 +21,7 @@ static const char *const s_package_type_names[] = {
 	[BK_PACKAGE_TYPE_A_NEW_128A_S_MIC] = "A_NEW_128A_S_MIC",
 	[BK_PACKAGE_TYPE_B_OLD_128A_S_MIC] = "B_OLD_128A_S_MIC",
 	[BK_PACKAGE_TYPE_B_NEW_128A_S_OR_128B_D_MIC] = "B_NEW_128A_S_OR_128B_D_MIC",
+	[BK_PACKAGE_TYPE_NOT_WRITTEN] = "NOT_WRITTEN",
 };
 
 static void cli_package_type_cmd(char *pcWriteBuffer, int xWriteBufferLen,

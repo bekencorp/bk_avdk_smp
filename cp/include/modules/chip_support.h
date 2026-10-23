@@ -53,6 +53,7 @@ typedef enum {
 	BK_PACKAGE_TYPE_A_NEW_128A_S_MIC,           /* OTP-ID A1 5E 00 00: Die A, new 128A single-mic package. */
 	BK_PACKAGE_TYPE_B_OLD_128A_S_MIC,           /* OTP-ID B0 4F 00 00: Die B(C), old 128A single-mic package. */
 	BK_PACKAGE_TYPE_B_NEW_128A_S_OR_128B_D_MIC, /* OTP-ID B1 4E 00 00: Die B(C), shared by two new packages: 128A single-mic and 128B dual-mic. */
+	BK_PACKAGE_TYPE_NOT_WRITTEN,                /* OTP-ID is all zero: not provisioned yet. */
 } bk_package_type_t;
 
 /**
@@ -78,7 +79,8 @@ bk_err_t bk_soc_info_get(soc_info_t* soc_info);
  * @param package_type[out] Package type decoded from the complete 4-byte OTP-ID.
  *
  * @return
- * - BK_OK: read succeeded; unmatched OTP-ID returns BK_PACKAGE_TYPE_UNKNOWN
+ * - BK_OK: read succeeded; unmatched OTP-ID returns BK_PACKAGE_TYPE_UNKNOWN,
+ *   all-zero OTP-ID returns BK_PACKAGE_TYPE_NOT_WRITTEN
  * - BK_ERR_NULL_PARAM: package_type is NULL
  * - BK_ERR_NOT_SUPPORT: OTP v1 is disabled
  * - others: OTP read error

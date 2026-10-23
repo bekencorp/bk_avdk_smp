@@ -180,6 +180,21 @@ bk_err_t bk_get_package_type(bk_package_type_t *package_type)
 	}
 
 	*package_type = BK_PACKAGE_TYPE_UNKNOWN;
+
+	/* OTP not provisioned: the whole 4-byte package-type ID is still zero. */
+	bool not_written = true;
+	for (uint32_t i = 0; i < sizeof(otp_id); i++) {
+		if (otp_id[i] != 0) {
+			not_written = false;
+			break;
+		}
+	}
+
+	if (not_written) {
+		*package_type = BK_PACKAGE_TYPE_NOT_WRITTEN;
+		return BK_OK;
+	}
+
 	for (uint32_t i = 0; i < ARRAY_SIZE(s_package_type_map); i++) {
 		const package_type_map_t *map = &s_package_type_map[i];
 

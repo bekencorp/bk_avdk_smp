@@ -28,6 +28,7 @@
 #include "aon_pmu_driver.h"
 #include <driver/pwr_clk.h>
 #include "bk_pm_internal_api.h"
+#include <modules/chip_support.h>
 
 #if CONFIG_BLUETOOTH
 #include "components/bluetooth/bk_dm_bluetooth.h"
@@ -255,10 +256,56 @@ static int app_uart_debug_init_todo(void)
 extern void demo_wifi_fast_connect(void);
 #endif
 
+#if CONFIG_OTP_V1
+/* Judge the chip package (128A / 128B) from the OTP package-type ID (OTP2 0x4F0). */
+static void show_package_type(void)
+{
+	bk_package_type_t package_type = BK_PACKAGE_TYPE_UNKNOWN;
+	char die;
+	const char *frame;
+
+	if (bk_get_package_type(&package_type) != BK_OK) {
+		BK_LOGW(TAG, "read OTP package type failed\r\n");
+		return;
+	}
+
+	switch (package_type) {
+	case BK_PACKAGE_TYPE_A_OLD_128A_S_MIC:
+		die = 'A';
+		frame = "old";
+		break;
+	case BK_PACKAGE_TYPE_A_NEW_128A_S_MIC:
+		die = 'A';
+		frame = "new";
+		break;
+	case BK_PACKAGE_TYPE_B_OLD_128A_S_MIC:
+		die = 'B';
+		frame = "old";
+		break;
+	case BK_PACKAGE_TYPE_B_NEW_128A_S_OR_128B_D_MIC:
+		die = 'B';
+		frame = "new";
+		break;
+	case BK_PACKAGE_TYPE_NOT_WRITTEN:
+		BK_LOGW(TAG, "chip package type not written yet\r\n");
+		return;
+	default:
+		BK_LOGW(TAG, "chip package unknown (OTP-ID not assigned)\r\n");
+		return;
+	}
+
+	BK_LOGI(TAG, "chip is 128%c package (%c %s frame)\r\n", die, die, frame);
+}
+#endif
+
 int components_init(void);
 
 int bk_init(void)
 {
+#if CONFIG_OTP_V1
+	show_package_type();
+#endif
+
 	components_init();
 
 #if CONFIG_TFM
