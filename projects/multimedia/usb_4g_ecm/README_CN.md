@@ -30,12 +30,16 @@ usb_4g_ecm/
 │   ├── usb_modem_at.c   # intf3 USB 传输层（claim、收线程、串行写）
 │   ├── modem_at.c       # AT 管理层（组行、命令串行、结果码、URC）
 │   ├── modem_at_cli.c   # 测试入口 modem_at 命令
+│   ├── modem_ecm_cfg.c  # Lierda 模组 ECM 自动配置（usbNet/NAT/auto-dial）
 │   └── config/bk7259_ap/defconfig
 ├── cp/                  # CP 侧不参与 USB
 └── partitions/
 ```
 
-分层边界：`usb_modem_at.c` 只管 USB（认领接口、把裸字节往上推、串行化 bulk 写），完全不解析 AT；行组装与 OK/ERROR/URC 判定都在 `modem_at.c`。
+分层边界：
+- `usb_modem_at.c` 只管 USB（认领接口、把裸字节往上推、串行化 bulk 写），完全不解析 AT。
+- `modem_at.c` 负责行组装与 OK/ERROR/URC 判定。
+- `modem_ecm_cfg.c` 在 USB 连接后自动检查并配置模组为 ECM NAT 模式。
 
 ## 4. 编译
 
@@ -58,7 +62,8 @@ rm -rf build/bk7259/usb_4g_ecm
 
 1. `net_ipv4stack_init()` —— ECM 驱动会把收到的包直接交给 `netif->input`，tcpip 线程和它的 mbox 必须先存在。
 2. `modem_at_init()` —— 装上 intf3 传输层回调；类驱动的 connect 路径会调用它们，所以必须早于枚举。
-3. 注册模组配置回调和一次性外网检查，然后 `bk_usb_open(USB_HOST_MODE)`。类驱动已由 `bk_init()` 注册，控制器以 A-host 身份上电并开始枚举。
+3. `modem_ecm_register_cfg()` —— 注册 ECM 配置回调，USB 连接后会自动触发模组配置检查（usbNet=1/NAT/auto-dial）；再注册 `check_internet_once()` 回调验证外网可达性。
+4. `bk_usb_open(USB_HOST_MODE)` —— 类驱动已由 `bk_init()` 注册，控制器以 A-host 身份上电并开始枚举；ECM 和 AT 类驱动的 connect 分别触发 DHCP 和配置流程。
 
 ## 6. AT 通道测试命令
 
@@ -93,6 +98,8 @@ ap_cmd modem_at AT+CSQ
 **端点解析**：intf3 的 bulk IN/OUT 从 `altsetting[0]` 的描述符按方向位解析，不硬编码地址。该接口上的 interrupt IN 只记录不提交 URB —— AT 通道不需要通知，省一个管道槽和一个常驻 urb。
 
 **拔插清理**：disconnect 路径先清在线标志和收线程 running 标志（必须在 kill urb 之前），再 kill urb，等收线程确认退出之后才 memset 实例、回收 hubport。
+
+**ECM 配置逻辑**：USB 连接后，`modem_ecm_cfg.c` 自动查询并修正模组配置（usbCtrl、usbNet、NAT、PDP、auto-dial）；每项先查当前值，仅不符合时才写入并累计修改计数；有修改时执行 `AT+LRST`（若不支持则跳过）；整个流程约 2 秒完成，失败不阻断 ECM 数据通路；支持热重连时重新配置。
 
 ## 8. 关键配置
 

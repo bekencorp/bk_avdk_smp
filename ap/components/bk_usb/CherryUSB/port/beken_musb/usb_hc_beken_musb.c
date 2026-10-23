@@ -630,12 +630,6 @@ static void usb_hc_riscv_ipi_cb(ipi_core_id_t core_id, uint32_t value,
 }
 #endif
 
-/* ECM bulk completions. A gap after traffic has been moving is logged by
- * reading the endpoint registers only. Nothing here changes the transfer. */
-static volatile uint32_t s_ecm_rx_done;
-static uint32_t s_ecm_rx_snap;
-static uint8_t s_ecm_rx_gap;
-
 /* Length at the last full-MPS continue. A later event with the same
  * actual_length is the zero-length packet that ends an ECM frame. */
 static struct musb_pipe *s_zlp_pipe;
@@ -686,9 +680,6 @@ static void usb_hc_riscv_complete_pipe(uint32_t event, uint32_t event_data)
             uint32_t got;
 
             pipe = &g_musb_hcd.pipe_pool[event_data][1];
-            if (pipe->ep_addr == 0x83) {
-                s_ecm_rx_done++;
-            }
             flags = usb_enter_critical();
             shadow = pipe->urb;
             got = shadow ? shadow->actual_length : 0;
@@ -1216,59 +1207,6 @@ static void usb_hc_out_idle_recover(void)
     }
 }
 
-/* After ECM receive traffic has moved, a 200 ms gap is the stall. Read the
- * IN and OUT registers a few times, then stay quiet. No bit is written. */
-static void usb_hc_ecm_gap_log(void)
-{
-    static const uint8_t eps[2] = { 0x83, 0x0c };
-    uint32_t lim = CONFIG_USBHOST_PIPE_NUM;
-    uint32_t n;
-
-    if (s_ecm_rx_done != s_ecm_rx_snap) {
-        s_ecm_rx_snap = s_ecm_rx_done;
-        s_ecm_rx_gap = 0;
-        return;
-    }
-    if (s_ecm_rx_done == 0 || s_ecm_rx_gap >= 200) {
-        return;
-    }
-    s_ecm_rx_gap++;
-    if (s_ecm_rx_gap < 20 || (s_ecm_rx_gap % 50) != 20) {
-        return;
-    }
-    if (lim > 8) {
-        lim = 8;
-    }
-    for (n = 0; n < 2; n++) {
-        struct musb_pipe *pipe = NULL;
-        uint8_t dir = (eps[n] & 0x80) ? 1 : 0;
-        uint8_t old;
-        uint8_t csr;
-        uint32_t i;
-
-        for (i = 1; i < lim; i++) {
-            struct musb_pipe *p = &g_musb_hcd.pipe_pool[i][dir];
-
-            if (p->ep_addr == eps[n]) {
-                pipe = p;
-                break;
-            }
-        }
-        if (pipe == NULL || pipe->urb == NULL || pipe->ep_local_index >= 8) {
-            USB_LOG_INFO("gap ep %u urb 0\r\n", eps[n]);
-            continue;
-        }
-        old = musb_get_active_ep();
-        musb_set_active_ep(pipe->ep_local_index);
-        csr = HWREGB(USB_BASE + (dir ? MUSB_IND_RXCSRL_OFFSET : MUSB_IND_TXCSRL_OFFSET));
-        musb_set_active_ep(old);
-        USB_LOG_INFO("gap ep %u csr %02x len %u/%u\r\n",
-                     pipe->ep_addr, csr,
-                     (unsigned)pipe->urb->actual_length,
-                     (unsigned)pipe->urb->transfer_buffer_length);
-    }
-}
-
 static void usb_hc_riscv_watchdog_cb(void *arg)
 {
     volatile riscv_usb_probe_t *ctx = get_riscv_usb_probe();
@@ -1286,9 +1224,6 @@ static void usb_hc_riscv_watchdog_cb(void *arg)
             s_tx_rearm[z] = 0;
             s_rx_submit_len[z] = 0;
         }
-        s_ecm_rx_done = 0;
-        s_ecm_rx_snap = 0;
-        s_ecm_rx_gap = 0;
         return;
     }
 
@@ -1296,7 +1231,6 @@ static void usb_hc_riscv_watchdog_cb(void *arg)
     usb_hc_in_token_tick();
     usb_hc_zlp_tick();
     usb_hc_out_idle_recover();
-    usb_hc_ecm_gap_log();
 
     seq = ctx->irq_seq;
     if (seq == s_riscv_probe_last_irq_seq) {
