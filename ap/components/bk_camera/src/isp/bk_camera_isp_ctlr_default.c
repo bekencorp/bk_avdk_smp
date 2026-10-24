@@ -1231,13 +1231,13 @@ static avdk_err_t isp_camera_ctlr_ioctl(bk_isp_camera_ctlr_handle_t handle, bk_c
             return (isp_ret == BK_OK) ? AVDK_ERR_OK : AVDK_ERR_GENERIC;
         }
 
-        case BK_CAM_IOCTL_PIPELINE_CFG_UPD_ENABLE:
+        case BK_CAM_IOCTL_PIPELINE_SWITCH_ENABLE:
         {
             AVDK_RETURN_ON_FALSE(
-                arg, AVDK_ERR_INVAL, TAG, "pipeline cfg upd arg is NULL");
-            bk_isp_port_upd_enable_t *port_upd_enable = (bk_isp_port_upd_enable_t *)arg;
-            bk_err_t isp_ret = bk_isp_pipeline_cfg_upd_enable(
-                &controller->isp_handle, port_upd_enable->port_id, port_upd_enable->enable);
+                arg, AVDK_ERR_INVAL, TAG, "pipeline switch arg is NULL");
+            vsi_bool_t *pipeline_switch = (vsi_bool_t *)arg;
+            bk_err_t isp_ret = bk_isp_pipeline_switch_set(
+                &controller->isp_handle, *pipeline_switch);
             return (isp_ret == BK_OK) ? AVDK_ERR_OK : AVDK_ERR_GENERIC;
         }
 
