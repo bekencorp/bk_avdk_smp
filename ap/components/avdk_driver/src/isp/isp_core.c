@@ -1210,12 +1210,12 @@ bk_err_t bk_isp_port_select(isp_handle_t *handle, uint8_t port_id)
 
     ISP_PORT target_port = control->port;
     uint8_t output_port_id = port_id;
-
-    //LOGV("%s, port %u -> %u\n", __func__, control->port.portId, port_id);
-    VSI_MPI_ISP_PipelineSetCtrl(control->port, false);
-    VSI_MPI_ISP_PipelineSetCtrl(target_port, true);
-
     target_port.portId = port_id;
+
+    //LOGI("%s, port %u -> %u\n", __func__, control->port.portId, port_id);
+    VSI_MPI_ISP_PipelineSetCtrl(target_port, false);
+    VSI_MPI_ISP_PipelineSetCtrl(control->port, true);
+
     if (port_id == ISP_MIPI_PORT_LOGICAL1)
     {
         output_port_id = ISP_MIPI_PORT_LOGICAL0;
@@ -1303,38 +1303,6 @@ bk_err_t bk_isp_port_select(isp_handle_t *handle, uint8_t port_id)
         }
     }
 
-    return ret;
-}
-
-bk_err_t bk_isp_pipeline_cfg_upd_enable(isp_handle_t *handle, uint8_t port_id, vsi_bool_t enable)
-{
-    if (handle == NULL || *handle == NULL ||
-        port_id >= isp_active_port_count() || port_id >= ISP_PORT_CNT)
-    {
-        return BK_ERR_PARAM;
-    }
-
-    isp_control_t *control = (isp_control_t *)*handle;
-    if (control->isp_mutex == NULL ||
-        rtos_lock_mutex(&control->isp_mutex) != BK_OK)
-    {
-        return BK_FAIL;
-    }
-
-    if (!(control->port_pipeline_inited & (1u << port_id)) ||
-        control->pub_attr[port_id] == NULL)
-    {
-        (void)rtos_unlock_mutex(&control->isp_mutex);
-        return BK_ERR_STATE;
-    }
-
-    ISP_PORT IspPort = control->port;
-    IspPort.portId = port_id;
-
-    int vsi_ret = VSI_MPI_ISP_PipelineCfgUpdEnable(IspPort, enable);
-    bk_err_t ret = (vsi_ret == VSI_SUCCESS) ? BK_OK : BK_FAIL;
-
-    (void)rtos_unlock_mutex(&control->isp_mutex);
     return ret;
 }
 
@@ -2254,6 +2222,22 @@ bk_err_t bk_isp_sensor_update_mode_set(
     isp_control_t *control = (isp_control_t *)*handle;
     int ret = VSI_MPI_ISP_SetSensorUpdateMode(
         control->dev, (ISP_SENSOR_UPDATE_MODE_E)mode);
+    return (ret == VSI_SUCCESS) ? BK_OK : BK_FAIL;
+}
+
+bk_err_t bk_isp_pipeline_switch_set(
+    isp_handle_t *handle, uint8_t enable)
+{
+    if (handle == NULL || *handle == NULL)
+    {
+        return BK_ERR_PARAM;
+    }
+
+    LOGI("%s %d\n", __func__, enable);
+
+    isp_control_t *control = (isp_control_t *)*handle;
+    int ret = VSI_ISP_CorePipelineSwitchSet(
+        control->port, enable);
     return (ret == VSI_SUCCESS) ? BK_OK : BK_FAIL;
 }
 
