@@ -112,7 +112,7 @@ typedef enum
     BK_CAM_IOCTL_SET_GAMMA_OUT, /**< Set gamma-out attributes; arg = bk_isp_camera_gamma_out_attr_t * */
     BK_CAM_IOCTL_GET_FLEXA_BUF_SIZE, /**< Query flexa ring buffer size for a channel geometry; arg = bk_isp_camera_flexa_buf_size_t * */
     BK_CAM_IOCTL_SET_FLEXA_BUF, /**< Set an externally allocated flexa ring buffer before channel open; arg = bk_isp_camera_flexa_buf_t * */
-    BK_CAM_IOCTL_PIPELINE_CFG_UPD_ENABLE, /**< Enable pipeline configuration update; arg = uint8_t * */
+    BK_CAM_IOCTL_PIPELINE_SWITCH_ENABLE, /**< Enable pipeline configuration update; arg = uint8_t * */
 } bk_cam_interface_ioctl_t;
 
 /**
@@ -324,12 +324,6 @@ typedef struct
     uint32_t frame_size;
     uint8_t port_id;
 } multi_port_read_result_t;
-
-typedef struct
-{
-    uint8_t port_id;
-    vsi_bool_t enable;
-} bk_isp_port_upd_enable_t;
 
 /**
  * @brief Camera controller handle type definition

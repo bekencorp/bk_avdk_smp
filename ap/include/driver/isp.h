@@ -99,22 +99,11 @@ bk_err_t bk_isp_deregister_3a_done_callback(isp_handle_t *handle,
 
 bool bk_isp_is_in_vblank(isp_handle_t *handle);
 
-/**
- * @brief Request configuration refresh for ready modules on a logical port.
- * @param port_id Target logical ISP port, initialized by bk_isp_port_init.
- * @return BK_OK: request accepted, not a hardware-latch guarantee;
- *         BK_ERR_PARAM: invalid handle or port;
- *         BK_ERR_STATE: missing port initialization bit or pub_attr;
- *         BK_FAIL: unavailable mutex, lock failure, or downstream failure.
- *
- * Task context only. Callers must serialize Init/DeInit with this interface.
- * Acquires isp_mutex and module locks. Individual modules that have not
- * completed Init are skipped successfully without requesting an update.
- */
-bk_err_t bk_isp_pipeline_cfg_upd_enable(isp_handle_t *handle, uint8_t port_id, vsi_bool_t enable);
-
 bk_err_t bk_isp_sensor_update_mode_set(
     isp_handle_t *handle, bk_isp_sensor_update_mode_t mode);
+
+bk_err_t bk_isp_pipeline_switch_set(
+    isp_handle_t *handle, uint8_t enable);
 
 /**
  * @brief Vote to enable/disable ISP (CISP) clock.
