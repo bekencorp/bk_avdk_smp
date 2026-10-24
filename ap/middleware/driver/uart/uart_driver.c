@@ -1636,6 +1636,49 @@ static inline dma_dev_t uart_id_to_dma_dev(uart_id_t id, bool rx)
 	}
 }
 
+/* Scratch buffer for draining a DMA channel whose previous transfer was
+ * aborted mid-way (e.g. UART RX torn down while no peer keeps sending, or
+ * TX deinit while a string is still shifting out). On BK7259 the channel
+ * keeps the remaining count and partial internal state latched after
+ * stop/reset; only a completed transfer clears it. Without this drain, the
+ * next peripheral reusing the channel (e.g. SPI TX DMA) starts with stale
+ * state and emits garbage for its first beats. */
+static uint32_t s_uart_dma_drain_buf[1] __attribute__((aligned(4)));
+
+static void uart_dma_drain_channel(dma_id_t dma_id)
+{
+	extern void bk_delay_us(UINT32 us);
+	dma_config_t cfg = {0};
+	uint32_t addr = (uint32_t)s_uart_dma_drain_buf;
+
+	cfg.mode = DMA_WORK_MODE_SINGLE;
+	cfg.chan_prio = 0;
+	cfg.src.dev = DMA_DEV_DTCM;
+	cfg.src.width = DMA_DATA_WIDTH_32BITS;
+	cfg.src.addr_inc_en = DMA_ADDR_INC_ENABLE;
+	cfg.src.addr_loop_en = DMA_ADDR_LOOP_DISABLE;
+	cfg.src.start_addr = addr;
+	cfg.src.end_addr = addr + sizeof(s_uart_dma_drain_buf);
+	cfg.dst = cfg.src;
+
+	if (bk_dma_init(dma_id, &cfg) != BK_OK) {
+		return;
+	}
+#if (CONFIG_SPE)
+	bk_dma_set_src_sec_attr(dma_id, DMA_ATTR_SEC);
+	bk_dma_set_dest_sec_attr(dma_id, DMA_ATTR_SEC);
+#endif
+	bk_dma_set_transfer_len(dma_id, sizeof(s_uart_dma_drain_buf));
+	bk_dma_start(dma_id);
+	for (uint32_t i = 0; i < 200; i++) {
+		if (bk_dma_get_remain_len(dma_id) == 0) {
+			break;
+		}
+		bk_delay_us(10);
+	}
+	bk_dma_stop(dma_id);
+}
+
 #endif
 
 #if (CONFIG_UART_RX_DMA)
@@ -1844,6 +1887,20 @@ bk_err_t uart_rx_dma_deinit(uart_id_t id)
 		bk_dma_disable_finish_interrupt(dma_id);
 		bk_dma_register_isr(dma_id, NULL, NULL);
 
+		/* RX DMA is normally aborted mid-transfer here (no peer keeps
+		 * sending). Flush bytes still held in the channel, then run a
+		 * throw-away transfer so the engine clears its internal remain/
+		 * partial state before the channel is freed. bk_dma_deinit()/
+		 * reset alone cannot clear it, and the next peripheral reusing
+		 * this channel (e.g. SPI TX DMA) would inherit stale state. */
+		bk_dma_flush_src_buffer(dma_id);
+		uart_dma_drain_channel(dma_id);
+		uint32_t remain_len = bk_dma_get_remain_len(dma_id);
+		if (remain_len != 0) {
+			UART_LOGW("uart(%d) rx dma deinit: remain_len=%u after drain\n",
+				  id, remain_len);
+		}
+
 		/* Full channel teardown: bk_dma_deinit() stops the channel and
 		 * resets its config (stale destination pointer and transfer length),
 		 * so the engine cannot touch the kfifo buffer about to be freed. A
@@ -2010,6 +2067,20 @@ static bk_err_t uart_tx_dma_deinit(uart_id_t id)
 	if (dma_id < DMA_ID_MAX) {
 		bk_dma_disable_finish_interrupt(dma_id);
 		bk_dma_register_isr(dma_id, NULL, NULL);
+
+		/* TX may still be shifting data out when deinit is called. Stop the
+		 * channel and flush/drain it so the internal remain/partial state
+		 * does not leak to the next peripheral that reuses this channel
+		 * (e.g. SPI). bk_dma_deinit()/reset alone cannot clear it. */
+		bk_dma_stop(dma_id);
+		bk_dma_flush_src_buffer(dma_id);
+		uart_dma_drain_channel(dma_id);
+		uint32_t remain_len = bk_dma_get_remain_len(dma_id);
+		if (remain_len != 0) {
+			UART_LOGW("uart(%d) tx dma deinit: remain_len=%u after drain\n",
+				  id, remain_len);
+		}
+
 		bk_dma_deinit(dma_id);
 		__DSB();
 		bk_dma_free(uart_id_to_dma_dev(id, 0), dma_id);
