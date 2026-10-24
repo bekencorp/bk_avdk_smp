@@ -543,15 +543,20 @@ bk_err_t send_mult_data(uintptr_t addr, const uint8_t *data, uint16 BLOCK_SIZE,u
 
 	for (block_num = 0; block_num < BLOCK_CNT; block_num = block_num+1)
 	{
-		/* Wait for write-buffer space: interrupt semaphore (fast path) with a
-		 * BUF_WR_ENABLE poll fallback to recover a missed BUF_WR_READY
-		 * interrupt (see receive_mult_data for rationale). */
+		/*
+		 * Wait until the write buffer really has room for one block. The
+		 * BUF_WR_READY token is only a wake-up hint: the binary semaphore
+		 * carries no block index, and a late/missed interrupt leaves the
+		 * token stream running ahead of the actual buffer state. Writing
+		 * BUF_DATA while BUF_WR_ENABLE=0 is silently dropped by the
+		 * controller (no error status), the block comes up short and the
+		 * words of the following blocks shift into it. The decision is
+		 * therefore taken on the live BUF_WR_ENABLE status bit only, the
+		 * same invariant as receive_mult_data().
+		 */
 		int ready = 0, slice;
-		for (slice = 0; slice < 200; slice++) {
-			if (rtos_get_semaphore(&s_sdio_wr_buf_ready_sema, 10) == 0) {
-				ready = 1;
-				break;
-			}
+		for (slice = 0; slice < (int)(SDIO_HOST_DEFAULT_TIMEOUT_MS / SDIO_HOST_BUF_READY_SLICE_MS); slice++) {
+			(void)rtos_get_semaphore(&s_sdio_wr_buf_ready_sema, SDIO_HOST_BUF_READY_SLICE_MS);
 			if (sd_card_has_transfer_error())
 				break;
 			if (PSTATE_REG_R(addr) & BUF_WR_ENABLE) {
@@ -652,22 +657,34 @@ int receive_mult_data(uintptr_t addr, uint8_t *data, uint16 BLOCK_SIZE,uint16 BL
 	for (block_num=0; block_num<BLOCK_CNT; block_num++)
 	{
 		/*
-		 * Wait until a block is available in the read buffer. The per-block
-		 * BUF_RD_READY interrupt can occasionally be missed on this MSHC
-		 * controller, which used to stall a whole multi-block read until the
-		 * 2 s timeout and then fail. To be robust we wait on the interrupt
-		 * semaphore (fast common path) but also poll the live BUF_RD_ENABLE
-		 * status bit (maintained by hardware, independent of the interrupt
-		 * status) so a missed interrupt is recovered within ~10 ms.
+		 * Wait until a block is really available in the read buffer.
+		 *
+		 * BUF_RD_READY only raises a binary semaphore that carries no block
+		 * index, so it cannot prove that the pending data belongs to this
+		 * block: when a BUF_RD_READY interrupt is late (or a block was
+		 * recovered through the BUF_RD_ENABLE poll below), the token stream
+		 * runs one event ahead of the data. Reading BUF_DATA on such a stale
+		 * token is silently ignored by the controller (no error status), the
+		 * host then stays one block behind, the last block is never drained
+		 * from the read buffer and XFER_COMPLETE never fires - the observed
+		 * "wait s_sdio_data_xfer_done_sema failed" timeout.
+		 *
+		 * The token is therefore only a wake-up hint: it is consumed to keep
+		 * the semaphore balanced, but the decision is taken on the live
+		 * BUF_RD_ENABLE status bit, which is maintained by hardware and is
+		 * independent of the interrupt status. A missed/late interrupt is
+		 * still recovered within one ~10 ms slice by the same check.
 		 */
 		int ready = 0, slice;
 		for (slice = 0; slice < (int)(timeout_ms / SDIO_HOST_BUF_READY_SLICE_MS); slice++) {
-			if (rtos_get_semaphore(&s_sdio_rd_buf_ready_sema, SDIO_HOST_BUF_READY_SLICE_MS) == 0) {
-				ready = 1;
-				break;
-			}
+			/* The token is only a wake-up hint: the block is available when
+			 * the live BUF_RD_ENABLE status bit says so. */
+			(void)rtos_get_semaphore(&s_sdio_rd_buf_ready_sema,
+						 SDIO_HOST_BUF_READY_SLICE_MS);
+
 			if (sd_card_has_transfer_error())
 				break;
+
 			if (PSTATE_REG_R(addr) & BUF_RD_ENABLE) {
 				ready = 1;
 				break;
@@ -1487,7 +1504,7 @@ bk_err_t bk_sdio_host_init(sdio_host_id_t id, const sdio_host_cfg_t *cfg)
 		ret = mshc_host_init(s_active_base, 0x3, 300, 0xff, 0xa,
 				     1 /*CARD_IS_EMMC*/, UHS_MODE_EMMC_DS, DATA_WIDTH1);
 	} else {
-		tuning_cfg(s_active_base, 0, 0, 0x8, 1, 0);
+		tuning_cfg(s_active_base, 0, 0, 0, 0, 1);
 		ret = sdio_host_init();         /* SD path, behavior preserved */
 	}
 
