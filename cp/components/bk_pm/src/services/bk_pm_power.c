@@ -248,6 +248,11 @@ int32_t bk_pm_module_power_state_get(pm_power_module_name_e module)
 	return state;
 }
 
+uint32_t bk_pm_get_wrlp_encp_power_vote_state(void)
+{
+	return s_pm_wrlp_encp_state;
+}
+
 void pm_check_power_on_module(uint32_t *pm_off_modules, uint32_t *pm_on_modules, uint64_t *pm_sleeped_modules)
 {
 	if (!(*pm_on_modules & ((0x1 << (PM_POWER_SUB_DOMAIN_BTDM%PM_MODULE_SUB_POWER_DOMAIN_MAX))))) // when the module not power on , set the module sleep state

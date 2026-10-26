@@ -366,6 +366,15 @@ void pm_super_deep_sleep_process(void)
 /*=========================SLEEP/WAKEUP FUNCTION END========================*/
 
 /*=========================LOW_VOLTAGE_PS PRIVATE FUNCTION START========================*/
+/* check the vote state of wrlp encp power domain, clear and power off the module vote if it is not cleared */
+static void pm_wrlp_encp_vote_power_ctrl(pm_power_module_name_e module, pm_power_module_state_e state)
+{
+	if (bk_pm_get_wrlp_encp_power_vote_state() & (0x1 << (module % PM_MODULE_SUB_POWER_DOMAIN_MAX)))
+	{
+		bk_pm_module_vote_power_ctrl(module, state);
+	}
+}
+
 static int pm_low_voltage_resource_set(void)
 {
 	pm_dev_id_e dev_id = 0;
@@ -438,6 +447,11 @@ static int pm_low_voltage_resource_set(void)
 	//bk_pm_module_vote_power_ctrl(PM_POWER_SUB_MODULE_NAME_PHY_BT, PM_POWER_MODULE_STATE_OFF);
 #endif
 
+	/* OTP_AHB/OTP_APB/SHANHAI votes are not cleared, clear and power off them actively */
+	pm_wrlp_encp_vote_power_ctrl(PM_POWER_SUB_DOMAIN_OTP_AHB, PM_POWER_MODULE_STATE_OFF);
+	pm_wrlp_encp_vote_power_ctrl(PM_POWER_SUB_DOMAIN_OTP_APB, PM_POWER_MODULE_STATE_OFF);
+	pm_wrlp_encp_vote_power_ctrl(PM_POWER_SUB_DOMAIN_SHANHAI, PM_POWER_MODULE_STATE_OFF);
+
 	bk_flash_power_saving_enter();
 	return 0;
 }
@@ -471,9 +485,12 @@ __IRAM_PM void pm_low_voltage_deferred_restore(void)
 #if CONFIG_SUPPORT_WWDT
 	BK_LOG_ON_ERR(bk_wwdt_start(CONFIG_INT_WWDT_PERIOD_MS, false, 0));
 #endif
-
-
 	bk_pm_exit_low_vol_wakeup_source_set();
+
+	/* OTP_AHB/OTP_APB/SHANHAI votes restore when exit sleep */
+	pm_wrlp_encp_vote_power_ctrl(PM_POWER_SUB_DOMAIN_OTP_AHB, PM_POWER_MODULE_STATE_ON);
+	pm_wrlp_encp_vote_power_ctrl(PM_POWER_SUB_DOMAIN_OTP_APB, PM_POWER_MODULE_STATE_ON);
+	pm_wrlp_encp_vote_power_ctrl(PM_POWER_SUB_DOMAIN_SHANHAI, PM_POWER_MODULE_STATE_ON);
 }
 
 static void pm_low_voltage_resource_restore(void)
