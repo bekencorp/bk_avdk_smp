@@ -1427,6 +1427,21 @@ int32_t bk_pm_module_sleep_state_get(pm_sleep_module_name_e module);
  */
 int32_t bk_pm_module_power_state_get(pm_power_module_name_e module);
 /**
+ * @brief get the wrlp encp power vote state
+ *
+ * get the wrlp encp power domain vote state of submodules
+ *
+ * @attention
+ * - This API is used to get the wrlp encp power vote state
+ *
+ * @param
+ * -void
+ * @return
+ *  - the vote state of wrlp encp power domain: each bit stands for one submodule vote, 0x0 means no submodule vote
+ *
+ */
+uint32_t bk_pm_get_wrlp_encp_power_vote_state(void);
+/**
  * @brief get the cpu frequency of the module vote
  *
  * get the module voting cpu frequency
