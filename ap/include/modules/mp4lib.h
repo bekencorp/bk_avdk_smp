@@ -26,6 +26,7 @@ extern "C" {
 // Memory type for buffer allocation
 #define MP4_MEM_SRAM         0  // Use SRAM for buffer allocation
 #define MP4_MEM_PSRAM        1  // Use PSRAM for buffer allocation
+#define MP4_MEM_UNCODED      3  // Use the PSRAM UNCODED frame-buffer slab (large buffers)
 
 // Track types
 #define MP4_TRACK_TYPE_VIDEO 0x76696465  // 'vide'

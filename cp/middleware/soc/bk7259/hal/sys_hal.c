@@ -3655,8 +3655,6 @@ bk_err_t sys_hal_ap_clock_power_ctrl(power_module_state_t power_state)
 		 * Keep the SRAM/cache PWD bits untouched: m55_mem_ret=0 asserts
 		 * retention for AP fast resume.
 		 */
-		aon_pmu_ll_set_r2_m55_iso_en(1);
-		bk_delay_us(1);
 		aon_pmu_ll_set_r2_m55_rstn(0);
 		bk_delay_us(1);
 		aon_pmu_ll_set_r2_m55_clk_en(0); // clk disable
@@ -3664,6 +3662,8 @@ bk_err_t sys_hal_ap_clock_power_ctrl(power_module_state_t power_state)
 		aon_pmu_ll_set_r2_m55_mem_ret(0);
 		bk_delay_us(1);
 		sys_ahbp_ll_set_rege_pwd_m55(1);
+		bk_delay_us(1);
+		aon_pmu_ll_set_r2_m55_iso_en(1);
 		bk_delay_us(1);
 
 		sys_ll_set_ana_reg10_spi_latch1v(1);

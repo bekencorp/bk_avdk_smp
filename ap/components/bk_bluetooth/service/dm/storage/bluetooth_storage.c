@@ -133,14 +133,15 @@ int32_t bluetooth_storage_save_linkkey_info(uint8_t *addr, uint8_t *key)
 
     index = bluetooth_storage_find_linkkey_info_index(addr, NULL);
 
-    memset(&tmp_key, 0, sizeof(tmp_key));
-
     if (index >= 0)
     {
-
+        // Keep the existing record (BLE bond, volumes, hash) and only refresh the link key
+        LOGI("addr exists, refresh slot[%d] and keep its ble bond", index);
+        memcpy(&tmp_key, &s_bt_user_storage->dev[index], sizeof(tmp_key));
     }
     else
     {
+        memset(&tmp_key, 0, sizeof(tmp_key));
         index = bluetooth_storage_alloc_linkkey_info(addr);
 
         if (index >= 0)
@@ -149,7 +150,7 @@ int32_t bluetooth_storage_save_linkkey_info(uint8_t *addr, uint8_t *key)
         }
         else
         {
-            LOGW("overwrite 0 linkkey info, %02X:%02X:%02X:%02X:%02X:%02X",
+            LOGW("table full, overwrite oldest slot[0] %02X:%02X:%02X:%02X:%02X:%02X",
                  s_bt_user_storage->dev[0].addr[5],
                  s_bt_user_storage->dev[0].addr[4],
                  s_bt_user_storage->dev[0].addr[3],
