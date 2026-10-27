@@ -46,6 +46,13 @@
 #include "_ppc.h"
 #include <soc/reg_base.h>
 #include "spinlock.h"
+extern void bk_fault_context_persist(uint32_t reason,
+    const SAVED_CONTEXT *context) __attribute__((weak));
+
+extern void bk_fault_context_observe(uint32_t reason,
+    const SAVED_CONTEXT *context) __attribute__((weak));
+extern int bk_fault_context_enter(uint32_t reason, uint32_t exc_return,
+    uint32_t stack) __attribute__((weak));
 
 #define MAX_DUMP_SYS_MEM_COUNT       (8)
 #define SOC_DTCM_DATA_SIZE           (0x4000)
@@ -600,28 +607,27 @@ static void arch_dump_cpu_registers(uint32_t mcause, SAVED_CONTEXT *context) {
     BK_DUMP_OUT("SMP-Core-id:%u\r\n", portGET_CORE_ID() & 0x1);
 }
 
-static void dump_context(uint32_t lr, uint32_t msp)
+static void bk_capture_fault_context(uint32_t lr, uint32_t msp, SAVED_CONTEXT *regs, int read_fpscr)
 {
-    SAVED_CONTEXT regs;
 
-    regs.r4 = ((uint32_t *)msp)[-8];
-    regs.r5 = ((uint32_t *)msp)[-7];
-    regs.r6 = ((uint32_t *)msp)[-6];
-    regs.r7 = ((uint32_t *)msp)[-5];
-    regs.r8 = ((uint32_t *)msp)[-4];
-    regs.r9 = ((uint32_t *)msp)[-3];
-    regs.r10 = ((uint32_t *)msp)[-2];
-    regs.r11 = ((uint32_t *)msp)[-1];
-    regs.control = lr;       // Exception LR.
+    regs->r4 = ((uint32_t *)msp)[-8];
+    regs->r5 = ((uint32_t *)msp)[-7];
+    regs->r6 = ((uint32_t *)msp)[-6];
+    regs->r7 = ((uint32_t *)msp)[-5];
+    regs->r8 = ((uint32_t *)msp)[-4];
+    regs->r9 = ((uint32_t *)msp)[-3];
+    regs->r10 = ((uint32_t *)msp)[-2];
+    regs->r11 = ((uint32_t *)msp)[-1];
+    regs->control = lr;       // Exception LR.
 
-    regs.msp = __get_MSP();
-    regs.psp = __get_PSP();
+    regs->msp = __get_MSP();
+    regs->psp = __get_PSP();
 
-    regs.primask = __get_PRIMASK();
-    regs.basepri = __get_BASEPRI();
-    regs.faultmask = __get_FAULTMASK();
+    regs->primask = __get_PRIMASK();
+    regs->basepri = __get_BASEPRI();
+    regs->faultmask = __get_FAULTMASK();
 
-    regs.fpscr = __get_FPSCR();
+    regs->fpscr = read_fpscr ? __get_FPSCR() : 0;
 
 	uint32_t stack_pointer = msp;
 	uint32_t stack_adj = 8 * sizeof(uint32_t);
@@ -636,20 +642,27 @@ static void dump_context(uint32_t lr, uint32_t msp)
 		stack_adj += 18 * sizeof(uint32_t);  // 18 FPU registers
 	}
 
-	regs.r0 = ((uint32_t *)stack_pointer)[0];
-	regs.r1 = ((uint32_t *)stack_pointer)[1];
-	regs.r2 = ((uint32_t *)stack_pointer)[2];
-	regs.r3 = ((uint32_t *)stack_pointer)[3];
-	regs.r12 = ((uint32_t *)stack_pointer)[4];
-	regs.lr = ((uint32_t *)stack_pointer)[5];
-	regs.pc = ((uint32_t *)stack_pointer)[6];
-	regs.xpsr = ((uint32_t *)stack_pointer)[7];
+	regs->r0 = ((uint32_t *)stack_pointer)[0];
+	regs->r1 = ((uint32_t *)stack_pointer)[1];
+	regs->r2 = ((uint32_t *)stack_pointer)[2];
+	regs->r3 = ((uint32_t *)stack_pointer)[3];
+	regs->r12 = ((uint32_t *)stack_pointer)[4];
+	regs->lr = ((uint32_t *)stack_pointer)[5];
+	regs->pc = ((uint32_t *)stack_pointer)[6];
+	regs->xpsr = ((uint32_t *)stack_pointer)[7];
 
-	if(regs.xpsr & (1UL << 9))
+	if(regs->xpsr & (1UL << 9))
 	{
 		stack_adj += 1 * sizeof(uint32_t);
 	}
-	regs.sp = stack_pointer + stack_adj;
+	regs->sp = stack_pointer + stack_adj;
+
+}
+
+static void dump_context(uint32_t lr, uint32_t msp)
+{
+    SAVED_CONTEXT regs;
+    bk_capture_fault_context(lr, msp, &regs, 1);
 
     arch_dump_cpu_registers(0, &regs);
 
@@ -754,6 +767,8 @@ static void user_except_handler(uint32_t reset_reason, SAVED_CONTEXT *regs)
             }
         }
 
+        if (bk_fault_context_persist != NULL)
+            bk_fault_context_persist(reset_reason, regs);
         arch_dump_cpu_registers(ECAUSE_ASSERT, regs);
 
         rtos_dump_system();
@@ -811,7 +826,14 @@ void bk_system_dump(const char *func, const int line)
 {
     uint32_t int_level = port_disable_interrupts_flag();
     SAVED_CONTEXT regs = {0};
+    if (bk_fault_context_enter != NULL) {
+        bk_fault_context_enter(RESET_SOURCE_CRASH_ASSERT, 0, 0);
+    }
     store_cpu_regs(ECAUSE_ASSERT, &regs);
+
+    if (bk_fault_context_observe != NULL) {
+        bk_fault_context_observe(RESET_SOURCE_CRASH_ASSERT, &regs);
+    }
 
 #if CONFIG_DUMP_INTO_FLASH
     fdump_cpu_registers(0, &regs);
@@ -835,6 +857,16 @@ void user_except_handler_ex(uint32_t reset_reason, uint32_t lr, uint32_t sp)
         // Make sure the interrupt is disable
         uint32_t int_level = port_disable_interrupts_flag();
 
+        int observe_context = 1;
+        if (bk_fault_context_enter != NULL) {
+            observe_context = bk_fault_context_enter(reset_reason, lr, sp);
+        }
+        if (observe_context && bk_fault_context_observe != NULL) {
+            SAVED_CONTEXT early_context;
+            bk_capture_fault_context(lr, sp, &early_context, 0);
+            bk_fault_context_observe(reset_reason, &early_context);
+        }
+
         /* Handled Trap */
         arch_set_enter_exception();
         dump_prologue();
@@ -851,6 +883,11 @@ void user_except_handler_ex(uint32_t reset_reason, uint32_t lr, uint32_t sp)
 #endif
         BK_DUMP_OUT("AP crash happend, rr: 0x%x\r\n", reset_reason);
         BK_DUMP_OUT("build time => %s !\r\n", build_version); 
+        if (bk_fault_context_persist != NULL) {
+            SAVED_CONTEXT coredump_context;
+            bk_capture_fault_context(lr, sp, &coredump_context, 0);
+            bk_fault_context_persist(reset_reason, &coredump_context);
+        }
         dump_context(lr, sp);
 
         rtos_dump_system();

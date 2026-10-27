@@ -164,6 +164,8 @@ static void spk_data_read_task_main(beken_thread_arg_t param_data)
                 case SPK_DATA_READ_IDLE:
                     spk_data_read_handle->running = false;
                     wait_time = BEKEN_WAIT_FOREVER;
+                    /* All preceding ring writes have finished before the ACK. */
+                    rtos_set_semaphore(&spk_data_read_handle->sem);
                     break;
 
                 case SPK_DATA_READ_EXIT:
@@ -593,25 +595,64 @@ static bk_err_t onboard_speaker_start(onboard_speaker_play_priv_t *onboard_spk)
 
     ONBOARD_SPK_PLAY_CHECK_NULL(onboard_spk);
 
-    /* fill two frame silence data */
+    /* The initial worker is parked; resume follows the pause ACK.
+     * Rebuild a complete DMA bootstrap while no producer owns the ring. */
+    ret = bk_dma_stop(onboard_spk->dac_dma_id);
+    if (ret != BK_OK)
+    {
+        return ret;
+    }
+    ret = bk_aud_dac_stop();
+    if (ret != BK_OK)
+    {
+        return ret;
+    }
+    ret = bk_dma_set_src_start_addr(onboard_spk->dac_dma_id, (uint32_t)onboard_spk->dma_rb.address);
+    if (ret != BK_OK)
+    {
+        return ret;
+    }
+    ret = bk_dma_set_transfer_len(onboard_spk->dac_dma_id, onboard_spk->frame_size);
+    if (ret != BK_OK)
+    {
+        return ret;
+    }
+    ring_buffer_clear(&onboard_spk->dma_rb);
     os_memset(onboard_spk->read_buff, 0, onboard_spk->frame_size);
-    ring_buffer_write(&onboard_spk->dma_rb, onboard_spk->read_buff, onboard_spk->frame_size);
-    ring_buffer_write(&onboard_spk->dma_rb, onboard_spk->read_buff, onboard_spk->frame_size);
-
-    ret = spk_data_read_send_msg(onboard_spk->spk_data_read_msg_que, SPK_DATA_READ_START, NULL);
+    if (ring_buffer_write(&onboard_spk->dma_rb, onboard_spk->read_buff, onboard_spk->frame_size) != onboard_spk->frame_size ||
+        ring_buffer_write(&onboard_spk->dma_rb, onboard_spk->read_buff, onboard_spk->frame_size) != onboard_spk->frame_size)
+    {
+        return BK_FAIL;
+    }
 
     ret = bk_dma_start(onboard_spk->dac_dma_id);
     if (ret != BK_OK)
     {
         LOGE("%s, %d, dac dma stop fail\n", __func__, __LINE__);
+        return ret;
     }
 
     ret = bk_aud_dac_start();
     if (ret != BK_OK)
     {
-        LOGE("%s, %d, dac stop fail\n", __func__, __LINE__);
+        const bk_err_t stopped = bk_dma_stop(onboard_spk->dac_dma_id);
+        if (stopped != BK_OK)
+        {
+            LOGE("speaker DMA start rollback failed: %d\n", stopped);
+        }
+        return ret;
     }
-
+    /* START is the final commit; failures cannot unpark the ring writer. */
+    ret = spk_data_read_send_msg(onboard_spk->spk_data_read_msg_que, SPK_DATA_READ_START, NULL);
+    if (ret != BK_OK)
+    {
+        const bk_err_t stopped = bk_dma_stop(onboard_spk->dac_dma_id);
+        const bk_err_t dac_stopped = bk_aud_dac_stop();
+        if (stopped != BK_OK || dac_stopped != BK_OK)
+        {
+            LOGE("speaker START rollback failed: %d/%d\n", stopped, dac_stopped);
+        }
+    }
     return ret;
 }
 
@@ -621,19 +662,24 @@ static bk_err_t onboard_speaker_stop(onboard_speaker_play_priv_t *onboard_spk)
 
     ONBOARD_SPK_PLAY_CHECK_NULL(onboard_spk);
 
-    bk_err_t ret = bk_dma_stop(onboard_spk->dac_dma_id);
+    /* Quiesce the sole running ring producer before stopping hardware.
+     * The same semaphore already acknowledges worker init and exit. */
+    bk_err_t ret = spk_data_read_send_msg(onboard_spk->spk_data_read_msg_que, SPK_DATA_READ_IDLE, NULL);
     if (ret != BK_OK)
     {
-        LOGE("%s, %d, dac dma stop fail\n", __func__, __LINE__);
+        return ret;
     }
-
+    ret = rtos_get_semaphore(&onboard_spk->sem, BEKEN_WAIT_FOREVER);
+    if (ret != BK_OK)
+    {
+        return ret;
+    }
+    ret = bk_dma_stop(onboard_spk->dac_dma_id);
+    if (ret != BK_OK)
+    {
+        return ret;
+    }
     ret = bk_aud_dac_stop();
-    if (ret != BK_OK)
-    {
-        LOGE("%s, %d, dac stop fail\n", __func__, __LINE__);
-    }
-
-    ret = spk_data_read_send_msg(onboard_spk->spk_data_read_msg_que, SPK_DATA_READ_IDLE, NULL);
 
     return ret;
 }
@@ -850,6 +896,10 @@ static int onboard_speaker_play_control(audio_play_t *play, audio_play_ctl_t ctl
         {
             LOGE("%s, onboard spk paly pause fail, ret: %d, %d \n", __func__, ret, __LINE__);
         }
+        if (ret != BK_OK)
+    {
+        return ret;
+    }
         onboard_speaker_state_set(priv, AUDIO_PLAY_STA_PAUSED);
     }
     else if (ctl == AUDIO_PLAY_RESUME)
@@ -865,6 +915,10 @@ static int onboard_speaker_play_control(audio_play_t *play, audio_play_ctl_t ctl
         {
             LOGE("%s, onboard spk paly start fail, ret: %d, %d \n", __func__, ret, __LINE__);
         }
+        if (ret != BK_OK)
+    {
+        return ret;
+    }
         onboard_speaker_state_set(priv, AUDIO_PLAY_STA_RUNNING);
     }
     else if (ctl == AUDIO_PLAY_MUTE)

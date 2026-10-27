@@ -26,6 +26,12 @@
 #include <common/bk_assert.h>
 #include "arch_interrupt.h"
 #include "stack_base.h"
+extern void bk_fault_context_persist(uint32_t reason, const SAVED_CONTEXT *context) __attribute__((weak));
+
+extern int bk_fault_context_enter(uint32_t reason, uint32_t exc_return,
+    uint32_t stack) __attribute__((weak));
+extern void bk_fault_context_observe(uint32_t reason,
+    const SAVED_CONTEXT *context) __attribute__((weak));
 #include <driver/wdt.h>
 #include <driver/pwr_clk.h>
 #include "wdt_driver.h"
@@ -569,6 +575,69 @@ static void arch_dump_cpu_registers(uint32_t mcause, SAVED_CONTEXT *context) {
 
 }
 
+static void __attribute__((section(".iram"), noinline)) bk_capture_fault_frame(uint32_t lr, uint32_t msp, SAVED_CONTEXT *regs)
+{
+
+    regs->r4 = ((uint32_t *)msp)[-8];
+    regs->r5 = ((uint32_t *)msp)[-7];
+    regs->r6 = ((uint32_t *)msp)[-6];
+    regs->r7 = ((uint32_t *)msp)[-5];
+    regs->r8 = ((uint32_t *)msp)[-4];
+    regs->r9 = ((uint32_t *)msp)[-3];
+    regs->r10 = ((uint32_t *)msp)[-2];
+    regs->r11 = ((uint32_t *)msp)[-1];
+    regs->control = lr;       // Exception LR.
+
+    regs->msp = __get_MSP();
+    regs->psp = __get_PSP();
+
+    regs->primask = __get_PRIMASK();
+    regs->basepri = __get_BASEPRI();
+    regs->faultmask = __get_FAULTMASK();
+
+    regs->fpscr = 0;
+
+	uint32_t stack_pointer = msp;
+	uint32_t stack_adj = 8 * sizeof(uint32_t);
+
+	if(lr & (1UL << 2))
+	{
+		stack_pointer = __get_PSP();
+	}
+
+	if((lr & (1UL << 4)) == 0)
+	{
+        stack_adj += 18 * sizeof(uint32_t);  // 18 FPU registers
+	}
+
+	regs->r0 = ((uint32_t *)stack_pointer)[0];
+	regs->r1 = ((uint32_t *)stack_pointer)[1];
+	regs->r2 = ((uint32_t *)stack_pointer)[2];
+	regs->r3 = ((uint32_t *)stack_pointer)[3];
+	regs->r12 = ((uint32_t *)stack_pointer)[4];
+	regs->lr = ((uint32_t *)stack_pointer)[5];
+	regs->pc = ((uint32_t *)stack_pointer)[6];
+	regs->xpsr = ((uint32_t *)stack_pointer)[7];
+
+	if(regs->xpsr & (1UL << 9))
+	{
+		stack_adj += 1 * sizeof(uint32_t);
+	}
+	regs->sp = stack_pointer + stack_adj;
+
+}
+
+void __attribute__((section(".iram"), noinline)) bk_fault_capture(uint32_t reason, uint32_t lr, uint32_t sp)
+{
+    if (bk_fault_context_enter == NULL ||
+        !bk_fault_context_enter(reason, lr, sp)) return;
+    if (bk_fault_context_observe != NULL) {
+        SAVED_CONTEXT context;
+        bk_capture_fault_frame(lr, sp, &context);
+        bk_fault_context_observe(reason, &context);
+    }
+}
+
 static void dump_context(uint32_t lr, uint32_t msp)
 {
     SAVED_CONTEXT regs;
@@ -729,6 +798,8 @@ static void user_except_handler(uint32_t reset_reason, SAVED_CONTEXT *regs)
             }
         }
 
+        if (bk_fault_context_persist != NULL)
+            bk_fault_context_persist(reset_reason, regs);
         arch_dump_cpu_registers(ECAUSE_ASSERT, regs);
 
         rtos_dump_system();
@@ -796,8 +867,9 @@ void bk_system_dump(const char *func, const int line)
     port_enable_interrupts_flag(int_level);
 }
 
-void user_except_handler_ex(uint32_t reset_reason, uint32_t lr, uint32_t sp)
+void __attribute__((section(".iram"))) user_except_handler_ex(uint32_t reset_reason, uint32_t lr, uint32_t sp)
 {
+    bk_fault_capture(reset_reason, lr, sp);
     if (0 == arch_is_enter_exception()) {
 
         // Make sure the interrupt is disable
@@ -816,6 +888,11 @@ void user_except_handler_ex(uint32_t reset_reason, uint32_t lr, uint32_t sp)
 
         BK_DUMP_OUT("CP crash happend, rr: 0x%x\r\n", reset_reason);
         BK_DUMP_OUT("build time => %s !\r\n", build_version); 
+        if (bk_fault_context_persist != NULL) {
+            SAVED_CONTEXT context;
+            bk_capture_fault_frame(lr, sp, &context);
+            bk_fault_context_persist(reset_reason, &context);
+        }
         dump_context(lr, sp);
 
         rtos_dump_system();
