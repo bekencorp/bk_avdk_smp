@@ -258,19 +258,19 @@ uint32_t bk_aspl_flash_enter_critical(void)
 	 * (it cannot be preempted/migrated), so the cpu_id captured below stays
 	 * stable through the whole critical section. This avoids the costly
 	 * vTaskSuspendAll()/xTaskResumeAll() pair on this per-32-byte hot path. */
+	/* flash_lock() may already own the shared lock. Take it before the AP
+	 * spinlock so a reader cannot hold the spinlock while waiting for the
+	 * writer's shared ownership. Release these locks in reverse order. */
 	uint32_t flags = rtos_disable_int();
-#ifdef CONFIG_FREERTOS_SMP
-	spin_lock(&s_flash_aspl_spin_lock);
-#endif
 	uint32_t cpu_id = bk_flash_shared_get_cpu_id();
 
 	if (bk_flash_shared_acquire(cpu_id) != BK_OK) {
-#ifdef CONFIG_FREERTOS_SMP
-		spin_unlock(&s_flash_aspl_spin_lock);
-#endif
 		rtos_enable_int(flags);
 		BK_ASSERT(0);
 	}
+#ifdef CONFIG_FREERTOS_SMP
+	spin_lock(&s_flash_aspl_spin_lock);
+#endif
 
 	return flags;
 }
@@ -279,10 +279,10 @@ void bk_aspl_flash_exit_critical(uint32_t flags)
 {
 	uint32_t cpu_id = bk_flash_shared_get_cpu_id();
 
-	bk_flash_shared_release(cpu_id);
 #ifdef CONFIG_FREERTOS_SMP
 	spin_unlock(&s_flash_aspl_spin_lock);
 #endif
+	bk_flash_shared_release(cpu_id);
 	rtos_enable_int(flags);
 }
 
