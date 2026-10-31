@@ -839,7 +839,13 @@ static int onboard_mic_record_control(audio_record_t *record, audio_record_ctl_t
         if (ret != BK_OK)
         {
             LOGE("%s, onboard mic record pause fail, ret: %d, %d \n", __func__, ret, __LINE__);
+            return ret;
         }
+        ret = rb_abort(priv->rb);
+        if (ret != BK_OK)
+    {
+        return ret;
+    }
         onboard_mic_state_set(priv, AUDIO_RECORD_STA_PAUSED);
     }
     else if (ctl == AUDIO_RECORD_RESUME)
@@ -849,10 +855,16 @@ static int onboard_mic_record_control(audio_record_t *record, audio_record_ctl_t
             return BK_OK;
         }
 
+        ret = rb_reset(priv->rb);
+        if (ret != BK_OK)
+    {
+        return ret;
+    }
         ret = onboard_mic_start(priv);
         if (ret != BK_OK)
         {
             LOGE("%s, onboard mic record start fail, ret: %d, %d \n", __func__, ret, __LINE__);
+            return ret;
         }
         onboard_mic_state_set(priv, AUDIO_RECORD_STA_RUNNING);
     }

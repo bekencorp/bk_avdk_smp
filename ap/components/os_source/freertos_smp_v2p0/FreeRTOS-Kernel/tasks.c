@@ -7164,3 +7164,5 @@ char * vTaskName()
 
 #endif // configBK_FREERTOS
 
+
+#include "bk_task_snapshot_impl.h"

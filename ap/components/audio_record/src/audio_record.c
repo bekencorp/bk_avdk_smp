@@ -75,12 +75,16 @@ bk_err_t audio_record_destroy(audio_record_t *record)
         return BK_OK;
     }
 
-    ret = audio_record_close(record);
+    ret = record->record_ctx != NULL ? audio_record_close(record) : BK_OK;
     if (ret != BK_OK)
     {
         LOGE("%s, %d, audio_record_close fail, ret: %d\n", __func__, __LINE__, ret);
+        return ret;
     }
 
+    /* Backend close releases its buffers but retains this context allocation. */
+    os_free(record->record_ctx);
+    record->record_ctx = NULL;
     os_free(record);
 
     return BK_OK;
