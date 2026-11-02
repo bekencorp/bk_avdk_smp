@@ -1007,12 +1007,6 @@ static inline void sys_hal_power_down_pd(volatile uint32_t *pd_reg_v)
 		/*config r41 bus wl,bl pw and iso*/
 		sys_hal_set_halt_config(PM_MODE_LOW_VOLTAGE);
 
-		#if CONFIG_DEEP_LV
-		aon_pmu_ll_set_r42_value(0xF); /* pwd + isolate WL/BL for LV sleep */
-		#else
-		aon_pmu_ll_set_r42_pwd_wlppwd(0);
-		#endif
-
 		sys_ll_set_reserver_reg0x10_value(v);
 
 		#if CONFIG_DEEP_LV
@@ -2132,7 +2126,7 @@ __IRAM_PM void sys_hal_enter_lv(void)
 		{
 			//extern void bk_printf_nonblock(int level, char *tag, const char *fmt, ...);
 			//bk_printf_nonblock(3, NULL, "BLE_PWR_TRACE stage=system_before_deep_lv r42=0x%08x sys_reg10=0x%08x r14=0x%08x r5=0x%08x\r\n", aon_pmu_ll_get_r42_value(), sys_ll_get_reserver_reg0x10_value(), sys_ll_get_ana_reg14_value(), sys_ll_get_ana_reg5_value());
-		aon_pmu_ll_set_r42_value(0xF);
+
 		#if CONFIG_CKMN
 		//bk_ckmn_power_down_for_sleep();
 		#endif //CONFIG_CKMN
