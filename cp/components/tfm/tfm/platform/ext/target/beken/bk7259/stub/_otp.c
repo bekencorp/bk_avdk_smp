@@ -26,8 +26,8 @@
 #include <stddef.h>
 
 const otp_item_t otp_map_1[25] = {
-    {OTP_M52SUB_MEMCHECK,                     64,    0x0,    OTP_READ_WRITE,    OTP_SECURITY,    OTP_NO_NEED_CRC},
-    {OTP_M55SUB_MEMCHECK,                    220,    0x40,    OTP_READ_WRITE,    OTP_SECURITY,    OTP_NO_NEED_CRC},
+    {OTP_M52SUB_MEMCHECK,                     52,    0x0,    OTP_READ_WRITE,    OTP_SECURITY,    OTP_NO_NEED_CRC},
+    {OTP_M55SUB_MEMCHECK,                    232,    0x34,    OTP_READ_WRITE,    OTP_SECURITY,    OTP_NO_NEED_CRC},
     {OTP_PRI_CONFIG,                           4,    0x11c,    OTP_READ_WRITE,    OTP_SECURITY,    OTP_NO_NEED_CRC},
     {OTP_PRIVATE_KEY_1,                       32,    0x120,    OTP_READ_WRITE,    OTP_SECURITY,    OTP_NO_NEED_CRC},
     {OTP_PRIVATE_KEY_2,                       32,    0x140,    OTP_READ_WRITE,    OTP_SECURITY,    OTP_NO_NEED_CRC},

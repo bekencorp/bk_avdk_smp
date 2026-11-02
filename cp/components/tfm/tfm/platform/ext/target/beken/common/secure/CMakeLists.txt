@@ -57,8 +57,12 @@ endif()
 
 # NSC AP secure-prepare gateway (see ap_boot_nsc.c).
 if(CONFIG_AP_BOOT_NSC)
-	target_sources(platform_s PRIVATE ap_boot_nsc.c)
+	target_sources(platform_s PRIVATE
+		ap_boot_nsc.c
+		ap_lv_reserve.c
+	)
 	target_compile_definitions(platform_s PUBLIC CONFIG_AP_BOOT_NSC)
+	target_include_directories(platform_s PRIVATE ${IDK_PATH}/middleware/driver/deep_lv)
 endif()
 
 if(CONFIG_AP_CACHE_NSC)
@@ -68,8 +72,10 @@ endif()
 if(CONFIG_SLEEP_RETENTION_NSC)
 	target_sources(platform_s PRIVATE
 		tfm_sleep_context.c
+		cp_lv_reserve.c
 	)
 	target_compile_definitions(platform_s PUBLIC CONFIG_SLEEP_RETENTION_NSC)
+	target_include_directories(platform_s PRIVATE ${IDK_PATH}/middleware/driver/deep_lv)
 endif()
 
 # AP boot shim L2 (PL310) init gate (see bk_tfm_ap_shim.c).

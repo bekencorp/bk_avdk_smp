@@ -367,6 +367,8 @@ uint32_t tfm_hal_get_ns_entry_point(void)
 #if CONFIG_AP_BOOT_NSC
 	void psa_ap_boot_nsc_stub(void);
 	psa_ap_boot_nsc_stub();
+	void psa_ap_lv_reserve_nsc_stub(void);
+	psa_ap_lv_reserve_nsc_stub();
 #endif
 #if CONFIG_DUBHE_KEY_LADDER_NSC
 	void psa_key_ladder_nsc_stub(void);

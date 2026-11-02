@@ -13,6 +13,7 @@
 #include "tfm_hal_isolation.h"
 #include "tfm_hal_platform.h"
 #include "tfm_sleep_context.h"
+#include "cp_lv_reserve.h"
 #include "aon_pmu_hal.h"
 #include "aon_pmu_ll.h"
 
@@ -158,6 +159,13 @@ static TFM_RAMFUNC void tfm_fastboot_core_init(void)
 TFM_RAMFUNC __attribute__((noreturn)) void tfm_fastboot_resume(void)
 {
 	tfm_fastboot_core_init();
+
+	if (sys_is_running_from_deep_sleep() != 0u) {
+		cp_lv_reserve_restore();
+	}
+	else {
+		cp_lv_reserve_discard();
+	}
 
 	if (tfm_sleep_context_restore() != 0) {
 		/* No path back to BL2 cold boot: clear the marker and restart. */

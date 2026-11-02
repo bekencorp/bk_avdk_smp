@@ -383,6 +383,13 @@ SECTIONS
     ASSERT(SIZEOF(.tfm_sleep_retention) <= TFM_SLEEP_CONTEXT_MAX_SIZE,
            "TF-M sleep retention exceeds reserved limit")
 
+    .cp_lv_reserve ALIGN(8) (NOLOAD) :
+    {
+        __cp_lv_reserve_start__ = .;
+        . += 0x40;
+        __cp_lv_reserve_end__ = .;
+    } > RAM
+
     .msp_stack ALIGN(TFM_LINKER_MSP_STACK_ALIGNMENT) :
     {
         . += __msp_stack_size__ - 0x8;
