@@ -103,6 +103,14 @@ menu "GPIO"
 		depends on USR_GPIO_CFG_EN
 		default n
 
+	config GPIO_DEBUG_ENABLE
+		bool "Enable GPIO_UP/GPIO_DOWN debug toggling macros"
+		default n
+		help
+			Master switch for the GPIO_UP/GPIO_DOWN/GPIO_UP_DOWN debug macros
+			defined in soc/bk7259/soc_debug.h. When disabled, these macros
+			compile to no-ops so leftover debug code never drives any GPIO.
+
 	config DEFAULT_WAKEUP_SOURCE
 		bool "GPIO_10 as default wakeup source"
 		depends on GPIO_WAKEUP_SUPPORT
