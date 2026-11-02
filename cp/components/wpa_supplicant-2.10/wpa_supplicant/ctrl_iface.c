@@ -2089,6 +2089,12 @@ int wpa_supplicant_handle_events(wpah_msg_t *msg)
 		info->locally_generated = !!((ind->reason_code <= 1) || ind->reason_code == WIFI_REASON_BEACON_LOST);
 		info->reason_code = ind->reason_code;
 
+		if (ind->reason_code == WIFI_REASON_INVALID_PMKID) {
+			/* AP disconnected us with INVALID_PMKID(49), clear fast connect info */
+			struct wlan_fast_connect_info fci = {0};
+			wlan_clear_fast_connect_info(&fci);
+		}
+
 		// wpa_supplicant_event_sta(wpa_s, EVENT_DISASSOC, &data);
 		wpa_supplicant_event_sta(wpa_s, EVENT_DEAUTH, &data);
 	}	break;
@@ -2222,6 +2228,12 @@ int wpa_supplicant_handle_events(wpah_msg_t *msg)
 
 			} else {
 				union wpa_event_data data;
+
+				if (ind->status_code == 53) {
+					/* 53: MAC_ST_INVALID_PMKID, clear fast connect info */
+					struct wlan_fast_connect_info fci = {0};
+					wlan_clear_fast_connect_info(&fci);
+				}
 
 				os_memset(&data, 0, sizeof(data));
 				data.assoc_reject.status_code = ind->status_code;
