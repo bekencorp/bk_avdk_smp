@@ -33,6 +33,12 @@ static UINT32 s_pm_vote3            = 0;
 UINT32 s_pm_rtc_sleep_count  = 0;
 
 #if CONFIG_AON_RTC
+/* rtc cycle sleep test: total sleep cycles(pm param2), each cycle alarm
+ * period ms(pm param1), vote sleep time(pm param3) */
+static UINT32 s_pm_rtc_alarm_period_ms = 0;
+static UINT32 s_pm_rtc_vote_sleep_time = 0;
+static UINT32 s_pm_rtc_sleep_total     = 0;
+
 static void cli_pm_rtc_callback(aon_rtc_id_t id, uint8_t *name_p, void *param)
 {
 	pm_ap_core_msg_t msg;
@@ -46,6 +52,39 @@ static void cli_pm_rtc_callback(aon_rtc_id_t id, uint8_t *name_p, void *param)
 	msg.param3 = 2;
 	/* Non-blocking send, will drop if queue is full */
 	bk_pm_send_msg(&msg);
+
+	/* rtc cycle sleep test: s_pm_rtc_sleep_count is the total cycle count
+	 * set by "pm" command param2. After each rtc interrupt, reconfigure the
+	 * alarm and vote to sleep again, until the count is used up, then exit
+	 * the test with vote not to sleep. count=0 keeps the original one-shot
+	 * wakeup behavior.
+	 */
+	if (s_pm_rtc_sleep_count > 0)
+	{
+		s_pm_rtc_sleep_count--;
+
+		if (s_pm_rtc_sleep_count > 0)
+		{
+			alarm_info_t low_valtage_alarm = {0};
+
+			BK_LOGD(NULL, "rtc sleep test: %d cycle(s) left, %d cycle(s) done\r\n",
+					s_pm_rtc_sleep_count, s_pm_rtc_sleep_total - s_pm_rtc_sleep_count);
+
+			memcpy(low_valtage_alarm.name, "low_vol", sizeof("low_vol"));
+			low_valtage_alarm.period_tick = s_pm_rtc_alarm_period_ms * AON_RTC_MS_TICK_CNT;
+			low_valtage_alarm.period_cnt = 1;
+			low_valtage_alarm.callback = cli_pm_rtc_callback;
+			low_valtage_alarm.param_p = NULL;
+
+			bk_alarm_unregister(AON_RTC_ID_1, low_valtage_alarm.name);
+			bk_alarm_register(AON_RTC_ID_1, &low_valtage_alarm);
+
+			bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_APP, 0x1, s_pm_rtc_vote_sleep_time);
+			return;
+		}
+
+		BK_LOGD(NULL, "rtc sleep test done, vote not to sleep\r\n");
+	}
 }
 #endif
 #if CONFIG_TOUCH
@@ -420,6 +459,9 @@ static void cli_pm_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char 
 				return;
 			}
 			s_pm_rtc_sleep_count = pm_param2;
+			s_pm_rtc_sleep_total = pm_param2;
+			s_pm_rtc_alarm_period_ms = pm_param1;
+			s_pm_rtc_vote_sleep_time = pm_param3;
 			//force unregister previous if doesn't finish.
 			bk_alarm_unregister(AON_RTC_ID_1, low_valtage_alarm.name);
 			bk_alarm_register(AON_RTC_ID_1, &low_valtage_alarm);
