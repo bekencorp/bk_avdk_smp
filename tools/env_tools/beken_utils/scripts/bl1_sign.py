@@ -88,7 +88,8 @@ def write_bl2_version_stamps(outfile):
                 BL2_INTERNAL_VERSION_STAMP_MAGIC)
 
     ota = load_ota_csv()
-    version_str = ota.get_bootloader_ota_version() if ota else None
+    # OTA subclasses list without adding items, so bool(ota) is always False.
+    version_str = ota.get_bootloader_ota_version() if ota is not None else None
     if version_str:
         write_stamp(outfile, BL2_VERSION_STAMP_OFFSET, version_str)
         logging.debug(f'bl2 version stamp of {outfile}: internal {internal_version}, '
