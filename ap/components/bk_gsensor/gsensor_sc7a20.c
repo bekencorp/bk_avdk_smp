@@ -15,15 +15,8 @@
 #define SC7A20_LOGE(...) BK_LOGE(SC7A20_TAG, ##__VA_ARGS__)
 #define SC7A20_LOGD(...) BK_LOGD(SC7A20_TAG, ##__VA_ARGS__)
 
-
-
-#define GSENSOR_I2C_ID   I2C_ID_0
-
-#define I2C0_SDA_PIN            GPIO_21
-#define I2C0_SCL_PIN            GPIO_20
-#define GSENSOR_I2C_SDA_PIN     I2C0_SDA_PIN
-#define GSENSOR_I2C_SCL_PIN     I2C0_SCL_PIN
-#define GSENSOR_G_INT_PIN       GPIO_48
+#define GSENSOR_I2C_ID          CONFIG_GSENSOR_I2C_ID
+#define GSENSOR_G_INT_PIN       CONFIG_GSENSOR_INT_PIN
 
 #define SC7A20_IIC_7BITS_ADDR        0x18
 #define SC7A20_IIC_8BITS_ADDR        0x30

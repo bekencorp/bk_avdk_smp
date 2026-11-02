@@ -20,14 +20,27 @@ menu "bk_gsensor"
 		bool "Enable gsensor arithemtic demo"
 		default n
 
-	config GSENSOR_SC7A20_ENABLE
+	choice
 		depends on GSENSOR_ENABLE
-		bool "Enable gsensor SC7A20"
-		default n
+		prompt "G-Sensor chip select"
+		default GSENSOR_SC7A20_ENABLE
 
-	config GSENSOR_ICM42670P_ENABLE
+		config GSENSOR_SC7A20_ENABLE
+			bool "gsensor SC7A20"
+
+		config GSENSOR_ICM42670P_ENABLE
+			bool "gsensor ICM-42670-P"
+	endchoice
+
+	config GSENSOR_I2C_ID
 		depends on GSENSOR_ENABLE
-		bool "Enable gsensor ICM-42670-P"
-		default n
+		int "gsensor I2C ID"
+		default 0
+		range 0 2
 
+	config GSENSOR_INT_PIN
+		depends on GSENSOR_ENABLE
+		int "gsensor INT pin"
+		default 0
+		range 0 79
 endmenu

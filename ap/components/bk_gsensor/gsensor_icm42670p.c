@@ -18,12 +18,8 @@
 #define ICM42670P_LOGE(...) BK_LOGE(ICM42670P_TAG, ##__VA_ARGS__)
 #define ICM42670P_LOGD(...) BK_LOGD(ICM42670P_TAG, ##__VA_ARGS__)
 
-#define GSENSOR_I2C_ID              I2C_ID_1
-#define I2C1_SDA_PIN                GPIO_46
-#define I2C1_SCL_PIN                GPIO_45
-#define GSENSOR_I2C_SDA_PIN         I2C1_SDA_PIN
-#define GSENSOR_I2C_SCL_PIN         I2C1_SCL_PIN
-#define GSENSOR_G_INT_PIN           GPIO_44
+#define GSENSOR_I2C_ID              CONFIG_GSENSOR_I2C_ID
+#define GSENSOR_G_INT_PIN           CONFIG_GSENSOR_INT_PIN
 
 /* ICM-42670-P: AD0 low -> 0x68 */
 #define ICM42670P_I2C_ADDR               0x68
