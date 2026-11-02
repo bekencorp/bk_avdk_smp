@@ -3,3 +3,4 @@ strategy,OVERWRITE
 app_security_counter,3
 encrypt,FALSE
 app_version,0.0.3
+bootloader_version,0.0.1

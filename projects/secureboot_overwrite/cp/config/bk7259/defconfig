@@ -70,6 +70,11 @@ CONFIG_TFM_SLEEP_RETENTION_NSC=y
 # (reg_nsc.c -> libtfm_s_veneers.a). Enables the NS `regshow_s` CLI too.
 CONFIG_TFM_REG_ACCESS_NSC=y
 
+# --- NSC bootloader-version gateway ---
+# NS cpu0_app reads the BL2 version stamp through the secure world
+# (bootloader_nsc.c -> libtfm_s_veneers.a). Enables the NS `bl2_version` CLI.
+CONFIG_TFM_BOOTLOADER_VERSION_NSC=y
+
 # --- Crypto backend ---
 # NS classic mbedtls: TRUSTENGINE (Normal window). NS PSA/TLS-via-PSA: TF-M Crypto.
 CONFIG_PSA_MBEDTLS=y
