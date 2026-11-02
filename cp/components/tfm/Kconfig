@@ -131,6 +131,16 @@ config TFM_SLEEP_RETENTION_NSC
         Sleep entry performs no register scan. Forwarded to the TF-M build as
         CONFIG_SLEEP_RETENTION_NSC.
 
+config TFM_AP_SHIM_L2_CACHE_DISABLE
+    bool "Disable AP L2 (PL310) init in the AP boot shim"
+    depends on SOC_BK7259
+    default n
+    help
+        When set, the secure AP boot shim skips the shared L2 (PL310) cache
+        initialization entirely and boots the AP with L2 left disabled. For
+        bring-up/debug of SRAM windows or PM paths where the L2 config is
+        suspected. Forwarded to the TF-M build as CONFIG_TFM_AP_SHIM_L2_CACHE_DISABLE.
+
 config TFM_OTP_NSC
     bool "Enable NSC OTP access gateway (read/write secure OTP1/OTP2)"
     default n

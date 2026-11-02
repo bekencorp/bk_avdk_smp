@@ -353,6 +353,7 @@ if (CONFIG_TFM AND tfm_present)
                 -DCONFIG_AP_BOOT_NSC=${CONFIG_TFM_AP_BOOT_NSC}
                 -DCONFIG_SLEEP_RETENTION_NSC=${CONFIG_TFM_SLEEP_RETENTION_NSC}
                 -DCONFIG_OTP_NSC=${CONFIG_TFM_OTP_NSC}
+                -DCONFIG_TFM_AP_SHIM_L2_CACHE_DISABLE=${CONFIG_TFM_AP_SHIM_L2_CACHE_DISABLE}
             && ${CMAKE_MAKE_PROGRAM} -C ${tfm_build_dir} install
         BUILD_BYPRODUCTS ${tfm_build_dir}/secure_fw/libtfm_s_veneers.a
         BUILD_ALWAYS 1

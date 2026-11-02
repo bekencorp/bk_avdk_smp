@@ -17,6 +17,13 @@
 #include "partitions_gen.h"
 #include "ram_regions.h"
 
+/* CONFIG_TFM_AP_SHIM_L2_CACHE_DISABLE: project-level switch (default 0). When
+ * enabled, the AP boot shim skips the shared L2 (PL310) cache initialization
+ * entirely and boots the AP with L2 left disabled. */
+#ifndef CONFIG_TFM_AP_SHIM_L2_CACHE_DISABLE
+#define CONFIG_TFM_AP_SHIM_L2_CACHE_DISABLE 0
+#endif
+
 #define STRINGIFY_VALUE_(value) #value
 #define STRINGIFY_VALUE(value) STRINGIFY_VALUE_(value)
 #define AP_SHIM_BASE CONFIG_AP_SPE_RAM_ADDR
@@ -118,6 +125,7 @@ __asm__(
 "    .thumb\n"
 "    .thumb_func\n"
 "ap_shim_code:\n"
+#if !CONFIG_TFM_AP_SHIM_L2_CACHE_DISABLE
      /* Initialize the shared PL310 only on AP core0 while still Secure. If
       * invalidate does not complete before the timeout, leave L2 disabled and
       * continue booting so a controller failure cannot trap the AP in reset. */
@@ -161,6 +169,7 @@ __asm__(
 "    dsb\n"
 "    isb\n"
 "9:\n"
+#endif /* !CONFIG_TFM_AP_SHIM_L2_CACHE_DISABLE */
      /* CP enables this core's DTCM through cpu0_init_dtcm_en before releasing
       * reset. Grant every DTGU block to Non-Secure before the NS reset handler
       * copies .dtcm to the 0x30000000 alias. */

@@ -68,6 +68,11 @@ if(CONFIG_SLEEP_RETENTION_NSC)
 	target_compile_definitions(platform_s PUBLIC CONFIG_SLEEP_RETENTION_NSC)
 endif()
 
+# AP boot shim L2 (PL310) init gate (see bk_tfm_ap_shim.c).
+if(CONFIG_TFM_AP_SHIM_L2_CACHE_DISABLE)
+	target_compile_definitions(platform_s PUBLIC CONFIG_TFM_AP_SHIM_L2_CACHE_DISABLE=1)
+endif()
+
 target_compile_definitions(platform_s
 PUBLIC
 	$<$<BOOL:${HW_FIH}>:CONFIG_HW_FIH>
