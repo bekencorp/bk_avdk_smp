@@ -199,6 +199,8 @@ void disable_scb_dcache(void);
 void enable_scb_dcache(void);
 void tfm_hal_verify_configuration(void);
 
+/* Executed on the deep-sleep wakeup path, keep it resident in SRAM. */
+__attribute__((section(".tfm_fastboot_code"), noinline))
 int tfm_hal_secure_static_mpu_init(void)
 {
 #if CONFIG_TFM_MPU

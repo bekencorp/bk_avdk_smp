@@ -179,7 +179,23 @@ FIH_RET_TYPE(enum tfm_plat_err_t) init_debug(void)
 }
 
 /*----------------- NVIC interrupt target state to NS configuration ----------*/
-enum tfm_plat_err_t nvic_interrupt_target_state_cfg(void)
+/* Keep the wakeup-path configuration in SRAM (see .tfm_fastboot_code) and
+ * build it optimized: at the reset-default low clock the -O0 form both bloats
+ * the code and keeps CMSIS helpers such as NVIC_ClearTargetState out of line
+ * (they would execute from flash). */
+#define TFM_RAMFUNC \
+    __attribute__((section(".tfm_fastboot_code"), noinline, optimize("O2")))
+
+/* Target an IRQ to the Secure state, same as NVIC_ClearTargetState() in
+ * core_cm55.h. Kept as a macro so the resume path does not jump to the
+ * out-of-line CMSIS helper in flash through a veneer. */
+#define NVIC_TARGET_SECURE(irq)                                              \
+    do {                                                                     \
+        NVIC->ITNS[((uint32_t)(irq)) >> 5] &=                                \
+            ~(1UL << (((uint32_t)(irq)) & 0x1FUL));                          \
+    } while (0)
+
+enum tfm_plat_err_t TFM_RAMFUNC nvic_interrupt_target_state_cfg(void)
 {
     /* Target every interrupt to NS; unimplemented interrupts will be WI */
     for (uint8_t i=0; i<sizeof(NVIC->ITNS)/sizeof(NVIC->ITNS[0]); i++) {
@@ -188,14 +204,11 @@ enum tfm_plat_err_t nvic_interrupt_target_state_cfg(void)
 
 #ifdef SECURE_UART1
     /* UART1 is a secure peripheral, so its IRQs have to target S state */
-    NVIC_ClearTargetState(UARTRX1_IRQn);
-    NVIC_ClearTargetState(UARTTX1_IRQn);
-    NVIC_ClearTargetState(UART1_IRQn);
+    NVIC_TARGET_SECURE(UARTRX1_IRQn);
+    NVIC_TARGET_SECURE(UARTTX1_IRQn);
+    NVIC_TARGET_SECURE(UART1_IRQn);
 #endif
-    //NVIC_ClearTargetState(UART1_IRQn);
-    NVIC_ClearTargetState(ENCP_S_IRQn);
-    // NVIC_ClearTargetState(TIMER0_IRQn);
-    // NVIC_ClearTargetState(TIMER1_IRQn);
+    NVIC_TARGET_SECURE(ENCP_S_IRQn);
 
     return TFM_PLAT_ERR_SUCCESS;
 }
@@ -224,7 +237,9 @@ struct sau_cfg_t {
 };
 
 #if CONFIG_SAU_DETAILED_SETTING
-const struct sau_cfg_t sau_cfg[] = {
+/* Placed in the SRAM fastboot rodata section: the resume path must not touch
+ * flash. */
+const struct sau_cfg_t sau_cfg[] __attribute__((section(".tfm_fastboot_rodata"), used)) = {
     {
         ((uint32_t)&REGION_NAME(Load$$LR$$, LR_NS_PARTITION, $$Base)),
         ((uint32_t)&REGION_NAME(Load$$LR$$, LR_NS_PARTITION, $$Base) +
@@ -282,7 +297,9 @@ const struct sau_cfg_t sau_cfg[] = {
 #endif
 };
 #else
-const struct sau_cfg_t sau_cfg[] = {
+/* Placed in the SRAM fastboot rodata section: the resume path must not touch
+ * flash. */
+const struct sau_cfg_t sau_cfg[] __attribute__((section(".tfm_fastboot_rodata"), used)) = {
     {
         0,
         0x0fffffff,
@@ -299,13 +316,16 @@ const struct sau_cfg_t sau_cfg[] = {
 #define NR_SAU_INIT_STEP                 3
 
 extern void tfm_core_panic(void);
-void sau_and_idau_cfg(void)
+void TFM_RAMFUNC sau_and_idau_cfg(void)
 {
     uint32_t i;
     uint32_t loop_counter = 0;
     uint32_t expected_size = ARRAY_SIZE(sau_cfg);
-    /* Enables SAU */
-    TZ_SAU_Enable();
+    /* Enables SAU. Inlined from TZ_SAU_Enable(): it stays out of line at -O0
+     * and would make the resume path execute from flash through a veneer. */
+    SAU->CTRL |= SAU_CTRL_ENABLE_Msk;
+    __DSB();
+    __ISB();
 
     if ((SAU->CTRL & SAU_CTRL_ENABLE_Msk) == 0) {
         tfm_core_panic();

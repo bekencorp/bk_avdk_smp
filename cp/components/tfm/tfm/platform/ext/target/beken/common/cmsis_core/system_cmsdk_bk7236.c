@@ -199,6 +199,8 @@ void SystemInit (void)
 	SI_MARK("SI6:done\r\n");
 }
 
+/* Executed on the deep-sleep wakeup path, keep it resident in SRAM. */
+__attribute__((section(".tfm_fastboot_code"), noinline))
 void tcm_spe()
 {
 #if CONFIG_SPE

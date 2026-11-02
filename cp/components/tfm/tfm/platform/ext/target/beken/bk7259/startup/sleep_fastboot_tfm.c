@@ -18,45 +18,41 @@
 
 extern uint32_t sys_is_running_from_deep_sleep(void);
 extern void tcm_spe(void);
+extern uint32_t __STACK_LIMIT;
+extern uint32_t __StackSeal;
 
-/* Clear the deep-sleep markers in the retained R0 image.
- * TFM S may not define CONFIG_DEEP_LV, so do not call
- * aon_pmu_hal_set_dlv_startup().
- */
-static void tfm_sleep_clear_aon_fastboot_flags(void)
+/* Place a function in the SRAM-resident fastboot resume section. These run at
+ * the reset-default low clock on the wakeup path, so build them optimized
+ * instead of the project-wide -O0 to cut the instruction count. */
+#define TFM_RAMFUNC \
+	__attribute__((section(".tfm_fastboot_code"), noinline, optimize("O2")))
+
+#define AON_PMU_R0_ADDR    (SOC_AON_PMU_REG_BASE + 0x00u)
+#define AON_PMU_R25_ADDR   (SOC_AON_PMU_REG_BASE + (0x25u << 2))
+#define AON_PMU_R7B_ADDR   (SOC_AON_PMU_REG_BASE + (0x7Bu << 2))
+#define AON_PMU_LATCH_KEY1 (0x424B55AAu)
+#define AON_PMU_LATCH_KEY2 (0xBDB4AA55u)
+
+/* Clear the deep-sleep markers in the retained R0 image. Register-only, so it
+ * is safe to call from the SRAM resume path. */
+static TFM_RAMFUNC void tfm_sleep_clear_aon_fastboot_flags(void)
 {
 	aon_pmu_r0_t retained;
 
 	/* R7B is the retained source of truth after reset. Restore all retained
 	 * fields to R0 before clearing the fastboot markers so the whole-word
 	 * latch cannot erase reset reason, owner, or other retained state. */
-	retained.v = aon_pmu_ll_get_r7b();
+	retained.v = REG_READ(AON_PMU_R7B_ADDR);
 	retained.fast_boot = 0;
 	retained.dlv_startup = 0;
-	aon_pmu_ll_set_r0(retained.v);
+	REG_WRITE(AON_PMU_R0_ADDR, retained.v);
 	__DSB();
-	aon_pmu_hal_r0_latch_to_r7b();
+	REG_WRITE(AON_PMU_R25_ADDR, AON_PMU_LATCH_KEY1);
+	REG_WRITE(AON_PMU_R25_ADDR, AON_PMU_LATCH_KEY2);
 	__DSB();
 }
 
-static bool tfm_sleep_warm_boot_applicable(void)
-{
-	if (sys_is_running_from_deep_sleep() == 0u) {
-		return false;
-	}
-
-	if (aon_pmu_ll_get_r7b_fast_boot() == 0u) {
-		return false;
-	}
-
-	if (!tfm_sleep_context_is_valid()) {
-		return false;
-	}
-
-	return true;
-}
-
-static void tfm_sleep_secure_hw_init(void)
+static TFM_RAMFUNC void tfm_sleep_secure_hw_init(void)
 {
 	sau_and_idau_cfg();
 	(void)tfm_hal_secure_static_mpu_init();
@@ -68,7 +64,7 @@ static void tfm_sleep_secure_hw_init(void)
 	(void)nvic_interrupt_target_state_cfg();
 }
 
-__attribute__((naked)) __attribute__((noreturn))
+__attribute__((section(".tfm_fastboot_code"), naked, noreturn))
 static void tfm_sleep_bxns_entry(uint32_t ns_ep)
 {
 	/*
@@ -106,8 +102,7 @@ static void tfm_sleep_bxns_entry(uint32_t ns_ep)
 	);
 }
 
-__attribute__((noreturn))
-static void tfm_sleep_jump_to_ns(void)
+static TFM_RAMFUNC __attribute__((noreturn)) void tfm_sleep_jump_to_ns(void)
 {
 	uint32_t ns_vtor = NS_CODE_START;
 	uint32_t reg_val;
@@ -136,20 +131,38 @@ static void tfm_sleep_jump_to_ns(void)
 	__disable_irq();
 	__DSB();
 	__ISB();
+
 	tfm_sleep_bxns_entry(ns_ep);
 }
 
-void tfm_sleep_early_boot(void)
+/* Minimal core init after the CPU power-on reset of a deep-sleep wakeup. */
+static TFM_RAMFUNC void tfm_fastboot_core_init(void)
 {
-	if (!tfm_sleep_warm_boot_applicable()) {
-		/* Drop stale deepsleep markers before falling through to cold TF-M. */
-		tfm_sleep_clear_aon_fastboot_flags();
-		return;
-	}
+	SCB->VTOR = S_CODE_START;
+
+#if defined(__ITCM_PRESENT) && (__ITCM_PRESENT == 1U)
+	TCM->ITCMCR |= SCB_ITCMCR_EN_Msk;
+	ITGU->TGU_CTRL |= TGU_DBFEN_Msk | TGU_DEREN_Msk;
+#endif
+#if defined(__DTCM_PRESENT) && (__DTCM_PRESENT == 1U)
+	TCM->DTCMCR |= SCB_DTCMCR_EN_Msk;
+#endif
+
+	__set_MSPLIM((uint32_t)(&__STACK_LIMIT));
+	__TZ_set_STACKSEAL_S((uint32_t *)&__STACK_SEAL);
+	__DSB();
+	__ISB();
+}
+
+/* SRAM-resident fastboot resume entry, branched to from Reset_Handler. */
+TFM_RAMFUNC __attribute__((noreturn)) void tfm_fastboot_resume(void)
+{
+	tfm_fastboot_core_init();
 
 	if (tfm_sleep_context_restore() != 0) {
+		/* No path back to BL2 cold boot: clear the marker and restart. */
 		tfm_sleep_clear_aon_fastboot_flags();
-		return;
+		NVIC_SystemReset();
 	}
 
 	tfm_sleep_secure_hw_init();

@@ -8,7 +8,9 @@
 extern "C" {
 #endif
 
-void tfm_sleep_early_boot(void);
+/* SRAM-resident fastboot resume entry, entered from Reset_Handler when the
+ * retained AON PMU fast_boot marker is set. Never returns. */
+void tfm_fastboot_resume(void);
 
 #ifdef __cplusplus
 }

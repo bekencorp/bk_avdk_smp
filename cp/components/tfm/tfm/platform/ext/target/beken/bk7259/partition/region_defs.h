@@ -179,6 +179,14 @@
 #define BL2_DS_RETENTION_SIZE (0x0)
 #endif
 #define TFM_SLEEP_CONTEXT_ADDR (BL2_DS_RETENTION_ADDR + BL2_DS_RETENTION_SIZE)
-#define TFM_SLEEP_CONTEXT_MAX_SIZE (0x400)
+#define TFM_SLEEP_CONTEXT_MAX_SIZE (0x600)
+
+/* TF-M fastboot resume code, resident in SRAM. Copied from flash at cold boot
+ * by the .copy.table loop in Pre_Main(); executed directly after a deep-sleep
+ * wakeup, so it must never fetch instructions from flash. */
+#define TFM_FASTBOOT_CODE_MAX    (0x1000)
+#define TFM_FASTBOOT_CODE_ADDR   (S_DATA_START + CONFIG_TFM_RAM_SIZE - TFM_FASTBOOT_CODE_MAX)
+#define TFM_FASTBOOT_CODE_MAGIC  0x464D4654     /* 'TFMF', also used from the linker script */
+#define TFM_FASTBOOT_CODE_VER    1
 
 #define ENABLE_HEAP 1

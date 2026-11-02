@@ -264,6 +264,8 @@ uint32_t tfm_hal_is_ignore_data_shared(void)
     return (sys_is_running_from_deep_sleep() && sys_is_enable_fast_boot());
 }
 
+/* Executed on the deep-sleep wakeup path, keep it resident in SRAM. */
+__attribute__((section(".tfm_fastboot_code"), noinline))
 void tfm_hal_dma_init(void)
 {
 	/* DMA0 lives in the CP domain (always powered here) and is configured at the

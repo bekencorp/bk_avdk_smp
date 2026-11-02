@@ -37,6 +37,9 @@
 #define GET_BIT_VAL(val, bit)            ((val >> bit) & 1)
 #define SET_BIT_VAL(val, bit, new_val)   ((val & (~ (1 << bit)))|(new_val << bit))
 
+#define TFM_STRINGIFY_(x)   #x
+#define TFM_STRINGIFY(x)    TFM_STRINGIFY_(x)
+
 extern uint32_t __StackSeal;
 extern uint32_t __INITIAL_SP;
 extern uint32_t __STACK_LIMIT;
@@ -209,6 +212,25 @@ const VECTOR_TABLE_Type __VECTOR_TABLE[] __VECTOR_TABLE_ATTRIBUTE = {
 
 __NO_RETURN ENTRY_SECTION __attribute__((naked)) void Reset_Handler(void)
 {
+    __asm volatile (
+        /* Fastboot probe: retained R7B.fast_boot plus SRAM code sentinel */
+        "LDR    R1, =0x440001EC                \n"
+        "LDR    R0, [R1]                       \n"
+        "TST    R0, #0x02                      \n"
+        "BEQ    1f                             \n"
+        "LDR    R1, =" TFM_STRINGIFY(TFM_FASTBOOT_CODE_ADDR) "\n"
+        "LDR    R0, [R1]                       \n"
+        "LDR    R2, =" TFM_STRINGIFY(TFM_FASTBOOT_CODE_MAGIC) "\n"
+        "CMP    R0, R2                         \n"
+        "BNE    1f                             \n"
+        "LDR    R0, =tfm_fastboot_resume       \n"
+        "BX     R0                             \n"
+        "1:                                    \n"
+        :
+        :
+        : "r0", "r1", "r2", "memory"
+    );
+
     __set_MSPLIM((uint32_t)(&__STACK_LIMIT));
 
 #if defined (__ARM_FEATURE_CMSE) && (__ARM_FEATURE_CMSE == 3U)
@@ -217,10 +239,6 @@ __NO_RETURN ENTRY_SECTION __attribute__((naked)) void Reset_Handler(void)
 
     /* CMSIS System Initialization */
     SystemInit();
-
-#if CONFIG_SLEEP_RETENTION_NSC
-    tfm_sleep_early_boot();
-#endif
 
     /* Enter PreMain (C library entry point) */
     Pre_Main();

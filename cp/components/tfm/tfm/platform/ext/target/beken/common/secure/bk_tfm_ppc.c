@@ -50,6 +50,8 @@ static uint32_t ppc_get_bit(uint32_t reg, uint32_t bit)
     return (v & BIT(bit));
 }
 
+/* Executed on the deep-sleep wakeup path, keep it resident in SRAM. */
+__attribute__((section(".tfm_fastboot_code"), noinline, optimize("O2")))
 static void ppc_set_bit(uint32_t reg, uint32_t bit)
 {   
     uint32_t v = REG_READ((SOC_PPRO_REG_BASE + (reg << 2)));
@@ -82,7 +84,13 @@ void bk_ppc_copy_cp_config_to_snapshot(uint32_t dest[BK_PPC_CONFIG_WORD_COUNT])
 	}
 }
 
-void bk_ppc_set_ap_master_nsec(void)
+/* Executed on the deep-sleep wakeup path at the reset-default low clock:
+ * keep them resident in SRAM and build them optimized to cut the instruction
+ * count. */
+#define TFM_RAMFUNC \
+	__attribute__((section(".tfm_fastboot_code"), noinline, optimize("O2")))
+
+void TFM_RAMFUNC bk_ppc_set_ap_master_nsec(void)
 {
 #if CONFIG_AP_BOOT_NSC
     /* AP master access security attribute, PPRO reg0xF[3:2]. PPRO is a Secure
@@ -96,7 +104,7 @@ void bk_ppc_set_ap_master_nsec(void)
 #endif
 }
 
-int bk_ppc_apply_config(const uint32_t config[BK_PPC_CONFIG_WORD_COUNT])
+int TFM_RAMFUNC bk_ppc_apply_config(const uint32_t config[BK_PPC_CONFIG_WORD_COUNT])
 {
     if (config == NULL) {
         return BK_ERR_PARAM;
@@ -211,7 +219,7 @@ int bk_pphs_apply_ap_config_from_flash(void)
     return bk_pphs_apply_config(s_ap_config);
 }
 
-int bk_ppc_init(void)
+int TFM_RAMFUNC bk_ppc_init(void)
 {
 	volatile uint32_t *ppro_reg2 =
 		(volatile uint32_t *)(SOC_PPRO_REG_BASE + 2u * 4u);

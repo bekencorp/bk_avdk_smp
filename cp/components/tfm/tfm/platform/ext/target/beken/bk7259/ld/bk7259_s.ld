@@ -37,6 +37,7 @@ MEMORY
 #if defined(S_RAM_CODE_START)
   CODE_RAM (rwx) : ORIGIN = S_RAM_CODE_START, LENGTH = S_RAM_CODE_SIZE
 #endif
+  FASTBOOT_RAM (rwx) : ORIGIN = TFM_FASTBOOT_CODE_ADDR, LENGTH = TFM_FASTBOOT_CODE_MAX
 }
 
 #ifndef TFM_LINKER_VENEERS_START
@@ -228,6 +229,14 @@ SECTIONS
         LONG (ADDR(.ER_CODE_SRAM))
         LONG (SIZEOF(.ER_CODE_SRAM) / 4)
 #endif
+
+        /* Fastboot resume code and its read-only tables: flash -> SRAM */
+        LONG (LOADADDR(.tfm_fastboot_code))
+        LONG (ADDR(.tfm_fastboot_code))
+        LONG (SIZEOF(.tfm_fastboot_code) / 4)
+        LONG (LOADADDR(.tfm_fastboot_rodata))
+        LONG (ADDR(.tfm_fastboot_rodata))
+        LONG (SIZEOF(.tfm_fastboot_rodata) / 4)
         __copy_table_end__ = .;
 
         /* .zero.table */
@@ -614,6 +623,35 @@ SECTIONS
 
     Image$$ER_TFM_DATA$$Base = ADDR(.TFM_DATA);
     Image$$ER_TFM_DATA$$Limit = ADDR(.TFM_DATA) + SIZEOF(.TFM_DATA) + SIZEOF(.TFM_BSS);
+
+    /* Fastboot resume code, fixed SRAM address. Placed last so that every
+     * other RAM section is allocated below it; the ASSERTs below reject any
+     * overlap with .bss or overflow of the reserved window. */
+    .tfm_fastboot_code :
+    {
+        __tfm_fastboot_code_start__ = .;
+        /* Sentinel at offset 0, checked by Reset_Handler before branching here */
+        LONG(TFM_FASTBOOT_CODE_MAGIC)
+        KEEP(*(.tfm_fastboot_code))
+        . = ALIGN(4);
+        __tfm_fastboot_code_end__ = .;
+    } > FASTBOOT_RAM AT> FLASH
+
+    /* Read-only tables used by the resume path, kept next to the code so the
+     * fastboot wakeup never fetches data from flash. */
+    .tfm_fastboot_rodata :
+    {
+        __tfm_fastboot_rodata_start__ = .;
+        KEEP(*(.tfm_fastboot_rodata))
+        . = ALIGN(4);
+        __tfm_fastboot_rodata_end__ = .;
+    } > FASTBOOT_RAM AT> FLASH
+
+    ASSERT(SIZEOF(.tfm_fastboot_code) + SIZEOF(.tfm_fastboot_rodata) <=
+           TFM_FASTBOOT_CODE_MAX,
+           "fastboot SRAM code exceeds reserved size")
+    ASSERT(ADDR(.tfm_fastboot_code) >= __bss_end__,
+           "fastboot SRAM code overlaps .bss")
 
 #if defined(CONFIG_TFM_USE_TRUSTZONE)
     Image$$ER_VENEER$$Base = ADDR(.gnu.sgstubs);
