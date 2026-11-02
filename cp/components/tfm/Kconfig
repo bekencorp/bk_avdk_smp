@@ -166,7 +166,7 @@ config TFM_OTP_NSC
 
 config TFM_BOOTLOADER_VERSION_NSC
     bool "Enable NSC bootloader-version gateway (bk_bootloader_version_nsc)"
-    default n
+    default y
     help
         Beken ARMv8-M CMSE non-secure-callable (NSC) access to the BL2 version
         stamp stored at the tail of the BL2 manifest slot. The manifest lives in
