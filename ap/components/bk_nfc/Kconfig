@@ -22,7 +22,7 @@ menu "bk_nfc"
 
 	config NFC_MFRC522_COMM_SERIAL_PORT
 		int "Config MFRC522 Uart Communication  Port"
-		range 0 2
+		range 0 5
 		default 1
 		help
 		Default 1 mean use UART1
@@ -30,4 +30,14 @@ menu "bk_nfc"
 	config NFC_POLLING_PERIOD_MS
 		int "nfc polling time Period(ms)"
 		default 1000
+
+	config NFC_INT_GPIO
+		int "nfc interrupt gpio"
+		range 0 255
+		default 50
+	
+	config NFC_RST_GPIO
+		int "nfc reset gpio"
+		range 0 255
+		default 47
 endmenu
