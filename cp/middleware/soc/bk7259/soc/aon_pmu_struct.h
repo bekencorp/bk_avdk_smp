@@ -26,7 +26,7 @@ typedef volatile union {
 	struct {
 		uint32_t memchk_bps                       :  1; /**<bit[0 : 0] */
 		uint32_t fast_boot                        :  1; /**<bit[1 : 1] */
-		uint32_t dig_wake_en                      :  1; /**<bit[2 : 2] */
+		uint32_t psram_retention_enable           :  1; /**<bit[2 : 2] */
 		uint32_t bl2_deep_sleep                   :  1; /**<bit[3 : 3] */
 		uint32_t flash_remap_sel                  :  1; /**<bit[4 : 4], Flash 0x19 bit0: 0=A, 1=B */
 		uint32_t reset_reason_owner               :  3; /**<bit[5 : 7], 0=none, 1=CP, 2=AP, 3=both */

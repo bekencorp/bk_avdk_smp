@@ -68,6 +68,22 @@ static inline uint32_t aon_pmu_ll_get_r7b_fast_boot(void) {
 	aon_pmu_r0_t *r = (aon_pmu_r0_t*)(SOC_AON_PMU_REG_BASE + (0x7b << 2));
 	return r->fast_boot;
 }
+
+static inline void aon_pmu_ll_set_r0_psram_retention_enable(uint32_t v) {
+	aon_pmu_r0_t *r = (aon_pmu_r0_t*)(SOC_AON_PMU_REG_BASE + (0x0 << 2));
+	r->psram_retention_enable = v;
+}
+
+static inline uint32_t aon_pmu_ll_get_r0_psram_retention_enable(void) {
+	aon_pmu_r0_t *r = (aon_pmu_r0_t*)(SOC_AON_PMU_REG_BASE + (0x0 << 2));
+	return r->psram_retention_enable;
+}
+
+static inline uint32_t aon_pmu_ll_get_r7b_psram_retention_enable(void) {
+	aon_pmu_r0_t *r = (aon_pmu_r0_t*)(SOC_AON_PMU_REG_BASE + (0x7b << 2));
+	return r->psram_retention_enable;
+}
+
 static inline void aon_pmu_ll_set_r0_secboot_bootloader_address(uint32_t v) {
 	aon_pmu_r0_t *r = (aon_pmu_r0_t*)(SOC_AON_PMU_REG_BASE + (0x0 << 2));
 	r->secboot_bootloader_address = v;

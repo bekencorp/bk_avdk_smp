@@ -298,6 +298,9 @@ __IRAM_PM void mini_dlv_stack_frame_save_and_dlv(void)
 
 	aon_pmu_ll_set_r0_memchk_bps(1);
 	aon_pmu_ll_set_r0_fast_boot(1);
+	#if CONFIG_PSRAM_DATA_RETENTION_ENABLE
+	aon_pmu_ll_set_r0_psram_retention_enable(1);
+	#endif
 	aon_pmu_hal_set_dlv_startup(1);
 
 #ifdef CONFIG_CACHE_ENABLE

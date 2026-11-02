@@ -1335,6 +1335,7 @@ void sys_hal_enter_deep_sleep_nspe(void *param)
 		}
 		aon_pmu_ll_set_r0_memchk_bps(1);
 		aon_pmu_ll_set_r0_fast_boot(1);
+		aon_pmu_ll_set_r0_psram_retention_enable(0);
 		#if CONFIG_DEEP_LV
 		aon_pmu_hal_set_dlv_startup(0);
 		#endif
@@ -1435,6 +1436,7 @@ void sys_hal_enter_deep_sleep_spe(void* param)
 	aon_pmu_ll_set_r0_memchk_bps(1);
 	/* Bitfield write: must not clobber flash_remap_sel (R0 bit4). */
 	aon_pmu_ll_set_r0_fast_boot(1);
+	aon_pmu_ll_set_r0_psram_retention_enable(0);
 	#if CONFIG_DEEP_LV
 	aon_pmu_hal_set_dlv_startup(0);
 	#endif
@@ -2880,7 +2882,6 @@ __IRAM_PM void sys_hal_enter_deep_lv(void)
 		sys_hal_lv_aon_snap_at_sleep_record();
 		#endif//CONFIG_DEEP_LV_DEBUG_LOG
 		// PM_GPIO_UP(36);//13
-		// PM_GPIO_DOWN(36);
 		sys_hal_disable_spi_latch();
 		SYS_PM_HAL_CPU_BARRIER();
 		/*enter deep sleep*/
@@ -3040,6 +3041,7 @@ __IRAM_PM void sys_hal_enter_deep_lv(void)
 	#endif
 	aon_pmu_ll_set_r0_fast_boot(0);
 	aon_pmu_hal_set_dlv_startup(0);
+	aon_pmu_ll_set_r0_psram_retention_enable(0);
 #if CONFIG_CKMN
 	bk_ckmn_power_down_for_sleep();
 #endif
@@ -3686,6 +3688,7 @@ void sys_hal_low_power_hardware_init()
 	/*set memery bypass*/
 	aon_pmu_ll_set_r0_memchk_bps(1);
 	aon_pmu_ll_set_r0_fast_boot(0);
+	aon_pmu_ll_set_r0_psram_retention_enable(0);
 
 	/*set wakeup source*/
 	aon_pmu_ll_set_r41_wakeup_ena(0x23);//enable wakeup source: int_touched,int_rtc,int_gpio,wifi wake(bt or wifi wakeup source enable when bt or wifi sleep)

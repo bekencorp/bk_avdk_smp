@@ -272,6 +272,10 @@ static inline void early_jtag_gpio_map(void)
 	*cfg21 = (*cfg21 & GPIO_FUN_SEL_MASK) | (FUNC_CODE_SWDIO << GPIO_FUN_SEL_SHIFT);
 }
 uint32_t  g_debug_jtag_enable = 1;
+
+/* ANA_REG14 (0x4E) value captured at deep-LV wakeup startup, for debug dump
+ * in the PM wakeup path (bk_pm_sleep.c). */
+//uint32_t g_ana_reg14_value = 0;
 #endif
 extern void bk_wdt_force_feed(void);
 
@@ -290,6 +294,8 @@ void dlv_hook(void)
 		 * must run before any other wake-path code executes or reads SRAM. */
 		sys_hal_mem_check_bad_point_value_restore();
 		#endif
+		/* Capture ANA_REG14 (0x4E) before further init may modify it. */
+		//g_ana_reg14_value = sys_hal_analog_get(ANALOG_REG14);
 
         #if CONFIG_PM_CP_DEEP_LV_SRAM_CHECK
 		sys_pm_hal_sram_crc_check();
