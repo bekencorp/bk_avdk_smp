@@ -1060,7 +1060,7 @@ static inline void sys_hal_set_low_voltage(pm_sleep_mode_e sleep_mode, volatile 
 		#if 1//CONFIG_LDO_SELF_LOW_POWER_MODE_ENA
 		sys_ll_set_ana_reg9_clk_sel(0); //bit0 0:rosc 1:xtal 32k
 		sys_ll_set_ana_reg9_coreldo_hp(0); //bit1 0:coreldo low power mode
-		sys_ll_set_ana_reg9_dldohp(0); //bit2 0:dldo low power mode
+		sys_ll_set_ana_reg9_dldohp(1); //bit2 0:dldo low power mode  1:dldo high power mode ;for psram retetion at lv sleep
 		sys_ll_set_ana_reg9_aldohp(0); //bit10 0:aldohp low power mode
 		sys_ll_set_ana_reg9_aloldohp(0); //bit21 0:aloldohp low power mode
 		#endif
