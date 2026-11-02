@@ -158,6 +158,28 @@ menu "Arch::Cm"
 			help
 				Enable L2 cache support when the SoC memory system provides it.
 
+		config AP_SECURE_CACHE_NSC
+			bool "Use AP Secure NSC for L2 cache maintenance"
+			depends on !SPE && !DCACHE && !L2_CACHE_ENABLE
+			default n
+			help
+				Route Non-Secure AP whole-cache maintenance requests through
+				the resident AP Secure shim. The Secure gateway performs PL310
+				clean-all, invalidate-all or clean-and-invalidate-all without
+				exposing the controller register window to the Non-Secure
+				world. Range operations are not provided by the gateway; range
+				maintenance stays a no-op in this configuration, so buffers that
+				need maintenance must be non-cacheable.
+				Whole-cache maintenance is issued from the primary AP core
+				only. invalidate-all may discard peer dirty lines and is only
+				legal while the other AP core is offline; clean-all and
+				clean-and-invalidate-all write the lines back first, so they are
+				data-safe, but they are issued from the primary core as well
+				because the secondary core owns no L2 state. The software lock
+				must stay in the .sram_spinlock_section that the project linker
+				script maps to non-cacheable SRAM; a cacheable lock breaks mutual
+				exclusion.
+
 		config CACHE_MAINTENANCE
 			bool
 			default n
