@@ -27,6 +27,10 @@
 
 #define TAG "ntwk-cs2"
 
+/* Upper bound for the engine thread to finish PPCS_DeInitialize() after
+ * PPCS_Listen_Break(). On timeout the object is intentionally not freed. */
+#define NTWK_CS2_EXIT_TIMEOUT_MS 5000
+
 #define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
 #define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
@@ -1271,7 +1275,8 @@ static int ntwk_cs2_p2p_interface_core(p2p_cs2_key_t *key)
             return -1;
         }
 
-        session = cs2_p2p_listen(key->did, key->apilicense, Repeat, &ntwk_cs2_info->is_running);
+        session = cs2_p2p_listen(key->did, key->apilicense, Repeat,
+                                 (uint8_t *)&ntwk_cs2_info->is_running);
 
         if (0 <= session)
         {
@@ -1338,13 +1343,29 @@ static int ntwk_cs2_p2p_interface_core(p2p_cs2_key_t *key)
 
 static void ntwk_cs2_service_main(beken_thread_arg_t arg)
 {
-    ntwk_cs2_p2p_interface_init(ntwk_cs2_info->cs2_key);
+    ntwk_cs2_info_t *info = ntwk_cs2_info;
 
-    ntwk_cs2_info->is_running = 1;
+    if (info == NULL) {
+        LOGE("%s: ntwk_cs2_info is NULL at thread entry\n", __func__);
+        rtos_delete_thread(NULL);
+        return;
+    }
 
-    ntwk_cs2_p2p_interface_core(ntwk_cs2_info->cs2_key);
+    ntwk_cs2_p2p_interface_init(info->cs2_key);
+
+    info->is_running = 1;
+
+    ntwk_cs2_p2p_interface_core(info->cs2_key);
 
     ntwk_cs2_p2p_interface_deinit();
+
+    /* Last access to info: wake ntwk_cs2_ctrl_chan_stop(), which owns the
+     * object and will free it after this post. Nothing below may touch info. */
+    if (info->exit_sem_inited) {
+        rtos_set_semaphore(&info->exit_sem);
+    }
+
+    rtos_delete_thread(NULL);
 }
 
 bk_err_t ntwk_cs2_ctrl_chan_start(void *param)
@@ -1376,6 +1397,12 @@ bk_err_t ntwk_cs2_ctrl_chan_start(void *param)
         return BK_FAIL;
     }
 
+    if (ntwk_cs2_info->is_running || ntwk_cs2_info->thd != NULL)
+    {
+        LOGW("%s: CS2 service already running or stopping\n", __func__);
+        return BK_FAIL;
+    }
+
     ntwk_cs2_info->cs2_key = p2p_cs2_key;
 
     rtos_init_mutex(&ntwk_cs2_info->tx_lock);
@@ -1388,6 +1415,18 @@ bk_err_t ntwk_cs2_ctrl_chan_start(void *param)
         ntwk_cs2_info->aud_sem_inited = BK_TRUE;
     }
 
+    if (ntwk_cs2_info->exit_sem_inited) {
+        rtos_deinit_semaphore(&ntwk_cs2_info->exit_sem);
+        ntwk_cs2_info->exit_sem_inited = BK_FALSE;
+    }
+    ret = rtos_init_semaphore_ex(&ntwk_cs2_info->exit_sem, 1, 0);
+    if (ret != BK_OK)
+    {
+        LOGE("%s: failed to init exit semaphore: %d\n", __func__, ret);
+        return BK_FAIL;
+    }
+    ntwk_cs2_info->exit_sem_inited = BK_TRUE;
+
     ret = rtos_create_thread(&ntwk_cs2_info->thd,
                              4,
                              "cs2",
@@ -1397,6 +1436,9 @@ bk_err_t ntwk_cs2_ctrl_chan_start(void *param)
     if (ret != BK_OK)
     {
         LOGE("Error: Failed to create cs2 service: %d\n", ret);
+        rtos_deinit_semaphore(&ntwk_cs2_info->exit_sem);
+        ntwk_cs2_info->exit_sem_inited = BK_FALSE;
+        ntwk_cs2_info->thd = NULL;
         return BK_FAIL;
     }
 
@@ -1419,6 +1461,10 @@ bk_err_t ntwk_cs2_ctrl_chan_stop(void)
     // 停止音频线程运行
     ntwk_cs2_info->aud_running = BK_FALSE;
 
+    /* Break the engine thread out of its blocking PPCS_Listen (timeout is up
+     * to 120 s), so the wait below returns promptly. */
+    PPCS_Listen_Break();
+
     // 关闭所有会话
     rtos_lock_mutex(&ntwk_cs2_info->mutex);
     for (int i = 0; i < NTWK_CS2_MAX_NUM_CONNECTIONS; i++)
@@ -1433,7 +1479,44 @@ bk_err_t ntwk_cs2_ctrl_chan_stop(void)
     }
     rtos_unlock_mutex(&ntwk_cs2_info->mutex);
 
-    rtos_delay_milliseconds(300);
+    /* Wait until the engine thread really exited: everything below tears down
+     * ntwk_cs2_info, and the thread runs PPCS_DeInitialize() on its way out.
+     *
+     * Why not rtos_thread_join(): the join implementation added for the SMP
+     * solution (Jira BK7236SW-9756, 2025-05-16) polls the target TCB:
+     *   ap/include/os/os.h            f4b696a  (Gerrit 58968)
+     *   ap/components/bk_rtos         2792cc1  (Gerrit 59061)
+     *   ap/components/os_source       d5b29a8  (Gerrit 59041)
+     * The idle task frees that TCB as soon as the thread deletes itself,
+     * without waiting for any joiner. Once the block is reused, join()
+     * inspects another task's TCB: it can return a bogus "finished"
+     * immediately or block forever, and it has no timeout. The engine thread
+     * instead posts exit_sem as its last access to this object, so once the
+     * take succeeds nothing can dereference ntwk_cs2_info again. On timeout
+     * we keep the object intact instead of freeing it under a live thread.
+     *
+     * This is a local emulation of a joinable thread. Replace it with a real
+     * joinable API (control block + timeout) once the platform provides one. */
+    if (ntwk_cs2_info->thd != NULL)
+    {
+        if (!ntwk_cs2_info->exit_sem_inited)
+        {
+            LOGE("%s: exit semaphore missing, cannot confirm thread exit\n", __func__);
+            return BK_FAIL;
+        }
+        else if (rtos_get_semaphore(&ntwk_cs2_info->exit_sem, NTWK_CS2_EXIT_TIMEOUT_MS) != BK_OK)
+        {
+            LOGE("%s: engine thread did not exit in %d ms, keep info alive\n",
+                 __func__, NTWK_CS2_EXIT_TIMEOUT_MS);
+            return BK_FAIL;
+        }
+        else
+        {
+            rtos_deinit_semaphore(&ntwk_cs2_info->exit_sem);
+            ntwk_cs2_info->exit_sem_inited = BK_FALSE;
+            ntwk_cs2_info->thd = NULL;
+        }
+    }
 
     // 释放音频信号量
     if (ntwk_cs2_info->aud_sem_inited)
@@ -1477,6 +1560,20 @@ bk_err_t ntwk_cs2_deinit(void)
 {
     if (ntwk_cs2_info != NULL)
     {
+        /* Never free the object while the engine thread may still use it.
+         * A failed stop leaves thd set precisely so this guard triggers. */
+        if (ntwk_cs2_info->thd != NULL)
+        {
+            LOGE("%s: refuse to free, engine thread still running\n", __func__);
+            return BK_FAIL;
+        }
+
+        if (ntwk_cs2_info->exit_sem_inited)
+        {
+            rtos_deinit_semaphore(&ntwk_cs2_info->exit_sem);
+            ntwk_cs2_info->exit_sem_inited = BK_FALSE;
+        }
+
         os_free(ntwk_cs2_info);
         ntwk_cs2_info = NULL;
     }

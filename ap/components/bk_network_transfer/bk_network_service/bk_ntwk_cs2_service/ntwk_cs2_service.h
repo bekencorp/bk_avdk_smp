@@ -69,8 +69,9 @@ typedef struct
 
 typedef struct
 {
-    uint8_t is_running;
-    uint8_t aud_running;
+    /* Written by the control thread, read by the engine/audio threads. */
+    volatile uint8_t is_running;
+    volatile uint8_t aud_running;
     beken_mutex_t tx_lock;
 
     uint16_t video_status : 1;
@@ -84,6 +85,13 @@ typedef struct
 
     beken_semaphore_t aud_sem;
     uint8_t aud_sem_inited;
+
+    /* Posted by the engine thread as its last action before self-delete.
+     * ntwk_cs2_ctrl_chan_stop() waits on it so ntwk_cs2_info is never freed
+     * while the engine thread can still touch it (BK7259SW-4133). */
+    beken_semaphore_t exit_sem;
+    uint8_t exit_sem_inited;
+
     uint32_t video_server_state : 1;
     uint32_t audio_server_state : 1;
     cs2_session_t sessions[NTWK_CS2_MAX_NUM_CONNECTIONS];
