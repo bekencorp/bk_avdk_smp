@@ -2034,7 +2034,14 @@ bk_err_t aec_v3_algorithm_set_config(audio_element_handle_t aec_algorithm, void 
     aec_ctrl(aec->aec_ctx, AEC_CTRL_CMD_SET_NS_PARA, aec_cfg->ns_para);
 
     aec_ctrl(aec->aec_ctx, AEC_CTRL_CMD_SET_DRC, aec_cfg->drc_gain);
-    aec_ctrl(aec->aec_ctx, AEC_CTRL_CMD_SET_EC_FILTER, aec_cfg->ec_filter);
+
+    uint8_t ec_filter = aec_cfg->ec_filter;
+    if (aec->aec_cfg.ec_only_output)
+    {
+        ec_filter |= (1 << 5);
+    }
+    aec->aec_cfg.ec_filter = ec_filter;
+    aec_ctrl(aec->aec_ctx, AEC_CTRL_CMD_SET_EC_FILTER, ec_filter);
 
     if((aec->vad_cfg.vad_start_threshold !=0 && aec->vad_cfg.vad_stop_threshold != 0xff)
                                         && (aec->vad_cfg.vad_start_threshold != aec->vad_cfg.vad_stop_threshold))
