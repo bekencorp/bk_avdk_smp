@@ -16,7 +16,10 @@ AP_RAM,                  SRAM,           , 0x060000
 PSRAM_MEM_SLAB_UNCODED, PSRAM, 0x60000000, 0x1000000
 PSRAM_MEM_SLAB_CODED,   PSRAM, 0x64000000, 0xE00000
 CP_PSRAM_HEAP,          PSRAM,           , 0x020000
-AP_PSRAM_DATA_SECTION,  PSRAM, 0x74E20000, 0x040000
-AP_PSRAM_HEAP,          PSRAM,           , 0x0a0000
+# 1MB + 64KB margin: PM_AP_PSRAM_RETENTION_CHECK places a 1MB test buffer in .psram.bss.
+AP_PSRAM_DATA_SECTION,  PSRAM, 0x74E20000, 0x110000
+AP_PSRAM_HEAP,          PSRAM,           , 0x040000
 AP_PSRAM_CACHE_HEAP, PSRAM,           , 0x020000
-AP_PSRAM_CODE_SECTION,  PSRAM,           , 0x100000
+# CODE_SECTION must end at/after bank end 0x65000000, otherwise the generator
+# appends a 5th "reserved" MPU tail segment and exceeds the 4 PSRAM MPU slots.
+AP_PSRAM_CODE_SECTION,  PSRAM,           , 0x080000

@@ -69,7 +69,7 @@ CONFIG_TFM_SLEEP_RETENTION_NSC=y
 # NS cpu0_app reaches registers through the secure world via SG veneers
 # (reg_nsc.c -> libtfm_s_veneers.a). Enables the NS `regshow_s` CLI too.
 CONFIG_TFM_REG_ACCESS_NSC=y
-
+CONFIG_TFM_AP_SHIM_L2_CACHE_DISABLE=y
 # --- Crypto backend ---
 # NS classic mbedtls: TRUSTENGINE (Normal window). NS PSA/TLS-via-PSA: TF-M Crypto.
 CONFIG_PSA_MBEDTLS=y
