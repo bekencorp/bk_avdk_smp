@@ -42,10 +42,20 @@
 #define AP_L2_INVALID_WAY_ADDR  0xA000077C
 #define AP_L2_CACHE_SYNC_ADDR   0xA0000730
 #define AP_L2_ADDR_FILTER_ADDR  0xA0000C00
+#define AP_L2_CLEAN_WAY_ADDR    0xA00007BC
+#define AP_L2_CLEAN_INV_WAY_ADDR 0xA00007FC
 #define AP_L2_AUX_CTRL_VALUE    0x02020000
 #define AP_L2_ALL_WAYS          0x0000FFFF
 #define AP_L2_INT_BITS          0x000001FF
 #define AP_L2_WAIT_COUNT        0x00100000
+
+/*
+ * Resident AP Secure cache-service ABI. The AP Non-Secure image calls the
+ * fixed SG veneer at AP_SHIM_BASE + 0x800. Keep the offset synchronized with
+ * ap/include/common/ap_secure_cache_nsc.h.
+ */
+#define AP_CACHE_NSC_OFFSET      0x00000800
+#define AP_CACHE_NSC_RLAR_OFFSET 0x00000803
 
 /* AP flash XIP NS alias: SOC_FLASH_DATA_BASE (0x04000000 + 0x10000000). */
 #define AP_FLASH_XIP_BASE  0x14000000u
@@ -180,7 +190,47 @@ __asm__(
 "    isb\n"
      /* SYS is already Non-Secure from CP PPHS apply; shim only switches the
       * core into the Non-Secure state. */
-     /* SAU region0: 0x10000000..0xDFFFFFFF Non-Secure, then enable SAU */
+#if defined(CONFIG_AP_CACHE_NSC)
+     /*
+      * Keep AP_SPE_RAM Secure except for one 32-byte NSC veneer. SAU regions
+      * must not overlap, so split the former large Non-Secure window around
+      * the 4-KiB Secure shim block.
+      */
+     /* SAU region0: 0x10000000 .. AP_SHIM_BASE-1, Non-Secure. */
+"    ldr  r0, =0xE000EDD8\n"       /* SAU_RNR  */
+"    movs r1, #0\n"
+"    str  r1, [r0]\n"
+"    ldr  r0, =0xE000EDDC\n"       /* SAU_RBAR */
+"    ldr  r1, =0x10000000\n"
+"    str  r1, [r0]\n"
+"    ldr  r0, =0xE000EDE0\n"       /* SAU_RLAR */
+"    ldr  r1, =(" STRINGIFY_VALUE(AP_SHIM_BASE) " - 0x20 + 1)\n"
+"    str  r1, [r0]\n"
+     /* SAU region1: fixed 32-byte Secure Gateway veneer, NSC. */
+"    ldr  r0, =0xE000EDD8\n"
+"    movs r1, #1\n"
+"    str  r1, [r0]\n"
+"    ldr  r0, =0xE000EDDC\n"
+"    ldr  r1, =(" STRINGIFY_VALUE(AP_SHIM_BASE) " + "
+		STRINGIFY_VALUE(AP_CACHE_NSC_OFFSET) ")\n"
+"    str  r1, [r0]\n"
+"    ldr  r0, =0xE000EDE0\n"
+"    ldr  r1, =(" STRINGIFY_VALUE(AP_SHIM_BASE) " + "
+		STRINGIFY_VALUE(AP_CACHE_NSC_RLAR_OFFSET) ")\n"
+"    str  r1, [r0]\n"
+     /* SAU region2: immediately after AP_SPE_RAM .. 0xDFFFFFFF, NS. */
+"    ldr  r0, =0xE000EDD8\n"
+"    movs r1, #2\n"
+"    str  r1, [r0]\n"
+"    ldr  r0, =0xE000EDDC\n"
+"    ldr  r1, =(" STRINGIFY_VALUE(AP_SHIM_BASE) " + "
+		STRINGIFY_VALUE(CONFIG_AP_SPE_RAM_SIZE) ")\n"
+"    str  r1, [r0]\n"
+"    ldr  r0, =0xE000EDE0\n"
+"    ldr  r1, =0xDFFFFFE1\n"
+"    str  r1, [r0]\n"
+#else
+     /* SAU region0: 0x10000000..0xDFFFFFFF Non-Secure. */
 "    ldr  r0, =0xE000EDD8\n"       /* SAU_RNR  */
 "    movs r1, #0\n"
 "    str  r1, [r0]\n"
@@ -190,6 +240,7 @@ __asm__(
 "    ldr  r0, =0xE000EDE0\n"       /* SAU_RLAR */
 "    ldr  r1, =0xDFFFFFE1\n"       /* limit 0xDFFFFFE0 | ENABLE */
 "    str  r1, [r0]\n"
+#endif
 "    ldr  r0, =0xE000EDD0\n"       /* SAU_CTRL */
 "    movs r1, #1\n"                /* ENABLE=1, ALLNS=0 */
 "    str  r1, [r0]\n"
@@ -805,6 +856,87 @@ __asm__(
 "122: .asciz \"CTRLNS\"\n"
 "    .ltorg\n"
 "    .balign 4\n"
+#if defined(CONFIG_AP_CACHE_NSC)
+     /*
+      * Fixed AP Non-Secure Callable cache service.
+      *
+      * ABI:
+      *   r0 = operation (0 clean-all, 1 invalidate-all, 2 clean+invalidate-all)
+      *   r0 = status on return
+      *
+      * The implementation is a stackless leaf with no external references.
+      * Cross-core serialization is owned by the trusted AP Non-Secure caller
+      * wrapper. Only whole-cache operations are exposed.
+      */
+"    .fill (" STRINGIFY_VALUE(AP_CACHE_NSC_OFFSET)
+		" - (. - ap_shim_blob)), 1, 0\n"
+"    .balign 32\n"
+"    .global ap_nsc_l2_cache_maintain\n"
+"    .thumb\n"
+"    .thumb_func\n"
+"ap_nsc_l2_cache_maintain:\n"
+"    sg\n"
+"    b.w  ap_sec_l2_cache_maintain\n"
+     /* Keep the whole 32-byte NSC region limited to the SG veneer. */
+"    .fill (0x820 - (. - ap_shim_blob)), 1, 0\n"
+"    .balign 4\n"
+"    .thumb_func\n"
+"ap_sec_l2_cache_maintain:\n"
+     /* Reject unknown operations before touching the controller. */
+"    cmp  r0, #2\n"
+"    bhi  ap_l2_nsc_err_param\n"
+     /* The gateway never enables PL310 at runtime. */
+"    ldr  r3, =" STRINGIFY_VALUE(AP_L2_CONTROL_ADDR) "\n"
+"    ldr  r3, [r3]\n"
+"    tst  r3, #1\n"
+"    beq  ap_l2_nsc_err_state\n"
+     /* Select the whole-cache maintenance register. */
+"    cmp  r0, #0\n"
+"    beq  ap_l2_nsc_select_clean\n"
+"    cmp  r0, #1\n"
+"    beq  ap_l2_nsc_select_invalidate\n"
+"    ldr  r3, =" STRINGIFY_VALUE(AP_L2_CLEAN_INV_WAY_ADDR) "\n"
+"    b    ap_l2_nsc_all_ways\n"
+"ap_l2_nsc_select_clean:\n"
+"    ldr  r3, =" STRINGIFY_VALUE(AP_L2_CLEAN_WAY_ADDR) "\n"
+"    b    ap_l2_nsc_all_ways\n"
+"ap_l2_nsc_select_invalidate:\n"
+"    ldr  r3, =" STRINGIFY_VALUE(AP_L2_INVALID_WAY_ADDR) "\n"
+     /* Operate on every way; the register self-clears when complete. */
+"ap_l2_nsc_all_ways:\n"
+"    ldr  r1, =" STRINGIFY_VALUE(AP_L2_ALL_WAYS) "\n"
+"    str  r1, [r3]\n"
+"    ldr  r2, =" STRINGIFY_VALUE(AP_L2_WAIT_COUNT) "\n"
+"ap_l2_nsc_wait:\n"
+"    ldr  r1, [r3]\n"
+"    cbz  r1, ap_l2_nsc_sync\n"
+"    subs r2, r2, #1\n"
+"    bne  ap_l2_nsc_wait\n"
+"    b    ap_l2_nsc_err_timeout\n"
+     /* Drain the PL310 operation before releasing ownership to NS. */
+"ap_l2_nsc_sync:\n"
+"    ldr  r3, =" STRINGIFY_VALUE(AP_L2_CACHE_SYNC_ADDR) "\n"
+"    movs r0, #0\n"
+"    str  r0, [r3]\n"
+"    dsb\n"
+"    isb\n"
+"    movs r0, #0\n"
+"    bxns lr\n"
+"ap_l2_nsc_err_param:\n"
+"    movs r0, #1\n"
+"    rsbs r0, r0, #0\n"
+"    bxns lr\n"
+"ap_l2_nsc_err_state:\n"
+"    movs r0, #3\n"
+"    rsbs r0, r0, #0\n"
+"    bxns lr\n"
+"ap_l2_nsc_err_timeout:\n"
+"    movs r0, #4\n"
+"    rsbs r0, r0, #0\n"
+"    bxns lr\n"
+"    .ltorg\n"
+"    .balign 4\n"
+#endif
 "ap_shim_blob_end:\n"
 );
 

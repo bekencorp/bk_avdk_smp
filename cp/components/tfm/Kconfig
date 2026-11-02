@@ -121,6 +121,17 @@ config TFM_AP_BOOT_NSC
         the AP MPC/PPHS, installs the verified boot shim and opens the Secure
         PPRO master gate. Forwarded to the TF-M build as CONFIG_AP_BOOT_NSC.
 
+config TFM_AP_CACHE_NSC
+    bool "Enable resident AP Secure L2 cache gateway"
+    depends on TFM_AP_BOOT_NSC
+    default n
+    help
+        Add a fixed Non-Secure Callable entry to the resident AP Secure boot
+        shim. AP Non-Secure software can request PL310 clean-all,
+        invalidate-all or clean-and-invalidate-all operations without
+        receiving direct access to the PL310 register window. Forwarded to the
+        TF-M build as CONFIG_AP_CACHE_NSC.
+
 config TFM_SLEEP_RETENTION_NSC
     bool "Enable TF-M sleep secure context retention"
     depends on SOC_BK7259

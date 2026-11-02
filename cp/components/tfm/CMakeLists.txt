@@ -351,6 +351,7 @@ if (CONFIG_TFM AND tfm_present)
                 # secure build (consumed by common/secure/CMakeLists.txt).
                 -DCONFIG_REG_ACCESS_NSC=${CONFIG_TFM_REG_ACCESS_NSC}
                 -DCONFIG_AP_BOOT_NSC=${CONFIG_TFM_AP_BOOT_NSC}
+                -DCONFIG_AP_CACHE_NSC=${CONFIG_TFM_AP_CACHE_NSC}
                 -DCONFIG_SLEEP_RETENTION_NSC=${CONFIG_TFM_SLEEP_RETENTION_NSC}
                 -DCONFIG_OTP_NSC=${CONFIG_TFM_OTP_NSC}
                 -DCONFIG_TFM_AP_SHIM_L2_CACHE_DISABLE=${CONFIG_TFM_AP_SHIM_L2_CACHE_DISABLE}
