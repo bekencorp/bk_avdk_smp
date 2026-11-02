@@ -108,7 +108,7 @@ int bandgap_init(void)
 
 	old_bandgap = (uint8_t)sys_drv_get_bgcalm();
 
-	result = bk_otp_ahb_read(OTP_VDDDIG_BANDGAP, &new_bandgap, sizeof(new_bandgap));
+	result = bk_otp_ahb_read_backup(OTP_VDDDIG_BANDGAP, &new_bandgap, NULL);
 	if ((result != BK_OK) || (new_bandgap == 0) || (new_bandgap > 0x3F)) {
 		goto default_bandgap;
 	}

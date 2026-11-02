@@ -206,6 +206,15 @@ static int bk_otp_ahb_update_wrapper(uint32_t item, uint8_t* buf, uint32_t size)
 #endif
 }
 
+static int bk_otp_ahb_read_backup_wrapper(uint32_t item, uint8_t *buf, int *both_valid)
+{
+#if (!CONFIG_OTP_V1)
+    return BK_FAIL;
+#else
+    return bk_otp_ahb_read_backup(item, buf, both_valid);
+#endif
+}
+
 static int bk_get_otp_ahb_rfcali_item_wrapper(void)
 {
 #if (!CONFIG_OTP_V1)
@@ -831,6 +840,7 @@ const phy_os_funcs_t g_phy_os_funcs = {
     ._bk_epa_gpio_config                    = bk_epa_gpio_config,
     ._bk_get_package_type                   = bk_get_package_type,
     ._sys_drv_get_temp_mode_flag            = sys_drv_get_temp_mode_flag,
+    ._bk_otp_ahb_read_backup                = bk_otp_ahb_read_backup_wrapper,
 };
 
 const phy_os_variable_t g_phy_os_variable = {

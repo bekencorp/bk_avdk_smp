@@ -93,7 +93,7 @@ static bool adc_try_load_otp_cwt(uint32_t *otp_cwt_buf)
         return false;
     }
 
-    result = bk_otp_ahb_read(OTP_GADC_CALIBRATION, data, otp_data_size);
+    result = bk_otp_ahb_read_backup(OTP_GADC_CALIBRATION, data, NULL);
 
     if (result != BK_OK) {
         ADC_LOGW("read otp gadc calib failed:%d\r\n", result);

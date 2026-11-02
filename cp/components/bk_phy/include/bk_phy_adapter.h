@@ -198,6 +198,7 @@ typedef struct {
     void(*_bk_epa_gpio_config)(UINT32 rx_gpio, UINT32 tx_gpio, UINT32 lna_gpio);
     int(*_bk_get_package_type)(uint8_t *package_type);
     uint32_t(*_sys_drv_get_temp_mode_flag)(void);
+    int (*_bk_otp_ahb_read_backup)(uint32_t item, uint8_t *buf, int *both_valid);
 } phy_os_funcs_t;
 
 

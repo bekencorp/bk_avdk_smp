@@ -127,6 +127,32 @@ bk_err_t bk_otp_ahb_read(otp2_id_t item, uint8_t* buf, uint32_t size);
 bk_err_t bk_otp_ahb_update(otp2_id_t item, uint8_t* buf, uint32_t size);
 
 /**
+ * @brief     read OTP2 item with main/backup handling
+ *
+ * @param item       main OTP2 item ID (e.g. OTP_DIA, OTP_VDDDIG_BANDGAP)
+ * @param value      buffer to store value
+ * @param both_valid optional, for temperature item sets whether both main and backup are valid
+ *
+ * @return
+ *    - BK_OK: succeed
+ *    - others: error
+ */
+bk_err_t bk_otp_ahb_read_backup(otp2_id_t item, uint8_t *value, int *both_valid);
+
+/**
+ * @brief     update OTP2 item with main/backup handling and conflict check
+ *
+ * @param item        main OTP2 item ID (e.g. OTP_DIA, OTP_VDDDIG_BANDGAP)
+ * @param value       pointer to value to write
+ * @param write_backup true to prefer backup region when main is already programmed
+ * @param readback    optional buffer to store readback value, can be NULL
+ *
+ * @return
+ *    - BK_OK: succeed
+ *    - BK_FAIL: error or conflict
+ */
+bk_err_t bk_otp_ahb_update_backup(otp2_id_t item, uint8_t *value, bool write_backup, uint8_t *readback);
+/**
  * @brief     read OTP1 permission
  *
  * @param item the item to be read
