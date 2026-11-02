@@ -12,17 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/* bl2_version: reads the BL2 (bootloader) version stamp from the tail of the
- * running manifest slot. One copy is compiled into both BL2 (bl2_main.c) and
- * the SPE (bootloader_nsc.c) so the two sides cannot disagree. The stamp is
- * written by beken_utils/scripts/bl1_sign.py:
- *   +0  magic "BL2V"
- *   +4  version, little-endian, major<<16 | minor<<8 | patch
- *   +8  zlib crc32 over the 8 bytes [magic + version]
- *   +12 reserved
- * A zero return means a valid 0.0.0 stamp; BL2_VERSION_ABSENT means no stamp is
- * there to read (legacy bootloader, erased slot, magic mismatch or read
- * failure) and BL2_VERSION_CORRUPT means a stamp exists but its CRC is wrong. */
+/* bl2_version: reads the internal SDK BL2 version stamp (magic "BL2I" at 0xFE0
+ * of the running manifest slot), written by beken_utils/scripts/bl1_sign.py.
+ * Compiled into both BL2 (bl2_main.c) and the SPE (bootloader_nsc.c) so the two
+ * sides cannot disagree. The customer stamp (magic "BL2V") sits at 0xFF0.
+ * Returns the version, or BL2_VERSION_ABSENT / BL2_VERSION_CORRUPT. */
 
 #include "bl2_version.h"
 /* Include the generated table first: it lists only the partitions this project
@@ -41,8 +35,8 @@
 
 extern bk_err_t bk_flash_read_bytes(uint32_t address, uint8_t *user_buf, uint32_t size);
 
-#define BL2_VERSION_STAMP_MAGIC   0x56324C42u	/* "BL2V" little-endian */
-#define BL2_VERSION_STAMP_OFFSET  0xFF0u
+#define BL2_VERSION_STAMP_MAGIC   0x49324C42u	/* "BL2I" little-endian */
+#define BL2_VERSION_STAMP_OFFSET  0xFE0u
 #define BL2_VERSION_STAMP_SIZE    16u
 
 /* Absolute flash offset of the running BL2 manifest. boot_flag (0x1000, magic
