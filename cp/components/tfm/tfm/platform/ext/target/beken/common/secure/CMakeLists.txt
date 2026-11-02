@@ -69,6 +69,17 @@ if(CONFIG_AP_CACHE_NSC)
 	target_compile_definitions(platform_s PUBLIC CONFIG_AP_CACHE_NSC)
 endif()
 
+# NSC bootloader-version gateway for the NS cpu0_app (see bootloader_nsc.c).
+# The stamp reader is the shared bl2_version.c (same copy as BL2) so both
+# worlds report the same version; the gateway only crosses the CMSE boundary.
+if(CONFIG_BOOTLOADER_VERSION_NSC)
+	target_sources(platform_s PRIVATE
+		bootloader_nsc.c
+		${CMAKE_CURRENT_LIST_DIR}/../bl2/bl2_version.c
+	)
+	target_compile_definitions(platform_s PUBLIC CONFIG_BOOTLOADER_VERSION_NSC)
+endif()
+
 if(CONFIG_SLEEP_RETENTION_NSC)
 	target_sources(platform_s PRIVATE
 		tfm_sleep_context.c

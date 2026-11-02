@@ -29,6 +29,8 @@ if(BL2)
 				${CMAKE_CURRENT_SOURCE_DIR}/flash_map.c
 				${CMAKE_CURRENT_SOURCE_DIR}/boot_param.c
 				${CMAKE_CURRENT_SOURCE_DIR}/boot_param_ops.c
+				# BL2 (bootloader) version stamp reader (bl2_main.c logs it)
+				${CMAKE_CURRENT_SOURCE_DIR}/bl2_version.c
 				# compressed-overwrite confirm flag: one copy for BL2 and SPE
 				${CMAKE_CURRENT_SOURCE_DIR}/ota_confirm.c
 				# ${TFM_BEKEN}/partition/flash_partition.c

@@ -164,6 +164,18 @@ config TFM_OTP_NSC
         cpu0_app can read/write OTP banks owned by the secure world. Forwarded
         to the TF-M build as CONFIG_OTP_NSC.
 
+config TFM_BOOTLOADER_VERSION_NSC
+    bool "Enable NSC bootloader-version gateway (bk_bootloader_version_nsc)"
+    default n
+    help
+        Beken ARMv8-M CMSE non-secure-callable (NSC) access to the BL2 version
+        stamp stored at the tail of the BL2 manifest slot. The manifest lives in
+        the flash region TF-M marks Secure on the DBUS, so the non-secure
+        cpu0_app cannot read it directly. When set, the secure world builds
+        bootloader_nsc.c and exports bk_bootloader_version_nsc into
+        libtfm_s_veneers.a. Forwarded to the TF-M build as
+        CONFIG_BOOTLOADER_VERSION_NSC.
+
 endmenu # TF-M Options
 
 endmenu # TFM

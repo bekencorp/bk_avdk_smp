@@ -394,6 +394,10 @@ uint32_t tfm_hal_get_ns_entry_point(void)
 	void psa_otp_nsc_stub(void);
 	psa_otp_nsc_stub();
 #endif
+#if CONFIG_BOOTLOADER_VERSION_NSC
+	void psa_bootloader_nsc_stub(void);
+	psa_bootloader_nsc_stub();
+#endif
 #if CONFIG_AES_GCM_NSC
 	void psa_aes_gcm_nsc_stub(void);
 	psa_aes_gcm_nsc_stub();

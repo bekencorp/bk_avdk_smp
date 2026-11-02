@@ -55,6 +55,7 @@
 #include "boot_param.h"
 #include "bk_wdt.h"
 #include "bl2_flash_map.h"
+#include "bl2_version.h"
 
 #ifdef TEST_BL2
 #include "mcuboot_suites.h"
@@ -179,6 +180,18 @@ int main(void)
 
     flash_map_init();
     dump_partition();
+
+    uint32_t bl2_ver = bl2_get_version();
+    if (bl2_ver == BL2_VERSION_ABSENT) {
+        BOOT_LOG_FORCE("BL2 version: no stamp");
+    } else if (bl2_ver == BL2_VERSION_CORRUPT) {
+        BOOT_LOG_FORCE("BL2 version: stamp corrupt");
+    } else {
+        BOOT_LOG_FORCE("BL2 version: %u.%u.%u",
+                       (unsigned)((bl2_ver >> 16) & 0xFFu),
+                       (unsigned)((bl2_ver >> 8) & 0xFFu),
+                       (unsigned)(bl2_ver & 0xFFu));
+    }
 
 #if CONFIG_DIRECT_XIP
     /* Compute preferred A/B slot from boot_param; fed to MCUboot via
