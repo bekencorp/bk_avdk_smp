@@ -29,6 +29,9 @@
 #define BL2_DS_PMU_R25_ADDR        (SOC_AON_PMU_REG_BASE + (0x25 * 4))
 #define BL2_DS_PMU_SHADOW_ADDR     (SOC_AON_PMU_REG_BASE + (0x7B * 4))
 #define BL2_DS_FAST_BOOT_BIT       (0x2) /* AON PMU R0.fast_boot */
+#define BL2_DS_PSRAM_RETENTION_BIT (0x4) /* AON PMU R0.psram_retention_enable */
+#define BL2_DS_ANA_REG14_PSRAM_RET_VAL (0xFCE670EF) /* ANA_REG14 for fastboot with psram retention */
+#define BL2_DS_ANA_REG14_DEFAULT_VAL   (0x7CE670EF) /* ANA_REG14 for fastboot without psram retention */
 /* Same unlock sequence as aon_pmu_hal_r0_latch_to_r7b(). */
 #define BL2_DS_PMU_LATCH_KEY1      (0x424B55AA)
 #define BL2_DS_PMU_LATCH_KEY2      (0xBDB4AA55)
@@ -52,16 +55,39 @@
  */
 __attribute__((naked)) int BL2_DS_ENTRY bl2_deepsleep_fastboot(void)
 {
-#if CONFIG_DIRECT_XIP
+	/*
+	 * Read fast_boot / psram_retention_enable from the retained R7B shadow
+	 * of AON PMU R0 (aon_pmu_r0_t.bit[1] / bit[2]) and program ANA_REG14.
+	 * Non-fastboot boots do not touch ANA_REG14 here.
+	 *
+	 * C equivalent:
+	 *   uint32_t r0_shadow = REG_READ(BL2_DS_PMU_SHADOW_ADDR);
+	 *   if (r0_shadow & fast_boot) {
+	 *       if (r0_shadow & psram_retention_enable)
+	 *           REG_WRITE(ANA_REG14, 0xFCE670EF); // with psram retention
+	 *       else
+	 *           REG_WRITE(ANA_REG14, 0x7CE670EF); // without psram retention
+	 *   }
+	 */
 	__asm volatile(
-		/* Restore the ALO-to-core power switch before reading AON state. */
-		"ldr r0, =" BL2_DS_STRINGIFY(BL2_DS_ANA_REG14_ADDR) "\n"
+		"ldr r0, =" BL2_DS_STRINGIFY(BL2_DS_PMU_SHADOW_ADDR) "\n"
 		"ldr r1, [r0]\n"
-		"orr r1, r1, #1\n"
-		"str r1, [r0]\n"
+		"tst r1, #" BL2_DS_STRINGIFY(BL2_DS_FAST_BOOT_BIT) "\n" /* fast_boot */
+		"beq 7f\n"
+		"tst r1, #" BL2_DS_STRINGIFY(BL2_DS_PSRAM_RETENTION_BIT) "\n" /* psram_retention_enable */
+		"ldr r2, =" BL2_DS_STRINGIFY(BL2_DS_ANA_REG14_DEFAULT_VAL) "\n"
+		"beq 6f\n"
+		"ldr r2, =" BL2_DS_STRINGIFY(BL2_DS_ANA_REG14_PSRAM_RET_VAL) "\n"
+		"6:\n"
+		"ldr r0, =" BL2_DS_STRINGIFY(BL2_DS_ANA_REG14_ADDR) "\n"
+		"str r2, [r0]\n"
+		"7:\n"
 		"dsb\n"
 		"isb\n"
+	);
 
+#if CONFIG_DIRECT_XIP
+	__asm volatile(
 		/* R7B is the retained shadow of AON PMU R0. */
 		"ldr r0, =" BL2_DS_STRINGIFY(BL2_DS_PMU_SHADOW_ADDR) "\n"
 		"ldr r1, [r0]\n"
@@ -221,14 +247,6 @@ __attribute__((naked)) int BL2_DS_ENTRY bl2_deepsleep_fastboot(void)
 	 * to TF-M. Failures fall through silently to the normal BL2 path.
 	 */
 	__asm volatile(
-		/* Restore the ALO-to-core power switch before reading AON state. */
-		"ldr r0, =" BL2_DS_STRINGIFY(BL2_DS_ANA_REG14_ADDR) "\n"
-		"ldr r1, [r0]\n"
-		"orr r1, r1, #1\n"
-		"str r1, [r0]\n"
-		"dsb\n"
-		"isb\n"
-
 		/* R7B is the retained shadow of AON PMU R0. */
 		"ldr r0, =" BL2_DS_STRINGIFY(BL2_DS_PMU_SHADOW_ADDR) "\n"
 		"ldr r1, [r0]\n"
