@@ -78,6 +78,10 @@ static uint8_t s_psram_channelmap[PSRAM_ID_MAX] = {0};
 
 static psram_flash_t s_psram_id = {0};
 
+#if CONFIG_PSRAM_DATA_RETENTION_ENABLE
+static void psram_retention_snapshot_die_mr(psram_id_t psram_id, uint32_t die_id);
+#endif
+
 static inline uint32_t bk_psram_get_data_base(psram_id_t psram_id)
 {
 #if defined(SOC_PSRAM0_DATA_BASE) && defined(SOC_PSRAM1_DATA_BASE)
@@ -583,6 +587,11 @@ start_init:
 
 	s_psram_init_done[psram_id] = true;
 
+#if CONFIG_PSRAM_DATA_RETENTION_ENABLE
+	/* Snapshot the die MR registers once the controller is running. */
+	psram_retention_snapshot_die_mr(psram_id, actual_id);
+#endif
+
 	if (!is_skip_mutex) {
 		rtos_unlock_mutex(&s_psram_mutex);
 	}
@@ -825,6 +834,93 @@ static void psram_retention_start_controller(psram_id_t psram_id)
 	psram_hal_set_sf_reset_with_id(psram_id, 1);
 }
 
+/*
+ * The die falls back to its power-up mode-register values across retention.
+ * Snapshot the registers written by the cold-boot die init and replay them
+ * on recovery, instead of re-running the init (which would reset the die and
+ * overwrite the controller REG4/REG5 snapshots).
+ */
+#define PSRAM_RETENTION_MR_MAX          (3)
+
+struct psram_retention_mr_map {
+	const uint32_t *addr;
+	uint8_t num;
+};
+
+static const uint32_t s_psram_retention_mr_aps_mr0_mr4[] = {
+	0x00000000U, 0x00000004U,
+};
+static const uint32_t s_psram_retention_mr_aps_mr0_mr4_mr8[] = {
+	0x00000000U, 0x00000004U, 0x00000008U,
+};
+static const uint32_t s_psram_retention_mr_w955[] = {
+	0x01000000U,
+};
+
+static const struct psram_retention_mr_map s_psram_retention_map_aps_mr0_mr4 = {
+	s_psram_retention_mr_aps_mr0_mr4, 2,
+};
+static const struct psram_retention_mr_map s_psram_retention_map_aps_mr0_mr4_mr8 = {
+	s_psram_retention_mr_aps_mr0_mr4_mr8, 3,
+};
+static const struct psram_retention_mr_map s_psram_retention_map_w955 = {
+	s_psram_retention_mr_w955, 1,
+};
+
+static uint32_t s_psram_retention_saved_mr[PSRAM_ID_MAX][PSRAM_RETENTION_MR_MAX];
+static const struct psram_retention_mr_map *s_psram_retention_map[PSRAM_ID_MAX];
+
+/* Mirrors the die dispatch of psram_hal_config_init_with_id(). */
+static const struct psram_retention_mr_map *psram_die_mr_map(uint32_t die_id)
+{
+	switch (die_id) {
+	case PSRAM_APS6408L_ID:
+		return &s_psram_retention_map_aps_mr0_mr4;
+	case PSRAM_APS128XXO_OB9_ID:
+	case PSRAM_APS256XXN_OBX9_ID:
+	case PSRAM_SCB18X128XX_OAF_ID:
+		return &s_psram_retention_map_aps_mr0_mr4_mr8;
+	default:
+		if ((die_id & 0xFF00U) == 0x8D00U) {
+			return &s_psram_retention_map_aps_mr0_mr4_mr8;
+		}
+		/* Unrecognised dies go through the W955 init in the HAL. */
+		return &s_psram_retention_map_w955;
+	}
+}
+
+static void psram_retention_snapshot_die_mr(psram_id_t psram_id, uint32_t die_id)
+{
+	const struct psram_retention_mr_map *map = psram_die_mr_map(die_id);
+	uint32_t i;
+	uint32_t val;
+
+	s_psram_retention_map[psram_id] = NULL;
+	for (i = 0; i < map->num; i++) {
+		val = psram_hal_cmd_read_with_id(psram_id, map->addr[i]);
+		if (val == 0U) {
+			/* Read failed; never replay a zero snapshot. */
+			return;
+		}
+		s_psram_retention_saved_mr[psram_id][i] = val;
+	}
+	s_psram_retention_map[psram_id] = map;
+}
+
+static void psram_retention_restore_die_mr(psram_id_t psram_id)
+{
+	const struct psram_retention_mr_map *map = s_psram_retention_map[psram_id];
+	uint32_t i;
+
+	if (map == NULL) {
+		return;
+	}
+	for (i = 0; i < map->num; i++) {
+		psram_hal_cmd_write_with_id(psram_id, map->addr[i],
+			s_psram_retention_saved_mr[psram_id][i]);
+	}
+}
+
 bk_err_t bk_psram_data_retention(void)
 {
 #if !CONFIG_PM_AP_FAST_BOOT_ENABLE
@@ -966,6 +1062,7 @@ bk_err_t bk_psram_data_retention_recover(void)
 			continue;
 		}
 		psram_retention_start_controller((psram_id_t)i);
+		psram_retention_restore_die_mr((psram_id_t)i);
 		s_psram_init_done[i] = true;
 		s_psram_retention_active[i] = false;
 		s_psram_retention_mode_valid[i] = false;

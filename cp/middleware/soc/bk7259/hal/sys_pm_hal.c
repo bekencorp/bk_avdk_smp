@@ -2832,9 +2832,7 @@ __IRAM_PM void sys_hal_enter_deep_lv(void)
 		#if CONFIG_SPE
 		/* Capture the repaired words while the repair is still in effect; only
 		 * register writes happen between here and arch_deep_sleep(). */
-		#if !CONFIG_PSRAM_DATA_RETENTION_ENABLE
 		sys_hal_mem_check_bad_point_value_save();
-		#endif
 		#endif
 		/*disable hf clock*/
 
