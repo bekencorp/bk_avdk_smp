@@ -2005,9 +2005,19 @@ bk_err_t aec_v3_algorithm_set_config(audio_element_handle_t aec_algorithm, void 
 
     /* serialize aec_ctx reprogram + cfg/vad update against the element task's AEC compute */
     rtos_lock_recursive_mutex(&aec->cfg_lock);
-    aec_ctrl(aec->aec_ctx, AEC_CTRL_CMD_SET_FLAGS, 0x1F);//(uint32_t)aec_cfg->init_flags);
 
-    aec->aec_cfg.init_flags   = 0x1F;//aec_cfg->init_flags;    // 0x1f
+    uint32_t flags = 0x1F;
+    if (aec->dual_ch)
+    {
+        flags |= AEC_DM_FLAG_MSK;
+    }
+    if (NS_CLOSE == aec_cfg->ns_type)
+    {
+        flags &= ~AEC_NS_FLAG_MSK;
+    }
+    aec_ctrl(aec->aec_ctx, AEC_CTRL_CMD_SET_FLAGS, flags);
+
+    aec->aec_cfg.init_flags   = flags;
     aec->aec_cfg.delay_points = aec_cfg->mic_delay;            //0x0
     aec->aec_cfg.ec_depth     = aec_cfg->ec_depth;             //0x14
     aec->aec_cfg.ns_type      = aec_cfg->ns_type;
@@ -2034,6 +2044,18 @@ bk_err_t aec_v3_algorithm_set_config(audio_element_handle_t aec_algorithm, void 
     aec_ctrl(aec->aec_ctx, AEC_CTRL_CMD_SET_NS_PARA, aec_cfg->ns_para);
 
     aec_ctrl(aec->aec_ctx, AEC_CTRL_CMD_SET_DRC, aec_cfg->drc_gain);
+
+    if (NS_AI != aec->aec_cfg.ns_type)
+    {
+        if (aec->aec_cfg.ns_filter != 0x80)
+        {
+            aec_ctrl(aec->aec_ctx, AEC_CTRL_CMD_SET_NS_FILTER, aec->aec_cfg.ns_filter);
+        }
+        else
+        {
+            aec_ctrl(aec->aec_ctx, AEC_CTRL_CMD_SET_NS_FILTER, 0x7);
+        }
+    }
 
     uint8_t ec_filter = aec_cfg->ec_filter;
     if (aec->aec_cfg.ec_only_output)
