@@ -69,17 +69,9 @@ list(APPEND incs
 	lwip-2.1.2/src/core/debug.c
 	lwip-2.1.2/src/netif/ethernet.c
 	)
-if (CONFIG_P2P)
-	list(APPEND srcs
-	dhcpd/dhcp-server-multi.c
-	dhcpd/dhcp-server-multi-main.c
-	)
-else()
-	list(APPEND srcs
-	dhcpd/dhcp-server.c
-	dhcpd/dhcp-server-main.c
-	)
-endif()
+# DHCP server sources are not built on the AP core: CP serves SoftAP and
+# P2P GO clients in every supported configuration, the AP side only mirrors
+# the netif IP for its own socket users.
 # Ethernet
 if (CONFIG_ETH)
 	list(APPEND srcs

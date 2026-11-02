@@ -234,9 +234,6 @@ extern err_t lwip_netif_uap_init(struct netif *netif);
 extern int net_get_if_ip_addr(uint32_t *ip, void *intrfc_handle);
 extern int net_get_if_ip_mask(uint32_t *nm, void *intrfc_handle);
 extern int net_configure_address(struct ipv4_config *addr, void *intrfc_handle);
-extern int dhcp_server_start(void *intrfc_handle);
-extern void dhcp_server_stop(void);
-extern void dhcp_server_stop_iface(void *intrfc_handle);
 extern void net_configure_dns(struct iface *, struct ipv4_config *ip);
 bk_err_t bk_wifi_get_ip_status(IPStatusTypedef *outNetpara, WiFi_Interface inInterface);
 #if CONFIG_NET_PAN
@@ -996,7 +993,6 @@ void uap_ip_down(void)
 
 		netifapi_netif_set_down(&g_uap.netif);
 		netif_set_status_callback(&g_uap.netif, NULL);
-		dhcp_server_stop();
 	}
 }
 
@@ -1006,11 +1002,6 @@ void uap_ip_start(void)
 		/* VIF may have been recreated on CP (channel change / restart with P2P GO). */
 		netifapi_netif_set_down(&g_uap.netif);
 		netif_set_status_callback(&g_uap.netif, NULL);
-#if CONFIG_P2P
-		dhcp_server_stop_iface(net_get_uap_handle());
-#else
-		dhcp_server_stop();
-#endif
 		uap_ip_start_flag = false;
 	}
 
@@ -1059,7 +1050,6 @@ void p2p_go_ip_down(void)
 
 		netifapi_netif_set_down(&g_p2p_go.netif);
 		netif_set_status_callback(&g_p2p_go.netif, NULL);
-		dhcp_server_stop_iface(net_get_p2p_go_handle());
 	}
 }
 
@@ -1481,17 +1471,11 @@ int net_configure_address(struct ipv4_config *addr, void *intrfc_handle)
 		/* P2P GC DHCP client only; do not start a DHCP server or change default. */
 		up_iface = 0;
 	} else if (if_handle == &g_p2p_go) {
-#if CONFIG_WIFI_VNET_CONTROLLER
-		/* VNET: CP serves GO client DHCP on g_p2p_go; host mirrors static IP. */
+		/* DHCP for GO clients is served by CP; host only mirrors the IP. */
 		up_iface = 0;
-#else
-		dhcp_server_start(net_get_p2p_go_handle());
-		up_iface = 0;
-#endif
 #endif
 	} else if (if_handle == &g_uap) {
-		/* softap IP up, start dhcp server */
-		dhcp_server_start(net_get_uap_handle());
+		/* SoftAP IP up; DHCP for clients is served by CP. */
 		ap_set_default_netif();
 		up_iface = 0;
 	} else {
