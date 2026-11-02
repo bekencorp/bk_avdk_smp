@@ -218,8 +218,6 @@ typedef struct aec_algorithm
     int16_t *out_addr;
     uint32_t frame_size;    /**< 20ms data */
     int      dual_ch;       /**< Enable dual channel input(1)/Disable dual channel input(0)*/
-    void          *ssl3_memory;   
-    ssl3_result_t  ssl3_result;  
     /* Uplink caps resolved at open from the upstream mic (when available). When
      * in_caps_valid, the interleaved lane layout and per-read length are driven by
      * the capture caps instead of the hand-set dual_ch/aec_loop/adc_ch_num. */
@@ -233,8 +231,9 @@ typedef struct aec_algorithm
     ec_out_callback  ec_out_cb;
     vad_state_callback vad_state_cb;
     aec_phase_callback aec_phase_cb;
+    aec_phase_callback aec_phase02_cb;   /* mic0-mic2 相位差指标（三麦时有效） */
+    aec_phase_callback aec_phase12_cb;   /* mic1-mic2 相位差指标（三麦时有效） */
     aec_level_callback aec_level_cb;
-    ssl3_result_callback ssl3_result_cb;
     int16_t interleaved_out_phase_enable;
     int16_t *out_phase_interleave_buf; /*!< malloc when interleaved_out_phase_enable; size frame_size*2 bytes */
     /** when ec_only_output=1: 0=multi_output use aec out, 1=multi_output use ec out; when ec_only_output=0, multi_output always aec out */
@@ -248,6 +247,10 @@ typedef struct aec_algorithm
     int     phase_cb_pending;
     int32_t phase_cb_phs;
     int     phase_cb_vad_flag;
+    int     phase02_cb_pending;
+    int32_t phase02_cb_phs;
+    int     phase12_cb_pending;
+    int32_t phase12_cb_phs;
 #if CONFIG_ADK_DEBUG_DUMP_UTIL
     uint8_t  aec_dump_prev_enable;
     uint16_t aec_dump_zero_frame_count;
@@ -260,6 +263,7 @@ static void aec_dump_print_sim_params(const aec_v3_algorithm_t *aec)
 {
     const AECContext *ctx = aec->aec_ctx;
     const char *ns_mode = "classic";
+    int i;
 
     if (aec->aec_cfg.ns_type == NS_CLOSE)
     {
@@ -292,6 +296,10 @@ static void aec_dump_print_sim_params(const aec_v3_algorithm_t *aec)
     BK_LOGI(TAG, "dist=%d\n", ctx->dist);
     BK_LOGI(TAG, "mic_swap=%d\n", ctx->mic_swap);
     BK_LOGI(TAG, "frame=%d\n", (ctx->frame_samples == 320) ? 0 : ctx->frame_samples);
+    for (i = 0; i < 14; i++)
+    {
+        BK_LOGI(TAG, "spthr%d=%d\n", i, ctx->SPthr[i]);
+    }
     BK_LOGI(TAG,
             "# fs=%u mode=%d dual_ch=%d interweave=%d aec_loop=%u ref_ch=%u adc_ch_num=%u ec_only_output=%u internal_sbnum=%d effective_frame=%d\n",
             (unsigned)aec->aec_cfg.fs, aec->aec_cfg.mode, aec->dual_ch,
@@ -703,6 +711,8 @@ static void aec_dump_reset_context(aec_v3_algorithm_t *aec)
     aec->vad_state = VAD_NONE;
     aec->vad_cb_pending = 0;
     aec->phase_cb_pending = 0;
+    aec->phase02_cb_pending = 0;
+    aec->phase12_cb_pending = 0;
 }
 #endif
 
@@ -730,29 +740,41 @@ static void aec_vad_flag_update(aec_v3_algorithm_t *aec, int vad_state)
 #define PHS_VAD_THR      629145
 static int32_t phs_sm  = 0;
 static int32_t phs_sm2 = 0;
-static void aec_ssl_proc(AECContext *aec_ctx, int16_t *data_addr, int vad_flag)
-{
-    BK_LOGV(TAG, "aec_ctx->test: %d, aec_ctx->vad_hr: %d\n", aec_ctx->test,aec_ctx->vad_hr);
+static int32_t phs_sm_b  = 0;
+static int32_t phs_sm2_b = 0;
+static int32_t phs_sm_c  = 0;
+static int32_t phs_sm2_c = 0;
 
+static void aec_phs_smooth(AECContext *aec_ctx, int32_t cur, int32_t *sm, int32_t *sm2)
+{
     if (aec_ctx->test)
     {
         if ((aec_ctx->vad_hr > PHS_VAD_THR) && (aec_ctx->mic_max > 500))
         {
-            phs_sm = (phs_sm * 7 + aec_ctx->phs_cur) >> 3;
+            *sm = (*sm * 7 + cur) >> 3;
         }
     }
     else
     {
-        phs_sm -= phs_sm >> 3;
+        *sm -= *sm >> 3;
     }
-    if ((phs_sm2 * phs_sm) >= 0)
+    if ((*sm2 * *sm) >= 0)
     {
-        phs_sm2 = (phs_sm2 * 15 + phs_sm) >> 4;
+        *sm2 = (*sm2 * 15 + *sm) >> 4;
     }
     else
     {
-        phs_sm2 = (phs_sm2  + phs_sm) >> 1;
+        *sm2 = (*sm2  + *sm) >> 1;
     }
+}
+
+static void aec_ssl_proc(AECContext *aec_ctx, int16_t *data_addr, int vad_flag)
+{
+    BK_LOGV(TAG, "aec_ctx->test: %d, aec_ctx->vad_hr: %d\n", aec_ctx->test,aec_ctx->vad_hr);
+
+    aec_phs_smooth(aec_ctx, aec_ctx->phs_cur, &phs_sm, &phs_sm2);
+    aec_phs_smooth(aec_ctx, aec_ctx->phs_cur02, &phs_sm_b, &phs_sm2_b);
+    aec_phs_smooth(aec_ctx, aec_ctx->phs_cur12, &phs_sm_c, &phs_sm2_c);
 }
 
 static void aec_phase_update(aec_v3_algorithm_t *aec, int tmp_vad_flag)
@@ -763,6 +785,14 @@ static void aec_phase_update(aec_v3_algorithm_t *aec, int tmp_vad_flag)
         aec->phase_cb_pending  = 1;
         aec->phase_cb_phs      = phs_sm2;
         aec->phase_cb_vad_flag = tmp_vad_flag;
+    }
+    if (aec->aec_phase02_cb) {
+        aec->phase02_cb_pending = 1;
+        aec->phase02_cb_phs     = phs_sm2_b;
+    }
+    if (aec->aec_phase12_cb) {
+        aec->phase12_cb_pending = 1;
+        aec->phase12_cb_phs     = phs_sm2_c;
     }
 }
 
@@ -843,6 +873,7 @@ static int aec_vad_proc(aec_v3_algorithm_t *aec)
     return aec_vad_flag;
 }
 
+static AECContextExt s_aec_ext __attribute__((aligned(8)));
 #if CONFIG_ADK_AEC_V3_USE_DTCM
 #define AEC_BUF_ADD 0x20000000
 /* scratch buffer, memset before use -> put in NOLOAD DTCM region to skip boot-time flash copy */
@@ -997,6 +1028,10 @@ static bk_err_t _aec_v3_algorithm_open(audio_element_handle_t self)
         return BK_FAIL;
     }
 
+    /* 三麦扩展缓冲位于 SRAM，每次 open 清零，保证与 DTCM 路径一致的初始状态 */
+    os_memset(&s_aec_ext, 0, sizeof(s_aec_ext));
+    aec->aec_ctx->ext = &s_aec_ext;
+
     //采样率可以配置8000或者16000
     aec->aec_ctx->fs = 0;
     aec_init(aec->aec_ctx, aec->aec_cfg.fs);
@@ -1115,27 +1150,6 @@ static bk_err_t _aec_v3_algorithm_open(audio_element_handle_t self)
         if(DUAL_CH_0_DEGREE == aec->aec_cfg.dual_perp)
         {
             aec->aec_ctx->dist = aec->aec_cfg.dist;
-        }
-
-        if (aec->dual_ch == 2)
-        {
-            ssl3_config_t ssl3_cfg;
-            uint32_t ssl3_bytes = aec_ssl3_size();
-            aec->ssl3_memory = audio_malloc(ssl3_bytes);
-            if (aec->ssl3_memory == NULL)
-            {
-                BK_LOGE(TAG, "[%s] %s, %d, audio_malloc ssl3 sidecar: %u fail \n",
-                        audio_element_get_tag(self), __func__, __LINE__, (unsigned)ssl3_bytes);
-                goto fail;
-            }
-            ssl3_default_config(&ssl3_cfg);
-            if (aec_ssl3_init(aec->ssl3_memory, ssl3_bytes, (int16_t)aec->aec_cfg.fs, &ssl3_cfg) != SSL3_OK)
-            {
-                BK_LOGE(TAG, "[%s] %s, %d, aec_ssl3_init fail \n",
-                        audio_element_get_tag(self), __func__, __LINE__);
-                goto fail;
-            }
-            aec_ssl3_attach(aec->ssl3_memory, &aec->ssl3_result);
         }
     }
 
@@ -1270,12 +1284,6 @@ fail:
 #if CONFIG_AUD_AI_NS_SUPPORT && !CONFIG_AUD_AI_NS_USE_STATIC_SRAM
     aec_gtcrn_buffers_free();
 #endif
-    if (aec->ssl3_memory)
-    {
-        aec_ssl3_attach(NULL, NULL);
-        audio_free(aec->ssl3_memory);
-        aec->ssl3_memory = NULL;
-    }
 
     if (aec->aec_ctx)
     {
@@ -1614,6 +1622,22 @@ static int _aec_v3_algorithm_process(audio_element_handle_t self, char *in_buffe
                 aec->aec_phase_cb(aec->phase_cb_phs, aec->phase_cb_vad_flag);
             }
         }
+        if (aec->phase02_cb_pending)
+        {
+            aec->phase02_cb_pending = 0;
+            if (aec->aec_phase02_cb)
+            {
+                aec->aec_phase02_cb(aec->phase02_cb_phs, aec->vad_state);
+            }
+        }
+        if (aec->phase12_cb_pending)
+        {
+            aec->phase12_cb_pending = 0;
+            if (aec->aec_phase12_cb)
+            {
+                aec->aec_phase12_cb(aec->phase12_cb_phs, aec->vad_state);
+            }
+        }
 
         if (aec->aec_level_cb)
         {
@@ -1625,10 +1649,6 @@ static int _aec_v3_algorithm_process(audio_element_handle_t self, char *in_buffe
             aec->aec_level_cb(level);
         }
 
-        if (aec->ssl3_result_cb)
-        {
-            aec->ssl3_result_cb(&aec->ssl3_result);
-        }
         if(aec->ec_out_cb && buff_ecout)
         {
             aec->ec_out_cb(buff_ecout, aec->frame_size);
@@ -1831,13 +1851,6 @@ static bk_err_t _aec_v3_algorithm_destroy(audio_element_handle_t self)
         aec->vad_rb = NULL;
     }
 
-    if (aec->ssl3_memory)
-    {
-        aec_ssl3_attach(NULL, NULL);
-        audio_free(aec->ssl3_memory);
-        aec->ssl3_memory = NULL;
-    }
-
     if (aec->aec_ctx)
     {
         #if CONFIG_ADK_AEC_V3_USE_DTCM
@@ -1948,8 +1961,9 @@ audio_element_handle_t aec_v3_algorithm_init(aec_v3_algorithm_cfg_t *config)
     aec_alg->ec_out_cb    = config->ec_out_cb;
     aec_alg->vad_state_cb = config->vad_state_cb;
     aec_alg->aec_phase_cb = config->aec_phase_cb;
+    aec_alg->aec_phase02_cb = config->aec_phase02_cb;
+    aec_alg->aec_phase12_cb = config->aec_phase12_cb;
     aec_alg->aec_level_cb = config->aec_level_cb;
-    aec_alg->ssl3_result_cb = config->ssl3_result_cb;
     aec_alg->interleaved_out_phase_enable = (config->interleaved_out_phase_enable != 0) ? 1 : 0;
     aec_alg->out_phase_interleave_buf = NULL;
 #if CONFIG_AEC_RUN_ON_M52

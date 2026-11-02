@@ -1,6 +1,6 @@
 #include "sdkconfig.h"
 
-#if CONFIG_ADK_WIFI_DUMP_UTIL || CONFIG_ADK_SSL3_WIFI_REPORT
+#if CONFIG_ADK_WIFI_DUMP_UTIL
 
 #include <common/bk_include.h>
 #include <common/bk_err.h>
@@ -37,16 +37,13 @@ typedef struct
 
 static const char *const s_thread_names[WIFI_DUMP_INSTANCE_MAX] = {
     "wifi_dump0",
-    "wifi_dump1",
 };
 
 static const char *const s_queue_names[WIFI_DUMP_INSTANCE_MAX] = {
     "wifi_dump_q0",
-    "wifi_dump_q1",
 };
 
 static wifi_dump_context_t s_wifi_dump[WIFI_DUMP_INSTANCE_MAX] = {
-    { .client_fd = -1 },
     { .client_fd = -1 },
 };
 
