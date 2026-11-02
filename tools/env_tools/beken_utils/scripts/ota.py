@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-import os
-import logging
-import csv
-
 from .parse_csv import *
+
+# Offset of the stamp inside the 4K BL2 manifest slot
+# (see bl1_sign.write_bl2_version_stamp).
+BL2_VERSION_STAMP_OFFSET = 0xFF0
 
 ota_keys = [
     'strategy',
@@ -11,6 +11,7 @@ ota_keys = [
     'app_security_counter',
     'app_version',
     'bootloader_ota',
+    'bootloader_version',
 ]
 
 class OTA(list):
@@ -38,6 +39,12 @@ class OTA(list):
             return (self.csv.dic['bootloader_ota'] == 'TRUE')
         else:
             return False
+
+    def get_bootloader_version(self):
+        # Display/comparison only; never used for anti-rollback. None means the
+        # key is absent or empty: the caller skips stamping instead of writing a
+        # fake 0.0.0 the reader cannot tell apart from a real version.
+        return self.csv.dic.get('bootloader_version', '').strip() or None
 
     def is_overwrite(self):
         if(self.csv.dic['strategy'].upper() == 'OVERWRITE'):

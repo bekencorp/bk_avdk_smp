@@ -5,6 +5,8 @@ import json
 import logging
 from .common import *
 from .genbl1 import *
+from .bl_stamp import write_stamp
+from .ota import OTA, BL2_VERSION_STAMP_OFFSET
 from .save_cmd import save_cmd
 
 def bl1_sign_hash(privkey_pem_file, manifest_hash, outfile):
@@ -61,6 +63,32 @@ def gen_manifest_bin(action_type, manifest_json_file, outfile):
                 json.dump(data, hf, indent=4)
         os.remove('bl1_manifest_digest.txt')
 
+def load_ota_csv():
+    # ota.csv is staged into the packaging dir; absent in projects without OTA.
+    if os.path.exists('ota.csv'):
+        return OTA('ota.csv')
+    return None
+
+def write_bl2_version_stamp(outfile):
+    """Stamp the BL2 version at BL2_VERSION_STAMP_OFFSET of the manifest slot.
+
+    The stamp lands in the 0xFF padding tail of the 4K manifest slot, so the
+    signed manifest payload is untouched. Forward compatible with a future
+    upgradeable bootloader: the reader picks the running slot's manifest.
+    """
+    ota = load_ota_csv()
+    if ota is None:
+        logging.error(f'no ota.csv, cannot read the bootloader version of {outfile}')
+        exit(1)
+    version_str = ota.get_bootloader_version()
+    if not version_str:
+        # Failing here catches the misconfiguration at build time; skipping would
+        # ship an unstamped slot that the reader can only report as "absent".
+        logging.error(f'ota.csv has no bootloader_version, cannot stamp {outfile}')
+        exit(1)
+    write_stamp(outfile, BL2_VERSION_STAMP_OFFSET, version_str)
+    logging.debug(f'bl2 version stamp of {outfile}: {version_str}')
+
 def bl1_sign(action_type, key_type, privkey_pem_file, pubkey_pem_file, signature, bin_file, static_addr, load_addr, outfile):
     if outfile == "secondary_manifest.bin" :
         manifest_json_file = 'secondary_manifest.json'
@@ -76,3 +104,4 @@ def bl1_sign(action_type, key_type, privkey_pem_file, pubkey_pem_file, signature
     g.gen_key_desc()
     g.gen_manifest(7, static_addr, load_addr, bin_file, manifest_json_file)
     gen_manifest_bin(action_type, manifest_json_file, outfile)
+    write_bl2_version_stamp(outfile)
