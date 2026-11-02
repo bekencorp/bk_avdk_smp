@@ -1677,6 +1677,12 @@ int bk_cli_init(void)
 #if (CLI_CFG_PWR == 1)
 	cli_pwr_init();
 #endif
+
+/* Secure projects read the BL2 stamp through the NSC gateway; projects without
+ * security firmware read the aboot stamp straight from the bootloader partition. */
+#if (CONFIG_TFM_BOOTLOADER_VERSION_NSC || !CONFIG_SECURITY_FIRMWARE)
+	cli_bootloader_init();
+#endif
 /*-----open the cli comand both at release and debug vertion end ------*/
 
 

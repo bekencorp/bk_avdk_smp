@@ -176,6 +176,25 @@ if (CONFIG_TFM_INT_TARGET_NSC)
 	list(APPEND srcs cli_int_target.c)
 endif()
 
+# Secure projects read the BL2 stamp through the NSC gateway; projects without
+# security firmware read the aboot stamp straight from the bootloader partition.
+# bk_bootloader.c is the reader and has no CLI dependency, so it stays available
+# to other modules (e.g. pm) even when the CLI is disabled.
+if (CONFIG_TFM_BOOTLOADER_VERSION_NSC OR NOT CONFIG_SECURITY_FIRMWARE)
+	list(APPEND srcs
+		bk_bootloader.c
+	)
+
+	# cli_bootloader.c only registers the bl2_version command, so it follows the
+	# CLI switch: cli_register_commands() lives in cli_main.c, which is built
+	# only under CONFIG_CLI (or CONFIG_SHELL_ASYNCLOG).
+	if (CONFIG_CLI)
+		list(APPEND srcs
+			cli_bootloader.c
+		)
+	endif()
+endif()
+
 if (CONFIG_LIN)
 	list(APPEND srcs cli_lin.c)
 endif()

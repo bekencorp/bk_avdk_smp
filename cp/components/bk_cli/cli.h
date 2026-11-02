@@ -127,6 +127,7 @@ int cli_puf_init(void);
 int cli_ckmn_init(void);
 int cli_mpc_init(void);
 int cli_int_target_init(void);
+int cli_bootloader_init(void);
 int cli_lin_init(void);
 int cli_scr_init(void);
 
