@@ -14,8 +14,7 @@ extern "C" {
  * backward compatibility), instance 1 is the 3-mic SSL3 result report. */
 typedef enum {
     WIFI_DUMP_INSTANCE_AUDIO = 0,
-    WIFI_DUMP_INSTANCE_SSL3 = 1,
-    WIFI_DUMP_INSTANCE_MAX = 2,
+    WIFI_DUMP_INSTANCE_MAX = 1,
 } wifi_dump_instance_t;
 
 /* Per-instance API: explicitly select the channel. */
