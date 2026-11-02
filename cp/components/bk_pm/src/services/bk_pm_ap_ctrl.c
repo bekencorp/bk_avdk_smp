@@ -26,6 +26,12 @@
 #if CONFIG_PM_AP_FAST_BOOT_ENABLE
 #include <multicore_driver.h>
 #endif
+#if CONFIG_DEEP_LV && CONFIG_PM_AP_FAST_BOOT_ENABLE
+#if CONFIG_SPE
+#include "deep_lv/ap_lv_reserve.h"
+#endif
+#endif
+#include <modules/bad_point_nsc.h>
 #include "cache.h"
 #include "pm_debug.h"
 #include "pm_sleep.h"
@@ -1035,6 +1041,13 @@ static bk_err_t pm_module_shutdown_cpu1(pm_power_module_name_e module)
 #if CONFIG_PM_AP_FAST_BOOT_ENABLE
 #if CONFIG_PM_AP_FAST_BOOT_VERBOSE_TRACE
 			LOGI("AP_OFF_TRACE ap_power_vote_off begin\r\n");
+#endif
+#endif
+#if CONFIG_DEEP_LV && CONFIG_PM_AP_FAST_BOOT_ENABLE
+#if CONFIG_SPE
+			ap_lv_reserve_save();
+#elif CONFIG_TFM_AP_BOOT_NSC
+			(void)psa_ap_lv_reserve_save();
 #endif
 #endif
 			bk_pm_module_vote_power_ctrl(POWER_SUB_DOMAIN_NAME_AP_CPU, PM_POWER_MODULE_STATE_OFF);
