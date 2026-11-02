@@ -5,9 +5,12 @@ import json
 import logging
 from .common import *
 from .genbl1 import *
-from .bl_stamp import write_stamp
-from .ota import OTA, BL2_VERSION_STAMP_OFFSET
+from .bl_stamp import write_stamp, BL2_INTERNAL_VERSION_STAMP_MAGIC
+from .ota import OTA, BL2_VERSION_STAMP_OFFSET, BL2_INTERNAL_VERSION_STAMP_OFFSET
 from .save_cmd import save_cmd
+
+# Env var carrying the internal SDK BL2 version, set by tools/build_main.mk.
+BL2_INTERNAL_VERSION_ENV = 'RECORD_BL2_INTERNAL_VERSION'
 
 def bl1_sign_hash(privkey_pem_file, manifest_hash, outfile):
     sh_sec_tools = get_secure_boot_tool_exe()
@@ -69,25 +72,31 @@ def load_ota_csv():
         return OTA('ota.csv')
     return None
 
-def write_bl2_version_stamp(outfile):
-    """Stamp the BL2 version at BL2_VERSION_STAMP_OFFSET of the manifest slot.
+def write_bl2_version_stamps(outfile):
+    """Stamp the internal SDK BL2 version at 0xFE0 and, when ota.csv supplies
+    bootloader_ota_version, the customer version at 0xFF0. Both land in the 0xFF
+    padding tail of the manifest slot, so the signed payload is untouched. The
+    customer stamp is skipped (with a warning) when the field is absent."""
+    internal_version = os.environ.get(BL2_INTERNAL_VERSION_ENV, '').strip()
+    if not internal_version:
+        # The internal stamp is mandatory: a build that bypasses build_main.mk is
+        # a misconfiguration.
+        logging.error(f'{BL2_INTERNAL_VERSION_ENV} is not set, '
+                      f'cannot stamp the internal BL2 version of {outfile}')
+        exit(1)
+    write_stamp(outfile, BL2_INTERNAL_VERSION_STAMP_OFFSET, internal_version,
+                BL2_INTERNAL_VERSION_STAMP_MAGIC)
 
-    The stamp lands in the 0xFF padding tail of the 4K manifest slot, so the
-    signed manifest payload is untouched. Forward compatible with a future
-    upgradeable bootloader: the reader picks the running slot's manifest.
-    """
     ota = load_ota_csv()
-    if ota is None:
-        logging.error(f'no ota.csv, cannot read the bootloader version of {outfile}')
-        exit(1)
-    version_str = ota.get_bootloader_version()
-    if not version_str:
-        # Failing here catches the misconfiguration at build time; skipping would
-        # ship an unstamped slot that the reader can only report as "absent".
-        logging.error(f'ota.csv has no bootloader_version, cannot stamp {outfile}')
-        exit(1)
-    write_stamp(outfile, BL2_VERSION_STAMP_OFFSET, version_str)
-    logging.debug(f'bl2 version stamp of {outfile}: {version_str}')
+    version_str = ota.get_bootloader_ota_version() if ota else None
+    if version_str:
+        write_stamp(outfile, BL2_VERSION_STAMP_OFFSET, version_str)
+        logging.debug(f'bl2 version stamp of {outfile}: internal {internal_version}, '
+                      f'customer {version_str}')
+    else:
+        # Optional: an erased slot reads back as "absent".
+        logging.warning(f'no bootloader_ota_version, skip the customer BL2 stamp '
+                        f'of {outfile}')
 
 def bl1_sign(action_type, key_type, privkey_pem_file, pubkey_pem_file, signature, bin_file, static_addr, load_addr, outfile):
     if outfile == "secondary_manifest.bin" :
@@ -104,4 +113,4 @@ def bl1_sign(action_type, key_type, privkey_pem_file, pubkey_pem_file, signature
     g.gen_key_desc()
     g.gen_manifest(7, static_addr, load_addr, bin_file, manifest_json_file)
     gen_manifest_bin(action_type, manifest_json_file, outfile)
-    write_bl2_version_stamp(outfile)
+    write_bl2_version_stamps(outfile)

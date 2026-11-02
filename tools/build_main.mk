@@ -43,6 +43,11 @@ else
 	export APP_VERSION := $(APP_VERSION)
 endif
 
+# Internal SDK BL2 version stamped into the secure manifest. Kept out of Kconfig
+# so it stays constant across projects. Override on the command line if needed.
+RECORD_BL2_INTERNAL_VERSION ?= 0.0.1
+export RECORD_BL2_INTERNAL_VERSION
+
 ifeq ("$(PROJECT)", "")
 	export PROJECT := app
 else
