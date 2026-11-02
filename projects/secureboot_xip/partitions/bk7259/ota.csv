@@ -3,4 +3,4 @@ strategy,XIP
 app_security_counter,3
 encrypt,TRUE
 app_version,0.0.3
-bootloader_version,0.0.1
+bootloader_ota_version,0.0.1
