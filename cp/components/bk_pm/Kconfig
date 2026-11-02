@@ -25,6 +25,13 @@ menu "PM"
 		help
 			enter LV time out time(unit:ms)
 
+	config PM_SLEEP_WAKE_TIME_HARDWARE_OR_BOOTLOADER
+		int "Sleep wakeup time from hardware to bootloader"
+		default 4100
+		help
+			Wakeup time from hardware to bootloader (unit:us).
+			Default 4100 means 4.1ms.
+
 	config PM_LV_WDT_PROTECTION
 		bool "add protection for hardware enter low voltage fail when application abnormal operate, using wdt to reboot"
 		default n
