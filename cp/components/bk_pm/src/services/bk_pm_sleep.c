@@ -237,7 +237,10 @@ uint64_t pm_low_voltage_process(void)
 #endif
 	#if CONFIG_PM_LV_SLEEP_ENABLE
 	pm_enable_int(irq_level);
-	#endif	
+	#endif
+
+	//extern uint32_t g_ana_reg14_value;
+	//LOGI("ana_reg14:0x%08x\r\n", g_ana_reg14_value);
 	/* Execute post-sleep (wakeup) callbacks */
 	//bk_pm_post_sleep_callback_execute();
 
