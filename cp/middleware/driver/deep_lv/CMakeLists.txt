@@ -7,6 +7,7 @@ if (CONFIG_DEEP_LV)
 	list(APPEND srcs
 		deep_lv/deep_lv.c
 		deep_lv/deep_lv_reserve.c
+		deep_lv/ap_lv_reserve.c
 	)
 
 	set(incs ${incs} PARENT_SCOPE)

@@ -33,7 +33,8 @@ extern "C" {
  * between the save below and the matching restore. */
 
 /* Capture the repaired words. Call just before arch_deep_sleep(), after the
- * memory content is final. */
+ * memory content is final. Asserts if one of the repair points falls inside the
+ * staging table itself: that slot would write back garbage on wake. */
 void sys_hal_mem_check_bad_point_value_save(void);
 
 /* Write the captured words back. Call as early as possible on the wake path,

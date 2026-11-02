@@ -46,6 +46,8 @@
 #include <driver/wwdt.h>
 #endif
 
+#include <modules/bad_point_nsc.h>
+
 #if CONFIG_DEEP_LV
 #include "FreeRTOS.h"
 //#include "armstar.h"
@@ -2827,6 +2829,17 @@ __IRAM_PM void sys_hal_enter_deep_lv(void)
 		/* Capture the repaired words while the repair is still in effect; only
 		 * register writes happen between here and arch_deep_sleep(). */
 		sys_hal_mem_check_bad_point_value_save();
+		#elif CONFIG_TFM_SLEEP_RETENTION_NSC
+		/* Secure project: the app is Non-Secure and the decoded bad-point
+		 * addresses span SRAM0's TF-M Secure prefix, so the capture runs in the
+		 * secure world. Must stay ahead of sys_hal_disable_hf_clock(): the NSC
+		 * veneer and the secure handler are flash-resident. The matching
+		 * restore is in tfm_cp_lv_reserve_early_boot(), on the reset vector
+		 * ahead of SystemInit(), not in the NS wake path. */
+		if (psa_cp_lv_reserve_save() != 0) {
+			/* bad SOC */
+			BK_ASSERT(0);
+		}
 		#endif
 		/*disable hf clock*/
 

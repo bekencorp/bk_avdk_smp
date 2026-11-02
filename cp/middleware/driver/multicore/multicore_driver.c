@@ -26,6 +26,17 @@
 #include "sys_reg.h"
 #include <driver/int.h>
 #include "bk_private/bk_wdt.h"
+#include "mcheck_hal.h"
+/* Guard mirrors the plain-project half of the call site in bk_multicore_start():
+ * CONFIG_DEEP_LV is the feature gate (the implementation only exists in the
+ * deep_lv build), CONFIG_SPE selects the shape. The "deep_lv/" prefix keeps the
+ * include resolvable without the deep_lv include directory, like the other CP
+ * consumers of that directory. */
+#if CONFIG_DEEP_LV && CONFIG_SPE && CONFIG_PM_AP_FAST_BOOT_ENABLE
+#include "deep_lv/ap_lv_reserve.h"
+#endif
+#include <modules/bad_point_nsc.h>
+#include <components/log.h>
 
 void bk_multicore_set_cpu_id(uint32_t cpu_id)
 {
@@ -39,6 +50,35 @@ uint32_t bk_multicore_get_cpu_id(void)
 
 bk_err_t bk_multicore_start(uint32_t cpu_id)
 {
+	if (cpu_id == CONFIG_AP_SYS_MASTER_CPU_ID) {
+#if CONFIG_SPE
+#if CONFIG_OTP_V1
+		/* ~600 us, almost all the OTP read. Needs the AP power domain already up:
+		 * gated, this silently writes nothing. */
+		if (hal_ap_mem_check_restore_from_otp() != BK_OK) {
+			BK_LOGE(NULL, "restore AP memcheck failed, AP starts without repair\r\n");
+		}
+		__DSB();
+#endif /* CONFIG_OTP_V1 */
+
+#if CONFIG_DEEP_LV && CONFIG_PM_AP_FAST_BOOT_ENABLE
+		ap_lv_reserve_restore();
+		__DSB();
+#endif /* CONFIG_DEEP_LV && CONFIG_PM_AP_FAST_BOOT_ENABLE */
+
+#elif CONFIG_TFM_AP_BOOT_NSC
+		if (psa_ap_mem_check_restore_from_otp() != 0) {
+			BK_LOGE(NULL, "restore AP memcheck failed, AP starts without repair\r\n");
+		}
+		__DSB();
+
+#if CONFIG_DEEP_LV && CONFIG_PM_AP_FAST_BOOT_ENABLE
+		(void)psa_ap_lv_reserve_restore();
+		__DSB();
+#endif /* CONFIG_DEEP_LV && CONFIG_PM_AP_FAST_BOOT_ENABLE */
+
+#endif /* CONFIG_SPE || CONFIG_TFM_AP_BOOT_NSC */
+	}
 	return multicore_hal_start(cpu_id);
 }
 

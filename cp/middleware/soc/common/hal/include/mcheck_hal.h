@@ -22,6 +22,14 @@ extern "C" {
 
 void hal_mcheck(void);
 
+#if CONFIG_OTP_V1 && CONFIG_SPE
+/* Writes the AP repair addresses from the AP memory-check OTP region into the
+ * AP MEM_CHECK registers. Must run after the AP subsystem leaves
+ * isolation/reset and before the AP core leaves reset; the registers are
+ * cleared by every AP power-down. */
+bk_err_t hal_ap_mem_check_restore_from_otp(void);
+#endif
+
 #ifdef __cplusplus
 }
 #endif
