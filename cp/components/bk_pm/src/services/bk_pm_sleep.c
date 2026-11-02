@@ -174,22 +174,26 @@ uint32_t pm_deep_lv_sleep_flag_ctrl(pm_deep_lv_sleep_flag_op_t operation)
 
 uint64_t pm_low_voltage_process(void)
 {
+	#if CONFIG_PM_LV_SLEEP_ENABLE
+	uint32_t irq_level = 0;
+	irq_level = pm_disable_int();
+	#else
 	GLOBAL_INT_DECLARATION();
-	//uint32_t irq_level = 0;
-	//irq_level = pm_disable_int();
-	uint64_t sleep_tick         = 0ULL;
-	#if CONFIG_DEEP_LV_DEBUG_GPIO
-	//PM_GPIO_UP(38);//1
-	#endif
 	GLOBAL_INT_DISABLE();
+	#endif
+
+	uint64_t sleep_tick         = 0ULL;
 	#if CONFIG_AON_RTC || CONFIG_ANA_RTC
 	uint64_t entry_tick         = 0ULL;
 	entry_tick = bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
 	#endif
 	if(pm_low_voltage_resource_set() != 0)
 	{
+		#if CONFIG_PM_LV_SLEEP_ENABLE
+		pm_enable_int(irq_level);
+		#else
 		GLOBAL_INT_RESTORE();
-		//pm_enable_int(irq_level);
+		#endif
 		return sleep_tick;
 	}
 
@@ -211,13 +215,6 @@ uint64_t pm_low_voltage_process(void)
 	pm_low_voltage_resource_restore();
 	bk_pm_rtc_wakeup_reason_parse();
 
-    //extern uint64_t check_IRQ_pending(void);
-	//LOGD("LV IRQ_pending:0x%llx", check_IRQ_pending());
-	//if (pm_debug_mode() & 0x2)
-	//uint64_t current_time = bk_aon_rtc_get_us();
-	//uint64_t wakeup_time = sys_hal_get_low_voltage_wakeup_time_us();
-	//BK_LOGD(NULL, "low voltage int open before[%d][0x%x][0x%llx][0x%llx]\r\n",bk_pm_exit_low_vol_wakeup_source_get(),current_time-wakeup_time,current_time,wakeup_time);
-
 #if CONFIG_AON_RTC || CONFIG_ANA_RTC
 	uint64_t exit_tick          = 0ULL;
 	exit_tick = bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
@@ -226,10 +223,10 @@ uint64_t pm_low_voltage_process(void)
 #if CONFIG_PM_CP_DEEP_LV_SRAM_CHECK
 	sys_pm_hal_sram_crc_dump();
 #endif
-	#if CONFIG_DEEP_LV_DEBUG_GPIO
-	//PM_GPIO_UP(38);//1
-	#endif
+
+	#if !CONFIG_PM_LV_SLEEP_ENABLE
 	GLOBAL_INT_RESTORE();
+	#endif
 #if CONFIG_DEEP_LV
 	/*
 	 * Deep-LV wakeup enters Reset_Handler with PRIMASK=1. BASEPRI is restored
@@ -238,15 +235,12 @@ uint64_t pm_low_voltage_process(void)
 	 */
 	dlv_restore_saved_irq_masks();
 #endif
-	//pm_enable_int(irq_level);
+	#if CONFIG_PM_LV_SLEEP_ENABLE
+	pm_enable_int(irq_level);
+	#endif	
 	/* Execute post-sleep (wakeup) callbacks */
 	//bk_pm_post_sleep_callback_execute();
 
-	// bk_set_printf_sync(1);
-	// (void)bk_uart_set_baud_rate(UART_ID_0, UART_BAUD_RATE);
-	// g_ret =bk_uart_write_bytes(UART_ID_0, "LV_OK\r\n", 7);
-	// BK_RAW_LOGI(NULL, "low voltage int open after\r\n");
-	// g_uart_id = bk_get_printf_port();
 	//bk_printf("wakeup source:%d\r\n", bk_pm_exit_low_vol_wakeup_source_get());
 	return sleep_tick;
 }

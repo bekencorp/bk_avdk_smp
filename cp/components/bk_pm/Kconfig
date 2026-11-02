@@ -102,6 +102,13 @@ menu "PM"
 		help
 			Optimize power-management current through XTAL RX/TX analog buffers.
 
+	config PM_LV_SLEEP_ENABLE
+		bool "Enable low voltage sleep instead of deep low voltage"
+		default n
+		help
+			When enabled, enter low voltage sleep; otherwise enter
+			deep low voltage sleep.
+
 	config DEEP_LV
 		bool "Enable deep low voltage"
 		default n
