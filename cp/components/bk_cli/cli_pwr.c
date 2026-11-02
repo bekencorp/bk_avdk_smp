@@ -510,13 +510,18 @@ static void cli_pm_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char 
 	}
 	else if(pm_wake_source == PM_WAKEUP_SOURCE_INT_VAD)
 	{
-		bk_err_t ret = bk_lp_vad_register_isr(cli_pm_vad_callback);
+		#if CONFIG_LPVAD
+		bk_err_t ret = bk_lp_vad_init();
+		ret = bk_lp_vad_register_isr(cli_pm_vad_callback);
 		if(ret != BK_OK)
 		{
 			BK_LOGD(NULL,"bk_lp_vad_register_isr failed\r\n");
 			return;
 		}
 		bk_pm_wakeup_source_set(PM_WAKEUP_SOURCE_INT_VAD, NULL);
+		#else
+		BK_LOGD(NULL,"LP VAD not enable, please enable CONFIG_LPVAD\r\n");
+		#endif
 	}
 	else
 	{
