@@ -39,6 +39,15 @@
 
 ntwk_cs2_info_t *ntwk_cs2_info = NULL;
 
+/* PPCS_Read() only returns when *DataSize bytes are queued or the timeout
+ * expires, so a blocking read would delay every message by up to that
+ * timeout (measured: 2000 ms -> 0~2 s, median 1.3 s). Both receive threads
+ * therefore use the SDK demo pattern: PPCS_Check_Buffer() to query the
+ * readable length, then PPCS_Read() with that exact length and timeout 0.
+ * When the channel is empty we sleep this poll interval instead of
+ * busy-waiting; it is also the worst-case delivery delay. */
+#define NTWK_CS2_RX_POLL_MS 50
+
 static void ntwk_cs2_session_close(int session_id);
 
 /*
@@ -1039,9 +1048,28 @@ static int ntwk_cs2_p2p_audio_receiver(beken_thread_arg_t arg)
 
     while (ntwk_cs2_info && ntwk_cs2_info->is_running && ntwk_cs2_info->aud_running == BK_TRUE)
     {
-        INT32 ReadSize = NTWK_CS2_RECV_TMP_BUFF_SIZE;
+        UINT32 read_avail = 0;
+        int32_t check_ret = PPCS_Check_Buffer(session_id, AUD_P2P_CHANNEL, NULL, &read_avail);
 
-        ret = PPCS_Read(session_id, AUD_P2P_CHANNEL, (char *)tmp_read_buf, &ReadSize, 1000 * 2);
+        if (check_ret < 0)
+        {
+            LOGE("%s PPCS_Check_Buffer sid:%d ret err %d %s\n", __func__, session_id,
+                 check_ret, get_p2p_error_code_info(check_ret));
+            ntwk_cs2_session_close(session_id);
+            break;
+        }
+
+        if (read_avail == 0)
+        {
+            rtos_delay_milliseconds(NTWK_CS2_RX_POLL_MS);
+            continue;
+        }
+
+        INT32 ReadSize = (read_avail > NTWK_CS2_RECV_TMP_BUFF_SIZE)
+                             ? NTWK_CS2_RECV_TMP_BUFF_SIZE : (INT32)read_avail;
+
+        /* ReadSize equals the buffered length, so PPCS_Read returns at once. */
+        ret = PPCS_Read(session_id, AUD_P2P_CHANNEL, (char *)tmp_read_buf, &ReadSize, 0);
 
         if (ReadSize)
         {
@@ -1132,9 +1160,27 @@ static int ntwk_cs2_p2p_ctrl_receiver(beken_thread_arg_t arg)
 
     while (ntwk_cs2_info && ntwk_cs2_info->is_running)
     {
-        INT32 ReadSize = RECV_TMP_CMD_BUFF_SIZE;
+        UINT32 read_avail = 0;
+        int32_t check_ret = PPCS_Check_Buffer(session_id, CMD_P2P_CHANNEL, NULL, &read_avail);
 
-        ret = PPCS_Read(session_id, CMD_P2P_CHANNEL, (char *)tmp_read_buf, &ReadSize, 1000 * 2);
+        if (check_ret < 0)
+        {
+            LOGD("%s PPCS_Check_Buffer sid:%d ret err %d %s\n", __func__, session_id,
+                 check_ret, get_p2p_error_code_info(check_ret));
+            break;
+        }
+
+        if (read_avail == 0)
+        {
+            rtos_delay_milliseconds(NTWK_CS2_RX_POLL_MS);
+            continue;
+        }
+
+        INT32 ReadSize = (read_avail > RECV_TMP_CMD_BUFF_SIZE)
+                             ? RECV_TMP_CMD_BUFF_SIZE : (INT32)read_avail;
+
+        /* ReadSize equals the buffered length, so PPCS_Read returns at once. */
+        ret = PPCS_Read(session_id, CMD_P2P_CHANNEL, (char *)tmp_read_buf, &ReadSize, 0);
 
         if (ReadSize)
         {
