@@ -21,6 +21,7 @@ CONFIG_PSRAM_AS_SYS_MEMORY=y
 # bring-up. Disable L2 management here so all cache maintenance uses the core's
 # private L1 (no external controller access). L2 stays bypassed.
 # CONFIG_L2_CACHE_ENABLE is not set
+CONFIG_AP_SECURE_CACHE_NSC=y
 
 # Use the CPU-direct SRAM alias for AP memory access.
 CONFIG_SRAM_DIRECT_ADDR=y
