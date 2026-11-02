@@ -9,6 +9,16 @@
 
 #include "bk_api_ipc_test.h"
 
+#if CONFIG_AUD_RSP_BENCH_CLI
+extern int cli_rsp_bench_init(void);
+#endif
+
+#if CONFIG_MEDIA_SERVICE
+/* Provided by the media_service component (osi_wrapper/audio_osi_wrapper.c).
+ * Declared here because the component keeps this header private. */
+extern int bk_audio_osi_funcs_init(void);
+#endif
+
 #define APP_TIMEOUT_VALUE    BEKEN_WAIT_FOREVER
 
 
@@ -108,6 +118,16 @@ extern int cli_network_provisioning_init(void);
     BK_LOGI(NULL, "CONFIG_AUDIO...\r\n");
     extern int cli_aud_init(void);
     cli_aud_init();
+#endif
+
+#if CONFIG_AUD_RSP_BENCH_CLI
+    cli_rsp_bench_init();
+#endif
+#if CONFIG_MEDIA_SERVICE
+    /* Same as media_service_init() but audio only: installs the audio_osi
+     * function table that codec modules (rsp, EQ, ...) allocate through.
+     * The video/nano/isp tables are not needed here. */
+    bk_audio_osi_funcs_init();
 #endif
     return 0;
 }

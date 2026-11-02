@@ -1,0 +1,17 @@
+menu "AUDIO_RSP_BENCH"
+
+        config AUD_RSP_BENCH_CLI
+                bool "Enable rsp_bench CLI (only needed when running the bench test)"
+                default n
+                help
+                    Compiles the rsp_bench CLI in this project. Enable it only when
+                    you want to run the bench test; the normal case is measuring the
+                    B2 (production) performance, and B1 additionally keeps the original
+                    speex loop for the bit-exact comparison.
+
+                    The CLI needs a bench-capable libresample.a, i.e. the internal
+                    library must be built with CONFIG_AUD_RSP_MVE_BENCH=y (see
+                    sdk/ap/properties/soc/bk7259_ap/bk7259_ap.defconfig). Otherwise the
+                    build fails with an undefined reference to aud_rsp_bench_run_tone.
+
+endmenu
