@@ -104,7 +104,7 @@ void usb_hc_exit_critical(uint32_t flags)
 typedef void (*bk_legacy_roothub_cb_t)(void);
 int usb_hc_mhdrc_register_init(void);
 void usbh_musb_disconnect_set_status(void);
-extern struct usbh_bus g_usbhost_bus[];
+extern struct usbh_bus *g_usbhost_bus;
 void usbh_hub_thread_wakeup(struct usbh_hub *hub);
 
 void usbh_roothub_thread_wakeup(uint8_t port)

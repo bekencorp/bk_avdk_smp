@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 #include "usbh_core.h"
+#include <os/mem.h>
 
 #undef USB_DBG_TAG
 #define USB_DBG_TAG "usbh_core"
@@ -21,11 +22,32 @@ struct setup_align_buffer {
 USB_NOCACHE_RAM_SECTION USB_MEM_ALIGNX uint8_t ep0_request_buffer[CONFIG_USBHOST_MAX_BUS][USB_ALIGN_UP(CONFIG_USBHOST_REQUEST_BUFFER_LEN, CONFIG_USB_ALIGN_SIZE)];
 USB_NOCACHE_RAM_SECTION USB_MEM_ALIGNX struct setup_align_buffer g_setup_buffer[CONFIG_USBHOST_MAX_BUS][CONFIG_USBHOST_MAX_EXTHUBS + 1][CONFIG_USBHOST_MAX_EHPORTS];
 
-struct usbh_bus g_usbhost_bus[CONFIG_USBHOST_MAX_BUS]
+/* Host bookkeeping buffer allocator: SRAM heap first, PSRAM heap as
+ * fallback (PSRAM directly when CONFIG_USB_HOST_STRUCTS_IN_PSRAM=y).
+ * Release with os_free(). */
+void *usbh_host_mem_alloc(size_t size, const char *tag)
+{
+    void *p;
+
 #if CONFIG_USB_HOST_STRUCTS_IN_PSRAM
-    __attribute__((section(".psram.bss")))
+    p = psram_malloc(size);
+    if (p == NULL) {
+        USB_LOG_ERR("usbh alloc %s (%u bytes) from PSRAM failed\r\n", tag, (unsigned int)size);
+    }
+#else
+    p = os_malloc(size);
+    if (p == NULL) {
+        USB_LOG_WRN("usbh alloc %s (%u bytes) from SRAM failed, fallback to PSRAM\r\n", tag, (unsigned int)size);
+        p = psram_malloc(size);
+        if (p == NULL) {
+            USB_LOG_ERR("usbh alloc %s (%u bytes) from PSRAM failed\r\n", tag, (unsigned int)size);
+        }
+    }
 #endif
-    ;
+    return p;
+}
+
+struct usbh_bus *g_usbhost_bus;
 
 /* general descriptor field offsets */
 #define DESC_bLength         0 /** Length offset */
@@ -633,6 +655,13 @@ int usbh_initialize(uint8_t busid, uintptr_t reg_base, usbh_event_handler_t even
 
     USB_ASSERT_MSG(busid < CONFIG_USBHOST_MAX_BUS, "bus overflow\r\n");
 
+    if (g_usbhost_bus == NULL) {
+        g_usbhost_bus = (struct usbh_bus *)usbh_host_mem_alloc(sizeof(struct usbh_bus) * CONFIG_USBHOST_MAX_BUS, "g_usbhost_bus");
+        if (g_usbhost_bus == NULL) {
+            return -USB_ERR_NOMEM;
+        }
+    }
+
     bus = &g_usbhost_bus[busid];
 
     usbh_bus_init(bus, busid, reg_base);
@@ -679,6 +708,12 @@ int usbh_deinitialize(uint8_t busid)
     usbh_hub_deinitialize(bus);
 
     usb_slist_remove(&g_bus_head, &bus->list);
+
+    /* Release the buffer once the last bus is gone. */
+    if (usb_slist_isempty(&g_bus_head)) {
+        os_free(g_usbhost_bus);
+        g_usbhost_bus = NULL;
+    }
 
     return 0;
 }

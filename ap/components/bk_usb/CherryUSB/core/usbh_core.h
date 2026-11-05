@@ -269,7 +269,11 @@ static inline void usbh_int_urb_fill(struct usbh_urb *urb,
     urb->interval = USBH_GET_URB_INTERVAL(ep->bInterval, hport->speed);
 }
 
-extern struct usbh_bus g_usbhost_bus[];
+extern struct usbh_bus *g_usbhost_bus;
+
+/* SRAM first, PSRAM fallback; see usbh_core.c. Release with os_free(). */
+void *usbh_host_mem_alloc(size_t size, const char *tag);
+
 #ifdef USBH_IRQHandler
 #error USBH_IRQHandler is obsolete, please call USBH_IRQHandler(xxx) in your irq
 #endif

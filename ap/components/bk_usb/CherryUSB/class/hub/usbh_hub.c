@@ -5,6 +5,7 @@
  */
 #include "usbh_core.h"
 #include "usbh_hub.h"
+#include <os/mem.h>
 
 #undef USB_DBG_TAG
 #define USB_DBG_TAG "usbh_hub"
@@ -28,16 +29,21 @@ extern void usbh_hubport_release(struct usbh_hubport *hport);
 static const char *speed_table[] = { "error-speed", "low-speed", "full-speed", "high-speed", "wireless-speed", "super-speed", "superplus-speed" };
 
 #if CONFIG_USBHOST_MAX_EXTHUBS > 0
-static struct usbh_hub g_hub_class[CONFIG_USBHOST_MAX_EXTHUBS]
-#if CONFIG_USB_HOST_STRUCTS_IN_PSRAM
-    __attribute__((section(".psram.bss")))
-#endif
-    ;
+/* Allocated on first use; see usbh_host_mem_alloc() for the fallback policy. */
+static struct usbh_hub *g_hub_class;
 static uint32_t g_devinuse = 0;
 
 static struct usbh_hub *usbh_hub_class_alloc(void)
 {
     uint8_t devno;
+
+    if (g_hub_class == NULL) {
+        g_hub_class = (struct usbh_hub *)usbh_host_mem_alloc(sizeof(struct usbh_hub) * CONFIG_USBHOST_MAX_EXTHUBS, "g_hub_class");
+        if (g_hub_class == NULL) {
+            return NULL;
+        }
+        memset(g_hub_class, 0, sizeof(struct usbh_hub) * CONFIG_USBHOST_MAX_EXTHUBS);
+    }
 
     for (devno = 0; devno < CONFIG_USBHOST_MAX_EXTHUBS; devno++) {
         if ((g_devinuse & (1U << devno)) == 0) {
@@ -787,6 +793,17 @@ int usbh_hub_deinitialize(struct usbh_bus *bus)
     bus->hub_sem = NULL;
 
     bus->event_handler(bus->busid, USB_HUB_INDEX_ANY, USB_HUB_PORT_ANY, USB_INTERFACE_ANY, USBH_EVENT_DEINIT);
+
+#if CONFIG_USBHOST_MAX_EXTHUBS > 0
+    if (g_hub_class) {
+        if (g_devinuse) {
+            USB_LOG_WRN("usbh_hub: deinit with exthub slot(s) still in use (bitmap 0x%lx)\r\n", (unsigned long)g_devinuse);
+        }
+        os_free(g_hub_class);
+        g_hub_class = NULL;
+        g_devinuse = 0;
+    }
+#endif
 
     return 0;
 }
