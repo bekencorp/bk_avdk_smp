@@ -105,6 +105,23 @@ static const dbh_trng_config_t trng_config = {
 };
 #endif
 
+#if defined(DUBHE_SECURE)
+#if defined(TEE_M)
+#define DBH_TRNG_SLEEP_RETAIN __attribute__((section(".tfm_sleep_retention")))
+#else
+#define DBH_TRNG_SLEEP_RETAIN
+#endif
+
+#define DBH_TRNG_CFG_BAK_NUM 7
+
+/* Product TRNG configuration captured at cold boot. The WRLP_ENCP domain loses
+ * power on LV sleep, so these values are replayed on resume instead of being
+ * rebuilt from flash constants. */
+static volatile uint32_t s_trng_cfg_bak[DBH_TRNG_CFG_BAK_NUM]
+	DBH_TRNG_SLEEP_RETAIN;
+static volatile uint32_t s_trng_cfg_bak_valid DBH_TRNG_SLEEP_RETAIN;
+#endif
+
 /* handler for handle trng error */
 __attribute__( ( __weak__ ) ) void on_trng_error( int errno )
 {
@@ -143,25 +160,33 @@ static void arm_ce_trng_setup( const dbh_trng_config_t *trng_cfg )
     /* set entropy source */
     u.src = trng_cfg->src;
     DBH_WRITE_REGISTER( TRNG_CTRL, TRNG_ENTROPY_SRC, u.val );
+    s_trng_cfg_bak[0] = u.val;
     /* set entropy sample */
     u.sample = trng_cfg->sample;
     DBH_WRITE_REGISTER( TRNG_CTRL, TRNG_ENTROPY_SAMPLE, u.val );
+    s_trng_cfg_bak[1] = u.val;
     /* set ro setting */
     u.ro = trng_cfg->ro;
     DBH_WRITE_REGISTER( TRNG_CTRL, TRNG_RO_SETTING, u.val );
+    s_trng_cfg_bak[2] = u.val;
     /* set post process */
     u.postproc = trng_cfg->postproc;
     DBH_WRITE_REGISTER( TRNG_CTRL, TRNG_POST_PROCESS, u.val );
+    s_trng_cfg_bak[3] = u.val;
     /* set evaluation setting */
     u.eval = trng_cfg->eval;
     DBH_WRITE_REGISTER( TRNG_CTRL, TRNG_EVAL, u.val );
+    s_trng_cfg_bak[4] = u.val;
     /* set err cnt threshold */
     u.thr = trng_cfg->thr;
     DBH_WRITE_REGISTER( TRNG_CTRL, TRNG_ERR_CNT_TH, u.val );
+    s_trng_cfg_bak[5] = u.val;
 
     /* mask ctrl interrupts */
     u.intr = int_mask;
     DBH_WRITE_REGISTER( TRNG_CTRL, TRNG_INTR_MASK, u.val );
+    s_trng_cfg_bak[6] = u.val;
+    s_trng_cfg_bak_valid = 1u;
 
     /* mask pool interrupt */
     value = DBH_READ_REGISTER( TRNG_POOL, TRNG_POOL_INTR_MASK );
@@ -387,6 +412,28 @@ void arm_ce_trng_driver_init( void )
 #if defined( DUBHE_SECURE )
     _arm_ce_trng_reset( );
     arm_ce_trng_setup( &trng_config );
+#endif
+}
+
+/* Replay the TRNG configuration captured at cold boot. Falls back to the full
+ * setup when no snapshot exists. */
+void arm_ce_trng_restore( void )
+{
+#if defined( DUBHE_SECURE )
+    if ( s_trng_cfg_bak_valid == 0u ) {
+        arm_ce_trng_driver_init( );
+        return;
+    }
+
+    /* Power-on reset already restored the TRNG defaults; only the product
+     * configuration has to be replayed. */
+    DBH_WRITE_REGISTER( TRNG_CTRL, TRNG_ENTROPY_SRC, s_trng_cfg_bak[0] );
+    DBH_WRITE_REGISTER( TRNG_CTRL, TRNG_ENTROPY_SAMPLE, s_trng_cfg_bak[1] );
+    DBH_WRITE_REGISTER( TRNG_CTRL, TRNG_RO_SETTING, s_trng_cfg_bak[2] );
+    DBH_WRITE_REGISTER( TRNG_CTRL, TRNG_POST_PROCESS, s_trng_cfg_bak[3] );
+    DBH_WRITE_REGISTER( TRNG_CTRL, TRNG_EVAL, s_trng_cfg_bak[4] );
+    DBH_WRITE_REGISTER( TRNG_CTRL, TRNG_ERR_CNT_TH, s_trng_cfg_bak[5] );
+    DBH_WRITE_REGISTER( TRNG_CTRL, TRNG_INTR_MASK, s_trng_cfg_bak[6] );
 #endif
 }
 

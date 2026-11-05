@@ -103,12 +103,14 @@ void arm_ce_sca_driver_init( void )
 #if defined( DUBHE_SECURE )
     dubhe_clk_enable( DBH_MODULE_SCA );
 
-    /* Reset SCA module */
-    value = DBH_READ_REGISTER( TOP_CTRL, RESET_CTRL );
-    DBH_REG_FLD_SET( RESET_CTRL, SCA, value, 0x1 );
-    DBH_WRITE_REGISTER( TOP_CTRL, RESET_CTRL, value );
-    DBH_REG_FLD_SET( RESET_CTRL, SCA, value, 0x0 );
-    DBH_WRITE_REGISTER( TOP_CTRL, RESET_CTRL, value );
+    if ( dubhe_skip_module_reset == false ) {
+        /* Reset SCA module */
+        value = DBH_READ_REGISTER( TOP_CTRL, RESET_CTRL );
+        DBH_REG_FLD_SET( RESET_CTRL, SCA, value, 0x1 );
+        DBH_WRITE_REGISTER( TOP_CTRL, RESET_CTRL, value );
+        DBH_REG_FLD_SET( RESET_CTRL, SCA, value, 0x0 );
+        DBH_WRITE_REGISTER( TOP_CTRL, RESET_CTRL, value );
+    }
 #endif
 
 #if defined( DUBHE_FOR_RUNTIME )

@@ -115,6 +115,7 @@ extern "C" {
  *
  */
 void arm_ce_trng_driver_init( void );
+void arm_ce_trng_restore( void );
 
 /**
  * brief        Dubhe TRNG seed read

@@ -34,6 +34,10 @@ typedef enum dubhe_module_type {
  * \return         \c 0 on success, -1 on failure.
  */
 
+/* True while the engine is rebuilt after a power loss: sub-blocks are already
+ * in their power-on reset state and must not be reset again. */
+extern bool dubhe_skip_module_reset;
+
 int dubhe_clk_enable( dubhe_module_type_t type );
 
 /**
@@ -59,6 +63,14 @@ int dubhe_driver_init( unsigned long dbh_base_addr );
  *
  */
 void dubhe_driver_cleanup( void );
+
+/**
+ * \brief               This function rebuilds the engine after the ENCP power
+ *                      domain may have been lost (sleep resume).
+ *
+ * \param dbh_base_addr Dubhe system address.
+ */
+void dubhe_driver_reinit( unsigned long dbh_base_addr );
 
 #if !defined(TEE_M) && !defined(DUBHE_SECURE)
 void dubhe_ns_prepare_runtime( void );

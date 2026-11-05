@@ -24,11 +24,10 @@
 /* os/os.h provides RTOS context checks and non-blocking mutex take; it is only
  * available in the armino non-secure runtime build. */
 #include "os/os.h"
+#include <modules/pm.h>
 #endif
 #if defined( DUBHE_FOR_RUNTIME )
 #if !defined( TEE_M )
-#include <modules/pm.h>
-
 static semaphore_t _g_aca_done_sem       = NULL;
 static semaphore_t _g_aca_fifo_ready_sem = NULL;
 static semaphore_t _g_sca_cmd_sem        = NULL;
@@ -207,9 +206,10 @@ int32_t dubhe_wait_event( dubhe_event_type_t dubhe_event )
 #if !defined( DUBHE_SECURE )
     dubhe_ns_prepare_runtime( );
 #endif
-#if defined( DUBHE_SECURE )
+    /* Block LV while the engine works: the WRLP_ENCP domain may be voted off on
+     * sleep entry, which would kill the in-flight command. Both the Secure
+     * (SPE) and the Normal (NS) channel need this. */
     bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_ENCP, 0, 0);
-#endif
     int32_t ret = 0;
     switch ( dubhe_event ) {
     case DBH_EVENT_SCA_CMD_EXCUTED:
@@ -229,9 +229,7 @@ int32_t dubhe_wait_event( dubhe_event_type_t dubhe_event )
     default:
         ret = -1;
     }
-#if defined( DUBHE_SECURE )
     bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_ENCP, 1, 0);
-#endif
 
     return ret;
 #else
@@ -243,7 +241,6 @@ int32_t dubhe_wait_event( dubhe_event_type_t dubhe_event )
         if ( _g_signal_mask == signal ) {
             ret = dubhe_intr_sync_handler( dubhe_event );
             pal_clear_signal( _g_signal_mask );
-
             switch ( dubhe_event ) {
             case DBH_EVENT_SCA_CMD_EXCUTED:
                 if (( ret != -1 ) && ( ret < 0 )) {

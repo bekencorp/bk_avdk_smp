@@ -258,6 +258,11 @@ static arm_ce_dev_lcs_t _arm_ce_get_lcs( void )
     arm_ce_dev_lcs_t lcs;
     uint32_t output = 0;
 
+    /* The OTP manager is brought up lazily: its initialization waits for the
+     * on-chip process completion, which must not block the sleep resume path.
+     * The call is idempotent (otp_init_done is checked first). */
+    (void) arm_ce_otp_driver_init( );
+
     _DBH_READ_OTP_INFO( DBH_OTP_LCS_OFFSET, DBH_OTP_LCS_SIZE, &output );
     lcs = ( arm_ce_dev_lcs_t )( output & DBH_LIFE_CYCLE_MASK );
     if ( ( lcs == DBH_DEV_LCS_DR ) || ( lcs == DBH_DEV_LCS_CM )

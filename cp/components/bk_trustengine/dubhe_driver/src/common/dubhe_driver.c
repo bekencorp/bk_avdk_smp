@@ -43,6 +43,10 @@ unsigned long _g_Dubhe_RegBase;
 static int do_dubhe_driver_init( unsigned long dbh_base_addr );
 static void dubhe_delay_us(uint32 num);
 bool dubhe_inited = false;
+/* Set while the engine is rebuilt after an ENCP power loss: every sub-block is
+ * already in its power-on reset state, so the per-module reset pulse is
+ * redundant. */
+bool dubhe_skip_module_reset = false;
 #if !defined(TEE_M) && !defined(DUBHE_SECURE)
 static bool s_ns_runtime_ready;
 
@@ -88,6 +92,17 @@ static int dubhe_ns_ensure_clocks( void )
 #else
     return -1;
 #endif
+}
+
+/* Invoked by the TF-M ENCP PM adapter after the Secure world rebuilt the
+ * engine: release the NS-side ACA handle and force the next crypto call to redo
+ * the Normal-window bring-up. */
+void dubhe_ns_after_encp_resume(void)
+{
+#if defined( ARM_CE_DUBHE_ACA )
+    dubhe_aca_driver_cleanup();
+#endif
+    s_ns_runtime_ready = false;
 }
 #endif
 
@@ -221,7 +236,7 @@ static int do_dubhe_driver_init( unsigned long dbh_base_addr )
         sys_ll_set_cpu_power_sleep_wakeup_pwd_encp(0);
     }
 #elif defined(DUBHE_SECURE)
-    bk_pm_module_vote_power_ctrl(POWER_SUB_MODULE_NAME_ENCP_TRUSTENGINE, PM_POWER_MODULE_STATE_ON);
+    bk_pm_module_vote_power_ctrl(PM_POWER_SUB_DOMAIN_SHANHAI, PM_POWER_MODULE_STATE_ON);
 #endif
     dubhe_delay_us(100);
 
@@ -288,7 +303,7 @@ int dubhe_driver_init( unsigned long dbh_base_addr )
 
 #if !defined(TEE_M) && defined(DUBHE_SECURE)
         dubhe_lv_init();
-        bk_pm_module_vote_power_ctrl(POWER_SUB_MODULE_NAME_ENCP_TRUSTENGINE, PM_POWER_MODULE_STATE_ON);
+        bk_pm_module_vote_power_ctrl(PM_POWER_SUB_DOMAIN_SHANHAI, PM_POWER_MODULE_STATE_ON);
 #elif defined(TEE_M)
         if (sys_ll_get_cpu_power_sleep_wakeup_pwd_encp() != 0) {
             sys_ll_set_cpu_power_sleep_wakeup_pwd_encp(0);
@@ -305,6 +320,59 @@ int dubhe_driver_init( unsigned long dbh_base_addr )
     }
 
     return ret;
+}
+
+/* Force a full engine bring-up regardless of the one-shot "dubhe_inited" gate.
+ * Used by the Secure world sleep-resume gateway: the ENCP domain may have lost
+ * power, so every TE200 register must be programmed again. */
+void dubhe_driver_reinit( unsigned long dbh_base_addr )
+{
+    dubhe_inited = true;
+    (void)do_dubhe_driver_init( dbh_base_addr );
+}
+
+/* Minimal engine bring-up for the Secure-world LV resume path. The WRLP_ENCP
+ * domain lost power, so only the registers needed to make the engines usable
+ * are programmed; the TRNG product settings are replayed from the cold-boot
+ * copy instead of being rebuilt from flash constants. */
+void dubhe_driver_lv_resume( unsigned long dbh_base_addr )
+{
+    uint32_t int_level = rtos_disable_int();
+
+    dubhe_inited = true;
+    _g_Dubhe_RegBase = dbh_base_addr;
+
+    /* All sub-block clocks on, DMA AHB clock gated. */
+    DBH_WRITE_REGISTER( TOP_CTRL, CLK_CTRL, 0x1bu );
+    DBH_WRITE_REGISTER( TOP_CTRL, RESET_CTRL, 0x0u );
+
+    /* Power-on reset already cleared every sub-block. */
+    dubhe_skip_module_reset = true;
+
+#if defined( ARM_CE_DUBHE_ACA )
+    dubhe_aca_driver_init( );
+#endif
+#if defined( ARM_CE_DUBHE_HASH )
+    arm_ce_hash_driver_init( );
+#endif
+#if defined( ARM_CE_DUBHE_SCA )
+    arm_ce_sca_driver_init( );
+#endif
+#if defined( ARM_CE_DUBHE_TRNG )
+    arm_ce_trng_restore( );
+#endif
+
+    dubhe_skip_module_reset = false;
+
+    /* The OTP manager is only needed when OTP data is accessed; its bring-up
+     * waits for the slow on-chip initialization and is done lazily on first
+     * use instead of on the wake-up path. */
+
+#if defined( DUBHE_FOR_RUNTIME )
+    dubhe_event_init( );
+#endif
+
+    rtos_enable_int(int_level);
 }
 
 #if !defined(TEE_M) && !defined(DUBHE_SECURE)
@@ -370,7 +438,7 @@ void dubhe_driver_cleanup( void )
 
     dubhe_event_cleanup( );
 #if !defined(TEE_M) && defined(DUBHE_SECURE)
-    bk_pm_module_vote_power_ctrl(POWER_SUB_MODULE_NAME_ENCP_TRUSTENGINE, PM_POWER_MODULE_STATE_OFF);
+    bk_pm_module_vote_power_ctrl(PM_POWER_SUB_DOMAIN_SHANHAI, PM_POWER_MODULE_STATE_OFF);
 #endif
     dubhe_delay_us(100);
 }

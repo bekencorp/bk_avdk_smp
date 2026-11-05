@@ -17,6 +17,7 @@
 #include "dubhe_aca_internal.h"
 #include "dubhe_aca_hw_defs.h"
 #include "dubhe_regs.h"
+#include "dubhe_driver.h"
 #include "pal_log.h"
 #include "pal_string.h"
 #include "pal_heap.h"
@@ -74,16 +75,18 @@ void dubhe_aca_driver_init( void )
                    value );
     DBH_REG_FLD_SET( CLK_CTRL, ACA_EN, value, 0x1 );
     DBH_WRITE_REGISTER( TOP_CTRL, CLK_CTRL, value );
-    /* Reset ACA */
-    value = DBH_READ_REGISTER( TOP_CTRL, RESET_CTRL );
-    PAL_LOG_DEBUG( "TOP_CTRL CLK_CTRL: (offset:0x%08x) value: 0x%08x\n",
-                   DBH_REG_OFFSET( TOP_CTRL, RESET_CTRL ),
-                   value );
-    DBH_REG_FLD_SET( RESET_CTRL, ACA, value, 0x1 );
-    DBH_WRITE_REGISTER( TOP_CTRL, RESET_CTRL, value );
+    if ( dubhe_skip_module_reset == false ) {
+        /* Reset ACA */
+        value = DBH_READ_REGISTER( TOP_CTRL, RESET_CTRL );
+        PAL_LOG_DEBUG( "TOP_CTRL CLK_CTRL: (offset:0x%08x) value: 0x%08x\n",
+                       DBH_REG_OFFSET( TOP_CTRL, RESET_CTRL ),
+                       value );
+        DBH_REG_FLD_SET( RESET_CTRL, ACA, value, 0x1 );
+        DBH_WRITE_REGISTER( TOP_CTRL, RESET_CTRL, value );
 
-    DBH_REG_FLD_SET( RESET_CTRL, ACA, value, 0x0 );
-    DBH_WRITE_REGISTER( TOP_CTRL, RESET_CTRL, value );
+        DBH_REG_FLD_SET( RESET_CTRL, ACA, value, 0x0 );
+        DBH_WRITE_REGISTER( TOP_CTRL, RESET_CTRL, value );
+    }
 #else
     (void) value;
 #endif

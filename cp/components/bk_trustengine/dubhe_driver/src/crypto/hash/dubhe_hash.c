@@ -103,14 +103,16 @@ void arm_ce_hash_driver_init( void )
     volatile uint32_t value = 0;
 #if defined( DUBHE_SECURE )
     dubhe_clk_enable( DBH_MODULE_HASH );
-    /* Reset HASH module */
-    value = DBH_READ_REGISTER( TOP_CTRL, RESET_CTRL );
-    DBH_REG_FLD_SET( RESET_CTRL, HASH, value, 0x1 );
-    DBH_WRITE_REGISTER( TOP_CTRL, RESET_CTRL, value );
+    if ( dubhe_skip_module_reset == false ) {
+        /* Reset HASH module */
+        value = DBH_READ_REGISTER( TOP_CTRL, RESET_CTRL );
+        DBH_REG_FLD_SET( RESET_CTRL, HASH, value, 0x1 );
+        DBH_WRITE_REGISTER( TOP_CTRL, RESET_CTRL, value );
 
-    value = DBH_READ_REGISTER( TOP_CTRL, RESET_CTRL );
-    DBH_REG_FLD_SET( RESET_CTRL, HASH, value, 0x0 );
-    DBH_WRITE_REGISTER( TOP_CTRL, RESET_CTRL, value );
+        value = DBH_READ_REGISTER( TOP_CTRL, RESET_CTRL );
+        DBH_REG_FLD_SET( RESET_CTRL, HASH, value, 0x0 );
+        DBH_WRITE_REGISTER( TOP_CTRL, RESET_CTRL, value );
+    }
 #endif
 
 #if defined( DUBHE_FOR_RUNTIME )
