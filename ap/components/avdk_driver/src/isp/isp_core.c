@@ -117,57 +117,57 @@ static inline void isp_isr_unlock_irqrestore(uint32_t irq_flags)
     rtos_enable_int(irq_flags);
 }
 
-static bool isp_isr_handler_acquire(isp_isr_type_t type,
-                                    uint8_t index,
-                                    bool activate,
-                                    bool require_enabled,
-                                    isp_isr_t *callback,
-                                    void **param)
+/* BK7259 0x2c SRAM exclusive updates can fail repeatedly (BK7259SW-2313).
+ * Snapshot one whole dispatch under the HSPL-backed lock so callbacks run
+ * outside the lock and each dispatch needs only two short critical sections. */
+static void isp_isr_callbacks_snapshot(isp_isr_type_t type,
+                                       bool activate,
+                                       bool require_enabled,
+                                       isp_isr_t *callbacks,
+                                       void **params)
 {
-    isp_isr_handler_t *handler = &isp_isr_handler[type][index];
-    uint32_t generation;
+    uint32_t irq_flags = isp_isr_lock_irqsave();
 
-    if (!__atomic_load_n(&handler->reg_en, __ATOMIC_ACQUIRE))
+    for (uint8_t i = 0; i < ISP_ISR_MODULE_MAX; i++)
     {
-        return false;
-    }
+        isp_isr_handler_t *handler = &isp_isr_handler[type][i];
 
-    generation = __atomic_load_n(&handler->generation, __ATOMIC_ACQUIRE);
-    (void)__atomic_add_fetch(&handler->in_flight, 1U, __ATOMIC_ACQ_REL);
-    if (generation != __atomic_load_n(&handler->generation, __ATOMIC_ACQUIRE) ||
-        !__atomic_load_n(&handler->reg_en, __ATOMIC_ACQUIRE))
-    {
-        (void)__atomic_sub_fetch(&handler->in_flight, 1U, __ATOMIC_RELEASE);
-        return false;
+        callbacks[i] = NULL;
+        params[i] = NULL;
+        if (!handler->reg_en)
+        {
+            continue;
+        }
+        if (activate)
+        {
+            handler->enable = 1U;
+        }
+        if ((require_enabled && !handler->enable) ||
+            handler->isr_handler == NULL)
+        {
+            continue;
+        }
+        handler->in_flight++;
+        callbacks[i] = handler->isr_handler;
+        params[i] = handler->param;
     }
-
-    if (activate)
-    {
-        __atomic_store_n(&handler->enable, 1U, __ATOMIC_RELEASE);
-    }
-    if (require_enabled &&
-        !__atomic_load_n(&handler->enable, __ATOMIC_ACQUIRE))
-    {
-        (void)__atomic_sub_fetch(&handler->in_flight, 1U, __ATOMIC_RELEASE);
-        return false;
-    }
-
-    *callback = __atomic_load_n(&handler->isr_handler, __ATOMIC_ACQUIRE);
-    *param = __atomic_load_n(&handler->param, __ATOMIC_ACQUIRE);
-    if (*callback == NULL ||
-        generation != __atomic_load_n(&handler->generation, __ATOMIC_ACQUIRE) ||
-        !__atomic_load_n(&handler->reg_en, __ATOMIC_ACQUIRE))
-    {
-        (void)__atomic_sub_fetch(&handler->in_flight, 1U, __ATOMIC_RELEASE);
-        return false;
-    }
-    return true;
+    isp_isr_unlock_irqrestore(irq_flags);
 }
 
-static void isp_isr_handler_release(isp_isr_type_t type, uint8_t index)
+static void isp_isr_callbacks_release(isp_isr_type_t type,
+                                      isp_isr_t *callbacks)
 {
-    (void)__atomic_sub_fetch(&isp_isr_handler[type][index].in_flight,
-                             1U, __ATOMIC_RELEASE);
+    uint32_t irq_flags = isp_isr_lock_irqsave();
+
+    for (uint8_t i = 0; i < ISP_ISR_MODULE_MAX; i++)
+    {
+        if (callbacks[i] != NULL &&
+            isp_isr_handler[type][i].in_flight > 0U)
+        {
+            isp_isr_handler[type][i].in_flight--;
+        }
+    }
+    isp_isr_unlock_irqrestore(irq_flags);
 }
 
 /* One isp_core thread serializes pipeline callbacks for each device.
@@ -180,14 +180,14 @@ static bool isp_3a_callback_acquire(isp_3a_callback_state_t *state)
         return false;
     }
     state->thread = rtos_get_current_thread();
-    (void)__atomic_add_fetch(&state->in_flight, 1U, __ATOMIC_ACQ_REL);
+    state->in_flight++;
     return true;
 }
 
 static void isp_3a_callback_release(isp_3a_callback_state_t *state)
 {
     uint32_t irq_flags = isp_isr_lock_irqsave();
-    if (__atomic_sub_fetch(&state->in_flight, 1U, __ATOMIC_RELEASE) == 0U) {
+    if (--state->in_flight == 0U) {
         state->thread = NULL;
     }
     isp_isr_unlock_irqrestore(irq_flags);
@@ -286,31 +286,31 @@ void bk_mipi_csi_ext_set_enable(uint8_t mode);
 int VSI_MPI_ISP_SetScaleAttr(ISP_CHN IspChn, ISP_CHN_ATTR_S *pChnAttr);
 
 static void isp_invoke_isr_callbacks(isp_control_t *control, isp_isr_type_t type,
-				   uint8_t chnl_id, uint8_t error)
+					   uint8_t chnl_id, uint8_t error)
 {
-	uint8_t i;
+		uint8_t i;
+		isp_isr_t callbacks[ISP_ISR_MODULE_MAX];
+		void *params[ISP_ISR_MODULE_MAX];
 
-	if (control == NULL || type >= ISP_ISR_MAX || chnl_id >= ISP_CHN_CNT)
-	{
-		return;
-	}
-
-	for (i = 0; i < ISP_ISR_MODULE_MAX; i++)
-	{
-        isp_isr_t callback = NULL;
-        void *param = NULL;
-		if (isp_isr_handler_acquire(type, i, false, false,
-                                    &callback, &param))
+		if (control == NULL || type >= ISP_ISR_MAX || chnl_id >= ISP_CHN_CNT)
 		{
-			uint32_t line = (type == ISP_SBI_CLOSE)
-				? control->chn[chnl_id].skip_frames_remaining
-				: control->chn[chnl_id].line;
-
-			callback(control->chn[chnl_id].sequence, line,
-                     chnl_id, error, param);
-            isp_isr_handler_release(type, i);
+			return;
 		}
-	}
+
+		isp_isr_callbacks_snapshot(type, false, false, callbacks, params);
+		for (i = 0; i < ISP_ISR_MODULE_MAX; i++)
+		{
+			if (callbacks[i] != NULL)
+			{
+				uint32_t line = (type == ISP_SBI_CLOSE)
+					? control->chn[chnl_id].skip_frames_remaining
+					: control->chn[chnl_id].line;
+
+				callbacks[i](control->chn[chnl_id].sequence, line,
+				             chnl_id, error, params[i]);
+			}
+		}
+		isp_isr_callbacks_release(type, callbacks);
 }
 
 static void isp_unregister_sensor_callbacks(isp_control_t *control)
@@ -597,6 +597,8 @@ static void isp_wait_hot_open_frame_boundary(isp_control_t *control, uint8_t new
 static void isp_mi_isr_callback_handle(isp_control_t *control, uint8_t isr_type, uint8_t chnl_id, uint8_t ok)
 {
     uint8_t i = 0;
+    isp_isr_t callbacks[ISP_ISR_MODULE_MAX];
+    void *params[ISP_ISR_MODULE_MAX];
 
     if (control->chn[chnl_id].skip_active)
     {
@@ -618,21 +620,9 @@ static void isp_mi_isr_callback_handle(isp_control_t *control, uint8_t isr_type,
     }
     if (isr_type == ISP_MB_LINE_DONE)
     {
-        for (i = 0; i < ISP_ISR_MODULE_MAX; i++)
-        {
-            isp_isr_t callback = NULL;
-            void *param = NULL;
-            if (isp_isr_handler_acquire(
-                    isr_type, i,
-                    control->chn[chnl_id].line == 1,
-                    true, &callback, &param))
-            {
-                callback(control->chn[chnl_id].sequence,
-                         control->chn[chnl_id].line,
-                         chnl_id, ok, param);
-                isp_isr_handler_release(isr_type, i);
-            }
-        }
+        isp_isr_callbacks_snapshot(
+            isr_type, control->chn[chnl_id].line == 1,
+            true, callbacks, params);
     }
     else
     {
@@ -640,20 +630,20 @@ static void isp_mi_isr_callback_handle(isp_control_t *control, uint8_t isr_type,
         {
             control->close_sbi = 0;
         }
-        for (i = 0; i < ISP_ISR_MODULE_MAX; i++)
+        isp_isr_callbacks_snapshot(
+            isr_type, false, false, callbacks, params);
+    }
+
+    for (i = 0; i < ISP_ISR_MODULE_MAX; i++)
+    {
+        if (callbacks[i] != NULL)
         {
-            isp_isr_t callback = NULL;
-            void *param = NULL;
-            if (isp_isr_handler_acquire(
-                    isr_type, i, false, false, &callback, &param))
-            {
-                callback(control->chn[chnl_id].sequence,
+            callbacks[i](control->chn[chnl_id].sequence,
                          control->chn[chnl_id].line,
-                         chnl_id, ok, param);
-                isp_isr_handler_release(isr_type, i);
-            }
+                         chnl_id, ok, params[i]);
         }
     }
+    isp_isr_callbacks_release(isr_type, callbacks);
 }
 
 static void isp_mi_isr_callback_by_port(
@@ -1214,7 +1204,11 @@ bk_err_t bk_isp_port_select(isp_handle_t *handle, uint8_t port_id)
 
     //LOGI("%s, port %u -> %u\n", __func__, control->port.portId, port_id);
     VSI_MPI_ISP_PipelineSetCtrl(target_port, false);
-    VSI_MPI_ISP_PipelineSetCtrl(control->port, true);
+    if (VSI_ISP_CorePipelineSwitchGet(control->port) ==
+        ISP_PIPELINE_SWITCH_SYNC)
+    {
+        VSI_MPI_ISP_PipelineSetCtrl(control->port, true);
+    }
 
     if (port_id == ISP_MIPI_PORT_LOGICAL1)
     {
@@ -1950,8 +1944,7 @@ bk_err_t bk_isp_register_isr_callback(isp_handle_t *handle, isp_isr_type_t type,
         if (isp_isr_handler[type][i].param == NULL)
         {
             isp_isr_handler_t *handler = &isp_isr_handler[type][i];
-            (void)__atomic_add_fetch(
-                &handler->generation, 1U, __ATOMIC_RELEASE);
+            handler->generation++;
             __atomic_store_n(&handler->isr_handler, cb, __ATOMIC_RELEASE);
             __atomic_store_n(&handler->param, arg, __ATOMIC_RELEASE);
             __atomic_store_n(&handler->enable, 0U, __ATOMIC_RELEASE);
@@ -1998,6 +1991,11 @@ bk_err_t bk_isp_deregister_isr_callback(isp_handle_t *handle, isp_isr_type_t typ
         LOGE("%s, %d\n", __func__, __LINE__);
         return ret;
     }
+    if (rtos_is_in_interrupt_context())
+    {
+        LOGE("%s, %d, deregister in ISR is not allowed\n", __func__, __LINE__);
+        return BK_ERR_STATE;
+    }
 
     uint32_t irq_flags = isp_isr_lock_irqsave();
 
@@ -2007,8 +2005,7 @@ bk_err_t bk_isp_deregister_isr_callback(isp_handle_t *handle, isp_isr_type_t typ
         {
             handler = &isp_isr_handler[type][i];
             __atomic_store_n(&handler->reg_en, 0U, __ATOMIC_RELEASE);
-            (void)__atomic_add_fetch(
-                &handler->generation, 1U, __ATOMIC_RELEASE);
+            handler->generation++;
             __atomic_store_n(
                 &handler->isr_handler, NULL, __ATOMIC_RELEASE);
             ret = BK_OK;
@@ -2226,18 +2223,18 @@ bk_err_t bk_isp_sensor_update_mode_set(
 }
 
 bk_err_t bk_isp_pipeline_switch_set(
-    isp_handle_t *handle, uint8_t enable)
+    isp_handle_t *handle, uint8_t mode)
 {
     if (handle == NULL || *handle == NULL)
     {
         return BK_ERR_PARAM;
     }
 
-    LOGI("%s %d\n", __func__, enable);
+    LOGI("%s %d\n", __func__, mode);
 
     isp_control_t *control = (isp_control_t *)*handle;
     int ret = VSI_ISP_CorePipelineSwitchSet(
-        control->port, enable);
+        control->port, mode);
     return (ret == VSI_SUCCESS) ? BK_OK : BK_FAIL;
 }
 
