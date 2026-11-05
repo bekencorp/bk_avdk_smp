@@ -1235,9 +1235,9 @@ static avdk_err_t isp_camera_ctlr_ioctl(bk_isp_camera_ctlr_handle_t handle, bk_c
         {
             AVDK_RETURN_ON_FALSE(
                 arg, AVDK_ERR_INVAL, TAG, "pipeline switch arg is NULL");
-            vsi_bool_t *pipeline_switch = (vsi_bool_t *)arg;
+            vsi_u8_t *pipeline_switch_mode = (vsi_u8_t *)arg;
             bk_err_t isp_ret = bk_isp_pipeline_switch_set(
-                &controller->isp_handle, *pipeline_switch);
+                &controller->isp_handle, *pipeline_switch_mode);
             return (isp_ret == BK_OK) ? AVDK_ERR_OK : AVDK_ERR_GENERIC;
         }
 
