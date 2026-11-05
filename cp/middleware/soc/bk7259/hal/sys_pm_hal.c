@@ -1950,7 +1950,6 @@ __IRAM_PM void sys_hal_enter_lv(void)
 
 	uint32_t pwd_cpu1 = sys_ll_get_reserver_reg0x10_pwd_cpu1();
 	uint32_t pwd_vehp = sys_ll_get_reserver_reg0x10_pwd_vehp();
-	uint32_t pwd_wrls = sys_ll_get_reserver_reg0x10_pwd_wrls();
 	uint32_t rom_pgen = sys_ll_get_reserver_reg0x10_rom_pgen();
 
 	#if CONFIG_OTA_POSITION_INDEPENDENT_AB || CONFIG_DIRECT_XIP
@@ -2413,10 +2412,6 @@ __IRAM_PM void sys_hal_enter_lv(void)
 	// PM_GPIO_DOWN(36);
 	#endif
 	bk_delay_us(2);
-	if(pwd_wrls != sys_ll_get_reserver_reg0x10_pwd_wrls())
-	{
-		sys_ll_set_reserver_reg0x10_pwd_wrls(pwd_wrls);
-	}
 	if(rom_pgen != sys_ll_get_reserver_reg0x10_rom_pgen())
 	{
 		sys_ll_set_reserver_reg0x10_rom_pgen(rom_pgen);
@@ -2612,7 +2607,6 @@ __IRAM_PM void sys_hal_enter_deep_lv(void)
 
 	uint32_t pwd_cpu1 = sys_ll_get_reserver_reg0x10_pwd_cpu1();
 	uint32_t pwd_vehp = sys_ll_get_reserver_reg0x10_pwd_vehp();
-	uint32_t pwd_wrls = sys_ll_get_reserver_reg0x10_pwd_wrls();
 	uint32_t rom_pgen = sys_ll_get_reserver_reg0x10_rom_pgen();
 
 	#if CONFIG_OTA_POSITION_INDEPENDENT_AB || CONFIG_DIRECT_XIP
@@ -3150,10 +3144,6 @@ __IRAM_PM void sys_hal_enter_deep_lv(void)
 	// PM_GPIO_DOWN(36);
 	#endif
 	bk_delay_us(2);
-	if(pwd_wrls != sys_ll_get_reserver_reg0x10_pwd_wrls())
-	{
-		sys_ll_set_reserver_reg0x10_pwd_wrls(pwd_wrls);
-	}
 	if(rom_pgen != sys_ll_get_reserver_reg0x10_rom_pgen())
 	{
 		sys_ll_set_reserver_reg0x10_rom_pgen(rom_pgen);

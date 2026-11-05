@@ -354,6 +354,11 @@ int driver_init(void) {
 	dubhe_driver_init(SOC_SHANHAI_BASE);
 #endif
 
+#if defined(CONFIG_TFM_ENCP_NSC) && CONFIG_TFM_ENCP_NSC
+	extern void bk_encp_pm_init(void);
+	bk_encp_pm_init();
+#endif
+
 #if CONFIG_USB //&& CONFIG_MENTOR_USB
 	bk_usb_driver_init();
 #endif
