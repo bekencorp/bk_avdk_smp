@@ -375,6 +375,9 @@ static void bk_dump_ap_window(const char *name, bk_dump_mem_getter_t getter)
 static void bk_dump_ap_heap_mem(void)
 {
     bk_dump_ap_window("AP_PSRAM_HEAP", bk_get_ap_psram_heap_info);
+    /* CP self-dump path: AP may still be alive, but this dump must still carry
+     * the AP task context (stacks/TCBs/queues live in the cache heap). */
+    bk_dump_ap_window("AP_PSRAM_CACHE_HEAP", bk_get_ap_psram_cache_heap_info);
 }
 
 static void bk_dump_ap_dtcm(void)
@@ -427,6 +430,11 @@ static void bk_dump_ap_psram_mem(void)
     bk_dump_ap_window("AP_PSRAM_HEAP", bk_get_ap_psram_heap_info);
     bk_dump_ap_window("AP_PSRAM_DATA", bk_get_ap_psram_data_info);
     bk_dump_ap_window("AP_PSRAM_BSS", bk_get_ap_psram_bss_info);
+    /* Reached from the AP-silent/heartbeat path: the AP core is already wedged,
+     * so no cache writeback can be arranged for it and L2 dirty lines of the
+     * newest stack frames may be missing here. TCBs, queues and older frames
+     * are still readable (the AP trap path flushes before handoff). */
+    bk_dump_ap_window("AP_PSRAM_CACHE_HEAP", bk_get_ap_psram_cache_heap_info);
 }
 
 /*

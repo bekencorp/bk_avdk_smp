@@ -126,6 +126,9 @@ static uint32_t manifest_build_ap(void)
     manifest_add_getter(&n, bk_get_ap_psram_heap_info, REGION_PSRAM, 3U, 1U);
     manifest_add_getter(&n, bk_get_ap_psram_data_info, REGION_PSRAM, 3U, 1U);
     manifest_add_getter(&n, bk_get_ap_psram_bss_info, REGION_PSRAM, 3U, 1U);
+    /* AP task stacks/TCBs/queues (CONFIG_TASK_STACK_IN_PSRAM) live in the cache
+     * heap; without this region the dump has no AP task context. */
+    manifest_add_getter(&n, bk_get_ap_psram_cache_heap_info, REGION_PSRAM, 3U, 1U);
 
     return n;
 }
