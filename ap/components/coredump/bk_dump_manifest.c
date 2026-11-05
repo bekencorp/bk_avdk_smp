@@ -108,6 +108,10 @@ static uint32_t manifest_build_ap(void)
     manifest_add_info(&n, &info, REGION_PSRAM, 3U, 1U);
     bk_get_psram_data_info(&info);
     manifest_add_info(&n, &info, REGION_PSRAM, 3U, 1U);
+    /* Task stacks/TCBs/queues (CONFIG_TASK_STACK_IN_PSRAM) live here; without
+     * this region a crash dump has no task context. */
+    bk_get_psram_cache_heap_info(&info);
+    manifest_add_info(&n, &info, REGION_PSRAM, 3U, 1U);
 
     return n;
 }

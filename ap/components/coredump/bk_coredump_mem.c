@@ -131,6 +131,11 @@ void bk_dump_psram_mem(void)
     if (mem_info.start_addr != 0 && mem_info.size != 0) {
         bk_coredump_write_memory(mem_info.name, mem_info.start_addr, mem_info.start_addr + mem_info.size);
     }
+    // dump psram cache heap (task stacks/TCBs/queues live here)
+    bk_get_psram_cache_heap_info(&mem_info);
+    if (mem_info.start_addr != 0 && mem_info.size != 0) {
+        bk_coredump_write_memory(mem_info.name, mem_info.start_addr, mem_info.start_addr + mem_info.size);
+    }
 }
 
 /*

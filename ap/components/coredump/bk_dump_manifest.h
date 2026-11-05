@@ -34,7 +34,7 @@ extern "C" {
  * The offline parser negotiates field naming via BK_DUMP_FORMAT_VERSION; bump
  * it whenever a region name or the manifest layout changes.
  */
-#define BK_DUMP_FORMAT_VERSION 2U
+#define BK_DUMP_FORMAT_VERSION 3U
 
 typedef enum {
     DUMP_DOMAIN_CP = 0,

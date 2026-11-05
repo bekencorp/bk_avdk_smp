@@ -459,7 +459,20 @@ static COREDUMP_IRAM void coredump_check_psram_code(void)
 
 static COREDUMP_IRAM void coredump_flush_for_cp_dump(void)
 {
-#if CONFIG_CACHE_MAINTENANCE
+    /*
+     * This is a system-level writeback, not a per-buffer cache maintenance API:
+     * the CP reads AP PSRAM through the bus and bypasses this core's cache, so
+     * the dirty lines must be committed before the handoff. Gating it on
+     * CONFIG_CACHE_MAINTENANCE made it a no-op in the field configuration,
+     * because that symbol is a hidden bool defaulting to n and is documented to
+     * stay off when only the task stacks live in cacheable PSRAM - i.e. exactly
+     * the AP_PSRAM_CACHE_HEAP case this dump exists for. Gate on the cache
+     * being enabled instead (same rationale as the CPU-hotplug flush in
+     * multicore_driver.c). L2 covers AP_PSRAM_CACHE_HEAP, whose MPU attribute
+     * makes it L2 write-back / L1 non-cacheable; the CONFIG_DCACHE branch keeps
+     * L1-only builds covered, where arch_dcache_flush_all() cleans L1.
+     */
+#if CONFIG_L2_CACHE_ENABLE || CONFIG_DCACHE
     arch_dcache_flush_all();
     __DSB();
     BK_DUMP_OUT("AP coredump dcache flushed before CP RAM dump\r\n");
