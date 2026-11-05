@@ -141,6 +141,56 @@ static bool flash_addr_valid(uint32_t addr, uint32_t len)
 	return true;
 }
 
+/* Return the partition index that fully covers [addr, addr+len), or -1. */
+static int flash_test_find_partition(uint32_t addr, uint32_t len)
+{
+	bk_logic_partition_t *pt;
+	uint32_t end = addr + len;
+
+	for (bk_partition_t i = BK_PARTITION_BOOTLOADER; i <= BK_PARTITIONS_TABLE_SIZE; i++) {
+		pt = bk_flash_partition_get_info(i);
+		if (pt == NULL || pt->partition_length == 0)
+			continue;
+		if (addr >= pt->partition_start_addr &&
+		    end <= (pt->partition_start_addr + pt->partition_length))
+			return (int)i;
+	}
+	return -1;
+}
+
+/*
+ * Intercept erase/write commands whose target range is not usable.
+ * The flash driver silently drops such ops when the address is outside every
+ * partition (or the partition is read-only), which otherwise shows up only as
+ * a bogus "Verification PASS/FAIL". Report it at the CLI instead.
+ */
+static bool flash_test_range_check(uint32_t addr, uint32_t len, bool need_write)
+{
+	int idx;
+	bk_logic_partition_t *pt;
+
+	if (len == 0)
+		return true;
+
+	idx = flash_test_find_partition(addr, len);
+	if (idx < 0) {
+		BK_DUMP_OUT("[flash_test] 0x%08x-0x%08x is NOT in any flash partition, "
+			    "erase/write would be ignored by driver, cmd skipped (run 'fmap_test')\r\n",
+			    addr, addr + len);
+		return false;
+	}
+
+	pt = bk_flash_partition_get_info((bk_partition_t)idx);
+	if (need_write && (pt->partition_options & PAR_OPT_WRITE_EN) == 0) {
+		BK_DUMP_OUT("[flash_test] 0x%08x-0x%08x is in read-only partition '%s' "
+			    "(0x%08x-0x%08x), cmd skipped\r\n",
+			    addr, addr + len, pt->partition_description,
+			    pt->partition_start_addr, pt->partition_start_addr + pt->partition_length);
+		return false;
+	}
+	return true;
+}
+
 static flash_erase_unit_t parse_erase_unit(const char *s)
 {
 	if (s == NULL)
@@ -1165,6 +1215,14 @@ static void flash_command_test(char *pcWriteBuffer, int xWriteBufferLen, int arg
 			}
 			pat = parse_pattern(argv[i]);
 		}
+		/* page/sector/block* erase+program a bounded range, so check it first. */
+		if (os_strcmp(argv[2], "chip") != 0) {
+			uint32_t usize = (os_strcmp(argv[2], "page") == 0) ? FLASH_SECTOR_SIZE :
+					 (os_strcmp(argv[2], "block32") == 0) ? FLASH_BLK32_SIZE :
+					 (os_strcmp(argv[2], "block") == 0) ? FLASH_BLK64_SIZE : FLASH_SECTOR_SIZE;
+			if (!flash_test_range_check(addr & ~(usize - 1), usize, true))
+				return;
+		}
 		flash_timing_test(argv[2], addr, pat, force_xip);
 		return;
 	} else if (os_strcmp(argv[1], "C") == 0) {
@@ -1217,6 +1275,15 @@ static void flash_command_test(char *pcWriteBuffer, int xWriteBufferLen, int arg
 			BK_DUMP_OUT("addr/len out of flash range (total=0x%x)\r\n", bk_flash_get_current_total_size());
 			return;
 		}
+		/* The test erases whole erase units, so the rounded range must be usable too. */
+		uint32_t usize = erase_unit_size(eunit);
+		uint32_t erase_start = addr & ~(usize - 1);
+		uint32_t erase_end = (addr + len + usize - 1) & ~(usize - 1);
+
+		if (!flash_test_range_check(addr, len, true) ||
+		    !flash_test_range_check(erase_start, erase_end - erase_start, true))
+			return;
+
 		test_flash_count_time(addr, len, test_times, pat, eunit, PRINT_CNT, force_xip);
 		return;
 	}
@@ -1238,6 +1305,18 @@ static void flash_command_test(char *pcWriteBuffer, int xWriteBufferLen, int arg
 			BK_DUMP_OUT("addr/len out of flash range (total=0x%x)\r\n", bk_flash_get_current_total_size());
 			os_memcpy(pcWriteBuffer, CLI_CMD_RSP_ERROR, os_strlen(CLI_CMD_RSP_ERROR));
 			return;
+		}
+
+		/* E/W/N/M erase whole 4KB sectors: the rounded range must be usable too. */
+		if (cmd == 'E' || cmd == 'W' || cmd == 'N' || cmd == 'M') {
+			uint32_t es = addr & ~(FLASH_SECTOR_SIZE - 1);
+			uint32_t ee = (addr + len + FLASH_SECTOR_SIZE - 1) & ~(FLASH_SECTOR_SIZE - 1);
+
+			if (!flash_test_range_check(addr, len, true) ||
+			    !flash_test_range_check(es, ee - es, true)) {
+				os_memcpy(pcWriteBuffer, CLI_CMD_RSP_ERROR, os_strlen(CLI_CMD_RSP_ERROR));
+				return;
+			}
 		}
 
 		switch (cmd) {
