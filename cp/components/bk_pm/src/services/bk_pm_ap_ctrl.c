@@ -1183,6 +1183,7 @@ bk_err_t bk_pm_module_vote_boot_ap_ctrl(pm_boot_ap_module_name_e module,pm_power
 					bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
 				uint32_t recovery_request_seq;
 				bool ap_suspend_failed = false;
+				bool ap_drain_failed = false;
 				uint64_t next_recovery_retry_tick;
 
 				/*
@@ -1193,56 +1194,19 @@ bk_err_t bk_pm_module_vote_boot_ap_ctrl(pm_boot_ap_module_name_e module,pm_power
 				bk_pm_ap_ctrl_callback_execute(
 					PM_AP_CTRL_CB_TYPE_POWER_OFF_PREPARE);
 				/*
-				 * Close all CP->AP business channels before publishing or
-				 * sending the sleep request. mb_chnl_write() evaluates this
-				 * flag inside its enqueue critical section.
+				 * Keep the CP->AP business gate open during the recovery
+				 * handshake. AP only publishes pm_ap0_sleep_state after
+				 * every module's prepare_power_off callback reports idle,
+				 * so an AP module may still be waiting for a CP reply at
+				 * this point. Closing the gate now would turn that reply
+				 * into BK_ERR_BUSY and leave the AP side waiting. The gate
+				 * is closed once AP declares sleep-ready, right before the
+				 * mailbox drain.
 				 */
-				s_pm_ap_business_tx_enabled = false;
 				__DMB();
 				bk_pm_ap_full_ready_set(false);
 #endif
 				s_pm_cp1_closing = 1;
-#if CONFIG_PM_AP_FAST_BOOT_ENABLE
-				{
-					uint64_t drain_start_tick =
-						bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
-
-					/*
-					 * A producer that entered mailbox critical state just
-					 * before the gate closed may already have queued one
-					 * command. Drain such logical pending entries before
-					 * queuing higher-priority PWC, otherwise PWC could
-					 * overtake them and the command could arrive after the
-					 * AP has begun quiescing.
-					 */
-					while (mb_chnl_tx_pending_to_cpu(MAILBOX_CPU2,
-							MB_CHNL_PWC) &&
-						((bk_aon_rtc_get_current_tick(AON_RTC_ID_1) -
-						  drain_start_tick) <
-						 (PM_AP_MAILBOX_DRAIN_TIMEOUT_MS *
-						  AON_RTC_MS_TICK_CNT))) {
-#if CONFIG_SUPPORT_WWDT
-						bk_wwdt_feed();
-#endif
-					}
-
-					if (mb_chnl_tx_pending_to_cpu(MAILBOX_CPU2,
-							MB_CHNL_PWC)) {
-						LOGE("AP close: business mailbox drain timeout\r\n");
-						GLOBAL_INT_DISABLE();
-						s_pm_cp1_ctrl_state |= (0x1 << module);
-						s_pm_cp1_closing = 0;
-						s_pm_ap_business_tx_enabled = true;
-						GLOBAL_INT_RESTORE();
-						__DMB();
-						bk_pm_ap_full_ready_set(true);
-						bk_pm_ap_ctrl_callback_execute(
-							PM_AP_CTRL_CB_TYPE_POWER_OFF_ABORT);
-						ret = BK_FAIL;
-						goto pm_ap_vote_unlock;
-					}
-				}
-#endif
 				BK_LOGD(NULL, "boot_ap %d %d close 0x%llx %d\r\n",module, power_state,s_pm_cp1_module_recovery_state,bk_pm_ap_boot_success_get());
 				pm_ap_powerdown_proof_log("vote_off_begin");
 
@@ -1341,6 +1305,47 @@ bk_err_t bk_pm_module_vote_boot_ap_ctrl(pm_boot_ap_module_name_e module,pm_power
 #if CONFIG_PM_AP_FAST_BOOT_ENABLE
 						uint64_t sleep_ready_tick =
 							bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
+
+						/*
+						 * AP has published sleep-ready, which means every
+						 * module finished its pending work, so no AP->CP
+						 * request can still be waiting for a CP reply.
+						 * Close the CP->AP business gate now: doing it
+						 * earlier would turn such a reply into BK_ERR_BUSY.
+						 */
+						s_pm_ap_business_tx_enabled = false;
+						__DMB();
+
+						/*
+						 * A producer that entered the mailbox critical
+						 * section just before the gate flipped may already
+						 * have queued one command. Drain it before backing
+						 * up the mailbox registers and cutting AP power,
+						 * otherwise the BUSY channel state would be saved
+						 * and restored on the next fast boot.
+						 */
+						{
+							uint64_t drain_start_tick =
+								bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
+
+							while (mb_chnl_tx_pending_to_cpu(MAILBOX_CPU2,
+									MB_CHNL_PWC) &&
+								((bk_aon_rtc_get_current_tick(AON_RTC_ID_1) -
+								  drain_start_tick) <
+								 (PM_AP_MAILBOX_DRAIN_TIMEOUT_MS *
+								  AON_RTC_MS_TICK_CNT))) {
+#if CONFIG_SUPPORT_WWDT
+								bk_wwdt_feed();
+#endif
+							}
+
+							if (mb_chnl_tx_pending_to_cpu(MAILBOX_CPU2,
+									MB_CHNL_PWC)) {
+								LOGE("AP close: CP->AP mailbox drain timeout after sleep-ready\r\n");
+								ap_drain_failed = true;
+								break;
+							}
+						}
 #endif
 						#if CONFIG_DEEP_LV
 						sys_hal_mailbox_regs_backup();
@@ -1428,7 +1433,11 @@ bk_err_t bk_pm_module_vote_boot_ap_ctrl(pm_boot_ap_module_name_e module,pm_power
 				if (!ap_sleep_ready)
 				{
 #if CONFIG_PM_AP_FAST_BOOT_ENABLE
-					if (!ap_suspend_failed && (ap_hspl0_orphan_mask == 0U))
+					if (ap_drain_failed)
+					{
+						LOGE("AP close: CP->AP mailbox drain timeout after sleep-ready, rollback\r\n");
+					}
+					else if (!ap_suspend_failed && (ap_hspl0_orphan_mask == 0U))
 #else
 					if (ap_hspl0_orphan_mask == 0U)
 #endif
@@ -1532,7 +1541,8 @@ bk_err_t bk_pm_module_vote_boot_ap_ctrl(pm_boot_ap_module_name_e module,pm_power
 #if CONFIG_PM_AP_FAST_BOOT_ENABLE
 					pm_ap_powerdown_proof_log(ap_suspend_failed ?
 						"ap_suspend_failed_rollback" :
-						"ap_sleep_timeout_rollback");
+						(ap_drain_failed ? "ap_mailbox_drain_rollback" :
+						 "ap_sleep_timeout_rollback"));
 #else
 					pm_ap_powerdown_proof_log("ap_sleep_timeout_rollback");
 #endif
@@ -1540,9 +1550,6 @@ bk_err_t bk_pm_module_vote_boot_ap_ctrl(pm_boot_ap_module_name_e module,pm_power
 			}
     	}
     }
-#if CONFIG_PM_AP_FAST_BOOT_ENABLE
-pm_ap_vote_unlock:
-#endif
 	rtos_unlock_mutex(&s_pm_cp1_vote_mutex);
     return ret;
 }
