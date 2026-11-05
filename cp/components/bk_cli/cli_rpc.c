@@ -316,20 +316,55 @@ static void debug_show_boot_time(char *pcWriteBuffer, int xWriteBufferLen, int a
 #endif
 
 #ifdef CORE_MARK_ENABLED
-static void debug_core_mark(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
-{
-	extern bk_err_t bk_wdt_stop(void);
-	extern bk_err_t bk_wdt_start(uint32_t timeout_ms);
+/* Same treatment as dhrystone: run the benchmark in its own thread instead of
+ * inside the shell task's critical section, so the 1 s AON watchdog feed in
+ * TIMER_ID2 keeps running and a long run cannot reset the chip in the middle. */
+#define CORE_MARK_THREAD_STACK_SIZE 4096
 
+static beken_thread_t s_cm_thread = NULL;
+static beken_semaphore_t s_cm_done = NULL;
+static int s_cm_argc;
+static char **s_cm_argv;
+
+static void core_mark_task(beken_thread_arg_t arg)
+{
 	extern void core_mark(int argc, char *argv[]);
 
-	bk_wdt_stop();
-	u32  int_mask = rtos_enter_critical();
+	(void)arg;
 
-	core_mark(argc, argv);
+	core_mark(s_cm_argc, s_cm_argv);
 
-	rtos_exit_critical(int_mask);
-	bk_wdt_start(CONFIG_INT_WDT_PERIOD_MS);
+	rtos_set_semaphore(&s_cm_done);
+	rtos_delete_thread(NULL);
+}
+
+static void debug_core_mark(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
+{
+	bk_err_t ret;
+
+	(void)pcWriteBuffer;
+	(void)xWriteBufferLen;
+
+	s_cm_argc = argc;
+	s_cm_argv = argv;
+
+	ret = rtos_init_semaphore_ex(&s_cm_done, 1, 0);
+	if (ret != kNoErr) {
+		BK_LOGE(TAG, "init core_mark semaphore failed: %d\r\n", ret);
+		return;
+	}
+
+	ret = rtos_create_thread(&s_cm_thread, BEKEN_APPLICATION_PRIORITY,
+	                         "core_mark", core_mark_task,
+	                         CORE_MARK_THREAD_STACK_SIZE, NULL);
+	if (ret != kNoErr) {
+		BK_LOGE(TAG, "create core_mark thread failed: %d\r\n", ret);
+		rtos_deinit_semaphore(&s_cm_done);
+		return;
+	}
+
+	rtos_get_semaphore(&s_cm_done, BEKEN_WAIT_FOREVER);
+	rtos_deinit_semaphore(&s_cm_done);
 }
 
 #include "./core_mark/core_main.c"
