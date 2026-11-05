@@ -142,6 +142,17 @@ config TFM_SLEEP_RETENTION_NSC
         Sleep entry performs no register scan. Forwarded to the TF-M build as
         CONFIG_SLEEP_RETENTION_NSC.
 
+config TFM_ENCP_NSC
+    bool "Enable TE200 quiesce/resume NSC gateways"
+    depends on SOC_BK7259 && TFM_CRYPTO && TFM_SLEEP_RETENTION_NSC
+    default y if TFM_CRYPTO
+    help
+        Expose psa_encp_quiesce()/psa_encp_resume() to the NS cpu0_app so it can
+        hand the TrustEngine over before a Low-Voltage sleep and ask the Secure
+        world to rebuild it after wake. Required because the WRLP_ENCP domain
+        (TE200 + OTP + WiFi/BT) is powered off in both LV and deep sleep.
+        Forwarded to the TF-M build as CONFIG_ENCP_NSC.
+
 config TFM_AP_SHIM_L2_CACHE_DISABLE
     bool "Disable AP L2 (PL310) init in the AP boot shim"
     depends on SOC_BK7259

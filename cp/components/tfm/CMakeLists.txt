@@ -94,6 +94,11 @@ if (CONFIG_TFM AND tfm_present)
     if (CONFIG_TFM_FWU)
         list(APPEND srcs tfm/interface/src/tfm_fwu_api.c)
     endif()
+    if (CONFIG_TFM_ENCP_NSC)
+        # NS-side PM adapter: hand the TE200/OTP domain over through the
+        # Secure-world ENCP NSC gateways around an LV sleep.
+        list(APPEND srcs encp_pm.c)
+    endif()
 endif()
 
 armino_component_register(SRCS "${srcs}"
@@ -353,6 +358,7 @@ if (CONFIG_TFM AND tfm_present)
                 -DCONFIG_AP_BOOT_NSC=${CONFIG_TFM_AP_BOOT_NSC}
                 -DCONFIG_AP_CACHE_NSC=${CONFIG_TFM_AP_CACHE_NSC}
                 -DCONFIG_SLEEP_RETENTION_NSC=${CONFIG_TFM_SLEEP_RETENTION_NSC}
+                -DCONFIG_ENCP_NSC=${CONFIG_TFM_ENCP_NSC}
                 -DCONFIG_OTP_NSC=${CONFIG_TFM_OTP_NSC}
                 -DCONFIG_BOOTLOADER_VERSION_NSC=${CONFIG_TFM_BOOTLOADER_VERSION_NSC}
                 -DCONFIG_TFM_AP_SHIM_L2_CACHE_DISABLE=${CONFIG_TFM_AP_SHIM_L2_CACHE_DISABLE}

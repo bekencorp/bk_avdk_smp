@@ -89,6 +89,18 @@ if(CONFIG_SLEEP_RETENTION_NSC)
 	target_include_directories(platform_s PRIVATE ${IDK_PATH}/middleware/driver/deep_lv)
 endif()
 
+# NSC TrustEngine (TE200) sleep gateways for the NS cpu0_app (see encp_nsc.c).
+# The gateways forward to the Dubhe driver that is built into
+# crypto_service_crypto_hw, so link that library after platform_s: a plain
+# archive-order link would otherwise leave the driver symbols unresolved.
+if(CONFIG_ENCP_NSC)
+	target_sources(platform_s PRIVATE encp_nsc.c)
+	target_compile_definitions(platform_s PUBLIC CONFIG_ENCP_NSC)
+	if(TFM_PARTITION_CRYPTO)
+		target_link_libraries(platform_s PUBLIC crypto_service_crypto_hw)
+	endif()
+endif()
+
 # AP boot shim L2 (PL310) init gate (see bk_tfm_ap_shim.c).
 if(CONFIG_TFM_AP_SHIM_L2_CACHE_DISABLE)
 	target_compile_definitions(platform_s PUBLIC CONFIG_TFM_AP_SHIM_L2_CACHE_DISABLE=1)

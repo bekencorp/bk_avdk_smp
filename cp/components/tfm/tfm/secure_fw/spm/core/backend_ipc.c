@@ -433,6 +433,27 @@ uint64_t backend_abi_entering_spm(void)
     return AAPCS_DUAL_U32_AS_U64(spm_stack_info);
 }
 
+/* Return the stack recorded by the scheduler for the current secure thread.
+ * The platform Deep-LV resume path uses it to restore PSP/PSPLIM consistently
+ * with the stack validation done in ipc_schedule(). */
+uint32_t tfm_spm_get_ns_agent_sp(uint32_t *sp_limit)
+{
+    struct context_ctrl_t *ctx;
+
+    if ((CURRENT_THREAD == NULL) || (CURRENT_THREAD->p_context_ctrl == NULL)) {
+        if (sp_limit != NULL) {
+            *sp_limit = 0u;
+        }
+        return 0u;
+    }
+
+    ctx = CURRENT_THREAD->p_context_ctrl;
+    if (sp_limit != NULL) {
+        *sp_limit = ctx->sp_limit;
+    }
+    return ctx->sp;
+}
+
 uint32_t backend_abi_leaving_spm(uint32_t result)
 {
     uint32_t sched_attempted;

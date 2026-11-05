@@ -53,6 +53,26 @@ static TFM_RAMFUNC void tfm_sleep_clear_aon_fastboot_flags(void)
 	__DSB();
 }
 
+/* TF-M programs the secure exception priorities and the AIRCR.PRIS bit only once,
+ * inside tfm_core_init(). The fastboot resume path never runs that code, so the
+ * values have to be re-applied here: the SPM scheduler requires secure PendSV to
+ * be the lowest secure priority. */
+extern void tfm_arch_set_secure_exception_priorities(void);
+
+static TFM_RAMFUNC void tfm_sleep_scheduler_state_reset(void)
+{
+	/* SPM scheduler lock, retained in SRAM across the sleep. arch_attempt_schedule()
+	 * only pends PendSV while it reads SCHEDULER_UNLOCKED (0); a switch interrupted
+	 * by the sleep could otherwise leave the secure scheduler permanently locked. */
+	extern uint32_t scheduler_lock;
+
+	scheduler_lock = 0u;
+	/* Drop stale system exception requests left over from before the sleep. */
+	SCB->ICSR = SCB_ICSR_PENDSVCLR_Msk | SCB_ICSR_PENDSTCLR_Msk;
+	__DSB();
+	__ISB();
+}
+
 static TFM_RAMFUNC void tfm_sleep_secure_hw_init(void)
 {
 	sau_and_idau_cfg();
@@ -63,13 +83,16 @@ static TFM_RAMFUNC void tfm_sleep_secure_hw_init(void)
 	 * ITNS is inaccessible from the non-secure side, so it must be redone
 	 * here before returning to NSPE. */
 	(void)nvic_interrupt_target_state_cfg();
+
+	tfm_arch_set_secure_exception_priorities();
 }
 
 __attribute__((section(".tfm_fastboot_code"), naked, noreturn))
-static void tfm_sleep_bxns_entry(uint32_t ns_ep)
+static void tfm_sleep_bxns_entry(uint32_t ns_ep, uint32_t secure_psp,
+				 uint32_t secure_psplim, uint32_t secure_control)
 {
 	/*
-	 * Two SECURE-banked processor states must be sane before BXNS, or the
+	 * Three SECURE-banked processor states must be sane before BXNS, or the
 	 * first NS exception (the deep-LV EXIT 'svc') never runs and the core
 	 * appears hung. The NS side can only clear its own banked copies, so we
 	 * must fix the SECURE ones here, in the last instructions before BXNS:
@@ -85,13 +108,22 @@ static void tfm_sleep_bxns_entry(uint32_t ns_ep)
 	 *    (observed: CFSR=0, HFSR.FORCED=1). Clear the secure masks so the NS
 	 *    SVCall is takeable. This is the actual deep-LV warm-boot hang fix.
 	 *
+	 * 3) PSP/PSPLIM/CONTROL.SPSEL (secure): a Deep-LV wakeup returns from the
+	 *    reset vector with the banked secure stack registers cleared. TF-M
+	 *    derives the SPM connection slot from PSPLIM on every NS call, so
+	 *    PSPLIM=0 makes handle_to_connection() underflow and the SPM panics on
+	 *    the first PSA call. Restore the values captured right before the
+	 *    cold-boot BXNS; PSP must be programmed before SPSEL selects it.
+	 *
 	 * clrm below clears r1-r12,r14,apsr (not r0/PRIMASK), so it is safe to use
 	 * r1 before it and to clear the masks after it.
 	 */
 	__asm volatile(
-		"mrs r1, control\n"
-		"bic r1, r1, #4\n"      /* clear CONTROL.FPCA (secure) */
-		"msr control, r1\n"
+		"msr psplim, r2\n"
+		"msr psp, r1\n"
+		"isb\n"
+		"bic r3, r3, #5\n"      /* keep SPSEL, clear nPRIV and FPCA */
+		"msr control, r3\n"
 		"isb\n"
 		"clrm {r1-r12, r14, apsr}\n"
 		"msr basepri, r1\n"     /* r1==0 after clrm -> BASEPRI_S = 0 */
@@ -109,11 +141,21 @@ static TFM_RAMFUNC __attribute__((noreturn)) void tfm_sleep_jump_to_ns(void)
 	uint32_t reg_val;
 	uint32_t ns_msp = *((uint32_t *)ns_vtor);
 	uint32_t ns_ep = *((uint32_t *)(ns_vtor + 4u));
+	uint32_t secure_psp = 0u;
+	uint32_t secure_psplim = 0u;
+	uint32_t secure_control = 0x2u;   /* SPSEL=1, privileged, no FPCA */
 
 	if (tfm_sleep_context_apply_ppc() != 0) {
 		while (1) {
 		}
 	}
+
+	/* PPRO has now marked UART0 non-secure, so the shared console driver must
+	 * be retargeted to the Non-secure alias (same as ns_init_hook on cold boot).
+	 * Otherwise secure-side fault and panic output faults again on the first
+	 * character and hides the original error. */
+	extern void uart_min_switch_uart0_to_nsec(void);
+	uart_min_switch_uart0_to_nsec();
 
 	SCB_NS->VTOR = ns_vtor;
 	__TZ_set_MSP_NS(ns_msp);
@@ -129,11 +171,28 @@ static TFM_RAMFUNC __attribute__((noreturn)) void tfm_sleep_jump_to_ns(void)
 
 	tcm_spe();
 
+	/* A Deep-LV wakeup returns from the reset vector with the banked secure
+	 * stack registers cleared. The SPM scheduler validates PSP against the
+	 * stack of the thread it is about to switch to, so restore the values it
+	 * recorded for the current secure thread instead of a cold-boot capture. */
+	{
+		extern uint32_t tfm_spm_get_ns_agent_sp(uint32_t *sp_limit);
+		uint32_t spm_psp;
+		uint32_t spm_psplim = 0u;
+
+		spm_psp = tfm_spm_get_ns_agent_sp(&spm_psplim);
+		if ((spm_psp != 0u) && (spm_psplim != 0u) &&
+		    (spm_psp > (spm_psplim + 32u)) && ((spm_psp & 0x7u) == 0u)) {
+			secure_psp = spm_psp;
+			secure_psplim = spm_psplim;
+		}
+	}
+
 	__disable_irq();
 	__DSB();
 	__ISB();
 
-	tfm_sleep_bxns_entry(ns_ep);
+	tfm_sleep_bxns_entry(ns_ep, secure_psp, secure_psplim, secure_control);
 }
 
 /* Minimal core init after the CPU power-on reset of a deep-sleep wakeup. */
@@ -158,7 +217,16 @@ static TFM_RAMFUNC void tfm_fastboot_core_init(void)
 /* SRAM-resident fastboot resume entry, branched to from Reset_Handler. */
 TFM_RAMFUNC __attribute__((noreturn)) void tfm_fastboot_resume(void)
 {
+	/* Keep every interrupt masked until ITNS/SAU and the secure priorities are
+	 * back in place: the restored ISER bits must not be taken while the reset
+	 * routing still points them to the secure state. */
+	__disable_irq();
 	tfm_fastboot_core_init();
+
+	/* The cold boot enables the fault handlers in tfm_hal_platform_init(), which
+	 * the resume path skips. Without them every BusFault/SecureFault escalates to
+	 * HardFault and the failing service call looks like a silent hang. */
+	(void)enable_fault_handlers();
 
 	if (sys_is_running_from_deep_sleep() != 0u) {
 		cp_lv_reserve_restore();
@@ -173,6 +241,7 @@ TFM_RAMFUNC __attribute__((noreturn)) void tfm_fastboot_resume(void)
 		NVIC_SystemReset();
 	}
 
+	tfm_sleep_scheduler_state_reset();
 	tfm_sleep_secure_hw_init();
 	tfm_sleep_jump_to_ns();
 }
