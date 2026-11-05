@@ -17,6 +17,7 @@ list(APPEND incs
 	$ENV{PROJECT_DIR}/ap/config/${target}/
 	$ENV{PROJECT_DIR}/partitions/
 	$ENV{PROJECT_DIR}/ap/config/${target}/
+	$ENV{ARMINO_PATH}/components/bk_pm/include
 )
 
 if(CONFIG_SPE)

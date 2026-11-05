@@ -29,6 +29,7 @@
 #include "sys_pm_hal_ctrl.h"
 #include "sys_sw_regs.h"
 #include "modules/pm.h"
+#include "pm_uart_debug.h"
 #include <driver/pwr_clk.h>
 #include "driver/flash.h"
 #include "cache.h"
@@ -591,7 +592,6 @@ void sys_hal_gpio_ana_wakeup_enable(uint32_t count, uint32_t index, uint32_t typ
 void sys_hal_enter_cpu_wfi()
 {
 	static bool s_power_prepare_started;
-
 	if(portGET_CORE_ID() == CPU0_CORE_ID)
 	{
 		//bk_printf("CPU0_CORE_ID\r\n");
@@ -669,6 +669,9 @@ void sys_hal_enter_cpu_wfi()
 				sys_ahbp_ll_set_reg10_value(int_state0_31);
 				sys_ahbp_ll_set_reg11_value(int_state32_63);
 				portNVIC_SYSTICK_CTRL_REG = systick_ctrl_value;
+				#if CONFIG_PM_AP_UART_DEBUG
+				bk_pm_log_uart_print("AP pm sleep INT return\r\n");
+				#endif
 				return;
 			}
 
@@ -697,14 +700,15 @@ void sys_hal_enter_cpu_wfi()
 					static bool s_ap_pd_hspl_warned;
 
 					if (!s_ap_pd_hspl_warned) {
-						BK_LOGE("pm",
-							"AP power down blocked: hspl hw_mask=0x%x sw_mask=0x%x\r\n",
-							hspl_state.hw_owned_mask, hspl_state.sw_held_mask);
+						BK_LOGE("pm","AP power down blocked: hspl hw_mask=0x%x sw_mask=0x%x\r\n",hspl_state.hw_owned_mask, hspl_state.sw_held_mask);
 						s_ap_pd_hspl_warned = true;
 					}
 					sys_ahbp_ll_set_reg10_value(int_state0_31);
 					sys_ahbp_ll_set_reg11_value(int_state32_63);
 					portNVIC_SYSTICK_CTRL_REG = systick_ctrl_value;
+					#if CONFIG_PM_AP_UART_DEBUG
+					bk_pm_log_uart_print("AP pm sleep hspl return\r\n");
+					#endif
 					return;
 				}
 			}
@@ -722,6 +726,9 @@ void sys_hal_enter_cpu_wfi()
 				sys_ahbp_ll_set_reg10_value(int_state0_31);
 				sys_ahbp_ll_set_reg11_value(int_state32_63);
 				portNVIC_SYSTICK_CTRL_REG = systick_ctrl_value;
+				#if CONFIG_PM_AP_UART_DEBUG
+				bk_pm_log_uart_print("AP pm sleep suspend return\r\n");
+				#endif
 				return;
 			}
 			/*
@@ -733,13 +740,15 @@ void sys_hal_enter_cpu_wfi()
 				static bool s_cpu3_online_warned;
 
 				if (!s_cpu3_online_warned) {
-					BK_LOGE("pm",
-						"AP fast resume blocked: CPU3 must be offline before AP OFF\r\n");
+					BK_LOGE("pm","AP fast resume blocked: CPU3 must be offline before AP OFF\r\n");
 					s_cpu3_online_warned = true;
 				}
 				sys_ahbp_ll_set_reg10_value(int_state0_31);
 				sys_ahbp_ll_set_reg11_value(int_state32_63);
 				portNVIC_SYSTICK_CTRL_REG = systick_ctrl_value;
+				#if CONFIG_PM_AP_UART_DEBUG
+				bk_pm_log_uart_print("AP pm cpu3 offline return\r\n");
+				#endif
 				return;
 			}
 #if CONFIG_TASK_WDT
@@ -771,6 +780,9 @@ void sys_hal_enter_cpu_wfi()
 					sys_ahbp_ll_set_reg10_value(int_state0_31);
 					sys_ahbp_ll_set_reg11_value(int_state32_63);
 					portNVIC_SYSTICK_CTRL_REG = systick_ctrl_value;
+					#if CONFIG_PM_AP_UART_DEBUG
+					bk_pm_log_uart_print("AP pm sleep cpu3 offline return 2\r\n");
+					#endif
 					return;
 				}
 			}
@@ -834,10 +846,12 @@ void sys_hal_enter_cpu_wfi()
 #if CONFIG_TASK_WDT
 					bk_task_wdt_start();
 #endif
-					BK_LOGE("pm",
-						"AP fast suspend: PSRAM%u cache flush timeout reg2=0x%08x pre_reg8=0x%08x reg8=0x%08x\r\n",
-						failed_id, failed_reg2, failed_pre_reg8,
-						failed_reg8);
+					BK_LOGE("pm","AP fast suspend: PSRAM%u cache flush timeout reg2=0x%08x pre_reg8=0x%08x reg8=0x%08x\r\n",
+							failed_id, failed_reg2, failed_pre_reg8,
+							failed_reg8);
+					#if CONFIG_PM_AP_UART_DEBUG
+					bk_pm_log_uart_print("AP CP sleep psram return\r\n");
+					#endif
 					return;
 				}
 			}
@@ -850,7 +864,9 @@ void sys_hal_enter_cpu_wfi()
 			__DMB();
 			flush_dcache((void *)&bk_sys_sw_regs_ptr()->pm_shared_info, sizeof(bk_sys_sw_regs_ptr()->pm_shared_info));
 			__DMB();
-
+			#if CONFIG_PM_AP_UART_DEBUG
+			bk_pm_log_uart_print("AP pm sleep ok\r\n");
+			#endif
 			arch_deep_sleep();
 
 #if CONFIG_PM_AP_FAST_BOOT_ENABLE
@@ -941,6 +957,10 @@ ap_fast_resume_after_wfi:
 				bk_cpu3_fast_resume_prepare();
 				pm_ap_core_msg_t msg = {
 					.event = PM_AP_CORE_CPU3_ONLINE,
+#if CONFIG_PM_AP_FAST_BOOT_VERBOSE_TRACE
+					/* Send-time RTC stamp for the AP_TIME ap_pm_dispatch_lag log. */
+					.param1 = (uint32_t)bk_aon_rtc_get_current_tick(AON_RTC_ID_1),
+#endif
 				};
 				bk_err_t ret = bk_pm_ap_core_send_msg(&msg);
 
