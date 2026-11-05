@@ -462,6 +462,80 @@ static void pmu_core_stop_report(const char *label)
 
 #define COREMARK_CPU_FREQ_HZ ((uint32_t)COREMARK_CPU_FREQ_MHZ * 1000000UL)
 
+/* Diagnostics shared by the benchmark commands (core_mark / dhrystone): dump the
+ * Flash clock and verify with a DWT self-test that the core really runs at
+ * COREMARK_CPU_FREQ_MHZ by comparing DWT cycles against the 26 MHz Timer0. */
+static void debug_bench_dump_env(char *tag)
+{
+	/* BK7259: cksel_flash is 2 bits, ckdiv_flash is 3 bits, f(flash) = src / (div + 1).
+	 * src: 0 = XTAL 26M, 1 = DCO, 2 = 240M, 3 = 320M (cksel_sys_flash_t) */
+	static const char *const src_name[] = { "XTAL-26M", "DCO", "240M", "320M" };
+	static const uint32_t src_hz[] = { 26000000UL, 0UL, 240000000UL, 320000000UL };
+	extern uint32_t sys_hal_flash_get_clk_sel(void);
+	extern uint32_t sys_hal_flash_get_clk_div(void);
+	extern uint64_t get_timer_value(void);
+	uint32_t fsel, fdiv, div, src;
+
+	fsel = sys_hal_flash_get_clk_sel();
+	fdiv = sys_hal_flash_get_clk_div();
+	src = fsel & 0x3;
+	div = fdiv + 1;
+
+	if (src_hz[src])
+		BK_LOGI(tag, "Flash clk: cksel=%u ckdiv=%u => %s /%u = %u MHz\r\n",
+		        fsel, fdiv, src_name[src], div, src_hz[src] / div / 1000000UL);
+	else
+		BK_LOGI(tag, "Flash clk: cksel=%u ckdiv=%u => %s /%u (freq n/a)\r\n",
+		        fsel, fdiv, src_name[src], div);
+
+	/* DWT self-test: measure a known 100ms delay with both DWT and Timer0.
+	 * DWT is a per-core (PPB) block and this runs in an ordinary task, which the SMP
+	 * scheduler may migrate to the other core mid-loop. A migrated sample then reads
+	 * the other core's counter and produces a bogus delta (observed: DWT=-8 cycles,
+	 * ratio 89). Detect both the core change and an implausible result, then retry. */
+	{
+		const uint32_t expect = (uint32_t)(COREMARK_CPU_FREQ_HZ / 10u); /* 100ms of cycles */
+		uint32_t attempt;
+
+		for (attempt = 0; attempt < 3; attempt++) {
+			uint32_t c0, c1, dwt0, dwt1, dwt_cy, tmr_tk;
+			uint64_t tmr0, tmr1;
+
+			c0 = rtos_get_core_id();
+
+			DCB->DEMCR |= DCB_DEMCR_TRCENA_Msk;
+			DWT->CYCCNT = 0;
+			DWT->CTRL  |= DWT_CTRL_CYCCNTENA_Msk;
+			__DSB(); __ISB();
+
+			/* busy-wait 100ms using Timer0 as reference (26MHz → 2600000 ticks) */
+			dwt0  = DWT->CYCCNT;
+			tmr0  = get_timer_value();
+			while ((uint32_t)(get_timer_value() - tmr0) < 2600000u) { /* spin ~100ms */ }
+			dwt1  = DWT->CYCCNT;
+			tmr1  = get_timer_value();
+			c1 = rtos_get_core_id();
+
+			dwt_cy = dwt1 - dwt0;
+			tmr_tk = (uint32_t)(tmr1 - tmr0);
+
+			/* migrated, or the counter was clobbered by another user: sample again */
+			if (c0 != c1 || dwt_cy < (expect / 2u) || dwt_cy > (expect * 2u))
+				continue;
+
+			BK_LOGI(tag, "DWT self-test 100ms: DWT=%u cy (%.3fs@%uM)  Timer0=%u tk (%.3fs@26M)  ratio=%.2f\r\n",
+			        dwt_cy, (double)dwt_cy/(double)COREMARK_CPU_FREQ_HZ,
+			        (unsigned)COREMARK_CPU_FREQ_MHZ,
+			        tmr_tk, (double)tmr_tk/26000000.0,
+			        (double)dwt_cy / (double)COREMARK_CPU_FREQ_HZ / ((double)tmr_tk / 26000000.0 + 1e-9));
+			break;
+		}
+
+		if (attempt == 3)
+			BK_LOGW(tag, "DWT self-test: N/A (task migrated between cores, sample discarded)\r\n");
+	}
+}
+
 static void debug_core_mark(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
 	extern void core_mark(int argc, char *argv[]);
@@ -489,41 +563,7 @@ static void debug_core_mark(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
 	sys_drv_switch_cpu_bus_freq(COREMARK_CPU_FREQ_ENUM);
 	BK_LOGI("coremark", "CPU boosted to %u MHz\r\n", (unsigned)COREMARK_CPU_FREQ_MHZ);
 
-	/* Dump Flash clock register */
-	{
-		extern uint32_t sys_hal_flash_get_clk_sel(void);
-		extern uint32_t sys_hal_flash_get_clk_div(void);
-		uint32_t fsel = sys_hal_flash_get_clk_sel();
-		uint32_t fdiv = sys_hal_flash_get_clk_div();
-		BK_LOGI("coremark", "Flash clk: cksel=%u ckdiv=%u => source=%s div=/%u\r\n",
-		        fsel, fdiv,
-		        fsel == 0 ? "XTAL-26M" : fsel == 1 ? "DPLL" : "DCO",
-		        fdiv + 1);
-	}
-
-	/* DWT self-test: measure a known 100ms delay with both DWT and Timer0. */
-	{
-		extern uint64_t get_timer_value(void);
-		DCB->DEMCR |= DCB_DEMCR_TRCENA_Msk;
-		DWT->CYCCNT = 0;
-		DWT->CTRL  |= DWT_CTRL_CYCCNTENA_Msk;
-		__DSB(); __ISB();
-
-		/* busy-wait 100ms using Timer0 as reference (26MHz → 2600000 ticks) */
-		uint32_t dwt0  = DWT->CYCCNT;
-		uint64_t tmr0  = get_timer_value();
-		while ((uint32_t)(get_timer_value() - tmr0) < 2600000u) { /* spin ~100ms */ }
-		uint32_t dwt1  = DWT->CYCCNT;
-		uint64_t tmr1  = get_timer_value();
-
-		uint32_t dwt_cy = dwt1 - dwt0;
-		uint32_t tmr_tk = (uint32_t)(tmr1 - tmr0);
-		BK_LOGI("coremark", "DWT self-test 100ms: DWT=%u cy (%.3fs@%uM)  Timer0=%u tk (%.3fs@26M)  ratio=%.2f\r\n",
-		        dwt_cy, (double)dwt_cy/(double)COREMARK_CPU_FREQ_HZ,
-		        (unsigned)COREMARK_CPU_FREQ_MHZ,
-		        tmr_tk, (double)tmr_tk/26000000.0,
-		        (double)dwt_cy / (double)COREMARK_CPU_FREQ_HZ / ((double)tmr_tk / 26000000.0 + 1e-9));
-	}
+	debug_bench_dump_env("coremark");
 
 	/* PMU per-core measurement is now done inside coremark_parallel_task()
 	 * in core_portme.c — each core reports its own cache/branch stats. */
