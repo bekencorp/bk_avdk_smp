@@ -41,6 +41,7 @@ void bk_get_ap_dtcm_info(bk_dump_mem_info_t *info);
 void bk_get_ap_psram_heap_info(bk_dump_mem_info_t *info);
 void bk_get_ap_psram_data_info(bk_dump_mem_info_t *info);
 void bk_get_ap_psram_bss_info(bk_dump_mem_info_t *info);
+void bk_get_ap_psram_cache_heap_info(bk_dump_mem_info_t *info);
 bool bk_check_addr_in_ap_dump_range(uint32_t addr, uint32_t size);
    
 bool bk_check_addr_in_code_section(uint32_t addr);

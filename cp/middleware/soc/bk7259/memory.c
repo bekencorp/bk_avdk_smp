@@ -321,6 +321,25 @@ void bk_get_ap_psram_bss_info(bk_dump_mem_info_t *info)
     bk_get_ap_heap_info_common(BK_SYS_SW_REGS_AP_HEAP_HSRAM, "AP_PSRAM_BSS", info);
 }
 
+/*
+ * AP PSRAM cache heap: with CONFIG_TASK_STACK_IN_PSRAM the AP task stacks,
+ * TCBs and queues are allocated here, and os_heap keeps no high-water record
+ * for this heap. Use the fixed region from the generated ram_regions.h so a
+ * CP-initiated AP dump always contains the task context.
+ */
+void bk_get_ap_psram_cache_heap_info(bk_dump_mem_info_t *info)
+{
+    info->name = "AP_PSRAM_CACHE_HEAP";
+#if defined(CONFIG_AP_PSRAM_CACHE_HEAP_ADDR) && defined(CONFIG_AP_PSRAM_CACHE_HEAP_SIZE) && \
+    (CONFIG_AP_PSRAM_CACHE_HEAP_SIZE > 0)
+    info->start_addr = (uint32_t)CONFIG_AP_PSRAM_CACHE_HEAP_ADDR;
+    info->size = (uint32_t)CONFIG_AP_PSRAM_CACHE_HEAP_SIZE;
+#else
+    info->start_addr = 0U;
+    info->size = 0U;
+#endif
+}
+
 static bool addr_range_is_inside(uint32_t addr, uint32_t size, uint32_t base, uint32_t range_size)
 {
     uint32_t end = addr + size;
@@ -380,6 +399,7 @@ bool bk_check_addr_in_ap_dump_range(uint32_t addr, uint32_t size)
            addr_range_is_inside_info(addr, size, bk_get_ap_psram_heap_info) ||
            addr_range_is_inside_info(addr, size, bk_get_ap_psram_data_info) ||
            addr_range_is_inside_info(addr, size, bk_get_ap_psram_bss_info) ||
+           addr_range_is_inside_info(addr, size, bk_get_ap_psram_cache_heap_info) ||
            addr_range_is_inside_peri_regs(addr, size);
 }
 
