@@ -418,7 +418,7 @@ extern int mp_do_startup(int heap_len);
 	mp_do_startup(0);
 #endif
 
-
+	bk_pm_bootloader_version_init();
 #if CONFIG_CPU_DEFAULT_FREQ_60M
 	bk_pm_module_vote_cpu_freq(PM_DEV_ID_DEFAULT,PM_CPU_FRQ_60M);
 #else
