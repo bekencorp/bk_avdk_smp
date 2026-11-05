@@ -24,6 +24,7 @@
  */
 
 #include <os/os.h>
+#include <os/mem.h>
 #include <driver/gpio.h>
 #include <driver/sdio_host.h>
 #include <driver/sd_card.h>
@@ -79,6 +80,47 @@ static bool s_sd_card_is_init = false;
 static sd_card_obj_t s_sd_card_obj = {0};
 static uint32_t sdio_rca = 0xAAAA0000;
 
+#if (CONFIG_SDCARD_MAX_BLOCKS_PER_XFER < 1) || (CONFIG_SDCARD_MAX_BLOCKS_PER_XFER > 1023)
+#error "CONFIG_SDCARD_MAX_BLOCKS_PER_XFER must be 1..1023"
+#endif
+
+#if CONFIG_SDCARD_RX_DMA_EN
+/* Serializes the RX scratch buffer across DMA transfer and data copy-out. */
+static beken_mutex_t s_sd_rx_lock;
+
+/* DMA read scratch buffer. ADMA2 needs a cache line aligned, unshared
+ * destination, so payloads land here and are copied to the caller. Sized
+ * by CONFIG_SDCARD_MAX_BLOCKS_PER_XFER; falls back to PIO on allocation
+ * failure. */
+#define SD_RX_BOUNCE_MAX   (CONFIG_SDCARD_MAX_BLOCKS_PER_XFER * SD_BLOCK_LEN)
+#define SD_RX_BOUNCE_ALIGN 32u
+
+static uint8_t *s_sd_rx_bounce;      /* aligned pointer handed to the controller */
+static uint8_t *s_sd_rx_bounce_raw;  /* psram_malloc() result, needed to free it */
+static uint32_t s_sd_rx_bounce_size;
+
+static uint8_t *sd_card_rx_bounce_get(uint32_t bytes)
+{
+	uint8_t *raw;
+
+	if (bytes <= s_sd_rx_bounce_size)
+		return s_sd_rx_bounce;
+
+	/* One extra cache line so the aligned start always fits. */
+	raw = psram_malloc(bytes + SD_RX_BOUNCE_ALIGN);
+	if (raw == NULL) {
+		SD_CARD_LOGW("rx bounce buffer alloc failed (%u bytes)\r\n", (unsigned)bytes);
+		return NULL;
+	}
+
+	os_free(s_sd_rx_bounce_raw);
+	s_sd_rx_bounce_raw = raw;
+	s_sd_rx_bounce = (uint8_t *)(((uintptr_t)raw + (SD_RX_BOUNCE_ALIGN - 1)) &
+				     ~((uintptr_t)SD_RX_BOUNCE_ALIGN - 1));
+	s_sd_rx_bounce_size = bytes;
+	return s_sd_rx_bounce;
+}
+#endif /* CONFIG_SDCARD_RX_DMA_EN */
 #if CONFIG_SDCARD_BUSWIDTH_4LINE && CONFIG_USR_GPIO_CFG_EN
 static gpio_dev_t sd_card_data3_func(sdio_host_id_t host_id)
 {
@@ -447,6 +489,20 @@ bk_err_t bk_sd_card_init(void)
 		return BK_OK;
 	}
 
+#if CONFIG_SDCARD_RX_DMA_EN
+	/* RX scratch buffer lock and pre-allocation; see the read path below. */
+	if (s_sd_rx_lock == NULL) {
+		ret = rtos_init_mutex(&s_sd_rx_lock);
+		if (ret != kNoErr) {
+			SD_CARD_LOGE("sd rx mutex init failed\r\n");
+			return ret;
+		}
+	}
+
+	if (sd_card_rx_bounce_get(SD_RX_BOUNCE_MAX) == NULL)
+		SD_CARD_LOGW("rx bounce prealloc failed, reads fall back to PIO\r\n");
+#endif
+
 #if CONFIG_SDCARD_BUSWIDTH_4LINE && CONFIG_USR_GPIO_CFG_EN
 	ret = sd_card_force_data3_high(SDCARD_HOST_ID, &data3_func);
 	if (ret)
@@ -533,6 +589,17 @@ bk_err_t bk_sd_card_deinit(void)
 {
 	bk_sdio_host_reset(SDCARD_HOST_ID);
 	s_sd_card_is_init = false;
+
+#if CONFIG_SDCARD_RX_DMA_EN
+	/* Release the DMA scratch buffer; the next init pre-allocates it again. */
+	os_free(s_sd_rx_bounce_raw);
+	s_sd_rx_bounce_raw = NULL;
+	s_sd_rx_bounce = NULL;
+	s_sd_rx_bounce_size = 0;
+
+	if (s_sd_rx_lock != NULL)
+		(void)rtos_deinit_mutex(&s_sd_rx_lock);
+#endif
 	return bk_sdio_host_deinit(SDCARD_HOST_ID);
 }
 
@@ -575,6 +642,26 @@ bk_err_t bk_sd_card_write_blocks(const uint8_t *data, uint32_t block_addr, uint3
 static bk_err_t sd_card_read_blocks_once(uint8_t *data, uint32_t block_addr, uint32_t block_num)
 {
 	uint32_t arg = (s_sd_card_obj.sd_card.card_type == SD_CARD_TYPE_SDSC) ? (block_addr << 9) : block_addr;
+	sdio_host_xfer_mode_t mode = SDIO_HOST_XFER_PIO;
+	uint8_t *dma_buf = data;
+	bk_err_t ret = BK_FAIL;
+
+#if CONFIG_SDCARD_RX_DMA_EN
+	uint32_t bytes = (uint32_t)block_num * SD_BLOCK_LEN;
+
+	/* Prefer controller DMA for reads: the PIO drain depends on timely CPU
+	 * servicing and is prone to data-end errors under preemption. */
+	if (s_sd_rx_lock == NULL)
+		return BK_ERR_SDIO_HOST_NOT_INIT;
+
+	rtos_lock_mutex(&s_sd_rx_lock);
+
+	if (sd_card_rx_bounce_get(bytes) != NULL) {
+		mode = SDIO_HOST_XFER_DMA_ADMA2;
+		dma_buf = s_sd_rx_bounce;
+	}
+#endif
+
 	sdio_host_cmd_t cmd = {
 		/* Keep protocol and host transfer semantics aligned: CMD17 for one
 		 * block, CMD18 only when a real multi-block transfer is requested. */
@@ -584,12 +671,11 @@ static bk_err_t sd_card_read_blocks_once(uint8_t *data, uint32_t block_addr, uin
 	};
 	sdio_host_data_t xfer = {
 		.dir = SDIO_HOST_XFER_READ,
-		.mode = SDIO_HOST_XFER_PIO,
-		.buf = data,
+		.mode = mode,
+		.buf = dma_buf,
 		.block_size = SD_BLOCK_LEN,
 		.block_cnt = block_num,
 	};
-	bk_err_t ret = BK_FAIL;
 
 	/* Re-issue on transient data-phase failures (see bk_sd_card_write_blocks). */
 	for (uint32_t i = 0; i < SD_CARD_XFER_RETRY_CNT; i++) {
@@ -603,37 +689,43 @@ static bk_err_t sd_card_read_blocks_once(uint8_t *data, uint32_t block_addr, uin
 		}
 		SD_CARD_LOGW("read blocks retry %d (addr=%d, cnt=%d)\r\n", i, block_addr, block_num);
 	}
+
+#if CONFIG_SDCARD_RX_DMA_EN
+	if ((ret == BK_OK) && (mode == SDIO_HOST_XFER_DMA_ADMA2))
+		memcpy(data, dma_buf, bytes);
+
+	rtos_unlock_mutex(&s_sd_rx_lock);
+#endif
+
 	return ret;
 }
 
 bk_err_t bk_sd_card_read_blocks(uint8_t *data, uint32_t block_addr, uint32_t block_num)
 {
-#if defined(CONFIG_SDCARD_MAX_BLOCKS_PER_XFER) && (CONFIG_SDCARD_MAX_BLOCKS_PER_XFER > 0)
-	/*
-	 * Split large reads into smaller CMD18 transfers. On boards with
-	 * marginal SDIO SI, long multi-block PIO reads are more likely to hit
-	 * DATA_END_BIT_ERR; limiting the per-xfer block count is a software
-	 * workaround (see CONFIG_SDCARD_MAX_BLOCKS_PER_XFER).
-	 */
-	const uint32_t max_chunk = (uint32_t)CONFIG_SDCARD_MAX_BLOCKS_PER_XFER;
-	uint32_t done = 0;
+	/* Split large reads into bounded CMD18 transfers; with RX DMA enabled
+	 * the limit also sizes the scratch buffer. */
+	const uint32_t max_chunk = CONFIG_SDCARD_MAX_BLOCKS_PER_XFER;
 
-	while (done < block_num) {
-		uint32_t chunk = block_num - done;
-		bk_err_t ret;
+	if (max_chunk >= block_num)
+		return sd_card_read_blocks_once(data, block_addr, block_num);
 
-		if (chunk > max_chunk)
-			chunk = max_chunk;
-		ret = sd_card_read_blocks_once(data + (done * SD_BLOCK_LEN),
-					       block_addr + done, chunk);
-		if (ret != BK_OK)
-			return ret;
-		done += chunk;
+	{
+		uint32_t done = 0;
+
+		while (done < block_num) {
+			uint32_t chunk = block_num - done;
+			bk_err_t ret;
+
+			if (chunk > max_chunk)
+				chunk = max_chunk;
+			ret = sd_card_read_blocks_once(data + (done * SD_BLOCK_LEN),
+						       block_addr + done, chunk);
+			if (ret != BK_OK)
+				return ret;
+			done += chunk;
+		}
+		return BK_OK;
 	}
-	return BK_OK;
-#else
-	return sd_card_read_blocks_once(data, block_addr, block_num);
-#endif
 }
 
 bk_err_t bk_sd_card_get_card_info(sd_card_info_t *card_info)

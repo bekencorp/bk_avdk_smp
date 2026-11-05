@@ -517,6 +517,9 @@ bk_err_t send_mult_data(uintptr_t addr, const uint8_t *data, uint16 BLOCK_SIZE,u
 
 	sd_card_clear_transfer_error_flags();
 
+	/* PIO drives the buffer data port, so select PIO explicitly. */
+	HOST_CTRL1_R(addr) = HOST_CTRL1_R(addr) & 0xe7;
+
 	/* Drain stale completion signals from a prior aborted transfer (see
 	 * receive_mult_data for the detailed rationale). */
 	sdio_host_drain_completion_semas();
@@ -611,6 +614,9 @@ int receive_mult_data(uintptr_t addr, uint8_t *data, uint16 BLOCK_SIZE,uint16 BL
 	uint32_t timeout_ms = SDIO_HOST_DEFAULT_TIMEOUT_MS;
 
 	sd_card_clear_transfer_error_flags();
+
+	/* PIO drives the buffer data port, so select PIO explicitly. */
+	HOST_CTRL1_R(addr) = HOST_CTRL1_R(addr) & 0xe7;
 
 	/*
 	 * Drain any stale completion signals left over from a previously
@@ -770,22 +776,84 @@ bk_err_t adma2_send_data(uintptr_t addr,uint32 SYS_ADDR,uint16 BLOCK_SIZE,uint16
 	return ret;
 }
 
+/* ---------------- ADMA2 read (controller internal DMA) -------------------
+ * 32-bit descriptors (HOST_CTRL2.ADDRESSING = 0): word0 = attr | len << 16,
+ * word1 = buffer address. The 16-bit length caps one run at 65532 bytes.
+ * Bus masters reach SRAM through the peripheral alias (SOC_SRAM_PERI_ADDR),
+ * and the destination must be cache line aligned. Only the read direction
+ * uses the internal DMA. */
+#define ADMA2_DESC_MAX_BYTES   65532u
+#define ADMA2_DESC_MAX_NUM     8u                       /* 8 x 64KB = 512KB */
+#define ADMA2_BUF_ALIGN        32u                      /* L1/L2 line = 32B */
+
+static uint32_t s_adma2_desc[ADMA2_DESC_MAX_NUM * 2u] __attribute__((aligned(ADMA2_BUF_ALIGN)));
+
+static bool sdio_host_adma2_buf_ok(const void *buf, uint32_t total_bytes)
+{
+	return (buf != NULL) &&
+	       (((uintptr_t)buf & (ADMA2_BUF_ALIGN - 1u)) == 0u) &&
+	       (total_bytes != 0u) &&
+	       (total_bytes <= ADMA2_DESC_MAX_BYTES * ADMA2_DESC_MAX_NUM);
+}
+
+static uint32_t adma2_fill_desc(uint32_t sys_addr, uint32_t total_bytes)
+{
+	uint32_t done = 0;
+	uint32_t n = 0;
+
+	while ((done < total_bytes) && (n < ADMA2_DESC_MAX_NUM)) {
+		uint32_t len = total_bytes - done;
+		uint32_t attr = (ADMA2_ATTRIBUTE_ACT_TRAN << 3) | ADMA2_ATTRIBUTE_VALID_EN;
+
+		if (len > ADMA2_DESC_MAX_BYTES)
+			len = ADMA2_DESC_MAX_BYTES;
+		if ((done + len) == total_bytes)
+			attr |= ADMA2_ATTRIBUTE_END_EN | ADMA2_ATTRIBUTE_INT_EN;
+
+		s_adma2_desc[2u * n]     = (len << 16) | attr;
+		/* Bus masters reach SRAM through the peripheral alias; see SOC_SRAM_PERI_ADDR. */
+		s_adma2_desc[2u * n + 1] = (uint32_t)SOC_SRAM_PERI_ADDR(sys_addr + done);
+
+		done += len;
+		n++;
+	}
+
+	return (done == total_bytes) ? n : 0u;
+}
+
 bk_err_t adma2_receive_data (uintptr_t addr,uint32 SYS_ADDR,uint16 BLOCK_SIZE,uint16 BLOCK_CNT,uint16 CMD,uint32 ARGUMENT)
 {
+	uint32_t total_bytes = (uint32_t)BLOCK_SIZE * BLOCK_CNT;
+	uint32_t xfer_mode;
+	uint32_t desc_num;
+	int ret;
+
+	if (!sdio_host_adma2_buf_ok((const void *)(uintptr_t)SYS_ADDR, total_bytes)) {
+		SDIOD_LOGE("adma2 rx: buf 0x%08x len %u not usable for DMA\r\n",
+			   (unsigned)SYS_ADDR, (unsigned)total_bytes);
+		return BK_FAIL;
+	}
+
+	desc_num = adma2_fill_desc(SYS_ADDR, total_bytes);
+	if (desc_num == 0) {
+		SDIOD_LOGE("adma2 rx: descriptor build failed, len %u\r\n",
+			   (unsigned)total_bytes);
+		return BK_FAIL;
+	}
+
+	arch_dcache_flush_and_invd_range((void *)(uintptr_t)SYS_ADDR, total_bytes);
+
 	sd_card_clear_transfer_error_flags();
 	sdio_host_drain_completion_semas();
+
+	arch_dcache_flush_and_invd_range((void *)s_adma2_desc, desc_num * 2u * sizeof(uint32_t));
+
 	uint32_t int_level = rtos_disable_int();
-	uint32 adma2_rd_descriptor_tbl[2];
-	adma2_rd_descriptor_tbl[0] = ((BLOCK_SIZE * BLOCK_CNT) << 16) | (ADMA2_ATTRIBUTE_ACT_TRAN << 3) | ADMA2_ATTRIBUTE_VALID_EN | ADMA2_ATTRIBUTE_END_EN | ADMA2_ATTRIBUTE_INT_EN;;  //0x8000027;
-	adma2_rd_descriptor_tbl[1] = SYS_ADDR;
-
-	arch_dcache_flush_and_invd_range((void*)adma2_rd_descriptor_tbl, sizeof(adma2_rd_descriptor_tbl));
-
 	HOST_CTRL1_R(addr)= (HOST_CTRL1_R(addr) & 0xe7) | DMASEL_ADMA2;
 	HOST_CTRL2_R(addr)= (HOST_CTRL2_R(addr) & 0xefff) | 1<<12;	//HOST_VER4_ENABLE
 
-	ADMA_SA_LOW_R(addr)= (uintptr_t)adma2_rd_descriptor_tbl;   //Set ADMA System AddressRegister (ADMA_SA_LOW_R)
-	ADMA_SA_HIGH_R(addr)= 0;	//Set ADMA System AddressRegister (ADMA_SA_HIGH_R)
+	ADMA_SA_HIGH_R(addr)= 0;
+	ADMA_SA_LOW_R(addr)= (uint32_t)SOC_SRAM_PERI_ADDR((uint32_t)(uintptr_t)s_adma2_desc);
 
 	NORMAL_INT_STAT_EN_R(addr)= CMD_COMPLETE_STAT_EN | XFER_COMPLETE_STAT_EN | DMA_INTERRUPT_STAT_EN;
 	ERROR_INT_STAT_EN_R(addr)= 0xb7f;
@@ -798,14 +866,15 @@ bk_err_t adma2_receive_data (uintptr_t addr,uint32 SYS_ADDR,uint16 BLOCK_SIZE,ui
 
 	ARGUMENT_R(addr) = ARGUMENT;
 
-//**RESP TYPE: 0X2,NO CHECK CMD INDEX ,NO CHECK CMD CRC;multi blocks;resp_err_check_enable
-//**DMA ENABLE; block counter enable;AUTO CMD12 ENABLE; transfer :wirte
-	XFER_MODE_R(addr) = XFR_MODE_RESP_ERRCHK_EN | XFR_MODE_MULTBLK_SEL | XFR_MODE_DATA_READ | XFR_MODE_AUTOCMD12_EN | XFR_MODE_BLKCNT_EN | XFR_MODE_DMA_EN;
+	/* Auto-CMD12 for multi-block transfers only. */
+	xfer_mode = XFR_MODE_RESP_ERRCHK_EN | XFR_MODE_DATA_READ | XFR_MODE_DMA_EN;
+	if (BLOCK_CNT > 1)
+		xfer_mode |= XFR_MODE_MULTBLK_SEL | XFR_MODE_AUTOCMD12_EN | XFR_MODE_BLKCNT_EN;
+	XFER_MODE_R(addr) = xfer_mode;
 
 	CMD_R(addr) = (CMD<<8) | DATA_PRESENT_SEL | RESP_LEN_48;
 	rtos_enable_int(int_level);
 
-	int ret = 0;
 	ret = rtos_get_semaphore(&s_sdio_cmd_done_sema, SDIO_HOST_DEFAULT_TIMEOUT_MS);
 	if((ret != 0) || sd_card_has_transfer_error()) {
 		SDIOD_LOGE("func %s: get sem s_sdio_cmd_done_sema timeout\r\n", __func__);
@@ -820,6 +889,9 @@ bk_err_t adma2_receive_data (uintptr_t addr,uint32 SYS_ADDR,uint16 BLOCK_SIZE,ui
 	}
 
 	SDIOD_LOGD("*****Data(ADMA2) Read End*****\r\n");
+
+	/* Invalidate so the caller reads the DMA payload, not stale cache. */
+	arch_dcache_invd_range((void *)(uintptr_t)SYS_ADDR, total_bytes);
 
 	return ret;
 }

@@ -64,19 +64,27 @@ menu "SDCARD"
 		  used on boards with marginal SDIO signal integrity.
 
 	config SDCARD_MAX_BLOCKS_PER_XFER
-		int "Max blocks per CMD18 transfer (0=unlimited)"
+		int "Max blocks per CMD18 transfer"
 		depends on SDCARD
-		default 0
-		range 0 256
+		default 64
+		range 1 256
 		help
 		  Split large FATFS disk_read requests into smaller CMD18
-		  multi-block transfers. 0 keeps a single CMD18 with the full
-		  block count from the caller.
+		  multi-block transfers. When SDCARD_RX_DMA_EN is enabled the
+		  value also sizes the DMA read scratch buffer, bounding the
+		  PSRAM the DMA path needs.
 
-		  On boards with marginal SDIO signal integrity, long
-		  multi-block PIO reads are more prone to DATA_END_BIT_ERR.
-		  Set a small value (e.g. 4) in the board defconfig as a
-		  software workaround until the PCB/SI is improved.
+	config SDCARD_RX_DMA_EN
+		bool "Use controller DMA (ADMA2) for SD card reads"
+		depends on SDCARD && PSRAM_AS_SYS_MEMORY
+		default y
+		help
+		  Read data blocks through the SDIO host controller's internal
+		  DMA (ADMA2) instead of CPU-driven PIO. DMA is resilient to
+		  task preemption during the transfer; PIO can overrun the host
+		  read FIFO when the draining task is delayed, causing data-end
+		  errors. Reads fall back to PIO if the DMA scratch buffer
+		  cannot be allocated.
 
 	config SDCARD_CHECK_INSERTION_EN
 		bool "Whether to use pin to determine whether the sdcard is connected"
