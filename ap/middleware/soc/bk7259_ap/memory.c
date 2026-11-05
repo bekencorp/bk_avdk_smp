@@ -303,6 +303,27 @@ void bk_get_psram_data_info(bk_dump_mem_info_t *info)
 #endif
 }
 
+/*
+ * PSRAM cache heap: with CONFIG_TASK_STACK_IN_PSRAM, the FreeRTOS task stacks,
+ * TCBs and queues are allocated from this region (psram_cache_malloc), so it
+ * must be part of the dump image or the crash has no task context at all.
+ * The whole region is dumped: task stacks are not predictable, and unlike the
+ * non-cached heap there is no allocation high-water record for this heap
+ * (os_heap explicitly skips it). Keep the window static and bounded by the
+ * generated ram_regions.h values.
+ */
+void bk_get_psram_cache_heap_info(bk_dump_mem_info_t *info)
+{
+    info->name = "PSRAM_CACHE_HEAP";
+#if defined(CONFIG_AP_PSRAM_CACHE_HEAP_ADDR) && (CONFIG_AP_PSRAM_CACHE_HEAP_SIZE > 0)
+    info->start_addr = (uint32_t)CONFIG_AP_PSRAM_CACHE_HEAP_ADDR;
+    info->size = (uint32_t)CONFIG_AP_PSRAM_CACHE_HEAP_SIZE;
+#else
+    info->start_addr = 0;
+    info->size = 0;
+#endif
+}
+
 __attribute__((section(".iram"), noinline)) void bk_get_psram_code_info(bk_psram_code_info_t *info)
 {
     if (info == NULL) {
