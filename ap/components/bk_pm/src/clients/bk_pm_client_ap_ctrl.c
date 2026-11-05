@@ -15,19 +15,39 @@
 #include <common/bk_include.h>
 #include <modules/pm.h>
 #include <driver/pwr_clk.h>
+#include <driver/aon_rtc.h>
 #include <driver/mailbox_channel.h>
 #include <sys_sw_regs.h>
 #include <os/mem.h>
 #include <os/os.h>
 #include "cache.h"
 #include "pm_debug.h"
+#include "pm_uart_debug.h"
 #include "bk_pm_internal_api.h"
 #if CONFIG_SOC_SMP
 #include "spinlock.h"
 #endif
 
 #define PM_SEND_CMD_CP1_RESPONSE_TIEM        (100)  //100ms
-#define PM_AP_QUIESCE_CALLBACK_TIMEOUT_MS    (100)
+#define PM_AP_QUIESCE_CALLBACK_TIMEOUT_MS    (200) //200ms
+
+#if CONFIG_PM_AP_FAST_BOOT_VERBOSE_TRACE
+/*
+ * The AP_TIME phase logs in bk_pm_client_thread.c split the
+ * ap0_restore_scheduler_ready -> ap_full_ready window. These knobs report the
+ * individual restore/resume callbacks that consumed it, so a long window can
+ * be traced to a specific module. Compiled out unless verbose trace is on.
+ */
+#define PM_AP_RESUME_CALLBACK_SLOW_MS        (5) //report callbacks slower than this
+#define PM_AP_RESTORE_SLOW_CB_MAX            (8) //slow restore slots collected while IRQs are off
+
+static uint32_t pm_ap_time_elapsed_us(uint64_t start_tick, uint64_t end_tick)
+{
+	uint32_t elapsed_tick = (uint32_t)end_tick - (uint32_t)start_tick;
+
+	return (uint32_t)(((uint64_t)elapsed_tick * 1000ULL) /AON_RTC_MS_TICK_CNT);
+}
+#endif
 
 #if CONFIG_MAILBOX
 pm_mailbox_communication_state_e bk_pm_ap_ctrl_state_get(void);
@@ -345,7 +365,6 @@ bk_err_t bk_pm_ap_power_prepare(void)
 	bk_err_t ret = BK_OK;
 	bk_err_t cb_ret;
 	uint32_t flags = pm_ap_power_lock();
-
 	if (s_prepare_state == PM_AP_PREPARE_STATE_READY) {
 		pm_ap_power_unlock(flags);
 		return BK_OK;
@@ -441,8 +460,7 @@ void bk_pm_ap_power_prepare_dump(void)
 		}
 		index++;
 	}
-	LOGI("AP power prepare sampled=%u busy=%u\r\n",
-		sampled_count, busy_count);
+	LOGI("AP power prepare sampled=%u busy=%u\r\n",sampled_count, busy_count);
 }
 
 bk_err_t bk_pm_ap_power_prepare_abort(void)
@@ -512,7 +530,7 @@ bk_err_t bk_pm_ap_fast_suspend_prepare(void)
 	bk_pm_ap_full_ready_set(false);
 
 	for (node = s_power_ops_tail; node != NULL; node = node->prev) {
-		uint32_t callback_start_ms = rtos_get_time();
+		uint64_t callback_start_tick = bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
 		uint32_t callback_elapsed_ms;
 
 		callback_count++;
@@ -524,12 +542,12 @@ bk_err_t bk_pm_ap_fast_suspend_prepare(void)
 		if (node->ops.quiesce != NULL) {
 			ret = node->ops.quiesce(node->ops.arg);
 		}
-		callback_elapsed_ms = rtos_get_time() - callback_start_ms;
+		callback_elapsed_ms = (uint32_t)((bk_aon_rtc_get_current_tick(AON_RTC_ID_1) - callback_start_tick) / PM_AON_RTC_DEFAULT_TICK_COUNT);
 		if ((ret == BK_OK) &&
 			(callback_elapsed_ms >= PM_AP_QUIESCE_CALLBACK_TIMEOUT_MS)) {
 			LOGE("AP_FAST_CB quiesce timeout: name=%s elapsed_ms=%u limit_ms=%u\r\n",
-				node->ops.name, callback_elapsed_ms,
-				PM_AP_QUIESCE_CALLBACK_TIMEOUT_MS);
+													node->ops.name, callback_elapsed_ms,
+													PM_AP_QUIESCE_CALLBACK_TIMEOUT_MS);
 			ret = BK_ERR_TIMEOUT;
 		}
 #if CONFIG_PM_AP_FAST_BOOT_VERBOSE_TRACE
@@ -541,8 +559,8 @@ bk_err_t bk_pm_ap_fast_suspend_prepare(void)
 		}
 	}
 	if (ret != BK_OK) {
-		LOGE("AP_FAST_CB prepare failed: count=%u ret=%d\r\n",
-			callback_count, ret);
+		LOGE("AP_FAST_CB prepare failed: name=%s count=%u ret=%d\r\n",
+			node->ops.name, callback_count, ret);
 	}
 #if CONFIG_PM_AP_FAST_BOOT_VERBOSE_TRACE
 	else {
@@ -616,6 +634,15 @@ bk_err_t bk_pm_ap_fast_restore_hardware(void)
 	pm_ap_power_node_t *node;
 	bk_err_t ret = BK_OK;
 	uint32_t flags;
+#if CONFIG_PM_AP_FAST_BOOT_VERBOSE_TRACE
+	struct {
+		const char *name;
+		uint32_t elapsed_us;
+	} slow_cb[PM_AP_RESTORE_SLOW_CB_MAX];
+	uint32_t slow_cb_cnt = 0;
+	uint32_t slow_cb_dropped = 0;
+	uint32_t i;
+#endif
 
 	if (s_power_state != PM_AP_FAST_STATE_PREPARED) {
 		return BK_ERR_STATE;
@@ -626,7 +653,24 @@ bk_err_t bk_pm_ap_fast_restore_hardware(void)
 	flags = rtos_disable_int();
 	for (node = s_power_ops_head; node != NULL; node = node->next) {
 		if (node->backed_up && (node->ops.restore != NULL)) {
+#if CONFIG_PM_AP_FAST_BOOT_VERBOSE_TRACE
+			uint64_t cb_start_tick = bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
+			uint32_t elapsed_us;
+#endif
 			ret = node->ops.restore(node->ops.arg);
+#if CONFIG_PM_AP_FAST_BOOT_VERBOSE_TRACE
+			elapsed_us = pm_ap_time_elapsed_us(cb_start_tick,bk_aon_rtc_get_current_tick(AON_RTC_ID_1));
+			/* IRQs are off here; only record slow callbacks and print below. */
+			if (elapsed_us >= (PM_AP_RESUME_CALLBACK_SLOW_MS * 1000U)) {
+				if (slow_cb_cnt < PM_AP_RESTORE_SLOW_CB_MAX) {
+					slow_cb[slow_cb_cnt].name = node->ops.name;
+					slow_cb[slow_cb_cnt].elapsed_us = elapsed_us;
+					slow_cb_cnt++;
+				} else {
+					slow_cb_dropped++;
+				}
+			}
+#endif
 			if (ret != BK_OK) {
 				break;
 			}
@@ -634,6 +678,15 @@ bk_err_t bk_pm_ap_fast_restore_hardware(void)
 		node->backed_up = false;
 	}
 	rtos_enable_int(flags);
+
+#if CONFIG_PM_AP_FAST_BOOT_VERBOSE_TRACE
+	for (i = 0; i < slow_cb_cnt; i++) {
+		LOGW("AP_FAST_CB restore slow: name=%s elapsed_us=%u\r\n",slow_cb[i].name, slow_cb[i].elapsed_us);
+	}
+	if (slow_cb_dropped != 0U) {
+		LOGW("AP_FAST_CB restore slow: and %u more\r\n", slow_cb_dropped);
+	}
+#endif
 
 	if (ret != BK_OK) {
 		s_power_state = PM_AP_FAST_STATE_FAILED;
@@ -655,7 +708,18 @@ static bk_err_t pm_ap_fast_resume_modules(bool app_resume_pending)
 
 	for (node = s_power_ops_head; node != NULL; node = node->next) {
 		if (node->quiesced && (node->ops.resume != NULL)) {
+#if CONFIG_PM_AP_FAST_BOOT_VERBOSE_TRACE
+			uint64_t cb_start_tick = bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
+			uint32_t elapsed_us;
+#endif
 			cb_ret = node->ops.resume(node->ops.arg);
+#if CONFIG_PM_AP_FAST_BOOT_VERBOSE_TRACE
+			elapsed_us = pm_ap_time_elapsed_us(cb_start_tick,bk_aon_rtc_get_current_tick(AON_RTC_ID_1));
+			LOGI("AP_FAST_CB resume end: name=%s ret=%d elapsed_us=%u\r\n",node->ops.name, cb_ret, elapsed_us);
+			if (elapsed_us >= (PM_AP_RESUME_CALLBACK_SLOW_MS * 1000U)) {
+				LOGW("AP_FAST_CB resume slow: name=%s elapsed_us=%u\r\n",node->ops.name, elapsed_us);
+			}
+#endif
 			if ((ret == BK_OK) && (cb_ret != BK_OK)) {
 				ret = cb_ret;
 			}
@@ -712,7 +776,19 @@ bk_err_t bk_pm_ap_fast_app_resume(void)
 
 	for (node = s_power_ops_head; node != NULL; node = node->next) {
 		if (node->ops.app_resume != NULL) {
+#if CONFIG_PM_AP_FAST_BOOT_VERBOSE_TRACE
+			uint64_t cb_start_tick = bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
+			uint32_t elapsed_us;
+#endif
 			cb_ret = node->ops.app_resume(node->ops.arg);
+#if CONFIG_PM_AP_FAST_BOOT_VERBOSE_TRACE
+			elapsed_us = pm_ap_time_elapsed_us(cb_start_tick,bk_aon_rtc_get_current_tick(AON_RTC_ID_1));
+			LOGI("AP_FAST_CB app_resume end: name=%s ret=%d elapsed_us=%u\r\n",
+				node->ops.name, cb_ret, elapsed_us);
+			if (elapsed_us >= (PM_AP_RESUME_CALLBACK_SLOW_MS * 1000U)) {
+				LOGW("AP_FAST_CB app_resume slow: name=%s elapsed_us=%u\r\n",node->ops.name, elapsed_us);
+			}
+#endif
 			if ((ret == BK_OK) && (cb_ret != BK_OK)) {
 				ret = cb_ret;
 			}

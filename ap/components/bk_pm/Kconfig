@@ -138,5 +138,17 @@ menu "PM"
 			wake-up. Keep disabled for normal builds; enable only when
 			debugging PSRAM data retention.
 
+	config PM_AP_UART_DEBUG
+		bool "Enable standalone AP UART5 debug log"
+		default n
+		help
+			Compile the standalone UART5 log interface
+			(bk_pm_log_uart_init/bk_pm_log_uart_print) in bk_pm. Logs are written
+			directly to the dedicated UART5 so PM diagnostics stay
+			visible even when the mailbox log pipeline is unavailable
+			(e.g. during the AP power-off prepare). AP<->CP functional
+			mailbox communication is not affected. Keep this disabled
+			for normal builds.
+
 endmenu
 

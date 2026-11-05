@@ -5,6 +5,7 @@
 #include "driver/pm_ap_core.h"
 #include <os/mem.h>
 #include "FreeRTOS.h"
+#include "pm_uart_debug.h"
 #if CONFIG_PM_AP_FAST_BOOT_ENABLE && CONFIG_CPU_HOTPLUG
 #include "multicore_driver.h"
 #if CONFIG_GENERAL_DMA
@@ -15,6 +16,9 @@
 #include "sys_sw_regs.h"
 #include "cache.h"
 #include "bk_arch.h"
+#endif
+#if CONFIG_PM_AP_FAST_BOOT_VERBOSE_TRACE
+#include <driver/aon_rtc.h>
 #endif
 
 /*=====================DEFINE  SECTION  START=====================*/
@@ -35,6 +39,22 @@
 #define PM_AP_CORE_THREAD_PRIORITY         (2)
 
 /*=====================DEFINE  SECTION  END=====================*/
+
+#if CONFIG_PM_AP_FAST_BOOT_VERBOSE_TRACE
+/*
+ * Split the CP-side ap0_restore_scheduler_ready -> ap_full_ready window with
+ * the AP_TIME phase logs below. The AON RTC counter may wrap, so the tick
+ * subtraction is done in 32 bits and stamps taken before a wrap still measure
+ * correctly (the real delta is far below 2^32 ticks).
+ */
+static uint32_t pm_ap_time_elapsed_us(uint64_t start_tick, uint64_t end_tick)
+{
+    uint32_t elapsed_tick = (uint32_t)end_tick - (uint32_t)start_tick;
+
+    return (uint32_t)(((uint64_t)elapsed_tick * 1000ULL) /
+        AON_RTC_MS_TICK_CNT);
+}
+#endif
 
 
 /*=====================STRUCT AND ENUM  SECTION  START==========*/
@@ -266,13 +286,44 @@ static bk_err_t pm_ap_core_message_handle(void)
                 case PM_AP_CORE_CPU3_ONLINE:
                 {
 #if CONFIG_PM_AP_FAST_BOOT_ENABLE && CONFIG_CPU_HOTPLUG
+#if CONFIG_PM_AP_FAST_BOOT_VERBOSE_TRACE
+                    uint64_t phase_start_tick;
+                    uint64_t phase_end_tick;
+
+                    /*
+                     * msg.param1 is the RTC tick stamped when the idle path
+                     * queued this message (sys_pm_hal.c). Phase logs below
+                     * split the ap0_restore_scheduler_ready ->
+                     * ap_full_ready window; AP_FAST_CB logs in
+                     * bk_pm_client_ap_ctrl.c name slow individual callbacks.
+                     */
+                    phase_start_tick = bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
+                    LOGI("AP_TIME ap_pm_dispatch_lag total_us=%u\r\n",
+                        pm_ap_time_elapsed_us(msg.param1, phase_start_tick));
+
+                    phase_end_tick = phase_start_tick;
+#endif
                     ret = bk_pm_ap_fast_restore_hardware();
+#if CONFIG_PM_AP_FAST_BOOT_VERBOSE_TRACE
+                    LOGI("AP_TIME ap_restore_hw total_us=%u ret=%d\r\n",
+                        pm_ap_time_elapsed_us(phase_end_tick,
+                            bk_aon_rtc_get_current_tick(AON_RTC_ID_1)), ret);
+#endif
                     if (ret != BK_OK) {
                         LOGE("AP fast resume: hardware restore failed[%d]\r\n", ret);
                         break;
                     }
                     if (!bk_cpu_hp_is_online(CPU3_CORE_ID)) {
+#if CONFIG_PM_AP_FAST_BOOT_VERBOSE_TRACE
+                        phase_end_tick = bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
+#endif
                         ret = pm_ap_cpu3_online_blocked();
+#if CONFIG_PM_AP_FAST_BOOT_VERBOSE_TRACE
+                        LOGI("AP_TIME ap_cpu3_online total_us=%u ret=%d stage=%u\r\n",
+                            pm_ap_time_elapsed_us(phase_end_tick,
+                                bk_aon_rtc_get_current_tick(AON_RTC_ID_1)),
+                            ret, bk_cpu3_fast_resume_stage_get());
+#endif
                         if (ret != BK_OK) {
                             LOGE("AP fast resume: CPU3 online failed[%d], stage=%u\r\n",
                                 ret, bk_cpu3_fast_resume_stage_get());
@@ -290,7 +341,15 @@ static bk_err_t pm_ap_core_message_handle(void)
                          * Restore modules on CPU2 first. full_ready lets CP send
                          * APP_RESUME; keep CPU3 out until that message is done.
                          */
+#if CONFIG_PM_AP_FAST_BOOT_VERBOSE_TRACE
+                        phase_end_tick = bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
+#endif
                         ret = bk_pm_ap_fast_wakeup_resume_modules();
+#if CONFIG_PM_AP_FAST_BOOT_VERBOSE_TRACE
+                        LOGI("AP_TIME ap_resume_modules total_us=%u ret=%d\r\n",
+                            pm_ap_time_elapsed_us(phase_end_tick,
+                                bk_aon_rtc_get_current_tick(AON_RTC_ID_1)), ret);
+#endif
                         if (ret != BK_OK) {
                             LOGE("AP fast resume: module resume failed[%d]\r\n", ret);
                             pm_ap_cpu3_scheduler_release();
@@ -348,10 +407,26 @@ static bk_err_t pm_ap_core_message_handle(void)
                 break;
                 case PM_AP_CORE_APP_RESUME:
                 {
+#if CONFIG_PM_AP_FAST_BOOT_VERBOSE_TRACE
+                    uint64_t app_start_tick =
+                        bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
+
+                    /*
+                     * msg.param1 is the RTC tick stamped when the CP
+                     * APP_RESUME mailbox command was queued
+                     * (bk_pm_client_mailbox.c).
+                     */
+                    LOGI("AP_TIME ap_app_dispatch_lag total_us=%u\r\n",
+                        pm_ap_time_elapsed_us(msg.param1, app_start_tick));
+#endif
                     ret = bk_pm_ap_fast_app_resume();
+#if CONFIG_PM_AP_FAST_BOOT_VERBOSE_TRACE
+                    LOGI("AP_TIME ap_app_resume total_us=%u ret=%d\r\n",
+                        pm_ap_time_elapsed_us(app_start_tick,
+                            bk_aon_rtc_get_current_tick(AON_RTC_ID_1)), ret);
+#endif
                     if (ret != BK_OK) {
-                        LOGE("AP fast resume: app resume callbacks failed[%d]\r\n",
-                            ret);
+                        LOGE("AP fast resume: app resume callbacks failed[%d]\r\n", ret);
                     } else {
                         LOGD("AP fast resume: app resume callbacks done\r\n");
                     }
@@ -359,6 +434,12 @@ static bk_err_t pm_ap_core_message_handle(void)
                     if (s_cpu3_release_after_app_resume != 0U) {
                         s_cpu3_release_after_app_resume = 0U;
                         pm_ap_cpu3_scheduler_release();
+#if CONFIG_PM_AP_FAST_BOOT_VERBOSE_TRACE
+                        /* CPU3 actually enters the SMP scheduler from here. */
+                        LOGI("AP_TIME ap_cpu3_release total_us=%u\r\n",
+                            pm_ap_time_elapsed_us(app_start_tick,
+                                bk_aon_rtc_get_current_tick(AON_RTC_ID_1)));
+#endif
                     }
 #endif
                 }
@@ -475,7 +556,15 @@ bk_err_t bk_pm_ap_thread_main(void)
         goto error;
     }
 
-    LOGE("%s success\n", __func__);
+#if CONFIG_PM_AP_UART_DEBUG
+    ret = bk_pm_log_uart_init();
+	if (ret != BK_OK) {
+		BK_LOGE(TAG, "uart5 log init failed: %d\r\n", ret);
+	}
+	/* One-shot probe: this line must appear on the UART5 TX pin (GPIO65). */
+	bk_pm_log_uart_print("uart5 log test: pm init=%d\r\n", (int)ret);
+#endif
+    LOGI("%s success\n", __func__);
 
     return ret;
 

@@ -3,6 +3,10 @@ set(incs include)
 
 set(srcs src/bk_pm.c)
 
+if (CONFIG_PM_AP_UART_DEBUG)
+	list(APPEND srcs src/clients/bk_pm_client_debug.c)
+endif()
+
 if (CONFIG_PM_ENABLE)
 	if (CONFIG_PM_CLIENT)
 		list(APPEND srcs
