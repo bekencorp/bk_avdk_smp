@@ -21,6 +21,7 @@
 #include <os/mem.h>
 #include "pm_debug.h"
 #include "sys_pm_hal_debug.h"
+#include "bk_bootloader.h"
 
 /*=====================DEFINE  SECTION  END=====================*/
 typedef struct gpio_ldo_vote_node {
@@ -35,7 +36,8 @@ static gpio_ldo_vote_node_t *s_gpio_ldo_vote_list       = NULL;
 
 static uint32_t s_pm_mcu_pm_state                       = 0;
 static uint32_t s_pm_lowvol_consume_time_exit_wfi       = 0;
-
+/* Bootloader version cached by bk_pm_bootloader_version_init() after driver init, read via bk_pm_bootloader_version_get() */
+static uint32_t s_bootloader_version = BK_BOOTLOADER_VERSION_ABSENT;
 /*=====================VARIABLE  SECTION  END=================*/
 
 /*================FUNCTION DECLARATION  SECTION  START========*/
@@ -43,6 +45,17 @@ static uint32_t s_pm_lowvol_consume_time_exit_wfi       = 0;
 
 /*================FUNCTION DECLARATION  SECTION  END========*/
 
+__attribute__((section(".iram"))) uint32_t bk_pm_bootloader_version_get(void)
+{
+	return s_bootloader_version;
+}
+
+bk_err_t bk_pm_bootloader_version_init(void)
+{
+	s_bootloader_version = bk_bootloader_get_version();
+	LOGI("bootloader_version:0x%x\r\n", s_bootloader_version);
+	return BK_OK;
+}
 
 uint32_t bk_pm_mcu_pm_state_get(void)
 {
