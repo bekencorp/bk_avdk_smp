@@ -21,6 +21,7 @@ set(platform_s_inc
 	${IDK_PATH}/middleware/driver/spinlock
 	${IDK_PATH}/components/bk_ps/include
 	${IDK_PATH}/components/bk_pm/include
+	${IDK_PATH}/components/bk_cli/include
 	${IDK_PATH}/../ap/middleware/driver/sys_sw_regs
 	${IDK_PATH}/middleware/driver/io_matrix/v2.0
 	${IDK_PATH}/middleware/driver/mpc
