@@ -61,6 +61,21 @@ menu "PSRAM"
 		bool "Enable Psram Test"
 		default n
 
+	config PSRAM_SINGLE_CHIP
+		depends on PSRAM && !PSRAM_INTERLEAVE
+		bool "Single PSRAM die on the PSRAM1 window (ram_regions_single.csv)"
+		default n
+		help
+			Select this for packages that populate only one PSRAM die and
+			wire it to the PSRAM1 controller (window 0x64000000). Nothing
+			may be mapped to the PSRAM0 window (0x60000000): an access
+			there stalls the bus until the watchdog resets the chip.
+			The memory layout comes from ram_regions_single.csv.
+			Cannot be combined with PSRAM_INTERLEAVE (which needs two
+			dies) or PSRAM_CAPACITY_32M.
+			Save as project default ([D] in menuconfig) or pass
+			PSRAM_LAYOUT=single on the make command line.
+
 	config PSRAM_CAPACITY_32M
 		depends on PSRAM
 		bool "Use 32M PSRAM layout (ram_regions_32M.csv)"

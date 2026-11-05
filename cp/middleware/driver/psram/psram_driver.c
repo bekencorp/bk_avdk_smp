@@ -419,9 +419,27 @@ bk_err_t bk_psram_id_auto_detect(void)
 		MEM_STATIC_LOGD("Auto detect:No PSRAM_CHIP_ID INFO, ret:%d\r\n", ret);
 	}
 
+	MEM_STATIC_LOGI("Auto detect: env id=0x%x magic=0x%x\r\n",
+			 s_psram_id.psram_id, s_psram_id.magic_code);
+
 	if (s_psram_id.magic_code == PSRAM_CHECK_FLAG)
 	{
-		return BK_OK;
+		/* W955D8MKY is the unverified fallback id. An older image may have
+		 * persisted it before this rule existed; drop it so the next init
+		 * re-runs detection instead of programming both dies with it. */
+		if (s_psram_id.psram_id == PSRAM_W955D8MKY_5J_ID)
+		{
+			MEM_STATIC_LOGW("Auto detect: drop cached fallback id 0x%x\r\n",
+					 PSRAM_W955D8MKY_5J_ID);
+			s_psram_id.psram_id = 0;
+			s_psram_id.magic_code = 0;
+		}
+		else
+		{
+			MEM_STATIC_LOGI("Auto detect: use cached id 0x%x\r\n",
+					 s_psram_id.psram_id);
+			return BK_OK;
+		}
 	}
 
 	if (s_psram_sem == NULL)
@@ -520,11 +538,10 @@ start_init:
 		chip_id = s_psram_id.psram_id;
 	}
 
-	MEM_STATIC_LOGD("%s, chip_id:%x\r\n", __func__, chip_id);
-
 	actual_id = psram_hal_config_init_with_id(psram_id, chip_id);
 	if (actual_id == 0) {
-		MEM_STATIC_LOGE("%s, fail!\r\n", __func__);
+		MEM_STATIC_LOGE("%s, id=%d fail! expected=0x%x\r\n",
+				 __func__, psram_id, chip_id);
 		if (!is_skip_mutex) {
 			rtos_unlock_mutex(&s_psram_mutex);
 		}
@@ -538,8 +555,10 @@ start_init:
 	else
 		psram_hal_set_default_clk_with_id(psram_id);
 
-	MEM_STATIC_LOGI("%s, actual_id=0x%x expected=0x%x cap=0x%x\r\n",
-			 __func__, actual_id, chip_id, CONFIG_PSRAM_CAPACITY);
+	MEM_STATIC_LOGI("%s, actual_id=0x%x expected=0x%x (%s) cap=0x%x\r\n",
+			 __func__, actual_id, chip_id,
+			 chip_id ? "from cache" : "cache empty, auto detect",
+			 CONFIG_PSRAM_CAPACITY);
 
 	switch (actual_id) {
 		case PSRAM_W955D8MKY_5J_ID:
@@ -568,9 +587,15 @@ start_init:
 			break;
 	}
 
-	if (actual_id != chip_id) {
+	/* The W955D8MKY branch is the last-resort fallback and returns its id
+	 * without verifying that the part really answered. Caching it would make
+	 * the other PSRAM instance skip auto detection and be programmed with the
+	 * wrong sequence, which stalls the bus on the first access. */
+	if (actual_id != chip_id && actual_id != PSRAM_W955D8MKY_5J_ID) {
 		s_psram_id.psram_id = actual_id;
 		s_psram_id.magic_code = PSRAM_CHECK_FLAG;
+		MEM_STATIC_LOGI("%s, id=%d cache actual id 0x%x (expected was 0x%x)\r\n",
+				 __func__, psram_id, actual_id, chip_id);
 #if (CONFIG_PSRAM_AUTO_DETECT)
 		if (s_psram_sem) {
 			s_psram_id_need_write = true;
@@ -578,6 +603,10 @@ start_init:
 		}
 #endif
 	} else {
+		MEM_STATIC_LOGI("%s, id=%d do not cache (expected=0x%x actual=0x%x, %s)\r\n",
+				 __func__, psram_id, chip_id, actual_id,
+				 (actual_id == PSRAM_W955D8MKY_5J_ID) ?
+				 "fallback id" : "already cached");
 #if (CONFIG_PSRAM_AUTO_DETECT)
 		if (s_psram_sem) {
 			rtos_set_semaphore(&s_psram_sem);

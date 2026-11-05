@@ -135,6 +135,7 @@ LOGI("[Select ld file]: ${LD_FILE}.")
 set(ld_header_dependencies
 	${armino_path}/include/soc/${target}/reg_base.h
 	$ENV{PARTITIONS_DIR}/partitions_gen.h
+	$ENV{PARTITIONS_DIR}/ram_regions.h
 )
 
 add_custom_command(
