@@ -37,4 +37,6 @@ menu "App"
 	config FTP_SERVER
 		bool "Enable FTP server"
 		default n
+
+	source "${ARMINO_TOOLS_PATH}/build_tools/build_files/Kconfig.ftp"
 endmenu
