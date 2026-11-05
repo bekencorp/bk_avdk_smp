@@ -701,14 +701,15 @@ static void onboard_spk_multi_output_pcm(audio_element_handle_t self, onboard_sp
     audio_element_multi_output(self, out_buf, out_bytes, 0);
 }
 
-#if (ONBOARD_SPK_UNDERRUN_FADE_MODE != ONBOARD_SPK_UNDERRUN_FADE_MODE_OFF)
-
+/* Effective channel count of the PCM written to the DAC ring. */
 static inline uint32_t onboard_spk_underrun_ch(const onboard_speaker_stream_t *onboard_spk)
 {
     uint32_t ch = onboard_spk->chl_num ? onboard_spk->chl_num : 1u;
 
     return (ch > 2u) ? 2u : ch;
 }
+
+#if (ONBOARD_SPK_UNDERRUN_FADE_MODE != ONBOARD_SPK_UNDERRUN_FADE_MODE_OFF)
 
 static uint32_t onboard_spk_underrun_fade_pairs(const onboard_speaker_stream_t *onboard_spk,
                                                 uint32_t src_idx,
@@ -891,13 +892,120 @@ static void onboard_spk_commit_play_pcm(onboard_speaker_stream_t *onboard_spk,
     onboard_spk->underrun_silencing[src_idx] = 0;
 }
 
-/* Call when filling a silence frame into temp_buff for the DAC ring. */
+#define ONBOARD_SPK_TONE_FREQ_HZ        1000
+#define ONBOARD_SPK_TONE_AMPLITUDE      12000
+#define ONBOARD_SPK_TONE_TBL_BITS       6
+#define ONBOARD_SPK_TONE_TBL_SIZE       (1 << ONBOARD_SPK_TONE_TBL_BITS)
+
+/* One full sine cycle, amplitude ONBOARD_SPK_TONE_AMPLITUDE. */
+static const int16_t s_spk_tone_tbl[ONBOARD_SPK_TONE_TBL_SIZE] = {
+         0,   1176,   2341,   3483,   4592,   5657,   6667,   7613,
+      8485,   9276,   9978,  10583,  11087,  11483,  11769,  11942,
+     12000,  11942,  11769,  11483,  11087,  10583,   9978,   9276,
+      8485,   7613,   6667,   5657,   4592,   3483,   2341,   1176,
+         0,  -1176,  -2341,  -3483,  -4592,  -5657,  -6667,  -7613,
+     -8485,  -9276,  -9978, -10583, -11087, -11483, -11769, -11942,
+    -12000, -11942, -11769, -11483, -11087, -10583,  -9978,  -9276,
+     -8485,  -7613,  -6667,  -5657,  -4592,  -3483,  -2341,  -1176,
+};
+
+static volatile int s_spk_tone_en;
+static uint32_t s_spk_tone_phase;
+static int s_spk_tone_logged;
+
+static void onboard_spk_tone_enable(int en)
+{
+    s_spk_tone_en = en;
+    s_spk_tone_phase = 0;
+    s_spk_tone_logged = 0;
+}
+
+static int onboard_spk_tone_enabled(void)
+{
+    return s_spk_tone_en;
+}
+
+/* Fill one frame in temp_buff with the debug tone (DAC ring domain). */
+static void onboard_spk_fill_tone_frame(onboard_speaker_stream_t *onboard_spk,
+                                        uint32_t src_idx,
+                                        uint32_t interleaved_bytes)
+{
+    int16_t *dst;
+    uint32_t ch, rate, step, frame_cnt;
+
+    if ((onboard_spk->temp_buff == NULL) || (onboard_spk->temp_buff_len == 0))
+    {
+        return;
+    }
+    if (interleaved_bytes > onboard_spk->temp_buff_len)
+    {
+        interleaved_bytes = onboard_spk->temp_buff_len;
+    }
+
+    ch = onboard_spk_underrun_ch(onboard_spk);
+    /* The fill goes straight into the DAC ring, Same rate selection as the underrun fade code. */
+    rate = onboard_spk->rsp_handler[src_idx] ? DEFAULT_AUD_DAC_SAMPLE_RATE
+                                             : onboard_spk->sample_rate[src_idx];
+    if (rate == 0)
+    {
+        rate = DEFAULT_AUD_DAC_SAMPLE_RATE;
+    }
+
+    step      = (uint32_t)(((uint64_t)ONBOARD_SPK_TONE_FREQ_HZ << 32) / rate);
+    frame_cnt = interleaved_bytes / (sizeof(int16_t) * ch);
+    dst       = (int16_t *)onboard_spk->temp_buff;
+
+    if (!s_spk_tone_logged)
+    {
+        s_spk_tone_logged = 1;
+        BK_LOGI(TAG, "tone fill: rate=%u ch=%u bytes=%u step=%u dma_frame=%u\n",
+                (unsigned)rate, (unsigned)ch, (unsigned)interleaved_bytes,
+                (unsigned)step, (unsigned)onboard_spk->dma_frame_size);
+    }
+
+    for (uint32_t i = 0; i < frame_cnt; i++)
+    {
+        int16_t v = s_spk_tone_tbl[s_spk_tone_phase >> (32 - ONBOARD_SPK_TONE_TBL_BITS)];
+
+        for (uint32_t c = 0; c < ch; c++)
+        {
+            dst[i * ch + c] = v;
+        }
+        s_spk_tone_phase += step;
+    }
+}
+
+/* Fill one silence frame into temp_buff for the DAC ring; the debug tone, when
+ * enabled, replaces the silence. */
 static void onboard_spk_commit_silence_frame(onboard_speaker_stream_t *onboard_spk,
                                              uint32_t src_idx,
                                              uint32_t interleaved_bytes)
 {
     onboard_spk_fill_silence_frame(onboard_spk, src_idx, interleaved_bytes);
+    if (s_spk_tone_en)
+    {
+        onboard_spk_fill_tone_frame(onboard_spk, src_idx, interleaved_bytes);
+    }
     onboard_spk->underrun_silencing[src_idx] = 1;
+}
+
+/* Replace the frame about to be written to the DAC ring with the debug tone.
+ * Returns the original PCM pointer while the tone is disabled. */
+static const int16_t *onboard_spk_force_tone(onboard_speaker_stream_t *onboard_spk,
+                                             uint32_t src_idx,
+                                             const int16_t *pcm,
+                                             uint32_t *bytes)
+{
+    if (!s_spk_tone_en || (onboard_spk->temp_buff == NULL))
+    {
+        return pcm;
+    }
+    if (*bytes > onboard_spk->temp_buff_len)
+    {
+        *bytes = onboard_spk->temp_buff_len;
+    }
+    onboard_spk_fill_tone_frame(onboard_spk, src_idx, *bytes);
+    return (const int16_t *)onboard_spk->temp_buff;
 }
 
 /* Interleaved PCM in; returns buffer/length for single DAC DMA ring write */
@@ -1581,7 +1689,7 @@ static bk_err_t audio_dac_reconfig(onboard_speaker_stream_t *onboard_spk, int ra
             new_dma_frame_size = new_in_frame * DEFAULT_AUD_DAC_SAMPLE_RATE / (uint32_t)rate;
 
             /* No bk_dma_stop: keep HW xfer/ch; derive PCM in_frame for the same
-             * wall-clock period (any rate/ch — not tied to a specific test file). */
+             * wall-clock period (any rate/ch - not tied to a specific test file). */
             if (dma_live && old_dma_frame_size > 0)
             {
                 uint32_t hw_ch = onboard_spk->chl_num > 1 ? 2u : 1u;
@@ -1607,10 +1715,10 @@ static bk_err_t audio_dac_reconfig(onboard_speaker_stream_t *onboard_spk, int ra
         else
         {
             /* Passthrough 44.1k/48k:
-             * - Rate-only hop (48↔44.1): NEVER rescale frame/dma (A2DP finish↔can_process
+             * - Rate-only hop (48<->44.1): NEVER rescale frame/dma (A2DP finish<->can_process
              *   desync). Only update DAC sample rate below.
              * - ch/bits change: rescale in_frame; if DMA live, freeze HW xfer and
-             *   derive in_frame from wall-clock (process does mono↔stereo match). */
+             *   derive in_frame from wall-clock (process does mono<->stereo match). */
             const bool ch_bits_changed = (old_ch != ch || old_bits != bits);
 
             if (ch_bits_changed)
@@ -1675,7 +1783,7 @@ static bk_err_t audio_dac_reconfig(onboard_speaker_stream_t *onboard_spk, int ra
             {
                 need_temp = new_in_frame;
             }
-            /* Channel convert scratch: mono→stereo needs 2x in; stereo→mono needs in (src). */
+            /* Channel convert scratch: mono->stereo needs 2x in; stereo->mono needs in (src). */
             if (new_in_ch == 1 && onboard_spk->chl_num > 1 &&
                 (new_in_frame * 2u) > need_temp)
             {
@@ -1917,6 +2025,13 @@ static int _onboard_speaker_process(audio_element_handle_t self, char *in_buffer
 
                 if (onboard_spk->wr_spk_rb_done[i])
                 {
+                    /* This round was woken by another source's DMA finish (shared
+                     * can_process sem) or by a stale token, and the main frame is
+                     * already in the DAC ring. Do NOT read another frame (it would
+                     * be dropped) and do NOT return 0: 0 == AEL_IO_OK makes
+                     * audio_element set port done and finish, which closes the
+                     * speaker. Report the round as consumed instead.
+                     */
                     r_size = 0;
                 }
                 else if (want > (uint32_t)in_len)
@@ -2072,6 +2187,7 @@ static int _onboard_speaker_process(audio_element_handle_t self, char *in_buffer
                     if (play_ok)
                     {
                         onboard_spk_commit_play_pcm(onboard_spk, i, (int16_t *)play_pcm, play_pcm_bytes);
+                        play_pcm   = onboard_spk_force_tone(onboard_spk, i, play_pcm, &play_pcm_bytes);
                         write_addr = onboard_spk_prepare_dac_write_buf(onboard_spk, play_pcm, play_pcm_bytes, &write_size);
 #ifdef AEC_MIC_DELAY_POINTS_DEBUG
                         aec_mic_delay_debug((int16_t *)write_addr, write_size);
@@ -2080,8 +2196,7 @@ static int _onboard_speaker_process(audio_element_handle_t self, char *in_buffer
                         change_pcm_data_to_8k((uint8_t *)write_addr, write_size);
 #endif
                         ONBOARD_SPK_DATA_DUMP_BY_UART_DATA(write_addr, write_size);
-                        ring_buffer_write(&onboard_spk->spk_rb[i],
-                                          write_addr, write_size);
+                        ring_buffer_write(&onboard_spk->spk_rb[i], write_addr, write_size);
                         onboard_spk->wr_spk_rb_done[i] = true;
                         onboard_spk_update_status_by_energy(self, onboard_spk,
                             onboard_spk_calc_energy_level(write_addr, write_size, onboard_spk->bits), false);
@@ -2170,7 +2285,10 @@ static int _onboard_speaker_process(audio_element_handle_t self, char *in_buffer
                         }
                         else
                         {
-                            w_size = r_size;
+                            /* r_size == 0 (AEL_IO_OK) makes audio_element treat
+                               this round as done and close the speaker, so report
+                               it as consumed instead. */
+                            w_size = (r_size == 0) ? in_len : r_size;
                         }
 #else
                         w_size = r_size;
@@ -2264,6 +2382,7 @@ static int _onboard_speaker_process(audio_element_handle_t self, char *in_buffer
                 if (play_ok)
                 {
                     onboard_spk_commit_play_pcm(onboard_spk, main_src, (int16_t *)play_pcm, play_pcm_bytes);
+                    play_pcm = onboard_spk_force_tone(onboard_spk, main_src, play_pcm, &play_pcm_bytes);
 
                     write_addr = onboard_spk_prepare_dac_write_buf(onboard_spk, play_pcm, play_pcm_bytes, &write_size);
 #ifdef AEC_MIC_DELAY_POINTS_DEBUG
@@ -2811,16 +2930,16 @@ audio_element_handle_t onboard_speaker_stream_init(onboard_speaker_stream_cfg_t 
         }
     */
     os_memset(&gl_onboard_speaker->spk_rb, 0x00, sizeof(RingBufferContext) * AUD_DAC_SOURCE_MAX);
-    gl_onboard_speaker->temp_buff = NULL;
-    gl_onboard_speaker->pcm_in_buff = NULL;
+    gl_onboard_speaker->temp_buff       = NULL;
+    gl_onboard_speaker->pcm_in_buff     = NULL;
     gl_onboard_speaker->pcm_in_buff_len = 0;
 
     for(i = 0; i < AUD_DAC_SOURCE_MAX; i++)
     {
-        gl_onboard_speaker->rsp_out_buff[i] = NULL;
+        gl_onboard_speaker->rsp_out_buff[i]     = NULL;
         gl_onboard_speaker->rsp_out_buff_len[i] = 0;
-        gl_onboard_speaker->rsp_handler[i] = NULL;
-        gl_onboard_speaker->spk_dma_id[i] = 0xff;
+        gl_onboard_speaker->rsp_handler[i]      = NULL;
+        gl_onboard_speaker->spk_dma_id[i]       = 0xff;
 
         if(gl_onboard_speaker->dac_source_bitmap & (1 << i))
         {
@@ -2903,7 +3022,7 @@ audio_element_handle_t onboard_speaker_stream_init(onboard_speaker_stream_cfg_t 
 
     /* init speaker ringbuffer pool */
     gl_onboard_speaker->temp_buff_len = onboard_spk_temp_buff_len(gl_onboard_speaker, cfg.buffer_len);
-    gl_onboard_speaker->temp_buff = (int8_t *)audio_calloc(1, gl_onboard_speaker->temp_buff_len);
+    gl_onboard_speaker->temp_buff     = (int8_t *)audio_calloc(1, gl_onboard_speaker->temp_buff_len);
     AUDIO_MEM_CHECK(TAG, gl_onboard_speaker->temp_buff, goto _onboard_speaker_init_exit);
     os_memset(gl_onboard_speaker->temp_buff, 0x00, gl_onboard_speaker->temp_buff_len);
     BK_LOGD(TAG, "temp_buff_len:%u (in_frame_max:%u dma_frame:%u)\n",
@@ -2985,7 +3104,7 @@ audio_element_handle_t onboard_speaker_stream_init(onboard_speaker_stream_cfg_t 
 
     ONBOARD_SPK_DATA_COUNT_OPEN();
     ONBOARD_SPK_DATA_DUMP_BY_UART_OPEN();
-
+    onboard_spk_tone_enable(0);
     return el;
 _onboard_speaker_init_exit:
     /* deinit dma */
@@ -3105,7 +3224,7 @@ bk_err_t onboard_speaker_stream_set_param(audio_element_handle_t onboard_speaker
         }
     }
 
-    /* DMA already started and close never dma_stop: pause→close would stall
+    /* DMA already started and close never dma_stop: pause->close would stall
      * finish ISR with no way to restart. Hot-reconfig software path only. */
     const bool dma_live = (open_cnt > 0);
 
