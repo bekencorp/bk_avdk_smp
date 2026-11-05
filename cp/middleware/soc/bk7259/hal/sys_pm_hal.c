@@ -30,6 +30,8 @@
 #include <os/os.h>
 #include "sys_pm_hal.h"
 #include "sys_pm_hal_ctrl.h"
+#include "bk_pm_internal_api.h"
+#include "bk_bootloader.h"
 #include "pm_debug.h"
 #include "modules/pm.h"
 #include "cache.h"
@@ -3247,7 +3249,18 @@ __IRAM_PM void sys_hal_enter_low_voltage(void)
 	#if CONFIG_PM_LV_SLEEP_ENABLE
 	sys_hal_enter_lv();
 	#else
-	sys_hal_enter_deep_lv();
+	uint32_t bl_version = bk_pm_bootloader_version_get();
+	if((bl_version == BK_BOOTLOADER_VERSION_ABSENT)||(bl_version == BK_BOOTLOADER_VERSION_CORRUPT))
+	{
+		sys_hal_enter_lv();
+	}
+	else if((bl_version >= 1)&&(bl_version != BK_BOOTLOADER_VERSION_CORRUPT))
+	{
+		sys_hal_enter_deep_lv();
+	}
+	else
+	{
+	}
 	#endif
 }
 void sys_hal_touch_wakeup_enable(uint8_t index)
