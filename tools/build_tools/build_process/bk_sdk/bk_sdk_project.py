@@ -174,6 +174,16 @@ class bk_sdk_project(bk_project):
             return "32M"
         return "16M"
 
+    @staticmethod
+    def _psram_layout() -> str:
+        """dual (default) or single. Driven by PSRAM_LAYOUT env / make variable."""
+        layout = os.getenv("PSRAM_LAYOUT", "dual").strip().lower()
+        if layout not in ("dual", "single"):
+            raise RuntimeError(
+                f"unsupported PSRAM_LAYOUT={layout!r}, expected 'dual' or 'single'"
+            )
+        return layout
+
     @property
     def auto_partitions_table(self) -> Path:
         if self._flash_capacity() == "16M":
@@ -187,6 +197,13 @@ class bk_sdk_project(bk_project):
 
     @property
     def ram_regions_table(self) -> Path:
+        if self._psram_layout() == "single":
+            csv_single = self.partitions_dir / "ram_regions_single.csv"
+            if not csv_single.exists():
+                raise FileNotFoundError(
+                    f"PSRAM_LAYOUT=single but {csv_single} does not exist"
+                )
+            return csv_single
         if self._psram_capacity() == "32M":
             csv_32m = self.partitions_dir / "ram_regions_32M.csv"
             if not csv_32m.exists():

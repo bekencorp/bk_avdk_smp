@@ -125,6 +125,35 @@ ifeq ($(PSRAM_CAPACITY),32M)
   export PROJECT_NAME := $(PROJECT_NAME)_psram32M
 endif
 
+# PSRAM layout variant. dual (default) uses ram_regions.csv with one die on
+# each controller window (0x60000000 / 0x64000000). single uses
+# ram_regions_single.csv for packages that populate only the PSRAM1 window
+# (0x64000000); the PSRAM0 window must then stay unmapped. The layout does not
+# change the build dir, so images keep the default build/<soc>/<project> path.
+# Select with PSRAM_LAYOUT=single on the make command line, or set
+# CONFIG_PSRAM_SINGLE_CHIP=y in the project CP defconfig (menuconfig [D]).
+ifndef PSRAM_LAYOUT
+  _PL_DEFCONFIG := $(PROJECT_DIR)/cp/config/$(ARMINO_SOC_NAME)/defconfig
+  ifneq ($(wildcard $(_PL_DEFCONFIG)),)
+    ifneq ($(shell grep -E '^CONFIG_PSRAM_SINGLE_CHIP=y' $(_PL_DEFCONFIG) 2>/dev/null),)
+      PSRAM_LAYOUT := single
+    endif
+  endif
+endif
+PSRAM_LAYOUT ?= dual
+export PSRAM_LAYOUT
+ifneq ($(filter $(PSRAM_LAYOUT),dual single),$(PSRAM_LAYOUT))
+  $(error PSRAM_LAYOUT=$(PSRAM_LAYOUT) is invalid, expected dual or single)
+endif
+ifeq ($(PSRAM_LAYOUT),single)
+  ifeq ($(PSRAM_CAPACITY),32M)
+    $(error PSRAM_LAYOUT=single and PSRAM_CAPACITY=32M are mutually exclusive)
+  endif
+  ifeq ($(wildcard $(PROJECT_DIR)/partitions/$(ARMINO_SOC_NAME)/ram_regions_single.csv),)
+    $(error PSRAM_LAYOUT=single but $(PROJECT_DIR)/partitions/$(ARMINO_SOC_NAME)/ram_regions_single.csv not found)
+  endif
+endif
+
 ifneq ("$(BUILD_DIR)", "")
 	export PROJECT_BUILD_DIR := $(BUILD_DIR)/$(ARMINO_SOC_NAME)/$(PROJECT_NAME)
 else
@@ -167,6 +196,7 @@ help:
 	@echo " make bkxxxx_cp_menuconfig - cp sdk config"
 	@echo " FLASH_CAPACITY=8M|16M     - select partition CSV; 16M images go to <project>_16M/"
 	@echo " PSRAM_CAPACITY=16M|32M    - select ram_regions CSV; 32M images go to <project>_psram32M/"
+	@echo " PSRAM_LAYOUT=dual|single  - dual: dies on PSRAM0+PSRAM1; single: one die on PSRAM1 only"
 	@echo ""
 
 common:
@@ -178,6 +208,7 @@ common:
 	@echo "armino build path=$(PROJECT_BUILD_DIR)"
 	@echo "FLASH_CAPACITY=$(FLASH_CAPACITY)"
 	@echo "PSRAM_CAPACITY=$(PSRAM_CAPACITY)"
+	@echo "PSRAM_LAYOUT=$(PSRAM_LAYOUT)"
 
 
 all: $(soc_targets) $(ARMINO_SOC)_cp
@@ -252,12 +283,24 @@ RAM_REGIONS_TABLE := $(RAM_REGIONS_DIR)/ram_regions.csv
 ifeq ($(PSRAM_CAPACITY),32M)
 RAM_REGIONS_TABLE := $(RAM_REGIONS_DIR)/ram_regions_32M.csv
 endif
+ifeq ($(PSRAM_LAYOUT),single)
+RAM_REGIONS_TABLE := $(RAM_REGIONS_DIR)/ram_regions_single.csv
+endif
 RAM_REGIONS_MPU_POLICY := $(wildcard $(RAM_REGIONS_TABLE:.csv=_mpu.json))
 ram_regions_out := $(PARTITIONS_DIR)/ram_regions.h
+# Remember which table produced ram_regions.h. Without this stamp, switching
+# layouts would not regenerate the header when the newly selected CSV is older
+# than the existing header, and the build would silently keep the old map.
+ram_regions_stamp := $(PARTITIONS_DIR)/ram_regions_table.stamp
+.PHONY: ram_regions_stamp_force
+ram_regions_stamp_force:
+$(ram_regions_stamp): ram_regions_stamp_force
+	@mkdir -p $(PARTITIONS_DIR)
+	@echo "$(RAM_REGIONS_TABLE)" | cmp -s - $@ || echo "$(RAM_REGIONS_TABLE)" > $@
 ram_regions_setting := $(firstword \
 	$(wildcard $(ARMINO_AVDK_DIR)/tools/build_tools/build_process/bk_sdk/smp_ram_setting_$(ARMINO_SOC_NAME).json) \
 	$(ARMINO_AVDK_DIR)/tools/build_tools/build_process/bk_sdk/smp_ram_setting.json)
-$(ram_regions_out): $(RAM_REGIONS_DIR) $(RAM_REGIONS_TABLE) $(RAM_REGIONS_MPU_POLICY) $(ram_partition_script) $(ram_regions_setting)
+$(ram_regions_out): $(RAM_REGIONS_DIR) $(RAM_REGIONS_TABLE) $(RAM_REGIONS_MPU_POLICY) $(ram_regions_stamp) $(ram_partition_script) $(ram_regions_setting)
 	@mkdir -p $(PARTITIONS_DIR)
 	@$(RUN_PYTHON3) $(ram_partition_script)
 

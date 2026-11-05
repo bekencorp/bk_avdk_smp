@@ -137,3 +137,43 @@ class test_bk_ram_region(TestCase):
         else:
             self.assertTrue(False, "not catch error")
             mem_header.unlink()
+
+    @staticmethod
+    def _write_single_psram_csv(mem_csv: Path, uncoded_addr: str) -> None:
+        mem_csv.write_text(
+            "SINGLE_PSRAM_CAPACITY_SIZE=16M\n"
+            "#Name,                   Type,     Offset,     Size\n"
+            f"PSRAM_MEM_SLAB_UNCODED, PSRAM, {uncoded_addr}, 0x0A00000\n"
+            "PSRAM_MEM_SLAB_CODED,   PSRAM,           , 0x0400000\n",
+            encoding="utf-8",
+        )
+
+    def test_bk_ram_region_single_psram_window(self):
+        workdir = curr_dir / "workspace"
+        mem_csv = workdir / "ram_region_single_psram.csv"
+        mem_header = workdir / "ram_region_single_psram.h"
+        self._write_single_psram_csv(mem_csv, "0x64000000")
+        try:
+            ram_region = bk_ram_region(mem_csv, "bk7259")
+            ram_region.set_psram_setting(0x60000000, 0x800000)
+            ram_region.set_single_psram_window(True)
+            ram_region.gen_memory_layout_hdr(mem_header)
+            self.assertTrue(mem_header.exists())
+        finally:
+            mem_csv.unlink(missing_ok=True)
+            mem_header.unlink(missing_ok=True)
+
+    def test_bk_ram_region_single_psram_window_rejects_psram0(self):
+        workdir = curr_dir / "workspace"
+        mem_csv = workdir / "ram_region_single_psram_psram0.csv"
+        mem_header = workdir / "ram_region_single_psram_psram0.h"
+        self._write_single_psram_csv(mem_csv, "0x60000000")
+        try:
+            ram_region = bk_ram_region(mem_csv, "bk7259")
+            ram_region.set_psram_setting(0x60000000, 0x800000)
+            ram_region.set_single_psram_window(True)
+            with self.assertRaises(RuntimeError):
+                ram_region.gen_memory_layout_hdr(mem_header)
+        finally:
+            mem_csv.unlink(missing_ok=True)
+            mem_header.unlink(missing_ok=True)

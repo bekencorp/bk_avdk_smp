@@ -116,6 +116,9 @@ function set_docker_option() {
     if [ -n "${PSRAM_CAPACITY:-}" ]; then
         DOCKER_OPTION="${DOCKER_OPTION} -e PSRAM_CAPACITY=${PSRAM_CAPACITY}"
     fi
+    if [ -n "${PSRAM_LAYOUT:-}" ]; then
+        DOCKER_OPTION="${DOCKER_OPTION} -e PSRAM_LAYOUT=${PSRAM_LAYOUT}"
+    fi
 }
 
 function docker_run_build() {

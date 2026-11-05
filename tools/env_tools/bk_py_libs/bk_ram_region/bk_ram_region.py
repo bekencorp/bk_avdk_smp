@@ -37,6 +37,7 @@ class bk_ram_region:
         self.psram_base = 0
         self.psram_capacity = 0
         self.psram_interleave = False
+        self.single_psram_window = False
         self.total_offset = 0
         self.sram_regions_num = 0
         self.psram_regions_num = 0
@@ -57,6 +58,15 @@ class bk_ram_region:
     def set_psram_interleave(self, enable: bool) -> None:
         """When True and soc is bk7259, PSRAM region addrs are remapped to interleaved view (0x80/0x81)."""
         self.psram_interleave = enable
+
+    def set_single_psram_window(self, enable: bool) -> None:
+        """When True, every PSRAM region must stay inside the PSRAM1 window.
+
+        Packages with one PSRAM die have no device on the PSRAM0 window; an
+        access there stalls the bus, so a layout that still maps a region to
+        PSRAM0 must fail at build time instead of hanging on the board.
+        """
+        self.single_psram_window = enable
 
     def _apply_psram_interleave_remap(self) -> None:
         """Remap PSRAM region offsets to BK7259 interleaved address space."""
@@ -127,6 +137,19 @@ class bk_ram_region:
                 base = self.psram_base
                 capacity = self.psram_capacity
                 self.psram_regions_num += 1
+                if self.single_psram_window and self.soc_name == "bk7259":
+                    window_end = PSRAM_NON_INTERLEAVE_PSRAM1_BASE + capacity
+                    if (
+                        region.offset < PSRAM_NON_INTERLEAVE_PSRAM1_BASE
+                        or region.offset + region.size > window_end
+                    ):
+                        raise RuntimeError(
+                            f"{region.name} [0x{region.offset:08x}, "
+                            f"0x{region.offset + region.size:08x}) is outside the "
+                            f"single PSRAM window [0x{PSRAM_NON_INTERLEAVE_PSRAM1_BASE:08x}, "
+                            f"0x{window_end:08x}); set SINGLE_PSRAM_CAPACITY_SIZE "
+                            f"to the real chip size if the capacity is wrong"
+                        )
             elif region.type == "SECURE":
                 base = self.sram_base
                 capacity = self.sram_capacity

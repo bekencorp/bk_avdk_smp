@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from pathlib import Path
 
 from bk_misc import parse_format_size
@@ -28,13 +29,9 @@ def _parse_psram_mpu_attr(region_name: str, value: object) -> int:
     )
 
 
-def _is_psram_interleave_enabled() -> bool:
-    """Read project AP config and return True if CONFIG_PSRAM_INTERLEAVE=y (for bk7259)."""
-    if curr_project.soc_name != "bk7259":
-        return False
-    ap_config_dir = curr_project.project_path / "ap" / "config" / f"{curr_project.soc_name}_ap"
+def _config_has_psram_interleave(config_dir: Path) -> bool:
     for name in ("config", "defconfig"):
-        cfg = ap_config_dir / name
+        cfg = config_dir / name
         if cfg.exists():
             try:
                 text = cfg.read_text()
@@ -43,6 +40,33 @@ def _is_psram_interleave_enabled() -> bool:
             except (OSError, ValueError):
                 pass
     return False
+
+
+def _is_psram_interleave_configured() -> bool:
+    """Return True if either core enables CONFIG_PSRAM_INTERLEAVE (for bk7259).
+
+    Interleave needs both PSRAM dies, so it conflicts with the single-die
+    layout whichever core enables it. Check AP and CP, both the project
+    defconfig and the generated build config, so a stale project defconfig or
+    a board-level default cannot hide the conflict.
+    """
+    if curr_project.soc_name != "bk7259":
+        return False
+    soc = curr_project.soc_name
+    project_path = curr_project.project_path
+    build_dir = curr_project.project_build_dir
+    config_dirs = [
+        project_path / "ap" / "config" / f"{soc}_ap",
+        project_path / "cp" / "config" / f"{soc}",
+        build_dir / f"{soc}_ap" / "config",
+        build_dir / f"{soc}" / "config",
+    ]
+    return any(_config_has_psram_interleave(d) for d in config_dirs)
+
+
+def _is_single_psram_layout() -> bool:
+    """True when the build selects the single-die layout (PSRAM_LAYOUT=single)."""
+    return os.getenv("PSRAM_LAYOUT", "dual").strip().lower() == "single"
 
 
 def set_logging():
@@ -70,7 +94,17 @@ def ram_region_partition(partitions_dir: Path, ram_regions_table: Path):
     ram_regions.set_sram_setting(sram_addr, sram_size)
     ram_regions.set_psram_setting(psram_addr, psram_size)
     ram_regions.set_default_setting(defconfig)
-    if _is_psram_interleave_enabled():
+    single_layout = _is_single_psram_layout()
+    interleave = _is_psram_interleave_configured()
+    if single_layout and interleave:
+        raise RuntimeError(
+            "PSRAM_LAYOUT=single conflicts with CONFIG_PSRAM_INTERLEAVE=y: "
+            "interleave needs two PSRAM dies, but the single-die layout leaves "
+            "the PSRAM0 window unmapped. Disable CONFIG_PSRAM_INTERLEAVE, or "
+            "build with PSRAM_LAYOUT=dual."
+        )
+    ram_regions.set_single_psram_window(single_layout)
+    if interleave:
         ram_regions.set_psram_interleave(True)
         logger.info("PSRAM interleave enabled: ram_regions.h will use 0x80/0x81 address space")
     if soc_name != "bk7259":
