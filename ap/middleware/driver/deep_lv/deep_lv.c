@@ -857,7 +857,6 @@ __IRAM_PM void dlv_context_save(void)
 __IRAM_PM DLV_STATIC void dlv_icache_flush_before_sleep(void)
 {
 #if CONFIG_ICACHE
-	cache_instr_invd_all();
 	__asm volatile
 	(
 		"dsb          \n"
