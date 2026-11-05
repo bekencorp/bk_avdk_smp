@@ -1664,6 +1664,42 @@ bk_err_t bk_pm_mcu_pm_ctrl(uint32_t power_state);
 uint32_t bk_pm_mcu_pm_state_get(void);
 
 /**
+ * @brief cache the bootloader version
+ *
+ * Read the bootloader version stamp and cache it for
+ * bk_pm_bootloader_version_get().
+ *
+ * @attention
+ * - This API reads flash, so it must be called only after the flash driver
+ *   has been initialized (i.e. after bk_init()). Do not call it from the
+ *   early boot path before driver_init().
+ *
+ * @param
+ * none
+ * @return
+ * - BK_OK: succeed
+ */
+bk_err_t bk_pm_bootloader_version_init(void);
+
+/**
+ * @brief get the cached bootloader version
+ *
+ * Get the bootloader version cached by bk_pm_bootloader_version_init().
+ *
+ * @attention
+ * - This API may be called from the sleep-entry IRAM path, it does not touch
+ *   flash. It must not be used before bk_pm_bootloader_version_init().
+ *
+ * @param
+ * none
+ * @return
+ * - Bootloader version encoded as major<<16 | minor<<8 | patch
+ * - BK_BOOTLOADER_VERSION_ABSENT: no valid version stamp
+ * - BK_BOOTLOADER_VERSION_CORRUPT: stamp exists but CRC mismatch
+ */
+__attribute__((section(".iram"))) uint32_t bk_pm_bootloader_version_get(void);
+
+/**
  * @brief set sleep mode
  *
  * set sleep mode.
