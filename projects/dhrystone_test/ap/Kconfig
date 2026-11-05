@@ -1,0 +1,8 @@
+config DHRYSTONE_TEST
+	depends on CLI
+	bool "Enable Dhrystone 2.1 (DMIPS) CLI command"
+	default n
+	help
+		Register the dhrystone command, which runs the Dhrystone 2.1
+		benchmark shipped with this project and reports Dhrystones/s
+		and DMIPS. The benchmark sources live in ap/dhrystone.
