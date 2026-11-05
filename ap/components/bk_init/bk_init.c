@@ -376,7 +376,16 @@ int bk_init(void)
 #endif
 
 #if CONFIG_PSRAM
+	/* Touch the PSRAM window that really exists on this package. Some
+	 * variants have no device on the PSRAM0 window (0x60000000) and a read
+	 * there stalls the bus until the watchdog resets the chip. */
+#if defined(CONFIG_PSRAM_MEM_SLAB_UNCODED_ADDR)
+	/* ram_regions.h holds secure-system addresses; add SOC_ADDR_OFFSET so a
+	 * non-secure AP probes its own alias in TF-M builds. */
+	REG_READ(CONFIG_PSRAM_MEM_SLAB_UNCODED_ADDR + SOC_ADDR_OFFSET);//check psram whether valid
+#else
 	REG_READ(SOC_PSRAM_DATA_BASE);//check psram whether valid
+#endif
 #endif
 
 #if CONFIG_MAILBOX
