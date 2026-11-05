@@ -151,7 +151,7 @@ int VSI_MPI_ISP_SetSensorUpdateMode(
     ISP_DEV IspDev, ISP_SENSOR_UPDATE_MODE_E mode);
 
 int VSI_ISP_CorePipelineSwitchSet(
-    ISP_PORT IspPort, vsi_u8_t enable);
+    ISP_PORT IspPort, vsi_u8_t mode);
 
 vsi_u8_t VSI_ISP_CorePipelineSwitchGet(ISP_PORT IspPort);
 

@@ -76,6 +76,13 @@ typedef enum
  */
 typedef void *bk_cam_handle_t;
 
+typedef enum
+{
+    BK_ISP_CAMERA_PIPELINE_SWITCH_SINGLE = 0U,
+    BK_ISP_CAMERA_PIPELINE_SWITCH_SYNC = 1U,
+    BK_ISP_CAMERA_PIPELINE_SWITCH_ASYNC = 2U,
+} bk_isp_camera_pipeline_switch_mode_t;
+
 /**
  * @brief Enumeration of camera interface IOCTL commands
  */
@@ -112,7 +119,7 @@ typedef enum
     BK_CAM_IOCTL_SET_GAMMA_OUT, /**< Set gamma-out attributes; arg = bk_isp_camera_gamma_out_attr_t * */
     BK_CAM_IOCTL_GET_FLEXA_BUF_SIZE, /**< Query flexa ring buffer size for a channel geometry; arg = bk_isp_camera_flexa_buf_size_t * */
     BK_CAM_IOCTL_SET_FLEXA_BUF, /**< Set an externally allocated flexa ring buffer before channel open; arg = bk_isp_camera_flexa_buf_t * */
-    BK_CAM_IOCTL_PIPELINE_SWITCH_ENABLE, /**< Enable pipeline configuration update; arg = uint8_t * */
+    BK_CAM_IOCTL_PIPELINE_SWITCH_ENABLE, /**< Set pipeline switch mode; arg = uint8_t *, value from bk_isp_camera_pipeline_switch_mode_t */
 } bk_cam_interface_ioctl_t;
 
 /**

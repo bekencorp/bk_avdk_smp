@@ -55,6 +55,12 @@ typedef enum vsiISP_SENSOR_UPDATE_MODE_E {
     ISP_SENSOR_UPDATE_AT_FRAME_IN = 1U,
 } ISP_SENSOR_UPDATE_MODE_E;
 
+typedef enum vsiISP_PIPELINE_SWITCH_MODE_E {
+    ISP_PIPELINE_SWITCH_SINGLE = 0U,
+    ISP_PIPELINE_SWITCH_SYNC = 1U,
+    ISP_PIPELINE_SWITCH_ASYNC = 2U,
+} ISP_PIPELINE_SWITCH_MODE_E;
+
 /** \brief   This structure specifies the ISP channel. */
 typedef struct {
     vsi_u32_t devId;  /**< \brief The device ID. */
