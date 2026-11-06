@@ -29,4 +29,5 @@ menu "App"
 		bool "Enable Seucirty Ota API"
 		default n
 
+	source "${ARMINO_TOOLS_PATH}/build_tools/build_files/Kconfig.ftp"
 endmenu
