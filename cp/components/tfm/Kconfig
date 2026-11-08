@@ -108,9 +108,24 @@ config TFM_REG_ACCESS_NSC
         registers through the secure world. Forwarded to the TF-M build as
         CONFIG_REG_ACCESS_NSC.
 
+config TFM_DMA_ATTR_NSC
+    bool "Enable NSC GDMA access-attribute restore gateway (psa_gdma_attr_restore)"
+    default n
+    help
+        Beken ARMv8-M CMSE non-secure-callable gateway that clears the GDMA0
+        per-channel secure_attr/privileged_attr masks after a deep-LV wakeup so
+        the non-secure channel register pages stay reachable. When set, the
+        secure world builds dma_attr_nsc.c and exports psa_gdma_attr_restore
+        into libtfm_s_veneers.a; it is used by the CP non-secure DMA driver
+        after wakeup and by the AP boot hook before the AP core leaves reset.
+        Kept independent of CONFIG_TFM_REG_ACCESS_NSC, which is expected to be
+        off in production builds. Forwarded to the TF-M build as
+        CONFIG_DMA_ATTR_NSC.
+
 config TFM_AP_BOOT_NSC
     bool "Enable NSC AP secure-prepare gateway (psa_ap_secure_prepare)"
     default n
+    select TFM_DMA_ATTR_NSC
     help
         Let the CP Non-Secure power manager own the AP start sequence while TF-M
         performs only the Secure-privilege steps through a narrow NSC. When set,

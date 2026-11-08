@@ -51,6 +51,8 @@ int psa_ap_secure_cancel(void);
  * 0 if not prepared. CP NS programs this into the AP boot offset. */
 uint32_t psa_ap_secure_boot_addr(void);
 
+int psa_gdma_attr_restore(void);
+
 #ifdef __cplusplus
 }
 #endif

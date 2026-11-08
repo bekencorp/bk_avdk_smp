@@ -22,9 +22,17 @@
  * the NS caller; the shim target comes from compile-time partition info. */
 
 #include <stdint.h>
+#include <stddef.h>
 #include "security_defs.h"
 #include "cmsis.h"
 #include "bk_tfm_ap_power.h"
+#include "soc/soc.h"
+#include "dma_struct.h"
+
+/* Shared GDMA0 access-attribute restore gateway (built from dma_attr_nsc.c):
+ * clears secure_attr/privileged_attr while the AP core is still in reset, so
+ * the pure non-secure AP never sees locked channel register pages. */
+int psa_gdma_attr_restore(void);
 
 /* Keep in sync with enum tfm_ap_boot_reason in tfm_ap_boot_nsc.h. */
 #define AP_BOOT_REASON_MAX 4u
@@ -107,6 +115,10 @@ __tz_c_veneer int psa_ap_secure_prepare(uint32_t boot_reason)
 	if (bk_ap_secure_resources_prepare(&boot_addr) != 0) {
 		goto out;
 	}
+
+	/* AP is still held in reset here; guarantee its GDMA access before the
+	 * NS caller releases the core. */
+	psa_gdma_attr_restore();
 
 	/* Re-check the AP core is still in reset after the shim install. */
 	if (bk_ap_domain_and_reset_ready() != 0) {

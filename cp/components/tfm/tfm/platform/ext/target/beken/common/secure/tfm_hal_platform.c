@@ -280,7 +280,7 @@ void tfm_hal_dma_init(void)
 	/* Soft reset DMA0 module */
 	*dma0_ctrl = 0;
 	*dma0_ctrl = 1;
-	*dma0_mask = 0xFFF;
+	*dma0_mask = 0;
 	*dma0_enable = 0;
 	*dma0_int_alloc = DMA0_INT_ALLOC_VALUE;
 }
@@ -363,6 +363,10 @@ uint32_t tfm_hal_get_ns_entry_point(void)
 #if CONFIG_REG_ACCESS_NSC
 	void psa_reg_nsc_stub(void);
 	psa_reg_nsc_stub();
+#endif
+#if CONFIG_DMA_ATTR_NSC
+	void psa_dma_attr_nsc_stub(void);
+	psa_dma_attr_nsc_stub();
 #endif
 #if CONFIG_AP_BOOT_NSC
 	void psa_ap_boot_nsc_stub(void);

@@ -55,6 +55,14 @@ if(CONFIG_OTP_NSC)
 	target_compile_definitions(platform_s PUBLIC CONFIG_OTP_NSC)
 endif()
 
+# NSC GDMA0 access-attribute restore gateway (see dma_attr_nsc.c). Uses its own
+# switch: CONFIG_REG_ACCESS_NSC is expected to be off in production builds, but
+# the CP NS lazy restore and the AP boot hook still need this secure-side fix.
+if(CONFIG_DMA_ATTR_NSC)
+	target_sources(platform_s PRIVATE dma_attr_nsc.c)
+	target_compile_definitions(platform_s PUBLIC CONFIG_DMA_ATTR_NSC)
+endif()
+
 # NSC AP secure-prepare gateway (see ap_boot_nsc.c).
 if(CONFIG_AP_BOOT_NSC)
 	target_sources(platform_s PRIVATE
