@@ -1,3 +1,6 @@
 case名称,测试命令（必填）,输入设备（1代表设备1，2代表设备2以此类推，不填默认为设备1）,期望结果（选填）,超时时间(s)
 reboot,reboot,1,[RESULT][PASS] bk_jpeg_encode_frame_test success,60
 bk_jpeg_frame_01,ap_cmd jpeg_encode frame,1,[RESULT][PASS] bk_jpeg_encode_frame_test success,60
+bk_jpeg_osd_01,ap_cmd jpeg_encode osd,1,[RESULT][PASS] bk_jpeg_encode_osd_test success,60
+bk_jpeg_osd_display_01,ap_cmd jpeg_encode osd_display,1,[RESULT][PASS] bk_jpeg_encode_osd_display_test success,240
+bk_jpeg_osd_bench_01,ap_cmd jpeg_encode osd_bench,1,[RESULT][PASS] bk_jpeg_encode_osd_bench_test success,300

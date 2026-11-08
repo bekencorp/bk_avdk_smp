@@ -3,10 +3,12 @@ set(incs . include ./jpeg_encode/include ./jpeg_encode/common)
 set(srcs ap_main.c
     jpeg_encode/src/jpeg_encode_cli.c
     jpeg_encode/src/bk_jpeg_encode_test.c
+    jpeg_encode/src/jpeg_encode_osd.c
+    jpeg_encode/src/jpeg_encode_display.c
     jpeg_encode/common/jpeg_encode_nv12_256x128.c
     )
 
-set(priv_req media_service bk_cli avdk_utils bk_encoder)
+set(priv_req media_service bk_cli bk_peripheral avdk_utils bk_encoder bk_gpu bk_decoder)
 
 armino_component_register(SRCS "${srcs}" INCLUDE_DIRS "${incs}" PRIV_REQUIRES "${priv_req}")
 
