@@ -873,11 +873,17 @@ static int aec_vad_proc(aec_v3_algorithm_t *aec)
     return aec_vad_flag;
 }
 
-static AECContextExt s_aec_ext __attribute__((aligned(8)));
+#if CONFIG_ADK_AEC_V3_USE_DTCM
+#define AEC_EXT_ATTR __attribute__((section(".dtcm_noinit"), aligned(8)))
+#else
+#define AEC_EXT_ATTR __attribute__((aligned(8)))
+#endif
+static AECContextExt s_aec_ext AEC_EXT_ATTR;
+
 #if CONFIG_ADK_AEC_V3_USE_DTCM
 #define AEC_BUF_ADD 0x20000000
 /* scratch buffer, memset before use -> put in NOLOAD DTCM region to skip boot-time flash copy */
-uint32 AEC_DTCM_BUFFER[32*1024/4] __attribute__((section(".dtcm_noinit")));
+uint32 AEC_DTCM_BUFFER[40*1024/4] __attribute__((section(".dtcm_noinit")));
 static void *aec_dtcm_malloc(uint32_t size)
 {
     void *data = NULL;
@@ -1028,7 +1034,6 @@ static bk_err_t _aec_v3_algorithm_open(audio_element_handle_t self)
         return BK_FAIL;
     }
 
-    /* 三麦扩展缓冲位于 SRAM，每次 open 清零，保证与 DTCM 路径一致的初始状态 */
     os_memset(&s_aec_ext, 0, sizeof(s_aec_ext));
     aec->aec_ctx->ext = &s_aec_ext;
 
