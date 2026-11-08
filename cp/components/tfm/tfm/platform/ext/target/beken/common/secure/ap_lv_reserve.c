@@ -85,6 +85,7 @@ typedef struct {
 
 typedef struct {
 	uint32_t magic;
+	uint32_t point_mask;   /* bit i set: entry i has a bad cell to write back */
 	ap_lv_reserve_entry_t entry[AP_MEM_CHECK_POINT_NUM];
 } ap_lv_reserve_t;
 
@@ -93,16 +94,24 @@ static volatile ap_lv_reserve_t s_ap_lv_reserve;
 static void ap_lv_reserve_restore(void)
 {
 	volatile ap_lv_reserve_t *tbl = &s_ap_lv_reserve;
+	uint32_t point_mask;
 
 	if (tbl->magic != AP_LV_RESERVE_MAGIC) {
 		return;
 	}
 
+	point_mask = tbl->point_mask;
 	tbl->magic = 0U;
 
-	for (uint32_t i = 0; i < AP_MEM_CHECK_POINT_NUM; i++) {
-		uint32_t addr = tbl->entry[i].addr;
-		uint32_t words = tbl->entry[i].words;
+	while (point_mask != 0U) {
+		uint32_t i = (uint32_t)__builtin_ctz(point_mask);
+		uint32_t addr;
+		uint32_t words;
+
+		point_mask &= point_mask - 1U;
+
+		addr = tbl->entry[i].addr;
+		words = tbl->entry[i].words;
 
 		/* Retained RAM can flip a word: keep the write inside the AP banks. */
 		if (!ap_mem_check_addr_in_ap_ram(addr) ||
@@ -121,10 +130,15 @@ static void ap_lv_reserve_restore(void)
 static void ap_lv_reserve_save(void)
 {
 	volatile ap_lv_reserve_t *tbl = &s_ap_lv_reserve;
+	uint32_t point_mask = 0U;
 
 	for (uint32_t i = 0; i < AP_MEM_CHECK_POINT_NUM; i++) {
 		uint32_t addr = ap_mem_check_bad_point_addr_get(i);
 		uint32_t words = (addr != 0U) ? ap_mem_check_bad_point_words_get(i) : 0U;
+
+		if (addr != 0U) {
+			point_mask |= 1U << i;
+		}
 
 		tbl->entry[i].addr = addr;
 		tbl->entry[i].words = words;
@@ -133,6 +147,7 @@ static void ap_lv_reserve_save(void)
 		}
 	}
 
+	tbl->point_mask = point_mask;
 	flush_all_dcache();
 	__DSB();
 
@@ -150,55 +165,27 @@ void psa_ap_lv_reserve_nsc_stub(void)
 {
 }
 
-/* The AP memory-check OTP region is written once, in production, so its content
- * cannot change while the device runs. Cache it in secure RAM (a plain .bss
- * object, which the warm path does not re-initialise), so the full import -
- * almost all of it the OTP read - runs once per CP boot and every later AP
- * bring-up only redoes the MEM_CHECK register writes. Same shape as the plain
- * project's copy in mcheck_hal.c; a failed read is not cached, so a retry
- * happens on the next bring-up. */
-#define AP_MEM_CHECK_OTP_CACHE_MAGIC    0x31434D41U /* "AMC1" */
-static uint8_t s_ap_mem_check_otp_cache[AP_MEM_CHECK_OTP_BYTES];
-static uint32_t s_ap_mem_check_otp_cache_valid = 0;
+/* The decoded repair records, one word each: repair data in [31:16], repair slot
+ * in [6:0]. Kept in secure .bss (retained across CP deep-LV); decoding once per
+ * CP boot is enough, every later AP bring-up only replays the plan. Twin of
+ * mcheck_hal.c. */
+#define AP_MEM_CHECK_PLAN_MAGIC         0x414D434AU /* "JCMA" */
+#define AP_MEM_CHECK_PLAN_DATA_SHIFT    16U
+#define AP_MEM_CHECK_PLAN_SLOT_MASK     0x0000007FU
 
-static bk_err_t ap_mem_check_otp_get(const uint8_t **otp)
+static uint32_t s_ap_mem_check_plan[AP_MEM_CHECK_REPAIR_LIMIT];
+static uint32_t s_ap_mem_check_plan_num;
+static uint32_t s_ap_mem_check_plan_magic;
+
+static void ap_mem_check_plan_build(const uint8_t *otp)
 {
-	if (s_ap_mem_check_otp_cache_valid == AP_MEM_CHECK_OTP_CACHE_MAGIC) {
-		*otp = s_ap_mem_check_otp_cache;
-		return BK_OK;
-	}
+	uint32_t num = 0;
 
-	if (otp_read(OTP_MAP_APB, OTP_M55SUB_MEMCHECK, s_ap_mem_check_otp_cache,
-			sizeof(s_ap_mem_check_otp_cache)) != BK_OK) {
-		return BK_FAIL;
-	}
-
-	s_ap_mem_check_otp_cache_valid = AP_MEM_CHECK_OTP_CACHE_MAGIC;
-	*otp = s_ap_mem_check_otp_cache;
-	return BK_OK;
-}
-
-/* Import the AP repair records from OTP into the MEM_CHECK registers. Returns 0,
- * or -1 when the OTP could not be read. */
-__tz_c_veneer int psa_ap_mem_check_restore_from_otp(void)
-{
-	const uint8_t *otp;
-	uint32_t restored = 0;
-
-	if (ap_mem_check_otp_get(&otp) != BK_OK) {
-		return -1;
-	}
-
-	/* AON PMU R0 bit0 (memchk_bps): make sure the memory-check path is not
-	 * bypassed before the AP starts. Reached through the NS alias, like
-	 * bk_tfm_ap_power.c. */
-	*(volatile uint32_t *)SOC_GET_NS_ADDR(SOC_AON_PMU_REG_BASE) &= ~1U;
-	__DSB();
+	s_ap_mem_check_plan_magic = 0U;
 
 	for (uint32_t off = 0; off + 4U <= AP_MEM_CHECK_OTP_BYTES; off += 4U) {
 		uint32_t word = load_le32(&otp[off]);
-		uint32_t slot, repair_data, mask;
-		volatile uint32_t *reg;
+		uint32_t slot;
 
 		if ((word & AP_MEM_CHECK_OTP_VALID_MASK) == 0U) {
 			continue;
@@ -209,15 +196,77 @@ __tz_c_veneer int psa_ap_mem_check_restore_from_otp(void)
 			continue;
 		}
 
-		repair_data = word & AP_MEM_CHECK_OTP_DATA_MASK;
-		mask = s_ap_mem_check_restore_mask[slot];
-		reg = (volatile uint32_t *)SOC_AP_MEM_CHECK_REG_BASE +
-			AP_MEM_CHECK_REPAIR_REG_FIRST + slot;
-		*reg = (*reg & ~mask) | (repair_data & mask);
+		s_ap_mem_check_plan[num] = (slot & AP_MEM_CHECK_PLAN_SLOT_MASK) |
+			((word & AP_MEM_CHECK_OTP_DATA_MASK) << AP_MEM_CHECK_PLAN_DATA_SHIFT);
 
-		if (++restored >= AP_MEM_CHECK_REPAIR_LIMIT) {
+		if (++num >= AP_MEM_CHECK_REPAIR_LIMIT) {
 			break;
 		}
+	}
+
+	s_ap_mem_check_plan_num = num;
+	/* Magic last: a partially built plan must never be replayed. */
+	s_ap_mem_check_plan_magic = AP_MEM_CHECK_PLAN_MAGIC;
+}
+
+/* The AP memory-check OTP region is written once, in production, so it cannot
+ * change while the device runs. The image is read into a local buffer, so the
+ * 232 bytes are only on the stack during the cold-boot build; keep this out of
+ * line so a warm bring-up never pays that frame. */
+static __attribute__((noinline)) bk_err_t ap_mem_check_plan_rebuild(void)
+{
+	uint8_t otp[AP_MEM_CHECK_OTP_BYTES];
+
+	if (otp_read(OTP_MAP_APB, OTP_M55SUB_MEMCHECK, otp, sizeof(otp)) != BK_OK) {
+		return BK_FAIL;
+	}
+
+	ap_mem_check_plan_build(otp);
+	return BK_OK;
+}
+
+/* Return the repair plan, decoding the OTP image on the first call after a cold
+ * boot; the plan lives in retained secure RAM, so every later AP bring-up gets
+ * it back without touching OTP. Returns NULL when the OTP could not be read. */
+static const uint32_t *ap_mem_check_plan_get(uint32_t *num)
+{
+	if (s_ap_mem_check_plan_magic != AP_MEM_CHECK_PLAN_MAGIC) {
+		if (ap_mem_check_plan_rebuild() != BK_OK) {
+			return NULL;
+		}
+	}
+
+	*num = s_ap_mem_check_plan_num;
+	return s_ap_mem_check_plan;
+}
+
+/* Import the AP repair records from OTP into the MEM_CHECK registers. Returns 0,
+ * or -1 when the OTP could not be read. */
+__tz_c_veneer int psa_ap_mem_check_restore_from_otp(void)
+{
+	uint32_t num;
+	const uint32_t *plan = ap_mem_check_plan_get(&num);
+
+	if (plan == NULL) {
+		return -1;
+	}
+
+	/* AON PMU R0 bit0 (memchk_bps): make sure the memory-check path is not
+	 * bypassed before the AP starts. Reached through the NS alias, like
+	 * bk_tfm_ap_power.c. */
+	*(volatile uint32_t *)SOC_GET_NS_ADDR(SOC_AON_PMU_REG_BASE) &= ~1U;
+	__DSB();
+
+	for (uint32_t i = 0; i < num; i++) {
+		uint32_t record = plan[i];
+		uint32_t slot = record & AP_MEM_CHECK_PLAN_SLOT_MASK;
+		uint32_t value = (record >> AP_MEM_CHECK_PLAN_DATA_SHIFT) &
+			AP_MEM_CHECK_OTP_DATA_MASK;
+		uint32_t mask = s_ap_mem_check_restore_mask[slot];
+		volatile uint32_t *reg = (volatile uint32_t *)SOC_AP_MEM_CHECK_REG_BASE +
+			AP_MEM_CHECK_REPAIR_REG_FIRST + slot;
+
+		*reg = (*reg & ~mask) | (value & mask);
 	}
 
 	__DSB();
