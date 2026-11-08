@@ -189,79 +189,105 @@ static uint32_t load_le32(const uint8_t *data)
 		| ((uint32_t)data[3] << 24);
 }
 
-/* The AP memory-check OTP region is written once, in production, so its content
- * cannot change while the device runs. This cache lives in CP RAM, which is
- * retained through CP deep-LV, so the full import (531 us, 375 us of it this OTP
- * read) runs once per CP boot and every later AP bring-up replays the cached
- * bytes instead, paying only the MEM_CHECK register writes (156-187 us). A
- * failed read is not cached, so a retry happens on the next bring-up. */
-#define AP_MEM_CHECK_OTP_CACHE_MAGIC    0x31434D41U /* "AMC1" */
-static uint8_t s_ap_mem_check_otp_cache[AP_MEM_CHECK_OTP_BYTES];
-static uint32_t s_ap_mem_check_otp_cache_valid = 0;
+#define AP_MEM_CHECK_PLAN_MAGIC         0x414D434AU /* "JCMA" */
+#define AP_MEM_CHECK_PLAN_DATA_SHIFT    16U
+#define AP_MEM_CHECK_PLAN_SLOT_MASK     0x0000007FU
 
-static bk_err_t ap_mem_check_otp_get(const uint8_t **otp)
+static uint32_t s_ap_mem_check_plan[AP_MEM_CHECK_REPAIR_LIMIT];
+static uint32_t s_ap_mem_check_plan_num;
+static uint32_t s_ap_mem_check_plan_magic;
+
+static void ap_mem_check_plan_build(const uint8_t *otp)
 {
-	if (s_ap_mem_check_otp_cache_valid == AP_MEM_CHECK_OTP_CACHE_MAGIC) {
-		*otp = s_ap_mem_check_otp_cache;
-		return BK_OK;
+	uint32_t num = 0;
+
+	s_ap_mem_check_plan_magic = 0U;
+
+	for (uint32_t off = 0; off + 4U <= AP_MEM_CHECK_OTP_BYTES; off += 4U) {
+		uint32_t word = load_le32(&otp[off]);
+		uint32_t slot;
+
+		if ((word & AP_MEM_CHECK_OTP_VALID_MASK) == 0U) {
+			continue;
+		}
+
+		slot = (word & AP_MEM_CHECK_OTP_SLOT_MASK) >> AP_MEM_CHECK_OTP_SLOT_SHIFT;
+		if (slot >= AP_MEM_CHECK_REPAIR_SLOT_NUM) {
+			BK_LOGW(NULL, "skip invalid AP memcheck word 0x%08lx\r\n",
+				(unsigned long)word);
+			continue;
+		}
+
+		s_ap_mem_check_plan[num] = (slot & AP_MEM_CHECK_PLAN_SLOT_MASK) |
+			((word & AP_MEM_CHECK_OTP_DATA_MASK) << AP_MEM_CHECK_PLAN_DATA_SHIFT);
+
+		if (++num >= AP_MEM_CHECK_REPAIR_LIMIT) {
+			break;
+		}
 	}
 
-	if (bk_otp_apb_read(OTP_M55SUB_MEMCHECK, s_ap_mem_check_otp_cache,
-			sizeof(s_ap_mem_check_otp_cache)) != BK_OK) {
+	s_ap_mem_check_plan_num = num;
+	/* Magic last: a partially built plan must never be replayed. */
+	s_ap_mem_check_plan_magic = AP_MEM_CHECK_PLAN_MAGIC;
+}
+
+static __attribute__((noinline)) bk_err_t ap_mem_check_plan_rebuild(void)
+{
+	uint8_t otp[AP_MEM_CHECK_OTP_BYTES];
+
+	if (bk_otp_apb_read(OTP_M55SUB_MEMCHECK, otp, sizeof(otp)) != BK_OK) {
 		BK_LOGE(NULL, "read the AP memory-check OTP failed\r\n");
 		return BK_FAIL;
 	}
 
-	s_ap_mem_check_otp_cache_valid = AP_MEM_CHECK_OTP_CACHE_MAGIC;
-	*otp = s_ap_mem_check_otp_cache;
+	ap_mem_check_plan_build(otp);
 	return BK_OK;
+}
+
+static const uint32_t *ap_mem_check_plan_get(uint32_t *num)
+{
+	if (s_ap_mem_check_plan_magic != AP_MEM_CHECK_PLAN_MAGIC) {
+		if (ap_mem_check_plan_rebuild() != BK_OK) {
+			return NULL;
+		}
+	}
+
+	*num = s_ap_mem_check_plan_num;
+	return s_ap_mem_check_plan;
 }
 
 bk_err_t hal_ap_mem_check_restore_from_otp(void)
 {
-	const uint8_t *otp = NULL;
-	uint32_t restored = 0;
+	uint32_t num;
+	const uint32_t *plan = ap_mem_check_plan_get(&num);
 
-	if (ap_mem_check_otp_get(&otp) != BK_OK) {
+	if (plan == NULL) {
 		return BK_FAIL;
 	}
 
 	/* Make sure the memory-check path is not bypassed before AP starts. */
 	aon_pmu_ll_set_r0_memchk_bps(0);
 
-	for (uint32_t off = 0; off + 4U <= AP_MEM_CHECK_OTP_BYTES; off += 4U) {
-		uint32_t word = load_le32(&otp[off]);
-		if ((word & AP_MEM_CHECK_OTP_VALID_MASK) == 0U) {
-			continue;
-		}
-
-		uint32_t slot = (word & AP_MEM_CHECK_OTP_SLOT_MASK) >> AP_MEM_CHECK_OTP_SLOT_SHIFT;
-		uint32_t repair_data = word & AP_MEM_CHECK_OTP_DATA_MASK;
-
-		if (slot >= AP_MEM_CHECK_REPAIR_SLOT_NUM) {
-			BK_LOGW(NULL, "skip invalid AP memcheck word 0x%08lx\r\n", (unsigned long)word);
-			continue;
-		}
-
+	for (uint32_t i = 0; i < num; i++) {
+		uint32_t record = plan[i];
+		uint32_t slot = record & AP_MEM_CHECK_PLAN_SLOT_MASK;
+		uint32_t value = (record >> AP_MEM_CHECK_PLAN_DATA_SHIFT) &
+			AP_MEM_CHECK_OTP_DATA_MASK;
 		uint32_t mask = s_ap_mem_check_restore_mask[slot];
 		volatile uint32_t *reg = (volatile uint32_t *)SOC_AP_MEM_CHECK_REG_BASE +
 			AP_MEM_CHECK_REPAIR_REG_FIRST + slot;
-		uint32_t reg_value = *reg;
-		reg_value = (reg_value & ~mask) | (repair_data & mask);
-		*reg = reg_value;
 
-		restored++;
-		if (restored >= AP_MEM_CHECK_REPAIR_LIMIT) {
-			break;
-		}
+		*reg = (*reg & ~mask) | (value & mask);
 	}
 
 	/* Silent on a die with no repair record, which is every AP power-up on a
 	 * clean part: the user has nothing to act on. Failures above stay loud. */
-	if (restored != 0U) {
-		BK_LOGD(NULL, "restored %lu AP memcheck repair words\r\n", (unsigned long)restored);
+	if (num != 0U) {
+		BK_LOGD(NULL, "restored %lu AP memcheck repair words\r\n",
+			(unsigned long)num);
 	}
 
 	return BK_OK;
 }
+
 #endif
