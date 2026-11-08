@@ -117,6 +117,49 @@ bk_err_t bk_usb_open (uint32_t usb_mode);
 bk_err_t bk_usb_close (void);
 
 /**
+ * @brief     open the FS/LS USB IP (dual-IP mode)
+ *
+ * Bring the second BK7259 USB IP (SOC_USB_FS_BASE) up as a CherryUSB
+ * host on bus 1 while the HS IP keeps bus 0. Compiles only with
+ * CONFIG_USB_FS_HOST=y; returns BK_FAIL otherwise.
+ *
+ * Shared-resource policy with the HS port:
+ *   - VBUS LDO (bk_usb_power_ops) is turned on automatically if nobody
+ *     has enabled it yet, and released by whichever USB port closes last
+ *     (the HS close path picks the ownership up if it closes after this
+ *     one).
+ *   - The PM sleep vote (PM_SLEEP_MODULE_NAME_USB_1) is shared: sleep is
+ *     re-allowed only after both ports are closed.
+ *
+ * @return
+ *    - BK_OK: succeed
+ *    - others: other errors.
+ */
+bk_err_t bk_usb_fs_open (uint32_t usb_mode);
+
+/**
+ * @brief     close the FS/LS USB IP
+ *
+ * Counterpart of bk_usb_fs_open(). Shared resources are released only
+ * when the HS port is closed as well.
+ *
+ * @return
+ *    - BK_OK: succeed
+ *    - others: other errors.
+ */
+bk_err_t bk_usb_fs_close (void);
+
+/**
+ * @brief     Obtain whether a device is attached to the FS/LS port
+ *
+ * @return
+ *    - TRUE: connect
+ *    - FALSE: disconnect (also FALSE when the FS bus is closed or
+ *      CONFIG_USB_FS_HOST is disabled)
+*/
+bool bk_usb_fs_get_device_connect_status(void);
+
+/**
  * @brief     Obtain whether there is currently a device connection
  *
  *
