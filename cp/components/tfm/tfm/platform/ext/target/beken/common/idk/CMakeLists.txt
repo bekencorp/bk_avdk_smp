@@ -84,8 +84,10 @@ set_source_files_properties(
 # PM Kconfig value symbols it introduced (used as literals in sys_pm_hal.c) are
 # undefined here. Provide the Kconfig default (matches the CP-core sdkconfig).
 target_compile_definitions(platform_s PRIVATE CONFIG_AON_LDO_SEL=4)
+target_compile_definitions(platform_s PRIVATE CONFIG_AON_LDO_SEL_FOR_LV=3)
 if (BL2)
 	target_compile_definitions(platform_bl2 PRIVATE CONFIG_AON_LDO_SEL=4)
+	target_compile_definitions(platform_bl2 PRIVATE CONFIG_AON_LDO_SEL_FOR_LV=3)
 endif()
 else()
 target_sources(platform_s
