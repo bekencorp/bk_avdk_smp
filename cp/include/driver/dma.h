@@ -48,6 +48,24 @@ bk_err_t bk_dma_driver_init(void);
 bk_err_t bk_dma_driver_deinit(void);
 
 /**
+ * @brief     Restore GDMA0 access attributes after low-power wakeup
+ *
+ * After deep low-voltage sleep the GDMA0 register context is reset, which
+ * re-locks every channel register window to secure/privileged-only access
+ * (secure_attr/privileged_attr = 0xFF) and makes non-secure accesses of the
+ * channel registers BusFault. This API restores the cold-boot working values
+ * (both attribute masks cleared) through the dedicated TF-M secure gateway
+ * psa_gdma_attr_restore. It is intended to be called by the low-power module
+ * on every LV wakeup path.
+ *
+ * On builds without CONFIG_TFM_DMA_ATTR_NSC the restore is compiled out.
+ *
+ * @return
+ *    - BK_OK: succeed
+ */
+bk_err_t bk_dma_restore_access_attr_after_wakeup(void);
+
+/**
  * @brief     Allocate a DMA channel
  *
  * @attention: This API can only be called in task context, 
