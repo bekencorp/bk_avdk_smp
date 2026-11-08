@@ -18,6 +18,7 @@
 
 #if CONFIG_TFM_OTP_NSC
 #include "tfm_otp_nsc.h"
+#include "tfm_ns_interface.h"
 #endif
 
 #if CONFIG_OTP_V1
@@ -261,7 +262,11 @@ static void cli_otp_nsc_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
 		uint32_t size = os_strtoul(argv[4], NULL, 10);
 		uint8_t* data = (uint8_t*)os_malloc(size*sizeof(uint8_t));
 		memset(data, 0xFF, size);
-		int ret = bk_otp_read_nsc(map_id, item, data, size);
+		int ret;
+
+		tfm_ns_secure_call_lock();
+		ret = bk_otp_read_nsc(map_id, item, data, size);
+		tfm_ns_secure_call_unlock();
 		BK_RAW_LOGD(NULL, "read ret = %d, data in little endian:\r\n",ret);
 		for(int i = 0;i < size; i++){
 			BK_RAW_LOGD(NULL, "%x ",data[i]);
@@ -276,7 +281,11 @@ static void cli_otp_nsc_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
 		uint8_t* data = (uint8_t*)os_malloc(size*sizeof(uint8_t));
 		memset(data, 0, size);
 		otp_hexstr2bin(argv[5], data, size);
-		int ret = bk_otp_update_nsc(map_id, item, data, size);
+		int ret;
+
+		tfm_ns_secure_call_lock();
+		ret = bk_otp_update_nsc(map_id, item, data, size);
+		tfm_ns_secure_call_unlock();
 		BK_RAW_LOGD(NULL, "write ret = %d\r\n",ret);
 		os_free(data);
 		data = NULL;
@@ -284,19 +293,31 @@ static void cli_otp_nsc_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
 		uint32_t map_id = os_strtoul(argv[2], NULL, 10);
 		uint32_t item = os_strtoul(argv[3], NULL, 10);
 		uint32_t permission = 0;
-		int ret = bk_otp_read_permission_nsc(map_id, item, &permission);
+		int ret;
+
+		tfm_ns_secure_call_lock();
+		ret = bk_otp_read_permission_nsc(map_id, item, &permission);
+		tfm_ns_secure_call_unlock();
 		BK_RAW_LOGD(NULL, "read ret = %d, permission = %#x\r\n",ret, permission);
 	} else if (os_strcmp(argv[1], "write_permission") == 0) {
 		uint32_t map_id = os_strtoul(argv[2], NULL, 10);
 		uint32_t item = os_strtoul(argv[3], NULL, 10);
 		uint32_t permission = os_strtoul(argv[4], NULL, 16);
-		int ret = bk_otp_write_permission_nsc(map_id, item, permission);
+		int ret;
+
+		tfm_ns_secure_call_lock();
+		ret = bk_otp_write_permission_nsc(map_id, item, permission);
+		tfm_ns_secure_call_unlock();
 		BK_RAW_LOGD(NULL, "write ret = %d\r\n",ret);
 	} else if (os_strcmp(argv[1], "write_mask") == 0) {
 		uint32_t map_id = os_strtoul(argv[2], NULL, 10);
 		uint32_t item = os_strtoul(argv[3], NULL, 10);
 		uint32_t permission = os_strtoul(argv[4], NULL, 16);
-		int ret = bk_otp_write_mask_nsc(map_id, item, permission);
+		int ret;
+
+		tfm_ns_secure_call_lock();
+		ret = bk_otp_write_mask_nsc(map_id, item, permission);
+		tfm_ns_secure_call_unlock();
 		BK_RAW_LOGD(NULL, "write ret = %d\r\n",ret);
 	} else {
 		cli_otp_help();

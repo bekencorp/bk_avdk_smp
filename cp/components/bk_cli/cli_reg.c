@@ -60,7 +60,9 @@
 #endif
 
 #if CONFIG_TFM_REG_ACCESS_NSC
+#include <os/os.h>
 #include "tfm_reg_nsc.h"
+#include "tfm_ns_interface.h"
 #endif
 
 
@@ -140,7 +142,12 @@ static void cli_reg_write_read_cmd_common(char *pcWriteBuffer, int xWriteBufferL
 			BK_LOGD(NULL, "regshow non_secure R: addr:0x%08x, value:0x%08x\r\n", reg_addr, REG_READ(reg_addr));
 		} else {
 #if CONFIG_TFM_REG_ACCESS_NSC
-			BK_LOGD(NULL, "regshow secure R: addr:0x%08x, value:0x%08x\r\n", reg_addr, psa_reg_read(reg_addr));
+			uint32_t reg_val;
+
+			tfm_ns_secure_call_lock();
+			reg_val = psa_reg_read(reg_addr);
+			tfm_ns_secure_call_unlock();
+			BK_LOGD(NULL, "regshow secure R: addr:0x%08x, value:0x%08x\r\n", reg_addr, reg_val);
 #endif
 		}
 	} else if (os_strncmp(argv[1], "-w", 2) == 0) {
@@ -174,7 +181,9 @@ static void cli_reg_write_read_cmd_common(char *pcWriteBuffer, int xWriteBufferL
 
 		if (is_secure == false) {
 #if CONFIG_TFM_REG_ACCESS_NSC
+			tfm_ns_secure_call_lock();
 			psa_reg_write(reg_addr, reg_value);
+			tfm_ns_secure_call_unlock();
 			return;
 #endif
 		} else {

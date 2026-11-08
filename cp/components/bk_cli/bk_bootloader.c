@@ -39,10 +39,17 @@
 #if CONFIG_TFM_BOOTLOADER_VERSION_NSC
 
 #include "tfm_bootloader_nsc.h"
+#include "tfm_ns_interface.h"
 
 static uint32_t bootloader_version_read(void)
 {
-	return bk_bootloader_version_nsc();
+	uint32_t ver;
+
+	tfm_ns_secure_call_lock();
+	ver = bk_bootloader_version_nsc();
+	tfm_ns_secure_call_unlock();
+
+	return ver;
 }
 
 #else /* aboot: the stamp lives in the bootloader partition, read it directly */
