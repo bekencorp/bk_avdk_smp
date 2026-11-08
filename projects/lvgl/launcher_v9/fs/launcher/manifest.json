@@ -1,0 +1,6 @@
+{
+  "id": "launcher",
+  "name": "Launcher",
+  "version": "1.0.0",
+  "entry": "main.js"
+}
