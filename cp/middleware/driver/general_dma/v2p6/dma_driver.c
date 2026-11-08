@@ -249,8 +249,46 @@ bk_err_t bk_dma_driver_deinit(void)
     return BK_OK;
 }
 
+#if CONFIG_TFM_DMA_ATTR_NSC
+/* Shared secure-side gateway (dma_attr_nsc.c); independent of the generic
+ * register NSC switch, which is expected to be off in production builds. */
+extern int psa_gdma_attr_restore(void);
+
+bk_err_t bk_dma_restore_access_attr_after_wakeup(void)
+{
+
+    psa_gdma_attr_restore();
+
+    return BK_OK;
+}
+
+/* Lazy GDMA0 access-attribute restore on the driver entry paths.
+ *
+ * Across deep-LV sleep the GDMA0 register context resets to defaults and the
+ * per-channel masks secure_attr (REG 0x10) / privileged_attr (REG 0x14) come
+ * back 0xFF, so non-secure accesses of the channel register pages (e.g.
+ * 0x55020140) BusFault after wakeup. The global register page (including
+ * secure_attr) stays readable from the non-secure side even in that locked
+ * state, so one cheap NS register read gates the dedicated NSC restore
+ * (psa_gdma_attr_restore): no state flag is needed, the check is idempotent
+ * and re-arms itself automatically on every wakeup. When the attributes are
+ * already correct (cold boot, or the AP-boot NSC hook already applied), this
+ * costs a single register read.
+ */
+static void dma_lazy_restore_access_attr(void)
+{
+	if (REG_READ(SOC_GENER_DMA_REG_BASE + offsetof(dma_hw_t, secure_attr)) != 0u) {
+		bk_dma_restore_access_attr_after_wakeup();
+	}
+}
+#endif
+
 dma_id_t bk_dma_alloc(u16 user_id)
 {
+#if CONFIG_TFM_DMA_ATTR_NSC
+	dma_lazy_restore_access_attr();
+#endif
+
     if (!s_dma_driver_is_init)
     {
         return DMA_ID_MAX;
@@ -309,6 +347,12 @@ uint32_t bk_dma_user(dma_id_t chnl_id)
 
 bk_err_t bk_dma_init(dma_id_t id, const dma_config_t *config)
 {
+#if CONFIG_TFM_DMA_ATTR_NSC
+	/* Deep-LV wakeup: GDMA0 access attributes relock to secure-only, restore
+	 * them before any GDMA register is touched (see
+	 * dma_lazy_restore_access_attr). */
+	dma_lazy_restore_access_attr();
+#endif
     dma_hal_init_without_channels(&s_dma.hal);	//TODO:special codes for DMA init after enter low voltage
 
 #if CONFIG_SUPPORT_CACHEABLE_SRAM
@@ -330,6 +374,9 @@ bk_err_t bk_dma_deinit(dma_id_t id)
 
 bk_err_t bk_dma_start(dma_id_t id)
 {
+#if CONFIG_TFM_DMA_ATTR_NSC
+	dma_lazy_restore_access_attr();
+#endif
     DMA_RETURN_ON_NOT_INIT();
     dma_hal_start_common(&s_dma.hal, id);
     return BK_OK;
@@ -337,6 +384,9 @@ bk_err_t bk_dma_start(dma_id_t id)
 
 bk_err_t bk_dma_stop(dma_id_t id)
 {
+#if CONFIG_TFM_DMA_ATTR_NSC
+	dma_lazy_restore_access_attr();
+#endif
     DMA_RETURN_ON_NOT_INIT();
 
     dma_hal_stop_common(&s_dma.hal, id);
@@ -345,6 +395,9 @@ bk_err_t bk_dma_stop(dma_id_t id)
 
 uint32_t bk_dma_get_enable_status(dma_id_t id)
 {
+#if CONFIG_TFM_DMA_ATTR_NSC
+	dma_lazy_restore_access_attr();
+#endif
     DMA_RETURN_ON_NOT_INIT();
 
     uint32_t ret;
