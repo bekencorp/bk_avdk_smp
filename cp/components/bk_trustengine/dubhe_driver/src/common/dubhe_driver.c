@@ -31,11 +31,6 @@
 #if !defined(DUBHE_SECURE)
 #include "arch_interrupt.h"
 #include "sdkconfig.h"
-#if defined(CONFIG_TFM_REG_ACCESS_NSC) && CONFIG_TFM_REG_ACCESS_NSC
-/* Avoid including tfm_reg_nsc.h here: tfm/interface also ships mbedtls/ headers. */
-uint32_t psa_reg_read(uint32_t addr);
-void psa_reg_write(uint32_t addr, uint32_t value);
-#endif
 #endif
 #endif
 
@@ -70,28 +65,6 @@ static void dubhe_ns_clear_engine_intr( void )
     if (st) {
         DBH_WRITE_REGISTER( ACA, ACA_INTR_STAT, st );
     }
-}
-
-/* TOP_CTRL is Secure-only; NS enables clocks via SPE NSC. */
-static int dubhe_ns_ensure_clocks( void )
-{
-#if defined(CONFIG_TFM_REG_ACCESS_NSC) && CONFIG_TFM_REG_ACCESS_NSC
-    uint32_t te_s = (uint32_t)SOC_GET_S_ADDR(SOC_SHANHAI_BASE);
-    uint32_t clk_addr = te_s + DBH_BASE_TOP_CTRL + DBH_CLK_CTRL_REG_OFFSET;
-    uint32_t clk;
-
-    clk = psa_reg_read(clk_addr);
-    clk |= (1UL << DBH_CLK_CTRL_HASH_EN_BIT_SHIFT)
-         | (1UL << DBH_CLK_CTRL_SCA_EN_BIT_SHIFT)
-         | (1UL << DBH_CLK_CTRL_ACA_EN_BIT_SHIFT)
-         | (1UL << DBH_CLK_CTRL_TRNG_EN_BIT_SHIFT);
-    clk &= ~(1UL << DBH_CLK_CTRL_DMA_AHB_EN_BIT_SHIFT);
-    psa_reg_write(clk_addr, clk);
-    dubhe_delay_us(10);
-    return 0;
-#else
-    return -1;
-#endif
 }
 
 /* Invoked by the TF-M ENCP PM adapter after the Secure world rebuilt the
@@ -386,9 +359,8 @@ void dubhe_ns_prepare_runtime( void )
 
     int_level = rtos_disable_int();
 
-    if (dubhe_ns_ensure_clocks() != 0) {
-        PAL_LOG_ERR("ns te: ensure clocks failed, continue\n");
-    }
+    /* TE200 clocks are configured by the Secure world (cold boot and fastboot
+     * resume), so the Normal channel only needs its own sub-block setup. */
 
 #if defined( DUBHE_FOR_RUNTIME )
     dubhe_event_init( );
