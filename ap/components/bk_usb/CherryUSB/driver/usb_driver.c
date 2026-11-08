@@ -25,14 +25,41 @@
 static beken_mutex_t s_usb_drv_task_mutex = NULL;
 static bool s_usb_driver_init_flag = 0;
 static bool s_usb_power_on_flag = 0;
-static bool s_usb_open_close_flag = 0;
+static uint32_t s_usb_power_users = 0;
+/* Non-static: also referenced by bk_usbd_mtp.c to test whether any host
+ * remains before releasing the shared analog island/clock/PM vote. */
+bool s_usb_open_close_flag = 0;
+bool s_usb_fs_open_close_flag = 0; /* stays 0 when CONFIG_USB_FS_HOST=n */
+static bool s_usb_mtp_active = 0;
 static uint32_t s_usb_current_mode = 0xFFFFFFFFU;
+#if CONFIG_USB_FS_HOST
+/* Dual-IP: HS IP (bus 0) keeps s_usb_open_close_flag/s_usb_current_mode;
+ * the FS IP (bus 1) has its own open guard. Shared resources (VBUS LDO,
+ * USB analog island, USB_1 clock, PM_SLEEP_MODULE_NAME_USB_1 vote) are
+ * released only when BOTH ports are closed. */
+static bool s_usb_fs_ldo_auto_on = 0; /* we turned the shared LDO on ourselves */
+#include "usb_hc_beken_fs.h"
+#endif
 
 static bk_err_t usb_driver_sw_deinit();
+bk_err_t bk_usb_fs_close(void); /* external linkage: declared in usb.h */
 
 extern void usb_clk_config(uint8_t);
 extern void sys_ana_usb_phy_op(uint8_t en);
 extern void spitrig_toggle(void);
+
+/* MTP tracks its own activity here instead of setting s_usb_open_close_flag:
+ * MTP is a device gadget on busid 0, orthogonal to the host-mode flag, but it
+ * owns the same shared analog/clock/PM resources. */
+void bk_usb_mtp_set_active(bool active)
+{
+    s_usb_mtp_active = active;
+}
+
+bool bk_usb_mtp_is_active(void)
+{
+    return s_usb_mtp_active;
+}
 
 static bool usb_hs_irq_should_be_managed_by_ap(void)
 {
@@ -125,15 +152,28 @@ bk_err_t bk_usb_power_ops(uint32_t gpio_id, bool ops)
 
 	if (ops)
 	{
-		USB_RETURN_NOT_POWERED_DOWN();
-		bk_gpio_ctrl_external_ldo(GPIO_CTRL_LDO_MODULE_USB, gpio_id, GPIO_OUTPUT_STATE_HIGH);
-		s_usb_power_on_flag = ops;
+		/* Refcounted VBUS LDO: every open path (legacy CLI, simulate-uart,
+		 * FS host auto-on, application) registers itself here; the LDO is
+		 * only physically released when the last user closes. */
+		if (s_usb_power_users == 0)
+		{
+			bk_gpio_ctrl_external_ldo(GPIO_CTRL_LDO_MODULE_USB, gpio_id, GPIO_OUTPUT_STATE_HIGH);
+			s_usb_power_on_flag = true;
+		}
+		s_usb_power_users++;
 	}
 	else
 	{
-		USB_RETURN_NOT_POWERED_ON();
-		bk_gpio_ctrl_external_ldo(GPIO_CTRL_LDO_MODULE_USB, gpio_id, GPIO_OUTPUT_STATE_LOW);
-		s_usb_power_on_flag = ops;
+		if (s_usb_power_users == 0) {
+			USB_DRIVER_LOGW("bk_usb_power_ops: unbalanced off\r\n");
+			return BK_ERR_USB_NOT_POWER;
+		}
+		s_usb_power_users--;
+		if (s_usb_power_users == 0)
+		{
+			bk_gpio_ctrl_external_ldo(GPIO_CTRL_LDO_MODULE_USB, gpio_id, GPIO_OUTPUT_STATE_LOW);
+			s_usb_power_on_flag = false;
+		}
 	}
 
 	return BK_OK;
@@ -160,6 +200,25 @@ bk_err_t bk_usb_driver_init(void)
 bk_err_t bk_usb_driver_deinit(void)
 {
 	USB_DRIVER_RETURN_NOT_INIT();
+
+#if CONFIG_USB_FS_HOST
+	/* Implicitly close the FS bus first: this unregisters INT_SRC_USB_FS
+	 * and powers the FS sub-domain down via the port deinit. */
+	if (s_usb_fs_open_close_flag) {
+		bk_usb_fs_close();
+	}
+	/* Belt-and-braces: make sure the FS line is quiet even if an open
+	 * failed half-way (driver_deinit must not leave a live IRQ behind). */
+	sys_drv_set_int_en(rtos_get_core_id(), INT_SRC_USB_FS, 0);
+	bk_int_isr_unregister(INT_SRC_USB_FS);
+	/* The whole USB driver is going away: release the shared VBUS LDO if
+	 * the FS path still owns it (bk_usb_fs_close() above deferred to an
+	 * open HS port, which is being torn down here as well). */
+	if (s_usb_fs_ldo_auto_on) {
+		bk_usb_power_ops(CONFIG_USB_VBAT_CONTROL_GPIO_ID, false);
+		s_usb_fs_ldo_auto_on = 0;
+	}
+#endif
 
 #if CONFIG_SOC_SMP
     sys_drv_set_int_en(CPU2_CORE_ID, INT_SRC_USB_HS, 0);
@@ -355,18 +414,139 @@ bk_err_t bk_usb_close(void)
 	if(s_usb_current_mode == USB_HOST_MODE) {
 #if CONFIG_USB_HOST
 		ret = bk_cherryusb_host_close();
-		bk_analog_layer_usb_sys_related_ops(USB_HOST_MODE, false);
+		/* Shared analog island + USB_1 clock are released only when no other
+		 * USB user remains (FS host or MTP; HS is closing right here). */
+		if (!s_usb_fs_open_close_flag && !s_usb_mtp_active) {
+			bk_analog_layer_usb_sys_related_ops(USB_HOST_MODE, false);
+		}
 #endif
 	} else if(s_usb_current_mode == USB_DEVICE_MODE) {
 #if CONFIG_USB_DEVICE
 		ret = bk_cherryusb_device_close();
-		bk_analog_layer_usb_sys_related_ops(USB_DEVICE_MODE, false);
+		if (!s_usb_fs_open_close_flag && !s_usb_mtp_active) {
+			bk_analog_layer_usb_sys_related_ops(USB_DEVICE_MODE, false);
+		}
 #endif
 	}
 	s_usb_open_close_flag = 0;
 	s_usb_current_mode = 0xFFFFFFFFU;
-	bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_USB_1, 1, 0);
+	if (!s_usb_fs_open_close_flag && !s_usb_mtp_active) {
+		bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_USB_1, 1, 0);
+	}
+#if CONFIG_USB_FS_HOST
+	/* Shared VBUS LDO hand-off: if the FS port auto-enabled the LDO and
+	 * the FS bus is already closed, this last HS close releases it (the
+	 * HS path itself never manages the LDO on its own). */
+	if (s_usb_fs_ldo_auto_on && !s_usb_fs_open_close_flag) {
+		bk_usb_power_ops(CONFIG_USB_VBAT_CONTROL_GPIO_ID, false);
+		s_usb_fs_ldo_auto_on = 0;
+	}
+#endif
 	return ret;
 }
+
+#if CONFIG_USB_FS_HOST
+bk_err_t bk_usb_fs_open(uint32_t usb_mode)
+{
+	bk_err_t ret;
+
+	USB_DRIVER_RETURN_NOT_INIT();
+	USB_DRIVER_LOGV("[+]%s\r\n", __func__);
+
+	if (s_usb_fs_open_close_flag) {
+		USB_DRIVER_LOGI("USB_FS: already open\r\n");
+		return BK_ERR_USB_NOT_CLOSE;
+	}
+	if (usb_mode != USB_HOST_MODE) {
+		/* FS device port is not implemented; host-only for now. */
+		USB_DRIVER_LOGI("USB_FS: only USB_HOST_MODE is supported\r\n");
+		return BK_FAIL;
+	}
+
+	/* keep the AP awake while the FS bus is live (vote shared with HS) */
+	bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_USB_1, 0, 0);
+
+	/* Shared VBUS LDO: register the FS port as a user unconditionally.
+	 * The refcounted bk_usb_power_ops() only physically powers the LDO on
+	 * the first user and releases it after the last one closes; legacy
+	 * callers (simulate-uart, CLI, CDC demo) are automatically included
+	 * in the same count. */
+	ret = bk_usb_power_ops(CONFIG_USB_VBAT_CONTROL_GPIO_ID, true);
+	if (ret != BK_OK) {
+		/* rollback must not re-allow sleep while the HS port is
+		 * keeping the AP awake with its own vote */
+		if (!s_usb_open_close_flag)
+			bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_USB_1, 1, 0);
+		return ret;
+	}
+	s_usb_fs_ldo_auto_on = 1;
+
+	/* FS power sub-domain, usb_fs clock gate, USB analog island and the
+	 * shared USB_1 clock are brought up inside the FS port's
+	 * usb_hc_beken_fs_init() (hardware-validated sequence). */
+	ret = bk_cherryusb_fs_host_open();
+	if (ret != BK_OK) {
+		if (s_usb_fs_ldo_auto_on) {
+			bk_usb_power_ops(CONFIG_USB_VBAT_CONTROL_GPIO_ID, false);
+			s_usb_fs_ldo_auto_on = 0;
+		}
+		if (!s_usb_open_close_flag)
+			bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_USB_1, 1, 0);
+		return ret;
+	}
+
+	s_usb_fs_open_close_flag = 1;
+	USB_DRIVER_LOGI("USB_DRV_USB_FS_OPEN!\r\n");
+
+	USB_DRIVER_LOGV("[-]%s\r\n", __func__);
+	return BK_OK;
+}
+
+bk_err_t bk_usb_fs_close(void)
+{
+	bk_err_t ret;
+
+	USB_DRIVER_RETURN_NOT_INIT();
+	USB_DRIVER_LOGV("[+]%s\r\n", __func__);
+
+	if (!s_usb_fs_open_close_flag) {
+		return BK_ERR_USB_NOT_OPEN;
+	}
+
+	ret = bk_cherryusb_fs_host_close();
+
+	s_usb_fs_open_close_flag = 0;
+
+	/* Shared VBUS LDO: drop the FS port's user count. The LDO is only
+	 * physically released when the last user (HS or FS or legacy) closes. */
+	if (s_usb_fs_ldo_auto_on) {
+		bk_usb_power_ops(CONFIG_USB_VBAT_CONTROL_GPIO_ID, false);
+		s_usb_fs_ldo_auto_on = 0;
+	}
+
+	/* Shared USB analog island: when the FS bus is the last USB user,
+	 * mirror the HS close path and clear the analog enables + USB_1
+	 * clock gate (safe: no other USB user remains). */
+	if (!s_usb_open_close_flag && !s_usb_mtp_active) {
+		bk_analog_layer_usb_sys_related_ops(USB_HOST_MODE, false);
+	}
+
+	/* PM sleep vote is shared: only the last USB user may re-allow sleep. */
+	if (!s_usb_open_close_flag && !s_usb_mtp_active) {
+		bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_USB_1, 1, 0);
+	}
+
+	USB_DRIVER_LOGV("[-]%s\r\n", __func__);
+	return ret;
+}
+
+bool bk_usb_fs_get_device_connect_status(void)
+{
+	if (!s_usb_fs_open_close_flag) {
+		return false;
+	}
+	return usb_hc_beken_fs_port_connect_status();
+}
+#endif /* CONFIG_USB_FS_HOST */
 
 

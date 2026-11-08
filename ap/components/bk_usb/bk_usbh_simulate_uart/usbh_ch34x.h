@@ -6,8 +6,8 @@
 #ifndef USBH_CH34X_H
 #define USBH_CH34X_H
 
-#include <components/cherryusb/usb_cdc.h>
-#include <components/cherryusb/usb_hc.h>
+#include "usb_cdc.h"
+#include "usb_hc.h"
 
 #define USB_ERR_NOMEM    1
 #define USB_ERR_INVAL    2
@@ -60,8 +60,6 @@ struct usbh_ch34x {
     struct usbh_hubport *hport;
     struct usb_endpoint_descriptor *bulkin_ep_d;
     struct usb_endpoint_descriptor *bulkout_ep_d;
-    usbh_pipe_t  bulkin;  /* Bulk IN endpoint */
-    usbh_pipe_t  bulkout; /* Bulk OUT endpoint */
     struct usbh_urb bulkout_urb;
     struct usbh_urb bulkin_urb;
 
@@ -83,6 +81,10 @@ int usbh_ch34x_set_line_state(struct usbh_ch34x *ch34x_class, bool dtr, bool rts
 
 int usbh_ch34x_bulk_in_transfer(struct usbh_ch34x *ch34x_class, uint8_t *buffer, uint32_t buflen, uint32_t timeout);
 int usbh_ch34x_bulk_out_transfer(struct usbh_ch34x *ch34x_class, uint8_t *buffer, uint32_t buflen, uint32_t timeout);
+
+struct usbh_ch34x *usbh_ch34x_get_dev(void);
+struct usbh_ch34x *usbh_ch34x_get_dev_by_bus(uint8_t busid);
+int usbh_ch34x_ep0_unaligned_test(struct usbh_ch34x *ch34x_class);
 
 void usbh_ch34x_run(struct usbh_ch34x *ch34x_class);
 void usbh_ch34x_stop(struct usbh_ch34x *ch34x_class);

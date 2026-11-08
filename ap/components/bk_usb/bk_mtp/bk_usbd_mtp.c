@@ -24,6 +24,13 @@
 extern void bk_analog_layer_usb_sys_related_ops(uint32_t usb_mode, bool ops);
 #define MTP_USB_DEVICE_MODE 1
 
+/* Host-open flags and MTP active marker from CherryUSB/driver/usb_driver.c:
+ * MTP may release the shared analog island/clock/PM vote only when no host
+ * port is open. */
+extern bool s_usb_open_close_flag;    /* HS host/device open */
+extern bool s_usb_fs_open_close_flag; /* FS host open (always 0 if no FS IP) */
+extern void bk_usb_mtp_set_active(bool active);
+
 #if CONFIG_VFS
 #include "bk_posix.h"
 #include "bk_filesystem.h"
@@ -3659,6 +3666,9 @@ int usb_mtp_init(void)
     }
     mtp_env_reset();
     s_mtp_init = 1;
+    /* Register MTP as a shared USB resource user so HS/FS close paths do not
+     * power down the analog island or re-allow PM sleep while MTP is live. */
+    bk_usb_mtp_set_active(true);
 
     return ret;
 
@@ -3718,9 +3728,13 @@ int usb_mtp_deinit(void)
         s_handles_buf = NULL;
     }
 #endif
-    /* Power the USB analog PHY back down and release the no-sleep vote. */
-    bk_analog_layer_usb_sys_related_ops(MTP_USB_DEVICE_MODE, false);
-    bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_USB_1, 1, 0);
+    /* Drop MTP's shared-resource user flag first, then release the analog
+     * PHY and no-sleep vote only if no other USB user (HS/FS host) remains. */
+    bk_usb_mtp_set_active(false);
+    if (!s_usb_open_close_flag && !s_usb_fs_open_close_flag) {
+        bk_analog_layer_usb_sys_related_ops(MTP_USB_DEVICE_MODE, false);
+        bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_USB_1, 1, 0);
+    }
     pm_unlock(usb_pm);
     s_mtp_init = 0;
     return ret;

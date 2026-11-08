@@ -47,7 +47,18 @@ menu "Bk_usb"
 				AP SRAM static usage. These structures are accessed during
 				USB enumeration and interrupt processing, so this option trades
 				access latency for about 31 KiB of SRAM.
-	
+
+		config USB_FS_HOST
+			bool "Enable USB FS/LS IP host port (dual-IP, CherryUSB bus 1)"
+			depends on USB_HOST
+			default n
+			help
+				Bring the second BK7259 USB IP (FS/LS compact FDRC,
+				SOC_USB_FS_BASE) under CherryUSB as host bus 1 while the
+				HS IP keeps bus 0. Compiles port/beken_fs_musb and adds
+				busid dispatch guards in the beken_musb HS port. Requires
+				CONFIG_USBHOST_MAX_BUS >= 2.
+
 		config USB_DEVICE
 			bool "Enable USB Device Mode"
 			default n

@@ -158,6 +158,22 @@ if (CONFIG_USB)
 		${BK_CHERRYUSB_DIR}/port/beken_musb/usb_hc_beken_musb.c
 	)
 
+	# FS/LS IP (compact FDRC, SOC_USB_FS_BASE) as CherryUSB host bus 1.
+	# The HS port forwards bus-1 contract calls here via CONFIG_USB_FS_HOST
+	# guards, so with the option off nothing below is compiled.
+	if (CONFIG_USB_FS_HOST)
+		# bus 0 = HS IP, bus 1 = FS IP. usb_config.h would otherwise fall
+		# back to CONFIG_USBHOST_MAX_BUS=1 and usbh_initialize(1, ...) would
+		# assert ("bus overflow") at adapter open time.
+		add_compile_definitions(CONFIG_USBHOST_MAX_BUS=2)
+		list(APPEND incs
+			${BK_CHERRYUSB_DIR}/port/beken_fs_musb
+		)
+		list(APPEND srcs
+			${BK_CHERRYUSB_DIR}/port/beken_fs_musb/usb_hc_beken_fs.c
+		)
+	endif() # CONFIG_USB_FS_HOST
+
 	if (CONFIG_USB_HOST)
 		list(APPEND incs
 			${BK_CHERRYUSB_DIR}/demo/beken/usb_host

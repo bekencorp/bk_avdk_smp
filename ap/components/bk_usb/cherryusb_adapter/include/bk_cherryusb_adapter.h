@@ -15,6 +15,20 @@ bk_err_t bk_cherryusb_device_open(void);
 bk_err_t bk_cherryusb_device_close(void);
 
 /**
+ * @brief Bring the FS/LS USB IP up as CherryUSB host bus 1
+ *        (dual-IP mode, CONFIG_USB_FS_HOST).
+ *
+ * Only available when CONFIG_USB_FS_HOST=y; returns BK_FAIL otherwise
+ * (no symbol is linked in that case, callers must be guarded too).
+ */
+bk_err_t bk_cherryusb_fs_host_open(void);
+
+/**
+ * @brief Tear down the FS/LS CherryUSB host bus 1.
+ */
+bk_err_t bk_cherryusb_fs_host_close(void);
+
+/**
  * @brief Present the USB device to the host by asserting the D+ pull-up
  *        (soft-connect), without re-initialising the controller.
  *

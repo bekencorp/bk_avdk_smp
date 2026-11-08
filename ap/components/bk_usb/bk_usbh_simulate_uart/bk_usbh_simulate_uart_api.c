@@ -11,14 +11,22 @@
 #include "sys_driver.h"
 #include "FreeRTOS.h"
 #include "task.h"
-#include "usbh_ch34x.h"
+/* <components/usb.h> -> usb_types.h pulls the v1.6 shim headers (guard
+ * USB_HC_H) whose struct usbh_urb is ABI-identical to the real CherryUSB
+ * usb_hc.h. It MUST come before usbh_ch34x.h: usbh_ch34x.h includes the
+ * real usb_hc.h first, which would set the shared guard without defining
+ * the legacy usbh_pipe_t the shim usbh_core.h still references. */
+#include <components/usb.h>
 #include <driver/gpio.h>
 #include <driver/int.h>
 #include <driver/uart_types.h>
-#include <components/usb.h>
+#include "usbh_ch34x.h"
 #include <components/usbh_simulate_uart_api.h>
-/* usbh_core.h arrives transitively via <components/usb.h> -> usb_types.h. */
 #include <../components/bk_common/include/bk_fifo.h>
+
+/* The shim usbh_core.h does not declare usbh_submit_urb; the real
+ * CherryUSB core exports exactly this signature. */
+extern int usbh_submit_urb(struct usbh_urb *urb);
 
 #define USBH_TO_UART_TAG "usbh_t_uart"
 #define USBH_TO_UART_LOGI(...) BK_LOGI(USBH_TO_UART_TAG, ##__VA_ARGS__)
@@ -260,9 +268,9 @@ static bk_err_t bk_usbh_to_uart_rx_data_handler(usbh_simulate_uart_id_config_t *
     uint8_t *data = serial_id->rx_buffer;
     struct usbh_ch34x *device = serial_id->device;
     struct usbh_urb *urb = &device->bulkin_urb;
-    usbh_pipe_t pipe = device->bulkin;
 
-    urb->pipe = pipe;
+    urb->hport = device->hport;
+    urb->ep = device->bulkin_ep_d;
     urb->complete = (usbh_complete_callback_t)bk_usbh_to_uart_simulate_rxed_callback;
     urb->arg = serial_id;
     urb->timeout = 0;
@@ -270,7 +278,7 @@ static bk_err_t bk_usbh_to_uart_rx_data_handler(usbh_simulate_uart_id_config_t *
     urb->transfer_buffer = data;
     urb->transfer_buffer_length = rx_mps;
     urb->actual_length = 0;
-    
+
     return usbh_submit_urb(urb);
 }
 
@@ -409,7 +417,6 @@ static bk_err_t bk_usbh_to_uart_tx_data_handler(usbh_simulate_uart_id_config_t *
     uint8_t *data = serial_id->rx_buffer;
     struct usbh_ch34x *device = serial_id->device;
     struct usbh_urb *urb = &device->bulkout_urb;
-    usbh_pipe_t pipe = device->bulkout;
 
     uint32_t cnt = bk_usbh_to_uart_tx_size_get(serial_id);
 
@@ -417,7 +424,8 @@ static bk_err_t bk_usbh_to_uart_tx_data_handler(usbh_simulate_uart_id_config_t *
 
     bk_usbh_to_uart_tx_fifo_get(serial_id, data, cnt);
 
-    urb->pipe = pipe;
+    urb->hport = device->hport;
+    urb->ep = device->bulkout_ep_d;
     urb->complete = (usbh_complete_callback_t)bk_usbh_to_uart_simulate_txed_callback;
     urb->arg = serial_id;
     urb->timeout = 0;
@@ -425,7 +433,7 @@ static bk_err_t bk_usbh_to_uart_tx_data_handler(usbh_simulate_uart_id_config_t *
     urb->transfer_buffer = data;
     urb->transfer_buffer_length = cnt;
     urb->actual_length = 0;
-        
+
     return usbh_submit_urb(urb);
 }
 
@@ -446,8 +454,8 @@ bk_err_t bk_usbh_to_uart_simulate_write(usb_simulate_uart_id_t id, uint8_t *data
     if(timeout_ms > 0) {
         struct usbh_ch34x *device = serial_id->device;
         struct usbh_urb *urb = &device->bulkout_urb;
-        usbh_pipe_t pipe = device->bulkout;
-        urb->pipe = pipe;
+        urb->hport = device->hport;
+        urb->ep = device->bulkout_ep_d;
         urb->complete = (usbh_complete_callback_t)bk_usbh_to_uart_simulate_txed_callback;
         urb->arg = serial_id;
         urb->timeout = timeout_ms;
@@ -455,7 +463,7 @@ bk_err_t bk_usbh_to_uart_simulate_write(usb_simulate_uart_id_t id, uint8_t *data
         urb->transfer_buffer = data;
         urb->transfer_buffer_length = cnt;
         urb->actual_length = 0;
-        
+
         return usbh_submit_urb(urb);
     } else {
         uint32_t unused_size = 0;

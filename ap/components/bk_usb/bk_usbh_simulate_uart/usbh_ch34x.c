@@ -3,7 +3,7 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  */
-#include <components/cherryusb/usbh_core.h>
+#include "usbh_core.h"
 #include "usbh_ch34x.h"
 
 #define DEV_FORMAT "/dev/ttyUSB%d"
@@ -38,6 +38,32 @@ static void usbh_ch34x_class_free(struct usbh_ch34x *ch34x_class)
         g_devinuse &= ~(1U << devno);
     }
     memset(ch34x_class, 0, sizeof(struct usbh_ch34x));
+}
+
+/* first bound (in-use) ch34x instance, for CLI data-plane testing on a
+ * single-device bus; NULL when no ch34x is attached */
+struct usbh_ch34x *usbh_ch34x_get_dev(void)
+{
+    for (uint8_t devno = 0; devno < CONFIG_USBHOST_MAX_CH34X_CLASS; devno++) {
+        if ((g_devinuse & (1U << devno)) && g_ch34x_class[devno].hport) {
+            return &g_ch34x_class[devno];
+        }
+    }
+    return NULL;
+}
+
+/* first bound ch34x instance on the given bus (0=HS, 1=FS); NULL when no
+ * ch34x is attached there. Dual-bus tests must use this instead of
+ * usbh_ch34x_get_dev() so the traffic really goes over the intended bus. */
+struct usbh_ch34x *usbh_ch34x_get_dev_by_bus(uint8_t busid)
+{
+    for (uint8_t devno = 0; devno < CONFIG_USBHOST_MAX_CH34X_CLASS; devno++) {
+        if ((g_devinuse & (1U << devno)) && g_ch34x_class[devno].hport &&
+            (g_ch34x_class[devno].hport->bus->busid == busid)) {
+            return &g_ch34x_class[devno];
+        }
+    }
+    return NULL;
 }
 
 static int usbh_ch34x_get_baudrate_div(uint32_t baudrate, uint8_t *factor, uint8_t *divisor)
@@ -96,7 +122,7 @@ static int usbh_ch34x_get_version(struct usbh_ch34x *ch34x_class)
     if (!ch34x_class || !ch34x_class->hport) {
         return -USB_ERR_INVAL;
     }
-    setup = &ch34x_class->hport->setup;
+    setup = ch34x_class->hport->setup;
 
     setup->bmRequestType = USB_REQUEST_DIR_IN | USB_REQUEST_VENDOR | USB_REQUEST_RECIPIENT_DEVICE;
     setup->bRequest = CH34X_READ_VERSION;
@@ -104,12 +130,98 @@ static int usbh_ch34x_get_version(struct usbh_ch34x *ch34x_class)
     setup->wIndex = 0;
     setup->wLength = 2;
 
-    ret = usbh_control_transfer(ch34x_class->hport->ep0, setup, g_ch34x_buf);
+    ret = usbh_control_transfer(ch34x_class->hport, setup, g_ch34x_buf);
     if (ret < 0) {
         return ret;
     }
 
     return ret;
+}
+
+/* ep0 control-transfer test with NON-multiple-of-4 data lengths.
+ * Exercises the FIFO byte-tail paths (fs_read_packet/fs_write_packet
+ * tails on the FS port) on endpoint 0:
+ *  1. IN  wLength=2 (READ_VERSION) three times -- result must be stable
+ *     and the buffer actually written (a 2-byte tail read bypasses the
+ *     32-bit FIFO window entirely).
+ *  2. OUT wLength=5 with a 01..05 pattern (fabricated vendor request;
+ *     the device may STALL or ignore it -- either is acceptable, the
+ *     point is the OUT data-phase state machine survives a 4+1 packet
+ *     and pushes EXACTLY 5 bytes into the ep0 FIFO).
+ *  3. IN  wLength=2 again -- ep0 must still be healthy afterwards.
+ * Returns 0 when all steps completed (a STALL on step 2 still counts). */
+int usbh_ch34x_ep0_unaligned_test(struct usbh_ch34x *ch34x_class)
+{
+    struct usb_setup_packet *setup;
+    uint8_t buf[8];
+    uint8_t v0 = 0;
+    uint8_t v1 = 0;
+    int ret;
+
+    if (!ch34x_class || !ch34x_class->hport) {
+        return -USB_ERR_INVAL;
+    }
+    setup = ch34x_class->hport->setup;
+
+    /* step 1: 3x IN wLength=2 (tail-only path, no 32-bit word loop) */
+    for (int i = 0; i < 3; i++) {
+        setup->bmRequestType = USB_REQUEST_DIR_IN | USB_REQUEST_VENDOR | USB_REQUEST_RECIPIENT_DEVICE;
+        setup->bRequest = CH34X_READ_VERSION;
+        setup->wValue = 0;
+        setup->wIndex = 0;
+        setup->wLength = 2;
+        memset(buf, 0xEE, sizeof(buf));
+        ret = usbh_control_transfer(ch34x_class->hport, setup, buf);
+        if (ret < 0) {
+            USB_LOG_RAW("ep0 unaligned: IN(2) #%d failed ret=%d\r\n", i, ret);
+            return ret;
+        }
+        USB_LOG_RAW("ep0 unaligned: IN(2) #%d ret=%d ver=%02x %02x\r\n",
+                    i, ret, buf[0], buf[1]);
+        if ((buf[0] == 0xEE) || (buf[1] == 0xEE)) {
+            USB_LOG_RAW("ep0 unaligned: IN(2) buffer untouched (FIFO tail read broken)\r\n");
+            return -USB_ERR_IO;
+        }
+        if (i == 0) {
+            v0 = buf[0];
+            v1 = buf[1];
+        } else if ((buf[0] != v0) || (buf[1] != v1)) {
+            USB_LOG_RAW("ep0 unaligned: IN(2) unstable (%02x %02x vs %02x %02x)\r\n",
+                        v0, v1, buf[0], buf[1]);
+            return -USB_ERR_IO;
+        }
+    }
+
+    /* step 2: OUT wLength=5 (4-byte word + 1-byte tail on the write side) */
+    setup->bmRequestType = USB_REQUEST_DIR_OUT | USB_REQUEST_VENDOR | USB_REQUEST_RECIPIENT_DEVICE;
+    setup->bRequest = CH34X_WRITE_REG;
+    setup->wValue = 0;
+    setup->wIndex = 0;
+    setup->wLength = 5;
+    for (int i = 0; i < 5; i++) {
+        buf[i] = (uint8_t)(i + 1);
+    }
+    ret = usbh_control_transfer(ch34x_class->hport, setup, buf);
+    /* ret<0 (e.g. STALL) is acceptable: the request is fabricated and the
+     * device is free to reject it; the data phase still exercised the
+     * 5-byte FIFO write path and the ep0 state machine recovery. */
+    USB_LOG_RAW("ep0 unaligned: OUT(5) ret=%d%s\r\n", ret,
+                (ret < 0) ? " (device rejected, acceptable)" : "");
+
+    /* step 3: ep0 health re-check */
+    setup->bmRequestType = USB_REQUEST_DIR_IN | USB_REQUEST_VENDOR | USB_REQUEST_RECIPIENT_DEVICE;
+    setup->bRequest = CH34X_READ_VERSION;
+    setup->wValue = 0;
+    setup->wIndex = 0;
+    setup->wLength = 2;
+    memset(buf, 0xEE, sizeof(buf));
+    ret = usbh_control_transfer(ch34x_class->hport, setup, buf);
+    if (ret < 0) {
+        USB_LOG_RAW("ep0 unaligned: health re-check failed ret=%d\r\n", ret);
+        return ret;
+    }
+    USB_LOG_RAW("ep0 unaligned: health re-check OK ver=%02x %02x\r\n", buf[0], buf[1]);
+    return 0;
 }
 
 static int usbh_ch34x_flow_ctrl(struct usbh_ch34x *ch34x_class)
@@ -119,7 +231,7 @@ static int usbh_ch34x_flow_ctrl(struct usbh_ch34x *ch34x_class)
     if (!ch34x_class || !ch34x_class->hport) {
         return -USB_ERR_INVAL;
     }
-    setup = &ch34x_class->hport->setup;
+    setup = ch34x_class->hport->setup;
 
     setup->bmRequestType = USB_REQUEST_DIR_OUT | USB_REQUEST_VENDOR | USB_REQUEST_RECIPIENT_DEVICE;
     setup->bRequest = CH34X_WRITE_REG;
@@ -127,7 +239,7 @@ static int usbh_ch34x_flow_ctrl(struct usbh_ch34x *ch34x_class)
     setup->wIndex = 0;
     setup->wLength = 0;
 
-    return usbh_control_transfer(ch34x_class->hport->ep0, setup, NULL);
+    return usbh_control_transfer(ch34x_class->hport, setup, NULL);
 }
 
 int usbh_ch34x_set_line_coding(struct usbh_ch34x *ch34x_class, struct cdc_line_coding *line_coding)
@@ -141,7 +253,7 @@ int usbh_ch34x_set_line_coding(struct usbh_ch34x *ch34x_class, struct cdc_line_c
     if (!ch34x_class || !ch34x_class->hport) {
         return -USB_ERR_INVAL;
     }
-    setup = &ch34x_class->hport->setup;
+    setup = ch34x_class->hport->setup;
 
     memcpy((uint8_t *)&ch34x_class->line_coding, line_coding, sizeof(struct cdc_line_coding));
 
@@ -200,8 +312,7 @@ int usbh_ch34x_set_line_coding(struct usbh_ch34x *ch34x_class, struct cdc_line_c
     setup->wIndex = (factor << 8) | 0x80 | divisor;
     setup->wLength = 0;
 
-    USB_LOG_ERR("usbh_ch34x_set_line_coding\r\n");
-    return usbh_control_transfer(ch34x_class->hport->ep0, setup, NULL);
+    return usbh_control_transfer(ch34x_class->hport, setup, NULL);
 }
 
 int usbh_ch34x_get_line_coding(struct usbh_ch34x *ch34x_class, struct cdc_line_coding *line_coding)
@@ -217,7 +328,7 @@ int usbh_ch34x_set_line_state(struct usbh_ch34x *ch34x_class, bool dtr, bool rts
     if (!ch34x_class || !ch34x_class->hport) {
         return -USB_ERR_INVAL;
     }
-    setup = &ch34x_class->hport->setup;
+    setup = ch34x_class->hport->setup;
 
     setup->bmRequestType = USB_REQUEST_DIR_OUT | USB_REQUEST_VENDOR | USB_REQUEST_RECIPIENT_DEVICE;
     setup->bRequest = CH34X_MODEM_CTRL;
@@ -225,7 +336,7 @@ int usbh_ch34x_set_line_state(struct usbh_ch34x *ch34x_class, bool dtr, bool rts
     setup->wIndex = 0;
     setup->wLength = 0;
 
-    return usbh_control_transfer(ch34x_class->hport->ep0, setup, NULL);
+    return usbh_control_transfer(ch34x_class->hport, setup, NULL);
 }
 
 static usbh_simulate_uart_con_disc_cb_t s_con_disc_cb = NULL;
@@ -268,10 +379,8 @@ static int usbh_ch34x_connect(struct usbh_hubport *hport, uint8_t intf)
         } else {
             if (ep_desc->bEndpointAddress & 0x80) {
                 ch34x_class->bulkin_ep_d = ep_desc;
-                usbh_hport_activate_epx(&ch34x_class->bulkin, hport, ep_desc);
             } else {
                 ch34x_class->bulkout_ep_d = ep_desc;
-                usbh_hport_activate_epx(&ch34x_class->bulkout, hport, ep_desc);
             }
         }
     }
@@ -323,12 +432,12 @@ static int usbh_ch34x_disconnect(struct usbh_hubport *hport, uint8_t intf)
         s_con_disc_cb(0, (void *)ch34x_class);
     }
     if (ch34x_class) {
-        if (ch34x_class->bulkin) {
-            usbh_kill_urb(&ch34x_class->bulkin_urb);
+        if (ch34x_class->bulkout_ep_d) {
+            usbh_kill_urb(&ch34x_class->bulkout_urb);
         }
 
-        if (ch34x_class->bulkout) {
-            usbh_kill_urb(&ch34x_class->bulkout_urb);
+        if (ch34x_class->bulkin_ep_d) {
+            usbh_kill_urb(&ch34x_class->bulkin_urb);
         }
 
         if (hport->config.intf[intf].devname[0] != '\0') {
@@ -347,7 +456,7 @@ int usbh_ch34x_bulk_in_transfer(struct usbh_ch34x *ch34x_class, uint8_t *buffer,
     int ret;
     struct usbh_urb *urb = &ch34x_class->bulkin_urb;
 
-    usbh_bulk_urb_fill(urb, ch34x_class->bulkin, buffer, buflen, timeout, NULL, NULL);
+    usbh_bulk_urb_fill(urb, ch34x_class->hport, ch34x_class->bulkin_ep_d, buffer, buflen, timeout, NULL, NULL);
     ret = usbh_submit_urb(urb);
     if (ret == 0) {
         ret = urb->actual_length;
@@ -360,7 +469,7 @@ int usbh_ch34x_bulk_out_transfer(struct usbh_ch34x *ch34x_class, uint8_t *buffer
     int ret;
     struct usbh_urb *urb = &ch34x_class->bulkout_urb;
 
-    usbh_bulk_urb_fill(urb, ch34x_class->bulkout, buffer, buflen, timeout, NULL, NULL);
+    usbh_bulk_urb_fill(urb, ch34x_class->hport, ch34x_class->bulkout_ep_d, buffer, buflen, timeout, NULL, NULL);
     ret = usbh_submit_urb(urb);
     if (ret == 0) {
         ret = urb->actual_length;
@@ -384,21 +493,35 @@ const struct usbh_class_driver ch34x_class_driver = {
     .disconnect = usbh_ch34x_disconnect
 };
 
+/* Known WCH chips (same table as the upstream class/serial ch34x driver).
+ * Required in addition to the 0xFF interface-class match: without a VID/PID
+ * filter ANY vendor-specific interface (4G modems, FTDI, UVC vendor intf...)
+ * would be claimed by this driver. */
+static const uint16_t ch34x_id_table[][2] = {
+    { 0x1A86, 0x7523 }, /* ch340 chip */
+    { 0x1A86, 0x7522 }, /* ch340k chip */
+    { 0x1A86, 0x5523 }, /* ch341 chip */
+    { 0x1A86, 0xe523 }, /* ch330 chip */
+    { 0x4348, 0x5523 }, /* ch340 custom chip */
+    { 0, 0 },
+};
+
 CLASS_INFO_DEFINE const struct usbh_class_info ch34x_class_info = {
-    .match_flags = USB_CLASS_MATCH_INTF_CLASS,
-    .class = USB_DEVICE_CLASS_VEND_SPECIFIC,
-    .subclass = 0x00,
-    .protocol = 0x00,
-    .vid = 0x00,
-    .pid = 0x00,
+    .match_flags = USB_CLASS_MATCH_VID_PID | USB_CLASS_MATCH_INTF_CLASS,
+    .bInterfaceClass = USB_DEVICE_CLASS_VEND_SPECIFIC,
+    .bInterfaceSubClass = 0x00,
+    .bInterfaceProtocol = 0x00,
+    .bInterfaceNumber = 0,
+    .id_table = ch34x_id_table,
     .class_driver = &ch34x_class_driver
 };
 
 static bool serial_ch340_register_flag = 0;
 void usbh_class_serial_ch340_register_driver()
 {
+    /* class driver is registered via the CLASS_INFO_DEFINE linker section,
+     * nothing to do at runtime anymore */
     if(serial_ch340_register_flag) return;
 
-	usbh_register_class_driver(0, (void *)&ch34x_class_info);
     serial_ch340_register_flag = 1;
 }

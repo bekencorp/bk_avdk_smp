@@ -29,28 +29,35 @@ extern void usbh_hubport_release(struct usbh_hubport *hport);
 static const char *speed_table[] = { "error-speed", "low-speed", "full-speed", "high-speed", "wireless-speed", "super-speed", "superplus-speed" };
 
 #if CONFIG_USBHOST_MAX_EXTHUBS > 0
-/* Allocated on first use; see usbh_host_mem_alloc() for the fallback policy. */
-static struct usbh_hub *g_hub_class;
-static uint32_t g_devinuse = 0;
+/* Per-bus external-hub pools: each bus allocates its own array on first use
+ * and frees it on its own deinit. Keeps HS and FS hub state isolated so a
+ * close on one bus never frees hubs still running on the other. */
+static struct usbh_hub *g_hub_class[CONFIG_USBHOST_MAX_BUS];
+static uint32_t g_hub_devinuse[CONFIG_USBHOST_MAX_BUS];
 
-static struct usbh_hub *usbh_hub_class_alloc(void)
+static struct usbh_hub *usbh_hub_class_alloc(struct usbh_bus *bus)
 {
     uint8_t devno;
+    uint8_t busid = bus->busid;
 
-    if (g_hub_class == NULL) {
-        g_hub_class = (struct usbh_hub *)usbh_host_mem_alloc(sizeof(struct usbh_hub) * CONFIG_USBHOST_MAX_EXTHUBS, "g_hub_class");
-        if (g_hub_class == NULL) {
+    if (busid >= CONFIG_USBHOST_MAX_BUS) {
+        return NULL;
+    }
+
+    if (g_hub_class[busid] == NULL) {
+        g_hub_class[busid] = (struct usbh_hub *)usbh_host_mem_alloc(sizeof(struct usbh_hub) * CONFIG_USBHOST_MAX_EXTHUBS, "g_hub_class");
+        if (g_hub_class[busid] == NULL) {
             return NULL;
         }
-        memset(g_hub_class, 0, sizeof(struct usbh_hub) * CONFIG_USBHOST_MAX_EXTHUBS);
+        memset(g_hub_class[busid], 0, sizeof(struct usbh_hub) * CONFIG_USBHOST_MAX_EXTHUBS);
     }
 
     for (devno = 0; devno < CONFIG_USBHOST_MAX_EXTHUBS; devno++) {
-        if ((g_devinuse & (1U << devno)) == 0) {
-            g_devinuse |= (1U << devno);
-            memset(&g_hub_class[devno], 0, sizeof(struct usbh_hub));
-            g_hub_class[devno].index = EXTHUB_FIRST_INDEX + devno;
-            return &g_hub_class[devno];
+        if ((g_hub_devinuse[busid] & (1U << devno)) == 0) {
+            g_hub_devinuse[busid] |= (1U << devno);
+            memset(&g_hub_class[busid][devno], 0, sizeof(struct usbh_hub));
+            g_hub_class[busid][devno].index = EXTHUB_FIRST_INDEX + devno;
+            return &g_hub_class[busid][devno];
         }
     }
     return NULL;
@@ -58,10 +65,17 @@ static struct usbh_hub *usbh_hub_class_alloc(void)
 
 static void usbh_hub_class_free(struct usbh_hub *hub_class)
 {
+    struct usbh_bus *bus = hub_class->bus;
+    uint8_t busid;
     uint8_t devno = hub_class->index - EXTHUB_FIRST_INDEX;
 
+    if (!bus || bus->busid >= CONFIG_USBHOST_MAX_BUS) {
+        return;
+    }
+    busid = bus->busid;
+
     if (devno < 32) {
-        g_devinuse &= ~(1U << devno);
+        g_hub_devinuse[busid] &= ~(1U << devno);
     }
     memset(hub_class, 0, sizeof(struct usbh_hub));
 }
@@ -341,7 +355,7 @@ static int usbh_hub_connect(struct usbh_hubport *hport, uint8_t intf)
     struct hub_port_status port_status;
     int ret;
 
-    struct usbh_hub *hub = usbh_hub_class_alloc();
+    struct usbh_hub *hub = usbh_hub_class_alloc(hport->bus);
     if (hub == NULL) {
         USB_LOG_ERR("Fail to alloc hub_class\r\n");
         return -USB_ERR_NOMEM;
@@ -714,7 +728,15 @@ static void usbh_hub_thread(CONFIG_USB_OSAL_THREAD_SET_ARGV)
     struct usbh_bus *bus = (struct usbh_bus *)CONFIG_USB_OSAL_THREAD_GET_ARGV;
 
     bus->event_handler(bus->busid, USB_HUB_INDEX_ANY, USB_HUB_PORT_ANY, USB_INTERFACE_ANY, USBH_EVENT_INIT);
-    usb_hc_init(bus);
+
+#if CONFIG_USB_FS_HOST
+    /* FS ran HCD init synchronously after hub_mq creation; HS keeps the
+     * original thread-side initialization sequence. */
+    if (bus->busid == 0)
+#endif
+    {
+        usb_hc_init(bus);
+    }
 
     while (1) {
         ret = usb_osal_mq_recv(bus->hub_mq, (uintptr_t *)&hub, USB_OSAL_WAITING_FOREVER);
@@ -748,6 +770,7 @@ int usbh_hub_initialize(struct usbh_bus *bus)
 {
     char thread_name[32] = { 0 };
     struct usbh_hub *hub;
+    int ret;
 
     hub = &bus->hcd.roothub;
     hub->connected = true;
@@ -762,22 +785,51 @@ int usbh_hub_initialize(struct usbh_bus *bus)
     bus->hub_mq = usb_osal_mq_create(7);
     if (bus->hub_mq == NULL) {
         USB_LOG_ERR("Failed to create hub mq\r\n");
-        return -1;
+        return -USB_ERR_NOMEM;
     }
+
+#if CONFIG_USB_FS_HOST
+    /* FS: initialize the HCD after hub_mq exists so an early connect IRQ can
+     * safely queue its roothub event; HS keeps the original thread-side
+     * initialization sequence. */
+    if (bus->busid != 0) {
+        ret = usb_hc_init(bus);
+        if (ret < 0) {
+            USB_LOG_ERR("usb_hc_init failed ret=%d\r\n", ret);
+            goto err_mq;
+        }
+    }
+#endif
 
     bus->hub_sem = usb_osal_sem_create(0);
     if (bus->hub_sem == NULL) {
         USB_LOG_ERR("Failed to create hub sem\r\n");
-        return -1;
+        ret = -USB_ERR_NOMEM;
+        goto err_mq;
     }
 
     snprintf(thread_name, 32, "usbh_hub%u", bus->busid);
     bus->hub_thread = usb_osal_thread_create(thread_name, CONFIG_USBHOST_PSC_STACKSIZE, CONFIG_USBHOST_PSC_PRIO, usbh_hub_thread, bus);
     if (bus->hub_thread == NULL) {
         USB_LOG_ERR("Failed to create hub thread\r\n");
-        return -1;
+        ret = -USB_ERR_NOMEM;
+        goto err_sem;
     }
     return 0;
+
+err_sem:
+#if CONFIG_USB_FS_HOST
+    /* Stop the FS controller/IRQ before deleting the queue it can post to. */
+    if (bus->busid != 0) {
+        usb_hc_deinit(bus);
+    }
+#endif
+    usb_osal_sem_delete(bus->hub_sem);
+    bus->hub_sem = NULL;
+err_mq:
+    usb_osal_mq_delete(bus->hub_mq);
+    bus->hub_mq = NULL;
+    return ret;
 }
 
 int usbh_hub_deinitialize(struct usbh_bus *bus)
@@ -795,13 +847,18 @@ int usbh_hub_deinitialize(struct usbh_bus *bus)
     bus->event_handler(bus->busid, USB_HUB_INDEX_ANY, USB_HUB_PORT_ANY, USB_INTERFACE_ANY, USBH_EVENT_DEINIT);
 
 #if CONFIG_USBHOST_MAX_EXTHUBS > 0
-    if (g_hub_class) {
-        if (g_devinuse) {
-            USB_LOG_WRN("usbh_hub: deinit with exthub slot(s) still in use (bitmap 0x%lx)\r\n", (unsigned long)g_devinuse);
+    {
+        uint8_t busid = bus->busid;
+
+        if (busid < CONFIG_USBHOST_MAX_BUS && g_hub_class[busid]) {
+            if (g_hub_devinuse[busid]) {
+                USB_LOG_WRN("usbh_hub: bus%u deinit with exthub slot(s) still in use (bitmap 0x%lx)\r\n",
+                            busid, (unsigned long)g_hub_devinuse[busid]);
+            }
+            os_free(g_hub_class[busid]);
+            g_hub_class[busid] = NULL;
+            g_hub_devinuse[busid] = 0;
         }
-        os_free(g_hub_class);
-        g_hub_class = NULL;
-        g_devinuse = 0;
     }
 #endif
 

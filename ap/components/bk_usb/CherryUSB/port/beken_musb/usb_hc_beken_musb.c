@@ -25,6 +25,19 @@
 
 #include "modules/bk_riscv_types.h"
 
+#if CONFIG_USB_FS_HOST
+/* Dual-IP support: the FS/LS USB IP (compact FDRC, SOC_USB_FS_BASE) owns
+ * host bus 1; this port keeps bus 0 (HS). The CherryUSB core calls the
+ * contract entries (usb_hc_init/deinit, usbh_roothub_control,
+ * usbh_submit_urb/kill_urb); bus-1 traffic is forwarded to the FS port.
+ * With CONFIG_USB_FS_HOST=n the guards below compile away and this file
+ * is the unchanged single-instance HS port. */
+#include "usb_hc_beken_fs.h"
+#define USB_BUS_IS_FS(_bus) ((_bus)->busid != 0)
+#else
+#define USB_BUS_IS_FS(_bus) 0
+#endif
+
 #ifndef USB_LOG_VBS
 #define USB_LOG_VBS USB_LOG_DBG
 #endif
@@ -1354,6 +1367,11 @@ struct musb_pipe_waitsem {
 
 int usb_hc_init(struct usbh_bus *bus)
 {
+#if CONFIG_USB_FS_HOST
+    if (USB_BUS_IS_FS(bus)) {
+        return usb_hc_beken_fs_init(bus);
+    }
+#endif
     (void)bus;
     USB_LOG_VBS("[+]%s\r\n", __func__);
     memset(&g_musb_hcd, 0, sizeof(struct musb_hcd));
@@ -1410,6 +1428,11 @@ __WEAK void usb_hc_low_level_deinit(struct usbh_bus *bus)
 
 int usb_hc_deinit(struct usbh_bus *bus)
 {
+#if CONFIG_USB_FS_HOST
+    if (USB_BUS_IS_FS(bus)) {
+        return usb_hc_beken_fs_deinit(bus);
+    }
+#endif
     usb_hc_mhdrc_register_deinit();
     usb_hc_low_level_deinit(bus);
 
@@ -1434,6 +1457,11 @@ int usb_hc_deinit(struct usbh_bus *bus)
 
 int usbh_roothub_control(struct usbh_bus *bus, struct usb_setup_packet *setup, uint8_t *buf)
 {
+#if CONFIG_USB_FS_HOST
+    if (USB_BUS_IS_FS(bus)) {
+        return usbh_beken_fs_roothub_control(bus, setup, buf);
+    }
+#endif
     (void)bus;
     //__IO uint32_t hprt0;
     uint8_t nports;
@@ -1986,6 +2014,11 @@ int usbh_pipe_free(usbh_pipe_t pipe)
 
 int usbh_submit_urb(struct usbh_urb *urb)
 {
+#if CONFIG_USB_FS_HOST
+    if (urb && urb->hport && urb->hport->bus && USB_BUS_IS_FS(urb->hport->bus)) {
+        return usbh_beken_fs_submit_urb(urb);
+    }
+#endif
     struct musb_pipe *pipe;
     usbh_pipe_t new_pipe = NULL;
 
@@ -2116,6 +2149,11 @@ errout_timeout:
 
 int usbh_kill_urb(struct usbh_urb *urb)
 {
+#if CONFIG_USB_FS_HOST
+    if (urb && urb->hport && urb->hport->bus && USB_BUS_IS_FS(urb->hport->bus)) {
+        return usbh_beken_fs_kill_urb(urb);
+    }
+#endif
     struct musb_pipe *pipe;
 
     if (!urb) {

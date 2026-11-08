@@ -693,17 +693,48 @@ int usbh_initialize(uint8_t busid, uintptr_t reg_base, usbh_event_handler_t even
     usbh_class_info_table_begin = (struct usbh_class_info *)__section_begin(".usbh_class_info");
     usbh_class_info_table_end = (struct usbh_class_info *)__section_end(".usbh_class_info");
 #endif
-    usbh_hub_initialize(bus);
+    {
+        int ret = usbh_hub_initialize(bus);
+
+        if (ret < 0) {
+            /* Roll the bus back out so a failed open does not leave a
+             * half-initialized entry that usbh_deinitialize() would hang on. */
+            usb_slist_remove(&g_bus_head, &bus->list);
+            if (usb_slist_isempty(&g_bus_head)) {
+                os_free(g_usbhost_bus);
+                g_usbhost_bus = NULL;
+            }
+            return ret;
+        }
+    }
     return 0;
 }
 
 int usbh_deinitialize(uint8_t busid)
 {
     struct usbh_bus *bus;
+    usb_slist_t *pos;
+    uint8_t found = 0;
 
     USB_ASSERT_MSG(busid < CONFIG_USBHOST_MAX_BUS, "bus overflow\r\n");
 
+    if (!g_usbhost_bus) {
+        return -USB_ERR_NODEV;
+    }
+
     bus = &g_usbhost_bus[busid];
+
+    /* The bus may have been rolled back by a failed usbh_initialize(); do not
+     * touch its hub state (already torn down) in that case. */
+    usb_slist_for_each(pos, &g_bus_head) {
+        if (usb_container_of(pos, struct usbh_bus, list) == bus) {
+            found = 1;
+            break;
+        }
+    }
+    if (!found) {
+        return -USB_ERR_NODEV;
+    }
 
     usbh_hub_deinitialize(bus);
 

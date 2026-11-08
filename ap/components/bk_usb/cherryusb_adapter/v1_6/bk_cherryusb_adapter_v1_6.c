@@ -13,6 +13,11 @@
 
 #define BK_CHERRYUSB_BUS_ID 0
 
+#if CONFIG_USB_FS_HOST
+/* Dual-IP: bus 0 = HS IP (SOC_USB_HS_BASE), bus 1 = FS IP (SOC_USB_FS_BASE). */
+#define BK_CHERRYUSB_FS_BUS_ID 1
+#endif
+
 #define BK_V16_MSC_IN_EP      0x81
 #define BK_V16_MSC_OUT_EP     0x02
 #define BK_V16_USBD_VID       0x0000
@@ -56,6 +61,20 @@ bk_err_t bk_cherryusb_host_close(void)
 	return BK_FAIL;
 #endif
 }
+
+#if CONFIG_USB_FS_HOST
+bk_err_t bk_cherryusb_fs_host_open(void)
+{
+	/* FS/LS IP (compact FDRC) on bus 1; low-level power/clock/analog and
+	 * the wrapper bring-up happen inside the FS port's usb_hc_init(). */
+	return (usbh_initialize(BK_CHERRYUSB_FS_BUS_ID, SOC_USB_FS_BASE, NULL) == 0) ? BK_OK : BK_FAIL;
+}
+
+bk_err_t bk_cherryusb_fs_host_close(void)
+{
+	return (usbh_deinitialize(BK_CHERRYUSB_FS_BUS_ID) == 0) ? BK_OK : BK_FAIL;
+}
+#endif /* CONFIG_USB_FS_HOST */
 
 bk_err_t bk_cherryusb_device_open(void)
 {
