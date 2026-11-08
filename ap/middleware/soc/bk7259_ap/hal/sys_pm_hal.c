@@ -664,6 +664,23 @@ void sys_hal_enter_cpu_wfi()
 			__asm volatile( "nop" );
 			__asm volatile( "nop" );
 
+			/*
+			 * Work may have been submitted since bk_pm_ap_power_prepare()
+			 * accepted (e.g. Wi-Fi TX buffers). Re-confirm the modules
+			 * before committing to power-off; abort like the checks below
+			 * and retry on the next idle probe.
+			 */
+			if (bk_pm_ap_power_prepare_recheck() != BK_OK)
+			{
+				sys_ahbp_ll_set_reg10_value(int_state0_31);
+				sys_ahbp_ll_set_reg11_value(int_state32_63);
+				portNVIC_SYSTICK_CTRL_REG = systick_ctrl_value;
+				#if CONFIG_PM_AP_UART_DEBUG
+				bk_pm_log_uart_print("AP pm sleep busy return\r\n");
+				#endif
+				return;
+			}
+
 			if(check_IRQ_pending()||SYS_PM_DMA_CHN_BUSY()||(sys_ahbp_ll_get_reg18_value()||(sys_ahbp_ll_get_reg19_value()))||(portNVIC_INT_CTRL_REG&portNVIC_SYSTICKSET_BIT))
 			{
 				sys_ahbp_ll_set_reg10_value(int_state0_31);
