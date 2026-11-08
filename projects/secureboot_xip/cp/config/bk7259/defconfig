@@ -61,7 +61,7 @@ CONFIG_TFM_SLEEP_RETENTION_NSC=y
 # --- NSC (CMSE non-secure-callable) register access gateway ---
 # NS cpu0_app reaches registers through the secure world via SG veneers
 # (reg_nsc.c -> libtfm_s_veneers.a). Enables the NS `regshow_s` CLI too.
-CONFIG_TFM_REG_ACCESS_NSC=y
+# CONFIG_TFM_REG_ACCESS_NSC is not set
 
 # --- NSC bootloader-version gateway ---
 # NS cpu0_app reads the BL2 version stamp through the secure world
