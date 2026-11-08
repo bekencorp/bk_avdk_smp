@@ -36,6 +36,7 @@
 #include "modules/pm.h"
 #include "cache.h"
 #include "timer_hal.h"
+#include <driver/rosc_32k.h>
 
 #include "sys_sw_regs.h"
 #include <driver/pwr_clk.h>
@@ -2114,7 +2115,7 @@ __IRAM_PM void sys_hal_enter_lv(void)
 #endif
 	#if CONFIG_CKMN
 	//bk_ckmn_sleep_regs_backup();
-	bk_ckmn_power_down_for_sleep();
+	//bk_ckmn_power_down_for_sleep();
 	#endif//CONFIG_CKMN
 
 	sys_hal_lv_deep_sleep_enter_clear();
@@ -2492,7 +2493,9 @@ __IRAM_PM void sys_hal_enter_lv(void)
 
 	sys_hal_restore_int(int_state1, int_state2, int_state3);
 	bk_pm_sleep_wakeup_reason_set(check_IRQ_pending());
-
+#if CONFIG_CKMN
+	bk_rosc_32k_ckest_prog(32);
+#endif
 	portNVIC_SYSTICK_LOAD_REG = PM_EXIT_LOWVOL_SYSTICK_RELOAD_TIME;
 	portNVIC_SYSTICK_CTRL_REG = systick_ctrl_value;
 
@@ -3225,7 +3228,9 @@ __IRAM_PM void sys_hal_enter_deep_lv(void)
 
 	sys_hal_restore_int(int_state1, int_state2, int_state3);
 	bk_pm_sleep_wakeup_reason_set(check_IRQ_pending());
-
+#if CONFIG_CKMN
+	bk_rosc_32k_ckest_prog(32);
+#endif
 	portNVIC_SYSTICK_LOAD_REG = PM_EXIT_LOWVOL_SYSTICK_RELOAD_TIME;
 	portNVIC_SYSTICK_CTRL_REG = systick_ctrl_value;
 
