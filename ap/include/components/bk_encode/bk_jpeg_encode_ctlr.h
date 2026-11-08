@@ -101,6 +101,50 @@ avdk_err_t bk_jpeg_encode_frame(bk_jpeg_encode_ctlr_handle_t handle, bk_jpeg_enc
 avdk_err_t bk_jpeg_encode_ioctl(bk_jpeg_encode_ctlr_handle_t handle, bk_jpeg_encode_ioctl_cmd_t cmd, void *arg);
 
 /**
+ * @brief Configure hardware OSD overlay with externally owned buffer
+ *
+ * The caller allocates and fills @p osd->buffer, then passes ownership to the
+ * encoder via @p osd->buffer_free. After a successful call the caller must not
+ * modify the buffer. When a slot receives a new buffer pointer, the previous
+ * buffer is released through its registered free callback. All active OSD
+ * buffers are released automatically when the encoder is closed.
+ *
+ * @param handle Encoder handle
+ * @param osd OSD overlay config (buffer_free required when buffer != NULL)
+ * @return AVSDK error code
+ */
+avdk_err_t bk_jpeg_encode_set_osd(bk_jpeg_encode_ctlr_handle_t handle,
+                                  bk_jpeg_encode_osd_t *osd);
+
+/**
+ * @brief Draw hollow rectangles as a mono-color BITMAP OSD overlay
+ *
+ * Internally allocates one BITMAP (1bpp) covering the union of all boxes,
+ * rasterizes borders, and installs it on @p boxes->index. Subsequent encode
+ * frames overlay automatically. Pass count==0 / boxes==NULL to clear the slot.
+ *
+ * @param handle Encoder handle
+ * @param boxes BITMAP rectangle batch descriptor
+ * @return AVSDK error code
+ */
+avdk_err_t bk_jpeg_encode_set_osd_bitmap_boxes(bk_jpeg_encode_ctlr_handle_t handle,
+                                               bk_jpeg_encode_osd_bitmap_boxes_t *boxes);
+
+/**
+ * @brief Draw hollow rectangles as a multi-color ARGB8888 OSD overlay
+ *
+ * Internally allocates one ARGB8888 buffer covering the union of all boxes,
+ * rasterizes borders with per-box ARGB color (alpha blend enabled by HW), and
+ * installs it on @p boxes->index. Pass count==0 / boxes==NULL to clear.
+ *
+ * @param handle Encoder handle
+ * @param boxes ARGB8888 rectangle batch descriptor
+ * @return AVSDK error code
+ */
+avdk_err_t bk_jpeg_encode_set_osd_argb8888_boxes(bk_jpeg_encode_ctlr_handle_t handle,
+                                                 bk_jpeg_encode_osd_argb8888_boxes_t *boxes);
+
+/**
  * @brief Delete the JPEG encoder controller
  * @param handle Encoder handle
  * @return AVDK error code

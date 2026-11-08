@@ -40,6 +40,20 @@ vcenc_ret_e vcenc_jpeg_abort(jpeg_enc_param_t *enc_param);
 /** Tear down the instance and free its associated buffers. */
 vcenc_ret_e vcenc_jpeg_deinit(jpeg_enc_param_t *enc_param);
 
+/**
+ * Configure one OSD overlay slot for JPEG encoding. The overlay is applied on
+ * the next vcenc_jpeg_encode_frame() call. Pass @p buffer == NULL to clear the
+ * slot. Format: 0=ARGB8888, 1=NV12, 2=bitmap (uses bitmap_y/u/v).
+ */
+vcenc_ret_e vcenc_jpeg_set_osd(jpeg_enc_param_t *enc_param, uint32_t index, void *buffer,
+			       uint32_t format, uint8_t alpha, uint32_t x, uint32_t y,
+			       uint32_t width, uint32_t height,
+			       uint8_t bitmap_y, uint8_t bitmap_u, uint8_t bitmap_v);
+
+/** Configure a mosaic overlay window (format=3) for JPEG encoding. */
+vcenc_ret_e vcenc_jpeg_set_mosaic(jpeg_enc_param_t *enc_param, uint32_t index, uint32_t enable,
+				  uint32_t x, uint32_t y, uint32_t width, uint32_t height);
+
 /** Update the FLEXA input line-buffer write counter at runtime. */
 vcenc_ret_e vcenc_jpeg_flexa_input_linebuf_wrcnt_set(jpeg_enc_param_t *enc_param,
 						      uint32_t wrcnt);

@@ -40,6 +40,9 @@ typedef enum {
 	BK_JPEG_ENCODE_IOCTL_REGISTER_BOND, /*!< arg: bk_flexa_bond_t * */
 	BK_JPEG_ENCODE_IOCTL_UNREGISTER_BOND, /*!< arg: bk_flexa_bond_t * */
 	BK_JPEG_ENCODE_IOCTL_STOP_ENCODE, /*!< stop current Flexa encode */
+	BK_JPEG_ENCODE_IOCTL_SET_OSD,            /*!< arg: bk_jpeg_encode_osd_t * */
+	BK_JPEG_ENCODE_IOCTL_SET_OSD_BITMAP_BOXES,   /*!< arg: bk_jpeg_encode_osd_bitmap_boxes_t * */
+	BK_JPEG_ENCODE_IOCTL_SET_OSD_ARGB8888_BOXES, /*!< arg: bk_jpeg_encode_osd_argb8888_boxes_t * */
 } bk_jpeg_encode_ioctl_cmd_t;
 
 typedef enum {
@@ -72,6 +75,11 @@ typedef struct {
 	void *outbuf_malloc_args;
 	uint32_t (*outbuf_complete)(bk_jpeg_encode_outbuf_info_t *info);
 	void *outbuf_complete_args;
+	uint8_t osd_in_place;  /*!< 1: composite OSD directly into the input buffer (input must be
+			       *      writable and must not be shared with other consumers while
+			       *      encoding, the OSD is burned into the source frame);
+			       *   0: keep the source untouched, composite into an internal staging
+			       *      copy (default, costs one full-frame memcpy per frame) */
 } bk_jpeg_encode_sw_frame_config_t;
 
 typedef struct {
@@ -110,6 +118,61 @@ typedef struct {
 	uint32_t out_buf;   /*!< optional; 0 = allocate via outbuf_malloc */
 	uint32_t out_size;  /*!< optional output capacity when out_buf non-zero */
 } bk_jpeg_encode_input_t;
+
+typedef enum {
+	BK_JPEG_ENCODE_OVERLAY_FORMAT_ARGB8888 = 0,
+	BK_JPEG_ENCODE_OVERLAY_FORMAT_NV12 = 1,
+	BK_JPEG_ENCODE_OVERLAY_FORMAT_BITMAP = 2,
+} bk_jpeg_encode_overlay_format_t;
+
+typedef void (*bk_jpeg_encode_osd_buffer_free_cb_t)(void *buffer, void *free_arg);
+
+typedef struct {
+	uint32_t index;     /* overlay slot index, 0..7 */
+	void *buffer;       /* pixel buffer in memory visible to encoder */
+	uint32_t format;    /* bk_jpeg_encode_overlay_format_t */
+	uint8_t alpha;      /* global alpha for NV12/Bitmap; ignored for ARGB8888 */
+	uint32_t x;
+	uint32_t y;
+	uint32_t width;
+	uint32_t height;
+	uint8_t bitmap_y;   /* Bitmap foreground Y; valid when format == BITMAP */
+	uint8_t bitmap_u;   /* Bitmap foreground U */
+	uint8_t bitmap_v;   /* Bitmap foreground V */
+	bk_jpeg_encode_osd_buffer_free_cb_t buffer_free;
+	void *free_arg;
+} bk_jpeg_encode_osd_t;
+
+typedef struct {
+	uint32_t x;
+	uint32_t y;
+	uint32_t width;
+	uint32_t height;
+	uint32_t thickness;
+	uint32_t color;     /* RGB888 0x00RRGGBB; only boxes[0].color is used */
+} bk_jpeg_encode_osd_bitmap_box_t;
+
+typedef struct {
+	uint32_t index;
+	uint8_t alpha;
+	uint32_t count;
+	const bk_jpeg_encode_osd_bitmap_box_t *boxes;
+} bk_jpeg_encode_osd_bitmap_boxes_t;
+
+typedef struct {
+	uint32_t x;
+	uint32_t y;
+	uint32_t width;
+	uint32_t height;
+	uint32_t thickness;
+	uint32_t color;     /* ARGB8888 0xAARRGGBB; A==0 means opaque */
+} bk_jpeg_encode_osd_argb8888_box_t;
+
+typedef struct {
+	uint32_t index;
+	uint32_t count;
+	const bk_jpeg_encode_osd_argb8888_box_t *boxes;
+} bk_jpeg_encode_osd_argb8888_boxes_t;
 
 typedef struct bk_jpeg_encode_ctlr_t *bk_jpeg_encode_ctlr_handle_t;
 typedef struct bk_jpeg_encode_ctlr_t bk_jpeg_encode_ctlr_t;
