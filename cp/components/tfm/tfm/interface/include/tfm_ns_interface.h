@@ -59,6 +59,25 @@ int32_t tfm_ns_interface_dispatch(veneer_fn fn,
  */
 uint32_t tfm_ns_interface_init(void);
 
+/**
+ * \brief Lock a Non-Secure call into the Secure world
+ *
+ * \details Serializes all Non-Secure callers and masks interrupts, so that only
+ *          one call is inside the Secure world at a time. The same lock is used
+ *          by tfm_ns_interface_dispatch().
+ *          Must be paired with tfm_ns_secure_call_unlock() and must be called
+ *          with interrupts enabled. Call sites must not nest.
+ */
+void tfm_ns_secure_call_lock(void);
+
+/**
+ * \brief Unlock a Non-Secure call into the Secure world
+ *
+ * \details Restores the interrupt level and releases the lock taken by
+ *          tfm_ns_secure_call_lock().
+ */
+void tfm_ns_secure_call_unlock(void);
+
 #ifdef __cplusplus
 }
 #endif

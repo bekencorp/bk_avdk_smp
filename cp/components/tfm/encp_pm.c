@@ -21,6 +21,9 @@
 
 extern int psa_encp_quiesce(void);
 extern int psa_encp_resume(void);
+/* These callbacks run from pm_low_voltage_process() with interrupts masked for
+ * the whole low-voltage window, so no other NS context can enter the Secure
+ * world between them and no extra NS->S locking is needed. */
 
 #if CONFIG_TRUSTENGINE
 /* Release the NS-side runtime state once the Secure world has rebuilt the
