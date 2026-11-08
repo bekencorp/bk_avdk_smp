@@ -28,6 +28,7 @@
 #include "hal_sw_fih.h"
 #if CONFIG_SLEEP_RETENTION_NSC
 #include "sleep_fastboot_tfm.h"
+#include "cp_lv_reserve.h"
 #endif
 
 #define ENTRY_SECTION  __attribute__((section(".fix.reset_entry")))
@@ -212,6 +213,10 @@ const VECTOR_TABLE_Type __VECTOR_TABLE[] __VECTOR_TABLE_ATTRIBUTE = {
 
 __NO_RETURN ENTRY_SECTION __attribute__((naked)) void Reset_Handler(void)
 {
+#if CONFIG_SLEEP_RETENTION_NSC
+    cp_lv_reserve_early_restore();
+#endif
+
     __asm volatile (
         /* Fastboot probe: retained R7B.fast_boot plus SRAM code sentinel */
         "LDR    R1, =0x440001EC                \n"

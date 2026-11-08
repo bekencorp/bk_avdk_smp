@@ -4,6 +4,8 @@
 
 #pragma once
 
+#include <stdint.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -13,6 +15,17 @@ extern "C" {
  * CONFIG_SLEEP_RETENTION_NSC. */
 void cp_lv_reserve_restore(void);
 void cp_lv_reserve_discard(void);
+
+extern uint32_t sys_is_running_from_deep_sleep(void);
+
+static inline __attribute__((always_inline)) void cp_lv_reserve_early_restore(void)
+{
+	if (sys_is_running_from_deep_sleep() != 0u) {
+		cp_lv_reserve_restore();
+	} else {
+		cp_lv_reserve_discard();
+	}
+}
 
 #ifdef __cplusplus
 }

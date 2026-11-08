@@ -23,10 +23,7 @@
  * resume path drops it when the marker is absent.
  *
  * The warm path never runs Pre_Main(), so the capture survives; the write-back
- * therefore uses only locals, section symbols and immediates. It is kept in the
- * SRAM-resident .tfm_fastboot_code section (CP_LV_RAMFUNC): after a deep-sleep
- * wakeup the secure world runs from flash at its slowest, and the write-back is
- * part of that wake path. */
+ * therefore uses only locals, section symbols and immediates. */
 
 #include <stdint.h>
 
@@ -39,6 +36,7 @@
 
 typedef struct {
 	uint32_t values[CP_MEM_CHECK_POINT_NUM];
+	uint32_t point_mask;
 	uint32_t magic;
 } cp_lv_reserve_t;
 
@@ -53,16 +51,12 @@ extern uint8_t __cp_lv_reserve_end__[];
 
 extern void flush_all_dcache(void);
 
-/* The write-back runs on the deep-sleep wake path, where flash XIP is at its
- * slowest: keep it in the SRAM-resident section next to tfm_fastboot_resume().
- * The same attribute is used by startup/sleep_fastboot_tfm.c (TFM_RAMFUNC). */
-#define CP_LV_RAMFUNC __attribute__((section(".tfm_fastboot_code"), noinline))
-
 static int cp_lv_reserve_save(void)
 {
 	volatile cp_lv_reserve_t *tbl = CP_LV_RESERVE();
 	uintptr_t lo = (uintptr_t)__cp_lv_reserve_start__;
 	uintptr_t hi = (uintptr_t)__cp_lv_reserve_end__;
+	uint32_t point_mask = 0;
 
 	for (uint32_t i = 0; i < CP_MEM_CHECK_POINT_NUM; i++) {
 		uint32_t addr = cp_mem_check_bad_point_addr_get(i);
@@ -75,9 +69,14 @@ static int cp_lv_reserve_save(void)
 			return -1; /* only reached when asserts are compiled out */
 		}
 
+		if (addr != 0u) {
+			point_mask |= 1u << i;
+		}
+
 		tbl->values[i] = (addr != 0u) ? *(volatile uint32_t *)addr : 0u;
 	}
 
+	tbl->point_mask = point_mask;
 	__DSB();
 
 	/* Magic last: a capture that did not complete must never be consumed. */
@@ -86,19 +85,25 @@ static int cp_lv_reserve_save(void)
 	return 0;
 }
 
-CP_LV_RAMFUNC void cp_lv_reserve_restore(void)
+__attribute__((optimize("O2"))) void cp_lv_reserve_restore(void)
 {
 	volatile cp_lv_reserve_t *tbl = CP_LV_RESERVE();
+	uint32_t point_mask;
 
 	if (tbl->magic != CP_LV_RESERVE_MAGIC) {
 		return;
 	}
 
+	point_mask = tbl->point_mask;
 	tbl->magic = 0u;
 
-	for (uint32_t i = 0; i < CP_MEM_CHECK_POINT_NUM; i++) {
-		uint32_t addr = cp_mem_check_bad_point_addr_get(i);
+	while (point_mask != 0u) {
+		uint32_t i = (uint32_t)__builtin_ctz(point_mask);
+		uint32_t addr;
 
+		point_mask &= point_mask - 1u;
+
+		addr = cp_mem_check_bad_point_addr_get(i);
 		if (addr != 0u) {
 			*(volatile uint32_t *)addr = tbl->values[i];
 		}
@@ -107,7 +112,7 @@ CP_LV_RAMFUNC void cp_lv_reserve_restore(void)
 	__DSB();
 }
 
-CP_LV_RAMFUNC void cp_lv_reserve_discard(void)
+void cp_lv_reserve_discard(void)
 {
 	CP_LV_RESERVE()->magic = 0u;
 	__DSB();

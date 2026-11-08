@@ -13,11 +13,9 @@
 #include "tfm_hal_isolation.h"
 #include "tfm_hal_platform.h"
 #include "tfm_sleep_context.h"
-#include "cp_lv_reserve.h"
 #include "aon_pmu_hal.h"
 #include "aon_pmu_ll.h"
 
-extern uint32_t sys_is_running_from_deep_sleep(void);
 extern void tcm_spe(void);
 extern uint32_t __STACK_LIMIT;
 extern uint32_t __StackSeal;
@@ -227,13 +225,6 @@ TFM_RAMFUNC __attribute__((noreturn)) void tfm_fastboot_resume(void)
 	 * the resume path skips. Without them every BusFault/SecureFault escalates to
 	 * HardFault and the failing service call looks like a silent hang. */
 	(void)enable_fault_handlers();
-
-	if (sys_is_running_from_deep_sleep() != 0u) {
-		cp_lv_reserve_restore();
-	}
-	else {
-		cp_lv_reserve_discard();
-	}
 
 	if (tfm_sleep_context_restore() != 0) {
 		/* No path back to BL2 cold boot: clear the marker and restart. */
