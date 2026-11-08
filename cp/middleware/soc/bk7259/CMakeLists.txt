@@ -115,7 +115,7 @@ if(CONFIG_XDAC)
 	)
 endif()
 
-armino_component_register(SRCS "${srcs}" INCLUDE_DIRS "${incs}" PRIV_REQUIRES coredump mpu REQUIRES partitions os_source)
+armino_component_register(SRCS "${srcs}" INCLUDE_DIRS "${incs}" PRIV_REQUIRES coredump mpu tfm REQUIRES partitions os_source)
 
 armino_build_get_property(sdkconfig_header SDKCONFIG_HEADER)
 armino_build_get_property(config_dir CONFIG_DIR)

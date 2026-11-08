@@ -38,6 +38,10 @@
 #include <modules/bad_point_nsc.h>
 #include <components/log.h>
 
+#if CONFIG_TFM_AP_BOOT_NSC
+#include "tfm_ns_interface.h"
+#endif
+
 void bk_multicore_set_cpu_id(uint32_t cpu_id)
 {
 	multicore_hal_set_cpu_id(cpu_id);
@@ -67,13 +71,20 @@ bk_err_t bk_multicore_start(uint32_t cpu_id)
 #endif /* CONFIG_DEEP_LV && CONFIG_PM_AP_FAST_BOOT_ENABLE */
 
 #elif CONFIG_TFM_AP_BOOT_NSC
-		if (psa_ap_mem_check_restore_from_otp() != 0) {
+		int secure_ret;
+
+		tfm_ns_secure_call_lock();
+		secure_ret = psa_ap_mem_check_restore_from_otp();
+		tfm_ns_secure_call_unlock();
+		if (secure_ret != 0) {
 			BK_LOGE(NULL, "restore AP memcheck failed, AP starts without repair\r\n");
 		}
 		__DSB();
 
 #if CONFIG_DEEP_LV && CONFIG_PM_AP_FAST_BOOT_ENABLE
+		tfm_ns_secure_call_lock();
 		(void)psa_ap_lv_reserve_restore();
+		tfm_ns_secure_call_unlock();
 		__DSB();
 #endif /* CONFIG_DEEP_LV && CONFIG_PM_AP_FAST_BOOT_ENABLE */
 

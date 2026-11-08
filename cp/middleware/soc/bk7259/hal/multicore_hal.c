@@ -35,8 +35,9 @@
 /* Secure project: the AP application runs in the Non-secure world. AP start needs
  * the Secure-privilege steps (AP MPC/PPHS, verified boot shim) that only TF-M can
  * perform, exposed through the NSC below; the rest stays in CP NS. The veneers
- * are declared locally so the common CP NS driver does not pull in a TF-M
- * interface header, and are resolved from libtfm_s_veneers.a at NS link time. */
+ * are declared locally and resolved from libtfm_s_veneers.a at NS link time;
+ * tfm_ns_interface.h is included for the shared NS->S call lock only. */
+#include "tfm_ns_interface.h"
 #define TFM_AP_BOOT_REASON_COLD 0u
 int psa_ap_secure_prepare(uint32_t boot_reason);
 int psa_ap_secure_cancel(void);
@@ -326,16 +327,30 @@ __IRAM_SEC bk_err_t multicore_hal_start(uint32_t id)
 		 * implicitly (SOC_ADDR_OFFSET in the CP NS build).
 		 */
 		sys_ahbp_ll_set_reg4_cpu0_sw_rstn(0);
-		if (psa_ap_secure_prepare(TFM_AP_BOOT_REASON_COLD) != 0) {
-			SOC_LOGE("AP secure prepare failed, keep cpu0 in reset\r\n");
-			(void)psa_ap_secure_cancel();
-			return BK_FAIL;
-		}
-		boot_addr = psa_ap_secure_boot_addr();
-		if (boot_addr == 0U) {
-			SOC_LOGE("AP secure boot addr invalid, keep cpu0 in reset\r\n");
-			(void)psa_ap_secure_cancel();
-			return BK_FAIL;
+		{
+			int secure_ret;
+
+			/* prepare/boot_addr/cancel belong to one request; hold the NS->S
+			 * lock across them so no other caller can interleave. */
+			tfm_ns_secure_call_lock();
+			secure_ret = psa_ap_secure_prepare(TFM_AP_BOOT_REASON_COLD);
+			boot_addr = 0U;
+			if (secure_ret == 0) {
+				boot_addr = psa_ap_secure_boot_addr();
+			}
+			if ((secure_ret != 0) || (boot_addr == 0U)) {
+				(void)psa_ap_secure_cancel();
+			}
+			tfm_ns_secure_call_unlock();
+
+			if (secure_ret != 0) {
+				SOC_LOGE("AP secure prepare failed, keep cpu0 in reset\r\n");
+				return BK_FAIL;
+			}
+			if (boot_addr == 0U) {
+				SOC_LOGE("AP secure boot addr invalid, keep cpu0 in reset\r\n");
+				return BK_FAIL;
+			}
 		}
 		sys_ahbp_ll_set_reg4_cpu0_offset((boot_addr) >> 8);
 		sys_ahbp_ll_set_reg4_cpu0_init_dtcm_en(1);
