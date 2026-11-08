@@ -1994,7 +1994,21 @@ bk_err_t bk_hpdma_memcpy(void *out, const void *in, uint32_t len)
         ret = hpdma_memcpy_by_chnl(out, in, len, cpy_chnl);
     }
 
-    bk_hpdma_free(HPDMA_DEV_DTCM, cpy_chnl);
+    /*
+     * BK7259SW-3580: bk_hpdma_free() keeps the channel reserved when the
+     * engine does not go idle. Without reclaiming it, four such timeouts eat
+     * the whole pool and every later allocation fails with -20225. Reclaim
+     * this caller's channel on timeout and leave the rest of the flow
+     * unchanged.
+     */
+    bk_err_t free_ret = bk_hpdma_free(HPDMA_DEV_DTCM, cpy_chnl);
+    if (free_ret == BK_ERR_HPDMA_TIMEOUT) {
+        bk_err_t reclaim_ret = bk_hpdma_force_reclaim(HPDMA_DEV_DTCM, cpy_chnl);
+        if (reclaim_ret != BK_OK) {
+            HPDMA_LOGE("memcpy: force reclaim ch%d failed ret=%d\r\n",
+                       cpy_chnl, reclaim_ret);
+        }
+    }
 
     /*
      * Correctness over speed: if the DMA path failed (alloc/link/timeout), fall
