@@ -925,6 +925,20 @@ bk_err_t bk_pm_ap_power_ops_unregister(const pm_ap_power_ops_t *ops);
 bk_err_t bk_pm_ap_power_prepare(void);
 
 /**
+ * @brief Re-confirm modules that already accepted AP power-off
+ *
+ * Re-invokes the prepare_power_off callbacks that returned BK_OK during
+ * preparation, catching work submitted between prepare and the final sleep
+ * commit (e.g. pending Wi-Fi TX buffers). Non-blocking and may be called
+ * from the CPU2 idle path with interrupts disabled. Does not change the
+ * prepare state; the caller aborts the sleep attempt and retries on the
+ * next idle probe.
+ *
+ * @return BK_OK if all modules are still idle, BK_ERR_BUSY otherwise
+ */
+bk_err_t bk_pm_ap_power_prepare_recheck(void);
+
+/**
  * @brief Check whether AP power-off preparation is complete
  *
  * This lock-free query is safe in mailbox ISR context.
