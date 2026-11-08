@@ -465,9 +465,9 @@ __IRAM_PM void pm_low_voltage_bsp_restore(void)
 
 __IRAM_PM void pm_low_voltage_deferred_restore(void)
 {
-#if CONFIG_CKMN
-	bk_rosc_32k_ckest_prog(32);
-#endif
+// #if CONFIG_CKMN
+// 	bk_rosc_32k_ckest_prog(32);
+// #endif
 
 #if CONFIG_INT_WDT
 	extern int wdt_init(void);
