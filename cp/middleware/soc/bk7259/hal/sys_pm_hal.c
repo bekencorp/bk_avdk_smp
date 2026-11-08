@@ -222,6 +222,8 @@ __IRAM_PM static void sys_hal_keep_ap_sram_power_on(void)
 #define PM_VDDDIG_H_VOL_0V825                 (0x9)
 #define PM_VDDDIG_H_VOL_0v9                   (0xC)
 #define PM_VDDDIG_H_VOL_0V95                  (0xE)
+#define PM_AON_LDO_SEL_FOR_LV                 (CONFIG_AON_LDO_SEL_FOR_LV) //0:0.6V；1:0.65V；2:0.7V；3:0.75V  4:0.8V；5:0.85V；6:0.9V；7:0.95V
+
 #define SYS_PM_HAL_CPU_BARRIER()              do {      \
 	__asm__ volatile ("dsb");                           \
 	__asm__ volatile ("isb");                           \
@@ -1061,19 +1063,21 @@ static inline void sys_hal_set_low_voltage(pm_sleep_mode_e sleep_mode, volatile 
 
 	if (sleep_mode == PM_MODE_LOW_VOLTAGE)
 	{
-		#if 1//CONFIG_LDO_SELF_LOW_POWER_MODE_ENA
+		//#if 1//CONFIG_LDO_SELF_LOW_POWER_MODE_ENA
 		sys_ll_set_ana_reg9_clk_sel(0); //bit0 0:rosc 1:xtal 32k
 		sys_ll_set_ana_reg9_coreldo_hp(0); //bit1 0:coreldo low power mode
 		sys_ll_set_ana_reg9_dldohp(1); //bit2 0:dldo low power mode  1:dldo high power mode ;for psram retetion at lv sleep
 		sys_ll_set_ana_reg9_aldohp(0); //bit10 0:aldohp low power mode
 		sys_ll_set_ana_reg9_aloldohp(0); //bit21 0:aloldohp low power mode
-		#endif
+		//#endif
 
 		sys_ll_set_ana_reg9_t_vanaldosel(0);//tenglong20230417(need modify setting value)
 		sys_ll_set_ana_reg9_r_vanaldosel(0);//tenglong20230417(need modify setting value)
 
 		sys_ll_set_ana_reg10_vlden(1);//bit23//0x1: coreldo low voltage enable
-		#if 1//CONFIG_DIGLDO_LOW_VOLTAGE_ENABLE
+
+		/*vdd not enable low volage mode*/
+		#if 0//CONFIG_DIGLDO_LOW_VOLTAGE_ENABLE
 		if(sys_ll_get_ana_reg10_vdd12lden() != 0x1)
 		{
 			sys_ll_set_ana_reg10_vdd12lden(1);//bit31//0x1: digldo low voltage enable
@@ -1086,9 +1090,7 @@ static inline void sys_hal_set_low_voltage(pm_sleep_mode_e sleep_mode, volatile 
 		#endif
 		//sys_ll_set_ana_reg9_valoldosel(PM_LOW_VOL_AON_LDO_SEL); //bit16
 		//sys_ll_set_ana_reg9_aloldohp(0);//bit21
-	
 		//sys_ll_set_ana_reg12_enpowa(0); //bit13 0:bucka EA fast transient disable
-
 	}
 	else
 	{
@@ -2112,7 +2114,7 @@ __IRAM_PM void sys_hal_enter_lv(void)
 #endif
 	#if CONFIG_CKMN
 	//bk_ckmn_sleep_regs_backup();
-	//bk_ckmn_power_down_for_sleep();
+	bk_ckmn_power_down_for_sleep();
 	#endif//CONFIG_CKMN
 
 	sys_hal_lv_deep_sleep_enter_clear();
@@ -2159,11 +2161,11 @@ __IRAM_PM void sys_hal_enter_lv(void)
 		// PM_GPIO_UP(36);//12
 		// PM_GPIO_DOWN(36);
 
-		sys_ll_set_ana_reg9_valoldosel(PM_LOW_VOL_AON_LDO_SEL);
+		sys_ll_set_ana_reg9_valoldosel(PM_AON_LDO_SEL_FOR_LV);
 		timer_hal_early_delay_us_iram(10);
-		if(sys_ll_get_ana_reg9_valoldosel() != PM_LOW_VOL_AON_LDO_SEL)
+		if(sys_ll_get_ana_reg9_valoldosel() != PM_AON_LDO_SEL_FOR_LV)
 		{
-			sys_ll_set_ana_reg9_valoldosel(PM_LOW_VOL_AON_LDO_SEL);
+			sys_ll_set_ana_reg9_valoldosel(PM_AON_LDO_SEL_FOR_LV);
 			timer_hal_early_delay_us_iram(10);
 		}
 
