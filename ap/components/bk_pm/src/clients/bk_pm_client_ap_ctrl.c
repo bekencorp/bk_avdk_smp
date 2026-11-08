@@ -399,6 +399,35 @@ bk_err_t bk_pm_ap_power_prepare(void)
 	return ret;
 }
 
+bk_err_t bk_pm_ap_power_prepare_recheck(void)
+{
+	pm_ap_power_node_t *node;
+	bk_err_t ret = BK_OK;
+	bk_err_t cb_ret;
+
+	/*
+	 * Re-run the prepare_power_off callbacks that were already accepted,
+	 * catching work submitted between prepare and the final sleep commit
+	 * (e.g. pending Wi-Fi TX buffers). The ops list is frozen while a
+	 * prepare transaction is in progress, so iteration without the lock
+	 * matches bk_pm_ap_power_prepare(). A busy verdict does not change the
+	 * prepare state; the caller aborts this sleep attempt and retries on
+	 * the next idle probe.
+	 */
+	for (node = s_power_ops_tail; node != NULL; node = node->prev) {
+		if ((node->ops.prepare_power_off != NULL) &&
+			node->power_prepare_called) {
+			cb_ret = node->ops.prepare_power_off(node->ops.arg);
+			node->prepare_result = cb_ret;
+			node->prepare_result_valid = true;
+			if (cb_ret != BK_OK) {
+				ret = BK_ERR_BUSY;
+			}
+		}
+	}
+	return ret;
+}
+
 bool bk_pm_ap_power_prepare_is_ready(void)
 {
 	__DMB();
