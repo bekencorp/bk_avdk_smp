@@ -1,0 +1,123 @@
+# KCONFIG_GROUP: Third Party::JerryScript
+menu "BK JerryScript"
+
+	config BK_JERRYSCRIPT
+		bool "Enable JavaScript runtime (JerryScript)"
+		default n
+		help
+			Enable a JerryScript based JavaScript runtime.  The engine context
+			and heap are allocated from PSRAM, and scripts are executed on a
+			dedicated task so that the console task stack is never used to run
+			JavaScript code.
+
+	choice BK_JERRYSCRIPT_HEAP_MEM
+		prompt "JerryScript heap memory"
+		depends on BK_JERRYSCRIPT
+		default BK_JERRYSCRIPT_HEAP_IN_PSRAM
+		help
+			Backing memory of the engine heap.  The heap is a single block
+			allocated when the engine starts, so the choice is fixed at build
+			time.  If the preferred allocator fails the other one is tried.
+
+		config BK_JERRYSCRIPT_HEAP_IN_PSRAM
+			bool "PSRAM"
+			help
+				Allocate the engine heap with psram_malloc().  Keeps internal
+				SRAM free for LVGL and the application.  Slower, because the
+				heap is not cacheable.
+
+		config BK_JERRYSCRIPT_HEAP_IN_SRAM
+			bool "HSRAM"
+			help
+				Allocate the engine heap from the high speed SRAM heap with
+				hsram_malloc().  Noticeably faster, but a large heap will
+				starve LVGL, so keep BK_JERRYSCRIPT_HEAP_SIZE_KB small
+				(64-128 KB).
+	endchoice
+
+	config BK_JERRYSCRIPT_HEAP_SIZE_KB
+		int "JerryScript heap size (KB)"
+		depends on BK_JERRYSCRIPT
+		range 64 512
+		default 256
+		help
+			Size of the JerryScript engine heap.  16 bit compressed pointers
+			limit the heap to 512 KB.
+
+	config BK_JERRYSCRIPT_DEFAULT_TIMEOUT_MS
+		int "Default script timeout (ms)"
+		depends on BK_JERRYSCRIPT
+		range 100 60000
+		default 5000
+		help
+			Default execution timeout of a single script.  When the timeout
+			expires the engine throws an error and the script is terminated.
+
+	config BK_JERRYSCRIPT_TASK_STACK_SIZE
+		int "JavaScript task stack size (bytes)"
+		depends on BK_JERRYSCRIPT
+		range 8192 65536
+		default 24576
+
+	config BK_JERRYSCRIPT_APPS_ROOT
+		string "Application root directory"
+		depends on BK_JERRYSCRIPT
+		default "/apps"
+		help
+			Directory scanned for applications.  Every sub-directory is one
+			application and contains manifest.json plus the entry script.
+
+	config BK_JERRYSCRIPT_FS
+		bool "Enable script access to the file system"
+		depends on BK_JERRYSCRIPT && VFS
+		default y
+		help
+			Add the fs.* and require() bindings and allow applications to be
+			loaded from the file system.  Requires CONFIG_VFS and a mounted
+			file system below the application root directory.
+
+	config BK_JERRYSCRIPT_FS_AUTO_MOUNT
+		bool "Mount the application file system during init"
+		depends on BK_JERRYSCRIPT_FS && LITTLEFS
+		default y
+		help
+			Mount the littlefs image stored in the usr_config flash
+			partition on the application root directory when the JavaScript
+			runtime is initialised.  Applications can then be started
+			straight from the file system without a manual mount command.
+
+	config BK_JERRYSCRIPT_UI
+		bool "Enable LVGL bindings (lv.* / ui.*)"
+		depends on BK_JERRYSCRIPT && LVGL && !LVGL_V8
+		default y
+		help
+			Expose the lv.* widget factory and the higher level ui.* page
+			helpers to scripts.  All LVGL calls are serialised with the
+			LVGL display lock.
+
+	config BK_JERRYSCRIPT_BUILTIN_DEMO
+		bool "Fall back to the built-in demo application"
+		depends on BK_JERRYSCRIPT
+		default y
+		help
+			When no application can be loaded from the file system, run a
+			small built-in demo instead of failing.  Useful to verify the
+			display pipeline without an SD card.
+
+	config BK_JERRYSCRIPT_AUTO_START
+		bool "Start the first application automatically"
+		depends on BK_JERRYSCRIPT
+		default n
+		help
+			Start the default (or the first found) application as soon as
+			bk_js_runtime_init() returns.
+
+	config BK_JERRYSCRIPT_CLI
+		bool "Enable js CLI command"
+		depends on BK_JERRYSCRIPT && CLI
+		default y
+		help
+			Register the "js" console command
+			(js eval/run/apps/start/stop/status/mem/deinit).
+
+endmenu
