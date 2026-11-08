@@ -7,6 +7,7 @@
 #include "components/bk_encode/bk_jpeg_encode_ctlr.h"
 #include "hw_encoder_ctlr.h"
 #include "private_jpeg_encode_ctlr.h"
+#include "jpeg_encode_osd_priv.h"
 #if CONFIG_L2_CACHE_ENABLE || CONFIG_DCACHE
 #include "cache.h"
 #endif
@@ -119,8 +120,19 @@ static avdk_err_t jpeg_sw_flexa_msg_callback(void *param)
 #if CONFIG_L2_CACHE_ENABLE || CONFIG_DCACHE
 	{
 		uint32_t line_bytes = ctrl->config.width * 3U / 2U;
-		uint32_t lines = ctrl->jpeg_param.in_lines ? ctrl->jpeg_param.in_lines : ctrl->config.height;
-		uint32_t flush_sz = lines * line_bytes;
+		uint32_t flush_sz;
+
+		/* in_lines is either a line count (slice frame) or a byte size
+		 * (whole linear input buffer); see bk_h264_encode_sw_flexa_ctlr.c. */
+		if (ctrl->jpeg_param.in_lines != 0U) {
+			if (ctrl->jpeg_param.in_lines <= ctrl->config.height) {
+				flush_sz = ctrl->jpeg_param.in_lines * line_bytes;
+			} else {
+				flush_sz = ctrl->jpeg_param.in_lines;
+			}
+		} else {
+			flush_sz = ctrl->config.height * line_bytes;
+		}
 
 		if (ctrl->jpeg_param.in_buffer != 0U && flush_sz > 0U) {
 			flush_dcache((void *)(uintptr_t)ctrl->jpeg_param.in_buffer, (long)flush_sz);
@@ -129,7 +141,9 @@ static avdk_err_t jpeg_sw_flexa_msg_callback(void *param)
 #endif
 	ctrl->last_flexa_line = 0;
 	ctrl->jpeg_param.linebuf_wr_cnt = JPEG_SW_FLEXA_INITIAL_WR_BLOCKS;
+	jpeg_encode_osd_sync_to_vcenc(&ctrl->jpeg_param, ctrl->osd_slots);
 	ctrl->last_ret = vcenc_jpeg_encode_frame(&ctrl->jpeg_param);
+	jpeg_encode_osd_finish_frame(ctrl->osd_slots);
 	return jpeg_sw_flexa_vcenc_ret_to_avdk(ctrl->last_ret);
 }
 
@@ -294,6 +308,7 @@ static avdk_err_t jpeg_sw_flexa_ctlr_close(bk_jpeg_encode_ctlr_handle_t handle)
 	rtos_get_semaphore(&control->sem, BEKEN_WAIT_FOREVER);
 
 	if (control->opened) {
+		jpeg_encode_osd_release_all(&control->jpeg_param, control->osd_slots);
 		(void)vcenc_jpeg_close(&control->jpeg_param);
 		(void)vcenc_jpeg_deinit(&control->jpeg_param);
 		control->opened = 0;
@@ -345,6 +360,17 @@ static avdk_err_t jpeg_sw_flexa_ctlr_ioctl(bk_jpeg_encode_ctlr_handle_t handle, 
 		return AVDK_ERR_INVAL;
 	case BK_JPEG_ENCODE_IOCTL_STOP_ENCODE:
 		return jpeg_sw_flexa_vcenc_ret_to_avdk(vcenc_jpeg_abort(&control->jpeg_param));
+	case BK_JPEG_ENCODE_IOCTL_SET_OSD:
+		return jpeg_encode_set_osd_common(&control->jpeg_param, control->opened,
+						  control->osd_slots, (bk_jpeg_encode_osd_t *)arg);
+	case BK_JPEG_ENCODE_IOCTL_SET_OSD_BITMAP_BOXES:
+		return jpeg_encode_set_osd_bitmap_boxes_common(&control->jpeg_param, control->opened,
+							       control->osd_slots,
+							       (bk_jpeg_encode_osd_bitmap_boxes_t *)arg);
+	case BK_JPEG_ENCODE_IOCTL_SET_OSD_ARGB8888_BOXES:
+		return jpeg_encode_set_osd_argb8888_boxes_common(&control->jpeg_param, control->opened,
+								 control->osd_slots,
+								 (bk_jpeg_encode_osd_argb8888_boxes_t *)arg);
 	default:
 		return AVDK_ERR_UNSUPPORTED;
 	}

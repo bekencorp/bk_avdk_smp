@@ -22,6 +22,7 @@
 #include "components/bk_encode/bk_jpeg_encode_ctlr.h"
 #include "hw_encoder_ctlr.h"
 #include "private_jpeg_encode_ctlr.h"
+#include "jpeg_encode_osd_priv.h"
 #if CONFIG_L2_CACHE_ENABLE || CONFIG_DCACHE
 #include "cache.h"
 #endif
@@ -99,7 +100,9 @@ static avdk_err_t jpeg_encode_msg_callback(void *param)
 		}
 	}
 #endif
+	jpeg_encode_osd_sync_to_vcenc(&ctrl->jpeg_param, ctrl->osd_slots);
 	ctrl->last_ret = vcenc_jpeg_encode_frame(&ctrl->jpeg_param);
+	jpeg_encode_osd_finish_frame(ctrl->osd_slots);
 	signal_jpeg_encode_done(ctrl);
 	return jpeg_vcenc_ret_to_avdk(ctrl->last_ret);
 }
@@ -298,6 +301,7 @@ static avdk_err_t jpeg_encode_ctlr_close(bk_jpeg_encode_ctlr_handle_t handle)
 	rtos_get_semaphore(&control->sem, BEKEN_WAIT_FOREVER);
 
 	if (control->opened) {
+		jpeg_encode_osd_release_all(&control->jpeg_param, control->osd_slots);
 		(void)vcenc_jpeg_close(&control->jpeg_param);
 		(void)vcenc_jpeg_deinit(&control->jpeg_param);
 		control->opened = 0;
@@ -341,6 +345,17 @@ static avdk_err_t jpeg_encode_ctlr_ioctl(bk_jpeg_encode_ctlr_handle_t handle, ui
 		control->config.quality = *(uint8_t *)arg;
 		control->jpeg_param.quality = control->config.quality;
 		return AVDK_ERR_OK;
+	case BK_JPEG_ENCODE_IOCTL_SET_OSD:
+		return jpeg_encode_set_osd_common(&control->jpeg_param, control->opened,
+						  control->osd_slots, (bk_jpeg_encode_osd_t *)arg);
+	case BK_JPEG_ENCODE_IOCTL_SET_OSD_BITMAP_BOXES:
+		return jpeg_encode_set_osd_bitmap_boxes_common(&control->jpeg_param, control->opened,
+							       control->osd_slots,
+							       (bk_jpeg_encode_osd_bitmap_boxes_t *)arg);
+	case BK_JPEG_ENCODE_IOCTL_SET_OSD_ARGB8888_BOXES:
+		return jpeg_encode_set_osd_argb8888_boxes_common(&control->jpeg_param, control->opened,
+								 control->osd_slots,
+								 (bk_jpeg_encode_osd_argb8888_boxes_t *)arg);
 	default:
 		return AVDK_ERR_UNSUPPORTED;
 	}

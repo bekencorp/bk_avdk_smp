@@ -12,6 +12,7 @@ list(APPEND srcs
     common/hw_encoder_ctlr.c
     common/h264_encode_vcenc_rate_ctrl.c
     common/h264_encode_osd.c
+    common/jpeg_encode_osd.c
 )
 
 # H.264 and JPEG encoder sources when CONFIG_BK_ENCODER

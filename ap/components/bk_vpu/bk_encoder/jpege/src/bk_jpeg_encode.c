@@ -65,6 +65,30 @@ avdk_err_t bk_jpeg_encode_ioctl(bk_jpeg_encode_ctlr_handle_t handle, bk_jpeg_enc
 	return handle->ioctl(handle, cmd, arg);
 }
 
+avdk_err_t bk_jpeg_encode_set_osd(bk_jpeg_encode_ctlr_handle_t handle,
+				  bk_jpeg_encode_osd_t *osd)
+{
+	AVDK_RETURN_ON_FALSE(handle, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
+	AVDK_RETURN_ON_FALSE(osd, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
+	return bk_jpeg_encode_ioctl(handle, BK_JPEG_ENCODE_IOCTL_SET_OSD, osd);
+}
+
+avdk_err_t bk_jpeg_encode_set_osd_bitmap_boxes(bk_jpeg_encode_ctlr_handle_t handle,
+					       bk_jpeg_encode_osd_bitmap_boxes_t *boxes)
+{
+	AVDK_RETURN_ON_FALSE(handle, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
+	AVDK_RETURN_ON_FALSE(boxes, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
+	return bk_jpeg_encode_ioctl(handle, BK_JPEG_ENCODE_IOCTL_SET_OSD_BITMAP_BOXES, boxes);
+}
+
+avdk_err_t bk_jpeg_encode_set_osd_argb8888_boxes(bk_jpeg_encode_ctlr_handle_t handle,
+						 bk_jpeg_encode_osd_argb8888_boxes_t *boxes)
+{
+	AVDK_RETURN_ON_FALSE(handle, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
+	AVDK_RETURN_ON_FALSE(boxes, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
+	return bk_jpeg_encode_ioctl(handle, BK_JPEG_ENCODE_IOCTL_SET_OSD_ARGB8888_BOXES, boxes);
+}
+
 avdk_err_t bk_jpeg_encode_delete(bk_jpeg_encode_ctlr_handle_t handle)
 {
 	AVDK_RETURN_ON_FALSE(handle, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);

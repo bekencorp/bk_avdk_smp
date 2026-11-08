@@ -17,6 +17,7 @@
 #include "components/bk_encode/bk_jpeg_encode_types.h"
 #include "bk_flexa_bond_types.h"
 #include "modules/vcenc/vcenc_jpeg_api.h"
+#include "jpeg_encode_osd_priv.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -35,6 +36,7 @@ typedef struct {
 	uint8_t enc_status;
 	bk_jpeg_encode_input_t pending_input;
 
+	jpeg_encode_osd_slot_state_t osd_slots[JPEG_ENCODE_OSD_SLOT_COUNT];
 	bk_jpeg_encode_ctlr_t ops;
 } private_jpeg_encode_frame_ctlr_t;
 
@@ -52,6 +54,7 @@ typedef struct {
 	uint32_t encode_result;
 	bk_flexa_bond_t *bond;
 
+	jpeg_encode_osd_slot_state_t osd_slots[JPEG_ENCODE_OSD_SLOT_COUNT];
 	bk_jpeg_encode_ctlr_t ops;
 } private_jpeg_encode_hw_flexa_ctlr_t;
 
@@ -71,6 +74,7 @@ typedef struct {
 	uint32_t flexa_blocks_per_frame;
 	uint32_t last_flexa_line;
 
+	jpeg_encode_osd_slot_state_t osd_slots[JPEG_ENCODE_OSD_SLOT_COUNT];
 	bk_jpeg_encode_ctlr_t ops;
 } private_jpeg_encode_sw_flexa_ctlr_t;
 
