@@ -27,6 +27,7 @@
 typedef struct {
 	uint32_t magic;
 	uint32_t values[CP_MEM_CHECK_POINT_NUM];
+	uint32_t point_mask;
 } deep_lv_reserve_t;
 
 #if CONFIG_SOC_SMP
@@ -45,6 +46,7 @@ extern uint32_t __StackLimit;
 __IRAM_PM void sys_hal_mem_check_bad_point_value_save(void)
 {
 	volatile deep_lv_reserve_t *tbl = DEEP_LV_RESERVE();
+	uint32_t point_mask = 0;
 
 	for (uint32_t i = 0; i < CP_MEM_CHECK_POINT_NUM; i++) {
 		uint32_t bad_addr = cp_mem_check_bad_point_addr_get(i);
@@ -57,25 +59,36 @@ __IRAM_PM void sys_hal_mem_check_bad_point_value_save(void)
 			return; /* only reached when asserts are compiled out */
 		}
 
+		if (bad_addr != 0) {
+			point_mask |= 1u << i;
+		}
+
 		tbl->values[i] = (bad_addr != 0) ? *(volatile uint32_t *)bad_addr : 0;
 	}
 
+	tbl->point_mask = point_mask;
 	tbl->magic = DEEP_LV_RESERVE_MAGIC;
 }
 
-void sys_hal_mem_check_bad_point_value_restore(void)
+__attribute__((optimize("O2"))) void sys_hal_mem_check_bad_point_value_restore(void)
 {
 	volatile deep_lv_reserve_t *tbl = DEEP_LV_RESERVE();
+	uint32_t point_mask;
 
 	if (tbl->magic != DEEP_LV_RESERVE_MAGIC) {
 		return;
 	}
 
+	point_mask = tbl->point_mask;
 	tbl->magic = 0;
 
-	for (uint32_t i = 0; i < CP_MEM_CHECK_POINT_NUM; i++) {
-		uint32_t bad_addr = cp_mem_check_bad_point_addr_get(i);
+	while (point_mask != 0) {
+		uint32_t i = (uint32_t)__builtin_ctz(point_mask);
+		uint32_t bad_addr;
 
+		point_mask &= point_mask - 1u;
+
+		bad_addr = cp_mem_check_bad_point_addr_get(i);
 		if (bad_addr != 0) {
 			*(volatile uint32_t *)bad_addr = tbl->values[i];
 		}
