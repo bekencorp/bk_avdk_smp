@@ -33,6 +33,8 @@ typedef struct
     uint8_t pin_reset;        /**< Reset pin number */
     uint8_t pin_pwdn;         /**< Power-down pin number */
     bk_camera_bus_t *bus;     /**< Pointer to camera bus interface */
+    uint8_t mipi_lanes;       /**< MIPI data lane count (1 or 2), not the register value.
+                                   0 means not configured and defaults to 2 lanes. */
 } bk_camera_sensor_config_t;
 
 /**

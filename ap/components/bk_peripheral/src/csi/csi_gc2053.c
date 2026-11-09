@@ -915,7 +915,7 @@ static avdk_err_t gc2053_set_ppi(bk_camera_sensor_ctlr_t *controller, uint16_t w
         return -1;
     }
 
-    bk_mipi_csi_controller_init(width, height, 0x2b);
+    bk_mipi_csi_controller_init(width, height, 0x2b, csi_sensor->config.mipi_lanes);
 
     bus->write8(bus, 0xFE, 0x1);
     uint16_t win_y_start = (WIN_MAX_Y - height) / 2;

@@ -1618,7 +1618,7 @@ static avdk_err_t sc3336p_set_ppi(bk_camera_sensor_ctlr_t *controller, uint16_t 
         return -1;
     }
 
-    bk_mipi_csi_controller_init(width, height, 0x2b);
+    bk_mipi_csi_controller_init(width, height, 0x2b, csi_sensor->config.mipi_lanes);
 
     s_sc3336p_width = width;
     s_sc3336p_height = height;

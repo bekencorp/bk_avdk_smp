@@ -919,13 +919,16 @@ static avdk_err_t tp2863_init(bk_camera_sensor_ctlr_t *controller)
 
 static avdk_err_t tp2863_set_ppi(bk_camera_sensor_ctlr_t *controller, uint16_t width, uint16_t height)
 {
+    bk_camera_csi_sensor_t *csi_sensor = __containerof(controller, bk_camera_csi_sensor_t, ops);
+    AVDK_RETURN_ON_FALSE(csi_sensor, AVDK_ERR_INVAL, TAG, "csi sensor is NULL");
+
     if (width != TP2863_WIDTH || height != TP2863_HEIGHT)
     {
         LOGE("unsupported ppi %ux%u\n", width, height);
         return AVDK_ERR_UNSUPPORTED;
     }
 
-    bk_mipi_csi_controller_init(width, height, TP2863_MIPI_DATA_TYPE_YUV422);
+    bk_mipi_csi_controller_init(width, height, TP2863_MIPI_DATA_TYPE_YUV422, csi_sensor->config.mipi_lanes);
 
     return AVDK_ERR_OK;
 }

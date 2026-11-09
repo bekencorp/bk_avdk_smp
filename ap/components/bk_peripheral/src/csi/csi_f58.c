@@ -843,7 +843,7 @@ static avdk_err_t f58_set_ppi(bk_camera_sensor_ctlr_t *controller, uint16_t widt
         return -1;
     }
 
-    bk_mipi_csi_controller_init(width, width, 0x2b);
+    bk_mipi_csi_controller_init(width, width, 0x2b, csi_sensor->config.mipi_lanes);
     return 0;
 }
 

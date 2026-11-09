@@ -19,7 +19,28 @@
 #define BASEADDR_CSI            SOC_CSI_HOST_REG_BASE
 #define BASEADDR_CSI_EXT        SOC_CSI_EXT_REG_BASE
 
+#define MIPI_CSI_DEFAULT_LANES  2
+
 static uint8_t s_mipi_csi_default_vc = 0;
+static uint8_t s_mipi_csi_lanes = MIPI_CSI_DEFAULT_LANES;
+
+static uint32_t mipi_csi_lanes_to_reg(uint8_t lanes)
+{
+    if (lanes == 0)
+    {
+        lanes = s_mipi_csi_lanes;
+    }
+
+    if (lanes > 2)
+    {
+        LOGW("%s invalid lanes %u, fallback to %u\r\n", __func__, lanes, MIPI_CSI_DEFAULT_LANES);
+        lanes = MIPI_CSI_DEFAULT_LANES;
+    }
+
+    s_mipi_csi_lanes = lanes;
+
+    return (uint32_t)(lanes - 1) & 0x7u;
+}
 
 static void bk_csi_isr(void)
 {
@@ -27,20 +48,22 @@ static void bk_csi_isr(void)
     LOGI("%s, %d, state=%x\n", __func__, __LINE__, state);
 }
 
-bk_err_t bk_mipi_csi_controller_init_vc(uint16_t width, uint16_t height, uint8_t data_type, uint8_t vc)
+bk_err_t bk_mipi_csi_controller_init_vc(uint16_t width, uint16_t height, uint8_t data_type, uint8_t vc, uint8_t lanes)
 {
     uint8_t type = data_type; // default raw10
     uint8_t vc_id = vc & 0x03;
 
     // CSI PHY
-    LOGI("%s %d %d format[0x%x] vc[%u]\r\n", __func__, width, height, data_type, vc_id);
+    LOGI("%s %d %d format[0x%x] vc[%u] lanes[%u]\r\n", __func__, width, height, data_type, vc_id, lanes);
 
     *((volatile unsigned int *)(BASEADDR_CSI + 0x00000040)) = 0xffffffff;
     *((volatile unsigned int *)(BASEADDR_CSI + 0x00000044)) = 0xffffffff;
     *((volatile unsigned int *)(BASEADDR_CSI + 0x00000008)) = 0xffffffff;
     *((volatile unsigned int *)(BASEADDR_CSI + 0x000000c8)) = 0x0;
     *((volatile unsigned int *)(BASEADDR_CSI + 0x00000300)) = 0x0;
-    *((volatile unsigned int *)(BASEADDR_CSI + 0x00000004)) = 0x01; // n_lanes = 2
+    uint32_t n_lanes_reg = REG_READ(BASEADDR_CSI + 0x00000004);
+    n_lanes_reg = (n_lanes_reg & ~0x7u) | mipi_csi_lanes_to_reg(lanes);
+    REG_WRITE(BASEADDR_CSI + 0x00000004, n_lanes_reg); // n_lanes, encoded as lane count - 1
     *((volatile unsigned int *)(BASEADDR_CSI + 0x00000010)) = 0x2c; // data ids
     *((volatile unsigned int *)(BASEADDR_CSI + 0x00000030)) = 0x0; // data id vc
     *((volatile unsigned int *)(BASEADDR_CSI + 0x00000018)) = 0x0; // ppi 8bit
@@ -94,9 +117,9 @@ bk_err_t bk_mipi_csi_controller_init_vc(uint16_t width, uint16_t height, uint8_t
     return BK_OK;
 }
 
-bk_err_t bk_mipi_csi_controller_init(uint16_t width, uint16_t height, uint8_t data_type)
+bk_err_t bk_mipi_csi_controller_init(uint16_t width, uint16_t height, uint8_t data_type, uint8_t lanes)
 {
-    return bk_mipi_csi_controller_init_vc(width, height, data_type, s_mipi_csi_default_vc);
+    return bk_mipi_csi_controller_init_vc(width, height, data_type, s_mipi_csi_default_vc, lanes);
 }
 
 void bk_mipi_csi_set_default_vc(uint8_t vc)

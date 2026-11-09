@@ -1377,7 +1377,7 @@ avdk_err_t cv2002_set_ppi(bk_camera_sensor_ctlr_t *controller, uint16_t width, u
 
     s_cv2002_out_width = width;
     s_cv2002_out_height = height;
-    bk_mipi_csi_controller_init(width, height, 0x2b);
+    bk_mipi_csi_controller_init(width, height, 0x2b, csi_sensor->config.mipi_lanes);
     cv2002_write_crop_regs(bus, width, height);
 
     return AVDK_ERR_OK;

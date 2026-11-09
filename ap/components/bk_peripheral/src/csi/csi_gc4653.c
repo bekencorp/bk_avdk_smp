@@ -1226,7 +1226,7 @@ avdk_err_t gc4653_set_ppi(bk_camera_sensor_ctlr_t *controller, uint16_t width, u
 
     s_gc4653_out_width = width;
     s_gc4653_out_height = height;
-    bk_mipi_csi_controller_init(width, height, 0x2b);
+    bk_mipi_csi_controller_init(width, height, 0x2b, csi_sensor->config.mipi_lanes);
     gc4653_write_window_regs(bus, width, height);
 
     return 0;

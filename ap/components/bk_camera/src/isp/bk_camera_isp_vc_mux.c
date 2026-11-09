@@ -351,9 +351,10 @@ static void isp_camera_vc_mux_apply_vc(bk_camera_isp_vc_mux_t *mux)
         }
         else
         {
+            /* Keep the lane count configured by the sensor driver. */
             bk_mipi_csi_controller_init_vc(mux->width, mux->height,
                                            ISP_CAMERA_VC_MUX_MIPI_DATA_TYPE_YUV422,
-                                           mux->current_vc);
+                                           mux->current_vc, 0);
         }
         mux->applied_vc = mux->current_vc;
         mux->completed_valid = 0;

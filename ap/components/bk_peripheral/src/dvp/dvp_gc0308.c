@@ -486,7 +486,7 @@ avdk_err_t gc0308_set_format(bk_camera_sensor_ctlr_t *controller, bk_camera_sens
     AVDK_RETURN_ON_FALSE(format, AVDK_ERR_INVAL, TAG, "format is NULL");
     gc0308_set_ppi(controller, format->width, format->height);
     gc0308_set_fps(controller, format->fps);
-    bk_mipi_csi_controller_init(format->width, format->height, 0x2b);
+    bk_mipi_csi_controller_init(format->width, format->height, 0x2b, 0);
     return AVDK_ERR_OK;
 }
 

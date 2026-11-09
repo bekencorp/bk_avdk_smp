@@ -115,9 +115,12 @@ static avdk_err_t mipi_bridge_init(bk_camera_sensor_ctlr_t *controller)
 
 static avdk_err_t mipi_bridge_set_ppi(bk_camera_sensor_ctlr_t *controller, uint16_t width, uint16_t height)
 {
+    bk_camera_csi_sensor_t *csi_sensor = __containerof(controller, bk_camera_csi_sensor_t, ops);
+    AVDK_RETURN_ON_FALSE(csi_sensor, AVDK_ERR_INVAL, TAG, "csi sensor is NULL");
+
     bk_printf("%s, width: %d, height: %d\n", __func__, width, height);
 
-    bk_mipi_csi_controller_init(width, height, 0x1E);
+    bk_mipi_csi_controller_init(width, height, 0x1E, csi_sensor->config.mipi_lanes);
 
     return 0;
 }
