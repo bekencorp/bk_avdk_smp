@@ -79,6 +79,7 @@ bk_err_t audio_record_destroy(audio_record_t *record)
     if (ret != BK_OK)
     {
         LOGE("%s, %d, audio_record_close fail, ret: %d\n", __func__, __LINE__, ret);
+        return ret;
     }
 
     os_free(record);
@@ -116,12 +117,21 @@ bk_err_t audio_record_close(audio_record_t *record)
         return BK_FAIL;
     }
 
+    if (record->record_ctx == NULL)
+    {
+        return BK_OK;
+    }
+
     ret = record->ops->close(record);
     if (ret != BK_OK)
     {
         LOGE("%s, %d, audio_record_close fail, ret: %d\n", __func__, __LINE__, ret);
-        return BK_FAIL;
+        return ret;
     }
+
+    /* Release the backend context so this handle can be opened again. */
+    os_free(record->record_ctx);
+    record->record_ctx = NULL;
 
     return BK_OK;
 }
