@@ -63,7 +63,7 @@ uint32_t otp_map_1_col(void)
     return sizeof(otp_map_1) / sizeof(otp_map_1[0]);
 }
 
-const otp_item_t otp_map_2[40] = {
+const otp_item_t otp_map_2[43] = {
     {OTP_PHY_PWR1,                           48,    0x0,    OTP_READ_WRITE,    OTP_NON_SECURITY,    OTP_NO_NEED_CRC},
     {OTP_PHY_PWR2,                           48,    0x30,    OTP_READ_WRITE,    OTP_NON_SECURITY,    OTP_NO_NEED_CRC},
     {OTP_RFCALI1,                           256,    0x60,    OTP_READ_WRITE,    OTP_NON_SECURITY,    OTP_NO_NEED_CRC},
@@ -74,13 +74,16 @@ const otp_item_t otp_map_2[40] = {
     {OTP_MAC_ADDRESS_2,                       8,    0x468,    OTP_READ_WRITE,    OTP_NON_SECURITY,    OTP_NO_NEED_CRC},
     {OTP_MAC_ADDRESS_3,                       8,    0x470,    OTP_READ_WRITE,    OTP_NON_SECURITY,    OTP_NO_NEED_CRC},
     {OTP_MAC_ADDRESS_4,                       8,    0x478,    OTP_READ_WRITE,    OTP_NON_SECURITY,    OTP_NO_NEED_CRC},
-    {OTP_RESERVED_4_1,                      112,    0x480,    OTP_READ_WRITE,    OTP_NON_SECURITY,    OTP_NO_NEED_CRC},
+    {OTP_RESERVED_4_1,                       52,    0x480,    OTP_READ_WRITE,    OTP_NON_SECURITY,    OTP_NO_NEED_CRC},
+    {OTP_RSSI,                               60,    0x4b4,    OTP_READ_WRITE,    OTP_NON_SECURITY,    OTP_NO_NEED_CRC},
     {OTP_PACKAGE_TYPE,                        4,    0x4f0,    OTP_READ_WRITE,    OTP_NON_SECURITY,    OTP_NO_NEED_CRC},
-    {OTP_RSSI,                               60,    0x4f4,    OTP_READ_WRITE,    OTP_NON_SECURITY,    OTP_NO_NEED_CRC},
-    {OTP_GADC_CALIBRATION_BACKUP,            72,    0x530,    OTP_READ_WRITE,    OTP_NON_SECURITY,    OTP_NO_NEED_CRC},
-    {OTP_GADC_TEMPERATURE_BACKUP,             8,    0x578,    OTP_READ_WRITE,    OTP_NON_SECURITY,    OTP_NO_NEED_CRC},
-    {OTP_VDDDIG_BANDGAP_BACKUP,               4,    0x580,    OTP_READ_WRITE,    OTP_NON_SECURITY,    OTP_NO_NEED_CRC},
-    {OTP_DIA_BACKUP,                          4,    0x584,    OTP_READ_WRITE,    OTP_NON_SECURITY,    OTP_NO_NEED_CRC},
+    {OTP_RESERVED_4_4,                       12,    0x4f4,    OTP_READ_WRITE,    OTP_NON_SECURITY,    OTP_NO_NEED_CRC},
+    {OTP_RESERVED_4_5,                       40,    0x500,    OTP_READ_WRITE,    OTP_NON_SECURITY,    OTP_NO_NEED_CRC},
+    {OTP_GADC_CALIBRATION_BACKUP,            72,    0x528,    OTP_READ_WRITE,    OTP_NON_SECURITY,    OTP_NO_NEED_CRC},
+    {OTP_GADC_TEMPERATURE_BACKUP,             8,    0x570,    OTP_READ_WRITE,    OTP_NON_SECURITY,    OTP_NO_NEED_CRC},
+    {OTP_VDDDIG_BANDGAP_BACKUP,               4,    0x578,    OTP_READ_WRITE,    OTP_NON_SECURITY,    OTP_NO_NEED_CRC},
+    {OTP_DIA_BACKUP,                          4,    0x57c,    OTP_READ_WRITE,    OTP_NON_SECURITY,    OTP_NO_NEED_CRC},
+    {OTP_RESERVED_4_10,                        8,    0x580,    OTP_READ_WRITE,    OTP_NON_SECURITY,    OTP_NO_NEED_CRC},
     {OTP_FACTORY_ID,                          4,    0x588,    OTP_READ_WRITE,    OTP_NON_SECURITY,    OTP_NO_NEED_CRC},
     {OTP_PRODUCT_ID,                         16,    0x58c,    OTP_READ_WRITE,    OTP_NON_SECURITY,    OTP_NO_NEED_CRC},
     {OTP_GADC_CALIBRATION,                   72,    0x59c,    OTP_READ_WRITE,    OTP_NON_SECURITY,    OTP_NO_NEED_CRC},

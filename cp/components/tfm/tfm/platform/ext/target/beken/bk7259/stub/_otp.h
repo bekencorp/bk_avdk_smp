@@ -111,12 +111,15 @@ typedef enum{
     OTP_MAC_ADDRESS_3,
     OTP_MAC_ADDRESS_4,
     OTP_RESERVED_4_1,
-    OTP_PACKAGE_TYPE,
     OTP_RSSI,
+    OTP_PACKAGE_TYPE,
+    OTP_RESERVED_4_4,
+    OTP_RESERVED_4_5,
     OTP_GADC_CALIBRATION_BACKUP,
     OTP_GADC_TEMPERATURE_BACKUP,
     OTP_VDDDIG_BANDGAP_BACKUP,
     OTP_DIA_BACKUP,
+    OTP_RESERVED_4_10,
     OTP_FACTORY_ID,
     OTP_PRODUCT_ID,
     OTP_GADC_CALIBRATION,
@@ -143,7 +146,7 @@ typedef enum{
     OTP2_MAX_ID,
 } otp2_id_t;
 
-extern const otp_item_t otp_map_2[40];
+extern const otp_item_t otp_map_2[43];
 
 uint32_t otp_map_2_row(void);
 
