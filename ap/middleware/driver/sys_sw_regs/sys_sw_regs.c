@@ -479,6 +479,28 @@ uint32_t bk_sys_sw_regs_get_cp_heartbeat_bumped(void)
     return s_sys_sw_regs.cp_heartbeat_bumped;
 }
 
+__attribute__((section(".itcm_sec_code"))) uint32_t bk_sys_sw_regs_get_cp_flash_op_status(void)
+{
+#if CONFIG_SUPPORT_CACHEABLE_SRAM
+    __asm volatile ("dsb" ::: "memory");
+    arch_dcache_invd_range((void *)&s_sys_sw_regs.cp_flash_op_status, sizeof(s_sys_sw_regs.cp_flash_op_status));
+    __asm volatile ("dsb" ::: "memory");
+#endif
+
+    return s_sys_sw_regs.cp_flash_op_status;
+}
+
+__attribute__((section(".itcm_sec_code"))) uint32_t bk_sys_sw_regs_get_cp_flash_op_seq(void)
+{
+#if CONFIG_SUPPORT_CACHEABLE_SRAM
+    __asm volatile ("dsb" ::: "memory");
+    arch_dcache_invd_range((void *)&s_sys_sw_regs.cp_flash_op_seq, sizeof(s_sys_sw_regs.cp_flash_op_seq));
+    __asm volatile ("dsb" ::: "memory");
+#endif
+
+    return s_sys_sw_regs.cp_flash_op_seq;
+}
+
 void bk_sys_sw_regs_bump_cp_heartbeat_bumped(void)
 {
     s_sys_sw_regs.cp_heartbeat_bumped++;

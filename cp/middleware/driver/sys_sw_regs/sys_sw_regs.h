@@ -157,6 +157,30 @@ void bk_sys_sw_regs_bump_cp_heartbeat_bumped(void);
 void bk_sys_sw_regs_set_cp_ap_dump_taken(uint32_t value);
 
 /**
+ * @brief Publish the CP flash erase/write state for the AP.
+ *
+ * Called by the CP around every flash erase/write. Single CP writer, so no
+ * cross-core lock is needed: one aligned 32-bit store is atomic, and the DSB
+ * makes the BUSY state visible before the flash controller is touched.
+ *
+ * @param status BK_SYS_SW_REGS_CP_FLASH_OP_IDLE / _ERASE / _WRITE.
+ */
+void bk_sys_sw_regs_set_cp_flash_op_status(uint32_t status);
+
+/**
+ * @brief Bump the CP flash operation sequence before an erase/write starts.
+ *
+ * The AP samples this counter from a DMA ISR: any delta means the flash bus was
+ * taken away since the last sample, which lets it mark the missed interval even
+ * when no data corruption is visible. Single CP writer, so a plain increment is
+ * enough; the DSB publishes it before the flash controller is touched.
+ *
+ * Must be called BEFORE bk_sys_sw_regs_set_cp_flash_op_status(), once per
+ * erase/write operation (not per sector).
+ */
+void bk_sys_sw_regs_bump_cp_flash_op_seq(void);
+
+/**
  * @brief Clear the AP self-dump flag when the CP's wait budget expires.
  * @param value 0 to clear; the AP is the only writer that sets it, and it
  *              normally clears it itself once the dump is complete.

@@ -730,7 +730,13 @@ static bk_err_t flash_core_write_op(uint32_t address, const uint8_t *user_buf, u
 bk_err_t flash_core_erase(uint32_t address, uint32_t size)
 {
 	uint32_t int_level = flash_core_lock();
+	if (s_port.op_begin) {
+		s_port.op_begin(0U);
+	}
 	bk_err_t ret = flash_core_erase_op(address, size);
+	if (s_port.op_end) {
+		s_port.op_end();
+	}
 	flash_core_unlock(int_level);
 	return ret;
 }
@@ -738,7 +744,13 @@ bk_err_t flash_core_erase(uint32_t address, uint32_t size)
 bk_err_t flash_core_write(uint32_t address, const uint8_t *user_buf, uint32_t size)
 {
 	uint32_t int_level = flash_core_lock();
+	if (s_port.op_begin) {
+		s_port.op_begin(1U);
+	}
 	bk_err_t ret = flash_core_write_op(address, user_buf, size);
+	if (s_port.op_end) {
+		s_port.op_end();
+	}
 	flash_core_unlock(int_level);
 	return ret;
 }

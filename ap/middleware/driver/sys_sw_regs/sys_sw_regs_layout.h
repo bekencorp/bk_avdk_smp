@@ -42,6 +42,11 @@ typedef uint32_t sspl_data_t[SSPL_SIZE];
 #define BK_SYS_SW_REGS_AP_EXTRA_DUMP_MAX        8U
 #define BK_SYS_SW_REGS_ADC_KEY_VALID            0x41444B59U
 
+/* CP flash erase/write state, published to the AP in cp_flash_op_status. */
+#define BK_SYS_SW_REGS_CP_FLASH_OP_IDLE  0U /**< CP is not touching the flash bus */
+#define BK_SYS_SW_REGS_CP_FLASH_OP_ERASE 1U /**< CP is erasing flash */
+#define BK_SYS_SW_REGS_CP_FLASH_OP_WRITE 2U /**< CP is programming flash */
+
 #if CONFIG_AP_EMUBOOT
 #define BK_SYS_SW_REGS_FLASH_INIT_NOT_DONE 0U
 #define BK_SYS_SW_REGS_FLASH_INIT_DONE     1U
@@ -119,12 +124,14 @@ typedef union {
         volatile uint32_t cp_uid_ptr; /**< Addr of CP bk_uid_snapshot_t (chip UID); 0 = not published */
         volatile uint32_t ap_exception_record_ptr; /**< Addr of the CP-owned AP exception record slot; 0 = not published */
         volatile uint32_t hspl_owner_shadow_ptr; /**< Addr of the AP-owned hspl_owner_shadow_t block; 0 = not published */
+        volatile uint32_t cp_flash_op_status; /**< CP flash erase/write state, BK_SYS_SW_REGS_CP_FLASH_OP_* */
+        volatile uint32_t cp_flash_op_seq; /**< Monotonic count of CP flash erase/write starts; compare by delta */
         volatile uint8_t ap_self_dumping; /**< AP is self-dumping after a trap; CP must not reboot it */
         volatile uint8_t ap_wdrv_ipc_ready; /**< AP wdrv IPC callbacks are ready; 0 = CP must wait */
         /* Explicit tail padding: keeps the named struct exactly 1024 bytes so the
          * sizeof() assert below fails if a new member is added without shrinking
          * this array. Shrink it by the size of whatever you add. */
-        volatile uint8_t reserved1[154];
+        volatile uint8_t reserved1[146];
     };
     volatile uint32_t reserved[256]; /**< Reserved for future use */
 } sys_sw_regs_t;

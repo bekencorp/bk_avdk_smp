@@ -44,6 +44,10 @@ typedef struct {
 	void     (*op_prepare)(void);            /**< optional peripheral notify; may be NULL */
 	void     (*op_finish)(void);             /**< optional peripheral notify; may be NULL */
 	void     (*op_progress)(void);           /**< optional per-sub-op progress (e.g. WDT feed); may be NULL */
+	/* Called INSIDE the outer op lock (IRQs disabled, HSPL held), so a published
+	 * state cannot be overwritten by an op that starts later. Must not block. */
+	void     (*op_begin)(uint32_t is_write); /**< optional: mark the op busy; is_write 0 = erase; may be NULL */
+	void     (*op_end)(void);                /**< optional: mark the op done; may be NULL */
 } flash_core_port_t;
 
 #ifdef __cplusplus

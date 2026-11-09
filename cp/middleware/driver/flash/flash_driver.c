@@ -34,6 +34,15 @@
 #include "hspl_res_lock.h"
 #endif
 
+#if CONFIG_SYS_SW_REGS
+#include "sys_sw_regs.h"
+#define CP_FLASH_MARK_OP(status)  bk_sys_sw_regs_set_cp_flash_op_status(status)
+#define CP_FLASH_BUMP_SEQ()       bk_sys_sw_regs_bump_cp_flash_op_seq()
+#else
+#define CP_FLASH_MARK_OP(status)  do { (void)(status); } while (0)
+#define CP_FLASH_BUMP_SEQ()       do { } while (0)
+#endif
+
 static bool s_flash_is_init = false;
 static uint32_t s_flash_dev_version = 0;
 
@@ -57,11 +66,29 @@ static void cp_flash_op_finish(void)
 	mb_flash_op_finish();
 }
 
+/* Publish the CP flash op state for the AP. Registered as the flash_core
+ * op_begin/op_end hooks, so the marking runs INSIDE the op lock: doing it in the
+ * wrappers below lets a preempting task, or a task on the other CP core, mark
+ * its own op busy and then have the earlier op's IDLE overwrite it - the AP
+ * would read IDLE in the middle of a real erase. */
+static void cp_flash_op_begin(uint32_t is_write)
+{
+	CP_FLASH_BUMP_SEQ();
+	CP_FLASH_MARK_OP(is_write ? BK_SYS_SW_REGS_CP_FLASH_OP_WRITE : BK_SYS_SW_REGS_CP_FLASH_OP_ERASE);
+}
+
+static void cp_flash_op_end(void)
+{
+	CP_FLASH_MARK_OP(BK_SYS_SW_REGS_CP_FLASH_OP_IDLE);
+}
+
 static const flash_core_port_t s_cp_flash_port = {
 	.enter_critical = bk_aspl_flash_enter_critical,
 	.exit_critical  = bk_aspl_flash_exit_critical,
 	.op_prepare     = cp_flash_op_prepare,
 	.op_finish      = cp_flash_op_finish,
+	.op_begin       = cp_flash_op_begin,
+	.op_end         = cp_flash_op_end,
 };
 
 static bool cp_flash_perm_cb(uint32_t addr, uint32_t size)
@@ -95,6 +122,10 @@ bk_err_t bk_flash_driver_init(void)
 	if (s_flash_is_init) {
 		return BK_OK;
 	}
+
+	/* The shared window is NOLOAD and survives a warm reset. Clear a BUSY left
+	 * behind by a CP reset in the middle of an erase so the AP is not blocked. */
+	CP_FLASH_MARK_OP(BK_SYS_SW_REGS_CP_FLASH_OP_IDLE);
 
 	bk_err_t ret_code = mb_flash_ipc_init();  /* used for projects with LCD. */
 	if(ret_code != BK_OK)

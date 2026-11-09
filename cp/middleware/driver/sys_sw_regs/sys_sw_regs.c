@@ -441,6 +441,32 @@ void bk_sys_sw_regs_set_cp_ap_dump_taken(uint32_t value)
 #endif
 }
 
+void bk_sys_sw_regs_set_cp_flash_op_status(uint32_t status)
+{
+    /* Single CP writer, so no lock: one aligned 32-bit store is atomic across
+     * cores. The DSB hard-publishes the BUSY state before the flash controller
+     * is touched, and IDLE only after the erase/write has completed. */
+    s_sys_sw_regs.cp_flash_op_status = status;
+    __asm volatile ("dsb" ::: "memory");
+#if CONFIG_SUPPORT_CACHEABLE_SRAM
+    flush_dcache((void *)&s_sys_sw_regs.cp_flash_op_status, sizeof(s_sys_sw_regs.cp_flash_op_status));
+    __asm volatile ("dsb" ::: "memory");
+#endif
+}
+
+void bk_sys_sw_regs_bump_cp_flash_op_seq(void)
+{
+    /* Advance the sequence before touching the flash controller, so a CP reset
+     * in the middle of the erase/write still leaves a visible change for the AP.
+     * Single CP writer: a plain increment needs no lock. */
+    s_sys_sw_regs.cp_flash_op_seq = s_sys_sw_regs.cp_flash_op_seq + 1U;
+    __asm volatile ("dsb" ::: "memory");
+#if CONFIG_SUPPORT_CACHEABLE_SRAM
+    flush_dcache((void *)&s_sys_sw_regs.cp_flash_op_seq, sizeof(s_sys_sw_regs.cp_flash_op_seq));
+    __asm volatile ("dsb" ::: "memory");
+#endif
+}
+
 uint32_t bk_sys_sw_regs_get_ap_self_dumping(void)
 {
 #if CONFIG_SUPPORT_CACHEABLE_SRAM

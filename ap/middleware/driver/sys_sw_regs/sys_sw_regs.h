@@ -86,6 +86,42 @@ uint32_t bk_sys_sw_regs_get_ap_cp_hang_dumping(void);
 uint32_t bk_sys_sw_regs_get_cp_heartbeat_bumped(void);
 
 /**
+ * @brief Get the CP flash erase/write state.
+ *
+ * Placed in SRAM (.itcm_sec_code) together with the seq getter, so the
+ * before/after pair described at bk_sys_sw_regs_get_cp_flash_op_seq() can be
+ * sampled from an ISR while the CP is erasing/programming and AP XIP fetch is
+ * stalled.
+ *
+ * One read is only a snapshot: the CP can start an erase right after it, so
+ * IDLE is not a guarantee that the following work stays undisturbed.
+ *
+ * @return BK_SYS_SW_REGS_CP_FLASH_OP_IDLE when the CP is not touching flash,
+ *         otherwise _ERASE or _WRITE.
+ */
+__attribute__((section(".itcm_sec_code"))) uint32_t bk_sys_sw_regs_get_cp_flash_op_status(void);
+
+/**
+ * @brief Get the CP flash operation sequence counter.
+ *
+ * Placed in SRAM (.itcm_sec_code) so it can be called from an ISR while the CP
+ * is erasing/programming and AP XIP fetch is stalled.
+ *
+ * Sample BOTH this counter and bk_sys_sw_regs_get_cp_flash_op_status() right
+ * before and right after the flash-resident work. The interval was disturbed if
+ * either of these is true:
+ *   - the seq delta is nonzero (the CP started an erase/write inside it), or
+ *   - the status was not IDLE at either sample (an op was already running).
+ *
+ * The delta alone is not enough: an interval that lies entirely inside one long
+ * erase sees no seq change, yet XIP was stalled the whole time. Compare the
+ * delta as (uint32_t)(after - before), so a 32-bit wrap is harmless.
+ *
+ * @return Current monotonic count of CP erase/write operations.
+ */
+__attribute__((section(".itcm_sec_code"))) uint32_t bk_sys_sw_regs_get_cp_flash_op_seq(void);
+
+/**
  * @brief Nonzero once the CP has entered the AP-memory trap dump.
  *
  * Positive handoff confirmation for the AP exception path: the mailbox send
