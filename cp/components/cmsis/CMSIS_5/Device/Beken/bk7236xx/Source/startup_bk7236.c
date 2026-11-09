@@ -471,8 +471,13 @@ __STATIC_FORCEINLINE void dump_system_info(uint32_t rr, uint32_t lr, uint32_t sp
 	while(1);\
 }
 
-void user_nmi_handler(uint32_t lr, uint32_t sp)
+extern void bk_fault_capture(uint32_t reason, uint32_t lr,
+    uint32_t sp) __attribute__((weak));
+
+void __attribute__((section(".iram"))) user_nmi_handler(uint32_t lr, uint32_t sp)
 {
+    if (bk_fault_capture != NULL)
+        bk_fault_capture(RESET_SOURCE_NMI_WDT, lr, sp);
 #if CONFIG_DEBUG_VERSION || CONFIG_DUMP_ENABLE
 	if(arch_is_enter_exception() || arch_is_ap_in_dump_mode())
 	{
