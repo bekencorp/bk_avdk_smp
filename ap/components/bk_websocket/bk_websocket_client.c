@@ -817,12 +817,40 @@ static int ws_connect(transport client, const char *host, int port, int timeout_
 
 	unsigned char client_key[28] = {0};
 
-	const char *user_agent_ptr = (ws->user_agent)?(ws->user_agent):"BEKEN Websocket Client";
-
 	size_t outlen = 0;
 
 	mbedtls_base64_encode(client_key, sizeof(client_key), &outlen, random_key, sizeof(random_key));
 
+	/* CONFIG_WEBSOCKET_UPGRADE_MINIMAL_HEADERS=y sends only the RFC 6455
+	 * upgrade headers, port-less Host, no Origin/User-Agent. Server-side
+	 * edge proxies exist that answer HTTP 401 to the default header set
+	 * (origin + user-agent + ported host) and accept the minimal one
+	 * (field-verified A/B against a strict peer). */
+#if CONFIG_WEBSOCKET_UPGRADE_MINIMAL_HEADERS
+	if(ws->authorization) {
+		len = snprintf(ws->buffer, WS_BUFFER_SIZE,
+						"GET %s HTTP/1.1\r\n"
+						"Host: %s\r\n"
+						"Authorization: %s\r\n"
+						"Upgrade: websocket\r\n"
+						"Connection: Upgrade\r\n"
+						"Sec-WebSocket-Version: 13\r\n"
+						"Sec-WebSocket-Key: %s\r\n",
+						ws->path,
+						host, ws->authorization, client_key);
+	} else {
+		len = snprintf(ws->buffer, WS_BUFFER_SIZE,
+						"GET %s HTTP/1.1\r\n"
+						"Host: %s\r\n"
+						"Upgrade: websocket\r\n"
+						"Connection: Upgrade\r\n"
+						"Sec-WebSocket-Version: 13\r\n"
+						"Sec-WebSocket-Key: %s\r\n",
+						ws->path,
+						host, client_key);
+	}
+#else
+	const char *user_agent_ptr = (ws->user_agent)?(ws->user_agent):"BEKEN Websocket Client";
 	if(ws->authorization) {
 		len = snprintf(ws->buffer, WS_BUFFER_SIZE,
 						"GET %s HTTP/1.1\r\n"
@@ -851,6 +879,7 @@ static int ws_connect(transport client, const char *host, int port, int timeout_
 						host, port, host, user_agent_ptr,
 						client_key);
 	}
+#endif
 	os_printf("http request:\r\n");
 	bk_hex_dump(ws->buffer, 200);
 

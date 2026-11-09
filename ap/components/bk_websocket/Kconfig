@@ -12,4 +12,17 @@ menu "Bk_websocket"
 		depends on WEBSOCKET
 		bool "Enable Websocket Rx Max Size report"
 		default n
+	config WEBSOCKET_UPGRADE_MINIMAL_HEADERS
+		depends on WEBSOCKET
+		bool "Use minimal WebSocket upgrade headers"
+		default n
+		help
+		  Sends only the RFC 6455 upgrade headers (GET/Host/
+		  Authorization/Upgrade/Connection/Sec-WebSocket-Version/
+		  Sec-WebSocket-Key) with a port-less Host. The default header
+		  set additionally sends Origin and User-Agent and appends
+		  the port to Host ("host:443"). Some server-side edge
+		  proxies reject requests carrying an Origin header or a
+		  ported Host with HTTP 401; enable this when the peer
+		  requires the minimal form.
 endmenu
