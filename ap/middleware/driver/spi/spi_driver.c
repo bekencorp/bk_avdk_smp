@@ -51,6 +51,8 @@ typedef struct {
 	uint32_t rx_size;
 	volatile uint32_t rx_offset;
 	bool is_tx_blocked;
+	bool completion_tx_dma_active;
+	bool completion_rx_dma_active;
 	bool is_sw_tx_finished;
 	bool is_rx_blocked;
 	beken_semaphore_t tx_sema;
@@ -376,26 +378,39 @@ static uint32_t spi_id_read_bytes_common(spi_id_t id)
 
 static void spi_dma_tx_finish_handler(dma_id_t id)
 {
-	SPI_LOGV("[%s] spi_id:%d\r\n", __func__, s_current_spi_dma_wr_id);
-
-	if (s_spi_tx_finish_isr[s_current_spi_dma_wr_id].callback){
-		s_spi_tx_finish_isr[s_current_spi_dma_wr_id].callback(s_current_spi_dma_wr_id,s_spi_tx_finish_isr[s_current_spi_dma_wr_id].param);
+	const uint32_t int_level = spi_enter_critical();
+	const spi_id_t spi_id = s_current_spi_dma_wr_id;
+	const bool was_blocked = s_spi[spi_id].completion_tx_dma_active && s_spi[spi_id].is_tx_blocked;
+	const spi_callback_t callback = s_spi_tx_finish_isr[spi_id];
+	if (was_blocked) {
+		s_spi[spi_id].is_tx_blocked = false;
 	}
-	if (s_spi[s_current_spi_dma_wr_id].is_tx_blocked) {
-		rtos_set_semaphore(&s_spi[s_current_spi_dma_wr_id].tx_sema);
-		s_spi[s_current_spi_dma_wr_id].is_tx_blocked = false;
+	spi_exit_critical(int_level);
+	SPI_LOGV("[%s] spi_id:%d\r\n", __func__, spi_id);
+	if (was_blocked && callback.callback) {
+		callback.callback(spi_id, callback.param);
+	}
+	if (was_blocked) {
+		rtos_set_semaphore(&s_spi[spi_id].tx_sema);
 	}
 }
 
 static void spi_dma_rx_finish_handler(dma_id_t id)
 {
-	SPI_LOGV("[%s] spi_id:%d\r\n", __func__, s_current_spi_dma_rd_id);
-	if (s_spi_rx_finish_isr[s_current_spi_dma_rd_id].callback){
-		s_spi_rx_finish_isr[s_current_spi_dma_rd_id].callback(s_current_spi_dma_rd_id,s_spi_rx_finish_isr[s_current_spi_dma_rd_id].param);
+	const uint32_t int_level = spi_enter_critical();
+	const spi_id_t spi_id = s_current_spi_dma_rd_id;
+	const bool was_blocked = s_spi[spi_id].completion_rx_dma_active && s_spi[spi_id].is_rx_blocked;
+	const spi_callback_t callback = s_spi_rx_finish_isr[spi_id];
+	if (was_blocked) {
+		s_spi[spi_id].is_rx_blocked = false;
 	}
-	if (s_spi[s_current_spi_dma_rd_id].is_rx_blocked) {
-		rtos_set_semaphore(&s_spi[s_current_spi_dma_rd_id].rx_sema);
-		s_spi[s_current_spi_dma_rd_id].is_rx_blocked = false;
+	spi_exit_critical(int_level);
+	SPI_LOGV("[%s] spi_id:%d\r\n", __func__, spi_id);
+	if (was_blocked && callback.callback) {
+		callback.callback(spi_id, callback.param);
+	}
+	if (was_blocked) {
+		rtos_set_semaphore(&s_spi[spi_id].rx_sema);
 	}
 }
 
@@ -965,6 +980,7 @@ bk_err_t bk_spi_dma_duplex_xfer(spi_id_t id, const void *tx_data, uint32_t tx_si
 		while(len > 0) {
 			int_level = spi_enter_critical();
 			if(rx_data) {
+				s_spi[id].completion_rx_dma_active = true;
 				s_spi[id].is_rx_blocked = true;
 				spi_hal_clear_rx_fifo(&s_spi[id].hal);
 				spi_hal_set_rx_trans_len(&s_spi[id].hal, rx_size);
@@ -973,6 +989,7 @@ bk_err_t bk_spi_dma_duplex_xfer(spi_id_t id, const void *tx_data, uint32_t tx_si
 			}
 
 			if(tx_data) {
+				s_spi[id].completion_tx_dma_active = true;
 				s_spi[id].is_tx_blocked = true;
 				spi_hal_clear_tx_fifo(&s_spi[id].hal);
 				spi_hal_set_tx_trans_len(&s_spi[id].hal, tx_size);
@@ -1016,12 +1033,14 @@ bk_err_t bk_spi_dma_duplex_xfer(spi_id_t id, const void *tx_data, uint32_t tx_si
 				spi_hal_disable_tx_fifo_int(&s_spi[id].hal);
 				dma_wait_to_idle(s_spi[id].spi_tx_dma_chan);
 				bk_dma_stop(s_spi[id].spi_tx_dma_chan);
+				s_spi[id].completion_tx_dma_active = false;
 			}
 			if(rx_data) {
 				spi_hal_disable_rx(&s_spi[id].hal);
 				spi_hal_disable_rx_fifo_int(&s_spi[id].hal);
 				dma_wait_to_idle(s_spi[id].spi_rx_dma_chan);
 				bk_dma_stop(s_spi[id].spi_rx_dma_chan);
+				s_spi[id].completion_rx_dma_active = false;
 			}
 			spi_exit_critical(int_level);
 
@@ -1038,11 +1057,13 @@ error:
 			spi_hal_disable_tx(&s_spi[id].hal);
 			spi_hal_disable_tx_fifo_int(&s_spi[id].hal);
 			bk_dma_stop(s_spi[id].spi_tx_dma_chan);
+			s_spi[id].completion_tx_dma_active = false;
 		}
 		if(rx_data) {
 			spi_hal_disable_rx(&s_spi[id].hal);
 			spi_hal_disable_rx_fifo_int(&s_spi[id].hal);
 			bk_dma_stop(s_spi[id].spi_rx_dma_chan);
+			s_spi[id].completion_rx_dma_active = false;
 		}
 		spi_exit_critical(int_level);
 		SPI_LOGI("read again.\r\n");
@@ -1065,6 +1086,7 @@ bk_err_t bk_spi_dma_write_bytes(spi_id_t id, const void *data, uint32_t size)
 		SPI_LOGV("tx_len = 0x%x, left_len=0x%x\r\n", tx_len, left_len);
 
 		uint32_t int_level = spi_enter_critical();
+		s_spi[id].completion_tx_dma_active = true;
 		s_spi[id].is_tx_blocked = true;
 		s_current_spi_dma_wr_id = id;
 		spi_hal_clear_tx_fifo(&s_spi[id].hal);
@@ -1091,6 +1113,7 @@ bk_err_t bk_spi_dma_write_bytes(spi_id_t id, const void *data, uint32_t size)
 		spi_hal_clear_tx_fifo_int_status(&s_spi[id].hal);
 		spi_hal_disable_tx(&s_spi[id].hal);
 		bk_dma_stop(s_spi[id].spi_tx_dma_chan);
+		s_spi[id].completion_tx_dma_active = false;
 		spi_exit_critical(int_level);
 		left_len -= tx_len;
 		buf_offset += tx_len;
@@ -1112,6 +1135,7 @@ bk_err_t bk_spi_dma_read_bytes(spi_id_t id, void *data, uint32_t size)
 	while(left_len > 0) {
 		rx_len = (left_len < SPI_MAX_LENGTH)? left_len : SPI_MAX_LENGTH;
 		uint32_t int_level = spi_enter_critical();
+		s_spi[id].completion_rx_dma_active = true;
 		s_current_spi_dma_rd_id = id;
 		s_spi[id].is_rx_blocked = true;
 
@@ -1129,6 +1153,7 @@ bk_err_t bk_spi_dma_read_bytes(spi_id_t id, void *data, uint32_t size)
 		int_level = spi_enter_critical();
 		spi_hal_disable_rx(&s_spi[id].hal);
 		bk_dma_stop(s_spi[id].spi_rx_dma_chan);
+		s_spi[id].completion_rx_dma_active = false;
 		spi_exit_critical(int_level);
 
 		left_len -= rx_len;
@@ -1158,6 +1183,12 @@ bk_err_t bk_spi_dma_transmit(spi_id_t id, const void *tx_data, uint32_t tx_size,
 
 static void spi_isr_common(spi_id_t id)
 {
+	bool completion_wake_tx = false;
+	bool completion_wake_rx = false;
+	spi_callback_t completion_rx_data_callback = {0};
+	spi_callback_t completion_rx_finish_callback = {0};
+	spi_callback_t completion_tx_finish_callback = {0};
+	const uint32_t completion_int_level = spi_enter_critical();
 	spi_hal_t *hal = &s_spi[id].hal;
 	uint8_t rd_data = 0;
 	uint32_t int_status = 0;
@@ -1170,16 +1201,16 @@ static void spi_isr_common(spi_id_t id)
 
 	SPI_LOGV("int_status:%x\r\n", int_status);
 
-	if (spi_hal_is_rx_fifo_int_triggered_with_status(hal, int_status)) {
+	if (!s_spi[id].completion_rx_dma_active &&
+		spi_hal_is_rx_fifo_int_triggered_with_status(hal, int_status)) {
 		SPI_STATIS_INC(spi_statis->rx_fifo_isr_cnt);
 		SPI_LOGV("rx fifo int triggered\r\n");
 		spi_id_read_bytes_common(id);
-		if (s_spi_rx_isr[id].callback) {
-			s_spi_rx_isr[id].callback(id, s_spi_rx_isr[id].param);
-		}
+		completion_rx_data_callback = s_spi_rx_isr[id];
 	}
 
-	if (spi_hal_is_rx_finish_int_triggered(hal, int_status)) {
+	if (!s_spi[id].completion_rx_dma_active &&
+		spi_hal_is_rx_finish_int_triggered(hal, int_status)) {
 		SPI_STATIS_INC(spi_statis->rx_finish_isr_cnt);
 		SPI_LOGV("rx fifo finish int triggered\r\n");
 		if (s_spi[id].rx_size && s_spi[id].rx_buf) {
@@ -1191,12 +1222,10 @@ static void spi_isr_common(spi_id_t id)
 			s_spi[id].rx_offset = rd_offset;
 		}
 		bk_spi_clr_rx(id);
-		if (s_spi_rx_finish_isr[id].callback){
-			s_spi_rx_finish_isr[id].callback(s_current_spi_dma_rd_id,s_spi_rx_finish_isr[id].param);
-		}
-		if (s_spi[id].is_rx_blocked) {
-			rtos_set_semaphore(&s_spi[id].rx_sema);
+		completion_rx_finish_callback = s_spi_rx_finish_isr[id];
+		if (!s_spi[id].completion_rx_dma_active && s_spi[id].is_rx_blocked) {
 			s_spi[id].is_rx_blocked = false;
+			completion_wake_rx = true;
 		}
 	}
 
@@ -1206,7 +1235,8 @@ static void spi_isr_common(spi_id_t id)
 		is_xfer_overflow = true;
 	}
 
-	if (spi_hal_is_tx_fifo_int_triggered_with_status(hal, int_status)) {
+	if (!s_spi[id].completion_tx_dma_active &&
+		spi_hal_is_tx_fifo_int_triggered_with_status(hal, int_status)) {
 		SPI_STATIS_INC(spi_statis->tx_fifo_isr_cnt);
 		SPI_LOGV("tx fifo int triggered\r\n");
 #if !CONFIG_SPI_SUPPORT_TX_FIFO_WR_READY
@@ -1238,18 +1268,17 @@ static void spi_isr_common(spi_id_t id)
 #endif
 	}
 
-	if (spi_hal_is_tx_finish_int_triggered(hal, int_status) &&
+	if (!s_spi[id].completion_tx_dma_active &&
+		spi_hal_is_tx_finish_int_triggered(hal, int_status) &&
 		s_spi[id].is_sw_tx_finished) {
 		SPI_STATIS_INC(spi_statis->tx_finish_isr_cnt);
 		SPI_LOGV("tx finish int triggered\r\n");
 		if (spi_hal_is_master(hal)) {
 			if (s_spi[id].is_tx_blocked) {
-				rtos_set_semaphore(&s_spi[id].tx_sema);
 				s_spi[id].is_tx_blocked = false;
+				completion_wake_tx = true;
 			}
-			if (s_spi_tx_finish_isr[id].callback) {
-				s_spi_tx_finish_isr[id].callback(id, s_spi_tx_finish_isr[id].param);
-			}
+			completion_tx_finish_callback = s_spi_tx_finish_isr[id];
 			bk_spi_clr_tx(id);
 		} else {
 			SPI_LOGW("tx finish int triggered, but current mode is spi_slave\r\n");
@@ -1264,19 +1293,34 @@ static void spi_isr_common(spi_id_t id)
 	if (spi_hal_is_slave_release_int_triggered(hal, int_status)) {
 		SPI_STATIS_INC(spi_statis->slave_release_isr_cnt);
 		SPI_LOGV("slave cs up int triggered\r\n");
-		if (spi_hal_is_slave(hal)) {
+		if (!s_spi[id].completion_tx_dma_active && spi_hal_is_slave(hal)) {
 			if (s_spi[id].is_tx_blocked) {
-				rtos_set_semaphore(&s_spi[id].tx_sema);
 				s_spi[id].is_tx_blocked = false;
+				completion_wake_tx = true;
 			}
-			if (s_spi_tx_finish_isr[id].callback) {
-				s_spi_tx_finish_isr[id].callback(id, s_spi_tx_finish_isr[id].param);
-			}
+			completion_tx_finish_callback = s_spi_tx_finish_isr[id];
 		}
-		if (s_spi[id].is_rx_blocked) {
-			rtos_set_semaphore(&s_spi[id].rx_sema);
+		if (!s_spi[id].completion_rx_dma_active && s_spi[id].is_rx_blocked) {
 			s_spi[id].is_rx_blocked = false;
+			completion_wake_rx = true;
 		}
+	}
+	spi_exit_critical(completion_int_level);
+	if (completion_rx_data_callback.callback) {
+		completion_rx_data_callback.callback(id, completion_rx_data_callback.param);
+	}
+	if (completion_rx_finish_callback.callback) {
+		completion_rx_finish_callback.callback(id, completion_rx_finish_callback.param);
+	}
+	if (completion_tx_finish_callback.callback) {
+		completion_tx_finish_callback.callback(id, completion_tx_finish_callback.param);
+	}
+	/* Finish FIFO/register cleanup before a woken core can reuse SPI. */
+	if (completion_wake_tx) {
+		rtos_set_semaphore(&s_spi[id].tx_sema);
+	}
+	if (completion_wake_rx) {
+		rtos_set_semaphore(&s_spi[id].rx_sema);
 	}
 }
 
