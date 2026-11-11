@@ -1599,12 +1599,16 @@ void sys_hal_set_saradc_cali_config(void)
     sys_ll_set_ana_reg2_adcdcsel(0x0);
 }
 
-void sys_hal_set_saradc_config(void)
+void sys_hal_set_saradc_config(uint32_t chan)
 {
     /* ana_reg0x22 */
     uint32_t reg_val = sys_ll_get_ana_reg22_value();
     reg_val |= BIT(31);
-    reg_val &= ~BIT(30);
+    if (chan == 0) {
+        reg_val |= BIT(30);
+    } else {
+        reg_val &= ~BIT(30);
+    }
     reg_val &= ~BIT(25);
     sys_ll_set_ana_reg22_value(reg_val);
 }

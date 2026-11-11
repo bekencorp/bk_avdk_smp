@@ -223,7 +223,7 @@ void sys_hal_sadc_int_disable(void);
 void sys_hal_sadc_pwr_up(void);
 void sys_hal_sadc_pwr_down(void);
 void sys_hal_set_saradc_cali_config(void);
-void sys_hal_set_saradc_config(void);
+void sys_hal_set_saradc_config(uint32_t chan);
 void sys_hal_set_sdmadc_config(void);
 
 /** GADC Config (ana_reg22) Start **/

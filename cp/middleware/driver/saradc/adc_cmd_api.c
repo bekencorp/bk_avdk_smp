@@ -323,7 +323,7 @@ bk_err_t adc_channel_config_test(struct sadc_device *dev, adc_chan_t adc_chan)
     adc_set_sample_threshold(dev, ADC_SAMPLE_THRESHOLD_DEFAULT);
 
     #if CONFIG_SARADC_V1P1
-    sys_hal_set_saradc_config();
+    sys_hal_set_saradc_config(adc_chan);
     #endif // CONFIG_SARADC_V1P1
 
     return BK_OK;

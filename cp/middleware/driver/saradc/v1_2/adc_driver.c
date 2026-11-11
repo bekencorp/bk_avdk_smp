@@ -358,7 +358,7 @@ static bk_err_t adc_cli_register(void)
     return BK_OK;
 }
 
-static bk_err_t adc_init(struct sadc_device *dev)
+static bk_err_t adc_init(struct sadc_device *dev, adc_chan_t chan)
 {
     adc_hal_t *hal_ptr = &dev->hal;
 
@@ -367,7 +367,7 @@ static bk_err_t adc_init(struct sadc_device *dev)
     #if CONFIG_SARADC_V1P1
     adc_enable_block();
     #elif CONFIG_SARADC_V1P2
-    sys_hal_set_saradc_config();
+    sys_hal_set_saradc_config(chan);
     #else
 #error "config saradc asic version, please"
     #endif
@@ -399,7 +399,7 @@ bk_err_t adc_channel_config(struct sadc_device *dev, adc_chan_t adc_chan)
     #if (CONFIG_WIFI_ENABLE || CONFIG_BLUETOOTH)
     rf_module_vote_ctrl(RF_OPEN, RF_BY_SARADC_BIT);
     #endif
-    adc_init(dev);
+    adc_init(dev, adc_chan);
 
     #if (CONFIG_SARADC_NEED_FLUSH)
     adc_flush(dev);
@@ -410,7 +410,7 @@ bk_err_t adc_channel_config(struct sadc_device *dev, adc_chan_t adc_chan)
     }
 
     adc_set_sample_threshold(dev, ADC_SAMPLE_THRESHOLD_DEFAULT);
-    sys_hal_set_saradc_config();
+    sys_hal_set_saradc_config(adc_chan);
 
     return BK_OK;
 }
