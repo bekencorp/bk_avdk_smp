@@ -68,22 +68,28 @@ typedef struct vsiISP_CAC_ATTR_S {
                                 \n 0: Set horizontal vector clipping to +/-4 pixel displacement
                                 \n 1: Set horizontal vector clipping to +/-4 or +/-5 pixel displacement
                                 \n depending on pixel position inside the Bayer raster
-                                \n (dynamic switching between +/-4 and +/-5) */
+                                \n (dynamic switching between +/-4 and +/-5)
+                                \n Note: Not used for 1.5.1 compatibility, the driver always programs 0. */
     vsi_u8_t  vClipMode; /**< \brief Vertical clip mode, range [0 2]
                                 \n 0: Set vertical vector clipping to +/-2 pixel ; fix filter_enable (Default)
                                 \n 1: Set vertical vector clipping to +/-3 pixel;
                                 \n dynamic filter_enable for chroma low pass filter
                                 \n 2: Set vertical vector clipping +/-3 or +/-4 pixel displacement
                                 \n 	depending on pixel position inside the Bayer raster
-                                \n 	(dynamic switching between +/-3 and +/-4 */
+                                \n 	(dynamic switching between +/-3 and +/-4
+                                \n Note: Not used for 1.5.1 compatibility, the driver always programs 1. */
     vsi_u16_t hStart;    /**< \brief 12 bit h_count preload value of the horizontal CAC pixel counter, range [1 4095].
                                 \n Before line start h_count has to be preloaded with (h_size/2 + h_center_offset),
                                 \n with h_size the image width and h_center_offset the horizontal distance between
-                                \n image center and optical center. */
+                                \n image center and optical center.
+                                \n Note: For 1.5.1 compatibility, hStart is used as h_center_offset (1.5.1 hOffset),
+                                \n range [0 h_size/2]; the driver adds h_size/2 internally. */
     vsi_u16_t vStart;     /**< \brief 12 bit v_count preload value of the vertical CAC line counter, range [1 4095].
                                 \n Before frame start v_count has to be preloaded with (v_size/2 + v_center_offset),
                                 \n with v_size the image height and v_center_offset the vertical distance between
-                                \n image center and optical center. */
+                                \n image center and optical center.
+                                \n Note: For 1.5.1 compatibility, vStart is used as v_center_offset (1.5.1 vOffset),
+                                \n range [0 v_size/2]; the driver adds v_size/2 internally. */
     vsi_s16_t aBlue;     /**< \brief Parameter A_Blue for radial blue shift calculation, range [-256 255].
                                 \n 4bit fractional part(-16 15.9375)*/
     vsi_s16_t aRed;      /**< \brief Parameter A_Red for radial red shift calculation, range [-256 255].
