@@ -52,8 +52,12 @@ __tz_c_veneer int psa_gdma_attr_restore(void)
 {
 	uint32_t gdma_s_base = SOC_GET_S_ADDR(SOC_GENER_DMA_REG_BASE);
 
+	*(volatile uint32_t *)(gdma_s_base + offsetof(dma_hw_t, prio_mode)) = 0u;
+	*(volatile uint32_t *)(gdma_s_base + offsetof(dma_hw_t, prio_mode)) = 1u;
 	*(volatile uint32_t *)(gdma_s_base + offsetof(dma_hw_t, secure_attr)) = 0u;
 	*(volatile uint32_t *)(gdma_s_base + offsetof(dma_hw_t, privileged_attr)) = 0u;
+	*(volatile uint32_t *)(gdma_s_base + offsetof(dma_hw_t, int_allocate)) = 0xAA00u;
+
 	__DSB();
 
 	return 0;
