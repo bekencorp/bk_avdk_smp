@@ -32,6 +32,17 @@ extern uint32_t __StackSeal;
 #define AON_PMU_LATCH_KEY1 (0x424B55AAu)
 #define AON_PMU_LATCH_KEY2 (0xBDB4AA55u)
 
+/* Non-secure alias of UART0, written by uart_min_switch_uart0_to_nsec(). */
+#define UART0_NON_SECURE_BASE (0x54820000u)
+
+/* NVIC_SetPriority() is emitted out of line at the project -O0 settings, so the
+ * SHPR byte write is done directly here to keep the resume path in SRAM. */
+#define TFM_SLEEP_SHPR(irqn) \
+	SCB->SHPR[(((uint32_t)(irqn)) & 0xFu) - 4u]
+#define TFM_SLEEP_PRIO(prio) \
+	((uint32_t)(prio) << (8u - __NVIC_PRIO_BITS))
+#define TFM_SLEEP_PENDSV_PRIO ((1u << (__NVIC_PRIO_BITS - 1u)) - 1u)
+
 /* Clear the deep-sleep markers in the retained R0 image. Register-only, so it
  * is safe to call from the SRAM resume path. */
 static TFM_RAMFUNC void tfm_sleep_clear_aon_fastboot_flags(void)
@@ -54,8 +65,38 @@ static TFM_RAMFUNC void tfm_sleep_clear_aon_fastboot_flags(void)
 /* TF-M programs the secure exception priorities and the AIRCR.PRIS bit only once,
  * inside tfm_core_init(). The fastboot resume path never runs that code, so the
  * values have to be re-applied here: the SPM scheduler requires secure PendSV to
- * be the lowest secure priority. */
-extern void tfm_arch_set_secure_exception_priorities(void);
+ * be the lowest secure priority.
+ *
+ * Kept in SRAM instead of calling tfm_arch_set_secure_exception_priorities():
+ * that function lives in flash and NVIC_SetPriority is emitted out of line at
+ * the project -O0, while the resume path must not execute from flash. Level
+ * values mirror tfm_arch.h (all zero, PENDSV_PRIO_FOR_SCHED for PendSV). */
+static TFM_RAMFUNC void tfm_sleep_set_secure_exception_priorities(void)
+{
+	uint32_t aircr = SCB->AIRCR;
+	uint32_t vectkey = (~aircr & SCB_AIRCR_VECTKEYSTAT_Msk);
+
+	SCB->AIRCR = SCB_AIRCR_PRIS_Msk | vectkey |
+		     (aircr & ~SCB_AIRCR_VECTKEY_Msk);
+
+	TFM_SLEEP_SHPR(MemoryManagement_IRQn) = TFM_SLEEP_PRIO(0);
+	TFM_SLEEP_SHPR(BusFault_IRQn) = TFM_SLEEP_PRIO(0);
+	TFM_SLEEP_SHPR(SecureFault_IRQn) = TFM_SLEEP_PRIO(0);
+	TFM_SLEEP_SHPR(SVCall_IRQn) = TFM_SLEEP_PRIO(0);
+	TFM_SLEEP_SHPR(PendSV_IRQn) = TFM_SLEEP_PRIO(TFM_SLEEP_PENDSV_PRIO);
+}
+
+/* Same register writes as enable_fault_handlers() in target_cfg.c, inlined here
+ * because the flash-resident implementation calls NVIC_SetPriority out of line. */
+static TFM_RAMFUNC void tfm_sleep_enable_fault_handlers(void)
+{
+	TFM_SLEEP_SHPR(SecureFault_IRQn) = TFM_SLEEP_PRIO(0);
+
+	SCB->SHCSR |= SCB_SHCSR_USGFAULTENA_Msk |
+		      SCB_SHCSR_BUSFAULTENA_Msk |
+		      SCB_SHCSR_MEMFAULTENA_Msk |
+		      SCB_SHCSR_SECUREFAULTENA_Msk;
+}
 
 static TFM_RAMFUNC void tfm_sleep_scheduler_state_reset(void)
 {
@@ -82,7 +123,7 @@ static TFM_RAMFUNC void tfm_sleep_secure_hw_init(void)
 	 * here before returning to NSPE. */
 	(void)nvic_interrupt_target_state_cfg();
 
-	tfm_arch_set_secure_exception_priorities();
+	tfm_sleep_set_secure_exception_priorities();
 }
 
 __attribute__((section(".tfm_fastboot_code"), naked, noreturn))
@@ -151,9 +192,10 @@ static TFM_RAMFUNC __attribute__((noreturn)) void tfm_sleep_jump_to_ns(void)
 	/* PPRO has now marked UART0 non-secure, so the shared console driver must
 	 * be retargeted to the Non-secure alias (same as ns_init_hook on cold boot).
 	 * Otherwise secure-side fault and panic output faults again on the first
-	 * character and hides the original error. */
-	extern void uart_min_switch_uart0_to_nsec(void);
-	uart_min_switch_uart0_to_nsec();
+	 * character and hides the original error. Written here, instead of calling
+	 * uart_min_switch_uart0_to_nsec(), to keep the resume path out of flash. */
+	extern volatile uint32_t g_uart0_base;
+	g_uart0_base = UART0_NON_SECURE_BASE;
 
 	SCB_NS->VTOR = ns_vtor;
 	__TZ_set_MSP_NS(ns_msp);
@@ -224,7 +266,7 @@ TFM_RAMFUNC __attribute__((noreturn)) void tfm_fastboot_resume(void)
 	/* The cold boot enables the fault handlers in tfm_hal_platform_init(), which
 	 * the resume path skips. Without them every BusFault/SecureFault escalates to
 	 * HardFault and the failing service call looks like a silent hang. */
-	(void)enable_fault_handlers();
+	tfm_sleep_enable_fault_handlers();
 
 	if (tfm_sleep_context_restore() != 0) {
 		/* No path back to BL2 cold boot: clear the marker and restart. */

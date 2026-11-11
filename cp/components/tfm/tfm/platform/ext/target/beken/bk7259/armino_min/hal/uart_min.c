@@ -41,11 +41,13 @@
  * secure-to-non-secure handoff, the base is switched to the non-secure alias so
  * the remaining secure output and the non-secure world keep using the same
  * physical UART. */
-static volatile uint32_t s_uart0_base = UART0_REG_BASE_S;
+/* Non-static: the Deep-LV SRAM resume path updates it directly to avoid
+ * executing uart_min_switch_uart0_to_nsec() from flash. */
+volatile uint32_t g_uart0_base = UART0_REG_BASE_S;
 
 void uart_min_switch_uart0_to_nsec(void)
 {
-	s_uart0_base = UART0_REG_BASE_NS;
+	g_uart0_base = UART0_REG_BASE_NS;
 }
 #ifndef UART_CLOCK_FREQ_120M
 #define UART_CLOCK_FREQ_120M  (120000000)
@@ -68,7 +70,7 @@ static uart_min_hw_t *uart_min_hw(uart_id_t id)
 {
 	switch (id) {
 	case UART_ID_0:
-		return (uart_min_hw_t *)s_uart0_base;
+		return (uart_min_hw_t *)g_uart0_base;
 	case UART_ID_1:
 		return (uart_min_hw_t *)UART1_REG_BASE;
 	case UART_ID_2:

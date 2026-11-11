@@ -435,7 +435,9 @@ uint64_t backend_abi_entering_spm(void)
 
 /* Return the stack recorded by the scheduler for the current secure thread.
  * The platform Deep-LV resume path uses it to restore PSP/PSPLIM consistently
- * with the stack validation done in ipc_schedule(). */
+ * with the stack validation done in ipc_schedule(). Kept in the SRAM fastboot
+ * section because that path runs while QSPI is in reset low-speed mode. */
+__attribute__((section(".tfm_fastboot_code"), noinline))
 uint32_t tfm_spm_get_ns_agent_sp(uint32_t *sp_limit)
 {
     struct context_ctrl_t *ctx;
