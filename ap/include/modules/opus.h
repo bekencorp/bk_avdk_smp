@@ -974,6 +974,17 @@ OPUS_EXPORT OPUS_WARN_UNUSED_RESULT opus_int32 opus_multistream_packet_unpad(uns
 
 /**@}*/
 
+/* Beken extension: select where the encoder/decoder state is allocated.
+ * Call aud_opus_set_sram_state(1) before opus_encoder_create() /
+ * opus_decoder_create() to place the state in the internal SRAM heap, which
+ * is noticeably faster but consumes internal RAM (about 11KB per mono
+ * encoder, 18KB per mono decoder, 26KB per stereo decoder). The default comes
+ * from the library build (PSRAM in the shipped library) and can be changed
+ * only before the codec is created. If the internal SRAM allocation fails,
+ * the state automatically falls back to PSRAM. */
+void aud_opus_set_sram_state(int enable);
+int aud_opus_get_sram_state(void);
+
 #ifdef __cplusplus
 }
 #endif
