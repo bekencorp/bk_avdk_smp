@@ -22,6 +22,12 @@
 #define VCENC_H264_TEST_TIMEOUT_MS     (3000U)
 #define VCENC_H264_TEST_GOP            (15U)
 #define VCENC_H264_TEST_FRAME_CNT      (30U)
+/* Initial granted window per frame for software FLEXA, keep it consistent with the
+ * start value of ctx.flexa_wr_blocks */
+#define VCENC_H264_TEST_FLEXA_INIT_READY_BLOCKS  (2U)
+/* The driver rewrites the WR pointer to 0 after kick, so the initial window may be
+ * published up to this many times at a 1ms interval */
+#define VCENC_H264_TEST_FLEXA_INIT_PUBLISH_RETRY (5U)
 
 static beken_thread_t s_vcenc_h264_boot_demo_thread = NULL;
 static volatile uint8_t s_vcenc_h264_boot_demo_running = 0;
@@ -369,7 +375,7 @@ int vcenc_h264_flexa_test(void)
         ctx.result = BK_FAIL;
         ctx.frame_size = 0U;
         ctx.frame_type = 0U;
-        ctx.flexa_wr_blocks = 2U;
+        ctx.flexa_wr_blocks = VCENC_H264_TEST_FLEXA_INIT_READY_BLOCKS;
         LOGI("flexa encode round %u/%u start, initial_ready_blocks=%u total_blocks=%u\r\n",
              i + 1U, VCENC_H264_TEST_FRAME_CNT, ctx.flexa_wr_blocks, VCENC_H264_TEST_FLEXA_CNT);
 
@@ -379,6 +385,33 @@ int vcenc_h264_flexa_test(void)
             ret = avdk_ret;
             LOGE("flexa encode round %u set frame ready failed, ret=%d\r\n", i + 1U, avdk_ret);
             goto exit;
+        }
+
+        /*
+         * The initial window of software FLEXA must be published after the kick:
+         * vcenc_h264_encode_frame() first pushes the whole register set to hardware
+         * (including the ENC_E kick bit) and only then rewrites the WR pointer to 0.
+         * A publish earlier than that write is cleared, so the encoder gets no data
+         * for the first block, never raises the line-buffer interrupt and the
+         * flexa_done callback is never invoked, leaving the frame stuck until timeout.
+         * Therefore publish once immediately and then retry at a 1ms interval until
+         * the encoder starts to make progress.
+         */
+        for (uint32_t retry = 0U;
+             retry < VCENC_H264_TEST_FLEXA_INIT_PUBLISH_RETRY &&
+             ctx.flexa_wr_blocks == VCENC_H264_TEST_FLEXA_INIT_READY_BLOCKS;
+             retry++) {
+            if (retry != 0U) {
+                rtos_delay_milliseconds(1);
+            }
+            avdk_ret = bk_h264_encode_ioctl(handle, BK_H264_ENCODE_IOCTL_SET_FLEXA_LINES_READY,
+                                            (void *)ctx.flexa_wr_blocks);
+            if (avdk_ret != AVDK_ERR_OK) {
+                fail_stage = "set_flexa_lines_ready";
+                ret = avdk_ret;
+                LOGE("flexa encode round %u set lines ready failed, ret=%d\r\n", i + 1U, avdk_ret);
+                goto exit;
+            }
         }
 
         fail_stage = "wait_done";

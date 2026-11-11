@@ -751,6 +751,23 @@ static avdk_err_t h264_encode_ctlr_ioctl(bk_h264_encode_ctlr_handle_t handle, ui
             return h264_encode_ctlr_set_rate_ctrl(control, (bk_h264_encode_rate_ctrl_t *)arg);
         case BK_H264_ENCODE_IOCTL_GET_RATE_CTRL:
             return h264_encode_ctlr_get_rate_ctrl(control, (bk_h264_encode_rate_ctrl_t *)arg);
+        case BK_H264_ENCODE_IOCTL_GET_STREAM_INFO: {
+            bk_h264_encode_stream_info_t *si = (bk_h264_encode_stream_info_t *)arg;
+            if (si == NULL) {
+                LOGE("GET_STREAM_INFO arg is NULL\r\n");
+                return AVDK_ERR_INVAL;
+            }
+            if (!control->encoder_inited) {
+                si->intra_cu8_num = 0;
+                si->rd_cost = 0;
+                return AVDK_ERR_INVAL;
+            }
+            uint32_t intra = 0, rd = 0;
+            vcenc_h264_get_stream_info(&control->enc_param, &intra, &rd);
+            si->intra_cu8_num = intra;
+            si->rd_cost = rd;
+            break;
+        }
         case BK_H264_ENCODE_IOCTL_SET_OSD:
             return h264_encode_set_osd_common(&control->enc_param, control->encoder_inited,
                                               control->osd_slots, (bk_h264_encode_osd_t *)arg);
