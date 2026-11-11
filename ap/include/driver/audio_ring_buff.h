@@ -59,6 +59,14 @@ void ring_buffer_init(RingBufferContext* rb, uint8_t* addr, uint32_t capacity, d
 void ring_buffer_clear(RingBufferContext* rb);
 
 /**
+ * @brief  Drop all unread data and align the read pointer to the live DMA write
+ *         pointer. Used when a producer is paused in place and the DMA channel
+ *         cannot be stopped: the next byte the producer pushes lands exactly at
+ *         the write pointer, so consuming from there keeps block alignment.
+ */
+void ring_buffer_discard(RingBufferContext* rb);
+
+/**
  * @brief ring buffer read
  * @param rb     ring buffer context pointer
  * @param buffer buffer to be read into

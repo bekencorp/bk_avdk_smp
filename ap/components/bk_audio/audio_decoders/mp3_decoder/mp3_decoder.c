@@ -403,8 +403,7 @@ __retry:
             {
                 /* Data reading is complete. Use the remaining MP3 data for decoding. */
                 //nothing todo
-                BK_LOGD(TAG, "[%s] Data reading is complete. \n", audio_element_get_tag(self));
-                BK_LOGD(TAG, "[%s] main_buff_remain_size: %d \n", audio_element_get_tag(self), mp3_dec->main_buff_remain_size);
+                BK_LOGD(TAG, "Data reading is complete, remain_size: %d \n", mp3_dec->main_buff_remain_size);
             }
             else
             {

@@ -19,6 +19,7 @@
 #include "FreeRTOS.h"
 #include "semphr.h"
 #include "task.h"
+#include "bk_misc.h"
 #include <components/bk_audio/audio_streams/onboard_mic_stream_v2.h>
 #include <components/bk_audio/audio_pipeline/audio_types.h>
 #include <components/bk_audio/audio_pipeline/audio_mem.h>
@@ -31,12 +32,125 @@
 #include <driver/audio_ring_buff.h>
 #include <driver/flash.h>
 #include <driver/flash_types.h>
-
+#include <sys_sw_regs.h>
 
 #define TAG  "OB_MIC"
 
 #define DMA_CARRY_MIC_FRAME_NUM                (8)
 #define DMA_CARRY_MIC_RINGBUF_SAFE_INTERVAL    (32)
+
+#define AUD_ADC_PAUSE_DRAIN_STEP_US            (100)
+#define AUD_ADC_PAUSE_DRAIN_STABLE_CNT         (3)
+#define AUD_ADC_PAUSE_DRAIN_MAX_US             (30000)
+
+
+/* CP flash monitor: a seq delta means the AP was frozen mid-stream and the lane
+ * phase is lost. Resume only after a quiet window, since one OTA burst issues
+ * thousands of ops and resuming between two just yields another bad frame. */
+#define MIC_CP_FLASH_QUIET_MS                  (50U)
+#define MIC_CP_FLASH_PAUSE_MAX_MS              (60000U)
+
+/* CP flash op monitor state, advanced only from _onboard_mic_process(). */
+typedef struct
+{
+    bool     paused;            /* mic is stopped, waiting for the CP to settle */
+    uint32_t seq_last;          /* baseline, taken when the stream opens */
+    uint32_t seq_seen;          /* latest seq observed while paused */
+    uint32_t quiet_start_ms;    /* last time the CP was seen active */
+    uint32_t pause_start_ms;
+} mic_flash_monitor_t;
+
+static mic_flash_monitor_t s_flash_mon;
+
+/* ADC continuity watchdog (monitor only): one dma finish interrupt per frame is
+ * the heartbeat, and a gap longer than a frame means the 16 deep fifo overran
+ * silently and the lane phase is lost. Never touches the stream; safety net for
+ * stalls that have no notify path (everything except the flash ops). */
+typedef struct
+{
+    volatile uint32_t last_ms;      /* stamped in the isr */
+    volatile bool     missed;       /* set by the isr, cleared by the reporter */
+    volatile uint32_t gap_ms;       /* longest gap of the current burst */
+    uint32_t          period_ms;    /* one dma block, learned in process */
+    uint32_t          count;        /* events since the stream opened */
+    uint32_t          max_gap_ms;   /* longest gap since the stream opened */
+} mic_adc_watchdog_t;
+
+static mic_adc_watchdog_t s_adc_wd;
+
+#define MIC_ADC_WD_GAP_FRAMES       (2U)
+#define MIC_ADC_WD_LOG_FIRST        (5U)
+#define MIC_ADC_WD_LOG_EVERY        (100U)
+
+static void mic_adc_wd_restart(void)
+{
+    s_adc_wd.missed  = false;
+    s_adc_wd.gap_ms  = 0;
+    s_adc_wd.last_ms = rtos_get_time();
+}
+
+static void mic_adc_stall_report(bool known_cause)
+{
+    uint32_t gap;
+    /* Read the stamp first: a newer one stamped by the isr in between would make
+     * (now - last) underflow. */
+    uint32_t last = s_adc_wd.last_ms;
+    uint32_t now  = rtos_get_time();
+
+    /* The isr only sees gaps followed by a next interrupt. If the adc never comes
+     * back, fall back to the elapsed time and re-baseline, so one dead stream
+     * reports one event per period (throttled below). */
+    if ((!known_cause) && (s_adc_wd.period_ms != 0) &&
+        ((now - last) > (s_adc_wd.period_ms * MIC_ADC_WD_GAP_FRAMES)))
+    {
+        uint32_t dead = now - last;
+
+        /* Skip if a heartbeat landed meanwhile: it would move the baseline back. */
+        if (s_adc_wd.last_ms == last)
+        {
+            s_adc_wd.last_ms = now;
+        }
+        s_adc_wd.missed = true;
+        if (dead > s_adc_wd.gap_ms)
+        {
+            s_adc_wd.gap_ms = dead;
+        }
+    }
+
+    if (!s_adc_wd.missed)
+    {
+        return;
+    }
+    s_adc_wd.missed = false;
+    gap = s_adc_wd.gap_ms;
+    s_adc_wd.gap_ms = 0;
+
+    /* A flash pause re-baselines the heartbeat itself: not an unknown stall. */
+    if (known_cause)
+    {
+        return;
+    }
+
+    /* A heartbeat landed in between: nothing real happened. */
+    if (gap == 0)
+    {
+        return;
+    }
+
+    s_adc_wd.count++;
+    if (gap > s_adc_wd.max_gap_ms)
+    {
+        s_adc_wd.max_gap_ms = gap;
+    }
+
+    /* Log the first few, then one line every MIC_ADC_WD_LOG_EVERY. */
+    if ((s_adc_wd.count <= MIC_ADC_WD_LOG_FIRST) ||
+        ((s_adc_wd.count % MIC_ADC_WD_LOG_EVERY) == 0U))
+    {
+        BK_LOGW(TAG, "adc gap %ums (cnt %u, max %ums)\n", (unsigned)gap,
+                (unsigned)s_adc_wd.count, (unsigned)s_adc_wd.max_gap_ms);
+    }
+}
 
 #define ONBOARD_MIC_DROP_ON_BACKPRESSURE       1
 
@@ -188,14 +302,129 @@ static uint8_t aud_adc_get_active_ch_num(void)
 static void aud_adc_dma_finish_isr(dma_id_t dma_id);
 static bk_err_t aud_adc_dma_setup_hw(onboard_mic_stream_t *onboard_mic);
 
-/* Flash erase/write: stop ADC then dma_stop+deinit (v2 cannot stop/start in place).
- * Resume re-inits the same DMA id / ringbuf, then dma_start + adc_start.
- * Nested prepare/finish uses flash_pause_cnt. Experimental — not a final design. */
+extern void bk_aud_adc_mic_data_bus_en(void);
+/* ---- flash pause / drain / resume primitives ----
+ *
+ * Shared by the AP notify callback and the CP seq monitor. Stopping the adc with
+ * the fifo read port open and draining every residual word restores the channel
+ * interleave: the restart then starts on a clean frame boundary, so lane 0 is
+ * adc0 again instead of the AEC loopback reference. Counts nest, so pause_end()
+ * must follow every pause_begin(). */
+static bool mic_flash_pause_begin(onboard_mic_stream_t *onboard_mic)
+{
+    uint32_t i;
+    bool     outermost;
+
+    /* Two contexts bump this depth: the AP flash notify callback and this
+     * element's process task. Guard the read-modify-write only: a lost update
+     * either restarts the adc mid-erase or leaks a count and stops it for good. */
+    GLOBAL_INT_DECLARATION();
+    GLOBAL_INT_DISABLE();
+    outermost = (onboard_mic->flash_pause_cnt++ == 0);
+    GLOBAL_INT_RESTORE();
+
+    if (!outermost)
+    {
+        return false;
+    }
+
+    for (i = 0; i < AUD_ADC_CHL_MAX; i++)
+    {
+        if (onboard_mic->ch_bitmap & (1 << i))
+        {
+            bk_aud_adc_stop(i);
+        }
+    }
+
+    /* ADC sampling is stopped, but keep the fifo read port enabled so the DMA
+     * can drain whatever is still buffered. */
+    bk_aud_adc_mic_data_bus_en();
+    ring_buffer_discard(&onboard_mic->mic_rb);
+    return true;
+}
+
+static void mic_flash_drain(onboard_mic_stream_t *onboard_mic)
+{
+    uint32_t last_rem  = 0xFFFFFFFFu;
+    uint32_t stable    = 0;
+    uint32_t waited_us = 0;
+    uint32_t fifo      = 0;
+
+    while (waited_us < AUD_ADC_PAUSE_DRAIN_MAX_US && stable < AUD_ADC_PAUSE_DRAIN_STABLE_CNT)
+    {
+        uint32_t rem = bk_dma_get_remain_len(onboard_mic->mic_dma_id);
+
+        bk_aud_adc_get_fifo_status(&fifo);
+        if ((rem == last_rem) && (fifo & AUD_ADC_MIC0_FIFO_ALMOST_EMPTY_MASK))
+        {
+            stable++;
+        }
+        else
+        {
+            last_rem = rem;
+            stable = 0;
+        }
+        bk_delay_us(AUD_ADC_PAUSE_DRAIN_STEP_US);
+        waited_us += AUD_ADC_PAUSE_DRAIN_STEP_US;
+    }
+    if (stable < AUD_ADC_PAUSE_DRAIN_STABLE_CNT)
+    {
+        BK_LOGE(TAG, "%s, dma drain timeout, remain %u fifo 0x%x\n",
+                __func__, (unsigned)last_rem, (unsigned)fifo);
+    }
+}
+
+static void mic_flash_pause_end(onboard_mic_stream_t *onboard_mic)
+{
+    uint32_t i;
+    bk_err_t ret;
+    bool     outermost;
+
+    /* Paired with the guarded increment in mic_flash_pause_begin(), see there. */
+    GLOBAL_INT_DECLARATION();
+    GLOBAL_INT_DISABLE();
+    if (onboard_mic->flash_pause_cnt == 0)
+    {
+        GLOBAL_INT_RESTORE();
+        return;
+    }
+    --onboard_mic->flash_pause_cnt;
+    outermost = (onboard_mic->flash_pause_cnt == 0);
+    GLOBAL_INT_RESTORE();
+
+    if (!outermost)
+    {
+        return;
+    }
+
+    /* Cheap no-op on the AP path (nothing is left once the erase is over) and
+     * required on the CP path, where the resume follows a long pause. */
+    mic_flash_drain(onboard_mic);
+    ring_buffer_discard(&onboard_mic->mic_rb);
+
+    for (i = 0; i < AUD_ADC_CHL_MAX; i++)
+    {
+        if (onboard_mic->ch_bitmap & (1 << i))
+        {
+            ret = bk_aud_adc_start(i);
+            if (ret != BK_OK)
+            {
+                BK_LOGE(TAG, "%s, adc_start ch%u fail\n", __func__, (unsigned)i);
+            }
+        }
+    }
+    bk_aud_adc_enable_used_channel(onboard_mic->ch_bitmap);
+
+    /* The adc was stopped for the whole pause: restart the heartbeat baseline
+     * so the first post-resume interrupt is not seen as a stall. */
+    mic_adc_wd_restart();
+}
+
+/* AP-side flash op notification: the pause must complete before the erase
+ * starts, hence the drain on the pause side here. */
 static void flash_op_notify_onboard_mic_stream_handler(uint32_t param, void *args)
 {
     audio_element_handle_t onboard_mic_stream = (audio_element_handle_t)args;
-    uint32_t i;
-    bk_err_t ret;
 
     if (!onboard_mic_stream)
     {
@@ -211,66 +440,70 @@ static void flash_op_notify_onboard_mic_stream_handler(uint32_t param, void *arg
 
     if (param)
     {
-        if (onboard_mic->flash_pause_cnt++ != 0)
+        if (mic_flash_pause_begin(onboard_mic))
         {
-            return;
+            mic_flash_drain(onboard_mic);
         }
-
-        for (i = 0; i < AUD_ADC_CHL_MAX; i++)
-        {
-            if (onboard_mic->ch_bitmap & (1 << i))
-            {
-                bk_aud_adc_stop(i);
-            }
-        }
-
-        ret = bk_dma_stop(onboard_mic->mic_dma_id);
-        if (ret != BK_OK)
-        {
-            BK_LOGW(TAG, "%s, dma_stop fail: %d\n", __func__, ret);
-        }
-        bk_dma_deinit(onboard_mic->mic_dma_id);
-        ring_buffer_clear(&onboard_mic->mic_rb);
     }
     else
     {
-        if (onboard_mic->flash_pause_cnt == 0)
-        {
-            return;
-        }
-        if (--onboard_mic->flash_pause_cnt != 0)
+        mic_flash_pause_end(onboard_mic);
+    }
+}
+
+/* CP flash op monitor, run once per frame from _onboard_mic_process(). Unlike
+ * the AP notify path this is asynchronous: the op is already running when we
+ * notice, so the goal is a clean restart boundary afterwards, not protection. */
+static void mic_cp_flash_poll(onboard_mic_stream_t *onboard_mic)
+{
+    uint32_t seq    = bk_sys_sw_regs_get_cp_flash_op_seq();
+    uint32_t status = bk_sys_sw_regs_get_cp_flash_op_status();
+    uint32_t now    = rtos_get_time();
+
+    if (!onboard_mic->is_open)
+    {
+        return;
+    }
+
+    if (!s_flash_mon.paused)
+    {
+        if ((uint32_t)(seq - s_flash_mon.seq_last) == 0U)
         {
             return;
         }
 
-        ret = aud_adc_dma_setup_hw(onboard_mic);
-        if (ret != BK_OK)
-        {
-            BK_LOGE(TAG, "%s, dma_setup_hw fail\n", __func__);
-            return;
-        }
+        s_flash_mon.seq_last = seq;
+        s_flash_mon.seq_seen = seq;
 
-        ring_buffer_clear(&onboard_mic->mic_rb);
+        /* pause_begin() nests: it returns false when the AP path already holds a
+         * pause, but it still takes our count, so never skip the release below. */
+        (void)mic_flash_pause_begin(onboard_mic);
 
-        ret = bk_dma_start(onboard_mic->mic_dma_id);
-        if (ret != BK_OK)
-        {
-            BK_LOGE(TAG, "%s, dma_start fail\n", __func__);
-            return;
-        }
+        s_flash_mon.paused         = true;
+        s_flash_mon.quiet_start_ms = now;
+        s_flash_mon.pause_start_ms = now;
+        return;
+    }
 
-        for (i = 0; i < AUD_ADC_CHL_MAX; i++)
+    /* PAUSED: any further op, or a CP that is still busy, restarts the window. */
+    if ((seq != s_flash_mon.seq_seen) || (status != BK_SYS_SW_REGS_CP_FLASH_OP_IDLE))
+    {
+        s_flash_mon.seq_seen       = seq;
+        s_flash_mon.quiet_start_ms = now;
+    }
+
+    if (((now - s_flash_mon.quiet_start_ms) >= MIC_CP_FLASH_QUIET_MS) ||
+        ((now - s_flash_mon.pause_start_ms) >= MIC_CP_FLASH_PAUSE_MAX_MS))
+    {
+        if ((now - s_flash_mon.pause_start_ms) >= MIC_CP_FLASH_PAUSE_MAX_MS)
         {
-            if (onboard_mic->ch_bitmap & (1 << i))
-            {
-                ret = bk_aud_adc_start(i);
-                if (ret != BK_OK)
-                {
-                    BK_LOGE(TAG, "%s, adc_start ch%u fail\n", __func__, (unsigned)i);
-                }
-            }
+            BK_LOGE(TAG, "cp flash pause timeout %ums, seq=%u status=%u\n",
+                    (unsigned)(now - s_flash_mon.pause_start_ms), (unsigned)seq, (unsigned)status);
         }
-        bk_aud_adc_enable_used_channel(onboard_mic->ch_bitmap);
+        mic_flash_pause_end(onboard_mic);
+        s_flash_mon.paused   = false;
+        s_flash_mon.seq_last = seq;
+        BK_LOGI(TAG, "mic resumed, paused %ums\n", (unsigned)(now - s_flash_mon.pause_start_ms));
     }
 }
 
@@ -294,9 +527,23 @@ static bk_err_t aud_adc_dma_deconfig(onboard_mic_stream_t *onboard_mic)
     return BK_OK;
 }
 
-/* Carry one frame audio dac data(20ms) from ADC FIFO complete */
+/* Carry one frame audio dac data from ADC FIFO complete */
 static void aud_adc_dma_finish_isr(dma_id_t dma_id)
 {
+    uint32_t now = rtos_get_time();
+    uint32_t gap = now - s_adc_wd.last_ms;
+
+    s_adc_wd.last_ms = now;
+
+    if ((s_adc_wd.period_ms != 0) && (gap > (s_adc_wd.period_ms * MIC_ADC_WD_GAP_FRAMES)))
+    {
+        s_adc_wd.missed = true;
+        if (gap > s_adc_wd.gap_ms)
+        {
+            s_adc_wd.gap_ms = gap;
+        }
+    }
+
     AUD_ADC_DMA_ISR_START();
     BK_LOGV(TAG, "%s,%d adc dma[%d] finish!\n", __func__, __LINE__, dma_id);
     bk_err_t ret = rtos_set_semaphore(&gl_onboard_mic->can_process);
@@ -468,6 +715,14 @@ static bk_err_t _onboard_mic_open(audio_element_handle_t self)
     //audio_element_set_input_timeout(self, 15 / portTICK_RATE_MS);
     ring_buffer_clear(&onboard_mic->mic_rb);
 
+    /* Fresh heartbeat for the continuity monitor, before the dma can fire its
+     * first finish interrupt: the gap measured while the stream was closed is
+     * not a stall. */
+    s_adc_wd.period_ms  = 0;
+    s_adc_wd.count      = 0;
+    s_adc_wd.max_gap_ms = 0;
+    mic_adc_wd_restart();
+
     bk_err_t ret = bk_dma_start(onboard_mic->mic_dma_id);
     if (ret != BK_OK)
     {
@@ -490,6 +745,10 @@ static bk_err_t _onboard_mic_open(audio_element_handle_t self)
 
     bk_aud_adc_enable_used_channel(onboard_mic->ch_bitmap);
 
+    s_flash_mon.paused   = false;
+    s_flash_mon.seq_last = bk_sys_sw_regs_get_cp_flash_op_seq();
+    s_flash_mon.seq_seen = s_flash_mon.seq_last;
+    onboard_mic->flash_pause_cnt = 0;
     /* Arm pop suppression to mask the mic enable/reset settling transient. The
      * mic read path outputs a mono int16 stream, so size the ramp in mono int16
      * samples. */
@@ -533,7 +792,13 @@ static int _onboard_mic_read(audio_port_handle_t self, char *buffer, int len, Ti
         }
         else
         {
-            BK_LOGW(TAG, "[%s] %s, mic_fill: %d < len: %d \n", audio_element_get_tag(el), __func__, fill_size, len);
+            /* While a flash pause holds the adc stopped the ring is empty by
+             * design: this is the normal path then, not an anomaly, and logging
+             * every frame would flood the uart for the whole pause. */
+            if (!s_flash_mon.paused && (onboard_mic->flash_pause_cnt == 0))
+            {
+                BK_LOGW(TAG, "[%s] %s, mic_fill: %d < len: %d \n", audio_element_get_tag(el), __func__, fill_size, len);
+            }
             /* dma carry data length is not right */
             //TODO
             /* ============== workaround handle================== */
@@ -634,13 +899,40 @@ static uint32_t s_onboard_mic_bp_drop = 0;   /* frames dropped due to downstream
 static int _onboard_mic_process(audio_element_handle_t self, char *in_buffer, int in_len)
 {
     onboard_mic_stream_t *onboard_mic = (onboard_mic_stream_t *)audio_element_getdata(self);
+    uint32_t sem_timeout_ms = 2000;
 
     AUD_ONBOARD_MIC_PROCESS_START();
 
-    AUD_ONBOARD_MIC_SEM_WAIT_START();
-    if (kNoErr != rtos_get_semaphore(&onboard_mic->can_process, 2000)) //portMAX_DELAY
+    /* Learn one dma block period from frame_size, not in_len: in_len spans every
+     * active lane (mic plus aec loopback), so it would scale the period by the
+     * lane count and hide the stalls this watchdog exists for. */
+    if ((s_adc_wd.period_ms == 0) && (onboard_mic->adc_cfg.sample_rate != 0) &&
+        (onboard_mic->frame_size > 0))
     {
-        BK_LOGE(TAG, "[%s] %s, rtos_get_semaphore fail\n", audio_element_get_tag(self), __func__);
+        s_adc_wd.period_ms = (uint32_t)(((uint64_t)onboard_mic->frame_size * 1000U) /
+                                        (2U * (uint32_t)onboard_mic->adc_cfg.sample_rate));
+    }
+
+    /* Poll before consuming: misaligned data must never reach the uplink. */
+    mic_cp_flash_poll(onboard_mic);
+
+    /* Runs after the poll so a known cause is filtered instead of counted. */
+    mic_adc_stall_report(s_flash_mon.paused || (onboard_mic->flash_pause_cnt != 0));
+
+    if (s_flash_mon.paused)
+    {
+        /* ADC stopped, so no dma finish interrupt will come: wake once per block
+         * to keep the CP polled and the uplink paced at one silent frame. */
+        sem_timeout_ms = s_adc_wd.period_ms ? s_adc_wd.period_ms : 20U;
+    }
+
+    AUD_ONBOARD_MIC_SEM_WAIT_START();
+    if (kNoErr != rtos_get_semaphore(&onboard_mic->can_process, sem_timeout_ms)) //portMAX_DELAY
+    {
+        if (!s_flash_mon.paused)
+        {
+            BK_LOGE(TAG, "[%s] %s, rtos_get_semaphore fail\n", audio_element_get_tag(self), __func__);
+        }
         //return -1;
     }
     AUD_ONBOARD_MIC_SEM_WAIT_END();
@@ -757,9 +1049,9 @@ static bk_err_t _onboard_mic_close(audio_element_handle_t self)
         }
     }
 
-    onboard_mic->is_open = false;
+    onboard_mic->is_open     = false;
     onboard_mic->fade_remain = 0;
-    onboard_mic->lp_remain = 0;
+    onboard_mic->lp_remain   = 0;
 
     return BK_OK;
 }
@@ -904,6 +1196,11 @@ audio_element_handle_t onboard_mic_stream_init(onboard_mic_stream_cfg_t *config)
     cfg.multi_out_port_num = config->multi_out_port_num;
 
     os_memcpy(&gl_onboard_mic->adc_cfg, &config->adc_cfg, sizeof(aud_adc_config_t));
+    if (gl_onboard_mic->adc_cfg.clk_src == AUD_CLK_XTAL)
+    {
+        BK_LOGE(TAG, "%s, %d, audio clock source configuration error.\n", __func__, __LINE__);
+        goto _onboard_mic_init_exit;
+    }
 
     /* the buffer_len is the parameter of _onboard_mic_process api */
 
@@ -1012,8 +1309,8 @@ audio_element_handle_t onboard_mic_stream_init(onboard_mic_stream_cfg_t *config)
         {
             gl_onboard_mic->adc_cfg.chl_cfg[i].bits = 16;   // Force all channels to the same 16bits!
             bk_aud_adc_set_ana_gain_db(i, config->adc_cfg.chl_cfg[i].ana_gain);
-            BK_LOGD(TAG, "adc_cfg chl_num: %d, adc_gain_db: %.2f, samp_rate: %d, clk_src: %s, adc_mode: %s \n",
-                i, gl_onboard_mic->adc_cfg.chl_cfg[i].dig_gain, gl_onboard_mic->adc_cfg.sample_rate, gl_onboard_mic->adc_cfg.clk_src == 1 ? "APLL" : "XTAL", gl_onboard_mic->adc_cfg.chl_cfg[i].adc_mode == 1 ? "AUD_ADC_MODE_SIGNAL_END" : "AUD_ADC_MODE_DIFFEN");
+            BK_LOGD(TAG, "adc_cfg chl_num: %d, adc_gain_db: %.2f, samp_rate: %d, adc_mode: %s \n",
+                i, gl_onboard_mic->adc_cfg.chl_cfg[i].dig_gain, gl_onboard_mic->adc_cfg.sample_rate, gl_onboard_mic->adc_cfg.chl_cfg[i].adc_mode == 1 ? "AUD_ADC_MODE_SIGNAL_END" : "AUD_ADC_MODE_DIFFEN");
         }
     }
 

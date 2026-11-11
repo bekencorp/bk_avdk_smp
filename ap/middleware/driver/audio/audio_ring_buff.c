@@ -101,6 +101,33 @@ void ring_buffer_clear(RingBufferContext* rb)
     }
 }
 
+void ring_buffer_discard(RingBufferContext* rb)
+{
+    uint32_t wp;
+    uint32_t pause_ptr;
+
+    if ((rb->dma_id == DMA_ID_MAX) || (rb->dma_type != RB_DMA_TYPE_WRITE))
+    {
+        rb->wp = 0;
+        rb->rp = 0;
+        return;
+    }
+
+    wp = bk_dma_get_enable_status(rb->dma_id) ? rb_dma_offset(rb, dma_get_dest_write_addr(rb->dma_id)) : 0;
+    if (wp >= rb->capacity)
+    {
+        wp = 0;
+    }
+
+    rb->wp = wp;
+    rb->rp = wp;
+
+    /* same convention as ring_buffer_read(): park the DMA one word behind the
+     * new read pointer so it can keep streaming a full lap. */
+    pause_ptr = (wp >= 4) ? (wp - 4) : 0;
+    dma_set_dst_pause_addr(rb->dma_id, (uint32_t)&rb->address[pause_ptr]);
+}
+
 uint32_t ring_buffer_read(RingBufferContext* rb, uint8_t* buffer, uint32_t size)
 {
     uint32_t required_bytes = size;
