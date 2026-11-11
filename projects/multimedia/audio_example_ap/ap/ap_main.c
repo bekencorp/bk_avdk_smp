@@ -13,6 +13,14 @@
 extern int cli_rsp_bench_init(void);
 #endif
 
+#if CONFIG_AUD_OPUS_BENCH_CLI
+extern int cli_opus_bench_init(void);
+#endif
+
+#if CONFIG_AUD_CODEC_LOOPBACK_CLI
+extern int cli_codec_loopback_init(void);
+#endif
+
 #if CONFIG_MEDIA_SERVICE
 /* Provided by the media_service component (osi_wrapper/audio_osi_wrapper.c).
  * Declared here because the component keeps this header private. */
@@ -122,6 +130,12 @@ extern int cli_network_provisioning_init(void);
 
 #if CONFIG_AUD_RSP_BENCH_CLI
     cli_rsp_bench_init();
+#endif
+#if CONFIG_AUD_OPUS_BENCH_CLI
+    cli_opus_bench_init();
+#endif
+#if CONFIG_AUD_CODEC_LOOPBACK_CLI
+    cli_codec_loopback_init();
 #endif
 #if CONFIG_MEDIA_SERVICE
     /* Same as media_service_init() but audio only: installs the audio_osi

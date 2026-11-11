@@ -15,3 +15,40 @@ menu "AUDIO_RSP_BENCH"
                     build fails with an undefined reference to aud_rsp_bench_run_tone.
 
 endmenu
+
+menu "AUDIO_OPUS_BENCH"
+
+        config AUD_OPUS_BENCH_CLI
+                bool "Enable opus_bench CLI (only needed when running the bench test)"
+                default n
+                help
+                    Compiles the opus_bench CLI in this project. Enable it only when
+                    you want to run the benchmark; the normal case is measuring the
+                    B2 (production) performance, and B1 additionally keeps the
+                    original CELT inner-product loops for the bit-exact comparison.
+
+                    The CLI needs a bench-capable libopus.a, i.e. the internal
+                    library must be built with CONFIG_AUD_OPUS_MVE_BENCH=y (see
+                    sdk/ap/properties/soc/bk7259_ap/bk7259_ap.defconfig). Otherwise the
+                    build fails with an undefined reference to aud_opus_bench_run_case.
+
+endmenu
+
+menu "AUDIO_CODEC_LOOPBACK"
+
+        config AUD_CODEC_LOOPBACK_CLI
+                bool "Enable codec_loopback CLI (voice path loopback test)"
+                depends on VOICE_SERVICE && VOICE_READ_SERVICE && VOICE_WRITE_SERVICE && \
+                           VOICE_SERVICE_OPUS_ENCODER && VOICE_SERVICE_OPUS_DECODER
+                default n
+                help
+                    Compiles the codec_loopback CLI in this project. It runs
+                    mic -> voice_service (encode) -> voice_write (decode) -> speaker
+                    so a codec can be verified on the real voice path by listening.
+
+                    Enable this only for loopback tests; when disabled the CLI source
+                    is not compiled at all. Opus support additionally needs
+                    CONFIG_ADK_OPUS_ENCODER / CONFIG_ADK_OPUS_DECODER and
+                    CONFIG_VOICE_SERVICE_OPUS_ENCODER / CONFIG_VOICE_SERVICE_OPUS_DECODER.
+
+endmenu
