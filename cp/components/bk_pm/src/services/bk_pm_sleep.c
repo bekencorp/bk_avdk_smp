@@ -238,7 +238,14 @@ uint64_t pm_low_voltage_process(void)
 	#if CONFIG_PM_LV_SLEEP_ENABLE
 	pm_enable_int(irq_level);
 	#endif
-
+#if CONFIG_CKMN
+	/*
+	 * CKMN measurement completes through an interrupt. Start it only after
+	 * Deep-LV PRIMASK/NVIC restoration so its ISR can disable the measurement
+	 * clocks and release the ROSC_PROG sleep vote.
+	 */
+	bk_rosc_32k_ckest_prog(32);
+#endif
 	//extern uint32_t g_ana_reg14_value;
 	//LOGI("ana_reg14:0x%08x\r\n", g_ana_reg14_value);
 	/* Execute post-sleep (wakeup) callbacks */
