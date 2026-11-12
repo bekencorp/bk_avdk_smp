@@ -2493,9 +2493,7 @@ __IRAM_PM void sys_hal_enter_lv(void)
 
 	sys_hal_restore_int(int_state1, int_state2, int_state3);
 	bk_pm_sleep_wakeup_reason_set(check_IRQ_pending());
-#if CONFIG_CKMN
-	bk_rosc_32k_ckest_prog(32);
-#endif
+
 	portNVIC_SYSTICK_LOAD_REG = PM_EXIT_LOWVOL_SYSTICK_RELOAD_TIME;
 	portNVIC_SYSTICK_CTRL_REG = systick_ctrl_value;
 
@@ -3228,9 +3226,7 @@ __IRAM_PM void sys_hal_enter_deep_lv(void)
 
 	sys_hal_restore_int(int_state1, int_state2, int_state3);
 	bk_pm_sleep_wakeup_reason_set(check_IRQ_pending());
-#if CONFIG_CKMN
-	bk_rosc_32k_ckest_prog(32);
-#endif
+
 	portNVIC_SYSTICK_LOAD_REG = PM_EXIT_LOWVOL_SYSTICK_RELOAD_TIME;
 	portNVIC_SYSTICK_CTRL_REG = systick_ctrl_value;
 
