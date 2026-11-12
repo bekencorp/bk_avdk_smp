@@ -3,7 +3,7 @@
 # This file contains only differences compared to board defconfig.
 #
 CONFIG_SPE=0
-# CONFIG_SYSTICK_32K is not set
+CONFIG_SYSTICK_32K=y
 # CONFIG_L2_CACHE_ENABLE is not set
 CONFIG_AP_SECURE_CACHE_NSC=y
 CONFIG_FREERTOS_USE_TICKLESS_IDLE=2
