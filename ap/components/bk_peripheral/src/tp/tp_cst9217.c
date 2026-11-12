@@ -39,7 +39,7 @@ extern void bk_mem_dump_ex(const char *title, unsigned char *data, uint32_t data
 #define CST9217_FRM_VER_CODE     (0xCACA)
 
 #define CST9217_MAX_TOUCH_NUM    (5)
-#define CST9217_POINT_INFO_NUM   (TP_SUPPORT_MAX_NUM)
+#define CST9217_POINT_INFO_NUM   (CST9217_MAX_TOUCH_NUM)
 #define CST9217_POINT_INFO_SIZE  (5)
 #define CST9217_POINT_INFO_TOTAL_SIZE  (CST9217_POINT_INFO_NUM * CST9217_POINT_INFO_SIZE)
 #define CST9217_READ_BUFF_SIZE   (CST9217_POINT_INFO_TOTAL_SIZE + 2)
@@ -204,6 +204,18 @@ static void cst9217_touch_up(void *buf, uint8_t id)
 {
     tp_data_t *read_data = (tp_data_t *)buf;
 
+    if (id >= TP_SUPPORT_MAX_NUM)
+    {
+        if (id < CST9217_MAX_TOUCH_NUM)
+        {
+            s_tp_down[id] = 0;
+            pre_x[id] = -1;
+            pre_y[id] = -1;
+            pre_w[id] = -1;
+        }
+        return;
+    }
+
     if (s_tp_down[id])
     {
         s_tp_down[id] = 0;
@@ -228,6 +240,11 @@ static void cst9217_touch_up(void *buf, uint8_t id)
 static void cst9217_touch_down(void *buf, uint8_t id, int16_t x, int16_t y, int16_t w)
 {
     tp_data_t *read_data = (tp_data_t *)buf;
+
+    if (id >= TP_SUPPORT_MAX_NUM)
+    {
+        return;
+    }
 
     if (s_tp_down[id])
     {

@@ -592,15 +592,8 @@ bk_err_t bk_tp_driver_deinit(void)
 {
     int ret = BK_OK;
 
-    if (NULL != tp_sema)
-    {
-        if (kNoErr != rtos_deinit_semaphore(&tp_sema))
-        {
-            LOGE("%s deinit semaphore fail!\r\n", __func__);
-            ret = BK_FAIL;
-        }
-        tp_sema = NULL;
-    }
+    tp_driver_suspend_flag = true;
+    bk_tp_int_deinit();
 
     if (NULL != tp_thread_handle)
     {
@@ -612,7 +605,15 @@ bk_err_t bk_tp_driver_deinit(void)
         tp_thread_handle = NULL;
     }
 
-    bk_tp_int_deinit();
+    if (NULL != tp_sema)
+    {
+        if (kNoErr != rtos_deinit_semaphore(&tp_sema))
+        {
+            LOGE("%s deinit semaphore fail!\r\n", __func__);
+            ret = BK_FAIL;
+        }
+        tp_sema = NULL;
+    }
 
     current_sensor = NULL;
     os_memset(&tp_device, 0x00, sizeof(tp_device_t));
