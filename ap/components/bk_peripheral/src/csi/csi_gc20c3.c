@@ -42,8 +42,8 @@
 #define FPS_CRTL_METHOD FPS_CTRL_BY_LENGTH
 
 #define DEFAULT_FRAME_LEN 1200  //1125
-#define DEFAULT_LINE_LEN 1406  //1000
-#define GC20C3_PCLK (DEFAULT_FRAME_LEN * DEFAULT_LINE_LEN * 20)
+#define DEFAULT_LINE_LEN 1562  //1688 //1758
+#define GC20C3_PCLK (DEFAULT_FRAME_LEN * DEFAULT_LINE_LEN * 18)
 
 #define WIN_MAX_X 1928
 #define WIN_MAX_Y 1088
@@ -1125,8 +1125,8 @@ static const struct i2c_config sensor_gc20C3_init_table[] =
     { 0x0211,0x01},
     { 0x0340,0x04},
     { 0x0341,0xB0},
-    { 0x0342,0x05},
-    { 0x0343,0x7e},
+    { 0x0342,0x06},
+    { 0x0343,0x1a},
     { 0x0212,0x14},
     { 0x0350,0x06},
     { 0x0348,0x07},
@@ -1463,6 +1463,12 @@ static const bk_camera_sensor_format_t gc20C3_format_array[] = {
         .width = 1920,
         .height = 1080,
         .fps = 20,
+        .output_pixel_fmt = FIXEL_FORMAT,
+    },
+    {
+        .width = 1920,
+        .height = 1080,
+        .fps = 18,
         .output_pixel_fmt = FIXEL_FORMAT,
     },
 
