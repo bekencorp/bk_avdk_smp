@@ -74,6 +74,11 @@ menu "CSI Camera"
         bool "Enable CSI_MIPI_BRIDGE"
         default n
 
+    config CSI_GC8613YA
+        depends on CSI_CAMERA
+        bool "Enable CSI_GC8613YA"
+        default n
+
     config CSI_TP2863
         depends on CSI_CAMERA
         bool "Enable CSI_TP2863"
