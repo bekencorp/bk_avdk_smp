@@ -136,7 +136,19 @@ default_bandgap:
 int random_init(void)
 {
 	BK_LOGV(TAG, "create srand seed\r\n");
+#if (CONFIG_OTP_V1)
+	/* Read OTP once at boot (single-threaded) to seed the libc PRNG.
+	 * Runtime bk_rand() must not touch OTP hardware: on SMP the OTP driver
+	 * keeps global power/map state without locking, which can hang the core. */
+	uint32_t otp_seed = 0;
+
+	if (bk_otp_read_random_number(&otp_seed, 1) != BK_OK) {
+		otp_seed = (uint32_t)rand();
+	}
+	srand((unsigned)otp_seed);
+#else
 	srand((unsigned)rand());
+#endif
 	return BK_OK;
 }
 
