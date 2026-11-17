@@ -237,7 +237,7 @@ bk_err_t audio_play_open(audio_play_t *play)
     raw_stream_cfg_t raw_cfg = {
         .type = AUDIO_STREAM_WRITER,
         .out_block_size = play->config.frame_size,
-        .out_block_num  = 8,
+        .out_block_num  = 4,
         .output_port_type = PORT_TYPE_RB,
     };
     ctx->raw_stream = raw_stream_init(&raw_cfg);

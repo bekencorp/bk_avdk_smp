@@ -449,7 +449,7 @@ bk_err_t spk_service_init(void)
     raw_stream_cfg_t raw_cfg = DEFAULT_RAW_STREAM_CONFIG();
     raw_cfg.type = AUDIO_STREAM_WRITER;
     raw_cfg.out_block_size = SPK_SERVICE_FRAME_BYTES(DEFAULT_AUD_DAC_SAMPLE_RATE);
-    raw_cfg.out_block_num = 8;
+    raw_cfg.out_block_num = 4;
     raw_cfg.output_port_type = PORT_TYPE_RB;
     ctx->raw_write = raw_stream_init(&raw_cfg);
     if (!ctx->raw_write)
