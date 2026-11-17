@@ -8,9 +8,49 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <string.h>
 #include <os/mem.h>
+#include <os/os.h>
+#include <os/str.h>
 #include <common/bk_include.h>
+#include <modules/wifi.h>
+#if CONFIG_CLI
+#include "bk_cli.h"
+#endif
 #include "bk_kws_asr.h"
+
+typedef struct {
+    int    (*net_status)(void);
+    void  *(*http_create)(size_t header_size);
+    int    (*http_set_timeout)(void *session, int timeout_ms);
+    int    (*http_add_header)(void *session, const char *fields);
+    int    (*http_post)(void *session, const char *uri, const void *data, size_t len);
+    int    (*http_read)(void *session, void *buf, size_t len);
+    int    (*http_close)(void *session);
+} bkkws_auth_host_ops_t;
+
+extern int bkkws_auth_set_host_ops(const bkkws_auth_host_ops_t *ops);
+extern int bkkws_auth_set_cred(const char *id, const char *key);
+extern int bkkws_auth_get_cred(char *id, char *key);
+extern int bkkws_auth_get_license_id(char *buf);
+extern int bkkws_auth_set_cipher(const char *hex, unsigned int crc);
+
+#if CONFIG_WEBCLIENT && CONFIG_WEBCLIENT_TLS && (CONFIG_PSA_MBEDTLS || CONFIG_MBEDTLS)
+#define BKKWS_ONLINE_AUTH_ENABLED 1
+#else
+#define BKKWS_ONLINE_AUTH_ENABLED 0
+#endif
+
+#if BKKWS_ONLINE_AUTH_ENABLED
+struct webclient_session;
+
+extern struct webclient_session *webclient_session_create(size_t header_sz);
+extern int webclient_set_timeout(struct webclient_session *session, int millisecond);
+extern int webclient_header_fields_add(struct webclient_session *session, const char *fmt, ...);
+extern int webclient_post(struct webclient_session *session, const char *URI, const void *post_data, size_t data_len);
+extern int webclient_read(struct webclient_session *session, void *buffer, size_t size);
+extern int webclient_close(struct webclient_session *session);
+#endif
 
 /* -------- External symbols from kws_model (sdk/ap/properties/.../bk_kws.h) --
  * The bk_kws.h header is owned by an internal-lib component whose include
@@ -142,12 +182,187 @@ int bk_tflite_asr_switch_model(int model_id)
     return bk_kws_switch_model(bk_tflite_asr_to_kws_model_id(model_id));
 }
 
+static int app_net_status(void)
+{
+#if CONFIG_WIFI_VNET_CONTROLLER
+    wifi_link_status_t status;
+
+    memset(&status, 0, sizeof(status));
+    if (bk_wifi_sta_get_link_status(&status) != BK_OK) {
+        return 0;
+    }
+
+    return (status.state == WIFI_LINKSTATE_STA_GOT_IP) ? 1 : 0;
+#else
+    return 0;
+#endif
+}
+
+#if BKKWS_ONLINE_AUTH_ENABLED
+static void *app_http_create(size_t header_size)
+{
+    return webclient_session_create(header_size);
+}
+
+static int app_http_set_timeout(void *session, int timeout_ms)
+{
+    return webclient_set_timeout((struct webclient_session *)session, timeout_ms);
+}
+
+static int app_http_add_header(void *session, const char *fields)
+{
+    return webclient_header_fields_add((struct webclient_session *)session, "%s", fields);
+}
+
+static int app_http_post(void *session, const char *uri, const void *data, size_t len)
+{
+    return webclient_post((struct webclient_session *)session, uri, data, len);
+}
+
+static int app_http_read(void *session, void *buf, size_t len)
+{
+    return webclient_read((struct webclient_session *)session, buf, len);
+}
+
+static int app_http_close(void *session)
+{
+    return webclient_close((struct webclient_session *)session);
+}
+#else
+static void *app_http_create(size_t header_size)
+{
+    (void)header_size;
+    return NULL;
+}
+
+static int app_http_set_timeout(void *session, int timeout_ms)
+{
+    (void)session;
+    (void)timeout_ms;
+    return BK_ERR_NOT_SUPPORT;
+}
+
+static int app_http_add_header(void *session, const char *fields)
+{
+    (void)session;
+    (void)fields;
+    return BK_ERR_NOT_SUPPORT;
+}
+
+static int app_http_post(void *session, const char *uri, const void *data, size_t len)
+{
+    (void)session;
+    (void)uri;
+    (void)data;
+    (void)len;
+    return BK_ERR_NOT_SUPPORT;
+}
+
+static int app_http_read(void *session, void *buf, size_t len)
+{
+    (void)session;
+    (void)buf;
+    (void)len;
+    return BK_ERR_NOT_SUPPORT;
+}
+
+static int app_http_close(void *session)
+{
+    (void)session;
+    return BK_ERR_NOT_SUPPORT;
+}
+#endif
+
+static const bkkws_auth_host_ops_t s_auth_host_ops = {
+    app_net_status,
+    app_http_create,
+    app_http_set_timeout,
+    app_http_add_header,
+    app_http_post,
+    app_http_read,
+    app_http_close,
+};
+
+#if CONFIG_CLI
+#define BKKWS_LICENSE_ID_LEN 45
+
+static bool s_kws_cli_registered = false;
+
+static void cli_kws_op_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
+{
+    char tmp_buf[BKKWS_LICENSE_ID_LEN] = {0};
+    int ret = -1;
+    uint32_t crc = 0;
+
+    (void)pcWriteBuffer;
+    (void)xWriteBufferLen;
+
+    if (argc < 2) {
+        return;
+    }
+
+    if (strcmp(argv[1], "set_auth") == 0) {
+        if ((argc != 4) || (os_strlen(argv[2]) != 16) || (os_strlen(argv[3]) != 32)) {
+            os_printf("usage: beken_kws set_auth <16-char-id> <32-char-key>");
+            return;
+        }
+        os_printf("%s", (bkkws_auth_set_cred(argv[2], argv[3]) == 0) ? "success" : "fail");
+        return;
+    }
+
+    if (strcmp(argv[1], "get_auth") == 0) {
+        char id[17] = {0};
+        char key[33] = {0};
+
+        if (bkkws_auth_get_cred(id, key) != 0) {
+            os_printf("not found");
+            return;
+        }
+        os_printf("id:%s key:%s", id, key);
+        return;
+    }
+
+    if (strcmp(argv[1], "get_id") == 0) {
+        if (bkkws_auth_get_license_id(tmp_buf) != 0) {
+            return;
+        }
+        os_printf("%s", tmp_buf);
+        return;
+    }
+
+    if (strcmp(argv[1], "set_ciphertext") == 0) {
+        if (argc != 4) {
+            return;
+        }
+        crc = os_strtoul(argv[3], NULL, 16);
+        ret = bkkws_auth_set_cipher(argv[2], crc);
+        if (ret == -3) {
+            return;
+        }
+        os_printf("%s", (ret == 0) ? "success" : "fail");
+        return;
+    }
+}
+
+static const struct cli_command kws_cmds[] = {
+    {"beken_kws", "set_auth|get_auth|get_id|set_ciphertext", cli_kws_op_cmd},
+};
+#endif
+
 int bk_tflite_asr_init(void)
 {
     if (s_kws_initialized) {
         BK_LOGW(NULL, "bk_tflite_asr_init: already initialized, skipping\n");
         return 1;
     }
+
+    bkkws_auth_set_host_ops(&s_auth_host_ops);
+#if CONFIG_CLI
+    if (!s_kws_cli_registered) {
+        cli_register_commands(kws_cmds, (int)(sizeof(kws_cmds) / sizeof(kws_cmds[0])));
+        s_kws_cli_registered = true;
+    }
+#endif
 
     uint32_t arena_sz   = bk_kws_get_tflm_buf_size();
     uint32_t scratch_sz = bk_kws_get_npu_scratch_size();

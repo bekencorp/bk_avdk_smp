@@ -1,7 +1,49 @@
 # BK7259 BEKEN KWS Library User Manual
 
 This document describes how to use the BK7259 KWS prebuilt libraries and the
-TensorFlow Lite model files in this directory.
+TensorFlow Lite model files .
+
+## Library Authorization
+
+The KWS library is licensed per device. Wake-up and command recognition do not work until the board is authorized.
+
+Check the following configuration in the project to ensure the AP command line
+is available and the board can access the network for online authorization:
+
+```text
+CONFIG_CLI=y
+CONFIG_WEBCLIENT=y
+CONFIG_WEBCLIENT_TLS=y
+CONFIG_PSA_MBEDTLS=y
+```
+
+If the project uses the mbedTLS port instead of PSA, `CONFIG_MBEDTLS=y` is also
+accepted.
+
+1. Enter the ASR service once, so that the `beken_kws` commands are registered.
+   The entry method depends on the project (for example a key, a UI page, or a
+   wake-word flow).
+2. Write the 16-character license ID and 32-character key assigned per device by
+   BEKEN:
+
+   ```text
+   ap_cmd beken_kws set_auth <id> <key>
+   ```
+
+   Expected output: `success`.
+3. Reset the board. With HTTPS networking available, the board authorizes
+   automatically during startup and prints:
+
+   ```text
+   [KAUTH] auth success
+   ```
+
+   After the next reset, the boot log prints `[KAUTH] authorized ok`.
+
+The board must be connected to the network and able to reach the license server.
+If authorization fails, the log prints `[KAUTH] auth fail` and the board retries
+on the next reset. OTP is one-time programmable: a wrong ID or key cannot be
+corrected and the board must be replaced.
 
 ## Library Selection
 

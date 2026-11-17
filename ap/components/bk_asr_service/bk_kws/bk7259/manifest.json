@@ -1,21 +1,21 @@
 {
   "name": "kws_model",
   "soc": "bk7259",
-  "version": "20261105_145717",
+  "version": "20261117_135112",
   "sdk": "unknown",
-  "source": "bcd0a3b",
+  "source": "f2b81e4",
   "perf_log": false,
   "verbose_log": false,
   "libraries": [
     {
       "file": "libkws_model.a",
       "variant": "builtin",
-      "size": 250734
+      "size": 260794
     },
     {
       "file": "libkws_model_vfs.a",
       "variant": "vfs",
-      "size": 128654
+      "size": 138714
     }
   ],
   "models": [

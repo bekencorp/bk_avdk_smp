@@ -26,6 +26,10 @@ if (CONFIG_BEKEN_KWS)
 	list(APPEND srcs
 		bk_kws/bk_kws_asr_intf.c
 	)
+	list(APPEND priv_requires bk_cli webclient)
+	if (CONFIG_WIFI_VNET_CONTROLLER)
+		list(APPEND priv_requires bk_wifi)
+	endif()
 
 	# KWS model prebuilt lib ships next to the KWS interface (bk_kws/), in two
 	# variants: libkws_model.a (built-in array) and libkws_model_vfs.a (from
