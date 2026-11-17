@@ -392,6 +392,7 @@ int bmsg_tx_raw_cb_sender(uint8_t *buffer, int length, void *cb, void *param);
 void wlan_write_fast_connect_info(struct wlan_fast_connect_info *fci);
 void wlan_read_fast_connect_info(struct wlan_fast_connect_info *fci);
 void wlan_clear_fast_connect_info(struct wlan_fast_connect_info *fci);
+void wlan_invalidate_fast_connect_sae_pmkid(void);
 
 int bk_wifi_sta_set_power(int power);
 int bk_wifi_ap_set_power(int power);

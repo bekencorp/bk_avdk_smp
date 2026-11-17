@@ -2165,6 +2165,27 @@ bool g_is_get_fci_from_flash = true;
 bool g_is_use_fci_from_flash = true;
 struct wlan_fast_connect_info g_fci;
 
+#if CONFIG_WLAN_FAST_CONNECT_WPA3
+/*
+ * Set when the AP rejected our SAE PMKID (assoc status 53 / deauth reason 49).
+ * The FCI keeps ssid/bssid/channel so the next attempt can still scan only
+ * the cached channel, but the SAE PMK/PMKID must not be restored again until
+ * a fresh full SAE stores new material.
+ */
+static bool g_sae_pmkid_invalid;
+
+static bool wlan_fci_pmkid_valid(const struct wlan_fast_connect_info *fci)
+{
+	int i;
+
+	for (i = 0; i < (int)sizeof(fci->pmkid); i++) {
+		if (fci->pmkid[i] != 0)
+			return true;
+	}
+	return false;
+}
+#endif
+
 static bool wlan_fci_match_sta(const struct wlan_fast_connect_info *fci,
 			       const wifi_sta_config_t *sta)
 {
@@ -2219,6 +2240,16 @@ void wlan_write_fast_connect_info(struct wlan_fast_connect_info *fci)
 {
 	struct wlan_fast_connect_info pre_fci;
 
+#if CONFIG_WLAN_FAST_CONNECT_WPA3
+	/*
+	 * A freshly stored SAE FCI with a real PMKID means the PMKSA cache is
+	 * valid again (e.g. after a full SAE fallback following status 53).
+	 */
+	if (fci->pmk_len > 0 && wpa_key_mgmt_sae(fci->akmp) &&
+	    wlan_fci_pmkid_valid(fci))
+		g_sae_pmkid_invalid = false;
+#endif
+
 	/* obtain the previous bssid info*/
 	wlan_read_fast_connect_info(&pre_fci);
 
@@ -2247,6 +2278,9 @@ wr_exit:
 void wlan_clear_fast_connect_info(struct wlan_fast_connect_info *fci)
 {
 	g_sta_param_ptr->fast_connect_set = 0;
+#if CONFIG_WLAN_FAST_CONNECT_WPA3
+	g_sae_pmkid_invalid = false;
+#endif
 	if (fci) {
 		os_memset(fci, 0, sizeof(struct wlan_fast_connect_info));
 #if (CONFIG_EASY_FLASH && CONFIG_EASY_FLASH_V4)
@@ -2260,6 +2294,39 @@ void wlan_clear_fast_connect_info(struct wlan_fast_connect_info *fci)
 	if (bk_feature_fast_dhcp_enable()) {
 		sta_ip_mode_set(1);
 	}
+}
+
+/*
+ * The AP rejected the SAE PMKID carried by our fast-connect association
+ * (assoc status 53) or deauthenticated us for the same reason (49).
+ *
+ * Do not throw away the whole FCI: keeping ssid/bssid/channel/ip/tk lets the
+ * next attempt stay on the cached channel instead of doing a full-channel
+ * scan. Only the rejected SAE material is dropped, and a runtime flag makes
+ * bk_wifi_sta_start() skip restoring it until a full SAE stores a new PMKID.
+ */
+void wlan_invalidate_fast_connect_sae_pmkid(void)
+{
+	struct wlan_fast_connect_info fci;
+
+	os_memset(&fci, 0, sizeof(fci));
+	wlan_read_fast_connect_info(&fci);
+
+#if CONFIG_WLAN_FAST_CONNECT_WPA3
+	if (wpa_key_mgmt_sae(fci.akmp) && fci.pmk_len > 0) {
+		fci.pmk_len = 0;
+		os_memset(fci.pmk, 0, sizeof(fci.pmk));
+		os_memset(fci.pmkid, 0, sizeof(fci.pmkid));
+		fci.akmp = 0;
+		g_sae_pmkid_invalid = true;
+		wlan_write_fast_connect_info(&fci);
+		WIFI_LOGW("invalid SAE PMKID, keep FCI for single-channel SAE retry\n");
+		return;
+	}
+#endif
+
+	/* Non-SAE FCI keeps the previous full-clear behavior. */
+	wlan_clear_fast_connect_info(&fci);
 }
 
 
@@ -2598,28 +2665,30 @@ bk_err_t bk_wifi_sta_start(void)
 	 * never enters here, so its path stays exactly as before.
 	 */
 	if (fast_connect && wpa_key_mgmt_sae(fci.akmp) && fci.pmk_len > 0) {
-		wlan_sta_add_pmksa_cache_entry_t entry = {0};
-		bool pmkid_valid = false;
-		int i;
+		if (g_sae_pmkid_invalid) {
+			/* The AP rejected this PMKID once; a full SAE will refresh
+			 * the FCI. Keep fast_connect_set so the retry stays on the
+			 * cached channel. */
+			WIFI_LOGW("fast_connect: skip SAE PMKSA restore after invalid PMKID\n");
+		} else if (!wlan_fci_pmkid_valid(&fci)) {
+			/* SAE PMKID is derived from the SAE commit scalars, not from
+			 * PMK, so it cannot be reconstructed here. Do not install an
+			 * entry that the AP would reject with status 53. */
+			WIFI_LOGW("fast_connect: SAE PMKID missing, skip PMKSA caching\n");
+		} else {
+			wlan_sta_add_pmksa_cache_entry_t entry = {0};
 
-		if (fci.pmk_len > sizeof(entry.pmk))
-			fci.pmk_len = sizeof(entry.pmk);
-		os_memcpy(entry.bssid, fci.bssid, ETH_ALEN);
-		entry.akmp = fci.akmp;
-		entry.pmk_len = fci.pmk_len;
-		os_memcpy(entry.pmk, fci.pmk, fci.pmk_len);
-		for (i = 0; i < (int)sizeof(fci.pmkid); i++) {
-			if (fci.pmkid[i] != 0) {
-				pmkid_valid = true;
-				break;
-			}
-		}
-		/* All-zero PMKID must not be installed; let pmksa_cache_add derive it. */
-		if (pmkid_valid)
+			if (fci.pmk_len > sizeof(entry.pmk))
+				fci.pmk_len = sizeof(entry.pmk);
+			os_memcpy(entry.bssid, fci.bssid, ETH_ALEN);
+			entry.akmp = fci.akmp;
+			entry.pmk_len = fci.pmk_len;
+			os_memcpy(entry.pmk, fci.pmk, fci.pmk_len);
 			os_memcpy(entry.pmkid, fci.pmkid, sizeof(entry.pmkid));
-		wpa_ctrl_request(WPA_CTRL_CMD_STA_ADD_PMKSA_CACHE_ENTRY, &entry);
-		WIFI_LOGI("fast_connect: restore SAE PMK to PMKSA cache, akmp=0x%x len=%d\n",
-			  fci.akmp, fci.pmk_len);
+			wpa_ctrl_request(WPA_CTRL_CMD_STA_ADD_PMKSA_CACHE_ENTRY, &entry);
+			WIFI_LOGI("fast_connect: restore SAE PMK to PMKSA cache, akmp=0x%x len=%d\n",
+				  fci.akmp, fci.pmk_len);
+		}
 	}
 #endif
 
