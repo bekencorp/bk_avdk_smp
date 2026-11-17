@@ -146,4 +146,10 @@ menu "Bk_ble"
         config BLUETOOTH_RF_MODE_IQ_LOW_PLL
             bool "IQ Mode BT PLL"
     endchoice
+
+    config BLUETOOTH_DUAL_MODE_BLE_SLAVE_ONLY
+        bool "Enable Dual BLE Slave Only Mode"
+        default n
+        help
+            Enable Dual BLE Slave Only Mode.
 endmenu
