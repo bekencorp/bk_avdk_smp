@@ -105,6 +105,9 @@ bk_err_t bk_isp_sensor_update_mode_set(
 bk_err_t bk_isp_pipeline_switch_set(
     isp_handle_t *handle, uint8_t mode);
 
+bk_err_t bk_isp_shoot4k_direct_publish_set(
+    isp_handle_t *handle, uint8_t enable);
+
 /**
  * @brief Vote to enable/disable ISP (CISP) clock.
  *

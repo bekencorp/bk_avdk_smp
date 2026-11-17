@@ -155,6 +155,8 @@ int VSI_ISP_CorePipelineSwitchSet(
 
 vsi_u8_t VSI_ISP_CorePipelineSwitchGet(ISP_PORT IspPort);
 
+int VSI_ISP_CoreShoot4kDirectPublishSet(ISP_PORT IspPort, vsi_u8_t enable);
+
 
 /*****************************************************************************/
 /**

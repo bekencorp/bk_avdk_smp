@@ -120,6 +120,7 @@ typedef enum
     BK_CAM_IOCTL_GET_FLEXA_BUF_SIZE, /**< Query flexa ring buffer size for a channel geometry; arg = bk_isp_camera_flexa_buf_size_t * */
     BK_CAM_IOCTL_SET_FLEXA_BUF, /**< Set an externally allocated flexa ring buffer before channel open; arg = bk_isp_camera_flexa_buf_t * */
     BK_CAM_IOCTL_PIPELINE_SWITCH_ENABLE, /**< Set pipeline switch mode; arg = uint8_t *, value from bk_isp_camera_pipeline_switch_mode_t */
+    BK_CAM_IOCTL_SET_SHOOT4K_DIRECT_PUBLISH, /**< Shoot4k single-buffer policy; arg = uint8_t * */
 } bk_cam_interface_ioctl_t;
 
 /**
