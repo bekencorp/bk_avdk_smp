@@ -470,19 +470,32 @@ int bk_rng_get(unsigned char *output, size_t len)
 
 int bk_rand(void)
 {
-    int number = 0;
+    /*
+     * Do not route this through bk_rng_get(): bk_rand() is used by lwIP and
+     * other hot paths, and the hardware entropy backends (OTP / TE200) are
+     * slow and must not be touched per call. The libc PRNG is seeded once at
+     * boot by random_init() with OTP entropy.
+     */
+    extern int __real_rand(void);
 
-    bk_rng_get((unsigned char *)&number, sizeof(number));
-    return (number & RAND_MAX);
+    return (__real_rand() & RAND_MAX);
 }
 
 int bk_fill_rand(void *buff, size_t len)
 {
+    uint8_t *p = (uint8_t *)buff;
+
     if (buff == NULL || len == 0) {
         return -1;
     }
 
-    return bk_rng_get((unsigned char *)buff, len);
+    extern int __real_rand(void);
+
+    for (size_t i = 0; i < len; i++) {
+        p[i] = (uint8_t)(__real_rand() & 0xff);
+    }
+
+    return 0;
 }
 
 int myrand(void *rng_state, unsigned char *output, size_t len)
