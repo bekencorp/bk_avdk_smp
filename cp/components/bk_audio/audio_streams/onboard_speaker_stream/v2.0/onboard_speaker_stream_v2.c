@@ -141,6 +141,15 @@ static struct uart_util gl_ob_spk_uart_util = {0};
 
 #define DMA_CARRY_SPK_RINGBUF_SAFE_INTERVAL    (32)
 
+/* DMA ring depth, in units of one DMA transfer (= one frame of that source).
+ * The same depth applies to every DAC source so all paths share the same
+ * jitter margin; 2 means double buffering (refill window = 1 frame).
+ * Must be even and >= 2: dma_buf_size is the half-ring length. */
+#define SPK_DMA_RING_FRAMES                    (2)
+#if (SPK_DMA_RING_FRAMES < 2) || (SPK_DMA_RING_FRAMES % 2)
+#error "SPK_DMA_RING_FRAMES must be an even value >= 2"
+#endif
+
 /* Underrun anti-pop (PCM domain).
  * - Enter silence: first FILL_SILENCE frame fades last_pcm -> 0; later frames = 0.
  * - Leave silence: first recovered frame fades 0 -> PCM (smoothstep g=3r^2-2r^3).
@@ -192,7 +201,7 @@ typedef struct onboard_speaker_stream
     int8_t                  *pool_ring_buff;                /**< pool ring buffer addr */
     bool                     pool_can_read;                 /**< the pool if can read */
     beken_semaphore_t        can_process;                   /**< can process */
-    int8_t                  *temp_buff;                     /**< HW pack / silence / AEC-ref scratch (interleaved PCM or 32-bit L|R) */
+    int8_t                  *temp_buff;                     /**< AEC-ref scratch, allocated at init only when multi_out_port_num > 0 */
     uint32_t                 temp_buff_len;                 /**< bytes allocated for temp_buff */
     bool                     wr_spk_rb_done[AUD_DAC_SOURCE_MAX];       /**< write one farme data to speaker ring buffer done */
     uint8_t                  valid_frame_count_in_spk_rb;   /**< the count of valid farme data in speaker ring buffer, data playback finish when the count is 0 */
@@ -225,17 +234,6 @@ typedef struct onboard_speaker_stream
     uint8_t                         underrun_silencing[AUD_DAC_SOURCE_MAX]; /**< 1 while filling silence */
     int16_t                         last_pcm[AUD_DAC_SOURCE_MAX][2];        /**< edge sample before silence */
 } onboard_speaker_stream_t;
-
-/* 16bit interleaved L,R -> 32bit word: LSB=left, MSB=right (DAC stereo_en HW split) */
-static void onboard_spk_pack_interleaved16_to_hw32(const int16_t *lr, uint32_t *packed, uint32_t sample_pairs)
-{
-    for (uint32_t j = 0; j < sample_pairs; j++)
-    {
-        uint16_t left  = (uint16_t)lr[2 * j + 0];
-        uint16_t right = (uint16_t)lr[2 * j + 1];
-        packed[j] = ((uint32_t)right << 16) | left;
-    }
-}
 
 static inline uint8_t onboard_spk_pcm_chl_num_from_dac_chl(aud_dac_chl_t dac_chl)
 {
@@ -394,18 +392,20 @@ static void onboard_spk_update_status_by_energy(audio_element_handle_t self, onb
     onboard_spk_update_status(self, onboard_spk, is_playing, energy_level, force_report);
 }
 
-/* Duplicate mono samples into interleaved L=R. The DAC channel count is fixed at init,
- * so a mono source is widened here instead of switching the DAC/DMA at runtime. */
-static void onboard_spk_expand_mono_to_stereo(const int16_t *mono, int16_t *lr, uint32_t mono_samples)
+/* Duplicate mono samples into interleaved L=R, in place. The DAC channel count is
+ * fixed at init, so a mono source is widened here instead of switching the DAC/DMA
+ * at runtime. Iterating backwards keeps unread mono samples from being overwritten. */
+static void onboard_spk_expand_mono_to_stereo(int16_t *pcm, uint32_t mono_samples)
 {
-    uint32_t s;
+    uint32_t s = mono_samples;
 
-    for (s = 0; s < mono_samples; s++)
+    while (s > 0)
     {
-        int16_t v = mono[s];
+        int16_t v = pcm[s - 1];
 
-        lr[2 * s + 0] = v;
-        lr[2 * s + 1] = v;
+        pcm[2 * (s - 1) + 0] = v;
+        pcm[2 * (s - 1) + 1] = v;
+        s--;
     }
 }
 
@@ -428,7 +428,8 @@ static inline uint32_t onboard_spk_hw_dma_xfer_bytes(const onboard_speaker_strea
     return onboard_spk->frame_size[src_idx];
 }
 
-/* Workspace for interleaved PCM, HW 32-bit pack, or mono AEC ref (<= max input frame, or post-rsp dma_frame) */
+/* Scratch for the AEC reference tap: it holds ONE 16-bit channel of the largest
+ * interleaved frame that can be tapped, i.e. half the interleaved byte count. */
 static inline uint32_t onboard_spk_temp_buff_len(const onboard_speaker_stream_t *onboard_spk, uint32_t max_in_frame_bytes)
 {
     uint32_t len = max_in_frame_bytes;
@@ -437,7 +438,7 @@ static inline uint32_t onboard_spk_temp_buff_len(const onboard_speaker_stream_t 
     {
         len = onboard_spk->dma_frame_size;
     }
-    return len;
+    return len / 2;
 }
 
 static uint32_t onboard_spk_max_in_frame_bytes(const onboard_speaker_stream_t *onboard_spk)
@@ -527,6 +528,11 @@ static void onboard_spk_multi_output_pcm(audio_element_handle_t self, onboard_sp
     if (onboard_spk->chl_num > 1)
     {
         out_bytes = pcm_bytes / 2;
+        if (onboard_spk->temp_buff == NULL)
+        {
+            BK_LOGE(TAG, "%s, line: %d, temp_buff missing for AEC ref, skip\n", __func__, __LINE__);
+            return;
+        }
         onboard_spk_extract_left_channel_16(interleaved_pcm, (int16_t *)onboard_spk->temp_buff,
                                             out_bytes / sizeof(int16_t));
         out_buf = (char *)onboard_spk->temp_buff;
@@ -680,23 +686,17 @@ static void onboard_spk_fade_in_from_silence(onboard_speaker_stream_t *onboard_s
 
 #endif /* UNDERRUN_FADE_MODE != OFF */
 
-/* Write silence into temp_buff (with fade-out on first underrun frame). */
+/* Write silence into dst (with fade-out on first underrun frame). dst is the element
+ * input buffer, so no dedicated scratch is needed. */
 static void onboard_spk_fill_silence_frame(onboard_speaker_stream_t *onboard_spk,
                                           uint32_t src_idx,
+                                          int16_t *dst,
                                           uint32_t interleaved_bytes)
 {
-    int16_t *dst = (int16_t *)onboard_spk->temp_buff;
-
-    if (onboard_spk->temp_buff == NULL || onboard_spk->temp_buff_len == 0)
+    if (dst == NULL || interleaved_bytes == 0)
     {
-        BK_LOGE(TAG, "%s, line: %d, temp_buff is NULL/empty, skip silence fill\n", __func__, __LINE__);
+        BK_LOGE(TAG, "%s, line: %d, no buffer for silence frame, skip\n", __func__, __LINE__);
         return;
-    }
-    if (interleaved_bytes > onboard_spk->temp_buff_len)
-    {
-        BK_LOGE(TAG, "%s, line: %d, silence bytes %u > temp_buff_len %u, clamp\n",
-                __func__, __LINE__, interleaved_bytes, onboard_spk->temp_buff_len);
-        interleaved_bytes = onboard_spk->temp_buff_len;
     }
 
     os_memset(dst, 0x00, interleaved_bytes);
@@ -730,29 +730,24 @@ static void onboard_spk_commit_play_pcm(onboard_speaker_stream_t *onboard_spk,
     onboard_spk->underrun_silencing[src_idx] = 0;
 }
 
-/* Call when filling a silence frame into temp_buff for the DAC ring. */
+/* Call when filling a silence frame into dst for the DAC ring. */
 static void onboard_spk_commit_silence_frame(onboard_speaker_stream_t *onboard_spk,
                                              uint32_t src_idx,
+                                             int16_t *dst,
                                              uint32_t interleaved_bytes)
 {
-    onboard_spk_fill_silence_frame(onboard_spk, src_idx, interleaved_bytes);
+    onboard_spk_fill_silence_frame(onboard_spk, src_idx, dst, interleaved_bytes);
     onboard_spk->underrun_silencing[src_idx] = 1;
 }
 
-/* Interleaved PCM in; returns buffer/length for single DAC DMA ring write */
+/* Interleaved PCM in; returns buffer/length for single DAC DMA ring write.
+ * In HW stereo-split mode 16bit L,R must be seen as 32bit words (LSB=left, MSB=right),
+ * which on little-endian is byte-identical to the interleaved input itself, so the
+ * buffer is handed to the DMA as is instead of being copied into temp_buff. */
 static uint8_t *onboard_spk_prepare_dac_write_buf(onboard_speaker_stream_t *onboard_spk,
     const int16_t *interleaved_pcm, uint32_t interleaved_bytes, uint32_t *dac_bytes)
 {
-    if (onboard_spk_hw_stereo_split_mode(onboard_spk))
-    {
-        uint32_t sample_pairs = interleaved_bytes / (sizeof(int16_t) * 2);
-        uint32_t *packed = (uint32_t *)onboard_spk->temp_buff;
-
-        onboard_spk_pack_interleaved16_to_hw32(interleaved_pcm, packed, sample_pairs);
-        *dac_bytes = sample_pairs * sizeof(uint32_t);
-        return (uint8_t *)packed;
-    }
-
+    (void)onboard_spk;
     *dac_bytes = interleaved_bytes;
     return (uint8_t *)interleaved_pcm;
 }
@@ -1063,24 +1058,15 @@ static bk_err_t aud_dac_dma_config_source(onboard_speaker_stream_t *onboard_spk,
         return BK_OK;
     }
 
-    if (onboard_spk_hw_stereo_split_mode(onboard_spk))
-    {
-        /* HW stereo_en: one DMA, 32-bit L|R words; A2DP upsample uses dma_frame_size */
-        uint32_t hw_xfer_bytes = onboard_spk_hw_dma_xfer_bytes(onboard_spk, i);
+    /* Every DAC source consumes exactly one frame per DMA transfer, and
+     * onboard_spk_hw_dma_xfer_bytes() already resolves that frame for all paths:
+     * dma_frame_size when A2DP is resampled, frame_size otherwise (identical in
+     * the passthrough case), with HW 32-bit L|R packing not changing the byte count.
+     * The ring then just holds SPK_DMA_RING_FRAMES such transfers. */
+    transfer_len = onboard_spk_hw_dma_xfer_bytes(onboard_spk, i);
 
-        dma_buf_size = hw_xfer_bytes * 2;
-        transfer_len = hw_xfer_bytes;
-    }
-    else if (AUD_DAC_SOURCE_A2DP == i)
-    {
-        dma_buf_size = DEFAULT_AUD_DAC_SAMPLE_RATE * 20 / 1000 * 4;//A2DP always use 48000 sample rate
-        transfer_len = onboard_spk->dma_frame_size;
-    }
-    else
-    {
-        dma_buf_size = onboard_spk->frame_size[i] * 2;
-        transfer_len = onboard_spk->frame_size[i];
-    }
+    /* dma_buf_size is the half-ring length: ring total = dma_buf_size * 2 + guard */
+    dma_buf_size = transfer_len * (SPK_DMA_RING_FRAMES / 2);
 
     fifo_ch = onboard_spk_dma_fifo_ch(onboard_spk);
 
@@ -1369,19 +1355,24 @@ static bk_err_t audio_dac_reconfig(onboard_speaker_stream_t *onboard_spk, int ra
             new_frame_size = onboard_spk->dma_frame_size;
         }
 
-        need_temp = onboard_spk_max_in_frame_bytes(onboard_spk);
-        if (new_frame_size > need_temp)
+        /* Pre-grow the scratch only when it is already in use (AEC ref tap). A stream
+         * that never needed it must not allocate it before its pipeline is linked. */
+        if (onboard_spk->temp_buff != NULL)
         {
-            need_temp = new_frame_size;
-        }
-        if (onboard_spk->dma_frame_size > need_temp)
-        {
-            need_temp = onboard_spk->dma_frame_size;
-        }
-        /* Grow scratch before tearing down rsp / publishing dma_frame_size. */
-        if (BK_OK != onboard_spk_ensure_temp_buff_size(onboard_spk, need_temp))
-        {
-            return BK_FAIL;
+            need_temp = onboard_spk_max_in_frame_bytes(onboard_spk);
+            if (new_frame_size > need_temp)
+            {
+                need_temp = new_frame_size;
+            }
+            if (onboard_spk->dma_frame_size > need_temp)
+            {
+                need_temp = onboard_spk->dma_frame_size;
+            }
+            need_temp = onboard_spk_temp_buff_len(onboard_spk, need_temp);
+            if (BK_OK != onboard_spk_ensure_temp_buff_size(onboard_spk, need_temp))
+            {
+                return BK_FAIL;
+            }
         }
 
         if (onboard_spk->rsp_handler[AUD_DAC_SOURCE_A2DP])
@@ -1417,7 +1408,8 @@ static bk_err_t audio_dac_reconfig(onboard_speaker_stream_t *onboard_spk, int ra
             }
             if (onboard_spk->rsp_out_buff[AUD_DAC_SOURCE_A2DP] == NULL)
             {
-                onboard_spk->rsp_out_buff[AUD_DAC_SOURCE_A2DP] = audio_calloc(1, DEFAULT_AUD_DAC_RSP_BUF_SIZE);
+                /* Holds exactly one post-resample frame (48k stereo 16-bit). */
+                onboard_spk->rsp_out_buff[AUD_DAC_SOURCE_A2DP] = audio_calloc(1, onboard_spk->dma_frame_size);
                 if (!onboard_spk->rsp_out_buff[AUD_DAC_SOURCE_A2DP])
                 {
                     BK_LOGE(TAG, "%s, %d, malloc rsp[%d] output buffer fail\n", __func__, __LINE__, AUD_DAC_SOURCE_A2DP);
@@ -1575,9 +1567,7 @@ static int onboard_spk_read_main_frame(audio_element_handle_t self, onboard_spea
         return r_size;
     }
 
-    onboard_spk_expand_mono_to_stereo((const int16_t *)in_buffer, (int16_t *)onboard_spk->temp_buff,
-                                      wanted / sizeof(int16_t));
-    os_memcpy(in_buffer, onboard_spk->temp_buff, frame_bytes);
+    onboard_spk_expand_mono_to_stereo((int16_t *)in_buffer, wanted / sizeof(int16_t));
 
     return (int)frame_bytes;
 }
@@ -1663,12 +1653,8 @@ static int _onboard_speaker_process(audio_element_handle_t self, char *in_buffer
                                 os_memset((uint8_t *)in_buffer+r_size, 0x00, wanted_size-(uint32_t)r_size);
                             }
 
-                            onboard_spk_expand_mono_to_stereo((const int16_t *)in_buffer,
-                                                              (int16_t *)onboard_spk->temp_buff,
+                            onboard_spk_expand_mono_to_stereo((int16_t *)in_buffer,
                                                               wanted_size / sizeof(int16_t));
-
-                            /* overwrite in_buffer with stereo interleaved for downstream */
-                            os_memcpy(in_buffer, onboard_spk->temp_buff, (size_t)wanted_size * 2);
                             r_size = (int)onboard_spk->frame_size[i];
                         }
                     }
@@ -1754,23 +1740,30 @@ static int _onboard_speaker_process(audio_element_handle_t self, char *in_buffer
                     {
                         interleaved_bytes = onboard_spk->frame_size[i];
                     }
-                    onboard_spk_commit_silence_frame(onboard_spk, i, interleaved_bytes);
+                    if (interleaved_bytes > in_len)
+                    {
+                        /* dma block larger than the element buffer: a shorter silence
+                         * frame is harmless, so clamp instead of allocating scratch. */
+                        interleaved_bytes = in_len;
+                    }
+                    onboard_spk_commit_silence_frame(onboard_spk, i, (int16_t *)in_buffer, interleaved_bytes);
 #ifdef AEC_MIC_DELAY_POINTS_DEBUG
-                    aec_mic_delay_debug((int16_t *)onboard_spk->temp_buff, interleaved_bytes);
+                    aec_mic_delay_debug((int16_t *)in_buffer, interleaved_bytes);
 #endif
                     BK_LOGV(TAG, "[%s] fill silence data \n", audio_element_get_tag(self));
 #ifdef SPK_DATA_DEBUG
-                    change_pcm_data_to_8k((uint8_t *)onboard_spk->temp_buff, interleaved_bytes);
+                    change_pcm_data_to_8k((uint8_t *)in_buffer, interleaved_bytes);
 #endif
                     write_addr = onboard_spk_prepare_dac_write_buf(onboard_spk,
-                        (const int16_t *)onboard_spk->temp_buff, interleaved_bytes, &write_size);
+                        (const int16_t *)in_buffer, interleaved_bytes, &write_size);
                     ONBOARD_SPK_DATA_DUMP_BY_UART_DATA(write_addr, write_size);
                     ring_buffer_write(&onboard_spk->spk_rb[i],
                                       write_addr, write_size);
                     onboard_spk->wr_spk_rb_done[i] = true;
                     onboard_spk_update_status_by_energy(self, onboard_spk, 0, false);
-                    onboard_spk_multi_output_pcm(self, onboard_spk, (const int16_t *)onboard_spk->temp_buff,
-                                               onboard_spk->frame_size[i]);
+                    onboard_spk_multi_output_pcm(self, onboard_spk, (const int16_t *)in_buffer,
+                                               onboard_spk->frame_size[i] < interleaved_bytes
+                                               ? onboard_spk->frame_size[i] : interleaved_bytes);
                     FILL_SILENCE_DATA_COUNT_ADD_SIZE(onboard_spk->frame_size[i]);
                 }
             }
@@ -1901,23 +1894,30 @@ static int _onboard_speaker_process(audio_element_handle_t self, char *in_buffer
             uint32_t interleaved_bytes = onboard_spk->rsp_handler[main_src]
                 ? onboard_spk->dma_frame_size : onboard_spk->frame_size[main_src];
 
-            onboard_spk_commit_silence_frame(onboard_spk, main_src, interleaved_bytes);
+            if (interleaved_bytes > in_len)
+            {
+                /* dma block larger than the element buffer: a shorter silence frame
+                 * is harmless, so clamp instead of allocating scratch. */
+                interleaved_bytes = in_len;
+            }
+            onboard_spk_commit_silence_frame(onboard_spk, main_src, (int16_t *)in_buffer, interleaved_bytes);
 #ifdef AEC_MIC_DELAY_POINTS_DEBUG
-            aec_mic_delay_debug((int16_t *)onboard_spk->temp_buff, interleaved_bytes);
+            aec_mic_delay_debug((int16_t *)in_buffer, interleaved_bytes);
 #endif
             BK_LOGV(TAG, "[%s] fill silence data \n", audio_element_get_tag(self));
 #ifdef SPK_DATA_DEBUG
-            change_pcm_data_to_8k((uint8_t *)onboard_spk->temp_buff, interleaved_bytes);
+            change_pcm_data_to_8k((uint8_t *)in_buffer, interleaved_bytes);
 #endif
             write_addr = onboard_spk_prepare_dac_write_buf(onboard_spk,
-                (const int16_t *)onboard_spk->temp_buff, interleaved_bytes, &write_size);
+                (const int16_t *)in_buffer, interleaved_bytes, &write_size);
             ONBOARD_SPK_DATA_DUMP_BY_UART_DATA(write_addr, write_size);
             ring_buffer_write(&onboard_spk->spk_rb[main_src],
                               write_addr, write_size);
             onboard_spk->wr_spk_rb_done[main_src] = true;
             onboard_spk_update_status_by_energy(self, onboard_spk, 0, false);
-            onboard_spk_multi_output_pcm(self, onboard_spk, (const int16_t *)onboard_spk->temp_buff,
-                                       onboard_spk->frame_size[main_src]);
+            onboard_spk_multi_output_pcm(self, onboard_spk, (const int16_t *)in_buffer,
+                                       onboard_spk->frame_size[main_src] < interleaved_bytes
+                                       ? onboard_spk->frame_size[main_src] : interleaved_bytes);
             FILL_SILENCE_DATA_COUNT_ADD_SIZE(onboard_spk->frame_size[main_src]);
         }
     }
@@ -2438,7 +2438,8 @@ audio_element_handle_t onboard_speaker_stream_init(onboard_speaker_stream_cfg_t 
                         goto _onboard_speaker_init_exit;
                     }
 
-                    gl_onboard_speaker->rsp_out_buff[i] = audio_calloc(1, DEFAULT_AUD_DAC_RSP_BUF_SIZE);
+                    /* Holds exactly one post-resample frame (48k stereo 16-bit). */
+                    gl_onboard_speaker->rsp_out_buff[i] = audio_calloc(1, gl_onboard_speaker->dma_frame_size);
                     if (!gl_onboard_speaker->rsp_out_buff[i])
                     {
                         BK_LOGE(TAG, "%s, %d, malloc rsp[%d] output buffer fail\n", __func__, __LINE__, i);
@@ -2477,13 +2478,19 @@ audio_element_handle_t onboard_speaker_stream_init(onboard_speaker_stream_cfg_t 
         goto _onboard_speaker_init_exit;
     }
 
-    /* init speaker ringbuffer pool */
-    gl_onboard_speaker->temp_buff_len = onboard_spk_temp_buff_len(gl_onboard_speaker, cfg.buffer_len);
-    gl_onboard_speaker->temp_buff = (int8_t *)audio_calloc(1, gl_onboard_speaker->temp_buff_len);
-    AUDIO_MEM_CHECK(TAG, gl_onboard_speaker->temp_buff, goto _onboard_speaker_init_exit);
-    os_memset(gl_onboard_speaker->temp_buff, 0x00, gl_onboard_speaker->temp_buff_len);
-    BK_LOGD(TAG, "temp_buff_len:%u (in_frame_max:%u dma_frame:%u)\n",
-            gl_onboard_speaker->temp_buff_len, cfg.buffer_len, gl_onboard_speaker->dma_frame_size);
+    /* temp_buff is only the AEC reference scratch. multi_out_port_num is a static
+     * config known here, so decide the allocation at init instead of in the audio
+     * path: playback-only streams never pay for it. */
+    gl_onboard_speaker->temp_buff_len = 0;
+    if (config->multi_out_port_num > 0)
+    {
+        gl_onboard_speaker->temp_buff_len = onboard_spk_temp_buff_len(gl_onboard_speaker, cfg.buffer_len);
+        gl_onboard_speaker->temp_buff = (int8_t *)audio_calloc(1, gl_onboard_speaker->temp_buff_len);
+        AUDIO_MEM_CHECK(TAG, gl_onboard_speaker->temp_buff, goto _onboard_speaker_init_exit);
+        os_memset(gl_onboard_speaker->temp_buff, 0x00, gl_onboard_speaker->temp_buff_len);
+        BK_LOGD(TAG, "AEC ref temp_buff_len:%u (one channel of max frame:%u dma_frame:%u)\n",
+                gl_onboard_speaker->temp_buff_len, cfg.buffer_len / 2, gl_onboard_speaker->dma_frame_size / 2);
+    }
 
     ret = rtos_init_semaphore(&gl_onboard_speaker->can_process, DEFAULT_AUD_DAC_PROCESS_SEM_CNT);//mono only,stereo need futher development,todo
     if (ret != BK_OK)
@@ -2910,10 +2917,9 @@ bk_err_t onboard_speaker_stream_get_status(audio_element_handle_t onboard_speake
 }
 
 #if CONFIG_ADK_ONBOARD_SPEAKER_STREAM_SUPPORT_MULTIPLE_SOURCE
-bk_err_t onboard_speaker_stream_set_aux_format(audio_element_handle_t onboard_speaker_stream, aud_dac_source_t dma_src, int rate, int frame_ms)
+bk_err_t onboard_speaker_stream_set_aux_format(audio_element_handle_t onboard_speaker_stream, aud_dac_source_t dma_src, int rate, int chl_num, int frame_size)
 {
     onboard_speaker_stream_t *onboard_spk = (onboard_speaker_stream_t *)audio_element_getdata(onboard_speaker_stream);
-    uint32_t frame_size = 0;
 
     if (onboard_spk == NULL)
     {
@@ -2933,18 +2939,29 @@ bk_err_t onboard_speaker_stream_set_aux_format(audio_element_handle_t onboard_sp
         return BK_FAIL;
     }
 
-    if (frame_ms <= 0)
+    if (chl_num != 1 && chl_num != 2)
     {
-        BK_LOGE(TAG, "%s, line: %d, aux frame_ms %d invalid \n", __func__, __LINE__, frame_ms);
+        BK_LOGE(TAG, "%s, line: %d, aux chl_num %d invalid \n", __func__, __LINE__, chl_num);
         return BK_FAIL;
     }
 
-    frame_size = (uint32_t)rate * onboard_spk->chl_num * (onboard_spk->bits / 8) * (uint32_t)frame_ms / 1000;
+    if (frame_size <= 0)
+    {
+        BK_LOGE(TAG, "%s, line: %d, aux frame_size %d invalid \n", __func__, __LINE__, frame_size);
+        return BK_FAIL;
+    }
+
+    /* frame_size arrives in the caller's own PCM format, while the DMA always
+     * carries chl_num channels (a mono source is expanded on read). Take the
+     * source channel count from the argument rather than from
+     * set_input_port_info(), so this call has no ordering dependency. */
+    uint32_t out_frame_size = (uint32_t)frame_size * onboard_spk->chl_num / (uint32_t)chl_num;
+    onboard_spk->src_chl_num[dma_src] = (uint8_t)chl_num;
 
     bool rate_changed = (onboard_spk->sample_rate[dma_src] != (uint32_t)rate);
 
     onboard_spk->sample_rate[dma_src] = rate;
-    onboard_spk->frame_size[dma_src]  = frame_size;
+    onboard_spk->frame_size[dma_src]  = out_frame_size;
     onboard_spk->wr_spk_rb_done[dma_src] = false;
 
     if (rate_changed)
@@ -2982,7 +2999,7 @@ bk_err_t onboard_speaker_stream_set_aux_format(audio_element_handle_t onboard_sp
     }
 
     BK_LOGD(TAG, "%s, line: %d, src %d rate %d frame_size %u rate_changed %d \n",
-            __func__, __LINE__, dma_src, rate, frame_size, rate_changed);
+            __func__, __LINE__, dma_src, rate, out_frame_size, rate_changed);
     return BK_OK;
 }
 

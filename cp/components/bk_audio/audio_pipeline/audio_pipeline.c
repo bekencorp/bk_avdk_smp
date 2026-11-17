@@ -453,42 +453,39 @@ static bk_err_t _pipeline_rb_linked(audio_pipeline_handle_t pipeline, audio_elem
         AUDIO_MEM_CHECK(TAG, port_item, {return BK_ERR_ADK_NO_MEM;});
 
         /* create audio output port according to port_type */
+        const char *port_suffix = NULL;
         if (audio_element_get_output_port_type(el) == PORT_TYPE_FB)
         {
             framebuf_port_cfg_t fb_port_config = {0};
             audio_element_get_output_framebuf_size(el, (int *)(uintptr_t *)&fb_port_config.node_size, (int *)(uintptr_t *)&fb_port_config.node_num);
             port = framebuf_port_init(&fb_port_config);
-            /* set port tag: element_tag_in_fb */
-            out_port_tag = audio_malloc(os_strlen(audio_element_get_tag(el)) + 8);
-            if (out_port_tag)
-            {
-                os_snprintf(out_port_tag, os_strlen(audio_element_get_tag(el)) + 8, "%s_out_fb", audio_element_get_tag(el));
-                audio_port_set_tag(port, out_port_tag);
-                audio_free(out_port_tag);
-                out_port_tag = NULL;
-            }
+            port_suffix = "_out_fb";
         }
         else
         {
             ringbuf_port_cfg_t rb_port_config ={0};
             rb_port_config.ringbuf_size = audio_element_get_output_ringbuf_size(el);
             port = ringbuf_port_init(&rb_port_config);
-            /* set port tag: element_tag_in_cb */
-            out_port_tag = audio_malloc(os_strlen(audio_element_get_tag(el)) + 8);
-            if (out_port_tag)
-            {
-                os_snprintf(out_port_tag, os_strlen(audio_element_get_tag(el)) + 8, "%s_out_rb", audio_element_get_tag(el));
-                audio_port_set_tag(port, out_port_tag);
-                audio_free(out_port_tag);
-                out_port_tag = NULL;
-            }
+            port_suffix = "_out_rb";
         }
+        /* must check before audio_port_set_tag(), otherwise NULL port is dereferenced */
         AUDIO_MEM_CHECK(TAG, port,
         {
             BK_LOGE(TAG, "[%s] output port init fail\n", audio_element_get_tag(el));
             audio_free(port_item);
             return BK_ERR_ADK_NO_MEM;
         });
+
+        /* set port tag: element_tag_in_fb / element_tag_in_cb */
+        uint32_t tag_size = os_strlen(audio_element_get_tag(el)) + 8;
+        out_port_tag = audio_malloc(tag_size);
+        if (out_port_tag)
+        {
+            os_snprintf(out_port_tag, tag_size, "%s%s", audio_element_get_tag(el), port_suffix);
+            audio_port_set_tag(port, out_port_tag);
+            audio_free(out_port_tag);
+            out_port_tag = NULL;
+        }
 
         port_item->port = port;
         port_item->linked = true;
