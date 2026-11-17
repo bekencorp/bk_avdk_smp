@@ -24,6 +24,18 @@ extern "C" {
 #include <components/bk_audio/audio_algorithms/eq_algorithm.h>
 #include <driver/aud_dac_types.h>
 
+/* Playback frame period (ms): the single knob for the whole speaker chain
+ * (DAC DMA period, speaker raw ring block, aux CALL/HINT port frame, and the
+ * PCM frame handed to audio_play by A2DP/HFP/HINT). Only the two validated
+ * values are accepted; the fallback keeps this header usable when the Kconfig
+ * is not present in the build. */
+#ifndef CONFIG_AUDIO_PLAY_FRAME_MS
+#define CONFIG_AUDIO_PLAY_FRAME_MS    20
+#endif
+#if (CONFIG_AUDIO_PLAY_FRAME_MS != 10) && (CONFIG_AUDIO_PLAY_FRAME_MS != 20)
+#error "CONFIG_AUDIO_PLAY_FRAME_MS must be 10 or 20"
+#endif
+
 
 typedef enum
 {

@@ -44,17 +44,15 @@
  * rate at init; the real per-source rate (<= this) is set at attach time. */
 #define SPK_SERVICE_AUX_MAX_RATE    (16000)
 
-/* Per-source frame/DMA-period duration (ms). Single source of truth: used both
- * to size the init frame_size[] below and passed to
- * onboard_speaker_stream_set_aux_format() at attach so the two never diverge. */
-#define SPK_SERVICE_FRAME_MS        (20)
-
-/* Stereo frame in bytes for a given rate at SPK_SERVICE_FRAME_MS. */
-#define SPK_SERVICE_FRAME_BYTES(rate) ((rate) * SPK_SERVICE_SPK_CHL * (SPK_SERVICE_BITS / 8) * SPK_SERVICE_FRAME_MS / 1000)
+/* Playback frame period. This macro is the only knob that decides the PCM
+ * frame_size: every application path sizes its frames from it and hands the
+ * resulting byte count down to the speaker stream, which never re-derives it. */
+/* Stereo frame in bytes for a given rate at the playback frame period. */
+#define SPK_SERVICE_FRAME_BYTES(rate) ((rate) * SPK_SERVICE_SPK_CHL * (SPK_SERVICE_BITS / 8) * CONFIG_AUDIO_PLAY_FRAME_MS / 1000)
 
 /* Max time a source pump blocks writing into an aux port before dropping the
- * frame. A few 20ms frames of slack absorbs normal jitter without dead-locking
- * the pump if the speaker stalls. */
+ * frame. A few frame periods of slack absorbs normal jitter without
+ * dead-locking the pump if the speaker stalls. */
 #define SPK_SERVICE_AUX_WRITE_TIMEOUT_MS   (60)
 
 /* Idle linger before the shared speaker/DAC auto-deinits after the last source
@@ -692,12 +690,14 @@ static bk_err_t spk_service_attach_locked(const spk_source_cfg_t *cfg)
         /* Aux sources are hardware-resampled by the DAC (only A2DP has a SW
          * resampler in the speaker process). Align this source's FIFO rate AND
          * its frame geometry (frame_size + DMA transfer_len) to the incoming PCM
-         * rate so an 8k call / 16k prompt is drained at its true rate. This is
-         * per-source and does not touch the global (stereo) output channel config. */
+         * rate so an 8k call / 16k prompt is drained at its true rate.
+         * cfg->frame_size stays in the caller's own PCM format; the speaker
+         * stream converts it to its DAC output channel count internally. */
         if (BK_OK != onboard_speaker_stream_set_aux_format(ctx->speaker,
                                                            (aud_dac_source_t)cfg->src,
                                                            (int)cfg->sampRate,
-                                                           SPK_SERVICE_FRAME_MS))
+                                                           (int)cfg->nChans,
+                                                           (int)cfg->frame_size))
         {
             LOGW("%s aux set_aux_format %u fail\n", __func__, cfg->sampRate);
         }

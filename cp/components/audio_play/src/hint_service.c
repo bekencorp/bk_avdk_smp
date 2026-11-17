@@ -33,7 +33,7 @@
 /* HINT is a mono 16-bit source; the DAC expands mono to L=R. */
 #define HINT_BITS                  (16)
 #define HINT_CHANS                 (1)
-#define HINT_FRAME_MS              (20)
+#define HINT_FRAME_MS              (CONFIG_AUDIO_PLAY_FRAME_MS)
 /* Per-frame back-pressure bound: the DAC drains the aux port at real time, so a
  * write blocks at most ~one frame. This is only a safety bound before we
  * re-check stop_req and retry - samples are never dropped. */
@@ -47,8 +47,9 @@
  * a short clip drains well within this. */
 #define HINT_STOP_WAIT_MS          (1500)
 
-/* Worst-case 20ms frame (48k stereo). The frame buffer lives on the heap (not
- * the task stack) so a higher rate / stereo frame can never overflow it. */
+/* Worst-case frame (48k stereo at the largest frame period). The frame buffer
+ * lives on the heap (not the task stack) so a higher rate / stereo frame can
+ * never overflow it. */
 #define HINT_MAX_RATE              (48000)
 #define HINT_MAX_CHANS             (2)
 #define HINT_FRAME_ISAMPLES_MAX    (HINT_MAX_RATE * HINT_MAX_CHANS * HINT_FRAME_MS / 1000)

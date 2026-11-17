@@ -16,6 +16,21 @@ menu "Audio Play"
 		bool "Enable AAC decoder path in audio_play"
 		default y
 
+	config AUDIO_PLAY_FRAME_MS
+		depends on AUDIO_PLAY
+		int "Playback frame period (ms): 10 or 20"
+		range 10 20
+		default 20
+		help
+		  Frame period of the whole speaker playback chain: DAC DMA period,
+		  speaker raw ring block, aux (CALL/HINT) port frame, and the PCM frame
+		  handed to audio_play by A2DP/HFP/HINT.
+
+		  Only 10 and 20 are supported. 20 is the validated default and keeps a
+		  full jitter margin against Bluetooth/WiFi scheduling stalls. 10 halves
+		  the RAM used by the playback buffers, and also halves that margin, so
+		  use it only when RAM is the binding constraint on this product.
+
 	config SPK_SERVICE_IDLE_LINGER_MS
 		depends on AUDIO_PLAY && ADK_ONBOARD_SPEAKER_STREAM_SUPPORT_MULTIPLE_SOURCE
 		int "Speaker service idle linger before auto-deinit (ms, 0=stay resident)"
