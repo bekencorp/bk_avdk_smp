@@ -189,6 +189,15 @@ static avdk_err_t isp_camera_ctlr_start_channel_reader(bk_camera_isp_ctlr_t *con
     AVDK_RETURN_ON_FALSE(control, AVDK_ERR_INVAL, TAG, "control is NULL");
     AVDK_RETURN_ON_FALSE(channel < ISP_CHANNEL_INSTANCE_MAX, AVDK_ERR_INVAL, TAG, "channel out of range");
 
+    if (isp_camera_ctlr_get_private(control)->bond_owned[channel])
+    {
+        /* Channel was acquired by an external zero-copy consumer before open:
+         * it pops/qbufs frames itself, so do not create the free-running
+         * cam_reader thread (isp_camera_ctlr_task_entry). */
+        LOGI("%s, channel %d owned externally, reader skipped\n", __func__, channel);
+        return AVDK_ERR_OK;
+    }
+
     read_ctx = &control->read_ctx[channel];
     if (read_ctx->thread_enable)
     {
@@ -812,10 +821,13 @@ static avdk_err_t isp_camera_ctlr_channel_open(bk_isp_camera_ctlr_handle_t handl
         }
     }
 
-    /* Frame-mode (non-flexa) channels can arm into a half-dead state where
-     * open succeeds but no frame reaches pop_buf. Confirm a live stream and
-     * re-arm internally so callers do not see a 0-frame session. */
-    if (isp_config.enable_flexa == 0 && isp_config.work_mode == 0)
+    /* Frame-mode (non-flexa) channels can arm half-dead (open succeeds, no frame
+     * ever reaches pop_buf): probe a few frames and re-arm in place. Skipped for an
+     * externally owned channel, whose probe would run through the reader it has
+     * replaced -- so there open success does not mean the stream is live; the
+     * owner's first pop is the liveness check. */
+    if (isp_config.enable_flexa == 0 && isp_config.work_mode == 0 &&
+        !isp_camera_ctlr_get_private(controller)->bond_owned[channel])
     {
         if (isp_camera_ctlr_stream_check(controller, channel, &isp_config, config) != AVDK_ERR_OK)
         {
@@ -1258,6 +1270,16 @@ static avdk_err_t isp_camera_ctlr_ioctl(bk_isp_camera_ctlr_handle_t handle, bk_c
             vsi_u8_t *pipeline_switch_mode = (vsi_u8_t *)arg;
             bk_err_t isp_ret = bk_isp_pipeline_switch_set(
                 &controller->isp_handle, *pipeline_switch_mode);
+            return (isp_ret == BK_OK) ? AVDK_ERR_OK : AVDK_ERR_GENERIC;
+        }
+
+        case BK_CAM_IOCTL_SET_SHOOT4K_DIRECT_PUBLISH:
+        {
+            AVDK_RETURN_ON_FALSE(
+                arg, AVDK_ERR_INVAL, TAG, "shoot4k direct publish arg is NULL");
+            uint8_t *enable = (uint8_t *)arg;
+            bk_err_t isp_ret = bk_isp_shoot4k_direct_publish_set(
+                &controller->isp_handle, *enable);
             return (isp_ret == BK_OK) ? AVDK_ERR_OK : AVDK_ERR_GENERIC;
         }
 

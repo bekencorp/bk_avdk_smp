@@ -42,6 +42,9 @@ PIXEL_FORMAT_E isp_camera_format_convert(bk_pixel_format_t bk_format)
         case BK_PIXEL_FORMAT_BGR888:
             return PIXEL_FORMAT_MAX;
 
+        case BK_PIXEL_FORMAT_RGB565:
+            return PIXEL_FORMAT_RGB565;
+
         case BK_PIXEL_FORMAT_ARGB8888:
             return PIXEL_FORMAT_MAX;
         case BK_PIXEL_FORMAT_ABGR8888:
