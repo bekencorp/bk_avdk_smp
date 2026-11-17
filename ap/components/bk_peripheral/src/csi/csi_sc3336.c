@@ -84,6 +84,7 @@
 #endif
 
 #define SC3336_VMAX_1080P25FPS_LINEAR (1632)
+#define SC3336_VMAX_1080P30FPS_LINEAR (1360)
 
 #if (SC3336_PCLK == SC3336_PCLK_96M)
     #define SC3336_VMAX_300W20FPS_LINEAR (1980)
@@ -113,6 +114,7 @@ enum sc3336_REG_INDEX {
 
 #define SC3336_300W20FPS_LINEAR_MODE (0)
 #define SC3336_1080P25FPS_LINEAR_MODE (1)
+#define SC3336_1080P30FPS_LINEAR_MODE (4)
 #define SC3336_300W10FPS_LINEAR_MODE (2)
 #define SC3336_300W15FPS_LINEAR_MODE (3)
 
@@ -1080,6 +1082,33 @@ static int sc3336_InitAeDefault(ISP_PORT IspPort)
             pAeSnsDft->tolerance = 2;
             pAeSnsDft->initExposure = 0x08 * pAeSnsDft->minAgain;
             break;
+        case SC3336_1080P30FPS_LINEAR_MODE:
+            pAeSnsDft->fullLinesStd = SC3336_VMAX_1080P30FPS_LINEAR;
+            pAeSnsDft->fullLines = pAeSnsDft->fullLinesStd;
+            pAeSnsDft->fps = 30 * ISP_SNS_FPS_ACCU;
+            pAeSnsDft->fullLinesMax =
+                pAeSnsDft->fps * SC3336_VMAX_1080P30FPS_LINEAR / ISP_SNS_FPS_ACCU;
+            pAeSnsDft->linesPer500ms =
+                pAeSnsDft->fullLines * pAeSnsDft->fps / (2 * ISP_SNS_FPS_ACCU);
+
+            pAeSnsDft->maxIntLine  = pAeSnsDft->fullLines - 8;
+            pAeSnsDft->minIntLine  = 8;
+            pAeSnsDft->intLineStep = 1;
+
+            pAeSnsDft->maxAgain  = 3200;
+            pAeSnsDft->minAgain  = 64;
+            pAeSnsDft->againStep = 1;
+
+            pAeSnsDft->maxDgain  = 1024;
+            pAeSnsDft->minDgain  = 1024;
+            pAeSnsDft->dgainStep = 1;
+
+            pAeSnsDft->aeTarget = 62;
+            pAeSnsDft->dampOver = 0x40;
+            pAeSnsDft->dampUnder = 0x40;
+            pAeSnsDft->tolerance = 2;
+            pAeSnsDft->initExposure = 0x08 * pAeSnsDft->minAgain;
+            break;
             case SC3336_300W10FPS_LINEAR_MODE:
             pAeSnsDft->fullLinesStd = SC3336_VMAX_300W10FPS_LINEAR;
             pAeSnsDft->fullLines = pAeSnsDft->fullLinesStd;
@@ -1179,7 +1208,8 @@ static int sc3336_SetMode(ISP_PORT IspPort, ISP_SNS_MODE_S *pSnsMode)
     if ((pSnsMode->width == psc3336Dev->snsMode.width) &&
         (pSnsMode->height == psc3336Dev->snsMode.height) &&
         (pSnsMode->hdrMode == psc3336Dev->snsMode.hdrMode) &&
-        (pSnsMode->stichMode == psc3336Dev->snsMode.stichMode)) {
+        (pSnsMode->stichMode == psc3336Dev->snsMode.stichMode) &&
+        (pSnsMode->fps == psc3336Dev->snsMode.fps)) {
         return BK_OK;
     }
     LOGI("sc3336_SetMode: %d, %d, %d, %d, %d\n", pSnsMode->width, pSnsMode->height, pSnsMode->hdrMode, pSnsMode->stichMode, pSnsMode->fps/ISP_SNS_FPS_ACCU);
@@ -1197,6 +1227,13 @@ static int sc3336_SetMode(ISP_PORT IspPort, ISP_SNS_MODE_S *pSnsMode)
         (pSnsMode->fps == 25 * ISP_SNS_FPS_ACCU)) {
         os_memcpy(&psc3336Dev->snsMode, pSnsMode, sizeof(*pSnsMode));
         psc3336Dev->snsModeId = SC3336_1080P25FPS_LINEAR_MODE;
+        sc3336_InitAeDefault(IspPort);
+    } else if ((pSnsMode->width  == 1920) &&
+        (pSnsMode->height == 1080) &&
+        (pSnsMode->hdrMode == HDR_MODE_LINEAR) &&
+        (pSnsMode->fps == 30 * ISP_SNS_FPS_ACCU)) {
+        os_memcpy(&psc3336Dev->snsMode, pSnsMode, sizeof(*pSnsMode));
+        psc3336Dev->snsModeId = SC3336_1080P30FPS_LINEAR_MODE;
         sc3336_InitAeDefault(IspPort);
     } else if ((pSnsMode->width  == 2304) &&
         (pSnsMode->height == 1296) &&
@@ -1269,13 +1306,27 @@ static int sc3336_SetFps(ISP_PORT IspPort, vsi_u32_t fps)
     vsi_u32_t vts;
 
     switch(psc3336Dev->snsModeId) {
+        case SC3336_1080P25FPS_LINEAR_MODE:
+            if ((fps <= 25 * ISP_SNS_FPS_ACCU) && (fps >= 10 * ISP_SNS_FPS_ACCU)) {
+                vts = SC3336_VMAX_1080P25FPS_LINEAR * 25 * ISP_SNS_FPS_ACCU / fps;
+            } else {
+                return BK_FAIL;
+            }
+            break;
+        case SC3336_1080P30FPS_LINEAR_MODE:
+            if ((fps <= 30 * ISP_SNS_FPS_ACCU) && (fps >= 10 * ISP_SNS_FPS_ACCU)) {
+                vts = SC3336_VMAX_1080P30FPS_LINEAR * 30 * ISP_SNS_FPS_ACCU / fps;
+            } else {
+                return BK_FAIL;
+            }
+            break;
         case SC3336_300W20FPS_LINEAR_MODE:
             if ((fps <= 20 * ISP_SNS_FPS_ACCU) && (fps >= 10 * ISP_SNS_FPS_ACCU)) {
                 vts = SC3336_VMAX_300W20FPS_LINEAR * 20 * ISP_SNS_FPS_ACCU / fps;
             } else {
                 return BK_FAIL;
             }
-            break;  
+            break;
         default:
             return BK_FAIL;
             break;
@@ -1295,14 +1346,26 @@ static int sc3336_SetFps(ISP_PORT IspPort, vsi_u32_t fps)
 static int sc3336_SlowFrameRate(ISP_PORT IspPort, vsi_u32_t fullLines)
 {
     sc3336_DEVICE_S *psc3336Dev = sc3336Dev[IspPort.devId][IspPort.portId];
-    const vsi_u32_t fps_min = 10 * ISP_SNS_FPS_ACCU;
-    const vsi_u32_t fps_max = 20 * ISP_SNS_FPS_ACCU;
+    vsi_u32_t fps_min = 10 * ISP_SNS_FPS_ACCU;
+    vsi_u32_t fps_max = 20 * ISP_SNS_FPS_ACCU;
+    vsi_u32_t vmax = SC3336_VMAX_300W20FPS_LINEAR;
+    vsi_u32_t base_fps = 20;
     vsi_u32_t tempfps;
 
     if (psc3336Dev == NULL)
     {
         LOGE("%s %d failed\n", __func__, __LINE__);
         return BK_FAIL;
+    }
+
+    if (psc3336Dev->snsModeId == SC3336_1080P30FPS_LINEAR_MODE) {
+        fps_max = 30 * ISP_SNS_FPS_ACCU;
+        vmax = SC3336_VMAX_1080P30FPS_LINEAR;
+        base_fps = 30;
+    } else if (psc3336Dev->snsModeId == SC3336_1080P25FPS_LINEAR_MODE) {
+        fps_max = 25 * ISP_SNS_FPS_ACCU;
+        vmax = SC3336_VMAX_1080P25FPS_LINEAR;
+        base_fps = 25;
     }
 
     AE_SNS_DEFAULT_S *pAeSnsDft = &psc3336Dev->aeDefault;
@@ -1315,8 +1378,8 @@ static int sc3336_SlowFrameRate(ISP_PORT IspPort, vsi_u32_t fullLines)
         return BK_FAIL;
     }
 
-    /* fps = VMAX * (20 * ACCU) / fullLines, keep fps in [10, 20] seconds^-1 @ ISP_SNS_FPS_ACCU */
-    tempfps = (vsi_u32_t)(((vsi_u64_t)fps_max * SC3336_VMAX_300W20FPS_LINEAR) / fullLines);
+    /* fps = VMAX * (base fps * ACCU) / fullLines, keep fps in [10, fps_max] */
+    tempfps = (vsi_u32_t)(((vsi_u64_t)fps_max * vmax) / fullLines);
     tempfps = (tempfps/100) * 100;
 
     if (tempfps < fps_min)
@@ -1328,7 +1391,7 @@ static int sc3336_SlowFrameRate(ISP_PORT IspPort, vsi_u32_t fullLines)
         tempfps = fps_max;
     }
 
-    fullLines = (vsi_u32_t)(((vsi_u64_t)SC3336_VMAX_300W20FPS_LINEAR * 20 * ISP_SNS_FPS_ACCU) / tempfps);
+    fullLines = (vsi_u32_t)(((vsi_u64_t)vmax * base_fps * ISP_SNS_FPS_ACCU) / tempfps);
 
     pAeSnsDft->fullLines = fullLines;
 
@@ -1381,6 +1444,7 @@ static int sc3336_IntTimeUpdate(ISP_PORT IspPort, vsi_u32_t *pIntLine)
         case SC3336_300W15FPS_LINEAR_MODE:
         case SC3336_300W20FPS_LINEAR_MODE:
         case SC3336_1080P25FPS_LINEAR_MODE:
+        case SC3336_1080P30FPS_LINEAR_MODE:
             pSnsRegsInfo->snsData[REG_EXPOSURE_H].data = ((*pIntLine >> 12) & 0x0F);
             pSnsRegsInfo->snsData[REG_EXPOSURE_M].data = ((*pIntLine >> 4) & 0xFF);
             pSnsRegsInfo->snsData[REG_EXPOSURE_L].data = (*pIntLine & 0xF) << 4;
@@ -1465,6 +1529,7 @@ static int sc3336_GainUpdate(ISP_PORT IspPort, vsi_u32_t *pAgain, vsi_u32_t *pDg
         case SC3336_300W15FPS_LINEAR_MODE:
         case SC3336_300W20FPS_LINEAR_MODE:
         case SC3336_1080P25FPS_LINEAR_MODE:
+        case SC3336_1080P30FPS_LINEAR_MODE:
             *pDgain = 1024;
             vsi_u32_t gain_3e06 = 0, gain_3e07 = 0, gain_3e09 = 0;
             sc3336_CalcGain(pAgain, &gain_3e06, &gain_3e07, &gain_3e09);
@@ -1546,6 +1611,13 @@ static const bk_camera_sensor_format_t sc3336_format_array[] = {
         .width = 1920,
         .height = 1080,
         .fps = 25,
+        .output_pixel_fmt = BK_PIXEL_FORMAT_BGGR10,
+    },
+
+    {
+        .width = 1920,
+        .height = 1080,
+        .fps = 30,
         .output_pixel_fmt = BK_PIXEL_FORMAT_BGGR10,
     },
 };
@@ -1808,6 +1880,66 @@ static avdk_err_t sc3336_ioctl(bk_camera_sensor_ctlr_t *controller,
                       sizeof(out->auto_attr.saturation));
             os_memcpy(out->auto_attr.hue, src->autoAttr.hue,
                       sizeof(out->auto_attr.hue));
+            return AVDK_ERR_OK;
+        }
+        case BK_CAMERA_SENSOR_IOCTL_SET_STREAM:
+        {
+            bk_camera_bus_t *bus = csi_sensor->config.bus;
+            uint8_t on = (arg != NULL) ? *(const uint8_t *)arg : 0u;
+
+            AVDK_RETURN_ON_FALSE(bus, AVDK_ERR_INVAL, TAG, "bus is NULL");
+            bus->write16(bus, 0x0100, on ? 0x01u : 0x00u);
+            LOGI("sc3336 stream %s\n", on ? "start" : "stop");
+            return AVDK_ERR_OK;
+        }
+        case BK_CAMERA_SENSOR_IOCTL_CHECK_ALIVE:
+        {
+            /* Used by the fast wake-up path: the sensor keeps its supply and
+             * reset across AP power-off, so the chip ID and VTS must still
+             * match the cold-boot state. */
+            bk_camera_bus_t *bus = csi_sensor->config.bus;
+            uint8_t hb = 0, lb = 0, vts_l = 0, vts_h = 0, stream = 0;
+            avdk_err_t r1 = AVDK_ERR_GENERIC, r2 = AVDK_ERR_GENERIC;
+            uint32_t attempt;
+            uint16_t vts;
+
+            AVDK_RETURN_ON_FALSE(bus, AVDK_ERR_INVAL, TAG, "bus is NULL");
+
+            /* The rails never dropped in keep-alive mode, so the register file
+             * is readable as soon as the AP I2C controller is restored. Poll
+             * instead of waiting a fixed 10 ms: a healthy sensor answers on the
+             * first try, while a really lost one still gets 3 attempts (~3 ms)
+             * before the caller falls back to a cold start. */
+            for (attempt = 0; attempt < 3; attempt++) {
+                hb = 0;
+                lb = 0;
+                r1 = bus->read16(bus, CHIP_ID_ADDR_HB, &hb);
+                r2 = bus->read16(bus, CHIP_ID_ADDR_LB, &lb);
+                if (r1 == AVDK_ERR_OK && r2 == AVDK_ERR_OK &&
+                    hb == CHIP_ID_VAL_HB && lb == CHIP_ID_VAL_LB) {
+                    break;
+                }
+                if (attempt < 2) {
+                    rtos_delay_milliseconds(1);
+                }
+            }
+
+            bus->read16(bus, sc3336_REG_VTS_L, &vts_l);
+            bus->read16(bus, sc3336_REG_VTS_H, &vts_h);
+            bus->read16(bus, 0x0100, &stream);
+            vts = (uint16_t)(((uint16_t)vts_h << 8) | vts_l);
+            LOGI("sc3336 alive: id=0x%02X%02X ret=%d,%d vts=%u stream=0x%02X expect=0x%02X%02X attempts=%u\n",
+                 hb, lb, (int)r1, (int)r2, (unsigned)vts, stream,
+                 CHIP_ID_VAL_HB, CHIP_ID_VAL_LB, (unsigned)attempt);
+
+            /* A matching ID alone is not enough: a marginal rail or I2C can
+             * return the right ID while the mode registers are already lost
+             * (VTS reads back as 0). */
+            if (hb != CHIP_ID_VAL_HB || lb != CHIP_ID_VAL_LB ||
+                vts == 0U)
+            {
+                return AVDK_ERR_GENERIC;
+            }
             return AVDK_ERR_OK;
         }
         default:
