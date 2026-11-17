@@ -95,6 +95,23 @@ menu "BK JerryScript"
 			helpers to scripts.  All LVGL calls are serialised with the
 			LVGL display lock.
 
+	config BK_JERRYSCRIPT_NET
+		bool "Enable network bindings (wifi.* / http.*)"
+		depends on BK_JERRYSCRIPT && LWIP && BK_NETIF && WEBCLIENT
+		default n
+		help
+			Expose WiFi station controls (wifi.connect / wifi.status) and a
+			blocking-free HTTP client (http.get / http.post / http.request)
+			to scripts.  Requests run on a dedicated worker task and their
+			results are delivered back to the JavaScript task through the
+			runtime message queue, so the UI never blocks on the network.
+
+			Requires the AP core to enable LWIP, BK_NETIF and
+			CONFIG_WIFI_VNET_CONTROLLER.  Plain HTTP works out of the box;
+			enable CONFIG_WEBCLIENT_TLS and
+			CONFIG_PSA_MBEDTLS for HTTPS.  HTTPS does not verify certificates
+			and does not follow redirects.
+
 	config BK_JERRYSCRIPT_BUILTIN_DEMO
 		bool "Fall back to the built-in demo application"
 		depends on BK_JERRYSCRIPT

@@ -50,6 +50,7 @@ typedef enum {
 	JS_MSG_APP_START,
 	JS_MSG_APP_STOP,
 	JS_MSG_EVENT,
+	JS_MSG_NET,
 	JS_MSG_EXIT,
 } js_msg_type_t;
 
@@ -65,6 +66,7 @@ typedef struct {
 	uint32_t source_len;
 	int16_t point_x;
 	int16_t point_y;
+	void *payload;
 	char text[BK_JS_PATH_MAX];
 } js_msg_t;
 
@@ -129,6 +131,21 @@ static uint32_t s_timer_next_id = 1;
 
 static js_event_t s_events[BK_JS_EVENT_MAX];
 static uint32_t s_event_next_id = 1;
+
+#if !CONFIG_BK_JERRYSCRIPT_UI
+bool bk_js_ui_lock(void)
+{
+    return false;
+}
+
+void bk_js_ui_unlock(void)
+{
+}
+
+void bk_js_ui_reset_lock(void)
+{
+}
+#endif
 
 /* ------------------------------------------------------------------ */
 /* Console                                                            */
@@ -702,6 +719,23 @@ void bk_js_post_event_touch(uint32_t slot_id, uint32_t code, bool deleting,
 	}
 }
 
+#if CONFIG_BK_JERRYSCRIPT_NET
+bool bk_js_post_net_result(void *payload)
+{
+	js_msg_t msg;
+
+	if (s_queue == NULL) {
+		return false;
+	}
+
+	os_memset(&msg, 0, sizeof(msg));
+	msg.type = JS_MSG_NET;
+	msg.payload = payload;
+
+	return rtos_push_to_queue(&s_queue, &msg, 0) == kNoErr;
+}
+#endif
+
 bool bk_js_event_touch_get(int32_t *x, int32_t *y)
 {
 	if (!s_event_touch_valid) {
@@ -848,6 +882,10 @@ static void js_bind_globals(void)
 
 #if CONFIG_BK_JERRYSCRIPT_UI
 	bk_js_ui_bind(realm);
+#endif
+
+#if CONFIG_BK_JERRYSCRIPT_NET
+	bk_js_net_bind(realm);
 #endif
 
 	jerry_value_free(realm);
@@ -1185,6 +1223,10 @@ static void js_teardown(void)
 	bk_js_ui_shutdown();
 #endif
 
+#if CONFIG_BK_JERRYSCRIPT_NET
+	bk_js_net_shutdown();
+#endif
+
 	bk_js_timer_clear_all();
 	bk_js_event_clear();
 	bk_js_fs_clear_modules();
@@ -1394,6 +1436,12 @@ static bool js_handle_msg(const js_msg_t *msg)
 		                     msg->point_x, msg->point_y, msg->has_point != 0);
 		break;
 
+#if CONFIG_BK_JERRYSCRIPT_NET
+	case JS_MSG_NET:
+		bk_js_net_deliver(msg->payload);
+		break;
+#endif
+
 	default:
 		break;
 	}
@@ -1485,8 +1533,24 @@ static void js_task_entry(beken_thread_arg_t arg)
 static void js_runtime_release_handles(void)
 {
 	if (s_queue != NULL) {
-		rtos_deinit_queue(&s_queue);
+		beken_queue_t queue = s_queue;
+
+		/* Stop the worker from posting into a queue that is about to die. */
 		s_queue = NULL;
+
+#if CONFIG_BK_JERRYSCRIPT_NET
+		{
+			js_msg_t msg;
+
+			while (rtos_pop_from_queue(&queue, &msg, 0) == kNoErr) {
+				if (msg.type == JS_MSG_NET) {
+					bk_js_net_result_free(msg.payload);
+				}
+			}
+		}
+#endif
+
+		rtos_deinit_queue(&queue);
 	}
 
 	if (s_ready_sem != NULL) {

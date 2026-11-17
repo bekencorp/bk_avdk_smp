@@ -4,7 +4,7 @@
 
 ## 1. Overview
 
-`launcher_v9` is an **application launcher (horizontal carousel home screen) + mini games** project for BK7259, built on **LVGL V9.3.0**. Every visual is drawn with native LVGL objects, with no image assets. It contains a 9-page carousel menu plus two playable games: 2048 and Juice Rush (fruit slicing). The UI is written in JavaScript (`ap/js/`) and executed at boot by the SDK `bk_jerryscript` component. An equivalent native C implementation is kept in the tree and can be selected with a single macro.
+`launcher_v9` is an **application launcher (horizontal carousel home screen) + mini games** project for BK7259, built on **LVGL V9.5.0**. Every visual is drawn with native LVGL objects, with no image assets. It contains a 9-page carousel menu plus two playable games: 2048 and Juice Rush (fruit slicing). The UI is written in JavaScript (`ap/js/`) and executed at boot by the SDK `bk_jerryscript` component. An equivalent native C implementation is kept in the tree and can be selected with a single macro.
 
 It is independent from the sibling `widgets_v9` (stock LVGL Widgets Demo) project. Both can be built and flashed separately:
 
@@ -24,7 +24,7 @@ Key points:
 | Item | Default |
 | --- | --- |
 | SoC | BK7259 |
-| LVGL version | LVGL V9.3.0 |
+| LVGL version | LVGL V9.5.0 |
 | Panel interface | RGB parallel (24-bit pixel bus + SW SPI config bus) |
 | Default panel driver | `st7701s_rgb_480x480` (`CONFIG_LCD_ST7701S=y`) |
 | Default resolution | `480 x 480` |
@@ -245,7 +245,7 @@ Both backends share the same JS engine heap: it goes through `psram_cache_malloc
 
 With `CONFIG_LAUNCHER_JS_FROM_FS` enabled, startup no longer runs `js_bundle.c`; instead the `launcher` application is read from the littlefs image mounted from the `usr_config` partition.
 
-**Partition**: `usr_config` in `partitions/bk7259/auto_partitions.csv` has been enlarged to 1024K (offset `0x4C9000`).
+**Partition**: `usr_config` in `partitions/bk7259/auto_partitions.csv` is 1024K; its offset is laid out automatically from the preceding partition sizes and is currently `0x5C9000`. Always use the value in `build/bk7259/launcher_v9/partitions/partitions.txt`.
 
 **Build the image** (run from the project directory):
 
@@ -264,7 +264,7 @@ EOF
 
 The image root must contain `launcher/` directly, without an extra `apps/` level (the mount point already is `/apps`). See [bk_jerryscript/README.md](../../../ap/components/bk_jerryscript/README.md) for the layout, manifest fields and tool parameters.
 
-**Flash**: write `littlefs_js.bin` to `0x4C9000` (`usr_config`).
+**Flash**: write `littlefs_js.bin` to `0x5C9000` (`usr_config`, check `partitions.txt`).
 
 **Verify**: the boot log should show:
 

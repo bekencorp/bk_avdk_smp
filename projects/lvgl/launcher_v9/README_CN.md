@@ -4,7 +4,7 @@
 
 ## 1. 工程简介
 
-`launcher_v9` 是 BK7259 上的**应用启动器（横滑轮播主页）+ 小游戏**工程，使用 **LVGL V9.3.0**。界面全部用 LVGL 原生对象绘制，不依赖任何图片素材，包含 9 页横滑轮播菜单，以及其中的 2048 和 Juice Rush（切水果）两个可玩小游戏。UI 默认用 JavaScript 编写（`ap/js/`），由 SDK 的 `bk_jerryscript` 组件在启动时执行；同时保留了一套等价的 C 实现，可通过一个宏切换。
+`launcher_v9` 是 BK7259 上的**应用启动器（横滑轮播主页）+ 小游戏**工程，使用 **LVGL V9.5.0**。界面全部用 LVGL 原生对象绘制，不依赖任何图片素材，包含 9 页横滑轮播菜单，以及其中的 2048 和 Juice Rush（切水果）两个可玩小游戏。UI 默认用 JavaScript 编写（`ap/js/`），由 SDK 的 `bk_jerryscript` 组件在启动时执行；同时保留了一套等价的 C 实现，可通过一个宏切换。
 
 它与同目录的 `widgets_v9`（LVGL 官方 Widgets Demo 工程）相互独立，两者可分别编译、分别烧录，互不影响：
 
@@ -24,7 +24,7 @@
 | 项目 | 默认配置 |
 | --- | --- |
 | 芯片平台 | BK7259 |
-| LVGL 版本 | LVGL V9.3.0 |
+| LVGL 版本 | LVGL V9.5.0 |
 | 屏幕接口 | RGB 并口（24bit 像素通道 + SW SPI 配置通道） |
 | 默认屏驱动 | `st7701s_rgb_480x480`（`CONFIG_LCD_ST7701S=y`） |
 | 默认分辨率 | `480 x 480` |
@@ -252,7 +252,7 @@ python3 ../../../ap/components/bk_jerryscript/tools/js2c.py \
 
 把 `CONFIG_LAUNCHER_JS_FROM_FS` 打开后，启动时不再执行 `js_bundle.c`，而是从 `usr_config` 分区挂载的 littlefs 镜像里读取 `launcher` 应用。
 
-**分区**：`partitions/bk7259/auto_partitions.csv` 中 `usr_config` 已扩到 1024K（偏移 `0x4C9000`）。
+**分区**：`partitions/bk7259/auto_partitions.csv` 中 `usr_config` 为 1024K，偏移由脚本按前面分区的大小自动排版，当前为 `0x5C9000`。实际值以编译产物 `build/bk7259/launcher_v9/partitions/partitions.txt` 为准。
 
 **生成镜像**（在工程目录下执行）：
 
@@ -271,7 +271,7 @@ EOF
 
 注意镜像根目录直接放 `launcher/`，不要再套一层 `apps/`（挂载点已经是 `/apps`）。完整的目录结构、manifest 字段与参数说明见 [bk_jerryscript/README.md](../../../ap/components/bk_jerryscript/README.md)。
 
-**烧录**：把 `littlefs_js.bin` 写到 `0x4C9000`（`usr_config` 分区）。
+**烧录**：把 `littlefs_js.bin` 写到 `0x5C9000`（`usr_config` 分区，以 `partitions.txt` 为准）。
 
 **验证**：启动日志应出现：
 

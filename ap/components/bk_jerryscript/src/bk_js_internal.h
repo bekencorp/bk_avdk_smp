@@ -115,6 +115,7 @@ void bk_js_fs_bind(jerry_value_t global);
 #if CONFIG_BK_JERRYSCRIPT_UI
 void bk_js_ui_bind(jerry_value_t global);
 void bk_js_ui_shutdown(void);
+#endif
 
 /**
  * Serialize JavaScript with LVGL rendering: hold the display mutex around the
@@ -125,6 +126,30 @@ void bk_js_ui_shutdown(void);
 bool bk_js_ui_lock(void);
 void bk_js_ui_unlock(void);
 void bk_js_ui_reset_lock(void);
+
+#if CONFIG_BK_JERRYSCRIPT_NET
+void bk_js_net_bind(jerry_value_t global);
+
+/**
+ * Called from the JavaScript task when a network completion message is
+ * dequeued.  Takes ownership of the opaque payload.
+ */
+void bk_js_net_deliver(void *payload);
+
+/**
+ * Reject every pending promise.  Must be called from the JavaScript task
+ * before the engine is torn down.
+ */
+void bk_js_net_shutdown(void);
+
+void bk_js_net_result_free(void *result);
+
+/**
+ * Queue a network completion for the JavaScript task.  Ownership of the
+ * payload transfers to the runtime when true is returned; the caller keeps
+ * it and must free it otherwise.
+ */
+bool bk_js_post_net_result(void *payload);
 #endif
 
 /* ------------------------------------------------------------------ */

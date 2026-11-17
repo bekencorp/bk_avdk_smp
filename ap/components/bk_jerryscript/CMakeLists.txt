@@ -42,9 +42,19 @@ if (CONFIG_BK_JERRYSCRIPT)
 			src/bk_js_cli.c
 		)
 	endif()
+
+	if (CONFIG_BK_JERRYSCRIPT_NET)
+		list(APPEND srcs
+			src/bk_js_net.c
+		)
+	endif()
 endif()
 
-set(js_priv_requires bk_common bk_rtos bk_system bk_cli bk_vfs lvgl)
+set(js_priv_requires
+	bk_common bk_rtos bk_system bk_cli bk_vfs lvgl
+	bk_wifi bk_netif webclient lwip_intf_v2_1 psa_mbedtls
+)
+
 
 armino_component_register(SRCS "${srcs}"
         INCLUDE_DIRS "${incs}"

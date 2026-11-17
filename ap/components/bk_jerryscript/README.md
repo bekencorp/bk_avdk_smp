@@ -103,14 +103,15 @@ EOF
 
 | 工程 | 分区 | 地址 | 大小 |
 | --- | --- | --- | --- |
-| launcher_v9 (bk7259) | `usr_config` | `0x4C9000` | 1024KB |
+| launcher_v9 (bk7259) | `usr_config` | `0x5C9000` | 1024KB |
 
-实际地址以 `build/<chip>/<project>/bk7259_ap/partitions/partitions.txt` 为准。
+地址由分区表自动排版决定，扩容 AP 应用分区后会变化，务必以
+`build/<chip>/<project>/partitions/partitions.txt` 为准。
 
 ### 2.3 验证
 
 ```text
-ap0:js:I(xxx):mounted /apps on usr_config (0x4c9000, 1048576 bytes)
+ap0:js:I(xxx):mounted /apps on usr_config (0x5c9000, 1048576 bytes)
 ap0:js:D(xxx):  launcher
 ap0:js:D(xxx):read /apps/launcher/main.js: 65461 bytes
 ap0:js:I(xxx):js app 'launcher' running from fs
@@ -119,7 +120,82 @@ ap0:js:I(xxx):js app 'launcher' running from fs
 如果出现 `cannot open /apps/launcher/main.js`，先确认镜像根目录是否多套了一层
 `apps/`；如果出现 `no memory for ...`，说明脚本缓冲分配失败。
 
-## 3. 注意事项
+## 3. 网络绑定（可选）
+
+打开 `CONFIG_BK_JERRYSCRIPT_NET` 后，引擎向 JS 暴露 `wifi` 与 `http` 两个全局对象。
+所有网络操作在独立的 worker 线程执行，不阻塞 JS / LVGL 任务。
+
+| 开关 | 作用 |
+| --- | --- |
+| `CONFIG_BK_JERRYSCRIPT_NET` | 打开本组件的网络绑定 |
+| `CONFIG_LWIP` / `CONFIG_BK_NETIF` / `CONFIG_WEBCLIENT` | TCP/IP 协议栈与 HTTP 客户端 |
+| `CONFIG_WIFI_VNET_CONTROLLER`（AP 核） | WiFi 控制通道 |
+| `CONFIG_WEBCLIENT_TLS` + `CONFIG_PSA_MBEDTLS` | 支持 `https://` |
+
+### 3.1 API
+
+| API | 返回 | 说明 |
+| --- | --- | --- |
+| `wifi.status()` | 对象（同步） | `{connected, state, ssid, rssi, ip, gateway, dns}` |
+| `wifi.connect(ssid, password?)` | Promise | 成功 resolve `{connected:true, ip}`；失败 reject `{connected:false, error}` |
+| `http.get(url)` | Promise | resolve `{status, length, body}` |
+| `http.post(url, body?, options?)` | Promise | 同上，`options = {contentType, timeout}` |
+| `http.request(url, options)` | Promise | `options = {method, body, contentType, timeout}`，method 仅支持 `GET` / `POST` |
+
+`http.*` 失败时 reject 字符串，例如 `empty url`、`connect or request failed`、
+`no ip address (timeout)`、`https is not enabled in this firmware`。
+
+### 3.2 限制
+
+| 项目 | 上限 / 行为 |
+| --- | --- |
+| URL 长度 | 191 字节，超出抛 TypeError |
+| 请求 body | 4096 字节，超出抛 RangeError |
+| 响应 body | 16384 字节，超出截断；`length` 为实际返回长度 |
+| 请求超时 | 默认 10000ms，可用 `options.timeout` 覆盖（仅覆盖 HTTP 阶段） |
+| WiFi 连接超时 | 20000ms，固定 |
+| 待执行队列 | 4，满后抛 `network queue full` |
+| 未完成请求 | 8，超出抛 `too many pending network requests` |
+| 执行模型 | 单 worker 线程串行执行；首次请求时惰性创建（TLS 下 20KB 栈） |
+
+### 3.3 使用示例
+
+```js
+http.get('http://192.168.1.10:8000/hello')
+    .then(function (r) {
+        console.log('status=' + r.status + ' body=' + r.body);
+    })
+    .catch(function (err) {
+        console.log('http failed: ' + err);
+    });
+
+http.post('http://192.168.1.10:8000/echo', 'hello', { contentType: 'text/plain' })
+    .then(function (r) {
+        console.log('echo: ' + r.body);
+    });
+```
+
+串口调试：
+
+```text
+js eval typeof http
+js eval http.get('http://192.168.1.10:8000/').then(function(r){console.log(r.status,r.body)},function(e){console.log('err '+e)})
+js run /apps/net_demo.js
+```
+
+- `js eval` 的输入缓冲只有 160 字节，长用例请写成脚本文件后用 `js run`。
+- Promise 回调是异步的，命令先返回，`console.log` 的输出稍后才出现在日志里。
+- 打开 `CONFIG_LAUNCHER_JS_FROM_FS` 时 UI 脚本占用引擎，`js eval` / `js run` 会返回 busy。
+
+### 3.4 已知限制
+
+- `https://` 默认不校验证书。
+- HTTPS 请求收到 301/302 时存在 use-after-free 风险（SDK `webclient` 侧问题），
+  请只访问不重定向的 HTTPS 地址。
+- TLS 连接/读取没有独立超时，异常网络下 worker 线程可能长时间阻塞。
+- HTTPS + chunked 响应存在重复关闭同一 socket 的问题（SDK `webclient` 侧问题）。
+
+## 4. 注意事项
 
 - 修改 JS 后只需重新打包镜像并烧录，**无需重新编译固件**。
 - 镜像缺失或损坏不影响内嵌脚本方式启动，只会打出

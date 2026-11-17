@@ -47,10 +47,12 @@ build/<chip>/<project>/partitions/partitions.txt
 例如：
 
 ```text
-usr_config                      0x004c9000         1024K
+usr_config                      0x005c9000         1024K
 ```
 
 则 `-s 1048576`（1MB）。分区地址用于烧录，分区大小用于 `-s`。
+地址和大小都会随工程分区表变化（例如扩容 AP 应用分区后 `usr_config` 会整体后移），
+**不要照抄示例值**，每次都以当前工程的 `partitions.txt` 为准。
 
 ### 2.3 挂载点与目录层级
 
@@ -149,12 +151,12 @@ var draw = require('lib/draw.js');
 ## 5. 烧录与验证
 
 ```bash
-# 分区起始地址来自 partitions.txt，例如 usr_config = 0x004c9000
+# 分区起始地址来自 partitions.txt，例如 usr_config = 0x005c9000
 # 方式一：SDK 的烧录目标（按所用版本参数为准）
 make <chip> PROJECT=<project> flash
 
 # 方式二：通用烧录工具，例如 esptool
-esptool.py --port /dev/ttyUSB0 write_flash 0x004c9000 littlefs_app.bin
+esptool.py --port /dev/ttyUSB0 write_flash 0x005c9000 littlefs_app.bin
 ```
 
 核心只有一点：镜像整片写到分区的**起始地址**，不用改分区表，也不用重新编译固件。
