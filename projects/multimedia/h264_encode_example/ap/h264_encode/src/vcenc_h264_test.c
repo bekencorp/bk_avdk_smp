@@ -820,6 +820,18 @@ typedef struct
     int ret;
 } vcenc_h264_flexa_dual_ctx_t;
 
+/*
+ * HWIF_CTB_ROW_WR_PTR is a singleton hardware register and the initial
+ * line-ready window is published from the caller context, so a publish from
+ * the channel that is still waiting for the encoder would roll back the
+ * window of the frame currently being encoded. Hand a frame turn token
+ * between the two channels: only the channel holding the token owns the
+ * encoder for one frame, which keeps the two streams alternating frame by
+ * frame instead of running them back to back.
+ */
+static beken_semaphore_t s_vcenc_h264_flexa_dual_frame_turn[VCENC_H264_DUAL_CHANNEL_CNT];
+static volatile uint8_t s_vcenc_h264_flexa_dual_abort;
+
 static void *vcenc_h264_flexa_dual_outbuf_malloc(uint32_t size, void *args)
 {
     vcenc_h264_flexa_dual_ctx_t *ctx = (vcenc_h264_flexa_dual_ctx_t *)args;
@@ -1035,10 +1047,32 @@ static void vcenc_h264_flexa_dual_channel_entry(void *arg)
     LOGI("ch%u flexa encoder open success\r\n", ctx->ch);
 
     for (uint32_t i = 0U; i < VCENC_H264_TEST_FRAME_CNT; i++) {
+        if (s_vcenc_h264_flexa_dual_abort) {
+            fail_stage = "peer_channel_abort";
+            ret = BK_FAIL;
+            LOGE("ch%u flexa encode round %u abort, peer channel failed\r\n", ctx->ch, i + 1U);
+            goto exit;
+        }
+
+        if (rtos_get_semaphore(&s_vcenc_h264_flexa_dual_frame_turn[ctx->ch],
+                               BEKEN_WAIT_FOREVER) != BK_OK) {
+            fail_stage = "wait_frame_turn";
+            ret = BK_FAIL;
+            LOGE("ch%u flexa encode round %u wait frame turn failed\r\n", ctx->ch, i + 1U);
+            goto exit;
+        }
+        if (s_vcenc_h264_flexa_dual_abort) {
+            rtos_set_semaphore(&s_vcenc_h264_flexa_dual_frame_turn[1U - ctx->ch]);
+            fail_stage = "peer_channel_abort";
+            ret = BK_FAIL;
+            LOGE("ch%u flexa encode round %u abort, peer channel failed\r\n", ctx->ch, i + 1U);
+            goto exit;
+        }
+
         ctx->result = BK_FAIL;
         ctx->frame_size = 0U;
         ctx->frame_type = 0U;
-        ctx->flexa_wr_blocks = 2U;
+        ctx->flexa_wr_blocks = VCENC_H264_TEST_FLEXA_INIT_READY_BLOCKS;
 
         avdk_ret = bk_h264_encode_ioctl(handle, BK_H264_ENCODE_IOCTL_SET_FRAME_READY, NULL);
         if (avdk_ret != AVDK_ERR_OK) {
@@ -1049,8 +1083,33 @@ static void vcenc_h264_flexa_dual_channel_entry(void *arg)
             goto exit;
         }
 
+        /*
+         * The driver rewrites the WR pointer to 0 after the kick, so the
+         * initial window must be published afterwards. Retry until the
+         * flexa_done callback starts advancing it.
+         */
+        for (uint32_t retry = 0U;
+             retry < VCENC_H264_TEST_FLEXA_INIT_PUBLISH_RETRY &&
+             ctx->flexa_wr_blocks == VCENC_H264_TEST_FLEXA_INIT_READY_BLOCKS;
+             retry++) {
+            if (retry != 0U) {
+                rtos_delay_milliseconds(1);
+            }
+            avdk_ret = bk_h264_encode_ioctl(handle, BK_H264_ENCODE_IOCTL_SET_FLEXA_LINES_READY,
+                                            (void *)ctx->flexa_wr_blocks);
+            if (avdk_ret != AVDK_ERR_OK) {
+                fail_stage = "set_flexa_lines_ready";
+                ret = avdk_ret;
+                LOGE("ch%u flexa encode round %u set lines ready failed, ret=%d\r\n",
+                     ctx->ch, i + 1U, avdk_ret);
+                goto exit;
+            }
+        }
+
         fail_stage = "wait_done";
         ret = vcenc_h264_flexa_dual_wait_done(ctx);
+        /* Frame done (or failed): the encoder is free, pass the turn on. */
+        rtos_set_semaphore(&s_vcenc_h264_flexa_dual_frame_turn[1U - ctx->ch]);
         if (ret != BK_OK) {
             LOGE("ch%u flexa encode round %u failed, ret=%d\r\n", ctx->ch, i + 1U, ret);
             goto exit;
@@ -1072,6 +1131,9 @@ exit:
     }
     if (ret != BK_OK) {
         LOGE("ch%u flexa dual encode failed at %s, ret=%d\r\n", ctx->ch, fail_stage, ret);
+        /* Wake the peer channel so it can bail out instead of waiting forever. */
+        s_vcenc_h264_flexa_dual_abort = 1U;
+        rtos_set_semaphore(&s_vcenc_h264_flexa_dual_frame_turn[1U - ctx->ch]);
     }
     ctx->ret = ret;
     rtos_delete_thread(NULL);
@@ -1083,6 +1145,7 @@ int vcenc_h264_flexa_dual_test(void)
     beken_thread_t threads[VCENC_H264_DUAL_CHANNEL_CNT] = { NULL, NULL };
     uint8_t created[VCENC_H264_DUAL_CHANNEL_CNT] = { 0U, 0U };
     uint8_t sem_inited[VCENC_H264_DUAL_CHANNEL_CNT] = { 0U, 0U };
+    uint8_t turn_inited[VCENC_H264_DUAL_CHANNEL_CNT] = { 0U, 0U };
     int ret = BK_FAIL;
     const char *fail_stage = "start";
     uint8_t test_pass = 0U;
@@ -1096,6 +1159,18 @@ int vcenc_h264_flexa_dual_test(void)
     for (uint32_t ch = 0U; ch < VCENC_H264_DUAL_CHANNEL_CNT; ch++) {
         chctx[ch].ch = ch;
     }
+
+    s_vcenc_h264_flexa_dual_abort = 0U;
+    for (uint32_t ch = 0U; ch < VCENC_H264_DUAL_CHANNEL_CNT; ch++) {
+        if (rtos_init_semaphore(&s_vcenc_h264_flexa_dual_frame_turn[ch], 1) != BK_OK) {
+            fail_stage = "init_frame_turn";
+            LOGE("init ch%u flexa frame turn failed\r\n", ch);
+            goto exit;
+        }
+        turn_inited[ch] = 1U;
+    }
+    /* ch0 owns the first frame, the turn is handed over after every frame. */
+    rtos_set_semaphore(&s_vcenc_h264_flexa_dual_frame_turn[0]);
 
     for (uint32_t ch = 0U; ch < VCENC_H264_DUAL_CHANNEL_CNT; ch++) {
         if (rtos_init_semaphore(&chctx[ch].done_sem, 1) != BK_OK) {
@@ -1117,6 +1192,12 @@ int vcenc_h264_flexa_dual_test(void)
         if (bk_ret != BK_OK) {
             fail_stage = "create_thread";
             LOGE("create ch%u flexa dual task failed, ret=%d\r\n", ch, bk_ret);
+            s_vcenc_h264_flexa_dual_abort = 1U;
+            for (uint32_t i = 0U; i < VCENC_H264_DUAL_CHANNEL_CNT; i++) {
+                if (turn_inited[i]) {
+                    rtos_set_semaphore(&s_vcenc_h264_flexa_dual_frame_turn[i]);
+                }
+            }
             goto exit;
         }
         created[ch] = 1U;
@@ -1152,6 +1233,9 @@ exit:
     for (uint32_t ch = 0U; ch < VCENC_H264_DUAL_CHANNEL_CNT; ch++) {
         if (sem_inited[ch]) {
             rtos_deinit_semaphore(&chctx[ch].done_sem);
+        }
+        if (turn_inited[ch]) {
+            rtos_deinit_semaphore(&s_vcenc_h264_flexa_dual_frame_turn[ch]);
         }
     }
     vcenc_h264_flexa_dual_log_test_result(test_pass, fail_stage, ret, chctx);
