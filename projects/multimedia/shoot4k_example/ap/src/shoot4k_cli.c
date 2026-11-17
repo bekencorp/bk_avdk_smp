@@ -40,7 +40,8 @@
 #if CONFIG_BK_H264E
 #include <modules/pm.h>
 #include <modules/h264e/jpegencapi.h>
-#include "h264_encoder_api.h"
+#include <driver/int.h>
+#include "sys_driver.h"
 #endif
 
 /* CISP clock: isp_clock_enable() in isp_core.c programs CKSEL_CISP_240M / ckdiv 0
@@ -1375,12 +1376,27 @@ static void isp_jpeg_enc_out_callback(uint8_t *buffer, uint32_t size, uint32_t t
 #endif
 
 #if CONFIG_BK_H264E
-/* VCENC platform bring-up used when calling the low level JpegEnc API directly
- * (h264_encoder_api.c keeps its own static copy). Mirrors that sequence:
+/* VCENC platform bring-up used when calling the low level JpegEnc API directly:
  * clock/power -> IRQ -> platform init -> allocator hooks, refcounted. */
-extern void h264e_int_register(void);
+extern void hantroenc_isr(void);
 extern void vcenc_platform_init(void);
 extern void vcenc_platform_deinit(void);
+extern void vcenc_memalloc_register(void *(*pmalloc)(size_t), void (*pfree)(void *));
+
+static void shoot4k_h264e_int_isr(void)
+{
+    hantroenc_isr();
+}
+
+static void shoot4k_h264e_int_register(void)
+{
+    bk_int_isr_register(INT_SRC_H26E, (int_group_isr_t)&shoot4k_h264e_int_isr, NULL);
+#if CONFIG_SOC_SMP
+    sys_drv_set_int_en(CPU2_CORE_ID, INT_SRC_H26E, 1);
+#else
+    sys_drv_set_int_en(rtos_get_core_id(), INT_SRC_H26E, 1);
+#endif
+}
 
 static uint8_t s_shoot4k_vcenc_refcnt = 0;
 
@@ -1401,7 +1417,7 @@ static void shoot4k_vcenc_acquire(void)
         bk_pm_module_vote_power_ctrl(PM_POWER_SUB_DOMAIN_H26E, PM_POWER_MODULE_STATE_ON);
         sys_drv_h265_cksel_clkdiv_set(CKSEL_H265_160M, 1);
         bk_pm_clock_ctrl(PM_CLK_ID_H26E, PM_CLK_CTRL_PWR_UP);
-        h264e_int_register();
+        shoot4k_h264e_int_register();
         vcenc_platform_init();
         vcenc_memalloc_register(shoot4k_vcenc_malloc, shoot4k_vcenc_free);
     }
