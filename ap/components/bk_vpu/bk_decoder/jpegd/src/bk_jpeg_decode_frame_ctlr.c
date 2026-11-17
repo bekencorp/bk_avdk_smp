@@ -27,6 +27,7 @@
 #include "cache.h"
 #endif
 #include "modules/vcdec/vcdec_jpeg_api.h"
+#include "modules/vcdec/vcdec_common.h"
 #include "avdk_monitor.h"
 #include "common/avdk_pixel_types.h"
 
@@ -36,6 +37,17 @@
 #define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
+
+static void jpeg_decode_notify_frame_done_once(private_jpeg_decode_frame_ctlr_t *ctrl, int status)
+{
+    if (ctrl->frame_done_notified) {
+        return;
+    }
+    ctrl->frame_done_notified = 1U;
+    if (ctrl->config.frame_done_cb != NULL) {
+        ctrl->config.frame_done_cb(status, ctrl->config.frame_done_args);
+    }
+}
 
 static void frame_done_cb(int status, void *args)
 {
@@ -52,10 +64,7 @@ static void frame_done_cb(int status, void *args)
                      (long)ctrl->decode_config.output_size);
     }
 #endif
-    if (ctrl->config.frame_done_cb != NULL)
-    {
-        ctrl->config.frame_done_cb(status, ctrl->config.frame_done_args);
-    }
+    jpeg_decode_notify_frame_done_once(ctrl, status);
 }
 
 static avdk_err_t jpeg_decode_ctlr_init(bk_jpeg_decode_ctlr_handle_t handle)
@@ -86,10 +95,20 @@ static avdk_err_t jpeg_decode_ctlr_init(bk_jpeg_decode_ctlr_handle_t handle)
         goto error;
     }
 
+    if (vcdec_register_memalloc(ctrl->vcdec_handle, jpeg_decode_mem_malloc, jpeg_decode_mem_free) != VCDEC_OK) {
+        LOGE("vcdec_register_memalloc failed\r\n");
+        ret = AVDK_ERR_GENERIC;
+        goto error;
+    }
+
     LOGI("%s %d JPEG decoder registered to hw controller\r\n", __func__, __LINE__);
     return AVDK_ERR_OK;
 
 error:
+    if (ctrl->vcdec_handle != NULL) {
+        vcdec_jpeg_deinit(ctrl->vcdec_handle);
+        ctrl->vcdec_handle = NULL;
+    }
     if (ctrl->decode_done_sem != NULL) {
         rtos_deinit_semaphore(&ctrl->decode_done_sem);
         ctrl->decode_done_sem = NULL;
@@ -169,7 +188,8 @@ static avdk_err_t jpeg_decode_ctlr_decode_frame(bk_jpeg_decode_ctlr_handle_t han
 
     if (out_w != 0U && out_h != 0U) {
         need_size = bk_decode_pp_output_size(ctrl->config.out_format,
-                                             ctrl->config.out_width, ctrl->config.out_height);
+                                             ctrl->config.out_width,
+                                             ctrl->config.out_height);
         if (out_buffer_size < need_size) {
             LOGE("output buffer too small: have=%u need=%u\r\n", out_buffer_size, need_size);
             return AVDK_ERR_NOMEM;
@@ -183,6 +203,10 @@ static avdk_err_t jpeg_decode_ctlr_decode_frame(bk_jpeg_decode_ctlr_handle_t han
     ctrl->decode_config.out_width = ctrl->config.out_width;
     ctrl->decode_config.out_height = ctrl->config.out_height;
     ctrl->decode_config.out_format = bk_decode_pp_map_out_format(ctrl->config.out_format);
+    ctrl->decode_config.crop_x = ctrl->pp_config.crop_x;
+    ctrl->decode_config.crop_y = ctrl->pp_config.crop_y;
+    ctrl->decode_config.crop_width = ctrl->pp_config.crop_width;
+    ctrl->decode_config.crop_height = ctrl->pp_config.crop_height;
     ctrl->decode_config.segment_height = 1U;
     ctrl->decode_config.segment_number = 1U;
 
@@ -194,24 +218,23 @@ static avdk_err_t jpeg_decode_ctlr_decode_frame(bk_jpeg_decode_ctlr_handle_t han
         .sem = &ctrl->decode_done_sem,
     };
 
+    ctrl->frame_done_notified = 0U;
+
     avdk_err_t ret = hw_decoder_send_msg(&msg, BEKEN_WAIT_FOREVER);
     if (ret != AVDK_ERR_OK) {
+        jpeg_decode_notify_frame_done_once(ctrl, BK_FAIL);
         return ret;
     }
 
     ret = rtos_get_semaphore(&ctrl->decode_done_sem, 2000);
     if (ret != AVDK_ERR_OK) {
         LOGE("%s %d rtos_get_semaphore failed: %d\r\n", __func__, __LINE__, ret);
-        if (ctrl->config.frame_done_cb != NULL) {
-            ctrl->config.frame_done_cb(BK_FAIL, ctrl->config.frame_done_args);
-        }
+        jpeg_decode_notify_frame_done_once(ctrl, BK_FAIL);
         return AVDK_ERR_GENERIC;
     }
 
     if(ctrl->decode_result != BK_OK) {
-        if (ctrl->config.frame_done_cb != NULL) {
-            ctrl->config.frame_done_cb(BK_FAIL, ctrl->config.frame_done_args);
-        }
+        jpeg_decode_notify_frame_done_once(ctrl, BK_FAIL);
         return ctrl->decode_result;
     }
     return AVDK_ERR_OK;
@@ -263,16 +286,41 @@ static avdk_err_t jpeg_decode_ctlr_ioctl(bk_jpeg_decode_ctlr_handle_t handle, ui
 
     switch (cmd) {
     case BK_JPEG_DECODE_IOCTL_GET_INFO: {
+        const bk_jpeg_decode_img_info_t *info = (const bk_jpeg_decode_img_info_t *)arg;
         vcdec_ret_e ret = bk_jpeg_decode_get_img_info((bk_jpeg_decode_img_info_t *)arg);
         if (ret != VCDEC_OK) {
             LOGE("%s %d get_img_info failed: %d\r\n", __func__, __LINE__, (int)ret);
             return AVDK_ERR_GENERIC;
         }
+        ctrl->src_width = (uint16_t)info->width;
+        ctrl->src_height = (uint16_t)info->height;
         break;
     }
     case BK_JPEG_DECODE_IOCTL_ABORT:
         vcdec_jpeg_abort(ctrl->vcdec_handle);
         break;
+
+    case BK_JPEG_DECODE_IOCTL_SET_PP: {
+        const bk_jpeg_decode_pp_config_t *src = (const bk_jpeg_decode_pp_config_t *)arg;
+        AVDK_RETURN_ON_FALSE(src, AVDK_ERR_INVAL, TAG, "arg is NULL");
+
+        uint32_t in_w = (src->crop_width != 0U) ? src->crop_width : ctrl->src_width;
+        uint32_t in_h = (src->crop_height != 0U) ? src->crop_height : ctrl->src_height;
+        uint32_t out_w = (src->out_width != 0U) ? src->out_width : in_w;
+        uint32_t out_h = (src->out_height != 0U) ? src->out_height : in_h;
+
+        if (!bk_decode_pp_scale_supported(in_w, in_h, out_w, out_h)) {
+            LOGE("%s %d pp scale exceeds limit (max 1920 px, max 3x upscale), in=%ux%u out=%ux%u\r\n",
+                 __func__, __LINE__, (unsigned)in_w, (unsigned)in_h,
+                 (unsigned)out_w, (unsigned)out_h);
+            return AVDK_ERR_INVAL;
+        }
+
+        ctrl->pp_config = *src;
+        ctrl->config.out_width = ctrl->pp_config.out_width;
+        ctrl->config.out_height = ctrl->pp_config.out_height;
+        break;
+    }
 
     case BK_JPEG_DECODE_IOCTL_PORT_SET_RD_PTR:
     case BK_JPEG_DECODE_IOCTL_REGISTER_BOND:

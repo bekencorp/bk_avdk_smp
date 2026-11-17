@@ -14,6 +14,7 @@
 
 #pragma once
 
+#include <stdbool.h>
 #include <stdint.h>
 
 #include "modules/vcdec/vcdec_types.h"
@@ -22,10 +23,15 @@
 extern "C" {
 #endif
 
+#define BK_DECODE_PP_MAX_OUT_DIM   1920U
+#define BK_DECODE_PP_MAX_UPSCALE   3U
+
 vcdec_pp_out_format_e bk_decode_pp_map_out_format(uint32_t fmt);
 uint32_t bk_decode_pp_output_size(uint32_t fmt, uint16_t width, uint16_t height);
 uint32_t bk_decode_pp_flexa_rb_size(uint16_t width, uint16_t segment_height_mb,
 				    uint8_t segment_num);
+bool bk_decode_pp_scale_supported(uint32_t in_w, uint32_t in_h,
+				  uint32_t out_w, uint32_t out_h);
 
 #ifdef __cplusplus
 }

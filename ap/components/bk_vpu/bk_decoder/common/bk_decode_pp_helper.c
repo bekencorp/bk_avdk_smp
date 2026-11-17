@@ -47,3 +47,21 @@ uint32_t bk_decode_pp_flexa_rb_size(uint16_t width, uint16_t segment_height_mb,
 
 	return (uint32_t)width * seg_h * 3U / 2U * (uint32_t)segment_num;
 }
+
+bool bk_decode_pp_scale_supported(uint32_t in_w, uint32_t in_h,
+				  uint32_t out_w, uint32_t out_h)
+{
+	if (out_w > BK_DECODE_PP_MAX_OUT_DIM || out_h > BK_DECODE_PP_MAX_OUT_DIM) {
+		return false;
+	}
+
+	if (in_w != 0U && out_w > in_w * BK_DECODE_PP_MAX_UPSCALE) {
+		return false;
+	}
+
+	if (in_h != 0U && out_h > in_h * BK_DECODE_PP_MAX_UPSCALE) {
+		return false;
+	}
+
+	return true;
+}
