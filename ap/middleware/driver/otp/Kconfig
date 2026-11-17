@@ -1,7 +1,7 @@
 menu "OTP"
 	config OTP_V1
 		bool "Enable OTP function Version 1"
-		default n
+		default y
 
 	config PHY_RFCALI_TO_OTP
 		bool "Enable rfcali_to_otp"

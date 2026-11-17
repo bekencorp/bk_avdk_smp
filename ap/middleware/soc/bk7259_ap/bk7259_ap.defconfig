@@ -1297,7 +1297,6 @@ CONFIG_PM_CLI_ENABLE=y
 #
 # OTP
 #
-# CONFIG_OTP_V1 is not set
 # CONFIG_PHY_RFCALI_TO_OTP is not set
 # CONFIG_AON_ENCP is not set
 # end of OTP

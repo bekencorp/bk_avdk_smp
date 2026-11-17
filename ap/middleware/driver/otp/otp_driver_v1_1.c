@@ -184,7 +184,11 @@ static volatile uint32_t s_otp_pwr_word_local;
  * whether the domain may be powered off. */
 #define OTP_PWR_TE200_ANY     (BK_SWR_OTP_PWR_TE200_HOLD | BK_SWR_OTP_PWR_TE200_CP_HOLD)
 #define OTP_PWR_WAIT_US       (20U)
-#define OTP_PWR_WAIT_MAX_US   (300U * 1000U)                /* > 100ms vote timeout, only for reset leftovers */
+/* Budget for a peer's OFF vote to retire. A stale TURNING_OFF left by a warm
+ * reset is cleared once in otp_power_side_reset_once(); this wait must never
+ * clear it, otherwise a preempted releaser could power the domain off under
+ * the holder that just gave up waiting. */
+#define OTP_PWR_WAIT_MAX_US   (300U * 1000U)
 /*
  * The peer may legitimately hold FUSE for one long ATE/PUF command, whose busy
  * bound is OTP_LONG_BUSY_TIMEOUT_US (100 ms). A 20 ms budget made concurrent
@@ -212,6 +216,10 @@ static void otp_power_side_reset_once(void)
 	 * only used inside a transaction, and the caller holds s_otp_mutex, so
 	 * dropping it here is always safe.
 	 *
+	 * TURNING_OFF is dropped here too: a bit left in the window is a leftover
+	 * from a previous boot. Runtime waiters must never clear it, otherwise a
+	 * preempted releaser could power the domain off under them.
+	 *
 	 * The TE200 hold bit is owned by this side too: it is cleared only while
 	 * dubhe has not claimed it yet (TE200 is not built, or its init has not run
 	 * in this image). Once dubhe is up it is a live reference and must be kept,
@@ -219,7 +227,7 @@ static void otp_power_side_reset_once(void)
 	 * access. The CP never clears this bit, and this side never clears the CP's
 	 * own TE200 bit (bit18), which may be a live reference from the CP image.
 	 */
-	uint32_t clear = OTP_PWR_MY_MASK;
+	uint32_t clear = OTP_PWR_MY_MASK | BK_SWR_OTP_PWR_TURNING_OFF;
 
 #if CONFIG_MBEDTLS_ACCELERATOR || CONFIG_TRUSTENGINE
 	if (!dubhe_inited)
@@ -249,12 +257,13 @@ static int otp_power_hold(void)
 			continue;
 		}
 		if (waited >= OTP_PWR_WAIT_MAX_US) {
-			/* The previous holder reset in the middle of its OFF vote,
-			 * clear the leftover state and retry. */
-			OTP_LOGE("otp pwr: stale off state 0x%x, recover\r\n", w);
-			__atomic_and_fetch(word, ~BK_SWR_OTP_PWR_TURNING_OFF, __ATOMIC_ACQ_REL);
-			waited = 0;
-			continue;
+			/* A live releaser may have been preempted after setting
+			 * TURNING_OFF. Do not clear its barrier: the domain could be
+			 * powered off under this transaction. Fail and let the caller
+			 * retry; a stale bit from a previous boot was already dropped
+			 * in otp_power_side_reset_once(). */
+			OTP_LOGE("otp pwr: off vote in progress 0x%x, retry\r\n", w);
+			return -1;
 		}
 		bk_delay_us(OTP_PWR_WAIT_US);
 		waited += OTP_PWR_WAIT_US;
@@ -759,6 +768,85 @@ bk_err_t bk_otp_ahb_read_by_offset(uint32_t item_offset, uint8_t* buf, uint32_t 
 	}
 	OTP_SLEEP()
 	return BK_OK;
+}
+
+static bk_err_t otp_write_by_offset_common(uint32_t item_offset, const uint8_t *buf,
+                                           uint32_t size)
+{
+	uint32_t location = item_offset / 4;
+	uint32_t start = item_offset % 4;
+	const uint8_t *back_buf = buf;
+	uint32_t back_size = size;
+	uint32_t value;
+
+	/* Pass 1: reject any request that would clear a bit (1 -> 0) before
+	 * programming anything. */
+	while (size > 0) {
+		uint32_t cmp_cnt = (size >= (4 - start)) ? (4 - start) : size;
+		uint8_t *dst;
+		uint32_t i;
+
+		value = otp2_read_otp(location);
+		dst = (uint8_t *)&value + start;
+		for (i = 0; i < cmp_cnt; i++) {
+			if ((~buf[i] & dst[i]) != 0)
+				return BK_ERR_OTP_UPDATE_NOT_EQUAL;
+		}
+
+		buf += cmp_cnt;
+		size -= cmp_cnt;
+		location++;
+		start = 0;
+	}
+
+	/* Pass 2: merge into each word, program only the words that change and
+	 * verify the readback. */
+	location = item_offset / 4;
+	start = item_offset % 4;
+	size = back_size;
+	buf = back_buf;
+
+	while (size > 0) {
+		uint32_t cpy_cnt = (size >= (4 - start)) ? (4 - start) : size;
+		uint32_t old_value;
+		uint32_t check_value;
+		uint8_t *dst;
+		uint32_t i;
+
+		old_value = otp2_read_otp(location);
+		value = old_value;
+		dst = (uint8_t *)&value + start;
+		for (i = 0; i < cpy_cnt; i++)
+			dst[i] = buf[i];
+
+		if (value != old_value) {
+			otp2_write_otp(location, value);
+
+			check_value = otp2_read_otp(location);
+			if (check_value != value)
+				return BK_ERR_OTP_UPDATE_NOT_EQUAL;
+		}
+
+		buf += cpy_cnt;
+		size -= cpy_cnt;
+		location++;
+		start = 0;
+	}
+	return BK_OK;
+}
+
+bk_err_t bk_otp_ahb_write_by_offset(uint32_t item_offset, uint8_t *buf, uint32_t size)
+{
+	bk_err_t err;
+
+	if ((buf == NULL) || (size == 0) || (item_offset >= OTP2_AHB_BANK_SIZE) ||
+	    (size > (OTP2_AHB_BANK_SIZE - item_offset)))
+		return BK_ERR_OTP_ADDR_OUT_OF_RANGE;
+
+	OTP_ACTIVE(2)
+	err = otp_write_by_offset_common(item_offset, buf, size);
+	OTP_SLEEP()
+	return err;
 }
 
 static uint32_t bk_otp2_check_clean_range(uint32_t start_offset, uint32_t end_offset)
