@@ -720,7 +720,7 @@ const static ISP_CALIB_DATA_S SC3336P_2304x1296_CalibParam = {
                 .minY_MaxG = 30,
                 .refCb_MaxB = 0x80,
                 .maxCSum = 12,
-                .minC = 12,
+                .minC = 16,
             },
         },
 

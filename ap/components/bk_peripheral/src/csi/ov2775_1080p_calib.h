@@ -644,7 +644,7 @@ const static ISP_CALIB_DATA_S OV2775_1080P_CalibParam = {
                 .minY_MaxG = 30,
                 .refCb_MaxB = 0x80,
                 .maxCSum = 12,
-                .minC = 12,
+                .minC = 16,
             },
         },
 

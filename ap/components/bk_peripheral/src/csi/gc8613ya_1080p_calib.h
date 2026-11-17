@@ -702,7 +702,7 @@ const static ISP_CALIB_DATA_S GC8613YA_1080P_CalibParam = {
 
         .wbm = {
             .enable = 1,
-            .measMode = ISP_AWB_MEAS_MODE_RGB,
+            .measMode = ISP_AWB_MEAS_MODE_YCBCR,
             .measRect = {
                 .top = 0,
                 .left = 0,
@@ -712,10 +712,10 @@ const static ISP_CALIB_DATA_S GC8613YA_1080P_CalibParam = {
             .wpRange = {
                 .maxY = 0xEB,
                 .refCr_MaxR = 0x80,
-                .minY_MaxG = 0xC0,
+                .minY_MaxG = 30,
                 .refCb_MaxB = 0x80,
-                .maxCSum = 0x14,
-                .minC = 0x14,
+                .maxCSum = 12,
+                .minC = 16,
             },
         },
 
