@@ -176,7 +176,27 @@ avdk_err_t bk_isp_camera_delete(bk_isp_camera_ctlr_handle_t handle);
 avdk_err_t bk_isp_camera_channel_open(bk_isp_camera_ctlr_handle_t handle, uint8_t channel, bk_isp_camera_channel_config_t *config);
 
 /**
+ * @brief Allocate an application-owned frame-mode buffer pool.
+ *
+ * The caller invokes this optional helper before channel_open only when using
+ * an application-owned pool, then QBUFs every buffer while the channel is
+ * TURN_OFF. The pool and its buffers must stay alive until channel_close
+ * succeeds. External frame mode requires at least two buffers so one remains
+ * available to ISP while one is held by the application. The ISP driver never
+ * frees the registered memory. RGB888/BGR888 are sized as RGBX.
+ */
+avdk_err_t bk_isp_camera_frame_pool_alloc(
+    bk_isp_camera_channel_config_t *config,
+    bk_isp_camera_frame_pool_t *pool);
+
+/** Release a pool after its pre-QBUF registration is consumed or cancelled. */
+void bk_isp_camera_frame_pool_free(bk_isp_camera_frame_pool_t *pool);
+
+/**
  * @brief Close an ISP output channel
+ *
+ * In TURN_OFF state, this cancels a pending pre-QBUF registration without
+ * freeing the application-owned memory.
  * @param handle ISP camera controller handle
  * @param channel Channel index
  * @return AVDK error code

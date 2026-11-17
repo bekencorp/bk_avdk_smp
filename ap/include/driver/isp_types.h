@@ -68,6 +68,11 @@ typedef struct vsiISP_INPUT_S
 } ISP_INPUT_S;
 
 typedef struct {
+    uint32_t addr;
+    uint32_t size;
+} isp_external_frame_buffer_t;
+
+typedef struct {
     uint8_t buf_cnt;
     uint8_t chnl_id;
     uint8_t port_id;
@@ -85,6 +90,9 @@ typedef struct {
      * bk_isp_open uses it instead of allocating internally and never frees it. */
     void *ext_buf;
     uint32_t ext_buf_size;
+    /* Optional frame-mode external buffers owned by the caller. NULL keeps the
+     * legacy driver-owned allocation and release behavior. */
+    const isp_external_frame_buffer_t *frame_buffers;
 } isp_config_ext_t;
 
 typedef struct {
@@ -115,6 +123,8 @@ typedef struct {
     uint8_t skip_active;           /**< Current frame is being dropped. */
     uint8_t warmup_done;           /**< Latched 1 only after this channel finished a configured (>0) skip countdown, or inherited an already-warmed peer at open. A skip=0 channel is NOT a warmup authority. */
     uint8_t *frame_buffer[ISP_FRAME_CNT_MAX];
+    uint32_t frame_buffer_size[ISP_FRAME_CNT_MAX];
+    uint8_t external_frame_buffer;
     uint8_t malloc_flag;
     /**< Size of the externally provided flexa ring buffer (bk_isp_flexa_buffer_set),
      * 0 = no external buffer, internal allocation applies. */

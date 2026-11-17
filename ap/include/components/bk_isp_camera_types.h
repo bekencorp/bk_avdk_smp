@@ -97,9 +97,9 @@ typedef enum
     BK_CAM_IOCTL_QUERY_EXPOSURE_INFO, /**< Query current AE result; arg = bk_isp_camera_exposure_info_t * */
     BK_CAM_IOCTL_SET_INITIAL_EXPOSURE, /**< Seed manual exposure before channel open; arg = bk_isp_camera_exposure_info_t * */
     BK_CAM_IOCTL_RESUME_AUTO_EXPOSURE, /**< Resume auto AE after the initial frame; arg = NULL */
-    BK_CAM_IOCTL_CHANNEL_ACQUIRE, /**< Hand a channel to an external consumer; arg = uint8_t * */
-    BK_CAM_IOCTL_CHANNEL_RELEASE, /**< Return a channel to the camera thread; arg = uint8_t * */
-    BK_CAM_IOCTL_FRAME_POP, /**< Dequeue a zero-copy frame; arg = bk_isp_camera_frame_info_t * */
+    BK_CAM_IOCTL_CHANNEL_ACQUIRE, /**< Hand a channel to a direct-pop consumer; arg = uint8_t * */
+    BK_CAM_IOCTL_CHANNEL_RELEASE, /**< Return a direct-pop channel to the camera thread; arg = uint8_t * */
+    BK_CAM_IOCTL_FRAME_DQBUF, /**< Dequeue a zero-copy frame; arg = bk_isp_camera_frame_info_t * */
     BK_CAM_IOCTL_FRAME_QBUF, /**< Re-queue a zero-copy frame; arg = bk_isp_camera_frame_info_t * */
     BK_CAM_IOCTL_SELECT_ISP_PORT, /**< Select logical ISP port; arg = uint8_t * */
     BK_CAM_IOCTL_GET_WB, /**< Get white balance attributes; arg = bk_isp_camera_wb_attr_t * */
@@ -284,12 +284,20 @@ typedef bk_isp_exposure_attr_t bk_isp_camera_exposure_attr_t;
  */
 typedef bk_isp_gamma_out_attr_t bk_isp_camera_gamma_out_attr_t;
 
+typedef isp_external_frame_buffer_t bk_isp_camera_frame_buffer_t;
+
+/** Application-owned storage for the external frame-buffer descriptors. */
+typedef struct
+{
+    bk_isp_camera_frame_buffer_t buffers[ISP_FRAME_CNT_MAX];
+} bk_isp_camera_frame_pool_t;
+
 /**
  * @brief Camera ISP instance configuration structure
  */
 typedef struct
 {
-    uint8_t buf_cnt;        /**< Number of frame buffers */
+    uint8_t buf_cnt;        /**< Frame buffer count; must match the pre-QBUF count when used */
     uint8_t port_id;        /**< Port identifier */
     uint8_t enable_flexa;   /**< Enable Flexa: 0 - disable, 1 - enable */
     uint8_t work_mode;      /**< Operating mode: 0 - frame mode, 1 - SFW Flexa mode */
@@ -300,23 +308,31 @@ typedef struct
 
 
 /**
- * @brief Zero-copy frame descriptor handed out by the ISP camera controller.
+ * @brief Zero-copy buffer argument for FRAME_DQBUF and FRAME_QBUF.
  *
- * Describes one ISP output frame still living in the ISP frame pool (no copy).
- * Pass it to BK_CAM_IOCTL_FRAME_POP with @ref channel and @ref timeout set.
- * On success the caller owns the buffer until it passes the same @ref channel
- * and @ref index to BK_CAM_IOCTL_FRAME_QBUF. Y plane starts at @ref frame_addr;
- * for semi-planar NV12 the chroma plane is contiguous at frame_addr +
- * width*height.
+ * DQBUF input: channel, port_id and timeout. Set port_id to
+ * BK_ISP_CAMERA_INVALID_PORT_ID to accept any port. On success, the application
+ * temporarily owns access to addr until it returns the same channel/addr/
+ * generation through FRAME_QBUF.
+ *
+ * To use application-owned buffers, QBUF every buffer while the channel is
+ * TURN_OFF before channel_open, using channel/addr/size and generation = 0.
+ * The next open consumes these descriptors and never frees the memory. Without
+ * pre-QBUF, open keeps the legacy driver-owned allocation and release behavior.
+ * size is the registered capacity and length is the valid byte count produced
+ * by this capture. sequence is diagnostic only.
  */
 typedef struct
 {
-    uint32_t frame_addr;   /**< Physical/user address of the frame (Y plane base), zero-copy. */
-    uint32_t frame_size;   /**< Total frame size in bytes (all planes). */
-    uint32_t timeout;      /**< FRAME_POP timeout in milliseconds; ignored by FRAME_QBUF. */
-    uint8_t  channel;      /**< ISP channel id (ISP_MP_CHN_ID / ISP_SP_CHN_ID). */
-    uint8_t  index;        /**< Frame-pool buffer index; pass back to BK_CAM_IOCTL_FRAME_QBUF. */
-    uint8_t  port_id;      /**< Logical ISP port that produced this frame. */
+    uint32_t addr;         /**< DQBUF output, QBUF input: registered buffer base address. */
+    uint32_t size;         /**< DQBUF output, pre-open QBUF input: buffer capacity in bytes. */
+    uint32_t length;       /**< DQBUF output: valid bytes written by this capture. */
+    uint32_t timeout;      /**< DQBUF input: total wait timeout in milliseconds. */
+    uint8_t  channel;      /**< DQBUF/QBUF input: ISP channel id. */
+    uint8_t  port_id;      /**< DQBUF input/output: requested/actual logical port. */
+    uint16_t reserved;
+    uint32_t sequence;     /**< DQBUF output: per-channel completed-frame sequence. */
+    uint32_t generation;   /**< Runtime QBUF input: buffer generation; 0 for pre-open QBUF. */
 } bk_isp_camera_frame_info_t;
 
 typedef struct
