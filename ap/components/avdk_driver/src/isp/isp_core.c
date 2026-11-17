@@ -2238,6 +2238,22 @@ bk_err_t bk_isp_pipeline_switch_set(
     return (ret == VSI_SUCCESS) ? BK_OK : BK_FAIL;
 }
 
+bk_err_t bk_isp_shoot4k_direct_publish_set(
+    isp_handle_t *handle, uint8_t enable)
+{
+    if (handle == NULL || *handle == NULL)
+    {
+        return BK_ERR_PARAM;
+    }
+
+    LOGI("%s %d\n", __func__, enable);
+
+    isp_control_t *control = (isp_control_t *)*handle;
+    int ret = VSI_ISP_CoreShoot4kDirectPublishSet(
+        control->port, enable);
+    return (ret == VSI_SUCCESS) ? BK_OK : BK_FAIL;
+}
+
 bk_err_t bk_isp_soft_reset(isp_handle_t *handle)
 {
     bk_err_t ret = BK_FAIL;
