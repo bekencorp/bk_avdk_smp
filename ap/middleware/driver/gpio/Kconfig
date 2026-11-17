@@ -59,6 +59,17 @@ menu "GPIO"
 		help
 			This is for super deep sleep
 
+	config GPIO_POWERDOWN_HOLD_SUPPORT
+		bool "Hold selected GPIO outputs while AP is powered off"
+		default y
+		help
+			Keep pads driven at their configured level after the AP core is
+			powered down. The pin set and level come from the entries marked
+			GPIO_LOW_POWER_KEEP_OUTPUT_STATUS in usr_gpio_cfg.h (PULL_UP_EN
+			drives HIGH, PULL_DOWN_EN drives LOW), the same declaration the CP
+			side uses for its low-power high-Z sweep. Pins are re-driven right
+			before AP power-off.
+
 	config GPIO_RETENTION_SUPPORT
 		bool "Enable GPIO retention for (super) deep sleep and soft reset"
 		default n

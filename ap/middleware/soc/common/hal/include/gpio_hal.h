@@ -101,8 +101,10 @@ bk_err_t gpio_hal_bak_int_type_configs(uint32_t *gpio_int_type_cfg, uint32_t cou
 bk_err_t gpio_hal_restore_int_type_configs(uint32_t *gpio_int_type_cfg, uint32_t count);
 bk_err_t gpio_hal_bak_int_enable_configs(uint32_t *gpio_int_enable_cfg, uint32_t count);
 bk_err_t gpio_hal_restore_int_enable_configs(uint32_t *gpio_int_enable_cfg, uint32_t count);
-/* gpio switch to low power status:set all gpios to input mode */
-bk_err_t gpio_hal_switch_to_low_power_status(uint64_t skip_io);
+/* gpio switch to low power status:set all gpios to input mode.
+ * skip_io/skip_io_high are the low/high 64-bit halves of the skip bitmap
+ * (GPIO 0~63 and GPIO 64~127) so pads above GPIO_63 are representable. */
+bk_err_t gpio_hal_switch_to_low_power_status(uint64_t skip_io, uint64_t skip_io_high);
 #else
 bk_err_t gpio_hal_reg_save(uint32_t*  gpio_cfg);
 bk_err_t gpio_hal_reg_restore(uint32_t*  gpio_cfg);

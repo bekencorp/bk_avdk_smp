@@ -41,6 +41,9 @@
 #define GPIO_REG_DEFAULT_VALUE                    (0x0)
 #define GPIO_WAKE_SOURCE_IDLE_ID                  (GPIO_NUM_MAX)
 #define GPIO_LOWPOWER_KEEP_STATUS_IDLE_ID         (GPIO_NUM_MAX)
+/* SOC_GPIO_NUM is 72, so a single uint64_t cannot represent GPIO 64~71.
+ * Keep the low-power skip/keep sets 128 bits wide. */
+#define GPIO_MASK_WORD_CNT                        (2)
 
 #define GPIO_RETURN_ON_INVALID_ID(id) do {\
 	if ((id) >= SOC_GPIO_NUM) {\
@@ -136,9 +139,24 @@ static bool s_gpio_wakeup_dispatcher_ready;
 #endif
 
 #if CONFIG_GPIO_KPSTAT_SUPPORT
-static uint64_t s_gpio_is_lowpower_keep_status;
+static uint64_t s_gpio_is_lowpower_keep_status[GPIO_MASK_WORD_CNT];
 #if CONFIG_GPIO_DYNAMIC_KPSTAT_SUPPORT
 static gpio_dynamic_keep_status_t s_gpio_lowpower_keep_config[CONFIG_GPIO_DYNAMIC_KEEP_STATUS_MAX_CNT];
+#endif
+#endif
+
+#if CONFIG_GPIO_POWERDOWN_HOLD_SUPPORT
+/* Pins kept driven while the AP core is powered off. The high mask selects the
+ * pins driven high; the remaining held pins are driven low.
+ * SOC_GPIO_NUM (72 on BK7259) exceeds 64, so the sets are bitmaps of 64-bit
+ * words rather than a single uint64_t. */
+#define GPIO_POWERDOWN_HOLD_WORD_CNT \
+	((SOC_GPIO_NUM + 63) / 64)
+
+static uint64_t s_gpio_powerdown_hold_mask[GPIO_POWERDOWN_HOLD_WORD_CNT];
+static uint64_t s_gpio_powerdown_hold_high_mask[GPIO_POWERDOWN_HOLD_WORD_CNT];
+#if CONFIG_PM_ENABLE && CONFIG_PM_CLIENT
+static bool s_gpio_powerdown_hold_pm_registered;
 #endif
 #endif
 
@@ -166,6 +184,10 @@ static void gpio_keep_status_config(void);
 #endif
 #endif
 
+#if CONFIG_GPIO_POWERDOWN_HOLD_SUPPORT
+static void gpio_powerdown_hold_init(void);
+#endif
+
 #if CONFIG_GPIO_WAKEUP_SUPPORT && CONFIG_GPIO_DYNAMIC_WAKEUP_SUPPORT && CONFIG_MAILBOX
 BK_IPC_CHANNEL_DEF(gpio_ipc);
 BK_IPC_CHANNEL_REGISTER(gpio_ipc, IPC_ROUTE_CPU0_CPU1, NULL, NULL, NULL);
@@ -181,6 +203,10 @@ bk_err_t bk_gpio_driver_init(void)
 	}
 
 	gpio_hal_init();
+
+#if CONFIG_GPIO_POWERDOWN_HOLD_SUPPORT
+	gpio_powerdown_hold_init();
+#endif
 
 #if CONFIG_GPIO_KPSTAT_SUPPORT
 	gpio_keep_status_init();
@@ -840,11 +866,13 @@ bk_err_t gpio_exit_low_power(void *param)
 	return BK_OK;
 }
 
-bk_err_t gpio_hal_switch_to_low_power_status(uint64_t skip_io)
+bk_err_t gpio_hal_switch_to_low_power_status(uint64_t skip_io, uint64_t skip_io_high)
 {
 	for (gpio_id_t i = GPIO_0; i < GPIO_NUM_MAX; i++)
 	{
-		if (skip_io & (0x1ULL << i))
+		uint64_t skip = (i < 64) ? skip_io : skip_io_high;
+
+		if (skip & ((uint64_t)0x1 << (i & 63)))
 			continue;
 		bk_gpio_set_value(i, GPIO_REG_DEFAULT_VALUE);
 	}
@@ -855,17 +883,168 @@ bk_err_t gpio_hal_switch_to_low_power_status(uint64_t skip_io)
 static void gpio_low_power_config(void)
 {
 	uint64_t skip_io = 0;
+	uint64_t skip_io_high = 0;
 
 #if CONFIG_GPIO_WAKEUP_SUPPORT
 	skip_io |= s_gpio_is_setted_wake_status;
 #endif
 
 #if CONFIG_GPIO_KPSTAT_SUPPORT
-	skip_io |= s_gpio_is_lowpower_keep_status;
+	skip_io |= s_gpio_is_lowpower_keep_status[0];
+	skip_io_high |= s_gpio_is_lowpower_keep_status[1];
 #endif
 
-	gpio_hal_switch_to_low_power_status(skip_io);
+	gpio_hal_switch_to_low_power_status(skip_io, skip_io_high);
 }
+
+#if CONFIG_GPIO_POWERDOWN_HOLD_SUPPORT
+static void gpio_powerdown_hold_set_bit(uint64_t *mask, gpio_id_t gpio_id)
+{
+	mask[gpio_id >> 6] |= ((uint64_t)1 << (gpio_id & 63));
+}
+
+#if CONFIG_PM_ENABLE && CONFIG_PM_CLIENT
+/* Pad config snapshotted before the hold is applied, so resume() can roll the
+ * pad back if PM aborts the power-off. */
+static uint32_t s_gpio_powerdown_hold_saved_cfg[SOC_GPIO_NUM];
+static bool s_gpio_powerdown_hold_saved;
+
+static bool gpio_powerdown_hold_is_set(const uint64_t *mask, gpio_id_t gpio_id)
+{
+	return (mask[gpio_id >> 6] & ((uint64_t)1 << (gpio_id & 63))) != 0;
+}
+
+static bool gpio_powerdown_hold_mask_is_empty(void)
+{
+	for (uint32_t i = 0; i < GPIO_POWERDOWN_HOLD_WORD_CNT; i++) {
+		if (s_gpio_powerdown_hold_mask[i] != 0) {
+			return false;
+		}
+	}
+
+	return true;
+}
+
+static void gpio_powerdown_hold_apply_one(gpio_id_t gpio_id)
+{
+	uint32_t level = gpio_powerdown_hold_is_set(s_gpio_powerdown_hold_high_mask, gpio_id) ? 1U : 0U;
+
+	/* Set the level before switching the pad to output so the level does not
+	 * glitch when the direction changes. */
+	gpio_hal_set_output_value(gpio_id, level);
+	gpio_hal_pull_enable(gpio_id, 0);
+	gpio_hal_set_func_code(gpio_id, FUNC_CODE_OUTPUT);
+}
+
+static bk_err_t gpio_powerdown_hold_prepare_cb(void *arg)
+{
+	(void)arg;
+
+	/* Snapshot the pad config once per prepare cycle so resume() can roll back
+	 * the forced-output state if PM aborts the power-off. */
+	if (!s_gpio_powerdown_hold_saved) {
+		for (gpio_id_t id = GPIO_0; id < SOC_GPIO_NUM; id++) {
+			if (gpio_powerdown_hold_is_set(s_gpio_powerdown_hold_mask, id)) {
+				s_gpio_powerdown_hold_saved_cfg[id] = gpio_hal_get_value(id);
+			}
+		}
+		s_gpio_powerdown_hold_saved = true;
+	}
+
+	/* This runs from the CPU0 idle path with interrupts disabled, where PM
+	 * forbids logging/blocking (BK_LOGx uses the blocking async-log mode).
+	 * Verify the hold by reading the pad state, not from this callback. */
+	for (gpio_id_t id = GPIO_0; id < SOC_GPIO_NUM; id++) {
+		if (gpio_powerdown_hold_is_set(s_gpio_powerdown_hold_mask, id)) {
+			gpio_powerdown_hold_apply_one(id);
+		}
+	}
+
+	return BK_OK;
+}
+
+static bk_err_t gpio_powerdown_hold_resume_cb(void *arg)
+{
+	(void)arg;
+
+	/* Roll back the pad config forced by prepare_power_off when PM aborts the
+	 * power-off, so peripheral/input pins keep their original function. */
+	if (s_gpio_powerdown_hold_saved) {
+		for (gpio_id_t id = GPIO_0; id < SOC_GPIO_NUM; id++) {
+			if (gpio_powerdown_hold_is_set(s_gpio_powerdown_hold_mask, id)) {
+				gpio_hal_set_value(id, s_gpio_powerdown_hold_saved_cfg[id]);
+			}
+		}
+		s_gpio_powerdown_hold_saved = false;
+	}
+
+	return BK_OK;
+}
+
+static const pm_ap_power_ops_t s_gpio_powerdown_hold_pm_ops = {
+	.name = "gpio_powerdown_hold",
+	.prepare_power_off = gpio_powerdown_hold_prepare_cb,
+	.resume = gpio_powerdown_hold_resume_cb,
+	/* prepare_power_off runs from the list tail to the head, so the lowest
+	 * priority value runs last, after other modules have quiesced and may
+	 * have touched the pads. */
+	.priority = PM_AP_POWER_PRIORITY_PLATFORM,
+};
+
+static void gpio_powerdown_hold_pm_register(void)
+{
+	if (s_gpio_powerdown_hold_pm_registered || gpio_powerdown_hold_mask_is_empty()) {
+		return;
+	}
+
+	if (bk_pm_ap_power_ops_register(&s_gpio_powerdown_hold_pm_ops) == BK_OK) {
+		s_gpio_powerdown_hold_pm_registered = true;
+	} else {
+		GPIO_LOGW("%s: register pm ops failed\r\n", __func__);
+	}
+}
+#else
+static void gpio_powerdown_hold_pm_register(void)
+{
+}
+#endif
+
+static void gpio_powerdown_hold_init(void)
+{
+#if CONFIG_USR_GPIO_CFG_EN
+	/* Reuse the CP-side keep list declaration: every pin marked
+	 * GPIO_LOW_POWER_KEEP_OUTPUT_STATUS in usr_gpio_cfg.h is held across AP
+	 * power-down. The level follows the legacy GPIO output convention used by
+	 * gpio_default_map_init(): PULL_UP_EN drives HIGH, PULL_DOWN_EN drives
+	 * LOW. */
+	const gpio_default_map_t default_map[] = GPIO_DEFAULT_DEV_CONFIG;
+
+	for (uint32_t i = 0; i < sizeof(default_map) / sizeof(default_map[0]); i++) {
+		const gpio_default_map_t *m = &default_map[i];
+		gpio_id_t gpio_id = (gpio_id_t)m->gpio_id;
+
+		if (gpio_id >= SOC_GPIO_NUM) {
+			continue;
+		}
+
+		if (m->low_power_io_ctrl != GPIO_LOW_POWER_KEEP_OUTPUT_STATUS) {
+			continue;
+		}
+
+		gpio_powerdown_hold_set_bit(s_gpio_powerdown_hold_mask, gpio_id);
+		if (m->pull_mode == GPIO_PULL_UP_EN) {
+			gpio_powerdown_hold_set_bit(s_gpio_powerdown_hold_high_mask, gpio_id);
+		}
+	}
+#endif
+
+	gpio_powerdown_hold_pm_register();
+
+	/* Do not log here: driver_init() runs before bk_uart_driver_init(), so any
+	 * BK_LOGx from this point is dropped. gpio_powerdown_hold_prepare_cb()
+	 * reports the effective hold set when AP actually powers down. */
+}
+#endif
 
 /*
  * The wake-source GPIO ID is detected on CP and propagated through shared
@@ -1203,11 +1382,18 @@ static void gpio_keep_status_init(void)
 
 	for (uint32_t i = 0; i < sizeof(default_map)/sizeof(gpio_default_map_t); i++)
 	{
+		gpio_id_t gpio_id = default_map[i].gpio_id;
+
+		if (gpio_id >= SOC_GPIO_NUM)
+		{
+			continue;
+		}
+
 		//uses equal to avoid some guy maybe write other value
 		if ((default_map[i].low_power_io_ctrl == GPIO_LOW_POWER_KEEP_INPUT_STATUS) ||
 			(default_map[i].low_power_io_ctrl == GPIO_LOW_POWER_KEEP_OUTPUT_STATUS))
 		{
-			s_gpio_is_lowpower_keep_status |= ((uint64_t)0x1 << default_map[i].gpio_id);
+			s_gpio_is_lowpower_keep_status[gpio_id >> 6] |= ((uint64_t)0x1 << (gpio_id & 63));
 		}
 	}
 #endif
@@ -1236,8 +1422,13 @@ static void gpio_keep_status_config(void)
 
 	for(index = 0; index < CONFIG_GPIO_DYNAMIC_KEEP_STATUS_MAX_CNT; index++)
 	{
-		if(s_gpio_is_lowpower_keep_status & ((uint64_t)1 << s_gpio_lowpower_keep_config[index].gpio_id)) {
-			gpio_id = s_gpio_lowpower_keep_config[index].gpio_id;
+		gpio_id = s_gpio_lowpower_keep_config[index].gpio_id;
+		if (gpio_id >= SOC_GPIO_NUM)
+		{
+			continue;
+		}
+
+		if(s_gpio_is_lowpower_keep_status[gpio_id >> 6] & ((uint64_t)1 << (gpio_id & 63))) {
 			config.io_mode = s_gpio_lowpower_keep_config[index].config.io_mode;
 			config.pull_mode = s_gpio_lowpower_keep_config[index].config.pull_mode;
 			config.func_mode = s_gpio_lowpower_keep_config[index].config.func_mode;
@@ -1276,7 +1467,7 @@ bk_err_t bk_gpio_register_lowpower_keep_status(gpio_id_t gpio_id,
 			s_gpio_lowpower_keep_config[i].config.io_mode = config->io_mode;
 			s_gpio_lowpower_keep_config[i].config.pull_mode = config->pull_mode;
 			s_gpio_lowpower_keep_config[i].config.func_mode = config->func_mode;
-			s_gpio_is_lowpower_keep_status |= ((uint64_t)1 << gpio_id);
+			s_gpio_is_lowpower_keep_status[gpio_id >> 6] |= ((uint64_t)1 << (gpio_id & 63));
 
 			GPIO_LOGV("gpio=%d io_mode=%d pull_mode=%d func_mode=%d\r\n",
 				gpio_id, config->io_mode, config->pull_mode, config->func_mode);
@@ -1292,7 +1483,7 @@ bk_err_t bk_gpio_register_lowpower_keep_status(gpio_id_t gpio_id,
 			s_gpio_lowpower_keep_config[i].config.io_mode = config->io_mode;
 			s_gpio_lowpower_keep_config[i].config.pull_mode = config->pull_mode;
 			s_gpio_lowpower_keep_config[i].config.func_mode = config->func_mode;
-			s_gpio_is_lowpower_keep_status |= ((uint64_t)1 << gpio_id);
+			s_gpio_is_lowpower_keep_status[gpio_id >> 6] |= ((uint64_t)1 << (gpio_id & 63));
 
 			GPIO_LOGD("gpio=%d io_mode=%d pull_mode=%d func_mode=%d\r\n",
 				gpio_id, config->io_mode, config->pull_mode, config->func_mode);
@@ -1323,7 +1514,7 @@ bk_err_t bk_gpio_unregister_lowpower_keep_status(gpio_id_t gpio_id)
 	{
 		if(s_gpio_lowpower_keep_config[i].gpio_id == gpio_id) {
 			s_gpio_lowpower_keep_config[i].gpio_id = GPIO_LOWPOWER_KEEP_STATUS_IDLE_ID;
-			s_gpio_is_lowpower_keep_status &= ~(((uint64_t)1 << gpio_id));
+			s_gpio_is_lowpower_keep_status[gpio_id >> 6] &= ~((uint64_t)1 << (gpio_id & 63));
 			bk_gpio_set_config(gpio_id, &config);
 			s_gpio_lowpower_keep_config[i].config.io_mode = config.io_mode;
 			s_gpio_lowpower_keep_config[i].config.pull_mode = config.pull_mode;
