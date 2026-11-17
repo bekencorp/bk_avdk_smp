@@ -222,6 +222,32 @@ bk_err_t bk_otp_apb_read_by_offset(uint32_t item_offset, uint8_t* buf, uint32_t 
  */
 bk_err_t bk_otp_ahb_read_by_offset(uint32_t item_offset, uint8_t* buf, uint32_t size);
 
+/**
+ * @brief     OTP2 write with item real offset (update semantics)
+ *
+ * @param item_offset the real byte offset to write to otp2
+ * @param buf point to the buffer that contains the data to write
+ * @param size length of data to write
+ *
+ * @attention 1. OTP bit can only be programmed from 0 to 1. If the target
+ *               needs a 1->0 change, nothing is written and
+ *               BK_ERR_OTP_UPDATE_NOT_EQUAL is returned.
+ * @attention 2. item_offset + size must stay within the OTP2 bank (0x0--0xC00).
+ * @attention 3. this API does not check the per-item permission; the caller
+ *               must ensure the target region is writable.
+ * @note      This is an absolute-address (raw offset) access: item_offset is a
+ *            byte offset inside the OTP2 bank, not an item ID, so it bypasses
+ *            the OTP item map and the per-item permission check. It is for
+ *            Beken internal use only, not for customer applications.
+ *
+ * @return
+ *    - BK_OK: succeed
+ *    - BK_ERR_OTP_ADDR_OUT_OF_RANGE: buf is NULL, size is 0, or range out of bank
+ *    - BK_ERR_OTP_UPDATE_NOT_EQUAL: bit needs 1->0, or readback mismatch
+ *    - others: other errors.
+ */
+bk_err_t bk_otp_ahb_write_by_offset(uint32_t item_offset, uint8_t* buf, uint32_t size);
+
 #ifdef __cplusplus
 }
 #endif
