@@ -17,11 +17,6 @@
 #include <stdint.h>
 #include <common/bk_include.h>
 #include <components/bk_platform.h>
-#if CONFIG_OTP_V1
-#include <common/bk_err.h>
-/* Declared in driver/otp.h, which pulls in the build-generated _otp.h. */
-extern bk_err_t bk_otp_read_random_number(uint32_t *value, uint32_t size);
-#endif
 
 /*
  * Real libc rand(), exposed by the linker option -Wl,--wrap=rand.
@@ -30,51 +25,16 @@ extern bk_err_t bk_otp_read_random_number(uint32_t *value, uint32_t size);
  */
 extern int __real_rand(void);
 
-#if CONFIG_OTP_V1
 /*
- * Hardware entropy for the weak default path: the OTP random number register.
- * This keeps bk_rand()/bk_fill_rand() backed by a hardware source even when
- * the SDK PSA stack (and its TE200 strong overrides) is not built, e.g. when
- * a customer brings its own PSA implementation.
- */
-static int bk_rand_otp_fill(uint8_t *p, size_t len)
-{
-	size_t i = 0;
-
-	while (i < len) {
-		uint32_t number = 0;
-		size_t n = 0;
-
-		if (bk_otp_read_random_number(&number, 1) != BK_OK) {
-			break;
-		}
-
-		while (n < sizeof(number) && i < len) {
-			p[i++] = (number >> (8 * n)) & 0xff;
-			n++;
-		}
-	}
-
-	return (i == len) ? 0 : -1;
-}
-#endif
-
-/*
- * Default RNG. Overridden by strong symbols in psa_mbedtls platform.c when
- * CONFIG_PSA_MBEDTLS is enabled (TE200 via bk_rng_get).
- * Hardware entropy is used when available (OTP with CONFIG_OTP_V1); libc
- * rand() is only the last-resort fallback.
+ * Default software RNG. Overridden by strong symbols in psa_mbedtls
+ * platform.c when CONFIG_PSA_MBEDTLS is enabled.
+ * The libc PRNG is seeded once at boot by random_init() with OTP entropy;
+ * the OTP/TRNG hardware must not be touched per call here, because bk_rand()
+ * sits in hot paths (lwIP DNS/DHCP, P2P, --wrap'ed rand()) and the OTP driver
+ * keeps global power/map state without locking (SMP hazard).
  */
 __attribute__((weak)) int bk_rand(void)
 {
-#if CONFIG_OTP_V1
-	uint32_t number = 0;
-
-	if (bk_otp_read_random_number(&number, 1) == BK_OK) {
-		return (number & RAND_MAX);
-	}
-#endif
-
 	return (__real_rand() & RAND_MAX);
 }
 
@@ -85,12 +45,6 @@ __attribute__((weak)) int bk_fill_rand(void *buff, size_t len)
 	if (buff == NULL || len == 0) {
 		return -1;
 	}
-
-#if CONFIG_OTP_V1
-	if (bk_rand_otp_fill(p, len) == 0) {
-		return 0;
-	}
-#endif
 
 	for (size_t i = 0; i < len; i++) {
 		p[i] = (__real_rand() & 0xff);
