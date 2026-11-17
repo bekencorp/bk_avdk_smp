@@ -20,6 +20,10 @@ typedef struct vcdec_jpeg_decode_config_t {
 	uint16_t out_width;
 	uint16_t out_height;
 	vcdec_pp_out_format_e out_format;
+	uint16_t crop_x;
+	uint16_t crop_y;
+	uint16_t crop_width;
+	uint16_t crop_height;
 	uint16_t segment_height;
 	uint8_t  segment_number;
 } vcdec_jpeg_decode_config_t;

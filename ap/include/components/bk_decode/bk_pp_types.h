@@ -60,12 +60,12 @@ typedef struct bk_pp_ctlr_t *bk_pp_ctlr_handle_t;
 
 typedef struct bk_pp_ctlr_t bk_pp_ctlr_t;
 struct bk_pp_ctlr_t {
-	avdk_err_t (*init)(bk_pp_ctlr_t *controller);
-	avdk_err_t (*open)(bk_pp_ctlr_t *controller);
-	avdk_err_t (*process)(bk_pp_ctlr_t *controller, const bk_pp_process_req_t *req);
-	avdk_err_t (*close)(bk_pp_ctlr_t *controller);
-	avdk_err_t (*deinit)(bk_pp_ctlr_t *controller);
-	avdk_err_t (*del)(bk_pp_ctlr_t *controller);
+	avdk_err_t (*init)(bk_pp_ctlr_t *controller);                         /* initialize PP resources */
+	avdk_err_t (*open)(bk_pp_ctlr_t *controller);                         /* open PP hardware/session */
+	avdk_err_t (*process)(bk_pp_ctlr_t *controller, const bk_pp_process_req_t *req); /* process one PP request */
+	avdk_err_t (*close)(bk_pp_ctlr_t *controller);                        /* close PP hardware/session */
+	avdk_err_t (*deinit)(bk_pp_ctlr_t *controller);                       /* release PP resources */
+	avdk_err_t (*del)(bk_pp_ctlr_t *controller);                          /* delete controller object */
 };
 
 #define DEFAULT_PP_CONFIG { \

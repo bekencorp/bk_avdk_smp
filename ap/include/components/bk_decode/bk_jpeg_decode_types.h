@@ -27,12 +27,13 @@ typedef void (*bk_jpeg_decode_frame_done_cb)(int status, void *args);
 typedef void (*bk_jpeg_decode_flexa_done_cb)(uint32_t wr_ptr, void *args);
 
 typedef enum {
-    BK_JPEG_DECODE_IOCTL_GET_INFO,                    /*!< Get image info see bk_jpeg_decode_img_info_t*/    
+    BK_JPEG_DECODE_IOCTL_GET_INFO,                    /*!< Get image info see bk_jpeg_decode_img_info_t*/
     BK_JPEG_DECODE_IOCTL_ABORT,                       /*!< Abort decode */
     BK_JPEG_DECODE_IOCTL_PORT_SET_RD_PTR,             /*!< Set read pointer see bk_jpeg_decode_port_rd_t*/
     BK_JPEG_DECODE_IOCTL_REGISTER_BOND,               /*!< Register bond should be ptr for the bond*/
     BK_JPEG_DECODE_IOCTL_UNREGISTER_BOND,             /*!< Unregister bond should be ptr for the bond*/
     BK_JPEG_DECODE_IOCTL_FLEXA_NOTIFY_PORT_DONE,      /*!< Notify port done should be ptr for the port*/
+    BK_JPEG_DECODE_IOCTL_SET_PP,                      /*!< Set PP scale/crop see bk_jpeg_decode_pp_config_t */
 } bk_jpeg_decode_ioctl_cmd_t;
 
 #define BK_JPEG_DECODE_RD_PORT_MAX (2U)
@@ -61,8 +62,8 @@ typedef enum {
 
 typedef struct {
     uint32_t timeout_ms;                                /*!< timeout in milliseconds */
-    uint16_t out_width;                                 /*!< output width */
-    uint16_t out_height;                                /*!< output height */
+    uint16_t out_width;                                 /*!< default output width (overridden by SET_PP) */
+    uint16_t out_height;                                /*!< default output height (overridden by SET_PP) */
     uint32_t out_format;                                /*!< output format */
     bk_jpeg_decode_frame_done_cb frame_done_cb;         /*!< frame done callback */
     void *frame_done_args;                              /*!< frame done arguments */
@@ -70,8 +71,8 @@ typedef struct {
 
 typedef struct {
     uint32_t timeout_ms;                                /*!< timeout in milliseconds */
-    uint16_t out_width;                                 /*!< output width */
-    uint16_t out_height;                                /*!< output height */
+    uint16_t out_width;                                 /*!< default output width (overridden by SET_PP) */
+    uint16_t out_height;                                /*!< default output height (overridden by SET_PP) */
     uint32_t out_format;                                /*!< output format */
     uint16_t segment_height;                            /*!< segment height */
     uint8_t segment_number;                             /*!< segment number */
@@ -80,6 +81,16 @@ typedef struct {
     bk_jpeg_decode_flexa_done_cb flexa_done_cb;         /*!< flexa done callback */
     void *flexa_done_args;                              /*!< flexa done arguments */
 } bk_jpeg_decode_flexa_config_t;
+
+/** PP scale/crop configuration (SET_PP, frame and Flexa modes). */
+typedef struct {
+    uint16_t out_width;                                 /*!< output width (0 -> cropped/source width) */
+    uint16_t out_height;                                /*!< output height (0 -> cropped/source height) */
+    uint16_t crop_x;                                    /*!< crop origin X in pixels (MB-aligned, 0 default) */
+    uint16_t crop_y;                                    /*!< crop origin Y in pixels (MB-aligned, 0 default) */
+    uint16_t crop_width;                                /*!< crop width (0 -> full source width) */
+    uint16_t crop_height;                               /*!< crop height (0 -> full source height) */
+} bk_jpeg_decode_pp_config_t;
 
 typedef struct {
     uint8_t *stream;                                    /*!< input stream */
@@ -112,13 +123,13 @@ typedef struct bk_jpeg_decode_ctlr_t *bk_jpeg_decode_ctlr_handle_t;
 
 typedef struct bk_jpeg_decode_ctlr_t bk_jpeg_decode_ctlr_t;
 struct bk_jpeg_decode_ctlr_t {
-    avdk_err_t (*init)(bk_jpeg_decode_ctlr_t *controller);
-    avdk_err_t (*open)(bk_jpeg_decode_ctlr_t *controller);
-    avdk_err_t (*decode_frame)(bk_jpeg_decode_ctlr_t *controller, bk_jpeg_decode_input_t *input);
-    avdk_err_t (*close)(bk_jpeg_decode_ctlr_t *controller);
-    avdk_err_t (*deinit)(bk_jpeg_decode_ctlr_t *controller);
-    avdk_err_t (*ioctl)(bk_jpeg_decode_ctlr_t *controller, uint32_t cmd, void *arg);
-    avdk_err_t (*del)(bk_jpeg_decode_ctlr_t *controller);
+    avdk_err_t (*init)(bk_jpeg_decode_ctlr_t *controller);                              /*!< initialize decoder resources */
+    avdk_err_t (*open)(bk_jpeg_decode_ctlr_t *controller);                              /*!< open decoder hardware/session */
+    avdk_err_t (*decode_frame)(bk_jpeg_decode_ctlr_t *controller, bk_jpeg_decode_input_t *input); /*!< decode one JPEG image */
+    avdk_err_t (*close)(bk_jpeg_decode_ctlr_t *controller);                             /*!< close decoder hardware/session */
+    avdk_err_t (*deinit)(bk_jpeg_decode_ctlr_t *controller);                            /*!< release decoder resources */
+    avdk_err_t (*ioctl)(bk_jpeg_decode_ctlr_t *controller, uint32_t cmd, void *arg);     /*!< control command entry */
+    avdk_err_t (*del)(bk_jpeg_decode_ctlr_t *controller);                               /*!< delete controller object */
 };
 
 #define DEFAULT_JPEG_DECODE_FLEXA_CONFIG {    \

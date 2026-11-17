@@ -49,40 +49,40 @@ typedef enum {
 } bk_h264_decode_rd_port_id_t;
 
 typedef struct {
-	void *port_ptr;
-	uint32_t rd_blocks;
+	void *port_ptr;     /* registered Flexa bond port pointer */
+	uint32_t rd_blocks; /* read block count reported by this port */
 } bk_h264_decode_port_rd_t;
 
 typedef struct {
-	uint32_t enable;
-	int32_t originX;
-	int32_t originY;
-	uint32_t height;
-	uint32_t width;
-	uint32_t alphaBlendEna;
-	uint8_t *blendComponentBase;
-	int32_t blendOriginX;
-	int32_t blendOriginY;
-	uint32_t blendWidth;
-	uint32_t blendHeight;
+	uint32_t enable;             /* enable this OSD region, 0/1 */
+	int32_t originX;             /* OSD left coordinate in pixels */
+	int32_t originY;             /* OSD top coordinate in pixels */
+	uint32_t height;             /* OSD height in pixels */
+	uint32_t width;              /* OSD width in pixels */
+	uint32_t alphaBlendEna;      /* enable alpha blending, 0/1 */
+	uint8_t *blendComponentBase; /* OSD pixel buffer base */
+	int32_t blendOriginX;        /* blend window left coordinate in pixels */
+	int32_t blendOriginY;        /* blend window top coordinate in pixels */
+	uint32_t blendWidth;         /* blend window width in pixels */
+	uint32_t blendHeight;        /* blend window height in pixels */
 } bk_h264_decode_osd_config_t;
 
 typedef void (*bk_h264_decode_osd_update_cb)(bk_h264_decode_osd_config_t *osd);
 
 typedef struct {
-	bk_h264_decode_osd_config_t osd[2];
-	bk_h264_decode_osd_update_cb osd_update_cb;
+	bk_h264_decode_osd_config_t osd[2];       /* OSD region configs */
+	bk_h264_decode_osd_update_cb osd_update_cb; /* optional OSD update callback */
 } bk_h264_decode_osd_t;
 
 typedef struct {
-	uint32_t timeout_ms;
-	uint16_t out_width;
-	uint16_t out_height;
-	uint32_t out_format;
-	bk_h264_decode_osd_config_t osd[2];
-	bk_h264_decode_osd_update_cb osd_update_cb;
-	bk_h264_decode_frame_done_cb frame_done_cb;
-	void *frame_done_args;
+	uint32_t timeout_ms;                       /* decode timeout in milliseconds */
+	uint16_t out_width;                        /* output width in pixels */
+	uint16_t out_height;                       /* output height in pixels */
+	uint32_t out_format;                       /* output pixel format */
+	bk_h264_decode_osd_config_t osd[2];        /* initial OSD region configs */
+	bk_h264_decode_osd_update_cb osd_update_cb; /* optional OSD update callback */
+	bk_h264_decode_frame_done_cb frame_done_cb; /* frame done callback */
+	void *frame_done_args;                     /* user context passed to frame_done_cb */
 } bk_h264_decode_frame_config_t;
 
 /*
@@ -92,35 +92,35 @@ typedef struct {
  * (bk_h264_decode_frame_ctlr_new / bk_h264_decode_frame_config_t).
  */
 typedef struct {
-	uint32_t timeout_ms;
-	uint16_t out_width;
-	uint16_t out_height;
-	uint32_t out_format;
-	bk_h264_decode_frame_done_cb frame_done_cb;
-	void *frame_done_args;
+	uint32_t timeout_ms;                       /* decode timeout in milliseconds */
+	uint16_t out_width;                        /* output width in pixels */
+	uint16_t out_height;                       /* output height in pixels */
+	uint32_t out_format;                       /* output pixel format */
+	bk_h264_decode_frame_done_cb frame_done_cb; /* frame done callback */
+	void *frame_done_args;                     /* user context passed to frame_done_cb */
 	/*
 	 * Number of extra display slots the application may hold concurrently on top
 	 * of the codec DPB. Range 1..4; 0 selects the controller default (1).
 	 */
-	uint16_t disp_depth;
+	uint16_t disp_depth;                      /* extra display slots; 0 = default, otherwise 1..4 */
 } bk_h264_decode_frame_zerocopy_config_t;
 
 typedef struct {
-	uint32_t timeout_ms;
-	uint16_t out_width;
-	uint16_t out_height;
-	uint32_t out_format;
-	uint16_t segment_height;
-	uint8_t segment_number;
-	bk_h264_decode_frame_done_cb frame_done_cb;
-	void *frame_done_args;
-	bk_h264_decode_flexa_done_cb flexa_done_cb;
-	void *flexa_done_args;
+	uint32_t timeout_ms;                       /* decode timeout in milliseconds */
+	uint16_t out_width;                        /* output width in pixels */
+	uint16_t out_height;                       /* output height in pixels */
+	uint32_t out_format;                       /* output pixel format */
+	uint16_t segment_height;                   /* Flexa segment height in macroblocks */
+	uint8_t segment_number;                    /* number of Flexa ring segments */
+	bk_h264_decode_frame_done_cb frame_done_cb; /* frame done callback */
+	void *frame_done_args;                     /* user context passed to frame_done_cb */
+	bk_h264_decode_flexa_done_cb flexa_done_cb; /* Flexa line done callback */
+	void *flexa_done_args;                     /* user context passed to flexa_done_cb */
 } bk_h264_decode_flexa_config_t;
 
 typedef struct {
-	uint8_t *stream;
-	uint32_t stream_len;
+	uint8_t *stream;          /* input bitstream buffer */
+	uint32_t stream_len;      /* input bitstream length in bytes */
 	uint8_t *out_buffer;      /* ignored by the zero-copy frame-pool controller */
 	uint32_t out_buffer_size; /* ignored by the zero-copy frame-pool controller */
 } bk_h264_decode_input_t;
@@ -156,13 +156,13 @@ typedef struct bk_h264_decode_ctlr_t *bk_h264_decode_ctlr_handle_t;
 
 typedef struct bk_h264_decode_ctlr_t bk_h264_decode_ctlr_t;
 struct bk_h264_decode_ctlr_t {
-	avdk_err_t (*init)(bk_h264_decode_ctlr_t *controller);
-	avdk_err_t (*open)(bk_h264_decode_ctlr_t *controller);
-	avdk_err_t (*decode_frame)(bk_h264_decode_ctlr_t *controller, bk_h264_decode_input_t *input);
-	avdk_err_t (*close)(bk_h264_decode_ctlr_t *controller);
-	avdk_err_t (*deinit)(bk_h264_decode_ctlr_t *controller);
-	avdk_err_t (*ioctl)(bk_h264_decode_ctlr_t *controller, uint32_t cmd, void *arg);
-	avdk_err_t (*del)(bk_h264_decode_ctlr_t *controller);
+	avdk_err_t (*init)(bk_h264_decode_ctlr_t *controller); /* initialize decoder resources */
+	avdk_err_t (*open)(bk_h264_decode_ctlr_t *controller); /* open decoder hardware/session */
+	avdk_err_t (*decode_frame)(bk_h264_decode_ctlr_t *controller, bk_h264_decode_input_t *input); /* decode one access unit */
+	avdk_err_t (*close)(bk_h264_decode_ctlr_t *controller); /* close decoder hardware/session */
+	avdk_err_t (*deinit)(bk_h264_decode_ctlr_t *controller); /* release decoder resources */
+	avdk_err_t (*ioctl)(bk_h264_decode_ctlr_t *controller, uint32_t cmd, void *arg); /* control command entry */
+	avdk_err_t (*del)(bk_h264_decode_ctlr_t *controller); /* delete controller object */
 };
 
 #define DEFAULT_H264_DECODE_FLEXA_CONFIG { \
