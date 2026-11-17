@@ -97,10 +97,23 @@ bk_err_t pm_cp1_mailbox_send_data(uint32_t cmd, uint32_t param1,uint32_t param2,
 
 
 /*================FUNCTION DECLARATION  SECTION  END========*/
+static volatile bool s_pm_mailbox_ready = false;
+
+/*
+ * Some early boot users (for example the OTP driver reading entropy for
+ * srand()) run before the PM mailbox exists. They must not enqueue a CP request
+ * that can never be answered, so they query this flag first.
+ */
+bool bk_pm_mailbox_is_ready(void)
+{
+	return s_pm_mailbox_ready;
+}
+
 bk_err_t bk_pm_mailbox_init()
 {
 #if CONFIG_MAILBOX
 	pm_cp1_mailbox_init();
+	s_pm_mailbox_ready = true;
 #endif
 
 	return BK_OK;

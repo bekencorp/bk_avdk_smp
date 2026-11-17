@@ -475,6 +475,10 @@ bk_err_t bk_pm_module_vote_cp_power_ctrl(pm_power_module_name_e module, pm_power
 	if(!bk_pm_cp1_pwr_ctrl_state_get())
 	{
 	    BK_LOGD(NULL, "cp1 power_C:%d time out\r\n",module);
+	    /* The CP never acknowledged the vote: the power domain may still be
+	     * off. Report the failure so callers (e.g. OTP) do not touch hardware
+	     * that is not powered and hang the AP bus. */
+	    return BK_FAIL;
 	}
 
 #endif

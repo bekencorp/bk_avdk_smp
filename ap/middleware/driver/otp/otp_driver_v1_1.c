@@ -14,6 +14,11 @@
 #include <common/bk_include.h>
 #include <driver/otp_types.h>
 #include <os/mem.h>
+#include <os/os.h>
+#include "hspl/hspl_res_lock.h"
+#if CONFIG_SYS_SW_REGS
+#include "sys_sw_regs.h"
+#endif
 #include "otp_driver.h"
 #include "otp_hal.h"
 #include "_otp.c"
@@ -33,6 +38,22 @@ typedef struct {
 
 static otp_driver_t s_otp = {0};
 static bool s_otp_driver_is_init = false;
+/*
+ * The driver keeps global state (otp_map, s_otp.hal) and drives one shared OTP
+ * controller. Both AP cores may call bk_rand() concurrently, so a whole
+ * OTP_ACTIVE/OTP_SLEEP transaction is serialized by this mutex.
+ */
+static beken_mutex_t s_otp_mutex = NULL;
+/* 0: not created, 1: creation in progress, 2: usable. */
+static volatile int s_otp_mutex_state = 0;
+static bool s_otp_is_powered = false;
+/*
+ * The SSPL lock keeps a per-core recursion count, so the lock and the unlock
+ * must run on the same core. Interrupts stay disabled across the section to
+ * prevent the task from migrating; the saved state is kept per local core.
+ */
+#define OTP_LOCAL_CORE_NUM 2
+static uint32_t s_otp_irq_flags[OTP_LOCAL_CORE_NUM];
 
 static void bk_otp_init(otp_hal_t *hal)
 {
@@ -52,7 +73,14 @@ static void otp_sleep()
 #if CONFIG_ATE_TEST
 	return ;
 #endif
-	//otp_hal_power_off(&s_otp.hal);
+	if (!s_otp_is_powered) {
+		return ;
+	}
+
+	s_otp_is_powered = false;
+	/* Runs under the FUSE HSPL lock: the clock gate and standby bits are
+	 * shared with the CP. */
+	otp_ll_hw_sleep(s_otp.hal.hw);
 }
 
 static int otp_active()
@@ -61,7 +89,45 @@ static int otp_active()
 #if CONFIG_ATE_TEST
 	return 0;
 #endif
-	return otp_hal_power_on(&s_otp.hal);
+	if (!s_otp_is_powered) {
+		if (otp_ll_hw_active(s_otp.hal.hw) != 0) {
+			/* otp_ll_hw_active already enabled the clock gate, so tear it
+			 * down here: otp_sleep() will skip it because the flag is unset. */
+			otp_ll_hw_sleep(s_otp.hal.hw);
+			return -1;
+		}
+		s_otp_is_powered = true;
+	}
+	return 0;
+}
+
+/*
+ * Create the mutex once, after scheduler is up. The atomic state machine
+ * keeps both cores from initializing it twice.
+ */
+static int otp_mutex_ready(void)
+{
+	int expected = 0;
+
+	if (__atomic_load_n(&s_otp_mutex_state, __ATOMIC_ACQUIRE) == 2) {
+		return 0;
+	}
+
+	if (__atomic_compare_exchange_n(&s_otp_mutex_state, &expected, 1, false,
+	                                __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE)) {
+		if (rtos_init_mutex(&s_otp_mutex) != kNoErr) {
+			s_otp_mutex = NULL;
+			__atomic_store_n(&s_otp_mutex_state, 0, __ATOMIC_RELEASE);
+			return -1;
+		}
+		__atomic_store_n(&s_otp_mutex_state, 2, __ATOMIC_RELEASE);
+		return 0;
+	}
+
+	/* Another core is initializing, wait for it to finish. */
+	while (__atomic_load_n(&s_otp_mutex_state, __ATOMIC_ACQUIRE) == 1) {
+	}
+	return (__atomic_load_n(&s_otp_mutex_state, __ATOMIC_ACQUIRE) == 2) ? 0 : -1;
 }
 
 static int switch_map(uint8_t map_id)
@@ -80,16 +146,279 @@ static int switch_map(uint8_t map_id)
 	return 0;
 }
 
+/*
+ * OTP APB power holder count.
+ *
+ * bk_pm records the vote as a per-domain sub-module bit, not as a per-user
+ * reference count, so an OFF vote from AP and an OFF vote from CP would power
+ * the domain off under each other's feet. This keeps a holder count for both
+ * sides in the shared window: every holder votes ON (set-only, idempotent)
+ * before it enters a transaction and only the holder that drops the count to
+ * zero votes OFF. TURNING_OFF closes the window between "count reached zero"
+ * and "power-off completed".
+ *
+ * The vote waits for a CP response (up to 100ms), so it must run before the
+ * FUSE spin lock is taken and interrupts are disabled.
+ */
+#if CONFIG_SYS_SW_REGS
+#define OTP_PWR_WORD()        (&bk_sys_sw_regs_ptr()->otp_apb_pwr_hold)
+#else
+static volatile uint32_t s_otp_pwr_word_local;
+#define OTP_PWR_WORD()        (&s_otp_pwr_word_local)
+/* Keep in sync with sys_sw_regs_layout.h */
+#define BK_SWR_OTP_PWR_CNT_CP_MASK   (0x000000FFU)
+#define BK_SWR_OTP_PWR_CNT_AP_MASK   (0x0000FF00U)
+#define BK_SWR_OTP_PWR_CNT_ALL_MASK  (BK_SWR_OTP_PWR_CNT_CP_MASK | BK_SWR_OTP_PWR_CNT_AP_MASK)
+#define BK_SWR_OTP_PWR_TURNING_OFF   (0x00010000U)
+#define BK_SWR_OTP_PWR_TE200_HOLD    (0x00020000U)
+#define BK_SWR_OTP_PWR_TE200_CP_HOLD (0x00040000U)
+#endif
+
+#define OTP_PWR_MY_ONE        (1U << 8)                     /* AP count lives in [15:8] */
+#define OTP_PWR_MY_MASK       (BK_SWR_OTP_PWR_CNT_AP_MASK)
+/* TE200 keeps its own permanent reference; it must not be folded into the AP
+ * holder count, otherwise a transient AP transaction would be mistaken for a
+ * permanent hold. */
+#define OTP_PWR_TE200_HOLD    (BK_SWR_OTP_PWR_TE200_HOLD)
+/* The CP's TE200 keeps its own, separate reference; honor it when deciding
+ * whether the domain may be powered off. */
+#define OTP_PWR_TE200_ANY     (BK_SWR_OTP_PWR_TE200_HOLD | BK_SWR_OTP_PWR_TE200_CP_HOLD)
+#define OTP_PWR_WAIT_US       (20U)
+#define OTP_PWR_WAIT_MAX_US   (300U * 1000U)                /* > 100ms vote timeout, only for reset leftovers */
+/*
+ * The peer may legitimately hold FUSE for one long ATE/PUF command, whose busy
+ * bound is OTP_LONG_BUSY_TIMEOUT_US (100 ms). A 20 ms budget made concurrent
+ * OTP access on the other core fail with "FUSE lock timeout" under load, so
+ * allow the whole long-command window plus margin before giving up.
+ */
+#define OTP_FUSE_LOCK_TIMEOUT_MS  (150U)
+
+/*
+ * The shared window sits in a NOLOAD section that no boot clears, so drop the
+ * stale count this side may hold from the previous image/boot before the first
+ * increment. On AP the caller holds s_otp_mutex, so only one thread can run
+ * this; on CP the first OTP access happens before the scheduler starts.
+ */
+static void otp_power_side_reset_once(void)
+{
+	static volatile int s_done = 0;
+
+	if (__atomic_exchange_n(&s_done, 1, __ATOMIC_ACQ_REL) != 0)
+		return;
+
+	/*
+	 * The shared window is NOLOAD and survives a warm reset, so drop the stale
+	 * AP count from the previous image before the first increment. The count is
+	 * only used inside a transaction, and the caller holds s_otp_mutex, so
+	 * dropping it here is always safe.
+	 *
+	 * The TE200 hold bit is owned by this side too: it is cleared only while
+	 * dubhe has not claimed it yet (TE200 is not built, or its init has not run
+	 * in this image). Once dubhe is up it is a live reference and must be kept,
+	 * otherwise the CP could power the OTP APB off under a running TE200 OTP
+	 * access. The CP never clears this bit, and this side never clears the CP's
+	 * own TE200 bit (bit18), which may be a live reference from the CP image.
+	 */
+	uint32_t clear = OTP_PWR_MY_MASK;
+
+#if CONFIG_MBEDTLS_ACCELERATOR || CONFIG_TRUSTENGINE
+	if (!dubhe_inited)
+#endif
+		clear |= OTP_PWR_TE200_HOLD;
+
+	__atomic_and_fetch(OTP_PWR_WORD(), ~clear, __ATOMIC_ACQ_REL);
+}
+
+static int otp_power_hold(void)
+{
+	volatile uint32_t *word = OTP_PWR_WORD();
+	uint32_t w, waited = 0;
+
+	otp_power_side_reset_once();
+
+	for (;;) {
+		w = __atomic_load_n(word, __ATOMIC_ACQUIRE);
+		if ((w & BK_SWR_OTP_PWR_TURNING_OFF) == 0) {
+			if ((w & OTP_PWR_MY_MASK) == OTP_PWR_MY_MASK) {
+				OTP_LOGE("otp pwr: local hold overflow\r\n");
+				return -1;
+			}
+			if (__atomic_compare_exchange_n(word, &w, w + OTP_PWR_MY_ONE, false,
+			                                __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE))
+				break;
+			continue;
+		}
+		if (waited >= OTP_PWR_WAIT_MAX_US) {
+			/* The previous holder reset in the middle of its OFF vote,
+			 * clear the leftover state and retry. */
+			OTP_LOGE("otp pwr: stale off state 0x%x, recover\r\n", w);
+			__atomic_and_fetch(word, ~BK_SWR_OTP_PWR_TURNING_OFF, __ATOMIC_ACQ_REL);
+			waited = 0;
+			continue;
+		}
+		bk_delay_us(OTP_PWR_WAIT_US);
+		waited += OTP_PWR_WAIT_US;
+	}
+
+	/*
+	 * Always vote ON: ON only sets the bit and does not count, so a repeated
+	 * vote is harmless. This way a count polluted by an abnormal reset can
+	 * never lead to "touching unpowered hardware without having voted".
+	 */
+	if (otp_ll_power_on(s_otp.hal.hw) != 0) {
+		(void)__atomic_sub_fetch(word, OTP_PWR_MY_ONE, __ATOMIC_ACQ_REL);
+		return -1;
+	}
+	return 0;
+}
+
+static void otp_power_release(void)
+{
+	volatile uint32_t *word = OTP_PWR_WORD();
+	uint32_t w, waited = 0;
+
+	for (;;) {
+		w = __atomic_load_n(word, __ATOMIC_ACQUIRE);
+		if ((w & OTP_PWR_MY_MASK) == 0) {
+			OTP_LOGE("otp pwr: unbalanced release\r\n");
+			return;
+		}
+		if (w & BK_SWR_OTP_PWR_TURNING_OFF) {
+			/* Can only come from a reset leftover */
+			if (waited >= OTP_PWR_WAIT_MAX_US) {
+				__atomic_and_fetch(word, ~BK_SWR_OTP_PWR_TURNING_OFF, __ATOMIC_ACQ_REL);
+				waited = 0;
+				continue;
+			}
+			bk_delay_us(OTP_PWR_WAIT_US);
+			waited += OTP_PWR_WAIT_US;
+			continue;
+		}
+		if (((w & BK_SWR_OTP_PWR_CNT_ALL_MASK) != OTP_PWR_MY_ONE) ||
+		    ((w & OTP_PWR_TE200_ANY) != 0)) {
+			/* This side still has nested holders, the other side holds, or
+			 * a TE200 (AP or CP) keeps its permanent reference. */
+			if (__atomic_compare_exchange_n(word, &w, w - OTP_PWR_MY_ONE, false,
+			                                __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE))
+				return;
+			continue;
+		}
+		/* Last holder in the system: set TURNING_OFF to block new holders,
+		 * then power off. */
+		if (__atomic_compare_exchange_n(word, &w, BK_SWR_OTP_PWR_TURNING_OFF, false,
+		                                __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE))
+			break;
+	}
+
+	otp_ll_power_off(s_otp.hal.hw);
+	/* Drop the word only if it is still the TURNING_OFF state set above. A
+	 * holder that timed out on it clears the bit and increments its own count;
+	 * an unconditional store would wipe that reference, letting the next
+	 * holder power the domain off under it. */
+	w = BK_SWR_OTP_PWR_TURNING_OFF;
+	if (!__atomic_compare_exchange_n(word, &w, 0, false,
+	                                 __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE)) {
+		/* Someone took a reference while we were powering off: vote the
+		 * domain back on for it. On failure it may touch an unpowered block,
+		 * so this must not stay silent. */
+		if (otp_ll_power_on(s_otp.hal.hw) != 0) {
+			OTP_LOGE("otp pwr: re-vote on failed, pwr=0x%x\r\n", w);
+		}
+	}
+}
+
+/*
+ * Take the shared FUSE lock and mask local interrupts in one step, with a
+ * bounded wait. The blocking variant of the same API must not be used here:
+ * the lock and the saved interrupt state have to be taken atomically on the
+ * same core, otherwise a preemption in between lets the unlock run on another
+ * core. The wait runs with interrupts enabled so a stuck peer delays this
+ * access instead of stopping the tick (and the WWDT feed) with interrupts
+ * masked. A peer that reset while holding FUSE therefore makes the access fail
+ * after the timeout instead of hanging this core.
+ */
+static int otp_fuse_lock(void)
+{
+	uint32_t flags = 0;
+	uint32_t waited_ms = 0;
+	bk_err_t ret;
+
+	for (;;) {
+		ret = bk_hspl_res_lock_irqsave(BK_HSPL_RES_FUSE, &flags);
+		if (ret == BK_OK) {
+			s_otp_irq_flags[portGET_CORE_ID()] = flags;
+			return 0;
+		}
+		if (ret != BK_ERR_TIMEOUT || waited_ms >= OTP_FUSE_LOCK_TIMEOUT_MS) {
+			return -1;
+		}
+		bk_delay_us(1000);
+		waited_ms++;
+	}
+}
+
+static int otp_driver_lock(uint8_t map_id)
+{
+	/* OTP power is voted through the PM mailbox, which does not exist during
+	 * early boot; a mutex must not be taken from interrupt context either. */
+	if (!rtos_is_scheduler_started() ||
+	    rtos_is_in_interrupt_context() ||
+	    !bk_pm_mailbox_is_ready()) {
+		return -1;
+	}
+	if (otp_mutex_ready() != 0) {
+		return -1;
+	}
+	if (rtos_lock_mutex(&s_otp_mutex) != kNoErr) {
+		return -1;
+	}
+	/* Blocking part first: the holder count and the PM vote must stay outside
+	 * the FUSE lock and the interrupt-disabled section, otherwise waiting
+	 * for the CP response can deadlock with the CP side holding FUSE. */
+	if (otp_power_hold() != 0) {
+		rtos_unlock_mutex(&s_otp_mutex);
+		return -1;
+	}
+	/* Short register-level critical section, shared with the CP. */
+	if (otp_fuse_lock() != 0) {
+		OTP_LOGE("otp: FUSE lock timeout\r\n");
+		otp_power_release();
+		rtos_unlock_mutex(&s_otp_mutex);
+		return -1;
+	}
+	if (switch_map(map_id) != 0) {
+		bk_hspl_res_unlock(BK_HSPL_RES_FUSE);
+		rtos_enable_int(s_otp_irq_flags[portGET_CORE_ID()]);
+		otp_power_release();
+		rtos_unlock_mutex(&s_otp_mutex);
+		return -1;
+	}
+	return 0;
+}
+
+static void otp_driver_unlock(void)
+{
+	uint32_t core = portGET_CORE_ID();
+
+	otp_map = NULL;
+	/* Release FUSE before re-enabling interrupts: the unlock must run on the
+	 * core that took the lock. */
+	bk_hspl_res_unlock(BK_HSPL_RES_FUSE);
+	rtos_enable_int(s_otp_irq_flags[core]);
+	otp_power_release();
+	rtos_unlock_mutex(&s_otp_mutex);
+}
+
 #define OTP_ACTIVE(map_id) \
 	do { \
-		int ret = switch_map(map_id); \
+		int ret = otp_driver_lock(map_id); \
 		if(ret != 0) { \
 			return ret;\
 		} \
 		ret = otp_active(); \
 		if(ret != 0) { \
 			otp_sleep(); \
-			otp_map = NULL; \
+			otp_driver_unlock(); \
 			return -1;\
 		} \
 	} while(0);
@@ -97,7 +426,7 @@ static int switch_map(uint8_t map_id)
 #define OTP_SLEEP() \
 	do { \
 		otp_sleep(); \
-		otp_map = NULL; \
+		otp_driver_unlock(); \
 	} while(0);
 
 static uint32_t otp_read_otp(uint32_t location)
@@ -562,6 +891,7 @@ bk_err_t bk_otp_apb_update(otp1_id_t item, uint8_t* buf, uint32_t size)
 		otp_write_otp(location, value);
 		check_value = otp_read_otp(location);
 		if (check_value != value) {
+			OTP_SLEEP()
 			return BK_ERR_OTP_UPDATE_NOT_EQUAL;
 		}
 
@@ -716,6 +1046,7 @@ bk_err_t bk_otp_ahb_update(otp2_id_t item, uint8_t* buf, uint32_t size)
 		otp2_write_otp(location, value);
 		check_value = otp2_read_otp(location);
 		if (check_value != value) {
+			OTP_SLEEP()
 			return BK_ERR_OTP_UPDATE_NOT_EQUAL;
 		}
 
@@ -794,8 +1125,12 @@ static bk_err_t bk_otp_check_puf_quality()
 
 static bk_err_t bk_otp_check_puf_health()
 {
-	uint32_t flag = otp_hal_do_puf_health_check(&s_otp.hal);
-	while(flag & OTP_BUSY);
+	uint32_t flag;
+
+	(void)otp_hal_do_puf_health_check(&s_otp.hal);
+	if (otp_check_busy_timeout(s_otp.hal.hw, OTP_LONG_BUSY_TIMEOUT_US) != 0) {
+		return BK_ERR_OTP_OPERATION_ERROR;
+	}
 	flag = otp_hal_read_status(&s_otp.hal);
 	if(flag & OTP_ERROR){
 		OTP_LOGE("health check fail.\r\n");
@@ -861,15 +1196,20 @@ static bk_err_t bk_otp_enable_shuffle_read()
 	if(otp_hal_init(&s_otp.hal) != BK_OK){
 		return BK_ERR_OTP_INIT_FAIL;
 	}
-	while(otp_hal_check_busy(&s_otp.hal));
+	if (otp_check_busy_timeout(s_otp.hal.hw, OTP_LONG_BUSY_TIMEOUT_US) != 0) {
+		return BK_ERR_OTP_OPERATION_ERROR;
+	}
 	return BK_OK;
 }
 
 static bk_err_t bk_otp_enable_shuffle_write()
 {
 	otp_hal_set_flag(&s_otp.hal,0xc2);
-	uint32_t flag = otp_hal_read_status(&s_otp.hal);
-	while(flag & OTP_BUSY);
+	uint32_t flag;
+
+	if (otp_check_busy_timeout(s_otp.hal.hw, OTP_LONG_BUSY_TIMEOUT_US) != 0) {
+		return BK_ERR_OTP_OPERATION_ERROR;
+	}
 	flag = otp_hal_read_status(&s_otp.hal);
 	if(flag & OTP_ERROR){
 		OTP_LOGE("enable shuffle write fail.\r\n");
@@ -891,7 +1231,9 @@ static bk_err_t bk_otp_enable_shuffle_write()
 	if(otp_hal_init(&s_otp.hal) != BK_OK){
 		return BK_ERR_OTP_INIT_FAIL;
 	}
-	while(otp_hal_check_busy(&s_otp.hal));
+	if (otp_check_busy_timeout(s_otp.hal.hw, OTP_LONG_BUSY_TIMEOUT_US) != 0) {
+		return BK_ERR_OTP_OPERATION_ERROR;
+	}
 	return BK_OK;
 }
 
@@ -1021,7 +1363,8 @@ uint32_t bk_otp_fully_flow_test()
 	uint32_t fail_code = 0;
 	/*test mode lck means test has been success*/
 	if(otp_hal_read_tmlck(&s_otp.hal) == 0xF){
-		return BK_OK;
+		ret = BK_OK;
+		goto exit;
 	}
 
 	ret = bk_otp_init_puf();

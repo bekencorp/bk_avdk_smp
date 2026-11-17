@@ -47,6 +47,31 @@ typedef uint32_t sspl_data_t[SSPL_SIZE];
 #define BK_SYS_SW_REGS_CP_FLASH_OP_ERASE 1U /**< CP is erasing flash */
 #define BK_SYS_SW_REGS_CP_FLASH_OP_WRITE 2U /**< CP is programming flash */
 
+/*
+ * OTP APB power holder count, shared by AP and CP (see otp_driver_v1_1.c).
+ *   [7:0]  CP-side holder count
+ *   [15:8] AP-side holder count
+ *   bit16  TURNING_OFF: the last holder is voting the domain off, no new
+ *          holder may pass while this bit is set
+ *   bit17  TE200_HOLD: the AP's TE200 owns a permanent reference while it is
+ *          initialized; the domain must stay powered while this bit is set,
+ *          and only the AP may set or clear it
+ *   bit18  TE200_CP_HOLD: the CP's TE200 owns a permanent reference while it is
+ *          initialized; the domain must stay powered while this bit is set,
+ *          and only the CP may set or clear it. It is a separate bit so that
+ *          an AP reboot clearing its own stale reference cannot drop the CP's
+ *          live one.
+ * Either side increments its own count and votes ON (idempotent) before it
+ * enters an OTP transaction; only the holder that drops its count to zero with
+ * no TE200 hold votes OFF.
+ */
+#define BK_SWR_OTP_PWR_CNT_CP_MASK   (0x000000FFU)
+#define BK_SWR_OTP_PWR_CNT_AP_MASK   (0x0000FF00U)
+#define BK_SWR_OTP_PWR_CNT_ALL_MASK  (BK_SWR_OTP_PWR_CNT_CP_MASK | BK_SWR_OTP_PWR_CNT_AP_MASK)
+#define BK_SWR_OTP_PWR_TURNING_OFF   (0x00010000U)
+#define BK_SWR_OTP_PWR_TE200_HOLD    (0x00020000U)
+#define BK_SWR_OTP_PWR_TE200_CP_HOLD (0x00040000U)
+
 #if CONFIG_AP_EMUBOOT
 #define BK_SYS_SW_REGS_FLASH_INIT_NOT_DONE 0U
 #define BK_SYS_SW_REGS_FLASH_INIT_DONE     1U
@@ -128,10 +153,14 @@ typedef union {
         volatile uint32_t cp_flash_op_seq; /**< Monotonic count of CP flash erase/write starts; compare by delta */
         volatile uint8_t ap_self_dumping; /**< AP is self-dumping after a trap; CP must not reboot it */
         volatile uint8_t ap_wdrv_ipc_ready; /**< AP wdrv IPC callbacks are ready; 0 = CP must wait */
+        /* Explicit padding: makes the hole before the next 32-bit word visible
+         * instead of relying on the compiler's implicit alignment padding. */
+        volatile uint8_t reserved0[2];
+        volatile uint32_t otp_apb_pwr_hold; /**< OTP APB power holder count + flags, shared by AP/CP */
         /* Explicit tail padding: keeps the named struct exactly 1024 bytes so the
          * sizeof() assert below fails if a new member is added without shrinking
          * this array. Shrink it by the size of whatever you add. */
-        volatile uint8_t reserved1[146];
+        volatile uint8_t reserved1[140];
     };
     volatile uint32_t reserved[256]; /**< Reserved for future use */
 } sys_sw_regs_t;
@@ -144,6 +173,8 @@ BK_SWR_STATIC_ASSERT(offsetof(sys_sw_regs_t, psram_power_down) == 640U);
 BK_SWR_STATIC_ASSERT(offsetof(sys_sw_regs_t, cp_reset_reason) == 644U);
 BK_SWR_STATIC_ASSERT(offsetof(sys_sw_regs_t, ap_reset_reason) == 648U);
 BK_SWR_STATIC_ASSERT(offsetof(sys_sw_regs_t, riscv_swap) == 652U);
+BK_SWR_STATIC_ASSERT(offsetof(sys_sw_regs_t, ap_wdrv_ipc_ready) == 877U);
+BK_SWR_STATIC_ASSERT(offsetof(sys_sw_regs_t, otp_apb_pwr_hold) == 880U);
 BK_SWR_STATIC_ASSERT(sizeof(sys_sw_regs_t) == 1024U);
 #endif
 

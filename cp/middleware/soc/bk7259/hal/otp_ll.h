@@ -39,25 +39,48 @@ static inline uint32_t otp_ll_check_busy(otp_hw_t *hw)
 	return hw->status.busy;
 }
 
+/*
+ * Every OTP wait runs with the FUSE HSPL lock held and interrupts disabled on
+ * the calling core, so an unbounded spin can stall the system and trip the
+ * watchdog. All waits are time bounded and report an overrun so the caller can
+ * fail instead of hanging.
+ */
+#define OTP_BUSY_TIMEOUT_US       (5 * 1000)
+
+/* One-shot factory commands (auto repair, PUF enroll, off-check, lock bits)
+ * may take tens of milliseconds, keep a wider bound for them. */
+#define OTP_LONG_BUSY_TIMEOUT_US  (100 * 1000)
+
+static inline int otp_check_busy_timeout(otp_hw_t *hw, uint32_t timeout_us)
+{
+	uint32_t waited = 0;
+
+	while (otp_ll_check_busy(hw)) {
+		if (waited >= timeout_us) {
+			BK_LOGE(NULL, "OTP busy timeout: status=0x%x, waited %uus\r\n",
+			        hw->status.v, waited);
+			return -1;
+		}
+		bk_delay_us(10);
+		waited += 10;
+	}
+	return 0;
+}
+
 static inline int otp_check_busy(otp_hw_t *hw)
 {
-	int retry_count = 10000;
-	while(retry_count--){
-		if(otp_ll_check_busy(hw) == 0){
-			return 0;
-		}
-	}
-	if(retry_count == -1){
-		for(int i=0;i<20;i++)
-			BK_LOGE(NULL, "ERROR:OTP init fail!\r\n");
-		return -1;
-	}
-	return -1;
+	return otp_check_busy_timeout(hw, OTP_BUSY_TIMEOUT_US);
 }
 
 static inline void otp_ll_sleep(otp_hw_t *hw)
 {
-	otp_check_busy(hw);
+	/* OTP1 writes already waited in otp_ll_write_otp(), but OTP2 (AHB) writes
+	 * do not: otp2_ll_write_otp() only stores the data word and lets the AHB
+	 * engine program asynchronously. Clearing pdstb/clkosc_en while that
+	 * programming is still in flight leaves the row half written, and the
+	 * read-back check in bk_otp_ahb_update() cannot detect it. Use the long
+	 * bound because factory/ATE paths can program slowly. */
+	(void)otp_check_busy_timeout(hw, OTP_LONG_BUSY_TIMEOUT_US);
 	hw->hardware.pdstb = 0;
 	hw->hardware.clkosc_en = 0;
 }
@@ -66,42 +89,67 @@ static inline int otp_ll_active(otp_hw_t *hw)
 {
 	hw->hardware.pdstb = 1;
 	hw->hardware.clkosc_en = 1;
-	return otp_check_busy(hw);
+	return otp_check_busy_timeout(hw, OTP_BUSY_TIMEOUT_US);
 }
 
+/*
+ * Blocking part: vote the OTP APB sub domain. The PM mailbox round trip can
+ * wait for CPU0, so it must be done OUTSIDE the FUSE HSPL lock.
+ */
 static inline int otp_ll_power_on(otp_hw_t *hw)
 {
-	sys_ll_set_cpu_device_clk_enable_otp_cken(1);
-	bk_delay_us(10);
+	(void)hw;
 	bk_pm_module_vote_power_ctrl(PM_POWER_SUB_DOMAIN_OTP_APB, PM_POWER_MODULE_STATE_ON);
-	bk_delay_us(10);
-	return otp_ll_active(hw);
+	return 0;
 }
 
 static inline void otp_ll_power_off(otp_hw_t *hw)
 {
-	otp_ll_sleep(hw);
-	sys_ll_set_cpu_device_clk_enable_otp_cken(0);
-	bk_delay_us(10);
+	(void)hw;
 #if CONFIG_MBEDTLS_ACCELERATOR || CONFIG_TRUSTENGINE
 	if (dubhe_inited == false) {
 		return ;
 	}
 #endif
 	bk_pm_module_vote_power_ctrl(PM_POWER_SUB_DOMAIN_OTP_APB, PM_POWER_MODULE_STATE_OFF);
+}
+
+/*
+ * Register-level part. The clock gate and the standby bits belong to the OTP
+ * controller shared with the AP, so both sides run these with the
+ * BK_HSPL_RES_FUSE HSPL lock held.
+ */
+static inline int otp_ll_hw_active(otp_hw_t *hw)
+{
+	sys_ll_set_cpu_device_clk_enable_otp_cken(1);
 	bk_delay_us(10);
-	return;
+	return otp_ll_active(hw);
+}
+
+static inline void otp_ll_hw_sleep(otp_hw_t *hw)
+{
+	otp_ll_sleep(hw);
+	sys_ll_set_cpu_device_clk_enable_otp_cken(0);
+	bk_delay_us(10);
 }
 
 
+/*
+ * Power is owned by the holder count in otp_driver, so these only do the
+ * register-level activate/sleep. Voting here would bypass the holder count and
+ * power the domain off while another user is still inside a transaction. It
+ * would also run inside the ATE flow, which calls this path with the FUSE lock
+ * held and interrupts disabled, where waiting up to 100ms for a CPU0 response
+ * is not acceptable.
+ */
 static inline int otp_ll_init(otp_hw_t *hw)
 {
-	return otp_ll_power_on(hw);
+	return otp_ll_hw_active(hw);
 }
 
 static inline void otp_ll_deinit(otp_hw_t *hw)
 {
-	otp_ll_power_off(hw);
+	otp_ll_hw_sleep(hw);
 }
 
 static inline uint32_t otp_ll_read_tmlck(otp_hw_t *hw)
@@ -295,7 +343,7 @@ static inline uint32_t otp_ll_get_failcnt(otp_hw_t *hw)
 static inline uint32_t otp_ll_do_auto_repair(otp_hw_t *hw)
 {
 	hw->auto_repair.auto_repair = 0xE9;
-	while(otp_ll_check_busy(hw));
+	(void)otp_check_busy_timeout(hw, OTP_LONG_BUSY_TIMEOUT_US);
 	return hw->status.v & (0xF1F);
 }
 
@@ -303,38 +351,38 @@ static inline uint32_t otp_ll_do_auto_repair(otp_hw_t *hw)
 static inline uint32_t otp_ll_init_off_check(otp_hw_t *hw)
 {
 	hw->ini_off_check.v = 0x5A;
-	while(otp_ll_check_busy(hw));
+	(void)otp_check_busy_timeout(hw, OTP_LONG_BUSY_TIMEOUT_US);
 	return hw->status.v & 0x1F;
 }
 
 static inline void otp_ll_enable_off_margin_read(otp_hw_t *hw)
 {
 	hw->hardware.rd_mode = 0x1;
-	while(otp_ll_check_busy(hw));
+	(void)otp_check_busy(hw);
 }
 
 static inline void otp_ll_disable_off_margin_read(otp_hw_t *hw)
 {
 	hw->hardware.rd_mode = 0x0;
-	while(otp_ll_check_busy(hw));
+	(void)otp_check_busy(hw);
 }
 
 static inline void otp_ll_enable_on_margin_read(otp_hw_t *hw)
 {
 	hw->hardware.rd_mode = 0x2;
-	while(otp_ll_check_busy(hw));
+	(void)otp_check_busy(hw);
 }
 
 static inline void otp_ll_disable_on_margin_read(otp_hw_t *hw)
 {
 	hw->hardware.rd_mode = 0x0;
-	while(otp_ll_check_busy(hw));
+	(void)otp_check_busy(hw);
 }
 
 static inline uint32_t otp_ll_do_puf_quality_check(otp_hw_t *hw)
 {
 	hw->puf_qty_chk.v = 0x0;
-	while(otp_ll_check_busy(hw));
+	(void)otp_check_busy_timeout(hw, OTP_LONG_BUSY_TIMEOUT_US);
 	return hw->status.v & 0x1F;
 }
 
@@ -348,7 +396,7 @@ static inline uint32_t otp_ll_do_puf_health_check(otp_hw_t *hw)
 	hw->puf_hck_cfg.v = 0x31D0303;
 	(void)hw->puf_hck_cfg.v;
 	hw->puf_qty_chk.v = 0xdc;
-	while(otp_ll_check_busy(hw));
+	(void)otp_check_busy_timeout(hw, OTP_LONG_BUSY_TIMEOUT_US);
 	return hw->status.v & 0x1F;
 }
 
@@ -357,7 +405,7 @@ static inline void otp_ll_do_puf_enroll(otp_hw_t *hw)
 	if(otp_ll_read_tmlck(hw) == 0 && otp_ll_read_puflck(hw) == 0){
 		hw->puf_enroll.v = 0xA7;
 	}
-	while(otp_ll_check_busy(hw));
+	(void)otp_check_busy_timeout(hw, OTP_LONG_BUSY_TIMEOUT_US);
 }
 
 static inline void otp_ll_zeroize_puf(otp_hw_t *hw, uint32_t location)
@@ -431,7 +479,7 @@ static inline void otp_ll_set_flag(otp_hw_t *hw, uint32_t flag)
 	default:
 		break;
 	}
-	while(otp_ll_check_busy(hw));
+	(void)otp_check_busy_timeout(hw, OTP_LONG_BUSY_TIMEOUT_US);
 }
 
 static inline uint32_t otp_ll_read_puf(otp_hw_t *hw, uint32_t location)
