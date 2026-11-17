@@ -104,9 +104,108 @@ static void js_dirname(const char *path, char *buf, uint32_t size)
 	buf[len] = '\0';
 }
 
+/*
+ * Lexical path normalisation: collapses "//", "." and "..".  Returns false
+ * when ".." climbs above the file system root or the result does not fit, so
+ * a script cannot escape the directory tree with relative paths.
+ */
+static bool js_path_normalize(const char *in, char *out, uint32_t size)
+{
+	uint32_t len = 0;
+	const char *p = in;
+
+	if (in == NULL || in[0] != '/' || size < 2) {
+		return false;
+	}
+
+	out[0] = '\0';
+
+	while (*p != '\0') {
+		const char *start;
+		uint32_t seg;
+
+		while (*p == '/') {
+			p++;
+		}
+
+		if (*p == '\0') {
+			break;
+		}
+
+		start = p;
+		while (*p != '\0' && *p != '/') {
+			p++;
+		}
+		seg = (uint32_t)(p - start);
+
+		if (seg == 1 && start[0] == '.') {
+			continue;
+		}
+
+		if (seg == 2 && start[0] == '.' && start[1] == '.') {
+			if (len == 0) {
+				return false;
+			}
+			while (len > 0 && out[len - 1] != '/') {
+				len--;
+			}
+			if (len > 0) {
+				len--;
+			}
+			out[len] = '\0';
+			continue;
+		}
+
+		if (len + seg + 2 > size) {
+			return false;
+		}
+
+		out[len++] = '/';
+		os_memcpy(out + len, start, seg);
+		len += seg;
+		out[len] = '\0';
+	}
+
+	if (len == 0) {
+		out[0] = '/';
+		out[1] = '\0';
+	}
+
+	return true;
+}
+
+/* True when path is the root itself or lives below it. */
+static bool js_path_under_root(const char *path, const char *root)
+{
+	uint32_t len = (uint32_t)os_strlen(root);
+
+	if (len == 0 || (len == 1 && root[0] == '/')) {
+		return path[0] == '/';
+	}
+
+	if (os_strncmp(path, root, len) != 0) {
+		return false;
+	}
+
+	return path[len] == '\0' || path[len] == '/';
+}
+
 char *bk_js_fs_resolve(const char *path, char *buf, uint32_t size)
 {
-	return (char *)js_join(s_dir, path, buf, size);
+	char joined[BK_JS_PATH_MAX];
+
+	if (path == NULL || path[0] == '\0' || size < 2) {
+		buf[0] = '\0';
+		return buf;
+	}
+
+	js_join(s_dir, path, joined, sizeof(joined));
+
+	if (!js_path_normalize(joined, buf, size) || !js_path_under_root(buf, s_root)) {
+		buf[0] = '\0';
+	}
+
+	return buf;
 }
 
 void bk_js_fs_set_root(const char *root)

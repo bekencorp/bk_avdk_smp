@@ -86,9 +86,17 @@ void bk_js_runtime_request_app_exit(void);
 jerry_value_t bk_js_call_guarded(jerry_value_t fn, const jerry_value_t *args, uint32_t count);
 
 /* Event slots, owned by the runtime.  Callbacks are bound to the wrapper
- * generation so that recycled lv_obj_t addresses cannot inherit them. */
-uint32_t bk_js_event_add(uint32_t owner, uint32_t gen, uint32_t code, jerry_value_t fn);
+ * generation so that recycled lv_obj_t addresses cannot inherit them.
+ * user_data is optional; it is handed back to the callback as event.userData. */
+uint32_t bk_js_event_add(uint32_t owner, uint32_t gen, uint32_t code, jerry_value_t fn,
+                         jerry_value_t user_data);
 void bk_js_event_remove(uint32_t owner, uint32_t gen);
+
+/**
+ * Free one slot by id.  Must be called from the JavaScript task, unlike
+ * bk_js_event_mark_dead() which may be called from the LVGL thread.
+ */
+void bk_js_event_remove_id(uint32_t id);
 void bk_js_event_clear(void);
 void bk_js_event_dispatch(uint32_t slot_id, uint32_t code, bool deleting,
                           int32_t x, int32_t y, bool has_point);

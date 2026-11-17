@@ -92,6 +92,7 @@ typedef struct {
 	uint32_t gen;
 	uint32_t code;
 	jerry_value_t fn;
+	jerry_value_t user_data;
 } js_event_t;
 
 static beken_thread_t s_task = NULL;
@@ -212,12 +213,123 @@ void bk_js_console_value(jerry_value_t value, bool newline)
 	jerry_value_free(text);
 }
 
+static void js_trace_print(void);
+
 void bk_js_console_exception(jerry_value_t exception)
 {
 	jerry_value_t value = jerry_exception_value(exception, true);
 
 	bk_js_console_value(value, true);
 	jerry_value_free(value);
+
+	js_trace_print();
+}
+
+/* ------------------------------------------------------------------ */
+/* Exception location and stack                                       */
+/* ------------------------------------------------------------------ */
+
+#define BK_JS_TRACE_MAX_FRAMES   (5)
+#define BK_JS_TRACE_BUF_SIZE     (240)
+
+static char s_trace[BK_JS_TRACE_BUF_SIZE];
+static uint32_t s_trace_len;
+static bool s_trace_valid;
+
+typedef struct {
+	uint32_t frames;
+} js_trace_ctx_t;
+
+static uint32_t js_value_copy_to_buf(jerry_value_t value, char *buf, uint32_t size)
+{
+	jerry_size_t len;
+
+	if (!jerry_value_is_string(value)) {
+		return 0;
+	}
+
+	len = jerry_string_size(value, JERRY_ENCODING_UTF8);
+	if (len == 0 || len + 1u > size) {
+		return 0;
+	}
+
+	return (uint32_t)jerry_string_to_buffer(value, JERRY_ENCODING_UTF8,
+	                                        (jerry_char_t *)buf, len);
+}
+
+static bool js_trace_frame_cb(jerry_frame_t *frame, void *user_p)
+{
+	js_trace_ctx_t *ctx = (js_trace_ctx_t *)user_p;
+	const jerry_frame_location_t *loc = jerry_frame_location(frame);
+	char name[BK_JS_PATH_MAX];
+	uint32_t name_len;
+	int written;
+
+	if (loc == NULL) {
+		return false;
+	}
+
+	name_len = js_value_copy_to_buf(loc->source_name, name, sizeof(name));
+	if (name_len == 0) {
+		snprintf(name, sizeof(name), "?");
+	}
+
+	if (s_trace_len + 1u >= sizeof(s_trace)) {
+		return false;
+	}
+
+	written = snprintf(s_trace + s_trace_len, sizeof(s_trace) - s_trace_len,
+	                   "    at %s:%u:%u\n", name,
+	                   (unsigned)loc->line, (unsigned)loc->column);
+	if (written > 0) {
+		s_trace_len += (uint32_t)written;
+		if (s_trace_len >= sizeof(s_trace)) {
+			s_trace_len = sizeof(s_trace) - 1u;
+		}
+	}
+
+	ctx->frames++;
+
+	return ctx->frames < BK_JS_TRACE_MAX_FRAMES;
+}
+
+/*
+ * The VM stack is only valid while the exception is being thrown, so the
+ * location is captured here instead of after jerry_run() has unwound it.
+ * Requires JERRY_VM_THROW.
+ */
+static void js_throw_cb(const jerry_value_t exception, void *user_p)
+{
+	js_trace_ctx_t ctx = { 0 };
+
+	(void)exception;
+	(void)user_p;
+
+	s_trace_len = 0;
+	s_trace[0] = '\0';
+	s_trace_valid = true;
+
+	jerry_backtrace_capture(js_trace_frame_cb, &ctx);
+}
+
+static void js_trace_forget(void)
+{
+	s_trace_len = 0;
+	s_trace[0] = '\0';
+	s_trace_valid = false;
+}
+
+static void js_trace_print(void)
+{
+	if (!s_trace_valid) {
+		return;
+	}
+
+	if (s_trace_len != 0) {
+		bk_js_console_text(s_trace, s_trace_len, false);
+	}
+
+	js_trace_forget();
 }
 
 static jerry_value_t js_print_handler(const jerry_call_info_t *call_info_p,
@@ -416,7 +528,8 @@ static void js_events_forget(void)
  * still queued while the script keeps allocating can otherwise match a brand
  * new object that landed on the same address and silently drop its callback.
  */
-uint32_t bk_js_event_add(uint32_t owner, uint32_t gen, uint32_t code, jerry_value_t fn)
+uint32_t bk_js_event_add(uint32_t owner, uint32_t gen, uint32_t code, jerry_value_t fn,
+                         jerry_value_t user_data)
 {
 	js_event_t *slot = NULL;
 
@@ -442,6 +555,7 @@ uint32_t bk_js_event_add(uint32_t owner, uint32_t gen, uint32_t code, jerry_valu
 	slot->gen = gen;
 	slot->code = code;
 	slot->fn = jerry_value_copy(fn);
+	slot->user_data = jerry_value_copy(user_data);
 
 	return slot->id;
 }
@@ -452,6 +566,8 @@ static void js_event_remove_at(js_event_t *slot)
 	slot->dead = false;
 	jerry_value_free(slot->fn);
 	slot->fn = jerry_undefined();
+	jerry_value_free(slot->user_data);
+	slot->user_data = jerry_undefined();
 	slot->owner = 0;
 	slot->gen = 0;
 }
@@ -488,6 +604,16 @@ void bk_js_event_remove(uint32_t owner, uint32_t gen)
 	}
 }
 
+void bk_js_event_remove_id(uint32_t id)
+{
+	for (uint32_t i = 0; i < BK_JS_EVENT_MAX; i++) {
+		if (s_events[i].used && s_events[i].id == id) {
+			js_event_remove_at(&s_events[i]);
+			return;
+		}
+	}
+}
+
 void bk_js_event_clear(void)
 {
 	for (uint32_t i = 0; i < BK_JS_EVENT_MAX; i++) {
@@ -515,12 +641,17 @@ void bk_js_event_dispatch(uint32_t slot_id, uint32_t code, bool deleting,
 
 	jerry_value_t event = jerry_object();
 	jerry_value_t code_value = jerry_number((double)code);
+	jerry_value_t user_value = jerry_value_copy(slot->user_data);
 	jerry_value_t set_result = jerry_object_set_sz(event, "code", code_value);
 	jerry_value_t args[1];
 	jerry_value_t result;
 
 	jerry_value_free(set_result);
+
+	set_result = jerry_object_set_sz(event, "userData", user_value);
+	jerry_value_free(set_result);
 	jerry_value_free(code_value);
+	jerry_value_free(user_value);
 
 	args[0] = event;
 	s_event_touch_valid = has_point;
@@ -537,8 +668,13 @@ void bk_js_event_dispatch(uint32_t slot_id, uint32_t code, bool deleting,
 
 	jerry_value_free(event);
 
+	/*
+	 * "deleting" means the slot is not needed afterwards: either the object is
+	 * gone (its remaining slots were flagged dead by the LVGL thread) or this
+	 * was a one-shot callback such as an animation completion.
+	 */
 	if (deleting) {
-		bk_js_event_remove(slot->owner, slot->gen);
+		js_event_remove_at(slot);
 	}
 }
 
@@ -735,6 +871,7 @@ static bk_js_err_t js_engine_start(void)
 #endif
 
 	jerry_init(JERRY_INIT_EMPTY);
+	jerry_on_throw(js_throw_cb, NULL);
 	js_bind_globals();
 
 	bk_js_guard_armed = false;
@@ -753,6 +890,8 @@ static void js_engine_stop(void)
 	} else {
 		jerry_port_context_free();
 	}
+
+	js_trace_forget();
 }
 
 static void js_engine_abort(void)
@@ -766,6 +905,7 @@ static void js_engine_abort(void)
 
 	js_timers_forget();
 	js_events_forget();
+	js_trace_forget();
 	bk_js_fs_forget_modules();
 
 	s_app_id[0] = '\0';
@@ -826,6 +966,8 @@ jerry_value_t bk_js_call_guarded(jerry_value_t fn, const jerry_value_t *args, ui
 
 	jerry_halt_handler(BK_JS_HALT_INTERVAL, js_halt_cb, &halt);
 
+	js_trace_forget();
+
 	result = jerry_call(fn, jerry_undefined(), args, (jerry_size_t)count);
 
 	jerry_halt_handler(0, NULL, NULL);
@@ -874,6 +1016,8 @@ static bk_js_err_t js_run_source(const char *name, const char *source, uint32_t 
 
 	jerry_halt_handler(BK_JS_HALT_INTERVAL, js_halt_cb, &halt);
 
+	js_trace_forget();
+
 	os_memset(&options, 0, sizeof(options));
 	options.options = JERRY_PARSE_HAS_SOURCE_NAME;
 	options.source_name = jerry_string_sz(name != NULL ? name : "script.js");
@@ -914,6 +1058,58 @@ static bk_js_err_t js_run_source(const char *name, const char *source, uint32_t 
 	}
 
 	return result;
+}
+
+/* ------------------------------------------------------------------ */
+/* Promise / async job queue                                          */
+/* ------------------------------------------------------------------ */
+
+/*
+ * Resolve the microtask queue: promise callbacks and async continuations are
+ * only executed here, never by jerry_call() or jerry_run().  Runs once per
+ * event loop iteration so the ordered jobs of every callback are drained
+ * before the next timer or event is dispatched.
+ */
+static void js_jobs_run(void)
+{
+	js_halt_t halt;
+	jerry_value_t result;
+
+	if (!s_engine_up) {
+		return;
+	}
+
+	if (setjmp(bk_js_fatal_jmp) != 0) {
+		bk_js_guard_armed = false;
+		BK_LOGE(BK_JS_TAG, "engine fatal error %d", bk_js_port_fatal_code());
+#if CONFIG_BK_JERRYSCRIPT_UI
+		bk_js_ui_reset_lock();
+#endif
+		js_engine_abort();
+		return;
+	}
+
+	bk_js_guard_armed = true;
+
+	halt.deadline = js_now() + s_default_timeout_ms;
+	halt.timed_out = false;
+	halt.error_valid = false;
+	halt.error = jerry_undefined();
+
+	jerry_halt_handler(BK_JS_HALT_INTERVAL, js_halt_cb, &halt);
+
+	js_trace_forget();
+
+	result = jerry_run_jobs();
+
+	jerry_halt_handler(0, NULL, NULL);
+	bk_js_guard_armed = false;
+
+	if (jerry_value_is_exception(result)) {
+		bk_js_console_exception(result);
+	} else {
+		jerry_value_free(result);
+	}
 }
 
 /* ------------------------------------------------------------------ */
@@ -1248,6 +1444,11 @@ static void js_task_entry(beken_thread_arg_t arg)
 		}
 
 		js_timers_run();
+
+		/* Promise callbacks queued by the script, timer or event above. */
+		if (s_engine_up) {
+			js_jobs_run();
+		}
 
 		/* Reclaim event slots of objects deleted during the callbacks above. */
 		if (s_engine_up) {

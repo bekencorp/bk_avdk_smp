@@ -341,12 +341,33 @@ static lv_event_code_t js_event_from_string(const char *name, bool *found)
 		{ "pressing", LV_EVENT_PRESSING },
 		{ "released", LV_EVENT_RELEASED },
 		{ "press_lost", LV_EVENT_PRESS_LOST },
+		{ "short_clicked", LV_EVENT_SHORT_CLICKED },
+		{ "single_clicked", LV_EVENT_SINGLE_CLICKED },
+		{ "double_clicked", LV_EVENT_DOUBLE_CLICKED },
 		{ "scroll", LV_EVENT_SCROLL },
+		{ "scroll_begin", LV_EVENT_SCROLL_BEGIN },
+		{ "scroll_end", LV_EVENT_SCROLL_END },
+		{ "gesture", LV_EVENT_GESTURE },
 		{ "long_pressed", LV_EVENT_LONG_PRESSED },
+		{ "long_pressed_repeat", LV_EVENT_LONG_PRESSED_REPEAT },
 		{ "value_changed", LV_EVENT_VALUE_CHANGED },
 		{ "delete", LV_EVENT_DELETE },
 		{ "focused", LV_EVENT_FOCUSED },
 		{ "defocused", LV_EVENT_DEFOCUSED },
+		{ "key", LV_EVENT_KEY },
+		{ "leave", LV_EVENT_LEAVE },
+		{ "hit_test", LV_EVENT_HIT_TEST },
+		{ "hover_over", LV_EVENT_HOVER_OVER },
+		{ "hover_leave", LV_EVENT_HOVER_LEAVE },
+		{ "style_changed", LV_EVENT_STYLE_CHANGED },
+		{ "layout_changed", LV_EVENT_LAYOUT_CHANGED },
+		{ "child_changed", LV_EVENT_CHILD_CHANGED },
+		{ "create", LV_EVENT_CREATE },
+		{ "insert", LV_EVENT_INSERT },
+		{ "refresh", LV_EVENT_REFRESH },
+		{ "selected", LV_EVENT_STATE_CHANGED },
+		{ "state_changed", LV_EVENT_STATE_CHANGED },
+		{ "indev_reset", LV_EVENT_INDEV_RESET },
 		{ "ready", LV_EVENT_READY },
 		{ "cancel", LV_EVENT_CANCEL },
 	};
@@ -427,6 +448,8 @@ static const lv_font_t *js_font_by_size(int32_t size)
 /* Handle table                                                       */
 /* ------------------------------------------------------------------ */
 
+static void js_anim_cancel_object(uint32_t index, uint32_t gen);
+
 static void js_ui_delete_cb(lv_event_t *event)
 {
 	uint32_t index = (uint32_t)(uintptr_t)lv_event_get_user_data(event);
@@ -435,6 +458,7 @@ static void js_ui_delete_cb(lv_event_t *event)
 	if (index < BK_JS_UI_HANDLE_MAX && s_handles[index].obj == target) {
 		/* The JavaScript task owns the callbacks, flag them for reclamation. */
 		bk_js_event_mark_dead(index, s_handles[index].gen);
+		js_anim_cancel_object(index, s_handles[index].gen);
 
 		s_handles[index].obj = NULL;
 		s_handles[index].label = NULL;
@@ -802,26 +826,34 @@ static jerry_value_t js_m_on(const jerry_call_info_t *call_info_p,
 {
 	char name[24];
 	bool found = false;
-	lv_event_code_t code;
+	lv_event_code_t code = LV_EVENT_CLICKED;
 	js_ui_handle_t *handle = js_ui_this(call_info_p);
+	jerry_value_t user_data;
 	uint32_t slot;
 
 	if (handle == NULL) {
 		return js_ui_throw(JERRY_ERROR_TYPE, "object deleted");
 	}
 
-	if (args_count < 2 || !js_value_to_string(args_p[0], name, sizeof(name))
-	    || !jerry_value_is_function(args_p[1])) {
-		return js_ui_throw(JERRY_ERROR_TYPE, "on(event, callback)");
+	if (args_count < 2 || !jerry_value_is_function(args_p[1])) {
+		return js_ui_throw(JERRY_ERROR_TYPE, "on(event, callback, userData)");
 	}
 
-	code = js_event_from_string(name, &found);
+	/* Numeric codes let scripts reach events that have no name yet. */
+	if (jerry_value_is_number(args_p[0])) {
+		found = true;
+		code = (lv_event_code_t)(uint32_t)jerry_value_as_integer(args_p[0]);
+	} else if (js_value_to_string(args_p[0], name, sizeof(name))) {
+		code = js_event_from_string(name, &found);
+	}
+
 	if (!found) {
 		return js_ui_throw(JERRY_ERROR_TYPE, "unknown event name");
 	}
 
+	user_data = args_count > 2 ? args_p[2] : jerry_undefined();
 	slot = bk_js_event_add((uint32_t)(handle - s_handles), handle->gen,
-	                       (uint32_t)code, args_p[1]);
+	                       (uint32_t)code, args_p[1], user_data);
 	if (slot == 0) {
 		return js_ui_throw(JERRY_ERROR_COMMON, "no free event slot");
 	}
@@ -1560,6 +1592,303 @@ static jerry_value_t js_m_get_style(const jerry_call_info_t *call_info_p,
 	return jerry_number((double)value.num);
 }
 
+/* ------------------------------------------------------------------ */
+/* Animations                                                         */
+/* ------------------------------------------------------------------ */
+
+#define BK_JS_ANIM_MAX   (8)
+
+typedef struct {
+	bool used;
+	bool cancelled;
+	uint32_t index;
+	uint32_t gen;
+	lv_style_prop_t prop;
+	bool color;
+	uint32_t slot;		/* one-shot callback fired on completion, 0 = none */
+} js_anim_t;
+
+static js_anim_t s_anims[BK_JS_ANIM_MAX];
+
+static const js_style_prop_t *js_style_prop_find(const char *name)
+{
+	for (uint32_t i = 0; i < sizeof(s_style_props) / sizeof(s_style_props[0]); i++) {
+		if (strcmp(s_style_props[i].name, name) == 0) {
+			return &s_style_props[i];
+		}
+	}
+
+	return NULL;
+}
+
+/* Drop the animation state of an object that is being deleted.  The LVGL
+ * animation itself is removed by lv_obj_delete(). */
+static void js_anim_cancel_object(uint32_t index, uint32_t gen)
+{
+	for (uint32_t i = 0; i < BK_JS_ANIM_MAX; i++) {
+		js_anim_t *ctx = &s_anims[i];
+
+		if (ctx->used && ctx->index == index && ctx->gen == gen) {
+			ctx->used = false;
+			ctx->cancelled = false;
+			ctx->slot = 0;
+		}
+	}
+}
+
+/* Runs in the LVGL task: only style properties are touched here, no JavaScript
+ * value is created, so the engine does not have to be involved. */
+static void js_anim_exec_cb(lv_anim_t *anim, int32_t value)
+{
+	js_anim_t *ctx = (js_anim_t *)lv_anim_get_user_data(anim);
+	lv_style_value_t style_value;
+
+	if (ctx == NULL || !ctx->used || ctx->cancelled) {
+		return;
+	}
+
+	if (ctx->index >= BK_JS_UI_HANDLE_MAX || s_handles[ctx->index].obj == NULL
+	    || s_handles[ctx->index].gen != ctx->gen) {
+		return;
+	}
+
+	if (ctx->color) {
+		style_value.color = lv_color_hex((uint32_t)value & 0xFFFFFFu);
+	} else {
+		style_value.num = value;
+	}
+
+	lv_obj_set_local_style_prop(s_handles[ctx->index].obj, ctx->prop, style_value, 0);
+}
+
+static void js_anim_completed_cb(lv_anim_t *anim)
+{
+	js_anim_t *ctx = (js_anim_t *)lv_anim_get_user_data(anim);
+
+	if (ctx == NULL || !ctx->used) {
+		return;
+	}
+
+	if (!ctx->cancelled && ctx->slot != 0) {
+		/* Runs in the LVGL task; the runtime dispatches and frees the slot. */
+		bk_js_post_event(ctx->slot, 0, true);
+	}
+
+	ctx->used = false;
+	ctx->cancelled = false;
+	ctx->slot = 0;
+}
+
+/* A new animation of the same property replaces the previous one. */
+static void js_anim_stop_prop(uint32_t index, uint32_t gen, lv_style_prop_t prop)
+{
+	for (uint32_t i = 0; i < BK_JS_ANIM_MAX; i++) {
+		js_anim_t *ctx = &s_anims[i];
+
+		if (!ctx->used || ctx->index != index || ctx->gen != gen || ctx->prop != prop) {
+			continue;
+		}
+
+		ctx->cancelled = true;
+
+		if (ctx->slot != 0) {
+			/* Called from the JavaScript task, the slot can be freed directly. */
+			bk_js_event_remove_id(ctx->slot);
+			ctx->slot = 0;
+		}
+	}
+}
+
+static lv_anim_path_cb_t js_anim_path_from_string(const char *name)
+{
+	if (strcmp(name, "ease_in") == 0) {
+		return lv_anim_path_ease_in;
+	}
+	if (strcmp(name, "ease_out") == 0) {
+		return lv_anim_path_ease_out;
+	}
+	if (strcmp(name, "ease_in_out") == 0) {
+		return lv_anim_path_ease_in_out;
+	}
+	if (strcmp(name, "overshoot") == 0) {
+		return lv_anim_path_overshoot;
+	}
+	if (strcmp(name, "bounce") == 0) {
+		return lv_anim_path_bounce;
+	}
+	if (strcmp(name, "step") == 0) {
+		return lv_anim_path_step;
+	}
+
+	return lv_anim_path_linear;
+}
+
+/*
+ * lv.anim(widget, { prop: "bg_opa", from: 0, to: 255, duration: 300,
+ *                   delay: 0, repeat: 0, path: "ease_in_out", onDone: fn })
+ * The widget may also be the receiver: widget.animate({ ... }).
+ */
+static jerry_value_t js_anim_start(jerry_value_t widget, jerry_value_t opts)
+{
+	char prop_name[BK_JS_UI_NAME_MAX];
+	char path_name[16];
+	const js_style_prop_t *prop;
+	js_anim_t *ctx = NULL;
+	jerry_value_t done;
+	lv_obj_t *obj;
+	lv_anim_t anim;
+	int32_t from = 0;
+	int32_t to = 0;
+	int32_t duration = 300;
+	int32_t delay = 0;
+	int32_t repeat = 0;
+	int32_t index;
+	uint32_t slot = 0;
+
+	obj = js_ui_value_obj(widget);
+	if (obj == NULL) {
+		return js_ui_throw(JERRY_ERROR_TYPE, "anim expects a widget");
+	}
+
+	if (!js_opt_str(opts, "prop", prop_name, sizeof(prop_name))) {
+		return js_ui_throw(JERRY_ERROR_TYPE, "anim expects a prop");
+	}
+
+	prop = js_style_prop_find(prop_name);
+	if (prop == NULL) {
+		return js_ui_throw(JERRY_ERROR_COMMON, "unknown style property");
+	}
+
+	bool has_from = false;
+
+	if (prop->color) {
+		uint32_t color;
+
+		if (!js_opt_color(opts, "to", &color)) {
+			return js_ui_throw(JERRY_ERROR_TYPE, "anim expects to");
+		}
+		to = (int32_t)color;
+
+		if (js_opt_color(opts, "from", &color)) {
+			from = (int32_t)color;
+			has_from = true;
+		}
+	} else {
+		if (!js_opt_num(opts, "to", &to)) {
+			return js_ui_throw(JERRY_ERROR_TYPE, "anim expects to");
+		}
+		has_from = js_opt_num(opts, "from", &from);
+	}
+
+	/* Without an explicit start value animate from the current appearance. */
+	if (!has_from) {
+		lv_style_value_t current = lv_obj_get_style_prop(obj, 0, prop->prop);
+
+		from = prop->color ? (int32_t)lv_color_to_u32(current.color) : (int32_t)current.num;
+	}
+
+	(void)js_opt_num(opts, "duration", &duration);
+	(void)js_opt_num(opts, "delay", &delay);
+	(void)js_opt_num(opts, "repeat", &repeat);
+
+	if (duration <= 0) {
+		duration = 1;
+	}
+	if (delay < 0) {
+		delay = 0;
+	}
+
+	index = js_ui_handle_find(obj);
+	if (index < 0) {
+		return js_ui_throw(JERRY_ERROR_TYPE, "widget is not managed");
+	}
+
+	done = js_opt_value(opts, "onDone");
+	if (jerry_value_is_function(done)) {
+		slot = bk_js_event_add((uint32_t)index, s_handles[index].gen, 0, done,
+		                       jerry_undefined());
+	}
+	jerry_value_free(done);
+
+	js_anim_stop_prop((uint32_t)index, s_handles[index].gen, prop->prop);
+
+	for (uint32_t i = 0; i < BK_JS_ANIM_MAX; i++) {
+		if (!s_anims[i].used) {
+			ctx = &s_anims[i];
+			break;
+		}
+	}
+
+	if (ctx == NULL) {
+		if (slot != 0) {
+			bk_js_event_remove_id(slot);
+		}
+		return js_ui_throw(JERRY_ERROR_COMMON, "too many animations");
+	}
+
+	os_memset(ctx, 0, sizeof(*ctx));
+	ctx->used = true;
+	ctx->index = (uint32_t)index;
+	ctx->gen = s_handles[index].gen;
+	ctx->prop = prop->prop;
+	ctx->color = prop->color;
+	ctx->slot = slot;
+
+	lv_anim_init(&anim);
+	lv_anim_set_var(&anim, obj);
+	lv_anim_set_values(&anim, from, to);
+	lv_anim_set_duration(&anim, (uint32_t)duration);
+	lv_anim_set_delay(&anim, (uint32_t)delay);
+
+	if (repeat > 0) {
+		lv_anim_set_repeat_count(&anim, (uint32_t)repeat);
+	}
+
+	if (js_opt_str(opts, "path", path_name, sizeof(path_name))) {
+		lv_anim_set_path_cb(&anim, js_anim_path_from_string(path_name));
+	}
+
+	lv_anim_set_custom_exec_cb(&anim, js_anim_exec_cb);
+	lv_anim_set_user_data(&anim, ctx);
+	lv_anim_set_completed_cb(&anim, js_anim_completed_cb);
+	lv_anim_start(&anim);
+
+	return jerry_undefined();
+}
+
+static jerry_value_t js_lv_anim(const jerry_call_info_t *call_info_p,
+                                const jerry_value_t args_p[], const jerry_length_t args_count)
+{
+	(void)call_info_p;
+
+	if (args_count < 2) {
+		return js_ui_throw(JERRY_ERROR_TYPE, "anim(widget, options)");
+	}
+
+	return js_anim_start(args_p[0], args_p[1]);
+}
+
+static jerry_value_t js_m_animate(const jerry_call_info_t *call_info_p,
+                                  const jerry_value_t args_p[], const jerry_length_t args_count)
+{
+	if (args_count < 1) {
+		return js_ui_throw(JERRY_ERROR_TYPE, "animate(options)");
+	}
+
+	return js_anim_start(call_info_p->this_value, args_p[0]);
+}
+
+/* lv.tick() -> milliseconds since boot, the time base of lv_anim. */
+static jerry_value_t js_lv_tick(const jerry_call_info_t *call_info_p,
+                                const jerry_value_t args_p[], const jerry_length_t args_count)
+{
+	(void)call_info_p;
+	(void)args_p;
+	(void)args_count;
+
+	return jerry_number((double)lv_tick_get());
+}
+
 /* obj.flag("scrollable", false) */
 static jerry_value_t js_m_flag(const jerry_call_info_t *call_info_p,
                                const jerry_value_t args_p[], const jerry_length_t args_count)
@@ -1777,6 +2106,7 @@ static const js_ui_method_t s_methods[] = {
     { "call", js_m_call },
     { "setStyle", js_m_set_style },
     { "getStyle", js_m_get_style },
+    { "animate", js_m_animate },
     { "flag", js_m_flag },
     { "state", js_m_state },
     { "getChildCount", js_m_get_child_count },
@@ -2025,7 +2355,8 @@ static jerry_value_t js_ui_create(js_ui_kind_t kind, lv_obj_t *parent,
 	callback = js_opt_value(opts, "onClick");
 	if (jerry_value_is_function(callback)) {
 		uint32_t slot = bk_js_event_add((uint32_t)index, s_handles[index].gen,
-		                                (uint32_t)LV_EVENT_CLICKED, callback);
+		                                (uint32_t)LV_EVENT_CLICKED, callback,
+		                                jerry_undefined());
 
 		if (slot != 0) {
 			lv_obj_add_event_cb(obj, js_ui_event_cb, LV_EVENT_CLICKED,
@@ -2713,6 +3044,7 @@ void bk_js_ui_shutdown(void)
 
 	os_memset(s_pages, 0, sizeof(s_pages));
 	os_memset(s_handles, 0, sizeof(s_handles));
+	os_memset(s_anims, 0, sizeof(s_anims));
 
 	s_page_count = 0;
 	s_page_depth = 0;
@@ -2738,6 +3070,8 @@ void bk_js_ui_bind(jerry_value_t global)
 	js_set_fn(lv, "color", js_lv_color);
 	js_set_fn(lv, "touch", js_lv_touch);
 	js_set_fn(lv, "setLinePoints", js_lv_set_line_points);
+	js_set_fn(lv, "anim", js_lv_anim);
+	js_set_fn(lv, "tick", js_lv_tick);
 
 	js_set_fn(ui, "page", js_ui_page);
 	js_set_fn(ui, "back", js_ui_back);
