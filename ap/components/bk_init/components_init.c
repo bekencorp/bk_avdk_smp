@@ -107,10 +107,28 @@ int bandgap_init(void)
 	return BK_OK;
 }
 
+/*
+ * Seed the libc PRNG. Returns BK_OK when the seed came from OTP, or BK_FAIL
+ * when it fell back to rand(). The early-boot call in components_early_init()
+ * is expected to fail (OTP is not usable before the scheduler and the PM
+ * mailbox are up), so only the later call in components_init() reports it.
+ */
 int random_init(void)
 {
 	BK_LOGV(TAG, "create srand seed\r\n");
+#if (CONFIG_OTP_V1)
+	/* Read OTP once to seed the libc PRNG. Runtime bk_rand() must not touch OTP
+	 * hardware. */
+	uint32_t otp_seed = 0;
+
+	if (bk_otp_read_random_number(&otp_seed, 1) != BK_OK) {
+		srand((unsigned)rand());
+		return BK_FAIL;
+	}
+	srand((unsigned)otp_seed);
+#else
 	srand((unsigned)rand());
+#endif
 	return BK_OK;
 }
 
@@ -241,6 +259,13 @@ int components_init(void)
 {
 	if(driver_init())
 		return BK_FAIL;
+
+	/* OTP only becomes reachable once driver_init() has initialized the PM
+	 * mailbox, so seed the PRNG again here to replace the deterministic
+	 * early-boot seed with a real entropy seed. */
+	if (random_init() != BK_OK) {
+		BK_LOGW(TAG, "OTP seed read failed, PRNG seeded from rand()\r\n");
+	}
 
 	if(wdt_init())
 		return BK_FAIL;
