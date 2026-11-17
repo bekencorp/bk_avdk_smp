@@ -126,7 +126,11 @@ static volatile uint32_t s_otp_pwr_word_local;
 #define OTP_PWR_TE200_OWN     (BK_SWR_OTP_PWR_TE200_CP_HOLD)
 #define OTP_PWR_TE200_ANY     (BK_SWR_OTP_PWR_TE200_HOLD | BK_SWR_OTP_PWR_TE200_CP_HOLD)
 #define OTP_PWR_WAIT_US       (20U)
-#define OTP_PWR_WAIT_MAX_US   (300U * 1000U)                /* > 100ms vote timeout, only for reset leftovers */
+/* Budget for a peer's OFF vote to retire. A stale TURNING_OFF left by a warm
+ * reset is cleared once in otp_power_side_reset_once(); this wait must never
+ * clear it, otherwise a preempted releaser could power the domain off under
+ * the holder that just gave up waiting. */
+#define OTP_PWR_WAIT_MAX_US   (300U * 1000U)
 /*
  * The peer may legitimately hold FUSE for one long ATE/PUF command, whose busy
  * bound is OTP_LONG_BUSY_TIMEOUT_US (100 ms). A 20 ms budget made concurrent
@@ -141,6 +145,10 @@ static volatile uint32_t s_otp_pwr_word_local;
  * increment. The first OTP access on CP happens before the scheduler starts,
  * so no other user can race with it.
  *
+ * TURNING_OFF is dropped here too: a bit left in the window is a leftover
+ * from a previous boot. Runtime waiters must never clear it, otherwise a
+ * preempted releaser could power the domain off under them.
+ *
  * The CP TE200 bit belongs to this side: clear it only while dubhe has not
  * claimed it yet (TE200 is not built, or its init has not run in this image).
  * Once dubhe is up it is a live reference and must be kept, otherwise the AP
@@ -154,7 +162,7 @@ static void otp_power_side_reset_once(void)
 	if (__atomic_exchange_n(&s_done, 1, __ATOMIC_ACQ_REL) != 0)
 		return;
 
-	clear = OTP_PWR_MY_MASK;
+	clear = OTP_PWR_MY_MASK | BK_SWR_OTP_PWR_TURNING_OFF;
 
 #if CONFIG_MBEDTLS_ACCELERATOR || CONFIG_TRUSTENGINE
 	if (!dubhe_inited)
@@ -185,12 +193,13 @@ static int otp_power_hold(void)
 			continue;
 		}
 		if (waited >= OTP_PWR_WAIT_MAX_US) {
-			/* The previous holder reset in the middle of its OFF vote,
-			 * clear the leftover state and retry. */
-			OTP_LOGE("otp pwr: stale off state 0x%x, recover\r\n", w);
-			__atomic_and_fetch(word, ~BK_SWR_OTP_PWR_TURNING_OFF, __ATOMIC_ACQ_REL);
-			waited = 0;
-			continue;
+			/* A live releaser may have been preempted after setting
+			 * TURNING_OFF. Do not clear its barrier: the domain could be
+			 * powered off under this transaction. Fail and let the caller
+			 * retry; a stale bit from a previous boot was already dropped
+			 * in otp_power_side_reset_once(). */
+			OTP_LOGE("otp pwr: off vote in progress 0x%x, retry\r\n", w);
+			return -1;
 		}
 		bk_delay_us(OTP_PWR_WAIT_US);
 		waited += OTP_PWR_WAIT_US;
