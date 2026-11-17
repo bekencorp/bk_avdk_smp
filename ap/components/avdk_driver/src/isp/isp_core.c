@@ -947,6 +947,25 @@ static void isp_clock_enable(uint32_t clk)
     bk_isp_clock_enable(true);
 }
 
+static void bk_isp_frame_buffer_release(isp_control_t *control, uint8_t chnl)
+{
+    uint8_t external = control->chn[chnl].external_frame_buffer;
+
+    for (uint8_t i = 0; i < ISP_FRAME_CNT_MAX; i++)
+    {
+        if (!external && control->chn[chnl].frame_buffer[i] != NULL)
+        {
+#ifdef CONFIG_FRAME_BUFFER
+            bk_frame_buffer_free(control->chn[chnl].frame_buffer[i]);
+#endif
+        }
+        control->chn[chnl].frame_buffer[i] = NULL;
+        control->chn[chnl].frame_buffer_size[i] = 0;
+    }
+    control->chn[chnl].buf_cnt = 0;
+    control->chn[chnl].external_frame_buffer = 0;
+}
+
 static uint8_t isp_frame_buffer_limit(void)
 {
 #if CONFIG_ISP_DUAL_MIPI_LOGICAL_PORT || CONFIG_PTZ_CAMERA_3DNR_SUPPORT || CONFIG_CSI_TP2863
@@ -956,9 +975,10 @@ static uint8_t isp_frame_buffer_limit(void)
 #endif
 }
 
-static bk_err_t bk_isp_complete_buffer_config(isp_control_t *control, uint8_t chnl, uint8_t buf_cnt)
+/* Legacy open path: no external descriptors means driver-owned frame buffers. */
+static bk_err_t bk_isp_complete_legacy_buffer_config(isp_control_t *control, uint8_t chnl,
+                                                     uint8_t buf_cnt)
 {
-    bk_err_t ret = BK_FAIL;
     uint8_t frame_cnt = buf_cnt;
     uint8_t frame_limit = isp_frame_buffer_limit();
 
@@ -967,51 +987,164 @@ static bk_err_t bk_isp_complete_buffer_config(isp_control_t *control, uint8_t ch
         frame_cnt = frame_limit;
     }
 
-    for (int i = 0; i < frame_cnt; i++) {
+    control->chn[chnl].external_frame_buffer = 0;
+    control->chn[chnl].buf_cnt = frame_cnt;
+    for (uint8_t i = 0; i < frame_cnt; i++)
+    {
         VIDEO_BUF_S buf;
         uint32_t frame_size = 0;
-        vsi_u8_t index;
-        os_memset(&buf, 0, sizeof(buf));
 
+        os_memset(&buf, 0, sizeof(buf));
         buf.index = i;
         buf.numPlanes = control->chn[chnl].chn_attr.chnFormat.numPlanes;
-        for (index = 0; index < buf.numPlanes; index++)
+        for (uint8_t p = 0; p < buf.numPlanes; p++)
         {
-            buf.planes[index].size = control->chn[chnl].chn_attr.chnFormat.planeFmt[index].size;
-            frame_size += buf.planes[index].size;
+            buf.planes[p].size = control->chn[chnl].chn_attr.chnFormat.planeFmt[p].size;
+            frame_size += buf.planes[p].size;
         }
 
         if (control->chn[chnl].frame_buffer[i] == NULL)
         {
 #ifdef CONFIG_FRAME_BUFFER
-            control->chn[chnl].frame_buffer[i] = (uint8_t *)bk_frame_buffer_malloc(MEM_SLAB_HEAP_UNCODED, frame_size);
+            control->chn[chnl].frame_buffer[i] =
+                (uint8_t *)bk_frame_buffer_malloc(MEM_SLAB_HEAP_UNCODED, frame_size);
 #endif
             if (control->chn[chnl].frame_buffer[i] == NULL)
             {
-                LOGE("%s, %d please attenation frame buffer not free\n", __func__, __LINE__);
-                return ret;
+                bk_isp_frame_buffer_release(control, chnl);
+                return BK_FAIL;
             }
         }
+        control->chn[chnl].frame_buffer_size[i] = frame_size;
 
-        buf.planes[0].dmaPhyAddr = (vsi_dma_t)(uintptr_t)control->chn[chnl].frame_buffer[i];
+        buf.planes[0].dmaPhyAddr =
+            (vsi_dma_t)(uintptr_t)control->chn[chnl].frame_buffer[i];
 
         LOGD("stbuf[%d] fmt:%d \r\n", i, buf.numPlanes);
         LOGD("plane[%d]: addr %x, size %d \r\n", 0, buf.planes[0].dmaPhyAddr, buf.planes[0].size);
 
-        for (index = 1; index < buf.numPlanes; index++) {
-            buf.planes[index].dmaPhyAddr =
-            buf.planes[index - 1].dmaPhyAddr +
-            buf.planes[index - 1].size;
-
-            LOGD("plane[%d]: addr %x, size %d \r\n", index, buf.planes[index].dmaPhyAddr, buf.planes[index].size);
+        for (uint8_t p = 1; p < buf.numPlanes; p++)
+        {
+            buf.planes[p].dmaPhyAddr = buf.planes[p - 1].dmaPhyAddr +
+                                       buf.planes[p - 1].size;
+            LOGD("plane[%d]: addr %x, size %d \r\n", p, buf.planes[p].dmaPhyAddr, buf.planes[p].size);
         }
 
-        VSI_MPI_ISP_QBUF(control->chn[chnl].channel, &buf);
+        int ret = VSI_MPI_ISP_QBUF(control->chn[chnl].channel, &buf);
+        if (ret != BK_OK)
+        {
+            VSI_MPI_ISP_StreamOffChn(control->chn[chnl].channel);
+            bk_isp_frame_buffer_release(control, chnl);
+            return ret;
+        }
     }
 
-    ret = BK_OK;
+    return BK_OK;
+}
 
-    return ret;
+static bk_err_t bk_isp_complete_buffer_config(isp_control_t *control, uint8_t chnl,
+                                              const isp_config_ext_t *config)
+{
+    uint8_t plane_cnt = control->chn[chnl].chn_attr.chnFormat.numPlanes;
+    uint32_t frame_size = 0;
+
+    if (config->frame_buffers == NULL)
+    {
+        return bk_isp_complete_legacy_buffer_config(control, chnl, config->buf_cnt);
+    }
+
+    if (config->buf_cnt < 2 ||
+        config->buf_cnt > ISP_FRAME_CNT_MAX || plane_cnt == 0 ||
+        plane_cnt > VIDEO_MAX_PLANES)
+    {
+        LOGE("%s, invalid external frame pool, ch=%d count=%u planes=%u\n",
+             __func__, chnl, config->buf_cnt, plane_cnt);
+        return BK_ERR_PARAM;
+    }
+
+    for (uint8_t p = 0; p < plane_cnt; p++)
+    {
+        frame_size += control->chn[chnl].chn_attr.chnFormat.planeFmt[p].size;
+    }
+    if (frame_size == 0)
+    {
+        return BK_ERR_PARAM;
+    }
+
+    /* Validate the complete pool before publishing any address to the VB queue. */
+    for (uint8_t i = 0; i < config->buf_cnt; i++)
+    {
+        const isp_external_frame_buffer_t *ext = &config->frame_buffers[i];
+        if (ext->addr == 0 || ext->size < frame_size ||
+            control->chn[chnl].frame_buffer[i] != NULL)
+        {
+            LOGE("%s, invalid buffer ch=%d i=%u addr=%x size=%u required=%u\n",
+                 __func__, chnl, i, ext->addr, ext->size, frame_size);
+            return BK_ERR_PARAM;
+        }
+        for (uint8_t j = 0; j < i; j++)
+        {
+            if (config->frame_buffers[j].addr == ext->addr)
+            {
+                LOGE("%s, duplicate buffer address %x\n", __func__, ext->addr);
+                return BK_ERR_PARAM;
+            }
+        }
+        for (uint8_t other = 0; other < ISP_CHN_CNT; other++)
+        {
+            if (other == chnl || !control->chn[other].enable)
+            {
+                continue;
+            }
+            for (uint8_t j = 0; j < control->chn[other].buf_cnt; j++)
+            {
+                if ((uint32_t)(uintptr_t)control->chn[other].frame_buffer[j] == ext->addr)
+                {
+                    LOGE("%s, buffer %x already used by channel %u\n",
+                         __func__, ext->addr, other);
+                    return BK_ERR_PARAM;
+                }
+            }
+        }
+    }
+
+    control->chn[chnl].external_frame_buffer = 1;
+    control->chn[chnl].buf_cnt = config->buf_cnt;
+    for (uint8_t i = 0; i < config->buf_cnt; i++)
+    {
+        VIDEO_BUF_S buf;
+        os_memset(&buf, 0, sizeof(buf));
+        buf.index = i;
+        buf.numPlanes = plane_cnt;
+
+        control->chn[chnl].frame_buffer[i] =
+            (uint8_t *)(uintptr_t)config->frame_buffers[i].addr;
+        control->chn[chnl].frame_buffer_size[i] = config->frame_buffers[i].size;
+
+        for (uint8_t p = 0; p < plane_cnt; p++)
+        {
+            buf.planes[p].size = control->chn[chnl].chn_attr.chnFormat.planeFmt[p].size;
+        }
+        buf.planes[0].dmaPhyAddr =
+            (vsi_dma_t)(uintptr_t)control->chn[chnl].frame_buffer[i];
+        for (uint8_t p = 1; p < plane_cnt; p++)
+        {
+            buf.planes[p].dmaPhyAddr = buf.planes[p - 1].dmaPhyAddr +
+                                       buf.planes[p - 1].size;
+        }
+
+        int ret = VSI_MPI_ISP_QBUF(control->chn[chnl].channel, &buf);
+        if (ret != BK_OK)
+        {
+            LOGE("%s, initial QBUF failed ch=%d i=%u ret=%d\n",
+                 __func__, chnl, i, ret);
+            VSI_MPI_ISP_StreamOffChn(control->chn[chnl].channel);
+            bk_isp_frame_buffer_release(control, chnl);
+            return ret;
+        }
+    }
+
+    return BK_OK;
 }
 
 static bk_err_t bk_isp_buffer_dequeue(ISP_CHN chnl, VIDEO_BUF_S *pBuf, uint32_t timeMs)
@@ -1436,17 +1569,8 @@ bk_err_t bk_isp_deinit(isp_handle_t *handle)
             control->chn[i].base_addr = NULL;
         }
 
-        for (uint8_t j = 0; j < ISP_FRAME_CNT_MAX; j++)
-        {
-            if (control->chn[i].frame_buffer[j])
-            {
-                LOGI("%s, %d, freeing frame_buffer[%d][%d]: %p\n", __func__, __LINE__, i, j, control->chn[i].frame_buffer[j]);
-#ifdef CONFIG_FRAME_BUFFER
-                bk_frame_buffer_free(control->chn[i].frame_buffer[j]);
-#endif
-                control->chn[i].frame_buffer[j] = NULL;
-            }
-        }
+        /* Free legacy driver-owned buffers and detach application-owned pools. */
+        bk_isp_frame_buffer_release(control, i);
     }
 
     VSI_MPI_ISP_DeRegIsrCallBack(control->dev);
@@ -1545,9 +1669,9 @@ bk_err_t bk_isp_open(isp_handle_t *handle, isp_config_ext_t *config)
         return ret;
     }
 
+    control->chn[config->chnl_id].enable_flexa = config->enable_flexa ? true : false;
     if (config->enable_flexa)
     {
-        control->chn[config->chnl_id].enable_flexa = true;
         control->chn[config->chnl_id].total_line = (config->height % FLEXA_LINES) ? (config->height / FLEXA_LINES + 1) : (config->height / FLEXA_LINES);
         VSI_MPI_ISP_SetMiV10LineEnable(control->chn[config->chnl_id].channel, 1);
     }
@@ -1555,7 +1679,7 @@ bk_err_t bk_isp_open(isp_handle_t *handle, isp_config_ext_t *config)
     // step 4: frame config, maybe ringbuffer or frame_buffer
     if (config->work_mode == 0)
     {
-        ret = bk_isp_complete_buffer_config(control, config->chnl_id, config->buf_cnt);
+        ret = bk_isp_complete_buffer_config(control, config->chnl_id, config);
     }
     else
     {
@@ -1587,7 +1711,12 @@ bk_err_t bk_isp_open(isp_handle_t *handle, isp_config_ext_t *config)
 
     if (ret != BK_OK)
     {
-        LOGE("%s, %d buf malloc fail\n", __func__, __LINE__);
+        LOGE("%s, %d frame buffer config fail\n", __func__, __LINE__);
+        if (config->work_mode == 0)
+        {
+            VSI_MPI_ISP_StreamOffChn(control->chn[config->chnl_id].channel);
+            bk_isp_frame_buffer_release(control, config->chnl_id);
+        }
         return ret;
     }
 
@@ -1634,6 +1763,11 @@ bk_err_t bk_isp_open(isp_handle_t *handle, isp_config_ext_t *config)
     {
         LOGE("%s, %d, enable chnl fail, ret=%d\n", __func__, __LINE__, ret);
         control->chn[config->chnl_id].enable = false;
+        if (config->work_mode == 0)
+        {
+            VSI_MPI_ISP_StreamOffChn(control->chn[config->chnl_id].channel);
+            bk_isp_frame_buffer_release(control, config->chnl_id);
+        }
         return ret;
     }
 
@@ -1692,24 +1826,11 @@ bk_err_t bk_isp_close(isp_handle_t *handle, uint8_t chnl)
         chnl_config->enable = true;
     }
 
-    /* Release this channel's frame buffers so the next open reallocates for its own geometry.
-     * They are sized for the closing resolution; keeping them (as bk_isp_complete_buffer_config
-     * only allocates when the pointer is NULL) would let a reopen at a larger resolution reuse an
-     * undersized buffer and overrun the shared frame heap. DisableChn has stopped the MI DMA and
-     * the reader is already stopped, so the buffers are no longer in flight. Only touch the
-     * channel being closed; the peer (e.g. MP flexa) keeps its own buffers. */
+    /* DisableChn has stopped the MI DMA and the reader has stopped. Release
+     * legacy driver-owned buffers or detach the caller-owned frame pool. */
     if (chnl_config->enable == false)
     {
-        for (uint8_t j = 0; j < ISP_FRAME_CNT_MAX; j++)
-        {
-            if (chnl_config->frame_buffer[j])
-            {
-#ifdef CONFIG_FRAME_BUFFER
-                bk_frame_buffer_free(chnl_config->frame_buffer[j]);
-#endif
-                chnl_config->frame_buffer[j] = NULL;
-            }
-        }
+        bk_isp_frame_buffer_release(control, chnl);
     }
 
     for (uint8_t i = 0; i < ISP_CHN_CNT; i++)
