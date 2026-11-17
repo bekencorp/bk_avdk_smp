@@ -376,7 +376,13 @@ uint32_t bk_dma_check_chn_status(void)
 {
     uint32_t chn_sta = 0;
 
-    for (dma_id_t id = 0; id < SOC_DMA_CHAN_NUM_PER_UNIT; id++) {
+    if (!s_dma_driver_is_init) {
+        return 0;
+    }
+
+    /* Only scan the channels owned by this core, leave the other core's alone. */
+    for (dma_id_t id = CONFIG_DMA_LOGIC_CHAN_ID_MIN;
+         id < CONFIG_DMA_LOGIC_CHAN_ID_MIN + CONFIG_DMA_LOGIC_CHAN_CNT; id++) {
         if (dma_hal_get_enable_status(&s_dma.hal, id)) {
             chn_sta |= (0x1 << id);
         }
