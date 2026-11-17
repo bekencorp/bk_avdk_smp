@@ -3312,9 +3312,18 @@ static u8 * wpas_populate_assoc_ies(
 	}
 
 #ifdef CONFIG_SAE
+	/*
+	 * Remember whether this connection attempt relies on PMKSA caching.
+	 * The AP may reject our PMKID with status 53 and UMAC then reports a
+	 * locally generated disconnect before the connect indication; notify.c
+	 * uses this flag to skip the intermediate disconnect event so that the
+	 * SAE fallback is not exposed to the host.
+	 */
+	wpa_s->sme.sae_pmksa_caching = 0;
 	if (pmksa_cached && algs == WPA_AUTH_ALG_SAE) {
 		wpa_dbg(wpa_s, MSG_DEBUG,
 			"SAE: Use WPA_AUTH_ALG_OPEN for PMKSA caching attempt");
+		wpa_s->sme.sae_pmksa_caching = 1;
 		algs = WPA_AUTH_ALG_OPEN;
 	}
 #endif /* CONFIG_SAE */

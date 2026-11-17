@@ -1533,8 +1533,19 @@ int wpa_supplicant_ctrl_iface_receive(wpah_msg_t *msg)
 			}
 		}
 		/* NULL => pmksa_cache_add derives PMKID from PMK */
-		if (!pmkid_valid)
+		if (!pmkid_valid) {
+			if (wpa_key_mgmt_sae(entry->akmp)) {
+				/*
+				 * SAE PMKID is derived from the SAE commit scalars, not
+				 * from PMK. A WPA2-style derived PMKID will never match
+				 * the AP's PMKSA and only causes status 53, so skip the
+				 * cache entry and let SME run a full SAE instead.
+				 */
+				WPA_LOGW("SAE: skip PMKSA add without valid PMKID\n");
+				break;
+			}
 			pmkid = NULL;
+		}
 
 		pmksa_cache_add(wpa_s->wpa->pmksa, entry->pmk, entry->pmk_len,
 							pmkid, NULL, 0, entry->bssid,
@@ -2035,6 +2046,30 @@ static void mlme_event_unprot_disconnect(struct wpa_supplicant *wpa_s,
 	wpa_supplicant_event_sta(wpa_s, type, &event);
 }
 
+/*
+ * Keep the next auto-reconnect scan on the channel cached in the FCI.
+ * Called after a PMKID rejection: UMAC has already queued the reconnect
+ * scan, so limiting it avoids a full-channel scan before the SAE fallback.
+ */
+static void wpas_arm_fast_connect_scan_freqs(struct wpa_supplicant *wpa_s)
+{
+	struct wlan_fast_connect_info fci;
+	int *freqs;
+
+	os_memset(&fci, 0, sizeof(fci));
+	wlan_read_fast_connect_info(&fci);
+	if (!fci.channel)
+		return;
+
+	freqs = os_zalloc(sizeof(int) * 3);
+	if (!freqs)
+		return;
+
+	os_free(wpa_s->select_network_scan_freqs);
+	freqs[0] = rw_ieee80211_get_centre_frequency(fci.channel);
+	wpa_s->select_network_scan_freqs = freqs;
+}
+
 int wpa_supplicant_handle_events(wpah_msg_t *msg)
 {
 	struct wpa_supplicant *wpa_s = wpa_suppliant_ctrl_get_wpas();
@@ -2090,9 +2125,15 @@ int wpa_supplicant_handle_events(wpah_msg_t *msg)
 		info->reason_code = ind->reason_code;
 
 		if (ind->reason_code == WIFI_REASON_INVALID_PMKID) {
-			/* AP disconnected us with INVALID_PMKID(49), clear fast connect info */
-			struct wlan_fast_connect_info fci = {0};
-			wlan_clear_fast_connect_info(&fci);
+			/*
+			 * AP rejected our PMKID: drop only the runtime PMKSA entry and
+			 * keep the FCI channel/bssid, so the retry can stay on the
+			 * cached channel and run a full SAE instead of a full scan.
+			 */
+			if (wpa_s->wpa && wpa_s->current_ssid)
+				wpa_sm_pmksa_cache_flush(wpa_s->wpa, wpa_s->current_ssid);
+			wlan_invalidate_fast_connect_sae_pmkid();
+			wpas_arm_fast_connect_scan_freqs(wpa_s);
 		}
 
 		// wpa_supplicant_event_sta(wpa_s, EVENT_DISASSOC, &data);
@@ -2230,9 +2271,15 @@ int wpa_supplicant_handle_events(wpah_msg_t *msg)
 				union wpa_event_data data;
 
 				if (ind->status_code == 53) {
-					/* 53: MAC_ST_INVALID_PMKID, clear fast connect info */
-					struct wlan_fast_connect_info fci = {0};
-					wlan_clear_fast_connect_info(&fci);
+					/*
+					 * 53: MAC_ST_INVALID_PMKID. Drop only the runtime
+					 * PMKSA entry and keep the FCI channel/bssid so the
+					 * retry can run a full SAE on the cached channel.
+					 */
+					if (wpa_s->wpa && wpa_s->current_ssid)
+						wpa_sm_pmksa_cache_flush(wpa_s->wpa, wpa_s->current_ssid);
+					wlan_invalidate_fast_connect_sae_pmkid();
+					wpas_arm_fast_connect_scan_freqs(wpa_s);
 				}
 
 				os_memset(&data, 0, sizeof(data));
@@ -2240,6 +2287,39 @@ int wpa_supplicant_handle_events(wpah_msg_t *msg)
 				data.assoc_reject.timed_out = 0; /* 0: Unspecified, Drop PMKSA Cache */
 
 				wpa_supplicant_event_sta(wpa_s, EVENT_ASSOC_REJECT, &data);
+
+#ifdef CONFIG_SAE
+				if (ind->status_code == 53 && wpa_s->sme.sae_pmksa_caching) {
+					/*
+					 * Allow one immediate retry on the cached channel. The
+					 * disconnect path cleared reassociate and marked the
+					 * interface disconnected, so the scheduled scan would be
+					 * dropped in wpa_supplicant_scan() and a scan result alone
+					 * would not start a new association. sae_pmksa_caching is
+					 * cleared before the full-SAE retry, so this runs once per
+					 * PMKSA caching attempt.
+					 */
+					WPA_LOGI("SAE PMKID rejected, immediate retry on cached channel\n");
+#if defined(BK_SUPPLICANT) && defined(CONFIG_AUTO_RECONNECT)
+					/*
+					 * wpa_supplicant_req_scan() does not arm any scan once
+					 * auto_reconnect_count reaches 0 (it only notifies a
+					 * disconnect). Grant exactly one scan slot for this
+					 * immediate retry, without handing out a whole new
+					 * reconnect budget (the host keeps managing the rest).
+					 */
+					WPA_LOGI("auto reconnect count %d/%d\n",
+						 wpa_s->auto_reconnect_count,
+						 wpa_s->auto_reconnect_max_count);
+					if (wpa_s->auto_reconnect_max_count != 0 &&
+					    wpa_s->auto_reconnect_count == 0)
+						wpa_s->auto_reconnect_count += 1;
+#endif
+					wpa_s->disconnected = 0;
+					wpa_s->reassociate = 1;
+					wpa_supplicant_req_scan(wpa_s, 0, 0);
+				}
+#endif
 			}
 		}
 	}	break;

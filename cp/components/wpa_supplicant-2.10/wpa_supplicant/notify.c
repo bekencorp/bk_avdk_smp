@@ -436,6 +436,22 @@ void wpas_notify_disconnected(struct wpa_supplicant *wpa_s)
 	// get previous state
 	wifi_linkstate_reason_t state = mhdr_get_station_status();
 	bool local_generated = !!(wpa_s->disconnect_reason < 0);
+	bool sae_pmkid_retry = false;
+#if CONFIG_WLAN_FAST_CONNECT_WPA3 && defined(CONFIG_SAE)
+	/*
+	 * A PMKID rejection during a PMKSA caching attempt is retried internally
+	 * with a full SAE. UMAC may report it as assoc status 53, as a locally
+	 * generated deauth (reason 1), or as an AP deauth with invalid PMKID
+	 * (reason 49); the connect indication can also arrive after the deauth.
+	 * Do not report this intermediate attempt as a disconnect / connect
+	 * failure to the host; a real retry failure has a different status and
+	 * is still reported.
+	 */
+	sae_pmkid_retry = wpa_s->sme.sae_pmksa_caching &&
+			  (wpa_s->assoc_status_code == 53 ||
+			   wpa_s->disconnect_reason == -1 ||
+			   wpa_s->disconnect_reason == WIFI_REASON_INVALID_PMKID);
+#endif
 
 	/* negative reason code for local generated */
 	u16 reason = wpa_s->disconnect_reason < 0 ?
@@ -465,6 +481,7 @@ void wpas_notify_disconnected(struct wpa_supplicant *wpa_s)
 	/* set mac status */
 	mhdr_set_station_status(state);
 
+	if (!sae_pmkid_retry) {
 #if defined(BK_SUPPLICANT) && defined(CONFIG_AUTO_RECONNECT)
 	if (!wpa_s->reconnect)
 #endif
@@ -494,6 +511,10 @@ void wpas_notify_disconnected(struct wpa_supplicant *wpa_s)
 #endif
 					EVENT_WIFI_STA_DISCONNECTED,
 					&sta_disconnected, sizeof(sta_disconnected), BEKEN_NEVER_TIMEOUT));
+	}
+	} else {
+		WPA_LOGI("skip STA disconnected event for SAE PMKSA retry (reason=%u assoc_status=%u)\n",
+			 reason, wpa_s->assoc_status_code);
 	}
 }
 

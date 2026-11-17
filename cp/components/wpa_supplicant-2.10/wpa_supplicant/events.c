@@ -5559,6 +5559,15 @@ void wpa_supplicant_event_sta(void *ctx, enum wpa_event_type event,
 
 		wpa_supplicant_event_assoc(wpa_s, data);
 		wpa_s->assoc_status_code = WLAN_STATUS_SUCCESS;
+#ifdef CONFIG_SAE
+		/*
+		 * PMKSA caching attempt succeeded (possibly after an internal 53
+		 * fallback). Clear the flag so later genuine disconnects, including
+		 * AP-sent reason 1 which is reported as locally generated, are still
+		 * notified to the host.
+		 */
+		wpa_s->sme.sae_pmksa_caching = 0;
+#endif
 		if (data &&
 		    (data->assoc_info.authorized ||
 		     (!(wpa_s->drv_flags & WPA_DRIVER_FLAGS_SME) &&
