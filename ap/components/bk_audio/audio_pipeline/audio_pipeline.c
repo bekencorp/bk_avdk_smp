@@ -459,8 +459,8 @@ static bk_err_t _pipeline_rb_linked(audio_pipeline_handle_t pipeline, audio_elem
             audio_element_get_output_framebuf_size(el, (int *)(uintptr_t *)&fb_port_config.node_size, (int *)(uintptr_t *)&fb_port_config.node_num);
             port = framebuf_port_init(&fb_port_config);
             /* set port tag: element_tag_in_fb */
-            out_port_tag = audio_malloc(os_strlen(audio_element_get_tag(el)) + 8);
-            if (out_port_tag)
+            out_port_tag = port ? audio_malloc(os_strlen(audio_element_get_tag(el)) + 8) : NULL;
+            if (port && out_port_tag)
             {
                 os_snprintf(out_port_tag, os_strlen(audio_element_get_tag(el)) + 8, "%s_out_fb", audio_element_get_tag(el));
                 audio_port_set_tag(port, out_port_tag);
@@ -474,8 +474,8 @@ static bk_err_t _pipeline_rb_linked(audio_pipeline_handle_t pipeline, audio_elem
             rb_port_config.ringbuf_size = audio_element_get_output_ringbuf_size(el);
             port = ringbuf_port_init(&rb_port_config);
             /* set port tag: element_tag_in_cb */
-            out_port_tag = audio_malloc(os_strlen(audio_element_get_tag(el)) + 8);
-            if (out_port_tag)
+            out_port_tag = port ? audio_malloc(os_strlen(audio_element_get_tag(el)) + 8) : NULL;
+            if (port && out_port_tag)
             {
                 os_snprintf(out_port_tag, os_strlen(audio_element_get_tag(el)) + 8, "%s_out_rb", audio_element_get_tag(el));
                 audio_port_set_tag(port, out_port_tag);
