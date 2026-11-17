@@ -702,7 +702,7 @@ const static ISP_CALIB_DATA_S GC20C3_1080P_CalibParam = {
 
         .wbm = {
             .enable = 1,
-            .measMode = ISP_AWB_MEAS_MODE_RGB,
+            .measMode = ISP_AWB_MEAS_MODE_YCBCR,
             .measRect = {
                 .top = 0,
                 .left = 0,
@@ -712,10 +712,10 @@ const static ISP_CALIB_DATA_S GC20C3_1080P_CalibParam = {
             .wpRange = {
                 .maxY = 0xEB,
                 .refCr_MaxR = 0x80,
-                .minY_MaxG = 0xC0,
+                .minY_MaxG = 30,
                 .refCb_MaxB = 0x80,
-                .maxCSum = 0x14,
-                .minC = 0x14,
+                .maxCSum = 12,
+                .minC = 12,
             },
         },
 
@@ -729,10 +729,10 @@ const static ISP_CALIB_DATA_S GC20C3_1080P_CalibParam = {
                .runInterval = 1,
                .speed = 64,
                .tolerance = 4,
-               .initColorTemp = 5000,
+               .initColorTemp = 4100,
                .calibParam = {
                    .centLine = {-646827, -762637, -2493639},
-                   .rgMin = 1050000,
+                   .rgMin = 1200000,
                    .rgMax = 2050000,
                    .wpRange0 = {
                        .wpLCurve = {
@@ -1019,7 +1019,7 @@ const static ISP_CALIB_DATA_S GC20C3_1080P_CalibParam = {
            .enable = 1,
            .threshold = 4,
            .cacAttr = {
-               .enable = 1,
+               .enable = 0,
                .hClipMode = 0,
                .vClipMode = 0,
                .hStart = 0,
@@ -1215,8 +1215,8 @@ const static ISP_CALIB_DATA_S GC20C3_1080P_CalibParam = {
         },
 
         .csm = {
-                .type = ISP_CSM_TYPE_709,
-                .quantization = ISP_CSM_FULL_RANGE,
+            .type = ISP_CSM_TYPE_709,
+            .quantization = ISP_CSM_FULL_RANGE,
         },
 
         .cproc = {
