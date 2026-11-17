@@ -116,7 +116,6 @@ typedef struct
 
 #define DEFAULT_DAC_SOURCE            AUD_DAC_SOURCE_A2DP
 #define DEFAULT_AUD_DAC_SAMPLE_RATE   48000
-#define DEFAULT_AUD_DAC_RSP_BUF_SIZE  DEFAULT_AUD_DAC_SAMPLE_RATE*20/1000*4 //48000/20ms/24bits
 
 #define MAX_CH_NUM (2)
 
@@ -257,14 +256,18 @@ bk_err_t onboard_speaker_stream_set_input_port_info(audio_element_handle_t onboa
  *
  * @param[in]      onboard_speaker_stream  element handle
  * @param[in]      dma_src   auxiliary DAC source (must not be the main source)
- * @param[in]      rate      new PCM sample rate for this source
- * @param[in]      frame_ms  per-source frame/DMA-period duration in ms (> 0)
+ * @param[in]      rate        new PCM sample rate for this source
+ * @param[in]      chl_num     PCM channel count of the caller's data (1 or 2)
+ * @param[in]      frame_size  PCM bytes per frame in the caller's own channel
+ *                             format (> 0). The stream converts it to its DAC
+ *                             output channel count (mono sources are expanded on
+ *                             read), so callers never need to know that count.
  *
  * @return         Result
  *                 - BK_OK: success
  *                 - other: failed
  */
-bk_err_t onboard_speaker_stream_set_aux_format(audio_element_handle_t onboard_speaker_stream, aud_dac_source_t dma_src, int rate, int frame_ms);
+bk_err_t onboard_speaker_stream_set_aux_format(audio_element_handle_t onboard_speaker_stream, aud_dac_source_t dma_src, int rate, int chl_num, int frame_size);
 #endif
 
 /**
