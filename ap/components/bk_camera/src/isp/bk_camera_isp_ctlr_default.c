@@ -642,11 +642,18 @@ static avdk_err_t isp_camera_ctlr_arm_probe_sustain(bk_camera_isp_ctlr_t *contro
         return AVDK_ERR_INVAL;
     }
 
+    /* The UNC slab (one PSRAM die) is already consumed by the channel frame buffers at large
+     * resolutions (e.g. 2304x1296 RAW10 needs 2 x 5.7MB), so fall back to the CODED slab that
+     * lives on the other PSRAM die. This buffer is only a CPU-side read destination. */
     uint8_t *probe = (uint8_t *)bk_frame_buffer_malloc(MEM_SLAB_HEAP_UNCODED, fsize);
     if (probe == NULL)
     {
-        LOGE("%s, %d probe malloc %u failed\n", __func__, __LINE__, fsize);
-        return AVDK_ERR_NO_RESOURCE;
+        probe = (uint8_t *)bk_frame_buffer_malloc(MEM_SLAB_HEAP_CODED, fsize);
+        if (probe == NULL)
+        {
+            LOGE("%s, %d probe malloc %u failed\n", __func__, __LINE__, fsize);
+            return AVDK_ERR_NO_RESOURCE;
+        }
     }
 
     avdk_err_t ret = AVDK_ERR_GENERIC;

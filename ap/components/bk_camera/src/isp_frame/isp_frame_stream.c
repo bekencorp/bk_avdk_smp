@@ -213,11 +213,17 @@ bk_err_t isp_frame_send_one_frame(void)
     }
 
     frame_size = isp_frame_size_get();
+    /* Prefer the UNC slab, but fall back to the CODED slab (other PSRAM die) when the UNC slab
+     * is already taken by the ISP frame buffers at large resolutions (e.g. 2304x1296 RAW10). */
     frame = (uint8_t *)bk_frame_buffer_malloc(MEM_SLAB_HEAP_UNCODED, frame_size);
     if (frame == NULL)
     {
-        LOGE("frame malloc failed, size=%u\n", frame_size);
-        return BK_ERR_NO_MEM;
+        frame = (uint8_t *)bk_frame_buffer_malloc(MEM_SLAB_HEAP_CODED, frame_size);
+        if (frame == NULL)
+        {
+            LOGE("frame malloc failed, size=%u\n", frame_size);
+            return BK_ERR_NO_MEM;
+        }
     }
 
     isp_frame_preview_prepare_mp_read();
