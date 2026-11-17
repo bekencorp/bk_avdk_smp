@@ -995,15 +995,15 @@ static bk_err_t bk_isp_complete_buffer_config(isp_control_t *control, uint8_t ch
 
         buf.planes[0].dmaPhyAddr = (vsi_dma_t)(uintptr_t)control->chn[chnl].frame_buffer[i];
 
-        LOGI("stbuf[%d] fmt:%d \r\n", i, buf.numPlanes);
-        LOGI("plane[%d]: addr %x, size %d \r\n", 0, buf.planes[0].dmaPhyAddr, buf.planes[0].size);
+        LOGD("stbuf[%d] fmt:%d \r\n", i, buf.numPlanes);
+        LOGD("plane[%d]: addr %x, size %d \r\n", 0, buf.planes[0].dmaPhyAddr, buf.planes[0].size);
 
         for (index = 1; index < buf.numPlanes; index++) {
             buf.planes[index].dmaPhyAddr =
             buf.planes[index - 1].dmaPhyAddr +
             buf.planes[index - 1].size;
 
-            LOGI("plane[%d]: addr %x, size %d \r\n", index, buf.planes[index].dmaPhyAddr, buf.planes[index].size);
+            LOGD("plane[%d]: addr %x, size %d \r\n", index, buf.planes[index].dmaPhyAddr, buf.planes[index].size);
         }
 
         VSI_MPI_ISP_QBUF(control->chn[chnl].channel, &buf);
@@ -1096,7 +1096,7 @@ static bk_err_t bk_isp_flexa_buffer_config(isp_control_t *control, uint8_t chnl,
         buf.planes[index - 1].dmaPhyAddr +
         buf.planes[index - 1].size;
 
-        LOGI("plane[%d]: addr %x, size %d \r\n", index, buf.planes[index].dmaPhyAddr, buf.planes[index].size);
+        LOGD("plane[%d]: addr %x, size %d \r\n", index, buf.planes[index].dmaPhyAddr, buf.planes[index].size);
     }
 
     control->chn[chnl].y_addr = buf.planes[0].dmaPhyAddr;
