@@ -44,6 +44,12 @@
 /* ---- worker parameters ---- */
 #define PLAYER_FRAME_MAX      (256u)   /* SCO frame is small (mSBC 60 / CVSD unit) */
 #define PLAYER_Q_DEPTH        (12u)
+
+/* Uplink capture frame period. Deliberately independent of
+ * CONFIG_AUDIO_PLAY_FRAME_MS: the SCO packet cadence is 7.5ms and the record
+ * ring only holds a couple of blocks, so shrinking the mic block would cut the
+ * uplink jitter margin for no RAM win in the playback path. */
+#define HFP_MIC_FRAME_MS      (20u)
 #define PLAYER_TASK_PRIO      (5u)
 #define PLAYER_TASK_STACK     (4096u)
 #define MIC_TASK_PRIO         (4u)
@@ -182,7 +188,7 @@ static void mic_task(void *arg)
     cfg.sampRate      = is_msbc ? 16000 : 8000;
     cfg.bitsPerSample = 16;
     cfg.adc_gain      = 16.0;
-    cfg.frame_size    = cfg.sampRate * cfg.nChans / 1000 * 20 * cfg.bitsPerSample / 8;
+    cfg.frame_size    = cfg.sampRate * cfg.nChans / 1000 * HFP_MIC_FRAME_MS * cfg.bitsPerSample / 8;
     cfg.pool_size     = cfg.frame_size * 2;
     cfg.encoder_type  = is_msbc ? AUDIO_RECORD_ENCODER_SBC : AUDIO_RECORD_ENCODER_PCM;
     cfg.ch_bitmap     = ONBOARD_MIC_ADC_ACTIVE_CH_0_BIT;
@@ -299,7 +305,7 @@ static void player_audio_start(uint8_t codec)
         cfg.nChans       = 1;
         cfg.sampRate     = (CODEC_VOICE_MSBC == codec) ? 16000 : 8000;
         cfg.volume       = BK_AUD_DAC_DIG_GAIN_DB_SILENCE;
-        cfg.frame_size   = cfg.sampRate * cfg.nChans / 1000 * 20 * cfg.bitsPerSample / 8;
+        cfg.frame_size   = cfg.sampRate * cfg.nChans / 1000 * CONFIG_AUDIO_PLAY_FRAME_MS * cfg.bitsPerSample / 8;
         cfg.pool_size    = cfg.frame_size * 2;
         cfg.decoder_type = (CODEC_VOICE_MSBC == codec) ? AUDIO_PLAY_DECODER_MSBC
                                                        : AUDIO_PLAY_DECODER_PCM;

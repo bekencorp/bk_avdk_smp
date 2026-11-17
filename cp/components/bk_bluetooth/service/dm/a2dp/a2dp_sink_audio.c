@@ -261,7 +261,7 @@ static bk_a2dp_audio_player_open_result_t a2dp_sink_audio_player_open(uint8_t op
 #else
     cfg.volume = a2dp_vol_to_dac_dig_gain_db(avrcp_vol >> 1);
 #endif
-    cfg.frame_size = cfg.sampRate * cfg.nChans / 1000 * 20 * cfg.bitsPerSample / 8;
+    cfg.frame_size = cfg.sampRate * cfg.nChans / 1000 * CONFIG_AUDIO_PLAY_FRAME_MS * cfg.bitsPerSample / 8;
     cfg.pool_size = cfg.frame_size * 2;
     cfg.decoder_type = decoder_type;
     cfg.dac_source_bitmap = ONBOARD_SPEAKER_STREAM_DAC_SOURCE_A2DP_BIT;
