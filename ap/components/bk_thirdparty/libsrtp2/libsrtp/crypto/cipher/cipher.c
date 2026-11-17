@@ -195,15 +195,17 @@ uint32_t srtp_cipher_rand_u32_for_tests(void)
  * test cases provided in a list test_data of values of key, salt, iv,
  * plaintext, and ciphertext that is known to be good
  */
-srtp_err_status_t srtp_cipher_type_test(
+static srtp_err_status_t srtp_cipher_type_test_with_buffers(
     const srtp_cipher_type_t *ct,
-    const srtp_cipher_test_case_t *test_data)
+    const srtp_cipher_test_case_t *test_data,
+    uint8_t *buffer,
+    uint8_t *buffer2,
+    uint8_t *key,
+    uint8_t *iv)
 {
     const srtp_cipher_test_case_t *test_case = test_data;
     srtp_cipher_t *c;
     srtp_err_status_t status;
-    uint8_t buffer[SELF_TEST_BUF_OCTETS];
-    uint8_t buffer2[SELF_TEST_BUF_OCTETS];
     size_t len;
     size_t case_num = 0;
 
@@ -282,7 +284,7 @@ srtp_err_status_t srtp_cipher_type_test(
         }
 
         /* encrypt */
-        len = sizeof(buffer);
+        len = SELF_TEST_BUF_OCTETS;
         status = srtp_cipher_encrypt(
             c, buffer, test_case->plaintext_length_octets, buffer, &len);
         if (status) {
@@ -370,7 +372,7 @@ srtp_err_status_t srtp_cipher_type_test(
         }
 
         /* decrypt */
-        len = sizeof(buffer);
+        len = SELF_TEST_BUF_OCTETS;
         status = srtp_cipher_decrypt(
             c, buffer, test_case->ciphertext_length_octets, buffer, &len);
         if (status) {
@@ -436,8 +438,6 @@ srtp_err_status_t srtp_cipher_type_test(
         size_t plaintext_len;
         size_t encrypted_len;
         size_t decrypted_len;
-        uint8_t key[MAX_KEY_LEN];
-        uint8_t iv[MAX_KEY_LEN];
 
         /* choose a length at random (leaving room for IV and padding) */
         plaintext_len =
@@ -495,7 +495,7 @@ srtp_err_status_t srtp_cipher_type_test(
         }
 
         /* encrypt buffer with cipher */
-        encrypted_len = sizeof(buffer);
+        encrypted_len = SELF_TEST_BUF_OCTETS;
         status = srtp_cipher_encrypt(c, buffer, plaintext_len, buffer,
                                      &encrypted_len);
         if (status) {
@@ -536,7 +536,7 @@ srtp_err_status_t srtp_cipher_type_test(
                         srtp_octet_string_hex_string(
                             test_case->aad, test_case->aad_length_octets));
         }
-        decrypted_len = sizeof(buffer);
+        decrypted_len = SELF_TEST_BUF_OCTETS;
         status = srtp_cipher_decrypt(c, buffer, encrypted_len, buffer,
                                      &decrypted_len);
         if (status) {
@@ -559,6 +559,7 @@ srtp_err_status_t srtp_cipher_type_test(
                 debug_print(srtp_mod_cipher, "random test case %zu failed",
                             case_num);
                 debug_print(srtp_mod_cipher, "(failure at byte %zu)", k);
+                break;
             }
         }
         if (status) {
@@ -573,6 +574,37 @@ srtp_err_status_t srtp_cipher_type_test(
     }
 
     return srtp_err_status_ok;
+}
+
+/*
+ * The test buffers must not live on the task stack: BK7259 task stacks are
+ * allocated from the cacheable AP PSRAM heap, while the hardware crypto
+ * engine accesses these buffers through DMA and performs no cache
+ * maintenance. Use the system heap (non-cacheable PSRAM) instead.
+ */
+srtp_err_status_t srtp_cipher_type_test(
+    const srtp_cipher_type_t *ct,
+    const srtp_cipher_test_case_t *test_data)
+{
+    srtp_err_status_t status;
+    uint8_t *buffer = (uint8_t *)srtp_crypto_alloc(SELF_TEST_BUF_OCTETS);
+    uint8_t *buffer2 = (uint8_t *)srtp_crypto_alloc(SELF_TEST_BUF_OCTETS);
+    uint8_t *key = (uint8_t *)srtp_crypto_alloc(MAX_KEY_LEN);
+    uint8_t *iv = (uint8_t *)srtp_crypto_alloc(MAX_KEY_LEN);
+
+    if (buffer == NULL || buffer2 == NULL || key == NULL || iv == NULL) {
+        status = srtp_err_status_alloc_fail;
+    } else {
+        status = srtp_cipher_type_test_with_buffers(ct, test_data, buffer,
+                                                    buffer2, key, iv);
+    }
+
+    srtp_crypto_free(buffer);
+    srtp_crypto_free(buffer2);
+    srtp_crypto_free(key);
+    srtp_crypto_free(iv);
+
+    return status;
 }
 
 /*

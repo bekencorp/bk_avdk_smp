@@ -196,7 +196,8 @@ STATUS threadpoolInternalCreateThread(PThreadpool pThreadpool)
 {
     STATUS retStatus = STATUS_SUCCESS;
     PThreadData data = NULL;
-    BOOL locked = FALSE, dataCreated = FALSE, mutexCreated = FALSE;
+    BOOL locked = FALSE, dataCreated = FALSE, mutexCreated = FALSE, listEnqueued = FALSE;
+    BOOL threadCreated = FALSE;
     TID thread;
     CHK(pThreadpool != NULL, STATUS_NULL_ARG);
 
@@ -215,11 +216,13 @@ STATUS threadpoolInternalCreateThread(PThreadpool pThreadpool)
     ATOMIC_STORE_BOOL(&data->terminate, FALSE);
 
     CHK_STATUS(stackQueueEnqueue(pThreadpool->threadList, (UINT64)(uintptr_t) data));
+    listEnqueued = TRUE;
 
     MUTEX_UNLOCK(pThreadpool->listMutex);
     locked = FALSE;
 
     CHK_STATUS(THREAD_CREATE(&thread, threadpoolActor, (PVOID) data));
+    threadCreated = TRUE;
     CHK_STATUS(THREAD_DETACH(thread));
 
 CleanUp:
@@ -227,9 +230,15 @@ CleanUp:
         MUTEX_UNLOCK(pThreadpool->listMutex);
     }
 
-    // If logic changes such that it's possible successfully enqueue data but not create the thread
-    // We may attempt a double free.  Right now it's fine.
-    if (STATUS_FAILED(retStatus)) {
+    /* Once the actor is running it owns the ThreadData, so it must not be
+     * unlinked or freed here even if detach failed. Otherwise a later teardown
+     * would walk the freed item and spin on a poisoned mutex forever. */
+    if (STATUS_FAILED(retStatus) && !threadCreated) {
+        if (listEnqueued) {
+            MUTEX_LOCK(pThreadpool->listMutex);
+            stackQueueRemoveItem(pThreadpool->threadList, (UINT64)(uintptr_t) data);
+            MUTEX_UNLOCK(pThreadpool->listMutex);
+        }
         if (mutexCreated) {
             MUTEX_FREE(data->dataMutex);
         }

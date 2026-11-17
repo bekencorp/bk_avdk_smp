@@ -1239,7 +1239,7 @@ srtp_err_status_t srtp_stream_init_keys(srtp_session_keys_t *session_keys,
 {
     srtp_err_status_t stat;
     srtp_kdf_t kdf;
-    uint8_t tmp_key[MAX_SRTP_KEY_LEN];
+    uint8_t *tmp_key;
     size_t input_keylen, full_keylen;
     size_t kdf_keylen = 30, rtp_keylen, rtcp_keylen;
     size_t rtp_base_key_len, rtp_salt_len;
@@ -1298,6 +1298,11 @@ srtp_err_status_t srtp_stream_init_keys(srtp_session_keys_t *session_keys,
         return srtp_err_status_bad_param;
     }
 
+    tmp_key = (uint8_t *)srtp_crypto_alloc(MAX_SRTP_KEY_LEN);
+    if (tmp_key == NULL) {
+        return srtp_err_status_alloc_fail;
+    }
+
     if (rtp_keylen > kdf_keylen) {
         kdf_keylen = rtp_keylen;
     }
@@ -1339,6 +1344,7 @@ srtp_err_status_t srtp_stream_init_keys(srtp_session_keys_t *session_keys,
     if (stat) {
         /* zeroize temp buffer */
         octet_string_set_to_zero(tmp_key, MAX_SRTP_KEY_LEN);
+        srtp_crypto_free(tmp_key);
         return srtp_err_status_init_fail;
     }
 
@@ -1348,6 +1354,7 @@ srtp_err_status_t srtp_stream_init_keys(srtp_session_keys_t *session_keys,
     if (stat) {
         /* zeroize temp buffer */
         octet_string_set_to_zero(tmp_key, MAX_SRTP_KEY_LEN);
+        srtp_crypto_free(tmp_key);
         return srtp_err_status_init_fail;
     }
     debug_print(mod_srtp, "cipher key: %s",
@@ -1366,6 +1373,7 @@ srtp_err_status_t srtp_stream_init_keys(srtp_session_keys_t *session_keys,
         if (stat) {
             /* zeroize temp buffer */
             octet_string_set_to_zero(tmp_key, MAX_SRTP_KEY_LEN);
+            srtp_crypto_free(tmp_key);
             return srtp_err_status_init_fail;
         }
         memcpy(session_keys->salt, tmp_key + rtp_base_key_len,
@@ -1382,6 +1390,7 @@ srtp_err_status_t srtp_stream_init_keys(srtp_session_keys_t *session_keys,
     if (stat) {
         /* zeroize temp buffer */
         octet_string_set_to_zero(tmp_key, MAX_SRTP_KEY_LEN);
+        srtp_crypto_free(tmp_key);
         return srtp_err_status_init_fail;
     }
 
@@ -1420,6 +1429,7 @@ srtp_err_status_t srtp_stream_init_keys(srtp_session_keys_t *session_keys,
                 default:
                     /* zeroize temp buffer */
                     octet_string_set_to_zero(tmp_key, MAX_SRTP_KEY_LEN);
+                    srtp_crypto_free(tmp_key);
                     return srtp_err_status_bad_param;
                 }
             }
@@ -1440,6 +1450,7 @@ srtp_err_status_t srtp_stream_init_keys(srtp_session_keys_t *session_keys,
             if (stat) {
                 /* zeroize temp buffer */
                 octet_string_set_to_zero(tmp_key, MAX_SRTP_KEY_LEN);
+                srtp_crypto_free(tmp_key);
                 return srtp_err_status_init_fail;
             }
         } else {
@@ -1455,6 +1466,7 @@ srtp_err_status_t srtp_stream_init_keys(srtp_session_keys_t *session_keys,
         if (stat) {
             /* zeroize temp buffer */
             octet_string_set_to_zero(tmp_key, MAX_SRTP_KEY_LEN);
+            srtp_crypto_free(tmp_key);
             return srtp_err_status_init_fail;
         }
         debug_print(
@@ -1476,6 +1488,7 @@ srtp_err_status_t srtp_stream_init_keys(srtp_session_keys_t *session_keys,
             if (stat) {
                 /* zeroize temp buffer */
                 octet_string_set_to_zero(tmp_key, MAX_SRTP_KEY_LEN);
+                srtp_crypto_free(tmp_key);
                 return srtp_err_status_init_fail;
             }
         }
@@ -1491,6 +1504,7 @@ srtp_err_status_t srtp_stream_init_keys(srtp_session_keys_t *session_keys,
         if (stat) {
             /* zeroize temp buffer */
             octet_string_set_to_zero(tmp_key, MAX_SRTP_KEY_LEN);
+            srtp_crypto_free(tmp_key);
             return srtp_err_status_init_fail;
         }
 
@@ -1500,6 +1514,7 @@ srtp_err_status_t srtp_stream_init_keys(srtp_session_keys_t *session_keys,
             if (stat) {
                 /* zeroize temp buffer */
                 octet_string_set_to_zero(tmp_key, MAX_SRTP_KEY_LEN);
+                srtp_crypto_free(tmp_key);
                 return srtp_err_status_init_fail;
             }
         }
@@ -1511,6 +1526,7 @@ srtp_err_status_t srtp_stream_init_keys(srtp_session_keys_t *session_keys,
     if (stat) {
         /* zeroize temp buffer */
         octet_string_set_to_zero(tmp_key, MAX_SRTP_KEY_LEN);
+        srtp_crypto_free(tmp_key);
         return srtp_err_status_init_fail;
     }
     debug_print(mod_srtp, "auth key:   %s",
@@ -1522,6 +1538,7 @@ srtp_err_status_t srtp_stream_init_keys(srtp_session_keys_t *session_keys,
     if (stat) {
         /* zeroize temp buffer */
         octet_string_set_to_zero(tmp_key, MAX_SRTP_KEY_LEN);
+        srtp_crypto_free(tmp_key);
         return srtp_err_status_init_fail;
     }
 
@@ -1540,6 +1557,7 @@ srtp_err_status_t srtp_stream_init_keys(srtp_session_keys_t *session_keys,
     if (stat) {
         /* zeroize temp buffer */
         octet_string_set_to_zero(tmp_key, MAX_SRTP_KEY_LEN);
+        srtp_crypto_free(tmp_key);
         return srtp_err_status_init_fail;
     }
 
@@ -1556,6 +1574,7 @@ srtp_err_status_t srtp_stream_init_keys(srtp_session_keys_t *session_keys,
         if (stat) {
             /* zeroize temp buffer */
             octet_string_set_to_zero(tmp_key, MAX_SRTP_KEY_LEN);
+            srtp_crypto_free(tmp_key);
             return srtp_err_status_init_fail;
         }
         memcpy(session_keys->c_salt, tmp_key + rtcp_base_key_len,
@@ -1574,6 +1593,7 @@ srtp_err_status_t srtp_stream_init_keys(srtp_session_keys_t *session_keys,
     if (stat) {
         /* zeroize temp buffer */
         octet_string_set_to_zero(tmp_key, MAX_SRTP_KEY_LEN);
+        srtp_crypto_free(tmp_key);
         return srtp_err_status_init_fail;
     }
 
@@ -1583,6 +1603,7 @@ srtp_err_status_t srtp_stream_init_keys(srtp_session_keys_t *session_keys,
     if (stat) {
         /* zeroize temp buffer */
         octet_string_set_to_zero(tmp_key, MAX_SRTP_KEY_LEN);
+        srtp_crypto_free(tmp_key);
         return srtp_err_status_init_fail;
     }
 
@@ -1596,12 +1617,14 @@ srtp_err_status_t srtp_stream_init_keys(srtp_session_keys_t *session_keys,
     if (stat) {
         /* zeroize temp buffer */
         octet_string_set_to_zero(tmp_key, MAX_SRTP_KEY_LEN);
+        srtp_crypto_free(tmp_key);
         return srtp_err_status_init_fail;
     }
 
     /* clear memory then return */
     stat = srtp_kdf_clear(&kdf);
     octet_string_set_to_zero(tmp_key, MAX_SRTP_KEY_LEN);
+    srtp_crypto_free(tmp_key);
     if (stat) {
         return srtp_err_status_init_fail;
     }

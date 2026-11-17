@@ -19,7 +19,7 @@ PRIVATE_API STATUS readAndParseCACertificate(PTlsSession pTlsSession)
 
     CHK(pTlsSession != NULL, STATUS_NULL_ARG);
 
-#if ONFIG_KVS_GET_CA_FROM_ARRAY
+#if CONFIG_KVS_GET_CA_FROM_ARRAY
     cert_len = STRLEN(kvs_embedded_ca_pem);
     CHK(cert_len > 0, STATUS_INVALID_CERT_PATH_LENGTH);
     cert_buf = (PBYTE) MEMCALLOC(1, cert_len + 1);
