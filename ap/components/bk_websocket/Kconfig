@@ -17,12 +17,23 @@ menu "Bk_websocket"
 		bool "Use minimal WebSocket upgrade headers"
 		default n
 		help
-		  Sends only the RFC 6455 upgrade headers (GET/Host/
-		  Authorization/Upgrade/Connection/Sec-WebSocket-Version/
-		  Sec-WebSocket-Key) with a port-less Host. The default header
-		  set additionally sends Origin and User-Agent and appends
-		  the port to Host ("host:443"). Some server-side edge
-		  proxies reject requests carrying an Origin header or a
-		  ported Host with HTTP 401; enable this when the peer
-		  requires the minimal form.
+                  Sends only the RFC 6455 upgrade headers (GET/Host/
+                  Authorization/Upgrade/Connection/Sec-WebSocket-Version/
+                  Sec-WebSocket-Key) with a port-less Host. The default header
+                  set additionally sends Origin and User-Agent and appends
+                  the port to Host ("host:443"). Some server-side edge
+                  proxies reject requests carrying an Origin header or a
+                  ported Host with HTTP 401; enable this when the peer
+                  requires the minimal form.
+        config WEBSOCKET_KEEP_CONN_ON_SEND_TIMEOUT
+                depends on WEBSOCKET
+                bool "Keep websocket connection on send poll timeout"
+                default n
+                help
+                  Default (n): a send poll timeout is treated as fatal and
+                  the connection is torn down (legacy behaviour, unchanged).
+                  When enabled, a poll timeout (ws_write() returning 0, i.e.
+                  transient TX congestion with the socket itself healthy)
+                  only fails the send call; the caller decides whether to
+                  retry or abort. Real socket errors still disconnect.
 endmenu

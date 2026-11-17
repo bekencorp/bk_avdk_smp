@@ -1150,6 +1150,15 @@ int websocket_client_send_with_opcode(transport client, ws_transport_opcodes_t o
 		if (wlen < 0 || (wlen == 0 && need_write != 0)) {
 			ret = wlen;
 			BK_LOGE(TAG, "Network error: ws_write() returned %d, errno=%d\r\n", ret, errno);
+#if CONFIG_WEBSOCKET_KEEP_CONN_ON_SEND_TIMEOUT
+			/* wlen == 0 is a poll timeout: transient TX congestion with
+			 * the socket itself healthy. Fail the send only and let the
+			 * caller retry; killing the connection here turned a ~1 s
+			 * WiFi stall into a lost voice turn (field 2026-11-12). */
+			if (wlen == 0)
+				BK_LOGE(TAG, "Network error: ws_write() poll timeout, keep conn\r\n");
+			else
+#endif
 			if (errno == EAGAIN)
 				BK_LOGE(TAG, "Network error: ws_write() EAGAIN, drop\r\n");
 			else
