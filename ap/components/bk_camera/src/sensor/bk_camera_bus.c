@@ -176,6 +176,54 @@ avdk_err_t bk_camera_bus_enable(bk_camera_bus_t *bus)
     return AVDK_ERR_OK;
 }
 
+avdk_err_t bk_camera_bus_resume(bk_camera_bus_t *bus)
+{
+    AVDK_RETURN_ON_FALSE(bus, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
+
+    // isp clk en
+    bk_isp_clock_enable(true);
+
+    if (bus->mipi_port_en == 1)
+    {
+        AVDK_RETURN_ON_ERROR(bk_pm_module_vote_power_ctrl(PM_POWER_SUB_DOMAIN_MIPI_CSI, PM_POWER_MODULE_STATE_ON), TAG, "mipi csi power on failed");
+
+        if (bus->pin_xclk != BK_CAMERA_PIN_INVALID)
+        {
+            bk_cis_auxs_clock_enable(20000000, bus->pin_xclk, 1);
+        }
+    }
+    if (bus->dvp_port_en == 1)
+    {
+        uint8_t mclk_pin = (bus->pin_xclk != BK_CAMERA_PIN_INVALID) ? bus->pin_xclk : 27;
+        bk_cis_mclk_clock_enable(20000000, mclk_pin, 1);
+    }
+
+    return AVDK_ERR_OK;
+}
+
+avdk_err_t bk_camera_bus_suspend(bk_camera_bus_t *bus)
+{
+    AVDK_RETURN_ON_FALSE(bus, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
+
+    if (bus->mipi_port_en == 1)
+    {
+        if (bus->pin_xclk != BK_CAMERA_PIN_INVALID)
+        {
+            bk_cis_auxs_clock_enable(20000000, bus->pin_xclk, 0);
+        }
+        AVDK_RETURN_ON_ERROR(bk_pm_module_vote_power_ctrl(PM_POWER_SUB_DOMAIN_MIPI_CSI, PM_POWER_MODULE_STATE_OFF), TAG, "mipi csi power off failed");
+    }
+    if (bus->dvp_port_en == 1)
+    {
+        uint8_t mclk_pin = (bus->pin_xclk != BK_CAMERA_PIN_INVALID) ? bus->pin_xclk : 27;
+        bk_cis_mclk_clock_enable(20000000, mclk_pin, 0);
+    }
+
+    bk_isp_clock_enable(false);
+
+    return AVDK_ERR_OK;
+}
+
 avdk_err_t bk_camera_bus_disable(bk_camera_bus_t *bus)
 {
     //AVDK_RETURN_ON_FALSE(bus, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);

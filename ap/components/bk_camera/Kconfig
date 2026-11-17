@@ -5,6 +5,27 @@ menu "BK Camera"
 		bool "Enable bk camera"
 		default n
 
+	config ISP_CAM_STREAM_CHECK_FRAMES
+		int "ISP open-time stream check frame count"
+		range 0 24
+		default 3
+		depends on BK_CAMERA
+		help
+			Consecutive frames read after a frame-mode ISP channel opens,
+			used to detect a stalled stream. 0 disables the check and lets
+			the caller validate the first frame itself (AOV pops its own
+			frame through BK_CAM_IOCTL_FRAME_POP).
+
+	config ISP_CAM_STREAM_CHECK_RETRY
+		int "ISP open-time stream check retry count"
+		range 1 24
+		default 24
+		depends on BK_CAMERA
+		help
+			Channel close/reopen attempts when the stream check fails.
+			Each attempt costs one check timeout, so a short-duty-cycle
+			application can lower it to bound how long the AP stays awake.
+
 	config ISP_FRAME_SESSION
 		bool "ISP frame capture session (ispFrame RPC)"
 		default n
