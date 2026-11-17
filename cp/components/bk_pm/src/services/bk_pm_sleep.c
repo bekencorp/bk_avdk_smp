@@ -76,7 +76,7 @@ static void pm_low_voltage_resource_restore(void);
 
 extern bk_err_t bk_flash_power_saving_exit(void);
 extern bk_err_t bk_flash_power_saving_enter(void);
-extern bk_err_t gpio_hal_switch_to_low_power_status(uint64_t skip_io);
+extern bk_err_t gpio_hal_switch_to_low_power_status(uint64_t skip_io, uint64_t skip_io_high);
 
 /*=========================SLEEP/WAKEUP FUNCTION START========================*/
 uint64_t pm_cpu_wfi_process(void)
@@ -362,7 +362,7 @@ void pm_super_deep_sleep_process(void)
 // #if CONFIG_GPIO_RETENTION_SUPPORT
 // 	skip_io |= gpio_retention_map_get();
 // #endif
-// 	gpio_hal_switch_to_low_power_status(skip_io);
+// 	gpio_hal_switch_to_low_power_status(skip_io, skip_io_high);
 // #endif
  	pm_enter_super_deep_sleep();
 }
