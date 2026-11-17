@@ -4,12 +4,14 @@ set(srcs
     jpeg_decode/src/jpeg_decode_cli.c
 )
 
-set(priv_req media_service bk_cli avdk_utils psram_stress_service)
+set(priv_req media_service bk_cli avdk_utils psram_stress_service bk_uvc bk_gpu bk_display bk_decoder bk_peripheral)
 
 if (CONFIG_BK_DECODER)
 list(APPEND srcs
     jpeg_decode/src/vcdec_jpeg_test.c
+    jpeg_decode/src/jpeg_decode_uvc_display.c
     jpeg_decode/common/jpeg_176_144.c
+    jpeg_decode/common/jpeg_1920_1080.c
 )
 list(APPEND incs ./jpeg_decode/common)
 endif()

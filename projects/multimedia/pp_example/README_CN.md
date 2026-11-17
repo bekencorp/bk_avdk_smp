@@ -74,8 +74,7 @@ pp_example/
   `bk_pp_process()`（可重复调用）→ `bk_pp_close()` → `bk_pp_deinit()` → `bk_pp_delete()`。
 - `bk_pp_ctlr_new()` 传入 `bk_pp_config_t`（`timeout_ms` / 回调）；`bk_pp_process()` 传入
   `bk_pp_process_req_t`（输入 / 输出 buffer 与尺寸，`out_width/out_height` 填 0 表示与输入同尺寸）。
-- 应用层控制器负责 H26D 上电与 PP 中断，底层通过 vcdec 的 `vcdec_pp_process()` 完成实际处理，
-  应用侧不直接读写 PP 寄存器。
+- 应用层控制器负责 H26D 上电与 PP 中断，实际 PP 处理在组件内部完成，应用侧不直接读写 PP 寄存器。
 
 ### 3.2 测试用例
 

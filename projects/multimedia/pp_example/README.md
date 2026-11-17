@@ -79,8 +79,8 @@ Public API (`components/bk_decode/bk_pp_ctlr.h`, a handle-based controller like 
 - `bk_pp_ctlr_new()` takes a `bk_pp_config_t` (`timeout_ms` / callback); `bk_pp_process()`
   takes a `bk_pp_process_req_t` (input / output buffers and sizes, with `out_width/out_height`
   = 0 meaning same as input).
-- The controller brings up H26D power / IRQ and calls the vcdec `vcdec_pp_process()`
-  underneath; the application never touches the PP registers directly.
+- The controller brings up H26D power / IRQ and performs the PP processing internally;
+  the application never touches the PP registers directly.
 
 ### 3.2 Test Cases
 

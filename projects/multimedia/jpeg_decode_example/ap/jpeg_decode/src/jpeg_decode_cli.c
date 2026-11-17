@@ -29,6 +29,16 @@ extern void jpeg_decoder_flexa_test(void);
 extern void vcdec_jpeg_frame_test(void);
 extern void vcdec_jpeg_flexa_test(void);
 extern void vcdec_jpeg_frame_rgb_test(void);
+extern void vcdec_jpeg_frame_scale_test(void);
+extern void vcdec_jpeg_frame_crop_test(void);
+#if 0 /* Temporarily disabled: Flexa decode scaling is offline. */
+extern void vcdec_jpeg_flexa_scale_test(void);
+#endif
+extern void vcdec_jpeg_flexa_crop_test(void);
+extern void vcdec_jpeg_frame_scale_crop_test(void);
+#if 0 /* Temporarily disabled: Flexa decode scaling is offline. */
+extern void vcdec_jpeg_flexa_scale_crop_test(void);
+#endif
 #endif
 
 /* Run the test case in a dedicated task to avoid CLI task stack/latency issues. */
@@ -61,6 +71,17 @@ typedef enum {
     JPEGD_TEST_ID_VCDEC_JPEG = 2,
     JPEGD_TEST_ID_VCDEC_JPEG_FLEXA = 3,
     JPEGD_TEST_ID_VCDEC_JPEG_FRAME_RGB = 4,
+    JPEGD_TEST_ID_VCDEC_JPEG_FRAME_SCALE = 5,
+    JPEGD_TEST_ID_VCDEC_JPEG_FRAME_CROP = 6,
+#if 0 /* Temporarily disabled: Flexa decode scaling is offline. */
+    JPEGD_TEST_ID_VCDEC_JPEG_FLEXA_SCALE = 7,
+#endif
+    JPEGD_TEST_ID_VCDEC_JPEG_FLEXA_CROP = 8,
+    JPEGD_TEST_ID_VCDEC_JPEG_FRAME_SCALE_CROP = 9,
+#if 0 /* Temporarily disabled: Flexa decode scaling is offline. */
+    JPEGD_TEST_ID_VCDEC_JPEG_FLEXA_SCALE_CROP = 10,
+#endif
+    JPEGD_TEST_ID_JPEG_UVC_GPU_DISPLAY = 11,
 } jpegd_test_id_t;
 
 static void jpegd_test_task_entry(void *arg)
@@ -74,6 +95,24 @@ static void jpegd_test_task_entry(void *arg)
         vcdec_jpeg_flexa_test();
     } else if (test_id == JPEGD_TEST_ID_VCDEC_JPEG_FRAME_RGB) {
         vcdec_jpeg_frame_rgb_test();
+    } else if (test_id == JPEGD_TEST_ID_VCDEC_JPEG_FRAME_SCALE) {
+        vcdec_jpeg_frame_scale_test();
+    } else if (test_id == JPEGD_TEST_ID_VCDEC_JPEG_FRAME_CROP) {
+        vcdec_jpeg_frame_crop_test();
+#if 0 /* Temporarily disabled: Flexa decode scaling is offline. */
+    } else if (test_id == JPEGD_TEST_ID_VCDEC_JPEG_FLEXA_SCALE) {
+        vcdec_jpeg_flexa_scale_test();
+#endif
+    } else if (test_id == JPEGD_TEST_ID_VCDEC_JPEG_FLEXA_CROP) {
+        vcdec_jpeg_flexa_crop_test();
+    } else if (test_id == JPEGD_TEST_ID_VCDEC_JPEG_FRAME_SCALE_CROP) {
+        vcdec_jpeg_frame_scale_crop_test();
+#if 0 /* Temporarily disabled: Flexa decode scaling is offline. */
+    } else if (test_id == JPEGD_TEST_ID_VCDEC_JPEG_FLEXA_SCALE_CROP) {
+        vcdec_jpeg_flexa_scale_crop_test();
+#endif
+    } else if (test_id == JPEGD_TEST_ID_JPEG_UVC_GPU_DISPLAY) {
+        jpeg_decode_uvc_gpu_display_test();
     }
     else
 #endif
@@ -104,7 +143,19 @@ static void jpeg_decode_print_usage(void)
     bk_printf("  jpeg_decode jpegd_flexa  - JPEG decode test (FLEXA)\r\n");
     bk_printf("  jpeg_decode vcdec_jpegd  - vcdec JPEG decode test (register HAL)\r\n");
     bk_printf("  jpeg_decode vcdec_jpegd_flexa  - vcdec JPEG decode test (FLEXA)\r\n");
-    bk_printf("  jpeg_decode vcdec_jpegd_frame_rgb  - vcdec JPEG frame RGB565+RGB888 test\r\n");
+    bk_printf("  jpeg_decode vcdec_jpegd_frame_rgb    - vcdec JPEG frame RGB565+RGB888 test\r\n");
+    bk_printf("  jpeg_decode vcdec_jpegd_frame_scale  - vcdec JPEG frame PP scale test\r\n");
+    bk_printf("  jpeg_decode vcdec_jpegd_frame_crop   - vcdec JPEG frame PP crop test\r\n");
+#if 0 /* Temporarily disabled: Flexa decode scaling is offline. */
+    bk_printf("  jpeg_decode vcdec_jpegd_flexa_scale  - vcdec JPEG FLEXA PP scale test\r\n");
+#endif
+    bk_printf("  jpeg_decode vcdec_jpegd_flexa_crop   - vcdec JPEG FLEXA PP crop test\r\n");
+    bk_printf("  jpeg_decode vcdec_jpegd_frame_scale_crop  - vcdec JPEG frame PP crop+scale test\r\n");
+#if 0 /* Temporarily disabled: Flexa decode scaling is offline. */
+    bk_printf("  jpeg_decode vcdec_jpegd_flexa_scale_crop  - vcdec JPEG FLEXA PP crop+scale test\r\n");
+#endif
+    bk_printf("  jpeg_decode jpegd_uvc_gpu_display [crop]  - UVC MJPEG -> PP crop -> GPU -> LCD\r\n");
+    bk_printf("  jpeg_decode jpegd_uvc_gpu_display close  - stop the UVC display pipeline\r\n");
 }
 
 void cli_jpeg_decode_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
@@ -142,6 +193,38 @@ void cli_jpeg_decode_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
     } else if (os_strcmp(argv[1], "vcdec_jpegd_frame_rgb") == 0) {
         test_id = JPEGD_TEST_ID_VCDEC_JPEG_FRAME_RGB;
         task_name = "vcdec_jpegd_frgb_test";
+    } else if (os_strcmp(argv[1], "vcdec_jpegd_frame_scale") == 0) {
+        test_id = JPEGD_TEST_ID_VCDEC_JPEG_FRAME_SCALE;
+        task_name = "vcdec_jpegd_f_scl_test";
+    } else if (os_strcmp(argv[1], "vcdec_jpegd_frame_crop") == 0) {
+        test_id = JPEGD_TEST_ID_VCDEC_JPEG_FRAME_CROP;
+        task_name = "vcdec_jpegd_f_crp_test";
+#if 0 /* Temporarily disabled: Flexa decode scaling is offline. */
+    } else if (os_strcmp(argv[1], "vcdec_jpegd_flexa_scale") == 0) {
+        test_id = JPEGD_TEST_ID_VCDEC_JPEG_FLEXA_SCALE;
+        task_name = "vcdec_jpegd_x_scl_test";
+#endif
+    } else if (os_strcmp(argv[1], "vcdec_jpegd_flexa_crop") == 0) {
+        test_id = JPEGD_TEST_ID_VCDEC_JPEG_FLEXA_CROP;
+        task_name = "vcdec_jpegd_x_crp_test";
+    } else if (os_strcmp(argv[1], "vcdec_jpegd_frame_scale_crop") == 0) {
+        test_id = JPEGD_TEST_ID_VCDEC_JPEG_FRAME_SCALE_CROP;
+        task_name = "vcdec_jpegd_f_scl_crp";
+#if 0 /* Temporarily disabled: Flexa decode scaling is offline. */
+    } else if (os_strcmp(argv[1], "vcdec_jpegd_flexa_scale_crop") == 0) {
+        test_id = JPEGD_TEST_ID_VCDEC_JPEG_FLEXA_SCALE_CROP;
+        task_name = "vcdec_jpegd_x_scl_crp";
+#endif
+    } else if (os_strcmp(argv[1], "jpegd_uvc_gpu_display") == 0) {
+        if ((argc >= 3) && (os_strcmp(argv[2], "close") == 0)) {
+            jpeg_decode_uvc_gpu_display_stop();
+            cli_write_rsp(pcWriteBuffer, xWriteBufferLen, CLI_CMD_RSP_SUCCEED);
+            return;
+        }
+
+        jpeg_decode_uvc_gpu_display_set_param((argc >= 3) ? (uint8_t)os_strtoul(argv[2], NULL, 10) : 1U);
+        test_id = JPEGD_TEST_ID_JPEG_UVC_GPU_DISPLAY;
+        task_name = "jpegd_uvc_disp";
     }
     else
 #endif

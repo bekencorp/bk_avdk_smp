@@ -134,6 +134,3 @@ h264_decode vcdec_h264d_frame_zerocopy 1280x720_ibbp
 6. `bk7259_ap` 默认配置已开启 `CONFIG_BK_DECODER=y`、`CONFIG_FRAME_BUFFER=y`。
 7. 两条 1280x720 码流同时编入 flash，各自独立符号（`h264_decode_stream_1280x720_1i30p[]` 与
    `h264_decode_stream_1280x720_ibbp[]`），运行时按码流 id / CLI 参数选择，空间充足。
-8. 旧版本的 `vcdec_h264_driver`（寄存器级）、`h264_decode_flexa`、`h264_decode_stress` 及
-   `256x128` 码流已不在本工程中；legacy 源码归档于
-   `ap/properties/modules/verisilicon_nano/legacy/projects/h264_decode_example/`。

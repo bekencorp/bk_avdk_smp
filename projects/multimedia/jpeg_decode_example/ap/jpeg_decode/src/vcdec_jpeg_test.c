@@ -7,13 +7,16 @@
 #include <string.h>
 #include "os/os.h"
 #include "os/mem.h"
+#include "os/str.h"
 #include "components/log.h"
 #include "components/bk_frame_buffer.h"
 #include <common/avdk_pixel_types.h>
+#include <driver/aon_rtc.h>
 #include "components/bk_decode/bk_jpeg_decode_ctlr.h"
 #include "modules/vcdec/vcdec_types.h"
 #include "bk_flexa_bond_types.h"
 #include "jpeg_176_144.h"
+#include "jpeg_1920_1080.h"
 
 #define TAG "vcdec_jpeg_test"
 
@@ -23,6 +26,11 @@
 #define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
 #define VCDEC_JPEG_DECODE_CNT 5U
+
+#define JPEG_1920_1080_SIZE 215105U
+
+#define VCDEC_TEST_STREAM_SMALL (const uint8_t *)JPEGData_176_144, JPEG_176_144_SIZE
+#define VCDEC_TEST_STREAM_1080P (const uint8_t *)JPEGData_1920_1080, JPEG_1920_1080_SIZE
 
 #define OUT_DUMP_ENABLE 0
 
@@ -92,6 +100,52 @@ static void vcdec_jpeg_log_test_result(const char *case_name, uint8_t pass,
 		LOGE("[RESULT][FAIL] %s failed at %s, ret=%d, rounds=%u/%u\r\n",
 			case_name, stage, ret, (unsigned)done_rounds, (unsigned)total_rounds);
 	}
+}
+
+static void vcdec_jpeg_dump_buf_head(const char *tag, const uint8_t *buf)
+{
+	const uint32_t *w = (const uint32_t *)(uintptr_t)buf;
+	int32_t off = -1;
+	uint32_t i;
+
+	for (i = 1U; i <= 0x40U; i++) {
+		if (w[-(int32_t)i] == 0x83388338U) {
+			off = (int32_t)(i * 4U);
+			break;
+		}
+	}
+	if (off < 0) {
+		LOGI("%s %p no 0x83388338 before buf\r\n", tag, buf);
+		return;
+	}
+	w = (const uint32_t *)(uintptr_t)(buf - off);
+	LOGI("%s %p off=%d chk=%08x size=%08x flag=%08x wt=%08x\r\n",
+	     tag, buf, (int)off, w[0], w[1], w[2], w[3]);
+}
+
+static void vcdec_jpeg_canary_span(const uint8_t *p, uint32_t n, int *first, int *last)
+{
+	uint32_t i;
+
+	*first = -1;
+	*last = -1;
+	for (i = 0U; i < n; i++) {
+		if (p[i] != 0U) {
+			if (*first < 0) {
+				*first = (int)i;
+			}
+			*last = (int)i;
+		}
+	}
+}
+
+static void vcdec_jpeg_check_canary(const char *tag, const uint8_t *src, uint32_t pp_size)
+{
+	int f0, l0, f1, l1;
+
+	vcdec_jpeg_canary_span(src, pp_size, &f0, &l0);
+	vcdec_jpeg_canary_span(src + pp_size * 2U, pp_size, &f1, &l1);
+	LOGI("%s %p front[%d,%d] tail[%d,%d]\r\n", tag, src, f0, l0, f1, l1);
 }
 
 static uint32_t vcdec_jpeg_test_pp_output_size(vcdec_pp_out_format_e fmt,
@@ -298,7 +352,7 @@ static void bond_jpegd_frame_done_cb(uint32_t status, void *args)
  */
 static void vcdec_jpeg_flexa_done_cb(uint32_t wrCnt, void *args)
 {
-	LOGE("vcdec_jpeg_flexa_done_cb, wrCnt=%u\r\n", (unsigned)wrCnt);
+	// LOGE("vcdec_jpeg_flexa_done_cb, wrCnt=%u\r\n", (unsigned)wrCnt);
 	vcdec_jpeg_flexa_copy_ctx_t *ctx = (vcdec_jpeg_flexa_copy_ctx_t *)args;
 	if (ctx == NULL)
 	{
@@ -313,7 +367,7 @@ static void vcdec_jpeg_flexa_done_cb(uint32_t wrCnt, void *args)
 		ctx->pp_y == NULL || ctx->pp_c == NULL ||
 		ctx->frame_width == 0U || ctx->frame_height == 0U ||
 		ctx->pp_seg_num == 0U || ctx->pp_seg_rows == 0U) {
-		LOGE("invalid flexa ctx\r\n");
+		// LOGE("invalid flexa ctx\r\n");
 		return;
 	}
 
@@ -543,42 +597,63 @@ cleanup:
 		done_rounds, VCDEC_JPEG_DECODE_CNT);
 }
 
+static uint32_t vcdec_jpeg_test_flexa_pp_size(uint16_t out_width,
+					      uint16_t segment_height_mb,
+					      uint8_t segment_number)
+{
+	const uint16_t seg_rows = (uint16_t)(16U * segment_height_mb * segment_number);
+
+	return bk_image_size_get(out_width, seg_rows, BK_PIXEL_FORMAT_NV12);
+}
+
+static bk_err_t vcdec_jpeg_run_scale_crop_case(uint32_t out_w, uint32_t out_h, uint32_t out_format,
+					       uint16_t crop_x, uint16_t crop_y,
+					       uint16_t crop_w, uint16_t crop_h,
+					       uint8_t flexa_mode, const char *case_name,
+					       const uint8_t *stream, uint32_t stream_len);
+
 static bk_err_t vcdec_jpeg_run_pp_case(uint32_t out_w, uint32_t out_h, uint32_t out_format,
 				       const char *case_name)
 {
+	return vcdec_jpeg_run_scale_crop_case(out_w, out_h, out_format,
+					      0U, 0U, 0U, 0U, 0U, case_name,
+					      VCDEC_TEST_STREAM_SMALL);
+}
+
+static bk_err_t vcdec_jpeg_run_scale_crop_case(uint32_t out_w, uint32_t out_h, uint32_t out_format,
+					       uint16_t crop_x, uint16_t crop_y,
+					       uint16_t crop_w, uint16_t crop_h,
+					       uint8_t flexa_mode, const char *case_name,
+					       const uint8_t *stream, uint32_t stream_len)
+{
 	uint8_t *stream_buf = NULL;
 	uint8_t *out_buf = NULL;
+	uint8_t *pp_buf = NULL;
+	uint8_t *pp_buf_src = NULL;
 	uint32_t coded_w = 0U;
 	uint32_t coded_h = 0U;
-	uint32_t out_size;
-	vcdec_pp_out_format_e pp_fmt = VCDEC_PP_OUT_NV12;
+	uint32_t out_size = 0U;
+	uint32_t pp_size = 0U;
 	avdk_err_t ret;
 	uint32_t i;
 	uint32_t done_rounds = 0U;
+	uint32_t total_us = 0U;
 	uint8_t test_pass = 0U;
+	uint8_t flexa_bond_registered = 0U;
 	const char *fail_stage = "start";
 	bk_jpeg_decode_ctlr_handle_t dec = NULL;
 	bk_jpeg_decode_img_info_t img_info = {0};
+	bk_jpeg_decode_pp_config_t pp_cfg = {0};
+	const uint32_t seg_ht_mb = 1U;
+	const uint32_t seg_num = 4U;
 
-	if (case_name == NULL || out_w == 0U || out_h == 0U) {
+	if (case_name == NULL || out_w == 0U || out_h == 0U || stream == NULL || stream_len == 0U) {
 		LOGE("invalid pp case params\r\n");
 		return BK_FAIL;
 	}
 
-	switch (out_format) {
-	case BK_PIXEL_FORMAT_RGB565:
-		pp_fmt = VCDEC_PP_OUT_RGB565;
-		break;
-	case BK_PIXEL_FORMAT_RGB888:
-		pp_fmt = VCDEC_PP_OUT_RGB888;
-		break;
-	default:
-		pp_fmt = VCDEC_PP_OUT_NV12;
-		break;
-	}
-
-	img_info.input_stream = (uint8_t *)(uintptr_t)(const void *)JPEGData_176_144;
-	img_info.input_stream_length = JPEG_176_144_SIZE;
+	img_info.input_stream = (uint8_t *)(uintptr_t)(const void *)stream;
+	img_info.input_stream_length = stream_len;
 	ret = bk_jpeg_decode_get_img_info(&img_info);
 	if (ret != AVDK_ERR_OK) {
 		fail_stage = "get_img_info";
@@ -586,39 +661,39 @@ static bk_err_t vcdec_jpeg_run_pp_case(uint32_t out_w, uint32_t out_h, uint32_t 
 	}
 	coded_w = img_info.width;
 	coded_h = img_info.height;
-	out_size = vcdec_jpeg_test_pp_output_size(pp_fmt, (uint16_t)out_w, (uint16_t)out_h);
 
-	LOGI("%s start, coded=%ux%u -> %ux%u fmt=%u out_size=%u\r\n",
+	LOGI("%s start, coded=%ux%u crop=(%u,%u %ux%u) -> %ux%u fmt=%u flexa=%u\r\n",
 	     case_name, (unsigned)coded_w, (unsigned)coded_h,
-	     (unsigned)out_w, (unsigned)out_h, (unsigned)out_format, (unsigned)out_size);
+	     (unsigned)crop_x, (unsigned)crop_y, (unsigned)crop_w, (unsigned)crop_h,
+	     (unsigned)out_w, (unsigned)out_h, (unsigned)out_format,
+	     (unsigned)flexa_mode);
 
-	stream_buf = (uint8_t *)bk_frame_buffer_malloc(MEM_SLAB_HEAP_CODED, JPEG_176_144_SIZE);
+	stream_buf = (uint8_t *)bk_frame_buffer_malloc(MEM_SLAB_HEAP_CODED, stream_len);
 	if (stream_buf == NULL) {
 		fail_stage = "alloc_stream_buf";
 		ret = AVDK_ERR_NOMEM;
 		goto cleanup;
 	}
-	os_memcpy(stream_buf, (const void *)JPEGData_176_144, JPEG_176_144_SIZE);
+	os_memcpy(stream_buf, (const void *)stream, stream_len);
 
-	out_buf = (uint8_t *)bk_frame_buffer_malloc(MEM_SLAB_HEAP_UNCODED, out_size);
-	if (out_buf == NULL) {
-		fail_stage = "alloc_out_buf";
-		ret = AVDK_ERR_NOMEM;
-		goto cleanup;
+	if (flexa_mode != 0U) {
+		bk_jpeg_decode_flexa_config_t cfg = DEFAULT_JPEG_DECODE_FLEXA_CONFIG;
+		cfg.frame_done_cb = vcdec_jpeg_frame_done_cb;
+		cfg.flexa_done_cb = vcdec_jpeg_flexa_done_cb;
+		cfg.timeout_ms = 1000U;
+		cfg.out_format = out_format;
+		cfg.segment_height = (uint16_t)seg_ht_mb;
+		cfg.segment_number = (uint8_t)seg_num;
+		ret = bk_jpeg_decode_flexa_ctlr_new(&dec, &cfg);
+	} else {
+		bk_jpeg_decode_frame_config_t cfg = DEFAULT_JPEG_DECODE_FRAME_CONFIG;
+		cfg.frame_done_cb = vcdec_jpeg_frame_done_cb;
+		cfg.timeout_ms = 1000U;
+		cfg.out_format = out_format;
+		ret = bk_jpeg_decode_frame_ctlr_new(&dec, &cfg);
 	}
-	os_memset(out_buf, 0, out_size);
-
-	bk_jpeg_decode_frame_config_t cfg = DEFAULT_JPEG_DECODE_FRAME_CONFIG;
-
-	cfg.frame_done_cb = vcdec_jpeg_frame_done_cb;
-	cfg.frame_done_args = NULL;
-	cfg.timeout_ms = 1000U;
-	cfg.out_width = (uint16_t)out_w;
-	cfg.out_height = (uint16_t)out_h;
-	cfg.out_format = out_format;
-	ret = bk_jpeg_decode_frame_ctlr_new(&dec, &cfg);
 	if (ret != AVDK_ERR_OK) {
-		fail_stage = "frame_ctlr_new";
+		fail_stage = flexa_mode ? "flexa_ctlr_new" : "frame_ctlr_new";
 		goto cleanup;
 	}
 
@@ -633,35 +708,444 @@ static bk_err_t vcdec_jpeg_run_pp_case(uint32_t out_w, uint32_t out_h, uint32_t 
 		goto cleanup;
 	}
 
+	if (flexa_mode != 0U) {
+		os_memset(&s_jpeg_flexa_bond, 0, sizeof(s_jpeg_flexa_bond));
+		s_jpeg_flexa_bond.flexa_done = bond_jpegd_flexa_done_cb;
+		s_jpeg_flexa_bond.frame_done = bond_jpegd_frame_done_cb;
+		s_jpeg_flexa_bond.handle = (void *)dec;
+		s_jpeg_flexa_bond.max_lines_per_frame =
+			(out_h + (16U * seg_ht_mb - 1U)) / (16U * seg_ht_mb);
+		ret = bk_jpeg_decode_ioctl(dec, BK_JPEG_DECODE_IOCTL_REGISTER_BOND,
+					   &s_jpeg_flexa_bond);
+		if (ret != AVDK_ERR_OK) {
+			fail_stage = "register_bond";
+			goto cleanup;
+		}
+		flexa_bond_registered = 1U;
+	}
+
+	pp_cfg.out_width = (uint16_t)out_w;
+	pp_cfg.out_height = (uint16_t)out_h;
+	pp_cfg.crop_x = crop_x;
+	pp_cfg.crop_y = crop_y;
+	pp_cfg.crop_width = crop_w;
+	pp_cfg.crop_height = crop_h;
+	ret = bk_jpeg_decode_ioctl(dec, BK_JPEG_DECODE_IOCTL_SET_PP, &pp_cfg);
+	if (ret != AVDK_ERR_OK) {
+		fail_stage = "set_pp";
+		goto cleanup;
+	}
+
+	if (flexa_mode != 0U) {
+		pp_size = vcdec_jpeg_test_flexa_pp_size((uint16_t)out_w,
+							(uint16_t)seg_ht_mb,
+							(uint8_t)seg_num);
+		pp_buf_src = (uint8_t *)bk_frame_buffer_malloc(MEM_SLAB_HEAP_UNCODED, pp_size * 3);
+		if (pp_buf_src == NULL) {
+			fail_stage = "alloc_pp_buf";
+			ret = AVDK_ERR_NOMEM;
+			goto cleanup;
+		}
+		pp_buf = pp_buf_src + pp_size;
+		os_memset(pp_buf_src, 0, pp_size * 3U);
+		vcdec_jpeg_dump_buf_head("pp-alloc", pp_buf_src);
+		vcdec_jpeg_check_canary("pp-alloc", pp_buf_src, pp_size);
+	} else {
+		if (out_format == BK_PIXEL_FORMAT_RGB888) {
+			out_size = vcdec_jpeg_test_pp_output_size(VCDEC_PP_OUT_RGB888,
+								  (uint16_t)out_w,
+								  (uint16_t)out_h);
+		} else if (out_format == BK_PIXEL_FORMAT_RGB565) {
+			out_size = vcdec_jpeg_test_pp_output_size(VCDEC_PP_OUT_RGB565,
+								  (uint16_t)out_w,
+								  (uint16_t)out_h);
+		} else {
+			out_size = bk_image_size_get((uint16_t)out_w,
+						     (uint16_t)((out_h + 15U) & ~15U),
+						     BK_PIXEL_FORMAT_NV12);
+		}
+		out_buf = (uint8_t *)bk_frame_buffer_malloc(MEM_SLAB_HEAP_UNCODED, out_size);
+		if (out_buf == NULL) {
+			fail_stage = "alloc_out_buf";
+			ret = AVDK_ERR_NOMEM;
+			goto cleanup;
+		}
+		os_memset(out_buf, 0, out_size);
+	}
+
+	LOGI("%s buffer ready, size=%u %p %p %p\r\n", case_name,
+	     (unsigned)(flexa_mode != 0U ? pp_size : out_size), stream_buf, pp_buf, out_buf);
+
 	for (i = 0U; i < VCDEC_JPEG_DECODE_CNT; i++) {
 		bk_jpeg_decode_input_t in = {0};
-		os_memset(out_buf, 0, out_size);
+		if (flexa_mode != 0U) {
+			os_memset(pp_buf, 0, pp_size);
+			in.out_buffer = pp_buf;
+			in.out_buffer_size = pp_size;
+		} else {
+			os_memset(out_buf, 0, out_size);
+			in.out_buffer = out_buf;
+			in.out_buffer_size = out_size;
+		}
 		in.stream = stream_buf;
-		in.stream_len = JPEG_176_144_SIZE;
-		in.out_buffer = out_buf;
-		in.out_buffer_size = out_size;
-		ret = bk_jpeg_decode_frame(dec, &in);
+		in.stream_len = stream_len;
+		{
+			uint64_t t_start = bk_aon_rtc_get_us();
+			ret = bk_jpeg_decode_frame(dec, &in);
+			total_us += (uint32_t)(bk_aon_rtc_get_us() - t_start);
+		}
 		if (ret != AVDK_ERR_OK) {
 			fail_stage = "decode_frame";
 			goto cleanup;
 		}
 		done_rounds++;
+		if (pp_buf_src != NULL) {
+			vcdec_jpeg_dump_buf_head("pp-round", pp_buf_src);
+			vcdec_jpeg_check_canary("pp-round", pp_buf_src, pp_size);
+		}
 	}
 
 	test_pass = 1U;
 
 cleanup:
+	if (pp_buf_src != NULL) {
+		vcdec_jpeg_dump_buf_head("pp-cleanup", pp_buf_src);
+		vcdec_jpeg_check_canary("pp-cleanup", pp_buf_src, pp_size);
+	}
+	if (flexa_bond_registered != 0U && dec != NULL) {
+		(void)bk_jpeg_decode_ioctl(dec, BK_JPEG_DECODE_IOCTL_UNREGISTER_BOND,
+					   &s_jpeg_flexa_bond);
+	}
 	vcdec_jpeg_destroy_decoder(&dec);
+	if (pp_buf_src != NULL) {
+		vcdec_jpeg_dump_buf_head("pp-destroyed", pp_buf_src);
+		vcdec_jpeg_check_canary("pp-destroyed", pp_buf_src, pp_size);
+		bk_frame_buffer_free(pp_buf_src);
+	}
 	if (out_buf != NULL) {
 		bk_frame_buffer_free(out_buf);
 	}
 	if (stream_buf != NULL) {
 		bk_frame_buffer_free(stream_buf);
 	}
+	if (done_rounds > 0U) {
+		uint32_t avg_us = total_us / done_rounds;
+		uint32_t fps_x100 = (avg_us != 0U) ? (uint32_t)(100000000U / avg_us) : 0U;
+
+		LOGI("[RESULT][SPEED] %s rounds=%u avg=%u us fps=%u.%02u\r\n",
+		     case_name, (unsigned)done_rounds, (unsigned)avg_us,
+		     (unsigned)(fps_x100 / 100U), (unsigned)(fps_x100 % 100U));
+	}
 	vcdec_jpeg_log_test_result(case_name, test_pass, fail_stage, ret,
 				   done_rounds, VCDEC_JPEG_DECODE_CNT);
 	return test_pass ? BK_OK : BK_FAIL;
 }
+
+typedef struct {
+	const char *name;
+	uint32_t num;
+	uint32_t den;
+} vcdec_jpeg_ratio_t;
+
+static const vcdec_jpeg_ratio_t s_vcdec_jpeg_ratios[] = {
+	{"full", 1U, 1U},
+	{"3_4", 3U, 4U},
+	{"1_2", 1U, 2U},
+	{"1_4", 1U, 4U},
+};
+
+#define VCDEC_JPEG_RATIO_CNT (sizeof(s_vcdec_jpeg_ratios) / sizeof(s_vcdec_jpeg_ratios[0]))
+
+static bk_err_t vcdec_jpeg_get_1080p_coded_size(uint32_t *coded_w, uint32_t *coded_h)
+{
+	bk_jpeg_decode_img_info_t img_info = {0};
+
+	img_info.input_stream = (uint8_t *)(uintptr_t)(const void *)JPEGData_1920_1080;
+	img_info.input_stream_length = JPEG_1920_1080_SIZE;
+	if (bk_jpeg_decode_get_img_info(&img_info) != AVDK_ERR_OK) {
+		LOGE("get image info failed\r\n");
+		return BK_FAIL;
+	}
+
+	*coded_w = img_info.width;
+	*coded_h = img_info.height;
+	return BK_OK;
+}
+
+void vcdec_jpeg_frame_scale_test(void)
+{
+	uint32_t coded_w = 0U;
+	uint32_t coded_h = 0U;
+	uint8_t all_pass = 1U;
+	char case_name[64];
+
+	if (vcdec_jpeg_get_1080p_coded_size(&coded_w, &coded_h) != BK_OK) {
+		return;
+	}
+
+	LOGI("vcdec jpeg frame scale speed test start, coded=%ux%u\r\n",
+	     (unsigned)coded_w, (unsigned)coded_h);
+
+	for (uint32_t i = 0U; i < VCDEC_JPEG_RATIO_CNT; i++) {
+		const vcdec_jpeg_ratio_t *ratio = &s_vcdec_jpeg_ratios[i];
+		uint32_t out_w = coded_w * ratio->num / ratio->den;
+		uint32_t out_h = coded_h * ratio->num / ratio->den;
+
+		os_snprintf(case_name, sizeof(case_name), "vcdec_jpeg_frame_scale_%s", ratio->name);
+		LOGI("frame scale %s: %ux%u -> %ux%u\r\n", ratio->name,
+		     (unsigned)coded_w, (unsigned)coded_h, (unsigned)out_w, (unsigned)out_h);
+
+		if (vcdec_jpeg_run_scale_crop_case(out_w, out_h, BK_PIXEL_FORMAT_NV12,
+						   0U, 0U, 0U, 0U, 0U,
+						   case_name, VCDEC_TEST_STREAM_1080P) != BK_OK) {
+			all_pass = 0U;
+		}
+	}
+
+	if (all_pass == 0U) {
+		LOGE("[RESULT][FAIL] vcdec_jpeg_frame_scale_test matrix has failures\r\n");
+		return;
+	}
+
+	LOGI("[RESULT][PASS] vcdec_jpeg_frame_scale_test success\r\n");
+}
+
+void vcdec_jpeg_frame_crop_test(void)
+{
+	uint32_t coded_w = 0U;
+	uint32_t coded_h = 0U;
+	uint8_t all_pass = 1U;
+	char case_name[64];
+
+	if (vcdec_jpeg_get_1080p_coded_size(&coded_w, &coded_h) != BK_OK) {
+		return;
+	}
+
+	LOGI("vcdec jpeg frame crop speed test start, coded=%ux%u\r\n",
+	     (unsigned)coded_w, (unsigned)coded_h);
+
+	for (uint32_t i = 0U; i < VCDEC_JPEG_RATIO_CNT; i++) {
+		const vcdec_jpeg_ratio_t *ratio = &s_vcdec_jpeg_ratios[i];
+		uint32_t crop_w = coded_w * ratio->num / ratio->den;
+		uint32_t crop_h = coded_h * ratio->num / ratio->den;
+
+		os_snprintf(case_name, sizeof(case_name), "vcdec_jpeg_frame_crop_%s", ratio->name);
+		LOGI("frame crop %s: crop=(0,0 %ux%u) -> %ux%u\r\n", ratio->name,
+		     (unsigned)crop_w, (unsigned)crop_h, (unsigned)crop_w, (unsigned)crop_h);
+
+		if (vcdec_jpeg_run_scale_crop_case(crop_w, crop_h, BK_PIXEL_FORMAT_NV12,
+						   0U, 0U, (uint16_t)crop_w, (uint16_t)crop_h, 0U,
+						   case_name, VCDEC_TEST_STREAM_1080P) != BK_OK) {
+			all_pass = 0U;
+		}
+	}
+
+	if (all_pass == 0U) {
+		LOGE("[RESULT][FAIL] vcdec_jpeg_frame_crop_test matrix has failures\r\n");
+		return;
+	}
+
+	LOGI("[RESULT][PASS] vcdec_jpeg_frame_crop_test success\r\n");
+}
+
+#if 0 /* Temporarily disabled: Flexa decode scaling is offline. */
+void vcdec_jpeg_flexa_scale_test(void)
+{
+	uint32_t coded_w = 0U;
+	uint32_t coded_h = 0U;
+	uint8_t all_pass = 1U;
+	char case_name[64];
+
+	if (vcdec_jpeg_get_1080p_coded_size(&coded_w, &coded_h) != BK_OK) {
+		return;
+	}
+
+	LOGI("vcdec jpeg flexa scale speed test start, coded=%ux%u\r\n",
+	     (unsigned)coded_w, (unsigned)coded_h);
+
+	for (uint32_t i = 0U; i < VCDEC_JPEG_RATIO_CNT; i++) {
+		const vcdec_jpeg_ratio_t *ratio = &s_vcdec_jpeg_ratios[i];
+		uint32_t out_w = coded_w * ratio->num / ratio->den;
+		uint32_t out_h = coded_h * ratio->num / ratio->den;
+
+		os_snprintf(case_name, sizeof(case_name), "vcdec_jpeg_flexa_scale_%s", ratio->name);
+		LOGI("flexa scale %s: %ux%u -> %ux%u\r\n", ratio->name,
+		     (unsigned)coded_w, (unsigned)coded_h, (unsigned)out_w, (unsigned)out_h);
+
+		if (vcdec_jpeg_run_scale_crop_case(out_w, out_h, BK_PIXEL_FORMAT_NV12,
+						   0U, 0U, 0U, 0U, 1U,
+						   case_name, VCDEC_TEST_STREAM_1080P) != BK_OK) {
+			all_pass = 0U;
+		}
+	}
+
+	if (all_pass == 0U) {
+		LOGE("[RESULT][FAIL] vcdec_jpeg_flexa_scale_test matrix has failures\r\n");
+		return;
+	}
+
+	LOGI("[RESULT][PASS] vcdec_jpeg_flexa_scale_test success\r\n");
+}
+#endif
+
+void vcdec_jpeg_flexa_crop_test(void)
+{
+	uint32_t coded_w = 0U;
+	uint32_t coded_h = 0U;
+	uint8_t all_pass = 1U;
+	char case_name[64];
+
+	if (vcdec_jpeg_get_1080p_coded_size(&coded_w, &coded_h) != BK_OK) {
+		return;
+	}
+
+	LOGI("vcdec jpeg flexa crop speed test start, coded=%ux%u\r\n",
+	     (unsigned)coded_w, (unsigned)coded_h);
+
+	for (uint32_t i = 0U; i < VCDEC_JPEG_RATIO_CNT; i++) {
+		const vcdec_jpeg_ratio_t *ratio = &s_vcdec_jpeg_ratios[i];
+		uint32_t crop_w = coded_w * ratio->num / ratio->den;
+		uint32_t crop_h = coded_h * ratio->num / ratio->den;
+
+		os_snprintf(case_name, sizeof(case_name), "vcdec_jpeg_flexa_crop_%s", ratio->name);
+		LOGI("flexa crop %s: crop=(0,0 %ux%u) -> %ux%u\r\n", ratio->name,
+		     (unsigned)crop_w, (unsigned)crop_h, (unsigned)crop_w, (unsigned)crop_h);
+
+		if (vcdec_jpeg_run_scale_crop_case(crop_w, crop_h, BK_PIXEL_FORMAT_NV12,
+						   0U, 0U, (uint16_t)crop_w, (uint16_t)crop_h, 1U,
+						   case_name, VCDEC_TEST_STREAM_1080P) != BK_OK) {
+			all_pass = 0U;
+		}
+	}
+
+	if (all_pass == 0U) {
+		LOGE("[RESULT][FAIL] vcdec_jpeg_flexa_crop_test matrix has failures\r\n");
+		return;
+	}
+
+	LOGI("[RESULT][PASS] vcdec_jpeg_flexa_crop_test success\r\n");
+}
+
+void vcdec_jpeg_frame_scale_crop_test(void)
+{
+	uint32_t coded_w = 0U;
+	uint32_t coded_h = 0U;
+	uint8_t all_pass = 1U;
+	char case_name[64];
+
+	if (vcdec_jpeg_get_1080p_coded_size(&coded_w, &coded_h) != BK_OK) {
+		return;
+	}
+
+	LOGI("vcdec jpeg frame crop+scale speed test start, coded=%ux%u\r\n",
+	     (unsigned)coded_w, (unsigned)coded_h);
+
+	for (uint32_t i = 1U; i < VCDEC_JPEG_RATIO_CNT; i++) {
+		const vcdec_jpeg_ratio_t *crop_ratio = &s_vcdec_jpeg_ratios[i];
+		uint32_t crop_w = coded_w * crop_ratio->num / crop_ratio->den;
+		uint32_t crop_h = coded_h * crop_ratio->num / crop_ratio->den;
+
+		for (uint32_t j = 0U; j < VCDEC_JPEG_RATIO_CNT; j++) {
+			const vcdec_jpeg_ratio_t *scale_ratio = &s_vcdec_jpeg_ratios[j];
+			uint32_t out_w = 0U;
+			uint32_t out_h = 0U;
+
+			if (j == i) {
+				continue;
+			}
+
+			out_w = (coded_w * scale_ratio->num / scale_ratio->den) & ~1U;
+			out_h = (coded_h * scale_ratio->num / scale_ratio->den) & ~1U;
+
+			if (out_w > crop_w * 3U || out_h > crop_h * 3U) {
+				LOGI("skip frame crop+scale %s/%s: upscale exceeds pp 3x limit\r\n",
+				     crop_ratio->name, scale_ratio->name);
+				continue;
+			}
+
+			os_snprintf(case_name, sizeof(case_name),
+				    "vcdec_jpeg_frame_crop_%s_scale_%s",
+				    crop_ratio->name, scale_ratio->name);
+			LOGI("frame crop+scale %s/%s: crop=(0,0 %ux%u) -> %ux%u\r\n",
+			     crop_ratio->name, scale_ratio->name,
+			     (unsigned)crop_w, (unsigned)crop_h, (unsigned)out_w, (unsigned)out_h);
+
+			if (vcdec_jpeg_run_scale_crop_case(out_w, out_h, BK_PIXEL_FORMAT_NV12,
+							   0U, 0U, (uint16_t)crop_w, (uint16_t)crop_h, 0U,
+							   case_name, VCDEC_TEST_STREAM_1080P) != BK_OK) {
+				all_pass = 0U;
+			}
+		}
+	}
+
+	if (all_pass == 0U) {
+		LOGE("[RESULT][FAIL] vcdec_jpeg_frame_scale_crop_test matrix has failures\r\n");
+		return;
+	}
+
+	LOGI("[RESULT][PASS] vcdec_jpeg_frame_scale_crop_test success\r\n");
+}
+
+#if 0 /* Temporarily disabled: Flexa decode scaling is offline. */
+void vcdec_jpeg_flexa_scale_crop_test(void)
+{
+	uint32_t coded_w = 0U;
+	uint32_t coded_h = 0U;
+	uint8_t all_pass = 1U;
+	char case_name[64];
+
+	if (vcdec_jpeg_get_1080p_coded_size(&coded_w, &coded_h) != BK_OK) {
+		return;
+	}
+
+	LOGI("vcdec jpeg flexa crop+scale speed test start, coded=%ux%u\r\n",
+	     (unsigned)coded_w, (unsigned)coded_h);
+
+	for (uint32_t i = 1U; i < VCDEC_JPEG_RATIO_CNT; i++) {
+		const vcdec_jpeg_ratio_t *crop_ratio = &s_vcdec_jpeg_ratios[i];
+		uint32_t crop_w = coded_w * crop_ratio->num / crop_ratio->den;
+		uint32_t crop_h = coded_h * crop_ratio->num / crop_ratio->den;
+
+		for (uint32_t j = 0U; j < VCDEC_JPEG_RATIO_CNT; j++) {
+			const vcdec_jpeg_ratio_t *scale_ratio = &s_vcdec_jpeg_ratios[j];
+			uint32_t out_w = 0U;
+			uint32_t out_h = 0U;
+
+			if (j == i) {
+				continue;
+			}
+
+			out_w = (coded_w * scale_ratio->num / scale_ratio->den) & ~1U;
+			out_h = (coded_h * scale_ratio->num / scale_ratio->den) & ~1U;
+
+			if (out_w > crop_w * 3U || out_h > crop_h * 3U) {
+				LOGI("skip flexa crop+scale %s/%s: upscale exceeds pp 3x limit\r\n",
+				     crop_ratio->name, scale_ratio->name);
+				continue;
+			}
+			os_snprintf(case_name, sizeof(case_name),
+				    "vcdec_jpeg_flexa_crop_%s_scale_%s",
+				    crop_ratio->name, scale_ratio->name);
+			LOGI("flexa crop+scale %s/%s: crop=(0,0 %ux%u) -> %ux%u\r\n",
+			     crop_ratio->name, scale_ratio->name,
+			     (unsigned)crop_w, (unsigned)crop_h, (unsigned)out_w, (unsigned)out_h);
+
+			if (vcdec_jpeg_run_scale_crop_case(out_w, out_h, BK_PIXEL_FORMAT_NV12,
+							   0U, 0U, (uint16_t)crop_w, (uint16_t)crop_h, 1U,
+							   case_name, VCDEC_TEST_STREAM_1080P) != BK_OK) {
+				all_pass = 0U;
+			}
+		}
+	}
+
+	if (all_pass == 0U) {
+		LOGE("[RESULT][FAIL] vcdec_jpeg_flexa_scale_crop_test matrix has failures\r\n");
+		return;
+	}
+
+	LOGI("[RESULT][PASS] vcdec_jpeg_flexa_scale_crop_test success\r\n");
+}
+#endif
 
 void vcdec_jpeg_frame_rgb_test(void)
 {

@@ -22,7 +22,7 @@ UVC(MJPEG) → encode_frame_que → MJPEG Flexa decode (bk_decoder)
     → bk_flexa_mjpegd_gpu_bond → VG-Lite GPU → DPU → MIPI LCD
 ```
 
-The active tree does **not** use legacy VPU APIs and does **not** include H264 encode. See `verisilicon_nano/legacy/README.md` for archived code.
+The active tree does **not** use legacy VPU APIs and does **not** include H264 encode.
 
 * Related docs:
 

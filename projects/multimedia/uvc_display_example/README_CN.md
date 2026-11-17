@@ -22,7 +22,7 @@ UVC(MJPEG) → encode_frame_que → MJPEG Flexa 解码(bk_decoder)
     → bk_flexa_mjpegd_gpu_bond → VG-Lite GPU → DPU → MIPI LCD
 ```
 
-活跃工程**不使用** legacy VPU API，也**不包含** H264 编码路径。历史实现见 `verisilicon_nano/legacy/README.md`。
+活跃工程**不使用** legacy VPU API，也**不包含** H264 编码路径。
 
 * 相关文档：
 

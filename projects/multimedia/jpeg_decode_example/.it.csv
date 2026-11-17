@@ -3,3 +3,7 @@ reboot,reboot,1,[RESULT][PASS] vcdec_jpeg_test success,60
 vcdec_jpeg_frame_01,ap_cmd jpeg_decode vcdec_jpegd,1,[RESULT][PASS] vcdec_jpeg_test success,60
 vcdec_jpeg_flexa_01,ap_cmd jpeg_decode vcdec_jpegd_flexa,1,[RESULT][PASS] vcdec_jpeg_flexa_test success,60
 vcdec_jpeg_frame_rgb_01,ap_cmd jpeg_decode vcdec_jpegd_frame_rgb,1,[RESULT][PASS] vcdec_jpeg_frame_rgb_test success,120
+vcdec_jpeg_frame_scale_01,ap_cmd jpeg_decode vcdec_jpegd_frame_scale,1,[RESULT][PASS] vcdec_jpeg_frame_scale_test success,120
+vcdec_jpeg_frame_crop_01,ap_cmd jpeg_decode vcdec_jpegd_frame_crop,1,[RESULT][PASS] vcdec_jpeg_frame_crop_test success,120
+vcdec_jpeg_flexa_crop_01,ap_cmd jpeg_decode vcdec_jpegd_flexa_crop,1,[RESULT][PASS] vcdec_jpeg_flexa_crop_test success,120
+vcdec_jpeg_frame_scale_crop_01,ap_cmd jpeg_decode vcdec_jpegd_frame_scale_crop,1,[RESULT][PASS] vcdec_jpeg_frame_scale_crop_test success,120

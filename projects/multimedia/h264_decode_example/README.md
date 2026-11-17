@@ -145,6 +145,3 @@ On failure the matching `[RESULT][FAIL] <case> failed at <stage>, ret=...` line 
 7. Both 1280x720 streams are embedded into flash simultaneously, each under its own symbol
    (`h264_decode_stream_1280x720_1i30p[]` and `h264_decode_stream_1280x720_ibbp[]`); the
    stream is chosen at run time by the stream id / CLI argument, and both fit comfortably.
-8. The old `vcdec_h264_driver` (register-level), `h264_decode_flexa`, `h264_decode_stress`
-   CLIs and the `256x128` stream are no longer part of this project; the legacy sources are
-   archived under `ap/properties/modules/verisilicon_nano/legacy/projects/h264_decode_example/`.
