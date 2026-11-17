@@ -14,6 +14,7 @@
 
 #include <stdint.h>
 #include "pal_log.h"
+#include "pal_time.h"
 #include "dubhe_event.h"
 #include "dubhe_regs.h"
 #include "dubhe_aca.h"
@@ -29,6 +30,18 @@
 #include <soc/bk7259/int_types_impl.h>
 #if defined(DUBHE_SECURE)
 #include <modules/pm.h>
+#include "sys_types.h"
+#if CONFIG_SYS_SW_REGS
+#include "sys_sw_regs.h"
+#endif
+/*
+ * The OTP APB block lives in the CP-controlled WRLP_ENCP power domain, so the
+ * AP cannot power it locally. TE200's OTP controller shares that block with the
+ * CP OTP driver, which powers it off when its own holder count reaches zero.
+ */
+extern bool bk_pm_mailbox_is_ready(void);
+extern bk_err_t bk_pm_module_vote_cp_power_ctrl(pm_power_module_name_e module,
+                                                pm_power_module_state_e power_state);
 #endif
 
 unsigned long _g_Dubhe_RegBase;
@@ -69,6 +82,94 @@ static void dubhe_delay_us(uint32 num) {
 			;
 
 }
+
+#if defined(DUBHE_SECURE)
+/*
+ * TE200 keeps a dedicated permanent reference in the shared OTP APB power word
+ * (BK_SWR_OTP_PWR_TE200_HOLD, see sys_sw_regs_layout.h). It must not be folded
+ * into the AP holder count: that count is also used by transient AP OTP
+ * transactions, so treating a non-zero value as "already held" could mistake an
+ * in-flight transaction for the permanent hold.
+ */
+static bool s_otp_apb_usable;
+
+#define DUBHE_OTP_APB_CLAIM_STEP_US     (1000U)
+/* A power-off vote waits up to 100 ms for the CP response, keep the whole
+ * window plus margin instead of a few milliseconds of guesswork. */
+#define DUBHE_OTP_APB_CLAIM_TIMEOUT_US  (300U * 1000U)
+
+/*
+ * Take TE200's permanent reference in the shared OTP APB power word and ask
+ * the CP to power the sub domain on. TE200's OTP controller shares the block
+ * with the CP OTP driver, which powers it off only when no reference is left,
+ * so the reference has to be taken before the vote.
+ *
+ * The vote waits for a CP mailbox response, so this must run from thread
+ * context with interrupts enabled, before do_dubhe_driver_init() masks them.
+ */
+static int dubhe_otp_apb_power_on( void )
+{
+#if CONFIG_SYS_SW_REGS
+    volatile uint32_t *hold = &bk_sys_sw_regs_ptr()->otp_apb_pwr_hold;
+    uint32_t word = 0;
+    uint32_t waited;
+    bool claimed = false;
+
+    if (!bk_pm_mailbox_is_ready()) {
+        PAL_LOG_ERR("te200: PM mailbox not ready, OTP APB not protected\n");
+        return -1;
+    }
+
+    /* Set the dedicated hold bit. Setting it is idempotent, so a bit left
+     * by the previous boot/image is reused and the claim cannot grow
+     * across warm reboots. The AP holder count is not touched here: it
+     * belongs to the OTP driver's transient transactions. */
+    for (waited = 0; waited < DUBHE_OTP_APB_CLAIM_TIMEOUT_US;
+         waited += DUBHE_OTP_APB_CLAIM_STEP_US) {
+        word = __atomic_load_n(hold, __ATOMIC_ACQUIRE);
+        if ((word & BK_SWR_OTP_PWR_TURNING_OFF) == 0) {
+            if ((word & BK_SWR_OTP_PWR_TE200_HOLD) != 0) {
+                claimed = true; /* already held by this or a previous image */
+                break;
+            }
+            if (__atomic_compare_exchange_n(hold, &word,
+                                            word | BK_SWR_OTP_PWR_TE200_HOLD, false,
+                                            __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE)) {
+                claimed = true;
+                break;
+            }
+            continue;
+        }
+        /* A power-off is in flight, let it retire and retry. */
+        pal_udelay( DUBHE_OTP_APB_CLAIM_STEP_US );
+    }
+    if (!claimed) {
+        /* Without a reference the CP may switch the sub domain off under
+         * the TE200 OTP access, which hangs the AP with interrupts masked.
+         * Fail the init instead of touching unpowered hardware. */
+        PAL_LOG_ERR("te200: OTP APB hold claim timed out, pwr=0x%x\n", word);
+        return -1;
+    }
+
+    if (bk_pm_module_vote_cp_power_ctrl(PM_POWER_SUB_DOMAIN_OTP_APB,
+                                        PM_POWER_MODULE_STATE_ON) != BK_OK) {
+        PAL_LOG_ERR("te200: OTP APB power vote failed\n");
+        /* Drop the hold bit so the domain can be powered down again. This is
+         * done even when the bit came from a previous image: TE200 will not be
+         * initialized in this boot (s_otp_apb_usable stays false), so keeping
+         * the reference would only leak power for the whole run. Only bit17 is
+         * cleared, the holder counts may belong to a concurrent AP transaction. */
+        (void)__atomic_and_fetch(hold, ~BK_SWR_OTP_PWR_TE200_HOLD,
+                                 __ATOMIC_ACQ_REL);
+        return -1;
+    }
+    return 0;
+#else
+    PAL_LOG_ERR("te200: SYS_SW_REGS disabled, OTP APB hold not shared\n");
+    return -1;
+#endif
+}
+#endif /* DUBHE_SECURE */
 
 static void dubhe_dma_disable(void)
 {
@@ -237,6 +338,7 @@ static void __BK_IRQ te200_isr(void)
 static int do_dubhe_driver_init( unsigned long dbh_base_addr )
 {
     uint32_t int_level = rtos_disable_int();
+    int ret = 0;
 
 #if defined(DUBHE_SECURE)
     // bk_pm_module_vote_power_ctrl(POWER_SUB_MODULE_NAME_ENCP_TRUSTENGINE, PM_POWER_MODULE_STATE_ON);
@@ -263,7 +365,15 @@ static int do_dubhe_driver_init( unsigned long dbh_base_addr )
     arm_ce_trng_driver_init( );
 #endif
 #if defined( ARM_CE_DUBHE_OTP )
-    arm_ce_otp_driver_init( );
+    if (s_otp_apb_usable) {
+        ret = arm_ce_otp_driver_init( );
+        if (ret != 0) {
+            PAL_LOG_ERR("te200: otp driver init failed: %d\n", ret);
+        }
+    } else {
+        PAL_LOG_ERR("te200: OTP APB unavailable, skip otp driver init\n");
+        ret = -1;
+    }
 #endif
 
 #if defined( DUBHE_FOR_RUNTIME )
@@ -294,7 +404,7 @@ static int do_dubhe_driver_init( unsigned long dbh_base_addr )
 #endif /* DUBHE_SECURE */
 
     rtos_enable_int(int_level);
-    return 0;
+    return ret;
 }
 
 int dubhe_driver_init( unsigned long dbh_base_addr )
@@ -317,6 +427,16 @@ int dubhe_driver_init( unsigned long dbh_base_addr )
     }
 
     if (need_init_driver == true) {
+#if defined(DUBHE_SECURE)
+        /* TE200's OTP controller shares the OTP APB block with the CP's OTP
+         * driver. The CP's release path powers the sub domain off once no
+         * reference is left, putting the macro into standby under the AP's
+         * feet. Take TE200's permanent hold bit and vote the domain on before
+         * the first TE200 OTP access. Both steps must run here: the vote waits
+         * for a CP mailbox response, which cannot happen inside
+         * do_dubhe_driver_init() where interrupts are masked. */
+        s_otp_apb_usable = (dubhe_otp_apb_power_on() == 0);
+#endif
         ret = do_dubhe_driver_init(dbh_base_addr);
     }
 

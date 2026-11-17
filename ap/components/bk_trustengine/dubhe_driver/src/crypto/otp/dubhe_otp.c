@@ -239,18 +239,22 @@ static int arm_ce_otp_wait_write_done( void )
         return ( DBH_OTP_UPDATE_SUCCESS );
 }
 
-static void arm_ce_otp_wait_init_done( void )
+static int arm_ce_otp_wait_init_done( void )
 {
-    uint8_t result;
     volatile uint32_t value;
+    int retry = 50; /* 50 * 2000us = 100ms */
 
     for ( ;; ) {
-        value  = DBH_READ_REGISTER( OTP_MGR, OTP_SET );
-        result = value & 0x1;
-        if ( result != 1 )
-            pal_udelay( 2000 );
-        else
-            break;
+        value = DBH_READ_REGISTER( OTP_MGR, OTP_SET );
+        if ( ( value & 0x1 ) == 0x1 )
+            return 0;
+        if ( --retry == 0 ) {
+            /* Bounded: this runs with interrupts disabled, an unbounded spin
+             * would stop the SysTick watchdog feed and reset the chip. */
+            pal_platform_printf("[te200] otp init timeout, OTP_SET=0x%x\r\n", value);
+            return -1;
+        }
+        pal_udelay( 2000 );
     }
 }
 #endif
@@ -729,7 +733,8 @@ int arm_ce_otp_driver_init( void )
     arm_ce_otp_power_up( );
 #endif
     DBH_OTP_SET_SHADOW_READ();
-    arm_ce_otp_wait_init_done( );
+    if ( arm_ce_otp_wait_init_done() != 0 )
+        return DBH_OTP_UPDATE_FAIL;
     return 0;
 #endif
 }
