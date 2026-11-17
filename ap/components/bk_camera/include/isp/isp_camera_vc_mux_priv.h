@@ -30,7 +30,7 @@ extern "C" {
 
 typedef struct
 {
-    VIDEO_BUF_S buf;
+    bk_isp_camera_frame_info_t frame_info;
     uint8_t vc;
     uint8_t queued;
     uint8_t in_use;
@@ -56,7 +56,6 @@ typedef struct
     uint8_t switch_pending;
     uint8_t drain_stale_remaining;
     uint8_t isr_registered;
-    uint8_t channel_acquired;
     uint8_t timeout_count;
     uint8_t runtime_vc_switch;
     uint16_t width;

@@ -4,6 +4,7 @@
 #include <common/avdk_pixel_types.h>
 #include <components/bk_isp_camera.h>
 #include <components/bk_camera_isp_ctlr.h>
+#include <components/bk_frame_buffer.h>
 #include <driver/isp.h>
 #include <avdk_check.h>
 #include "isp_camera_ctlr.h"
@@ -167,6 +168,76 @@ avdk_err_t bk_isp_camera_channel_open(bk_isp_camera_ctlr_handle_t handle, uint8_
     AVDK_RETURN_ON_FALSE(handle, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
     AVDK_RETURN_ON_FALSE(handle->channel_open, AVDK_ERR_UNSUPPORTED, TAG, AVDK_ERR_UNSUPPORTED_FUNCTION_TEXT);
     return handle->channel_open(handle, channel, config);
+}
+
+avdk_err_t bk_isp_camera_frame_pool_alloc(
+    bk_isp_camera_channel_config_t *config,
+    bk_isp_camera_frame_pool_t *pool)
+{
+    AVDK_RETURN_ON_FALSE(config && pool, AVDK_ERR_INVAL, TAG, "frame pool arg is NULL");
+    AVDK_RETURN_ON_FALSE(config->work_mode == 0 && config->enable_flexa == 0,
+                         AVDK_ERR_INVAL, TAG, "frame pool requires frame mode");
+    AVDK_RETURN_ON_FALSE(config->buf_cnt >= 2 && config->buf_cnt <= ISP_FRAME_CNT_MAX,
+                         AVDK_ERR_INVAL, TAG, "frame mode requires at least two buffers");
+    for (uint8_t i = 0; i < ISP_FRAME_CNT_MAX; i++)
+    {
+        AVDK_RETURN_ON_FALSE(pool->buffers[i].addr == 0,
+                             AVDK_ERR_BUSY, TAG, "previous frame pool is still allocated");
+    }
+
+    os_memset(pool, 0, sizeof(*pool));
+
+    uint32_t frame_size;
+    if (config->format == BK_PIXEL_FORMAT_RGB888 ||
+        config->format == BK_PIXEL_FORMAT_BGR888)
+    {
+        /* ISP RGB888/BGR888 output is RGBX, four bytes per pixel. */
+        frame_size = (uint32_t)config->width * config->height * 4U;
+    }
+    else
+    {
+        frame_size = bk_image_size_get(config->width, config->height,
+                                       (bk_pixel_format_t)config->format);
+    }
+    AVDK_RETURN_ON_FALSE(frame_size > 0, AVDK_ERR_INVAL, TAG, "invalid frame geometry");
+
+    for (uint8_t i = 0; i < config->buf_cnt; i++)
+    {
+#ifdef CONFIG_FRAME_BUFFER
+        void *mem = bk_frame_buffer_malloc(MEM_SLAB_HEAP_UNCODED, frame_size);
+#else
+        void *mem = NULL;
+#endif
+        if (mem == NULL)
+        {
+            bk_isp_camera_frame_pool_free(pool);
+            return AVDK_ERR_NOMEM;
+        }
+        pool->buffers[i].addr = (uint32_t)(uintptr_t)mem;
+        pool->buffers[i].size = frame_size;
+    }
+
+    return AVDK_ERR_OK;
+}
+
+void bk_isp_camera_frame_pool_free(bk_isp_camera_frame_pool_t *pool)
+{
+    if (pool == NULL)
+    {
+        return;
+    }
+
+    for (uint8_t i = 0; i < ISP_FRAME_CNT_MAX; i++)
+    {
+        if (pool->buffers[i].addr != 0)
+        {
+#ifdef CONFIG_FRAME_BUFFER
+            bk_frame_buffer_free((void *)(uintptr_t)pool->buffers[i].addr);
+#endif
+            pool->buffers[i].addr = 0;
+            pool->buffers[i].size = 0;
+        }
+    }
 }
 
 avdk_err_t bk_isp_camera_channel_close(bk_isp_camera_ctlr_handle_t handle, uint8_t channel)

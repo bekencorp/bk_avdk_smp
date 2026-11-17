@@ -6,7 +6,6 @@
 #include <driver/isp.h>
 #include <driver/mipi_csi.h>
 #include <avdk_check.h>
-#include <modules/veri_isp/vsios_error.h>
 #include "isp/isp_camera_vc_mux_priv.h"
 
 #define TAG "bk_cam_isp"
@@ -42,37 +41,14 @@ static bk_camera_isp_ctlr_t *isp_vc_mux_camera(bk_camera_isp_vc_mux_t *mux)
     return __containerof(mux->camera, bk_camera_isp_ctlr_t, ops);
 }
 
-static uint8_t *isp_camera_vc_mux_buf_addr(VIDEO_BUF_S *buf)
+static uint8_t *isp_camera_vc_mux_buf_addr(const bk_isp_camera_frame_info_t *frame_info)
 {
-    if (buf->numPlanes == 0)
-    {
-        return NULL;
-    }
-
-    if (buf->planes[0].pUserAddr != NULL)
-    {
-        return (uint8_t *)buf->planes[0].pUserAddr;
-    }
-
-    return (uint8_t *)(uintptr_t)buf->planes[0].dmaPhyAddr;
+    return (uint8_t *)(uintptr_t)frame_info->addr;
 }
 
-static uint32_t isp_camera_vc_mux_buf_size(VIDEO_BUF_S *buf)
+static uint32_t isp_camera_vc_mux_buf_size(const bk_isp_camera_frame_info_t *frame_info)
 {
-    uint32_t size = 0;
-    uint8_t plane_cnt = buf->numPlanes ? buf->numPlanes : 1;
-
-    if (plane_cnt > VIDEO_MAX_PLANES)
-    {
-        plane_cnt = VIDEO_MAX_PLANES;
-    }
-
-    for (uint8_t i = 0; i < plane_cnt; i++)
-    {
-        size += buf->planes[i].size;
-    }
-
-    return size;
+    return frame_info->length;
 }
 
 static void isp_camera_vc_mux_init_nodes(bk_camera_isp_vc_mux_t *mux)
@@ -158,12 +134,10 @@ static void isp_camera_vc_mux_unlink_node(bk_camera_isp_vc_mux_t *mux, uint8_t v
 
 static void isp_camera_vc_mux_release_node_to_isp(bk_camera_isp_vc_mux_t *mux, uint8_t node)
 {
-    bk_camera_isp_ctlr_t *cam = isp_vc_mux_camera(mux);
-    isp_control_t *isp_control = cam ? (isp_control_t *)cam->isp_handle : NULL;
-
-    if (mux->node[node].valid && isp_control != NULL && isp_control->free_buf != NULL)
+    if (mux->node[node].valid && mux->camera != NULL)
     {
-        isp_control->free_buf(isp_control->chn[mux->channel].channel, &mux->node[node].buf);
+        (void)bk_isp_camera_ctlr_ioctl(mux->camera, BK_CAM_IOCTL_FRAME_QBUF,
+                                       &mux->node[node].frame_info);
     }
 
     os_memset(&mux->node[node], 0, sizeof(mux->node[node]));
@@ -379,7 +353,8 @@ static uint8_t isp_camera_vc_mux_active_vc(bk_camera_isp_vc_mux_t *mux)
     return mux->current_vc & 0x01;
 }
 
-static uint8_t isp_camera_vc_mux_handle_buf(bk_camera_isp_vc_mux_t *mux, VIDEO_BUF_S *buf)
+static uint8_t isp_camera_vc_mux_handle_buf(bk_camera_isp_vc_mux_t *mux,
+                                            bk_isp_camera_frame_info_t *frame_info)
 {
     uint8_t vc;
     uint8_t node;
@@ -419,7 +394,7 @@ static uint8_t isp_camera_vc_mux_handle_buf(bk_camera_isp_vc_mux_t *mux, VIDEO_B
         return 0;
     }
 
-    frame_size = isp_camera_vc_mux_buf_size(buf);
+    frame_size = isp_camera_vc_mux_buf_size(frame_info);
     if (frame_size == 0 || frame_size > mux->frame_size)
     {
         return 0;
@@ -439,7 +414,7 @@ static uint8_t isp_camera_vc_mux_handle_buf(bk_camera_isp_vc_mux_t *mux, VIDEO_B
 
     if (node != ISP_CAMERA_VC_MUX_NODE_INVALID)
     {
-        mux->node[node].buf = *buf;
+        mux->node[node].frame_info = *frame_info;
         mux->node[node].vc = vc;
         mux->node[node].valid = 1;
         mux->node[node].frame_size = frame_size;
@@ -584,16 +559,16 @@ static void isp_camera_vc_mux_task_entry(void *param)
             mux->pop_timeout_ms = ISP_CAMERA_VC_MUX_IDLE_POP_TIMEOUT_MS;
         }
 
-        VIDEO_BUF_S buf;
-        int ret = isp_control->pop_buf(config->channel, &buf, mux->pop_timeout_ms);
-        if (ret == VSI_ERR_NOT_READY)
+        bk_isp_camera_frame_info_t info = {
+            .channel = mux->channel,
+            .port_id = BK_ISP_CAMERA_INVALID_PORT_ID,
+            .timeout = mux->pop_timeout_ms,
+        };
+        avdk_err_t ret = bk_isp_camera_ctlr_ioctl(mux->camera,
+                                                   BK_CAM_IOCTL_FRAME_DQBUF, &info);
+        if (ret != AVDK_ERR_OK)
         {
-            mux->thread_enable = false;
-            break;
-        }
-        if (ret != BK_OK)
-        {
-            if (mux->vc_enable_mask != 0)
+            if (ret == AVDK_ERR_TIMEOUT && mux->vc_enable_mask != 0)
             {
                 isp_camera_vc_mux_handle_timeout(mux);
             }
@@ -603,13 +578,13 @@ static void isp_camera_vc_mux_task_entry(void *param)
         if (mux->drain_stale_remaining > 0)
         {
             mux->drain_stale_remaining--;
-            isp_control->free_buf(config->channel, &buf);
+            (void)bk_isp_camera_ctlr_ioctl(mux->camera, BK_CAM_IOCTL_FRAME_QBUF, &info);
             continue;
         }
 
         if (mux->vc_enable_mask == 0)
         {
-            isp_control->free_buf(config->channel, &buf);
+            (void)bk_isp_camera_ctlr_ioctl(mux->camera, BK_CAM_IOCTL_FRAME_QBUF, &info);
             continue;
         }
 
@@ -620,10 +595,10 @@ static void isp_camera_vc_mux_task_entry(void *param)
             rtos_unlock_mutex(&mux->lock);
         }
 
-        uint8_t vc_mux_held = isp_camera_vc_mux_handle_buf(mux, &buf);
+        uint8_t vc_mux_held = isp_camera_vc_mux_handle_buf(mux, &info);
         if (!vc_mux_held)
         {
-            isp_control->free_buf(config->channel, &buf);
+            (void)bk_isp_camera_ctlr_ioctl(mux->camera, BK_CAM_IOCTL_FRAME_QBUF, &info);
         }
     }
 
@@ -686,13 +661,6 @@ static avdk_err_t isp_camera_vc_mux_stop(bk_isp_camera_vc_mux_handle_t handle)
 
     isp_camera_vc_mux_free_frames(mux);
 
-    if (mux->channel_acquired && cam != NULL)
-    {
-        uint8_t channel = mux->channel;
-        (void)bk_isp_camera_ctlr_ioctl(mux->camera, BK_CAM_IOCTL_CHANNEL_RELEASE, &channel);
-        mux->channel_acquired = 0;
-    }
-
     if (mux->lock_inited)
     {
         rtos_deinit_mutex(&mux->lock);
@@ -720,25 +688,9 @@ static avdk_err_t isp_camera_vc_mux_start(bk_isp_camera_vc_mux_handle_t handle, 
 
     AVDK_RETURN_ON_ERROR(isp_camera_vc_mux_stop(handle), TAG, "vc mux stop failed");
 
-    {
-        uint8_t channel = cfg->channel;
-        ret = bk_isp_camera_ctlr_ioctl(mux->camera, BK_CAM_IOCTL_CHANNEL_ACQUIRE, &channel);
-        if (ret != AVDK_ERR_OK)
-        {
-            LOGE("%s, acquire channel %u failed %d\n", __func__, cfg->channel, ret);
-            return ret;
-        }
-        mux->channel_acquired = 1;
-    }
-
     if (rtos_init_mutex(&mux->lock) != BK_OK)
     {
         LOGE("%s, vc mux mutex init failed\n", __func__);
-        {
-            uint8_t channel = cfg->channel;
-            (void)bk_isp_camera_ctlr_ioctl(mux->camera, BK_CAM_IOCTL_CHANNEL_RELEASE, &channel);
-            mux->channel_acquired = 0;
-        }
         return AVDK_ERR_GENERIC;
     }
     mux->lock_inited = 1;
@@ -916,7 +868,7 @@ static avdk_err_t isp_camera_vc_mux_peek(bk_isp_camera_vc_mux_handle_t handle, b
         return AVDK_ERR_BUSY;
     }
 
-    addr = isp_camera_vc_mux_buf_addr(&mux->node[node].buf);
+    addr = isp_camera_vc_mux_buf_addr(&mux->node[node].frame_info);
     if (addr == NULL)
     {
         if (mux->lock_inited)
@@ -958,7 +910,7 @@ static avdk_err_t isp_camera_vc_mux_release(bk_isp_camera_vc_mux_handle_t handle
     node = mux->queue_head[vc];
     while (node != ISP_CAMERA_VC_MUX_NODE_INVALID)
     {
-        uint8_t *addr = isp_camera_vc_mux_buf_addr(&mux->node[node].buf);
+        uint8_t *addr = isp_camera_vc_mux_buf_addr(&mux->node[node].frame_info);
         if (addr == frame->frame && mux->node[node].sequence == frame->sequence)
         {
             mux->node[node].in_use = 0;

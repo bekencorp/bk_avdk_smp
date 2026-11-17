@@ -26,17 +26,117 @@
 
 typedef struct
 {
+    VIDEO_BUF_S buf[ISP_FRAME_CNT_MAX];
+    uint32_t generation[ISP_FRAME_CNT_MAX];
+    bk_isp_camera_frame_buffer_t pre_qbuf[ISP_FRAME_CNT_MAX];
+    uint8_t pre_qbuf_count;
+    uint32_t in_use_mask;
+    bk_isp_camera_frame_info_t result;
+    uint32_t sequence;
+    uint8_t requested_port;
+    uint8_t request_active;
+    uint8_t request_complete;
+    uint8_t abort;
+    beken_semaphore_t sem;
+    beken_semaphore_t free_sem;
+} isp_camera_zc_ctx_t;
+
+typedef struct
+{
     bk_camera_isp_ctlr_t controller;
-    /* 1 = channel owned by an external zero-copy consumer; 0 = camera reader. */
-    uint8_t bond_owned[ISP_CHANNEL_INSTANCE_MAX];
-    /* Serializes request publication/cancellation against the reader copy path.
-     * A timed-out read cannot return while the worker still touches its buffer. */
+    /* Serializes legacy-copy and zero-copy requests against the channel reader. */
     beken_mutex_t read_lock[ISP_CHANNEL_INSTANCE_MAX];
+    /* Direct-pop consumers own the channel queue and suppress the internal reader. */
+    uint8_t bond_owned[ISP_CHANNEL_INSTANCE_MAX];
+    isp_camera_zc_ctx_t zc[ISP_CHANNEL_INSTANCE_MAX];
 } isp_camera_ctlr_private_t;
 
 static isp_camera_ctlr_private_t *isp_camera_ctlr_get_private(bk_camera_isp_ctlr_t *control)
 {
     return __containerof(control, isp_camera_ctlr_private_t, controller);
+}
+
+static avdk_err_t isp_camera_ctlr_fill_frame_info(bk_camera_isp_ctlr_t *control,
+                                                  uint8_t channel, const VIDEO_BUF_S *buf,
+                                                  uint32_t sequence, uint32_t generation)
+{
+    isp_control_t *isp_control = (isp_control_t *)control->isp_handle;
+    uint8_t plane_cnt = buf->numPlanes;
+    uint32_t length = 0;
+
+    if (isp_control == NULL || buf->index >= isp_control->chn[channel].buf_cnt ||
+        plane_cnt == 0 || plane_cnt > VIDEO_MAX_PLANES)
+    {
+        return AVDK_ERR_INVAL;
+    }
+
+    for (uint8_t p = 0; p < plane_cnt; p++)
+    {
+        length += buf->planes[p].size;
+    }
+
+    uint32_t size = isp_control->chn[channel].frame_buffer_size[buf->index];
+    uint32_t addr = (uint32_t)(uintptr_t)isp_control->chn[channel].frame_buffer[buf->index];
+    if (addr == 0 || length == 0 || length > size)
+    {
+        LOGE("%s, invalid frame length ch=%d index=%u length=%u size=%u\n",
+             __func__, channel, buf->index, length, size);
+        return AVDK_ERR_GENERIC;
+    }
+
+    bk_isp_camera_frame_info_t *info =
+        &isp_camera_ctlr_get_private(control)->zc[channel].result;
+    os_memset(info, 0, sizeof(*info));
+    info->addr = addr;
+    info->size = size;
+    info->length = length;
+    info->channel = channel;
+    info->port_id = buf->portId;
+    info->sequence = sequence;
+    info->generation = generation;
+    return AVDK_ERR_OK;
+}
+
+/* Called with read_lock[channel] held. */
+static uint8_t isp_camera_ctlr_deliver_zc(bk_camera_isp_ctlr_t *control,
+                                          uint8_t channel, const VIDEO_BUF_S *buf)
+{
+    isp_camera_zc_ctx_t *zc = &isp_camera_ctlr_get_private(control)->zc[channel];
+
+    if (!zc->request_active || zc->request_complete || zc->abort)
+    {
+        return 0;
+    }
+    if (zc->requested_port != BK_ISP_CAMERA_INVALID_PORT_ID &&
+        zc->requested_port != buf->portId)
+    {
+        return 0;
+    }
+    if (buf->index >= ISP_FRAME_CNT_MAX ||
+        (zc->in_use_mask & (1UL << buf->index)) != 0)
+    {
+        LOGW("%s, invalid completed buffer ch=%d index=%u\n",
+             __func__, channel, buf->index);
+        return 0;
+    }
+
+    uint32_t generation = zc->generation[buf->index] + 1;
+    if (generation == 0)
+    {
+        generation = 1;
+    }
+    if (isp_camera_ctlr_fill_frame_info(control, channel, buf,
+                                        zc->sequence, generation) != AVDK_ERR_OK)
+    {
+        return 0;
+    }
+
+    zc->generation[buf->index] = generation;
+    zc->buf[buf->index] = *buf;
+    zc->in_use_mask |= 1UL << buf->index;
+    zc->request_complete = 1;
+    rtos_set_semaphore(&zc->sem);
+    return 1;
 }
 
 static void isp_camera_ctlr_task_entry(void *param)
@@ -74,18 +174,9 @@ static void isp_camera_ctlr_task_entry(void *param)
             continue;
         }
 
-        if (chnl_id < ISP_CHANNEL_INSTANCE_MAX &&
-            isp_camera_ctlr_get_private(cam_control)->bond_owned[chnl_id])
-        {
-            /* The channel queue is owned by an external zero-copy consumer; it drains
-             * the queue itself, so the free-running reader must not touch it. */
-            rtos_delay_milliseconds(10);
-            continue;
-        }
-
         if (config->enable_flexa)
         {
-            LOGE("%s, %d channel %d flexa mode not supported read frame\n", __func__, __LINE__, chnl_id);
+            /* Flexa channels are consumed by their hardware/ISR path. */
             rtos_delay_milliseconds(1000);
             continue;
         }
@@ -114,7 +205,13 @@ static void isp_camera_ctlr_task_entry(void *param)
         isp_camera_ctlr_private_t *private =
             isp_camera_ctlr_get_private(cam_control);
         rtos_lock_mutex(&private->read_lock[chnl_id]);
-        if (read_ctx->read_enable && read_ctx->frame)
+        private->zc[chnl_id].sequence++;
+        if (private->zc[chnl_id].sequence == 0)
+        {
+            private->zc[chnl_id].sequence = 1;
+        }
+        uint8_t zc_delivered = isp_camera_ctlr_deliver_zc(cam_control, chnl_id, &buf);
+        if (!zc_delivered && read_ctx->read_enable && read_ctx->frame)
         {
             uint32_t copied = 0;
             uint8_t plane_cnt = buf.numPlanes ? buf.numPlanes : 1;
@@ -169,7 +266,10 @@ static void isp_camera_ctlr_task_entry(void *param)
         }
         rtos_unlock_mutex(&private->read_lock[chnl_id]);
 
-        isp_control->free_buf(config->channel, &buf);
+        if (!zc_delivered)
+        {
+            isp_control->free_buf(config->channel, &buf);
+        }
     }
 
     rtos_delete_thread(NULL);
@@ -213,6 +313,16 @@ static avdk_err_t isp_camera_ctlr_start_channel_reader(bk_camera_isp_ctlr_t *con
     read_ctx->frame_size = 0;
     read_ctx->port_id = BK_ISP_CAMERA_INVALID_PORT_ID;
 
+    isp_camera_zc_ctx_t *zc = &isp_camera_ctlr_get_private(control)->zc[channel];
+    zc->requested_port = BK_ISP_CAMERA_INVALID_PORT_ID;
+    zc->request_active = 0;
+    zc->request_complete = 0;
+    zc->abort = 0;
+    zc->in_use_mask = 0;
+    zc->sequence = 0;
+    (void)rtos_get_semaphore(&zc->sem, 0);
+    (void)rtos_get_semaphore(&zc->free_sem, 0);
+
     ret = rtos_init_semaphore(&read_ctx->sem, 1);
     if (ret != BK_OK)
     {
@@ -253,12 +363,21 @@ static void isp_camera_ctlr_stop_channel_reader(bk_camera_isp_ctlr_t *control, u
     }
 
     read_ctx = &control->read_ctx[channel];
+    isp_camera_ctlr_private_t *private = isp_camera_ctlr_get_private(control);
+    rtos_lock_mutex(&private->read_lock[channel]);
+    private->zc[channel].abort = 1;
+    if (private->zc[channel].request_active)
+    {
+        rtos_set_semaphore(&private->zc[channel].sem);
+    }
+    rtos_unlock_mutex(&private->read_lock[channel]);
+
     /* Clear the run flag, then wake the reader immediately: if it is blocked in a
      * (possibly long) pop_buf/DQBUF poll, abort that DQBUF so it returns NOT_READY
      * at once and exits, instead of waiting out the poll timeout. The abort is a
      * VB-queue StreamOff only -- it neither stops the MI DMA nor frees buffers, so
-     * the subsequent bk_isp_close still performs the full DisableChn + buffer free
-     * (and buffers are only freed after this join confirms the reader has stopped). */
+     * the subsequent bk_isp_close still performs the full DisableChn + buffer detach
+     * (and references are cleared only after this join confirms the reader stopped). */
     read_ctx->thread_enable = false;
     if (read_ctx->thread)
     {
@@ -268,6 +387,20 @@ static void isp_camera_ctlr_stop_channel_reader(bk_camera_isp_ctlr_t *control, u
         }
         rtos_thread_join(&read_ctx->thread);
         read_ctx->thread = NULL;
+    }
+
+    /* The zero-copy semaphore lives until controller deletion, but a reopen
+     * must not race a DQBUF caller that is still leaving its wait. */
+    for (;;)
+    {
+        rtos_lock_mutex(&private->read_lock[channel]);
+        uint8_t active = private->zc[channel].request_active;
+        rtos_unlock_mutex(&private->read_lock[channel]);
+        if (!active)
+        {
+            break;
+        }
+        rtos_delay_milliseconds(1);
     }
 
     if (read_ctx->sem)
@@ -487,9 +620,6 @@ static avdk_err_t isp_camera_ctlr_multi_port_read(
     AVDK_RETURN_ON_FALSE(param->id < ISP_CHANNEL_INSTANCE_MAX, AVDK_ERR_INVAL, TAG, "channel out of range");
     AVDK_RETURN_ON_FALSE(param->frame != NULL && param->size > 0,
                          AVDK_ERR_INVAL, TAG, "frame buffer is invalid");
-    AVDK_RETURN_ON_FALSE(isp_camera_ctlr_get_private(control)->bond_owned[param->id] == 0,
-                         AVDK_ERR_BUSY, TAG,
-                         "channel is owned by an external consumer");
 
     result->frame_size = 0;
     result->port_id = BK_ISP_CAMERA_INVALID_PORT_ID;
@@ -505,6 +635,8 @@ static avdk_err_t isp_camera_ctlr_multi_port_read(
     }
 
     isp_control_t *isp_control = (isp_control_t *)control->isp_handle;
+    AVDK_RETURN_ON_FALSE(isp_control && !isp_control->chn[param->id].enable_flexa,
+                         AVDK_ERR_INVAL, TAG, "memcpy read requires frame mode");
 
     if (control->read_register == false)
     {
@@ -599,6 +731,16 @@ static avdk_err_t isp_camera_ctlr_delete(bk_isp_camera_ctlr_handle_t handle)
     isp_camera_ctlr_private_t *private = isp_camera_ctlr_get_private(control);
     for (uint8_t channel = 0; channel < ISP_CHANNEL_INSTANCE_MAX; channel++)
     {
+        if (private->zc[channel].sem)
+        {
+            rtos_deinit_semaphore(&private->zc[channel].sem);
+            private->zc[channel].sem = NULL;
+        }
+        if (private->zc[channel].free_sem)
+        {
+            rtos_deinit_semaphore(&private->zc[channel].free_sem);
+            private->zc[channel].free_sem = NULL;
+        }
         if (private->read_lock[channel])
         {
             rtos_deinit_mutex(&private->read_lock[channel]);
@@ -750,19 +892,42 @@ static avdk_err_t isp_camera_ctlr_channel_open(bk_isp_camera_ctlr_handle_t handl
 
     bk_camera_isp_ctlr_t *controller = __containerof(handle, bk_camera_isp_ctlr_t, ops);
     AVDK_RETURN_ON_FALSE(controller, AVDK_ERR_INVAL, TAG, "control is NULL");
+    isp_camera_ctlr_private_t *private = isp_camera_ctlr_get_private(controller);
+    isp_camera_zc_ctx_t *zc = &private->zc[channel];
+    const isp_external_frame_buffer_t *frame_buffers = NULL;
 
+    LOGI("%s, %d, chnl_id: %d\n", __func__, __LINE__, channel);
+
+    rtos_lock_mutex(&private->read_lock[channel]);
     if (controller->channel_state[channel] != ISP_CHANNEL_STATE_TURN_OFF)
     {
         LOGE("%s, %d, channel %d state busy %d\n", __func__, __LINE__, channel, controller->channel_state[channel]);
+        rtos_unlock_mutex(&private->read_lock[channel]);
         return AVDK_ERR_GENERIC;
     }
 
+    if (zc->pre_qbuf_count != 0)
+    {
+        if (config->work_mode != 0 || config->enable_flexa != 0 ||
+            config->buf_cnt != zc->pre_qbuf_count || zc->pre_qbuf_count < 2)
+        {
+            LOGE("%s, invalid pre-QBUF pool ch=%d count=%u expected=%u mode=%u flexa=%u\n",
+                 __func__, channel, zc->pre_qbuf_count, config->buf_cnt,
+                 config->work_mode, config->enable_flexa);
+            zc->pre_qbuf_count = 0;
+            rtos_unlock_mutex(&private->read_lock[channel]);
+            return AVDK_ERR_INVAL;
+        }
+        frame_buffers = zc->pre_qbuf;
+    }
+
+    /* The next open consumes the pre-QBUF registration. On any open failure the
+     * application can immediately free its pool; on success the ISP core has
+     * copied the descriptors and owns only their references, never the memory. */
+    zc->pre_qbuf_count = 0;
     controller->channel_state[channel] = ISP_CHANNEL_STATE_TURNING_ON;
+    rtos_unlock_mutex(&private->read_lock[channel]);
 
-    //return false
-    AVDK_RETURN_ON_FALSE(config, AVDK_ERR_NO_RESOURCE, TAG, AVDK_ERR_NO_RESOURCE_TEXT);
-
-    //TODO
     isp_config_ext_t isp_config = {
         .buf_cnt = config->buf_cnt,
         .chnl_id = channel,
@@ -773,6 +938,7 @@ static avdk_err_t isp_camera_ctlr_channel_open(bk_isp_camera_ctlr_handle_t handl
         .height = config->height,
         .format = isp_camera_format_convert(config->format),
         .skip_frames = controller->skip_frames[channel],
+        .frame_buffers = frame_buffers,
     };
 
     LOGD("%s, buf_cnt: %d, chnl_id: %d, port_id: %d, enable_flexa: %d, work_mode: %d, width: %d, height: %d, format: %d, skip_frames: %d\n",
@@ -794,7 +960,15 @@ static avdk_err_t isp_camera_ctlr_channel_open(bk_isp_camera_ctlr_handle_t handl
     isp_config.ext_buf = controller->ext_flexa_buf[channel];
     isp_config.ext_buf_size = controller->ext_flexa_buf_size[channel];
 
-    AVDK_RETURN_ON_ERROR(bk_isp_open(&controller->isp_handle, &isp_config), TAG, "exe fail");
+    ret = bk_isp_open(&controller->isp_handle, &isp_config);
+    if (ret != BK_OK)
+    {
+        LOGE("%s, %d, bk_isp_open failed ch=%d ret=%d\n",
+             __func__, __LINE__, channel, ret);
+        controller->channel_state[channel] = ISP_CHANNEL_STATE_TURN_OFF;
+        isp_camera_ctlr_restore_init_if_idle(controller);
+        return ret;
+    }
     controller->chnl = channel;
 
     if (isp_config.work_mode == 0)
@@ -852,14 +1026,43 @@ static avdk_err_t isp_camera_ctlr_channel_close(bk_isp_camera_ctlr_handle_t hand
     AVDK_RETURN_ON_FALSE(channel < 2, AVDK_ERR_INVAL, TAG, "channel out of range");
 
     bk_camera_isp_ctlr_t *controller = __containerof(handle, bk_camera_isp_ctlr_t, ops);
+    isp_camera_ctlr_private_t *private = isp_camera_ctlr_get_private(controller);
 
-    if (controller->channel_state[channel] != ISP_CHANNEL_STATE_TURN_ON)
+    bk_isp_camera_channel_state_t state = controller->channel_state[channel];
+    if (state == ISP_CHANNEL_STATE_TURN_OFF && private->zc[channel].pre_qbuf_count != 0)
     {
-        LOGE("%s, %d, channel %d state not turn on %d\n", __func__, __LINE__, channel, controller->channel_state[channel]);
+        /* Cancel a pre-open registration without touching the application memory. */
+        rtos_lock_mutex(&private->read_lock[channel]);
+        private->zc[channel].pre_qbuf_count = 0;
+        rtos_unlock_mutex(&private->read_lock[channel]);
+        return AVDK_ERR_OK;
+    }
+    if (state != ISP_CHANNEL_STATE_TURN_ON && state != ISP_CHANNEL_STATE_TURNING_OFF)
+    {
+        LOGE("%s, %d, channel %d state not open %d\n", __func__, __LINE__, channel, state);
         return AVDK_ERR_GENERIC;
     }
 
-    controller->channel_state[channel] = ISP_CHANNEL_STATE_TURNING_OFF;
+    rtos_lock_mutex(&private->read_lock[channel]);
+    uint32_t in_use = private->zc[channel].in_use_mask;
+    if (in_use == 0)
+    {
+        /* Publish close and abort atomically against delivery and new DQBUF. */
+        controller->channel_state[channel] = ISP_CHANNEL_STATE_TURNING_OFF;
+        private->zc[channel].abort = 1;
+        rtos_set_semaphore(&private->zc[channel].free_sem);
+        if (private->zc[channel].request_active)
+        {
+            rtos_set_semaphore(&private->zc[channel].sem);
+        }
+    }
+    rtos_unlock_mutex(&private->read_lock[channel]);
+    if (in_use != 0)
+    {
+        LOGE("%s, channel %d has unreturned buffers, mask=0x%x\n",
+             __func__, channel, in_use);
+        return AVDK_ERR_BUSY;
+    }
 
     isp_camera_ctlr_stop_channel_reader(controller, channel);
 
@@ -868,8 +1071,24 @@ static avdk_err_t isp_camera_ctlr_channel_close(bk_isp_camera_ctlr_handle_t hand
     bk_err_t ret = bk_isp_close(&controller->isp_handle, chnl_id);
     if (ret != BK_OK)
     {
-        LOGE("%s, %d, failed to close ISP channel %d\n", __func__, __LINE__, chnl_id);
-        return AVDK_ERR_GENERIC;
+        isp_control_t *isp_control = (isp_control_t *)controller->isp_handle;
+        uint8_t detached = isp_control && !isp_control->chn[channel].enable;
+        for (uint8_t i = 0; detached && i < ISP_FRAME_CNT_MAX; i++)
+        {
+            detached = (isp_control->chn[channel].frame_buffer[i] == NULL);
+        }
+        if (!detached)
+        {
+            LOGE("%s, %d, failed to close ISP channel %d\n", __func__, __LINE__, chnl_id);
+            /* Keep the externally owned pool registered and let the existing
+             * TURN_ON close paths retry the failed hardware disable. */
+            controller->channel_state[channel] = ISP_CHANNEL_STATE_TURN_ON;
+            return AVDK_ERR_GENERIC;
+        }
+        /* The channel and external pool are already detached. A later peer
+         * DisablePort/DisableDev error must not strand application-owned memory. */
+        LOGW("%s, channel %d detached with teardown ret=%d\n",
+             __func__, channel, ret);
     }
 
     controller->channel_state[channel] = ISP_CHANNEL_STATE_TURN_OFF;
@@ -936,10 +1155,10 @@ static avdk_err_t isp_camera_ctlr_deregister_isr_callback(bk_isp_camera_ctlr_han
 
 static avdk_err_t isp_camera_ctlr_channel_acquire(bk_isp_camera_ctlr_handle_t handle, uint8_t channel);
 static avdk_err_t isp_camera_ctlr_channel_release(bk_isp_camera_ctlr_handle_t handle, uint8_t channel);
-static avdk_err_t isp_camera_ctlr_frame_pop(bk_isp_camera_ctlr_handle_t handle, uint8_t channel,
-                                            bk_isp_camera_frame_info_t *info, uint32_t timeout);
-static avdk_err_t isp_camera_ctlr_frame_qbuf(bk_isp_camera_ctlr_handle_t handle, uint8_t channel,
-                                             uint8_t index);
+static avdk_err_t isp_camera_ctlr_frame_dqbuf(bk_isp_camera_ctlr_handle_t handle,
+                                              bk_isp_camera_frame_info_t *info);
+static avdk_err_t isp_camera_ctlr_frame_qbuf(bk_isp_camera_ctlr_handle_t handle,
+                                             bk_isp_camera_frame_info_t *info);
 
 static bool buf_on_psram(const void *buf)
 {
@@ -996,6 +1215,12 @@ static avdk_err_t isp_camera_ctlr_ioctl(bk_isp_camera_ctlr_handle_t handle, bk_c
             controller->ext_flexa_buf_user_data[cfg->channel] = cfg->user_data;
             return AVDK_ERR_OK;
         }
+
+        case BK_CAM_IOCTL_FRAME_QBUF:
+            /* Pre-open QBUF is valid before the ISP core exists; the QBUF
+             * handler itself requires isp_handle only in TURN_ON state. */
+            return isp_camera_ctlr_frame_qbuf(
+                handle, (bk_isp_camera_frame_info_t *)arg);
 
         default:
             break;
@@ -1087,19 +1312,9 @@ static avdk_err_t isp_camera_ctlr_ioctl(bk_isp_camera_ctlr_handle_t handle, bk_c
             AVDK_RETURN_ON_FALSE(arg, AVDK_ERR_INVAL, TAG, "channel release arg is NULL");
             return isp_camera_ctlr_channel_release(handle, *(uint8_t *)arg);
 
-        case BK_CAM_IOCTL_FRAME_POP:
-        {
-            bk_isp_camera_frame_info_t *info = (bk_isp_camera_frame_info_t *)arg;
-            AVDK_RETURN_ON_FALSE(info, AVDK_ERR_INVAL, TAG, "frame pop arg is NULL");
-            return isp_camera_ctlr_frame_pop(handle, info->channel, info, info->timeout);
-        }
-
-        case BK_CAM_IOCTL_FRAME_QBUF:
-        {
-            bk_isp_camera_frame_info_t *info = (bk_isp_camera_frame_info_t *)arg;
-            AVDK_RETURN_ON_FALSE(info, AVDK_ERR_INVAL, TAG, "frame qbuf arg is NULL");
-            return isp_camera_ctlr_frame_qbuf(handle, info->channel, info->index);
-        }
+        case BK_CAM_IOCTL_FRAME_DQBUF:
+            return isp_camera_ctlr_frame_dqbuf(
+                handle, (bk_isp_camera_frame_info_t *)arg);
 
         case BK_CAM_IOCTL_SELECT_ISP_PORT:
         {
@@ -1289,39 +1504,6 @@ static avdk_err_t isp_camera_ctlr_ioctl(bk_isp_camera_ctlr_handle_t handle, bk_c
     return AVDK_ERR_OK;
 }
 
-/* Rebuild a VIDEO_BUF_S for a given frame-pool index so it can be re-queued
- * (QBUF) to the ISP. Mirrors bk_isp_complete_buffer_config's per-buffer layout:
- * plane[0] at frame_buffer[index], subsequent planes contiguous. */
-static bk_err_t isp_camera_build_video_buf(isp_control_t *isp_control, uint8_t chnl,
-                                           uint8_t index, VIDEO_BUF_S *buf)
-{
-    if (isp_control == NULL || buf == NULL || index >= ISP_FRAME_CNT_MAX ||
-        isp_control->chn[chnl].frame_buffer[index] == NULL)
-    {
-        return BK_FAIL;
-    }
-
-    os_memset(buf, 0, sizeof(*buf));
-    buf->index = index;
-    buf->numPlanes = isp_control->chn[chnl].chn_attr.chnFormat.numPlanes;
-    if (buf->numPlanes == 0 || buf->numPlanes > VIDEO_MAX_PLANES)
-    {
-        buf->numPlanes = 1;
-    }
-
-    for (vsi_u8_t p = 0; p < buf->numPlanes; p++)
-    {
-        buf->planes[p].size = isp_control->chn[chnl].chn_attr.chnFormat.planeFmt[p].size;
-    }
-    buf->planes[0].dmaPhyAddr = (vsi_dma_t)(uintptr_t)isp_control->chn[chnl].frame_buffer[index];
-    for (vsi_u8_t p = 1; p < buf->numPlanes; p++)
-    {
-        buf->planes[p].dmaPhyAddr = buf->planes[p - 1].dmaPhyAddr + buf->planes[p - 1].size;
-    }
-
-    return BK_OK;
-}
-
 static avdk_err_t isp_camera_ctlr_channel_acquire(bk_isp_camera_ctlr_handle_t handle, uint8_t channel)
 {
     bk_camera_isp_ctlr_t *control = __containerof(handle, bk_camera_isp_ctlr_t, ops);
@@ -1344,71 +1526,189 @@ static avdk_err_t isp_camera_ctlr_channel_release(bk_isp_camera_ctlr_handle_t ha
     return AVDK_ERR_OK;
 }
 
-static avdk_err_t isp_camera_ctlr_frame_pop(bk_isp_camera_ctlr_handle_t handle, uint8_t channel,
-                                            bk_isp_camera_frame_info_t *info, uint32_t timeout)
+static avdk_err_t isp_camera_ctlr_frame_dqbuf(bk_isp_camera_ctlr_handle_t handle,
+                                              bk_isp_camera_frame_info_t *info)
 {
     bk_camera_isp_ctlr_t *control = __containerof(handle, bk_camera_isp_ctlr_t, ops);
-    AVDK_RETURN_ON_FALSE(control, AVDK_ERR_INVAL, TAG, "control is NULL");
-    AVDK_RETURN_ON_FALSE(info, AVDK_ERR_INVAL, TAG, "info is NULL");
-    AVDK_RETURN_ON_FALSE(channel < ISP_CHANNEL_INSTANCE_MAX, AVDK_ERR_INVAL, TAG, "channel out of range");
+    AVDK_RETURN_ON_FALSE(control && info, AVDK_ERR_INVAL, TAG, "DQBUF arg is NULL");
+    uint8_t channel = info->channel;
+    uint8_t port_id = info->port_id;
+    uint32_t timeout = info->timeout;
+
+    AVDK_RETURN_ON_FALSE(channel < ISP_CHANNEL_INSTANCE_MAX,
+                         AVDK_ERR_INVAL, TAG, "DQBUF channel invalid");
+    AVDK_RETURN_ON_FALSE(port_id == BK_ISP_CAMERA_INVALID_PORT_ID || port_id < ISP_PORT_CNT,
+                         AVDK_ERR_INVAL, TAG, "DQBUF port invalid");
+    AVDK_RETURN_ON_FALSE(control->channel_state[channel] == ISP_CHANNEL_STATE_TURN_ON,
+                         AVDK_ERR_INVAL, TAG, "DQBUF channel is not open");
 
     isp_control_t *isp_control = (isp_control_t *)control->isp_handle;
-    AVDK_RETURN_ON_FALSE(isp_control && isp_control->pop_buf, AVDK_ERR_INVAL, TAG, "isp pop_buf NULL");
+    AVDK_RETURN_ON_FALSE(isp_control && isp_control->chn[channel].enable &&
+                         !isp_control->chn[channel].enable_flexa &&
+                         control->read_ctx[channel].thread_enable,
+                         AVDK_ERR_INVAL, TAG, "DQBUF requires an active frame-mode channel");
 
-    VIDEO_BUF_S buf;
-    os_memset(&buf, 0, sizeof(buf));
-    int ret = isp_control->pop_buf(isp_control->chn[channel].channel, &buf, timeout);
-    if (ret != BK_OK)
-    {
-        return AVDK_ERR_GENERIC;
-    }
+    isp_camera_ctlr_private_t *private = isp_camera_ctlr_get_private(control);
+    isp_camera_zc_ctx_t *zc = &private->zc[channel];
+    AVDK_RETURN_ON_FALSE(zc->sem && zc->free_sem,
+                         AVDK_ERR_INVAL, TAG, "DQBUF semaphore is NULL");
 
-    uint32_t addr = (uint32_t)(uintptr_t)buf.planes[0].dmaPhyAddr;
-    if (buf.planes[0].pUserAddr != NULL)
-    {
-        addr = (uint32_t)(uintptr_t)buf.planes[0].pUserAddr;
-    }
+    uint32_t start_ms = rtos_get_time();
+    uint32_t remaining = timeout;
 
-    uint32_t frame_size = buf.imageSize;
-    if (frame_size == 0)
+    for (;;)
     {
-        uint8_t plane_cnt = buf.numPlanes ? buf.numPlanes : 1;
-        if (plane_cnt > VIDEO_MAX_PLANES)
+        rtos_lock_mutex(&private->read_lock[channel]);
+        if (zc->abort)
         {
-            plane_cnt = VIDEO_MAX_PLANES;
+            rtos_unlock_mutex(&private->read_lock[channel]);
+            return AVDK_ERR_GENERIC;
         }
-        for (uint8_t p = 0; p < plane_cnt; p++)
+        if (zc->request_active)
         {
-            frame_size += buf.planes[p].size;
+            rtos_unlock_mutex(&private->read_lock[channel]);
+            return AVDK_ERR_BUSY;
         }
+
+        /* Never let applications hold the whole pool: at least one buffer must stay
+         * available for ISP capture and cam_reader free-running recycle. */
+        uint8_t in_use_count = 0;
+        for (uint8_t i = 0; i < isp_control->chn[channel].buf_cnt; i++)
+        {
+            if (zc->in_use_mask & (1UL << i))
+            {
+                in_use_count++;
+            }
+        }
+        if (in_use_count < isp_control->chn[channel].buf_cnt - 1U)
+        {
+            (void)rtos_get_semaphore(&zc->sem, 0);
+            zc->requested_port = port_id;
+            zc->request_complete = 0;
+            zc->request_active = 1;
+            rtos_unlock_mutex(&private->read_lock[channel]);
+            break;
+        }
+        if (remaining == 0)
+        {
+            rtos_unlock_mutex(&private->read_lock[channel]);
+            return AVDK_ERR_BUSY;
+        }
+
+        /* Wait for a runtime QBUF to release an IN_USE slot. Never hold
+         * read_lock while sleeping because QBUF takes the same mutex. */
+        (void)rtos_get_semaphore(&zc->free_sem, 0);
+        rtos_unlock_mutex(&private->read_lock[channel]);
+        (void)rtos_get_semaphore(&zc->free_sem, remaining);
+
+        uint32_t elapsed = rtos_get_time() - start_ms;
+        remaining = (elapsed >= timeout) ? 0 : timeout - elapsed;
     }
 
-    info->frame_addr = addr;
-    info->frame_size = frame_size;
-    info->channel = channel;
-    info->index = (uint8_t)buf.index;
-    info->port_id = buf.portId;
-    return AVDK_ERR_OK;
+    int wait_ret = rtos_get_semaphore(&zc->sem, remaining);
+
+    avdk_err_t ret;
+    rtos_lock_mutex(&private->read_lock[channel]);
+    if (zc->request_complete)
+    {
+        *info = zc->result;
+        ret = AVDK_ERR_OK;
+    }
+    else
+    {
+        ret = zc->abort ? AVDK_ERR_GENERIC :
+              ((wait_ret != BK_OK) ? AVDK_ERR_TIMEOUT : AVDK_ERR_GENERIC);
+    }
+    zc->request_complete = 0;
+    zc->request_active = 0;
+    rtos_unlock_mutex(&private->read_lock[channel]);
+    return ret;
 }
 
-static avdk_err_t isp_camera_ctlr_frame_qbuf(bk_isp_camera_ctlr_handle_t handle, uint8_t channel, uint8_t index)
+static avdk_err_t isp_camera_ctlr_frame_qbuf(bk_isp_camera_ctlr_handle_t handle,
+                                             bk_isp_camera_frame_info_t *info)
 {
     bk_camera_isp_ctlr_t *control = __containerof(handle, bk_camera_isp_ctlr_t, ops);
-    AVDK_RETURN_ON_FALSE(control, AVDK_ERR_INVAL, TAG, "control is NULL");
-    AVDK_RETURN_ON_FALSE(channel < ISP_CHANNEL_INSTANCE_MAX, AVDK_ERR_INVAL, TAG, "channel out of range");
+    AVDK_RETURN_ON_FALSE(control && info, AVDK_ERR_INVAL, TAG, "QBUF arg is NULL");
+    uint8_t channel = info->channel;
+    AVDK_RETURN_ON_FALSE(channel < ISP_CHANNEL_INSTANCE_MAX,
+                         AVDK_ERR_INVAL, TAG, "QBUF channel invalid");
 
-    isp_control_t *isp_control = (isp_control_t *)control->isp_handle;
-    AVDK_RETURN_ON_FALSE(isp_control && isp_control->free_buf, AVDK_ERR_INVAL, TAG, "isp free_buf NULL");
+    isp_camera_ctlr_private_t *private = isp_camera_ctlr_get_private(control);
+    isp_camera_zc_ctx_t *zc = &private->zc[channel];
+    avdk_err_t ret = AVDK_ERR_INVAL;
 
-    VIDEO_BUF_S buf;
-    if (isp_camera_build_video_buf(isp_control, channel, index, &buf) != BK_OK)
+    rtos_lock_mutex(&private->read_lock[channel]);
+    if (control->channel_state[channel] == ISP_CHANNEL_STATE_TURN_OFF)
     {
-        LOGE("%s, build video buf failed, chnl %d index %d\n", __func__, channel, index);
-        return AVDK_ERR_INVAL;
+        /* Pre-open QBUF only records application-owned descriptors. The next
+         * channel_open validates the complete pool against its format and
+         * performs the actual initial QBUF after the ISP queue exists. */
+        if (info->addr == 0 || info->size == 0 || info->generation != 0)
+        {
+            goto out;
+        }
+        if (zc->pre_qbuf_count >= ISP_FRAME_CNT_MAX)
+        {
+            ret = AVDK_ERR_BUSY;
+            goto out;
+        }
+        for (uint8_t i = 0; i < zc->pre_qbuf_count; i++)
+        {
+            if (zc->pre_qbuf[i].addr == info->addr)
+            {
+                goto out;
+            }
+        }
+
+        zc->pre_qbuf[zc->pre_qbuf_count].addr = info->addr;
+        zc->pre_qbuf[zc->pre_qbuf_count].size = info->size;
+        zc->pre_qbuf_count++;
+        ret = AVDK_ERR_OK;
+        goto out;
     }
 
-    int ret = isp_control->free_buf(isp_control->chn[channel].channel, &buf);
-    return (ret == BK_OK) ? AVDK_ERR_OK : AVDK_ERR_GENERIC;
+    if (control->channel_state[channel] != ISP_CHANNEL_STATE_TURN_ON)
+    {
+        goto out;
+    }
+
+    isp_control_t *isp_control = (isp_control_t *)control->isp_handle;
+    if (isp_control == NULL || isp_control->free_buf == NULL)
+    {
+        goto out;
+    }
+
+    for (uint8_t i = 0; i < isp_control->chn[channel].buf_cnt; i++)
+    {
+        uint32_t addr = (uint32_t)(uintptr_t)isp_control->chn[channel].frame_buffer[i];
+        if (addr != info->addr)
+        {
+            continue;
+        }
+        if (info->generation == 0 || zc->generation[i] != info->generation ||
+            (zc->in_use_mask & (1UL << i)) == 0)
+        {
+            break;
+        }
+
+        int isp_ret = isp_control->free_buf(isp_control->chn[channel].channel, &zc->buf[i]);
+        if (isp_ret == BK_OK)
+        {
+            zc->in_use_mask &= ~(1UL << i);
+            rtos_set_semaphore(&zc->free_sem);
+            ret = AVDK_ERR_OK;
+        }
+        else
+        {
+            ret = AVDK_ERR_GENERIC;
+        }
+        break;
+    }
+
+out:
+    rtos_unlock_mutex(&private->read_lock[channel]);
+    return ret;
 }
 
 avdk_err_t bk_camera_isp_ctlr_new(bk_isp_camera_ctlr_handle_t *handle)
@@ -1418,11 +1718,28 @@ avdk_err_t bk_camera_isp_ctlr_new(bk_isp_camera_ctlr_handle_t *handle)
     os_memset(private, 0, sizeof(isp_camera_ctlr_private_t));
     for (uint8_t channel = 0; channel < ISP_CHANNEL_INSTANCE_MAX; channel++)
     {
-        if (rtos_init_mutex(&private->read_lock[channel]) != BK_OK)
+        if (rtos_init_mutex(&private->read_lock[channel]) != BK_OK ||
+            rtos_init_semaphore(&private->zc[channel].sem, 1) != BK_OK ||
+            rtos_init_semaphore(&private->zc[channel].free_sem, 1) != BK_OK)
         {
+            if (private->zc[channel].sem)
+            {
+                rtos_deinit_semaphore(&private->zc[channel].sem);
+            }
+            if (private->zc[channel].free_sem)
+            {
+                rtos_deinit_semaphore(&private->zc[channel].free_sem);
+            }
+            if (private->read_lock[channel])
+            {
+                rtos_deinit_mutex(&private->read_lock[channel]);
+                private->read_lock[channel] = NULL;
+            }
             while (channel > 0)
             {
                 channel--;
+                rtos_deinit_semaphore(&private->zc[channel].sem);
+                rtos_deinit_semaphore(&private->zc[channel].free_sem);
                 rtos_deinit_mutex(&private->read_lock[channel]);
             }
             os_free(private);
