@@ -30,8 +30,26 @@ enum {
     ZBAR_QR_ERROR_SCAN_FAILED = -4
 };
 
+/*
+ * Backing heap for the per-frame binarization buffer (width*height bytes).
+ * Defaults to SRAM (fastest); the other heaps are opt-in.
+ */
+typedef enum {
+    ZBAR_QR_MEM_TYPE_SRAM = 0,      /* Internal SRAM heap (default) */
+    ZBAR_QR_MEM_TYPE_PSRAM,         /* psram_malloc() PSRAM heap */
+    ZBAR_QR_MEM_TYPE_PSRAM_UNCODED, /* Uncoded PSRAM slab: MEM_SLAB_HEAP_UNCODED */
+    ZBAR_QR_MEM_TYPE_PSRAM_CODED,   /* Coded PSRAM slab: MEM_SLAB_HEAP_CODED */
+} zbar_qr_mem_type_t;
+
 zbar_qr_context_t *zbar_qr_create(void);
 void zbar_qr_destroy(zbar_qr_context_t *context);
+
+/*
+ * Select the backing heap for zbar's internal binarization buffer. The setting
+ * is module-wide and takes effect on the next scan; call it before scanning.
+ * Defaults to ZBAR_QR_MEM_TYPE_SRAM, so existing callers keep the fastest path.
+ */
+void zbar_qr_set_mem_type(zbar_qr_mem_type_t mem_type);
 
 /*
  * Scan an 8-bit grayscale image. The input remains owned by the caller and is
