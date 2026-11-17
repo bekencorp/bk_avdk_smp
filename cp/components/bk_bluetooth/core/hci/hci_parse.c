@@ -13,7 +13,8 @@
 
 #define HCI_PACKET_PARSER_MSG_COUNT          (50 * 4)
 
-#define BUFFER_USE_ALLOC 0
+#define BUFFER_USE_ALLOC 1
+
 #define H4_READ_BUFF_SIZE 1050
 #define HCI_PACKET_PARSER_ISR_BUFF_SIZE 2048
 #define HCI_PACKET_PARSER_ISR_INDEX_PLUS(x) (((x) + 1) % (HCI_PACKET_PARSER_ISR_BUFF_SIZE))
@@ -686,11 +687,14 @@ static int32_t hci_packet_parser_init(const hci_parser_callbacks_t *parser_callb
     s_hci_packet_parser_isr_buff_rd = 0;
 
 #if BUFFER_USE_ALLOC
-    h4_read_buffer = (uint8_t *)_malloc_wrapper(H4_READ_BUFF_SIZE);
-    BT_ASSERT_ERR(h4_read_buffer);
+    h4_read_buffer = (uint8_t *)os_malloc(H4_READ_BUFF_SIZE);
+    s_hci_packet_parser_isr_buff = (uint8_t *)os_malloc(HCI_PACKET_PARSER_ISR_BUFF_SIZE);
 
-    s_hci_packet_parser_isr_buff = (uint8_t *)_malloc_wrapper(HCI_PACKET_PARSER_ISR_BUFF_SIZE);
-    BT_ASSERT_ERR(s_hci_packet_parser_isr_buff);
+    if (!h4_read_buffer || !s_hci_packet_parser_isr_buff)
+    {
+        LOGE("hci parser buffer alloc failed");
+        return -1;
+    }
 #endif
 
     ret = hci_parser_task_init();

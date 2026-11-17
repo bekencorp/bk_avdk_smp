@@ -24,8 +24,9 @@
 extern "C" {
 #endif
 
-/* Call during CP bluetooth init (after hfp_sco_offload_init): start the worker
- * queue+task and register consumer callbacks with Layer 4. */
+/* Call during CP bluetooth init (after hfp_sco_offload_init): register the L4
+ * consumer callbacks. The worker queue+task are created lazily on the first SCO
+ * START, so an A2DP-only session does not pay for them. */
 bk_err_t hfp_sco_offload_player_init(void);
 
 #if CONFIG_AUDIO_PLAY

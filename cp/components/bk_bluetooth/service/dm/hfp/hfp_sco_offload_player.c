@@ -88,7 +88,8 @@ typedef struct {
 
 static beken_thread_t s_task;
 static beken_queue_t  s_queue;
-static volatile bool  s_running;
+static volatile bool  s_running;      /* worker (queue + task) is up */
+static bool           s_registered;   /* consumer callbacks registered with L4 */
 
 static uint8_t s_codec  = CODEC_VOICE_CVSD;
 static uint8_t s_vgs    = PLAYER_DEFAULT_VGS;   /* last known +VGS */
@@ -414,6 +415,42 @@ static void player_audio_write(const uint8_t *data, uint16_t len)
 #endif
 }
 
+/* ============================ worker (lazy) ============================ */
+static void player_task(void *arg);
+
+/* The queue and worker task are only created on the first SCO START, so a
+ * music-only (A2DP) session never pays for the queue + task stack. Once up the
+ * worker stays resident; deinit() releases it. */
+static bk_err_t player_worker_start(void)
+{
+    int ret;
+
+    if (s_running) {
+        return BK_OK;
+    }
+
+    ret = rtos_init_queue(&s_queue, "hfp_sco_player_q",
+                          sizeof(player_msg_t), PLAYER_Q_DEPTH);
+    if (ret != BK_OK) {
+        LOGE("init queue failed %d\n", ret);
+        return BK_FAIL;
+    }
+
+    s_running = true;
+    ret = rtos_create_thread(&s_task, PLAYER_TASK_PRIO, "hfp_sco_player",
+                             (beken_thread_function_t)player_task,
+                             PLAYER_TASK_STACK, NULL);
+    if (ret != BK_OK) {
+        s_running = false;
+        rtos_deinit_queue(&s_queue);
+        LOGE("create task failed %d\n", ret);
+        return BK_FAIL;
+    }
+
+    LOGI("worker up\n");
+    return BK_OK;
+}
+
 /* ============================ offload callbacks (ctrl ctx) ============================ */
 static void player_on_frame(uint16_t handle, uint8_t codec,
                             const uint8_t *frame, uint16_t len)
@@ -442,9 +479,25 @@ static void player_on_ctrl(hfp_sco_offload_evt_t evt,
 {
     player_msg_t msg;
 
-    if (!s_running || !info) {
+    if (!info) {
         return;
     }
+
+    /* First START brings the worker up. Before that, VOLUME is only cached and
+     * STOP is a no-op (nothing was playing yet). */
+    if (HFP_SCO_OFFLOAD_EVT_START == evt && !s_running) {
+        if (player_worker_start() != BK_OK) {
+            LOGE("start worker fail, drop START\n");
+            return;
+        }
+    }
+    if (!s_running) {
+        if (HFP_SCO_OFFLOAD_EVT_VOLUME == evt) {
+            s_vgs = info->volume;
+        }
+        return;
+    }
+
     memset(&msg, 0, sizeof(msg));
     msg.codec  = info->codec;
     msg.handle = info->handle;
@@ -515,53 +568,39 @@ static void player_task(void *arg)
 /* ============================ init / deinit ============================ */
 bk_err_t hfp_sco_offload_player_init(void)
 {
-    int ret;
-
-    if (s_running) {
+    if (s_registered) {
         return BK_OK;
     }
     s_codec     = CODEC_VOICE_CVSD;
     s_vgs       = PLAYER_DEFAULT_VGS;
     s_playing   = false;
 
-    ret = rtos_init_queue(&s_queue, "hfp_sco_player_q",
-                          sizeof(player_msg_t), PLAYER_Q_DEPTH);
-    if (ret != BK_OK) {
-        LOGE("init queue failed %d\n", ret);
-        return BK_FAIL;
-    }
-
-    s_running = true;
-    ret = rtos_create_thread(&s_task, PLAYER_TASK_PRIO, "hfp_sco_player",
-                             (beken_thread_function_t)player_task,
-                             PLAYER_TASK_STACK, NULL);
-    if (ret != BK_OK) {
-        s_running = false;
-        rtos_deinit_queue(&s_queue);
-        LOGE("create task failed %d\n", ret);
-        return BK_FAIL;
-    }
-
-    /* register with Layer 4 only after the worker is up */
+    /* Register only; the queue + worker task are created lazily on the first
+     * SCO START (see player_on_ctrl). */
     hfp_sco_offload_register_report_cb(player_on_frame);
     hfp_sco_offload_register_ctrl_cb(player_on_ctrl);
-    LOGI("cp hfp sco offload player inited\n");
+    s_registered = true;
+    LOGI("cp hfp sco offload player inited (worker lazy)\n");
     return BK_OK;
 }
 
 void hfp_sco_offload_player_deinit(void)
 {
-    if (!s_running) {
+    if (!s_registered) {
         return;
     }
     /* detach from Layer 4 first to stop new events/frames from enqueuing */
     hfp_sco_offload_register_report_cb(NULL);
     hfp_sco_offload_register_ctrl_cb(NULL);
-    s_running = false;
-    /* task exits and deletes itself once it sees s_running=false after pop */
-    rtos_deinit_queue(&s_queue);
-    if (s_playing) {
-        player_audio_stop();
+    s_registered = false;
+
+    if (s_running) {
+        s_running = false;
+        /* task exits and deletes itself once it sees s_running=false after pop */
+        rtos_deinit_queue(&s_queue);
+        if (s_playing) {
+            player_audio_stop();
+        }
     }
     LOGI("cp hfp sco offload player deinited\n");
 }

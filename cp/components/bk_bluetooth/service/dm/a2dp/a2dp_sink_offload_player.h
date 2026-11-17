@@ -22,11 +22,12 @@
 extern "C" {
 #endif
 
-/* Register offload callbacks, create the playback worker (queue + task).
+/* Register offload callbacks. The playback worker (queue + task) is created
+ * lazily on the first START, so an idle device does not pay for it.
  * Call after a2dp_sink_offload_init(). */
 bk_err_t a2dp_sink_offload_player_init(void);
 
-/* Unregister offload callbacks, stop the worker, destroy the queue. */
+/* Unregister offload callbacks, stop the worker (if started), destroy the queue. */
 void a2dp_sink_offload_player_deinit(void);
 
 #ifdef __cplusplus
