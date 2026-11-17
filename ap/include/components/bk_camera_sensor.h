@@ -84,6 +84,8 @@ typedef enum
     BK_CAMERA_SENSOR_IOCTL_UNKNOWN = 0,
     BK_CAMERA_SENSOR_IOCTL_GET_DEFAULT_CPROC, /**< Get default CPROC from calib; arg = bk_isp_cproc_attr_t * */
     BK_CAMERA_SENSOR_IOCTL_SET_INIT_EXPOSURE, /**< Set initial Sensor exposure; arg = bk_camera_sensor_init_exposure_t * */
+    BK_CAMERA_SENSOR_IOCTL_SET_STREAM, /**< Start/stop streaming; arg = uint8_t * (0 = off, 1 = on) */
+    BK_CAMERA_SENSOR_IOCTL_CHECK_ALIVE, /**< Verify the sensor still answers with its expected ID/VTS after AP power-off; AVDK_ERR_OK means the state was retained */
 } bk_camera_sensor_ioctl_cmd_t;
 
 /**

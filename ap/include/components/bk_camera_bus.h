@@ -90,6 +90,32 @@ bk_camera_bus_t *bk_camera_bus_new(bk_camera_bus_config_t *config);
 avdk_err_t bk_camera_bus_enable(bk_camera_bus_t *bus);
 
 /**
+ * @brief Suspend the camera bus: drop the AP-internal clocks and domains
+ *
+ * Releases the CISP clock, MIPI CSI power domain and MCLK votes while keeping
+ * the I2C bus and the sensor rails enabled. Used by keep-alive paths that leave
+ * the sensor powered across AP power-off; retained votes would otherwise turn
+ * the next wake-up into a no-op. The matching call is bk_camera_bus_resume().
+ *
+ * @param bus Bus instance
+ * @return AVDK error code
+ */
+avdk_err_t bk_camera_bus_suspend(bk_camera_bus_t *bus);
+
+/**
+ * @brief Resume the camera bus: re-acquire the AP-internal clocks and domains
+ *
+ * Mirror of bk_camera_bus_suspend(): re-acquires the CISP clock, MIPI CSI power
+ * domain and MCLK votes without touching the I2C bus or the sensor rails. Used
+ * on the keep-alive wake-up path, where a full bk_camera_bus_enable() would
+ * only re-vote rails that were never released.
+ *
+ * @param bus Bus instance
+ * @return AVDK error code
+ */
+avdk_err_t bk_camera_bus_resume(bk_camera_bus_t *bus);
+
+/**
  * @brief Disable the camera I2C bus
  * @param bus Bus instance
  * @return AVDK error code
