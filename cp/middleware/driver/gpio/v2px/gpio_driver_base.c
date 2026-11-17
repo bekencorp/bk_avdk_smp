@@ -41,6 +41,9 @@
 #define GPIO_REG_DEFAULT_VALUE                    (0x0)
 #define GPIO_WAKE_SOURCE_IDLE_ID                  (GPIO_NUM_MAX)
 #define GPIO_LOWPOWER_KEEP_STATUS_IDLE_ID         (GPIO_NUM_MAX)
+/* SOC_GPIO_NUM is 72, so a single uint64_t cannot represent GPIO 64~71.
+ * Keep the low-power skip/keep sets 128 bits wide. */
+#define GPIO_MASK_WORD_CNT                        (2)
 
 #define GPIO_RETURN_ON_INVALID_ID(id) do {\
 	if ((id) >= SOC_GPIO_NUM) {\
@@ -102,7 +105,7 @@ static gpio_dynamic_wakeup_t s_gpio_dynamic_wakeup_source_map[CONFIG_GPIO_DYNAMI
 #endif
 
 #if CONFIG_GPIO_KPSTAT_SUPPORT
-static uint64_t s_gpio_is_lowpower_keep_status;
+static uint64_t s_gpio_is_lowpower_keep_status[GPIO_MASK_WORD_CNT];
 #if CONFIG_GPIO_DYNAMIC_KPSTAT_SUPPORT
 static gpio_dynamic_keep_status_t s_gpio_lowpower_keep_config[CONFIG_GPIO_DYNAMIC_KEEP_STATUS_MAX_CNT];
 #endif
@@ -766,11 +769,13 @@ bk_err_t gpio_exit_low_power(void *param)
 	return BK_OK;
 }
 
-bk_err_t gpio_hal_switch_to_low_power_status(uint64_t skip_io)
+bk_err_t gpio_hal_switch_to_low_power_status(uint64_t skip_io, uint64_t skip_io_high)
 {
 	for (gpio_id_t i = GPIO_0; i < GPIO_NUM_MAX; i++)
 	{
-		if (skip_io & (0x1ULL << i))
+		uint64_t skip = (i < 64) ? skip_io : skip_io_high;
+
+		if (skip & ((uint64_t)0x1 << (i & 63)))
 			continue;
 		bk_gpio_set_value(i, GPIO_REG_DEFAULT_VALUE);
 	}
@@ -781,16 +786,18 @@ bk_err_t gpio_hal_switch_to_low_power_status(uint64_t skip_io)
 static void gpio_low_power_config(void)
 {
 	uint64_t skip_io = 0;
+	uint64_t skip_io_high = 0;
 
 #if CONFIG_GPIO_WAKEUP_SUPPORT
 	skip_io |= s_gpio_is_setted_wake_status;
 #endif
 
 #if CONFIG_GPIO_KPSTAT_SUPPORT
-	skip_io |= s_gpio_is_lowpower_keep_status;
+	skip_io |= s_gpio_is_lowpower_keep_status[0];
+	skip_io_high |= s_gpio_is_lowpower_keep_status[1];
 #endif
 
-	gpio_hal_switch_to_low_power_status(skip_io);
+	gpio_hal_switch_to_low_power_status(skip_io, skip_io_high);
 }
 
 #if CONFIG_GPIO_WAKEUP_SUPPORT
@@ -1064,11 +1071,18 @@ static void gpio_keep_status_init(void)
 
 	for (uint32_t i = 0; i < sizeof(default_map)/sizeof(gpio_default_map_t); i++)
 	{
+		gpio_id_t gpio_id = default_map[i].gpio_id;
+
+		if (gpio_id >= SOC_GPIO_NUM)
+		{
+			continue;
+		}
+
 		//uses equal to avoid some guy maybe write other value
 		if ((default_map[i].low_power_io_ctrl == GPIO_LOW_POWER_KEEP_INPUT_STATUS) ||
 			(default_map[i].low_power_io_ctrl == GPIO_LOW_POWER_KEEP_OUTPUT_STATUS))
 		{
-			s_gpio_is_lowpower_keep_status |= ((uint64_t)0x1 << default_map[i].gpio_id);
+			s_gpio_is_lowpower_keep_status[gpio_id >> 6] |= ((uint64_t)0x1 << (gpio_id & 63));
 		}
 	}
 #endif
@@ -1097,8 +1111,13 @@ static void gpio_keep_status_config(void)
 
 	for(index = 0; index < CONFIG_GPIO_DYNAMIC_KEEP_STATUS_MAX_CNT; index++)
 	{
-		if(s_gpio_is_lowpower_keep_status & ((uint64_t)1 << s_gpio_lowpower_keep_config[index].gpio_id)) {
-			gpio_id = s_gpio_lowpower_keep_config[index].gpio_id;
+		gpio_id = s_gpio_lowpower_keep_config[index].gpio_id;
+		if (gpio_id >= SOC_GPIO_NUM)
+		{
+			continue;
+		}
+
+		if(s_gpio_is_lowpower_keep_status[gpio_id >> 6] & ((uint64_t)1 << (gpio_id & 63))) {
 			config.io_mode = s_gpio_lowpower_keep_config[index].config.io_mode;
 			config.pull_mode = s_gpio_lowpower_keep_config[index].config.pull_mode;
 			config.func_mode = s_gpio_lowpower_keep_config[index].config.func_mode;
@@ -1137,7 +1156,7 @@ bk_err_t bk_gpio_register_lowpower_keep_status(gpio_id_t gpio_id,
 			s_gpio_lowpower_keep_config[i].config.io_mode = config->io_mode;
 			s_gpio_lowpower_keep_config[i].config.pull_mode = config->pull_mode;
 			s_gpio_lowpower_keep_config[i].config.func_mode = config->func_mode;
-			s_gpio_is_lowpower_keep_status |= ((uint64_t)1 << gpio_id);
+			s_gpio_is_lowpower_keep_status[gpio_id >> 6] |= ((uint64_t)1 << (gpio_id & 63));
 
 			GPIO_LOGV("gpio=%d io_mode=%d pull_mode=%d func_mode=%d\r\n",
 				gpio_id, config->io_mode, config->pull_mode, config->func_mode);
@@ -1153,7 +1172,7 @@ bk_err_t bk_gpio_register_lowpower_keep_status(gpio_id_t gpio_id,
 			s_gpio_lowpower_keep_config[i].config.io_mode = config->io_mode;
 			s_gpio_lowpower_keep_config[i].config.pull_mode = config->pull_mode;
 			s_gpio_lowpower_keep_config[i].config.func_mode = config->func_mode;
-			s_gpio_is_lowpower_keep_status |= ((uint64_t)1 << gpio_id);
+			s_gpio_is_lowpower_keep_status[gpio_id >> 6] |= ((uint64_t)1 << (gpio_id & 63));
 
 			GPIO_LOGD("gpio=%d io_mode=%d pull_mode=%d func_mode=%d\r\n",
 				gpio_id, config->io_mode, config->pull_mode, config->func_mode);
@@ -1184,7 +1203,7 @@ bk_err_t bk_gpio_unregister_lowpower_keep_status(gpio_id_t gpio_id)
 	{
 		if(s_gpio_lowpower_keep_config[i].gpio_id == gpio_id) {
 			s_gpio_lowpower_keep_config[i].gpio_id = GPIO_LOWPOWER_KEEP_STATUS_IDLE_ID;
-			s_gpio_is_lowpower_keep_status &= ~(((uint64_t)1 << gpio_id));
+			s_gpio_is_lowpower_keep_status[gpio_id >> 6] &= ~((uint64_t)1 << (gpio_id & 63));
 			bk_gpio_set_config(gpio_id, &config);
 			s_gpio_lowpower_keep_config[i].config.io_mode = config.io_mode;
 			s_gpio_lowpower_keep_config[i].config.pull_mode = config.pull_mode;
