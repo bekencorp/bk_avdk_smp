@@ -65,8 +65,6 @@ void store_block(unsigned block, uint8_t *src, unsigned len);
 
 
 #if CONFIG_OTA_TFTP
-void ftpd_start(void);
-
 #define ET_DEBUG 0
 
 #define WELL_KNOWN_PORT	69		/* Well known TFTP port #		*/
