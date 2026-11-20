@@ -79,7 +79,6 @@ CONFIG_BLUETOOTH=y
 # App
 #
 # CONFIG_DEMO_TEST is not set
-# CONFIG_FTPD_UPGRADE is not set
 CONFIG_OTA_HTTP=y
 # CONFIG_OTA_TFTP is not set
 # CONFIG_NTP_SYNC_RTC is not set
