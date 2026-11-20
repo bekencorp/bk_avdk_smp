@@ -10,6 +10,7 @@
 
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 
 #if defined(MBEDTLS_PLATFORM_C)
 
@@ -435,20 +436,25 @@ int bk_rng_get(unsigned char *output, size_t len)
 #if CONFIG_OTP_V1
     {
         bk_err_t bk_otp_read_random_number(uint32_t *value, uint32_t size);
-        uint32_t rand_num = 0;
-        bk_err_t ret = 0;
-        size_t i;
+        uint32_t rand_buf[16];
+        size_t offset = 0;
 
-        for (i = 0; i < len; i++) {
-            if ((i % 4) == 0) {
-                ret = bk_otp_read_random_number(&rand_num, 1);
-                if (ret != 0) {
-                    break;
-                }
+        while (offset < len) {
+            size_t chunk = len - offset;
+            uint32_t words;
+
+            if (chunk > sizeof(rand_buf)) {
+                chunk = sizeof(rand_buf);
             }
-            output[i] = (rand_num >> (8 * (i % 4))) & 0xff;
+            /* Read one chunk per OTP power session to avoid frequent power cycling. */
+            words = (uint32_t)((chunk + 3) / 4);
+            if (bk_otp_read_random_number(rand_buf, words) != 0) {
+                break;
+            }
+            memcpy(output + offset, rand_buf, chunk);
+            offset += chunk;
         }
-        if (ret == 0 && i == len) {
+        if (offset == len) {
             return 0;
         }
     }
