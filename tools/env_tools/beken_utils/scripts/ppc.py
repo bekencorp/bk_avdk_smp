@@ -39,7 +39,10 @@ class PPC(list):
 
             mapped_dev_secure = dev_secure_dic.get(mapped_dev)
             if mapped_dev_secure is None:
-                logging.warning(f'{mapped_dev} not found in ppc.csv, skip gpio security check for {dict["Device"]}')
+                # The mapped peripheral is not configured in this ppc.csv, so
+                # there is no security attribute to inherit from. This is the
+                # normal case for devices without PPRO/PPHS bits.
+                logging.debug(f'{mapped_dev} not found in ppc.csv, skip gpio security check for {dict["Device"]}')
                 continue
 
             if (dict["Secure"] == "FALSE") and (mapped_dev_secure == "TRUE"):
@@ -85,8 +88,25 @@ class PPC(list):
 
         # PPHS starts its security attribute banks at reg4. PPRO starts with
         # GPIO banks at reg4..6 and its table-driven peripheral banks at reg7.
-        # Do not apply the PPRO GPIO bitmap encoding to a PPHS image.
-        is_pphs = any(int(row['Reg'], 16) == 4 for row in data_sec)
+        # Check both tables so a PPHS image with an empty ppro_sec.csv is not
+        # mistaken for a PPRO image. Do not apply the PPRO GPIO bitmap encoding
+        # to a PPHS image.
+        is_pphs = any(int(row['Reg'], 16) == 4 for row in data_ap + data_sec)
+
+        table_name = "PPHS" if is_pphs else "PPRO"
+        mapped_devices = {row['Device'] for row in data_ap}
+        mapped_devices.update(row['Device'] for row in data_sec)
+        for dict in self.csv.dic_list:
+            device = dict["Device"]
+            # GPIO0..55 use the PPRO GPIO bitmap; GPIOHIG is a table-driven
+            # device (reg7 bit2 in the CP PPRO secure bank) and must be checked.
+            if device.startswith("GPIO") and device != "GPIOHIG":
+                continue
+            if device not in mapped_devices:
+                logging.warning(
+                    f'{device}: not mapped in the {table_name} attribute table, '
+                    'Secure/Privilege has no effect in this image'
+                )
 
         for dict in self.csv.dic_list:
             device = dict["Device"]
@@ -133,4 +153,6 @@ class PPC(list):
     def __init__(self, csv_file, gpio_dev_csv_file):
         self.csv = Csv(csv_file, True, ppc_keys)
         self.gpio_dev_csv = Csv(gpio_dev_csv_file, True, gpio_keys)
-        self.gen_ppc_bin()
+        # gen_ppc_bin() is called by gen_ppc_config_file() after
+        # check_gpio_security(), so generating here would duplicate both the
+        # output and every unmapped-device warning.
