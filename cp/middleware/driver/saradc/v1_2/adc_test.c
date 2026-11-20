@@ -106,7 +106,7 @@ static void cli_adc_help(void)
 {
     CLI_LOGI("adc_driver init/deinit\n");
     CLI_LOGI("adc_test [channel] [init/deinit/start/stop/dump_statis/get_value/single_step_mode_read\n");
-    CLI_LOGI("adc_test [channel] [config] [mode] [src_clk] [adc_clk] [sature_mode] [sampl_rate]\n");
+    CLI_LOGI("adc_test [channel] [config] [mode] [src_clk] [adc_clk] [sature_mode] [sampl_rate] [vref_sel]\n");
     CLI_LOGI("adc_test [channel] [read/rag_cb] [size] [time_out]\n");
     CLI_LOGI("adc_api_test [set_mode/get_mode/set_clk/set_sample_rate/set_channel/set_filter/\
 		set_steady_time/set_sample_cnt/set_saturate\n");
@@ -160,6 +160,7 @@ static float cli_adc_read_multi_chan(void)
     if(config.adc_mode == ADC_CONTINUOUS_MODE) {
         config.sample_rate = 0;
     }
+    config.adc_vref_sel = 0;
 
     s_adc_reading_flag = 1;
 
@@ -213,6 +214,7 @@ static float cli_adc_read_single_chan(UINT8 adc_chan, uint32_t clk)
     if(config.adc_mode == ADC_CONTINUOUS_MODE) {
         config.sample_rate = 0;
     }
+    config.adc_vref_sel = 0;
 
     BK_LOG_ON_ERR(bk_adc_channel_init(&config));
     BK_LOG_ON_ERR(bk_adc_channel_read(adc_chan, &value, ADC_READ_SEMAPHORE_WAIT_TIME));
@@ -344,6 +346,7 @@ static void cli_sadc_multi_cmd(char *pcWriteBuffer, int xWriteBufferLen, int arg
         config.steady_ctrl= SARADC_STEADY_TIME;
         config.adc_filter = 0;
         config.sample_rate = 0;
+        config.adc_vref_sel = 0;
 
         BK_LOG_ON_ERR(bk_adc_channel_init(&config));
 
@@ -581,6 +584,7 @@ static void cli_adc_cont_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc,
     config.steady_ctrl= SARADC_STEADY_TIME;
     config.adc_filter = 0;
     config.sample_rate = sample_rate;
+    config.adc_vref_sel = 0;
 
     BK_LOG_ON_ERR(bk_adc_cont_start(&config, s_adc_channel_id, s_rd_data_buf, s_user_rd_cnt));
 
@@ -612,10 +616,13 @@ static void cli_adc_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
         if(config.adc_mode == ADC_CONTINUOUS_MODE) {
             config.sample_rate = os_strtoul(argv[7], NULL, 10);
         }
+        /* Optional 8th argument; not given keeps the nominal reference. */
+        config.adc_vref_sel = (argc > 8) ? os_strtoul(argv[8], NULL, 10) : 0;
 
         BK_LOG_ON_ERR(bk_adc_channel_init(&config));
-        CLI_LOGI("adc init test:adc_channel:%x, adc_mode:%x,src_clk:%x,adc_clk:%x, saturate_mode:%x, sample_rate:%x",
-                 adc_chan, config.adc_mode, config.src_clk, config.clk, config.saturate_mode, config.sample_rate);
+        CLI_LOGI("adc init test:adc_channel:%x, adc_mode:%x,src_clk:%x,adc_clk:%x, saturate_mode:%x, sample_rate:%x, vref_sel:%x",
+                 adc_chan, config.adc_mode, config.src_clk, config.clk, config.saturate_mode, config.sample_rate,
+                 config.adc_vref_sel);
     } else if (os_strcmp(argv[2], "deinit") == 0) {
         BK_LOG_ON_ERR(bk_adc_channel_deinit(adc_chan));
         CLI_LOGI("adc deinit test");
@@ -705,6 +712,7 @@ static void cli_adc_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
         {
             config.sample_rate = os_strtoul(argv[7], NULL, 10);
         }
+        config.adc_vref_sel = 0;
         BK_LOG_ON_ERR(bk_adc_channel_init(&config));
         CLI_LOGI("adc init test:adc_channel:%x, adc_mode:%x,src_clk:%x,adc_clk:%x, saturate_mode:%x, sample_rate:%x",
                  adc_chan, config.adc_mode, config.src_clk, config.clk, config.saturate_mode, config.sample_rate);

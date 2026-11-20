@@ -258,18 +258,32 @@ bk_err_t adc_activate_config(struct sadc_device *dev, adc_config_t *config)
     adc_hal_set_steady_ctrl(hal_ptr, config->steady_ctrl);
     adc_hal_set_saturate_mode(hal_ptr, config->saturate_mode);
 
-    if (config->vol_div == ADC_VOL_DIV_NONE) {
-        if (config->chan == ADC_0) {
+    /* GADC reference select is a chip-global analog setting, so it is applied
+     * on every activation and latched for saradc_calculate(): 1 selects the
+     * alternate vref, whose full scale is 1.2x the default one; 0 (default)
+     * keeps the nominal reference. */
+    sys_hal_set_gadc_vref_sel(config->adc_vref_sel);
+    dev->data.adc_vref_sel = config->adc_vref_sel ? 1 : 0;
+
+#if 0
+    if (config->vol_div == ADC_VOL_DIV_NONE)
+    {
+        if (config->chan == ADC_0)
+        {
             config->vol_div = ADC_VOL_DIV_5;
             adc_hal_set_vol_div(config->chan, ADC_VOL_DIV_5);
-        } else {
+        }
+        else
+        {
             config->vol_div = ADC_VOL_DIV_3;
             adc_hal_set_vol_div(config->chan, ADC_VOL_DIV_3);
         }
-    } else {
+    }
+    else
+    {
         adc_hal_set_vol_div(config->chan, config->vol_div);
     }
-
+#endif
     adc_set_channel(dev, config->chan);
 
     if (config->adc_mode == ADC_CONTINUOUS_MODE) {
@@ -1073,7 +1087,16 @@ float temperature_calculate(UINT16 adc_val)
 
 float bk_adc_data_calculate(UINT16 adc_val, UINT8 adc_chan)
 {
+    struct sadc_device *dev = saradc_dev_ptr;
     float cali_value = 0;
+
+    /* adc_vref_sel = 1 selects the alternate GADC reference whose full scale
+     * is 1.2 times the default one, so the raw code has to be mapped back to
+     * the default-reference domain before the calibration conversion. */
+    if (dev->data.adc_vref_sel)
+    {
+        adc_val *= ADC_VREF_SEL_SCALE;
+    }
 
     if (adc_chan == ADC_7) {
         return temperature_calculate(adc_val);

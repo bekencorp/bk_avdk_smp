@@ -44,6 +44,9 @@
 #define DEFAULT_ADC_SAMPLE_UNIT_BYTES     2
 #define DEFAULT_AVERAGE_SAMPLE_SIZE       32
 #define DEFAULT_SATURATE_MODE             ADC_SATURATE_MODE_3
+/* Full scale ratio between the alternate GADC vref (adc_vref_sel = 1) and the
+ * default one, applied to the raw code before the calibration conversion. */
+#define ADC_VREF_SEL_SCALE                1.2f
 #define ADC_SAMPLE_THRESHOLD_DEFAULT      32
 
 struct sadc_context {
@@ -62,6 +65,11 @@ struct sadc_data {
     uint16_t sampling_index;
 
     uint16_t sadc_cali_val[SARADC_CALIBRATE_MAX];
+
+    /* Latched adc_config_t::adc_vref_sel of the last activation: value 1
+     * selects the alternate GADC reference, whose full scale is 1.2 times the
+     * default one, so the raw code has to be scaled by 1.2 before conversion. */
+    uint8_t adc_vref_sel;
 };
 
 struct sadc_calib_ana_context {

@@ -141,6 +141,7 @@ uint16_t saradc_example(UINT8 adc_chan)
     adc_config.sample_rate = 0;
     adc_config.is_open = 0;
     adc_config.vol_div = ADC_VOL_DIV_NONE;//adc internal voltage division ratio
+    adc_config.adc_vref_sel = 0;//0: nominal reference, 1: alternate reference (voltage x1.2)
 
     // Initialize ADC channel
     ret = bk_adc_init(adc_chan);

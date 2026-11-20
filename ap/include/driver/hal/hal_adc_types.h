@@ -128,19 +128,20 @@ typedef enum {
  */
 
 typedef struct {
-	uint32_t clk;           /**< ADC sample clock division: adc_clk=clk/[2*(pre_div +1)] */
-	uint32_t sample_rate;   /**< ADC sample rate, every period ouput 16 adc_clks in continuous mode period = (16+samp_rate)*adc_clk*/
-	uint32_t adc_filter;    /**< ADC filter: the output data rate = period/(adc_filter +1) */
-	uint32_t steady_ctrl;   /**< ADC steady_ctrl : steady time = (steady_ctrl +1)*8 adc_clk  */
-	adc_mode_t adc_mode;    /**< ADC mode set */
-	adc_src_clk_t src_clk;  /**< ADC source clcok choose*/
-	adc_chan_t chan;        /**< ADC work channel*/
-	adc_saturate_mode_t saturate_mode; /**< ADC saturate_mode*/
+    uint32_t clk;           /**< ADC sample clock division: adc_clk=clk/[2*(pre_div +1)] */
+    uint32_t sample_rate;   /**< ADC sample rate, every period ouput 16 adc_clks in continuous mode period = (16+samp_rate)*adc_clk*/
+    uint32_t adc_filter;    /**< ADC filter: the output data rate = period/(adc_filter +1) */
+    uint32_t steady_ctrl;   /**< ADC steady_ctrl : steady time = (steady_ctrl +1)*8 adc_clk  */
+    adc_mode_t adc_mode;    /**< ADC mode set */
+    adc_src_clk_t src_clk;  /**< ADC source clcok choose*/
+    adc_chan_t chan;        /**< ADC work channel*/
+    adc_saturate_mode_t saturate_mode; /**< ADC saturate_mode*/
     uint32_t is_open;       /**< ADC channel is open or not*/
     uint16_t *output_buf;   /**< ADC channel output buffer*/
     int32_t output_buf_len; /**< ADC channel output buffer length*/
     uint16_t is_hw_using_cali_result;
     adc_vol_div_t vol_div;  /**< ADC channel attenuation coefficient */
+    uint32_t adc_vref_sel;  /**< ADC channel vref select*/
 } adc_config_t;
 
 typedef struct {
