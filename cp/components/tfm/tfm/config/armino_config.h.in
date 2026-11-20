@@ -3,4 +3,5 @@
  * project ram_regions.h. */
 #pragma once
 
+#define CONFIG_TFM_HEAP_SIZE @CONFIG_TFM_HEAP_SIZE@
 #define CONFIG_TFM_RAM_SIZE @CONFIG_TFM_RAM_SIZE@

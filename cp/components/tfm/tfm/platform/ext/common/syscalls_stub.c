@@ -11,6 +11,7 @@
  * including stub functions of system calls to avoid the above linker issue.
  */
 
+#include <errno.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -65,4 +66,42 @@ int _gettimeofday(void *tv, void *tz)
 	(void)tv;
 	(void)tz;
 	return -1;
+}
+
+/* Heap boundaries provided by the linker script. */
+extern char __HeapBase[];
+extern char __HeapLimit[];
+
+/* Bounded _sbrk: the libnosys implementation has no upper limit and would
+ * silently overrun .heap into the PSA RoT data placed right after it. */
+void *_sbrk(ptrdiff_t incr)
+{
+	static char *heap_end;
+	char *prev;
+	size_t size;
+
+	if (heap_end == NULL) {
+		heap_end = __HeapBase;
+	}
+
+	prev = heap_end;
+
+	if (incr >= 0) {
+		size = (size_t)incr;
+		if (size > (size_t)(__HeapLimit - prev)) {
+			errno = ENOMEM;
+			return (void *)-1;
+		}
+		heap_end = prev + size;
+	} else {
+		/* Negate without overflowing on PTRDIFF_MIN. */
+		size = (size_t)(-(incr + 1)) + 1U;
+		if (size > (size_t)(prev - __HeapBase)) {
+			errno = ENOMEM;
+			return (void *)-1;
+		}
+		heap_end = prev - size;
+	}
+
+	return prev;
 }

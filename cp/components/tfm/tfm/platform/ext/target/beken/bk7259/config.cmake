@@ -2,9 +2,10 @@ set(BL2                                 ON          CACHE BOOL      "Whether to 
 # Image signature = EC-P256 (matches security.csv root_key_type=ec256 and the
 # generated stub/security.h MCUBOOT_SIGN_EC256). The TF-M default is RSA-3072,
 # which would enable MBEDTLS_RSA_C without all profile_medium prerequisites.
-# EC-P256 signing requires MCUBOOT_USE_PSA_CRYPTO=ON (TF-M check_config.cmake).
+# Use the MCUboot mbedtls backend instead of PSA so that ECDSA operations are
+# routed to the Dubhe ACA hardware through libbl2_crypto_hw.
 set(MCUBOOT_SIGNATURE_TYPE              "EC-P256"   CACHE STRING    "Algorithm to use for signature validation" FORCE)
-set(MCUBOOT_USE_PSA_CRYPTO              ON          CACHE BOOL      "Enable MCUboot PSA crypto (required for EC-P256)" FORCE)
+set(MCUBOOT_USE_PSA_CRYPTO              OFF         CACHE BOOL      "Enable MCUboot PSA crypto" FORCE)
 # BL2 serial-download (common/download/) is being ported to bk7259. It is driven
 # by the armino TFM Kconfig (CONFIG_TFM_BL2_DOWNLOAD, default y) which injects
 # -DBL2_DOWNLOAD=y on the cmake command line.
@@ -14,7 +15,7 @@ set(MCUBOOT_IMAGE_NUMBER                1           CACHE STRING    "Whether to 
 set(PLATFORM_DEFAULT_IMAGE_SIGNING      OFF         CACHE BOOL      "Use default image signing implementation")
 set(CONFIG_TFM_BOOT_STORE_MEASUREMENTS   OFF         CACHE BOOL      "Store measurement values from all the boot stages. Used for initial attestation token." FORCE)
 set(CONFIG_TFM_USE_TRUSTZONE            ON)
-set(MBEDCRYPTO_BUILD_TYPE               debug CACHE STRING "Build type of Mbed Crypto library")
+set(MBEDCRYPTO_BUILD_TYPE               minsizerel CACHE STRING "Build type of Mbed Crypto library")
 set(PLATFORM_FLIH_IRQ_TEST_SUPPORT      ON       CACHE BOOL      "Whether the platform has FLIH test support")
 set(PLATFORM_HAS_ISOLATION_L3_SUPPORT   OFF      CACHE BOOL      "Whether the platform support isolation l3")
 set(MCUBOOT_HW_ROLLBACK_PROT            OFF         CACHE BOOL      "Enable security counter validation against non-volatile HW counters")

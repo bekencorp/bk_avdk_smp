@@ -29,7 +29,8 @@ tfm_invalid_config(BL2 AND (NOT MCUBOOT_UPGRADE_STRATEGY IN_LIST MCUBOOT_STRATEG
 # Maximum number of MCUBoot images supported by TF-M NV counters and ROTPKs
 tfm_invalid_config(MCUBOOT_IMAGE_NUMBER GREATER 9)
 
-tfm_invalid_config(MCUBOOT_SIGNATURE_TYPE STREQUAL "EC-P256" AND NOT MCUBOOT_USE_PSA_CRYPTO)
+# EC-P256 is also supported by the MCUboot mbedtls backend (MCUBOOT_USE_MBED_TLS),
+# which is used by the Beken platforms to route ECDSA to the ACA hardware.
 tfm_invalid_config(MCUBOOT_SIGNATURE_TYPE STREQUAL "EC-P384" AND NOT MCUBOOT_USE_PSA_CRYPTO)
 tfm_invalid_config(MCUBOOT_SIGNATURE_TYPE STREQUAL "RSA-2048" AND MCUBOOT_BUILTIN_KEY)
 tfm_invalid_config(MCUBOOT_SIGNATURE_TYPE STREQUAL "RSA-3072" AND MCUBOOT_BUILTIN_KEY)
