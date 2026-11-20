@@ -186,6 +186,12 @@ if (CONFIG_TFM AND tfm_present)
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 ${_partitions_src_dir}/_ppc.h
                 ${partition_hdr_dir}/_ppc.h
+            # AP PPHS master security overlay (0 mask when the project has no
+            # AP table). Applied by bk_tfm_ppc.c so an OTA of tfm_s alone can
+            # carry the master policy.
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                ${_partitions_src_dir}/_ppc_overlay.h
+                ${partition_hdr_dir}/_ppc_overlay.h
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 ${_partitions_src_dir}/_mpc.h
                 ${partition_hdr_dir}/_mpc.h
@@ -216,6 +222,12 @@ if (CONFIG_TFM AND tfm_present)
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 ${_stub_partitions_h}
                 ${partition_hdr_dir}/partitions.h
+            # AP PPHS master security overlay (0 mask when the project has no
+            # AP table). Applied by bk_tfm_ppc.c so an OTA of tfm_s alone can
+            # carry the master policy.
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                ${_partitions_src_dir}/_ppc_overlay.h
+                ${partition_hdr_dir}/_ppc_overlay.h
             # Stage the generated OTP map (otp_map_1/otp_map_2 with per-item
             # security). Only _otp.h/_otp.c are staged so the sibling generated
             # tfm_hal_ppc.h does not shadow the BK7259 stub no-op. otp_s.c

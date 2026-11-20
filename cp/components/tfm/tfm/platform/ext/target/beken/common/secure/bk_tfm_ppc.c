@@ -21,7 +21,13 @@
 #include "cmsis.h"
 #include "common/bk_err.h"
 #include "partitions_gen.h"
+#include "bk_tfm_log.h"
+/* Compile-time AP PPHS master security overlay, generated from the AP ppc.csv
+ * so it travels with tfm_s and can be delivered by OTA (the flash partition
+ * holding ppc_config_ap.bin is outside the OTA payload). */
+#include "_ppc_overlay.h"
 
+#define TAG                         "ppc"
 #define PPC_CONFIG_BIN_SIZE         0x200u
 #if defined(CONFIG_PARTITION_PHY_PARTITION_OFFSET)
 #define PPC_CP_CONFIG_FLASH_OFFSET  CONFIG_PARTITION_PHY_PARTITION_OFFSET
@@ -130,8 +136,29 @@ int bk_pphs_apply_config(const uint32_t config[BK_PPHS_CONFIG_WORD_COUNT])
     for (uint32_t i = 0; i < BK_PPHS_CONFIG_WORD_COUNT; i++) {
         volatile uint32_t *reg =
             (volatile uint32_t *)(SOC_PPHS_REG_BASE + ((0x4u + i) << 2));
-        *reg |= config[i];
+        uint32_t value = *reg | config[i];
+#if (PPC_AP_OVERLAY_MASK != 0u)
+        /* Force the master security bank from the image, not from flash, so a
+         * new tfm_s upgrades it over OTA. Read-modify-write keeps it idempotent
+         * across cold boot and AP re-power. Constants fold into immediates: no
+         * RAM, no literal pool and no flash read on the low-power boot path. */
+        if (i == PPC_AP_OVERLAY_WORD) {
+            value = (value & ~PPC_AP_OVERLAY_MASK) | PPC_AP_OVERLAY_VALUE;
+        }
+#endif
+        *reg = value;
     }
+
+    /* Validation aid: report the applied AP master security bank. PPHS reg7
+     * bits 0..7 are ENET_M/USB_M/SDIO_M/ISP_M/H264_M/VIDP_M/NPU_M (1 = Non-
+     * Secure) and bits 8..9 are CPU0_M/CPU1_M, which must stay Secure. */
+    BK_LOGI(TAG, "[PPHS] ap cfg %08x %08x %08x %08x -> reg4..7 %08x %08x %08x %08x\r\n",
+            (unsigned)config[0], (unsigned)config[1],
+            (unsigned)config[2], (unsigned)config[3],
+            (unsigned)*(volatile uint32_t *)(SOC_PPHS_REG_BASE + (0x4u << 2)),
+            (unsigned)*(volatile uint32_t *)(SOC_PPHS_REG_BASE + (0x5u << 2)),
+            (unsigned)*(volatile uint32_t *)(SOC_PPHS_REG_BASE + (0x6u << 2)),
+            (unsigned)*(volatile uint32_t *)(SOC_PPHS_REG_BASE + (0x7u << 2)));
 
     return BK_OK;
 }
