@@ -59,8 +59,12 @@
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
 #define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
-#define FTP_USER "bk7259"
-#define FTP_PASSWORD "123456"
+#ifndef CONFIG_FTP_USER
+#define CONFIG_FTP_USER ""
+#endif
+#ifndef CONFIG_FTP_PASSWORD
+#define CONFIG_FTP_PASSWORD ""
+#endif
 
 uint32_t ftp_is_running = 0;
 
@@ -406,6 +410,7 @@ struct ftpd_msgstate
 	struct ftpd_datastate *datafs;
 	int passive;
 	char *renamefrom;
+	int logged_in;
 	off_t restart_offset;
 };
 
@@ -1215,28 +1220,53 @@ static int open_dataconnection(struct tcp_pcb *pcb, struct ftpd_msgstate *fsm)
 	return 0;
 }
 
+/* Empty or missing credentials never match. Both sides must be non-empty. */
+static int ftpd_auth_ok(const char *arg, const char *expect)
+{
+	if (arg == NULL || arg[0] == '\0')
+		return 0;
+	if (expect == NULL || expect[0] == '\0')
+		return 0;
+	return strcmp(arg, expect) == 0;
+}
+
+/* Commands that do not touch files or open a data connection. */
+static int ftpd_preauth_ok(const char *cmd)
+{
+	return !strcmp(cmd, "USER") || !strcmp(cmd, "PASS") || !strcmp(cmd, "QUIT")
+		|| !strcmp(cmd, "NOOP") || !strcmp(cmd, "SYST") || !strcmp(cmd, "FEAT")
+		|| !strcmp(cmd, "OPTS") || !strcmp(cmd, "CLNT") || !strcmp(cmd, "TYPE")
+		|| !strcmp(cmd, "MODE");
+}
+
 static void cmd_user(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate *fsm)
 {
-	if (!strcmp(arg, FTP_USER))
+	/* A new USER drops any previous login until PASS succeeds. */
+	fsm->logged_in = 0;
+	if (ftpd_auth_ok(arg, CONFIG_FTP_USER))
 	{
 		send_msg(pcb, fsm, msg331);
 		fsm->state = FTPD_PASS;
 	}
 	else
 	{
+		fsm->state = FTPD_USER;
 		send_msg(pcb, fsm, msg530);
 	}
 }
 
 static void cmd_pass(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate *fsm)
 {
-	if (!strcmp(arg, FTP_PASSWORD))
+	if (fsm->state == FTPD_PASS && ftpd_auth_ok(arg, CONFIG_FTP_PASSWORD))
 	{
-		send_msg(pcb, fsm, msg230);
+		fsm->logged_in = 1;
 		fsm->state = FTPD_IDLE;
+		send_msg(pcb, fsm, msg230);
 	}
 	else
 	{
+		fsm->logged_in = 0;
+		fsm->state = FTPD_USER;
 		send_msg(pcb, fsm, msg530);
 	}
 }
@@ -2476,7 +2506,14 @@ static err_t ftpd_msgrecv(void *arg, struct tcp_pcb *pcb, struct pbuf *p, err_t 
 			while (((*pt == '\r') || (*pt == '\n')) && pt >= text)
 				*pt-- = '\0';
 
-			LOGI("query: %s\r\n", text);
+			if (strlen(text) >= 4 &&
+			    (text[0] == 'P' || text[0] == 'p') &&
+			    (text[1] == 'A' || text[1] == 'a') &&
+			    (text[2] == 'S' || text[2] == 's') &&
+			    (text[3] == 'S' || text[3] == 's'))
+				LOGI("query: PASS\r\n");
+			else
+				LOGI("query: %s\r\n", text);
 
 			strncpy(cmd, text, 4);
 			for (pt = cmd; isalpha((int)*pt) && pt < &cmd[4]; pt++)
@@ -2494,7 +2531,9 @@ static err_t ftpd_msgrecv(void *arg, struct tcp_pcb *pcb, struct pbuf *p, err_t 
 			else
 				pt = &text[strlen(cmd) + 1];
 
-			if (ftpd_cmd->func)
+			if (!fsm->logged_in && !ftpd_preauth_ok(cmd))
+				send_msg(pcb, fsm, msg530);
+			else if (ftpd_cmd->func)
 				ftpd_cmd->func(pt, pcb, fsm);
 			else
 				send_msg(pcb, fsm, msg502);
@@ -2558,7 +2597,8 @@ static err_t ftpd_msgaccept(void *arg, struct tcp_pcb *pcb, err_t err)
 	memset(fsm, 0, sizeof(struct ftpd_msgstate));
 
 	sfifo_init(&fsm->fifo, MAX_PRE_READ_BUFFER_SIZE);
-	fsm->state = FTPD_IDLE;
+	fsm->state = FTPD_USER;
+	fsm->logged_in = 0;
 
 	tcp_arg(pcb, fsm);
 	tcp_recv(pcb, ftpd_msgrecv);

@@ -43,6 +43,23 @@ menu "App"
 		bool "Enable FTP server"
 		default n
 
+	config FTP_USER
+		string "FTP username"
+		depends on FTP_SERVER
+		default ""
+		help
+			Login name required by the FTP server. An empty value rejects
+			every USER command with 530. Set this explicitly when enabling
+			the server; there is no built-in account.
+
+	config FTP_PASSWORD
+		string "FTP password"
+		depends on FTP_SERVER
+		default ""
+		help
+			Password required by the FTP server. An empty value rejects
+			every PASS command with 530. Do not rely on a default password.
+
 	config FTP_USE_PSARM_MEM
 		bool "FTP use psram memory"
 		depends on PSRAM
