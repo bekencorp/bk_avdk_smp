@@ -40,6 +40,79 @@ def gen_ppc_const(ppc, f):
     line = f'#define DEV_ID_IS_PRIVILEGE(dev, id)    GEN_SECURITY_DEV_##dev##id##_IS_PRIVILEGE\n'
     f.write(line)
 
+def _pphs_master_overlay(ap_ppc_csv='ap_ppc.csv', ap_sec_csv='ap_ppro_sec.csv'):
+    """Return (word, mask, value) for the PPHS master security bank.
+
+    The AP table and its PPHS Secure mapping are copied next to the CP table by
+    bk_prebuild.py, so the secure image can carry the AP master policy itself:
+    only devices whose name ends with '_M' participate. Privilege is ignored
+    because ppro_ap.csv has no master entries.
+    """
+    if not (os.path.exists(ap_ppc_csv) and os.path.exists(ap_sec_csv)):
+        return None
+
+    with open(ap_sec_csv, newline="") as sec_file:
+        sec_rows = list(csv.DictReader(sec_file))
+    # PPHS attribute banks start at reg4; a PPRO table uses reg4 for GPIO.
+    if not any(int(row['Reg'], 16) == 4 for row in sec_rows):
+        return None
+
+    bit_map = {}
+    for row in sec_rows:
+        # A device may own several bits (SDIO_M uses two), so keep them all.
+        bit_map.setdefault(row['Device'], []).append(
+            (int(row['Reg'], 16) - 4, int(row['Bit'])))
+
+    with open(ap_ppc_csv, newline="") as ppc_file:
+        rows = list(csv.DictReader(ppc_file))
+
+    word = None
+    mask = 0
+    value = 0
+    for row in rows:
+        device = row['Device']
+        if not device.endswith('_M'):
+            continue
+        if device not in bit_map:
+            logging.warning(f'{device}: no PPHS bit, skipped by the master overlay')
+            continue
+        for dev_word, dev_bit in bit_map[device]:
+            if word is None:
+                word = dev_word
+            elif word != dev_word:
+                logging.warning(f'{device}: master overlay spans several PPHS words, skipped')
+                return None
+            mask |= 1 << dev_bit
+            if row['Secure'] != "TRUE":
+                value |= 1 << dev_bit
+
+    if word is None:
+        return None
+
+    return word, mask, value
+
+def gen_ppc_overlay_file(outfile='_ppc_overlay.h'):
+    """Emit the compile-time PPHS overlay consumed by bk_tfm_ppc.c.
+
+    Kept as plain integer macros: they are encoded as Thumb2 immediates, so the
+    overlay costs no RAM, no literal-pool access and no extra flash read on the
+    low-power AP boot path.
+    """
+    overlay = _pphs_master_overlay()
+    word, mask, value = overlay if overlay else (0, 0, 0)
+
+    f = open(outfile, 'w')
+    logging.debug(f'Create {outfile}')
+    f.write(get_license())
+    f.write('/* AP PPHS master security bank overlay, generated from the AP\n'
+            ' * ppc.csv. bk_tfm_ppc.c applies it on top of the flash config so\n'
+            ' * an OTA of tfm_s alone can carry the AP master policy.\n'
+            ' * PPC_AP_OVERLAY_MASK == 0 disables the overlay. */\n')
+    f.write(f'#define PPC_AP_OVERLAY_WORD    {word}u\n')
+    f.write(f'#define PPC_AP_OVERLAY_MASK    0x{mask:08X}u\n')
+    f.write(f'#define PPC_AP_OVERLAY_VALUE   0x{value:08X}u\n')
+    f.close()
+
 def gen_ppc_init_file(ppc):
     ppc_init_file_name = f'tfm_hal_ppc.h'
     f = open(ppc_init_file_name, 'w')
@@ -79,3 +152,4 @@ def gen_ppc_config_file(ppc_csv='ppc.csv', gpio_dev_csv='gpio_dev.csv', outfile=
     ppc.gen_ppc_bin()
     gen_ppc_const(ppc, f)
     gen_ppc_init_file(ppc)
+    gen_ppc_overlay_file()

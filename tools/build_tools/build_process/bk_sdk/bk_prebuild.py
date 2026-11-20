@@ -212,6 +212,37 @@ def prebuild():
             cmake_partition_bin_dir / "gpio_dev.csv",
         )
 
+    # The TF-M (secure) image carries the AP PPHS master security policy so that
+    # an OTA of tfm_s alone can deliver it (the flash partition holding
+    # ppc_config_ap.bin is not part of the OTA payload). Hand the AP table and
+    # its PPHS Secure mapping to `gen all`, which turns them into
+    # _ppc_overlay.h for the secure build.
+    if not app_name.endswith("_ap"):
+        ap_app_name = f"{soc_name}_ap"
+        ap_cfg_dir = curr_project.get_middleware_soc_config_path(ap_app_name)
+        copy_file(
+            f"{project_partitions_root / ap_app_name}/ppc.csv",
+            f"{cmake_partition_bin_dir}/ap_ppc.csv",
+        )
+        copy_file(
+            f"{ap_cfg_dir}/regs/ppro_sec.csv",
+            f"{cmake_partition_bin_dir}/ap_ppro_sec.csv",
+        )
+
+    # `gen` only emits the overlay when a PPC table exists. Projects without one
+    # (e.g. the plain `app` project) still build the secure image, so provide a
+    # disabled overlay to keep the TF-M header staging valid.
+    if not (cmake_partition_bin_dir / "ppc.csv").exists():
+        overlay = cmake_partition_bin_dir / "_ppc_overlay.h"
+        if not overlay.exists():
+            overlay.write_text(
+                "#pragma once\n"
+                "/* No PPC table in this project: master overlay disabled. */\n"
+                "#define PPC_AP_OVERLAY_WORD   0u\n"
+                "#define PPC_AP_OVERLAY_MASK   0u\n"
+                "#define PPC_AP_OVERLAY_VALUE  0u\n"
+            )
+
     generated_partitions_csv = (
         curr_project.project_build_parititons_dir / "partitions.csv"
     )
