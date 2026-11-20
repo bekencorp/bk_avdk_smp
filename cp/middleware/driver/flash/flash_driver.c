@@ -148,6 +148,7 @@ bk_err_t bk_flash_driver_init(void)
 	if (!flash_core_identify()) {
 		for(int i = 0; i < 10; i++) {
 			FLASH_LOGE("This flash is not identified, choose default config\r\n");
+			BK_ASSERT(0);
 		}
 	}
 	FLASH_LOGI("id=0x%x\r\n", flash_core_get_id());
