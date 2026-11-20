@@ -1122,15 +1122,6 @@ void sys_ana_usb_phy_op(uint8_t en)
     }
 }
 
-void spitrig_toggle(void)
-{
-#define SYS_ANA_SPI_TRIG_REG (SOC_SYS_REG_BASE + 0x40 * 4)
-
-    uint32_t value = REG_READ(SYS_ANA_SPI_TRIG_REG);
-    REG_WRITE(SYS_ANA_SPI_TRIG_REG, value | 0x01<<19);
-    REG_WRITE(SYS_ANA_SPI_TRIG_REG, value & ~(0x01<<19));
-}
-
 void musb_isoc_pipe_init(struct musb_pipe *pipe, uint8_t *buffer, uint32_t buflen)
 {
     uint8_t old_ep_index;

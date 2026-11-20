@@ -46,7 +46,6 @@ bk_err_t bk_usb_fs_close(void); /* external linkage: declared in usb.h */
 
 extern void usb_clk_config(uint8_t);
 extern void sys_ana_usb_phy_op(uint8_t en);
-extern void spitrig_toggle(void);
 
 /* MTP tracks its own activity here instead of setting s_usb_open_close_flag:
  * MTP is a device gadget on busid 0, orthogonal to the host-mode flag, but it
@@ -289,8 +288,6 @@ void bk_analog_layer_usb_sys_related_ops(uint32_t usb_mode, bool ops)
 	extern void delay(INT32 num);
 
 	if(ops){
-		spitrig_toggle();
-		delay(100);
 		usb_clk_config(1); // sys_drv_usb_clock_ctrl(true, NULL);
 		delay(100);
 		sys_ana_usb_phy_op(1);// sys_drv_usb_analog_phy_en(1, NULL);
